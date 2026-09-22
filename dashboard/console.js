@@ -35,7 +35,9 @@
     learn: "brain",
     kanban: "square-kanban",
     terminal: "terminal",
-    coding: "file-code",
+    // </> chứ không phải "một file mã": trang này là chỗ SAI VIỆC cho engine trên một thư
+    // mục, không phải chỗ mở một file. Ký hiệu </> ai nhìn cũng hiểu ngay là lập trình.
+    coding: "code-xml",
     models: "cpu",
     channels: "send",
     mcp: "plug",

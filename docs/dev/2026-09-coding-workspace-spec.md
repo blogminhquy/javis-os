@@ -1,7 +1,7 @@
 # Coding Workspace (dự kiến 0.63.0)
 
 **Phiên bản:** v0.3. Thay cho v0.2 (chia bốn giai đoạn) và v0.1 (viết ngoài repo 2026-09-21).
-**Trạng thái:** chốt phạm vi, **chưa viết mã**.
+**Trạng thái:** **đã làm** ở 0.63.0, sửa theo phản hồi dùng thử ở 0.63.1, 0.63.2 và 0.63.4 (xem mục 13).
 **Phạm vi:** làm gọn trong MỘT phiên sửa. Chủ dự án chốt 2026-09-22.
 Tài liệu cho người sửa lõi.
 
@@ -280,3 +280,23 @@ Giữ lại vì lý do từ chối bền hơn thứ bị từ chối:
 ## 12. North Star
 
 > Một Javis. Nhiều engine. Người dùng chọn engine, Javis lo phần còn lại.
+
+---
+
+## 13. Ba lượt sửa sau khi dùng thử
+
+Bản 0.63.0 đúng tài liệu này nhưng sai trải nghiệm ở mấy chỗ chỉ lộ ra khi có người dùng thật.
+Ghi lại vì cả ba lượt đều là CÙNG một loại sai, và loại đó dễ lặp:
+
+- **0.63.1** bỏ màn chặn "Chưa có repo nào" (một bước cài đặt dựng chắn trước một trang CHAT),
+  và đổi REPO thành THƯ MỤC (git là thứ đọc ra, không phải điều kiện vào cửa).
+- **0.63.2** thay danh sách phiên tự vẽ bằng chính cột hội thoại của trang Trò chuyện
+  (`JavisChatSide.mount`), và thêm chế độ Plan.
+- **0.63.4** thay ô gõ đường dẫn bằng hộp duyệt thư mục `JavisFolderPicker`, mặc lại bộ lớp
+  `.folder-modal/.fm-*` và endpoint `GET /browse` đã có; `/browse` thêm `md=0` (bỏ đếm .md) và
+  cờ `git` cho từng thư mục con. Icon mục đổi sang `code-xml`.
+
+Loại sai chung: **dựng bản thứ hai của một thứ app đã có** (danh sách hội thoại, hộp chọn thư
+mục), hoặc **bắt người dùng khai dữ liệu cho vừa mô hình bên trong** (phải có `.git`, phải gõ
+đường dẫn tuyệt đối). Quyết định 3 ở đầu tài liệu đã nói "mượn màn, không dựng lại"; ba lượt
+sửa này là giá của việc chỉ áp nó cho khung chat mà quên mọi thứ nhỏ hơn.
