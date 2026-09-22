@@ -32,8 +32,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=88">
-  <link rel="stylesheet" href="/static/console.css?v=63">
+  <link rel="stylesheet" href="/static/style.css?v=90">
+  <link rel="stylesheet" href="/static/console.css?v=65">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
   <script>(function(){try{if(localStorage.getItem('javis.theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
@@ -836,7 +836,7 @@
        bắt được cả trường hợp một file phía dưới hỏng vì đang chạy bản cũ. -->
   <script src="/static/freshness.js"></script>
   <script src="/static/i18n/index.js?v=2"></script>
-  <script src="/static/vendor/lucide-icons.js?v=5"></script>
+  <script src="/static/vendor/lucide-icons.js?v=6"></script>
   <script src="/static/icons.js?v=2"></script>
 
   <!-- theme.js phải nạp TRƯỚC mọi file khác: graph.js / app.js đăng ký
@@ -884,7 +884,7 @@
   <script src="/static/studio.js?v=39"></script>
   <!-- Trang Cộng sự: nạp SAU studio.js (mượn trình sửa agent/workflow của Studio) và TRƯỚC
        console.js (renderWorkspace ủy quyền cho window.JavisWorkspace). -->
-  <script src="/static/workspace.js?v=10"></script>
+  <script src="/static/workspace.js?v=11"></script>
   <script src="/static/packs.js?v=1"></script>
   <script src="/static/chatbots.js?v=16"></script>
   <!-- Trang Hội thoại (hộp thư khách): nạp TRƯỚC console.js để renderConversations uỷ quyền được. -->
@@ -894,11 +894,13 @@
   <!-- Trang Code (terminal): nạp TRƯỚC console.js để renderCode ủy quyền được. File này CHỈ có
        phần khung - xterm.js (285KB) nạp lười ở lần đầu mở tab, không nằm trong đường khởi động. -->
   <script src="/static/code-term.js?v=2"></script>
+  <!-- Hộp chọn thư mục dùng chung (JavisFolderPicker). Nạp TRƯỚC file nào gọi nó. -->
+  <script src="/static/folder-picker.js?v=2"></script>
   <!-- Trang Coding (nhóm Code): mượn khung chat của app, nên nạp TRƯỚC console.js y như
        workspace.js để renderCoding uỷ quyền được. -->
-  <script src="/static/coding.js?v=1"></script>
+  <script src="/static/coding.js?v=4"></script>
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
-  <script src="/static/console.js?v=145"></script>
+  <script src="/static/console.js?v=147"></script>
   <script src="/static/mobile-chat.js?v=8"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>

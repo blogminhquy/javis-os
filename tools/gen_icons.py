@@ -5,7 +5,8 @@ Chạy lại mỗi khi thêm/bớt icon trong manifest:
 
     python tools/gen_icons.py
 
-Script tải SVG từ CDN của lucide-static rồi rút phần ruột (bỏ thẻ <svg> ngoài,
+Script tải SVG của lucide-static (CDN, dự phòng là gói .tgz trên npm) rồi rút
+phần ruột (bỏ thẻ <svg> ngoài,
 vì icons.js tự dựng thẻ bọc). Kết quả ghi vào vendor/ và ĐƯỢC COMMIT vào repo -
 app không bao giờ gọi mạng lúc chạy, chạy được cả khi máy không có internet.
 
@@ -16,9 +17,11 @@ phát hiện bằng mắt).
 
 from __future__ import annotations
 
+import io
 import json
 import re
 import sys
+import tarfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -30,7 +33,15 @@ OUT_CSS = ROOT / "dashboard" / "vendor" / "lucide-icons.css"
 
 LUCIDE_VERSION = "1.27.0"
 CDN = "https://cdn.jsdelivr.net/npm/lucide-static@{ver}/icons/{name}.svg"
+# Dự phòng khi CDN không vào được (tường lửa công ty, proxy của agent hay chặn jsdelivr và
+# unpkg): tải thẳng gói .tgz của ĐÚNG phiên bản đó từ npm rồi đọc icon trong gói. Đây chính
+# là gói mà CDN phục vụ, nên icon lấy ra giống hệt.
+#
+# ĐỪNG thay bằng repo lucide trên GitHub: thẻ "1.27.0" ở đó là Lucide 1.x đời đầu, một bộ
+# icon KHÁC hẳn, thiếu nhiều tên mà lucide-static@1.27.0 có (circle-help chẳng hạn).
+NPM_TGZ = "https://registry.npmjs.org/lucide-static/-/lucide-static-{ver}.tgz"
 TIMEOUT = 20
+TIMEOUT_GOI = 120           # tải cả gói thì lâu hơn tải một file
 
 # Thuộc tính thẻ <svg> ngoài do icons.js dựng, nên rút bỏ khỏi phần ruột.
 OUTER_SVG = re.compile(r"^.*?<svg\b[^>]*>(.*)</svg>\s*$", re.DOTALL)
@@ -75,20 +86,56 @@ def data_uri(body: str) -> str:
     return 'url("data:image/svg+xml,' + svg + '")'
 
 
-def fetch(name: str) -> str:
+def _ten_sai(name: str) -> "None":
+    sys.exit(
+        f"Không có icon '{name}' trong lucide-static@{LUCIDE_VERSION}.\n"
+        f"Tra lại tên đúng ở https://lucide.dev/icons/ rồi sửa manifest."
+    )
+
+
+_goi: tarfile.TarFile | None = None
+
+
+def goi_npm() -> tarfile.TarFile:
+    """Gói .tgz của lucide-static, tải MỘT lần rồi giữ trong bộ nhớ."""
+    global _goi
+    if _goi is None:
+        url = NPM_TGZ.format(ver=LUCIDE_VERSION)
+        print(f"  (CDN không vào được, tải gói npm: {url})")
+        try:
+            with urllib.request.urlopen(url, timeout=TIMEOUT_GOI) as resp:
+                _goi = tarfile.open(fileobj=io.BytesIO(resp.read()), mode="r:gz")
+        except (urllib.error.URLError, OSError) as exc:
+            sys.exit(f"Không tải được gói npm ({exc}). Script này cần internet.")
+    return _goi
+
+
+def tai(name: str) -> str:
+    """SVG thô của một icon: thử CDN trước, hỏng mạng thì lấy trong gói npm.
+
+    404 ở CDN dừng NGAY: gói và CDN là cùng một phiên bản, nên 404 nghĩa là tên icon sai chứ
+    không phải nguồn hỏng, và thử tiếp chỉ làm câu báo lỗi mờ đi."""
     url = CDN.format(ver=LUCIDE_VERSION, name=name)
     try:
         with urllib.request.urlopen(url, timeout=TIMEOUT) as resp:
-            raw = resp.read().decode("utf-8")
+            return resp.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
-            sys.exit(
-                f"Không có icon '{name}' trong lucide-static@{LUCIDE_VERSION}.\n"
-                f"Tra lại tên đúng ở https://lucide.dev/icons/ rồi sửa manifest."
-            )
-        sys.exit(f"Tải '{name}' lỗi HTTP {exc.code}: {url}")
-    except urllib.error.URLError as exc:
-        sys.exit(f"Không nối được CDN ({exc.reason}). Script này cần internet.")
+            _ten_sai(name)
+        print(f"  (CDN trả HTTP {exc.code} cho '{name}', thử gói npm)")
+    except urllib.error.URLError:
+        pass
+    try:
+        f = goi_npm().extractfile(f"package/icons/{name}.svg")
+    except KeyError:
+        f = None
+    if f is None:
+        _ten_sai(name)
+    return f.read().decode("utf-8")
+
+
+def fetch(name: str) -> str:
+    raw = tai(name)
 
     raw = COMMENT.sub("", raw)
     match = OUTER_SVG.match(raw)

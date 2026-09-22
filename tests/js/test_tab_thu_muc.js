@@ -87,8 +87,16 @@ check("CANARY: không vô hiệu hoá nút phóng to trình sửa",
 // không toast, chỉ là im lặng. Đó là loại hỏng tệ nhất vì không để lại dấu vết nào.
 const WS = D("workspace.js");
 check("trang Cộng sự có chỗ đứng riêng cho trình sửa", /id="wsEdit"/.test(WS));
-check("CANARY: khung mặc định của _borrowNoteEditor nhận CẢ hai trang",
-  /into = into \|\| document\.getElementById\("chatPageEdit"\) \|\| document\.getElementById\("wsEdit"\)/.test(CON));
+// 0.63.4: cùng lỗi đó tái diễn ở trang Coding, vì danh sách id viết cứng lại thiếu một tên.
+// Nên bỏ danh sách: khung nào nhận trình sửa thì TỰ KHAI `data-ne-host`. Canary giữ nguyên ý
+// cũ (khung mặc định phải nhận mọi trang mượn khung chat) nhưng canh theo cơ chế mới, và canh
+// thêm rằng danh sách cứng không quay lại.
+check("CANARY: _borrowNoteEditor dò khung bằng dấu khai, không bằng danh sách id",
+  /into = into \|\| document\.querySelector\("\[data-ne-host\]"\)/.test(CON)
+  && !/getElementById\("chatPageEdit"\) \|\| document\.getElementById\("wsEdit"\)/.test(CON));
+check("CANARY: mọi trang mượn khung chat đều khai khung trình sửa của mình",
+  /id="chatPageEdit" data-ne-host/.test(CON) && /id="wsEdit" data-ne-host/.test(WS)
+  && /id="cdEdit" data-ne-host/.test(D("coding.js")));
 // Ở trang Cộng sự, mở file là TẮT HẲN khung chat và trình sửa chiếm trọn khoang giữa (chủ dự
 // án chốt 16/09). Khác trang Trò chuyện, nơi hai bên vẫn đứng cạnh nhau: khoang giữa trang
 // Cộng sự đã bị cột danh sách và cột phải ăn mất ~570px, chia đôi thì bên nào cũng hẹp.

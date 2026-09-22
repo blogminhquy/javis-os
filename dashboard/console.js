@@ -35,7 +35,9 @@
     learn: "brain",
     kanban: "square-kanban",
     terminal: "terminal",
-    coding: "git-branch",
+    // </> chứ không phải "một file mã": trang này là chỗ SAI VIỆC cho engine trên một thư
+    // mục, không phải chỗ mở một file. Ký hiệu </> ai nhìn cũng hiểu ngay là lập trình.
+    coding: "code-xml",
     models: "cpu",
     channels: "send",
     mcp: "plug",
@@ -61,6 +63,9 @@
   // Icon cho TẦNG 1 (nhãn nhóm) - chỉ dùng ở header nhóm rail.
   const GICON = {
     "Bộ não": ic("brain"),
+    // Giữ "file-code" như trước khi có mục Coding. 0.63.1 từng đổi sang "wrench" để nhường
+    // icon cho mục con, nhưng 0.63.4 mục con đã sang "code-xml" nên không còn trùng nữa, mà
+    // cờ lê thì nói "sửa chữa, cài đặt" chứ không nói "mã nguồn". Chủ dự án đòi trả lại.
     "Code": ic("file-code"),
     "Năng lực": ic("lightbulb"),
     "Việc": ic("clipboard-check"),
@@ -7044,7 +7049,12 @@
     // mang lớp body.on-chat: Trò chuyện (#chatPageEdit) và Cộng sự (#wsEdit). Trước 0.59.2 chỗ
     // này tra cứng #chatPageEdit, nên ở trang Cộng sự `into` là null và cú bấm vào một file .md
     // trong chat LẶNG LẼ không làm gì - không lỗi, không toast, chỉ là không có gì mở ra.
-    into = into || document.getElementById("chatPageEdit") || document.getElementById("wsEdit");
+    // Khung nào nhận trình sửa thì TỰ KHAI bằng `data-ne-host`, thay cho danh sách id viết
+    // cứng ở đây. Danh sách cứng đã cắn hai lần đúng một kiểu: trang Cộng sự (0.59.2) rồi
+    // trang Coding (0.63.4) mở file ra LẶNG LẼ không có gì xảy ra, vì tên khung của trang mới
+    // không có trong danh sách. Không lỗi, không toast, nên rất khó đoán ra.
+    // Mỗi lúc chỉ một trang dựng trong cviewBody nên chỉ có tối đa một khung mang dấu này.
+    into = into || document.querySelector("[data-ne-host]");
     if (!ed || !into) return false;
     if (!_neSlot) _neSlot = { node: ed, parent: ed.parentNode, next: ed.nextSibling };
     into.appendChild(ed);
@@ -7164,7 +7174,7 @@
           '</div>' +
           '<div class="chatpage-slot" id="chatPageSlot"></div>' +
           // Chỗ đứng cho TRÌNH SỬA khi mở file từ tab Thư mục. Rỗng và ẩn cho tới lúc đó.
-          '<div class="chatpage-edit" id="chatPageEdit"></div>' +
+          '<div class="chatpage-edit" id="chatPageEdit" data-ne-host></div>' +
         '</div>' +
       '</div>';
     const page = el.querySelector("#chatPage");

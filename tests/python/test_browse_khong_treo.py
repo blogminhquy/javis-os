@@ -74,7 +74,7 @@ def test_browse_khong_quet_dia_tren_event_loop(monkeypatch):
     song song có còn đập không. Chặn thật trên event loop thì nhịp tim đứng hình - đúng
     như healthcheck 30 giây bị bỏ đói trên VPS. Không đo bằng cây thư mục thật vì bản đã
     sửa quét xong quá nhanh, phép đo sẽ hoá may rủi."""
-    def cham_nhung_khong_duoc_khoa(path):
+    def cham_nhung_khong_duoc_khoa(path, dem_md=True):
         time.sleep(0.3)
         return {"path": path, "parent": None, "dirs": []}
 
@@ -126,6 +126,57 @@ def test_browse_van_tra_dung_du_lieu(tmp_path):
     assert ten == ["brain-a"], "thư mục ẩn phải bị lọc"
     assert res["dirs"][0]["md"] == 1
     assert res["path"] == str(tmp_path)
+
+
+def test_browse_md_0_khong_dem_va_bao_dung_repo_git(tmp_path):
+    """Đường dành cho trang Coding: md=0 thì BỎ HẲN phần đếm .md và báo cờ git.
+
+    Người chọn thư mục CODE không cần con số .md, mà đếm nó là quét cả node_modules và .venv
+    cho mỗi thư mục con - đúng kiểu quét đã treo server hồi 2026-07-28."""
+    (tmp_path / "du-an").mkdir()
+    (tmp_path / "du-an" / ".git").mkdir()
+    (tmp_path / "du-an" / "ghi-chu.md").write_text("x", encoding="utf-8")
+    (tmp_path / "thu-muc-thuong").mkdir()
+
+    res = asyncio.run(main.browse(path=str(tmp_path), md=0))
+    theo_ten = {d["name"]: d for d in res["dirs"]}
+    assert set(theo_ten) == {"du-an", "thu-muc-thuong"}
+    assert theo_ten["du-an"]["md"] is None, "md=0 mà vẫn đếm"
+    assert res["here_md"] is None
+    assert theo_ten["du-an"]["git"] is True
+    assert theo_ten["thu-muc-thuong"]["git"] is False
+
+
+def test_browse_md_0_khong_goi_ham_dem(tmp_path, monkeypatch):
+    """Chốt cứng: không phải "đếm rồi vứt đi", mà là KHÔNG ĐẾM."""
+    (tmp_path / "con").mkdir()
+
+    def khong_duoc_goi(*a, **k):
+        raise AssertionError("md=0 mà vẫn gọi _count_md")
+
+    monkeypatch.setattr(main, "_count_md", khong_duoc_goi)
+    res = asyncio.run(main.browse(path=str(tmp_path), md=0))
+    assert [d["name"] for d in res["dirs"]] == ["con"]
+
+
+def test_browse_mac_dinh_van_dem_md(tmp_path):
+    """Hộp chọn brain vẫn phải thấy con số .md: thêm đường mới không được đổi đường cũ."""
+    (tmp_path / "brain-a").mkdir()
+    (tmp_path / "brain-a" / "note.md").write_text("x", encoding="utf-8")
+    res = asyncio.run(main.browse(path=str(tmp_path)))
+    assert res["dirs"][0]["md"] == 1
+    assert res["here_md"] == 1        # here_md đếm cả cây con, không chỉ file ngay tại chỗ
+
+
+def test_la_repo_nhan_ca_worktree_phu(tmp_path):
+    """Trong một worktree phụ, `.git` là FILE chứ không phải thư mục."""
+    phu = tmp_path / "wt"
+    phu.mkdir()
+    (phu / ".git").write_text("gitdir: /x/.git/worktrees/wt\n", encoding="utf-8")
+    assert main._la_repo(str(phu)) is True
+    tron = tmp_path / "tron"
+    tron.mkdir()
+    assert main._la_repo(str(tron)) is False
 
 
 def test_browse_bao_loi_gon_khi_path_sai():

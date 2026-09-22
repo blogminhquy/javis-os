@@ -55,9 +55,9 @@ _git(["config", "user.name", "t"], str(REPO))
 _git(["add", "-A"], str(REPO))
 _git(["commit", "-qm", "đầu"], str(REPO))
 
-repo_row = coding_store.add_repo(str(REPO), brain="brain", ten="du-an")
+repo_row = coding_store.them_thu_muc(str(REPO), brain="brain", ten="du-an")
 SID = "phien-coding-1"
-coding_store.dat_rang_buoc(SID, repo=repo_row["id"])
+coding_store.dat_rang_buoc(SID, thu_muc_id=repo_row["id"])
 
 
 # ---- 1. CodingToolContext đọc đúng kho ----

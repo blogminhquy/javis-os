@@ -10,6 +10,43 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Cần bật một lần bằng biến môi trường `JAVIS_ENABLE_WEB_CHAT=true` rồi khởi động lại. Chưa bật thì model này không hiện ra, và mọi thứ khác chạy y như cũ.
 - Trang **Models**, trong thẻ ChatGPT, có thêm nút mở cửa sổ đăng nhập, nút kiểm tra lại và nút đóng trình duyệt. Javis không cầm mật khẩu của bạn: bạn tự đăng nhập một lần trong cửa sổ đó.
 - Lưu ý khi dùng: mỗi lượt là một cuộc chat thật trên chatgpt.com, nên **Memory** và **Custom instructions** của tài khoản sẽ ảnh hưởng câu trả lời. Muốn Javis trả lời thuần theo prompt của mình thì tắt hai thứ đó trong cài đặt ChatGPT. Mỗi vòng gọi tool cũng mất vài chục giây, nên việc nhiều bước vẫn nên để Codex.
+## [0.63.6] - 2026-09-22
+### Sửa lỗi
+- **Chữ mức quyền không còn bị chìm.** Ba chip Plan, Tự động, Toàn quyền trước đây lấy màu viền làm màu chữ nên chữ trong mờ như đang bị tắt. Riêng chip **Toàn quyền** thì dùng một mã màu không hề tồn tại, nên mức nguy hiểm nhất lại trông y hệt mức thường. Nay mỗi mức có màu chữ và nền riêng, nhìn lướt cũng thấy.
+### Cải thiện
+- **Hộp thêm thư mục mở ra ở những chỗ đáng bắt đầu**: bộ não đang mở, thư mục chứa các bộ não, thư mục nhà. Trước đây nó mở thẳng vào thư mục nhà, mà trên máy chủ chỗ đó thường trống trơn nên bạn không đi tới đâu được. Có nút hình ngôi nhà để quay lại danh sách này khi đã duyệt sâu.
+- Thư mục nào là repo git thì có dấu riêng ngay trong danh sách, và rê chuột vào một dòng là thấy đường dẫn đầy đủ.
+
+## [0.63.5] - 2026-09-22
+### Sửa lỗi
+- **Bấm một file trong mục Coding giờ mở ra được.** Trước đó bấm file trong cây thư mục, hay bấm chip file đang mở ở thanh đính kèm, đều không có gì xảy ra và cũng không báo lỗi gì. Nay mở đúng trình sửa như bên Trò chuyện.
+- **Thấy được mức quyền ngay khi chưa gắn thư mục.** Chip Plan / Tự động / Toàn quyền trước đây chỉ hiện sau khi gắn thư mục, trong khi mức quyền đã có hiệu lực ngay từ câu chat đầu tiên. Tức là bạn đang chạy ở một mức mà mình không nhìn thấy và không đổi được.
+- **Icon nhóm Code trở lại hình file mã** thay cho cái cờ lê, vì cờ lê nói về sửa chữa và cài đặt chứ không nói về mã nguồn.
+
+## [0.63.4] - 2026-09-22
+### Cải thiện
+- **Thêm thư mục ở mục Coding giờ là bấm chọn, không phải gõ đường dẫn.** Bấm "Thêm thư mục" là mở ra một hộp duyệt thư mục: bấm vào để đi vào, bấm `.. (lên trên)` để ra, thư mục nào là repo git thì có dấu riêng. Ai đã có sẵn đường dẫn trong tay thì dán vào ô trên cùng rồi Enter vẫn nhanh như trước.
+- Chọn sai thì hộp **giữ nguyên và báo lỗi tại chỗ**, không đóng lại bắt bạn mở và duyệt lại từ đầu.
+- **Icon mục Coding đổi thành ký hiệu `</>`** cho nhìn là biết ngay, thay cho icon một file mã dễ lẫn với mục Tệp tin.
+
+## [0.63.3] - 2026-09-22
+### Sửa lỗi
+- **Chat qua Antigravity bớt cảnh trả lời nhầm câu hỏi cũ.** Gói lịch sử hội thoại gửi kèm mỗi lượt đang dài quá mức, nên khi phải đi đường file thì model hay đọc được nửa đầu rồi trả lời một câu đã hỏi từ lâu. Nay gói này gọn lại, vẫn giữ phần hội thoại gần nhất.
+- **Skill thứ 21 trở đi không còn bị Javis bỏ quên.** Brain nào có nhiều skill thì trước đây Javis chỉ nhìn thấy 20 cái đầu theo bảng chữ cái, những cái tên vần sau coi như không tồn tại. Nay Javis nhìn thấy nhiều hơn, và ưu tiên đúng những skill bạn hay dùng.
+- **Plugin chặn được một hành động sai trước khi nó xảy ra.** Phần mở rộng của Javis vốn chỉ đứng nhìn rồi ghi sổ; nay nó dừng được một lời gọi sai và nói rõ lý do. Plugin viết hỏng thì Javis vẫn chạy bình thường chứ không đứng im.
+
+## [0.63.2] - 2026-09-22
+### Cải thiện
+- **Cột trái của mục Coding giờ là đúng cột hội thoại bên Trò chuyện**: có tab Hội thoại và Thư mục, ô tìm, ghim, gom nhóm, chia theo ngày, đổi tên, xoá. Không còn một danh sách rút gọn riêng nữa.
+- **Thêm chế độ Plan.** Ba chế độ đọc là Plan, Tự động, Toàn quyền, mỗi cái có một dòng nói rõ nó cho làm gì. Plan không chỉ khoá việc sửa file mà còn bảo Javis đọc mã rồi trả về một kế hoạch để bạn duyệt.
+- Javis giờ được nói rõ trong mỗi lượt là nó đang đứng ở thư mục nào và nhánh nào, nên bớt hẳn chuyện đoán nhầm đường dẫn.
+
+## [0.63.1] - 2026-09-22
+### Cải thiện
+- **Mục Coding: vào là nhắn được ngay.** Bản trước chặn bằng màn "Chưa có repo nào", phải khai một repo mới gõ được câu đầu tiên. Nay mở trang là có sẵn một việc, gắn thư mục lúc nào cũng được; chưa gắn thì Javis làm trong bộ não như mọi cuộc trò chuyện khác.
+- **Thêm THƯ MỤC, không bắt phải là repo git.** Thư mục script, thư mục tài liệu, dự án mới tinh đều dùng được. Có git thì Javis tự nhận ra và mở thêm nhánh, worktree, điểm hồi; không có thì ba thứ đó ẩn đi chứ không báo lỗi.
+- **Cột trái giờ liệt kê VIỆC đang làm** chứ không phải danh sách thư mục, kèm tên thư mục nhỏ ở dưới mỗi việc. Đổi thư mục giữa chừng cũng được.
+- Ô nhập đường dẫn nằm gọn trong app thay vì hộp thoại của trình duyệt, và icon của mục đổi cho đúng việc (bản trước là icon nhánh git).
 
 ## [0.63.0] - 2026-09-22
 ### Thêm mới

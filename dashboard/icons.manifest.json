@@ -26,6 +26,7 @@
   "groups": {
     "nav": [
       "hexagon",
+      "code-xml",
       "message-circle",
       "bot",
       "puzzle",
@@ -111,6 +112,7 @@
       "folder",
       "folder-open",
       "folder-plus",
+      "folder-git",
       "image",
       "book-open",
       "scroll",

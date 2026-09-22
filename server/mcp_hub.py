@@ -622,12 +622,18 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
     # Mô tả tool = router thu nhỏ: liệt kê slug + mô tả ngắn để engine biết KHI NÀO gọi skill nào.
     # Trần lấy từ skill_router (CHUNG với system prompt) - trước đây hub tự cắt 60, system prompt
     # cắt 100 - người viết skill không biết mình bị chấm theo thước nào.
+    # Xếp theo mức hay dùng TRƯỚC khi cắt, rồi cắt theo cả số mục lẫn ngân sách ký tự. Cắt
+    # theo thứ tự thư mục (tức bảng chữ cái) như bản trước là để skill tên vần cuối biến mất
+    # khỏi đây trong im lặng - cùng lỗi với `main._skill_router_block`, và phải chữa ở CẢ HAI
+    # chỗ vì hai nơi này là hai bề mặt khác nhau model nhìn thấy.
     metas = skill_router.list_enabled_meta(vault_root, lang)
-    _cap = skill_router.SKILL_LIST_MAX
+    _hien, _con_lai = skill_router.cat_theo_ngan_sach(
+        skill_router.xep_theo_uu_tien(metas, vault_root))
     listing = "; ".join(f"{s['slug']}: {(s['description'] or '')[:skill_router.SKILL_DESC_MAX]}"
-                        for s in metas[:_cap])
-    if len(metas) > _cap:
-        listing += f"; …(+{len(metas) - _cap} skill nữa)"
+                        for s in _hien)
+    if _con_lai > 0:
+        listing += (f"; …(+{_con_lai} skill nữa không liệt kê ở đây, vẫn nạp được bằng "
+                    f"name=<slug> nếu biết tên - xem Javis/index.md)")
     add("javis_use_skill",
         "Nạp nội dung 1 skill (hướng dẫn chuyên sâu) rồi LÀM THEO. Truyền name=<slug>. "
         "Skill khả dụng (slug: mô tả): " + (listing or "(chưa có)"),

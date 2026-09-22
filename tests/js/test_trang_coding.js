@@ -1,27 +1,31 @@
-/* Trang Coding: phải MƯỢN khung chat sẵn có, không dựng bản thứ hai của bất cứ thứ gì.
+/* Trang Coding: vào là chat được, thư mục gắn sau, và mượn khung chat chứ không dựng lại.
 
        node tests/js/test_trang_coding.js
 
-   Cả lý do trang này gói được trong một phiên sửa là nó không viết lại gì: khung chat, cây
-   thư mục, trình sửa file, chip model, danh sách phiên đều đã có trong app. Nên thứ đáng canh
-   nhất ở đây KHÔNG phải pixel, mà là luật mượn - thứ chỉ vỡ khi ai đó "tiện tay" dựng lại.
+   Bản 0.63.0 hỏng ba chỗ mà chủ dự án chỉ ra ngay khi dùng thử, nên file này canh đúng ba
+   chỗ ấy để chúng không quay lại:
 
-   Năm thứ file này canh:
+   1. **KHÔNG có màn chặn "chưa có repo".** Trang này là trang CHAT; dựng một bước cài đặt
+      chắn trước nó là làm ngược chính spec của nó. Vào trang phải có phiên ngay, và phiên
+      chưa gắn thư mục vẫn nhắn được (cwd suy biến về brain).
 
-   1. **Luật mượn.** coding.js không được tự dựng khung chat (#chatArea, .transcript) hay một
-      cây thư mục thứ hai. Bản đầu của tab Thư mục đã mắc đúng lỗi này và chủ repo phải chỉ ra.
+   2. **THƯ MỤC chứ không phải REPO.** Không đòi `.git`. Ba chip phụ thuộc git (nhánh,
+      worktree, điểm hồi) chỉ hiện khi thư mục thật sự là repo - bày một chip bấm vào chỉ để
+      nhận lỗi là hứa suông.
 
-   2. **Trả node khi rời trang.** #modelBar là node MƯỢN của app. Nhét dải chip vào mà không
-      gỡ là trang Trò chuyện mọc thêm một hàng nói về một repo không liên quan; không trả phiên
-      là tin gõ ở trang Trò chuyện bay vào phiên coding, tức là chạy với cwd của một repo.
+   3. **Icon nói đúng việc.** "git-branch" nói "git", mà trang này nhận mọi thư mục.
 
-   3. **Chip Model không bị viết lại.** Chip engine/model đã là #mbOpen của app; dải chip của
-      trang này chỉ thêm repo, nhánh, worktree, mức quyền, điểm hồi.
+   Và hai chỗ 0.63.2 sửa tiếp:
 
-   4. **Mức Toàn quyền phải nhìn ra được.** Ở mức đó engine commit, push, deploy được. Một cái
-      chip trông y hệt hai mức kia là người dùng không biết mình đang ở đâu.
+   4. **Cột trái phải là CHÍNH cột hội thoại của trang Trò chuyện** (mượn qua JavisChatSide),
+      không phải một danh sách rút gọn tự vẽ. Đây là lần thứ hai cùng một lỗi "dựng bản thứ
+      hai" trong cùng một trang, nên canh hẳn bằng test.
 
-   5. **Rollback phải hỏi lại.** `git reset --hard` không hoàn tác được.
+   5. **Ba chế độ đọc là Plan / Tự động / Toàn quyền**, và Plan phải thật sự BẢO engine lập
+      kế hoạch rồi dừng, chứ không chỉ là chặn ghi file.
+
+   Cộng hai luật cũ vẫn phải giữ: mượn khung chat chứ không dựng bản thứ hai, và trả node lại
+   khi rời trang.
 
    Chữ hiện ra nằm ở i18n nên mọi khẳng định về LỜI soi đủ hai vế: giao diện gọi đúng khoá, VÀ
    khoá đó mang đúng câu. */
@@ -45,71 +49,226 @@ const tu = (k, chu) => String(VI[k] || "").includes(chu);
 // Hàm thuần nạp thẳng: kiểm hành vi thật thay vì regex trên mã nguồn.
 const M = require(path.join(ROOT, "dashboard", "coding.js"));
 
-// ---- 1. Luật mượn ----
+// ---- 1. Vào là chat được ngay ----
+check("KHÔNG còn màn chặn 'chưa có repo/thư mục'",
+  !/cdOnboard|onboard-on|ob_title/.test(CD) && !VI["coding.ob_title"] && !EN["coding.ob_title"]);
+check("mở trang thì mở phiên gần nhất, chưa có thì TẠO luôn một phiên",
+  /await moPhienDau\(\)/.test(CD)
+  && /ds\.length\) await moPhien\(ds\[0\]\.id\);[\s\S]{0,40}else await moPhienMoi\(\)/.test(CD));
+check("tạo phiên KHÔNG kèm thư mục nào", /channel: S\.kenh/.test(CD) && !/thu_muc:[^}]*sessions\/new/.test(CD));
+check("server không đòi thư mục khi mở phiên coding", (() => {
+  const MAIN = fs.readFileSync(path.join(ROOT, "server", "main.py"), "utf8");
+  return /loai == "coding"[\s\S]{0,700}create_session/.test(MAIN)
+    && !/loai == "coding"[\s\S]{0,400}status_code=404/.test(MAIN);
+})());
+check("chưa gắn thư mục thì nói rõ đang làm trong bộ não",
+  /coding\.in_brain/.test(CD) && tu("coding.in_brain", "bộ não"));
+
+// ---- 2. Thư mục, không phải repo ----
+check("chữ trên giao diện nói THƯ MỤC", tu("coding.add_folder", "thư mục") && !!EN["coding.add_folder"]);
+check("khoá cũ nói 'repo' đã bỏ hẳn",
+  ["coding.add_repo", "coding.remove_repo", "coding.chip_pick_repo", "coding.ask_path"]
+    .every((k) => !VI[k] && !EN[k]));
+check("nói rõ không cần là repo git", tu("coding.add_folder_note", "không cần là repo git"));
+const chipGit = M.chipHtml({ muc_quyen: "auto" }, { id: "1", ten: "du-an", duong_dan: "/x", la_git: true });
+const chipThuong = M.chipHtml({ muc_quyen: "auto" }, { id: "1", ten: "ghi-chu", duong_dan: "/y", la_git: false });
+check("thư mục CÓ git thì hiện đủ nhánh, worktree, điểm hồi",
+  ["nhanh", "worktree", "diemhoi", "quyen"].every((k) => chipGit.includes('data-cd="' + k + '"')));
+check("thư mục KHÔNG git thì ẩn ba chip phụ thuộc git, vẫn còn mức quyền",
+  !/data-cd="(nhanh|worktree|diemhoi)"/.test(chipThuong) && chipThuong.includes('data-cd="quyen"'));
+// Chưa gắn thư mục vẫn phải thấy mức quyền: server đã áp mức đó cho MỌI phiên kênh coding
+// ngay từ lượt chat đầu (xem `_muc_quyen_luot_chat`), nên giấu chip đi là bắt người dùng chạy
+// ở một mức quyền họ không nhìn thấy và không đổi được. Chủ dự án báo lỗi này ở 0.63.4.
+check("chưa gắn thư mục thì có chip mời chọn VÀ chip mức quyền",
+  (() => { const c = M.chipHtml({}, null);
+    return c.includes('data-cd="thumuc"') && c.includes('data-cd="quyen"')
+      && !/data-cd="(nhanh|worktree|diemhoi)"/.test(c); })());
+check("chip mức quyền nói đúng mức đang chạy, cả khi chưa có thư mục",
+  M.chipHtml({ muc_quyen: "suggest" }, null).includes("cd-mq-suggest")
+  && M.chipHtml({}, null).includes("cd-mq-auto"));
+check("server thật sự áp mức quyền cho phiên chưa gắn thư mục", (() => {
+  const ST = fs.readFileSync(path.join(ROOT, "server", "coding_store.py"), "utf8");
+  return /def muc_quyen_cua_phien[\s\S]{0,160}MUC_QUYEN_MAC_DINH/.test(ST);
+})());
+check("tên thư mục trên chip là TÊN, không phải cả đường dẫn",
+  M.nhanHienThi({ ten: "du-an", duong_dan: "/home/u/du-an" }) === "du-an" && !chipGit.includes(">/x<"));
+
+// ---- 3. Icon ----
+check("icon mục Coding KHÔNG còn là git-branch hay file-code",
+  !/coding: "(git-branch|file-code)"/.test(CON));
+check("icon mục Coding là ký hiệu lập trình </>", /coding: "code-xml"/.test(CON));
+check("icon đó có thật trong bộ icon đã sinh sẵn", (() => {
+  const man = JSON.parse(D("icons.manifest.json"));
+  const co = Object.values(man.groups).some((g) => g.includes("code-xml"));
+  return co && D("vendor/lucide-icons.js").includes('"code-xml":');
+})());
+check("nhóm Code giữ icon file-code như trước khi có mục Coding",
+  /"Code": ic\("file-code"\)/.test(CON));
+check("icon nhóm và icon mục KHÔNG trùng nhau",
+  (CON.match(/"Code": ic\("([a-z-]+)"\)/) || [])[1] !== (CON.match(/coding: "([a-z-]+)"/) || [])[1]);
+
+// ---- 4. Cột trái MƯỢN nguyên cột hội thoại của trang Trò chuyện ----
+check("gắn module lịch sử thật, không tự vẽ danh sách",
+  /JavisChatSide\.mount\(/.test(CD) && !/cdPhienDs|cd-phien-ds/.test(CD));
+check("lọc theo kênh Coding và thay hành vi nút Hội thoại mới",
+  /\{ kenh: S\.kenh, onNew: moPhienMoi \}/.test(CD));
+check("KHÔNG bật chế độ gọn, để giữ đủ tab và thanh gom nhóm", !/chiHoiThoai/.test(CD));
+check("có chỗ cho chip gom nhóm đậu vào", /proj-chip-host/.test(CD) && /JavisChatSide\.chip\(\)/.test(CD));
+check("khung trang dùng lại bộ lớp .chatpage của trang Trò chuyện",
+  /class="chatpage"/.test(CD) && /class="chatpage-side"/.test(CD) && /class="chatpage-slot"/.test(CD));
+check("và KHÔNG đẻ bộ lớp bố cục thứ hai", !/\.cd-left|\.cd-main|\.cd-page/.test(CSS));
+check("bấm một hội thoại ở cột trái thì dải chip cập nhật theo",
+  /function bocMoPhien\(\)/.test(CD) && /JavisSessions\.open = function/.test(CD)
+  && /function traMoPhien\(\)/.test(CD) && /roi\(\)[\s\S]{0,200}traMoPhien\(\)/.test(CD));
+
+// ---- 4b. Ba chế độ, và Plan phải thật sự lập kế hoạch ----
+check("ba chế độ đọc là Plan / Tự động / Toàn quyền",
+  VI["coding.mode_suggest"] === "Plan" && VI["coding.mode_auto"] === "Tự động"
+  && EN["coding.mode_suggest"] === "Plan");
+check("mỗi chế độ có một dòng nói rõ nó cho làm gì",
+  ["suggest", "auto", "full"].every((m) => !!VI["coding.mode_" + m + "_note"] && !!EN["coding.mode_" + m + "_note"]));
+check("menu chế độ đánh dấu cái đang chọn", /chon: \(S\.rb\.muc_quyen \|\| "auto"\) === m/.test(CD));
+check("Plan nhìn khác hai mức kia", /\.cd-mq-suggest\s*\{/.test(CSS) && /\.cd-mq-full\s*\{/.test(CSS));
+check("server BẢO engine lập kế hoạch rồi dừng ở chế độ Plan", (() => {
+  const ST = fs.readFileSync(path.join(ROOT, "server", "coding_store.py"), "utf8");
+  return /KHOI_PLAN/.test(ST) && /KHÔNG sửa file/.test(ST) && /def khoi_prompt/.test(ST);
+})());
+check("khối đó được nối vào prompt của lượt chat", (() => {
+  const MAIN = fs.readFileSync(path.join(ROOT, "server", "main.py"), "utf8");
+  return (MAIN.match(/\+ _khoi_coding\(_row0\)/g) || []).length >= 2
+    && /def _khoi_coding\(/.test(MAIN);
+})());
+check("và nói cho engine biết nó đang đứng ở thư mục nào", (() => {
+  const ST = fs.readFileSync(path.join(ROOT, "server", "coding_store.py"), "utf8");
+  return /Thư mục làm việc: \{cwd\}/.test(ST);
+})());
+
+// ---- 5. Luật mượn (giữ từ bản đầu) ----
 check("coding.js KHÔNG tự dựng khung chat", !/id="chatArea"|class="transcript"/.test(CD));
-check("coding.js nhận hàm mượn từ console.js", /opts\.borrow\(/.test(CD) && /#cdSlot/.test(CD));
+check("nhận hàm mượn từ console.js", /opts\.borrow\(/.test(CD) && /#cdSlot/.test(CD));
 check("console.js truyền _borrowChatNodes xuống trang Coding",
   /renderCoding[\s\S]{0,400}borrow: _borrowChatNodes/.test(CON));
-check("coding.js KHÔNG dựng cây thư mục thứ hai",
-  !/JavisVaultPanel\.borrow/.test(CD) || /mượn/.test(CD));
-
-// ---- 2. Trả node khi rời trang ----
-check("rời trang có gỡ dải chip khỏi #modelBar", /function goChip\(\)/.test(CD) && /roi\(\)[\s\S]{0,200}goChip\(\)/.test(CD));
-check("rời trang có trả khung chat về cuộc cũ", /traKhungChat\(\)/.test(CD) && /JavisSessions\.new\(\)/.test(CD));
-check("console.js gọi JavisCoding.roi rồi mới trả node",
-  /JavisCoding\.roi[\s\S]{0,160}_returnChatNodes\(\)/.test(CON));
-
-// ---- 3. Dải chip ----
-const chipFull = M.chipHtml({ muc_quyen: "full", nhanh: "main", worktree: "" },
-                            { id: "r1", ten: "javis-os", duong_dan: "/home/u/javis-os" });
-check("chip có đủ repo, nhánh, worktree, mức quyền, điểm hồi",
-  ["repo", "nhanh", "worktree", "quyen", "diemhoi"].every((k) => chipFull.includes('data-cd="' + k + '"')));
-// Nhắc tới #mbOpen trong chú thích thì được (nó nói CHÍNH điều này); DỰNG một cái thứ hai
-// thì không. Nên soi mã VẼ ra chip, chứ không soi cái tên.
+check("rời trang có gỡ dải chip khỏi #modelBar",
+  /function goChip\(\)/.test(CD) && /roi\(\)[\s\S]{0,200}goChip\(\)/.test(CD));
+check("rời trang có trả khung chat về cuộc cũ", /traKhungChat\(\)/.test(CD));
 check("chip KHÔNG viết lại chip model của app",
   !/class="mb-chip|id="mbOpen/.test(CD) && !/mbModelTxt|mbEffortTxt/.test(CD));
 check("dải chip nhét vào chính #modelBar đã mượn", /getElementById\("modelBar"\)/.test(CD));
-const chipTrong = M.chipHtml({}, null);
-check("chưa gắn repo thì chỉ mời chọn repo, không vẽ nhánh rỗng",
-  chipTrong.includes('data-cd="repo"') && !chipTrong.includes('data-cd="nhanh"'));
-check("worktree đang bật thì chip sáng lên",
-  M.chipHtml({ worktree: "/tmp/wt" }, { id: "r", ten: "x", duong_dan: "/x" }).includes("cd-chip on"));
-check("tên repo trên chip là TÊN, không phải cả đường dẫn",
-  M.nhanHienThi({ ten: "javis-os", duong_dan: "/home/u/javis-os" }) === "javis-os"
-  && !chipFull.includes(">/home/u/javis-os<"));
 
-// ---- 4. Mức Toàn quyền nhìn ra được ----
-check("chip mức Toàn quyền mang lớp riêng", chipFull.includes("cd-mq-full"));
-check("CSS tô cảnh báo cho mức Toàn quyền", /\.cd-mq-full\s*\{[^}]*var\(--warn\)/.test(CSS));
-check("ba mức quyền đều có chữ", ["suggest", "auto", "full"].every((m) => VI["coding.mode_" + m] && EN["coding.mode_" + m]));
+// ---- 6. Hành động phá huỷ phải hỏi lại, và nói rõ cái gì mất ----
+check("rollback hỏi lại", /confirm\(t\("coding\.ckpt_confirm"/.test(CD));
+check("câu hỏi rollback nói rõ không hoàn tác", tu("coding.ckpt_confirm", "không hoàn tác"));
+check("bỏ thư mục hỏi lại", /confirm\(t\("coding\.forget_confirm"/.test(CD));
+check("câu hỏi bỏ thư mục nói rõ THƯ MỤC TRÊN ĐĨA VẪN CÒN", tu("coding.forget_confirm", "vẫn còn nguyên"));
+// Chốt cũ ghim `var(--warn)`, mà bảng màu KHÔNG có token tên đó: trình duyệt bỏ cả dòng khai
+// báo nên chip Toàn quyền bấy lâu trông y hệt chip thường, còn test thì vẫn xanh vì nó chỉ soi
+// mã nguồn chứ không soi token có thật. Nay đòi màu CHỮ và màu NỀN riêng, và đòi chúng khác
+// hẳn chip Plan. Việc "token phải có thật" do test_theme_tokens.py canh.
+check("mức Toàn quyền nhìn ra được", chipGit.includes("cd-mq-auto")
+  && M.chipHtml({ muc_quyen: "full" }, { id: "1", ten: "x", duong_dan: "/x", la_git: true }).includes("cd-mq-full")
+  && /\.cd-mq-full\s*\{[^}]*color: var\(--warn-ink\)/.test(CSS)
+  && /\.cd-mq-full\s*\{[^}]*background: var\(--warn-wash\)/.test(CSS));
+// `(?<![-\w])` để không bắt nhầm `border-color`, thứ hoàn toàn ĐƯỢC PHÉP dùng biến -line.
+check("KHÔNG lấy biến viền (-line) làm màu CHỮ: chúng có alpha thấp nên chữ bị chìm",
+  !/\.cd-mq-(suggest|full)[^{}]*\{[^}]*(?<![-\w])color: var\(--[a-z]+-line\)/.test(CSS));
+check("chip mức quyền giữ màu của nó khi rê chuột, không nhảy về màu chữ thường",
+  /\.cd-chip\.cd-mq-full:hover\s*\{[^}]*color: var\(--warn-ink\)/.test(CSS));
 
-// ---- 5. Hành động phá huỷ phải hỏi lại ----
-check("rollback hỏi lại trước khi chạy", /ckpt_confirm[\s\S]{0,120}confirm|confirm\(t\("coding\.ckpt_confirm"/.test(CD));
-check("câu hỏi rollback nói rõ mất hẳn không hoàn tác", tu("coding.ckpt_confirm", "không hoàn tác"));
-check("xoá repo hỏi lại", /confirm\(t\("coding\.remove_confirm"\)\)/.test(CD));
-check("câu hỏi xoá repo nói rõ MÃ NGUỒN VẪN CÒN", tu("coding.remove_confirm", "vẫn còn nguyên"));
+// ---- 7. Thêm thư mục là DUYỆT rồi bấm chọn, không phải gõ đường dẫn ----
+// Bản 0.63.2 chỉ có một ô chữ trống: trên điện thoại là gõ tay cả đường dẫn tuyệt đối, sai
+// một ký tự thì nhận câu "không phải thư mục" mà không biết sai ở đâu.
+// Bóc chú thích trước khi soi: file này NÓI về prompt() trong phần giải thích vì sao không
+// dùng nó, mà một khẳng định đỏ vì đúng câu giải thích của chính nó thì vô nghĩa.
+const CD_MA = CD.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+const FP = D("folder-picker.js");
+const FP_MA = FP.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+const STYLE = D("style.css");
+check("KHÔNG gọi window.prompt", !/\bprompt\s*\(/.test(CD_MA));
+check("KHÔNG gọi window.alert", !/\balert\s*\(/.test(CD_MA));
+check("thêm thư mục thì MỞ HỘP DUYỆT", /JavisFolderPicker\.open\(/.test(CD_MA));
+check("KHÔNG còn ô gõ đường dẫn làm đường chính",
+  !/cd-tam-nen|id="cdPath"/.test(CD) && !VI["coding.path_ph"] && !EN["coding.path_ph"]);
+check("hộp duyệt đứng trên chính endpoint /browse đã có, không đẻ endpoint mới",
+  /fetch\("\/browse\?/.test(FP_MA));
+check("và gọi đường md=0: chọn thư mục CODE thì đừng quét đếm .md",
+  /md=" \+ \(o\.demMd \? "1" : "0"\)/.test(FP_MA) && /demMd: false/.test(CD_MA));
+check("server có đường md=0 và báo thư mục nào là repo git", (() => {
+  const MAIN = fs.readFileSync(path.join(ROOT, "server", "main.py"), "utf8");
+  return /def _browse_sync\(path: str, dem_md: bool = True\)/.test(MAIN)
+    && /def _la_repo\(/.test(MAIN) && /"git": _la_repo\(full\)/.test(MAIN);
+})());
+check("hộp duyệt MẶC lại bộ lớp .folder-modal/.fm-* có sẵn, không vẽ kiểu riêng",
+  /class="folder-modal"/.test(FP) && /class="fm-list"/.test(FP)
+  && /\.folder-modal \{/.test(STYLE) && !/\.fp-modal|\.fp-list|\.fp-row/.test(STYLE + CSS));
+check("bấm lên trên và bấm vào thư mục con đều duyệt tiếp",
+  /duyet\(d\.parent\)/.test(FP_MA) && /duyet\(x\.path\)/.test(FP_MA));
+check("vẫn dán được đường dẫn dài rồi Enter", /fp-go/.test(FP_MA) && /key !== "Enter"/.test(FP_MA));
+check("lỗi thêm thư mục hiện TẠI CHỖ và giữ hộp mở",
+  /return \(r && r\.error\) \|\| t\("coding\.add_err"\)/.test(CD_MA)
+  && /if \(loi\) \{ mach\(loi, true\); return; \}/.test(FP_MA));
+check("chữ của hộp duyệt có ở cả hai từ điển",
+  ["fp.title", "fp.use", "fp.up", "fp.pick", "fp.path_ph"].every((k) => !!VI[k] && !!EN[k]));
+// Hộp duyệt mở ra ở thư mục nhà thì trên VPS chỗ đó chỉ có file ẩn, mà /browse lọc hết file
+// ẩn, nên hộp hiện ra TRỐNG TRƠN và người dùng lại phải gõ tay đường dẫn (chủ dự án báo).
+check("chưa gắn gì thì hộp mở ở màn ĐIỂM XUẤT PHÁT, không đổ thẳng vào thư mục nhà",
+  /function veDiem\(\)/.test(FP_MA) && /return p \? taiThuMuc\(p\) : veDiem\(\)/.test(FP_MA));
+check("điểm xuất phát lấy từ server, có brain đang mở",
+  /fetch\("\/browse\/starts\?brain=/.test(FP_MA) && /brain: brain\(\)/.test(CD_MA));
+check("server trả điểm xuất phát: bộ não, thư mục chứa các bộ não, thư mục nhà", (() => {
+  const MAIN = fs.readFileSync(path.join(ROOT, "server", "main.py"), "utf8");
+  return /@app\.get\("\/browse\/starts"\)/.test(MAIN) && /_brain_root\(brain\)/.test(MAIN)
+    && /BRAINS_DIR/.test(MAIN) && /expanduser\("~"\)/.test(MAIN);
+})());
+check("chỉ trả chỗ CÓ THẬT và không trùng nhau", (() => {
+  const MAIN = fs.readFileSync(path.join(ROOT, "server", "main.py"), "utf8");
+  const kh = (MAIN.match(/def browse_starts[\s\S]*?return await asyncio/) || [""])[0];
+  return /os\.path\.isdir\(p\)/.test(kh) && /normcase/.test(kh);
+})());
+check("không lấy được điểm nào thì vẫn duyệt thư mục nhà như bản trước",
+  /if \(!ds2\.length\) return taiThuMuc\(""\)/.test(FP_MA));
+check("có đường VỀ màn điểm xuất phát khi đã duyệt sâu", /data-nha/.test(FP_MA));
+check("chữ của màn điểm xuất phát có ở cả hai từ điển",
+  ["fp.starts", "fp.starts_note", "fp.start_brain", "fp.start_brains", "fp.start_home"]
+    .every((k) => !!VI[k] && !!EN[k]));
 
-// ---- 6. Nối vào rail ----
+check("index.html nạp folder-picker.js TRƯỚC coding.js",
+  HTML.indexOf("folder-picker.js") > 0 && HTML.indexOf("folder-picker.js") < HTML.indexOf("coding.js"));
+
+// ---- 7b. Mở file: bấm trong cây thư mục hay bấm chip "file đang mở" ----
+// Lỗi 0.63.4 chủ dự án báo: bấm một file thì LẶNG LẼ không có gì mở ra. Nguyên nhân là
+// _borrowNoteEditor của console.js dò khung bằng một DANH SÁCH ID VIẾT CỨNG, mà tên khung của
+// trang Coding không có trong đó. Đúng lỗi trang Cộng sự đã dính ở 0.59.2, nên lần này canh
+// cả LUẬT (khung tự khai bằng thuộc tính) chứ không chỉ canh thêm một cái tên.
+check("khung trình sửa của trang Coding tự khai data-ne-host", /id="cdEdit" data-ne-host/.test(CD));
+check("console.js dò khung bằng thuộc tính, KHÔNG dò bằng danh sách id viết cứng",
+  /querySelector\("\[data-ne-host\]"\)/.test(CON)
+  && !/getElementById\("chatPageEdit"\) \|\| document\.getElementById\("wsEdit"\)/.test(CON));
+check("cả ba trang mượn khung chat đều khai khung trình sửa của mình",
+  /id="chatPageEdit" data-ne-host/.test(CON)
+  && /id="wsEdit" data-ne-host/.test(D("workspace.js"))
+  && /id="cdEdit" data-ne-host/.test(CD));
+check("rời trang Coding thì trả trình sửa về chỗ cũ (qua _returnChatNodes)",
+  /renderCoding[\s\S]{0,400}_returnChatNodes\(\)/.test(CON)
+  && /function _returnChatNodes\(\)[\s\S]{0,400}_returnNoteEditor\(\)/.test(CON));
+
+// ---- 8. Điện thoại ----
+// Ngăn kéo trên màn hẹp và nút thu gọn nay là của .chatpage (console.js _injectChatCss), nên
+// canh ở đó chứ không canh một bộ lớp riêng đã bỏ.
+check("bề rộng hẹp thì cột hội thoại thành ngăn kéo (luật của .chatpage)",
+  /\.chatpage-side\{ position:absolute/.test(CON) || /chatpage\.side-mo/.test(CON)
+  || /\.chatpage\.side-thu \.chatpage-side/.test(CON));
+check("nút thu gọn cột dùng đúng lớp của trang Trò chuyện",
+  /cp-side-toggle/.test(CD) && /classList\.toggle\("side-thu"\)/.test(CD));
+check("chữ trên điện thoại không nhỏ hơn 16px",
+  /@media \(max-width: 900px\)[\s\S]{0,400}\.cd-chip \{ font-size: 16px/.test(CSS)
+  && /\.fm-path \.fp-go \{[^}]*font-size: 16px/.test(STYLE));
+
+// ---- 9. Nối vào rail ----
 check("coding có trong RAIL_ITEMS", /"terminal", "coding"/.test(CON));
 check("coding nằm trong NHÓM Code", /ids: \["terminal", "coding"\]/.test(CON));
-check("coding có icon riêng", /coding: "git-branch"/.test(CON));
-check("coding có trong VIEW_META", /"terminal", "coding", "selfimprove"/.test(CON));
 check("index.html nạp coding.js TRƯỚC console.js",
   HTML.indexOf("coding.js") > 0 && HTML.indexOf("coding.js") < HTML.indexOf("console.js?"));
 check("nhãn trang có ở cả hai từ điển", !!VI["page.coding.label"] && !!EN["page.coding.label"]);
-
-// ---- 7. Trạng thái phiên ----
-check("bốn mức trạng thái, không đoán mức thứ năm",
-  M.trangThaiPhien({ id: "a" }, "a", null) === "dang"
-  && M.trangThaiPhien({ id: "a" }, null, { a: 1 }) === "het_luot"
-  && M.trangThaiPhien({ id: "a", loi: 1 }, null, null) === "loi"
-  && M.trangThaiPhien({ id: "a" }, null, null) === "xong");
-check("coding.js nói rõ vì sao chưa có mức cần trả lời", /cần trả lời/.test(CD));
-
-// ---- 8. Điện thoại ----
-check("bề rộng hẹp thì cột trái thành ngăn kéo", /@media \(max-width: 900px\)[\s\S]{0,600}\.cd-left \{[^}]*translateX\(-105%\)/.test(CSS));
-check("nút ẩn hiện cột trái hiểu hai bề rộng", /matchMedia[\s\S]{0,160}left-on/.test(CD));
-check("chữ trên điện thoại không nhỏ hơn 16px", /@media \(max-width: 900px\)[\s\S]{0,600}\.cd-chip \{ font-size: 16px/.test(CSS));
 
 console.log();
 if (fails.length) { console.log("FAIL " + fails.length + " test: " + fails.join(", ")); process.exit(1); }

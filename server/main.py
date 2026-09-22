@@ -5000,6 +5000,22 @@ def _cwd_luot_chat(row, brain: str) -> str:
     return _brain_root(brain)
 
 
+def _khoi_coding(row) -> str:
+    """Khối prompt của phiên Coding (thư mục làm việc, nhánh, và mức quyền nghĩa là gì).
+
+    Trả "" cho mọi phiên khác, nên nối vào prompt là vô hại ở đường chat thường. Đặt `cwd`
+    thôi chưa đủ: model vẫn đoán đường dẫn từ trí nhớ của nó, và ở chế độ Plan thì còn phải
+    NÓI cho nó biết là hãy lập kế hoạch rồi dừng.
+    """
+    try:
+        sid = (row or {}).get("id") or ""
+        if sid and str((row or {}).get("channel") or "").startswith("coding:"):
+            return coding_store.khoi_prompt(sid)
+    except Exception:
+        pass
+    return ""
+
+
 def _muc_quyen_luot_chat(row) -> str:
     """Mức quyền của lượt: phiên coding lấy theo chip trên trang, còn lại giữ `full` như cũ.
 
@@ -10192,7 +10208,9 @@ def _skill_router_block(brain: str, root: str, skills=None) -> str:
     mô tả (trigger) + chỉ rõ 2 cách nạp: tool javis_use_skill (engine API có tool) HOẶC mở thẳng
     file SKILL.md bằng công cụ đọc file (Claude/Codex - dùng ĐƯỜNG DẪN TUYỆT ĐỐI vì cwd có thể là
     /app). Đây là thứ giúp skill chạy trên cả ChatGPT/Codex, không phụ thuộc cơ chế native của Claude.
-    Cap skill_router.SKILL_LIST_MAX để không phình context (nhiều hơn → trỏ Javis/index.md).
+    Cắt theo CẢ số mục lẫn ngân sách ký tự (skill_router.cat_theo_ngan_sach), và xếp theo mức
+    hay dùng trước khi cắt (skill_router.xep_theo_uu_tien) - nếu không thì việc cắt rơi vào
+    thứ tự bảng chữ cái và một skill quan trọng biến mất khỏi router chỉ vì tên nó vần cuối.
     skills: cây skill đã quét sẵn (list_skills), lọc tại chỗ thay vì quét lại - xem
     _gather_capabilities. None = tự quét (đường cũ)."""
     metas = ([s for s in skills if s.get("enabled")] if skills is not None
@@ -10201,12 +10219,18 @@ def _skill_router_block(brain: str, root: str, skills=None) -> str:
         return ""
     sk_dir = skill_router.skills_base(root, canonical=True)
     lines = ["\n\n# === SKILL KHẢ DỤNG (router - dùng được trên MỌI engine) ==="]
-    cap = skill_router.SKILL_LIST_MAX
-    for s in metas[:cap]:
+    hien, con_lai = skill_router.cat_theo_ngan_sach(
+        skill_router.xep_theo_uu_tien(metas, root))
+    for s in hien:
         desc = (s.get("description") or "").replace("\n", " ")[:skill_router.SKILL_DESC_MAX]
         lines.append(f"- {s['slug']} ({s['name']}): {desc}")
-    if len(metas) > cap:
-        lines.append(f"…(+{len(metas) - cap} skill nữa - xem `Javis/index.md`)")
+    if con_lai > 0:
+        # Nói rõ CÁCH LẤY chứ không chỉ nói còn bao nhiêu: `javis_use_skill` nạp được theo
+        # slug kể cả skill không nằm trong danh sách trên, nên một skill bị cắt vẫn dùng được
+        # nếu model biết tên. Câu cũ chỉ trỏ sang một file mà model không đọc.
+        lines.append(f"…(+{con_lai} skill nữa chưa liệt kê ở đây - xem đủ danh sách trong "
+                     f"`Javis/index.md`, và nạp thẳng bằng `javis_use_skill(name=<slug>)` "
+                     f"nếu đã biết tên)")
     lines.append(
         "CÁCH DÙNG: khi yêu cầu của user KHỚP mô tả 1 skill ở trên, hãy NẠP skill đó rồi LÀM THEO - "
         "gọi tool `javis_use_skill(name=<slug>)` nếu engine có tool này; nếu không, mở file "
@@ -10558,15 +10582,30 @@ def _count_md(root: str, cap: int) -> int:
     return n
 
 
-def _browse_sync(path: str) -> dict:
-    """Phần chạm đĩa của /browse. Tách hẳn ra để chạy trong thread, KHÔNG trên event loop."""
+def _la_repo(path: str) -> bool:
+    """Thư mục này có phải repo git không. CHỈ 1 lần os.path.exists, không gọi `git`.
+
+    Dùng cho trang Coding: người ta chọn thư mục để làm việc, nên cái đáng biết khi lướt danh
+    sách là "cái nào là repo", chứ không phải nó có bao nhiêu file .md. `.git` là file (chứ
+    không phải thư mục) trong một worktree phụ, nên đừng dùng isdir."""
+    try:
+        return os.path.exists(os.path.join(path, ".git"))
+    except OSError:
+        return False
+
+
+def _browse_sync(path: str, dem_md: bool = True) -> dict:
+    """Phần chạm đĩa của /browse. Tách hẳn ra để chạy trong thread, KHÔNG trên event loop.
+
+    `dem_md=False` bỏ hẳn phần đếm .md. Người chọn thư mục CODE không quan tâm con số đó, mà
+    đếm nó lại là quét cả cây (node_modules, .venv) chỉ để in một nhãn vô nghĩa."""
     import string
 
     if not path:
         if os.name == "nt":
             drives = [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
             return {"path": "", "parent": None,
-                    "dirs": [{"name": d, "path": d, "md": None} for d in drives]}
+                    "dirs": [{"name": d, "path": d, "md": None, "git": False} for d in drives]}
         path = os.path.expanduser("~")
 
     if not os.path.isdir(path):
@@ -10579,18 +10618,21 @@ def _browse_sync(path: str) -> dict:
                 continue
             full = os.path.join(path, name)
             if os.path.isdir(full):
-                try:
-                    md = _count_md(full, _BROWSE_MD_CAP)
-                except Exception:
-                    md = 0
-                dirs.append({"name": name, "path": full, "md": md})
+                md = None
+                if dem_md:
+                    try:
+                        md = _count_md(full, _BROWSE_MD_CAP)
+                    except Exception:
+                        md = 0
+                dirs.append({"name": name, "path": full, "md": md, "git": _la_repo(full)})
                 if len(dirs) >= 300:
                     break               # đủ hiển thị rồi, đừng đếm tiếp cho phần bị cắt
         parent = os.path.dirname(path.rstrip("\\/")) or None
         if os.name == "nt" and parent and len(parent) <= 2:
             parent = ""  # về danh sách ổ đĩa
-        here_md = _count_md(path, _BROWSE_HERE_CAP)
-        return {"path": path, "parent": parent, "here_md": here_md, "dirs": dirs}
+        here_md = _count_md(path, _BROWSE_HERE_CAP) if dem_md else None
+        return {"path": path, "parent": parent, "here_md": here_md,
+                "git": _la_repo(path), "dirs": dirs}
     except PermissionError:
         return {"error": "Không có quyền truy cập", "path": path, "parent": None, "dirs": []}
     except Exception as e:
@@ -10598,12 +10640,58 @@ def _browse_sync(path: str) -> dict:
 
 
 @app.get("/browse")
-async def browse(path: str = Query("", description="Thư mục cần liệt kê; rỗng = ổ đĩa/gốc")):
-    """Duyệt thư mục để chọn brain folder. Đếm số file .md trong mỗi folder con.
+async def browse(path: str = Query("", description="Thư mục cần liệt kê; rỗng = ổ đĩa/gốc"),
+                 md: int = Query(1, description="1 = đếm file .md (chọn brain); 0 = bỏ đếm (chọn thư mục code)")):
+    """Duyệt thư mục. Mặc định đếm số file .md trong mỗi folder con (để chọn brain).
+
+    `md=0` bỏ phần đếm và chỉ trả tên thư mục kèm cờ `git` - trang Coding dùng đường này.
 
     Quét đĩa đẩy sang thread: dù thư mục có to tới đâu, event loop vẫn phục vụ được
     healthcheck và các request khác. Xem _count_md để biết vì sao (sự cố 404 trên VPS)."""
-    return await asyncio.to_thread(_browse_sync, path)
+    return await asyncio.to_thread(_browse_sync, path, bool(md))
+
+
+@app.get("/browse/starts")
+async def browse_starts(brain: str = Query("", description="Brain đang mở; rỗng = brain mặc định")):
+    """Vài ĐIỂM XUẤT PHÁT cho hộp chọn thư mục, thay cho việc mở thẳng ở thư mục nhà.
+
+    Vì sao cần: trên VPS, thư mục nhà thường chỉ có file ẩn, mà /browse lọc hết file ẩn, nên hộp
+    duyệt mở ra TRỐNG TRƠN. Người dùng không đi tới đâu được và phải quay về gõ tay đường dẫn,
+    tức là mất đúng cái mà hộp duyệt sinh ra để tránh (chủ dự án báo 2026-09-22).
+
+    Ba chỗ dưới đây phủ gần hết nhu cầu thật: bộ não đang mở (sửa skills/agents/scripts trong
+    đó), thư mục CHA chứa mọi bộ não (các brain nằm cạnh nhau), và thư mục nhà (nơi người ta
+    hay để mã nguồn). Trên Windows kèm luôn danh sách ổ đĩa vì "thư mục nhà" ở đó không dẫn ra
+    ổ D, ổ E.
+
+    Chỉ trả về chỗ CÓ THẬT và không trùng nhau: một dòng bấm vào chỉ để nhận lỗi còn tệ hơn là
+    không có dòng nào."""
+    import string
+
+    def _them(ds, ten, duong_dan, ghi_chu=""):
+        try:
+            p = os.path.abspath(str(duong_dan or ""))
+        except Exception:
+            return
+        if not p or not os.path.isdir(p):
+            return
+        if any(os.path.normcase(x["duong_dan"]) == os.path.normcase(p) for x in ds):
+            return
+        ds.append({"ten": ten, "duong_dan": p, "ghi_chu": ghi_chu, "git": _la_repo(p)})
+
+    def _quet():
+        ds: list[dict] = []
+        goc = _brain_root(brain)
+        _them(ds, os.path.basename(goc.rstrip("\\/")) or goc, goc, "brain")
+        _them(ds, os.path.basename(str(BRAINS_DIR).rstrip("\\/")) or str(BRAINS_DIR),
+              BRAINS_DIR, "brains")
+        _them(ds, "~", os.path.expanduser("~"), "home")
+        if os.name == "nt":
+            for d in string.ascii_uppercase:
+                _them(ds, f"{d}:\\", f"{d}:\\", "drive")
+        return {"diem": ds}
+
+    return await asyncio.to_thread(_quet)
 
 
 @app.get("/path/exists")
@@ -12330,7 +12418,7 @@ async def websocket_endpoint(ws: WebSocket):
                         ) + channel_context.build_channel_block(
                             "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                             port=_javis_port(), brain_root=_brain_root(brain),
-                        )
+                        ) + _khoi_coding(_row0)
                 return sysprompt
 
             async def _subscription_system_prompt(route_provider, route_model, route_kind):
@@ -12359,7 +12447,7 @@ async def websocket_endpoint(ws: WebSocket):
                     ) + channel_context.build_channel_block(
                         "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                         port=_javis_port(), brain_root=_brain_root(brain),
-                    )
+                    ) + _khoi_coding(_row0)
 
                 try:
                     plan = await asyncio.to_thread(
@@ -14207,12 +14295,11 @@ async def sessions_new(brain: str = Form("brain"), channel: str = Form("web")):
         return JSONResponse({"error": "channel phải là agent:<slug>, workflow:<slug> hoặc coding:<repo>"}, status_code=400)
     loai, slug = m.group(1), m.group(2)
     if loai == "coding":
-        # Phiên của trang Coding: `slug` là id repo trong sổ `coding_store`. Ràng buộc repo
-        # ngay lúc mở, để lượt đầu tiên đã chạy đúng thư mục chứ không phải lượt thứ hai.
-        if not coding_store.get_repo(slug):
-            return JSONResponse({"error": f"Repo '{slug}' không có trong sổ Coding"}, status_code=404)
+        # Phiên của trang Coding. KHÔNG đòi phải có thư mục nào: 0.63.0 bắt phải chọn repo
+        # trước khi mở phiên, mà trang này là trang CHAT - chủ dự án chỉ ra (2026-09-22) rằng
+        # vào là phải nhắn được ngay, thư mục gắn sau cũng được. Chưa gắn thì lượt chat chạy
+        # với cwd = brain, y như mọi phiên thường.
         sid = get_store().create_session(brain=_brain_key(brain), engine="cli", channel=ch)
-        coding_store.dat_rang_buoc(sid, repo=slug)
         return {"id": sid, "channel": ch}
     thu_muc = _agents_dir(brain) if loai == "agent" else _workflows_dir(brain)
     if not (thu_muc / f"{slug}.md").exists():
@@ -18399,7 +18486,7 @@ conversations_routes.register(app, conversations_routes.ConversationsDeps(
 # `coding_store` đứng một mình, không cần gì từ main. Chiều phụ thuộc ngược lại thì có:
 # đường chat gọi `coding_store.cwd_cua_phien` để biết engine phải chạy ở thư mục nào.
 import routes.coding as coding_routes   # noqa: E402
-coding_routes.register(app)
+coding_routes.register(app, coding_routes.CodingDeps(brain_keys=_brain_keys))
 
 
 @app.post("/telegram/test")

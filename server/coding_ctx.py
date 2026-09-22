@@ -97,7 +97,7 @@ class CodingToolContext:
             quyen = FULL
 
         try:
-            la_git = coding_store.la_repo_git(cwd)
+            la_git = coding_store.la_git(cwd)
         except Exception:
             la_git = False
 
@@ -105,7 +105,7 @@ class CodingToolContext:
             session_id=sid,
             workspace_root=str(Path(cwd).resolve()) if cwd else "",
             permission_mode=str(quyen).strip().lower() or FULL,
-            repo_id=str(rb.get("repo") or ""),
+            repo_id=str(rb.get("thu_muc") or ""),
             branch=str(rb.get("nhanh") or ""),
             worktree=str(rb.get("worktree") or ""),
             is_git_repo=bool(la_git),
