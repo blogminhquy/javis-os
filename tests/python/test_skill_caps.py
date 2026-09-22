@@ -29,7 +29,9 @@ def check(name, cond):
 
 # ---- hằng số ----
 check("SKILL_DESC_MAX = 150", getattr(skill_router, "SKILL_DESC_MAX", None) == 150)
-check("SKILL_LIST_MAX = 20", getattr(skill_router, "SKILL_LIST_MAX", None) == 20)
+check("SKILL_LIST_MAX = 40", getattr(skill_router, "SKILL_LIST_MAX", None) == 40)
+check("SKILL_LIST_CHAR_BUDGET = 4000",
+      getattr(skill_router, "SKILL_LIST_CHAR_BUDGET", None) == 4000)
 
 # ---- validate_description ----
 v = skill_router.validate_description
@@ -80,13 +82,15 @@ hub = _region("mcp_hub.py", "metas = skill_router.list_enabled_meta(vault_root",
 check("mcp_hub không còn literal [:60]", "[:60]" not in hub)
 check("mcp_hub không còn literal 20", "20" not in hub)
 check("mcp_hub dùng SKILL_DESC_MAX", "SKILL_DESC_MAX" in hub)
-check("mcp_hub dùng SKILL_LIST_MAX", "SKILL_LIST_MAX" in hub)
+check("mcp_hub cắt theo ngân sách", "cat_theo_ngan_sach" in hub)
+check("mcp_hub xếp theo ưu tiên trước khi cắt", "xep_theo_uu_tien" in hub)
 
 blk = _region("main.py", "def _skill_router_block", "@app.get(\"/javis/index\")")
 check("main không còn literal [:100]", "[:100]" not in blk)
 check("main không còn literal 15", "15" not in blk)
 check("main dùng SKILL_DESC_MAX", "SKILL_DESC_MAX" in blk)
-check("main dùng SKILL_LIST_MAX", "SKILL_LIST_MAX" in blk)
+check("main cắt theo ngân sách", "cat_theo_ngan_sach" in blk)
+check("main xếp theo ưu tiên trước khi cắt", "xep_theo_uu_tien" in blk)
 
 # ---- LINT: mọi skill HỆ THỐNG phải lọt trần + sạch boilerplate ----
 # Đây là rào chặn tái phát: bug cắt cụt description không được quay lại qua skill ship kèm app.

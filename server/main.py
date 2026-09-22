@@ -10023,7 +10023,9 @@ def _skill_router_block(brain: str, root: str, skills=None) -> str:
     mô tả (trigger) + chỉ rõ 2 cách nạp: tool javis_use_skill (engine API có tool) HOẶC mở thẳng
     file SKILL.md bằng công cụ đọc file (Claude/Codex - dùng ĐƯỜNG DẪN TUYỆT ĐỐI vì cwd có thể là
     /app). Đây là thứ giúp skill chạy trên cả ChatGPT/Codex, không phụ thuộc cơ chế native của Claude.
-    Cap skill_router.SKILL_LIST_MAX để không phình context (nhiều hơn → trỏ Javis/index.md).
+    Cắt theo CẢ số mục lẫn ngân sách ký tự (skill_router.cat_theo_ngan_sach), và xếp theo mức
+    hay dùng trước khi cắt (skill_router.xep_theo_uu_tien) - nếu không thì việc cắt rơi vào
+    thứ tự bảng chữ cái và một skill quan trọng biến mất khỏi router chỉ vì tên nó vần cuối.
     skills: cây skill đã quét sẵn (list_skills), lọc tại chỗ thay vì quét lại - xem
     _gather_capabilities. None = tự quét (đường cũ)."""
     metas = ([s for s in skills if s.get("enabled")] if skills is not None
@@ -10032,12 +10034,18 @@ def _skill_router_block(brain: str, root: str, skills=None) -> str:
         return ""
     sk_dir = skill_router.skills_base(root, canonical=True)
     lines = ["\n\n# === SKILL KHẢ DỤNG (router - dùng được trên MỌI engine) ==="]
-    cap = skill_router.SKILL_LIST_MAX
-    for s in metas[:cap]:
+    hien, con_lai = skill_router.cat_theo_ngan_sach(
+        skill_router.xep_theo_uu_tien(metas, root))
+    for s in hien:
         desc = (s.get("description") or "").replace("\n", " ")[:skill_router.SKILL_DESC_MAX]
         lines.append(f"- {s['slug']} ({s['name']}): {desc}")
-    if len(metas) > cap:
-        lines.append(f"…(+{len(metas) - cap} skill nữa - xem `Javis/index.md`)")
+    if con_lai > 0:
+        # Nói rõ CÁCH LẤY chứ không chỉ nói còn bao nhiêu: `javis_use_skill` nạp được theo
+        # slug kể cả skill không nằm trong danh sách trên, nên một skill bị cắt vẫn dùng được
+        # nếu model biết tên. Câu cũ chỉ trỏ sang một file mà model không đọc.
+        lines.append(f"…(+{con_lai} skill nữa chưa liệt kê ở đây - xem đủ danh sách trong "
+                     f"`Javis/index.md`, và nạp thẳng bằng `javis_use_skill(name=<slug>)` "
+                     f"nếu đã biết tên)")
     lines.append(
         "CÁCH DÙNG: khi yêu cầu của user KHỚP mô tả 1 skill ở trên, hãy NẠP skill đó rồi LÀM THEO - "
         "gọi tool `javis_use_skill(name=<slug>)` nếu engine có tool này; nếu không, mở file "

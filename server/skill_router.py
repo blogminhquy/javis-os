@@ -46,7 +46,23 @@ _READ_BASES = ("skills", ".claude/skills", ".agents")
 SKILL_DESC_MAX = 150
 
 # Số skill tối đa liệt kê trong router. Nhiều hơn → trỏ sang Javis/index.md.
-SKILL_LIST_MAX = 20
+#
+# 20 là con số của thời brain còn ít skill, và nó có một tác dụng phụ không ai đo: `list_skills`
+# trả theo THỨ TỰ THƯ MỤC, nên `metas[:20]` cắt theo bảng chữ cái. Skill nào tên đứng sau thì
+# KHÔNG BAO GIỜ được router nhìn thấy - không phải vì nó kém quan trọng, mà vì nó tên vần v.
+# Một brain dùng lâu chắc chắn vượt 20, và lúc đó Javis mất skill một cách hoàn toàn tuỳ tiện,
+# im lặng (đo 2026-09-22).
+#
+# Nay có HAI trần, và chúng làm hai việc khác nhau:
+#   - SKILL_LIST_MAX: chặn danh sách dài tới mức model không đọc nổi.
+#   - SKILL_LIST_CHAR_BUDGET: chặn CHI PHÍ. Đây mới là thứ đáng chặn, vì tốn token là tốn
+#     theo ký tự chứ không theo số mục. Cùng tinh thần `mcp.lazy_char_budget` của tầng lazy
+#     tool, nơi bài học này đã học một lần rồi.
+#
+# Và thứ tự cắt không còn tuỳ tiện: `xep_theo_uu_tien` xếp skill hay dùng lên trước (xem hàm
+# đó), nên cái bị cắt là cái ít dùng nhất, không phải cái tên vần cuối.
+SKILL_LIST_MAX = 40
+SKILL_LIST_CHAR_BUDGET = 4000
 
 # Cụm mở đầu sáo rỗng: mọi skill đều mở y hệt nhau nên nó đốt ngân sách ký tự mà không
 # phân biệt được skill nào với skill nào. Cấm ở chỗ ghi.
@@ -249,6 +265,73 @@ def list_skills(root, lang: str = "") -> list:
     for d in _iter_skill_dirs(root / ".agents"):   # rất cũ (chỉ bật)
         add(d, ".agents", True)
     return out
+
+
+def xep_theo_uu_tien(metas: list, root=None) -> list:
+    """Xếp skill theo mức đáng được router nhìn thấy: ghim > hay dùng > mới dùng > tên.
+
+    Vì sao cần. Danh sách skill bị CẮT khi quá trần (xem SKILL_LIST_MAX), mà `list_skills` trả
+    theo thứ tự thư mục, tức thứ tự bảng chữ cái. Cắt theo thứ tự đó là để một skill quan
+    trọng biến mất khỏi router chỉ vì tên nó vần cuối - hỏng im lặng, và người dùng chỉ thấy
+    "Javis tự dưng không biết làm việc X nữa".
+
+    `skill_usage` đã đếm sẵn số lần dùng cho đúng việc này, chỉ là chưa ai đọc nó ở đây.
+
+    KHÔNG BAO GIỜ RAISE: thiếu file đếm, JSON hỏng, brain lạ - tất cả đều lui về thứ tự cũ
+    (theo slug). Một brain chưa dùng skill lần nào thì mọi use_count bằng 0 và thứ tự y hệt
+    trước bản này, nên đây không phải một thay đổi hành vi cho người mới.
+    """
+    try:
+        import skill_usage
+        dem = skill_usage.read_usage(root) if root else {}
+    except Exception:
+        dem = {}
+    if not isinstance(dem, dict):
+        dem = {}
+
+    def khoa(s):
+        rec = dem.get(s.get("slug") or "")
+        rec = rec if isinstance(rec, dict) else {}
+        try:
+            lan = int(rec.get("use_count") or 0)
+        except (TypeError, ValueError):
+            lan = 0
+        try:
+            gan = float(rec.get("last_used_at") or 0)
+        except (TypeError, ValueError):
+            gan = 0.0
+        # Âm để sắp xếp giảm dần; slug đi cuối làm khoá phá hoà, giữ thứ tự ổn định giữa
+        # hai lần chạy (một danh sách nhảy loạn mỗi lượt là ác mộng khi đi tìm lỗi).
+        return (0 if rec.get("pinned") else 1, -lan, -gan, str(s.get("slug") or ""))
+
+    try:
+        return sorted(metas, key=khoa)
+    except Exception:
+        return list(metas)
+
+
+def cat_theo_ngan_sach(metas: list, so_max: int = None, ngan_sach: int = None) -> tuple:
+    """Cắt danh sách skill theo CẢ số mục lẫn số ký tự. Trả (phần giữ, số bị cắt).
+
+    Ký tự đếm theo đúng thứ `_skill_router_block` sẽ in ra ("- slug (name): description"),
+    không phải theo độ dài thô của dict - đếm sai thứ mình không gửi thì trần vô nghĩa.
+    """
+    so_max = SKILL_LIST_MAX if so_max is None else so_max
+    ngan_sach = SKILL_LIST_CHAR_BUDGET if ngan_sach is None else ngan_sach
+    giu, tot = [], 0
+    for s in metas:
+        if len(giu) >= so_max:
+            break
+        desc = (s.get("description") or "").replace("\n", " ")[:SKILL_DESC_MAX]
+        dong = len(f"- {s.get('slug', '')} ({s.get('name', '')}): {desc}") + 1
+        # Luôn giữ ÍT NHẤT một mục: ngân sách nhỏ tới đâu cũng không được trả về danh sách
+        # rỗng rồi để Javis tự khai là mình không có skill nào - câu đó sai, và sai theo
+        # hướng khiến nó đi tạo lại thứ đã có.
+        if giu and tot + dong > ngan_sach:
+            break
+        giu.append(s)
+        tot += dong
+    return giu, len(metas) - len(giu)
 
 
 def list_enabled_meta(root, lang: str = "") -> list:
