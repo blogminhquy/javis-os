@@ -297,7 +297,25 @@ check("nút thu gọn cột dùng đúng lớp của trang Trò chuyện",
   /cp-side-toggle/.test(CD) && /classList\.toggle\("side-thu"\)/.test(CD));
 check("chữ trên điện thoại không nhỏ hơn 16px",
   /@media \(max-width: 900px\)[\s\S]{0,400}\.cd-chip \{ font-size: 16px/.test(CSS)
+  && /@media \(max-width: 900px\)[\s\S]{0,600}\.cd-menu button \{ font-size: 16px/.test(CSS)
   && /\.fm-path \.fp-go \{[^}]*font-size: 16px/.test(STYLE));
+
+// ---- 8a. Menu thư mục không được tràn màn hình (0.63.10) ----
+// Tên thư mục và đường dẫn là chữ phụ, để 16px trên máy tính thì menu phình ra choán màn
+// hình; danh sách dài lại tràn khỏi khung, đè cả thanh điều hướng (chủ dự án báo 22/09).
+check("trên máy tính, tên thư mục và đường dẫn là chữ nhỏ",
+  /\.cd-menu button \{[^}]*font-size: 14px/.test(CSS)
+  && /\.cd-menu button small \{[^}]*font-size: 12px/.test(CSS));
+check("menu dài thì tự cuộn chứ không tràn ra ngoài",
+  /\.cd-menu \{[^}]*overflow-y: auto/.test(CSS)
+  && /\.cd-menu \{[^}]*max-height:/.test(CSS));
+// Luật cho ô chữ CO được phải chừa ô tích ra: nới cả hai thì ô vuông 16px bị kéo dài thành
+// thanh ngang (thấy trong ảnh chụp thử 22/09).
+check("đường dẫn dài cắt bằng dấu ba chấm, ô tích vẫn vuông",
+  /\.cd-menu button\.tich > span:not\(\.cd-tich\) \{[^}]*min-width: 0/.test(CSS));
+check("menu đo chỗ trống thật quanh chip rồi mới đặt",
+  /m\.style\.maxHeight/.test(CD_MA) && /W\.innerHeight/.test(CD_MA)
+  && /m\.offsetWidth/.test(CD_MA));
 
 // ---- 9. Nối vào rail ----
 check("coding có trong RAIL_ITEMS", /"terminal", "coding"/.test(CON));
