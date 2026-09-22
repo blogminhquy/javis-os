@@ -28,6 +28,8 @@ import main  # noqa: E402
 
 CONSOLE = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 STYLE = (ROOT / "dashboard" / "style.css").read_text(encoding="utf-8")
+WORKSPACE = (ROOT / "dashboard" / "workspace.js").read_text(encoding="utf-8")
+CODING = (ROOT / "dashboard" / "coding.js").read_text(encoding="utf-8")
 
 fails = []
 
@@ -101,9 +103,19 @@ check("mở file = MƯỢN đúng #noteEditor của khung chat, không dựng tr
       and CONSOLE.index("_borrowNoteEditor(slot)") < CONSOLE.index("openNote(rel, { name: ten"))
 check("bấm tên file / nút Sửa / nút Xem đều đi vào trình sửa dính",
       CONSOLE.count("moTrongTrang(rel, it)") >= 2 and "moTrongTrang(it.path, target)" in CONSOLE)
+# 0.63.5: khung mặc định KHÔNG còn tra theo danh sách id viết cứng. Danh sách đó đã cắn hai
+# lần đúng một kiểu (trang Cộng sự 0.59.2, trang Coding 0.63.4): trang mới có khung tên khác,
+# không nằm trong danh sách, nên bấm file LẶNG LẼ không mở gì. Nay khung nào nhận trình sửa thì
+# tự khai `data-ne-host`. Canary giữ nguyên ý cũ (hàm vẫn nhận `into`, và vẫn có khung mặc định
+# cho đường gọi không truyền gì) nhưng canh theo cơ chế mới, cộng chốt danh sách cứng không về.
 check("_borrowNoteEditor nhận khung để mượn (chat và Tệp tin dùng chung một hàm)",
       "function _borrowNoteEditor(into)" in CONSOLE
-      and 'into = into || document.getElementById("chatPageEdit")' in CONSOLE)
+      and 'into = into || document.querySelector("[data-ne-host]")' in CONSOLE
+      and 'document.getElementById("chatPageEdit") || document.getElementById("wsEdit")' not in CONSOLE)
+check("CANARY: mọi trang mượn khung chat đều khai khung trình sửa của mình",
+      'id="chatPageEdit" data-ne-host' in CONSOLE
+      and 'id="wsEdit" data-ne-host' in WORKSPACE
+      and 'id="cdEdit" data-ne-host' in CODING)
 check("trả trình sửa về theo CHA hiện tại, không tra cứng khung của trang Trò chuyện",
       "const into = s.node.parentNode;" in CONSOLE)
 check("rời trang Tệp tin thì TRẢ trình sửa về khoang não (kẻo mất node)",
