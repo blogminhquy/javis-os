@@ -278,7 +278,4 @@ updated: YYYY-MM-DD
 
 ## Dev conventions (Claude Code sessions working on this repo)
 
-- After finishing a change with CI green: **merge straight into `main`** (rebase/squash, keep history linear - this repo does not use merge commits). The repo owner allowed this (2026-07-30) so changes can be tested live on the VPS through an update; no need to ask each time.
-- CI red means do NOT merge - make it green first.
-- Still develop on a branch and open a PR as usual; the only difference is that merging does not wait for manual approval.
-- **Write CHANGELOG.md FOR SOMEONE READING ON A PHONE, not for a developer reading a diff.** The owner reads the update log on a vertical screen (2026-08-12): at most 3 to 4 bullets per version, 1 to 2 sentences each, saying what the USER SEES differently rather than naming functions and file paths. Technical detail belongs in the commit body and PR description. Use `**` and `` ` `` sparingly; the page renders markdown, but a line dense with markers is hard to read on a narrow screen.
+Read `docs/quy-uoc-dev.md` BEFORE you branch, commit or merge here. It carries the full rules: RESERVE the version number before writing code (parallel sessions collide otherwise), merge straight into `main` on green CI, and write CHANGELOG.md for a phone screen. Kept out of this file because a Javis user never needs it and every character here is taxed on every chat turn.
