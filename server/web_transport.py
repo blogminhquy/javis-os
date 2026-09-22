@@ -53,6 +53,37 @@ PROFILE_DIR = Path(STATE_DIR) / "web-profiles" / "chatgpt"
 URL_GOC = "https://chatgpt.com/"
 
 # ============================================================
+# ĐĂNG NHẬP BẰNG COOKIE
+# ============================================================
+#
+# Chủ repo hỏi 22/09: "sao cồng kềnh vậy, dán cookie như MCP Substack không được à". Câu trả
+# lời đầy đủ, vì nó quyết định thiết kế chỗ này:
+#
+# Substack không có lớp chống bot trước API, nên có cookie là gọi thẳng API được, hết. Còn
+# chatgpt.com có hai lớp nữa, và cả hai đều KHÔNG mang cookie sang máy khác được:
+#
+#   1. Cloudflare. Cookie `cf_clearance` buộc vào IP + User-Agent + chữ ký TLS của đúng cái
+#      máy đã giải thử thách. Bê từ máy cá nhân sang VPS là IP khác, Cloudflare từ chối ngay.
+#   2. Sentinel của OpenAI. Trước mỗi tin nhắn, trang gọi /backend-api/sentinel/chat-requirements
+#      và đòi một token proof-of-work do JavaScript TRONG TRANG tự tính. Viết lại bằng Python
+#      thì được, nhưng hỏng mỗi lần OpenAI đổi thuật toán.
+#
+# Một trình duyệt thật giải cả hai lớp đó miễn phí, vì nó chính là thứ hai lớp kia muốn thấy.
+# Nên trình duyệt PHẢI ở lại.
+#
+# Nhưng cookie PHIÊN thì khác: nó chỉ là token phiên, không buộc vào IP. Dán nó vào hồ sơ
+# trình duyệt trên VPS là Chromium ở đó tự giải Cloudflare bằng IP của chính nó. Nhờ vậy bỏ
+# được phần nặng nhất về trải nghiệm: màn đăng nhập chụp màn hình, và mật khẩu đi qua máy chủ.
+TEN_COOKIE_PHIEN = "__Secure-next-auth.session-token"
+MIEN_COOKIE = "chatgpt.com"
+
+# Cookie KHÔNG được nhận, dù người dùng có dán vào. `cf_clearance` buộc vào IP + User-Agent +
+# chữ ký TLS của máy đã giải thử thách; nhét bản của máy khác vào đây không phải vô hại mà
+# CÓ HẠI - Cloudflare thấy một tấm vé không khớp và chặn, trong khi Chromium ở đây thừa sức tự
+# xin một tấm vé đúng của mình nếu ta để yên cho nó.
+COOKIE_BO_QUA = ("cf_clearance", "__cf_bm", "_cfuvid")
+
+# ============================================================
 # SELECTOR: đúng MỘT nơi duy nhất trong cả Javis
 # ============================================================
 SELECTORS = {
@@ -292,6 +323,66 @@ def kha_dung() -> tuple[bool, str]:
         return False, ("Engine ChatGPT Web đang bị tắt bằng biến môi trường "
                        "JAVIS_ENABLE_WEB_CHAT=0. Bỏ biến đó đi rồi khởi động lại nếu muốn dùng.")
     return co_trinh_duyet()
+
+
+def doc_cookie(raw: str) -> tuple[list, str]:
+    """Đọc thứ người dùng DÁN VÀO thành danh sách cookie cho Playwright. (cookies, lý do lỗi).
+
+    Nhận ba kiểu, vì người dùng lấy cookie bằng ba đường khác nhau và không ai nhớ mình đang
+    cầm kiểu nào. Bắt họ đoán đúng định dạng là một bước thất bại không cần tồn tại:
+
+      1. CHỈ giá trị token   -> `eyJhbGciOi...`          (copy từ tab Application của DevTools)
+      2. Chuỗi cookie        -> `a=1; __Secure-...=xyz`  (copy từ document.cookie hoặc tab Network)
+      3. JSON                -> `[{"name": ..., "value": ...}]`  (tiện ích xuất cookie)
+
+    KHÔNG bao giờ ghi giá trị ra log hay câu trả về: đây là chìa khoá vào nguyên tài khoản
+    ChatGPT của chủ máy, mạnh ngang mật khẩu.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return [], "Chưa dán gì cả."
+
+    tho: list = []
+    if raw[0] in "[{":
+        import json
+        try:
+            d = json.loads(raw)
+        except Exception:
+            return [], "Dán vào trông như JSON nhưng đọc không ra. Kiểm tra lại xem có copy thiếu không."
+        d = d if isinstance(d, list) else [d]
+        for c in d:
+            if isinstance(c, dict) and c.get("name") and c.get("value") is not None:
+                tho.append((str(c["name"]).strip(), str(c["value"])))
+    elif "=" in raw:
+        for mieng in raw.split(";"):
+            if "=" not in mieng:
+                continue
+            ten, _, gt = mieng.partition("=")
+            ten, gt = ten.strip(), gt.strip()
+            if ten and gt:
+                tho.append((ten, gt))
+    else:
+        tho.append((TEN_COOKIE_PHIEN, raw))
+
+    ra, da_bo = [], []
+    for ten, gt in tho:
+        if ten in COOKIE_BO_QUA:
+            da_bo.append(ten)
+            continue
+        ra.append({
+            "name": ten, "value": gt, "domain": MIEN_COOKIE, "path": "/",
+            "httpOnly": True, "secure": True, "sameSite": "Lax",
+        })
+    if not ra:
+        if da_bo:
+            return [], (f"Chỉ thấy {', '.join(da_bo)} - mấy cookie này buộc vào IP của máy đã "
+                        f"tạo ra chúng nên mang sang đây không dùng được. Javis cần "
+                        f"{TEN_COOKIE_PHIEN}.")
+        return [], "Không đọc ra cookie nào từ thứ vừa dán."
+    if not any(c["name"] == TEN_COOKIE_PHIEN for c in ra):
+        return [], (f"Không thấy cookie {TEN_COOKIE_PHIEN} trong thứ vừa dán. Đó là cookie giữ "
+                    f"phiên đăng nhập, thiếu nó thì mấy cái còn lại không làm gì được.")
+    return ra, ""
 
 
 def _tim_chromium() -> str:
@@ -595,6 +686,25 @@ class ChatGPTWebTransport:
             return False, f"Không mở được trang: {type(e).__name__}: {e}"
         return True, ""
 
+    def _nap_cookie_that(self, cookies: list) -> tuple[bool, str]:
+        """Nhét cookie vào hồ sơ trình duyệt rồi tải lại trang. (đã đăng nhập chưa, lý do lỗi).
+
+        Xoá cookie cũ trước: dán cookie mới đè lên một phiên cũ còn sót thì trang có thể vẫn
+        chạy bằng phiên cũ, và người dùng tưởng cookie mới đã ăn.
+        """
+        ok, ly_do = self._mo_that()
+        if not ok:
+            return False, ly_do
+        try:
+            self._ctx.clear_cookies()
+            self._ctx.add_cookies(cookies)
+            self._page.goto(self.url, wait_until="domcontentloaded", timeout=60_000)
+        except Exception as e:
+            # Câu lỗi KHÔNG được mang theo giá trị cookie. Playwright có nhắc tên cookie trong
+            # lỗi của nó, nhưng không nhắc giá trị, nên để nguyên là an toàn.
+            return False, f"Không nạp được cookie: {type(e).__name__}: {e}"
+        return self._da_dang_nhap_that(), ""
+
     def _chup_that(self) -> bytes:
         return self._page.screenshot(type="jpeg", quality=60, full_page=False)
 
@@ -663,6 +773,15 @@ class ChatGPTWebTransport:
         """Mở trang ChatGPT để chủ máy đăng nhập qua dashboard. CHẠY ẨN, không cần màn hình."""
         try:
             return self._chay(self._mo_dang_nhap_that, tran_gio=120.0)
+        except Exception as e:
+            return False, f"{type(e).__name__}: {e}"
+
+    def nap_cookie(self, cookies: list) -> tuple[bool, str]:
+        """Đăng nhập bằng cookie thay vì gõ tay. (đã đăng nhập chưa, lý do lỗi)."""
+        if self._ban():
+            return False, "Đang có một lượt chat chạy dở, chờ nó xong đã."
+        try:
+            return self._chay(self._nap_cookie_that, cookies, tran_gio=120.0)
         except Exception as e:
             return False, f"{type(e).__name__}: {e}"
 

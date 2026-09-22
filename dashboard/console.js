@@ -3852,6 +3852,23 @@
           ${x.kha_dung ? `<button class="gcard-btn ghost" data-webreset="1">Đóng trình duyệt</button>` : ""}
           <span id="webMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:220px"></span>
         </div>
+        ${x.kha_dung ? `
+        <details class="prov-steps" style="margin-top:8px">
+          <summary style="cursor:pointer;font-size:14px">Hoặc dán cookie, khỏi gõ mật khẩu</summary>
+          <div class="gcard-meta" style="margin-top:8px;line-height:1.55">
+            Mở <b>chatgpt.com</b> trên máy anh khi đang đăng nhập, bật DevTools (F12), vào
+            <b>Application</b> rồi <b>Cookies</b>, tìm dòng <code>${esc(x.ten_cookie || "__Secure-next-auth.session-token")}</code>
+            và copy cột Value. Dán thẳng vào đây.
+            <div style="margin-top:6px">Cookie này mạnh ngang mật khẩu, nên Javis chỉ nhét nó
+            vào hồ sơ trình duyệt chứ không ghi lại ở đâu cả.</div>
+          </div>
+          <textarea id="webCookie" rows="3" spellcheck="false"
+            style="width:100%;margin-top:8px;font-family:var(--mono,monospace);font-size:13px"
+            placeholder="Dán giá trị cookie vào đây"></textarea>
+          <div class="prov-action" style="margin-top:6px">
+            <button class="gcard-btn" data-webcookie="1">Đăng nhập bằng cookie</button>
+          </div>
+        </details>` : ""}
         <div id="webManHinh" style="display:none;margin-top:10px"></div>
         ${nghi}`;
 
@@ -3877,6 +3894,32 @@
         };
       };
       goi("[data-weblogin]", "/web-chat/login", "Đang mở trang ChatGPT…", () => moManDangNhap(box));
+
+      // Nút cookie gửi kèm THÂN request nên không dùng chung `goi` được (hàm đó POST rỗng).
+      const bCk = box.querySelector("[data-webcookie]");
+      if (bCk) bCk.onclick = async () => {
+        const o = box.querySelector("#webCookie");
+        const gt = (o && o.value || "").trim();
+        if (!gt) { if (o) o.focus(); return; }
+        bCk.disabled = true;
+        if (msg) msg.textContent = "Đang nạp cookie và mở chatgpt.com…";
+        let r = null;
+        try {
+          r = await (await fetch("/web-chat/cookie", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cookie: gt }),
+          })).json();
+        } catch (e) { r = { ok: false, error: t("common.net_err") }; }
+        bCk.disabled = false;
+        // Xoá ô NGAY, cả khi hỏng: không để chìa khoá tài khoản nằm chờ trên màn hình.
+        if (o) o.value = "";
+        if (!r || !r.ok) {
+          if (msg) msg.innerHTML = Icons.warn((r && r.error) || t("common.net_err"));
+          return;
+        }
+        if (msg) msg.innerHTML = OK_ICON + " " + esc(r.huong_dan || "Đã đăng nhập");
+        try { ve(await (await fetch("/web-chat/status")).json()); } catch (e) {}
+      };
       goi("[data-webcheck]", "/web-chat/check", t("models.testing"));
       goi("[data-webreset]", "/web-chat/reset", "Đang đóng…");
     };
