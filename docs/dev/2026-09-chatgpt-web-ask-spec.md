@@ -3,7 +3,7 @@
 **Phiên bản:** v1.0. Thay cho bản "ChatGPT Web / DeepSeek Web làm provider" bàn trong chat
 2026-09-22.
 **Trạng thái:** chốt phạm vi, **chưa viết mã**, và **chưa được phép viết mã** cho tới khi
-qua Cổng 0 ở mục 10.
+qua Cổng 0 ở mục 11.
 **Phạm vi:** một plugin bundled cộng một module transport. Không đụng `engine.py`,
 `main.py`, `sessions.py`, `aux_engine.py`.
 Tài liệu cho người sửa lõi.
@@ -15,7 +15,8 @@ Tài liệu cho người sửa lõi.
 1. **ChatGPT Web là một TOOL, không phải một engine.** Bản bàn đầu định thêm nó vào danh
    sách bộ não để agent loop chạy trên đó. Mục 2 chứng minh đó là cách tiêu quota tệ nhất có
    thể. Ở đây nó là một tool mà **mọi engine đều gọi được**, giống hệt
-   `javis_generate_image`.
+   `javis_generate_image`. Nhưng "tool" mặc định nghĩa là model tự quyết khi nào gọi, mà chủ
+   dự án muốn **tự bấm**, nên mục 7 thêm ba nấc bấm tay tất định, không qua model.
 2. **Không thêm một nhánh provider nào.** `main.py` đã có 72 nhánh `provider == "..."`. Thêm
    một provider nữa là thêm nhánh vào cả model picker, catalog model, đường chat, đường việc
    nền, Telegram `/model`, trang Models. Một plugin thì không đụng dòng nào trong số đó.
@@ -133,7 +134,8 @@ context thứ hai.
 
 ## 6. Bề mặt mã
 
-Đúng hai chỗ mới. Không có chỗ thứ ba.
+Bốn chỗ mới. Hai chỗ đầu là đường đi của câu hỏi, hai chỗ sau là cách anh BẤM để
+chọn nó (mục 7). Không có chỗ thứ năm.
 
 ### 6.1. `server/web_ask.py`
 
@@ -182,9 +184,87 @@ hạn mức dùng chung, nên chế độ `suggest` (chỉ đọc) không đư�
 không thay đổi gì bên ngoài.
 
 **`enabled: false` dù là plugin bundled**, khác `image-chatgpt`. Cộng thêm cổng môi trường
-`JAVIS_ENABLE_WEB_ASK=true`. Lý do ở mục 9.
+`JAVIS_ENABLE_WEB_ASK=true`. Lý do ở mục 10.
 
-## 7. Trạng thái và phân loại lỗi
+### 6.3. Lệnh `/web` trong `dashboard/chat-slash.js`
+
+Thêm `"web"` vào `SESSION_COMMANDS` (hiện là `["new", "reset", "stop"]`), **không** đăng ký
+nó như một skill.
+
+Đây là điểm dễ làm sai nhất của cả tài liệu. Khung lệnh hiện có quy ước `/<slug>` nghĩa là
+**gọi skill `<slug>`** (`main.py:5076`, `chat-slash.js:buildMenu`). Skill thì đi qua model,
+và model vẫn có toàn quyền tự trả lời rồi bỏ qua skill. Như vậy `/web` sẽ **không tất định**,
+mà tất định mới là thứ mục 7 cần.
+
+Lệnh phiên thì khác: client chặn ngay trong `sendMessage()`, server gọi thẳng `web_ask`,
+**model không được đụng vào lượt đó**.
+
+Cũng vì thế `/web` **không** được nhận dạng ở GIỮA câu (`parseSlashAnywhere`), giống
+`/new` `/reset` `/stop`. Một câu như "xem file /web-ask.js giúp anh" mà tự nhiên bắn ra ngoài
+là hỏng.
+
+### 6.4. Chip trong `dashboard/coding.js` và `#modelBar`
+
+Bản 0.63.0 đã nhét **dải chip ngữ cảnh vào chính `#modelBar` đã mượn, đứng trước chip Model**.
+Thêm một chip vào đúng dải đó theo cùng khuôn, không dựng thanh thứ hai.
+
+## 7. Anh chủ động chọn thế nào
+
+Mục 2 quyết định ChatGPT Web là tool. Nhưng "tool" theo mặc định nghĩa là **model tự quyết
+khi nào gọi**, mà điều chủ dự án muốn là **tự bấm**. Hai chuyện khác nhau, và mục này lo
+chuyện thứ hai.
+
+Ba nấc, cùng chạy trên một `web_ask`, khác nhau ở độ dính:
+
+| Nấc | Cách bấm | Phạm vi | Codex lúc đó |
+|---|---|---|---|
+| 1 | Gõ `/web <câu hỏi>` | Đúng một câu | Không chạy lượt đó |
+| 2 | Bật chip **ChatGPT Web** trên thanh chat | Cả phiên tới khi tắt | Nghỉ cả phiên |
+| 3 | Trong phiên Coding: chip **Hỏi Web lượt tới** | Một lượt, xong tự tắt | Giữ nguyên task, worktree, git |
+
+Nấc 3 là nấc dùng nhiều nhất trong thực tế: Codex vẫn cầm task và cây mã, anh chỉ mượn não
+web cho đúng câu khó. Câu trả lời rơi vào khung chat như một tin nhắn bình thường, nên lượt
+sau Codex đọc lại được và làm tiếp.
+
+### Tự đóng gói bối cảnh (không có cái này thì anh sẽ bỏ sau ba lần)
+
+`/web` gõ **trong một phiên Coding** thì Javis tự đính kèm, không bắt anh copy paste:
+
+- `git diff` hiện tại của worktree
+- file đang mở trong trình sửa (khối `[FILE ĐANG MỞ...]` đã có sẵn)
+- tên nhánh và repo
+- đoạn lỗi test gần nhất trong phiên, nếu có
+
+`coding_store.cwd_cua_phien` đã biết cwd và nhánh; `git diff` là một lệnh. Tổng gói cắt ở
+`CONTEXT_MAX`, và Javis **in ra đã gửi đi những gì** trước khi gửi, vì đây là mã nguồn rời
+khỏi máy.
+
+### Bật chip thì mất gì, và phải nói ngay
+
+Chip bật là Javis in một dòng ngay dưới thanh chat:
+
+> Đang hỏi qua ChatGPT Web: không có Bash, không đọc ghi file, không MCP, không skill, không
+> nhớ mạch phiên. Chỉ nhận chữ và trả chữ.
+
+Không in dòng này thì sẽ có lần chủ máy bật chip rồi bảo "sửa giúp file này", nhận về một
+đoạn chữ, và tưởng Javis hỏng.
+
+### Vì sao KHÔNG cho vào ô chọn Model
+
+Ô chọn Model là chỗ chọn **bộ não**, và `CLAUDE.md` hứa mọi bộ não trong đó có cùng bộ tool.
+Nhét một thứ không có tool nào vào cùng danh sách là đặt bẫy: lần sau chọn nó rồi giao việc
+cần sửa file, nó im lặng không làm được, và lỗi đó trông như lỗi của Javis chứ không như một
+lựa chọn của người dùng.
+
+Chip đứng **cạnh** picker, không **trong** picker, và tự nói mình là gì.
+
+### Đếm lượt thay cho quota
+
+Muốn chủ động thì phải thấy còn bao nhiêu, mà ChatGPT Web không phơi con số quota ra. Nên
+Javis tự đếm trong sổ ở mục 8: `so_luot_trong_ngay`, cộng mốc chạm trần gần nhất. Đủ để tự
+liệu, và **không bịa phần trăm** (đúng luật đã có trong `CLAUDE.md`).
+
+## 8. Trạng thái và phân loại lỗi
 
 Sổ `STATE_DIR/web_ask.json`:
 
@@ -209,7 +289,7 @@ sổ này ở dạng tổng quát được, để sau bê nguyên sang các prov
 `failure_count` tăng dần, chạm `NGUONG_NGAT` thì tự vào cooldown dài. Không có vòng thử lại
 vô hạn.
 
-## 8. Giao diện
+## 9. Giao diện
 
 Một thẻ trên trang **Kết nối**, không phải trang Models (nó không phải bộ não):
 
@@ -220,7 +300,7 @@ Một thẻ trên trang **Kết nối**, không phải trang Models (nó không 
 
 Không có ô nhập mật khẩu. Không bao giờ.
 
-## 9. Ranh giới an toàn và rủi ro
+## 10. Ranh giới an toàn và rủi ro
 
 **Điều khoản dịch vụ.** OpenAI cấm truy cập tự động vào dịch vụ ngoài đường API. Đây là tài
 khoản của chính chủ máy, trên máy của chính họ, nhưng nếu bị phát hiện thì thứ mất là **gói
@@ -242,7 +322,7 @@ nói rõ lý do, chứ không thử rồi treo.
 **Dữ liệu.** `context` là nội dung repo gửi ra ngoài. Mô tả tool phải nói điều đó để model
 gọi nó có ý thức, và `min_mode: safe` để chế độ chỉ đọc không tự gửi gì.
 
-## 10. Cổng 0: trả lời trước khi viết dòng mã nào
+## 11. Cổng 0: trả lời trước khi viết dòng mã nào
 
 **Pool Codex của chủ máy có thật sự đang cạn không?**
 
@@ -252,7 +332,7 @@ riêng ChatGPT.
 
 Ghi câu trả lời vào chính tài liệu này trước khi đi tiếp.
 
-## 11. Spike một ngày, có tiêu chí giết
+## 12. Spike một ngày, có tiêu chí giết
 
 Đặt tiêu chí **trước** khi chạy, không đặt sau khi đã lỡ viết mã:
 
@@ -264,19 +344,20 @@ Ghi câu trả lời vào chính tài liệu này trước khi đi tiếp.
 Không đạt đủ bốn thì **dừng dự án**, ghi kết quả vào đây, và tài liệu này thành bản ghi vì
 sao không làm. Đó là kết quả hợp lệ.
 
-## 12. Lộ trình
+## 13. Lộ trình
 
 | Bước | Nội dung | Ước lượng |
 |---|---|---|
 | Cổng 0 | Xem pool Codex đã cạn chưa | 30 phút, không mã |
-| Spike | Tee fetch trên profile cố định, chấm theo mục 11 | 1 ngày |
+| Spike | Tee fetch trên profile cố định, chấm theo mục 12 | 1 ngày |
 | Phase 1 | `web_ask.py` cộng plugin `web-ask`, sổ trạng thái, thẻ trang Kết nối | 2-3 ngày |
+| Phase 1B | Ba nấc bấm tay của mục 7: lệnh phiên `/web`, chip cả phiên, chip một lượt trong Coding, cộng tự đóng gói bối cảnh | 1-2 ngày |
 | Phase 2 | Chỉ khi Phase 1 chạy ngon: cùng transport cắm làm provider `aux_engine` cho **việc nền một lượt** (viết bài, tóm tắt, ingest) | 2-3 ngày |
 
 Phase 2 không được đụng đường chat và không được đụng vòng lặp coding. Nó cắm vào
-`_FallbackChain` như một mắt xích và thừa hưởng sổ trạng thái mục 7.
+`_FallbackChain` như một mắt xích và thừa hưởng sổ trạng thái mục 8.
 
-## 13. Không làm
+## 14. Không làm
 
 - Web làm engine cho agent loop coding. Mục 2 là lý do.
 - DeepSeek Web. Mục 3 là lý do.
@@ -285,7 +366,7 @@ Phase 2 không được đụng đường chat và không được đụng vòng
 - Chạy trên VPS.
 - Loop nền tự gọi `web_ask` theo lịch.
 
-## 14. Test
+## 15. Test
 
 Repo chạy test bằng cách gọi từng file như script, nên mỗi file phải có nhánh chạy thẳng.
 
@@ -299,10 +380,14 @@ Repo chạy test bằng cách gọi từng file như script, nên mỗi file ph�
   cụt.
 - `test_web_ask_dong_thoi.py`: hai lượt cùng lúc thì lượt sau xếp hàng, quá hạn trả `DANG_BAN`,
   và không có context thứ hai nào được mở.
+- `test_web_lenh_phien.js`: `/web` nằm trong `SESSION_COMMANDS` chứ không phải danh sách
+  skill; `parseSlash("/web hỏi gì đó")` bắt đúng lệnh cùng arg; và
+  `parseSlashAnywhere("xem file /web-ask.js giúp anh")` **không** bắt, vì lệnh phiên không
+  được nhận dạng ở giữa câu.
 
-## 15. Để lần sau
+## 16. Để lần sau
 
-- Máy trạng thái provider dùng chung cho mọi nhà cung cấp, bê từ sổ mục 7 ra.
+- Máy trạng thái provider dùng chung cho mọi nhà cung cấp, bê từ sổ mục 8 ra.
 - Task Handoff Packet (bản rà soát 2026-09-22, mục 1 phần đề xuất).
 - Version guard cho Codex CLI: `install.sh:143` và `update.sh:50` đang cài
   `@openai/codex@latest` vô điều kiện, không có supported range, không có smoke test.
