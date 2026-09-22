@@ -14,7 +14,17 @@
 
    3. **Cột trái là DANH SÁCH PHIÊN, không phải danh sách repo.** Câu hỏi người ta mở trang
       này để trả lời là "việc nào đang dở", không phải "mình đã khai những thư mục nào". Thư
-      mục lùi về một cái tag nhỏ trên từng phiên và một menu ở chip.
+      mục lùi về một menu ở chip.
+
+   0.63.2 sửa tiếp hai chỗ nữa, cũng do chủ dự án chỉ ra khi dùng thử:
+
+   4. **Cột trái là CHÍNH cột hội thoại của trang Trò chuyện**, mượn qua `JavisChatSide.mount`
+      với bộ lọc kênh - nguyên hàng tab Hội thoại|Thư mục, thanh gom nhóm, ô tìm, ghim, nhóm
+      theo ngày, đổi tên, xoá, "Xem thêm". Bản 0.63.1 tự vẽ một danh sách rút gọn: lại đúng
+      cái lỗi "dựng bản thứ hai" mà chính file này chép lời cảnh báo ở trên.
+
+   5. **Chip mức quyền đọc là Plan / Tự động / Toàn quyền**, và Plan không chỉ là chặn ghi mà
+      còn BẢO engine lập kế hoạch rồi dừng (xem `coding_store.KHOI_PLAN`).
 
    Hai vùng: trái = phiên, giữa = khung chat MƯỢN của app. Không có cột Work Tree cố định -
    cây thư mục, trình sửa file và terminal đã có chỗ riêng, dựng bản thứ hai ở đây là chép lại
@@ -22,7 +32,7 @@
 
    Dải chip ngữ cảnh nhét vào chính #modelBar đã mượn, đứng TRƯỚC chip Model của app.
 
-   Các hàm THUẦN (chipHtml, nhanHienThi, tomTatPhien) phơi ra cuối file để test bằng node.
+   Các hàm THUẦN (chipHtml, nhanHienThi) phơi ra cuối file để test bằng node.
    KHÔNG dùng ký tự em dash. Chữ hiện ra lấy từ từ điển window.t. */
 (function () {
   "use strict";
@@ -49,6 +59,8 @@
   // thì bộ quét i18n không thấy khoá nào, nên xoá nhầm một dòng trong vi.json vẫn xanh và
   // người dùng là người đầu tiên thấy mã khoá trên màn hình.
   var MQ_KHOA = { suggest: "coding.mode_suggest", auto: "coding.mode_auto", full: "coding.mode_full" };
+  var MQ_GHI = { suggest: "coding.mode_suggest_note", auto: "coding.mode_auto_note",
+                 full: "coding.mode_full_note" };
   function nhanQuyen(m) { return t(MQ_KHOA[m] || MQ_KHOA.auto); }
 
   // Kênh của phiên Coding. Server là nguồn thật (coding_store.KENH) và trả về trong
@@ -56,7 +68,7 @@
   var KENH_MAC_DINH = "coding:phien";
 
   var S = {
-    el: null, thuMuc: [], phien: [], rb: {}, cwd: "", tm: null,
+    el: null, thuMuc: [], rb: {}, cwd: "", tm: null,
     diemHoi: [], kenh: KENH_MAC_DINH, sidCoding: {}, phienTruoc: null,
   };
   var active = false, opening = 0;
@@ -70,18 +82,6 @@
   function nhanHienThi(tm) {
     if (!tm) return "";
     return String(tm.ten || tm.duong_dan || "").split(/[\\/]/).pop();
-  }
-
-  /** Một dòng trong cột trái: tên việc + thư mục đang gắn (rỗng nếu chưa gắn).
-   *
-   *  Tên lấy theo thứ tự title -> câu hỏi đầu -> "Việc chưa đặt tên". Phiên vừa mở chưa có
-   *  tin nào thì cả hai đều rỗng, mà bỏ trắng một dòng trong danh sách thì không bấm được. */
-  function tomTatPhien(p) {
-    p = p || {};
-    return {
-      ten: String(p.title || p.preview || "").trim() || t("coding.session_untitled"),
-      thuMuc: String(p.thu_muc_ten || "").trim(),
-    };
   }
 
   /** HTML của hàng chip ngữ cảnh. Thuần để test được không cần DOM.
@@ -117,23 +117,28 @@
   // ============================================================
   // Khung trang
   // ============================================================
+  /** Khung trang dùng ĐÚNG bộ lớp `.chatpage*` của trang Trò chuyện.
+   *
+   *  Không đặt bộ lớp riêng: toàn bộ luật xếp khung (bề rộng cột, min-height ở mọi tầng, thu
+   *  gọn cột, ngăn kéo trên màn hẹp) đã nằm trong `_injectChatCss` của console.js, mà
+   *  renderCoding gọi trước khi dựng trang này. Viết lại bộ lớp thứ hai là chép lại từng đó
+   *  luật rồi để hai bản trôi lệch nhau ngay lần sửa đầu tiên. */
   function khung() {
     return '' +
-      '<div class="cd-page" id="cdPage">' +
-        '<aside class="cd-left" id="cdLeft">' +
-          '<div class="cd-left-head">' +
-            '<button type="button" class="ws-btn primary cd-new" id="cdNewChat">' +
-              ic("plus") + " " + esc(t("coding.new_session")) + "</button>" +
-          "</div>" +
-          '<div class="cd-phien-ds" id="cdPhienDs"></div>' +
-        "</aside>" +
-        '<div class="cd-main">' +
-          '<div class="cd-bar">' +
-            '<button type="button" class="ws-ico" id="cdLeftBtn" title="' + esc(t("coding.toggle_list")) + '">' +
-              ic("panel-left") + "</button>" +
+      '<div class="chatpage" id="cdPage">' +
+        '<aside class="chatpage-side" id="cdSide"></aside>' +
+        '<div class="chatpage-main">' +
+          '<div class="chatpage-bar">' +
+            '<button class="cp-ico-btn cp-side-toggle" type="button" id="cdLeftBtn" title="' +
+              esc(t("coding.toggle_list")) + '">' + ic("history") + "</button>" +
             '<div class="cd-id" id="cdIdentity"></div>' +
+            // Chip gom nhóm hội thoại của trang Trò chuyện đậu vào đây, y như thanh tiêu đề
+            // của trang đó. Thiếu ô này thì JavisChatSide.chip() không có chỗ để vẽ.
+            '<span class="proj-chip-host"></span>' +
           "</div>" +
-          '<div class="cd-slot" id="cdSlot"></div>' +
+          '<div class="chatpage-slot" id="cdSlot"></div>' +
+          // Chỗ đứng cho trình sửa khi mở một file từ tab Thư mục của cột trái.
+          '<div class="chatpage-edit" id="cdEdit"></div>' +
         "</div>" +
       "</div>";
   }
@@ -143,21 +148,47 @@
     nhoPhienTruoc();
     el.innerHTML = khung();
     if (opts && opts.borrow) opts.borrow(el.querySelector("#cdSlot"));
-    el.querySelector("#cdNewChat").onclick = function () { moPhienMoi(); };
     el.querySelector("#cdLeftBtn").onclick = function () {
-      // Cùng một nút, hai nghĩa ngược nhau theo bề rộng: desktop cột trái hiện sẵn nên nút để
-      // ẨN; điện thoại cột trái là ngăn kéo đóng sẵn nên nút để MỞ. Dùng chung một lớp thì
-      // một trong hai màn hình bấm nút không thấy gì xảy ra.
-      var hep = W.matchMedia && W.matchMedia("(max-width: 900px)").matches;
-      el.querySelector("#cdPage").classList.toggle(hep ? "left-on" : "left-off");
+      el.querySelector("#cdPage").classList.toggle("side-thu");
     };
     await taiThuMuc();
-    await taiPhien(true);
+
+    // CỘT TRÁI = chính cột hội thoại của trang Trò chuyện, lọc theo kênh Coding. Mượn nguyên
+    // module nên có sẵn: tab Hội thoại|Thư mục, thanh gom nhóm, ô tìm, ghim, nhóm theo ngày,
+    // đổi tên, xoá, "Xem thêm". `onNew` bắt buộc phải truyền, vì nút "Hội thoại mới" mặc định
+    // mở một phiên chat THƯỜNG, mà phiên thường thì không chạy trong thư mục nào cả.
+    if (W.JavisChatSide && W.JavisChatSide.mount) {
+      W.JavisChatSide.mount(el.querySelector("#cdSide"), { kenh: S.kenh, onNew: moPhienMoi });
+      try { W.JavisChatSide.chip(); } catch (e) {}
+    }
+    bocMoPhien();
+    await moPhienDau();
+  }
+
+  /** Bọc `JavisSessions.open` trong lúc ở trang này.
+   *
+   *  Bấm một hội thoại ở cột trái là module lịch sử gọi thẳng `JavisSessions.open`, không đi
+   *  qua file này, nên dải chip vẫn nói về phiên CŨ: sai thư mục, sai mức quyền, và người
+   *  dùng không có cách nào biết. Module đó không phát sự kiện nào, nên chỗ móc rẻ nhất là
+   *  bọc chính hàm ấy lại, và trả về nguyên trạng khi rời trang. */
+  var _openGoc = null;
+  function bocMoPhien() {
+    if (!W.JavisSessions || _openGoc) return;
+    _openGoc = W.JavisSessions.open;
+    W.JavisSessions.open = function (id, still) {
+      var ra = _openGoc.apply(W.JavisSessions, arguments);
+      if (id) { S.sidCoding[id] = 1; Promise.resolve(ra).then(function () { taiRangBuoc(id); }, function () {}); }
+      return ra;
+    };
+  }
+  function traMoPhien() {
+    if (_openGoc && W.JavisSessions) { W.JavisSessions.open = _openGoc; }
+    _openGoc = null;
   }
 
   function roi() {
     active = false;
-    dongMenu(); goChip(); traKhungChat();
+    dongMenu(); goChip(); traMoPhien(); traKhungChat();
   }
 
   // ============================================================
@@ -170,36 +201,14 @@
     if (r && r.kenh) S.kenh = r.kenh;
   }
 
-  /** Tải danh sách phiên. `moLuon` = mở phiên gần nhất, chưa có phiên nào thì TẠO một phiên
-   *  mới ngay - để vào trang là gõ được, không phải bấm thêm một nút nào. */
-  async function taiPhien(moLuon) {
-    var r = await api("/coding/sessions?brain=" + encodeURIComponent(brain()));
+  /** Mở phiên để vào trang là gõ được ngay: lấy phiên gần nhất của kênh Coding, chưa có
+   *  phiên nào thì tạo một cái mới. Danh sách thì module lịch sử tự tải lấy. */
+  async function moPhienDau() {
+    var r = await api("/coding/sessions?brain=" + encodeURIComponent(brain()) + "&limit=1");
     if (!active) return;
-    S.phien = (r && r.phien) || [];
-    vePhienDs();
-    if (!moLuon) return;
-    if (S.phien.length) await moPhien(S.phien[0].id);
+    var ds = (r && r.phien) || [];
+    if (ds.length) await moPhien(ds[0].id);
     else await moPhienMoi();
-  }
-
-  function vePhienDs() {
-    var box = S.el && S.el.querySelector("#cdPhienDs");
-    if (!box) return;
-    var cur = W.JavisSessions ? W.JavisSessions.current() : "";
-    if (!S.phien.length) {
-      box.innerHTML = '<div class="cd-trong">' + esc(t("coding.no_session")) + "</div>";
-      return;
-    }
-    box.innerHTML = S.phien.map(function (p) {
-      var x = tomTatPhien(p);
-      return '<div class="cd-phien' + (p.id === cur ? " on" : "") + '" data-phien="' + esc(p.id) + '">' +
-        '<div class="cd-phien-ten">' + esc(x.ten) + "</div>" +
-        (x.thuMuc ? '<div class="cd-phien-tm">' + ic("folder-open") + " " + esc(x.thuMuc) + "</div>" : "") +
-        "</div>";
-    }).join("");
-    box.querySelectorAll("[data-phien]").forEach(function (n) {
-      n.onclick = function () { moPhien(n.dataset.phien); };
-    });
   }
 
   // ============================================================
@@ -237,7 +246,6 @@
       if (W.JavisSessions) await W.JavisSessions.open(sid, still);
       if (!still()) return false;
       await taiRangBuoc(sid);
-      vePhienDs();
       return true;
     } catch (e) {
       if (still()) veLoi(t("coding.err_session"));
@@ -256,7 +264,8 @@
       S.sidCoding[n.id] = 1;
       if (W.JavisSessions) await W.JavisSessions.open(n.id);
       await taiRangBuoc(n.id);
-      await taiPhien(false);
+      // Cột trái là module lịch sử: bảo NÓ vẽ lại, không tự dựng danh sách thứ hai.
+      try { if (W.JavisChatSide && W.JavisChatSide.refresh) W.JavisChatSide.refresh(); } catch (e) {}
       return true;
     } catch (e) {
       veLoi(t("coding.err_session"));
@@ -321,7 +330,7 @@
     var r = await api("/coding/session/" + encodeURIComponent(id), { method: "POST", body: fd(body) });
     if (r && r.error) { veLoi(r.error); return; }
     await taiRangBuoc(id);
-    await taiPhien(false);
+    try { if (W.JavisChatSide && W.JavisChatSide.refresh) W.JavisChatSide.refresh(); } catch (e) {}
   }
 
   function bamChip(loai, node) {
@@ -338,7 +347,10 @@
       return datRangBuoc({ worktree: dangCo ? "0" : "1" });
     }
     if (loai === "quyen") return menu(node, ["suggest", "auto", "full"].map(function (m) {
-      return { nhan: nhanQuyen(m), bam: function () { datRangBuoc({ muc_quyen: m }); } };
+      // Kèm một dòng nói RÕ mức đó cho làm gì. Ba cái tên trần thì người dùng phải đoán
+      // "Tự động" có push hộ không, mà đoán sai ở mức này là mất việc thật.
+      return { nhan: nhanQuyen(m), phu: t(MQ_GHI[m]), chon: (S.rb.muc_quyen || "auto") === m,
+               bam: function () { datRangBuoc({ muc_quyen: m }); } };
     }));
     if (loai === "diemhoi") return menuDiemHoi(node);
   }
@@ -459,9 +471,9 @@
   W.JavisCoding = {
     render: render, roi: roi,
     // Phơi cho test node
-    chipHtml: chipHtml, nhanHienThi: nhanHienThi, tomTatPhien: tomTatPhien,
+    chipHtml: chipHtml, nhanHienThi: nhanHienThi,
   };
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { chipHtml: chipHtml, nhanHienThi: nhanHienThi, tomTatPhien: tomTatPhien };
+    module.exports = { chipHtml: chipHtml, nhanHienThi: nhanHienThi };
   }
 })();

@@ -4818,6 +4818,22 @@ def _cwd_luot_chat(row, brain: str) -> str:
     return _brain_root(brain)
 
 
+def _khoi_coding(row) -> str:
+    """Khối prompt của phiên Coding (thư mục làm việc, nhánh, và mức quyền nghĩa là gì).
+
+    Trả "" cho mọi phiên khác, nên nối vào prompt là vô hại ở đường chat thường. Đặt `cwd`
+    thôi chưa đủ: model vẫn đoán đường dẫn từ trí nhớ của nó, và ở chế độ Plan thì còn phải
+    NÓI cho nó biết là hãy lập kế hoạch rồi dừng.
+    """
+    try:
+        sid = (row or {}).get("id") or ""
+        if sid and str((row or {}).get("channel") or "").startswith("coding:"):
+            return coding_store.khoi_prompt(sid)
+    except Exception:
+        pass
+    return ""
+
+
 def _muc_quyen_luot_chat(row) -> str:
     """Mức quyền của lượt: phiên coding lấy theo chip trên trang, còn lại giữ `full` như cũ.
 
@@ -12145,7 +12161,7 @@ async def websocket_endpoint(ws: WebSocket):
                         ) + channel_context.build_channel_block(
                             "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                             port=_javis_port(), brain_root=_brain_root(brain),
-                        )
+                        ) + _khoi_coding(_row0)
                 return sysprompt
 
             async def _subscription_system_prompt(route_provider, route_model, route_kind):
@@ -12174,7 +12190,7 @@ async def websocket_endpoint(ws: WebSocket):
                     ) + channel_context.build_channel_block(
                         "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                         port=_javis_port(), brain_root=_brain_root(brain),
-                    )
+                    ) + _khoi_coding(_row0)
 
                 try:
                     plan = await asyncio.to_thread(

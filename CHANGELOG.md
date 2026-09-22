@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.63.2] - 2026-09-22
+### Cải thiện
+- **Cột trái của mục Coding giờ là đúng cột hội thoại bên Trò chuyện**: có tab Hội thoại và Thư mục, ô tìm, ghim, gom nhóm, chia theo ngày, đổi tên, xoá. Không còn một danh sách rút gọn riêng nữa.
+- **Thêm chế độ Plan.** Ba chế độ đọc là Plan, Tự động, Toàn quyền, mỗi cái có một dòng nói rõ nó cho làm gì. Plan không chỉ khoá việc sửa file mà còn bảo Javis đọc mã rồi trả về một kế hoạch để bạn duyệt.
+- Javis giờ được nói rõ trong mỗi lượt là nó đang đứng ở thư mục nào và nhánh nào, nên bớt hẳn chuyện đoán nhầm đường dẫn.
+
 ## [0.63.1] - 2026-09-22
 ### Cải thiện
 - **Mục Coding: vào là nhắn được ngay.** Bản trước chặn bằng màn "Chưa có repo nào", phải khai một repo mới gõ được câu đầu tiên. Nay mở trang là có sẵn một việc, gắn thư mục lúc nào cũng được; chưa gắn thì Javis làm trong bộ não như mọi cuộc trò chuyện khác.

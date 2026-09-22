@@ -2060,44 +2060,18 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 }
 
 /* ============================================================
-   TRANG CODING (coding.js) - hai vùng: danh sách VIỆC | khung chat mượn
+   TRANG CODING (coding.js) - chỉ những gì RIÊNG của nó
    ============================================================
-   Cùng bài học xếp khung với trang Cộng sự: cột giữa mượn chính node chat của app, nên phải
-   flex dọc và min-height:0 ở MỌI tầng. Thiếu một min-height:0 là khung chat từ chối co lại
-   và ô nhập rơi khỏi đáy màn hình.
-
-   Cột trái là DANH SÁCH VIỆC chứ không phải danh sách thư mục (đổi ở 0.63.1): câu hỏi người
-   ta mở trang này để trả lời là "việc nào đang dở". Thư mục lùi về một tag nhỏ trên từng
-   dòng, và quản lý thư mục nằm trong menu của chip. */
-.cd-page { display: flex; height: 100%; min-height: 0; position: relative; overflow: hidden; }
-.cd-left { width: 250px; flex: none; display: flex; flex-direction: column; gap: 10px;
-  min-height: 0; padding: 14px 12px; border-right: 1px solid var(--glass-brd);
-  background: var(--surface-1); }
-.cd-page.left-off .cd-left { display: none; }
-.cd-left-head { flex: none; }
-.cd-new { width: 100%; justify-content: center; }
-.cd-phien-ds { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex;
-  flex-direction: column; gap: 3px; }
-.cd-trong { font-size: 15px; color: var(--text3); padding: 6px 2px; line-height: 1.5; }
-.cd-phien { padding: 7px 9px; border-radius: 9px; cursor: pointer; }
-.cd-phien:hover { background: var(--surface-2); }
-.cd-phien.on { background: var(--surface-2); box-shadow: inset 2px 0 0 var(--info-line); }
-.cd-phien-ten { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cd-phien-tm { font-size: 13px; color: var(--text3); display: flex; align-items: center; gap: 4px;
-  margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.cd-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0;
-  padding: 14px 18px 16px; }
-.cd-bar { flex: none; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+   Khung trang dùng lại nguyên bộ lớp `.chatpage*` của trang Trò chuyện (luật xếp khung nằm
+   trong _injectChatCss của console.js), và cột trái là chính module lịch sử `.cside-*`. Nên ở
+   đây chỉ còn ba thứ trang này thật sự đẻ ra: dải chip ngữ cảnh, menu bật lên từ chip, và
+   tấm thêm thư mục. */
 .cd-id { flex: 1 1 auto; min-width: 0; font-size: 14px; color: var(--text3);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cd-cwd.dim { opacity: .75; }
-.cd-slot { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
-.cd-slot .transcript { flex: 1 1 auto; min-height: 0; max-height: none; }
-.cd-slot .bg-strip, .cd-slot .attach-bar, .cd-slot .model-bar, .cd-slot .hud-voice { flex: none; }
 
 /* Hàng chip ngữ cảnh: nhét vào chính #modelBar đã mượn, đứng TRƯỚC chip Model, nên một hàng
-   đọc từ trái sang là thư mục, nhánh, worktree, điểm hồi, mức quyền, rồi model. */
+   đọc từ trái sang là thư mục, nhánh, worktree, điểm hồi, chế độ, rồi model. */
 .cd-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-right: 8px; }
 .cd-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; line-height: 1;
   padding: 6px 9px; border-radius: 999px; border: 1px solid var(--glass-brd);
@@ -2108,11 +2082,12 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Chip mời gắn thư mục: nét đứt để đọc ra ngay là "chỗ trống chờ chọn", không phải một giá
    trị đã đặt. Chưa gắn thì đây là chip DUY NHẤT trên hàng. */
 .cd-chip-mo { border-style: dashed; }
-/* Mức toàn quyền phải NHÌN ra được từ xa: ở mức đó engine đẩy được ra ngoài (commit, push,
-   deploy), nên cái chip không được trông giống hai mức kia. */
+/* Ba chế độ, ba sắc thái. Plan đọc là "an toàn", Toàn quyền phải NHÌN ra được từ xa vì ở mức
+   đó engine commit, push và deploy được. */
+.cd-mq-suggest { border-color: var(--info-line); color: var(--info-line); }
 .cd-mq-full { border-color: var(--warn); color: var(--warn); }
 
-.cd-menu { position: fixed; z-index: 60; min-width: 220px; max-width: 340px; padding: 5px;
+.cd-menu { position: fixed; z-index: 60; min-width: 230px; max-width: 360px; padding: 5px;
   border-radius: 11px; border: 1px solid var(--glass-brd); background: var(--surface-1);
   box-shadow: 0 12px 34px var(--shadow-veil); display: flex; flex-direction: column; gap: 2px; }
 .cd-menu button { text-align: left; background: none; border: 0; color: var(--text); cursor: pointer;
@@ -2141,12 +2116,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .cd-tam-nut { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
 
 @media (max-width: 900px) {
-  /* Điện thoại: MỘT cột chat. Danh sách việc thành ngăn kéo, không chiếm chỗ cố định. */
-  .cd-left { position: absolute; top: 0; bottom: 0; left: 0; z-index: 6; width: min(280px, 86vw);
-    transform: translateX(-105%); transition: transform .2s ease; }
-  .cd-page.left-on .cd-left { transform: none; box-shadow: 0 0 40px var(--shadow-veil); }
-  .cd-page.left-off .cd-left { display: flex; }
-  .cd-main { padding: 10px 12px 12px; }
   .cd-chip { font-size: 16px; padding: 7px 10px; }
   .cd-chips { flex-wrap: nowrap; overflow-x: auto; }
 }

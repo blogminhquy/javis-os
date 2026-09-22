@@ -199,7 +199,22 @@ check("bỏ thư mục trả True", coding_store.bo_thu_muc(r["id"]) is True)
 check("MÃ NGUỒN TRÊN ĐĨA VẪN CÒN", Path(REPO, "README.md").is_file())
 check("bỏ lại id đã bỏ trả False", coding_store.bo_thu_muc(r["id"]) is False)
 
-# ---- 7. Di trú sổ 0.63.0 (khoá `repos` / ràng buộc `repo`) ----
+# ---- 7. Khối prompt gắn vào lượt chat ----
+coding_store.dat_rang_buoc(SID, thu_muc_id=tm_thuong["id"], muc_quyen="auto")
+k = coding_store.khoi_prompt(SID)
+check("khối prompt nói rõ thư mục làm việc", str(Path(khong_git).resolve()) in k)
+check("mức Tự động nói KHÔNG commit/push/deploy", "KHÔNG commit" in k)
+coding_store.dat_rang_buoc(SID, muc_quyen="suggest")
+k2 = coding_store.khoi_prompt(SID)
+check("chế độ Plan BẢO engine trả về kế hoạch rồi dừng",
+      "KHÔNG sửa file" in k2 and "KẾ HOẠCH" in k2.upper())
+coding_store.dat_rang_buoc(SID, muc_quyen="full")
+check("mức Toàn quyền nói rõ được commit/push/deploy", "Toàn quyền" in coding_store.khoi_prompt(SID))
+coding_store.dat_rang_buoc(SID, thu_muc_id="")
+check("phiên chưa gắn thư mục thì KHÔNG chèn khối nào vào prompt",
+      coding_store.khoi_prompt(SID) == "")
+
+# ---- 8. Di trú sổ 0.63.0 (khoá `repos` / ràng buộc `repo`) ----
 import json as _json
 coding_store.STORE_PATH.write_text(_json.dumps({
     "version": 1,
@@ -212,7 +227,7 @@ check("ràng buộc cũ (`repo`) di trú sang `thu_muc`",
       coding_store.rang_buoc("phiencu").get("thu_muc") == "cu1")
 check("và phiên cũ vẫn ra đúng cwd", coding_store.cwd_cua_phien("phiencu") == str(Path(REPO).resolve()))
 
-# ---- 8. Sổ hỏng không giết cả trang ----
+# ---- 9. Sổ hỏng không giết cả trang ----
 coding_store.STORE_PATH.write_text("{ khong phai json", encoding="utf-8")
 check("sổ hỏng đọc ra sổ rỗng thay vì ném lỗi", coding_store.danh_sach_thu_muc() == [])
 check("sổ hỏng được đổi tên để còn xem lại",
