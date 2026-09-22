@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.63.1] - 2026-09-22
+### Sửa lỗi
+- **Chat qua Antigravity bớt cảnh trả lời nhầm câu hỏi cũ.** Gói lịch sử hội thoại gửi kèm mỗi lượt đang dài quá mức, nên khi phải đi đường file thì model hay đọc được nửa đầu rồi trả lời một câu đã hỏi từ lâu. Nay gói này gọn lại, vẫn giữ phần hội thoại gần nhất.
+- **Skill thứ 21 trở đi không còn bị Javis bỏ quên.** Brain nào có nhiều skill thì trước đây Javis chỉ nhìn thấy 20 cái đầu theo bảng chữ cái, những cái tên vần sau coi như không tồn tại. Nay Javis nhìn thấy nhiều hơn, và ưu tiên đúng những skill bạn hay dùng.
+- **Plugin chặn được một hành động sai trước khi nó xảy ra.** Phần mở rộng của Javis vốn chỉ đứng nhìn rồi ghi sổ; nay nó dừng được một lời gọi sai và nói rõ lý do. Plugin viết hỏng thì Javis vẫn chạy bình thường chứ không đứng im.
+
 ## [0.63.0] - 2026-09-22
 ### Thêm mới
 - **Mục Coding mới** trong nhóm Code trên thanh bên. Khai báo repo của bạn một lần, rồi chat như bình thường: Javis làm việc NGAY TRONG repo đó thay vì trong bộ não, nên nó đọc đúng file, chạy đúng test, không còn đọc nhầm cây thư mục.

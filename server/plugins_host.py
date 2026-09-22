@@ -367,7 +367,20 @@ class PluginContext:
 
     def register_hook(self, event: str, callback: Callable) -> None:
         """Đăng ký callback lifecycle. v1 hỗ trợ: 'pre_tool_call', 'post_tool_call'
-        (bắn quanh MỌI tool call). callback(**kwargs) - nhận tool_name, args, result, mode, vault_root."""
+        (bắn quanh MỌI tool call). callback(**kwargs) - nhận tool_name, args, result, mode,
+        vault_root. Luôn khai `**kwargs` trong callback: các khoá mới được thêm theo thời gian
+        (vd `denied` ở post_tool_call), và một callback khai cứng tham số sẽ gãy khi đó.
+
+        **`pre_tool_call` CHẶN ĐƯỢC** (từ 0.63.1 - trước đó nó chỉ quan sát được dù docstring
+        này nói "bắn quanh mọi tool call" nên ai cũng tưởng là chốt chặn). Giá trị trả về:
+
+            return {"deny": "lý do"}    -> tool KHÔNG chạy, model nhận đúng câu lý do đó
+            return {"args": {...}}      -> thay tham số rồi mới chạy
+            return None                 -> không ảnh hưởng (mặc định, plugin cũ giữ nguyên)
+
+        Hook ném lỗi thì tool VẪN CHẠY (fail-open có chủ ý, xem `_fire_pre`). `post_tool_call`
+        không chặn được: lúc đó tool đã chạy rồi.
+        """
         self._hooks.setdefault(str(event), []).append(callback)
 
 
@@ -744,6 +757,10 @@ def has_tool_hooks(vault_root: Optional[str] = None) -> bool:
 
 
 async def _fire(event: str, vault_root: Optional[str], payload: dict) -> None:
+    """Bắn hook và BỎ QUA thứ nó trả về. Dùng cho hook chỉ để quan sát (post_tool_call).
+
+    Muốn hook CHẶN được thì dùng `_fire_pre` - xem chú thích dài ở đó.
+    """
     ent = _load_all(vault_root)
     for cb in ent["hooks"].get(event, []):
         try:
@@ -752,11 +769,75 @@ async def _fire(event: str, vault_root: Optional[str], payload: dict) -> None:
             print(f"[plugins] hook {event} lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
 
+async def _fire_pre(vault_root: Optional[str], payload: dict) -> dict:
+    """Bắn `pre_tool_call` và ĐỌC thứ hook trả về. Trả {"deny": str} hoặc {"args": dict} hoặc {}.
+
+    **Vì sao hàm này tồn tại.** Tới 0.63.0, `wrap_with_hooks` gọi `await _fire("pre_tool_call")`
+    rồi vứt giá trị trả về, và `_fire` còn nuốt cả exception. Nghĩa là hook CHỈ QUAN SÁT được:
+    nó không chặn nổi một lời gọi tool nào, dù docstring của `register_hook` hứa "bắn quanh
+    MỌI tool call" nên ai đọc cũng tưởng đó là chốt chặn. Một lớp bảo vệ mà không bảo vệ được
+    gì thì nguy hiểm hơn là không có, vì người ta tin vào nó.
+
+    **Hợp đồng với plugin** (giữ nguyên chữ ký cũ, plugin cũ không phải sửa gì):
+      - trả `{"deny": "lý do"}`  -> tool KHÔNG chạy, model nhận đúng câu lý do đó
+      - trả `{"args": {...}}`    -> thay tham số rồi mới chạy (vd nắn đường dẫn về đúng thư mục)
+      - trả None / bất cứ gì khác -> không ảnh hưởng, y như trước
+
+    **FAIL-OPEN là cố ý.** Hook ném lỗi thì tool VẪN CHẠY, chỉ ghi một dòng stderr. Hook là
+    thứ người dùng tự cài; để một plugin hỏng khoá được mọi tool của Javis là đổi một lỗi nhỏ
+    lấy một hệ thống chết. Ai cần fail-closed thì tự bắt lỗi trong hook rồi trả `deny`.
+
+    Nhiều hook cùng đăng ký thì hook ĐẦU TIÊN nói `deny` thắng và dừng luôn vòng lặp: đã có
+    một lý do từ chối rõ ràng thì chạy tiếp mấy hook sau chỉ tổ sinh tác dụng phụ.
+    """
+    ent = _load_all(vault_root)
+    ra: dict = {}
+    for cb in ent["hooks"].get("pre_tool_call", []):
+        try:
+            out = await _maybe_await(cb(**payload))
+        except Exception as e:
+            print(f"[plugins] hook pre_tool_call lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+            continue
+        if not isinstance(out, dict):
+            continue
+        ly_do = str(out.get("deny") or "").strip()
+        if ly_do:
+            return {"deny": ly_do[:2000]}
+        moi = out.get("args")
+        if isinstance(moi, dict):
+            payload = {**payload, "args": moi}
+            ra["args"] = moi
+    return ra
+
+
+# Câu báo khi hook chặn. Đi thẳng vào chỗ model đọc kết quả tool, nên phải nói ĐƯỢC GÌ TIẾP
+# THEO chứ không chỉ nói "bị chặn" - model nhận một câu cụt thì nó thử lại y hệt.
+def _cau_bi_chan(fn: str, ly_do: str) -> str:
+    return (f"ERROR: lời gọi `{fn}` bị chặn bởi một hook đang bật trên máy này.\n"
+            f"Lý do: {ly_do}\n"
+            f"Đọc kỹ lý do rồi làm lại theo đúng cách nó chỉ. Đừng gọi lại y nguyên.")
+
+
 def wrap_with_hooks(fn: str, base_call: Callable, mode: str, vault_root: Optional[str]) -> Callable:
-    """Bọc 1 route call để bắn pre/post_tool_call. base_call(args) -> result (async)."""
+    """Bọc 1 route call để bắn pre/post_tool_call. base_call(args) -> result (async).
+
+    `pre_tool_call` CHẶN được và SỬA được tham số (xem `_fire_pre`). `post_tool_call` thì
+    không: lúc đó tool đã chạy rồi, thứ nó trả về không còn đổi được gì.
+    """
     async def _wrapped(args):
-        await _fire("pre_tool_call", vault_root,
-                    {"tool_name": fn, "args": args, "mode": mode, "vault_root": vault_root})
+        quyet = await _fire_pre(vault_root,
+                                {"tool_name": fn, "args": args, "mode": mode,
+                                 "vault_root": vault_root})
+        if quyet.get("deny"):
+            ket = _cau_bi_chan(fn, quyet["deny"])
+            # Vẫn bắn post_tool_call: hook kiểm toán cần thấy CẢ lời gọi bị chặn, không thì
+            # nhật ký chỉ có phần trôi lọt và đó là loại nhật ký tệ nhất.
+            await _fire("post_tool_call", vault_root,
+                        {"tool_name": fn, "args": args, "result": ket, "mode": mode,
+                         "vault_root": vault_root, "denied": True})
+            return ket
+        if isinstance(quyet.get("args"), dict):
+            args = quyet["args"]
         result = await base_call(args)
         await _fire("post_tool_call", vault_root,
                     {"tool_name": fn, "args": args, "result": result, "mode": mode, "vault_root": vault_root})

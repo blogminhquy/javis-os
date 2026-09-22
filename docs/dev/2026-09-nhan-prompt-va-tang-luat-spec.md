@@ -156,31 +156,67 @@ này nay do code ép, xoá khỏi prompt". Đó chính là độ dốc, và nó 
 
 ## 4.1. Hai hằng số mâu thuẫn nhau, và Antigravity trả giá
 
-Đây là lỗi có hậu quả lớn nhất, và nó chỉ lộ ra khi đặt hai con số cạnh nhau.
+Lỗi này chỉ lộ ra khi đặt hai con số ở hai file cạnh nhau.
 
-- `compaction.AGY_BOOTSTRAP_MAX_CHARS = 100_000`: lịch sử hội thoại gửi lại mỗi lượt
+- `compaction.AGY_BOOTSTRAP_MAX_CHARS = 100_000`: lịch sử gửi lại mỗi lượt
 - `antigravity_cli._tran_argv()`: trần dòng lệnh, **120.000 byte** trên Linux
 
-Đo tỉ lệ byte trên văn bản thật trong repo: tiếng Việt **1,202 byte/ký tự**, tiếng Anh
-**1,006**. Áp vào:
+**Số đo thật (2026-09-22), không phải ước lượng:**
 
-| Tình huống | Tổng ký tự | Byte UTF-8 | Trần Linux 120.000 |
-|---|---:|---:|---|
-| Hôm nay (sysprompt ~36.000 + lịch sử 100.000) | 136.000 | ~163.500 | **VƯỢT** |
-| Chỉ thu nhỏ nhân (sysprompt 16.500 + lịch sử 100.000) | 116.500 | ~140.100 | **VẪN VƯỢT** |
-| Thu nhỏ nhân **và** hạ lịch sử xuống 80.000 | 96.500 | ~116.000 | vừa |
+```
+tỉ lệ byte/ký tự tiếng Việt (đo trên docs/dev)      1,202
+build_system_prompt (brain mẫu)                    37.767 ký tự
++ khối kênh                                         8.412
+= SYSPROMPT THẬT                                   46.179 ký tự
+```
 
-Vượt trần nghĩa là prompt phải đi qua **file ngữ cảnh**: Javis ghi cả gói ra file rồi bảo model
-tự mở đọc (`antigravity_cli.py:606`). Đó là **một vòng inference đầy đủ** trước khi model nói
-được chữ đầu tiên, tức thêm 30 tới 60 giây mỗi lượt.
+> **Đính chính so với bản đầu:** bản đầu ước lượng sysprompt "~36.000". Số thật là **46.179**,
+> cao hơn 28%. Riêng khối kênh đã 8.412 ký tự, nhiều hơn hẳn mức đáng có cho một khối lắp vào
+> mọi lượt - đáng soi riêng, nhưng không thuộc đợt này.
 
-Bài học cho kế hoạch: **thu nhỏ nhân một mình không cứu được Antigravity.** Phải hạ
-`AGY_BOOTSTRAP_MAX_CHARS` xuống **80.000** thì hai việc mới ăn khớp.
+Áp vào ngân sách `120.000 x 0,97 / 1,21 = 96.198 ký tự`:
 
-Và một sự thật nữa: trên Windows trần là **30.000 đơn vị UTF-16**. Riêng sysprompt sau kế hoạch
-đã 16.500, còn 13.500 cho cả lịch sử hội thoại. **Trên Windows đường argv chết hẳn, không cứu
-được bằng cách cắt prompt.** Đường đúng ở đó là stdin, mà `duong_prompt_dai` đã ưu tiên sẵn.
-Ghi rõ ra để không ai đi tối ưu nhầm hướng.
+| Tình huống | Sysprompt | Lịch sử | Tổng | Kết quả |
+|---|---:|---:|---:|---|
+| Trước khi sửa | 46.179 | 100.000 | 146.179 | **VƯỢT nặng** |
+| Chỉ hạ lịch sử xuống 80.000 | 46.179 | 80.000 | 126.179 | **VẪN VƯỢT** |
+| **Sau khi sửa (đợt này)** | 46.179 | **45.000** | 91.179 | **vừa** |
+
+### Vượt trần thì sao, nói cho đúng mức độ
+
+> **Đính chính thứ hai, quan trọng hơn.** Bản đầu viết "vượt trần nghĩa là prompt phải đi qua
+> file ngữ cảnh, thêm một vòng inference". Đọc kỹ `_chon_duong` lúc triển khai thì KHÔNG phải:
+>
+> ```python
+> if do_dai <= _tran_argv():
+>     return "argv"
+> return duong_prompt_dai(self.cli_path)   # -> "stdin:<công thức>" HOẶC "file"
+> ```
+>
+> Vượt trần thì thử **stdin trước**, và stdin không có trần. Chỉ máy nào không công thức stdin
+> nào chạy được mới rơi xuống đường file. Nên cái giá 30-60 giây là của MỘT NHÓM MÁY, không
+> phải của mọi lượt như bản đầu nói.
+
+Lợi ích của việc hạ hằng số này vì vậy có hai phần, và phần thứ hai mới là phần chắc chắn:
+
+1. **Máy dùng đường file:** bỏ được một vòng tool mỗi lượt.
+2. **Mọi máy dùng đường file:** file ngắn hơn thì tool đọc file ít bị cắt cụt hơn. Đây là bug
+   **đã được báo** (2026-09-18/19): model đọc nửa đầu file rồi trả lời một câu hỏi cũ. Lần hạ
+   trước (300.000 xuống 100.000) cũng vì lý do này, và 100.000 vẫn còn đủ dài để dính.
+
+### Đánh đổi
+
+`agy` **không nối lại mạch**, nên gói lịch sử này là toàn bộ trí nhớ hội thoại của nó. Hạ
+xuống 45.000 ký tự là khoảng 20-30 lượt chat thường. `bootstrap_prompt` giữ phần **gần nhất**
+và không cắt `summary`, nên phần rơi ra là các lượt cũ nhất chứ không phải ngẫu nhiên.
+
+Đổi lại là không còn trả lời nhầm câu hỏi cũ. Với một bug đã có người báo, đó là đổi đúng chiều.
+
+### Trên Windows thì vô phương
+
+Trần là **30.000 đơn vị UTF-16**, tức riêng sysprompt 46.179 đã không lọt dù hạ lịch sử xuống
+bao nhiêu. Đường argv ở đó chết hẳn; đường đúng là stdin, và `duong_prompt_dai` đã ưu tiên
+sẵn. Ghi rõ để không ai đi tối ưu nhầm hướng.
 
 ## 4.2. Hook `pre_tool_call` không chặn được gì
 
@@ -205,47 +241,70 @@ không.**
 `…(+N skill nữa - xem Javis/index.md)`. Model không đọc file đó trừ khi được bảo, nên skill thứ
 21 trở đi **không bao giờ được route**. Một brain dùng lâu chắc chắn vượt 20.
 
-## 4.4. `_fit_memory_index` có bậc cuối là mất ký ức
+## 4.4. `_fit_memory_index`: NÓI QUÁ, đã đính chính
 
-`main.py:523` đặt `MEMORY_INDEX_MAX = 20000`. Khi vượt, `_fit_memory_index` hạ bậc: giữ nguyên
-→ rút mô tả còn 100 ký tự → còn 60 → chỉ tiêu đề → **cắt bớt dòng**. Chính docstring gọi bậc
-cuối là mất trí nhớ.
+> **Đính chính 2026-09-22, sau khi đọc kỹ code lúc triển khai.** Bản đầu của tài liệu này gọi
+> đây là "bậc cuối là mất ký ức", dựa vào chính docstring của hàm ("Mất hẳn dòng mới là mất
+> trí nhớ"). Đọc code thật thì nhẹ hơn: bậc cuối có cắt dòng khỏi PROMPT, nhưng nó **đếm số
+> dòng bị cắt và nói ra**, kèm đường đi tiếp:
+>
+> ```
+> (Chỉ mục quá dài nên còn {N} ký ức chưa liệt kê ở đây.
+>  Đọc memory/MEMORY.md để xem đủ danh sách, và memory/facts/ để xem chi tiết.)
+> ```
+>
+> Không có ký ức nào mất khỏi ĐĨA, và model biết là còn thiếu. Đây không phải hỏng im lặng,
+> nên nó KHÔNG thuộc nhóm "lỗi thật" và không được sửa trong đợt này.
 
-Nguyên nhân: nó cố nhét **cả chi tiết** vào một chỗ có trần.
+Cái còn đúng: `MEMORY_INDEX_MAX = 20000` (`main.py:523`) lớn như vậy vì chỉ mục đang gánh cả
+mô tả chi tiết. Tách chỉ mục khỏi chi tiết (Hợp đồng 7) vẫn đáng làm, nhưng vì lý do **gọn và
+rẻ**, không phải vì "đang mất trí nhớ". Xếp lại ưu tiên cho đúng.
 
-## 4.5. `build_system_prompt` chạy lại toàn bộ mỗi lượt
+## 4.5. `build_system_prompt` chạy lại mỗi lượt: SỐ SAI, đã đo lại
 
-Mỗi lượt chat đọc lại `CLAUDE.md`, đọc `MEMORY.md`, gọi `system_sync.ensure_synced`,
-`system_sync.mirror_skills`, quét cây skill, dựng 6 khối. Mốc trong `bench_hotpath.py` là dưới
-40 ms.
+> **Đính chính 2026-09-22.** Bản đầu viết "~40 ms chặn event loop". Con số đó là **mốc nghiệm
+> thu** trong `bench_hotpath.py`, không phải số đo. Chạy `python bench_hotpath.py` thật:
+>
+> ```
+> build_system_prompt   baseline 150,8 ms -> nay 3.9 ms   (đích < 60)
+> ```
+>
+> **3,9 ms.** Việc tối ưu này đã được làm rồi, từ 150,8 xuống 3,9. Phần còn lại không đáng để
+> đánh đổi lấy rủi ro cache trả bản cũ, và nhất là không đáng để bỏ qua hai tác dụng phụ lên
+> ĐĨA mà hàm này đang gánh (`system_sync.ensure_synced` và `mirror_skills` - Claude Code dựa
+> vào bản mirror đó để thấy skill).
 
-40 ms nghe không đáng gì, nhưng nó **chặn event loop**. Và trên đường dự phòng của
-`_subscription_system_prompt`, `_legacy_system_prompt()` chạy thẳng trên loop chứ không qua
-`asyncio.to_thread`. Một VPS chạy đồng thời dashboard, Telegram, Zalo và loop nền thì 40 ms đó
-là 40 ms **mọi kênh cùng đứng**.
+**Kết luận: bỏ việc "nhân đúc sẵn theo chữ ký" khỏi lộ trình.** Lý do CPU đã hết. Lý do còn
+lại (tiền tố byte-identical cho prompt cache) tự nó không đủ để dựng thêm một tầng cache có
+chữ ký, nhất là khi đường CLI không dùng prompt cache của Javis.
 
-Thêm một hệ quả tinh vi hơn: vì nó dựng lại chuỗi mỗi lần, không có gì bảo đảm tiền tố gửi đi
-**giống nhau tới từng byte** giữa hai lượt. Mà đó chính là điều kiện để prompt cache ăn.
+Bài học chung, đáng ghi hơn cả bản vá: **một mốc nghiệm thu trong file bench không phải một số
+đo.** Đọc nhầm hai thứ đó là dựng cả một hạng mục công việc trên một con số không ai từng đo.
 
-## 4.6. Cache 1 giờ viết sẵn, chưa ai gọi
+## 4.6. Cache 1 giờ: KHUYẾN NGHỊ SAI, đã tra tài liệu và rút lại
 
-`engine.py:320` có tham số `cache_ttl` nhận `"5m"` hoặc `"1h"`:
+`engine.py:320` có tham số `cache_ttl` nhận `"5m"` hoặc `"1h"`, và chỗ gọi duy nhất
+(`engine.py:716`) không truyền gì nên luôn là 5 phút. Bản đầu của tài liệu này đề xuất
+"truyền `cache_ttl='1h'`, một dòng sửa".
 
-```python
-def _apply_anthropic_cache(payload: dict, cache_ttl: str = "5m") -> None:
-    marker: dict = {"type": "ephemeral"}
-    if cache_ttl == "1h":
-        marker["ttl"] = "1h"
-```
+> **Đính chính 2026-09-22, sau khi tra tài liệu Claude API thay vì viết theo trí nhớ.** Cú
+> pháp thì đúng và không cần beta header. Nhưng KINH TẾ thì ngược:
+>
+> - Ghi cache tốn **1,25x với TTL 5 phút**, và **2x với TTL 1 giờ**.
+> - Hoà vốn: TTL 5 phút cần 2 request, TTL 1 giờ cần ít nhất 3.
+> - Tài liệu nói thẳng: hai request cách nhau dưới 5 phút thì *"the 1-hour TTL buys nothing
+>   there except the doubled write price"*.
+>
+> Chat là loại traffic dồn dập, tức đúng cái ca mà 1 giờ chỉ tốn thêm tiền. Bật đại trà là
+> **làm đắt lên cho phần lớn người dùng** để phục vụ một thiểu số.
 
-Chỗ gọi duy nhất (`engine.py:716`) **không truyền gì**, nên luôn là 5 phút.
+**Kết luận: bỏ việc "bật cache 1 giờ" khỏi lộ trình dưới dạng một dòng sửa.** TTL 1 giờ chỉ
+đúng cho khoảng cách 5 tới 60 phút giữa hai lượt. Muốn làm cho đúng thì phải CHỌN theo khoảng
+cách thật của từng phiên (Javis biết được: kho phiên có thời điểm lượt trước), và đó là một
+tính năng có thiết kế riêng, không phải một tham số mặc định.
 
-Đã tra tài liệu API để chắc chắn: `cache_control: {"type": "ephemeral", "ttl": "1h"}` là cú
-pháp đúng và **không cần beta header nào**. Tức nhánh này dùng được ngay, chỉ thiếu một tham
-số ở chỗ gọi.
-
-Ý nghĩa: hội thoại **thong thả** (hỏi xong đi làm việc khác, 10 phút sau hỏi tiếp) hiện mất
-sạch cache mỗi lượt. Đổi sang 1 giờ là một dòng sửa.
+Bài học: `5m` mặc định hiện tại **đang đúng** cho ca phổ biến nhất. Một nhánh code viết sẵn mà
+chưa ai gọi không tự động có nghĩa là ai đó quên gọi.
 
 ---
 
@@ -700,18 +759,18 @@ Thứ tự có ràng buộc thật, không xếp theo cảm tính. Ba luật th�
 |---|---|---|---|
 | 1 | Tách `CLAUDE.md` (dev repo) và `system/prompt/kernel.md` (sản phẩm) | Chat của người dùng cuối không còn "Dev conventions". Claude Code trên repo vẫn đọc được quy ước | 0,5 ngày |
 | 2 | Đóng băng trần nhân 8.000 + bảng phân bổ ký tự trên trang Chẩn đoán | Test canh `kernel.md`, test thứ hai canh **tổng đã lắp**. Trang Chẩn đoán hiện ký tự từng khối | 1 ngày |
-| 3 | **Cho `pre_tool_call` quyền phủ quyết** (`plugins_host.py:755`) | Hook trả `{"deny": "lý do"}` thì tool không chạy, model nhận đúng câu đó. Hook lỗi thì tool VẪN chạy (fail-open) | 0,5 ngày |
-| 4 | `AGY_BOOTSTRAP_MAX_CHARS` 100.000 → **80.000**, kèm ghi chú Windows đi stdin | Hội thoại dài tiếng Việt trên Linux không còn rơi xuống đường file. Đo bằng log `[antigravity]` | 0,5 ngày |
+| 3 | **XONG: `pre_tool_call` phủ quyết được** (`plugins_host.py`) | Hook trả `{"deny": "lý do"}` thì tool không chạy, model nhận đúng câu đó. Hook lỗi thì tool VẪN chạy (fail-open) | 0,5 ngày |
+| 4 | ~~`AGY_BOOTSTRAP_MAX_CHARS` 100.000 → 80.000~~ **XONG: → 45.000** (số thật sau khi đo sysprompt 46.179) | `test_ba_loi_tran_prompt.py` | ✅ |
 | 5 | Bốn khối điều kiện + dời `cache_control` + **kiểm `cache_read_input_tokens`** | Lượt không đính kèm giảm đúng 2.272 ký tự. Cache read khác 0 qua 3 lượt liên tiếp | 1,5 ngày |
 | 6 | Rút luật code đã ép + thêm `enforced_by` vào mọi file luật | Ba đoạn "hứa suông" (2.403) còn 1 dòng. Test: `enforced_by` khác trống phải trỏ tới symbol có thật | 0,5 ngày |
 | 7 | `javis_remember` | Retire 2.297. Ghi thử 60 ký ức, `MEMORY.md` không mất dòng nào | 1 ngày |
 | 8 | `javis_create_agent`, `javis_create_workflow` + lan can hook | Retire 2.875 + 1.726. Ghi thẳng vào `Javis/agents/` bị chặn kèm giải thích | 2 ngày |
 | 9 | `javis_create_plugin` | Retire 2.114 | 1 ngày |
 | 10 | Tách Orchestration thành policy | Retire ~8.000. Nhân dưới 6.500 | 2-3 ngày |
-| 11 | Nhân đúc sẵn theo chữ ký | `bench_hotpath` build dưới 2 ms khi cache nóng. Tiền tố byte-identical giữa hai lượt | 1 ngày |
-| 12 | `cache_ttl="1h"` ở `engine.py:716` | `cache_read_input_tokens` khác 0 sau khoảng nghỉ 10 phút | 0,5 giờ |
+| ~~11~~ | ~~Nhân đúc sẵn theo chữ ký~~ **RÚT LẠI** | Đo được 3,9 ms chứ không phải 40 ms (xem 4.5). Lý do CPU không còn | - |
+| ~~12~~ | ~~`cache_ttl="1h"`~~ **RÚT LẠI** | TTL 1 giờ tốn 2x ghi và chỉ đúng cho khoảng cách 5-60 phút (xem 4.6). Mặc định 5m đang đúng | - |
 | 13 | `MEMORY.md` tách chỉ mục và chi tiết | Bậc cắt dòng không còn với 50 fact | 2 ngày |
-| 14 | Bỏ `SKILL_LIST_MAX`, chuyển sang top-k theo `capability_index` | Brain 40 skill vẫn route trúng skill thứ 35 | 2 ngày |
+| 14 | **XONG một nửa:** xếp theo mức hay dùng + cắt theo ngân sách ký tự. Top-k theo `capability_index` để sau | `test_ba_loi_tran_prompt.py` | ✅ |
 | 15 | `/luat-moi` phân loại tại nguồn | Lệnh chạy 4 câu hỏi và dựng khung file ở đúng carrier | 1 ngày |
 
 **Việc 15 không phải phần thưởng cuối, nó là thứ giữ cho 14 việc trên không trôi lại.** Nếu
@@ -824,15 +883,15 @@ Ghi lại vì mỗi cái đều từng được cân nhắc rồi bị loại c�
 | Hằng số | Ở đâu | Loại | Ảnh hưởng |
 |---|---|---|---|
 | `_tran_argv` 120.000 / 30.000 | `antigravity_cli.py` | **Vách** | Vượt là thêm 1 vòng inference, 30-60 giây |
-| `AGY_BOOTSTRAP_MAX_CHARS` 100.000 → 80.000 | `compaction.py:38` | **Vách** (qua trần argv) | Chính nó giữ Antigravity ở bên sai của vách |
+| `AGY_BOOTSTRAP_MAX_CHARS` 100.000 → **45.000** | `compaction.py` | **Vách** (qua trần argv) | Đã sửa. Số 45.000 đến từ sysprompt ĐO THẬT 46.179, không phải ước lượng 36.000 |
 | `lazy_threshold` 40 / `lazy_char_budget` 6000 | `config.py:228` | **Vách** hai chiều | ~10.000 ký tự, đổi lấy khả năng thêm 1 vòng tool |
 | Mức tối thiểu để cache 512-4096 token | API | **Vách** | Dưới ngưỡng thì cache im lặng không chạy |
-| `cache_ttl` 5 phút → 1 giờ | `engine.py:320` | **Vách** theo thời gian | Hội thoại thong thả mất sạch cache |
+| `cache_ttl` giữ 5 phút | `engine.py:320` | **Vách** theo thời gian | KHÔNG đổi: 1 giờ tốn 2x ghi, chỉ đúng cho khoảng cách 5-60 phút |
 | `SUBSCRIPTION_THREAD_MAX_TOKENS` 1M | `compaction.py:73` | Vách | Xoay mạch, mồi lại transcript |
 | Trần nhân 8.000 | (mới) | Dốc | ~130 ms so với 6.000. Tồn tại vì **kỷ luật**, không vì tốc độ |
-| `MEMORY_INDEX_MAX` 20.000 → 3.000 | `main.py:523` | Dốc | ~1,1 giây. Lý do chính vẫn là **không mất ký ức** |
+| `MEMORY_INDEX_MAX` 20.000 → 3.000 | `main.py:523` | Dốc | Lý do là **gọn và rẻ**, KHÔNG phải "đang mất ký ức" (xem đính chính 4.4) |
 | Trần tổng đã lắp 14.000 | (mới) | Dốc | Thước đo, không phải công tắc hiệu suất |
-| `SKILL_LIST_MAX` 20 | `skill_router.py:49` | **Trần ẩn** | Skill thứ 21 vô hình với router |
+| `SKILL_LIST_MAX` 20 → **40** + `SKILL_LIST_CHAR_BUDGET` 4.000 | `skill_router.py` | **Trần ẩn** | Đã sửa: xếp theo mức hay dùng trước khi cắt, nên cái bị cắt không còn là cái tên vần cuối |
 | Ngưỡng dừng khi rút prose 98% | (mới) | **Quyết định** | Đặt 90% là lỗ ròng, xem Phần 8 |
 
 ---
