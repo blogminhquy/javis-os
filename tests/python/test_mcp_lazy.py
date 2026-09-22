@@ -343,6 +343,15 @@ _vault = tempfile.mkdtemp(prefix="javis-corecheck-")
 os.makedirs(os.path.join(_vault, "skills"), exist_ok=True)
 _bt, _br = mcp_hub._builtin_tools("full", _vault)
 _real = {t["fn"] for t in _bt}
+# Một số builtin CHỈ tồn tại trong phiên có thư mục làm việc (`javis_run_command`, 0.64).
+# Dựng thêm một bộ có workspace để rào hai chiều vẫn phủ được chúng: bỏ qua là mất đúng cái
+# bảo vệ chống gõ sai tên mà rào này sinh ra.
+import coding_ctx as _cc  # noqa: E402
+_bt_ws, _ = mcp_hub._builtin_tools(
+    "full", _vault, workspace_root=_vault,
+    coding_ctx_cua_phien=_cc.CodingToolContext(session_id="s", workspace_root=_vault,
+                                               permission_mode="auto"))
+_real |= {t["fn"] for t in _bt_ws}
 for _fn in sorted(mcp_hub.CORE_TOOL_FNS):
     check(f"CORE_TOOL_FNS '{_fn}' là builtin có thật", _fn in _real)
 

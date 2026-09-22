@@ -487,7 +487,7 @@ def _list_skills(vault_root):
 
 
 def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang="", staging=False,
-                   bo_qua=None, workspace_root=None):
+                   bo_qua=None, workspace_root=None, coding_ctx_cua_phien=None):
     """(tools_spec, route) các tool nội bộ cho engine API. Claude/Codex có tool file native
     nên hub HTTP không trả nhóm này (chỉ meta javis_connections).
     include_ambient=True (đường engine Claude): javis_connections kèm cả connector tài khoản
@@ -498,7 +498,10 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
     (xem `_safe_read_path`). CHỈ đường chat của CHỦ bật; bot chuyên trách để nguyên False.
     workspace_root: thư mục làm việc của phiên Coding (0.64). Có giá trị thì tool FILE nhận
     thêm gốc đó, để engine không có tool file native chạm được vào cây mã nguồn. MCP, cron và
-    nhắc hẹn KHÔNG đổi gốc - chúng thuộc về brain, xem `coding_ctx`."""
+    nhắc hẹn KHÔNG đổi gốc - chúng thuộc về brain, xem `coding_ctx`.
+    coding_ctx_cua_phien: `CodingToolContext` của phiên. Có nó VÀ có workspace_root thì hub
+    cấp thêm `javis_run_command`. Thiếu một trong hai thì tool đó không tồn tại - phiên chat
+    thường không được thấy tool chạy lệnh."""
     tools, route = [], {}
 
     def add(name, description, props, required, call, effect="read"):
@@ -629,6 +632,32 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         "Nạp nội dung 1 skill (hướng dẫn chuyên sâu) rồi LÀM THEO. Truyền name=<slug>. "
         "Skill khả dụng (slug: mô tả): " + (listing or "(chưa có)"),
         {"name": {"type": "string"}}, ["name"], _skill)
+
+    # `javis_run_command` chỉ hiện khi phiên CÓ thư mục làm việc. Phiên chat thường không thấy
+    # nó, nên không có chuyện một câu hỏi bình thường lại gọi được lệnh máy. Mức quyền vẫn do
+    # chính `run_command` cưỡng chế lần nữa theo chip của phiên (hai lớp, không thay nhau).
+    if workspace_root and coding_ctx_cua_phien is not None:
+        async def _lenh(args):
+            args = args or {}
+            try:
+                import run_command
+            except Exception as e:                       # pragma: no cover - môi trường lạ
+                return f"ERROR: không nạp được run_command: {type(e).__name__}: {e}"
+            kq = run_command.chay(
+                str(args.get("command") or ""), coding_ctx_cua_phien,
+                cwd=str(args.get("cwd") or "."), timeout_s=args.get("timeout_s"),
+            )
+            return run_command.ket_qua_cho_model(kq)
+
+        add("javis_run_command",
+            "Chạy MỘT lệnh trong thư mục làm việc của phiên (chạy test, lint, git chỉ đọc). "
+            "KHÔNG qua shell: '&&', ';', '|', '$(...)' đều không có tác dụng, tách thành "
+            "nhiều lời gọi. Trả về mã thoát rồi tới output đã cắt bớt.",
+            {"command": {"type": "string"},
+             "cwd": {"type": "string", "description": "thư mục con, mặc định gốc thư mục làm việc"},
+             "timeout_s": {"type": "number"}},
+            ["command"], _lenh, effect="full")
+
     return tools, route
 
 
@@ -670,6 +699,10 @@ CORE_TOOL_FNS = frozenset({
     "javis_read_file",
     "javis_list_dir",
     "javis_write_file",
+    # Chỉ tồn tại trong phiên có thư mục làm việc, và ở đó thì gần như lượt nào cũng cần.
+    # Schema nhỏ và cố định, nên đủ tiêu chí hạt nhân. Bắt model đi tìm nó trước khi dùng là
+    # đốt thêm một vòng web, đúng cái hệ số 2 của tầng lazy mà engine Web phải tránh.
+    "javis_run_command",
 })
 
 # Mô tả nhóm tool nội bộ cho thực đơn lazy. Builtin/plugin không có connector trong
@@ -938,7 +971,8 @@ def _store_mtime():
 
 
 async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
-                       force_refresh=False, force_lazy=False, staging=False, workspace_root=None):
+                       force_refresh=False, force_lazy=False, staging=False, workspace_root=None,
+                       coding_ctx_cua_phien=None):
     """(tools_spec, route) đầy đủ cho 1 mode. route entries ĐÃ bọc quyền + audit.
     include_plugins=False: bỏ nhóm tool plugin - dùng khi engine SDK đã đấu plugin
     IN-PROCESS (header X-Javis-No-Plugins) để model không thấy tool trùng chức năng.
@@ -960,8 +994,12 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         lang = localefmt.ngon_ngu_tra_loi()
     except Exception:
         lang = ""
+    # Mức quyền của phiên nằm TRONG khoá: route của `javis_run_command` ôm sẵn ctx của phiên
+    # dựng ra nó, nên hai phiên cùng repo mà khác chip quyền dùng chung cache là phiên
+    # `suggest` chạy được lệnh bằng quyền của phiên `full`.
+    _quyen_ctx = getattr(coding_ctx_cua_phien, "permission_mode", "") or ""
     key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient),
-           bool(force_lazy), lang, bool(staging), str(workspace_root or ""))
+           bool(force_lazy), lang, bool(staging), str(workspace_root or ""), _quyen_ctx)
     ent = _cache.get(key)
     mt = _store_mtime()
     if (not force_refresh and ent and time.time() - ent["ts"] < ent.get("ttl", _CACHE_TTL)
@@ -1005,7 +1043,8 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         }
 
     b_tools, b_route = _builtin_tools(mode, vault_root, include_ambient, hidden, lang, staging,
-                                      bo_qua, workspace_root=workspace_root)
+                                      bo_qua, workspace_root=workspace_root,
+                                      coding_ctx_cua_phien=coding_ctx_cua_phien)
     tools_spec += b_tools
     route.update(b_route)
 
