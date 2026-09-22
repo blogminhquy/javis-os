@@ -35,6 +35,16 @@ os.environ["JAVIS_STATE_DIR"] = tempfile.mkdtemp(prefix="javis-dotd-")
 import optional_tools as ot  # noqa: E402
 import web_transport as wt  # noqa: E402
 
+# Engine Web cần HAI thứ: thư viện `playwright` và một trình duyệt. File này nói về thứ THỨ
+# HAI. Máy CI cố ý không cài playwright (46 MB tải về cho một thứ phần lớn máy không dùng), nên
+# ở đó `co_trinh_duyet()` luôn False vì lý do KHÁC hẳn. Trộn hai thứ vào một phép so là phép
+# thử đỏ trên CI mà xanh ở máy dev - đúng cái bẫy đã sập ở lần đẩy đầu.
+try:
+    import playwright  # noqa: F401
+    CO_PW = True
+except ImportError:
+    CO_PW = False
+
 _fails = []
 
 
@@ -69,8 +79,15 @@ _mong = str(ot.BROWSERS_DIR / "chromium-1194" / "chrome-linux" / "chrome")
 check("tìm ra file chạy được", ot.duong_dan_chrome() == _mong, ot.duong_dan_chrome())
 check("ưu tiên bản ĐẦY ĐỦ, không phải bản headless rút gọn",
       "headless_shell" not in ot.duong_dan_chrome())
-check("engine Web lái được", wt.co_trinh_duyet(dung_nho=False) == (True, ""))
+check("engine Web tìm ra ĐÚNG file đó", wt._tim_chromium() == _mong, wt._tim_chromium())
 check("trang Công cụ báo Sẵn sàng", ot.trang_thai("browser")["trang_thai"] == "san_sang")
+if CO_PW:
+    check("engine Web lái được", wt.co_trinh_duyet(dung_nho=False) == (True, ""))
+else:
+    # Máy không có thư viện: engine vẫn phải từ chối, nhưng vì ĐÚNG lý do. Báo nhầm là thiếu
+    # trình duyệt thì người dùng đi tải thêm 400 MB nữa mà vẫn không chạy được.
+    check("thiếu thư viện -> nói thiếu THƯ VIỆN, không đổ cho trình duyệt",
+          "thư viện" in wt.co_trinh_duyet(dung_nho=False)[1].lower())
 
 # CANARY: dựng lại ĐÚNG thuật toán cũ và chứng minh nó ra rỗng trên chính cảnh này. Không có
 # mục này thì phép thử trên chỉ nói "hiện tại chạy được", không nói nó từng hỏng ở đâu.
@@ -95,8 +112,8 @@ _dung(RUT_GON)
 check("CANARY: bản cũ mù trước thư mục headless_shell", _ban_cu() == "")
 check("chỉ có bản rút gọn -> bản mới VẪN tìm ra file chạy",
       ot.duong_dan_chrome().endswith("headless_shell"), ot.duong_dan_chrome())
-check("chỉ có bản rút gọn -> engine Web vẫn lái được",
-      wt.co_trinh_duyet(dung_nho=False)[0])
+check("chỉ có bản rút gọn -> engine Web vẫn tìm ra file chạy",
+      wt._tim_chromium().endswith("headless_shell"), wt._tim_chromium())
 check("chỉ có bản rút gọn -> trang Công cụ vẫn Sẵn sàng",
       ot.trang_thai("browser")["trang_thai"] == "san_sang")
 
@@ -115,7 +132,9 @@ for _ten, _cac_ban in (("đủ hai thư mục", (DAY_DU, RUT_GON)),
                        ("chưa tải gì", ())):
     _dung(*_cac_ban)
     _cong_cu = ot.trang_thai("browser")["trang_thai"] == "san_sang"
-    _engine = wt.co_trinh_duyet(dung_nho=False)[0]
+    _engine = bool(wt._tim_chromium())
+    # So theo ĐÚNG câu hỏi chung của hai bên: "máy này có trình duyệt chạy được không". Không
+    # hỏi `co_trinh_duyet()` ở đây vì nó còn gánh thêm câu hỏi về thư viện playwright.
     # Máy chạy test có thể có sẵn Chrome hệ thống; lúc đó CẢ HAI cùng đúng, và bất biến vẫn giữ.
     check(f"{_ten}: trang Công cụ và engine Web nói CÙNG một câu",
           _cong_cu == _engine, f"cong_cu={_cong_cu} engine={_engine}")
@@ -164,14 +183,18 @@ check("web_transport hỏi thẳng optional_tools",
 _dung()
 wt.co_trinh_duyet()                                  # nhớ lại câu trả lời "chưa có"
 check("đã nhớ kết quả dò", "kq" in wt._NHO_DO)
-_dung(DAY_DU)                                        # _dung() gọi dat_lai_do, nên nhớ lại lần nữa
-wt.co_trinh_duyet()
-check("nhớ lại rồi thì lần sau không quét đĩa nữa", wt._NHO_DO.get("kq") == (True, ""))
 
 wt._NHO_DO["kq"] = (False, "câu trả lời CŨ")
 ot._quen_ket_qua_do()
 check("cài xong -> optional_tools bảo engine quên kết quả cũ", "kq" not in wt._NHO_DO)
-check("quên xong thì dò lại ra câu MỚI", wt.co_trinh_duyet()[0])
+
+_dung(DAY_DU)                                        # _dung() gọi dat_lai_do, nên dò lại từ đầu
+if CO_PW:
+    check("quên xong thì dò lại ra câu MỚI", wt.co_trinh_duyet() == (True, ""))
+    check("và nhớ lại, lần sau không quét đĩa nữa", wt._NHO_DO.get("kq") == (True, ""))
+else:
+    check("quên xong thì dò lại, và lý do không còn là thiếu trình duyệt",
+          "thư viện" in wt.co_trinh_duyet()[1].lower())
 
 check("đường cài gọi hàm quên đó", _src.count("_quen_ket_qua_do()") >= 3)
 check("hàm quên nuốt lỗi, không làm hỏng lượt cài", "except Exception:" in
