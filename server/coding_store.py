@@ -123,6 +123,11 @@ def _di_tru(d: dict) -> dict:
     for rec in (d.get("phien") or {}).values():
         if isinstance(rec, dict) and "repo" in rec and "thu_muc" not in rec:
             rec["thu_muc"] = rec.pop("repo")
+        # 0.63.8: một phiên gắn được NHIỀU thư mục. Giữ luôn `thu_muc` làm thư mục CHÍNH
+        # (nơi engine đứng, và nơi mọi thao tác git chạy) để phiên cũ không mất gì.
+        if isinstance(rec, dict) and not isinstance(rec.get("thu_mucs"), list):
+            mot = (rec.get("thu_muc") or "").strip()
+            rec["thu_mucs"] = [mot] if mot else []
         if isinstance(rec, dict):
             rec.pop("repo", None)
     d["version"] = 2
@@ -299,10 +304,15 @@ def rang_buoc(sid: str) -> Dict[str, Any]:
 
 
 def dat_rang_buoc(sid: str, *, thu_muc_id: Optional[str] = None, nhanh: Optional[str] = None,
-                  muc_quyen: Optional[str] = None, worktree: Optional[str] = None) -> Dict[str, Any]:
+                  muc_quyen: Optional[str] = None, worktree: Optional[str] = None,
+                  thu_muc_ids: Optional[List[str]] = None) -> Dict[str, Any]:
     """Ghi đè từng trường một. Trường nào truyền None thì giữ nguyên giá trị cũ.
 
     `thu_muc_id=""` là hợp lệ và có nghĩa: GỠ thư mục khỏi phiên, quay về chat trong brain.
+
+    `thu_muc_ids` đặt CẢ DANH SÁCH cùng lúc (0.63.8, gắn nhiều thư mục vào một phiên). Cái
+    đầu danh sách là thư mục CHÍNH: engine đứng ở đó, và mọi thao tác git chạy ở đó. Truyền
+    danh sách rỗng là gỡ hết.
     """
     sid = str(sid or "").strip()
     if not sid:
@@ -311,11 +321,33 @@ def dat_rang_buoc(sid: str, *, thu_muc_id: Optional[str] = None, nhanh: Optional
         raise LoiCoding(f"Mức quyền phải là một trong {', '.join(MUC_QUYEN)}.")
     if thu_muc_id is not None and thu_muc_id and not thu_muc(thu_muc_id):
         raise LoiCoding("Thư mục không có trong sổ.")
+    if thu_muc_ids is not None:
+        # Bỏ trùng mà GIỮ thứ tự: thứ tự quyết định cái nào là thư mục chính.
+        sach, thay = [], set()
+        for tid in thu_muc_ids:
+            tid = str(tid or "").strip()
+            if not tid or tid in thay:
+                continue
+            if not thu_muc(tid):
+                raise LoiCoding("Thư mục không có trong sổ.")
+            thay.add(tid)
+            sach.append(tid)
+        thu_muc_ids = sach
     with _lock:
         d = _load()
         cu = dict(d["phien"].get(sid, {}))
-        if thu_muc_id is not None:
+        if thu_muc_ids is not None:
+            chinh_cu = (cu.get("thu_muc") or "").strip()
+            cu["thu_mucs"] = list(thu_muc_ids)
+            cu["thu_muc"] = thu_muc_ids[0] if thu_muc_ids else ""
+            # Nhánh và worktree bám vào thư mục CHÍNH. Chỉ dọn khi chính nó đổi: thêm bớt một
+            # thư mục phụ mà xoá mất worktree đang dùng thì người dùng mất việc đang làm dở.
+            if cu["thu_muc"] != chinh_cu:
+                cu["worktree"] = ""
+                cu["nhanh"] = ""
+        elif thu_muc_id is not None:
             cu["thu_muc"] = thu_muc_id
+            cu["thu_mucs"] = [thu_muc_id] if thu_muc_id else []
             # Đổi thư mục thì worktree và nhánh của thư mục CŨ không còn nghĩa gì. Giữ lại là
             # để một đường dẫn chết nằm trong ràng buộc rồi lượt sau chạy nhầm chỗ.
             cu["worktree"] = ""
@@ -342,6 +374,25 @@ def xoa_rang_buoc(sid: str) -> None:
 
 def muc_quyen_cua_phien(sid: str) -> str:
     return rang_buoc(sid).get("muc_quyen") or MUC_QUYEN_MAC_DINH
+
+
+def thu_muc_cua_phien(sid: str) -> List[Dict[str, Any]]:
+    """Mọi thư mục phiên đang gắn, theo đúng thứ tự. Cái ĐẦU TIÊN là thư mục chính.
+
+    Chỉ trả về thư mục còn trong sổ: gỡ một thư mục khỏi Javis mà vẫn để lại id chết trong
+    ràng buộc thì lượt chat sau nói với engine về một đường dẫn không tồn tại.
+    """
+    rb = rang_buoc(sid)
+    ids = rb.get("thu_mucs")
+    if not isinstance(ids, list):
+        mot = (rb.get("thu_muc") or "").strip()
+        ids = [mot] if mot else []
+    ra = []
+    for tid in ids:
+        r = thu_muc(tid)
+        if r:
+            ra.append(r)
+    return ra
 
 
 def cwd_cua_phien(sid: str) -> str:
@@ -518,10 +569,21 @@ def khoi_prompt(sid: str) -> str:
         "# === PHIÊN CODING ===",
         f"Thư mục làm việc: {cwd}",
     ]
+    # Thư mục PHỤ (0.63.8). Engine chỉ đứng được ở MỘT chỗ, nên các thư mục còn lại đi vào
+    # prompt bằng đường dẫn tuyệt đối. Đường chat chạy ở mức bỏ qua hỏi quyền nên engine có
+    # shell đọc ghi được chúng bình thường; engine chỉ có API thì không, xem ghi chú ở dưới.
+    phu = [r["duong_dan"] for r in thu_muc_cua_phien(sid)
+           if r["duong_dan"] != cwd and Path(r["duong_dan"]).is_dir()]
+    if phu:
+        dong.append("Thư mục khác cũng thuộc việc này, dùng ĐƯỜNG DẪN TUYỆT ĐỐI để đọc và sửa:")
+        dong += [f"  - {p}" for p in phu]
+        dong.append("Khi việc đụng tới nhiều thư mục, nói rõ mình đang sửa file ở thư mục nào.")
     if la_git(cwd):
         nh = nhanh_hien_tai(cwd)
         if nh:
             dong.append(f"Nhánh git: {nh}")
+        if phu:
+            dong.append("Thao tác git (nhánh, worktree, điểm hồi) chỉ chạy ở thư mục làm việc.")
     if mq == "suggest":
         dong.append(KHOI_PLAN)
     elif mq == "auto":

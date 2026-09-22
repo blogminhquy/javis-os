@@ -140,7 +140,10 @@ def _make_router() -> APIRouter:
         cwd = coding_store.cwd_cua_phien(sid)
         return {
             "rang_buoc": rb,
+            # `thu_muc` là thư mục CHÍNH (engine đứng ở đó, git chạy ở đó); `thu_muc_ds` là
+            # cả tập phiên đang gắn, theo thứ tự, chính đứng đầu.
             "thu_muc": _ve_thu_muc(tm) if tm else None,
+            "thu_muc_ds": [_ve_thu_muc(x) for x in coding_store.thu_muc_cua_phien(sid)],
             "cwd": cwd,
             "diem_hoi": coding_store.danh_sach_diem_hoi(sid),
             # Chưa gắn thư mục thì KHÔNG chạy git ở đâu cả. Suy biến về "." là chạy `git status`
@@ -150,22 +153,30 @@ def _make_router() -> APIRouter:
 
     @r.post("/coding/session/{sid}")
     async def coding_phien_dat(sid: str, thu_muc: str = Form(None), nhanh: str = Form(None),
-                               muc_quyen: str = Form(None), worktree: str = Form(None)):
+                               muc_quyen: str = Form(None), worktree: str = Form(None),
+                               thu_mucs: str = Form(None)):
         """`worktree` nhận "1" để MỞ một worktree mới, "0" để gỡ. Bỏ trống là không đụng tới.
 
         Một cờ chứ không phải đường dẫn: đường dẫn do kho tự đặt, cho người dùng gõ tay chỉ mở
         đường cho một giá trị trỏ ra ngoài cây làm việc.
+
+        `thu_mucs` là danh sách id ngăn bằng dấu phẩy, đặt CẢ tập thư mục của phiên cùng lúc
+        (0.63.8). Id đầu tiên là thư mục CHÍNH. Chuỗi rỗng nghĩa là gỡ hết.
         """
         try:
+            ds = None
+            if thu_mucs is not None:
+                ds = [x.strip() for x in str(thu_mucs).split(",") if x.strip()]
             rb = coding_store.dat_rang_buoc(sid, thu_muc_id=thu_muc, nhanh=nhanh,
-                                            muc_quyen=muc_quyen)
+                                            muc_quyen=muc_quyen, thu_muc_ids=ds)
             them = {}
             if worktree is not None and str(worktree).strip() != "":
                 them = coding_store.tao_worktree(sid) if _bat(worktree) else coding_store.go_worktree(sid)
                 rb = coding_store.rang_buoc(sid)
         except coding_store.LoiCoding as e:
             return _400(str(e))
-        return {"ok": True, "rang_buoc": rb, "cwd": coding_store.cwd_cua_phien(sid), **them}
+        return {"ok": True, "rang_buoc": rb, "cwd": coding_store.cwd_cua_phien(sid),
+                "thu_muc_ds": coding_store.thu_muc_cua_phien(sid), **them}
 
     @r.post("/coding/session/{sid}/checkpoint")
     async def coding_diem_hoi(sid: str):
