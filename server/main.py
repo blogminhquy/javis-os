@@ -10466,6 +10466,49 @@ async def browse(path: str = Query("", description="Thư mục cần liệt kê;
     return await asyncio.to_thread(_browse_sync, path, bool(md))
 
 
+@app.get("/browse/starts")
+async def browse_starts(brain: str = Query("", description="Brain đang mở; rỗng = brain mặc định")):
+    """Vài ĐIỂM XUẤT PHÁT cho hộp chọn thư mục, thay cho việc mở thẳng ở thư mục nhà.
+
+    Vì sao cần: trên VPS, thư mục nhà thường chỉ có file ẩn, mà /browse lọc hết file ẩn, nên hộp
+    duyệt mở ra TRỐNG TRƠN. Người dùng không đi tới đâu được và phải quay về gõ tay đường dẫn,
+    tức là mất đúng cái mà hộp duyệt sinh ra để tránh (chủ dự án báo 2026-09-22).
+
+    Ba chỗ dưới đây phủ gần hết nhu cầu thật: bộ não đang mở (sửa skills/agents/scripts trong
+    đó), thư mục CHA chứa mọi bộ não (các brain nằm cạnh nhau), và thư mục nhà (nơi người ta
+    hay để mã nguồn). Trên Windows kèm luôn danh sách ổ đĩa vì "thư mục nhà" ở đó không dẫn ra
+    ổ D, ổ E.
+
+    Chỉ trả về chỗ CÓ THẬT và không trùng nhau: một dòng bấm vào chỉ để nhận lỗi còn tệ hơn là
+    không có dòng nào."""
+    import string
+
+    def _them(ds, ten, duong_dan, ghi_chu=""):
+        try:
+            p = os.path.abspath(str(duong_dan or ""))
+        except Exception:
+            return
+        if not p or not os.path.isdir(p):
+            return
+        if any(os.path.normcase(x["duong_dan"]) == os.path.normcase(p) for x in ds):
+            return
+        ds.append({"ten": ten, "duong_dan": p, "ghi_chu": ghi_chu, "git": _la_repo(p)})
+
+    def _quet():
+        ds: list[dict] = []
+        goc = _brain_root(brain)
+        _them(ds, os.path.basename(goc.rstrip("\\/")) or goc, goc, "brain")
+        _them(ds, os.path.basename(str(BRAINS_DIR).rstrip("\\/")) or str(BRAINS_DIR),
+              BRAINS_DIR, "brains")
+        _them(ds, "~", os.path.expanduser("~"), "home")
+        if os.name == "nt":
+            for d in string.ascii_uppercase:
+                _them(ds, f"{d}:\\", f"{d}:\\", "drive")
+        return {"diem": ds}
+
+    return await asyncio.to_thread(_quet)
+
+
 @app.get("/path/exists")
 async def path_exists(path: str = Query("", description="Đường dẫn tuyệt đối cần kiểm tra")):
     """Kiểm tra RẺ (chỉ os.path) 1 đường dẫn có còn là thư mục không. Dùng cho dropdown chọn

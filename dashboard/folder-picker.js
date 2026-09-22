@@ -13,7 +13,8 @@
        tieuDe: "Thêm thư mục",       // chữ ở đầu hộp
        ghiChu: "...",                 // dòng gợi ý ở chân hộp khi chưa có gì để nói
        nhanDung: "Dùng thư mục này",  // chữ trên nút xác nhận
-       batDau: "/home/me/code",       // thư mục mở sẵn (rỗng = thư mục nhà / danh sách ổ đĩa)
+       batDau: "/home/me/code",       // thư mục mở sẵn (rỗng = màn ĐIỂM XUẤT PHÁT)
+       brain: "brain",                // brain đang mở, để lấy đúng điểm xuất phát
        demMd: false,                  // true mới hiện số file .md (chỉ hợp khi chọn brain)
        chon: async function (path) { ... return "câu lỗi" hoặc để trống là đóng hộp; },
      });
@@ -31,10 +32,23 @@
     });
   }
 
+  /** Nhãn phụ của một điểm xuất phát.
+   *
+   *  Viết ĐỦ CHỮ từng khoá thay vì ghép `"fp.start_" + x.ghi_chu`: ghép chuỗi thì bộ quét i18n
+   *  không thấy khoá nào, nên xoá nhầm một dòng trong vi.json vẫn xanh và người dùng là người
+   *  đầu tiên thấy mã khoá hiện trên màn hình. */
+  function nhanDiem(ghiChu) {
+    if (ghiChu === "brain") return t("fp.start_brain");
+    if (ghiChu === "brains") return t("fp.start_brains");
+    if (ghiChu === "home") return t("fp.start_home");
+    if (ghiChu === "drive") return t("fp.start_drive");
+    return "";
+  }
+
   function open(o) {
     o = o || {};
     dong();
-    var hienTai = "", dangTai = false;
+    var hienTai = "", dangTai = false, diemDs = null;
 
     var lop = document.createElement("div");
     lop.className = "modal-overlay open";
@@ -43,7 +57,14 @@
       '<div class="folder-modal" role="dialog" aria-modal="true">' +
         '<div class="fm-head">' +
           "<span>" + ic("folder-open") + " " + esc(o.tieuDe || t("fp.title")) + "</span>" +
-          '<button type="button" class="fm-close" data-dong>' + ic("x") + "</button>" +
+          '<span class="fp-nut">' +
+            // Đường VỀ màn điểm xuất phát. Duyệt sâu vài tầng rồi muốn nhảy sang một nhánh
+            // khác hẳn thì không có nút này là phải bấm "lên trên" chục lần hoặc đóng hộp đi
+            // mở lại.
+            '<button type="button" class="fm-close" data-nha title="' + esc(t("fp.starts")) +
+              '">' + ic("house") + "</button>" +
+            '<button type="button" class="fm-close" data-dong>' + ic("x") + "</button>" +
+          "</span>" +
         "</div>" +
         // Ô đường dẫn vừa là chỗ BÁO đang đứng ở đâu, vừa là chỗ DÁN một đường dẫn dài rồi
         // Enter để nhảy thẳng tới. Người đã có sẵn đường dẫn trong tay không phải bấm lần
@@ -71,7 +92,48 @@
       goi.classList.toggle("fm-hint-loi", !!loi);
     }
 
-    async function duyet(p) {
+    /** Danh sách điểm xuất phát, hỏi server MỘT lần rồi giữ lại. Hỏng thì coi như không có,
+     *  và mọi đường gọi lui về hành vi cũ (duyệt thẳng thư mục nhà). */
+    async function taiDiem() {
+      if (diemDs) return diemDs;
+      try {
+        var r = await fetch("/browse/starts?brain=" + encodeURIComponent(o.brain || ""));
+        var d = await r.json();
+        diemDs = (d && d.diem) || [];
+      } catch (e) { diemDs = []; }
+      return diemDs;
+    }
+
+    /** Màn ĐIỂM XUẤT PHÁT, thay cho việc mở thẳng ở thư mục nhà.
+     *
+     *  Trên VPS thư mục nhà thường chỉ có file ẩn, mà /browse lọc hết file ẩn, nên hộp mở ra
+     *  trống trơn và người dùng phải quay về gõ tay đường dẫn - đúng thứ hộp duyệt sinh ra để
+     *  tránh. Không lấy được điểm nào thì vẫn duyệt thư mục nhà như trước, chứ không bày một
+     *  màn rỗng thứ hai. */
+    async function veDiem() {
+      var ds2 = await taiDiem();
+      if (!lop.parentNode) return;
+      // Không có điểm nào (server cũ, hoặc mọi chỗ đều không tồn tại) thì duyệt thẳng thư
+      // mục nhà như bản trước. Gọi taiThuMuc chứ KHÔNG gọi duyet(""): duyet("") quay ngược
+      // về chính hàm này và thành vòng lặp không lối ra.
+      if (!ds2.length) return taiThuMuc("");
+      hienTai = "";
+      if (document.activeElement !== oGo) oGo.value = "";
+      ds.innerHTML = "";
+      ds2.forEach(function (x) {
+        hang("", x.ten, function () { duyet(x.duong_dan); },
+             nhanDiem(x.ghi_chu), x.git, x.duong_dan);
+      });
+      nutDung.disabled = true;      // chưa đứng ở thư mục nào thì chưa chọn được gì
+      mach(t("fp.starts_note"));
+    }
+
+    /** Đường vào chung: rỗng = màn điểm xuất phát, có đường dẫn = duyệt thư mục đó. */
+    function duyet(p) {
+      return p ? taiThuMuc(p) : veDiem();
+    }
+
+    async function taiThuMuc(p) {
       dangTai = true;
       mach(t("common.loading"));
       try {
@@ -87,7 +149,7 @@
         }
         (d.dirs || []).forEach(function (x) {
           var nhan = x.git ? t("fp.git") : (x.md ? x.md + " .md" : "");
-          hang("", x.name, function () { duyet(x.path); }, nhan, x.git);
+          hang("", x.name, function () { duyet(x.path); }, nhan, x.git, x.path);
         });
         nutDung.disabled = !hienTai;
         if (d.error) mach(d.error, true);
@@ -99,9 +161,10 @@
       dangTai = false;
     }
 
-    function hang(lopThem, ten, bam, nhan, laGit) {
+    function hang(lopThem, ten, bam, nhan, laGit, duongDan) {
       var row = document.createElement("div");
       row.className = "fm-row" + (lopThem ? " " + lopThem : "");
+      if (duongDan) row.title = duongDan;
       row.innerHTML = '<span class="fm-name">' + ic(lopThem === "up" ? "arrow-up" : (laGit ? "folder-git" : "folder")) +
         " " + esc(ten) + "</span>" +
         (nhan ? '<span class="fm-md">' + esc(nhan) + "</span>" : "");
@@ -113,6 +176,7 @@
 
     lop.onclick = function (e) { if (e.target === lop) dongHop(); };
     lop.querySelector("[data-dong]").onclick = dongHop;
+    lop.querySelector("[data-nha]").onclick = function () { if (!dangTai) veDiem(); };
     lop.addEventListener("keydown", function (e) { if (e.key === "Escape") dongHop(); });
     oGo.onkeydown = function (e) {
       if (e.key !== "Enter" || dangTai) return;
@@ -134,7 +198,7 @@
       dongHop();
     };
 
-    duyet(o.batDau || "");
+    duyet(o.batDau || "");     // rỗng = màn điểm xuất phát (xem veDiem)
     setTimeout(function () { try { nutDung.focus(); } catch (e) {} }, 0);
   }
 

@@ -160,9 +160,19 @@ check("rollback hỏi lại", /confirm\(t\("coding\.ckpt_confirm"/.test(CD));
 check("câu hỏi rollback nói rõ không hoàn tác", tu("coding.ckpt_confirm", "không hoàn tác"));
 check("bỏ thư mục hỏi lại", /confirm\(t\("coding\.forget_confirm"/.test(CD));
 check("câu hỏi bỏ thư mục nói rõ THƯ MỤC TRÊN ĐĨA VẪN CÒN", tu("coding.forget_confirm", "vẫn còn nguyên"));
+// Chốt cũ ghim `var(--warn)`, mà bảng màu KHÔNG có token tên đó: trình duyệt bỏ cả dòng khai
+// báo nên chip Toàn quyền bấy lâu trông y hệt chip thường, còn test thì vẫn xanh vì nó chỉ soi
+// mã nguồn chứ không soi token có thật. Nay đòi màu CHỮ và màu NỀN riêng, và đòi chúng khác
+// hẳn chip Plan. Việc "token phải có thật" do test_theme_tokens.py canh.
 check("mức Toàn quyền nhìn ra được", chipGit.includes("cd-mq-auto")
   && M.chipHtml({ muc_quyen: "full" }, { id: "1", ten: "x", duong_dan: "/x", la_git: true }).includes("cd-mq-full")
-  && /\.cd-mq-full\s*\{[^}]*var\(--warn\)/.test(CSS));
+  && /\.cd-mq-full\s*\{[^}]*color: var\(--warn-ink\)/.test(CSS)
+  && /\.cd-mq-full\s*\{[^}]*background: var\(--warn-wash\)/.test(CSS));
+// `(?<![-\w])` để không bắt nhầm `border-color`, thứ hoàn toàn ĐƯỢC PHÉP dùng biến -line.
+check("KHÔNG lấy biến viền (-line) làm màu CHỮ: chúng có alpha thấp nên chữ bị chìm",
+  !/\.cd-mq-(suggest|full)[^{}]*\{[^}]*(?<![-\w])color: var\(--[a-z]+-line\)/.test(CSS));
+check("chip mức quyền giữ màu của nó khi rê chuột, không nhảy về màu chữ thường",
+  /\.cd-chip\.cd-mq-full:hover\s*\{[^}]*color: var\(--warn-ink\)/.test(CSS));
 
 // ---- 7. Thêm thư mục là DUYỆT rồi bấm chọn, không phải gõ đường dẫn ----
 // Bản 0.63.2 chỉ có một ô chữ trống: trên điện thoại là gõ tay cả đường dẫn tuyệt đối, sai
@@ -198,6 +208,29 @@ check("lỗi thêm thư mục hiện TẠI CHỖ và giữ hộp mở",
   && /if \(loi\) \{ mach\(loi, true\); return; \}/.test(FP_MA));
 check("chữ của hộp duyệt có ở cả hai từ điển",
   ["fp.title", "fp.use", "fp.up", "fp.pick", "fp.path_ph"].every((k) => !!VI[k] && !!EN[k]));
+// Hộp duyệt mở ra ở thư mục nhà thì trên VPS chỗ đó chỉ có file ẩn, mà /browse lọc hết file
+// ẩn, nên hộp hiện ra TRỐNG TRƠN và người dùng lại phải gõ tay đường dẫn (chủ dự án báo).
+check("chưa gắn gì thì hộp mở ở màn ĐIỂM XUẤT PHÁT, không đổ thẳng vào thư mục nhà",
+  /function veDiem\(\)/.test(FP_MA) && /return p \? taiThuMuc\(p\) : veDiem\(\)/.test(FP_MA));
+check("điểm xuất phát lấy từ server, có brain đang mở",
+  /fetch\("\/browse\/starts\?brain=/.test(FP_MA) && /brain: brain\(\)/.test(CD_MA));
+check("server trả điểm xuất phát: bộ não, thư mục chứa các bộ não, thư mục nhà", (() => {
+  const MAIN = fs.readFileSync(path.join(ROOT, "server", "main.py"), "utf8");
+  return /@app\.get\("\/browse\/starts"\)/.test(MAIN) && /_brain_root\(brain\)/.test(MAIN)
+    && /BRAINS_DIR/.test(MAIN) && /expanduser\("~"\)/.test(MAIN);
+})());
+check("chỉ trả chỗ CÓ THẬT và không trùng nhau", (() => {
+  const MAIN = fs.readFileSync(path.join(ROOT, "server", "main.py"), "utf8");
+  const kh = (MAIN.match(/def browse_starts[\s\S]*?return await asyncio/) || [""])[0];
+  return /os\.path\.isdir\(p\)/.test(kh) && /normcase/.test(kh);
+})());
+check("không lấy được điểm nào thì vẫn duyệt thư mục nhà như bản trước",
+  /if \(!ds2\.length\) return taiThuMuc\(""\)/.test(FP_MA));
+check("có đường VỀ màn điểm xuất phát khi đã duyệt sâu", /data-nha/.test(FP_MA));
+check("chữ của màn điểm xuất phát có ở cả hai từ điển",
+  ["fp.starts", "fp.starts_note", "fp.start_brain", "fp.start_brains", "fp.start_home"]
+    .every((k) => !!VI[k] && !!EN[k]));
+
 check("index.html nạp folder-picker.js TRƯỚC coding.js",
   HTML.indexOf("folder-picker.js") > 0 && HTML.indexOf("folder-picker.js") < HTML.indexOf("coding.js"));
 

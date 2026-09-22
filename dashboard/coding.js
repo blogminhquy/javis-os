@@ -419,8 +419,11 @@
       ghiChu: t("coding.add_folder_note"),
       nhanDung: t("coding.add_folder"),
       demMd: false,
+      brain: brain(),
       // Mở sẵn ở thư mục cha của thư mục đang gắn: mấy dự án thường nằm cạnh nhau, nên đó là
-      // chỗ gần đích nhất mà Javis biết chắc.
+      // chỗ gần đích nhất mà Javis biết chắc. Chưa gắn gì thì để rỗng, và hộp mở ra ở màn
+      // ĐIỂM XUẤT PHÁT (bộ não đang mở, thư mục chứa các bộ não, thư mục nhà) chứ không đổ
+      // thẳng vào thư mục nhà - trên VPS chỗ đó thường rỗng trơn.
       batDau: chaCuaThuMucDangGan(),
       chon: async function (duongDan) {
         var r = await api("/coding/folders", { method: "POST", body: fd({ duong_dan: duongDan, brain: brain() }) });

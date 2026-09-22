@@ -2083,9 +2083,29 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    trị đã đặt. Chưa gắn thì đây là chip DUY NHẤT trên hàng. */
 .cd-chip-mo { border-style: dashed; }
 /* Ba chế độ, ba sắc thái. Plan đọc là "an toàn", Toàn quyền phải NHÌN ra được từ xa vì ở mức
-   đó engine commit, push và deploy được. */
-.cd-mq-suggest { border-color: var(--info-line); color: var(--info-line); }
-.cd-mq-full { border-color: var(--warn); color: var(--warn); }
+   đó engine commit, push và deploy được.
+
+   Hai lỗi của bản 0.63.2 sửa ở đây (chủ dự án báo chữ mức quyền bị chìm):
+
+   1. Chữ lấy màu --info-line, mà mấy biến `-line` là màu VIỀN: chúng có alpha 0,35 nên đặt
+      làm màu chữ thì chữ trong mờ, nhìn như đang bị tắt. Bảng màu của dự án tách sẵn ba vai:
+      `-ink` cho chữ, `-line` cho viền, `-wash` cho nền. Nay dùng đúng vai.
+   2. `var(--warn)` KHÔNG hề tồn tại trong bảng màu (chỉ có --warn-ink, --warn-line,
+      --warn-wash). Giá trị sai thì trình duyệt bỏ luôn cả dòng khai báo, nên chip Toàn quyền
+      bấy lâu nay trông y hệt chip thường: đúng cái mức nguy hiểm nhất lại không có tín hiệu
+      nào. Thêm nền `-wash` để phân biệt được cả khi nhìn lướt.
+
+   Chip mặc định lấy --text2 cho hợp với hàng chip xung quanh, nhưng chip mức quyền nói một
+   điều người dùng CẦN đọc nên nhấn lên --text. */
+.cd-chip.cd-mq-auto { color: var(--text); }
+.cd-mq-suggest { border-color: var(--info-line); background: var(--info-wash);
+  color: var(--info-ink); }
+.cd-mq-full { border-color: var(--warn-line); background: var(--warn-wash);
+  color: var(--warn-ink); font-weight: 600; }
+/* Giữ màu của chính chip khi rê chuột: luật .cd-chip:hover kéo mọi chip về --text, mà ở đây
+   thì Toàn quyền đang đỏ cam lại nhảy sang màu chữ thường đúng lúc người dùng chỉ vào nó. */
+.cd-chip.cd-mq-suggest:hover { color: var(--info-ink); border-color: var(--info-line); }
+.cd-chip.cd-mq-full:hover { color: var(--warn-ink); border-color: var(--warn-line); }
 
 .cd-menu { position: fixed; z-index: 60; min-width: 230px; max-width: 360px; padding: 5px;
   border-radius: 11px; border: 1px solid var(--glass-brd); background: var(--surface-1);
@@ -2095,7 +2115,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .cd-menu button:hover { background: var(--surface-2); }
 .cd-menu button.on { color: var(--info-line); }
 .cd-menu button.moi { border-top: 1px solid var(--glass-brd); border-radius: 0 0 8px 8px; }
-.cd-menu button.nguy { color: var(--danger); }
+.cd-menu button.nguy { color: var(--red); }   /* --danger không có trong bảng màu */
 .cd-menu button small { display: block; font-size: 13px; color: var(--text3); margin-top: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
