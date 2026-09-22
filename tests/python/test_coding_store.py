@@ -227,6 +227,65 @@ check("ràng buộc cũ (`repo`) di trú sang `thu_muc`",
       coding_store.rang_buoc("phiencu").get("thu_muc") == "cu1")
 check("và phiên cũ vẫn ra đúng cwd", coding_store.cwd_cua_phien("phiencu") == str(Path(REPO).resolve()))
 
+# ---- 8b. Một phiên gắn NHIỀU thư mục (0.63.8) ----
+# Một việc thật hay đụng nhiều thư mục cùng lúc (mã nguồn với tài liệu, app với thư viện dùng
+# chung), nên bắt chọn đúng một cái là bắt người dùng đổi qua đổi lại giữa chừng.
+check("phiên cũ (một thư mục) đọc lên thành danh sách một phần tử",
+      [x["id"] for x in coding_store.thu_muc_cua_phien("phiencu")] == ["cu1"])
+
+_A = str(Path(REPO).resolve())
+_thuong = Path(REPO).parent / "thu-muc-phu"
+_thuong.mkdir(exist_ok=True)
+a = coding_store.them_thu_muc(REPO, brain="bn", ten="chinh")
+b = coding_store.them_thu_muc(str(_thuong), brain="bn", ten="phu")
+coding_store.dat_rang_buoc("pnhieu", thu_muc_ids=[a["id"], b["id"]])
+check("gắn được hai thư mục cùng lúc",
+      [x["id"] for x in coding_store.thu_muc_cua_phien("pnhieu")] == [a["id"], b["id"]])
+check("thư mục ĐẦU danh sách là thư mục chính, và cwd bám vào nó",
+      coding_store.cwd_cua_phien("pnhieu") == _A)
+check("trường cũ `thu_muc` vẫn trỏ đúng thư mục chính (mã cũ không gãy)",
+      coding_store.rang_buoc("pnhieu").get("thu_muc") == a["id"])
+
+_kp = coding_store.khoi_prompt("pnhieu")
+check("prompt nói rõ thư mục làm việc", f"Thư mục làm việc: {_A}" in _kp)
+check("prompt liệt kê thư mục phụ bằng đường dẫn TUYỆT ĐỐI", str(_thuong.resolve()) in _kp)
+check("và dặn dùng đường dẫn tuyệt đối", "ĐƯỜNG DẪN TUYỆT ĐỐI" in _kp)
+
+# Bỏ tích cái chính thì cái kế tiếp lên thay, không để phiên mất chỗ đứng.
+coding_store.dat_rang_buoc("pnhieu", thu_muc_ids=[b["id"]])
+check("bỏ thư mục chính thì cái còn lại lên thay",
+      coding_store.cwd_cua_phien("pnhieu") == str(_thuong.resolve()))
+check("prompt lúc chỉ còn một thư mục thì KHÔNG bịa ra mục thư mục phụ",
+      "Thư mục khác cũng thuộc việc này" not in coding_store.khoi_prompt("pnhieu"))
+
+coding_store.dat_rang_buoc("pnhieu", thu_muc_ids=[])
+check("gỡ hết thì về chat trong bộ não", coding_store.cwd_cua_phien("pnhieu") == "")
+
+coding_store.dat_rang_buoc("pnhieu", thu_muc_ids=[a["id"], b["id"], a["id"]])
+check("id lặp bị bỏ mà thứ tự giữ nguyên",
+      [x["id"] for x in coding_store.thu_muc_cua_phien("pnhieu")] == [a["id"], b["id"]])
+
+_loi = ""
+try:
+    coding_store.dat_rang_buoc("pnhieu", thu_muc_ids=[a["id"], "khong-co-that"])
+except coding_store.LoiCoding as e:
+    _loi = str(e)
+check("id không có trong sổ thì từ chối, không ghi bừa", "không có trong sổ" in _loi)
+check("và ràng buộc cũ giữ nguyên sau lần từ chối đó",
+      [x["id"] for x in coding_store.thu_muc_cua_phien("pnhieu")] == [a["id"], b["id"]])
+
+# Thêm bớt thư mục PHỤ không được làm mất worktree đang dùng của thư mục chính.
+coding_store.dat_rang_buoc("pnhieu", thu_muc_ids=[a["id"]])
+coding_store.dat_rang_buoc("pnhieu", worktree="/tmp/gia-worktree", nhanh="nhanh-x")
+coding_store.dat_rang_buoc("pnhieu", thu_muc_ids=[a["id"], b["id"]])
+_rb = coding_store.rang_buoc("pnhieu")
+check("thêm thư mục phụ KHÔNG xoá worktree/nhánh của thư mục chính",
+      _rb.get("worktree") == "/tmp/gia-worktree" and _rb.get("nhanh") == "nhanh-x")
+coding_store.dat_rang_buoc("pnhieu", thu_muc_ids=[b["id"], a["id"]])
+_rb2 = coding_store.rang_buoc("pnhieu")
+check("nhưng ĐỔI thư mục chính thì dọn worktree/nhánh cũ đi",
+      not _rb2.get("worktree") and not _rb2.get("nhanh"))
+
 # ---- 9. Sổ hỏng không giết cả trang ----
 coding_store.STORE_PATH.write_text("{ khong phai json", encoding="utf-8")
 check("sổ hỏng đọc ra sổ rỗng thay vì ném lỗi", coding_store.danh_sach_thu_muc() == [])

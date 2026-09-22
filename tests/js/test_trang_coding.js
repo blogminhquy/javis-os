@@ -69,7 +69,11 @@ check("chữ trên giao diện nói THƯ MỤC", tu("coding.add_folder", "thư m
 check("khoá cũ nói 'repo' đã bỏ hẳn",
   ["coding.add_repo", "coding.remove_repo", "coding.chip_pick_repo", "coding.ask_path"]
     .every((k) => !VI[k] && !EN[k]));
-check("nói rõ không cần là repo git", tu("coding.add_folder_note", "không cần là repo git"));
+// 0.63.8: bỏ dòng giảng giải ở chân hộp chọn thư mục (chủ dự án: "nghe kỳ quá"). Việc
+// "không cần là repo git" đã tự thể hiện: thư mục nào cũng chọn được, và ba chip phụ thuộc
+// git chỉ hiện khi thư mục đó thật sự có git.
+check("hộp chọn thư mục KHÔNG còn dòng giảng giải ở chân",
+  !VI["coding.add_folder_note"] && !EN["coding.add_folder_note"] && !/ghiChu:/.test(CD));
 const chipGit = M.chipHtml({ muc_quyen: "auto" }, { id: "1", ten: "du-an", duong_dan: "/x", la_git: true });
 const chipThuong = M.chipHtml({ muc_quyen: "auto" }, { id: "1", ten: "ghi-chu", duong_dan: "/y", la_git: false });
 check("thư mục CÓ git thì hiện đủ nhánh, worktree, điểm hồi",
@@ -233,6 +237,38 @@ check("chữ của màn điểm xuất phát có ở cả hai từ điển",
 
 check("index.html nạp folder-picker.js TRƯỚC coding.js",
   HTML.indexOf("folder-picker.js") > 0 && HTML.indexOf("folder-picker.js") < HTML.indexOf("coding.js"));
+
+// ---- 7a. Gắn NHIỀU thư mục vào một việc (0.63.8) ----
+// Một việc thật hay đụng nhiều thư mục cùng lúc, nên bắt chọn đúng một cái là bắt người dùng
+// đổi qua đổi lại giữa chừng (chủ dự án yêu cầu 22/09).
+check("menu thư mục là TÍCH CHỌN, bấm vào là thêm/bớt chứ không thay",
+  /tich: true/.test(CD_MA) && /ids\.splice\(i, 1\); else ids\.push\(x\.id\)/.test(CD_MA));
+check("menu KHÔNG đóng sau mỗi lần tích", /giuMo: true/.test(CD_MA)
+  && /if \(x && x\.giuMo && veLai\)/.test(CD_MA));
+check("có ô vuông để đọc ra là đang gắn hay không",
+  /class="cd-tich"/.test(CD_MA) && /\.cd-tich \{/.test(CSS));
+check("gắn nhiều thì chip nói rõ còn mấy thư mục nữa",
+  M.chipHtml({ muc_quyen: "auto", so_thu_muc: 3 }, { id: "1", ten: "du-an", duong_dan: "/x" }).includes("+2")
+  && !M.chipHtml({ muc_quyen: "auto", so_thu_muc: 1 }, { id: "1", ten: "du-an", duong_dan: "/x" }).includes("+"));
+check("server nhận cả DANH SÁCH thư mục cho một phiên", (() => {
+  const ST = fs.readFileSync(path.join(ROOT, "server", "coding_store.py"), "utf8");
+  const RT = fs.readFileSync(path.join(ROOT, "server", "routes", "coding.py"), "utf8");
+  return /def thu_muc_cua_phien\(/.test(ST) && /thu_muc_ids: Optional\[List\[str\]\]/.test(ST)
+    && /thu_mucs: str = Form\(None\)/.test(RT);
+})());
+check("thư mục phụ đi vào prompt bằng đường dẫn tuyệt đối", (() => {
+  const ST = fs.readFileSync(path.join(ROOT, "server", "coding_store.py"), "utf8");
+  return /ĐƯỜNG DẪN TUYỆT ĐỐI/.test(ST) && /def khoi_prompt[\s\S]{0,2000}thu_muc_cua_phien/.test(ST);
+})());
+check("git chỉ chạy ở thư mục chính, và nói rõ điều đó", (() => {
+  const ST = fs.readFileSync(path.join(ROOT, "server", "coding_store.py"), "utf8");
+  return /chỉ chạy ở thư mục làm việc/.test(ST);
+})());
+// Menu tích chọn vẽ lại sau mỗi lần bấm, mỗi lần lại gắn một bộ nghe "bấm ra ngoài thì đóng".
+// Không gỡ thì chúng đọng lại và đóng oan một menu mở sau đó.
+check("bộ nghe đóng menu được GỠ chứ không đọng lại",
+  /function goBoDong\(\)/.test(CD_MA) && /removeEventListener\("click", _boDong/.test(CD_MA)
+  && /function dongMenu\(\)\s*\{\s*goBoDong\(\)/.test(CD_MA));
 
 // ---- 7b. Mở file: bấm trong cây thư mục hay bấm chip "file đang mở" ----
 // Lỗi 0.63.4 chủ dự án báo: bấm một file thì LẶNG LẼ không có gì mở ra. Nguyên nhân là

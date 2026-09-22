@@ -10,6 +10,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Cần bật một lần bằng biến môi trường `JAVIS_ENABLE_WEB_CHAT=true` rồi khởi động lại. Chưa bật thì model này không hiện ra, và mọi thứ khác chạy y như cũ.
 - Trang **Models**, trong thẻ ChatGPT, có thêm nút mở cửa sổ đăng nhập, nút kiểm tra lại và nút đóng trình duyệt. Javis không cầm mật khẩu của bạn: bạn tự đăng nhập một lần trong cửa sổ đó.
 - Lưu ý khi dùng: mỗi lượt là một cuộc chat thật trên chatgpt.com, nên **Memory** và **Custom instructions** của tài khoản sẽ ảnh hưởng câu trả lời. Muốn Javis trả lời thuần theo prompt của mình thì tắt hai thứ đó trong cài đặt ChatGPT. Mỗi vòng gọi tool cũng mất vài chục giây, nên việc nhiều bước vẫn nên để Codex.
+## [0.63.9] - 2026-09-22
+### Thêm mới
+- **Một việc trong mục Coding giờ gắn được NHIỀU thư mục.** Bấm chip thư mục rồi tích chọn bao nhiêu cái tuỳ ý, menu không đóng giữa chừng nên chọn liền mấy cái một lúc. Hợp với việc đụng cả mã nguồn lẫn tài liệu, hay app với thư viện dùng chung.
+- Thư mục **đầu danh sách là thư mục chính**: Javis đứng ở đó và mọi thao tác git chạy ở đó. Các thư mục còn lại Javis vẫn đọc và sửa được bằng đường dẫn đầy đủ. Bỏ tích cái chính thì cái kế tiếp lên thay.
+### Sửa lỗi
+- **Chữ xanh nhạt trong menu thư mục và menu mức quyền giờ đọc được.** Nó đang lấy màu viền làm màu chữ nên mờ gần như tàng hình.
+- Bỏ dòng giải thích dài ở chân hộp thêm thư mục.
+
 ## [0.63.8] - 2026-09-22
 ### Thêm mới
 - **Đợi lâu không còn mù tịt.** Khi Javis phải gọi nhiều công cụ để trả lời, khung chat giờ liệt kê từng bước ngay trên câu trả lời thay vì chỉ một dòng nhấp nháy rồi mất. Trả lời xong, danh sách tự gấp thành một dòng `Đã chạy 6 bước`, bấm vào là bung ra xem lại.
