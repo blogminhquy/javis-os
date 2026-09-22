@@ -948,7 +948,9 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   padding: 12px 16px; border-top: 1px solid var(--border);
 }
 .fm-hint { font-size: 14px; color: var(--text2); }
-.fm-hint-loi { color: var(--danger); }
+/* --red chứ không phải --danger: bảng màu không có token tên --danger, dùng nó là câu
+   lệnh bị bỏ và chữ lỗi hiện y như chữ thường. */
+.fm-hint-loi { color: var(--red); }
 /* Ô đường dẫn của JavisFolderPicker: vừa BÁO đang đứng ở đâu, vừa nhận một đường dẫn dán vào
    rồi Enter. Nằm gọn trong khung .fm-path nên không tự vẽ viền hay nền riêng. 16px là cỡ tối
    thiểu: nhỏ hơn thì Safari trên iPhone tự phóng to cả trang khi con trỏ nhảy vào ô. */

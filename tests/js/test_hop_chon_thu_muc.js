@@ -68,7 +68,13 @@ function moiTruong(traLoi) {
   return { body, goiBrowse };
 }
 
+const NHA = { path: "/home/me", parent: "/home", here_md: null, git: false, dirs: [
+    { name: "du-an", path: "/home/me/du-an", md: null, git: true },
+    { name: "tai-lieu", path: "/home/me/tai-lieu", md: null, git: false },
+  ] };
 const CAY = {
+  // Server coi path rỗng là thư mục nhà, nên hai khoá này trỏ cùng một chỗ.
+  "/home/me": NHA,
   "": { path: "/home/me", parent: "/home", here_md: null, git: false, dirs: [
     { name: "du-an", path: "/home/me/du-an", md: null, git: true },
     { name: "tai-lieu", path: "/home/me/tai-lieu", md: null, git: false },
@@ -77,10 +83,21 @@ const CAY = {
     { name: "server", path: "/home/me/du-an/server", md: null, git: false },
   ] },
 };
+const DIEM = [
+  { ten: "My Bullet Journal", duong_dan: "/home/me/brains/My Bullet Journal", ghi_chu: "brain", git: false },
+  { ten: "brains", duong_dan: "/home/me/brains", ghi_chu: "brains", git: false },
+  { ten: "~", duong_dan: "/home/me", ghi_chu: "home", git: false },
+];
 const traLoi = (url) => {
+  if (url.indexOf("/browse/starts") === 0) return { diem: DIEM };
   const m = /[?&]path=([^&]*)/.exec(url);
   const p = decodeURIComponent(m ? m[1] : "");
   return CAY[p] || { error: "Không phải thư mục", path: p, parent: null, dirs: [] };
+};
+// Bản server KHÔNG có endpoint điểm xuất phát (bản cũ chưa cập nhật): phải suy biến êm.
+const traLoiCu = (url) => {
+  if (url.indexOf("/browse/starts") === 0) return { diem: [] };
+  return traLoi(url);
 };
 
 const cho = () => new Promise((r) => setImmediate(r));
@@ -100,9 +117,27 @@ const nap = () => {
 
     const lop = mt.body.con[0];
     check("hộp được gắn vào body", !!lop && lop.id === "fpModal");
-    check("gọi /browse đúng một lần khi mở", mt.goiBrowse.length === 1, mt.goiBrowse.join(" "));
+    // Mở ra là màn ĐIỂM XUẤT PHÁT, không đổ thẳng vào thư mục nhà: trên VPS thư mục nhà chỉ
+    // có file ẩn nên hộp hiện ra trống trơn, người dùng lại phải gõ tay đường dẫn.
+    check("mở hộp thì hỏi điểm xuất phát, chưa duyệt thư mục nào",
+      mt.goiBrowse.length === 1 && mt.goiBrowse[0].indexOf("/browse/starts") === 0,
+      mt.goiBrowse.join(" "));
+    const dsD = lop.querySelector(".fm-list");
+    check("bày đúng các điểm xuất phát server trả về", dsD.con.length === DIEM.length,
+      "có " + dsD.con.length);
+    check("mỗi điểm nói rõ nó là chỗ nào",
+      dsD.con[0]._html.includes("fp.start_brain") && dsD.con[2]._html.includes("fp.start_home"));
+    check("mỗi điểm mang đường dẫn đầy đủ ở tooltip", dsD.con[0].title === DIEM[0].duong_dan);
+    check("chưa đứng ở thư mục nào thì chưa bấm Dùng được",
+      lop.querySelector("[data-dung]").disabled === true);
+
+    // ---- 2. Bấm một điểm xuất phát là DUYỆT vào đó ----
+    dsD.con[2].onclick();          // "~" -> /home/me
+    await cho(); await cho();
+    check("bấm một điểm thì duyệt vào đúng đường dẫn của nó",
+      /\/browse\?md=0&path=%2Fhome%2Fme$/.test(mt.goiBrowse[1] || ""), mt.goiBrowse.join(" "));
     check("gọi với md=0: chọn thư mục CODE thì đừng quét đếm .md",
-      /\/browse\?md=0&path=/.test(mt.goiBrowse[0]), mt.goiBrowse[0]);
+      /\/browse\?md=0&/.test(mt.goiBrowse[1] || ""), mt.goiBrowse[1]);
 
     const ds = lop.querySelector(".fm-list");
     check("dựng đủ hàng: một hàng 'lên trên' cộng hai thư mục con", ds.con.length === 3,
@@ -114,11 +149,11 @@ const nap = () => {
       !ds.con[2]._html.includes("folder-git") && !ds.con[2]._html.includes("fp.git"));
     check("KHÔNG in nhãn .md khi md=0", !/\.md/.test(ds.con[1]._html + ds.con[2]._html));
 
-    // ---- 2. Bấm một thư mục là ĐI VÀO nó ----
+    // ---- 3. Bấm một thư mục là ĐI VÀO nó ----
     ds.con[1].onclick();
     await cho(); await cho();
     check("bấm thư mục con thì duyệt tiếp vào đó",
-      /path=%2Fhome%2Fme%2Fdu-an$/.test(mt.goiBrowse[1] || ""), (mt.goiBrowse[1] || "") + "");
+      /path=%2Fhome%2Fme%2Fdu-an$/.test(mt.goiBrowse[2] || ""), (mt.goiBrowse[2] || "") + "");
     const ds2 = lop.querySelector(".fm-list");
     check("danh sách vẽ lại theo thư mục mới", ds2.con.length === 2, "có " + ds2.con.length);
     check("ô đường dẫn hiện chỗ đang đứng",
@@ -150,7 +185,8 @@ const nap = () => {
   {
     const mt = moiTruong(traLoi);
     const FP = nap();
-    FP.open({ demMd: false, chon: async () => "Thư mục này không đọc được" });
+    FP.open({ batDau: "/home/me/du-an", demMd: false,
+              chon: async () => "Thư mục này không đọc được" });
     await cho(); await cho();
     const lop = mt.body.con[0];
     await lop.querySelector("[data-dung]").onclick();
@@ -185,7 +221,7 @@ const nap = () => {
     const mt = moiTruong(() => ({ path: "/x", parent: null, here_md: 3, git: false,
                                   dirs: [{ name: "brain", path: "/x/brain", md: 7, git: false }] }));
     const FP = nap();
-    FP.open({ demMd: true, chon: async () => "" });
+    FP.open({ batDau: "/x", demMd: true, chon: async () => "" });
     await cho(); await cho();
     check("demMd=true thì gọi md=1", /md=1&/.test(mt.goiBrowse[0]), mt.goiBrowse[0]);
     check("và in con số .md như hộp chọn brain",
@@ -200,13 +236,44 @@ const nap = () => {
     const MA = SRC.replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/^\s*\/\/.*$/gm, "")
       .replace(/(^|[^:])\/\/.*$/gm, "$1");
-    check("chỉ đứng trên GET /browse, không thêm endpoint riêng",
-      (MA.match(/fetch\(/g) || []).length === 1 && /fetch\("\/browse\?/.test(MA));
+    check("chỉ đứng trên hai đường /browse có sẵn, không đẻ endpoint thứ ba",
+      (MA.match(/fetch\(/g) || []).length === 2
+      && /fetch\("\/browse\?/.test(MA) && /fetch\("\/browse\/starts\?/.test(MA));
     check("mặc bộ lớp .folder-modal/.fm-* có sẵn của style.css",
       /class="folder-modal"/.test(MA) && /class="fm-head"/.test(MA)
       && /class="fm-list"/.test(MA) && /class="fm-foot"/.test(MA));
     check("không nhúng style vào mã", !/<style|\.style\.(width|background|border)/.test(MA));
     check("chữ hiện ra đi qua từ điển", !/[ăâđêôơưáàảãạéèẻ]/i.test(MA));
+  }
+
+  // ---- 9. Server CHƯA có endpoint điểm xuất phát: suy biến về hành vi cũ ----
+  {
+    const mt = moiTruong(traLoiCu);
+    const FP = nap();
+    FP.open({ demMd: false, chon: async () => "" });
+    await cho(); await cho(); await cho();
+    const lop = mt.body.con[0];
+    check("không có điểm nào thì vẫn duyệt thư mục nhà, KHÔNG bày màn rỗng",
+      /\/browse\?md=0&path=$/.test(mt.goiBrowse[1] || ""), mt.goiBrowse.join(" "));
+    check("và vẫn dựng được danh sách", lop.querySelector(".fm-list").con.length === 3);
+  }
+
+  // ---- 10. Đường VỀ màn điểm xuất phát sau khi đã duyệt sâu ----
+  {
+    const mt = moiTruong(traLoi);
+    const FP = nap();
+    FP.open({ batDau: "/home/me/du-an", demMd: false, chon: async () => "" });
+    await cho(); await cho();
+    const lop = mt.body.con[0];
+    check("mở thẳng vào thư mục chỉ định thì KHÔNG hỏi điểm xuất phát",
+      mt.goiBrowse.length === 1 && mt.goiBrowse[0].indexOf("/browse?") === 0,
+      mt.goiBrowse.join(" "));
+    lop.querySelector("[data-nha]").onclick();
+    await cho(); await cho();
+    check("bấm nút nhà thì quay về màn điểm xuất phát",
+      lop.querySelector(".fm-list").con.length === DIEM.length);
+    check("và nút Dùng khoá lại vì chưa đứng ở thư mục nào",
+      lop.querySelector("[data-dung]").disabled === true);
   }
 
   console.log();

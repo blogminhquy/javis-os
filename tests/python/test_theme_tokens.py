@@ -85,6 +85,29 @@ check('nút "Ngắt" của provider dùng key cũng dùng class ghost',
 check("nút disabled giữ nguyên bộ mặt khi rê chuột", ".gcard-btn:disabled:hover" in CONSOLE_CSS)
 
 
+# --- 3. Token phải CÓ THẬT trong bảng màu ------------------------------------
+# Lỗi thật 0.63.2, chủ dự án báo 2026-09-22 ("chữ phân quyền hơi bị chìm"): chip Toàn quyền
+# viết `color: var(--warn)`, mà bảng màu chỉ có --warn-ink / --warn-line / --warn-wash, không
+# có --warn trần. Trình duyệt gặp giá trị không giải được thì BỎ LUÔN cả dòng khai báo, nên
+# chip nguy hiểm nhất trông y hệt chip thường - hỏng trong im lặng, không lỗi, không cảnh báo.
+# Cùng kiểu đó, `var(--danger)` cũng không tồn tại.
+#
+# Quét phần giao diện của trang Coding và hộp chọn thư mục (mã của chính nhóm lỗi này). Cả kho
+# CSS còn vài token chưa khai nữa, nhưng phần lớn có giá trị lui `var(--x, #abc)` nên vẫn ra
+# màu; dọn hết là một việc riêng, không gộp vào đây.
+_KHAI = set(re.findall(r"(--[a-zA-Z0-9_-]+)\s*:", STYLE + CONSOLE_CSS))
+_KHOI = re.sub(r"/\*[\s\S]*?\*/", "", CONSOLE_CSS + STYLE)
+for _ten, _mau in (("chip trang Coding", r"\.cd-[a-z-]+[^{}]*\{[^}]*\}"),
+                   ("hộp chọn thư mục", r"\.(?:fm|fp)-[a-z-]+[^{}]*\{[^}]*\}")):
+    _dung = set()
+    for _r in re.findall(_mau, _KHOI):
+        # Bỏ qua var() có giá trị lui (var(--x, #abc)): thiếu token thì vẫn ra đúng màu.
+        _dung |= set(re.findall(r"var\((--[a-zA-Z0-9_-]+)\s*\)", _r))
+    _thieu = sorted(_dung - _KHAI)
+    check(f"{_ten}: mọi token màu đều có thật trong bảng màu (thiếu: {_thieu})", not _thieu)
+    check(f"{_ten}: vòng quét THẬT SỰ thấy token (regex chưa hỏng)", len(_dung) > 5)
+
+
 if fails:
     raise SystemExit(f"\nFAIL - test_theme_tokens: {len(fails)} lỗi")
 print("\nOK - test_theme_tokens: tất cả pass")

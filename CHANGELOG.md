@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.63.6] - 2026-09-22
+### Sửa lỗi
+- **Chữ mức quyền không còn bị chìm.** Ba chip Plan, Tự động, Toàn quyền trước đây lấy màu viền làm màu chữ nên chữ trong mờ như đang bị tắt. Riêng chip **Toàn quyền** thì dùng một mã màu không hề tồn tại, nên mức nguy hiểm nhất lại trông y hệt mức thường. Nay mỗi mức có màu chữ và nền riêng, nhìn lướt cũng thấy.
+### Cải thiện
+- **Hộp thêm thư mục mở ra ở những chỗ đáng bắt đầu**: bộ não đang mở, thư mục chứa các bộ não, thư mục nhà. Trước đây nó mở thẳng vào thư mục nhà, mà trên máy chủ chỗ đó thường trống trơn nên bạn không đi tới đâu được. Có nút hình ngôi nhà để quay lại danh sách này khi đã duyệt sâu.
+- Thư mục nào là repo git thì có dấu riêng ngay trong danh sách, và rê chuột vào một dòng là thấy đường dẫn đầy đủ.
+
 ## [0.63.5] - 2026-09-22
 ### Sửa lỗi
 - **Bấm một file trong mục Coding giờ mở ra được.** Trước đó bấm file trong cây thư mục, hay bấm chip file đang mở ở thanh đính kèm, đều không có gì xảy ra và cũng không báo lỗi gì. Nay mở đúng trình sửa như bên Trò chuyện.
