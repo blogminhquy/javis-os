@@ -211,8 +211,20 @@ finally:
     wt.dat_lai_do()
 
 # Có thư viện nhưng KHÔNG có trình duyệt: cũng phải từ chối, và chỉ đúng chỗ bấm.
+#
+# Phải DỰNG SẴN một module playwright giả khi máy chưa có, chứ không giả định máy có: CI
+# chạy trên máy KHÔNG cài playwright, nên bản đầu của phép thử này rơi vào nhánh "thiếu thư
+# viện" rồi đỏ vì câu lỗi nói về pip chứ không nói về trang Công cụ. Xanh trên máy dev, đỏ
+# trên CI, và đỏ vì phép thử sai chứ không phải vì mã sai.
 _tim_that = wt._tim_chromium
 wt._tim_chromium = lambda: ""
+_da_nhet_gia = False
+try:
+    import playwright  # noqa: F401
+except ImportError:
+    import types as _types
+    sys.modules["playwright"] = _types.ModuleType("playwright")
+    _da_nhet_gia = True
 try:
     wt.dat_lai_do()
     _ok_kb, _ly_do_kb = wt.co_trinh_duyet()
@@ -220,6 +232,8 @@ try:
     check("và chỉ đúng chỗ tải trình duyệt", "Công cụ" in _ly_do_kb)
 finally:
     wt._tim_chromium = _tim_that
+    if _da_nhet_gia:
+        sys.modules.pop("playwright", None)
     wt.dat_lai_do()
 
 # Nhớ kết quả dò, và quên được khi người dùng vừa cài thêm đồ.
