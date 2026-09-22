@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.63.7] - 2026-09-22
+### Cải thiện
+- **Máy yếu bớt đơ hẳn khi mở màn chính.** Quả cầu não trước đây vẽ lại liên tục cả khi không có gì chuyển động, đốt CPU suốt ngày dù bạn chỉ ngồi nhìn. Nay nó đứng yên lúc rảnh và sống lại ngay khi bạn nói, khi Javis đang nghĩ, hoặc khi bạn rê chuột vào nó.
+- Đo trên một bộ não 844 note: lúc không ai đụng vào gì, màn chính giảm từ **34% xuống 19,7%** một nhân CPU. Não càng nhiều note thì càng đỡ được nhiều.
+- Hiệu ứng thở và hiệu ứng rọi sáng khi trỏ vào một chấm vẫn nguyên, chỉ tắt trong lúc bạn không tương tác.
+
 ## [0.63.6] - 2026-09-22
 ### Sửa lỗi
 - **Chữ mức quyền không còn bị chìm.** Ba chip Plan, Tự động, Toàn quyền trước đây lấy màu viền làm màu chữ nên chữ trong mờ như đang bị tắt. Riêng chip **Toàn quyền** thì dùng một mã màu không hề tồn tại, nên mức nguy hiểm nhất lại trông y hệt mức thường. Nay mỗi mức có màu chữ và nền riêng, nhìn lướt cũng thấy.

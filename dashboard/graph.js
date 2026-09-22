@@ -162,6 +162,13 @@ class JavisGraph {
     this._fitted = false;
     this._t0 = 0;
     this._hoverId = null;
+    this._veLienTuc = false;   // nhịp vẽ hiện tại, xem _nhipVe()
+    // Lần cuối có gì đó động. Phải là RẤT LÂU RỒI chứ không phải 0: performance.now() lúc
+    // trang vừa nạp cũng chỉ vài trăm mili giây, nên để 0 thì "chưa từng động" lại bị tính
+    // là "vừa mới động" suốt quãng ân hạn đầu tiên.
+    this._dongLuc = -1e12;
+    this._chuotTren = false;   // con trỏ có đang ở trên vùng đồ thị không
+    this._daNgheChuot = false;
     this._nbrs = new Set();
     this._catFilter = null;
     window.__javisGraph = this;
@@ -205,7 +212,12 @@ class JavisGraph {
       const self = this;
       this.graph = ForceGraph()(this.container)
         .backgroundColor("rgba(0,0,0,0)")
-        .autoPauseRedraw(false)                             // vẽ liên tục → hover nhạy tức thì + thở mượt
+        // Vẽ liên tục hay để thư viện tự bỏ khung: quyết định theo TÌNH HUỐNG, xem _nhipVe().
+        // Trước 0.63.7 đặt cứng false, nghĩa là vẽ lại MỌI khung hình mãi mãi kể cả khi vật lý
+        // đã nguội và không một chấm nào nhúc nhích. Đo trên bộ não 844 note: màn chính ăn 34%
+        // một nhân CPU trong lúc không ai đụng vào gì, và 44% con số đó là vẽ lại một bức hình
+        // y hệt bức trước. Máy yếu thì đó là cả cái "siêu đơ" người dùng kêu.
+        .autoPauseRedraw(true)
         .nodeId("id")
         .nodeRelSize(1)
         .nodeVal(n => { const r = (n.__r || 4) + 5; return r * r; })   // vùng bắt hover rộng hơn hình (dễ trỏ)
@@ -229,6 +241,7 @@ class JavisGraph {
         .nodeCanvasObject((n, ctx, scale) => self._drawNode(n, ctx, scale))
         .onNodeHover(n => {
           self._hoverId = n ? n.id : null;
+          self._nhipVe();          // rê vào một chấm là bật lại vẽ liên tục, rời ra thì thôi
           self._nbrs = new Set();
           if (n) {
             self.graph.graphData().links.forEach(l => {
@@ -253,6 +266,7 @@ class JavisGraph {
       try { this.graph.d3Force("charge").strength(-70); } catch (e) {}
       try { const lf = this.graph.d3Force("link"); if (lf) lf.distance(26); } catch (e) {}
       try { this.graph.d3Force("gravity", _centerGravity(0.1)); } catch (e) {}           // hút mạnh hơn → kéo cụm rời/xa vào gần
+      this._ngheChuot();
       this.resize();
     }
 
@@ -374,13 +388,55 @@ class JavisGraph {
     if (w && h) this.graph.width(w).height(h);
   }
 
+  // --- Nhịp vẽ: chỉ vẽ liên tục khi THẬT SỰ có gì đang động ---
+  //
+  // Ba thứ làm quả cầu động: giọng nói (mỗi chấm thở theo mức âm), nhịp NGHĨ, và con trỏ
+  // đang rê trên một chấm (rọi sáng vùng liên quan). Ngoài ba cái đó, hình vẽ ra giống hệt
+  // khung trước, nên vẽ lại là đốt CPU không đổi lại gì.
+  //
+  // GIỮ THÊM một quãng ân hạn sau khi hết động: mức âm đi xuống CHẬM (xem setLevel), dừng vẽ
+  // ngay lúc vừa dứt tiếng là quả cầu đứng khựng giữa nhịp thở, nhìn như app treo. Hết ân hạn
+  // thì biên độ thở còn dưới 5%, đóng băng ở đó mắt không nhận ra.
+  static get AN_HAN_MS() { return 1200; }
+
+  /** Chuột đang ở TRÊN quả cầu thì luôn vẽ liên tục.
+   *
+   *  Đây là chốt an toàn quan trọng, KHÔNG phải tối ưu: thư viện đồ thị dò xem con trỏ đang
+   *  ở trên chấm nào NGAY TRONG vòng vẽ của nó. Dừng vẽ thì nó cũng thôi dò, nên nếu chỉ
+   *  dựa vào onNodeHover để bật lại thì thành bài toán con gà quả trứng: không vẽ nên không
+   *  biết đang hover, không biết hover nên không vẽ, và hiệu ứng rọi sáng chết hẳn.
+   *
+   *  Nghe ngay trên khung chứa nên không phụ thuộc ruột thư viện: con trỏ vừa chạm vào vùng
+   *  đồ thị là vẽ lại liên tục, rời ra thì hết ân hạn là đóng băng. */
+  _ngheChuot() {
+    const el = this.container;
+    if (!el || this._daNgheChuot) return;
+    this._daNgheChuot = true;
+    const cham = () => { this._chuotTren = true; this._nhipVe(); };
+    const roi = () => { this._chuotTren = false; this._nhipVe(); };
+    el.addEventListener("pointerenter", cham);
+    el.addEventListener("pointermove", cham);
+    el.addEventListener("pointerdown", cham);
+    el.addEventListener("pointerleave", roi);
+  }
+
+  _nhipVe() {
+    const dong = this.level > 0.02 || this._thinking || this._hoverId != null || this._chuotTren;
+    const gio = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    if (dong) this._dongLuc = gio;
+    const can = dong || (gio - (this._dongLuc || 0) < JavisGraph.AN_HAN_MS);
+    if (can === this._veLienTuc) return;          // không đổi thì đừng gọi lại thư viện
+    this._veLienTuc = can;
+    if (this.graph) { try { this.graph.autoPauseRedraw(!can); } catch (e) {} }
+  }
+
   // --- Điều khiển vòng đời đồ thị ---
   pause() {
     if (this.graph) { try { this.graph.pauseAnimation(); } catch (e) {} }
   }
   wake() { if (this.graph) { try { this.graph.resumeAnimation(); } catch (e) {} } }
   resume() { this.wake(); }
-  setThinking(active) { this._thinking = !!active; }
+  setThinking(active) { this._thinking = !!active; this._nhipVe(); }
 
   // Mức âm để thổi vào nhịp thở của quả cầu. LÀM TRƠN trước khi dùng.
   //
@@ -397,6 +453,7 @@ class JavisGraph {
     const raw = Math.max(0, Math.min(1, l || 0));
     const cu = this.level || 0;
     this.level = cu + (raw - cu) * (raw > cu ? 0.30 : 0.06);
+    this._nhipVe();
   }
 
   // Rọi sáng một danh mục (bấm nhãn PERSONAL/SALES... quanh não). null = bỏ lọc.
