@@ -123,7 +123,8 @@ _src = (SERVER / "web_transport.py").read_text(encoding="utf-8")
 _than = _src[_src.index("def doc_cookie"):_src.index("def _tim_chromium")]
 check("hàm đọc cookie KHÔNG in ra gì", not re.search(r"\bprint\(", _than))
 
-_nap = _src[_src.index("def _nap_cookie_that"):_src.index("def _chup_that")]
+_i = _src.index("def _nap_cookie_that")
+_nap = _src[_i:_src.index("\n    # ----", _i)]
 check("hàm nạp cookie KHÔNG in ra gì", not re.search(r"\bprint\(", _nap))
 check("nạp cookie XOÁ cookie cũ trước (kẻo trang chạy bằng phiên cũ mà tưởng cookie mới ăn)",
       "clear_cookies()" in _nap)
