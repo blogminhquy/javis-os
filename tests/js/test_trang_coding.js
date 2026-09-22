@@ -76,9 +76,20 @@ check("thư mục CÓ git thì hiện đủ nhánh, worktree, điểm hồi",
   ["nhanh", "worktree", "diemhoi", "quyen"].every((k) => chipGit.includes('data-cd="' + k + '"')));
 check("thư mục KHÔNG git thì ẩn ba chip phụ thuộc git, vẫn còn mức quyền",
   !/data-cd="(nhanh|worktree|diemhoi)"/.test(chipThuong) && chipThuong.includes('data-cd="quyen"'));
-check("chưa gắn thư mục thì chỉ một chip mời chọn",
+// Chưa gắn thư mục vẫn phải thấy mức quyền: server đã áp mức đó cho MỌI phiên kênh coding
+// ngay từ lượt chat đầu (xem `_muc_quyen_luot_chat`), nên giấu chip đi là bắt người dùng chạy
+// ở một mức quyền họ không nhìn thấy và không đổi được. Chủ dự án báo lỗi này ở 0.63.4.
+check("chưa gắn thư mục thì có chip mời chọn VÀ chip mức quyền",
   (() => { const c = M.chipHtml({}, null);
-    return c.includes('data-cd="thumuc"') && !/data-cd="(nhanh|quyen|worktree|diemhoi)"/.test(c); })());
+    return c.includes('data-cd="thumuc"') && c.includes('data-cd="quyen"')
+      && !/data-cd="(nhanh|worktree|diemhoi)"/.test(c); })());
+check("chip mức quyền nói đúng mức đang chạy, cả khi chưa có thư mục",
+  M.chipHtml({ muc_quyen: "suggest" }, null).includes("cd-mq-suggest")
+  && M.chipHtml({}, null).includes("cd-mq-auto"));
+check("server thật sự áp mức quyền cho phiên chưa gắn thư mục", (() => {
+  const ST = fs.readFileSync(path.join(ROOT, "server", "coding_store.py"), "utf8");
+  return /def muc_quyen_cua_phien[\s\S]{0,160}MUC_QUYEN_MAC_DINH/.test(ST);
+})());
 check("tên thư mục trên chip là TÊN, không phải cả đường dẫn",
   M.nhanHienThi({ ten: "du-an", duong_dan: "/home/u/du-an" }) === "du-an" && !chipGit.includes(">/x<"));
 
@@ -91,7 +102,10 @@ check("icon đó có thật trong bộ icon đã sinh sẵn", (() => {
   const co = Object.values(man.groups).some((g) => g.includes("code-xml"));
   return co && D("vendor/lucide-icons.js").includes('"code-xml":');
 })());
-check("nhóm Code đổi icon để không trùng mục con", /"Code": ic\("wrench"\)/.test(CON));
+check("nhóm Code giữ icon file-code như trước khi có mục Coding",
+  /"Code": ic\("file-code"\)/.test(CON));
+check("icon nhóm và icon mục KHÔNG trùng nhau",
+  (CON.match(/"Code": ic\("([a-z-]+)"\)/) || [])[1] !== (CON.match(/coding: "([a-z-]+)"/) || [])[1]);
 
 // ---- 4. Cột trái MƯỢN nguyên cột hội thoại của trang Trò chuyện ----
 check("gắn module lịch sử thật, không tự vẽ danh sách",
@@ -186,6 +200,23 @@ check("chữ của hộp duyệt có ở cả hai từ điển",
   ["fp.title", "fp.use", "fp.up", "fp.pick", "fp.path_ph"].every((k) => !!VI[k] && !!EN[k]));
 check("index.html nạp folder-picker.js TRƯỚC coding.js",
   HTML.indexOf("folder-picker.js") > 0 && HTML.indexOf("folder-picker.js") < HTML.indexOf("coding.js"));
+
+// ---- 7b. Mở file: bấm trong cây thư mục hay bấm chip "file đang mở" ----
+// Lỗi 0.63.4 chủ dự án báo: bấm một file thì LẶNG LẼ không có gì mở ra. Nguyên nhân là
+// _borrowNoteEditor của console.js dò khung bằng một DANH SÁCH ID VIẾT CỨNG, mà tên khung của
+// trang Coding không có trong đó. Đúng lỗi trang Cộng sự đã dính ở 0.59.2, nên lần này canh
+// cả LUẬT (khung tự khai bằng thuộc tính) chứ không chỉ canh thêm một cái tên.
+check("khung trình sửa của trang Coding tự khai data-ne-host", /id="cdEdit" data-ne-host/.test(CD));
+check("console.js dò khung bằng thuộc tính, KHÔNG dò bằng danh sách id viết cứng",
+  /querySelector\("\[data-ne-host\]"\)/.test(CON)
+  && !/getElementById\("chatPageEdit"\) \|\| document\.getElementById\("wsEdit"\)/.test(CON));
+check("cả ba trang mượn khung chat đều khai khung trình sửa của mình",
+  /id="chatPageEdit" data-ne-host/.test(CON)
+  && /id="wsEdit" data-ne-host/.test(D("workspace.js"))
+  && /id="cdEdit" data-ne-host/.test(CD));
+check("rời trang Coding thì trả trình sửa về chỗ cũ (qua _returnChatNodes)",
+  /renderCoding[\s\S]{0,400}_returnChatNodes\(\)/.test(CON)
+  && /function _returnChatNodes\(\)[\s\S]{0,400}_returnNoteEditor\(\)/.test(CON));
 
 // ---- 8. Điện thoại ----
 // Ngăn kéo trên màn hẹp và nút thu gọn nay là của .chatpage (console.js _injectChatCss), nên

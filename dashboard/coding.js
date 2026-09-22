@@ -96,18 +96,26 @@
    *
    *  `rb` là ràng buộc phiên, `tm` là thư mục đang gắn (null khi chưa gắn).
    *
-   *  Luật: chưa gắn thư mục thì CHỈ một chip mời chọn. Ba chip nhánh / worktree / điểm hồi
-   *  chỉ hiện khi thư mục có git thật - bày một chip "nhánh" trên một thư mục không có git là
-   *  hứa một nút bấm vào chỉ để nhận lỗi. */
+   *  Luật:
+   *  - Chip THƯ MỤC và chip MỨC QUYỀN luôn có mặt. Mức quyền đã CÓ HIỆU LỰC ngay từ lượt
+   *    chat đầu tiên kể cả khi chưa gắn thư mục (server đọc nó cho mọi phiên kênh coding,
+   *    xem `_muc_quyen_luot_chat`), nên giấu chip đi là để người dùng chạy ở một mức quyền
+   *    mà họ không nhìn thấy và không đổi được. 0.63.4 sửa đúng chỗ này.
+   *  - Ba chip nhánh / worktree / điểm hồi chỉ hiện khi thư mục có git thật: bày một chip
+   *    "nhánh" trên thư mục không có git là hứa một nút bấm vào chỉ để nhận lỗi. */
   function chipHtml(rb, tm) {
     rb = rb || {};
+    var mq = rb.muc_quyen || "auto";
     var chip = function (loai, noiDung, them) {
       return '<button type="button" class="cd-chip' + (them || "") + '" data-cd="' + loai + '">' +
         noiDung + "</button>";
     };
+    var chipQuyen = function () {
+      return chip("quyen", ic("shield") + " " + esc(nhanQuyen(mq)), " cd-mq-" + esc(mq));
+    };
     if (!tm) {
       return chip("thumuc", ic("folder-plus") + " " + esc(t("coding.chip_pick_folder")),
-                  " cd-chip-mo");
+                  " cd-chip-mo") + chipQuyen();
     }
     var ra = '<button type="button" class="cd-chip cd-chip-tm" data-cd="thumuc" title="' +
       esc(tm.duong_dan || "") + '">' + ic("folder-open") + " " + esc(nhanHienThi(tm)) + "</button>";
@@ -117,9 +125,7 @@
       ra += chip("worktree", (wt ? ic("check") : ic("folder-tree")) + " worktree", wt ? " on" : "");
       ra += chip("diemhoi", ic("history") + " " + esc(t("coding.chip_ckpt")));
     }
-    ra += chip("quyen", ic("shield") + " " + esc(nhanQuyen(rb.muc_quyen || "auto")),
-               " cd-mq-" + esc(rb.muc_quyen || "auto"));
-    return ra;
+    return ra + chipQuyen();
   }
 
   // ============================================================
@@ -145,8 +151,11 @@
             '<span class="proj-chip-host"></span>' +
           "</div>" +
           '<div class="chatpage-slot" id="cdSlot"></div>' +
-          // Chỗ đứng cho trình sửa khi mở một file từ tab Thư mục của cột trái.
-          '<div class="chatpage-edit" id="cdEdit"></div>' +
+          // Chỗ đứng cho trình sửa khi mở một file từ tab Thư mục của cột trái, hoặc từ chip
+          // "file đang mở" trên thanh đính kèm. `data-ne-host` là DẤU KHAI: thiếu nó thì
+          // _borrowNoteEditor của console.js không tìm ra khung nào để mượn, và cú bấm vào
+          // một file lặng lẽ không mở gì cả (đúng lỗi 0.63.4 chủ dự án báo).
+          '<div class="chatpage-edit" id="cdEdit" data-ne-host></div>' +
         "</div>" +
       "</div>";
   }
