@@ -271,6 +271,114 @@ check("gỡ chỉ xoá thư mục Javis tải", "goc = PYLIBS_DIR if cong_cu =="
 check("vẫn dò Chrome/Edge có sẵn trên máy trước khi bắt tải",
       "_chrome_he_thong()" in _src[_src.index("def duong_dan_chrome"):])
 
+
+# ============================================================
+# 6) Dấu vân tay: Javis không được TỰ KHAI mình là máy tự động
+# ============================================================
+#
+# Đây là mục đắt nhất trong file và cũng là mục quan trọng nhất, vì nó khoá lại đúng cái lỗi
+# đã ngốn ba phiên bản. Việc DUY NHẤT của trình duyệt này là qua cửa Cloudflare của
+# chatgpt.com. Đo trên Chromium 141 thật, cùng một máy, chỉ khác cách chạy:
+#
+#     headless_shell        : plugins 0, window.chrome undefined, UA HeadlessChrome, webdriver True
+#     chrome ẩn             : plugins 5, window.chrome object,    UA HeadlessChrome, webdriver True
+#     chrome + màn hình ảo  : plugins 5, window.chrome object,    UA Chrome,          webdriver False
+#
+# Chỉ dòng thứ ba mới có cửa. Hai dòng đầu trượt ngay ở byte đầu tiên của User-Agent.
+
+check("trình cài tải bản ĐẦY ĐỦ, không phải --only-shell",
+      "--only-shell" not in ot._lenh_cai("browser")[0])
+check("và lệnh cài vẫn là playwright install chromium",
+      ot._lenh_cai("browser")[0][-1] == "chromium")
+
+check("có hàm dựng màn hình ảo", hasattr(wt, "man_hinh_ao"))
+check("có hàm đóng màn hình ảo lại", hasattr(wt, "dong_man_hinh_ao"))
+
+_src_wt = (SERVER / "web_transport.py").read_text(encoding="utf-8")
+_mo = _src_wt[_src_wt.index("def _mo_that"):]
+_mo = _mo[:_mo.index("\n    def ")]
+check("mở trình duyệt thì HỎI màn hình ảo trước", "man_hinh_ao()" in _mo)
+check("có màn hình thì chạy CÓ cửa sổ (headless False)", '"headless": False if man else' in _mo)
+check("và truyền DISPLAY cho trình duyệt", '"DISPLAY": man' in _mo)
+check("vẫn giữ cờ tắt cờ automation", "--disable-blink-features=AutomationControlled" in _mo)
+check("đóng transport chung thì đóng luôn màn hình ảo",
+      "dong_man_hinh_ao()" in _src_wt[_src_wt.index("def dong_chung"):])
+check("tắt được bằng biến môi trường khi máy nào đó không hợp", "JAVIS_WEB_XVFB" in _src_wt)
+
+# Không có DISPLAY và không có Xvfb thì phải trả "" chứ không được ném, và KHÔNG được
+# treo: một máy chủ thiếu Xvfb vẫn phải chat được, chỉ là kém cửa hơn.
+_nho = (wt._MAN_HINH, wt._TIEN_TRINH_XVFB)
+try:
+    wt._MAN_HINH, wt._TIEN_TRINH_XVFB = None, None
+    _display_cu = os.environ.pop("DISPLAY", None)
+    os.environ["JAVIS_WEB_XVFB"] = "0"
+    check("tắt bằng biến môi trường -> trả rỗng, không ném", wt.man_hinh_ao() == "")
+    check("và câu mô tả thiết lập không ném dù chưa có gì",
+          isinstance(wt.mo_ta_thiet_lap(), str))
+finally:
+    os.environ.pop("JAVIS_WEB_XVFB", None)
+    if _display_cu is not None:
+        os.environ["DISPLAY"] = _display_cu
+    wt._MAN_HINH, wt._TIEN_TRINH_XVFB = _nho
+
+# Máy có DISPLAY sẵn (máy cá nhân có màn hình thật) thì DÙNG LUÔN, không dựng Xvfb thừa.
+_nho = (wt._MAN_HINH, wt._TIEN_TRINH_XVFB)
+try:
+    wt._MAN_HINH, wt._TIEN_TRINH_XVFB = None, None
+    os.environ["DISPLAY"] = ":0"
+    check("máy đã có màn hình thật -> dùng luôn, không bật Xvfb",
+          wt.man_hinh_ao() == ":0" and wt._TIEN_TRINH_XVFB is None)
+finally:
+    os.environ.pop("DISPLAY", None)
+    wt._MAN_HINH, wt._TIEN_TRINH_XVFB = _nho
+
+# Ảnh Docker phải mang sẵn Xvfb: container chạy bằng user thường, KHÔNG apt-get được lúc chạy.
+_docker = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+check("Dockerfile cài xvfb", "xvfb" in _docker)
+check("xvfb nằm cùng lớp với thư viện Chromium (tắt chung một cờ)",
+      _docker.index("install -y --no-install-recommends xvfb")
+      > _docker.index("WITH_BROWSER_DEPS=1"))
+
+# Lớp đắt: có Chromium thật thì ĐO, không tin chữ trong mã. Bỏ qua khi máy không có gì.
+def _chrome_that() -> str:
+    """Một file chạy Chromium THẬT trên máy này, hoặc "" khi không có.
+
+    KHÔNG hỏi `_tim_chromium()`: các mục trên cố ý dựng file chạy GIẢ trong BROWSERS_DIR để
+    thử phần dò đường, nên ở đây nó trả về đúng cái giả đó và mở lên là EACCES.
+    """
+    for goc in filter(None, [os.environ.get("PLAYWRIGHT_BROWSERS_PATH"),
+                             str(Path.home() / ".cache/ms-playwright")]):
+        g = Path(goc)
+        if not g.is_dir():
+            continue
+        for d in sorted(g.glob("chromium-*"), reverse=True):
+            for f in d.rglob("chrome"):
+                if f.is_file() and os.access(f, os.X_OK):
+                    return str(f)
+    return ""
+
+
+_that = _chrome_that()
+if CO_PW and _that and wt.man_hinh_ao():
+    import tempfile as _tf
+    _tp = wt.ChatGPTWebTransport(profile_dir=_tf.mkdtemp(prefix="javis-vantay-"),
+                                 executable_path=_that)
+    _ok, _ly_do = _tp._chay(_tp._mo_that)
+    check("mở được trình duyệt thật", _ok, _ly_do)
+    if _ok:
+        try:
+            _r = _tp._chay(lambda: _tp._page.evaluate(
+                "() => ({ua: navigator.userAgent, wd: navigator.webdriver,"
+                " plugins: navigator.plugins.length, chrome: typeof window.chrome})"))
+            check("ĐO THẬT: User-Agent KHÔNG chứa Headless", "Headless" not in _r["ua"], _r["ua"])
+            check("ĐO THẬT: navigator.webdriver là false", not _r["wd"])
+            check("ĐO THẬT: có plugin như trình duyệt thường", _r["plugins"] > 0)
+            check("ĐO THẬT: có window.chrome", _r["chrome"] == "object")
+        finally:
+            _tp._chay(_tp._dong_that)
+    wt.dong_man_hinh_ao()
+
+
 print()
 if _fails:
     print(f"THẤT BẠI {len(_fails)}: {_fails}")

@@ -3674,11 +3674,19 @@ async def web_chat_cookie(request: Request):
         # cookie sai; nó chỉ chưa tới được chỗ có ô soạn. Nói ra thấy gì để người dùng còn biết
         # phải làm gì tiếp, thay vì đi lấy lại cookie một cách vô ích.
         web_state.ghi_hong(chi_tiet, kind=web_state.NO_BROWSER)
+        # Nói nốt PHẢI LÀM GÌ. Câu cũ dừng ở "thử lại sau một phút", mà trên một máy chủ
+        # thuê thì bấm lại bao nhiêu lần cũng vậy: Cloudflare chặn theo địa chỉ IP, và địa chỉ
+        # đó không đổi. Để người dùng bấm mãi một nút vô vọng là tệ hơn nói thẳng là bí.
         return {"ok": False, "error": (
             "Cookie đã nạp và trang KHÔNG bày màn đăng nhập, nên nhiều khả năng cookie vẫn "
             "tốt. Nhưng Javis chờ 45 giây mà ô soạn của ChatGPT vẫn chưa hiện ra. "
-            + (chi_tiet or "") + " Thử bấm Kiểm tra lại sau một phút; nếu vẫn vậy thì đây là "
-            "Cloudflare chặn IP máy chủ, không phải lỗi cookie.")}
+            + (chi_tiet or "") + " " + (web_transport.mo_ta_thiet_lap() + " " ).lstrip()
+            + "Bấm Kiểm tra lại MỘT lần nữa sau một phút. Nếu vẫn vậy thì đây là Cloudflare "
+            "chặn địa chỉ IP của máy chủ, không phải lỗi cookie, và bấm thêm cũng không đổi "
+            "gì: cửa đó xét IP chứ không xét cookie. Máy chủ thuê thì gần như luôn bị chặn. "
+            "Lúc đó hãy dùng ChatGPT qua Codex ở cùng thẻ này (chạy được trên máy chủ, không "
+            "cần trình duyệt), hoặc chuyển model chính sang Grok Build, Antigravity CLI hay "
+            "OpenRouter.")}
 
     web_state.ghi_dang_nhap(True)
     return {"ok": True, "da_dang_nhap": True,

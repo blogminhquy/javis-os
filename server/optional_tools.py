@@ -422,10 +422,23 @@ def _lenh_cai(cong_cu: str) -> tuple:
     BROWSERS_DIR.mkdir(parents=True, exist_ok=True)
     moi_truong = dict(os.environ)
     moi_truong[ENV_BROWSERS_PATH] = str(BROWSERS_DIR)
-    # `--only-shell`: chỉ tải bản headless shell, nhỏ hơn hẳn bản đầy đủ. Javis chạy ẩn cửa sổ
-    # nên không cần phần giao diện của trình duyệt.
+    # Bản ĐẦY ĐỦ, KHÔNG phải `--only-shell` (0.64.18).
+    #
+    # Tới 0.64.17 chỗ này tải `--only-shell`, lý do ghi trong chú thích cũ là "Javis chạy ẩn
+    # cửa sổ nên không cần phần giao diện". Lý do đó đúng về dung lượng và SAI về mục đích:
+    # việc duy nhất của trình duyệt này là qua được cửa Cloudflare của chatgpt.com, mà
+    # `headless_shell` thì trượt cửa đó ngay từ dấu vân tay. Đo trên Chromium 141 thật:
+    #
+    #     headless_shell : plugins 0, mimeTypes 0, pdfViewerEnabled false, window.chrome
+    #                      undefined, UA "HeadlessChrome", navigator.webdriver true
+    #     chrome đầy đủ  : plugins 5, mimeTypes 2, pdfViewerEnabled true,  window.chrome
+    #                      object, và khi chạy có màn hình thì UA "Chrome" + webdriver false
+    #
+    # Nên `duong_dan_chrome()` ưu tiên `chrome` hơn `headless_shell` là đúng, nhưng vô dụng
+    # khi trình cài không bao giờ tải bản `chrome` về. Tải bản đầy đủ tốn thêm chừng 70MB;
+    # đổi lại là tính năng có cơ hội chạy thay vì chắc chắn trượt.
     return (
-        ["npx", "-y", "playwright@latest", "install", "--only-shell", "chromium"],
+        ["npx", "-y", "playwright@latest", "install", "chromium"],
         str(BROWSERS_DIR), moi_truong, TAI_TIMEOUT,
         "Máy này không có Node (npx), không tải được trình duyệt.",
     )

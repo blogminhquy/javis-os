@@ -31,6 +31,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -452,6 +454,137 @@ def _tim_chromium() -> str:
         return ""
 
 
+# ------------------------------------------------------------
+# MÀN HÌNH ẢO - thứ quyết định trình duyệt có tự khai là máy tự động hay không
+# ------------------------------------------------------------
+#
+# Chạy `headless=True` là trình duyệt TỰ KHAI. Đo trên Chromium 141 thật, cùng một file chạy,
+# chỉ khác mỗi chế độ:
+#
+#     headless=True  -> UA "...HeadlessChrome/141..."  navigator.webdriver = True
+#     headless=False -> UA "...Chrome/141..."          navigator.webdriver = False
+#     (kèm cờ --disable-blink-features=AutomationControlled, vốn đã có sẵn ở dưới)
+#
+# Hai dòng đó là hai thứ Cloudflare đọc đầu tiên. Nhưng `headless=False` cần một màn hình, mà
+# máy chủ thì không có. Xvfb là màn hình ảo: trình duyệt tin là có màn, không ai phải nhìn.
+#
+# Đây KHÔNG phải mẹo qua mặt: Javis vẫn là trình duyệt Chromium thật, chạy thật, chỉ là cửa sổ
+# vẽ vào bộ nhớ thay vì vẽ ra một cái màn hình không tồn tại.
+#
+# Nói trước cho khỏi kỳ vọng sai: cái này bỏ được dấu vân tay, KHÔNG bỏ được địa chỉ IP. Máy
+# chủ thuê vẫn là máy chủ thuê, và đó là thứ Cloudflare soi kỹ nhất.
+
+_MAN_HINH = None            # "" = đã tìm và không có; ":99" = đang dùng; None = chưa tìm
+_TIEN_TRINH_XVFB = None
+_KHOA_MAN_HINH = threading.Lock()
+MAN_HINH_SO = 99
+
+
+def _cho_man_hinh(so: int, tran_giay: float = 10.0) -> bool:
+    """Xvfb đã mở socket chưa. Khởi động nó mất vài trăm mili giây, không tức thì."""
+    o = Path(f"/tmp/.X11-unix/X{so}")
+    het = time.time() + tran_giay
+    while time.time() < het:
+        if o.exists():
+            return True
+        time.sleep(0.2)
+    return o.exists()
+
+
+def man_hinh_ao() -> str:
+    """Giá trị DISPLAY dùng được, hoặc "" khi máy này không có màn hình nào.
+
+    Ba trường hợp, theo thứ tự:
+      1. Máy đã có DISPLAY (máy cá nhân có màn hình thật) -> dùng luôn, không dựng gì thêm.
+      2. Có Xvfb -> tự bật một cái và giữ nó cho tới khi tắt server.
+      3. Không có gì -> "" và chỗ gọi quay về chế độ ẩn.
+
+    Kết quả được NHỚ: dò lại mỗi lần mở trình duyệt là mỗi lần một tiến trình Xvfb mới.
+    """
+    global _MAN_HINH, _TIEN_TRINH_XVFB
+    with _KHOA_MAN_HINH:
+        if _MAN_HINH is not None:
+            # Xvfb của mình chết giữa chừng thì phải dựng lại, không thì trả về một DISPLAY ma.
+            if _MAN_HINH and _TIEN_TRINH_XVFB is not None and _TIEN_TRINH_XVFB.poll() is not None:
+                _MAN_HINH, _TIEN_TRINH_XVFB = None, None
+            else:
+                return _MAN_HINH
+
+        san = (os.environ.get("DISPLAY") or "").strip()
+        if san:
+            _MAN_HINH = san
+            return _MAN_HINH
+
+        if os.getenv("JAVIS_WEB_XVFB", "1").strip().lower() in ("0", "false", "no"):
+            _MAN_HINH = ""
+            return _MAN_HINH
+
+        if not shutil.which("Xvfb"):
+            _MAN_HINH = ""
+            return _MAN_HINH
+
+        # Số màn hình này đã có người dùng (một Xvfb của lần chạy trước, hoặc của app khác)
+        # thì dùng ké, đừng bật thêm một cái nữa: cái thứ hai không chiếm được số đó, chết
+        # ngay, và `poll()` khác None khiến mỗi lượt sau lại đẻ thêm một tiến trình chết.
+        if Path(f"/tmp/.X11-unix/X{MAN_HINH_SO}").exists():
+            _MAN_HINH = f":{MAN_HINH_SO}"
+            return _MAN_HINH
+
+        try:
+            _TIEN_TRINH_XVFB = subprocess.Popen(
+                ["Xvfb", f":{MAN_HINH_SO}", "-screen", "0",
+                 f"{KHUNG['width']}x{KHUNG['height']}x24", "-nolisten", "tcp"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            _MAN_HINH, _TIEN_TRINH_XVFB = "", None
+            return _MAN_HINH
+
+        if not _cho_man_hinh(MAN_HINH_SO):
+            try:
+                _TIEN_TRINH_XVFB.terminate()
+            except Exception:
+                pass
+            _MAN_HINH, _TIEN_TRINH_XVFB = "", None
+            return _MAN_HINH
+
+        _MAN_HINH = f":{MAN_HINH_SO}"
+        return _MAN_HINH
+
+
+def dong_man_hinh_ao() -> None:
+    """Tắt Xvfb của Javis (nếu có). Gọi khi tắt server."""
+    global _MAN_HINH, _TIEN_TRINH_XVFB
+    with _KHOA_MAN_HINH:
+        if _TIEN_TRINH_XVFB is not None:
+            for ham in ("terminate", "kill"):
+                try:
+                    getattr(_TIEN_TRINH_XVFB, ham)()
+                    _TIEN_TRINH_XVFB.wait(timeout=3)
+                    break
+                except Exception:
+                    continue
+        _TIEN_TRINH_XVFB = None
+        _MAN_HINH = None
+
+
+def mo_ta_thiet_lap() -> str:
+    """Một câu nói Javis đang lái trình duyệt KIỂU GÌ. Rỗng khi chưa có trình duyệt nào.
+
+    Vì sao đáng có: hai thứ quyết định Cloudflare cho qua hay không - bản trình duyệt và chế
+    độ chạy - đều vô hình với người dùng. Không có câu này thì một ảnh chụp màn hình báo
+    "Cloudflare chặn" không phân biệt nổi "Javis chưa được sửa" với "đã sửa mà vẫn trượt", và
+    mỗi vòng hỏi lại tốn một lần cập nhật.
+    """
+    duong = _tim_chromium()
+    if not duong:
+        return ""
+    ten = Path(duong).name
+    ban = "bản rút gọn headless_shell" if ten.startswith("headless_shell") else "bản đầy đủ"
+    man = man_hinh_ao()
+    che_do = f"có cửa sổ trên màn hình {man}" if man else "chế độ ẩn (không có màn hình nào)"
+    return f"Javis đang chạy {ban}, {che_do}."
+
+
 class ChatGPTWebTransport:
     """Một phiên trình duyệt cố định. MỘT lượt tại một thời điểm (xem `_khoa`)."""
 
@@ -534,8 +667,13 @@ class ChatGPTWebTransport:
         try:
             Path(self.profile_dir).mkdir(parents=True, exist_ok=True)
             self._pw = sync_playwright().start()
-            kw = {"headless": self.headless, "viewport": dict(KHUNG),
+            # Có màn hình (thật hoặc ảo) thì chạy CÓ CỬA SỔ, vì chế độ ẩn tự khai mình là
+            # máy tự động ngay trong User-Agent. Xem chú thích của `man_hinh_ao()`.
+            man = man_hinh_ao()
+            kw = {"headless": False if man else self.headless, "viewport": dict(KHUNG),
                   "args": ["--disable-blink-features=AutomationControlled"]}
+            if man:
+                kw["env"] = {**os.environ, "DISPLAY": man}
             if self.executable_path:
                 kw["executable_path"] = self.executable_path
             self._ctx = self._pw.chromium.launch_persistent_context(self.profile_dir, **kw)
@@ -895,3 +1033,6 @@ def dong_chung() -> None:
             except Exception:
                 pass
             _CHUNG = None
+    # Đóng cả màn hình ảo: một tiến trình Xvfb bỏ quên thì sống tới khi tắt máy, và lần sau
+    # bật lại đụng đúng số màn hình đó.
+    dong_man_hinh_ao()

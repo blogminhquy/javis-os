@@ -122,12 +122,44 @@ chặn, trong khi để yên thì Chromium trên máy chủ tự xin được v�
 | Không thấy model `chatgpt-web` trong ô chọn model | Máy chưa đủ đồ, hoặc chưa khởi động lại | Xem lại mục 1 |
 | Không thấy khối ChatGPT Web trên thẻ | Đang bị ép tắt | Bỏ biến môi trường `JAVIS_ENABLE_WEB_CHAT=0` đi rồi khởi động lại |
 
-### Chạy trên VPS
+### Chạy trên VPS: đọc kỹ mục này trước khi mất thời gian
 
-Chạy được. Chromium chạy ẩn, không cần máy chủ có màn hình.
+Câu trả lời thành thật: **trên máy chủ thuê, khả năng chạy được là thấp**, và Javis không sửa
+được phần quan trọng nhất.
 
-Điều **chưa ai kiểm chứng**: Cloudflare nhìn một IP trung tâm dữ liệu có khó tính hơn không.
-Gặp chuyện lạ thì báo lại kèm ảnh chụp màn hình.
+Javis đã làm hết phần nó làm được (từ 0.64.18). Trước đó trình duyệt của Javis **tự khai** mình
+là máy tự động, đo trên Chromium 141 thật:
+
+| | trước 0.64.18 | từ 0.64.18 |
+|---|---|---|
+| bản tải về | `headless_shell` rút gọn | bản đầy đủ |
+| User-Agent | `HeadlessChrome/141` | `Chrome/141` |
+| `navigator.webdriver` | `true` | `false` |
+| số plugin | 0 | 5 |
+| `window.chrome` | không có | có |
+
+Cách làm: tải bản Chromium đầy đủ thay vì bản rút gọn, và chạy nó **có cửa sổ trên một màn hình
+ảo** (Xvfb, đã nằm sẵn trong ảnh Docker) thay vì chạy ẩn. Đây không phải mẹo qua mặt: vẫn là
+Chromium thật chạy thật, chỉ là cửa sổ vẽ vào bộ nhớ thay vì vẽ ra một cái màn hình không có.
+
+Còn lại **đúng một thứ Javis không đổi được: địa chỉ IP.** Cloudflare xét IP trước cả dấu vân
+tay, và IP trung tâm dữ liệu là thứ nó soi kỹ nhất. Nếu sau khi cập nhật mà vẫn kẹt ở trang
+"Just a moment...", thì đó là IP, và **bấm "Kiểm tra lại" thêm bao nhiêu lần cũng vậy**.
+
+Lúc đó đừng đi lấy lại cookie, vô ích. Dùng một trong các đường chạy được trên máy chủ:
+
+- **ChatGPT qua Codex**, ngay trong cùng thẻ ChatGPT. Không cần trình duyệt.
+- **Grok Build**, **Antigravity CLI**, **OpenRouter** cho model chính.
+
+Muốn chắc chắn có ChatGPT Web thì phải có một trình duyệt trên máy có IP nhà. Cách duy nhất
+hiện biết là chạy Javis ngay trên máy cá nhân. Các dự án khác làm việc này (ví dụ
+`miuuyy/codex-chatgpt-web`) đều là **app desktop** và chốt cứng chỉ nhận `127.0.0.1`, chính vì
+lý do trên, chứ không phải vì họ có mẹo gì Javis chưa biết.
+
+### Tắt màn hình ảo
+
+Máy nào đó xung đột số màn hình `:99` thì đặt `JAVIS_WEB_XVFB=0` rồi khởi động lại. Javis quay
+về chạy ẩn, vẫn chat được, chỉ là kém cửa qua Cloudflare hơn.
 
 ---
 

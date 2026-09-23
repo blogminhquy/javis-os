@@ -6,7 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.18] - 2026-09-23
 ### Sửa lỗi
-- Đặt xí chỗ. Thân changelog viết sau.
+- **Trình duyệt ChatGPT Web hết tự khai mình là máy tự động.** Javis vẫn tải bản Chromium rút gọn và chạy ẩn, nên trang chatgpt.com nhìn phát ra ngay: User-Agent ghi `HeadlessChrome`, không có plugin nào. Nay tải bản đầy đủ và chạy có cửa sổ trên một màn hình ảo, nên nó khai `Chrome` như một máy bình thường.
+### Thay đổi
+- **Nút tải trình duyệt nặng thêm chừng 70MB** vì đổi sang bản đầy đủ. Bản rút gọn nhẹ hơn nhưng không bao giờ qua nổi cửa kiểm tra, nên nhẹ mà vô dụng.
+- **Khi vẫn kẹt ở Cloudflare, Javis nói thẳng là bí và chỉ đường khác** thay vì bảo bạn bấm "Kiểm tra lại" mãi. Trên máy chủ thuê thì cửa đó xét địa chỉ IP, bấm thêm không đổi gì.
 
 ## [0.64.17] - 2026-09-23
 ### Sửa lỗi
