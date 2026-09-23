@@ -1516,7 +1516,8 @@ class CodexCLI:
                 if sandbox_hong:
                     final_text = (final_text + "\n\n" if final_text else "") + _NOTE_SANDBOX_HONG
                 yield {"type": "final", "content": final_text, "session_id": self.session_id,
-                       "tokens_in": (u.get("input_tokens") or 0) + (u.get("cached_input_tokens") or 0),
+                       # Codex đã tính cached_input_tokens trong input_tokens.
+                       "tokens_in": u.get("input_tokens") or 0,
                        "tokens_out": u.get("output_tokens") or 0}
             elif t in ("error", "turn.failed", "thread.error", "stream.error"):
                 msg = ev.get("message") or (ev.get("error") or {}).get("message") or json.dumps(ev)[:200]
