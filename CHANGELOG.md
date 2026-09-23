@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.14] - 2026-09-23
+### Sửa lỗi
+- **Dán cookie ChatGPT xong bị báo "cookie hết hạn" dù trên máy vẫn chat bình thường.** Javis chỉ chờ 3 giây rồi kết luận, mà chatgpt.com là trang nặng, thường chưa vẽ xong trong từng đó. Nay chờ tới 45 giây và chờ ĐÚNG thứ cần chờ.
+- **Và khi vẫn không xong, Javis nói nó thấy gì** thay vì đổ lỗi cho cookie: trang đang dừng ở đâu, tiêu đề là gì, có phải đang mắc ở cửa kiểm tra Cloudflare không. Ba tình huống khác hẳn nhau trước đây gộp chung một câu.
+
 ## [0.64.13] - 2026-09-23
 ### Sửa lỗi
 - **Trang Code trên điện thoại: bấm nút lịch sử không ra danh sách hội thoại.** Nút đó gọi nhầm kiểu thu gọn của máy tính, nên trên điện thoại nó bấm mà không có gì xảy ra. Nay mở ngăn kéo như trang Trò chuyện, chạm ra ngoài là đóng.
