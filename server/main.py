@@ -76,6 +76,7 @@ import packs          # GÓI mở rộng: thả thư mục vào STATE_DIR/packs 
 import cred_exchange   # đổi credential hộ user (vd App Password -> Google master token) khi đấu
 import plugins_host   # hệ PLUGIN: thư mục Python thả vào, tự thêm tool/hook cho mọi engine qua hub
 import web_security   # chống CSRF-to-localhost + DNS-rebinding cho web API cục bộ
+import chatgpt_connector   # "Javis trong ChatGPT": cửa OAuth cho connector MCP của ChatGPT
 import image_gen      # tạo ảnh bằng gói ChatGPT (OAuth) - Codex Responses + tool image_generation
 import media_gc       # dọn vùng cache media (attachments/ + inbox/) theo hạn tuổi + trần dung lượng
 import inbox         # hòm thư: mọi kết quả chạy nền để lại một mẩu thư bền ở server
@@ -186,7 +187,10 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth
                       "/brand-logo", "/tls-check",
                       # /hub/mcp: Claude CLI/Codex gọi bằng Bearer hub_token riêng (không có cookie).
                       # /connect/oauth/callback: browser redirect từ provider OAuth về.
-                      "/hub/mcp", "/connect/oauth/callback")
+                      "/hub/mcp", "/connect/oauth/callback") + chatgpt_connector.DUONG_CONG_KHAI
+# ^ "Javis trong ChatGPT": máy chủ OpenAI gọi các đường đó không có cookie. Mỗi đường tự trả 404
+# khi tính năng tắt, `/chatgpt/mcp` tự đòi token OAuth, và nút "Cho phép" tự đòi phiên thật -
+# xem server/chatgpt_connector.py.
 # Endpoint CHỈ-LOCALHOST: agent (Claude CLI chạy cùng máy/container) curl được mà không cần
 # cookie đăng nhập; request từ ngoài (qua Traefik/Caddy/LAN) đến từ IP khác loopback → vẫn bị chặn.
 # /reminders/cancel đi cùng nhóm với /reminders (TẠO nhắc): huỷ là thao tác YẾU HƠN tạo, nên
@@ -226,6 +230,11 @@ async def _csrf_guard(request: Request, call_next):
     THỨ TỰ: middleware thêm SAU thì chạy TRƯỚC (Starlette bọc từ ngoài vào), nên thực tế
     _auth_guard chạy TRƯỚC hàm này. Đừng đặt hàng rào chặn-mới ở đây rồi tưởng nó gác cho
     auth: request bị auth trả 401 không bao giờ tới đây."""
+    # Đường của "Javis trong ChatGPT" mà KHÔNG dùng cookie (token OAuth, đăng ký client, đổi
+    # token): CSRF là đòn mượn cookie của nạn nhân, ở đây không có cookie nào để mượn, còn chặn
+    # nhầm thì máy chủ OpenAI không kết nối được. Nút "Cho phép" KHÔNG thuộc nhóm này.
+    if duong_dan_router(request) in chatgpt_connector.DUONG_KHONG_COOKIE:
+        return await call_next(request)
     d = web_security.csrf_decision(request.method, request.headers.get("host", ""),
                                    request.headers.get("origin"), cfgmod.gate_active())
     if d:
@@ -3813,6 +3822,17 @@ import routes.tools as tools_routes   # noqa: E402
 tools_routes.register(app, tools_routes.ToolsDeps(
     co_phien=lambda r: cfgmod.valid_session(r.cookies.get("javis_session", "")),
     lam_moi_hub=lambda: (mcp_hub.invalidate_cache(), _write_codex_profile()),
+))
+
+# "Javis trong ChatGPT": ChatGPT (Developer mode) gọi công cụ của Javis qua connector OAuth.
+# Thay cho model ChatGPT Web đã gỡ ở 0.64.20. Luật an toàn ở server/chatgpt_connector.py.
+import routes.chatgpt_connector as chatgpt_routes   # noqa: E402
+
+chatgpt_routes.register(app, chatgpt_routes.ConnectorDeps(
+    co_phien=lambda r: cfgmod.valid_session(r.cookies.get("javis_session", "")),
+    goc_ngoai=lambda r: web_security.external_base(
+        r.url.scheme, r.url.netloc, r.headers.get("x-forwarded-proto", ""),
+        r.headers.get("x-forwarded-host", "")),
 ))
 
 

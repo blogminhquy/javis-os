@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.21] - 2026-09-23
+### Thêm mới
+- **Dùng Javis ngay trong ChatGPT.** Chat trên chatgpt.com bằng gói của bạn, và ChatGPT tự gọi công cụ của Javis: xem số liệu, đọc brain, tạo nhắc lịch, gửi Zalo. Phần suy nghĩ không tốn hạn mức Codex.
+- Bật ở thẻ **ChatGPT** trên trang Models, chép địa chỉ rồi dán vào ChatGPT. Hướng dẫn từng bước có link ngay trên thẻ.
+- **Bạn giữ quyền:** chọn mức Toàn quyền, Tự làm có giới hạn, hoặc Chỉ đọc; đổi là có hiệu lực ngay. Nút **Ngắt mọi kết nối** cắt hết trong một lần bấm.
+- Cần gói ChatGPT trả phí, máy tính để cài lần đầu, và Javis có tên miền https.
+
 ## [0.64.20] - 2026-09-23
 ### Thay đổi
 - **Gỡ model ChatGPT Web.** Nó lái một trình duyệt vào chatgpt.com, mà trên máy chủ thuê thì trang đó chặn theo địa chỉ IP, nên không chạy được. Đã đối chiếu hai dự án khác làm cùng việc: cả hai đều phải chạy trình duyệt trên máy tính ở nhà.
