@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.22] - 2026-09-23
+### Thay đổi
+- Đặt xí chỗ. Thân changelog viết sau.
+
 ## [0.64.21] - 2026-09-23
 ### Thêm mới
 - **Dùng Javis ngay trong ChatGPT.** Chat trên chatgpt.com bằng gói của bạn, và ChatGPT tự gọi công cụ của Javis: xem số liệu, đọc brain, tạo nhắc lịch, gửi Zalo. Phần suy nghĩ không tốn hạn mức Codex.
