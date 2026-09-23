@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.18] - 2026-09-23
+### Sửa lỗi
+- Đặt xí chỗ. Thân changelog viết sau.
+
 ## [0.64.17] - 2026-09-23
 ### Sửa lỗi
 - **Tài khoản ChatGPT gói Team dán cookie không vào được.** Cookie của các tài khoản này quá dài nên trình duyệt tự cắt làm hai dòng `.0` và `.1`, mà Javis chỉ nhận đúng một cái tên duy nhất. Nay nhận cả hai dòng đó.
