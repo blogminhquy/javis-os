@@ -3,9 +3,9 @@
     python tests/run.py coding_tool_context
 
 Chặn cứng được gỡ ở đây (spec mục 2.2): trang Coding đổi `cwd` sang repo, nhưng chỉ engine
-CLI hưởng vì chỉ chúng có tool file native. Engine API và engine Web đọc ghi qua `mcp_hub`,
-mà hub nhận `vault_root = brain` vô điều kiện, nên chọn `chatgpt-web` rồi ngồi trong phiên
-Coding là không đọc nổi một file nào của repo.
+CLI hưởng vì chỉ chúng có tool file native. Engine API đọc ghi qua `mcp_hub`, mà hub nhận
+`vault_root = brain` vô điều kiện, nên một engine như vậy ngồi trong phiên Coding là không đọc
+nổi một file nào của repo. (Cảnh đầu tiên là với `chatgpt-web`, đã gỡ ở 0.64.20.)
 
 Phép thử quan trọng nhất KHÔNG phải "repo đọc được", mà là **phiên chat thường không đổi một
 chút nào**. Nới rào là việc dễ làm quá tay; thay đổi này chỉ được có tác dụng đúng trong

@@ -40,15 +40,10 @@ from config import STATE_DIR
 BROWSERS_DIR = STATE_DIR / "browsers"
 ENV_BROWSERS_PATH = "PLAYWRIGHT_BROWSERS_PATH"
 
-# Nơi cài thư viện Python tuỳ chọn. CÙNG lý do với BROWSERS_DIR, cộng một lý do nặng hơn: trong
-# Docker, `site-packages` thuộc root và chỉ đọc, còn Javis chạy bằng user `javis`. Nên `pip
-# install` kiểu thường KHÔNG ghi được, và không có nút nào cứu được điều đó. `pip install
-# --target` vào thư mục state thì ghi được, sống qua mỗi lần cập nhật (state nằm trên ổ gắn
-# ngoài), và gỡ chỉ là xoá một thư mục.
+# Thư mục thư viện Python mà mục "Thư viện lái trình duyệt (playwright)" từng cài vào, phục vụ
+# DUY NHẤT model ChatGPT Web. Model đó gỡ ở 0.64.20, nên thư mục này (chừng 140 MB) thành rác
+# trên ổ gắn ngoài. Giữ lại đường dẫn chỉ để `don_thu_vien_cu()` dọn nó.
 PYLIBS_DIR = STATE_DIR / "pylibs"
-
-# Trần thời gian cài thư viện. Ngắn hơn tải trình duyệt vì đây chỉ là tải wheel từ PyPI.
-CAI_LIB_TIMEOUT = 600.0
 
 # Trần thời gian tải. Mạng VPS chậm vẫn phải xong trong chừng này, còn treo lâu hơn là hỏng
 # thật chứ không phải chậm - và treo im vô hạn là kiểu lỗi tệ nhất (không kết quả, không lỗi).
@@ -69,17 +64,7 @@ def _mo_ta_trinh_duyet() -> dict:
     }
 
 
-def _mo_ta_pylib() -> dict:
-    return {
-        "id": "pylib-playwright",
-        "ten": "Thư viện lái trình duyệt (playwright)",
-        "mo_ta": "Cần cho model ChatGPT Web: Javis gõ vào một phiên ChatGPT thật trong trình "
-                 "duyệt thay vì gọi API. Chưa cài thì model đó không hiện trong ô chọn model.",
-        "dung_luong_uoc": "khoảng 140 MB",
-    }
-
-
-CONG_CU = {"browser": _mo_ta_trinh_duyet, "pylib-playwright": _mo_ta_pylib}
+CONG_CU = {"browser": _mo_ta_trinh_duyet}
 
 
 # ─────────────────────────── dò xem đã có gì chưa ───────────────────────────
@@ -126,8 +111,8 @@ def _chrome_he_thong() -> str:
 # Đây là gốc của lỗi chủ repo báo 22/09: `_da_tai()` cũ trả về thư mục ĐẦU TIÊN mà `iterdir()`
 # đưa ra (thứ tự trên đĩa, không đoán trước được), rồi chỗ dò file chạy chỉ tìm mỗi tên
 # `chrome`. Rơi vào thư mục headless_shell là không thấy gì, nên trang Công cụ báo "Sẵn sàng"
-# còn thẻ ChatGPT báo "Chưa có trình duyệt nào Javis lái được" - cùng một máy, hai câu trả lời
-# ngược nhau.
+# còn chỗ dùng thật báo "Chưa có trình duyệt nào Javis lái được" - cùng một máy, hai câu trả
+# lời ngược nhau.
 # Đường dẫn QUEN, thử trước vì nó nhanh (vài lần `is_file`). Bản đầy đủ trước, bản headless
 # rút gọn sau, ba hệ điều hành trong cùng một danh sách - một thư mục build chỉ chứa đúng một
 # trong số này nên không cần hỏi đang chạy hệ nào.
@@ -184,8 +169,9 @@ def _binary_trong(thu_muc: Path) -> str:
                     continue
             except OSError:
                 continue
-            # `chrome` được ưu tiên hơn `headless_shell` (Cloudflare soi bản rút gọn kỹ hơn),
-            # nên thấy bản đầy đủ thì lấy luôn, còn bản rút gọn thì giữ lại rồi tìm tiếp.
+            # `chrome` được ưu tiên hơn `headless_shell`: bản đầy đủ chạy được cả có cửa sổ lẫn
+            # ẩn, bản rút gọn chỉ chạy ẩn. Thấy bản đầy đủ thì lấy luôn, còn bản rút gọn thì
+            # giữ lại rồi tìm tiếp.
             if p.name in ("chrome", "chrome.exe", "Chromium"):
                 return str(p)
             tim_thay = tim_thay or str(p)
@@ -223,8 +209,8 @@ def _so_ban(ten: str) -> int:
 def _cac_ban_da_tai() -> list:
     """Mọi thư mục build Chromium trong BROWSERS_DIR, theo thứ tự ƯU TIÊN.
 
-    Bản ĐẦY ĐỦ đứng trước bản headless rút gọn (Cloudflare soi kỹ hơn một `headless_shell`, mà
-    engine Web thì phải qua được cửa đó), bản mới đứng trước bản cũ. Thứ tự phải CỐ ĐỊNH chứ
+    Bản ĐẦY ĐỦ đứng trước bản headless rút gọn (xem `_binary_trong`), bản mới đứng trước bản
+    cũ. Thứ tự phải CỐ ĐỊNH chứ
     không phải thứ tự `iterdir()` trả về: cùng một máy mà mỗi lần gọi ra một kết quả khác là
     kiểu lỗi không ai dựng lại được.
     """
@@ -240,8 +226,8 @@ def _cac_ban_da_tai() -> list:
 def duong_dan_chrome() -> str:
     """Đường dẫn FILE CHẠY ĐƯỢC của trình duyệt trên máy này, rỗng nếu máy không có.
 
-    MỘT nguồn sự thật cho cả trang Công cụ lẫn engine ChatGPT Web. Trước 0.64.9 mỗi bên tự dò
-    một kiểu, nên hai trang nói ngược nhau mà không bên nào sai theo logic của chính nó. Gộp
+    MỘT nguồn sự thật cho trang Công cụ và mọi chỗ dùng trình duyệt. Trước 0.64.9 mỗi bên tự
+    dò một kiểu, nên hai trang nói ngược nhau mà không bên nào sai theo logic của chính nó. Gộp
     lại đây thì cảnh đó không dựng lại được nữa: thẻ báo "Sẵn sàng" đúng khi và chỉ khi có một
     file chạy được thật.
     """
@@ -262,42 +248,23 @@ def _da_tai() -> str:
     return str(ds[0]) if ds else ""
 
 
-def _da_cai_pylib() -> str:
-    """Thư mục thư viện playwright Javis đã cài, rỗng nếu chưa có."""
+def don_thu_vien_cu() -> bool:
+    """Xoá thư mục thư viện playwright do model ChatGPT Web (đã gỡ ở 0.64.20) để lại.
+
+    An toàn để xoá thẳng: CHỈ nút "Thư viện lái trình duyệt (playwright)" từng ghi vào đây
+    (`pip install --target`), và thứ duy nhất dùng thư viện đó là model đã gỡ. Không dọn thì
+    ai từng bấm cài mang theo chừng 140 MB rác trên ổ gắn ngoài mãi mãi, mà giao diện không
+    còn nút nào để gỡ. Trả True khi có dọn.
+    """
     try:
-        if (PYLIBS_DIR / "playwright").is_dir():
-            return str(PYLIBS_DIR)
+        if PYLIBS_DIR.is_dir():
+            shutil.rmtree(PYLIBS_DIR, ignore_errors=True)
+            print(f"[cong-cu] đã dọn {PYLIBS_DIR} (thư viện của model ChatGPT Web đã gỡ)",
+                  file=sys.stderr)
+            return True
     except OSError:
         pass
-    return ""
-
-
-def nap_pylibs() -> bool:
-    """Đưa thư mục thư viện tự cài vào `sys.path`. Gọi TRƯỚC khi `import playwright`.
-
-    Không có bước này thì cài xong vẫn không import được, và người dùng thấy nút bấm báo xong
-    mà tính năng vẫn bảo thiếu thư viện - kiểu hỏng khó chịu nhất vì không ai đoán ra.
-
-    Chèn vào CUỐI `sys.path` chứ không phải đầu: bản nào đã có sẵn trong Python của máy phải
-    thắng bản Javis tự tải, kẻo một ngày hai bản lệch phiên bản và cái Javis tải đè lên cái
-    người dùng chủ động cài.
-    """
-    d = _da_cai_pylib()
-    if not d:
-        return False
-    if d not in sys.path:
-        sys.path.append(d)
-    return True
-
-
-def co_playwright() -> bool:
-    """Máy này import được `playwright` không, sau khi đã nạp thư mục tự cài."""
-    nap_pylibs()
-    try:
-        import importlib.util
-        return importlib.util.find_spec("playwright") is not None
-    except Exception:
-        return False
+    return False
 
 
 def _dung_luong(p: Path) -> int:
@@ -346,27 +313,6 @@ def _trang_thai_browser(d: dict, viec: dict) -> dict:
     return d
 
 
-def _trang_thai_pylib(d: dict, viec: dict) -> dict:
-    dang_chay = bool(viec.get("dang_chay"))
-    tu_cai = _da_cai_pylib()
-    if dang_chay:
-        tt, ly_do = "dang_cai", "Đang tải thư viện từ PyPI, việc này mất một hai phút."
-    elif tu_cai:
-        tt, ly_do = "san_sang", "Javis đã cài vào thư mục state, sống qua mỗi lần cập nhật."
-    elif co_playwright():
-        tt, ly_do = "san_sang", "Python của máy này đã có sẵn thư viện."
-    else:
-        tt, ly_do = "chua_cai", ("Chưa có thư viện. Cài xong phải KHỞI ĐỘNG LẠI Javis thì "
-                                 "model ChatGPT Web mới hiện ra.")
-    d.update({
-        "trang_thai": tt, "ly_do": ly_do,
-        "go_duoc": bool(tu_cai),           # chỉ gỡ thứ CHÍNH JAVIS cài, không đụng Python của máy
-        "duong_dan": tu_cai,
-        "dung_luong": doc_mb(_dung_luong(PYLIBS_DIR)) if tu_cai else "",
-    })
-    return d
-
-
 def trang_thai(cong_cu: str = "browser") -> dict:
     """Trạng thái một công cụ tuỳ chọn, đủ để vẽ thẻ trên màn hình."""
     if cong_cu not in CONG_CU:
@@ -374,7 +320,7 @@ def trang_thai(cong_cu: str = "browser") -> dict:
     d = dict(CONG_CU[cong_cu]())
     viec = _viec.get(cong_cu) or {}
     d["ok"] = True
-    d = (_trang_thai_pylib if cong_cu == "pylib-playwright" else _trang_thai_browser)(d, viec)
+    d = _trang_thai_browser(d, viec)
     d.update({
         "tien_do": viec.get("tien_do", ""),
         "log": viec.get("log", ""),
@@ -406,39 +352,15 @@ def _lenh_cai(cong_cu: str) -> tuple:
     Gom ở đây để `_chay_tai` chỉ còn phần CHẠY: đọc log, đếm giờ, ghi trạng thái. Thêm công cụ
     thứ ba sau này chỉ phải viết thêm một nhánh ở đây.
     """
-    if cong_cu == "pylib-playwright":
-        PYLIBS_DIR.mkdir(parents=True, exist_ok=True)
-        # `--target`: cài vào thư mục ghi được thay vì site-packages. Trong Docker,
-        # site-packages thuộc root và chỉ đọc còn Javis chạy user thường, nên đây KHÔNG phải
-        # lựa chọn phong cách mà là đường duy nhất chạy được.
-        # `--upgrade`: cài đè lên bản cũ trong cùng thư mục, nếu không pip bỏ qua và người
-        # dùng bấm "Cài lại" mà chẳng có gì đổi.
-        return (
-            [sys.executable, "-m", "pip", "install", "--no-cache-dir", "--upgrade",
-             "--target", str(PYLIBS_DIR), "playwright"],
-            str(PYLIBS_DIR), dict(os.environ), CAI_LIB_TIMEOUT,
-            "Python của máy này không gọi được pip, nên không cài được thư viện.",
-        )
     BROWSERS_DIR.mkdir(parents=True, exist_ok=True)
     moi_truong = dict(os.environ)
     moi_truong[ENV_BROWSERS_PATH] = str(BROWSERS_DIR)
-    # Bản ĐẦY ĐỦ, KHÔNG phải `--only-shell` (0.64.18).
-    #
-    # Tới 0.64.17 chỗ này tải `--only-shell`, lý do ghi trong chú thích cũ là "Javis chạy ẩn
-    # cửa sổ nên không cần phần giao diện". Lý do đó đúng về dung lượng và SAI về mục đích:
-    # việc duy nhất của trình duyệt này là qua được cửa Cloudflare của chatgpt.com, mà
-    # `headless_shell` thì trượt cửa đó ngay từ dấu vân tay. Đo trên Chromium 141 thật:
-    #
-    #     headless_shell : plugins 0, mimeTypes 0, pdfViewerEnabled false, window.chrome
-    #                      undefined, UA "HeadlessChrome", navigator.webdriver true
-    #     chrome đầy đủ  : plugins 5, mimeTypes 2, pdfViewerEnabled true,  window.chrome
-    #                      object, và khi chạy có màn hình thì UA "Chrome" + webdriver false
-    #
-    # Nên `duong_dan_chrome()` ưu tiên `chrome` hơn `headless_shell` là đúng, nhưng vô dụng
-    # khi trình cài không bao giờ tải bản `chrome` về. Tải bản đầy đủ tốn thêm chừng 70MB;
-    # đổi lại là tính năng có cơ hội chạy thay vì chắc chắn trượt.
+    # `--only-shell`: chỉ tải bản headless shell, nhỏ hơn hẳn bản đầy đủ, và đủ cho Playwright
+    # MCP chạy ẩn trên máy chủ. 0.64.18 từng đổi sang bản đầy đủ để model ChatGPT Web có cửa
+    # qua Cloudflare; model đó gỡ ở 0.64.20 nên quay về bản nhẹ. Máy nào đã tải bản đầy đủ thì
+    # vẫn dùng được, `duong_dan_chrome()` còn ưu tiên nó.
     return (
-        ["npx", "-y", "playwright@latest", "install", "chromium"],
+        ["npx", "-y", "playwright@latest", "install", "--only-shell", "chromium"],
         str(BROWSERS_DIR), moi_truong, TAI_TIMEOUT,
         "Máy này không có Node (npx), không tải được trình duyệt.",
     )
@@ -490,35 +412,13 @@ async def _chay_tai(cong_cu: str) -> None:
         return
 
     v["dang_chay"] = False
-    xong = _da_cai_pylib() if cong_cu == "pylib-playwright" else duong_dan_chrome()
     if ma != 0:
         v["loi"] = f"Lệnh cài trả mã lỗi {ma}. Xem log bên dưới."
-    elif not xong:
+    elif not duong_dan_chrome():
         v["loi"] = "Lệnh chạy xong nhưng không thấy thứ vừa cài đâu."
-    elif cong_cu == "pylib-playwright":
-        nap_pylibs()
-        _quen_ket_qua_do()
-        v["tien_do"] = "Xong. Khởi động lại Javis để model ChatGPT Web hiện ra."
     else:
-        _quen_ket_qua_do()
         v["tien_do"] = "Xong."
     print(f"[cong-cu] tải {cong_cu}: mã {ma}, lỗi={v.get('loi') or 'không'}", file=sys.stderr)
-
-
-def _quen_ket_qua_do() -> None:
-    """Bảo engine Web quên kết quả dò cũ sau khi vừa cài xong.
-
-    `web_transport` nhớ lại kết quả dò để khỏi quét đĩa mỗi lần vẽ trang Models. Không xoá thì
-    người dùng bấm tải, thấy báo xong, rồi thẻ ChatGPT vẫn nói thiếu trình duyệt cho tới khi
-    khởi động lại - và không ai đoán được là phải khởi động lại.
-
-    Import muộn để tránh vòng: `web_transport` import ngược module này.
-    """
-    try:
-        import web_transport
-        web_transport.dat_lai_do()
-    except Exception:
-        pass
 
 
 def bat_dau_cai(cong_cu: str = "browser") -> dict:
@@ -537,9 +437,8 @@ def go(cong_cu: str = "browser") -> dict:
     """Xoá bản Javis tự tải. KHÔNG bao giờ đụng tới trình duyệt có sẵn của máy."""
     if cong_cu not in CONG_CU:
         return {"ok": False, "error": f"không có công cụ tên {cong_cu!r}"}
-    goc = PYLIBS_DIR if cong_cu == "pylib-playwright" else BROWSERS_DIR
-    d = _da_cai_pylib() if cong_cu == "pylib-playwright" else _da_tai()
-    if not d:
+    goc = BROWSERS_DIR
+    if not _da_tai():
         return {"ok": False, "error": "Không có bản nào do Javis cài để gỡ."}
     try:
         shutil.rmtree(goc, ignore_errors=True)

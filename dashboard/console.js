@@ -3716,127 +3716,6 @@
     chay();
   }
 
-  // ---- ChatGPT Web: một khối phụ TRONG thẻ ChatGPT, không phải một thẻ provider riêng ----
-  //
-  // Đặt ở đây chứ không dựng thẻ riêng vì `chatgpt-web` là một MODEL của thẻ ChatGPT, chọn ở
-  // đúng ô chọn model như mọi model khác. Một thẻ riêng sẽ gợi ý sai rằng phải "kết nối" thêm
-  // một nhà cung cấp nữa.
-  //
-  // Khối này KHÔNG bao giờ hiện phần trăm quota, và đó là quyết định chứ không phải thiếu sót:
-  // trang chat không nói ra con số nào, nên mọi thanh tiến trình vẽ ở đây đều là bịa.
-  // Hướng dẫn đầy đủ nằm ở repo, không nằm trên thẻ. Thẻ cài đặt là chỗ để bấm.
-  const HD_WEB = "https://github.com/blogminhquy/javis-os/blob/main/docs/29-chatgpt-web.md";
-
-  async function veThreChatGPTWeb(el) {
-    const box = el.querySelector("#webChatBox");
-    if (!box) return;
-    let d = null;
-    try { d = await (await fetch("/web-chat/status")).json(); }
-    catch (e) { return; }
-    // Chỉ ẩn hẳn khi chủ máy ÉP TẮT bằng biến môi trường. Máy chỉ thiếu đồ thì vẫn hiện,
-    // kèm câu nói cần cài gì: ẩn đi là người dùng không bao giờ biết có tính năng này.
-    if (!d || d.an) return;
-    box.style.display = "";
-    // Đường /web-chat ĐÒI phiên đăng nhập trình duyệt thật, và đó là chủ ý (xem
-    // `_web_chat_chan` ở main.py: một script cầm API token không được lái phiên ChatGPT của
-    // chủ máy). Nhưng bản chạy loopback chưa đặt mật khẩu thì không có phiên nào cả, nên
-    // trước 0.64.13 thẻ này hiện ra với dòng trạng thái RỖNG - không nút, không lời giải
-    // thích. Nói thẳng ra vẫn tôn trọng cái cổng, chỉ là thôi im lặng.
-    if (d.ok === false && d.error) {
-      box.innerHTML = `<div><b>ChatGPT Web</b></div>`
-        + `<div class="gcard-meta">${Icons.warn(esc(d.error))}</div>`
-        + `<div class="gcard-meta">Đặt mật khẩu quản trị ở trang Tài khoản rồi đăng nhập,`
-        + ` hoặc xem <a href="${HD_WEB}" target="_blank" rel="noopener">hướng dẫn ↗</a>.</div>`;
-      return;
-    }
-
-    const ve = (x) => {
-      const dn = x.auth_state === "ok";
-      const nghi = x.dang_nghi
-        ? `<div class="gcard-meta">${WARN_ICON} Đang nghỉ thêm ~${Math.ceil((x.con_nghi_giay || 0) / 60)} phút: ${esc(x.last_error || "")}</div>`
-        : "";
-      // GỌN. Bản trước bày cả khối hướng dẫn DevTools sáu dòng ngay trên thẻ, cộng một nút
-      // "Đóng trình duyệt" mà người dùng bình thường không bao giờ cần tới. Chủ repo báo
-      // 23/09: "quá nhiều text hướng dẫn, nên viết hướng dẫn cụ thể ở github rồi dán link".
-      // Đúng: thẻ cài đặt là chỗ để BẤM, không phải chỗ để đọc. Hướng dẫn đầy đủ nay ở
-      // docs/29-chatgpt-web.md, trên đây chỉ còn trạng thái, ô dán và một đường link.
-      box.innerHTML = `
-        <div><b>ChatGPT Web</b> <code>${esc(x.model_id || "chatgpt-web")}</code>
-          <a href="${HD_WEB}" target="_blank" rel="noopener"
-             style="margin-left:6px;font-size:13px">Hướng dẫn ↗</a></div>
-        <div class="gcard-meta">${x.kha_dung
-          ? (dn ? OK_ICON + " Đã đăng nhập" : WARN_ICON + " Chưa đăng nhập")
-          : Icons.warn(x.ly_do || "")}
-          ${x.so_luot_trong_ngay ? " · " + x.so_luot_trong_ngay + " lượt hôm nay" : ""}</div>
-        ${dn ? "" : `
-        <div style="margin-top:8px">
-          <textarea id="webCookie" rows="2" spellcheck="false"
-            style="width:100%;font-family:var(--mono,monospace);font-size:13px"
-            placeholder="Dán cookie ${esc(x.ten_cookie || "__Secure-next-auth.session-token")} vào đây"></textarea>
-          <div class="gcard-meta" style="margin-top:4px">
-            Lấy ở chatgpt.com: F12 → Application → Cookies.
-            <b>Thấy hai dòng đuôi .0 và .1 thì copy CẢ HAI.</b>
-            <a href="${HD_WEB}" target="_blank" rel="noopener">Xem từng bước ↗</a>
-          </div>
-        </div>`}
-        <div class="prov-action" style="flex-wrap:wrap;margin-top:8px">
-          ${dn ? "" : `<button class="gcard-btn" data-webcookie="1">Đăng nhập</button>`}
-          <button class="gcard-btn ghost" data-webcheck="1">${esc(t("qs.recheck"))}</button>
-          <span id="webMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:220px"></span>
-        </div>
-        ${nghi}`;
-
-      const msg = box.querySelector("#webMsg");
-      const goi = async (btn, url, dangChay, xong) => {
-        const b = box.querySelector(btn);
-        if (!b) return;
-        b.onclick = async () => {
-          b.disabled = true;
-          if (msg) msg.textContent = dangChay;
-          let r = null;
-          try { r = await (await fetch(url, { method: "POST" })).json(); }
-          catch (e) { r = { ok: false, error: t("common.net_err") }; }
-          b.disabled = false;
-          if (!r || !r.ok) {
-            if (msg) msg.innerHTML = Icons.warn((r && r.error) || t("common.net_err"));
-            return;
-          }
-          if (msg) msg.innerHTML = r.huong_dan ? esc(r.huong_dan)
-            : (r.da_dang_nhap ? OK_ICON + " Đã đăng nhập" : WARN_ICON + " Chưa đăng nhập");
-          if (xong) { xong(r); return; }   // màn đăng nhập tự lo phần vẽ, đừng vẽ đè lên nó
-          try { ve(await (await fetch("/web-chat/status")).json()); } catch (e) {}
-        };
-      };
-      // Nút cookie gửi kèm THÂN request nên không dùng chung `goi` được (hàm đó POST rỗng).
-      const bCk = box.querySelector("[data-webcookie]");
-      if (bCk) bCk.onclick = async () => {
-        const o = box.querySelector("#webCookie");
-        const gt = (o && o.value || "").trim();
-        if (!gt) { if (o) o.focus(); return; }
-        bCk.disabled = true;
-        if (msg) msg.textContent = "Đang nạp cookie và mở chatgpt.com…";
-        let r = null;
-        try {
-          r = await (await fetch("/web-chat/cookie", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ cookie: gt }),
-          })).json();
-        } catch (e) { r = { ok: false, error: t("common.net_err") }; }
-        bCk.disabled = false;
-        // Xoá ô NGAY, cả khi hỏng: không để chìa khoá tài khoản nằm chờ trên màn hình.
-        if (o) o.value = "";
-        if (!r || !r.ok) {
-          if (msg) msg.innerHTML = Icons.warn((r && r.error) || t("common.net_err"));
-          return;
-        }
-        if (msg) msg.innerHTML = OK_ICON + " " + esc(r.huong_dan || "Đã đăng nhập");
-        try { ve(await (await fetch("/web-chat/status")).json()); } catch (e) {}
-      };
-      goi("[data-webcheck]", "/web-chat/check", t("models.testing"));
-    };
-    ve(d);
-  }
-
   async function renderModelsCloudTab(el) {
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     const s = await freshSettings();
@@ -3937,7 +3816,6 @@
                  <button class="gcard-btn ghost" data-oauth-browser="1">${esc(t("models.via_browser"))}</button>`}
             <span id="oauthMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:220px"></span>
           </div>
-          <div id="webChatBox" class="prov-steps" style="display:none"></div>
         </div>`;
       }
       if (p.id === "grok-cli") {
@@ -4152,7 +4030,6 @@
         renderModelsCloudTab(el);
       };
     });
-    veThreChatGPTWeb(el);
     const ol = el.querySelector("[data-oauth-login]");
     if (ol) ol.onclick = () => startOauthLogin(el);
     const ob = el.querySelector("[data-oauth-browser]");

@@ -1,4 +1,4 @@
-/* Trang Code phải DÙNG ĐƯỢC trên điện thoại, và thẻ ChatGPT phải gọn.
+/* Trang Code phải DÙNG ĐƯỢC trên điện thoại.
 
        node tests/js/test_trang_code_dien_thoai.js
 
@@ -19,9 +19,8 @@
       Đo được: parent = modelBar, display = none, chip không nhìn thấy. Sau khi sửa: parent =
       cdChipsHep, nhìn thấy được.
 
-   3. **Thẻ ChatGPT quá nhiều chữ.** "Viết hướng dẫn cụ thể ở github rồi dán link vào thôi là
-      đc, còn ở trên trang cần gọn gàng." Nên hướng dẫn đi hẳn sang docs/29-chatgpt-web.md, và
-      nút "Đóng trình duyệt" bỏ luôn. */
+   3. **Thẻ ChatGPT quá nhiều chữ.** Khối "ChatGPT Web" đã được thu gọn ở 0.64.13, rồi gỡ hẳn
+      cùng model đó ở 0.64.20. */
 const fs = require("fs");
 const path = require("path");
 
@@ -81,55 +80,11 @@ check("có kiểu dáng cho hàng chip màn hẹp, và nó tự ẩn khi rỗng"
 check("CANARY: còn ghi vì sao modelBar không dùng được ở màn hẹp",
   /model-bar\{display:none\}|\.model-bar.*display:\s*none/.test(CD) || /modelBar/.test(CD) && /display:none/.test(CD));
 
-// ---- 3. Thẻ ChatGPT gọn ----
-const i = CON.indexOf("async function veThreChatGPTWeb");
-const the = CON.slice(i, CON.indexOf("async function renderModelsCloudTab", i));
-check("bỏ nút Đóng trình duyệt", (() => {
-  // Soi PHẦN VẼ RA, không soi cả file: chú thích của bản sửa có nhắc tên nút cũ để nói vì
-  // sao nó biến mất, và đó là thứ nên giữ chứ không phải thứ phải xoá.
-  const ma = the.replace(/^\s*\/\/.*$/gm, "");
-  return !/Đóng trình duyệt/.test(ma) && !/webreset/.test(CON);
-})());
-check("bỏ luôn endpoint của nút đó, không để lại đường chết",
-  !/web-chat\/reset/.test(MAIN) && !/web-chat\/reset/.test(CON));
-check("nhưng KHÔNG mất lối thoát: dán cookie tự đóng rồi mở lại trình duyệt", (() => {
-  // Cắt tới HẾT HÀM chứ không lấy 1400 ký tự đầu: bản cũ đếm ký tự, nên 0.64.14 viết thêm
-  // chú thích cho `_nap_cookie_that` là phép thử đỏ dù bất biến chẳng đổi gì. Đếm ký tự để
-  // xác định phạm vi một hàm là đo sai thứ cần đo.
-  const WT = fs.readFileSync(path.join(ROOT, "server", "web_transport.py"), "utf8");
-  const j = WT.indexOf("def _nap_cookie_that");
-  if (j < 0) return false;
-  const sau = WT.indexOf("\n    def ", j + 10);
-  return /self\._dong_that\(\)/.test(WT.slice(j, sau < 0 ? WT.length : sau));
-})());
-check("và dọn luôn sổ nghỉ khi dán cookie", /web_state\.dat_lai\(\)/.test(
-  MAIN.slice(MAIN.indexOf('@app.post("/web-chat/cookie")'), MAIN.indexOf('@app.post("/web-chat/check")'))));
-check("thẻ trỏ sang tài liệu trên GitHub", /29-chatgpt-web\.md/.test(CON));
-check("khối chữ hướng dẫn dài đã rời khỏi thẻ",
-  !/Memory và Custom instructions/.test(the) && !/bật DevTools \(F12\), vào/.test(the));
-check("nhưng vẫn còn đủ thứ để BẤM: ô dán + nút đăng nhập",
-  /id="webCookie"/.test(the) && /data-webcookie/.test(the));
-check("đã đăng nhập rồi thì không bày ô dán nữa", /\$\{dn \? "" : `/.test(the));
-
-// Cổng /web-chat đòi phiên thật là CHỦ Ý (xem _web_chat_chan). Nhưng bản chạy loopback chưa
-// đặt mật khẩu không có phiên nào, và trước 0.64.13 thẻ hiện ra với dòng trạng thái RỖNG -
-// không nút, không lời giải thích. Đã dựng lại bằng curl trên một bản chạy 127.0.0.1.
-check("bị cổng chặn thì NÓI RA, không hiện thẻ rỗng",
-  /d\.ok === false && d\.error/.test(the));
-check("và chỉ luôn đường đi tiếp", /Đặt mật khẩu quản trị/.test(the));
-
-// ---- 4. Tài liệu phải có thật và nói đủ ----
-const DOC = fs.readFileSync(path.join(ROOT, "docs", "29-chatgpt-web.md"), "utf8");
-check("tài liệu có tồn tại và không rỗng", DOC.length > 2000);
-for (const [ten, chu] of [["cách cài hai thứ cần", "Công cụ tuỳ chọn"],
-                          ["tên cookie phải lấy", "__Secure-next-auth.session-token"],
-                          ["ba kiểu dán", "ba kiểu dán"],
-                          ["cảnh báo Memory/Custom instructions", "Custom instructions"],
-                          ["vì sao không bỏ được trình duyệt", "proof-of-work"],
-                          ["bảng xử lý khi không chạy", "Khi không chạy"]]) {
-  check(`tài liệu nói ${ten}`, DOC.includes(chu));
-}
-check("tài liệu KHÔNG dùng em dash (luật CLAUDE.md)", !DOC.includes("—") && !DOC.includes("–"));
+// ---- 3. Thẻ ChatGPT ----
+// Mục này từng khoá khối "ChatGPT Web" gọn gàng trên thẻ ChatGPT. Model đó gỡ hẳn ở 0.64.20,
+// nên nay chỉ còn khoá một điều: không để lại mảnh nào của khối cũ trỏ vào đường đã chết.
+check("không còn khối ChatGPT Web trên thẻ", !/veThreChatGPTWeb|webChatBox/.test(CON));
+check("không còn gọi tới /web-chat", !/\/web-chat/.test(CON) && !/\/web-chat/.test(MAIN));
 
 console.log();
 if (fails.length) { console.log(`THẤT BẠI ${fails.length}: ${JSON.stringify(fails)}`); process.exit(1); }

@@ -5,10 +5,10 @@ Vì sao có file này
 Trang Coding 0.63.0 đổi `cwd` của engine sang repo qua `main._cwd_luot_chat`. Nhưng **chỉ
 engine CLI hưởng**, vì chỉ chúng có tool file native chạy theo `cwd`.
 
-Engine API và engine Web đọc ghi qua `mcp_hub`, mà hub nhận `vault_root = _brain_root(brain)`
-VÔ ĐIỀU KIỆN (`main.py:2190`), không hỏi `coding_store` một lần nào. Hệ quả: chọn
-`chatgpt-web` rồi ngồi trong một phiên Coding thì model **không đọc nổi một file nào của
-repo**, vì `_builtin_tools._read` chặn mọi đường dẫn ngoài vault.
+Engine API đọc ghi qua `mcp_hub`, mà hub nhận `vault_root = _brain_root(brain)` VÔ ĐIỀU
+KIỆN, không hỏi `coding_store` một lần nào. Hệ quả: một engine không có tool file native ngồi
+trong phiên Coding thì **không đọc nổi một file nào của repo**, vì `_builtin_tools._read` chặn
+mọi đường dẫn ngoài vault. (Engine đầu tiên mắc cảnh này là `chatgpt-web`, đã gỡ ở 0.64.20.)
 
 Module này là chỗ gom ngữ cảnh ấy lại, để hub và các tool coding cùng đọc một nguồn thay vì
 mỗi chỗ tự hỏi `coding_store` một kiểu.

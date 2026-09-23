@@ -169,9 +169,12 @@ check("workspace_root cũng nằm trong khoá cache (hai phiên coding khác rep
 # chỗ bật cờ Ở ĐÚNG đường chat dashboard cũng làm test đỏ, và cách sửa nhanh nhất lúc đó là
 # nâng con số lên - tức là khoá đúng thứ không cần khoá, rồi mất luôn thứ cần khoá. Cái phải
 # giữ là HÀM NÀO bật, không phải BAO NHIÊU chỗ bật.
+#
+# 0.64.20: `websocket_endpoint._do_turn` rời danh sách. Chỗ bật cờ DUY NHẤT của nó là nhánh
+# engine ChatGPT Web, và nhánh đó gỡ cùng model. Nếu cờ mọc lại ở hàm đó thì phép thử trên đỏ
+# và người sửa phải tự hỏi lại: đường mới đó có đúng là đường chat của chủ không.
 _HAM_DUOC_BAT = {
     "_api_stream_mcp",                 # engine API, đường chat của chủ (discover + inventory)
-    "websocket_endpoint._do_turn",     # nhánh engine của dashboard, cũng là chủ
 }
 
 

@@ -7,6 +7,7 @@ Xác thực: theo đúng luật của trang Gói (`routes/packs.py`). Cài một
 và chạy nó, nên đường này đòi PHIÊN ĐĂNG NHẬP THẬT và KHÔNG nhận API token - "tự động tải một
 trình duyệt về máy chủ" đúng là thứ không nên có đường tồn tại.
 """
+import threading
 from dataclasses import dataclass
 from typing import Callable
 
@@ -34,6 +35,10 @@ def _tu_choi():
 def register(app, deps: ToolsDeps):
     global _DEPS
     _DEPS = deps
+    # Dọn thư viện playwright mà model ChatGPT Web (gỡ ở 0.64.20) để lại. Chạy ở thread riêng:
+    # xoá cả trăm MB file nhỏ mất vài giây, không được bắt server chờ lúc khởi động.
+    threading.Thread(target=optional_tools.don_thu_vien_cu, daemon=True,
+                     name="javis-don-pylibs").start()
 
     @router.get("/tools/optional")
     async def tools_list(request: Request):

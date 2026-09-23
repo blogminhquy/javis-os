@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.20] - 2026-09-23
+### Thay đổi
+- **Gỡ model ChatGPT Web.** Nó lái một trình duyệt vào chatgpt.com, mà trên máy chủ thuê thì trang đó chặn theo địa chỉ IP, nên không chạy được. Đã đối chiếu hai dự án khác làm cùng việc: cả hai đều phải chạy trình duyệt trên máy tính ở nhà.
+- **Ai đang chọn ChatGPT Web thì lượt chat kế tiếp tự chuyển sang model ChatGPT qua Codex**, kèm một dòng báo. Không phải làm gì thêm.
+- **Trang Công cụ bỏ mục "Thư viện lái trình duyệt"**, và Javis tự dọn chừng 140 MB nó từng cài. Mục Trình duyệt vẫn giữ cho kết nối Playwright.
+- Bản sau sẽ làm hướng ngược lại: bạn chat trên ChatGPT, và ChatGPT tự gọi công cụ của Javis.
+
 ## [0.64.19] - 2026-09-23
 ### Sửa lỗi
 - **Tab Cài đặt trợ lý báo "Không tải được trợ lý này" dù trợ lý vẫn còn.** Khi một trợ lý đang trả lời, máy chủ bận nên lần tải bị quá giờ. Nay các phần đó chạy riêng, lần đầu trượt thì tự thử lại, và lúc chờ hiện "Đang tải..." thay vì khung trống.

@@ -1,3 +1,16 @@
+> **ĐÃ GỠ ở 0.64.20 (2026-09-23).** Tính năng trong tài liệu này đã chạy từ 0.64.0 tới 0.64.18
+> rồi bị gỡ hẳn. Giữ lại tài liệu làm hồ sơ quyết định, không phải hướng dẫn.
+>
+> Lý do gỡ, gọn: Javis chạy trên máy chủ thuê, và Cloudflare của chatgpt.com chặn trình
+> duyệt theo IP trung tâm dữ liệu. Đã đọc hai dự án làm cùng việc (`miuuyy/codex-chatgpt-web`,
+> `XiaoDuoYa/codex-with-chatgpt`): CẢ HAI đều chạy trình duyệt trên máy của người dùng, không
+> dự án nào có cách qua Cloudflare từ máy chủ. Đường gọi thẳng `backend-api` cũng đã chết
+> (tầng Turnstile của Sentinel không hoàn tất nữa từ 08/09/2026).
+>
+> Mục tiêu gốc (dùng gói ChatGPT không giới hạn cho việc hằng ngày) chuyển sang hướng ĐẢO
+> CHIỀU: ChatGPT gọi sang MCP hub của Javis qua connector chính thức, thay vì Javis lái trang
+> ChatGPT.
+
 # ChatGPT Web: một model của thẻ ChatGPT
 
 **Phiên bản:** v4.1 (mục 14 ghi lại những gì đã vào `main` ở 0.64.0). v4.0: Gộp bản rà soát chéo `JAVIS_OS_WEB_ENGINE_SPEC.md` (2026-09-22) vào v3.0:

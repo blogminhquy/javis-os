@@ -16,7 +16,6 @@ Phân biệt 3 loại id:
   - conv id (uuid hex)  : phiên hội thoại dashboard quản lý (engine-agnostic).
   - cli_session_id      : session_id RIÊNG của Claude CLI (để --resume).
   - codex_thread_id     : thread_id RIÊNG của Codex CLI/OpenAI OAuth (để `exec resume`).
-  - web_thread_id       : id CUỘC CHAT trên chatgpt.com của engine ChatGPT Web.
 """
 from __future__ import annotations
 
@@ -404,10 +403,9 @@ class SessionStore:
                               # chung một cột là lượt sau đưa id của engine này cho engine kia
                               # resume, và nó nối vào một mạch không tồn tại rồi hỏng câm.
                               ("grok_session_id", "TEXT"),
-                              # Luồng (conversation) của ChatGPT Web. Cột RIÊNG, cùng lý
-                              # do như hai cột ngay trên, và thêm một lý do nặng hơn: id này
-                              # là id một CUỘC CHAT trên chatgpt.com, không phải mạch CLI. Đưa
-                              # nhầm nó cho Codex resume là Codex mở một mạch không tồn tại.
+                              # Luồng của engine ChatGPT Web, đã gỡ ở 0.64.20. Cột VẪN khai
+                              # báo để DB cũ và DB mới cùng một hình dạng; không ai đọc ghi
+                              # nó nữa. Xoá cột SQLite là phải dựng lại cả bảng, không đáng.
                               ("web_thread_id", "TEXT"),
                               # Model GHIM RIÊNG của phiên. Hai nguồn ghi: user đổi model ngay
                               # trong phiên, và từ 0.35.5 server tự ĐÓNG DẤU model đang chạy ở
@@ -1117,23 +1115,6 @@ class SessionStore:
             (session_id,),
         ))
 
-    def set_web_thread_id(self, session_id: str, thread_id: str) -> None:
-        """Gắn luồng chat của ChatGPT Web vào hội thoại để lượt sau gõ tiếp đúng cuộc đó."""
-        if not thread_id:
-            return
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET web_thread_id = ?, updated_at = ? WHERE id = ?",
-            (thread_id, time.time(), session_id),
-        ))
-
-    def clear_web_thread_id(self, session_id: str) -> None:
-        """Luồng web thành stale khi engine khác chen một lượt vào cùng hội thoại."""
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET web_thread_id = NULL "
-            "WHERE id = ? AND web_thread_id IS NOT NULL",
-            (session_id,),
-        ))
-
     def clear_cli_session_id(self, session_id: str) -> None:
         """Mạch Claude Code thành stale khi engine khác chen một lượt vào cùng hội thoại."""
         self._write(lambda c: c.execute(
@@ -1182,8 +1163,7 @@ class SessionStore:
     # một lệnh clear nữa vào main.py - đó chính là cách bảng này bị bỏ sót hai engine.
     _MACH_NATIVE = {"cli": "cli_session_id",
                     "codex": "codex_thread_id",
-                    "grok-cli": "grok_session_id",
-                    "chatgpt-web": "web_thread_id"}
+                    "grok-cli": "grok_session_id"}
 
     def clear_native_threads(self, session_id: str, keep: str = "") -> List[str]:
         """Vô hiệu mạch native của MỌI engine, TRỪ engine `keep` đang chạy lượt này.
