@@ -4380,8 +4380,8 @@ async def connect_oauth_callback(state: str = Query(""), code: str = Query("")):
     return HTMLResponse(html)
 
 
-@app.get("/settings")
-async def settings_get():
+@app.get("/settings")  # def thường, xem ghi chú ở list_agents
+def settings_get():
     cfg = cfgmod.read_settings()
     safe = json.loads(json.dumps(cfg))
     safe["auth"] = {"username": cfg["auth"].get("username", ""), "has_password": bool(cfg["auth"].get("password_hash"))}
@@ -5938,8 +5938,13 @@ def agents_index(brain: str, *, kem_prompt: bool = True) -> list:
         a["last_chat_at"] = float(moc.get("agent:" + a["slug"], 0) or 0)
     return out
 
+# `def` thường chứ không `async def` (0.64.19): bốn route mà tab Cài đặt trợ lý cần
+# (/agents, /agents/get, /skills, /settings) chỉ đọc file và cấu hình đồng bộ. Để `async def`
+# là chúng chạy thẳng trên event loop, nên hễ một lượt chat đang chạy là chúng xếp hàng, quá
+# 12 giây thì trình sửa báo "Không tải được trợ lý này" dù trợ lý vẫn nằm nguyên đó (chủ repo
+# gặp 23/09). `def` thì FastAPI chạy ở threadpool, không phải chờ loop.
 @app.get("/agents")
-async def list_agents(brain: str = Query("brain"), prompt: int = Query(1)):
+def list_agents(brain: str = Query("brain"), prompt: int = Query(1)):
     """`prompt=0` = danh sách NHẸ, không kèm system prompt của từng trợ lý.
 
     Mặc định vẫn kèm: một dashboard cũ còn nằm trong cache trình duyệt vẫn đọc `prompt` từ
@@ -5949,7 +5954,7 @@ async def list_agents(brain: str = Query("brain"), prompt: int = Query(1)):
 
 
 @app.get("/agents/get")
-async def agent_get(slug: str = Query(...), brain: str = Query("brain")):
+def agent_get(slug: str = Query(...), brain: str = Query("brain")):
     """Một trợ lý KÈM system prompt. Trình sửa gọi cái này, vì danh sách nay xin bản nhẹ.
 
     Qua `_agent_md_path` chứ không tự ghép tên file: slug đến từ URL, mà `../../x` ghép thẳng
@@ -6161,8 +6166,8 @@ def skills_index(brain: str) -> list:
                     "stale": skill_usage.is_stale(rec, _mtime(s["path"]), now)})
     return out
 
-@app.get("/skills")
-async def list_skills(brain: str = Query("brain")):
+@app.get("/skills")  # def thường, xem ghi chú ở list_agents
+def list_skills(brain: str = Query("brain")):
     return {"skills": skills_index(brain)}
 
 

@@ -2835,6 +2835,28 @@ body.ne-full-on .cview { z-index: 250; }
 .pd-hbtn:hover { color: var(--text-hi); background: var(--bg3); }
 .pd-hbtn.on { color: var(--accent); }
 
+/* Công tắc phạm vi tài liệu (trang Cộng sự, 0.64.19): "của trợ lý" hay "chỉ cuộc này".
+   Hai ô to, có số lượng, kèm một câu nói rõ đang gắn vào đâu - thay cho hai ngăn kéo giống
+   hệt nhau mà chủ repo dùng nhầm lẫn. Chữ 16px vì đây là chỗ phải đọc kỹ trước khi gắn. */
+.pd-scope { flex: none; padding: 10px 12px 4px; }
+.pd-scope[hidden] { display: none; }
+.pd-sc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pd-sc { display: flex; align-items: flex-start; gap: 8px; min-width: 0; text-align: left;
+  padding: 10px; border-radius: 10px; cursor: pointer; font-family: inherit;
+  border: 1px solid var(--border); background: var(--bg3); color: var(--text2); }
+.pd-sc:hover:not(:disabled) { border-color: var(--accent-line); color: var(--text); }
+.pd-sc.on { border-color: var(--accent); background: var(--accent-wash-2); color: var(--text-hi); }
+.pd-sc:disabled { opacity: .55; cursor: not-allowed; }
+.pd-sc-ico { flex: none; display: inline-flex; margin-top: 2px; color: var(--text3); }
+.pd-sc.on .pd-sc-ico { color: var(--accent); }
+.pd-sc-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pd-sc-txt b { font-size: 16px; font-weight: 600; line-height: 1.3; }
+.pd-sc-txt small { font-size: 14px; color: var(--text3); line-height: 1.35; }
+.pd-sc-n { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 999px;
+  font-size: 13px; font-weight: 600; text-align: center; background: var(--bg2); color: var(--text2); }
+.pd-sc.on .pd-sc-n { background: var(--accent); color: var(--bg2); }
+.pd-sc-hint { margin-top: 8px; font-size: 14px; line-height: 1.5; color: var(--text2); }
+
 .pd-tabs { flex: none; display: flex; gap: 2px; padding: 8px 10px 0;
   border-bottom: 1px solid var(--border); }
 .pd-tab { flex: 1 1 0; padding: 8px 6px; cursor: pointer; font-family: inherit;

@@ -53,7 +53,13 @@
   async function layAgentDay(a) {
     if (!a || !a.slug) return null;                  // tạo mới: chưa có gì để lấy
     if (typeof a.prompt === "string") return a;      // người gọi đã cầm bản đầy đủ
-    const r = await api(`/agents/get?slug=${encodeURIComponent(a.slug)}&brain=${encodeURIComponent(brain())}`);
+    const url = `/agents/get?slug=${encodeURIComponent(a.slug)}&brain=${encodeURIComponent(brain())}`;
+    let r = await api(url);
+    // `{}` trơn = api() nuốt một lần hết giờ / rớt mạng, KHÁC với `{error}` (server nói không
+    // có trợ lý này). Máy chủ bận một lượt chat là đủ để lần đầu trượt, nên thử lại đúng một
+    // lần trước khi báo lỗi. Trước đây trượt một lần là hiện ngay "Không tải được trợ lý này"
+    // dù trợ lý vẫn nằm nguyên đó (chủ repo gặp 23/09).
+    if (r && !r.error && typeof r.prompt !== "string") r = await api(url);
     if (!r || typeof r.prompt !== "string") return false;
     return Object.assign({}, a, r);
   }
@@ -648,6 +654,11 @@
     opts = opts || {};
     // Có host thì KHÔNG đụng vào modal: mở/đóng nó sẽ che mất cả trang Cộng sự.
     const moDong = (mo) => { if (!opts.host) editor.classList.toggle("open", mo); };
+    // Nói "đang tải" ngay: ở cột phải trang Cộng sự, khung này trống trơn suốt lúc chờ mạng
+    // trông y như app bị treo.
+    if (opts.host && opts.host.isConnected && !opts.host.childElementCount) {
+      opts.host.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
+    }
     // Song song, không nối đuôi: hai lượt của form và một lượt lấy prompt cùng đi một nhịp.
     const [dsForm, day] = await Promise.all([duLieuForm(), layAgentDay(a)]);
     const [sd, st] = dsForm;
@@ -727,7 +738,12 @@
     const nutTaiLieu = box.querySelector("#agAssets");
     if (nutTaiLieu) nutTaiLieu.onclick = () => {
       if (!(a && a.slug)) return;
-      if (window.JavisChatSide && window.JavisChatSide.moKhungAgent)
+      // Ở trang Cộng sự (opts.host) thì mở ngăn có công tắc phạm vi, đứng sẵn ở "của trợ lý":
+      // bấm từ Cài đặt trợ lý là ý muốn gắn cho trợ lý. Ở Studio thì cuộc đang mở không liên
+      // quan gì tới trợ lý này, nên vẫn mở ngăn riêng của trợ lý như cũ.
+      if (opts.host && window.JavisChatSide && window.JavisChatSide.moTaiLieu)
+        window.JavisChatSide.moTaiLieu(a.slug, a.name || a.slug, "agent");
+      else if (window.JavisChatSide && window.JavisChatSide.moKhungAgent)
         window.JavisChatSide.moKhungAgent(a.slug, a.name || a.slug);
     };
     box.querySelectorAll("label").forEach(label => { const input = label.nextElementSibling; if (input && /^(INPUT|SELECT|TEXTAREA)$/.test(input.tagName)) label.htmlFor = input.id; });
