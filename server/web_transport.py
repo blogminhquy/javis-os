@@ -40,6 +40,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
+import winproc
 from config import STATE_DIR
 
 # Phiên bản, để nhật ký nói được một lượt hỏng là do bản nào (spec mục 22).
@@ -534,7 +535,8 @@ def man_hinh_ao() -> str:
             _TIEN_TRINH_XVFB = subprocess.Popen(
                 ["Xvfb", f":{MAN_HINH_SO}", "-screen", "0",
                  f"{KHUNG['width']}x{KHUNG['height']}x24", "-nolisten", "tcp"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                **winproc.kwargs_no_window())
         except Exception:
             _MAN_HINH, _TIEN_TRINH_XVFB = "", None
             return _MAN_HINH
