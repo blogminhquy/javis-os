@@ -40,7 +40,10 @@ def check(name, cond, them=""):
 _hub = (SERVER / "mcp_hub.py").read_text(encoding="utf-8")
 _disc = _hub.split("async def discover_all(", 1)[1].split("\ndef registry_inventory(", 1)[0]
 check("CANARY: hub lấy MỌI kết nối đang bật cho mọi vault (không lọc theo brain)",
-      "mcp_store.resolved(enabled_only=True)" in _disc and "brain" not in _disc.split("conns = ")[1].split("\n")[0])
+      # 0.64.16: lời gọi chạy qua asyncio.to_thread (không chặn loop), nên nhận cả hai dạng.
+      ("mcp_store.resolved(enabled_only=True)" in _disc
+       or "asyncio.to_thread(mcp_store.resolved, enabled_only=True)" in _disc)
+      and "brain" not in _disc.split("conns = ")[1].split("\n")[0])
 check("CANARY: kho kết nối không có cột brain",
       "brain" not in (SERVER / "mcp_store.py").read_text(encoding="utf-8").split("def add_connection", 1)[1].split("def update_connection", 1)[0])
 check("CANARY: trang Kết nối không có mục 'gắn nguồn cho brain' (mục đó không tồn tại)",

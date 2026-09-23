@@ -4,11 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.64.16] - 2026-09-23
+## [0.64.17] - 2026-09-23
 ### Sửa lỗi
 - **Tài khoản ChatGPT gói Team dán cookie không vào được.** Cookie của các tài khoản này quá dài nên trình duyệt tự cắt làm hai dòng `.0` và `.1`, mà Javis chỉ nhận đúng một cái tên duy nhất. Nay nhận cả hai dòng đó.
 - **Dán nửa cookie không còn âm thầm trôi qua.** Trước đây copy thiếu một nửa thì Javis vẫn nhận rồi báo "chưa đăng nhập", không ai đoán ra thiếu ở đâu. Nay nó nói thẳng là còn thiếu mảnh nào.
 - Nối hai nửa lại thành một chuỗi rồi dán cũng được: Javis tự cắt lại cho vừa giới hạn của trình duyệt.
+
+## [0.64.16] - 2026-09-23
+### Sửa lỗi
+- **Đổi trợ lý giữa lúc trợ lý khác đang trả lời thì màn hình đứng yên.** Vài việc chạy ngầm (kiểm tra đăng nhập Antigravity, dò lại danh sách công cụ MCP) chiếm luồng chính của máy chủ, nên mọi thao tác khác phải xếp hàng chờ. Nay các việc đó chạy riêng, bấm sang trợ lý khác là đổi ngay.
+- **Lượt chat trên Antigravity CLI có lúc treo tới khi bị cắt** vì Javis đọc log lỗi của `agy` quá muộn. Nay đọc song song.
 
 ## [0.64.15] - 2026-09-23
 ### Thay đổi

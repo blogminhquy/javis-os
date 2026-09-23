@@ -1039,7 +1039,11 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
             and ent["mtime"] == mt):
         return ent["tools"], ent["route"]
 
-    conns = mcp_store.resolved(enabled_only=True)
+    # Phần đồng bộ của lượt dò (giải mã kho kết nối, đọc mọi SKILL.md, nạp plugin) chạy ở
+    # LUỒNG PHỤ. Mỗi lượt agy/codex là một tiến trình mới gọi lại hub, nên cache trượt khá
+    # thường xuyên, và mỗi lần trượt trên loop là mọi request khác của dashboard phải chờ
+    # (chủ repo 23/09: đổi trợ lý giữa lúc Gemini đang chạy thì màn hình đứng yên).
+    conns = await asyncio.to_thread(mcp_store.resolved, enabled_only=True)
     bo_qua = set()
     raw_tools, raw_route = await mcp_client.discover_resolved(conns, bo_qua=bo_qua)
 
@@ -1075,9 +1079,9 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
             "health": "healthy",
         }
 
-    b_tools, b_route = _builtin_tools(mode, vault_root, include_ambient, hidden, lang, staging,
-                                      bo_qua, workspace_root=workspace_root,
-                                      coding_ctx_cua_phien=coding_ctx_cua_phien)
+    b_tools, b_route = await asyncio.to_thread(
+        _builtin_tools, mode, vault_root, include_ambient, hidden, lang, staging,
+        bo_qua, workspace_root=workspace_root, coding_ctx_cua_phien=coding_ctx_cua_phien)
     tools_spec += b_tools
     route.update(b_route)
 
@@ -1086,7 +1090,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     try:
         import plugins_host
         if include_plugins:
-            p_tools, p_route = plugins_host.plugin_tools(mode, vault_root)
+            p_tools, p_route = await asyncio.to_thread(plugins_host.plugin_tools, mode, vault_root)
             for t in p_tools:
                 fn = t["fn"]
                 if fn in route:
