@@ -84,6 +84,40 @@ MIEN_COOKIE = "chatgpt.com"
 # xin một tấm vé đúng của mình nếu ta để yên cho nó.
 COOKIE_BO_QUA = ("cf_clearance", "__cf_bm", "_cfuvid")
 
+# Cookie phiên có thể bị CHIA MẢNH, và đây là lý do chủ repo không vào được suốt ngày 23/09.
+#
+# next-auth cắt cookie thành `<tên>.0`, `<tên>.1`... khi nó dài quá một cookie chứa nổi, rồi
+# ghép lại bằng cách nối theo thứ tự chỉ số. Tài khoản gói Team mang nhiều quyền nên token
+# phình to, và trong DevTools hiện ra ĐÚNG hai dòng `.0` và `.1` chứ không có dòng nào mang
+# tên trơn. Bản trước chỉ nhận đúng tên trơn, nên:
+#   - dán cả hai dòng  -> bị từ chối vì "không thấy cookie tên đó"
+#   - dán một dòng     -> ĐƯỢC NHẬN, vì Javis tự gán tên trơn cho thứ vừa dán. Nhưng đó là
+#                         NỬA token, nên chatgpt.com đọc không ra phiên và báo chưa đăng nhập.
+#     Kiểu hỏng tệ nhất: im lặng, và lời khuyên hiện ra lại là "cookie hết hạn".
+#
+# TRẦN 4096 BYTE cho CẢ TÊN LẪN GIÁ TRỊ, đã đo bằng Chromium thật (dò nhị phân: tên 34 ký tự
+# thì giá trị dài nhất giữ được là 4062). Nên "nối hai nửa lại thành một cookie" KHÔNG chạy:
+# Chromium từ chối thẳng với "Invalid cookie fields". Cách đúng là giữ nguyên các mảnh.
+TRAN_COOKIE = 4096
+
+# Nối hai nửa rồi dán cũng phải chạy, vì đó là thứ người ta làm theo bản năng (và là thứ một
+# bản phân tích đã khuyên chủ repo làm). Javis tự cắt lại cho vừa, cắt ở đâu cũng được vì
+# next-auth chỉ nối các mảnh theo thứ tự chỉ số.
+CAT_MANH = 3800
+
+
+def _la_manh(ten: str) -> bool:
+    """`__Secure-next-auth.session-token.0` và anh em của nó."""
+    return ten.startswith(TEN_COOKIE_PHIEN + ".") and ten[len(TEN_COOKIE_PHIEN) + 1:].isdigit()
+
+
+def _chia_manh(gia_tri: str) -> list:
+    """Cắt một token dài thành các mảnh next-auth hiểu được. Ngắn thì trả về một cookie trơn."""
+    if len(TEN_COOKIE_PHIEN) + len(gia_tri) < TRAN_COOKIE:
+        return [(TEN_COOKIE_PHIEN, gia_tri)]
+    return [(f"{TEN_COOKIE_PHIEN}.{i}", gia_tri[k:k + CAT_MANH])
+            for i, k in enumerate(range(0, len(gia_tri), CAT_MANH))]
+
 # ============================================================
 # SELECTOR: đúng MỘT nơi duy nhất trong cả Javis
 # ============================================================
@@ -363,7 +397,9 @@ def doc_cookie(raw: str) -> tuple[list, str]:
             if ten and gt:
                 tho.append((ten, gt))
     else:
-        tho.append((TEN_COOKIE_PHIEN, raw))
+        # Dán MỖI giá trị: có thể là token nguyên vẹn, cũng có thể là hai nửa đã nối lại.
+        # Dài quá một cookie thì tự cắt thành mảnh, thay vì để Chromium từ chối cả cụm.
+        tho.extend(_chia_manh(raw))
 
     ra, da_bo = [], []
     for ten, gt in tho:
@@ -380,9 +416,24 @@ def doc_cookie(raw: str) -> tuple[list, str]:
                         f"tạo ra chúng nên mang sang đây không dùng được. Javis cần "
                         f"{TEN_COOKIE_PHIEN}.")
         return [], "Không đọc ra cookie nào từ thứ vừa dán."
-    if not any(c["name"] == TEN_COOKIE_PHIEN for c in ra):
+    manh = sorted(c["name"] for c in ra if _la_manh(c["name"]))
+    co_tron = any(c["name"] == TEN_COOKIE_PHIEN for c in ra)
+    if not co_tron and not manh:
         return [], (f"Không thấy cookie {TEN_COOKIE_PHIEN} trong thứ vừa dán. Đó là cookie giữ "
-                    f"phiên đăng nhập, thiếu nó thì mấy cái còn lại không làm gì được.")
+                    f"phiên đăng nhập, thiếu nó thì mấy cái còn lại không làm gì được. Nếu "
+                    f"trong DevTools bạn thấy hai dòng tên đuôi .0 và .1 thì copy CẢ HAI.")
+
+    # Chỉ có MỘT mảnh, mà mảnh đó lại dài sát trần: gần như chắc chắn là copy thiếu. next-auth
+    # chỉ chia mảnh khi token không nhét vừa một cookie, nên một mảnh đầy ắp mà không có mảnh
+    # tiếp theo là chuyện không thể có thật. Nói ra chứ không nhận bừa: nhận bừa thì trang báo
+    # "chưa đăng nhập" và người dùng đi lấy lại cookie mà không biết thiếu ở đâu - đúng cái
+    # vòng luẩn quẩn của ngày 23/09.
+    if len(manh) == 1 and not co_tron:
+        dai = max(len(c["value"]) for c in ra if c["name"] == manh[0])
+        if dai >= CAT_MANH:
+            return [], (f"Chỉ thấy mảnh {manh[0]}, và nó dài sát giới hạn nên chắc chắn còn "
+                        f"mảnh nữa. Cookie này bị trình duyệt cắt làm nhiều dòng; copy hết "
+                        f"các dòng có đuôi .0, .1 ... rồi dán cả cụm vào đây.")
     return ra, ""
 
 

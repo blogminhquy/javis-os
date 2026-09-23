@@ -41,6 +41,24 @@ cookie phiên, thứ trình duyệt của bạn đã có sẵn sau khi bạn đ�
 5. Tìm dòng tên `__Secure-next-auth.session-token`.
 6. Bấm vào nó, copy toàn bộ cột **Value**. Chuỗi này rất dài, nhớ lấy hết.
 
+### Nếu bạn thấy HAI dòng `.0` và `.1`
+
+Tài khoản gói **Team / Business** mang nhiều quyền nên token phình to, vượt giới hạn 4096 byte
+của một cookie. Trình duyệt tự cắt nó làm nhiều dòng:
+
+```
+__Secure-next-auth.session-token.0
+__Secure-next-auth.session-token.1
+```
+
+Lúc đó **không có dòng nào mang tên trơn**, và bạn phải lấy **cả hai**. Hai cách đều được:
+
+- Copy value của `.0`, rồi value của `.1`, **nối liền** lại thành một chuỗi (đúng thứ tự, không
+  dấu cách, không dấu chấm phẩy) rồi dán. Javis tự cắt lại cho vừa.
+- Hoặc dán cả cụm theo dạng `...session-token.0=<giá trị>; ...session-token.1=<giá trị>`.
+
+Copy thiếu một mảnh thì Javis **nói thẳng là còn thiếu**, không nhận bừa rồi để bạn đoán.
+
 ### Trên điện thoại
 
 Điện thoại không có DevTools. Lấy cookie trên máy tính rồi dán qua, vì cookie phiên **không
