@@ -93,9 +93,14 @@ check("bỏ nút Đóng trình duyệt", (() => {
 check("bỏ luôn endpoint của nút đó, không để lại đường chết",
   !/web-chat\/reset/.test(MAIN) && !/web-chat\/reset/.test(CON));
 check("nhưng KHÔNG mất lối thoát: dán cookie tự đóng rồi mở lại trình duyệt", (() => {
+  // Cắt tới HẾT HÀM chứ không lấy 1400 ký tự đầu: bản cũ đếm ký tự, nên 0.64.14 viết thêm
+  // chú thích cho `_nap_cookie_that` là phép thử đỏ dù bất biến chẳng đổi gì. Đếm ký tự để
+  // xác định phạm vi một hàm là đo sai thứ cần đo.
   const WT = fs.readFileSync(path.join(ROOT, "server", "web_transport.py"), "utf8");
   const j = WT.indexOf("def _nap_cookie_that");
-  return /self\._dong_that\(\)/.test(WT.slice(j, j + 1400));
+  if (j < 0) return false;
+  const sau = WT.indexOf("\n    def ", j + 10);
+  return /self\._dong_that\(\)/.test(WT.slice(j, sau < 0 ? WT.length : sau));
 })());
 check("và dọn luôn sổ nghỉ khi dán cookie", /web_state\.dat_lai\(\)/.test(
   MAIN.slice(MAIN.indexOf('@app.post("/web-chat/cookie")'), MAIN.indexOf('@app.post("/web-chat/check")'))));
