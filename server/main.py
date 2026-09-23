@@ -3653,17 +3653,34 @@ async def web_chat_cookie(request: Request):
     web_state.dat_lai()
     web_transport.dat_lai_do()
     try:
-        da_dn, loi2 = await asyncio.to_thread(web_transport.chung().nap_cookie, cookies)
+        trang_thai, chi_tiet = await asyncio.to_thread(web_transport.chung().nap_cookie, cookies)
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
-    if loi2:
-        web_state.ghi_hong(loi2, kind=web_state.NO_BROWSER)
-        return {"ok": False, "error": loi2}
-    web_state.ghi_dang_nhap(da_dn)
-    if not da_dn:
-        return {"ok": False, "error": ("Đã nạp cookie nhưng trang vẫn báo chưa đăng nhập. "
-                                       "Cookie có thể đã hết hạn, hoặc copy thiếu. Lấy lại một "
-                                       "lần nữa từ trình duyệt đang đăng nhập rồi thử lại.")}
+
+    # BỐN trạng thái, bốn lời khuyên khác nhau. Bản trước gộp ba cái cuối làm một rồi đổ cho
+    # cookie, nên chủ repo đi lấy lại cookie mấy lần cho một thứ chưa bao giờ sai (23/09).
+    if trang_thai == "loi":
+        web_state.ghi_hong(chi_tiet, kind=web_state.NO_BROWSER)
+        return {"ok": False, "error": chi_tiet}
+
+    if trang_thai == "chua":
+        web_state.ghi_dang_nhap(False)
+        return {"ok": False, "error": ("Trang ChatGPT bày màn đăng nhập, tức cookie này không "
+                                       "còn hiệu lực. Lấy lại một lần nữa từ trình duyệt đang "
+                                       "đăng nhập, nhớ copy HẾT chuỗi (nó rất dài).")}
+
+    if trang_thai != "da_dang_nhap":
+        # KHÔNG đổ cho cookie ở nhánh này. Trang không bày màn đăng nhập, tức nó chưa hề nói
+        # cookie sai; nó chỉ chưa tới được chỗ có ô soạn. Nói ra thấy gì để người dùng còn biết
+        # phải làm gì tiếp, thay vì đi lấy lại cookie một cách vô ích.
+        web_state.ghi_hong(chi_tiet, kind=web_state.NO_BROWSER)
+        return {"ok": False, "error": (
+            "Cookie đã nạp và trang KHÔNG bày màn đăng nhập, nên nhiều khả năng cookie vẫn "
+            "tốt. Nhưng Javis chờ 45 giây mà ô soạn của ChatGPT vẫn chưa hiện ra. "
+            + (chi_tiet or "") + " Thử bấm Kiểm tra lại sau một phút; nếu vẫn vậy thì đây là "
+            "Cloudflare chặn IP máy chủ, không phải lỗi cookie.")}
+
+    web_state.ghi_dang_nhap(True)
     return {"ok": True, "da_dang_nhap": True,
             "huong_dan": "Đã đăng nhập bằng cookie. Chọn model chatgpt-web ở ô chọn model là dùng được."}
 

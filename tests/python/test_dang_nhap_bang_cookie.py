@@ -189,7 +189,10 @@ else:
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            self.wfile.write(b"<html><body>trang gia lap</body></html>")
+            # Bày nút Log in: trang này vẫn KHÔNG có ô soạn, nhưng nhờ có dấu hiệu dứt
+            # khoát nên `_soi_trang` kết luận ngay thay vì ngồi chờ hết trần 45 giây.
+            self.wfile.write(b"<html><body><button data-testid='login-button'>Log in</button>"
+                             b"</body></html>")
 
     with socketserver.TCPServer(("127.0.0.1", 0), _Tay) as srv:
         cong = srv.server_address[1]
@@ -208,11 +211,12 @@ else:
             # Chrome coi localhost là nguồn đáng tin.
             ck = [{"name": wt.TEN_COOKIE_PHIEN, "value": TOKEN, "domain": "127.0.0.1",
                    "path": "/", "httpOnly": True, "secure": True, "sameSite": "Lax"}]
-            da_dn, loi = tr.nap_cookie(ck)
-            check("nạp cookie không nổ", loi == "", loi)
-            # Trang giả lập không có ô soạn của ChatGPT nên `da_dang_nhap` phải là False. Đó là
-            # điều ĐÚNG: nó chứng minh Javis không báo bừa đã đăng nhập chỉ vì cookie nạp trót lọt.
-            check("KHÔNG báo bừa đã đăng nhập khi trang không có dấu hiệu đăng nhập", da_dn is False)
+            trang_thai, chi_tiet = tr.nap_cookie(ck)
+            check("nạp cookie không nổ", trang_thai != "loi", chi_tiet)
+            # Trang giả lập bày nút Log in chứ không có ô soạn, nên câu trả lời đúng là "chua".
+            # Nó chứng minh Javis không báo bừa đã đăng nhập chỉ vì cookie nạp trót lọt.
+            check("KHÔNG báo bừa đã đăng nhập khi trang bày màn đăng nhập",
+                  trang_thai == "chua", trang_thai)
 
             thay = tr._chay(lambda: {c["name"]: c["value"] for c in tr._ctx.cookies()})
             check("trình duyệt THẬT SỰ giữ cookie vừa nạp", wt.TEN_COOKIE_PHIEN in thay, list(thay))
@@ -227,6 +231,123 @@ else:
         finally:
             tr.dong()
         srv.shutdown()
+
+# ============================================================
+# 6) BỐN trạng thái, không phải hai
+# ============================================================
+#
+# Chủ repo báo 23/09: dán cookie xong Javis nói "cookie có thể đã hết hạn", trong khi chính
+# phiên đó trên Chrome vẫn chat bình thường. Cookie chưa bao giờ sai; Javis kết luận sớm.
+#
+# Hai lỗi chồng nhau, và lỗi thứ hai mới là lỗi đắt:
+#   1. Chỉ chờ 3 giây cho ô soạn. chatgpt.com là ứng dụng một trang: `domcontentloaded` trả về
+#      lúc mới có cái vỏ, ô soạn còn phải đợi tải bó JavaScript rồi hỏi máy chủ mới vẽ.
+#   2. Câu trả lời chỉ có ĐÚNG/SAI. Nên "chưa đăng nhập", "trang chưa vẽ xong" và "Cloudflare
+#      đang chặn" gộp làm một, rồi màn hình đổ hết cho cookie - thứ duy nhất trong ba cái đó
+#      mà người dùng có thể đi sửa, và cũng là thứ duy nhất KHÔNG hỏng.
+#
+# Đây đúng kiểu lỗi bản dò trình duyệt đã dính hôm 22/09. Nên khoá bằng test, chạy THẬT trong
+# Chromium với bốn trang dựng sẵn.
+
+check("có hàm soi trang trả về nhiều trạng thái", "def _soi_trang(" in _src)
+check("nap_cookie chờ RỘNG TAY, không phải vài giây",
+      "_soi_trang(tran_giay=45.0)" in _src)
+check("bản kiểm thường thì chờ ngắn hơn (không bắt mỗi lượt chat đợi 45 giây)",
+      "_soi_trang(tran_giay=12.0)" in _src)
+check("vỏ công khai có trần RỘNG HƠN phần chờ bên trong, kẻo chính nó cắt ngang",
+      "tran_gio=180.0" in _src)
+check("nhận ra cửa kiểm tra của Cloudflare", "just a moment" in _src.lower())
+
+_ep2 = _m[_m.index('@app.post("/web-chat/cookie")'):]
+_ep2 = _ep2[:_ep2.index("\n@app.")]
+check("endpoint phân biệt đủ bốn trạng thái",
+      all(x in _ep2 for x in ('== "loi"', '== "chua"', '!= "da_dang_nhap"')))
+# "cookie không còn hiệu lực" chỉ được nói ở nhánh `chua`. Soi bằng VỊ TRÍ chứ không bằng
+# nguyên văn: câu đó xuống dòng trong mã nguồn nên tìm nguyên văn là phép thử vỡ mỗi lần ai
+# đó bọc lại dòng.
+_i_chua = _ep2.index('== "chua"')
+_i_ro = _ep2.index('!= "da_dang_nhap"')
+check("chỉ nhánh 'chua' mới được nói cookie hết hiệu lực",
+      "còn hiệu lực" in _ep2[_i_chua:_i_ro] and "còn hiệu lực" not in _ep2[_i_ro:])
+check("nhánh không rõ KHÔNG đổ cho cookie mà nói ngược lại",
+      "nhiều khả năng cookie vẫn" in _ep2)
+check("và nói ra Javis đã thấy gì", "+ (chi_tiet or \"\")" in _ep2)
+
+
+# ============================================================
+# 7) Chạy THẬT: bốn trang, bốn kết luận
+# ============================================================
+
+if not _co_pw or not _chrome:
+    print("bỏ qua tầng bốn trạng thái: thiếu playwright hoặc Chromium")
+else:
+    _TRANG = {
+        "/ok": b"<html><head><title>ChatGPT</title></head><body>"
+               b"<div id='prompt-textarea' contenteditable='true'>x</div></body></html>",
+        "/login": b"<html><head><title>ChatGPT</title></head><body>"
+                  b"<button data-testid='login-button'>Log in</button></body></html>",
+        "/cf": b"<html><head><title>Just a moment...</title></head><body>"
+               b"<p>Checking your browser</p></body></html>",
+        "/trong": b"<html><head><title>Trang la</title></head><body><p>khong co gi</p></body></html>",
+    }
+
+    class _Tay2(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            body = _TRANG.get(self.path.split("?")[0], b"<html><body>404</body></html>")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(body)
+
+    with socketserver.TCPServer(("127.0.0.1", 0), _Tay2) as _srv2:
+        _c2 = _srv2.server_address[1]
+        threading.Thread(target=_srv2.serve_forever, daemon=True).start()
+        _goc = f"http://127.0.0.1:{_c2}"
+
+        def _soi(duong, tran):
+            tr = wt.ChatGPTWebTransport(profile_dir=tempfile.mkdtemp(prefix="javis-ck-4-"),
+                                        headless=True, executable_path=_chrome,
+                                        url=_goc + duong)
+            try:
+                tr.mo()
+                return tr._chay(lambda: (tr._page.goto(_goc + duong, wait_until="domcontentloaded"),
+                                         tr._soi_trang(tran_giay=tran))[-1])
+            finally:
+                tr.dong()
+
+        _tt, _ct = _soi("/ok", 20.0)
+        check("trang có ô soạn -> ĐÃ đăng nhập", _tt == "da_dang_nhap", _tt)
+
+        _tt, _ct = _soi("/login", 20.0)
+        check("trang bày nút Log in -> CHƯA đăng nhập", _tt == "chua", _tt)
+
+        _tt, _ct = _soi("/cf", 3.0)
+        check("mắc ở cửa Cloudflare -> KHÔNG RÕ, chứ không phải 'chưa đăng nhập'",
+              _tt == "khong_ro", _tt)
+        check("và gọi đúng tên Cloudflare", "Cloudflare" in _ct, _ct)
+        check("và nói thẳng là cookie không liên quan", "không liên quan" in _ct, _ct)
+
+        _tt, _ct = _soi("/trong", 3.0)
+        check("trang lạ không dấu hiệu nào -> KHÔNG RÕ", _tt == "khong_ro", _tt)
+        check("vẫn nói trang đang dừng ở đâu", "127.0.0.1" in _ct, _ct)
+
+        # CANARY: cách cũ (chỉ hỏi ô soạn rồi kết luận) phải SAI ở đúng hai cảnh trên, nếu
+        # không thì phép thử này không chứng minh được gì.
+        tr = wt.ChatGPTWebTransport(profile_dir=tempfile.mkdtemp(prefix="javis-ck-c-"),
+                                    headless=True, executable_path=_chrome, url=_goc + "/cf")
+        try:
+            tr.mo()
+            _cu = tr._chay(lambda: (tr._page.goto(_goc + "/cf", wait_until="domcontentloaded"),
+                                    tr._tim("composer", timeout_ms=600))[-1])
+            check("CANARY: cách cũ nhìn trang Cloudflare cũng chỉ thấy 'không có ô soạn'",
+                  _cu is None)
+        finally:
+            tr.dong()
+        _srv2.shutdown()
+
 
 print()
 if _fails:

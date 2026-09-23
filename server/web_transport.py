@@ -520,17 +520,66 @@ class ChatGPTWebTransport:
                 continue
         return None
 
-    def _da_dang_nhap_that(self) -> bool:
-        """Trang hiện đang có phiên đăng nhập không."""
+    def _mo_ta_trang(self) -> str:
+        """Trang đang dừng ở đâu. Dùng khi soi mãi mà không ngã ngũ."""
+        try:
+            url = self._page.url or ""
+            tieu_de = self._page.title() or ""
+        except Exception:
+            return "Javis không đọc được trạng thái trang."
+        dau = (tieu_de + " " + url).lower()
+        them = ""
+        if any(x in dau for x in ("just a moment", "cloudflare", "attention required",
+                                  "checking your browser", "/cdn-cgi/")):
+            them = (" Đây là cửa kiểm tra của Cloudflare, không phải màn đăng nhập ChatGPT - "
+                    "tức cookie của bạn không liên quan, mà IP máy chủ đang bị soi.")
+        elif "openai.com" not in url and "chatgpt.com" not in url:
+            them = " Trang đã bị đẩy sang một địa chỉ khác."
+        return f"Trang dừng ở {url} (tiêu đề: {tieu_de or 'trống'})." + them
+
+    def _soi_trang(self, tran_giay: float = 45.0) -> tuple[str, str]:
+        """Trang đã ngã ngũ chưa, và ngã về đâu. Trả ("da_dang_nhap"|"chua"|"khong_ro", chi tiết).
+
+        BA trạng thái chứ không phải hai, và đó là cả lý do hàm này tồn tại. Bản cũ trả về một
+        chữ True/False, nên "chưa đăng nhập" và "trang chưa vẽ xong" và "Cloudflare đang chặn"
+        gộp làm một, rồi màn hình đổ cho cookie. Chủ repo dán đúng cookie đang chạy tốt trên
+        Chrome mà vẫn bị bảo là cookie hết hạn (23/09) - đúng kiểu lỗi mà bản dò trình duyệt
+        hôm 22/09 đã dính một lần rồi.
+
+        Và nó CHỜ chứ không hỏi một phát. chatgpt.com là ứng dụng một trang: `domcontentloaded`
+        trả về lúc mới có cái vỏ, còn ô soạn thì phải đợi tải xong bó JavaScript, hỏi xong máy
+        chủ rồi mới vẽ. Bản cũ hỏi ô soạn với trần 3 giây, trên VPS mạng xa thì gần như chắc
+        chắn chưa kịp.
+        """
         if self._page is None:
-            return False
-        for sel in SELECTORS["login_marker"]:
+            return "khong_ro", "Chưa mở trình duyệt."
+        gop_dn = ", ".join(SELECTORS.get("login_marker", []))
+        gop_o = ", ".join(SELECTORS.get("composer", []))
+        het = time.time() + max(1.0, float(tran_giay))
+        while True:
             try:
-                if self._page.query_selector(sel):
-                    return False
+                # Hỏi dấu hiệu CHƯA đăng nhập trước: nút Log in hiện ra sớm hơn ô soạn nhiều,
+                # nên hỏi ngược lại là bắt người dùng chờ hết trần cho một câu đã biết.
+                if gop_dn and self._page.query_selector(gop_dn):
+                    return "chua", ""
+                if gop_o and self._page.query_selector(gop_o):
+                    return "da_dang_nhap", ""
             except Exception:
-                continue
-        return self._tim("composer", timeout_ms=3000) is not None
+                pass
+            if time.time() >= het:
+                return "khong_ro", self._mo_ta_trang()
+            try:
+                self._page.wait_for_timeout(500)
+            except Exception:
+                return "khong_ro", self._mo_ta_trang()
+
+    def _da_dang_nhap_that(self) -> bool:
+        """Trang hiện đang có phiên đăng nhập không.
+
+        Vẫn trả một chữ True/False vì chỗ gọi (nút Kiểm tra lại, mỗi lượt chat) chỉ cần biết
+        chạy tiếp được không. Chỗ CẦN phân biệt ba trạng thái thì gọi thẳng `_soi_trang`.
+        """
+        return self._soi_trang(tran_giay=12.0)[0] == "da_dang_nhap"
 
     # ---- luồng nào ----
 
@@ -665,11 +714,21 @@ class ChatGPTWebTransport:
         except Exception:
             pass
 
-    def _nap_cookie_that(self, cookies: list) -> tuple[bool, str]:
-        """Nhét cookie vào hồ sơ trình duyệt rồi tải lại trang. (đã đăng nhập chưa, lý do lỗi).
+    def _nap_cookie_that(self, cookies: list) -> tuple[str, str]:
+        """Nhét cookie vào hồ sơ trình duyệt rồi tải lại trang.
 
-        Xoá cookie cũ trước: dán cookie mới đè lên một phiên cũ còn sót thì trang có thể vẫn
-        chạy bằng phiên cũ, và người dùng tưởng cookie mới đã ăn.
+        Trả ("da_dang_nhap" | "chua" | "khong_ro" | "loi", chi tiết). BỐN trạng thái, không
+        phải hai, vì bốn thứ này đòi bốn lời khuyên khác hẳn nhau:
+
+          da_dang_nhap - xong.
+          chua         - trang bày màn đăng nhập => cookie thật sự sai hoặc hết hạn.
+          khong_ro     - trang không bày cả hai => phần lớn là Cloudflare chặn, hoặc mạng máy
+                         chủ quá chậm. Cookie KHÔNG liên quan.
+          loi          - không mở nổi trình duyệt, hoặc nạp cookie hỏng.
+
+        Bản trước gộp ba cái sau làm một rồi bảo người dùng "cookie có thể đã hết hạn". Chủ
+        repo dán đúng cookie đang chạy tốt trên Chrome mà vẫn nhận câu đó (23/09), và đi lấy
+        lại cookie thêm mấy lần cho một thứ chưa bao giờ sai.
         """
         # ĐÓNG rồi mở lại, không dùng phiên đang chạy. Hai lý do, và lý do thứ hai mới là
         # cái chính: (a) dán cookie mới nghĩa là bỏ hẳn phiên cũ, nên mang theo trạng thái cũ
@@ -680,7 +739,7 @@ class ChatGPTWebTransport:
         self._dong_that()
         ok, ly_do = self._mo_that()
         if not ok:
-            return False, ly_do
+            return "loi", ly_do
         try:
             self._ctx.clear_cookies()
             self._ctx.add_cookies(cookies)
@@ -688,8 +747,12 @@ class ChatGPTWebTransport:
         except Exception as e:
             # Câu lỗi KHÔNG được mang theo giá trị cookie. Playwright có nhắc tên cookie trong
             # lỗi của nó, nhưng không nhắc giá trị, nên để nguyên là an toàn.
-            return False, f"Không nạp được cookie: {type(e).__name__}: {e}"
-        return self._da_dang_nhap_that(), ""
+            return "loi", f"Không nạp được cookie: {type(e).__name__}: {e}"
+        # Chờ RỘNG TAY ở đây, khác hẳn lúc kiểm tra thường. Đây là lần tải đầu của một hồ sơ
+        # trình duyệt vừa dựng lại: chưa có cache, chưa có vé Cloudflare, phải tải cả bó
+        # JavaScript rồi mới vẽ được ô soạn. Tiếc vài chục giây ở đây là đổi lấy một câu kết
+        # luận sai, mà người dùng phải trả bằng mấy vòng đi lấy lại cookie.
+        return self._soi_trang(tran_giay=45.0)
 
     # ---- vỏ công khai: giữ nguyên tên cũ, nay đi qua thread riêng ----
 
@@ -738,14 +801,16 @@ class ChatGPTWebTransport:
 
     # ---- đăng nhập bằng cookie ----
 
-    def nap_cookie(self, cookies: list) -> tuple[bool, str]:
-        """Đăng nhập bằng cookie thay vì gõ tay. (đã đăng nhập chưa, lý do lỗi)."""
+    def nap_cookie(self, cookies: list) -> tuple[str, str]:
+        """Đăng nhập bằng cookie thay vì gõ tay. Xem `_nap_cookie_that` cho bốn trạng thái."""
         if self._ban():
-            return False, "Đang có một lượt chat chạy dở, chờ nó xong đã."
+            return "loi", "Đang có một lượt chat chạy dở, chờ nó xong đã."
         try:
-            return self._chay(self._nap_cookie_that, cookies, tran_gio=120.0)
+            # Trần phải RỘNG HƠN 45 giây chờ ở trong, cộng phần mở trình duyệt. Đặt sát quá là
+            # chính cái trần này cắt ngang rồi báo lỗi, đúng thứ vừa đi sửa.
+            return self._chay(self._nap_cookie_that, cookies, tran_gio=180.0)
         except Exception as e:
-            return False, f"{type(e).__name__}: {e}"
+            return "loi", f"{type(e).__name__}: {e}"
 
 # ============================================================
 # Transport dùng chung cả tiến trình
