@@ -41,6 +41,7 @@ Thanh điều hướng của dashboard gom **19 trang** thành **7 nhóm**: Tr�
 - [26 - Kênh Zalo Bot](26-kenh-zalo-bot.md) - hỏi Javis trên Zalo bằng API chính thức, ghép nối bằng một cú bấm.
 - [12 - Zalo Agent MCP](12-zalo.md) - đăng nhập QR, đọc/tìm lịch sử và gửi tin qua MCP chuẩn.
 - [24 - Javis CLI (terminal)](24-cli-terminal.md) - gõ `javis "..."` từ terminal, token API, ghép vào script.
+- [29 - Dùng Javis ngay trong ChatGPT](29-javis-trong-chatgpt.md) - chat trên chatgpt.com bằng gói của bạn, ChatGPT tự gọi công cụ của Javis.
 
 ### Bộ não & dữ liệu
 - [13 - Second Brain: bộ nhớ, Wiki, INGEST](13-second-brain-bo-nho-wiki.md) - đa brain, bộ nhớ sống, tiêu hoá tri thức.

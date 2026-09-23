@@ -1351,8 +1351,21 @@ async def handle_http(request):
     # Header chỉ nhận đường dẫn thư mục có thật; thiếu header thì `resolve_vault` suy ra brain
     # đang mở rồi NÓI RA ở kết quả tool (xem khối chú thích ở `_brain_dang_mo`). Bearer
     # hub_token vẫn là lớp auth bắt buộc phía trên.
-    vault_root, vault_nguon, vault_header_hong = resolve_vault(
-        request.headers.get("x-javis-vault"))
+    return await tra_loi_jsonrpc(request, mode, include_plugins=include_plugins,
+                                 include_ambient=include_ambient,
+                                 raw_vault=request.headers.get("x-javis-vault"))
+
+
+async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=False,
+                          raw_vault=None):
+    """Đọc thân JSON-RPC của `request`, chạy qua hub, trả Response. KHÔNG xác thực gì cả.
+
+    Tách khỏi `handle_http` để một cửa khác (ChatGPT qua OAuth, xem chatgpt_connector.py) đi
+    ĐÚNG đường này - cùng danh sách tool, cùng mức quyền ép ở lớp cứng, cùng chú thích brain -
+    và chỉ khác lớp xác thực phía trước. Hai bản chép của cùng một vòng xử lý là hai chỗ để
+    lệch nhau.
+    """
+    vault_root, vault_nguon, vault_header_hong = resolve_vault(raw_vault)
     try:
         body = await request.json()
     except Exception:

@@ -19,7 +19,7 @@ Gỡ một model có ba cái bẫy, và file này khoá cả ba:
   3. **Mảnh sót.** Một route, một import, một khối giao diện còn trỏ vào thứ đã xoá là lỗi chờ
      ngày nổ.
 """
-from _paths import ROOT, SERVER  # noqa: E402,F401
+from _paths import ROOT, SERVER, moi_route  # noqa: E402,F401
 import importlib.util
 import os
 import sys
@@ -104,7 +104,9 @@ for _ten in ("web_transport", "web_engine", "web_state", "web_tool_protocol"):
     check(f"module {_ten} đã xoá", not (SERVER / f"{_ten}.py").exists()
           and importlib.util.find_spec(_ten) is None)
 
-_duong = {getattr(r, "path", "") for r in main.app.routes}
+# `moi_route` đi ĐỆ QUY qua router con. Đọc thẳng `main.app.routes` là chỉ thấy tầng ngoài
+# (fastapi 0.141 bọc mỗi include_router), và phép thử "route này phải MẤT" sẽ xanh oan.
+_duong = {getattr(r, "path", "") for r in moi_route(main.app)}
 check("không còn route /web-chat nào", not any(p.startswith("/web-chat") for p in _duong),
       sorted(p for p in _duong if p.startswith("/web-chat")))
 for _chu in ("la_model_web", "MODEL_WEB", "_web_bat", "_dung_web_engine",
