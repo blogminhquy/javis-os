@@ -32,8 +32,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=90">
-  <link rel="stylesheet" href="/static/console.css?v=67">
+  <link rel="stylesheet" href="/static/style.css?v=91">
+  <link rel="stylesheet" href="/static/console.css?v=68">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
   <script>(function(){try{if(localStorage.getItem('javis.theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
@@ -497,14 +497,8 @@
         <span class="mb-caret">▾</span>
       </button>
       <div class="mb-pop" id="mbPop" hidden></div>
-      <!-- 0.49.3: dải này BỎ hai đèn "HỆ THỐNG" (Claude Code CLI / Voice) - chúng gần như
-           luôn xanh nên không nói thêm được gì, mà trạng thái thật đã có chỗ tử tế hơn:
-           banner đỏ trên navbar khi mất model, trang Kết nối cho MCP. Chỗ trống dành cho
-           thứ THAY ĐỔI theo từng lượt: BA tool Javis vừa gọi, mới nhất đứng đầu. -->
-      <div class="sysbar" id="sysBar">
-        <span class="sysbar-label" data-i18n="mb.recent">VỪA GỌI</span>
-        <div id="mcpList" class="mcp-list"><div class="mcp-item dim" data-i18n="mb.no_tools">Chưa gọi tool nào</div></div>
-      </div>
+      <!-- 0.64.15: dải ba tool gọi gần nhất (chữ xanh lá) đã bỏ. Từng bước tool giờ hiện ngay trong
+           khung chat (khối bước + chip đang chạy), nên dải này chỉ lặp lại thứ đã thấy. -->
     </div>
 
     <!-- ===== BOTTOM: voice bar ===== -->
@@ -872,7 +866,7 @@
   <script src="/static/ui-actions.js?v=1"></script>
   <!-- Voice V2: nghe nói thẳng (Live), app.js gọi lười khi bấm mic ở chế độ Live. -->
   <script src="/static/voice-live.js?v=2"></script>
-  <script src="/static/app.js?v=110"></script>
+  <script src="/static/app.js?v=111"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=2"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
@@ -904,7 +898,7 @@
   <script src="/static/coding.js?v=6"></script>
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
   <script src="/static/console.js?v=149"></script>
-  <script src="/static/mobile-chat.js?v=8"></script>
+  <script src="/static/mobile-chat.js?v=9"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>
   <script src="/static/install-nudge.js?v=1"></script>

@@ -600,7 +600,6 @@ function handleMessage(data) {
     setSessionRunning(sid, true);
     if (isActive) { runActions(turn.turnStart()); showActivity(escapeHtml(data.content || "")); syncActiveUI(); }
   } else if (data.type === "tool_call") {
-    if (data.tool) trackMCP(data.tool);
     if (t && window.JavisSteps) t.buoc = window.JavisSteps.nhan(t.buoc, data);
     if (isActive) {
       runActions(turn.toolCall(data.tool || ""));
@@ -1782,52 +1781,6 @@ function compactToolLabel(toolName) {
   }
   if (label.length > 48) label = label.slice(0, 47) + "…";
   return { label, cat };
-}
-// BA tool VỪA GỌI, mới nhất đứng đầu (0.49.3, chủ repo chốt).
-//
-// Bản cũ giữ tối đa 4 loại theo thứ tự LẦN ĐẦU thấy, nên tool gọi từ đầu phiên nằm lì ở đầu
-// dải còn tool vừa chạy xong thì nấp ở cuối - đúng chỗ mắt ít nhìn nhất. Với một dải chỉ để
-// LIẾC thì thứ tự phải là mới-nhất-trước, và ba mục là đủ: dải nằm ngang cạnh ô chọn model,
-// thêm mục thứ tư là bắt đầu cắt chữ.
-//
-// Dựng lại cả danh sách từ mảng thay vì xáo DOM tại chỗ: cách này ngắn hơn và không có
-// đường nào để thứ tự trên màn hình lệch khỏi thứ tự trong mảng.
-const TRAN_TOOL_GAN_NHAT = 3;
-let toolGanNhat = [];   // [{label, cat, raw}] - phần tử 0 là mới nhất
-function veToolGanNhat(vuaGoi) {
-  const list = document.getElementById("mcpList");
-  if (!list) return;
-  list.innerHTML = "";
-  if (!toolGanNhat.length) {
-    const em = document.createElement("div");
-    em.className = "mcp-item dim";
-    em.textContent = window.t("app.no_tool_yet");
-    list.appendChild(em);
-    return;
-  }
-  toolGanNhat.forEach((t, i) => {
-    const div = document.createElement("div");
-    // Chỉ mục vừa gọi mới nháy vàng rồi về xanh - nhìn là biết ngay cái nào vừa chạy.
-    div.className = "mcp-item " + (i === 0 && t.label === vuaGoi ? "loading" : "active");
-    div.title = t.raw;
-    div.insertAdjacentHTML("beforeend", `${ic("circle", { cls: "ic-fill ic-sm" })} ${escapeHtml(t.label)} `);
-    const meta = document.createElement("span");
-    meta.className = "mcp-kind";
-    meta.textContent = `· ${t.cat}`;
-    div.appendChild(meta);
-    list.appendChild(div);
-    if (div.classList.contains("loading")) {
-      setTimeout(() => div.classList.replace("loading", "active"), 600);
-    }
-  });
-}
-function trackMCP(toolName) {
-  const { label, cat } = compactToolLabel(toolName);
-  // Gọi lại tool cũ = nó VỪA chạy, phải nhảy lên đầu chứ không giữ chỗ cũ.
-  toolGanNhat = [{ label, cat, raw: String(toolName || label) }]
-    .concat(toolGanNhat.filter((t) => t.label !== label))
-    .slice(0, TRAN_TOOL_GAN_NHAT);
-  veToolGanNhat(label);
 }
 
 // ============================================

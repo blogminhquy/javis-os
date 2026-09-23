@@ -674,7 +674,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .noti-list { padding: 7px; }
   .hud-top #mbPop { position: fixed; top: calc(50px + env(safe-area-inset-top, 0px)); bottom: auto; left: 50%; transform: translateX(-50%);
     width: min(340px, 92vw); z-index: 200; max-height: 70vh; }
-  .model-bar { display: none; }                       /* hàng model gốc ẩn; chip + sysBar bên trong dời đi (JS) */
+  .model-bar { display: none; }                       /* hàng model gốc ẩn; chip bên trong dời đi (JS) */
   #jv-sess-btn { display: none; }                     /* nút Lịch sử: ẩn ở mobile để header cockpit khỏi chồng/lệch */
 
   /* Rail: từ thanh đáy → ngăn kéo trượt từ trái */
@@ -704,14 +704,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .rail-sys .graph-select { flex: 1 1 auto; min-width: 0; max-width: 100%; }
   .rail-sys-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .rail-sys-btns .hud-icon-btn { display: inline-flex; }
-  .rail-sys .sysbar {
-    display: flex; flex: none; width: 100%; min-width: 0; max-width: 100%;
-    flex-direction: column; align-items: flex-start; gap: 6px; overflow: visible;
-  }
-  .rail-sys .sys-status, .rail-sys .mcp-list {
-    width: 100%; min-width: 0; flex-direction: column; align-items: flex-start;
-    gap: 3px; overflow: hidden;
-  }
 
   /* Nền mờ khi mở ngăn kéo */
   .nav-backdrop { position: fixed; inset: 0; background: var(--scrim); z-index: 55; }

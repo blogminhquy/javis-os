@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.15] - 2026-09-23
+### Thay đổi
+- **Bỏ dải "VỪA GỌI" chữ xanh lá cạnh ô chọn model.** Từng bước Javis gọi tool giờ đã hiện ngay trong khung chat, nên dải này chỉ lặp lại thứ bạn vừa thấy và chiếm chỗ.
+
 ## [0.64.14] - 2026-09-23
 ### Sửa lỗi
 - **Dán cookie ChatGPT xong bị báo "cookie hết hạn" dù trên máy vẫn chat bình thường.** Javis chỉ chờ 3 giây rồi kết luận, mà chatgpt.com là trang nặng, thường chưa vẽ xong trong từng đó. Nay chờ tới 45 giây và chờ ĐÚNG thứ cần chờ.

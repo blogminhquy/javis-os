@@ -89,12 +89,12 @@
           moveEl(document.getElementById("themeToggle"), true);
           // Nút loa header đã bỏ (0.48.3), nút loa thanh nhập cũng bỏ (02/09): giọng đi theo
           // mic, bấm mic là bật loa. Không còn nút loa nào để dời cả.
-          moveEl(document.getElementById("sysBar"), false);
+          // Dải "VỪA GỌI" cũng bỏ (0.64.15): bước tool đã hiện ngay trong khung chat.
         }
         // Nhãn không được đứng một mình. Mấy nút mượn nằm trong HUD, mà HUD bị vẽ lại ở vài
         // đường (đổi brain, đổi trang) - lúc đó chúng biến mất khỏi khung này và để lại đúng
         // cái nhãn trơ ra. Còn nút thì giữ, hết nút thì dọn.
-        if (sysHost && !sysHost.querySelector(".navbar-brain, #themeToggle, #sysBar")) {
+        if (sysHost && !sysHost.querySelector(".navbar-brain, #themeToggle")) {
           moved = [];
           boSysHost();
         }
