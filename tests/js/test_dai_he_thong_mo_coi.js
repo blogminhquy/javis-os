@@ -48,16 +48,17 @@ check("desktop mà moved rỗng vẫn dọn (ca để lại nhãn mồ côi)",
 // ---- 3. Màn hẹp: nhãn không được đứng một mình ----
 check("màn hẹp mà khung không còn nút nào thì cũng dọn",
   /sysHost && !sysHost\.querySelector\(/.test(place), place);
-check("soi đúng ba thứ được mượn vào khung",
-  /querySelector\("\.navbar-brain, #themeToggle, #sysBar"\)/.test(place), place);
+// Dải VỪA GỌI (#sysBar) đã bỏ ở 0.64.15, nên chỉ còn hai thứ được mượn.
+check("soi đúng hai thứ được mượn vào khung",
+  /querySelector\("\.navbar-brain, #themeToggle"\)/.test(place), place);
 check("dọn xong thì reset moved để lần sau mượn lại được",
   /!sysHost\.querySelector\([\s\S]{0,80}moved = \[\];/.test(place), place);
 
 // ---- 4. Nhánh mobile vốn đúng thì giữ nguyên ----
-check("màn hẹp vẫn mượn đủ ba thứ",
+check("màn hẹp vẫn mượn đủ hai thứ",
   /moveEl\(document\.querySelector\("\.navbar-brain"\)/.test(place)
-  && /moveEl\(document\.getElementById\("themeToggle"\)/.test(place)
-  && /moveEl\(document\.getElementById\("sysBar"\)/.test(place), place);
+  && /moveEl\(document\.getElementById\("themeToggle"\)/.test(place), place);
+check("không còn mượn dải VỪA GỌI đã bỏ", !/sysBar/.test(JS));
 check("và chỉ mượn khi chưa mượn (không mượn chồng)", /if \(!moved\.length\)/.test(place), place);
 
 console.log();

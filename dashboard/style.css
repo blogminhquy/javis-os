@@ -1272,12 +1272,6 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .auto-learn { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text2); cursor: pointer; }
 .auto-learn input { accent-color: var(--accent2); }
 
-.sys-status, .mcp-list { display: flex; flex-direction: column; gap: 4px; }
-.mcp-item { font-size: 13px; color: var(--text3); display: flex; align-items: center; gap: 6px; }
-.mcp-item.active { color: var(--green); }
-.mcp-item.loading { color: var(--yellow); }
-.mcp-item.error { color: var(--red); }
-.mcp-item.dim { color: var(--text3); font-style: italic; }
 
 /* BOTTOM voice bar: pill nổi có khoảng thở quanh 4 phía (đồng bộ với kiểu pill của mobile),
    thay cho dải full-width dán sát mép dưới viewport */
@@ -1984,34 +1978,12 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 /* KHÔNG đặt overflow:hidden lên hàng này. Popup đổi model (.mb-pop) là con position:absolute
    nằm HOÀN TOÀN phía trên hàng (bottom: 100% + 6px), mà hàng lại là khối chứa của nó
    (position:relative) - cắt tràn ở đây là popup biến mất sạch, bấm chip không thấy gì.
-   Việc chống nở ngang do dải HỆ THỐNG/MCP dài đã có .sysbar và .mb-chip tự lo bên dưới. */
+   Việc chống nở ngang do .mb-chip tự lo bên dưới. */
 .model-bar {
   position: relative; display: flex; align-items: center; gap: 8px 16px;
   width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;
   padding: 8px 18px 6px;
 }
-/* Dải HỆ THỐNG + MCP nằm ngang nhưng chỉ dùng phần rộng còn lại. Nội dung dài bị cắt
-   trong chính dải này, tuyệt đối không làm nở grid/canvas hay đẩy cột chat ra ngoài. */
-.sysbar {
-  display: flex; align-items: center; gap: 6px 12px;
-  flex: 1 1 0; width: 0; min-width: 0; max-width: 100%;
-  flex-wrap: nowrap; overflow: hidden;
-}
-.sysbar-label { font-family: var(--font); font-size: 11px; letter-spacing: 1px; color: var(--text3); flex: none; white-space: nowrap; }
-.sysbar-sep { width: 1px; height: 13px; background: var(--border); flex: none; }
-.sysbar .sys-status {
-  flex: 0 0 auto; min-width: 0; flex-direction: row; flex-wrap: nowrap; gap: 4px 12px;
-}
-.sysbar .mcp-list {
-  flex: 1 1 0; width: 0; min-width: 0; max-width: 100%;
-  flex-direction: row; flex-wrap: nowrap; gap: 4px 12px; overflow: hidden;
-}
-.sysbar .mcp-item {
-  min-width: 0; max-width: min(420px, 42vw); overflow: hidden; text-overflow: ellipsis;
-  font-size: 12.5px; white-space: nowrap;
-}
-.sysbar .mcp-list .mcp-item { flex: 0 1 auto; }
-.sysbar .mcp-kind { color: var(--text3); font-size: 10px; }
 .mb-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2);
   background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px;
   cursor: pointer; font-family: var(--font); transition: border-color .15s, color .15s;
