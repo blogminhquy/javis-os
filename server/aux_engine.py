@@ -273,8 +273,13 @@ def availability(spec: dict, settings: dict = None) -> tuple:
             import antigravity_cli as _a
             if not _a.find_antigravity_cli():
                 return False, "Chưa cài Antigravity CLI (`agy`) trên máy chạy Javis."
-            st = _a.auth_status()
-            if not st.get("connected"):
+            # Bản NỀN (đọc cache, làm mới bằng thread), KHÔNG phải auth_status(): hàm này chạy
+            # ngay trong code async (học sau lượt chat, việc Kanban, nhắc hẹn, loop), mà
+            # auth_status() hỏi thẳng `agy models` tới 80 giây. Cả app đứng theo: chủ repo đổi
+            # trợ lý giữa lúc Gemini đang chạy thì màn hình không đổi (23/09).
+            # "dang_kiem" = mới khởi động, chưa có kết quả: cứ cho chạy, lượt thật tự báo lỗi.
+            st = _a.auth_status_nen()
+            if not st.get("connected") and not st.get("dang_kiem"):
                 return False, st.get("error") or "Antigravity CLI chưa đăng nhập Google."
         except Exception:
             return False, "Không kiểm tra được Antigravity CLI."
