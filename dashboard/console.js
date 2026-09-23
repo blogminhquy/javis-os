@@ -3724,6 +3724,9 @@
   //
   // Khối này KHÔNG bao giờ hiện phần trăm quota, và đó là quyết định chứ không phải thiếu sót:
   // trang chat không nói ra con số nào, nên mọi thanh tiến trình vẽ ở đây đều là bịa.
+  // Hướng dẫn đầy đủ nằm ở repo, không nằm trên thẻ. Thẻ cài đặt là chỗ để bấm.
+  const HD_WEB = "https://github.com/blogminhquy/javis-os/blob/main/docs/29-chatgpt-web.md";
+
   async function veThreChatGPTWeb(el) {
     const box = el.querySelector("#webChatBox");
     if (!box) return;
@@ -3734,44 +3737,52 @@
     // kèm câu nói cần cài gì: ẩn đi là người dùng không bao giờ biết có tính năng này.
     if (!d || d.an) return;
     box.style.display = "";
+    // Đường /web-chat ĐÒI phiên đăng nhập trình duyệt thật, và đó là chủ ý (xem
+    // `_web_chat_chan` ở main.py: một script cầm API token không được lái phiên ChatGPT của
+    // chủ máy). Nhưng bản chạy loopback chưa đặt mật khẩu thì không có phiên nào cả, nên
+    // trước 0.64.13 thẻ này hiện ra với dòng trạng thái RỖNG - không nút, không lời giải
+    // thích. Nói thẳng ra vẫn tôn trọng cái cổng, chỉ là thôi im lặng.
+    if (d.ok === false && d.error) {
+      box.innerHTML = `<div><b>ChatGPT Web</b></div>`
+        + `<div class="gcard-meta">${Icons.warn(esc(d.error))}</div>`
+        + `<div class="gcard-meta">Đặt mật khẩu quản trị ở trang Tài khoản rồi đăng nhập,`
+        + ` hoặc xem <a href="${HD_WEB}" target="_blank" rel="noopener">hướng dẫn ↗</a>.</div>`;
+      return;
+    }
 
     const ve = (x) => {
       const dn = x.auth_state === "ok";
       const nghi = x.dang_nghi
         ? `<div class="gcard-meta">${WARN_ICON} Đang nghỉ thêm ~${Math.ceil((x.con_nghi_giay || 0) / 60)} phút: ${esc(x.last_error || "")}</div>`
         : "";
+      // GỌN. Bản trước bày cả khối hướng dẫn DevTools sáu dòng ngay trên thẻ, cộng một nút
+      // "Đóng trình duyệt" mà người dùng bình thường không bao giờ cần tới. Chủ repo báo
+      // 23/09: "quá nhiều text hướng dẫn, nên viết hướng dẫn cụ thể ở github rồi dán link".
+      // Đúng: thẻ cài đặt là chỗ để BẤM, không phải chỗ để đọc. Hướng dẫn đầy đủ nay ở
+      // docs/29-chatgpt-web.md, trên đây chỉ còn trạng thái, ô dán và một đường link.
       box.innerHTML = `
         <div><b>ChatGPT Web</b> <code>${esc(x.model_id || "chatgpt-web")}</code>
-          - chọn model này ở ô chọn model để Javis chạy bằng phiên trình duyệt thay vì Codex.</div>
+          <a href="${HD_WEB}" target="_blank" rel="noopener"
+             style="margin-left:6px;font-size:13px">Hướng dẫn ↗</a></div>
         <div class="gcard-meta">${x.kha_dung
           ? (dn ? OK_ICON + " Đã đăng nhập" : WARN_ICON + " Chưa đăng nhập")
           : Icons.warn(x.ly_do || "")}
           ${x.so_luot_trong_ngay ? " · " + x.so_luot_trong_ngay + " lượt hôm nay" : ""}</div>
-        <div class="gcard-meta">${WARN_ICON} ${esc(x.canh_bao || "")}</div>
-        <div class="prov-action" style="flex-wrap:wrap">
+        ${dn ? "" : `
+        <div style="margin-top:8px">
+          <textarea id="webCookie" rows="2" spellcheck="false"
+            style="width:100%;font-family:var(--mono,monospace);font-size:13px"
+            placeholder="Dán cookie ${esc(x.ten_cookie || "__Secure-next-auth.session-token")} vào đây"></textarea>
+          <div class="gcard-meta" style="margin-top:4px">
+            Lấy ở chatgpt.com: F12 → Application → Cookies.
+            <a href="${HD_WEB}" target="_blank" rel="noopener">Xem từng bước ↗</a>
+          </div>
+        </div>`}
+        <div class="prov-action" style="flex-wrap:wrap;margin-top:8px">
+          ${dn ? "" : `<button class="gcard-btn" data-webcookie="1">Đăng nhập</button>`}
           <button class="gcard-btn ghost" data-webcheck="1">${esc(t("qs.recheck"))}</button>
-          ${x.kha_dung ? `<button class="gcard-btn ghost" data-webreset="1">Đóng trình duyệt</button>` : ""}
           <span id="webMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:220px"></span>
         </div>
-        <details class="prov-steps" style="margin-top:8px" ${dn ? "" : "open"}>
-          <summary style="cursor:pointer;font-size:14px">Đăng nhập bằng cookie</summary>
-          <div class="gcard-meta" style="margin-top:8px;line-height:1.55">
-            Mở <b>chatgpt.com</b> trên máy của bạn khi đang đăng nhập, bật DevTools (F12), vào
-            <b>Application</b> rồi <b>Cookies</b>, tìm dòng <code>${esc(x.ten_cookie || "__Secure-next-auth.session-token")}</code>
-            và copy cột Value. Dán thẳng vào đây.
-            <div style="margin-top:6px">Cookie này mạnh ngang mật khẩu, nên Javis chỉ nhét nó
-            vào hồ sơ trình duyệt chứ không ghi lại ở đâu cả.</div>
-          </div>
-          <textarea id="webCookie" rows="3" spellcheck="false"
-            style="width:100%;margin-top:8px;font-family:var(--mono,monospace);font-size:13px"
-            placeholder="Dán giá trị cookie vào đây"></textarea>
-          <div class="prov-action" style="margin-top:6px">
-            <button class="gcard-btn" data-webcookie="1">Đăng nhập bằng cookie</button>
-          </div>
-          ${x.kha_dung ? "" : `<div class="gcard-meta" style="margin-top:6px">${WARN_ICON}
-            Dán được nhưng chưa dùng được ngay: máy còn thiếu đồ (xem dòng phía trên).
-            Cài xong rồi bấm lại nút này.</div>`}
-        </details>
         ${nghi}`;
 
       const msg = box.querySelector("#webMsg");
@@ -3821,7 +3832,6 @@
         try { ve(await (await fetch("/web-chat/status")).json()); } catch (e) {}
       };
       goi("[data-webcheck]", "/web-chat/check", t("models.testing"));
-      goi("[data-webreset]", "/web-chat/reset", "Đang đóng…");
     };
     ve(d);
   }
@@ -7095,6 +7105,51 @@
   // Từ 0.33.4 trang Tệp tin cũng mượn chính node này (#fmEdit) thay vì bật popup riêng - một
   // trình sửa duy nhất cho cả app, không có bản nghèo hơn ở góc nào nữa.
   let _neSlot = null;
+  // ============================================================
+  // Cột trái của .chatpage: MỘT bản luật cho mọi trang dùng khung này
+  // ============================================================
+  //
+  // Trang Trò chuyện và trang Code dùng CHUNG bộ lớp `.chatpage*`, nhưng trước 0.64.13 mỗi
+  // trang tự viết phần bật/tắt cột trái, và trang Code viết sai: nó `toggle("side-thu")` -
+  // lớp THU GỌN của máy tính - trong khi màn hẹp chỉ hiểu lớp `side-open`. Kết quả trên điện
+  // thoại là bấm nút lịch sử mà không có gì xảy ra (chủ repo báo 23/09, dựng lại được ở 390px:
+  // sau cú bấm, cột trái vẫn nằm ở x = -315).
+  //
+  // Nên phần này thành MỘT hàm dùng chung. Trang nào cũng gọi nó thì không còn chỗ để hai bản
+  // trôi lệch nhau - đúng lý lẽ mà chính coding.js đã viết khi nó quyết định mượn bộ lớp
+  // `.chatpage*` thay vì chép ra bộ thứ hai.
+  //
+  //   page: node `.chatpage`    sideEl: node cột trái    slot: khung nội dung (có thể null)
+  //
+  // Trả về hàm `bat()` để nút bật/tắt của trang gọi: màn hẹp thì mở/đóng ngăn kéo, máy tính
+  // thì thu/mở cột và nhớ lựa chọn.
+  function _neoCotTrai(page, sideEl, slot) {
+    if (!page || page.dataset.cotTraiDaNeo === "1") return function () {};
+    page.dataset.cotTraiDaNeo = "1";
+    const hep = () => window.matchMedia("(max-width: 860px)").matches;
+    const dong = () => { if (hep()) page.classList.remove("side-open"); };
+    // BA đường đóng, và cả ba đều cần: chạm nội dung, chạm nền mờ, chạm một mục trong danh
+    // sách. Thiếu đường nền mờ thì lúc trình sửa chiếm chỗ khung chat, ngăn kéo dính cứng
+    // giữa màn hình không cách nào đóng (lỗi thật 01/09).
+    if (slot) slot.addEventListener("click", dong);
+    page.addEventListener("click", (e) => { if (e.target === page) dong(); });
+    if (sideEl) sideEl.addEventListener("click", (e) => { if (e.target.closest(".cside-item")) dong(); });
+    // Xoay ngang / đổi cỡ cửa sổ: ngăn kéo đang mở mà nhảy sang bố cục máy tính thì lớp
+    // `side-open` treo lại vô nghĩa. Dọn luôn cho sạch.
+    try {
+      window.matchMedia("(max-width: 860px)").addEventListener("change", (e) => {
+        if (!e.matches) page.classList.remove("side-open");
+      });
+    } catch (e) {}
+    return function bat() {
+      if (hep()) { page.classList.toggle("side-open"); return; }
+      const thu = !page.classList.contains("side-thu");
+      page.classList.toggle("side-thu", thu);
+      try { localStorage.setItem("javis_chatside_thu", thu ? "1" : "0"); } catch (e) {}
+    };
+  }
+  if (typeof window !== "undefined") window.JavisNeoCotTrai = _neoCotTrai;
+
   function _borrowNoteEditor(into) {
     const ed = document.getElementById("noteEditor");
     // Bỏ trống `into` = tự tìm khung của trang ĐANG mở. Có HAI trang mượn khung chat và cùng
@@ -7274,6 +7329,7 @@
       if (isNar()) { page.classList.toggle("side-open"); return; }
       datSideThu(!page.classList.contains("side-thu"));
     };
+    _neoCotTrai(page, el.querySelector("#chatPageSide"), slot);
     // Khung chat PHẢI khi đang sửa file (.edit-on): nút thu co vào bên phải + nhớ trạng
     // thái. Nút gắn vào slot SAU khi mượn node chat nên không bị _borrowChatNodes chen chỗ.
     const mainEl = el.querySelector(".chatpage-main");
@@ -7296,16 +7352,6 @@
     // Đường VỀ. Nút phóng to ở màn Javis nay dẫn thẳng sang trang này (lớp nổi .chat-stage đã
     // bỏ), nên trang này phải có nút thu nhỏ, nếu không người dùng chỉ còn cách bấm rail.
     el.querySelector("#cpMinBtn").onclick = () => navigateTo("home");
-    slot.addEventListener("click", () => { if (isNar() && page.classList.contains("side-open")) page.classList.remove("side-open"); });
-    // Chạm NỀN MỜ (pseudo-element của chính .chatpage nên cú chạm rơi vào page) = đóng ngăn kéo.
-    // Đây là đường đóng DUY NHẤT còn sống khi trình sửa đang chiếm chỗ khung chat.
-    page.addEventListener("click", (e) => {
-      if (isNar() && e.target === page && page.classList.contains("side-open")) page.classList.remove("side-open");
-    });
-    el.querySelector("#chatPageSide").addEventListener("click", (e) => {
-      if (isNar() && e.target.closest(".cside-item")) page.classList.remove("side-open");
-    });
-
     // Cuộn xuống đáy + focus ô nhập cho tiện gõ ngay
     const ca = document.getElementById("chatArea"); if (ca) ca.scrollTop = ca.scrollHeight;
     const ci = document.getElementById("chatInput"); if (ci) { try { ci.focus(); } catch (e) {} }

@@ -671,6 +671,13 @@ class ChatGPTWebTransport:
         Xoá cookie cũ trước: dán cookie mới đè lên một phiên cũ còn sót thì trang có thể vẫn
         chạy bằng phiên cũ, và người dùng tưởng cookie mới đã ăn.
         """
+        # ĐÓNG rồi mở lại, không dùng phiên đang chạy. Hai lý do, và lý do thứ hai mới là
+        # cái chính: (a) dán cookie mới nghĩa là bỏ hẳn phiên cũ, nên mang theo trạng thái cũ
+        # chỉ tổ gây lẫn; (b) từ 0.64.13 nút "Đóng trình duyệt" không còn trên thẻ nữa (chủ
+        # repo yêu cầu 23/09 cho gọn), nên đây phải là đường thoát khi một phiên kẹt cứng -
+        # không thì người dùng hết cách, và bỏ một nút mà bỏ luôn lối thoát duy nhất của nó
+        # là đổi một phiền toái nhỏ lấy một ngõ cụt.
+        self._dong_that()
         ok, ly_do = self._mo_that()
         if not ok:
             return False, ly_do

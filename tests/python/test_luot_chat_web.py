@@ -347,9 +347,12 @@ def _soi_ma_nguon():
           "coding_ctx=_web_ctx if _web_ctx.active else None" in src)
     check("có endpoint trạng thái cho trang Models", '@app.get("/web-chat/status")' in src)
     # 0.64.12 bỏ /web-chat/login (màn đăng nhập chụp màn hình): nó chỉ vẽ ra khi máy đã cài
-    # đủ đồ, tức vắng mặt đúng lúc cần nhất. Đăng nhập nay chỉ còn một đường là dán cookie.
-    for ep in ("/web-chat/cookie", "/web-chat/check", "/web-chat/reset"):
+    # đủ đồ, tức vắng mặt đúng lúc cần nhất. 0.64.13 bỏ nốt /web-chat/reset cùng nút "Đóng
+    # trình duyệt" cho thẻ gọn; việc của nó (đóng trình duyệt, xoá sổ nghỉ) dời vào chính
+    # đường dán cookie, xem test_trang_code_dien_thoai.js.
+    for ep in ("/web-chat/cookie", "/web-chat/check"):
         check(f"có endpoint {ep}", f'"{ep}"' in src)
+    check("endpoint /web-chat/reset đã bỏ", '"/web-chat/reset"' not in src)
     # Không bịa quota: trang chat không nói ra con số nào, nên mọi phần trăm vẽ ra đều là
     # bịa. Soi CHÍNH câu trả lời của endpoint chứ không tìm chữ trong mã nguồn.
     # Từ 0.64.8 nhóm /web-chat đòi PHIÊN ĐĂNG NHẬP THẬT (không nhận API token), vì đường đó
