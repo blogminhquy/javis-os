@@ -2143,9 +2143,16 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Không có kiểu dáng riêng cho hộp "thêm thư mục": nó là JavisFolderPicker, mặc bộ lớp
    .folder-modal/.fm-* có sẵn trong style.css. */
 
+/* Hàng chip RIÊNG của màn hẹp. Trên máy tính nó rỗng và không chiếm chỗ (không có chip nào
+   được nhét vào), nên không cần ẩn bằng media query. */
+.cd-chips-hep:empty { display: none; }
+.cd-chips-hep { flex: none; padding: 0 0 8px; }
+
 @media (max-width: 900px) {
   .cd-chip { font-size: 16px; padding: 7px 10px; }
   .cd-chips { flex-wrap: nowrap; overflow-x: auto; }
+  /* Vuốt ngang được, và không nuốt mất chip cuối: hàng này hay dài hơn bề ngang điện thoại. */
+  .cd-chips-hep .cd-chips { margin-right: 0; padding-bottom: 2px; }
   /* Ngón tay bấm chứ không phải con trỏ, và màn hẹp thì chữ nhỏ đọc rất mệt. */
   .cd-menu button { font-size: 16px; padding: 9px 10px; }
   .cd-menu button small { font-size: 14px; }

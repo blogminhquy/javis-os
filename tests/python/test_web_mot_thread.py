@@ -104,7 +104,7 @@ check("cổng đó soi cookie phiên", "cfgmod.valid_session(request.cookies" in
 import re  # noqa: E402
 
 _duong = sorted(set(re.findall(r'@app\.(?:get|post)\("(/web-chat/[a-z-]+)"\)', _m)))
-check(f"tìm thấy các đường /web-chat: {_duong}", len(_duong) >= 4)
+check(f"tìm thấy các đường /web-chat: {_duong}", len(_duong) >= 3)
 for _ep in _duong:
     _i = _m.index(f'"{_ep}"')
     check(f"{_ep} có gọi cổng chặn", "_web_chat_chan(request)" in _m[_i:_i + 1600])
@@ -131,14 +131,15 @@ for _x in ("moManDangNhap", "webManHinh", "data-weblogin", "/web-chat/screen"):
 # thẻ ChatGPT thành một cái ngõ cụt.
 _khoi = _js[_js.index("async function veThreChatGPTWeb"):]
 _khoi = _khoi[:_khoi.index("async function renderModelsCloudTab")]
-# Soi ĐÚNG khối bọc ô cookie chứ không soi cả vùng xung quanh: mấy nút khác trong thẻ vẫn
-# được phép ẩn theo `kha_dung`, nên quét rộng là bắt nhầm chúng.
-_i_de = _khoi.index('<details class="prov-steps"')
+# 0.64.13 bỏ khối <details> bọc ngoài (thẻ gọn lại, xem test_trang_code_dien_thoai.js), nên
+# soi thẳng ô nhập. Bất biến giữ nguyên và vẫn là bất biến đáng giữ nhất ở đây: ô dán cookie
+# là đường đăng nhập DUY NHẤT còn lại, giấu nó sau `kha_dung` là lặp lại đúng lỗi đã khiến
+# chủ repo mắc kẹt với cái nút cũ.
+_i_ck = _khoi.index('id="webCookie"')
+_truoc = _khoi[max(0, _i_ck - 260):_i_ck]
 check("ô dán cookie KHÔNG bị giấu sau điều kiện kha_dung",
-      "kha_dung" not in _khoi[max(0, _i_de - 90):_i_de], _khoi[max(0, _i_de - 90):_i_de])
-_than_de = _khoi[_i_de:_khoi.index("</details>", _i_de)]
-check("và chính ô nhập nằm trong khối luôn hiện đó", "webCookie" in _than_de)
-check("nhưng vẫn nói rõ khi máy chưa đủ đồ", "kha_dung" in _than_de)
+      "kha_dung" not in _truoc, _truoc[-120:])
+check("nhưng thẻ vẫn nói rõ khi máy chưa đủ đồ", "kha_dung" in _khoi)
 
 print()
 if _fails:

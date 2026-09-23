@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.13] - 2026-09-23
+### Sửa lỗi
+- **Trang Code trên điện thoại: bấm nút lịch sử không ra danh sách hội thoại.** Nút đó gọi nhầm kiểu thu gọn của máy tính, nên trên điện thoại nó bấm mà không có gì xảy ra. Nay mở ngăn kéo như trang Trò chuyện, chạm ra ngoài là đóng.
+- **Trang Code trên điện thoại: không thấy chỗ thêm thư mục và đổi chế độ.** Dải chip đó nằm trong hàng model, mà hàng model thì bị ẩn trên điện thoại. Nay nó có hàng riêng ngay dưới thanh tiêu đề.
+### Thay đổi
+- **Thẻ ChatGPT gọn lại.** Bỏ nút "Đóng trình duyệt" và khối chữ hướng dẫn dài. Hướng dẫn đầy đủ chuyển sang một trang tài liệu riêng, trên thẻ chỉ còn một đường link.
+
 ## [0.64.12] - 2026-09-22
 ### Thay đổi
 - **Bỏ màn đăng nhập ChatGPT bằng chụp màn hình.** Nó chỉ hiện ra khi máy đã cài đủ trình duyệt, mà đúng lúc cần nhất thì lại không bấm được. Giờ chỉ còn một đường duy nhất: dán cookie.

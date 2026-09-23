@@ -45,11 +45,21 @@ const zKeo = Number(((mobile.match(/\.chatpage-side\{[^}]*\}/) || [""])[0].match
 check(`nền mờ (z=${zNen}) nằm DƯỚI ngăn kéo (z=${zKeo})`, zNen > 0 && zKeo > 0 && zNen < zKeo);
 
 // ---------------------------------------------------------------- 2. Chạm nền = đóng
+// Từ 0.64.13 ba đường đóng này KHÔNG còn nằm rải trong renderChat mà gom vào một hàm dùng
+// chung `_neoCotTrai`, vì trang Code cũng dùng bộ lớp `.chatpage*` và đã tự viết một bản
+// thứ hai SAI (nó toggle `side-thu` nên trên điện thoại bấm không có gì xảy ra). Soi ở đúng
+// chỗ mới, và soi thêm một bất biến MẠNH HƠN bản cũ: cả hai trang phải đi qua nó.
+const neo = (JS.match(/function _neoCotTrai\(page, sideEl, slot\)[\s\S]*?\n  \}/) || [""])[0];
+check("tìm được hàm dùng chung _neoCotTrai", neo.length > 200);
 // Pseudo-element không phải một node riêng: cú chạm rơi vào chính .chatpage, nên điều kiện
 // phải là e.target === page. So bằng closest(".chatpage") là bắt luôn cả cú chạm trong ngăn kéo.
 check("có handler đóng khi chạm nền mờ",
-  /page\.addEventListener\("click", \(e\) => \{[\s\S]{0,220}e\.target === page[\s\S]{0,120}remove\("side-open"\)/.test(JS));
-check("và chỉ áp trên màn hẹp", /e\.target === page[\s\S]{0,80}isNar\(\)|isNar\(\) && e\.target === page/.test(JS));
+  /page\.addEventListener\("click", \(e\) => \{ if \(e\.target === page\) dong\(\); \}\)/.test(neo), neo);
+check("và chỉ áp trên màn hẹp",
+  /const dong = \(\) => \{ if \(hep\(\)\) page\.classList\.remove\("side-open"\); \}/.test(neo), neo);
+check("cả trang Trò chuyện lẫn trang Code đều đi qua hàm đó",
+  /_neoCotTrai\(page,/.test(JS)
+  && /W\.JavisNeoCotTrai\(/.test(D("coding.js")));
 
 // ---------------------------------------------------------------- 3. Mở file = đóng ngăn kéo
 // Chốt ở _borrowNoteEditor vì đó là chỗ MỌI đường mở file đi qua (bấm file trong cây, bấm
@@ -68,9 +78,9 @@ check("không có #chatPage (trang Tệp tin) thì bỏ qua, không nổ",
 
 // ---------------------------------------------------------------- 4. Đường cũ vẫn còn
 // Ba đường đóng cũ không bị gỡ - chúng vẫn đúng ở các ca khác, chỉ là không đủ.
-check("vẫn đóng khi chạm khung chat", /slot\.addEventListener\("click"[\s\S]{0,140}remove\("side-open"\)/.test(JS));
+check("vẫn đóng khi chạm khung chat", /if \(slot\) slot\.addEventListener\("click", dong\)/.test(neo), neo);
 check("vẫn đóng khi chọn một hội thoại trong ngăn kéo",
-  /closest\("\.cside-item"\)\) page\.classList\.remove\("side-open"\)/.test(JS));
+  /closest\("\.cside-item"\)\) dong\(\)/.test(neo), neo);
 check("nút bật/tắt vẫn toggle như cũ trên màn hẹp",
   /if \(isNar\(\)\) \{ page\.classList\.toggle\("side-open"\); return; \}/.test(JS));
 

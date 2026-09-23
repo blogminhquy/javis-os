@@ -142,8 +142,11 @@ check("và vẫn hỏi trình duyệt có sẵn sàng không trước khi làm g
       "web_transport.kha_dung()" in _ep)
 
 _js = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+# Cắt tới hết hàm vẽ thẻ. Neo cũ là `goi("[data-webreset]"` - nút "Đóng trình duyệt" - mà
+# 0.64.13 đã bỏ nút đó, nên neo theo nó là lát cắt chạy tuột tới cuối file và phép thử dưới
+# bắt nhầm một `localStorage` của chỗ khác hoàn toàn.
 _khuc = _js[_js.index("data-webcookie"):]
-_khuc = _khuc[:_khuc.index("goi(\"[data-webreset]")] if "goi(\"[data-webreset]" in _khuc else _khuc
+_khuc = _khuc[:_khuc.index("async function renderModelsCloudTab")]
 check("màn hình xoá ô nhập sau khi gửi, cả khi hỏng",
       "o.value = \"\"" in _khuc)
 check("màn hình KHÔNG nhét cookie vào localStorage",

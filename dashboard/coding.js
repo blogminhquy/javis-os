@@ -154,6 +154,13 @@
             // của trang đó. Thiếu ô này thì JavisChatSide.chip() không có chỗ để vẽ.
             '<span class="proj-chip-host"></span>' +
           "</div>" +
+          // Chỗ đứng của dải chip trên MÀN HẸP. Trên máy tính dải chip nằm trong #modelBar
+          // (một hàng đọc từ trái sang: thư mục, nhánh, worktree, điểm hồi, chế độ, model),
+          // nhưng điện thoại ẩn hẳn #modelBar (`.model-bar{display:none}` trong console.css)
+          // và JS dời chip model lên header. Dải chip ở lại trong một node display:none nên
+          // chủ repo không thấy chỗ thêm thư mục lẫn chỗ đổi chế độ (báo 23/09, đã dựng lại
+          // ở 390px: parent = modelBar, display = none). Nên màn hẹp cho nó hàng riêng.
+          '<div class="cd-chips-hep" id="cdChipsHep"></div>' +
           '<div class="chatpage-slot" id="cdSlot"></div>' +
           // Chỗ đứng cho trình sửa khi mở một file từ tab Thư mục của cột trái, hoặc từ chip
           // "file đang mở" trên thanh đính kèm. `data-ne-host` là DẤU KHAI: thiếu nó thì
@@ -169,9 +176,16 @@
     nhoPhienTruoc();
     el.innerHTML = khung();
     if (opts && opts.borrow) opts.borrow(el.querySelector("#cdSlot"));
-    el.querySelector("#cdLeftBtn").onclick = function () {
-      el.querySelector("#cdPage").classList.toggle("side-thu");
-    };
+    // Bật/tắt cột trái: gọi ĐÚNG hàm của console.js chứ không tự viết. Bản tự viết trước đây
+    // chỉ `toggle("side-thu")` - lớp thu gọn của MÁY TÍNH - nên trên điện thoại bấm nút lịch
+    // sử mà không có gì xảy ra (chủ repo báo 23/09; dựng lại ở 390px: sau cú bấm cột trái vẫn
+    // nằm ở x = -315). Màn hẹp chỉ hiểu lớp `side-open`, và còn cần ba đường ĐÓNG nữa mà bản
+    // tự viết cũng không có.
+    var bat = W.JavisNeoCotTrai
+      ? W.JavisNeoCotTrai(el.querySelector("#cdPage"), el.querySelector("#cdSide"),
+                          el.querySelector("#cdSlot"))
+      : function () { el.querySelector("#cdPage").classList.toggle("side-thu"); };
+    el.querySelector("#cdLeftBtn").onclick = bat;
     await taiThuMuc();
 
     // CỘT TRÁI = chính cột hội thoại của trang Trò chuyện, lọc theo kênh Coding. Mượn nguyên
@@ -182,9 +196,19 @@
       W.JavisChatSide.mount(el.querySelector("#cdSide"), { kenh: S.kenh, onNew: moPhienMoi });
       try { W.JavisChatSide.chip(); } catch (e) {}
     }
+    // Xoay ngang điện thoại, hoặc kéo cửa sổ qua ngưỡng 860px, là dải chip phải ĐỔI BÊN
+    // (#modelBar <-> hàng riêng). Không nghe thì sau khi xoay nó nằm trong node đang bị ẩn và
+    // biến mất y như lỗi gốc, chỉ khác là mất sau một thao tác thay vì mất ngay.
+    try {
+      _mqChip = W.matchMedia("(max-width: 860px)");
+      _mqChipFn = function () { if (active) veChip(); };
+      _mqChip.addEventListener("change", _mqChipFn);
+    } catch (e) { _mqChip = null; }
+
     bocMoPhien();
     await moPhienDau();
   }
+  var _mqChip = null, _mqChipFn = null;
 
   /** Bọc `JavisSessions.open` trong lúc ở trang này.
    *
@@ -210,6 +234,10 @@
   function roi() {
     active = false;
     dongMenu(); goChip(); traMoPhien(); traKhungChat();
+    // Gỡ hẳn: rời trang rồi mà còn nghe thì mỗi lần xoay máy lại gọi veChip() cho một trang
+    // không còn tồn tại, và mỗi lần vào lại trang là chồng thêm một người nghe nữa.
+    try { if (_mqChip && _mqChipFn) _mqChip.removeEventListener("change", _mqChipFn); } catch (e) {}
+    _mqChip = null; _mqChipFn = null;
   }
 
   // ============================================================
@@ -321,10 +349,25 @@
   // ============================================================
   // Hàng chip ngữ cảnh (nhét vào #modelBar đã mượn)
   // ============================================================
+  /** Dải chip đứng ở ĐÂU, theo bề ngang màn hình.
+   *
+   *  Máy tính: trong #modelBar, để một hàng đọc từ trái sang là thư mục, nhánh, worktree,
+   *  điểm hồi, chế độ, rồi model. Điện thoại: hàng riêng của trang này, vì #modelBar bị ẩn
+   *  hẳn trên màn hẹp và dải chip nằm trong đó thì không ai thấy.
+   *
+   *  Tính lại MỖI LẦN vẽ chứ không nhớ một lần: người dùng xoay ngang điện thoại, hoặc kéo
+   *  cửa sổ trình duyệt qua ngưỡng, là chỗ đúng đổi bên. */
+  function hocChip() {
+    var hep = W.matchMedia && W.matchMedia("(max-width: 860px)").matches;
+    if (hep) return S.el && S.el.querySelector("#cdChipsHep");
+    return document.getElementById("modelBar");
+  }
+
   function veChip() {
-    var bar = document.getElementById("modelBar");
+    var bar = hocChip();
     if (!bar) return;
-    var row = bar.querySelector("#cdChips");
+    var row = document.getElementById("cdChips");
+    if (row && row.parentElement !== bar) row.remove(), (row = null);
     if (!row) {
       row = document.createElement("div");
       row.id = "cdChips";

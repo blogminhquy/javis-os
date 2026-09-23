@@ -3647,6 +3647,11 @@ async def web_chat_cookie(request: Request):
     cookies, loi = web_transport.doc_cookie(str(d.get("cookie") or ""))
     if loi:
         return {"ok": False, "error": loi}
+    # Dán cookie = BẮT ĐẦU LẠI. Xoá sổ nghỉ (cooldown) và kết quả dò cũ, còn phần đóng trình
+    # duyệt thì `nap_cookie` tự lo. Trước 0.64.13 việc này nằm ở nút "Đóng trình duyệt" riêng;
+    # nút đó đã bỏ cho thẻ gọn, nên đường thoát của nó dời vào đây chứ không mất đi.
+    web_state.dat_lai()
+    web_transport.dat_lai_do()
     try:
         da_dn, loi2 = await asyncio.to_thread(web_transport.chung().nap_cookie, cookies)
     except Exception as e:
@@ -3688,17 +3693,6 @@ async def web_chat_check(request: Request):
         return {"ok": False, "error": loi}
     web_state.ghi_dang_nhap(da_dn)
     return {"ok": True, "da_dang_nhap": da_dn, **web_state.tom_tat()}
-
-
-@app.post("/web-chat/reset")
-def web_chat_reset(request: Request):
-    """Đóng trình duyệt và xoá sổ nghỉ. Dùng khi engine kẹt ở một trạng thái nghỉ quá dài."""
-    if (_chan := _web_chat_chan(request)) is not None:
-        return _chan
-    web_transport.dong_chung()
-    web_transport.dat_lai_do()
-    web_state.dat_lai()
-    return {"ok": True, **web_state.tom_tat()}
 
 
 # ---- Claude Code auth (provider anthropic-cli) - connect/disconnect như OAuth ----
