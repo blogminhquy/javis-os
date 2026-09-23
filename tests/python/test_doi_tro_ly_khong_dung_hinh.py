@@ -69,6 +69,15 @@ import main  # noqa: E402
 for ten in ("sessions_list", "sessions_new", "sessions_get"):
     check(f"{ten} là def thường (FastAPI chạy ở threadpool, không chặn loop)",
           not inspect.iscoroutinefunction(getattr(main, ten)))
+# 0.64.19: tab Cài đặt trợ lý báo "Không tải được trợ lý này" khi một lượt chat đang chạy,
+# vì bốn route nó cần xếp hàng trên loop quá 12 giây.
+for ten in ("list_agents", "agent_get", "list_skills", "settings_get"):
+    check(f"{ten} là def thường (tab Cài đặt trợ lý không chờ loop)",
+          not inspect.iscoroutinefunction(getattr(main, ten)))
+_st = (ROOT / "dashboard" / "studio.js").read_text(encoding="utf-8")
+check("trình sửa trợ lý thử lại một lần khi lượt đầu hết giờ, trước khi báo lỗi",
+      'if (r && !r.error && typeof r.prompt !== "string") r = await api(url);' in _st)
+check("và nói Đang tải thay vì để khung trống", 't("common.loading")' in _st.split("async function editAgent", 1)[1][:1500])
 _vo = inspect.getsource(main.voice_options)
 check("/voice/options hỏi `agy models` ở luồng phụ",
       "asyncio.to_thread(antigravity_cli.list_models)" in _vo)

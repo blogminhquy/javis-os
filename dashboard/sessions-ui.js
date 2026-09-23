@@ -376,6 +376,7 @@
             '<button class="pd-hbtn pd-ren" type="button"></button>' +
             '<button class="pd-hbtn pd-x" type="button"></button>' +
           '</div>' +
+          '<div class="pd-scope" hidden></div>' +
           '<div class="pd-tabs"></div>' +
           '<div class="pd-body"></div>' +
         '</div>' +
@@ -520,10 +521,11 @@
     });
   }
 
-  async function openCuocDrawer() {
+  async function openCuocDrawer(giuCongSu) {
     var sid = currentId();
     if (!sid) return;
     pdDung();
+    if (!giuCongSu) pdCongSu = null;
     pdCheDo = "cuoc";
     pdOnboard = false;
     // Reset y như openProjDrawer: form tìm/tải còn mở từ lần trước là mở khung ra đã thấy
@@ -559,9 +561,10 @@
   // đều thấy, kể cả khi nó chạy như một bước quy trình.
   var agentTS = null;      // {slug, name, files, links, dangTai, loi} của trợ lý đang xem
 
-  async function openAgentDrawer(slug, ten) {
+  async function openAgentDrawer(slug, ten, giuCongSu) {
     if (!slug) return;
     pdDung();
+    if (!giuCongSu) pdCongSu = null;
     pdCheDo = "agent";
     pdOnboard = false;
     pdFormFile = false; pdFormLink = false; pdFileMode = "search";
@@ -592,6 +595,9 @@
    *  đã nằm ngay trên đầu khung - nhưng cuộc và trợ lý thì cần, vì cả hai trông giống hệt
    *  nhau và gắn nhầm chỗ là tài liệu biến mất khỏi nơi người dùng tưởng nó có. */
   function ghiChuCuoi() {
+    // Mở từ trang Cộng sự thì công tắc phạm vi trên đầu đã nói rõ thuộc về đâu; nhắc lại ở
+    // cuối là hai câu nói cùng một việc.
+    if (pdCongSu) return "";
     return pdLaCuoc() ? ghiChuCuoc() : pdLaAgent() ? ghiChuAgent() : "";
   }
 
@@ -599,11 +605,80 @@
     return '<div class="pd-note">' + ic("info") + "<span>" + esc(pdT("ags.note")) + "</span></div>";
   }
 
+  // ── Trang Cộng sự: MỘT ngăn kéo tài liệu, công tắc phạm vi ở đầu ─────────────────
+  // Trước 0.64.19 trang Cộng sự có HAI lối vào trông giống hệt nhau: nút "File & link" trên
+  // thanh đầu (tài liệu của CUỘC đang mở) và nút "Tài liệu" trong Cài đặt (tài liệu của TRỢ
+  // LÝ). Cùng một khung, cùng hai tab File/Link, chỉ khác một câu ghi chú nhỏ ở cuối - chủ
+  // repo báo 23/09 là dùng nhầm lẫn, gắn một chỗ rồi đi tìm ở chỗ kia. Nay cả hai nút mở
+  // cùng một ngăn, trên đầu là công tắc hai phạm vi kèm số lượng, bấm là chuyển.
+  var pdCongSu = null;     // {slug, name} khi ngăn kéo mở từ trang Cộng sự; null = không bày công tắc
+  var KHOA_PHAM_VI = "javis_pd_pham_vi";
+
+  function phamViDaNho() {
+    try { return localStorage.getItem(KHOA_PHAM_VI) === "cuoc" ? "cuoc" : "agent"; } catch (e) { return "agent"; }
+  }
+
+  /** Mở tài liệu cho một trợ lý ở trang Cộng sự. `phamVi`: "agent" | "cuoc" | bỏ trống =
+   *  phạm vi lần trước người dùng chọn (mặc định: của trợ lý, vì đó là chỗ tài liệu SỐNG LÂU,
+   *  còn tài liệu của một cuộc mất tăm khi mở cuộc mới). */
+  async function openTaiLieuCongSu(slug, ten, phamVi) {
+    if (!slug) return;
+    pdCongSu = { slug: slug, name: ten || slug };
+    var pv = phamVi || phamViDaNho();
+    if (pv === "cuoc" && !currentId()) pv = "agent";   // chưa có cuộc thì chưa có chỗ gắn
+    // Nạp phạm vi KIA song song để công tắc hiện đúng số ngay từ đầu.
+    if (pv === "agent") {
+      if (currentId()) napCuocTS().then(function () { if (pdCongSu) veThanhPhamVi(); });
+      else cuocTS = null;
+      await openAgentDrawer(slug, ten, true);
+    } else {
+      napAgentTS(slug, ten).then(function () { if (pdCongSu) veThanhPhamVi(); });
+      await openCuocDrawer(true);
+    }
+  }
+
+  function doiPhamVi(pv) {
+    if (!pdCongSu || (pv === "cuoc" ? pdLaCuoc() : pdLaAgent())) return;
+    if (pv === "cuoc" && !currentId()) return;
+    try { localStorage.setItem(KHOA_PHAM_VI, pv); } catch (e) {}
+    if (pv === "agent") openAgentDrawer(pdCongSu.slug, pdCongSu.name, true);
+    else openCuocDrawer(true);
+  }
+
+  function soTaiLieu(d) { return d && !d.dangTai && !d.loi ? (d.files || []).length + (d.links || []).length : null; }
+
+  function veThanhPhamVi() {
+    if (!pdEl) return;
+    var host = pdEl.querySelector(".pd-scope");
+    if (!host) return;
+    if (!pdCongSu || !(pdLaAgent() || pdLaCuoc())) { host.hidden = true; host.innerHTML = ""; return; }
+    host.hidden = false;
+    var coCuoc = !!currentId();
+    var nut = function (pv, ico, nhan, phu, n, tat) {
+      var on = pv === "agent" ? pdLaAgent() : pdLaCuoc();
+      return '<button type="button" class="pd-sc' + (on ? " on" : "") + '" data-pv="' + pv + '"' +
+        (tat ? ' disabled title="' + esc(pdT("pds.chat_none")) + '"' : "") + ' aria-pressed="' + on + '">' +
+        '<span class="pd-sc-ico">' + ic(ico) + "</span>" +
+        '<span class="pd-sc-txt"><b>' + esc(nhan) + (n != null ? ' <span class="pd-sc-n">' + n + "</span>" : "") +
+        "</b><small>" + esc(phu) + "</small></span></button>";
+    };
+    host.innerHTML =
+      '<div class="pd-sc-row" role="group">' +
+        nut("agent", "bot", pdT("pds.agent"), pdT("pds.agent_sub"), soTaiLieu(agentTS && agentTS.slug === pdCongSu.slug ? agentTS : null), false) +
+        nut("cuoc", "message-circle", pdT("pds.chat"), coCuoc ? pdT("pds.chat_sub") : pdT("pds.chat_none_short"), coCuoc ? soTaiLieu(cuocTS) : null, !coCuoc) +
+      "</div>" +
+      '<div class="pd-sc-hint">' + esc(pdT(pdLaAgent() ? "pds.hint_agent" : "pds.hint_chat")) + "</div>";
+    host.querySelectorAll(".pd-sc").forEach(function (b) {
+      b.onclick = function () { doiPhamVi(b.dataset.pv); };
+    });
+  }
+
   async function openProjDrawer(pid) {
     var id = pid || (projChiTiet && projChiTiet.id) || "";
     if (!id) return;
     pdDung();
     pdCheDo = "project";
+    pdCongSu = null;      // project không có công tắc phạm vi của trang Cộng sự
     pdFormFile = false; pdFormLink = false; pdFileMode = "search";
     pdEl.classList.add("on");
     document.body.classList.add("pd-open");
@@ -620,6 +695,7 @@
     if (pdEl) pdEl.classList.remove("on");
     document.body.classList.remove("pd-open");
     pdOnboard = false;
+    pdCongSu = null;
   }
 
   async function napProjChiTiet(id) {
@@ -649,7 +725,12 @@
     pdEl.querySelector(".pd-panel").setAttribute("data-localdrop", "1");
     pdEl.querySelector(".pd-ico").innerHTML =
       laCuoc ? ic("files") : pdLaAgent() ? ic("bot") : projIcon(projById(p.id) || p);
-    pdEl.querySelector(".pd-name").textContent = laCuoc ? pdT("cts.title") : (p.name || "");
+    // Mở từ trang Cộng sự thì đầu khung luôn là TÊN TRỢ LÝ; còn "của trợ lý hay của cuộc này"
+    // nói bằng công tắc ngay bên dưới, không bằng tiêu đề đổi qua đổi lại.
+    if (pdCongSu) pdEl.querySelector(".pd-ico").innerHTML = ic("bot");
+    pdEl.querySelector(".pd-name").textContent = pdCongSu ? pdCongSu.name
+      : laCuoc ? pdT("cts.title") : (p.name || "");
+    veThanhPhamVi();
     // Đổi tên chỉ có nghĩa với project. Cuộc trò chuyện đổi tên ở cột trái, trợ lý đổi tên
     // trong trình sửa của nó; bày lại ở đây là hai chỗ làm cùng một việc.
     pdEl.querySelector(".pd-ren").style.display = (laCuoc || pdLaAgent()) ? "none" : "";
@@ -1698,6 +1779,9 @@
                            // Trang Cộng sự mở đúng ngăn kéo này cho MỘT trợ lý (nút "File &
                            // link" trong Cài đặt trợ lý).
                            moKhungAgent: openAgentDrawer,
+                           // Trang Cộng sự (0.64.19): một ngăn kéo, công tắc "của trợ lý / chỉ
+                           // cuộc này" ở đầu. Cả nút trên thanh đầu lẫn nút trong Cài đặt đi đây.
+                           moTaiLieu: openTaiLieuCongSu,
                            // Bảng nổi (menu project) cho trang khác mượn - trang Cộng sự dùng
                            // đúng khuôn này cho bộ chọn nhóm, để hai chỗ nhìn và bấm y nhau.
                            menu: openMenu, dongMenu: closeMenu };

@@ -11,6 +11,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Trang Công cụ bỏ mục "Thư viện lái trình duyệt"**, và Javis tự dọn chừng 140 MB nó từng cài. Mục Trình duyệt vẫn giữ cho kết nối Playwright.
 - Bản sau sẽ làm hướng ngược lại: bạn chat trên ChatGPT, và ChatGPT tự gọi công cụ của Javis.
 
+## [0.64.19] - 2026-09-23
+### Sửa lỗi
+- **Tab Cài đặt trợ lý báo "Không tải được trợ lý này" dù trợ lý vẫn còn.** Khi một trợ lý đang trả lời, máy chủ bận nên lần tải bị quá giờ. Nay các phần đó chạy riêng, lần đầu trượt thì tự thử lại, và lúc chờ hiện "Đang tải..." thay vì khung trống.
+### Thay đổi
+- **Tài liệu của trợ lý gom về một chỗ.** Nút "File & link" trên đầu đổi tên thành **Tài liệu**, mở cùng một ngăn với nút trong Cài đặt. Đầu ngăn có hai ô: **Của trợ lý** (mọi cuộc đều thấy) và **Chỉ cuộc này**, kèm số lượng và một câu nói rõ đang gắn vào đâu.
+
 ## [0.64.18] - 2026-09-23
 ### Sửa lỗi
 - **Trình duyệt ChatGPT Web hết tự khai mình là máy tự động.** Javis vẫn tải bản Chromium rút gọn và chạy ẩn, nên trang chatgpt.com nhìn phát ra ngay: User-Agent ghi `HeadlessChrome`, không có plugin nào. Nay tải bản đầy đủ và chạy có cửa sổ trên một màn hình ảo, nên nó khai `Chrome` như một máy bình thường.

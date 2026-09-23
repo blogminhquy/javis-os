@@ -33,7 +33,8 @@ const check = (ten, ok, them) => {
 // 1. MỘT ngăn kéo, ba chế độ
 // ============================================================
 check("có chế độ agent", /function pdLaAgent\(\) \{ return pdCheDo === "agent"; \}/.test(SU));
-check("mở khung cho một trợ lý", /async function openAgentDrawer\(slug, ten\)/.test(SU));
+// 0.64.19: thêm `giuCongSu` để trang Cộng sự giữ công tắc phạm vi khi chuyển qua lại.
+check("mở khung cho một trợ lý", /async function openAgentDrawer\(slug, ten(, giuCongSu)?\)/.test(SU));
 check("và nạp danh sách từ route của trợ lý",
   /fetch\("\/agents\/" \+ encodeURIComponent\(slug\) \+ "\/assets\?brain="/.test(SU));
 check("pdApi trỏ đúng gốc của trợ lý",
