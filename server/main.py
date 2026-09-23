@@ -59,13 +59,9 @@ import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi b�
 import winproc         # chạy lệnh con câm lặng trên Windows (không nháy console đen)
 import md_repair       # chữa file .md bị vòng lưu WYSIWYG của bản <= 0.33.3 làm hỏng
 import terminal        # tab Code: pseudo-terminal thật trong dashboard (pty trên POSIX, ống trên Windows)
-import coding_ctx      # phiên Coding: gốc file và mức quyền cho engine qua hub
 import coding_store    # trang Coding: phiên gắn repo nào, nhánh nào, worktree nào, mức quyền nào
 import antigravity_cli   # bộ não thứ 10: Antigravity CLI (`agy`) - bản Google chỉ định thay Gemini CLI
 import grok_cli          # bộ não thứ 11: Grok Build CLI (`grok`) - gói SuperGrok / X Premium+
-import web_engine       # bộ não thứ 12: ChatGPT Web - vòng lặp tool của Javis quanh trang chat
-import web_transport     # phiên trình duyệt cố định + tee luồng SSE của chatgpt.com
-import web_state         # sổ trạng thái engine Web: đăng nhập, nghỉ, hỏng liên tiếp
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
@@ -1816,69 +1812,29 @@ def _aux_swap(cli, mode=None, tag=None):
     Mặc định/hỏng cấu hình thì trả lại chính engine Claude đó (việc nền không được chết)."""
     return aux_engine.swap(cli, mode=mode, tag=tag, codex_profile=_write_codex_profile)
 
-# Model id của engine ChatGPT Web. Nằm trong thẻ ChatGPT như một model bình thường, nhưng
-# KHÔNG đi qua Codex một mili-giây nào: nó chạy bằng phiên trình duyệt (server/web_transport).
-MODEL_WEB = "chatgpt-web"
-
-
-def la_model_web(model: str) -> bool:
-    """Model này có phải engine ChatGPT Web không."""
-    return (model or "").strip().lower() == MODEL_WEB
-
-
-def _web_bat() -> bool:
-    """`chatgpt-web` có xuất hiện trong ô chọn model không.
-
-    Hỏi THẲNG `web_transport.kha_dung()` chứ không tự đọc biến môi trường, và đây là chỗ sửa
-    một cái bẫy của 0.64.0: lúc đó hàm này đọc biến còn engine lại tự dò thư viện, nên một
-    máy có đặt biến mà THIẾU playwright sẽ bày model ra ô chọn rồi hỏng đúng lúc được chọn.
-    Hai câu trả lời cho cùng một câu hỏi thì sớm muộn cũng lệch nhau; giờ chỉ còn một.
-
-    Từ 0.64.6 mặc định là TỰ DÒ: có playwright và có trình duyệt thì model hiện ra, không
-    cần khai báo gì. Xem `web_transport._cong_moi_truong` cho ba trạng thái của biến."""
-    try:
-        ok, _ = web_transport.kha_dung()
-        return bool(ok)
-    except Exception:
-        return False
+# Model đã GỠ khỏi Javis mà cài đặt cũ của người dùng có thể còn giữ. `chatgpt-web` (0.64.0 tới
+# 0.64.18) chạy bằng một trình duyệt lái trang chatgpt.com, và bị gỡ ở 0.64.20 vì trên máy chủ
+# thuê Cloudflare chặn IP. Ai đang chọn nó thì lượt chat kế tiếp rơi vào nhánh Codex, và nhánh
+# đó TỰ CHỮA: đổi sang model Codex thật, ghi lại cài đặt, báo một dòng. Để điều đó xảy ra thì
+# hàm dưới phải coi id này là KHÔNG hợp lệ, kể cả khi danh mục đã lưu từ trước vẫn còn nó.
+_MODEL_DA_GO = frozenset({"chatgpt-web"})
 
 
 def _codex_safe_model(model: str) -> str:
     """Model hợp lệ cho Codex/ChatGPT-account. Model API thường (gpt-5-mini, gpt-4o, o3...)
     KHÔNG chạy được qua Codex → coerce về model Codex mặc định vừa lấy live.
-    Hợp lệ = nằm trong catalog 'openai-oauth' HOẶC kết thúc '-codex'.
-
-    NGOẠI LỆ `chatgpt-web`: nó thuộc thẻ ChatGPT nhưng chạy bằng trình duyệt, không qua Codex.
-    Không chừa nó ra thì hàm này coerce nó về model Codex, VÀ chỗ gọi ghi đè luôn cài đặt
-    (`_set_main_model`) lẫn model ghim của phiên (`store.set_pinned_model`) - nghĩa là chủ máy
-    chọn ChatGPT Web một lần là bị đổi ngược và MẤT LUÔN lựa chọn. Đây là cái bẫy nguy hiểm
-    nhất của cả tính năng, nên chừa ở đây và có test khoá lại, không dựa vào việc catalog
-    tình cờ có nó."""
+    Hợp lệ = nằm trong catalog 'openai-oauth' HOẶC kết thúc '-codex', và KHÔNG thuộc
+    `_MODEL_DA_GO` (xem chú thích ở đó)."""
     m = (model or "").strip()
-    if la_model_web(m):
-        return m
-    cat = (cfgmod.read_settings().get("model", {}).get("catalog", {}).get("openai-oauth")) or []
-    if m and (m in cat or m.endswith("-codex")):
+    # Danh mục đã lưu từ bản cũ có thể còn model đã gỡ; lọc trước khi so, không thì
+    # `m in cat` bảo nó hợp lệ và Codex nhận một id nó không biết.
+    cat = [c for c in ((cfgmod.read_settings().get("model", {}).get("catalog", {})
+                        .get("openai-oauth")) or []) if c not in _MODEL_DA_GO]
+    if m and m not in _MODEL_DA_GO and (m in cat or m.endswith("-codex")):
         return m
     # Catalog rỗng (cài mới/offline): không truyền -m để Codex tự chọn default
     # hiện hành của chính nó, thay vì Javis đoán một model id rồi sớm lỗi thời.
-    # Lọc `chatgpt-web` khỏi mốc mặc định: catalog có nó (nó là một model của thẻ ChatGPT),
-    # nhưng trên máy KHÔNG cài Codex CLI thì catalog chỉ còn mỗi nó - và lúc đó `cat[0]` sẽ
-    # đưa một model id chạy bằng trình duyệt cho Codex thực thi.
-    cat = [c for c in cat if not la_model_web(c)]
     return cat[0] if cat else ""
-
-
-def _model_codex_thay_the(model: str) -> str:
-    """Model Codex dùng THAY khi một đường không chạy được engine Web.
-
-    Ba đường như vậy: stream không tool, vòng tool của bot chuyên trách, và việc nền. Chúng
-    gọi thẳng API Responses bằng token gói thuê bao, nên đưa `chatgpt-web` vào là gửi một
-    model id nhà cung cấp không biết. Mà chạy engine Web ở đó cũng sai ngay cả khi làm được:
-    MỘT trình duyệt, MỘT tài khoản, khoá một lượt tại một thời điểm - trong khi bot chuyên
-    trách phục vụ nhiều khách cùng lúc và việc nền chạy song song với lượt chat của chủ.
-    """
-    return _codex_safe_model("" if la_model_web(model) else model)
 
 def _is_codex_model(model: str) -> bool:
     """Model này thuộc Codex/ChatGPT (chạy qua Codex CLI) hay Claude? gpt* / *-codex / trong
@@ -2287,7 +2243,7 @@ def _api_stream_goc(prov, key, model, messages, reasoning="off"):
     if prov == "openai-oauth":
         creds = openai_oauth.valid_creds() or {}
         return engine.openai_responses_stream(creds.get("access_token", ""), creds.get("account_id", ""),
-                                              _model_codex_thay_the(model), messages, reasoning)
+                                              _codex_safe_model(model), messages, reasoning)
     if prov == "antigravity-cli":
         return _antigravity_sub_stream(model, messages, reasoning)
     if prov == "grok-cli":
@@ -3439,34 +3395,6 @@ def _apply_codex_hub(cli, vault_root=None):
     return cli
 
 
-async def _dung_web_engine(brain, sysprompt, *, tag="chat", session_id="", mode="full",
-                           staging=False, workspace_root=None, coding_ctx=None):
-    """Dựng một `WebEngine` đã đấu sẵn hub. Dùng chung cho cả ba đường chat.
-
-    Khác `_apply_codex_hub` ở một chỗ có chủ ý: Codex nhận MCP bằng FILE CẤU HÌNH rồi tự gọi
-    trong tiến trình của nó, còn engine Web KHÔNG có function calling, nên vòng lặp tool nằm
-    ở phía Javis và tool phải được `discover_all` giao tận tay dưới dạng route.
-
-    Hub trỏ BRAIN, đúng như mọi engine khác: MCP, cron và nhắc hẹn thuộc bộ não người dùng.
-    `workspace_root` chỉ có giá trị ở phiên Coding, và chỉ khi ĐỒNG THỜI có `coding_ctx` thì
-    hub mới cấp `javis_run_command` (xem mcp_hub._builtin_tools). Nó nhận CẢ DANH SÁCH gốc:
-    một phiên gắn được nhiều thư mục từ 0.63.9, và engine qua hub không chạy tiến trình nào
-    nên nó không bị giới hạn một `cwd` như engine CLI."""
-    tools, route = [], {}
-    try:
-        if _hub_enabled():
-            tools, route = await mcp_hub.discover_all(
-                mode, vault_root=_brain_root(brain), staging=staging,
-                workspace_root=workspace_root, coding_ctx_cua_phien=coding_ctx)
-    except Exception as e:
-        # Không có tool thì engine Web vẫn trả lời được bằng chữ. Chết cả lượt vì hub hỏng là
-        # đổi một khiếm khuyết lấy một sự cố.
-        print(f"[web hub discover] {e}", file=__import__('sys').stderr)
-    return web_engine.WebEngine(
-        transport=web_transport.chung(), tools=tools, route=route,
-        instructions=sysprompt or "", tag=tag, session_id=session_id)
-
-
 def _apply_mcp(cli, mode="full", brain=None):
     """Gắn MCP do Javis quản lý vào 1 engine Claude (registry rỗng → không đổi gì, dùng MCP sẵn của máy).
     Hub bật: config 1 entry trỏ hub kèm X-Javis-Mode - deny/perm/audit chặn TẠI hub (lớp cứng),
@@ -3563,161 +3491,6 @@ def oauth_openai_disconnect():
 @app.get("/oauth/openai/status")
 def oauth_openai_status():
     return openai_oauth.status()
-
-
-# ---- ChatGPT Web (model `chatgpt-web` trong thẻ ChatGPT) ----
-#
-# Javis KHÔNG BAO GIỜ cầm mật khẩu ChatGPT của chủ máy, và từ 0.64.12 thì không còn đường nào
-# để nó cầm: cách đăng nhập duy nhất là chủ máy DÁN COOKIE PHIÊN lấy từ trình duyệt của chính
-# họ (`/web-chat/cookie`). Cookie đó đi thẳng vào profile trình duyệt, đúng chỗ một phiên đăng
-# nhập vẫn nằm, và không được ghi lại ở đâu khác.
-#
-# Bản 0.64.8 từng có một màn đăng nhập khác: Javis chụp trang ChatGPT gửi lên dashboard rồi
-# chuyển ngược cú bấm với phím gõ xuống. Nó chạy được, nhưng chỉ vẽ ra khi máy đã cài đủ
-# playwright và trình duyệt - tức KHÔNG có mặt đúng lúc người ta cần nó nhất. Chủ repo mắc kẹt
-# đúng chỗ đó (22/09) và yêu cầu bỏ hẳn. Bỏ luôn được thêm một điều: phím gõ, gồm cả mật khẩu,
-# không còn đường nào đi qua máy chủ Javis nữa.
-
-def _web_chat_chan(request: Request):
-    """None nếu được phép, hoặc một câu từ chối 401.
-
-    Chặt hơn hàng rào chung của app một bậc, theo đúng tiền lệ của `routes/tools.py`: đường
-    này MỞ TRÌNH DUYỆT trên máy chủ và nhận cookie phiên ChatGPT của chủ máy. Hàng rào
-    chung cho qua cả API token (đường của CLI và cron); ở đây thì không, vì "một script có
-    token cũng đọc được màn đăng nhập ChatGPT của chủ máy" là thứ không nên có đường tồn tại.
-    """
-    if cfgmod.valid_session(request.cookies.get("javis_session", "")):
-        return None
-    return JSONResponse({"ok": False, "error": "cần đăng nhập bằng trình duyệt"}, status_code=401)
-
-
-@app.get("/web-chat/status")
-def web_chat_status(request: Request):
-    """Trạng thái engine Web cho trang Models. KHÔNG bịa phần trăm quota (spec mục 8)."""
-    if (_chan := _web_chat_chan(request)) is not None:
-        return _chan
-    ok, ly_do = web_transport.kha_dung()
-    d = web_state.tom_tat()
-    d.update({
-        # `an`: CHỈ ẩn hẳn khối này khi chủ máy ép tắt bằng biến môi trường. Máy thiếu đồ thì
-        # vẫn hiện, kèm câu nói cần cài gì - ẩn đi là người dùng không bao giờ biết có tính
-        # năng này, và đó chính là cái giá của bản 0.64.0 bắt khai báo biến mới thấy.
-        "an": web_transport._cong_moi_truong() is False,
-        "bat": ok,
-        "kha_dung": ok,
-        "ly_do": "" if ok else ly_do,
-        "model_id": MODEL_WEB,
-        # Tên cookie phiên, để màn hình chỉ đúng dòng phải copy trong DevTools thay vì gõ cứng
-        # một cái tên có thể lệch với thứ server đang nhận.
-        "ten_cookie": web_transport.TEN_COOKIE_PHIEN,
-        "profile_dir": str(web_transport.PROFILE_DIR),
-        "transport_version": web_transport.TRANSPORT_VERSION,
-        "selector_version": web_transport.SELECTOR_VERSION,
-        # Nói thẳng chứ không để người dùng tự phát hiện: Memory và custom instructions của
-        # TÀI KHOẢN ChatGPT nhiễm vào mọi lượt của engine này, vì lượt nào cũng là một cuộc
-        # chat thật trên chatgpt.com. Đây là khác biệt hành vi lớn nhất so với Codex.
-        "canh_bao": ("Mọi lượt của engine này là một cuộc chat thật trên chatgpt.com, nên "
-                     "Memory và Custom instructions của tài khoản sẽ ảnh hưởng câu trả lời. "
-                     "Tắt hai thứ đó trong cài đặt ChatGPT nếu muốn Javis trả lời thuần theo "
-                     "system prompt của mình."),
-    })
-    return d
-
-
-@app.post("/web-chat/cookie")
-async def web_chat_cookie(request: Request):
-    """Đăng nhập ChatGPT Web bằng cookie dán từ trình duyệt đã đăng nhập sẵn của chủ máy.
-
-    Vì sao đường này tồn tại bên cạnh màn đăng nhập: chủ máy hỏi 22/09 "sao phải cồng kềnh
-    vậy". Đúng, và đây là phần cắt được. Trình duyệt thì KHÔNG cắt được (Cloudflare buộc
-    `cf_clearance` vào IP, còn chatgpt.com đòi token proof-of-work do JS trong trang tự tính -
-    xem khối chú thích ở đầu web_transport.py), nhưng cookie PHIÊN thì mang sang máy khác được.
-    Nên chủ máy dán một giá trị là xong, không phải gõ mật khẩu trong khung chụp màn hình.
-
-    Javis KHÔNG ghi giá trị cookie ở bất kỳ đâu - kể cả nhật ký lỗi - và không bao giờ vọng
-    lại nó trong câu trả về. Cookie này mạnh ngang mật khẩu: cầm nó là vào được cả tài khoản.
-    Nó chỉ đi thẳng vào hồ sơ trình duyệt, đúng chỗ một phiên đăng nhập vẫn nằm.
-    """
-    if (_chan := _web_chat_chan(request)) is not None:
-        return _chan
-    ok, ly_do = web_transport.kha_dung()
-    if not ok:
-        return {"ok": False, "error": ly_do}
-    d = await request.json()
-    cookies, loi = web_transport.doc_cookie(str(d.get("cookie") or ""))
-    if loi:
-        return {"ok": False, "error": loi}
-    # Dán cookie = BẮT ĐẦU LẠI. Xoá sổ nghỉ (cooldown) và kết quả dò cũ, còn phần đóng trình
-    # duyệt thì `nap_cookie` tự lo. Trước 0.64.13 việc này nằm ở nút "Đóng trình duyệt" riêng;
-    # nút đó đã bỏ cho thẻ gọn, nên đường thoát của nó dời vào đây chứ không mất đi.
-    web_state.dat_lai()
-    web_transport.dat_lai_do()
-    try:
-        trang_thai, chi_tiet = await asyncio.to_thread(web_transport.chung().nap_cookie, cookies)
-    except Exception as e:
-        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
-
-    # BỐN trạng thái, bốn lời khuyên khác nhau. Bản trước gộp ba cái cuối làm một rồi đổ cho
-    # cookie, nên chủ repo đi lấy lại cookie mấy lần cho một thứ chưa bao giờ sai (23/09).
-    if trang_thai == "loi":
-        web_state.ghi_hong(chi_tiet, kind=web_state.NO_BROWSER)
-        return {"ok": False, "error": chi_tiet}
-
-    if trang_thai == "chua":
-        web_state.ghi_dang_nhap(False)
-        return {"ok": False, "error": ("Trang ChatGPT bày màn đăng nhập, tức cookie này không "
-                                       "còn hiệu lực. Lấy lại một lần nữa từ trình duyệt đang "
-                                       "đăng nhập, nhớ copy HẾT chuỗi (nó rất dài).")}
-
-    if trang_thai != "da_dang_nhap":
-        # KHÔNG đổ cho cookie ở nhánh này. Trang không bày màn đăng nhập, tức nó chưa hề nói
-        # cookie sai; nó chỉ chưa tới được chỗ có ô soạn. Nói ra thấy gì để người dùng còn biết
-        # phải làm gì tiếp, thay vì đi lấy lại cookie một cách vô ích.
-        web_state.ghi_hong(chi_tiet, kind=web_state.NO_BROWSER)
-        # Nói nốt PHẢI LÀM GÌ. Câu cũ dừng ở "thử lại sau một phút", mà trên một máy chủ
-        # thuê thì bấm lại bao nhiêu lần cũng vậy: Cloudflare chặn theo địa chỉ IP, và địa chỉ
-        # đó không đổi. Để người dùng bấm mãi một nút vô vọng là tệ hơn nói thẳng là bí.
-        return {"ok": False, "error": (
-            "Cookie đã nạp và trang KHÔNG bày màn đăng nhập, nên nhiều khả năng cookie vẫn "
-            "tốt. Nhưng Javis chờ 45 giây mà ô soạn của ChatGPT vẫn chưa hiện ra. "
-            + (chi_tiet or "") + " " + (web_transport.mo_ta_thiet_lap() + " " ).lstrip()
-            + "Bấm Kiểm tra lại MỘT lần nữa sau một phút. Nếu vẫn vậy thì đây là Cloudflare "
-            "chặn địa chỉ IP của máy chủ, không phải lỗi cookie, và bấm thêm cũng không đổi "
-            "gì: cửa đó xét IP chứ không xét cookie. Máy chủ thuê thì gần như luôn bị chặn. "
-            "Lúc đó hãy dùng ChatGPT qua Codex ở cùng thẻ này (chạy được trên máy chủ, không "
-            "cần trình duyệt), hoặc chuyển model chính sang Grok Build, Antigravity CLI hay "
-            "OpenRouter.")}
-
-    web_state.ghi_dang_nhap(True)
-    return {"ok": True, "da_dang_nhap": True,
-            "huong_dan": "Đã đăng nhập bằng cookie. Chọn model chatgpt-web ở ô chọn model là dùng được."}
-
-
-@app.post("/web-chat/check")
-async def web_chat_check(request: Request):
-    """Kiểm tra lại phiên đăng nhập, không mở thêm cửa sổ nào nếu trình duyệt đang mở."""
-    if (_chan := _web_chat_chan(request)) is not None:
-        return _chan
-    # Người dùng bấm nút này ngay sau khi vừa cài playwright hoặc vừa tải trình duyệt, nên
-    # phải dò lại từ đầu; dùng kết quả nhớ từ trước là nút "Kiểm tra lại" không kiểm gì cả.
-    web_transport.dat_lai_do()
-    ok, ly_do = web_transport.kha_dung()
-    if not ok:
-        return {"ok": False, "error": ly_do}
-
-    def _soi():
-        tr = web_transport.chung()
-        ok2, ly_do2 = tr.mo()
-        return (ok2, ly_do2, tr.da_dang_nhap() if ok2 else False)
-
-    try:
-        mo_duoc, loi, da_dn = await asyncio.to_thread(_soi)
-    except Exception as e:
-        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
-    if not mo_duoc:
-        return {"ok": False, "error": loi}
-    web_state.ghi_dang_nhap(da_dn)
-    return {"ok": True, "da_dang_nhap": da_dn, **web_state.tom_tat()}
 
 
 # ---- Claude Code auth (provider anthropic-cli) - connect/disconnect như OAuth ----
@@ -4885,13 +4658,7 @@ async def _fetch_provider_models(provider, m):
     if provider == "openai-oauth":
         # app-server là subprocess đồng bộ; chạy ở worker để request FastAPI
         # khác không đứng hình trong lúc Codex nạp catalog.
-        ds = await asyncio.to_thread(openai_oauth.list_models, openai_oauth.valid_creds())
-        # Nối `chatgpt-web` vào CUỐI, và nối KỂ CẢ khi Codex không trả được gì (ds là None).
-        # Câu "kể cả khi None" không phải chi tiết vụn: engine Web chạy bằng trình duyệt nên
-        # nó dùng được trên máy KHÔNG cài Codex CLI, mà đó đúng là lúc `list_models` trả None.
-        if _web_bat():
-            return list(ds or []) + [MODEL_WEB]
-        return ds
+        return await asyncio.to_thread(openai_oauth.list_models, openai_oauth.valid_creds())
     if provider == "grok-cli":
         # Chạy ở worker: `list_models` có thể đẻ tiến trình con (`grok --help` để dò cờ, rồi
         # `grok models` nếu bản này có) và mất vài giây.
@@ -4962,11 +4729,6 @@ def _vi_sao_khong_co_model(provider: str, m: dict) -> str:
         if not (openai_oauth.valid_creds() or {}).get("access_token"):
             return ("Chưa kết nối ChatGPT (hoặc phiên đăng nhập đã hết hạn) - "
                     "đăng nhập lại ở thẻ ChatGPT.")
-        # Thẻ này sẵn sàng khi có MỘT TRONG HAI đường: Codex CLI, hoặc engine Web. Trước 0.64
-        # chỉ có đường Codex, nên máy không cài Codex CLI là cả thẻ báo chưa sẵn sàng - mà đó
-        # đúng là máy mà engine Web sinh ra để phục vụ.
-        if _web_bat():
-            return ""
         if not find_codex_cli():
             return ("Không thấy Codex CLI trên máy - danh sách model của gói ChatGPT do chính "
                     "Codex cấp. Cài bằng `npm i -g @openai/codex` (macOS có thể dùng "
@@ -8422,10 +8184,7 @@ def _workflow_agent_helpers(brain, tools):
         prov = _agent_model_provider(model, provider)
         if prov == "openai-oauth" and model and tools is None and find_codex_cli():
             openai_oauth.write_codex_auth()
-            # `_model_codex_thay_the`: agent/workflow chạy NỀN, không có trình duyệt và
-            # không có ai ngồi đó gỡ captcha, nên `chatgpt-web` ở đây đổi về model Codex thật
-            # thay vì đưa một id Codex CLI không hiểu.
-            cc = CodexCLI(cwd=vault_root, tag="workflow", model=_model_codex_thay_the(model),
+            cc = CodexCLI(cwd=vault_root, tag="workflow", model=_codex_safe_model(model),
                           instructions=sysprompt)
             _apply_codex_hub(cc, vault_root)
             return cc
@@ -12658,12 +12417,7 @@ async def websocket_endpoint(ws: WebSocket):
             _codex_fast_plan = None
             # Phiên cộng sự: Fast Path bỏ memory và lịch sử, dùng prompt riêng - không hợp
             # với trợ lý (trợ lý cần ĐÚNG sysprompt của mình, không phải capsule rút gọn).
-            # `not la_model_web(api_model)`: đường tắt gọi THẲNG API của nhà cung cấp bằng
-            # token gói thuê bao, tức đi đúng đường Codex mà người chọn ChatGPT Web đang
-            # tránh - và với model id `chatgpt-web` thì nhà cung cấp cũng không hiểu. Chừa ra
-            # ở đây chứ không sửa trong _execute_fast_path: đây là chỗ QUYẾT ĐỊNH có đi tắt.
-            if (kind in ("oauth", "cli") and not _schedule_action and not _persona
-                    and not la_model_web(api_model)):
+            if kind in ("oauth", "cli") and not _schedule_action and not _persona:
                 try:
                     _plan = await asyncio.to_thread(
                         _FAST_PATH.prepare, runtime_trace, user_message, _brain_root(brain),
@@ -12888,83 +12642,6 @@ async def websocket_endpoint(ws: WebSocket):
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "antigravity-cli",
                         "model": actual_model or "", "session_id": conv_sid,
-                        **_ctx_frame(runtime_trace, _ctx_in)}))
-            elif prov == "openai-oauth" and la_model_web(api_model):
-                # ===== ChatGPT Web: vòng lặp tool của JAVIS quanh phiên trình duyệt =====
-                # Nhánh này đặt TRƯỚC nhánh Codex và chỉ khác nó ở một điều kiện, cố ý: chèn
-                # một `if` vào trong nhánh Codex thì phải thụt lề lại hơn hai trăm dòng của
-                # một trong những chỗ rối nhất file, và mọi lần đọc diff sau này đều mù.
-                #
-                # KHÔNG gọi `_codex_safe_model` ở đây, và cũng không cần: hàm đó đã chừa
-                # `chatgpt-web` ra. Cũng KHÔNG gọi `write_codex_auth`: đường này không đụng
-                # Codex một mili-giây nào, nó chạy bằng phiên đăng nhập trong trình duyệt.
-                actual_model = MODEL_WEB
-                sysprompt, _sub_plan = await _subscription_system_prompt(
-                    "chatgpt-web", actual_model, kind)
-                _web_sid = (_row0.get("web_thread_id") or "").strip()
-
-                # Phiên Coding: mở gốc file sang thư mục làm việc. Không có bước này thì
-                # chọn `chatgpt-web` rồi ngồi trong một phiên Coding là model KHÔNG đọc nổi
-                # một file nào của repo, vì hub luôn khoá tool file trong brain. Rỗng ở phiên
-                # chat thường, và lúc đó mọi thứ chạy y như trước.
-                _web_ctx = coding_ctx.CodingToolContext.from_session(conv_sid)
-                wcli = await _dung_web_engine(
-                    brain, sysprompt, tag=turn_tag, session_id=_web_sid,
-                    mode=_muc_quyen_luot_chat(_row0), staging=True,
-                    workspace_root=list(_web_ctx.workspace_roots) or None,
-                    coding_ctx=_web_ctx if _web_ctx.active else None)
-                if not wcli.is_available():
-                    _ok_web, _ly_do_web = web_transport.kha_dung()
-                    final_text = ("⚠ Engine ChatGPT Web chưa dùng được trên máy này.\n\n"
-                                  + (_ly_do_web or "Chưa rõ lý do.")
-                                  + "\n\nChọn một model Codex ở ô chọn model để làm tiếp ngay.")
-                    await ws.send_text(json.dumps({
-                        "type": "response", "content": final_text, "engine": "chatgpt-web",
-                        "model": actual_model, "session_id": conv_sid,
-                        **_ctx_frame(runtime_trace, _ctx_in)}))
-                else:
-                    # Mồi lại transcript khi CHƯA có luồng web: web không có `--resume`, mạch
-                    # nằm trong chính cuộc chat trên trang. Có luồng rồi thì chỉ gửi câu mới,
-                    # vì trang đã giữ toàn bộ lịch sử - gửi lại là trả tiền hai lần bằng thời
-                    # gian, thứ đắt nhất của engine này.
-                    _w_raw = [{"role": _m["role"], "content": _m["content"]}
-                              for _m in store.get_messages(conv_sid)[:-1]
-                              if _m["role"] in ("user", "assistant") and _m.get("content")]
-                    _w_prompt = (user_message if _web_sid else compaction.bootstrap_prompt(
-                        _w_raw, user_message, summary=_row0.get("compact_summary") or ""))
-                    _CONTEXT_RUNTIME.observe_payload(
-                        runtime_trace,
-                        [{"role": "system", "content": sysprompt},
-                         {"role": "user", "content": _w_prompt}],
-                        provider="chatgpt-web", model=actual_model)
-                    async for ev in wcli.query(_w_prompt):
-                        et = ev.get("type")
-                        if et == "progress":
-                            # Một vòng web mất hàng chục giây. Không có dòng này thì màn hình
-                            # đứng im và người dùng tưởng treo.
-                            await ws.send_text(json.dumps({
-                                "type": "tool_call", "tool": "chatgpt_web",
-                                "content": "⚙ " + (ev.get("content") or "")}))
-                        elif et == "session":
-                            if ev.get("session_id"):
-                                store.set_web_thread_id(conv_sid, ev["session_id"])
-                                store.clear_native_threads(conv_sid, keep="chatgpt-web")
-                        elif et == "tool_call":
-                            await ws.send_text(json.dumps({
-                                "type": "tool_call", "tool": ev.get("name", ""),
-                                "content": f"⚙ {ev.get('name', '')}"}))
-                        elif et == "text":
-                            await ws.send_text(json.dumps({
-                                "type": "stream", "content": ev["content"], "tts": False}))
-                        elif et == "final":
-                            final_text = ev.get("content") or final_text
-                        elif et == "error":
-                            await ws.send_text(_limit_frame(
-                                ev.get("content") or "", "chatgpt-web", actual_model))
-                    final_text = _chuan_hoa_link_file(_brain_root(brain), final_text)
-                    await ws.send_text(json.dumps({
-                        "type": "response", "content": final_text, "engine": "chatgpt-web",
-                        "model": actual_model, "session_id": conv_sid,
                         **_ctx_frame(runtime_trace, _ctx_in)}))
             elif prov == "openai-oauth":
                 # ===== ChatGPT subscription qua CODEX CLI - MCP/tool NATIVE (như Hermes, dùng codex của máy) =====
@@ -17035,7 +16712,7 @@ def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route,
         if prov == "openai-oauth":
             creds = openai_oauth.valid_creds() or {}
             return engine.responses_with_mcp(creds.get("access_token", ""), creds.get("account_id", ""),
-                                             _model_codex_thay_the(model), messages, reasoning, tools, route)
+                                             _codex_safe_model(model), messages, reasoning, tools, route)
         if prov == "anthropic-cli":
             # Gói Claude Code: qua binary `claude` + hub, không mượn token đăng nhập của ai.
             # `tools` chỉ dùng để BIẾT lượt này có công cụ hay không - engine tự đấu hub bằng
@@ -17298,9 +16975,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         return {"text": channel_context.strip_control_blocks(_schedule_cancel_reply(schedule_action)),
                 "files": []}
 
-    # `not la_model_web(api_model)`: đường tắt gọi thẳng API nhà cung cấp, tức đúng đường
-    # Codex mà người chọn ChatGPT Web đang tránh (xem nhánh tương ứng ở dashboard).
-    if _FAST_PATH is not None and not la_model_web(api_model):
+    if _FAST_PATH is not None:
         try:
             _fp = await asyncio.to_thread(
                 _FAST_PATH.prepare, runtime_trace, text, _brain_root(brain), channel, prov,
@@ -17403,46 +17078,6 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         if not out and loi:
             _noi = _subscription_limit_message(loi[0], "antigravity-cli")
             return _noi or ("⚠ Antigravity CLI lỗi: " + loi[0][:400])
-        return out or "(không có nội dung)"
-
-    if prov == "openai-oauth" and la_model_web(api_model):
-        # ===== ChatGPT Web trên Telegram =====
-        # Một phiên trình duyệt, một tài khoản, và transport khoá MỘT lượt tại một thời điểm.
-        # Nên hai người nhắn cùng lúc thì người thứ hai nhận câu "đang bận" chứ không phải một
-        # lượt hỏng khó hiểu - việc đó `web_transport.gui` lo, không lặp lại luật ở đây.
-        actual_model = MODEL_WEB
-        _w_sid = sess.get("web_thread_id") or ""
-        wcli = await _dung_web_engine(
-            brain, sysprompt, tag=f"telegram:{chat_id}", session_id=_w_sid, mode="full")
-        if not wcli.is_available():
-            _ok_w, _ly_do_w = web_transport.kha_dung()
-            return ("⚠ Engine ChatGPT Web chưa dùng được trên máy chạy Javis.\n"
-                    + (_ly_do_w or "Chưa rõ lý do.")
-                    + "\nChọn một model Codex ở trang Models để dùng ngay.")
-        _hoi = text
-        if not _w_sid:
-            _raw_cu, _tom_cu = _tg_lich_su_kho(store, conv_sid, text)
-            _hoi = compaction.bootstrap_prompt(_raw_cu, _hoi, summary=_tom_cu)
-        _CONTEXT_RUNTIME.observe_payload(
-            runtime_trace,
-            [{"role": "system", "content": sysprompt}, {"role": "user", "content": _hoi}],
-            provider="chatgpt-web", model=actual_model)
-        out, loi = "", []
-        async for ev in wcli.query(_hoi):
-            et = ev.get("type")
-            if et == "progress":
-                await _p("⚙ " + (ev.get("content") or ""))
-            elif et == "session":
-                if ev.get("session_id"):
-                    sess["web_thread_id"] = ev["session_id"]
-            elif et == "tool_call":
-                await _p(f"⚙ Đang gọi: {ev.get('name', '')}")
-            elif et == "final":
-                out = ev.get("content") or out
-            elif et == "error":
-                loi.append(str(ev.get("content") or ""))
-        if not out and loi:
-            return "⚠ ChatGPT Web: " + loi[0][:500]
         return out or "(không có nội dung)"
 
     if prov == "openai-oauth":
