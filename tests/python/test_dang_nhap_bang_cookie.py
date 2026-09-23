@@ -349,6 +349,138 @@ else:
         _srv2.shutdown()
 
 
+# ============================================================
+# 8) Cookie BỊ CHIA MẢNH (.0 / .1) - tài khoản gói Team
+# ============================================================
+#
+# Chủ repo mắc kẹt cả ngày 23/09 ở đây. next-auth cắt cookie thành `<tên>.0`, `<tên>.1`... khi
+# nó dài quá một cookie chứa nổi, rồi ghép lại bằng cách nối theo thứ tự chỉ số. Tài khoản gói
+# Team mang nhiều quyền nên token phình to, và DevTools bày ra ĐÚNG hai dòng đuôi số, không có
+# dòng nào mang tên trơn.
+#
+# Bản trước chỉ nhận đúng tên trơn, nên sinh ra hai đường chết:
+#   - dán cả hai dòng -> bị từ chối vì "không thấy cookie tên đó"
+#   - dán một dòng    -> ĐƯỢC NHẬN (Javis tự gán tên trơn), nhưng đó là NỬA token. Trang đọc
+#     không ra phiên, báo "chưa đăng nhập", và lời khuyên hiện ra lại là "cookie hết hạn".
+#     Im lặng, và chỉ sai đúng một chỗ mà không ai nhìn thấy được.
+#
+# TRẦN 4096 BYTE cho cả tên lẫn giá trị, đo bằng Chromium thật (dò nhị phân: tên 34 ký tự thì
+# giá trị dài nhất giữ được là 4062). Đây là lý do cách "nối hai nửa thành MỘT cookie" không
+# chạy, dù nghe rất hợp lý - và một bản phân tích đã khuyên chủ repo làm đúng như vậy.
+
+check("có trần cookie, và bằng đúng số đo được", wt.TRAN_COOKIE == 4096)
+check("có hàm nhận diện mảnh", wt._la_manh(wt.TEN_COOKIE_PHIEN + ".0")
+      and wt._la_manh(wt.TEN_COOKIE_PHIEN + ".12"))
+check("nhưng không bắt nhầm cookie khác",
+      not wt._la_manh(wt.TEN_COOKIE_PHIEN) and not wt._la_manh(wt.TEN_COOKIE_PHIEN + ".abc"))
+
+_N0, _N1 = "A" * 4000, "B" * 3000
+_DAY = _N0 + _N1
+
+# -- kiểu 1: dán cả cụm, đúng thứ DevTools bày ra
+_ck, _loi = wt.doc_cookie(f"{wt.TEN_COOKIE_PHIEN}.0={_N0}; {wt.TEN_COOKIE_PHIEN}.1={_N1}")
+check("dán cả cụm .0 và .1 -> KHÔNG còn bị từ chối", _loi == "", _loi)
+check("và giữ NGUYÊN hai mảnh, không gộp bừa",
+      sorted(c["name"] for c in _ck)
+      == [wt.TEN_COOKIE_PHIEN + ".0", wt.TEN_COOKIE_PHIEN + ".1"])
+
+# -- kiểu 2: nối hai nửa rồi dán. Đây là bản năng của người dùng, nên phải chạy.
+_ck, _loi = wt.doc_cookie(_DAY)
+check("dán chuỗi đã nối -> không bị từ chối", _loi == "", _loi)
+check("Javis TỰ cắt thành mảnh", len(_ck) > 1 and all(wt._la_manh(c["name"]) for c in _ck),
+      [c["name"] for c in _ck])
+check("mọi mảnh nằm DƯỚI trần, kẻo Chromium từ chối cả cụm",
+      all(len(c["name"]) + len(c["value"]) < wt.TRAN_COOKIE for c in _ck))
+check("nối các mảnh lại ra ĐÚNG token gốc",
+      "".join(c["value"] for c in _ck) == _DAY)
+check("mảnh đánh số từ 0 và liên tục",
+      [c["name"] for c in _ck] == [f"{wt.TEN_COOKIE_PHIEN}.{i}" for i in range(len(_ck))])
+
+# -- kiểu 3: chỉ dán MỘT mảnh. Đây đúng là lỗi chủ repo dính phải.
+_ck, _loi = wt.doc_cookie(f"{wt.TEN_COOKIE_PHIEN}.0={_N0}")
+check("chỉ một mảnh đầy ắp -> TỪ CHỐI, không âm thầm nhận bừa", _ck == [] and _loi != "")
+check("và nói rõ là còn thiếu mảnh nữa", "còn mảnh nữa" in _loi, _loi)
+check("câu từ chối chỉ đúng việc phải làm", ".0" in _loi and ".1" in _loi, _loi)
+
+# -- kiểu 4: token ngắn vẫn đi đường cũ, không làm hỏng thứ đang chạy
+_ck, _loi = wt.doc_cookie("eyJhbGciOiJkaXIifQ..abc")
+check("token ngắn vẫn là MỘT cookie tên trơn",
+      _loi == "" and len(_ck) == 1 and _ck[0]["name"] == wt.TEN_COOKIE_PHIEN)
+
+# -- câu từ chối khi không thấy gì phải NHẮC tới trường hợp chia mảnh
+_, _loi = wt.doc_cookie("oai-did=abc; _ga=GA1.1.9")
+check("không thấy cookie nào -> có nhắc luôn khả năng bị chia .0/.1", ".0" in _loi, _loi)
+
+# -- hướng dẫn trên màn hình và trong tài liệu phải nói ra, vì CHÍNH NÓ dẫn người dùng đi sai
+check("thẻ trên dashboard nhắc copy CẢ HAI dòng",
+      "copy CẢ HAI" in _js)
+_doc = (ROOT / "docs" / "29-chatgpt-web.md").read_text(encoding="utf-8")
+check("tài liệu có hẳn một mục cho trường hợp chia mảnh", "HAI dòng `.0` và `.1`" in _doc)
+check("tài liệu nói cả hai cách dán đều được",
+      "nối liền" in _doc and "session-token.0=" in _doc)
+
+
+# ============================================================
+# 9) Chạy THẬT: Chromium có giữ nổi những mảnh đó không
+# ============================================================
+#
+# Tầng trên soi hình dạng dữ liệu. Tầng này trả lời câu quyết định: nhét vào trình duyệt thật
+# thì nó có nhận không. Chính tầng này bác bỏ cách "nối thành một cookie".
+
+if not _co_pw or not _chrome:
+    print("bỏ qua tầng Chromium cho cookie chia mảnh")
+else:
+    class _Tay3(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(b"<html><body>ok</body></html>")
+
+    with socketserver.TCPServer(("127.0.0.1", 0), _Tay3) as _srv3:
+        _c3 = _srv3.server_address[1]
+        threading.Thread(target=_srv3.serve_forever, daemon=True).start()
+        from playwright.sync_api import sync_playwright as _spw
+
+        def _nap(cookies):
+            with _spw() as pw:
+                b = pw.chromium.launch(headless=True, executable_path=_chrome,
+                                       args=["--no-sandbox", "--no-proxy-server"])
+                ctx = b.new_context()
+                pg = ctx.new_page()
+                pg.goto(f"http://127.0.0.1:{_c3}/")
+                loi = ""
+                try:
+                    ctx.add_cookies([dict(c, domain="127.0.0.1") for c in cookies])
+                except Exception as e:
+                    loi = str(e)[:100]
+                giu = {c["name"]: len(c["value"]) for c in ctx.cookies()}
+                ctx.close()
+                b.close()
+                return giu, loi
+
+        _ck, _ = wt.doc_cookie(f"{wt.TEN_COOKIE_PHIEN}.0={_N0}; {wt.TEN_COOKIE_PHIEN}.1={_N1}")
+        _giu, _e = _nap(_ck)
+        check("Chromium GIỮ được cả hai mảnh", len(_giu) == 2, f"{_giu} {_e}")
+        check("và tổng độ dài đúng bằng token gốc", sum(_giu.values()) == len(_DAY))
+
+        _ck, _ = wt.doc_cookie(_DAY)
+        _giu, _e = _nap(_ck)
+        check("dán chuỗi đã nối -> Chromium cũng giữ đủ",
+              sum(_giu.values()) == len(_DAY), f"{_giu} {_e}")
+
+        # CANARY: cách "nối thành MỘT cookie" phải HỎNG THẬT ở đây. Không có phép này thì cả
+        # mục trên chỉ là lời khẳng định suông.
+        _giu, _e = _nap([{"name": wt.TEN_COOKIE_PHIEN, "value": _DAY, "path": "/",
+                          "httpOnly": True, "secure": True, "sameSite": "Lax"}])
+        check("CANARY: nối thành MỘT cookie thì Chromium TỪ CHỐI",
+              wt.TEN_COOKIE_PHIEN not in _giu, f"{_giu} {_e}")
+        _srv3.shutdown()
+
+
 print()
 if _fails:
     print(f"THẤT BẠI {len(_fails)}: {_fails}")

@@ -3775,6 +3775,7 @@
             placeholder="Dán cookie ${esc(x.ten_cookie || "__Secure-next-auth.session-token")} vào đây"></textarea>
           <div class="gcard-meta" style="margin-top:4px">
             Lấy ở chatgpt.com: F12 → Application → Cookies.
+            <b>Thấy hai dòng đuôi .0 và .1 thì copy CẢ HAI.</b>
             <a href="${HD_WEB}" target="_blank" rel="noopener">Xem từng bước ↗</a>
           </div>
         </div>`}
