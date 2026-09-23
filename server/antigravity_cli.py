@@ -1400,6 +1400,21 @@ class AntigravityCLI:
                     proc.stdin.close()
                 except Exception:
                     pass
+                # Đọc stderr SONG SONG ở luồng riêng. Bản cũ đọc hết stdout rồi mới đọc stderr:
+                # agy mà ghi quá ~64KB vào stderr (log MCP, cảnh báo) thì ống đầy, nó đứng chờ
+                # ghi, còn mình đứng chờ stdout đóng - lượt treo tới khi bị cắt.
+                phan_loi: list = []
+
+                def _doc_loi():
+                    try:
+                        for dl in iter(proc.stderr.readline, ""):
+                            phan_loi.append(dl)
+                    except Exception:
+                        pass
+
+                luong_loi = threading.Thread(target=_doc_loi, daemon=True,
+                                             name=f"javis-agy-err-{self.tag}")
+                luong_loi.start()
                 for line in iter(proc.stdout.readline, ""):
                     line = line.strip()
                     if not line:
@@ -1408,12 +1423,9 @@ class AntigravityCLI:
                         loop.call_soon_threadsafe(hang.put_nowait, json.loads(line))
                     except json.JSONDecodeError:
                         loop.call_soon_threadsafe(hang.put_nowait, {"_raw": line})
-                err = ""
-                try:
-                    err = (proc.stderr.read() or "").strip()
-                except Exception:
-                    pass
                 ma = proc.wait(timeout=self.timeout)
+                luong_loi.join(timeout=5)
+                err = "".join(phan_loi).strip()
                 if ma != 0 or err:
                     loop.call_soon_threadsafe(hang.put_nowait, {"_exit": ma, "_err": err})
             except subprocess.TimeoutExpired:

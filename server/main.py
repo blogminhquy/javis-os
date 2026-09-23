@@ -11962,7 +11962,8 @@ async def voice_options():
     v = cfg.get("voice", {}) or {}
     agy_models = None
     try:
-        agy_models = antigravity_cli.list_models()
+        # Luồng phụ: `agy models` có thể mất tới 30 giây, chạy trên loop là cả app đứng theo.
+        agy_models = await asyncio.to_thread(antigravity_cli.list_models)
     except Exception:
         agy_models = None
     keys = {k: bool(m.get(k)) for k in ("groq_api_key", "gemini_api_key", "openai_api_key", "openrouter_key")}
@@ -14445,8 +14446,12 @@ async def terminal_ws(ws: WebSocket, session: str = Query(""), brain: str = Quer
 # Phiên hội thoại - list / view / search / rename / delete (sqlite + fts5)
 # /sessions/search KHAI BÁO TRƯỚC /sessions/{id} để không bị nuốt làm path param.
 # ============================================================
+# sessions_list, sessions_new và sessions_get là `def` thường, KHÔNG phải `async def`: chúng chỉ làm sqlite đồng bộ,
+# và `def` thì FastAPI chạy ở threadpool. Để `async def` là chúng chạy thẳng trên event loop,
+# nên hễ loop bận (một lượt chat đang chạy, hub đang dò MCP) là trang Cộng sự bấm đổi trợ lý
+# mà màn hình đứng yên - chủ repo gặp đúng cảnh này 23/09. Kho phiên đã có khoá riêng.
 @app.get("/sessions")
-async def sessions_list(brain: str = Query(None), limit: int = Query(50),
+def sessions_list(brain: str = Query(None), limit: int = Query(50),
                         project: str = Query(""), channel: str = Query("")):
     """project: bỏ trống = mọi hội thoại; "none" = cuộc chưa xếp nhóm; còn lại = id project.
     channel: bỏ trống = loại các kênh cộng sự (agent:/workflow:); có giá trị = đúng kênh đó
@@ -14465,7 +14470,7 @@ _KENH_CONG_SU_RE = re.compile(r"^(agent|workflow|coding):([^\s/\\:]+)$")
 
 
 @app.post("/sessions/new")
-async def sessions_new(brain: str = Form("brain"), channel: str = Form("web")):
+def sessions_new(brain: str = Form("brain"), channel: str = Form("web")):
     """Mở một phiên TRỐNG với kênh định trước. Trang Cộng sự gọi trước tin đầu tiên: kho phiên
     phải biết phiên này là chat với trợ lý/quy trình nào thì lượt đầu mới đi đúng đường.
     Phiên chat thường vẫn mint id ở client như cũ; route này chỉ cho kênh cộng sự và coding."""
@@ -14507,7 +14512,7 @@ async def sessions_search(q: str = Query(...), brain: str = Query(None), limit: 
 
 
 @app.get("/sessions/{session_id}")
-async def sessions_get(session_id: str, limit: int = Query(0)):
+def sessions_get(session_id: str, limit: int = Query(0)):
     """`limit=0` (mặc định) trả CẢ hội thoại - khuôn cũ, mọi chỗ gọi cũ giữ nguyên hành vi.
 
     `limit=N` trả N tin CUỐI kèm `has_more` + `total`: khung chat mở hội thoại dài thì chỉ

@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.16] - 2026-09-23
+### Sửa lỗi
+- **Đổi trợ lý giữa lúc trợ lý khác đang trả lời thì màn hình đứng yên.** Vài việc chạy ngầm (kiểm tra đăng nhập Antigravity, dò lại danh sách công cụ MCP) chiếm luồng chính của máy chủ, nên mọi thao tác khác phải xếp hàng chờ. Nay các việc đó chạy riêng, bấm sang trợ lý khác là đổi ngay.
+- **Lượt chat trên Antigravity CLI có lúc treo tới khi bị cắt** vì Javis đọc log lỗi của `agy` quá muộn. Nay đọc song song.
+
 ## [0.64.15] - 2026-09-23
 ### Thay đổi
 - **Bỏ dải "VỪA GỌI" chữ xanh lá cạnh ô chọn model.** Từng bước Javis gọi tool giờ đã hiện ngay trong khung chat, nên dải này chỉ lặp lại thứ bạn vừa thấy và chiếm chỗ.
