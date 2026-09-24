@@ -3086,6 +3086,24 @@ body.ne-full-on .cview { z-index: 250; }
 }
 .pet-rig { transform-origin: 160px 160px; }
 
+/* PHẢN ỨNG TẠM của linh vật (pet.js -> dienPhanUng, 0.64.39). Gắn lên <svg> chứ không lên
+   .pet-body: .pet-body đang giữ transform trượt ra/nép vào, đè lên đó là pet giật về mép.
+     squish = bị bấm: bẹp xuống rồi bật lên
+     hop    = vừa trả lời xong: nhảy lên một cái
+     shake  = bị bấm dồn dập: lắc lư chóng mặt */
+.pet[data-anim] .pet-body svg { transform-origin: 50% 80%; }
+.pet[data-anim="squish"] .pet-body svg { animation: petSquish .5s cubic-bezier(.3, 1.6, .5, 1); }
+.pet[data-anim="hop"] .pet-body svg { animation: petHop .75s cubic-bezier(.3, 1.4, .5, 1); }
+.pet[data-anim="shake"] .pet-body svg { animation: petShake .7s ease-in-out; }
+@keyframes petSquish { 0% { transform: scale(1, 1); } 30% { transform: scale(1.12, .84); } 65% { transform: scale(.94, 1.08); } 100% { transform: scale(1, 1); } }
+@keyframes petHop { 0% { transform: translateY(0) scale(1, 1); } 20% { transform: translateY(0) scale(1.08, .9); }
+  50% { transform: translateY(-18%) scale(.95, 1.06); } 80% { transform: translateY(0) scale(1.05, .95); } 100% { transform: translateY(0) scale(1, 1); } }
+@keyframes petShake { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-12deg); } 40% { transform: rotate(10deg); }
+  60% { transform: rotate(-7deg); } 80% { transform: rotate(4deg); } }
+/* Đang ngủ gật: thân thở chậm và sâu hơn lúc thức. */
+.pet[data-ngu="1"] .pet-body svg { animation: petNgu 3.6s ease-in-out infinite; transform-origin: 50% 90%; }
+@keyframes petNgu { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, .96); } }
+
 /* Menu nhanh: hiện khi pet trượt ra. Không phải trang cài đặt, chỉ là 4 lối đi hay dùng. */
 /* Menu neo TUYỆT ĐỐI cạnh thân, chứ không phải một ô flex bên trong .pet: .pet chỉ rộng 56px
    nên nằm trong flex là menu bị bóp lại bằng min-content và chữ tràn ra ngoài màn hình.
@@ -3165,7 +3183,7 @@ body.ne-full-on .cview { z-index: 250; }
   .pet-menu button { font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pet-body, .pet-menu { transition: none !important; animation: none !important; }
+  .pet-body, .pet-menu, .pet-body svg { transition: none !important; animation: none !important; }
 }
 
 /* Ô dấu ấn khi nó đang mang khuôn mặt linh vật (pet.js -> veDauAn). Ảnh logo cũ là

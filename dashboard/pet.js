@@ -172,6 +172,20 @@
     sad:        '<path class="pet-line" d="M-9 -2 Q0 -10 9 -2"/>',
     suspicious: ['<path class="pet-line" d="M-9 -3 H9"/>', '<path class="pet-line" d="M-9 2 H9"/>'],
     blink:      '<path class="pet-line" d="M-9 0 H9"/>',
+    // ---- Thêm ở 0.64.39: cho pet sống động hơn khi không bật mic ----
+    // ĐÃ BẮT ĐƯỢC GIỌNG: mắt mở to và tròn hơn cả "curious". Trước đây đang chờ nghe với đang
+    // nghe thấy người ta nói là CÙNG một dáng, nên nói xong một câu mà không biết pet có nghe.
+    hearing:    '<ellipse cy="-2" rx="9.6" ry="23.5"/>',
+    // Đang VIẾT câu trả lời (chữ đang chảy về): hai mắt nhìn xuống như đang cắm cúi ghi.
+    viet:       '<ellipse cy="7" rx="7" ry="14.5"/>',
+    // Nháy mắt: mắt trái cong như cười, mắt phải vẫn mở.
+    wink:       ['<path class="pet-line" d="M-9 3 Q0 -7 9 3"/>', '<ellipse rx="7.2" ry="17.5"/>'],
+    // Ngạc nhiên: hai mắt tròn xoe.
+    surprised:  '<ellipse rx="10.5" ry="12.5"/>',
+    // Mắt tim: bấm vuốt ve liên tục.
+    love:       '<path d="M0 11 C-15 0 -13 -13 -5.5 -13 C-2 -13 0 -10 0 -7.5 C0 -10 2 -13 5.5 -13 C13 -13 15 0 0 11 Z"/>',
+    // Chóng mặt: bấm dồn dập quá.
+    dizzy:      '<path class="pet-line" d="M-8 -8 L8 8 M8 -8 L-8 8"/>',
   };
 
   // ĐANG NGHĨ thì hai con mắt ĐỔI QUA ĐỔI LẠI giữa hai dáng, không đứng yên một dáng:
@@ -199,6 +213,11 @@
   var STATES = {
     idle:         { eye: "neutral",    ring: 7,   dash: "286 74",  mo: 0.45 },   // 1 vệt dài, hở một quãng
     listening:    { eye: "curious",    ring: 26,  dash: "44 46",   mo: 1 },      // 4 vệt
+    // Mic ĐÃ BẮT được tiếng nói (voice-turn: user_speaking). Vành quay nhanh gấp rưỡi và dày
+    // vệt hơn lúc chờ nghe, cộng mắt mở to, cộng một cú gật nhẹ mỗi lần có chữ mới (xem nghe()).
+    hearing:      { eye: "hearing",    ring: 64,  dash: "30 15",   mo: 1 },      // 8 vệt, dồn dập
+    // Đang VIẾT câu trả lời: chữ đã bắt đầu chảy về nhưng lượt chưa xong.
+    writing:      { eye: "viet",       ring: 30,  dash: "72 18",   mo: 1 },      // 4 vệt dài
     waiting:      { eye: "curious",    ring: 12,  dash: "30 60",   mo: 1 },      // 4 vệt, thưa hơn
     thinking:     { eye: "thinking",   ring: 108, dash: "100 80",  mo: 1 },      // 2 vệt dài, quay nhanh
     speaking:     { eye: "happy",      ring: 18,  dash: "56 34",   mo: 1 },      // 4 vệt, dày dặn
@@ -206,6 +225,23 @@
     reconnecting: { eye: "suspicious", ring: 40,  dash: "24 36",   mo: 1 },      // 6 vệt ngắn: bồn chồn
     error:        { eye: "sad",        ring: 0,   dash: "286 74",  mo: 1 },
   };
+
+  // ---- PHẢN ỨNG TẠM (0.64.39) ----
+  // Mỗi phản ứng là một biểu cảm giữ trong `ms` rồi trả về đúng trạng thái thật, kèm một cú
+  // cử động của cả thân (`anim`, xem .pet[data-anim] trong style.css). Không phản ứng nào đổi
+  // trạng thái thật: pet vẫn nói đúng điều orb nói, chỉ là nói có cảm xúc hơn.
+  //   click   = bấm vào pet khi nó đã đứng ngoài (bốc ngẫu nhiên một trong mấy dáng vui)
+  //   xong    = vừa trả lời xong một lượt: cười tít và nhảy lên một cái
+  //   choang  = bấm dồn dập: chóng mặt, lắc lư
+  //   thuc    = đang ngủ gật thì có người động vào
+  var PHAN_UNG = {
+    click:  { mat: ["happy", "wink", "surprised", "love"], ms: 1300, anim: "squish" },
+    xong:   { mat: ["happy"],     ms: 1700, anim: "hop" },
+    choang: { mat: ["dizzy"],     ms: 1500, anim: "shake" },
+    thuc:   { mat: ["surprised"], ms: 700,  anim: "squish" },
+  };
+  // Ngồi yên bao lâu thì ngủ gật (ms). Chỉ khi ĐANG NGHỈ: đang nghe, nghĩ, nói thì không ngủ.
+  var NGU_SAU = 90000;
 
   var el = null, svg = null, nutBody = null, menu = null;
   var pRing = null, pFace = null, gEyes = null, gRig = null;
@@ -219,6 +255,13 @@
   var liecX = 0, liecY = 0, liecDichX = 0, liecDichY = 0;
   var chuotLuc = 0;
   var keo = null;                           // { id, dx, dy, di } khi đang kéo
+  var phanUngTen = "";                      // mắt của phản ứng đang diễn, "" = không có
+  var choXong = false;                      // đã trả lời xong nhưng còn đang đọc: vui khi đọc xong
+  var hoatDongLuc = 0, nguGat = false;      // lần cuối có người động vào, và đang ngủ gật không
+  var gatLuc = 0;                           // mốc cú gật khi nghe thấy chữ mới
+  var bamLuc = [];                          // mốc mấy cú bấm gần nhất (bắt bấm dồn dập)
+  var diChuot = false;                      // con trỏ đang nằm trên thân pet
+  var animTimer = 0;
   var giamChuyenDong = null;
 
   function t(k, d) {
@@ -546,8 +589,20 @@
     // một con trôi ra ngoài phần còn nhìn thấy.
     var ghim = el.dataset.out === "1" ? 1 : 0.45;
 
+    // Cú GẬT khi nghe thấy chữ mới: phình nhẹ rồi xẹp trong 260ms. Là dấu hiệu "mình đang nghe
+    // đây" mà mắt không cần đổi dáng liên tục.
+    var gat = gatLuc > now ? (gatLuc - now) / 260 : 0;
+    var phinh = gat > 0 ? " scale(" + (1 + Math.sin(gat * Math.PI) * 0.07).toFixed(3) + ")" : "";
     gRig.style.transform = "translate(" + (nhinX * 3.4).toFixed(2) + "px," +
-      (nhinY * 2.4 + tho * 0.5).toFixed(2) + "px)";
+      (nhinY * 2.4 + tho * 0.5 - gat * 3).toFixed(2) + "px)" + phinh;
+
+    // Ngồi không lâu quá thì NGỦ GẬT: mắt lim dim, vành gần như đứng. Có ai động vào (rê
+    // chuột, gõ phím) là giật mình tỉnh dậy, xem thucDay().
+    if (!nguGat && state === "idle" && !phanUngTen && hoatDongLuc && now - hoatDongLuc > NGU_SAU) {
+      nguGat = true; mood = "sleepy"; if (!dangChop) veMat(mood);
+      tocDoDich = 2; pRing.style.opacity = "0.3";
+      el.dataset.ngu = "1";
+    }
     gEyes.style.transform = "translate(" + (nhinX * TAM_X * ghim).toFixed(2) + "px," +
       (nhinY * TAM_Y * ghim).toFixed(2) + "px)";
 
@@ -565,7 +620,7 @@
     }
 
     // Chớp mắt: ngắn và KHÔNG đều nhịp. Đều nhịp là cảm giác máy móc.
-    if (now > chopLuc && !dangChop && vuiDen < now) {
+    if (now > chopLuc && !dangChop && vuiDen < now && !nguGat) {
       dangChop = true; veMat("blink");
       setTimeout(function () { dangChop = false; veMat(mood); }, 130);
       chopLuc = now + 2800 + Math.random() * 3200;
@@ -584,16 +639,54 @@
   function apDungTrangThai() {
     var s = STATES[state] || STATES.idle;
     mood = s.eye;
+    phanUngTen = "";
+    // Đang nghỉ mà con trỏ nằm trên thân: tò mò nhìn lại, không ngồi trơ.
+    if (state === "idle" && diChuot) mood = "curious";
+    if (state === "idle" && nguGat) mood = "sleepy";
     // Vào lại trạng thái nghĩ thì bắt đầu từ dáng ĐẦU của NGHI_MAT và chờ đủ một nhịp mới đổi.
     // Không đặt lại thì mốc cũ đã trôi qua từ lâu, nên vừa bắt đầu nghĩ là mắt nháy sang dáng
     // kia ngay lập tức, trông như giật.
     nghiPha = 0;
     nghiLuc = (typeof performance !== "undefined" ? performance.now() : 0) + NGHI_LAU[0];
     if (!dangChop) veMat(mood);
-    tocDoDich = s.ring;
+    tocDoDich = nguGat && state === "idle" ? 2 : s.ring;
     pRing.style.strokeDasharray = s.dash;
-    pRing.style.opacity = String(s.mo);
+    pRing.style.opacity = String(nguGat && state === "idle" ? 0.3 : s.mo);
     el.dataset.state = state;
+  }
+
+  // Diễn một phản ứng tạm (xem PHAN_UNG). Giảm chuyển động thì vẫn đổi mắt, chỉ bỏ cú nhún.
+  function dienPhanUng(ten) {
+    var p = PHAN_UNG[ten];
+    if (!p || !el || el.hidden) return;
+    var now = typeof performance !== "undefined" ? performance.now() : 0;
+    phanUngTen = p.mat[Math.floor(Math.random() * p.mat.length)];
+    mood = phanUngTen;
+    if (!dangChop) veMat(mood);
+    vuiDen = now + p.ms;                 // vòng vẽ trả về trạng thái thật khi hết giờ
+    chopLuc = Math.max(chopLuc, now + p.ms);
+    if (p.anim && !(giamChuyenDong && giamChuyenDong.matches)) {
+      // Gỡ rồi gắn lại qua một khung hình để hai phản ứng liền nhau vẫn chạy lại hoạt ảnh.
+      delete el.dataset.anim;
+      clearTimeout(animTimer);
+      requestAnimationFrame(function () {
+        if (!el) return;
+        el.dataset.anim = p.anim;
+        animTimer = setTimeout(function () { if (el) delete el.dataset.anim; }, 900);
+      });
+    }
+    chay();
+  }
+
+  // Có người động vào (rê chuột, gõ, bấm). Đang ngủ gật thì giật mình tỉnh.
+  function thucDay() {
+    hoatDongLuc = typeof performance !== "undefined" ? performance.now() : 0;
+    if (!nguGat) return;
+    nguGat = false;
+    if (el) delete el.dataset.ngu;
+    if (!el) return;
+    tocDoDich = (STATES[state] || STATES.idle).ring;
+    if (state === "idle") dienPhanUng("thuc"); else apDungTrangThai();
   }
 
   // ---- Tương tác ----
@@ -669,11 +762,20 @@
         return;
       }
       var dangRa = el.dataset.out === "1";
+      // Bấm DỒN DẬP (4 cú trong 1,6 giây) thì chóng mặt. Đếm cả lượt bấm lúc đang nép.
+      var bayGio = performance.now();
+      bamLuc = bamLuc.filter(function (m) { return bayGio - m < 1600; }).concat(bayGio);
+      var choang = bamLuc.length >= 4;
+      if (choang) bamLuc = [];
       if (!dangRa) {                       // đang nép: trượt hẳn ra và mở menu, chào một nhịp
         raNgoai(true); moMenu(true);
-        mood = "excited"; veMat(mood); vuiDen = performance.now() + 1500;
+        mood = "excited"; veMat(mood); vuiDen = bayGio + 1500;
       } else {
         moMenu(el.dataset.menu !== "1");   // đã ở ngoài: bấm chỉ bật tắt menu, không chui vào
+        // Và PHẢN ỨNG với cú bấm, không chỉ mở menu im lìm: cười, nháy mắt, tròn mắt, mắt tim.
+        // Chỉ khi pet đang rảnh; đang nghe/nghĩ/nói thì giữ nguyên để không nói dối trạng thái.
+        if (choang) dienPhanUng("choang");
+        else if (state === "idle") dienPhanUng("click");
       }
     }
     nutBody.addEventListener("pointerup", thaKeo);
@@ -720,7 +822,33 @@
       tx = kep((e.clientX - cx) / 420, -1, 1);
       ty = kep((e.clientY - cy) / 320, -1, 1);
       chuotLuc = performance.now();
+      thucDay();
     }, { passive: true });
+
+    // Con trỏ nằm TRÊN thân: đang rảnh thì tò mò nhìn lại (mắt to hơn một chút).
+    nutBody.addEventListener("pointerenter", function () {
+      diChuot = true;
+      if (state === "idle" && !phanUngTen && !nguGat) { mood = "curious"; if (!dangChop) veMat(mood); }
+    });
+    nutBody.addEventListener("pointerleave", function () {
+      diChuot = false;
+      if (state === "idle" && !phanUngTen && !nguGat) apDungTrangThai();
+    });
+
+    // Người dùng GÕ vào ô chat: pet quay sang nhìn ô đó, như đang chờ đọc. Nghe ở document
+    // (uỷ quyền) vì ô chat có thể được dựng lại, và không cần app.js phải báo gì.
+    document.addEventListener("input", function (e) {
+      var o = e.target;
+      if (!el || el.hidden || !o || o.id !== "chatInput") return;
+      thucDay();
+      var r = el.getBoundingClientRect(), q = o.getBoundingClientRect();
+      if (!r.width || !q.width) return;
+      tx = kep((q.left + q.width / 2 - (r.left + r.width / 2)) / 420, -1, 1);
+      ty = kep((q.top + q.height / 2 - (r.top + r.height / 2)) / 320, -1, 1);
+      chuotLuc = performance.now();
+      if (state === "idle" && !phanUngTen && mood !== "curious") { mood = "curious"; if (!dangChop) veMat(mood); vuiDen = chuotLuc + 1800; }
+    }, true);
+    document.addEventListener("keydown", function () { thucDay(); }, true);
 
     document.addEventListener("visibilitychange", function () {
       if (document.hidden) dung_lai(); else chay();
@@ -733,7 +861,33 @@
     if (s === state) return;
     state = s;
     vuiDen = 0;
+    if (s === "error") choXong = false;
+    if (s !== "idle" && nguGat) { nguGat = false; if (el) delete el.dataset.ngu; }
     if (el) apDungTrangThai();
+    // Trả lời xong trong lúc còn đang đọc thành tiếng: đợi đọc xong (về nghỉ / chờ nghe) mới
+    // vui, không thì cú nhảy chen ngang giữa câu đang nói.
+    if (choXong && (s === "idle" || s === "listening")) { choXong = false; dienPhanUng("xong"); }
+  }
+  // app.js báo những việc KHÔNG phải trạng thái orb:
+  //   "xong"  = một lượt vừa có câu trả lời (không tính lượt lỗi, lượt bị dừng)
+  //   "viet"  = chữ trả lời bắt đầu chảy về (đang nghĩ -> đang viết)
+  //   "nghe"  = mic vừa bắt thêm chữ: gật nhẹ một cái
+  function react(ten) {
+    if (ten === "nghe") {
+      gatLuc = (typeof performance !== "undefined" ? performance.now() : 0) + 260;
+      thucDay(); chay();
+      return;
+    }
+    if (ten === "viet") {
+      if (state === "thinking") setState("writing");
+      return;
+    }
+    if (ten === "xong") {
+      if (state === "idle" || state === "listening") dienPhanUng("xong");
+      else choXong = true;
+      return;
+    }
+    if (PHAN_UNG[ten]) dienPhanUng(ten);
   }
   // `tam`: đổi TẠM lúc đang kéo thanh trượt hay rê trong bảng chọn màu. Con pet đổi ngay cho
   // người ta thấy, nhưng chưa ghi đi đâu: một lượt kéo bắn vài chục sự kiện input, ghi máy chủ
@@ -756,6 +910,7 @@
     giamChuyenDong = window.matchMedia("(prefers-reduced-motion: reduce)");
     try { giamChuyenDong.addEventListener("change", function () { chay(); }); } catch (e) {}
     chopLuc = performance.now() + 2600;
+    hoatDongLuc = performance.now();
     ngoCongDangNhap();
     chay();
     veDauAn();
@@ -1024,6 +1179,7 @@
 
   window.JavisPet = {
     setState: setState,
+    react: react,
     setCfg: setCfg,
     setEnabled: setEnabled,
     get: function () { return Object.assign({}, cfg); },

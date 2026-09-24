@@ -38,7 +38,12 @@ function check(name, cond) {
 }
 
 // ---- 1. Trạng thái: app.js bắn gì thì pet.js phải đỡ được cái đó ----
-check("app.js đẩy trạng thái orb sang pet", /JavisPet\.setState\(state \|\| "idle"\)/.test(app));
+check("app.js đẩy trạng thái orb sang pet", /JavisPet\.setState\(petState \|\| state \|\| "idle"\)/.test(app));
+// 0.64.39: pet tách "ĐÃ BẮT ĐƯỢC giọng" (user_speaking) khỏi "đang chờ nghe", orb thì không.
+check("mic bắt được giọng thì pet sang hearing",
+  /setOrbState\(cls, label, cls === "listening" && turn\.state === "user_speaking" \? "hearing" : cls\)/.test(app));
+check("app.js báo pet: gật khi có chữ, viết khi chữ chảy về, vui khi xong",
+  /petReact\("nghe"\)/.test(app) && /petReact\("viet"\)/.test(app) && /petReact\("xong"\)/.test(app));
 // ORB_LABEL trong app.js là NGUỒN của mọi lớp trạng thái. Đọc thẳng từ đó thay vì chép lại:
 // chép là tạo ra chỗ thứ ba để lệch.
 const orbBlock = app.slice(app.indexOf("const ORB_LABEL = {"));
