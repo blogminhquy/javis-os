@@ -25,7 +25,7 @@
        Chrome/Edge DESKTOP coi trang là cài được (icon "any" trên PNG bị coi là không hợp lệ
        nên trước đây chỉ mobile chạy dạng app, desktop không bao giờ có nút cài). Nút
        "Mở như app" trên thanh trạng thái + icon cài trong thanh địa chỉ ăn theo file này. -->
-  <link rel="manifest" href="/static/manifest.json?v=3">
+  <link rel="manifest" href="/static/manifest.json?v=4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=Montserrat:wght@400;500;600;700&amp;display=swap">
@@ -657,9 +657,7 @@
         .wz-card input{margin-top:3px;accent-color:#ff8a3c} .wz-card b{font-size:15px;color:#e7eefc}
         .wz-rec{font-size:12px;background:#ff8a3c;color:#1a1a1a;border-radius:6px;padding:1px 6px;margin-left:6px;font-weight:700}
         .wz-pdesc{font-size:15px;color:#9fb0cf;margin-top:3px;line-height:1.45}
-        .wz-tokhelp{border:1px solid rgba(255,138,60,.3);background:rgba(255,138,60,.06);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:14px;color:#cdd8ee;line-height:1.55}
-        .wz-tokhelp ol{margin:6px 0 4px 18px;padding:0} .wz-tokhelp li{margin:3px 0}
-        .wz-tokhelp code,#wzProvHint code{background:rgba(0,0,0,.35);padding:1px 5px;border-radius:4px;font-size:13px}
+        #wzProvHint code{background:rgba(0,0,0,.35);padding:1px 5px;border-radius:4px;font-size:13px}
         #wzProvHint{margin-top:8px;font-size:15px;color:#8aa}
         </style>
         <div class="set-note"><span data-i18n="wz.intro">Vài bước nhanh để bắt đầu. Mọi thứ đổi lại được sau trong</span> <i data-ic="settings"></i> <span data-i18n="page.settings.label">Cài đặt</span>.</div>
@@ -672,21 +670,6 @@
           <div class="set-note" data-i18n="wz.pass_note">Đặt mật khẩu để chặn người lạ - quan trọng nếu đưa lên VPS. Bỏ trống nếu chỉ chạy máy cá nhân.</div>
           <label data-i18n="common.account">Tài khoản</label><input id="wzUser" placeholder="Ví dụ: admin" data-i18n-ph="wz.user_ph">
           <label data-i18n="common.password">Mật khẩu</label><input id="wzPass" type="password" placeholder="Để trống nếu không đặt mật khẩu" data-i18n-ph="wz.pass_ph">
-          <div id="wzTokenWrap" style="display:none">
-            <label><span data-i18n="wz.token">Mã thiết lập</span> <span class="dim" data-i18n="wz.token_sec">(bảo mật)</span></label>
-            <input id="wzToken" placeholder="Dán MÃ THIẾT LẬP từ log server" data-i18n-ph="wz.token_ph">
-            <div class="wz-tokhelp">
-              <b><i data-ic="circle-help"></i> <span data-i18n="wz.tok_q">Mã thiết lập là gì?</span></b> <span data-i18n="wz.tok_a">Javis đang chạy trên server công khai. Để chắc chính bạn (không phải người lạ vô tình mở link) là người tạo tài khoản admin, bạn dán một mã chỉ in ra log server - nơi duy nhất chủ máy xem được.</span>
-              <br><b data-i18n="wz.tok_how">Cách lấy mã (Hostinger → App terminal):</b>
-              <ol>
-                <li data-i18n="wz.tok_s1">Mở app → bấm App terminal (bạn sẽ vào BÊN TRONG container javis).</li>
-                <li><span data-i18n="wz.tok_s2">Chạy:</span> <code>cat /data/state/.setup_token</code></li>
-                <li data-i18n="wz.tok_s3">Copy chuỗi hiện ra → dán vào ô trên.</li>
-              </ol>
-              <span class="dim"><span data-i18n="wz.tok_ssh">Nếu SSH vào HOST (không phải App terminal):</span> <code>docker compose logs javis | grep "SETUP TOKEN"</code></span><br>
-              <i data-ic="lightbulb"></i> <b data-i18n="wz.tok_skip">Khỏi cần mã:</b> <span data-i18n="wz.tok_skip2">nếu lúc deploy bạn đặt sẵn env</span> <code>JAVIS_ADMIN_PASSWORD</code> <span data-i18n="wz.tok_skip3">(+ JAVIS_ADMIN_USER), mở app ra là đăng nhập luôn, không hỏi mã.</span>
-            </div>
-          </div>
         </div>
         <div class="set-sec">
           <h4 data-i18n="wz.s3">3. Nhà cung cấp AI (bộ não)</h4>

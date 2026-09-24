@@ -1,15 +1,12 @@
-"""install.sh phải đặt SẴN tài khoản quản trị, để không ai phải đi đọc MÃ THIẾT LẬP trong log.
+"""install.sh phải đặt SẴN tài khoản quản trị lúc cài.
 
     python tests/run.py install_admin      (KHÔNG mạng; cần bash + python3)
 
-Bối cảnh: chạy Javis ra công khai mà chưa có admin thì server sinh một MÃ THIẾT LẬP ngẫu nhiên
-và CHỈ in nó vào log lúc khởi động (`config.setup_token_required`, `main.py` mục auth bootstrap).
-Người dùng phải SSH vào máy, đọc log, dán mã vào trình duyệt mới tạo được tài khoản.
-
-Cái mã đó có lý do tồn tại và KHÔNG bị bỏ: nó chặn người lạ chỉ-có-URL chiếm quyền admin trước
-chủ máy, mà thứ họ chiếm được là một máy có Bash, chạy full quyền, cắm sẵn vào POS/quảng cáo/
-email của chủ. Nhưng nó không nên là đường CHÍNH. Người đang chạy `install.sh` vốn đã ngồi trên
-máy chủ rồi, nên hỏi họ một câu là xoá sạch bước đọc-log mà không mở lỗ nào.
+Bối cảnh: chạy Javis ra công khai mà chưa có admin thì ai mở link trước sẽ tạo được admin. Trước
+0.64.47 khoảng trống đó được che bằng MÃ THIẾT LẬP in trong log server; từ 0.64.47 chủ dự án bỏ
+mã (lần đầu chỉ cần tên + mật khẩu, bảo vệ tiếp theo là 2FA). Nên đường tạo admin SẴN từ `.env`
+lúc boot càng là đường CHÍNH: người đang chạy `install.sh` vốn đã ngồi trên máy chủ, hỏi họ một
+câu là server boot lên đã có admin, không còn khoảnh khắc nào để người lạ chen vào.
 
 File này canh đúng hai thứ dễ hỏng khi sửa shell: khối tự sinh có chạy không, và `.env` ghi ra
 có đọc lại được nguyên vẹn không (mật khẩu người ta gõ có thể chứa dấu nháy, gạch đứng, ký tự
@@ -49,11 +46,12 @@ check("đã có sẵn trong .env thì GIỮ NGUYÊN, không ghi đè",
       "_env_has JAVIS_ADMIN_PASSWORD" in SRC)
 check(".env bị siết quyền sau khi ghi mật khẩu vào", "chmod 600 .env" in SRC)
 
-# Cơ chế MÃ THIẾT LẬP vẫn phải còn: đây là lưới cho người deploy bằng cách khác. Bỏ nó là mở
-# toang /auth/setup cho ai gõ trúng URL trước chủ máy.
+# MÃ THIẾT LẬP đã bỏ từ 0.64.47 (chủ dự án chốt 24/09, bảo vệ tài khoản giao cho 2FA). Vì thế
+# đường tạo admin SẴN lúc boot từ .env càng quan trọng: nó đóng khoảng trống "server public
+# vừa dựng, chưa có admin" mà trước đây mã thiết lập che. Khoá: server vẫn tự tạo admin từ env.
 _cfg = (SERVER / "config.py").read_text(encoding="utf-8")
-check("CANARY: cơ chế MÃ THIẾT LẬP vẫn còn nguyên trong server",
-      "def setup_token_required" in _cfg and "def check_setup_token" in _cfg)
+check("CANARY: server vẫn tự tạo admin từ JAVIS_ADMIN_PASSWORD lúc khởi động",
+      "def provision_admin_from_env" in _cfg)
 
 
 # ---- 2. Chạy THẬT khối đó trong thư mục tạm ----

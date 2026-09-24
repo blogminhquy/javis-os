@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.47] - 2026-09-24
+### Cải thiện
+- **Thiết lập lần đầu chỉ cần tên đăng nhập và mật khẩu**, không còn phải đi tìm MÃ THIẾT LẬP trong log server. Bảo vệ tài khoản giờ giao cho 2FA: vào xong nên bật ngay.
+- Lưu ý khi dựng server công khai: lúc chưa có tài khoản, ai mở link trước sẽ tạo được admin. Cài bằng `install.sh` (đã hỏi tên và mật khẩu sẵn) hoặc tạo tài khoản ngay sau khi dựng là tránh được.
+- **Linh vật chính thức của Javis là ngôi sao cam.** Logo, favicon và icon app đổi sang ngôi sao cam mắt cười; linh vật mặc định cho người mới cũng là ngôi sao cam. Ai đã tự chọn hình và màu thì giữ nguyên lựa chọn của mình.
+
 ## [0.64.46] - 2026-09-24
 ### Sửa lỗi
 - **iPhone: bấm tải file không còn làm kẹt cả app.** Ảnh trong chat mở ngay trong khung xem ảnh có nút Đóng; file khác (PDF, Word, zip...) mở ở lớp Safari nổi lên, xem hoặc lưu xong bấm Xong là quay lại Javis. Áp dụng cho mọi chỗ tải: chat, khung xem ảnh, trang Tệp tin, tải khối code.

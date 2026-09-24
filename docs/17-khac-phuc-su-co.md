@@ -25,7 +25,7 @@ Rất nhiều lỗi biến mất sau một trong hai việc này, nên thử tr�
 | Sửa code (hoặc vừa cập nhật) mà **không thấy đổi** | Nếu đổi file `.py`: **khởi động lại server** (Windows: `stop-javis.bat` rồi `start-javis.vbs`; Docker: `docker compose restart`). Nếu chỉ đổi giao diện: nhấn **Ctrl+Shift+R**. |
 | **Cổng 7777 bị giữ**, bản mới không lên được | Tắt tiến trình cũ TRƯỚC rồi mới bật lại. Windows: chạy `stop-javis.bat`, hoặc `taskkill /F /PID <pid>` với PID đang giữ cổng. Docker: `docker compose down` rồi `docker compose up -d`. |
 | **Hostinger không pull được image** | Đặt package GHCR ở chế độ **Public** (GitHub, repo, mục Packages, chọn `javis-os`, Package settings, Visibility = Public). Sau đó đợi GitHub Action build xong (xem tab Actions của repo) rồi Deploy lại. |
-| Mở app **báo cần MÃ THIẾT LẬP** | Lấy mã trong App terminal của container: `cat /data/state/.setup_token`. Nếu chạy trên host: `docker compose logs javis` rồi tìm dòng có `SETUP TOKEN`. Cách khỏi cần mã: đặt sẵn env `JAVIS_ADMIN_USER` và `JAVIS_ADMIN_PASSWORD` lúc deploy để đăng nhập luôn. |
+| Mở app ra **màn tạo tài khoản admin** trên server public | Chưa có admin nên ai mở link trước sẽ tạo được admin. Tạo tài khoản ngay (mật khẩu tối thiểu 8 ký tự), hoặc lần sau đặt sẵn env `JAVIS_ADMIN_USER` và `JAVIS_ADMIN_PASSWORD` lúc deploy để đăng nhập luôn. Vào được rồi thì bật 2FA. |
 | **Claude báo chưa đăng nhập** (Javis không trả lời được) | Đăng nhập lại "bộ não" Claude 1 lần. Cách trong app: mở **Models**, ở thẻ Claude Code bấm **Đăng nhập Claude**, mở link, dán code nếu được yêu cầu. Cách bằng lệnh: `claude auth login --claudeai` (Docker: chạy trong App terminal). |
 | **Trang Tệp tin báo lỗi ở "Đang tải..."** | Máy chủ chưa có endpoint Tệp tin (báo lỗi 404). **Khởi động lại server** để nạp endpoint mới, rồi nhấn **Ctrl+Shift+R**. |
 | Ảnh trong hội thoại cũ hiện ô xám **Ảnh đã hết hạn** | Đúng thiết kế: `attachments/` và `inbox/` là vùng cache, file quá 30 ngày (hoặc khi vượt trần 300MB) bị dọn. Xem mục "Ảnh và file cũ biến mất" bên dưới để biết cách giữ lại hoặc tắt hẳn. |
@@ -65,13 +65,13 @@ Khi deploy bằng Hostinger Docker Manager mà nó không tải được image, 
 1. **Image ở chế độ riêng tư (Private).** Vào GitHub, mở repo, chọn mục **Packages**, chọn `javis-os`, vào **Package settings**, đặt **Visibility = Public**. Có vậy Hostinger mới pull được mà không cần đăng nhập registry.
 2. **Image chưa build xong.** Mỗi lần đẩy code mới lên nhánh `main`, GitHub Action mới bắt đầu build. Mở tab **Actions** của repo, đợi lượt build gần nhất chạy xong (dấu tích xanh), rồi bấm Deploy lại trên Hostinger.
 
-## Mở app báo cần MÃ THIẾT LẬP
+## Mở app ra màn tạo tài khoản admin trên server public
 
-Khi Javis chạy public (Docker/VPS/Hostinger), lần đầu mở app sẽ ra màn tạo tài khoản admin và có thể hỏi **MÃ THIẾT LẬP**. Đây là cơ chế chống người lạ chỉ có URL cũng tạo được tài khoản (vì engine chạy toàn quyền trên máy). Lấy mã như sau:
+Khi Javis chạy public (Docker/VPS/Hostinger) mà chưa có admin, lần đầu mở app sẽ ra màn tạo tài khoản, chỉ hỏi tên đăng nhập và mật khẩu. Nghĩa là **ai mở link trước sẽ tạo được admin** (mà engine chạy toàn quyền trên máy), nên:
 
-1. **Trong App terminal của container** (terminal này ở BÊN TRONG container nên không có lệnh `docker`): chạy `cat /data/state/.setup_token`, copy chuỗi, dán vào ô MÃ THIẾT LẬP.
-2. **Trên host (ngoài container)**: chạy `docker compose logs javis` rồi tìm dòng có chữ `SETUP TOKEN`.
-3. **Khỏi cần mã**: đặt sẵn admin lúc deploy bằng hai env `JAVIS_ADMIN_USER` và `JAVIS_ADMIN_PASSWORD` trong compose. Khi đó mở app là đăng nhập luôn, không hỏi mã.
+1. **Đặt sẵn admin lúc deploy (khuyến nghị)**: hai env `JAVIS_ADMIN_USER` và `JAVIS_ADMIN_PASSWORD` trong compose hoặc `.env`. Khi đó mở app là đăng nhập luôn.
+2. **Không đặt env**: tạo tài khoản ngay sau khi deploy, mật khẩu tối thiểu 8 ký tự.
+3. **Vào được rồi**: bật xác thực 2 lớp (2FA) ở trang **Tài khoản**.
 
 Chi tiết bảo mật và cách đặt mật khẩu xem [Bảo mật & tài khoản](14-bao-mat-tai-khoan.md).
 

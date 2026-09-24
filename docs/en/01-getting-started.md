@@ -36,19 +36,19 @@ Once setup is done, the related items sit on the navigation rail on the left. Th
 
 Open `http://localhost:7777` (or your VPS address). If this is the first run and no account exists, Javis shows a **Welcome to Javis** window with three numbered sections.
 
-On a personal machine (localhost), the password and SETUP TOKEN fields are optional and can be left empty. When running publicly (VPS/Docker), Javis requires both a password and a SETUP TOKEN before letting you through; a prompt then appears under the button explaining that an account, a password of at least 8 characters and the SETUP TOKEN are needed to protect Javis on a public server.
+On a personal machine (localhost), the password field is optional and can be left empty. When running publicly (VPS/Docker), Javis requires a username and password before letting you through; the prompt "Set a username and password (at least 8 characters) to protect Javis on a public server. Once inside, turning on 2FA is recommended." then appears under the button.
 
 ### Step 2: Name the workspace
 
 Under **1. Workspace**, type a display name in the **Display name** box (your shop name or your own name, for instance). Left empty, Javis uses "Javis OS". It is only a label and can be changed at any time.
 
-### Step 3: Create the admin account (and the SETUP TOKEN if needed)
+### Step 3: Create the admin account
 
 Under **2. Admin account**:
 
 1. Type a username in the **Username** box (it suggests `admin`).
 2. Type a password in the **Password** box. It must be at least 8 characters.
-3. If Javis is running publicly, a **Setup token** box appears. Paste the SETUP TOKEN there (see "When you need a SETUP TOKEN" below for how to get one).
+3. If Javis is running publicly, do this step **right after deploying**, then turn on two-factor authentication (2FA) on the **Account** page (see "Public server: create the admin early and turn on 2FA" below).
 
 On a personal machine, leaving the password empty means Javis creates no account and anyone who can open the link on this machine can use it. Only do that when you are the only person on the machine.
 
@@ -218,22 +218,13 @@ Javis keeps a way back and will not strand you on a broken build:
 
 Below the update panel is the version changelog: what each release added, paginated, with the installed version marked.
 
-## When you need a SETUP TOKEN, and where to get it
+## Public server: create the admin early and turn on 2FA
 
-A **SETUP TOKEN** only appears when Javis runs publicly (listening on `0.0.0.0`, i.e. VPS/Docker/Hostinger) and has no admin account yet. Because the brain runs with full rights on the machine at that point, Javis will not let anyone who merely has the link create the admin account. The SETUP TOKEN is a secret string printed only to the server log/terminal, so only someone with server access can read it.
+When Javis runs publicly (listening on `0.0.0.0`, i.e. VPS/Docker/Hostinger) with no admin account yet, the first-run screen only asks for a username and password. That means **whoever opens the link before an admin exists can create it**, and the brain runs with full rights on the machine. So:
 
-On a personal machine (localhost), Javis never asks for it.
-
-How to get it:
-
-| Situation | Command |
-|---|---|
-| Hostinger, in the App terminal (inside the `javis` container) | `cat /data/state/.setup_token` |
-| SSH into the Docker host | `docker compose logs javis`, then look for the `SETUP TOKEN` line |
-
-Paste it into the **Setup token** box in the wizard and press **Start using Javis →**. The token is single-use; Javis deletes it once the account is created.
-
-**How to skip the token entirely:** set the environment variables `JAVIS_ADMIN_USER` and `JAVIS_ADMIN_PASSWORD` at deploy time. Javis creates the admin at startup, and opening the app gives you a sign-in screen with no token prompt. Details: [.env configuration](../16-cau-hinh-env.md).
+- **Recommended:** set the environment variables `JAVIS_ADMIN_USER` and `JAVIS_ADMIN_PASSWORD` at deploy time (`install.sh` already asks for both). Javis creates the admin at startup and opening the app gives you a sign-in screen, with no gap at all. Details: [.env configuration](../16-cau-hinh-env.md).
+- **Without the env vars:** open the app and create the account right after deploying; do not leave a public server without an admin.
+- **After the first sign-in:** turn on two-factor authentication (2FA) on the **Account** page. See [Security & accounts](../14-bao-mat-tai-khoan.md).
 
 ## Quick reference: buttons and states
 
@@ -264,8 +255,6 @@ Paste it into the **Setup token** box in the wizard and press **Start using Javi
 
 ## Common problems
 
-- **The app wants a SETUP TOKEN and you do not know where to get it:** in the App terminal (Hostinger) run `cat /data/state/.setup_token`, or on the host run `docker compose logs javis` and look for `SETUP TOKEN`. Or preset `JAVIS_ADMIN_PASSWORD` so no token is needed.
-- **"Wrong or missing SETUP TOKEN":** the pasted token is wrong or absent. Fetch the correct one from the server log and paste again, watching for stray whitespace.
 - **"Password must be at least 8 characters":** use a password of 8 characters or more.
 - **"An account already exists - please sign in":** an admin was created earlier (through env vars, for instance). Use the sign-in screen with those credentials.
 - **Claude reports it is not signed in:** go to **Models**, press **Sign in to Claude**, open the link, paste the code if asked. Or run `claude auth login --claudeai` in the server terminal.

@@ -32,9 +32,10 @@ màn **tạo tài khoản admin**.
    - **Cách A (khuyến nghị):** trong compose Hostinger, điền hai trường có sẵn
      `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` → admin tạo sẵn lúc khởi động,
      mở app ra **đăng nhập luôn**.
-   - **Cách B:** bỏ trống → mở app sẽ hỏi **MÃ THIẾT LẬP**. Lấy mã trong **App terminal** (nó vào
-     BÊN TRONG container nên KHÔNG có lệnh `docker`): chạy `cat /data/state/.setup_token` → copy chuỗi
-     → dán vào màn tạo tài khoản. (Chỉ người xem được file/log mới tạo được admin → kẻ chỉ có URL bó tay.)
+   - **Cách B:** bỏ trống → mở app **ngay sau khi deploy** và tự đặt tên đăng nhập + mật khẩu
+     (tối thiểu 8 ký tự). Lưu ý: khi chưa có admin, **ai mở link trước sẽ tạo được admin**, nên đừng
+     để server public trống admin lâu.
+   - Vào được rồi thì **bật 2FA** (trang **Tài khoản**) để bảo vệ tài khoản.
 3. **Đăng nhập Claude (bộ não) 1 lần:** mở **App terminal** và chạy:
    `claude auth login --claudeai` → mở link, dán code. (token lưu trong volume, không mất khi update.)
 
@@ -94,7 +95,8 @@ link riêng chạy HTTPS mà không cần mua tên miền. **Lưu ý (đã kiể
    - `DOMAIN_NAME`: đặt `javis.<hostname-vps>.hstgr.cloud`
      (vd `javis.srv1782015.hstgr.cloud`), hoặc tên miền riêng đã trỏ DNS A về IP VPS.
    - `JAVIS_ADMIN_USER`: tên đăng nhập, mặc định `admin`.
-   - `JAVIS_ADMIN_PASSWORD`: mật khẩu mạnh anh tự đặt; để trống thì lần đầu dùng MÃ THIẾT LẬP.
+   - `JAVIS_ADMIN_PASSWORD`: mật khẩu mạnh anh tự đặt; để trống thì phải tự tạo tài khoản trên
+     màn chạy lần đầu ngay sau khi deploy (ai mở link trước sẽ tạo được admin).
    - `JAVIS_AUTO_UPDATE` (tuỳ chọn): đặt `true` thì Javis TỰ cập nhật mỗi ngày. Bỏ trống thì
      vẫn cập nhật được bằng nút **⬆ Cập nhật ngay** trong app - từ 0.55.56 stack Hostinger đã
      kèm sẵn Watchtower nên nút đó có ngay từ lần cài đầu.
@@ -193,7 +195,8 @@ Bản thứ hai làm y hệt ở `~/javis-canhan`, đổi `.env` thành `javis-c
 phát hiện bản mới qua nhãn Docker**, không phải sửa gì ở proxy, cũng không phải restart nó.
 
 > Mỗi bản là một tài khoản admin riêng, nên đặt `JAVIS_ADMIN_*` cho **từng** `.env` (mật khẩu
-> khác nhau). Bỏ trống thì bản đó rơi về đường cũ: phải `docker compose logs` đọc MÃ THIẾT LẬP.
+> khác nhau). Bỏ trống thì bản đó mở ra màn tạo tài khoản, ai vào link trước sẽ tạo được admin,
+> nên phải tạo ngay sau khi chạy.
 
 > `JAVIS_BIND=127.0.0.1` thu cổng về loopback vì đã có proxy lo HTTPS. Vẫn vào gỡ rối được bằng
 > `ssh -L 7777:localhost:7777 user@<ip-vps>` khi DNS chưa lan tới.

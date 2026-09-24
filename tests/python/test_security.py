@@ -64,13 +64,12 @@ cfg.SESSIONS[tok] = cfg._time.time() - (cfg._SESSION_TTL + 10)   # ép quá hạ
 check("session quá hạn bị loại", not cfg.valid_session(tok))
 check("session quá hạn bị xoá khỏi store", tok not in cfg.SESSIONS)
 
-# ---- 4. Setup token (chống chiếm admin lần đầu public) ----
+# ---- 4. Server public vẫn BẮT BUỘC đăng nhập ----
+# Mã thiết lập đã bỏ (0.64.47, xem test_ma_thiet_lap.py), nhưng chạy public thì vẫn phải có
+# tài khoản mới vào được: rào này là thứ giữ lại, không được mất theo.
 os.environ["JAVIS_HOST"] = "0.0.0.0"
 os.environ.pop("JAVIS_REQUIRE_LOGIN", None)
-t = cfg.get_or_create_setup_token()
-check("public+chưa admin → có setup token", bool(t))
-check("setup token đúng qua", cfg.check_setup_token(t))
-check("setup token sai chặn", not cfg.check_setup_token("saibet"))
+check("public → bắt buộc đăng nhập", cfg.require_login())
 os.environ["JAVIS_HOST"] = "127.0.0.1"
 
 # ---- 5. secrets_store roundtrip ----

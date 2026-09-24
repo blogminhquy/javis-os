@@ -11,7 +11,7 @@ Javis chạy bộ não AI với **toàn quyền trên máy/VPS** của bạn: n�
 Javis xử lý việc này theo 6 lớp:
 
 1. **Tự bắt buộc đăng nhập khi chạy public.** Khi server nghe ra ngoài (không phải chỉ máy này), Javis chặn mọi chức năng cho tới khi bạn đăng nhập. Chạy trên máy cá nhân (localhost) thì không ép, dùng thẳng như cũ.
-2. **Chống chiếm tài khoản lần đầu.** Người đầu tiên muốn tạo admin phải có **MÃ THIẾT LẬP** (in trong log server) hoặc admin đã được đặt sẵn qua biến môi trường. Kẻ chỉ biết URL không tạo được tài khoản.
+2. **Đặt admin sớm, rồi bật xác thực 2 lớp.** Màn chạy lần đầu chỉ hỏi tên đăng nhập và mật khẩu, nên trên server public **ai mở link trước khi có admin sẽ tạo được admin**. Đặt sẵn admin qua biến môi trường (hoặc tạo tài khoản ngay sau khi deploy), rồi bật 2FA (TOTP) ở trang **Tài khoản**.
 3. **Chống dò mật khẩu.** Sai nhiều lần bị khoá tạm theo địa chỉ IP; mỗi lần sai bị làm chậm.
 4. **Chặn trang web lạ sai khiến Javis (CSRF) và chặn tên miền lạ trỏ về máy bạn (DNS-rebinding).** Xem mục riêng bên dưới.
 5. **Mã hoá khoá bí mật lưu trong `settings.json`.** API key, token Telegram, token GitHub... không nằm dạng chữ thô trên đĩa.
@@ -48,7 +48,7 @@ Nguyên tắc an toàn (fail-closed): nếu server nghe địa chỉ **không ph
 
 ### A. Tạo tài khoản admin lần đầu trên VPS/public
 
-Khi mở dashboard lần đầu trên server công khai, Javis hiện màn **tạo tài khoản** và yêu cầu **MÃ THIẾT LẬP**. Có 2 cách:
+Khi mở dashboard lần đầu trên server công khai mà chưa có admin, Javis hiện màn **tạo tài khoản**, chỉ hỏi tên đăng nhập và mật khẩu. Ai mở link trước sẽ tạo được admin, nên đừng để khoảng trống này kéo dài. Có 2 cách:
 
 **Cách 1 - Đặt sẵn admin bằng biến môi trường (khuyến nghị):**
 
@@ -58,17 +58,13 @@ Khi mở dashboard lần đầu trên server công khai, Javis hiện màn **t�
 2. Khởi động Javis. Lúc boot, Javis tự tạo admin từ 2 biến này và **đóng luôn** màn tạo tài khoản. Bạn mở app là vào thẳng màn đăng nhập.
 3. Đăng nhập bằng đúng user/password vừa đặt.
 
-**Cách 2 - Dùng MÃ THIẾT LẬP in trong log:**
+**Cách 2 - Tạo tài khoản ngay sau khi deploy:**
 
-1. Mở log/terminal của server. Lúc khởi động, nếu đang public mà chưa có admin, Javis sinh mã thiết lập và lưu ra tệp `.setup_token` trong thư mục state.
-   - Trên Hostinger, vào bên trong container (App terminal) chạy: `cat /data/state/.setup_token`.
-   - Trên VPS chạy Docker: xem `docker compose logs javis` và tìm dòng có `SETUP TOKEN`.
-2. Mở dashboard, ở màn tạo tài khoản nhập: tên tài khoản, mật khẩu (**tối thiểu 8 ký tự**), và dán **MÃ THIẾT LẬP**.
-3. Bấm nút tạo tài khoản. Nếu mã đúng, Javis tạo admin, đăng nhập bạn luôn và mã thiết lập tự huỷ (dùng 1 lần).
+1. Deploy xong là mở dashboard luôn.
+2. Ở màn tạo tài khoản nhập: tên tài khoản và mật khẩu (**tối thiểu 8 ký tự**).
+3. Bấm nút tạo tài khoản. Javis tạo admin và đăng nhập bạn luôn.
 
-Nếu nhập sai/thiếu mã, Javis báo: "Sai hoặc thiếu MÃ THIẾT LẬP - xem mã trong log/terminal của server."
-
-Mã thiết lập chỉ được sinh **lúc server khởi động**. Nếu bạn đã dùng nó rồi (mã bị xoá) và sau đó lại cần tạo tài khoản mới, phải khởi động lại server để Javis sinh mã mới.
+Dù dùng cách nào, sau lần đăng nhập đầu hãy **bật xác thực 2 lớp (2FA)** ở trang **Tài khoản**.
 
 ### B. Đặt mật khẩu (khi đang chạy máy cá nhân, chưa có mật khẩu)
 
@@ -226,17 +222,14 @@ Về cookie `secure`: mặc định Javis **không** ép cookie `secure` để c
 
 ## Mẹo
 
-- **Luôn đặt admin trước khi công khai.** Cách chắc nhất là đặt `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` khi deploy, khỏi phải đi tìm MÃ THIẾT LẬP.
+- **Luôn đặt admin trước khi công khai.** Cách chắc nhất là đặt `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` khi deploy, để server không có lúc nào trống admin.
 - **Đặt mật khẩu đủ dài.** Tối thiểu 8 ký tự; dùng cụm dài, khó đoán.
 - **Chạy qua HTTPS khi truy cập từ xa.** Dùng tên miền riêng (ví dụ Hostinger `*.hstgr.cloud`) hoặc Cloudflare Tunnel thay vì phơi cổng 7777 thô ra Internet. Cách trỏ tên miền và bật HTTPS xem [Thương hiệu & tên miền riêng](15-thuong-hieu-ten-mien.md).
 - **Localhost + tunnel thì bật `JAVIS_REQUIRE_LOGIN=1`.** Khi máy chỉ nghe localhost nhưng bạn mở ra ngoài bằng tunnel, Javis không tự biết là đang public, nên hãy ép login thủ công.
-- **MÃ THIẾT LẬP chỉ dùng 1 lần.** Sau khi tạo admin xong, mã tự huỷ. Cần mã mới thì phải khởi động lại server.
+- **Bật xác thực 2 lớp (2FA) ngay sau lần đăng nhập đầu.** Lộ mật khẩu thì kẻ lạ vẫn thiếu mã TOTP trên điện thoại bạn.
 - **Sao lưu `.secret_key` cùng `settings.json`.** Thiếu một trong hai là phải nhập lại toàn bộ API key.
 
 ## Sự cố thường gặp
-
-**Mở app báo cần MÃ THIẾT LẬP.**
-Bạn đang chạy public và chưa có admin. Lấy mã trong state: App terminal (trong container) chạy `cat /data/state/.setup_token`; trên host chạy `docker compose logs javis` rồi tìm dòng có `SETUP TOKEN`. Hoặc đặt `JAVIS_ADMIN_PASSWORD` để khỏi cần mã.
 
 **Bấm Đổi mật khẩu thì báo "Đã có tài khoản - hãy đăng nhập."**
 Lỗi của các bản trước 0.28.3, đã sửa. Trang đang mở còn giữ bản cũ trong bộ nhớ đệm trình duyệt thì tải lại bằng Ctrl+F5 (máy Mac là Cmd+Shift+R) rồi làm lại theo mục C.

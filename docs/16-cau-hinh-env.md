@@ -68,7 +68,7 @@ Chi tiết quan trọng về `JAVIS_HOST`: Javis dùng cơ chế "an toàn mặc
 | Biến | Ý nghĩa | Mặc định | Khi nào đổi |
 |---|---|---|---|
 | `JAVIS_REQUIRE_LOGIN` | Ép bật/tắt bắt buộc đăng nhập. `1`/`true`/`yes`/`on` = bật. `0`/`false`/`no`/`off` = tắt | Tự động (bật khi bind public) | Chạy localhost rồi expose ra ngoài qua tunnel (Cloudflare, ngrok...): đặt `JAVIS_REQUIRE_LOGIN=1` để chặn người lạ. |
-| `JAVIS_ADMIN_USER` | Tên đăng nhập admin tạo sẵn lúc deploy | `admin` | Đặt cùng `JAVIS_ADMIN_PASSWORD` để tạo sẵn tài khoản, khỏi cần lấy MÃ THIẾT LẬP từ log. |
+| `JAVIS_ADMIN_USER` | Tên đăng nhập admin tạo sẵn lúc deploy | `admin` | Đặt cùng `JAVIS_ADMIN_PASSWORD` để tạo sẵn tài khoản, server public không có lúc nào trống admin. |
 | `JAVIS_ADMIN_PASSWORD` | Mật khẩu admin tạo sẵn lúc deploy | (trống) | Deploy public: đặt mật khẩu mạnh ở đây. Có biến này và chưa có admin, Javis tạo tài khoản admin ngay lúc khởi động và đóng luôn màn hình tạo tài khoản (an toàn nhất cho public). |
 | `JAVIS_SETUP_2FA` | Mở sẵn màn quét QR bật xác thực 2 lớp ở trang Tài khoản. `1` = mở sẵn | Tắt | Muốn bật 2FA ngay lần đầu đăng nhập. Cờ này chỉ là **lời nhắc**: nó KHÔNG tự bật 2FA. Phải quét QR và nhập đúng một mã thì mới bật thật, vì bật trước lúc bạn chứng minh app sinh đúng mã là tự khoá mình ra ngoài. Bật hay tắt 2FA lúc nào cũng được ngay trong Dashboard → Tài khoản, không cần biến này. |
 | `JAVIS_SECURE_COOKIE` | Bật cookie chỉ gửi qua HTTPS. `1`/`true`/`yes`/`on` = bật | Tắt | Chỉ bật khi CHẮC CHẮN chạy HTTPS đầu-cuối (domain riêng có SSL). Bật nhầm khi proxy đang chạy HTTP sẽ kẹt vòng đăng nhập (nhập đúng mật khẩu vẫn bị đá về trang login). |
@@ -79,7 +79,7 @@ Chi tiết quan trọng về `JAVIS_HOST`: Javis dùng cơ chế "an toàn mặc
 | `JAVIS_TERMINAL_CWD` | Thư mục terminal mở ra | HOME của user chạy Javis | Muốn shell mở sẵn ở gốc brain hoặc một thư mục dự án khác. |
 | `JAVIS_TERMINAL_REMOTE` | Khai với các CLI trong Terminal rằng người dùng ngồi ở MÁY KHÁC (đặt `SSH_CONNECTION`) | Tự đoán: bật khi máy chủ không có màn hình (VPS, Docker), tắt trên Windows/macOS chạy thẳng và Linux có màn hình | Đăng nhập `agy`, `claude`, `codex`... in link rồi đứng im vì chúng tưởng trình duyệt nằm cùng máy. Bật (`1`) để chúng hỏi chỗ dán mã. Tắt (`0`) nếu máy chủ thật sự mở được trình duyệt cho bạn (X11 forwarding chẳng hạn). Xem [Nhóm Code: Terminal](27-tab-code-terminal.md). |
 
-Về MÃ THIẾT LẬP: khi chạy public mà chưa có tài khoản admin, lần đầu mở app sẽ yêu cầu nhập một mã thiết lập. Mã này chỉ in ra log server lúc khởi động, nên chỉ người xem được log/terminal mới tạo được tài khoản, kẻ chỉ có URL không làm gì được. Nếu bạn đặt sẵn `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` thì khỏi cần mã này, cứ đăng nhập bằng tài khoản đã đặt. Xem thêm ở [Bảo mật & tài khoản](14-bao-mat-tai-khoan.md).
+Về tài khoản admin lần đầu: khi chạy public mà chưa có admin, lần đầu mở app chỉ hỏi tên đăng nhập và mật khẩu, nên **ai mở link trước sẽ tạo được admin**. Vì vậy nên đặt sẵn `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` (`install.sh` đã hỏi sẵn) để server boot lên là có admin, hoặc tạo tài khoản ngay sau khi deploy. Đăng nhập xong thì bật xác thực 2 lớp (2FA). Xem thêm ở [Bảo mật & tài khoản](14-bao-mat-tai-khoan.md).
 
 Về tên miền riêng và HTTPS: VPS dùng Caddy nhập tên miền ngay trong **Cài đặt → Giọng nói, thương hiệu & truy cập → Tên miền & SSL** rồi bấm **Bật SSL**. Riêng Hostinger, wizard tạo sẵn biến `DOMAIN_NAME` để sao chép sang Docker Manager rồi Redeploy. Khi truy cập đúng tên miền qua HTTPS, server tự bật cookie Secure nên không cần đặt `JAVIS_SECURE_COOKIE` thủ công. Chi tiết ở [Thương hiệu & tên miền](15-thuong-hieu-ten-mien.md).
 
@@ -199,7 +199,7 @@ JAVIS_STATE_DIR=/data/state
 JAVIS_ALLOWED_HOSTS=javis.tencuaban.com
 ```
 
-Ở ví dụ thứ hai, vì `JAVIS_HOST=0.0.0.0` (public) nên Javis tự bật bắt buộc đăng nhập, và vì đã có `JAVIS_ADMIN_PASSWORD` nên bạn đăng nhập luôn bằng tài khoản đó, khỏi cần MÃ THIẾT LẬP.
+Ở ví dụ thứ hai, vì `JAVIS_HOST=0.0.0.0` (public) nên Javis tự bật bắt buộc đăng nhập, và vì đã có `JAVIS_ADMIN_PASSWORD` nên bạn đăng nhập luôn bằng tài khoản đó, không có lúc nào server trống admin.
 
 ## Mẹo
 
@@ -221,8 +221,6 @@ JAVIS_ALLOWED_HOSTS=javis.tencuaban.com
 **Mọi thao tác trả 403 "host không được phép".** Bạn vào Javis bằng một tên miền chưa nằm trong allowlist, trong lúc chưa đặt mật khẩu. Thêm tên miền vào `JAVIS_ALLOWED_HOSTS` (hoặc nhập nó ở Cài đặt → Tên miền & SSL), hoặc đơn giản là đặt mật khẩu.
 
 **Đã bật plugin trong app rồi mà nó vẫn không chạy.** Plugin do bạn cài cần thêm biến `JAVIS_ENABLE_USER_PLUGINS=true` trong `.env` rồi khởi động lại. Trong app, Javis cũng ghi rõ câu này khi bạn bật một plugin đang bị chặn.
-
-**Mở app báo cần MÃ THIẾT LẬP mà không biết lấy ở đâu.** Mã in trong log server lúc khởi động. Với Docker, xem log container tìm dòng "SETUP TOKEN", hoặc đọc file `.setup_token` trong thư mục state. Cách gọn hơn: đặt sẵn `JAVIS_ADMIN_PASSWORD` trong `.env` để bỏ qua bước nhập mã.
 
 **Đặt tên workspace trong .env mà app hiển thị tên khác.** App ưu tiên tên đã lưu trong Cài đặt hơn biến `WORKSPACE_NAME`. Sửa tên trong bảng Cài đặt của app, hoặc xoá tên đã lưu để app dùng lại giá trị từ `.env`.
 

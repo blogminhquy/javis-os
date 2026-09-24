@@ -64,7 +64,7 @@ An important detail about `JAVIS_HOST`: Javis uses a "safe by default" rule. If 
 | Variable | Meaning | Default | When to change |
 |---|---|---|---|
 | `JAVIS_REQUIRE_LOGIN` | Force login on or off. `1`/`true`/`yes`/`on` = on. `0`/`false`/`no`/`off` = off | Automatic (on when bound public) | Running on localhost but exposed through a tunnel (Cloudflare, ngrok...): set `JAVIS_REQUIRE_LOGIN=1` to keep strangers out. |
-| `JAVIS_ADMIN_USER` | The admin username created at deploy time | `admin` | Set it alongside `JAVIS_ADMIN_PASSWORD` to preseed the account, so you never need the SETUP TOKEN from the log. |
+| `JAVIS_ADMIN_USER` | The admin username created at deploy time | `admin` | Set it alongside `JAVIS_ADMIN_PASSWORD` to preseed the account, so a public server is never without an admin. |
 | `JAVIS_ADMIN_PASSWORD` | The admin password created at deploy time | (empty) | Public deploy: put a strong password here. With this variable set and no admin yet, Javis creates the admin at startup and closes the create-account screen entirely (the safest option for public). |
 | `JAVIS_SETUP_2FA` | Open the QR screen for two-factor auth on the Account page. `1` = open it | Off | You want 2FA on from the first sign-in. This flag is only a **reminder**: it does NOT enable 2FA by itself. You must scan the QR and enter one correct code before it is really on, because switching it on before you have proved your app produces valid codes locks you out of your own account. You can turn 2FA on or off any time in Dashboard → Account without this variable. |
 | `JAVIS_SECURE_COOKIE` | Send the cookie only over HTTPS. `1`/`true`/`yes`/`on` = on | Off | Only turn on when you are CERTAIN of end-to-end HTTPS (a custom domain with SSL). Turning it on by mistake behind an HTTP proxy causes a login loop (the right password still bounces you back to the sign-in page). |
@@ -75,7 +75,7 @@ An important detail about `JAVIS_HOST`: Javis uses a "safe by default" rule. If 
 | `JAVIS_TERMINAL_CWD` | The folder the terminal opens in | The HOME of the user running Javis | You want the shell to open at the brain root or another project folder. |
 | `JAVIS_TERMINAL_REMOTE` | Tell the CLIs in the Terminal that the user sits at ANOTHER machine (sets `SSH_CONNECTION`) | Auto: on when the server has no screen (VPS, Docker), off on native Windows/macOS and Linux with a display | Signing into `agy`, `claude`, `codex`... prints a link then sits there because they assume the browser is on this machine. Turn it on (`1`) so they ask where to paste the code. Turn it off (`0`) if the server really can open a browser for you (X11 forwarding, say). See [The Code group: Terminal](27-code-terminal.md). |
 
-About the SETUP TOKEN: when running public with no admin account, opening the app the first time asks for a setup token. The token is only printed to the server log at startup, so only someone who can see the log or terminal can create the account, and whoever merely has the URL can do nothing. If you preset `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` the token is not needed at all, just sign in with that account. More in [Security and accounts](14-security-and-accounts.md).
+About the first admin account: when running public with no admin, opening the app the first time only asks for a username and password, so **whoever opens the link first can create the admin**. That is why you should preset `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` (`install.sh` already asks for them) so the server boots with an admin, or create the account right after deploying. Once signed in, turn on two-factor authentication (2FA). More in [Security and accounts](14-security-and-accounts.md).
 
 About custom domains and HTTPS: on a Caddy VPS you enter the domain right in **Settings → Voice, branding and access → Domain and SSL** then click **Enable SSL**. On Hostinger the wizard prepares the `DOMAIN_NAME` variable for you to copy into Docker Manager before a Redeploy. When you access the proper domain over HTTPS, the server enables the Secure cookie by itself so `JAVIS_SECURE_COOKIE` need not be set manually. Details in [Branding and domains](15-branding-and-domains.md).
 
@@ -195,7 +195,7 @@ JAVIS_STATE_DIR=/data/state
 JAVIS_ALLOWED_HOSTS=javis.yourname.com
 ```
 
-In the second example, because `JAVIS_HOST=0.0.0.0` (public) Javis turns forced login on by itself, and because `JAVIS_ADMIN_PASSWORD` is set you sign straight in with that account, no SETUP TOKEN needed.
+In the second example, because `JAVIS_HOST=0.0.0.0` (public) Javis turns forced login on by itself, and because `JAVIS_ADMIN_PASSWORD` is set you sign straight in with that account, and the server is never without an admin.
 
 ## Tips
 
@@ -217,8 +217,6 @@ In the second example, because `JAVIS_HOST=0.0.0.0` (public) Javis turns forced 
 **Everything returns 403 "host not allowed".** You reached Javis through a domain not on the allowlist, with no password set. Add the domain to `JAVIS_ALLOWED_HOSTS` (or enter it in Settings → Domain and SSL), or simply set a password.
 
 **A plugin is enabled in the app but still does not run.** Plugins you install also need `JAVIS_ENABLE_USER_PLUGINS=true` in `.env` plus a restart. The app states this sentence too when you enable a plugin that is blocked.
-
-**Opening the app asks for a SETUP TOKEN and you do not know where to get it.** The token is printed to the server log at startup. On Docker, check the container log for the "SETUP TOKEN" line, or read the `.setup_token` file in the state folder. Neater still: preset `JAVIS_ADMIN_PASSWORD` in `.env` to skip the token step.
 
 **You set the workspace name in .env but the app shows another one.** The app prefers the name saved in Settings over the `WORKSPACE_NAME` variable. Edit the name in the app's Settings panel, or clear the saved name so the app falls back to the `.env` value.
 

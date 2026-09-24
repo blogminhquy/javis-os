@@ -3565,7 +3565,6 @@ async function initAuthGate() {
     if (!wz) { authOverlay.classList.add("open"); return; }
     if (_wizardMandatory) {
       const pass = document.getElementById("wzPass"); if (pass) pass.required = true;
-      const tw = document.getElementById("wzTokenWrap"); if (tw) tw.style.display = "";
       const note = document.getElementById("wzErr"); if (note) note.textContent = window.t("app.wz_mandatory");
     }
     wz.classList.add("open");
@@ -3855,18 +3854,12 @@ if (document.getElementById("wzFinish")) {
       return _soiOTrong(document.getElementById("wzPass"),
                         window.t("app.wz_pw_required"));
     }
-    // Chặn ngay ở đây thay vì để server trả 403: cùng một câu lỗi, nhưng người dùng thấy con
-    // trỏ nhảy vào đúng ô đang trống nên hiểu ngay phải làm gì.
-    const _tokO = document.getElementById("wzToken");
-    if (_wizardMandatory && _tokO && !_tokO.value.trim()) {
-      return _soiOTrong(_tokO, window.t("app.wz_token_missing"));
-    }
     try {
       if (pass) {
-        const d = await (await fetch("/auth/setup", { method: "POST", body: _fd({ username: user || "admin", password: pass, setup_token: _tokO ? _tokO.value.trim() : "" }) })).json();
-        // Server từ chối vì mã sai (403) thì cũng kéo về đúng ô mã, đừng để người dùng tự dò.
-        if (!d.ok) { return _soiOTrong(/MÃ THIẾT LẬP/i.test(d.error || "") ? _tokO : null,
-                                       d.error || window.t("app.wz_pw_err")); }
+        const d = await (await fetch("/auth/setup", { method: "POST", body: _fd({ username: user || "admin", password: pass }) })).json();
+        // Mã thiết lập đã bỏ (0.64.47): lần đầu chỉ cần tên + mật khẩu. Lỗi còn lại là mật
+        // khẩu (quá ngắn...) nên kéo về đúng ô mật khẩu.
+        if (!d.ok) { return _soiOTrong(document.getElementById("wzPass"), d.error || window.t("app.wz_pw_err")); }
       }
       await fetch("/settings", { method: "POST", body: _fd({ section: "general", data: JSON.stringify({ workspace_name: ws, setup_done: true }) }) });
       const _PM = { "anthropic-cli": "sonnet", "openai-oauth": "gpt-5.5", "openrouter": "openai/gpt-4o-mini" };
