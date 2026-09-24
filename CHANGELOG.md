@@ -6,7 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.39] - 2026-09-24
 ### Cải thiện
-- Linh vật: đang làm.
+- **Kích cỡ và Cỡ mắt của linh vật giờ là thanh trượt**: kéo tới đâu con pet đổi ngay tới đó, thả tay mới lưu.
+- **Bảng màu và Màu mắt có thêm ô Tùy chọn**: bấm chấm cầu vồng để chọn màu, hoặc gõ thẳng mã màu (ví dụ #FA4F05). Màu mắt gọn lại còn Đen, Trắng và Tùy chọn; ai đang dùng màu mắt cũ vẫn giữ nguyên màu đó.
+- **Cài đặt avatar trợ lý dùng đúng bộ chỉnh của linh vật**: hình dáng, bảng màu, màu tùy chọn, màu mắt, cỡ mắt. Nút Chọn ngẫu nhiên bốc màu có sẵn và mắt trắng hoặc đen.
+- Sửa lỗi chọn màu Cam, Ruby và sáu màu mới khác cho trợ lý thì bị báo không hợp lệ.
 
 ## [0.64.38] - 2026-09-24
 ### Sửa lỗi

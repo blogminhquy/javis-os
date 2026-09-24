@@ -3137,6 +3137,26 @@ body.ne-full-on .cview { z-index: 250; }
 .pet-swatch i { display: block; width: 100%; height: 100%; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(128, 128, 128, .28); }
 .pet-swatch[aria-pressed="true"] { border-color: var(--accent); }
 
+/* Bộ chỉnh diện mạo dùng chung (pet.js -> editorHtml, 0.64.39): trang Linh vật và cài đặt
+   avatar trợ lý. Chữ mới ở đây để 16px: trang này hay được mở trên điện thoại. */
+.pet-ed-head { margin-top: 14px; }
+.pet-editor > .pet-ed-head:first-child { margin-top: 0; }
+/* Ô MÀU TỰ CHỌN: chấm cầu vồng, bấm vào mở bảng chọn màu của hệ điều hành (input phủ kín
+   nhưng trong suốt). Đã chọn thì style inline tô đúng màu đó đè lên cầu vồng. */
+.pet-swatch-custom { position: relative; display: inline-block; box-sizing: border-box; }
+.pet-swatch-custom i { background: conic-gradient(#e5484d, #f5d014, #38b286, #1ea3c8, #4052c9, #ad55c3, #e5484d); }
+.pet-swatch-custom input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0;
+  border: 0; opacity: 0; cursor: pointer; }
+.pet-swatch-custom:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pet-hex { display: flex; align-items: center; gap: 10px; margin: 10px 0 0; font-size: 16px; color: var(--text2); font-weight: 400; }
+.pet-hex input { width: 8.5em; margin: 0; padding: 6px 10px; font: 16px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase; color: var(--text); background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; }
+.pet-hex input[aria-invalid="true"] { border-color: #d83137; }
+/* Thanh trượt Kích cỡ / Cỡ mắt, hai đầu có nhãn để biết kéo bên nào là to ra. */
+.pet-range-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 16px; color: var(--text3); }
+.pet-range-row span { flex: none; }
+.pet-range { flex: 1; min-width: 0; height: 32px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+
 /* Màn hẹp KHÔNG thu nhỏ pet nữa: ngón tay to hơn con trỏ chuột, và trên điện thoại một
    chấm bé còn khó thấy hơn trên màn rộng. Cỡ do người dùng chọn (trang Linh vật), chỉ giới
    hạn theo bề ngang màn để nó không chiếm nửa màn hình trên máy nhỏ. */

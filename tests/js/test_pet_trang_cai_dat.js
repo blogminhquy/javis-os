@@ -75,10 +75,12 @@ check("bóc được hàm renderPetCard khỏi console.js", !!than && than.lengt
   than ? than.length + " ký tự" : "không thấy");
 
 const vi = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
-const win = napPet();
-const P = win.JavisPet;
-
 const t = (k) => (typeof vi[k] === "string" ? vi[k] : "!!THIEU:" + k + "!!");
+const win = napPet();
+// Bộ chỉnh diện mạo nằm trong pet.js (0.64.39) và dịch qua window.t: cho nó dùng CÙNG từ
+// điển giả, để nhãn thiếu trong pet.js cũng lộ ra như nhãn thiếu trong console.js.
+win.t = t;
+const P = win.JavisPet;
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -98,8 +100,11 @@ check("trang KHÔNG rỗng (đúng cái ảnh báo lỗi 18/09)", html.length > 
 
 // ---- Đủ năm hàng chọn ----
 for (const [ten, dau] of [
-  ["hình dáng", "data-pet-shape="], ["cỡ", "data-pet-size="], ["màu thân", "data-pet-palette="],
-  ["màu mắt", "data-pet-eye="], ["cỡ mắt", "data-pet-eye-size="],
+  ["hình dáng", "data-pet-shape="], ["thanh trượt cỡ", 'type="range" class="pet-range" data-pet-size '],
+  ["màu thân", "data-pet-palette="], ["màu thân tự chọn", 'type="color" data-pet-color '],
+  ["ô gõ mã màu thân", "data-pet-color-hex"], ["màu mắt", "data-pet-eye="],
+  ["màu mắt tự chọn", 'type="color" data-pet-eye-color '], ["ô gõ mã màu mắt", "data-pet-eye-color-hex"],
+  ["thanh trượt cỡ mắt", 'type="range" class="pet-range" data-pet-eye-size '],
 ]) check("có hàng chọn " + ten, html.includes(dau));
 
 // ---- Mọi màu đều ra ô, và mọi nhãn đều dịch được ----

@@ -100,7 +100,9 @@ const matBlk = pet.slice(pet.indexOf("var MAU_MAT = {"));
 const mats = [...matBlk.slice(0, matBlk.indexOf("};")).matchAll(
   /(\w+):\s*\{ key: "(pet\.eye\.\w+)",\s*mau: "(#\w{6})" \}/g)].map(m => [m[1], m[3], m[2]]);
 check("mỗi màu mắt mang đúng khoá i18n của tên nó", mats.every(([k, , key]) => key === "pet.eye." + k));
-check("có ít nhất 7 màu mắt", mats.length >= 7, `thấy ${mats.length}`);
+// 0.64.39: chủ dự án rút về đúng hai màu sẵn (đen, trắng) cộng ô MÀU TỰ CHỌN theo mã.
+check("màu mắt có sẵn là đúng đen và trắng", mats.map(m => m[0]).join(",") === "den,trang", mats.map(m => m[0]).join(","));
+check("có ô màu mắt tự chọn", /oTuChon\("eye"/.test(pet) && /data-pet-eye-color-hex/.test(pet));
 // Con ngươi phải ĐỌC RA là con ngươi trên thân sáng nhất. Nhạt quá là mặt trống trơn.
 const matNhat = mats.filter(([, hex]) => hls(hex).l > 0.62 && hex.toLowerCase() !== "#ffffff");
 check("màu mắt đều đủ đậm để thấy trên thân sáng (trừ trắng, cố ý)",
@@ -110,8 +112,8 @@ check("màu mắt đều đủ đậm để thấy trên thân sáng (trừ tr�
 // Ghép chuỗi "pet.eye." + k thì bộ quét i18n (test_i18n.mjs) không thấy khoá, nên phải tra
 // qua chính khoá của màu - đúng cách hàng bảng màu vẫn làm.
 check("nhãn màu mắt tra qua khoá của màu, không viết cứng và không ghép chuỗi",
-  /nhanMat = \(k\) => t\(\(mats\[k\] \|\| mats\.den\)\.key\)/.test(consoleJs)
-  && !/t\("pet\.eye\." \+/.test(consoleJs));
+  /t\(\(MAU_MAT\[v\.eye\] \|\| MAU_MAT\.den\)\.key\)/.test(pet) && /t\(MAU_MAT\[k\]\.key\)/.test(pet)
+  && !/t\("pet\.eye\." \+/.test(consoleJs + pet));
 const thieu = [];
 for (const p of bang) for (const [ten, d] of [["vi", vi], ["en", en]])
   if (!d["pet.color." + p.ten]) thieu.push(`${ten}:pet.color.${p.ten}`);

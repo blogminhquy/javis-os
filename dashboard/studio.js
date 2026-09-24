@@ -164,7 +164,9 @@
   // `{}["__proto__"]` trả về Object.prototype chứ không phải undefined, nên một mã lạ đúng
   // tên đó sẽ lọt qua nhánh "|| ws.save_failed".
   const _MA_LOI_LUU = Object.assign(Object.create(null),
-    { avatar_shape: "ws.err_avatar_shape", avatar_palette: "ws.err_avatar_palette" });
+    { avatar_shape: "ws.err_avatar_shape", avatar_palette: "ws.err_avatar_palette",
+      avatar_color: "ws.err_avatar_palette", avatar_eye: "ws.err_avatar_eye",
+      avatar_eye_color: "ws.err_avatar_eye", avatar_eye_size: "ws.err_avatar_eye" });
   const loiLuu = (ma) => t(_MA_LOI_LUU[String(ma == null ? "" : ma)] || "ws.save_failed");
 
   // Bỏ dấu để gõ "viet email" vẫn ra "Viết email".
@@ -834,7 +836,7 @@
         // người dùng vừa đổi ở cột trái. Server thấy thiếu field là giữ nguyên nhóm đang có.
         const saved = await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value,
           prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv,
-          slug: a ? a.slug : "", brain: brain(), ...(avatar ? {avatar_shape: avatar.shape, avatar_palette: avatar.palette} : {}) }) });
+          slug: a ? a.slug : "", brain: brain(), ...(avatar ? window.JavisAvatar.formFields(avatar) : {}) }) });
         if (!saved.ok) { alert(loiLuu(saved.error)); return; }
         moDong(false);
         if (opts.onSaved) await opts.onSaved(saved); else loadAgents();

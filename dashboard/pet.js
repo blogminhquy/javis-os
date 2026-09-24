@@ -38,8 +38,6 @@
 
   // Mỗi bảng màu tự mang cả hai tông: [thân, vành quỹ đạo, dự phòng]. Tông theo giao diện đang bật
   // (javisTheme), nên pet không bao giờ chói lên giữa nền tối.
-  // Mỗi bảng màu tự mang cả hai tông: [thân, vành quỹ đạo, dự phòng]. Tông theo giao diện đang bật
-  // (javisTheme), nên pet không bao giờ chói lên giữa nền tối.
   //
   // TÔNG TỐI SUY TỪ TÔNG SÁNG, GIỮ NGUYÊN SẮC (0.59.36). Bản cũ đặt tay từng cặp, và tay thì
   // trôi: tông tối của `amber` rơi từ 30 độ (cam) sang 43 độ (vàng), nên chọn "Hổ phách" ở
@@ -77,9 +75,13 @@
     ruby:       { key: "pet.color.ruby",       sun: ["#D83137", "#E78E91", "#F1D5D6"], moon: ["#D76064", "#E09497", "#2D1D1D"] },
   };
 
-  // Cỡ pet. Số là bề ngang tính bằng px trên MÀN RỘNG; màn hẹp nhân thêm hệ số ở dưới.
-  // Mặc định "vua" chứ không phải "nho": bản đầu để 56px và trên điện thoại còn co xuống 46px,
-  // chủ dự án báo nhìn bé quá, nhất là trên iPhone.
+  // Cỡ pet. Từ 0.64.39 cỡ là MỘT CON SỐ px do thanh trượt đặt (chủ dự án muốn kéo cho vừa ý
+  // thay vì chọn một trong bốn nấc). Bốn nấc dưới đây vẫn giữ làm MỐC: cấu hình cũ lưu "vua",
+  // "rat_lon"... được quy về đúng số px của nấc đó, nên không ai thấy pet mình đổi cỡ sau cập
+  // nhật; và thanh trượt đọc tên nấc gần nhất ra làm nhãn.
+  // Mặc định 72 (nấc "vua") chứ không phải nấc nhỏ nhất: bản đầu để 56px và trên điện thoại
+  // còn co xuống 46px, chủ dự án báo nhìn bé quá, nhất là trên iPhone.
+  var CO_MIN = 44, CO_MAX = 150;
   var SIZES = {
     nho:  { key: "pet.size.nho",  px: 52 },
     vua:  { key: "pet.size.vua",  px: 72 },
@@ -101,27 +103,35 @@
   // tra `mats[k].key` chứ KHÔNG ghép `"pet.eye." + k`: bộ quét i18n chỉ nhận ra khoá khi nó
   // được viết nguyên văn ngay trong lời gọi dịch, nên khoá ghép chuỗi lọt lưới và một màu
   // thiếu nhãn sẽ đi thẳng ra mắt người dùng mà không test nào kêu.
+  //
+  // Từ 0.64.39 rút về HAI màu sẵn (đen, trắng) cộng một ô MÀU TỰ CHỌN theo mã màu. Năm màu
+  // đậm của 0.59.36 thành thừa khi người dùng gõ được mã bất kỳ, và bảy chấm tròn làm hàng
+  // chọn rối hơn giá trị chúng mang lại. Ai đang dùng một trong năm màu đó thì được quy sang
+  // "custom" mang đúng mã cũ (xem MAT_CU), nên con pet của họ không đổi màu mắt sau cập nhật.
   var MAU_MAT = {
     den:   { key: "pet.eye.den",   mau: "#201e1e" },
     trang: { key: "pet.eye.trang", mau: "#ffffff" },
-    nau:   { key: "pet.eye.nau",   mau: "#5A3A28" },
-    xanh:  { key: "pet.eye.xanh",  mau: "#2A62B0" },
-    ngoc:  { key: "pet.eye.ngoc",  mau: "#16806F" },
-    tim:   { key: "pet.eye.tim",   mau: "#6F45A8" },
-    vang:  { key: "pet.eye.vang",  mau: "#C2870F" },
   };
+  var MAT_CU = { nau: "#5a3a28", xanh: "#2a62b0", ngoc: "#16806f", tim: "#6f45a8", vang: "#c2870f" };
 
   // CỠ MẮT. Hệ số nhân vào bán kính con mắt, áp cho MỌI hình dáng chứ không riêng hình nào.
   // Mắt là toàn bộ chỗ diễn cảm xúc của nhân vật này (không có miệng), nên cho người dùng
   // kéo to lên là đổi hẳn tính cách: mắt thường thì điềm đạm, mắt rất to thì ngây thơ.
   // Đừng vượt quá 1,5: bản dựng thử ở 1,7 thì hai con mắt chạm nhau ở giữa mặt, và lúc pet
   // nép vào mép màn hình (hai mắt dồn sang nửa thân còn thấy) chúng chồng lên nhau hẳn.
+  //
+  // Từ 0.64.39 cũng là thanh trượt: cỡ mắt là MỘT HỆ SỐ trong [MAT_MIN, MAT_MAX]. Ba nấc dưới
+  // đây còn lại làm mốc quy đổi cấu hình cũ và làm nhãn. Cho xuống 0,8 (mắt nhỏ, điềm tĩnh);
+  // trần vẫn 1,5 vì lý do ở trên.
+  var MAT_MIN = 0.8, MAT_MAX = 1.5;
   var EYE_SIZES = {
     thuong:  { key: "pet.eyesize.thuong", k: 1 },
     to:      { key: "pet.eyesize.to",     k: 1.25 },
     rat_to:  { key: "pet.eyesize.rat_to", k: 1.5 },
   };
-  var MAC_DINH = { enabled: true, shape: "circle", palette: "amber", side: "right", pos: 0.62, size: "vua", eye: "den", eyeSize: "thuong" };
+  // `color` / `eyeColor` là mã màu của ô TỰ CHỌN. Chúng nằm sẵn trong cấu hình kể cả khi đang
+  // dùng màu có sẵn, để bấm lại ô tự chọn là ra đúng màu lần trước chứ không về một màu lạ.
+  var MAC_DINH = { enabled: true, shape: "circle", palette: "amber", side: "right", pos: 0.62, size: 72, eye: "den", eyeSize: 1, color: "#fa4f05", eyeColor: "#2a62b0" };
 
   // DÁNG LIẾC - chữ ký của nhân vật. Linh vật KHÔNG nhìn thẳng lúc nghỉ: nó liếc chéo lên
   // phía trên bên phải, đúng như hình logo tĩnh. Nhìn thẳng thì ra một cái mặt cười vô hồn;
@@ -218,6 +228,73 @@
     } catch (e) { return d || k; }
   }
   function kep(n, a, b) { return Math.max(a, Math.min(b, n)); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  // Mã màu hợp lệ thì trả về dạng chuẩn "#rrggbb" (chữ thường), không thì "". Nhận cả "#abc"
+  // và thiếu dấu "#", vì người ta hay dán mã màu từ chỗ khác sang theo đủ kiểu.
+  function hex(v) {
+    var s = String(v == null ? "" : v).trim().replace(/^#/, "").toLowerCase();
+    if (/^[0-9a-f]{3}$/.test(s)) s = s.replace(/./g, "$&$&");
+    return /^[0-9a-f]{6}$/.test(s) ? "#" + s : "";
+  }
+  // Cỡ thân: nhận số px hoặc tên nấc cũ ("vua"...), trả về số px đã kẹp.
+  function coThan(v) {
+    if (typeof v === "string" && SIZES[v]) return SIZES[v].px;
+    var n = Number(v);
+    return isFinite(n) && n > 0 ? Math.round(kep(n, CO_MIN, CO_MAX)) : MAC_DINH.size;
+  }
+  // Cỡ mắt: nhận hệ số hoặc tên nấc cũ ("to"...), trả về hệ số đã kẹp, làm tròn 2 chữ số để
+  // so sánh với bản máy chủ đọc lại không lệch vì sai số dấu phẩy động.
+  function heSo(v) {
+    if (typeof v === "string" && EYE_SIZES[v]) return EYE_SIZES[v].k;
+    var n = Number(v);
+    return isFinite(n) && n > 0 ? Math.round(kep(n, MAT_MIN, MAT_MAX) * 100) / 100 : 1;
+  }
+
+  // ---- Màu TỰ CHỌN: suy đủ hai tông từ MỘT mã màu ----
+  // Dùng đúng luật đã khoá cho bảng màu có sẵn (test_pet_bang_mau.js): tông tối GIỮ NGUYÊN SẮC,
+  // hạ bão hoà 12%, đưa độ sáng về dải 58-78%. Nhờ vậy một màu gõ tay cũng không chói lên giữa
+  // nền tối, và cam gõ tay vẫn ra cam ở cả hai giao diện.
+  function hsl(h6) {
+    var r = parseInt(h6.slice(1, 3), 16) / 255, g = parseInt(h6.slice(3, 5), 16) / 255, b = parseInt(h6.slice(5, 7), 16) / 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, h = 0, s = 0;
+    if (mx !== mn) {
+      var d = mx - mn;
+      s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h *= 60;
+    }
+    return [h, s, l];
+  }
+  function tuHsl(h, s, l) {
+    s = kep(s, 0, 1); l = kep(l, 0, 1);
+    var c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+    var v = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+    return "#" + v.map(function (n) { return ("0" + Math.round((n + m) * 255).toString(16)).slice(-2); }).join("");
+  }
+  function toneTuMau(h6) {
+    var c = hsl(h6), sm = c[1] * 0.88, lm = 0.58 + 0.2 * c[2];
+    return {
+      sun: [h6, tuHsl(c[0], c[1] * 0.85, Math.min(0.8, c[2] + 0.22)), tuHsl(c[0], c[1] * 0.5, 0.9)],
+      moon: [tuHsl(c[0], sm, lm), tuHsl(c[0], sm * 0.75, Math.min(0.8, lm + 0.08)), tuHsl(c[0], Math.min(sm, 0.22), 0.15)],
+    };
+  }
+  // Tông [thân, vành, dự phòng] của một bảng màu ở giao diện đang bật. `mau` chỉ dùng khi
+  // bảng màu là "custom". Bảng màu lạ rơi về amber, đúng như mọi chỗ vẽ trước nay.
+  function toneCua(palette, mau) {
+    var tong = sang() ? "sun" : "moon";
+    if (palette === "custom" && hex(mau)) return toneTuMau(hex(mau))[tong];
+    return (PALETTES[palette] || PALETTES.amber)[tong];
+  }
+  // Màu mắt từ khoá ("den" / "trang" / "custom" kèm mã). Không khớp gì thì trả "" để chỗ
+  // gọi tự quyết (con pet về đen, avatar trợ lý suy tự động theo thân).
+  function mauMatCua(eye, mauRieng) {
+    if (eye === "custom") return hex(mauRieng);
+    return (MAU_MAT[eye] || {}).mau || "";
+  }
   function noiSuy(a, b, k) { return a + (b - a) * k; }
   function sang() { try { return !!(window.javisTheme && window.javisTheme.isLight()); } catch (e) { return false; } }
   // Mắt phải tương phản với THÂN, không với nền trang: thân sáng thì mắt than chì, thân tối
@@ -231,9 +308,9 @@
     return (rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722) > 0.179 ? "#201e1e" : "#ffffff";
   }
   // Màu mắt của CON PET: lựa chọn của người dùng, không suy từ thân nữa.
-  function mauMatCfg() { return (MAU_MAT[cfg.eye] || MAU_MAT.den).mau; }
+  function mauMatCfg() { return mauMatCua(cfg.eye, cfg.eyeColor) || MAU_MAT.den.mau; }
   // Hệ số cỡ mắt đang chọn.
-  function heSoMat() { return (EYE_SIZES[cfg.eyeSize] || EYE_SIZES.thuong).k; }
+  function heSoMat() { return heSo(cfg.eyeSize); }
   // Khoảng cách từ tâm cặp mắt ra mỗi con. Mắt to thì NỚI RA, nhưng nới ít hơn mức mắt phình:
   // nới đủ hệ số thì hai con mắt dạt hẳn ra hai bên thái dương, nhìn như một con vật khác.
   // Dựng ảnh so ba cỡ rồi chốt: mũi tên 1 -> 1,5 thì khoảng cách chỉ đi 15 -> 18,5.
@@ -275,7 +352,7 @@
       .then(function (j) {
         var da = (j.dashboard || {}).pet || {};
         var lech = Object.keys(muon).filter(function (k) {
-          if (k === "pos") return Math.abs(Number(da[k]) - Number(muon[k])) > 0.001;
+          if (typeof muon[k] === "number") return Math.abs(Number(da[k]) - muon[k]) > 0.001;
           return da[k] !== muon[k];
         });
         return { ok: !lech.length, lech: lech };
@@ -285,11 +362,15 @@
   function chuanHoa(o) {
     var c = Object.assign({}, MAC_DINH, o || {});
     if (!SHAPES[c.shape]) c.shape = MAC_DINH.shape;
-    if (!PALETTES[c.palette]) c.palette = MAC_DINH.palette;
+    c.color = hex(c.color) || MAC_DINH.color;
+    c.eyeColor = hex(c.eyeColor) || MAC_DINH.eyeColor;
+    if (!PALETTES[c.palette] && c.palette !== "custom") c.palette = MAC_DINH.palette;
     if (c.side !== "left" && c.side !== "right") c.side = MAC_DINH.side;
-    if (!SIZES[c.size]) c.size = MAC_DINH.size;
-    if (!MAU_MAT[c.eye]) c.eye = MAC_DINH.eye;
-    if (!EYE_SIZES[c.eyeSize]) c.eyeSize = MAC_DINH.eyeSize;
+    c.size = coThan(c.size);
+    // Màu mắt cũ (nâu, xanh...) quy sang ô tự chọn mang đúng mã cũ, không rơi về đen.
+    if (MAT_CU[c.eye]) { c.eyeColor = MAT_CU[c.eye]; c.eye = "custom"; }
+    if (!MAU_MAT[c.eye] && c.eye !== "custom") c.eye = MAC_DINH.eye;
+    c.eyeSize = heSo(c.eyeSize);
     c.pos = kep(Number(c.pos) || MAC_DINH.pos, 0.05, 0.95);
     c.enabled = c.enabled !== false;
     return c;
@@ -363,14 +444,14 @@
     var d = SHAPES[cfg.shape].d;
     pFace.setAttribute("d", d);
     pRing.setAttribute("d", d);
-    var tone = PALETTES[cfg.palette][sang() ? "sun" : "moon"];
+    var tone = toneCua(cfg.palette, cfg.color);
     el.style.setProperty("--pet-face", tone[0]);
     el.style.setProperty("--pet-ring", tone[1]);
     el.style.setProperty("--pet-eye", mauMatCfg());
     el.dataset.side = cfg.side;
     // Cỡ đi bằng BIẾN CSS chứ không phải style.width trực tiếp: menu, viền focus và luật màn
     // hẹp đều ăn theo cùng một con số, khai một chỗ thì không có chỗ nào lệch.
-    el.style.setProperty("--pet-size", SIZES[cfg.size].px + "px");
+    el.style.setProperty("--pet-size", cfg.size + "px");
     veMat(dangChop ? "blink" : mood);   // đổi mép thì hai mắt dồn sang phía kia
     liecLuc = 0;                        // và chọn lại hướng liếc ngay, xem nghiX()
     el.style.top = (cfg.pos * 100).toFixed(2) + "%";
@@ -654,9 +735,12 @@
     vuiDen = 0;
     if (el) apDungTrangThai();
   }
-  function setCfg(patch) {
+  // `tam`: đổi TẠM lúc đang kéo thanh trượt hay rê trong bảng chọn màu. Con pet đổi ngay cho
+  // người ta thấy, nhưng chưa ghi đi đâu: một lượt kéo bắn vài chục sự kiện input, ghi máy chủ
+  // từng cái là vài chục request. Lúc thả tay (sự kiện change) mới gọi lại không có `tam`.
+  function setCfg(patch, tam) {
     cfg = chuanHoa(Object.assign({}, cfg, patch || {}));
-    ghiLocal(); ghiServer();
+    if (!tam) { ghiLocal(); ghiServer(); }
     if (el) { apDung(); chay(); }
     veDauAn();
     try { window.dispatchEvent(new CustomEvent("javis:pet", { detail: Object.assign({}, cfg) })); } catch (e) {}
@@ -699,15 +783,15 @@
   //           ấn cỡ nhỏ, vì dưới 30px cái vành chỉ còn là một vệt bẩn quanh hình.
   //   liecX / liecY - đổi HƯỚNG LIẾC (đơn vị viewBox, gốc là chéo lên phải). Ô xem thử lớn
   //           trong cài đặt trợ lý liếc sang trái và hơi xuống, theo yêu cầu của chủ dự án.
-  //   mat   - khoá MÀU MẮT ("den" / "trang"). Chỗ nào vẽ CON PET thì truyền vào để chân dung
-  //           khớp với con pet sống; bỏ trống (avatar trợ lý) thì suy tự động từ độ chói thân.
-  //   coMat - khoá CỠ MẮT ("thuong" / "to" / "rat_to"), cùng lý do như trên: ô xem thử và dấu
-  //           ấn thanh bên truyền vào, avatar trợ lý bỏ trống nên giữ cỡ thường.
+  //   mau   - mã màu thân khi bảng màu là "custom".
+  //   mat   - khoá MÀU MẮT ("den" / "trang" / "custom"), đi cùng `mauMat` là mã của ô tự chọn.
+  //           Bỏ trống (avatar trợ lý cũ chưa chọn màu mắt) thì suy tự động từ độ chói thân.
+  //   coMat - HỆ SỐ cỡ mắt (hay tên nấc cũ). Bỏ trống thì cỡ thường.
   function chanDung(shape, palette, opts) {
     var o = opts || {};
     var d = (SHAPES[shape] || SHAPES.circle).d;
-    var tone = (PALETTES[palette] || PALETTES.amber)[sang() ? "sun" : "moon"];
-    var mat = (MAU_MAT[o.mat] || {}).mau || mauMatTuDong(tone[0]);
+    var tone = toneCua(palette, o.mau);
+    var mat = mauMatCua(o.mat, o.mauMat) || mauMatTuDong(tone[0]);
     var lx = o.liecX === undefined ? LIEC_X : Number(o.liecX);
     var ly = o.liecY === undefined ? LIEC_Y : Number(o.liecY);
     var ex = 160 + lx, ey = 160 + ly;
@@ -727,13 +811,190 @@
     // nhảy ra toạ độ 17615, tức ngoài khung, nên mọi chân dung tĩnh (ô chọn ở trang Linh vật,
     // dấu ấn thanh bên, avatar trợ lý) chỉ còn MỘT con mắt. Mắt trái vẫn đúng vì phép trừ tự
     // ép chuỗi về số, nên nhìn qua tưởng là cố ý.
-    var k = (EYE_SIZES[o.coMat] || EYE_SIZES.thuong).k;
+    var k = heSo(o.coMat);
     var cach = 15 * (1 + (k - 1) * 0.47);
     var rx = 7.2 * k, ry = 17.5 * k;
     return '<svg viewBox="' + (o.vanh ? "42 42 236 236" : "58 58 204 204") + '" aria-hidden="true">' + vanh +
       '<path d="' + d + '" fill="' + tone[0] + '"/>' +
       '<ellipse cx="' + (ex - cach) + '" cy="' + ey + '" rx="' + rx + '" ry="' + ry + '" fill="' + mat + '"/>' +
       '<ellipse cx="' + (ex + cach) + '" cy="' + ey + '" rx="' + rx + '" ry="' + ry + '" fill="' + mat + '"/></svg>';
+  }
+
+  // ---- BỘ CHỈNH DIỆN MẠO, dùng chung cho trang Linh vật và avatar trợ lý (0.64.39) ----
+  // Chủ dự án muốn cài đặt avatar trợ lý "lấy nguyên cách triển khai" của linh vật. Nên chỉ có
+  // MỘT bộ chỉnh ở đây, hai chỗ cùng gọi: thêm một nút ở linh vật là avatar trợ lý có luôn,
+  // không có chuyện hai bản lệch nhau dần theo thời gian.
+  //
+  // `v`: { shape, palette, color, eye, eyeColor, eyeSize, size }.
+  // `opts.size`: có thanh trượt CỠ THÂN không. Avatar trợ lý thì không: cỡ của nó do chỗ vẽ
+  //   quyết (26px ở danh sách, 100px ở ô xem thử), người dùng đặt cỡ ở đây là vô nghĩa.
+  // `opts.vanh`: ô chọn hình dáng có vẽ vành quỹ đạo không (chỉ linh vật có vành).
+  function nacGan(bang, truong, v) {
+    var ten = null, lech = Infinity;
+    Object.keys(bang).forEach(function (k) {
+      var d = Math.abs(bang[k][truong] - v);
+      if (d < lech) { lech = d; ten = k; }
+    });
+    return bang[ten];
+  }
+  function nhanCo(px) { return t(nacGan(SIZES, "px", px).key) + " · " + px + "px"; }
+  function nhanCoMat(k) { return t(nacGan(EYE_SIZES, "k", k).key) + " · " + Math.round(k * 100) + "%"; }
+  function nhanMau(v) { return v.palette === "custom" ? t("pet.color.custom", "Tùy chọn") : t((PALETTES[v.palette] || PALETTES.amber).key); }
+  function nhanMat(v) { return v.eye === "custom" ? t("pet.eye.custom", "Tùy chọn") : t((MAU_MAT[v.eye] || MAU_MAT.den).key); }
+  function chuanLook(v) {
+    var c = Object.assign({}, v || {});
+    if (!SHAPES[c.shape]) c.shape = MAC_DINH.shape;
+    if (!PALETTES[c.palette] && c.palette !== "custom") c.palette = MAC_DINH.palette;
+    c.color = hex(c.color) || MAC_DINH.color;
+    c.eyeColor = hex(c.eyeColor) || MAC_DINH.eyeColor;
+    if (MAT_CU[c.eye]) { c.eyeColor = MAT_CU[c.eye]; c.eye = "custom"; }
+    if (!MAU_MAT[c.eye] && c.eye !== "custom") c.eye = MAC_DINH.eye;
+    c.eyeSize = heSo(c.eyeSize);
+    c.size = coThan(c.size);
+    return c;
+  }
+  function anhCua(v) { return { mau: v.color, mat: v.eye, mauMat: v.eyeColor, coMat: v.eyeSize }; }
+  function hinhHtml(v, o) {
+    return Object.keys(SHAPES).map(function (k) {
+      return '<button type="button" class="pet-pick" data-pet-shape="' + esc(k) + '" aria-pressed="' + (k === v.shape) + '">' +
+        chanDung(k, v.palette, Object.assign({ vanh: !!o.vanh }, anhCua(v))) + '<span>' + esc(t(SHAPES[k].key)) + '</span></button>';
+    }).join("");
+  }
+  // Ô MÀU TỰ CHỌN: một chấm tròn bọc <input type="color"> trong suốt phủ kín, bấm vào là bảng
+  // chọn màu của hệ điều hành mở ra. Chưa chọn thì chấm là vòng cầu vồng (CSS), đã chọn thì
+  // mang đúng màu đó. Kèm ô gõ MÃ MÀU ngay dưới, vì bảng chọn màu trên điện thoại không phải
+  // máy nào cũng cho gõ mã, mà chủ dự án cần dán được đúng mã màu thương hiệu.
+  function oTuChon(loai, dangChon, mauNen, mauGiaTri, nhan) {
+    return '<label class="pet-swatch pet-swatch-custom" data-pet-custom="' + loai + '" aria-pressed="' + dangChon + '" title="' + esc(nhan) + '">' +
+      '<i style="' + (dangChon ? "background:" + esc(mauNen) : "") + '"></i>' +
+      '<input type="color" data-pet-' + (loai === "eye" ? "eye-color" : "color") + ' value="' + esc(mauGiaTri) + '" aria-label="' + esc(nhan) + '"></label>';
+  }
+  function oMa(loai, giaTri) {
+    return '<label class="pet-hex"><span>' + esc(t("settings.pet_hex", "Mã màu")) + '</span>' +
+      '<input type="text" data-pet-' + (loai === "eye" ? "eye-color" : "color") + '-hex value="' + esc(giaTri.toUpperCase()) + '" maxlength="7" ' +
+      'spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="#FA4F05"></label>';
+  }
+  function editorHtml(v0, opts) {
+    var o = opts || {}, v = chuanLook(v0);
+    var dau = function (tieuDe, the, nhan) {
+      return '<div class="settings-card-head pet-ed-head"><b>' + esc(tieuDe) + '</b>' +
+        (the ? '<span class="gcard-tag" data-pet-tag="' + the + '">' + esc(nhan) + '</span>' : "") + '</div>';
+    };
+    var truot = function (attr, min, max, step, gt, nhanDau, nhanCuoi, nhan) {
+      return '<div class="pet-range-row"><span>' + esc(nhanDau) + '</span>' +
+        '<input type="range" class="pet-range" ' + attr + ' min="' + min + '" max="' + max + '" step="' + step + '" value="' + gt + '" aria-label="' + esc(nhan) + '">' +
+        '<span>' + esc(nhanCuoi) + '</span></div>';
+    };
+    var h = dau(t("settings.pet_shape", "Hình dáng")) +
+      '<div class="pet-picker" role="group" data-pet-part="shapes">' + hinhHtml(v, o) + '</div>';
+    if (o.size) {
+      h += dau(t("settings.pet_size", "Kích cỡ"), "size", nhanCo(v.size)) +
+        truot("data-pet-size", CO_MIN, CO_MAX, 2, v.size, t("pet.size.nho", "Nhỏ"), t("pet.size.rat_lon", "Rất lớn"), t("settings.pet_size", "Kích cỡ"));
+    }
+    var nhanTuChon = t("pet.color.custom", "Tùy chọn");
+    h += dau(t("settings.pet_color", "Bảng màu"), "palette", nhanMau(v)) +
+      '<div class="pet-picker" role="group">' + Object.keys(PALETTES).map(function (k) {
+        var ten = t(PALETTES[k].key);
+        return '<button type="button" class="pet-swatch" data-pet-palette="' + esc(k) + '" aria-pressed="' + (k === v.palette) + '" title="' + esc(ten) + '" aria-label="' + esc(ten) + '">' +
+          '<i style="background:' + esc(toneCua(k)[0]) + '"></i></button>';
+      }).join("") + oTuChon("palette", v.palette === "custom", toneCua("custom", v.color)[0], v.color, nhanTuChon) + '</div>' +
+      oMa("palette", v.palette === "custom" ? v.color : (PALETTES[v.palette] || PALETTES.amber).sun[0]);
+    h += dau(t("settings.pet_eye", "Màu mắt"), "eye", nhanMat(v)) +
+      '<div class="pet-picker" role="group">' + Object.keys(MAU_MAT).map(function (k) {
+        var ten = t(MAU_MAT[k].key);
+        return '<button type="button" class="pet-swatch" data-pet-eye="' + esc(k) + '" aria-pressed="' + (k === v.eye) + '" title="' + esc(ten) + '" aria-label="' + esc(ten) + '">' +
+          '<i style="background:' + esc(MAU_MAT[k].mau) + '"></i></button>';
+      }).join("") + oTuChon("eye", v.eye === "custom", v.eyeColor, v.eyeColor, t("pet.eye.custom", "Tùy chọn")) + '</div>' +
+      oMa("eye", mauMatCua(v.eye, v.eyeColor) || MAU_MAT.den.mau);
+    h += dau(t("settings.pet_eye_size", "Cỡ mắt"), "eyeSize", nhanCoMat(v.eyeSize)) +
+      truot("data-pet-eye-size", MAT_MIN, MAT_MAX, 0.05, v.eyeSize, t("pet.eyesize.nho", "Nhỏ"), t("pet.eyesize.rat_to", "Rất to"), t("settings.pet_eye_size", "Cỡ mắt"));
+    return h;
+  }
+  // Lúc KÉO (sự kiện input) chỉ sửa đúng mấy chỗ cần đổi, không vẽ lại cả bộ: vẽ lại là thay
+  // luôn cái thanh trượt đang nằm dưới ngón tay, và cú kéo đứt giữa chừng.
+  function capNhatNhe(host, v, o) {
+    var q = function (s) { return host.querySelector(s); };
+    var hinh = q('[data-pet-part="shapes"]');
+    if (hinh) hinh.innerHTML = hinhHtml(v, o);
+    var nhan = { size: nhanCo(v.size), palette: nhanMau(v), eye: nhanMat(v), eyeSize: nhanCoMat(v.eyeSize) };
+    Object.keys(nhan).forEach(function (k) { var e = q('[data-pet-tag="' + k + '"]'); if (e) e.textContent = nhan[k]; });
+    host.querySelectorAll("[data-pet-palette]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.petPalette === v.palette)); });
+    host.querySelectorAll("[data-pet-eye]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.petEye === v.eye)); });
+    [["palette", v.palette === "custom", toneCua("custom", v.color)[0]], ["eye", v.eye === "custom", v.eyeColor]].forEach(function (x) {
+      var o2 = q('[data-pet-custom="' + x[0] + '"]');
+      if (!o2) return;
+      o2.setAttribute("aria-pressed", String(x[1]));
+      o2.querySelector("i").style.background = x[1] ? x[2] : "";
+    });
+    var dangGo = document.activeElement;
+    var o3 = q("[data-pet-color-hex]"), o4 = q("[data-pet-eye-color-hex]");
+    if (o3 && o3 !== dangGo) o3.value = (v.palette === "custom" ? v.color : (PALETTES[v.palette] || PALETTES.amber).sun[0]).toUpperCase();
+    if (o4 && o4 !== dangGo) o4.value = (mauMatCua(v.eye, v.eyeColor) || MAU_MAT.den.mau).toUpperCase();
+  }
+  var THUOC_TINH_ED = ["data-pet-shape", "data-pet-palette", "data-pet-eye", "data-pet-size", "data-pet-eye-size",
+    "data-pet-color", "data-pet-eye-color", "data-pet-color-hex", "data-pet-eye-color-hex"];
+  // Gắn bộ chỉnh vào `host` (chỗ đã đổ editorHtml vào). `onChange(patch, tam)`: `tam` = đang
+  // kéo / đang rê trong bảng chọn màu, chưa phải lựa chọn cuối (xem setCfg).
+  // Nghe bằng ỦY QUYỀN trên host chứ không gắn từng nút: phần hình dáng được vẽ lại liên tục
+  // lúc kéo thanh trượt cỡ mắt, gắn từng nút thì mỗi lần vẽ lại là mất hết.
+  function editorBind(host, v0, onChange, opts) {
+    if (!host || !host.addEventListener) return;
+    var st = { v: chuanLook(v0), onChange: onChange, o: opts || {} };
+    var daGan = !!host._petEd;
+    host._petEd = st;
+    if (daGan) return;
+    function doi(patch, tam) {
+      st.v = chuanLook(Object.assign({}, st.v, patch));
+      try { st.onChange && st.onChange(patch, !!tam, Object.assign({}, st.v)); } catch (e) {}
+      if (tam) { capNhatNhe(host, st.v, st.o); return; }
+      // Lựa chọn cuối: vẽ lại cả bộ cho mọi ô xem thử khớp, rồi trả focus về đúng ô vừa dùng
+      // (người dùng bàn phím không bị ném về đầu trang sau mỗi lần chọn).
+      var dang = document.activeElement, chon = null;
+      if (dang && host.contains(dang)) {
+        THUOC_TINH_ED.some(function (a) {
+          if (!dang.hasAttribute(a)) return false;
+          var gt = dang.getAttribute(a);
+          chon = gt ? "[" + a + '="' + gt + '"]' : "[" + a + "]";
+          return true;
+        });
+      }
+      host.innerHTML = editorHtml(st.v, st.o);
+      if (chon) { var lai = host.querySelector(chon); if (lai) try { lai.focus(); } catch (e) {} }
+    }
+    function docMa(o5, khoaMau, patchChon, tam) {
+      var m = hex(o5.value);
+      o5.setAttribute("aria-invalid", m ? "false" : "true");
+      if (!m) return;
+      var p = {}; p[khoaMau] = m;
+      doi(Object.assign(p, patchChon), tam);
+    }
+    host.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-pet-shape], [data-pet-palette], [data-pet-eye]");
+      if (!b || !host.contains(b)) return;
+      if (b.dataset.petShape) doi({ shape: b.dataset.petShape });
+      else if (b.dataset.petPalette) doi({ palette: b.dataset.petPalette });
+      else if (b.dataset.petEye) doi({ eye: b.dataset.petEye });
+    });
+    function nghe(e, tam) {
+      var x = e.target;
+      if (!x || !x.hasAttribute) return;
+      if (x.hasAttribute("data-pet-size")) doi({ size: Number(x.value) }, tam);
+      else if (x.hasAttribute("data-pet-eye-size")) doi({ eyeSize: Number(x.value) }, tam);
+      else if (x.hasAttribute("data-pet-color")) doi({ palette: "custom", color: x.value }, tam);
+      else if (x.hasAttribute("data-pet-eye-color")) doi({ eye: "custom", eyeColor: x.value }, tam);
+      // Ô gõ mã: đang gõ thì chỉ xem thử khi mã đã đủ; rời ô (change) mới chốt. Mã sai thì
+      // viền đỏ (aria-invalid) và giữ nguyên màu cũ, không đoán bừa.
+      else if (x.hasAttribute("data-pet-color-hex")) docMa(x, "color", { palette: "custom" }, tam);
+      else if (x.hasAttribute("data-pet-eye-color-hex")) docMa(x, "eyeColor", { eye: "custom" }, tam);
+    }
+    host.addEventListener("input", function (e) { nghe(e, true); });
+    host.addEventListener("change", function (e) { nghe(e, false); });
+    // Enter trong ô mã màu thì chốt luôn, khỏi phải bấm ra ngoài.
+    host.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && e.target && e.target.matches && e.target.matches("[data-pet-color-hex], [data-pet-eye-color-hex]")) {
+        e.preventDefault(); nghe(e, false);
+      }
+    });
   }
 
   // ---- DẤU ẤN trên thanh bên ----
@@ -744,6 +1005,8 @@
   // trong cùng khối, thay cả khối là mỗi lần đổi hình dáng hay bảng màu lại xoá mất chữ.
   var LO_DAU_AN = ".rail-brand .brand-mark, .brand .brand-icon";
   var _logoRieng = false;      // người dùng đã tải logo riêng lên chưa
+  // Tuỳ chọn chân dung khớp đúng con pet đang sống: màu thân tự chọn, màu mắt, cỡ mắt.
+  function optsCfg() { return { mau: cfg.color, mat: cfg.eye, mauMat: cfg.eyeColor, coMat: cfg.eyeSize }; }
   function dungDauAn() { return !!cfg.enabled && !_logoRieng; }
   function veDauAn() {
     var dung = dungDauAn();
@@ -751,7 +1014,7 @@
       if (o.dataset.brandGoc === undefined) o.dataset.brandGoc = o.innerHTML;
       if (dung) {
         o.classList.add("brand-pet");
-        o.innerHTML = chanDung(cfg.shape, cfg.palette, { mat: cfg.eye, coMat: cfg.eyeSize });
+        o.innerHTML = chanDung(cfg.shape, cfg.palette, optsCfg());
       } else if (o.classList.contains("brand-pet")) {
         o.classList.remove("brand-pet");
         o.innerHTML = o.dataset.brandGoc;
@@ -767,7 +1030,11 @@
     shapes: function () { return SHAPES; },
     sizes: function () { return SIZES; },
     palettes: function () { return PALETTES; },
-    toneOf: function (ten) { return PALETTES[ten] ? PALETTES[ten][sang() ? "sun" : "moon"] : null; },
+    // `mau` chỉ dùng cho bảng màu "custom". Tên lạ trả null, như trước.
+    toneOf: function (ten, mau) {
+      if (ten === "custom") return hex(mau) ? toneCua(ten, mau) : null;
+      return PALETTES[ten] ? PALETTES[ten][sang() ? "sun" : "moon"] : null;
+    },
     // Cho trang Cài đặt hoà cấu hình từ máy chủ vào (localStorage chỉ là bản nhớ tạm cho
     // lần mở đầu, máy chủ mới là nguồn theo NGƯỜI).
     hydrate: function (o) {
@@ -782,12 +1049,17 @@
     // Ô xem thử trên trang Linh vật, và DẤU ẤN thay cho logo trên thanh bên: cùng một hàm,
     // vì hai chỗ đó phải là cùng một khuôn mặt.
     previewSvg: chanDung,
-    markSvg: function () { return chanDung(cfg.shape, cfg.palette, { mat: cfg.eye, coMat: cfg.eyeSize }); },
+    markSvg: function () { return chanDung(cfg.shape, cfg.palette, optsCfg()); },
     // Danh sách màu mắt cho ô chọn ở trang Linh vật. Trả khoá + mã màu để chỗ vẽ khỏi phải
     // khai lại bảng màu lần thứ hai.
     eyeColors: function () { return Object.assign({}, MAU_MAT); },   // {ten: {key, mau}}
-    // Danh sách CỠ MẮT cho ô chọn ở trang Linh vật.
+    // Các NẤC cỡ mắt (mốc quy đổi + nhãn cho thanh trượt).
     eyeSizes: function () { return EYE_SIZES; },
+    // Bộ chỉnh diện mạo DÙNG CHUNG: trang Linh vật và cài đặt avatar trợ lý vẽ cùng một bộ.
+    editorHtml: editorHtml,
+    editorBind: editorBind,
+    // Chuẩn hoá mã màu ("#abc", "ABCDEF" -> "#aabbcc"; sai -> "").
+    hex: hex,
     // Thanh bên có đang dùng khuôn mặt linh vật thay cho logo không.
     usingMark: function () { return dungDauAn(); },
     // Lưu NGAY lên máy chủ rồi đọc lại để chắc chắn đã vào (nút Lưu trang Linh vật).
