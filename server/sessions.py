@@ -94,6 +94,15 @@ CREATE TABLE IF NOT EXISTS messages (
     tool_calls_json TEXT
 );
 
+CREATE TABLE IF NOT EXISTS voice_receipts (
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    utterance_id TEXT NOT NULL, message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    response_policy TEXT NOT NULL, continuation_of TEXT NOT NULL DEFAULT '',
+    answer_requested INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL DEFAULT 'committed',
+    PRIMARY KEY(session_id, utterance_id)
+);
+CREATE INDEX IF NOT EXISTS voice_receipts_message ON voice_receipts(message_id);
+
 -- Project = nhóm hội thoại do người dùng tự gom (ý "gom hội thoại thành Project").
 -- KHÔNG khai REFERENCES ở cột sessions.project_id: cột đó thêm bằng ALTER TABLE cho DB cũ,
 -- mà SQLite không cho ALTER kèm khoá ngoại. Ràng buộc được giữ ở tầng code: xoá project là
@@ -583,11 +592,15 @@ class SessionStore:
             except Exception:
                 d["tool_calls"] = None
         d.pop("tool_calls_json", None)
+        metadata = d.pop("voice_metadata", None)
+        if metadata:
+            d["voice_metadata"] = json.loads(metadata)
         return d
 
     def get_messages(self, session_id: str) -> List[Dict[str, Any]]:
         rows = self._read(
-            "SELECT id, role, content, ts, tool_calls_json FROM messages "
+            "SELECT id, role, content, ts, tool_calls_json, "
+            "(SELECT json_object('utterance_id',utterance_id,'message_id',message_id,'response_policy',response_policy,'answer_requested',answer_requested,'state',state) FROM voice_receipts WHERE message_id=messages.id) AS voice_metadata FROM messages "
             "WHERE session_id = ? ORDER BY ts, id",
             (session_id,),
         )
@@ -611,7 +624,8 @@ class SessionStore:
         `has_more` cho biết phía trên còn tin nữa không.
         """
         limit = max(1, int(limit))
-        sql = ("SELECT id, role, content, ts, tool_calls_json FROM messages "
+        sql = ("SELECT id, role, content, ts, tool_calls_json, "
+            "(SELECT json_object('utterance_id',utterance_id,'message_id',message_id,'response_policy',response_policy,'answer_requested',answer_requested,'state',state) FROM voice_receipts WHERE message_id=messages.id) AS voice_metadata FROM messages "
                "WHERE session_id = ?")
         params: List[Any] = [session_id]
         if before is not None:

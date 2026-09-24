@@ -201,7 +201,7 @@ check("server không loại cỡ có gạch dưới (rat_lon)",
 // mà không có gì vào khung chat. Nguyên nhân kép: sendMessage `return` trần khi socket đứt,
 // và trạng thái "ĐANG KẾT NỐI LẠI" nằm trên orb - orb thì bị ẩn hẳn ở trang Trò chuyện.
 check("socket đứt thì GIỮ tin lại, không return trần",
-  /if \(!ws \|\| ws\.readyState !== WebSocket\.OPEN\) \{ giuTinKhiDutMang\(msg\); return; \}/.test(app));
+  /if \(!ws \|\| ws\.readyState !== WebSocket\.OPEN\) \{[^\n]*giuTinKhiDutMang\(msg\); return; \}/.test(app));
 check("không còn nhánh vứt tin lặng lẽ", !/WebSocket\.OPEN\) return;/.test(app));
 check("nối lại được thì gửi hàng đợi",
   /guiTinDutMang\(\);/.test(app) && /turn\.wsUp\(\)\);[\s\S]{0,80}baoDutMang\(false\);/.test(app));

@@ -1,0 +1,12 @@
+const fs=require('fs'), vm=require('vm'), assert=require('node:assert/strict');
+const source=fs.readFileSync('dashboard/app.js','utf8');
+const start=source.indexOf('function handleMessage(data) {');
+const end=source.indexOf('  if (data.type === "ui_action") {',start);
+const context={adaptiveCurrent:new Map(),adaptiveCancelled:new Set(),savedSessionId:'A',_tinChoLuot:null};
+vm.runInNewContext(source.slice(start,end)+'return "forward";\n}',context);
+const frame={type:'stream',session_id:'A',utterance_id:'u1',content:'Vâng anh'};
+assert.equal(context.handleMessage(frame),'forward','rejoined tab accepts running job identity it has not sent itself');
+context.adaptiveCurrent.set('A','u2');assert.equal(context.handleMessage(frame),undefined,'old response cannot enter new turn');
+context.adaptiveCurrent.set('A','u1');context.adaptiveCancelled.add('u1');
+assert.equal(context.handleMessage(frame),undefined,'cancelled response cannot queue TTS');
+console.log('adaptive response isolation passed');

@@ -97,7 +97,7 @@ check("dựng lại tin cũ thì đọc đính kèm bằng docDinhKem", /docDinh
 check("và truyền vào appendUserMessage thay vì mảng rỗng",
   /appendUserMessage\(_sach, _atts, ts\)/.test(thanOpen) && !/appendUserMessage\(_sach, \[\], ts\)/.test(thanOpen));
 check("convo lưu lại cũng mang đính kèm (F5 lần sau còn)",
-  /return \{ role: "user", text: _sach, atts: _atts, ts \};/.test(thanOpen));
+  /return \{ role: "user", text: _sach, atts: _atts, ts, voice_metadata:m.voice_metadata \};/.test(thanOpen));
 
 // ============================================================
 // 2. Enter sớm: đợi upload xong, không gửi thiếu

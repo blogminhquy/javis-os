@@ -75,13 +75,13 @@ check("onTranscript vẫn gửi thẳng, không qua bước xác nhận",
 // Chỗ thứ 7 (0.58.2) VẪN là hoãn: mất WebSocket thì câu được giữ lại rồi gửi khi nối lại
 // (guiTinDutMang). Trước đó chỗ này vứt tin lặng lẽ - trên iPhone là câu nói bốc hơi.
 const goiGui = (app.match(/(?<!function )\bsendMessage\(/g) || []).length;
-check("chỉ có 8 chỗ gọi sendMessage (giọng nói, thử lại, Enter, nút gửi, sau khi tải file xong, sau khi dừng lượt cũ, sau khi nối lại mạng, sau khi mở agent/workflow)",
-  goiGui === 8, goiGui);
+check("có 9 chỗ (thêm adaptive commit) gọi sendMessage (giọng nói, thử lại, Enter, nút gửi, sau khi tải file xong, sau khi dừng lượt cũ, sau khi nối lại mạng, sau khi mở agent/workflow)",
+  goiGui === 9, goiGui);
 // Reconnect sends and cancellation across chats execute in test_voice_app_session.js.
 check("chỗ thứ 5 nằm TRONG sendMessage và chỉ chạy sau Promise.all của file đang tải",
   /Promise\.all\(dangTai\.map\(a => a\.xong[\s\S]{0,300}sendMessage\(text, opts\);/.test(app));
 check("chỗ thứ 6 là tin hoãn, chỉ gửi sau khi lượt cũ đã dừng",
-  /function guiTinCho\(\) \{[\s\S]{0,300}if \(t\) sendMessage\(t\);/.test(app)
+  /function guiTinCho\(\) \{[\s\S]{0,550}if \(t\) sendMessage\(t,opts\);/.test(app)
   && /if \(isActive && _tinChoLuot\) guiTinCho\(\);/.test(app));
 
 // ---- 4. Server không tự nhập liệu: việc nền luôn là tin của Javis ----

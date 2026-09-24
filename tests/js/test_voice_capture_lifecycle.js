@@ -256,6 +256,47 @@ test('finishing recognition cancels the endpoint timer from that turn', () => {
   voice.userStopped = true; voice.recognition.onend();
   assert.equal(timers.size, 0);
 });
+test('adaptive capture stays open until first audio and new words cancel the pending audio', () => {
+  let voice, heard='', starts=0, paused=0;
+  const fixture=setup(()=>{}, {onInterim:t=>{if(t){heard=t;voice.stopSpeaking();}},onSpeakStart:()=>starts++});
+  voice=fixture.voice;
+  fixture.context.Audio=class {play(){return new Promise(()=>{});} pause(){paused++;} load(){} };
+  voice.isSpeaking=()=>voice.isPlaying;
+  voice._giuTaiKhiDoc=()=>{};voice._startBargeMonitor=()=>{};voice._apAmLuong=()=>{};
+  voice._canhTreo=()=>{};voice._ensureCtx=()=>null;
+  voice.managedEndpoint=true;voice.handsFree=true;voice.isListening=true;voice.ttsEnabled=true;
+  voice.enqueueSpeak('Phản hồi cũ');
+  const oldPlaying=voice.currentAudio.onplaying;
+  assert.equal(voice._discardRecognition,undefined,'do not mute while downloading audio');
+  assert.equal(starts,0,'speak-start means actual playback');
+  const row=[{transcript:'anh còn muốn nói thêm'}];row.isFinal=false;
+  voice.recognition.onresult({results:[row]});
+  assert.equal(heard,'anh còn muốn nói thêm');assert.ok(paused>0);
+  oldPlaying();assert.equal(starts,0,'late playing callback is inert after cancel');
+});
+test('managed endpoint retains iOS draft across capture end without submitting', async () => {
+  const received=[]; const {voice,timers}=setup(t=>received.push(t));
+  voice.managedEndpoint=true; voice._laIOS=()=>true;
+  voice.isListening=true;
+  const row=[{transcript:'Ý là'}]; row.isFinal=false;
+  voice.recognition.onresult({results:[row]});
+  assert.equal(timers.size,0,'controller owns the only deadline');
+  voice.recognition.onend(); await voice._sttDelivery;
+  assert.deepEqual(received,[]);
+  assert.equal(voice._committed,'Ý là');
+  voice.recognition.onstart();
+  assert.equal(voice._committed,'Ý là');
+  voice.isListening=true; voice.stopListening(); voice.recognition.onend();
+  await voice._sttDelivery; assert.deepEqual(received,['Ý là']);
+});
+test('managed restart failure preserves draft and reports capture failure', async () => {
+  const received=[],errors=[]; const {voice}=setup(t=>received.push(t),{onError:e=>errors.push(e)});
+  voice.managedEndpoint=true; voice.accumulatedTranscript='anh muốn em';
+  voice.recognition.start=()=>{throw Error('restart failed');};
+  voice.recognition.onend(); await voice._sttDelivery;
+  assert.deepEqual(received,[]); assert.equal(voice._committed,'anh muốn em');
+  assert.ok(errors.length);
+});
 (async () => {
   let failures = 0;
   for (const [name, fn] of tests) {

@@ -445,3 +445,14 @@ Still stuck? See [Troubleshooting & FAQ](17-troubleshooting.md).
 In Standard/Fast mode, the displayed transcript is kept when the utterance ends. Optional Groq recognition reports differences without rewriting sent messages. Emma is the default for new browser preferences; saved voice choices survive updates.
 
 From 0.64.34, conversation settings prioritize voice, speed, conversation mode and focus. Open **Advanced** for model, secondary recognition, hints and microphone settings. Open **Provider and connection** to configure an API and save the provider. Controls that do not affect the selected mode are hidden; recognition language remains available in Live for the Javis wake listener.
+
+
+## Experimental conversation timing (0.64.35)
+
+Settings → Conversation → Advanced → Conversation timing offers Fixed wait (default), Observe for testing, and Natural. Natural applies only to Standard/Fast with a compatible server and requires no extra API. Choose Fast/Balanced/Patient. Observe calculates metadata in memory without changing endpoint behavior.
+
+Incomplete phrases are retained as drafts after 10 seconds. Explicit requests to wait hold the floor for up to 90 seconds. Send, Continue and Discard controls keep the text available; saying Javis can resume a saved draft. Drafts pause at 120 seconds or 4,000 characters without silently truncating words.
+
+Acknowledgement-only replies are deliberately narrow: the server must know the previous explanation is complete, and the utterance must be an unambiguous closing. Unknown intent still gets a normal response. Saved acknowledgements have a Request an answer button in history.
+
+Diagnostics exports at most 200 in-memory timing/state events, with no transcript, audio or credentials. Physical tablet/phone acoustic testing remains necessary before making Natural the default.

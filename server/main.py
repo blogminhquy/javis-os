@@ -140,6 +140,7 @@ import compaction   # nén hội thoại dài cho engine API (tóm tắt phần 
 from chat_runtime import ChatRuntime
 import ui_bridge   # tool javis_ui bảo dashboard mở trang/file/việc rồi đợi trình duyệt đáp
 import ui_targets   # đổi lời nói ("mở trang công cụ") thành id trang dashboard hiểu
+import voice_turn_protocol
 import voice_brain   # Voice V2: bộ não giọng nói riêng (Antigravity sống lâu / Groq / Gemini...)
 import voice_live    # Voice V2: nghe nói thẳng qua Gemini Live / OpenAI Realtime
 
@@ -12233,7 +12234,9 @@ async def _persist_turn(store, conv_sid, brain, user_message, final_text):
     clean = channel_context.strip_control_blocks(final_text or "")
     if not clean:
         return None
-    store.append_message(conv_sid, "assistant", clean)
+    _answer_mid = store.append_message(conv_sid, "assistant", clean)
+    if voice_turn_protocol.response_id.get():
+        voice_turn_protocol.note_answer(store, _answer_mid, final_text)
     store.auto_title(conv_sid, user_message)
     log_conversation(brain, user_message, clean)
     # Rewire: đưa lượt vào hàng đợi học. `enqueue` chỉ đọc config + cộng bộ đếm dưới khoá
@@ -12320,13 +12323,14 @@ async def websocket_endpoint(ws: WebSocket):
     await send_client({
         "type": "hello",
         "stop_tag": conn_tag,
+        "capabilities": ["adaptive_voice_v1"],
         "running": _CHAT_RUNTIME.snapshot(),
         # Lượt đang chờ gói thuê bao mở lại hạn mức, để F5 xong thẻ "tự chạy lại" còn dựng được.
         "resumes": limit_resume.REGISTRY.snapshot(),
     })
 
     async def send_raw(obj):
-        await _CHAT_RUNTIME.publish(obj)
+        await _CHAT_RUNTIME.publish(voice_turn_protocol.frame(obj))
 
     class _SendProxy:
         """Đội lốt ws bên trong 1 lượt: mọi send_text tự gắn session_id của lượt + qua khoá ghi.
@@ -12344,7 +12348,7 @@ async def websocket_endpoint(ws: WebSocket):
                     _CONTEXT_RUNTIME.note_error(self._runtime_trace, "engine_error_event")
             except Exception:
                 return
-            await _CHAT_RUNTIME.publish(o)
+            await _CHAT_RUNTIME.publish(voice_turn_protocol.frame(o))
 
     try:
         async def _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
@@ -13921,9 +13925,23 @@ async def websocket_endpoint(ws: WebSocket):
                                     "state": "scheduled" if _item.auto else "off",
                                     **_item.payload()})
                 continue
+            _answer_receipt = None
+            if action == "voice_answer":
+                _sid = str(payload.get("session_id") or "")
+                if _CHAT_RUNTIME.get_job(_sid):
+                    await send_client({"type":"voice_busy", "session_id":_sid})
+                    continue
+                _answer_receipt = voice_turn_protocol.request_answer(store, _sid, payload.get("message_id"))
+                if not _answer_receipt:
+                    await send_client({"type":"voice_answer_unavailable", "session_id":_sid})
+                    continue
+                payload["message"] = _answer_receipt["content"]
+                payload["utterance_id"] = _answer_receipt["utterance_id"]
+                payload["voice"] = True
             user_message = payload.get("message", "").strip()
             if not user_message:
                 continue
+            _voice_raw = str(payload.get("voice_text") or user_message).strip()
             brain = payload.get("brain", "brain")
             _cfg_luot = cfgmod.read_settings()
             mcfg = _cfg_luot.get("model", {})
@@ -13942,6 +13960,16 @@ async def websocket_endpoint(ws: WebSocket):
             conv_sid = store.get_or_create(
                 payload.get("session_id"), brain=_brain_key(brain), engine=engine_label,
                 model=(api_model or mcfg.get("claude_model")))
+            if payload.get("voice") and payload.get("utterance_id") and not _answer_receipt:
+                _old_voice = voice_turn_protocol.lookup(store, conv_sid, str(payload["utterance_id"]))
+                if _old_voice:
+                    if _old_voice['content'] != _voice_raw:
+                        await send_client({"type":"voice_commit_error", "session_id":conv_sid,
+                                           "utterance_id":str(payload['utterance_id']), "content":"Utterance transcript conflict"})
+                    else:
+                        await send_client({"type":"voice_receipt", **_old_voice,
+                                           "running":bool(_CHAT_RUNTIME.get_job(conv_sid))})
+                    continue
             # ĐÓNG DẤU model từ tin đầu (chủ chốt 16/08): mỗi lượt bảo đảm ghim của
             # phiên == model ĐANG CHẠY THẬT của lượt này. Phủ một lúc ba ca:
             #   - phiên mới / phiên cũ chưa ghim → đóng dấu model hiệu lực, từ đây đổi
@@ -13968,13 +13996,34 @@ async def websocket_endpoint(ws: WebSocket):
                 print(f"[chat] đổi engine sang {engine_label!r}, dọn mạch stale: "
                       f"{', '.join(_da_don_mach)}", file=sys.stderr)
             if _CHAT_RUNTIME.get_job(conv_sid):
-                await send_raw({"type": "error", "content": "Phiên này đang trả lời - đợi lượt hiện tại xong đã.", "session_id": conv_sid})
+                if payload.get("voice") and payload.get("utterance_id"):
+                    await send_client({"type":"voice_busy", "session_id":conv_sid, "utterance_id":str(payload["utterance_id"])})
+                else:
+                    await send_raw({"type": "error", "content": "Phiên này đang trả lời - đợi lượt hiện tại xong đã.", "session_id": conv_sid})
                 continue
             # Tin mới thay cho câu hỏi đang chờ hạn mức: bỏ lịch chạy lại, kẻo hai lượt chen
             # nhau trên cùng một phiên. Muốn hỏi lại câu cũ thì bấm "Gửi lại" ở tin đó.
             if limit_resume.REGISTRY.cancel(conv_sid):
                 await send_raw({"type": "resume", "session_id": conv_sid, "state": "cancelled"})
-            store.append_message(conv_sid, "user", user_message)
+            _pending_voice_receipt = None
+            _voice_uid = str(payload.get("utterance_id") or "") if payload.get("voice") else ""
+            if _voice_uid:
+                try:
+                    _receipt = _answer_receipt or voice_turn_protocol.commit(
+                        store, conv_sid, _voice_uid, _voice_raw,
+                        str(payload.get("response_policy") or "auto"), payload.get("continuation_of"))
+                except ValueError as exc:
+                    await send_client({"type":"voice_commit_error", "session_id":conv_sid,
+                                       "utterance_id":_voice_uid, "content":str(exc)})
+                    continue
+                _pending_voice_receipt = {"type":"voice_receipt", **_receipt,
+                                   "utterance_id":_voice_uid, "session_id":conv_sid,
+                                   "answer_requested": bool(_answer_receipt) or bool(_receipt.get("answer_requested"))}
+                if not _answer_receipt and (not _receipt["created"] or _receipt["response_policy"] == "ack_only"):
+                    await send_client(_pending_voice_receipt)
+                    continue
+            else:
+                store.append_message(conv_sid, "user", user_message)
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
             runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
             # Phiên workflow:<slug>: mỗi tin là một lần chạy quy trình, không phải một lượt
@@ -14016,6 +14065,8 @@ async def websocket_endpoint(ws: WebSocket):
                     runtime_task_id=runtime_trace.task_id if runtime_trace else "",
                     runtime_step_id=runtime_trace.step_id if runtime_trace else "",
                 )
+                if _pending_voice_receipt:
+                    await send_client(_pending_voice_receipt)
                 continue
             has_attachments = bool(payload.get("attachments") or payload.get("files"))
             # Voice V2: tin đến từ MIC (`voice: true`) và cài đặt ở chế độ Làn nhanh có bộ não
@@ -14028,18 +14079,22 @@ async def websocket_endpoint(ws: WebSocket):
                     _vconf = None
                 _bao_lan_nhanh_bo_qua(_vconf)
             if _vconf and _vconf.get("mode") == "fast" and _vconf.get("provider"):
-                task = asyncio.create_task(run_voice_turn(
+                _voice_coro = run_voice_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, _vconf,
-                    voice_turn_id=str(payload.get("voice_turn_id") or "")))
+                    voice_turn_id=str(payload.get("voice_turn_id") or ""))
+                task = asyncio.create_task(voice_turn_protocol.run(_voice_coro, store, conv_sid, _voice_uid) if _voice_uid else _voice_coro)
             else:
-                task = asyncio.create_task(run_turn(
+                _voice_coro = run_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
-                    goc_chat=_goc))
+                    goc_chat=_goc)
+                task = asyncio.create_task(voice_turn_protocol.run(_voice_coro, store, conv_sid, _voice_uid) if _voice_uid else _voice_coro)
             _CHAT_RUNTIME.register_job(
                 conv_sid, task, turn_tag,
                 runtime_task_id=runtime_trace.task_id if runtime_trace else "",
                 runtime_step_id=runtime_trace.step_id if runtime_trace else "",
             )
+            if _pending_voice_receipt:
+                await send_client(_pending_voice_receipt)
     except WebSocketDisconnect:
         pass
     finally:

@@ -42,6 +42,7 @@ function stopCurrent() {
   try { ketThucTheoLoi(false); } catch (e) {}
   voice.stopSpeaking();
   const sid = savedSessionId;
+  if (sid && adaptiveCurrent.has(sid)) adaptiveCancelled.add(adaptiveCurrent.get(sid));
   // Dừng ĐÚNG phiên đang xem (phiên nền khác vẫn chạy). Server huỷ lượt + gửi turn_done về.
   if (sid && ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ action: "stop", session_id: sid }));
@@ -133,11 +134,13 @@ const voice = new JavisVoice({
   acceptTranscript: (text) => !handsFree || attention.accept(text),
   onStart: () => {
     voiceBtn.classList.add("recording");
-    nhapGiong("");
+    if (!adaptive.running()) nhapGiong("");
+    adaptive.start();
     runActions(turn.micOn());
   },
   onInterim: (text) => {
     if (handsFree && !attention.preview(text)) { nhapGiong(""); return; }
+    if (adaptive.input(text)) return;
     nhapGiong(text);
     // Đang tạm dừng vì nghi chen ngang mà có chữ -> chen ngang THẬT: đạo diễn trả stop_tts.
     // Đọc phần Javis đã đọc ra tiếng TRƯỚC khi dừng, để tin kế tiếp mang ngắt_lời=.
@@ -146,6 +149,7 @@ const voice = new JavisVoice({
   },
   onTranscript: (text) => {
     voiceBtn.classList.remove("recording");
+    if (adaptive.manual(text)) return;
     nhapGiong("");
     text = veTinTuGiong(text);   // luật CHỜ / DỪNG của đạo diễn: trả "" khi không gửi
     if (text) sendMessage(text);
@@ -155,11 +159,13 @@ const voice = new JavisVoice({
     // Hands-free: giữ trạng thái chờ nghe lại, đừng reset về SẴN SÀNG cho đỡ nháy.
     // Phiên nghe kết thúc mà không có chữ (tiếng ồn rồi im) thì vẫn phải hạ cờ "đang nói":
     // endpoint("") không gửi gì, chỉ trả đạo diễn về listening để tin nền được đọc tiếp.
+    if (adaptive.holding() || adaptive.blocked()) return;
     if (!handsFree) runActions(turn.micOff());
     else runActions(turn.endpoint(""));
   },
   onTranscribing: () => capNhatOrb(),
   onError: (err) => {
+    adaptive.save("capture_error");
     voiceBtn.classList.remove("recording");
     // Mic hỏng hẳn thì TẮT chế độ rảnh tay. Không tắt thì vòng giữ mic 500ms bên dưới cứ mở
     // lại mãi, mỗi lần một hộp thoại chặn - người dùng bấm OK xong nửa giây sau nó nổ tiếp,
@@ -186,6 +192,61 @@ const voice = new JavisVoice({
 const turn = new window.JavisVoiceTurn.VoiceTurn({
   minDelay: parseInt(localStorage.getItem("javis.endpoint") || "1200", 10) || 1200,
 });
+let adaptiveCapable = false;
+const adaptiveOutbox = new Map(), adaptiveCurrent = new Map(), adaptiveCancelled = new Set();
+let adaptiveContinuation = '';
+const adaptive = window.JavisAdaptiveUI({
+  browserMode:()=>voiceMode!=="live", capable:()=>adaptiveCapable,
+  handsFree:()=>handsFree, connected:()=>!!ws&&ws.readyState===WebSocket.OPEN,
+  speaking:()=>voice.isSpeaking(), managed:on=>{voice.managedEndpoint=on && !attention.waiting() && !adaptive.blocked();},
+  cancelCapture:()=>voice.cancelListening(), draft:nhapGiong,
+  preserve:text=>{chatInput.value=[chatInput.value,text].filter(Boolean).join("\n");},
+  accept:text=>!handsFree||attention.accept(text),
+  state:holding=>{turn.userSpeaking=holding;turn.waiting=holding;runActions(turn._recompute());},
+  expireAttention:()=>{attention.until=0;attention.candidateUntil=0;},
+  keepAttention:()=>attention.keepActive(), openAttention:()=>attention.start(),
+  listen:()=>voice.startListening(true),
+  stop:()=>stopCurrent(),
+  interrupt:()=>{
+    if((isProcessing || voice._awaitingFirstAudio) && savedSessionId) {
+      adaptiveContinuation=adaptiveCurrent.get(savedSessionId)||'';
+      if(adaptiveContinuation) adaptiveCancelled.add(adaptiveContinuation);
+      stopCurrent(); cum.reset();
+    }
+  },
+  send:text=>{_tuGiong=true;sendMessage(text,{adaptive:{utterance_id:newSid(),response_policy:'ack_only',continuation_of:adaptiveContinuation}});adaptiveContinuation='';}
+});
+function renderVoiceReceipt(el, data) {
+    if(el) {
+      const b=document.createElement('button'); b.type='button';b.className='js-btn';
+      b.textContent=window.t('app.adaptive_answer');
+      b.onclick=()=>{
+        if(!ws||ws.readyState!==WebSocket.OPEN||isProcessing)return;
+        adaptiveCancelled.delete(data.utterance_id);
+        adaptiveCurrent.set(data.session_id,data.utterance_id);
+        turns[data.session_id]={text:'',bubble:null,spoke:false,running:true};
+        ws.send(JSON.stringify({action:'voice_answer',session_id:data.session_id,message_id:data.message_id,brain:currentBrainPath()}));
+        b.disabled=true;syncActiveUI();runActions(turn.turnStart());
+      };
+      const label=document.createElement('span'); label.textContent=window.t('app.adaptive_ack')+' ';el.append(label,b);
+    }
+}
+function adaptiveReceipt(data) {
+  const pending=adaptiveOutbox.get(data.utterance_id);
+  if(pending) { adaptiveOutbox.delete(data.utterance_id); if(pending.retryButton) pending.retryButton.remove(); }
+  if(data.session_id!==savedSessionId) return;
+  if(adaptiveCancelled.has(data.utterance_id) || (adaptiveCurrent.has(data.session_id) && adaptiveCurrent.get(data.session_id)!==data.utterance_id)) return;
+  if(data.type==='voice_commit_error') {appendJavisError(data.content);runActions(turn.turnDone());return;}
+  if(data.response_policy==='ack_only' && !data.answer_requested) {
+    const el=pending&&pending.element;
+    renderVoiceReceipt(el,data);
+    delete turns[data.session_id];setSessionRunning(data.session_id,false);hideActivity();syncActiveUI();runActions(turn.turnDone());
+  } else if(data.created===false && !data.answer_requested && !data.running) {
+    // A retry only retrieves a receipt; never regenerate a possibly executed action.
+    delete turns[data.session_id];setSessionRunning(data.session_id,false);hideActivity();syncActiveUI();runActions(turn.turnDone());
+    ghiChuThoang(window.t('app.adaptive_received'));
+  }
+}
 let _bargeTimer = null;   // 2 giây sau khi tạm dừng mà không có chữ -> chen ngang giả
 let _waitTimer = null;    // "khoan" rồi im lâu -> thôi chờ
 let _ngatLoiTai = "";     // câu Javis bị ngắt lúc đọc, đi vào tin kế tiếp rồi xoá
@@ -210,7 +271,7 @@ function batDongHoCum() {
   _cumTimer = setInterval(() => {
     const t = savedSessionId ? turns[savedSessionId] : null;
     if (!t || !t.running) { clearInterval(_cumTimer); _cumTimer = null; return; }
-    if (!voice.ttsEnabled) return;
+    if (!voice.ttsEnabled || adaptive.holding()) return;
     docCum(cum.tick(Date.now(), !voice.isSpeaking()), t);
     if (handsFree) runActions(turn.fillerCheck(Date.now()));
   }, 150);
@@ -404,6 +465,7 @@ function updateVoiceFocus() {
 function resumeVoiceFocus(text = "") {
   if (!handsFree) return;
   // A click must not commit the ambient utterance already buffered while waiting.
+  if (adaptive.blocked()) { adaptive.resume(); return; }
   if (voiceMode !== "live") voice.cancelListening();
   attention.start();
   if (_liveWaitingWake) {
@@ -593,7 +655,7 @@ function connect() {
 // retry 3s bắt kịp) và kéo lại hội thoại đang xem từ server để bù tin đã lỡ.
 let _hiddenAt = 0;
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) { _hiddenAt = Date.now(); return; }
+  if (document.hidden) { _hiddenAt = Date.now(); adaptive.save("hidden"); return; }
   _resumeSauNgu(false);
 });
 // bfcache trả trang về từ bộ nhớ (persisted): trạng thái là ảnh chụp cũ, luôn hồi sức.
@@ -613,6 +675,7 @@ function handleMessage(data) {
   // Server chào khi kết nối: đồng bộ các job vẫn đang chạy. Job thuộc server,
   // không thuộc WebSocket nên đóng/F5 tab rồi mở lại vẫn xem và Stop được.
   if (data.type === "hello") {
+    adaptiveCapable = (data.capabilities || []).includes("adaptive_voice_v1");
     stopTag = data.stop_tag || null;
     if (window.JavisRunning) window.JavisRunning.clear();
     Object.keys(turns).forEach(sid => { if (turns[sid]) turns[sid].running = false; });
@@ -636,7 +699,27 @@ function handleMessage(data) {
     try { if (window.JavisResume) window.JavisResume.fromHello(data.resumes || [], savedSessionId); } catch (e) {}
     runActions(turn.wsUp());   // socket đã nối: orb thôi "ĐANG KẾT NỐI LẠI"
     baoDutMang(false);
+    if(adaptiveCapable) adaptiveOutbox.forEach(p=>ws.send(JSON.stringify(p.payload)));
     guiTinDutMang();           // và những câu nói lúc mất mạng được gửi đi, không bốc hơi
+    return;
+  }
+  if (["voice_receipt","voice_commit_error"].includes(data.type)) { adaptiveReceipt(data); return; }
+  if (data.type==='voice_busy' && data.utterance_id) {
+    const pending=adaptiveOutbox.get(data.utterance_id);
+    if(pending) {
+      // Never retry an obsolete utterance into a new session or over a newer request.
+      const retry=()=>{if(adaptiveOutbox.get(data.utterance_id)===pending && !adaptiveCancelled.has(data.utterance_id) && ws && ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify(pending.payload));};
+      if(performance.now()-pending.since<30000) setTimeout(retry,1000);
+      else if(!pending.retryButton && pending.element) {
+        const b=document.createElement('button');b.className='js-btn';b.type='button';b.textContent=window.t('app.adaptive_retry');b.onclick=()=>{pending.since=performance.now();retry();};pending.element.appendChild(b);pending.retryButton=b;
+        if(data.session_id===savedSessionId) {delete turns[data.session_id];hideActivity();syncActiveUI();runActions(turn.turnDone());ghiChuThoang(window.t('app.adaptive_not_sent'));}
+      }
+    }
+    return;
+  }
+  if (["voice_busy","voice_answer_unavailable"].includes(data.type)) { if(data.session_id===savedSessionId){ghiChuThoang(window.t('app.adaptive_received'));delete turns[data.session_id];syncActiveUI();runActions(turn.turnDone());} return; }
+  if (data.utterance_id && (adaptiveCancelled.has(data.utterance_id) || (adaptiveCurrent.has(data.session_id) && adaptiveCurrent.get(data.session_id)!==data.utterance_id))) {
+    if(data.type==='turn_done' && data.session_id===savedSessionId && _tinChoLuot) guiTinCho();
     return;
   }
   if (data.type === "ui_action") {
@@ -871,7 +954,9 @@ let _sendEpoch = 0;   // callbacks queued in an old voice/chat context may not s
 // loa câm). Nay lưới rộng 5 giây, `turn_done` vẫn là tín hiệu chính, và lượt cũ được đánh dấu
 // (xem _luotDaDung) để turn_done muộn của nó không đụng vào lượt mới.
 let _tinChoLuot = null, _tinChoTimer = null;
-function datTinCho(text) {
+let _tinChoOpts = null;
+function datTinCho(text, opts) {
+  _tinChoOpts=opts;
   _tinChoLuot = String(text || "");
   clearTimeout(_tinChoTimer);
   _tinChoTimer = setTimeout(guiTinCho, 5000);
@@ -884,7 +969,8 @@ function guiTinCho() {
   const t = _tinChoLuot; _tinChoLuot = null;
   // Lưới nổ mà turn_done chưa về: coi như lượt cũ không còn báo gì nữa, thôi chờ nó.
   try { if (savedSessionId) delete _luotDaDung[savedSessionId]; } catch (e) {}
-  if (t) sendMessage(t);       // stopCurrent() đã hạ cờ running nên lần này không quay lại đây
+  const opts=_tinChoOpts; _tinChoOpts=null;
+  if (t) sendMessage(t,opts);       // stopCurrent() đã hạ cờ running nên lần này không quay lại đây
 }
 // Lượt bị bấm Dừng (hay bị câu nói chen ngang dừng) mà chưa nhận turn_done: sid -> id lượt.
 // turn_done về sau khi lượt MỚI đã chạy thì thuộc về lượt cũ, không được xoá trạng thái lượt mới.
@@ -993,7 +1079,7 @@ function sendMessage(text, opts) {
     else { try { newChat(); } catch (e) {} }   // new | reset -> hội thoại mới trên web
     return;
   }
-  if (!ws || ws.readyState !== WebSocket.OPEN) { giuTinKhiDutMang(msg); return; }
+  if (!ws || ws.readyState !== WebSocket.OPEN) { if(opts && opts.adaptive){chatInput.value=msg;ghiChuThoang(window.t("app.ws_mat_ket_noi"));return;} giuTinKhiDutMang(msg); return; }
   // File còn ĐANG TẢI LÊN thì đợi nó xong rồi gửi, KHÔNG gửi thiếu. Trước đây dòng lọc
   // `a.path` bên dưới lặng lẽ bỏ file chưa tải xong: dán ảnh hay một đoạn văn dài rồi gõ câu
   // hỏi và Enter ngay là tin bay đi tay không, bong bóng không có ảnh, Javis cũng không nhận
@@ -1037,10 +1123,10 @@ function sendMessage(text, opts) {
   // dừng lượt cũ rồi gửi. Nuốt lặng như trước là kẹt cứng: đạo diễn đã bật `processing` trong
   // endpoint() TRƯỚC khi gọi vào đây, mà lượt bị nuốt thì không bao giờ có turn_done để hạ nó,
   // nên orb đứng mãi ở "đang suy nghĩ" và người dùng không thấy tin mình vừa nói ở đâu cả.
-  if (turns[sid] && turns[sid].running) {
+  if ((turns[sid] && turns[sid].running) || (opts && opts.adaptive && _luotDaDung[sid]!=null)) {
     if (!(_tuGiong || handsFree)) return;   // gõ chữ lúc không rảnh tay: giữ chốt cũ
     stopCurrent();
-    datTinCho(msg);   // gửi khi lượt cũ dừng HẲN, không gửi ngay (xem chú thích ở datTinCho)
+    datTinCho(msg, opts);   // gửi khi lượt cũ dừng HẲN, không gửi ngay (xem chú thích ở datTinCho)
     return;
   }
   // Đang BUNG NÃO toàn màn (mobile) mà gửi tin thì thu lại: ở trạng thái đó khung chat bị
@@ -1064,7 +1150,7 @@ function sendMessage(text, opts) {
     return;
   }
   window.JavisAsk.freezeAll();   // trả lời rồi thì chip của lượt trước hết bấm được
-  appendUserMessage(msg, atts);
+  const userElement = appendUserMessage(msg, atts);
   // Lưu cả `url` (đường /upload/raw của file stage): thiếu nó thì F5 xong ảnh trong tin cũ
   // không còn gì để trỏ tới, và bong bóng chỉ còn trơ cái tên file.
   recordTurn("user", msg, atts.map(a => ({ name: a.name, kind: a.kind, url: a.url || "" })));
@@ -1128,10 +1214,13 @@ function sendMessage(text, opts) {
   // theo về khung cũ là làm ngập nó bằng một cuộc trò chuyện của người khác.
   const _goc = _gocCongSu[sid] || "";
   delete _gocCongSu[sid];
-  ws.send(JSON.stringify({ message: outMsg, brain: currentBrainPath(), session_id: sid,
+  const adaptiveMeta = adaptiveCapable && opts && opts.adaptive;
+  const payload = { message: outMsg, voice_text: adaptiveMeta ? msg : undefined, brain: currentBrainPath(), session_id: sid,
                           voice: _tuGiong || handsFree, origin_chat: _goc,
                           voice_input: _tuGiong, voice_turn_id: String(turns[sid].id),
-                          wf_run: !!(opts && opts.wfRun) }));
+                          wf_run: !!(opts && opts.wfRun), ...(adaptiveMeta || {}) };
+  if(adaptiveMeta) { adaptiveCurrent.set(sid,adaptiveMeta.utterance_id);adaptiveOutbox.set(adaptiveMeta.utterance_id,{payload,element:userElement,since:performance.now()}); }
+  ws.send(JSON.stringify(payload));
   _tuGiong = false;
 }
 // Trang đang mở và đoạn đang bôi đen, cho khối NGỮ CẢNH GIAO DIỆN. Chọn trong ô nhập chat thì
@@ -1287,8 +1376,9 @@ function veTinDaLuu(m, brainCua) {
     // bong bóng, người dùng không xem lại được mình đã gửi gì (chủ repo báo 2026-09-10).
     const _sach = chuNguoiGo(m.content || "");
     const _atts = docDinhKem(m.content || "");
-    appendUserMessage(_sach, _atts, ts);
-    return { role: "user", text: _sach, atts: _atts, ts };
+    const el = appendUserMessage(_sach, _atts, ts);
+    if(m.voice_metadata && m.voice_metadata.response_policy==='ack_only' && !m.voice_metadata.answer_requested) renderVoiceReceipt(el,{...m.voice_metadata,session_id:savedSessionId});
+    return { role: "user", text: _sach, atts: _atts, ts, voice_metadata:m.voice_metadata };
   }
   // brainCua: server LƯU SẴN brain của phiên (cột brain trong bảng sessions). Trước đây
   // vứt đi nên ảnh trong hội thoại cũ luôn ghép với brain đang chọn - mở hội thoại của
@@ -2931,6 +3021,8 @@ let handsFree = false;
 // thái này nằm ở ba nơi - biến, lớp CSS của nút, và công tắc loa - và bỏ sót một nơi thì giao
 // diện nói dối: nút vẫn sáng "đang nghe" trong khi không có gì đang nghe cả.
 function tatRanhTay() {
+  adaptive.cancel(); adaptiveContinuation="";
+  adaptiveOutbox.clear();
   attention.stop(); _liveWaitingWake = false; _liveBusyUntil = 0;
   _liveToolCount = 0;
   liveWake.cancelListening();
@@ -2993,6 +3085,7 @@ voiceBtn.addEventListener("click", () => {
     return;
   }
   if (handsFree) {
+    adaptive.start();
     voice.startListening();
   } else {
     tatRanhTay();
@@ -3043,10 +3136,10 @@ setInterval(() => {
   // gian xử lý (có khi vài chục giây) nên nói vào chỗ trống, không ai nghe (chủ dự án báo
   // 15/09). Tin nói lúc ấy đi qua sendMessage: nó dừng lượt cũ rồi gửi lại câu mới, và tin
   // đầu đã nằm trong kho phiên nên model vẫn thấy đủ ngữ cảnh.
-  if (handsFree && voiceMode !== "live" && !voice.isListening && !voice.isSpeaking()
-      && !voice.isTranscribing
+  if (handsFree && voiceMode !== "live" && !voice.isListening && (!voice.isSpeaking() || voice._awaitingFirstAudio)
+      && !voice.isTranscribing && adaptive.canListen()
       && !(voice.micHong && voice.micHong())) {
-    voice.startListening(true);   // true = máy tự gọi, không phải người bấm
+    voice.startListening(true, !!voice._awaitingFirstAudio);   // giữ audio đang tải cho tới khi có chữ mới
   }
 }, 500);
 
