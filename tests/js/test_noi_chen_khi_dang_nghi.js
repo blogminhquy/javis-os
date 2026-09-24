@@ -29,7 +29,7 @@ function check(name, cond, extra) {
 }
 
 // ---- 1. Mic mở cả khi đang xử lý ----
-const vongGiu = (app.match(/if \(handsFree && voiceMode !== "live"[\s\S]{0,260}?\}, 500\);/) || [""])[0];
+const vongGiu = (app.match(/if \(handsFree && voiceMode !== "live"[\s\S]*?\}, 500\);/) || [""])[0];
 check("tìm được vòng giữ mic", !!vongGiu);
 check("CANARY: vòng giữ mic KHÔNG còn đòi !isProcessing", !/!isProcessing/.test(vongGiu));
 check("vẫn không mở mic trong lúc Javis đang ĐỌC (ngắt lời lo phần đó)",
@@ -38,6 +38,25 @@ check("vẫn chỉ mở khi đang rảnh tay và không phải bậc Live",
   /handsFree && voiceMode !== "live"/.test(vongGiu));
 check("vẫn giữ chốt mic hỏng (không mở lại vô hạn khi mic chết)",
   /micHong/.test(vongGiu));
+
+// Execute the production keepalive body with capture closed before first audio.
+const keepaliveBody = vongGiu.slice(0, vongGiu.lastIndexOf("}, 500);"));
+const keepalive = new Function("handsFree", "voiceMode", "voice", "adaptive", keepaliveBody);
+const starts = [];
+const pendingVoice = {
+  isListening: false, isTranscribing: false, _awaitingFirstAudio: true,
+  isSpeaking: () => true, micHong: () => false,
+  startListening: (...args) => starts.push(args)
+};
+keepalive(true, "standard", pendingVoice, {canListen: () => true});
+check("closed mic reopens while audio loads without cancelling queued audio",
+  starts.length === 1 && starts[0][0] === true && starts[0][1] === true);
+pendingVoice._awaitingFirstAudio = false;
+keepalive(true, "standard", pendingVoice, {canListen: () => true});
+check("actual playback leaves capture to the barge-in controller", starts.length === 1);
+pendingVoice._awaitingFirstAudio = true;
+keepalive(true, "standard", pendingVoice, {canListen: () => false});
+check("hidden/suspended adaptive session cannot reopen capture", starts.length === 1);
 
 // ---- 2. Tin chen ngang được HOÃN tới khi lượt cũ dừng hẳn ----
 check("sendMessage: đang chạy + tin từ mic -> stopCurrent rồi ĐẶT TIN CHỜ, không gửi ngay",

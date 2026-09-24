@@ -19,6 +19,9 @@ This means automatic silence is uncommon in this release. The durable protocol, 
 
 ## Evidence
 
+- Local full JavaScript suite: 140/140 passed. Independent review findings resolved. GitHub CI remains the release gate.
+- Production keepalive regression: initially closed capture reopens during pending audio, preserves queued audio, and respects hidden/suspended state.
+
 - `test_voice_adaptive.js`: unfinished/complete/hold/negative/closing phrases, duplicate interim, identical subsequent utterances, READY revision, draft cap, bounded learning, metadata privacy.
 - `test_voice_adaptive_ui.js`: production bridge with controlled DOM/time; saved draft can be manually sent after attention expiration, background never auto-sends, observation never sends.
 - `test_voice_capture_lifecycle.js`: actual adapter in VM; iOS rollover retains draft, restart failure preserves draft, late final cannot change committed words, cancellation and old TTS callbacks.
