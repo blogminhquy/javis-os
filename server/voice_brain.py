@@ -115,13 +115,18 @@ SYSTEM_PROMPT = (
     "dừng một việc khác là đẻ thêm đúng thứ họ đang muốn bỏ. Chỉ trả lời một câu ngắn xác nhận, "
     "không kèm dòng lệnh nào; hệ thống đã tự huỷ trước khi bạn kịp nói.\n"
     "Chuyện trò thường, hỏi ý kiến, giải thích khái niệm, tính nhẩm, chuyển ngữ: trả lời thẳng.\n"
-    "DÒNG ĐẦU TIÊN luôn là " + NGHE_MARKER + " rồi CHÉP NGUYÊN VĂN câu người dùng, bỏ khối "
-    "ngữ cảnh giao diện nếu có. Không sửa chính tả, tên riêng, dấu câu hay thêm bớt từ. "
-    "Từ dòng thứ hai mới trả lời hoặc dùng " + MARKER + " hay " + UI_MARKER + ". "
-    "Tên bạn là Javis; máy nghe hay chép thành 'David', 'Jarvis', 'Davis', 'Gia vít'. Khi "
-    "người dùng gọi bạn bằng những tên đó thì hiểu là đang gọi Javis và trả lời bình thường: "
-    "không bám nghĩa đen, không nói người dùng đã nói 'David', không hỏi David là ai. "
-    "Câu không rõ nghĩa thì hỏi lại ngắn bằng tiếng Việt, không tự đoán tên người khác hay đổi "
+    "Câu của người dùng đến từ MÁY NGHE GIỌNG NÓI, và họ hay nói lẫn tiếng Việt với tiếng "
+    "Anh, nên từ hay bị chép thành từ GẦN ÂM: tên bạn (Javis) thành 'David', 'Jarvis', 'Gia "
+    "vít'; từ tiếng Anh, tên công cụ, tên dự án, tên sản phẩm thành một từ nghe na ná. Hãy "
+    "HIỂU CÂU THEO NGỮ CẢNH cuộc trò chuyện. DÒNG ĐẦU TIÊN luôn là " + NGHE_MARKER + " rồi "
+    "câu người dùng ĐÚNG NHƯ HỌ ĐỊNH NÓI trên một dòng, bỏ khối ngữ cảnh giao diện nếu có: "
+    "chép lại nguyên văn, CHỈ thay từ nghe sai bằng từ gần âm đúng với ngữ cảnh (từ tiếng Anh "
+    "viết đúng chính tả tiếng Anh); giữ nguyên tiếng Việt, xưng hô, thứ tự, số, từ phủ định; "
+    "không dịch, không tóm tắt, không thêm bớt ý; không chắc thì chép y nguyên. Hệ thống tự "
+    "kiểm lại dòng này, sửa quá tay thì bị bỏ. Từ dòng thứ hai mới trả lời hoặc dùng "
+    + MARKER + " hay " + UI_MARKER + ", và trả lời theo câu đã hiểu đó: không bám nghĩa đen "
+    "của từ nghe sai, không nói người dùng đã nói 'David', không bình luận về từ nghe sai. "
+    "Câu vẫn không rõ nghĩa thì hỏi lại ngắn bằng tiếng Việt, không tự đoán tên người khác hay đổi "
     "giọng đọc. Người dùng nói dùng 'vâng' thay 'ừ' là yêu cầu cách đáp lễ phép; không suy "
     "thành đổi danh tính sang người tên Vân. Ưu tiên xưng em, gọi người dùng là anh và đáp vâng.\n"
     "Bạn chỉ có bản chép chữ, không có bằng chứng ai nói hay tiếng nào là tạp âm. "
@@ -131,14 +136,24 @@ SYSTEM_PROMPT = (
 
 # Luôn gửi cả với bộ não đang sống dùng prompt cũ: không cho nó xoá lời đã được nhận.
 GHI_CHU_TAT_LOC = (
-    "[GHI CHÚ HỆ THỐNG: lượt này đã được nhận vào hội thoại. Chép NGUYÊN VĂN câu họ nói ở "
-    "dòng " + NGHE_MARKER + ", không cắt bỏ phần nào, không suy đoán tạp âm từ chữ và không dùng "
+    "[GHI CHÚ HỆ THỐNG: lượt này đã được nhận vào hội thoại. Chép ĐỦ câu họ nói ở dòng "
+    + NGHE_MARKER + " (chỉ được thay từ nghe nhầm gần âm), không cắt bỏ phần nào, không suy "
+    "đoán tạp âm từ chữ và không dùng "
     + BO_QUA_MARKER + ".]"
 )
 
 _MARK_RE = re.compile(r"^[ \t]*" + re.escape(MARKER) + r"[ \t]*(.+?)[ \t]*$", re.M)
 _NGHE_RE = re.compile(r"^[ \t]*" + re.escape(NGHE_MARKER) + r"[ \t]*(.*?)[ \t]*(?:\n|$)", re.M)
 _TRANSCRIPT_WORDS = re.compile(r"[+−-]?\d+(?:[.,:/-]\d+)*%?|[^\W\d_]+(?:['’][^\W\d_]+)?", re.U)
+
+
+# Rào cho câu bộ não giọng diễn giải (0.64.38). Đo trên cặp thật: "mô đồ"/Models 0,6,
+# "web kếch"/Webcake 0,77, "com pô si ô"/Composio 1,0 (4 tiếng); còn cặp đổi nghĩa như
+# "trả lời"/"trở thành" 0,4, "khách"/"sếp" 0,33, "email"/"Zalo" 0,25. Từ ngắn trùng hẳn âm
+# ("vâng"/"Vân") vẫn bị chặn bởi nghe_sua.KHOA_MIN_MO. Không đoán được thì bộ não chính nhận
+# nguyên văn và tự hiểu theo ngữ cảnh.
+NGUONG_DIEN_GIAI = 0.6
+MAX_GHEP_DIEN_GIAI = 4
 
 
 def safe_transcript_rewrite(original: str, proposed: str) -> str:
@@ -170,7 +185,7 @@ def safe_transcript_rewrite(original: str, proposed: str) -> str:
         if kind == "equal":
             continue
         # No dropped/added words, even when the remaining transcript is still long.
-        if kind != "replace" or max(j - i, l - k) > nghe_sua.MAX_GHEP:
+        if kind != "replace" or max(j - i, l - k) > MAX_GHEP_DIEN_GIAI:
             return original
         old, new = before[i:j], after[k:l]
         if "".join(old) == "".join(new):
@@ -183,7 +198,7 @@ def safe_transcript_rewrite(original: str, proposed: str) -> str:
         if any(w in nghe_sua.PROTECTED_WORDS or any(c.isdigit() for c in w) for w in old + new):
             return original
         a, b = nghe_sua.khoa_am("".join(old)), nghe_sua.khoa_am("".join(new))
-        if min(len(a), len(b)) < nghe_sua.KHOA_MIN_MO or nghe_sua.do_giong(a, b) < nghe_sua.NGUONG_GOI_TEN:
+        if min(len(a), len(b)) < nghe_sua.KHOA_MIN_MO or nghe_sua.do_giong(a, b) < NGUONG_DIEN_GIAI:
             return original
         changed += max(len(old), len(new))
     if changed > max(2, len(before) // 3):

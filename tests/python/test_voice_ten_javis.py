@@ -34,10 +34,28 @@ class TenJavis(unittest.TestCase):
         self.assertGreater(i_luu, i_sua, "phải sửa trước khi lưu tin vào phiên")
         self.assertIn('"raw": _nghe_tho', src, "phải báo bong bóng kèm chữ thô, không âm thầm")
 
-    def test_bo_nao_giong_hieu_ten_nghe_nham(self):
+    def test_bo_nao_giong_hieu_theo_ngu_canh(self):
         p = voice_brain.SYSTEM_PROMPT
-        self.assertIn("'David'", p)
+        self.assertIn("HIỂU CÂU THEO NGỮ CẢNH", p)
         self.assertIn("không nói người dùng đã nói 'David'", p)
+        self.assertNotIn("NGUYÊN VĂN", voice_brain.GHI_CHU_TAT_LOC)
+
+    def test_bo_nao_chinh_duoc_dan_hieu_theo_ngu_canh(self):
+        import channel_context
+        self.assertIn("MÁY NGHE GIỌNG NÓI", channel_context.build_channel_block("dashboard"))
+
+    def test_rao_dien_giai(self):
+        nhan = [("mở trang mô đồ", "mở trang Models"), ("mở web kếch", "mở Webcake"),
+                ("chạy quảng cáo trên phây búc", "chạy quảng cáo trên Facebook")]
+        bo = [("Em phải trả lời vâng", "Em phải trở thành Vân"),
+              ("nhắn khách mai họp", "nhắn sếp mốt họp"),
+              ("gửi email cho khách", "gửi Zalo cho khách"),
+              ("Đừng gửi tin cho khách", "Gửi tin cho khách"),
+              ("chuyển 500 nghìn", "chuyển 5 triệu")]
+        for o, p in nhan:
+            self.assertEqual(voice_brain.safe_transcript_rewrite(o, p), p, o)
+        for o, p in bo:
+            self.assertEqual(voice_brain.safe_transcript_rewrite(o, p), o, o)
 
 
 if __name__ == "__main__":

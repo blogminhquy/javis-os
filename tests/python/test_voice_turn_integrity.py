@@ -97,12 +97,24 @@ class VoiceTurnIntegrity(unittest.IsolatedAsyncioTestCase):
         self.assertFalse([f for f in frames if f['type'] == 'user_text'])
         self.assertFalse(ui)
 
-    async def test_even_plausible_name_repair_cannot_change_committed_text(self):
+    async def test_grounded_context_repair_updates_bubble_with_raw(self):
+        # 0.64.38: sửa từ nghe nhầm có căn cứ về âm được nhận, và không âm thầm.
         prefix = '[NGỮ CẢNH GIAO DIỆN: trang=chat]\n\n'
         messages, frames, fallbacks, _ = await self.run_turn(prefix + 'David ơi', ['JAVIS_NGHE: Javis ơi\n', 'Em đây anh.'])
-        self.assertEqual(messages, [prefix + 'David ơi'])
-        self.assertFalse([f for f in frames if f['type'] == 'user_text'])
-        self.assertEqual(fallbacks, [prefix + 'David ơi'])
+        self.assertEqual(messages, [prefix + 'Javis ơi'])
+        corrected = [f for f in frames if f['type'] == 'user_text']
+        self.assertEqual(corrected[0]['text'], 'Javis ơi')
+        self.assertEqual(corrected[0]['raw'], 'David ơi')
+        self.assertFalse(fallbacks)
+
+    async def test_meaning_change_is_rejected(self):
+        # Ca 0.64.32: "vâng" không được thành tên "Vân"; phủ định không được đổi.
+        for original, proposed in (('Em phải trả lời vâng', 'Em phải trở thành Vân'),
+                                   ('Đừng gửi tin cho khách', 'Gửi tin cho khách')):
+            messages, frames, fallbacks, _ = await self.run_turn(original, ['JAVIS_NGHE: ' + proposed + '\nVâng.'])
+            self.assertEqual(messages, [original])
+            self.assertEqual(fallbacks, [original])
+            self.assertFalse([f for f in frames if f['type'] == 'user_text'])
 
     async def test_exact_transcript_can_answer_without_fallback(self):
         original = 'Em phải trả lời vâng'

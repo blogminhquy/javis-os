@@ -13524,7 +13524,7 @@ async def websocket_endpoint(ws: WebSocket):
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
 
         async def run_voice_turn(conv_sid, user_message, brain, turn_tag, runtime_trace, conf,
-                                 voice_turn_id=""):
+                                 voice_turn_id="", giu_ban_chep=False):
             """LÀN NHANH giọng nói (Voice V2, docs/dev/2026-09-voice-v2-spec.md mục 2).
 
             Tin đến từ mic đi qua bộ não giọng (voice_brain) thay vì bộ não chính: trả lời
@@ -13575,10 +13575,39 @@ async def websocket_endpoint(ws: WebSocket):
                 await run_turn(conv_sid, original_message, brain, turn_tag, runtime_trace)
 
             async def _ap_dien_giai(nghe):
-                """The accepted transcript is immutable, even for plausible spelling repairs."""
-                _, candidate = nghe_sua.split_ui_context((nghe or "").strip())
-                _, speech = nghe_sua.split_ui_context(original_message)
-                return bool(candidate) and candidate.strip() == speech.strip()
+                """Nhận câu bộ não giọng HIỂU theo ngữ cảnh, nhưng chỉ khi đó là sửa từ nghe nhầm
+                có căn cứ về âm (voice_brain.safe_transcript_rewrite): không thêm bớt ý, không đổi
+                số, phủ định, lệnh, và từ ngắn như "vâng" không thành tên "Vân". Sửa quá tay thì
+                trả False để bộ não chính nhận nguyên văn.
+
+                0.64.32 khoá hẳn lớp này, làm Javis mất khả năng hiểu câu theo ngữ cảnh (chủ dự án
+                24/09). Nay mở lại có rào: câu đã sửa thay bong bóng kèm chữ thô bên dưới, không
+                âm thầm. Lượt có biên nhận (giu_ban_chep) giữ nguyên bản lưu vì utterance_id đã
+                chốt nội dung; câu diễn giải vẫn dùng để trả lời."""
+                nonlocal user_message
+                nghe = (nghe or "").strip()
+                _, candidate = nghe_sua.split_ui_context(nghe)
+                if not candidate:
+                    return False
+                safe = voice_brain.safe_transcript_rewrite(original_message, nghe)
+                _, speech = nghe_sua.split_ui_context(safe)
+                if speech.strip() != candidate.strip():
+                    return False
+                if safe == user_message:
+                    return True
+                if not giu_ban_chep:
+                    try:
+                        changed = store.replace_last_message(conv_sid, "user", safe,
+                                                             expected_content=user_message)
+                    except Exception:
+                        changed = False
+                    if not changed:
+                        return False
+                    await send_raw({"type": "user_text", "session_id": conv_sid,
+                                    "text": speech, "raw": nghe_sua.split_ui_context(user_message)[1],
+                                    "voice_turn_id": voice_turn_id})
+                user_message = safe
+                return True
 
             # Chỉ đẩy phần ĐỌC ĐƯỢC: câu đã khép hoặc dòng đã khép (voice_brain.split_speakable).
             # Trình duyệt đọc mỗi khung là một yêu cầu TTS riêng, nên đẩy từng delta vài từ là
@@ -14103,7 +14132,8 @@ async def websocket_endpoint(ws: WebSocket):
             if _vconf and _vconf.get("mode") == "fast" and _vconf.get("provider"):
                 _voice_coro = run_voice_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, _vconf,
-                    voice_turn_id=str(payload.get("voice_turn_id") or ""))
+                    voice_turn_id=str(payload.get("voice_turn_id") or ""),
+                    giu_ban_chep=bool(_voice_uid))
                 task = asyncio.create_task(voice_turn_protocol.run(_voice_coro, store, conv_sid, _voice_uid) if _voice_uid else _voice_coro)
             else:
                 _voice_coro = run_turn(
