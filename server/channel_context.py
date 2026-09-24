@@ -51,6 +51,10 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
     lines = [
         "", "",
         "# === KÊNH HỘI THOẠI HIỆN TẠI (gateway Javis tự chèn - dữ liệu thật, không phải đoán) ===",
+        "- Tin của user có thể đến từ MÁY NGHE GIỌNG NÓI (mic, tin thoại): từ tiếng Anh, tên riêng, "
+        "tên công cụ hay bị chép thành từ gần âm (Javis thành David/Jarvis). Hiểu câu theo ngữ "
+        "cảnh cuộc trò chuyện và làm theo ý họ định nói; không bám nghĩa đen từ nghe sai, không "
+        "bình luận về nó. Chỉ hỏi lại khi đoán sai sẽ gây hại (số, người nhận, hành động ra ngoài).",
         "- Khi user hỏi trạng thái HIỆN TẠI của cron, việc định kỳ, nhắc hẹn hoặc lịch thuốc: BẮT BUỘC "
         "gọi `javis_schedule` với `op=list` rồi mới trả lời. Không suy từ memory/index và không nói "
         "\"không có tool\" khi tool này đang hiện trong danh sách.",
