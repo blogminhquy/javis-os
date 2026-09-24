@@ -127,5 +127,43 @@ check("ngồi không lâu thì ngủ gật", el.dataset.ngu === "1" && /M-9 6 H9
 P.setState("thinking");
 check("có việc thì tỉnh ngay", el.dataset.ngu === undefined);
 
+// ---- 6. HAI MẮT KHÔNG DÍNH NHAU (0.64.42) ----
+// Chủ dự án gửi ảnh 24/09: pet nép mép, mắt nhắm thành hai nét ngang chạm nhau thành một vạch.
+// Đo trên markup THẬT mà veMat() vẽ: mọi dáng mắt, cả nép lẫn đứng ngoài, mọi cỡ mắt.
+{
+  const dangMat = ["idle", "listening", "hearing", "thinking", "writing", "speaking", "paused", "reconnecting", "error"];
+  const phanUng = ["click", "choang", "thuc", "xong"];
+  function doKhe(html) {
+    // Mỗi mắt: <g transform="translate(X Y) scale(S)">...</g>. Bề ngang đo từ chính markup.
+    const g = [...html.matchAll(/<g transform="translate\((-?[\d.]+) -?[\d.]+\)(?: scale\(([\d.]+)\))?">(.*?)<\/g>/g)];
+    if (g.length !== 2) return null;
+    const rong = (m) => {
+      let r = 0;
+      const e = /<ellipse([^>]*)>/.exec(m);
+      if (e) r = Math.abs(+((/cx="(-?[\d.]+)"/.exec(e[1]) || [0, 0])[1])) + +((/rx="([\d.]+)"/.exec(e[1]) || [0, 0])[1]);
+      const d = /d="([^"]+)"/.exec(m);
+      if (d) {
+        for (const l of d[1].match(/[A-Za-z][^A-Za-z]*/g)) (l.slice(1).match(/-?[\d.]+/g) || []).map(Number)
+          .forEach((v, i) => { if (l[0] === "H" || i % 2 === 0) r = Math.max(r, Math.abs(v)); });
+        if (/pet-line/.test(m)) r += 3.5;
+      }
+      return r;
+    };
+    const [a, b] = g;
+    const sa = +(a[2] || 1), sb = +(b[2] || 1);
+    return (+b[1] - +a[1]) - rong(a[3]) * sa - rong(b[3]) * sb;
+  }
+  let teNhat = Infinity, oDau = "";
+  for (const ra of ["0", "1"]) for (const co of [0.8, 1, 1.25, 1.5]) {
+    el.dataset.out = ra;
+    P.setCfg({ eyeSize: co }, true);
+    const thu = (ten) => { const k = doKhe(mat()); if (k !== null && k < teNhat) { teNhat = k; oDau = ten + " ra=" + ra + " co=" + co; } };
+    for (const s of dangMat) { P.setState(s); thu(s); for (let i = 0; i < 6; i++) { nhip(now + 700); thu(s + "+nhip"); } }
+    P.setState("idle");
+    for (const r of phanUng) for (let i = 0; i < 12; i++) { P.react(r); thu(r); nhip(now + 1800); }
+  }
+  check("hai mắt luôn hở ít nhất 5 đơn vị ở mọi dáng, mọi cỡ, cả lúc nép mép", teNhat >= 5, teNhat.toFixed(1) + " tại " + oDau);
+}
+
 console.log(fails.length ? "\nFAIL: " + fails.join(", ") : "\nTat ca OK");
 process.exit(fails.length ? 1 : 0);

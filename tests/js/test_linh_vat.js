@@ -418,7 +418,7 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
   // Hệ số phải được dùng THẬT ở CẢ HAI đường vẽ. Vẽ mắt sống mà quên thì chọn cỡ xong con pet
   // ở mép màn hình không đổi gì; vẽ chân dung tĩnh mà quên thì ô xem thử và dấu ấn trên thanh
   // bên nói khác con pet thật.
-  check("cỡ mắt được nhân vào mắt SỐNG (veMat)", /function veMat\([\s\S]{0,900}heSoMat\(\)/.test(pet));
+  check("cỡ mắt được nhân vào mắt SỐNG (veMat)", /function veMat\([\s\S]{0,2600}heSoMat\(\)/.test(pet));
   check("cỡ mắt được nhân vào chân dung TĨNH (chanDung)", /function chanDung\([\s\S]{0,2200}7\.2 \* k/.test(pet));
   check("mắt to thì nới khoảng cách hai mắt cho khỏi chạm nhau", /function cachMat\(/.test(pet));
   check("JavisPet phơi danh sách cỡ mắt ra cho trang cài đặt", /eyeSizes: function \(\)/.test(pet));
