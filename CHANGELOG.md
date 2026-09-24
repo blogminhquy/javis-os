@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.49] - 2026-09-24
+### Sửa lỗi
+- **Kết quả việc nền giao từ chat tự về đúng khung chat đang hỏi.** Trước đây nếu Javis quên ghi người nhận, kết quả rơi sang Telegram hoặc mất hút khi chưa đấu Telegram. Nay máy chủ tự nhận ra khung chat đang hỏi và gắn vào.
+### Cải thiện
+- **Kết quả vòng lặp và nhắc hẹn cũng hiện thành thẻ gọn** như việc nền: có icon, nhãn "Vòng lặp vừa chạy" hay "Nhắc hẹn", tên và nút mở trang Việc định kỳ. Telegram và hòm thư vẫn nhận nội dung đầy đủ như cũ.
+
 ## [0.64.48] - 2026-09-24
 ### Sửa lỗi
 - **Nói chuyện bằng giọng không còn tự đẻ việc ngầm lung tung.** Javis chỉ giao việc nền khi anh thật sự nhờ làm hoặc hỏi số liệu; nhắc tới chữ "việc", kể chuyện công việc hay bàn kế hoạch thì trả lời thẳng, không chắc thì hỏi lại một câu.

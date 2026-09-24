@@ -71,19 +71,37 @@
     return (typeof ic === "function") ? ic(ten, cls ? { cls: cls } : undefined) : "";
   }
 
-  function moTrangViec() {
-    try { window.Alpine.store("nav").go("kanban"); } catch (err) { location.hash = "#kanban"; }
+  // Loop va nhac hen song o trang Viec dinh ky, khong phai bang Kanban (0.64.49).
+  function trangCua(kind) {
+    return (kind === "loop" || kind === "reminder") ? "selfimprove" : "kanban";
+  }
+
+  function moTrang(trang) {
+    try { window.Alpine.store("nav").go(trang); } catch (err) { location.hash = "#" + trang; }
+  }
+
+  // Nhan theo LOAI truoc ("viec.loop_done": "Vong lap vua chay"), khong co thi nhan chung.
+  function nhanCua(viec) {
+    var rieng = "viec." + viec.kind + "_" + viec.status;
+    var chu = tw(rieng);
+    if (chu && chu !== rieng) return chu;
+    return tw((TRANG_THAI[viec.status] || TRANG_THAI.done).nhan);
+  }
+
+  function iconCua(viec) {
+    if (viec.kind === "reminder" && viec.status === "done") return "alarm-clock";
+    return (TRANG_THAI[viec.status] || TRANG_THAI.done).ic;
   }
 
   /* Dong dau cua the ket qua. Tra chuoi HTML (da escape). */
   function dauThe(viec) {
-    var tt = TRANG_THAI[viec.status] || TRANG_THAI.done;
+    var trang = trangCua(viec.kind);
     return '<div class="viec-head">' +
-      '<span class="viec-ico">' + icon(tt.ic) + "</span>" +
-      '<span class="viec-nhan">' + esc(tw(tt.nhan)) + "</span>" +
+      '<span class="viec-ico">' + icon(iconCua(viec)) + "</span>" +
+      '<span class="viec-nhan">' + esc(nhanCua(viec)) + "</span>" +
       (viec.title ? '<span class="viec-ten" title="' + esc(viec.title) + '">' + esc(viec.title) + "</span>" : "") +
-      '<button type="button" class="viec-mo">' + icon("square-kanban") +
-      "<span>" + esc(tw("viec.mo_trang")) + "</span></button>" +
+      '<button type="button" class="viec-mo" data-trang="' + trang + '">' + icon("square-kanban") +
+      "<span>" + esc(tw(trang === "kanban" ? "viec.mo_trang" : "viec.mo_dinh_ky")) + "</span></button>" +
       "</div>";
   }
 
@@ -109,7 +127,10 @@
     var bubble = msgEl.querySelector(".bubble");
     if (bubble && bubble.insertAdjacentHTML) bubble.insertAdjacentHTML("afterbegin", dauThe(viec));
     var nut = msgEl.querySelector(".viec-mo");
-    if (nut && nut.addEventListener) nut.addEventListener("click", moTrangViec);
+    if (nut && nut.addEventListener) {
+      var trang = trangCua(viec.kind);
+      nut.addEventListener("click", function () { moTrang(trang); });
+    }
     return msgEl;
   }
 
