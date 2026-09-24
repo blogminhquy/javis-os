@@ -71,7 +71,7 @@ function hsl(h6) {
   check("mắt nâu cũ thành ô tự chọn mang đúng mã cũ", c.eye === "custom" && c.eyeColor === "#5a3a28", c.eye + " " + c.eyeColor);
   P.hydrate({ size: "khong-co", eyeSize: "la", eye: "<script>", palette: "khong-co" });
   const d = P.get();
-  check("giá trị rác rơi về mặc định", d.size === 72 && d.eyeSize === 1 && d.eye === "den" && d.palette === "amber",
+  check("giá trị rác rơi về mặc định", d.size === 72 && d.eyeSize === 1 && d.eye === "den" && d.palette === "cam" && d.shape === "star",
     JSON.stringify(d));
 }
 

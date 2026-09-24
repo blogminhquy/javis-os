@@ -71,7 +71,10 @@
     pink:       { key: "pet.color.pink",       sun: ["#C67FAB", "#EDB9D6", "#F0DFE9"], moon: ["#D1A2BF", "#E4CCDB", "#2D1D27"] },
     slate:      { key: "pet.color.slate",      sun: ["#7B8794", "#B8C4CD", "#E0E4E8"], moon: ["#969EA7", "#B7BDC3", "#222528"] },
     cocoa:      { key: "pet.color.cocoa",      sun: ["#79604F", "#BFA38A", "#E8DFD5"], moon: ["#A89080", "#C0B0A5", "#2C241E"] },
-    cam:        { key: "pet.color.cam",        sun: ["#FA4F05", "#F89A72", "#F6DBD0"], moon: ["#EF733E", "#EF9E7C", "#2D221D"] },
+    // CAM là màu THƯƠNG HIỆU từ 0.64.47: trùng đúng logo (thân #FD6100, viền #FBBA9C, xem
+    // dashboard/logo.svg). Tông tối đặt tay rực hơn công thức chung (công thức ra #F59C65, nhạt
+    // lệch hẳn logo) nhưng vẫn đúng luật test_pet_bang_mau: cùng sắc, không chói, không nhạt.
+    cam:        { key: "pet.color.cam",        sun: ["#FD6100", "#FBBA9C", "#F6DBD0"], moon: ["#F76F1C", "#F2AD8D", "#2D221D"] },
     nang:       { key: "pet.color.nang",       sun: ["#F5D014", "#F6E27E", "#F6EFD0"], moon: ["#ECD14B", "#EDDC87", "#2D2A1D"] },
     chanh:      { key: "pet.color.chanh",      sun: ["#93B12F", "#C0D775", "#E9EFD7"], moon: ["#B1CB5D", "#C6D68F", "#292D1D"] },
     bacha:      { key: "pet.color.bacha",      sun: ["#38B286", "#81D4B6", "#D8EDE6"], moon: ["#63C5A2", "#92D3BB", "#1D2D27"] },
@@ -137,7 +140,8 @@
   };
   // `color` / `eyeColor` là mã màu của ô TỰ CHỌN. Chúng nằm sẵn trong cấu hình kể cả khi đang
   // dùng màu có sẵn, để bấm lại ô tự chọn là ra đúng màu lần trước chứ không về một màu lạ.
-  var MAC_DINH = { enabled: true, shape: "circle", palette: "amber", side: "right", pos: 0.62, size: 72, eye: "den", eyeSize: 1, color: "#fa4f05", eyeColor: "#2a62b0" };
+  // Mặc định là LINH VẬT CHÍNH THỨC: ngôi sao màu cam, trùng logo (chủ dự án chốt 24/09, 0.64.47).
+  var MAC_DINH = { enabled: true, shape: "star", palette: "cam", side: "right", pos: 0.62, size: 72, eye: "den", eyeSize: 1, color: "#fd6100", eyeColor: "#2a62b0" };
 
   // DÁNG LIẾC - chữ ký của nhân vật. Linh vật KHÔNG nhìn thẳng lúc nghỉ: nó liếc chéo lên
   // phía trên bên phải, đúng như hình logo tĩnh. Nhìn thẳng thì ra một cái mặt cười vô hồn;
