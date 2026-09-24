@@ -872,7 +872,7 @@
   function oMa(loai, giaTri) {
     return '<label class="pet-hex"><span>' + esc(t("settings.pet_hex", "Mã màu")) + '</span>' +
       '<input type="text" data-pet-' + (loai === "eye" ? "eye-color" : "color") + '-hex value="' + esc(giaTri.toUpperCase()) + '" maxlength="7" ' +
-      'spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="#FA4F05"></label>';
+      'spellcheck="false" autocomplete="off" autocapitalize="off"></label>';
   }
   function editorHtml(v0, opts) {
     var o = opts || {}, v = chuanLook(v0);
