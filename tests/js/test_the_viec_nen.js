@@ -106,5 +106,20 @@ for (const k of Object.keys(VI).filter(k => k.startsWith("viec."))) check("i18n 
 check("có đủ nhãn trạng thái", ["viec.st_done", "viec.st_blocked", "viec.st_failed", "viec.st_timeout", "viec.st_cancelled", "viec.mo_trang"].every(k => VI[k]));
 check("chat-viec.js không có gạch dài", !/[\u2013\u2014]/.test(D("chat-viec.js")));
 
+// ---- 6. Loop và nhắc hẹn (0.64.49): nhãn theo loại, nút mở trang Việc định kỳ ----
+m = msgGia("x");
+V.ve(m, { kind: "loop", status: "done", title: "Quét đơn" });
+check("loop: nhãn riêng 'Vòng lặp vừa chạy'", m._bubble._html.indexOf("Vòng lặp vừa chạy") !== -1, m._bubble._html);
+check("loop: nút mở trang Việc định kỳ", /data-trang="selfimprove"/.test(m._bubble._html) && m._bubble._html.indexOf("Việc định kỳ") !== -1);
+m = msgGia("x");
+V.ve(m, { kind: "reminder", status: "done", title: "Uống nước" });
+check("nhắc hẹn: nhãn 'Nhắc hẹn'", m._bubble._html.indexOf(">Nhắc hẹn<") !== -1, m._bubble._html);
+m = msgGia("x");
+V.ve(m, { kind: "task", status: "done", title: "a" });
+check("việc Kanban: nút vẫn mở trang Việc", /data-trang="kanban"/.test(m._bubble._html));
+m = msgGia("x");
+V.ve(m, { kind: "loop", status: "timeout", title: "a" });
+check("loại không có nhãn riêng thì rơi về nhãn chung", m._bubble._html.indexOf("Việc nền quá giờ") !== -1);
+
 if (fails.length) { console.log("\n" + fails.length + " FAIL"); process.exit(1); }
 console.log("\nTất cả ok");

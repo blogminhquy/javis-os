@@ -882,6 +882,10 @@ class LoopFeature:
             # trong frontmatter để tắt loop nào quá ồn). owner_chat rỗng (loop tạo trên web) →
             # helper report tự gửi ID Telegram đầu tiên.
             report_sent = False
+            # Thẻ cho khung chat web (dashboard/chat-viec.js, 0.64.49): dòng đầu thẻ đã nói
+            # trạng thái và tên loop, nên bản web bỏ câu đầu có emoji.
+            viec = {"kind": "loop", "id": slug, "title": str(loop.get("name") or slug)[:160],
+                    "status": "blocked" if paused_now else ("failed" if failed else "done")}
             if loop.get("notify", True) and self.deps.report:
                 head = "⚠" if failed else "✅"
                 parts = [f"{head} Loop '{loop['name']}' vừa chạy ({reason})."]
@@ -906,7 +910,8 @@ class LoopFeature:
                     asyncio.create_task(self.deps.report(
                         loop.get("owner_chat", ""),
                         channel_context.strip_control_blocks("\n\n".join(parts)),
-                        quiet=not (failed or paused_now)))
+                        quiet=not (failed or paused_now), viec=viec,
+                        web=channel_context.strip_control_blocks("\n\n".join(parts[1:]) or parts[0])))
                     report_sent = True
                 except Exception:
                     pass

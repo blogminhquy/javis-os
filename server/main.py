@@ -81,6 +81,7 @@ import media_gc       # dọn vùng cache media (attachments/ + inbox/) theo h�
 import inbox         # hòm thư: mọi kết quả chạy nền để lại một mẩu thư bền ở server
 import webpush       # thông báo đẩy trình duyệt (Web Push, tự mã hoá - không thêm thư viện)
 import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh Telegram/Zalo
+import luot_dang_chay # sổ lượt chat đang chạy theo brain: tool giao việc tự biết khung chat nào hỏi
 import tool_label     # một dòng mô tả lệnh gọi công cụ (lệnh nào, file nào) cho khối tiến trình
 import nghe_sua       # sửa chữ nghe nhầm theo ngữ cảnh (David -> Javis) + hotwords cho Whisper
 import voice_privacy
@@ -9556,13 +9557,14 @@ def _notify_live_warn() -> str:
         return ""
 
 
-async def _bao_nhac_hen(chat_id, text) -> tuple:
+async def _bao_nhac_hen(chat_id, text, viec=None, web="") -> tuple:
     """Đường BÁO của nhắc hẹn. Cùng chữ ký (chat_id, text) -> (ok, err) như `_tg_send_to` cũ,
     nhưng đi qua `_notify_owner` nên nhắc hẹn được đúng ba thứ mà trước đây nó không có:
     hòm thư ở server, đẩy về khung chat web khi chat_id là "web:<sid>", và thông báo đẩy.
     Trước bản này nhắc hẹn là thứ DUY NHẤT còn gọi thẳng Telegram - đó cũng là lý do
     reminders.py phải chặn không cho tạo khi chưa đấu bot."""
-    return await _notify_owner(chat_id, text, kind="report", source="reminder")
+    return await _notify_owner(chat_id, text, kind="report", source="reminder",
+                               viec=viec, web=web)
 
 
 reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
@@ -13470,6 +13472,9 @@ async def websocket_endpoint(ws: WebSocket):
         async def run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
                            has_attachments=False, resume_attempt=0, goc_chat=""):
             _trace_token = context_runtime.bind_trace(runtime_trace)
+            # Ghi vào sổ lượt đang chạy để tool giao việc biết kết quả phải về khung chat này
+            # khi model quên truyền chat_id (luot_dang_chay.py, 0.64.49).
+            _khoa_luot = luot_dang_chay.bat_dau(f"{WEB_CHAT_PREFIX}{conv_sid}", _brain_root(brain))
             try:
                 final_text = await _do_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
@@ -13501,6 +13506,7 @@ async def websocket_endpoint(ws: WebSocket):
                 await send_raw({"type": "error", "content": f"Lỗi xử lý: {type(e).__name__}: {e}",
                                 "session_id": conv_sid, **context_runtime.event_fields(runtime_trace)})
             finally:
+                luot_dang_chay.ket_thuc(_khoa_luot)
                 context_runtime.reset_trace(_trace_token)
                 await send_raw({"type": "turn_done", "session_id": conv_sid,
                                 **context_runtime.event_fields(runtime_trace)})
@@ -13899,6 +13905,7 @@ async def websocket_endpoint(ws: WebSocket):
             # không xếp hàng chung một mạch). Nó KHÔNG phải khoá của cuộc trò chuyện - lượt
             # vẫn ghim vào khung chat đang nói qua `conv_sid`.
             khoa_mach = f"voice:{conv_sid}:{uuid.uuid4().hex[:8]}"
+            _khoa_luot = luot_dang_chay.bat_dau(f"{WEB_CHAT_PREFIX}{conv_sid}", _brain_root(brain))
             out = ""
             # Trạng thái cho thẻ việc trong khung chat (dashboard/chat-viec.js, 0.64.48).
             viec = {"kind": "voice", "status": "done", "title": str(request)[:160], "id": tid}
@@ -13926,6 +13933,7 @@ async def websocket_endpoint(ws: WebSocket):
                 _dong_the(out or "(việc nền xong nhưng không có nội dung)")
             finally:
                 voice_brain.note_task_done(conv_sid, request)
+                luot_dang_chay.ket_thuc(_khoa_luot)
                 # Khoá dùng một lần thì phiên RAM của nó cũng phải chết theo. `_TG_SESS` chỉ
                 # được dọn khi bot Telegram khởi động lại, nên nói chuyện cả buổi là cả trăm
                 # khoá chết nằm lại, mỗi khoá còn ôm một đối tượng engine CLI.

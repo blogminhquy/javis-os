@@ -55,6 +55,17 @@ from fastapi import APIRouter, Body, Form, Query
 
 import cron_util
 import channel_context   # bóc khối JAVIS_* trước khi gửi Telegram - kênh chữ, không phải web
+
+
+def _nhan_kw(fn, ten: str) -> bool:
+    """Hàm `fn` có nhận tham số từ khoá `ten` không (hoặc **kwargs). Dùng để gửi thêm thông tin
+    thẻ cho khung chat mà không làm vỡ những hàm gửi chỉ nhận (chat_id, text)."""
+    import inspect
+    try:
+        ps = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(p.name == ten or p.kind is p.VAR_KEYWORD for p in ps)
 from claude_cli import claude_engine, _empty_mcp_file
 import aux_engine   # engine viec nen theo model phu nguoi dung chon
 
@@ -574,12 +585,25 @@ class RemindersFeature:
 
         ok, send_err = True, ""
         if deliver:
+            # Thẻ nhắc hẹn cho khung chat web (dashboard/chat-viec.js, 0.64.49): khung chat vẽ
+            # dòng đầu có icon, nhãn và tên, nên bản web bỏ emoji và câu dẫn "Nhắc bạn:".
+            loi = bool(err) or msg.startswith("⚠")
+            viec = {"kind": "reminder", "status": "failed" if loi else "done",
+                    "title": str(head or "")[:160], "id": str(rem.get("id") or "")}
+            web = msg
+            if mode == "notify":
+                web = text
+            elif msg.startswith("⚠ "):
+                web = msg[2:]
             try:
                 # Telegram là kênh chữ thuần: mode "task" chạy chung system prompt/CLAUDE.md với
                 # chat nên body có thể mang khối JAVIS_METRICS/JAVIS_ASK - lọc trước khi gửi, kẻo
                 # lộ nguyên cụm "<!-- JAVIS_...: ... -->".
+                kw = {}
+                if _nhan_kw(self.deps.send_telegram, "viec"):
+                    kw = {"viec": viec, "web": channel_context.strip_control_blocks(web)}
                 ok, send_err = await self.deps.send_telegram(
-                    rem.get("chat_id", ""), channel_context.strip_control_blocks(msg))
+                    rem.get("chat_id", ""), channel_context.strip_control_blocks(msg), **kw)
             except Exception as e:
                 ok, send_err = False, f"{type(e).__name__}: {e}"
 

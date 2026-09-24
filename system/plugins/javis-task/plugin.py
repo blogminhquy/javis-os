@@ -46,6 +46,11 @@ from __future__ import annotations
 import time
 import tasks as tasks_mod
 
+try:
+    import luot_dang_chay
+except Exception:          # chạy ngoài máy chủ (test lẻ): không có sổ thì thôi đoán
+    luot_dang_chay = None
+
 # Trần ký tự cho phần liệt kê việc. Kết quả tool đi thẳng vào ngữ cảnh của lượt chat, và engine
 # API còn bị cắt ở 8000 ký tự (engine._clip_tool_result) - liệt kê 200 việc là đẩy văng phần
 # quan trọng của câu hỏi ra ngoài.
@@ -104,6 +109,15 @@ def _them(args, ctx) -> str:
         return loi
 
     chat_id = str((args or {}).get("chat_id") or "").strip()
+    # Model quên chat_id thì hỏi sổ lượt đang chạy (0.64.49): đúng một khung chat đang hỏi trên
+    # brain này thì đó chính là người giao việc. Không chắc thì để trống như cũ và cảnh báo.
+    tu_gan = False
+    if not chat_id and luot_dang_chay is not None:
+        try:
+            chat_id = luot_dang_chay.doan_chat_id(ctx.vault_root)
+            tu_gan = bool(chat_id)
+        except Exception:
+            chat_id = ""
     deps = [d.strip() for d in str((args or {}).get("deps") or "").split(",") if d.strip()]
     try:
         tid = f.enqueue(
@@ -140,6 +154,8 @@ def _them(args, ctx) -> str:
     ra = [f"Đã giao việc: {tieu_de}", f"Mã việc: {tid}", f"Mức quyền: {mode} ({ten_mode})"]
     if deps:
         ra.append("Chờ xong: " + ", ".join(deps))
+    if tu_gan:
+        ra.append(f"Người nhận kết quả: tự gắn khung chat đang hỏi ({chat_id}).")
     if not chat_id:
         # Không nuốt: đây là lý do số một khiến người dùng "giao việc rồi không thấy gì".
         ra.append("CẢNH BÁO: chưa gắn người nhận (chat_id), nên kết quả sẽ về ID Telegram đầu "
