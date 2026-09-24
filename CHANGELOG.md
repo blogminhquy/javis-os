@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.42] - 2026-09-24
+### Sửa lỗi
+- Linh vật: đang làm.
+
 ## [0.64.41] - 2026-09-24
 ### Cải thiện
 - Trả lại màu cam cho chữ in đậm và màu tím cho mã ngắn trong câu trả lời. Font Be Vietnam Pro và bố cục đọc thoáng vẫn được giữ.
