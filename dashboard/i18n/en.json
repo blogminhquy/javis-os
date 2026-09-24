@@ -2005,6 +2005,7 @@
   "crender.wl_err": "Could not open this note - try again",
   "crender.lb_dl_title": "Download image",
   "crender.lb_tab": "Open image in a new tab",
+  "crender.ios_dl_fail": "This iPhone couldn't save the file. Use the Copy button to grab its contents.",
   "fedit.read_err": "Could not read the file.",
   "fedit.open_tab": "Open in new tab",
   "fedit.save_title": "Save (Ctrl+S)",

@@ -998,6 +998,13 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    dài không có khoảng trắng). Áp cho cả bubble và thẻ <a> bên trong. */
 .msg-javis .bubble, .msg-user .bubble { overflow-wrap: anywhere; }
 .msg-javis .bubble a, .msg-user .bubble a { overflow-wrap: anywhere; word-break: break-word; }
+/* Safari trên iPhone (0.64.46): chủ dự án báo dòng lệnh bash dài trong câu trả lời tràn ra lề
+   phải. `overflow-wrap: anywhere` chỉ có từ Safari 15.4, nên lệnh trong dòng chữ (`code`) thêm
+   `word-break: break-word` làm đường lùi. Khối lệnh và bong bóng không bao giờ được rộng hơn
+   khung: khối lệnh đã có thanh cuộn ngang riêng, việc của nó là cuộn chứ không đẩy khung ra. */
+.msg-javis .bubble code, .msg-user .bubble code { word-break: break-word; }
+.msg-javis .bubble pre, .msg-javis .bubble .code-wrap { max-width: 100%; min-width: 0; }
+.msg-javis .bubble { max-width: min(72ch, 100%); }
 
 /* Hàng nút dưới mỗi tin: giờ gửi + gửi lại / sửa lại / sao chép.
    Ẩn sẵn, hiện khi rê chuột (máy tính) hoặc khi chạm vào tin (điện thoại, .acts-on).
