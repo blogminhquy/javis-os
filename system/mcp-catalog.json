@@ -21,7 +21,7 @@
             "header": "x-consumer-api-key: {api_key}"
           }
         ],
-        "guide": "Làm 1 lần:\n1. Vào Composio For You → Connect my agent và chọn ứng dụng MCP client.\n2. Sao chép consumer key dạng ck_* trong hướng dẫn kết nối. Javis gửi key qua header x-consumer-api-key tới https://connect.composio.dev/mcp.\nKhông dùng Project API key ak_* hoặc MCP server tạo trong Platform.\n3. Dán key vào đây, bấm Kết nối. Nếu đã có kết nối Javis, chọn Kết nối lại trên thẻ Composio để thay key rồi bấm Kiểm tra.\n\nKết nối Calendar hoặc app khác ở Composio For You → Connect Apps.\nKết nối app không tự cập nhật consumer key đã lưu trong Javis. Sau khi đấu, Javis có thể tìm tool, mở link đăng nhập app và chạy hành động qua Composio.\n\nLƯU Ý: mọi hành động của app (kể cả đọc dữ liệu) đều chạy qua một tool chung của Composio, nên muốn Javis thật sự thao tác thì kết nối này cần mức Toàn quyền. Mức Chỉ đọc chỉ tìm và xem mô tả tool.",
+        "guide": "Làm 1 lần:\n1. Vào Composio For You → Connect my agent và chọn ứng dụng MCP client.\n2. Sao chép consumer key dạng ck_* trong hướng dẫn kết nối. Javis gửi key qua header x-consumer-api-key tới https://connect.composio.dev/mcp.\nKhông dùng Project API key ak_* hoặc MCP server tạo trong Platform.\n3. Dán key vào đây, bấm Kết nối. Nếu đã có kết nối Javis, chọn Kết nối lại trên thẻ Composio để thay key rồi bấm Kiểm tra.\n\nKết nối Calendar hoặc app khác ở Composio For You → Connect Apps.\nKết nối app không tự cập nhật consumer key đã lưu trong Javis. Sau khi đấu, Javis có thể tìm tool, mở link đăng nhập app và chạy hành động qua Composio.\n\nLƯU Ý: ở mức Chỉ đọc, Javis đọc được dữ liệu các app đã nối (xem lịch, đọc mail, liệt kê file...) và xem danh sách tài khoản đã nối. Muốn Javis sửa, gửi hoặc xoá thì nâng lên Toàn quyền.",
         "guide_url": "https://docs.composio.dev/docs/composio-connect"
       },
       "tool_meta": {
@@ -29,8 +29,19 @@
         "write": ["COMPOSIO_MANAGE_CONNECTIONS"],
         "danger": ["COMPOSIO_MULTI_EXECUTE_TOOL", "COMPOSIO_REMOTE_BASH_TOOL", "COMPOSIO_REMOTE_WORKBENCH"]
       },
+      "call_rules": {
+        "COMPOSIO_MULTI_EXECUTE_TOOL": {
+          "items": "tools", "key": "tool_slug", "else": "danger",
+          "read_tokens": ["LIST", "LISTS", "GET", "FETCH", "SEARCH", "FIND", "READ", "QUERY", "RETRIEVE", "DESCRIBE", "VIEW", "COUNT", "LOOKUP", "DOWNLOAD", "EXPORT"],
+          "write_tokens": ["CREATE", "UPDATE", "PATCH", "DELETE", "REMOVE", "SEND", "POST", "ADD", "INSERT", "UPLOAD", "MOVE", "TRASH", "UNTRASH", "REPLY", "FORWARD", "SET", "SHARE", "ARCHIVE", "PUBLISH", "EXECUTE", "CANCEL", "APPROVE", "MODIFY", "EDIT", "WRITE", "PUT", "MARK", "SUBSCRIBE", "UNSUBSCRIBE", "INVITE", "ACCEPT", "DECLINE", "IMPORT", "DUPLICATE", "COPY", "RENAME", "CLEAR", "EMPTY", "STAR", "UNSTAR", "WATCH", "RESTORE", "PIN", "UNPIN", "LIKE", "UNLIKE", "FOLLOW", "UNFOLLOW", "BLOCK", "UNBLOCK", "CLOSE", "REOPEN", "ASSIGN", "TRANSFER", "PAY", "CHARGE", "REFUND", "GENERATE", "TOGGLE", "ENABLE", "DISABLE", "RESET", "REVOKE", "GRANT", "SAVE", "SUBMIT", "REACT", "HIDE", "UNHIDE", "INVOKE", "DEPLOY", "PUSH", "COMMIT", "APPLY", "REPLACE", "UPSERT", "CLAIM", "RESPOND", "JOIN", "LEAVE", "KICK", "BAN", "MUTE", "UNMUTE", "RSVP", "TERMINATE", "KILL", "DESTROY", "PURGE", "WIPE", "REBOOT", "RESTART", "SUSPEND", "RESUME", "ACTIVATE", "DEACTIVATE", "LOCK", "UNLOCK", "VOTE", "DISMISS", "RESOLVE", "COMPLETE", "CHECKOUT", "PURCHASE", "BUY", "SELL", "WITHDRAW", "DEPOSIT", "NOTIFY", "BROADCAST", "ANNOUNCE", "RELEASE", "PROMOTE", "DEMOTE", "CONFIRM", "ATTACH", "DETACH", "LINK", "UNLINK", "CONNECT", "DISCONNECT", "REGISTER", "UNREGISTER", "SIGN", "UNDO", "REVERT", "ROLLBACK", "EXTEND", "RENEW", "ENROLL", "UNENROLL", "PREPEND", "APPEND"]
+        },
+        "COMPOSIO_MANAGE_CONNECTIONS": {
+          "items": "toolkits", "key": "action", "default": "add", "else": "write",
+          "read_values": ["list"]
+        }
+      },
       "default_perm": "readonly",
-      "risk": "Composio là cổng đa ứng dụng: mọi hành động lên app thật (đọc mail, gửi mail, sửa sheet, tạo issue...) đều chạy qua MỘT tool chung nên Javis KHÔNG tách được lệnh đọc với lệnh ghi bên trong.\n\nMức Chỉ đọc: chỉ tìm và xem mô tả tool, chưa chạy được hành động nào.\n\nMức Ghi nháp: thêm quyền nối app mới (Composio đưa link đăng nhập, bạn tự đăng nhập, Javis không thấy mật khẩu).\n\nMức Toàn quyền: Javis chạy được MỌI hành động của các app bạn đã nối qua Composio, kể cả gửi tin, sửa và xoá dữ liệu thật.\nChỉ nâng khi thật sự cần; phạm vi đúng bằng quyền bạn đã cấp cho từng app bên Composio."
+      "risk": "Composio là cổng đa ứng dụng: mọi hành động lên app thật (đọc mail, gửi mail, sửa sheet, tạo issue...) đều chạy qua MỘT tool chung.\nJavis soi TỪNG lệnh bên trong theo tên lệnh: có động từ đọc (LIST, GET, FETCH, SEARCH...) là đọc, còn lại coi là ghi.\n\nMức Chỉ đọc: đọc dữ liệu các app đã nối (xem lịch, đọc mail, liệt kê file) và xem tài khoản đã nối. Lệnh nào không chắc là đọc thì bị chặn.\n\nMức Ghi nháp: thêm quyền nối app mới (Composio đưa link đăng nhập, bạn tự đăng nhập, Javis không thấy mật khẩu).\n\nMức Toàn quyền: Javis chạy được MỌI hành động của các app bạn đã nối qua Composio, kể cả gửi tin, sửa và xoá dữ liệu thật.\nChỉ nâng khi thật sự cần; phạm vi đúng bằng quyền bạn đã cấp cho từng app bên Composio."
     },
             {
       "id": "zalo",

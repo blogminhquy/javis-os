@@ -882,6 +882,12 @@ def _hidden_hint(hidden, only_ns=None):
               "ĐỪNG kết luận là nguồn không làm được hay kết nối hỏng.")
 
 
+# Kết quả tìm tool (chế độ lazy): mấy kết quả đầu giữ mô tả đầy đủ, còn lại cắt gọn.
+_SO_KQ_DAY_DU = 3
+_MO_TA_DAY_DU = 4000
+_MO_TA_GON = 400
+
+
 def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k, ambient=None,
                           hidden=None):
     """Dựng (tools_spec, route) chế độ lazy: builtins/plugin hiện trực tiếp + 2 meta-tool.
@@ -906,9 +912,15 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
         if hint:
             payload["luu_y_quyen"] = hint
         if hits:
-            payload["tools"] = [{"name": t.get("fn"), "description": (t.get("description") or "")[:400],
+            # Mô tả ĐẦY ĐỦ cho vài kết quả đầu, gọn cho phần còn lại. Cắt đồng loạt 400 ký tự
+            # từng nuốt mất thông tin sống còn: mô tả COMPOSIO_SEARCH_TOOLS ghi "User has
+            # manually connected the apps: gmail, googlecalendar..." ở quãng ký tự 1000, nên
+            # model không bao giờ biết người dùng đã nối những app nào (vụ 24/09).
+            payload["tools"] = [{"name": t.get("fn"),
+                                 "description": (t.get("description") or "")[
+                                     :(_MO_TA_DAY_DU if i < _SO_KQ_DAY_DU else _MO_TA_GON)],
                                  "schema": t.get("schema") or {"type": "object", "properties": {}}}
-                                for t in hits]
+                                for i, t in enumerate(hits)]
             payload["goi_the_nao"] = f"Gọi tool bằng {_LAZY_RUN}(name=<name>, args={{...}})."
         if amb:
             # Connector tài khoản Claude: tool native đã có sẵn trong danh sách tool của engine.
@@ -1061,7 +1073,8 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         # phân loại tĩnh theo tool_meta/heuristic.
         rules = (connector or {}).get("arg_rules") or {}
         props = ((t.get("schema") or {}).get("properties") or {})
-        multiplexed = bool(rules.get("param") and rules["param"] in props)
+        multiplexed = (bool(rules.get("param") and rules["param"] in props)
+                       or mcp_catalog.call_rule(connector, raw["tool"]) is not None)
         cls = "read" if multiplexed else mcp_catalog.classify(connector, raw["tool"], None)
         # Lọc lúc LIST: readonly ẩn tool ghi/nguy hiểm tĩnh; safe ẩn tool nguy hiểm tĩnh.
         if (eff == "readonly" and cls in ("write", "danger")) or (eff == "safe" and cls == "danger"):
