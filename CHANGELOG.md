@@ -6,7 +6,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.43] - 2026-09-24
 ### Sửa lỗi
-- **Gửi ảnh hoặc file trong khung chat không còn quay mãi.** (đang viết)
+- **Gửi ảnh hoặc file trong khung chat không còn quay mãi.** Mạng đứng quá 30 giây là Javis tự cắt và tự gửi lại (tối đa 2 lần), không bắt anh chờ đủ 3 phút như trước.
+- **Chip file giờ hiện phần trăm đã gửi**, ví dụ "đang gửi 45% · 3/7 MB", rồi "máy chủ đang lưu". Nhìn là biết đang kẹt ở mạng nhà mình hay ở máy chủ.
+- **File tải hỏng có nút tải lại ngay trên chip**, bấm là gửi lại đúng file đó, không phải chọn lại. File to trên mạng chậm vẫn đi hết miễn là còn nhích.
 
 ## [0.64.42] - 2026-09-24
 ### Sửa lỗi
