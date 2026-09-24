@@ -25,7 +25,7 @@ A great many errors disappear after one of these, so try them before worrying:
 | You edited code (or just updated) and **nothing changed** | If a `.py` file changed: **restart the server** (Windows: `stop-javis.bat` then `start-javis.vbs`; Docker: `docker compose restart`). If only the interface changed: press **Ctrl+Shift+R**. |
 | **Port 7777 is held** and the new build will not come up | Kill the old process FIRST, then start again. Windows: run `stop-javis.bat`, or `taskkill /F /PID <pid>` with the PID holding the port. Docker: `docker compose down` then `docker compose up -d`. |
 | **Hostinger cannot pull the image** | Set the GHCR package to **Public** (GitHub, the repo, Packages, choose `javis-os`, Package settings, Visibility = Public). Then wait for the GitHub Action build to finish (the repo's Actions tab) and Deploy again. |
-| Opening the app **asks for a SETUP TOKEN** | Get the token in the container's App terminal: `cat /data/state/.setup_token`. If you are on the host: `docker compose logs javis` and find the line with `SETUP TOKEN`. To avoid the token entirely: preset the env vars `JAVIS_ADMIN_USER` and `JAVIS_ADMIN_PASSWORD` at deploy time and sign straight in. |
+| Opening the app shows the **create-admin screen** on a public server | No admin exists yet, so whoever opens the link first can create it. Create the account now (password at least 8 characters), or next time preset the env vars `JAVIS_ADMIN_USER` and `JAVIS_ADMIN_PASSWORD` at deploy time and sign straight in. Once inside, turn on 2FA. |
 | **Claude reports it is not signed in** (Javis cannot answer) | Sign the Claude "brain" in once. In the app: open **Models**, on the Claude Code card click **Sign in to Claude**, open the link, paste the code if asked. By command: `claude auth login --claudeai` (on Docker, run it in the App terminal). |
 | **The Files page errors at "Loading..."** | The server has no Files endpoint yet (a 404). **Restart the server** to load the new endpoint, then press **Ctrl+Shift+R**. |
 | Images in old conversations show a grey **Image expired** box | By design: `attachments/` and `inbox/` are a cache, and files over 30 days (or when the 300MB ceiling is passed) are cleared. See "Old images and files disappear" below for how to keep them or turn clearing off. |
@@ -65,13 +65,13 @@ When deploying through Hostinger Docker Manager and it cannot download the image
 1. **The image is Private.** Go to GitHub, open the repo, choose **Packages**, choose `javis-os`, go to **Package settings** and set **Visibility = Public**. Only then can Hostinger pull without a registry login.
 2. **The image has not finished building.** Every push to the `main` branch starts a new GitHub Action build. Open the repo's **Actions** tab, wait for the latest build to finish (a green tick), then Deploy again on Hostinger.
 
-## Opening the app asks for a SETUP TOKEN
+## Opening the app shows the create-admin screen on a public server
 
-When Javis runs public (Docker/VPS/Hostinger), opening the app the first time shows the create-admin screen and may ask for a **SETUP TOKEN**. This stops a stranger who only has the URL from creating the account (because the engine runs with full power on the machine). Get the token like this:
+When Javis runs public (Docker/VPS/Hostinger) with no admin yet, opening the app the first time shows the create-account screen, which only asks for a username and password. That means **whoever opens the link first can create the admin** (and the engine runs with full power on the machine), so:
 
-1. **In the container's App terminal** (that terminal is INSIDE the container so it has no `docker` command): run `cat /data/state/.setup_token`, copy the string, paste it into the SETUP TOKEN field.
-2. **On the host (outside the container)**: run `docker compose logs javis` and find the line containing `SETUP TOKEN`.
-3. **Skip the token entirely**: preset the admin at deploy time with the two env vars `JAVIS_ADMIN_USER` and `JAVIS_ADMIN_PASSWORD` in the compose file. Then opening the app takes you straight to sign-in with no token question.
+1. **Preset the admin at deploy time (recommended)**: the two env vars `JAVIS_ADMIN_USER` and `JAVIS_ADMIN_PASSWORD` in the compose file or `.env`. Then opening the app takes you straight to sign-in.
+2. **Without the env vars**: create the account right after deploying, with a password of at least 8 characters.
+3. **Once inside**: turn on two-factor authentication (2FA) on the **Account** page.
 
 Security details and how to set a password: [Security and accounts](14-security-and-accounts.md).
 

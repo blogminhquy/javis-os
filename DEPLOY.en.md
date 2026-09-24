@@ -35,11 +35,10 @@ hPanel → VPS) and you get the **create admin account** screen.
    - **Way A (recommended):** in the Hostinger compose, fill the two existing fields
      `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD`, and the admin is created at startup so opening
      the app takes you **straight to sign-in**.
-   - **Way B:** leave them empty and the app asks for a **SETUP TOKEN**. Get it in the **App
-     terminal** (which is INSIDE the container so it has NO `docker` command): run
-     `cat /data/state/.setup_token`, copy the string and paste it into the create-account screen.
-     (Only someone who can see the file or the log can create the admin, so whoever merely has the
-     URL is stuck.)
+   - **Way B:** leave them empty, open the app **right after deploying** and set a username and
+     password (at least 8 characters) yourself. Note: while no admin exists, **whoever opens the link
+     first can create it**, so do not leave a public server without an admin for long.
+   - Once inside, **turn on 2FA** (the **Account** page) to protect the account.
 3. **Sign Claude in (the brain) once:** open the **App terminal** and run:
    `claude auth login --claudeai`, open the link, paste the code. (The token lives in a volume and
    survives updates.)
@@ -104,8 +103,9 @@ you **must set a `DOMAIN_NAME` variable**:
      (for example `javis.srv1782015.hstgr.cloud`), or your own domain with an A record pointed at the
      VPS IP.
    - `JAVIS_ADMIN_USER`: the username, `admin` by default.
-   - `JAVIS_ADMIN_PASSWORD`: a strong password you choose; leaving it empty means using the SETUP
-     TOKEN the first time.
+   - `JAVIS_ADMIN_PASSWORD`: a strong password you choose; leaving it empty means creating the
+     account yourself on the first-run screen right after deploying (whoever opens the link first
+     can create the admin).
 
    The older technical fields such as `JAVIS_HOST`, `JAVIS_PORT`, the state and brain paths and
    `CLAUDE_CWD` have been cleared from the form; the Docker image still uses the right defaults.
@@ -209,8 +209,8 @@ Do the same for the second instance in `~/javis-canhan`, changing `.env` to `jav
 not need restarting.
 
 > Each instance has its own admin account, so set `JAVIS_ADMIN_*` in **each** `.env` (with different
-> passwords). Leaving them empty drops that instance back to the old route: reading the SETUP TOKEN
-> from `docker compose logs`.
+> passwords). Leaving them empty opens that instance on the create-account screen, where whoever
+> opens the link first can create the admin, so create it right after starting.
 
 > `JAVIS_BIND=127.0.0.1` pulls the port back to loopback because the proxy handles HTTPS. You can
 > still get in to debug with `ssh -L 7777:localhost:7777 user@<vps-ip>` while DNS has not propagated.

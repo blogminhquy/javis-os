@@ -11,7 +11,7 @@ Javis runs an AI brain with **full power over your machine or VPS**: it can read
 Javis handles this in 6 layers:
 
 1. **Login is forced automatically when running public.** When the server listens externally (not just this machine), Javis blocks every function until you sign in. On a personal machine (localhost) nothing is forced and you use it as before.
-2. **Protection against first-run account takeover.** The first person who wants to create the admin must have the **SETUP TOKEN** (printed in the server log) or the admin must already be set through environment variables. Someone who only knows the URL cannot create an account.
+2. **Set the admin early, then turn on two-factor.** The first-run screen only asks for a username and password, so on a public server **whoever opens the link before an admin exists can create it**. Preset the admin through environment variables (or create the account right after deploying), then turn on 2FA (TOTP) on the **Account** page.
 3. **Brute-force protection.** Too many wrong attempts temporarily locks that IP address; every wrong attempt is slowed down.
 4. **Blocking foreign web pages from commanding Javis (CSRF) and blocking unknown domains pointed at your machine (DNS rebinding).** See the dedicated section below.
 5. **Encryption of secret keys stored in `settings.json`.** API keys, Telegram tokens, GitHub tokens and the rest are not sitting on disk in plain text.
@@ -48,7 +48,7 @@ The safety principle is fail-closed: if the server listens on an address that is
 
 ### A. Creating the first admin account on a VPS or public server
 
-The first time you open the dashboard on a public server, Javis shows the **create account** screen and asks for the **SETUP TOKEN**. There are 2 ways:
+The first time you open the dashboard on a public server with no admin yet, Javis shows the **create account** screen, which only asks for a username and password. Whoever opens the link first can create the admin, so do not let that window stay open. There are 2 ways:
 
 **Way 1 - Set the admin through environment variables (recommended):**
 
@@ -58,17 +58,13 @@ The first time you open the dashboard on a public server, Javis shows the **crea
 2. Start Javis. At boot it creates the admin from these two variables and **closes** the create-account screen entirely. Opening the app takes you straight to the sign-in screen.
 3. Sign in with the user and password you just set.
 
-**Way 2 - Use the SETUP TOKEN printed in the log:**
+**Way 2 - Create the account right after deploying:**
 
-1. Open the server log or terminal. At startup, if it is public and has no admin yet, Javis generates a setup token and saves it to the `.setup_token` file in the state folder.
-   - On Hostinger, from inside the container (App terminal) run: `cat /data/state/.setup_token`.
-   - On a VPS running Docker: check `docker compose logs javis` and look for the line with `SETUP TOKEN`.
-2. Open the dashboard and, on the create-account screen, enter: username, password (**at least 8 characters**), and paste the **SETUP TOKEN**.
-3. Click the create-account button. If the token is right, Javis creates the admin, signs you straight in and destroys the setup token (single use).
+1. Open the dashboard as soon as the deploy finishes.
+2. On the create-account screen, enter a username and a password (**at least 8 characters**).
+3. Click the create-account button. Javis creates the admin and signs you straight in.
 
-If the token is wrong or missing, Javis reports that the SETUP TOKEN is wrong or missing and points you at the server log or terminal.
-
-The setup token is only generated **when the server starts**. If you already used it (the token was deleted) and later need to create a new account, you must restart the server so Javis generates a new one.
+Whichever way you pick, **turn on two-factor authentication (2FA)** on the **Account** page after your first sign-in.
 
 ### B. Setting a password (running on a personal machine, no password yet)
 
@@ -226,17 +222,14 @@ About the `secure` cookie: by default Javis does **not** force it, so it runs ov
 
 ## Tips
 
-- **Always set the admin before going public.** The surest way is setting `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` at deploy time, so you never have to hunt for the SETUP TOKEN.
+- **Always set the admin before going public.** The surest way is setting `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` at deploy time, so the server is never without an admin.
 - **Use a long enough password.** At least 8 characters; a long, hard to guess phrase is better.
 - **Run over HTTPS for remote access.** Use a custom domain (a Hostinger `*.hstgr.cloud` name, say) or Cloudflare Tunnel rather than exposing raw port 7777 to the Internet. How to point a domain and enable HTTPS: [Branding and custom domains](15-branding-and-domains.md).
 - **Localhost plus a tunnel means setting `JAVIS_REQUIRE_LOGIN=1`.** When the machine only listens on localhost but you expose it through a tunnel, Javis cannot tell it is public, so force login manually.
-- **The SETUP TOKEN is single use.** Once the admin is created the token destroys itself. Needing a new one means restarting the server.
+- **Turn on two-factor (2FA) right after the first sign-in.** If the password leaks, a stranger still lacks the TOTP code on your phone.
 - **Back up `.secret_key` alongside `settings.json`.** Missing either one means re-entering every API key.
 
 ## Common problems
-
-**Opening the app asks for a SETUP TOKEN.**
-You are running public with no admin yet. Get the token from the state folder: from the App terminal (inside the container) run `cat /data/state/.setup_token`; on the host run `docker compose logs javis` and find the line with `SETUP TOKEN`. Or set `JAVIS_ADMIN_PASSWORD` so no token is needed.
 
 **Clicking Change password reports "an account already exists, please sign in".**
 A bug in versions before 0.28.3, now fixed. If the open page still holds the old build in the browser cache, reload with Ctrl+F5 (Cmd+Shift+R on a Mac) and repeat section C.

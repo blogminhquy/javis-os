@@ -91,7 +91,8 @@ Deploy → wait 1-3 minutes for Traefik to issue the certificate → open `https
 1. **Make the GHCR image Public:** GitHub → repo → **Packages** → `javis-os` → *Package settings* → Visibility = **Public**.
 2. **Create the admin account** (pick one):
    - *Recommended:* fill in `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` in the Environment box → open the app and **sign straight in**.
-   - *Or:* open the app and it asks for a **SETUP TOKEN** - in the **App terminal** (inside the container) run `cat /data/state/.setup_token`.
+   - *Or:* leave them empty, open the app **right after deploying** and set a username + password (at least 8 characters) yourself. Note: while no admin exists, whoever opens the link first can create it, so do not leave it empty for long.
+   - Once inside, **turn on 2FA** (see [Security and accounts](docs/en/14-security-and-accounts.md)).
 3. **Sign in to a brain:** App terminal → `claude auth login --claudeai` → open the link, paste the code. (On a ChatGPT plan, sign in on the **Models** page after opening the app.)
 
 ### Option 2 - Docker on any VPS (pull the image, no clone needed)
@@ -104,7 +105,7 @@ curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-c
 docker compose run --rm javis claude auth login --claudeai   # sign in to Claude once
 docker compose up -d                                          # pull the image and run
 ```
-Open `http://<vps-ip>:7777` → the admin-account screen (find the SETUP TOKEN in `docker compose logs javis`).
+Open `http://<vps-ip>:7777` → the admin-account screen: set a username + password (at least 8 characters). Do it right after starting, since whoever opens the link first can create the admin (or preset `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` in env). Once inside, turn on 2FA.
 
 ### Option 3 - Install directly on Linux/macOS (no Docker)
 
@@ -206,7 +207,7 @@ The template deliberately holds **only `NAME=value` lines, no comments at all**:
 | `JAVIS_HOST` | Listen address. `127.0.0.1`=this machine only; `0.0.0.0`=public | `127.0.0.1` |
 | `JAVIS_PORT` | Port | `7777` |
 | `JAVIS_REQUIRE_LOGIN` | `1`/`0` to force login on/off (default: on when bound publicly) | *(auto)* |
-| `JAVIS_ADMIN_USER` / `JAVIS_ADMIN_PASSWORD` | Create the admin at deploy time (no SETUP TOKEN needed) | - |
+| `JAVIS_ADMIN_USER` / `JAVIS_ADMIN_PASSWORD` | Create the admin at deploy time (recommended on a public server) | - |
 | `JAVIS_ALLOWED_HOSTS` | Extra hostnames on the allow-list (CSRF / DNS-rebinding protection) | localhost + your domain |
 | `JAVIS_SECURE_COOKIE` | Force the `Secure` cookie flag. Only turn on with end-to-end HTTPS | *(auto, from the domain)* |
 | `JAVIS_STATE_DIR` | Where state is written (settings, sessions, encryption key, recurring-job config) | `server/` (Docker: `/data/state`) |
@@ -224,7 +225,7 @@ Every variable: [docs/16 - .env configuration](docs/16-cau-hinh-env.md).
 ## 🔐 Security
 
 - When running publicly, **login is required** before any feature works (the brain runs with full rights on the machine).
-- Creating the first admin needs a **SETUP TOKEN** (printed in the server log) or an admin preset through env vars → someone who only has the URL cannot claim the account.
+- The first-run screen only asks for a username + password. On a public server, **whoever opens the link before an admin exists can create it** → preset the admin through env (`JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD`) or create the account right after deploying, then **turn on 2FA** (TOTP).
 - **Login rate limiting** (temporary lockout after repeated failures), passwords ≥ 8 characters, `secure` cookies under HTTPS, sessions expiring after 30 days.
 - **CSRF and DNS-rebinding blocked**: any write request with an unknown Origin is rejected.
 - **Secrets are encrypted** inside `settings.json` (API keys, OAuth tokens, Telegram bot tokens, backup tokens) with a per-machine key at `JAVIS_STATE_DIR/.secret_key`.
@@ -284,7 +285,6 @@ Zalo Agent MCP ────────────┤          │             
 | Code changed but nothing looks different | Changed a `.py`? **Restart the server** (Windows: `stop-javis.bat` → `start-javis.vbs`). Changed the UI? **Ctrl+Shift+R**. |
 | Port 7777 held, the new build will not come up | Kill the old process FIRST (`stop-javis.bat`, or `taskkill /F /PID <pid>`), then start again. |
 | Hostinger cannot pull the image | Set the GHCR package to **Public**; wait for the GitHub Action build to finish (Actions tab). |
-| The app asks for a SETUP TOKEN | App terminal (inside the container): `cat /data/state/.setup_token`. On the host: `docker compose logs javis \| grep "SETUP TOKEN"`. Or set `JAVIS_ADMIN_PASSWORD` so no token is needed. |
 | The brain says it is not signed in | Go to **Models**, find the provider card, press sign in. Or run `claude auth login --claudeai` once (Docker: in the App terminal). |
 | Old images in a conversation show a grey box | By design: `attachments/` is a cache that expires after 30 days or 300MB. See [Troubleshooting](docs/17-khac-phuc-su-co.md). |
 

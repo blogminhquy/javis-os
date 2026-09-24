@@ -36,19 +36,19 @@ Sau khi thiết lập xong, các mục liên quan nằm trên rail điều hư�
 
 Mở `http://localhost:7777` (hoặc địa chỉ VPS của bạn). Nếu đây là lần đầu và chưa có tài khoản, Javis hiện cửa sổ **Chào mừng tới Javis** với 3 mục đánh số sẵn.
 
-Nếu bạn chạy trên máy cá nhân (localhost), mục mật khẩu và MÃ THIẾT LẬP là tùy chọn, có thể bỏ trống. Nếu bạn chạy công khai (VPS/Docker), Javis bắt buộc bạn đặt mật khẩu và nhập MÃ THIẾT LẬP mới cho qua; lúc đó dòng nhắc "Đặt tài khoản + mật khẩu (≥8 ký tự) + MÃ THIẾT LẬP để bảo vệ Javis trên server công khai." hiện ngay dưới nút.
+Nếu bạn chạy trên máy cá nhân (localhost), mục mật khẩu là tùy chọn, có thể bỏ trống. Nếu bạn chạy công khai (VPS/Docker), Javis bắt buộc bạn đặt tên đăng nhập và mật khẩu mới cho qua; lúc đó dòng nhắc "Đặt tên đăng nhập và mật khẩu (tối thiểu 8 ký tự) để bảo vệ Javis trên server công khai. Sau khi vào, nên bật thêm 2FA." hiện ngay dưới nút.
 
 ### Bước 2: Đặt tên Workspace
 
 Ở mục **1. Workspace**, gõ tên hiển thị vào ô **Tên hiển thị** (ví dụ tên cửa hàng hoặc tên bạn). Bỏ trống thì Javis dùng mặc định là "Javis OS". Đây chỉ là nhãn hiển thị, đổi lại bất cứ lúc nào.
 
-### Bước 3: Tạo tài khoản admin (và MÃ THIẾT LẬP nếu cần)
+### Bước 3: Tạo tài khoản admin
 
 Ở mục **2. Tài khoản admin**:
 
 1. Gõ tên tài khoản vào ô **Tài khoản** (mặc định gợi ý là `admin`).
 2. Gõ mật khẩu vào ô **Mật khẩu**. Mật khẩu phải dài tối thiểu 8 ký tự.
-3. Nếu Javis chạy công khai, một ô **Mã thiết lập** sẽ hiện ra. Dán MÃ THIẾT LẬP vào đây (cách lấy xem mục "Khi nào cần MÃ THIẾT LẬP" bên dưới).
+3. Nếu Javis chạy công khai, làm bước này **ngay sau khi deploy** rồi bật xác thực 2 lớp (2FA) ở trang **Tài khoản** (xem mục "Server công khai: tạo admin sớm và bật 2FA" bên dưới).
 
 Trên máy cá nhân, nếu bạn để trống mật khẩu thì Javis không đặt tài khoản và ai mở link máy này cũng dùng được. Chỉ nên bỏ trống khi máy chỉ mình bạn dùng.
 
@@ -218,22 +218,13 @@ Javis có sẵn đường lùi, không bỏ bạn kẹt ở bản lỗi:
 
 Bên dưới khung cập nhật là nhật ký phiên bản: từng bản có gì mới, chia trang, bản đang cài được đánh dấu.
 
-## Khi nào cần MÃ THIẾT LẬP và lấy ở đâu
+## Server công khai: tạo admin sớm và bật 2FA
 
-**MÃ THIẾT LẬP (setup token)** chỉ xuất hiện khi Javis chạy công khai (nghe trên `0.0.0.0`, tức VPS/Docker/Hostinger) và chưa có tài khoản admin. Vì lúc này bộ não chạy với toàn quyền trên máy, Javis không cho phép bất kỳ ai chỉ có đường link cũng tạo được tài khoản admin. MÃ THIẾT LẬP là chuỗi bí mật chỉ in ra log/terminal của server, nên chỉ người có quyền xem server mới lấy được.
+Khi Javis chạy công khai (nghe trên `0.0.0.0`, tức VPS/Docker/Hostinger) mà chưa có tài khoản admin, màn chạy lần đầu chỉ hỏi tên đăng nhập và mật khẩu. Nghĩa là **ai mở link trước khi có admin sẽ tạo được admin**, mà bộ não lại chạy với toàn quyền trên máy. Vì vậy:
 
-Trên máy cá nhân (localhost), Javis không hỏi mã này.
-
-Cách lấy mã:
-
-| Tình huống | Lệnh chạy |
-|---|---|
-| Hostinger, vào App terminal (bên trong container `javis`) | `cat /data/state/.setup_token` |
-| SSH vào host chạy Docker | `docker compose logs javis` rồi tìm dòng `SETUP TOKEN` |
-
-Sau khi có mã, dán vào ô **Mã thiết lập** trong wizard rồi bấm **Bắt đầu dùng Javis →**. Mã được dùng một lần, sau khi tạo tài khoản thành công Javis xóa mã đi.
-
-**Cách khỏi cần mã:** khi deploy, đặt sẵn hai biến môi trường `JAVIS_ADMIN_USER` và `JAVIS_ADMIN_PASSWORD`. Javis tự tạo tài khoản admin lúc khởi động, mở app ra là màn đăng nhập luôn, không hỏi MÃ THIẾT LẬP. Chi tiết biến môi trường xem [Cấu hình .env](16-cau-hinh-env.md).
+- **Cách khuyến nghị:** khi deploy, đặt sẵn hai biến môi trường `JAVIS_ADMIN_USER` và `JAVIS_ADMIN_PASSWORD` (`install.sh` đã hỏi sẵn hai giá trị này). Javis tự tạo tài khoản admin lúc khởi động, mở app ra là màn đăng nhập luôn, không có khoảng trống nào. Chi tiết biến môi trường xem [Cấu hình .env](16-cau-hinh-env.md).
+- **Nếu không đặt env:** mở app và tạo tài khoản ngay sau khi deploy, đừng để server public trống admin.
+- **Sau lần đăng nhập đầu:** bật xác thực 2 lớp (2FA) ở trang **Tài khoản**. Xem [Bảo mật & tài khoản](14-bao-mat-tai-khoan.md).
 
 ## Bảng tra nhanh nút và trạng thái
 
@@ -264,8 +255,6 @@ Sau khi có mã, dán vào ô **Mã thiết lập** trong wizard rồi bấm **B
 
 ## Sự cố thường gặp
 
-- **Mở app báo cần MÃ THIẾT LẬP nhưng không biết lấy đâu:** vào App terminal (Hostinger) chạy `cat /data/state/.setup_token`, hoặc trên host chạy `docker compose logs javis` tìm dòng `SETUP TOKEN`. Hoặc đặt sẵn env `JAVIS_ADMIN_PASSWORD` để khỏi cần mã.
-- **Báo "Sai hoặc thiếu MÃ THIẾT LẬP":** mã dán vào sai hoặc thiếu. Lấy lại mã đúng từ log server rồi dán lại, chú ý không dính khoảng trắng thừa.
 - **Báo "Mật khẩu tối thiểu 8 ký tự":** đặt mật khẩu dài từ 8 ký tự trở lên.
 - **Báo "Đã có tài khoản - hãy đăng nhập":** admin đã được tạo trước đó (ví dụ qua env). Dùng màn đăng nhập với tài khoản/mật khẩu đã đặt.
 - **Claude báo chưa đăng nhập:** vào **Models**, bấm **Đăng nhập Claude**, mở link, dán code nếu được hỏi. Hoặc chạy `claude auth login --claudeai` trong terminal server.

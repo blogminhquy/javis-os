@@ -31,8 +31,8 @@ server/.mcp_config.json
 server/.mcp_hub_*.json
 server/.secret_key
 server/.hub_token
-# Mã thiết lập lần đầu (in ra log server, dùng để tạo tài khoản admin). Nó chỉ sinh ra
-# trên máy chạy thật nên dễ lọt vào `git add -A` mà không ai để ý.
+# Tàn dư từ bản cũ (trước 0.64.47, tính năng đã bỏ; server tự xoá file này lúc boot).
+# Giữ dòng ignore để file sót lại trên máy cũ không lọt vào `git add -A`.
 server/.setup_token
 # Token API của CLI: file chứa bản BĂM + tên token, vẫn là bí mật vận hành, không vào repo.
 server/.api_tokens.json
