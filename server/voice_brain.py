@@ -127,28 +127,15 @@ SYSTEM_PROMPT = (
     "từ đây), và trả lời theo câu đã sửa đó: không bám nghĩa đen của từ nghe sai, không hỏi lại "
     "'David là ai', không bình luận về từ nghe sai. Nếu bản chép chỉ còn 'Javis' hoặc vài tiếng "
     "không đủ hiểu ý, đừng đoán phần bị mất; hãy đáp ngắn bằng tiếng Việt để người dùng nói tiếp.\n"
-    "CŨNG Ở DÒNG " + NGHE_MARKER + " ĐÓ, lọc TẠP ÂM: mic bật liên tục nên chữ máy nghe chép về có "
-    "thể lẫn thứ KHÔNG nói với bạn, chẳng hạn tiếng TV hay video đang phát, người khác trong phòng "
-    "nói chuyện với nhau, người dùng lẩm bẩm một mình hay gọi ai đó. Dấu hiệu: câu đứt đoạn không "
-    "thành ý, đổi chủ đề liên tục, ngôn ngữ lạ chen vào giữa, nội dung chẳng liên quan gì tới cuộc "
-    "nói chuyện đang diễn ra. Nếu vẫn có câu gửi tới bạn, dòng " + NGHE_MARKER + " giữ ĐẦY ĐỦ "
-    "bản chép; không cắt câu lệnh, phủ định, con số hay ý không chắc là tạp âm. Chỉ sửa chính "
-    "tả tên nghe nhầm, không dùng dòng này để tóm tắt hoặc lọc bớt nội dung.\n"
-    "Cả lượt KHÔNG có câu nào nói với bạn thì trả đúng MỘT dòng duy nhất, không kèm gì khác, không "
-    "kèm cả dòng " + NGHE_MARKER + ":\n"
-    "  " + BO_QUA_MARKER + " <lý do thật ngắn, ví dụ: tiếng TV trong phòng>\n"
-    "DÈ DẶT khi dùng dòng này: bỏ nhầm thì người dùng nói mà không được trả lời, tệ hơn nhiều so "
-    "với trả lời một câu thừa. Chỉ bỏ khi CHẮC CHẮN không có gì gửi tới bạn. Nghi ngờ thì GIỮ và trả "
-    "lời bình thường. Câu cụt, câu trống không, câu chỉ vài từ, câu nói tiếp ý lượt trước, câu chỉ "
-    "đáp 'ừ' hay 'không' đều là nói với bạn, KHÔNG phải tạp âm."
+    "Bạn chỉ có bản chép chữ, không có bằng chứng ai nói hay tiếng nào là tạp âm. "
+    "Không đoán tiếng TV, không cắt hoặc bỏ lượt vì câu ngắn, đổi chủ đề hay lẫn ngôn ngữ. "
+    "Giữ nguyên lời đã nhận; thiếu ý thì hỏi lại ngắn bằng tiếng Việt."
 )
 
-# Câu dặn thêm cho lượt khi người dùng TẮT ô lọc tạp âm ở trang Cài đặt. Đi kèm câu nói (như
-# pending_note) thay vì đổi SYSTEM_PROMPT, vì prompt được nướng vào bộ não lúc dựng: đổi theo
-# cài đặt thì mỗi lần gạt ô lại phải giết và dựng lại tiến trình agy đang sống.
+# Luôn gửi cả với bộ não đang sống dùng prompt cũ: không cho nó xoá lời đã được nhận.
 GHI_CHU_TAT_LOC = (
-    "[GHI CHÚ HỆ THỐNG: người dùng đã TẮT lọc tạp âm cho lượt này. Chép NGUYÊN VĂN câu họ nói ở "
-    "dòng " + NGHE_MARKER + ", không cắt bỏ phần nào, và TUYỆT ĐỐI không dùng dòng "
+    "[GHI CHÚ HỆ THỐNG: lượt này đã được nhận vào hội thoại. Chép NGUYÊN VĂN câu họ nói ở "
+    "dòng " + NGHE_MARKER + ", không cắt bỏ phần nào, không suy đoán tạp âm từ chữ và không dùng "
     + BO_QUA_MARKER + ".]"
 )
 
@@ -921,7 +908,7 @@ def config_from_settings(cfg: dict) -> dict:
             "api_key": str(m.get(kf, "")) if kf else "",
             # Lọc tạp âm MẶC ĐỊNH BẬT: brain cũ chưa có khoá này trong settings.json vẫn được lọc,
             # nên phải hỏi `is False` chứ không phải `or True` (giá trị False hợp lệ).
-            "loc_tap_am": v.get("loc_tap_am") is not False}
+            "loc_tap_am": False}
 
 
 def _make(conf: dict) -> VoiceBrain:

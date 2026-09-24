@@ -85,10 +85,11 @@ class VoiceTurnIntegrity(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(messages, ['tiếng TV', 'câu mới'])
         self.assertFalse([f for f in frames if f.get('bo_qua')])
 
-    async def test_noise_deletes_only_its_original_turn(self):
-        messages, frames, _, _ = await self.run_turn('tiếng TV', ['JAVIS_BO_QUA: tạp âm'])
-        self.assertEqual(messages, [])
-        self.assertEqual(len([f for f in frames if f.get('bo_qua')]), 1)
+    async def test_model_noise_guess_cannot_delete_an_accepted_utterance(self):
+        messages, frames, fallbacks, _ = await self.run_turn('không', ['JAVIS_BO_QUA: tạp âm'])
+        self.assertEqual(messages, ['không'])
+        self.assertEqual(fallbacks, ['không'])
+        self.assertFalse([f for f in frames if f.get('bo_qua')])
 
     async def test_spelling_correction_cannot_replace_newer_message(self):
         messages, frames, _, ui = await self.run_turn('David ơi', ['JAVIS_NGHE: Javis ơi\nEm đây anh.'], append_new='câu mới')

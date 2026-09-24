@@ -1,4 +1,7 @@
 {
+  "app.voice_focus_mic_busy": "The microphone has not finished closing. Tap the mic to reopen the conversation.",
+  "app.voice_focus_waiting": "Say Javis or tap to resume",
+  "app.voice_focus_click": "Tap to resume conversation",
   "ws.upload_agent": "Upload agent",
   "ws.upload_workflow": "Upload workflow",
   "ws.retry_session": "Retry",
@@ -387,8 +390,8 @@
   "settings.v2_model_ph": "Empty = provider default",
   "settings.v2_agy_hint": "Runs on your signed-in Google plan; one process lives for the whole voice session and closes after 5 idle minutes. Pick Flash low for speed.",
   "settings.v2_stt": "Listen with",
-  "settings.v2_loc_tap_am": "Filter background noise",
-  "settings.v2_loc_tap_am_note": "The mic listens continuously, so a TV or other people in the room get transcribed too. When on, Javis strips out what was not said to it, and drops a turn that is only noise (the chat shows a note that fades away). Fast lane only.",
+  "settings.v2_loc_tap_am": "Focused conversation",
+  "settings.v2_loc_tap_am_note": "After 20 seconds without conversation, start with “Javis” or tap to resume. While waiting, speech is not sent to the conversation; Live disconnects temporarily. This cannot separate your voice from TV or other speakers during an active conversation. Turn off for continuous listening.",
   "settings.v2_hotwords": "Often misheard words",
   "settings.v2_hotwords_ph": "Tool names, project names, people... comma separated",
   "settings.v2_hotwords_note": "Speech recognition tends to turn proper names into similar-sounding words. Javis feeds these words to the recognizer and fixes them by context before reading the sentence. Always included: {goc}.",

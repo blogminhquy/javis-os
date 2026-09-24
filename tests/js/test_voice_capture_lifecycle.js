@@ -5,7 +5,7 @@ const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 const tick = () => new Promise(resolve => setImmediate(resolve));
-function setup(onTranscript = () => {}) {
+function setup(onTranscript = () => {}, opts = {}) {
   const timers = new Map(); let timerId = 0;
   class Recorder {
     static isTypeSupported() { return true; }
@@ -23,10 +23,36 @@ function setup(onTranscript = () => {}) {
     clearTimeout: id => timers.delete(id), setInterval: () => 0, clearInterval() {},
   };
   vm.runInNewContext(fs.readFileSync('dashboard/voice.js', 'utf8'), context);
-  const voice = new context.window.JavisVoice({ onTranscript });
+  const voice = new context.window.JavisVoice({ onTranscript, ...opts });
   voice.isSpeaking = () => false;
   return { voice, context, timers };
 }
+test('focus rejects raw ambient before STT upload or delivery', async () => {
+  const received = [];
+  const { voice, context } = setup(t => received.push(t), { acceptTranscript: t => t.startsWith('Javis') });
+  voice.sttUpload = true; voice._recComplete = true;
+  let uploads = 0;
+  voice._stopRecorder = async () => new Blob(['x'.repeat(3000)]);
+  context.fetch = async () => { uploads++; return { ok: true, json: async () => ({text: 'Javis mở chat'}) }; };
+  voice.onTranscript('mua ngay trên TV'); await tick();
+  assert.equal(uploads, 0); assert.deepEqual(received, []);
+  voice.onTranscript('Javis mở chat'); await voice._sttDelivery;
+  assert.equal(uploads, 1); assert.deepEqual(received, ['Javis mở chat']);
+});
+
+test('Live handoff waits until browser capture has really ended', async () => {
+  const received = [];
+  const { voice } = setup(t => received.push(t));
+  voice.isListening = true;
+  voice.accumulatedTranscript = 'tiếng TV đang chép';
+  voice.cancelListening();
+  let released = false;
+  const ending = voice.waitForCaptureEnd().then(ok => { released = ok; });
+  await tick(); assert.equal(released, false);
+  voice.recognition.onend(); await ending;
+  assert.equal(released, true); assert.deepEqual(received, []);
+});
+
 test('recorder keeps the final dataavailable chunk delivered by stop', async () => {
   const { voice } = setup();
   voice.sttUpload = true; voice.micStream = {}; voice.isListening = true;

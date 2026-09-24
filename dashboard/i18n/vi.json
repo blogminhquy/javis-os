@@ -1,4 +1,7 @@
 {
+  "app.voice_focus_mic_busy": "Mic chưa đóng xong. Bấm mic để mở lại đàm thoại.",
+  "app.voice_focus_waiting": "Gọi Javis hoặc bấm để tiếp tục",
+  "app.voice_focus_click": "Bấm để tiếp tục đàm thoại",
   "ws.upload_agent": "Tải lên trợ lý",
   "ws.upload_workflow": "Tải lên quy trình",
   "ws.retry_session": "Thử lại",
@@ -387,8 +390,8 @@
   "settings.v2_model_ph": "Để trống = mặc định của nhà cung cấp",
   "settings.v2_agy_hint": "Chạy trên gói Google đã đăng nhập, một tiến trình sống suốt phiên nói, đóng sau 5 phút im. Chọn Flash mức low cho nhanh.",
   "settings.v2_stt": "Nghe bằng",
-  "settings.v2_loc_tap_am": "Lọc tạp âm",
-  "settings.v2_loc_tap_am_note": "Mic bật liên tục nên tiếng TV hay người khác trong phòng cũng bị chép thành chữ. Bật thì Javis cắt phần không nói với nó ra khỏi câu, và bỏ hẳn lượt nào chỉ toàn tạp âm (khung chat hiện một dòng báo rồi tự tắt). Chỉ chạy ở chế độ Làn nhanh.",
+  "settings.v2_loc_tap_am": "Tập trung khi đàm thoại",
+  "settings.v2_loc_tap_am_note": "Sau 20 giây không trao đổi, gọi “Javis” ở đầu câu hoặc bấm nút tiếp tục. Trong lúc chờ, lời nghe được không gửi vào hội thoại; Live tạm đóng kết nối. Không tách được giọng bạn khỏi TV hoặc người khác khi đang trao đổi. Tắt để nghe liên tục.",
   "settings.v2_hotwords": "Từ hay nghe nhầm",
   "settings.v2_hotwords_ph": "Tên công cụ, tên dự án, tên người... ngăn bằng dấu phẩy",
   "settings.v2_hotwords_note": "Khi bạn nói lẫn tiếng Anh, máy nghe hay chép sai tên riêng thành từ gần âm. Javis mồi những từ này cho máy nghe và tự sửa theo ngữ cảnh trước khi hiểu câu. Luôn có sẵn: {goc}.",

@@ -213,6 +213,25 @@ class LiveProvider:
     async def send_text(self, text: str):
         await self._send(self.text_message(text))
 
+    async def restore_history(self, messages: List[dict]):
+        """Bounded transcript context after focus sleep; never a request to generate speech."""
+        history, budget = [], 8000
+        for message in reversed(messages[-12:]):
+            role = message.get("role")
+            if role not in ("user", "assistant"):
+                continue
+            text = str(message.get("content") or "")[:min(2000, budget)].strip()
+            if text:
+                history.insert(0, {"role": role, "content": text})
+                budget -= len(text)
+            if budget <= 0:
+                break
+        if history:
+            await self._send_all(self.history_messages(history))
+
+    def history_messages(self, history: List[dict]) -> List[dict]:
+        return []
+
     async def send_tool_running(self, call_id: str, name: str):
         await self._send_all(self.tool_running_messages(call_id, name))
 
@@ -264,6 +283,12 @@ class LiveProvider:
 class GeminiLive(LiveProvider):
     name = "gemini"
     SETUP_TIMEOUT = 10
+
+    def history_messages(self, history: List[dict]) -> List[dict]:
+        # https://ai.google.dev/gemini-api/docs/live-api/capabilities#incremental-updates
+        return [{"clientContent": {"turns": [
+            {"role": "model" if m["role"] == "assistant" else "user",
+             "parts": [{"text": m["content"]}]} for m in history], "turnComplete": False}}]
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -425,6 +450,21 @@ class GeminiLive(LiveProvider):
 
 
 class OpenAIRealtime(LiveProvider):
+    def history_messages(self, history: List[dict]) -> List[dict]:
+        return [{"type": "conversation.item.create", "item": {
+            "type": "message", "role": m["role"], "content": [{
+                "type": "output_text" if m["role"] == "assistant" else "input_text",
+                "text": m["content"]}]}} for m in history]
+
+    async def send_text(self, text: str):
+        await super().send_text(text)
+        # Text input does not trigger server VAD. Request a response once it is safe.
+        if self.response_active:
+            self._pending_create = True
+        else:
+            self.response_active = True
+            await self._send({"type": "response.create"})
+
     name = "openai"
 
     def __init__(self, *a, **kw):
@@ -585,6 +625,29 @@ class GPTLive(LiveProvider):
         if not text:
             return []
         return [{"type": "session.thinking.append", "delegation_id": None, "content": text[:GPT_LIVE_APPEND_MAX]}]
+
+    async def send_text(self, text: str):
+        # A browser wake handoff has no provider input_transcript event. Preserve it for
+        # delegation, whose payload carries only metadata, and do not emit a duplicate user.
+        self._user_buf = ""
+        self._user_last = text
+        await super().send_text(text)
+
+    def history_messages(self, history: List[dict]) -> List[dict]:
+        prefix = ("Lịch sử trước lúc chờ, chỉ làm ngữ cảnh, không thực hiện lại yêu cầu cũ. "
+                  "Đợi lượt mới của người dùng.\n")
+        frames = []
+        for message in history:
+            item = dict(message)
+            encoded = json.dumps(item, ensure_ascii=False)
+            # Bound each append, not the whole oldest-first history: truncating that blob
+            # would discard the most recent turns and leave malformed JSON.
+            while len(prefix) + len(encoded) > GPT_LIVE_APPEND_MAX and item["content"]:
+                excess = len(prefix) + len(encoded) - GPT_LIVE_APPEND_MAX
+                item["content"] = item["content"][:max(0, len(item["content"]) - excess)]
+                encoded = json.dumps(item, ensure_ascii=False)
+            frames.extend(self.context_messages(prefix + encoded))
+        return frames
 
     def close_messages(self) -> List[dict]:
         return [{"type": "session.close"}]
