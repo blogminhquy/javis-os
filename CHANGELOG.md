@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.47] - 2026-09-24
+### Cải thiện
+- Thiết lập lần đầu: đang làm.
+
 ## [0.64.46] - 2026-09-24
 ### Sửa lỗi
 - **iPhone: bấm tải file không còn làm kẹt cả app.** Ảnh trong chat mở ngay trong khung xem ảnh có nút Đóng; file khác (PDF, Word, zip...) mở ở lớp Safari nổi lên, xem hoặc lưu xong bấm Xong là quay lại Javis. Áp dụng cho mọi chỗ tải: chat, khung xem ảnh, trang Tệp tin, tải khối code.
