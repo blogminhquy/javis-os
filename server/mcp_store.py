@@ -266,6 +266,14 @@ def update_connection(cid, patch):
     if "enabled" in patch and patch["enabled"] is not None:
         c["enabled"] = bool(patch["enabled"])
     doi_dang_nhap = False
+    # `prune`: form Sửa MCP gửi ĐỦ danh sách tên header/env còn giữ. Tên nào vắng mặt là người
+    # dùng đã bấm xoá dòng đó. Không có cờ này thì chỉ gộp thêm, và một header gõ sai tên sẽ
+    # nằm lì trong kết nối mãi mãi, không có đường nào gỡ ngoài xoá cả kết nối đi làm lại.
+    prune = bool(patch.get("prune"))
+    for k in ("headers", "env"):
+        if prune and isinstance(patch.get(k), dict):
+            giu = set(patch[k].keys())
+            c[k] = {kk: vv for kk, vv in (c.get(k) or {}).items() if kk in giu}
     for k, src in (("secrets", "fields"), ("headers", "headers"), ("env", "env")):
         newvals = patch.get(src)
         if newvals:

@@ -6,7 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.31] - 2026-09-24
 ### Cải thiện
-- Form thêm MCP tự đấu tay dễ hơn và sửa lại được (đang viết).
+- **Thêm MCP tự đấu dễ hơn nhiều.** Dán nguyên cấu hình nhà cung cấp đưa (link, khối JSON, lệnh `claude mcp add` hoặc `npx`) là form tự điền. Với Composio, form tạo sẵn dòng `x-consumer-api-key`, chỉ việc dán key.
+- **API key nhập theo từng dòng** (tên header và giá trị, có nút hiện/ẩn), kèm gợi ý tên header hay gặp và lời nhắc khi Authorization thiếu chữ Bearer.
+- **Lưu xong Javis kiểm tra kết nối luôn** và báo có bao nhiêu công cụ. Sai thì sửa ngay trong form rồi bấm lại, không tạo bản trùng.
+### Sửa lỗi
+- **MCP tự thêm giờ sửa lại được**: menu của kết nối có mục **Sửa cấu hình** để đổi link, key, lệnh, xoá header thừa. Trước đây nút Kết nối lại chỉ báo "không có trường key để thay".
 
 ## [0.64.30] - 2026-09-24
 ### Cải thiện

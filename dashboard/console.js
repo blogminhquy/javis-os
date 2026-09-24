@@ -4489,17 +4489,6 @@
         : String(e) };
     } finally { if (timer) clearTimeout(timer); }
   }
-  function parseKV(text, sep) {
-    const o = {};
-    (text || "").split("\n").forEach(line => {
-      line = line.trim(); if (!line) return;
-      let i = line.indexOf(sep); if (i < 0 && sep === ":") i = line.indexOf("=");
-      if (i < 0) return;
-      const k = line.slice(0, i).trim(), v = line.slice(i + 1).trim();
-      if (k) o[k] = v;
-    });
-    return o;
-  }
   // ==== Trang Kết nối: kho connector + đa tài khoản (qua MCP hub) ====
   const PERM_META = {
     readonly: { key: "cs.cn_perm_readonly", color: "var(--link-ink)" },
@@ -4623,6 +4612,9 @@
 
   // Kết nối lại GIỮ NGUYÊN connection (id, label, quyền, deny) - không xoá tạo lại.
   function reconnectAccount(el, c, con) {
+    // Kết nối TỰ THÊM không có ô key khai trong catalog để "thay key", nên kết nối lại chính là
+    // mở lại form của nó ở chế độ Sửa (đổi URL, header, lệnh, env).
+    if ((c.connector_id || "custom") === "custom" && c.auth !== "oauth") { closeConnModal(); return openMcpForm(el, c); }
     if ((c.auth || "") === "oauth" || (con && con.auth_type === "oauth")) {
       postJson("/connect/oauth/start", { id: c.id }).then(r => {
         if (!r || r.ok === false) { alert(window.t("cs.cn_signin_fail") + " " + ((r && r.error) || window.t("cs.cn_error_low"))); return; }
@@ -5087,6 +5079,8 @@
   function openAccountMenu(el, c, con) {
     const m = connModal(mHead(esc(c.label || window.t("cs.cn_account_fallback")))
       + '<div class="conn-menu">'
+      + ((c.connector_id || "custom") === "custom" && c.auth !== "oauth"
+          ? '<button class="conn-menu-btn" data-m="edit">' + ic("settings") + ' ' + esc(window.t("cs.mf_menu_edit")) + '</button>' : "")
       + '<button class="conn-menu-btn" data-m="test">' + ic("rotate-cw") + ' ' + esc(window.t("cs.cn_menu_test")) + '</button>'
       + '<button class="conn-menu-btn" data-m="rekey">' + ic("repeat") + ' ' + esc(window.t("cs.cn_menu_rekey")) + '</button>'
       + '<button class="conn-menu-btn" data-m="default"' + (c.is_default ? " disabled" : "") + '>' + ic("star") + ' ' + esc(window.t("cs.cn_menu_default")) + '</button>'
@@ -5106,6 +5100,8 @@
         note.textContent = window.t("cs.cn_testing");
         const r = await postJson("/connect/test", { id: c.id });
         note.innerHTML = r.ok ? CHECK_ICON + " OK - " + esc(window.t("cs.cn_tools_n", { so: r.tools || 0 })) + (r.label ? " (" + esc(r.label) + ")" : "") : WARN_ICON + " " + esc(r.error || window.t("cs.cn_error_low"));
+      } else if (act === "edit") {
+        closeConnModal(); openMcpForm(el, c);
       } else if (act === "rekey") {
         closeConnModal(); reconnectAccount(el, c, con);
       } else if (act === "default") {
@@ -5517,57 +5513,227 @@
       });
     });
   }
+  // ---- Form "Tự thêm MCP" (thêm mới + SỬA) ----
+  // Làm lại 0.64.29 sau khi chủ repo báo: "thêm MCP hơi khó, ví dụ Composio thì thêm API key
+  // như nào, và thêm xong không có chỗ sửa lại". Ba lỗ của bản cũ:
+  //   1. Key phải gõ thành dòng "Tên-header: giá-trị" trong một ô văn bản thô, không ai nói cho
+  //      người dùng biết tên header là gì. Composio đưa `x-consumer-api-key`, người ta dán mỗi
+  //      cái key vào là hỏng mà không có lỗi gì.
+  //   2. Chế độ Sửa có sẵn trong hàm này nhưng KHÔNG nút nào gọi tới: menu "Kết nối lại" của
+  //      kết nối tự thêm rơi vào hộp "không có trường key để thay".
+  //   3. Lưu xong là đóng, không thử kết nối, nên sai URL/key chỉ lộ ra lúc đang chat.
+  // Giờ: dán nguyên cấu hình của nhà cung cấp (URL, JSON mcpServers, lệnh `claude mcp add`,
+  // `npx ...`) là tự điền; key nhập theo từng dòng tên + giá trị; lưu xong kiểm tra luôn.
+  // Phần đọc cấu hình nằm ở mcp-form-parse.js (thuần, có test node).
   function openMcpForm(el, server) {
-    const edit = !!server;
-    let modal = document.getElementById("mcpAddModal");
-    if (!modal) { modal = document.createElement("div"); modal.id = "mcpAddModal"; modal.className = "mp-overlay"; document.body.appendChild(modal); }
-    const keys = edit ? (server.header_keys || []).concat(server.env_keys || []) : [];
-    const credPh = edit && keys.length ? esc(window.t("cs.cn_cred_keep", { ds: keys.join(", ") })) : esc(window.t("cs.cn_cred_ph"));
-    modal.innerHTML = `
-      <style>#mcpAddModal .mcp-lb{display:flex;flex-direction:column;gap:4px;font-size:14px;opacity:.85}#mcpAddModal .mcp-lb input,#mcpAddModal .mcp-lb select,#mcpAddModal .mcp-lb textarea{width:100%}</style>
-      <div class="mp-box" style="max-width:560px">
-        <div class="mp-head"><div class="mp-title">${esc(window.t(edit ? "cs.cn_mcp_edit_head" : "cs.cn_mcp_add_head"))}</div><button class="mp-x" data-act="close">${X_ICON}</button></div>
-        <div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">
-          <label class="mcp-lb">${esc(window.t("cs.cn_mcp_name"))}<input class="js-input" id="mName" placeholder="${esc(window.t("cs.cn_mcp_name_ph"))}" value="${edit ? esc(server.name) : ""}"></label>
-          <label class="mcp-lb">Transport<select class="js-input" id="mTransport"><option value="http">HTTP</option><option value="sse">SSE</option><option value="stdio">stdio</option></select></label>
-          <label class="mcp-lb" id="mUrlWrap">URL<input class="js-input" id="mUrl" placeholder="${esc(window.t("cs.cn_mcp_url_ph"))}" value="${edit ? esc(server.url || "") : ""}"></label>
-          <label class="mcp-lb" id="mCmdWrap" style="display:none">${esc(window.t("cs.cn_mcp_cmd"))}<input class="js-input" id="mCmd" placeholder="${esc(window.t("cs.cn_mcp_cmd_ph"))}" value="${edit ? esc(((server.command || "") + " " + (server.args || []).join(" ")).trim()) : ""}"></label>
-          <label class="mcp-lb" id="mCredWrap">${esc(window.t("cs.cn_mcp_header"))}<textarea class="js-input" id="mCred" rows="3" placeholder="${credPh}"></textarea></label>
-        </div>
-        <div class="mp-foot"><span class="mp-note" id="mErr"></span><div><button class="mp-btn" data-act="close">${esc(window.t("common.cancel"))}</button><button class="mp-btn primary" id="mSave">${esc(window.t(edit ? "common.save" : "proj.add"))}</button></div></div>
-      </div>`;
-    const $ = (id) => modal.querySelector(id);
-    if (edit) $("#mTransport").value = server.transport || "http";
-    const sync = () => {
-      const t = $("#mTransport").value;
-      $("#mUrlWrap").style.display = (t === "stdio") ? "none" : "";
-      $("#mCmdWrap").style.display = (t === "stdio") ? "" : "none";
-      $("#mCredWrap").childNodes[0].nodeValue = window.t((t === "stdio") ? "cs.cn_mcp_env" : "cs.cn_mcp_header2");
+    const P = window.JavisMcpParse;
+    let editId = server ? server.id : "";
+    const eyeBtn = '<button type="button" class="mcpf-eye" data-eye title="' + esc(window.t("cs.mf_show")) + '">' + ic("eye") + '</button>';
+    const dongKey = (ten, daLuu) => {
+      const phV = daLuu ? window.t("cs.mf_saved_ph") : window.t("cs.mf_key_val_ph");
+      return '<div class="mcpf-dong">'
+      + '<input class="js-input mcpf-k" list="mcpfGoiY" autocomplete="off" spellcheck="false" value="' + esc(ten || "") + '" placeholder="' + esc(window.t("cs.mf_key_name_ph")) + '">'
+      + '<span class="mcpf-gt"><input class="js-input mcpf-v" type="password" autocomplete="new-password" spellcheck="false" data-daluu="' + (daLuu ? "1" : "") + '" placeholder="' + esc(phV) + '">' + eyeBtn + '</span>'
+      + '<button type="button" class="mcpf-xoa" data-xoa title="' + esc(window.t("cs.mf_remove_row")) + '">' + ic("x") + '</button>'
+      + '<div class="mcpf-nhac" hidden></div></div>';
     };
-    $("#mTransport").onchange = sync; sync();
-    modal.querySelectorAll('[data-act="close"]').forEach(b => b.onclick = () => modal.classList.remove("open"));
-    $("#mSave").onclick = async () => {
-      const t = $("#mTransport").value;
-      const body = { name: $("#mName").value.trim(), transport: t, url: $("#mUrl").value.trim() };
-      if (!body.name) { $("#mErr").textContent = window.t("cs.cn_mcp_need_name"); return; }
-      const cred = $("#mCred").value.trim();
-      if (t === "stdio") {
-        const parts = $("#mCmd").value.trim().split(/\s+/).filter(Boolean);
-        body.command = parts[0] || ""; body.args = parts.slice(1); body.auth = "env";
-        if (cred || !edit) body.env = parseKV(cred, "=");
-      } else {
-        body.auth = "header";
-        if (cred || !edit) body.headers = parseKV(cred, ":");   // edit + để trống = giữ key cũ
+    const m = connModal(pgDau(esc(window.t(server ? "cs.mf_edit_head" : "cs.mf_add_head")),
+        server ? pgPhu(server.label || server.name, "") : esc(window.t("cs.mf_sub")), { icon: "plug" })
+      + '<div class="pkm-than mcpf">'
+      + (server ? "" :
+        '<div class="mcpf-dan"><label class="mcpf-nhan" for="mfDan">' + ic("clipboard-paste") + esc(window.t("cs.mf_paste_lbl")) + '</label>'
+        + '<textarea class="js-input" id="mfDan" rows="3" spellcheck="false" placeholder="' + esc(window.t("cs.mf_paste_ph")) + '"></textarea>'
+        + '<div class="mcpf-dan-kq" id="mfDanKq">' + esc(window.t("cs.mf_paste_hint")) + '</div></div>')
+      + '<label class="mcpf-nhan" for="mfTen">' + esc(window.t("cs.mf_name")) + '</label>'
+      + '<input class="js-input" id="mfTen" placeholder="' + esc(window.t("cs.mf_name_ph")) + '">'
+      + '<div class="mcpf-nhan">' + esc(window.t("cs.mf_kind")) + '</div>'
+      + '<div class="mcpf-kieu" role="tablist">'
+      + '<button type="button" data-kieu="url">' + ic("link") + '<span><b>' + esc(window.t("cs.mf_kind_url")) + '</b><small>' + esc(window.t("cs.mf_kind_url_d")) + '</small></span></button>'
+      + '<button type="button" data-kieu="stdio">' + ic("terminal") + '<span><b>' + esc(window.t("cs.mf_kind_cmd")) + '</b><small>' + esc(window.t("cs.mf_kind_cmd_d")) + '</small></span></button></div>'
+      + '<div id="mfUrlKhoi"><label class="mcpf-nhan" for="mfUrl">' + esc(window.t("cs.mf_url")) + '</label>'
+      + '<input class="js-input" id="mfUrl" inputmode="url" spellcheck="false" placeholder="' + esc(window.t("cs.mf_url_ph")) + '">'
+      + '<details class="mcpf-nc"><summary>' + esc(window.t("cs.mf_adv")) + '</summary>'
+      + '<label class="mcpf-nhan" for="mfGiao">' + esc(window.t("cs.mf_proto")) + '</label>'
+      + '<select class="js-input" id="mfGiao"><option value="http">' + esc(window.t("cs.mf_proto_http")) + '</option><option value="sse">SSE</option></select></details></div>'
+      + '<div id="mfCmdKhoi" hidden><label class="mcpf-nhan" for="mfCmd">' + esc(window.t("cs.mf_cmd")) + '</label>'
+      + '<input class="js-input" id="mfCmd" spellcheck="false" placeholder="' + esc(window.t("cs.mf_cmd_ph")) + '"></div>'
+      + '<div class="mcpf-nhan" id="mfKeyNhan"></div>'
+      + '<div class="mcpf-goi-y" id="mfKeyGoiY"></div>'
+      + '<div id="mfDongUrl" class="mcpf-ds"></div><div id="mfDongCmd" class="mcpf-ds" hidden></div>'
+      + '<button type="button" class="mp-btn mcpf-them" id="mfThemDong">' + ic("plus") + esc(window.t("cs.mf_add_row")) + '</button>'
+      + '<datalist id="mcpfGoiY">' + (P ? P.HEADER_GOI_Y : []).map(h => '<option value="' + esc(h) + '">').join("") + '</datalist>'
+      + '<div id="mfKq"></div>'
+      + '</div>', 0, true);
+    m.onclick = null;   // form có ô đang gõ key: bấm trượt ra nền KHÔNG được đóng mất chữ
+    const hop = m.querySelector(".mp-box");
+    const $ = (s) => m.querySelector(s);
+    const chan = pgChan(hop, '<span class="mp-note" id="mfErr"></span>'
+      + '<button class="mp-btn" data-act="close">' + esc(window.t("common.cancel")) + '</button>'
+      + '<button class="mp-btn primary" id="mfLuu">' + esc(window.t("cs.mf_save_test")) + '</button>');
+    let kieu = "url";
+    // Mỗi kiểu một khung dòng riêng, chỉ ẩn/hiện: đổi qua lại giữa URL và Lệnh không mất chữ đã gõ.
+    const box = () => $(kieu === "url" ? "#mfDongUrl" : "#mfDongCmd");
+
+    function ganDong(box) {
+      box.querySelectorAll(".mcpf-dong").forEach(d => {
+        d.querySelector("[data-xoa]").onclick = () => { d.remove(); capNhatGoiY(); };
+        d.querySelector("[data-eye]").onclick = () => {
+          const v = d.querySelector(".mcpf-v"); v.type = v.type === "password" ? "text" : "password";
+        };
+        const k = d.querySelector(".mcpf-k"), v = d.querySelector(".mcpf-v"), n = d.querySelector(".mcpf-nhac");
+        const soat = () => {
+          const thieu = kieu === "url" && P && P.thieuBearer(k.value, v.value);
+          n.hidden = !thieu;
+          if (thieu) n.textContent = window.t("cs.mf_bearer_hint");
+        };
+        k.oninput = soat; v.oninput = soat;
+      });
+    }
+    function veDong(cap) {
+      box().innerHTML = cap.map(x => dongKey(x[0], x[1])).join("");
+      ganDong(box());
+    }
+    function docDong() {
+      return Array.from(box().querySelectorAll(".mcpf-dong")).map(d => ({
+        k: d.querySelector(".mcpf-k").value.trim(), v: d.querySelector(".mcpf-v").value.trim(),
+        daLuu: !!d.querySelector(".mcpf-v").dataset.daluu,
+      }));
+    }
+    function capNhatGoiY() {
+      const ncc = kieu === "url" && P ? P.nhaCungCap($("#mfUrl").value.trim()) : null;
+      $("#mfKeyGoiY").textContent = ncc ? window.t("cs.mf_hint_" + ncc.ten, { h: ncc.header })
+        : window.t(kieu === "url" ? "cs.mf_hint_header" : "cs.mf_hint_env");
+    }
+    function datKieu(k) {
+      kieu = k;
+      m.querySelectorAll("[data-kieu]").forEach(b => b.setAttribute("aria-pressed", b.dataset.kieu === k ? "true" : "false"));
+      $("#mfUrlKhoi").hidden = k !== "url";
+      $("#mfCmdKhoi").hidden = k !== "stdio";
+      $("#mfDongUrl").hidden = k !== "url";
+      $("#mfDongCmd").hidden = k !== "stdio";
+      if (!box().children.length) veDong([["", false]]);
+      $("#mfKeyNhan").textContent = window.t(k === "url" ? "cs.mf_keys_header" : "cs.mf_keys_env");
+      capNhatGoiY();
+    }
+    m.querySelectorAll("[data-kieu]").forEach(b => b.onclick = () => datKieu(b.dataset.kieu));
+    $("#mfThemDong").onclick = () => {
+      box().insertAdjacentHTML("beforeend", dongKey("", false));
+      ganDong(box());
+      const ds = box().querySelectorAll(".mcpf-k"); ds[ds.length - 1].focus();
+    };
+    $("#mfUrl").oninput = () => {
+      if (P) $("#mfGiao").value = P.doanTransport($("#mfUrl").value.trim());
+      capNhatGoiY();
+    };
+
+    // Nạp một bản nháp (từ ô Dán hoặc từ kết nối đang sửa) vào form.
+    function napNhap(d, daLuuKeys) {
+      if (d.name && !$("#mfTen").value.trim()) $("#mfTen").value = d.name;
+      const la = d.transport === "stdio" ? "stdio" : "url";
+      datKieu(la);
+      if (la === "url") { $("#mfUrl").value = d.url || ""; $("#mfGiao").value = d.transport === "sse" ? "sse" : "http"; }
+      else $("#mfCmd").value = P ? P.ghepLenh(d.command, d.args) : [d.command].concat(d.args || []).join(" ");
+      const bang = la === "url" ? (d.headers || {}) : (d.env || {});
+      const cap = Object.keys(bang).map(k => [k, !!(daLuuKeys && daLuuKeys.includes(k))]);
+      veDong(cap.length ? cap : [["", false]]);
+      // Giá trị có sẵn trong khối dán (vd key đã nằm trong JSON) thì điền luôn.
+      box().querySelectorAll(".mcpf-dong").forEach(r => {
+        const k = r.querySelector(".mcpf-k").value;
+        if (bang[k]) r.querySelector(".mcpf-v").value = bang[k];
+      });
+      capNhatGoiY();
+    }
+
+    if (server) {
+      const la = server.transport === "stdio" ? "stdio" : (server.transport || "http");
+      napNhap({ name: server.label || server.name, transport: la, url: server.url || "",
+        command: server.command || "", args: server.args || [],
+        headers: Object.fromEntries((server.header_keys || []).map(k => [k, ""])),
+        env: Object.fromEntries((server.env_keys || []).map(k => [k, ""])) },
+        (server.header_keys || []).concat(server.env_keys || []));
+    } else {
+      datKieu("url");
+      const dan = $("#mfDan"), kq = $("#mfDanKq");
+      const thuDoc = () => {
+        const txt = dan.value.trim();
+        if (!txt) { kq.className = "mcpf-dan-kq"; kq.textContent = window.t("cs.mf_paste_hint"); return; }
+        const d = P ? P.docCauHinh(txt) : null;
+        if (!d) { kq.className = "mcpf-dan-kq loi"; kq.textContent = window.t("cs.mf_paste_bad"); return; }
+        $("#mfTen").value = "";
+        napNhap(d);
+        const n = Object.keys(d.transport === "stdio" ? d.env : d.headers).length;
+        kq.className = "mcpf-dan-kq ok";
+        kq.textContent = window.t(d.transport === "stdio" ? "cs.mf_paste_ok_cmd" : "cs.mf_paste_ok_url", { so: n });
+        // Còn ô key trống thì đưa con trỏ tới đó: bước duy nhất người dùng còn phải làm.
+        const trong = Array.from(box().querySelectorAll(".mcpf-v")).find(i => !i.value);
+        if (trong) trong.focus();
+      };
+      dan.oninput = () => { clearTimeout(dan._t); dan._t = setTimeout(thuDoc, 250); };
+    }
+
+    function baoKq(mau, tieu, chu) {
+      $("#mfKq").innerHTML = '<div class="pkm-canh ' + mau + '"><div class="pkm-canh-tieu">'
+        + ic(mau === "tin" ? "circle-check" : "triangle-alert") + esc(tieu) + '</div>'
+        + (chu ? '<div>' + esc(chu) + '</div>' : "") + '</div>';
+      $("#mfKq").scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+
+    const luu = $("#mfLuu"), err = $("#mfErr");
+    luu.onclick = async () => {
+      err.textContent = ""; $("#mfKq").innerHTML = "";
+      const name = $("#mfTen").value.trim();
+      if (!name) { err.textContent = window.t("cs.cn_mcp_need_name"); $("#mfTen").focus(); return; }
+      const body = { name: name, transport: kieu === "url" ? $("#mfGiao").value : "stdio" };
+      const dong = docDong().filter(x => x.k);
+      const bang = {};
+      for (const x of dong) {
+        if (!x.v && !x.daLuu) { err.textContent = window.t("cs.mf_need_val", { k: x.k }); return; }
+        bang[x.k] = x.v;   // rỗng + đã lưu = giữ giá trị cũ (server bỏ qua giá trị rỗng)
       }
-      $("#mSave").disabled = true; $("#mSave").textContent = window.t("settings.saving");
+      if (kieu === "url") {
+        body.url = $("#mfUrl").value.trim();
+        if (!/^https?:\/\//i.test(body.url)) { err.textContent = window.t("cs.mf_need_url"); $("#mfUrl").focus(); return; }
+        body.auth = "header"; body.headers = bang;
+        if (editId) body.env = {};
+      } else {
+        const tok = P ? P.tachLenh($("#mfCmd").value) : $("#mfCmd").value.trim().split(/\s+/).filter(Boolean);
+        if (!tok.length) { err.textContent = window.t("cs.mf_need_cmd"); $("#mfCmd").focus(); return; }
+        body.command = tok[0]; body.args = tok.slice(1); body.auth = "env"; body.env = bang;
+        body.url = "";
+        if (editId) body.headers = {};
+      }
+      luu.disabled = true; luu.textContent = window.t("settings.saving");
       let r;
-      if (edit) { body.id = server.id; r = await postJson("/mcp/update", body); }
-      else r = await postJson("/mcp/add", body);
-      if (!r.ok) { $("#mErr").textContent = r.error || window.t("app.err_cap"); $("#mSave").disabled = false; $("#mSave").textContent = window.t(edit ? "common.save" : "proj.add"); return; }
-      modal.classList.remove("open");
-      renderConnect(el);
+      if (editId) { body.id = editId; body.prune = true; r = await postJson("/mcp/update", body); }
+      else {
+        r = await postJson("/mcp/add", body);
+        // Lưu được thì từ đây form là form SỬA của kết nối vừa tạo: bấm Lưu lần nữa sau khi
+        // chữa key không được đẻ ra một bản trùng.
+        if (r && r.ok && r.id) {
+          editId = r.id;
+          box().querySelectorAll(".mcpf-v").forEach(i => { if (i.value) { i.dataset.daluu = "1"; } });
+        }
+      }
+      if (!r || !r.ok) {
+        luu.disabled = false; luu.textContent = window.t("cs.mf_save_test");
+        err.textContent = (r && r.error) || window.t("app.err_cap"); return;
+      }
+      luu.textContent = window.t("cs.cn_testing");
+      let t;
+      try { t = await postJson("/connect/test", { id: editId }); } catch (e) { t = { ok: false, error: String(e) }; }
+      try { await postJson("/connect/health/check", { id: editId }); } catch (e) { /* chỉ để đèn đổi màu */ }
+      luu.disabled = false; luu.textContent = window.t("cs.mf_save_test");
+      if (t && t.ok) {
+        baoKq("tin", window.t("cs.mf_ok", { so: t.tools || 0 }), "");
+        chan.querySelector("#mfLuu").textContent = window.t("common.close");
+        chan.querySelector("#mfLuu").onclick = () => { closeConnModal(); renderConnect(el); };
+        return;
+      }
+      baoKq("do", window.t("cs.mf_fail_head"), ((t && t.error) || "") + " " + window.t("cs.mf_fail_tail"));
+      chan.querySelector('[data-act="close"]').textContent = window.t("common.close");
+      chan.querySelector('[data-act="close"]').onclick = () => { closeConnModal(); renderConnect(el); };
     };
-    modal.classList.add("open");
+    setTimeout(() => { const f = $("#mfDan") || $("#mfTen"); if (f) f.focus(); }, 50);
   }
 
   // ---- Trang Kênh (Telegram) - form đầy đủ ----
