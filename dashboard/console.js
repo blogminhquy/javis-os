@@ -5601,7 +5601,9 @@
     }
     function capNhatGoiY() {
       const ncc = kieu === "url" && P ? P.nhaCungCap($("#mfUrl").value.trim()) : null;
-      $("#mfKeyGoiY").textContent = ncc ? window.t("cs.mf_hint_" + ncc.ten, { h: ncc.header })
+      // Khoá dịch viết tường minh cho từng nhà: ghép chuỗi động thì test i18n không soát được.
+      const HINT_NCC = { composio: "cs.mf_hint_composio" };
+      $("#mfKeyGoiY").textContent = ncc && HINT_NCC[ncc.ten] ? window.t(HINT_NCC[ncc.ten], { h: ncc.header })
         : window.t(kieu === "url" ? "cs.mf_hint_header" : "cs.mf_hint_env");
     }
     function datKieu(k) {
