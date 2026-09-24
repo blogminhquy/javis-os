@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.45] - 2026-09-24
 ### Cải thiện
-- Linh vật: đang làm.
+- **Trên điện thoại, linh vật to nhất là 100px** (150px trên điện thoại thử thấy quá to). Máy tính vẫn kéo được tới 150px; cùng một cài đặt, nên đặt lớn hơn 100px thì điện thoại vẫn hiện 100px.
 
 ## [0.64.44] - 2026-09-24
 ### Cải thiện

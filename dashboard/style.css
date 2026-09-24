@@ -3199,11 +3199,13 @@ body.ne-full-on .cview { z-index: 250; }
 /* Màn hẹp KHÔNG thu nhỏ pet nữa: ngón tay to hơn con trỏ chuột, và trên điện thoại một
    chấm bé còn khó thấy hơn trên màn rộng. Cỡ do người dùng chọn (trang Linh vật), chỉ giới
    hạn theo bề ngang màn để nó không chiếm nửa màn hình trên máy nhỏ.
-   TRẦN 40vw (0.64.42), không phải 24vw: 24vw trên điện thoại 412px là 99px, nên từ khi Kích
-   cỡ thành thanh trượt tới 150px thì kéo quá 100px trên điện thoại pet đứng im (chủ dự án báo
-   24/09). 40vw cho đủ 150px từ màn 375px trở lên, và pet nép mép thì chỉ lộ nửa người. */
+   TRẦN 100px CỐ ĐỊNH (0.64.45). Lịch sử: 24vw (khoảng 90-99px) -> 0.64.42 nới lên 40vw cho đủ
+   150px -> chủ dự án dùng thử rồi chốt 24/09: trên điện thoại 150px là QUÁ TO, quay về tối đa
+   100px. Để số px cố định chứ không theo vw, để trần là đúng 100px trên mọi điện thoại thay vì
+   90 ở máy này 99 ở máy kia. Máy tính vẫn kéo được tới CO_MAX (150px) như thường; thanh trượt
+   dùng chung một cấu hình cho mọi máy, nên đặt 130px thì điện thoại hiện 100px. */
 @media (max-width: 700px) {
-  .pet { width: min(var(--pet-size, 72px), 40vw); height: min(var(--pet-size, 72px), 40vw); }
+  .pet { width: min(var(--pet-size, 72px), 100px); height: min(var(--pet-size, 72px), 100px); }
   .pet-menu button { font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
