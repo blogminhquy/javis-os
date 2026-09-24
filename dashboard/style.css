@@ -991,8 +991,8 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   padding: 16px 18px; border-radius: 3px 12px 12px 12px;
   line-height: 1.75; font-size: 16px; max-width: 72ch; font-family: var(--font-chat);
 }
-.msg-javis .bubble strong { color: inherit; font-weight: 600; }
-.msg-javis .bubble code { font-family: var(--mono); font-size: 13.5px; background: var(--surface-2); padding: 2px 5px; border-radius: 4px; color: var(--text); }
+.msg-javis .bubble strong { color: var(--accent); font-weight: 600; }
+.msg-javis .bubble code { font-family: var(--mono); font-size: 13.5px; background: var(--surface-2); padding: 2px 5px; border-radius: 4px; color: var(--accent2-ink); }
 
 /* Link/URL dài trong tin nhắn: ngắt dòng theo khung thay vì tràn ra ngoài (vd link Google Docs
    dài không có khoảng trắng). Áp cho cả bubble và thẻ <a> bên trong. */
