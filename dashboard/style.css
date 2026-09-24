@@ -1434,6 +1434,14 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 }
 .attach-chip .chip-x:hover { color: var(--red); }
 .attach-chip.uploading { opacity: 0.6; }
+/* Chip tải hỏng: viền đỏ nhạt + nút tải lại, để thấy ngay file nào chưa lên (0.64.43). */
+.attach-chip.loi { border-color: var(--red); }
+.attach-chip.loi .chip-meta { color: var(--red); }
+.attach-chip .chip-retry {
+  background: none; border: none; color: var(--accent, var(--text2)); cursor: pointer;
+  font-size: 16px; padding: 4px; flex-shrink: 0; min-width: 32px; min-height: 32px;
+}
+.attach-chip .chip-retry:hover { color: var(--text); }
 /* Dòng nhắc dưới các chip (file chưa tải lên được): chiếm trọn một hàng để không chen vào chip. */
 .attach-bar .attach-note { flex-basis: 100%; font-size: 13px; color: var(--warn-ink, #b45309); }
 /* Chip FILE ĐANG MỞ (ghim): phải nhìn ra ngay là khác đính kèm một lần - nó sống qua nhiều

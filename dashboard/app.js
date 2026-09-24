@@ -2801,7 +2801,7 @@ function renderChips() {
   }
   pendingAttachments.forEach((a, i) => {
     const chip = document.createElement("div");
-    chip.className = "attach-chip" + (a.uploading ? " uploading" : "");
+    chip.className = "attach-chip" + (a.uploading ? " uploading" : "") + (a.loi ? " loi" : "");
     // Ảnh vừa dán/chọn cũng phải BẤM PHÓNG TO được ngay ở thanh đính kèm - trước đây ô này
     // là ảnh chết, muốn xem cho rõ phải gửi đi rồi mở lại. Ưu tiên URL trên máy chủ (tải xong),
     // lúc còn đang tải thì tạm dùng blob để không phải chờ mới thấy hình.
@@ -2816,7 +2816,10 @@ function renderChips() {
     const meta = a.uploading
       ? (a.statusText || window.t("app.att_processing"))
       : (a.statusText ? a.statusText : (fmtSize(a.size) + (a.folder ? ` → ${escapeHtml(a.folder)}` : "")));
-    chip.innerHTML = `${thumb}<div class="chip-info"><span class="chip-name">${escapeHtml(a.name)}</span><span class="chip-meta">${meta}</span></div><button class="chip-x" data-i="${i}">${ic("x")}</button>`;
+    const _nutTaiLai = (a.loi && a.file && !a.uploading)
+      ? `<button class="chip-retry" data-i="${i}" title="${escapeHtml(window.t("app.att_retry"))}" aria-label="${escapeHtml(window.t("app.att_retry"))}">${ic("rotate-cw")}</button>`
+      : "";
+    chip.innerHTML = `${thumb}<div class="chip-info"><span class="chip-name">${escapeHtml(a.name)}</span><span class="chip-meta">${meta}</span></div>${_nutTaiLai}<button class="chip-x" data-i="${i}">${ic("x")}</button>`;
     attachBar.appendChild(chip);
   });
   if (attachNote) {
@@ -2825,6 +2828,8 @@ function renderChips() {
     note.textContent = attachNote;
     attachBar.appendChild(note);
   }
+  attachBar.querySelectorAll(".chip-retry").forEach(b =>
+    b.addEventListener("click", () => taiLaiDinhKem(+b.dataset.i)));
   attachBar.querySelectorAll(".chip-x").forEach(b =>
     b.addEventListener("click", () => {
       if (b.dataset.unpin) JavisPin.clear();
@@ -2881,19 +2886,71 @@ function clearAttachments() {
   renderChips();
 }
 
-async function uploadFile(file) {
+// Tải file lên khung chat. Chủ repo báo 2026-09-24: "thi thoảng gửi ảnh hoặc file lên nó cứ
+// bị quay mãi", không biết do máy chủ hay do mạng nhà mình. Bản cũ dùng một `fetch` trơn: chip
+// chỉ ghi "đang tải..." không có số nào, kết nối chết giữa đường (Wi-Fi chuyển sóng, proxy giữ
+// kết nối cũ đã đứt) thì cứ quay đủ 3 phút mới chịu báo lỗi, và báo xong thì phải gỡ ra đính lại.
+// Nay:
+//   1. Chip hiện PHẦN TRĂM đã gửi, và tách hẳn hai khúc: "đang gửi 45%" (việc của mạng) với
+//      "máy chủ đang lưu" (việc của máy chủ). Nhìn là biết kẹt ở đâu.
+//   2. Canh KẸT thay cho trần cứng 3 phút: file to trên mạng chậm vẫn đi hết miễn còn nhích;
+//      còn đứng im TAI_KET_MS không nhích byte nào thì cắt và TỰ THỬ LẠI (tối đa TAI_THU_LAI lần).
+//   3. Hỏng hẳn thì chip có nút tải lại, bấm là gửi lại đúng file đó, không phải chọn lại.
+const TAI_KET_MS = 30000;        // đứng im bao lâu (không nhích byte nào) thì coi là kết nối chết
+const TAI_CHO_MAY_CHU_MS = 90000; // gửi xong 100% mà máy chủ im bao lâu thì thôi
+const TAI_THU_LAI = 2;           // số lần tự thử lại khi mạng đứt/đứng (ngoài lần đầu)
+
+// Một lượt POST /upload bằng XHR (fetch không cho biết tiến độ GỬI lên). Trả Promise
+// {status, text}; lỗi thì reject Error có `kind`: "stall" (mạng đứng giữa chừng), "server"
+// (gửi xong mà máy chủ không trả lời), "net" (đứt kết nối). `XHR` và `dongHo` truyền vào được
+// để test chạy không cần trình duyệt.
+function guiUpload(fd, onTien, opt) {
+  opt = opt || {};
+  const XHR = opt.XHR || XMLHttpRequest;
+  const dongHo = opt.dongHo || { now: () => Date.now(), setInterval, clearInterval };
+  const ketMs = opt.ketMs || TAI_KET_MS, choMs = opt.choMs || TAI_CHO_MAY_CHU_MS;
+  return new Promise((resolve, reject) => {
+    const xhr = new XHR();
+    let moc = dongHo.now(), guiXong = false, xong = false, ly = null;
+    const ket = (loai) => { if (xong) return; ly = loai; try { xhr.abort(); } catch (e) {} };
+    const canh = dongHo.setInterval(() => {
+      const im = dongHo.now() - moc;
+      if (!guiXong && im > ketMs) ket("stall");
+      else if (guiXong && im > choMs) ket("server");
+    }, 2000);
+    const het = (fn, v) => { if (xong) return; xong = true; dongHo.clearInterval(canh); fn(v); };
+    const loi = (loai) => { const e = new Error(loai); e.kind = loai; return e; };
+    xhr.upload.onprogress = (e) => {
+      moc = dongHo.now();
+      if (onTien && e.lengthComputable) onTien(e.loaded, e.total);
+    };
+    xhr.upload.onload = () => { guiXong = true; moc = dongHo.now(); if (onTien) onTien(-1, -1); };
+    xhr.onload = () => het(resolve, { status: xhr.status, text: xhr.responseText });
+    xhr.onerror = () => het(reject, loi("net"));
+    xhr.onabort = () => het(reject, loi(ly || "net"));
+    xhr.open("POST", "/upload");
+    xhr.send(fd);
+  });
+}
+
+async function uploadFile(file, att) {
   const isImg = file.type.startsWith("image/");
   let _xong = null;
-  const att = {
-    name: file.name || "paste.png",
-    kind: isImg ? "image" : "file",
-    preview: isImg ? URL.createObjectURL(file) : null,
-    uploading: true, statusText: window.t("app.att_uploading"), path: null, size: file.size,
-    sources: null, attachments: null,
-  };
+  const moi = !att;
+  if (moi) {
+    att = {
+      name: file.name || "paste.png",
+      kind: isImg ? "image" : "file",
+      preview: isImg ? URL.createObjectURL(file) : null,
+      path: null, size: file.size, sources: null, attachments: null,
+    };
+  }
+  // Giữ lại chính File để nút "tải lại" trên chip gửi lại được mà không phải chọn lại.
+  att.file = file;
+  att.uploading = true; att.loi = false; att.statusText = window.t("app.att_uploading");
   // Lời hứa "tải xong" (thành hay hỏng đều xong) để sendMessage đợi được thay vì gửi thiếu.
   att.xong = new Promise(r => { _xong = r; });
-  pendingAttachments.push(att);
+  if (moi) pendingAttachments.push(att);
   attachNote = "";
   renderChips();
   try {
@@ -2904,38 +2961,72 @@ async function uploadFile(file) {
     if (_xong) _xong();
   }
 }
+function _mb(b) { return (b / 1048576).toFixed(1).replace(/\.0$/, ""); }
 async function _taiLen(file, att) {
-  try {
-    // Chỉ STAGE để Javis đọc - KHÔNG tự convert/lưu. Lưu Sources chỉ khi user yêu cầu.
+  // Chỉ STAGE để Javis đọc - KHÔNG tự convert/lưu. Lưu Sources chỉ khi user yêu cầu.
+  let ve = 0;
+  const onTien = (daGui, tong) => {
+    if (daGui < 0) att.statusText = window.t("app.att_saving");
+    else {
+      const pct = tong ? Math.min(99, Math.floor(daGui * 100 / tong)) : 0;
+      att.statusText = tong >= 1048576
+        ? window.t("app.att_progress_mb", { pct, done: _mb(daGui), total: _mb(tong) })
+        : window.t("app.att_progress", { pct });
+    }
+    // progress nổ dày đặc; vẽ lại chip tối đa 4 lần/giây là đủ mắt thấy nhích.
+    const bay = Date.now();
+    if (daGui < 0 || bay - ve > 250) { ve = bay; renderChips(); }
+  };
+  for (let lan = 0; ; lan++) {
     const fd = new FormData();
     fd.append("file", file, att.name);
     fd.append("brain", currentBrainPath());
-    // Timeout rộng (3 phút) cho file lớn/mạng chậm; báo lỗi CỤ THỂ để dễ chẩn đoán trên VPS.
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 180000);
     let resp;
     try {
-      resp = await fetch("/upload", { method: "POST", body: fd, signal: ctrl.signal });
-    } finally {
-      clearTimeout(timer);
+      resp = await guiUpload(fd, onTien);
+    } catch (e) {
+      const kind = (e && e.kind) || "net";
+      // Mạng đứng/đứt thì tự thử lại (máy chủ có lưu dở cũng vô hại: mỗi lần là một tên
+      // file tạm riêng). Máy chủ im sau khi đã nhận đủ thì KHÔNG thử lại vòng vòng.
+      if (kind !== "server" && lan < TAI_THU_LAI) {
+        att.statusText = window.t("app.att_retrying", { n: lan + 2 });
+        renderChips();
+        await new Promise(r => setTimeout(r, 1500 * (lan + 1)));
+        continue;
+      }
+      att.loi = true;
+      att.statusText = kind === "server" ? window.t("app.att_server_slow")
+        : kind === "stall" ? window.t("app.att_stalled") : window.t("app.err_net_low");
+      return;
     }
-    if (!resp.ok) { att.uploading = false; att.statusText = window.t("app.att_server_err", { code: resp.status }); renderChips(); return; }
-    const up = await resp.json();
-    if (!up.ok) { att.uploading = false; att.statusText = up.error ? (window.t("app.err_low") + ": " + up.error) : window.t("app.att_upload_err"); renderChips(); return; }
+    if (resp.status < 200 || resp.status >= 300) {
+      att.loi = true;
+      att.statusText = window.t("app.att_server_err", { code: resp.status });
+      return;
+    }
+    let up = null;
+    try { up = JSON.parse(resp.text); } catch (e) {}
+    if (!up || !up.ok) {
+      att.loi = true;
+      att.statusText = up && up.error ? (window.t("app.err_low") + ": " + up.error) : window.t("app.att_upload_err");
+      return;
+    }
     att.path = up.staged; att.name = up.name; att.size = up.size; att.kind = up.kind;
     att.url = up.url || "";   // đường xem lại trên máy chủ (bong bóng chat dùng, không phải blob)
     att.sources = up.sources; att.attachments = up.attachments;
-    att.uploading = false; att.statusText = "";
-  } catch (e) {
-    att.uploading = false;
-    att.statusText = (e && e.name === "AbortError") ? window.t("app.att_timeout") : window.t("app.err_net_low");
+    att.statusText = "";
+    return;
   }
-  renderChips();
+}
+function taiLaiDinhKem(i) {
+  const a = pendingAttachments[i];
+  if (!a || a.uploading || !a.file) return;
+  uploadFile(a.file, a);
 }
 
 document.getElementById("attachBtn").addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => {
-  [...fileInput.files].forEach(uploadFile);
+  [...fileInput.files].forEach(f => uploadFile(f));
   fileInput.value = "";
 });
 
@@ -2992,7 +3083,7 @@ window.addEventListener("drop", (e) => {
   dragDepth = 0; dropOverlay.classList.remove("show");
   if (inLocalDrop(e)) return;   // chỗ kia đã preventDefault + chặn bọt, không đụng vào
   e.preventDefault();
-  if (e.dataTransfer?.files) [...e.dataTransfer.files].forEach(uploadFile);
+  if (e.dataTransfer?.files) [...e.dataTransfer.files].forEach(f => uploadFile(f));
 });
 
 // ============================================
