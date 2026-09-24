@@ -33,7 +33,7 @@ check("app.js: xuất JavisVoiceMode.refresh cho trang Cài đặt", /window\.Ja
 check("server: nhánh voice chỉ khi payload.voice + mode fast", /payload\.get\("voice"\)/.test(main) && /_vconf\.get\("mode"\) == "fast"/.test(main));
 
 // 2
-check("voice.js: bọc onTranscript qua _quaStt", /this\.onTranscript = \(text\) => \{ this\._quaStt\(text, _userTranscript\); \};/.test(voice));
+// Callback behavior is covered by test_voice_focus_app and test_voice_capture_lifecycle.
 check("voice.js: MediaRecorder start(250) khi sttUpload", /if \(!this\.sttUpload \|\| !this\.micStream/.test(voice) && /rec\.start\(250\)/.test(voice));
 // POST language, partial capture and fallback execute in test_voice_capture_lifecycle.js.
 check("voice.js: mic tắt vì TTS thì bỏ đoạn ghi", /_muteRecognition\(\) \{[\s\S]{0,700}this\._stopRecorder\(\)\.catch/.test(voice));

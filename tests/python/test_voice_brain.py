@@ -172,10 +172,10 @@ async def main():
     # ---- 4. sổ phiên ----
     conf = vb.config_from_settings({"voice": {"mode": "fast", "brain_provider": "groq", "brain_model": "m1"},
                                     "model": {"groq_api_key": "gk"}})
-    # loc_tap_am: cửa tạp âm, mặc định BẬT khi settings chưa có khoá (xem test_voice_tap_am.py).
+    # Legacy text-only noise filtering is retired; accepted speech is preserved.
     check("config_from_settings: lấy đúng key theo provider",
           conf == {"mode": "fast", "provider": "groq", "model": "m1", "api_key": "gk",
-                   "loc_tap_am": True})
+                   "loc_tap_am": False})
     b1 = await vb.get_brain("s1", conf)
     b2 = await vb.get_brain("s1", conf)
     check("get_brain: cùng phiên dùng lại", b1 is b2 and vb.active_count() == 1)

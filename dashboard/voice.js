@@ -45,6 +45,7 @@ class JavisVoice {
 
   constructor(opts = {}) {
     this.lang = opts.lang || "vi-VN";
+    this.inputOnly = !!opts.inputOnly;
     // Đa ngôn ngữ (ô "Ngôn ngữ nghe" = auto): không cố định tiếng nào. this.lang vẫn giữ mã
     // cụ thể gần nhất cho phần ĐỌC; chỉ phần NGHE mới bỏ ghim (xem setRecognitionLang).
     this.langAuto = false;
@@ -59,6 +60,7 @@ class JavisVoice {
     this._sttControllers = new Set();
     this._sttDelivery = Promise.resolve();
     this._micEpoch = 0;
+    this._captureWaiters = new Set();
 
     this.recognition = null;
     this.synth = window.speechSynthesis;
@@ -121,7 +123,14 @@ class JavisVoice {
     this._rec = null;
     this._recChunks = [];
     const _userTranscript = this.onTranscript;
-    this.onTranscript = (text) => { this._quaStt(text, _userTranscript); };
+    this.onTranscript = (text) => {
+      // Decide on the raw utterance before any optional upload, send or persistence.
+      if (opts.acceptTranscript && !opts.acceptTranscript(text)) {
+        this._stopRecorder().catch(() => {});
+        return;
+      }
+      this._quaStt(text, _userTranscript);
+    };
 
     // Audio analysis - cho hiệu ứng phát sáng theo âm thanh
     this.audioCtx = null;
@@ -131,7 +140,7 @@ class JavisVoice {
     this._freqData = new Uint8Array(64);
 
     this._initRecognition();
-    this._loadVoices();
+    if (!opts.inputOnly) this._loadVoices();
   }
 
   _ensureCtx() {
@@ -144,6 +153,7 @@ class JavisVoice {
   }
 
   async _startMicMeter() {
+    if (this.inputOnly) return; // wake-only recognition needs no second capture or TTS graph
     const epoch = this._micEpoch;
     try {
       const ctx = this._ensureCtx();
@@ -409,6 +419,7 @@ class JavisVoice {
       }
       this.isListening = false;
       this._recognitionStarted = false;
+      for (const done of this._captureWaiters) done(true);
       clearTimeout(this._silenceTimer);
       // Gửi toàn bộ text đã tích luỹ khi user dừng. Đuôi chữ tạm chưa được chốt final thì
       // ghép vào (iOS không bao giờ chốt; Chrome hiếm khi để sót), cùng phép ghép chống lặp
@@ -626,6 +637,15 @@ class JavisVoice {
   }
 
   // Rời phiên / đổi chế độ / Escape: kết quả đang chờ không được gửi vào hội thoại mới.
+  waitForCaptureEnd() {
+    if (!this.isListening && !this._starting && !this._stopping) return Promise.resolve(true);
+    return new Promise(resolve => {
+      const done = ok => { clearTimeout(timer); this._captureWaiters.delete(done); resolve(ok); };
+      const timer = setTimeout(() => done(false), 2000);
+      this._captureWaiters.add(done);
+    });
+  }
+
   // stopListening vẫn CHỐT câu (thả Space); cancelListening HỦY câu và nhả tài nguyên.
   cancelListening() {
     this._sttEpoch++;

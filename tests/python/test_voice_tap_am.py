@@ -1,20 +1,4 @@
-"""Cửa TẠP ÂM của lượt nói (0.59.28).
-
-    python tests/run.py tap_am
-
-Mic bật liên tục nên tiếng TV, người khác trong phòng hay tiếng lẩm bẩm cũng được chép thành
-chữ rồi chốt thành một lượt (chủ dự án 17/09 gửi ảnh một lượt dài cả trang, lẫn tiếng TV, mà
-mãi cuối mới có câu hỏi thật). Bộ não giọng vốn đã đọc mọi lượt để viết dòng JAVIS_NGHE nên nó
-xét luôn: cắt phần tạp âm ngay trong dòng ấy, còn cả lượt không có gì nói với Javis thì trả
-đúng một dòng JAVIS_BO_QUA. Khoá:
-  1. parse_bo_qua: có/không marker, lý do rỗng vẫn là bỏ, marker không ở dòng đầu vẫn bắt được.
-  2. split_speakable: dòng JAVIS_BO_QUA KHÔNG BAO GIỜ ra loa, cả lúc stream lẫn lúc final.
-  3. SYSTEM_PROMPT dặn cắt tạp âm và dặn DÈ DẶT; GHI_CHU_TAT_LOC cấm dùng marker.
-  4. config_from_settings: lọc MẶC ĐỊNH BẬT (brain cũ chưa có khoá), tắt được bằng False.
-  5. pop_last_message: xoá đúng tin cuối đúng vai, trừ cả msg_count, sai vai thì không xoá gì.
-  6. main.py có đủ dây: ô loc_tap_am ở POST /settings, ở GET /voice/options, và nhánh bỏ lượt
-     trong run_voice_turn (xoá kho phiên + bắn user_text bo_qua).
-"""
+"""Legacy noise-marker compatibility, conservative prompt and focus-setting wiring."""
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import os
 import tempfile
@@ -56,22 +40,14 @@ check("đang stream: chưa biết là marker thì giữ lại, không đọc",
 check("bỏ lượt sau một dòng khác: chỉ dòng kia ra loa",
       vb.split_speakable("Ừ.\nJAVIS_BO_QUA: tiếng TV\n", 0, True)[0] == ["Ừ.\n"])
 
-# ---- 3. Lời dặn trong prompt ----
-check("prompt dặn cắt tạp âm khỏi dòng nghe", "TẠP ÂM" in vb.SYSTEM_PROMPT)
-check("prompt có khuôn dòng bỏ lượt", vb.BO_QUA_MARKER in vb.SYSTEM_PROMPT)
-# Chủ dự án chốt 17/09: lượt tạp âm bị ẨN HẲN, không để lại bong bóng nào. Nên bỏ NHẦM là
-# người dùng nói mà không có gì xảy ra. Lời dặn phải nghiêng hẳn về giữ.
-check("prompt dặn DÈ DẶT, nghi thì giữ", "DÈ DẶT" in vb.SYSTEM_PROMPT)
-check("ghi chú tắt lọc cấm dùng marker",
+# Text alone cannot identify the speaker. Legacy markers are still parsed/suppressed,
+# but the model no longer has permission to delete accepted user speech.
+check("prompt forbids guessing noise", "Không đoán tiếng TV" in vb.SYSTEM_PROMPT)
+check("per-turn guard protects running brains with old prompts",
       vb.BO_QUA_MARKER in vb.GHI_CHU_TAT_LOC and "không cắt bỏ" in vb.GHI_CHU_TAT_LOC)
-
-# ---- 4. Mặc định bật ----
-check("brain cũ chưa có khoá -> vẫn lọc",
-      vb.config_from_settings({"voice": {}})["loc_tap_am"] is True)
-check("tắt được bằng False",
-      vb.config_from_settings({"voice": {"loc_tap_am": False}})["loc_tap_am"] is False)
-check("True vẫn là bật",
-      vb.config_from_settings({"voice": {"loc_tap_am": True}})["loc_tap_am"] is True)
+for value in (None, False, True):
+    check(f"legacy setting {value} cannot enable model noise deletion",
+          vb.config_from_settings({"voice": {"loc_tap_am": value}})["loc_tap_am"] is False)
 
 # ---- 5. Xoá tin cuối khỏi kho phiên ----
 _db = os.path.join(tempfile.mkdtemp(prefix="javis-tapam-db-"), "sessions.db")
@@ -98,13 +74,10 @@ MAIN = (SERVER / "main.py").read_text(encoding="utf-8")
 # Bẫy đã cắn hai lần (locale, Voice V2): POST /settings dùng allowlist TỪNG KEY, thêm ô mới
 # mà quên nhánh này thì nút báo "Đã lưu" nhưng F5 là mất sạch.
 check("POST /settings nhận ô loc_tap_am", '"loc_tap_am" in patch' in MAIN)
-check("GET /voice/options trả ô loc_tap_am", "loc_tap_am=v.get(\"loc_tap_am\") is not False" in MAIN)
-check("run_voice_turn có cửa tạp âm", "voice_brain.parse_bo_qua(text)" in MAIN)
-# Actual deletion and stale-turn protection are exercised by test_voice_turn_integrity.py.
-check("bỏ lượt thì báo khung chat gỡ bong bóng", '"bo_qua": True' in MAIN)
-# Tắt ô thì KHÔNG được bỏ lượt, kể cả khi model vẫn trả marker.
-check("tắt lọc thì không xét marker", 'if conf.get("loc_tap_am", True) else None' in MAIN)
-check("tắt lọc thì dặn model theo từng lượt", "voice_brain.GHI_CHU_TAT_LOC" in MAIN)
+check("settings accepts focus_mode", '\"focus_mode\" in patch' in MAIN)
+check("focus defaults on independently of retired text filtering", 'focus_mode=v.get("focus_mode") is not False' in MAIN)
+# Deletion prohibition is exercised against production handler/SQLite in test_voice_turn_integrity.
+check("guard sent on every turn", "voice_brain.GHI_CHU_TAT_LOC" in MAIN)
 
 # ---- 7. Trần một lượt nói và dây phía trình duyệt ----
 VOICE_JS = (ROOT / "dashboard" / "voice.js").read_text(encoding="utf-8")
@@ -116,7 +89,7 @@ APP_JS = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
 check("app.js để lại dòng ghi chú thoáng qua", 'ghiChuThoang(window.t("app.tap_am_bo_qua"))' in APP_JS)
 CONSOLE_JS = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 check("trang Cài đặt có ô gạt", 'id="v2LocTapAm"' in CONSOLE_JS)
-check("ô gạt được gửi lên khi bấm Lưu", 'loc_tap_am: $("v2LocTapAm").checked' in CONSOLE_JS)
+check("ô gạt được gửi lên khi bấm Lưu", 'focus_mode: $("v2LocTapAm").checked' in CONSOLE_JS)
 
 print()
 if _fails:

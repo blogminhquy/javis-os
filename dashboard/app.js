@@ -124,14 +124,17 @@ function setOrbState(state, label) {
 // ============================================
 // Voice
 // ============================================
+const attention = new window.JavisVoiceAttention.Attention();
 const voice = new JavisVoice({
   lang: "vi-VN",
+  acceptTranscript: (text) => !handsFree || attention.accept(text),
   onStart: () => {
     voiceBtn.classList.add("recording");
     nhapGiong("");
     runActions(turn.micOn());
   },
   onInterim: (text) => {
+    if (handsFree && !attention.preview(text)) { nhapGiong(""); return; }
     nhapGiong(text);
     // Đang tạm dừng vì nghi chen ngang mà có chữ -> chen ngang THẬT: đạo diễn trả stop_tts.
     // Đọc phần Javis đã đọc ra tiếng TRƯỚC khi dừng, để tin kế tiếp mang ngắt_lời=.
@@ -291,7 +294,9 @@ const ORB_LABEL = {
 function capNhatOrb() {
   let [cls, key] = ORB_LABEL[turn.state] || ORB_LABEL.idle;
   let label;
-  if (voice.isTranscribing && !voice.isListening && !voice.isSpeaking()) {
+  if (handsFree && attention.waiting()) {
+    cls = "waiting"; label = window.t("app.voice_focus_waiting");
+  } else if (voice.isTranscribing && !voice.isListening && !voice.isSpeaking()) {
     cls = "thinking"; label = window.t("app.orb_transcribing");
   } else if (turn.state === "listening" || turn.state === "user_speaking") {
     label = handsFree ? window.t("app.orb_listening_always") : window.t("app.orb_listening");
@@ -355,7 +360,9 @@ async function napCaiDatGiong() {
   try {
     const s = await (await fetch("/settings")).json();
     const v = (s && s.voice) || {};
-    if (voiceMode !== (v.mode || "standard") || voice.sttUpload !== (v.stt_provider === "groq")) tatRanhTay();
+    const focused = v.focus_mode !== false;
+    if (voiceMode !== (v.mode || "standard") || voice.sttUpload !== (v.stt_provider === "groq") || attention.enabled !== focused) tatRanhTay();
+    attention.enabled = focused;
     voiceMode = v.mode || "standard";
     voice.sttUpload = v.stt_provider === "groq";
   } catch (e) {}
@@ -367,6 +374,63 @@ window.JavisVoiceMode = { refresh: napCaiDatGiong, get: () => voiceMode };
 // vào khung chat như tin thường; orb theo cùng đạo diễn (nói / nghe / gọi tool).
 let _liveUserBubble = null, _liveJavisText = "", _liveJavisBubble = null, _liveCtxTimer = null;
 let _liveStartSeq = 0;
+let _liveWaitingWake = false, _liveBusyUntil = 0;
+let _liveToolCount = 0;
+// Only one capture is alive: Live is closed before this free browser listener starts.
+const liveWake = new JavisVoice({
+  lang: "vi-VN",
+  inputOnly: true,
+  endpointDelay: text => turn.delayFor(text),
+  onInterim: () => {},
+  onTranscript: text => {
+    if (!_liveWaitingWake || !handsFree || voiceMode !== "live" || !attention.accept(text)) return;
+    resumeVoiceFocus(text);
+  },
+  onError: () => updateVoiceFocus(),
+});
+
+function updateVoiceFocus() {
+  const button = document.getElementById("voiceFocusResume");
+  if (!button) return;
+  button.hidden = !handsFree || !attention.waiting();
+  const wakeAvailable = voiceMode !== "live" || (liveWake.isSupported() && !liveWake.micHong());
+  button.textContent = window.t(wakeAvailable ? "app.voice_focus_waiting" : "app.voice_focus_click");
+  voiceBtn.classList.toggle("focus-waiting", !button.hidden);
+}
+
+function resumeVoiceFocus(text = "") {
+  if (!handsFree) return;
+  // A click must not commit the ambient utterance already buffered while waiting.
+  if (voiceMode !== "live") voice.cancelListening();
+  attention.start();
+  if (_liveWaitingWake) {
+    _liveWaitingWake = false;
+    liveWake.cancelListening();
+    batLive(text);
+  } else if (voiceMode !== "live") {
+    voice.startListening();
+  }
+  updateVoiceFocus(); capNhatOrb();
+}
+
+function tickVoiceFocus() {
+  if (!handsFree) return;
+  // Only foreground replies prolong an already-open conversation. A background notification
+  // cannot reopen it; stale processing is bounded for Live providers without turn_done.
+  const busy = voiceMode === "live"
+    ? !_liveWaitingWake && (Date.now() < _liveBusyUntil || _liveToolCount > 0 || (window.JavisVoiceLive && window.JavisVoiceLive.isSpeaking()))
+    : isProcessing || voice.isSpeaking() || voice.isTranscribing;
+  if (busy) attention.keepActive();
+  if (attention.waiting() && voiceMode === "live" && !_liveWaitingWake) {
+    _liveWaitingWake = true;
+    tatLive(); // close the provider BEFORE listening for a wake word
+    liveWake.setRecognitionLang(voice.lang);
+  }
+  if (_liveWaitingWake && liveWake.isSupported() && !liveWake.micHong() && !liveWake.isListening && !liveWake.isTranscribing) {
+    liveWake.startListening(true);
+  }
+  updateVoiceFocus(); capNhatOrb();
+}
 // Ngữ cảnh giao diện vào phiên Live (GPT-Live gọi là "share UI context"): cùng khối V1 gửi cho
 // bộ não chính, đẩy khi ĐỔI (sendContext tự lọc trùng), dò 1,5 s một lần trong lúc mic mở.
 function guiNguCanhLive() {
@@ -376,9 +440,16 @@ function guiNguCanhLive() {
     window.JavisVoiceLive.sendContext(ctx);
   } catch (e) {}
 }
-async function batLive() {
+async function batLive(wakeText = "") {
   if (!window.JavisVoiceLive) { alert(window.t("app.live_missing")); return false; }
   const ticket = ++_liveStartSeq;
+  // Web Speech abort is asynchronous. On phones, wait until it actually releases capture.
+  const released = await liveWake.waitForCaptureEnd();
+  if (ticket !== _liveStartSeq || !handsFree) return false;
+  if (!released) { tatRanhTay(); appendJavisError(window.t("app.voice_focus_mic_busy")); return false; }
+  let pendingWake = wakeText, readySeen = false;
+  _liveToolCount = 0;
+  _liveBusyUntil = Date.now() + 120000; // bounded setup, cleared by the first ready
   _liveJavisText = ""; _liveJavisBubble = null;
   const ok = await window.JavisVoiceLive.start({
     sessionId: () => savedSessionId,
@@ -388,14 +459,37 @@ async function batLive() {
       voiceBtn.classList.add("recording"); runActions(turn.micOn());
       clearInterval(_liveCtxTimer); _liveCtxTimer = setInterval(guiNguCanhLive, 1500); guiNguCanhLive();
     },
-    onStopped: () => { clearInterval(_liveCtxTimer); _liveCtxTimer = null; nhapGiong(""); _liveJavisText = ""; _liveJavisBubble = null; voiceBtn.classList.remove("recording"); runActions(turn.micOff()); },
-    onReady: (d) => { if (d && d.session_id && !savedSessionId) { savedSessionId = d.session_id; persistSession(); } },
+    onStopped: () => {
+      clearInterval(_liveCtxTimer); _liveCtxTimer = null; nhapGiong("");
+      if (_liveJavisText.trim()) recordTurn("javis", _liveJavisText.trim(), null, null);
+      if (_theoLoi && _theoLoi.live) ketThucTheoLoi(true);
+      _liveJavisText = ""; _liveJavisBubble = null;
+      voiceBtn.classList.remove("recording"); runActions(turn.micOff());
+    },
+    onReady: (d) => {
+      if (ticket !== _liveStartSeq || !handsFree) return;
+      if (!readySeen) { readySeen = true; _liveBusyUntil = 0; attention.keepActive(); }
+      if (d && d.session_id && !savedSessionId) { savedSessionId = d.session_id; persistSession(); }
+      if (pendingWake) {
+        const text = pendingWake; pendingWake = ""; // some providers emit ready twice
+        window.JavisVoiceLive.sendText(text);
+        appendUserMessage(text, []); recordTurn("user", text, []);
+        _liveBusyUntil = Date.now() + 120000;
+      }
+    },
     onSpeakStart: () => runActions(turn.ttsStart()),
-    onSpeakEnd: () => runActions(turn.ttsEnd()),
-    onInterrupted: () => { ketThucTheoLoi(true); _liveJavisText = ""; _liveJavisBubble = null; },
-    onTool: (name, status) => { if (status === "running") runActions(turn.toolCall(name)); else runActions(turn.turnDone()); },
+    onSpeakEnd: () => { _liveBusyUntil = 0; attention.keepActive(); runActions(turn.ttsEnd()); },
+    onInterrupted: () => { ketThucTheoLoi(true); attention.keepActive(); _liveBusyUntil = Date.now() + 120000; _liveJavisText = ""; _liveJavisBubble = null; },
+    onTool: (name, status) => {
+      // A running tool is real work, not idle: only done/connection close/user stop may
+      // release it. An arbitrary idle timeout must not cancel a legitimate long task.
+      if (status === "running") _liveToolCount++;
+      else { _liveToolCount = Math.max(0, _liveToolCount - 1); attention.keepActive(); }
+      if (status === "running") runActions(turn.toolCall(name)); else runActions(turn.turnDone());
+    },
     onTranscript: (role, text, final) => {
       if (role === "user") {
+        if (text.trim()) { attention.keepActive(); _liveBusyUntil = Date.now() + 120000; }
         if (final && text.trim()) { nhapGiong(""); appendUserMessage(text.trim(), []); recordTurn("user", text.trim(), []); }
         else nhapGiong(text);
         return;
@@ -406,16 +500,18 @@ async function batLive() {
       else { _liveJavisBubble.querySelector(".bubble").innerHTML = markdownToHtml(_liveJavisText); scrollBottom(); }
     },
     onTurnDone: () => {
+      _liveBusyUntil = 0; attention.keepActive();
       if (_liveJavisText.trim()) recordTurn("javis", _liveJavisText.trim(), null, null);
       if (_theoLoi && _theoLoi.live && _theoLoi.el === _liveJavisBubble) _theoLoi.chuaXong = false;   // vẽ đủ khi loa im
       _liveJavisText = ""; _liveJavisBubble = null;
       runActions(turn.turnDone());
     },
     onError: (msg) => {
+      _liveBusyUntil = 0;
       appendJavisError(String(msg || "").startsWith("mic:") ? window.t("app.mic_denied") : (window.t("app.live_error") + " " + msg));
       runActions(turn.turnDone());
     },
-    onClosed: () => { handsFree = false; voiceBtn.classList.remove("handsfree"); if (window.JavisTts) window.JavisTts.set(false); },
+    onClosed: () => tatRanhTay(),
   });
   if (ticket !== _liveStartSeq) return false;
   if (!ok) tatRanhTay();
@@ -2832,6 +2928,9 @@ let handsFree = false;
 // thái này nằm ở ba nơi - biến, lớp CSS của nút, và công tắc loa - và bỏ sót một nơi thì giao
 // diện nói dối: nút vẫn sáng "đang nghe" trong khi không có gì đang nghe cả.
 function tatRanhTay() {
+  attention.stop(); _liveWaitingWake = false; _liveBusyUntil = 0;
+  _liveToolCount = 0;
+  liveWake.cancelListening();
   _sendEpoch++;
   clearTimeout(_tinChoTimer); _tinChoTimer = null; _tinChoLuot = null;
   clearTimeout(_tinDutMangTimer); _tinDutMangTimer = null; _tinDutMang = [];
@@ -2843,6 +2942,7 @@ function tatRanhTay() {
   voice.stopSpeaking();
   tatLive();
   runActions(turn.micOff());
+  updateVoiceFocus();
   try { if (window.JavisTts) window.JavisTts.set(false); } catch (e) {}
 }
 
@@ -2876,6 +2976,7 @@ function alertMic(err) {
 voiceBtn.addEventListener("click", () => {
   if (voiceMode !== "live" && !voice.isSupported()) { alert(window.t("app.voice_unsupported")); return; }
   handsFree = !handsFree;
+  if (handsFree) attention.start();
   voiceBtn.classList.toggle("handsfree", handsFree);
   voice.handsFree = handsFree && voiceMode !== "live";   // bật ngay, không đợi vòng 500 ms
   // Loa đi theo mic (chủ repo yêu cầu 02/09): bật nghe là muốn NÓI CHUYỆN bằng giọng, nên
@@ -2929,7 +3030,8 @@ setInterval(() => {
   // bằng giọng. Đồng bộ ở đây chứ không rải theo từng chỗ bật/tắt rảnh tay (nút mic, Esc,
   // mic hỏng, phiên Live đóng - năm nơi), vì sót một nơi là ngắt lời hoặc chết câm hoặc rình
   // cả lúc người ta đã quay về gõ chữ. Vòng này chạy hai lần mỗi giây nên lệch không đáng kể.
-  voice.handsFree = handsFree && voiceMode !== "live";
+  tickVoiceFocus();
+  voice.handsFree = handsFree && voiceMode !== "live" && !attention.waiting();
   // `micHong()` là chốt thứ hai (chốt thứ nhất là tatRanhTay() trong onError). Giữ cả hai vì
   // vòng này chạy hai lần mỗi giây: sót một nhịp là một hộp thoại nữa đập vào mặt người dùng.
   //
@@ -2944,6 +3046,8 @@ setInterval(() => {
     voice.startListening(true);   // true = máy tự gọi, không phải người bấm
   }
 }, 500);
+
+document.getElementById("voiceFocusResume").addEventListener("click", () => resumeVoiceFocus());
 
 let spacePressed = false;
 document.addEventListener("keydown", (e) => {

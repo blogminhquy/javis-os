@@ -6155,7 +6155,7 @@
         </div>
         <div class="qs-field">
           <label class="qs-lbl" for="v2LocTapAm">${esc(t("settings.v2_loc_tap_am"))}</label>
-          <label class="toggle"><input type="checkbox" id="v2LocTapAm" ${v.loc_tap_am === false ? "" : "checked"}><span></span></label>
+          <label class="toggle"><input type="checkbox" id="v2LocTapAm" ${v.focus_mode === false ? "" : "checked"}><span></span></label>
         </div>
         <div class="qs-hint">${esc(t("settings.v2_loc_tap_am_note"))}</div>
         <div class="qs-field">
@@ -6225,7 +6225,7 @@
         mode: $("v2Mode").value, brain_provider: $("v2Brain").value, brain_model: brainModel,
         stt_provider: $("v2Stt").value, live_provider: $("v2Live").value,
         live_model: $("v2LiveModel").value.trim(), live_voice: $("v2LiveVoice").value || "",
-        hotwords: $("v2Hotwords").value.trim(), loc_tap_am: $("v2LocTapAm").checked,
+        hotwords: $("v2Hotwords").value.trim(), focus_mode: $("v2LocTapAm").checked,
       };
       if (data.mode === "fast" && !data.brain_provider) { st.textContent = t("settings.v2_need_brain"); return; }
       const r = await saveSetting("voice", data);

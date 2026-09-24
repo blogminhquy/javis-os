@@ -1262,7 +1262,15 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 
 /* BOTTOM voice bar: pill nổi có khoảng thở quanh 4 phía (đồng bộ với kiểu pill của mobile),
    thay cho dải full-width dán sát mép dưới viewport */
+.voice-focus-resume {
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  max-width: calc(100% - 16px); padding: 7px 12px; border-radius: 16px;
+  border: 1px solid var(--accent-line); background: var(--bg2); color: var(--text);
+  font: inherit; font-size: 12px; cursor: pointer; z-index: 2;
+}
+.voice-focus-resume[hidden] { display: none; }
 .hud-voice {
+  position: relative;
   /* flex-end chứ không center: ô nhập LỚN DẦN theo chữ (kiểu claude.ai), các nút mic/gửi
      phải neo ở đáy thay vì trôi lơ lửng giữa một ô nhập cao. */
   display: flex; align-items: flex-end; gap: 12px;
@@ -1280,6 +1288,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   box-shadow: 0 0 0 4px var(--danger-wash); animation: micpulse 1.2s ease-in-out infinite;
 }
 @keyframes micpulse { 50% { box-shadow: 0 0 0 10px rgba(239,68,68,0); } }
+.mic-big.focus-waiting { animation: none; opacity: .65; }
 /* Hands-free: luôn nghe - vòng cam cố định */
 .mic-big.handsfree {
   border-color: var(--accent); color: var(--accent);

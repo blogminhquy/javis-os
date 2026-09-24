@@ -4416,10 +4416,11 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             v["stt_provider"] = patch["stt_provider"]
         if patch.get("live_provider") in voice_live.PROVIDERS:
             v["live_provider"] = patch["live_provider"]
-        # Lọc tạp âm (ô gạt, mặc định bật). Bật thì bộ não giọng cắt phần không nói với Javis
-        # khỏi câu, và bỏ hẳn lượt nào chỉ toàn tiếng TV hay người khác trong phòng.
+        # Focus is a browser attention gate. Keep the legacy setting for older clients.
         if "loc_tap_am" in patch:
             v["loc_tap_am"] = bool(patch["loc_tap_am"])
+        if "focus_mode" in patch:
+            v["focus_mode"] = bool(patch["focus_mode"])
         for k in ("brain_model", "stt_model", "live_model", "live_voice"):
             if k in patch:
                 v[k] = str(patch[k] or "").strip()
@@ -11868,7 +11869,8 @@ async def voice_options():
                                        "stt_model", "live_provider", "live_model", "live_voice",
                                        "hotwords")},
             # Ô gạt, không phải ô chữ: mặc định BẬT, nên brain cũ chưa có khoá vẫn trả về true.
-            loc_tap_am=v.get("loc_tap_am") is not False,
+            loc_tap_am=False,
+            focus_mode=v.get("focus_mode") is not False,
         ),
         # Từ luôn có sẵn trong bộ từ vựng nghe (không cần khai): trang Cài đặt hiện cho biết.
         "hotwords_goc": list(nghe_sua.TU_VUNG_GOC),
@@ -11957,6 +11959,14 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                                        engine=f"voice-live:{prov.name}", model=prov.model)
     except Exception:
         conv_sid = session_id or ""
+    try:
+        history = store.get_messages_page(conv_sid, limit=12).get("messages", [])
+        await prov.restore_history(history)
+    except Exception:
+        await _j({"type": "error", "message": "Không khôi phục được ngữ cảnh Live. Hãy mở mic lại."})
+        await prov.close()
+        await ws.close()
+        return
     await _j({"type": "ready", "provider": prov.name, "model": prov.model, "session_id": conv_sid,
               "async_tools": prov.supports_async_tools()})
     asst_buf = {"text": ""}
@@ -12097,6 +12107,17 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
         for t in pending:
             t.cancel()
     finally:
+        t1.cancel()
+        t2.cancel()
+        await asyncio.gather(t1, t2, return_exceptions=True)
+        # GPT-Live may not emit turn_done until the next user utterance. Focus sleep
+        # closes first: retain its last answer once, after the provider reader has stopped.
+        if asst_buf["text"].strip():
+            try:
+                store.append_message(conv_sid, "assistant", asst_buf["text"].strip())
+            except Exception:
+                pass
+            asst_buf["text"] = ""
         for task in list(tool_tasks):
             task.cancel()
         await prov.close()
@@ -13594,10 +13615,7 @@ async def websocket_endpoint(ws: WebSocket):
                 await send_raw({"type": "status", "content": "Javis đang trả lời nhanh...", "session_id": conv_sid})
                 # Đang có việc nền thì dặn bộ não giọng (V3): kết quả tự hiện, đừng bịa, đừng giao lại.
                 _dan = [x for x in (voice_brain.pending_note(conv_sid),
-                                    # Ô lọc tạp âm TẮT: dặn theo từng lượt thay vì đổi SYSTEM_PROMPT,
-                                    # vì prompt đã nướng vào bộ não lúc dựng (tiến trình agy sống
-                                    # suốt phiên), gạt ô mà phải giết rồi dựng lại là mất mấy giây.
-                                    "" if conf.get("loc_tap_am", True) else voice_brain.GHI_CHU_TAT_LOC)
+                                    voice_brain.GHI_CHU_TAT_LOC)
                         if x]
                 _hoi = "\n\n".join([user_message] + _dan)
                 async for delta in brain_obj.stream(_hoi, hist):
@@ -13639,28 +13657,8 @@ async def websocket_endpoint(ws: WebSocket):
                 return
             # Bộ não giọng vừa trả lời trót lọt: lỗi cũ (nếu có) không còn đúng, thôi khoe ở Cài đặt.
             voice_brain.xoa_loi_lan_nhanh()
-            # CỬA TẠP ÂM: cả lượt chỉ là tiếng TV, người khác trong phòng hay tiếng lẩm bẩm, không
-            # có câu nào nói với Javis. Không đọc loa (split_speakable đã giữ dòng marker lại),
-            # không trả lời, và XOÁ HẲN tin khỏi kho phiên - để lại thì đoạn tạp âm đi vào lịch sử
-            # của lượt sau, vào chỉ mục tìm kiếm và vào vòng tự học. Khung chat gỡ luôn bong bóng
-            # (chủ dự án chốt 17/09: ẩn hẳn để mắt chỉ còn nội dung đang bàn), chỉ để lại một dòng
-            # ghi chú thoáng qua rồi tự tắt, đủ để biết Javis có nghe và đã quyết bỏ.
-            _ly_do = voice_brain.parse_bo_qua(text) if conf.get("loc_tap_am", True) else None
-            if _ly_do is not None:
-                removed = False
-                try:
-                    # pop_last_message chứ không phải một hàm xoá riêng: nó trừ cả msg_count,
-                    # không thì danh sách Lịch sử khoe "1 tin" cho một cuộc rỗng không.
-                    removed = store.pop_last_message(conv_sid, "user", content=user_message)
-                except Exception as e:
-                    print(f"[voice tạp âm] không xoá được tin khỏi kho phiên: {e}", file=sys.stderr)
-                if removed:
-                    await send_raw({"type": "user_text", "session_id": conv_sid,
-                                    "bo_qua": True, "raw": nghe_sua.split_ui_context(user_message)[1],
-                                    "voice_turn_id": voice_turn_id})
-                await send_raw({"type": "turn_done", "session_id": conv_sid})
-                _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
-                return
+            # Text-only noise guesses may not delete accepted speech. A legacy BO_QUA
+            # without a valid transcript marker falls back to the original below.
             # Lưới sau: marker không ở dòng đầu, hoặc cả lượt chỉ có một dòng không xuống dòng
             # (split_speakable đã giữ dòng đó lại, chưa đọc). Bóc nốt, kéo mốc đã đọc về theo nếu
             # dòng nằm trước mốc để _flush(final) không đọc lặp.

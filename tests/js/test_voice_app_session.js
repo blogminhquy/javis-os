@@ -13,6 +13,7 @@ let cancelled = 0;
 const context = {
   _tinChoLuot: null, _tinChoTimer: null, _tinDutMang: [], _tinDutMangTimer: null,
   _choTaiLen: null, _sendEpoch: 0, _tuGiong: false,
+  attention: { stop() {} }, liveWake: { cancelListening() {} }, updateVoiceFocus() {},
   clearTimeout() {}, setTimeout: fn => fn,
   handsFree: false, voice: { cancelListening() { cancelled++; }, stopSpeaking() {} },
   voiceBtn: { classList: { remove() {} } }, window: {}, tatLive() {}, nhapGiong() {},
