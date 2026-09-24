@@ -33,7 +33,13 @@
     // Cả mười góc đều bo bằng cung Q, đỉnh cánh bo mềm và chỗ hõm giữa hai cánh bo sâu hơn.
     // Đừng đẩy bán kính trong lên nữa: dựng thử tới 0,65 thì cánh tan hết, nhìn ra ngũ giác
     // mọc bướu chứ không còn là ngôi sao (đã dựng ảnh so từng bước trước khi chốt con số này).
-    star:     { key: "pet.shape.star",     d: "M147.2 92.5 Q160 74 172.8 92.5 L175.3 96 Q190.6 117.9 216.2 125.7 L220.3 126.9 Q241.8 133.4 228.2 151.3 L225.6 154.7 Q209.5 176.1 210 202.8 L210.1 207.1 Q210.5 229.6 189.3 222.2 L185.3 220.8 Q160 212 134.7 220.8 L130.7 222.2 Q109.5 229.6 109.9 207.1 L110 202.8 Q110.5 176.1 94.4 154.7 L91.8 151.3 Q78.2 133.4 99.7 126.9 L103.8 125.7 Q129.4 117.9 144.7 96 Z" },
+    // CỠ (0.64.40): cả đường đã phóng 1,17 lần quanh tâm 160/160. Bản đầu có đầu cánh chạm bán
+    // kính 86 như vòng tròn, nhưng sao thì hõm vào giữa các cánh nên chỉ phủ được 13.120 điểm
+    // ảnh, trong khi tròn 19.116, ngũ giác 18.438. Mắt cùng một cỡ cho mọi hình, nên trên sao
+    // mắt trông to quá khổ (chủ dự án báo 24/09). Phóng 1,17 thì diện tích xấp xỉ ngũ giác, và
+    // đầu cánh (bán kính khoảng 100) vẫn nằm trong khung chân dung kể cả khi có vành 1,14 lần.
+    // Đừng phóng quá 1,17: vành của ô chọn hình dáng bắt đầu chạm mép khung (bán kính 118).
+    star:     { key: "pet.shape.star",     d: "M145 81 Q160 59.4 175 81 L177.9 85.1 Q195.8 110.7 225.8 119.9 L230.6 121.3 Q255.7 128.9 239.8 149.8 L236.8 153.8 Q217.9 178.8 218.5 210.1 L218.6 215.1 Q219.1 241.4 194.3 232.8 L189.6 231.1 Q160 220.8 130.4 231.1 L125.7 232.8 Q100.9 241.4 101.4 215.1 L101.5 210.1 Q102.1 178.8 83.2 153.8 L80.2 149.8 Q64.3 128.9 89.4 121.3 L94.2 119.9 Q124.2 110.7 142.1 85.1 Z" },
   };
 
   // Mỗi bảng màu tự mang cả hai tông: [thân, vành quỹ đạo, dự phòng]. Tông theo giao diện đang bật
