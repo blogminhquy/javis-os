@@ -7,6 +7,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.64.42] - 2026-09-24
 ### Sửa lỗi
 - **Hai mắt linh vật không còn dính vào nhau** khi nhắm, ngủ gật, cười hay mắt tim, nhất là lúc nó nép ở mép màn hình và khi đặt cỡ mắt to. Mắt quá rộng thì tự co vừa đủ để vẫn thấy rõ là hai con mắt.
+- **Trên điện thoại, kéo Kích cỡ quá 100px giờ linh vật to lên thật.** Trước đây nó bị chặn ở khoảng 90-100px dù kéo tới đâu; nay lên được tới 150px.
 
 ## [0.64.41] - 2026-09-24
 ### Cải thiện
