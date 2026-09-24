@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.39] - 2026-09-24
+### Cải thiện
+- Linh vật: đang làm.
+
 ## [0.64.38] - 2026-09-24
 ### Sửa lỗi
 - **Javis lại hiểu lời nói theo ngữ cảnh.** Máy nghe chép sai từ gần âm ("David" thay cho Javis, "mô đồ" thay cho Models, "web kếch" thay cho Webcake) thì Javis hiểu đúng ý bạn định nói. Bản 0.64.32 lỡ tắt khả năng này.
