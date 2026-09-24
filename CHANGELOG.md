@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.25] - 2026-09-24
+### Cải thiện
+- Menu, biểu mẫu và chữ giao diện dùng Be Vietnam Pro; chữ thương hiệu JAVIS vẫn dùng Montserrat, mã giữ font monospace.
+- Câu trả lời có dòng ngắn hơn, tiêu đề rõ hơn và chữ in đậm không còn đồng loạt tô cam. Hướng dẫn Javis nêu kết luận trước, đưa bằng chứng sau và không lặp nhật ký công cụ trong đáp án cuối.
+
 ## [0.64.24] - 2026-09-24
 ### Sửa lỗi
 - Hội thoại bằng giọng không còn mất phần câu đã nghe khi trình duyệt tự mở lại phiên nhận dạng.
