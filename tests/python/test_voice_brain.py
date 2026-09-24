@@ -439,9 +439,7 @@ check("replace_last_message: tin cuối sai vai thì không đụng",
 _src_main = (SERVER / "main.py").read_text(encoding="utf-8", errors="replace")
 check("main: làn nhanh bóc JAVIS_NGHE giữa lúc stream và ở lưới sau",
       "voice_brain.tach_nghe_dau(text)" in _src_main and "voice_brain.parse_nghe(text)" in _src_main)
-check("main: diễn giải thay tin trong kho phiên và bắn user_text cho khung chat",
-      'store.replace_last_message(conv_sid, "user", nghe)' in _src_main
-      and _src_main.count('"type": "user_text"') >= 2)
+# Storage/UI correction and destructive rewrites are executed by test_voice_turn_integrity.py.
 _src_app = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8", errors="replace")
 check("app.js: nhận user_text, thay bong bóng người dùng cuối và convo",
       'data.type === "user_text"' in _src_app and "function capNhatTinNguoiDung" in _src_app

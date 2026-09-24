@@ -64,6 +64,24 @@ to with for from named mr mrs ms miss
 # Ranh giới câu trong đoạn ngăn cách giữa hai từ.
 _RANH_CAU = re.compile(r"[.!?…\n,;:()\[\]\"“”]")
 _TU = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)?", re.U)   # một "tiếng": chữ cái, không số
+# Hotwords are spelling hints, never permission to change a command or amount.
+PROTECTED_WORDS = frozenset("""
+không chẳng chưa đừng chớ dừng hủy huỷ bật tắt mở đóng xóa xoá gửi chuyển
+thêm bớt tăng giảm mua bán đặt đọc ghi lưu sửa xong chỉ trừ trước sau
+một hai ba bốn tư năm sáu bảy tám chín mười mươi trăm nghìn ngàn triệu tỷ
+no not never don't stop cancel enable disable open close delete send transfer
+one two three four five six seven eight nine ten hundred thousand million
+""".split())
+_UI_CONTEXT = re.compile(r"\A\s*\[NGỮ CẢNH GIAO DIỆN:[^\]]*\]\s*")
+# Speech can contain literal identifiers. Do not rewrite pieces of paths, URLs or email.
+VERBATIM = re.compile(r"\S*(?:[/\\@:_]|\w\.\w)\S*")
+
+
+def split_ui_context(text):
+    """Return the exact dashboard prefix separately from the spoken words."""
+    s = str(text or "")
+    m = _UI_CONTEXT.match(s)
+    return (s[:m.end()], s[m.end():]) if m else ("", s)
 
 # Gộp những âm máy nghe hay lẫn. Chạy THEO THỨ TỰ: cặp chữ trước, chữ đơn sau.
 _AM_DOI = (("gi", "d"), ("ph", "f"), ("th", "t"), ("tr", "c"), ("ch", "c"), ("kh", "k"),
@@ -158,13 +176,12 @@ def _ung_vien(toks, i, n, s):
 def _o_vi_tri_goi_ten(toks, i, n, s) -> bool:
     truoc = toks[i - 1] if i > 0 else None
     sau = toks[i + n] if i + n < len(toks) else None
-    if truoc is None:
-        return True
-    khoang_truoc = s[truoc.end():toks[i].start()]
-    if _RANH_CAU.search(khoang_truoc) or bo_dau(truoc.group(0)) in {bo_dau(x) for x in _MO_DAU}:
-        return True
+    if truoc is not None:
+        khoang_truoc = s[truoc.end():toks[i].start()]
+        if bo_dau(truoc.group(0)) in {bo_dau(x) for x in _MO_DAU}:
+            return True
     if sau is None:
-        return True
+        return bool(_RANH_CAU.search(s[toks[i + n - 1].end():]))
     khoang_sau = s[toks[i + n - 1].end():sau.start()]
     if _RANH_CAU.search(khoang_sau):
         return True
@@ -194,6 +211,9 @@ def _ten_rieng_hai_chu(toks, i, n, s, term) -> bool:
 def sua(text, tv) -> str:
     """Sửa những từ nghe nhầm thành từ trong bộ từ vựng `tv`. Không có gì để sửa thì trả y nguyên."""
     s = str(text or "")
+    prefix, speech = split_ui_context(s)
+    if prefix:
+        return prefix + sua(speech, tv)
     ds = [(t, khoa_am(t), len(t.split())) for t in (tv or []) if t and khoa_am(t)]
     if not s or not ds:
         return s
@@ -201,6 +221,7 @@ def sua(text, tv) -> str:
     if not toks:
         return s
     dem = frozenset(bo_dau(x) for x in (_MO_DAU | _KET_GOI | _NGOI_THU_BA))
+    verbatim = [(m.start(), m.end()) for m in VERBATIM.finditer(s)]
 
     def _diem_don(j):
         """Điểm cao nhất của RIÊNG tiếng thứ j so với cả bộ từ vựng."""
@@ -217,6 +238,8 @@ def sua(text, tv) -> str:
             uv = _ung_vien(toks, i, n, s)
             if uv is None:
                 break
+            if any(a < toks[i + n - 1].end() and b > toks[i].start() for a, b in verbatim):
+                continue
             k = khoa_am(uv)
             if len(k) < 3:
                 continue
@@ -226,6 +249,9 @@ def sua(text, tv) -> str:
                 if any(bo_dau(toks[j].group(0)) in dem for j in range(i, i + n)):
                     continue
             for term, kt, so_tieng in ds:
+                if (any(toks[j].group(0).lower() in PROTECTED_WORDS for j in range(i, i + n))
+                        and "".join(uv.lower().split()) != "".join(term.lower().split())):
+                    continue
                 if n > so_tieng + 1:
                     continue           # không ghép quá số tiếng của từ vựng (+1 cho ca bị tách)
                 d = 1.0 if uv.lower() == term.lower() else do_giong(k, kt)

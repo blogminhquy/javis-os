@@ -17,6 +17,7 @@ Sổ phiên: mỗi phiên chat web một bộ não, đóng sau IDLE_S giây khô
 from __future__ import annotations
 
 import asyncio
+import difflib
 import json
 import os
 import re
@@ -25,6 +26,7 @@ import time
 from typing import AsyncIterator, Callable, Dict, List, Optional
 
 import winproc         # lệnh con câm lặng trên Windows (canary test_windows_no_console)
+import nghe_sua
 
 MARKER = "JAVIS_ASK_MAIN:"
 # Đường TẮT cho việc chỉ đụng tới giao diện: bộ não giọng tự phát, server gọi thẳng dashboard,
@@ -129,8 +131,9 @@ SYSTEM_PROMPT = (
     "thể lẫn thứ KHÔNG nói với bạn, chẳng hạn tiếng TV hay video đang phát, người khác trong phòng "
     "nói chuyện với nhau, người dùng lẩm bẩm một mình hay gọi ai đó. Dấu hiệu: câu đứt đoạn không "
     "thành ý, đổi chủ đề liên tục, ngôn ngữ lạ chen vào giữa, nội dung chẳng liên quan gì tới cuộc "
-    "nói chuyện đang diễn ra. Gặp thế thì dòng " + NGHE_MARKER + " chỉ chép PHẦN THỰC SỰ NÓI VỚI "
-    "BẠN và bỏ phần còn lại, rồi trả lời đúng phần đó.\n"
+    "nói chuyện đang diễn ra. Nếu vẫn có câu gửi tới bạn, dòng " + NGHE_MARKER + " giữ ĐẦY ĐỦ "
+    "bản chép; không cắt câu lệnh, phủ định, con số hay ý không chắc là tạp âm. Chỉ sửa chính "
+    "tả tên nghe nhầm, không dùng dòng này để tóm tắt hoặc lọc bớt nội dung.\n"
     "Cả lượt KHÔNG có câu nào nói với bạn thì trả đúng MỘT dòng duy nhất, không kèm gì khác, không "
     "kèm cả dòng " + NGHE_MARKER + ":\n"
     "  " + BO_QUA_MARKER + " <lý do thật ngắn, ví dụ: tiếng TV trong phòng>\n"
@@ -151,6 +154,57 @@ GHI_CHU_TAT_LOC = (
 
 _MARK_RE = re.compile(r"^[ \t]*" + re.escape(MARKER) + r"[ \t]*(.+?)[ \t]*$", re.M)
 _NGHE_RE = re.compile(r"^[ \t]*" + re.escape(NGHE_MARKER) + r"[ \t]*(.*?)[ \t]*(?:\n|$)", re.M)
+_TRANSCRIPT_WORDS = re.compile(r"[+−-]?\d+(?:[.,:/-]\d+)*%?|[^\W\d_]+(?:['’][^\W\d_]+)?", re.U)
+
+
+def safe_transcript_rewrite(original: str, proposed: str) -> str:
+    """Accept local spelling repairs, retaining the source on semantic or lossy edits.
+
+    This is deliberately conservative: a model cannot establish which audio was noise
+    from text alone. Whole-turn noise handling is separate. The UI prefix is context,
+    not speech, and always belongs to the original message.
+    """
+    original = str(original or "")
+    prefix, speech = nghe_sua.split_ui_context(original)
+    candidate_prefix, candidate = nghe_sua.split_ui_context(str(proposed or "").strip())
+    if candidate_prefix and candidate_prefix.strip() != prefix.strip():
+        return original
+    if not candidate or any(marker in candidate for marker in MARKERS):
+        return original
+    # Literal paths, email addresses, numeric separators and identifiers are not names
+    # inferred from audio. Keep them exact, including punctuation.
+    if nghe_sua.VERBATIM.findall(speech) != nghe_sua.VERBATIM.findall(candidate):
+        return original
+    before_raw = _TRANSCRIPT_WORDS.findall(speech)
+    after_raw = _TRANSCRIPT_WORDS.findall(candidate)
+    before = [w.casefold() for w in before_raw]
+    after = [w.casefold() for w in after_raw]
+    if not before or not after:
+        return original
+    changed = 0
+    for kind, i, j, k, l in difflib.SequenceMatcher(None, before, after, autojunk=False).get_opcodes():
+        if kind == "equal":
+            continue
+        # No dropped/added words, even when the remaining transcript is still long.
+        if kind != "replace" or max(j - i, l - k) > nghe_sua.MAX_GHEP:
+            return original
+        old, new = before[i:j], after[k:l]
+        if "".join(old) == "".join(new):
+            # Allow compound proper names (Open Router -> OpenRouter), not merged
+            # command/negation words. Lowercase brand repairs still use explicit hotwords.
+            proper_name = (all(re.fullmatch(r"[A-Z][a-zA-Z]*", w) for w in before_raw[i:j])
+                           and all(re.fullmatch(r"[A-Z][a-z]+[A-Z][a-zA-Z]*", w) for w in after_raw[k:l]))
+            if proper_name or not any(w in nghe_sua.PROTECTED_WORDS for w in old + new):
+                continue
+        if any(w in nghe_sua.PROTECTED_WORDS or any(c.isdigit() for c in w) for w in old + new):
+            return original
+        a, b = nghe_sua.khoa_am("".join(old)), nghe_sua.khoa_am("".join(new))
+        if min(len(a), len(b)) < nghe_sua.KHOA_MIN_MO or nghe_sua.do_giong(a, b) < nghe_sua.NGUONG_GOI_TEN:
+            return original
+        changed += max(len(old), len(new))
+    if changed > max(2, len(before) // 3):
+        return original
+    return prefix + candidate
 
 
 def parse_nghe(text: str):

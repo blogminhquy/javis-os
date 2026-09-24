@@ -1326,6 +1326,7 @@
   "app.orb_listening_always": "ĐANG NGHE • LUÔN",
   "app.orb_listening": "ĐANG NGHE",
   "app.orb_thinking": "ĐANG SUY NGHĨ",
+  "app.orb_transcribing": "ĐANG NHẬN DẠNG LỜI NÓI",
   "app.orb_speaking": "ĐANG NÓI",
   "app.ws_mat_ket_noi": "Mất kết nối tới máy chủ. Đang nối lại…",
   "app.ws_giu_tin": "Mất kết nối. Câu của bạn được giữ lại và sẽ gửi ngay khi nối lại được.",

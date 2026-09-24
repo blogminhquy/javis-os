@@ -35,7 +35,7 @@ check("server: nhánh voice chỉ khi payload.voice + mode fast", /payload\.get\
 // 2
 check("voice.js: bọc onTranscript qua _quaStt", /this\.onTranscript = \(text\) => \{ this\._quaStt\(text, _userTranscript\); \};/.test(voice));
 check("voice.js: MediaRecorder start(250) khi sttUpload", /if \(!this\.sttUpload \|\| !this\.micStream/.test(voice) && /rec\.start\(250\)/.test(voice));
-check("voice.js: POST /stt kèm lang, lỗi hoặc bản ghi cụt thì giữ chữ Chrome", /fetch\(this\.sttUrl, \{ method: "POST", body: fd/.test(voice) && /cb\(JavisVoice\.chonBanNghe\(text, better\)\)/.test(voice));
+// POST language, partial capture and fallback execute in test_voice_capture_lifecycle.js.
 check("voice.js: mic tắt vì TTS thì bỏ đoạn ghi", /_muteRecognition\(\) \{[\s\S]{0,700}this\._stopRecorder\(\)\.catch/.test(voice));
 check("voice.js: file quá nhỏ (dưới 2 KB) không gửi", /blob\.size < 2000/.test(voice));
 
@@ -60,10 +60,10 @@ check("server: nhận khung context và played", /d\.get\("type"\) == "context"/
 check("server: goaway -> reconnect", /if ev\.get\("type"\) == "goaway":/.test(main) && /await prov\.reconnect\(\)/.test(main));
 
 // 4
-check("app.js: chế độ live -> batLive/tatLive ở nút mic", /if \(voiceMode === "live"\) \{/.test(app) && /batLive\(\)/.test(app) && /else tatLive\(\);/.test(app));
+check("app.js: chế độ live -> batLive/tatRanhTay ở nút mic", /if \(voiceMode === "live"\) \{/.test(app) && /batLive\(\)/.test(app) && /else tatRanhTay\(\);/.test(app));
 check("app.js: keep-alive không mở Web Speech khi live", /handsFree && voiceMode !== "live" && !voice\.isListening/.test(app));
 check("app.js: bản ghi Javis khi live ghi vào hội thoại", /recordTurn\("javis", _liveJavisText\.trim\(\)/.test(app));
-check("app.js: Esc tắt cả phiên live", /voice\.stopListening\(\);\s*\n\s*tatLive\(\);/.test(app));
+check("app.js: Esc hủy toàn bộ phiên giọng", /e\.code === "Escape"[\s\S]{0,500}tatRanhTay\(\)/.test(app));
 
 // 5
 check("console.js: thẻ V2 đọc /voice/options", /fetch\("\/voice\/options"/.test(consoleJs) && /renderVoiceV2Card\(\)/.test(consoleJs));

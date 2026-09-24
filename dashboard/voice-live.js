@@ -19,7 +19,9 @@
   var ws = null, inCtx = null, outCtx = null, proc = null, src = null, stream = null;
   var nextAt = 0, playing = [], on = false, opts = {};
   var wasSpeaking = false, speakTimer = null;
+  var generation = 0, starting = null, cancelOpen = null;
   var utterStartAt = 0, lastCtx = "";   // mốc bắt đầu phát câu hiện tại; ngữ cảnh đã gửi lần cuối
+  var utterAudio = [], nextUtterance = true;
 
   function emit(name) {
     var fn = opts[name];
@@ -55,7 +57,8 @@
     node.buffer = ab;
     node.connect(outCtx.destination);
     var t = Math.max(outCtx.currentTime + 0.02, nextAt);
-    if (!playing.length && !utterStartAt) utterStartAt = t;
+    if (nextUtterance) { utterStartAt = t; utterAudio = []; nextUtterance = false; }
+    utterAudio.push({ at: t, duration: ab.duration });
     node.start(t);
     nextAt = t + ab.duration;
     schedMs += ab.duration * 1000;
@@ -77,7 +80,11 @@
   // Số ms của câu hiện tại đã thật sự phát ra loa (0 nếu chưa phát gì).
   function playedMs() {
     if (!outCtx || !utterStartAt) return 0;
-    return Math.max(0, Math.round((outCtx.currentTime - utterStartAt) * 1000));
+    // Count only scheduled audio, excluding buffering gaps and time after playback ends.
+    var seconds = utterAudio.reduce(function (sum, chunk) {
+      return sum + Math.max(0, Math.min(chunk.duration, outCtx.currentTime - chunk.at));
+    }, 0);
+    return Math.round(seconds * 1000);
   }
 
   function flushPlayback() {
@@ -86,6 +93,7 @@
     nextAt = 0;
     utterStartAt = 0;
     schedMs = 0;
+    utterAudio = []; nextUtterance = true;
     tickSpeaking();
   }
 
@@ -101,25 +109,47 @@
     if (now) speakTimer = setTimeout(tickSpeaking, 250);
   }
 
-  async function start(o) {
-    if (on) return true;
+  function start(o) {
+    if (on) return Promise.resolve(true);
+    if (starting) return starting;
     opts = o || {};
+    var id = ++generation;
+    var task = startSession(id);
+    starting = task;
+    task.then(function () { if (starting === task) starting = null; });
+    return task;
+  }
+
+  async function startSession(id) {
     // Mở context ngay trong thao tác bấm mic, trước await xin quyền microphone.
     var AC = window.AudioContext || window.webkitAudioContext;
-    try { inCtx = new AC({ sampleRate: IN_RATE }); } catch (e) { inCtx = new AC(); }
-    outCtx = new AC({ sampleRate: OUT_RATE });
+    try {
+      try { inCtx = new AC({ sampleRate: IN_RATE }); } catch (e) { inCtx = new AC(); }
+      outCtx = new AC({ sampleRate: OUT_RATE });
+    } catch (e) { stop(); emit("onError", "audio"); return false; }
     inCtx.resume().catch(function () {});
     outCtx.resume().catch(function () {});
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
-    } catch (e) { stop(); emit("onError", "mic:" + (e && e.name || "error")); return false; }
+      var acquired = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+      if (id !== generation) { acquired.getTracks().forEach(function (t) { t.stop(); }); return false; }
+      stream = acquired;
+    } catch (e) {
+      if (id === generation) { stop(); emit("onError", "mic:" + (e && e.name || "error")); }
+      return false;
+    }
     try { await inCtx.resume(); await outCtx.resume(); } catch (e) {}
-    var sid = "", brain = "brain";
+    if (id !== generation) return false;
+    var sid = "", brain = "brain", language = "vi-VN";
     try { sid = (opts.sessionId && opts.sessionId()) || ""; brain = (opts.brain && opts.brain()) || "brain"; } catch (e) {}
+    try { language = (typeof opts.language === "function" ? opts.language() : opts.language) || "vi-VN"; } catch (e) {}
     var proto = location.protocol === "https:" ? "wss://" : "ws://";
-    ws = new WebSocket(proto + location.host + "/ws/voice-live?session_id=" + encodeURIComponent(sid) + "&brain=" + encodeURIComponent(brain));
+    try {
+      ws = new WebSocket(proto + location.host + "/ws/voice-live?session_id=" + encodeURIComponent(sid) + "&brain=" + encodeURIComponent(brain) + "&lang=" + encodeURIComponent(language));
+    } catch (e) { stop(); emit("onError", "ws"); return false; }
+    var socket = ws;
     ws.binaryType = "arraybuffer";
     ws.onmessage = function (e) {
+      if (id !== generation || ws !== socket) return;
       if (e.data instanceof ArrayBuffer) { playChunk(e.data); return; }
       var d; try { d = JSON.parse(e.data); } catch (err) { return; }
       if (d.type === "ready") emit("onReady", d);
@@ -131,22 +161,40 @@
       }
       else if (d.type === "transcript") emit("onTranscript", d.role, d.text || "", !!d.final);
       else if (d.type === "tool") emit("onTool", d.name, d.status);
-      else if (d.type === "turn_done") { utterStartAt = 0; emit("onTurnDone"); }
+      else if (d.type === "turn_done") { nextUtterance = true; emit("onTurnDone"); }
       else if (d.type === "reconnected") emit("onReconnected");
       else if (d.type === "error") emit("onError", d.message || "error");
     };
-    ws.onclose = function () { if (on) { stop(); emit("onClosed"); } };
-    ws.onerror = function () { emit("onError", "ws"); };
-    await new Promise(function (res) { ws.onopen = res; setTimeout(res, 4000); });
-    src = inCtx.createMediaStreamSource(stream);
-    proc = inCtx.createScriptProcessor(4096, 1, 1);
-    proc.onaudioprocess = function (ev) {
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      var f32 = downsample(ev.inputBuffer.getChannelData(0), inCtx.sampleRate, IN_RATE);
-      ws.send(floatToPcm16(f32).buffer);
+    ws.onclose = function () {
+      if (id !== generation || ws !== socket) return;
+      stop(); emit("onClosed");
     };
-    src.connect(proc);
-    proc.connect(inCtx.destination);   // Chrome chỉ chạy onaudioprocess khi node nối tới đích
+    ws.onerror = function () {
+      if (id !== generation || ws !== socket) return;
+      stop(); emit("onError", "ws"); emit("onClosed");
+    };
+    var opened = await new Promise(function (res) {
+      var timer;
+      function finish(ok) { clearTimeout(timer); cancelOpen = null; res(ok); }
+      cancelOpen = function () { finish(false); };
+      socket.onopen = function () { if (id === generation && ws === socket) finish(true); };
+      timer = setTimeout(function () { finish(false); }, 4000);
+    });
+    if (id !== generation) return false;
+    if (!opened || socket.readyState !== WebSocket.OPEN) {
+      stop(); emit("onError", "ws"); emit("onClosed"); return false;
+    }
+    try {
+      src = inCtx.createMediaStreamSource(stream);
+      proc = inCtx.createScriptProcessor(4096, 1, 1);
+      proc.onaudioprocess = function (ev) {
+        if (id !== generation || ws !== socket || socket.readyState !== WebSocket.OPEN) return;
+        var f32 = downsample(ev.inputBuffer.getChannelData(0), inCtx.sampleRate, IN_RATE);
+        try { ws.send(floatToPcm16(f32).buffer); } catch (e) { socket.onerror(e); }
+      };
+      src.connect(proc);
+      proc.connect(inCtx.destination);   // Chrome chỉ chạy onaudioprocess khi node nối tới đích
+    } catch (e) { stop(); emit("onError", "audio"); return false; }
     on = true;
     emit("onStarted");
     return true;
@@ -166,18 +214,23 @@
   }
 
   function stop() {
+    generation++;
+    starting = null;
+    if (cancelOpen) cancelOpen();
     on = false;
     flushPlayback();
     try { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "stop" })); } catch (e) {}
-    try { if (ws) ws.close(); } catch (e) {}
+    try {
+      if (ws) { ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null; ws.close(); }
+    } catch (e) {}
     ws = null;
     lastCtx = ""; utterStartAt = 0;
     try { if (proc) { proc.disconnect(); proc.onaudioprocess = null; } if (src) src.disconnect(); } catch (e) {}
     proc = null; src = null;
     try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
     stream = null;
-    try { if (inCtx) inCtx.close(); } catch (e) {}
-    try { if (outCtx) outCtx.close(); } catch (e) {}
+    try { if (inCtx) inCtx.close().catch(function () {}); } catch (e) {}
+    try { if (outCtx) outCtx.close().catch(function () {}); } catch (e) {}
     inCtx = null; outCtx = null;
     emit("onStopped");
   }

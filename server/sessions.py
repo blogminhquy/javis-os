@@ -553,7 +553,8 @@ class SessionStore:
             return True
         return bool(self._write(_do))
 
-    def replace_last_message(self, session_id: str, role: str, content: str) -> bool:
+    def replace_last_message(self, session_id: str, role: str, content: str,
+                             expected_content: Optional[str] = None) -> bool:
         """Thay NỘI DUNG tin cuối của phiên nếu nó đúng vai. Trả True khi có thay.
 
         Dùng cho lượt nói: tin người dùng được lưu NGAY khi tới (chữ thô của máy nghe), rồi bộ
@@ -562,9 +563,11 @@ class SessionStore:
         đi vào vòng tự học. Trigger messages_fts_upd cập nhật chỉ mục tìm kiếm theo."""
         def _do(conn):
             row = conn.execute(
-                "SELECT id, role FROM messages WHERE session_id = ? "
+                "SELECT id, role, content FROM messages WHERE session_id = ? "
                 "ORDER BY ts DESC, id DESC LIMIT 1", (session_id,)).fetchone()
             if not row or row[1] != role:
+                return False
+            if expected_content is not None and row[2] != expected_content:
                 return False
             conn.execute("UPDATE messages SET content = ? WHERE id = ?", (content, row[0]))
             return True

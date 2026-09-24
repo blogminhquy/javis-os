@@ -31,10 +31,7 @@ v._iosCache = false;
 v.recognition.start = () => {};
 v.recognition.onend();
 assert.equal(v._committed, 'Em kiểm tra lại bản tin giá vàng.');
-assert.equal(Voice.chonBanNghe('Cho anh về màn hình trò chuyện giúp anh', 'Javis'),
-  'Cho anh về màn hình trò chuyện giúp anh');
-assert.equal(Voice.chonBanNghe('Javis', 'Cho anh về màn hình trò chuyện'),
-  'Cho anh về màn hình trò chuyện');
+// Transcript selection uses capture coverage; exercised in test_voice_capture_lifecycle.js.
 v.setRecognitionLang('auto');
 assert.equal(v.recognition.lang, 'vi-VN');
 let delivered = '';

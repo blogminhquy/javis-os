@@ -1326,6 +1326,7 @@
   "app.orb_listening_always": "LISTENING • ALWAYS",
   "app.orb_listening": "LISTENING",
   "app.orb_thinking": "THINKING",
+  "app.orb_transcribing": "TRANSCRIBING",
   "app.orb_speaking": "SPEAKING",
   "app.ws_mat_ket_noi": "Lost the connection to the server. Reconnecting…",
   "app.ws_giu_tin": "Connection lost. Your message is held and goes out as soon as we reconnect.",

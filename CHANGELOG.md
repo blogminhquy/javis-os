@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.27] - 2026-09-24
+### Sửa lỗi
+- Giữ chunk âm thanh cuối khi dừng ghi; chỉ dùng Groq thay bản chép trình duyệt khi bản thu bao phủ lượt nói, bỏ quy tắc chọn theo độ dài câu.
+- Kết quả nhận dạng được giao đúng thứ tự; tắt mic, đổi cuộc chat hoặc đổi chế độ sẽ hủy kết quả và tin chờ cũ, tránh gửi lời nói sang nhầm cuộc chat.
+- Chặn lớp sửa câu làm mất yêu cầu hoặc đổi phủ định/số liệu thành nội dung khác; giữ câu gốc khi bản sửa không đủ căn cứ. Sửa/xóa tạp âm chỉ tác động tin đúng lượt.
+- Sửa race khi mở/tắt Live, nhả mic khi quyền cấp muộn, chờ Gemini xác nhận setup trước khi gửi audio và giữ transcript đến sau lượt trả lời.
+### Cải thiện
+- Ngôn ngữ nhận dạng đã chọn được truyền đến Live; mặc định ưu tiên tiếng Việt, vẫn hỗ trợ tự nhận diện và lựa chọn ngôn ngữ khác.
+- Hiện trạng thái đang nhận dạng khi chờ STT; bảo vệ bản nháp và tránh lấy lại chữ đã hủy lúc phát loa.
+- Thêm kiểm tra hồi quy theo sự kiện và báo cáo audit kèm ma trận thử mic thật. Chưa xác nhận độ chính xác âm học hoặc độ trễ trên thiết bị thật trong đợt này.
+### Bảo mật
+- Bỏ log bản chép ở bước sửa/tạp âm và ẩn query chứa lời đọc khỏi access log TTS mặc định của ứng dụng.
+
 ## [0.64.26] - 2026-09-24
 ### Thay đổi
 - **"Dùng Javis ngay trong ChatGPT" rời bản chính, thành một gói trong Javis Store.** Javis muốn mọi cuộc chat nằm chung một chỗ, nên tính năng đưa chat sang chatgpt.com không còn bật sẵn cho mọi người nữa.

@@ -53,8 +53,7 @@ check("câu mới thật sự khác thì nối tiếp", ghep("Xin chào", "hôm 
 check("chưa chốt gì thì lấy nguyên final", ghep("", "Ok") === "Ok");
 
 // ---- 2. Phiên tự mở lại không làm mất nửa câu đầu ----
-check("onend tự mở lại thì gói phần đã nghe vào _committed trước",
-  /this\._committed = JavisVoice\.ghepDuoiTam\(this\.accumulatedTranscript \|\| this\._committed, this\._duoiTam\);\s*\n\s*this\._duoiTam = "";\s*\n\s*this\.recognition\.start\(\);/.test(voice));
+// Real restart/committed fallback is exercised by test_voice_mobile_regressions.js.
 check("mở nghe CHỦ ĐỘNG là lượt mới: xoá _committed", /clearTimeout\(this\._resumeTimer\);\s*\n\s*this\._committed = "";/.test(voice));
 // Luật: hai ô nhớ của lượt phải dọn NGAY TRƯỚC khi gửi, không phải sau (gửi trước rồi dọn thì
 // onTranscript gọi lại startListening là đọc trúng chữ cũ). Khuôn cho phép chèn thêm dòng dọn ô

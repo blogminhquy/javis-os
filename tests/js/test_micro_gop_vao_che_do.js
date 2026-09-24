@@ -73,8 +73,7 @@ check("voice.js: setRecognitionLang('auto') bật langAuto và KHÔNG ghi đè t
   /this\.langAuto = lang === "auto";\s*\n\s*if \(!this\.langAuto\) this\.lang = lang;/.test(voice));
 check("voice.js: máy nghe trình duyệt giữ tiếng Việt dự phòng khi Groq tự dò",
   (voice.match(/this\.recognition\.lang = this\.lang;/g) || []).length >= 2);
-check("voice.js: gửi /stt chữ 'auto' thay vì mã tiếng",
-  /fd\.append\("lang", this\.langAuto \? "auto" : \(this\.lang \|\| ""\)\);/.test(voice));
+// Real FormData language snapshot is tested in test_voice_capture_lifecycle.js.
 check("main.py: /stt đổi 'auto' thành '' (Whisper tự dò), rỗng vẫn về None (mặc định vi)",
   /ngon_ngu = "" if lang\.lower\(\) == "auto" else \(lang\.split\("-"\)\[0\]\.strip\(\) or None\)/.test(main));
 

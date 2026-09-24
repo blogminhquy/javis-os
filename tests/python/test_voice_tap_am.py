@@ -100,7 +100,7 @@ MAIN = (SERVER / "main.py").read_text(encoding="utf-8")
 check("POST /settings nhận ô loc_tap_am", '"loc_tap_am" in patch' in MAIN)
 check("GET /voice/options trả ô loc_tap_am", "loc_tap_am=v.get(\"loc_tap_am\") is not False" in MAIN)
 check("run_voice_turn có cửa tạp âm", "voice_brain.parse_bo_qua(text)" in MAIN)
-check("bỏ lượt thì XOÁ tin khỏi kho phiên", 'store.pop_last_message(conv_sid, "user")' in MAIN)
+# Actual deletion and stale-turn protection are exercised by test_voice_turn_integrity.py.
 check("bỏ lượt thì báo khung chat gỡ bong bóng", '"bo_qua": True' in MAIN)
 # Tắt ô thì KHÔNG được bỏ lượt, kể cả khi model vẫn trả marker.
 check("tắt lọc thì không xét marker", 'if conf.get("loc_tap_am", True) else None' in MAIN)
@@ -112,7 +112,7 @@ check("voice.js có trần cho một lượt", "TRAN_LUOT_MS" in VOICE_JS)
 check("quá trần thì chốt ngay, không hẹn tiếp",
       "if (Date.now() - this._batDauLuot >= JavisVoice.TRAN_LUOT_MS) { this.stopListening(); return; }" in VOICE_JS)
 APP_JS = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
-check("app.js gỡ bong bóng khi bị bỏ", "goTinNguoiDungCuoi()" in APP_JS)
+# Bubble removal and stale raw-text guards are exercised by test_voice_app_session.js.
 check("app.js để lại dòng ghi chú thoáng qua", 'ghiChuThoang(window.t("app.tap_am_bo_qua"))' in APP_JS)
 CONSOLE_JS = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 check("trang Cài đặt có ô gạt", 'id="v2LocTapAm"' in CONSOLE_JS)

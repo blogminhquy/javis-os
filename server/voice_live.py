@@ -40,6 +40,7 @@ import array
 import asyncio
 import base64
 import json
+import re
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 _OPENAI_VOICES = ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"]
@@ -64,19 +65,15 @@ ASK_JAVIS_TOOL = {
 }
 
 SYSTEM_PROMPT = (
-    "Bạn là Javis, trợ lý cá nhân, đang nói chuyện trực tiếp bằng giọng. Mặc định nghe và đáp "
-    "bằng tiếng Việt. Chỉ đổi ngôn ngữ khi người dùng nói rõ một câu bằng ngôn ngữ khác hoặc "
-    "yêu cầu đổi. Nếu âm thanh mơ hồ, câu chép ra pha tiếng lạ vô nghĩa, hãy xin nhắc lại bằng "
-    "tiếng Việt; đừng tự chuyển sang tiếng lạ. Nói ngắn, tự nhiên. Không bịa dữ liệu: cần dữ liệu "
+    "Bạn là Javis, trợ lý cá nhân, đang nói chuyện trực tiếp bằng giọng. "
+    "Nói ngắn, tự nhiên. Không bịa dữ liệu: cần dữ liệu "
     "thật hay hành động thì gọi tool ask_javis "
     "rồi thuật lại kết quả. Đang được ngắt lời thì dừng ngay và nghe."
 )
 
 # GPT-Live không có tool: nó ỦY NHIỆM. Prompt hội thoại ngắn, nói rõ khi nào giao việc.
 GPT_LIVE_PROMPT = (
-    "Bạn là Javis, trợ lý cá nhân, đang nói chuyện bằng giọng. Mặc định nghe và đáp bằng tiếng "
-    "Việt; chỉ đổi ngôn ngữ khi người dùng nói rõ bằng ngôn ngữ khác hoặc yêu cầu đổi. Nếu âm "
-    "thanh mơ hồ hay câu chép ra pha tiếng lạ vô nghĩa, hãy xin nhắc lại bằng tiếng Việt. Nói ngắn và "
+    "Bạn là Javis, trợ lý cá nhân, đang nói chuyện bằng giọng. Nói ngắn và "
     "tự nhiên. Chuyện phiếm, hỏi đáp thường thì trả lời ngay. Câu nào cần dữ liệu thật (số liệu "
     "kinh doanh, lịch, email, file, ghi chú, ký ức), cần làm việc, nhắc hẹn, mở trang hay app, hay "
     "bất cứ hành động nào ra ngoài thì GIAO cho bộ não chính (delegate), nói một câu ngắn như 'để "
@@ -85,6 +82,25 @@ GPT_LIVE_PROMPT = (
 
 # GPT-Live giới hạn mỗi lần append 500 token; giữ kết quả bộ não chính trong khoảng đó.
 GPT_LIVE_APPEND_MAX = 1400
+
+
+def _recognition_language(value: str) -> str:
+    value = str(value or "vi-VN").strip()
+    if value.lower() == "auto":
+        return "auto"
+    # Only a locale token may enter the system prompt and provider payload.
+    return value if re.fullmatch(r"[A-Za-z]{2}(?:-[A-Za-z0-9]{2,8})*", value) else "vi-VN"
+
+
+def _language_instruction(language: str) -> str:
+    # Native Gemini audio uses system instructions for language, not speechConfig.languageCode:
+    # https://ai.google.dev/gemini-api/docs/live-api/best-practices#specify-language
+    if language == "auto":
+        policy = "Detect the user's spoken language and reply in that language."
+    else:
+        policy = (f"The user selected recognition language {language}. Listen and reply in {language}; "
+                  "switch only when the user clearly speaks another language or explicitly requests it.")
+    return policy + " If audio is unclear, ask for repetition in the current language; do not infer a language switch from noise."
 
 
 def resample_16k_to_24k(pcm16: bytes) -> bytes:
@@ -114,11 +130,12 @@ class LiveProvider:
     name = ""
 
     def __init__(self, api_key: str, model: str = "", voice: str = "", system: str = SYSTEM_PROMPT,
-                 tools: Optional[List[dict]] = None):
+                 tools: Optional[List[dict]] = None, recognition_lang: str = "vi-VN"):
         self.api_key = api_key
         self.model = model or PROVIDERS[self.name]["default_model"]
         self.voice = voice or PROVIDERS[self.name]["default_voice"]
-        self.system = system
+        self.recognition_lang = _recognition_language(recognition_lang)
+        self.system = system + "\n\n" + _language_instruction(self.recognition_lang)
         self.tools = tools if tools is not None else [ASK_JAVIS_TOOL]
         self.ws = None
         self.wants_reconnect = False   # nhà cung cấp báo sắp đóng: route gọi reconnect()
@@ -246,10 +263,66 @@ class LiveProvider:
 
 class GeminiLive(LiveProvider):
     name = "gemini"
+    SETUP_TIMEOUT = 10
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.resume_handle = ""   # từ sessionResumptionUpdate, dùng khi nối lại
+        self._setup_ready = asyncio.Event()
+        self._initial_events: List[dict] = []
+
+    async def connect(self):
+        # BidiGenerateContentSetup requires setupComplete before any further client input.
+        # https://ai.google.dev/api/live#bidigeneratecontentsetup
+        self._setup_ready.clear()
+        self._initial_events = []
+        try:
+            await super().connect()
+            await asyncio.wait_for(self._wait_for_setup(), self.SETUP_TIMEOUT)
+            self._setup_ready.set()
+        except BaseException:
+            await self.close()
+            raise
+
+    async def _wait_for_setup(self):
+        while self.ws is not None:
+            raw = await self.ws.recv()
+            try:
+                msg = json.loads(raw)
+            except (ValueError, UnicodeDecodeError):
+                continue
+            if not isinstance(msg, dict):
+                continue
+            if "error" in msg:
+                raise RuntimeError("Gemini Live rejected session setup.")
+            self._initial_events.extend(self.translate(msg))
+            if "setupComplete" in msg:
+                return
+        raise RuntimeError("Gemini Live closed before session setup completed.")
+
+    async def _send(self, obj: dict):
+        socket = self.ws
+        if socket is None:
+            return
+        if "setup" not in obj:
+            await self._setup_ready.wait()
+            if self.ws is not socket:
+                return
+        await super()._send(obj)
+
+    async def events(self) -> AsyncIterator[dict]:
+        initial, self._initial_events = self._initial_events, []
+        for event in initial:
+            yield event
+        async for event in super().events():
+            yield event
+
+    async def close(self):
+        try:
+            await super().close()
+        finally:
+            self._initial_events = []
+            self._setup_ready.set()  # Release senders when setup fails or the connection closes.
 
     def url(self) -> str:
         return ("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta."
@@ -326,8 +399,16 @@ class GeminiLive(LiveProvider):
                 # Chữ trong modelTurn KHÔNG phát: setup đã bật outputAudioTranscription nên chữ
                 # trợ lý đi qua outputTranscription; phát cả hai là khung chat hiện đúp.
             it = sc.get("inputTranscription") or {}
+            interim = sc.get("interimInputTranscription") or {}
+            if interim.get("text") and not it.get("text"):
+                out.append({"type": "transcript", "role": "user", "text": str(interim["text"]), "final": False})
             if it.get("text"):
-                out.append({"type": "transcript", "role": "user", "text": it["text"], "final": bool(it.get("finished", False))})
+                # Input transcripts have no documented finished flag or ordering relative to
+                # model turnComplete. Commit each received segment independently so a late
+                # transcript cannot be stranded or joined to the next user turn. `final` is
+                # our persistence marker, not a claim that this is a complete utterance.
+                # Legacy models streaming short segments may therefore create short bubbles.
+                out.append({"type": "transcript", "role": "user", "text": str(it["text"]), "final": True})
             ot = sc.get("outputTranscription") or {}
             if ot.get("text"):
                 out.append({"type": "transcript", "role": "assistant", "text": ot["text"], "final": False})
@@ -366,10 +447,14 @@ class OpenAIRealtime(LiveProvider):
         tools = [{"type": "function", "name": t["name"], "description": t.get("description", ""),
                   "parameters": t.get("parameters", {"type": "object", "properties": {}})} for t in self.tools]
         pcm24 = {"type": "audio/pcm", "rate": 24000}
+        transcription = {"model": "gpt-4o-mini-transcribe"}
+        # Realtime audio.input.transcription.language accepts ISO-639-1, not BCP-47 locales.
+        if self.recognition_lang != "auto":
+            transcription["language"] = self.recognition_lang.split("-")[0].lower()
         return {"type": "session.update", "session": {
             "type": "realtime", "output_modalities": ["audio"], "instructions": self.system,
             "audio": {
-                "input": {"format": pcm24, "transcription": {"model": "gpt-4o-mini-transcribe"},
+                "input": {"format": pcm24, "transcription": transcription,
                           "turn_detection": {"type": "server_vad", "threshold": 0.5, "prefix_padding_ms": 300,
                                              "silence_duration_ms": 500}},
                 "output": {"format": pcm24, "voice": self.voice},
@@ -456,8 +541,8 @@ class GPTLive(LiveProvider):
     name = "gpt-live"
 
     def __init__(self, api_key: str, model: str = "", voice: str = "", system: str = GPT_LIVE_PROMPT,
-                 tools: Optional[List[dict]] = None):
-        super().__init__(api_key, model=model, voice=voice, system=system, tools=tools)
+                 tools: Optional[List[dict]] = None, recognition_lang: str = "vi-VN"):
+        super().__init__(api_key, model=model, voice=voice, system=system, tools=tools, recognition_lang=recognition_lang)
         self._user_buf = ""       # chữ người dùng đang nói (chưa chốt)
         self._user_last = ""      # câu người dùng gần nhất đã chốt
         self._asst_open = False   # trợ lý đang có chữ dở (để suy ra turn_done)
@@ -562,7 +647,7 @@ class GPTLive(LiveProvider):
 _CLASSES = {"gemini": GeminiLive, "openai": OpenAIRealtime, "gpt-live": GPTLive}
 
 
-def make_provider(cfg: dict, system: str = "") -> LiveProvider:
+def make_provider(cfg: dict, system: str = "", recognition_lang: str = "vi-VN") -> LiveProvider:
     """Dựng nhà cung cấp Live từ settings. Ném RuntimeError có câu người đọc hiểu được."""
     v = (cfg or {}).get("voice") or {}
     m = (cfg or {}).get("model") or {}
@@ -573,7 +658,8 @@ def make_provider(cfg: dict, system: str = "") -> LiveProvider:
     if not key:
         raise RuntimeError(f"{PROVIDERS[prov]['label']} chưa có API key ở trang Models.")
     cls = _CLASSES[prov]
-    kw = {"model": str(v.get("live_model") or ""), "voice": str(v.get("live_voice") or "")}
+    kw = {"model": str(v.get("live_model") or ""), "voice": str(v.get("live_voice") or ""),
+          "recognition_lang": recognition_lang}
     if system:
         kw["system"] = system
     return cls(key, **kw)

@@ -82,6 +82,8 @@ import inbox         # hòm thư: mọi kết quả chạy nền để lại m�
 import webpush       # thông báo đẩy trình duyệt (Web Push, tự mã hoá - không thêm thư viện)
 import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh Telegram/Zalo
 import nghe_sua       # sửa chữ nghe nhầm theo ngữ cảnh (David -> Javis) + hotwords cho Whisper
+import voice_privacy
+voice_privacy.install()
 import zalo_login
 import oauth_mcp
 import system_sync   # tầng năng lực HỆ THỐNG (skill/loop mặc định) - update theo phiên bản app
@@ -11920,7 +11922,8 @@ async def _voice_ask_javis(request: str, conv_sid: str, brain: str, key: str = "
 
 
 @app.websocket("/ws/voice-live")
-async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str = Query("brain")):
+async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str = Query("brain"),
+                        lang: str = Query("vi-VN")):
     """Nghe nói thẳng (Voice V2 bậc Live): trình duyệt đẩy PCM16 16 kHz, nhận PCM16 24 kHz.
 
     Khung JSON về trình duyệt: ready | interrupted | transcript | tool | turn_done | error.
@@ -11939,7 +11942,7 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
 
     cfg = cfgmod.read_settings()
     try:
-        prov = voice_live.make_provider(cfg)
+        prov = voice_live.make_provider(cfg, recognition_lang=lang)
         await prov.connect()
     except Exception as e:
         await _j({"type": "error", "message": f"{type(e).__name__}: {e}" if not isinstance(e, RuntimeError) else str(e)})
@@ -13502,7 +13505,8 @@ async def websocket_endpoint(ws: WebSocket):
                                 **context_runtime.event_fields(runtime_trace)})
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
 
-        async def run_voice_turn(conv_sid, user_message, brain, turn_tag, runtime_trace, conf):
+        async def run_voice_turn(conv_sid, user_message, brain, turn_tag, runtime_trace, conf,
+                                 voice_turn_id=""):
             """LÀN NHANH giọng nói (Voice V2, docs/dev/2026-09-voice-v2-spec.md mục 2).
 
             Tin đến từ mic đi qua bộ não giọng (voice_brain) thay vì bộ não chính: trả lời
@@ -13544,22 +13548,37 @@ async def websocket_endpoint(ws: WebSocket):
                 pass
             text, sent_upto, brain_obj = "", 0, None
             _nghe_xong = False      # đã xét dòng đầu (JAVIS_NGHE) của lượt này chưa
+            _nghe_hop_le = False
+            original_message = user_message
+
+            async def _giu_cau_goc():
+                await send_raw({"type": "status", "session_id": conv_sid,
+                                "content": "Javis đang kiểm tra lại câu vừa nghe..."})
+                await run_turn(conv_sid, original_message, brain, turn_tag, runtime_trace)
 
             async def _ap_dien_giai(nghe):
-                """Bộ não giọng vừa diễn giải câu nói: thay tin người dùng trong kho phiên và
-                báo khung chat đổi bong bóng. Trả câu sẽ dùng làm user_message từ đây."""
+                """Only grounded spelling repairs may change the stored utterance."""
                 nonlocal user_message
                 nghe = (nghe or "").strip()
-                if not nghe or nghe == user_message.strip():
-                    return
-                print(f"[voice nghe] {user_message[:80]!r} -> {nghe[:80]!r}", file=sys.stderr)
+                safe = voice_brain.safe_transcript_rewrite(original_message, nghe)
+                _, candidate = nghe_sua.split_ui_context(nghe)
+                _, speech = nghe_sua.split_ui_context(safe)
+                if not candidate or speech.strip() != candidate.strip():
+                    return False
+                if safe == user_message:
+                    return True
                 try:
-                    store.replace_last_message(conv_sid, "user", nghe)
-                except Exception as e:
-                    print(f"[voice nghe] không thay được tin trong kho phiên: {e}", file=sys.stderr)
+                    changed = store.replace_last_message(conv_sid, "user", safe,
+                                                         expected_content=user_message)
+                except Exception:
+                    changed = False
+                if not changed:
+                    return False
                 await send_raw({"type": "user_text", "session_id": conv_sid,
-                                "text": nghe, "raw": user_message})
-                user_message = nghe
+                                "text": speech, "raw": nghe_sua.split_ui_context(user_message)[1],
+                                "voice_turn_id": voice_turn_id})
+                user_message = safe
+                return True
 
             # Chỉ đẩy phần ĐỌC ĐƯỢC: câu đã khép hoặc dòng đã khép (voice_brain.split_speakable).
             # Trình duyệt đọc mỗi khung là một yêu cầu TTS riêng, nên đẩy từng delta vài từ là
@@ -13590,8 +13609,13 @@ async def websocket_endpoint(ws: WebSocket):
                         _nghe_xong = True
                         text, _nghe = voice_brain.tach_nghe_dau(text)
                         if _nghe:
-                            await _ap_dien_giai(_nghe)
-                    await _flush()
+                            _nghe_hop_le = await _ap_dien_giai(_nghe)
+                            if not _nghe_hop_le:
+                                await _giu_cau_goc()
+                                return
+                    # Missing/late markers must be validated before any speech or action.
+                    if _nghe_hop_le:
+                        await _flush()
             except asyncio.CancelledError:
                 await send_raw({"type": "system", "content": "Đã dừng lượt này.", "session_id": conv_sid})
                 await send_raw({"type": "turn_done", "session_id": conv_sid})
@@ -13623,16 +13647,17 @@ async def websocket_endpoint(ws: WebSocket):
             # ghi chú thoáng qua rồi tự tắt, đủ để biết Javis có nghe và đã quyết bỏ.
             _ly_do = voice_brain.parse_bo_qua(text) if conf.get("loc_tap_am", True) else None
             if _ly_do is not None:
-                print(f"[voice tạp âm] bỏ lượt ({_ly_do or 'không nêu lý do'}): "
-                      f"{user_message[:160]!r}", file=sys.stderr)
+                removed = False
                 try:
                     # pop_last_message chứ không phải một hàm xoá riêng: nó trừ cả msg_count,
                     # không thì danh sách Lịch sử khoe "1 tin" cho một cuộc rỗng không.
-                    store.pop_last_message(conv_sid, "user")
+                    removed = store.pop_last_message(conv_sid, "user", content=user_message)
                 except Exception as e:
                     print(f"[voice tạp âm] không xoá được tin khỏi kho phiên: {e}", file=sys.stderr)
-                await send_raw({"type": "user_text", "session_id": conv_sid,
-                                "bo_qua": True, "ly_do": _ly_do, "raw": user_message})
+                if removed:
+                    await send_raw({"type": "user_text", "session_id": conv_sid,
+                                    "bo_qua": True, "raw": nghe_sua.split_ui_context(user_message)[1],
+                                    "voice_turn_id": voice_turn_id})
                 await send_raw({"type": "turn_done", "session_id": conv_sid})
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
                 return
@@ -13646,7 +13671,13 @@ async def websocket_endpoint(ws: WebSocket):
                     sent_upto = max(0, sent_upto - (len(text) - len(_rest)))
                 text = _rest
                 if _nghe:
-                    await _ap_dien_giai(_nghe)
+                    _nghe_hop_le = await _ap_dien_giai(_nghe)
+                    if not _nghe_hop_le:
+                        await _giu_cau_goc()
+                        return
+            if not _nghe_hop_le:
+                await _giu_cau_goc()
+                return
             # ĐƯỜNG TẮT giao diện: mở tab, bung nhóm, cuộn. Không cần dữ liệu gì nên không đánh
             # thức bộ não chính (lượt đó mang cả ngữ cảnh hội thoại, có lúc hơn 200 nghìn token,
             # nên "mở trang Models" mất hàng chục giây). Gọi thẳng dashboard ngay tại đây.
@@ -13927,11 +13958,10 @@ async def websocket_endpoint(ws: WebSocket):
             # trước khi lưu phiên - phủ cả chữ của Web Speech (không qua /stt) lẫn chữ Groq. Chỉ
             # tin từ mic: chữ gõ tay là chữ người dùng chọn, không sửa.
             _nghe_tho = ""      # chữ thô của máy nghe, khi lớp sửa có đổi (báo lại cho khung chat)
-            if payload.get("voice"):
+            if payload.get("voice_input", payload.get("voice")):
                 try:
                     _sua = nghe_sua.sua(user_message, nghe_sua.tu_vung(_cfg_luot))
                     if _sua != user_message:
-                        print(f"[voice nghe_sua] {user_message[:80]!r} -> {_sua[:80]!r}", file=sys.stderr)
                         _nghe_tho, user_message = user_message, _sua
                 except Exception as e:
                     print(f"[voice nghe_sua] lỗi, giữ nguyên câu: {e}", file=sys.stderr)
@@ -13986,7 +14016,9 @@ async def websocket_endpoint(ws: WebSocket):
             # phải nhìn thấy Javis hiểu câu nào, không phải đoán (chủ dự án 16/09).
             if _nghe_tho:
                 await send_raw({"type": "user_text", "session_id": conv_sid,
-                                "text": user_message, "raw": _nghe_tho})
+                                "text": nghe_sua.split_ui_context(user_message)[1],
+                                "raw": nghe_sua.split_ui_context(_nghe_tho)[1],
+                                "voice_turn_id": str(payload.get("voice_turn_id") or "")})
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
             runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
             # Phiên workflow:<slug>: mỗi tin là một lần chạy quy trình, không phải một lượt
@@ -14041,7 +14073,8 @@ async def websocket_endpoint(ws: WebSocket):
                 _bao_lan_nhanh_bo_qua(_vconf)
             if _vconf and _vconf.get("mode") == "fast" and _vconf.get("provider"):
                 task = asyncio.create_task(run_voice_turn(
-                    conv_sid, user_message, brain, turn_tag, runtime_trace, _vconf))
+                    conv_sid, user_message, brain, turn_tag, runtime_trace, _vconf,
+                    voice_turn_id=str(payload.get("voice_turn_id") or "")))
             else:
                 task = asyncio.create_task(run_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
