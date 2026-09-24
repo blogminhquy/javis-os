@@ -531,6 +531,31 @@
     }).observe(g, { attributes: true, attributeFilter: ["class"] });
   }
 
+  // Khoảng hở tối thiểu giữa hai mắt (đơn vị viewBox), và bề ngang một con mắt tính từ tâm
+  // của nó ra mép xa nhất, kể cả nửa bề dày nét vẽ. Đọc thẳng từ markup trong EYES nên thêm
+  // dáng mắt mới là tự được tính, không phải khai bề ngang lần thứ hai.
+  var KHE_MAT = 6;
+  var _nuaRong = {};
+  function nuaRongMat(m) {
+    if (_nuaRong[m] !== undefined) return _nuaRong[m];
+    var r = 0;
+    var el2 = /<ellipse([^>]*)>/.exec(m);
+    if (el2) {
+      var cx = /cx="(-?[\d.]+)"/.exec(el2[1]), rx = /rx="([\d.]+)"/.exec(el2[1]);
+      r = Math.abs(cx ? +cx[1] : 0) + (rx ? +rx[1] : 0);
+    }
+    var d = /d="([^"]+)"/.exec(m);
+    if (d) {
+      // Lệnh H chỉ mang toạ độ x; các lệnh còn lại mang cặp (x, y).
+      (d[1].match(/[A-Za-z][^A-Za-z]*/g) || []).forEach(function (lenh) {
+        var so = (lenh.slice(1).match(/-?[\d.]+/g) || []).map(Number);
+        so.forEach(function (v, i) { if (lenh[0] === "H" || i % 2 === 0) r = Math.max(r, Math.abs(v)); });
+      });
+      if (/pet-line/.test(m)) r += 3.5;   // nửa stroke-width 7 của .pet-line
+    }
+    return (_nuaRong[m] = r || 10);
+  }
+
   // Xếp hai con mắt. Lúc nép ở mép, hai mắt vẫn đứng CẠNH NHAU theo hàng ngang nhưng NÉ hẳn
   // sang nửa thân còn nhìn thấy, và xích lại gần nhau một chút cho vừa chỗ. Đừng để chúng
   // đứng yên giữa mặt: một nửa mặt bị mép màn hình cắt mất thì con mắt bên kia cũng mất theo,
@@ -543,19 +568,27 @@
     var a, b;
     if (el && el.dataset.out !== "1") {
       var tam = cfg.side === "right" ? -34 : 34;   // tâm của cặp mắt, lệch về phía còn thấy
-      var c = cachMat(13);
+      var c = cachMat(14);
       a = [tam - c, 0]; b = [tam + c, 0];
     } else {
       var c2 = cachMat(15);
       a = [-c2, 0]; b = [c2, 0];
     }
+    var nua = (b[0] - a[0]) / 2;
     // Cỡ mắt đi bằng scale trên chính nhóm đã dịch chuyển, chứ không sửa từng con số trong
     // bảng EYES: mỗi biểu cảm ở đó là một hình riêng (ellipse, path cong, gạch ngang), nhân
     // tay thì phải nhân đúng chín chỗ và cứ thêm một biểu cảm là thêm một chỗ để quên.
     // Dáng mắt đang vẽ gắn lên phần tử để CSS diễn theo (gồng sức thì rung nhẹ).
     if (el) el.dataset.mat = ten;
+    // KHÔNG ĐỂ HAI MẮT DÍNH NHAU (0.64.42). Mắt tròn thường chỉ rộng 7,2 mỗi bên nên thừa chỗ,
+    // nhưng các dáng NÉT NGANG (chớp mắt, lim dim, ngủ, cười) rộng 9 cộng nửa nét 3,5, mắt tim
+    // rộng 15. Lúc nép mép hai mắt dồn sát lại, cỡ mắt to thì phóng thêm, nên hai nét nhắm
+    // chạm nhau thành một vạch dài (chủ dự án gửi ảnh 24/09). Đo bề ngang THẬT của từng dáng
+    // rồi chỉ co riêng dáng nào không vừa, đủ để còn hở KHE_MAT; dáng vừa thì giữ nguyên cỡ.
     var k = heSoMat();
-    var co = k === 1 ? "" : " scale(" + k + ")";
+    var kMax = Math.max(0.5, (nua - KHE_MAT / 2) / Math.max(nuaRongMat(trai), nuaRongMat(phai)));
+    var kv = Math.min(k, kMax);
+    var co = kv === 1 ? "" : " scale(" + (Math.round(kv * 1000) / 1000) + ")";
     gEyes.innerHTML =
       '<g transform="translate(' + (160 + a[0]) + " " + (160 + a[1]) + ")" + co + '">' + trai + "</g>" +
       '<g transform="translate(' + (160 + b[0]) + " " + (160 + b[1]) + ")" + co + '">' + phai + "</g>";

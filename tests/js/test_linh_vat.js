@@ -190,7 +190,15 @@ check("cỡ mặc định không phải cỡ nhỏ nhất", /size: 72, /.test(pe
 check("màn hẹp KHÔNG co pet nhỏ lại nữa", !/\.pet, \.pet-body \{ width: 46px/.test(css));
 check("cỡ đi qua biến CSS --pet-size", /width: var\(--pet-size/.test(css)
   && /setProperty\("--pet-size"/.test(pet));
-check("màn hẹp vẫn có trần theo bề ngang màn", /min\(var\(--pet-size[^)]*\), 24vw\)/.test(css));
+check("màn hẹp vẫn có trần theo bề ngang màn", /min\(var\(--pet-size[^)]*\), \d+vw\)/.test(css));
+// 0.64.42: trần phải đủ cho cỡ LỚN NHẤT của thanh trượt trên điện thoại thường (375px). Trần cũ
+// 24vw chặn pet ở khoảng 99px trên máy 412px, kéo thanh trượt quá đó là pet đứng im.
+{
+  const tran = +((/min\(var\(--pet-size[^)]*\), (\d+)vw\)/.exec(css) || [])[1]);
+  const coMax = +((/var CO_MIN = \d+, CO_MAX = (\d+);/.exec(pet) || [])[1]);
+  check("trần màn hẹp đủ cho cỡ lớn nhất trên màn 375px (" + tran + "vw, cỡ tối đa " + coMax + "px)",
+    tran > 0 && coMax > 0 && 375 * tran / 100 >= coMax);
+}
 const mainPy = read("server/main.py");
 check("server nhận khoá size, màu mắt và cỡ mắt",
   /for k in \("shape", "palette", "side", "size", "eye", "eyeSize"\)/.test(mainPy));
@@ -418,7 +426,7 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
   // Hệ số phải được dùng THẬT ở CẢ HAI đường vẽ. Vẽ mắt sống mà quên thì chọn cỡ xong con pet
   // ở mép màn hình không đổi gì; vẽ chân dung tĩnh mà quên thì ô xem thử và dấu ấn trên thanh
   // bên nói khác con pet thật.
-  check("cỡ mắt được nhân vào mắt SỐNG (veMat)", /function veMat\([\s\S]{0,900}heSoMat\(\)/.test(pet));
+  check("cỡ mắt được nhân vào mắt SỐNG (veMat)", /function veMat\([\s\S]{0,2600}heSoMat\(\)/.test(pet));
   check("cỡ mắt được nhân vào chân dung TĨNH (chanDung)", /function chanDung\([\s\S]{0,2200}7\.2 \* k/.test(pet));
   check("mắt to thì nới khoảng cách hai mắt cho khỏi chạm nhau", /function cachMat\(/.test(pet));
   check("JavisPet phơi danh sách cỡ mắt ra cho trang cài đặt", /eyeSizes: function \(\)/.test(pet));

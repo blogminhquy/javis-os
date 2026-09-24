@@ -3182,9 +3182,12 @@ body.ne-full-on .cview { z-index: 250; }
 
 /* Màn hẹp KHÔNG thu nhỏ pet nữa: ngón tay to hơn con trỏ chuột, và trên điện thoại một
    chấm bé còn khó thấy hơn trên màn rộng. Cỡ do người dùng chọn (trang Linh vật), chỉ giới
-   hạn theo bề ngang màn để nó không chiếm nửa màn hình trên máy nhỏ. */
+   hạn theo bề ngang màn để nó không chiếm nửa màn hình trên máy nhỏ.
+   TRẦN 40vw (0.64.42), không phải 24vw: 24vw trên điện thoại 412px là 99px, nên từ khi Kích
+   cỡ thành thanh trượt tới 150px thì kéo quá 100px trên điện thoại pet đứng im (chủ dự án báo
+   24/09). 40vw cho đủ 150px từ màn 375px trở lên, và pet nép mép thì chỉ lộ nửa người. */
 @media (max-width: 700px) {
-  .pet { width: min(var(--pet-size, 72px), 24vw); height: min(var(--pet-size, 72px), 24vw); }
+  .pet { width: min(var(--pet-size, 72px), 40vw); height: min(var(--pet-size, 72px), 40vw); }
   .pet-menu button { font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
