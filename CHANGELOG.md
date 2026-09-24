@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.48] - 2026-09-24
+### Sửa lỗi
+- **Việc ngầm không còn tự mọc khi chỉ nhắc tới chữ "việc".** (đang viết)
+
 ## [0.64.47] - 2026-09-24
 ### Cải thiện
 - **Thiết lập lần đầu chỉ cần tên đăng nhập và mật khẩu**, không còn phải đi tìm MÃ THIẾT LẬP trong log server. Bảo vệ tài khoản giờ giao cho 2FA: vào xong nên bật ngay.
