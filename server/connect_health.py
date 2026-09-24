@@ -45,9 +45,9 @@ def classify_error(err: str, conn=None) -> tuple[str, str]:
     if (conn or {}).get("connector_id") == "composio" and (
             "401" in low or "bearer token rejected" in low):
         message = ("Composio từ chối consumer key mà Javis đang dùng. Vào Composio "
-                   "For You → Connect my agent, lấy key ck_* rồi bấm Kết nối lại trên thẻ "
-                   "Composio trong Javis để cập nhật key. Kết nối lại riêng Calendar không "
-                   "thay đổi key này.")
+                   "For You → Connect my agent, lấy key ck_*, nhập vào thẻ Composio "
+                   "trong Javis rồi bấm Kết nối hoặc Kết nối lại. Kết nối lại riêng "
+                   "Calendar không thay đổi key này.")
         return "auth", message
     if any(s in low for s in _AUTH_HINTS):
         return "auth", "Hết phiên đăng nhập - bấm Kết nối lại để đăng nhập lại."

@@ -37,6 +37,7 @@ def test_health_names_rejected_composio_consumer_key():
     assert "consumer key" in rec["message"].lower()
     assert "Connect my agent" in rec["message"]
     assert "Javis" in rec["message"]
+    assert "Kết nối hoặc Kết nối lại" in rec["message"]
     assert "Hết phiên đăng nhập" not in rec["message"]
 
 
@@ -47,6 +48,7 @@ def test_connect_test_names_rejected_composio_consumer_key(monkeypatch):
     assert result["ok"] is False
     assert "consumer key" in result["error"].lower()
     assert "Connect my agent" in result["error"]
+    assert "Kết nối hoặc Kết nối lại" in result["error"]
 
 
 def test_catalog_uses_consumer_connect_instructions():
