@@ -989,7 +989,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .msg-javis .bubble {
   background: var(--surface-1); border: 1px solid var(--hairline);
   padding: 16px 18px; border-radius: 3px 12px 12px 12px;
-  line-height: 1.65; font-size: 16px; max-width: 72ch; font-family: var(--font-chat);
+  line-height: 1.75; font-size: 16px; max-width: 72ch; font-family: var(--font-chat);
 }
 .msg-javis .bubble strong { color: inherit; font-weight: 600; }
 .msg-javis .bubble code { font-family: var(--mono); font-size: 13.5px; background: var(--surface-2); padding: 2px 5px; border-radius: 4px; color: var(--text); }
@@ -2021,10 +2021,16 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .msg-javis .bubble h1, .msg-javis .bubble h2, .msg-javis .bubble h3,
 .msg-javis .bubble h4, .msg-javis .bubble h5, .msg-javis .bubble h6 {
   color: var(--text); font-weight: 600; margin: 22px 0 8px; line-height: 1.4; }
+.msg-javis .bubble h1:first-child, .msg-javis .bubble h2:first-child,
+.msg-javis .bubble h3:first-child, .msg-javis .bubble h4:first-child,
+.msg-javis .bubble h5:first-child, .msg-javis .bubble h6:first-child { margin-top: 0; }
 .msg-javis .bubble > :first-child { margin-top: 0; }
 .msg-javis .bubble > :last-child { margin-bottom: 0; }
-.msg-javis .bubble p { margin: 0 0 14px; }
-.msg-javis .bubble ul, .msg-javis .bubble ol { padding-left: 22px; margin: 10px 0 16px; }
+.msg-javis .bubble p { margin: 14px 0; }
+.msg-javis .bubble p:first-child { margin-top: 0; }
+.msg-javis .bubble p:last-child { margin-bottom: 0; }
+.msg-javis .bubble ul { padding-left: 22px; margin: 10px 0 16px; }
+.msg-javis .bubble ol { padding-left: 22px; margin: 10px 0 16px; }
 .msg-javis .bubble li { margin: 7px 0; line-height: 1.55; }
 /* Danh sách lồng nhau thì siết lại: nó vốn đã thuộc về mục cha, giãn bằng đoạn văn là gãy mạch. */
 .msg-javis .bubble ul ul, .msg-javis .bubble ul ol,
