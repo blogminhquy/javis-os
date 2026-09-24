@@ -768,8 +768,10 @@ function handleMessage(data) {
       // Đọc tin nền chỉ khi người dùng KHÔNG đang nói hay đang nghe Javis nói dở (Voice V1):
       // chen một bản tin vào giữa câu người dùng là cắt ngang họ. Hoãn tới lúc rảnh.
       if (voice.ttsEnabled) {
-        if (turn.canSpeakNow()) voice.enqueueSpeak(data.content || "", { uncounted: true });
-        else turn.defer(data.content || "");
+        // Đọc phần chữ, không đọc khối ẩn JAVIS_VIEC.
+        const _doc = window.JavisViec ? window.JavisViec.tach(data.content || "").clean : (data.content || "");
+        if (turn.canSpeakNow()) voice.enqueueSpeak(_doc, { uncounted: true });
+        else turn.defer(_doc);
       }
       try { if (el) el.scrollIntoView({ block: "nearest" }); } catch (e) {}
     }
@@ -857,13 +859,15 @@ function handleMessage(data) {
       _renderCtxLine(msgEl, data);   // lượt này đi đường nào, tốn bao nhiêu
       // V3: bộ não giọng vừa giao một việc chạy NỀN (tách nói khỏi làm). Ghi rõ dưới câu xác
       // nhận để người dùng biết việc đã nhận; kết quả về sau bằng khung push (tự đọc khi loa rảnh).
+      // 0.64.48: vẽ bằng chat-viec.js (dòng gọn có icon) và GHI kèm khối JAVIS_VIEC vào bản lưu
+      // cục bộ, để F5 vẫn còn dòng này. Server cũng lưu khối đó trong kho phiên.
+      let _ghi = finalText;
       if (data.background) {
-        const nen = document.createElement("div");
-        nen.className = "voice-nen";
-        nen.textContent = window.t("app.voice_bg_task", { task: String(data.background).slice(0, 160) });
-        msgEl.appendChild(nen);
+        const _v = { kind: "voice", status: "giao", title: String(data.background).slice(0, 160) };
+        if (window.JavisViec) window.JavisViec.ve(msgEl, _v);
+        _ghi = finalText + "\n\n<!-- JAVIS_VIEC: " + JSON.stringify(_v) + " -->";
       }
-      if (finalText.trim()) recordTurn("javis", finalText, null, ask, t && t.buoc);
+      if (finalText.trim()) recordTurn("javis", _ghi, null, ask, t && t.buoc);
       // Có câu trả lời thật thì linh vật vui một nhịp. Đang đọc thành tiếng thì nó tự đợi đọc
       // xong mới nhảy (pet.js giữ cờ choXong), nên gọi ngay ở đây là đủ.
       if (finalText.trim()) petReact("xong");
@@ -1721,10 +1725,14 @@ function appendUserMessage(text, attachments, ts) {
 // Truyền vào khi dựng lại tin CŨ, để ảnh trong tin phân giải theo đúng brain của nó thay vì
 // brain đang chọn - nếu không thì mở hội thoại cũ ở brain khác là ảnh 404 rồi biến thành ô xám.
 function appendJavisMessage(text, ts, brain) {
+  // Tin do việc nền đẩy về mang khối ẩn JAVIS_VIEC (chat-viec.js): bóc ra để vẽ thành THẺ việc
+  // (icon trạng thái, tên việc, nút mở trang Việc) thay cho bong bóng chữ trơn (0.64.48).
+  const tv = window.JavisViec ? window.JavisViec.tach(text) : { clean: text, viec: null };
   const div = document.createElement("div");
   div.className = "msg msg-javis";
-  div.innerHTML = `<div class="bubble">${markdownToHtml(text, brain)}</div>` +
+  div.innerHTML = `<div class="bubble">${markdownToHtml(tv.clean, brain)}</div>` +
     actsHtml("javis", ts === undefined ? Date.now() : ts, !!lastUserText().trim());
+  if (tv.viec) window.JavisViec.ve(div, tv.viec);
   chatAppend(div); scrollBottom();
   return div;
 }

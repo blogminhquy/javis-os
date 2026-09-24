@@ -77,7 +77,7 @@ check("app.js: Live -> batTheoLoi live, ngắt -> ketThucTheoLoi(true), turn_don
       /batTheoLoi\(_liveJavisBubble, _liveJavisText, null, true\)/.test(app) && /onInterrupted: \(\) => \{ ketThucTheoLoi\(true\);/.test(app)
       && /_theoLoi\.chuaXong = false;/.test(app));
 check("app.js: câu tiến độ và tin nền đọc với uncounted", /opts\.length\)\]\, \{ uncounted: true \}\)/.test(app)
-      && /voice\.enqueueSpeak\(t, \{ uncounted: true \}\)/.test(app) && /voice\.enqueueSpeak\(data\.content \|\| "", \{ uncounted: true \}\)/.test(app));
+      && /voice\.enqueueSpeak\(t, \{ uncounted: true \}\)/.test(app) && /voice\.enqueueSpeak\(_doc, \{ uncounted: true \}\)/.test(app));
 check("app.js: lượt mới reset số từ và vẽ đủ bong bóng cũ", /ketThucTheoLoi\(false\);[^\n]*\n\s*voice\.resetSpokenWords\(\);/.test(app));
 check("app.js: vòng vẽ orb gọi nhipTheoLoi", /if \(_theoLoi && \(_stopBtnTick % 3\) === 0\) nhipTheoLoi\(\);/.test(app));
 check("style.css: có .theo-loi-cho", /\.theo-loi-cho \{/.test(css));
@@ -90,10 +90,12 @@ check("app.js: gửi tin thì gỡ bong bóng nháp trước", /voice\.resetSpok
 check("style.css: có .msg-nhap-giong", /\.msg-nhap-giong \.bubble \{/.test(css));
 
 // 7. Tách nói khỏi làm: câu xác nhận kèm dòng "đang làm nền"
-check("app.js: response mang background -> dòng voice-nen dưới bong bóng", /if \(data\.background\) \{/.test(app) && /className = "voice-nen"/.test(app)
-      && /window\.t\("app\.voice_bg_task", \{ task:/.test(app));
-check("i18n vi/en có app.voice_bg_task với {task}", /\{task\}/.test(vi["app.voice_bg_task"] || "") && /\{task\}/.test(en["app.voice_bg_task"] || ""));
-check("style.css: có .voice-nen", /\.voice-nen \{/.test(css));
+// 0.64.48: dòng "đang làm nền" vẽ bằng chat-viec.js (có icon, chữ 16px, lưu kèm khối
+// JAVIS_VIEC nên F5 vẫn còn) thay cho div chữ nghiêng .voice-nen. Chi tiết: test_the_viec_nen.js.
+check("app.js: response mang background -> dòng đang làm nền dưới bong bóng", /if \(data\.background\) \{/.test(app)
+      && /status: "giao", title: String\(data\.background\)/.test(app) && /window\.JavisViec\.ve\(msgEl, _v\)/.test(app));
+check("i18n vi/en có nhãn dòng đang làm nền", !!vi["viec.da_giao"] && !!en["viec.da_giao"]);
+check("style.css: có .viec-giao", /\.msg-javis \.viec-giao \{/.test(css));
 
 // 4
 check("channel_context.py giải thích kênh=giọng: trả lời như người đang nói, không dàn trang",

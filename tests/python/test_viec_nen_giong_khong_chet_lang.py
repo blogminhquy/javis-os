@@ -55,8 +55,9 @@ check("có hạn giờ, không treo im vô hạn",
 check("quá hạn thì nói thật bằng lời, không im",
       "asyncio.TimeoutError" in body and "chưa xong nên em dừng lại" in body)
 check("bị HUỶ cũng báo về khung chat rồi mới ném tiếp",
-      re.search(r"except asyncio\.CancelledError:[\s\S]{0,300}push_to_chat\([\s\S]{0,120}raise", body) is not None)
-check("lỗi thường vẫn đẩy câu lỗi về chat", "Việc nền lỗi:" in body)
+      re.search(r"except asyncio\.CancelledError:[\s\S]{0,300}push_to_chat\([\s\S]{0,200}raise", body) is not None)
+check("lỗi thường vẫn đẩy câu lỗi về chat (0.64.48: câu người đọc, không in tên lớp ngoại lệ)",
+      "Chưa làm được việc này" in body and 'viec["status"] = "failed"' in body)
 check("gạch tên trong sổ việc ở finally (mọi đường ra)",
       re.search(r"finally:\s*\n\s*voice_brain\.note_task_done\(conv_sid, request\)", body) is not None)
 check("hạn giờ đặt ở cấp module, đọc được",
