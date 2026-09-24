@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.46] - 2026-09-24
 ### Sửa lỗi
-- Điện thoại: đang làm.
+- **iPhone: bấm tải file không còn làm kẹt cả app.** Ảnh trong chat mở ngay trong khung xem ảnh có nút Đóng; file khác (PDF, Word, zip...) mở ở lớp Safari nổi lên, xem hoặc lưu xong bấm Xong là quay lại Javis. Áp dụng cho mọi chỗ tải: chat, khung xem ảnh, trang Tệp tin, tải khối code.
+- Dòng lệnh dài trong câu trả lời được giữ trong khung trên Safari iPhone: lệnh trong dòng chữ tự xuống dòng, khối lệnh cuộn ngang trong khối của nó.
 
 ## [0.64.45] - 2026-09-24
 ### Cải thiện

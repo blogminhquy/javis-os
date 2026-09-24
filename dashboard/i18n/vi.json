@@ -2005,6 +2005,7 @@
   "crender.wl_err": "Không mở được note này - thử lại",
   "crender.lb_dl_title": "Tải ảnh về",
   "crender.lb_tab": "Mở ảnh ở tab mới",
+  "crender.ios_dl_fail": "iPhone chưa tải được file này. Dùng nút Copy để lấy nội dung nhé.",
   "fedit.read_err": "Không đọc được file.",
   "fedit.open_tab": "Mở tab mới",
   "fedit.save_title": "Lưu (Ctrl+S)",
