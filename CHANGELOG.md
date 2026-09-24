@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.45] - 2026-09-24
+### Cải thiện
+- Linh vật: đang làm.
+
 ## [0.64.44] - 2026-09-24
 ### Cải thiện
 - **Khung "Đang chạy công cụ" giờ mặc định thu gọn**, không còn bung hai chục dòng kín khung chat. Dòng tóm tắt vẫn cho biết đang chạy bao nhiêu bước và bước mới nhất là gì; bấm vào mới mở danh sách đầy đủ.
