@@ -59,7 +59,7 @@ Files: dashboard/index.html, dashboard/app.js, dashboard/i18n/{vi,en}.json, docs
 - [x] Add advanced mode Off/Observe/Natural, pace preset, reset learning and diagnostic download. Apply settings locally, preserve fixed endpoint fallback.
 - [x] Run entire JS suite, relevant Python suite and full CI; record device test procedure rather than claiming hardware results.
 - [x] Independent branch review and regression fixes; no remaining important findings in reviewed scope.
-- [ ] Merge only green exact head, tag/release 0.64.35 after main CI and matching GHCR image.
+- [ ] Merge only green exact head, tag/release 0.64.37 after main CI and matching GHCR image.
 
 ## Execution ledger
 

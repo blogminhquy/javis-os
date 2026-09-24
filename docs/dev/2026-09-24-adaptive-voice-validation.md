@@ -1,6 +1,6 @@
 # Adaptive voice: validation and rollout
 
-Release: 0.64.35. Natural timing remains **opt-in**. No model classifier, paid API, extra audio capture, or speaker recognition has been added.
+Release: 0.64.37. Natural timing remains **opt-in**. No model classifier, paid API, extra audio capture, or speaker recognition has been added.
 
 ## Implemented boundaries
 
