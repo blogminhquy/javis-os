@@ -21,8 +21,8 @@
             "header": "x-consumer-api-key: {api_key}"
           }
         ],
-        "guide": "Làm 1 lần:\n1. Vào platform.composio.dev, đăng ký hoặc đăng nhập (có gói miễn phí).\n2. Tạo một MCP server (mục MCP) rồi copy API key dạng ck_... ở bước cấu hình client.\n3. Dán key vào đây, bấm Kết nối.\n\nSau khi đấu, muốn dùng app nào (Gmail, Notion, Sheets...) thì bảo Javis ngay trong chat, vd 'nối Notion qua Composio'. Composio đưa link đăng nhập app đó, bạn tự đăng nhập xong là dùng được.\n\nLƯU Ý: mọi hành động của app (kể cả đọc dữ liệu) đều chạy qua một tool chung của Composio, nên muốn Javis thật sự thao tác thì kết nối này cần mức Toàn quyền. Mức Chỉ đọc chỉ tìm và xem mô tả tool.",
-        "guide_url": "https://docs.composio.dev/"
+        "guide": "Làm 1 lần:\n1. Vào Composio For You → Connect my agent và chọn ứng dụng MCP client.\n2. Sao chép consumer key dạng ck_* trong hướng dẫn kết nối. Javis gửi key qua header x-consumer-api-key tới https://connect.composio.dev/mcp.\nKhông dùng Project API key ak_* hoặc MCP server tạo trong Platform.\n3. Dán key vào đây, bấm Kết nối. Nếu đã có kết nối Javis, chọn Kết nối lại trên thẻ Composio để thay key rồi bấm Kiểm tra.\n\nKết nối Calendar hoặc app khác ở Composio For You → Connect Apps.\nKết nối app không tự cập nhật consumer key đã lưu trong Javis. Sau khi đấu, Javis có thể tìm tool, mở link đăng nhập app và chạy hành động qua Composio.\n\nLƯU Ý: mọi hành động của app (kể cả đọc dữ liệu) đều chạy qua một tool chung của Composio, nên muốn Javis thật sự thao tác thì kết nối này cần mức Toàn quyền. Mức Chỉ đọc chỉ tìm và xem mô tả tool.",
+        "guide_url": "https://docs.composio.dev/docs/composio-connect"
       },
       "tool_meta": {
         "read": ["COMPOSIO_SEARCH_TOOLS", "COMPOSIO_GET_TOOL_SCHEMAS", "COMPOSIO_WAIT_FOR_CONNECTIONS"],

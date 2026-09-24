@@ -36,12 +36,19 @@ _NET_HINTS = ("timeout", "timed out", "getaddrinfo", "connection refused",
               "connection closed", "server disconnected", "502", "503", "504")
 
 
-def classify_error(err: str) -> tuple[str, str]:
+def classify_error(err: str, conn=None) -> tuple[str, str]:
     """Chuỗi lỗi kỹ thuật -> (kind, thông điệp tiếng người).
 
     kind: auth | spawn | net | unknown. Nhóm `auth` là nhóm duy nhất UI gắn hành động
     (nút Kết nối lại) nên thà bỏ sót (rơi vào unknown) còn hơn bắt nhầm."""
     low = (err or "").lower()
+    if (conn or {}).get("connector_id") == "composio" and (
+            "401" in low or "bearer token rejected" in low):
+        message = ("Composio từ chối consumer key mà Javis đang dùng. Vào Composio "
+                   "For You → Connect my agent, lấy key ck_*, nhập vào thẻ Composio "
+                   "trong Javis rồi bấm Kết nối hoặc Kết nối lại. Kết nối lại riêng "
+                   "Calendar không thay đổi key này.")
+        return "auth", message
     if any(s in low for s in _AUTH_HINTS):
         return "auth", "Hết phiên đăng nhập - bấm Kết nối lại để đăng nhập lại."
     if any(s in low for s in _SPAWN_HINTS):
@@ -114,7 +121,7 @@ async def check_one(conn, pool=None) -> dict:
             rec.update(ok=True, kind="ban",
                        message="Đang chạy tool nên chưa ping được - không phải lỗi kết nối.")
         else:
-            kind, msg = classify_error(f"{type(e).__name__}: {e}")
+            kind, msg = classify_error(f"{type(e).__name__}: {e}", conn)
             rec.update(kind=kind, message=msg)
     _state[conn["id"]] = rec
     return rec

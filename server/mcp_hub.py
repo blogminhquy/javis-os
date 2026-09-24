@@ -1700,6 +1700,11 @@ async def validate_connection(conn_id):
         spec["headers"].update(await mcp_client._oauth_headers(conn))
         tools = await mcp_client.pool.list_tools(spec)
     except Exception as e:
+        if conn.get("connector_id") == "composio":
+            import connect_health
+            kind, msg = connect_health.classify_error(f"{type(e).__name__}: {e}", conn)
+            if kind == "auth":
+                return {"ok": False, "label": "", "tools": 0, "error": msg}
         # Kèm nội dung lỗi thật: chỉ tên loại (vd "ValueError") thì không lần ra manh mối.
         # Giữ ĐUÔI chứ không giữ đầu: traceback Python để nguyên nhân ở dòng CUỐI, mà một
         # dòng "File .../.cache/uv/..." đã ~135 ký tự nên cắt [:160] từ đầu là NUỐT đúng
