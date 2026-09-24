@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.36] - 2026-09-24
+### Sửa lỗi
+- **Composio ở mức Chỉ đọc giờ đọc được dữ liệu thật** của các app đã nối (xem lịch, đọc mail, liệt kê file) và liệt kê được tài khoản đã nối. Trước đây Javis chỉ còn công cụ tìm kiếm của Composio nên không đọc nổi app nào.
+- Javis soi từng lệnh bên trong Composio: lệnh đọc chạy ngay, lệnh sửa, gửi, xoá vẫn cần **Toàn quyền**, và khi bị chặn Javis nói đúng lệnh nào bị chặn.
+- Javis thấy được danh sách app bạn đã nối trong Composio, không còn trả lời "chỉ có Google Calendar".
+
 ## [0.64.34] - 2026-09-24
 ### Cải thiện
 - Cài đặt trò chuyện gọn hơn: giữ lựa chọn thường dùng ở phần chính, thu cấu hình kỹ thuật vào mục Nâng cao.

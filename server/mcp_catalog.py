@@ -370,6 +370,59 @@ def build_env(connector, secrets):
     return env
 
 
+_MUC = {"read": 0, "write": 1, "danger": 2}
+
+
+def _loai_hanh_dong_con(rule, item):
+    """Phân loại MỘT hành động con bên trong tool cổng (xem `call_rules`). Fail-closed: không
+    nhận ra là đọc thì trả mức `else` của luật (mặc định danger)."""
+    tren_loi = str(rule.get("else") or "danger")
+    if not isinstance(item, dict):
+        return tren_loi
+    key = rule.get("key") or ""
+    v = item.get(key)
+    if v is None:
+        v = rule.get("default")
+    if v is None:
+        return tren_loi
+    v = str(v).strip()
+    if [x for x in rule.get("read_values", []) if str(x).lower() == v.lower()]:
+        return "read"
+    tu = {w for w in re.split(r"[^A-Za-z0-9]+", v.upper()) if w}
+    doc = {str(x).upper() for x in rule.get("read_tokens", [])}
+    ghi = {str(x).upper() for x in rule.get("write_tokens", [])}
+    # Đọc chỉ khi có động từ đọc VÀ không dính một động từ ghi nào: `GMAIL_FETCH_EMAILS` là đọc,
+    # `GMAIL_LIST_AND_DELETE` thì không. Tên lạ không có động từ nào quen cũng không phải đọc.
+    if doc and (tu & doc) and not (tu & ghi):
+        return "read"
+    return tren_loi
+
+
+def _loai_theo_call_rule(rule, args):
+    """Mức NẶNG NHẤT trong danh sách hành động con của một lời gọi tool cổng. Danh sách rỗng,
+    sai kiểu hoặc vắng hẳn đều fail-closed về mức `else`."""
+    tren_loi = str(rule.get("else") or "danger")
+    items = args.get(rule.get("items") or "")
+    if not isinstance(items, list) or not items:
+        return tren_loi
+    muc = "read"
+    for it in items:
+        loai = _loai_hanh_dong_con(rule, it)
+        if _MUC.get(loai, 2) > _MUC.get(muc, 0):
+            muc = loai
+    return muc
+
+
+def call_rule(connector, tool):
+    """Luật phân loại theo hành động con của tool cổng, hoặc None."""
+    rules = (connector or {}).get("call_rules") or {}
+    t = (tool or "").lower()
+    for ten, rule in rules.items():
+        if fnmatch(t, str(ten).lower()):
+            return rule
+    return None
+
+
 def classify(connector, tool, args=None):
     """'read' | 'write' | 'danger' cho MỘT lời gọi tool (tên GỐC, không namespace).
     args=None (lúc tools/list) → tool đa hành động tạm coi 'read' để còn LIỆT KÊ được;
@@ -383,6 +436,17 @@ def classify(connector, tool, args=None):
 
     if _in(meta.get("read")):
         return "read"
+
+    # TOOL CỔNG (vd COMPOSIO_MULTI_EXECUTE_TOOL): một tool chạy HÀNG LOẠT hành động con, mỗi cái
+    # một tên riêng nằm trong args (tools[].tool_slug). Phân loại theo tên tool cổng thì chỉ có
+    # hai lựa chọn tệ: coi là nguy hiểm (mức Chỉ đọc không đọc được gì, vụ 24/09: Javis chỉ còn
+    # công cụ tìm kiếm của Composio nên không đọc nổi lịch dù đã nối) hoặc coi là đọc (lọt lệnh
+    # gửi mail). Luật `call_rules` phân loại TỪNG hành động con rồi lấy mức nặng nhất.
+    cr = call_rule(c, tool)
+    if cr is not None:
+        if not isinstance(args, dict):
+            return "read"   # lúc LIỆT KÊ: để hiện ra, chặn thật lúc gọi (giống arg_rules)
+        return _loai_theo_call_rule(cr, args)
 
     rules = c.get("arg_rules") or {}
     param = rules.get("param")
@@ -428,5 +492,18 @@ def allowed(connector, perm, mode, tool, args=None):
     vi_sao = ("loop/chạy nền đang ở chế độ giới hạn" if (mode or "full") in ("suggest", "auto")
               else "kết nối đang đặt mức quyền hạn chế")
     loai = "NGUY HIỂM (tiền/đơn/gửi tin)" if cls == "danger" else "ghi"
+    # Tool cổng: nêu đúng lệnh con bị chặn. Chỉ nói "COMPOSIO_MULTI_EXECUTE_TOOL bị chặn" thì
+    # model tưởng cả cổng hỏng, trong khi các lệnh đọc đi cùng cổng đó vẫn chạy được.
+    cr = call_rule(connector, tool)
+    if cr is not None and isinstance(args, dict):
+        items = args.get(cr.get("items") or "")
+        ten = [str((it or {}).get(cr.get("key") or "") or cr.get("default") or "?")
+               for it in (items if isinstance(items, list) else [])
+               if _loai_hanh_dong_con(cr, it) != "read"]
+        if ten:
+            return False, (f"Lệnh {', '.join(ten[:8])} qua '{tool}' bị chặn: thao tác {loai} trong khi "
+                           f"{vi_sao} (mức hiệu lực: {eff}). Lệnh đọc (LIST, GET, FETCH, SEARCH...) "
+                           f"vẫn chạy được ở mức này. Muốn sửa/gửi/xoá thì bảo người dùng nâng quyền "
+                           f"ở trang Kết nối.")
     return False, (f"Tool '{tool}' bị chặn: thao tác {loai} trong khi {vi_sao} (mức hiệu lực: {eff}). "
                    f"Nâng quyền ở trang Kết nối nếu thật sự cần.")
