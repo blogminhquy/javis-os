@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.50] - 2026-09-24
+### Cải thiện
+- **Logo ngôi sao to kín khung**: icon app, favicon và logo giờ lớn ngang các icon app khác trên thanh tác vụ, không còn nhỏ hơn một bậc như trước.
+
 ## [0.64.49] - 2026-09-24
 ### Sửa lỗi
 - **Kết quả việc nền giao từ chat tự về đúng khung chat đang hỏi.** Trước đây nếu Javis quên ghi người nhận, kết quả rơi sang Telegram hoặc mất hút khi chưa đấu Telegram. Nay máy chủ tự nhận ra khung chat đang hỏi và gắn vào.
