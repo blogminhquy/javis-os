@@ -1805,7 +1805,7 @@
         </div>
         <div class="wf-desc">${esc(p.description || "")}</div>
         <div class="wf-steps">${meta}${chips ? `<div style="margin-top:8px">${chips}</div>` : ""}${p.error ? `<div style="margin-top:6px;color:var(--red)">${esc(p.error)}</div>` : ""}</div>
-        <div class="wf-actions">${p.source === "pack"
+        <div class="wf-actions">${p.page ? `<a class="s-btn-ghost" href="${esc(safeHref(p.page))}" target="_blank" rel="noopener">${esc(window.t("cs.pl_open_page"))} ↗</a>` : ""}${p.source === "pack"
             ? `<button class="s-btn-ghost" data-goto-packs="1">${esc(window.t("cs.pl_manage_store"))}</button>`
             : p.removed
               ? `<button class="s-btn-ghost undel">${esc(window.t("store.reinstall"))}</button>`
@@ -3716,96 +3716,6 @@
     chay();
   }
 
-  // ---- Javis trong ChatGPT: khối phụ TRONG thẻ ChatGPT ----
-  //
-  // Chiều ngược của model ChatGPT Web đã gỡ ở 0.64.20: người dùng chat trên chatgpt.com, và
-  // ChatGPT (Developer mode) gọi công cụ của Javis qua một connector MCP có OAuth. Đặt trong thẻ
-  // ChatGPT vì người ta tìm nó ở đây. Thẻ chỉ giữ thứ để BẤM; các bước làm trên ChatGPT nằm ở
-  // tài liệu, theo yêu cầu 23/09 của chủ repo ("trên trang cần gọn gàng").
-  const HD_GPTCONN = "https://github.com/blogminhquy/javis-os/blob/main/docs/29-javis-trong-chatgpt.md";
-
-  async function veKetNoiChatGPT(el) {
-    const box = el.querySelector("#gptConnBox");
-    if (!box) return;
-    const dau = `<div><b>${esc(t("models.gptconn_title"))}</b>
-      <a href="${HD_GPTCONN}" target="_blank" rel="noopener" style="margin-left:8px">${esc(t("models.gptconn_guide"))} ↗</a></div>
-      <div class="gcard-meta">${esc(t("models.gptconn_desc"))}</div>`;
-    let d = null;
-    try { d = await (await fetch("/chatgpt/connector/status")).json(); } catch (e) { return; }
-    // Đường này đòi phiên trình duyệt thật (chủ ý: token API không được tự mở cửa này), nên
-    // bản chạy chưa đặt mật khẩu nhận 403. Nói ra thay vì để khối trống.
-    if (!d || d.ok === false) {
-      box.innerHTML = dau + `<div class="prov-note warn">${WARN_ICON} ${esc(t("models.gptconn_need_pw"))}</div>`;
-      return;
-    }
-    const goi = async (duong, than) => {
-      const r = await fetch(duong, { method: "POST", headers: { "Content-Type": "application/json" },
-                                     body: JSON.stringify(than || {}) });
-      return r.json();
-    };
-    const ve = (x) => {
-      // Khoá TĨNH từng cái, không ghép chuỗi: bộ soát i18n đọc khoá bằng mắt thường trong mã,
-      // khoá ghép lúc chạy là khoá nó không thấy (và không canh được bản dịch thiếu).
-      const nhanMuc = { full: t("models.gptconn_mode_full"), auto: t("models.gptconn_mode_auto"),
-                        suggest: t("models.gptconn_mode_suggest") };
-      const muc = ["full", "auto", "suggest"].map((m) =>
-        `<option value="${m}"${x.muc_quyen === m ? " selected" : ""}>${esc(nhanMuc[m])}</option>`).join("");
-      box.innerHTML = dau
-        + (x.co_mat_khau ? "" : `<div class="prov-note warn">${WARN_ICON} ${esc(t("models.gptconn_need_pw"))}</div>`)
-        + (x.bat ? `
-          <div class="gcard-meta" style="margin-top:8px">${esc(t("models.gptconn_url"))}</div>
-          ${/^https:\/\//.test(x.url_mcp || "") ? "" : `<div class="prov-note warn">${WARN_ICON} ${esc(t("models.gptconn_need_https"))}</div>`}
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <input readonly data-gptconn-url value="${esc(x.url_mcp || "")}"
-                   style="flex:1;min-width:0;width:100%;font-size:16px;padding:8px">
-            <button class="gcard-btn ghost" data-gptconn-copy>${esc(t("models.gptconn_copy"))}</button>
-          </div>
-          <label class="gcard-meta" style="display:flex;gap:8px;align-items:center;margin-top:8px">
-            ${esc(t("models.gptconn_mode"))}
-            <select data-gptconn-mode style="font-size:16px">${muc}</select>
-          </label>
-          <div class="gcard-meta">${esc(t("models.gptconn_count", { count: x.so_ket_noi || 0 }))}</div>` : "")
-        + `<div class="prov-action" style="flex-wrap:wrap">
-            <button class="gcard-btn${x.bat ? " ghost" : ""}" data-gptconn-toggle${x.co_mat_khau || x.bat ? "" : " disabled"}>
-              ${esc(t(x.bat ? "models.gptconn_off" : "models.gptconn_on"))}</button>
-            ${x.bat && x.so_ket_noi ? `<button class="gcard-btn ghost" data-gptconn-disc>${esc(t("models.gptconn_disc"))}</button>` : ""}
-            <span data-gptconn-msg class="gcard-meta"></span>
-          </div>`;
-      const msg = box.querySelector("[data-gptconn-msg]");
-      const baoLoi = (r) => { if (msg) msg.textContent = (r && r.error) || ""; };
-      const lamMoi = async () => {
-        try { ve(await (await fetch("/chatgpt/connector/status")).json()); } catch (e) {}
-      };
-      const bt = box.querySelector("[data-gptconn-toggle]");
-      if (bt) bt.onclick = async () => {
-        bt.disabled = true;
-        const r = await goi("/chatgpt/connector/settings", { bat: !x.bat });
-        if (r.ok === false) { bt.disabled = false; baoLoi(r); return; }
-        lamMoi();
-      };
-      const sel = box.querySelector("[data-gptconn-mode]");
-      if (sel) sel.onchange = async () => {
-        const r = await goi("/chatgpt/connector/settings", { muc_quyen: sel.value });
-        if (r.ok === false) baoLoi(r);
-      };
-      const cp = box.querySelector("[data-gptconn-copy]");
-      if (cp) cp.onclick = async () => {
-        const o = box.querySelector("[data-gptconn-url]");
-        try { await navigator.clipboard.writeText(o.value); }
-        catch (e) { o.select(); document.execCommand && document.execCommand("copy"); }
-        cp.textContent = t("models.gptconn_copied");
-      };
-      const dc = box.querySelector("[data-gptconn-disc]");
-      if (dc) dc.onclick = async () => {
-        dc.disabled = true;
-        const r = await goi("/chatgpt/connector/disconnect");
-        if (r.ok === false) { dc.disabled = false; baoLoi(r); return; }
-        lamMoi();
-      };
-    };
-    ve(d);
-  }
-
   async function renderModelsCloudTab(el) {
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     const s = await freshSettings();
@@ -3906,7 +3816,6 @@
                  <button class="gcard-btn ghost" data-oauth-browser="1">${esc(t("models.via_browser"))}</button>`}
             <span id="oauthMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:220px"></span>
           </div>
-          <div id="gptConnBox" class="prov-steps"></div>
         </div>`;
       }
       if (p.id === "grok-cli") {
@@ -4121,7 +4030,6 @@
         renderModelsCloudTab(el);
       };
     });
-    veKetNoiChatGPT(el);
     const ol = el.querySelector("[data-oauth-login]");
     if (ol) ol.onclick = () => startOauthLogin(el);
     const ob = el.querySelector("[data-oauth-browser]");

@@ -76,7 +76,6 @@ import packs          # GÓI mở rộng: thả thư mục vào STATE_DIR/packs 
 import cred_exchange   # đổi credential hộ user (vd App Password -> Google master token) khi đấu
 import plugins_host   # hệ PLUGIN: thư mục Python thả vào, tự thêm tool/hook cho mọi engine qua hub
 import web_security   # chống CSRF-to-localhost + DNS-rebinding cho web API cục bộ
-import chatgpt_connector   # "Javis trong ChatGPT": cửa OAuth cho connector MCP của ChatGPT
 import image_gen      # tạo ảnh bằng gói ChatGPT (OAuth) - Codex Responses + tool image_generation
 import media_gc       # dọn vùng cache media (attachments/ + inbox/) theo hạn tuổi + trần dung lượng
 import inbox         # hòm thư: mọi kết quả chạy nền để lại một mẩu thư bền ở server
@@ -187,10 +186,7 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth
                       "/brand-logo", "/tls-check",
                       # /hub/mcp: Claude CLI/Codex gọi bằng Bearer hub_token riêng (không có cookie).
                       # /connect/oauth/callback: browser redirect từ provider OAuth về.
-                      "/hub/mcp", "/connect/oauth/callback") + chatgpt_connector.DUONG_CONG_KHAI
-# ^ "Javis trong ChatGPT": máy chủ OpenAI gọi các đường đó không có cookie. Mỗi đường tự trả 404
-# khi tính năng tắt, `/chatgpt/mcp` tự đòi token OAuth, và nút "Cho phép" tự đòi phiên thật -
-# xem server/chatgpt_connector.py.
+                      "/hub/mcp", "/connect/oauth/callback")
 # Endpoint CHỈ-LOCALHOST: agent (Claude CLI chạy cùng máy/container) curl được mà không cần
 # cookie đăng nhập; request từ ngoài (qua Traefik/Caddy/LAN) đến từ IP khác loopback → vẫn bị chặn.
 # /reminders/cancel đi cùng nhóm với /reminders (TẠO nhắc): huỷ là thao tác YẾU HƠN tạo, nên
@@ -230,10 +226,12 @@ async def _csrf_guard(request: Request, call_next):
     THỨ TỰ: middleware thêm SAU thì chạy TRƯỚC (Starlette bọc từ ngoài vào), nên thực tế
     _auth_guard chạy TRƯỚC hàm này. Đừng đặt hàng rào chặn-mới ở đây rồi tưởng nó gác cho
     auth: request bị auth trả 401 không bao giờ tới đây."""
-    # Đường của "Javis trong ChatGPT" mà KHÔNG dùng cookie (token OAuth, đăng ký client, đổi
-    # token): CSRF là đòn mượn cookie của nạn nhân, ở đây không có cookie nào để mượn, còn chặn
-    # nhầm thì máy chủ OpenAI không kết nối được. Nút "Cho phép" KHÔNG thuộc nhóm này.
-    if duong_dan_router(request) in chatgpt_connector.DUONG_KHONG_COOKIE:
+    # Đường HTTP của plugin khai `no_cookie` (0.64.22): CSRF là đòn mượn cookie của nạn nhân, mà
+    # lõi GỠ cookie khỏi request trước khi giao cho plugin ở những đường này - không có gì để
+    # mượn. Chặn nhầm thì máy chủ bên ngoài (OpenAI đổi token, webhook) không gọi vào được.
+    _dr = duong_dan_router(request)
+    if ((_dr.startswith("/ext/") or _dr.startswith("/.well-known/"))
+            and plugins_host.http_khong_cookie(_dr, request.method)):
         return await call_next(request)
     d = web_security.csrf_decision(request.method, request.headers.get("host", ""),
                                    request.headers.get("origin"), cfgmod.gate_active())
@@ -257,7 +255,11 @@ async def _auth_guard(request: Request, call_next):
         client_host = request.client.host if request.client else ""
         public = (path in _AUTH_PUBLIC_EXACT
                   or any(path.startswith(p) for p in _AUTH_PUBLIC_PREFIX)
-                  or (path in _AUTH_LOCAL_EXACT and client_host in ("127.0.0.1", "::1")))
+                  or (path in _AUTH_LOCAL_EXACT and client_host in ("127.0.0.1", "::1"))
+                  # Đường HTTP của plugin mà CHÍNH plugin khai là công khai (0.64.22). Chỉ hỏi
+                  # khi đúng tiền tố, để request thường không phải đi tra danh sách plugin.
+                  or ((path.startswith("/ext/") or path.startswith("/.well-known/"))
+                      and plugins_host.http_cong_khai(path, request.method)))
         if not public and not cfgmod.valid_session(request.cookies.get("javis_session", "")):
             # Client ngoài trình duyệt (CLI, script, cron) không có cookie. Nhánh token là
             # đường DUY NHẤT của chúng - xem docs/dev/2026-08-cli-spec.md. Đặt SAU nhánh
@@ -3824,17 +3826,61 @@ tools_routes.register(app, tools_routes.ToolsDeps(
     lam_moi_hub=lambda: (mcp_hub.invalidate_cache(), _write_codex_profile()),
 ))
 
-# "Javis trong ChatGPT": ChatGPT (Developer mode) gọi công cụ của Javis qua connector OAuth.
-# Thay cho model ChatGPT Web đã gỡ ở 0.64.20. Luật an toàn ở server/chatgpt_connector.py.
-import routes.chatgpt_connector as chatgpt_routes   # noqa: E402
+# ---- Đường HTTP của plugin (0.64.22) ----
+#
+# Lõi chỉ CHUYỂN request; luật nằm ở plugins_host (ai được mở đường, đường nào công khai, đường
+# nào không cookie). Sinh ra để "Javis trong ChatGPT" rời lõi thành một gói trong kho, nhưng cố
+# ý làm chung: webhook của dịch vụ ngoài là cùng một nhu cầu.
+_EXT_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
-chatgpt_routes.register(app, chatgpt_routes.ConnectorDeps(
-    co_phien=lambda r: cfgmod.valid_session(r.cookies.get("javis_session", "")),
-    goc_ngoai=lambda r: web_security.external_base(
-        r.url.scheme, r.url.netloc, r.headers.get("x-forwarded-proto", ""),
-        r.headers.get("x-forwarded-host", "")),
-))
 
+async def _goi_plugin_http(request: Request, lp, handler, bo_cookie: bool):
+    if bo_cookie:
+        # Gỡ cookie ở đây chứ không tin plugin tự lờ đi: đây là đường đã được miễn CSRF, nên
+        # nếu còn cookie thì một trang lạ gọi vào sẽ mang theo phiên của chủ.
+        scope = dict(request.scope)
+        scope["headers"] = [(k, v) for k, v in request.scope.get("headers", [])
+                            if k.lower() != b"cookie"]
+        request = Request(scope, request.receive)
+    try:
+        if asyncio.iscoroutinefunction(handler):
+            kq = await handler(request, lp.ctx)
+        else:
+            kq = await asyncio.to_thread(handler, request, lp.ctx)
+    except Exception as e:
+        print(f"[plugin-http] {lp.slug}: {type(e).__name__}: {e}", file=__import__('sys').stderr)
+        return JSONResponse({"error": f"plugin {lp.slug} lỗi: {type(e).__name__}"}, status_code=500)
+    if isinstance(kq, Response):
+        return kq
+    if isinstance(kq, (dict, list)):
+        return JSONResponse(kq)
+    if isinstance(kq, str):
+        return HTMLResponse(kq)
+    return Response(status_code=204)
+
+
+@app.api_route("/ext/{slug}", methods=_EXT_METHODS, include_in_schema=False)
+@app.api_route("/ext/{slug}/{rest:path}", methods=_EXT_METHODS, include_in_schema=False)
+async def plugin_http(request: Request, slug: str, rest: str = ""):
+    tr = plugins_host.tim_http(slug, rest, request.method)
+    if not tr:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    lp, r = tr
+    # Đường không công khai: đòi PHIÊN TRÌNH DUYỆT thật. Hàng rào phía trước đã cho token API
+    # qua, nhưng một token rò ra không được mở trang cài đặt của plugin.
+    if (not r["public"] and cfgmod.gate_active()
+            and not cfgmod.valid_session(request.cookies.get("javis_session", ""))):
+        return JSONResponse({"error": "Trang này phải đăng nhập bằng trình duyệt."}, status_code=401)
+    return await _goi_plugin_http(request, lp, r["handler"], r["no_cookie"])
+
+
+@app.get("/.well-known/{rest:path}", include_in_schema=False)
+async def plugin_well_known(request: Request, rest: str):
+    tr = plugins_host.tim_well_known(rest.split("/", 1)[0])
+    if not tr:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    lp, handler = tr
+    return await _goi_plugin_http(request, lp, handler, True)
 
 @app.post("/connect/core-toggle")
 async def connect_core_toggle(request: Request):

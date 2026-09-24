@@ -264,6 +264,25 @@ Ngoài tool, plugin còn đăng ký được hook. Bản hiện tại có hai s�
 
 Hook bọc **mọi** tool call, kể cả tool của MCP và tool lõi, chứ không riêng tool của plugin đó. Dùng để ghi nhật ký, đếm, cảnh báo. Khi không plugin nào đăng ký hook, Javis không bọc gì nên không mất thêm hiệu năng. Plugin `tool-audit` là ví dụ chạy được: bật nó lên là mỗi lượt gọi tool được đếm vào một file riêng của plugin.
 
+## Trang riêng và đường HTTP (từ 0.64.22)
+
+Plugin mở được đường web của riêng nó, dưới `/ext/<slug>/`. Dùng cho trang cài đặt, hoặc cho dịch vụ bên ngoài gọi vào (webhook, cửa OAuth). Gói "Javis trong ChatGPT" trong kho là ví dụ chạy thật.
+
+```python
+def register(ctx):
+    ctx.register_http("", trang_cai_dat)                          # phải đăng nhập dashboard
+    ctx.register_http("webhook", nhan_tin, methods=("POST",),
+                      public=True, no_cookie=True)                # máy chủ ngoài gọi vào
+    ctx.register_well_known("oauth-authorization-server", meta)  # /.well-known/...
+```
+
+- **Mặc định phải đăng nhập bằng trình duyệt.** Token API không mở được trang của plugin.
+- **`public=True`**: vào không cần đăng nhập, plugin tự xác thực (chữ ký, token). Chỉ áp cho đúng method đã khai.
+- **`no_cookie=True`** (đi cùng `public`): miễn chặn CSRF, và Javis gỡ hẳn cookie trước khi giao request cho plugin.
+- **`register_well_known`**: chỉ GET, công khai, không cookie. Hai plugin xin cùng tên thì plugin nạp trước giữ.
+- Khai `page: ""` trong `plugin.yaml` thì thẻ plugin có nút **Mở trang**.
+- Chỉ plugin đi kèm app, plugin của gói đã cài và plugin toàn cục mới có đường. **Plugin trong brain thì không**, vì model ghi được vào brain.
+
 ## Bảng tra nhanh nút và trạng thái
 
 | Bạn thấy | Ý nghĩa / thao tác |

@@ -264,6 +264,25 @@ Besides tools, a plugin can register hooks. The current build has two events:
 
 A hook wraps **every** tool call, MCP tools and core tools included, not only that plugin's tools. Use it for logging, counting, alerting. When no plugin registers a hook, Javis wraps nothing, so there is no performance cost. The `tool-audit` plugin is a working example: enable it and every tool call is counted into a file private to the plugin.
 
+## Own page and HTTP routes (since 0.64.22)
+
+A plugin can open web routes of its own, under `/ext/<slug>/`. Use it for a settings page, or for an outside service to call in (webhook, OAuth door). The "Javis in ChatGPT" package in the store is a working example.
+
+```python
+def register(ctx):
+    ctx.register_http("", settings_page)                          # needs a dashboard login
+    ctx.register_http("webhook", on_event, methods=("POST",),
+                      public=True, no_cookie=True)                # an outside server calls in
+    ctx.register_well_known("oauth-authorization-server", meta)  # /.well-known/...
+```
+
+- **A browser login is required by default.** An API token cannot open a plugin's page.
+- **`public=True`**: no login needed, the plugin checks callers itself (signature, token). Applies only to the methods declared.
+- **`no_cookie=True`** (only with `public`): exempt from the CSRF block, and Javis strips every cookie before handing the request over.
+- **`register_well_known`**: GET only, public, no cookie. If two plugins claim one name, the one loaded first keeps it.
+- Declare `page: ""` in `plugin.yaml` and the plugin card gets an **Open page** button.
+- Only bundled plugins, plugins from an installed package and global plugins get routes. **A plugin inside a brain does not**, because the model can write into the brain.
+
 ## Quick reference of buttons and states
 
 | What you see | Meaning / action |
