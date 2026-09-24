@@ -1377,7 +1377,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .bg-strip {
   margin: 0 20px 8px; padding: 8px 12px; border-radius: 12px;
   border: 1px solid var(--border); background: var(--bg3);
-  font-size: 13px; color: var(--text2); max-height: 132px; overflow-y: auto;
+  font-size: 16px; color: var(--text2); max-height: 150px; overflow-y: auto;
   /* flex: none vì dải sống trong các cột flex (.chatpage-slot, cột chat mobile): thiếu nó thì
      khung chat đầy tin là dải bị bóp còn nửa dòng đầu (ảnh chủ repo 2026-08-24). Trần cao đã
      có max-height ở trên lo, không cần nhờ flex co. */
@@ -1390,7 +1390,8 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .bg-title { font-weight: 600; color: var(--text); flex: 1 1 auto; min-width: 0; }
 .bg-open {
   flex: none; background: none; border: 1px solid var(--border); color: var(--text2);
-  border-radius: 8px; padding: 3px 9px; font-size: 12px; cursor: pointer; font-family: inherit;
+  border-radius: 8px; padding: 5px 10px; font-size: 15px; cursor: pointer; font-family: inherit;
+  min-height: 34px;
 }
 .bg-open:hover { color: var(--accent); border-color: var(--accent); }
 .bg-dot {
@@ -1403,18 +1404,19 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .bg-chip {
   display: inline-flex; align-items: baseline; gap: 5px; max-width: 320px;
   padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border);
-  background: var(--bg); font-size: 12px;
+  background: var(--bg); font-size: 15px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.bg-chip b { font-weight: 600; color: var(--text2); font-size: 11px; }
-.bg-chip i { font-style: normal; color: var(--text2); opacity: 0.75; font-size: 11px; }
+.bg-chip b { font-weight: 600; color: var(--text2); font-size: 14px; }
+.bg-chip i { font-style: normal; color: var(--text2); opacity: 0.8; font-size: 14px; }
 .bg-chip.mine { border-color: var(--accent); }
 .bg-chip.on b { color: var(--green, #3fb27f); }
 .bg-warn { margin-top: 7px; color: var(--warn-ink); line-height: 1.45; }
 @media (max-width: 860px) {
-  .bg-strip { margin: 0 12px 6px; max-height: 108px; }
+  .bg-strip { margin: 0 12px 6px; max-height: 128px; }
 }
 
+/* 0.64.48: chữ dải việc nền nâng từ 11-13px lên 14-16px cho dễ đọc trên điện thoại. */
 /* Attachment chips */
 .attach-bar {
   display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px;
@@ -3038,7 +3040,44 @@ body.ne-full-on .cview { z-index: 250; }
 .msg-nhap-giong .bubble .utext::after { content: " …"; opacity: .6; }
 
 /* Voice V3: dòng "đang làm nền" dưới câu xác nhận của bộ não giọng */
-.msg-javis .voice-nen { font-size: 12.5px; opacity: .7; margin: 4px 0 0 4px; font-style: italic; }
+/* Thẻ việc nền trong khung chat (chat-viec.js, 0.64.48). Trước đây kết quả chỉ là bong bóng
+   chữ trơn, đầu dòng emoji, cuối dòng "Xem chi tiết ở trang Việc" không bấm được; dòng giao
+   việc của giọng nói là chữ nghiêng mờ 12.5px. Nay: một dòng đầu có icon trạng thái, tên việc
+   và nút mở trang Việc; viền trái mang màu trạng thái; chữ tối thiểu 16px cho điện thoại. */
+.msg-viec .bubble { border-left: 3px solid var(--ok-line); }
+.msg-viec.viec-blocked .bubble, .msg-viec.viec-timeout .bubble { border-left-color: var(--warn-line); }
+.msg-viec.viec-failed .bubble { border-left-color: var(--red); }
+.msg-viec.viec-cancelled .bubble { border-left-color: var(--hairline); }
+.viec-head {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px;
+  margin: -4px 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--hairline);
+  font-family: var(--font); font-size: 16px; line-height: 1.4;
+}
+.viec-head .viec-ico { display: inline-flex; color: var(--green); }
+.viec-blocked .viec-head .viec-ico, .viec-timeout .viec-head .viec-ico { color: var(--warn-ink); }
+.viec-failed .viec-head .viec-ico { color: var(--red); }
+.viec-cancelled .viec-head .viec-ico { color: var(--text3); }
+.viec-head .viec-ico svg { width: 18px; height: 18px; }
+.viec-head .viec-nhan { font-weight: 600; color: var(--text); }
+.viec-head .viec-ten {
+  flex: 1 1 160px; min-width: 0; color: var(--text2);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.viec-head .viec-mo {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: 1px solid var(--hairline); border-radius: 8px;
+  padding: 6px 10px; min-height: 36px; cursor: pointer;
+  color: var(--text2); font: inherit; font-size: 16px;
+}
+.viec-head .viec-mo:hover { color: var(--text); border-color: var(--text3); }
+.viec-head .viec-mo svg { width: 16px; height: 16px; }
+/* Dòng "Đang làm nền: ..." dưới câu xác nhận của giọng nói. */
+.msg-javis .viec-giao {
+  display: flex; align-items: center; gap: 8px; margin: 6px 0 0 4px; max-width: 72ch;
+  font-family: var(--font); font-size: 16px; color: var(--text2);
+}
+.msg-javis .viec-giao svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--accent); }
+.msg-javis .viec-giao .viec-ten { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
 /* Chữ THÔ của máy nghe, dưới câu đã diễn giải trong bong bóng người dùng (sự kiện user_text). */
 .msg-user .nghe-tho { font-size: 12.5px; color: var(--text3); margin-top: 4px; font-style: italic; }
 

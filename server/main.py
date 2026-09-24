@@ -8375,8 +8375,10 @@ _AGENT_TOOLKIT_BLOCK = (
     "(`javis_connections` để xem đang nối gì, `javis_search_tools` rồi `javis_run_tool` để gọi), "
     "chạy skill (`javis_use_skill`), giao việc nền Kanban (`javis_task`), đặt nhắc hẹn "
     "(`javis_schedule`). Việc ngoài chuyên môn mà công cụ làm được (đẩy file lên Drive, đăng "
-    "bài, gửi tin) thì LÀM LUÔN bằng tool, hoặc giao thành việc nền; KHÔNG từ chối vì \"không "
-    "phải việc của vai này\" và KHÔNG bảo chủ tự đi copy lệnh sang agent khác.\n"
+    "bài, gửi tin) thì LÀM LUÔN bằng tool; KHÔNG từ chối vì \"không phải việc của vai này\" và "
+    "KHÔNG bảo chủ tự đi copy lệnh sang agent khác. Việc nền (`javis_task`) CHỈ khi chủ bảo "
+    "rõ một việc cần làm mà lượt này không làm xong được; bàn kế hoạch, nhắc tới chữ \"việc\", "
+    "hay bước tiếp theo do chính bạn nghĩ ra thì KHÔNG giao việc nền, nói ra trong câu trả lời.\n"
     "- KHÔNG có cơ chế \"gọi agent khác\" hay \"bàn giao cho đồng nghiệp\". Chỉ được nói đã giao "
     "việc khi CHÍNH BẠN vừa gọi `javis_task` trong lượt này và đọc được kết quả tool trả về. "
     "Tuyệt đối không bịa tên agent, không kể rằng một agent khác \"đang làm\" hay \"vừa phản "
@@ -9049,7 +9051,20 @@ async def _tg_send_to(chat_id, text) -> tuple:
     return ok_any, "; ".join(e for e in errs if e)[:200]
 
 
-async def push_to_chat(session_id, text) -> bool:
+def khoi_viec(viec) -> str:
+    """Khối ẩn <!-- JAVIS_VIEC: {...} --> cho dashboard vẽ THẺ việc nền (dashboard/chat-viec.js).
+
+    Nằm ngay trong nội dung lưu vào kho phiên nên F5 hay mở lại hội thoại vẫn vẽ đúng thẻ.
+    `strip_control_blocks` bóc nó cho Telegram/Zalo/hòm thư như mọi khối JAVIS_* khác."""
+    if not isinstance(viec, dict):
+        return ""
+    gon = {k: str(viec.get(k) or "")[:200] for k in ("kind", "status", "title", "id") if viec.get(k)}
+    if not gon:
+        return ""
+    return "<!-- JAVIS_VIEC: " + json.dumps(gon, ensure_ascii=False).replace("-->", "- ->") + " -->"
+
+
+async def push_to_chat(session_id, text, viec=None) -> bool:
     """Đẩy MỘT tin của Javis vào đúng phiên chat web, ngoài luồng hỏi-đáp thường.
 
     Vì sao cần: việc Kanban / loop / nhắc hẹn chạy nền xong thì lượt chat đã kết thúc từ lâu,
@@ -9062,6 +9077,11 @@ async def push_to_chat(session_id, text) -> bool:
     clean = channel_context.strip_control_blocks(text or "").strip()
     if not sid or not clean:
         return False
+    # `viec` (0.64.48): kết quả việc nền mang loại, trạng thái, tên việc để khung chat vẽ thành
+    # thẻ thay cho bong bóng chữ trơn. Gắn SAU khi bóc khối, không thì chính nó bị bóc mất.
+    _k = khoi_viec(viec)
+    if _k:
+        clean = _k + "\n" + clean
     try:
         get_store().append_message(sid, "assistant", clean)
     except Exception as e:
@@ -9253,7 +9273,7 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
 
 
 async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
-                        quiet=False, ngan="") -> tuple:
+                        quiet=False, ngan="", viec=None, web="") -> tuple:
     """Báo cáo cho NGƯỜI YÊU CẦU loop/task (mặc định của Javis). Quy tắc:
       - owner_chat dạng "web:<sid>" → đẩy thẳng vào ĐÚNG khung chat web đã giao việc.
       - owner_chat dạng "zalo:<id>" → gửi qua bot Zalo cho ĐÚNG người đó.
@@ -9286,7 +9306,7 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
     Telegram không còn bị ghi là "failed" trong khi nội dung đang nằm sẵn trong hòm."""
     vao_hom = await _bo_vao_hom_thu(owner_chat, text, kind=kind, label=label, source=source,
                                     quiet=quiet)
-    ok, err = await _gui_qua_kenh(owner_chat, text, ngan=ngan)
+    ok, err = await _gui_qua_kenh(owner_chat, text, ngan=ngan, viec=viec, web=web)
     if ok or not vao_hom:
         return ok, ("" if ok else err)
     # Kênh hỏng nhưng hòm thư đã giữ tin: với NGƯỜI DÙNG đây là thành công, nên đừng trả lỗi
@@ -9314,7 +9334,7 @@ def _cat_cho_tg(text: str) -> str:
     return t[:_TRAN_TIN_TG].rstrip() + "\n\n… (còn nữa - xem đầy đủ trong hòm thư của Javis)"
 
 
-async def _gui_qua_kenh(owner_chat, text, *, ngan="") -> tuple:
+async def _gui_qua_kenh(owner_chat, text, *, ngan="", viec=None, web="") -> tuple:
     """Gửi qua ĐÚNG kênh đã giao việc. Tách khỏi `_notify_owner` để chỗ đó chỉ còn lo việc
     ghép hai đường (hòm thư + kênh), không lẫn với chi tiết của từng nhà.
 
@@ -9325,7 +9345,9 @@ async def _gui_qua_kenh(owner_chat, text, *, ngan="") -> tuple:
     cid = str(owner_chat or "").strip()
     if cid.startswith(WEB_CHAT_PREFIX):
         sid = cid[len(WEB_CHAT_PREFIX):]
-        if await push_to_chat(sid, text):
+        # `web` (0.64.48): bản riêng cho khung chat khi có thẻ việc. Thẻ đã có dòng đầu (trạng
+        # thái, tên việc) và nút mở trang Việc, nên bỏ câu đầu và câu "xem ở trang Việc".
+        if await push_to_chat(sid, (web or text) if viec else text, viec=viec):
             return True, ""
         return False, "Không tìm thấy phiên chat web để báo"
     text = str(ngan or text or "")
@@ -13580,6 +13602,9 @@ async def websocket_endpoint(ws: WebSocket):
             try:
                 hist = [m for m in store.get_messages(conv_sid)
                         if m.get("role") in ("user", "assistant")][-(voice_brain.HISTORY_N + 1):-1]
+                # Bóc khối ẩn (JAVIS_VIEC của thẻ việc nền...) để model giọng không chép lại nó.
+                hist = [dict(m, content=channel_context.strip_control_blocks(m.get("content") or ""))
+                        for m in hist]
             except Exception:
                 pass
             text, sent_upto, brain_obj = "", 0, None
@@ -13776,13 +13801,40 @@ async def websocket_endpoint(ws: WebSocket):
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
                 return
 
+            # LƯỚI THỨ BA (0.64.48): trùng một việc đang chạy, hoặc phiên đã đủ việc nền, thì
+            # KHÔNG giao thêm. Lời dặn "đừng giao lại việc trùng" trong ghi chú gửi model không
+            # đủ chắc: model giọng nghe người dùng nhắc lại hay hỏi tiến độ là giao thêm một
+            # việc y hệt, mỗi lần một thẻ trên trang Việc.
+            _trung = voice_brain.viec_trung(conv_sid, ask)
+            if _trung or voice_brain.day_viec_nen(conv_sid):
+                _cau = ("Việc này em đang làm rồi, xong là kết quả hiện ngay ở đây."
+                        if _trung else
+                        f"Em đang chạy {voice_brain.VIEC_NEN_TOI_DA} việc nền rồi, "
+                        "đợi xong bớt một việc rồi em nhận tiếp nhé.")
+                sent_upto = 0
+                await send_raw({"type": "stream", "content": _cau, "session_id": conv_sid, "lane": "voice"})
+                try:
+                    await _persist_turn(store, conv_sid, brain, user_message, _cau)
+                except Exception:
+                    pass
+                await send_raw({"type": "response", "content": _cau, "session_id": conv_sid,
+                                "lane": "voice", "engine": f"voice:{brain_obj.provider}",
+                                "model": brain_obj.model})
+                await send_raw({"type": "turn_done", "session_id": conv_sid})
+                _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
+                return
+
             if not (filler or "").strip():
                 filler = "Ừ, để xem ngay."
                 await send_raw({"type": "stream", "content": filler, "session_id": conv_sid, "lane": "voice"})
             await _flush(final=True)
             clean = filler.strip()
             try:
-                await _persist_turn(store, conv_sid, brain, user_message, clean)
+                # Lưu kèm khối JAVIS_VIEC "giao" để mở lại hội thoại vẫn thấy dòng "Đang làm
+                # nền: ..." dưới câu xác nhận (0.64.48). Trước đây dòng đó chỉ sống trên màn hình.
+                await _persist_turn(store, conv_sid, brain, user_message,
+                                    clean + "\n\n" + khoi_viec({"kind": "voice", "status": "giao",
+                                                                "title": str(ask)[:160]}))
             except Exception:
                 pass
             await send_raw({"type": "response", "content": clean, "session_id": conv_sid,
@@ -13848,22 +13900,27 @@ async def websocket_endpoint(ws: WebSocket):
             # vẫn ghim vào khung chat đang nói qua `conv_sid`.
             khoa_mach = f"voice:{conv_sid}:{uuid.uuid4().hex[:8]}"
             out = ""
+            # Trạng thái cho thẻ việc trong khung chat (dashboard/chat-viec.js, 0.64.48).
+            viec = {"kind": "voice", "status": "done", "title": str(request)[:160], "id": tid}
             try:
                 out = await asyncio.wait_for(
                     _voice_ask_javis(request, conv_sid, brain, key=khoa_mach),
                     timeout=VOICE_BG_TIMEOUT,
                 )
             except asyncio.TimeoutError:
-                out = (f"Việc nền chạy quá {int(VOICE_BG_TIMEOUT // 60)} phút mà chưa xong nên em dừng lại: "
-                       f"{str(request)[:160]}. Anh thử giao lại, hoặc hỏi thẳng ở khung chat để chạy trực tiếp.")
+                out = (f"Chạy quá {int(VOICE_BG_TIMEOUT // 60)} phút mà chưa xong nên em dừng lại. "
+                       "Anh thử giao lại, hoặc hỏi thẳng ở khung chat để chạy trực tiếp.")
+                viec["status"] = "timeout"
                 _dong_the(out, hong="quá hạn giờ")
             except asyncio.CancelledError:
                 voice_brain.note_task_done(conv_sid, request)
                 _dong_the("", hong="bị dừng giữa chừng")
-                await push_to_chat(conv_sid, f"Việc nền bị dừng giữa chừng: {str(request)[:160]}")
+                await push_to_chat(conv_sid, "Đã dừng giữa chừng, chưa có kết quả.",
+                                   viec=dict(viec, status="cancelled"))
                 raise
             except Exception as e:
-                out = f"Việc nền lỗi: {type(e).__name__}: {e}"
+                out = f"Chưa làm được việc này. Lỗi gặp phải: {e or type(e).__name__}"
+                viec["status"] = "failed"
                 _dong_the(out, hong=f"{type(e).__name__}: {e}")
             else:
                 _dong_the(out or "(việc nền xong nhưng không có nội dung)")
@@ -13873,7 +13930,7 @@ async def websocket_endpoint(ws: WebSocket):
                 # được dọn khi bot Telegram khởi động lại, nên nói chuyện cả buổi là cả trăm
                 # khoá chết nằm lại, mỗi khoá còn ôm một đối tượng engine CLI.
                 _TG_SESS.pop(khoa_mach, None)
-            await push_to_chat(conv_sid, out or "(việc nền xong nhưng không có nội dung)")
+            await push_to_chat(conv_sid, out or "(việc nền xong nhưng không có nội dung)", viec=viec)
 
         async def _start_resumed_turn(conv_sid, user_message, brain, attempt, notice):
             """Chạy lại một lượt đã vấp hạn mức gói thuê bao (limit_resume gọi tới, khi tới mốc

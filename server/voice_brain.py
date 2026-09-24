@@ -84,16 +84,20 @@ SYSTEM_PROMPT = (
     "vô nghĩa thì xin nhắc lại bằng tiếng Việt. XƯNG HÔ theo đúng cách "
     "người dùng đang xưng hô với bạn (họ xưng thế nào thì đáp lại cho khớp), không tự đổi sang cách "
     "khác.\n"
-    "Bạn KHÔNG có tool và KHÔNG biết dữ liệu sống. Khi câu hỏi cần bất kỳ thứ nào sau đây: số liệu "
-    "kinh doanh, lịch, email, file hay ghi chú trong brain, ký ức dài hạn, giao việc, nhắc hẹn, mở "
-    "trang hay mở app, gửi tin, hay bất cứ hành động nào ra ngoài, thì KHÔNG đoán và KHÔNG bịa. Thay "
-    "vào đó trả lời đúng khuôn này: MỘT câu xác nhận ngắn, tự nhiên ở dòng đầu (kiểu 'Ừ, để xem "
+    "Bạn KHÔNG có tool và KHÔNG biết dữ liệu sống. Khi người dùng HỎI hoặc YÊU CẦU RÕ một thứ cần: số "
+    "liệu kinh doanh, lịch, email, file hay ghi chú trong brain, ký ức dài hạn, tạo việc trên trang "
+    "Việc, nhắc hẹn, mở app, gửi tin, hay bất cứ hành động nào ra ngoài, thì KHÔNG đoán và KHÔNG bịa. "
+    "CHỈ GIAO khi câu đó thật sự là lời nhờ làm hay hỏi dữ liệu. Nhắc tới chữ 'việc', 'công việc', "
+    "'task', kể chuyện công việc, than thở, bàn kế hoạch, suy nghĩ thành tiếng, hỏi ý kiến: đều KHÔNG "
+    "phải lời nhờ, trả lời thẳng. Không chắc họ muốn làm ngay hay chỉ đang nói chuyện thì HỎI LẠI một "
+    "câu ngắn (ví dụ 'Anh muốn em làm luôn không?'), đừng giao. Khi giao, trả lời đúng khuôn này: MỘT câu xác nhận ngắn, tự nhiên ở dòng đầu (kiểu 'Ừ, để xem "
     "ngay.', 'Rồi, kiểm tra ngay đây.', xưng hô theo người dùng), rồi một dòng riêng bắt đầu bằng "
     + MARKER + " theo sau là "
     "yêu cầu ĐẦY ĐỦ, tự đứng được (bộ não chính không nghe cuộc nói chuyện này) để bộ não chính của "
     "Javis thực hiện. Không viết gì sau dòng đó. Việc đó chạy NỀN như một việc riêng: kết quả tự "
-    "hiện trong khung chat khi xong, còn bạn vẫn trò chuyện tiếp bình thường; có thể giao nhiều việc "
-    "nền liên tiếp. Người dùng hỏi tiến độ thì nói việc đang chạy, KHÔNG bịa kết quả.\n"
+    "hiện trong khung chat khi xong, còn bạn vẫn trò chuyện tiếp bình thường. Mỗi lời nhờ chỉ giao "
+    "MỘT lần: câu nói tiếp, câu nhắc lại, câu hỏi tiến độ hay câu cảm ơn về một việc đã giao thì "
+    "KHÔNG giao lại. Người dùng hỏi tiến độ thì nói việc đang chạy, KHÔNG bịa kết quả.\n"
     "NGOẠI LỆ, làm NGAY không nhờ bộ não chính: khi người dùng chỉ bảo ĐIỀU KHIỂN MÀN HÌNH, hãy "
     "trả lời một câu ngắn xác nhận rồi xuống dòng ghi " + UI_MARKER + " kèm lệnh:\n"
     "  " + UI_MARKER + " open_page <id trang>   (mở một tab. Viết ID tiếng Anh; trong ngoặc là nhãn "
@@ -817,22 +821,70 @@ _DUNG_TU = (
     "dừng", "tạm dừng", "ngừng", "huỷ", "hủy", "bỏ", "tắt", "thôi", "dẹp", "khoan làm",
     "stop", "cancel", "abort", "kill", "halt",
 )
+# Cụm chỉ ĐÍCH DANH việc chạy nền. 0.64.48 bỏ các từ đơn "nền", "nen", "đang chạy", "task",
+# "job": chúng làm câu hỏi thường bị nuốt thành lệnh dừng. Chủ repo báo 24/09, dò lại thấy
+# "Thôi được rồi, quảng cáo đang chạy thế nào?", "tắt nhạc nền đi", "bỏ qua chuyện đó, nền
+# tảng nào bán tốt" đều bị coi là lệnh: câu hỏi mất, Javis đáp "không có việc nền nào".
 _VIEC_TU = (
     "việc nền", "viec nen", "việc ngầm", "viec ngam", "chạy nền", "chay nen", "chạy ngầm",
-    "ngầm", "ngam", "nền", "nen", "tác vụ", "tac vu", "đang chạy", "dang chay",
-    "background", "task", "job",
+    "chay ngam", "tác vụ", "tac vu", "background",
 )
+# "ngầm" đứng riêng thì vẫn là việc nền ("dừng tìm kiếm ngầm"), nhưng phải là TỪ trọn vẹn.
+_NGAM_RE = re.compile(r"(?<!\w)(ngầm|ngam)(?!\w)")
+# "việc ... đang chạy" (nguyên văn chủ repo: "tắt việc tìm kiếm đang chạy").
+_VIEC_DANG_CHAY_RE = re.compile(r"(?<!\w)việc(?!\w).*(?<!\w)đang chạy(?!\w)")
+# Câu HỎI thì không phải lệnh, dù có đủ cặp từ ("thôi, việc ngầm đang chạy tới đâu rồi?").
+_HOI_RE = re.compile(r"\?\s*$|(?<!\w)(thế nào|ra sao|tới đâu|đến đâu|bao giờ|bao lâu|"
+                     r"xong chưa|chưa nhỉ|được chưa|có không|không nhỉ|how|what|when|status)(?!\w)")
 
 
 def la_lenh_dung_viec(text: str) -> bool:
-    """Câu này có phải là LỆNH dừng việc nền đang chạy không (thuần, test được)."""
+    """Câu này có phải là LỆNH dừng việc nền đang chạy không (thuần, test được).
+
+    Cần ĐỦ BA: một từ DỪNG (trọn từ), một cụm chỉ đích danh VIỆC CHẠY NỀN, và câu không phải
+    câu hỏi. Thiếu một là trả False, để câu đó đi đường thường: nhận nhầm một lệnh dừng thì
+    câu hỏi của người dùng bị nuốt, tệ hơn nhiều so với để model tự xử một câu dừng hiếm hoi.
+    """
     s = " " + re.sub(r"\s+", " ", str(text or "").lower().strip()) + " "
     if not s.strip():
         return False
-    co_dung = any((" " + t + " ") in s or s.startswith(" " + t + " ") for t in _DUNG_TU)
+    co_dung = any((" " + t + " ") in s or (" " + t + ",") in s for t in _DUNG_TU)
     if not co_dung:
         return False
-    return any(v in s for v in _VIEC_TU)
+    co_viec = (any(v in s for v in _VIEC_TU) or _NGAM_RE.search(s) is not None
+               or _VIEC_DANG_CHAY_RE.search(s) is not None)
+    if not co_viec:
+        return False
+    return _HOI_RE.search(s.strip()) is None
+
+
+# ---- Chốt ở MÁY CHỦ: không giao trùng, không giao dồn (0.64.48) ----
+# Trước đây "đừng giao lại việc trùng" chỉ là lời DẶN trong ghi chú gửi model. Model giọng là
+# model nhỏ, nghe người dùng nhắc lại hay hỏi tiến độ là giao thêm một việc giống hệt, và mỗi
+# lần giao là một thẻ trên trang Việc (chủ repo báo 24/09: tạo việc ngầm lung tung).
+VIEC_NEN_TOI_DA = 3        # việc nền giọng chạy song song tối đa trong một phiên nói
+NGUONG_TRUNG = 0.8         # độ giống (0..1) từ đây trở lên thì coi là cùng một việc
+
+
+def _chuan_viec(s: str) -> str:
+    return re.sub(r"[^\w]+", " ", str(s or "").lower()).strip()
+
+
+def viec_trung(session_id: str, request: str) -> Optional[str]:
+    """Việc nền ĐANG CHẠY giống yêu cầu này (trả yêu cầu cũ), không có thì None."""
+    moi = _chuan_viec(request)
+    if not moi:
+        return None
+    for it in pending_tasks(session_id):
+        cu = _chuan_viec(it.get("request"))
+        if cu and (cu == moi or difflib.SequenceMatcher(None, cu, moi).ratio() >= NGUONG_TRUNG):
+            return it.get("request")
+    return None
+
+
+def day_viec_nen(session_id: str) -> bool:
+    """Phiên nói này đã chạy đủ số việc nền tối đa chưa."""
+    return len(pending_tasks(session_id)) >= VIEC_NEN_TOI_DA
 
 
 def pending_note(session_id: str, now: Optional[float] = None) -> str:

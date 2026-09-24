@@ -1090,11 +1090,16 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
             parts = [dau, than]
             parts_ngan = [dau, "Lý do: " + (reason[:240] or "không rõ")]
         else:
-            ket_qua = "\n".join(
-                ln for ln in str(task.get("result") or "").strip().splitlines() if ln.strip()
-            ).strip()
+            # GIỮ dòng trống giữa các đoạn (0.64.48). Bản trước bỏ MỌI dòng trống nên đoạn văn,
+            # danh sách, tiêu đề markdown dính liền thành một bức tường chữ trong khung chat.
+            # Chỉ gộp chuỗi dòng trống dài về một dòng trống.
+            ket_qua = re.sub(r"\n[ \t]*(\n[ \t]*)+", "\n\n",
+                             str(task.get("result") or "").strip()).strip()
             parts = [dau] + ([ket_qua] if ket_qua else [])
             parts_ngan = [dau] + ([ket_qua[:240].strip()] if ket_qua else [])
+        # Bản cho KHUNG CHAT web: thẻ việc (dashboard/chat-viec.js) đã có dòng đầu nói trạng thái,
+        # tên việc và nút mở trang Việc, nên bỏ câu đầu có emoji và câu "xem ở trang Việc".
+        web = "\n\n".join(parts[1:]) or dau
         parts.append("Xem chi tiết ở trang Việc.")
         parts_ngan.append("Xem chi tiết ở trang Việc.")
         # Việc chạy xong TRÓT LỌT thì báo LẶNG: kết quả vẫn rơi vào khung chat đã giao việc và
@@ -1108,6 +1113,9 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
                 channel_context.strip_control_blocks("\n\n".join(parts)),
                 quiet=(status == "done"),
                 ngan=channel_context.strip_control_blocks("\n\n".join(parts_ngan)),
+                viec={"kind": "task", "status": status, "title": str(task.get("title") or ""),
+                      "id": str(task.get("id") or "")},
+                web=channel_context.strip_control_blocks(web),
             )
         except Exception as e:
             # KHÔNG nuốt im: đây là đường DUY NHẤT để kết quả việc nền quay về với người dùng,

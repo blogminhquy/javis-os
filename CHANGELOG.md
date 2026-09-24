@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.48] - 2026-09-24
+### Sửa lỗi
+- **Nói chuyện bằng giọng không còn tự đẻ việc ngầm lung tung.** Javis chỉ giao việc nền khi anh thật sự nhờ làm hoặc hỏi số liệu; nhắc tới chữ "việc", kể chuyện công việc hay bàn kế hoạch thì trả lời thẳng, không chắc thì hỏi lại một câu.
+- **Không giao trùng, không giao dồn.** Nhắc lại hay hỏi tiến độ một việc đang chạy thì Javis nói "việc này em đang làm rồi" thay vì giao thêm bản nữa; mỗi phiên nói chạy tối đa 3 việc nền cùng lúc.
+- **Câu hỏi thường không còn bị hiểu nhầm thành lệnh dừng.** Trước đây câu như "Thôi được rồi, quảng cáo đang chạy thế nào?" hay "tắt nhạc nền đi" bị nuốt mất và Javis đáp "không có việc nền nào".
+### Cải thiện
+- **Kết quả việc nền hiện thành thẻ gọn** có icon trạng thái (xong, bị chặn, lỗi, quá giờ, đã dừng), tên việc và nút mở trang Việc; giữ nguyên đoạn văn, danh sách thay vì dính thành một khối chữ. Dòng "Đang làm nền" khi giao bằng giọng rõ hơn và mở lại hội thoại vẫn còn. Chữ ở dải việc nền cũng to lên cho dễ đọc trên điện thoại.
+
 ## [0.64.47] - 2026-09-24
 ### Cải thiện
 - **Thiết lập lần đầu chỉ cần tên đăng nhập và mật khẩu**, không còn phải đi tìm MÃ THIẾT LẬP trong log server. Bảo vệ tài khoản giờ giao cho 2FA: vào xong nên bật ngay.
