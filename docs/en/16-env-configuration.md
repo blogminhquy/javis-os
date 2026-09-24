@@ -100,7 +100,7 @@ A note about the Second Brain: `BRAINS_DIR` is the folder that actually holds yo
 
 | Variable | Meaning | Default | When to change |
 |---|---|---|---|
-| `TTS_VOICE` | The default reading voice (using free Edge TTS) | `vi-VN-HoaiMyNeural` | You want another voice. A male Vietnamese voice or a foreign-language voice, say. |
+| `TTS_VOICE` | The default reading voice (using free Edge TTS) | `en-US-EmmaMultilingualNeural` | You want another voice. A male Vietnamese voice or a foreign-language voice, say. |
 | `TTS_RATE` | Reading speed, as a plus/minus percentage | `+5%` | Too fast, so lower it (`+0%` or `-10%`); faster, so raise it (`+15%`). |
 
 Note: these two TTS variables apply to the default free Edge TTS voice. If you pick another voice provider (OpenAI TTS or ElevenLabs), that is configured in the app's Settings panel rather than through `.env`. How to chat and turn voice on: [Chat and voice](02-chat-and-voice.md).

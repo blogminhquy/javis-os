@@ -215,7 +215,7 @@ The template deliberately holds **only `NAME=value` lines, no comments at all**:
 | `CLAUDE_CWD` | Working directory for the Claude brain | repo root |
 | `JAVIS_ENABLE_USER_PLUGINS` | `true` is required before your own plugins run (real Python inside the server) | *(off)* |
 | `WATCHTOWER_TOKEN` | Token for the "Update now" button on the Docker build | `javis-update` |
-| `TTS_VOICE` / `TTS_RATE` | Voice and speed (Edge TTS) | `vi-VN-HoaiMyNeural` / `+5%` |
+| `TTS_VOICE` / `TTS_RATE` | Voice and speed (Edge TTS) | `en-US-EmmaMultilingualNeural` / `+5%` |
 
 Every variable: [docs/16 - .env configuration](docs/16-cau-hinh-env.md).
 

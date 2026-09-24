@@ -55,11 +55,16 @@ class JavisVoice {
     this.onEnd = opts.onEnd || (() => {});
     this.onError = opts.onError || (() => {});
     this.onTranscribing = opts.onTranscribing || (() => {});
+    this.preserveTranscript = !!opts.preserveTranscript;
+    this.onTranscriptSuggestion = opts.onTranscriptSuggestion || (() => {});
+    this.onPlaybackError = opts.onPlaybackError || (() => {});
     this._sttEpoch = 0;
     this._sttPending = 0;
     this._sttControllers = new Set();
     this._sttDelivery = Promise.resolve();
     this._micEpoch = 0;
+    this._ttsEpoch = 0;
+    this._endpointText = "";
     this._captureWaiters = new Set();
 
     this.recognition = null;
@@ -73,7 +78,7 @@ class JavisVoice {
 
     // Edge TTS backend (server)
     this.ttsBackend = opts.ttsBackend || "/tts"; // "/tts" hoặc null để dùng browser
-    this.ttsVoice = opts.ttsVoice || "vi-VN-HoaiMyNeural"; // nhãn UI: Hoài My (nữ) | Nam Minh (nam) | 5 giọng đa ngôn ngữ (Ava, Emma, Andrew, Brian, William)
+    this.ttsVoice = opts.ttsVoice || "en-US-EmmaMultilingualNeural"; // nhãn UI: Hoài My (nữ) | Nam Minh (nam) | 5 giọng đa ngôn ngữ (Ava, Emma, Andrew, Brian, William)
     this.ttsRate = opts.ttsRate || "+5%";
     this.currentAudio = null;
     this.ttsQueue = [];
@@ -240,7 +245,12 @@ class JavisVoice {
     })();
     const delivery = this._sttDelivery.catch(() => {}).then(async () => {
       const finalText = await result;
-      if (epoch === this._sttEpoch) cb(finalText);
+      if (epoch === this._sttEpoch) {
+        // Dashboard has already shown this utterance. A second recognizer can offer an
+        // alternative, but cannot silently change the user's committed words.
+        if (this.preserveTranscript && finalText !== text) this.onTranscriptSuggestion(finalText);
+        cb(this.preserveTranscript ? text : finalText);
+      }
     }).finally(() => {
       if (epoch === this._sttEpoch) {
         this._sttPending--;
@@ -328,7 +338,7 @@ class JavisVoice {
       // Đang phát TTS thì BỎ mọi kết quả nhận dạng: đó là mic nghe lại chính giọng Javis
       // (SpeechRecognition thu riêng, KHÔNG được khử vọng như luồng đo mức âm), không phải
       // user nói. Không chặn thì giọng Javis bị chép vào khung chat rồi tự gửi đi.
-      if (this.isSpeaking() || this._discardRecognition) return;
+      if (this.isSpeaking() || this._discardRecognition || (this._stopping && this._endpointText)) return;
       // DỰNG LẠI từ TOÀN BỘ event.results mỗi lần, KHÔNG cộng dồn qua từng sự kiện.
       // Bản cũ làm `accumulated += final` từ resultIndex trở đi. Chrome máy tính giao đúng
       // từng mảnh một nên không sao; Chrome Android thì resultIndex thường đứng ở 0 và mỗi
@@ -426,6 +436,7 @@ class JavisVoice {
       // với _committed: final đã phủ đuôi thì không ghép hai lần.
       const finalText = JavisVoice.ghepDuoiTam(
         this.accumulatedTranscript || this._committed, this._duoiTam);
+      this._endpointText = "";
       this._committed = "";
       this._duoiTam = "";
       this._batDauLuot = 0;            // lượt này khép lại: trần tính lại từ đầu ở lượt sau
@@ -592,6 +603,7 @@ class JavisVoice {
     // Mở nghe chủ động → huỷ mọi lịch tự-mở-lại còn treo
     if (!giuTieng) this._resumeAfterTTS = false;
     clearTimeout(this._resumeTimer);
+    this._endpointText = "";
     this._committed = "";                     // lượt nói MỚI, không kéo chữ của lượt trước sang
     this._batDauLuot = 0;                     // đồng hồ trần tính lại từ chữ đầu của lượt mới
     // Stop TTS đang đọc nếu user bấm nói
@@ -625,6 +637,9 @@ class JavisVoice {
     this._resumeAfterTTS = false;
     clearTimeout(this._resumeTimer);
     if (this._stopping) return;
+    // Freeze only text already shown. If no result has arrived, stop() may deliver
+    // the very first final, which still needs to reach the conversation.
+    this._endpointText = JavisVoice.ghepDuoiTam(this.accumulatedTranscript || this._committed, this._duoiTam);
     if (this.recognition && this.isListening) {
       this.userStopped = true;     // đánh dấu user chủ động dừng → không auto-restart
       this._stopping = true;
@@ -656,6 +671,7 @@ class JavisVoice {
     this._muteRecognition();
     this.userStopped = true;
     this._discardRecognition = true;
+    this._endpointText = "";
     this.accumulatedTranscript = this._committed = this._duoiTam = "";
     this._resumeAfterTTS = false;
     clearTimeout(this._resumeTimer);
@@ -1072,6 +1088,7 @@ class JavisVoice {
   }
 
   _playChunk(i, retry) {
+    const epoch = this._ttsEpoch;
     // Hết chunk của đoạn này → chuyển sang đoạn kế trong hàng đợi (không tự dừng).
     if (!this.ttsChunks || i >= this.ttsChunks.length) { this._pumpQueue(); return; }
     if (this._laIOS()) {
@@ -1084,9 +1101,10 @@ class JavisVoice {
       this._apAmLuong(a);      // đang nhá tiếng thăm dò thì khúc mới cũng phải nhỏ theo
       this._chunkIndex = i;
       let done = false;
-      const onFail = () => { if (done) return; done = true; a.onerror = null; this._chunkFailed(i, retry); };
+      const onFail = () => { if (done || epoch !== this._ttsEpoch) return; done = true; a.onerror = null; this._chunkFailed(i, retry); };
       a.onended = () => {
-        if (done) return;
+        if (done || epoch !== this._ttsEpoch) return;
+        done = true;
         this._huyCanhTreo();
         if (this._countThis) this._wordsDone += JavisVoice.demTu(this.ttsChunks[i]);
         this._playChunk(i + 1);
@@ -1109,6 +1127,7 @@ class JavisVoice {
     // số đo thật, không phải trạng thái vẽ cho có (spec Voice V1 mục 4).
     const _t0 = Date.now();
     audio.onplaying = () => {
+      if (epoch !== this._ttsEpoch) return;
       const cham = (Date.now() - _t0) > 2500;
       if (this.onSlow && cham !== !!this._slowFlag) { this._slowFlag = cham; try { this.onSlow(cham); } catch (e) {} }
     };
@@ -1137,14 +1156,15 @@ class JavisVoice {
     // (nếu không: 2 retry chồng nhau + audio mồ côi stopSpeaking không dừng được). Cờ handled = xử lý đúng 1 lần.
     let handled = false;
     const onFail = () => {
-      if (handled) return;
+      if (handled || epoch !== this._ttsEpoch) return;
       handled = true;
       audio.onerror = null;
-      this._chunkFailed(i, retry);   // thử lại backend, vẫn hỏng mới cân nhắc trình duyệt (không rơi tiếng Anh)
+      this._chunkFailed(i, retry);   // thử lại cùng giọng, vẫn lỗi thì báo lên giao diện
     };
     audio.onended = () => {
-      if (handled) return;
+      if (handled || epoch !== this._ttsEpoch) return;
       this._huyCanhTreo();
+      handled = true;
       this._spokenChunks.push(this.ttsChunks[i]);   // khúc này đã ra tiếng trọn vẹn
       if (this._countThis) this._wordsDone += JavisVoice.demTu(this.ttsChunks[i]);
       this._playChunk(i + 1);
@@ -1183,37 +1203,29 @@ class JavisVoice {
     if (this._treoTimer) { clearInterval(this._treoTimer); this._treoTimer = null; }
   }
 
-  // Đoạn TTS backend lỗi: thử LẠI backend 1 lần (lỗi mạng chốc lát) để GIỮ giọng Việt;
-  // vẫn hỏng thì TUYỆT ĐỐI không rơi về giọng mặc định (thường là tiếng Anh) khi đang đọc tiếng Việt -
-  // đó chính là "giọng Anh lạ chèn giữa chừng". Có giọng đúng ngôn ngữ trong máy thì đọc, không thì BỎ đoạn.
+  // Retry the selected voice once. A different voice requires an explicit selection.
   _chunkFailed(i, retry) {
     if (!this.ttsChunks || i >= this.ttsChunks.length) { this._pumpQueue(); return; }
     if (!retry) { this._playChunk(i, true); return; }
-    const okBrowserVoice = this.lang.startsWith("vi") ? !!this.vietnameseVoice : true;
-    if (okBrowserVoice) this._speakBrowser(this.ttsChunks[i], () => this._playChunk(i + 1));
-    else {
-      // Khúc bị BỎ là mất tiếng thật sự mà màn hình không báo gì. Ít nhất phải để lại dấu vết
-      // trong console, không thì lần sau người dùng kêu "không phát voice" là không có gì để lần.
-      try { console.warn("[Javis TTS] bỏ khúc (backend hỏng, máy không có giọng Việt):", this.ttsChunks[i]); } catch (e) {}
-      // Khúc bị BỎ vẫn tính là đã qua, kẻo bong bóng hiện chữ theo lời kẹt lại ở khúc đó.
-      if (this._countThis) this._wordsDone += JavisVoice.demTu(this.ttsChunks[i]);
-      this._playChunk(i + 1);
-    }
+    this.stopSpeaking();
+    this.onPlaybackError("tts-unavailable");
   }
 
   // onDone: gọi khi đọc xong đoạn (mặc định: lấy đoạn kế trong hàng đợi).
   _speakBrowser(text, onDone) {
+    const epoch = this._ttsEpoch;
     const done = onDone || (() => this._pumpQueue());
     const chunks = this._splitIntoChunks(text, 200);
     let idx = 0;
     const playNext = () => {
+      if (epoch !== this._ttsEpoch) return;
       if (idx >= chunks.length) { done(); return; }
       const piece = chunks[idx++];
       const utter = new SpeechSynthesisUtterance(piece);
       utter.lang = this.lang;
       if (this.vietnameseVoice) utter.voice = this.vietnameseVoice;
       utter.rate = 1.05;
-      utter.onend = () => { if (this._countThis) this._wordsDone += JavisVoice.demTu(piece); playNext(); };
+      utter.onend = () => { if (epoch !== this._ttsEpoch) return; if (this._countThis) this._wordsDone += JavisVoice.demTu(piece); playNext(); };
       utter.onerror = playNext;
       this.synth.speak(utter);
     };
@@ -1221,6 +1233,7 @@ class JavisVoice {
   }
 
   stopSpeaking() {
+    this._ttsEpoch++;
     const dangDoc = this.isPlaying;
     this._stopBargeMonitor();
     this._huyCanhTreo();

@@ -84,8 +84,8 @@ check("audio đã đổi hoặc đã hết thì thôi canh",
   /if \(this\.currentAudio !== audio \|\| audio\.ended\) \{ this\._huyCanhTreo\(\); return; \}/.test(voiceSrc));
 check("huỷ canh ở onended và ở stopSpeaking",
   (voiceSrc.match(/this\._huyCanhTreo\(\);/g) || []).length >= 4);
-check("khúc bị bỏ hẳn thì ít nhất để lại dấu vết trong console",
-  /console\.warn\("\[Javis TTS\] bỏ khúc/.test(voiceSrc));
+check("giọng lỗi phải báo lên giao diện",
+  /this\.onPlaybackError\("tts-unavailable"\)/.test(voiceSrc));
 
 // Chạy thật vòng canh treo bằng đồng hồ giả: audio đứng im -> phải gọi onFail.
 const classSrc = voiceSrc.slice(voiceSrc.indexOf("class JavisVoice"), voiceSrc.lastIndexOf("window.JavisVoice"));

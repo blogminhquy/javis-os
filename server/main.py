@@ -10730,7 +10730,7 @@ async def config():
     return {
         "workspace_name": s.get("workspace_name") or os.getenv("WORKSPACE_NAME", "Javis OS"),
         "user_name": os.getenv("USER_NAME", "Bạn"),
-        "tts_voice": os.getenv("TTS_VOICE", "vi-VN-HoaiMyNeural"),
+        "tts_voice": os.getenv("TTS_VOICE", "en-US-EmmaMultilingualNeural"),
         "tts_rate": os.getenv("TTS_RATE", "+5%"),
     }
 
@@ -11725,11 +11725,10 @@ async def _tts_elevenlabs(text: str, cfg: dict) -> bytes:
 @app.get("/tts")
 async def tts(
     text: str = Query(...),
-    voice: str = Query("vi-VN-HoaiMyNeural"),
+    voice: str = Query("en-US-EmmaMultilingualNeural"),
     rate: str = Query("+5%"),
 ):
-    """Sinh audio TTS theo nhà cung cấp đã chọn (edge/openai/elevenlabs). Provider trả phí lỗi
-    → tự fallback về Edge TTS để giọng không bao giờ tắt hẳn."""
+    """Sinh audio đúng nhà cung cấp đã chọn; lỗi không được âm thầm đổi giọng."""
     import sys
     from fastapi import HTTPException, Response
     from fastapi.responses import StreamingResponse
@@ -11753,14 +11752,8 @@ async def tts(
         else:
             return await _edge_streaming()
     except Exception as e:
-        print(f"[TTS {provider}] {type(e).__name__}: {e} - thử fallback Edge", file=sys.stderr)
-        if provider != "edge":
-            try:
-                return await _edge_streaming()
-            except Exception as e2:
-                raise HTTPException(502, f"TTS failed: {type(e2).__name__}: {e2}")
-        else:
-            raise HTTPException(502, f"TTS failed: {type(e).__name__}: {e}")
+        print(f"[TTS {provider}] {type(e).__name__}", file=sys.stderr)
+        raise HTTPException(502, "Giọng đã chọn hiện không phát được. Vui lòng thử lại hoặc chọn giọng khác.")
     if not audio:
         raise HTTPException(502, "TTS không trả audio.")
     return Response(content=audio, media_type="audio/mpeg", headers={"Cache-Control": "no-cache"})
@@ -13578,28 +13571,10 @@ async def websocket_endpoint(ws: WebSocket):
                 await run_turn(conv_sid, original_message, brain, turn_tag, runtime_trace)
 
             async def _ap_dien_giai(nghe):
-                """Only grounded spelling repairs may change the stored utterance."""
-                nonlocal user_message
-                nghe = (nghe or "").strip()
-                safe = voice_brain.safe_transcript_rewrite(original_message, nghe)
-                _, candidate = nghe_sua.split_ui_context(nghe)
-                _, speech = nghe_sua.split_ui_context(safe)
-                if not candidate or speech.strip() != candidate.strip():
-                    return False
-                if safe == user_message:
-                    return True
-                try:
-                    changed = store.replace_last_message(conv_sid, "user", safe,
-                                                         expected_content=user_message)
-                except Exception:
-                    changed = False
-                if not changed:
-                    return False
-                await send_raw({"type": "user_text", "session_id": conv_sid,
-                                "text": speech, "raw": nghe_sua.split_ui_context(user_message)[1],
-                                "voice_turn_id": voice_turn_id})
-                user_message = safe
-                return True
+                """The accepted transcript is immutable, even for plausible spelling repairs."""
+                _, candidate = nghe_sua.split_ui_context((nghe or "").strip())
+                _, speech = nghe_sua.split_ui_context(original_message)
+                return bool(candidate) and candidate.strip() == speech.strip()
 
             # Chỉ đẩy phần ĐỌC ĐƯỢC: câu đã khép hoặc dòng đã khép (voice_brain.split_speakable).
             # Trình duyệt đọc mỗi khung là một yêu cầu TTS riêng, nên đẩy từng delta vài từ là
@@ -13952,17 +13927,8 @@ async def websocket_endpoint(ws: WebSocket):
             brain = payload.get("brain", "brain")
             _cfg_luot = cfgmod.read_settings()
             mcfg = _cfg_luot.get("model", {})
-            # Tin từ MIC (`voice: true`): sửa chữ nghe nhầm theo ngữ cảnh TRƯỚC khi vào bộ não và
-            # trước khi lưu phiên - phủ cả chữ của Web Speech (không qua /stt) lẫn chữ Groq. Chỉ
-            # tin từ mic: chữ gõ tay là chữ người dùng chọn, không sửa.
-            _nghe_tho = ""      # chữ thô của máy nghe, khi lớp sửa có đổi (báo lại cho khung chat)
-            if payload.get("voice_input", payload.get("voice")):
-                try:
-                    _sua = nghe_sua.sua(user_message, nghe_sua.tu_vung(_cfg_luot))
-                    if _sua != user_message:
-                        _nghe_tho, user_message = user_message, _sua
-                except Exception as e:
-                    print(f"[voice nghe_sua] lỗi, giữ nguyên câu: {e}", file=sys.stderr)
+            # The dashboard has already displayed/committed these words. Hotwords may
+            # guide recognition, but must not rewrite history after the user sends a turn.
             # Phiên đã ghim model riêng thì engine_label phải suy từ provider HIỆU LỰC
             # của phiên, không phải từ mặc định chung - nhãn sai là clear_codex_thread_id
             # dọn nhầm/không dọn mạch native khi đổi engine.
@@ -14009,14 +13975,6 @@ async def websocket_endpoint(ws: WebSocket):
             if limit_resume.REGISTRY.cancel(conv_sid):
                 await send_raw({"type": "resume", "session_id": conv_sid, "state": "cancelled"})
             store.append_message(conv_sid, "user", user_message)
-            # Khung chat đang hiện chữ THÔ của máy nghe (trình duyệt vẽ bong bóng trước khi gửi).
-            # Câu Javis thật sự đọc là câu đã sửa, nên báo lại để bong bóng đổi theo: người dùng
-            # phải nhìn thấy Javis hiểu câu nào, không phải đoán (chủ dự án 16/09).
-            if _nghe_tho:
-                await send_raw({"type": "user_text", "session_id": conv_sid,
-                                "text": nghe_sua.split_ui_context(user_message)[1],
-                                "raw": nghe_sua.split_ui_context(_nghe_tho)[1],
-                                "voice_turn_id": str(payload.get("voice_turn_id") or "")})
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
             runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
             # Phiên workflow:<slug>: mỗi tin là một lần chạy quy trình, không phải một lượt

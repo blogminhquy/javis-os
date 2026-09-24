@@ -394,7 +394,7 @@
   "settings.v2_loc_tap_am_note": "Sau 20 giây không trao đổi, gọi “Javis” ở đầu câu hoặc bấm nút tiếp tục. Trong lúc chờ, lời nghe được không gửi vào hội thoại; Live tạm đóng kết nối. Không tách được giọng bạn khỏi TV hoặc người khác khi đang trao đổi. Tắt để nghe liên tục.",
   "settings.v2_hotwords": "Từ hay nghe nhầm",
   "settings.v2_hotwords_ph": "Tên công cụ, tên dự án, tên người... ngăn bằng dấu phẩy",
-  "settings.v2_hotwords_note": "Khi bạn nói lẫn tiếng Anh, máy nghe hay chép sai tên riêng thành từ gần âm. Javis mồi những từ này cho máy nghe và tự sửa theo ngữ cảnh trước khi hiểu câu. Luôn có sẵn: {goc}.",
+  "settings.v2_hotwords_note": "Từ gợi ý cho bộ nhận dạng hỗ trợ ngữ cảnh (Groq hoặc Live). Tin nhắn đã chốt trong chế độ Chuẩn/Nhanh được giữ nguyên. Luôn có sẵn: {goc}.",
   "settings.v2_live": "Nhà cung cấp nghe nói thẳng",
   "settings.v2_live_model": "Model realtime",
   "settings.v2_live_voice": "Giọng",
@@ -3023,5 +3023,9 @@
   "coding.folder_gone": "không còn trên đĩa",
   "coding.mode_suggest_note": "Đọc mã rồi trả về kế hoạch, chưa sửa gì",
   "coding.mode_auto_note": "Sửa file và chạy test, chưa commit hay deploy",
-  "coding.mode_full_note": "Thêm commit, push và deploy khi việc yêu cầu"
+  "coding.mode_full_note": "Thêm commit, push và deploy khi việc yêu cầu",
+  "app.voice_alt_transcript": "Bộ nghe phụ có kết quả khác. Javis giữ nguyên câu đã hiển thị; bạn có thể nói lại nếu cần.",
+  "app.voice_playback_failed": "Giọng đã chọn hiện không phát được. Bạn có thể thử lại hoặc đổi giọng trong Cài đặt.",
+  "app.voice_sample": "Xin chào, tôi là Javis. Bạn nghe thử giọng này nhé.",
+  "settings.v2_stt_note": "Trong chế độ Chuẩn/Nhanh, chữ đã hiện lúc chốt câu được giữ nguyên. Groq chỉ đối chiếu và báo khi có kết quả khác; không tự sửa tin đã gửi."
 }

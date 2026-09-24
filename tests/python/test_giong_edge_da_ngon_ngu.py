@@ -46,11 +46,11 @@ GIONG_DA_NGON_NGU = {
 _sel = INDEX.split('id="voiceSel"', 1)[1].split("</select>", 1)[0]
 giong = re.findall(r'<option value="([^"]+)"', _sel)
 check("ô chọn giọng có đúng 7 mục, không trùng", len(giong) == 7 and len(set(giong)) == 7)
-check("hai giọng Việt bản địa còn nguyên và đứng đầu", giong[:2] == GIONG_VIET)
-check("đủ 5 giọng đa ngôn ngữ", set(giong[2:]) == set(GIONG_DA_NGON_NGU))
+check("hai giọng Việt bản địa còn nguyên và đứng đầu", all(v in giong for v in GIONG_VIET))
+check("đủ 5 giọng đa ngôn ngữ", set(GIONG_DA_NGON_NGU).issubset(giong))
 # Ô chọn không cần "checked": mục ĐẦU TIÊN là mặc định, và app.js cũng lùi về mục đầu khi
 # giọng đã lưu không còn trong danh sách.
-check("giọng mặc định vẫn là Hoài My (mục đầu tiên)", giong[0] == "vi-VN-HoaiMyNeural")
+check("giọng mặc định là Emma (mục đầu tiên)", giong[0] == "en-US-EmmaMultilingualNeural")
 check("nhãn giọng nữ là tên thật Hoài My, không còn Ngọc Thu",
       "Hoài My" in VI.get("qs.voice_opt_hoaimy", "") and "Ngọc Thu" not in INDEX)
 check("nhãn Nam Minh giữ nguyên", "Nam Minh" in VI.get("qs.voice_opt_namminh", ""))

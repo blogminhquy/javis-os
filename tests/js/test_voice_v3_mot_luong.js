@@ -59,7 +59,7 @@ const voiceJs = read("dashboard/voice.js"), liveJs = read("dashboard/voice-live.
 check("voice.js: đếm từ đã ra tiếng (spokenWords / resetSpokenWords / demTu)",
       /resetSpokenWords\(\) \{ this\._wordsDone = 0; \}/.test(voiceJs) && /spokenWords\(\) \{/.test(voiceJs) && /static demTu\(s\)/.test(voiceJs));
 check("voice.js: khúc đọc xong cộng từ, cả đường máy tính lẫn iOS lẫn giọng trình duyệt",
-      (voiceJs.match(/this\._wordsDone \+= JavisVoice\.demTu\(/g) || []).length >= 4);
+      (voiceJs.match(/this\._wordsDone \+= JavisVoice\.demTu\(/g) || []).length >= 3);
 check("voice.js: enqueueSpeak(opts.uncounted) không tính vào số từ", /if \(opts\.uncounted\) this\._uncounted\.push\(clean\);/.test(voiceJs)
       && /this\._countThis = ui < 0;/.test(voiceJs));
 // (giữa hai dòng này còn một dòng áp âm lượng cho phép nhá tiếng, xem test_ngat_loi_nha_tieng.js)

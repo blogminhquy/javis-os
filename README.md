@@ -243,7 +243,7 @@ File mẫu cố ý **chỉ có dòng `TÊN=giá trị`, không một dòng chú 
 | `CLAUDE_CWD` | Thư mục dự phòng của bộ não Claude (chat chạy trong thư mục brain) | repo root |
 | `JAVIS_ENABLE_USER_PLUGINS` | `true` mới cho phép chạy plugin do bạn cài (code Python thật trong server) | *(tắt)* |
 | `WATCHTOWER_TOKEN` | Token cho nút "Cập nhật ngay" trên bản Docker | `javis-update` |
-| `TTS_VOICE` / `TTS_RATE` | Giọng đọc + tốc độ (Edge TTS) | `vi-VN-HoaiMyNeural` / `+5%` |
+| `TTS_VOICE` / `TTS_RATE` | Giọng đọc + tốc độ (Edge TTS) | `en-US-EmmaMultilingualNeural` / `+5%` |
 
 Danh sách đầy đủ mọi biến: [docs/16 - Cấu hình .env](docs/16-cau-hinh-env.md).
 

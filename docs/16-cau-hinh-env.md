@@ -104,7 +104,7 @@ Ghi chú về Second Brain: `BRAINS_DIR` là thư mục thật sự chứa các 
 
 | Biến | Ý nghĩa | Mặc định | Khi nào đổi |
 |---|---|---|---|
-| `TTS_VOICE` | Giọng đọc mặc định (dùng Edge TTS miễn phí) | `vi-VN-HoaiMyNeural` | Muốn giọng khác. Ví dụ giọng nam tiếng Việt hoặc giọng tiếng nước ngoài. |
+| `TTS_VOICE` | Giọng đọc mặc định (dùng Edge TTS miễn phí) | `en-US-EmmaMultilingualNeural` | Muốn giọng khác. Ví dụ giọng nam tiếng Việt hoặc giọng tiếng nước ngoài. |
 | `TTS_RATE` | Tốc độ đọc, dạng phần trăm cộng/trừ | `+5%` | Thấy đọc nhanh quá thì giảm (ví dụ `+0%` hoặc `-10%`), muốn nhanh hơn thì tăng (ví dụ `+15%`). |
 
 Lưu ý: hai biến TTS này áp cho giọng Edge TTS miễn phí mặc định. Nếu bạn chọn dùng nhà cung cấp giọng khác (OpenAI TTS hoặc ElevenLabs), phần đó cấu hình trong bảng Cài đặt của app chứ không qua `.env`. Cách trò chuyện và bật giọng nói xem ở [Trò chuyện & giọng nói](02-tro-chuyen-va-giong-noi.md).

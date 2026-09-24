@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.32] - 2026-09-24
+### Sửa lỗi
+- Giữ phần chữ đã chốt khi kết thúc câu nói; không âm thầm thay tin nhắn bằng bản sửa của STT phụ hoặc AI.
+- Giọng đọc giữ đúng lựa chọn; báo lỗi thay vì tự chuyển sang một giọng khác mà không cho biết.
+### Cải thiện
+- Emma Multilingual là giọng đọc mặc định cho bản cài mới và thiết bị chưa chọn giọng. Lựa chọn đã lưu vẫn được giữ khi cập nhật.
+
 ## [0.64.31] - 2026-09-24
 ### Cải thiện
 - **Thêm MCP tự đấu dễ hơn nhiều.** Dán nguyên cấu hình nhà cung cấp đưa (link, khối JSON, lệnh `claude mcp add` hoặc `npx`) là form tự điền. Với Composio, form tạo sẵn dòng `x-consumer-api-key`, chỉ việc dán key.
@@ -11,6 +18,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Lưu xong Javis kiểm tra kết nối luôn** và báo có bao nhiêu công cụ. Sai thì sửa ngay trong form rồi bấm lại, không tạo bản trùng.
 ### Sửa lỗi
 - **MCP tự thêm giờ sửa lại được**: menu của kết nối có mục **Sửa cấu hình** để đổi link, key, lệnh, xoá header thừa. Trước đây nút Kết nối lại chỉ báo "không có trường key để thay".
+
 
 ## [0.64.30] - 2026-09-24
 ### Cải thiện

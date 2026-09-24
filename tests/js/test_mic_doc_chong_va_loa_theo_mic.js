@@ -54,7 +54,7 @@ check("chưa chốt gì thì lấy nguyên final", ghep("", "Ok") === "Ok");
 
 // ---- 2. Phiên tự mở lại không làm mất nửa câu đầu ----
 // Real restart/committed fallback is exercised by test_voice_mobile_regressions.js.
-check("mở nghe CHỦ ĐỘNG là lượt mới: xoá _committed", /clearTimeout\(this\._resumeTimer\);\s*\n\s*this\._committed = "";/.test(voice));
+check("mở nghe CHỦ ĐỘNG là lượt mới: xoá _committed", /startListening\([^)]*\) \{[\s\S]*?this\._committed = "";/.test(voice));
 // Luật: hai ô nhớ của lượt phải dọn NGAY TRƯỚC khi gửi, không phải sau (gửi trước rồi dọn thì
 // onTranscript gọi lại startListening là đọc trúng chữ cũ). Khuôn cho phép chèn thêm dòng dọn ô
 // khác (0.59.28 thêm _batDauLuot cho trần một lượt), nhưng chỉ dòng gán field, không gì khác.

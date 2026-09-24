@@ -27,6 +27,61 @@ function setup(onTranscript = () => {}, opts = {}) {
   voice.isSpeaking = () => false;
   return { voice, context, timers };
 }
+test('new installations default to Emma Multilingual', () => {
+  assert.equal(setup().voice.ttsVoice, 'en-US-EmmaMultilingualNeural');
+});
+test('stop freezes the displayed utterance before a late Android final rewrites it', async () => {
+  const received = [], displayed = [];
+  const { voice } = setup(t => received.push(t), { onInterim: t => displayed.push(t) });
+  voice.isListening = true;
+  const result = (text, isFinal) => { const row = [{ transcript: text }]; row.isFinal = isFinal; return {results: [row]}; };
+  voice.recognition.onresult(result('Em phải trả lời vâng', false));
+  voice.stopListening();
+  voice.recognition.onresult(result('Em phải trở thành Vân', true));
+  voice.recognition.onend(); await voice._sttDelivery;
+  assert.deepEqual(received, ['Em phải trả lời vâng']);
+  assert.equal(displayed.at(-1), received[0]);
+});
+test('stop before the first result still accepts the recognizer final', async () => {
+  const received = [];
+  const { voice } = setup(t => received.push(t));
+  voice.isListening = true;
+  voice.stopListening();
+  const row = [{transcript: 'Alo anh muốn em chuyển lại giọng của Vân'}]; row.isFinal = true;
+  voice.recognition.onresult({results: [row]});
+  voice.recognition.onend(); await voice._sttDelivery;
+  assert.deepEqual(received, ['Alo anh muốn em chuyển lại giọng của Vân']);
+});
+test('a stopped audio callback cannot advance the next answer', () => {
+  const { voice, context } = setup();
+  context.Audio = class { play() { return new Promise(() => {}); } pause() {} };
+  voice._apAmLuong = () => {}; voice._canhTreo = () => {}; voice._preloadNextQueued = () => {};
+  voice.ttsChunks = ['câu cũ']; voice._playChunk(0);
+  const oldEnd = voice.currentAudio.onended;
+  voice.stopSpeaking(); voice.ttsChunks = ['câu mới'];
+  let advanced = false; voice._playChunk = () => { advanced = true; };
+  oldEnd(); assert.equal(advanced, false);
+});
+
+test('locked dashboard transcript is not replaced by optional STT', async () => {
+  const suggestions = [];
+  const { voice, context } = setup(() => {}, { preserveTranscript: true, onTranscriptSuggestion: t => suggestions.push(t) });
+  voice.sttUpload = true; voice._recComplete = true;
+  voice._stopRecorder = async () => new Blob(['x'.repeat(3000)]);
+  context.fetch = async () => ({ok: true, json: async () => ({ok: true, text: 'Vân'})});
+  let received;
+  await voice._quaStt('vâng', t => { received = t; });
+  assert.equal(received, 'vâng'); assert.deepEqual(suggestions, ['Vân']);
+});
+test('failed selected voice never silently switches to the browser', () => {
+  const { voice } = setup(); let switched = false, error = '';
+  voice.vietnameseVoice = {name: 'Google tiếng Việt'};
+  voice.ttsChunks = ['Vâng anh.']; voice._speakBrowser = () => { switched = true; };
+  voice.stopSpeaking = () => {}; voice.onPlaybackError = t => { error = t; };
+  voice._chunkFailed(0, true);
+  assert.equal(switched, false); assert.ok(error);
+});
+
 test('focus rejects raw ambient before STT upload or delivery', async () => {
   const received = [];
   const { voice, context } = setup(t => received.push(t), { acceptTranscript: t => t.startsWith('Javis') });

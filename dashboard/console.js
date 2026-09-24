@@ -6320,6 +6320,7 @@
         <div class="qs-field">
           <label class="qs-lbl" for="v2Stt">${esc(t("settings.v2_stt"))}</label>
           <select class="js-input" id="v2Stt">${sttOpts}</select>
+          <div class="qs-hint">${esc(t("settings.v2_stt_note"))}</div>
         </div>
         <div class="qs-field">
           <label class="qs-lbl" for="v2LocTapAm">${esc(t("settings.v2_loc_tap_am"))}</label>
