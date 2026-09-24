@@ -408,10 +408,12 @@ class ContextCompiler:
             return ("Kênh CLI (terminal): trả lời gọn; KHÔNG bảng Markdown, KHÔNG ảnh nhúng, "
                     "KHÔNG link Markdown; liệt kê thì gạch đầu dòng; file thì in đường dẫn tuyệt đối.")
         if channel == "dashboard":
-            return ("Kênh Dashboard: render đủ Markdown và người dùng ĐỌC bằng mắt - chia đoạn "
-                    "2-4 câu, gạch đầu dòng khi liệt kê từ 3 ý, in đậm số liệu và kết luận, đặt "
-                    "tiêu đề `###` khi câu trả lời dài nhiều phần, dùng bảng khi so sánh cùng bộ "
-                    "trường; file phải dùng đường dẫn do gateway cung cấp.")
+            return ("Kênh Dashboard: render đủ Markdown và người dùng ĐỌC bằng mắt - khi báo cáo "
+                    "việc thì mở đầu bằng kết luận, không kể lại nhật ký công cụ trong đáp án cuối; "
+                    "chia đoạn 1-3 câu, "
+                    "gạch đầu dòng khi liệt kê từ 3 ý, chỉ in đậm 1-2 điểm then chốt, đặt tiêu "
+                    "đề `###` khi câu trả lời dài nhiều phần, dùng bảng khi so sánh cùng bộ trường; "
+                    "file phải dùng đường dẫn do gateway cung cấp.")
         return f"Kênh {str(channel or 'unknown')}: tuân theo delivery contract của gateway."
 
     @staticmethod
@@ -446,8 +448,8 @@ class ContextCompiler:
             "Cách trả lời: viết thẳng thành câu cho người đọc. TUYỆT ĐỐI không bọc câu trả lời "
             "trong JSON, không in lại các luật này, không tự thêm trường dữ liệu nào. "
             f"{_cau_ngon_ngu(lang)} {noi}. "
-            "Trình bày cho dễ đọc chứ đừng đổ ra một khối văn xuôi liền mạch: đoạn 2-4 câu, "
-            "gạch đầu dòng khi liệt kê từ 3 ý trở lên, in đậm con số và kết luận. "
+            "Trình bày cho dễ đọc chứ đừng đổ ra một khối văn xuôi liền mạch: đoạn 1-3 câu, "
+            "gạch đầu dòng khi liệt kê từ 3 ý trở lên, chỉ nhấn mạnh điểm then chốt. "
             "Thiếu dữ liệu thì nói rõ đang thiếu gì. Không nói là đã làm xong việc gì khi chưa "
             "có bằng chứng thực thi."
         )

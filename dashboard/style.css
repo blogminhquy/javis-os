@@ -29,8 +29,8 @@
   --green: #34d36b;
   --red: #f4565a;
   --yellow: #f0c020;
-  --font: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  --font-chat: 'Be Vietnam Pro', 'Segoe UI', Arial, sans-serif;
+  --font: 'Be Vietnam Pro', 'Segoe UI', Arial, sans-serif;
+  --font-chat: var(--font);
   --mono: 'SF Mono', 'Fira Code', 'Consolas', ui-monospace, monospace;
 
   /* --- Mực: màu dùng cho CHỮ. Khác --accent/--accent2 (dùng để tô nền, viền,
@@ -231,13 +231,14 @@ html {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font);
   font-size: 16px;
   line-height: 1.5;
   height: 100vh;
   overflow: hidden;
   touch-action: pan-x pan-y;
 }
+button, input, select, textarea { font-family: inherit; }
 
 /* ===== HUD shell ===== */
 .hud {
@@ -271,7 +272,7 @@ body {
 .hud-top-right { display: flex; align-items: center; gap: 8px; justify-self: end; }
 .brand { display: flex; align-items: center; gap: 8px; }
 .brand-icon { color: var(--accent); font-size: 18px; }
-.brand-text { font-family: var(--font); font-size: 15px; font-weight: 700; letter-spacing: 3px; }
+.brand-text { font-family: 'Montserrat', var(--font); font-size: 15px; font-weight: 700; letter-spacing: 3px; }
 .hud-center-title {
   min-width: 0; display: flex; align-items: center; justify-content: center; gap: 10px;
   white-space: nowrap; overflow: visible;
@@ -983,30 +984,15 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   padding: 8px 12px; border-radius: 12px 12px 3px 12px; max-width: 90%;
   line-height: 1.55; font-size: 16px; font-family: var(--font-chat);
 }
-/* ===== Bong bóng Javis: đây là chỗ người dùng ĐỌC, không phải chỗ nhét chữ =====
-   Chủ repo gửi ảnh một câu trả lời dài (2026-08-07): "muốn cải thiện lại cách hiển thị của
-   Javis cho dễ đọc, xuống cách dòng nhiều hơn chứ đọc khó quá". Ba thứ cộng lại làm nên bức
-   tường chữ đó, và sửa thiếu một thứ thì vẫn khó đọc:
-     - giãn dòng 1.6 hơi chật cho một khối văn xuôi dài;
-     - hai đoạn văn cách nhau 6px, tức là gần bằng khoảng cách giữa hai DÒNG trong cùng đoạn,
-       nên mắt không tách được đoạn;
-     - và nặng nhất: không giới hạn ĐỘ DÀI DÒNG. Trên màn rộng một dòng chạy tới hơn 120 ký
-       tự, mà mắt bắt đầu lạc dòng từ khoảng 90 trở đi - đọc xong dòng này phải dò lại mới tìm
-       ra đầu dòng kế tiếp. Đây là thứ người ta cảm thấy là "mỏi" chứ ít khi gọi tên ra được.
-   Trần độ dài đặt trên CẢ bong bóng chứ không trên từng đoạn chữ: chặn từng đoạn thì nền bong
-   bóng vẫn rộng nguyên, chừa một mảng trống bên phải trông như lỗi hiển thị. Khối mã vốn đã có
-   cuộn ngang riêng (`.code-block { overflow-x: auto }`) nên không bị bóp, bảng của dataview
-   cũng vậy. Khung chat hẹp (khoang não, điện thoại) thì trần này không đụng tới gì cả. */
+/* Bong bóng câu trả lời: giới hạn chiều dài dòng, nền nhẹ và nhịp chữ riêng để đoạn dài
+   vẫn dễ quét. Khối mã và bảng có cơ chế cuộn riêng; khung hẹp tự co theo màn hình. */
 .msg-javis .bubble {
-  background: var(--bg3); border: 1px solid var(--border);
-  padding: 12px 14px; border-radius: 3px 12px 12px 12px;
-  line-height: 1.75; font-size: 16px; max-width: 76ch; font-family: var(--font-chat);
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  padding: 16px 18px; border-radius: 3px 12px 12px 12px;
+  line-height: 1.75; font-size: 16px; max-width: 72ch; font-family: var(--font-chat);
 }
-.msg-javis .bubble strong { color: var(--accent); }
-.msg-javis .bubble ul { padding-left: 18px; margin: 10px 0; }
-.msg-javis .bubble code { font-family: var(--mono); font-size: 13px; background: var(--bg); padding: 1px 4px; border-radius: 3px; color: var(--accent2-ink); }
-.msg-javis .bubble h3 { font-size: 15px; color: var(--text); margin: 18px 0 6px; }
-.msg-javis .bubble h3:first-child { margin-top: 0; }
+.msg-javis .bubble strong { color: inherit; font-weight: 600; }
+.msg-javis .bubble code { font-family: var(--mono); font-size: 13.5px; background: var(--surface-2); padding: 2px 5px; border-radius: 4px; color: var(--text); }
 
 /* Link/URL dài trong tin nhắn: ngắt dòng theo khung thay vì tràn ra ngoài (vd link Google Docs
    dài không có khoảng trắng). Áp cho cả bubble và thẻ <a> bên trong. */
@@ -2027,22 +2013,25 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    Chat render (chat-render.js): markdown day du + code highlight + ARTIFACT
    ============================================================ */
 
-/* Markdown block trong bong bong Javis */
-.msg-javis .bubble h1 { font-size: 19px; }
-.msg-javis .bubble h2 { font-size: 17px; }
-.msg-javis .bubble h1, .msg-javis .bubble h2,
+/* Nhịp đọc của câu trả lời: tiêu đề lớn hơn thân bài, đoạn và danh sách có chỗ nghỉ mắt. */
+.msg-javis .bubble h1 { font-size: 20px; }
+.msg-javis .bubble h2 { font-size: 18px; }
+.msg-javis .bubble h3 { font-size: 16.5px; }
+.msg-javis .bubble h4, .msg-javis .bubble h5, .msg-javis .bubble h6 { font-size: 16px; }
+.msg-javis .bubble h1, .msg-javis .bubble h2, .msg-javis .bubble h3,
 .msg-javis .bubble h4, .msg-javis .bubble h5, .msg-javis .bubble h6 {
-  color: var(--text); margin: 18px 0 6px; line-height: 1.35; }
+  color: var(--text); font-weight: 600; margin: 22px 0 8px; line-height: 1.4; }
 .msg-javis .bubble h1:first-child, .msg-javis .bubble h2:first-child,
-.msg-javis .bubble h4:first-child, .msg-javis .bubble h5:first-child,
-.msg-javis .bubble h6:first-child { margin-top: 0; }
-/* Khoảng cách giữa hai ĐOẠN phải lớn hơn hẳn khoảng cách giữa hai DÒNG trong cùng đoạn, không
-   thì cả khối dính thành một mảng chữ. 14px so với ~26px giãn dòng là đủ tách mà không rời rạc. */
+.msg-javis .bubble h3:first-child, .msg-javis .bubble h4:first-child,
+.msg-javis .bubble h5:first-child, .msg-javis .bubble h6:first-child { margin-top: 0; }
+.msg-javis .bubble > :first-child { margin-top: 0; }
+.msg-javis .bubble > :last-child { margin-bottom: 0; }
 .msg-javis .bubble p { margin: 14px 0; }
 .msg-javis .bubble p:first-child { margin-top: 0; }
 .msg-javis .bubble p:last-child { margin-bottom: 0; }
-.msg-javis .bubble ol { padding-left: 22px; margin: 10px 0; }
-.msg-javis .bubble li { margin: 6px 0; }
+.msg-javis .bubble ul { padding-left: 22px; margin: 10px 0 16px; }
+.msg-javis .bubble ol { padding-left: 22px; margin: 10px 0 16px; }
+.msg-javis .bubble li { margin: 7px 0; line-height: 1.55; }
 /* Danh sách lồng nhau thì siết lại: nó vốn đã thuộc về mục cha, giãn bằng đoạn văn là gãy mạch. */
 .msg-javis .bubble ul ul, .msg-javis .bubble ul ol,
 .msg-javis .bubble ol ol, .msg-javis .bubble ol ul { margin: 4px 0; }
