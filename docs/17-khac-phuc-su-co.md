@@ -201,11 +201,11 @@ Không. `attachments/` và `inbox/` là vùng cache: mặc định file quá **3
 
 ### Đổi giọng nói của Javis thế nào?
 
-Giọng đọc mặc định là `vi-VN-HoaiMyNeural` (Edge TTS tiếng Việt), tốc độ `+5%`. Muốn đổi giọng hoặc tốc độ, đặt hai biến trong file `.env` rồi khởi động lại server:
+Giọng đọc mặc định là `en-US-EmmaMultilingualNeural` (Edge TTS đa ngôn ngữ), tốc độ `+5%`. Muốn đổi giọng hoặc tốc độ, đặt hai biến trong file `.env` rồi khởi động lại server:
 
 | Biến | Ý nghĩa | Mặc định |
 |---|---|---|
-| `TTS_VOICE` | Tên giọng đọc | `vi-VN-HoaiMyNeural` |
+| `TTS_VOICE` | Tên giọng đọc | `en-US-EmmaMultilingualNeural` |
 | `TTS_RATE` | Tốc độ đọc | `+5%` |
 
 Xem cách đặt biến ở [Cấu hình .env](16-cau-hinh-env.md). Lưu ý: nút loa trên giao diện chỉ để **bật/tắt** việc đọc trả lời bằng giọng, không phải để đổi giọng. Cách dùng giọng nói trong trò chuyện xem [Trò chuyện & giọng nói](02-tro-chuyen-va-giong-noi.md).

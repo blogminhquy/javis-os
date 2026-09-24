@@ -394,7 +394,7 @@
   "settings.v2_loc_tap_am_note": "After 20 seconds without conversation, start with “Javis” or tap to resume. While waiting, speech is not sent to the conversation; Live disconnects temporarily. This cannot separate your voice from TV or other speakers during an active conversation. Turn off for continuous listening.",
   "settings.v2_hotwords": "Often misheard words",
   "settings.v2_hotwords_ph": "Tool names, project names, people... comma separated",
-  "settings.v2_hotwords_note": "Speech recognition tends to turn proper names into similar-sounding words. Javis feeds these words to the recognizer and fixes them by context before reading the sentence. Always included: {goc}.",
+  "settings.v2_hotwords_note": "Hints for recognizers that support context (Groq or Live). Committed messages in Standard/Fast mode stay unchanged. Built-in hints: {goc}.",
   "settings.v2_live": "Realtime provider",
   "settings.v2_live_model": "Realtime model",
   "settings.v2_live_voice": "Voice",
@@ -3023,5 +3023,9 @@
   "coding.folder_gone": "gone from disk",
   "coding.mode_suggest_note": "Reads the code and returns a plan, changes nothing yet",
   "coding.mode_auto_note": "Edits files and runs tests, no commit or deploy",
-  "coding.mode_full_note": "Adds commit, push and deploy when the task calls for it"
+  "coding.mode_full_note": "Adds commit, push and deploy when the task calls for it",
+  "app.voice_alt_transcript": "The second recognizer returned different words. Javis kept the displayed transcript; you can repeat the request if needed.",
+  "app.voice_playback_failed": "The selected voice could not play. Try again or choose another voice in Settings.",
+  "app.voice_sample": "Hello, I am Javis. Here is a sample of this voice.",
+  "settings.v2_stt_note": "In Standard/Fast mode, the displayed text is kept when the utterance ends. Groq cross-checks and reports differences; it does not rewrite sent messages."
 }

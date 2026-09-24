@@ -199,11 +199,11 @@ No. `attachments/` and `inbox/` are a cache: by default files over **30 days** o
 
 ### How do I change Javis's voice?
 
-The default voice is `vi-VN-HoaiMyNeural` (Vietnamese Edge TTS) at `+5%` speed. To change the voice or speed, set two variables in `.env` and restart the server:
+The default voice is `en-US-EmmaMultilingualNeural` (multilingual Edge TTS) at `+5%` speed. To change the voice or speed, set two variables in `.env` and restart the server:
 
 | Variable | Meaning | Default |
 |---|---|---|
-| `TTS_VOICE` | The voice name | `vi-VN-HoaiMyNeural` |
+| `TTS_VOICE` | The voice name | `en-US-EmmaMultilingualNeural` |
 | `TTS_RATE` | The reading speed | `+5%` |
 
 How to set variables: [.env configuration](16-env-configuration.md). Note: the speaker button in the interface only turns reading answers aloud on and off, it does not change the voice. How to use voice in a conversation: [Chat and voice](02-chat-and-voice.md).

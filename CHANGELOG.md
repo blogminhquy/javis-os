@@ -9,7 +9,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Giữ phần chữ đã chốt khi kết thúc câu nói; không âm thầm thay tin nhắn bằng bản sửa của STT phụ hoặc AI.
 - Giọng đọc giữ đúng lựa chọn; báo lỗi thay vì tự chuyển sang một giọng khác mà không cho biết.
 ### Cải thiện
-- Cho nghe thử và chọn giọng có sẵn trên thiết bị, đồng thời hiển thị giọng thực sự vừa phát để dễ tìm lại giọng yêu thích.
+- Emma Multilingual là giọng đọc mặc định cho bản cài mới và thiết bị chưa chọn giọng. Lựa chọn đã lưu vẫn được giữ khi cập nhật.
 
 ## [0.64.31] - 2026-09-24
 ### Cải thiện

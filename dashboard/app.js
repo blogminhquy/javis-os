@@ -127,6 +127,9 @@ function setOrbState(state, label) {
 const attention = new window.JavisVoiceAttention.Attention();
 const voice = new JavisVoice({
   lang: "vi-VN",
+  preserveTranscript: true,
+  onTranscriptSuggestion: () => ghiChuThoang(window.t("app.voice_alt_transcript")),
+  onPlaybackError: () => ghiChuThoang(window.t("app.voice_playback_failed")),
   acceptTranscript: (text) => !handsFree || attention.accept(text),
   onStart: () => {
     voiceBtn.classList.add("recording");
@@ -3089,7 +3092,7 @@ document.getElementById("resetBtn").addEventListener("click", () => {
 const voiceSel = document.getElementById("voiceSel");
 const rateSel = document.getElementById("rateSel");
 const recLangSel = document.getElementById("recLangSel");
-const savedVoice = localStorage.getItem("javis.voice") || "vi-VN-HoaiMyNeural";
+const savedVoice = localStorage.getItem("javis.voice") || "en-US-EmmaMultilingualNeural";
 const savedRate = parseFloat(localStorage.getItem("javis.rate") || "1.10");
 const savedRecLang = localStorage.getItem("javis.recLang") || "vi-VN";
 function rateToPct(r) { const p = ((r - 1) * 100).toFixed(0); return (p >= 0 ? "+" : "") + p + "%"; }
@@ -3127,9 +3130,8 @@ if (recLangSel) recLangSel.addEventListener("change", () => {
   voice.setRecognitionLang(recLangSel.value); localStorage.setItem("javis.recLang", recLangSel.value);
 });
 document.getElementById("testVoiceBtn")?.addEventListener("click", () => {
-  const v = (voiceSel && voiceSel.value) || savedVoice;
   // force: nghe thử là hành động chủ động của user, phải kêu kể cả khi đang tắt tiếng (mặc định).
-  voice.speak(v.includes("HoaiMy") ? window.t("app.voice_sample_hoaimy") : window.t("app.voice_sample_namminh"), { force: true });
+  voice.speak(window.t("app.voice_sample"), { force: true });
 });
 // Nút loa header đã bỏ (0.48.3) - công tắc giọng nay chỉ còn nút trên THANH NHẬP
 // (#ttsToggleBar) và công tắc trong Cài đặt nhanh, cả hai do quick-settings.js lo.

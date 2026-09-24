@@ -363,10 +363,10 @@
                 <div class="qs-field">
                   <label class="qs-lbl" for="voiceSel" data-i18n="qs.voice_pick">Giọng Edge</label>
                   <select class="js-input" id="voiceSel" name="voice">
+                    <option value="en-US-EmmaMultilingualNeural" data-i18n="qs.voice_opt_emma">Emma · Nữ, vui tươi rõ chữ · đa ngôn ngữ</option>
                     <option value="vi-VN-HoaiMyNeural" data-i18n="qs.voice_opt_hoaimy">Hoài My · Nữ, tự nhiên ấm áp</option>
                     <option value="vi-VN-NamMinhNeural" data-i18n="qs.voice_opt_namminh">Nam Minh · Nam, trầm</option>
                     <option value="en-US-AvaMultilingualNeural" data-i18n="qs.voice_opt_ava">Ava · Nữ, dịu và biểu cảm · đa ngôn ngữ</option>
-                    <option value="en-US-EmmaMultilingualNeural" data-i18n="qs.voice_opt_emma">Emma · Nữ, vui tươi rõ chữ · đa ngôn ngữ</option>
                     <option value="en-US-AndrewMultilingualNeural" data-i18n="qs.voice_opt_andrew">Andrew · Nam, ấm và tự tin · đa ngôn ngữ</option>
                     <option value="en-US-BrianMultilingualNeural" data-i18n="qs.voice_opt_brian">Brian · Nam, gần gũi đời thường · đa ngôn ngữ</option>
                     <option value="en-AU-WilliamMultilingualNeural" data-i18n="qs.voice_opt_william">William · Nam, thân thiện giọng Úc · đa ngôn ngữ</option>
@@ -842,7 +842,7 @@
   <script src="/static/voice-turn.js?v=1"></script>
   <script src="/static/voice-attention.js?v=1"></script>
   <script src="/static/voice-chunker.js?v=1"></script>
-  <script src="/static/voice.js?v=25"></script>
+  <script src="/static/voice.js?v=26"></script>
   <script src="/static/graph.js?v=17"></script>
   <script src="/static/chat-render.js?v=15"></script>
   <script src="/static/code-hl.js?v=1"></script>
@@ -868,7 +868,7 @@
   <script src="/static/ui-actions.js?v=1"></script>
   <!-- Voice V2: nghe nói thẳng (Live), app.js gọi lười khi bấm mic ở chế độ Live. -->
   <script src="/static/voice-live.js?v=3"></script>
-  <script src="/static/app.js?v=113"></script>
+  <script src="/static/app.js?v=114"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=2"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
@@ -901,7 +901,7 @@
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
   <!-- Phần đọc cấu hình của form "Tự thêm MCP" (thuần, có test node). Nạp TRƯỚC console.js. -->
   <script src="/static/mcp-form-parse.js?v=1"></script>
-  <script src="/static/console.js?v=154"></script>
+  <script src="/static/console.js?v=155"></script>
   <script src="/static/mobile-chat.js?v=9"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>

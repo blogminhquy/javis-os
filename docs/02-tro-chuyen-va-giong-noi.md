@@ -340,7 +340,7 @@ Khối **NHÀ CUNG CẤP GIỌNG ĐỌC** có ba lựa chọn:
 | OpenAI - mượt, đa ngôn ngữ | OpenAI API key (dùng chung với chat) + chọn một trong 11 giọng: alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer, verse |
 | ElevenLabs - tự nhiên nhất | ElevenLabs API key + **Voice ID** (lấy ở ElevenLabs → Voices) |
 
-Chọn xong bấm **Lưu nhà cung cấp**. Dòng trạng thái bên dưới ghi đang dùng cái nào. Nếu nhà cung cấp trả phí gặp lỗi (hết hạn mức, sai key, mất mạng), Javis **tự quay về Edge TTS** để giọng không bao giờ tắt hẳn.
+Chọn xong bấm **Lưu nhà cung cấp**. Dòng trạng thái bên dưới ghi đang dùng cái nào. Nếu giọng đã chọn gặp lỗi (hết hạn mức, sai key, mất mạng), Javis báo lỗi để bạn thử lại hoặc chọn giọng khác; không tự chuyển giọng.
 
 Khi chọn OpenAI hoặc ElevenLabs, khối giọng Edge (Hoài My, Nam Minh và 5 giọng đa ngôn ngữ) tự ẩn đi vì lúc đó giọng chọn ngay trong khối của nhà cung cấp.
 
@@ -348,7 +348,7 @@ Khi chọn OpenAI hoặc ElevenLabs, khối giọng Edge (Hoài My, Nam Minh và
 
 | Tuỳ chọn | Giá trị | Ghi chú |
 |---|---|---|
-| Giọng đọc | **Hoài My** | Nữ, tự nhiên và ấm áp (mặc định; mã Edge: `vi-VN-HoaiMyNeural`) |
+| Giọng đọc | **Emma Multilingual** | Giọng nữ đa ngôn ngữ (mặc định; mã Edge: `en-US-EmmaMultilingualNeural`) |
 | Giọng đọc | **Nam Minh** | Nam, trầm (mã Edge: `vi-VN-NamMinhNeural`) |
 | Giọng đọc | **Ava, Emma** (nữ), **Andrew, Brian, William** (nam) | 5 giọng đa ngôn ngữ thế hệ mới của Edge: tự nhận tiếng Việt, ngữ điệu mượt hơn hai giọng trên nhưng có thể lơ lớ vài chữ. Nghe thử rồi chọn. |
 | Tốc độ | Thanh trượt 0.70× đến 1.80× | Mặc định 1.10× |
@@ -362,7 +362,9 @@ Các bước:
 3. Bấm **▶ Nghe thử** để nghe một câu chào mẫu bằng giọng vừa chọn.
 4. "Ngôn ngữ nghe" là ngôn ngữ Javis dùng để nhận diện lời bạn nói, khác với giọng đọc trả lời. Để mặc định Tiếng Việt trừ khi bạn quen nói tiếng Anh.
 
-Mọi lựa chọn giọng, tốc độ, ngôn ngữ nghe đều được ghi nhớ cho lần sau.
+Mọi lựa chọn giọng, tốc độ, ngôn ngữ nghe đều được ghi nhớ trên trình duyệt hiện tại cho lần sau. Emma là mặc định khi chưa lưu lựa chọn; cập nhật không ghi đè giọng bạn đã chọn.
+
+Trong chế độ Chuẩn/Nhanh, chữ đã hiện lúc bạn kết thúc câu được giữ nguyên khi gửi và lưu lịch sử. Bộ nghe phụ Groq chỉ đối chiếu và báo khi khác; AI không sửa lại tin đã gửi. Chữ tạm vẫn có thể thay đổi trong lúc bạn đang nói.
 
 ## Phóng to khung chat
 

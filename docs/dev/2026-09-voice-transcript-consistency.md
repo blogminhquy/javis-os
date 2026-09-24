@@ -1,0 +1,20 @@
+# Chữ đã chốt và giọng mặc định (0.64.32)
+
+## Yêu cầu
+- Câu đã hiện lúc người dùng kết thúc lượt không bị final đến muộn, STT phụ hoặc AI sửa âm thầm khi vào chat/lịch sử.
+- Giữ đường nghe miễn phí và chế độ tập trung đã phát hành ở 0.64.28.
+- Chủ dự án xác nhận giọng nữ yêu thích là Emma trong cài đặt. Đặt Emma Multilingual làm mặc định cho bản cài mới/trình duyệt chưa lưu giọng, giữ lựa chọn đã lưu.
+- Không đổi nhà cung cấp hoặc chuyển sang giọng thiết bị khi TTS lỗi.
+
+## Thay đổi
+- Chốt bản hiển thị tại stop; nếu chưa có kết quả nào, vẫn nhận final đầu tiên. Khi đang nói, kết quả tạm vẫn cập nhật bình thường.
+- Dashboard khóa transcript qua STT phụ; Groq chỉ đối chiếu và báo khi khác. Cài đặt giải thích rõ hành vi này. Không tự gửi lại bằng câu gợi ý.
+- Bỏ sửa hotword trước khi lưu WebSocket chat. Làn nhanh chỉ chấp nhận marker nguyên văn; marker sửa câu thì chuyển bộ não chính với nguyên bản, trước khi đọc/hành động.
+- Nhà cung cấp TTS lỗi trả 502; client thử lại cùng giọng một lần rồi báo lỗi. Epoch ngăn callback âm thanh cũ chạm lượt mới.
+- Emma mặc định tại voice.js, app.js, /tts, /config, env.example và thứ tự ô chọn. Live realtime vẫn dùng giọng riêng của nhà cung cấp.
+
+## Kiểm chứng và giới hạn
+- Mô phỏng Android: draft “Em phải trả lời vâng”, stop, late final “Em phải trở thành Vân”: bản cũ sai, bản mới giữ draft.
+- Thêm ca stop trước kết quả đầu, AI sửa tên, STT phụ đổi câu, TTS fallback, callback audio cũ.
+- Kiểm thử tự động không đo độ chính xác nghe trong phòng thật hay chất giọng trên tablet. Bản nhận dạng ban đầu vẫn có thể sai; không có bản ghi âm để khôi phục chính xác các câu lịch sử.
+- Không thay toàn bộ nhận dạng trình duyệt bằng API trả phí; không hứa phân biệt người nói với TV bằng chữ.

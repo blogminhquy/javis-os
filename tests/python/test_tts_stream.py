@@ -66,10 +66,10 @@ r = client.get("/tts", params={"text": "xin chào"})
 check("edge lỗi ngay: 502 thật chứ không phải stream rỗng", r.status_code == 502)
 _FakeCommunicate.fail = False
 
-# Provider trả phí lỗi -> rơi về Edge stream
+# Provider trả phí lỗi phải báo lỗi, không âm thầm đổi sang Edge
 main.cfgmod.read_settings = lambda: {"voice": {"tts_provider": "elevenlabs", "elevenlabs_key": ""}, "model": {}}
 r = client.get("/tts", params={"text": "xin chào"})
-check("elevenlabs thiếu key: rơi về Edge stream 200", r.status_code == 200 and r.content == b"ID3abbbbcccc")
+check("elevenlabs thiếu key: báo lỗi, không tự đổi giọng", r.status_code == 502)
 
 # Khúc đầu rỗng -> Edge không trả audio -> 502
 _FakeCommunicate.chunks = []

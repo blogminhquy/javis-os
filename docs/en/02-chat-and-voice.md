@@ -314,7 +314,7 @@ The **VOICE PROVIDER** block has three options:
 | OpenAI - smooth, multilingual | An OpenAI API key (shared with chat) plus one of 11 voices: alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer, verse |
 | ElevenLabs - most natural | An ElevenLabs API key plus a **Voice ID** (from ElevenLabs → Voices) |
 
-Pick one and click **Save provider**. The status line underneath says which one is active. If a paid provider fails (quota exhausted, wrong key, network down), Javis **falls back to Edge TTS** automatically so the voice never goes silent.
+After selecting a provider, save the setting. If the selected voice fails, Javis reports the error so you can retry or select another voice. It does not switch voices automatically.
 
 When you pick OpenAI or ElevenLabs, the Edge voices (Hoài My, Nam Minh and the 5 multilingual ones) hide themselves, because the voice is then chosen inside the provider's own block.
 
@@ -322,7 +322,7 @@ When you pick OpenAI or ElevenLabs, the Edge voices (Hoài My, Nam Minh and the 
 
 | Option | Value | Note |
 |---|---|---|
-| Voice | **Hoài My** | Female, natural and warm (default; Edge code `vi-VN-HoaiMyNeural`) |
+| Voice | **Emma Multilingual** | Female, multilingual (default; Edge code `en-US-EmmaMultilingualNeural`) |
 | Voice | **Nam Minh** | Male, deeper (Edge code `vi-VN-NamMinhNeural`) |
 | Voice | **Ava, Emma** (female), **Andrew, Brian, William** (male) | Edge's 5 newer multilingual voices: they detect Vietnamese on their own and sound smoother than the two above, but may slur a few words. Preview before choosing. |
 | Speed | Slider from 0.70× to 1.80× | Default 1.10× |
@@ -441,3 +441,5 @@ Keyboard shortcuts:
 - [Telegram channel](11-telegram.md) and [Zalo](12-zalo-agent-mcp.md) - chat with Javis outside the dashboard.
 
 Still stuck? See [Troubleshooting & FAQ](17-troubleshooting.md).
+
+In Standard/Fast mode, the displayed transcript is kept when the utterance ends. Optional Groq recognition reports differences without rewriting sent messages. Emma is the default for new browser preferences; saved voice choices survive updates.
