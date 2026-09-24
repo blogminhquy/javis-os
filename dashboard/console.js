@@ -5514,7 +5514,7 @@
     });
   }
   // ---- Form "Tự thêm MCP" (thêm mới + SỬA) ----
-  // Làm lại 0.64.29 sau khi chủ repo báo: "thêm MCP hơi khó, ví dụ Composio thì thêm API key
+  // Làm lại 0.64.31 sau khi chủ repo báo: "thêm MCP hơi khó, ví dụ Composio thì thêm API key
   // như nào, và thêm xong không có chỗ sửa lại". Ba lỗ của bản cũ:
   //   1. Key phải gõ thành dòng "Tên-header: giá-trị" trong một ô văn bản thô, không ai nói cho
   //      người dùng biết tên header là gì. Composio đưa `x-consumer-api-key`, người ta dán mỗi
