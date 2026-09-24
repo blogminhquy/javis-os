@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.50] - 2026-09-24
 ### Cải thiện
-- Logo: đang làm.
+- **Logo ngôi sao to kín khung**: icon app, favicon và logo giờ lớn ngang các icon app khác trên thanh tác vụ, không còn nhỏ hơn một bậc như trước.
 
 ## [0.64.49] - 2026-09-24
 ### Sửa lỗi

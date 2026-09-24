@@ -1,8 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="30 30 260 260" width="512" height="512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="58.85 50.5 202 202" width="512" height="512">
   <!-- Logo Javis OS (0.64.47): linh vật ngôi sao, mắt cười ^^. Chủ dự án chốt 24/09.
        Hình sao là ĐÚNG đường SHAPES.star trong dashboard/pet.js, màu lấy từ ảnh mẫu chủ dự án
        gửi (thân #FD6100, viền #FBBA9C, mắt #1F1F1F), nền trong suốt. Sửa hình sao ở pet.js thì
-       sửa luôn ở đây. logo.png, icon-192/512.png, favicon.png đều xuất từ file này. -->
+       sửa luôn ở đây. logo.png, icon-192/512.png, favicon.png đều xuất từ file này.
+       KHUNG SÁT MÉP (0.64.50): viewBox ôm đúng mép ngoài của viền (đo khi vẽ thật: 199,7 x
+       191,7 đơn vị), chỉ chừa 1 đơn vị mỗi bên. Khung cũ 260 chừa lề rộng nên trên thanh tác
+       vụ icon Javis nhỏ hơn hẳn icon Telegram cạnh nó (chủ dự án gửi ảnh 24/09). -->
   <path d="M145 81 Q160 59.4 175 81 L177.9 85.1 Q195.8 110.7 225.8 119.9 L230.6 121.3 Q255.7 128.9 239.8 149.8 L236.8 153.8 Q217.9 178.8 218.5 210.1 L218.6 215.1 Q219.1 241.4 194.3 232.8 L189.6 231.1 Q160 220.8 130.4 231.1 L125.7 232.8 Q100.9 241.4 101.4 215.1 L101.5 210.1 Q102.1 178.8 83.2 153.8 L80.2 149.8 Q64.3 128.9 89.4 121.3 L94.2 119.9 Q124.2 110.7 142.1 85.1 Z" fill="none" stroke="#FBBA9C" stroke-width="6.5" stroke-linejoin="round"
         transform="translate(160 160) scale(1.12) translate(-160 -160)"/>
   <path d="M145 81 Q160 59.4 175 81 L177.9 85.1 Q195.8 110.7 225.8 119.9 L230.6 121.3 Q255.7 128.9 239.8 149.8 L236.8 153.8 Q217.9 178.8 218.5 210.1 L218.6 215.1 Q219.1 241.4 194.3 232.8 L189.6 231.1 Q160 220.8 130.4 231.1 L125.7 232.8 Q100.9 241.4 101.4 215.1 L101.5 210.1 Q102.1 178.8 83.2 153.8 L80.2 149.8 Q64.3 128.9 89.4 121.3 L94.2 119.9 Q124.2 110.7 142.1 85.1 Z" fill="#FD6100"/>
