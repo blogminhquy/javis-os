@@ -1412,6 +1412,56 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    KHÔNG chèn dấu cách trong chuỗi - dấu cách cộng gap là hai lần khoảng trống. */
 .pkm-canh-tieu > svg { flex: none; }
 
+/* Form "Tự thêm MCP" (console.js openMcpForm), mượn vỏ .pkm. Chữ và ô nhập 16px: người dùng
+   đọc trên điện thoại, và iOS tự phóng to trang khi chạm vào ô nhập nhỏ hơn 16px. */
+.pkm-than.mcpf { gap: 8px; }
+.mcpf .js-input { font-size: 16px; margin-bottom: 0; }
+.mcpf textarea.js-input { resize: vertical; font-family: var(--mono, monospace); font-size: 14px; line-height: 1.5; }
+.mcpf-nhan { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; margin-top: 8px; }
+.mcpf-nhan svg { width: 16px; height: 16px; }
+.mcpf-dan { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 12px;
+  border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.mcpf-dan .mcpf-nhan { margin-top: 0; }
+.mcpf-dan-kq { font-size: 14px; color: var(--text2); line-height: 1.5; }
+.mcpf-dan-kq.ok { color: var(--ok-ink, #2f855a); font-weight: 600; }
+.mcpf-dan-kq.loi { color: var(--warn-ink, #b7791f); }
+.mcpf-kieu { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mcpf-kieu button { display: flex; align-items: flex-start; gap: 10px; text-align: left; padding: 11px 12px;
+  border: 1px solid var(--border); border-radius: 12px; background: transparent; color: inherit;
+  font: inherit; cursor: pointer; }
+.mcpf-kieu button svg { width: 18px; height: 18px; flex: none; margin-top: 2px; color: var(--text2); }
+.mcpf-kieu button b { display: block; font-size: 15px; }
+.mcpf-kieu button small { display: block; font-size: 13px; color: var(--text3); margin-top: 2px; line-height: 1.4; }
+.mcpf-kieu button[aria-pressed="true"] { border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.mcpf-kieu button[aria-pressed="true"] svg { color: var(--accent); }
+.mcpf-nc summary { cursor: pointer; font-size: 14px; color: var(--text2); margin-top: 6px; }
+.mcpf-goi-y { font-size: 14px; color: var(--text2); line-height: 1.5; }
+.mcpf-ds { display: flex; flex-direction: column; gap: 8px; }
+/* `display:flex` ở trên đè thuộc tính hidden, nên khung dòng của kiểu đang ẩn lộ ra dưới khung
+   đang dùng. Phải nói lại ở đây. */
+.mcpf-ds[hidden] { display: none; }
+.mcpf-dong { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) 40px; gap: 6px; align-items: center; }
+.mcpf-gt { position: relative; min-width: 0; }
+.mcpf-gt .js-input { padding-right: 40px; }
+.mcpf-eye, .mcpf-xoa { display: grid; place-items: center; width: 40px; height: 40px; border: 0;
+  border-radius: 9px; background: transparent; color: var(--text3); cursor: pointer; }
+.mcpf-eye { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+.mcpf-eye:hover, .mcpf-xoa:hover { color: var(--text); background: var(--surface-2); }
+.mcpf-eye svg, .mcpf-xoa svg { width: 17px; height: 17px; }
+.mcpf-nhac { grid-column: 1 / -1; font-size: 13px; color: var(--warn-ink, #b7791f); }
+.mcpf-them { align-self: flex-start; margin-left: 0; display: inline-flex; align-items: center; gap: 6px; }
+.mcpf-them svg { width: 15px; height: 15px; }
+#mfKq:not(:empty) { margin-top: 8px; }
+@media (max-width: 520px) {
+  .mcpf-kieu { grid-template-columns: 1fr; }
+  /* Tên header một dòng, giá trị một dòng: hai ô nửa màn hình thì key dài không đọc được. */
+  .mcpf-dong { grid-template-columns: minmax(0, 1fr) 40px; }
+  .mcpf-dong .mcpf-gt { grid-column: 1 / 2; }
+  .mcpf-ds { gap: 16px; }
+}
+
 /* ---------- Điện thoại: hộp thoại thành TỜ TRƯỢT TỪ ĐÁY ----------
    Không phải cho đẹp. Hộp thoại giữa màn hình trên điện thoại luôn thua ba thứ: bàn phím đẩy
    nó lệch, nút rơi vào giữa màn nơi ngón cái không với tới, và nội dung dài thì cuộn trong một
