@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.38] - 2026-09-24
 ### Sửa lỗi
-- (đang viết) Javis hiểu lại tên mình khi máy nghe chép thành "David".
+- **Nói "Javis" mà máy nghe chép thành "David", "Jarvis" hay "Gia vít" thì Javis lại hiểu là đang gọi mình.** Bản 0.64.32 lỡ gỡ lớp sửa tên này, nên Javis đáp kiểu "bạn vừa nói là David".
+- Bong bóng chat đổi thành "Javis" và vẫn hiện chữ máy nghe được ở dòng nhỏ bên dưới để đối chiếu. Lớp này chỉ sửa tên, không đụng số, lệnh hay câu phủ định, và không sửa khi bạn nói về người khác ("nhắn cho David").
 
 ## [0.64.37] - 2026-09-24
 ### Cải thiện

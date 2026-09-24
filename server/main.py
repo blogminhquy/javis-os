@@ -13945,8 +13945,23 @@ async def websocket_endpoint(ws: WebSocket):
             brain = payload.get("brain", "brain")
             _cfg_luot = cfgmod.read_settings()
             mcfg = _cfg_luot.get("model", {})
-            # The dashboard has already displayed/committed these words. Hotwords may
-            # guide recognition, but must not rewrite history after the user sends a turn.
+            # Tin từ MIC: sửa TÊN nghe nhầm ("David", "Jarvis", "Gia vít" -> "Javis" và từ vựng
+            # người dùng khai) TRƯỚC khi lưu, bằng so khớp âm tất định của nghe_sua - không phải
+            # AI hay STT phụ. 0.64.32 gỡ lớp này cùng lúc với việc chặn AI viết lại câu, làm
+            # Javis đáp "anh nói là David" (chủ dự án 24/09). Lớp này không đụng từ phủ định, số,
+            # lệnh (PROTECTED_WORDS), không sửa tên người thứ ba, và báo lại bong bóng kèm chữ thô
+            # nên không âm thầm. Idempotent nên tin gửi lại cùng utterance_id vẫn khớp receipt.
+            _nghe_tho = ""
+            if payload.get("voice_input", payload.get("voice")):
+                try:
+                    _tv = nghe_sua.tu_vung(_cfg_luot)
+                    _ctx, _speech = nghe_sua.split_ui_context(user_message)
+                    _sua = nghe_sua.sua(_speech, _tv)
+                    if _sua != _speech:
+                        _nghe_tho, user_message = _speech, _ctx + _sua
+                        _voice_raw = nghe_sua.sua(_voice_raw, _tv)
+                except Exception as e:
+                    print(f"[voice nghe_sua] lỗi, giữ nguyên câu: {type(e).__name__}", file=sys.stderr)
             # Phiên đã ghim model riêng thì engine_label phải suy từ provider HIỆU LỰC
             # của phiên, không phải từ mặc định chung - nhãn sai là clear_codex_thread_id
             # dọn nhầm/không dọn mạch native khi đổi engine.
@@ -14024,6 +14039,13 @@ async def websocket_endpoint(ws: WebSocket):
                     continue
             else:
                 store.append_message(conv_sid, "user", user_message)
+            # Bong bóng đang hiện chữ thô của máy nghe: báo câu đã sửa tên để người dùng thấy
+            # Javis hiểu câu nào, chữ thô hiện nhỏ bên dưới.
+            if _nghe_tho:
+                await send_raw({"type": "user_text", "session_id": conv_sid,
+                                "text": nghe_sua.split_ui_context(user_message)[1],
+                                "raw": _nghe_tho,
+                                "voice_turn_id": str(payload.get("voice_turn_id") or "")})
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
             runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
             # Phiên workflow:<slug>: mỗi tin là một lần chạy quy trình, không phải một lượt
