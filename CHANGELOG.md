@@ -2,12 +2,12 @@
 
 Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay trong app tại mục **Cập nhật** trên thanh bên trái.
 
-Định dạng: mỗi phiên bản là một khối `## [0.64.34] - 2026-09-24
+Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
+
+## [0.64.34] - 2026-09-24
 ### Cải thiện
 - Cài đặt trò chuyện gọn hơn: giữ lựa chọn thường dùng ở phần chính, thu cấu hình kỹ thuật vào mục Nâng cao.
 - Chỉ hiện cấu hình phù hợp với chế độ đang chọn; vẫn giữ các thiết lập đã lưu và báo lỗi cấu hình rõ ràng.
-
-## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.64.33] - 2026-09-24
 ### Sửa lỗi
