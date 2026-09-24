@@ -1623,7 +1623,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                 except json.JSONDecodeError:
                     args = {}
                 if _schedule_tool_allowed(messages, fn, args):
-                    yield {"type": "tool_call", "name": fn}
+                    yield {"type": "tool_call", "name": fn, "input": args}
                     result = await mcp_client.call_route(mcp_route, fn, args)
                 else:
                     result = _schedule_tool_blocked_result()
@@ -1889,7 +1889,7 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                     except json.JSONDecodeError:
                         args = {}
                     if _schedule_tool_allowed(messages, fc.get("name"), args):
-                        yield {"type": "tool_call", "name": fc.get("name")}
+                        yield {"type": "tool_call", "name": fc.get("name"), "input": args}
                         result = await mcp_client.call_route(mcp_route, fc.get("name"), args)
                     else:
                         result = _schedule_tool_blocked_result()
@@ -1992,7 +1992,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
                 for tu in tool_uses:
                     args = tu.get("input") or {}
                     if _schedule_tool_allowed(messages, tu.get("name"), args):
-                        yield {"type": "tool_call", "name": tu.get("name")}
+                        yield {"type": "tool_call", "name": tu.get("name"), "input": args}
                         res = await mcp_client.call_route(mcp_route, tu.get("name"), args)
                     else:
                         res = _schedule_tool_blocked_result()

@@ -81,6 +81,7 @@ import media_gc       # dọn vùng cache media (attachments/ + inbox/) theo h�
 import inbox         # hòm thư: mọi kết quả chạy nền để lại một mẩu thư bền ở server
 import webpush       # thông báo đẩy trình duyệt (Web Push, tự mã hoá - không thêm thư viện)
 import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh Telegram/Zalo
+import tool_label     # một dòng mô tả lệnh gọi công cụ (lệnh nào, file nào) cho khối tiến trình
 import nghe_sua       # sửa chữ nghe nhầm theo ngữ cảnh (David -> Javis) + hotwords cho Whisper
 import voice_privacy
 voice_privacy.install()
@@ -2097,6 +2098,7 @@ async def _claude_sub_doc(cli, prompt, model):
                 yield {"type": "text", "content": txt}
         elif et == "tool_call":
             yield {"type": "tool_call", "tool": ev.get("name") or "",
+                   "detail": tool_label.chi_tiet(ev),
                    "content": f"⚙ {ev.get('name') or 'tool'}"}
         elif et == "final":
             txt = ev.get("content") or ""
@@ -2190,6 +2192,7 @@ async def _cli_sub_doc(g, prompt, model):
                 yield {"type": "text", "content": txt}
         elif et == "tool_call":
             yield {"type": "tool_call", "tool": ev.get("name") or "",
+                   "detail": tool_label.chi_tiet(ev),
                    "content": f"⚙ {ev.get('name') or 'tool'}"}
         elif et == "usage":
             yield {"type": "usage", "input": int(ev.get("input_tokens") or 0),
@@ -12667,6 +12670,7 @@ async def websocket_endpoint(ws: WebSocket):
                         if et == "tool_call":
                             await ws.send_text(json.dumps({
                                 "type": "tool_call", "tool": ev.get("name", ""),
+                                "detail": tool_label.chi_tiet(ev),
                                 "content": f"⚙ Đang gọi: {ev.get('name', '')}"}))
                         elif et == "final":
                             final_text = ev.get("content") or ""
@@ -12740,6 +12744,7 @@ async def websocket_endpoint(ws: WebSocket):
                         if et == "tool_call":
                             await ws.send_text(json.dumps({
                                 "type": "tool_call", "tool": ev.get("name", ""),
+                                "detail": tool_label.chi_tiet(ev),
                                 "content": f"⚙ Đang gọi: {ev.get('name', '')}"}))
                         elif et == "final":
                             final_text = ev.get("content") or ""
@@ -12836,7 +12841,7 @@ async def websocket_endpoint(ws: WebSocket):
                                 if ev.get("session_id"):
                                     store.set_codex_thread_id(conv_sid, ev["session_id"])
                             elif et == "tool_call":
-                                await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "content": f"⚙ {ev.get('name', '')}"}))
+                                await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "detail": tool_label.chi_tiet(ev), "content": f"⚙ {ev.get('name', '')}"}))
                             elif et == "text":
                                 final_text += ev["content"]
                                 await ws.send_text(json.dumps({"type": "stream", "content": ev["content"], "tts": False}))
@@ -13144,6 +13149,7 @@ async def websocket_endpoint(ws: WebSocket):
                                 elif ev["type"] == "tool_call":
                                     await ws.send_text(json.dumps({
                                         "type": "tool_call", "tool": ev.get("name", ""),
+                                        "detail": tool_label.chi_tiet(ev),
                                         "content": f"⚙ MCP: {ev.get('name', '')}",
                                     }))
                                 elif ev["type"] == "text":
@@ -13278,7 +13284,7 @@ async def websocket_endpoint(ws: WebSocket):
                     async for event in cli.query(prompt):
                         etype = event["type"]
                         if etype == "tool_call":
-                            await ws.send_text(json.dumps({"type": "tool_call", "tool": event["name"], "content": f"⚙ Đang gọi: {event['name']}"}))
+                            await ws.send_text(json.dumps({"type": "tool_call", "tool": event["name"], "detail": tool_label.chi_tiet(event), "content": f"⚙ Đang gọi: {event['name']}"}))
                             # Nhặt mọi thứ trông giống đường dẫn trong tham số tool (Write/Edit có
                             # file_path, Bash thì lẫn trong lệnh). Lọc "có thật + vừa đổi" ở dưới.
                             try:

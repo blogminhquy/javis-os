@@ -1231,6 +1231,14 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .steps-list .step {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* Bước mới nhất hiện ngay trên dòng tóm tắt lúc đang chạy (khối mặc định gấp, 0.64.44):
+   không phải bấm mở vẫn biết Javis đang làm gì. Cắt một dòng để không đẩy khung chat. */
+.steps-sum { max-width: 100%; min-width: 0; }
+.steps-sum-text { flex-shrink: 0; }
+.steps-sum-now {
+  min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; opacity: 0.85;
+}
+.steps-sum-now:not(:empty)::before { content: "· "; }
 /* Bước cuối đang chạy: đậm hơn một chút để mắt biết đang đứng ở đâu trong danh sách. */
 .steps-list .step-live { color: var(--text2); }
 
