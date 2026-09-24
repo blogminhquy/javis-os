@@ -190,6 +190,9 @@
     surprised:  '<ellipse rx="10.5" ry="12.5"/>',
     // Mắt tim: bấm vuốt ve liên tục.
     love:       '<path d="M0 11 C-15 0 -13 -13 -5.5 -13 C-2 -13 0 -10 0 -7.5 C0 -10 2 -13 5.5 -13 C13 -13 15 0 0 11 Z"/>',
+    // GỒNG SỨC ><: nhắm tịt hai mắt thành hai mũi nhọn chụm vào giữa, như đang rặn ra câu trả
+    // lời (chủ dự án xin 24/09). Mắt trái ">" , mắt phải "<". Đi kèm cú rung nhẹ (data-mat).
+    gang:       ['<path class="pet-line" d="M-8 -9 L6 0 L-8 9"/>', '<path class="pet-line" d="M8 -9 L-6 0 L8 9"/>'],
     // Chóng mặt: bấm dồn dập quá.
     dizzy:      '<path class="pet-line" d="M-8 -8 L8 8 M8 -8 L-8 8"/>',
   };
@@ -200,8 +203,10 @@
   //                này nhất, và đồng ý để nó luân phiên với dáng trên).
   // Mỗi dáng giữ chừng một giây rưỡi rồi đổi. Muốn nó ĐỨNG YÊN ở hai gạch ngang thì bỏ mảng
   // này còn một phần tử "nghi" - vòng vẽ tự thôi đổi, không phải sửa chỗ nào khác.
-  var NGHI_MAT = ["thinking", "nghi"];
-  var NGHI_LAU = [1500, 1200];   // mỗi dáng giữ bao lâu (ms), cộng thêm một chút ngẫu nhiên
+  //   "gang"     = >< gồng sức như đang rặn (0.64.40, chủ dự án xin). Giữ NGẮN nhất: gồng lâu
+  //                trông như đau chứ không còn là cố gắng.
+  var NGHI_MAT = ["thinking", "nghi", "gang"];
+  var NGHI_LAU = [1500, 1200, 1000];   // mỗi dáng giữ bao lâu (ms), cộng thêm một chút ngẫu nhiên
 
   // Trạng thái thật của lượt (app.js bắn sang) -> biểu cảm + nhịp vành quỹ đạo.
   //   ring: tốc độ xoay (độ/giây); 0 = đứng yên. dash: hình dải. mo: độ mờ của vành.
@@ -241,7 +246,7 @@
   //   choang  = bấm dồn dập: chóng mặt, lắc lư
   //   thuc    = đang ngủ gật thì có người động vào
   var PHAN_UNG = {
-    click:  { mat: ["happy", "wink", "surprised", "love"], ms: 1300, anim: "squish" },
+    click:  { mat: ["happy", "wink", "surprised", "love", "gang"], ms: 1300, anim: "squish" },
     xong:   { mat: ["happy"],     ms: 1700, anim: "hop" },
     choang: { mat: ["dizzy"],     ms: 1500, anim: "shake" },
     thuc:   { mat: ["surprised"], ms: 700,  anim: "squish" },
@@ -547,6 +552,8 @@
     // Cỡ mắt đi bằng scale trên chính nhóm đã dịch chuyển, chứ không sửa từng con số trong
     // bảng EYES: mỗi biểu cảm ở đó là một hình riêng (ellipse, path cong, gạch ngang), nhân
     // tay thì phải nhân đúng chín chỗ và cứ thêm một biểu cảm là thêm một chỗ để quên.
+    // Dáng mắt đang vẽ gắn lên phần tử để CSS diễn theo (gồng sức thì rung nhẹ).
+    if (el) el.dataset.mat = ten;
     var k = heSoMat();
     var co = k === 1 ? "" : " scale(" + k + ")";
     gEyes.innerHTML =

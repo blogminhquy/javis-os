@@ -3100,6 +3100,11 @@ body.ne-full-on .cview { z-index: 250; }
   50% { transform: translateY(-18%) scale(.95, 1.06); } 80% { transform: translateY(0) scale(1.05, .95); } 100% { transform: translateY(0) scale(1, 1); } }
 @keyframes petShake { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-12deg); } 40% { transform: rotate(10deg); }
   60% { transform: rotate(-7deg); } 80% { transform: rotate(4deg); } }
+/* Mắt >< gồng sức: cả thân rung nhẹ liên tục như đang rặn. Biên độ nhỏ (1,2 độ) cho ra vẻ
+   cố gắng chứ không phải run sợ. Phản ứng tạm (data-anim) đang chạy thì nhường nó. */
+.pet[data-mat="gang"]:not([data-anim]) .pet-body svg { animation: petRan .16s linear infinite; transform-origin: 50% 70%; }
+@keyframes petRan { 0%, 100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(-1.2%) rotate(-1.2deg); }
+  75% { transform: translateX(1.2%) rotate(1.2deg); } }
 /* Đang ngủ gật: thân thở chậm và sâu hơn lúc thức. */
 .pet[data-ngu="1"] .pet-body svg { animation: petNgu 3.6s ease-in-out infinite; transform-origin: 50% 90%; }
 @keyframes petNgu { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, .96); } }

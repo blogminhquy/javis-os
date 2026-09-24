@@ -87,6 +87,13 @@ P.setState("idle");
 P.react("viet");
 check("không đang nghĩ thì 'viet' không đổi gì", el.dataset.state === "idle");
 
+// ---- 2b. Đang nghĩ lâu thì có lúc GỒNG SỨC >< (0.64.40) ----
+P.setState("idle"); P.setState("thinking");
+let thayGang = false;
+for (let i = 1; i <= 40 && !thayGang; i++) { nhip(now + 200); thayGang = /M-8 -9 L6 0 L-8 9/.test(mat()) && /M8 -9 L-6 0 L8 9/.test(mat()); }
+check("đang nghĩ đủ lâu thì mắt tới dáng >< gồng sức", thayGang);
+check("và gắn data-mat=gang để CSS cho thân rung", el.dataset.mat === "gang", el.dataset.mat);
+
 // ---- 3. Trả lời xong ----
 P.setState("speaking");
 const dangNoi = mat();

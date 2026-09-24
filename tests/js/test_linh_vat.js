@@ -279,7 +279,10 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
 // Chủ dự án chốt 15/09: thích nhất dáng hai gạch ngang, và đồng ý để nó luân phiên với dáng
 // liếc-lục-trí-nhớ đang có. Đứng yên một dáng suốt ba chục giây thì mắt thành hai hình dán.
 {
-  check("có bảng hai dáng mắt lúc nghĩ", /var NGHI_MAT = \["thinking", "nghi"\];/.test(pet));
+  // 0.64.40: thêm dáng thứ ba "gang" (><, gồng sức) theo yêu cầu chủ dự án 24/09.
+  check("có bảng dáng mắt lúc nghĩ: lục trí nhớ, lim dim, gồng sức", /var NGHI_MAT = \["thinking", "nghi", "gang"\];/.test(pet));
+  check("dáng 'gang' đúng là >< (hai mũi nhọn chụm vào giữa)",
+    /gang:\s*\['<path class="pet-line" d="M-8 -9 L6 0 L-8 9"\/>', '<path class="pet-line" d="M8 -9 L-6 0 L8 9"\/>'\]/.test(pet));
   // "nghi" chính là hai gạch ngang - ai sửa nó thành hình khác là cái chủ dự án yêu cầu biến
   // mất trong im lặng, nên khoá luôn hình của nó. Và nó phải KHÁC dáng chớp mắt: hai dáng vẽ
   // y hệt nhau thì một cú chớp giữa lúc nghĩ nhìn như máy bị khựng.
@@ -297,7 +300,8 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
   check("dáng đầu khớp với mắt khai trong STATES.thinking",
     matNghi === (/var NGHI_MAT = \["(\w+)"/.exec(pet) || [])[1]);
   check("mỗi dáng giữ trên một giây (đảo nhanh hơn là thành giật)",
-    (/var NGHI_LAU = \[(\d+), (\d+)\]/.exec(pet) || []).slice(1).every(v => +v >= 1000));
+    ((/var NGHI_LAU = \[([\d, ]+)\]/.exec(pet) || [])[1] || "").split(",").every(v => +v >= 1000)
+    && /var NGHI_LAU = \[[\d, ]+\]/.test(pet));
 }
 
 // ---- 10a. Vành quỹ đạo phải ĐẬP VÀO MẮT khi đang làm việc (0.59.4) ----

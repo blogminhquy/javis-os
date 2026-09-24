@@ -7,6 +7,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.64.40] - 2026-09-24
 ### Cải thiện
 - **Hình ngôi sao của linh vật to ngang các hình khác.** Trước đây sao nhỏ hơn hình tròn khoảng 30% nên đôi mắt trông to quá khổ; giờ cân lại cho vừa, áp dụng cả cho avatar trợ lý dùng hình sao.
+- **Linh vật có thêm mắt `><` gồng sức**, như đang cố rặn ra câu trả lời, kèm rung nhẹ cả thân. Nó xen vào lúc đang nghĩ (sau dáng lục trí nhớ và dáng lim dim), và thỉnh thoảng hiện khi bấm vào.
 
 ## [0.64.39] - 2026-09-24
 ### Cải thiện
