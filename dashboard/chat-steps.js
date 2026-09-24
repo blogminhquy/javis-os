@@ -5,8 +5,11 @@
    chay lau thi nguoi dung ngoi nhin mot dong nhay loan, khong biet da lam nhung gi.
 
    File nay gom cac buoc do lai thanh mot khoi nam ngay tren bong bong tra loi:
-     - dang chay: bung san, buoc cuoi dang chay duoc danh dau
-     - xong luot: tu gap thanh mot dong "Da chay N buoc", bam vao bung ra xem lai
+     - MAC DINH GAP ca luc dang chay lan luc xong (chu repo yeu cau 2026-09-24: hai chuc dong
+       "Dang goi: Bash" bung san day kin khung chat). Dong tom tat van noi dang chay, bao nhieu
+       buoc va buoc moi nhat; bam vao moi bung ra. Nguoi dung da bam bung thi giu bung.
+     - moi buoc ghi RO viec: "Chay lenh: git status", "Doc file: wiki/a.md" (server gui kem
+       truong `detail` rut tu tham so lenh goi, xem server/tool_label.py)
 
    Chia lam hai tang de test duoc bang node: `nhan`/`tomTat` la ham THUAN (khong dung DOM),
    con `taoKhoi`/`ve` chi ve. Khong goi MCP, khong phu thuoc engine.
@@ -40,15 +43,48 @@
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
-  // Nhan mot dong buoc. Server da dat san cau nguoi doc duoc ("Dang goi: pos_order"), kem mot
-  // ky tu banh rang U+2699 dan dau - bo no di vi khoi nay tu ve icon rieng.
+  // Loai cong cu -> KHOA i18n cua dong tu nguoi doc duoc (viet du khoa de test_i18n soi duoc).
+  // Ten lay theo cac engine that (Claude Code, Codex,
+  // Grok, Antigravity, API); ten la thi giu nguyen ten cong cu, khong doan.
+  var LOAI = [
+    [/^(bash|shell|run_shell_command|command_execution|local_shell_call|run_terminal_command|run_command|exec)$/, "app.step_v_run"],
+    [/^(read|read_file|view|view_file|notebookread|read_many_files|cat)$/, "app.step_v_read"],
+    [/^(write|write_file|create_file|write_to_file)$/, "app.step_v_write"],
+    [/^(edit|multiedit|notebookedit|str_replace|str_replace_editor|apply_patch|edit_file|replace|patch)$/, "app.step_v_edit"],
+    [/^(grep|search_file_content|grep_search|codebase_search)$/, "app.step_v_grep"],
+    [/^(glob|ls|list_directory|list_dir|find|find_by_name)$/, "app.step_v_find"],
+    [/^(webfetch|web_fetch|fetch|read_url_content|fetch_url)$/, "app.step_v_web"],
+    [/^(websearch|web_search|web_search_call|google_search|search_web)$/, "app.step_v_search"],
+    [/^(task|agent)$/, "app.step_v_agent"],
+    [/^(todowrite|todo_write|update_plan)$/, "app.step_v_todo"],
+    [/^(skill|javis_use_skill)$/, "app.step_v_skill"]
+  ];
+  function loaiCongCu(ten) {
+    var t = String(ten || "").toLowerCase().trim();
+    for (var i = 0; i < LOAI.length; i++) if (LOAI[i][0].test(t)) return LOAI[i][1];
+    return "";
+  }
+  // "mcp__zalo__zalo_send_message" -> "zalo_send_message": phan dau chi la ten may chu.
+  function tenGon(ten) {
+    var t = String(ten || "").trim();
+    var m = t.match(/^mcp__[^_]+(?:_[^_]+)*?__(.+)$/);
+    return m ? m[1] : t;
+  }
+
+  // Nhan mot dong buoc. Co `detail` (server rut tu tham so lenh goi) thi ghi ro viec:
+  // "Chay lenh: git status". Khong co thi giu cau server dat san ("Dang goi: pos_order"),
+  // bo ky tu banh rang U+2699 dan dau vi khoi nay tu ve icon rieng.
   // Cat bang lop "moi ky tu dau khong phai chu/so" chu KHONG viet thang ky tu banh rang vao
   // day: test_icons.py cam emoji trong file dashboard. Luat rong nay cung ben hon khi server
   // doi sang dau khac.
   function nhanBuoc(ev) {
+    var ten = String((ev && ev.tool) || "").trim();
+    var ct = String((ev && ev.detail) || "").replace(/\s+/g, " ").trim();
+    var loai = loaiCongCu(tenGon(ten));
+    if (ct) return (loai ? tw(loai) : tenGon(ten) || tw("app.step_unknown")) + ": " + ct;
+    if (loai) return tw(loai);
     var noi = String((ev && ev.content) || "").replace(/^[^\p{L}\p{N}]+/u, "").trim();
     if (noi) return noi;
-    var ten = String((ev && ev.tool) || "").trim();
     return ten || tw("app.step_unknown");
   }
 
@@ -99,36 +135,47 @@
     el.className = "msg msg-steps steps-fold";
     el.innerHTML =
       '<button class="steps-sum" type="button">' + chevron() +
-      '<span class="steps-sum-text"></span></button>' +
+      '<span class="steps-sum-text"></span><span class="steps-sum-now"></span></button>' +
       '<div class="steps-list"></div>';
     var nut = el.querySelector(".steps-sum");
     if (nut) {
       nut.setAttribute("aria-label", tw("app.steps_toggle"));
-      nut.addEventListener("click", function () { el.classList.toggle("steps-fold"); });
+      nut.addEventListener("click", function () {
+        el.classList.toggle("steps-fold");
+        // Nho lua chon cua nguoi dung: lan ve lai sau (moi buoc moi) khong duoc gap nguoc.
+        el._moTay = !el.classList.contains("steps-fold");
+        if (nut.setAttribute) nut.setAttribute("aria-expanded", el._moTay ? "true" : "false");
+      });
+      nut.setAttribute("aria-expanded", "false");
     }
     return el;
   }
 
-  /* Ve lai khoi theo mach buoc. `dangChay` quyet dinh bung hay gap: dang chay thi bung de
-     nguoi dung nhin thay viec dang lam, xong luot thi gap lai nhuong cho cau tra loi. */
+  /* Ve lai khoi theo mach buoc. MAC DINH GAP, ca luc dang chay: dong tom tat da noi dang
+     chay, bao nhieu buoc, buoc moi nhat la gi. Chi bung khi nguoi dung bam (`_moTay`). */
   function ve(el, st, dangChay) {
     if (!el) el = taoKhoi();
     var cu = chuanHoa(st);
     var txt = el.querySelector(".steps-sum-text");
-    if (txt) txt.textContent = dangChay ? tw("app.steps_running") : tomTat(cu).nhan;
+    if (txt) txt.textContent = dangChay ? tw("app.steps_running_n", { n: cu.so }) : tomTat(cu).nhan;
+    var now = el.querySelector(".steps-sum-now");
+    if (now) {
+      var cuoi = cu.ds.length ? cu.ds[cu.ds.length - 1] : null;
+      now.textContent = (dangChay && cuoi) ? cuoi.label : "";
+    }
     var ds = el.querySelector(".steps-list");
     if (ds) {
       ds.innerHTML = cu.ds.map(function (b, i) {
         var song = dangChay && i === cu.ds.length - 1 && !b.xong;
         return '<div class="step' + (song ? " step-live" : "") + (b.xong ? " step-done" : "") +
-               '">' + esc(b.label) + "</div>";
+               '" title="' + esc(b.label) + '">' + esc(b.label) + "</div>";
       }).join("");
     }
-    el.classList.toggle("steps-fold", !dangChay);
+    el.classList.toggle("steps-fold", el._moTay !== true);
     return el;
   }
 
-  var API = { nhan: nhan, tomTat: tomTat, taoKhoi: taoKhoi, ve: ve, TRAN: TRAN };
+  var API = { nhan: nhan, tomTat: tomTat, taoKhoi: taoKhoi, ve: ve, nhanDong: nhanBuoc, TRAN: TRAN };
   if (typeof window !== "undefined") window.JavisSteps = API;
   if (typeof module !== "undefined" && module.exports) module.exports = API;
 })();

@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.44] - 2026-09-24
+### Cải thiện
+- **Khung "Đang chạy công cụ" giờ mặc định thu gọn**, không còn bung hai chục dòng kín khung chat. Dòng tóm tắt vẫn cho biết đang chạy bao nhiêu bước và bước mới nhất là gì; bấm vào mới mở danh sách đầy đủ.
+- **Mỗi bước ghi rõ việc đang làm**, ví dụ "Chạy lệnh: git status", "Đọc file: wiki/khach-hang.md", "Mở trang web: ...", thay cho "Đang gọi: Bash" hay "Đang gọi: Read" lặp lại. Áp dụng cho mọi bộ não.
+
 ## [0.64.43] - 2026-09-24
 ### Sửa lỗi
 - **Gửi ảnh hoặc file trong khung chat không còn quay mãi.** Mạng đứng quá 30 giây là Javis tự cắt và tự gửi lại (tối đa 2 lần), không bắt anh chờ đủ 3 phút như trước.

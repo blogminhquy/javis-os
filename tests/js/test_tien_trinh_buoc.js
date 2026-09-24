@@ -103,10 +103,19 @@ check("60 bước: giữ các bước MỚI NHẤT", dai.ds[dai.ds.length - 1].t
 check("60 bước: nhãn tóm tắt nói 60 chứ không nói 50",
   S.tomTat(dai).nhan.indexOf("60") !== -1, S.tomTat(dai).nhan);
 
-// ---- 9. Vẽ: đang chạy thì bung, xong thì gấp ---------------------------------------------
+// ---- 9. Vẽ: MẶC ĐỊNH GẤP cả lúc đang chạy (chủ repo đổi 2026-09-24) ----------------------
+// Trước 0.64.44 khối bung sẵn lúc chạy: hai chục dòng "Đang gọi: Bash" đầy kín khung chat.
+// Nay gấp, dòng tóm tắt đủ nói đang chạy, bao nhiêu bước, bước mới nhất là gì.
 let el = S.ve(null, st, true);
-check("đang chạy: khối bung ra (không có lớp gấp)", el.classList.contains("steps-fold") === false);
+check("đang chạy: khối GẤP sẵn", el.classList.contains("steps-fold") === true);
+check("đang chạy: tóm tắt nói số bước",
+  String(el.querySelector(".steps-sum-text").textContent).indexOf("3") !== -1,
+  el.querySelector(".steps-sum-text").textContent);
+check("đang chạy: tóm tắt hiện bước MỚI NHẤT",
+  el.querySelector(".steps-sum-now").textContent === st.ds[2].label,
+  el.querySelector(".steps-sum-now").textContent);
 S.ve(el, st, false);
+check("xong lượt: bỏ dòng bước mới nhất", el.querySelector(".steps-sum-now").textContent === "");
 check("xong lượt: khối tự gấp lại", el.classList.contains("steps-fold") === true);
 check("xong lượt: dòng tóm tắt hiện số bước",
   String(el.querySelector(".steps-sum-text").textContent).indexOf("3") !== -1);
@@ -134,6 +143,30 @@ if (typeof nut.onclick === "function") {
   nut.onclick();
   check("bấm lần 2: gấp lại", el2.classList.contains("steps-fold") === true);
 }
+
+// ---- 13. Người dùng đã bấm bung thì bước mới KHÔNG được gấp ngược lại ---------------------
+let el3 = S.ve(null, st, true);
+el3.querySelector(".steps-sum").onclick();
+check("bấm bung lúc đang chạy: bung", el3.classList.contains("steps-fold") === false);
+S.ve(el3, S.nhan(st, goi("x")), true);
+check("bước mới tới: vẫn giữ bung theo ý người dùng", el3.classList.contains("steps-fold") === false);
+
+// ---- 14. Nhãn RÕ VIỆC khi server gửi kèm `detail` ----------------------------------------
+const goiCt = (ten, ct) => ({ type: "tool_call", tool: ten, detail: ct, content: "⚙ Đang gọi: " + ten });
+const nh = (ev) => S.nhan(null, ev).ds[0].label;
+check("Bash + detail -> 'Chạy lệnh: <lệnh>'", nh(goiCt("Bash", "git status")) === "Chạy lệnh: git status", nh(goiCt("Bash", "git status")));
+check("Read + detail -> 'Đọc file: <đường>'", nh(goiCt("Read", "wiki/a.md")) === "Đọc file: wiki/a.md");
+check("Codex command_execution cũng là chạy lệnh", nh(goiCt("command_execution", "ls")) === "Chạy lệnh: ls");
+check("WebFetch -> mở trang web", nh(goiCt("WebFetch", "https://x.vn")).indexOf("Mở trang web: ") === 0);
+check("công cụ MCP: bỏ tiền tố mcp__<máy chủ>__",
+  nh(goiCt("mcp__zalo__zalo_send_message", "Chị Lan")) === "zalo_send_message: Chị Lan",
+  nh(goiCt("mcp__zalo__zalo_send_message", "Chị Lan")));
+check("công cụ lạ + detail: giữ tên công cụ", nh(goiCt("pos_order", "đơn 12")) === "pos_order: đơn 12");
+check("Bash KHÔNG có detail: vẫn ra động từ, không còn 'Đang gọi: Bash'", nh(goi("Bash", "⚙ Đang gọi: Bash")) === "Chạy lệnh");
+check("detail nhiều dòng gộp thành một dòng", nh(goiCt("Bash", "a\n  b")) === "Chạy lệnh: a b");
+check("chip hoạt động dùng chung nhãn (nhanDong)", S.nhanDong(goiCt("Read", "a.md")) === "Đọc file: a.md");
+const doc2 = S.ve(null, S.nhan(null, goiCt("Bash", "echo \"<b>\"")), false).querySelector(".steps-list").innerHTML;
+check("detail cũng được escape", doc2.indexOf("<b>") === -1 && doc2.indexOf("&lt;b&gt;") !== -1, doc2);
 
 console.log(fails.length ? "\n" + fails.length + " FAIL" : "\nTất cả xanh");
 process.exit(fails.length ? 1 : 0);
