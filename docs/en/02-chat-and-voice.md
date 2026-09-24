@@ -443,3 +443,5 @@ Keyboard shortcuts:
 Still stuck? See [Troubleshooting & FAQ](17-troubleshooting.md).
 
 In Standard/Fast mode, the displayed transcript is kept when the utterance ends. Optional Groq recognition reports differences without rewriting sent messages. Emma is the default for new browser preferences; saved voice choices survive updates.
+
+From 0.64.34, conversation settings prioritize voice, speed, conversation mode and focus. Open **Advanced** for model, secondary recognition, hints and microphone settings. Open **Provider and connection** to configure an API and save the provider. Controls that do not affect the selected mode are hidden; recognition language remains available in Live for the Javis wake listener.

@@ -32,7 +32,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=95">
+  <link rel="stylesheet" href="/static/style.css?v=96">
   <link rel="stylesheet" href="/static/console.css?v=72">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
@@ -356,7 +356,6 @@
                  thành ô chọn có tên mức, vì không ai cần 1.37× mà cần "hơi nhanh". -->
             <div class="qs-block">
               <div class="popover-label" data-i18n="qs.voice">GIỌNG ĐỌC</div>
-              <div id="ttsProviderHost"></div>
               <!-- #edgeVoiceSection: console.js ẩn khối này khi nhà cung cấp không phải Edge
                    (OpenAI/ElevenLabs chọn giọng ngay trong khối nhà cung cấp ở trên). -->
               <div id="edgeVoiceSection">
@@ -386,9 +385,14 @@
               </div>
               <div class="js-actions qs-foot">
                 <button class="gcard-btn ghost" id="testVoiceBtn" data-i18n="qs.test_voice">▶ Nghe thử</button>
-                <button class="gcard-btn" id="vpSave" data-i18n="qs.voice_save">Lưu giọng đọc</button>
               </div>
-              <div class="gcard-meta" id="vpStatus"></div>
+              <div class="qs-hint" data-i18n="qs.voice_local">Giọng Edge và tốc độ được lưu ngay trên thiết bị này.</div>
+              <details class="qs-advanced" id="ttsAdvanced">
+                <summary data-i18n="settings.tts_advanced">Nhà cung cấp và kết nối</summary>
+                <div id="ttsProviderHost"></div>
+                <div class="js-actions qs-foot"><button class="gcard-btn" id="vpSave" data-i18n="qs.voice_save">Lưu nhà cung cấp</button></div>
+              </details>
+              <div class="gcard-meta" id="vpStatus" role="status"></div>
             </div>
 
             <!-- CHẾ ĐỘ NÓI CHUYỆN (Voice V2): console.js renderVoiceV2Card() đổ vào đây.
@@ -414,6 +418,7 @@
                   </select>
                 </div>
                 <div class="qs-hint" data-i18n="qs.rec_auto_hint">Đa ngôn ngữ: Groq Whisper tự nhận ra tiếng đang nói; máy nghe của trình duyệt vẫn dùng một ngôn ngữ cố định (mặc định tiếng Việt).</div>
+                <div id="qsBrowserMicFields">
                 <div class="qs-field">
                   <label class="qs-lbl" for="endpointSel" data-i18n="qs.endpoint">Im lặng rồi gửi</label>
                   <select class="js-input" id="endpointSel" name="endpoint">
@@ -428,6 +433,7 @@
                   <span class="toggle"><input type="checkbox" id="qsBarge" checked><span></span></span>
                 </label>
                 <div class="gcard-meta" data-i18n="qs.mic_local">Ba mục micro áp dụng ngay trên máy đang dùng, không cần bấm Lưu; nút Lưu chế độ chỉ lưu phần chế độ và bộ não giọng.</div>
+                </div>
               </div>
             </div>
 
@@ -901,7 +907,7 @@
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
   <!-- Phần đọc cấu hình của form "Tự thêm MCP" (thuần, có test node). Nạp TRƯỚC console.js. -->
   <script src="/static/mcp-form-parse.js?v=1"></script>
-  <script src="/static/console.js?v=155"></script>
+  <script src="/static/console.js?v=156"></script>
   <script src="/static/mobile-chat.js?v=9"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>

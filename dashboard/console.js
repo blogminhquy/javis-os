@@ -6271,7 +6271,8 @@
     const gheMicVaoThe = (truoc) => {
       const the = host.querySelector(".qs-block");
       if (!micFields || !the) return;
-      if (truoc) the.insertBefore(micFields, truoc); else the.appendChild(micFields);
+      if (truoc) truoc.parentNode.insertBefore(micFields, truoc); else the.appendChild(micFields);
+      micFields.hidden = false;
       if (micHome) micHome.hidden = true;
     };
     traMicVeNha();
@@ -6309,6 +6310,23 @@
             ${optA("live", t("settings.v2_mode_live"), cheDo)}
           </select>
         </div>
+        <div class="qs-field">
+          <label class="qs-lbl" for="v2LocTapAm">${esc(t("settings.v2_loc_tap_am"))}</label>
+          <label class="toggle"><input type="checkbox" id="v2LocTapAm" ${v.focus_mode === false ? "" : "checked"}><span></span></label>
+        </div>
+        <div class="qs-hint">${esc(t("settings.voice_focus_short"))}</div>
+        <div id="v2LiveBox">
+          <label class="js-lbl">${esc(t("settings.v2_live"))}</label>
+          <select class="js-input" id="v2Live">${liveOpts}</select>
+          <label class="js-lbl">${esc(t("settings.v2_live_model"))}</label>
+          <input class="js-input" id="v2LiveModel" value="${esc(v.live_model || "")}" placeholder="">
+          <label class="js-lbl">${esc(t("settings.v2_live_voice"))}</label>
+          <select class="js-input" id="v2LiveVoice"></select>
+          <div class="gcard-meta" id="v2LiveHint">${esc(t("settings.v2_live_note"))}</div>
+        </div>
+        <details class="qs-advanced" id="v2Advanced">
+          <summary>${esc(t("settings.voice_advanced"))}</summary>
+          <div id="v2BrowserAdvanced">
         <div id="v2FastBox">
           <label class="js-lbl">${esc(t("settings.v2_brain"))}</label>
           <select class="js-input" id="v2Brain">${brainOpts}</select>
@@ -6322,30 +6340,20 @@
           <select class="js-input" id="v2Stt">${sttOpts}</select>
           <div class="qs-hint">${esc(t("settings.v2_stt_note"))}</div>
         </div>
-        <div class="qs-field">
-          <label class="qs-lbl" for="v2LocTapAm">${esc(t("settings.v2_loc_tap_am"))}</label>
-          <label class="toggle"><input type="checkbox" id="v2LocTapAm" ${v.focus_mode === false ? "" : "checked"}><span></span></label>
-        </div>
-        <div class="qs-hint">${esc(t("settings.v2_loc_tap_am_note"))}</div>
+          </div>
         <div class="qs-field">
           <label class="qs-lbl" for="v2Hotwords">${esc(t("settings.v2_hotwords"))}</label>
           <input class="js-input" id="v2Hotwords" value="${esc(v.hotwords || "")}" placeholder="${esc(t("settings.v2_hotwords_ph"))}">
           <div class="gcard-meta">${esc(t("settings.v2_hotwords_note", { goc: (o.hotwords_goc || ["Javis"]).join(", ") }))}</div>
         </div>
-        <div id="v2LiveBox">
-          <label class="js-lbl">${esc(t("settings.v2_live"))}</label>
-          <select class="js-input" id="v2Live">${liveOpts}</select>
-          <label class="js-lbl">${esc(t("settings.v2_live_model"))}</label>
-          <input class="js-input" id="v2LiveModel" value="${esc(v.live_model || "")}" placeholder="">
-          <label class="js-lbl">${esc(t("settings.v2_live_voice"))}</label>
-          <select class="js-input" id="v2LiveVoice"></select>
-          <div class="gcard-meta" id="v2LiveHint">${esc(t("settings.v2_live_note"))}</div>
-        </div>
+          <div class="qs-hint">${esc(t("settings.v2_loc_tap_am_note"))}</div>
+          <div id="v2AdvancedEnd"></div>
+        </details>
         <div class="js-actions qs-foot"><button class="gcard-btn" id="v2Save">${esc(t("settings.v2_save"))}</button></div>
-        <div class="gcard-meta" id="v2Status">${esc(t("settings.v2_note"))}</div>
+        <div class="gcard-meta" id="v2Status" role="status"></div>
         <div class="gcard-meta" id="v2LastErr" style="display:none"></div>
       </div>`;
-    gheMicVaoThe(host.querySelector(".qs-foot"));   // ba mục micro đứng ngay trên nút Lưu chế độ
+    gheMicVaoThe(host.querySelector("#v2AdvancedEnd"));   // giữ node và handler micro trong Nâng cao
     const $ = (id) => document.getElementById(id);
     const byId = (arr, id) => (arr || []).find(p => p.id === id) || null;
     const syncBrain = () => {
@@ -6371,6 +6379,10 @@
       const m = $("v2Mode").value;
       $("v2FastBox").style.display = m === "fast" ? "" : "none";
       $("v2LiveBox").style.display = m === "live" ? "" : "none";
+      $("v2BrowserAdvanced").hidden = m === "live";
+      const browserMic = $("qsBrowserMicFields");
+      if (browserMic) browserMic.hidden = m === "live";
+      if (m === "fast" && !v.brain_provider) $("v2Advanced").open = true;
     };
     $("v2Brain").onchange = syncBrain; $("v2Live").onchange = syncLive; $("v2Mode").onchange = syncMode;
     syncBrain(); syncLive(); syncMode();
@@ -6379,6 +6391,7 @@
     // là bộ não giọng đang hỏng hay cài đặt đã trôi về chế độ chuẩn.
     const le = o.last_error || {};
     if (le.error) {
+      $("v2Advanced").open = true;
       const phut = Math.max(0, Math.round((Date.now() / 1000 - Number(le.at || 0)) / 60));
       const elErr = $("v2LastErr");
       elErr.style.display = "";
@@ -6396,7 +6409,7 @@
         live_model: $("v2LiveModel").value.trim(), live_voice: $("v2LiveVoice").value || "",
         hotwords: $("v2Hotwords").value.trim(), focus_mode: $("v2LocTapAm").checked,
       };
-      if (data.mode === "fast" && !data.brain_provider) { st.textContent = t("settings.v2_need_brain"); return; }
+      if (data.mode === "fast" && !data.brain_provider) { $("v2Advanced").open = true; $("v2Brain").focus(); st.textContent = t("settings.v2_need_brain"); return; }
       const r = await saveSetting("voice", data);
       st.textContent = r && r.ok ? t("settings.v2_saved") : t("settings.save_failed");
       try { if (window.JavisVoiceMode) window.JavisVoiceMode.refresh(); } catch (e) {}
@@ -6840,6 +6853,8 @@
     renderVoiceV2Card();
 
     const provSel = document.getElementById("vpProvider");
+    const ttsAdvanced = document.getElementById("ttsAdvanced");
+    if (ttsAdvanced) ttsAdvanced.open = prov !== "edge";
     if (provSel) {   // guard: thiếu điểm neo (vd cache index.html cũ) thì avatar/tên miền vẫn chạy, không sập trang
       const showFields = () => {
         const p = provSel.value;
@@ -6855,7 +6870,7 @@
 
       // Dòng trạng thái nằm sẵn trong index.html (rỗng) nên câu mở đầu phải đặt từ đây.
       const st = document.getElementById("vpStatus");
-      if (st) st.innerHTML = esc(t("settings.tts_using")) + " <b>" + esc(prov) + "</b>. " + esc(t("settings.tts_note"));
+      if (st) st.innerHTML = esc(t("settings.tts_using")) + " <b>" + esc({ edge: "Edge", openai: "OpenAI", elevenlabs: "ElevenLabs" }[prov] || prov) + "</b>";
       document.getElementById("vpSave").onclick = async () => {
         st.textContent = t("settings.saving");
         const data = {
