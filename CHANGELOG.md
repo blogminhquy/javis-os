@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.30] - 2026-09-24
+### Cải thiện
+- Rê chuột lên link trong câu trả lời để xem địa chỉ đích trước khi mở, kể cả link đến tệp và ghi chú trong Javis.
+
 ## [0.64.28] - 2026-09-24
 ### Cải thiện
 - Thêm chế độ tập trung: bấm mic để nói ngay, gọi “Javis” để tiếp tục sau lúc chờ; hiện rõ lúc đang chờ được gọi.
