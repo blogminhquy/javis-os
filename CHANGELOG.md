@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.33] - 2026-09-24
+### Sửa lỗi
+- Composio báo rõ khi key kết nối bị từ chối và chỉ đúng nơi lấy key dành cho Javis.
+
 ## [0.64.32] - 2026-09-24
 ### Sửa lỗi
 - Giữ phần chữ đã chốt khi kết thúc câu nói; không âm thầm thay tin nhắn bằng bản sửa của STT phụ hoặc AI.
