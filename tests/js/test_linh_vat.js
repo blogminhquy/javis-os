@@ -38,7 +38,12 @@ function check(name, cond) {
 }
 
 // ---- 1. Trạng thái: app.js bắn gì thì pet.js phải đỡ được cái đó ----
-check("app.js đẩy trạng thái orb sang pet", /JavisPet\.setState\(state \|\| "idle"\)/.test(app));
+check("app.js đẩy trạng thái orb sang pet", /JavisPet\.setState\(petState \|\| state \|\| "idle"\)/.test(app));
+// 0.64.39: pet tách "ĐÃ BẮT ĐƯỢC giọng" (user_speaking) khỏi "đang chờ nghe", orb thì không.
+check("mic bắt được giọng thì pet sang hearing",
+  /setOrbState\(cls, label, cls === "listening" && turn\.state === "user_speaking" \? "hearing" : cls\)/.test(app));
+check("app.js báo pet: gật khi có chữ, viết khi chữ chảy về, vui khi xong",
+  /petReact\("nghe"\)/.test(app) && /petReact\("viet"\)/.test(app) && /petReact\("xong"\)/.test(app));
 // ORB_LABEL trong app.js là NGUỒN của mọi lớp trạng thái. Đọc thẳng từ đó thay vì chép lại:
 // chép là tạo ra chỗ thứ ba để lệch.
 const orbBlock = app.slice(app.indexOf("const ORB_LABEL = {"));
@@ -178,7 +183,8 @@ const petSrc = pet.slice(pet.indexOf("var SHAPES = {"), pet.indexOf("var MAC_DIN
 // ---- 9. Cỡ pet ----
 const sizes = [...pet.matchAll(/^\s+(\w+):\s*\{ key: "pet\.size\.\w+",\s*px: (\d+) \}/gm)];
 check("có bảng cỡ pet (" + sizes.length + " cỡ)", sizes.length >= 3);
-check("cỡ mặc định không phải cỡ nhỏ nhất", /size: "vua"/.test(pet));
+// Từ 0.64.39 cỡ là số px của thanh trượt; mặc định 72 (nấc "vua"), không phải nấc nhỏ nhất.
+check("cỡ mặc định không phải cỡ nhỏ nhất", /size: 72, /.test(pet) && /vua:\s*\{ key: "pet\.size\.vua",\s*px: 72 \}/.test(pet));
 // Bản đầu để 56px rồi CO XUỐNG 46px trên màn hẹp, chủ dự án báo nhìn bé quá trên iPhone.
 // Ngón tay to hơn con trỏ chuột, nên màn hẹp không được thu nhỏ pet.
 check("màn hẹp KHÔNG co pet nhỏ lại nữa", !/\.pet, \.pet-body \{ width: 46px/.test(css));
@@ -229,22 +235,26 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
     /var MAU_MAT = \{\s*\n\s*den:\s*\{ key: "pet\.eye\.den",\s*mau: "#201e1e" \},/.test(pet));
   check("đen và trắng vẫn còn nguyên",
     /trang:\s*\{ key: "pet\.eye\.trang",\s*mau: "#ffffff" \}/.test(pet));
-  check("mặc định là ĐEN", /size: "vua", eye: "den", eyeSize: "thuong" \}/.test(pet));
-  check("khoá lạ rơi về mặc định", /if \(!MAU_MAT\[c\.eye\]\) c\.eye = MAC_DINH\.eye;/.test(pet));
+  check("mặc định là ĐEN", /size: 72, eye: "den", eyeSize: 1,/.test(pet));
+  check("khoá lạ rơi về mặc định", /if \(!MAU_MAT\[c\.eye\] && c\.eye !== "custom"\) c\.eye = MAC_DINH\.eye;/.test(pet));
   check("con pet đeo màu mắt ĐÃ CHỌN, không suy từ thân nữa",
     /setProperty\("--pet-eye", mauMatCfg\(\)\)/.test(pet));
   check("dấu ấn trên thanh bên cũng theo màu mắt đã chọn",
-    /markSvg: function \(\) \{ return chanDung\(cfg\.shape, cfg\.palette, \{ mat: cfg\.eye, coMat: cfg\.eyeSize \}\); \}/.test(pet));
-  // Avatar trợ lý KHÔNG truyền `mat`, nên vẫn đi đường tự động. Mất chốt này là đổi màu mắt
-  // pet kéo theo cả danh sách trợ lý đổi theo.
-  check("avatar trợ lý vẫn suy tự động (không truyền mat)",
-    /var mat = \(MAU_MAT\[o\.mat\] \|\| \{\}\)\.mau \|\| mauMatTuDong\(tone\[0\]\);/.test(pet)
-    && !/previewSvg\(a\.shape, a\.palette, [^)]*mat:/.test(read("dashboard/agent-avatar.js")));
-  check("trang Linh vật có ô chọn màu mắt", /data-pet-eye="/.test(console_js)
-    && /P\.setCfg\(\{ eye: b\.dataset\.petEye \}\)/.test(console_js));
+    /markSvg: function \(\) \{ return chanDung\(cfg\.shape, cfg\.palette, optsCfg\(\)\); \}/.test(pet)
+    && /function optsCfg\(\) \{ return \{ mau: cfg\.color, mat: cfg\.eye, mauMat: cfg\.eyeColor, coMat: cfg\.eyeSize \}; \}/.test(pet));
+  // Avatar trợ lý dùng màu mắt RIÊNG của nó (0.64.39), không bao giờ màu mắt của con pet;
+  // trợ lý cũ chưa chọn thì vẫn đi đường tự động. Mất chốt này là đổi màu mắt pet kéo theo
+  // cả danh sách trợ lý đổi theo.
+  const avatarJs = read("dashboard/agent-avatar.js");
+  check("avatar trợ lý không đọc màu mắt của pet, chưa chọn thì suy tự động",
+    /var mat = mauMatCua\(o\.mat, o\.mauMat\) \|\| mauMatTuDong\(tone\[0\]\);/.test(pet)
+    && !/cfg\.eye|JavisPet\.get\(\)/.test(avatarJs));
+  check("trang Linh vật dùng bộ chỉnh chung của pet.js",
+    /P\.editorHtml\(cur, OPTS_ED\)/.test(console_js)
+    && /P\.editorBind\(host\.querySelector\("\[data-pet-editor\]"\), cur, \(patch, tam\) => P\.setCfg\(patch, tam\), OPTS_ED\)/.test(console_js));
   check("ô xem thử hình dáng vẽ đúng màu mắt đang chọn",
-    /\{ vanh: true, mat: cur\.eye, coMat: cur\.eyeSize \}/.test(console_js));
-  check("Đặt lại trả màu mắt về đen", /eye: "den", eyeSize: "thuong", enabled: true/.test(console_js));
+    /chanDung\(k, v\.palette, Object\.assign\(\{ vanh: !!o\.vanh \}, anhCua\(v\)\)\)/.test(pet));
+  check("Đặt lại trả màu mắt về đen", /eye: "den", eyeSize: 1, enabled: true/.test(console_js));
   ["settings.pet_eye", "pet.eye.den", "pet.eye.trang"].forEach(k => {
     check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string");
   });
@@ -261,8 +271,8 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
   // Thứ tự đọc: thẻ HÌNH DÁNG phải đứng TRƯỚC thẻ có nút Lưu.
   const than = console_js.slice(console_js.indexOf("const ve = () => {", console_js.indexOf("function renderPetCard")));
   check("hình dáng lên trước, khối nút Lưu xuống cuối",
-    than.indexOf("settings.pet_shape") > 0
-    && than.indexOf("settings.pet_shape") < than.indexOf("setPetSave"));
+    than.indexOf("editorHtml") > 0
+    && than.indexOf("editorHtml") < than.indexOf("setPetSave"));
 }
 
 // ---- 9d. Đang NGHĨ thì mắt đảo giữa hai dáng (0.59.9) ----
@@ -400,7 +410,7 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
 
   check("pet.js có bảng cỡ mắt", /var EYE_SIZES = \{/.test(pet));
   check("cỡ mắt vào cấu hình mặc định và được chuẩn hoá",
-    /eyeSize: "thuong"/.test(pet) && /if \(!EYE_SIZES\[c\.eyeSize\]\) c\.eyeSize = MAC_DINH\.eyeSize;/.test(pet));
+    /eyeSize: 1,/.test(pet) && /c\.eyeSize = heSo\(c\.eyeSize\);/.test(pet));
   // Hệ số phải được dùng THẬT ở CẢ HAI đường vẽ. Vẽ mắt sống mà quên thì chọn cỡ xong con pet
   // ở mép màn hình không đổi gì; vẽ chân dung tĩnh mà quên thì ô xem thử và dấu ấn trên thanh
   // bên nói khác con pet thật.
@@ -409,9 +419,9 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
   check("mắt to thì nới khoảng cách hai mắt cho khỏi chạm nhau", /function cachMat\(/.test(pet));
   check("JavisPet phơi danh sách cỡ mắt ra cho trang cài đặt", /eyeSizes: function \(\)/.test(pet));
 
-  check("trang Linh vật có hàng nút chọn cỡ mắt",
-    /data-pet-eye-size=/.test(console_js) && /settings\.pet_eye_size/.test(console_js));
-  check("nút Đặt lại trả cỡ mắt về mặc định", /eyeSize: "thuong"/.test(console_js));
+  check("bộ chỉnh có thanh trượt cỡ mắt",
+    /truot\("data-pet-eye-size"/.test(pet) && /settings\.pet_eye_size/.test(pet));
+  check("nút Đặt lại trả cỡ mắt về mặc định", /eyeSize: 1, enabled: true/.test(console_js));
   ["settings.pet_eye_size", "pet.eyesize.thuong", "pet.eyesize.to", "pet.eyesize.rat_to"].forEach(k => {
     check("khoá dịch " + k + " đủ hai thứ tiếng", !!vi[k] && !!en[k]);
   });

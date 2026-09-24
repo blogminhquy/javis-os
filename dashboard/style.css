@@ -3086,6 +3086,24 @@ body.ne-full-on .cview { z-index: 250; }
 }
 .pet-rig { transform-origin: 160px 160px; }
 
+/* PHẢN ỨNG TẠM của linh vật (pet.js -> dienPhanUng, 0.64.39). Gắn lên <svg> chứ không lên
+   .pet-body: .pet-body đang giữ transform trượt ra/nép vào, đè lên đó là pet giật về mép.
+     squish = bị bấm: bẹp xuống rồi bật lên
+     hop    = vừa trả lời xong: nhảy lên một cái
+     shake  = bị bấm dồn dập: lắc lư chóng mặt */
+.pet[data-anim] .pet-body svg { transform-origin: 50% 80%; }
+.pet[data-anim="squish"] .pet-body svg { animation: petSquish .5s cubic-bezier(.3, 1.6, .5, 1); }
+.pet[data-anim="hop"] .pet-body svg { animation: petHop .75s cubic-bezier(.3, 1.4, .5, 1); }
+.pet[data-anim="shake"] .pet-body svg { animation: petShake .7s ease-in-out; }
+@keyframes petSquish { 0% { transform: scale(1, 1); } 30% { transform: scale(1.12, .84); } 65% { transform: scale(.94, 1.08); } 100% { transform: scale(1, 1); } }
+@keyframes petHop { 0% { transform: translateY(0) scale(1, 1); } 20% { transform: translateY(0) scale(1.08, .9); }
+  50% { transform: translateY(-18%) scale(.95, 1.06); } 80% { transform: translateY(0) scale(1.05, .95); } 100% { transform: translateY(0) scale(1, 1); } }
+@keyframes petShake { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-12deg); } 40% { transform: rotate(10deg); }
+  60% { transform: rotate(-7deg); } 80% { transform: rotate(4deg); } }
+/* Đang ngủ gật: thân thở chậm và sâu hơn lúc thức. */
+.pet[data-ngu="1"] .pet-body svg { animation: petNgu 3.6s ease-in-out infinite; transform-origin: 50% 90%; }
+@keyframes petNgu { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, .96); } }
+
 /* Menu nhanh: hiện khi pet trượt ra. Không phải trang cài đặt, chỉ là 4 lối đi hay dùng. */
 /* Menu neo TUYỆT ĐỐI cạnh thân, chứ không phải một ô flex bên trong .pet: .pet chỉ rộng 56px
    nên nằm trong flex là menu bị bóp lại bằng min-content và chữ tràn ra ngoài màn hình.
@@ -3137,6 +3155,26 @@ body.ne-full-on .cview { z-index: 250; }
 .pet-swatch i { display: block; width: 100%; height: 100%; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(128, 128, 128, .28); }
 .pet-swatch[aria-pressed="true"] { border-color: var(--accent); }
 
+/* Bộ chỉnh diện mạo dùng chung (pet.js -> editorHtml, 0.64.39): trang Linh vật và cài đặt
+   avatar trợ lý. Chữ mới ở đây để 16px: trang này hay được mở trên điện thoại. */
+.pet-ed-head { margin-top: 14px; }
+.pet-editor > .pet-ed-head:first-child { margin-top: 0; }
+/* Ô MÀU TỰ CHỌN: chấm cầu vồng, bấm vào mở bảng chọn màu của hệ điều hành (input phủ kín
+   nhưng trong suốt). Đã chọn thì style inline tô đúng màu đó đè lên cầu vồng. */
+.pet-swatch-custom { position: relative; display: inline-block; box-sizing: border-box; }
+.pet-swatch-custom i { background: conic-gradient(#e5484d, #f5d014, #38b286, #1ea3c8, #4052c9, #ad55c3, #e5484d); }
+.pet-swatch-custom input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0;
+  border: 0; opacity: 0; cursor: pointer; }
+.pet-swatch-custom:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pet-hex { display: flex; align-items: center; gap: 10px; margin: 10px 0 0; font-size: 16px; color: var(--text2); font-weight: 400; }
+.pet-hex input { width: 8.5em; margin: 0; padding: 6px 10px; font: 16px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase; color: var(--text); background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; }
+.pet-hex input[aria-invalid="true"] { border-color: #d83137; }
+/* Thanh trượt Kích cỡ / Cỡ mắt, hai đầu có nhãn để biết kéo bên nào là to ra. */
+.pet-range-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 16px; color: var(--text3); }
+.pet-range-row span { flex: none; }
+.pet-range { flex: 1; min-width: 0; height: 32px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+
 /* Màn hẹp KHÔNG thu nhỏ pet nữa: ngón tay to hơn con trỏ chuột, và trên điện thoại một
    chấm bé còn khó thấy hơn trên màn rộng. Cỡ do người dùng chọn (trang Linh vật), chỉ giới
    hạn theo bề ngang màn để nó không chiếm nửa màn hình trên máy nhỏ. */
@@ -3145,7 +3183,7 @@ body.ne-full-on .cview { z-index: 250; }
   .pet-menu button { font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pet-body, .pet-menu { transition: none !important; animation: none !important; }
+  .pet-body, .pet-menu, .pet-body svg { transition: none !important; animation: none !important; }
 }
 
 /* Ô dấu ấn khi nó đang mang khuôn mặt linh vật (pet.js -> veDauAn). Ảnh logo cũ là

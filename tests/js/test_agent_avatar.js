@@ -94,4 +94,33 @@ assert.equal(swatch[1],'#112233');
   const h = A.html({slug:'x'}, 100, 'idle', {liec:'trai_duoi'});
   assert(/--aa-eye-x:144px/.test(h) && /--aa-eye-y:169px/.test(h), 'tâm chớp mắt đi theo mắt');
 }
+// ============================================================
+// 0.64.39: avatar dùng CHUNG bộ chỉnh với linh vật
+// ============================================================
+{
+  // Ngẫu nhiên: hình + bảng màu CÓ SẴN + mắt trắng hoặc đen (chủ dự án chốt 24/09).
+  const cu = ctx.window.JavisPet.toneOf;
+  ctx.window.JavisPet.toneOf = () => ['#c0703a'];   // thân tầm trung: trắng hay đen đều đọc được
+  const mat = new Set();
+  for (let i = 0; i < 80; i++) { const a = A.random(); mat.add(a.eye); assert(co(ctx.PALETTES, a.palette), 'không bốc màu tự chọn'); }
+  assert.deepEqual([...mat].sort(), ['den', 'trang'], 'mắt ngẫu nhiên phải ra cả trắng lẫn đen, và chỉ hai màu đó');
+  // Thân rất sáng thì không bao giờ bốc mắt trắng (mất mặt).
+  ctx.window.JavisPet.toneOf = () => ['#fafafa'];
+  for (let i = 0; i < 40; i++) assert.equal(A.random().eye, 'den', 'thân sáng thì mắt đen');
+  ctx.window.JavisPet.toneOf = cu;
+  // Màu tự chọn + mắt tự chọn + cỡ mắt đi qua of() và ra đúng trường form.
+  const v = A.of({avatar:{shape:'star',palette:'custom',color:'#FA4F05',eye:'custom',eyeColor:'#2A62B0',eyeSize:1.3}});
+  assert.equal(JSON.stringify(v), JSON.stringify({shape:'star',palette:'custom',color:'#fa4f05',eye:'custom',eyeColor:'#2a62b0',eyeSize:1.3}));
+  assert.deepEqual(A.formFields(v), {avatar_shape:'star',avatar_palette:'custom',avatar_eye_size:'1.3',
+    avatar_color:'#fa4f05',avatar_eye:'custom',avatar_eye_color:'#2a62b0'});
+  // Mã rác trong frontmatter không lọt: "custom" mất mã thì về bảng màu theo slug.
+  const hong = A.of({slug:'legacy',avatar:{palette:'custom',color:'"><script>',eye:'custom'}});
+  assert(co(ctx.PALETTES, hong.palette) && !hong.color && !hong.eye);
+  // html() mang theo màu mắt và mã màu để lúc đổi chủ đề vẽ lại đúng.
+  const h = A.html({avatar:v}, 40);
+  assert(/data-color="#fa4f05"/.test(h) && /data-eye="custom"/.test(h) && /data-eye-color="#2a62b0"/.test(h) && /data-eye-size="1.3"/.test(h));
+  // Picker dùng đúng bộ chỉnh của linh vật, không dựng bản riêng.
+  assert(/P\.editorHtml\(value, \{\}\)/.test(nguon) && /P\.editorBind\(host\.querySelector\('\.aa-editor'\)/.test(nguon),
+    'cài đặt avatar phải dùng bộ chỉnh chung JavisPet.editorHtml/editorBind');
+}
 console.log('OK - saved identity, stable legacy avatar, escaped markup, theme redraw survives a stray palette, staggered blink, preview gaze');

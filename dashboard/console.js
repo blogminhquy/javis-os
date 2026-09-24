@@ -6591,48 +6591,18 @@
       return;
     }
     if (tuMayChu) P.hydrate(tuMayChu);
+    // Bộ chỉnh diện mạo (hình dáng, cỡ, màu thân, màu mắt, cỡ mắt) nằm ở pet.js, dùng CHUNG
+    // với cài đặt avatar trợ lý (0.64.39): hai chỗ là một bộ, không lệch nhau được. Ở đây chỉ
+    // còn khối nút Lưu / Tắt / Đặt lại.
+    //
+    // Kích cỡ và cỡ mắt là THANH TRƯỢT: lúc kéo (tam = true) con pet đổi ngay nhưng chưa ghi
+    // máy chủ, thả tay mới ghi. Màu thân và màu mắt có thêm ô TỰ CHỌN kèm ô gõ mã màu.
+    const OPTS_ED = { size: true, vanh: true };
     const ve = () => {
       const cur = P.get();
-      const shapes = P.shapes(), palettes = P.palettes(), sizes = P.sizes(), mats = P.eyeColors();
-      const coMat = P.eyeSizes();
-      // Nhãn màu mắt lấy từ chính khoá của màu đó, KHÔNG ghép chuỗi vào trong lời gọi dịch:
-      // bộ quét khoá i18n (tests/js/test_i18n.mjs) chỉ đọc chuỗi đứng ngay sau lời gọi, nên
-      // ghép kiểu đó là nó bắt được một tiền tố cụt rồi báo thiếu một khoá không hề tồn tại.
-      //
-      // PHẢI NẰM TRONG `ve`, dưới dòng khai `mats`. Bản 0.59.36 đặt nó ở scope ngoài mà vẫn
-      // đọc `mats`, biến chỉ tồn tại trong `ve`: mỗi lần vẽ là một ReferenceError, `innerHTML`
-      // không kịp được gán, và cả trang Cài đặt linh vật trắng trơn. Không lỗi nào lên màn
-      // hình, chỉ là trống. Phép thử hồi đó soi MÃ NGUỒN bằng regex nên vẫn xanh trong khi
-      // tính năng chết hẳn - nay test_pet_trang_cai_dat.js CHẠY THẬT hàm vẽ này.
-      const nhanMat = (k) => t((mats[k] || mats.den).key);
       // Thứ tự: HÌNH DÁNG trước (thứ người ta tới đây để đổi), rồi cỡ, màu, màu mắt, và CUỐI
       // CÙNG mới tới khối nút Lưu / Tắt / Đặt lại. Chủ dự án chốt 15/09.
-      host.innerHTML = `<div class="settings-card">
-        <div class="settings-card-head"><b>${esc(t("settings.pet_shape"))}</b></div>
-        <div class="pet-picker" role="group">${Object.entries(shapes).map(([k, sh]) =>
-          // `vanh: true` - ô chọn hình dáng vẽ CẢ vành quỹ đạo, để mấy hình này trông đúng con
-          // pet thật ở mép màn hình chứ không phải một cái mặt trần. Avatar trợ lý và dấu ấn
-          // trên thanh bên vẫn không có vành: ở cỡ 26-30px nó chỉ còn là một vệt bẩn.
-          // `mat` - vẽ đúng màu mắt đang chọn, để ô xem thử không nói khác con pet thật.
-          `<button type="button" class="pet-pick" data-pet-shape="${esc(k)}" aria-pressed="${k === cur.shape}">${P.previewSvg(k, cur.palette, { vanh: true, mat: cur.eye, coMat: cur.eyeSize })}<span>${esc(t(sh.key))}</span></button>`).join("")}</div>
-        <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_size"))}</b><span class="gcard-tag">${esc(t(sizes[cur.size].key))}</span></div>
-        <div class="pet-picker" role="group">${Object.entries(sizes).map(([k, sz]) =>
-          `<button type="button" class="pet-pick pet-pick-size" data-pet-size="${esc(k)}" aria-pressed="${k === cur.size}"><i style="width:${Math.round(sz.px / 3)}px;height:${Math.round(sz.px / 3)}px"></i><span>${esc(t(sz.key))}</span></button>`).join("")}</div>
-        <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_color"))}</b><span class="gcard-tag">${esc(t(palettes[cur.palette].key))}</span></div>
-        <div class="pet-picker" role="group">${Object.keys(palettes).map(k => {
-          const tone = P.toneOf(k) || ["#888"];
-          return `<button type="button" class="pet-swatch" data-pet-palette="${esc(k)}" aria-pressed="${k === cur.palette}" title="${esc(t(palettes[k].key))}" aria-label="${esc(t(palettes[k].key))}"><i style="background:${esc(tone[0])}"></i></button>`;
-        }).join("")}</div>
-        <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_eye"))}</b><span class="gcard-tag">${esc(nhanMat(cur.eye))}</span></div>
-        <div class="pet-picker" role="group">${Object.entries(mats).map(([k, m]) =>
-          `<button type="button" class="pet-swatch" data-pet-eye="${esc(k)}" aria-pressed="${k === cur.eye}" title="${esc(nhanMat(k))}" aria-label="${esc(nhanMat(k))}"><i style="background:${esc(m.mau)}"></i></button>`).join("")}</div>
-        <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_eye_size"))}</b><span class="gcard-tag">${esc(t(coMat[cur.eyeSize].key))}</span></div>
-        <div class="pet-picker" role="group">${Object.entries(coMat).map(([k, cm]) =>
-          // Ô chọn cỡ mắt vẽ CHÍNH hình dáng và bảng màu đang dùng, chỉ đổi mỗi cỡ mắt: cỡ mắt
-          // là thứ khó tả bằng chữ, thấy ba khuôn mặt cạnh nhau thì chọn xong trong một giây.
-          // Không vẽ vành ở đây - hàng này đã có ba khuôn mặt rồi, thêm vành là rối.
-          `<button type="button" class="pet-pick" data-pet-eye-size="${esc(k)}" aria-pressed="${k === cur.eyeSize}">${P.previewSvg(cur.shape, cur.palette, { mat: cur.eye, coMat: k })}<span>${esc(t(cm.key))}</span></button>`).join("")}</div>
-      </div>
+      host.innerHTML = `<div class="settings-card"><div class="pet-editor" data-pet-editor>${P.editorHtml(cur, OPTS_ED)}</div></div>
       <div class="settings-card">
         <div class="settings-card-head"><b>${esc(t("settings.pet"))}</b><span class="gcard-tag">${esc(cur.enabled ? t("settings.tag_on") : t("settings.tag_off"))}</span></div>
         <p>${esc(t("settings.pet_desc"))}</p>
@@ -6660,12 +6630,8 @@
         stt.innerHTML = Icons.warn(t("settings.pet_save_fail") + (r.lech.length ? " (" + r.lech.join(", ") + ")" : ""));
       };
       host.querySelector("#setPetToggle").onclick = () => { P.setEnabled(!cur.enabled); ve(); };
-      host.querySelector("#setPetReset").onclick = () => { P.setCfg({ shape: "circle", palette: "amber", size: "vua", side: "right", pos: 0.62, eye: "den", eyeSize: "thuong", enabled: true }); ve(); };
-      host.querySelectorAll("[data-pet-shape]").forEach(b => b.onclick = () => { P.setCfg({ shape: b.dataset.petShape }); ve(); });
-      host.querySelectorAll("[data-pet-size]").forEach(b => b.onclick = () => { P.setCfg({ size: b.dataset.petSize }); ve(); });
-      host.querySelectorAll("[data-pet-palette]").forEach(b => b.onclick = () => { P.setCfg({ palette: b.dataset.petPalette }); ve(); });
-      host.querySelectorAll("[data-pet-eye]").forEach(b => b.onclick = () => { P.setCfg({ eye: b.dataset.petEye }); ve(); });
-      host.querySelectorAll("[data-pet-eye-size]").forEach(b => b.onclick = () => { P.setCfg({ eyeSize: b.dataset.petEyeSize }); ve(); });
+      host.querySelector("#setPetReset").onclick = () => { P.setCfg({ shape: "circle", palette: "amber", size: 72, side: "right", pos: 0.62, eye: "den", eyeSize: 1, enabled: true }); ve(); };
+      P.editorBind(host.querySelector("[data-pet-editor]"), cur, (patch, tam) => P.setCfg(patch, tam), OPTS_ED);
     };
     ve();
   }

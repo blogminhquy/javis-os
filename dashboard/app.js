@@ -109,7 +109,7 @@ fetch("/config").then(r => r.json()).then(cfg => {
 // ============================================
 // Orb state
 // ============================================
-function setOrbState(state, label) {
+function setOrbState(state, label, petState) {
   orbState.className = "orb-state " + state;
   orbState.textContent = label;
   const thinking = state === "thinking";
@@ -118,7 +118,9 @@ function setOrbState(state, label) {
   // Linh vật ở mép màn hình diễn theo ĐÚNG trạng thái này, không có nguồn riêng: nếu chữ
   // trên orb nói "đang nghĩ" mà pet vẫn ngồi chớp mắt thì một trong hai đang nói dối.
   // Lớp rỗng "" của orb là trạng thái nghỉ.
-  try { if (window.JavisPet) window.JavisPet.setState(state || "idle"); } catch (e) {}
+  // `petState` chỉ khác `state` ở chỗ orb không vẽ riêng: "hearing" (mic đã bắt được giọng,
+  // orb vẫn hiện lớp listening như lúc chờ nghe).
+  try { if (window.JavisPet) window.JavisPet.setState(petState || state || "idle"); } catch (e) {}
   try { if (window.JavisWorkspace) window.JavisWorkspace.onChatState(state || "idle"); } catch (e) {}
 }
 
@@ -142,6 +144,7 @@ const voice = new JavisVoice({
     if (handsFree && !attention.preview(text)) { nhapGiong(""); return; }
     if (adaptive.input(text)) return;
     nhapGiong(text);
+    if (text) petReact("nghe");   // mỗi lần bắt thêm chữ, linh vật gật nhẹ một cái
     // Đang tạm dừng vì nghi chen ngang mà có chữ -> chen ngang THẬT: đạo diễn trả stop_tts.
     // Đọc phần Javis đã đọc ra tiếng TRƯỚC khi dừng, để tin kế tiếp mang ngắt_lời=.
     if (turn.interrupted && text) turn.setInterruptedAt(voice.lastSpokenPrefix());
@@ -373,8 +376,12 @@ function capNhatOrb() {
   if (turn.background > 0 && (turn.state === "idle" || turn.state === "listening")) {
     label += " · " + window.t("app.orb_background", { n: turn.background });
   }
-  setOrbState(cls, label);
+  // Linh vật tách "đang chờ nghe" với "ĐÃ BẮT ĐƯỢC giọng" (user_speaking): orb dùng chung một
+  // lớp cho cả hai, nên trước 0.64.39 nói xong một câu mà pet không tỏ ra là đã nghe thấy gì.
+  setOrbState(cls, label, cls === "listening" && turn.state === "user_speaking" ? "hearing" : cls);
 }
+// Báo linh vật những việc không phải trạng thái orb (xem JavisPet.react trong pet.js).
+function petReact(ten) { try { if (window.JavisPet && window.JavisPet.react) window.JavisPet.react(ten); } catch (e) {} }
 
 function runActions(acts) {
   (acts || []).forEach((a) => {
@@ -805,6 +812,7 @@ function handleMessage(data) {
     if (!t) return;
     t.text += (data.content || "");
     if (isActive) {
+      petReact("viet");   // chữ trả lời đang chảy về: linh vật chuyển từ nghĩ sang cắm cúi viết
       if (!t.bubble) { t.bubble = createStreamingBubble(); showActivity(Icons.msg("pen-line", window.t("app.act_writing"))); }
       // V3: đang nói chuyện bằng giọng thì chữ hiện THEO LỜI ĐỌC, không hiện trước loa.
       if (dangTheoLoi() && data.tts !== false) batTheoLoi(t.bubble, t.text, null, false);
@@ -853,6 +861,9 @@ function handleMessage(data) {
         msgEl.appendChild(nen);
       }
       if (finalText.trim()) recordTurn("javis", finalText, null, ask, t && t.buoc);
+      // Có câu trả lời thật thì linh vật vui một nhịp. Đang đọc thành tiếng thì nó tự đợi đọc
+      // xong mới nhảy (pet.js giữ cờ choXong), nên gọi ngay ở đây là đủ.
+      if (finalText.trim()) petReact("xong");
       // data.tts === false: khung "response" này KHÔNG được đọc (vd bản sửa lại sau khi bóc
       // JAVIS_LESSON của phiên trợ lý) - giống hệt cách nhánh "stream" đã tôn trọng data.tts.
       if (voice.ttsEnabled && t && data.tts !== false) {

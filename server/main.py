@@ -4375,12 +4375,27 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
                 pet["enabled"] = bool(pet_moi["enabled"])
             for k in ("shape", "palette", "side", "size", "eye", "eyeSize"):
                 v = pet_moi.get(k)
+                # Từ 0.64.39 cỡ thân và cỡ mắt là THANH TRƯỢT nên tới đây dưới dạng SỐ (px và
+                # hệ số). Kẹp vào khoảng pet.js cho phép; tên nấc cũ ("vua", "to") vẫn đi
+                # nhánh chuỗi bên dưới cho client cũ. bool là con của int nên loại riêng.
+                if k in ("size", "eyeSize") and isinstance(v, (int, float)) and not isinstance(v, bool):
+                    if k == "size":
+                        pet[k] = int(max(44, min(150, round(v))))
+                    else:
+                        pet[k] = round(max(0.8, min(1.5, float(v))), 2)
+                    continue
                 # Gạch dưới cũng là ký tự HỢP LỆ: khoá cỡ lớn nhất tên là "rat_lon", mà luật
                 # cũ chỉ tha dấu gạch ngang nên isalnum() trả False và cỡ đó bị loại LẶNG LẼ -
                 # người dùng chọn "Rất lớn", màn hình đổi ngay, F5 xong về cỡ cũ mà không có
                 # một dòng lỗi nào (chủ dự án báo 15/09).
                 if isinstance(v, str) and 0 < len(v) <= 24 and v.replace("-", "").replace("_", "").isalnum():
                     pet[k] = v
+            # Mã màu của ô TỰ CHỌN (thân và mắt). Chỉ nhận đúng "#rrggbb": thứ này đi thẳng
+            # vào thuộc tính style ở trình duyệt, không được để chuỗi tự do lọt qua.
+            for k in ("color", "eyeColor"):
+                v = pet_moi.get(k)
+                if isinstance(v, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", v):
+                    pet[k] = v.lower()
             if "pos" in pet_moi:
                 try:
                     pet["pos"] = max(0.0, min(1.0, float(pet_moi["pos"])))
@@ -5807,7 +5822,9 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
                      model: str = Form(""), slug: str = Form(""), prompt: str = Form(""),
                      brain: str = Form("brain"), model_provider: str = Form(""),
                      group: str = Form(None), avatar_shape: str = Form(None),
-                     avatar_palette: str = Form(None)):
+                     avatar_palette: str = Form(None), avatar_color: str = Form(None),
+                     avatar_eye: str = Form(None), avatar_eye_color: str = Form(None),
+                     avatar_eye_size: str = Form(None)):
     slug = slug or _slugify(name)
     skills_list = [s.strip() for s in re.split(r"[,\n]", skills) if s.strip()]
     # `model_provider` nói RÕ model thuộc nhà nào - cùng một tên model có thể có ở hai nhà
@@ -5818,7 +5835,9 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
     path = _agents_dir(brain) / f"{slug}.md"
     previous = _read_md(path)[0] if path.is_file() else None
     try:
-        avatar = agent_avatar.for_save(previous, slug, avatar_shape, avatar_palette)
+        avatar = agent_avatar.for_save(previous, slug, avatar_shape, avatar_palette,
+                                       avatar_color, avatar_eye, avatar_eye_color,
+                                       avatar_eye_size)
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
     # GIỮ mọi khoá frontmatter KHÔNG nằm trong form. Trước đây meta được dựng lại từ đầu, nên
