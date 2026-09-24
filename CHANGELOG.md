@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.38] - 2026-09-24
+### Sửa lỗi
+- (đang viết) Javis hiểu lại tên mình khi máy nghe chép thành "David".
+
 ## [0.64.37] - 2026-09-24
 ### Cải thiện
 - Thêm nhịp hội thoại Tự nhiên để thử trong Nâng cao: chờ câu dang dở, giữ lượt khi cần suy nghĩ và tự điều chỉnh theo nhịp nói. Chờ cố định vẫn là mặc định.
