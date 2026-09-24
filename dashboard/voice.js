@@ -196,19 +196,30 @@ class JavisVoice {
     const blob = await this._stopRecorder();
     if (!this.sttUpload || !blob || blob.size < 2000) { cb(text); return; }
     let better = "";
+    let timer;
     try {
       const fd = new FormData();
       fd.append("file", blob, "voice.webm");
       // "auto" = bảo máy chủ ĐỪNG gợi ý tiếng cho Whisper, để nó tự dò (xem /stt trong main.py).
       fd.append("lang", this.langAuto ? "auto" : (this.lang || ""));
       const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 8000);
+      timer = setTimeout(() => ctl.abort(), 8000);
       const r = await fetch(this.sttUrl, { method: "POST", body: fd, signal: ctl.signal });
-      clearTimeout(timer);
       const d = await r.json();
       if (d && d.ok && d.text) better = String(d.text).trim();
     } catch (e) { better = ""; }
-    cb(better || text);
+    finally { clearTimeout(timer); }
+    cb(JavisVoice.chonBanNghe(text, better));
+  }
+
+  // Recorder có thể bắt đầu muộn hơn Web Speech (xin quyền mic bất đồng bộ). Khi đó file
+  // tải lên chỉ có đuôi câu, thậm chí chỉ còn "Javis"; đừng dùng nó đè lên câu đủ ý.
+  static chonBanNghe(browser, groq) {
+    const a = String(browser || "").trim(), b = String(groq || "").trim();
+    if (!b) return a;
+    const words = s => (s.match(/[\p{L}\p{N}]+/gu) || []).length;
+    if (words(a) >= 4 && words(b) < Math.max(2, Math.ceil(words(a) * 0.5))) return a;
+    return b;
   }
 
   getInputLevel() {
@@ -239,9 +250,9 @@ class JavisVoice {
     }
 
     this.recognition = new SR();
-    // Đa ngôn ngữ: để trống lang, Chrome lấy ngôn ngữ của trình duyệt. Web Speech không nghe
-    // được nhiều tiếng cùng lúc, nên đây là mức "không cố định" tốt nhất máy nghe này có.
-    this.recognition.lang = this.langAuto ? "" : this.lang;
+    // Web Speech chỉ nhận một ngôn ngữ mỗi phiên. Khi Groq tự dò ngôn ngữ, dùng tiếng Việt
+    // làm bản dự phòng của trình duyệt; để lang rỗng có thể âm thầm chọn locale khác của máy.
+    this.recognition.lang = this.lang;
     this.recognition.continuous = true;       // nghe liên tục, không dừng giữa câu
     // iPhone/iPad: WebKit KHÔNG nghe liên tục được. Đặt continuous=true thì nó vào một phiên
     // "ghi âm" không bao giờ tự kết thúc câu, và onend tự mở lại càng làm nó kéo dài - đúng
@@ -377,7 +388,8 @@ class JavisVoice {
       // Gửi toàn bộ text đã tích luỹ khi user dừng. Đuôi chữ tạm chưa được chốt final thì
       // ghép vào (iOS không bao giờ chốt; Chrome hiếm khi để sót), cùng phép ghép chống lặp
       // với _committed: final đã phủ đuôi thì không ghép hai lần.
-      const finalText = JavisVoice.ghepDuoiTam(this.accumulatedTranscript, this._duoiTam);
+      const finalText = JavisVoice.ghepDuoiTam(
+        this.accumulatedTranscript || this._committed, this._duoiTam);
       this._committed = "";
       this._duoiTam = "";
       this._batDauLuot = 0;            // lượt này khép lại: trần tính lại từ đầu ở lượt sau
@@ -1164,13 +1176,12 @@ class JavisVoice {
   }
 
   setRecognitionLang(lang) {
-    // "auto" = ĐA NGÔN NGỮ, không cố định. Web Speech không nghe được nhiều tiếng cùng lúc,
-    // nên với máy nghe trình duyệt "auto" nghĩa là để trống lang (Chrome lấy ngôn ngữ của
-    // trình duyệt); còn máy nghe Groq Whisper nhận "auto" và tự dò tiếng (xem /stt). Giữ
+    // "auto" cho Groq Whisper tự dò tiếng (xem /stt). Web Speech chỉ nghe được một tiếng,
+    // nên nó dùng mã cụ thể gần nhất làm bản dự phòng. Giữ
     // this.lang là mã cụ thể gần nhất để phần ĐỌC (utter.lang, chọn giọng Việt) không hỏng.
     this.langAuto = lang === "auto";
     if (!this.langAuto) this.lang = lang;
-    if (this.recognition) this.recognition.lang = this.langAuto ? "" : this.lang;
+    if (this.recognition) this.recognition.lang = this.lang;
   }
 
   _splitIntoChunks(text, maxLen) {

@@ -71,9 +71,8 @@ check("CANARY: không còn sót mặc định 800 nào", !/\|\| "800"/.test(app)
 // ---- 4. voice.js + main.py: "auto" đi đúng hai đường nghe ----
 check("voice.js: setRecognitionLang('auto') bật langAuto và KHÔNG ghi đè this.lang (phần đọc còn giọng Việt)",
   /this\.langAuto = lang === "auto";\s*\n\s*if \(!this\.langAuto\) this\.lang = lang;/.test(voice));
-check("voice.js: máy nghe trình duyệt để trống lang khi auto",
-  /this\.recognition\.lang = this\.langAuto \? "" : this\.lang;/.test(voice)
-  && (voice.match(/this\.langAuto \? "" : this\.lang/g) || []).length >= 2);
+check("voice.js: máy nghe trình duyệt giữ tiếng Việt dự phòng khi Groq tự dò",
+  (voice.match(/this\.recognition\.lang = this\.lang;/g) || []).length >= 2);
 check("voice.js: gửi /stt chữ 'auto' thay vì mã tiếng",
   /fd\.append\("lang", this\.langAuto \? "auto" : \(this\.lang \|\| ""\)\);/.test(voice));
 check("main.py: /stt đổi 'auto' thành '' (Whisper tự dò), rỗng vẫn về None (mặc định vi)",

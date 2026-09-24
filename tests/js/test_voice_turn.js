@@ -69,6 +69,7 @@ check("isStopPhrase V3: 'thôi dừng việc đó lại' KHÔNG phải DỪNG", 
 check("endpointing V3: kết bằng 'ừm' -> chờ dài", v.delayFor("cho anh xem doanh thu ừm") === 2200);
 check("endpointing V3: kết bằng 'kiểu' -> chờ dài", v.delayFor("anh muốn nó kiểu") === 2200);
 check("endpointing V3: 'vậy à' là câu hỏi xong -> chờ ngắn", v.delayFor("hôm nay lỗ vậy à") === 800);
+check("chỉ gọi Javis -> chờ thêm để nghe phần yêu cầu", v.delayFor("Javis ơi") === 2200);
 
 // ---- 3. Cụm DỪNG ----
 check("isStopPhrase: 'thôi'", T.isStopPhrase("thôi"));

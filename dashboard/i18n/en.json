@@ -166,7 +166,7 @@
   "qs.rec_vi_opt": "Vietnamese · vi-VN",
   "qs.rec_en_opt": "English · en-US",
   "qs.rec_auto_opt": "Multilingual · not pinned",
-  "qs.rec_auto_hint": "Multilingual: the Groq Whisper listener detects the language being spoken; the browser listener can only follow the browser language.",
+  "qs.rec_auto_hint": "Multilingual: Groq Whisper detects the spoken language; browser recognition still uses one fixed language (Vietnamese by default).",
   "qs.endpoint_fast_opt": "Fast · 0.5 s",
   "qs.endpoint_mid_opt": "Medium · 0.8 s",
   "qs.endpoint_slow_opt": "Slow · 1.2 s (default)",
