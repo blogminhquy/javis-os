@@ -1301,15 +1301,14 @@ async def auth_setup(request: Request, username: str = Form(...), password: str 
     cfg = cfgmod.read_settings()
     if cfgmod.auth_enabled(cfg):
         return JSONResponse({"ok": False, "error": "Đã có tài khoản - hãy đăng nhập."}, status_code=400)
-    # PUBLIC: chống kẻ chỉ-có-URL chiếm admin lần đầu → bắt buộc MÃ THIẾT LẬP (in trong log server).
-    if cfgmod.setup_token_required() and not cfgmod.check_setup_token(setup_token):
-        return JSONResponse({"ok": False, "error": "Sai hoặc thiếu MÃ THIẾT LẬP - xem mã trong log/terminal của server."}, status_code=403)
+    # MÃ THIẾT LẬP đã bỏ (0.64.47, chủ dự án chốt 24/09): lần đầu chỉ cần tên + mật khẩu, bảo
+    # vệ tiếp theo là 2FA. `setup_token` vẫn nhận nhưng bỏ qua, để client cũ còn gửi không lỗi.
+    # Máy cài bằng install.sh có admin sẵn từ .env nên màn này không bao giờ hiện ra ở đó.
     if len(password) < 8:
         return JSONResponse({"ok": False, "error": "Mật khẩu tối thiểu 8 ký tự"}, status_code=400)
     h, salt = cfgmod.hash_password(password)
     cfg["auth"] = {"username": username.strip() or "admin", "password_hash": h, "salt": salt}
     cfgmod.write_settings(cfg)
-    cfgmod.clear_setup_token()
     return _session_cookie(JSONResponse({"ok": True}), cfgmod.new_session(), request)
 
 
@@ -10411,15 +10410,9 @@ async def _start_scheduler():
     try:
         if cfgmod.provision_admin_from_env():
             print("[auth] Đã tạo tài khoản admin từ JAVIS_ADMIN_PASSWORD (env).", file=_sys.stderr)
-        if cfgmod.setup_token_required():
-            _tok = cfgmod.get_or_create_setup_token()
-            print("\n" + "=" * 66 +
-                  "\n  [BẢO MẬT] Javis chạy PUBLIC, CHƯA có tài khoản admin."
-                  "\n  Mở app → màn tạo tài khoản sẽ hỏi MÃ THIẾT LẬP dưới đây:"
-                  f"\n      SETUP TOKEN:  {_tok}"
-                  "\n  (Chỉ người xem được log/terminal này tạo được admin. Hoặc đặt"
-                  "\n   JAVIS_ADMIN_PASSWORD env để tạo sẵn admin, khỏi cần mã.)\n" +
-                  "=" * 66 + "\n", file=_sys.stderr)
+        # Mã thiết lập đã bỏ (0.64.47): dọn file .setup_token còn sót từ bản cũ, để không còn
+        # một "chìa khoá" nằm trong thư mục state mà không ai dùng tới.
+        cfgmod.clear_setup_token()
     except Exception as e:
         print(f"[auth bootstrap] {e}", file=_sys.stderr)
     async def _scheduler_loop():

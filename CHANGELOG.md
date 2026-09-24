@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.47] - 2026-09-24
 ### Cải thiện
-- Thiết lập lần đầu: đang làm.
+- **Thiết lập lần đầu chỉ cần tên đăng nhập và mật khẩu**, không còn phải đi tìm MÃ THIẾT LẬP trong log server. Bảo vệ tài khoản giờ giao cho 2FA: vào xong nên bật ngay.
+- Lưu ý khi dựng server công khai: lúc chưa có tài khoản, ai mở link trước sẽ tạo được admin. Cài bằng `install.sh` (đã hỏi tên và mật khẩu sẵn) hoặc tạo tài khoản ngay sau khi dựng là tránh được.
 
 ## [0.64.46] - 2026-09-24
 ### Sửa lỗi

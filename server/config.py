@@ -1200,56 +1200,11 @@ def note_token_failure(ip: str, thu: str = ""):
     except Exception:
         pass
 
-# ---- Setup token: chống CHIẾM ADMIN lần đầu trên public ----
-# Khi chạy public mà CHƯA có admin, /auth/setup PHẢI kèm token này - token chỉ in ra LOG server
-# lúc khởi động, nên chỉ chính chủ (xem được log/terminal) tạo được tài khoản. Kẻ chỉ-có-URL bó tay.
+# ---- Mã thiết lập (ĐÃ BỎ từ 0.64.47) ----
+# Trước đây chạy public mà chưa có admin thì /auth/setup đòi một mã chỉ in ra log server. Chủ
+# dự án chốt 24/09 bỏ đi: lần đầu chỉ cần tên + mật khẩu, bảo vệ tài khoản giao cho 2FA, và máy
+# cài bằng install.sh đã có admin sẵn từ .env. Chỉ còn lại hàm dọn file mã cũ lúc khởi động.
 _SETUP_TOKEN_PATH = STATE_DIR / ".setup_token"
-
-
-def setup_token_required():
-    return require_login() and not auth_enabled()
-
-
-def get_or_create_setup_token():
-    """Đọc/sinh token thiết lập 1 lần. None nếu không cần (local, hoặc đã có admin)."""
-    if not setup_token_required():
-        return None
-    try:
-        if _SETUP_TOKEN_PATH.exists():
-            t = _SETUP_TOKEN_PATH.read_text(encoding="utf-8").strip()
-            if t:
-                return t
-        t = secrets.token_urlsafe(24)
-        _SETUP_TOKEN_PATH.write_text(t + "\n", encoding="utf-8")  # xuống dòng → cat ra sạch, dễ copy
-        return t
-    except Exception:
-        return None
-
-
-def lam_sach_setup_token(raw):
-    """Gọt thứ người ta THẬT SỰ dán vào ô, về đúng chuỗi mã.
-
-    Mã in ra log nằm CÙNG DÒNG với nhãn: "      SETUP TOKEN:  abc123". Bôi đen một dòng trong
-    terminal là dính cả nhãn, và bản cũ so nguyên cục đó với mã thật rồi báo "sai mã" - đúng
-    thao tác tự nhiên nhất lại là thao tác hỏng. Gọt nhãn KHÔNG nới lỏng bảo mật: phần còn lại
-    vẫn phải khớp tuyệt đối, vẫn so bằng compare_digest.
-    """
-    t = (raw or "").strip()
-    for nhan in ("SETUP TOKEN:", "SETUP_TOKEN:", "setup token:", "MÃ THIẾT LẬP:"):
-        if t.upper().startswith(nhan.upper()):
-            t = t[len(nhan):].strip()
-            break
-    return t.strip().strip("'\"`").strip()
-
-
-def check_setup_token(provided):
-    try:
-        if not _SETUP_TOKEN_PATH.exists():
-            return False
-        real = _SETUP_TOKEN_PATH.read_text(encoding="utf-8").strip()
-        return bool(real) and secrets.compare_digest(real, lam_sach_setup_token(provided))
-    except Exception:
-        return False
 
 
 def clear_setup_token():

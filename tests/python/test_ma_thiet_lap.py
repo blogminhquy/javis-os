@@ -1,27 +1,33 @@
-"""Mã thiết lập: cửa chống CHIẾM ADMIN lần đầu trên server công khai.
+"""Thiết lập lần đầu chỉ cần TÊN + MẬT KHẨU, không còn MÃ THIẾT LẬP (0.64.47).
 
-    python tests/run.py ma_thiet_lap
+    python tests/python/test_ma_thiet_lap.py
 
-Javis chạy public mà chưa có admin thì ai mở được URL cũng tạo được tài khoản admin. Cửa này
-đóng lỗ đó: /auth/setup đòi một mã CHỈ in ra log server và nằm trong file bên trong container,
-nên chỉ người có quyền vào máy mới tạo được admin.
+Trước 0.64.47, chạy public (VPS/Docker) mà chưa có admin thì /auth/setup đòi một mã chỉ in ra
+log server. Chủ dự án chốt 24/09: đã có 2FA, bỏ mã đi, màn chào mừng chỉ hỏi tên và mật khẩu.
+Máy cài bằng install.sh vẫn có admin sẵn từ .env nên không bao giờ thấy màn này.
 
-Khách báo 02/09: vừa vào đã dính "Sai hoặc thiếu MÃ THIẾT LẬP". Cửa hoạt động ĐÚNG, nhưng ba
-chỗ làm người ta vấp, và file này canh cả ba:
-  1. Mã in ra log nằm CÙNG DÒNG với nhãn "SETUP TOKEN:", nên bôi đen một dòng là dính cả nhãn.
-  2. Ô nhập nằm ở mục 2, còn nút bấm và dòng báo lỗi ở tít đáy - bỏ trống thì không thấy ô nào
-     đang trống, có người còn không biết là CÓ một ô như vậy.
-  3. Cửa chỉ được đóng khi THẬT SỰ cần: chạy local hoặc đã có admin thì không hỏi mã.
+File này GỌI THẬT endpoint ở chế độ public và khoá lại:
+  1. Tạo được admin chỉ với tên + mật khẩu, không gửi mã nào.
+  2. Rào còn lại vẫn đứng: mật khẩu tối thiểu 8 ký tự; đã có admin thì không tạo đè được.
+  3. Client cũ còn gửi `setup_token` thì vẫn chạy, không lỗi.
+  4. Giao diện và máy chủ không còn dấu vết mã: không ô nhập, không in ra log, file mã cũ bị dọn.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import json
 import os
 import tempfile
+from pathlib import Path
 
-os.environ["JAVIS_STATE_DIR"] = tempfile.mkdtemp(prefix="javis-token-")
+state = tempfile.mkdtemp(prefix="javis-setup-")
+os.environ["JAVIS_STATE_DIR"] = state
+os.environ["BRAINS_DIR"] = str(Path(state) / "brains")
+os.environ["JAVIS_SESSIONS_DB"] = str(Path(state) / "sessions.db")
 os.environ["JAVIS_REQUIRE_LOGIN"] = "1"      # giả lập deploy public
 
+import main  # noqa: E402
 import config as cfgmod  # noqa: E402
+from fastapi import FastAPI  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
 fails = []
 
@@ -32,60 +38,57 @@ def check(ten, dieu_kien, them=""):
         fails.append(ten)
 
 
-# ---- 1. Gọt thứ người ta THẬT SỰ dán vào ô ----------------------------------
-# Đây là thao tác tự nhiên nhất: bôi đen dòng trong log rồi dán. Bản cũ so nguyên cục có nhãn
-# với mã thật nên báo "sai mã", tức đúng thao tác tự nhiên nhất lại là thao tác hỏng.
-check("CANARY: dán cả dòng log kèm nhãn vẫn ra đúng mã",
-      cfgmod.lam_sach_setup_token("      SETUP TOKEN:  abc123") == "abc123")
-check("nhãn viết thường cũng gọt được",
-      cfgmod.lam_sach_setup_token("setup token: abc123") == "abc123")
-check("nhãn tiếng Việt cũng gọt được",
-      cfgmod.lam_sach_setup_token("MÃ THIẾT LẬP: abc123") == "abc123")
-check("xuống dòng của cat bị cắt", cfgmod.lam_sach_setup_token("abc123\n") == "abc123")
-check("nháy kép do copy dính cũng cắt", cfgmod.lam_sach_setup_token('"abc123"') == "abc123")
-check("mã sạch thì giữ nguyên", cfgmod.lam_sach_setup_token("abc123") == "abc123")
-# Gọt nhãn KHÔNG được biến thành nới lỏng: phần còn lại vẫn phải khớp tuyệt đối.
-check("CANARY: gọt nhãn không làm mã sai thành đúng",
-      cfgmod.lam_sach_setup_token("SETUP TOKEN: sai-mã") == "sai-mã")
+app = FastAPI()
+app.post("/auth/setup")(main.auth_setup)
+client = TestClient(app)
 
-# ---- 2. Cửa mở/đóng đúng lúc ------------------------------------------------
-check("public + chưa có admin thì BẮT BUỘC có mã", cfgmod.setup_token_required())
-tok = cfgmod.get_or_create_setup_token()
-check("sinh được mã và ghi ra file", bool(tok) and len(tok) > 20, tok)
-check("gọi lại trả ĐÚNG mã cũ, không sinh mã mới mỗi lần",
-      cfgmod.get_or_create_setup_token() == tok)
-check("mã đúng thì qua cửa", cfgmod.check_setup_token(tok))
-check("và dán cả dòng log kèm nhãn cũng qua được cửa",
-      cfgmod.check_setup_token("   SETUP TOKEN:  " + tok + "  "))
-check("mã sai thì chặn", not cfgmod.check_setup_token(tok + "x"))
-check("bỏ trống thì chặn", not cfgmod.check_setup_token(""))
-check("None thì chặn, không nổ", not cfgmod.check_setup_token(None))
+check("đang giả lập server public, bắt buộc đăng nhập", cfgmod.require_login())
+check("và chưa có admin", not cfgmod.auth_enabled())
 
-# Tạo xong admin là mã bị xoá: để lại một mã còn sống sau khi đã có admin là để lại chìa khoá
-# thừa, mà /auth/setup lúc đó cũng đã tự chặn bằng "Đã có tài khoản".
+# ---- 2. Rào mật khẩu vẫn đứng (thử TRƯỚC khi tạo admin) ----
+r = client.post("/auth/setup", data={"username": "quy", "password": "ngan"})
+check("mật khẩu dưới 8 ký tự vẫn bị chặn", r.status_code == 400 and not cfgmod.auth_enabled(), r.text)
+
+# ---- 1. Tên + mật khẩu là đủ ----
+r = client.post("/auth/setup", data={"username": "quy", "password": "matkhau-dai-du"})
+check("CANARY: public + chưa admin, tạo được admin CHỈ với tên + mật khẩu", r.status_code == 200 and r.json().get("ok"), r.text)
+check("admin đã được ghi, đúng tên", cfgmod.auth_enabled() and cfgmod.read_settings()["auth"]["username"] == "quy")
+check("tạo xong là có phiên đăng nhập luôn (cookie)", bool(r.cookies) or "set-cookie" in {k.lower() for k in r.headers})
+
+# ---- 2b. Đã có admin thì không ai tạo đè ----
+r = client.post("/auth/setup", data={"username": "ke-la", "password": "matkhau-ke-la"})
+check("CANARY: đã có admin thì /auth/setup từ chối, không tạo đè",
+      r.status_code == 400 and cfgmod.read_settings()["auth"]["username"] == "quy", r.text)
+
+# ---- 3. Client cũ còn gửi setup_token ----
+s = cfgmod.read_settings(); s.pop("auth", None); cfgmod.write_settings(s)
+r = client.post("/auth/setup", data={"username": "cu", "password": "matkhau-client-cu", "setup_token": "gi-cung-duoc"})
+check("client cũ gửi kèm setup_token vẫn tạo được, không lỗi", r.status_code == 200 and r.json().get("ok"), r.text)
+
+# ---- 4. Không còn dấu vết mã ----
+cu = Path(state) / ".setup_token"
+cu.write_text("ma-cu-con-sot\n", encoding="utf-8")
 cfgmod.clear_setup_token()
-check("CANARY: xoá mã rồi thì mã cũ hết tác dụng", not cfgmod.check_setup_token(tok))
-# Không có file mã mà vẫn đòi mã = ngõ cụt vĩnh viễn. Phải sinh lại được.
-check("và mã mới sinh lại được, không kẹt vĩnh viễn",
-      bool(cfgmod.get_or_create_setup_token()))
+check("file .setup_token cũ bị dọn", not cu.exists())
 
-# ---- 3. Giao diện phải chỉ ĐÚNG ô đang trống -------------------------------
+_cfg = (SERVER / "config.py").read_text(encoding="utf-8")
+_main = (SERVER / "main.py").read_text(encoding="utf-8")
+check("máy chủ không còn hàm kiểm/sinh mã",
+      "def check_setup_token" not in _cfg and "def get_or_create_setup_token" not in _cfg)
+check("lúc khởi động không còn in SETUP TOKEN ra log", "SETUP TOKEN:" not in _main)
+check("lúc khởi động dọn file mã cũ", "cfgmod.clear_setup_token()" in _main)
+
+_html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
 _app = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
-check("có ô nhập mã trong wizard", 'id="wzToken"' in
-      (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8"))
-# Nút bấm ở đáy, ô nhập ở mục 2. Báo lỗi mà không kéo màn hình thì người dùng nhìn dòng đỏ ở
-# đáy và không biết ô nào đang trống - đúng cảnh khách gặp.
-check("CANARY: lỗi mã thì KÉO MÀN HÌNH tới đúng ô đó",
-      "scrollIntoView" in _app and "_soiOTrong" in _app)
-# Từ 0.55.14 chữ tiếng Việt của dashboard dời vào từ điển i18n, app.js chỉ còn gọi
-# window.t("khoa"). Nên khẳng định soi ĐỦ HAI VẾ: app.js thật sự chặn ô trống rồi báo bằng
-# khoá đó, VÀ khoá đó trong vi.json mang đúng câu "Thiếu MÃ THIẾT LẬP".
-_VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
-check("chặn ô trống ngay ở client, không phải đợi server trả 403",
-      '_tokO.value.trim()' in _app and "app.wz_token_missing" in _app
-      and "Thiếu MÃ THIẾT LẬP" in _VI.get("app.wz_token_missing", ""))
-check("server trả lỗi mã thì cũng kéo về đúng ô",
-      "/MÃ THIẾT LẬP/i.test" in _app)
+check("màn chào mừng không còn ô nhập mã", 'id="wzToken"' not in _html and "wzTokenWrap" not in _html)
+check("màn chào mừng vẫn có ô tên và mật khẩu", 'id="wzUser"' in _html and 'id="wzPass"' in _html)
+check("app.js không còn gửi hay kiểm mã", "setup_token" not in _app and "wzToken" not in _app)
+for lang in ("vi", "en"):
+    d = json.loads((ROOT / "dashboard" / "i18n" / f"{lang}.json").read_text(encoding="utf-8"))
+    thua = [k for k in d if k.startswith("wz.tok") or k == "app.wz_token_missing"]
+    check(f"i18n {lang}: không còn khoá dịch của mã thiết lập", not thua, thua)
+    check(f"i18n {lang}: câu nhắc ở màn chào mừng không còn nhắc tới mã",
+          "MÃ THIẾT LẬP" not in d.get("app.wz_mandatory", "") and "SETUP" not in d.get("app.wz_mandatory", ""))
 
 print()
 if fails:
