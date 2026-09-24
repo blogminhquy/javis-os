@@ -3176,3 +3176,11 @@ body.ne-full-on .cview { z-index: 250; }
   list-style: none; }
 .cb-them-tk summary::-webkit-details-marker { display: none; }
 .cb-them-tk[open] summary { color: var(--text); margin-bottom: 4px; }
+
+/* Conversation settings: technical fields are opt-in, keyboard-accessible disclosures. */
+.qs-advanced { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+.qs-advanced > summary { cursor: pointer; color: var(--text2); font-size: 13px; font-weight: 600; padding: 10px 0; min-height: 44px; box-sizing: border-box; }
+.qs-advanced > summary:focus-visible { outline: 2px solid var(--accent, #8b5cf6); outline-offset: 3px; border-radius: 4px; }
+.qs-advanced[open] > summary { color: var(--text); margin-bottom: 4px; }
+.qs-advanced .qs-field { flex-wrap: wrap; }
+.qs-advanced .qs-field > .qs-hint, .qs-advanced .qs-field > .gcard-meta { flex-basis: 100%; margin-bottom: 0; }

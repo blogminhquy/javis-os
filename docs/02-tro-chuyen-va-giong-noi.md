@@ -475,3 +475,5 @@ Phím tắt:
 - [Kênh Telegram](11-telegram.md) và [Kênh Zalo](12-zalo.md) - chat với Javis ngoài dashboard.
 
 Vẫn kẹt? Xem [Khắc phục sự cố & FAQ](17-khac-phuc-su-co.md).
+
+Từ 0.64.34, cài đặt trò chuyện ưu tiên giọng, tốc độ, chế độ và tập trung. Mở **Nâng cao** để chỉnh bộ não/model, bộ nghe phụ, từ gợi ý và micro. Mở **Nhà cung cấp và kết nối** để cấu hình API và lưu nhà cung cấp. Các lựa chọn không tác động tới chế độ đang dùng được ẩn; ngôn ngữ nghe vẫn có trong Live vì dùng cho tiếng gọi Javis.

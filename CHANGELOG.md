@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.34] - 2026-09-24
+### Cải thiện
+- Cài đặt trò chuyện gọn hơn: giữ lựa chọn thường dùng ở phần chính, thu cấu hình kỹ thuật vào mục Nâng cao.
+- Chỉ hiện cấu hình phù hợp với chế độ đang chọn; vẫn giữ các thiết lập đã lưu và báo lỗi cấu hình rõ ràng.
+
 ## [0.64.33] - 2026-09-24
 ### Sửa lỗi
 - Composio báo rõ khi key kết nối bị từ chối và chỉ đúng nơi lấy key dành cho Javis.
