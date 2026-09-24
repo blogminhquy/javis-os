@@ -35,7 +35,7 @@ check("server: nhánh voice chỉ khi payload.voice + mode fast", /payload\.get\
 // 2
 check("voice.js: bọc onTranscript qua _quaStt", /this\.onTranscript = \(text\) => \{ this\._quaStt\(text, _userTranscript\); \};/.test(voice));
 check("voice.js: MediaRecorder start(250) khi sttUpload", /if \(!this\.sttUpload \|\| !this\.micStream/.test(voice) && /rec\.start\(250\)/.test(voice));
-check("voice.js: POST /stt kèm lang, lỗi thì giữ chữ Chrome", /fetch\(this\.sttUrl, \{ method: "POST", body: fd/.test(voice) && /cb\(better \|\| text\)/.test(voice));
+check("voice.js: POST /stt kèm lang, lỗi hoặc bản ghi cụt thì giữ chữ Chrome", /fetch\(this\.sttUrl, \{ method: "POST", body: fd/.test(voice) && /cb\(JavisVoice\.chonBanNghe\(text, better\)\)/.test(voice));
 check("voice.js: mic tắt vì TTS thì bỏ đoạn ghi", /_muteRecognition\(\) \{[\s\S]{0,700}this\._stopRecorder\(\)\.catch/.test(voice));
 check("voice.js: file quá nhỏ (dưới 2 KB) không gửi", /blob\.size < 2000/.test(voice));
 

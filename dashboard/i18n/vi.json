@@ -166,7 +166,7 @@
   "qs.rec_vi_opt": "Tiếng Việt · vi-VN",
   "qs.rec_en_opt": "Tiếng Anh · en-US",
   "qs.rec_auto_opt": "Đa ngôn ngữ · không cố định",
-  "qs.rec_auto_hint": "Đa ngôn ngữ: máy nghe Groq Whisper tự nhận ra tiếng đang nói; máy nghe của trình duyệt chỉ theo được ngôn ngữ của trình duyệt.",
+  "qs.rec_auto_hint": "Đa ngôn ngữ: Groq Whisper tự nhận ra tiếng đang nói; máy nghe của trình duyệt vẫn dùng một ngôn ngữ cố định (mặc định tiếng Việt).",
   "qs.endpoint_fast_opt": "Nhanh · 0,5 giây",
   "qs.endpoint_mid_opt": "Vừa · 0,8 giây",
   "qs.endpoint_slow_opt": "Chậm · 1,2 giây (mặc định)",

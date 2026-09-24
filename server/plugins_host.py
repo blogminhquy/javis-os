@@ -396,7 +396,7 @@ class PluginContext:
         self._hooks.setdefault(str(event), []).append(callback)
 
 
-    # ---- đường HTTP (0.64.22) ----
+    # ---- đường HTTP (0.64.26) ----
     #
     # Sinh ra để "Javis trong ChatGPT" rời lõi thành một gói trong kho: gói đó phải mở cửa OAuth
     # và một địa chỉ MCP cho máy chủ OpenAI gọi vào, mà plugin trước đây chỉ đăng ký được tool
@@ -639,7 +639,7 @@ def _load_all(vault_root: Optional[str], scope_vault: bool = True) -> dict:
 
 
 # ============================================================
-# Đường HTTP của plugin (0.64.22) - lõi tra ở đây, main.py chỉ chuyển request
+# Đường HTTP của plugin (0.64.26) - lõi tra ở đây, main.py chỉ chuyển request
 # ============================================================
 def _trang_cua(manifest: dict) -> Optional[str]:
     """Đường tương đối của trang riêng plugin khai trong `plugin.yaml` (`page: ""` là gốc), hoặc

@@ -264,7 +264,7 @@ Besides tools, a plugin can register hooks. The current build has two events:
 
 A hook wraps **every** tool call, MCP tools and core tools included, not only that plugin's tools. Use it for logging, counting, alerting. When no plugin registers a hook, Javis wraps nothing, so there is no performance cost. The `tool-audit` plugin is a working example: enable it and every tool call is counted into a file private to the plugin.
 
-## Own page and HTTP routes (since 0.64.22)
+## Own page and HTTP routes (since 0.64.26)
 
 A plugin can open web routes of its own, under `/ext/<slug>/`. Use it for a settings page, or for an outside service to call in (webhook, OAuth door). The "Javis in ChatGPT" package in the store is a working example.
 

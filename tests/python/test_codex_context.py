@@ -78,7 +78,8 @@ with tempfile.TemporaryDirectory(prefix="javis-codex-context-") as tmp:
     fake_events = [
         {"type": "thread.started", "thread_id": "thread-from-jsonl"},
         {"type": "item.completed", "item": {"type": "agent_message", "text": "Đã nhớ."}},
-        {"type": "turn.completed", "usage": {"input_tokens": 12, "output_tokens": 3}},
+        {"type": "turn.completed", "usage": {
+            "input_tokens": 378930, "cached_input_tokens": 308480, "output_tokens": 3}},
     ]
     script = "import json\n" + "\n".join(
         f"print(json.dumps({json.dumps(ev, ensure_ascii=False)}), flush=True)"
@@ -98,6 +99,8 @@ with tempfile.TemporaryDirectory(prefix="javis-codex-context-") as tmp:
     final = next((e for e in parsed if e.get("type") == "final"), {})
     check("JSONL: final giữ thread id", final.get("session_id") == "thread-from-jsonl")
     check("JSONL: giữ nội dung assistant", final.get("content") == "Đã nhớ.")
+    check("JSONL: input_tokens đã gồm cache, không cộng cached_input_tokens lần nữa",
+          final.get("tokens_in") == 378930 and final.get("tokens_out") == 3)
 
     # 4) Phiên cũ được bootstrap từ SQLite nhưng ưu tiên đoạn gần nhất trong trần context.
     history = [

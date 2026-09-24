@@ -1,4 +1,4 @@
-"""Đường HTTP của plugin (0.64.22): `ctx.register_http` và `ctx.register_well_known`.
+"""Đường HTTP của plugin (0.64.26): `ctx.register_http` và `ctx.register_well_known`.
 
     python tests/run.py plugin_http      (KHÔNG mạng)
 

@@ -31,6 +31,18 @@ v._iosCache = false;
 v.recognition.start = () => {};
 v.recognition.onend();
 assert.equal(v._committed, 'Em kiểm tra lại bản tin giá vàng.');
+assert.equal(Voice.chonBanNghe('Cho anh về màn hình trò chuyện giúp anh', 'Javis'),
+  'Cho anh về màn hình trò chuyện giúp anh');
+assert.equal(Voice.chonBanNghe('Javis', 'Cho anh về màn hình trò chuyện'),
+  'Cho anh về màn hình trò chuyện');
+v.setRecognitionLang('auto');
+assert.equal(v.recognition.lang, 'vi-VN');
+let delivered = '';
+v.onTranscript = t => { delivered = t; };
+v.recognition.onstart(); // Chrome mở lại phiên mới nhưng chưa giao kết quả nào
+v.userStopped = true;
+v.recognition.onend();
+assert.equal(delivered, 'Em kiểm tra lại bản tin giá vàng.');
 v._iosCache = true;
 v.isPlaying = true; v._countThis = true; v._wordsDone = 4;
 v.ttsChunks = ['một hai ba bốn']; v._chunkIndex = 0;

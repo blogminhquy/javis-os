@@ -4,12 +4,30 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.64.22] - 2026-09-24
+## [0.64.26] - 2026-09-24
 ### Thay đổi
 - **"Dùng Javis ngay trong ChatGPT" rời bản chính, thành một gói trong Javis Store.** Javis muốn mọi cuộc chat nằm chung một chỗ, nên tính năng đưa chat sang chatgpt.com không còn bật sẵn cho mọi người nữa.
 - **Ai vẫn cần thì cài gói "Javis trong ChatGPT"** ở Javis Store. Cài xong, bấm **Mở trang** trên thẻ plugin để lấy địa chỉ dán vào ChatGPT và chọn mức quyền. Kết nối cũ từ bản 0.64.21 phải nối lại một lần.
 ### Thêm mới
 - **Plugin có trang riêng.** Plugin khai trang thì thẻ của nó có nút **Mở trang**. Plugin cũng nhận được webhook từ dịch vụ bên ngoài, với rào an toàn do Javis giữ (phải đăng nhập mặc định, gỡ cookie ở đường công khai, plugin trong brain không có quyền này).
+
+## [0.64.25] - 2026-09-24
+### Cải thiện
+- Menu, biểu mẫu và chữ giao diện dùng Be Vietnam Pro; chữ thương hiệu JAVIS vẫn dùng Montserrat, mã giữ font monospace.
+- Câu trả lời có dòng ngắn hơn, tiêu đề rõ hơn và chữ in đậm không còn đồng loạt tô cam. Hướng dẫn Javis nêu kết luận trước, đưa bằng chứng sau và không lặp nhật ký công cụ trong đáp án cuối.
+
+## [0.64.24] - 2026-09-24
+### Sửa lỗi
+- Hội thoại bằng giọng không còn mất phần câu đã nghe khi trình duyệt tự mở lại phiên nhận dạng.
+- Bản ghi Groq bị cụt không ghi đè câu đầy đủ từ trình duyệt; gọi riêng "Javis" được chờ thêm để nghe tiếp yêu cầu.
+### Cải thiện
+- Tiếng Việt là ngôn ngữ dự phòng khi nhận dạng đa ngôn ngữ, và Javis xin nhắc lại bằng tiếng Việt nếu âm thanh mơ hồ thành câu pha tiếng lạ.
+
+## [0.64.23] - 2026-09-24
+### Sửa lỗi
+- **Lượt chat Codex không còn đếm trùng token cache.** Token cache đã nằm trong `input_tokens` do Codex báo; nhãn dưới câu trả lời và số liệu sử dụng giờ lấy đúng tổng token vào thay vì cộng cache thêm lần nữa.
+### Cải thiện
+- Chữ trong khung chat và ô nhập đổi sang Be Vietnam Pro để đọc tiếng Việt rõ hơn.
 
 ## [0.64.21] - 2026-09-23
 ### Thêm mới

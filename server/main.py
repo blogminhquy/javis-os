@@ -226,7 +226,7 @@ async def _csrf_guard(request: Request, call_next):
     THỨ TỰ: middleware thêm SAU thì chạy TRƯỚC (Starlette bọc từ ngoài vào), nên thực tế
     _auth_guard chạy TRƯỚC hàm này. Đừng đặt hàng rào chặn-mới ở đây rồi tưởng nó gác cho
     auth: request bị auth trả 401 không bao giờ tới đây."""
-    # Đường HTTP của plugin khai `no_cookie` (0.64.22): CSRF là đòn mượn cookie của nạn nhân, mà
+    # Đường HTTP của plugin khai `no_cookie` (0.64.26): CSRF là đòn mượn cookie của nạn nhân, mà
     # lõi GỠ cookie khỏi request trước khi giao cho plugin ở những đường này - không có gì để
     # mượn. Chặn nhầm thì máy chủ bên ngoài (OpenAI đổi token, webhook) không gọi vào được.
     _dr = duong_dan_router(request)
@@ -256,7 +256,7 @@ async def _auth_guard(request: Request, call_next):
         public = (path in _AUTH_PUBLIC_EXACT
                   or any(path.startswith(p) for p in _AUTH_PUBLIC_PREFIX)
                   or (path in _AUTH_LOCAL_EXACT and client_host in ("127.0.0.1", "::1"))
-                  # Đường HTTP của plugin mà CHÍNH plugin khai là công khai (0.64.22). Chỉ hỏi
+                  # Đường HTTP của plugin mà CHÍNH plugin khai là công khai (0.64.26). Chỉ hỏi
                   # khi đúng tiền tố, để request thường không phải đi tra danh sách plugin.
                   or ((path.startswith("/ext/") or path.startswith("/.well-known/"))
                       and plugins_host.http_cong_khai(path, request.method)))
@@ -3826,7 +3826,7 @@ tools_routes.register(app, tools_routes.ToolsDeps(
     lam_moi_hub=lambda: (mcp_hub.invalidate_cache(), _write_codex_profile()),
 ))
 
-# ---- Đường HTTP của plugin (0.64.22) ----
+# ---- Đường HTTP của plugin (0.64.26) ----
 #
 # Lõi chỉ CHUYỂN request; luật nằm ở plugins_host (ai được mở đường, đường nào công khai, đường
 # nào không cookie). Sinh ra để "Javis trong ChatGPT" rời lõi thành một gói trong kho, nhưng cố
