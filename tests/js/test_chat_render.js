@@ -193,6 +193,22 @@ check("note md: van mo editor noi bo", has(h, 'class="jv-floc"') && !has(h, "jv-
 h = mdToHtml("[website](https://example.com/demo.html)");
 check("URL ngoai duoi html: van mo tab moi", has(h, 'target="_blank"') && !has(h, "jv-fdownload"));
 
+// ---- 28. Rê chuột lên link trong câu trả lời thấy đúng đích sẽ mở ----
+h = mdToHtml("[Nguồn](https://example.com/a?x=1&y=2)");
+check("link web: tooltip hiện URL đầy đủ và escape an toàn",
+  has(h, 'href="https://example.com/a?x=1&amp;y=2" title="https://example.com/a?x=1&amp;y=2"'));
+h = mdToHtml("Xem https://example.com/b nhe");
+check("URL trần: tooltip hiện địa chỉ", has(h, 'title="https://example.com/b"'));
+h = mdToHtml("[Ghi chú](notes/ghi-chu.md)");
+check("file nội bộ: tooltip giữ thao tác và hiện đường dẫn",
+  /class="jv-floc" title="[^"]+notes\/ghi-chu\.md"/.test(h));
+h = mdToHtml("[[notes/abc|Ghi chú đẹp]]");
+check("wikilink có tên đẹp: tooltip hiện đường dẫn gốc",
+  /class="jv-wikilink" title="[^"]+\nnotes\/abc"/.test(h));
+h = mdToHtml("[Tải PDF](reports/bao-cao.pdf)");
+check("file tải xuống: tooltip hiện đường dẫn",
+  /class="jv-fdownload"[^>]*title="[^"]+reports\/bao-cao\.pdf"/.test(h));
+
 if (fails.length) {
   console.log("\nFAIL - " + fails.length + " test: " + fails.join(", "));
   process.exit(1);
