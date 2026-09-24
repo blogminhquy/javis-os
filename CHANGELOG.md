@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.35] - 2026-09-24
 ### Cải thiện
-- Thử nghiệm nhịp hội thoại thích nghi: chờ câu dang dở, giữ lượt khi cần suy nghĩ và hạn chế lời đáp thừa.
+- Thêm nhịp hội thoại Tự nhiên để thử trong Nâng cao: chờ câu dang dở, giữ lượt khi cần suy nghĩ và tự điều chỉnh theo nhịp nói. Chờ cố định vẫn là mặc định.
+- Giữ bản nháp để gửi, tiếp tục hoặc bỏ; bảo vệ tin đã lưu khi kết nối lại. Lời kết thúc đủ điều kiện được ghi nhận kèm nút Yêu cầu trả lời.
 
 ## [0.64.36] - 2026-09-24
 ### Sửa lỗi

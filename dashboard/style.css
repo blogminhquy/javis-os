@@ -3184,3 +3184,5 @@ body.ne-full-on .cview { z-index: 250; }
 .qs-advanced[open] > summary { color: var(--text); margin-bottom: 4px; }
 .qs-advanced .qs-field { flex-wrap: wrap; }
 .qs-advanced .qs-field > .qs-hint, .qs-advanced .qs-field > .gcard-meta { flex-basis: 100%; margin-bottom: 0; }
+
+.adaptive-draft-controls{display:flex;flex-wrap:wrap;gap:8px;padding:10px;align-items:center}.adaptive-draft-controls[hidden]{display:none}.adaptive-draft-controls [data-status]{flex:1 1 100%;font-size:13px}.adaptive-draft-controls button{min-height:44px}

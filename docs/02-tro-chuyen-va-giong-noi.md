@@ -477,3 +477,18 @@ Phím tắt:
 Vẫn kẹt? Xem [Khắc phục sự cố & FAQ](17-khac-phuc-su-co.md).
 
 Từ 0.64.34, cài đặt trò chuyện ưu tiên giọng, tốc độ, chế độ và tập trung. Mở **Nâng cao** để chỉnh bộ não/model, bộ nghe phụ, từ gợi ý và micro. Mở **Nhà cung cấp và kết nối** để cấu hình API và lưu nhà cung cấp. Các lựa chọn không tác động tới chế độ đang dùng được ẩn; ngôn ngữ nghe vẫn có trong Live vì dùng cho tiếng gọi Javis.
+
+
+## Nhịp hội thoại thử nghiệm (0.64.35)
+
+Vào **Cài đặt → Trò chuyện → Nâng cao → Nhịp hội thoại (thử nghiệm)**:
+
+- **Chờ cố định**: mặc định, giữ cách nghe hiện tại.
+- **Quan sát để kiểm tra**: giữ cách nghe hiện tại, chỉ tính quyết định thử trong bộ nhớ.
+- **Tự nhiên**: chờ theo câu nói và nhịp ngắt nghỉ trong phiên; chọn Nhanh/Cân bằng/Kiên nhẫn. Chỉ dùng ở Chuẩn/Làn nhanh với máy chủ hỗ trợ, không thêm API.
+
+Câu dang dở không tự gửi. Sau 10 giây chưa nói tiếp, phần chữ ở lại dưới dạng bản nháp với **Gửi phần đã nói / Tiếp tục / Bỏ**. Nói “khoan để anh nghĩ” giữ lượt tối đa 90 giây. Có thể gọi Javis hoặc bấm Tiếp tục để mở lại bản nháp. Tới 120 giây hoặc 4.000 ký tự, cần kiểm tra phần đã nghe trước khi tiếp tục; không cắt chữ âm thầm.
+
+Bản đầu chỉ tự im lặng với lời kết thúc rõ ràng và một số lời giải thích đã được server xác định chắc chắn là hoàn tất. Ngữ cảnh khác vẫn trả lời; không coi mọi câu “vâng” là lời kết thúc. Tin được ghi nhận có nút **Yêu cầu trả lời** và vẫn nằm trong lịch sử.
+
+**Tải chẩn đoán** xuất tối đa 200 sự kiện về trạng thái/thời điểm từ RAM, không chứa nội dung câu nói, âm thanh hay khóa API. Đặt lại nhịp đã học không xóa hội thoại. Chưa có kiểm chứng âm học trên mọi tablet: giữ Chờ cố định nếu Tự nhiên chưa phù hợp, và thử lại cùng một đoạn nói để so sánh.

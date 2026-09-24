@@ -11,6 +11,9 @@ function load(context, names) {
 }
 let cancelled = 0;
 const context = {
+  adaptive: {cancel(){}, running:()=>false, input:()=>false, manual:()=>false, holding:()=>false, blocked:()=>false,start(){},save(){}},
+  adaptiveOutbox:new Map(), adaptiveContinuation:'',
+
   _tinChoLuot: null, _tinChoTimer: null, _tinDutMang: [], _tinDutMangTimer: null,
   _choTaiLen: null, _sendEpoch: 0, _tuGiong: false,
   attention: { stop() {} }, liveWake: { cancelListening() {} }, updateVoiceFocus() {},

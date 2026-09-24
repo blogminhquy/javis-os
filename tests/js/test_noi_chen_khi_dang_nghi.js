@@ -41,7 +41,7 @@ check("vẫn giữ chốt mic hỏng (không mở lại vô hạn khi mic chết
 
 // ---- 2. Tin chen ngang được HOÃN tới khi lượt cũ dừng hẳn ----
 check("sendMessage: đang chạy + tin từ mic -> stopCurrent rồi ĐẶT TIN CHỜ, không gửi ngay",
-  /stopCurrent\(\);\s*\n\s*datTinCho\(msg\);[\s\S]{0,80}return;/.test(app));
+  /stopCurrent\(\);\s*\n\s*datTinCho\(msg, opts\);[\s\S]{0,80}return;/.test(app));
 check("turn_done tới thì mới gửi tin đang chờ",
   /if \(isActive && _tinChoLuot\) guiTinCho\(\);/.test(app));
 check("có lưới thời gian phòng khi lượt cũ chết mà không báo turn_done",
@@ -50,7 +50,7 @@ check("có lưới thời gian phòng khi lượt cũ chết mà không báo tur
 // hoặc turn_done cũ về sau và xoá sạch lượt mới. Lưới phải rộng hơn thời gian giết engine.
 check("lưới không còn là 1,5 giây", !/setTimeout\(guiTinCho, 1500\)/.test(app));
 check("trong lúc chờ, câu vừa nói vẫn ở lại màn hình (bong bóng nháp)",
-  /function datTinCho\(text\) \{[\s\S]{0,400}nhapGiong\(_tinChoLuot\)/.test(app));
+  /function datTinCho\(text, opts\) \{[\s\S]{0,550}nhapGiong\(_tinChoLuot\)/.test(app));
 check("lượt bị dừng được ghi nhớ theo id, và turn_done muộn của nó không đụng lượt mới",
   /_luotDaDung\[sid\] = turns\[sid\]\.id/.test(app)
   && /if \(t && t\.id && t\.id !== _idDung\) return;/.test(app));

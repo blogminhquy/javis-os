@@ -81,7 +81,7 @@ check("CANARY: thả Space KHÔNG tắt loa", !/JavisTts/.test(keyup));
 // (test_mic_khong_tu_gui canh kỹ chỗ đó), không phải một đường gửi tin mới.
 // 6 từ 0.57.17: chỗ thứ 6 cũng là HOÃN - câu nói chen ngang gửi lại sau khi lượt cũ dừng hẳn.
 // 7 từ 0.58.2: chỗ thứ 7 cũng HOÃN - câu gửi lúc mất WebSocket, gửi lại khi nối lại được.
-check("vẫn đúng 8 chỗ gọi sendMessage", (app.match(/(?<!function )\bsendMessage\(/g) || []).length === 8,
+check("có 9 chỗ (thêm adaptive commit) gọi sendMessage", (app.match(/(?<!function )\bsendMessage\(/g) || []).length === 9,
   (app.match(/(?<!function )\bsendMessage\(/g) || []).length);
 
 // ---- 5. Mic là công tắc DUY NHẤT (chủ repo chốt 02/09: "không cần nút bật tắt loa nữa") ----
@@ -99,7 +99,7 @@ check("iOS: không nghe liên tục", /if \(this\._laIOS\(\)\) this\.recognition
 // chưa dừng" lẫn "không phải iOS", nhưng cho phép chen thêm điều kiện khác (0.55.29 chen
 // thêm chốt mic hỏng hẳn). Canary dò chuỗi cứng thì mỗi lần sửa đúng cũng đỏ giả.
 check("iOS: onend KHÔNG tự mở lại phiên (hết câu là gửi)",
-  /if \(!this\.userStopped &&[^)]*!this\._laIOS\(\)\) \{/.test(voice));
+  /if \(!this\.userStopped &&[^\n]*!this\._laIOS\(\) \|\| this\.managedEndpoint\)\)/.test(voice));
 check("iOS: mở khoá phần tử phát tiếng NGAY trong cử chỉ bấm mic",
   /this\._moKhoaAudioIOS\(\); \/\/ iOS/.test(voice)
   // `startListening` nhận tham số từ 0.55.29 (cờ phân biệt máy tự gọi với người bấm),

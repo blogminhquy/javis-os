@@ -10,6 +10,9 @@ const sent = [], stored = [], drafts = [], events = [];
 const button = {};
 const noop = () => {};
 const box = {
+  adaptive: {cancel(){}, running:()=>false, input:()=>false, manual:()=>false, holding:()=>false, blocked:()=>false,start(){},save(){}},
+  adaptiveOutbox:new Map(), adaptiveContinuation:'',
+
   window: { JavisVoiceAttention: { Attention: class extends Attention { constructor() { super({now: () => now}); } } },
     t: x => x, JavisVoiceLive: { start: async o => { liveOptions = o; events.push('live-start'); return true; },
       stop: () => { stopCount++; }, isSpeaking: () => false, sendText: t => sent.push(t) } },
