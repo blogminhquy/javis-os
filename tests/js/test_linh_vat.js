@@ -190,15 +190,10 @@ check("cỡ mặc định không phải cỡ nhỏ nhất", /size: 72, /.test(pe
 check("màn hẹp KHÔNG co pet nhỏ lại nữa", !/\.pet, \.pet-body \{ width: 46px/.test(css));
 check("cỡ đi qua biến CSS --pet-size", /width: var\(--pet-size/.test(css)
   && /setProperty\("--pet-size"/.test(pet));
-check("màn hẹp vẫn có trần theo bề ngang màn", /min\(var\(--pet-size[^)]*\), \d+vw\)/.test(css));
-// 0.64.42: trần phải đủ cho cỡ LỚN NHẤT của thanh trượt trên điện thoại thường (375px). Trần cũ
-// 24vw chặn pet ở khoảng 99px trên máy 412px, kéo thanh trượt quá đó là pet đứng im.
-{
-  const tran = +((/min\(var\(--pet-size[^)]*\), (\d+)vw\)/.exec(css) || [])[1]);
-  const coMax = +((/var CO_MIN = \d+, CO_MAX = (\d+);/.exec(pet) || [])[1]);
-  check("trần màn hẹp đủ cho cỡ lớn nhất trên màn 375px (" + tran + "vw, cỡ tối đa " + coMax + "px)",
-    tran > 0 && coMax > 0 && 375 * tran / 100 >= coMax);
-}
+// Trần màn hẹp: 100px CỐ ĐỊNH (chủ dự án chốt 24/09, sau khi thử 150px trên điện thoại thấy quá
+// to). Khoá đúng con số để không ai nới ra lần nữa trong im lặng.
+check("điện thoại: linh vật tối đa đúng 100px",
+  /@media \(max-width: 700px\) \{\s*\n\s*\.pet \{ width: min\(var\(--pet-size, 72px\), 100px\); height: min\(var\(--pet-size, 72px\), 100px\); \}/.test(css));
 const mainPy = read("server/main.py");
 check("server nhận khoá size, màu mắt và cỡ mắt",
   /for k in \("shape", "palette", "side", "size", "eye", "eyeSize"\)/.test(mainPy));
