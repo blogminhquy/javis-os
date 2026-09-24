@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.26] - 2026-09-24
+### Thay đổi
+- **"Dùng Javis ngay trong ChatGPT" rời bản chính, thành một gói trong Javis Store.** Javis muốn mọi cuộc chat nằm chung một chỗ, nên tính năng đưa chat sang chatgpt.com không còn bật sẵn cho mọi người nữa.
+- **Ai vẫn cần thì cài gói "Javis trong ChatGPT"** ở Javis Store. Cài xong, bấm **Mở trang** trên thẻ plugin để lấy địa chỉ dán vào ChatGPT và chọn mức quyền. Kết nối cũ từ bản 0.64.21 phải nối lại một lần.
+### Thêm mới
+- **Plugin có trang riêng.** Plugin khai trang thì thẻ của nó có nút **Mở trang**. Plugin cũng nhận được webhook từ dịch vụ bên ngoài, với rào an toàn do Javis giữ (phải đăng nhập mặc định, gỡ cookie ở đường công khai, plugin trong brain không có quyền này).
+
 ## [0.64.25] - 2026-09-24
 ### Cải thiện
 - Menu, biểu mẫu và chữ giao diện dùng Be Vietnam Pro; chữ thương hiệu JAVIS vẫn dùng Montserrat, mã giữ font monospace.

@@ -2149,9 +2149,3 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .cd-menu button { font-size: 16px; padding: 9px 10px; }
   .cd-menu button small { font-size: 14px; }
 }
-
-/* Khối "Dùng Javis ngay trong ChatGPT" trong thẻ ChatGPT (0.64.21). Chữ tối thiểu 16px theo yêu
-   cầu của chủ repo cho mọi giao diện mới, vì phần lớn thời gian họ đọc trên điện thoại. Thẻ
-   provider xung quanh dùng 13-14px; khối này cố ý lớn hơn chứ không kế thừa. */
-#gptConnBox, #gptConnBox .gcard-meta, #gptConnBox .gcard-btn, #gptConnBox a,
-#gptConnBox b, #gptConnBox select, #gptConnBox input, #gptConnBox .prov-note { font-size: 16px; }

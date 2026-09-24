@@ -1360,7 +1360,7 @@ async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=F
                           raw_vault=None):
     """Đọc thân JSON-RPC của `request`, chạy qua hub, trả Response. KHÔNG xác thực gì cả.
 
-    Tách khỏi `handle_http` để một cửa khác (ChatGPT qua OAuth, xem chatgpt_connector.py) đi
+    Tách khỏi `handle_http` để một cửa khác (ví dụ plugin tự lo OAuth qua `register_http`) đi
     ĐÚNG đường này - cùng danh sách tool, cùng mức quyền ép ở lớp cứng, cùng chú thích brain -
     và chỉ khác lớp xác thực phía trước. Hai bản chép của cùng một vòng xử lý là hai chỗ để
     lệch nhau.
