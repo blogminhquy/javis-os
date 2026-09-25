@@ -135,6 +135,47 @@ const cho = () => new Promise(r => setImmediate(r));
     check("đứt kết nối -> kind=net", loi && loi.kind === "net");
   }
 
+  // ---- 1f. Đồng hồ MẶC ĐỊNH phải gọi setInterval đúng ngữ cảnh (0.64.51) ----
+  // Bản 0.64.43 gọi `dongHo.setInterval(...)` với dongHo = { setInterval, ... }: trình duyệt ném
+  // "Illegal invocation" vì `this` không phải window, mọi file đính kèm báo "lỗi mạng". Node
+  // không kiểm `this`, nên ở đây giả lập đúng luật của trình duyệt.
+  {
+    const goc = { si: globalThis.setInterval, ci: globalThis.clearInterval };
+    function nghiem(ten, fn) {
+      return function (...a) {
+        if (this !== undefined && this !== globalThis) throw new TypeError("Illegal invocation (" + ten + ")");
+        return fn.apply(globalThis, a);
+      };
+    }
+    globalThis.setInterval = nghiem("setInterval", goc.si);
+    globalThis.clearInterval = nghiem("clearInterval", goc.ci);
+    const XHR = xhrGia();
+    let loi = null, ok = null;
+    const p = guiUpload("FD", null, { XHR }).then(r => { ok = r; }, e => { loi = e; });
+    const x = XHR.inst[0];
+    check("đồng hồ mặc định: không ném Illegal invocation, yêu cầu được gửi đi",
+      !loi && x && x.body === "FD", loi && loi.message);
+    if (x) { x.status = 200; x.responseText = "{}"; x.onload(); }
+    await p;
+    check("đồng hồ mặc định: nhận được kết quả", ok && ok.status === 200, loi && loi.message);
+    globalThis.setInterval = goc.si; globalThis.clearInterval = goc.ci;
+  }
+
+  // ---- 1g. Lỗi phía trình duyệt không bị gọi là "lỗi mạng" ----
+  {
+    function XHRHong() { this.upload = {}; }
+    XHRHong.prototype.open = function () { throw new TypeError("không mở được"); };
+    let loi = null;
+    await guiUpload("FD", null, { XHR: XHRHong, dongHo: dongHoGia() }).catch(e => { loi = e; });
+    check("open ném lỗi -> kind=client, kèm chi tiết", loi && loi.kind === "client" && /không mở được/.test(loi.chiTiet || ""),
+      loi && (loi.kind + " " + loi.chiTiet));
+  }
+  const thanTai = catHam("_taiLen");
+  check("_taiLen: lỗi phía trình duyệt báo đúng tên, KHÔNG tự thử lại",
+    /kind === "client"/.test(thanTai) && /app\.att_client_err/.test(thanTai)
+    && thanTai.indexOf('kind === "client"') < thanTai.indexOf("continue;"));
+  check("i18n có att_client_err", !!VI["app.att_client_err"] && !!EN["app.att_client_err"]);
+
   // ============================================================
   // 2. Chỗ gọi
   // ============================================================
