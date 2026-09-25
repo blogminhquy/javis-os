@@ -683,7 +683,8 @@ check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/
                   current() { return this._cur; },
                   new() { this._goi.push("new"); this._cur = null; },
                   open(id) { this._goi.push("open:" + id); this._cur = id; } };
-    const c = { S: { sessionCuaPhien: sessionCuaPhien }, window: { JavisSessions: kho }, kho };
+    const c = { S: { sessionCuaPhien: sessionCuaPhien }, window: { JavisSessions: kho }, kho,
+                docViTri: () => null };
     vm2.createContext(c); vm2.runInContext(doan2, c);
     return c;
   };

@@ -672,10 +672,13 @@ function _resumeSauNgu(force) {
   // thoại một cách ồn ào - trừ khi bfcache (force) vì khi đó không biết đã ngủ bao lâu.
   if (!force && (!_hiddenAt || Date.now() - _hiddenAt < 20000)) return;
   _hiddenAt = 0;
+  const socketConSong = !!(ws && ws.readyState === WebSocket.OPEN);
   try { connect(); } catch (e) {}   // đã có chốt chống trùng, gọi thừa vô hại
-  // Phiên đang xem có lưu DB thì dựng lại từ server - openStoredSession tự gắn lại bong
-  // bóng sống nếu phiên đang generate nền, nên gọi giữa chừng không mất gì.
-  if (savedSessionId) { try { openStoredSession(savedSessionId); } catch (e) {} }
+  // Socket còn sống thì tin đã đến khung hiện tại: giữ nguyên DOM, vị trí đọc và ô đang gõ.
+  // Chỉ đồng bộ từ server khi socket đứt hoặc trang trở về từ bfcache.
+  if (savedSessionId && (force || !socketConSong)) {
+    try { openStoredSession(savedSessionId); } catch (e) {}
+  }
 }
 
 function handleMessage(data) {

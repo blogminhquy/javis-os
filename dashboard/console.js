@@ -292,6 +292,18 @@
   // Trang Trợ lý và Quy trình gộp thành Cộng sự ở 0.59.0; ai bấm nút cũ trong chat hay
   // bookmark vẫn tới nơi.
   const TRANG_GOP = { runtime: "usage", agents: "workspace", workflows: "workspace" };
+  const TRANG_CUOI_KEY = "javis_last_page";
+  function khoiPhucTrang() {
+    let id = "chat";
+    try {
+      const saved = localStorage.getItem(TRANG_CUOI_KEY);
+      const resolved = TRANG_GOP[saved] || saved;
+      if (resolved && RAIL_BY_ID[resolved]) id = resolved;
+    } catch (e) {}
+    const store = Alpine.store("nav");
+    store.openGroup = groupLabelOf(id);
+    navigateTo(id, true);
+  }
   function navigateTo(id) {
     // Trang Chatbot là TAB của trang Hội thoại từ 0.61.0: nhớ tab rồi đi tới trang đó.
     if (id === "chatbots") {
@@ -307,6 +319,7 @@
       // (Trước 0.12.4 ở đây còn một nhát thu lớp chat phóng to. Lớp nổi đó đã bỏ - phóng to
       // giờ là chuyển hẳn sang trang Trò chuyện, và _pageLeave ở trên đã trả node về HUD.)
       store.active = id;
+      try { localStorage.setItem(TRANG_CUOI_KEY, id); } catch (e) {}
       // Về nơi có hiển thị model thì làm mới, phòng khi model bị đổi bằng đường khác
       // (trang Models, Cài đặt nhanh, hoặc chỉnh tay settings).
       if (id === "home" || id === "chat") refreshModelUi();
@@ -319,7 +332,7 @@
     };
     // Dính tab Trò chuyện thì bỏ View Transition: nó chụp snapshot đồ thị của home rồi
     // cross-fade → loé orb ~1s (bitmap chụp trước cả khi ẩn graph). Swap thẳng cho sạch, tức thì.
-    const skipVT = (id === "chat" || store.active === "chat");
+    const skipVT = arguments[1] === true || id === "chat" || store.active === "chat";
     if (document.startViewTransition && !skipVT) document.startViewTransition(swap);
     else swap();
   }
@@ -8382,6 +8395,9 @@
     // Cột trái = Vault explorer (luôn có trong DOM ở màn home) → nạp cây ngay khi khởi động
     renderVaultTree();
     initRailTooltip();   // tooltip nhanh cho rail thu gọn
+    // Trang đầu của thiết bị là Trò chuyện; các lần sau quay lại đúng khung đang dùng.
+    // Khôi phục ngay, trước các lời gọi mạng ở freshSettings, để tránh nháy màn Javis.
+    khoiPhucTrang();
 
     freshSettings().then(s => {
       // Ô đổi ngôn ngữ giao diện dưới đáy rail. Danh sách từ sổ đăng ký phía server
@@ -8405,9 +8421,6 @@
         }
       } catch (e) { /* thiếu ô thì rail vẫn sống */ }
       graphEnabled = !(s.dashboard && s.dashboard.graph_enabled === false);
-      // MỞ APP LÀ VÀO MÀN JAVIS, kể cả lite-mode (cờ graph tắt hoặc màn hẹp): màn Javis đã có
-      // sẵn ô chat, chỉ khác là không vẽ khoang não. Bản trước tự đẩy sang trang Trò chuyện,
-      // hoá ra rối hơn - mỗi lần tải lại là mỗi lần rơi vào một trang khác.
       recomputeGraph();
       // Deep-link mở tab mới từ link file trong chat: #open=<đường-dẫn-vault>.
       // Đi qua openVaultPath chứ KHÔNG phải openFilesAt: file sửa được thì mở thẳng trình sửa,

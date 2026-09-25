@@ -37,7 +37,7 @@ active:true,ready:false,S:{loai:'agent',chon:{agent:'a'},el:{querySelector:()=>(
    // daTai: danh sách đã tải xong (chỉ là rỗng thật). veGiua() đọc cờ này để biết có bày màn
    // khởi đầu hay không; khung #wsOnboard không có trong DOM giả nên veKhoiDau() tự lui ra.
    daTai:true, taoMoi(){},
-   danhSach:()=>ds, veDanhSach(){}, vePhai(){}, moPhien:async()=>{opens++;return true;},
+   danhSach:()=>ds, veDanhSach(){}, vePhai(){}, moPhien:async()=>{opens++;return true;}, docViTri:()=>null,
    chatReady(v){ o.disabled = !v; }, esc:s=>String(s), t:k=>k, avatar:()=>'', ic:()=>'',
    S:{loai:'agent', chon:{agent:null}, el:{querySelector:sel=>sel==='#wsIdentity'?iden:null}},
    dangChon:()=>ds[0]||null, cacBuoc:()=>[],
