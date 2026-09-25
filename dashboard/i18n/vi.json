@@ -1426,6 +1426,7 @@
   "app.att_stalled": "mạng đứng, không gửi tiếp được",
   "app.att_server_slow": "máy chủ không phản hồi",
   "app.att_retry": "Tải lại file này",
+  "app.att_client_err": "lỗi trình duyệt: {msg}",
   "app.att_wait_send": "Chờ file đính kèm tải lên xong rồi gửi...",
   "app.att_failed_send": "Có file chưa tải lên được. Gỡ file lỗi (nút X) hoặc đính lại rồi gửi.",
   "app.ctx_legacy": "Đầy đủ",

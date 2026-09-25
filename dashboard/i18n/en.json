@@ -1426,6 +1426,7 @@
   "app.att_stalled": "connection stalled, upload stopped",
   "app.att_server_slow": "server not responding",
   "app.att_retry": "Retry this file",
+  "app.att_client_err": "browser error: {msg}",
   "app.att_wait_send": "Waiting for the attachment to finish uploading, then sending...",
   "app.att_failed_send": "A file failed to upload. Remove it (the X button) or attach it again, then send.",
   "app.ctx_legacy": "Full",

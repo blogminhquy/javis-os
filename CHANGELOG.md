@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.51] - 2026-09-25
+### Sửa lỗi
+- **Tải ảnh và tài liệu lên khung chat chạy lại bình thường.** Từ bản 0.64.43, mọi file đính kèm đều báo "lỗi mạng" dù mạng vẫn ổn. Lỗi nằm ở chính Javis (bộ canh mạng đứng gọi sai cách nên trình duyệt từ chối), không phải do mạng nhà anh. Nay đã sửa và thử trên trình duyệt thật.
+- Nếu sau này trình duyệt gặp lỗi lạ khi gửi file, chip sẽ ghi đúng lỗi đó thay vì đổ cho mạng.
+
 ## [0.64.50] - 2026-09-24
 ### Cải thiện
 - **Logo ngôi sao to kín khung**: icon app, favicon và logo giờ lớn ngang các icon app khác trên thanh tác vụ, không còn nhỏ hơn một bậc như trước.

@@ -2918,10 +2918,20 @@ const TAI_THU_LAI = 2;           // số lần tự thử lại khi mạng đứ
 function guiUpload(fd, onTien, opt) {
   opt = opt || {};
   const XHR = opt.XHR || XMLHttpRequest;
-  const dongHo = opt.dongHo || { now: () => Date.now(), setInterval, clearInterval };
+  // PHẢI bọc bằng hàm mũi tên (0.64.51). Bản 0.64.43 viết `{ setInterval, clearInterval }` rồi
+  // gọi `dongHo.setInterval(...)`: trình duyệt thấy `this` là object này chứ không phải window
+  // và ném "TypeError: Illegal invocation" ngay trước khi gửi. Mọi file đính kèm đều hỏng, chip
+  // báo "lỗi mạng" (chủ repo báo 25/09). Node không kiểm `this` nên test cũ không bắt được.
+  const dongHo = opt.dongHo || {
+    now: () => Date.now(),
+    setInterval: (fn, ms) => setInterval(fn, ms),
+    clearInterval: (id) => clearInterval(id),
+  };
   const ketMs = opt.ketMs || TAI_KET_MS, choMs = opt.choMs || TAI_CHO_MAY_CHU_MS;
   return new Promise((resolve, reject) => {
     const xhr = new XHR();
+    // Lỗi ném ngay trong lúc DỰNG yêu cầu (không phải lỗi mạng) phải nói đúng tên, không được
+    // rơi thành "lỗi mạng" rồi tự thử lại vô ích như vụ 25/09.
     let moc = dongHo.now(), guiXong = false, xong = false, ly = null;
     const ket = (loai) => { if (xong) return; ly = loai; try { xhr.abort(); } catch (e) {} };
     const canh = dongHo.setInterval(() => {
@@ -2939,8 +2949,12 @@ function guiUpload(fd, onTien, opt) {
     xhr.onload = () => het(resolve, { status: xhr.status, text: xhr.responseText });
     xhr.onerror = () => het(reject, loi("net"));
     xhr.onabort = () => het(reject, loi(ly || "net"));
-    xhr.open("POST", "/upload");
-    xhr.send(fd);
+    try {
+      xhr.open("POST", "/upload");
+      xhr.send(fd);
+    } catch (e) {
+      het(reject, Object.assign(loi("client"), { chiTiet: (e && e.message) || String(e) }));
+    }
   });
 }
 
@@ -2996,7 +3010,13 @@ async function _taiLen(file, att) {
     try {
       resp = await guiUpload(fd, onTien);
     } catch (e) {
-      const kind = (e && e.kind) || "net";
+      const kind = (e && e.kind) || (e && e.name === "TypeError" ? "client" : "net");
+      if (kind === "client") {
+        try { console.error("[upload] lỗi phía trình duyệt:", e); } catch (_e) {}
+        att.loi = true;
+        att.statusText = window.t("app.att_client_err", { msg: String((e && (e.chiTiet || e.message)) || e).slice(0, 80) });
+        return;
+      }
       // Mạng đứng/đứt thì tự thử lại (máy chủ có lưu dở cũng vô hại: mỗi lần là một tên
       // file tạm riêng). Máy chủ im sau khi đã nhận đủ thì KHÔNG thử lại vòng vòng.
       if (kind !== "server" && lan < TAI_THU_LAI) {
