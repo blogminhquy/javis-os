@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.51] - 2026-09-25
+### Sửa lỗi
+- **Tải ảnh và tài liệu lên khung chat chạy lại bình thường.** (đang viết)
+
 ## [0.64.50] - 2026-09-24
 ### Cải thiện
 - **Logo ngôi sao to kín khung**: icon app, favicon và logo giờ lớn ngang các icon app khác trên thanh tác vụ, không còn nhỏ hơn một bậc như trước.
