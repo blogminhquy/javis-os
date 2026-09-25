@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.52] - 2026-09-26
+### Sửa lỗi
+- Mở Javis lần đầu sẽ vào khung Trò chuyện. Những lần sau, Javis giữ đúng trang đang làm việc và cuộc hội thoại đang xem ở khung Trợ lý hoặc Trò chuyện trên cả điện thoại và máy tính.
+- Khi chuyển sang ứng dụng khác rồi quay lại, khung chat không tải lại nội dung nếu kết nối vẫn hoạt động.
+
 ## [0.64.51] - 2026-09-25
 ### Sửa lỗi
 - **Tải ảnh và tài liệu lên khung chat chạy lại bình thường.** Từ bản 0.64.43, mọi file đính kèm đều báo "lỗi mạng" dù mạng vẫn ổn. Lỗi nằm ở chính Javis (bộ canh mạng đứng gọi sai cách nên trình duyệt từ chối), không phải do mạng nhà anh. Nay đã sửa và thử trên trình duyệt thật.
