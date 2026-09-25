@@ -144,6 +144,27 @@ check("sửa đổi cục bộ chặn đường", "git stash" in updater.chan_do
 check("lỗi lạ trên main thì không bịa nguyên nhân",
       updater.chan_doan_pull_hong("fatal: một lỗi chưa từng gặp") == "")
 
+
+# Vụ 25/09/2026 trên máy Mac: updater tải origin/main rồi `git merge`, và merge chết vì
+# commit sửa riêng trên nhánh máy đụng đúng dòng bản mới cũng sửa. Chẩn đoán cũ không nhận ra
+# chữ CONFLICT, rơi xuống câu mặc định "không phải nhánh main, chạy git checkout main" - vừa
+# sai nguyên nhân, vừa xui người dùng bỏ nhánh có 12 commit riêng chưa lên main.
+_CONFLICT = ("Auto-merging dashboard/app.js\n"
+             "CONFLICT (content): Merge conflict in dashboard/app.js\n"
+             "Auto-merging dashboard/style.css\n"
+             "CONFLICT (content): Merge conflict in dashboard/style.css\n"
+             "Automatic merge failed; fix conflicts and then commit the result.")
+updater.run = _gia_lap("fix/chat-ime-enter-residue", 0, "fork/fix/chat-ime-enter-residue")
+_msg = updater.chan_doan_pull_hong(_CONFLICT)
+check("xung đột merge: nói đúng là xung đột", "xung đột" in _msg.lower())
+check("xung đột merge: gọi tên đúng file vướng",
+      "dashboard/app.js" in _msg and "dashboard/style.css" in _msg)
+check("xung đột merge: KHÔNG xui checkout main (mất commit riêng)", "checkout main" not in _msg)
+check("xung đột merge: nói rõ code đang chạy giữ nguyên", "giữ nguyên" in _msg)
+updater.run = _gia_lap("main", 0, "origin/main")
+check("xung đột merge ngay trên main cũng nói là xung đột",
+      "xung đột" in updater.chan_doan_pull_hong(_CONFLICT).lower())
+
 updater.run = _that
 
 _hong = _src[_src.find("pull = run([\"git\", \"pull\", \"--ff-only\"])"):][:1200]

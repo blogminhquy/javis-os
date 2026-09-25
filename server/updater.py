@@ -13,6 +13,7 @@ Chỉ dùng stdlib (chạy được cả khi bản mới hỏng dependency)."""
 import argparse
 import datetime
 import os
+import re
 import subprocess
 import sys
 import time
@@ -250,6 +251,18 @@ def chan_doan_pull_hong(loi: str, nhanh: str = "", theo_doi: str = "") -> str:
 
     dung_nhanh = bool(theo_doi) and theo_doi.endswith("/main")
     ve_main = "Chạy: git checkout main && git pull --ff-only"
+
+    # Xung đột khi gộp: code sửa riêng trên máy đụng đúng dòng bản mới cũng sửa. Phải bắt TRƯỚC
+    # mọi nhánh khác, vì câu mặc định ở cuối hàm ("không phải nhánh main, git checkout main")
+    # vừa sai nguyên nhân vừa xui người dùng bỏ nhánh chứa commit riêng (vụ 25/09/2026).
+    if "conflict" in thap or "automatic merge failed" in thap:
+        tep = list(dict.fromkeys(re.findall(r"Merge conflict in (\S+)", out)))
+        ds = (": " + ", ".join(tep[:5]) + (f" và {len(tep) - 5} file khác" if len(tep) > 5 else "")
+              ) if tep else ""
+        return ("Bản mới xung đột với phần code sửa riêng trên máy" + ds + ". Updater đã huỷ "
+                "lần gộp nên code đang chạy giữ nguyên, không mất gì. Cần gộp tay: "
+                "git fetch origin && git merge origin/main, sửa các file xung đột, commit rồi "
+                "khởi động lại Javis.")
 
     # Rẽ đôi: nhánh cục bộ có commit mà nhánh trên máy chủ không có, và ngược lại. Hay gặp
     # nhất khi máy đang đứng trên một nhánh nhánh phụ cũ, hoặc khi PR được gộp kiểu squash

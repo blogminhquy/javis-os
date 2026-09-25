@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.52] - 2026-09-25
+### Sửa lỗi
+- **Cập nhật hỏng vì xung đột code giờ được báo đúng.** Trước đây khi code sửa riêng trên máy vướng với bản mới, trang Cập nhật lại bảo "máy đứng sai nhánh, hãy chuyển về main". Làm theo câu đó có thể mất hết phần sửa riêng.
+- Nay trang nói thẳng là xung đột, gọi tên file bị vướng, và cho biết Javis đang chạy vẫn giữ nguyên, không mất gì.
+
 ## [0.64.51] - 2026-09-25
 ### Sửa lỗi
 - **Tải ảnh và tài liệu lên khung chat chạy lại bình thường.** Từ bản 0.64.43, mọi file đính kèm đều báo "lỗi mạng" dù mạng vẫn ổn. Lỗi nằm ở chính Javis (bộ canh mạng đứng gọi sai cách nên trình duyệt từ chối), không phải do mạng nhà anh. Nay đã sửa và thử trên trình duyệt thật.
