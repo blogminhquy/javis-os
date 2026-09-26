@@ -45,7 +45,9 @@ with tempfile.TemporaryDirectory(prefix="javis-updater-merge-") as tmp:
     git(remote, "commit", "-m", "release two")
 
     previous_root = updater.ROOT
+    previous_source = updater.release_source
     updater.ROOT = install
+    updater.release_source = lambda: ("origin", "main")
     try:
         merged, safe = updater.merge_release()
         assert merged.returncode == 0 and safe, (merged.stdout, merged.stderr)
@@ -89,5 +91,6 @@ with tempfile.TemporaryDirectory(prefix="javis-updater-merge-") as tmp:
         assert git(install, "rev-parse", "HEAD") == before
     finally:
         updater.ROOT = previous_root
+        updater.release_source = previous_source
 
 print("TẤT CẢ PASS: cập nhật nhánh tùy chỉnh và hủy merge xung đột")

@@ -17,7 +17,8 @@ def check(name, condition):
 
 
 message = updater.chan_doan_pull("Already up to date.")
-check("đã mới nhất: nêu đúng nguồn phát hành", "origin/main" in message)
+check("đã mới nhất: nêu đúng nguồn phát hành chính thức",
+      "github.com/blogminhquy/javis-os.git/main" in message)
 check("đã mới nhất: hướng dẫn Docker nếu cần", "Docker" in message)
 check("không khuyên bỏ nhánh riêng", "checkout main" not in message and "reset --hard" not in message)
 
@@ -48,24 +49,12 @@ check("file cục bộ chặn merge: hướng dẫn kiểm tra",
 check("lỗi lạ không bịa nguyên nhân",
       updater.chan_doan_pull_hong("fatal: một lỗi chưa từng gặp") == "")
 
-old_remote = os.environ.get("JAVIS_UPDATE_REMOTE")
-old_branch = os.environ.get("JAVIS_UPDATE_BRANCH")
-try:
-    os.environ["JAVIS_UPDATE_REMOTE"] = "fork"
-    os.environ["JAVIS_UPDATE_BRANCH"] = "stable"
-    check("nguồn phát hành cấu hình được",
-          updater.release_source() == ("fork", "stable"))
-    check("chẩn đoán nhắc đúng nguồn đã cấu hình",
-          "fork/stable" in updater.chan_doan_pull("Already up to date."))
-finally:
-    if old_remote is None:
-        os.environ.pop("JAVIS_UPDATE_REMOTE", None)
-    else:
-        os.environ["JAVIS_UPDATE_REMOTE"] = old_remote
-    if old_branch is None:
-        os.environ.pop("JAVIS_UPDATE_BRANCH", None)
-    else:
-        os.environ["JAVIS_UPDATE_BRANCH"] = old_branch
+os.environ["JAVIS_UPDATE_REMOTE"] = "some-fork"
+os.environ["JAVIS_UPDATE_BRANCH"] = "stable"
+check("nút cập nhật luôn dùng cùng nguồn với /version",
+      updater.release_source() == ("https://github.com/blogminhquy/javis-os.git", "main"))
+os.environ.pop("JAVIS_UPDATE_REMOTE", None)
+os.environ.pop("JAVIS_UPDATE_BRANCH", None)
 
 if fails:
     print(f"THẤT BẠI {len(fails)}: {fails}")

@@ -233,9 +233,8 @@ def drop_update_stash(stash_oid, restored):
 
 
 def release_source():
-    """Release branch, independent of the current branch's upstream."""
-    return (os.getenv("JAVIS_UPDATE_REMOTE", "origin").strip() or "origin",
-            os.getenv("JAVIS_UPDATE_BRANCH", "main").strip() or "main")
+    """The same official release branch that /version checks in main.py."""
+    return "https://github.com/blogminhquy/javis-os.git", "main"
 
 
 def _clean_tracked_tree():
