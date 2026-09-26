@@ -437,11 +437,14 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 
 /* Cài đặt: một cột đọc tập trung, nhóm ít dùng có thể gập lại thay vì trải kín màn hình. */
 .settings-page { width: min(100%, 960px); margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
-.settings-tabs-page { width: min(100%, 1100px); margin: 0 auto; min-width: 0; }
+.cview-body:has(> .settings-tabs-page) { padding-top: 0; }
+.settings-tabs-page { width: 100%; margin: 0; min-width: 0; }
+.settings-tab-content > .settings-page,
+.settings-tab-content > .cl-wrap { margin-left: 0; margin-right: 0; }
 .settings-tabs {
   display: flex; gap: 4px; overflow-x: auto; scrollbar-width: thin;
-  position: sticky; top: -24px; z-index: 3; padding: 10px 0;
-  margin-bottom: 18px; background: var(--bg); border-bottom: 1px solid var(--glass-brd);
+  position: sticky; top: 0; z-index: 3; padding: 6px 0;
+  margin-bottom: 14px; background: var(--bg); border-bottom: 1px solid var(--glass-brd);
 }
 .settings-tabs [role="tab"] {
   flex: 0 0 auto; border: 1px solid transparent; border-radius: 9px;
@@ -455,7 +458,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .settings-tab-content[data-settings-tab="general"] [data-settings-section="voice"],
 .settings-tab-content[data-settings-tab="voice"] [data-settings-section="general"] { display: none !important; }
 @media (max-width: 700px) {
-  .settings-tabs { top: -16px; margin-bottom: 12px; }
+  .settings-tabs { margin-bottom: 12px; }
   .settings-tabs [role="tab"] { padding: 10px 12px; font-size: 13px; }
 }
 .settings-group {
