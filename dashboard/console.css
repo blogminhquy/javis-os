@@ -1636,7 +1636,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Tên + vai trò của cộng sự CẮT BỚT bằng ba chấm, tuyệt đối không xuống dòng. Vai trò trong
    file agent là cả một câu, nên để nó tự ngắt dòng là thanh tiêu đề cao mấy trăm pixel và
    ĐẨY Ô NHẬP RỚT KHỎI MÀN HÌNH (đo thật ở màn 1024px: ô nhập nằm ở y=850/768). */
-.ws-id { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; overflow: hidden; }
+.ws-id { flex: none; min-width: 0; display: flex; align-items: center; gap: 8px; overflow: hidden; margin: 0 2px 8px; }
+.ws-id:has(.ws-err) { flex-wrap: wrap; }
+#wsRightBtn { margin-left: auto; }
 .ws-id > svg, .ws-id > .ic { flex: none; }
 .ws-id > div { min-width: 0; }
 .ws-id strong, .ws-id small, .ws-id .ws-err { display: block; overflow: hidden;
@@ -1921,15 +1923,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 
 .ws-id .agent-avatar { flex:none; }
 @media (max-width:1200px) { .ws-right { width:310px; } }
-/* MÀN ĐIỆN THOẠI: thanh đầu trang xếp HAI DÒNG. Dòng trên là nguyên khuôn mặt cộng sự cùng
-   tên và vai trò, dòng dưới là các nút chức năng. Xếp cả năm thứ trên MỘT dòng thì bốn cái nút
-   ép ô tên còn đúng một chữ cái (đo thật trên iPhone: tiêu đề hiện ra là "C" và "C."), tức chỗ
-   duy nhất nói cho biết mình đang nói với ai lại là chỗ bị cắt mất trước tiên. */
+/* Hàng nút đứng trước tiêu đề trong DOM; icon nhỏ và tên luôn cùng một dòng. */
 @media (max-width:600px) {
   .ws-right { width:min(350px,90vw); }
   .ws-bar { flex-wrap:wrap; gap:8px 6px; }
-  /* order -1: trong DOM ô tên đứng SAU nút mở danh sách, mà dòng trên phải là khuôn mặt. */
-  .ws-id { order:-1; flex:1 0 100%; flex-wrap:wrap; }
   /* Lúc hỏng, câu báo lỗi và nút Thử lại được nhồi vào chính ô tên (xem veLoi trong
      workspace.js). Chen cạnh cái tên trên màn hẹp thì câu lỗi bị cắt giữa chữ và chữ trên nút
      bẻ làm hai dòng, nên cho cả hai xuống một dòng riêng. */
