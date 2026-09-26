@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.54] - 2026-09-26
+### Sửa lỗi
+- Tạo ảnh qua ChatGPT trả kết quả ngay khi nhận tín hiệu hoàn tất, không chờ thừa kết nối đóng. Lượt tạo ảnh bị lỗi cũng báo ngay để tránh khung chat chờ mãi.
+
 ## [0.64.53] - 2026-09-26
 ### Sửa lỗi
 - Lần đầu mở Javis vào Đồ thị. Lần sau quay về khung Trò chuyện hoặc Trợ lý dùng gần nhất, đúng cuộc hội thoại đang xem; các trang khác không thay đổi nơi quay lại.

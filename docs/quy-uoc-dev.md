@@ -12,6 +12,11 @@ thuế lên lượt chat nào cả.
   dùng merge commit). Chủ repo cho phép từ 2026-07-30 để thay đổi lên VPS thử được ngay, không
   cần hỏi lại mỗi lần. Khác biệt duy nhất so với thường lệ là merge không chờ ai duyệt tay.
 - **CI đỏ thì KHÔNG merge.** Sửa cho xanh đã.
+- Chủ repo nhắc lại ngày 2026-09-26: **mỗi lần merge vào `main` phải phát hành số phiên bản
+  mới**, tăng `VERSION` và cập nhật `CHANGELOG.md` trong cùng PR để các máy khác nhận biết
+  có bản cập nhật. Trước khi merge, kiểm tra số này lớn hơn phiên bản hiện tại trên
+  `origin/main`; sau khi merge, xác nhận luồng build/phát hành bản cập nhật thành công.
+  Không coi việc merge code là đã phát hành xong nếu bản mới chưa được xuất bản.
 
 ## Đặt xí chỗ số phiên bản TRƯỚC khi code
 
