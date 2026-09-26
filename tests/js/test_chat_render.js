@@ -1,7 +1,7 @@
 /* Test autolink URL tran trong mdToHtml. Chay tay / CI:
        node dashboard/test_chat_render.js
    KHONG can trinh duyet: chi test ham thuan mdToHtml(). */
-const { mdToHtml, appFilePath } = require("../../dashboard/chat-render.js");
+const { mdToHtml, appFilePath, visibleMarkdown } = require("../../dashboard/chat-render.js");
 
 let fails = [];
 function check(name, cond) {
@@ -216,6 +216,10 @@ check("bảng markdown giữ căn giữa ở tiêu đề và ô dữ liệu",
 check("bảng markdown giữ căn phải ở tiêu đề và ô dữ liệu",
   has(h, '<th style="text-align:right">Phải</th>') &&
   has(h, '<td style="text-align:right">c</td>'));
+check("copy giữa stream bỏ metadata đã đóng",
+  visibleMarkdown("Nội dung\n<!-- JAVIS_ASK: {hidden} -->\nTiếp") === "Nội dung\n\nTiếp");
+check("copy giữa stream bỏ metadata chưa đóng",
+  visibleMarkdown("Nội dung\n<!-- JAVIS_METRICS: {") === "Nội dung\n");
 
 if (fails.length) {
   console.log("\nFAIL - " + fails.length + " test: " + fails.join(", "));

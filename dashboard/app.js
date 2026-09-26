@@ -1962,7 +1962,8 @@ function runMsgAct(btn) {
     const b = msgEl.querySelector(".bubble");
     // Tin Javis giữ markdown gốc trong dataset.md: copy bản đó để bài viết dán sang
     // CMS/website còn nguyên heading, đậm, link, bảng. innerText chỉ là fallback.
-    if (b) copyText(msgEl.dataset.md || b.innerText).then(() => flashCopied(btn, "⧉"));
+    if (b) copyText(window.JavisVisibleMarkdown(msgEl.dataset.md || b.innerText))
+      .then(() => flashCopied(btn, "⧉"));
     return;
   }
   // Chi tin NGUOI DUNG mang nut gui lai / sua lai, nen chu goc luon nam ngay tren chinh no.

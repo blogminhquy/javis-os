@@ -136,6 +136,6 @@
     window.JavisAsk = { extract: extract, render: render, freezeAll: freezeAll };
   }
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { extract: extract };
+    module.exports = { extract: extract, render: render };
   }
 })();

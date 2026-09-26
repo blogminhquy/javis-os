@@ -578,10 +578,14 @@
     try { return _mdToHtmlThan(raw); }
     finally { _brainForRender = truoc; _choTrinhSua = truocTS; _thuMucForRender = truocTM; }
   }
-  function _mdToHtmlThan(raw) {
+  function visibleMarkdown(raw) {
     raw = String(raw == null ? "" : raw);
     // Bo HTML comment (khoi dieu khien JAVIS_* luon vo hinh), ke ca comment chua dong luc stream
-    raw = raw.replace(/<!--[\s\S]*?-->/g, "").replace(/<!--[\s\S]*$/, "");
+    return raw.replace(/<!--[\s\S]*?-->/g, "").replace(/<!--[\s\S]*$/, "");
+  }
+
+  function _mdToHtmlThan(raw) {
+    raw = visibleMarkdown(raw);
 
     var ph = [];
     function put(html) { ph.push(html); return OPEN + (ph.length - 1) + CLOSE; }
@@ -1288,6 +1292,7 @@
 
   if (typeof window !== "undefined") {
     window.mdToHtml = mdToHtml;
+    window.JavisVisibleMarkdown = visibleMarkdown;
     // Bo to mau chung: code-hl.js goi lai cho cac ngon ngu kieu C (js/py/sh...) de mot luat
     // chi nam o mot cho. Markup/CSS/JSON thi code-hl tu doc lay (xem chu thich ben do).
     window.JavisHighlight = highlight;
@@ -1300,7 +1305,8 @@
     window.JavisFileRef = appFileRef;
   }
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { mdToHtml: mdToHtml, highlight: highlight, wkResolve: wkResolve,
+    module.exports = { mdToHtml: mdToHtml, visibleMarkdown: visibleMarkdown,
+      highlight: highlight, wkResolve: wkResolve,
       appFilePath: appFilePath, appFileRef: appFileRef, fileUriPath: fileUriPath,
       isDownloadFile: isDownloadFile,
       laLinkTaiFile: laLinkTaiFile, laIOS: laIOS,
