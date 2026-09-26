@@ -96,15 +96,9 @@ if _fails:
     print(f"FAIL {len(_fails)} test: " + ", ".join(_fails))
 
 # os._exit thay vì sys.exit: awatch của watchfiles chạy trên một luồng Rust (notify).
-# Khi socket đóng, `finally` trong /ws/graph chỉ .cancel() các task chứ không await,
-# nên luồng đó có thể còn sống lúc interpreter bắt đầu finalize - và trên Linux nó chạm
-# vào object đã giải phóng, cho Segmentation fault (core dumped) NGAY SAU khi test đã in
-# "TẤT CẢ PASS". Đúng lỗi này làm CI đỏ liên tục từ 0.9.231, che mất mọi lỗi thật khác.
-# os._exit bỏ qua hẳn bước finalize nên không còn cuộc đua đó.
-#
-# Cái này KHÔNG chứng minh gì về production: server chạy liên tục, không thoát, và
-# stop_event vẫn tắt watcher đúng cách khi client ngắt. Chỉ là chuyện lúc tiến trình chết.
-# Việc đáng làm riêng: cho /ws/graph await các task đã cancel thay vì bỏ mặc.
+# Handler đã chờ watcher thoát có giới hạn, nhưng trong môi trường kiểm thử vẫn có thể còn
+# luồng native sống đúng lúc interpreter finalize. os._exit tránh cuộc đua này sau khi đã
+# flush kết quả; lỗi dọn WebSocket trong khối with ở trên vẫn bị test bắt bình thường.
 sys.stdout.flush()
 sys.stderr.flush()
 os._exit(1 if _fails else 0)
