@@ -1961,9 +1961,14 @@ function runMsgAct(btn) {
   if (act === "copy") {
     const b = msgEl.querySelector(".bubble");
     // Tin Javis giữ markdown gốc trong dataset.md: copy bản đó để bài viết dán sang
-    // CMS/website còn nguyên heading, đậm, link, bảng. innerText chỉ là fallback.
-    if (b) copyText(window.JavisVisibleMarkdown(msgEl.dataset.md || b.innerText))
-      .then(() => flashCopied(btn, "⧉"));
+    // CMS/website còn nguyên heading, đậm, link, bảng. Metadata ẩn chỉ có ở tin Javis;
+    // chữ người dùng phải giữ nguyên, kể cả khi họ thật sự gõ cú pháp HTML comment.
+    if (b) {
+      const value = msgEl.classList.contains("msg-javis")
+        ? window.JavisVisibleMarkdown(msgEl.dataset.md || b.innerText)
+        : (msgEl.dataset.text || b.innerText);
+      copyText(value).then(() => flashCopied(btn, "⧉"));
+    }
     return;
   }
   // Chi tin NGUOI DUNG mang nut gui lai / sua lai, nen chu goc luon nam ngay tren chinh no.
