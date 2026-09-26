@@ -2,7 +2,7 @@
 
 ***Tiếng Việt** · [English](en/15-branding-and-domains.md)*
 
-Trang này hướng dẫn hai việc: đổi logo/avatar của Javis thành ảnh của bạn, và trỏ một tên miền riêng (ví dụ `javis.tencuaban.com`) vào Javis để chạy qua HTTPS. Các thao tác nằm trong **Cài đặt → Giọng nói, thương hiệu & truy cập**.
+Trang này hướng dẫn hai việc: đổi logo/avatar của Javis thành ảnh của bạn, và trỏ một tên miền riêng (ví dụ `javis.tencuaban.com`) vào Javis để chạy qua HTTPS. Các thao tác nằm trong **Cài đặt → Chung**.
 
 ## Tính năng này là gì
 
@@ -13,7 +13,7 @@ Lưu ý quan trọng ngay từ đầu: phần **Tên miền riêng** chỉ hoạ
 
 ## Mở ở đâu trong Javis
 
-Cả hai tính năng nằm trong **Cài đặt → Giọng nói, thương hiệu & truy cập**. Nếu nhóm đang thu gọn, bấm tiêu đề để mở. Bên trong có hai card:
+Cả hai tính năng nằm trong **Cài đặt → Chung**. Trong tab Chung có hai thẻ:
 
 - Ô **ẢNH ĐẠI DIỆN**: có ảnh xem trước, nút **Tải ảnh lên** và nút **Khôi phục mặc định**.
 - Ô **TÊN MIỀN & SSL**: có ô nhập (chỗ trống ghi "vd: javis.tencuaban.com"), nút **Lưu & kiểm tra**, hai badge trạng thái DNS và SSL, hai nút **Bật SSL** và **Kiểm tra lại**, cùng wizard ba bước đổi nội dung theo đúng môi trường VPS/Hostinger.
@@ -22,7 +22,7 @@ Mỗi lần mở Cài đặt, Javis tự nạp lại giá trị đang dùng, ki�
 
 ## Đổi logo/avatar (từng bước)
 
-1. Mở **Cài đặt → Giọng nói, thương hiệu & truy cập**, tìm ô **ẢNH ĐẠI DIỆN**.
+1. Mở **Cài đặt → Chung**, tìm ô **ẢNH ĐẠI DIỆN**.
 2. Bấm nút **Tải ảnh lên**. Cửa sổ chọn tệp của máy hiện ra.
 3. Chọn một tệp ảnh. Định dạng nhận: PNG, JPG, WEBP, GIF. Dung lượng tối đa 5MB.
 4. Sau khi chọn, Javis hiện dòng trạng thái **Đang tải lên…** rồi **Đã cập nhật ảnh ✓** khi xong. Ảnh mới thay ngay ở tất cả vị trí (góc trên, thanh bên, màn đăng nhập, ô xem trước) mà không cần tải lại trang.
@@ -54,7 +54,7 @@ Phần này giả định bạn đã deploy Javis bằng Docker trên VPS, đã 
 
 ### Bước A: nhập và lưu tên miền
 
-1. Mở **Cài đặt → Giọng nói, thương hiệu & truy cập**, tìm ô **TÊN MIỀN & SSL**.
+1. Mở **Cài đặt → Chung**, tìm ô **TÊN MIỀN & SSL**.
 2. Nhập tên miền (hoặc tên miền con) bạn muốn dùng vào ô, ví dụ `javis.tencuaban.com`. Không cần gõ `https://`; nếu có gõ, Javis tự bỏ.
 3. Bấm nút **Lưu & kiểm tra** (hoặc nhấn Enter trong ô nhập). Javis hiện **Đang lưu và kiểm tra…**, lưu tên miền, rồi tự chạy kiểm tra DNS/SSL và vẽ wizard ba bước ngay trên UI.
 4. Nếu tên miền sai định dạng, Javis báo: **Tên miền không hợp lệ (vd: javis.tencuaban.com)**. Sửa lại rồi lưu tiếp.

@@ -437,6 +437,27 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 
 /* Cài đặt: một cột đọc tập trung, nhóm ít dùng có thể gập lại thay vì trải kín màn hình. */
 .settings-page { width: min(100%, 960px); margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.settings-tabs-page { width: min(100%, 1100px); margin: 0 auto; min-width: 0; }
+.settings-tabs {
+  display: flex; gap: 4px; overflow-x: auto; scrollbar-width: thin;
+  position: sticky; top: -24px; z-index: 3; padding: 10px 0;
+  margin-bottom: 18px; background: var(--bg); border-bottom: 1px solid var(--glass-brd);
+}
+.settings-tabs [role="tab"] {
+  flex: 0 0 auto; border: 1px solid transparent; border-radius: 9px;
+  padding: 10px 16px; background: transparent; color: var(--text2);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.settings-tabs [role="tab"]:hover { background: var(--glass); color: var(--text); }
+.settings-tabs [aria-selected="true"] { color: var(--accent-ink); background: var(--accent-wash-2); border-color: var(--accent-line); }
+.settings-tabs [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.settings-tab-content { min-width: 0; }
+.settings-tab-content[data-settings-tab="general"] [data-settings-section="voice"],
+.settings-tab-content[data-settings-tab="voice"] [data-settings-section="general"] { display: none !important; }
+@media (max-width: 700px) {
+  .settings-tabs { top: -16px; margin-bottom: 12px; }
+  .settings-tabs [role="tab"] { padding: 10px 12px; font-size: 13px; }
+}
 .settings-group {
   border: 1px solid var(--glass-brd); border-radius: 16px; overflow: hidden;
   background: var(--glass); box-shadow: var(--shadow-1);

@@ -118,7 +118,7 @@
     { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["workspace", "conversations", "skills", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models"] },
-    { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "pet", "share", "logs", "account"], foot: true },
+    { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["settings", "share", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
 
@@ -134,7 +134,8 @@
   //
   // "chatbots" (0.61.0): trang Chatbot gộp vào trang Hội thoại làm tab thứ ba. Id còn đó để
   // lệnh nói / bookmark cũ đi tới đúng tab, nhưng không còn là một mục trên thanh bên.
-  const RAIL_AN = new Set(["chatbots"]);
+  // Các id cũ vẫn dùng được qua lệnh UI và lối tắt, nhưng mở tab trong Cài đặt.
+  const RAIL_AN = new Set(["chatbots", "usage", "pet", "logs"]);
   // Trả về [{label, foot, items:[...]}], bỏ id không tồn tại. Mục nào chưa xếp nhóm → dồn vào "Khác".
   function railGroups() {
     const seen = new Set();
@@ -158,6 +159,7 @@
   }
   // Nhãn nhóm chứa một mục id (cho accordion: mở đúng nhóm của trang đang xem).
   function groupLabelOf(id) {
+    if (["pet", "usage", "logs", "runtime"].includes(id)) id = "settings";
     const g = RAIL_GROUPS.find(gr => (gr.ids || []).includes(id));
     return g ? g.label : (RAIL_GROUPS[0] && RAIL_GROUPS[0].label) || "";
   }
@@ -312,13 +314,18 @@
     }
     id = TRANG_GOP[id] || id;
     const store = Alpine.store("nav");
-    if (store.active === id) return;   // đang ở trang này → khỏi đổi (tránh nháy + mượn/trả node thừa)
+    const oldTab = { pet: "pet", usage: "usage", logs: "updates" }[id];
+    let tab = oldTab || (id === "settings" ? arguments[2] || "general" : null);
+    if (tab && !["general", "voice", "pet", "usage", "updates"].includes(tab)) tab = "general";
+    if (oldTab) id = "settings";
+    if (store.active === id && (!tab || store.settingsTab === tab)) return;
     const swap = () => {
       const leave = _pageLeave; _pageLeave = null;
       if (leave) { try { leave(); } catch (e) {} }   // dọn trang cũ trước khi thay nội dung
       // (Trước 0.12.4 ở đây còn một nhát thu lớp chat phóng to. Lớp nổi đó đã bỏ - phóng to
       // giờ là chuyển hẳn sang trang Trò chuyện, và _pageLeave ở trên đã trả node về HUD.)
       store.active = id;
+      if (tab) store.settingsTab = tab;
       // Chỉ nhớ hai khung hội thoại. Ghé Cài đặt, Cập nhật hay Đồ thị không làm mất
       // nơi đang nói chuyện; chưa từng mở hội thoại thì lần đầu vẫn vào Đồ thị.
       if (id === "chat" || id === "workspace") {
@@ -330,7 +337,7 @@
       // Nút điều khiển cockpit (cài đặt, giọng nói, làm mới) chỉ hiện ở trang Javis, không hiện navbar trang quản lý
       document.body.classList.toggle("in-console", id !== "home");
       // Rời trang Cài đặt → cất #quickSet về holder TRƯỚC khi cviewBody bị ghi đè (giữ node + handler).
-      if (id !== "settings") parkQuickSet();
+      if (id !== "settings") parkQuickSet(true);
       if (id !== "home") renderPage(id);
       recomputeGraph();
     };
@@ -478,6 +485,8 @@
   async function renderPage(id) {
     let el = body();
     if (!el) return;
+    // Cả đổi TAB trong Cài đặt cũng thay cviewBody. Trả node tĩnh về trước khi tháo nó.
+    parkQuickSet();
     // Thay #cviewBody bằng node MỚI mỗi lần đổi trang: renderer async của trang CŨ (đang await
     // fetch) nếu ghi trễ (el.innerHTML=...) sẽ ghi vào node cũ ĐÃ THÁO RỜI → vô hại, không phá
     // nội dung/nút của trang mới. Đặc biệt bảo vệ các node chat mà tab Trò chuyện mượn vào
@@ -487,7 +496,7 @@
     if (id === "chat")     return renderChat(el);
     if (id === "workspace") return renderWorkspace(el);
     if (STUDIO_PAGES.includes(id)) return renderStudioPage(el, id);
-    if (id === "settings") return renderSettings(el);
+    if (id === "settings") return renderSettingsPage(el);
     if (id === "pet") return renderPetPage(el);
     if (id === "share") return renderSharePage(el);
     if (id === "models")   return renderModels(el);
@@ -6321,9 +6330,13 @@
 
   // ---- Cất #quickSet (avatar/tên miền/giọng nói) về holder ẩn khi rời trang Cài đặt ----
   // Node giữ nguyên → mọi handler đã gắn ở app.js/branding.js/quick-settings.js vẫn sống.
-  function parkQuickSet() {
+  function parkQuickSet(resetDrafts = false) {
     const qs = document.getElementById("quickSet");
     const holder = document.getElementById("quickSetHolder");
+    if (qs && resetDrafts) {
+      delete qs.dataset.generalReady;
+      qs.querySelectorAll("[data-settings-ready]").forEach(node => delete node.dataset.settingsReady);
+    }
     if (qs && holder && qs.parentNode !== holder) holder.appendChild(qs);
   }
 
@@ -6370,6 +6383,7 @@
   // Đọc /voice/options để biết cái gì đang sẵn (agy đã cài chưa, key nào đã dán), rồi vẽ ba
   // khối: chế độ, bộ não giọng cho làn nhanh, nghe bằng gì, và nhà cung cấp cho bậc Live.
   async function renderVoiceV2Card() {
+    const gen = _renderGen;
     const host = document.getElementById("vpV2Host");
     if (!host) return;
     // Ba mục micro (ngôn ngữ nghe, im lặng rồi gửi, ngắt lời) là node TĨNH của index.html:
@@ -6389,6 +6403,7 @@
     traMicVeNha();
     let o = null;
     try { o = await (await fetch("/voice/options", { cache: "no-store" })).json(); } catch (e) { o = null; }
+    if (gen !== _renderGen) return;
     if (!o || !o.ok) {
       // Máy chủ cũ: vẫn phải cho chỉnh micro, ba mục đó không cần máy chủ.
       host.innerHTML = `<div class="qs-block"><div class="popover-label">${esc(t("settings.v2_title"))}</div><div class="gcard-meta">${esc(t("settings.v2_load_fail"))}</div></div>`;
@@ -6525,6 +6540,7 @@
       st.textContent = r && r.ok ? t("settings.v2_saved") : t("settings.save_failed");
       try { if (window.JavisVoiceMode) window.JavisVoiceMode.refresh(); } catch (e) {}
     };
+    host.dataset.settingsReady = "true";
   }
 
   // ---- Thẻ LINH VẬT trên trang Cài đặt ----
@@ -6747,7 +6763,45 @@
     ve();
   }
 
-  async function renderSettings(el) {
+  async function renderSettingsPage(el) {
+    const tabs = ["general", "voice", "pet", "usage", "updates"];
+    const tab = Alpine.store("nav").settingsTab || "general";
+    el.innerHTML = `<div class="settings-tabs-page">
+      <div class="settings-tabs" role="tablist" aria-label="${esc(t("page.settings.label"))}">
+        ${tabs.map(id => `<button type="button" role="tab" id="settings-tab-${id}"
+          data-settings-tab="${id}" aria-controls="settings-panel" aria-selected="${id === tab}"
+          tabindex="${id === tab ? 0 : -1}">${esc(t(`settings.tab.${id}`))}</button>`).join("")}
+      </div>
+      <section id="settings-panel" class="settings-tab-content" role="tabpanel"
+        aria-labelledby="settings-tab-${tab}" tabindex="0" data-settings-tab="${tab}"></section>
+    </div>`;
+    const select = (id) => {
+      navigateTo("settings", true, id);
+      const btn = document.getElementById("settings-tab-" + id);
+      if (btn) { btn.focus({ preventScroll: true }); btn.scrollIntoView({ block: "nearest", inline: "nearest" }); }
+    };
+    el.querySelectorAll("[role=tab]").forEach(btn => {
+      btn.onclick = () => select(btn.dataset.settingsTab);
+      btn.onkeydown = e => {
+        const i = tabs.indexOf(btn.dataset.settingsTab);
+        const next = e.key === "ArrowRight" ? (i + 1) % tabs.length
+          : e.key === "ArrowLeft" ? (i + tabs.length - 1) % tabs.length
+          : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : -1;
+        if (next >= 0) { e.preventDefault(); select(tabs[next]); }
+      };
+    });
+    const panel = el.querySelector("#settings-panel");
+    try {
+      if (tab === "pet") await renderPetPage(panel);
+      else if (tab === "usage") await renderUsage(panel);
+      else if (tab === "updates") await renderLogs(panel);
+      else await renderSettings(panel, tab);
+    } catch (e) {
+      if (panel.isConnected) panel.innerHTML = `<div class="cview-placeholder">${esc(t("app.err_net"))}</div>`;
+    }
+  }
+
+  async function renderSettings(el, tab = "general") {
     const gen = _renderGen;               // chốt token: nếu user đổi trang trong lúc await → bỏ render này
     parkQuickSet();                       // giữ #quickSet an toàn TRƯỚC khi ghi đè cviewBody
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
@@ -6826,7 +6880,7 @@
         <input class="js-input" id="vpElVoice" value="${esc(v.elevenlabs_voice || "")}" placeholder="${esc(t("settings.eleven_voice_ph"))}">
       </div>`;
     el.innerHTML = `<div class="settings-page">
-      <details class="settings-group" open>
+      <details class="settings-group" data-settings-section="general" open>
         <summary><span><b>${esc(t("settings.grp_system"))}</b><small>${esc(t("settings.grp_system_sub"))}</small></span><span class="settings-caret">${ic("chevron-down")}</span></summary>
         <div class="settings-group-body">
           <div class="settings-status-grid">
@@ -6838,13 +6892,11 @@
           <div class="settings-links">
             <button data-settings-go="models"><span>◈</span><b>${esc(t("page.models.label"))}</b><small>${esc(t("settings.link_models_sub"))}</small></button>
             <button data-settings-go="channels"><span>${ic("send")}</span><b>${esc(t("page.channels.label"))}</b><small>${esc(t("settings.link_channels_sub"))}</small></button>
-            <button data-settings-go="account"><span>${ic("circle-user")}</span><b>${esc(t("page.account.label"))}</b><small>${esc(t("settings.link_account_sub"))}</small></button>
-            <button data-settings-go="logs"><span>${ic("scroll-text")}</span><b>${esc(t("page.logs.label"))}</b><small>${esc(t("settings.link_logs_sub"))}</small></button>
           </div>
         </div>
       </details>
 
-      <details class="settings-group" open>
+      <details class="settings-group" data-settings-section="general" open>
         <summary><span><b>${esc(t("settings.grp_ui"))}</b><small>${esc(t("settings.grp_ui_sub"))}</small></span><span class="settings-caret">${ic("chevron-down")}</span></summary>
         <div class="settings-group-body settings-two-col">
           <div class="settings-card">
@@ -6874,12 +6926,9 @@
         </div>
       </details>
 
-      <details class="settings-group" open>
-        <summary><span><b>${esc(t("settings.grp_voice"))}</b><small>${esc(t("settings.grp_voice_sub"))}</small></span><span class="settings-caret">${ic("chevron-down")}</span></summary>
-        <div class="settings-group-body cs-host"></div>
-      </details>
+      <div class="cs-host"></div>
 
-      <details class="settings-group" id="setAutostartSec" style="display:none">
+      <details class="settings-group" data-settings-section="general" id="setAutostartSec" style="display:none">
         <summary><span><b>${esc(t("settings.grp_autostart"))}</b><small>${esc(t("settings.grp_autostart_sub"))}</small></span><span class="settings-caret">${ic("chevron-down")}</span></summary>
         <div class="settings-group-body">
           <div class="settings-card compact">
@@ -6897,11 +6946,15 @@
     // Phải chạy TRƯỚC vòng nối [data-settings-go] bên dưới: nút "Bật ngay" nằm trong khối vừa
     // nhúng, và nó dựa vào chính vòng đó để nối hành động chuyển trang.
     await renderTfaRow();
+    if (gen !== _renderGen) return;
     // Khối tài khoản vừa nhúng do app.js nuôi, và đường vào trang này KHÔNG đi qua
     // openSettings() - không gọi cái này thì ô "Tài khoản" trống trơn, ô mật khẩu hiện tại
     // không hiện ra, và nút Lưu tưởng là chưa có tài khoản nên bấm không ăn.
     if (window.__javisRefreshAuthRow) { try { await window.__javisRefreshAuthRow(); } catch (e) {} }
-    if (window.__javisRefreshExtras) { try { window.__javisRefreshExtras(); } catch (e) {} }  // nạp lại avatar/tên miền
+    if (gen !== _renderGen) return;
+    if (tab === "general" && qs && !qs.dataset.generalReady && window.__javisRefreshExtras) {
+      try { window.__javisRefreshExtras(); qs.dataset.generalReady = "true"; } catch (e) {}
+    }
     const langHost = document.getElementById("replyLangHost");
     if (langHost) {
       langHost.innerHTML = langHtml;
@@ -6926,12 +6979,15 @@
     // còn #vpV2Host là thẻ "Chế độ nói chuyện" của riêng nó (trước đây V2 bị nhét vào trong
     // khối nhà cung cấp, nên một thẻ có hai nút Lưu chồng nhau).
     const provHost = document.getElementById("ttsProviderHost");
-    if (provHost) provHost.innerHTML = provHtml;
-    renderVoiceV2Card();
+    // Giữ nguyên các ô chưa Lưu khi chuyển TAB. Chỉ nạp lại khi mở một lượt Cài đặt mới.
+    const keepVoiceDraft = provHost && provHost.dataset.settingsReady === "true";
+    if (provHost && !keepVoiceDraft) { provHost.innerHTML = provHtml; provHost.dataset.settingsReady = "true"; }
+    const voiceHost = document.getElementById("vpV2Host");
+    if (tab === "voice" && voiceHost && voiceHost.dataset.settingsReady !== "true") renderVoiceV2Card();
 
     const provSel = document.getElementById("vpProvider");
     const ttsAdvanced = document.getElementById("ttsAdvanced");
-    if (ttsAdvanced) ttsAdvanced.open = prov !== "edge";
+    if (ttsAdvanced && !keepVoiceDraft) ttsAdvanced.open = prov !== "edge";
     if (provSel) {   // guard: thiếu điểm neo (vd cache index.html cũ) thì avatar/tên miền vẫn chạy, không sập trang
       const showFields = () => {
         const p = provSel.value;
@@ -6947,7 +7003,7 @@
 
       // Dòng trạng thái nằm sẵn trong index.html (rỗng) nên câu mở đầu phải đặt từ đây.
       const st = document.getElementById("vpStatus");
-      if (st) st.innerHTML = esc(t("settings.tts_using")) + " <b>" + esc({ edge: "Edge", openai: "OpenAI", elevenlabs: "ElevenLabs" }[prov] || prov) + "</b>";
+      if (st && !keepVoiceDraft) st.innerHTML = esc(t("settings.tts_using")) + " <b>" + esc({ edge: "Edge", openai: "OpenAI", elevenlabs: "ElevenLabs" }[prov] || prov) + "</b>";
       document.getElementById("vpSave").onclick = async () => {
         st.textContent = t("settings.saving");
         const data = {
@@ -6957,12 +7013,15 @@
         };
         const elKey = document.getElementById("vpElKey").value.trim();
         if (elKey) data.elevenlabs_key = elKey;
-        const r = await saveSetting("voice", data);
         const oaKey = document.getElementById("vpOaKey").value.trim();
-        if (oaKey) await saveSetting("model", { openai_api_key: oaKey });   // key OpenAI dùng chung với chat
+        let r = await saveSetting("voice", data);
+        if (oaKey) {
+          const keyResult = await saveSetting("model", { openai_api_key: oaKey });
+          if (!keyResult.ok) r = keyResult;
+        }
         _settings = null;
         st.innerHTML = r.ok
-          ? OK_ICON + " " + esc(window.t("cs.vo_saved_a")) + " <b>" + esc(provSel.value) + "</b>. " + esc(window.t("cs.vo_saved_b"))
+          ? OK_ICON + " " + esc(window.t("cs.vo_saved_a")) + " <b>" + esc(data.tts_provider) + "</b>. " + esc(window.t("cs.vo_saved_b"))
           : WARN_ICON + " " + esc(window.t("cs.ch_save_err"));
       };
     }
@@ -6970,7 +7029,7 @@
     el.querySelectorAll("[data-settings-go]").forEach(btn => {
       btn.onclick = () => navigateTo(btn.dataset.settingsGo);
     });
-    const refreshSettings = () => { _settings = null; renderSettings(el); };
+    const refreshSettings = () => { if (gen !== _renderGen) return; _settings = null; renderPage("settings"); };
     const graphToggle = document.getElementById("setGraphToggle");
     if (graphToggle) graphToggle.onclick = async () => {
       graphToggle.disabled = true;
@@ -7007,7 +7066,7 @@
     const loadAutostart = async () => {
       const section = document.getElementById("setAutostartSec"); if (!section) return;
       let j = {}; try { j = await (await fetch("/autostart", { cache: "no-store" })).json(); } catch (e) { return; }
-      if (!j.supported) return;
+      if (gen !== _renderGen || !j.supported) return;
       section.style.display = ""; section.open = true;
       const on = !!j.enabled;
       document.getElementById("setAutoTag").textContent =
@@ -7028,11 +7087,12 @@
         button.disabled = true; document.getElementById("setAutoStatus").textContent = window.t("settings.saving");
         const fd = new FormData(); fd.append("enabled", (on && !hong) ? "0" : "1");
         let r = {}; try { r = await (await fetch("/autostart", { method: "POST", body: fd })).json(); } catch (e) { r = { ok: false, error: e.message }; }
+        if (gen !== _renderGen) return;
         if (r.ok) { document.getElementById("setAutoStatus").textContent = ""; loadAutostart(); }
         else { document.getElementById("setAutoStatus").innerHTML = WARN_ICON + " " + esc(r.error || window.t("app.err_cap")); button.disabled = false; }
       };
     };
-    loadAutostart();
+    if (tab === "general") loadAutostart();
   }
 
   // ============================================

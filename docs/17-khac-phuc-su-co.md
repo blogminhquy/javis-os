@@ -161,7 +161,7 @@ Không, nếu chạy bằng Docker. Mọi ghi chú, brain, settings và cả tok
 
 ### Cập nhật trong app hoạt động thế nào?
 
-Mở **Cập nhật** (nhóm **Hệ thống**); thẻ **Javis OS** hiện phiên bản đang chạy và tự kiểm tra bản mới trên GitHub. Nếu có bản mới, dòng trạng thái hiện **🆕 Có bản mới** kèm khung **Bản mới có gì**, và nút **⬆ Cập nhật ngay** xuất hiện khi môi trường hỗ trợ. Bấm nút, xác nhận, app chạy qua 6 bước hiện trên thanh tiến trình (Chuẩn bị, Tải code, Cài thư viện, Khởi động lại, Kiểm tra sức khoẻ, Xong) rồi tự tải lại trang. Nếu bản mới lỗi, Javis **tự quay về bản cũ** và báo **↩ Bản mới lỗi, đã tự quay về bản cũ**. Bên dưới thẻ là timeline nhật ký cập nhật của các bản đã ra.
+Mở **Hệ thống → Cài đặt → Cập nhật**; thẻ **Javis OS** hiện phiên bản đang chạy và tự kiểm tra bản mới trên GitHub. Nếu có bản mới, dòng trạng thái hiện **🆕 Có bản mới** kèm khung **Bản mới có gì**, và nút **⬆ Cập nhật ngay** xuất hiện khi môi trường hỗ trợ. Bấm nút, xác nhận, app chạy qua 6 bước hiện trên thanh tiến trình (Chuẩn bị, Tải code, Cài thư viện, Khởi động lại, Kiểm tra sức khoẻ, Xong) rồi tự tải lại trang. Nếu bản mới lỗi, Javis **tự quay về bản cũ** và báo **↩ Bản mới lỗi, đã tự quay về bản cũ**. Bên dưới thẻ là timeline nhật ký cập nhật của các bản đã ra.
 
 Bản cài trực tiếp trên máy (Windows, Linux, macOS) luôn tự cập nhật được. Bản Docker chỉ tự cập nhật tại chỗ khi container **Watchtower** đang chạy.
 

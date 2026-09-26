@@ -33,7 +33,7 @@
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
   <link rel="stylesheet" href="/static/style.css?v=100">
-  <link rel="stylesheet" href="/static/console.css?v=72">
+  <link rel="stylesheet" href="/static/console.css?v=73">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
   <script>(function(){try{if(localStorage.getItem('javis.theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
@@ -333,7 +333,7 @@
           </summary>
           <div class="quick-set-body">
 
-            <label class="qs-row">
+            <label class="qs-row" data-settings-section="voice">
               <span><i data-ic="volume-2"></i> <span data-i18n="qs.tts">Đọc trả lời bằng giọng</span></span>
               <span class="toggle"><input type="checkbox" id="qsTts"><span></span></span>
             </label>
@@ -347,14 +347,14 @@
 
             <!-- Ngôn ngữ: console.js render vào đây khi mở trang Cài đặt.
                  Đặt TRÊN nhóm giọng nói vì giọng đọc phụ thuộc ngôn ngữ, không ngược lại. -->
-            <div id="replyLangHost"></div>
+            <div id="replyLangHost" data-settings-section="general"></div>
 
             <!-- GIỌNG ĐỌC. Nhà cung cấp do console.js đổ vào #ttsProviderHost (nằm TRONG thẻ
                  này, không tách thẻ riêng nữa: chọn nhà cung cấp rồi chọn giọng là một việc).
                  Bảy giọng trước đây là bảy thẻ radio xếp dọc, cao gần 600px cho một lựa chọn
                  duy nhất; nay là một ô chọn cao một hàng. Tốc độ cũng vậy: thanh trượt đổi
                  thành ô chọn có tên mức, vì không ai cần 1.37× mà cần "hơi nhanh". -->
-            <div class="qs-block">
+            <div class="qs-block" data-settings-section="voice">
               <div class="popover-label" data-i18n="qs.voice">GIỌNG ĐỌC</div>
               <!-- #edgeVoiceSection: console.js ẩn khối này khi nhà cung cấp không phải Edge
                    (OpenAI/ElevenLabs chọn giọng ngay trong khối nhà cung cấp ở trên). -->
@@ -398,7 +398,7 @@
             <!-- CHẾ ĐỘ NÓI CHUYỆN (Voice V2): console.js renderVoiceV2Card() đổ vào đây.
                  Là thẻ RIÊNG chứ không lồng trong thẻ giọng đọc, vì nó có nút Lưu của chính
                  nó - luật của trang này: một thẻ, một nút Lưu, luôn ở góc dưới phải. -->
-            <div id="vpV2Host"></div>
+            <div id="vpV2Host" data-settings-section="voice"></div>
 
             <!-- MICRO (Voice V1): ba mục ghi thẳng localStorage của máy đang dùng. Từ 0.59.27
                  chúng nằm CÙNG THẺ với "Chế độ nói chuyện" (chủ dự án chốt 17/09): console.js
@@ -406,7 +406,7 @@
                  ẩn cái nhà này. Là node tĩnh chứ không vẽ bằng JS vì app.js gắn tay bắt cho ba
                  ô này đúng một lần lúc tải trang. Nhà mang lớp .qs-block để lỡ thẻ kia không
                  vẽ được (máy chủ cũ) thì ba mục vẫn đứng trong một thẻ tử tế. -->
-            <div class="qs-block" id="qsMicHome">
+            <div class="qs-block" id="qsMicHome" data-settings-section="voice">
               <div id="qsMicFields">
                 <div class="qs-sub" data-i18n="qs.mic">MICRO</div>
                 <div class="qs-field">
@@ -444,7 +444,7 @@
             <!-- THƯƠNG HIỆU. Hai nút trước đây là hai thanh tràn ngang (một tím đặc, một
                  viền mờ) xếp chồng cạnh ảnh 48px, to hơn cả nội dung chúng phục vụ. Nay là
                  hai nút cỡ thường, cùng họ .gcard-btn với mọi nút khác trên trang Cài đặt. -->
-            <div class="qs-block">
+            <div class="qs-block" data-settings-section="general">
               <div class="popover-label" data-i18n="qs.avatar">ẢNH ĐẠI DIỆN</div>
               <div class="qs-avatar">
                 <img id="brandLogoPreview" src="/brand-logo" alt="logo">
@@ -457,7 +457,7 @@
               <div class="opt-sub" id="brandLogoStatus"></div>
             </div>
 
-            <div class="qs-block">
+            <div class="qs-block" data-settings-section="general">
               <div class="popover-label" data-i18n="qs.domain">TÊN MIỀN & SSL</div>
               <div class="opt-sub dom-intro" data-i18n="qs.domain_intro">Nhập tên miền để Javis kiểm tra DNS và hướng dẫn bật HTTPS theo đúng môi trường đang chạy.</div>
               <div class="dom-field">
@@ -898,7 +898,7 @@
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
   <!-- Phần đọc cấu hình của form "Tự thêm MCP" (thuần, có test node). Nạp TRƯỚC console.js. -->
   <script src="/static/mcp-form-parse.js?v=1"></script>
-  <script src="/static/console.js?v=159"></script>
+  <script src="/static/console.js?v=160"></script>
   <script src="/static/mobile-chat.js?v=9"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>

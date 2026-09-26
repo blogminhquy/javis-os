@@ -77,7 +77,7 @@ An important detail about `JAVIS_HOST`: Javis uses a "safe by default" rule. If 
 
 About the first admin account: when running public with no admin, opening the app the first time only asks for a username and password, so **whoever opens the link first can create the admin**. That is why you should preset `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` (`install.sh` already asks for them) so the server boots with an admin, or create the account right after deploying. Once signed in, turn on two-factor authentication (2FA). More in [Security and accounts](14-security-and-accounts.md).
 
-About custom domains and HTTPS: on a Caddy VPS you enter the domain right in **Settings → Voice, branding and access → Domain and SSL** then click **Enable SSL**. On Hostinger the wizard prepares the `DOMAIN_NAME` variable for you to copy into Docker Manager before a Redeploy. When you access the proper domain over HTTPS, the server enables the Secure cookie by itself so `JAVIS_SECURE_COOKIE` need not be set manually. Details in [Branding and domains](15-branding-and-domains.md).
+About custom domains and HTTPS: on a Caddy VPS you enter the domain right in **Settings → General → Domain and SSL** then click **Enable SSL**. On Hostinger the wizard prepares the `DOMAIN_NAME` variable for you to copy into Docker Manager before a Redeploy. When you access the proper domain over HTTPS, the server enables the Secure cookie by itself so `JAVIS_SECURE_COOKIE` need not be set manually. Details in [Branding and domains](15-branding-and-domains.md).
 
 ### Group 4: Data paths (Second Brain and state)
 

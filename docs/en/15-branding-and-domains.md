@@ -2,7 +2,7 @@
 
 *[Tiếng Việt](../15-thuong-hieu-ten-mien.md) · **English***
 
-This page covers two things: changing Javis's logo/avatar to your own image, and pointing a custom domain (`javis.yourname.com`, say) at Javis so it runs over HTTPS. Both live under **Settings → Voice, branding and access**.
+This page covers two things: changing Javis's logo/avatar to your own image, and pointing a custom domain (`javis.yourname.com`, say) at Javis so it runs over HTTPS. Both live under **Settings → General**.
 
 ## What this feature is
 
@@ -13,7 +13,7 @@ One important note up front: the **Custom domain** section only works when you d
 
 ## Where to open it in Javis
 
-Both features are under **Settings → Voice, branding and access**. If the group is collapsed, click the heading to open it. Inside are two cards:
+Both features are under **Settings → General**. The General tab contains two cards:
 
 - The **AVATAR** box: a preview image, an **Upload image** button and a **Restore default** button.
 - The **DOMAIN AND SSL** box: an input (placeholder "e.g. javis.yourname.com"), a **Save and check** button, two status badges for DNS and SSL, two buttons **Enable SSL** and **Check again**, plus a three-step wizard whose content matches your actual VPS/Hostinger environment.
@@ -22,7 +22,7 @@ Every time you open Settings, Javis reloads the current values, checks DNS/HTTPS
 
 ## Changing the logo/avatar (step by step)
 
-1. Open **Settings → Voice, branding and access** and find the **AVATAR** box.
+1. Open **Settings → General** and find the **AVATAR** box.
 2. Click **Upload image**. Your machine's file picker opens.
 3. Pick an image file. Accepted formats: PNG, JPG, WEBP, GIF. Maximum size 5MB.
 4. After picking, Javis shows the status line **Uploading…** then **Image updated ✓** when done. The new image replaces the old one everywhere immediately (top corner, sidebar, sign-in screen, preview box) with no page reload.
@@ -54,7 +54,7 @@ This section assumes you deployed Javis with Docker on a VPS, enabled Caddy (On-
 
 ### Step A: enter and save the domain
 
-1. Open **Settings → Voice, branding and access** and find the **DOMAIN AND SSL** box.
+1. Open **Settings → General** and find the **DOMAIN AND SSL** box.
 2. Enter the domain (or subdomain) you want in the input, for example `javis.yourname.com`. No need to type `https://`; if you do, Javis strips it.
 3. Click **Save and check** (or press Enter in the input). Javis shows **Saving and checking…**, saves the domain, then runs the DNS/SSL check and draws the three-step wizard right in the UI.
 4. If the domain is malformed, Javis reports that the domain is invalid and gives the example format. Fix it and save again.
