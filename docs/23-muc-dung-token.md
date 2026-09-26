@@ -21,9 +21,9 @@ Trang cho bạn: bộ lọc 8 kỳ và 4 nhà cung cấp, các thẻ tổng kèm
 
 ## Mở ở đâu trong Javis
 
-Mở dashboard (mặc định tại cổng 7777). Trên thanh điều hướng bên trái, bấm mở nhóm **Hệ thống** (nhóm này được ghim ở đáy thanh), rồi bấm mục **Mức dùng** (biểu tượng 📊).
+Mở dashboard (mặc định tại cổng 7777). Trên thanh điều hướng bên trái, bấm mở nhóm **Hệ thống** (nhóm này được ghim ở đáy thanh), chọn **Cài đặt → Mức dùng**.
 
-Đầu trang hiện tiêu đề **Mức dùng** kèm dòng phụ "Token & chi phí theo ngày, theo nhà cung cấp".
+Tab **Mức dùng** chứa các bộ lọc, thống kê token và chi phí.
 
 ## Chế độ tiết kiệm token (khối đầu trang)
 

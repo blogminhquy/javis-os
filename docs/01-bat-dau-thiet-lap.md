@@ -26,8 +26,8 @@ Sau khi thiết lập xong, các mục liên quan nằm trên rail điều hư�
 | Nhóm | Mục | Dùng để |
 |---|---|---|
 | Kết nối | **Models** | Đổi model chính, đăng nhập/ngắt các nhà cung cấp (xem [Models & engine](10-models-va-engine.md)) |
-| Hệ thống | **Cài đặt** | Bốn nhóm cấu hình gập/mở: trạng thái hệ thống, giao diện & brain, giọng nói/thương hiệu, khởi động cùng Windows |
-| Hệ thống | **Cập nhật** | Phiên bản đang chạy, nút cập nhật, tiến trình và nhật ký phiên bản |
+| Hệ thống | **Cài đặt** | Năm tab: Chung, Giọng nói, Linh vật, Mức dùng, Cập nhật |
+| Hệ thống | **Link chia sẻ** | Xem, sao chép và thu hồi liên kết công khai |
 | Hệ thống | **Tài khoản** | Đổi mật khẩu, đăng xuất, tắt đăng nhập (xem [Bảo mật & tài khoản](14-bao-mat-tai-khoan.md)) |
 
 ## Cách dùng (từng bước)
@@ -98,11 +98,11 @@ Việc nền chạy được bằng cả nhà cung cấp API, không riêng Clau
 
 Chi tiết đầy đủ về từng nhà cung cấp và model xem [Models & engine](10-models-va-engine.md).
 
-## Trang Cài đặt: bốn nhóm cấu hình
+## Trang Cài đặt: năm tab
 
-Mở **Cài đặt** (nhóm **Hệ thống** trên rail). Trang chia thành bốn nhóm gập/mở, bấm tiêu đề nhóm để đóng hoặc mở.
+Mở **Cài đặt** (nhóm **Hệ thống** trên rail). Trang có năm tab: **Chung**, **Giọng nói**, **Linh vật**, **Mức dùng**, **Cập nhật**. Link chia sẻ và Tài khoản là hai mục riêng trên menu Hệ thống. Trên điện thoại, vuốt ngang hàng tab để xem các tab phía sau.
 
-### Nhóm 1: Hệ thống
+### Tab Chung: Hệ thống
 
 Phụ đề: "Trạng thái hiện tại và lối tắt tới các nhóm chuyên sâu". Gồm bốn ô trạng thái:
 
@@ -113,9 +113,9 @@ Phụ đề: "Trạng thái hiện tại và lối tắt tới các nhóm chuyê
 | **Workspace** | Tên workspace bạn đặt ở wizard |
 | **Telegram** | "Đang bật" hoặc "Đang tắt" (xem [Kênh Telegram](11-telegram.md)) |
 
-Bên dưới là bốn lối tắt bấm là nhảy thẳng sang trang tương ứng: **Models**, **Kênh**, **Tài khoản**, **Cập nhật**.
+Bên dưới có hai lối tắt: **Models** và **Kênh**.
 
-### Nhóm 2: Giao diện & Brain
+### Tab Chung: Giao diện & Brain
 
 Phụ đề: "Hiệu năng đồ thị và cấu trúc dữ liệu". Gồm ba thẻ.
 
@@ -136,9 +136,9 @@ Thao tác này an toàn: chỉ di chuyển khi thư mục đích chưa có, khô
 - Bấm **Gỡ dấu** thì ảnh mới tạo không còn dấu, nhãn trên nền tảng thường không hiện nữa. Ảnh đã tạo trước đó không đổi.
 - Dù bật hay tắt, nhãn tác giả `javisos.com` vẫn được giữ, và bạn vẫn phải tự chịu trách nhiệm công bố nội dung AI theo luật và điều khoản của nền tảng nơi bạn đăng.
 
-### Nhóm 3: Giọng nói, thương hiệu & truy cập
+### Tab Giọng nói và phần thương hiệu trong tab Chung
 
-Phụ đề: "TTS, avatar và tên miền riêng". Đây là nơi chứa bộ **⚙ CÀI ĐẶT NHANH**:
+Tab **Giọng nói** chứa giọng đọc, chế độ trò chuyện và micro. Ngôn ngữ giao diện, ảnh đại diện và tên miền nằm trong tab **Chung**:
 
 - Công tắc **🔊 Đọc trả lời bằng giọng**.
 - Khối **NHÀ CUNG CẤP GIỌNG ĐỌC**: chọn "Edge TTS - miễn phí (mặc định)", "OpenAI - mượt, đa ngôn ngữ" hoặc "ElevenLabs - tự nhiên nhất", dán key tương ứng rồi bấm **Lưu nhà cung cấp**. Provider trả phí lỗi sẽ tự về Edge.
@@ -148,7 +148,7 @@ Phụ đề: "TTS, avatar và tên miền riêng". Đây là nơi chứa bộ **
 
 Chi tiết xem [Trò chuyện & giọng nói](02-tro-chuyen-va-giong-noi.md) và [Thương hiệu & tên miền](15-thuong-hieu-ten-mien.md).
 
-### Nhóm 4: Khởi động cùng Windows
+### Tab Chung: Khởi động cùng Windows
 
 Nhóm này **chỉ hiện trên bản chạy Windows**; bản Docker/Linux ẩn hẳn. Thẻ **Tự bật Javis** cho biết trạng thái ("Bật" hoặc "Tắt") và có một nút duy nhất: **Bật tự khởi động** hoặc **Tắt tự khởi động**. Khi bật, Javis tự chạy nền lúc bạn đăng nhập Windows, mở `localhost:7777` là dùng được.
 
@@ -166,7 +166,7 @@ Về Second Brain (bộ nhớ, Wiki, cấu trúc vault), xem [Second Brain: bộ
 
 ## Cập nhật phiên bản
 
-Phần này nằm ở mục **Cập nhật** (nhóm **Hệ thống**). Khung Javis OS trên cùng hiển thị phiên bản đang chạy và cho biết có bản mới trên GitHub hay không.
+Phần này nằm ở **Hệ thống → Cài đặt → Cập nhật**. Khung Javis OS trên cùng hiển thị phiên bản đang chạy và cho biết có bản mới trên GitHub hay không.
 
 - Có bản mới: "🆕 Có bản mới **v...** (đang chạy v...)" kèm nhãn môi trường (`Windows`, `Linux`, `macOS` hoặc `Docker / VPS`), và khối "Bản mới có gì" liệt kê tối đa 2 bản gần nhất.
 - Đang mới nhất: "✅ Đang dùng bản mới nhất (v...)".
@@ -249,7 +249,7 @@ Khi Javis chạy công khai (nghe trên `0.0.0.0`, tức VPS/Docker/Hostinger) m
 
 - Nếu chỉ chạy máy cá nhân và không sợ người lạ, cứ để trống mật khẩu ở wizard để vào nhanh. Bạn có thể đặt mật khẩu sau ở trang **Tài khoản**.
 - Sau khi vào app, nếu thấy báo chưa đăng nhập Claude, quay lại **Models** bấm **Đăng nhập Claude** một lần là xong.
-- Đổi avatar, tên miền, giọng nói và tốc độ nằm ở **Cài đặt → Giọng nói, thương hiệu & truy cập**, không phải trong wizard lần đầu.
+- Đổi avatar và tên miền ở **Cài đặt → Chung**; giọng nói và tốc độ ở **Cài đặt → Giọng nói**.
 - Sau khi cập nhật phiên bản, nếu giao diện không đổi, nhấn Ctrl+Shift+R để tải lại trang sạch.
 - Chọn một model rẻ ở **Model việc nền** ngay từ đầu: loop, việc Kanban, nhắc hẹn, tự học và tiêu hoá nguồn chạy khá nhiều, để chung model đắt là tốn hạn mức nhanh. Theo dõi con số thật ở trang [Mức dùng](23-muc-dung-token.md).
 

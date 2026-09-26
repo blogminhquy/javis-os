@@ -143,8 +143,7 @@ function trongDanhSach(src, moc, ten) {
 }
 check("console.js: pet trong RAIL_ITEMS",
   trongDanhSach(console_js, "const RAIL_ITEMS", "pet"));
-check("console.js: pet trong nhóm Hệ thống",
-  /ids: \[[^\]]*"pet"[^\]]*\], foot: true/.test(console_js));
+// Navigation to the mascot tab is exercised in test_settings_tabs.js.
 check("console.js: pet có trong VIEW_META",
   trongDanhSach(console_js, "const VIEW_META", "pet"));
 check("console.js: renderPage định tuyến pet", /if \(id === "pet"\) return renderPetPage\(el\);/.test(console_js));

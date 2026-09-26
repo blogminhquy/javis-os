@@ -161,7 +161,7 @@ No, if you run Docker. Every note, brain, setting and even the Claude login toke
 
 ### How does in-app updating work?
 
-Open **Updates** (**System** group); the **Javis OS** card shows the running version and checks GitHub for a newer one. If there is one, the status line reads **🆕 New version available** with a **What's new** panel, and the **⬆ Update now** button appears when the environment supports it. Click it, confirm, and the app runs through the 6 steps shown on the progress bar (Prepare, Download code, Install libraries, Restart, Health check, Done) then reloads the page. If the new build is broken, Javis **rolls back by itself** and reports **↩ The new build failed, rolled back**. Below the card is the update-log timeline of released versions.
+Open **System → Settings → Updates**; the **Javis OS** card shows the running version and checks GitHub for a newer one. If there is one, the status line reads **🆕 New version available** with a **What's new** panel, and the **⬆ Update now** button appears when the environment supports it. Click it, confirm, and the app runs through the 6 steps shown on the progress bar (Prepare, Download code, Install libraries, Restart, Health check, Done) then reloads the page. If the new build is broken, Javis **rolls back by itself** and reports **↩ The new build failed, rolled back**. Below the card is the update-log timeline of released versions.
 
 An install directly on the machine (Windows, Linux, macOS) can always update itself. The Docker build only updates in place when the **Watchtower** container is running.
 

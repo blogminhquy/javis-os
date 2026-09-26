@@ -1,12 +1,13 @@
 # Nhật ký cập nhật
 
-Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay trong app tại mục **Cập nhật** trên thanh bên trái.
+Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay trong app tại **Cài đặt → Cập nhật**.
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.64.60] - 2026-09-27
 ### Cải thiện
-- Đặt chỗ phiên bản cho việc gom Cài đặt thành năm tab, giữ Link chia sẻ và Tài khoản trên menu Hệ thống.
+- **Cài đặt có năm tab:** Chung, Giọng nói, Linh vật, Mức dùng và Cập nhật. Menu Hệ thống gọn lại còn Cài đặt, Link chia sẻ và Tài khoản.
+- Giữ các thay đổi giọng nói chưa lưu khi chuyển tab. Những lối mở Mức dùng, Linh vật và Cập nhật trước đây đưa bạn tới đúng tab mới.
 
 ## [0.64.59] - 2026-09-27
 ### Sửa lỗi

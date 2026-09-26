@@ -55,9 +55,9 @@ check("deep-link file vẫn được ưu tiên sau khi vào Javis",
 check("Cập nhật sở hữu khung kiểm tra phiên bản", 'id="updVerUpdate"' in CONSOLE and "wireUpdateManager(el" in CONSOLE)
 check("Nhật ký không còn chỉ người dùng sang Tổng quan", "Cập nhật ở mục <b>Tổng quan</b>" not in CONSOLE)
 check("Cài đặt có khung đọc giới hạn chiều rộng", ".settings-page { width: min(100%, 960px)" in CONSOLE_CSS)
-check("Cài đặt chia nhóm gập mở", CONSOLE.count('class="settings-group"') >= 4)
+check("Cài đặt chung có nhóm gập mở", CONSOLE.count('class="settings-group"') >= 3)
 check("Trạng thái hệ thống đã vào Cài đặt", 'class="settings-status-grid"' in CONSOLE)
-check("Cài đặt có lối tắt thay vì nhân đôi form", all(f'data-settings-go="{x}"' in CONSOLE for x in ("models", "channels", "account", "logs")))
+check("Cài đặt có lối tắt Models và Kênh", all(f'data-settings-go="{x}"' in CONSOLE for x in ("models", "channels")))
 # 0.58.8: khối này xếp MỘT CỘT. Lưới hai cột cũ làm ô ngắn bị ô dài kéo giãn theo (thẻ giọng
 # nói ~1200px cạnh thẻ ảnh đại diện ~150px) nên để lại mảng trống gần một màn hình.
 check("quick settings xếp một cột, không còn lưới hai cột",

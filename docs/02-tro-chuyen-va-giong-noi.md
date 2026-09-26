@@ -108,7 +108,7 @@ Bật/tắt đọc bằng giọng có **3 chỗ** làm cùng một việc, luôn
 
 - Nút hình **loa** ở góc trên phải (tên gợi ý khi rê chuột: "Bật/tắt giọng Javis"). Đang tắt tiếng thì nút mờ hẳn đi.
 - Nút **loa** nằm ngay trên thanh nhập chat (gợi ý "Tắt giọng đọc" / "Bật giọng đọc"). Đang tắt tiếng thì nút chuyển đỏ và có một gạch chéo. Nút này bị ẩn trên điện thoại.
-- Vào **Cài đặt → Giọng nói, thương hiệu & truy cập**, gạt công tắc **"🔊 Đọc trả lời bằng giọng"**.
+- Vào **Cài đặt → Giọng nói**, gạt công tắc **"🔊 Đọc trả lời bằng giọng"**.
 
 ### Bước 5 - Dừng khi Javis đang trả lời
 
@@ -328,7 +328,7 @@ Ngoài ra ô **Nghe bằng** cho chọn **Groq Whisper** nếu đã có key Groq
 
 ## Giọng đọc: nhà cung cấp, giọng, tốc độ
 
-Mọi thứ về giọng nằm trong **Cài đặt → Giọng nói, thương hiệu & truy cập**.
+Mọi thứ về giọng nằm trong **Cài đặt → Giọng nói**.
 
 ### Chọn nhà cung cấp giọng đọc
 

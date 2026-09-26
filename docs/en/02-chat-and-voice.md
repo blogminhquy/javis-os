@@ -92,7 +92,7 @@ Turning speech on and off has **3 places** that do the same thing, always in syn
 
 - The **speaker** button in the top right corner (tooltip: "Toggle Javis voice"). When muted, the button dims noticeably.
 - The **speaker** button on the chat input bar (tooltip "Mute voice" / "Unmute voice"). When muted, the button turns red with a slash through it. This button is hidden on phones.
-- **Settings → Voice, branding & access**, toggle **"🔊 Read answers aloud"**.
+- **Settings → Voice**, toggle **"🔊 Read answers aloud"**.
 
 ### Step 5 - Stop Javis mid-answer
 
@@ -302,7 +302,7 @@ Plain-text channels are stricter because they cannot render: **Telegram** and **
 
 ## Voice: provider, voice, speed
 
-Everything about the voice lives in **Settings → Voice, branding & access**.
+Everything about the voice lives in **Settings → Voice**.
 
 ### Choosing a voice provider
 

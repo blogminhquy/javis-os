@@ -32,7 +32,7 @@ function check(name, cond) {
 
 // ---- 1. index.html: ba mục micro có nhà riêng và mang đúng id để console.js dời ----
 check("index.html: có nhà #qsMicHome (là .qs-block để đứng một mình vẫn ra thẻ) bọc #qsMicFields",
-  /<div class="qs-block" id="qsMicHome">\s*<div id="qsMicFields">/.test(html));
+  /<div class="qs-block" id="qsMicHome"[^>]*>\s*<div id="qsMicFields">/.test(html));
 check("index.html: nhãn MICRO là tiêu đề PHỤ (.qs-sub) trong thẻ, không còn là nhãn thẻ riêng",
   /<div class="qs-sub" data-i18n="qs.mic">/.test(html) && !/<div class="popover-label" data-i18n="qs.mic">/.test(html));
 check("index.html: ba ô vẫn giữ id cũ để app.js gắn tay bắt",

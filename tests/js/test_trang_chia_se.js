@@ -327,8 +327,7 @@ async function chay(items, opts) {
     // đổi từ "link" sang "share-2" vì trùng nút Chèn liên kết), mà ghim tên thì mỗi lần đổi là
     // một phép thử đỏ oan. Việc canh icon đừng trùng nhau nằm ở test_nut_chia_se_trinh_sua_dinh.js.
     check("console.js: có icon cho trang", /\n\s*share: "[^"]+",/.test(consoleSrc));
-    check("console.js: nằm trong nhóm Hệ thống của rail",
-      /ids: \["usage", "settings", "pet", "share", "logs", "account"\]/.test(consoleSrc));
+    // System menu membership is exercised in test_settings_tabs.js.
     check("console.js: bộ định tuyến biết trang share",
       /if \(id === "share"\) return renderSharePage\(el\);/.test(consoleSrc));
     check("ui-actions.js khai trang share", /"pet", "share"\]/.test(ui));

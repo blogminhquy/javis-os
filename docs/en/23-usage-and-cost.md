@@ -21,9 +21,9 @@ The page gives you: a filter of 8 periods and 4 providers, summary cards with a 
 
 ## Where to open it in Javis
 
-Open the dashboard (default port 7777). On the left navigation rail, open the **System** group (pinned at the bottom of the rail), then click **Usage** (the 📊 icon).
+Open the dashboard (default port 7777). On the left navigation rail, open the **System** group (pinned at the bottom of the rail), then choose **Settings → Usage**.
 
-The page header reads **Usage** with the subtitle "Tokens and cost by day, by provider".
+The **Usage** tab contains the filters, token statistics and costs.
 
 ## Token saving mode (the block at the top)
 
