@@ -25,8 +25,7 @@ function storage(seed = {}) {
   };
 }
 
-// These cases fail if startup goes to home, if navigation is not saved, or if stale ids
-// are trusted. Run the actual routing functions with only DOM and network edges stubbed.
+// First launch opens the graph. Only chat/workspace can become the next launch target.
 function navCase(seed, expected) {
   const localStorage = storage(seed);
   const route = { active: "home", openGroup: "" };
@@ -51,15 +50,29 @@ function navCase(seed, expected) {
   vm.runInContext(fn(consoleJs, "navigateTo") + "\n" + fn(consoleJs, "khoiPhucTrang"), ctx);
   ctx.khoiPhucTrang();
   assert.equal(route.active, expected);
-  assert.equal(rendered.at(-1), expected);
+  assert.equal(rendered.at(-1), expected === "home" ? undefined : expected);
   assert.equal(route.openGroup, "group:" + expected);
-  assert.ok(classes.has("in-console"));
+  assert.equal(classes.has("in-console"), expected !== "home");
+  ctx.navigateTo("chat");
+  assert.equal(localStorage.data.javis_last_page, "chat");
   ctx.navigateTo("settings");
-  assert.equal(localStorage.data.javis_last_page, "settings");
+  assert.equal(localStorage.data.javis_last_page, "chat", "settings must not replace last conversation");
+  ctx.khoiPhucTrang();
+  assert.equal(route.active, "chat");
+  ctx.navigateTo("workspace");
+  ctx.navigateTo("settings");
+  ctx.navigateTo("home");
+  assert.equal(localStorage.data.javis_last_page, "workspace");
+  ctx.khoiPhucTrang();
+  assert.equal(route.active, "workspace", "graph/settings must not replace last assistant");
 }
-navCase({}, "chat");
+navCase({}, "home");
+navCase({ javis_last_page: "chat" }, "chat");
 navCase({ javis_last_page: "workspace" }, "workspace");
-navCase({ javis_last_page: "not-a-page" }, "chat");
+navCase({ javis_last_page: "agents" }, "workspace");
+navCase({ javis_last_page: "settings" }, "home");
+navCase({ javis_last_page: "home" }, "home");
+navCase({ javis_last_page: "not-a-page" }, "home");
 
 // An assistant's selected conversation can be older than the latest one. Reopening the
 // workspace must use its exact id, while keeping the main chat id for the return path.
