@@ -7418,12 +7418,12 @@
         '<aside class="chatpage-side" id="chatPageSide"></aside>' +
         '<div class="chatpage-main">' +
           '<div class="chatpage-bar">' +
-            '<button class="cp-ico-btn cp-side-toggle" type="button" title="' + esc(window.t("cs.cp_toggle_hist")) + '">' + ic("history") + '</button>' +
+            '<button class="cp-ico-btn cp-side-toggle" type="button" data-i18n-title="cs.cp_toggle_hist" title="' + esc(window.t("cs.cp_toggle_hist")) + '">' + ic("history") + '</button>' +
             // Chữ nằm trong <span> để màn hẹp ẩn được, giữ lại icon. Để chữ trần thì không
             // có cách nào ẩn mà không mất luôn cả nút.
-            '<button class="cp-ico-btn cp-min" type="button" id="cpMinBtn" ' +
+            '<button class="cp-ico-btn cp-min" type="button" id="cpMinBtn" data-i18n-title="cs.cp_min_title" data-i18n-aria="cs.cp_min_title" ' +
               'title="' + esc(window.t("cs.cp_min_title")) + '" aria-label="' + esc(window.t("cs.cp_min_title")) + '">' +
-              ic("chevron-left") + '<span>' + esc(window.t("cs.cp_min")) + '</span></button>' +
+              ic("chevron-left") + '<span data-i18n="cs.cp_min">' + esc(window.t("cs.cp_min")) + '</span></button>' +
             // Tiêu đề tĩnh "Trò chuyện với Javis" ĐÃ BỎ (chủ repo yêu cầu 01/09). Nó nói
             // đúng một điều mà rail đang tô sáng và khung trống đã ghi bằng chữ in nghiêng
             // ngay bên dưới, nên nó chỉ ăn chỗ. Chip project lùi về mép phải, chiếm chỗ đó.
@@ -7456,11 +7456,11 @@
     if (sideEl) {
       const thuBtn = document.createElement("button");
       thuBtn.className = "cside-thu-btn"; thuBtn.type = "button";
-      thuBtn.title = window.t("cs.cp_side_collapse"); thuBtn.innerHTML = ic("panel-left");
+      thuBtn.title = window.t("cs.cp_side_collapse"); thuBtn.dataset.i18nTitle = "cs.cp_side_collapse"; thuBtn.innerHTML = ic("panel-left");
       thuBtn.onclick = () => datSideThu(true);
       const moBtn = document.createElement("button");
       moBtn.className = "cside-expand"; moBtn.type = "button";
-      moBtn.title = window.t("cs.cp_side_expand"); moBtn.innerHTML = ic("panel-left");
+      moBtn.title = window.t("cs.cp_side_expand"); moBtn.dataset.i18nTitle = "cs.cp_side_expand"; moBtn.innerHTML = ic("panel-left");
       moBtn.onclick = () => datSideThu(false);
       sideEl.appendChild(thuBtn); sideEl.appendChild(moBtn);
     }
@@ -7480,11 +7480,11 @@
       try { if (localStorage.getItem("javis_editchat_thu") === "1") mainEl.classList.add("echat-thu"); } catch (e) {}
       const et = document.createElement("button");
       et.className = "cedit-thu-btn"; et.type = "button";
-      et.title = window.t("cs.cp_chat_collapse"); et.innerHTML = ic("panel-left");
+      et.title = window.t("cs.cp_chat_collapse"); et.dataset.i18nTitle = "cs.cp_chat_collapse"; et.innerHTML = ic("panel-left");
       et.onclick = () => datEditThu(true);
       const em = document.createElement("button");
       em.className = "cedit-expand"; em.type = "button";
-      em.title = window.t("cs.cp_chat_expand"); em.innerHTML = ic("panel-left");
+      em.title = window.t("cs.cp_chat_expand"); em.dataset.i18nTitle = "cs.cp_chat_expand"; em.innerHTML = ic("panel-left");
       em.onclick = () => datEditThu(false);
       slot.appendChild(et); slot.appendChild(em);
     }

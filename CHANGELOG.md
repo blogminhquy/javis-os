@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.57] - 2026-09-27
+### Sửa lỗi
+- Tải lại Javis vẫn mở đúng cuộc hội thoại vừa xem, kể cả khi bộ não được nạp sau từ máy chủ.
+- Nhãn trong màn Trò chuyện hiển thị thành chữ thay vì mã dịch khi từ điển ngôn ngữ tải chậm.
+
 ## [0.64.56] - 2026-09-27
 ### Cải thiện
 - **Chụm hai ngón để phóng to ảnh trên điện thoại.** Kéo ảnh bằng một ngón để xem phần khuất, chụm lại để thu nhỏ; ảnh giữ trong khung xem thay vì phóng to cả trang.

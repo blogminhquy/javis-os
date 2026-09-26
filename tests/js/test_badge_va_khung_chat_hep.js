@@ -49,7 +49,8 @@ check("thanh tiêu đề không còn tiêu đề tĩnh để phải cắt", !/cp
 
 // Ẩn được chữ là nhờ nó nằm trong <span>. Để chữ trần thì không cách nào ẩn mà giữ icon.
 check("CANARY: chữ 'Thu nhỏ' nằm trong <span> để ẩn được",
-      /<span>[^<]*cs\.cp_min"[^<]*<\/span>/.test(CONSOLE) && VI["cs.cp_min"] === "Thu nhỏ");
+      /<span(?:\s+data-i18n="cs\.cp_min")?>[^<]*cs\.cp_min"[^<]*<\/span>/.test(CONSOLE)
+      && VI["cs.cp_min"] === "Thu nhỏ");
 // Ẩn chữ thì trình đọc màn hình mất nghĩa của nút, nên phải có nhãn thay thế.
 check("nút vẫn có nhãn cho trình đọc màn hình khi ẩn chữ",
       /id="cpMinBtn"[\s\S]{0,200}aria-label="'\s*\+\s*esc\(window\.t\("cs\.cp_min_title"\)\)/.test(CONSOLE)

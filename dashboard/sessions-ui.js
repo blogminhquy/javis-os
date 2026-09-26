@@ -1476,10 +1476,10 @@
       side.classList.add("cside-gon");
       side.innerHTML =
         '<div class="cside-pane on" data-pane="chat">' +
-          '<button class="cside-new" type="button">' + esc(window.t("sess.new_chat")) + '</button>' +
+          '<button class="cside-new" type="button" data-i18n="sess.new_chat">' + esc(window.t("sess.new_chat")) + '</button>' +
           // Câu mời khác của trang Trò chuyện: ở đây ô tìm CHỈ soi hội thoại của cộng sự đang
           // mở, hứa "mọi hội thoại" là hứa sai.
-          '<input class="cside-search" placeholder="' + esc(window.t("sess.search_ph_kenh")) + '">' +
+          '<input class="cside-search" data-i18n-ph="sess.search_ph_kenh" placeholder="' + esc(window.t("sess.search_ph_kenh")) + '">' +
           '<div class="cside-list"></div>' +
         '</div>';
       listEl = side.querySelector(".cside-list");
@@ -1497,13 +1497,13 @@
         // phải đọc mới biết đang ở đâu. Dùng đúng icon rail đang dùng cho hai thứ đó
         // (message-circle cho Trò chuyện, folder-tree cho Tệp tin) để cả app nói cùng một
         // ngôn ngữ hình, chứ không đặt icon mới chỉ riêng chỗ này.
-        '<button class="cside-tab" data-tab="chat" type="button">' + ic("message-circle") + ' ' + esc(window.t("sess.tab_chat")) + '</button>' +
-        '<button class="cside-tab" data-tab="files" type="button">' + ic("folder-tree") + ' ' + esc(window.t("sess.tab_files")) + '</button>' +
+        '<button class="cside-tab" data-tab="chat" type="button">' + ic("message-circle") + ' <span data-i18n="sess.tab_chat">' + esc(window.t("sess.tab_chat")) + '</span></button>' +
+        '<button class="cside-tab" data-tab="files" type="button">' + ic("folder-tree") + ' <span data-i18n="sess.tab_files">' + esc(window.t("sess.tab_files")) + '</span></button>' +
       '</div>' +
       '<div class="cside-pane" data-pane="chat">' +
-        '<button class="cside-new" type="button">' + esc(window.t("sess.new_chat")) + '</button>' +
+        '<button class="cside-new" type="button" data-i18n="sess.new_chat">' + esc(window.t("sess.new_chat")) + '</button>' +
         '<div class="cside-proj"></div>' +
-        '<input class="cside-search" placeholder="' + esc(window.t("sess.search_ph")) + '">' +
+        '<input class="cside-search" data-i18n-ph="sess.search_ph" placeholder="' + esc(window.t("sess.search_ph")) + '">' +
         '<div class="cside-list"></div>' +
       '</div>' +
       '<div class="cside-pane" data-pane="files"></div>';
@@ -1813,6 +1813,14 @@
   // Đổi ngôn ngữ giao diện: phần khung dựng MỘT lần (nút đóng, nút đổi tên) không tự vẽ lại
   // như thân khung, nên bỏ hẳn node đi để lần mở sau dựng lại bằng từ điển mới.
   window.addEventListener("javis:i18n", function () {
+    // Sidebar có thể đã dựng trước khi từ điển tải xong. Các nhãn cố định mang data-i18n
+    // được applyDom cập nhật; project và danh sách là dữ liệu động nên vẽ lại tại đây.
+    if (side) {
+      renderProjBar();
+      var q = searchEl && searchEl.value.trim();
+      if (q) doSearch(q);
+      else loadList();
+    }
     var dangMo = !!(pdEl && pdEl.classList.contains("on"));
     var laCuoc = pdLaCuoc();
     var ag = pdLaAgent() ? { slug: (agentTS || {}).slug, name: (agentTS || {}).name } : null;
