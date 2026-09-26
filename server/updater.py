@@ -191,6 +191,46 @@ def git_dirty():
     return bool((r.stdout or "").strip())
 
 
+def _stash_head():
+    r = run(["git", "rev-parse", "--verify", "-q", "refs/stash"])
+    return (r.stdout or "").strip() if r.returncode == 0 else ""
+
+
+def stash_local_changes():
+    """Return (stash commit, error), retaining a recoverable backup on failure."""
+    status = run(["git", "status", "--porcelain", "--untracked-files=no"])
+    if status.returncode != 0:
+        return "", "Không kiểm tra được các sửa đổi cục bộ; dừng cập nhật để tránh mất dữ liệu."
+    if not (status.stdout or "").strip():
+        return "", ""
+    previous = _stash_head()
+    saved = run(["git", "stash", "push", "-m", "javis-auto-update"])
+    current = _stash_head()
+    if saved.returncode != 0 or not current or current == previous:
+        return "", ("Không cất được sửa đổi cục bộ; dừng cập nhật. Kiểm tra git stash list "
+                    "và update.log trước khi thử lại.")
+    return current, ""
+
+
+def restore_local_changes(stash_oid):
+    """Apply our exact backup. On conflict, clean the index but keep the backup."""
+    restored = run(["git", "stash", "apply", "--index", stash_oid])
+    if restored.returncode == 0:
+        return True, ""
+    cleaned = run(["git", "reset", "--hard", "HEAD"])
+    detail = (restored.stderr or restored.stdout or "Xung đột khi khôi phục.").strip()[:500]
+    if cleaned.returncode != 0:
+        detail += " Không dọn được xung đột; cần kiểm tra cây git bằng tay."
+    return False, detail
+
+
+def drop_update_stash(stash_oid, restored):
+    """Delete only a successfully applied backup, if it is still the top stash."""
+    if not restored or _stash_head() != stash_oid:
+        return False
+    return run(["git", "stash", "drop", "stash@{0}"]).returncode == 0
+
+
 def chan_doan_pull(pull_out: str) -> str:
     """Vì sao `git pull` trả về THÀNH CÔNG mà VERSION vẫn y nguyên.
 
@@ -350,13 +390,29 @@ def main():
     time.sleep(2)
 
     us.write_state({"phase": "pulling"})
-    if git_dirty():
-        log("Cây git có sửa đổi cục bộ → git stash (giữ lại, không mất).")
-        run(["git", "stash"])
+    stash_oid, stash_error = stash_local_changes()
+    if stash_error:
+        log(stash_error)
+        start_server(mode, a.port)
+        them = "" if poll_health(a.port, 60) else " Server cũ chưa lên lại."
+        us.write_state({"phase": "error", "result": "error", "error": stash_error + them,
+                        "finished_at": _now()})
+        return 1
+    if stash_oid:
         us.write_state({"stashed": True})
     pull = run(["git", "pull", "--ff-only"])
     if pull.returncode != 0:
         log("git pull LỖI:\n" + (pull.stderr or pull.stdout or ""))
+        stash_note = ""
+        if stash_oid:
+            restored, restore_error = restore_local_changes(stash_oid)
+            if restored and drop_update_stash(stash_oid, restored):
+                us.write_state({"stashed": False})
+            elif restored:
+                stash_note = f" Đã áp lại sửa đổi, nhưng bản sao {stash_oid[:12]} vẫn trong git stash."
+            else:
+                stash_note = (f" Chưa khôi phục được sửa đổi; bản sao {stash_oid[:12]} vẫn "
+                              f"trong git stash: {restore_error}")
         # Mã nguồn chưa đổi nên bản CŨ vẫn nguyên vẹn - bật lại là xong. Nhưng phải KIỂM xem
         # nó lên thật không: báo mỗi "pull thất bại" trong khi server cũng đang nằm là bỏ
         # người dùng lại với một câu sai về chuyện đang thực sự xảy ra.
@@ -370,9 +426,21 @@ def main():
         log("Chẩn đoán: " + (ly_do or "(không nhận ra nguyên nhân quen thuộc)"))
         tho = (pull.stderr or "git pull thất bại").strip()
         us.write_state({"phase": "error", "result": "pull_failed",
-                        "error": ((ly_do + " (chi tiết trong update.log)") if ly_do else tho[:400]) + them,
+                        "error": ((ly_do + " (chi tiết trong update.log)") if ly_do else tho[:400])
+                                 + stash_note + them,
                         "finished_at": _now()})
         return 1
+
+    stash_restored = False
+    stash_note = ""
+    if stash_oid:
+        stash_restored, restore_error = restore_local_changes(stash_oid)
+        if stash_restored:
+            log("Đã áp lại sửa đổi cục bộ; giữ bản sao tới khi bản mới chạy ổn.")
+        else:
+            stash_note = (f"Sửa đổi cục bộ chưa khôi phục được trên bản mới; bản sao "
+                          f"{stash_oid[:12]} vẫn trong git stash: {restore_error}")
+            log(stash_note)
 
     us.write_state({"phase": "installing"})
     log("Cài thư viện…")
@@ -391,13 +459,27 @@ def main():
 
     if outcome == "success":
         us.record_boot_version(current)
+        if stash_oid and stash_restored:
+            if drop_update_stash(stash_oid, stash_restored):
+                us.write_state({"stashed": False})
+            else:
+                stash_note = f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash."
+        if stash_note:
+            us.write_state({"phase": "done", "result": "error", "error": stash_note,
+                            "finished_at": _now()})
+            return 1
         us.write_state({"phase": "done", "result": "success", "finished_at": _now()})
         return 0
     if outcome == "version_mismatch":
+        if stash_oid and stash_restored:
+            if drop_update_stash(stash_oid, stash_restored):
+                us.write_state({"stashed": False})
+            else:
+                stash_note = f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash."
         ly_do = chan_doan_pull(pull.stdout or "")
         log("Phiên bản không đổi. Chẩn đoán: " + ly_do)
         us.write_state({"phase": "done", "result": "error",
-                        "error": f"Vẫn đang chạy {current}, chưa lên {target}. {ly_do}",
+                        "error": f"Vẫn đang chạy {current}, chưa lên {target}. {ly_do} {stash_note}",
                         "finished_at": _now()})
         return 1
 
@@ -406,7 +488,9 @@ def main():
     us.write_state({"phase": "rolling_back"})
     if not a.old_sha:
         us.write_state({"phase": "error", "result": "rollback_failed",
-                        "error": "Không có commit cũ để lùi.", "finished_at": _now()})
+                        "error": "Không có commit cũ để lùi. "
+                                 + (f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash."
+                                    if stash_oid else ""), "finished_at": _now()})
         return 1
     # Từ đây trở xuống mọi bước đều KIỂM MÃ LỖI. Trước đây không bước nào kiểm, nên khi đường
     # lùi hỏng người dùng nhận đúng một câu "Xem update.log" - vô dụng trên bản Windows và
@@ -423,6 +507,19 @@ def main():
                     f"HEAD={head[:7] or '?'}). Mã nguồn vẫn là bản mới đang lỗi. "
                     f"Chạy tay: git reset --hard {a.old_sha[:12]}")
 
+    # Reset xóa cả sửa đổi đã áp trên bản mới; áp lại từ bản sao nếu đã về commit cũ.
+    if stash_oid:
+        stash_restored = False
+        if rs.returncode == 0 and head.startswith(a.old_sha[:7]):
+            stash_restored, restore_error = restore_local_changes(stash_oid)
+            if stash_restored:
+                stash_note = ""
+            else:
+                stash_note = (f"Chưa khôi phục được sửa đổi sau rollback; bản sao "
+                              f"{stash_oid[:12]} vẫn trong git stash: {restore_error}")
+        else:
+            stash_note = f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash."
+
     if pip_install().returncode != 0:
         hong.append("cài lại thư viện cho bản cũ thất bại - kiểm tra mạng rồi chạy lại: "
                     "pip install -r requirements.txt")
@@ -433,6 +530,16 @@ def main():
     time.sleep(2)
     start_server(mode, a.port)
     if poll_health(a.port, 90):
+        if stash_oid and stash_restored:
+            if drop_update_stash(stash_oid, stash_restored):
+                us.write_state({"stashed": False})
+            else:
+                stash_note = f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash."
+        if stash_note:
+            us.write_state({"phase": "error", "result": "rollback_failed",
+                            "error": "Bản cũ đã chạy lại nhưng " + stash_note,
+                            "finished_at": _now()})
+            return 1
         us.write_state({"phase": "done", "result": "rolled_back",
                         "error": "Bản mới lỗi, đã tự quay về bản cũ.", "finished_at": _now()})
         return 0
@@ -440,6 +547,8 @@ def main():
     if pip_moi.returncode != 0:
         hong.append("bản mới cũng không cài nổi thư viện, nên nhiều khả năng lỗi nằm ở môi "
                     "trường chứ không ở mã nguồn")
+    if stash_note:
+        hong.append(stash_note)
     us.write_state({"phase": "error", "result": "rollback_failed",
                     "error": ("Bản mới lỗi và bản cũ cũng chưa lên. "
                               + ("; ".join(hong) if hong else
