@@ -1048,8 +1048,24 @@
   // ---------------------------------------------------------------- lightbox xem anh
   // Bam anh trong chat -> mo lop xem phong to (kieu ChatGPT): anh vua man, co nut Tai ve,
   // Mo tab moi, Dong; bam nen den hoac Esc de dong; bam vao anh de doi qua lai giua "vua man"
-  // va "co that" (1:1) roi keo xem chi tiet.
+  // va "co that" (1:1) roi keo xem chi tiet. Tren dien thoai co them pinch va keo mot ngon.
   var _lb = null, _lbUrl = "", _lbTen = "", _lbDayLichSu = false;
+
+  function lightboxPinchStep(state, from, to) {
+    var scale = Math.max(1, Math.min(4, state.scale * to.distance / from.distance));
+    var ratio = scale / state.scale;
+    return { scale: scale,
+      x: to.x - (from.x - state.x) * ratio,
+      y: to.y - (from.y - state.y) * ratio };
+  }
+
+  function lightboxClampPan(state, size) {
+    var maxX = Math.max(0, (size.imageWidth * state.scale - size.viewportWidth) / 2);
+    var maxY = Math.max(0, (size.imageHeight * state.scale - size.viewportHeight) / 2);
+    return { scale: state.scale,
+      x: Math.max(-maxX, Math.min(maxX, state.x)),
+      y: Math.max(-maxY, Math.min(maxY, state.y)) };
+  }
 
   function _lbTaiVe() {
     if (!_lbUrl) return;
@@ -1097,15 +1113,111 @@
           '<button type="button" data-lb="dong" title="' + esc(tw("crender.close_esc")) + '">' + ic("x") + "</button>" +
         "</span>" +
       "</div>" +
-      '<div class="jv-lb-khung"><img class="jv-lb-img" alt=""></div>';
+      '<div class="jv-lb-khung"><img class="jv-lb-img" alt="" draggable="false"></div>';
     // Ten file dat bang textContent, KHONG noi vao innerHTML: ten do nguoi dung dat, noi thang
     // la mo duong cho HTML la lot vao trang.
     _lb.querySelector(".jv-lb-ten").textContent = _lbTen;
     var img = _lb.querySelector(".jv-lb-img");
+    var khung = _lb.querySelector(".jv-lb-khung");
     img.src = url;
     img.alt = _lbTen;
+    var zoom = { scale: 1, x: 0, y: 0 };
+    var lanTruoc = null, keoTruoc = null, vuaKeoLuc = 0;
+
+    function tam(touch) {
+      var rect = khung.getBoundingClientRect();
+      var style = getComputedStyle(khung);
+      return {
+        x: touch.clientX - rect.left - parseFloat(style.paddingLeft) -
+          (khung.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)) / 2,
+        y: touch.clientY - rect.top - parseFloat(style.paddingTop) -
+          (khung.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)) / 2,
+      };
+    }
+    function haiNgon(touches) {
+      var a = tam(touches[0]), b = tam(touches[1]);
+      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2,
+        distance: Math.hypot(a.x - b.x, a.y - b.y) };
+    }
+    function veZoom() {
+      if (!_lb || !_lb.contains(img)) return;  // ảnh cũ tải xong sau khi đã mở ảnh khác
+      var style = getComputedStyle(khung);
+      zoom = lightboxClampPan(zoom, {
+        imageWidth: img.offsetWidth, imageHeight: img.offsetHeight,
+        viewportWidth: khung.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+        viewportHeight: khung.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom),
+      });
+      if (zoom.scale <= 1.001) zoom = { scale: 1, x: 0, y: 0 };
+      _lb.classList.toggle("pinch", zoom.scale > 1);
+      img.style.transform = zoom.scale > 1
+        ? "translate(" + zoom.x + "px, " + zoom.y + "px) scale(" + zoom.scale + ")" : "";
+    }
+    khung.addEventListener("touchstart", function (ev) {
+      if (ev.touches.length >= 2) {
+        // Chế độ cỡ thật làm thay đổi kích thước bố cục; pinch luôn bắt đầu từ ảnh vừa khung.
+        if (_lb.classList.contains("that")) {
+          _lb.classList.remove("that");
+          zoom = { scale: 1, x: 0, y: 0 };
+          veZoom();
+        }
+        lanTruoc = haiNgon(ev.touches);
+        keoTruoc = null;
+        ev.preventDefault();
+      } else if (ev.touches.length === 1) {
+        keoTruoc = tam(ev.touches[0]);
+        lanTruoc = null;
+      }
+    }, { passive: false });
+    khung.addEventListener("touchmove", function (ev) {
+      if (ev.touches.length >= 2) {
+        var hienTai = haiNgon(ev.touches);
+        if (lanTruoc && lanTruoc.distance > 0 && hienTai.distance > 0) {
+          zoom = lightboxPinchStep(zoom, lanTruoc, hienTai);
+          veZoom();
+          vuaKeoLuc = Date.now();
+        }
+        lanTruoc = hienTai;
+        keoTruoc = null;
+        ev.preventDefault();
+      } else if (ev.touches.length === 1 && zoom.scale > 1) {
+        var diem = tam(ev.touches[0]);
+        if (keoTruoc) {
+          zoom.x += diem.x - keoTruoc.x;
+          zoom.y += diem.y - keoTruoc.y;
+          veZoom();
+          vuaKeoLuc = Date.now();
+        }
+        keoTruoc = diem;
+        lanTruoc = null;
+        ev.preventDefault();
+      } else if (ev.touches.length === 1 && _lb.classList.contains("that")) {
+        // touch-action:none chặn cuộn native; giữ khả năng kéo ảnh cỡ thật như trước.
+        var diemThat = tam(ev.touches[0]);
+        if (keoTruoc) {
+          khung.scrollLeft -= diemThat.x - keoTruoc.x;
+          khung.scrollTop -= diemThat.y - keoTruoc.y;
+          vuaKeoLuc = Date.now();
+        }
+        keoTruoc = diemThat;
+        lanTruoc = null;
+        ev.preventDefault();
+      }
+    }, { passive: false });
+    function ketThucCham(ev) {
+      lanTruoc = ev.touches.length >= 2 ? haiNgon(ev.touches) : null;
+      keoTruoc = ev.touches.length === 1 ? tam(ev.touches[0]) : null;
+    }
+    khung.addEventListener("touchend", ketThucCham);
+    khung.addEventListener("touchcancel", ketThucCham);
+    img.addEventListener("load", veZoom);
     img.addEventListener("click", function (ev) {
       ev.stopPropagation();
+      if (Date.now() - vuaKeoLuc < 400) { ev.preventDefault(); return; }
+      if (zoom.scale > 1) {
+        zoom = { scale: 1, x: 0, y: 0 };
+        veZoom();
+        return;
+      }
       _lb.classList.toggle("that");             // vua man <-> co that (1:1), keo xem chi tiet
     });
     _lb.addEventListener("click", function (ev) {
@@ -1117,6 +1229,7 @@
         if (act === "tab") return window.open(url, "_blank", "noopener");
         return dongLightbox();
       }
+      if (Date.now() - vuaKeoLuc < 400 && ev.target.closest(".jv-lb-khung")) return;
       if (!ev.target.closest(".jv-lb-bar")) dongLightbox();   // bam nen den -> dong
     });
     document.body.appendChild(_lb);
@@ -1311,6 +1424,7 @@
       isDownloadFile: isDownloadFile,
       laLinkTaiFile: laLinkTaiFile, laIOS: laIOS,
       // Xuat them de test chay THAT chuoi du phong cua anh (xem ungVienAnh / imgGone).
-      ungVienAnh: ungVienAnh, ghepDuong: ghepDuong, imgGone: imgGone };
+      ungVienAnh: ungVienAnh, ghepDuong: ghepDuong, imgGone: imgGone,
+      lightboxPinchStep: lightboxPinchStep, lightboxClampPan: lightboxClampPan };
   }
 })();
