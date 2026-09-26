@@ -103,6 +103,13 @@ try:
     check("list(''): ở trần → parent=None (ẩn nút Lên)", d_ceil["parent"] is None)
 
     # ---- 5. Tìm file: tách rõ chế độ tên / nội dung, vẫn hỗ trợ tiếng Việt không dấu ----
+    (BRAIN / "Thư mục trống").mkdir()
+    folders = asyncio.run(main.files_search(brain="brain", q="thu muc trong", limit=50,
+                                            mode="name", include_dirs=True))
+    check("search folders: tìm được thư mục rỗng bằng tên không dấu",
+          len(folders["items"]) == 1 and folders["items"][0]["type"] == "dir")
+    files_only = asyncio.run(main.files_search(brain="brain", q="thu muc trong", limit=50, mode="name"))
+    check("search folders: các nơi chỉ tìm file không bị đổi kết quả", files_only["items"] == [])
     async def _search(q, mode):
         return await main.files_search(brain="brain", q=q, limit=50, mode=mode)
 

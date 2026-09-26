@@ -7753,7 +7753,12 @@
       const items = await _vtList(dir);
       for (const it of items) {
         const rel = dir ? dir + "/" + it.name : it.name;
-        if (it.type === "dir") { if (!it.name.startsWith(".") && !SKIP.has(it.name)) queue.push(rel); }
+        if (it.type === "dir") {
+          if (!it.name.startsWith(".") && !SKIP.has(it.name)) {
+            out.push({ name: it.name, type: "dir", ext: "", path: rel, dir: dir });
+            queue.push(rel);
+          }
+        }
         else out.push({ name: it.name, ext: it.ext, path: rel, dir: dir });
       }
     }
@@ -7775,9 +7780,9 @@
    * Dùng lại `_vtRebuildReExpand` (vốn viết cho việc tạo file mới) nên không đẻ thêm cơ chế
    * xổ cây thứ hai.
    */
-  async function _vtRevealInTree(path) {
+  async function _vtRevealInTree(path, isDir = false) {
     const p = String(path || "");
-    const dir = p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : (_vtHome || "");
+    const dir = isDir ? p : (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : (_vtHome || ""));
     const input = document.getElementById("vaultSearch");
     if (input) input.value = "";
     const results = document.getElementById("vaultResults"); if (results) results.hidden = true;
@@ -7794,12 +7799,13 @@
     box.innerHTML = "";
     list.forEach(it => {
       const el = document.createElement("div"); el.className = "vr-item";
+      const isDir = it.type === "dir";
       const sub = withSnippet ? (it.snippet || "") : _vtRelHome(it.dir);
-      el.innerHTML = `<div class="vr-name"><span class="vt-ico">${_fileIcon(it.ext)}</span>${esc(it.name)}`
+      el.innerHTML = `<div class="vr-name"><span class="vt-ico">${isDir ? ic("folder") : _fileIcon(it.ext)}</span>${esc(it.name)}`
         + `<button class="vr-loc" type="button" title="${esc(window.t("cs.vt_loc_title"))}">${esc(window.t("cs.fm_loc"))}</button></div>`
         + (sub ? `<div class="vr-snip">${esc(sub)}</div>` : "");
-      el.onclick = () => openNote(it.path, { name: it.name, ext: it.ext, type: "file" });
-      el.querySelector(".vr-loc").onclick = (e) => { e.stopPropagation(); _vtRevealInTree(it.path); };
+      el.onclick = () => isDir ? _vtRevealInTree(it.path, true) : openNote(it.path, { name: it.name, ext: it.ext, type: "file" });
+      el.querySelector(".vr-loc").onclick = (e) => { e.stopPropagation(); _vtRevealInTree(it.path, isDir); };
       box.appendChild(el);
     });
   }
@@ -7820,13 +7826,13 @@
     let hits = null;
     try {
       const r = await fetch(`/files/search?brain=${encodeURIComponent(fbrain())}`
-        + `&q=${encodeURIComponent(q)}&mode=name&limit=120`);
+        + `&q=${encodeURIComponent(q)}&mode=name&include_dirs=true&limit=120`);
       if (r.ok) {
         const d = await r.json().catch(() => ({}));
         // `path` của /files/search tính theo TRẦN DUYỆT - đúng quy ước openNote/_vtRevealInTree
         // đang dùng, nên không phải đổi gì ở hai chỗ đó.
         if (d && !d.error) hits = (d.items || []).map(it => ({
-          name: it.name, ext: it.ext, path: it.path,
+          name: it.name, ext: it.ext, path: it.path, type: it.type || "file",
           dir: String(it.path || "").includes("/")
             ? it.path.slice(0, it.path.lastIndexOf("/")) : "",
         }));
