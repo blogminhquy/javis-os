@@ -1637,6 +1637,7 @@
   "term.script_err": "Could not load {src}",
   "term.opening": "Opening terminal...",
   "term.open_err": "Could not open the terminal.",
+  "term.http_err": "Server returned HTTP {status}. Try restarting Javis.",
   "term.off_title": "The terminal is off on this machine.",
   "term.off_env": "The server sets the environment variable",
   "term.off_hint": "Remove that variable and restart Javis to turn it back on.",

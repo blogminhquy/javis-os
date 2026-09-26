@@ -445,12 +445,27 @@
     var rows = tbl.trim().split("\n").filter(function (r) { return r.trim(); });
     var cells = function (r) { return r.replace(/^\||\|$/g, "").split("|").map(function (c) { return c.trim(); }); };
     var head = cells(rows[0]);
+    var aligns = rows[1] ? cells(rows[1]).map(function (c) {
+      if (/^:-+:$/.test(c)) return "center";
+      if (/^-+:$/.test(c)) return "right";
+      return "";
+    }) : [];
+    var alAttr = function (i) { return aligns[i] ? ' style="text-align:' + aligns[i] + '"' : ""; };
     var body = rows.slice(2).map(cells);
-    var th = head.map(function (c) { return "<th>" + inline(c) + "</th>"; }).join("");
+    var th = head.map(function (c, i) { return "<th" + alAttr(i) + ">" + inline(c) + "</th>"; }).join("");
     var trs = body.map(function (r) {
-      return "<tr>" + r.map(function (c) { return "<td>" + inline(c) + "</td>"; }).join("") + "</tr>";
+      return "<tr>" + r.map(function (c, i) { return "<td" + alAttr(i) + ">" + inline(c) + "</td>"; }).join("") + "</tr>";
     }).join("");
-    return '<table class="md-table"><thead><tr>' + th + "</tr></thead><tbody>" + trs + "</tbody></table>";
+    // BOC trong mot khung cuon ngang. Bang de nguyen thi trinh duyet bop cot cho vua khung:
+    // tren dien thoai mot bang 3 cot ep vao 360px con moi o vai ky tu, chu vo doc thanh tung
+    // chu cai (chu repo gui anh 21/09). Thay vao do giu be rong tu nhien cua cot roi cho VUOT
+    // NGANG de doc tiep, dung cach app Claude lam.
+    //
+    // Lop boc la mot <div> tron: turndown (ban WYSIWYG cua trinh sua .md) di xuyen qua no va
+    // van tra ve dung bang markdown cu - da thu that voi turndown 7.2 + plugin gfm, ket qua y
+    // het khi khong boc. Nen KHONG can them luat turndown nao.
+    return '<div class="md-tablewrap"><table class="md-table"><thead><tr>' + th +
+      "</tr></thead><tbody>" + trs + "</tbody></table></div>";
   }
 
   // ---------------------------------------------------------------- inline (dam/nghieng/gach/xuong dong)
@@ -563,10 +578,14 @@
     try { return _mdToHtmlThan(raw); }
     finally { _brainForRender = truoc; _choTrinhSua = truocTS; _thuMucForRender = truocTM; }
   }
-  function _mdToHtmlThan(raw) {
+  function visibleMarkdown(raw) {
     raw = String(raw == null ? "" : raw);
     // Bo HTML comment (khoi dieu khien JAVIS_* luon vo hinh), ke ca comment chua dong luc stream
-    raw = raw.replace(/<!--[\s\S]*?-->/g, "").replace(/<!--[\s\S]*$/, "");
+    return raw.replace(/<!--[\s\S]*?-->/g, "").replace(/<!--[\s\S]*$/, "");
+  }
+
+  function _mdToHtmlThan(raw) {
+    raw = visibleMarkdown(raw);
 
     var ph = [];
     function put(html) { ph.push(html); return OPEN + (ph.length - 1) + CLOSE; }
@@ -1273,6 +1292,7 @@
 
   if (typeof window !== "undefined") {
     window.mdToHtml = mdToHtml;
+    window.JavisVisibleMarkdown = visibleMarkdown;
     // Bo to mau chung: code-hl.js goi lai cho cac ngon ngu kieu C (js/py/sh...) de mot luat
     // chi nam o mot cho. Markup/CSS/JSON thi code-hl tu doc lay (xem chu thich ben do).
     window.JavisHighlight = highlight;
@@ -1285,7 +1305,8 @@
     window.JavisFileRef = appFileRef;
   }
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { mdToHtml: mdToHtml, highlight: highlight, wkResolve: wkResolve,
+    module.exports = { mdToHtml: mdToHtml, visibleMarkdown: visibleMarkdown,
+      highlight: highlight, wkResolve: wkResolve,
       appFilePath: appFilePath, appFileRef: appFileRef, fileUriPath: fileUriPath,
       isDownloadFile: isDownloadFile,
       laLinkTaiFile: laLinkTaiFile, laIOS: laIOS,

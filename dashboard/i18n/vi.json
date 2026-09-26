@@ -1637,6 +1637,7 @@
   "term.script_err": "Không tải được {src}",
   "term.opening": "Đang mở terminal...",
   "term.open_err": "Không mở được terminal.",
+  "term.http_err": "Máy chủ trả HTTP {status}. Thử khởi động lại Javis.",
   "term.off_title": "Terminal đang tắt trên máy này.",
   "term.off_env": "Máy chủ đặt biến môi trường",
   "term.off_hint": "Bỏ biến đó rồi khởi động lại Javis là bật lại.",

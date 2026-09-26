@@ -1,7 +1,7 @@
 /* Test bo boc khoi JAVIS_ASK. Chay tay / CI:
        node dashboard/test_chat_ask.js
    KHONG can trinh duyet: chi test ham thuan extract(). */
-const { extract } = require("../../dashboard/chat-ask.js");
+const { extract, render } = require("../../dashboard/chat-ask.js");
 
 let fails = [];
 function check(name, cond) {
@@ -82,6 +82,17 @@ const exactBlock = '<!-- JAVIS_ASK: {"question":"Chon?","options":[{"label":"' +
 r = extract(exactBlock);
 check("nhan dung tran 40: giu nguyen", r.ask && r.ask.options[0].label === exactLabel);
 check("nhan dung tran 40: khong thua dau …", r.ask && r.ask.options[0].label.indexOf("…") === -1);
+
+const oldDocument = global.document;
+global.document = { createElement: () => ({}) };
+const host = { querySelector: () => null, appendChild: () => {} };
+const chip = render(host, { question: "Chọn?", options: [
+  { label: "Có", desc: "Gửi ngay <script>" }
+] }, true);
+check("chip vẽ nhãn và mô tả thành hai phần riêng",
+  chip.innerHTML.includes('<span class="jv-ask-chip-label">Có</span>') &&
+  chip.innerHTML.includes('<span class="jv-ask-chip-desc">Gửi ngay &lt;script&gt;</span>'));
+global.document = oldDocument;
 
 if (fails.length) {
   console.log("\nFAIL - " + fails.length + " test: " + fails.join(", "));

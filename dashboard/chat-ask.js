@@ -87,9 +87,12 @@
     var tag = ask.header ? '<span class="jv-ask-tag">' + esc(ask.header) + "</span>" : "";
     var chips = ask.options.map(function (o, i) {
       // label da duoc cut() trong extract() - thu ve va thu gui LUON la cung mot chuoi,
-      // khong cat lai o day nua.
+      // khong cat lai o day nua. desc ve thanh dong phu trong chip (title chi hover moi
+      // thay - dien thoai khong co hover nen truoc day nguoi dung khong bao gio doc duoc).
+      var d = o.desc ? '<span class="jv-ask-chip-desc">' + esc(o.desc) + "</span>" : "";
       return '<button class="jv-ask-chip" type="button" data-i="' + i + '" title="' +
-        esc(o.desc || o.label) + '">' + esc(o.label) + "</button>";
+        esc(o.desc || o.label) + '"><span class="jv-ask-chip-label">' + esc(o.label) +
+        "</span>" + d + "</button>";
     }).join("");
     box.innerHTML =
       '<div class="jv-ask-q">' + tag + esc(ask.question) + "</div>" +
@@ -133,6 +136,6 @@
     window.JavisAsk = { extract: extract, render: render, freezeAll: freezeAll };
   }
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { extract: extract };
+    module.exports = { extract: extract, render: render };
   }
 })();
