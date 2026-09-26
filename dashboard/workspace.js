@@ -284,7 +284,7 @@
           '</div>' +
           '<div class="ws-list" id="wsList"></div>' +
           '<div class="ws-left-foot"><button type="button" class="ws-btn" id="wsNew">' + ic("plus") + ' ' + esc(t("ws.new_item")) + '</button>' +
-          '<button type="button" class="ws-btn" id="wsImport">' + esc(t("ws.upload_agent")) + '</button>' +
+          '<button type="button" class="ws-btn" id="wsImport">' + ic("upload-cloud") + ' ' + esc(t("ws.upload_agent")) + '</button>' +
           '<button type="button" class="ws-btn" id="wsStore">' + ic("package") + ' Javis Store</button></div>' +
         '</aside>' +
         '<div class="ws-main">' +
@@ -554,7 +554,7 @@
     if (S.nhom && !nhoms[S.nhom] && conTrong.indexOf(S.nhom) < 0) S.nhom = "";
     veThanhNhom(el);
     el.querySelector("#wsNew").innerHTML = ic("plus") + " " + esc(S.loai === "agent" ? t("ws.new_agent") : t("ws.new_workflow"));
-    el.querySelector("#wsImport").textContent = t(S.loai === "agent" ? "ws.upload_agent" : "ws.upload_workflow");
+    el.querySelector("#wsImport").innerHTML = ic("upload-cloud") + ' ' + esc(t(S.loai === "agent" ? "ws.upload_agent" : "ws.upload_workflow"));
     veDanhSach();
   }
   // Quy trình này có lần chạy nào ĐANG chạy không? Đọc thẳng từ S.tienDo (máy trạng thái ăn
