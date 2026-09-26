@@ -1651,7 +1651,15 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     # Model của trang Models, không chen vào lưới Providers bên tab Cloud.
     {"id": "ollama-local",  "label": "Ollama (Local)",          "kind": "api", "key_field": None,
      "catalog_key": "ollama-local", "default_models": []},
+    # Endpoint bất kỳ nói chuẩn OpenAI Chat Completions (LiteLLM, vLLM, proxy xoay key...).
+    # Địa chỉ lưu ở `model.openai_compat_base`; khoá có thể rỗng. Danh sách model hỏi LIVE
+    # từ {base}/models nên default_models để rỗng.
+    {"id": "openai-compat", "label": "OpenAI Compatible",       "kind": "api", "key_field": "openai_compat_key",
+     "catalog_key": "openai-compat", "default_models": []},
 ]
+
+_PROVIDER_KEY_FIELDS = tuple(p["key_field"] for p in PROVIDER_DEFS if p.get("key_field"))
+
 
 def _provider_def(pid):
     return next((p for p in PROVIDER_DEFS if p["id"] == pid), None)
@@ -1703,6 +1711,8 @@ def _providers_view(cfg):
             # nối" cho mọi máy, kể cả máy chưa hề đặt địa chỉ - ô chọn model liền bày một nhà
             # "đã nối" mà bấm vào thì rỗng. Cùng cái bẫy đã dính với Claude/Codex (cli_found).
             configured = bool((m.get("ollama_local_endpoint") or "").strip())
+        elif p["id"] == "openai-compat":
+            configured = bool((m.get("openai_compat_base") or "").strip())
         elif p["key_field"] is None:
             configured = True
         else:
@@ -1810,6 +1820,8 @@ def _set_main_model(cfg, provider, model):
         m["engine"] = "groq"
     elif provider == "ollama":
         m["engine"] = "ollama"
+    elif provider == "openai-compat":
+        m["engine"] = "openai-compat"
     else:  # anthropic-cli
         m["engine"] = "cli"; m["claude_model"] = model
 
@@ -1881,6 +1893,10 @@ def _provider_key(mcfg, d):
         if not (mcfg.get("ollama_local_endpoint") or "").strip():
             return ""
         return (mcfg.get("ollama_local_key") or "").strip() or "local"
+    if d.get("id") == "openai-compat":
+        if not (mcfg.get("openai_compat_base") or "").strip():
+            return ""
+        return (mcfg.get("openai_compat_key") or "").strip() or "none"
     return mcfg.get(d["key_field"], "") if d.get("key_field") else ""
 
 
@@ -1906,7 +1922,7 @@ AGENT_PROVIDERS = ("anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli
                    # Model chạy máy nhà cũng giao được việc nền cho agent. Bỏ nó ra khỏi đây
                    # là tính năng nửa vời: cài model về rồi mà chỉ chat tay được, không giao
                    # cho agent hay workflow nào chạy.
-                   "ollama-local")
+                   "ollama-local", "openai-compat")
 
 
 def _agent_model_provider(model: str, provider: str = "") -> str:
@@ -2257,6 +2273,8 @@ def _api_stream_goc(prov, key, model, messages, reasoning="off"):
         return engine.ollama_stream(key, model, messages, reasoning)
     if prov == "ollama-local":
         return engine.ollama_local_stream(key, model, messages, reasoning)
+    if prov == "openai-compat":
+        return engine.openai_compat_stream(key, model, messages, reasoning)
     if prov == "openai-oauth":
         creds = openai_oauth.valid_creds() or {}
         return engine.openai_responses_stream(creds.get("access_token", ""), creds.get("account_id", ""),
@@ -2291,7 +2309,7 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
     ChatGPT OAuth ở các kênh tương tác đi qua Codex CLI native MCP, không dùng fallback này."""
     tools, route = [], {}
     inventory_tools, inventory_route = [], {}
-    if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "ollama"):
+    if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "ollama", "openai-compat"):
         try:
             if _hub_enabled():
                 vault_root = _brain_root(brain) if brain else None
@@ -2339,11 +2357,13 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
                 return engine.gemini_chat_with_mcp(key, model, messages, reasoning, tools, route)
             if prov == "groq":
                 return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
+            if prov == "openai-compat":
+                return engine.openai_compat_chat_with_mcp(key, model, messages, reasoning, tools, route)
             return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "ollama-local":
             return engine.ollama_local_chat_with_mcp(key, model, messages, reasoning, tools, route)
 
-        if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "ollama"):
+        if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "ollama", "openai-compat"):
             return engine.thu_lai_khi_tam_thoi(_vong_tool, nhan=f"{prov}/{model or 'mặc định'}+tool")
     return _api_stream(prov, key, model, messages, reasoning)
 
@@ -3159,7 +3179,7 @@ def _schedule_cancel_reply(action: dict) -> str:
 def _api_label(prov):
     return {"openrouter": "OpenRouter", "openai": "OpenAI", "anthropic-api": "Anthropic API",
             "openai-oauth": "ChatGPT (OAuth)", "gemini": "Google Gemini",
-            "groq": "Groq", "ollama": "Ollama"}.get(prov, prov)
+            "groq": "Groq", "ollama": "Ollama", "openai-compat": "OpenAI Compatible"}.get(prov, prov)
 
 def _reasoning_level(mcfg):
     r = (mcfg or {}).get("reasoning", "off")
@@ -4255,7 +4275,9 @@ def settings_get():
     # Gói locale (múi giờ, tiền tệ, locale định dạng số). Dashboard KHÔNG tự suy nó từ ngôn
     # ngữ: hai thứ đó tách rời, người dùng đọc tiếng Anh mà vẫn ngồi ở UTC+7 là bình thường.
     safe["locale_fmt"] = localefmt.cho_giao_dien()
-    for kf in ("openrouter_key", "anthropic_api_key", "openai_api_key", "gemini_api_key", "groq_api_key"):
+    # Che MỌI key_field của PROVIDER_DEFS, không liệt kê tay: danh sách tay cũ sót ollama_key
+    # nên key Ollama Cloud đi nguyên văn ra trình duyệt.
+    for kf in _PROVIDER_KEY_FIELDS:
         k = cfg["model"].get(kf, "")
         safe["model"][kf] = ("••••" + k[-4:]) if k else ""
         safe["model"][kf + "_set"] = bool(k)
@@ -4318,14 +4340,22 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             if _provider_def(prov) and mod:
                 _set_main_model(cfg, prov, mod)
         # Nhập credential provider (chỉ ghi khi có giá trị mới - tránh xoá bằng giá trị che ••••)
-        for kf in ("openrouter_key", "anthropic_api_key", "openai_api_key", "gemini_api_key", "groq_api_key"):
-            if patch.get(kf):
-                m[kf] = patch[kf]
+        # Lấy từ PROVIDER_DEFS: danh sách tay cũ sót ollama_key, dán key Ollama Cloud rồi bấm
+        # Kết nối là báo đã lưu mà không lưu gì.
+        for kf in _PROVIDER_KEY_FIELDS:
+            if patch.get(kf) and not str(patch[kf]).startswith("••••"):
+                m[kf] = str(patch[kf]).strip()
+        if "openai_compat_base" in patch:
+            m["openai_compat_base"] = str(patch["openai_compat_base"] or "").strip().rstrip("/")
+            _PROV_MODELS_CACHE.pop("openai-compat", None)
         # Ngắt kết nối 1 provider (xoá key). Nếu nó đang là MAIN → quay về Claude Code CLI để chat không gãy.
         if patch.get("clear_key"):
             d = _provider_def(patch["clear_key"])
             if d and d.get("key_field"):
                 m[d["key_field"]] = ""
+                if patch["clear_key"] == "openai-compat":
+                    m["openai_compat_base"] = ""
+                    _PROV_MODELS_CACHE.pop("openai-compat", None)
                 if _effective_main(cfg).get("provider") == patch["clear_key"]:
                     _set_main_model(cfg, "anthropic-cli", m.get("claude_model") or "opus")
         # Gói Claude Code xác thực bằng gì: phiên subscription sẵn có, hay API key riêng.
@@ -4724,6 +4754,16 @@ async def _fetch_provider_models(provider, m):
         ids = [x.get("id") for x in data if x.get("id")
                and not any(s in x["id"].lower() for s in ("whisper", "tts", "guard", "embed"))]
         return sorted(ids) or None
+    if provider == "openai-compat":
+        base = engine.openai_compat_base()
+        if not base:
+            return None
+        key = (m.get("openai_compat_key") or "").strip() or "none"
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(base + "/models", headers={"Authorization": f"Bearer {key}"})
+            r.raise_for_status()
+            data = r.json().get("data") or []
+        return sorted(x.get("id") for x in data if isinstance(x, dict) and x.get("id")) or None
     if provider == "ollama":
         key = m.get("ollama_key")
         if not key:
@@ -4809,7 +4849,9 @@ def _remember_catalog(cfg, d, ids):
     key = d.get("catalog_key")
     if not key:
         return
-    keep = list(ids[:50])                     # chặn phình settings.json (OpenRouter vài trăm model)
+    # Chặn phình settings.json (OpenRouter vài trăm model). Endpoint tự khai thì giữ đủ: cắt ở 50
+    # là thẻ báo "50 model" sai sự thật với proxy có nhiều hơn.
+    keep = list(ids if key == "openai-compat" else ids[:50])
     cat = cfg.setdefault("model", {}).setdefault("catalog", {})
     if cat.get(key) == keep:
         return
@@ -4849,6 +4891,11 @@ def _vi_sao_khong_co_model(provider: str, m: dict) -> str:
             return "Chưa đặt địa chỉ Ollama - vào trang Models, tab Local Model để kết nối."
         return ("Không gọi được Ollama ở địa chỉ đã lưu. Mở trang Models, tab Local Model để "
                 "xem lỗi cụ thể.")
+    if provider == "openai-compat":
+        if not (m.get("openai_compat_base") or "").strip():
+            return "Chưa đặt Base URL cho OpenAI Compatible."
+        return ("Không đọc được danh sách model từ {base}/models. Kiểm tra Base URL (tính tới /v1) "
+                "và key, hoặc gõ tên model bằng tay.")
     if d.get("key_field") and not m.get(d["key_field"]):
         return "Chưa có API key cho nhà cung cấp này."
     return ""
@@ -15113,6 +15160,52 @@ async def ollama_local_set_endpoint(endpoint: str = Form(""), key: str = Form(No
             "canh_bao_cong_khai": ollama_local.la_ip_cong_khai(ep)}
 
 
+@app.post("/provider/openai-compat/connect")
+async def openai_compat_connect(request: Request):
+    """Lưu Base URL + key của provider OpenAI Compatible SAU KHI gọi thử {base}/models.
+
+    Các provider API khác lưu key không kiểm, nhưng ở đây URL cũng do người dùng gõ: lưu bừa
+    thì thẻ báo "Đã kết nối" với key sai, rồi hiện danh sách model cũ còn nhớ như thể thật.
+    Key để trống = dùng lại key đang lưu (ô key chỉ để ĐỔI key)."""
+    import httpx
+    data = await request.json()
+    base = str(data.get("base") or "").strip().rstrip("/")
+    if base.endswith("/chat/completions"):
+        base = base[: -len("/chat/completions")]
+    if not base.lower().startswith(("http://", "https://")):
+        return {"ok": False, "error": "Base URL phải bắt đầu bằng http:// hoặc https://"}
+    cfg = cfgmod.read_settings()
+    m = cfg.setdefault("model", {})
+    key = str(data.get("key") or "").strip() or (m.get("openai_compat_key") or "")
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(base + "/models", headers={"Authorization": f"Bearer {key or 'none'}"})
+    except Exception as e:
+        return {"ok": False, "error": f"Không gọi được {base}/models ({type(e).__name__}). "
+                                      "Kiểm tra lại Base URL."}
+    if r.status_code in (401, 403):
+        return {"ok": False, "error": f"API key không hợp lệ (HTTP {r.status_code}). Chưa lưu gì."}
+    if r.status_code == 404:
+        return {"ok": False, "error": f"Không thấy {base}/models (HTTP 404). Base URL phải tính tới "
+                                      "/v1, ví dụ https://api.example.com/v1."}
+    if r.status_code != 200:
+        return {"ok": False, "error": f"Endpoint trả HTTP {r.status_code}: {r.text[:160]}"}
+    try:
+        ids = sorted(x.get("id") for x in (r.json().get("data") or [])
+                     if isinstance(x, dict) and x.get("id"))
+    except Exception:
+        ids = []
+    if not ids:
+        return {"ok": False, "error": "Endpoint trả lời nhưng không có model nào - không giống "
+                                      "endpoint chuẩn OpenAI."}
+    m["openai_compat_base"] = base
+    m["openai_compat_key"] = key
+    m.setdefault("catalog", {})["openai-compat"] = ids
+    cfgmod.write_settings(cfg)
+    _PROV_MODELS_CACHE["openai-compat"] = {"ids": ids, "ts": time.time()}
+    return {"ok": True, "models": len(ids)}
+
+
 @app.get("/ollama-local/specs")
 async def ollama_local_get_specs():
     ep, _ = _ol_cfg()
@@ -16977,6 +17070,8 @@ def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route,
             return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "ollama-local":
             return engine.ollama_local_chat_with_mcp(key, model, messages, reasoning, tools, route)
+        if prov == "openai-compat":
+            return engine.openai_compat_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "openai-oauth":
             creds = openai_oauth.valid_creds() or {}
             return engine.responses_with_mcp(creds.get("access_token", ""), creds.get("account_id", ""),
@@ -17687,6 +17782,7 @@ _TG_NHAN_NGAN = {
     "gemini": "Gemini API",
     "groq": "Groq",
     "ollama": "Ollama",
+    "openai-compat": "OpenAI Compat",
 }
 _TG_MODEL_LISTS = {}   # provider -> list model id ĐÃ render (index nút ổn định khi bấm)
 _TG_PAGE = 8           # model mỗi trang (lưới 2 cột x 4 hàng)
@@ -17717,6 +17813,8 @@ def _tg_prov_ready(pid, m):
     if d.get("kind") == "oauth":
         o = m.get("openai_oauth") or {}
         return bool(o.get("access_token") or o.get("refresh_token"))
+    if pid == "openai-compat":
+        return bool((m.get("openai_compat_base") or "").strip())
     kf = d.get("key_field")
     return True if kf is None else bool(m.get(kf))
 
