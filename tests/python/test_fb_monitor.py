@@ -95,6 +95,17 @@ async def monitor_tests():
     check("fb_monitor: lọc min_shares + sắp theo share giảm dần", shares == [999, 300])
     check("fb_monitor: bài viral nhất lên đầu", d["posts"][0]["text"] == "group hot")
 
+    async def _fake_mixed(actor, token, input_obj):
+        return [{"error": "not_available", "errorDescription": "login required",
+                 "url": "https://fb.com/blocked"},
+                {"text": "real post", "postUrl": "p3", "shares": 20}]
+    plug._run = _fake_mixed
+    mixed = json.loads(await plug._monitor({"urls": "https://fb.com/pageA"}, None))
+    check("fb_monitor: bản ghi lỗi không bị đếm thành bài viết",
+          len(mixed["posts"]) == 1 and mixed["posts"][0]["text"] == "real post")
+    check("fb_monitor: lỗi actor xuất hiện trong danh sách lỗi",
+          any("not_available" in e for e in mixed["errors"]))
+
     # thiếu urls → ERROR
     r_no = await plug._monitor({}, None)
     check("fb_monitor: thiếu urls → ERROR", r_no.startswith("ERROR"))

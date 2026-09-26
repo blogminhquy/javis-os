@@ -142,7 +142,13 @@
     var doi = { huy: function () { song = false; } };
     panel.innerHTML = khungCho();
     fetch("/terminal/status?brain=" + encodeURIComponent(brain()))
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        // Lỗi HTTP vẫn kèm JSON hợp lệ ({"detail":"Not Found"}) nên r.json() không ném gì;
+        // st.bat khi đó là undefined và màn hình báo nhầm rằng admin đã đặt JAVIS_TERMINAL=0.
+        // Hay gặp nhất khi server còn chạy code cũ chưa có route này -> phải restart Javis.
+        if (!r.ok) throw new Error(window.t("term.http_err", { status: r.status }));
+        return r.json();
+      })
       .then(function (st) {
         if (!song) return;
         if (!st.bat) { panel.innerHTML = khungTat(); return; }

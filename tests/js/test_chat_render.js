@@ -209,6 +209,14 @@ h = mdToHtml("[Tải PDF](reports/bao-cao.pdf)");
 check("file tải xuống: tooltip hiện đường dẫn",
   /class="jv-fdownload"[^>]*title="[^"]+reports\/bao-cao\.pdf"/.test(h));
 
+h = mdToHtml("| Trái | Giữa | Phải |\n| :--- | :---: | ---: |\n| a | b | c |");
+check("bảng markdown giữ căn giữa ở tiêu đề và ô dữ liệu",
+  has(h, '<th style="text-align:center">Giữa</th>') &&
+  has(h, '<td style="text-align:center">b</td>'));
+check("bảng markdown giữ căn phải ở tiêu đề và ô dữ liệu",
+  has(h, '<th style="text-align:right">Phải</th>') &&
+  has(h, '<td style="text-align:right">c</td>'));
+
 if (fails.length) {
   console.log("\nFAIL - " + fails.length + " test: " + fails.join(", "));
   process.exit(1);
