@@ -2826,7 +2826,7 @@
   "ws.start_desc": "Trợ lý là một người chuyên một việc, nhắn thẳng vào là làm. Quy trình nối nhiều trợ lý thành chuỗi bước chạy một lượt. Tạo một cái để bắt đầu, hoặc lấy mẫu có sẵn trong Javis Store.",
   "ws.err_list": "Không tải được danh sách cộng sự.",
   "ws.wf_sub": "Quy trình · {n} bước",
-  "ws.ph_agent": "Nhắn cho {ten}...",
+  "ws.ph_agent": "Bạn muốn tôi làm điều gì?",
   "ws.ph_workflow": "Mô tả kết quả bạn muốn nhận, mỗi tin là một lần chạy...",
   "ws.err_session": "Không mở được hội thoại",
   "ws.agent_settings": "Cài đặt trợ lý",

@@ -2826,7 +2826,7 @@
   "ws.start_desc": "An agent is one specialist you chat with directly. A workflow chains several agents into steps that run in one go. Create one to get started, or grab a ready-made one from Javis Store.",
   "ws.err_list": "Could not load the partner list.",
   "ws.wf_sub": "Workflow · {n} steps",
-  "ws.ph_agent": "Message {ten}...",
+  "ws.ph_agent": "What would you like me to do?",
   "ws.ph_workflow": "Describe the result you want; each message is one run...",
   "ws.err_session": "Could not open conversation",
   "ws.agent_settings": "Agent settings",
