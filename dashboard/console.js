@@ -294,11 +294,11 @@
   const TRANG_GOP = { runtime: "usage", agents: "workspace", workflows: "workspace" };
   const TRANG_CUOI_KEY = "javis_last_page";
   function khoiPhucTrang() {
-    let id = "chat";
+    let id = "home";
     try {
       const saved = localStorage.getItem(TRANG_CUOI_KEY);
       const resolved = TRANG_GOP[saved] || saved;
-      if (resolved && RAIL_BY_ID[resolved]) id = resolved;
+      if (resolved === "chat" || resolved === "workspace") id = resolved;
     } catch (e) {}
     const store = Alpine.store("nav");
     store.openGroup = groupLabelOf(id);
@@ -319,7 +319,11 @@
       // (Trước 0.12.4 ở đây còn một nhát thu lớp chat phóng to. Lớp nổi đó đã bỏ - phóng to
       // giờ là chuyển hẳn sang trang Trò chuyện, và _pageLeave ở trên đã trả node về HUD.)
       store.active = id;
-      try { localStorage.setItem(TRANG_CUOI_KEY, id); } catch (e) {}
+      // Chỉ nhớ hai khung hội thoại. Ghé Cài đặt, Cập nhật hay Đồ thị không làm mất
+      // nơi đang nói chuyện; chưa từng mở hội thoại thì lần đầu vẫn vào Đồ thị.
+      if (id === "chat" || id === "workspace") {
+        try { localStorage.setItem(TRANG_CUOI_KEY, id); } catch (e) {}
+      }
       // Về nơi có hiển thị model thì làm mới, phòng khi model bị đổi bằng đường khác
       // (trang Models, Cài đặt nhanh, hoặc chỉnh tay settings).
       if (id === "home" || id === "chat") refreshModelUi();

@@ -262,6 +262,97 @@ def map_message(msg):
     return events, None
 
 
+class _CompletionWatch:
+    """Recover only an explicit root end_turn with no outstanding execution work."""
+
+    def __init__(self, grace):
+        self.grace = grace
+        self.deadline = None
+        self.text = ""
+        self.hooks = set()
+        self.tasks = set()
+        self.untracked_work = False
+        self.stream_id = None
+        self.stream_text = ""
+        self.stream_stop = None
+        self.stream_done = False
+
+    def _arm(self, text, tools_running, now):
+        if (self.grace is not None and text.strip() and not tools_running
+                and not self.hooks and not self.tasks and not self.untracked_work):
+            self.text = text
+            self.deadline = now + self.grace
+
+    def observe(self, msg, tools_running, now):
+        from claude_agent_sdk import AssistantMessage, UserMessage, SystemMessage, StreamEvent, TextBlock
+        if isinstance(msg, SystemMessage):
+            data = msg.data or {}
+            sub = msg.subtype
+            if sub.startswith("hook_"):
+                self.deadline = None
+                key = data.get("hook_id")
+                if not key:
+                    self.untracked_work = True  # cannot safely pair unknown hook events
+                elif sub == "hook_started":
+                    self.hooks.add(key)
+                elif sub == "hook_response":
+                    self.hooks.discard(key)
+            elif sub.startswith("task_"):
+                self.deadline = None
+                key = data.get("task_id")
+                status = data.get("status") or (data.get("patch") or {}).get("status")
+                if not key:
+                    self.untracked_work = True
+                elif status in ("completed", "failed", "stopped", "killed"):
+                    self.tasks.discard(key)
+                else:
+                    self.tasks.add(key)
+            elif sub == "status" and data.get("status"):
+                self.deadline = None  # e.g. context compaction
+            return
+        if isinstance(msg, StreamEvent):
+            ev = msg.event or {}
+            kind = ev.get("type")
+            if kind == "ping":
+                return
+            self.deadline = None
+            if msg.parent_tool_use_id:
+                return
+            if kind == "message_start":
+                self.stream_id = (ev.get("message") or {}).get("id")
+                self.stream_text, self.stream_stop, self.stream_done = "", None, False
+            elif kind == "content_block_start":
+                block = ev.get("content_block") or {}
+                if block.get("type") == "text":
+                    self.stream_text += block.get("text") or ""
+            elif kind == "content_block_delta":
+                delta = ev.get("delta") or {}
+                if delta.get("type") == "text_delta":
+                    self.stream_text += delta.get("text") or ""
+            elif kind == "message_delta":
+                self.stream_stop = (ev.get("delta") or {}).get("stop_reason")
+            elif kind == "message_stop":
+                self.stream_done = True
+                if self.stream_stop == "end_turn":
+                    self._arm(self.stream_text, tools_running, now)
+            return
+        if isinstance(msg, (AssistantMessage, UserMessage)):
+            # The complete AssistantMessage can follow its partial message_stop.
+            same_completed_message = (isinstance(msg, AssistantMessage) and self.stream_done
+                                      and self.stream_id and msg.message_id == self.stream_id)
+            if not same_completed_message:
+                self.deadline = None
+            if msg.parent_tool_use_id:
+                self.deadline = None
+                return
+            if isinstance(msg, AssistantMessage):
+                if msg.error:
+                    self.deadline = None
+                elif msg.stop_reason == "end_turn":
+                    text = "".join(b.text or "" for b in msg.content if isinstance(b, TextBlock))
+                    self._arm(text, tools_running, now)
+
+
 class ClaudeSDK:
     """Engine Claude qua Agent SDK - engine Claude duy nhất (tạo qua claude_cli.claude_engine)."""
 
@@ -459,6 +550,17 @@ class ClaudeSDK:
                     _cli = ""
             if _cli and "_bundled" not in _cli.replace("\\", "/"):
                 kw["cli_path"] = _cli
+        # Chỉ bật theo dõi khi ĐÚNG binary đang dùng hỗ trợ cả hai cờ. Bản CLI cũ
+        # không lộ hook đang chạy thì không được tự suy ra rằng lượt đã hoàn tất.
+        if "include_hook_events" in fields and "include_partial_messages" in fields:
+            try:
+                from claude_cli import co_co, find_claude_cli
+                if (kw.get("cli_path") and kw["cli_path"] == find_claude_cli()
+                        and co_co("--include-hook-events") and co_co("--include-partial-messages")):
+                    kw["include_hook_events"] = True
+                    kw["include_partial_messages"] = True
+            except Exception:
+                pass
         # System prompt đẩy qua FILE (--append-system-prompt-file) thay vì nhét vào THAM SỐ dòng lệnh.
         # Trên Windows tổng dòng lệnh > 32767 ký tự thì CreateProcess CHẾT: Python báo FileNotFoundError,
         # SDK dán nhãn nhầm "Claude Code not found at ...\\_bundled\\claude.exe". System prompt của Javis
@@ -543,11 +645,17 @@ class ClaudeSDK:
         # càng lâu (nạp lại ngữ cảnh lớn, model suy nghĩ trước khi phát chữ, đôi khi SDK còn tự
         # nén lịch sử), nên cũng để không giới hạn.
         FIRST_IDLE = tran_watchdog("JAVIS_CLAUDE_FIRST_TIMEOUT", "0")
+        # end_turn của model chính + không còn tool: câu trả lời đã kết thúc, nhưng CLI
+        # có thể không phát ResultMessage. Chỉ giới hạn chờ phong bì tổng kết ở trạng thái
+        # này; chữ thông thường, tool_use và câu trả lời của subagent KHÔNG đủ để chốt lượt.
+        RESULT_IDLE = tran_watchdog("JAVIS_CLAUDE_RESULT_TIMEOUT", "30")
         self._sweep_stale_tmp()   # dọn file prompt tạm sót từ lượt trước bị crash/kill
         # Nới trần `initialize` TRƯỚC khi dựng client: SDK đọc env ngay trong connect().
         tran_init = ap_tran_khoi_dong()
         loop = asyncio.get_running_loop()
-        client = ClaudeSDKClient(options=self._options())
+        options = self._options()
+        completion = _CompletionWatch(RESULT_IDLE if getattr(options, "include_hook_events", False) else None)
+        client = ClaudeSDKClient(options=options)
         started = time.time()
         tools_running = 0   # số tool đã gọi mà CHƯA thấy kết quả về
         da_co_chu = False   # đã nhận được sự kiện đầu tiên chưa (quyết định dùng trần nào)
@@ -579,6 +687,10 @@ class ClaudeSDK:
                     tran, ly_do = IDLE, "im"
                 else:
                     tran, ly_do = FIRST_IDLE, "dau"
+                if completion.deadline is not None:
+                    con_lai = max(0.0, completion.deadline - loop.time())
+                    if tran is None or con_lai < tran:
+                        tran, ly_do = con_lai, "ket"
                 if self.max_wall_s:
                     con_lai = max(1.0, self.max_wall_s - (time.time() - started))
                     if tran is None or con_lai < tran:
@@ -588,6 +700,14 @@ class ClaudeSDK:
                 except StopAsyncIteration:
                     break
                 except asyncio.TimeoutError:
+                    if ly_do == "ket":
+                        print(f"[claude completion] tag={self.tag} session={self.session_id} "
+                              f"end_turn without result after {RESULT_IDLE}s", file=sys.stderr)
+                        # Giữ câu trả lời và mạch đã có. Không giả lập số token/chi phí,
+                        # không gửi lại prompt (tool gửi mail có thể đã chạy thành công).
+                        yield {"type": "final", "content": completion.text,
+                               "session_id": self.session_id, "completion_recovered": True}
+                        break
                     if ly_do == "wall":
                         err = f"Fork vượt trần {int(self.max_wall_s)}s - đã dừng (cap wall-clock nền)."
                     elif ly_do == "tool":
@@ -628,6 +748,7 @@ class ClaudeSDK:
                     elif ev.get("resume_failed"):
                         self.session_id = None   # id chết; giữ lại là lượt sau kẹt tiếp
                     yield ev
+                completion.observe(msg, tools_running, loop.time())
                 if isinstance(msg, ResultMessage):
                     break
         except Exception as e:
