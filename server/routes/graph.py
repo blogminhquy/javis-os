@@ -256,11 +256,19 @@ def _make_router() -> APIRouter:
                 if not t.done():
                     t.cancel()
             await asyncio.gather(*auxiliaries, return_exceptions=True)
-            try:
-                await asyncio.wait_for(watcher, timeout=2.0)
-            except asyncio.TimeoutError:
+            done, pending = await asyncio.wait({watcher}, timeout=2.0)
+            if pending:
                 watcher.cancel()
-                await asyncio.gather(watcher, return_exceptions=True)
+                # wait_for() chờ coroutine thực sự hủy xong, có thể treo vô hạn
+                # khi backend watchfiles đang chặn trong luồng native. Giới hạn
+                # cả thời gian dọn sau cancel để WebSocket đóng được.
+                done, pending = await asyncio.wait({watcher}, timeout=2.0)
+            if pending:
+                print("[ws_graph watcher] không dừng sau khi hủy; đóng WebSocket",
+                      file=__import__('sys').stderr)
+            for task in done:
+                if not task.cancelled():
+                    task.exception()  # tiêu thụ exception để tránh warning
 
     return router
 

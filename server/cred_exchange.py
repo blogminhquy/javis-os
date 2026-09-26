@@ -96,8 +96,37 @@ def _google_master_token(fields):
                   "hoặc lấy master token ở máy cá nhân rồi dán thẳng vào ô Master token.")
 
 
+def _apify_verify_token(fields):
+    """Verify a Personal API token before saving a virtual connector."""
+    import httpx
+
+    token = str(fields.get("apify_token") or fields.get("apify_token_raw") or "").strip()
+    if not token:
+        return None, "Cần dán Apify Personal API token."
+    try:
+        response = httpx.get("https://api.apify.com/v2/users/me",
+                             headers={"Authorization": f"Bearer {token}"}, timeout=15)
+    except Exception as error:
+        return None, (f"Không gọi được máy chủ Apify ({type(error).__name__}). "
+                      "Kiểm tra mạng rồi thử lại.")
+    if response.status_code == 200:
+        return token, ""
+    if response.status_code in (401, 403):
+        return None, ("Apify từ chối token này. Copy lại Personal API token tại "
+                      "console.apify.com/settings/integrations rồi thử lại.")
+    return None, f"Apify trả HTTP {response.status_code}. Thử lại sau ít phút."
+
+
 HANDLERS = {
     "google_master_token": _google_master_token,
+    "apify_verify_token": _apify_verify_token,
+}
+
+_FACEBOOK_MONITOR_EXCHANGE = {
+    "handler": "apify_verify_token",
+    "inputs": ["apify_token"],
+    "output": "apify_token",
+    "skip_if_output": False,
 }
 
 
@@ -108,6 +137,10 @@ def run(connector, fields):
     thứ đáng ra phải vứt."""
     fields = dict(fields or {})
     ex = ((connector or {}).get("auth") or {}).get("exchange") or {}
+    # Older javis.facebook-monitor packs have only the apify_token field. Their virtual
+    # connector cannot be dialed by validate_connection, so verify it here as well.
+    if not ex and (connector or {}).get("id") == "facebook-monitor":
+        ex = _FACEBOOK_MONITOR_EXCHANGE
     if not ex:
         return fields, ""
 
@@ -119,9 +152,13 @@ def run(connector, fields):
         return d
 
     out_key = str(ex.get("output") or "")
-    # Đã có sẵn giá trị đích -> người dùng tự lấy token rồi, không đụng vào.
+    # Some exchanges are conversions (Google), others validate the final value (Apify).
     if out_key and str(fields.get(out_key) or "").strip():
-        return _bo_rac(fields), ""
+        if ex.get("skip_if_output") is not False:
+            return _bo_rac(fields), ""
+        inputs_cfg = list(ex.get("inputs") or [])
+        if inputs_cfg and not str(fields.get(inputs_cfg[0]) or "").strip():
+            fields[inputs_cfg[0]] = str(fields.get(out_key) or "").strip()
 
     inputs = list(ex.get("inputs") or [])
     nhan = {f.get("key"): f for f in ((connector or {}).get("auth") or {}).get("fields") or []}
