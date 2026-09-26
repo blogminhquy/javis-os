@@ -201,7 +201,7 @@ def _lam_stream_co_tool(prov):
 
 main._api_stream = _stream_khong_tool
 for _ten in ("openrouter_chat_with_mcp", "openai_chat_with_mcp", "gemini_chat_with_mcp",
-             "groq_chat_with_mcp", "ollama_chat_with_mcp", "ollama_local_chat_with_mcp",
+             "groq_chat_with_mcp", "ollama_chat_with_mcp", "ollama_local_chat_with_mcp", "openai_compat_chat_with_mcp",
              "anthropic_chat_with_mcp", "responses_with_mcp"):
     setattr(main.engine, _ten, _lam_stream_co_tool(_ten))
 # Gói ChatGPT: đường có tool đọc creds OAuth. Không giả thì nó rơi vào nhánh "chưa đăng nhập".

@@ -3799,7 +3799,7 @@
       `<button class="seg-btn ${reasoning === v ? "sel" : ""}" data-reason="${v}" title="${esc(d)}">` +
       `<span class="seg-lb">${esc(l)}</span><span class="seg-d">${esc(d)}</span></button>`).join("");
 
-    const KEYFIELD = { "openrouter": "openrouter_key", "anthropic-api": "anthropic_api_key", "openai": "openai_api_key", "gemini": "gemini_api_key", "groq": "groq_api_key", "ollama": "ollama_key" };
+    const KEYFIELD = { "openrouter": "openrouter_key", "anthropic-api": "anthropic_api_key", "openai": "openai_api_key", "gemini": "gemini_api_key", "groq": "groq_api_key", "ollama": "ollama_key", "openai-compat": "openai_compat_key" };
     const provHead = (p, on, kindLabel, statusText) => `
         <div class="prov-head">
           <span class="prov-shield ${on ? "on" : ""}">${_shield(on)}</span>
@@ -3922,6 +3922,20 @@
         </div>`;
       }
       const masked = (m[KEYFIELD[p.id]] || "").slice(-4);
+      if (p.id === "openai-compat") {
+        // Endpoint tự khai: thứ quyết định "đã kết nối" là Base URL, key có thể bỏ trống.
+        return `<div class="prov-card ${p.is_main ? "main" : ""}">
+          ${provHead(p, on, "MCP Javis", (on ? t("models.st_connected") : t("models.st_not_connected")) + " · " + p.models.length + " model")}
+          <div class="prov-note">${esc(t("models.oc_note"))}</div>
+          <div class="prov-action" style="flex-wrap:wrap">
+            <input class="js-input" id="ocBase" inputmode="url" spellcheck="false" style="flex:1 1 100%" value="${esc(m.openai_compat_base || "")}" placeholder="${esc(t("models.oc_base_ph"))}">
+            <input class="js-input" id="ocKey" type="password" style="flex:1" placeholder="${on && masked ? esc(t("models.key_change_ph", { duoi: masked })) : esc(t("models.oc_key_ph"))}">
+            <button class="gcard-btn" id="ocSave">${on ? esc(t("common.save")) : esc(t("models.connect"))}</button>
+            ${on ? `<button class="gcard-btn ghost" data-disc="${p.id}">${esc(t("models.disconnect"))}</button>` : ""}
+            <span id="ocMsg" class="gcard-meta" style="flex:1 1 100%"></span>
+          </div>
+        </div>`;
+      }
       return `<div class="prov-card ${p.is_main ? "main" : ""}">
         ${provHead(p, on, p.kind === "cli" ? "MCP/skill" : "MCP Javis", (on ? t("models.st_connected") : t("models.st_not_connected")) + " · " + p.models.length + " model")}
         ${p.needs_key
@@ -4040,6 +4054,24 @@
         renderModelsCloudTab(el);
       };
     });
+    const ocSave = document.getElementById("ocSave");
+    if (ocSave) ocSave.onclick = async () => {
+      const base = (document.getElementById("ocBase").value || "").trim();
+      const key = (document.getElementById("ocKey").value || "").trim();
+      const msg = document.getElementById("ocMsg");
+      if (!/^https?:\/\//i.test(base)) { msg.textContent = t("models.oc_need_base"); document.getElementById("ocBase").focus(); return; }
+      ocSave.disabled = true; ocSave.textContent = t("settings.checking");
+      // Server gọi thử {base}/models bằng key này, chỉ lưu khi thành công.
+      let r;
+      try { r = await postJson("/provider/openai-compat/connect", { base: base, key: key }, 30000); } catch (e) { r = { ok: false, error: String(e) }; }
+      if (!r || !r.ok) {
+        ocSave.disabled = false; ocSave.textContent = t("models.connect");
+        msg.innerHTML = WARN_ICON + " " + esc((r && r.error) || t("app.err_cap"));
+        return;
+      }
+      await freshSettings();
+      renderModelsCloudTab(el);
+    };
     el.querySelectorAll(".gcard-btn[data-disc]").forEach(b => {
       b.onclick = async () => {
         b.disabled = true; b.textContent = t("models.disconnecting");
@@ -4636,6 +4668,8 @@
       postJson("/connect/oauth/start", { id: c.id }).then(r => {
         if (!r || r.ok === false) { alert(window.t("cs.cn_signin_fail") + " " + ((r && r.error) || window.t("cs.cn_error_low"))); return; }
         window.open(r.url, "_blank");
+        // Đăng nhập xong quay lại tab này: vẽ lại để đèn và nút "Kết nối lại" cập nhật ngay.
+        window.addEventListener("focus", () => renderConnect(el), { once: true });
       });
       return;
     }
@@ -5336,7 +5370,7 @@
     // native, bốn provider API đi qua vòng gọi tool + hub trong _api_stream_mcp. Gemini từng
     // thiếu trong danh sách này nên khách chạy Gemini bị banner vàng "chưa hỗ trợ gọi công cụ"
     // dù bên dưới đã chạy MCP ngon - nhánh vàng giờ chỉ còn để chặn provider lạ.
-    const MCP_PROVIDERS = ["anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini", "groq", "ollama"];
+    const MCP_PROVIDERS = ["anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini", "groq", "ollama", "openai-compat"];
     const mainLabel = (provs.find(p => p.id === main.provider) || {}).label || main.provider || "-";
     let warn = "";
     if (main.provider === "openai-oauth") {
@@ -5545,6 +5579,9 @@
   function openMcpForm(el, server) {
     const P = window.JavisMcpParse;
     let editId = server ? server.id : "";
+    // Kết nối đã chuyển sang OAuth thì Lưu phải GIỮ chế độ đó: gửi auth=header là token thôi
+    // được gắn, máy chủ trả 401 và người dùng bị đẩy đi đăng nhập lại vô cớ.
+    let dangOauth = !!(server && server.auth === "oauth");
     const eyeBtn = '<button type="button" class="mcpf-eye" data-eye title="' + esc(window.t("cs.mf_show")) + '">' + ic("eye") + '</button>';
     const dongKey = (ten, daLuu) => {
       const phV = daLuu ? window.t("cs.mf_saved_ph") : window.t("cs.mf_key_val_ph");
@@ -5712,7 +5749,7 @@
       if (kieu === "url") {
         body.url = $("#mfUrl").value.trim();
         if (!/^https?:\/\//i.test(body.url)) { err.textContent = window.t("cs.mf_need_url"); $("#mfUrl").focus(); return; }
-        body.auth = "header"; body.headers = bang;
+        body.auth = dangOauth ? "oauth" : "header"; body.headers = bang;
         if (editId) body.env = {};
       } else {
         const tok = P ? P.tachLenh($("#mfCmd").value) : $("#mfCmd").value.trim().split(/\s+/).filter(Boolean);
@@ -5748,7 +5785,64 @@
         chan.querySelector("#mfLuu").onclick = () => { closeConnModal(); renderConnect(el); };
         return;
       }
-      baoKq("do", window.t("cs.mf_fail_head"), ((t && t.error) || "") + " " + window.t("cs.mf_fail_tail"));
+      // Server trả 401 = đòi đăng nhập OAuth (chuẩn MCP Authorization, như Claude/ChatGPT tự làm).
+      // Form này mặc định auth=header nên trước đây không có đường nào mở trang đăng nhập.
+      const canOauth = kieu === "url" && /\b401\b|unauthori[sz]ed/i.test((t && t.error) || "");
+      baoKq("do", window.t("cs.mf_fail_head"), ((t && t.error) || "") + " "
+        + window.t(canOauth ? "cs.mf_oauth_hint" : "cs.mf_fail_tail"));
+      if (canOauth) {
+        const ob = document.createElement("button");
+        ob.type = "button"; ob.className = "mp-btn primary"; ob.style.marginTop = "8px";
+        ob.innerHTML = ic("external-link") + esc(window.t("cs.mf_oauth_btn"));
+        ob.onclick = async () => {
+          // Mở tab NGAY trong cú bấm: mở sau await là trình duyệt chặn popup.
+          const w = window.open("", "_blank");
+          ob.disabled = true;
+          const syncAuth = async () => {
+            try {
+              const data = await (await fetch("/mcp/list")).json();
+              const current = (data.servers || []).find(c => c.id === editId);
+              if (current) dangOauth = current.auth === "oauth";
+            } catch (e) { /* keep the last known state until the connection can be read */ }
+          };
+          try {
+            const updated = await postJson("/mcp/update", { id: editId, auth: "oauth" });
+            if (!updated || updated.ok === false) {
+              throw new Error((updated && updated.error) || window.t("cs.cn_error_low"));
+            }
+            dangOauth = true;
+            const r = await postJson("/connect/oauth/start", { id: editId });
+            if (!r || r.ok === false) {
+              // A failed start may restore header auth, or retain OAuth when a token already
+              // exists. Follow the server's resulting state before the user saves again.
+              if (r && r.auth) dangOauth = r.auth === "oauth";
+              else await syncAuth();
+              if (w) w.close();
+              baoKq("do", window.t("cs.cn_signin_fail"), (r && r.error) || window.t("cs.cn_error_low"));
+              return;
+            }
+            if (w) w.location = r.url; else window.open(r.url, "_blank");
+            baoKq("tin", window.t("cs.cn_oauth_after"), "");
+            // Quay lại tab này sau khi đăng nhập xong thì tự kiểm tra lại, khỏi bắt bấm Lưu lần nữa.
+            window.addEventListener("focus", async () => {
+              let t2;
+              try { t2 = await postJson("/connect/test", { id: editId }); } catch (e) { t2 = null; }
+              if (t2 && t2.ok) {
+                baoKq("tin", window.t("cs.mf_ok", { so: t2.tools || 0 }), "");
+                chan.querySelector("#mfLuu").textContent = window.t("common.close");
+                chan.querySelector("#mfLuu").onclick = () => { closeConnModal(); renderConnect(el); };
+              }
+            }, { once: true });
+          } catch (e) {
+            await syncAuth();
+            if (w) w.close();
+            baoKq("do", window.t("cs.cn_signin_fail"), String(e));
+          } finally {
+            ob.disabled = false;
+          }
+        };
+        $("#mfKq .pkm-canh").appendChild(ob);
+      }
       chan.querySelector('[data-act="close"]').textContent = window.t("common.close");
       chan.querySelector('[data-act="close"]').onclick = () => { closeConnModal(); renderConnect(el); };
     };
