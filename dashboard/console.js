@@ -5798,27 +5798,40 @@
           // Mở tab NGAY trong cú bấm: mở sau await là trình duyệt chặn popup.
           const w = window.open("", "_blank");
           ob.disabled = true;
-          dangOauth = true;
-          await postJson("/mcp/update", { id: editId, auth: "oauth" });
-          const r = await postJson("/connect/oauth/start", { id: editId });
-          ob.disabled = false;
-          if (!r || r.ok === false) {
-            if (w) w.close();
-            baoKq("do", window.t("cs.cn_signin_fail"), (r && r.error) || window.t("cs.cn_error_low"));
-            return;
-          }
-          if (w) w.location = r.url; else window.open(r.url, "_blank");
-          baoKq("tin", window.t("cs.cn_oauth_after"), "");
-          // Quay lại tab này sau khi đăng nhập xong thì tự kiểm tra lại, khỏi bắt bấm Lưu lần nữa.
-          window.addEventListener("focus", async () => {
-            let t2;
-            try { t2 = await postJson("/connect/test", { id: editId }); } catch (e) { t2 = null; }
-            if (t2 && t2.ok) {
-              baoKq("tin", window.t("cs.mf_ok", { so: t2.tools || 0 }), "");
-              chan.querySelector("#mfLuu").textContent = window.t("common.close");
-              chan.querySelector("#mfLuu").onclick = () => { closeConnModal(); renderConnect(el); };
+          try {
+            const updated = await postJson("/mcp/update", { id: editId, auth: "oauth" });
+            if (!updated || updated.ok === false) {
+              throw new Error((updated && updated.error) || window.t("cs.cn_error_low"));
             }
-          }, { once: true });
+            dangOauth = true;
+            const r = await postJson("/connect/oauth/start", { id: editId });
+            if (!r || r.ok === false) {
+              // For a custom connection the server restores auth=header when OAuth cannot
+              // start. Keep this form in sync so a later header edit does not undo that.
+              dangOauth = false;
+              if (w) w.close();
+              baoKq("do", window.t("cs.cn_signin_fail"), (r && r.error) || window.t("cs.cn_error_low"));
+              return;
+            }
+            if (w) w.location = r.url; else window.open(r.url, "_blank");
+            baoKq("tin", window.t("cs.cn_oauth_after"), "");
+            // Quay lại tab này sau khi đăng nhập xong thì tự kiểm tra lại, khỏi bắt bấm Lưu lần nữa.
+            window.addEventListener("focus", async () => {
+              let t2;
+              try { t2 = await postJson("/connect/test", { id: editId }); } catch (e) { t2 = null; }
+              if (t2 && t2.ok) {
+                baoKq("tin", window.t("cs.mf_ok", { so: t2.tools || 0 }), "");
+                chan.querySelector("#mfLuu").textContent = window.t("common.close");
+                chan.querySelector("#mfLuu").onclick = () => { closeConnModal(); renderConnect(el); };
+              }
+            }, { once: true });
+          } catch (e) {
+            dangOauth = false;
+            if (w) w.close();
+            baoKq("do", window.t("cs.cn_signin_fail"), String(e));
+          } finally {
+            ob.disabled = false;
+          }
         };
         $("#mfKq .pkm-canh").appendChild(ob);
       }

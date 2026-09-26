@@ -4346,7 +4346,13 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             if patch.get(kf) and not str(patch[kf]).startswith("••••"):
                 m[kf] = str(patch[kf]).strip()
         if "openai_compat_base" in patch:
-            m["openai_compat_base"] = str(patch["openai_compat_base"] or "").strip().rstrip("/")
+            new_base = str(patch["openai_compat_base"] or "").strip().rstrip("/")
+            if new_base != (m.get("openai_compat_base") or "") and not (
+                    patch.get("openai_compat_key") and
+                    not str(patch["openai_compat_key"]).startswith("••••")):
+                # A saved key belongs to its old endpoint. Never carry it to a new URL.
+                m["openai_compat_key"] = ""
+            m["openai_compat_base"] = new_base
             _PROV_MODELS_CACHE.pop("openai-compat", None)
         # Ngắt kết nối 1 provider (xoá key). Nếu nó đang là MAIN → quay về Claude Code CLI để chat không gãy.
         if patch.get("clear_key"):
@@ -15176,7 +15182,12 @@ async def openai_compat_connect(request: Request):
         return {"ok": False, "error": "Base URL phải bắt đầu bằng http:// hoặc https://"}
     cfg = cfgmod.read_settings()
     m = cfg.setdefault("model", {})
-    key = str(data.get("key") or "").strip() or (m.get("openai_compat_key") or "")
+    # A blank input reuses the secret only for the same endpoint. Reusing it for another URL
+    # would send that secret to the new host during the validation request below.
+    old_base = str(m.get("openai_compat_base") or "").strip().rstrip("/")
+    key = str(data.get("key") or "").strip()
+    if not key and base == old_base:
+        key = m.get("openai_compat_key") or ""
     try:
         async with httpx.AsyncClient(timeout=20) as c:
             r = await c.get(base + "/models", headers={"Authorization": f"Bearer {key or 'none'}"})
