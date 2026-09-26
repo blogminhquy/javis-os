@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.56] - 2026-09-27
+### Cải thiện
+- **Chụm hai ngón để phóng to ảnh trên điện thoại.** Kéo ảnh bằng một ngón để xem phần khuất, chụm lại để thu nhỏ; ảnh giữ trong khung xem thay vì phóng to cả trang.
+
 ## [0.64.55] - 2026-09-27
 ### Sửa lỗi
 - **Cập nhật được cả máy dùng nhánh code tùy chỉnh.** Javis lấy bản phát hành mới rồi hợp nhất vào nhánh đang chạy, giữ các commit riêng. Nếu hai phần sửa đụng nhau, Javis hủy lượt hợp nhất, nêu tên file xung đột và giữ bản sao sửa đổi cục bộ để khôi phục.
