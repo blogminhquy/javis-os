@@ -7833,7 +7833,7 @@
       const el = document.createElement("div"); el.className = "vr-item";
       const isDir = it.type === "dir";
       const sub = withSnippet ? (it.snippet || "") : _vtRelHome(it.dir);
-      el.innerHTML = `<div class="vr-name"><span class="vt-ico">${isDir ? ic("folder") : _fileIcon(it.ext)}</span>${esc(it.name)}`
+      el.innerHTML = `<div class="vr-name"><span class="vt-ico">${isDir ? ic("folder") : _fileIcon(it.ext)}</span><span class="vr-label" title="${esc(it.name)}">${esc(it.name)}</span>`
         + `<button class="vr-loc" type="button" title="${esc(window.t("cs.vt_loc_title"))}">${esc(window.t("cs.fm_loc"))}</button></div>`
         + (sub ? `<div class="vr-snip">${esc(sub)}</div>` : "");
       el.onclick = () => isDir ? _vtRevealInTree(it.path, true) : openNote(it.path, { name: it.name, ext: it.ext, type: "file" });
