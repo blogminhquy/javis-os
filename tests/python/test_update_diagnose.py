@@ -146,7 +146,9 @@ check("lỗi lạ trên main thì không bịa nguyên nhân",
 
 updater.run = _that
 
-_hong = _src[_src.find("pull = run([\"git\", \"pull\", \"--ff-only\"])"):][:1200]
+_pull_start = _src.find('pull = run(["git", "pull", "--ff-only"])')
+_pull_end = _src.find("\n    stash_restored = False", _pull_start)
+_hong = _src[_pull_start:_pull_end]
 check("nhánh pull hỏng có gọi chẩn đoán", "chan_doan_pull_hong(" in _hong)
 check("và ưu tiên lời giải thích hơn lời git thô", "ly_do + " in _hong)
 
