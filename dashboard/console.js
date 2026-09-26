@@ -8072,6 +8072,26 @@
     closeNote();
     await _vtRebuildReExpand(null);
   }
+  async function _neShowLocation(rel) {
+    const tree = document.querySelector(".hud-left");
+    if (!tree) return;
+    const parent = tree.parentNode, next = tree.nextSibling;
+    const dialog = document.createElement("dialog");
+    dialog.className = "ne-location-dialog";
+    dialog.setAttribute("aria-label", window.t("cs.ne_file_location"));
+    dialog.innerHTML = `<header><strong>${esc(window.t("cs.ne_file_location"))}</strong><button type="button" aria-label="${esc(window.t("common.close"))}">${X_ICON}</button></header><div class="cside-pane"></div>`;
+    document.body.appendChild(dialog);
+    dialog.querySelector(".cside-pane").appendChild(tree);
+    dialog.querySelector("button").onclick = () => dialog.close();
+    dialog.addEventListener("close", () => {
+      if (next && next.parentNode === parent) parent.insertBefore(tree, next);
+      else parent.appendChild(tree);
+      dialog.remove();
+    }, { once: true });
+    dialog.showModal();
+    await _vtRevealInTree(rel);
+  }
+
   function _neCommonBtns(actions, rel, it) {
     // label là HTML (icon SVG), không phải chữ trơ - dùng innerHTML kẻo in ra mã.
     const mk = (label, title, fn) => { const b = document.createElement("button"); b.innerHTML = label; if (title) b.title = title; b.onclick = fn; return b; };
@@ -8083,6 +8103,9 @@
     const bSao = mk(ic("copy"), window.t("common.copy_path") + ": " + rel,
                     () => { if (window.JavisCopy) window.JavisCopy(rel, bSao); });
     actions.appendChild(bSao);
+    const locationButton = mk(ic("folder") + " " + esc(window.t("cs.ne_file_location")), window.t("cs.ne_file_location"), () => _neShowLocation(rel));
+    locationButton.type = "button";
+    actions.appendChild(locationButton);
     actions.appendChild(mk(ic("pencil"), window.t("cs.ne_rename_file"), () => _neRenameCur(rel, it)));
     actions.appendChild(mk(ic("trash-2"), window.t("cs.ne_del_file"), () => _neDeleteCur(rel, it)));
     // CHIA SE: cung cai nut cua trinh sua modal (window.JavisShareBtn), chi khac cho ve thanh

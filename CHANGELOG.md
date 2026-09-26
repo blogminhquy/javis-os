@@ -10,7 +10,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Cải thiện
 - Khung Trợ lý và Quy trình gọn hơn: nút thao tác ở trên, icon nhỏ cạnh tên, bỏ mô tả dưới tiêu đề.
 - Thêm icon cho nút Tải lên trợ lý và Tải lên quy trình. Nút tạo trong cây thư mục có thêm lựa chọn tạo thư mục con.
-- Tìm theo tên trong cây thư mục trả về cả thư mục, kể cả thư mục rỗng. Bấm kết quả để mở đúng vị trí trong cây; nút Vị trí luôn hiện dù tên dài.
+- Tìm theo tên trong cây thư mục trả về cả thư mục, kể cả thư mục rỗng. Bấm kết quả để mở đúng vị trí trong cây; nút Vị trí luôn hiện dù tên dài. Trình sửa cũng có nút Vị trí file để mở cây tại file đang xem.
 
 ## [0.64.61] - 2026-09-27
 ### Cải thiện
