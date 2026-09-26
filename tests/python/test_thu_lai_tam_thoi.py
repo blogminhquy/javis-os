@@ -212,7 +212,7 @@ def _lam_engine(ten):
 
 
 for _ten in ("openrouter_stream", "openai_stream", "gemini_stream", "groq_stream",
-             "ollama_stream", "ollama_local_stream", "openai_responses_stream",
+             "ollama_stream", "ollama_local_stream", "openai_compat_stream", "openai_responses_stream",
              "anthropic_stream"):
     setattr(main.engine, _ten, _lam_engine(_ten))
 # Gói Claude Code KHÔNG đi qua engine.* nữa: từ 0.26.17 nó chạy binary `claude` (đường mượn

@@ -43,7 +43,7 @@ CODEX = "openai-oauth"
 GROK_CLI = "grok-cli"
 ANTIGRAVITY = "antigravity-cli"
 API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "anthropic-api", "ollama",
-                 "ollama-local")
+                 "ollama-local", "openai-compat")
 
 # provider -> tên trường chứa API key trong settings["model"]
 _KEY_FIELD = {
@@ -58,6 +58,9 @@ _KEY_FIELD = {
     # ĐỊA CHỈ (`ollama_local_endpoint`), còn khoá chỉ cần khi ai đó đặt Ollama sau reverse
     # proxy. Xem `_key_of` bên dưới, chỗ ollama-local được miễn kiểm khoá rỗng.
     "ollama-local": "ollama_local_key",
+    # Endpoint OpenAI-compatible tự khai. Như ollama-local: thứ quyết định dùng được là ĐỊA CHỈ
+    # (`openai_compat_base`), khoá có thể rỗng khi endpoint không đòi xác thực.
+    "openai-compat": "openai_compat_key",
 }
 
 # mode của Javis -> sandbox của Codex CLI. Bản đồ thật nằm ở `claude_cli.codex_sandbox_cho_mode`
@@ -242,7 +245,11 @@ def api_key_for(provider: str, settings: dict = None) -> str:
     if not field:
         return ""
     s = settings if settings is not None else cfgmod.read_settings()
-    return (s.get("model", {}) or {}).get(field) or ""
+    m = s.get("model", {}) or {}
+    if provider == "openai-compat":
+        # Có Base URL là chạy được; khoá rỗng thì gửi "none" (endpoint không đòi xác thực).
+        return (m.get(field) or "none") if (m.get("openai_compat_base") or "").strip() else ""
+    return m.get(field) or ""
 
 
 def availability(spec: dict, settings: dict = None) -> tuple:
@@ -291,6 +298,11 @@ def availability(spec: dict, settings: dict = None) -> tuple:
         s = settings if settings is not None else cfgmod.read_settings()
         if not (s.get("model", {}) or {}).get("ollama_local_endpoint"):
             return False, "Chưa đặt địa chỉ Ollama - vào trang Models, tab Local Model."
+        return True, ""
+    if prov == "openai-compat":
+        s = settings if settings is not None else cfgmod.read_settings()
+        if not (s.get("model", {}) or {}).get("openai_compat_base"):
+            return False, "Chưa đặt Base URL cho OpenAI Compatible - vào trang Models."
         return True, ""
     if prov in API_PROVIDERS:
         if not api_key_for(prov, settings):
@@ -384,14 +396,16 @@ class _ApiAuxEngine:
                   "gemini": eng.gemini_chat_with_mcp, "groq": eng.groq_chat_with_mcp,
                   "anthropic-api": eng.anthropic_chat_with_mcp,
                   "ollama": eng.ollama_chat_with_mcp,
-                  "ollama-local": eng.ollama_local_chat_with_mcp}[self.provider]
+                  "ollama-local": eng.ollama_local_chat_with_mcp,
+                  "openai-compat": eng.openai_compat_chat_with_mcp}[self.provider]
             stream = fn(key, self.model, messages, self.reasoning, tools, route)
         else:
             fn = {"openrouter": eng.openrouter_stream, "openai": eng.openai_stream,
                   "gemini": eng.gemini_stream, "groq": eng.groq_stream,
                   "anthropic-api": eng.anthropic_stream,
                   "ollama": eng.ollama_stream,
-                  "ollama-local": eng.ollama_local_stream}[self.provider]
+                  "ollama-local": eng.ollama_local_stream,
+                  "openai-compat": eng.openai_compat_stream}[self.provider]
             stream = fn(key, self.model, messages, self.reasoning)
 
         # Đường API sinh "text" theo mảnh; việc nền chỉ đọc "final" nên gom lại rồi phát MỘT lần.

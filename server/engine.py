@@ -489,6 +489,22 @@ def ollama_local_url() -> str:
     ep = ep.rstrip("/")
     return (ep + "/v1/chat/completions") if ep else ""
 
+def openai_compat_base() -> str:
+    """Base URL của provider 'openai-compat' (tính tới /v1, không có gạch chéo cuối). "" = chưa đặt."""
+    import config as cfgmod
+    ep = (cfgmod.read_settings().get("model", {}).get("openai_compat_base") or "").strip().rstrip("/")
+    # Người dùng hay dán nguyên URL chat thay vì base - cắt đuôi đó đi thay vì báo lỗi.
+    if ep.endswith("/chat/completions"):
+        ep = ep[: -len("/chat/completions")]
+    return ep
+
+
+def openai_compat_url() -> str:
+    """URL chat của provider 'openai-compat'. "" = chưa đặt Base URL."""
+    ep = openai_compat_base()
+    return (ep + "/chat/completions") if ep else ""
+
+
 # Model Anthropic hỗ trợ adaptive thinking + output_config.effort (khỏi budget_tokens).
 #
 # Thiếu tên nào ở đây là lượt chat của model ĐÓ rơi xuống nhánh `budget_tokens` bên dưới, mà
@@ -673,6 +689,33 @@ async def ollama_local_stream(api_key, model, messages, reasoning="off"):
         yield ev
 
 
+async def openai_compat_stream(api_key, model, messages, reasoning="off"):
+    """Endpoint OpenAI-compatible tự khai (provider 'openai-compat') - nhánh KHÔNG tool.
+
+    reasoning bỏ qua như Ollama: không biết model phía sau có nhận `reasoning_effort` không,
+    mà gửi thừa thì có server trả 400 cho cả lượt."""
+    url = openai_compat_url()
+    if not url:
+        yield {"type": "error", "content": "Chưa đặt Base URL cho OpenAI Compatible trong trang Models."}
+        return
+    async for ev in _openai_compat_stream(url, "OpenAI Compatible", api_key or "none", model,
+                                          messages, reasoning, False):
+        yield ev
+
+
+async def openai_compat_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
+    """Endpoint OpenAI-compatible tự khai + vòng tool-calling MCP (model phải biết gọi tool)."""
+    url = openai_compat_url()
+    if not url:
+        yield {"type": "error", "content": "Chưa đặt Base URL cho OpenAI Compatible trong trang Models."}
+        return
+    headers = {"Authorization": f"Bearer {api_key or 'none'}", "Content-Type": "application/json"}
+    yield {"type": "meta", "model": model}
+    async for ev in _cc_tool_loop(url, headers, model, messages,
+                                  mcp_tools, mcp_route, {}, "OpenAI Compatible"):
+        yield ev
+
+
 async def ollama_local_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
     """Ollama máy nhà + vòng tool-calling MCP. Model local biết gọi tool (qwen3, mistral...)
     thì có đủ đồ nghề của Javis y như mọi provider API khác."""
@@ -840,8 +883,9 @@ async def single_tool_plan(provider, api_key, model, messages, reasoning, tool_s
         "gemini": (GEMINI_URL, model or "gemini-2.5-flash"),
         "openrouter": (OPENROUTER_URL, model or "openai/gpt-4o-mini"),
         "ollama": (OLLAMA_URL, model),
+        "openai-compat": (openai_compat_url(), model),
     }
-    if provider not in endpoints:
+    if provider not in endpoints or not endpoints[provider][0]:
         return {"status": "error", "error_code": "provider_not_supported", "input": 0, "output": 0}
     url, actual_model = endpoints[provider]
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
