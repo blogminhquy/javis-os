@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.62] - 2026-09-27
 ### Sửa lỗi
-- Thông báo tải lại sau cập nhật vừa màn hình điện thoại, không ép chữ thành cột hẹp.
+- Thông báo tải lại sau cập nhật vừa màn hình điện thoại, không ép chữ thành cột hẹp. Editor mở toàn màn hình; thanh nút không tràn ra ngoài trên điện thoại.
 ### Cải thiện
 - Khung Trợ lý và Quy trình gọn hơn: nút thao tác ở trên, icon nhỏ cạnh tên, bỏ mô tả dưới tiêu đề.
 - Thêm icon cho nút Tải lên trợ lý và Tải lên quy trình. Nút tạo trong cây thư mục có thêm lựa chọn tạo thư mục con.

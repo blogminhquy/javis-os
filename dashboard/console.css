@@ -1566,6 +1566,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    gõ dở trong ô nhập và phiên đang mở đều không mất. Không còn @media nào ở đây - mọi khổ
    màn cùng một luật, đúng luật mà màn hẹp vẫn chạy từ trước. */
 .ws-main.edit-on > .ws-slot { display: none; }
+.ws-main.edit-on > .ws-onboard { display: none; }
+.ws-main.edit-on > .ws-bar, .ws-main.edit-on > .ws-id { display: none; }
 .ws-right { width: 320px; flex: none; overflow: hidden; padding: 14px 12px;
   display: flex; flex-direction: column; gap: 8px;
   border-left: 1px solid var(--glass-brd); background: var(--surface-1); }

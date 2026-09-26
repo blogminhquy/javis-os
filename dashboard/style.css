@@ -2403,7 +2403,7 @@ body.ne-full-on .cview { z-index: 250; }
   display: flex; align-items: center; justify-content: center; }
 .ne-nav button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent-line); }
 .ne-nav button:disabled { opacity: 0.35; cursor: default; }
-.ne-actions { display: flex; gap: 5px; flex: none; align-items: center; }
+.ne-actions { display: flex; gap: 5px; flex: 0 1 auto; min-width: 0; max-width: 100%; flex-wrap: wrap; align-items: center; }
 /* Màn hẹp: tên file xuống hẳn một dòng riêng. Thanh nút có tới 8 nút, để chung một dòng thì tên
    file bị bóp còn 0px - mở file ra mà không biết đang mở file nào. */
 @media (max-width: 700px) {

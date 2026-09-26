@@ -8385,7 +8385,7 @@
     _neDangDiLichSu = false;
     if (!laLichSu) _neDayLichSu(rel, it);
     _neVeNutLui();
-    ed.hidden = false; ed.classList.remove("ne-full"); _neSyncFull();
+    ed.hidden = false; ed.classList.add("ne-full"); _neSyncFull();
     _neOpenRel = rel || "";     // để chip "file đang mở" biết có cần nạp lại hay chỉ cần đưa mắt về
     _neLayNoiDung = null; _neGocText = null;   // file mới: mốc so sánh dựng lại ở dưới
     // Đang ở trang Trò chuyện thì trình sửa chiếm chỗ khung chat thay vì đè lên visual não
