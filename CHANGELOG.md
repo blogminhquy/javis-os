@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.55] - 2026-09-27
+### Sửa lỗi
+- **Cập nhật được cả máy dùng nhánh code tùy chỉnh.** Javis lấy bản phát hành mới rồi hợp nhất vào nhánh đang chạy, giữ các commit riêng. Nếu hai phần sửa đụng nhau, Javis hủy lượt hợp nhất, nêu tên file xung đột và giữ bản sao sửa đổi cục bộ để khôi phục.
+- **Token Apify sai được báo ngay lúc kết nối.** Javis kiểm token với Apify trước khi lưu; nếu dịch vụ không phản hồi, form báo rõ để thử lại thay vì hiện kết nối xanh rồi hỏng ở lần quét đầu.
+
 ## [0.64.54] - 2026-09-26
 ### Sửa lỗi
 - Tạo ảnh qua ChatGPT trả kết quả ngay khi nhận tín hiệu hoàn tất, không chờ thừa kết nối đóng. Lượt tạo ảnh bị lỗi cũng báo ngay để tránh khung chat chờ mãi.
