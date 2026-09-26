@@ -1298,6 +1298,7 @@
   // Rời trang Tệp tin: TRẢ trình sửa về khoang não trước khi #cviewBody bị ghi đè, y như trang
   // Trò chuyện vẫn làm. Không trả là mất luôn node #noteEditor, và lần sau mở file ra trắng trơn.
   function _fmRoiTrang() {
+    _neHideLocationSide();
     document.body.classList.remove("on-files");
     _fmSauKhiDong = null;
     _returnNoteEditor();
@@ -8017,6 +8018,7 @@
   }
 
   function closeNote() {
+    _neHideLocationSide();
     const ed = document.getElementById("noteEditor"); if (!ed) return;
     ed.hidden = true; ed.classList.remove("ne-full"); _neSyncFull();
     // Đóng trình sửa ở trang Trò chuyện = trả chỗ lại cho khung chat. Không trả thì khung chat
@@ -8072,23 +8074,39 @@
     closeNote();
     await _vtRebuildReExpand(null);
   }
+  function _neHideLocationSide() {
+    const side = document.getElementById("neLocationSide");
+    if (side) { _returnVaultPanel(); side.remove(); }
+  }
+
   async function _neShowLocation(rel) {
-    const tree = document.querySelector(".hud-left");
-    if (!tree) return;
-    const parent = tree.parentNode, next = tree.nextSibling;
-    const dialog = document.createElement("dialog");
-    dialog.className = "ne-location-dialog";
-    dialog.setAttribute("aria-label", window.t("cs.ne_file_location"));
-    dialog.innerHTML = `<header><strong>${esc(window.t("cs.ne_file_location"))}</strong><button type="button" aria-label="${esc(window.t("common.close"))}">${X_ICON}</button></header><div class="cside-pane"></div>`;
-    document.body.appendChild(dialog);
-    dialog.querySelector(".cside-pane").appendChild(tree);
-    dialog.querySelector("button").onclick = () => dialog.close();
-    dialog.addEventListener("close", () => {
-      if (next && next.parentNode === parent) parent.insertBefore(tree, next);
-      else parent.appendChild(tree);
-      dialog.remove();
-    }, { once: true });
-    dialog.showModal();
+    const editor = document.getElementById("noteEditor");
+    if (editor) { editor.classList.remove("ne-full"); _neSyncFull(); }
+    const workspace = document.getElementById("wsPage");
+    const chat = document.getElementById("chatPage");
+    const files = document.getElementById("fmEdit");
+    if (workspace) {
+      workspace.querySelector('[data-rtab="files"]')?.click();
+      workspace.classList.toggle("right-open", window.matchMedia("(max-width: 1060px)").matches);
+    } else if (chat) {
+      window.JavisChatSide?.tab("files");
+      chat.classList.remove("side-thu");
+      chat.classList.add("side-open");
+    } else if (files) {
+      let side = document.getElementById("neLocationSide");
+      if (!side) {
+        side = document.createElement("aside"); side.id = "neLocationSide";
+        side.className = "ne-location-side cside-pane";
+        const close = document.createElement("button"); close.type = "button";
+        close.className = "ws-ico"; close.innerHTML = X_ICON;
+        close.setAttribute("aria-label", window.t("common.close"));
+        close.onclick = _neHideLocationSide;
+        side.appendChild(close); files.prepend(side);
+        _borrowVaultPanel(side);
+      }
+    } else {
+      document.body.classList.remove("vault-thu");
+    }
     await _vtRevealInTree(rel);
   }
 

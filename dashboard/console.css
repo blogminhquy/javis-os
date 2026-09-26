@@ -442,12 +442,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .vt-create-menu { position: fixed; margin: 0; padding: 5px; width: 204px; max-width: calc(100vw - 16px); border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); box-shadow: var(--shadow-1); }
 .vt-create-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
 .vt-create-menu button:hover, .vt-create-menu button:focus-visible { background: var(--surface-2); }
-.ne-location-dialog { width: min(420px, 92vw); height: min(650px, 80dvh); padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); }
-.ne-location-dialog[open] { display: flex; flex-direction: column; gap: 10px; }
-.ne-location-dialog::backdrop { background: rgb(0 0 0 / 45%); }
-.ne-location-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.ne-location-dialog > header button { border: 0; background: transparent; color: inherit; padding: 6px; cursor: pointer; }
-.ne-location-dialog > .cside-pane { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.ne-location-side { display: flex; flex-direction: column; flex: 0 0 280px; min-height: 0; max-width: 75vw; border-right: 1px solid var(--border); padding-right: 10px; }
+.ne-location-side > button { align-self: flex-end; }
+@media (max-width: 700px) { .fm-edit > .ne-location-side { position: absolute; inset: 0 auto 0 0; z-index: 5; width: 280px; background: var(--bg); } }
 .settings-tab-content > .settings-page,
 .settings-tab-content > .cl-wrap { margin-left: 0; margin-right: 0; }
 .settings-tabs {
