@@ -3976,7 +3976,13 @@ async def connect_add(request: Request):
 @app.post("/connect/test")
 async def connect_test(request: Request):
     data = await request.json()
-    return await mcp_hub.validate_connection(data.get("id"))
+    res = await mcp_hub.validate_connection(data.get("id"))
+    # Cập nhật luôn đèn sức khoẻ: không thì test xanh mà chip vẫn đỏ tới vòng quét sau (600s).
+    try:
+        await connect_health.check_by_id((data.get("id") or "").strip())
+    except Exception as e:
+        print(f"[connect test] health: {type(e).__name__}: {e}", file=sys.stderr)
+    return res
 
 
 @app.get("/connect/health")
@@ -4185,6 +4191,12 @@ async def connect_oauth_start(request: Request):
     # token → XOÁ ngay, đừng để "xác chưa đăng nhập" nằm lại trên trang Kết nối như tài
     # khoản thật (vụ Meta Ads xoá rồi cứ mọc lại mỗi lần bấm thử nút Kết nối).
     if not res.get("ok") and conn_id and not oauth_mcp.status(conn_id).get("connected"):
+        # Kết nối TỰ THÊM (form URL) do người dùng gõ tay: xoá là mất luôn thứ họ vừa nhập.
+        # Trả về auth=header để nút "Kết nối lại" lại mở form Sửa như cũ.
+        if (mcp_store.get_connection(conn_id) or {}).get("connector_id") == "custom":
+            mcp_store.update_connection(conn_id, {"auth": "header"})
+            mcp_hub.invalidate_cache()
+            return {"ok": False, "id": conn_id, "error": res.get("error") or "Không mở được trang đăng nhập."}
         oauth_mcp.forget(conn_id)
         connect_health.forget(conn_id)
         mcp_store.delete_connection(conn_id)
@@ -4200,6 +4212,12 @@ async def connect_oauth_callback(state: str = Query(""), code: str = Query("")):
     mcp_hub.invalidate_cache()
     if res.get("ok"):
         _write_codex_profile()
+        # Vừa có token: kiểm lại đèn ngay, không thì chip vẫn báo "Kết nối lại" tới vòng quét
+        # nền kế tiếp (600s) dù kết nối đã chạy được.
+        try:
+            await connect_health.check_by_id(res.get("conn_id"))
+        except Exception as e:
+            print(f"[oauth health] {type(e).__name__}: {e}", file=sys.stderr)
         # Tự đặt tên tài khoản như flow dán key (vd lấy tên tài khoản ads từ Meta) -
         # chỉ ở lần đăng nhập ĐẦU và khi label còn là tên mặc định (đăng nhập lại giữ tên user
         # đã đặt, kể cả khi trùng tên connector); lỗi thì bỏ qua, không phá trang báo thành công.
