@@ -4,7 +4,7 @@ Server spawn DETACHED:
 
     python updater.py --old-sha <sha> --old-version <v> --target <v> --port <p> --server-pid <pid>
 
-Chuỗi: stop server -> git pull (stash nếu cây bẩn) -> pip install -> start -> chờ /health ~90s.
+Chuỗi: stop server -> fetch/merge bản phát hành (stash nếu cây bẩn) -> pip -> start -> health.
 /health không lên → git reset --hard <old-sha> -> pip -> start (rollback tự động).
 4 chế độ restart (service_mode): windows (bat/vbs), systemd (systemctl), launchd (Mac có
 job KeepAlive: KHÔNG kill PID mà `launchctl kickstart -k` - xem has_launchd_job), nohup
@@ -13,6 +13,7 @@ Chỉ dùng stdlib (chạy được cả khi bản mới hỏng dependency)."""
 import argparse
 import datetime
 import os
+import re
 import subprocess
 import sys
 import time
@@ -231,95 +232,94 @@ def drop_update_stash(stash_oid, restored):
     return run(["git", "stash", "drop", "stash@{0}"]).returncode == 0
 
 
-def chan_doan_pull(pull_out: str) -> str:
-    """Vì sao `git pull` trả về THÀNH CÔNG mà VERSION vẫn y nguyên.
-
-    Trước đây chỗ này chỉ nói "(pull chưa áp?)" rồi bảo người dùng đi đọc update.log - tức
-    là biết có chuyện bất thường mà không nói ra chuyện gì. Người dùng ở xa file log (bản
-    Windows/Docker) thì coi như không có manh mối nào.
-
-    Nguyên nhân hay gặp nhất: máy đang theo dõi một nhánh KHÁC nhánh có bản mới, nên git
-    báo "Already up to date" và trả về 0 một cách hoàn toàn hợp lệ."""
-    out = (pull_out or "").strip()
-    nhanh = (run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout or "").strip()
-    up = run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
-    theo_doi = (up.stdout or "").strip() if up.returncode == 0 else ""
-
-    if "up to date" in out.lower() or "up-to-date" in out.lower():
-        if not theo_doi:
-            return (f"Nhánh '{nhanh}' không theo dõi nhánh nào trên máy chủ nên git không có "
-                    f"gì để tải về. Chạy: git branch --set-upstream-to=origin/main {nhanh}")
-        if not theo_doi.endswith("/main"):
-            return (f"Máy đang ở nhánh '{nhanh}' theo dõi '{theo_doi}', mà bản mới nằm ở "
-                    f"nhánh main. Chạy: git checkout main && git pull")
-        return (f"Git báo đã mới nhất trên '{theo_doi}' nhưng phiên bản không đổi. Nhiều khả "
-                f"năng bản cài này không phải bản chạy từ mã nguồn (Docker/đóng gói sẵn) - "
-                f"hãy cập nhật bằng cách deploy lại image.")
-    if "detached" in out.lower() or nhanh == "HEAD":
-        return ("Máy đang ở trạng thái detached HEAD (không đứng trên nhánh nào). "
-                "Chạy: git checkout main && git pull")
-    return (f"Đã tải mã mới nhưng phiên bản không đổi. Nhánh '{nhanh}'"
-            + (f", theo dõi '{theo_doi}'" if theo_doi else ", chưa theo dõi nhánh nào")
-            + ". Xem update.log để biết chi tiết.")
+def release_source():
+    """Release branch, independent of the current branch's upstream."""
+    return (os.getenv("JAVIS_UPDATE_REMOTE", "origin").strip() or "origin",
+            os.getenv("JAVIS_UPDATE_BRANCH", "main").strip() or "main")
 
 
-def chan_doan_pull_hong(loi: str, nhanh: str = "", theo_doi: str = "") -> str:
-    """Vì sao `git pull --ff-only` CHẾT HẲN. Anh em sinh đôi của chan_doan_pull ở trên, cho
-    nhánh ngược lại: pull trả mã lỗi chứ không phải trả về 0 rồi im.
+def _clean_tracked_tree():
+    status = run(["git", "status", "--porcelain", "--untracked-files=no"])
+    return status.returncode == 0 and not (status.stdout or "").strip()
 
-    Vì sao cần: git in ra đúng thứ nó nghĩ người đọc là lập trình viên -
 
-        hint: Diverging branches can't be fast-forwarded, you need to either:
-        hint:   git merge --no-ff ... or: git rebase
-        fatal: Not possible to fast-forward, aborting.
+def merge_release():
+    """Fetch and merge the release while preserving local commits.
 
-    Người bấm nút "Cập nhật ngay" trên điện thoại đọc câu đó xong không biết máy mình đang
-    hỏng chuyện gì, mà nguyên nhân thật thì gần như luôn là một trong ba chuyện rất dễ nói
-    bằng tiếng người: đứng nhầm nhánh, nhánh đã rẽ đôi, hoặc không nối được mạng.
-
-    `nhanh` / `theo_doi` truyền vào để test gọi được mà không cần một repo git thật; bỏ trống
-    thì tự hỏi git.
+    Return (git result, safe worktree). A failed merge is aborted before the caller
+    reapplies its stash. If abort fails, leave the backup untouched for manual recovery.
     """
+    remote, branch = release_source()
+    before = _head_hien_tai()
+    if not before or remote.startswith("-") or branch.startswith("-"):
+        error = "Không xác định được HEAD hoặc nguồn phát hành hợp lệ."
+        return subprocess.CompletedProcess(["git", "fetch"], 1, "", error), True
+    current_branch = run(["git", "symbolic-ref", "-q", "--short", "HEAD"])
+    if current_branch.returncode != 0:
+        error = "detached HEAD: hãy chọn một nhánh trước khi cập nhật."
+        return subprocess.CompletedProcess(["git", "merge"], 1, "", error), True
+    if not _clean_tracked_tree():
+        error = "Cây git chưa sạch sau khi cất sửa đổi; dừng cập nhật để giữ dữ liệu."
+        return subprocess.CompletedProcess(["git", "merge"], 1, "", error), False
+    fetched = run(["git", "fetch", remote, branch])
+    if fetched.returncode != 0:
+        return fetched, True
+    merged = run(["git", "merge", "--no-edit", "FETCH_HEAD"])
+    if merged.returncode == 0:
+        if _clean_tracked_tree():
+            return merged, True
+        error = "Đã hợp nhất nhưng cây git còn sửa đổi ngoài dự kiến; dừng cập nhật."
+        return subprocess.CompletedProcess(merged.args, 1, merged.stdout, error), False
+    in_merge = run(["git", "rev-parse", "--verify", "-q", "MERGE_HEAD"]).returncode == 0
+    if in_merge:
+        aborted = run(["git", "merge", "--abort"])
+        return merged, (aborted.returncode == 0 and _head_hien_tai() == before
+                        and _clean_tracked_tree())
+    return merged, _head_hien_tai() == before and _clean_tracked_tree()
+
+
+def chan_doan_pull(pull_out: str) -> str:
+    """Explain a healthy server whose VERSION did not advance after release merge."""
+    out = (pull_out or "").strip()
+    remote, branch = release_source()
+    if "up to date" in out.lower() or "up-to-date" in out.lower():
+        return (f"Nguồn phát hành {remote}/{branch} chưa có phiên bản mới hơn. Nếu chạy bằng "
+                "Docker hoặc bản đóng gói, hãy cập nhật image thay vì nút này.")
+    return (f"Đã hợp nhất {remote}/{branch} nhưng VERSION không tăng như dự kiến. "
+            "Kiểm tra phiên bản trên nhánh phát hành và update.log.")
+
+
+def chan_doan_pull_hong(loi: str, nhanh: str = "", theo_doi: str = "",
+                        merge_aborted: bool = True) -> str:
+    """Translate fetch/merge failures without advising users to discard commits."""
     out = (loi or "").strip()
     thap = out.lower()
-    if not nhanh:
-        nhanh = (run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout or "").strip()
-    if not theo_doi:
-        up = run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
-        theo_doi = (up.stdout or "").strip() if up.returncode == 0 else ""
+    remote, branch = release_source()
 
-    dung_nhanh = bool(theo_doi) and theo_doi.endswith("/main")
-    ve_main = "Chạy: git checkout main && git pull --ff-only"
-
-    # Rẽ đôi: nhánh cục bộ có commit mà nhánh trên máy chủ không có, và ngược lại. Hay gặp
-    # nhất khi máy đang đứng trên một nhánh nhánh phụ cũ, hoặc khi PR được gộp kiểu squash
-    # (commit trên main là một commit MỚI, không phải commit của nhánh phụ).
+    if "conflict" in thap or "automatic merge failed" in thap:
+        files = list(dict.fromkeys(re.findall(r"Merge conflict in (\S+)", out, re.IGNORECASE)))
+        names = (": " + ", ".join(files[:5])
+                 + (f" và {len(files) - 5} file khác" if len(files) > 5 else "")) if files else ""
+        if not merge_aborted:
+            return ("Bản phát hành xung đột với code sửa riêng" + names
+                    + ". Chưa hủy được lần hợp nhất; kiểm tra git status và giữ nguyên "
+                      "git stash trước khi sửa bằng tay.")
+        return ("Bản phát hành xung đột với code sửa riêng" + names
+                + f". Updater đã hủy lần hợp nhất; commit riêng giữ nguyên. Cần gộp tay: "
+                  f"git fetch {remote} {branch} && git merge FETCH_HEAD, sửa xung đột rồi commit.")
     if "not possible to fast-forward" in thap or "diverging" in thap or "diverged" in thap:
-        if not dung_nhanh:
-            return (f"Máy đang đứng ở nhánh '{nhanh}'"
-                    + (f" (theo dõi '{theo_doi}')" if theo_doi else "")
-                    + ", không phải nhánh main, và nhánh đó đã rẽ khác đường với bản trên máy "
-                      "chủ nên không cập nhật thẳng được. " + ve_main)
-        return ("Nhánh main trên máy đã rẽ khác đường với máy chủ (có commit riêng ở đây). "
-                "Muốn lấy đúng bản trên máy chủ và BỎ commit riêng: "
-                "git fetch origin && git reset --hard origin/main")
-    if "no tracking information" in thap or "no upstream" in thap:
-        return (f"Nhánh '{nhanh}' chưa theo dõi nhánh nào trên máy chủ nên git không biết tải "
-                f"từ đâu. " + ve_main)
+        return ("Lịch sử nhánh phát hành và nhánh hiện tại khác nhau, Git chưa hợp nhất được. "
+                "Các commit riêng vẫn ở nhánh hiện tại; xem update.log để xử lý bằng tay.")
     if "you are not currently on a branch" in thap or nhanh == "HEAD":
-        return "Máy đang ở trạng thái detached HEAD (không đứng trên nhánh nào). " + ve_main
+        return "Máy đang ở trạng thái detached HEAD; hãy chọn một nhánh trước khi cập nhật."
+    if "authentication" in thap or "permission denied" in thap or "403" in thap:
+        return "GitHub từ chối quyền truy cập. Kiểm tra lại thông tin đăng nhập git của máy."
     if ("could not resolve host" in thap or "unable to access" in thap
             or "connection" in thap or "timed out" in thap):
         return "Không nối được tới GitHub. Kiểm tra mạng rồi bấm cập nhật lại."
-    if "authentication" in thap or "permission denied" in thap or "403" in thap:
-        return "GitHub từ chối quyền truy cập. Kiểm tra lại thông tin đăng nhập git của máy."
     if "local changes" in thap or "would be overwritten" in thap:
-        return ("Trên máy có sửa đổi cục bộ chặn mất bản mới. Cất đi rồi thử lại: "
-                "git stash && git pull --ff-only")
-    if not dung_nhanh:
-        return (f"Máy đang đứng ở nhánh '{nhanh}'"
-                + (f" (theo dõi '{theo_doi}')" if theo_doi else "")
-                + ", không phải nhánh main. " + ve_main)
+        return ("Có file cục bộ chặn bản phát hành. Kiểm tra git status, cất hoặc đổi tên "
+                "file đó rồi cập nhật lại; bản sao sửa đổi đã cất vẫn ở git stash.")
     return ""
 
 
@@ -373,7 +373,9 @@ def main():
     a = ap.parse_args()
 
     if a.dry_run:
-        print(f"PLAN: stop -> pull(stash nếu bẩn) -> pip -> start -> health({a.port}) "
+        remote, branch = release_source()
+        print(f"PLAN: stop -> fetch({remote}/{branch}) + merge(stash nếu bẩn) "
+              f"-> pip -> start -> health({a.port}) "
               f"-> rollback(reset {a.old_sha or '?'}) nếu không lên")
         return 0
 
@@ -400,9 +402,20 @@ def main():
         return 1
     if stash_oid:
         us.write_state({"stashed": True})
-    pull = run(["git", "pull", "--ff-only"])
+    pull, tree_safe = merge_release()
     if pull.returncode != 0:
-        log("git pull LỖI:\n" + (pull.stderr or pull.stdout or ""))
+        git_error = "\n".join(x for x in (pull.stdout, pull.stderr) if x)
+        log("Hợp nhất bản phát hành LỖI:\n" + git_error)
+        if not tree_safe:
+            note = (f"Không xác nhận được cây Git an toàn. Kiểm tra git status và update.log "
+                    f"trước khi khởi động lại; "
+                    f"bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash."
+                    if stash_oid else
+                    "Không xác nhận được cây Git an toàn. Kiểm tra git status và update.log "
+                    "trước khi khởi động lại.")
+            us.write_state({"phase": "error", "result": "pull_failed", "error": note,
+                            "finished_at": _now()})
+            return 1
         stash_note = ""
         if stash_oid:
             restored, restore_error = restore_local_changes(stash_oid)
@@ -413,18 +426,13 @@ def main():
             else:
                 stash_note = (f" Chưa khôi phục được sửa đổi; bản sao {stash_oid[:12]} vẫn "
                               f"trong git stash: {restore_error}")
-        # Mã nguồn chưa đổi nên bản CŨ vẫn nguyên vẹn - bật lại là xong. Nhưng phải KIỂM xem
-        # nó lên thật không: báo mỗi "pull thất bại" trong khi server cũng đang nằm là bỏ
-        # người dùng lại với một câu sai về chuyện đang thực sự xảy ra.
+        # Merge đã hủy hoặc fetch thất bại; xác nhận server cũ thật sự lên lại.
         start_server(mode, a.port)
         them = "" if poll_health(a.port, 60) else (
             " Server cũ CŨNG chưa lên lại - mở Javis bằng tay để chạy tiếp.")
-        # NÓI RA nguyên nhân bằng tiếng người. Trước bản này chỗ này ném thẳng lời git ra màn
-        # hình ("hint: Diverging branches can't be fast-forwarded... fatal: Not possible to
-        # fast-forward"), mà người bấm nút Cập nhật thì không đọc ra được máy mình hỏng gì.
-        ly_do = chan_doan_pull_hong(pull.stderr or pull.stdout or "")
+        ly_do = chan_doan_pull_hong(git_error, merge_aborted=tree_safe)
         log("Chẩn đoán: " + (ly_do or "(không nhận ra nguyên nhân quen thuộc)"))
-        tho = (pull.stderr or "git pull thất bại").strip()
+        tho = (git_error or "Không hợp nhất được bản phát hành").strip()
         us.write_state({"phase": "error", "result": "pull_failed",
                         "error": ((ly_do + " (chi tiết trong update.log)") if ly_do else tho[:400])
                                  + stash_note + them,

@@ -72,7 +72,7 @@ def drive_update(health, restores):
         state.update(changes)
 
     def fake_run(command):
-        assert command[:2] in (["git", "pull"], ["git", "reset"]), command
+        assert command[:2] == ["git", "reset"], command
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     with patch.object(sys, "argv", ["updater.py", "--old-sha", "a" * 40,
@@ -84,6 +84,7 @@ def drive_update(health, restores):
                         stash_local_changes=lambda: ("b" * 40, ""),
                         restore_local_changes=lambda oid: next(restore_calls),
                         drop_update_stash=lambda oid, restored: dropped.append((oid, restored)) or True,
+                        merge_release=lambda: (SimpleNamespace(returncode=0, stdout="", stderr=""), True),
                         run=fake_run,
                         pip_install=lambda: SimpleNamespace(returncode=0),
                         poll_health=lambda *a: next(health),

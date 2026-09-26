@@ -223,6 +223,86 @@ out7, _ = cred_exchange.run(CON_XAU, {"email": "a@gmail.com", "app_password": "d
 check("CANARY: cấu hình QUÊN drop thì app_password PHẢI còn lại -> tức check ở trên "
       "thật sự đang đo việc xoá, không phải luôn-xanh", "app_password" in out7)
 
+# ---- Apify: gói facebook-monitor cũ chỉ có ô apify_token, chưa khai auth.exchange ----
+# Handler vẫn phải kiểm token để một kết nối ảo không được lưu xanh với token sai.
+_fake_httpx = types.ModuleType("httpx")
+_apify_calls = []
+
+
+class _ApifyResponse:
+    def __init__(self, status_code):
+        self.status_code = status_code
+
+
+def _apify_get(url, headers=None, timeout=None):
+    _apify_calls.append((url, dict(headers or {}), timeout))
+    return _ApifyResponse(200 if (headers or {}).get("Authorization") == "Bearer apify_api_good"
+                          else 401)
+
+
+_fake_httpx.get = _apify_get
+_real_httpx = sys.modules.get("httpx")
+sys.modules["httpx"] = _fake_httpx
+try:
+    valid, error = cred_exchange._apify_verify_token({"apify_token": "apify_api_good"})
+    check("Apify: token đúng được trả nguyên vẹn", valid == "apify_api_good" and not error)
+    check("Apify: gọi đúng endpoint bằng Bearer header",
+          _apify_calls and _apify_calls[0][0] == "https://api.apify.com/v2/users/me"
+          and _apify_calls[0][1].get("Authorization") == "Bearer apify_api_good")
+    invalid, error = cred_exchange._apify_verify_token({"apify_token": "apify_api_bad"})
+    check("Apify: token sai bị từ chối trước khi lưu", invalid is None and bool(error))
+finally:
+    if _real_httpx is None:
+        sys.modules.pop("httpx", None)
+    else:
+        sys.modules["httpx"] = _real_httpx
+
+facebook = {"id": "facebook-monitor", "auth": {"fields": [{"key": "apify_token"}]}}
+_real_apify_handler = cred_exchange.HANDLERS.get("apify_verify_token")
+cred_exchange.HANDLERS["apify_verify_token"] = lambda f: (
+    (f["apify_token"], "") if f.get("apify_token") == "apify_api_good" else (None, "Token sai"))
+try:
+    out, error = cred_exchange.run(facebook, {"apify_token": "bad"})
+    check("facebook-monitor: gói cũ vẫn chặn token sai", bool(error))
+    out, error = cred_exchange.run(facebook, {"apify_token": "apify_api_good"})
+    check("facebook-monitor: token đúng qua kiểm và được giữ", not error and out.get("apify_token") == "apify_api_good")
+finally:
+    if _real_apify_handler is None:
+        cred_exchange.HANDLERS.pop("apify_verify_token", None)
+    else:
+        cred_exchange.HANDLERS["apify_verify_token"] = _real_apify_handler
+
+# Connector có sẵn auth.exchange cũng phải kiểm output khi skip_if_output=False.
+strict = {"id": "strict", "auth": {"fields": [{"key": "token"}], "exchange": {
+    "handler": "strict_test", "inputs": ["token"], "output": "token", "skip_if_output": False}}}
+cred_exchange.HANDLERS["strict_test"] = lambda f: (
+    (f["token"], "") if f.get("token") == "good" else (None, "Token sai"))
+out, error = cred_exchange.run(strict, {"token": "bad"})
+check("skip_if_output=False: token đích sai vẫn bị từ chối", bool(error))
+out, error = cred_exchange.run(strict, {"token": "good"})
+check("skip_if_output=False: token đích đúng vẫn được giữ", not error and out.get("token") == "good")
+cred_exchange.HANDLERS.pop("strict_test", None)
+
+# ---- /connect/add: token sai không được chạm tới kho lưu ----
+import asyncio as _asyncio  # noqa: E402
+from unittest.mock import patch as _patch  # noqa: E402
+import main as _main  # noqa: E402
+
+
+class _ConnectRequest:
+    async def json(self):
+        return {"connector_id": "facebook-monitor", "fields": {"apify_token": "bad"}}
+
+
+_saved = []
+with _patch.object(_main.mcp_catalog, "get", lambda cid: facebook), \
+     _patch.object(_main.mcp_store, "reuse_client_fields", lambda con, fields, reuse: fields), \
+     _patch.object(_main.mcp_store, "add_connection", lambda *a: _saved.append(a)), \
+     _patch.dict(cred_exchange.HANDLERS, {"apify_verify_token": lambda f: (None, "Token sai")}):
+    _response = _asyncio.run(_main.connect_add(_ConnectRequest()))
+check("/connect/add: token Apify sai bị từ chối trước khi ghi đĩa",
+      _response.get("ok") is False and not _saved)
+
 if _fails:
     print(f"\nFAIL - test_cred_exchange: {len(_fails)} lỗi: {_fails}")
     sys.exit(1)

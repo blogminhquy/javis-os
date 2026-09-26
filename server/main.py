@@ -3974,7 +3974,9 @@ async def connect_add(request: Request):
     # Bước ĐỔI CREDENTIAL (nếu connector khai auth.exchange): vd Google Keep đổi App Password
     # thành master token ngay tại đây, để người dùng khỏi phải mở terminal. Hàm này LUÔN xoá các
     # field khai trong `drop` (như app_password) nên thứ đó không bao giờ xuống tới mcp_store.
-    fields, ex_err = cred_exchange.run(mcp_catalog.get(con_id), fields_in)
+    # Apify/Google verification performs network I/O; keep the event loop responsive.
+    fields, ex_err = await asyncio.to_thread(
+        cred_exchange.run, mcp_catalog.get(con_id), fields_in)
     if ex_err:
         return {"ok": False, "error": ex_err}
     cid, err = mcp_store.add_connection(con_id, {
