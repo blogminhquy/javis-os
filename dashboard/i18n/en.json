@@ -2254,6 +2254,8 @@
   "cs.mf_ok": "Connected, {so} tools available. Ask Javis to try it.",
   "cs.mf_fail_head": "Saved, but it could not connect",
   "cs.mf_fail_tail": "Fix it above and press Save and test again (no duplicate is created).",
+  "cs.mf_oauth_hint": "This server requires sign-in (OAuth). Press the button below to sign in and grant access in your browser.",
+  "cs.mf_oauth_btn": "Sign in with browser",
   "cs.cn_connect_head": "CONNECT",
   "cs.cn_label_long": "Nickname (optional, leave blank to use the account or shop name)",
   "cs.cn_label_short": "Nickname (optional)",

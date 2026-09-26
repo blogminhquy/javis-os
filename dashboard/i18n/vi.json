@@ -2254,6 +2254,8 @@
   "cs.mf_ok": "Kết nối được, có {so} công cụ. Sang trang Javis hỏi thử là dùng được.",
   "cs.mf_fail_head": "Đã lưu nhưng chưa kết nối được",
   "cs.mf_fail_tail": "Sửa ở trên rồi bấm Lưu và kiểm tra lần nữa (không tạo bản trùng).",
+  "cs.mf_oauth_hint": "Máy chủ này yêu cầu đăng nhập (OAuth). Bấm nút dưới đây để đăng nhập và cấp quyền trong trình duyệt.",
+  "cs.mf_oauth_btn": "Đăng nhập bằng trình duyệt",
   "cs.cn_connect_head": "KẾT NỐI",
   "cs.cn_label_long": "Tên gợi nhớ (tuỳ chọn - bỏ trống sẽ tự lấy tên tài khoản/shop)",
   "cs.cn_label_short": "Tên gợi nhớ (tuỳ chọn)",

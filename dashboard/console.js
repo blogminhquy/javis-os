@@ -4632,6 +4632,8 @@
       postJson("/connect/oauth/start", { id: c.id }).then(r => {
         if (!r || r.ok === false) { alert(window.t("cs.cn_signin_fail") + " " + ((r && r.error) || window.t("cs.cn_error_low"))); return; }
         window.open(r.url, "_blank");
+        // Đăng nhập xong quay lại tab này: vẽ lại để đèn và nút "Kết nối lại" cập nhật ngay.
+        window.addEventListener("focus", () => renderConnect(el), { once: true });
       });
       return;
     }
@@ -5541,6 +5543,9 @@
   function openMcpForm(el, server) {
     const P = window.JavisMcpParse;
     let editId = server ? server.id : "";
+    // Kết nối đã chuyển sang OAuth thì Lưu phải GIỮ chế độ đó: gửi auth=header là token thôi
+    // được gắn, máy chủ trả 401 và người dùng bị đẩy đi đăng nhập lại vô cớ.
+    let dangOauth = !!(server && server.auth === "oauth");
     const eyeBtn = '<button type="button" class="mcpf-eye" data-eye title="' + esc(window.t("cs.mf_show")) + '">' + ic("eye") + '</button>';
     const dongKey = (ten, daLuu) => {
       const phV = daLuu ? window.t("cs.mf_saved_ph") : window.t("cs.mf_key_val_ph");
@@ -5708,7 +5713,7 @@
       if (kieu === "url") {
         body.url = $("#mfUrl").value.trim();
         if (!/^https?:\/\//i.test(body.url)) { err.textContent = window.t("cs.mf_need_url"); $("#mfUrl").focus(); return; }
-        body.auth = "header"; body.headers = bang;
+        body.auth = dangOauth ? "oauth" : "header"; body.headers = bang;
         if (editId) body.env = {};
       } else {
         const tok = P ? P.tachLenh($("#mfCmd").value) : $("#mfCmd").value.trim().split(/\s+/).filter(Boolean);
@@ -5744,7 +5749,43 @@
         chan.querySelector("#mfLuu").onclick = () => { closeConnModal(); renderConnect(el); };
         return;
       }
-      baoKq("do", window.t("cs.mf_fail_head"), ((t && t.error) || "") + " " + window.t("cs.mf_fail_tail"));
+      // Server trả 401 = đòi đăng nhập OAuth (chuẩn MCP Authorization, như Claude/ChatGPT tự làm).
+      // Form này mặc định auth=header nên trước đây không có đường nào mở trang đăng nhập.
+      const canOauth = kieu === "url" && /\b401\b|unauthori[sz]ed/i.test((t && t.error) || "");
+      baoKq("do", window.t("cs.mf_fail_head"), ((t && t.error) || "") + " "
+        + window.t(canOauth ? "cs.mf_oauth_hint" : "cs.mf_fail_tail"));
+      if (canOauth) {
+        const ob = document.createElement("button");
+        ob.type = "button"; ob.className = "mp-btn primary"; ob.style.marginTop = "8px";
+        ob.innerHTML = ic("external-link") + esc(window.t("cs.mf_oauth_btn"));
+        ob.onclick = async () => {
+          // Mở tab NGAY trong cú bấm: mở sau await là trình duyệt chặn popup.
+          const w = window.open("", "_blank");
+          ob.disabled = true;
+          dangOauth = true;
+          await postJson("/mcp/update", { id: editId, auth: "oauth" });
+          const r = await postJson("/connect/oauth/start", { id: editId });
+          ob.disabled = false;
+          if (!r || r.ok === false) {
+            if (w) w.close();
+            baoKq("do", window.t("cs.cn_signin_fail"), (r && r.error) || window.t("cs.cn_error_low"));
+            return;
+          }
+          if (w) w.location = r.url; else window.open(r.url, "_blank");
+          baoKq("tin", window.t("cs.cn_oauth_after"), "");
+          // Quay lại tab này sau khi đăng nhập xong thì tự kiểm tra lại, khỏi bắt bấm Lưu lần nữa.
+          window.addEventListener("focus", async () => {
+            let t2;
+            try { t2 = await postJson("/connect/test", { id: editId }); } catch (e) { t2 = null; }
+            if (t2 && t2.ok) {
+              baoKq("tin", window.t("cs.mf_ok", { so: t2.tools || 0 }), "");
+              chan.querySelector("#mfLuu").textContent = window.t("common.close");
+              chan.querySelector("#mfLuu").onclick = () => { closeConnModal(); renderConnect(el); };
+            }
+          }, { once: true });
+        };
+        $("#mfKq .pkm-canh").appendChild(ob);
+      }
       chan.querySelector('[data-act="close"]').textContent = window.t("common.close");
       chan.querySelector('[data-act="close"]').onclick = () => { closeConnModal(); renderConnect(el); };
     };
