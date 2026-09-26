@@ -92,16 +92,18 @@
     var css = document.createElement("style");
     css.textContent =
       "#javis-fresh-bar{position:fixed;left:50%;transform:translateX(-50%);top:14px;z-index:99999;" +
-      "display:flex;align-items:center;gap:12px;max-width:min(92vw,720px);padding:12px 16px;" +
+      "display:flex;align-items:center;gap:12px;width:min(92vw,720px);box-sizing:border-box;padding:12px 16px;" +
       "border-radius:12px;border:1px solid var(--yellow,#e0a800);background:var(--bg2,#1b1f2a);" +
       "color:var(--text,#e8eaf0);font-size:16px;line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.4)}" +
-      "#javis-fresh-bar .jf-txt{flex:1 1 auto;min-width:0}" +
+      "#javis-fresh-bar .jf-txt{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}" +
       "#javis-fresh-bar .jf-sub{display:block;margin-top:3px;font-size:14px;opacity:.8}" +
       "#javis-fresh-bar button{flex:none;cursor:pointer;border-radius:8px;font-size:15px;padding:7px 13px;" +
       "font-family:inherit;border:1px solid var(--border,#39405180)}" +
       "#javis-fresh-bar .jf-ok{background:var(--yellow,#e0a800);border-color:var(--yellow,#e0a800);" +
       "color:#1a1a1a;font-weight:700}" +
-      "#javis-fresh-bar .jf-x{background:transparent;color:var(--text3,#8b93a7)}";
+      "#javis-fresh-bar .jf-x{background:transparent;color:var(--text3,#8b93a7)}" +
+      "@media(max-width:600px){#javis-fresh-bar{flex-wrap:wrap;gap:10px;top:max(12px,env(safe-area-inset-top))}" +
+      "#javis-fresh-bar .jf-txt{flex:1 0 100%}#javis-fresh-bar button{white-space:nowrap}}";
     var bar = document.createElement("div");
     bar.id = "javis-fresh-bar";
     bar.setAttribute("role", "status");

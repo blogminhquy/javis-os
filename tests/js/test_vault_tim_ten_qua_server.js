@@ -90,9 +90,15 @@ const okFetch = async () => ({ ok: true, status: 200, json: async () => dapAn })
   check("và chỉ gửi ĐÚNG 1 request", urls.length === 1, urls.length);
   check("request đó là /files/search", urls[0] && urls[0].indexOf("/files/search?") === 0, urls[0]);
   check("hỏi đúng mode=name", /mode=name/.test(urls[0] || ""));
+  check("cây thư mục yêu cầu cả thư mục", /include_dirs=true/.test(urls[0] || ""));
   check("có kèm brain và limit", /brain=Brain%20Default/.test(urls[0] || "") && /limit=\d+/.test(urls[0] || ""),
         urls[0]);
   const ket = a.ket() || [];
+  const folderSearch = chay(async () => ({ ok: true, json: async () => ({items: [
+    {name: "Tài liệu", path: "brain/Tài liệu", type: "dir", ext: ""}
+  ]}) }));
+  await folderSearch.fn("tai lieu");
+  check("giữ loại thư mục để mở cây thay vì mở trình sửa", folderSearch.ket()[0].type === "dir");
   check("vẽ ra đúng kết quả server trả về", ket.length === 1 && ket[0].name === "KPI Funnel Webinar.md", ket);
   check("giữ nguyên path của server (đúng quy ước openNote đang dùng)",
         ket[0] && ket[0].path === "00 - Dashboard/KPI Funnel Webinar.md", ket[0] && ket[0].path);

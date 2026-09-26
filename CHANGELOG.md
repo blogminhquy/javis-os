@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.62] - 2026-09-27
+### Sửa lỗi
+- Thông báo tải lại sau cập nhật vừa màn hình điện thoại, không ép chữ thành cột hẹp. Editor mở toàn màn hình; thanh nút không tràn ra ngoài trên điện thoại.
+### Cải thiện
+- Khung Trợ lý và Quy trình gọn hơn: nút thao tác ở trên, icon nhỏ cạnh tên, bỏ mô tả dưới tiêu đề.
+- Thêm icon cho nút Tải lên trợ lý và Tải lên quy trình. Nút tạo trong cây thư mục có thêm lựa chọn tạo thư mục con.
+- Tìm theo tên trong cây thư mục trả về cả thư mục, kể cả thư mục rỗng. Bấm kết quả để mở đúng vị trí trong cây; nút Vị trí luôn hiện dù tên dài. Trình sửa cũng có nút Vị trí file để mở cây tại file đang xem.
+
 ## [0.64.61] - 2026-09-27
 ### Cải thiện
 - Cài đặt gọn hơn, các tab và nội dung căn sát lề trái, giảm khoảng trống dưới tiêu đề.

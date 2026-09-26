@@ -1298,6 +1298,7 @@
   // Rời trang Tệp tin: TRẢ trình sửa về khoang não trước khi #cviewBody bị ghi đè, y như trang
   // Trò chuyện vẫn làm. Không trả là mất luôn node #noteEditor, và lần sau mở file ra trắng trơn.
   function _fmRoiTrang() {
+    _neHideLocationSide();
     document.body.classList.remove("on-files");
     _fmSauKhiDong = null;
     _returnNoteEditor();
@@ -7666,6 +7667,38 @@
     }
   }
 
+  function _vtCreateMenu(button, rel, isDir) {
+    document.getElementById("vtCreateMenu")?.remove();
+    const menu = document.createElement("div");
+    menu.id = "vtCreateMenu"; menu.className = "vt-create-menu";
+    menu.setAttribute("popover", "auto");
+    menu.innerHTML = `<button type="button">${ic("file-text")} ${esc(window.t("cs.vt_create_file"))}</button>`
+      + `<button type="button">${ic("folder")} ${esc(window.t("cs.vt_create_dir"))}</button>`;
+    menu.querySelectorAll("button").forEach((item, index) => {
+      item.onclick = () => { menu.remove(); if (index) _vtAddFolder(rel, isDir); else _vtAddFile(rel, isDir); };
+    });
+    document.body.appendChild(menu);
+    const rect = button.getBoundingClientRect();
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 220)) + "px";
+    menu.style.top = Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 110)) + "px";
+    menu.showPopover();
+    menu.querySelector("button").focus();
+    menu.addEventListener("toggle", () => { if (!menu.matches(":popover-open")) menu.remove(); });
+  }
+
+  async function _vtAddFolder(rel, isDir) {
+    const dir = isDir ? rel : (rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "");
+    const name = (prompt(window.t("cs.vt_new_dir")) || "").trim();
+    if (!name) return;
+    const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", dir); fd.append("name", name);
+    try {
+      const response = await fetch("/files/mkdir", { method: "POST", body: fd });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.error) throw new Error(result.error || window.t("app.err_net"));
+      await _vtRevealInTree(dir ? dir + "/" + name : name, true);
+    } catch (error) { alert(error.message || window.t("app.err_net")); }
+  }
+
   async function _vtAddFile(rel, isDir) {
     // Bấm ở thư mục → tạo file BÊN TRONG; bấm ở file → tạo CÙNG thư mục (thư mục cha của file).
     const dir = isDir ? rel : (rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "");
@@ -7712,7 +7745,7 @@
     node.querySelectorAll(".vt-act button").forEach(b => b.onclick = (e) => {
       e.stopPropagation();
       const a = b.dataset.a;
-      if (a === "add") _vtAddFile(rel, isDir);
+      if (a === "add") _vtCreateMenu(b, rel, isDir);
       else if (a === "dl") { if (isDir) _dlFolder(rel, it.name); else _dlFile(rel); }
       else if (a === "ren") _vtRename(rel, it.name);
       else _vtDelete(rel, it.name, isDir);
@@ -7753,7 +7786,12 @@
       const items = await _vtList(dir);
       for (const it of items) {
         const rel = dir ? dir + "/" + it.name : it.name;
-        if (it.type === "dir") { if (!it.name.startsWith(".") && !SKIP.has(it.name)) queue.push(rel); }
+        if (it.type === "dir") {
+          if (!it.name.startsWith(".") && !SKIP.has(it.name)) {
+            out.push({ name: it.name, type: "dir", ext: "", path: rel, dir: dir });
+            queue.push(rel);
+          }
+        }
         else out.push({ name: it.name, ext: it.ext, path: rel, dir: dir });
       }
     }
@@ -7775,9 +7813,9 @@
    * Dùng lại `_vtRebuildReExpand` (vốn viết cho việc tạo file mới) nên không đẻ thêm cơ chế
    * xổ cây thứ hai.
    */
-  async function _vtRevealInTree(path) {
+  async function _vtRevealInTree(path, isDir = false) {
     const p = String(path || "");
-    const dir = p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : (_vtHome || "");
+    const dir = isDir ? p : (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : (_vtHome || ""));
     const input = document.getElementById("vaultSearch");
     if (input) input.value = "";
     const results = document.getElementById("vaultResults"); if (results) results.hidden = true;
@@ -7794,12 +7832,13 @@
     box.innerHTML = "";
     list.forEach(it => {
       const el = document.createElement("div"); el.className = "vr-item";
+      const isDir = it.type === "dir";
       const sub = withSnippet ? (it.snippet || "") : _vtRelHome(it.dir);
-      el.innerHTML = `<div class="vr-name"><span class="vt-ico">${_fileIcon(it.ext)}</span>${esc(it.name)}`
+      el.innerHTML = `<div class="vr-name"><span class="vt-ico">${isDir ? ic("folder") : _fileIcon(it.ext)}</span><span class="vr-label" title="${esc(it.name)}">${esc(it.name)}</span>`
         + `<button class="vr-loc" type="button" title="${esc(window.t("cs.vt_loc_title"))}">${esc(window.t("cs.fm_loc"))}</button></div>`
         + (sub ? `<div class="vr-snip">${esc(sub)}</div>` : "");
-      el.onclick = () => openNote(it.path, { name: it.name, ext: it.ext, type: "file" });
-      el.querySelector(".vr-loc").onclick = (e) => { e.stopPropagation(); _vtRevealInTree(it.path); };
+      el.onclick = () => isDir ? _vtRevealInTree(it.path, true) : openNote(it.path, { name: it.name, ext: it.ext, type: "file" });
+      el.querySelector(".vr-loc").onclick = (e) => { e.stopPropagation(); _vtRevealInTree(it.path, isDir); };
       box.appendChild(el);
     });
   }
@@ -7820,13 +7859,13 @@
     let hits = null;
     try {
       const r = await fetch(`/files/search?brain=${encodeURIComponent(fbrain())}`
-        + `&q=${encodeURIComponent(q)}&mode=name&limit=120`);
+        + `&q=${encodeURIComponent(q)}&mode=name&include_dirs=true&limit=120`);
       if (r.ok) {
         const d = await r.json().catch(() => ({}));
         // `path` của /files/search tính theo TRẦN DUYỆT - đúng quy ước openNote/_vtRevealInTree
         // đang dùng, nên không phải đổi gì ở hai chỗ đó.
         if (d && !d.error) hits = (d.items || []).map(it => ({
-          name: it.name, ext: it.ext, path: it.path,
+          name: it.name, ext: it.ext, path: it.path, type: it.type || "file",
           dir: String(it.path || "").includes("/")
             ? it.path.slice(0, it.path.lastIndexOf("/")) : "",
         }));
@@ -7886,16 +7925,7 @@
     chipContent.onclick = () => setMode("content");
     const nf = document.getElementById("vtNewFile"), nd = document.getElementById("vtNewDir"), rf = document.getElementById("vtRefresh");
     if (rf) rf.onclick = () => { _vtCache.clear(); _vtIndex = null; renderVaultTree(); };
-    if (nf) nf.onclick = async () => {
-      let n = prompt(window.t("cs.vt_new_file")); if (!n) return;
-      if (!/\.[a-z0-9]+$/i.test(n)) n += ".md";   // mặc định file markdown
-      const rel = _vtHome ? _vtHome + "/" + n : n;
-      const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel); fd.append("content", "");
-      await fetch("/files/write", { method: "POST", body: fd });
-      await _vtRebuildReExpand(_vtHome || "");   // giữ thư mục đang mở
-      const ext = "." + n.split(".").pop().toLowerCase();
-      openNote(rel, { name: n, ext: ext, type: "file" });
-    };
+    if (nf) nf.onclick = () => _vtCreateMenu(nf, _vtHome || "", true);
     if (nd) nd.onclick = async () => {
       const n = prompt(window.t("cs.vt_new_dir")); if (!n) return;
       const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", _vtHome || ""); fd.append("name", n);
@@ -7988,6 +8018,7 @@
   }
 
   function closeNote() {
+    _neHideLocationSide();
     const ed = document.getElementById("noteEditor"); if (!ed) return;
     ed.hidden = true; ed.classList.remove("ne-full"); _neSyncFull();
     // Đóng trình sửa ở trang Trò chuyện = trả chỗ lại cho khung chat. Không trả thì khung chat
@@ -8043,6 +8074,42 @@
     closeNote();
     await _vtRebuildReExpand(null);
   }
+  function _neHideLocationSide() {
+    const side = document.getElementById("neLocationSide");
+    if (side) { _returnVaultPanel(); side.remove(); }
+  }
+
+  async function _neShowLocation(rel) {
+    const editor = document.getElementById("noteEditor");
+    if (editor) { editor.classList.remove("ne-full"); _neSyncFull(); }
+    const workspace = document.getElementById("wsPage");
+    const chat = document.getElementById("chatPage");
+    const files = document.getElementById("fmEdit");
+    if (workspace) {
+      workspace.querySelector('[data-rtab="files"]')?.click();
+      workspace.classList.toggle("right-open", window.matchMedia("(max-width: 1060px)").matches);
+    } else if (chat) {
+      window.JavisChatSide?.tab("files");
+      chat.classList.remove("side-thu");
+      chat.classList.add("side-open");
+    } else if (files) {
+      let side = document.getElementById("neLocationSide");
+      if (!side) {
+        side = document.createElement("aside"); side.id = "neLocationSide";
+        side.className = "ne-location-side cside-pane";
+        const close = document.createElement("button"); close.type = "button";
+        close.className = "ws-ico"; close.innerHTML = X_ICON;
+        close.setAttribute("aria-label", window.t("common.close"));
+        close.onclick = _neHideLocationSide;
+        side.appendChild(close); files.prepend(side);
+        _borrowVaultPanel(side);
+      }
+    } else {
+      document.body.classList.remove("vault-thu");
+    }
+    await _vtRevealInTree(rel);
+  }
+
   function _neCommonBtns(actions, rel, it) {
     // label là HTML (icon SVG), không phải chữ trơ - dùng innerHTML kẻo in ra mã.
     const mk = (label, title, fn) => { const b = document.createElement("button"); b.innerHTML = label; if (title) b.title = title; b.onclick = fn; return b; };
@@ -8054,6 +8121,9 @@
     const bSao = mk(ic("copy"), window.t("common.copy_path") + ": " + rel,
                     () => { if (window.JavisCopy) window.JavisCopy(rel, bSao); });
     actions.appendChild(bSao);
+    const locationButton = mk(ic("folder") + " " + esc(window.t("cs.ne_file_location")), window.t("cs.ne_file_location"), () => _neShowLocation(rel));
+    locationButton.type = "button";
+    actions.appendChild(locationButton);
     actions.appendChild(mk(ic("pencil"), window.t("cs.ne_rename_file"), () => _neRenameCur(rel, it)));
     actions.appendChild(mk(ic("trash-2"), window.t("cs.ne_del_file"), () => _neDeleteCur(rel, it)));
     // CHIA SE: cung cai nut cua trinh sua modal (window.JavisShareBtn), chi khac cho ve thanh
@@ -8315,7 +8385,7 @@
     _neDangDiLichSu = false;
     if (!laLichSu) _neDayLichSu(rel, it);
     _neVeNutLui();
-    ed.hidden = false; ed.classList.remove("ne-full"); _neSyncFull();
+    ed.hidden = false; ed.classList.add("ne-full"); _neSyncFull();
     _neOpenRel = rel || "";     // để chip "file đang mở" biết có cần nạp lại hay chỉ cần đưa mắt về
     _neLayNoiDung = null; _neGocText = null;   // file mới: mốc so sánh dựng lại ở dưới
     // Đang ở trang Trò chuyện thì trình sửa chiếm chỗ khung chat thay vì đè lên visual não
