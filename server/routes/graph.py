@@ -202,7 +202,7 @@ def _make_router() -> APIRouter:
                 if recv in done:
                     try:
                         recv.result()   # tiêu thụ exception (nếu có) cho gọn warning
-                    except Exception:
+                    except (Exception, asyncio.CancelledError):
                         pass
                     break   # disconnect / socket lỗi → dọn
                 batch = item.result()
@@ -238,6 +238,11 @@ def _make_router() -> APIRouter:
                         "linkTargets": targets, "isNew": is_new,
                     }, ensure_ascii=False))
         except WebSocketDisconnect:
+            pass
+        except asyncio.CancelledError:
+            # TestClient (và một số proxy) hủy task ngay sau khi gửi disconnect.
+            # CancelledError không thuộc Exception; để lọt ra sẽ làm lần đóng socket
+            # ném lỗi dù mọi graph_add trước đó đã gửi thành công.
             pass
         except Exception as e:
             print(f"[ws_graph] {type(e).__name__}: {e}", file=__import__('sys').stderr)
