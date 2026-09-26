@@ -1356,6 +1356,11 @@ function restoreSession() {
   if (!s) return;
   convo = Array.isArray(s.convo) ? s.convo : [];
   savedSessionId = s.sessionId || null;
+  // brains-ui nạp các brain từ server SAU bước khôi phục này. Nếu option brain của cuộc
+  // đang xem chưa có trong dropdown, graphSource tạm là "brain"; sự kiện change khi option
+  // về là hoàn tất khởi động, không phải người dùng đổi brain. Nhớ brain thật của cuộc đã
+  // khôi phục để handler không xoá trắng khung chat và ghi đè localStorage bằng phiên rỗng.
+  if (savedSessionId && s.brain) _lastBrain = s.brain;
   // Dựng lại bong bóng hội thoại
   convo.forEach((t, i) => {
     // t.ts vắng mặt ở tin lưu từ trước bản này -> truyền 0 để ẩn giờ thay vì hiện giờ F5.
