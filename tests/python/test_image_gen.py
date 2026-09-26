@@ -254,6 +254,68 @@ _goi.clear()
 r_sai = asyncio.run(image_gen.generate_chatgpt("x", vault_root=vault, images=["attachments/khong-co.png"]))
 check("ảnh sai đường dẫn: báo lỗi và KHÔNG gọi ChatGPT", r_sai.get("ok") is False and not _goi)
 
+# Hoàn tất ở tầng SSE không nhất thiết đóng socket ngay. Không được đọc tiếp để chờ EOF.
+async def _terminal_case(lines):
+    state = {"closed": False, "reads_past_terminal": False}
+
+    class Stream:
+        status_code = 200
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): state["closed"] = True
+        async def aiter_lines(self):
+            for item in lines:
+                yield "data: " + (item if isinstance(item, str) else json.dumps(item))
+            state["reads_past_terminal"] = True
+            await asyncio.Event().wait()
+
+    class Client:
+        def __init__(self, *args, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        def stream(self, *args, **kwargs): return Stream()
+
+    image_gen.httpx.AsyncClient = Client
+    openai_oauth.valid_creds = lambda: {"access_token": "fake", "account_id": "fake"}
+    try:
+        result = await asyncio.wait_for(image_gen.generate_chatgpt("test", vault_root=vault), 0.3)
+    except asyncio.TimeoutError:
+        result = {"ok": False, "error": "TEST: vẫn chờ EOF"}
+    return result, state
+
+
+_preview = {"type": "response.image_generation_call.partial_image", "partial_image_b64": _PNG_B64}
+_final_item = {"type": "image_generation_call", "status": "completed", "result": _PNG_B64}
+_completed = {"type": "response.completed", "response": {"output": [_final_item]}}
+for label, lines in [
+    ("response.completed", [_preview, _completed]),
+    ("DONE sau ảnh cuối", [_preview, {"type": "response.output_item.done", "item": _final_item}, "[DONE]"]),
+]:
+    result, state = asyncio.run(_terminal_case(lines))
+    check(label + ": trả ảnh khi socket còn mở", result.get("ok") is True)
+    check(label + ": đóng response, không đọc quá tín hiệu kết thúc",
+          state["closed"] and not state["reads_past_terminal"])
+    check(label + ": lấy ảnh cuối thay vì bản nháp",
+          result.get("ok") and base64.b64decode(_PNG_B64)[_IHDR_END:] in open(result["abs_path"], "rb").read())
+
+for kind in ("response.failed", "response.error", "error", "response.incomplete"):
+    failure = {"type": kind, "response": {"error": {"message": "provider failed"},
+                                         "incomplete_details": {"reason": "max_output_tokens"}}}
+    result, state = asyncio.run(_terminal_case([_preview, failure]))
+    check(kind + ": báo lỗi ngay, không lưu bản nháp thành ảnh hoàn tất",
+          result.get("ok") is False and "TEST:" not in result.get("error", ""))
+    check(kind + ": đóng response", state["closed"] and not state["reads_past_terminal"])
+
+for label, lines in [("partial + DONE", [_preview, "[DONE]"]),
+                     ("completed không có ảnh cuối", [_preview, {"type": "response.completed", "response": {"output": []}}])]:
+    result, state = asyncio.run(_terminal_case(lines))
+    check(label + ": không trả ảnh nháp và không chờ EOF",
+          result.get("ok") is False and "TEST:" not in result.get("error", "")
+          and not state["reads_past_terminal"])
+
+_install_fake(["data: " + json.dumps(_preview)])
+result = asyncio.run(image_gen.generate_chatgpt("test", vault_root=vault))
+check("EOF chỉ có ảnh nháp: không báo thành công", result.get("ok") is False)
+
 print()
 if _fails:
     print(f"THẤT BẠI {len(_fails)}: {_fails}")

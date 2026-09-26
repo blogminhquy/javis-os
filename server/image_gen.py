@@ -111,7 +111,7 @@ def build_payload(prompt: str, size: str, quality: str, images: Optional[list] =
     }
 
 
-def extract_image_b64(value: Any) -> Optional[str]:
+def extract_image_b64(value: Any, *, include_partial: bool = True) -> Optional[str]:
     """Bới đệ quy 1 payload sự kiện SSE, trả b64 ảnh MỚI nhất (image_generation_call.result
     hoặc partial_image_b64). Bới đệ quy để chịu được thay đổi hình dạng sự kiện của backend."""
     found: Optional[str] = None
@@ -121,15 +121,15 @@ def extract_image_b64(value: Any) -> Optional[str]:
             if isinstance(r, str) and r:
                 found = r
         p = value.get("partial_image_b64")
-        if isinstance(p, str) and p:
+        if include_partial and isinstance(p, str) and p:
             found = p
         for v in value.values():
-            n = extract_image_b64(v)
+            n = extract_image_b64(v, include_partial=include_partial)
             if n:
                 found = n
     elif isinstance(value, list):
         for v in value:
-            n = extract_image_b64(v)
+            n = extract_image_b64(v, include_partial=include_partial)
             if n:
                 found = n
     return found
@@ -336,23 +336,34 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
                     if not line.startswith("data:"):
                         continue
                     data = line[5:].strip()
-                    if not data or data == "[DONE]":
+                    if data == "[DONE]":
+                        break
+                    if not data:
                         continue
                     try:
                         obj = json.loads(data)
                     except json.JSONDecodeError:
                         continue
-                    if obj.get("type") in ("response.failed", "error", "response.error"):
+                    if not isinstance(obj, dict):
+                        continue
+                    kind = obj.get("type")
+                    if kind in ("response.failed", "error", "response.error", "response.incomplete"):
                         e = (obj.get("response") or {}).get("error") or obj.get("error") or {}
                         err = e.get("message") if isinstance(e, dict) else str(e)
-                        continue
-                    got = extract_image_b64(obj)
+                        err = err or f"ChatGPT không hoàn tất tạo ảnh ({kind})."
+                        break
+                    # Ảnh nháp không phải kết quả cuối. Chỉ giữ result của image_generation_call.
+                    got = extract_image_b64(obj, include_partial=False)
                     if got:
                         b64 = got
+                    # Hoàn tất ở tầng SSE, không đợi EOF của kết nối HTTP (có thể còn mở
+                    # nhiều phút, thậm chí có heartbeat nên read timeout không bao giờ hết).
+                    if kind == "response.completed":
+                        break
     except Exception as e:
         return {"ok": False, "error": f"Gọi ChatGPT lỗi: {type(e).__name__}: {e}"}
 
-    if not b64:
+    if err or not b64:
         return {"ok": False, "error": err or "ChatGPT không trả ảnh (gói ChatGPT có thể chưa hỗ trợ tạo ảnh qua Codex)."}
 
     saved = save_png_b64(b64, vault_root, prefix="javis-img")
