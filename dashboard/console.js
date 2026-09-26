@@ -5798,6 +5798,13 @@
           // Mở tab NGAY trong cú bấm: mở sau await là trình duyệt chặn popup.
           const w = window.open("", "_blank");
           ob.disabled = true;
+          const syncAuth = async () => {
+            try {
+              const data = await (await fetch("/mcp/list")).json();
+              const current = (data.servers || []).find(c => c.id === editId);
+              if (current) dangOauth = current.auth === "oauth";
+            } catch (e) { /* keep the last known state until the connection can be read */ }
+          };
           try {
             const updated = await postJson("/mcp/update", { id: editId, auth: "oauth" });
             if (!updated || updated.ok === false) {
@@ -5806,9 +5813,10 @@
             dangOauth = true;
             const r = await postJson("/connect/oauth/start", { id: editId });
             if (!r || r.ok === false) {
-              // For a custom connection the server restores auth=header when OAuth cannot
-              // start. Keep this form in sync so a later header edit does not undo that.
-              dangOauth = false;
+              // A failed start may restore header auth, or retain OAuth when a token already
+              // exists. Follow the server's resulting state before the user saves again.
+              if (r && r.auth) dangOauth = r.auth === "oauth";
+              else await syncAuth();
               if (w) w.close();
               baoKq("do", window.t("cs.cn_signin_fail"), (r && r.error) || window.t("cs.cn_error_low"));
               return;
@@ -5826,7 +5834,7 @@
               }
             }, { once: true });
           } catch (e) {
-            dangOauth = false;
+            await syncAuth();
             if (w) w.close();
             baoKq("do", window.t("cs.cn_signin_fail"), String(e));
           } finally {

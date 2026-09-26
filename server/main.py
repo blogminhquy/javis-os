@@ -4216,13 +4216,16 @@ async def connect_oauth_start(request: Request):
         if (mcp_store.get_connection(conn_id) or {}).get("connector_id") == "custom":
             mcp_store.update_connection(conn_id, {"auth": "header"})
             mcp_hub.invalidate_cache()
-            return {"ok": False, "id": conn_id, "error": res.get("error") or "Không mở được trang đăng nhập."}
+            return {"ok": False, "id": conn_id, "auth": "header",
+                    "error": res.get("error") or "Không mở được trang đăng nhập."}
         oauth_mcp.forget(conn_id)
         connect_health.forget(conn_id)
         mcp_store.delete_connection(conn_id)
         mcp_hub.invalidate_cache()
         return {"ok": False, "error": res.get("error") or "Không mở được trang đăng nhập."}
     res["id"] = conn_id
+    if not res.get("ok") and conn_id:
+        res["auth"] = (mcp_store.get_connection(conn_id) or {}).get("auth")
     return res
 
 
