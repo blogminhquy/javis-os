@@ -439,6 +439,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .settings-page { width: min(100%, 960px); margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
 .cview-body:has(> .settings-tabs-page) { padding-top: 0; }
 .settings-tabs-page { width: 100%; margin: 0; min-width: 0; }
+.vt-create-menu { position: fixed; margin: 0; padding: 5px; width: 204px; max-width: calc(100vw - 16px); border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); box-shadow: var(--shadow-1); }
+.vt-create-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.vt-create-menu button:hover, .vt-create-menu button:focus-visible { background: var(--surface-2); }
 .settings-tab-content > .settings-page,
 .settings-tab-content > .cl-wrap { margin-left: 0; margin-right: 0; }
 .settings-tabs {

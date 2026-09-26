@@ -7666,6 +7666,38 @@
     }
   }
 
+  function _vtCreateMenu(button, rel, isDir) {
+    document.getElementById("vtCreateMenu")?.remove();
+    const menu = document.createElement("div");
+    menu.id = "vtCreateMenu"; menu.className = "vt-create-menu";
+    menu.setAttribute("popover", "auto");
+    menu.innerHTML = `<button type="button">${ic("file-text")} ${esc(window.t("cs.vt_create_file"))}</button>`
+      + `<button type="button">${ic("folder")} ${esc(window.t("cs.vt_create_dir"))}</button>`;
+    menu.querySelectorAll("button").forEach((item, index) => {
+      item.onclick = () => { menu.remove(); if (index) _vtAddFolder(rel, isDir); else _vtAddFile(rel, isDir); };
+    });
+    document.body.appendChild(menu);
+    const rect = button.getBoundingClientRect();
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 220)) + "px";
+    menu.style.top = Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 110)) + "px";
+    menu.showPopover();
+    menu.querySelector("button").focus();
+    menu.addEventListener("toggle", () => { if (!menu.matches(":popover-open")) menu.remove(); });
+  }
+
+  async function _vtAddFolder(rel, isDir) {
+    const dir = isDir ? rel : (rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "");
+    const name = (prompt(window.t("cs.vt_new_dir")) || "").trim();
+    if (!name) return;
+    const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", dir); fd.append("name", name);
+    try {
+      const response = await fetch("/files/mkdir", { method: "POST", body: fd });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.error) throw new Error(result.error || window.t("app.err_net"));
+      await _vtRevealInTree(dir ? dir + "/" + name : name, true);
+    } catch (error) { alert(error.message || window.t("app.err_net")); }
+  }
+
   async function _vtAddFile(rel, isDir) {
     // Bấm ở thư mục → tạo file BÊN TRONG; bấm ở file → tạo CÙNG thư mục (thư mục cha của file).
     const dir = isDir ? rel : (rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "");
@@ -7712,7 +7744,7 @@
     node.querySelectorAll(".vt-act button").forEach(b => b.onclick = (e) => {
       e.stopPropagation();
       const a = b.dataset.a;
-      if (a === "add") _vtAddFile(rel, isDir);
+      if (a === "add") _vtCreateMenu(b, rel, isDir);
       else if (a === "dl") { if (isDir) _dlFolder(rel, it.name); else _dlFile(rel); }
       else if (a === "ren") _vtRename(rel, it.name);
       else _vtDelete(rel, it.name, isDir);
@@ -7892,16 +7924,7 @@
     chipContent.onclick = () => setMode("content");
     const nf = document.getElementById("vtNewFile"), nd = document.getElementById("vtNewDir"), rf = document.getElementById("vtRefresh");
     if (rf) rf.onclick = () => { _vtCache.clear(); _vtIndex = null; renderVaultTree(); };
-    if (nf) nf.onclick = async () => {
-      let n = prompt(window.t("cs.vt_new_file")); if (!n) return;
-      if (!/\.[a-z0-9]+$/i.test(n)) n += ".md";   // mặc định file markdown
-      const rel = _vtHome ? _vtHome + "/" + n : n;
-      const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel); fd.append("content", "");
-      await fetch("/files/write", { method: "POST", body: fd });
-      await _vtRebuildReExpand(_vtHome || "");   // giữ thư mục đang mở
-      const ext = "." + n.split(".").pop().toLowerCase();
-      openNote(rel, { name: n, ext: ext, type: "file" });
-    };
+    if (nf) nf.onclick = () => _vtCreateMenu(nf, _vtHome || "", true);
     if (nd) nd.onclick = async () => {
       const n = prompt(window.t("cs.vt_new_dir")); if (!n) return;
       const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", _vtHome || ""); fd.append("name", n);
