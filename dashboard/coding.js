@@ -566,16 +566,24 @@
     // khoảng trống phía trên thì tràn xuống đè cả chip lẫn thanh điều hướng (báo 22/09).
     // Nay: ưu tiên mở lên trên, chật quá thì lật xuống dưới, và cắt chiều cao theo chỗ trống
     // để menu tự cuộn thay vì tràn ra ngoài màn hình.
+    // Trần trên là ĐÁY HEADER chứ không phải mép màn hình. Trên điện thoại hàng chip nằm
+    // ngay dưới header; kẹp ở 8px thì menu mở lên trên chui vào header, tên thư mục đè lên
+    // chip model và không bấm được gì (chủ repo báo 27/09, kèm ảnh). Chỗ phía trên không đủ
+    // thì menu tự lật xuống dưới chip.
     var r = anchor.getBoundingClientRect();
-    var vh = W.innerHeight || 800;
-    var tren = Math.max(0, r.top - 14);
+    var vv = W.visualViewport;
+    var vh = vv ? vv.offsetTop + vv.height : (W.innerHeight || 800);   // bàn phím mở thì đáy thật là đáy vùng nhìn thấy
+    var hdr = document.querySelector(".hud-top");
+    var tran = 8;
+    if (hdr) { var rh = hdr.getBoundingClientRect(); if (rh.height && rh.bottom < r.top) tran = Math.max(8, rh.bottom + 6); }
+    var tren = Math.max(0, r.top - tran - 6);
     var duoi = Math.max(0, vh - r.bottom - 14);
     var len = m.offsetHeight <= tren || tren >= duoi;
     m.style.maxHeight = Math.max(160, len ? tren : duoi) + "px";
     var cao = m.offsetHeight;
     m.style.left = Math.max(8, Math.min(r.left, (W.innerWidth || 1200) - m.offsetWidth - 8)) + "px";
-    m.style.top = (len ? Math.max(8, r.top - cao - 6)
-                       : Math.min(r.bottom + 6, Math.max(8, vh - cao - 8))) + "px";
+    m.style.top = (len ? Math.max(tran, r.top - cao - 6)
+                       : Math.min(r.bottom + 6, Math.max(tran, vh - cao - 8))) + "px";
     m.querySelectorAll("[data-i]").forEach(function (b) {
       b.onclick = async function (e) {
         var x = muc[Number(b.dataset.i)];

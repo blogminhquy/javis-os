@@ -873,6 +873,27 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     margin: 5px 8px max(7px, env(safe-area-inset-bottom, 0px));
   }
   .hud-voice .voice-input { min-width: 0; }
+  /* Trang quản lý (Trò chuyện, Coding, Cộng sự) mượn ô nhập vào một cột đã có lề đáy riêng.
+     Trước đây lề an toàn cộng CHỒNG lên lề cột (34 + 12px), ô nhập đứng lửng cách đáy màn
+     hình gần 50px. Nay lề an toàn chuyển xuống cột, ô nhập không tự chừa thêm. */
+  .cview .hud-voice { margin-bottom: 0; }
+  .cview .chatpage-main, .cview .ws-main { padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)); }
+
+  /* BÀN PHÍM ĐANG MỞ (lớp do mobile-chat.js gắn theo visualViewport). Vạch Home nằm dưới bàn
+     phím nên bỏ hẳn lề an toàn; cả khung chat đặt đúng vào phần màn hình còn nhìn thấy để ô
+     nhập nằm sát bàn phím như app Claude hay Telegram, không có dải trống ở giữa. */
+  body.kb-open .hud {
+    position: fixed; top: var(--vv-top, 0px); left: 0; right: 0;
+    height: var(--vv-h, 100dvh);
+  }
+  body.kb-open .hud-top { top: var(--vv-top, 0px); }
+  body.kb-open .cview {
+    top: calc(var(--vv-top, 0px) + var(--topbar-h)); bottom: auto;
+    height: calc(var(--vv-h, 100dvh) - var(--topbar-h));
+  }
+  body.kb-open .hud-voice { margin-bottom: 6px; }
+  body.kb-open .cview .hud-voice { margin-bottom: 0; }
+  body.kb-open .cview .chatpage-main, body.kb-open .cview .ws-main { padding-bottom: 6px; }
   .cview-head { padding: 14px 16px; }
   .cview-title { font-size: 16px; }
 }
@@ -2185,7 +2206,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    khỏi màn hình và đè lên thanh điều hướng (chủ dự án báo 22/09). Chiều cao thật do JS đặt
    theo chỗ trống quanh chip; luật này chỉ là trần dự phòng. */
 .cd-menu { position: fixed; z-index: 60; min-width: 220px; max-width: 340px; padding: 5px;
-  border-radius: 11px; border: 1px solid var(--glass-brd); background: var(--surface-1);
+  /* Nền ĐẶC. --surface-1 chỉ là lớp phủ alpha 2,5% dành cho thẻ nằm trên nền trang, dùng cho
+     một menu nổi thì chữ của header phía sau xuyên qua, đọc lẫn vào nhau (chủ repo báo 27/09,
+     kèm ảnh menu thư mục đè lên chip model). */
+  border-radius: 11px; border: 1px solid var(--border); background: var(--bg2);
   box-shadow: 0 12px 34px var(--shadow-veil); display: flex; flex-direction: column; gap: 2px;
   max-height: min(60vh, 420px); overflow-y: auto; }
 /* Tên thư mục và đường dẫn ở đây là chữ PHỤ, đọc lướt để chọn, nên để nhỏ gọn cho menu đỡ
@@ -2210,6 +2234,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Đang gắn nhiều thư mục: chip mang tên thư mục chính kèm "+N". */
 .cd-chip-them { font-weight: 600; color: var(--info-ink); }
 .cd-menu button.moi { border-top: 1px solid var(--glass-brd); border-radius: 0 0 8px 8px; }
+/* Chưa gắn thư mục nào thì "Thêm thư mục" là mục DUY NHẤT: vạch ngăn phía trên chẳng ngăn gì cả. */
+.cd-menu button.moi:first-child { border-top: 0; border-radius: 8px; }
 .cd-menu button.nguy { color: var(--red); }   /* --danger không có trong bảng màu */
 .cd-menu button small { display: block; font-size: 12px; color: var(--text3); margin-top: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

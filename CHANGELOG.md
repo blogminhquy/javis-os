@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.63] - 2026-09-27
 ### Sửa lỗi
-- Khung chat trên điện thoại (đang soạn).
+- **Ô nhập nằm sát bàn phím** trên điện thoại như app Claude hay Telegram, hết dải trống giữa ô nhập và bàn phím. Khi không gõ, ô nhập ở trang Trò chuyện và Coding cũng bớt khoảng hở dưới đáy.
+- Menu chọn thư mục ở trang Coding có nền đặc, mở xuống dưới chip, không còn đè chữ lên thanh trên cùng.
 
 ## [0.64.62] - 2026-09-27
 ### Sửa lỗi
