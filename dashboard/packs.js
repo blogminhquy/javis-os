@@ -301,6 +301,10 @@
       // Khối cảnh báo cho gói có mã: KHÔNG gập được, không icon ổ khoá, không làm mềm chữ.
       // `permissions` trong manifest là lời khai của tác giả, không có tầng nào chặn, và
       // `min_mode` chỉ giới hạn cái MODEL được gọi chứ không giới hạn cái mã làm được.
+      //
+      // Từ 0.64.70 bỏ ô "gõ đúng mã gói": chủ app thấy nó chỉ thêm một bước gõ máy móc mỗi lần
+      // cập nhật mà không làm ai đọc cảnh báo kỹ hơn. Cảnh báo vẫn hiện nguyên, nút Huỷ vẫn
+      // nhận tiêu điểm mặc định, và công tắc "bật ngay" của gói có mã vẫn mặc định tắt.
       + (coMa
         ? '<div class="pkm-canh do"><div class="pkm-canh-tieu">' + ic("triangle-alert")
           + tw("store.inspect.code.title") + '</div>'
@@ -311,11 +315,7 @@
                 + (py.length > 12
                     ? " " + tw("store.inspect.code.more", { count: py.length - 12 }) : "")
                 + '</div>' : "")
-          + '<label>'
-          + tw("store.inspect.code.type_label", { ma: '<b>' + esc(d.id) + '</b>' })
-          + '<input class="mp-input" id="pkGo" placeholder="'
-          + esc(tw("store.inspect.code.type_ph")) + '" autocomplete="off">'
-          + '</label></div>' : "")
+          + '</div>' : "")
       // Mặc định của công tắc đi theo BẬC của gói, không phải một hằng số:
       //
       //   có mã   tắt. Người dùng nên mở tệp ra xem trước khi cho nó chạy trong máy chủ mình.
@@ -348,13 +348,6 @@
       gat.getAttribute("aria-pressed") === "true" ? "false" : "true");
     const note = document.getElementById("pkNote");
     document.getElementById("pkCai").onclick = async () => {
-      if (coMa) {
-        const v = (document.getElementById("pkGo") || {}).value || "";
-        if (v.trim() !== d.id) {
-          note.textContent = tw("store.inspect.type_wrong");
-          return;
-        }
-      }
       note.textContent = tw("store.installing");
       const r = await postJson("/packs/install", {
         staging_id: d.staging_id, consent_sha256: d.sha256,

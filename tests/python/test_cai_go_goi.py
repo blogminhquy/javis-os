@@ -281,9 +281,13 @@ src_js = (DASHBOARD / "packs.js").read_text(encoding="utf-8")
 # thiếu vế sau thì đổi nội dung khoá thành câu ngược nghĩa vẫn xanh.
 _VI = json.loads((DASHBOARD / "i18n" / "vi.json").read_text(encoding="utf-8"))
 check("màn hình xác nhận vẽ từ /packs/inspect", "/packs/inspect" in src_js)
-check("gói có mã thì bắt gõ lại mã gói",
-      "pkGo" in src_js and "store.inspect.code.type_ph" in src_js
-      and "Gõ lại mã gói" in _VI.get("store.inspect.code.type_ph", ""))
+# Từ 0.64.70 gói có mã KHÔNG còn bắt gõ lại mã gói (chủ app bỏ bước này). Cảnh báo đỏ vẫn
+# hiện, và nút bấm cài không được tự chặn vì một ô nhập đã không còn tồn tại trên màn hình.
+check("gói có mã không còn ô gõ lại mã gói",
+      'id="pkGo"' not in src_js and "store.inspect.type_wrong" not in src_js)
+_ic = src_js.index('getElementById("pkCai").onclick')
+check("nút Cài không còn chặn vì ô gõ mã",
+      "pkGo" not in src_js[_ic:_ic + 400])
 # Mặc định của công tắc "bật ngay sau khi cài" đi theo BẬC của gói, từ 0.55.36:
 #
 #   có mã   TẮT. Người dùng nên mở tệp ra xem trước khi cho nó chạy trong máy chủ mình.

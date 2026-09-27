@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.70] - 2026-09-27
+### Cải thiện
+- **Cài hoặc cập nhật gói có mã không còn bắt gõ lại mã gói.** Khối cảnh báo đỏ "Gói này chạy Python thật trong máy chủ Javis" vẫn hiện đầy đủ kèm tên từng tệp mã, nút Huỷ vẫn được chọn sẵn, và gói có mã vẫn cài xong ở trạng thái tắt. Chỉ bỏ bước gõ tay.
+
 ## [0.64.69] - 2026-09-27
 ### Sửa lỗi
 - **Nút cập nhật hiện ngay khi có bản mới:** trước đây, trong vài phút sau mỗi lần phát hành, khung trên có thể báo "đang dùng bản mới nhất" dù danh sách bên dưới đã có bản mới, và không có nút. Nay hai chỗ luôn khớp nhau.

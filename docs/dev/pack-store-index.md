@@ -82,8 +82,8 @@ biến mất mà không ai hiểu vì sao. Dùng `bundle` cho gói thật sự g
 
 **`tier` là lời khai, không phải sự thật.** Nó chỉ để lọc và hiện nhãn trên lưới. Bậc THẬT do
 trình cài tự tính từ tệp đã tải về (`pack_install.soi` quét tìm `.py`, `transport: stdio`, khối
-`env`...). Khai `data` mà đóng gói `code` thì màn hình xác nhận vẫn nói đúng, và vẫn bắt gõ lại
-mã gói.
+`env`...). Khai `data` mà đóng gói `code` thì màn hình xác nhận vẫn nói đúng, và vẫn hiện khối cảnh
+báo đỏ.
 
 **`sha256` là chốt CHỐNG ĐỔI, không phải chốt xác thực người phát hành.** Nó và địa chỉ tải
 cùng nằm trong một file, nên ai sửa được file đó thì sửa được cả hai. Cái nó thật sự bắt là
