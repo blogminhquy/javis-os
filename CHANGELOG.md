@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.63] - 2026-09-27
+### Sửa lỗi
+- Khung chat trên điện thoại (đang soạn).
+
 ## [0.64.62] - 2026-09-27
 ### Sửa lỗi
 - Thông báo tải lại sau cập nhật vừa màn hình điện thoại, không ép chữ thành cột hẹp. Editor mở toàn màn hình; thanh nút không tràn ra ngoài trên điện thoại.
