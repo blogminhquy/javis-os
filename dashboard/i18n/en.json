@@ -2032,6 +2032,7 @@
   "mpick.no_match": "No matching models.",
   "mpick.no_list": "Could not load the model list.",
   "mpick.loading": "Loading models...",
+  "mpick.more": "{n} more models, type to search.",
   "ecmd.bold": "Bold",
   "ecmd.italic": "Italic",
   "ecmd.h1": "Heading 1",

@@ -17,7 +17,7 @@
   let pinBroken = false;   // phiên có ghim nhưng ghim HỎNG (provider mất key) - server đang chạy mặc định chung
   let pinSid = null;       // phiên mà sessionPin đang nói về (chống vẽ nhầm khi đổi phiên nhanh)
   let pendingPin = null;   // model chọn khi CHƯA có phiên (chat trống) - áp ngay khi mint id
-  let expanded = null;     // provider đang mở rộng trong popover
+  let expanded = null;     // provider đang mở rộng trong popover; "" = đã thu hết (bấm lại tên nhà)
   let filter = "";
 
   const short = (m) => (m || "").split("/").pop().replace(/^(claude-|gpt-)/, "").slice(0, 26) || window.t("models.mp_default");
@@ -95,23 +95,23 @@
   async function renderPop() {
     const pop = $("mbPop");
     if (!pop) return;
-    if (!expanded) expanded = state.main.provider || "anthropic-cli";
+    if (expanded == null) expanded = state.main.provider || "anthropic-cli";
     const luot = ++luotVe;
-    // Chưa từng tải danh sách của nhà đang mở: vẽ khung + dòng "đang tải" NGAY, rồi vẽ lại
-    // khi mạng về. Trước đây popup mở ra trống trơn trong lúc chờ (Codex mất vài giây).
-    const choMang = !window.JavisModelList.peek(expanded);
+    // Nhà nào chưa có danh sách thì vẽ khung + dòng "đang tải" NGAY, rồi vẽ lại khi mạng về
+    // (o.cho). Trước đây popup mở ra trống trơn trong lúc chờ (Codex mất vài giây).
+    const o = {
     // Thân bảng (ô tìm + nhà + model + hàng khoá) dựng bởi model-list.js, dùng CHUNG với ô
     // Model của trợ lý bên Studio. Ở đây chỉ nối thêm hàng Effort - thứ duy nhất riêng của
     // thanh chat.
-    let html = await window.JavisModelList.render({
       providers: state.providers,
       expanded, filter,
       selected: effective(),
       searchId: "mbSearch",
       short,
       mark: (p) => (p.is_main ? " " + ic("check", { cls: "ic-ok" }) : ""),
-      noWait: choMang,
-    });
+      noWait: true,
+    };
+    let html = await window.JavisModelList.render(o);
     if (luot !== luotVe || pop.hidden) return;
     html += `<div class="mb-eff-row"><span class="lbl">Effort</span>` +
       EFFORT.map(([v, l]) => `<button class="mb-eff-btn ${state.reasoning === v ? "cur" : ""}" data-eff="${v}">${window.t(l)}</button>`).join("") +
@@ -126,8 +126,8 @@
       se.oninput = () => { filter = se.value; renderPop(); };
       if (dangGo || !camUng()) { se.focus(); se.selectionStart = se.selectionEnd = se.value.length; }
     }
-    if (choMang) {
-      await window.JavisModelList.models(expanded);
+    if (o.cho.length) {
+      await Promise.all(o.cho);
       if (luot === luotVe && !pop.hidden) renderPop();
     }
   }
@@ -183,7 +183,12 @@
       return;
     }
     const prov = e.target.closest(".mb-prov");
-    if (prov && prov.dataset.prov) { expanded = prov.dataset.prov; renderPop(); return; }
+    // Bấm lại tên nhà đang mở là THU lại: OpenRouter hơn 300 model, không thu được thì phải
+    // cuộn hết mới sang được nhà khác (chủ repo báo 27/09).
+    if (prov && prov.dataset.prov) {
+      expanded = expanded === prov.dataset.prov ? "" : prov.dataset.prov;
+      renderPop(); return;
+    }
   });
 
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && isOpen()) close(); });

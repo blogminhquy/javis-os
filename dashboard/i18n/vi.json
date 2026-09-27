@@ -2032,6 +2032,7 @@
   "mpick.no_match": "Không có model khớp.",
   "mpick.no_list": "Chưa lấy được danh sách model.",
   "mpick.loading": "Đang tải danh sách model...",
+  "mpick.more": "Còn {n} model nữa, gõ tên để tìm.",
   "ecmd.bold": "Đậm",
   "ecmd.italic": "Nghiêng",
   "ecmd.h1": "Tiêu đề 1",

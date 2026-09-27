@@ -85,6 +85,11 @@ const PROVS = [
   h = await ML.render({ providers: PROVS, expanded: "anthropic-cli", filter: "hai" });
   check("lọc giữ model khớp", h.includes('data-model="haiku"'));
   check("lọc bỏ model không khớp", h.indexOf('data-model="sonnet"') === -1);
+  // 0.64.65: tìm trên MỌI nhà đã kết nối. Lượt vẽ đầu có nhà còn đang tải (o.cho); người gọi
+  // chờ rồi vẽ lại, lúc đó mới kết luận được là không khớp.
+  let oz = { providers: PROVS, expanded: "anthropic-cli", filter: "zzz" };
+  await ML.render(oz);
+  await Promise.all(oz.cho);
   h = await ML.render({ providers: PROVS, expanded: "anthropic-cli", filter: "zzz" });
   check("lọc không ra gì thì nói 'không khớp', không để trống khó hiểu",
     h.includes("T:mpick.no_match"));

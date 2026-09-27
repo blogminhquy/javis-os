@@ -75,7 +75,8 @@ check("khung chính khi bàn phím mở không dựng ngữ cảnh xếp chồng
       _kb is not None and "position: fixed" not in _kb.group(0) and "position: relative" in _kb.group(0))
 PICKER = (ROOT / "dashboard" / "model-picker.js").read_text(encoding="utf-8")
 check("bảng chọn model không tự bật bàn phím trên màn cảm ứng", "pointer: coarse" in PICKER and "camUng()" in PICKER)
-check("bảng chọn model mở ngay, không chờ mạng", "noWait" in PICKER and "peek(" in PICKER)
+check("bảng chọn model mở ngay, không chờ mạng", "noWait: true" in PICKER and "o.cho" in PICKER)
+check("bấm lại tên nhà đang mở là thu danh sách", 'expanded === prov.dataset.prov ? ""' in PICKER)
 
 if fails:
     raise SystemExit(f"\nFAIL - test_mobile_layout: {len(fails)} lỗi")

@@ -69,51 +69,102 @@
   //   mark       : (p)  => HTML dán sau tên nhà (thanh chat dùng để đánh dấu model chính)
   //   limit      : trần số model mỗi nhà, mặc định 60
   //   extraTop   : HTML chèn ngay dưới ô tìm (hàng "Mặc định", hàng "model đang lưu"...)
+  //   noWait     : chưa có danh sách của nhà đang mở thì vẽ dòng "đang tải" chứ không chờ
   // }
+  //
+  // Sau khi gọi, o.cho là mảng Promise của những nhà còn đang tải (lúc tìm kiếm, hoặc noWait).
+  // Người gọi đợi chúng rồi vẽ lại; KHÔNG chặn cả bảng chờ mạng.
+  //
+  // Ba luật chủ repo chốt 27/09:
+  // - Nhà ĐÃ KẾT NỐI đứng đầu, nhà còn khoá xuống dưới (giữ thứ tự gốc trong mỗi nhóm).
+  //   Trước đây nhà khoá xen giữa, phải cuộn qua mới thấy nhà dùng được.
+  // - expanded rỗng = không nhà nào sổ ra. Bấm lại tên nhà đang mở là thu lại (người gọi đặt
+  //   expanded = ""), để OpenRouter hơn 300 model không chắn lối sang nhà khác.
+  // - Có chữ tìm thì tìm TRÊN MỌI nhà đã kết nối, không chỉ nhà đang mở. Chữ trùng tên nhà thì
+  //   hiện cả danh sách của nhà đó.
+  function nhaDaXep(provs) {
+    return provs.map((p, i) => [p, i])
+      .sort((x, y) => (Number(!!y[0].configured) - Number(!!x[0].configured)) || (x[1] - y[1]))
+      .map((x) => x[0]);
+  }
+
   async function render(o) {
     o = o || {};
-    const provs = o.providers || [];
+    o.cho = [];
+    const provs = nhaDaXep(o.providers || []);
     const sel = o.selected || {};
     const short = o.short || ((x) => x);
     const mark = o.mark || (() => "");
     const limit = o.limit || 60;
-    const q = (o.filter || "").toLowerCase();
+    const q = (o.filter || "").trim().toLowerCase();
+
+    const dauNha = (p, mo) => {
+      const on = !!p.configured;
+      // Nhà chưa cắm key: KHÔNG có data-prov (bấm vào không sổ ra được) + ổ khoá + một dòng
+      // chỉ đúng chỗ đi mở khoá. Đây chính là phần ô <select> cũ làm mất.
+      return `<div class="mb-prov ${on ? "" : "off"}" data-prov="${on ? esc(p.id) : ""}">`
+        + `<span>${p.label}${mark(p)}</span>`
+        + `<span>${on ? IC(mo ? "chevron-down" : "chevron-right")
+                      : IC("lock", { cls: "ic-dim" })}</span></div>`
+        + (on ? "" : `<div class="mb-link" data-goto="models">+ ${esc(T("mpick.add_key"))}</div>`);
+    };
+    const hangModel = (p, ids) => {
+      let h = "";
+      for (const id of ids.slice(0, limit)) {
+        const cur = p.id === sel.provider && id === sel.model;
+        h += `<div class="mb-item ${cur ? "cur" : ""}" data-prov="${esc(p.id)}" `
+          + `data-model="${esc(id)}"><span class="tick">`
+          + `${cur ? IC("check", { cls: "ic-ok" }) : ""}</span><span>${esc(short(id))}</span></div>`;
+      }
+      if (ids.length > limit) {
+        h += `<div class="mb-empty">${esc(T("mpick.more").replace("{n}", String(ids.length - limit)))}</div>`;
+      }
+      return h;
+    };
+    const dangTai = `<div class="mb-empty">${esc(T("mpick.loading"))}</div>`;
 
     let html = `<input class="mb-search" id="${esc(o.searchId || "mlSearch")}" `
       + `placeholder="${esc(T("mpick.search_ph"))}" value="${esc(o.filter || "")}">`;
     html += o.extraTop || "";
 
+    if (q) {
+      let thay = 0;
+      for (const p of provs) {
+        const trungTen = (p.label || "").toLowerCase().includes(q) || (p.id || "").toLowerCase().includes(q);
+        if (!p.configured) {
+          if (trungTen) { html += dauNha(p, false); thay++; }
+          continue;
+        }
+        const ds = peek(p.id);
+        if (!ds) {
+          o.cho.push(models(p.id));
+          html += dauNha(p, true) + dangTai;
+          thay++;
+          continue;
+        }
+        if (Date.now() - (CACHE[p.id].ts || 0) >= CACHE_MS) models(p.id);   // làm mới ngầm
+        const ids = trungTen ? ds : ds.filter((id) => id.toLowerCase().includes(q));
+        if (!ids.length) continue;
+        html += dauNha(p, true) + hangModel(p, ids);
+        thay++;
+      }
+      if (!thay) html += `<div class="mb-empty">${esc(T("mpick.no_match"))}</div>`;
+      return html;
+    }
+
     for (const p of provs) {
-      const on = !!p.configured;
-      // Nhà chưa cắm key: KHÔNG có data-prov (bấm vào không sổ ra được) + ổ khoá + một dòng
-      // chỉ đúng chỗ đi mở khoá. Đây chính là phần ô <select> cũ làm mất.
-      html += `<div class="mb-prov ${on ? "" : "off"}" data-prov="${on ? esc(p.id) : ""}">`
-        + `<span>${p.label}${mark(p)}</span>`
-        + `<span>${on ? IC(p.id === o.expanded ? "chevron-down" : "chevron-right")
-                      : IC("lock", { cls: "ic-dim" })}</span></div>`;
-      if (!on) {
-        html += `<div class="mb-link" data-goto="models">+ ${esc(T("mpick.add_key"))}</div>`;
-        continue;
-      }
-      if (p.id !== o.expanded) continue;
+      const mo = !!o.expanded && p.id === o.expanded;
+      html += dauNha(p, mo);
+      if (!p.configured || !mo) continue;
       // noWait: chưa có danh sách thì vẽ dòng "đang tải" thay vì bắt cả bảng chờ mạng.
-      // Người gọi tự vẽ lại khi models(p.id) xong.
       if (o.noWait && !peek(p.id)) {
-        models(p.id);
-        html += `<div class="mb-empty">${esc(T("mpick.loading"))}</div>`;
+        o.cho.push(models(p.id));
+        html += dangTai;
         continue;
       }
-      let ids = await models(p.id);
-      if (q) ids = ids.filter((id) => id.toLowerCase().includes(q));
-      if (!ids.length) {
-        html += `<div class="mb-empty">${esc(T(q ? "mpick.no_match" : "mpick.no_list"))}</div>`;
-      }
-      for (const id of ids.slice(0, limit)) {
-        const cur = p.id === sel.provider && id === sel.model;
-        html += `<div class="mb-item ${cur ? "cur" : ""}" data-prov="${esc(p.id)}" `
-          + `data-model="${esc(id)}"><span class="tick">`
-          + `${cur ? IC("check", { cls: "ic-ok" }) : ""}</span><span>${esc(short(id))}</span></div>`;
-      }
+      const ids = await models(p.id);
+      if (!ids.length) html += `<div class="mb-empty">${esc(T("mpick.no_list"))}</div>`;
+      html += hangModel(p, ids);
     }
     return html;
   }

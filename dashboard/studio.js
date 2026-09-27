@@ -760,11 +760,16 @@
       const hangMacDinh = `<div class="mb-item ${mModel ? "" : "cur"}" data-prov="" data-model="">`
         + `<span class="tick">${mModel ? "" : ic("check", { cls: "ic-ok" })}</span>`
         + `<span>${esc(t("studio.model_default"))}</span></div>`;
-      mPop.innerHTML = await window.JavisModelList.render({
+      const o = {
         providers: provs, expanded: mMo, filter: mLoc,
         selected: { provider: mProv, model: mModel },
         searchId: "agModelSearch", extraTop: hangMacDinh,
-      });
+      };
+      const loc = mLoc;
+      mPop.innerHTML = await window.JavisModelList.render(o);
+      // Tìm kiếm chạy trên MỌI nhà: nhà nào chưa tải thì model-list.js vẽ "đang tải" và trả
+      // Promise trong o.cho; tải xong thì vẽ lại, nếu người dùng chưa gõ chữ khác.
+      if (o.cho.length) Promise.all(o.cho).then(() => { if (!mPop.hidden && loc === mLoc) veModelPop(); });
       const se = box.querySelector("#agModelSearch");
       if (se) {
         se.oninput = () => { mLoc = se.value; veModelPop(); };
@@ -795,7 +800,7 @@
         return;
       }
       const pr = e.target.closest(".mb-prov");
-      if (pr && pr.dataset.prov) { mMo = pr.dataset.prov; veModelPop(); }
+      if (pr && pr.dataset.prov) { mMo = mMo === pr.dataset.prov ? "" : pr.dataset.prov; veModelPop(); }   // bấm lại là thu
     };
     // Bấm ra ngoài / Escape thì đóng. Listener TỰ GỠ khi form bị thay (mở sửa trợ lý nhiều
     // lần là dựng lại DOM), khỏi để lại một chồng closure chết bám vào document.

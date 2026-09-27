@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.65] - 2026-09-27
+### Cải thiện
+- **Nhà cung cấp đã kết nối nằm trên cùng** trong bảng chọn model, nhà chưa kết nối xuống dưới.
+- Bấm lại tên nhà đang mở là thu danh sách lại, không phải cuộn qua hơn 300 model OpenRouter mới sang được nhà khác.
+- Ô tìm model tìm trên mọi nhà đã kết nối, gõ tên nhà cung cấp cũng ra cả danh sách của nhà đó. Danh sách quá dài thì báo còn bao nhiêu model để gõ tìm tiếp.
+
 ## [0.64.64] - 2026-09-27
 ### Sửa lỗi
 - **Chọn model trên điện thoại không còn bị kẹt:** bảng chọn không tự bật bàn phím nữa, và không bị trang chat che mất khi bàn phím đang mở. Bấm chip model lúc đang gõ thì bàn phím tự hạ xuống.
