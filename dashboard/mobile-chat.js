@@ -213,9 +213,11 @@
       if (mo) {
         rootStyle.setProperty("--vv-h", Math.round(vv.height) + "px");
         rootStyle.setProperty("--vv-top", Math.max(0, Math.round(vv.offsetTop)) + "px");
+        rootStyle.setProperty("--vv-ptop", Math.max(0, Math.round(vv.pageTop)) + "px");
       } else {
         rootStyle.removeProperty("--vv-h");
         rootStyle.removeProperty("--vv-top");
+        rootStyle.removeProperty("--vv-ptop");
       }
     }
     function henKeyboard() {

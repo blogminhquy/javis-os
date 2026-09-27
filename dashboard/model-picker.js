@@ -88,10 +88,18 @@
     if (et) et.textContent = "Effort: " + window.t((EFFORT.find((e) => e[0] === state.reasoning) || EFFORT[0])[1]);
   }
 
+  // Màn cảm ứng (điện thoại, máy tính bảng): focus một ô nhập là bật bàn phím ảo.
+  const camUng = () => { try { return window.matchMedia("(pointer: coarse)").matches; } catch (e) { return false; } };
+  let luotVe = 0;   // chỉ lượt vẽ MỚI NHẤT được ghi vào popup (lượt chờ mạng về muộn thì bỏ)
+
   async function renderPop() {
     const pop = $("mbPop");
     if (!pop) return;
     if (!expanded) expanded = state.main.provider || "anthropic-cli";
+    const luot = ++luotVe;
+    // Chưa từng tải danh sách của nhà đang mở: vẽ khung + dòng "đang tải" NGAY, rồi vẽ lại
+    // khi mạng về. Trước đây popup mở ra trống trơn trong lúc chờ (Codex mất vài giây).
+    const choMang = !window.JavisModelList.peek(expanded);
     // Thân bảng (ô tìm + nhà + model + hàng khoá) dựng bởi model-list.js, dùng CHUNG với ô
     // Model của trợ lý bên Studio. Ở đây chỉ nối thêm hàng Effort - thứ duy nhất riêng của
     // thanh chat.
@@ -102,20 +110,38 @@
       searchId: "mbSearch",
       short,
       mark: (p) => (p.is_main ? " " + ic("check", { cls: "ic-ok" }) : ""),
+      noWait: choMang,
     });
+    if (luot !== luotVe || pop.hidden) return;
     html += `<div class="mb-eff-row"><span class="lbl">Effort</span>` +
       EFFORT.map(([v, l]) => `<button class="mb-eff-btn ${state.reasoning === v ? "cur" : ""}" data-eff="${v}">${window.t(l)}</button>`).join("") +
       `</div>`;
+    // Ô tìm đang được gõ thì giữ con trỏ ở đó sau khi vẽ lại. Mới MỞ bảng thì chỉ tự focus
+    // trên máy có bàn phím thật: trên điện thoại focus là bật bàn phím ảo che nửa bảng, người
+    // dùng chỉ muốn bấm chọn model (chủ repo báo 27/09 "tự nhảy lên bàn phím").
+    const dangGo = document.activeElement && document.activeElement.id === "mbSearch";
     pop.innerHTML = html;
     const se = $("mbSearch");
     if (se) {
       se.oninput = () => { filter = se.value; renderPop(); };
-      // giữ con trỏ ở ô tìm khi gõ lại
-      se.focus(); se.selectionStart = se.selectionEnd = se.value.length;
+      if (dangGo || !camUng()) { se.focus(); se.selectionStart = se.selectionEnd = se.value.length; }
+    }
+    if (choMang) {
+      await window.JavisModelList.models(expanded);
+      if (luot === luotVe && !pop.hidden) renderPop();
     }
   }
 
-  function open() { const pop = $("mbPop"); if (pop) { pop.hidden = false; renderPop(); } }
+  function open() {
+    const pop = $("mbPop");
+    if (!pop) return;
+    // Đang gõ trong ô chat mà bấm chip model: hạ bàn phím xuống trước, kẻo bàn phím che bảng.
+    if (camUng()) {
+      const a = document.activeElement;
+      if (a && a !== document.body && typeof a.blur === "function") a.blur();
+    }
+    pop.hidden = false; renderPop();
+  }
   function close() { const pop = $("mbPop"); if (pop) pop.hidden = true; }
   function isOpen() { const pop = $("mbPop"); return pop && !pop.hidden; }
 
@@ -162,7 +188,11 @@
 
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && isOpen()) close(); });
 
-  window.initModelBar = async function () { await loadState(); await loadSessionPin(); renderBar(); };
+  window.initModelBar = async function () {
+    await loadState(); await loadSessionPin(); renderBar();
+    // Tải sẵn danh sách của nhà đang dùng lúc rảnh, để lần bấm chip đầu tiên mở ra có ngay.
+    try { const pid = state.main.provider; if (pid && window.JavisModelList) window.JavisModelList.models(pid); } catch (e) {}
+  };
 
   // Phiên mới mint id xong (app.js gọi ngay lúc gửi tin đầu): model đã chọn khi khung
   // còn trống đi theo phiên vừa sinh, không bị phiên khác đổi mặc định chung đè mất.

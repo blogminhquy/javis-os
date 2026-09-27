@@ -882,8 +882,14 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   /* BÀN PHÍM ĐANG MỞ (lớp do mobile-chat.js gắn theo visualViewport). Vạch Home nằm dưới bàn
      phím nên bỏ hẳn lề an toàn; cả khung chat đặt đúng vào phần màn hình còn nhìn thấy để ô
      nhập nằm sát bàn phím như app Claude hay Telegram, không có dải trống ở giữa. */
+  /* RELATIVE chứ không phải fixed. 0.64.63 dùng fixed, mà position:fixed luôn dựng một ngữ
+     cảnh xếp chồng mới: cả .hud (kể cả header và bảng chọn model mở từ header) bị ép xuống
+     DƯỚI trang quản lý (.cview, z-index 40, là anh em chứ không phải con của .hud). Bảng chọn
+     model rơi ra sau khung chat, chỉ lộ một mẩu sau bàn phím và bấm lại không lên được (chủ
+     repo báo 27/09). Relative không dựng ngữ cảnh mới; --vv-ptop là vị trí vùng nhìn thấy
+     tính từ đầu tài liệu (visualViewport.pageTop), đúng mốc của một khối trong luồng thường. */
   body.kb-open .hud {
-    position: fixed; top: var(--vv-top, 0px); left: 0; right: 0;
+    position: relative; top: var(--vv-ptop, 0px);
     height: var(--vv-h, 100dvh);
   }
   body.kb-open .hud-top { top: var(--vv-top, 0px); }

@@ -25,19 +25,33 @@
 
   // Danh sách model của một nhà. Hỏng thì trả mảng rỗng chứ không ném: một nhà chết không
   // được kéo cả bảng chọn chết theo.
+  //
+  // Cache HẾT HẠN thì trả ngay bản cũ và làm mới NGẦM (stale-while-revalidate). Trước đây
+  // hết 5 phút là lần bấm sau phải chờ trọn một lượt tải live - với Codex (ép refresh=1) là
+  // vài giây popup trống trơn, chủ repo báo 27/09 "ấn vào danh sách model load rất chậm".
+  const DANG_TAI = {};                  // provider id -> Promise đang bay (gộp các lần gọi trùng)
+  function tai(pid) {
+    if (DANG_TAI[pid]) return DANG_TAI[pid];
+    // Codex: catalog tĩnh của nó vốn rỗng nên phải ép lấy live.
+    const force = pid === "openai-oauth" ? "&refresh=1" : "";
+    DANG_TAI[pid] = fetch("/provider/models?provider=" + encodeURIComponent(pid) + force)
+      .then((r) => r.json())
+      .then((d) => { CACHE[pid] = { models: d.models || [], ts: Date.now() }; })
+      .catch(() => { if (!CACHE[pid]) CACHE[pid] = { models: [], ts: Date.now() }; })
+      .then(() => { delete DANG_TAI[pid]; return CACHE[pid].models; });
+    return DANG_TAI[pid];
+  }
   async function models(pid) {
     const c = CACHE[pid];
-    if (c && Date.now() - c.ts < CACHE_MS) return c.models;
-    try {
-      // Codex: catalog tĩnh của nó vốn rỗng nên phải ép lấy live.
-      const force = pid === "openai-oauth" ? "&refresh=1" : "";
-      const d = await (await fetch("/provider/models?provider=" + encodeURIComponent(pid) + force)).json();
-      CACHE[pid] = { models: d.models || [], ts: Date.now() };
-    } catch (e) {
-      CACHE[pid] = { models: [], ts: Date.now() };
+    if (c) {
+      if (Date.now() - c.ts >= CACHE_MS) tai(pid);
+      return c.models;
     }
-    return CACHE[pid].models;
+    return tai(pid);
   }
+  /** Danh sách đang có sẵn (kể cả đã cũ), hoặc null khi chưa từng tải: để người gọi biết có
+   *  phải chờ mạng hay không mà vẽ khung trước. */
+  function peek(pid) { return CACHE[pid] ? CACHE[pid].models : null; }
 
   function clearCache() { Object.keys(CACHE).forEach((k) => delete CACHE[k]); }
 
@@ -82,6 +96,13 @@
         continue;
       }
       if (p.id !== o.expanded) continue;
+      // noWait: chưa có danh sách thì vẽ dòng "đang tải" thay vì bắt cả bảng chờ mạng.
+      // Người gọi tự vẽ lại khi models(p.id) xong.
+      if (o.noWait && !peek(p.id)) {
+        models(p.id);
+        html += `<div class="mb-empty">${esc(T("mpick.loading"))}</div>`;
+        continue;
+      }
       let ids = await models(p.id);
       if (q) ids = ids.filter((id) => id.toLowerCase().includes(q));
       if (!ids.length) {
@@ -97,5 +118,5 @@
     return html;
   }
 
-  window.JavisModelList = { models, render, clearCache };
+  window.JavisModelList = { models, peek, render, clearCache };
 })();

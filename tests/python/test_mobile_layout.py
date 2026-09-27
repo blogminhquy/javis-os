@@ -68,6 +68,15 @@ _cd = re.search(r"\.cd-menu \{[^}]*\}", CSS)
 check("menu chip Coding có nền đặc, không dùng lớp phủ trong suốt",
       _cd is not None and "var(--surface-1)" not in _cd.group(0) and "var(--bg2)" in _cd.group(0))
 
+# 0.64.64: .hud KHÔNG được fixed khi bàn phím mở - fixed dựng ngữ cảnh xếp chồng mới và ép
+# bảng chọn model (con của header) xuống dưới .cview, kẹt sau khung chat.
+_kb = re.search(r"body\.kb-open \.hud \{[^}]*\}", CSS)
+check("khung chính khi bàn phím mở không dựng ngữ cảnh xếp chồng (không fixed)",
+      _kb is not None and "position: fixed" not in _kb.group(0) and "position: relative" in _kb.group(0))
+PICKER = (ROOT / "dashboard" / "model-picker.js").read_text(encoding="utf-8")
+check("bảng chọn model không tự bật bàn phím trên màn cảm ứng", "pointer: coarse" in PICKER and "camUng()" in PICKER)
+check("bảng chọn model mở ngay, không chờ mạng", "noWait" in PICKER and "peek(" in PICKER)
+
 if fails:
     raise SystemExit(f"\nFAIL - test_mobile_layout: {len(fails)} lỗi")
 print("\nOK - test_mobile_layout: tất cả pass")

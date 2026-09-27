@@ -2031,6 +2031,7 @@
   "mpick.add_key": "Add an API key on the Models page to unlock",
   "mpick.no_match": "No matching models.",
   "mpick.no_list": "Could not load the model list.",
+  "mpick.loading": "Loading models...",
   "ecmd.bold": "Bold",
   "ecmd.italic": "Italic",
   "ecmd.h1": "Heading 1",

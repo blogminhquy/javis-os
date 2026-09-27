@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.64] - 2026-09-27
+### Sửa lỗi
+- **Chọn model trên điện thoại không còn bị kẹt:** bảng chọn không tự bật bàn phím nữa, và không bị trang chat che mất khi bàn phím đang mở. Bấm chip model lúc đang gõ thì bàn phím tự hạ xuống.
+- Bảng chọn model mở ra ngay, hiện dòng đang tải thay vì trống trơn. Danh sách được tải sẵn và làm mới ngầm nên các lần sau không phải chờ.
+
 ## [0.64.63] - 2026-09-27
 ### Sửa lỗi
 - **Ô nhập nằm sát bàn phím** trên điện thoại như app Claude hay Telegram, hết dải trống giữa ô nhập và bàn phím. Khi không gõ, ô nhập ở trang Trò chuyện và Coding cũng bớt khoảng hở dưới đáy.
