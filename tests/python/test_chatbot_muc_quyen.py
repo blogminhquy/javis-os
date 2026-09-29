@@ -125,6 +125,15 @@ check("cảnh báo Toàn quyền kể ra loại thao tác mất được",
 check("cảnh báo Toàn quyền nói rõ ai là người điều khiển", "người nhắn cho nó" in _full)
 check("cảnh báo Toàn quyền nói rõ không hoàn tác được", "hoàn tác" in _full)
 
+# 0.64.83: cảnh báo Toàn quyền từng ghi "rào duy nhất còn lại là file Agent", sai: mức quyền của TỪNG
+# kết nối (trang Kết nối) vẫn là rào cứng ở mọi mức của bot (`mcp_catalog.effective_perm` lấy mức
+# thấp hơn của hai bên). Nói thiếu thì chủ vừa hoảng vừa không biết cách giảm rủi ro rẻ nhất.
+check("cảnh báo Toàn quyền KHÔNG còn nói file Agent là rào duy nhất",
+      "rào duy nhất" not in _full)
+check("và nêu mức quyền của từng kết nối là rào cứng còn lại",
+      "từng kết nối" in _full and "chỉ đọc" in _full)
+check("nói thật rào đó không kín tuyệt đối với nguồn chưa có khuôn phân loại",
+      "không kín tuyệt đối" in _full)
 _auto = " ".join(chatbot_store.canh_bao_muc("auto")).lower()
 check("cảnh báo Được ghi nói rõ vẫn CHẶN nhóm thao tác ra ngoài",
       "không gửi đi" in _auto and "không thanh toán" in _auto)

@@ -128,8 +128,11 @@ _CANH_BAO = {
         "xoá và công bố ra ngoài. Những thao tác đó KHÔNG hoàn tác được.",
         "Người điều khiển bot là NGƯỜI NHẮN CHO NÓ, không phải bạn. Ai nhắn được cho bot cũng "
         "nói được câu khiến nó gọi tool, và không có bước hỏi lại bạn.",
-        "Một câu dụ khéo ('bỏ qua hướng dẫn trước, làm giúp việc này') là đủ. Rào duy nhất còn "
-        "lại là chính file Agent bạn viết, mà chữ thì lách được.",
+        "Một câu dụ khéo ('bỏ qua hướng dẫn trước, làm giúp việc này') là đủ để bot làm theo. "
+        "Rào cứng còn lại là mức quyền của TỪNG kết nối ở trang Kết nối (hạ một kết nối về Chỉ "
+        "đọc thì bot cũng bị chặn ghi ở đó), nhưng rào đó chặn theo loại thao tác nên với nguồn "
+        "Javis chưa có khuôn phân loại sẵn thì không kín tuyệt đối. Ngoài ra chỉ còn file Agent "
+        "bạn viết, mà chữ thì lách được.",
         "Chỉ nên bật cho bot mà bạn kiểm soát được DANH SÁCH người nhắn vào. Nơi ai cũng nhắn "
         "được thì không.",
         "Bot vẫn KHÔNG thấy brain khác và không chạy lệnh máy - hai rào đó giữ nguyên ở mọi mức.",

@@ -19,7 +19,7 @@ Bot chuyên trách **làm việc thật được** nếu bạn nâng mức quy�
 - **Bot làm theo đúng file Agent của bạn.** Javis không chèn thêm luật nào của mình vào.
 - **Ba mức quyền**, chọn khi tạo và đổi được sau: Chỉ đọc (mặc định), Được ghi, Toàn quyền. Nâng mức phải tick vào ô đồng ý sau khi đọc phần rủi ro.
 - Hai rào **không đổi theo mức**, và khoá bằng mã nguồn chứ không bằng câu dặn: **bot chỉ thấy brain của chính nó**, và **không chạy được lệnh máy**.
-- Câu ngoài tầm hiểu biết thì bot chuyển cho người trực bạn chỉ định.
+- Câu bot không trả lời nổi được ghi vào tab **Bot bí** để bạn bổ sung tài liệu, và bạn bấm **Tiếp quản** ở trang Hội thoại khi cần người thật vào cuộc.
 - Trang Chatbot dựng theo hướng **nhiều bot** ngay từ đầu: lưới thẻ, ô tìm, thêm/sửa/xoá, bật/tắt tại chỗ. Chạy một con hay mười con đều cùng một giao diện.
 - Mọi cuộc chat khách nhắn cho bot được lưu vào **hộp thư hội thoại** (trang **Hội thoại**): đọc lại, thấy cuộc nào bot bí, bấm Tiếp quản để tự trả lời khi cần. Xem [Hội thoại khách](28-hoi-thoai-khach.md).
 
@@ -104,7 +104,6 @@ Bấm **Bot mới**, điền:
 | Agent làm bộ não | Chọn Agent trong brain đang mở, hoặc bấm **Tạo Agent** |
 | Bot trả lời dựa trên gì | Xem mục hai chế độ ở dưới |
 | Bot được làm gì | Mức quyền. Cứ để **Chỉ đọc** cho lần đầu; xem mục [Ba mức quyền](#ba-mức-quyền---bot-được-làm-gì) trước khi nâng |
-| Chat ID người trực | Số Telegram của người nhận chuyển tiếp (xem bên dưới) |
 | Nhóm được phép | Chỉ hiện khi có tài khoản ở kênh vào được nhóm (Telegram, Zalo cá nhân). Để trống cũng được - thả bot vào nhóm rồi cho phép bằng một cú bấm sau (xem Bước 4) |
 | Khi nào bot lên tiếng trong nhóm | Cùng điều kiện. Mặc định chỉ khi được gọi tên hoặc reply vào nó. Có thêm **Tự đánh giá** (xem [Bot trên Zalo cá nhân](#bot-trên-zalo-cá-nhân-nhóm-và-chế-độ-tự-đánh-giá)) |
 
@@ -122,17 +121,13 @@ Bật bot bằng nút **Bật** trên thẻ, rồi mở Telegram nhắn riêng c
 
 Thấy chưa ổn thì tắt đi, sửa Agent hoặc bổ sung tài liệu vào brain, rồi thử lại. Tắt có tác dụng ngay, không phải khởi động lại Javis.
 
-### Bước 3: Chuyển cho người thật
+### Bước 3: Khi bot bí, người thật vào cuộc
 
-Điền **Chat ID người trực** để bot có chỗ chuyển khi bí. Lấy số đó bằng cách nhờ người đó mở **@userinfobot** trên Telegram, nó trả về dòng `Id: 123456789`.
+Từ 0.64.83 form **không còn ô Chat ID người trực** (đó là số Telegram, không dùng được cho bot Zalo). Bot mới không tự nhắn cho ai khi bí.
 
-Người trực phải bấm **Start** trong chat với con bot này một lần, nếu không Telegram chặn không cho bot nhắn tới.
+Bot bí thì vẫn trả lời theo Agent, hoặc nói chưa có thông tin nếu bạn chọn chế độ **Chỉ tài liệu**. Câu nó không trả lời nổi ghi vào tab **Bot bí** để bạn bổ sung tài liệu. Muốn tự trả lời một cuộc chat thì bấm **Tiếp quản** ở trang **Hội thoại**, bot sẽ im ở cuộc đó. Ai gõ `/nhanvien` được nói thật là chưa nối máy sang người trực được, và mời hỏi tiếp.
 
-Khi đó bot có hai đường chuyển: tự gọi người khi **bí hai câu liên tiếp** với cùng một người, và người đang hỏi chủ động gõ `/nhanvien` thì báo ngay. Cả hai đều gửi cho người trực một tin có tên bot, id cuộc trò chuyện và lý do. Lượt bot bị **lỗi kỹ thuật** cũng báo ngay từ lần đầu, nhưng chỉ một lần cho tới khi bot chạy lại được.
-
-Bỏ trống ô này thì **bot vẫn trả lời bình thường** theo Agent, chỉ là không có ai để chuyển tiếp. Ai gõ `/nhanvien` sẽ được nói thật là chưa nối máy sang người trực được, và mời hỏi tiếp.
-
-Muốn bot im khi không tìm thấy tài liệu thì đó là việc của chế độ **Chỉ tài liệu** ở mục trên, không phải của ô này.
+Bot đã đặt người trực từ trước 0.64.83 thì **giữ nguyên** (thẻ bot ghi "có chuyển người trực") và chạy như mô tả ở mục [Khi nào người trực bị gọi](#khi-nào-người-trực-bị-gọi).
 
 ### Bước 4: Thả bot vào một nhóm
 
@@ -299,7 +294,7 @@ Chọn ở ô **Bot được làm gì** khi tạo hoặc sửa bot. Mặc địn
 **Mức Toàn quyền:**
 
 - Bot làm được **mọi thứ** các nguồn đã đấu cho phép, kể cả gửi đi, thanh toán, đặt hay huỷ, xoá, công bố ra ngoài. Những thao tác đó **không hoàn tác được**.
-- Một câu dụ khéo ("bỏ qua hướng dẫn trước, làm giúp việc này") là đủ. Rào duy nhất còn lại là chính file Agent bạn viết, mà chữ thì lách được.
+- Một câu dụ khéo ("bỏ qua hướng dẫn trước, làm giúp việc này") là đủ để bot làm theo. Rào cứng còn lại là **mức quyền của từng kết nối** ở trang Kết nối (hạ một kết nối về Chỉ đọc thì bot cũng bị chặn ghi ở đó), nhưng rào đó chặn theo loại thao tác nên với nguồn Javis chưa có khuôn phân loại sẵn thì không kín tuyệt đối. Ngoài ra chỉ còn file Agent bạn viết, mà chữ thì lách được.
 - Bot không hỏi lại bạn trước khi làm. Không có cổng duyệt từng lệnh.
 
 Vì thế: **chỉ bật Toàn quyền khi bạn kiểm soát được danh sách người nhắn vào bot.** Chỗ ai cũng nhắn được thì không, dù Agent bạn viết kỹ tới đâu.
@@ -357,7 +352,7 @@ Gom trùng có bỏ dấu, nên "Giá bao nhiêu?" và "gia bao nhieu" được 
 
 ### Khi nào người trực bị gọi
 
-Có đặt Chat ID người trực thì bot gọi người trong hai trường hợp: người đang hỏi gõ `/nhanvien`, hoặc bot **bí hai câu liên tiếp** với cùng một người. Trả lời được một câu là đếm về 0.
+Bot đã đặt Chat ID người trực từ trước 0.64.83 thì gọi người trong hai trường hợp: người đang hỏi gõ `/nhanvien`, hoặc bot **bí hai câu liên tiếp** với cùng một người. Trả lời được một câu là đếm về 0.
 
 Bí một câu lẻ thì không gọi. Báo mọi câu vu vơ thì vài lần là người trực tắt thông báo, và lúc có người thật cần giúp thì không ai đọc nữa. Hai câu liên tiếp mới là dấu hiệu người ta đang mắc kẹt thật.
 

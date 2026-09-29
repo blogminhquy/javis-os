@@ -386,11 +386,18 @@ check("hai nút ở chân form đổi vai theo bước chứ không mọc thêm 
   noi("cb.quay_lai", "Quay lại") && noi("cb.tiep_tuc", "Tiếp tục"));
 // Ba ô có mặc định dùng được ngay mới được gấp. Mức quyền thì KHÔNG: đọc sót nó là mất tiền
 // thật, nên nó phải nằm phơi ra trên màn hình chứ không phải sau một cú bấm.
-check("ngôn ngữ, chuyển người thật và nhóm gấp vào Cài đặt thêm",
-  /class="cb-nangcao"/.test(CB) && noi("cb.nang_cao", "Cài đặt thêm") &&
+check("ngôn ngữ và nhóm gấp vào Cài đặt thêm, tên mục nói rõ bên trong có gì",
+  /class="cb-nangcao"/.test(CB) && noi("cb.nang_cao", "Cài đặt thêm: ngôn ngữ và nhóm") &&
   CB.indexOf('class="cb-nangcao"') < CB.indexOf('id="cbNgonNgu"') &&
-  CB.indexOf('class="cb-nangcao"') < CB.indexOf('id="cbHandoff"') &&
   CB.indexOf('class="cb-nangcao"') < CB.indexOf('id="cbNhomBox"'));
+// 0.64.83: chủ dự án bỏ ô "người trực nhận chuyển tiếp" (Chat ID Telegram, vô nghĩa với bot Zalo).
+check("form KHÔNG còn ô người trực nhận chuyển tiếp và không gửi handoff_to lên server",
+  !/id="cbHandoff"/.test(CB) && !/handoff_to:\s*ho/.test(CB) && !/cb\.lb_handoff/.test(CB));
+check("bỏ ô đó thì không được mất chú thích còn dùng chung ('Bỏ trống thì bot...' ở khối nhóm)",
+  /cb\.hint_ho_3/.test(CB) && !!VI["cb.hint_ho_3"]);
+// Chế độ Tự đánh giá nằm trong khối gấp này; chủ báo không thấy nó (29/09) nên khối phải tự mở.
+check("Cài đặt thêm tự mở MỘT lần khi bot có kênh vào được nhóm",
+  /details\.cb-nangcao/.test(CB) && /nangCao\.open = true/.test(CB) && /daMo/.test(CB));
 check("CANARY: mức quyền KHÔNG bị gấp vào khối Cài đặt thêm",
   CB.indexOf('id="cbMuc"') < CB.indexOf('class="cb-nangcao"'));
 check("CSS của form hai bước đã có",

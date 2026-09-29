@@ -706,8 +706,11 @@
           '<select id="cbMuc">' + htmlMuc((b && b.muc_quyen) || "suggest") + '</select>' +
           '<div class="cb-muc-note">' + veCanhBao((b && b.muc_quyen) || "suggest") + '</div>' +
 
-          // Ba thứ còn lại gấp vào đây vì đều có mặc định dùng được ngay: ngôn ngữ tự nhận,
-          // không chuyển người thật, chưa khai nhóm nào. Ai cần mới mở.
+          // Hai thứ còn lại gấp vào đây vì đều có mặc định dùng được ngay: ngôn ngữ tự nhận,
+          // chưa khai nhóm nào. Ai cần mới mở. (Ô "người trực nhận chuyển tiếp" đã bỏ ở 0.64.83:
+          // nó là Chat ID Telegram, vô nghĩa với bot Zalo, và chủ dự án muốn gỡ.)
+          // Tự mở khi bot có kênh vào được nhóm, xem `apNhom`: chế độ "Tự đánh giá" nằm trong này
+          // và bị giấu sau một cú bấm thì chủ không thấy.
           '<details class="cb-nangcao">' +
             '<summary>' + ic("settings") + ' ' + esc(window.t("cb.nang_cao")) + '</summary>' +
 
@@ -719,14 +722,6 @@
             '<select id="cbNgonNgu">' + htmlNgonNgu((b && b.ngon_ngu) || "auto") + '</select>' +
             '<div class="cb-muc-note">' + esc(window.t("cb.hint_ngon_ngu")) + '</div>' +
 
-            '<label>' + esc(window.t("cb.lb_handoff")) + '</label>' +
-            '<input id="cbHandoff" value="' + esc(b ? (b.handoff_to || "") : "") + '" placeholder="' +
-              esc(window.t("cb.ph_handoff")) + '">' +
-            '<div class="cb-hint">' + esc(window.t("cb.hint_ho_1")) + ' <b>' +
-            esc(window.t("cb.hint_ho_hai_cau")) + '</b> ' + esc(window.t("cb.hint_ho_2")) + '<br>' +
-            esc(window.t("cb.hint_ho_3")) + ' <b>' + esc(window.t("cb.hint_ho_binh_thuong")) + '</b> ' +
-            esc(window.t("cb.hint_ho_4")) + ' <b>' + esc(window.t("cb.nguon_tl_b")) + '</b> ' +
-            esc(window.t("cb.hint_ho_5")) + '</div>' +
 
             // Khai được NGAY LÚC TẠO, không chỉ ở form Sửa. Đường đi tự nhiên nhất là tạo bot
             // rồi thả thẳng vào nhóm; bắt quay lại bấm Sửa mới khai được nhóm là bảo đảm lần
@@ -810,6 +805,11 @@
       var khong = box.querySelector("#cbKhongNhom");
       if (nhomBox) nhomBox.style.display = co ? "" : "none";
       if (khong) khong.style.display = co ? "none" : "";
+      // Mở SẴN khối "Cài đặt thêm" đúng một lần khi bot có kênh vào được nhóm: ô "khi nào bot lên
+      // tiếng trong nhóm" nằm trong đó, và chủ báo không tìm thấy chế độ tự động (29/09). Chỉ một
+      // lần để người dùng gấp lại được mà không bị bật lại mỗi lần tích tài khoản.
+      var nangCao = box.querySelector("details.cb-nangcao");
+      if (co && nangCao && !nangCao.dataset.daMo) { nangCao.open = true; nangCao.dataset.daMo = "1"; }
       var coTg = tkDangChon().some(function (a) { return a.channel === "telegram"; });
       box.querySelectorAll(".cb-chi-tg").forEach(function (n) { n.style.display = coTg ? "" : "none"; });
       box.querySelectorAll(".cb-khong-tg").forEach(function (n) { n.style.display = coTg ? "none" : ""; });
@@ -886,7 +886,6 @@
     async function luu() {
       var ten = box.querySelector("#cbName").value.trim();
       var ag = box.querySelector("#cbAgent").value;
-      var ho = box.querySelector("#cbHandoff").value.trim();
       var ngu = box.querySelector("#cbNguon").value;
       var muc = oMuc.value;
       var ack = box.querySelector("#cbAck");
@@ -907,7 +906,7 @@
       var gr = coNhomLuu ? box.querySelector("#cbGroups").value : "";
       var rw = coNhomLuu ? box.querySelector("#cbReplyWhen").value : "mention";
       var chung = { name: ten, agent_slug: ag, agent_brain: br, brain: br,
-                    handoff_to: ho, nguon_tra_loi: ngu, muc_quyen: muc, xac_nhan_rui_ro: "1",
+                    nguon_tra_loi: ngu, muc_quyen: muc, xac_nhan_rui_ro: "1",
                     ngon_ngu: (document.getElementById("cbNgonNgu") || {}).value || "auto",
                     groups: gr, reply_when: rw, account_ids: ids.join(",") };
       try {
