@@ -216,26 +216,31 @@ check("tin ảnh không chữ vẫn có mô tả và loại image",
       ev4["message_type"] == "image" and "image" in ev4["text"])
 check("tin không thread bị bỏ", zp.chuan_hoa_tin(conn, {"id": "x", "text": "?"}, ten) is None)
 
-# Vòng đọc: giả MCP, kiểm cursor được gửi lại và lưu
+# Vòng đọc: giả MCP, kiểm `since` (số nguyên) được gửi lại. Khuôn thật của MCP 1.6.2: nhận `since`
+# chứ KHÔNG nhận `cursor`, trả `cursor` là số; xem test_zalo_mcp_khuon.py.
 _goi_log = []
 
 
 async def _goi_gia(c, tool, args):
     _goi_log.append((tool, dict(args or {})))
     if tool == "zalo_list_threads":
-        return {"threads": [{"threadId": "u456", "name": "Phúc", "type": "user"}]}
+        return {"threads": [{"threadId": "u456", "name": "Phúc", "threadType": "dm"}]}
     return {"messages": [{"id": "z1", "threadId": "u456", "text": "Shop ơi", "from": "u456", "ts": 1710000001}],
-            "nextCursor": "cur_abc", "hasMore": False}
+            "cursor": 7, "hasMore": False}
 
 
 zp._goi = _goi_gia
+zp._epoch = lambda c: 1      # có một phiên MCP đang sống
 kq = asyncio.run(zp.doc_mot_lan(conn))
-check("vòng đọc ghi 1 tin mới, lần đầu KHÔNG gửi cursor",
-      kq["moi"] == 1 and _goi_log[0][0] == "zalo_get_messages" and "cursor" not in _goi_log[0][1])
-check("cursor lưu vào sync_state", conversations.doc_trang_thai("zalo_personal:zl_1:cursor") == "cur_abc")
+check("vòng đọc ghi 1 tin mới, lần đầu KHÔNG gửi since",
+      kq["moi"] == 1 and _goi_log[0][0] == "zalo_get_messages" and "since" not in _goi_log[0][1])
+check("con trỏ giữ trong RAM theo phiên MCP (không ghi xuống kho: số thứ tự đếm lại từ 1 mỗi lần MCP khởi động)",
+      zp._TT["zl_1"]["since"] == 7 and zp._TT["zl_1"]["ep"] == 1
+      and conversations.doc_trang_thai("zalo_personal:zl_1:cursor") == "")
 kq = asyncio.run(zp.doc_mot_lan(conn))
-check("lần hai gửi lại cursor, tin cũ tính là trùng",
-      _goi_log[-1][1].get("cursor") == "cur_abc" and kq["trung"] == 1 and kq["moi"] == 0)
+check("lần hai gửi since=7 (số nguyên), tin cũ tính là trùng",
+      _goi_log[-1][1].get("since") == 7 and "cursor" not in _goi_log[-1][1]
+      and kq["trung"] == 1 and kq["moi"] == 0)
 dz = conversations.danh_sach(channel="zalo_personal")
 check("hội thoại Zalo cá nhân hiện trong danh sách với tên Phúc",
       len(dz) == 1 and dz[0]["customer_name"] == "Phúc" and dz[0]["account_name"] == "Zalo Quý")

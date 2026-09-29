@@ -40,15 +40,23 @@ def trang_thai() -> dict:
 
 
 async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private"):
-    """Gửi qua MCP: tham số theo mcp-guide của zalo-agent-cli (threadId, text, type 0|1)."""
+    """Gửi qua MCP: `threadId`, `text` và kiểu cuộc chat (0 = chat riêng, 1 = nhóm).
+
+    Khoá kiểu cuộc chat mà MCP zalo-agent-cli 1.6.2 THẬT SỰ đọc là `threadType` (mcp-tools.js), không
+    phải `type` như tài liệu mcp-guide ghi. MCP bỏ qua khoá lạ mà không báo lỗi, nên gửi `type` một
+    mình thì tin nhóm đi như chat riêng và Zalo không giao được (chủ thấy bot trả lời trong Hộp thư
+    mà nhóm im, 29/09/2026). Gửi cả hai: `threadType` cho bản 1.6.2 đang ghim, `type` cho bản khác
+    đọc theo tài liệu; khoá thừa bị MCP bỏ qua.
+    """
     import zalo_personal_channel
     conn = zalo_personal_channel.ket_noi_theo_id(str(tk.get("id") or tk.get("external_id") or ""))
     if not conn:
         return False, "tài khoản Zalo này không còn ở trang Kết nối (hoặc đang tắt)"
+    loai = 1 if str(chat_type or "") == "group" else 0
     try:
         d = await zalo_personal_channel._goi(conn, "zalo_send_message", {
             "threadId": str(chat_id), "text": str(text or ""),
-            "type": 1 if str(chat_type or "") == "group" else 0,
+            "threadType": loai, "type": loai,
         })
     except Exception as e:
         return False, str(e)[:300]
@@ -238,3 +246,27 @@ class Transport:
         if not ok:
             self.last_error = f"Gửi Zalo lỗi: {loi}"[:300]
             print(f"[zalo-personal bot {self.conn_id}] {self.last_error}", file=sys.stderr)
+            self._ghi_loi_gui(thread, cau, loi, chat_type)
+
+    def _ghi_loi_gui(self, thread: str, cau: str, loi: str, chat_type: str):
+        """Để lại dấu ở nhật ký bot khi gửi lỗi.
+
+        Câu trả lời đã vào Hộp thư TRƯỚC khi gửi (xem `chatbot_runtime._answer`), còn `last_error`
+        bị vòng giám sát xoá sau vài giây. Không có dòng này thì "bot đã trả lời" trong Hộp thư và
+        "khách không nhận được gì" nhìn giống hệt nhau, và không chỗ nào cho biết vì sao.
+        """
+        try:
+            import chatbot_log
+            cfg = self.cfg_fn() if self.cfg_fn else {}
+            bid = str((cfg or {}).get("id") or "")
+            if not bid:
+                return
+            chatbot_log.ghi(bid, {
+                "chat_id": thread, "chat_type": chat_type, "user_name": "",
+                "hoi": "(bot gửi tin vào " + ("nhóm" if chat_type == "group" else "chat riêng") + ")",
+                "dap": cau,
+                "loi": f"Gửi Zalo lỗi: {loi}. Câu định gửi: {cau[:200]}",
+                "muc_quyen": (cfg or {}).get("muc_quyen") or "suggest",
+            })
+        except Exception as e:
+            print(f"[zalo-personal bot {self.conn_id}] ghi nhật ký lỗi gửi: {e}", file=sys.stderr)

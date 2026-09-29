@@ -377,7 +377,14 @@ def _conv_public(r: dict) -> dict:
     d["metadata"] = _loads(d.pop("metadata_json", "{}"), {})
     d["channel_label"] = KENH_NHAN.get(d.get("channel") or "", d.get("channel") or "")
     if not d.get("title"):
-        d["title"] = d.get("customer_name") or d.get("external_chat_id") or ""
+        if d.get("chat_type") == "group":
+            # KHÔNG mượn tên khách: khách gắn với cuộc chat là NGƯỜI NHẮN ĐẦU TIÊN, nên nhóm
+            # chưa biết tên hiện thành tên một người trong nhóm (chủ thấy nhóm "Test Bot Zalo"
+            # hiện là "Minh Quý"). Đuôi id đủ để phân biệt các nhóm chưa rõ tên với nhau.
+            cid = str(d.get("external_chat_id") or "")
+            d["title"] = f"Nhóm …{cid[-6:]}" if cid else "Nhóm chưa rõ tên"
+        else:
+            d["title"] = d.get("customer_name") or d.get("external_chat_id") or ""
     return d
 
 

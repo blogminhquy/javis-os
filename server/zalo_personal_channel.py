@@ -48,9 +48,11 @@ CONNECTOR_ID = "zalo"
 KENH = "zalo_personal"
 NHIP = 20               # giây giữa hai lần đọc
 NHIP_LOI = 90           # nghỉ dài hơn khi một tài khoản vừa lỗi (MCP chết, chưa đăng nhập)
-LIMIT = 100             # tin mỗi lần đọc
+LIMIT = 100             # tin mỗi lô đọc (MCP cho phép 1..100)
+MAX_TRANG = 5           # số lô tối đa đọc liên tiếp trong MỘT lượt khi bộ đệm còn tin (hasMore)
 TEN_TTL = 300           # giây giữ bảng tên thread (zalo_list_threads) trước khi hỏi lại
 THU_LAI_TEN_GIAY = 15     # giây tối thiểu giữa hai lần làm mới CƯỠNG BỨC bảng (cuộc chat lạ), chống dồn dập
+THU_TEN_LAI = 600       # giây nhớ "đã làm mới bảng vì cuộc chat này mà vẫn không thấy tên", khỏi hỏi lại mỗi nhịp
 MAX_TEN = 2000
 
 _task: Optional[asyncio.Task] = None
@@ -294,16 +296,35 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
 # ============================================================
 # Vòng đọc
 # ============================================================
+def _epoch(conn: dict) -> int:
+    """Số hiệu PHIÊN MCP đang sống của kết nối này (0 = chưa có phiên). Xem `mcp_client.pool.epoch`."""
+    try:
+        import mcp_client
+        return int(mcp_client.pool.epoch(mcp_client._conn_spec(conn)) or 0)
+    except Exception:
+        return 0
+
+
+def _thread_cua(msg: Any) -> str:
+    if not isinstance(msg, dict):
+        return ""
+    return str(_lay(msg, "threadId", "thread_id", "chatId", mac_dinh="") or "").strip()
+
+
 async def _nap_ten(conn: dict, tt: dict, cuong_buc: bool = False) -> Dict[str, dict]:
     """Bảng threadId -> {name, type}. Hỏi lại sau TEN_TTL giây, hỏng thì giữ bảng cũ.
 
     `cuong_buc`: hỏi lại NGAY dù chưa hết hạn (nhưng không dồn quá một lần mỗi `THU_LAI_TEN_GIAY`),
     dùng khi có tin từ một cuộc chat chưa có trong bảng: nhóm nick vừa vào, khách mới nhắn.
+
+    Loại cuộc chat đọc từ `threadType` ("group" | "dm" | "unknown", khoá THẬT của MCP 1.6.2), rơi
+    về `type` (khuôn trong tài liệu mcp-guide).
     """
     if tt.get("ten") is not None:
         tuoi = time.time() - float(tt.get("ten_ts") or 0)
         if tuoi < TEN_TTL and not (cuong_buc and tuoi >= THU_LAI_TEN_GIAY):
             return tt["ten"]
+    tt["ten_lan"] = int(tt.get("ten_lan") or 0) + 1     # số lần HỎI THẬT (đồng hồ Windows có bước ~15ms, không dùng mốc giờ để đếm)
     try:
         d = await _goi(conn, "zalo_list_threads", {"limit": 200})
         ds = d.get("threads") if isinstance(d, dict) else d
@@ -313,7 +334,8 @@ async def _nap_ten(conn: dict, tt: dict, cuong_buc: bool = False) -> Dict[str, d
                 continue
             tid = str(_lay(t, "threadId", "id", mac_dinh="") or "")
             if tid:
-                bang[tid] = {"name": str(t.get("name") or "")[:120], "type": str(t.get("type") or "")}
+                bang[tid] = {"name": str(t.get("name") or "")[:120],
+                             "type": str(t.get("threadType") or t.get("type") or "")}
         if len(bang) > MAX_TEN:
             bang = dict(list(bang.items())[-MAX_TEN:])
         tt["ten"], tt["ten_ts"] = bang, time.time()
@@ -325,23 +347,32 @@ async def _nap_ten(conn: dict, tt: dict, cuong_buc: bool = False) -> Dict[str, d
     return tt["ten"]
 
 
-async def doc_mot_lan(conn: dict) -> dict:
-    """Một lượt đọc cho một tài khoản. Trả {"moi": n, "trung": n} hoặc ném lỗi."""
-    tt = _TT.setdefault(conn["id"], {})
-    khoa_cursor = f"{KENH}:{conn['id']}:cursor"
-    cursor = conversations.doc_trang_thai(khoa_cursor, "")
-    args: Dict[str, Any] = {"limit": LIMIT}
-    if cursor:
-        args["cursor"] = cursor
-    d = await _goi(conn, "zalo_get_messages", args)
-    if not isinstance(d, dict):
-        d = {"messages": d if isinstance(d, list) else []}
-    tin = d.get("messages") or []
-    ten = await _nap_ten(conn, tt) if tin else (tt.get("ten") or {})
-    if tin and any(_chua_ro_loai(m, ten) for m in tin):
-        # Có cuộc chat lạ (nhóm nick vừa vào, khách mới nhắn): hỏi lại bảng ngay thay vì chờ hết
-        # hạn, không thì tin đầu tiên của nó bị nhận nhầm loại.
-        ten = await _nap_ten(conn, tt, cuong_buc=True)
+async def _lam_moi_ten_neu_thieu(conn: dict, tt: dict, tin: list, ten: dict) -> dict:
+    """Có tin từ cuộc chat CHƯA CÓ trong bảng tên thì làm mới bảng ngay, dù tin đã có threadType.
+
+    Nhóm nick vừa vào chưa có trong bảng (làm mới 5 phút một lần), nên cuộc chat không có tiêu đề
+    và Hộp thư lấy tên NGƯỜI NHẮN ĐẦU TIÊN làm tên nhóm. Cuộc chat mà làm mới rồi vẫn không thấy
+    thì nhớ `THU_TEN_LAI` giây, khỏi gọi lại `zalo_list_threads` mỗi nhịp 20 giây.
+    """
+    now = time.time()
+    da_thu = tt.setdefault("da_thu_ten", {})
+    thieu = [t for t in {_thread_cua(m) for m in tin} if t and t not in ten
+             and now - float(da_thu.get(t, 0)) > THU_TEN_LAI]
+    if not thieu:
+        return ten
+    truoc = tt.get("ten_lan")
+    ten = await _nap_ten(conn, tt, cuong_buc=True)
+    if tt.get("ten_lan") != truoc:      # thật sự đã hỏi (không bị chặn bởi nhịp chờ tối thiểu)
+        for t in thieu:
+            da_thu[t] = now
+        if len(da_thu) > MAX_TEN:
+            for k in list(da_thu)[:MAX_TEN // 2]:
+                da_thu.pop(k, None)
+    return ten
+
+
+def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
+    """Ghi một lô tin vào kho và giao tin khách mới cho bot. Trả (số tin mới, số tin trùng)."""
     moi = trung = 0
     for m in tin:
         ev = chuan_hoa_tin(conn, m, ten)
@@ -370,9 +401,64 @@ async def doc_mot_lan(conn: dict) -> dict:
             else:
                 moi += 1
                 _giao_cho_bot(conn, ev)
-    nc = _lay(d, "nextCursor", "next_cursor", "cursor", mac_dinh="")
-    if nc:
-        conversations.ghi_trang_thai(khoa_cursor, str(nc))
+    return moi, trung
+
+
+def _so_nguyen(v: Any) -> Optional[int]:
+    """Con trỏ đọc của MCP là số nguyên. Chuỗi không phải số (khuôn trong tài liệu ghi
+    "cursor_abc") thì None: dùng bừa một con trỏ không hiểu còn tệ hơn đọc lại từ đầu."""
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)) and v >= 0:
+        return int(v)
+    if isinstance(v, str) and v.strip().isdigit():
+        return int(v.strip())
+    return None
+
+
+async def doc_mot_lan(conn: dict) -> dict:
+    """Một lượt đọc cho một tài khoản. Trả {"moi": n, "trung": n} hoặc ném lỗi.
+
+    `zalo_get_messages` của MCP nhận `since` (số nguyên, số thứ tự toàn cục của bộ đệm) và `limit`,
+    trả tin CŨ NHẤT TRƯỚC kèm `cursor` (số) và `hasMore`. Không có khoá `cursor` ở phía nhận: bản
+    trước truyền `cursor` (bị bỏ qua) nên mỗi lần đọc lại 100 tin cũ nhất, và khi bộ đệm dày hơn thế
+    thì tin mới không bao giờ tới. Số thứ tự đếm lại từ 1 mỗi lần tiến trình MCP khởi động, nên
+    `since` chỉ giữ trong RAM và chỉ dùng khi phiên MCP còn là phiên đã cấp nó (`_epoch`).
+    """
+    tt = _TT.setdefault(conn["id"], {})
+    moi = trung = 0
+    since = 0
+    if tt.get("since") and tt.get("ep") and tt["ep"] == _epoch(conn):
+        since = int(tt["since"])
+    for _ in range(MAX_TRANG):
+        ep_truoc = _epoch(conn)
+        args: Dict[str, Any] = {"limit": LIMIT}
+        if since:
+            args["since"] = since
+        d = await _goi(conn, "zalo_get_messages", args)
+        if since and _epoch(conn) != ep_truoc:
+            # Phiên MCP bị dựng lại NGAY trong lúc gọi: since cũ vô nghĩa với bộ đệm mới, đọc lại
+            # từ đầu (tin trùng đã có kho chặn theo id).
+            since = 0
+            d = await _goi(conn, "zalo_get_messages", {"limit": LIMIT})
+        if not isinstance(d, dict):
+            d = {"messages": d if isinstance(d, list) else []}
+        tin = d.get("messages") or []
+        ten = await _nap_ten(conn, tt) if tin else (tt.get("ten") or {})
+        if tin:
+            ten = await _lam_moi_ten_neu_thieu(conn, tt, tin, ten)
+        m1, t1 = _ghi_lo(conn, tin, ten)
+        moi, trung = moi + m1, trung + t1
+        nc = _so_nguyen(d.get("cursor"))
+        if nc is None:
+            nc = _so_nguyen(d.get("nextCursor"))
+        if nc is None:
+            tt["since"], tt["ep"] = 0, 0        # không hiểu con trỏ: lần sau đọc lại từ đầu
+            break
+        tt["since"], tt["ep"] = nc, _epoch(conn)
+        if not (d.get("hasMore") and tin and nc > since):
+            break
+        since = nc
     tt["lan_cuoi"] = time.time()
     tt["loi"] = ""
     tt["so_tin"] = int(tt.get("so_tin") or 0) + moi

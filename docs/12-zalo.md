@@ -52,7 +52,7 @@ Nút **Hướng dẫn trên GitHub** trong thẻ Zalo luôn mở trang tài li�
 
 | Tool | Công dụng | Mức thao tác |
 |---|---|---|
-| `zalo_get_messages` | Đọc tin mới trong bộ đệm, hỗ trợ cursor | Đọc |
+| `zalo_get_messages` | Đọc tin mới trong bộ đệm, đọc tiếp bằng `since` (số thứ tự) | Đọc |
 | `zalo_get_history` | Lấy lịch sử một cuộc chat, có phân trang | Đọc |
 | `zalo_list_threads` | Liệt kê các cuộc chat đang có trong bộ đệm | Đọc |
 | `zalo_search_threads` | Tìm nhóm hoặc người theo tên | Đọc |
@@ -60,7 +60,9 @@ Nút **Hướng dẫn trên GitHub** trong thẻ Zalo luôn mở trang tài li�
 | `zalo_mark_read` | Đánh dấu đã xử lý đến một cursor | Ghi |
 | `zalo_send_message` | Gửi tin cho cá nhân hoặc nhóm | Nguy hiểm |
 
-Danh sách trên theo mã nguồn `zalo-agent-cli` 1.6.2. Tài liệu MCP của dự án gốc:
+Danh sách trên theo mã nguồn `zalo-agent-cli` 1.6.2. Tên tham số lấy từ mã nguồn chứ không từ
+tài liệu MCP, vì hai bên từng lệch nhau: kiểu cuộc chat của `zalo_send_message` là `threadType`
+(0 = chat riêng, 1 = nhóm), và `zalo_get_messages` đọc bằng `since` chứ không có `cursor`. Tài liệu MCP của dự án gốc:
 
 <https://github.com/PhucMPham/zalo-agent-cli/blob/main/skill/references/mcp-guide.md>
 

@@ -12,6 +12,7 @@ thêm transport stdio (MCP local như zalo-agent-cli, webcake-landing-mcp) và
 Lỗi 1 lần → đóng session, dựng lại, retry ĐÚNG 1 lần rồi mới trả "ERROR: ...".
 """
 import asyncio
+import itertools
 import hashlib
 import importlib
 import json
@@ -451,6 +452,10 @@ def _spec_hash(spec):
     return hash(core)
 
 
+# Số hiệu phiên MCP, tăng dần và KHÔNG bao giờ tái dùng (khác `id(obj)`, bị tái dùng sau khi GC).
+_EPOCH = itertools.count(1)
+
+
 class SessionPool:
     """Giữ session MCP sống giữa các tin nhắn. key = định danh connection."""
 
@@ -494,10 +499,20 @@ class SessionPool:
             ent = None
             self._sessions.pop(key, None)
         if not ent:
-            ent = {"obj": self._make(spec), "hash": h, "last": time.time()}
+            ent = {"obj": self._make(spec), "hash": h, "last": time.time(), "epoch": next(_EPOCH)}
             self._sessions[key] = ent
         ent["last"] = time.time()
         return key, ent["obj"]
+
+    def epoch(self, spec) -> int:
+        """Số hiệu của phiên MCP đang sống cho spec này, 0 nếu chưa có phiên nào.
+
+        Đổi mỗi khi phiên bị dựng lại (tiến trình chết, đổi cấu hình, đóng vì rảnh). Cần cho những
+        MCP giữ trạng thái TRONG tiến trình, ví dụ bộ đệm tin của zalo-agent-cli đánh số thứ tự từ
+        1 sau mỗi lần khởi động: con trỏ đọc giữ qua một lần dựng lại phiên là bỏ qua tin mới.
+        """
+        ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
+        return int(ent.get("epoch") or 0) if ent else 0
 
     def _danh_dau_ban(self, key, delta):
         ent = self._sessions.get(key)

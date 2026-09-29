@@ -4,9 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.64.84] - 2026-09-29
+## [0.64.84] - 2026-09-30
 ### Sửa lỗi
 - **Bot Zalo giờ trả lời được trong nhóm.** Trước đây câu trả lời hiện trong Hộp thư nhưng không tới nhóm, vì Javis gửi sai tên tham số cho Zalo nên tin nào cũng đi như chat riêng. Chat riêng vẫn như cũ.
+- **Nhóm Zalo mới hiện đúng tên nhóm** trong Hộp thư, không còn hiện tên người nhắn đầu tiên.
 - **Đọc tin Zalo không còn bị đói khi bộ đệm đầy.** Trước đây mỗi lần đọc lại từ đầu, nick ở nhiều nhóm sôi nổi thì tin mới có thể không bao giờ tới được bot.
 - **Gửi Zalo lỗi giờ hiện ở nhật ký bot** (tab Hội thoại), trước đây chỉ lướt qua vài giây rồi mất.
 
