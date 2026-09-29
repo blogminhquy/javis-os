@@ -131,6 +131,7 @@ import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một p
 import agent_avatar
 import agent_assets      # tài liệu & link gắn vào MỘT trợ lý (lưu trong frontmatter agent)
 import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
+import chatbot_cuoc_chat  # danh sách cuộc chat cho ô chọn người/nhóm của form bot
 import chatbot_store     # kho bản ghi bot + token qua secrets_store
 import channel_accounts  # tài khoản kênh dạng token (0.61.0), bot chỉ trỏ tới
 import channels          # sổ đăng ký kênh của Hộp thư hội thoại (0.61.0)
@@ -18885,6 +18886,51 @@ def _chan_nang_quyen(muc, xac_nhan):
                          "canh_bao": chatbot_store.canh_bao_muc(m)}, status_code=400)
 
 
+@app.get("/chatbots/chats")
+async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", limit: int = 60):
+    """Các cuộc chat ĐÃ BIẾT (người và nhóm) cho ô "chọn người và nhóm" của form bot.
+
+    Nguồn là Hộp thư (`conversations`) nên có tên hiển thị thật thay vì id. `account_ids` (cách nhau
+    bằng dấu phẩy) là các tài khoản kênh ĐANG TÍCH trong form, kể cả khi bot chưa tồn tại; `bot_id`
+    thêm hàng chờ duyệt và cờ "đã chọn". Phải đăng ký TRƯỚC mọi route có `{bot_id}` để "chats" không
+    bị coi là id bot.
+    """
+    bot = chatbot_store.get_bot(bot_id) if bot_id else None
+    ids = [x.strip() for x in str(account_ids or "").split(",") if x.strip()]
+    if ids:
+        tk = [channel_accounts.get_account(i) for i in ids]
+        tk = [a for a in tk if a]
+    else:
+        tk = list((bot or {}).get("accounts") or [])
+    cho = chatbot_runtime.nhom_cho(bot_id) if bot else []
+    return {"ok": True, "chats": chatbot_cuoc_chat.danh_sach(tk, q, limit, cho, bot)}
+
+
+@app.post("/chatbots/{bot_id}/people")
+async def chatbots_people(bot_id: str, chat_id: str = Form(...), on: str = Form("1")):
+    """Cho phép (hoặc gỡ) MỘT người nhắn riêng cho bot, bằng đúng một cú bấm. Đôi của
+    `/chatbots/{bot_id}/groups` cho audience `chon`. Không khởi động lại poller: `_answer` đọc lại
+    bản ghi bot MỖI LƯỢT, nên người vừa cho phép ăn ngay từ tin kế tiếp."""
+    bot = chatbot_store.get_bot(bot_id)
+    if not bot:
+        return JSONResponse({"ok": False, "error": "Không có bot nào id đó"}, status_code=404)
+    cid = str(chat_id or "").strip()
+    if not cid:
+        return JSONResponse({"ok": False, "error": "Thiếu id người"}, status_code=400)
+    bat = str(on).strip() not in ("0", "false", "")
+    ds = [str(x) for x in (bot.get("people") or [])]
+    if bat:
+        if cid not in ds:
+            ds.append(cid)
+    else:
+        ds = [x for x in ds if x != cid]
+    ok, err = chatbot_store.update_bot(bot_id, {"people": ds})
+    if not ok:
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
+    chatbot_runtime.bo_nhom_cho(bot_id, cid)
+    return {"ok": True, "people": (chatbot_store.get_bot(bot_id) or {}).get("people") or []}
+
+
 @app.post("/chatbots")
 async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           brain: str = Form(""), agent_brain: str = Form(""),
@@ -18892,6 +18938,7 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           bot_username: str = Form(""), handoff_to: str = Form(""),
                           nguon_tra_loi: str = Form(""), muc_quyen: str = Form(""),
                           groups: str = Form(""), reply_when: str = Form(""),
+                          audience: str = Form(""), people: str = Form(""),
                           channel: str = Form(""), xac_nhan_rui_ro: str = Form(""),
                           ngon_ngu: str = Form(""), account_ids: str = Form(""),
                           account_label: str = Form("")):
@@ -18912,6 +18959,10 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         # Nhóm khai được NGAY LÚC TẠO. Bản trước chỉ cho khai ở form Sửa, nên đường đi tự nhiên
         # nhất ("tạo bot, thả vào nhóm, gọi tên") luôn kết thúc bằng một con bot im lặng.
         "groups": groups, "reply_when": reply_when,
+        # "Bot trả lời ai" (0.64.85): mọi cuộc chat / chat riêng thoải mái nhóm thì chọn / chỉ người
+        # và nhóm đã chọn. Chọn "mọi cuộc chat" đòi cùng ô xác nhận rủi ro với mức quyền nâng, và
+        # rào đó nằm ở KHO (`chatbot_store.can_xac_nhan_doi_tuong`), không chỉ ở đây.
+        "audience": audience, "people": people,
         # Ngôn ngữ bot trả lời KHÁCH. "auto" = bám theo khách; ghim một mã khi khách của chủ
         # nói cùng một thứ tiếng. Cố ý KHÔNG thừa hưởng ngôn ngữ của chủ, xem chatbot_store.
         "ngon_ngu": ngon_ngu,

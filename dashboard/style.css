@@ -2801,6 +2801,95 @@ body.ne-full-on .cview { z-index: 250; }
 .cb-nangcao summary::-webkit-details-marker { display: none; }
 .cb-nangcao[open] summary { color: var(--text); }
 
+/* ---- Form bot 0.64.85: bốn phần, thẻ chọn, nút chọn một, ô chọn người và nhóm ----
+   Mỗi phần một quyết định, cách nhau bằng đường kẻ mảnh thay vì hộp lồng hộp. Chữ giải thích rút
+   về một dòng dưới ô chọn; phần dài chuyển sang tài liệu. */
+.cb-form input[type=radio], .cb-form input[type=checkbox] { width: auto; padding: 0; }
+.cb-sec { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.cb-sec0 { margin-top: 14px; padding-top: 0; border-top: 0; }
+.cb-sec-h { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600;
+  color: var(--text); margin-bottom: 10px; }
+.cb-sec-h svg { color: var(--text3); flex: none; }
+.cb-sec0 > input { margin-bottom: 8px; }
+.cb-sub { font-size: 13px; color: var(--text2); font-weight: 600; margin: 14px 0 6px; }
+
+/* Thẻ chọn (radio card): ba phương án "bot trả lời ai" đứng cạnh nhau để so sánh. */
+.cb-rcs { display: grid; gap: 8px; }
+.cb-form label.cb-rc { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1);
+  cursor: pointer; font-weight: 400; position: relative; }
+.cb-rc:hover { border-color: var(--info-line); }
+.cb-form label.cb-rc.on { border-color: var(--accent); background: var(--info-wash); }
+.cb-rc input, .cb-sg input { position: absolute; opacity: 0; pointer-events: none; width: 0 !important;
+  height: 0; margin: 0; }
+.cb-rc-dot { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--text3); flex: none;
+  margin-top: 2px; box-sizing: border-box; }
+.cb-rc.on .cb-rc-dot { border-color: var(--accent); background: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--bg2); }
+.cb-rc-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cb-rc-t b { font-size: 13.5px; color: var(--text); font-weight: 600; }
+.cb-rc-t small { font-size: 12.5px; color: var(--text3); line-height: 1.45; }
+
+/* Nút chọn một (segmented): 2-3 lựa chọn ngắn thay cho ô xổ xuống. */
+.cb-seg { display: flex; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.cb-form label.cb-sg { flex: 1 1 0; margin: 0; padding: 8px 6px; text-align: center; font-size: 13px;
+  font-weight: 500; color: var(--text2); cursor: pointer; border-right: 1px solid var(--border);
+  background: var(--surface-1); position: relative; }
+.cb-sg:last-child { border-right: 0; }
+.cb-sg:hover { color: var(--text); }
+.cb-form label.cb-sg.on { background: var(--info-wash); color: var(--accent); font-weight: 600; }
+
+/* Ô chọn người và nhóm: tab Nhóm / Người, ô tìm, danh sách tick, thêm bằng id. */
+.cb-pk { margin-top: 10px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  background: var(--surface-1); }
+.cb-pk-h { display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--surface-3);
+  border-bottom: 1px solid var(--border); }
+.cb-pk-tabs { display: flex; gap: 4px; }
+.cb-pk-tab { background: none; border: 1px solid transparent; border-radius: 7px; padding: 4px 10px;
+  font-size: 13px; color: var(--text3); cursor: pointer; font-weight: 600; }
+.cb-pk-tab.on { background: var(--bg2); color: var(--text); border-color: var(--border); }
+.cb-form input.cb-pk-q { margin-left: auto; max-width: 190px; padding: 5px 9px; font-size: 13px; }
+.cb-pk-body { max-height: 220px; overflow-y: auto; }
+.cb-form label.cb-pk-li { display: flex; align-items: center; gap: 10px; margin: 0; padding: 8px 12px;
+  border-top: 1px solid var(--border); font-size: 13.5px; color: var(--text); font-weight: 400;
+  cursor: pointer; }
+.cb-pk-li:first-child { border-top: 0; }
+.cb-pk-li:hover { background: var(--surface-3); }
+.cb-pk-n { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-pk-li small { color: var(--text3); font-size: 12px; flex: none; }
+.cb-bd { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--warn-wash);
+  color: var(--warn-ink); border: 1px solid var(--warn-line); flex: none; }
+.cb-pk-rong { padding: 16px; text-align: center; font-size: 13px; color: var(--text3); line-height: 1.6; }
+.cb-pk-add { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--border);
+  background: var(--surface-3); }
+.cb-form .cb-pk-add input { flex: 1 1 auto; padding: 5px 9px; font-size: 13px; }
+.cb-pk-hint { padding: 0 12px 10px; margin-top: 8px; }
+/* Ô xác nhận "mọi cuộc chat": là một cảnh báo, không phải một dòng chú thích, nên có nền riêng. */
+.cb-form label.cb-ack-aud { margin: 10px 0 0; padding: 9px 11px; border-radius: 9px; font-size: 12.5px;
+  line-height: 1.5; font-weight: 500; color: var(--warn-ink); background: var(--warn-wash);
+  border: 1px solid var(--warn-line); }
+.cb-xem-du { background: none; border: 0; padding: 0; margin-top: 4px; cursor: pointer; font: inherit;
+  font-weight: 600; color: inherit; text-decoration: underline; }
+
+/* Thẻ bot gọn (0.64.85): mức quyền là một chip trong hàng meta, việc phụ vào menu "...". */
+.cb-meta .cb-quyen { padding: 1px 8px; border-radius: 999px; gap: 4px; line-height: 1.6; font-size: 12px;
+  align-items: center; }
+/* Dòng "Trả lời: ..." là MỘT câu chạy liền: .cb-meta span là flex nên chữ bị xé thành các ô rời
+   và nhãn "Trả lời:" xuống dòng giữa chừng. Ép về block để câu chảy tự nhiên. */
+.cb-meta.cb-tt .cb-tt-t { display: block; color: var(--text2); line-height: 1.5; }
+.cb-meta.cb-tt .cb-tt-t svg { vertical-align: -2px; margin-right: 4px; }
+.cb-mn { position: relative; margin-left: auto; }
+.cb-mn-b { font-size: 18px; line-height: 1; padding: 4px 10px; }
+.cb-mn-l { position: absolute; right: 0; bottom: calc(100% + 4px); min-width: 170px; z-index: 5;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 4px;
+  box-shadow: var(--shadow-3, 0 10px 30px rgba(0, 0, 0, .35)); display: flex; flex-direction: column; }
+.cb-mn-l[hidden] { display: none; }
+.cb-mn-l button { display: flex; align-items: center; gap: 8px; background: none; border: 0;
+  text-align: left; padding: 8px 10px; font: inherit; font-size: 13px; color: var(--text2);
+  border-radius: 7px; cursor: pointer; }
+.cb-mn-l button:hover { background: var(--surface-3); color: var(--text); }
+.cb-mn-l .cb-del:hover { color: var(--red); }
+
 /* ---- Nhật ký bot: hai tab "Bot bí" / "Hội thoại gần đây" ---- */
 .cb-log-form { width: min(760px, 96vw); }
 .cb-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }

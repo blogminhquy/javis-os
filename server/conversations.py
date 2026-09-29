@@ -424,6 +424,12 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
     return [_conv_public(_row(r)) for r in rows]
 
 
+def cuoc_chat_cua_tai_khoan(channel: str, account_id: str, q: str = "", limit: int = 80) -> List[dict]:
+    """Các cuộc chat ĐÃ BIẾT của một tài khoản kênh (theo id NGOÀI của tài khoản, như
+    `channel_accounts` giữ), mới nhất trước. Cho ô chọn người/nhóm của form bot."""
+    return danh_sach(account_id=_tai_khoan_id(channel, account_id), q=q, limit=limit)
+
+
 def chi_tiet(conversation_id: int) -> Optional[dict]:
     with _lock:
         r = _conn().execute(

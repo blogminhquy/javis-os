@@ -296,6 +296,24 @@ def _khop_nhom(danh_sach, chat_id: str) -> bool:
     return cid in ds or bool(khac and khac in ds)
 
 
+def _audience_cua(bot_cfg: dict) -> str:
+    """"Bot trả lời ai" của một bản ghi. Thiếu khoá = bản ghi cũ = `nhom` (hành vi cũ). Có khoá mà
+    giá trị hỏng = `chon` (hẹp nhất): sai về phía im thì chủ thấy bot im và sửa, sai về phía mở thì
+    bot nói với người lạ dưới tên người thật. `chatbot_store._public` áp cùng luật này lúc đọc,
+    nhưng hàm này còn nhận cả dict trần (test, đường vào khác) nên tự canh lấy."""
+    if "audience" not in (bot_cfg or {}):
+        return chatbot_store.AUDIENCE_DEFAULT
+    a = (bot_cfg or {}).get("audience")
+    return a if a in chatbot_store.AUDIENCE else chatbot_store.AUDIENCE_HEP_NHAT
+
+
+def _nhom_duoc_phep(bot_cfg: dict, chat_id) -> bool:
+    """Nhóm này đã được cho phép chưa: `all` = mọi nhóm; còn lại phải nằm trong `groups`."""
+    if _audience_cua(bot_cfg) == "all":
+        return True
+    return _khop_nhom(bot_cfg.get("groups") or [], chat_id)
+
+
 def _ly_do_im(bot_cfg: dict, meta: dict) -> str:
     """Vì sao bot KHÔNG mở miệng ở lượt này. "" nghĩa là cứ trả lời.
 
@@ -311,12 +329,20 @@ def _ly_do_im(bot_cfg: dict, meta: dict) -> str:
     đúng và phải im tuyệt đối.
     """
     loai = str((meta or {}).get("chat_type") or "private")
+    aud = _audience_cua(bot_cfg)
     if loai == "private":
-        return ""
-    nhom = [str(x) for x in (bot_cfg.get("groups") or [])]
+        # "Bot trả lời ai" (0.64.85): chỉ `chon` mới lọc người. `nhom` (mặc định, hành vi cũ) và `all`
+        # cho mọi người nhắn riêng. Người chưa chọn có mã RIÊNG: khác "không ai gọi tên" (im đúng),
+        # đây là việc của CHỦ và phải nổi lên danh sách chờ duyệt, cùng lý do với nhóm chưa bật.
+        if aud != "chon":
+            return ""
+        if _khop_nhom(bot_cfg.get("people") or [], (meta or {}).get("chat_id")):
+            return ""
+        return "nguoi_chua_chon"
     # Chưa khai nhóm nào thì bot không tự nhận việc trong nhóm lạ. Cùng một lý do với nhóm đã
     # khai nhưng không phải nhóm này, nên cùng một mã: cả hai đều sửa bằng cách cho phép nhóm.
-    if not nhom or not _khop_nhom(nhom, (meta or {}).get("chat_id")):
+    # Với `all` mọi nhóm bot có mặt đều đã được phép: chỉ còn `reply_when` quyết khi nào lên tiếng.
+    if not _nhom_duoc_phep(bot_cfg, (meta or {}).get("chat_id")):
         return "nhom_chua_bat"
     if bot_cfg.get("reply_when") == "always":
         return ""
@@ -349,6 +375,12 @@ def _ghi_nhom_cho(bot_id: str, meta: dict, cau: str = "", dem: bool = True) -> N
     cid = str((meta or {}).get("chat_id") or "").strip()
     if not cid:
         return
+    # Từ 0.64.85 hàng đợi chứa cả NGƯỜI chưa được chọn (audience `chon`), không chỉ nhóm: `loai` cho
+    # giao diện biết bấm Cho phép thì gọi đường nào. Người thì tên lấy từ tên người nhắn.
+    loai = "group" if str((meta or {}).get("chat_type") or "group") != "private" else "private"
+    m = meta or {}
+    ten_moi = str((m.get("chat_title") or m.get("user_name") or "") if loai == "private"
+                  else (m.get("chat_title") or ""))[:80]
     ds = _NHOM_CHO.setdefault(bot_id, {})
     cu = ds.get(cid)
     if cu:
@@ -357,14 +389,14 @@ def _ghi_nhom_cho(bot_id: str, meta: dict, cau: str = "", dem: bool = True) -> N
             cu["ts"] = time.time()
         if cau:
             cu["cau"] = str(cau)[:200]
-        if (meta or {}).get("chat_title"):
-            cu["ten"] = str(meta["chat_title"])[:80]
+        if ten_moi:
+            cu["ten"] = ten_moi
         return
     if len(ds) >= MAX_NHOM_CHO:
         # Đầy thì bỏ mục CŨ NHẤT. Nhóm vừa có người gọi đáng nhìn hơn nhóm im từ tuần trước.
         cu_nhat = min(ds, key=lambda k: ds[k].get("ts", 0))
         ds.pop(cu_nhat, None)
-    ds[cid] = {"chat_id": cid, "ten": str((meta or {}).get("chat_title") or "")[:80],
+    ds[cid] = {"chat_id": cid, "loai": loai, "ten": ten_moi,
                "ts": time.time(), "lan": 1 if dem else 0, "cau": str(cau or "")[:200]}
 
 
@@ -403,6 +435,12 @@ def _make_precheck_fn(bot_id: str):
         ly_do = _ly_do_im(cfg, meta or {})
         if not ly_do:
             return None
+        if ly_do == "nguoi_chua_chon":
+            # Người ngoài danh sách (audience `chon`): im TUYỆT ĐỐI, nhưng nổi lên hàng chờ duyệt
+            # kèm nút Cho phép. Im mà không để lại dấu thì chủ chỉ thấy "bot hỏng" (cùng bài học
+            # với nhóm chưa bật).
+            _ghi_nhom_cho(bot_id, meta or {}, text)
+            return {}
         if ly_do != "nhom_chua_bat":
             return {}       # không ai gọi tên: im tuyệt đối, và không có gì để chủ duyệt
         # Nhóm chưa bật, nhưng lượt này có phải một lần GỌI BOT thật không? Hỏi lại chính luật
@@ -438,9 +476,9 @@ def _make_event_fn(bot_id: str):
             # thì luôn tới. Không có nhánh này thì người dùng gõ /id trong nhóm, quay lại
             # dashboard, và vẫn không thấy nhóm nào để bấm cho phép - ngõ cụt hoàn toàn.
             cfg = chatbot_store.get_bot(bot_id)
-            if cfg and not _khop_nhom(cfg.get("groups") or [], cid):
-                _ghi_nhom_cho(bot_id, {"chat_id": cid, "chat_title": (tt or {}).get("chat_title")},
-                              dem=False)
+            if cfg and not _nhom_duoc_phep(cfg, cid):
+                _ghi_nhom_cho(bot_id, {"chat_id": cid, "chat_type": "group",
+                                       "chat_title": (tt or {}).get("chat_title")}, dem=False)
         elif loai == "roi_nhom":
             bo_nhom_cho(bot_id, cid)
             _DA_BAO_NHOM.discard((bot_id, cid))
@@ -484,7 +522,7 @@ def _chan_doan_nhom(bot_id: str, chat: str, meta: dict) -> str:
     if str((meta or {}).get("chat_type") or "private") == "private":
         return dong[0]
 
-    if not _khop_nhom(cfg.get("groups") or [], chat):
+    if not _nhom_duoc_phep(cfg, chat):
         dong.append("Nhóm này **chưa được bật** cho em. Chủ bot mở trang Chatbot của Javis, "
                     "thẻ của em sẽ thấy nhóm này đang chờ, bấm **Cho phép** một cái là xong.")
     else:

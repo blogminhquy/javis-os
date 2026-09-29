@@ -123,20 +123,20 @@ check("xoá nói rõ brain và Agent KHÔNG bị xoá",
 check("form nói rõ bot tạo ra ở trạng thái tắt",
   /<b>' \+\s*\n?\s*esc\(window\.t\("cb\.tao_xong_tat"\)\) \+ '<\/b>/.test(CB)
   && VI["cb.tao_xong_tat"] === "TẮT" && tu("cb.tao_xong_1", "trạng thái"));
-check("form nói rõ bot đọc tài liệu của brain nào", noi("cb.hint_agent_2", "chính brain này"));
+check("form nói rõ bot đọc tài liệu của brain nào", noi("cb2.s_ai_hint", "chỉ đọc tài liệu trong brain"));
 // Lựa chọn quyết định bot "ăn nhập với Agent" hay không. Bản 0.20.0 ép cứng chế độ chỉ-tài-
 // liệu cho mọi bot, và một Agent coach viết rất kỹ vẫn trả lời "em chưa có thông tin" cho
 // đúng câu thuộc chuyên môn của nó. Phải cho chọn, và phải giải thích ngay tại chỗ chọn.
-check("form cho chọn nguồn trả lời", /id="cbNguon"/.test(CB));
-check("mặc định là chuyên môn Agent", /value="agent"[^>]*\+ \(!b \|\| b\.nguon_tra_loi !== "tai_lieu"/.test(CB));
-check("giải thích khi nào dùng chế độ nào", noi("cb.hint_nguon_2", "thiệt hại thật"));
+check("form cho chọn nguồn trả lời (nút bấm chọn một)", /htmlSeg\("cbNguon", "cbNguon"/.test(CB));
+check("mặc định là chuyên môn Agent", /nguon0 = \(b && b\.nguon_tra_loi === "tai_lieu"\) \? "tai_lieu" : "agent"/.test(CB));
+check("giải thích khi nào dùng chế độ nào", noi("cb2.nguon_tl_h", "giá và chính sách"));
 // Trang phải nói ĐÚNG việc Javis làm: nó không viết luật cho bot, nó chỉ khoá phạm vi brain.
 // Hứa nhiều hơn thế là dạy người dùng tin vào một rào không tồn tại.
 check("nói rõ Javis không thêm luật của mình vào Agent",
-  noi("cb.hint_nguon_1", "Javis không thêm luật nào của"));
+  noi("cb2.nguon_agent_h", "Javis không thêm luật nào của"));
 check("nói rõ rào duy nhất là chỉ đọc được brain này",
   CB.includes("cb.intro_chi_doc") && /chỉ đọc\b[\s\S]{0,40}brain này/.test(VI["cb.intro_chi_doc"] || ""));
-check("lựa chọn được gửi lên server", /nguon_tra_loi: ngu/.test(CB));
+check("lựa chọn được gửi lên server", /nguon_tra_loi: giaTri\("cbNguon"\)/.test(CB));
 check("thẻ bot hiện đang chạy chế độ nào",
   /b\.nguon_tra_loi === "tai_lieu" \? window\.t\("cb\.nguon_tl_ngan"\)/.test(CB)
   && tu("cb.nguon_tl_ngan", "chỉ tài liệu"));
@@ -149,7 +149,7 @@ check("trang nói rõ bot không ghi, không có lệnh quản trị",
 // Chủ repo mở phạm vi ngày 2026-08-05: "anh vẫn muốn có thể thực hiện nhiều task, nhưng em
 // thêm phần thông báo cho anh để hiểu rõ nguy cơ". Nghĩa là ô chọn mức KHÔNG được là một
 // dropdown trơ ba dòng - mỗi mức phải kể ra nó lấy đi cái gì, ngay tại chỗ chọn.
-check("form cho chọn mức quyền", /id="cbMuc"/.test(CB));
+check("form cho chọn mức quyền (ba nút bấm, không phải ô xổ xuống)", /htmlMuc\(muc0\)/.test(CB) && /htmlSeg\("cbMuc", "cbMuc"/.test(CB));
 check("có ô đồng ý rủi ro", /id="cbAck"/.test(CB));
 check("gửi mức quyền lên server", /muc_quyen: muc/.test(CB));
 check("gửi kèm xác nhận đã đọc rủi ro", /xac_nhan_rui_ro: "1"/.test(CB));
@@ -157,7 +157,7 @@ check("gửi kèm xác nhận đã đọc rủi ro", /xac_nhan_rui_ro: "1"/.test
 // cảnh báo vẫn hứa như cũ, và chủ bấm đồng ý dựa trên một câu đã sai.
 check("cảnh báo lấy từ server chứ không chép cứng ở giao diện",
   /d\.muc_quyen \|\| \[\]/.test(CB) && /m\.canh_bao/.test(CB));
-check("đổi mức là vẽ lại cảnh báo ngay", /oMuc\.onchange/.test(CB));
+check("đổi mức là vẽ lại cảnh báo ngay", /input\[name="cbMuc"\]'\)\.forEach[\s\S]{0,160}veCanhBao\(giaTri\("cbMuc"\)\)/.test(CB));
 // Chưa tick mà lưu được thì cả khối cảnh báo chỉ là trang trí.
 check("chưa tick đồng ý thì không lưu được",
   /can_xac_nhan && !\(ack && ack\.checked\)/.test(CB));
@@ -270,24 +270,24 @@ check("nạp ngầm không nhấp nháy màn hình", /async function tai\(im\)/.
 // không dòng nào ở đây. "Hành vi đúng" và "bot hỏng" trông y hệt nhau.
 check("thẻ hiện nhóm đang chờ chủ cho phép", /b\.nhom_cho/.test(CB) && /cb-nhomcho/.test(CB));
 check("cho phép nhóm bằng ĐÚNG một cú bấm",
-  /cb-ok-nhom/.test(CB) && /\/groups"/.test(CB) && /choNhom\(b, cid, true\)/.test(CB));
-check("và bỏ qua được nhóm không muốn", /cb-bo-nhom/.test(CB) && /choNhom\(b, cid, false\)/.test(CB));
+  /cb-ok-nhom/.test(CB) && /\/groups"/.test(CB) && /choNhom\(b, cid, true, loai\)/.test(CB));
+check("và bỏ qua được nhóm không muốn", /cb-bo-nhom/.test(CB) && /choNhom\(b, cid, false, loai\)/.test(CB));
 check("CSS cho khối nhóm chờ đã có", /\.cb-nhomcho \{/.test(CSS));
 // Khai nhóm ngay lúc TẠO. Bản trước chỉ cho khai ở form Sửa, nên đường đi tự nhiên nhất (tạo
 // bot rồi thả thẳng vào nhóm) bảo đảm lần thử đầu của mọi người dùng gặp một con bot im lặng.
 check("CANARY: ô nhóm KHÔNG còn bị giấu sau form Sửa",
-  !/\(sua \? '<label>Nhóm được phép/.test(CB) && /id="cbGroups"/.test(CB));
-check("form tạo cũng gửi nhóm lên server", /groups: gr, reply_when: rw/.test(CB));
-check("chọn được khi nào bot lên tiếng trong nhóm", /id="cbReplyWhen"/.test(CB));
-check("có lựa chọn Tự đánh giá (reply_when=auto) trong ô chọn khi nào bot lên tiếng",
-      /<option value="auto"/.test(CB) && /cb\.rw_auto/.test(CB));
+  !/\(sua \? '<label>Nhóm được phép/.test(CB) && /id="cbPk"/.test(CB));
+check("form tạo cũng gửi nhóm và người lên server",
+  /groups: co \? ds\("group"\)\.join/.test(CB) && /audience: aud, people: ds\("private"\)/.test(CB));
+check("chọn được khi nào bot lên tiếng trong nhóm", /htmlSeg\("cbRw", "cbRw"/.test(CB));
+check("có lựa chọn Tự đánh giá (reply_when=auto) trong nút chọn khi nào bot lên tiếng",
+      /v: "auto"/.test(CB) && /cb2\.rw_auto/.test(CB));
 check("thẻ bot nêu đúng chế độ Tự đánh giá, không gộp vào 'khi được gọi tên'",
       /reply_when === "auto"[\s\S]{0,80}cb\.tl_tu_danh_gia/.test(CB));
-check("gợi ý 'gõ /id trong nhóm' chỉ hiện khi có tài khoản Telegram (Zalo không có lệnh đó)",
-      /class="cb-chi-tg"/.test(CB) && /class="cb-khong-tg"/.test(CB) &&
-      /a\.channel === "telegram"[\s\S]{0,200}cb-chi-tg/.test(CB));
+check("gợi ý chế độ riêng tư chỉ hiện khi có tài khoản Telegram (Zalo không có @BotFather)",
+      /class="cb-hint cb-chi-tg" id="cbRwTg"/.test(CB) && /a\.channel === "telegram"[\s\S]{0,160}cbRwTg/.test(CB));
 check("lựa chọn 'được gọi tên' KHÔNG được chọn sẵn khi bot đang ở Tự đánh giá",
-      /b\.reply_when !== "always" && b\.reply_when !== "auto"/.test(CB));
+      /var rw0 = \(b && \(b\.reply_when === "auto" \|\| b\.reply_when === "always"\)\) \? b\.reply_when : "mention"/.test(CB));
 // Chế độ riêng tư của Telegram chặn Ở PHÍA TELEGRAM, trước khi Javis nhìn thấy tin nào. Đây là
 // nguyên nhân số một của "nhắn riêng thì được, trong nhóm tag tên thì im re", nên cảnh báo phải
 // hiện cho MỌI bot có dùng nhóm - không riêng bot đặt "trả lời mọi tin" như bản trước.
@@ -324,9 +324,8 @@ check("kênh lạ trả rỗng chứ không vẽ dấu hỏi", /if \(!k\) return
 check("kênh hiện trên thẻ bot (huy hiệu ở icon khi một tài khoản + chip cho từng tài khoản)",
   /class="cb-ico-kenh"/.test(CB) && /function chipTK\(/.test(CB) && /\.map\(chipTK\)/.test(CB));
 check("form hỏi KÊNH NGAY Ở ĐẦU, trước cả tên bot",
-  tu("cb.lb_tai_khoan", "kênh") && tu("cb.lb_ten", "Tên bot") &&
-  CB.indexOf('window.t("cb.lb_tai_khoan")') > -1 &&
-  CB.indexOf('window.t("cb.lb_tai_khoan")') < CB.indexOf('window.t("cb.lb_ten")'));
+  tu("cb.lb_tai_khoan", "kênh") && CB.indexOf('window.t("cb.lb_tai_khoan")') > -1 &&
+  CB.indexOf('window.t("cb.lb_tai_khoan")') < CB.indexOf('"cb2.s_ai"'));
 check("tích được NHIỀU kênh (cùng một vai trực Telegram, Zalo Bot lẫn Zalo cá nhân)",
   /class="cb-tk-o"/.test(CB) && /account_ids: ids\.join\(","\)/.test(CB) && tu("cb.hint_tai_khoan", "nhiều kênh"));
 // 0.64.80: chọn Zalo cá nhân thì nói thẳng bot trả lời DƯỚI TÊN chủ. Đọc theo `kind` server khai.
@@ -339,9 +338,10 @@ check("CANARY: không rẽ nhánh theo id kênh (logo qua kenhCua().logo, không
   /function logoKenh\(/.test(CB) && !/Icons\.kenh\(kenh/.test(CB) && !/Icons\.kenh\(k\.id/.test(CB)
   && !/=== "zalo"/.test(CB));
 check("không tài khoản nào vào được nhóm thì ẨN cả khối nhóm, không hiện ra rồi vô tác dụng",
-  /cbKhongNhom/.test(CB) && /function coNhomForm\(/.test(CB) && /nhomBox\.style\.display = co \? "" : "none"/.test(CB));
+  /function coNhomForm\(/.test(CB) && /#cbRwBox"\)\.style\.display = co \? "" : "none"/.test(CB) &&
+  /\.cb-rc\[data-v="all"\]'\)\.style\.display = co \? "" : "none"/.test(CB));
 check("và KHÔNG gửi id nhóm thừa lên server",
-  /var coNhomLuu = coNhomForm\(\)/.test(CB) && /coNhomLuu \? box\.querySelector\("#cbGroups"\)/.test(CB));
+  /var co = coNhomForm\(\)/.test(CB) && /groups: co \? ds\("group"\)\.join\("\\n"\) : ""/.test(CB));
 check("thẻ bot nói thẳng khi chưa có kênh nào",
   noi("cb.chua_token", "chưa có kênh"));
 check("mở form từ tab Tài khoản bot với tài khoản tích sẵn", /javis:chatbot-new/.test(CB) && /chonSan/.test(CB));
@@ -368,7 +368,7 @@ check("có hai bước, bước 1 chọn chỗ trả lời và bước 2 mới c
 check("bước 1 chỉ hỏi bot trả lời ở đâu, KHÔNG hỏi tên bot",
   CB.indexOf('id="cbB1"') < CB.indexOf('window.t("cb.lb_tai_khoan")') &&
   CB.indexOf('window.t("cb.lb_tai_khoan")') < CB.indexOf('id="cbB2"') &&
-  CB.indexOf('id="cbB2"') < CB.indexOf('window.t("cb.lb_ten")'));
+  CB.indexOf('id="cbB2"') < CB.indexOf('"cb2.s_ai"'));
 check("nói rõ đang ở bước mấy", noi("cb.buoc_may", "Bước {n}") && /id="cbBuoc"/.test(CB));
 // Chưa tích tài khoản nào mà sang được bước 2 thì bot tạo ra không có chỗ nào để trả lời.
 check("chưa chọn tài khoản thì không sang được bước 2",
@@ -386,23 +386,52 @@ check("hai nút ở chân form đổi vai theo bước chứ không mọc thêm 
   noi("cb.quay_lai", "Quay lại") && noi("cb.tiep_tuc", "Tiếp tục"));
 // Ba ô có mặc định dùng được ngay mới được gấp. Mức quyền thì KHÔNG: đọc sót nó là mất tiền
 // thật, nên nó phải nằm phơi ra trên màn hình chứ không phải sau một cú bấm.
-check("ngôn ngữ và nhóm gấp vào Cài đặt thêm, tên mục nói rõ bên trong có gì",
-  /class="cb-nangcao"/.test(CB) && noi("cb.nang_cao", "Cài đặt thêm: ngôn ngữ và nhóm") &&
+check("chỉ ngôn ngữ gấp vào Nâng cao; nhóm và người nằm ở phần Bot trả lời ai, ngoài khối gấp",
+  /class="cb-nangcao"/.test(CB) && noi("cb.nang_cao", "Nâng cao: ngôn ngữ trả lời") &&
   CB.indexOf('class="cb-nangcao"') < CB.indexOf('id="cbNgonNgu"') &&
-  CB.indexOf('class="cb-nangcao"') < CB.indexOf('id="cbNhomBox"'));
+  CB.indexOf('id="cbPk"') < CB.indexOf('class="cb-nangcao"') && !/id="cbNhomBox"/.test(CB));
 // 0.64.83: chủ dự án bỏ ô "người trực nhận chuyển tiếp" (Chat ID Telegram, vô nghĩa với bot Zalo).
 check("form KHÔNG còn ô người trực nhận chuyển tiếp và không gửi handoff_to lên server",
   !/id="cbHandoff"/.test(CB) && !/handoff_to:\s*ho/.test(CB) && !/cb\.lb_handoff/.test(CB));
-check("bỏ ô đó thì không được mất chú thích còn dùng chung ('Bỏ trống thì bot...' ở khối nhóm)",
-  /cb\.hint_ho_3/.test(CB) && !!VI["cb.hint_ho_3"]);
-// Chế độ Tự đánh giá nằm trong khối gấp này; chủ báo không thấy nó (29/09) nên khối phải tự mở.
-check("Cài đặt thêm tự mở MỘT lần khi bot có kênh vào được nhóm",
-  /details\.cb-nangcao/.test(CB) && /nangCao\.open = true/.test(CB) && /daMo/.test(CB));
-check("CANARY: mức quyền KHÔNG bị gấp vào khối Cài đặt thêm",
-  CB.indexOf('id="cbMuc"') < CB.indexOf('class="cb-nangcao"'));
+check("thẻ bot KHÔNG còn nhãn cảnh báo 'chưa đặt người nhận' (hết chỗ để đặt)",
+  !/cb\.chua_nguoi_nhan/.test(CB));
+// 0.64.85: form một cuộn, bốn phần theo đúng thứ tự, phần "bot trả lời ai" là phần nổi bật thứ hai.
+check("bốn phần theo đúng thứ tự: Bot là ai, Bot trả lời ai, Bot dựa vào đâu, Bot được làm gì",
+  CB.indexOf('secH("bot", "cb2.s_ai")') > -1 &&
+  CB.indexOf('secH("bot", "cb2.s_ai")') < CB.indexOf('secH("users", "cb2.s_doituong")') &&
+  CB.indexOf('secH("users", "cb2.s_doituong")') < CB.indexOf('secH("book-open", "cb2.s_nguon")') &&
+  CB.indexOf('secH("book-open", "cb2.s_nguon")') < CB.indexOf('secH("shield", "cb2.s_quyen")'));
+check("'Bot trả lời ai' có ba thẻ chọn: mọi cuộc chat, nhóm thì chọn, chỉ người và nhóm chọn",
+  /htmlThe\("all"/.test(CB) && /htmlThe\("nhom"/.test(CB) && /htmlThe\("chon"/.test(CB) &&
+  /name="cbAud"/.test(CB) && tu("cb2.aud_all_t", "Mọi cuộc chat") && tu("cb2.aud_chon_t", "Chỉ người và nhóm"));
+check("chọn 'mọi cuộc chat' phải tick xác nhận rủi ro (server cũng chặn lần nữa)",
+  /id="cbAckAud"/.test(CB) && /cb2\.can_ack_aud/.test(CB) && tu("cb2.aud_all_ack", "bạn bè và người nhà"));
+check("ô chọn người/nhóm lấy danh sách từ Hộp thư qua /chatbots/chats, không bắt dán id",
+  /\/chatbots\/chats\?account_ids=/.test(CB) && /id="cbPkQ"/.test(CB) && /id="cbPkAdd"/.test(CB) &&
+  tu("cb2.pk_cho", "Chờ bạn cho phép"));
+check("kênh không có nhóm thì ẨN thẻ 'mọi cuộc chat' và đổi chữ hai thẻ còn lại",
+  /aud_moi_t/.test(CB) && /aud_chon_ko_t/.test(CB));
+check("thẻ bot có một dòng 'Trả lời: ...' và menu '...' cho việc phụ",
+  /tomTatDoiTuong\(b\)/.test(CB) && /class="cb-mn"/.test(CB) && /class="cb-mn-l" hidden/.test(CB) &&
+  /cb-log/.test(CB) && /cb-hoi-thoai/.test(CB) && /cb-del/.test(CB));
+check("hàng chờ duyệt có cả người, nút Cho phép gọi /people cho người và /groups cho nhóm",
+  /\/people"/.test(CB) && /cb2\.cho_nguoi/.test(CB) && /data-loai=/.test(CB));
+check("cảnh báo mức quyền gọn: hiện 2 câu đầu, còn lại sau 'Xem đủ rủi ro'",
+  /const HIEN|var HIEN = 2/.test(CB) && /class="cb-xem-du"/.test(CB) && tu("cb2.xem_du", "Xem đủ rủi ro"));
+check("mọi khoá cb2.* giao diện dùng đều có trong tiếng Việt và tiếng Anh", (function () {
+  var ks = {};
+  (CB.match(/"cb2\.[a-z_]+"/g) || []).forEach(function (k) { ks[k.slice(1, -1)] = 1; });
+  var thieu = Object.keys(ks).filter(function (k) { return !VI[k] || !EN[k]; });
+  if (thieu.length) console.log("  thiếu:", thieu.join(", "));
+  return Object.keys(ks).length > 30 && !thieu.length;
+})());
+check("CANARY: mức quyền KHÔNG bị gấp vào khối Nâng cao",
+  CB.indexOf('htmlMuc(muc0)') > -1 && CB.indexOf('htmlMuc(muc0)') < CB.indexOf('class="cb-nangcao"'));
 check("CSS của form hai bước đã có",
   /\.cb-wizard \.cb-form-acts/.test(CSS) && /\.cb-buoc \{/.test(CSS) &&
-  /\.cb-tom \{/.test(CSS) && /\.cb-nangcao \{/.test(CSS));
+  /\.cb-tom \{/.test(CSS) && /\.cb-nangcao \{/.test(CSS) &&
+  /\.cb-rc \{|\.cb-form label\.cb-rc \{/.test(CSS) && /\.cb-seg \{/.test(CSS) && /\.cb-pk \{/.test(CSS) &&
+  /\.cb-mn \{/.test(CSS));
 // Gõ lại đúng cái tên vừa đọc ở bước trước là việc thừa.
 check("gợi sẵn tên bot từ tài khoản vừa chọn",
   /if \(!ten\.value\.trim\(\)\) ten\.value = \(tkDangChon\(\)\[0\] \|\| \{\}\)\.ten/.test(CB));

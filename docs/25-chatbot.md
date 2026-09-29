@@ -95,19 +95,31 @@ Cái đầu để **người khác nói chuyện với Javis**. Cái sau để *
 
 ### Bước 1: Tạo bot
 
-Bấm **Bot mới**, điền:
+Bấm **Bot mới**. Từ 0.64.85 form có **bốn phần**, mỗi phần một quyết định, và những ô ít khi đụng tới nằm trong mục **Nâng cao** đã gập sẵn:
 
-| Ô | Điền gì |
+| Phần | Điền gì |
 |---|---|
-| Bot trực tài khoản kênh nào | Tích một hay nhiều tài khoản ở tab Tài khoản bot (chỉ hiện tài khoản của brain này mà chưa bot nào trực). Chưa có thì mở **Thêm tài khoản mới bằng token**: chọn loại kênh, dán token, Kiểm tra. Xem [Chọn Telegram hay Zalo](#chọn-telegram-hay-zalo) |
-| Tên bot | Tên bạn nhìn để phân biệt các bot với nhau |
-| Agent làm bộ não | Chọn Agent trong brain đang mở, hoặc bấm **Tạo Agent** |
-| Bot trả lời dựa trên gì | Xem mục hai chế độ ở dưới |
-| Bot được làm gì | Mức quyền. Cứ để **Chỉ đọc** cho lần đầu; xem mục [Ba mức quyền](#ba-mức-quyền---bot-được-làm-gì) trước khi nâng |
-| Nhóm được phép | Chỉ hiện khi có tài khoản ở kênh vào được nhóm (Telegram, Zalo cá nhân). Để trống cũng được - thả bot vào nhóm rồi cho phép bằng một cú bấm sau (xem Bước 4) |
-| Khi nào bot lên tiếng trong nhóm | Cùng điều kiện. Mặc định chỉ khi được gọi tên hoặc reply vào nó. Có thêm **Tự đánh giá** (xem [Bot trên Zalo cá nhân](#bot-trên-zalo-cá-nhân-nhóm-và-chế-độ-tự-đánh-giá)) |
+| **Bot là ai** | Tích một hay nhiều tài khoản kênh (chỉ hiện tài khoản của brain này mà chưa bot nào trực), đặt tên bot, chọn Agent làm bộ não hoặc bấm **Tạo Agent**. Chưa có tài khoản thì mở **Thêm tài khoản mới bằng token**: chọn loại kênh, dán token, Kiểm tra. Xem [Chọn Telegram hay Zalo](#chọn-telegram-hay-zalo) |
+| **Bot trả lời ai** | Ba thẻ chọn một, xem mục [Bot trả lời ai](#bot-trả-lời-ai) ngay dưới. Chọn nhóm hay người thì tick trong danh sách, không phải gõ id. Kèm nút chọn **khi nào bot lên tiếng trong nhóm**: Được gọi tên (mặc định), Tự đánh giá, hoặc Mọi tin |
+| **Bot dựa vào đâu để trả lời** | Agent và tài liệu, hoặc Chỉ tài liệu. Xem mục hai chế độ ở dưới |
+| **Bot được làm gì** | Mức quyền. Cứ để **Chỉ đọc** cho lần đầu; xem mục [Ba mức quyền](#ba-mức-quyền---bot-được-làm-gì) trước khi nâng |
+| Nâng cao | Ngôn ngữ trả lời |
 
-Chỉ có tài khoản Zalo Bot thì hai ô cuối **biến mất** thay vì hiện ra rồi vô tác dụng: gói bot cơ bản của Zalo không cho bot vào nhóm, nên khai id nhóm ở đó chỉ là một lời hứa suông nằm lại trong dữ liệu.
+Chỉ có tài khoản Zalo Bot thì phần chọn nhóm **biến mất** thay vì hiện ra rồi vô tác dụng: gói bot cơ bản của Zalo không cho bot vào nhóm, nên chọn nhóm ở đó chỉ là một lời hứa suông nằm lại trong dữ liệu.
+
+#### Bot trả lời ai
+
+Đây là quyết định quan trọng nhất của form, nên nó là ba thẻ nằm cạnh nhau để so sánh:
+
+| Thẻ | Bot làm gì |
+|---|---|
+| **Mọi cuộc chat trên kênh** | Trả lời nhắn riêng và mọi nhóm bot có mặt. Phải tick ô xác nhận, vì nếu đây là tài khoản Zalo cá nhân thì bạn bè và người nhà cũng được trả lời |
+| **Ai nhắn riêng cũng được, nhóm thì tôi chọn** | **Mặc định.** Nhắn riêng thì ai cũng được, nhóm nào chưa tick thì bot im |
+| **Chỉ người và nhóm tôi chọn** | Bot im với mọi cuộc chat khác. Người và nhóm chưa tick nằm ở hàng chờ trên thẻ bot, bấm **Cho phép** là xong |
+
+Chỉ có kênh nhắn riêng (Zalo Bot) thì thẻ đổi nhãn thành "Ai nhắn cũng được" và "Chỉ người tôi chọn". Bấm thẻ cuối là hiện **ô chọn người và nhóm**: hai tab Nhóm / Người có số đếm, ô tìm theo tên, danh sách các cuộc chat đã nhắn tới tài khoản, và ô **Thêm bằng id** cho cuộc chat chưa từng nhắn. Cuộc chat đang chờ bạn cho phép được xếp lên đầu và có nhãn.
+
+Các thẻ không thay đổi việc bot phải được gọi tên trong nhóm: nhóm đã chọn vẫn theo nút "khi nào bot lên tiếng". Thẻ chỉ quyết định **bot có được phép đứng ở cuộc chat đó hay không**.
 
 **Không có ô chọn brain**, và đó là cố ý: bot thuộc về brain bạn đang mở. Muốn bot ở brain khác thì đổi brain ở đầu trang rồi tạo lại - một chỗ để nhìn, không có hai lớp phải khớp nhau.
 
@@ -137,15 +149,15 @@ Bot đã đặt người trực từ trước 0.64.83 thì **giữ nguyên** (th
 
 Dùng `/id` chứ không phải gọi tên bot, và đó là chủ ý: **lệnh `/...` luôn tới được bot** dù Telegram đang bật chế độ riêng tư, còn tin nhắc tên thì chưa chắc (xem mục dưới). Nếu bước 2 mà bot **không trả lời gì cả** thì vấn đề không nằm ở nhóm - hoặc bot đang tắt, hoặc token hỏng; xem chấm trạng thái trên thẻ.
 
-Khai tay cũng được: lấy id ở bước 2 (một số **âm**, dạng `-1001234567890`) rồi dán vào ô **Nhóm được phép** trong form tạo hoặc sửa bot, mỗi id một dòng.
+Khai tay cũng được: lấy id ở bước 2 (một số **âm**, dạng `-1001234567890`) rồi dán vào ô **Thêm bằng id** trong phần **Bot trả lời ai** của form tạo hoặc sửa bot.
 
-**Chưa cho phép nhóm thì bot không trả lời trong nhóm đó.** Đây là mặc định cố ý: bot bị thả vào một nhóm lạ mà tự nhận việc là nó chen vào giữa cuộc nói chuyện của người khác. Nhưng từ chối không có nghĩa là biến mất - bot nói một câu cho người đang gọi biết phải làm gì, và nhóm đó nằm chờ ngay trên thẻ để bạn quyết.
+**Chưa cho phép nhóm thì bot không trả lời trong nhóm đó** (trừ khi bạn chọn thẻ "Mọi cuộc chat trên kênh" ở phần Bot trả lời ai). Đây là mặc định cố ý: bot bị thả vào một nhóm lạ mà tự nhận việc là nó chen vào giữa cuộc nói chuyện của người khác. Nhưng từ chối không có nghĩa là biến mất - bot nói một câu cho người đang gọi biết phải làm gì, và nhóm đó nằm chờ ngay trên thẻ để bạn quyết.
 
 Nhóm nào bạn không muốn thì bấm **Bỏ qua**, nó rời khỏi danh sách chờ. Có người gọi bot ở đó lần nữa thì nó quay lại - trang này không giấu đi một chỗ có người đang cố dùng bot.
 
 Trong nhóm đã cho phép, mặc định bot chỉ trả lời khi có người **nhắc tên nó** (gõ `@ten_bot`, hoặc bấm chọn tên nó từ danh sách thành viên) hoặc **reply vào tin của nó**. Nhóm có nhiều bot thì nó phân biệt được: nhắc tên bot khác hay reply vào bot khác thì nó không nhận vơ.
 
-Muốn nó trả lời **mọi câu trong nhóm** thì đổi ô "Trong nhóm thì khi nào bot lên tiếng". Cân nhắc kỹ: nhóm đông người thì rất ồn và đốt quota model nhanh. Và nó chỉ có tác dụng khi đã tắt chế độ riêng tư - đọc mục ngay dưới.
+Muốn nó trả lời **mọi câu trong nhóm** thì đổi nút "Trong nhóm, bot lên tiếng khi" sang **Mọi tin**. Cân nhắc kỹ: nhóm đông người thì rất ồn và đốt quota model nhanh. Và nó chỉ có tác dụng khi đã tắt chế độ riêng tư - đọc mục ngay dưới.
 
 ### Bot trên Zalo cá nhân: nhóm và chế độ Tự đánh giá
 
@@ -155,7 +167,7 @@ Từ 0.64.82 bot gắn vào **tài khoản Zalo cá nhân** (nối ở trang K�
 
 **Được tag hoặc reply thì trả lời luôn.** Bot nhận ra tag bằng "@tên" trong chữ (tên là nhãn kết nối hoặc tên hiển thị của nick), bằng `mentions` nếu Zalo trả về, và nhận ra reply vào tin của nó. Tag người khác thì bot không nhận vơ. Nếu tag mà bot im, xem mục sự cố bên dưới.
 
-**Tự đánh giá.** Ở ô "Trong nhóm thì khi nào bot lên tiếng", chọn **Tự đánh giá**. Bot vẫn trả lời khi được tag, và thêm một việc: tin không ai gọi tên thì bot tự xem có nên lên tiếng không. Đi từ rẻ tới đắt, tầng nào loại là dừng và không tốn lượt model:
+**Tự đánh giá.** Ở nút "Trong nhóm, bot lên tiếng khi", chọn **Tự đánh giá**. Bot vẫn trả lời khi được tag, và thêm một việc: tin không ai gọi tên thì bot tự xem có nên lên tiếng không. Đi từ rẻ tới đắt, tầng nào loại là dừng và không tốn lượt model:
 
 1. Tin có giống một **câu hỏi hoặc lời nhờ giúp** không (có dấu hỏi, hay các chữ như "làm sao", "lỗi", "cách", "hướng dẫn"). Tin trò chuyện, cảm ơn, một cái link, hay tin nhắc người khác thì bỏ.
 2. **Tài liệu trong brain của bot** có phần nào khớp câu hỏi không. Đây là cách bot hiểu "chủ đề mình trả lời được": có căn cứ trong tài liệu bạn đưa, không phải kiến thức chung của model. Không có thì im.
