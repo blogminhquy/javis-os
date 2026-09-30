@@ -169,6 +169,11 @@ def nhom_msg(text, mid, nguoi="Học viên A", uid="7770001", thread=NHOM, giay_
 
 async def doc(cho=0.3):
     await zc.doc_mot_lan(dict(CONN))
+    # Máy CI chậm thì lượt trả lời chạy nền chưa xong sau một mốc ngủ cố định (đã đỏ một lần trên CI ở 0.65.3, cùng SHA xanh
+    # ở lần chạy kia). Chờ đúng các lượt đang chạy (`_VIEC`) xong, tối đa 6 giây, rồi mới ngủ thêm `cho`.
+    t0 = time.time()
+    while zc._VIEC and time.time() - t0 < 6:
+        await asyncio.sleep(0.02)
     await asyncio.sleep(cho)
 
 
