@@ -99,7 +99,7 @@ check("không khoá rp.* nào rỗng", Object.keys(VI).filter((k) => k.startsWit
 check("có nhãn sess.bot_badge", VI["sess.bot_badge"] && EN["sess.bot_badge"]);
 const codes = [...(/var CODE_LB = \{([\s\S]*?)\};/.exec(MOD) || [])[1].matchAll(/(\w+):\s*"rp\./g)].map((m) => m[1]);
 check("bảng mã im có đủ mã bộ máy phát ra", ["no_signal", "junk", "addressed_other", "no_grounding", "rate_limited", "rate_limited_user",
-  "just_spoke", "policy_error", "owner_typing", "judge_silent", "below_threshold"].every((c) => codes.indexOf(c) >= 0), codes.join(","));
+  "just_spoke", "policy_error", "owner_typing", "judge_silent", "below_threshold", "agent_silent", "taken_over"].every((c) => codes.indexOf(c) >= 0), codes.join(","));
 check("không dùng em dash trong module và test", ![MOD, fs.readFileSync(__filename, "utf8")].some((t) => t.indexOf(String.fromCharCode(0x2014)) >= 0));
 
 if (fails.length) { console.log("\nĐỎ: " + fails.length + ": " + fails.join(" | ")); process.exit(1); }

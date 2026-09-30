@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS cases(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   bot_id TEXT NOT NULL, chat_id TEXT, ts REAL NOT NULL, text TEXT, tokens TEXT,
   features_json TEXT, correct_verdict TEXT NOT NULL, reason TEXT,
-  source TEXT NOT NULL, weight REAL NOT NULL DEFAULT 1.0, origin_case_id INTEGER);
+  source TEXT NOT NULL, weight REAL NOT NULL DEFAULT 1.0, origin_case_id INTEGER, decision_id INTEGER);
 CREATE INDEX IF NOT EXISTS idx_cases_bot ON cases(bot_id, ts);
 CREATE TABLE IF NOT EXISTS watches(
   decision_id INTEGER PRIMARY KEY, bot_id TEXT NOT NULL, chat_id TEXT NOT NULL,
@@ -241,17 +241,17 @@ def close_watch(decision_id: int) -> None:
 # ============================================================
 def add_case(bot_id: str, chat_id: str, text: str, features: dict, correct_verdict: str, reason: str,
              source: str, weight: float, origin_case_id: Optional[int] = None,
-             now: Optional[float] = None) -> int:
+             now: Optional[float] = None, decision_id: Optional[int] = None) -> int:
     """Thêm một ca và giữ trần: 500 ca mỗi bot, 200 mỗi cuộc chat. Vượt thì bỏ ca có
     `trọng số × độ mới` thấp nhất TRONG PHẠM VI bị vượt (ca do chủ dạy không bao giờ bị bỏ trước)."""
     now = time.time() if now is None else now
     with _lock, _conn() as con:
         cur = con.execute(
             "INSERT INTO cases(bot_id, chat_id, ts, text, tokens, features_json, correct_verdict, reason,"
-            " source, weight, origin_case_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            " source, weight, origin_case_id, decision_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
             (str(bot_id), str(chat_id or ""), now, _cut(text), " ".join(tokens_of(text)),
              json.dumps(features or {}, ensure_ascii=False), str(correct_verdict), _cut(reason, 200),
-             str(source), float(weight), origin_case_id))
+             str(source), float(weight), origin_case_id, decision_id))
         cid = int(cur.lastrowid)
         _trim_cases(con, str(bot_id), str(chat_id or ""), now)
     _note_write(now)
@@ -302,6 +302,21 @@ def count_cases(bot_id: str, source: str = "") -> int:
 def delete_case(bot_id: str, case_id: int) -> bool:
     with _lock, _conn() as con:
         return con.execute("DELETE FROM cases WHERE id=? AND bot_id=?", (int(case_id), str(bot_id))).rowcount > 0
+
+
+def delete_cases_by_decision(bot_id: str, decision_id: int) -> int:
+    """Xoá các ca sinh ra từ MỘT quyết định (khi chủ đổi nhãn hoặc bấm lại): nhãn của chủ ghi đè, không cộng dồn."""
+    with _lock, _conn() as con:
+        return con.execute("DELETE FROM cases WHERE bot_id=? AND decision_id=?", (str(bot_id), int(decision_id))).rowcount
+
+
+def amend_decision(decision_id: int, verdict: str, silence_code: str) -> None:
+    """Sửa một quyết định cho đúng sự thật: bộ phán xử nói `reply` nhưng bước sau (hạn mức, Tiếp quản, Agent chọn
+    im) đã chặn, nên bot chưa từng nói. Nếu không sửa thì tin nối tiếp sau đó sẽ được gắn nhãn "đúng" cho một
+    câu bot không hề gửi."""
+    with _lock, _conn() as con:
+        con.execute("UPDATE decisions SET verdict=?, silence_code=? WHERE id=?",
+                    (str(verdict), str(silence_code)[:40], int(decision_id)))
 
 
 def delete_cases_by_source(bot_id: str, source: str) -> int:
@@ -393,9 +408,9 @@ def list_lessons(bot_id: str) -> List[dict]:
 # ============================================================
 # Quên, xoá, dọn, thống kê
 # ============================================================
-def forget(bot_id: str, chat_id: str = "") -> dict:
-    """Nút "quên hết": xoá ca, nhãn, độ lệch, bài học và cửa theo dõi. Có `chat_id` thì chỉ cuộc chat đó.
-    Nhật ký quyết định (chưa nhãn) vẫn giữ: đó là dấu vết, không phải thứ đã học."""
+def forget(bot_id: str, chat_id: str = "", keep_log: bool = False) -> dict:
+    """Nút "quên hết": xoá ca, độ lệch, bài học, cửa theo dõi VÀ nhật ký quyết định (đó là chữ chat của khách,
+    nên "quên" phải quên thật). Có `chat_id` thì chỉ cuộc chat đó. `keep_log=True` chỉ để giữ dấu vết khi cần."""
     b = str(bot_id)
     with _lock, _conn() as con:
         if chat_id:
@@ -404,15 +419,23 @@ def forget(bot_id: str, chat_id: str = "") -> dict:
                                   (b, c)).rowcount
             con.execute("DELETE FROM threshold_offsets WHERE bot_id=? AND chat_id=?", (b, c))
             con.execute("DELETE FROM watches WHERE bot_id=? AND chat_id=?", (b, c))
-            con.execute("UPDATE decisions SET label=NULL, label_weight=NULL, label_ts=NULL"
-                        " WHERE bot_id=? AND chat_id=?", (b, c))
-            return {"cases": n_cases, "lessons": 0}
+            if keep_log:
+                con.execute("UPDATE decisions SET label=NULL, label_weight=NULL, label_ts=NULL"
+                            " WHERE bot_id=? AND chat_id=?", (b, c))
+                n_log = 0
+            else:
+                n_log = con.execute("DELETE FROM decisions WHERE bot_id=? AND chat_id=?", (b, c)).rowcount
+            return {"cases": n_cases, "lessons": 0, "decisions": n_log}
         n_cases = con.execute("DELETE FROM cases WHERE bot_id=? AND source!='bootstrap'", (b,)).rowcount
         n_les = con.execute("DELETE FROM lessons WHERE bot_id=?", (b,)).rowcount
         con.execute("DELETE FROM threshold_offsets WHERE bot_id=?", (b,))
         con.execute("DELETE FROM watches WHERE bot_id=?", (b,))
-        con.execute("UPDATE decisions SET label=NULL, label_weight=NULL, label_ts=NULL WHERE bot_id=?", (b,))
-        return {"cases": n_cases, "lessons": n_les}
+        if keep_log:
+            con.execute("UPDATE decisions SET label=NULL, label_weight=NULL, label_ts=NULL WHERE bot_id=?", (b,))
+            n_log = 0
+        else:
+            n_log = con.execute("DELETE FROM decisions WHERE bot_id=?", (b,)).rowcount
+        return {"cases": n_cases, "lessons": n_les, "decisions": n_log}
 
 
 def delete_bot(bot_id: str) -> None:

@@ -196,7 +196,8 @@ trong: `address_level = possible`, `follow_up`, `question_score >= 0.5`, hoặc 
 viên thì im VÀ ghi vết `no_signal`.
 
 Bộ mã im đầy đủ (mỗi mã có nhãn đọc được ở giao diện): `junk`, `addressed_other`, `no_signal`, `no_grounding`,
-`rate_limited`, `rate_limited_user`, `just_spoke`, `owner_typing`, `policy_error`, `judge_silent`, `below_threshold`.
+`rate_limited`, `rate_limited_user`, `just_spoke`, `owner_typing`, `policy_error`, `judge_silent`, `below_threshold`, và
+hai mã do bước SAU quyết định rút lại: `taken_over` (chủ đã Tiếp quản) và `agent_silent` (Agent chọn im).
 
 Giữ luật hiện có cho lời tự nói: khi `address_level = none` và không `follow_up`, bot chỉ mở miệng nếu có căn
 cứ. Cấu hình `grounding`: `docs` (mặc định, phải có `doc_match`) hoặc `role` (bot lấy chuyên
@@ -217,7 +218,7 @@ Một lượt model rẻ, chạy bằng engine "việc nền" (`aux_engine`, ch�
 
 Prompt không chứa tên, ví dụ hay giọng của bất kỳ bot nào khác. Toàn bộ nội dung chat bọc trong khối `<chat_data>` và prompt nói rõ đó là dữ liệu, không phải
 lệnh. Đầu ra bắt buộc một JSON: `{"verdict":"reply"|"silent","score":0..1,"reason":"<= 120 ký tự"}`.
-Sai khuôn, hết 25 giây (engine gói thuê bao mất vài giây chỉ để khởi động, 8 giây là quá chặt), hay lỗi engine: coi là
+Tối đa 3 lượt phán xử chạy đồng thời (semaphore theo vòng lặp sự kiện). Sai khuôn, hết 25 giây (engine gói thuê bao mất vài giây chỉ để khởi động, 8 giây là quá chặt), hay lỗi engine: coi là
 `silent` với lý do `policy_error`. Engine chạy trong thư mục TRỐNG, không MCP, không công cụ ghi hay chạy lệnh
 (nội dung chat là dữ liệu không tin cậy).
 
@@ -282,6 +283,17 @@ dùng nó làm nhãn sẽ dạy bot nói nhiều hơn).
 Bảng từ khoá tín hiệu nằm ở `system/reply_policy/keywords_vi.json` (đã bỏ dấu), thêm ngôn ngữ là thêm file.
 Chống spam nhãn: mỗi người tối đa 3 nhãn mỗi giờ mỗi bot, mỗi bot tối đa 50 ca mới mỗi ngày.
 
+### 5.8b Rà soát độc lập (30/09/2026): các sửa đã áp
+
+Một lượt rà soát độc lập tìm ra chín lỗi thật, đã sửa và có test: (1) engine phán xử phải chạy với `allowed_tools` có giá
+trị (để trống là `bypassPermissions` và nạp cả cài đặt máy), cộng danh sách công cụ bị cấm; (2) lời dạy không gắn nhãn vào
+chính tin dạy; (3) gọi tên ngay sau đó chỉ tính "im nhầm" khi cùng chủ đề; (4) chữ của ca đã học nằm trong `<chat_data>`
+và bộ lọc thẻ bắt cả biến thể; (5) nhãn của chủ ghi đè chứ không cộng dồn (`cases.decision_id`); (6) quyết định `reply` bị
+chặn ở bước sau được rút lại (`amend_decision`), và Tiếp quản được kiểm TRƯỚC lượt model; (7) chữ mở đầu "này/ê" chỉ xét
+trên bản GIỮ DẤU nên "hôm nay Nhi Mai..." không còn là lời gọi; (8) Quên hết xoá cả nhật ký quyết định, và giao diện nói thật
+rằng chế độ Chạy thử/Bật ghi chữ chat 14 ngày kể cả khi chưa bật tự học; (9) giới hạn đồng thời, không quét đĩa trên vòng
+sự kiện.
+
 ### 5.9 Lời dạy của chủ
 
 Tin của người trong `trainer_ids` gọi bot (`address_level >= possible`) chạy thêm một lượt phân loại rẻ: "đây có
@@ -326,7 +338,7 @@ threshold_offsets(bot_id, chat_id, offset, updated_ts)
 lessons(id, bot_id, text, ts)                      -- bài học, tối đa 15 dòng mỗi bot
 ```
 
-Giữ: dòng chưa gắn nhãn 14 ngày; ca đã gắn nhãn 180 ngày (có nhạt dần); nội dung cắt 400 ký tự.
+Nút Quên hết xoá cả `decisions` (chữ chat của khách), không chỉ phần đã học. Giữ: dòng chưa gắn nhãn 14 ngày; ca đã gắn nhãn 180 ngày (có nhạt dần); nội dung cắt 400 ký tự.
 Xoá bot thì xoá sạch dòng của bot. Vòng đệm im: mọi tin bị im đều là một dòng `decisions` với
 `silence_code` (`no_signal`, `no_grounding`, `policy_error`, `rate_limited`, `just_spoke`...).
 

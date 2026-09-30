@@ -49,6 +49,7 @@
     rate_limited_user: "rp.code_rate_limited", just_spoke: "rp.code_just_spoke",
     policy_error: "rp.code_policy_error", owner_typing: "rp.code_owner_typing",
     judge_silent: "rp.code_judge_silent", below_threshold: "rp.code_below_threshold",
+    agent_silent: "rp.code_agent_silent", taken_over: "rp.code_taken_over",
   };
   var LABEL_LB = { correct: "rp.label_correct", missed: "rp.label_missed", intruded: "rp.label_intruded",
                    taught: "rp.label_taught" };

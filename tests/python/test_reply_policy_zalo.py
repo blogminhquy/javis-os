@@ -297,6 +297,39 @@ async def chay():
     check("reply_when=mention: gọi tên trơn được trả lời, tin còn lại im", len(GUI) == 1, GUI)
     check("reply_when=mention: bộ phán xử không ghi thêm dòng nào cho tin không ai gọi", len(st.recent_decisions(bid, 500)) == n_dec)
 
+    # #6a: bộ phán xử nói reply nhưng Agent chọn im ([IM_LANG]): quyết định phải được sửa thành im, cửa theo dõi đóng.
+    chatbot_store.update_bot(bid, {"reply_when": "auto", "reply_policy": {"mode": "on"}})      # bước trước để mention
+    J.mode = "reply"
+    TRA_LOI["v"] = "[IM_LANG]"
+    n_gui = len(GUI)
+    KHO_TIN.append(msg("cho mình hỏi cách đổi bộ não ở đâu vậy", "im1", giay_truoc=3, uid="7770007", nguoi="Học viên G"))
+    await doc()
+    TRA_LOI["v"] = "Dạ để em hướng dẫn nhé"
+    d_im = next(d for d in st.recent_decisions(bid, 50) if d["msg_id"] == "im1")
+    check("Agent chọn im: không gửi gì", len(GUI) == n_gui, GUI)
+    check("quyết định bị RÚT LẠI thành im, mã agent_silent (không còn ghi là bot đã nói)",
+          d_im["verdict"] == "silent" and d_im["silence_code"] == "agent_silent", d_im)
+    check("và không còn cửa theo dõi (tin nối tiếp sẽ không được gắn nhãn 'đúng' cho lời chưa từng nói)",
+          all(w["id"] != d_im["id"] for w in st.open_watches(bid, NHOM)))
+    sach()
+
+    # #6b: chủ đã Tiếp quản thì kiểm TRƯỚC khi tốn lượt model; tin khách vẫn vào Hộp thư cho người trực đọc.
+    import conversations  # noqa: E402
+    with conversations._conn() as cx:
+        conv_id2 = cx.execute("SELECT id FROM conversations WHERE external_chat_id=?", (NHOM,)).fetchone()[0]
+    conversations.dat_che_do(conv_id2, "human")
+    n_p = len(J.prompts)
+    KHO_TIN.append(msg("cho mình hỏi lỗi cổng 7777 lần cuối nhé mọi người", "tq1", giay_truoc=2, uid="7770008", nguoi="Học viên H"))
+    await doc()
+    check("đã Tiếp quản: bot im và KHÔNG tốn lượt phán xử", not GUI and len(J.prompts) == n_p, (GUI, len(J.prompts) - n_p))
+    d_tq2 = next(d for d in st.recent_decisions(bid, 50) if d["text"].startswith("cho mình hỏi lỗi cổng 7777 lần cuối"))
+    check("nhật ký ghi mã taken_over", d_tq2["silence_code"] == "taken_over", d_tq2)
+    with conversations._conn() as cx:
+        vao_hop_thu = cx.execute("SELECT COUNT(*) FROM messages WHERE text LIKE ?", ("%lần cuối nhé mọi người%",)).fetchone()[0]
+    check("tin khách VẪN vào Hộp thư cho người trực đọc", vao_hop_thu >= 1, vao_hop_thu)
+    conversations.dat_che_do(conv_id2, "ai")
+    sach()
+
     # Bộ phán xử ném lỗi bất ngờ ở lớp vận chuyển: rơi về luật cũ, KHÔNG được nuốt tin (tin gọi tên vẫn được trả lời).
     chatbot_store.update_bot(bid, {"reply_when": "auto", "reply_policy": {"mode": "on"}})
     orig = chatbot_runtime.PolicyHooks.prepare

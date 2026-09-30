@@ -1859,13 +1859,18 @@ async def _reply_policy_ask(prompt: str, purpose: str = "") -> str:
     """
     cwd = cfgmod.STATE_DIR / "reply_policy_cwd"
     cwd.mkdir(parents=True, exist_ok=True)
+    # `allowed_tools` PHẢI có giá trị: để trống thì engine chạy `bypassPermissions` (tự duyệt mọi công cụ chưa bị cấm)
+    # và nạp cả cài đặt máy của người dùng. Có giá trị thì cổng `can_use_tool` TỪ CHỐI mọi công cụ từng lần gọi; tên
+    # dưới đây cố ý không khớp công cụ nào. `disallowed_tools` là lớp thứ hai (cùng danh sách bot khách hàng dùng).
     cli = claude_engine(system_prompt="Bạn là bộ phán xử của một bot chat nhóm. Chỉ trả về đúng khuôn được yêu cầu, "
-                                      "không thêm lời dẫn.", cwd=str(cwd), tag="reply-policy")
+                                      "không thêm lời dẫn.", cwd=str(cwd), tag="reply-policy",
+                        allowed_tools=["javis_reply_policy_khong_cong_cu"])
     _mcpf = _empty_mcp_file()
     if _mcpf:
         cli.mcp_config = _mcpf
         cli.mcp_strict = True
-    cli.disallowed_tools = ["Bash", "Write", "Edit", "WebFetch", "WebSearch", "Task", "NotebookEdit"]
+    cli.disallowed_tools = list(BOT_CAM_NATIVE) + ["PowerShell", "Skill", "SlashCommand", "TodoWrite", "MultiEdit",
+                                                    "ExitPlanMode", "NotebookRead"]
     cli = _aux_swap(cli, mode="suggest", tag="reply-policy")
     if not cli.is_available():
         raise RuntimeError("engine việc nền chưa sẵn sàng (kiểm tra trang Models)")

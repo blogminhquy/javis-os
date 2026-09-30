@@ -503,6 +503,21 @@ def _rp_named_meta(cfg: dict, text: str, meta) -> dict:
     return m
 
 
+_RP_RETRACT_CODES = ("rate_limited", "taken_over", "agent_silent")
+
+
+def _rp_retract(dec, code: str) -> None:
+    """Bộ phán xử nói `reply` nhưng bước sau chặn mất (hạn mức, Tiếp quản, Agent chọn im): sửa dòng nhật ký cho
+    đúng sự thật và đóng cửa theo dõi, kẻo tin nối tiếp sau đó được gắn nhãn "đúng" cho một câu bot chưa từng nói."""
+    if dec is None or not getattr(dec, "decision_id", 0):
+        return
+    try:
+        chatbot_reply_policy_store.amend_decision(dec.decision_id, "silent", code)
+        chatbot_reply_policy_store.close_watch(dec.decision_id)
+    except Exception:      # noqa: BLE001
+        pass
+
+
 def _rp_rate(bot_id: str, chat_id: str, user_id: str, follow_up: bool = False) -> str:
     code = chatbot_tu_dong.duoc_tra_loi(bot_id, chat_id, user_id, follow_up=follow_up)
     return _RP_RATE.get(code, code)
@@ -527,9 +542,7 @@ def _rp_schedule_profile(cfg: dict) -> None:
     if ask is None:
         return
     try:
-        root = _deps["brain_root"](cfg["brain"])
-        titles = chatbot_reply_policy.list_doc_titles(root)
-        asyncio.get_running_loop().create_task(_rp_profile_job(cfg, _rp_agent_text(cfg), titles, ask))
+        asyncio.get_running_loop().create_task(_rp_profile_job(cfg, ask))
     except Exception as e:      # noqa: BLE001
         print(f"[reply_policy] lên lịch soạn hồ sơ vai lỗi: {type(e).__name__}", file=sys.stderr)
 
@@ -537,10 +550,22 @@ def _rp_schedule_profile(cfg: dict) -> None:
 _RP_BACKOFF_S = 1800
 
 
-async def _rp_profile_job(cfg: dict, agent_text: str, titles: list, ask) -> None:
+def _rp_collect(cfg: dict) -> tuple:
+    """(nguyên văn Agent, mục lục tài liệu) của bot. Đọc đĩa nên chạy trong thread, không trên vòng sự kiện."""
+    root = _deps["brain_root"](cfg["brain"])
+    return _rp_agent_text(cfg), chatbot_reply_policy.list_doc_titles(root)
+
+
+async def _rp_profile_job(cfg: dict, ask) -> None:
     """Soạn hồ sơ vai ở nền. Chưa có hồ sơ mà soạn hỏng (engine việc nền chưa sẵn sàng...) thì lùi 30 phút mới
     thử lại, thay vì mỗi 5 phút một lần cho tới khi engine sống dậy."""
     bot_id = str(cfg.get("id") or "")
+    try:
+        agent_text, titles = await asyncio.to_thread(_rp_collect, cfg)
+    except Exception as e:      # noqa: BLE001
+        print(f"[reply_policy] đọc Agent/tài liệu lỗi: {type(e).__name__}", file=sys.stderr)
+        _RP_CHECKED[bot_id] = time.time() + _RP_BACKOFF_S - _RP_CHECK_EVERY_S
+        return
     res = await chatbot_reply_policy.ensure_role_profile(cfg, agent_text, titles, chatbot_reply_policy_store, ask)
     if not res.get("changed") and not res.get("generated_text"):
         _RP_CHECKED[bot_id] = time.time() + _RP_BACKOFF_S - _RP_CHECK_EVERY_S
@@ -556,8 +581,11 @@ class PolicyHooks:
       - `drop`: im, đã ghi vết lý do (chỉ ở chế độ Bật).
     """
 
+    _SHADOW_MAX = 20        # số lượt chạy thử tối đa đang chờ; đầy thì bỏ lượt mới (chạy thử chỉ để so sánh)
+
     def __init__(self, bot_id: str):
         self.bot_id = bot_id
+        self._shadow_inflight = 0
 
     def prepare(self, text: str, meta: dict, owner_typing: bool = False):
         cfg = chatbot_store.get_bot(self.bot_id)
@@ -593,7 +621,8 @@ class PolicyHooks:
             pre = chatbot_reply_policy.pre_screen(ev, profile, store, ev.ts)
             out["pre"] = pre
             if rpc["mode"] == "shadow":
-                if pre["candidate"]:
+                if pre["candidate"] and self._shadow_inflight < self._SHADOW_MAX:
+                    self._shadow_inflight += 1
                     asyncio.get_running_loop().create_task(self._shadow(cfg, ev, profile))
                 return out
             if not pre["candidate"]:
@@ -614,6 +643,8 @@ class PolicyHooks:
                 doc_search=lambda t: _tra_tai_lieu(self.bot_id, cfg, t), commit=False, mode="shadow")
         except Exception as e:      # noqa: BLE001
             print(f"[reply_policy {self.bot_id}] chạy thử lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+        finally:
+            self._shadow_inflight = max(0, self._shadow_inflight - 1)
 
     def replied(self, meta: dict, text: str) -> None:
         """Bot vừa nói trong nhóm: nhớ để nhận ra tin nối tiếp của đúng người được trả lời."""
@@ -963,6 +994,7 @@ def _make_answer_fn(bot_id: str):
         tu_dong = chatbot_tu_dong.can_danh_gia(cfg, meta or {})
         tl = None
         rp_on = tu_dong and chatbot_reply_policy.normalize_config(cfg.get("reply_policy"))["mode"] == "on"
+        rp_dec = None
         if rp_on:
             # Bộ phán xử (0.65.0) thay cửa từ khoá: nó tự tra tài liệu, kiểm hạn mức và hỏi model. Mọi kết
             # quả, kể cả im, đều đã được ghi vào kho quyết định.
@@ -971,6 +1003,13 @@ def _make_answer_fn(bot_id: str):
                 ev = _rp_event(cfg, profile, text, meta or {})
                 if not (meta or {}).get("_rp_observed"):
                     chatbot_reply_policy.observe(ev, profile, chatbot_reply_policy_store, ev.ts)
+                # Rào cứng chạy TRƯỚC mọi lượt tốn model (đặc tả 5.1): chủ đã Tiếp quản cuộc chat thì bot im, tin khách
+                # vẫn vào Hộp thư cho người trực đọc.
+                aid_p, kenh_p = _tai_khoan_cua(cfg, meta or {})
+                if conversations.che_do(kenh_p, aid_p, chat_id) == "human":
+                    ghi_tin_khach(cfg, meta or {}, text)
+                    chatbot_reply_policy.log_rail(chatbot_reply_policy_store, ev, profile, "taken_over")
+                    return {"text": "", "files": [], "im_lang": True}
                 dec = await chatbot_reply_policy.decide(
                     ev, profile, store=chatbot_reply_policy_store, ask=chatbot_reply_policy.ask_fn(),
                     doc_search=lambda t: _tra_tai_lieu(bot_id, cfg, t),
@@ -980,6 +1019,7 @@ def _make_answer_fn(bot_id: str):
                 return {"text": "", "files": [], "im_lang": True}
             if dec.verdict != "reply":
                 return {"text": "", "files": [], "im_lang": True}
+            rp_dec = dec
             tl = dec.doc or await _tra_tai_lieu(bot_id, cfg, text)
         elif tu_dong:
             if not chatbot_tu_dong.nhin_nhu_cau_hoi(text)[0]:
@@ -995,6 +1035,7 @@ def _make_answer_fn(bot_id: str):
                 # Tin tự trả lời mà quá hạn mức thì im, KHÔNG nói "nhắn hơi nhanh" trước cả nhóm:
                 # người ta đâu có gọi bot.
                 _ghi_bo_qua(bot_id, cfg, meta, text, "het_han_muc", tl)
+                _rp_retract(rp_dec, "rate_limited")
                 return {"text": "", "files": [], "im_lang": True}
             return {"text": "Anh chị nhắn hơi nhanh, em xin phép trả lời lại sau ít phút ạ.",
                     "files": []}
@@ -1005,6 +1046,7 @@ def _make_answer_fn(bot_id: str):
         # lời nốt - chấp nhận ở V1, vì cắt ngang một câu đang gửi còn khó hiểu hơn với khách.
         aid_luot, kenh_luot = _tai_khoan_cua(cfg, meta or {})
         if conversations.che_do(kenh_luot, aid_luot, chat_id) == "human":
+            _rp_retract(rp_dec, "taken_over")
             return {"text": "", "files": [], "im_lang": True}
 
         # Tra tài liệu TRƯỚC rồi nhét vào prompt, thay vì trông vào việc model tự chịu mở file.
@@ -1053,6 +1095,7 @@ def _make_answer_fn(bot_id: str):
         # tin nhắn và chọn không nhân danh chủ trả lời. Ghi vào nhật ký để chủ soi lại được, nhưng
         # không gửi gì, không vào Hộp thư như một câu bot nói, không tính vào bộ đếm bí/gọi người.
         if not loi_ky_thuat and IM_LANG.lower() in dap.lower():
+            _rp_retract(rp_dec, "agent_silent")
             _BI_LIEN_TIEP[(bot_id, chat_id)] = 0
             chatbot_log.ghi(bot_id, {
                 "chat_id": chat_id, "chat_type": (meta or {}).get("chat_type"),

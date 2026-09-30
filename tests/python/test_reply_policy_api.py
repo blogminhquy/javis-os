@@ -106,7 +106,40 @@ n0 = st.stats(bid)
 f = c.post(f"/chatbots/{bid}/reply-policy/forget", data={}).json()
 check("quên hết: ca và bài học sạch", f["ok"] and st.count_cases(bid, "auto") == 0 and st.count_cases(bid, "owner") == 0
       and st.list_lessons(bid) == [], f)
-check("quên hết vẫn giữ nhật ký quyết định", st.stats(bid)["decisions"] == n0["decisions"])
+check("quên hết xoá CẢ nhật ký quyết định (đó là chữ chat của khách)", st.stats(bid)["decisions"] == 0 and f["decisions"] == n0["decisions"], f)
+
+# ---- engine của người phán xử phải bị nhốt (rà soát 30/09: bỏ trống allowed_tools là bypassPermissions) ----
+seen = {}
+
+
+class _CliGia:
+    def __init__(self, **kw):
+        seen.update(kw)
+        self.disallowed_tools = None
+        self.mcp_config = None
+        self.mcp_strict = False
+
+    def is_available(self):
+        return True
+
+    async def query(self, prompt):
+        yield {"type": "final", "content": '{"verdict":"silent","score":0.1,"reason":"x"}'}
+
+
+import asyncio as _aio  # noqa: E402
+_orig_engine, _orig_swap = main.claude_engine, main._aux_swap
+main.claude_engine = lambda **kw: _CliGia(**kw)
+main._aux_swap = lambda cli, mode=None, tag=None: cli
+try:
+    out = _aio.run(main._reply_policy_ask("prompt thử", "judge"))
+finally:
+    main.claude_engine, main._aux_swap = _orig_engine, _orig_swap
+check("người phán xử chạy được và trả chữ", "verdict" in out)
+check("allowed_tools CÓ giá trị (khác rỗng) nên cổng can_use_tool từ chối mọi công cụ", bool(seen.get("allowed_tools")), seen)
+check("cwd là thư mục trống riêng, không phải repo hay brain", "reply_policy_cwd" in str(seen.get("cwd")), seen.get("cwd"))
+src_ask = __import__("inspect").getsource(main._reply_policy_ask)
+check("lớp thứ hai: danh sách công cụ bị cấm gồm Bash, Read, PowerShell, Skill", all(x in src_ask for x in ("BOT_CAM_NATIVE", "PowerShell", "Skill")))
+check("và không dùng MCP", "mcp_strict = True" in src_ask)
 
 # ---- soạn hồ sơ vai ----
 check("soạn hồ sơ khi chưa nối engine: 503", c.post(f"/chatbots/{bid}/reply-policy/draft-guidelines").status_code == 503)
@@ -131,6 +164,7 @@ check("và sinh ca khởi tạo theo lĩnh vực", r.json().get("bootstrap_cases
 rp.wire(ask=None)
 
 # ---- xoá bot xoá sạch dữ liệu học ----
+st.log_decision({"bot_id": bid, "chat_id": "g9", "ts": NOW, "text": "một tin nữa", "verdict": "silent", "mode": "on"}, NOW)
 check("(chuẩn bị) bot còn dữ liệu", st.stats(bid)["decisions"] > 0)
 ok, e = chatbot_store.delete_bot(bid)
 check("xoá bot", ok, e)
@@ -150,7 +184,7 @@ codes |= {"judge_silent", "below_threshold"}
 codes -= {"silent", "reply", "called"}
 labels = set(re.findall(r"(\w+):\s*\"rp\.code_", js))
 check("mọi mã im bộ máy phát ra đều có nhãn ở giao diện", codes <= labels, sorted(codes - labels))
-runtime_codes = set(main.chatbot_runtime._RP_RATE.values())
+runtime_codes = set(main.chatbot_runtime._RP_RATE.values()) | set(main.chatbot_runtime._RP_RETRACT_CODES)
 check("mã hạn mức của runtime cũng có nhãn", runtime_codes <= labels, sorted(runtime_codes - labels))
 
 check("không dùng em dash trong file test này", chr(0x2014) not in open(__file__, encoding="utf-8").read())

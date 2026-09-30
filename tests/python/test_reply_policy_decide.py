@@ -456,6 +456,81 @@ for i in range(20):
 check("cửa sổ tối đa 8 tin", len(rp.window_of("bw", "gz", NOW + 30)) == rp.WINDOW_MAX)
 
 # ============================================================
+# 8. Các lỗi do rà soát độc lập tìm ra (30/09/2026)
+# ============================================================
+# #2: lời dạy "đừng chen vào" của chủ phải gắn nhãn vào lần bot TỰ NÓI trước đó, không vào chính tin dạy.
+T = mk_profile(bot_id="bot_t2")
+d_tu_noi = run(rp.decide(ev(Q, bot_id="bot_t2", sender="u1", name="Nam", ts=NOW + 4000), T, store=st, ask=Judge("reply", 0.9),
+                         doc_search=docs_yes, now=NOW + 4000))
+check("(chuẩn bị) bot tự nói", d_tu_noi.verdict == "reply" and d_tu_noi.address_level == "none")
+e_day = ev("javis vũ ơi, đừng chen vào chuyện gia đình", bot_id="bot_t2", sender=BOSS, name="Sếp", ts=NOW + 4030)
+d_goi = rp.log_called(st, e_day, T, rp.detect_address(e_day, T), "on")
+teach = Judge(raw=json.dumps({"is_teaching": True, "rule": "Đừng chen vào chuyện gia đình", "kind": "should_stay_silent", "alias": ""}))
+run(rp.maybe_teach(e_day, T, "certain", st, teach, now=NOW + 4030))
+check("lời dạy 'im' gắn nhãn intruded vào lần bot TỰ NÓI trước đó", st.get_decision(d_tu_noi.decision_id)["label"] == "intruded",
+      st.get_decision(d_tu_noi.decision_id))
+check("và KHÔNG gắn vào chính tin dạy (đã ghi là lần được gọi tên)", st.get_decision(d_goi)["label"] is None, st.get_decision(d_goi))
+check("chỉ một ca sinh ra, nói 'silent'", [c["correct_verdict"] for c in st.list_cases("bot_t2")] == ["silent"], st.list_cases("bot_t2"))
+
+# #3: gọi tên ngay sau đó chỉ tính 'im nhầm' khi CÙNG CHỦ ĐỀ; cùng người nhưng chuyện khác thì không.
+M = mk_profile(bot_id="bot_t3", name="Nhi Mai", auto_aliases=["Nhi Mai"])
+d_phiem = run(rp.decide(ev("mai ăn gì vậy mọi người ơi ?", bot_id="bot_t3", sender="u9", name="Lan", ts=NOW + 4100), M, store=st,
+                        ask=Judge("silent", 0.2), doc_search=docs_yes, now=NOW + 4100))
+check("(chuẩn bị) câu phiếm có dấu hỏi được cân nhắc rồi im", d_phiem.candidate and d_phiem.verdict == "silent")
+res = rp.observe(ev("nhi mai oi gia serum bao nhieu", bot_id="bot_t3", sender="u9", name="Lan", ts=NOW + 4120), M, st, now=NOW + 4120)
+check("cùng người gọi tên hỏi chuyện KHÁC: KHÔNG gắn 'im nhầm'", res == [] and st.get_decision(d_phiem.decision_id)["label"] is None, res)
+check("và không tạo ca, không đổi ngưỡng", st.count_cases("bot_t3") == 0 and st.get_offset("bot_t3", "g1", NOW + 4121) == 0.0)
+d_that = run(rp.decide(ev("gia serum vitamin c bao nhieu vay ?", bot_id="bot_t3", sender="u8", name="Hoa", ts=NOW + 4200), M, store=st,
+                       ask=Judge("silent", 0.2), doc_search=docs_yes, now=NOW + 4200))
+res = rp.observe(ev("nhi mai oi gia serum vitamin c bao nhieu", bot_id="bot_t3", sender="u8", name="Hoa", ts=NOW + 4220), M, st, now=NOW + 4220)
+check("cùng người gọi tên hỏi lại ĐÚNG chủ đề: gắn 'im nhầm'", res and res[0][1] == "missed", res)
+
+# #5: nút Đúng/Sai của chủ idempotent, đổi ý thì hoàn tác
+K = mk_profile(bot_id="bot_t5")
+d5 = run(rp.decide(ev(Q, bot_id="bot_t5", ts=NOW + 4300), K, store=st, ask=Judge("silent", 0.2), doc_search=docs_yes, now=NOW + 4300))
+for _ in range(3):
+    rp.owner_label(st, K, d5.decision_id, "down", NOW + 4310)
+check("bấm 👎 ba lần chỉ áp MỘT lần (ngưỡng -0.075, không phải -0.225)", abs(st.get_offset("bot_t5", "g1", NOW + 4311) + 0.075) < 1e-4,
+      st.get_offset("bot_t5", "g1", NOW + 4311))
+check("và chỉ một ca", st.count_cases("bot_t5") == 1, st.list_cases("bot_t5"))
+rp.owner_label(st, K, d5.decision_id, "up", NOW + 4320)
+check("đổi ý sang 👍: hoàn tác ngưỡng cũ", abs(st.get_offset("bot_t5", "g1", NOW + 4321)) < 1e-4, st.get_offset("bot_t5", "g1", NOW + 4321))
+check("và thay ca cũ bằng ca mới (vẫn một ca, nay là 'đúng' = giữ quyết định silent)",
+      [c["correct_verdict"] for c in st.list_cases("bot_t5")] == ["silent"], st.list_cases("bot_t5"))
+check("nhãn cuối là correct", st.get_decision(d5.decision_id)["label"] == "correct")
+
+# #8: Quên hết xoá cả nhật ký quyết định (đó là chữ chat của khách)
+st.log_decision({"bot_id": "bot_t8", "chat_id": "g1", "ts": NOW, "text": "chữ chat của khách", "verdict": "silent"}, NOW)
+st.log_decision({"bot_id": "bot_t8", "chat_id": "g2", "ts": NOW, "text": "chat nhóm khác", "verdict": "silent"}, NOW)
+st.forget("bot_t8", "g1")
+check("quên một cuộc chat xoá nhật ký của cuộc chat đó, giữ cuộc chat khác",
+      [d["chat_id"] for d in st.recent_decisions("bot_t8")] == ["g2"])
+r8 = st.forget("bot_t8")
+check("quên hết xoá sạch nhật ký của bot", st.recent_decisions("bot_t8") == [] and r8["decisions"] == 1, r8)
+st.log_decision({"bot_id": "bot_t8", "chat_id": "g1", "ts": NOW, "text": "x", "verdict": "silent"}, NOW)
+st.forget("bot_t8", keep_log=True)
+check("keep_log=True giữ dấu vết (chỉ xoá nhãn)", len(st.recent_decisions("bot_t8")) == 1)
+
+# #9: tối đa 3 lượt phán xử chạy đồng thời
+dang_chay = {"n": 0, "max": 0}
+
+
+async def cham(prompt, purpose=""):
+    dang_chay["n"] += 1
+    dang_chay["max"] = max(dang_chay["max"], dang_chay["n"])
+    await asyncio.sleep(0.05)
+    dang_chay["n"] -= 1
+    return json.dumps({"verdict": "silent", "score": 0.1, "reason": "x"})
+
+
+async def nhieu():
+    await asyncio.gather(*[rp.run_judge(cham, "p") for _ in range(10)])
+
+
+run(nhieu())
+check(f"10 lượt cùng lúc chỉ chạy tối đa {rp.JUDGE_CONCURRENCY} lượt đồng thời", dang_chay["max"] == rp.JUDGE_CONCURRENCY, dang_chay)
+
+# ============================================================
 # 9. Trần bộ nhớ: không phình mãi
 # ============================================================
 rp.reset_runtime_state()
@@ -482,9 +557,11 @@ async def _hong(prompt, purpose=""):
     raise RuntimeError("engine chưa sẵn sàng")
 
 
+_crt.wire(answer=None, brain_root=lambda b: tempfile.mkdtemp(prefix="brain-rp-bo-"),
+          read_agent=lambda b, slug: ({"name": "X"}, "Vai thử"))
 _crt._RP_CHECKED.clear()
 _crt._RP_CHECKED["bot_backoff"] = _time.time()
-run(_crt._rp_profile_job({"id": "bot_backoff", "name": "X"}, "agent", [], _hong))
+run(_crt._rp_profile_job({"id": "bot_backoff", "name": "X", "brain": "b", "agent": {"brain": "b", "slug": "s"}}, _hong))
 check("soạn hỏng và chưa có hồ sơ: lùi ít nhất 25 phút mới thử lại",
       _crt._RP_CHECKED["bot_backoff"] + _crt._RP_CHECK_EVERY_S - _time.time() >= 25 * 60, _crt._RP_CHECKED)
 

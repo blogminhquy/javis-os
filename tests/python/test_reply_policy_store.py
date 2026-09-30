@@ -149,6 +149,16 @@ st.set_role_profile("J", "Đảm nhiệm: mỹ phẩm", "h1", NOW)
 check("hồ sơ vai lưu và đọc", st.get_role_profile("J")["agent_hash"] == "h1")
 check("hồ sơ vai tách theo bot", st.get_role_profile("K") is None)
 
+# ---- gắn ca với quyết định, sửa quyết định ----
+dq = st.log_decision({"bot_id": "Q", "chat_id": "g", "ts": NOW, "text": "câu", "verdict": "reply", "candidate": True}, NOW)
+st.add_case("Q", "g", "câu", {}, "reply", "r", "auto", 1.0, now=NOW, decision_id=dq)
+st.add_case("Q", "g", "câu khác hẳn", {}, "reply", "r", "auto", 1.0, now=NOW, decision_id=dq + 999)
+check("xoá ca theo quyết định chỉ xoá ca của quyết định đó", st.delete_cases_by_decision("Q", dq) == 1 and st.count_cases("Q") == 1)
+check("xoá ca theo quyết định không đụng bot khác", st.delete_cases_by_decision("khac", dq + 999) == 0 and st.count_cases("Q") == 1)
+st.add_watch(dq, "Q", "g", NOW + 600, 5)
+st.amend_decision(dq, "silent", "agent_silent")
+check("amend_decision sửa verdict và mã im", st.get_decision(dq)["verdict"] == "silent" and st.get_decision(dq)["silence_code"] == "agent_silent")
+
 # ---- quên ----
 st.add_case("L", "g1", "ca một", F0, "reply", "r", "auto", 1.0, now=NOW)
 st.add_case("L", "g2", "ca hai khác hẳn", F0, "reply", "r", "auto", 1.0, now=NOW)
