@@ -64,18 +64,18 @@ chỉnh model; học chéo giữa các người dùng; sửa cách bot chat riê
 ## 4. Kiến trúc
 
 ```
-tin nhóm -> [Sự kiện chuẩn hoá] -> R rào cứng -> G nhận diện được gọi -> T tín hiệu
+tin nhóm -> [Event chuẩn hoá] -> R rào cứng -> G nhận diện được gọi -> T tín hiệu
                                                         |                  |
-                                            chắc chắn ->|                  v
-                                       (trả lời luôn)   |          C cổng thô (rác/không tín hiệu -> im + ghi vết)
+                                            certain --->|                  v
+                                       (trả lời luôn)   |          C cổng thô (rác/không tín hiệu -> silent + ghi vết)
                                                         |                  |
                                                         +----------> J người phán xử (model việc nền)
-                                                                     ^   |   nhận: thẻ luật + ca giống + 8 tin gần nhất
-                                                       ca giống -----+   v   trả: tra_loi|im + điểm + lý do
-                                                       K kho tình huống   D so điểm với ngưỡng tau(bot, cuộc chat)
+                                                                     ^   |   nhận: guidelines + ca giống + 8 tin gần nhất
+                                                       ca giống -----+   v   trả: reply|silent + score + reason
+                                                       K kho ca           D so score với threshold(bot, chat)
                                                                      ^   |
-                                                    nhãn, lời dạy ---+   v
-                                                       O theo dõi hậu quả  <- mọi tin sau đó của cuộc chat
+                                                    label, lesson ---+   v
+                                                       O outcome tracker  <- mọi tin sau đó của cuộc chat
 ```
 
 Ba khối dữ liệu tách rời, đổi cái này không đụng cái kia:
@@ -98,20 +98,41 @@ mình. Cả ba dùng CÙNG một bộ máy, nhưng hồ sơ vai, ca khởi tạo
 riêng theo `bot_id` (và theo cuộc chat). Bộ phán xử của Nhi Mai không bao giờ đọc thấy ca, ví dụ hay
 giọng của Javis Vũ. Ai học gì ở nhóm nào thì chỉ ở nhóm đó.
 
-Mã mới nằm trong `server/chatbot_phan_xu.py` (bộ máy, thuần và test được) và
-`server/chatbot_phan_xu_kho.py` (SQLite). Không nhét vào `chatbot_runtime.py` thêm nữa.
+Mã mới nằm trong `server/chatbot_reply_policy.py` (bộ máy, thuần và test được) và
+`server/chatbot_reply_policy_store.py` (SQLite). Không nhét vào `chatbot_runtime.py` thêm nữa.
 
 ### 4.2 Sự kiện chuẩn hoá
 
 ```
-Event: kenh, bot_id, chat_id, chat_type, msg_id, ts, text, sender_id, sender_name,
-       vai_nguoi_noi ("chu" | "da_biet" | "moi"), tag (bool), reply_to_bot (bool),
-       cua_so (tối đa 8 tin gần nhất: ts, sender_id, ten, la_bot, text),
-       bot_noi_lan_cuoi (ts hoặc None), chu_vua_go_tay (bool)
+Event: channel, bot_id, chat_id, chat_type, msg_id, ts, text, sender_id, sender_name,
+       sender_role ("owner" | "known" | "new"), mentioned (bool), reply_to_bot (bool),
+       window (tối đa 8 tin gần nhất: ts, sender_id, name, is_bot, text),
+       bot_last_spoke_ts (ts hoặc None), owner_typing (bool)
 ```
 
-`cua_so` lấy từ Hộp thư (`conversations.tin_nhan`) của đúng cuộc chat; chưa có thì rỗng, bộ máy
+`window` lấy từ Hộp thư (`conversations.tin_nhan`) của đúng cuộc chat; chưa có thì rỗng, bộ máy
 vẫn chạy. Nội dung mỗi tin cắt 400 ký tự, gỡ marker nội bộ (`[IM_LANG]`, `JAVIS_`).
+
+### 4.3 Quy ước đặt tên
+
+Định danh mới (tên module, hàm, biến, trường dữ liệu, cột SQL, đường API, giá trị liệt kê, tên file dữ
+liệu) viết bằng TIẾNG ANH, theo yêu cầu của chủ 2026-09-30. Chuỗi hiển thị cho người dùng, chú thích và
+tài liệu vẫn là tiếng Việt có dấu. Tên cũ mà PR này chỉ gọi tới (như `chatbot_tu_dong`, `_ly_do_im`,
+`zalo_personal_channel.nhan_dien_goi`) giữ nguyên: đổi tên hàng loạt kéo theo dữ liệu đang lưu, đường
+API mà giao diện đang gọi và hàng trăm test, nên là một PR riêng, không lẫn vào đây.
+
+| Khái niệm | Định danh |
+|---|---|
+| người phán xử, hồ sơ vai, kho ca | `judge`, `role_profile`, `cases` |
+| ngưỡng, độ lệch ngưỡng | `threshold`, `offset` |
+| mức được gọi: chắc chắn, có thể, không | `certain`, `possible`, `none` |
+| quyết định: nói, im | `reply`, `silent` |
+| nhãn: đúng, im nhầm, chen nhầm, lời dạy | `correct`, `missed`, `intruded`, `taught` |
+| chế độ: tắt, chạy thử, bật | `off`, `shadow`, `on` |
+| độ hăng hái: ít, vừa, nhiều | `low`, `medium`, `high` |
+| người nói: chủ, đã biết, mới | `owner`, `known`, `new` |
+| nguồn ca: tự động, chủ, khởi tạo | `auto`, `owner`, `bootstrap` |
+| người được dạy bot, tên gọi, bài học | `trainer_ids`, `aliases`, `lessons` |
 
 ## 5. Các tầng
 
@@ -124,49 +145,49 @@ xử. Rào chạy TRƯỚC mọi thứ tốn model và vẫn ở chỗ hiện t�
 
 ### 5.2 G: nhận diện được gọi
 
-Trả `goi` ∈ `chac` | `co_the` | `khong` cùng bằng chứng. Chuẩn hoá: bỏ dấu, chữ thường, gộp khoảng
+Trả `address_level` ∈ `certain` | `possible` | `none` cùng bằng chứng. Chuẩn hoá: bỏ dấu, chữ thường, gộp khoảng
 trắng (dùng `chatbot_grounding._bo_dau`), khớp theo ranh giới từ.
 
 | Mức | Điều kiện |
 |---|---|
-| `chac` | `@tên`; `mentions` chứa id nick; reply vào tin của bot; tên gọi đứng ĐẦU câu (sau các chữ mở như "ê", "này", "alo", "hi", "chào"); tên gọi đi liền tiểu từ gọi ("ơi", "à", "ạ", "này", "nè", "nha", "ê") |
-| `co_the` | tên gọi nằm giữa hoặc cuối câu không kèm tiểu từ ("hỏi javis vũ xem"); tin nối tiếp (5.3) |
-| `khong` | còn lại |
+| `certain` | `@tên`; `mentions` chứa id nick; reply vào tin của bot; tên gọi đứng ĐẦU câu (sau các chữ mở như "ê", "này", "alo", "hi", "chào"); tên gọi đi liền tiểu từ gọi ("ơi", "à", "ạ", "này", "nè", "nha", "ê") |
+| `possible` | tên gọi nằm giữa hoặc cuối câu không kèm tiểu từ ("hỏi javis vũ xem"); tin nối tiếp (5.3) |
+| `none` | còn lại |
 
-Tên gọi (`bi_danh`) gồm: nhãn kết nối, tên hiển thị học được của nick, và danh sách tên do chủ tự
+Tên gọi (`aliases`) gồm: nhãn kết nối, tên hiển thị học được của nick, và danh sách tên do chủ tự
 thêm. KHÔNG tự lấy tên Agent hay tên bot ("@Lan" trong nhóm thường là một thành viên tên Lan). Tên
 tự suy phải dài từ 4 ký tự trở lên sau chuẩn hoá; tên do chủ thêm không bị luật này.
 
-Ví dụ phải đúng (chạy cả bản không dấu): "javis vũ ơi" chac; "Javis Vũ giúp anh cái này" chac;
-"alo javis vu" chac; "hỏi javis vũ xem" co_the; "mai họp mấy giờ" khong; "@Lan xem giúp" khong.
+Ví dụ phải đúng (chạy cả bản không dấu): "javis vũ ơi" certain; "Javis Vũ giúp anh cái này" certain;
+"alo javis vu" certain; "hỏi javis vũ xem" possible; "mai họp mấy giờ" none; "@Lan xem giúp" none.
 
-`chac` thì trả lời luôn như chat riêng, KHÔNG qua người phán xử, KHÔNG cần tài liệu, không đếm
+`certain` thì trả lời luôn như chat riêng, KHÔNG qua người phán xử, KHÔNG cần tài liệu, không đếm
 hạn mức tự nói.
 
 ### 5.3 T: tín hiệu (sổ đăng ký, cắm thêm được)
 
-Mỗi tín hiệu là một hàm thuần `(Event, Profile) -> {gia_tri, bang_chung}` đăng ký bằng decorator.
+Mỗi tín hiệu là một hàm thuần `(Event, BotProfile) -> {value, evidence}` đăng ký bằng decorator.
 Thêm tín hiệu = thêm một hàm và một test; không đụng khung.
 
-- `cau_hoi`: điểm 0..1 từ dấu hỏi, từ khoá (bảng dữ liệu, thay `_HOI`), cấu trúc "có ... không".
+- `question_score`: điểm 0..1 từ dấu hỏi, từ khoá (bảng dữ liệu, thay `_HOI`), cấu trúc "có ... không".
   Từ nay là TÍN HIỆU, không còn là cổng chặn.
-- `tiep_noi`: bot vừa nói trong nhóm ≤ 180 giây và tin này của đúng người bot vừa trả lời, hoặc
+- `follow_up`: bot vừa nói trong nhóm ≤ 180 giây và tin này của đúng người bot vừa trả lời, hoặc
   reply vào chuỗi đó.
-- `khop_tai_lieu`: có phần tài liệu khớp (`chatbot_grounding.thu_thap`), kèm điểm. Chỉ tính cho
+- `doc_match`: có phần tài liệu khớp (`chatbot_grounding.thu_thap`), kèm điểm. Chỉ tính cho
   ứng viên, không quét đĩa cho mọi tin.
-- `vai_nguoi_noi`: chủ / đã biết (đã có hội thoại với bot) / mới.
-- `nhip_nhom`: mật độ tin trong 2 phút gần nhất (nhóm đang sôi nổi thì bot bớt chen).
-- `bi_danh_giua_cau`: tên gọi xuất hiện nhưng chưa đủ `chac`.
+- `sender_role`: chủ / đã biết (đã có hội thoại với bot) / mới.
+- `chat_pace`: mật độ tin trong 2 phút gần nhất (nhóm đang sôi nổi thì bot bớt chen).
+- `alias_mid_sentence`: tên gọi xuất hiện nhưng chưa đủ `certain`.
 
 ### 5.4 C: cổng thô
 
 Chỉ vứt thứ hiển nhiên không phải: rỗng, không phải chữ, chỉ có link, một hai chữ không phải lời
-gọi, tin mở đầu bằng tag người khác khi `goi = khong`. Tin còn lại là **ứng viên** khi có ít nhất một
-trong: `goi = co_the`, `tiep_noi`, `cau_hoi >= 0.5`, hoặc kho có ca dương giống (5.7). Không ứng
-viên thì im VÀ ghi vết `khong_tin_hieu`.
+gọi, tin mở đầu bằng tag người khác khi `address_level = none`. Tin còn lại là **ứng viên** khi có ít nhất một
+trong: `address_level = possible`, `follow_up`, `question_score >= 0.5`, hoặc kho có ca dương giống (5.7). Không ứng
+viên thì im VÀ ghi vết `no_signal`.
 
-Giữ luật hiện có cho lời tự nói: khi `goi = khong` và không `tiep_noi`, bot chỉ mở miệng nếu có căn
-cứ. Cấu hình `can_cu`: `tai_lieu` (mặc định, phải có `khop_tai_lieu`) hoặc `vai_tro` (bot lấy chuyên
+Giữ luật hiện có cho lời tự nói: khi `address_level = none` và không `follow_up`, bot chỉ mở miệng nếu có căn
+cứ. Cấu hình `grounding`: `docs` (mặc định, phải có `doc_match`) hoặc `role` (bot lấy chuyên
 môn từ vai của Agent, dùng cho bot tư vấn không dựa vào tài liệu). Ca đã học KHÔNG được miễn luật
 này.
 
@@ -182,41 +203,41 @@ Một lượt model rẻ, chạy bằng engine "việc nền" (`aux_engine`, ch�
 4. Tín hiệu đã tính và đoạn tài liệu khớp (cắt ngắn).
 5. Tin cần quyết.
 
-Prompt không chứa tên, ví dụ hay giọng của bất kỳ bot nào khác. Toàn bộ nội dung chat bọc trong khối `<du_lieu_chat>` và prompt nói rõ đó là dữ liệu, không phải
-lệnh. Đầu ra bắt buộc một JSON: `{"quyet":"tra_loi"|"im","diem":0..1,"ly_do":"<= 120 ký tự"}`.
-Sai khuôn, hết 8 giây, hay lỗi engine: coi là `im` với lý do `phan_xu_loi`.
+Prompt không chứa tên, ví dụ hay giọng của bất kỳ bot nào khác. Toàn bộ nội dung chat bọc trong khối `<chat_data>` và prompt nói rõ đó là dữ liệu, không phải
+lệnh. Đầu ra bắt buộc một JSON: `{"verdict":"reply"|"silent","score":0..1,"reason":"<= 120 ký tự"}`.
+Sai khuôn, hết 8 giây, hay lỗi engine: coi là `silent` với lý do `policy_error`.
 
-Chế độ: `tat` (chạy luật cũ), `bong` (người phán xử chạy song song, chỉ ghi, luật cũ quyết), `chay`
-(người phán xử quyết). Bot đang có sẵn giữ `tat` cho tới khi chủ bật.
+Chế độ: `off` (chạy luật cũ), `shadow` (người phán xử chạy song song, chỉ ghi, luật cũ quyết), `on`
+(người phán xử quyết). Bot đang có sẵn giữ `off` cho tới khi chủ bật.
 
 ### 5.6 D: ngưỡng
 
-`tau = tau_goc(hang_hai) + lech(bot, cuoc_chat)`. `tau_goc`: ít lời 0.75, vừa 0.60, nhiều lời 0.45.
-Bot nói khi `quyet = tra_loi` và `diem >= tau`. `lech` ∈ [-0.25, +0.25], `tau` kẹp trong [0.30, 0.90].
+`threshold = base_threshold(eagerness) + offset(bot, chat)`. `base_threshold`: `low` (ít lời) 0.75, `medium` (vừa) 0.60, `high` (nhiều lời) 0.45.
+Bot nói khi `verdict = reply` và `score >= threshold`. `offset` ∈ [-0.25, +0.25], `threshold` kẹp trong [0.30, 0.90].
 Cập nhật: im nhầm trừ 0.05, chen nhầm cộng 0.08 (chen đắt hơn im), nhân với trọng số nhãn. Không có
-nhãn thì `lech` co dần về 0 với chu kỳ bán rã 14 ngày. Ngưỡng theo TỪNG cuộc chat: nhóm khách
+nhãn thì `offset` co dần về 0 với chu kỳ bán rã 14 ngày. Ngưỡng theo TỪNG cuộc chat: nhóm khách
 thích bot nói nhiều, nhóm nội bộ thì không.
 
 ### 5.7 K: kho tình huống
 
 Mỗi quyết định ứng viên ghi một dòng; khi có nhãn nó thành **ca**. Tra cứu không cần thư viện
-embedding: chỉ trong ca của CHÍNH bot này, điểm giống = 0.6 × Jaccard(token chuẩn hoá) + 0.25 × khớp đặc trưng (`goi`, `tiep_noi`,
-`vai_nguoi_noi`) + 0.15 nếu cùng cuộc chat, nhân độ nhạt theo tuổi (bán rã 30 ngày) và trọng số ca.
-Lấy tối đa 5 ca điểm ≥ 0.25. "Quyết định đúng" của ca: `dung` thì giữ quyết định đã chọn,
-`im_nham` thì `tra_loi`, `chen_nham` thì `im`, `loi_day` thì theo lời dạy. Giao diện `tim_ca(event,
+embedding: chỉ trong ca của CHÍNH bot này, điểm giống = 0.6 × Jaccard(token chuẩn hoá) + 0.25 × khớp đặc trưng (`address_level`, `follow_up`,
+`sender_role`) + 0.15 nếu cùng cuộc chat, nhân độ nhạt theo tuổi (bán rã 30 ngày) và trọng số ca.
+Lấy tối đa 5 ca điểm ≥ 0.25. "Quyết định đúng" của ca: `correct` thì giữ quyết định đã chọn,
+`missed` thì `reply`, `intruded` thì `silent`, `taught` thì theo lời dạy. Giao diện `tim_ca(event,
 k)` để sau này thay bằng embedding mà không đổi khung.
 
 **Khởi động cho bot mới, hai lớp và không lớp nào mang chủ đề của bot khác:**
 
-1. *Mẫu cơ chế* (chung): `system/phan_xu/mau_co_che_vi.json`, khoảng 20 ca TRỪU TƯỢNG chỉ mô tả cơ
-   chế trò chuyện nhóm, viết bằng chỗ giữ `{ten_bot}` và `{chu_de}` thay vì tên hay ngành cụ thể. Ví dụ:
+1. *Mẫu cơ chế* (chung): `system/reply_policy/mechanics_vi.json`, khoảng 20 ca TRỪU TƯỢNG chỉ mô tả cơ
+   chế trò chuyện nhóm, viết bằng chỗ giữ `{bot_name}` và `{topic}` thay vì tên hay ngành cụ thể. Ví dụ:
    "{ten_bot} ơi" thì trả lời; hai người đang trao đổi với nhau thì im; tin có tag người khác thì im;
    "vậy còn cái kia?" ngay sau khi bot trả lời thì trả lời; một lời cảm ơn không nhắm vào bot thì im;
-   câu hỏi ngoài {chu_de} thì im. Khi dùng, `{ten_bot}` thay bằng tên gọi của chính bot và `{chu_de}`
+   câu hỏi ngoài {chu_de} thì im. Khi dùng, `{bot_name}` thay bằng tên gọi của chính bot và `{topic}`
    bằng phạm vi trong hồ sơ vai của bot. Test cấm tên ngành hay tên sản phẩm trong file này.
 2. *Ca khởi tạo theo vai* (riêng từng bot): lúc bật lần đầu và mỗi khi hồ sơ vai đổi, một lượt model
    đọc Agent và mục lục tài liệu của chính bot rồi viết khoảng 12 tin mẫu ĐÚNG LĨNH VỰC ĐÓ: 5 tin nên
-   nói, 5 tin nên im, 2 tin ranh giới, kèm lý do. Lưu là ca `nguon = khoi_tao`, trọng số thấp. Chủ xem
+   nói, 5 tin nên im, 2 tin ranh giới, kèm lý do. Lưu là ca `source = bootstrap`, trọng số thấp. Chủ xem
    và xoá được. Mỗi ca thật cùng loại làm giảm trọng số ca khởi tạo giống nó, nên khi bot đã học đủ từ
    nhóm thật thì các ca giả nhạt đi và biến mất.
 
@@ -228,36 +249,36 @@ vào thẻ luật thì xoá khỏi kho.
 ### 5.8 O: theo dõi hậu quả và gắn nhãn
 
 Mỗi quyết định ứng viên mở một cửa theo dõi 10 phút hoặc 8 tin, tuỳ cái nào tới trước. Mỗi tin
-mới của cuộc chat chạy qua `gan_nhan(theo_doi, tin_moi)`, hàm thuần. Chỉ tín hiệu MẠNH mới gắn nhãn;
+mới của cuộc chat chạy qua `assign_label(watch, new_message)`, hàm thuần. Chỉ tín hiệu MẠNH mới gắn nhãn;
 **không phản ứng thì không nhãn** (bị phớt lờ là chuyện thường, và im thì vốn không có phản ứng để đo,
 dùng nó làm nhãn sẽ dạy bot nói nhiều hơn).
 
 | Quyết định | Tín hiệu | Nhãn | Trọng số |
 |---|---|---|---|
-| im | cùng người hỏi lại ("sao không trả lời", "bot ơi", "ai biết không") hoặc gửi lại gần giống ≥ 0.6 | `im_nham` | 1.0 |
-| im | có người gọi tên chắc chắn ngay sau, cùng chủ đề | `im_nham` | 0.8 |
-| im | chủ tự trả lời thực chất cho đúng người hỏi | `im_nham` | 0.5 (chủ có thể chỉ tiện tay) |
-| tra_loi (không được gọi) | chủ nói "đừng chen vào", "ai hỏi bot", "im đi" | `chen_nham` | 1.0 |
-| tra_loi (không được gọi) | người khác nói câu tương tự | `chen_nham` | 0.5 |
-| tra_loi (không được gọi) | chủ bấm Tiếp quản cuộc chat trong 10 phút | `chen_nham` | 0.7 |
-| tra_loi | cảm ơn, "ok", "được rồi" | `dung` | 0.6 |
-| tra_loi | hỏi tiếp đúng mạch (`tiep_noi`, reply vào bot) | `dung` | 0.8 |
+| silent | cùng người hỏi lại ("sao không trả lời", "bot ơi", "ai biết không") hoặc gửi lại gần giống ≥ 0.6 | `missed` | 1.0 |
+| silent | có người gọi tên chắc chắn ngay sau, cùng chủ đề | `missed` | 0.8 |
+| silent | chủ tự trả lời thực chất cho đúng người hỏi | `missed` | 0.5 (chủ có thể chỉ tiện tay) |
+| reply (không được gọi) | chủ nói "đừng chen vào", "ai hỏi bot", "im đi" | `intruded` | 1.0 |
+| reply (không được gọi) | người khác nói câu tương tự | `intruded` | 0.5 |
+| reply (không được gọi) | chủ bấm Tiếp quản cuộc chat trong 10 phút | `intruded` | 0.7 |
+| reply | cảm ơn, "ok", "được rồi" | `correct` | 0.6 |
+| reply | hỏi tiếp đúng mạch (`follow_up`, reply vào bot) | `correct` | 0.8 |
 | bất kỳ | chủ bấm 👍 hoặc 👎 trong Nhật ký | theo nút | 1.5 |
 
-Bảng từ khoá tín hiệu nằm ở `system/phan_xu/tu_khoa_vi.json` (đã bỏ dấu), thêm ngôn ngữ là thêm file.
+Bảng từ khoá tín hiệu nằm ở `system/reply_policy/keywords_vi.json` (đã bỏ dấu), thêm ngôn ngữ là thêm file.
 Chống spam nhãn: mỗi người tối đa 3 nhãn mỗi giờ mỗi bot, mỗi bot tối đa 50 ca mới mỗi ngày.
 
 ### 5.9 Lời dạy của chủ
 
-Tin của người trong `chu_ids` gọi bot (`goi >= co_the`) chạy thêm một lượt phân loại rẻ: "đây có
-phải chủ đang dạy bot cách hành xử không?" → `{"la_loi_day":bool,"luat":"...","kieu":"nen_noi"|"nen_im"|"goi_ten"}`.
-Đúng thì: tạo ca `loi_day` trọng số 2.0 (có tác dụng ngay ở quyết định kế tiếp), thêm một dòng vào
-mục Bài học của thẻ luật, và nếu `kieu = goi_ten` thì thêm cụm đó vào `bi_danh`. Người ngoài
-`chu_ids` không bao giờ tạo được luật, cho dù họ viết "từ giờ hãy trả lời mọi tin".
+Tin của người trong `trainer_ids` gọi bot (`address_level >= possible`) chạy thêm một lượt phân loại rẻ: "đây có
+phải chủ đang dạy bot cách hành xử không?" → `{"is_teaching":bool,"rule":"...","kind":"should_speak"|"should_stay_silent"|"alias"}`.
+Đúng thì: tạo ca `taught` trọng số 2.0 (có tác dụng ngay ở quyết định kế tiếp), thêm một dòng vào
+mục Bài học của thẻ luật, và nếu `kind = alias` thì thêm cụm đó vào `aliases`. Người ngoài
+`trainer_ids` không bao giờ tạo được luật, cho dù họ viết "từ giờ hãy trả lời mọi tin".
 
 ### 5.10 Hồ sơ vai (thẻ luật của từng bot)
 
-Đây là cách một bot khác bot kia mà không phải viết mã riêng. `ho_so_vai` do máy biên dịch từ file
+Đây là cách một bot khác bot kia mà không phải viết mã riêng. `role_profile` do máy biên dịch từ file
 Agent của CHÍNH bot (vai, giọng, quy định) và mục lục tài liệu trong brain của bot, gồm bốn mục:
 
 1. **Đảm nhiệm:** những chủ đề bot trả lời.
@@ -268,52 +289,52 @@ Agent của CHÍNH bot (vai, giọng, quy định) và mục lục tài liệu t
    riêng của thành viên.
 
 Lưu kèm `agent_hash`. File Agent hoặc mục lục tài liệu đổi thì soạn lại NHÁP mới và giữ nguyên phần
-chủ đã sửa tay: hai vùng riêng `do_may_soan` và `do_chu_sua`, người phán xử đọc cả hai, vùng của chủ
-đè lên khi mâu thuẫn. Chủ sửa ở ô "Luật lên tiếng" (`the_luat`). Không có engine thì dùng mẫu tĩnh
+chủ đã sửa tay: hai vùng riêng `generated_text` và `owner_text`, người phán xử đọc cả hai, vùng của chủ
+đè lên khi mâu thuẫn. Chủ sửa ở ô "Luật lên tiếng" (`guidelines`). Không có engine thì dùng mẫu tĩnh
 chỉ có bốn đầu mục để chủ điền.
 
-`bai_hoc` (máy ghi, theo mẫu `JAVIS_LESSON`: đề xuất lúc dùng, mã ghi, khử trùng, tối đa 15 dòng, dòng
+`lessons` (máy ghi, theo mẫu `JAVIS_LESSON`: đề xuất lúc dùng, mã ghi, khử trùng, tối đa 15 dòng, dòng
 cũ nhất rơi ra) là phần thứ năm, riêng từng bot. KHÔNG có vòng nền viết lại hàng loạt (quyết định
 của chủ 2026-08-16).
 
 ## 6. Dữ liệu
 
-SQLite `chatbot_phan_xu.sqlite3` trong thư mục state, thêm vào `.gitignore`, WAL.
+SQLite `chatbot_reply_policy.sqlite3` trong thư mục state, thêm vào `.gitignore`, WAL.
 
 ```
-quyet_dinh(id, bot_id, chat_id, msg_id, ts, van_ban, nguoi_gui, vai, goi, tin_hieu_json,
-           ung_vien, quyet, diem, tau, ly_do, che_do, ma_im, nhan, trong_so_nhan, nhan_ts)
-tinh_huong(id, bot_id, chat_id, ts, van_ban, token, dac_trung_json, quyet_dung, ly_do,
-           nguon, trong_so, ca_goc_id)               -- nguon: tu_dong|chu|khoi_tao
-theo_doi(quyet_dinh_id, het_han_ts, so_tin_con_lai)
-ho_so_vai(bot_id, do_may_soan, agent_hash, cap_nhat_ts)
-lech_tau(bot_id, chat_id, lech, cap_nhat_ts)
+decisions(id, bot_id, chat_id, msg_id, ts, text, sender, sender_role, address_level, signals_json,
+          candidate, verdict, score, threshold, reason, mode, silence_code, label, label_weight, label_ts)
+cases(id, bot_id, chat_id, ts, text, tokens, features_json, correct_verdict, reason,
+      source, weight, origin_case_id)               -- source: auto|owner|bootstrap
+watches(decision_id, expires_ts, messages_left)
+role_profiles(bot_id, generated_text, agent_hash, updated_ts)
+threshold_offsets(bot_id, chat_id, offset, updated_ts)
 ```
 
 Giữ: dòng chưa gắn nhãn 14 ngày; ca đã gắn nhãn 180 ngày (có nhạt dần); nội dung cắt 400 ký tự.
-Xoá bot thì xoá sạch dòng của bot. Vòng đệm im: mọi tin bị im đều là một dòng `quyet_dinh` với
-`ma_im` (`khong_tin_hieu`, `khong_co_can_cu`, `phan_xu_loi`, `het_han_muc`, `vua_noi`...).
+Xoá bot thì xoá sạch dòng của bot. Vòng đệm im: mọi tin bị im đều là một dòng `decisions` với
+`silence_code` (`no_signal`, `no_grounding`, `policy_error`, `rate_limited`, `just_spoke`...).
 
 ## 7. Cấu hình, API, giao diện
 
 Trường mới trong bản ghi bot (đi qua `chatbot_store`, có lọc và giá trị mặc định fail-closed):
 
 ```
-phan_xu: { che_do: "tat"|"bong"|"chay" (mặc định tat), hang_hai: "it"|"vua"|"nhieu" (vua),
-           the_luat: str, bi_danh: [str], chu_ids: [str], tu_hoc: bool (false),
-           can_cu: "tai_lieu"|"vai_tro" (tai_lieu) }
+reply_policy: { mode: "off"|"shadow"|"on" (mặc định off), eagerness: "low"|"medium"|"high" (medium),
+                guidelines: str, aliases: [str], trainer_ids: [str], learning_enabled: bool (false),
+                grounding: "docs"|"role" (docs) }
 ```
 
-Giá trị lạ rơi về phía hẹp nhất (`tat`, `it`, `tu_hoc = false`). Chỉ có nghĩa khi `reply_when = auto`.
+Giá trị lạ rơi về phía hẹp nhất (`off`, `low`, `learning_enabled = false`). Chỉ có nghĩa khi `reply_when = auto`.
 
 Đường mới, đặt SAU route cuối của `main.py` để `route_table.json` chỉ thêm dòng cuối:
 
-- `GET /chatbots/{id}/phan-xu`: cấu hình, số ca, lệch ngưỡng từng cuộc chat, 100 quyết định gần nhất
+- `GET /chatbots/{id}/reply-policy`: cấu hình, số ca, lệch ngưỡng từng cuộc chat, 100 quyết định gần nhất
   (kể cả im), danh sách ca và bài học.
-- `POST /chatbots/{id}/phan-xu/nhan`: chủ gắn 👍/👎 cho một quyết định.
-- `POST /chatbots/{id}/phan-xu/tinh-huong/{ca}/xoa`: xoá một ca.
-- `POST /chatbots/{id}/phan-xu/quen`: quên hết, hoặc riêng một cuộc chat.
-- `POST /chatbots/{id}/phan-xu/soan-the-luat`: soạn nháp thẻ luật từ vai Agent.
+- `POST /chatbots/{id}/reply-policy/label`: chủ gắn 👍/👎 cho một quyết định.
+- `POST /chatbots/{id}/reply-policy/cases/{case_id}/delete`: xoá một ca.
+- `POST /chatbots/{id}/reply-policy/forget`: quên hết, hoặc riêng một cuộc chat.
+- `POST /chatbots/{id}/reply-policy/draft-guidelines`: soạn nháp thẻ luật từ vai Agent.
 
 Giao diện (một cột, đúng phong cách form hiện tại, đủ vi và en):
 
@@ -327,11 +348,11 @@ Giao diện (một cột, đúng phong cách form hiện tại, đủ vi và en)
 ## 8. Chỗ gắn vào mã hiện có
 
 - `zalo_personal_channel.nhan_dien_goi`: giữ nguyên chữ ký `(tag, rep)` cho chỗ gọi cũ, bên trong dùng
-  `chatbot_phan_xu.nhan_dien_goi`; thêm bản trả mức `goi`.
+  `chatbot_reply_policy.detect_address`; thêm bản trả mức `address_level`.
 - `channels/zalo_personal.py::xu_ly`: dựng Event, đưa MỌI tin nhóm (kể cả tin sẽ bị loại) qua
-  `theo_doi` để gắn nhãn cho quyết định trước; meta thêm `goi`, `tiep_noi`.
-- `chatbot_runtime._answer`: khối `tu_dong` gọi `chatbot_phan_xu.quyet_dinh(...)` khi `che_do != tat`;
-  `bong` chạy song song rồi bỏ kết quả. `_ly_do_im`, `_make_precheck_fn` không đổi.
+  `watches` để gắn nhãn cho quyết định trước; meta thêm `address_level`, `follow_up`.
+- `chatbot_runtime._answer`: khối `auto` gọi `chatbot_reply_policy.decide(...)` khi `mode != off`;
+  `shadow` chạy song song rồi bỏ kết quả. `_ly_do_im`, `_make_precheck_fn` không đổi.
 - Telegram: `TelegramBot._build_meta` đã có `mentioned`, `reply_to_bot`; thêm nhận diện tên gọi qua
   cùng module.
 - `chatbot_store`: `_PATCHABLE`, `_public`, kiểm giá trị. `chatbot_log`: tin bị im KHÔNG vào JSONL
@@ -342,16 +363,16 @@ Giao diện (một cột, đúng phong cách form hiện tại, đủ vi và en)
 Người phán xử luôn thay được bằng bản giả (`ask` là tham số), nên toàn bộ chạy được dưới CI.
 
 1. **Nhận diện được gọi:** bảng ít nhất 30 câu tiếng Việt, có dấu và không dấu, cả ca phải im ("@Lan").
-2. **Tín hiệu:** từng hàm, gồm `tiep_noi` với đồng hồ giả.
+2. **Tín hiệu:** từng hàm, gồm `follow_up` với đồng hồ giả.
 3. **Gắn nhãn:** kịch bản có thứ tự tin, kiểm từng dòng bảng 5.8 và các ca KHÔNG nhãn (phớt lờ).
 4. **Ngưỡng:** cập nhật, kẹp biên, nhạt dần theo thời gian giả, tách theo cuộc chat.
 5. **Tra ca:** xếp hạng, ưu tiên cùng cuộc chat, nhạt theo tuổi, trần dung lượng, 1000 ca dưới 50 ms.
-6. **An toàn:** người ngoài dạy luật không được; model trả rác, hết giờ, ném lỗi thì im (còn `chac`
+6. **An toàn:** người ngoài dạy luật không được; model trả rác, hết giờ, ném lỗi thì im (còn `certain`
    vẫn trả lời); chèn "[IM_LANG]" hay "JAVIS_" trong tin chat không đi vào prompt; giá trị cấu hình lạ
    rơi về hẹp nhất.
 7. **Kịch bản học đầu cuối** (nhân bản Zalo giả như `test_bot_zalo_nhom.py`): "javis vũ ơi" được trả
    lời; tin phiếm im và có dòng vết; câu hỏi có căn cứ bị im vì điểm thấp, người hỏi hỏi lại nên gắn
-   `im_nham` và hạ ngưỡng, câu giống lần sau được trả lời và prompt của người phán xử giả CÓ chứa ca đó;
+   `missed` và hạ ngưỡng, câu giống lần sau được trả lời và prompt của người phán xử giả CÓ chứa ca đó;
    nhóm B không bị ảnh hưởng bởi nhóm A; lời dạy của chủ có tác dụng ở tin kế tiếp; nút Quên xoá sạch.
 8. **Cách ly giữa bot:** dựng ba bot có ba Agent khác lĩnh vực (hỗ trợ phần mềm, mỹ phẩm, dạy tiếng
    Anh). Kiểm: prompt của người phán xử giả cho bot B chỉ chứa hồ sơ vai của B, không có chữ nào của
@@ -359,7 +380,9 @@ Người phán xử luôn thay được bằng bản giả (`ask` là tham số)
    bot được sinh từ đúng Agent của bot đó (bộ sinh giả nhận đúng văn bản Agent); file mẫu cơ chế chỉ có
    chỗ giữ, không có tên ngành; bộ phán xử không bao giờ chạm vào chữ của câu trả lời và engine trả lời
    luôn được gọi với bản ghi bot của chính nó; ngưỡng và bài học của nhóm này không đổi nhóm kia.
-9. **Ràng buộc chung:** `route_table.json` chụp lại, i18n vi/en đủ khoá, canary JS cho trường mới, không
+9. **Ràng buộc chung:** test quét cây cú pháp của các file mới để chắc không có định danh nào chứa âm
+   tiết tiếng Việt trong danh sách chặn (đặt trong `tests/python/test_reply_policy_naming.py`);
+   `route_table.json` chụp lại, i18n vi/en đủ khoá, canary JS cho trường mới, không
    em dash, chuỗi UI có dấu, `test_prompt_budget` không đổi (không đụng CLAUDE.md).
 
 ## 10. Giao một lần: mốc và tiêu chí xong
@@ -368,7 +391,7 @@ Một PR (#502), commit theo mốc, mỗi mốc test xanh mới sang mốc sau:
 
 | Mốc | Nội dung |
 |---|---|
-| M1 | `chatbot_phan_xu.py`: Event, Profile, nhận diện được gọi, sổ tín hiệu, cổng thô + test |
+| M1 | `chatbot_reply_policy.py`: Event, Profile, nhận diện được gọi, sổ tín hiệu, cổng thô + test |
 | M2 | Kho SQLite, ghi mọi quyết định kể cả im, giữ hạn, xoá theo bot |
 | M3 | Hồ sơ vai biên dịch từ Agent, người phán xử, ba chế độ tat/bong/chay, nối vào `_answer` và `xu_ly`, fail-closed |
 | M4 | Kho tình huống, tra cứu chỉ trong bot, mẫu cơ chế, ca khởi tạo theo vai, ngưỡng theo cuộc chat |
@@ -382,9 +405,10 @@ Xong khi TẤT CẢ đúng:
    (phân định bằng worktree sạch của `origin/main`) không tính.
 2. Kịch bản đầu cuối mục 9.7 chạy được, kèm ba bot khác lĩnh vực chạy cạnh nhau không lẫn nhau và đã xem trên sandbox: giao diện form và bảng quyết định
    hiển thị đúng ở 1000 px và 375 px.
-3. Mặc định không đổi hành vi bot cũ (`che_do = tat`, `tu_hoc = false`): test hồi quy của
+3. Mặc định không đổi hành vi bot cũ (`mode = off`, `learning_enabled = false`): test hồi quy của
    `test_bot_zalo_nhom.py` và `test_bot_doi_tuong.py` vẫn xanh nguyên.
-4. CI của PR xanh, đã squash-merge vào `main`, `VERSION` là 0.65.0 và lớn hơn bản trên `main` lúc merge,
+4. Mã mới dùng định danh tiếng Anh theo 4.3, test đặt tên xanh.
+5. CI của PR xanh, đã squash-merge vào `main`, `VERSION` là 0.65.0 và lớn hơn bản trên `main` lúc merge,
    luồng build ảnh Docker của `main` thành công.
 
 ## 11. Rủi ro đã cân
@@ -394,12 +418,12 @@ Xong khi TẤT CẢ đúng:
 - **Nhãn nhiễu:** chỉ tín hiệu mạnh, trọng số nhỏ cho một ca, ca nhạt theo tuổi, ngưỡng bị kẹp biên,
   nút Quên. Không dùng "tỉ lệ sai 50 quyết định gần nhất" làm căn cứ tự quay lại vì nhóm nhỏ mất nhiều
   tuần mới đủ mẫu và nhãn lại nhiễu.
-- **Tiêm lệnh:** chỉ `chu_ids` tạo luật; nội dung chat bị bọc và gỡ marker; đầu ra được kiểm khuôn.
+- **Tiêm lệnh:** chỉ `trainer_ids` tạo luật; nội dung chat bị bọc và gỡ marker; đầu ra được kiểm khuôn.
 - **Riêng tư:** học là opt-in từng bot, dữ liệu ngoài git, có hạn giữ, xoá theo bot.
-- **Trôi hành vi:** ngưỡng kẹp biên, thẻ luật có trần, mẫu cơ chế làm điểm neo, và luôn có `bong` để
-  so trước khi chuyển sang `chay`.
+- **Trôi hành vi:** ngưỡng kẹp biên, thẻ luật có trần, mẫu cơ chế làm điểm neo, và luôn có `shadow` để
+  so trước khi chuyển sang `on`.
 
 ## 12. Để ngỏ
 
-Thay `tim_ca` bằng embedding khi có hạ tầng; chia sẻ ca giữa các bot cùng lĩnh vực và cùng chủ, chỉ khi chủ bật rõ, không mặc định;
+Thay `find_cases` bằng embedding khi có hạ tầng; chia sẻ ca giữa các bot cùng lĩnh vực và cùng chủ, chỉ khi chủ bật rõ, không mặc định;
 tín hiệu cảm xúc; gắn nhãn từ reaction của Zalo nếu MCP mở ra; trang tổng hợp nhiều bot.
