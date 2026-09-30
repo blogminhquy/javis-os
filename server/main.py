@@ -19045,10 +19045,10 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
 
 
 def _rp_sau_khi_luu(bot_id: str) -> None:
-    """Bật bộ phán xử cho bot thì soạn hồ sơ vai ở nền ngay, khỏi chờ tới tin nhóm đầu tiên."""
+    """Bot ở chế độ Tự đánh giá thì soạn hồ sơ vai ở nền ngay, khỏi chờ tới tin nhóm đầu tiên."""
     try:
         bot = chatbot_store.get_bot(bot_id) or {}
-        if chatbot_reply_policy.normalize_config(bot.get("reply_policy"))["mode"] != "off":
+        if bot.get("reply_when") == "auto":
             chatbot_runtime._RP_CHECKED.pop(bot_id, None)
             chatbot_runtime._rp_schedule_profile(bot)
     except Exception as e:      # noqa: BLE001 - soạn hồ sơ hỏng không được làm hỏng việc lưu bot
@@ -19495,13 +19495,11 @@ async def reply_policy_state(bot_id: str, limit: int = Query(100), only_silent: 
 
 @app.post("/chatbots/{bot_id}/reply-policy/label")
 async def reply_policy_label(bot_id: str, decision_id: int = Form(...), thumb: str = Form(...)):
-    """Chủ bấm 👍 (up) hoặc 👎 (down) trên một quyết định. Nhãn nặng nhất; cần bật "tự học"."""
+    """Chủ bấm 👍 (up) hoặc 👎 (down) trên một quyết định. Nhãn nặng nhất."""
     bot, err = _rp_bot(bot_id)
     if err:
         return err
     profile = chatbot_runtime._rp_profile(bot, with_role=False)
-    if not profile.learning_enabled:
-        return JSONResponse({"ok": False, "error": "Bot này chưa bật tự học, nhãn sẽ không được lưu"}, status_code=409)
     label = chatbot_reply_policy.owner_label(chatbot_reply_policy_store, profile, decision_id, thumb)
     if not label:
         return JSONResponse({"ok": False, "error": "Không gắn được nhãn (quyết định không thuộc bot này, hoặc nút lạ)"},
@@ -19528,29 +19526,6 @@ async def reply_policy_forget(bot_id: str, chat_id: str = Form("")):
     if not chatbot_reply_policy_store.db_path().exists():
         return {"ok": True, "cases": 0, "lessons": 0}
     return {"ok": True, **chatbot_reply_policy_store.forget(bot_id, chat_id)}
-
-
-@app.post("/chatbots/{bot_id}/reply-policy/draft-guidelines")
-async def reply_policy_draft(bot_id: str):
-    """Soạn (lại) hồ sơ vai của bot từ Agent và mục lục tài liệu của CHÍNH nó. Phần chủ tự viết ở ô "Luật
-    lên tiếng" không bị đụng. Tốn hai lượt model nên chờ được tới vài chục giây."""
-    bot, err = _rp_bot(bot_id)
-    if err:
-        return err
-    ask = chatbot_reply_policy.ask_fn()
-    if ask is None:
-        return JSONResponse({"ok": False, "error": "Chưa nối engine việc nền"}, status_code=503)
-    try:
-        root = chatbot_runtime._deps["brain_root"](bot["brain"])
-        titles = await asyncio.to_thread(chatbot_reply_policy.list_doc_titles, root)
-        res = await chatbot_reply_policy.ensure_role_profile(
-            bot, chatbot_runtime._rp_agent_text(bot), titles, chatbot_reply_policy_store, ask, force=True)
-    except Exception as e:      # noqa: BLE001
-        return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {str(e)[:160]}"}, status_code=500)
-    if not res.get("changed"):
-        return JSONResponse({"ok": False, "error": "Model chưa soạn được hồ sơ vai, thử lại sau",
-                             "generated_text": res.get("generated_text", "")}, status_code=502)
-    return {"ok": True, "generated_text": res["generated_text"], "bootstrap_cases": res.get("bootstrap_cases", 0)}
 
 
 @app.on_event("startup")

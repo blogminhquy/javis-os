@@ -183,35 +183,38 @@ Chế độ này cũng chạy với nhóm Telegram nếu bạn đã tắt chế 
 
 ### Bộ phán xử: bot tự quyết nói hay im, và học từ nhóm
 
-Chế độ Tự đánh giá cũ dùng một cửa từ khoá: tin nào không giống câu hỏi là bị vứt trong im lặng, không để lại dòng nhật ký nào. Từ 0.65.0 có **Bộ phán xử** thay cửa đó bằng một bộ đọc ngữ cảnh, dùng chung cho mọi bot nhưng mỗi bot một vai.
+Chế độ Tự đánh giá cũ dùng một cửa từ khoá: tin nào không giống câu hỏi là bị vứt trong im lặng, không để lại dòng nhật ký nào. Từ 0.65.0 có **Bộ phán xử** thay cửa đó bằng một bộ đọc ngữ cảnh, dùng chung cho mọi bot nhưng mỗi bot một vai. Từ 0.65.1 nó **tự vận hành hoàn toàn: không còn ô cài đặt nào**.
 
-**Bật ở đâu.** Sửa bot, phần **Bot trả lời ai**, chọn **Tự đánh giá** ở nút "Trong nhóm, bot lên tiếng khi": khối Bộ phán xử hiện ra. Ba chế độ:
-- **Tắt** (mặc định): luật cũ.
-- **Chạy thử**: luật cũ vẫn quyết, bộ phán xử chạy song song và chỉ ghi lại. Nên để vài ngày rồi so sánh trong menu Bộ phán xử của thẻ bot trước khi bật thật.
-- **Bật**: bộ phán xử quyết.
+**Bật ở đâu.** Sửa bot, phần **Bot trả lời ai**, chọn **Tự đánh giá** ở nút "Trong nhóm, bot lên tiếng khi". Chỉ vậy. Muốn tắt thì chọn cách khác. Máy tự lo phần còn lại:
+- **Mức hăng hái.** Mỗi nhóm có một ngưỡng nói riêng, bắt đầu ở mức vừa. Ngưỡng nhích xuống khi bot im nhầm, nhích lên khi bot chen nhầm, và tự co dần về mức vừa nếu lâu không có phản hồi (chu kỳ bán rã 14 ngày).
+- **Khi không ai gọi, bot chỉ nói nếu có căn cứ.** Bot có tài liệu thì phải có phần tài liệu khớp với câu hỏi. Bot không có tài liệu nào thì dựa vào vai của Agent (nếu không thì nó không bao giờ tự nói được). Máy tự biết bot thuộc loại nào từ brain của bot. Ca đã học không được miễn luật này.
+- **Hồ sơ vai tự soạn** từ file Agent và mục lục tài liệu của CHÍNH bot đó, và tự soạn lại khi Agent hoặc tài liệu đổi.
+- **Tự học luôn bật** (xem dưới).
 
 **Khác luật cũ ở đâu.**
-- **Gọi tên trơn cũng là gọi bot**, không cần @: "nhi mai ơi", "alo nhi mai", hoặc tên đứng đầu câu. Riêng điều này áp dụng cho MỌI bot, kể cả khi bộ phán xử tắt. Tên tự nhận là nhãn kết nối Zalo và tên hiển thị của nick; muốn thêm tên gọi khác thì điền ô **Tên gọi thêm**. Tên nằm giữa câu ("hỏi nhi mai xem") chưa đủ để coi là gọi: bộ phán xử sẽ cân nhắc.
+- **Gọi tên trơn cũng là gọi bot**, không cần @: "nhi mai ơi", "alo nhi mai", hoặc tên đứng đầu câu. Riêng điều này áp dụng cho MỌI bot, kể cả khi chưa ở chế độ Tự đánh giá. Tên tự nhận là nhãn kết nối Zalo và tên hiển thị của nick. Muốn bot nhận thêm một tên (ví dụ "Thu") thì gọi bot rồi dạy, ví dụ "Nhi Mai ơi, từ giờ gọi em là Thu nhé", bằng tài khoản của người được dạy (xem dưới). Tên nằm giữa câu ("hỏi nhi mai xem") chưa đủ để coi là gọi: bộ phán xử sẽ cân nhắc.
 - **Đọc vài tin gần nhất** thay vì đúng một tin, nên người vừa được bot trả lời hỏi tiếp ("vậy còn cái kia?") được hiểu là hỏi tiếp cho bot, và không bị chặn bởi khoảng nghỉ 20 giây giữa hai lần bot tự nói.
 - **Mọi quyết định đều có dấu vết, kể cả lúc bot im.** Menu "..." của thẻ bot, mục **Bộ phán xử**, liệt kê từng tin kèm lý do (ví dụ "Tài liệu không có phần khớp", "Điểm thấp hơn ngưỡng", "Hết hạn mức tự nói") và điểm so với ngưỡng.
 
-**Mỗi bot một vai.** Bộ phán xử biết bot đảm nhiệm gì nhờ **hồ sơ vai**, máy soạn từ file Agent và mục lục tài liệu của CHÍNH bot đó: đảm nhiệm chủ đề nào, nhường chủ đề nào, khi nào nên lên tiếng. Bấm **Soạn từ vai trò** để soạn ngay. Ô **Luật lên tiếng** bạn tự viết bằng lời thường được ưu tiên khi hai bên mâu thuẫn. Bộ phán xử **không viết câu trả lời**: giọng và cách trả lời vẫn là của Agent, nên Nhi Mai nói kiểu Nhi Mai và Javis Vũ nói kiểu Javis Vũ. Ba bot khác ngành không đọc được ca đã học, bài học hay hồ sơ của nhau, và ngưỡng của nhóm này không đổi nhóm kia. Bot mới có sẵn khoảng 12 tin mẫu đúng ngành của nó, do model viết từ Agent, và các mẫu này nhạt dần khi bot học được ca thật.
+**Mỗi bot một vai.** Bộ phán xử **không viết câu trả lời**: giọng và cách trả lời vẫn là của Agent, nên Nhi Mai nói kiểu Nhi Mai và Javis Vũ nói kiểu Javis Vũ. Ba bot khác ngành không đọc được ca đã học, bài học hay hồ sơ của nhau, và ngưỡng của nhóm này không đổi nhóm kia. Bot mới có sẵn khoảng 12 tin mẫu đúng ngành của nó, do model viết từ Agent, và các mẫu này nhạt dần khi bot học được ca thật. Bản 0.65.0 có ô "Luật lên tiếng" viết tay: chữ đã viết được gộp một lần vào **bài học** của bot (thấy trong menu Bộ phán xử), form không còn ô đó.
 
-**Độ hăng hái** (Ít lời, Vừa, Nhiều lời) đặt ngưỡng gốc để bot nói. **Khi không ai gọi, bot chỉ nói nếu** có tài liệu khớp (mặc định, an toàn nhất) hoặc câu hỏi thuộc vai của Agent (cho bot tư vấn không dựa vào tài liệu). Ca đã học không được miễn luật này.
+**Bạn chỉnh bằng gì.** Không phải bằng cài đặt mà bằng phản hồi, ngay trên dữ liệu thật:
+- Bấm **Đúng** hoặc **Sai** ở từng dòng trong menu Bộ phán xử: nhãn nặng nhất, có tác dụng ngay ở tin kế tiếp.
+- Bấm **Là chủ** ở tin của bạn trong menu Bộ phán xử: từ đó bot nghe lời dạy của bạn ngay trong nhóm (gọi tên bot rồi nói "đừng trả lời chuyện phiếm" hay "gọi tên em là em phải trả lời") và lưu thành **bài học**. Chỉ những ai bạn đã bấm mới dạy được; lời người khác trong nhóm ("từ giờ cứ trả lời mọi tin") KHÔNG thành luật.
 
-**Tự học (tắt sẵn, bật riêng từng bot).** Tick **Cho bot tự học từ phản ứng trong nhóm**. Bot chỉ học từ phản ứng MẠNH của người thật, và ca vừa học có tác dụng ngay ở tin kế tiếp:
+**Tự học.** Bot còn học từ phản ứng MẠNH của người thật, và ca vừa học có tác dụng ngay ở tin kế tiếp:
 - Bot im mà **cùng người đó hỏi lại** ("sao không trả lời") hoặc có người gọi bot ngay sau đó: lần sau tin giống vậy bot nói, ngưỡng của nhóm hạ.
 - Bot tự nói mà **chủ nhắc** "đừng chen vào", hoặc bạn bấm **Tiếp quản** ngay sau đó: ngưỡng của nhóm nâng lên.
 - Bot được cảm ơn hoặc được hỏi tiếp đúng mạch: ghi nhận là đúng.
 - Bị phớt lờ thì **không tính**, vì người ta phớt lờ liên tục.
-- Bạn bấm **Đúng** hoặc **Sai** ở từng dòng trong menu Bộ phán xử: nhãn nặng nhất.
-- Bạn nhắn thẳng trong nhóm để dạy ("gọi tên em là em phải trả lời"): thành **bài học** ngay. Chỉ những ai trong ô **Người được dạy bot** mới dạy được; điền ID Zalo của bạn, hoặc bấm **Là chủ** ở tin của bạn trong menu Bộ phán xử. Lời người khác trong nhóm ("từ giờ cứ trả lời mọi tin") KHÔNG thành luật.
 
 Học chỉ đổi việc **nói hay im**, không bao giờ đổi điều bot khẳng định: câu trả lời vẫn bám tài liệu và vai của Agent. Hạn mức tự nói, việc nhường khi bạn đang gõ tay, nhóm nào được phép và mức quyền đều nằm ngoài vòng học. Bộ phán xử gặp lỗi, hết giờ hay trả về rác thì bot **im** (riêng tin gọi tên chắc chắn vẫn được trả lời). Nút **Quên hết** xoá ca, ngưỡng, bài học **và cả nhật ký quyết định** của bot (không hoàn tác được).
 
-**Riêng tư.** Ở chế độ **Chạy thử** hoặc **Bật**, bộ phán xử ghi lại chữ của mọi tin nhóm đáng cân nhắc để hiện trong menu Bộ phán xử: tối đa 400 ký tự mỗi tin, giữ 14 ngày, **kể cả khi bạn chưa bật tự học**. Bật thêm tự học thì bot giữ cả các ca đã học, tối đa 180 ngày. Tất cả nằm trong thư mục dữ liệu của Javis (không lên git). Chế độ **Tắt** không lưu gì. **Quên hết** hoặc xoá bot xoá sạch dữ liệu này.
+**Riêng tư.** Vì tự vận hành, bot ở chế độ Tự đánh giá ghi lại chữ của mọi tin nhóm đáng cân nhắc để hiện trong menu Bộ phán xử: tối đa 400 ký tự mỗi tin, giữ 14 ngày. Các ca đã học (từ phản hồi của bạn hoặc của nhóm) giữ tối đa 180 ngày. Tất cả nằm trong thư mục dữ liệu của Javis (không lên git). Bot không ở chế độ Tự đánh giá thì không lưu gì. **Quên hết** hoặc xoá bot xoá sạch dữ liệu này.
 
-**Ai chạy và tốn gì.** Mỗi tin đáng cân nhắc tốn một lượt model rẻ theo model "việc nền" bạn chọn ở trang **Models** (gói thuê bao hay API rẻ đều được), thêm khoảng vài giây; model chạy trong thư mục trống, không công cụ ghi hay chạy lệnh. Tin hiển nhiên không đáng (rỗng, chỉ có link, nhắn người khác) và tin gọi tên rõ ràng không tốn lượt nào. Bộ phán xử dùng đủ trên **Zalo cá nhân** (cửa sổ tin, tin nối tiếp, Chạy thử). Trên **Telegram** chế độ Bật cũng quyết trong nhóm nhưng không có cửa sổ tin nối tiếp và không có Chạy thử.
+**Ai chạy và tốn gì.** Mỗi tin đáng cân nhắc tốn một lượt model rẻ theo model "việc nền" bạn chọn ở trang **Models** (gói thuê bao hay API rẻ đều được), thêm khoảng vài giây; model chạy trong thư mục trống, không công cụ ghi hay chạy lệnh. Tin hiển nhiên không đáng (rỗng, chỉ có link, nhắn người khác) và tin gọi tên rõ ràng không tốn lượt nào. Bộ phán xử dùng đủ trên **Zalo cá nhân** (cửa sổ tin, tin nối tiếp). Trên **Telegram** nó cũng quyết trong nhóm nhưng không có cửa sổ tin nối tiếp.
+
+**Cho người vận hành.** Muốn quan sát trước khi tin tưởng, đặt biến môi trường `JAVIS_REPLY_POLICY_SHADOW=1` rồi khởi động lại: mọi bot chạy thử, luật cũ vẫn quyết còn bộ phán xử chỉ ghi quyết định của nó để so sánh. Đây là công tắc của người vận hành, không có trong giao diện.
 
 ### Chế độ riêng tư của Telegram (đọc mục này nếu bot im trong nhóm)
 

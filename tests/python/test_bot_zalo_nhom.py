@@ -28,6 +28,9 @@ import time
 from pathlib import Path
 
 os.environ["JAVIS_STATE_DIR"] = tempfile.mkdtemp(prefix="javis-zpnhom-")
+# Từ 0.65.1 chế độ Tự đánh giá do BỘ PHÁN XỬ quyết. File này khoá LUẬT CŨ (cửa từ khoá, hạn mức, mã bỏ qua) mà
+# người vận hành còn dùng ở chế độ Chạy thử, nên ép chế độ đó: luật cũ quyết, bộ phán xử chỉ ghi.
+os.environ["JAVIS_REPLY_POLICY_SHADOW"] = "1"
 try:
     sys.stdout.reconfigure(encoding="utf-8")
 except Exception:

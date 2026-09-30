@@ -44,35 +44,39 @@ NOW = 1_800_000_000.0
 bid, err = chatbot_store.create_bot({"name": "Nhi Mai", "agent_slug": "hoa", "brain": "brain", "reply_when": "auto"})
 check("(chuẩn bị) có bot", bid and not err, err)
 r = c.get(f"/chatbots/{bid}/reply-policy").json()
-check("GET chưa bật: cấu hình mặc định, không quyết định nào", r["ok"] and r["config"]["mode"] == "off" and r["decisions"] == [], r)
+check("GET chưa có dữ liệu: cấu hình tự vận hành, không quyết định nào",
+      r["ok"] and r["config"]["mode"] == "on" and r["config"]["learning_enabled"] is True and r["decisions"] == [], r)
 check("GET chưa bật KHÔNG sinh file kho (bot chưa opt-in thì không lưu nội dung chat)", not st.db_path().exists())
 check("bot không tồn tại thì 404", c.get("/chatbots/khong-co/reply-policy").status_code == 404)
 
-# ---- lưu cấu hình qua form ----
-pol = {"mode": "on", "eagerness": "high", "guidelines": "Chỉ nói về mỹ phẩm", "aliases": ["Nhi"], "trainer_ids": ["boss1"],
-       "learning_enabled": True, "grounding": "role"}
+# ---- lưu cấu hình qua form: từ 0.65.1 chỉ còn ba khoá có ý nghĩa ----
+pol = {"guidelines": "Chỉ nói về mỹ phẩm", "aliases": ["Nhi"], "trainer_ids": ["boss1"]}
 r = c.post(f"/chatbots/{bid}/update", data={"reply_policy": json.dumps(pol)})
 check("POST update nhận reply_policy dạng chuỗi JSON", r.status_code == 200 and r.json()["ok"], r.text)
 got = chatbot_store.get_bot(bid)["reply_policy"]
-check("cấu hình được lưu đủ", got["mode"] == "on" and got["eagerness"] == "high" and got["aliases"] == ["Nhi"]
-      and got["trainer_ids"] == ["boss1"] and got["learning_enabled"] and got["grounding"] == "role", got)
-c.post(f"/chatbots/{bid}/update", data={"reply_policy": json.dumps({"mode": "lung-tung", "eagerness": "ồn", "learning_enabled": "yes"})})
+check("cấu hình được lưu đủ", got["aliases"] == ["Nhi"] and got["trainer_ids"] == ["boss1"]
+      and got["guidelines"] == "Chỉ nói về mỹ phẩm", got)
+check("và bot tự vận hành: bật, có học, mức vừa, căn cứ tài liệu",
+      got["mode"] == "on" and got["learning_enabled"] is True and got["eagerness"] == "medium" and got["grounding"] == "docs", got)
+c.post(f"/chatbots/{bid}/update", data={"reply_policy": json.dumps({"mode": "off", "eagerness": "high", "learning_enabled": False, "grounding": "role"})})
 got = chatbot_store.get_bot(bid)["reply_policy"]
-check("bản vá giá trị lạ: GIỮ giá trị cũ, không hạ hay nâng", got["mode"] == "on" and got["eagerness"] == "high" and got["learning_enabled"] is True, got)
+check("client cũ gửi khoá đã nghỉ hưu: BỎ QUA, không đổi hành vi, không xoá dữ liệu",
+      got["mode"] == "on" and got["eagerness"] == "medium" and got["learning_enabled"] is True and got["grounding"] == "docs"
+      and got["aliases"] == ["Nhi"] and got["trainer_ids"] == ["boss1"], got)
 c.post(f"/chatbots/{bid}/update", data={"reply_policy": "không phải json"})
 check("JSON hỏng: không đổi gì", chatbot_store.get_bot(bid)["reply_policy"] == got)
 c.post(f"/chatbots/{bid}/update", data={"name": "Nhi Mai 2"})
 check("cập nhật trường khác KHÔNG đụng cấu hình bộ phán xử", chatbot_store.get_bot(bid)["reply_policy"] == got)
 c.post(f"/chatbots/{bid}/update", data={"reply_policy": json.dumps({"aliases": ["Mai"]})})
 check("bản vá từng phần chỉ đổi khoá được gửi", chatbot_store.get_bot(bid)["reply_policy"]["aliases"] == ["Mai"]
-      and chatbot_store.get_bot(bid)["reply_policy"]["mode"] == "on")
+      and chatbot_store.get_bot(bid)["reply_policy"]["trainer_ids"] == ["boss1"])
 
 r = c.post("/chatbots", data={"name": "Bot mới", "agent_slug": "hoa", "brain": "brain",
-                              "reply_policy": json.dumps({"mode": "shadow", "learning_enabled": True})}).json()
-check("tạo bot kèm reply_policy", r["ok"] and chatbot_store.get_bot(r["id"])["reply_policy"]["mode"] == "shadow")
+                              "reply_policy": json.dumps({"trainer_ids": ["boss2"]})}).json()
+check("tạo bot kèm reply_policy", r["ok"] and chatbot_store.get_bot(r["id"])["reply_policy"]["trainer_ids"] == ["boss2"])
 r2 = c.post("/chatbots", data={"name": "Bot không khai", "agent_slug": "hoa", "brain": "brain"}).json()
-check("tạo bot không khai: tắt sẵn, không học", chatbot_store.get_bot(r2["id"])["reply_policy"]["mode"] == "off"
-      and chatbot_store.get_bot(r2["id"])["reply_policy"]["learning_enabled"] is False)
+check("tạo bot không khai gì: tự vận hành sẵn (bật, có học)", chatbot_store.get_bot(r2["id"])["reply_policy"]["mode"] == "on"
+      and chatbot_store.get_bot(r2["id"])["reply_policy"]["learning_enabled"] is True)
 
 # ---- GET có dữ liệu ----
 rid = st.log_decision({"bot_id": bid, "chat_id": "g1", "ts": NOW, "text": "câu hỏi", "sender": "Nam", "sender_id": "u1",
@@ -94,9 +98,8 @@ r = c.post(f"/chatbots/{bid}/reply-policy/label", data={"decision_id": rid, "thu
 check("👎 trên quyết định im -> missed", r.status_code == 200 and r.json()["label"] == "missed", r.text)
 check("nhãn đã vào kho và thành ca", st.get_decision(rid)["label"] == "missed" and st.count_cases(bid, "auto") + st.count_cases(bid, "owner") >= 2)
 check("nút lạ -> 400", c.post(f"/chatbots/{bid}/reply-policy/label", data={"decision_id": rid, "thumb": "x"}).status_code == 400)
-check("quyết định của bot khác -> 400", c.post(f"/chatbots/{r2['id']}/reply-policy/label", data={"decision_id": rid, "thumb": "up"}).status_code in (400, 409))
 r3 = c.post(f"/chatbots/{r2['id']}/reply-policy/label", data={"decision_id": rid, "thumb": "up"})
-check("bot chưa bật tự học: từ chối, không lưu nhãn (409)", r3.status_code == 409, r3.text)
+check("quyết định của bot khác: từ chối, không lưu nhãn (400)", r3.status_code == 400 and st.get_decision(rid)["bot_id"] == bid, r3.text)
 
 # ---- xoá ca, quên ----
 case_id = st.list_cases(bid)[0]["id"]
@@ -141,27 +144,9 @@ src_ask = __import__("inspect").getsource(main._reply_policy_ask)
 check("lớp thứ hai: danh sách công cụ bị cấm gồm Bash, Read, PowerShell, Skill", all(x in src_ask for x in ("BOT_CAM_NATIVE", "PowerShell", "Skill")))
 check("và không dùng MCP", "mcp_strict = True" in src_ask)
 
-# ---- soạn hồ sơ vai ----
-check("soạn hồ sơ khi chưa nối engine: 503", c.post(f"/chatbots/{bid}/reply-policy/draft-guidelines").status_code == 503)
-
-
-async def fake_ask(prompt, purpose=""):
-    if purpose == "profile":
-        return "Đảm nhiệm:\n- mỹ phẩm và chăm sóc da\nKhông đảm nhiệm:\n- chính trị\nGiọng và xưng hô:\n- nhẹ nhàng\nKhi nào nên lên tiếng trong nhóm:\n- khi hỏi về da"
-    return json.dumps([{"text": "da mình bị mụn thì dùng gì", "verdict": "reply", "reason": "đúng ngành"}])
-
-
-import tempfile as _t  # noqa: E402
-from pathlib import Path  # noqa: E402
-brain_dir = Path(_t.mkdtemp(prefix="brain-rp-api-"))
-(brain_dir / "cham-soc-da.md").write_text("# Chăm sóc da\nRửa mặt hai lần mỗi ngày.", encoding="utf-8")
-main.chatbot_runtime._deps["brain_root"] = lambda b: str(brain_dir)
-main.chatbot_runtime._deps["read_agent"] = lambda b, slug: ({"name": "Nhi Mai", "role": "Chuyên gia da"}, "Tư vấn chăm sóc da.")
-rp.wire(ask=fake_ask)
-r = c.post(f"/chatbots/{bid}/reply-policy/draft-guidelines")
-check("soạn hồ sơ vai từ Agent + mục lục tài liệu của bot", r.status_code == 200 and "mỹ phẩm" in r.json()["generated_text"], r.text)
-check("và sinh ca khởi tạo theo lĩnh vực", r.json().get("bootstrap_cases") == 1 and st.count_cases(bid, "bootstrap") == 1)
-rp.wire(ask=None)
+# ---- 0.65.1: nút "Soạn từ vai trò" đã bỏ, hồ sơ vai tự soạn ở nền (xem test_reply_policy_zalo) ----
+check("route soạn hồ sơ bằng tay không còn",
+      c.post(f"/chatbots/{bid}/reply-policy/draft-guidelines").status_code in (404, 405))
 
 # ---- xoá bot xoá sạch dữ liệu học ----
 st.log_decision({"bot_id": bid, "chat_id": "g9", "ts": NOW, "text": "một tin nữa", "verdict": "silent", "mode": "on"}, NOW)

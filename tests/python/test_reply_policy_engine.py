@@ -184,23 +184,40 @@ check("lý do bị cắt 120 ký tự", len(V('{"verdict":"reply","score":0.5,"r
 # 5. Cấu hình fail-closed
 # ============================================================
 N = rp.normalize_config
-check("thiếu cấu hình: tắt, vừa, tài liệu, không học", N(None) == {
-    "mode": "off", "eagerness": "medium", "guidelines": "", "aliases": [], "trainer_ids": [],
-    "learning_enabled": False, "grounding": "docs"}, N(None))
-check("mode lạ thì off", N({"mode": "auto"})["mode"] == "off")
-check("eagerness thiếu khoá thì medium, có khoá mà hỏng thì low (hẹp nhất)",
-      N({})["eagerness"] == "medium" and N({"eagerness": "loud"})["eagerness"] == "low")
-check("learning_enabled chỉ True khi đúng True", N({"learning_enabled": "true"})["learning_enabled"] is False
-      and N({"learning_enabled": 1})["learning_enabled"] is False and N({"learning_enabled": True})["learning_enabled"] is True)
-check("grounding lạ thì docs", N({"grounding": "anything"})["grounding"] == "docs")
+# Từ 0.65.1 chủ bot không còn chỉnh chế độ, độ hăng hái, căn cứ hay tự học: máy tự vận hành.
+check("thiếu cấu hình: tự vận hành (bật, vừa, tài liệu, có học)", N(None) == {
+    "mode": "on", "eagerness": "medium", "guidelines": "", "aliases": [], "trainer_ids": [],
+    "learning_enabled": True, "grounding": "docs"}, N(None))
+check("khoá đã nghỉ hưu bị BỎ QUA: bản ghi 0.65.0 (tắt, không học, nhiều lời, căn cứ vai) vẫn tự vận hành",
+      N({"mode": "off", "eagerness": "high", "learning_enabled": False, "grounding": "role"}) == N(None))
+check("giá trị lạ cũng không làm hẹp hay rộng hơn", N({"mode": "auto", "eagerness": "loud"}) == N(None))
+os.environ["JAVIS_REPLY_POLICY_SHADOW"] = "1"
+check("công tắc của người vận hành: đặt biến môi trường thì mọi bot chạy thử", N(None)["mode"] == "shadow")
+del os.environ["JAVIS_REPLY_POLICY_SHADOW"]
+check("bỏ biến đi thì về bật", N(None)["mode"] == "on")
+check("merge_config chỉ ghi ba khoá còn ý nghĩa, dọn khoá cũ",
+      rp.merge_config({"mode": "off", "eagerness": "low", "learning_enabled": False, "aliases": ["Nhi"]}, {})
+      == {"guidelines": "", "aliases": ["Nhi"], "trainer_ids": []})
+check("merge_config nhận khoá cũ từ client cũ nhưng bỏ đi",
+      rp.merge_config(None, {"mode": "shadow", "eagerness": "high", "trainer_ids": ["u9"]})
+      == {"guidelines": "", "aliases": [], "trainer_ids": ["u9"]})
+NL = chr(10)
+check("guideline_lines tách dòng, bỏ gạch đầu dòng, dòng quá ngắn, tối đa 10",
+      rp.guideline_lines("- Chỉ nói về mỹ phẩm" + NL + "* Không chen chuyện riêng" + NL + NL + "ab" + NL
+                         + NL.join("dòng số %d" % i for i in range(20)))[:2]
+      == ["Chỉ nói về mỹ phẩm", "Không chen chuyện riêng"]
+      and len(rp.guideline_lines(NL.join("dòng số %d" % i for i in range(20)))) == 10)
 check("aliases khử trùng, cắt, tối đa 10",
       N({"aliases": ["A b", "a B", "x" * 90] + [str(i) for i in range(20)]})["aliases"][:2] == ["A b", "x" * 40]
       and len(N({"aliases": [str(i) for i in range(20)]})["aliases"]) == 10)
 check("kiểu dữ liệu sai không làm sập", N({"aliases": "abc", "trainer_ids": 5, "guidelines": None})["aliases"] == [])
-pr = rp.BotProfile.from_bot({"id": "b1", "name": "Nhi Mai", "reply_policy": {"mode": "on", "aliases": ["nhi"],
-                                                                            "learning_enabled": True}},
+pr = rp.BotProfile.from_bot({"id": "b1", "name": "Nhi Mai", "reply_policy": {"aliases": ["nhi"]}},
                             auto_aliases=("Nhi Mai",), role_text="vai")
 check("BotProfile.from_bot đọc cấu hình", pr.mode == "on" and pr.learning_enabled and pr.aliases == ["nhi"])
+check("căn cứ tự chọn: chưa biết hoặc có tài liệu thì bắt buộc có căn cứ trong tài liệu",
+      pr.grounding == "docs" and rp.BotProfile.from_bot({"id": "b1"}, has_docs=True).grounding == "docs")
+check("căn cứ tự chọn: biết chắc bot KHÔNG có tài liệu nào thì dựa vào vai (kẻo không bao giờ tự nói được)",
+      rp.BotProfile.from_bot({"id": "b1"}, has_docs=False).grounding == "role")
 
 # ============================================================
 # 6. Prompt: chỉ có dữ liệu của bot này, chat bị bọc và làm sạch

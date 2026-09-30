@@ -6,7 +6,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.1] - 2026-09-30
 ### Cải thiện
-- **Bộ phán xử tự vận hành, bỏ hết ô cài đặt.** Chọn Tự đánh giá là xong: máy tự chọn mức hăng hái, tự học từ phản ứng trong nhóm, tự soạn vai từ Agent. Anh chỉnh bằng nút Đúng/Sai ở menu Bộ phán xử.
+- **Bộ phán xử tự vận hành, bỏ hết ô cài đặt.** Chọn Tự đánh giá là xong. Máy tự chọn mức hăng hái cho từng nhóm, tự học từ phản ứng của nhóm, tự soạn vai từ Agent của bot. Bạn chỉ chỉnh bằng nút Đúng/Sai ở menu Bộ phán xử.
+- **Luật lên tiếng viết tay ở bản trước** được gộp vào Bài học của bot. Muốn bot nhận thêm một tên thì gọi bot rồi dạy trong nhóm.
+- **Lưu ý:** bot đang ở Tự đánh giá dùng bộ phán xử ngay khi cập nhật, và ghi lại chữ chat của nhóm (tối đa 400 ký tự mỗi tin, giữ 14 ngày) để học. Nút Quên hết xoá sạch.
 
 ## [0.65.0] - 2026-09-30
 ### Thêm mới

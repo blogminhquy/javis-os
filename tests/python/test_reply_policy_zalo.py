@@ -142,17 +142,18 @@ def sach():
 
 
 bid, loi = chatbot_store.create_bot({"name": "Javis Vũ", "agent_slug": "lan", "brain": "b", "account_ids": ["zalo-1"],
-                                     "muc_quyen": "suggest", "reply_when": "auto", "groups": [NHOM]})
-check("tạo được bot Tự đánh giá cho nhóm", bool(bid) and not loi, loi)
-check("bot mới: bộ phán xử tắt, không học", chatbot_store.get_bot(bid)["reply_policy"]["mode"] == "off"
-      and chatbot_store.get_bot(bid)["reply_policy"]["learning_enabled"] is False)
+                                     "muc_quyen": "suggest", "reply_when": "mention", "groups": [NHOM]})
+check("tạo được bot cho nhóm (chưa chọn Tự đánh giá)", bool(bid) and not loi, loi)
+check("bot mới không cần khai gì: bộ phán xử tự vận hành (bật, có học)",
+      chatbot_store.get_bot(bid)["reply_policy"]["mode"] == "on"
+      and chatbot_store.get_bot(bid)["reply_policy"]["learning_enabled"] is True)
 
 
 async def chay():
     ok, err = chatbot_runtime.start_bot(bid)
     check("bật bot", ok, err)
 
-    # ---------- 1. Sửa lỗi gốc: gọi tên trơn, bộ phán xử còn TẮT ------------------------------
+    # ---------- 1. Sửa lỗi gốc: gọi tên trơn, bot chưa ở chế độ Tự đánh giá ---------------------
     KHO_TIN.append(msg("javis vũ ơi", "a1"))
     await doc()
     check("gọi tên trơn 'javis vũ ơi' được trả lời (bản trước im lặng)", len(GUI) == 1 and GUI[0]["threadId"] == NHOM, GUI)
@@ -167,16 +168,17 @@ async def chay():
     KHO_TIN.append(msg("nhờ ai đó xem giúp mình cái này với @Nam", "a4"))
     await doc()
     check("tin không gọi bot thì vẫn im như cũ", not GUI and len(LUOT_ENGINE) == n0, GUI)
-    check("bộ phán xử tắt: KHÔNG sinh file kho nào (bot chưa opt-in thì không lưu nội dung chat)", not st.db_path().exists())
+    check("chưa chọn Tự đánh giá: KHÔNG sinh file kho nào (không lưu nội dung chat)", not st.db_path().exists())
 
-    # ---------- 2. Bật bộ phán xử + học ---------------------------------------------------------
-    chatbot_store.update_bot(bid, {"reply_policy": {"mode": "on", "learning_enabled": True, "trainer_ids": [BOSS],
-                                                    "eagerness": "medium"}})
+    # ---------- 2. Chọn Tự đánh giá: bộ phán xử tự chạy, không ô cài đặt nào ------------------------
+    chatbot_store.update_bot(bid, {"reply_when": "auto", "reply_policy": {"trainer_ids": [BOSS], "mode": "off"}})
     rpc = chatbot_store.get_bot(bid)["reply_policy"]
-    check("bật được và lưu đủ", rpc["mode"] == "on" and rpc["learning_enabled"] and rpc["trainer_ids"] == [BOSS], rpc)
+    check("chọn Tự đánh giá là chạy (khoá cũ mode=off bị bỏ qua), người được dạy lưu đủ",
+          rpc["mode"] == "on" and rpc["learning_enabled"] and rpc["trainer_ids"] == [BOSS], rpc)
     chatbot_store.update_bot(bid, {"reply_policy": {"mode": "bay-gio", "eagerness": "ồn ào"}})
     rpc = chatbot_store.get_bot(bid)["reply_policy"]
-    check("bản vá giá trị lạ thì GIỮ giá trị cũ, không hạ hay nâng lặng lẽ", rpc["mode"] == "on" and rpc["eagerness"] == "medium", rpc)
+    check("bản vá khoá cũ hoặc giá trị lạ không đổi hành vi và không xoá người được dạy",
+          rpc["mode"] == "on" and rpc["eagerness"] == "medium" and rpc["trainer_ids"] == [BOSS], rpc)
 
     sach()
     n0 = len(LUOT_ENGINE)
@@ -275,9 +277,11 @@ async def chay():
     prof = st.get_role_profile(bid)
     check("hồ sơ vai được soạn ở nền", prof and "Đảm nhiệm" in prof["generated_text"], prof)
     check("và ca khởi tạo theo lĩnh vực của bot", st.count_cases(bid, "bootstrap") == 2, st.count_cases(bid, "bootstrap"))
+    check("máy tự biết bot có tài liệu để tra (căn cứ tự chọn: phải có tài liệu khớp mới tự nói)",
+          chatbot_runtime._RP_HAS_DOCS.get(bid) is True, chatbot_runtime._RP_HAS_DOCS)
 
     # ---------- 3. Chạy thử: luật cũ quyết, người phán xử chỉ ghi -------------------------------
-    chatbot_store.update_bot(bid, {"reply_policy": {"mode": "shadow"}})
+    os.environ["JAVIS_REPLY_POLICY_SHADOW"] = "1"      # công tắc của người vận hành, không phải của chủ bot
     J.mode = "silent"
     n_dec = len(st.recent_decisions(bid, 500))
     KHO_TIN.append(msg("Bước cài đặt Node như nào mọi người, lỗi cổng 7777 nữa", "c1", giay_truoc=3, uid="7770003", nguoi="Học viên C"))
@@ -286,10 +290,11 @@ async def chay():
     sh = [d for d in st.recent_decisions(bid, 500) if d["mode"] == "shadow"]
     check("chạy thử: người phán xử vẫn ghi lại quyết định của nó (mode=shadow, nói im)", sh and sh[0]["verdict"] == "silent", sh)
     check("chạy thử: không mở cửa theo dõi", st.open_watches(bid, NHOM) == [])
+    del os.environ["JAVIS_REPLY_POLICY_SHADOW"]
     sach()
 
     # Khi không ở chế độ Tự đánh giá thì bộ phán xử vô hiệu, nhưng gọi tên trơn vẫn được nhận.
-    chatbot_store.update_bot(bid, {"reply_when": "mention", "reply_policy": {"mode": "on"}})
+    chatbot_store.update_bot(bid, {"reply_when": "mention"})
     n_dec = len(st.recent_decisions(bid, 500))
     KHO_TIN.append(msg("javis vũ ơi cho hỏi chút", "d1", giay_truoc=2))
     KHO_TIN.append(msg("cho mình hỏi cách đổi bộ não ở đâu vậy", "d2", giay_truoc=1, uid="7770004"))
@@ -298,7 +303,7 @@ async def chay():
     check("reply_when=mention: bộ phán xử không ghi thêm dòng nào cho tin không ai gọi", len(st.recent_decisions(bid, 500)) == n_dec)
 
     # #6a: bộ phán xử nói reply nhưng Agent chọn im ([IM_LANG]): quyết định phải được sửa thành im, cửa theo dõi đóng.
-    chatbot_store.update_bot(bid, {"reply_when": "auto", "reply_policy": {"mode": "on"}})      # bước trước để mention
+    chatbot_store.update_bot(bid, {"reply_when": "auto"})      # bước trước để mention
     J.mode = "reply"
     TRA_LOI["v"] = "[IM_LANG]"
     n_gui = len(GUI)
@@ -331,7 +336,7 @@ async def chay():
     sach()
 
     # Bộ phán xử ném lỗi bất ngờ ở lớp vận chuyển: rơi về luật cũ, KHÔNG được nuốt tin (tin gọi tên vẫn được trả lời).
-    chatbot_store.update_bot(bid, {"reply_when": "auto", "reply_policy": {"mode": "on"}})
+    chatbot_store.update_bot(bid, {"reply_when": "auto"})
     orig = chatbot_runtime.PolicyHooks.prepare
 
     def _boom(self, text, meta, owner_typing=False):
@@ -344,6 +349,20 @@ async def chay():
     chatbot_runtime.PolicyHooks.prepare = orig
     check("prepare ném lỗi: tin gọi tên VẪN được trả lời bằng luật cũ", len(GUI) == 1, GUI)
     sach()
+
+    # ---------- 0.65.1: luật lên tiếng viết tay của 0.65.0 (form không còn ô đó) gộp vào BÀI HỌC ----------
+    NL = chr(10)
+    before = {x["text"] for x in st.list_lessons(bid)}
+    chatbot_store.update_bot(bid, {"reply_policy": {"guidelines": "- Chỉ nói về phần mềm Javis" + NL + "* Không chen chuyện riêng của thành viên"}})
+    chatbot_runtime._rp_profile(chatbot_store.get_bot(bid), with_role=False)
+    got = {x["text"] for x in st.list_lessons(bid)} - before
+    check("luật cũ thành bài học, từng dòng một",
+          got == {"Chỉ nói về phần mềm Javis", "Không chen chuyện riêng của thành viên"}, got)
+    check("và chữ cũ được xoá khỏi cấu hình (không áp dụng hai lần)",
+          chatbot_store.get_bot(bid)["reply_policy"]["guidelines"] == "")
+    n_les = len(st.list_lessons(bid))
+    chatbot_runtime._rp_profile(chatbot_store.get_bot(bid), with_role=False)
+    check("chạy lại không thêm bài học nữa", len(st.list_lessons(bid)) == n_les)
 
     chatbot_runtime.stop_bot(bid)
 

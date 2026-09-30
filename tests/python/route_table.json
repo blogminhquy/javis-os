@@ -3718,15 +3718,5 @@
    "POST"
   ],
   "trong": null
- },
- {
-  "order": 374,
-  "type": "APIRoute",
-  "path": "/chatbots/{bot_id}/reply-policy/draft-guidelines",
-  "name": "reply_policy_draft",
-  "methods": [
-   "POST"
-  ],
-  "trong": null
  }
 ]

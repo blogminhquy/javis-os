@@ -461,10 +461,33 @@ def _rp_role_text(cfg: dict) -> str:
     return _rp_agent_text(cfg)[:1500]
 
 
+_RP_HAS_DOCS: Dict[str, bool] = {}     # bot_id -> brain của bot có tài liệu để tra không (biết sau lần soạn hồ sơ đầu)
+
+
+def _rp_fold_guidelines(cfg: dict) -> None:
+    """Từ 0.65.1 form bot không còn ô "Luật lên tiếng". Chữ chủ đã viết ở bản 0.65.0 được gộp một lần vào BÀI HỌC của
+    bot (chủ thấy trong menu Bộ phán xử, nút Quên hết xoá được) rồi xoá khỏi cấu hình. Ghi hỏng thì giữ nguyên chữ
+    cũ, bộ phán xử vẫn đọc nó nên không mất luật nào."""
+    rp = cfg.get("reply_policy") or {}
+    if not str(rp.get("guidelines") or "").strip():
+        return
+    bot_id = str(cfg.get("id") or "")
+    try:
+        now = time.time()
+        for line in chatbot_reply_policy.guideline_lines(rp["guidelines"]):
+            chatbot_reply_policy_store.add_lesson(bot_id, line, now)
+        chatbot_store.update_bot(bot_id, {"reply_policy": {"guidelines": ""}})
+        cfg["reply_policy"] = dict(rp, guidelines="")
+    except Exception as e:      # noqa: BLE001
+        print(f"[reply_policy {bot_id}] gộp luật cũ vào bài học lỗi: {type(e).__name__}", file=sys.stderr)
+
+
 def _rp_profile(cfg: dict, meta: dict = None, with_role: bool = True):
+    _rp_fold_guidelines(cfg)
     return chatbot_reply_policy.BotProfile.from_bot(
         cfg, auto_aliases=(meta or {}).get("aliases_auto") or (),
-        role_text=_rp_role_text(cfg) if with_role else "")
+        role_text=_rp_role_text(cfg) if with_role else "",
+        has_docs=_RP_HAS_DOCS.get(str(cfg.get("id") or "")))
 
 
 def _rp_event(cfg: dict, profile, text: str, meta: dict, owner_typing: bool = False):
@@ -551,8 +574,13 @@ _RP_BACKOFF_S = 1800
 
 
 def _rp_collect(cfg: dict) -> tuple:
-    """(nguyên văn Agent, mục lục tài liệu) của bot. Đọc đĩa nên chạy trong thread, không trên vòng sự kiện."""
+    """(nguyên văn Agent, mục lục tài liệu) của bot. Đọc đĩa nên chạy trong thread, không trên vòng sự kiện.
+    Tiện thể nhớ brain của bot có tài liệu để tra không: bot không có tài liệu nào thì lời tự nói dựa vào vai."""
     root = _deps["brain_root"](cfg["brain"])
+    try:
+        _RP_HAS_DOCS[str(cfg.get("id") or "")] = bool(chatbot_grounding.chi_muc(root).get("manh"))
+    except Exception as e:      # noqa: BLE001 - chưa biết thì giữ luật chặt (phải có căn cứ)
+        print(f"[reply_policy] đếm tài liệu lỗi: {type(e).__name__}", file=sys.stderr)
     return _rp_agent_text(cfg), chatbot_reply_policy.list_doc_titles(root)
 
 
@@ -649,7 +677,7 @@ class PolicyHooks:
     def replied(self, meta: dict, text: str) -> None:
         """Bot vừa nói trong nhóm: nhớ để nhận ra tin nối tiếp của đúng người được trả lời."""
         cfg = chatbot_store.get_bot(self.bot_id)
-        if not cfg or chatbot_reply_policy.normalize_config(cfg.get("reply_policy"))["mode"] == "off":
+        if not cfg or cfg.get("reply_when") != "auto":
             return
         chatbot_reply_policy.note_bot_reply(self.bot_id, str((meta or {}).get("chat_id") or ""),
                                             str((meta or {}).get("user_id") or ""), text)
@@ -999,6 +1027,7 @@ def _make_answer_fn(bot_id: str):
             # Bộ phán xử (0.65.0) thay cửa từ khoá: nó tự tra tài liệu, kiểm hạn mức và hỏi model. Mọi kết
             # quả, kể cả im, đều đã được ghi vào kho quyết định.
             try:
+                _rp_schedule_profile(cfg)      # Telegram không qua PolicyHooks: tự soạn hồ sơ vai và đo tài liệu ở đây
                 profile = _rp_profile(cfg, meta)
                 ev = _rp_event(cfg, profile, text, meta or {})
                 if not (meta or {}).get("_rp_observed"):

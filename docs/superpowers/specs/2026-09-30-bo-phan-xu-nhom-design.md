@@ -347,12 +347,35 @@ Xoá bot thì xoá sạch dòng của bot. Vòng đệm im: mọi tin bị im đ
 Trường mới trong bản ghi bot (đi qua `chatbot_store`, có lọc và giá trị mặc định fail-closed):
 
 ```
-reply_policy: { mode: "off"|"shadow"|"on" (mặc định off), eagerness: "low"|"medium"|"high" (medium),
-                guidelines: str, aliases: [str], trainer_ids: [str], learning_enabled: bool (false),
-                grounding: "docs"|"role" (docs) }
+reply_policy: { aliases: [str], trainer_ids: [str], guidelines: str (di sản, xem 7.2) }
 ```
 
-Giá trị lạ rơi về phía hẹp nhất (`off`, `low`, `learning_enabled = false`). Chỉ có nghĩa khi `reply_when = auto`.
+Chỉ có nghĩa khi `reply_when = auto`. Bản 0.65.0 còn `mode`, `eagerness`, `grounding`, `learning_enabled`; xem 7.2 vì sao
+bản 0.65.1 bỏ chúng.
+
+### 7.2 Tự vận hành, không ô cài đặt (0.65.1)
+
+Chủ dự án nhận xét ngày 30/09/2026: cài đặt quá nhiều, muốn lược bớt và đẩy phần suy luận về AI để tự cải thiện. Nguyên tắc
+áp cho mọi thứ sau này của bộ phán xử: **thứ gì máy suy ra được từ dữ liệu sẵn có thì không thành ô cài đặt**. Bảy ô của
+0.65.0 được xử lý như sau:
+
+| Ô cũ | Nay |
+|---|---|
+| Chế độ Tắt / Chạy thử / Bật | Bỏ. Chọn "Tự đánh giá" là bật; muốn tắt thì chọn cách lên tiếng khác. Chạy thử thành công tắc của người vận hành: biến môi trường `JAVIS_REPLY_POLICY_SHADOW=1`. |
+| Độ hăng hái | Bỏ. Cố định mức vừa làm ngưỡng gốc; ngưỡng riêng từng nhóm tự nhích theo Đúng/Sai và phản ứng của nhóm (đã có từ 0.65.0), co dần về gốc theo chu kỳ 14 ngày. |
+| Căn cứ (tài liệu / vai) | Bỏ. Tự chọn: brain của bot có mảnh tài liệu nào thì bắt buộc có tài liệu khớp mới được tự nói, không có thì dựa vào vai. Đo ở thread nền cùng lần soạn hồ sơ vai (`chatbot_grounding.chi_muc`); chưa đo thì giữ luật chặt (tài liệu). |
+| Luật lên tiếng + nút Soạn từ vai trò | Bỏ. Hồ sơ vai vốn đã tự soạn và tự soạn lại khi Agent hay tài liệu đổi. Chữ chủ đã viết ở 0.65.0 được gộp MỘT LẦN vào bảng `lessons` (từng dòng) rồi xoá khỏi cấu hình; ghi hỏng thì giữ chữ cũ nên không mất luật nào. Route `draft-guidelines` bị gỡ. |
+| Tên gọi thêm | Bỏ khỏi form. Vẫn lưu trong `aliases`; thêm bằng cách dạy trong nhóm ("gọi em là Thu nhé", kind `alias` của mục 5.9). |
+| Bật tự học | Bỏ. Luôn bật khi ở chế độ Tự đánh giá. Đổi lại lời nói thật về dữ liệu ở dòng giải thích của form (400 ký tự, 14 ngày, ca 180 ngày) và nút Quên hết. |
+| Người được dạy bot | Bỏ ô nhập ID. Còn nút **Là chủ** ngay ở tin của mình trong menu Bộ phán xử: chọn trên dữ liệu thật, không phải gõ ID Zalo. |
+
+Hệ quả: `normalize_config` đọc `reply_policy` nhưng BỎ QUA các khoá đã nghỉ hưu, kẻo bot đã lưu form ở 0.65.0 (khi form
+luôn ghi `mode: "off"`) kẹt ở trạng thái tắt mà không còn nút nào sửa. `merge_config` chỉ ghi ba khoá còn ý nghĩa và dọn
+các khoá cũ khỏi bản ghi. Form bot không còn gửi `reply_policy`, nên lưu bot không thể ghi đè `aliases` hay `trainer_ids`.
+
+Đánh đổi đã cân: mất chế độ Chạy thử ở giao diện. Bù lại mọi quyết định (kể cả im) đều hiện ở menu Bộ phán xử kèm Đúng/Sai,
+bộ phán xử vẫn sai về phía im, và người vận hành còn công tắc môi trường. Nếu sau này thấy thiếu chế độ thử, thêm lại thành
+một nút BẬT TẠM (tự tắt sau N ngày) chứ không thành cài đặt vĩnh viễn.
 
 Đường mới, đặt SAU route cuối của `main.py` để `route_table.json` chỉ thêm dòng cuối:
 
@@ -361,16 +384,14 @@ Giá trị lạ rơi về phía hẹp nhất (`off`, `low`, `learning_enabled = 
 - `POST /chatbots/{id}/reply-policy/label`: chủ gắn 👍/👎 cho một quyết định.
 - `POST /chatbots/{id}/reply-policy/cases/{case_id}/delete`: xoá một ca.
 - `POST /chatbots/{id}/reply-policy/forget`: quên hết, hoặc riêng một cuộc chat.
-- `POST /chatbots/{id}/reply-policy/draft-guidelines`: soạn nháp thẻ luật từ vai Agent.
+- (bản 0.65.0 có thêm `POST .../draft-guidelines` soạn nháp thẻ luật; gỡ ở 0.65.1, hồ sơ vai tự soạn ở nền.)
 
 Giao diện (một cột, đúng phong cách form hiện tại, đủ vi và en):
 
-- Trong phần "Bot trả lời ai", khi chọn "Tự đánh giá": khối **Bộ phán xử** gồm nút chọn một Tắt /
-  Chạy thử / Bật, nút chọn một Ít lời / Vừa / Nhiều lời, ô "Luật lên tiếng" kèm nút "Soạn từ vai
-  trò", ô "Tên gọi thêm", chọn người dạy bot từ danh sách người, và ô tick "Cho bot tự học từ phản
-  ứng trong nhóm" (tắt sẵn, một dòng nói rõ bot lưu nội dung chat nhóm để học).
+- Trong phần "Bot trả lời ai", khi chọn "Tự đánh giá": chỉ một dòng giải thích (bot tự cân nhắc, tự học,
+  và nói thật về chữ chat được lưu). Không ô nhập, không nút chọn (0.65.1; bản 0.65.0 có bảy ô, xem 7.2).
 - Menu "..." của thẻ bot thêm **Bộ phán xử**: bảng quyết định gần đây có cả tin bị im, mỗi dòng có
-  👍 👎, danh sách bài học, nút Quên hết.
+  Đúng/Sai và nút Là chủ, danh sách bài học, hồ sơ vai, nút Quên hết.
 
 ### 7.1 Lịch sử hội thoại của bot (M9)
 

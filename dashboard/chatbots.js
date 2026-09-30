@@ -366,7 +366,7 @@
               '" title="' + esc(window.t("cb2.mn")) + '">&#8943;</button>' +
             '<div class="cb-mn-l" hidden>' +
               '<button class="cb-log" type="button">' + ic("history") + ' ' + esc(window.t("cb.nhat_ky")) + '</button>' +
-              (b.reply_when === "auto" || (window.JavisReplyPolicy && window.JavisReplyPolicy.summary(b))
+              (b.reply_when === "auto"
                 ? '<button class="cb-rp" type="button">' + ic("brain") + ' ' + esc(window.t("rp.menu")) + '</button>' : '') +
               '<button class="cb-hoi-thoai" type="button">' + ic("messages-square") + ' ' +
                 esc(window.t("cb.xem_hoi_thoai")) + '</button>' +
@@ -811,8 +811,8 @@
                 { v: "always", t: window.t("cb2.rw_always") }], rw0) +
               '<div class="cb-hint" id="cbRwH"></div>' +
               '<div class="cb-hint cb-chi-tg" id="cbRwTg">' + esc(window.t("cb2.rw_tg")) + '</div>' +
-              // Chỉ hiện khi chọn "Tự đánh giá": bộ phán xử thay cửa từ khoá của chế độ đó.
-              (RP ? RP.formHtml(b && b.reply_policy, htmlSeg, { canDraft: sua }) : '') +
+              // Chỉ hiện khi chọn "Tự đánh giá": một dòng giải thích, không ô cài đặt nào (bộ phán xử tự vận hành).
+              (RP ? RP.formHtml() : '') +
             '</div>' +
           '</div>' +
 
@@ -988,7 +988,6 @@
       if (rpBox) rpBox.style.display = v === "auto" ? "" : "none";
     }
     box.querySelectorAll('input[name="cbRw"]').forEach(function (i) { i.onchange = veRw; });
-    if (RP) RP.bind(box, { botId: sua ? b.id : "", onDrafted: function () {} });
 
     // ---- Bot trả lời ai: ba thẻ quyết định ô chọn nào hiện, và chữ của ô đó
     function apGoiY() {
@@ -1137,8 +1136,6 @@
                     groups: co ? ds("group").join("\n") : "",
                     reply_when: co ? (giaTri("cbRw") || "mention") : "mention",
                     account_ids: ids.join(",") };
-      // Khối bộ phán xử luôn được đọc, kể cả khi đang ẩn: cấu hình đã đặt không mất khi chủ tạm đổi chế độ.
-      if (RP) chung.reply_policy = JSON.stringify(RP.read(box));
       try {
         if (sua) {
           await api("/chatbots/" + encodeURIComponent(b.id) + "/update", { method: "POST", body: fd(chung) });

@@ -3435,9 +3435,7 @@ body.ne-full-on .cview { z-index: 250; }
 .adaptive-draft-controls{display:flex;flex-wrap:wrap;gap:8px;padding:10px;align-items:center}.adaptive-draft-controls[hidden]{display:none}.adaptive-draft-controls [data-status]{flex:1 1 100%;font-size:13px}.adaptive-draft-controls button{min-height:44px}
 
 /* ---- Bộ phán xử hội thoại nhóm (0.65.0) ---- */
-.cb-rp { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
-.cb-rp textarea { width: 100%; box-sizing: border-box; resize: vertical; }
-.cb-rp .cb-rp-draft { display: flex; align-items: center; gap: 10px; margin: 6px 0 2px; flex-wrap: wrap; }
+.cb-rp-note { margin-top: 10px; }
 .cb-form label.cb-rp-learn { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 2px;
   font-weight: 500; cursor: pointer; }
 .cb-rp-form { width: min(820px, 96vw); }
