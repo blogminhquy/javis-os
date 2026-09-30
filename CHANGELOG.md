@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.0] - 2026-09-30
+### Thêm mới
+- **Bot trong nhóm biết khi nào nên nói** (đang làm): nhận ra khi bị gọi tên trơn, hiểu mạch trò chuyện, và tự học từ phản ứng của người trong nhóm.
+
 ## [0.64.86] - 2026-09-30
 ### Sửa lỗi
 - **Trang Cộng sự không còn hiện mã kiểu `ws.tab_agent`, `sess.new_chat` thay cho tên nút** khi mở lại Javis sau khi cập nhật. Nhãn giờ tự chuyển thành chữ ngay khi bộ chữ tải xong.
