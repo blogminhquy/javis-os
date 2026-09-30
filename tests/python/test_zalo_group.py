@@ -47,6 +47,7 @@ QUEUE = []        # trả lời theo thứ tự từng lệnh (nếu có), rồi
 
 
 def fake_world(conns=MOT, local=None, replies=None):
+    zalo_cli.AUTO_INSTALL = False      # không cài thật bản ghim trong test
     zalo_cli.connections = lambda: list(conns)
     zalo_cli.check = lambda: None
     zalo_cli.shutil = type("S", (), {"which": staticmethod(lambda n: "/usr/bin/npx" if n == "npx" else None)})

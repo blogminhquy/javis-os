@@ -12,6 +12,9 @@ Bẫy cần biết (đều đã dính hoặc suýt dính):
     Chỉ khi không tìm thấy mới rơi về cmd, và lúc đó TỪ CHỐI tham số chứa ký tự nguy hiểm thay vì đoán cách thoát.
   - Tham số bắt đầu bằng "-" ("- Họp lúc 9h") bị Commander coi là cờ. Dùng `--` chặn trước các tham số vị trí.
   - CLI KHÔNG thoát mã khác 0 khi Zalo từ chối (xem `interpret`).
+  - Tốc độ: mỗi lần `npx -y zalo-agent-cli@...` mất khoảng 3 giây chỉ để khởi động (đo trên Windows), cộng thêm việc HOME của
+    phiên Zalo là thư mục riêng nên trên Linux npx còn có thể tải lại gói vào cache của HOME đó. Nên Javis cài ngầm MỘT bản ghim vào
+    thư mục của mình (`install_dir`) và chạy thẳng `node index.js`; chưa cài xong thì vẫn chạy bằng npx như cũ.
 """
 from __future__ import annotations
 
@@ -20,6 +23,8 @@ import json
 import os
 import re
 import shutil
+import sys
+import time
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
@@ -29,6 +34,11 @@ CONNECTOR_ID = "zalo"
 CLI_PACKAGE = "zalo-agent-cli@1.6.2"     # ghim đúng bản mà connector Zalo đang chạy
 DEFAULT_TIMEOUT = 120                     # tải file lên Zalo có thể lâu, nhưng không lâu vô hạn
 TIMEOUT_MARK = "giây chưa xong"          # đuôi câu báo hết giờ; `is_timeout` nhận ra câu đó
+AUTO_INSTALL = True                       # test tắt cờ này để không cài thật
+INSTALL_TIMEOUT = 300                     # giây cho một lần `npm install`
+INSTALL_RETRY = 1800                      # cài hỏng thì chờ chừng này giây mới thử lại (không cài lại ở mọi câu trả lời)
+_INSTALL_MARK = ".javis-installed"        # ghi SAU KHI cài xong; cài dở (tắt máy giữa chừng) thì không có dấu này nên không dùng
+_install_state: dict = {"task": None, "failed_at": 0.0}
 
 # Ký tự mà cmd.exe diễn giải dù nằm trong ngoặc kép (hoặc khi tham số không có khoảng trắng nên không được bọc).
 _CMD_UNSAFE = re.compile(r'[&|<>^%!"\r\n]')
@@ -84,6 +94,120 @@ def check() -> Optional[str]:
     return None
 
 
+def install_dir() -> Path:
+    """Thư mục Javis tự cài bản ghim của CLI. Nằm trong state (volume trên Docker) nên sống qua khởi động lại và cập nhật ảnh."""
+    import config
+    return Path(config.STATE_DIR) / "tools" / "zalo-agent-cli"
+
+
+def cli_entry() -> Optional[Path]:
+    """`index.js` của bản đã cài, hoặc None nếu chưa cài xong / cài bản khác (đổi phiên bản ghim thì cài lại)."""
+    root = install_dir()
+    try:
+        if (root / _INSTALL_MARK).read_text(encoding="utf-8").strip() != CLI_PACKAGE:
+            return None
+    except OSError:
+        return None
+    entry = root / "node_modules" / "zalo-agent-cli" / "src" / "index.js"
+    return entry if entry.is_file() else None
+
+
+def direct_command() -> Optional[List[str]]:
+    """`[node, index.js]` khi đã cài sẵn: bỏ bước npx tìm gói mỗi lần. Windows cũng không qua cmd.exe."""
+    entry = cli_entry()
+    node = shutil.which("node")
+    return [node, str(entry)] if entry and node else None
+
+
+def npm_command() -> Optional[List[str]]:
+    """Đầu lệnh chạy npm, cùng cách với `npx_command`. Windows không tìm thấy npm-cli.js thì trả None: bỏ qua việc cài ngầm
+    (đường npx vẫn chạy được) chứ không đưa đường dẫn vào cmd.exe."""
+    npm = shutil.which("npm")
+    if not npm:
+        return None
+    if os.name != "nt":
+        return [npm]
+    node = shutil.which("node")
+    if node:
+        cli = Path(node).parent / "node_modules" / "npm" / "bin" / "npm-cli.js"
+        if cli.is_file():
+            return [node, str(cli)]
+    return None
+
+
+async def _install() -> bool:
+    head = npm_command()
+    if head is None:
+        return False
+    root = install_dir()
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        pkg = root / "package.json"
+        if not pkg.exists():
+            pkg.write_text('{"name": "javis-zalo-cli", "private": true}\n', encoding="utf-8")
+        (root / _INSTALL_MARK).unlink(missing_ok=True)
+    except OSError as e:
+        print(f"[zalo-cli] không tạo được thư mục cài: {e}", file=sys.stderr)
+        return False
+    argv = head + ["install", "--prefix", str(root), "--no-audit", "--no-fund", "--no-package-lock",
+                   "--loglevel=error", CLI_PACKAGE]
+    proc = await asyncio.create_subprocess_exec(
+        *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        stdin=asyncio.subprocess.DEVNULL, **winproc.kwargs_no_window())
+    try:
+        _out, err = await asyncio.wait_for(proc.communicate(), timeout=INSTALL_TIMEOUT)
+    except asyncio.TimeoutError:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        try:
+            await asyncio.wait_for(proc.wait(), 5)
+        except Exception:
+            pass
+        print(f"[zalo-cli] cài quá {INSTALL_TIMEOUT} giây, bỏ", file=sys.stderr)
+        return False
+    if proc.returncode != 0:
+        print("[zalo-cli] cài lỗi: " + _ANSI.sub("", (err or b"").decode("utf-8", "replace")).strip()[-300:], file=sys.stderr)
+        return False
+    if not (root / "node_modules" / "zalo-agent-cli" / "src" / "index.js").is_file():
+        print("[zalo-cli] cài xong nhưng không thấy index.js", file=sys.stderr)
+        return False
+    (root / _INSTALL_MARK).write_text(CLI_PACKAGE, encoding="utf-8")
+    return True
+
+
+async def _install_guarded() -> None:
+    try:
+        ok = await _install()
+    except Exception as e:      # noqa: BLE001 - cài ngầm hỏng không được làm hỏng lượt đang chạy
+        print(f"[zalo-cli] cài lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+        ok = False
+    if ok:
+        print("[zalo-cli] đã cài xong bản ghim, từ nay chạy thẳng bằng Node", file=sys.stderr)
+    else:
+        _install_state["failed_at"] = time.time()
+
+
+def start_install() -> None:
+    """Cài NGẦM bản ghim vào `install_dir` (một lần) để các lần sau chạy thẳng bằng Node. Gọi thoải mái: đã cài, đang cài, mới hỏng
+    (chờ `INSTALL_RETRY`), hay không có vòng lặp sự kiện thì không làm gì. Lượt đang chạy KHÔNG chờ nó, vẫn đi bằng npx."""
+    if not AUTO_INSTALL or cli_entry() is not None:
+        return
+    t = _install_state["task"]
+    if t is not None and not t.done():
+        return
+    if time.time() - float(_install_state["failed_at"]) < INSTALL_RETRY:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    if npm_command() is None:
+        return
+    _install_state["task"] = loop.create_task(_install_guarded())
+
+
 def npx_command() -> Optional[List[str]]:
     """Đầu lệnh chạy npx. Windows thì chạy `node npx-cli.js` THẲNG để không qua cmd.exe (xem đầu file); rơi về
     `cmd.exe /c npx.cmd` chỉ khi không tìm thấy, và khi đó `run_cli` từ chối tham số nguy hiểm."""
@@ -102,7 +226,7 @@ def npx_command() -> Optional[List[str]]:
 
 def build_argv(command: List[str], positionals: Optional[List[str]] = None,
                options: Optional[List[str]] = None) -> Optional[List[str]]:
-    """Dựng `npx -y zalo-agent-cli@… --json <lệnh con> …`.
+    """Dựng `node index.js --json <lệnh con> …` (bản đã cài sẵn) hoặc `npx -y zalo-agent-cli@… --json <lệnh con> …`.
 
     `command` là lệnh con (`["msg", "send"]`), `positionals` là chữ TỰ DO (nội dung tin), `options` là các cờ do mã Javis viết
     (`["-t", "1", "--mention", "0:123:5"]`).
@@ -112,12 +236,16 @@ def build_argv(command: List[str], positionals: Optional[List[str]] = None,
         trí TRƯỚC, cờ SAU;
       - nhưng tham số vị trí bắt đầu bằng "-" ("- Họp lúc 9h") bị coi là cờ. Khi đó đặt cờ trước rồi `--` rồi tham số vị trí.
     """
-    head = npx_command()
-    if head is None:
-        return None
+    direct = direct_command()
+    if direct:
+        argv = direct + ["--json"] + list(command)
+    else:
+        head = npx_command()
+        if head is None:
+            return None
+        argv = head + ["-y", CLI_PACKAGE, "--json"] + list(command)
     pos = [str(p) for p in (positionals or [])]
     opts = [str(o) for o in (options or [])]
-    argv = head + ["-y", CLI_PACKAGE, "--json"] + list(command)
     if any(p.startswith("-") for p in pos):
         argv += opts + ["--"] + pos
     else:
@@ -207,7 +335,9 @@ def interpret(rc: Optional[int], out: Optional[str], err: str) -> Tuple[bool, An
     data = parse_json(out)
     if data is None:
         clean = _ANSI.sub("", err or "")
-        marks = [ln.strip().lstrip("✗").strip() for ln in clean.splitlines() if "✗" in ln]
+        # Dòng "✗ ..." thường ở stderr nhưng có lệnh in ra stdout ("✗ Not logged in. Run: zalo-agent login" khi chưa có phiên).
+        both = clean + "\n" + _ANSI.sub("", out or "")
+        marks = [ln.strip().lstrip("✗").strip() for ln in both.splitlines() if "✗" in ln]
         why = "; ".join(m for m in marks if m) or clean.strip()[-300:] or (out or "").strip()[-300:] or "không có phản hồi"
         return False, None, why
     return True, data, ""
@@ -225,6 +355,8 @@ async def run_cli(conn: dict, command: List[str], positionals: Optional[List[str
     home = str((conn or {}).get("home") or "")
     if not home:
         return False, None, "kết nối Zalo này chưa có thư mục phiên"
+    if direct_command() is None:
+        start_install()
     argv = build_argv(command, positionals, options)
     if argv is None:
         return False, None, "máy chưa có Node.js 20+ (lệnh npx)"

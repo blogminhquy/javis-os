@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.8] - 2026-09-30
 ### Cải thiện
-- **Bot tag người trong nhóm Zalo nhanh hơn.** Javis giữ sẵn một bản công cụ Zalo trong thư mục của mình và chạy thẳng bằng Node, không qua `npx` mỗi lần, nên bớt được khoảng 1 đến 2 giây mỗi câu trả lời trong nhóm.
+- **Bot tag người trong nhóm Zalo nhanh hơn.** Javis tự cài sẵn một bản công cụ Zalo vào thư mục của mình rồi chạy thẳng, không qua `npx` mỗi lần. Trên máy thử, phần khởi động giảm từ khoảng 3,1 giây xuống 0,7 giây.
+- Câu tag đầu tiên sau khi cập nhật vẫn đi bằng cách cũ (chậm hơn) trong lúc Javis cài ngầm, từ câu sau là nhanh. Cài hỏng thì vẫn chạy được như trước.
 
 ## [0.65.7] - 2026-09-30
 ### Thêm mới

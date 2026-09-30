@@ -17,6 +17,7 @@ import asyncio
 import os
 import sys
 import tempfile
+import time
 import types
 from pathlib import Path
 
@@ -26,6 +27,11 @@ except Exception:
     pass
 
 import zalo_cli as Z  # noqa: E402
+
+# Hermetic: thư mục cài trỏ vào chỗ trống và không bao giờ cài thật (không thì test đụng npm và mạng).
+EMPTY = Path(tempfile.mkdtemp(prefix="zcli-empty-"))
+Z.install_dir = lambda: EMPTY / "tools" / "zalo-agent-cli"
+Z.AUTO_INSTALL = False
 
 fails = []
 
@@ -112,6 +118,164 @@ check("hết giờ thì nói hết giờ", ok is False and "120" in err)
 check("JSON kèm dòng trạng thái xung quanh vẫn đọc được", Z.parse_json('đang tải…\n{"a": [1, 2]}\nxong') == {"a": [1, 2]})
 check("không phải JSON thì None (không đoán)", Z.parse_json("hello") is None and Z.parse_json("") is None and Z.parse_json(None) is None)
 check("mảng JSON cũng đọc được", Z.parse_json("[1,2]") == [1, 2])
+
+# ============================================================
+# 3b. `✗` in ra stdout cũng là lỗi
+# ============================================================
+ok, data, err = Z.interpret(0, "✗ Not logged in. Run: zalo-agent login", "")
+check("mã 0 + '✗ ...' ở STDOUT (chưa đăng nhập) = thất bại, câu lỗi sạch dấu ✗", ok is False and err == "Not logged in. Run: zalo-agent login", err)
+
+# ============================================================
+# 3c. Bản đã cài sẵn: chạy thẳng bằng Node, không qua npx
+# ============================================================
+ROOT_INST = Path(tempfile.mkdtemp(prefix="zcli-inst-")) / "tools" / "zalo-agent-cli"
+Z.install_dir = lambda: ROOT_INST
+ENTRY = ROOT_INST / "node_modules" / "zalo-agent-cli" / "src" / "index.js"
+rf = with_env(False, {"npx": "/usr/bin/npx", "node": "/usr/bin/node", "npm": "/usr/bin/npm"})
+check("chưa cài thì không chạy thẳng, vẫn dùng npx", Z.direct_command() is None and Z.build_argv(["msg", "send"], ["a", "b"])[:4] == ["/usr/bin/npx", "-y", Z.CLI_PACKAGE, "--json"])
+
+ENTRY.parent.mkdir(parents=True)
+ENTRY.write_text("", encoding="utf-8")
+check("CANARY: có index.js nhưng CHƯA có dấu cài xong (cài dở) thì KHÔNG dùng", Z.cli_entry() is None and Z.direct_command() is None)
+(ROOT_INST / Z._INSTALL_MARK).write_text("zalo-agent-cli@1.0.0", encoding="utf-8")
+check("CANARY: dấu cài của phiên bản KHÁC bản đang ghim thì không dùng (đổi phiên bản ghim là cài lại)", Z.cli_entry() is None)
+(ROOT_INST / Z._INSTALL_MARK).write_text(Z.CLI_PACKAGE, encoding="utf-8")
+check("cài xong đúng bản ghim thì dùng được", Z.cli_entry() == ENTRY and Z.direct_command() == ["/usr/bin/node", str(ENTRY)], Z.direct_command())
+a = Z.build_argv(["msg", "send"], ["T1", "xin chào"], ["-t", "1", "--mention", "0:111:5"])
+check("chạy thẳng: node index.js --json <lệnh>, KHÔNG có npx và -y", a == ["/usr/bin/node", str(ENTRY), "--json", "msg", "send", "T1", "xin chào", "-t", "1", "--mention", "0:111:5"], a)
+b = Z.build_argv(["msg", "send"], ["T1", "- họp"], ["-t", "1"])
+check("chạy thẳng vẫn giữ luật thứ tự: tham số bắt đầu bằng '-' thì cờ trước rồi `--`", b[b.index("send") + 1:] == ["-t", "1", "--", "T1", "- họp"], b)
+ENTRY.unlink()
+check("mất index.js thì quay về npx", Z.cli_entry() is None and Z.build_argv(["msg", "send"], ["a", "b"])[:2] == ["/usr/bin/npx", "-y"])
+ENTRY.write_text("", encoding="utf-8")
+Z.shutil = types.SimpleNamespace(which=lambda n: {"npx": "/usr/bin/npx"}.get(n))
+check("có bản cài nhưng máy không có node thì quay về npx", Z.direct_command() is None)
+Z.shutil = types.SimpleNamespace(which=lambda n: {"npx": "/usr/bin/npx", "node": "/usr/bin/node", "npm": "/usr/bin/npm"}.get(n))
+
+rf2 = with_env(True, {"npx": "C:/Program Files/nodejs/npx.cmd", "node": "C:/Program Files/nodejs/node.exe"}, {})
+c = Z.build_argv(["msg", "send"], ["T1", "Họp & chốt 50%"], [])
+check("CANARY: Windows chạy thẳng bằng node.exe thì không qua cmd.exe, nội dung có & % đi nguyên vẹn",
+      os.path.basename(c[0]).lower() == "node.exe" and Z.unsafe_for_cmd(c) is None and "Họp & chốt 50%" in c, c)
+Path.is_file = rf2
+Z.os, Z.shutil = real_os, real_shutil
+Path.is_file = rf
+
+# ============================================================
+# 3d. Cài ngầm
+# ============================================================
+Z.os, Z.shutil = real_os, real_shutil
+
+
+def fresh_install_dir():
+    global ROOT_INST
+    ROOT_INST = Path(tempfile.mkdtemp(prefix="zcli-inst-")) / "tools" / "zalo-agent-cli"
+    Z.install_dir = lambda: ROOT_INST
+    Z._install_state.update(task=None, failed_at=0.0)
+
+
+GHI = ("import sys, pathlib\n"
+       "root = pathlib.Path(sys.argv[sys.argv.index('--prefix') + 1])\n"
+       "sys.stderr.write(' '.join(sys.argv[1:]))\n"
+       "(root / 'node_modules' / 'zalo-agent-cli' / 'src').mkdir(parents=True)\n"
+       "(root / 'node_modules' / 'zalo-agent-cli' / 'src' / 'index.js').write_text('')\n")
+fresh_install_dir()
+Z.npm_command = lambda: [sys.executable, "-c", GHI]
+ok = asyncio.run(Z._install())
+check("cài thật (npm giả): ghi index.js VÀ dấu cài xong", ok and Z.cli_entry() is not None and (ROOT_INST / "package.json").is_file(), ok)
+check("CANARY: dấu cài chỉ có SAU khi index.js đã có (cài dở không được coi là xong)", (ROOT_INST / Z._INSTALL_MARK).read_text(encoding="utf-8") == Z.CLI_PACKAGE)
+
+fresh_install_dir()
+Z.npm_command = lambda: [sys.executable, "-c", "import sys; sys.exit(3)"]
+ok = asyncio.run(Z._install())
+check("npm thoát mã khác 0 thì cài hỏng, không có dấu cài", ok is False and Z.cli_entry() is None and not (ROOT_INST / Z._INSTALL_MARK).exists())
+
+fresh_install_dir()
+Z.npm_command = lambda: [sys.executable, "-c", "pass"]
+ok = asyncio.run(Z._install())
+check("npm báo xong mà không thấy index.js thì cài hỏng", ok is False and Z.cli_entry() is None)
+
+fresh_install_dir()
+Z.npm_command = lambda: [sys.executable, "-c", "import time; time.sleep(30)"]
+Z.INSTALL_TIMEOUT = 1
+ok = asyncio.run(Z._install())
+Z.INSTALL_TIMEOUT = 300
+check("npm quá giờ thì giết và báo hỏng, không treo", ok is False and Z.cli_entry() is None)
+
+# start_install: chỉ một lần, hỏng thì chờ, đã cài thì thôi
+CHAY = []
+
+
+async def npm_gia_ok():
+    CHAY.append(1)
+    await asyncio.sleep(0.05)
+    return True
+
+
+async def npm_gia_hong():
+    CHAY.append(1)
+    return False
+
+
+async def kich_hoat(n=3):
+    for _ in range(n):
+        Z.start_install()
+    t = Z._install_state["task"]
+    if t is not None:
+        await t
+
+
+Z.AUTO_INSTALL = True
+Z.npm_command = lambda: ["npm"]
+fresh_install_dir()
+Z._install = npm_gia_hong
+asyncio.run(kich_hoat())
+check("gọi start_install nhiều lần một lúc thì chỉ chạy MỘT lần", len(CHAY) == 1, CHAY)
+check("cài hỏng thì ghi giờ hỏng", Z._install_state["failed_at"] > 0)
+CHAY.clear()
+asyncio.run(kich_hoat())
+check("CANARY: mới hỏng thì KHÔNG thử lại ở lượt sau (không cài lại ở mọi câu trả lời)", CHAY == [])
+Z._install_state["failed_at"] = time.time() - Z.INSTALL_RETRY - 1
+asyncio.run(kich_hoat())
+check("qua thời gian chờ thì thử lại", len(CHAY) == 1, CHAY)
+
+CHAY.clear()
+fresh_install_dir()
+Z.AUTO_INSTALL = False
+asyncio.run(kich_hoat())
+check("AUTO_INSTALL tắt thì không cài", CHAY == [])
+Z.AUTO_INSTALL = True
+Z.npm_command = lambda: None
+asyncio.run(kich_hoat())
+check("không có npm thì bỏ qua, không cài, không lỗi", CHAY == [])
+Z.npm_command = lambda: ["npm"]
+Z.start_install()
+check("gọi ngoài vòng lặp sự kiện thì không làm gì, không lỗi", CHAY == [] and Z._install_state["task"] is None)
+ENTRY2 = ROOT_INST / "node_modules" / "zalo-agent-cli" / "src" / "index.js"
+ENTRY2.parent.mkdir(parents=True)
+ENTRY2.write_text("", encoding="utf-8")
+(ROOT_INST / Z._INSTALL_MARK).write_text(Z.CLI_PACKAGE, encoding="utf-8")
+asyncio.run(kich_hoat())
+check("đã cài xong thì không cài nữa", CHAY == [])
+
+# run_cli: chưa cài thì kích hoạt cài ngầm, đã cài thì không
+KICH = []
+real_start = Z.start_install
+Z.start_install = lambda: KICH.append(1)
+real_run = Z.run
+
+
+async def run_gia(argv, home, timeout=120):
+    return 0, "{}", ""
+
+
+Z.run = run_gia
+asyncio.run(Z.run_cli({"home": "/h"}, ["msg", "send"], ["T", "x"]))
+check("đã cài xong: run_cli không kích hoạt cài", KICH == [])
+fresh_install_dir()
+asyncio.run(Z.run_cli({"home": "/h"}, ["msg", "send"], ["T", "x"]))
+check("chưa cài: run_cli kích hoạt cài ngầm (lượt này vẫn chạy bằng npx)", KICH == [1], KICH)
+Z.start_install, Z.run = real_start, real_run
+Z.AUTO_INSTALL = False
 
 # ============================================================
 # 4. Chạy tiến trình con thật: HOME đúng, đọc đủ đầu ra, hết giờ thì giết

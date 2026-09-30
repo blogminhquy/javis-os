@@ -32,6 +32,18 @@ Chữ: model đã tự viết "@Tên" thì tag đúng chỗ đó, chưa thì đ�
 3. **Tag hỏng mãi làm chậm mọi câu.** Hỏng 3 lần liên tiếp thì nghỉ tag 10 phút; tin vẫn đi bằng MCP như cũ. Một lần thành công thì đếm lại.
 4. **uid vào tham số lệnh.** Chỉ nhận uid toàn số; chưa biết tên người hỏi thì gửi thường.
 
+## Tốc độ (0.65.8)
+
+Đo trên máy Windows của chủ: `npx -y zalo-agent-cli@1.6.2 --version` mất 3,1 giây (ba lần đo 3,06 đến 3,32), còn `node index.js --version` của bản
+đã cài sẵn mất 0,72 giây. Cả hai chưa gồm đăng nhập và gửi. Nên `zalo_cli` giữ MỘT bản ghim trong `<state>/tools/zalo-agent-cli`
+(`npm install --prefix`, khoảng 7 giây, một lần) và chạy thẳng `node index.js`; chưa cài xong thì vẫn chạy bằng npx như cũ.
+
+- Cài ngầm bắt đầu ở lượt `run_cli` đầu tiên khi chưa có bản cài. Lượt đó vẫn đi bằng npx, không chờ cài. Hỏng thì chờ 30 phút mới thử lại.
+- Dấu `.javis-installed` (ghi SAU KHI cài xong, chứa đúng chuỗi phiên bản ghim) quyết định có dùng hay không: cài dở hoặc đổi phiên bản ghim thì không dùng.
+- Trên Linux, HOME của phiên Zalo là thư mục riêng nên npx có thể tải lại cả gói vào cache của HOME đó ở mỗi kết nối; thư mục cài cố định tránh luôn chuyện này.
+- Windows không tìm thấy `npm-cli.js` thì bỏ qua việc cài (không đưa đường dẫn vào cmd.exe); đường npx vẫn chạy.
+- Lần chạy đầu sau khi cài có thể chậm vì phần mềm diệt virus quét file mới (đo được 7,7 giây một lần, sau đó 0,7 giây); vẫn nằm trong trần 40 giây.
+
 ## Ngoài phạm vi
 
 - Tag nhiều người, tag người được nhắc trong câu trả lời (đã có `zalo_send_mention` cho việc đó, do model chủ động gọi).
