@@ -75,12 +75,13 @@ class Transport:
 
     def __init__(self, token, whitelist, answer_fn, command_fn=None, download_dir=None,
                  commands=None, precheck_fn=None, event_fn=None, giau_trang_thai=True,
-                 cfg_fn=None, **_):
+                 cfg_fn=None, policy=None, **_):
         self.conn_id = str(token or "")
         self.answer_fn = answer_fn
         self.precheck_fn = precheck_fn
         self.event_fn = event_fn        # tin dịch vụ của nhóm: ở đây chỉ dùng "thay_nhom"
         self.cfg_fn = cfg_fn            # đọc cấu hình bot SỐNG (chế độ trả lời trong nhóm)
+        self.policy = policy            # móc bộ phán xử hội thoại nhóm (0.65.0), xem chatbot_runtime.PolicyHooks
         self.account_id = self.conn_id
         self.status = "off"
         self.last_error = ""
@@ -195,11 +196,19 @@ class Transport:
             "account_id": self.conn_id,
         }
         duoc_goi = False
+        pol = None
         if nhom:
             conn = zc.ket_noi_theo_id(self.conn_id) or {}
             tag, rep = zc.nhan_dien_goi(self.conn_id, ev, (conn.get("label") or "",))
             meta["mentioned"], meta["reply_to_bot"] = tag, rep
             duoc_goi = tag or rep
+            if self.policy is not None:
+                # Tên gọi tự suy của nick (nhãn kết nối, tên hiển thị học được) để nhận ra gọi tên trơn
+                # ("nhi mai ơi"); tin nào gọi chắc chắn thì `prepare` đặt `meta["mentioned"]`.
+                meta["aliases_auto"] = [conn.get("label") or "", (zc._ID_MINH.get(self.conn_id) or {}).get("ten") or ""]
+                meta["ts"] = float(ev.get("created_at") or time.time())
+                pol = self.policy.prepare(text, meta)
+                duoc_goi = duoc_goi or bool(meta.get("mentioned"))
         try:
             if self.precheck_fn:
                 r = self.precheck_fn(text, meta)
@@ -211,7 +220,11 @@ class Transport:
                         await self._gui(thread, cau, "private")
                     return
             if nhom and not duoc_goi and self._che_do_nhom() == "auto":
-                if not chatbot_tu_dong.nhin_nhu_cau_hoi(text)[0]:
+                if pol and pol.get("mode") == "on":
+                    # Bộ phán xử thay cửa từ khoá: tin hiển nhiên không đáng đã được ghi vết và bỏ ở `prepare`.
+                    if pol.get("action") == "drop":
+                        return
+                elif not chatbot_tu_dong.nhin_nhu_cau_hoi(text)[0]:
                     return
                 # Chờ TRƯỚC khi cầm khoá cuộc chat: khoá là của các lượt được tag, đừng bắt chúng
                 # xếp hàng sau một lượt đang ngủ.
@@ -231,6 +244,8 @@ class Transport:
                     cau = str(out or "").strip()
                 if cau and zc._BOTS.get(self.conn_id) is self:
                     await self._gui(thread, cau, loai)
+                    if nhom and self.policy is not None:
+                        self.policy.replied(meta, cau)
         except asyncio.CancelledError:
             raise
         except Exception as e:

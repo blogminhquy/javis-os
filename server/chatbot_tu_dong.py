@@ -105,8 +105,12 @@ def _don(dq: deque, now: float) -> None:
         dq.popleft()
 
 
-def duoc_tra_loi(bot_id: str, chat_id: str, user_id: str = "", now: float = None) -> str:
-    """"" nếu bot được tự trả lời lúc này, không thì mã lý do (xem `ly_do_de_doc`)."""
+def duoc_tra_loi(bot_id: str, chat_id: str, user_id: str = "", now: float = None, follow_up: bool = False) -> str:
+    """"" nếu bot được tự trả lời lúc này, không thì mã lý do (xem `ly_do_de_doc`).
+
+    `follow_up` (0.65.0): tin này là người bot VỪA trả lời hỏi tiếp. Đó là một cuộc trò chuyện đang diễn ra
+    chứ không phải bot chen vào, nên KHÔNG bị chặn bởi khoảng nghỉ giữa hai lần nói và trần theo người;
+    trần theo nhóm mỗi giờ vẫn áp (nick này là người thật, không được thành máy phát thanh)."""
     now = time.time() if now is None else now
     kn = (str(bot_id), str(chat_id))
     dq = _NHOM.get(kn)
@@ -114,9 +118,9 @@ def duoc_tra_loi(bot_id: str, chat_id: str, user_id: str = "", now: float = None
         _don(dq, now)
         if len(dq) >= max(1, int(TRAN_NHOM_GIO)):
             return "het_han_muc"
-    if KHOANG_CACH_GIAY and now - _CUOI.get(kn, 0.0) < KHOANG_CACH_GIAY:
+    if not follow_up and KHOANG_CACH_GIAY and now - _CUOI.get(kn, 0.0) < KHOANG_CACH_GIAY:
         return "vua_tra_loi"
-    if user_id:
+    if user_id and not follow_up:
         dq = _NGUOI.get(kn + (str(user_id),))
         if dq is not None:
             _don(dq, now)

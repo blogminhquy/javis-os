@@ -680,7 +680,8 @@ async def decide(ev: Event, profile: BotProfile, *, store, ask=None, doc_search=
     """Quyết định NÓI hay IM cho một tin nhóm. Luôn ghi một dòng `decisions`, kể cả khi im.
 
     `doc_search(text) -> {"co": bool, "khoi": str, ...}`: tra tài liệu của bot (chỉ gọi cho ứng viên).
-    `rate_check() -> ""|mã`: hạn mức tự nói, KHÔNG tiêu hạn mức (người gọi ghi khi bot thật sự nói).
+    `rate_check(follow_up) -> ""|mã`: hạn mức tự nói, KHÔNG tiêu hạn mức (người gọi ghi khi bot thật sự
+    nói). `follow_up` cho phép nới với tin nối tiếp, xem `chatbot_tu_dong.duoc_tra_loi`.
     `commit=False` (chế độ chạy thử): vẫn ghi quyết định nhưng KHÔNG mở cửa theo dõi, vì nhãn sinh ra
     từ phản ứng với việc luật cũ làm, không phải với việc người phán xử chọn.
     """
@@ -717,7 +718,7 @@ async def decide(ev: Event, profile: BotProfile, *, store, ask=None, doc_search=
     if level == "none" and not follow_up and profile.grounding == "docs" and not doc.get("co"):
         return finish("silent", "no_grounding", "no matching document")
     if rate_check is not None and level != "certain":
-        code = rate_check()
+        code = rate_check(follow_up)
         if code:
             return finish("silent", code, "rate limit")
     lessons = [x["text"] for x in store.list_lessons(profile.bot_id)]
@@ -1076,3 +1077,48 @@ async def ensure_role_profile(cfg: dict, agent_text: str, titles: List[str], sto
         return {"changed": False, "generated_text": (cur or {}).get("generated_text", "")}
     finally:
         _ENSURING.discard(bot_id)
+
+
+# ============================================================
+# Gộp bản vá cấu hình (dùng khi chủ sửa bot)
+# ============================================================
+def merge_config(old_raw: Any, patch: Any) -> dict:
+    """Gộp `patch` vào cấu hình hiện có, TỪNG KHOÁ MỘT: khoá nào giá trị lạ thì GIỮ giá trị cũ (cùng luật
+    với `audience` và `muc_quyen` ở kho bot: bản vá gõ sai không được lặng lẽ đổi hành vi của bot)."""
+    cur = normalize_config(old_raw)
+    p = patch if isinstance(patch, dict) else {}
+    if p.get("mode") in MODES:
+        cur["mode"] = p["mode"]
+    if p.get("eagerness") in EAGERNESS:
+        cur["eagerness"] = p["eagerness"]
+    if p.get("grounding") in GROUNDING:
+        cur["grounding"] = p["grounding"]
+    if isinstance(p.get("learning_enabled"), bool):
+        cur["learning_enabled"] = p["learning_enabled"]
+    if "guidelines" in p and isinstance(p["guidelines"], str):
+        cur["guidelines"] = p["guidelines"][:2000]
+    if isinstance(p.get("aliases"), list):
+        cur["aliases"] = _clean_str_list(p["aliases"], 10, 40)
+    if isinstance(p.get("trainer_ids"), list):
+        cur["trainer_ids"] = _clean_str_list(p["trainer_ids"], 20, 80)
+    return cur
+
+
+# ============================================================
+# Ghi vết cho các tin không đi qua `decide` (kênh gọi trực tiếp)
+# ============================================================
+def log_called(store, ev: Event, profile: BotProfile, address: AddressResult, mode: str = "on") -> int:
+    """Ghi một tin gọi bot CHẮC CHẮN (tag, reply, gọi tên trơn). Không tốn model, không mở cửa theo dõi."""
+    d = Decision(verdict="reply", address_level="certain", candidate=True, score=1.0,
+                 reason="called:" + ",".join(address.evidence), mode=mode)
+    _log(store, ev, profile, d, {})
+    return d.decision_id
+
+
+def log_silent(store, ev: Event, profile: BotProfile, pre: dict, mode: str = "on") -> int:
+    """Ghi một tin bị im ở cổng thô (`pre` là kết quả của `pre_screen`). Đây chính là dấu vết mà lỗi
+    "gọi tên trơn mà bot im" từng thiếu."""
+    d = Decision(verdict="silent", address_level=pre["level"], candidate=False, silence_code=pre["code"],
+                 reason="gate", mode=mode, signals=pre["signals"])
+    _log(store, ev, profile, d, {k: v.get("value") for k, v in pre["signals"].items()})
+    return d.decision_id

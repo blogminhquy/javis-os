@@ -159,9 +159,9 @@ d = run(rp.decide(ev(Q, ts=NOW + 5), Prole, store=st, ask=j, doc_search=docs_no,
 check("bot nhận căn cứ là vai (grounding=role): không cần tài liệu, hỏi model", d.verdict == "reply" and len(j.prompts) == 1)
 
 j = Judge()
-d = run(rp.decide(ev(Q, ts=NOW + 6), P, store=st, ask=j, doc_search=docs_yes, rate_check=lambda: "rate_limited", now=NOW + 6))
+d = run(rp.decide(ev(Q, ts=NOW + 6), P, store=st, ask=j, doc_search=docs_yes, rate_check=lambda fu=False: "rate_limited", now=NOW + 6))
 check("hết hạn mức tự nói: im, KHÔNG tốn model", d.silence_code == "rate_limited" and j.prompts == [])
-d = run(rp.decide(ev("javis vũ ơi", ts=NOW + 6), P, store=st, ask=j, doc_search=docs_yes, rate_check=lambda: "rate_limited", now=NOW + 6))
+d = run(rp.decide(ev("javis vũ ơi", ts=NOW + 6), P, store=st, ask=j, doc_search=docs_yes, rate_check=lambda fu=False: "rate_limited", now=NOW + 6))
 check("hạn mức tự nói KHÔNG chặn tin gọi chắc chắn", d.verdict == "reply")
 
 j = Judge()
@@ -174,6 +174,21 @@ d = run(rp.decide(ev("vậy còn cái kia thì sao đây", ts=NOW + 8, bot_last_
                   P, store=st, ask=j, doc_search=docs_no, now=NOW + 8))
 check("tin nối tiếp sau lượt bot: level possible, hỏi model, không đòi tài liệu",
       d.address_level == "possible" and d.verdict == "reply" and len(j.prompts) == 1, d)
+
+# Hạn mức: tin nối tiếp được nới (khoảng nghỉ, trần theo người), tin tự nói thường thì không.
+import chatbot_tu_dong as td  # noqa: E402
+td.reset_cho_test()
+td.ghi_da_tra_loi("bot_rate", "g1", "u1", NOW)
+check("vừa nói xong: tin tự nói bị chặn bởi khoảng nghỉ", td.duoc_tra_loi("bot_rate", "g1", "u1", NOW + 1) == "vua_tra_loi")
+check("nhưng tin NỐI TIẾP của người vừa được trả lời thì qua", td.duoc_tra_loi("bot_rate", "g1", "u1", NOW + 1, follow_up=True) == "")
+for i in range(td.TRAN_NHOM_GIO):
+    td.ghi_da_tra_loi("bot_rate", "g1", f"x{i}", NOW + 2)
+check("trần theo nhóm mỗi giờ vẫn áp cả với tin nối tiếp", td.duoc_tra_loi("bot_rate", "g1", "u1", NOW + 100, follow_up=True) == "het_han_muc")
+td.reset_cho_test()
+seen = []
+run(rp.decide(ev("vậy còn cái kia thì sao đây", ts=NOW + 8, bot_last_spoke_ts=NOW + 1, last_bot_addressee="u1"), P, store=st,
+              ask=Judge("reply", 0.8), doc_search=docs_no, rate_check=lambda fu: seen.append(fu) or "", now=NOW + 8))
+check("decide báo cho rate_check biết đây là tin nối tiếp", seen == [True], seen)
 
 # Chạy thử (shadow): ghi quyết định nhưng KHÔNG mở cửa theo dõi.
 P2 = mk_profile(bot_id="bot_s")

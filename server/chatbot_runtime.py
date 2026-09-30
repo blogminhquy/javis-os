@@ -40,6 +40,8 @@ import channel_accounts
 import channels
 import chatbot_grounding
 import chatbot_log
+import chatbot_reply_policy
+import chatbot_reply_policy_store
 import chatbot_store
 import chatbot_tu_dong
 import conversations
@@ -421,6 +423,196 @@ def bo_nhom_cho(bot_id: str, chat_id: str = "") -> None:
         _NHOM_CHO.pop(bot_id, None)
 
 
+# ============================================================
+# Bộ phán xử hội thoại nhóm (0.65.0): phần nối vào bot
+# ============================================================
+# Đặc tả: docs/superpowers/specs/2026-09-30-bo-phan-xu-nhom-design.md. Bộ máy thuần nằm ở
+# `chatbot_reply_policy`; file này chỉ dựng Event/BotProfile từ bản ghi bot và meta của kênh, rồi
+# cắm vào ba chỗ: nhận diện gọi tên trơn (mọi bot), móc cho lớp vận chuyển đọc được cả nhóm (Zalo
+# cá nhân), và nhánh `on` trong `_answer`.
+_RP_RATE = {"het_han_muc": "rate_limited", "het_han_nguoi": "rate_limited_user", "vua_tra_loi": "just_spoke"}
+_RP_CHECK_EVERY_S = 300
+_RP_CHECKED: Dict[str, float] = {}
+
+
+def _rp_is_group(meta) -> bool:
+    return str((meta or {}).get("chat_type") or "private") != "private"
+
+
+def _rp_agent_text(cfg: dict) -> str:
+    """Nguyên văn file Agent của bot (vai + quy định): nguyên liệu soạn hồ sơ vai, và vai thô dự phòng."""
+    try:
+        a = cfg.get("agent") or {}
+        meta, body = _deps["read_agent"](a.get("brain") or cfg.get("brain"), a.get("slug"))
+        head = " ".join(str(v) for k, v in (meta or {}).items() if k in ("name", "role", "description") and v)
+        return (head + "\n" + str(body or "")).strip()
+    except Exception:      # noqa: BLE001 - không đọc được Agent thì bộ phán xử chạy với vai rỗng
+        return ""
+
+
+def _rp_role_text(cfg: dict) -> str:
+    """Vai của CHÍNH bot này: hồ sơ vai máy đã soạn nếu có, không thì vai thô trong file Agent."""
+    try:
+        p = chatbot_reply_policy_store.get_role_profile(cfg.get("id"))
+        if p and p.get("generated_text"):
+            return p["generated_text"]
+    except Exception:      # noqa: BLE001
+        pass
+    return _rp_agent_text(cfg)[:1500]
+
+
+def _rp_profile(cfg: dict, meta: dict = None, with_role: bool = True):
+    return chatbot_reply_policy.BotProfile.from_bot(
+        cfg, auto_aliases=(meta or {}).get("aliases_auto") or (),
+        role_text=_rp_role_text(cfg) if with_role else "")
+
+
+def _rp_event(cfg: dict, profile, text: str, meta: dict, owner_typing: bool = False):
+    now = float((meta or {}).get("ts") or time.time())
+    bot_id, chat_id = str(cfg.get("id") or ""), str((meta or {}).get("chat_id") or "")
+    last, addressee = chatbot_reply_policy.bot_context(bot_id, chat_id, now)
+    uid = str((meta or {}).get("user_id") or "")
+    return chatbot_reply_policy.Event(
+        channel=str((meta or {}).get("platform") or ""), bot_id=bot_id, chat_id=chat_id,
+        chat_type=str((meta or {}).get("chat_type") or "group"), msg_id=str((meta or {}).get("message_id") or ""),
+        ts=now, text=str(text or ""), sender_id=uid, sender_name=str((meta or {}).get("user_name") or ""),
+        sender_role=chatbot_reply_policy.sender_role(profile, uid), mentioned=bool((meta or {}).get("mentioned")),
+        reply_to_bot=bool((meta or {}).get("reply_to_bot")),
+        window=chatbot_reply_policy.window_of(bot_id, chat_id, now),
+        bot_last_spoke_ts=last, last_bot_addressee=addressee, owner_typing=bool(owner_typing))
+
+
+def _rp_named_meta(cfg: dict, text: str, meta) -> dict:
+    """Bản sao của `meta` với `mentioned` = True nếu tin nhóm GỌI BOT BẰNG TÊN TRƠN ("nhi mai ơi").
+
+    Áp dụng cho MỌI bot, không phụ thuộc bộ phán xử bật hay tắt: đây là sửa lỗi nhận diện. Trả bản sao
+    vì `_gan_tai_khoan` đã bọc meta thành bản sao riêng cho từng callback, nên đánh dấu tại chỗ ở một
+    callback không truyền sang callback kia; mỗi chỗ dùng tự gọi hàm này.
+    """
+    m = dict(meta or {})
+    if not _rp_is_group(m) or m.get("mentioned") or m.get("reply_to_bot"):
+        return m
+    try:
+        profile = _rp_profile(cfg, m, with_role=False)
+        ev = chatbot_reply_policy.Event(channel="", bot_id=profile.bot_id, chat_id="", chat_type="group", msg_id="",
+                                        ts=0.0, text=str(text or ""), sender_id="")
+        if chatbot_reply_policy.detect_address(ev, profile).level == "certain":
+            m["mentioned"] = True
+    except Exception as e:      # noqa: BLE001 - nhận diện hỏng thì giữ nguyên như chưa có tính năng này
+        print(f"[reply_policy] nhận diện tên trơn lỗi: {type(e).__name__}", file=sys.stderr)
+    return m
+
+
+def _rp_rate(bot_id: str, chat_id: str, user_id: str, follow_up: bool = False) -> str:
+    code = chatbot_tu_dong.duoc_tra_loi(bot_id, chat_id, user_id, follow_up=follow_up)
+    return _RP_RATE.get(code, code)
+
+
+def _rp_add_alias(bot_id: str, alias: str) -> None:
+    cfg = chatbot_store.get_bot(bot_id) or {}
+    cur = list((cfg.get("reply_policy") or {}).get("aliases") or [])
+    if alias and alias not in cur:
+        chatbot_store.update_bot(bot_id, {"reply_policy": {"aliases": cur + [alias]}})
+
+
+def _rp_schedule_profile(cfg: dict) -> None:
+    """Soạn (hoặc soạn lại) hồ sơ vai ở nền khi Agent hay mục lục tài liệu đổi. Kiểm nhiều nhất mỗi 5
+    phút mỗi bot; lượt đầu chưa có hồ sơ thì bộ phán xử dùng vai thô của Agent, không phải chờ."""
+    bot_id = str(cfg.get("id") or "")
+    now = time.time()
+    if now - _RP_CHECKED.get(bot_id, 0.0) < _RP_CHECK_EVERY_S:
+        return
+    _RP_CHECKED[bot_id] = now
+    ask = chatbot_reply_policy.ask_fn()
+    if ask is None:
+        return
+    try:
+        root = _deps["brain_root"](cfg["brain"])
+        titles = chatbot_reply_policy.list_doc_titles(root)
+        asyncio.get_running_loop().create_task(chatbot_reply_policy.ensure_role_profile(
+            cfg, _rp_agent_text(cfg), titles, chatbot_reply_policy_store, ask))
+    except Exception as e:      # noqa: BLE001
+        print(f"[reply_policy] lên lịch soạn hồ sơ vai lỗi: {type(e).__name__}", file=sys.stderr)
+
+
+class PolicyHooks:
+    """Móc bộ phán xử cho lớp vận chuyển đọc được TOÀN BỘ tin nhóm (Zalo cá nhân).
+
+    `prepare` chạy cho MỌI tin nhóm đã được phép, trước chốt chặn và trước khi chờ nhường. Nó trả
+    `{"mode", "level", "action"}` với `action` là:
+      - `legacy`: giữ luật cũ (bộ phán xử tắt, hoặc đang Chạy thử);
+      - `answer`: đi tiếp vào `answer_fn` (được gọi chắc chắn, hoặc là ứng viên);
+      - `drop`: im, đã ghi vết lý do (chỉ ở chế độ Bật).
+    """
+
+    def __init__(self, bot_id: str):
+        self.bot_id = bot_id
+
+    def prepare(self, text: str, meta: dict, owner_typing: bool = False):
+        cfg = chatbot_store.get_bot(self.bot_id)
+        if not cfg or not _rp_is_group(meta) or not _nhom_duoc_phep(cfg, (meta or {}).get("chat_id")):
+            return None
+        rpc = chatbot_reply_policy.normalize_config(cfg.get("reply_policy"))
+        if cfg.get("reply_when") != "auto":
+            rpc = dict(rpc, mode="off")      # chỉ có nghĩa ở chế độ Tự đánh giá
+        profile = _rp_profile(cfg, meta, with_role=(rpc["mode"] != "off"))
+        ev = _rp_event(cfg, profile, text, meta, owner_typing)
+        addr = chatbot_reply_policy.detect_address(ev, profile)
+        if addr.level == "certain":
+            meta["mentioned"] = True
+            ev.mentioned = True
+        out = {"mode": rpc["mode"], "level": addr.level, "action": "legacy"}
+        if rpc["mode"] == "off":
+            return out
+        store = chatbot_reply_policy_store
+        meta["_rp_observed"] = True
+        try:
+            chatbot_reply_policy.push_message(self.bot_id, ev.chat_id, chatbot_reply_policy.Message(
+                ev.ts, ev.sender_id, ev.sender_name, False, ev.text))
+            chatbot_reply_policy.observe(ev, profile, store, ev.ts)
+            if profile.learning_enabled and ev.sender_id in profile.trainer_ids:
+                asyncio.get_running_loop().create_task(chatbot_reply_policy.maybe_teach(
+                    ev, profile, addr.level, store, chatbot_reply_policy.ask_fn(),
+                    add_alias=lambda a: _rp_add_alias(self.bot_id, a)))
+            _rp_schedule_profile(cfg)
+            if addr.level == "certain":
+                chatbot_reply_policy.log_called(store, ev, profile, addr, rpc["mode"])
+                out["action"] = "answer"
+                return out
+            pre = chatbot_reply_policy.pre_screen(ev, profile, store, ev.ts)
+            out["pre"] = pre
+            if rpc["mode"] == "shadow":
+                if pre["candidate"]:
+                    asyncio.get_running_loop().create_task(self._shadow(cfg, ev, profile))
+                return out
+            if not pre["candidate"]:
+                chatbot_reply_policy.log_silent(store, ev, profile, pre, "on")
+                out["action"] = "drop"
+            else:
+                out["action"] = "answer"
+        except Exception as e:      # noqa: BLE001 - bộ phán xử hỏng thì rơi về luật cũ, không nuốt tin
+            print(f"[reply_policy {self.bot_id}] {type(e).__name__}: {e}", file=sys.stderr)
+            out["action"] = "legacy"
+        return out
+
+    async def _shadow(self, cfg: dict, ev, profile) -> None:
+        """Chạy thử: người phán xử quyết song song, chỉ GHI, không ảnh hưởng việc bot làm."""
+        try:
+            await chatbot_reply_policy.decide(
+                ev, profile, store=chatbot_reply_policy_store, ask=chatbot_reply_policy.ask_fn(),
+                doc_search=lambda t: _tra_tai_lieu(self.bot_id, cfg, t), commit=False, mode="shadow")
+        except Exception as e:      # noqa: BLE001
+            print(f"[reply_policy {self.bot_id}] chạy thử lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+
+    def replied(self, meta: dict, text: str) -> None:
+        """Bot vừa nói trong nhóm: nhớ để nhận ra tin nối tiếp của đúng người được trả lời."""
+        cfg = chatbot_store.get_bot(self.bot_id)
+        if not cfg or chatbot_reply_policy.normalize_config(cfg.get("reply_policy"))["mode"] == "off":
+            return
+        chatbot_reply_policy.note_bot_reply(self.bot_id, str((meta or {}).get("chat_id") or ""),
+                                            str((meta or {}).get("user_id") or ""), text)
+
+
 def _make_precheck_fn(bot_id: str):
     """Chốt chặn chạy TRƯỚC khi tốn một lượt engine.
 
@@ -432,6 +624,7 @@ def _make_precheck_fn(bot_id: str):
         cfg = chatbot_store.get_bot(bot_id)
         if not cfg:
             return {}
+        meta = _rp_named_meta(cfg, text, meta)      # gọi tên trơn ("nhi mai ơi") cũng là gọi bot
         ly_do = _ly_do_im(cfg, meta or {})
         if not ly_do:
             return None
@@ -745,6 +938,7 @@ def _make_answer_fn(bot_id: str):
         cfg = chatbot_store.get_bot(bot_id)
         if not cfg:
             return {"text": "", "files": [], "im_lang": True}
+        meta = _rp_named_meta(cfg, text, meta)
         # Lớp thứ HAI của cùng một luật (`precheck_fn` đã chặn ở tầng kênh). Giữ cả hai vì hai
         # cái canh hai thứ khác nhau: chốt kia để không nhấp nháy tin trạng thái trước mặt
         # người ngoài, chốt này để một kênh tương lai quên nối chốt kia vẫn không lọt.
@@ -757,7 +951,26 @@ def _make_answer_fn(bot_id: str):
         # vào bộ đếm nào, và tin trò chuyện của người ta không được thành một dòng nhật ký.
         tu_dong = chatbot_tu_dong.can_danh_gia(cfg, meta or {})
         tl = None
-        if tu_dong:
+        rp_on = tu_dong and chatbot_reply_policy.normalize_config(cfg.get("reply_policy"))["mode"] == "on"
+        if rp_on:
+            # Bộ phán xử (0.65.0) thay cửa từ khoá: nó tự tra tài liệu, kiểm hạn mức và hỏi model. Mọi kết
+            # quả, kể cả im, đều đã được ghi vào kho quyết định.
+            try:
+                profile = _rp_profile(cfg, meta)
+                ev = _rp_event(cfg, profile, text, meta or {})
+                if not (meta or {}).get("_rp_observed"):
+                    chatbot_reply_policy.observe(ev, profile, chatbot_reply_policy_store, ev.ts)
+                dec = await chatbot_reply_policy.decide(
+                    ev, profile, store=chatbot_reply_policy_store, ask=chatbot_reply_policy.ask_fn(),
+                    doc_search=lambda t: _tra_tai_lieu(bot_id, cfg, t),
+                    rate_check=lambda fu: _rp_rate(bot_id, chat_id, user_id, fu))
+            except Exception as e:      # noqa: BLE001 - hỏng thì IM, không tự mở miệng
+                print(f"[reply_policy {bot_id}] {type(e).__name__}: {e}", file=sys.stderr)
+                return {"text": "", "files": [], "im_lang": True}
+            if dec.verdict != "reply":
+                return {"text": "", "files": [], "im_lang": True}
+            tl = dec.doc or await _tra_tai_lieu(bot_id, cfg, text)
+        elif tu_dong:
             if not chatbot_tu_dong.nhin_nhu_cau_hoi(text)[0]:
                 return {"text": "", "files": [], "im_lang": True}
             tl = await _tra_tai_lieu(bot_id, cfg, text)
@@ -977,6 +1190,7 @@ def start_bot(bot_id: str) -> tuple[bool, str]:
             # nên chờ nhường trước khi trả lời tin không ai gọi tên. Đọc lại mỗi lần chứ không giữ
             # bản chụp: chủ đổi chế độ ở trang Chatbot là có tác dụng ngay.
             chung["cfg_fn"] = (lambda _b=bot_id: chatbot_store.get_bot(_b) or {})
+            chung["policy"] = PolicyHooks(bot_id)      # bộ phán xử hội thoại nhóm (0.65.0)
         tb = Lop(
             token,
             "",                       # KHÔNG whitelist: bot khách hàng vốn để người lạ nhắn.

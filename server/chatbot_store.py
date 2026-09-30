@@ -332,6 +332,9 @@ def _public(b: dict) -> dict:
     elif out["audience"] not in AUDIENCE:
         out["audience"] = AUDIENCE_HEP_NHAT
     out["people"] = _clean_groups(out.get("people"))
+    # Bộ phán xử hội thoại nhóm (0.65.0). Thiếu khoá = bản ghi cũ = tắt; có khoá mà hỏng = phía hẹp nhất.
+    import chatbot_reply_policy
+    out["reply_policy"] = chatbot_reply_policy.normalize_config(out.get("reply_policy"))
     return out
 
 
@@ -532,6 +535,7 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "reply_when": (data.get("reply_when") if data.get("reply_when") in REPLY_WHEN else "mention"),
             "audience": (data.get("audience") if data.get("audience") in AUDIENCE else AUDIENCE_DEFAULT),
             "people": _clean_groups(data.get("people")),
+            "reply_policy": __import__("chatbot_reply_policy").merge_config(None, data.get("reply_policy")),
             "nguon_tra_loi": (data.get("nguon_tra_loi") if data.get("nguon_tra_loi") in NGUON
                               else NGUON_DEFAULT),
             "muc_quyen": _clean_muc(data.get("muc_quyen")) or MUC_QUYEN_DEFAULT,
@@ -568,7 +572,7 @@ def _nhan_brain_cho_tk(bot: dict) -> None:
 # thêm trường mới vào bản ghi mà quên loại khỏi danh sách đen là mở một đường ghi không ai ngờ.
 _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to", "rate_limit",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
-              "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids")
+              "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -627,6 +631,9 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                 elif k == "reply_when":
                     if v in REPLY_WHEN:
                         b["reply_when"] = v
+                elif k == "reply_policy":
+                    # Gộp từng khoá, giá trị lạ giữ nguyên giá trị cũ (xem `merge_config`).
+                    b["reply_policy"] = __import__("chatbot_reply_policy").merge_config(b.get("reply_policy"), v)
                 elif k == "nguon_tra_loi":
                     if v in NGUON:
                         b["nguon_tra_loi"] = v
@@ -724,7 +731,19 @@ def delete_bot(bot_id: str) -> tuple[bool, str]:
         if len(d["bots"]) == n:
             return False, LOI_KHONG_CO_BOT
         _save(d)
-        return True, ""
+    _xoa_du_lieu_phan_xu(bot_id)
+    return True, ""
+
+
+def _xoa_du_lieu_phan_xu(bot_id: str) -> None:
+    """Xoá bot thì xoá sạch mọi thứ bộ phán xử đã học về bot đó (nội dung chat khách). Chỉ đụng kho khi nó
+    đã tồn tại: bot chưa từng bật bộ phán xử không được làm sinh ra một file rỗng."""
+    try:
+        import chatbot_reply_policy_store as _rps
+        if _rps.db_path().exists():
+            _rps.delete_bot(bot_id)
+    except Exception:      # noqa: BLE001 - dọn hỏng không được làm hỏng việc xoá bot
+        pass
 
 
 def bots_using_agent(brain: str, slug: str) -> List[Dict[str, Any]]:

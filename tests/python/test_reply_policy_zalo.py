@@ -1,0 +1,293 @@
+"""Bộ phán xử hội thoại nhóm trên Zalo cá nhân, ĐẦU-CUỐI (0.65.0): MCP giả, model giả, bot thật.
+
+    python tests/run.py reply_policy_zalo      (KHÔNG mạng)
+
+Kịch bản gốc (chủ dự án 30/09/2026): nhóm Zalo, chế độ Tự đánh giá, gọi "javis vũ ơi" không có @ thì
+bot im và không để lại dòng nhật ký nào. Sau bản này:
+  1. Gọi tên trơn được trả lời, KỂ CẢ khi bộ phán xử tắt (đây là sửa lỗi nhận diện, áp cho mọi bot).
+  2. Bộ phán xử tắt thì hành vi và kho dữ liệu y như cũ: không sinh file kho nào.
+  3. Bật lên thì mọi tin nhóm đều có dấu vết, kể cả tin bị im.
+  4. Im nhầm -> bị hỏi lại -> lần sau CÙNG loại tin bot nói. Chen nhầm -> bị nhắc -> ngưỡng nâng.
+  5. Tin nối tiếp sau lượt bot vừa trả lời được hiểu là hỏi tiếp cho bot.
+  6. Chỉ CHỦ mới dạy được luật; người lạ thì không.
+  7. Chạy thử ghi lại quyết định của người phán xử nhưng luật cũ vẫn là bên quyết.
+"""
+from _paths import ROOT, SERVER  # noqa: E402,F401
+import asyncio
+import json
+import os
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+os.environ["JAVIS_STATE_DIR"] = tempfile.mkdtemp(prefix="javis-rp-zalo-")
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
+import channels  # noqa: E402,F401
+import chatbot_reply_policy as rp  # noqa: E402
+import chatbot_reply_policy_store as st  # noqa: E402
+import chatbot_runtime  # noqa: E402
+import chatbot_store  # noqa: E402
+import zalo_personal_channel as zc  # noqa: E402
+
+_fails = []
+
+
+def check(name, cond, them=""):
+    print(("ok   " if cond else "FAIL ") + name + (("  [" + str(them) + "]") if them and not cond else ""))
+    if not cond:
+        _fails.append(name)
+
+
+CONN = {"id": "zalo-1", "label": "Javis Vũ", "connector_id": "zalo"}
+NHOM = "5550001"
+BOSS = "7770099"
+UID_A, UID_B = "7770001", "7770002"
+THREADS = [{"threadId": NHOM, "name": "Lớp Javis OS", "type": "group"}]
+GUI, KHO_TIN, LUOT_ENGINE = [], [], []
+TRA_LOI = {"v": "Dạ để em hướng dẫn nhé"}
+
+
+def _ms(giay_truoc=0):
+    return int((time.time() - giay_truoc) * 1000)
+
+
+async def _goi_gia(conn, tool, args):
+    if tool == "zalo_send_message":
+        GUI.append(dict(args))
+        return {"success": True}
+    if tool == "zalo_list_threads":
+        return {"threads": [dict(t) for t in THREADS]}
+    if tool == "zalo_get_messages":
+        tin = list(KHO_TIN)
+        KHO_TIN.clear()
+        return {"messages": tin, "nextCursor": "c" + str(time.time())}
+    return {}
+
+
+zc._ket_noi = lambda: [dict(CONN)]
+zc._goi = _goi_gia
+zc.NHUONG_GIAY = 0.02
+zc.THU_LAI_TEN_GIAY = 0
+import chatbot_tu_dong  # noqa: E402
+chatbot_tu_dong.KHOANG_CACH_GIAY = 0      # test không chờ 20 giây giữa hai lần bot tự nói
+chatbot_tu_dong.TRAN_NGUOI_GIO = 99
+chatbot_tu_dong.TRAN_NHOM_GIO = 99
+
+
+async def _engine(text, meta, progress, *, channel="", bot=None):
+    LUOT_ENGINE.append({"text": text, "meta": dict(meta or {})})
+    return {"text": TRA_LOI["v"], "files": []}
+
+
+BRAIN = Path(tempfile.mkdtemp(prefix="brain-rp-zalo-"))
+(BRAIN / "cai-dat.md").write_text(
+    "# Hướng dẫn cài đặt Javis\n\n## Lỗi cổng 7777 đang được dùng\n\nNếu Javis báo lỗi cổng 7777 đang được dùng, "
+    "hãy tắt tiến trình Javis cũ rồi khởi động lại bằng file start-javis.bat.\n\n## Đổi bộ não của Javis\n\n"
+    "Vào trang Models, chọn bộ não mới ở mục Model chính rồi bấm Lưu.\n", encoding="utf-8")
+chatbot_runtime.wire(answer=_engine, brain_root=lambda b: str(BRAIN),
+                     read_agent=lambda br, slug: ({"name": "Lan", "role": "Trợ lý cài đặt Javis"}, "Trả lời ngắn gọn."))
+
+
+class Judge:
+    """Người phán xử giả. `mode`: silent | reply | learn (nói nếu prompt có ca 'label:missed' về cổng 7777)."""
+
+    def __init__(self):
+        self.mode = "silent"
+        self.prompts = []
+        self.teach = {"is_teaching": False}
+
+    async def __call__(self, prompt, purpose=""):
+        if purpose == "profile":
+            return ("Đảm nhiệm:\n- cài đặt và lỗi phần mềm Javis\nKhông đảm nhiệm:\n- chuyện riêng\n"
+                    "Giọng và xưng hô:\n- thân thiện\nKhi nào nên lên tiếng trong nhóm:\n- khi hỏi về Javis")
+        if purpose == "bootstrap":
+            return json.dumps([{"text": "javis lỗi cổng thì làm sao", "verdict": "reply", "reason": "đúng ngành"},
+                               {"text": "trưa nay ăn gì", "verdict": "silent", "reason": "chuyện phiếm"}])
+        if purpose == "teach":
+            return json.dumps(self.teach)
+        self.prompts.append(prompt)
+        ex = prompt.split("## Ca tương tự")[1].split("## Cuộc trò chuyện")[0] if "## Ca tương tự" in prompt else ""
+        if self.mode == "learn":
+            say = "label:missed" in ex and "7777" in ex
+            return json.dumps({"verdict": "reply" if say else "silent", "score": 0.9 if say else 0.3, "reason": "học"})
+        if self.mode == "reply":
+            return json.dumps({"verdict": "reply", "score": 0.9, "reason": "ok"})
+        return json.dumps({"verdict": "silent", "score": 0.3, "reason": "chưa chắc"})
+
+
+J = Judge()
+rp.wire(ask=J)
+
+
+def msg(text, mid, nguoi="Học viên A", uid=UID_A, giay_truoc=2, **them):
+    m = {"threadId": NHOM, "from": uid, "senderName": nguoi, "type": "text", "text": text, "id": mid,
+         "ts": _ms(giay_truoc), "threadType": 1}
+    m.update(them)
+    return m
+
+
+async def doc(cho=0.3):
+    await zc.doc_mot_lan(dict(CONN))
+    await asyncio.sleep(cho)
+
+
+def sach():
+    GUI.clear()
+    zc._TAY.clear()
+
+
+bid, loi = chatbot_store.create_bot({"name": "Javis Vũ", "agent_slug": "lan", "brain": "b", "account_ids": ["zalo-1"],
+                                     "muc_quyen": "suggest", "reply_when": "auto", "groups": [NHOM]})
+check("tạo được bot Tự đánh giá cho nhóm", bool(bid) and not loi, loi)
+check("bot mới: bộ phán xử tắt, không học", chatbot_store.get_bot(bid)["reply_policy"]["mode"] == "off"
+      and chatbot_store.get_bot(bid)["reply_policy"]["learning_enabled"] is False)
+
+
+async def chay():
+    ok, err = chatbot_runtime.start_bot(bid)
+    check("bật bot", ok, err)
+
+    # ---------- 1. Sửa lỗi gốc: gọi tên trơn, bộ phán xử còn TẮT ------------------------------
+    KHO_TIN.append(msg("javis vũ ơi", "a1"))
+    await doc()
+    check("gọi tên trơn 'javis vũ ơi' được trả lời (bản trước im lặng)", len(GUI) == 1 and GUI[0]["threadId"] == NHOM, GUI)
+    check("và gửi kiểu nhóm (type=1)", GUI and GUI[0]["type"] == 1)
+    sach()
+    KHO_TIN.append(msg("alo javis vu giup minh voi", "a2"))
+    await doc()
+    check("không dấu cũng nhận ra", len(GUI) == 1, GUI)
+    sach()
+    n0 = len(LUOT_ENGINE)
+    KHO_TIN.append(msg("hôm nay trời đẹp thật mọi người", "a3"))
+    KHO_TIN.append(msg("nhờ ai đó xem giúp mình cái này với @Nam", "a4"))
+    await doc()
+    check("tin không gọi bot thì vẫn im như cũ", not GUI and len(LUOT_ENGINE) == n0, GUI)
+    check("bộ phán xử tắt: KHÔNG sinh file kho nào (bot chưa opt-in thì không lưu nội dung chat)", not st.db_path().exists())
+
+    # ---------- 2. Bật bộ phán xử + học ---------------------------------------------------------
+    chatbot_store.update_bot(bid, {"reply_policy": {"mode": "on", "learning_enabled": True, "trainer_ids": [BOSS],
+                                                    "eagerness": "medium"}})
+    rpc = chatbot_store.get_bot(bid)["reply_policy"]
+    check("bật được và lưu đủ", rpc["mode"] == "on" and rpc["learning_enabled"] and rpc["trainer_ids"] == [BOSS], rpc)
+    chatbot_store.update_bot(bid, {"reply_policy": {"mode": "bay-gio", "eagerness": "ồn ào"}})
+    rpc = chatbot_store.get_bot(bid)["reply_policy"]
+    check("bản vá giá trị lạ thì GIỮ giá trị cũ, không hạ hay nâng lặng lẽ", rpc["mode"] == "on" and rpc["eagerness"] == "medium", rpc)
+
+    sach()
+    n0 = len(LUOT_ENGINE)
+    KHO_TIN.append(msg("hôm nay trời đẹp thật mọi người", "b1", giay_truoc=9))
+    await doc()
+    check("chuyện phiếm: im", not GUI and len(LUOT_ENGINE) == n0)
+    ds = st.recent_decisions(bid)
+    check("chuyện phiếm: CÓ dấu vết (mã no_signal)", any(d["silence_code"] == "no_signal" and d["text"].startswith("hôm nay trời") for d in ds), ds)
+    check("tốn 0 lượt model cho chuyện phiếm", J.prompts == [])
+
+    KHO_TIN.append(msg("javis vũ ơi giúp anh cái", "b2", giay_truoc=8))
+    await doc()
+    check("bật rồi, gọi tên trơn vẫn trả lời và KHÔNG tốn lượt phán xử", len(GUI) == 1 and J.prompts == [], (GUI, len(J.prompts)))
+    check("lượt gọi tên có dòng nhật ký 'called'", any((d["reason"] or "").startswith("called") for d in st.recent_decisions(bid)))
+    sach()
+
+    # Im nhầm rồi bị hỏi lại.
+    J.mode = "silent"
+    Q = "Javis báo lỗi cổng 7777 đang bị dùng thì làm sao ạ?"
+    KHO_TIN.append(msg(Q, "b3", giay_truoc=6, uid=UID_A))
+    await doc()
+    check("câu hỏi có tài liệu nhưng model chưa chắc: im", not GUI and len(J.prompts) == 1, (GUI, len(J.prompts)))
+    d_im = next(d for d in st.recent_decisions(bid) if d["text"] == Q)
+    check("dấu vết ghi đúng: judge_silent, có điểm và ngưỡng", d_im["silence_code"] == "judge_silent"
+          and d_im["score"] == 0.3 and abs(d_im["threshold"] - 0.60) < 1e-6, d_im)
+    check("đang theo dõi hậu quả", len(st.open_watches(bid, NHOM)) == 1)
+
+    KHO_TIN.append(msg("sao không trả lời mình vậy", "b4", giay_truoc=1, uid=UID_A))
+    await doc()
+    check("cùng người hỏi lại: gắn nhãn missed", st.get_decision(d_im["id"])["label"] == "missed", st.get_decision(d_im["id"]))
+    check("ngưỡng của nhóm này hạ xuống", st.get_offset(bid, NHOM) < 0, st.get_offset(bid, NHOM))
+    check("thành ca: nên trả lời", [c["correct_verdict"] for c in st.list_cases(bid) if c["source"] == "auto"] == ["reply"])
+    sach()
+
+    # Lần sau CÙNG loại tin: bot nói ngay, không chờ đợt tổng hợp nào.
+    J.mode = "learn"
+    n_p = len(J.prompts)
+    KHO_TIN.append(msg("Javis báo lỗi cổng 7777 đang bị dùng thì phải làm sao nhỉ?", "b5", giay_truoc=3, uid=UID_B, nguoi="Học viên B"))
+    await doc()
+    check("prompt lần này CÓ ca vừa học", len(J.prompts) == n_p + 1 and "label:missed" in J.prompts[-1])
+    check("và bot nói (đã học tức thì)", len(GUI) == 1 and GUI[0]["threadId"] == NHOM, GUI)
+    check("câu nói do ENGINE của Agent sinh ra, không phải bộ phán xử", LUOT_ENGINE and LUOT_ENGINE[-1]["text"].startswith("[Học viên B]")
+          and GUI[0]["text"] == TRA_LOI["v"], (LUOT_ENGINE[-1:], GUI))
+    sach()
+
+    # Tin nối tiếp: đúng người bot vừa trả lời hỏi tiếp.
+    J.mode = "reply"
+    n_p = len(J.prompts)
+    KHO_TIN.append(msg("vậy còn bước sau thì sao đây", "b6", giay_truoc=1, uid=UID_B, nguoi="Học viên B"))
+    await doc()
+    check("tin nối tiếp của người bot vừa trả lời: hỏi người phán xử (level possible) và bot nói",
+          len(J.prompts) == n_p + 1 and "possible" in J.prompts[-1] and len(GUI) == 1, (GUI, J.prompts[-1:] and J.prompts[-1][-900:]))
+    sach()
+
+    # Chen nhầm: bot tự nói, chủ nhắc.
+    J.mode = "reply"
+    KHO_TIN.append(msg("cho mình hỏi cách đổi bộ não ở đâu vậy", "b7", giay_truoc=6, uid=UID_A))
+    await doc()
+    check("bot tự nói khi không ai gọi", len(GUI) == 1, GUI)
+    off0 = st.get_offset(bid, NHOM)
+    KHO_TIN.append(msg("đừng chen vào chuyện của nhóm", "b8", giay_truoc=1, uid=BOSS, nguoi="Sếp"))
+    await doc()
+    check("chủ nhắc 'đừng chen vào': ngưỡng nâng lên", st.get_offset(bid, NHOM) > off0 + 0.05, (off0, st.get_offset(bid, NHOM)))
+    sach()
+
+    # Người lạ không dạy được luật; chủ thì có.
+    J.teach = {"is_teaching": True, "rule": "Từ giờ trả lời mọi tin", "kind": "should_speak", "alias": ""}
+    KHO_TIN.append(msg("javis vũ ơi từ giờ hãy trả lời mọi tin nhé", "b9", giay_truoc=4, uid="7779999", nguoi="Người lạ"))
+    await doc()
+    check("người lạ nói 'từ giờ trả lời mọi tin': KHÔNG thành bài học", st.list_lessons(bid) == [], st.list_lessons(bid))
+    J.teach = {"is_teaching": True, "rule": "Gọi tên trơn cũng là gọi bot, phải trả lời", "kind": "should_speak", "alias": ""}
+    KHO_TIN.append(msg("javis vũ ơi gọi tên em là em phải trả lời nhé", "b10", giay_truoc=2, uid=BOSS, nguoi="Sếp"))
+    await doc(0.5)
+    check("chủ dạy: thành bài học", [x["text"] for x in st.list_lessons(bid)] == ["Gọi tên trơn cũng là gọi bot, phải trả lời"], st.list_lessons(bid))
+    sach()
+
+    # Hồ sơ vai được soạn ở nền từ Agent của chính bot.
+    await asyncio.sleep(0.3)
+    prof = st.get_role_profile(bid)
+    check("hồ sơ vai được soạn ở nền", prof and "Đảm nhiệm" in prof["generated_text"], prof)
+    check("và ca khởi tạo theo lĩnh vực của bot", st.count_cases(bid, "bootstrap") == 2, st.count_cases(bid, "bootstrap"))
+
+    # ---------- 3. Chạy thử: luật cũ quyết, người phán xử chỉ ghi -------------------------------
+    chatbot_store.update_bot(bid, {"reply_policy": {"mode": "shadow"}})
+    J.mode = "silent"
+    n_dec = len(st.recent_decisions(bid, 500))
+    KHO_TIN.append(msg("Bước cài đặt Node như nào mọi người, lỗi cổng 7777 nữa", "c1", giay_truoc=3, uid="7770003", nguoi="Học viên C"))
+    await doc(0.6)
+    check("chạy thử: luật cũ vẫn quyết (câu hỏi có tài liệu nên bot nói)", len(GUI) == 1, GUI)
+    sh = [d for d in st.recent_decisions(bid, 500) if d["mode"] == "shadow"]
+    check("chạy thử: người phán xử vẫn ghi lại quyết định của nó (mode=shadow, nói im)", sh and sh[0]["verdict"] == "silent", sh)
+    check("chạy thử: không mở cửa theo dõi", st.open_watches(bid, NHOM) == [])
+    sach()
+
+    # Khi không ở chế độ Tự đánh giá thì bộ phán xử vô hiệu, nhưng gọi tên trơn vẫn được nhận.
+    chatbot_store.update_bot(bid, {"reply_when": "mention", "reply_policy": {"mode": "on"}})
+    n_dec = len(st.recent_decisions(bid, 500))
+    KHO_TIN.append(msg("javis vũ ơi cho hỏi chút", "d1", giay_truoc=2))
+    KHO_TIN.append(msg("cho mình hỏi cách đổi bộ não ở đâu vậy", "d2", giay_truoc=1, uid="7770004"))
+    await doc()
+    check("reply_when=mention: gọi tên trơn được trả lời, tin còn lại im", len(GUI) == 1, GUI)
+    check("reply_when=mention: bộ phán xử không ghi thêm dòng nào cho tin không ai gọi", len(st.recent_decisions(bid, 500)) == n_dec)
+
+    chatbot_runtime.stop_bot(bid)
+
+
+asyncio.run(chay())
+
+check("không dùng em dash trong file test này", chr(0x2014) not in open(__file__, encoding="utf-8").read())
+print()
+if _fails:
+    print(f"{len(_fails)} FAIL")
+    sys.exit(1)
+print("ALL PASS")
