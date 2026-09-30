@@ -59,7 +59,7 @@
   var _statusLoc = "", _typeLoc = "";   // bộ lọc dropdown (0.65.3), lưu ở trình duyệt qua JavisConvFilters
   var _facets = null, _botList = [];    // số đếm cho dropdown và các bot có hội thoại (server cấp, toàn hòm thư)
   var _chon = null;         // id hội thoại đang mở
-  var _msgs = [], _conv = null, _dauVetTin = "";
+  var _msgs = [], _conv = null, _dauVetTin = "", _silence = null;   // _silence: vì sao bot im ở tin khách cuối
   var _kenhDS = [];         // các LOẠI kênh (server: id, nhan, logo, kind, nang_luc...)
   var _tk = [];             // mọi tài khoản kênh, một khuôn
   var _dauVetTK = "";
@@ -409,10 +409,10 @@
     try {
       var d = await api("/conversations/" + id + "/messages?limit=200");
       if (_chon !== id) return;
-      var vet = JSON.stringify([d.conversation, d.messages]);
+      var vet = JSON.stringify([d.conversation, d.messages, d.bot_silence]);
       if (im && vet === _dauVetTin) return;
       _dauVetTin = vet;
-      _conv = d.conversation; _msgs = d.messages || [];
+      _conv = d.conversation; _msgs = d.messages || []; _silence = d.bot_silence || null;
     } catch (e) {
       if (!im) box.innerHTML = '<div class="ht-empty">' + esc(window.t("ht.loi_tai")) + ' ' + esc(e.message) + '</div>';
       return;
@@ -439,19 +439,28 @@
         '<div class="ht-head-text"><strong>' + esc(ten) + '</strong>' +
           '<small>' + chipKenh(c.channel) + (c.account_name ? ' · ' + esc(c.account_name) : "") +
           (c.chat_type === "group" ? ' · ' + esc(window.t("ht.nhom")) : "") + '</small></div>' +
+        // Công tắc hai nấc thay nút Tiếp quản nhỏ (0.65.4): thấy ngay cuộc chat đang do ai lo và gạt được bằng một chạm.
         (laBot
-          ? '<button type="button" class="s-btn-ghost ht-mode-btn' + (human ? " on" : "") + '">' +
-              (human ? ic("bot") + ' ' + esc(window.t("ht.tra_ai")) : ic("hand") + ' ' + esc(window.t("ht.tiep_quan"))) +
-            '</button>'
+          ? '<div class="ht-seg" role="group" aria-label="' + esc(window.t("ht.sw_aria")) + '">' +
+              '<button type="button" class="ht-seg-b' + (human ? "" : " on") + '" data-m="ai" aria-pressed="' + (!human) + '">' +
+                ic("bot") + ' ' + esc(window.t("ht.sw_auto")) + '</button>' +
+              '<button type="button" class="ht-seg-b' + (human ? " on" : "") + '" data-m="human" aria-pressed="' + human + '">' +
+                ic("hand") + ' ' + esc(window.t("ht.sw_mine")) + '</button>' +
+            '</div>'
           : "") +
       '</div>' +
-      (human ? '<div class="ht-note warn">' + ic("hand") + ' ' + esc(window.t("ht.dang_tiep_quan")) + '</div>' : "") +
-      '<div class="ht-msgs">' + _msgs.map(veTin).join("") + '</div>' +
+      '<div class="ht-msgs">' + _msgs.map(veTin).join("") + veBotIm(c) + '</div>' +
+      (laBot ? veTrangThai(c, human) : "") +
       (guiDuoc ? veCompose(c, laBot, human) :
         '<div class="ht-foot">' + esc(window.t("ht.kenh_khong_gui", { kenh: nhanKenh(c.channel) })) + '</div>');
     box.querySelector(".ht-back").onclick = dongThread;
-    var mb = box.querySelector(".ht-mode-btn");
-    if (mb) mb.onclick = function () { doiMode(c.id, human ? "ai" : "human"); };
+    box.querySelectorAll(".ht-seg-b").forEach(function (b) {
+      b.onclick = function () { if (b.dataset.m !== (human ? "human" : "ai")) doiMode(c.id, b.dataset.m); };
+    });
+    var why = box.querySelector(".ht-silent-why");
+    if (why) why.onclick = function () {
+      if (window.JavisReplyPolicy) window.JavisReplyPolicy.openPanel({ id: c.bot_id, name: c.bot_name || "" });
+    };
     var m = box.querySelector(".ht-msgs");
     if (oDay) m.scrollTop = m.scrollHeight;
     var ta = box.querySelector(".ht-compose textarea");
@@ -462,6 +471,27 @@
       };
       box.querySelector(".ht-send").onclick = function () { gui(c); };
     }
+  }
+
+  // Một dòng nói ai đang trực cuộc chat này. Đứng riêng (không nhét vào ô nhập) để hai nút hành động ở lát sau có chỗ
+  // và dòng này không bao giờ bị nút đẩy xuống hàng.
+  function veTrangThai(c, human) {
+    return '<div class="ht-status ' + (human ? "human" : "ai") + '">' + ic(human ? "hand" : "bot") + ' <span>' +
+      esc(human ? window.t("ht.st_human") : window.t(c.bot_name ? "ht.st_ai" : "ht.st_ai_0", { bot: c.bot_name || "" })) +
+      '</span></div>';
+  }
+
+  // "Bot im: lý do" ngay dưới tin khách cuối, lấy từ nhật ký bộ phán xử, khỏi phải mở menu Bộ phán xử để hỏi vì sao.
+  function veBotIm(c) {
+    var s = _silence;
+    if (!s || !c.bot_id) return "";
+    var RP = window.JavisReplyPolicy;
+    var lyDo = s.code ? (RP ? RP.codeLabel(s.code) : s.code) : (s.reason || "");
+    if (!lyDo) return "";
+    var diem = (s.score == null) ? "" : " (" + Number(s.score).toFixed(2) +
+      (s.threshold != null ? " / " + Number(s.threshold).toFixed(2) : "") + ")";
+    return '<div class="ht-silent">' + ic("info") + ' <span>' + esc(window.t("ht.silent", { why: lyDo + diem })) + '</span>' +
+      (RP ? ' <button type="button" class="ht-silent-why">' + esc(window.t("ht.silent_why")) + '</button>' : "") + '</div>';
   }
 
   // Ô trả lời khách. Nói rõ hai điều trước khi bấm gửi: gửi từ đây là TIẾP QUẢN (bot đang

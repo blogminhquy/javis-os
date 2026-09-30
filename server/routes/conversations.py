@@ -54,6 +54,25 @@ def register(app, deps: ConversationsDeps):
         except Exception:      # noqa: BLE001
             return []
 
+    def _bot_silence(conv: dict, msgs: list):
+        """Vì sao bot im ở tin khách CUỐI của cuộc chat này, nếu bộ phán xử có ghi. Chỉ khi cuộc chat đang ở chế độ AI, tin
+        cuối là của khách, và quyết định gần nhất là `silent` cho đúng tin đó (mốc giờ lệch không quá 60 giây, vì quyết định ghi
+        theo giờ tin). Người thật đang tiếp quản thì bot im là hiển nhiên, không cần nói."""
+        try:
+            bot_id = str(conv.get("bot_id") or "")
+            if not bot_id or str(conv.get("mode") or "ai") != "ai" or not msgs or msgs[-1].get("sender_type") != "customer":
+                return None
+            import chatbot_reply_policy_store as rps
+            d = rps.last_decision(bot_id, str(conv.get("external_chat_id") or ""))
+            if not d or d.get("verdict") != "silent":
+                return None
+            if float(d.get("ts") or 0) < float(msgs[-1].get("created_at") or 0) - 60:
+                return None
+            return {"decision_id": d.get("id"), "code": d.get("silence_code") or "", "reason": d.get("reason") or "",
+                    "score": d.get("score"), "threshold": d.get("threshold")}
+        except Exception:      # noqa: BLE001 - dòng phụ này hỏng không được làm hỏng việc đọc hội thoại
+            return None
+
     def _ten_bot(bot_id: str) -> str:
         """Tên bot để hiện trên hàng hội thoại và ở dropdown lọc. Bot đã xoá thì báo thẳng, không lòi id thô."""
         if not bot_id:
@@ -115,8 +134,9 @@ def register(app, deps: ConversationsDeps):
         d = conversations.chi_tiet(conv_id)
         if not d:
             return _404()
-        return {"ok": True, "conversation": d,
-                "messages": conversations.tin_nhan(conv_id, limit=limit, before_id=before)}
+        msgs = conversations.tin_nhan(conv_id, limit=limit, before_id=before)
+        d["bot_name"] = _ten_bot(str(d.get("bot_id") or ""))
+        return {"ok": True, "conversation": d, "messages": msgs, "bot_silence": _bot_silence(d, msgs)}
 
     @router.post("/conversations/{conv_id}/read")
     async def conversations_read(conv_id: int):

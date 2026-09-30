@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.4] - 2026-09-30
 ### Cải thiện
-- **Hòm thư: công tắc Tự động / Tôi trả lời** ở đầu mỗi cuộc chat của bot, thay nút Tiếp quản nhỏ, kèm dòng trạng thái rõ ai đang trực.
+- **Hòm thư: công tắc Tự động / Tôi trả lời** ở đầu mỗi cuộc chat của bot, thay nút Tiếp quản nhỏ. Ngay trên ô nhập có một dòng nói ai đang trực. Trên điện thoại công tắc xuống hàng riêng, dễ chạm.
+- **Dòng "Bot im: lý do" dưới tin khách cuối**, kèm nút Vì sao mở thẳng bảng Bộ phán xử. Khỏi phải mở menu mới biết vì sao bot không trả lời.
 
 ## [0.65.3] - 2026-09-30
 ### Cải thiện

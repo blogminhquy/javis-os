@@ -43,13 +43,17 @@ Trên điện thoại trang chỉ một cột: bấm một hội thoại là m�
 
 ## Trả lời khách, tiếp quản và trả lại AI
 
+**Công tắc Tự động | Tôi trả lời** (từ 0.65.4) nằm ở đầu mỗi cuộc chat có bot, thay cho nút Tiếp quản nhỏ. Gạt sang **Tôi trả lời** là bạn tiếp quản; gạt về **Tự động** là trả cuộc chat lại cho bot. Bấm đúng nấc đang bật thì không làm gì. Trên điện thoại công tắc xuống một hàng riêng, rộng hết chiều ngang. Ngay trên ô nhập có **một dòng trạng thái** nói ai đang trực ("Nhi Mai đang trực cuộc chat này" hoặc "Bạn đang tiếp quản, bot im"), đứng riêng một dòng nên không lệch với ô nhập.
+
+Dưới tin khách cuối có dòng **"Bot im: lý do"** khi bộ phán xử đã ghi lý do (ví dụ "Điểm thấp hơn ngưỡng (0.52 / 0.60)"), kèm nút **Vì sao** mở thẳng bảng Bộ phán xử của bot đó. Dòng này chỉ hiện khi cuộc chat đang ở Tự động, tin cuối là của khách và quyết định gần nhất là im cho đúng tin đó; người thật đang tiếp quản thì bot im là hiển nhiên nên không nói.
+
 Dưới cùng một hội thoại là ô soạn tin: gõ rồi **Enter** để gửi (Shift+Enter xuống dòng). Tin đi qua đúng kênh của cuộc chat: bot Telegram hay Zalo Bot gửi bằng token của tài khoản đó, Zalo cá nhân gửi qua chính tài khoản bạn đã quét QR, **dưới tên bạn** (ô soạn tin nói rõ điều này). Kênh nào chưa gửi được từ Javis thì ô soạn tin thay bằng một dòng nói vậy.
 
-Gửi từ đây ở một cuộc chat có bot là bạn **tiếp quản** cuộc đó: bot im với khách này cho tới khi bạn bấm **Trả lại AI**. Không thì khách đọc hai giọng một lúc. Nút **Tiếp quản** ở đầu hội thoại làm y như vậy mà không cần gửi gì; bấm xong bạn trả lời trong app của kênh cũng được.
+Gửi từ đây ở một cuộc chat có bot là bạn **tiếp quản** cuộc đó: bot im với khách này cho tới khi bạn gạt về **Tự động**. Không thì khách đọc hai giọng một lúc. Gạt công tắc sang **Tôi trả lời** làm y như vậy mà không cần gửi gì; gạt xong bạn trả lời trong app của kênh cũng được.
 
 Hai điều nên biết:
 
-- Lượt bot đang soạn dở đúng lúc bạn bấm Tiếp quản vẫn gửi nốt câu đó. Cắt ngang một câu đang gửi còn khó hiểu hơn với khách.
+- Lượt bot đang soạn dở đúng lúc bạn tiếp quản vẫn gửi nốt câu đó. Cắt ngang một câu đang gửi còn khó hiểu hơn với khách.
 - Tiếp quản là theo **từng cuộc chat**, không tắt bot. Các khách khác vẫn được bot trả lời.
 
 ## Tab Tài khoản bot
@@ -109,7 +113,7 @@ Thêm một kênh = thêm một file ở sổ, một dòng đăng ký, một log
 - **Thẻ bot báo "chưa có tài khoản kênh nào"**: bot chưa trực token nào. Bấm Sửa, tích một tài khoản có sẵn hoặc dán token mới.
 - **Gửi từ Hòm thư bot báo lỗi**: câu lỗi là của chính nền tảng (token bị thu hồi, khách đã chặn bot, phiên Zalo hết hạn). Tin không đi thì không được ghi vào kho.
 - **Zalo cá nhân báo lỗi đỏ ở tab Tài khoản bot**: thường là phiên QR hết hạn hoặc máy thiếu Node.js 20. Vào trang Kết nối kiểm tra kết nối Zalo, quét QR lại nếu cần. Vòng đọc tự thử lại sau 90 giây.
-- **Bấm Tiếp quản mà bot vẫn trả lời một câu**: đó là lượt đã chạy dở từ trước khi bấm. Từ tin sau bot im.
+- **Gạt sang Tôi trả lời mà bot vẫn trả lời một câu**: đó là lượt đã chạy dở từ trước khi bấm. Từ tin sau bot im.
 
 ## Muốn hơn thế: gói Quản lý khách hàng (CRM)
 

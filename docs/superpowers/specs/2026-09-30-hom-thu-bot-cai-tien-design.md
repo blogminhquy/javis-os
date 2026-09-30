@@ -34,12 +34,16 @@ Giao làm ba lát, mỗi lát một PR nhỏ. Lát 1 đã giao ở 0.65.3.
   Dropdown đang mở thì không dựng lại giữa nhịp tự làm mới 5 giây (đóng nó giữa chừng). Điện thoại: ô tìm và Bot mỗi cái một hàng,
   Tình trạng và Loại chia đôi một hàng. Thẻ tên bot chỉ khi có từ hai bot.
 
-## 4. Lát 2 (0.65.4): công tắc Tự động / Tôi trả lời và thanh trạng thái
+## 4. Lát 2 (0.65.4, đã giao): công tắc Tự động / Tôi trả lời và thanh trạng thái
 
 - Đầu khung hội thoại: công tắc hai nấc **Tự động | Tôi trả lời** thay nút Tiếp quản nhỏ (gọi `POST /conversations/{id}/mode`, không API mới).
 - Đáy khung: MỘT dòng trạng thái ("Nhi Mai đang trực cuộc này" / "Bạn đang tiếp quản, bot im") rồi hàng hai nút cùng cao, chia đôi bề ngang,
   không bao giờ rớt dòng (bản mẫu đầu bị lệch vì thẻ trạng thái nhỏ hơn nút và nút thứ hai rớt xuống); ô nhập và nút gửi cùng một hàng.
-- Dòng "Bot im: <lý do>" ngay trong khung tin, lấy từ nhật ký bộ phán xử, khỏi mở menu.
+- Dòng "Bot im: <lý do>" ngay trong khung tin, lấy từ nhật ký bộ phán xử, khỏi mở menu. `GET /conversations/{id}/messages` trả thêm
+  `bot_silence` (mã, điểm, ngưỡng) và `bot_name`. Điều kiện hiện, cố ý chặt vì hiện sai còn tệ hơn không hiện: cuộc chat ở chế độ AI, tin cuối là của
+  khách, quyết định gần nhất là `silent` và lệch giờ với tin cuối không quá 60 giây. Người thật đang tiếp quản, bot đã đáp, quyết định là `reply`,
+  hay kho bộ phán xử chưa có (không tạo file) thì không hiện. Nút "Vì sao" mở bảng Bộ phán xử của bot.
+- Điện thoại: công tắc xuống hàng riêng rộng hết chiều ngang, hai nấc chia đôi, thay vì chèn tiêu đề còn vài chục điểm ảnh.
 
 ## 5. Lát 3 (0.65.5): Trả lời giúp tin này và Gợi ý câu trả lời
 

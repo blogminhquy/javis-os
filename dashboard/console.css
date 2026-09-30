@@ -2052,8 +2052,29 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-head-text strong { font-size: 15px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ht-head-text small { font-size: 12.5px; color: var(--text3); display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .ht-back { display: none; padding: 6px 9px; }
-.ht-mode-btn { flex: none; white-space: nowrap; }
-.ht-mode-btn.on { color: var(--warn-ink); border-color: var(--warn-ink); }
+/* Công tắc hai nấc Tự động / Tôi trả lời (0.65.4). */
+.ht-seg { flex: none; display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; gap: 2px;
+  background: var(--bg3); }
+.ht-seg-b { border: 0; background: none; color: var(--text2); padding: 5px 11px; border-radius: 999px; font-size: 13px;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.ht-seg-b:hover { color: var(--text); }
+.ht-seg-b.on { background: var(--accent-wash); color: var(--accent-ink); font-weight: 600; }
+.ht-seg-b.on[data-m="human"] { background: var(--warn-wash); color: var(--warn-ink); }
+/* Điện thoại: công tắc xuống hàng riêng, rộng hết chiều ngang (dễ chạm một tay) thay vì chèn tiêu đề còn vài chục điểm ảnh. */
+@media (max-width: 640px) {
+  .ht-head { flex-wrap: wrap; }
+  .ht-seg { order: 3; flex: 1 1 100%; }
+  .ht-seg-b { flex: 1 1 50%; justify-content: center; padding: 8px 11px; font-size: 14px; }
+}
+/* Dòng trạng thái: ai đang trực cuộc chat. Đứng riêng một dòng, không chung hàng với nút nào. */
+.ht-status { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-top: 1px solid var(--hairline);
+  font-size: 12.5px; color: var(--text3); }
+.ht-status.ai { color: var(--green); }
+.ht-status.human { color: var(--warn-ink); background: var(--warn-wash); }
+.ht-silent { align-self: flex-start; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px;
+  color: var(--text3); }
+.ht-silent-why { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer;
+  text-decoration: underline; }
 .ht-chip { display: inline-flex; align-items: center; gap: 4px; }
 .ht-note { padding: 8px 12px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
 .ht-note.warn { background: var(--warn-wash); color: var(--warn-ink); }

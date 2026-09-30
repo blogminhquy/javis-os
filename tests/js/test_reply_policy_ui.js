@@ -29,8 +29,8 @@ const ctx = { window: win, document: { createElement: () => ({ set innerHTML(x) 
 vm.createContext(ctx);
 vm.runInContext(MOD, ctx);
 const RP = win.JavisReplyPolicy;
-check("module chỉ phơi ra ba hàm: formHtml, summary, openPanel",
-  RP && JSON.stringify(Object.keys(RP).sort()) === JSON.stringify(["formHtml", "openPanel", "summary"]), RP && Object.keys(RP).join(","));
+check("module chỉ phơi ra bốn hàm: formHtml, summary, openPanel, codeLabel (nhãn mã im cho Hộp thư)",
+  RP && JSON.stringify(Object.keys(RP).sort()) === JSON.stringify(["codeLabel", "formHtml", "openPanel", "summary"]), RP && Object.keys(RP).join(","));
 
 // ---- 1. hàm thuần ----
 const html = RP.formHtml();

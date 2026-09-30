@@ -174,6 +174,17 @@ def recent_decisions(bot_id: str, limit: int = 100, chat_id: str = "", only_sile
         return [dict(r) for r in con.execute(q, args).fetchall()]
 
 
+def last_decision(bot_id: str, chat_id: str) -> Optional[dict]:
+    """Quyết định GẦN NHẤT của bot ở một cuộc chat (hòm thư dùng nó để nói "bot im vì sao" dưới tin khách cuối).
+    Kho chưa có thì trả None và KHÔNG tạo file."""
+    if not db_path().exists():
+        return None
+    with _lock, _conn() as con:
+        r = con.execute("SELECT * FROM decisions WHERE bot_id=? AND chat_id=? ORDER BY id DESC LIMIT 1",
+                        (str(bot_id), str(chat_id))).fetchone()
+    return dict(r) if r else None
+
+
 # Mã im mà chủ nên xem lại: bot ĐÃ cân nhắc nói (tin qua cổng thô) nhưng im vì chưa chắc, hết hạn mức, hoặc bộ phán xử lỗi.
 # Không gồm `agent_silent` (chính Agent chọn im, có chủ ý) và các luật cứng (tin rác, nhắn người khác...).
 HESITANT_CODES = ("judge_silent", "below_threshold", "rate_limited", "rate_limited_user", "policy_error")

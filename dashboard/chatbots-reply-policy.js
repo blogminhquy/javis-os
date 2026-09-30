@@ -52,6 +52,9 @@
                    taught: "rp.label_taught" };
   var SOURCE_LB = { auto: "rp.source_auto", owner: "rp.source_owner", bootstrap: "rp.source_bootstrap" };
 
+  // Nhãn đọc được của một mã im (`silence_code`); mã lạ thì trả nguyên mã. Hòm thư dùng cho dòng "Bot im: ...".
+  function codeLabel(code) { return CODE_LB[code] ? tt(CODE_LB[code]) : String(code || ""); }
+
   // ---------------------------------------------------------------- khối trong form
   // Chỉ một dòng giải thích. `#cbRpBox` giữ nguyên để chatbots.js bật/tắt theo lựa chọn "Tự đánh giá".
   function formHtml() {
@@ -165,5 +168,5 @@
     await tai();
   }
 
-  window.JavisReplyPolicy = { formHtml: formHtml, summary: summary, openPanel: openPanel };
+  window.JavisReplyPolicy = { formHtml: formHtml, summary: summary, openPanel: openPanel, codeLabel: codeLabel };
 })();
