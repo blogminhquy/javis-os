@@ -1235,6 +1235,18 @@ class SessionStore:
         self.rename(session_id, title)
         return title
 
+    def name_group_session(self, session_id: str, group_name: str) -> bool:
+        """Phiên của bot trong NHÓM mang tên NHÓM (chủ dự án 2026-09-30): cả nhóm dùng chung một mạch, nên tên theo
+        tin đầu ("[Minh Quý] @Javis Vũ hầy") chỉ nói người nhắn đầu tiên và các phiên trong lịch sử Agent nhìn giống
+        hệt nhau. Chỉ đặt khi phiên chưa có tên (không ghi đè tên chủ tự đặt) và tên nhóm đã biết: nhóm mới có lúc chưa
+        có tiêu đề, lượt sau gọi lại là đặt kịp. Trả True nếu vừa đặt."""
+        name = " ".join(str(group_name or "").split())[:80]
+        sess = self.get_session(session_id) if name else None
+        if not sess or (sess.get("title") or "").strip():
+            return False
+        self.rename(session_id, name)
+        return True
+
     # ── search ──
 
     @staticmethod

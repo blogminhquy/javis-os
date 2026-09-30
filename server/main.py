@@ -17179,6 +17179,9 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
                                     api_model or mcfg.get("claude_model"), channel=channel)
         if conv_sid and ghi_kho:
             store.append_message(conv_sid, "user", text)
+            if bot and chatbot_runtime._rp_is_group(meta):
+                # Phiên của bot trong nhóm đặt tên theo NHÓM, không theo tin đầu của người nhắn đầu tiên.
+                store.name_group_session(conv_sid, (meta or {}).get("chat_title"))
     except Exception as e:
         print(f"[{channel} session] {e}", file=__import__('sys').stderr)
 

@@ -404,6 +404,9 @@ lọt vào danh sách Trò chuyện, vì chỉ các kênh cộng sự (`agent:`,
 - Lịch sử của một Agent (`channel="agent:<slug>"`) gộp thêm kênh `bot:` của MỌI bot dùng Agent đó (`also_channels`, do
   `main._kenh_bot_cua_agent` tính từ kho bot theo slug Agent và brain của bot). Ô tìm ở cột lịch sử cũng vậy.
 - Giao diện: trong lịch sử Agent, phiên của bot mang nhãn **Bot** để phân biệt với cuộc chủ tự chat với Agent.
+- Tên phiên (0.65.1): phiên trong NHÓM đặt theo tên nhóm (`SessionStore.name_group_session`, chỉ khi phiên chưa có tên),
+  vì cả nhóm dùng chung một mạch nên tên theo tin đầu chỉ nói người nhắn đầu tiên. Chat riêng giữ tên theo tin đầu.
+  Phiên cũ (trước 0.65.1) giữ tên cũ tới khi nhóm nhắn lại; không có cột mã nhóm để đặt bù hàng loạt.
 - Không đổi kênh của phiên hiện có, nên không cần di trú dữ liệu.
 
 ## 8. Chỗ gắn vào mã hiện có

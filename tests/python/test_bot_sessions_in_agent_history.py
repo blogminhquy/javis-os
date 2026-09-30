@@ -134,6 +134,33 @@ for lang in ("vi", "en"):
     d = json.loads((ROOT / "dashboard" / "i18n" / f"{lang}.json").read_text(encoding="utf-8"))
     check(f"i18n {lang} có sess.bot_badge", bool(d.get("sess.bot_badge")))
 
+# 7. Phiên của bot trong NHÓM mang tên NHÓM (chủ dự án 2026-09-30: xem lịch sử toàn "[Minh Quý] @Javis Vũ ..." rất loạn)
+gs = ms.create_session(brain="brain", engine="cli", title="", channel="bot:" + slug1)
+ms.append_message(gs, "user", "[Minh Quý] @Javis Vũ hầy")
+check("(chuẩn bị) phiên nhóm chưa có tên: tiêu đề hiện đang là tin đầu",
+      next(x for x in ms.list_sessions(limit=50, brain=["brain"], channel="*") if x["id"] == gs)["preview"].startswith("[Minh Quý]"))
+check("đặt tên phiên theo tên nhóm", ms.name_group_session(gs, "  Lớp Javis   OS ") is True
+      and ms.get_session(gs)["title"] == "Lớp Javis OS", ms.get_session(gs))
+check("đã có tên thì KHÔNG ghi đè (kể cả tên chủ tự đặt)", ms.name_group_session(gs, "Nhóm khác") is False
+      and ms.get_session(gs)["title"] == "Lớp Javis OS")
+gs2 = ms.create_session(brain="brain", engine="cli", title="", channel="bot:" + slug1)
+check("nhóm chưa có tiêu đề: không đặt gì, để lượt sau đặt kịp",
+      ms.name_group_session(gs2, "") is False and ms.name_group_session(gs2, None) is False
+      and ms.name_group_session(gs2, "   ") is False and not (ms.get_session(gs2)["title"] or ""))
+check("lượt sau biết tên nhóm thì đặt được", ms.name_group_session(gs2, "Nhóm mới") is True)
+check("phiên không tồn tại thì không sập", ms.name_group_session("khong-co", "Nhóm") is False)
+check("tên dài bị cắt 80 ký tự", ms.name_group_session(ms.create_session(brain="brain", engine="cli", title="", channel="bot:x"),
+                                                        "N" * 300) is True)
+src_main = (SERVER / "main.py").read_text(encoding="utf-8")
+i_answer = src_main.index("async def _tg_answer(")
+check("vỏ _tg_answer đặt tên phiên bot theo nhóm, chỉ với bot và tin nhóm",
+      "if bot and chatbot_runtime._rp_is_group(meta):" in src_main[i_answer:i_answer + 12000]
+      and "name_group_session(conv_sid" in src_main[i_answer:i_answer + 12000])
+import chatbot_runtime  # noqa: E402
+check("chỉ tin nhóm mới đổi tên phiên: chat riêng của khách vẫn theo tin đầu như cũ",
+      chatbot_runtime._rp_is_group({"chat_type": "group"}) is True and chatbot_runtime._rp_is_group({"chat_type": "private"}) is False
+      and chatbot_runtime._rp_is_group({}) is False)
+
 print()
 if _fails:
     print(f"{len(_fails)} FAIL")
