@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.8] - 2026-09-30
+### Cải thiện
+- **Bot tag người trong nhóm Zalo nhanh hơn.** Javis giữ sẵn một bản công cụ Zalo trong thư mục của mình và chạy thẳng bằng Node, không qua `npx` mỗi lần, nên bớt được khoảng 1 đến 2 giây mỗi câu trả lời trong nhóm.
+
 ## [0.65.7] - 2026-09-30
 ### Thêm mới
 - **Bot trong nhóm Zalo tự tag người nó đang trả lời.** Khách hỏi thì bot mở đầu bằng "@Tên ...", nút "Trả lời giúp tin này" cũng vậy. Không có ô cài đặt nào.
