@@ -7,13 +7,15 @@ soạn tin; ngoài ra nó là một kênh như mọi kênh khác, không có m�
 Từ 0.64.80 kênh này gắn được Bot chuyên trách (lớp `Transport` cuối file). Bot tự trả lời và tự
 quyết có nên trả lời không; các rào nằm ở `Transport.xu_ly`. Từ 0.64.82 bot còn đứng được trong
 NHÓM đã cho phép: trả lời khi được tag/reply, hoặc (chế độ Tự đánh giá) khi tin là một câu hỏi
-mà tài liệu của bot trả lời được, xem `chatbot_tu_dong`.
+mà tài liệu của bot trả lời được, xem `chatbot_tu_dong`. Từ 0.65.7 trong nhóm bot tự tag người nó đang trả lời (`gui(..., mention=)`).
 """
 from __future__ import annotations
 
 import asyncio
+import re
 import sys
 import time
+from typing import Optional
 
 from channels import KenhSpec
 
@@ -39,8 +41,94 @@ def trang_thai() -> dict:
     return zalo_personal_channel.trang_thai()
 
 
-async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private"):
+# ---- tag người được trả lời (0.65.6) -----------------------------------------------------------
+# Tool gửi tin của MCP chỉ nhận chữ nên không tag được ai. Trong nhóm, bot trả lời ai thì tag đúng người đó
+# bằng chính CLI `zalo-agent-cli` (`msg send --mention`), xem `zalo_cli`. Không có công tắc nào: tag hỏng
+# thì tin vẫn đi như cũ, chỉ mất cái tag.
+TAG_TIMEOUT = 40            # giây: gửi một dòng chữ mà quá thế là bất thường; gồm cả lần đầu npx nạp package
+TAG_FAIL_LIMIT = 3          # từng đó lần tag hỏng LIÊN TIẾP thì nghỉ, khỏi lần nào cũng trả thêm vài giây cho một thứ đang hỏng
+TAG_PAUSE = 600             # giây nghỉ tag sau khi hỏng liên tiếp; tin vẫn đi bằng MCP như cũ
+_TAG_STATE: dict = {}       # conn_id -> {"fails": số lần hỏng liên tiếp, "until": giờ hết nghỉ}
+_UID_RE = re.compile(r"\d{3,25}")
+
+
+def _utf16_len(s: str) -> int:
+    """Zalo (như JavaScript) đo vị trí chữ theo đơn vị UTF-16: emoji chiếm 2, khác ký tự Python."""
+    return len(s.encode("utf-16-le")) // 2
+
+
+def tagged_text(text: str, name: str) -> tuple:
+    """`(chữ gửi đi, vị trí, độ dài)` của đoạn tag người tên `name`.
+
+    Model đã tự viết "@Tên" thì tag đúng chỗ đó (khỏi tag hai lần), chưa thì đặt "@Tên " ở ĐẦU tin. Tên phải kết thúc ở ranh giới
+    chữ: "@Quý" không được ăn vào đầu "@Quýnh".
+    """
+    tok = "@" + name
+    m = re.search(re.escape(tok) + r"(?!\w)", text, re.IGNORECASE)
+    if m:
+        return text, _utf16_len(text[:m.start()]), _utf16_len(text[m.start():m.end()])
+    return tok + " " + text, 0, _utf16_len(tok)
+
+
+def _clean_mention(mention) -> tuple:
+    """`(uid, tên)` dùng được, hoặc `("", "")`. uid phải là số (nó đi vào tham số lệnh); tên chưa biết thì không có gì để tô."""
+    if not isinstance(mention, dict):
+        return "", ""
+    uid = str(mention.get("uid") or "").strip()
+    name = " ".join(str(mention.get("name") or "").split())[:80]
+    if not _UID_RE.fullmatch(uid) or not name:
+        return "", ""
+    return uid, name
+
+
+def _tag_paused(conn_id: str) -> bool:
+    return time.time() < float((_TAG_STATE.get(conn_id) or {}).get("until") or 0)
+
+
+def _tag_result(conn_id: str, ok: bool) -> None:
+    st = _TAG_STATE.setdefault(conn_id, {"fails": 0, "until": 0})
+    if ok:
+        st["fails"], st["until"] = 0, 0
+        return
+    st["fails"] += 1
+    if st["fails"] >= TAG_FAIL_LIMIT:
+        st["fails"], st["until"] = 0, time.time() + TAG_PAUSE
+        print(f"[zalo-personal] tag người hỏng {TAG_FAIL_LIMIT} lần liên tiếp, nghỉ {TAG_PAUSE // 60} phút "
+              f"(tin vẫn gửi như thường)", file=sys.stderr)
+
+
+async def _send_tagged(conn: dict, chat_id: str, text: str, mention) -> Optional[tuple]:
+    """Gửi một tin nhóm CÓ TAG. Trả `(ok, lỗi)` khi đã có kết cục, hoặc None khi chưa gửi gì và người gọi nên gửi thường.
+
+    Hết giờ là kết cục KHÔNG RÕ: CLI có thể đã gửi xong mới bị giết. Gửi lại bằng đường khác thì có thể thành hai tin dưới tên chủ trong
+    nhóm, còn không gửi lại thì cùng lắm thiếu một câu (và Hộp thư/nhật ký bot ghi lỗi), nên hết giờ trả lỗi chứ không rơi về gửi thường.
+    """
+    import zalo_cli
+    import zalo_personal_channel as zc
+    uid, name = _clean_mention(mention)
+    home = zalo_cli.home_of(conn)
+    cid = str(conn.get("id") or "")
+    if not uid or not home or _tag_paused(cid):
+        return None
+    final, pos, ln = tagged_text(text, name)
+    # Tiếng vọng của tin có tag mang cả "@Tên": nhớ luôn bản này, không thì vòng đọc tưởng chủ vừa tự tay nhắn và bot im 10 phút.
+    zc.ghi_da_gui(cid, chat_id, final)
+    ok, _data, err = await zalo_cli.run_cli(
+        {"home": home}, ["msg", "send"], [chat_id, final], ["-t", "1", "--mention", f"{pos}:{uid}:{ln}"], timeout=TAG_TIMEOUT)
+    if ok:
+        _tag_result(cid, True)
+        return True, ""
+    _tag_result(cid, False)
+    if zalo_cli.is_timeout(err):
+        return False, f"không rõ tin có tag đã đi chưa ({err})"
+    print(f"[zalo-personal] gửi có tag lỗi, gửi lại không tag: {err[:200]}", file=sys.stderr)
+    return None
+
+
+async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", mention=None):
     """Gửi qua MCP: `threadId`, `text` và kiểu cuộc chat (0 = chat riêng, 1 = nhóm).
+
+    `mention={"uid", "name"}` (chỉ có nghĩa trong nhóm): tag người đó, xem `_send_tagged`.
 
     Khoá kiểu cuộc chat mà MCP zalo-agent-cli 1.6.2 THẬT SỰ đọc là `threadType` (mcp-tools.js), không
     phải `type` như tài liệu mcp-guide ghi. MCP bỏ qua khoá lạ mà không báo lỗi, nên gửi `type` một
@@ -53,6 +141,10 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private"):
     if not conn:
         return False, "tài khoản Zalo này không còn ở trang Kết nối (hoặc đang tắt)"
     loai = 1 if str(chat_type or "") == "group" else 0
+    if loai == 1 and mention:
+        r = await _send_tagged(conn, str(chat_id), str(text or ""), mention)
+        if r is not None:
+            return r
     try:
         d = await zalo_personal_channel._goi(conn, "zalo_send_message", {
             "threadId": str(chat_id), "text": str(text or ""),
@@ -247,7 +339,7 @@ class Transport:
                 else:
                     cau = str(out or "").strip()
                 if cau and zc._BOTS.get(self.conn_id) is self:
-                    await self._gui(thread, cau, loai)
+                    await self._gui(thread, cau, loai, meta)
                     if nhom and self.policy is not None:
                         self.policy.replied(meta, cau)
         except asyncio.CancelledError:
@@ -257,11 +349,13 @@ class Transport:
             print(f"[zalo-personal bot {self.conn_id}] lượt hỏng: {self.last_error}",
                   file=sys.stderr)
 
-    async def _gui(self, thread: str, cau: str, chat_type: str = "private"):
+    async def _gui(self, thread: str, cau: str, chat_type: str = "private", meta: Optional[dict] = None):
         import zalo_personal_channel as zc
         # Nhớ TRƯỚC khi gửi: tiếng vọng có thể về vòng đọc ngay trong nhịp kế tiếp.
         zc.ghi_da_gui(self.conn_id, thread, cau)
-        ok, loi = await gui({"id": self.conn_id}, thread, cau, chat_type)
+        # Trong nhóm, bot trả lời ai thì tag đúng người đó (0.65.6). Chat riêng không cần tag.
+        tag = {"uid": (meta or {}).get("user_id"), "name": (meta or {}).get("user_name")} if chat_type == "group" else None
+        ok, loi = await gui({"id": self.conn_id}, thread, cau, chat_type, tag)
         if not ok:
             self.last_error = f"Gửi Zalo lỗi: {loi}"[:300]
             print(f"[zalo-personal bot {self.conn_id}] {self.last_error}", file=sys.stderr)

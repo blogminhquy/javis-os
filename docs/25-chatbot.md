@@ -182,6 +182,8 @@ Chế độ này cũng chạy với nhóm Telegram nếu bạn đã tắt chế 
 
 **Bot ở Zalo cá nhân khác bot ở Telegram** ở một điểm quan trọng: câu nó gửi mang tên nick, và nick có thể còn nhiều người khác nhắn vào. Vì thế bot chỉ xử lý tin dạng chữ (ảnh, tiếng, file bỏ qua), bỏ tin cũ quá 3 phút, và nhường 10 phút khi có người vừa nhắn tay ở cuộc chat đó.
 
+**Trong nhóm, bot tự tag người nó đang trả lời** (từ 0.65.7). Khách hỏi thì câu trả lời mở đầu bằng "@Tên ...", nên người hỏi được báo và cả nhóm biết bot đang nói với ai. Không có ô cài đặt nào, và chỉ áp dụng cho nhóm (chat riêng thì không cần). Nút **Trả lời giúp tin này** ở Hòm thư cũng tag người gửi tin đó. Tin có tag đi bằng chính công cụ `zalo-agent-cli` chứ không qua MCP (MCP chỉ gửi được chữ), nên mỗi câu trả lời trong nhóm chậm thêm khoảng 2 đến 4 giây. Nếu tag hỏng (máy thiếu Node.js, Zalo từ chối) thì bot vẫn gửi câu trả lời như cũ, chỉ mất cái tag; hỏng ba lần liên tiếp thì bot nghỉ tag 10 phút để khỏi chậm thêm vô ích. Riêng trường hợp quá giờ, Javis **không gửi lại**, vì tin có thể đã đi rồi và gửi lại sẽ ra hai câu dưới tên bạn; nhật ký bot ghi một dòng lỗi.
+
 ### Bộ phán xử: bot tự quyết nói hay im, và học từ nhóm
 
 Chế độ Tự đánh giá cũ dùng một cửa từ khoá: tin nào không giống câu hỏi là bị vứt trong im lặng, không để lại dòng nhật ký nào. Từ 0.65.0 có **Bộ phán xử** thay cửa đó bằng một bộ đọc ngữ cảnh, dùng chung cho mọi bot nhưng mỗi bot một vai. Từ 0.65.1 nó **tự vận hành hoàn toàn: không còn ô cài đặt nào**.

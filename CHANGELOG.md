@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.7] - 2026-09-30
 ### Thêm mới
-- **Bot trong nhóm Zalo tự tag người nó đang trả lời.** Khách hỏi thì bot mở đầu bằng "@Tên ...". Không có ô cài đặt nào, tag hỏng thì tin vẫn đi như cũ.
+- **Bot trong nhóm Zalo tự tag người nó đang trả lời.** Khách hỏi thì bot mở đầu bằng "@Tên ...", nút "Trả lời giúp tin này" cũng vậy. Không có ô cài đặt nào.
+- Mỗi câu trả lời trong nhóm chậm thêm khoảng 2 đến 4 giây. Tag hỏng thì tin vẫn đi như cũ, chỉ mất cái tag.
 
 ## [0.65.6] - 2026-09-30
 ### Thêm mới

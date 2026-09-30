@@ -176,8 +176,10 @@ def cho_giao_dien() -> List[dict]:
     return out
 
 
-async def gui(kenh: str, tk: dict, chat_id: str, text: str, chat_type: str = "private"):
-    """Gửi một tin chữ qua kênh. Trả (ok, lỗi). Kênh không có năng lực -> (False, lý do)."""
+async def gui(kenh: str, tk: dict, chat_id: str, text: str, chat_type: str = "private", **extra):
+    """Gửi một tin chữ qua kênh. Trả (ok, lỗi). Kênh không có năng lực -> (False, lý do).
+
+    `extra` (hiện chỉ có `mention` của Zalo cá nhân) được chuyển nguyên cho kênh; kênh nào không nhận thì người gọi không truyền."""
     s = spec(kenh)
     m = module(kenh)
     if not s or not m:
@@ -185,7 +187,7 @@ async def gui(kenh: str, tk: dict, chat_id: str, text: str, chat_type: str = "pr
     if not s.nl("tra_loi_tu_javis"):
         return False, f"{s.nhan} chưa gửi được tin từ Javis"
     try:
-        return await m.gui(tk, str(chat_id), str(text or ""), chat_type or "private")
+        return await m.gui(tk, str(chat_id), str(text or ""), chat_type or "private", **extra)
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
 

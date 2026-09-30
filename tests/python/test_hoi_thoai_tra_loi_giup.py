@@ -63,8 +63,8 @@ async def fake_answer(text, meta=None, progress=None, **kw):
     return {"text": "Dạ gói tháng bên em là 490.000đ ạ", "files": []}
 
 
-async def fake_gui(kenh, tk, chat_id, text, chat_type="private"):
-    GUI.append({"kenh": kenh, "tk": dict(tk), "chat": chat_id, "text": text, "type": chat_type})
+async def fake_gui(kenh, tk, chat_id, text, chat_type="private", **extra):
+    GUI.append({"kenh": kenh, "tk": dict(tk), "chat": chat_id, "text": text, "type": chat_type, "extra": dict(extra)})
     if MODE["gui"] == "fail":
         return False, "Zalo từ chối: phiên hết hạn"
     return True, ""
@@ -128,12 +128,19 @@ check("meta dựng đúng như poller cấp: nhóm, tên nhóm, người hỏi, 
 check("gửi qua kênh đúng kiểu nhóm, đúng cuộc chat", len(GUI) == 1 and GUI[0]["type"] == "group" and GUI[0]["chat"] == "g1"
       and GUI[0]["text"].startswith("Dạ gói tháng"), GUI)
 check("nhóm Zalo cá nhân: Agent được báo ai đang nói (cả nhóm chung một mạch)", ENGINE[0][0].startswith("[Lan] "), ENGINE[0][0])
+check("nhóm Zalo cá nhân: câu của bot tag đúng người gửi tin khách cuối (giống bot tự trả lời)",
+      GUI[0]["extra"] == {"mention": {"uid": "ug1", "name": "Lan"}}, GUI[0]["extra"])
 check("Zalo cá nhân: nhớ tiếng vọng của câu bot vừa gửi TRƯỚC khi gửi (không thì vòng đọc tưởng chủ nhắn tay hay khách nói, bot tự đáp chính mình)",
       ECHO == [("zp1", "g1", GUI[0]["text"])], ECHO)
 check("câu bot vào Hộp thư như lời của BOT (không phải người thật)", dem(c1, "ai") == 1 and dem(c1, "human") == 0)
 check("tin khách KHÔNG bị ghi trùng", dem(c1, "customer") == 1)
 check("cuộc chat VẪN ở Tự động (khác gửi tay là tiếp quản)", conversations.chi_tiet(c1)["mode"] == "ai")
 check("và bản nháp không hề bị gọi", PROBE == [] and UNDO == [])
+
+reset()
+c1p = tin("p1", "customer", "Chị ơi cho em hỏi giá", typ="private", ext="pm1", dt=30)
+r = post(c1p)
+check("chat riêng: gửi được và KHÔNG tag ai (chỉ nhóm mới cần tag)", r.status_code == 200 and len(GUI) == 1 and GUI[0]["extra"] == {}, GUI)
 
 # ============================================================
 # 2. Nháp

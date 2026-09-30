@@ -116,6 +116,8 @@ Bốn điều nên biết:
   **không rõ đã tạo chưa** và dặn xem lại nhóm trước khi thử tiếp, để khỏi ra hai poll.
 - **Đấu nhiều tài khoản Zalo thì Javis hỏi lại** nên dùng tài khoản nào, giống phần gửi ảnh.
 
+Bot chuyên trách đứng trong nhóm Zalo thì **tự tag người nó đang trả lời**, không cần công cụ nào ở trên, xem [Chatbot](25-chatbot.md).
+
 ## Cách dùng trong chat
 
 Có thể nói tự nhiên:

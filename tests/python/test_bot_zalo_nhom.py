@@ -254,6 +254,48 @@ async def chay():
     check("tag người KHÁC, hoặc reply vào người khác, không phải gọi bot",
           not GUI and len(LUOT_ENGINE) == n0, GUI)
 
+    # ---------- 2a. bot TỰ TAG người đang hỏi (0.65.7) ---------------------------------------
+    # Tin có tag đi bằng CLI (`msg send --mention`) chứ không qua MCP. CLI giả ở đây; test_bot_zalo_tag.py canh chi tiết lệnh.
+    import zalo_cli
+    cli_goi = []
+    real_cli = zalo_cli.run_cli
+
+    async def _cli_gia(conn, command, positionals=None, options=None, timeout=120):
+        cli_goi.append({"conn": dict(conn), "command": list(command), "pos": list(positionals or []), "opts": list(options or [])})
+        return True, {"message": {"msgId": "t1"}}, ""
+
+    zalo_cli.run_cli = _cli_gia
+    CONN["env"] = {"HOME": "/state/zalo-1"}
+    GUI.clear()
+    zc._TAY.clear()
+    KHO_TIN.append(nhom_msg("@Javis Vũ đổi bộ não ở đâu vậy", "t1", nguoi="Minh Quý", uid="7770777"))
+    await doc()
+    check("bot trả lời trong nhóm bằng tin CÓ TAG người hỏi (qua CLI), không gửi thêm bản thường qua MCP",
+          len(cli_goi) == 1 and GUI == [], (cli_goi, GUI))
+    check("tin mở đầu bằng '@Tên' của đúng người hỏi, tag đúng uid và đúng vị trí",
+          cli_goi and cli_goi[0]["pos"] == [NHOM, "@Minh Quý " + TRA_LOI["v"]] and cli_goi[0]["opts"] == ["-t", "1", "--mention", "0:7770777:9"],
+          cli_goi)
+    cau_tag = cli_goi[0]["pos"][1] if cli_goi else ""
+    n0 = len(LUOT_ENGINE)
+    KHO_TIN.append(nhom_msg(cau_tag, "t2", uid="5551234", nguoi=""))
+    await doc()
+    check("CANARY: tiếng vọng của tin CÓ TAG (không cờ isSelf) không làm bot tự trả lời chính nó, cũng không ghi thành tin khách",
+          len(LUOT_ENGINE) == n0 and (cau_tag, "customer") not in _tin_tho(), (len(LUOT_ENGINE) - n0,))
+    # Mỗi tin gửi đi chỉ có MỘT tiếng vọng, nên thử kiểu có cờ isSelf trên một lượt trả lời mới.
+    cli_goi.clear()
+    zc._TAY.clear()
+    KHO_TIN.append(nhom_msg("@Javis Vũ hướng dẫn giúp em cách đổi bộ não", "t3", nguoi="Minh Quý", uid="7770777"))
+    await doc()
+    cau_tag = cli_goi[0]["pos"][1] if cli_goi else ""
+    KHO_TIN.append({"threadId": NHOM, "from": UID_BOT, "senderName": "Javis Vũ", "type": "text", "isSelf": True,
+                    "text": cau_tag, "id": "t4", "ts": _ms(1), "threadType": 1})
+    await doc(0.1)
+    check("CANARY: tiếng vọng có cờ isSelf của tin CÓ TAG không thành 'chủ tự nhắn' (không thì bot im 10 phút)",
+          not zc.chu_vua_nhan_tay("zalo-1", NHOM))
+    zalo_cli.run_cli = real_cli
+    CONN.pop("env", None)
+    zc._TAY.clear()
+
     # ---------- 2b. tiếng vọng KHÔNG có cờ "của mình" -----------------------------------------
     # Ví dụ trong tài liệu của MCP không có cờ isSelf. Nếu câu bot vừa gửi quay về như tin của một
     # khách thì trong nhóm bot sẽ tự trả lời chính nó, và Hộp thư ghi câu bot nói thành tin khách.

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Optional
 
 from fastapi import APIRouter, Form
 from fastapi.responses import JSONResponse
@@ -53,13 +53,15 @@ def register(app, deps: ConversationsDeps):
         key = str(c.get("channel_account_id") or "")
         return key.split(":", 1)[1] if ":" in key else key
 
-    async def _gui_tin(c: dict, txt: str, tieng_vong: bool = False):
+    async def _gui_tin(c: dict, txt: str, tieng_vong: bool = False, reply_to: Optional[dict] = None):
         """Gửi một tin chữ vào cuộc chat qua năng lực `gui` của kênh. Trả (ok, lỗi). Dùng chung cho chủ gõ tay và cho lượt
         nhờ bot trả lời (0.65.5), để hai đường không lệch nhau ở cách dựng tài khoản gửi.
 
         `tieng_vong=True` (câu của BOT): trên Zalo cá nhân phải nhớ câu vừa gửi TRƯỚC khi gửi, y như `Transport._gui`, không thì vòng
         đọc thấy nó quay về như tin của chính chủ (bot tưởng chủ vừa nhắn tay nên im cả quãng) hoặc như tin của một khách (bot tự
-        trả lời chính mình trong nhóm)."""
+        trả lời chính mình trong nhóm).
+
+        `reply_to` (tin khách bot đang trả lời): trong nhóm Zalo cá nhân, câu của bot tag đúng người gửi tin đó, y như bot tự trả lời."""
         kenh = str(c.get("channel") or "")
         raw = _tk_goc(c)
         if tieng_vong and kenh == "zalo_personal":
@@ -76,7 +78,10 @@ def register(app, deps: ConversationsDeps):
             a = channel_accounts.get_account(raw) or {}
             tk.update({k: a.get(k) for k in ("label", "external_id")})
             tk["token"] = channel_accounts.get_token(raw)
-        return await channels.gui(kenh, tk, str(c.get("external_chat_id") or ""), txt, str(c.get("chat_type") or "private"))
+        extra = {}
+        if tieng_vong and kenh == "zalo_personal" and reply_to and str(c.get("chat_type") or "") == "group":
+            extra["mention"] = {"uid": reply_to.get("sender_id"), "name": reply_to.get("sender_name")}
+        return await channels.gui(kenh, tk, str(c.get("external_chat_id") or ""), txt, str(c.get("chat_type") or "private"), **extra)
 
     def _hesitant() -> list:
         """Nhóm bot vừa cân nhắc nói rồi im trong 24 giờ qua (kho bộ phán xử). Kho hỏng hay chưa có thì rỗng: bộ lọc
@@ -252,7 +257,7 @@ def register(app, deps: ConversationsDeps):
             return {"ok": True, "silent": True, "text": ""}
         if not send:
             return {"ok": True, "silent": False, "text": r["text"], "draft": True}
-        ok, loi = await _gui_tin(c, r["text"], tieng_vong=True)
+        ok, loi = await _gui_tin(c, r["text"], tieng_vong=True, reply_to=msgs[-1])
         if not ok:
             # Không gửi được thì trả chữ đã soạn để chủ dán vào ô nhập gửi tay, khỏi mất công soạn lại.
             return JSONResponse({"ok": False, "code": "send_failed", "error": loi or "không gửi được", "text": r["text"]},
