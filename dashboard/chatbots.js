@@ -336,7 +336,9 @@
         // Một dòng "bot trả lời ai" thay cho ba dòng meta cũ: đọc là biết bot đang nói chuyện với ai.
         '<div class="cb-meta cb-tt">' +
           '<span class="cb-tt-t">' + ic("users") + ' <b>' + esc(window.t("cb2.tra_loi")) + '</b> ' +
-            esc(tomTatDoiTuong(b)) + '</span>' +
+            esc(tomTatDoiTuong(b)) +
+            (window.JavisReplyPolicy && window.JavisReplyPolicy.summary(b)
+              ? ' · ' + esc(window.JavisReplyPolicy.summary(b)) : '') + '</span>' +
         '</div>' +
         '<div class="cb-meta">' +
           '<span>' + esc(b.nguon_tra_loi === "tai_lieu" ? window.t("cb.nguon_tl_ngan")
@@ -364,6 +366,8 @@
               '" title="' + esc(window.t("cb2.mn")) + '">&#8943;</button>' +
             '<div class="cb-mn-l" hidden>' +
               '<button class="cb-log" type="button">' + ic("history") + ' ' + esc(window.t("cb.nhat_ky")) + '</button>' +
+              (b.reply_when === "auto" || (window.JavisReplyPolicy && window.JavisReplyPolicy.summary(b))
+                ? '<button class="cb-rp" type="button">' + ic("brain") + ' ' + esc(window.t("rp.menu")) + '</button>' : '') +
               '<button class="cb-hoi-thoai" type="button">' + ic("messages-square") + ' ' +
                 esc(window.t("cb.xem_hoi_thoai")) + '</button>' +
               '<button class="cb-del" type="button">' + ic("trash-2") + ' ' + esc(window.t("common.delete")) + '</button>' +
@@ -381,6 +385,8 @@
     });
     c.querySelector(".cb-toggle").onclick = function () { bat(b, !b.enabled); };
     c.querySelector(".cb-log").onclick = function () { moNhatKy(b); };
+    var nutRp = c.querySelector(".cb-rp");
+    if (nutRp) nutRp.onclick = function () { window.JavisReplyPolicy.openPanel(b); };
     c.querySelector(".cb-hoi-thoai").onclick = function () {
       if (window.JavisConversations) window.JavisConversations.mo({ bot_id: b.id });
     };
@@ -733,6 +739,7 @@
     var nguon0 = (b && b.nguon_tra_loi === "tai_lieu") ? "tai_lieu" : "agent";
     var muc0 = (b && b.muc_quyen) || "suggest";
     var rw0 = (b && (b.reply_when === "auto" || b.reply_when === "always")) ? b.reply_when : "mention";
+    var RP = window.JavisReplyPolicy;      // bộ phán xử hội thoại nhóm (0.65.0), file chatbots-reply-policy.js
     // Người/nhóm ĐANG được chọn (sự thật của form). Danh sách cuộc chat từ server chỉ là nguồn để
     // chọn; tick hay bỏ tick sửa ở đây, và lúc Lưu mới đổ ra hai danh sách groups/people.
     var chon = { group: {}, private: {} };
@@ -804,6 +811,8 @@
                 { v: "always", t: window.t("cb2.rw_always") }], rw0) +
               '<div class="cb-hint" id="cbRwH"></div>' +
               '<div class="cb-hint cb-chi-tg" id="cbRwTg">' + esc(window.t("cb2.rw_tg")) + '</div>' +
+              // Chỉ hiện khi chọn "Tự đánh giá": bộ phán xử thay cửa từ khoá của chế độ đó.
+              (RP ? RP.formHtml(b && b.reply_policy, htmlSeg, { canDraft: sua }) : '') +
             '</div>' +
           '</div>' +
 
@@ -975,8 +984,11 @@
       box.querySelector("#cbRwH").textContent = window.t(RW_H[v]);
       var coTg = tkDangChon().some(function (a) { return a.channel === "telegram"; });
       box.querySelector("#cbRwTg").style.display = coTg && v !== "mention" ? "" : "none";
+      var rpBox = box.querySelector("#cbRpBox");
+      if (rpBox) rpBox.style.display = v === "auto" ? "" : "none";
     }
     box.querySelectorAll('input[name="cbRw"]').forEach(function (i) { i.onchange = veRw; });
+    if (RP) RP.bind(box, { botId: sua ? b.id : "", onDrafted: function () {} });
 
     // ---- Bot trả lời ai: ba thẻ quyết định ô chọn nào hiện, và chữ của ô đó
     function apGoiY() {
@@ -1125,6 +1137,8 @@
                     groups: co ? ds("group").join("\n") : "",
                     reply_when: co ? (giaTri("cbRw") || "mention") : "mention",
                     account_ids: ids.join(",") };
+      // Khối bộ phán xử luôn được đọc, kể cả khi đang ẩn: cấu hình đã đặt không mất khi chủ tạm đổi chế độ.
+      if (RP) chung.reply_policy = JSON.stringify(RP.read(box));
       try {
         if (sua) {
           await api("/chatbots/" + encodeURIComponent(b.id) + "/update", { method: "POST", body: fd(chung) });

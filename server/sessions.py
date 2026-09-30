@@ -42,6 +42,9 @@ DB_PATH = Path(os.getenv("JAVIS_SESSIONS_DB", str(_DEFAULT_DB)))
 # cho một việc - và tệ hơn, gõ tiếp ở trang Trò chuyện là tin bay vào một phiên đang chạy với
 # cwd của một repo chứ không phải của brain.
 KENH_CONG_SU = ("agent:", "workflow:", "coding:")
+# Hội thoại của bot chuyên trách với khách (kênh `bot:<tên>`). Từ 0.65.0 chúng KHÔNG hiện ở lịch sử
+# trang Trò chuyện nữa: chủ muốn xem chúng trong lịch sử của Agent nối với chatbot (trang Cộng sự).
+KENH_BOT = ("bot:",)
 
 
 def loc_brain(brain, cot: str = "s.brain"):
@@ -647,7 +650,8 @@ class SessionStore:
     def list_sessions(self, limit: int = 50, brain: Any = None,
                       include_archived: bool = False,
                       project: Optional[str] = None,
-                      channel: Optional[str] = None) -> List[Dict[str, Any]]:
+                      channel: Optional[str] = None,
+                      also_channels: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """Danh sách hội thoại, MỤC GHIM luôn nằm trên đầu.
 
         `project`: bỏ trống = tất cả; "none" = các cuộc chưa xếp vào project nào;
@@ -661,6 +665,10 @@ class SessionStore:
         kênh cộng sự (`KENH_CONG_SU`) vì chúng đã có chỗ riêng ở trang Cộng sự; "*" = MỌI
         kênh, không lọc gì cả (chỗ nào coi hội thoại cộng sự cũng là hội thoại của chủ thì
         dùng giá trị này, ví dụ vòng tự học); còn lại = CHỈ đúng kênh đó.
+
+        `also_channels` (0.65.0): kênh phụ được gộp vào khi đã chọn `channel`. Lịch sử của một Agent gồm cả
+        hội thoại của các bot chuyên trách dùng Agent đó (`bot:<tên>`), nên trang Cộng sự truyền chúng vào đây.
+        Mặc định (không chọn kênh) loại cả kênh cộng sự lẫn kênh bot khỏi lịch sử trang Trò chuyện.
         """
         where = []
         params: list = []
@@ -678,10 +686,14 @@ class SessionStore:
         if channel == "*":
             pass  # mọi kênh, không lọc gì thêm
         elif channel:
-            where.append("s.channel = ?")
-            params.append(channel)
+            chs = [channel] + [c for c in (also_channels or []) if c and c != channel]
+            if len(chs) == 1:
+                where.append("s.channel = ?")
+            else:
+                where.append("s.channel IN (%s)" % ",".join("?" * len(chs)))
+            params += chs
         else:
-            for tien_to in KENH_CONG_SU:
+            for tien_to in KENH_CONG_SU + KENH_BOT:
                 where.append("s.channel NOT LIKE ?")
                 params.append(tien_to + "%")
         where_sql = ("WHERE " + " AND ".join(where)) if where else ""
@@ -1238,7 +1250,8 @@ class SessionStore:
         return q.strip()
 
     def search(self, query: str, limit: int = 30,
-               brain: Any = None, channel: Optional[str] = None) -> List[Dict[str, Any]]:
+               brain: Any = None, channel: Optional[str] = None,
+               also_channels: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """Full-text search nội dung mọi hội thoại. FTS5 nếu có, fallback LIKE.
 
         `brain` nhận cả danh sách bí danh, cùng luật với `list_sessions`.
@@ -1254,8 +1267,12 @@ class SessionStore:
         brain_clause = (" AND " + _bcond) if _bcond else ""
         ch = str(channel or "").strip()
         if ch:
-            brain_clause += " AND s.channel = ?"
-            _bparams = list(_bparams) + [ch]
+            chs = [ch] + [c for c in (also_channels or []) if c and c != ch]
+            if len(chs) == 1:
+                brain_clause += " AND s.channel = ?"
+            else:
+                brain_clause += " AND s.channel IN (%s)" % ",".join("?" * len(chs))
+            _bparams = list(_bparams) + chs
         if self._fts_enabled:
             fts_q = self._sanitize_fts(q)
             if fts_q:

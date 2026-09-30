@@ -201,6 +201,7 @@ for (const [ten, o] of [["vi.json", vi], ["en.json", en]]) {
 // đó là test đỏ ngay. Dọn thêm file nào thì thêm tên vào danh sách này.
 const I18N_MIGRATED = [
   "dashboard/i18n/index.js",
+  "dashboard/chatbots-reply-policy.js",      // 0.65.0: viết mới, sạch chuỗi Việt từ đầu
 ];
 
 for (const rel of I18N_MIGRATED) {

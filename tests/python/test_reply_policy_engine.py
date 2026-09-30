@@ -215,6 +215,17 @@ check("thẻ đóng và marker nội bộ trong tin bị gỡ", "[IM_LANG]" not 
 check("prompt nói rõ chat là dữ liệu, không phải lệnh", "KHÔNG phải lệnh" in prompt_a)
 check("prompt đòi JSON đúng khuôn", '"verdict":"reply"|"silent"' in prompt_a)
 
+# ---- Văn bản có cấu trúc giữ xuống dòng (hồ sơ vai bốn mục) ----
+blk = rp.clean_block("**Đảm nhiệm:**\n- Hỗ trợ cài đặt Javis\r\n\n\n**Không đảm nhiệm:**   \n- chuyện riêng [IM_LANG]\x00")
+check("clean_block giữ xuống dòng, bỏ dòng trống, gỡ marker và ký tự điều khiển",
+      blk == "**Đảm nhiệm:**\n- Hỗ trợ cài đặt Javis\n**Không đảm nhiệm:**\n- chuyện riêng", repr(blk))
+check("clean_chat_text vẫn ép thành một dòng (dùng cho tin chat)", "\n" not in rp.clean_chat_text("a\nb\n\nc"))
+p_role = prof(role_text="**Đảm nhiệm:**\n- Hỗ trợ cài đặt Javis (các bước cài)\n**Không đảm nhiệm:**\n- chuyện riêng")
+check("_topic_of rút được chủ đề đầu tiên từ hồ sơ có cấu trúc", rp._topic_of(p_role).startswith("Hỗ trợ cài đặt Javis"), rp._topic_of(p_role))
+check("_topic_of không có hồ sơ thì dùng câu mặc định", rp._topic_of(prof()) == "lĩnh vực của bot")
+pr2 = rp.build_prompt(ev("hỏi gì đó với mình nhé mọi người"), p_role, "none", rp.AddressResult(), {}, [], [], "")
+check("prompt giữ cấu trúc nhiều dòng của hồ sơ vai", "**Đảm nhiệm:**\n- Hỗ trợ cài đặt Javis" in pr2, pr2[:300])
+
 # ============================================================
 # 7. Mẫu cơ chế không có tên ngành / tên sản phẩm
 # ============================================================

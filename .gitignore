@@ -168,3 +168,8 @@ server/.mcp_agy_*.json
 server/settings.json.bak*
 # File ngữ cảnh Antigravity CLI sinh ra mỗi lượt chạy (rác của máy đang chạy, không phải mã)
 server/.javis-agy/
+# Bộ phán xử hội thoại nhóm (0.65.0): kho quyết định + ca đã học chứa CHỮ CHAT CỦA KHÁCH, không bao giờ lên git.
+server/chatbot_reply_policy.sqlite3*
+server/reply_policy_cwd/
+# Tài khoản kênh của bot (token đã mã hoá) là dữ liệu chạy, không phải mã nguồn.
+server/channel_accounts.json

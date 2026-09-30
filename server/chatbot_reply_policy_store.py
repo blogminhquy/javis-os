@@ -45,7 +45,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS decisions(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   bot_id TEXT NOT NULL, chat_id TEXT NOT NULL, msg_id TEXT, ts REAL NOT NULL,
-  text TEXT, sender TEXT, sender_role TEXT, address_level TEXT, signals_json TEXT,
+  text TEXT, sender TEXT, sender_id TEXT, sender_role TEXT, address_level TEXT, signals_json TEXT,
   candidate INTEGER NOT NULL DEFAULT 0, verdict TEXT NOT NULL, score REAL, threshold REAL,
   reason TEXT, mode TEXT, silence_code TEXT,
   label TEXT, label_weight REAL, label_ts REAL);
@@ -134,12 +134,12 @@ def log_decision(rec: dict, now: Optional[float] = None) -> int:
     now = time.time() if now is None else now
     with _lock, _conn() as con:
         cur = con.execute(
-            "INSERT INTO decisions(bot_id, chat_id, msg_id, ts, text, sender, sender_role, address_level,"
+            "INSERT INTO decisions(bot_id, chat_id, msg_id, ts, text, sender, sender_id, sender_role, address_level,"
             " signals_json, candidate, verdict, score, threshold, reason, mode, silence_code)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (str(rec.get("bot_id") or ""), str(rec.get("chat_id") or ""), _cut(rec.get("msg_id"), 80),
              float(rec.get("ts") or now), _cut(rec.get("text")), _cut(rec.get("sender"), 120),
-             _cut(rec.get("sender_role"), 12), _cut(rec.get("address_level"), 12),
+             _cut(rec.get("sender_id"), 80), _cut(rec.get("sender_role"), 12), _cut(rec.get("address_level"), 12),
              json.dumps(rec.get("signals") or {}, ensure_ascii=False)[:2000],
              1 if rec.get("candidate") else 0, str(rec.get("verdict") or "silent"),
              rec.get("score"), rec.get("threshold"), _cut(rec.get("reason"), 200),

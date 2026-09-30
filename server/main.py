@@ -132,6 +132,8 @@ import agent_avatar
 import agent_assets      # tài liệu & link gắn vào MỘT trợ lý (lưu trong frontmatter agent)
 import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
 import chatbot_cuoc_chat  # danh sách cuộc chat cho ô chọn người/nhóm của form bot
+import chatbot_reply_policy        # bộ phán xử hội thoại nhóm (0.65.0): bot tự quyết nói hay im
+import chatbot_reply_policy_store  # kho quyết định, ca đã học, ngưỡng theo cuộc chat
 import chatbot_store     # kho bản ghi bot + token qua secrets_store
 import channel_accounts  # tài khoản kênh dạng token (0.61.0), bot chỉ trỏ tới
 import channels          # sổ đăng ký kênh của Hộp thư hội thoại (0.61.0)
@@ -1845,6 +1847,35 @@ def _aux_swap(cli, mode=None, tag=None):
     """Engine Claude vừa dựng cho việc nền -> engine theo model phụ người dùng chọn.
     Mặc định/hỏng cấu hình thì trả lại chính engine Claude đó (việc nền không được chết)."""
     return aux_engine.swap(cli, mode=mode, tag=tag, codex_profile=_write_codex_profile)
+
+
+async def _reply_policy_ask(prompt: str, purpose: str = "") -> str:
+    """Một lượt model RẺ cho bộ phán xử hội thoại nhóm (0.65.0), theo model "việc nền" chủ đã chọn ở
+    trang Models (gói thuê bao hay API rẻ đều được).
+
+    Prompt chứa nội dung chat của người lạ nên engine chạy trong thư mục TRỐNG, không MCP, không công cụ
+    ghi hay chạy lệnh: dù có ai chèn câu lệnh vào tin nhắn thì model cũng không có gì để làm ngoài việc
+    trả lời chữ. Lỗi thì ném ra; `chatbot_reply_policy` coi mọi lỗi là "im".
+    """
+    cwd = cfgmod.STATE_DIR / "reply_policy_cwd"
+    cwd.mkdir(parents=True, exist_ok=True)
+    cli = claude_engine(system_prompt="Bạn là bộ phán xử của một bot chat nhóm. Chỉ trả về đúng khuôn được yêu cầu, "
+                                      "không thêm lời dẫn.", cwd=str(cwd), tag="reply-policy")
+    _mcpf = _empty_mcp_file()
+    if _mcpf:
+        cli.mcp_config = _mcpf
+        cli.mcp_strict = True
+    cli.disallowed_tools = ["Bash", "Write", "Edit", "WebFetch", "WebSearch", "Task", "NotebookEdit"]
+    cli = _aux_swap(cli, mode="suggest", tag="reply-policy")
+    if not cli.is_available():
+        raise RuntimeError("engine việc nền chưa sẵn sàng (kiểm tra trang Models)")
+    final = ""
+    async for ev in cli.query(prompt):
+        if ev.get("type") == "final":
+            final = ev.get("content", "") or ""
+        elif ev.get("type") == "error":
+            raise RuntimeError(str(ev.get("content") or "lỗi engine")[:200])
+    return final
 
 # Model đã GỠ khỏi Javis mà cài đặt cũ của người dùng có thể còn giữ. `chatgpt-web` (0.64.0 tới
 # 0.64.18) chạy bằng một trình duyệt lái trang chatgpt.com, và bị gỡ ở 0.64.20 vì trên máy chủ
@@ -10869,6 +10900,7 @@ async def _start_scheduler():
         # khởi động (xem bước "Import thật main" trong CI).
         chatbot_runtime.wire(answer=_tg_answer, brain_root=_brain_root,
                              read_agent=lambda b, slug: _read_md(_agents_dir(b) / f"{slug}.md"))
+        chatbot_reply_policy.wire(ask=_reply_policy_ask)
         kq = chatbot_runtime.sync_all()
         if kq.get("errors"):
             print(f"[chatbot] bật lỗi: {kq['errors']}", file=__import__('sys').stderr)
@@ -14752,13 +14784,44 @@ async def terminal_ws(ws: WebSocket, session: str = Query(""), brain: str = Quer
 # mà màn hình đứng yên - chủ repo gặp đúng cảnh này 23/09. Kho phiên đã có khoá riêng.
 @app.get("/sessions")
 def sessions_list(brain: str = Query(None), limit: int = Query(50),
-                        project: str = Query(""), channel: str = Query("")):
+                        project: str = Query(""), channel: str = Query(""), bots: int = Query(0)):
     """project: bỏ trống = mọi hội thoại; "none" = cuộc chưa xếp nhóm; còn lại = id project.
     channel: bỏ trống = loại các kênh cộng sự (agent:/workflow:); có giá trị = đúng kênh đó
-    (trang Cộng sự mở một trợ lý/quy trình)."""
+    (trang Cộng sự mở một trợ lý/quy trình).
+    bots: 1 = với kênh `agent:<slug>`, gộp cả hội thoại của các bot chuyên trách dùng Agent đó (CHỈ cột lịch sử
+    xin cái này). Mặc định 0: lúc trang Cộng sự chọn "phiên gần nhất để mở tiếp" (limit=1) mà lẫn phiên của khách
+    vào thì tin chủ gõ sẽ rơi vào cuộc chat của khách."""
     return {"sessions": get_store().list_sessions(limit=limit, brain=_brain_keys(brain),
                                                   project=project or None,
-                                                  channel=channel or None)}
+                                                  channel=channel or None,
+                                                  also_channels=_kenh_bot_cua_agent(brain, channel) if bots else [])}
+
+
+def _kenh_bot_cua_agent(brain, channel) -> list:
+    """Lịch sử của một Agent (kênh `agent:<slug>`) gồm cả hội thoại của các bot chuyên trách dùng Agent đó.
+
+    Từ 0.65.0 hội thoại bot với khách không hiện ở Trò chuyện mà nằm trong lịch sử của Agent nối với
+    chatbot (chủ dự án 2026-09-30). Kênh của phiên bot là `bot:<slug hoặc id>` (xem `_tg_answer`)."""
+    ch = str(channel or "").strip()
+    if not ch.startswith("agent:"):
+        return []
+    slug = ch[len("agent:"):]
+    keys = {str(k) for k in (_brain_keys(brain) or [])}
+    out = []
+    try:
+        for b in chatbot_store.list_bots():
+            a = b.get("agent") or {}
+            if str(a.get("slug")) != slug:
+                continue
+            # Phiên của bot được lưu với brain CỦA BOT (xem `_tg_answer`), nên so brain đó.
+            if keys and str(b.get("brain")) not in keys:
+                continue
+            kenh = "bot:" + str(b.get("slug") or b.get("id"))
+            if kenh not in out:
+                out.append(kenh)
+    except Exception as e:      # noqa: BLE001 - đọc kho bot hỏng thì lịch sử Agent vẫn hiện phần của nó
+        print(f"[sessions] gộp kênh bot lỗi: {type(e).__name__}", file=__import__('sys').stderr)
+    return out
 
 
 # Slug của agent/workflow KHÔNG phải chỉ [a-z0-9-]: _slugify giữ nguyên chữ tiếng Việt, nên
@@ -14804,11 +14867,12 @@ def sessions_new(brain: str = Form("brain"), channel: str = Form("web")):
 
 @app.get("/sessions/search")
 async def sessions_search(q: str = Query(...), brain: str = Query(None), limit: int = Query(30),
-                          channel: str = Query("")):
+                          channel: str = Query(""), bots: int = Query(0)):
     """channel: bỏ trống = tìm mọi kênh (thanh tìm trang Trò chuyện); có giá trị = chỉ kênh đó
     (ô tìm ở cột lịch sử của một trợ lý / quy trình trên trang Cộng sự)."""
     return {"results": get_store().search(q, limit=limit, brain=_brain_keys(brain),
-                                          channel=channel or None)}
+                                          channel=channel or None,
+                                          also_channels=_kenh_bot_cua_agent(brain, channel) if bots else [])}
 
 
 @app.get("/sessions/{session_id}")
@@ -18941,7 +19005,7 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           audience: str = Form(""), people: str = Form(""),
                           channel: str = Form(""), xac_nhan_rui_ro: str = Form(""),
                           ngon_ngu: str = Form(""), account_ids: str = Form(""),
-                          account_label: str = Form("")):
+                          account_label: str = Form(""), reply_policy: str = Form("")):
     # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
     # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
     br = (brain or agent_brain or "").strip()
@@ -18966,10 +19030,24 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         # Ngôn ngữ bot trả lời KHÁCH. "auto" = bám theo khách; ghim một mã khi khách của chủ
         # nói cùng một thứ tiếng. Cố ý KHÔNG thừa hưởng ngôn ngữ của chủ, xem chatbot_store.
         "ngon_ngu": ngon_ngu,
+        # Bộ phán xử hội thoại nhóm (0.65.0): JSON, giá trị lạ rơi về phía hẹp nhất (xem merge_config).
+        "reply_policy": reply_policy,
     })
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)
+    _rp_sau_khi_luu(bid)
     return {"ok": True, "id": bid}
+
+
+def _rp_sau_khi_luu(bot_id: str) -> None:
+    """Bật bộ phán xử cho bot thì soạn hồ sơ vai ở nền ngay, khỏi chờ tới tin nhóm đầu tiên."""
+    try:
+        bot = chatbot_store.get_bot(bot_id) or {}
+        if chatbot_reply_policy.normalize_config(bot.get("reply_policy"))["mode"] != "off":
+            chatbot_runtime._RP_CHECKED.pop(bot_id, None)
+            chatbot_runtime._rp_schedule_profile(bot)
+    except Exception as e:      # noqa: BLE001 - soạn hồ sơ hỏng không được làm hỏng việc lưu bot
+        print(f"[reply_policy] lên lịch soạn hồ sơ sau khi lưu lỗi: {type(e).__name__}", file=__import__('sys').stderr)
 
 
 @app.post("/chatbots/{bot_id}/update")
@@ -18997,6 +19075,8 @@ async def chatbots_update(bot_id: str, request: Request):
     # chắc thay vì đoán trường nào cần: sai ở đây là bot chạy bằng cấu hình cũ mà không ai biết.
     if bot_id in chatbot_runtime._RUNNING:
         chatbot_runtime.start_bot(bot_id)
+    if "reply_policy" in form:
+        _rp_sau_khi_luu(bot_id)
     return {"ok": True}
 
 
@@ -19369,6 +19449,103 @@ async def slash_block(kind: str = Form(...), dk: str = Form(""), vong: int = For
         vong = max(1, min(int(vong), toi_da))
         return {"block": lenh_he_thong.khoi_muc_tieu(dk, vong, toi_da)}
     return JSONResponse({"error": "kind phải là plan hoặc goal"}, status_code=400)
+
+
+# ============================================================
+# Bộ phán xử hội thoại nhóm (0.65.0). Đặt sau route cuối của file để `route_table.json` chỉ thêm dòng
+# cuối, không dịch số thứ tự các route khác (giảm xung đột giữa các PR chạy song song).
+# ============================================================
+def _rp_bot(bot_id: str):
+    bot = chatbot_store.get_bot(bot_id)
+    if not bot:
+        return None, JSONResponse({"ok": False, "error": chatbot_store.LOI_KHONG_CO_BOT}, status_code=404)
+    return bot, None
+
+
+@app.get("/chatbots/{bot_id}/reply-policy")
+async def reply_policy_state(bot_id: str, limit: int = Query(100), only_silent: bool = Query(False),
+                             chat_id: str = Query("")):
+    """Trạng thái bộ phán xử của một bot: cấu hình, quyết định gần đây (KỂ CẢ lúc bot im), ca đã học, bài học
+    và độ lệch ngưỡng từng cuộc chat. Bot chưa từng bật thì không đụng kho (không sinh file rỗng)."""
+    bot, err = _rp_bot(bot_id)
+    if err:
+        return err
+    cfg = chatbot_reply_policy.normalize_config(bot.get("reply_policy"))
+    out = {"ok": True, "config": cfg, "stats": {"decisions": 0, "silent": 0, "labeled": 0, "cases": 0,
+                                               "cases_bootstrap": 0, "lessons": 0},
+           "decisions": [], "cases": [], "lessons": [], "offsets": [], "role_profile": ""}
+    if not chatbot_reply_policy_store.db_path().exists():
+        return out
+    st_ = chatbot_reply_policy_store
+    out["stats"] = st_.stats(bot_id)
+    out["decisions"] = st_.recent_decisions(bot_id, limit=limit, chat_id=chat_id, only_silent=only_silent)
+    out["cases"] = [{k: c[k] for k in ("id", "chat_id", "ts", "text", "correct_verdict", "reason", "source", "weight")}
+                    for c in st_.list_cases(bot_id, limit=100)]
+    out["lessons"] = st_.list_lessons(bot_id)
+    out["offsets"] = st_.list_offsets(bot_id)
+    prof = st_.get_role_profile(bot_id)
+    out["role_profile"] = (prof or {}).get("generated_text", "")
+    return out
+
+
+@app.post("/chatbots/{bot_id}/reply-policy/label")
+async def reply_policy_label(bot_id: str, decision_id: int = Form(...), thumb: str = Form(...)):
+    """Chủ bấm 👍 (up) hoặc 👎 (down) trên một quyết định. Nhãn nặng nhất; cần bật "tự học"."""
+    bot, err = _rp_bot(bot_id)
+    if err:
+        return err
+    profile = chatbot_runtime._rp_profile(bot, with_role=False)
+    if not profile.learning_enabled:
+        return JSONResponse({"ok": False, "error": "Bot này chưa bật tự học, nhãn sẽ không được lưu"}, status_code=409)
+    label = chatbot_reply_policy.owner_label(chatbot_reply_policy_store, profile, decision_id, thumb)
+    if not label:
+        return JSONResponse({"ok": False, "error": "Không gắn được nhãn (quyết định không thuộc bot này, hoặc nút lạ)"},
+                            status_code=400)
+    return {"ok": True, "label": label}
+
+
+@app.post("/chatbots/{bot_id}/reply-policy/cases/{case_id}/delete")
+async def reply_policy_case_delete(bot_id: str, case_id: int):
+    bot, err = _rp_bot(bot_id)
+    if err:
+        return err
+    if not chatbot_reply_policy_store.db_path().exists():
+        return {"ok": True, "deleted": False}
+    return {"ok": True, "deleted": chatbot_reply_policy_store.delete_case(bot_id, case_id)}
+
+
+@app.post("/chatbots/{bot_id}/reply-policy/forget")
+async def reply_policy_forget(bot_id: str, chat_id: str = Form("")):
+    """Nút "quên hết": xoá ca đã học, ngưỡng, bài học của bot (hoặc riêng một cuộc chat)."""
+    bot, err = _rp_bot(bot_id)
+    if err:
+        return err
+    if not chatbot_reply_policy_store.db_path().exists():
+        return {"ok": True, "cases": 0, "lessons": 0}
+    return {"ok": True, **chatbot_reply_policy_store.forget(bot_id, chat_id)}
+
+
+@app.post("/chatbots/{bot_id}/reply-policy/draft-guidelines")
+async def reply_policy_draft(bot_id: str):
+    """Soạn (lại) hồ sơ vai của bot từ Agent và mục lục tài liệu của CHÍNH nó. Phần chủ tự viết ở ô "Luật
+    lên tiếng" không bị đụng. Tốn hai lượt model nên chờ được tới vài chục giây."""
+    bot, err = _rp_bot(bot_id)
+    if err:
+        return err
+    ask = chatbot_reply_policy.ask_fn()
+    if ask is None:
+        return JSONResponse({"ok": False, "error": "Chưa nối engine việc nền"}, status_code=503)
+    try:
+        root = chatbot_runtime._deps["brain_root"](bot["brain"])
+        titles = await asyncio.to_thread(chatbot_reply_policy.list_doc_titles, root)
+        res = await chatbot_reply_policy.ensure_role_profile(
+            bot, chatbot_runtime._rp_agent_text(bot), titles, chatbot_reply_policy_store, ask, force=True)
+    except Exception as e:      # noqa: BLE001
+        return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {str(e)[:160]}"}, status_code=500)
+    if not res.get("changed"):
+        return JSONResponse({"ok": False, "error": "Model chưa soạn được hồ sơ vai, thử lại sau",
+                             "generated_text": res.get("generated_text", "")}, status_code=502)
+    return {"ok": True, "generated_text": res["generated_text"], "bootstrap_cases": res.get("bootstrap_cases", 0)}
 
 
 @app.on_event("startup")

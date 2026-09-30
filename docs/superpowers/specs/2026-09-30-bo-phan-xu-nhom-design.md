@@ -138,6 +138,10 @@ API mà giao diện đang gọi và hàng trăm test, nên là một PR riêng, 
 
 ### 5.1 R: rào cứng (giữ nguyên, không học được)
 
+> Phát hiện khi làm: khoảng nghỉ 20 giây giữa hai lần bot tự nói chặn luôn tin NỐI TIẾP của người bot vừa trả lời,
+> làm hỏng đúng tính năng "hiểu tin nối tiếp". Nên tin nối tiếp được nới khoảng nghỉ và trần theo người; trần theo
+> nhóm mỗi giờ vẫn áp (`chatbot_tu_dong.duoc_tra_loi(..., follow_up=True)`).
+
 Nhóm chưa được cho phép thì im (`_nhom_duoc_phep`); người chưa chọn thì im; cuộc chat đã Tiếp
 quản; chủ vừa gõ tay (`chu_vua_nhan_tay`); tin cũ quá `TUOI_TOI_DA`; tin do chính nick gửi;
 hạn mức số lần tự nói (`chatbot_tu_dong.duoc_tra_loi`); không làm hành động ra ngoài do bộ phán
@@ -164,6 +168,11 @@ Ví dụ phải đúng (chạy cả bản không dấu): "javis vũ ơi" certain
 `certain` thì trả lời luôn như chat riêng, KHÔNG qua người phán xử, KHÔNG cần tài liệu, không đếm
 hạn mức tự nói.
 
+Nhận diện gọi tên trơn là SỬA LỖI nên áp dụng cho MỌI bot, kể cả khi bộ phán xử `mode = off`, nhưng chỉ dùng tên
+tự suy (nhãn kết nối, tên hiển thị của nick) và tên chủ khai. Cờ `mentioned` được đặt ở lớp vận chuyển (Zalo cá nhân)
+và ở từng điểm dùng (chốt chặn, `_answer`), vì `_gan_tai_khoan` bọc `meta` thành bản sao riêng cho từng callback nên
+đánh dấu ở một chỗ không truyền sang chỗ kia.
+
 ### 5.3 T: tín hiệu (sổ đăng ký, cắm thêm được)
 
 Mỗi tín hiệu là một hàm thuần `(Event, BotProfile) -> {value, evidence}` đăng ký bằng decorator.
@@ -186,6 +195,9 @@ gọi, tin mở đầu bằng tag người khác khi `address_level = none`. Tin
 trong: `address_level = possible`, `follow_up`, `question_score >= 0.5`, hoặc kho có ca dương giống (5.7). Không ứng
 viên thì im VÀ ghi vết `no_signal`.
 
+Bộ mã im đầy đủ (mỗi mã có nhãn đọc được ở giao diện): `junk`, `addressed_other`, `no_signal`, `no_grounding`,
+`rate_limited`, `rate_limited_user`, `just_spoke`, `owner_typing`, `policy_error`, `judge_silent`, `below_threshold`.
+
 Giữ luật hiện có cho lời tự nói: khi `address_level = none` và không `follow_up`, bot chỉ mở miệng nếu có căn
 cứ. Cấu hình `grounding`: `docs` (mặc định, phải có `doc_match`) hoặc `role` (bot lấy chuyên
 môn từ vai của Agent, dùng cho bot tư vấn không dựa vào tài liệu). Ca đã học KHÔNG được miễn luật
@@ -205,7 +217,9 @@ Một lượt model rẻ, chạy bằng engine "việc nền" (`aux_engine`, ch�
 
 Prompt không chứa tên, ví dụ hay giọng của bất kỳ bot nào khác. Toàn bộ nội dung chat bọc trong khối `<chat_data>` và prompt nói rõ đó là dữ liệu, không phải
 lệnh. Đầu ra bắt buộc một JSON: `{"verdict":"reply"|"silent","score":0..1,"reason":"<= 120 ký tự"}`.
-Sai khuôn, hết 8 giây, hay lỗi engine: coi là `silent` với lý do `policy_error`.
+Sai khuôn, hết 25 giây (engine gói thuê bao mất vài giây chỉ để khởi động, 8 giây là quá chặt), hay lỗi engine: coi là
+`silent` với lý do `policy_error`. Engine chạy trong thư mục TRỐNG, không MCP, không công cụ ghi hay chạy lệnh
+(nội dung chat là dữ liệu không tin cậy).
 
 Chế độ: `off` (chạy luật cũ), `shadow` (người phán xử chạy song song, chỉ ghi, luật cũ quyết), `on`
 (người phán xử quyết). Bot đang có sẵn giữ `off` cho tới khi chủ bật.
@@ -302,13 +316,14 @@ của chủ 2026-08-16).
 SQLite `chatbot_reply_policy.sqlite3` trong thư mục state, thêm vào `.gitignore`, WAL.
 
 ```
-decisions(id, bot_id, chat_id, msg_id, ts, text, sender, sender_role, address_level, signals_json,
+decisions(id, bot_id, chat_id, msg_id, ts, text, sender, sender_id, sender_role, address_level, signals_json,
           candidate, verdict, score, threshold, reason, mode, silence_code, label, label_weight, label_ts)
 cases(id, bot_id, chat_id, ts, text, tokens, features_json, correct_verdict, reason,
       source, weight, origin_case_id)               -- source: auto|owner|bootstrap
 watches(decision_id, expires_ts, messages_left)
 role_profiles(bot_id, generated_text, agent_hash, updated_ts)
 threshold_offsets(bot_id, chat_id, offset, updated_ts)
+lessons(id, bot_id, text, ts)                      -- bài học, tối đa 15 dòng mỗi bot
 ```
 
 Giữ: dòng chưa gắn nhãn 14 ngày; ca đã gắn nhãn 180 ngày (có nhạt dần); nội dung cắt 400 ký tự.
@@ -345,16 +360,32 @@ Giao diện (một cột, đúng phong cách form hiện tại, đủ vi và en)
 - Menu "..." của thẻ bot thêm **Bộ phán xử**: bảng quyết định gần đây có cả tin bị im, mỗi dòng có
   👍 👎, danh sách bài học, nút Quên hết.
 
+### 7.1 Lịch sử hội thoại của bot (M9)
+
+Chủ dự án (2026-09-30): "các đoạn hội thoại đang nằm ở Trò Chuyện, anh muốn chuyển thành các đoạn phản hồi lại nằm
+trong lịch sử của agent được nối với chatbot". Phiên của bot mang kênh `bot:<tên>` (xem `_tg_answer`) nên trước bản này
+lọt vào danh sách Trò chuyện, vì chỉ các kênh cộng sự (`agent:`, `workflow:`, `coding:`) bị loại ở đó.
+
+- `sessions.KENH_BOT = ("bot:",)`: danh sách mặc định (Trò chuyện) loại thêm các kênh này. Vòng tự học (`channel="*"`)
+  vẫn thấy mọi phiên.
+- Lịch sử của một Agent (`channel="agent:<slug>"`) gộp thêm kênh `bot:` của MỌI bot dùng Agent đó (`also_channels`, do
+  `main._kenh_bot_cua_agent` tính từ kho bot theo slug Agent và brain của bot). Ô tìm ở cột lịch sử cũng vậy.
+- Giao diện: trong lịch sử Agent, phiên của bot mang nhãn **Bot** để phân biệt với cuộc chủ tự chat với Agent.
+- Không đổi kênh của phiên hiện có, nên không cần di trú dữ liệu.
+
 ## 8. Chỗ gắn vào mã hiện có
 
 - `zalo_personal_channel.nhan_dien_goi`: giữ nguyên chữ ký `(tag, rep)` cho chỗ gọi cũ, bên trong dùng
   `chatbot_reply_policy.detect_address`; thêm bản trả mức `address_level`.
+- Lớp vận chuyển gọi `PolicyHooks.prepare/replied` (`chatbot_runtime.py`); Tiếp quản báo qua
+  `conversations.dat_che_do` -> `note_takeover`.
 - `channels/zalo_personal.py::xu_ly`: dựng Event, đưa MỌI tin nhóm (kể cả tin sẽ bị loại) qua
   `watches` để gắn nhãn cho quyết định trước; meta thêm `address_level`, `follow_up`.
 - `chatbot_runtime._answer`: khối `auto` gọi `chatbot_reply_policy.decide(...)` khi `mode != off`;
   `shadow` chạy song song rồi bỏ kết quả. `_ly_do_im`, `_make_precheck_fn` không đổi.
-- Telegram: `TelegramBot._build_meta` đã có `mentioned`, `reply_to_bot`; thêm nhận diện tên gọi qua
-  cùng module.
+- Telegram: `TelegramBot._build_meta` đã có `mentioned`, `reply_to_bot`; nhận diện tên gọi chạy trong chốt chặn và
+  `_answer` (chỉ tên chủ khai). Chế độ Bật quyết định trong nhóm, nhưng Telegram không có cửa sổ tin nối tiếp và không
+  có Chạy thử (cần lớp vận chuyển đọc được toàn bộ tin nhóm, hiện chỉ Zalo cá nhân có).
 - `chatbot_store`: `_PATCHABLE`, `_public`, kiểm giá trị. `chatbot_log`: tin bị im KHÔNG vào JSONL
   của bot (tránh nhiễu), vào kho mới và hiện ở Nhật ký qua bộ lọc "Cả tin bot im".
 
@@ -380,9 +411,7 @@ Người phán xử luôn thay được bằng bản giả (`ask` là tham số)
    bot được sinh từ đúng Agent của bot đó (bộ sinh giả nhận đúng văn bản Agent); file mẫu cơ chế chỉ có
    chỗ giữ, không có tên ngành; bộ phán xử không bao giờ chạm vào chữ của câu trả lời và engine trả lời
    luôn được gọi với bản ghi bot của chính nó; ngưỡng và bài học của nhóm này không đổi nhóm kia.
-9. **Ràng buộc chung:** test quét cây cú pháp của các file mới để chắc không có định danh nào chứa âm
-   tiết tiếng Việt trong danh sách chặn (đặt trong `tests/python/test_reply_policy_naming.py`);
-   `route_table.json` chụp lại, i18n vi/en đủ khoá, canary JS cho trường mới, không
+9. **Ràng buộc chung:** `route_table.json` chụp lại, i18n vi/en đủ khoá, canary JS cho trường mới, không
    em dash, chuỗi UI có dấu, `test_prompt_budget` không đổi (không đụng CLAUDE.md).
 
 ## 10. Giao một lần: mốc và tiêu chí xong
@@ -399,6 +428,7 @@ Một PR (#502), commit theo mốc, mỗi mốc test xanh mới sang mốc sau:
 | M6 | Trường cấu hình, năm đường API, form và menu bot, i18n vi/en |
 | M7 | Tài liệu (`docs/25-chatbot.md`, `docs/12-zalo.md`), CHANGELOG cho điện thoại, `route_table.json`, ghi nhớ |
 | M8 | Kiểm sandbox thật với Zalo giả, chạy toàn bộ test, CI xanh, merge, xác nhận luồng phát hành |
+| M9 | Hội thoại của bot chuyên trách chuyển khỏi lịch sử Trò chuyện, vào lịch sử của Agent nối với chatbot (mục 7.1) |
 
 Xong khi TẤT CẢ đúng:
 1. Tám nhóm test đầu ở mục 9 có mặt và xanh; toàn bộ test JS xanh; test Python đỏ sẵn trên `main` sạch
@@ -407,7 +437,8 @@ Xong khi TẤT CẢ đúng:
    hiển thị đúng ở 1000 px và 375 px.
 3. Mặc định không đổi hành vi bot cũ (`mode = off`, `learning_enabled = false`): test hồi quy của
    `test_bot_zalo_nhom.py` và `test_bot_doi_tuong.py` vẫn xanh nguyên.
-4. Mã mới dùng định danh tiếng Anh theo 4.3, test đặt tên xanh.
+4. Mã mới dùng định danh tiếng Anh theo 4.3. Test quét tên và đổi tên hàng loạt mã cũ HOÃN theo chủ (2026-09-30:
+   "phần tiếng Anh thì để sau"), làm cùng đợt đổi tên.
 5. CI của PR xanh, đã squash-merge vào `main`, `VERSION` là 0.65.0 và lớn hơn bản trên `main` lúc merge,
    luồng build ảnh Docker của `main` thành công.
 

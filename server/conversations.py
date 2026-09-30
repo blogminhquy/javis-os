@@ -486,7 +486,28 @@ def dat_che_do(conversation_id: int, mode: str) -> tuple[bool, str]:
         cur = db.execute("UPDATE conversations SET mode=?, updated_at=? WHERE id=?",
                          (m, _now(), int(conversation_id)))
         db.commit()
+    if cur.rowcount > 0 and m == "human":
+        _bao_tiep_quan(conversation_id)
     return (cur.rowcount > 0), ("" if cur.rowcount > 0 else "không có hội thoại nào id đó")
+
+
+def _bao_tiep_quan(conversation_id: int) -> None:
+    """Chủ vừa Tiếp quản một cuộc chat của bot: báo bộ phán xử hội thoại nhóm (0.65.0). Những lần bot TỰ nói
+    (không ai gọi) ngay trước đó bị coi là chen nhầm. Chỉ chạm kho khi nó đã tồn tại; lỗi gì cũng nuốt vì
+    việc Tiếp quản của chủ không được hỏng theo một tính năng học."""
+    try:
+        c = chi_tiet(conversation_id) or {}
+        bot_id, chat = str(c.get("bot_id") or ""), str(c.get("external_chat_id") or "")
+        if not (bot_id and chat):
+            return
+        import chatbot_reply_policy as rp
+        import chatbot_reply_policy_store as rps
+        import chatbot_store
+        cfg = chatbot_store.get_bot(bot_id)
+        if cfg and rps.db_path().exists():
+            rp.note_takeover(rps, rp.BotProfile.from_bot(cfg), chat)
+    except Exception:      # noqa: BLE001
+        pass
 
 
 def che_do(channel: str, account_id: str, external_chat_id: str) -> str:

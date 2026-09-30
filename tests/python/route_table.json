@@ -3678,5 +3678,55 @@
    "POST"
   ],
   "trong": null
+ },
+ {
+  "order": 370,
+  "type": "APIRoute",
+  "path": "/chatbots/{bot_id}/reply-policy",
+  "name": "reply_policy_state",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 371,
+  "type": "APIRoute",
+  "path": "/chatbots/{bot_id}/reply-policy/label",
+  "name": "reply_policy_label",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 372,
+  "type": "APIRoute",
+  "path": "/chatbots/{bot_id}/reply-policy/cases/{case_id}/delete",
+  "name": "reply_policy_case_delete",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 373,
+  "type": "APIRoute",
+  "path": "/chatbots/{bot_id}/reply-policy/forget",
+  "name": "reply_policy_forget",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 374,
+  "type": "APIRoute",
+  "path": "/chatbots/{bot_id}/reply-policy/draft-guidelines",
+  "name": "reply_policy_draft",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
  }
 ]

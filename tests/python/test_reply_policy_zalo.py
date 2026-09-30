@@ -253,6 +253,23 @@ async def chay():
     check("chủ dạy: thành bài học", [x["text"] for x in st.list_lessons(bid)] == ["Gọi tên trơn cũng là gọi bot, phải trả lời"], st.list_lessons(bid))
     sach()
 
+    # Tiếp quản: chủ bấm nhận cuộc chat ngay sau lần bot tự nói thì đó là chen nhầm.
+    import conversations  # noqa: E402
+    J.mode = "reply"
+    off1 = st.get_offset(bid, NHOM)
+    KHO_TIN.append(msg("cho mình hỏi lỗi cổng 7777 lần nữa nhé mọi người", "t1", giay_truoc=3, uid="7770005", nguoi="Học viên E"))
+    await doc()
+    check("(chuẩn bị) bot tự nói một lần nữa", len(GUI) == 1, GUI)
+    d_tq = next(d for d in st.recent_decisions(bid, 50) if d["text"].startswith("cho mình hỏi lỗi cổng 7777 lần nữa"))
+    with conversations._conn() as cx:
+        conv_id = cx.execute("SELECT id FROM conversations WHERE external_chat_id=?", (NHOM,)).fetchone()[0]
+    conversations.dat_che_do(conv_id, "human")
+    check("Tiếp quản ngay sau lần bot tự nói: gắn nhãn intruded", st.get_decision(d_tq["id"])["label"] == "intruded",
+          st.get_decision(d_tq["id"]))
+    check("và ngưỡng của nhóm nâng lên", st.get_offset(bid, NHOM) > off1, (off1, st.get_offset(bid, NHOM)))
+    conversations.dat_che_do(conv_id, "ai")
+    sach()
+
     # Hồ sơ vai được soạn ở nền từ Agent của chính bot.
     await asyncio.sleep(0.3)
     prof = st.get_role_profile(bid)

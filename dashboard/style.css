@@ -3433,3 +3433,27 @@ body.ne-full-on .cview { z-index: 250; }
 .qs-advanced .qs-field > .qs-hint, .qs-advanced .qs-field > .gcard-meta { flex-basis: 100%; margin-bottom: 0; }
 
 .adaptive-draft-controls{display:flex;flex-wrap:wrap;gap:8px;padding:10px;align-items:center}.adaptive-draft-controls[hidden]{display:none}.adaptive-draft-controls [data-status]{flex:1 1 100%;font-size:13px}.adaptive-draft-controls button{min-height:44px}
+
+/* ---- Bộ phán xử hội thoại nhóm (0.65.0) ---- */
+.cb-rp { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.cb-rp textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+.cb-rp .cb-rp-draft { display: flex; align-items: center; gap: 10px; margin: 6px 0 2px; flex-wrap: wrap; }
+.cb-form label.cb-rp-learn { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 2px;
+  font-weight: 500; cursor: pointer; }
+.cb-rp-form { width: min(820px, 96vw); }
+.cb-rp-body { max-height: 64vh; overflow-y: auto; }
+.cb-rp-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.cb-rp-row { border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; background: var(--surface-1); }
+.cb-rp-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
+.cb-rp-ts { color: var(--text3); font-size: 12px; margin-left: auto; }
+.cb-rp-t { margin: 4px 0; font-size: 13.5px; color: var(--text); word-break: break-word; }
+.cb-rp-m { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--text3); }
+.cb-rp-chip { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border);
+  color: var(--text2); background: var(--surface-3); }
+.cb-rp-chip.ok { color: var(--accent); border-color: var(--info-line); background: var(--info-wash); }
+.cb-rp-chip.warn { color: var(--warn-ink); border-color: var(--warn-line); background: var(--warn-wash); }
+.cb-rp-lnk { background: none; border: 0; padding: 0 2px; font: inherit; font-size: 12.5px; color: var(--accent);
+  cursor: pointer; text-decoration: underline; }
+.cb-rp-ul { margin: 4px 0 8px 18px; padding: 0; font-size: 13.5px; }
+.cb-rp-pre { white-space: pre-wrap; font-size: 12.5px; background: var(--surface-3); border-radius: 8px;
+  padding: 8px 10px; margin: 4px 0; }

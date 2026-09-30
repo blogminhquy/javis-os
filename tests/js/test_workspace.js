@@ -544,7 +544,8 @@ check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/
   check("sessions-ui: mount nhan tuy chon loc theo kenh", /function mount\(container, opts\)/.test(sess));
   check("sessions-ui: danh sach va o tim deu loc theo kenh",
     /kenhLoc \? "&channel=" \+ encodeURIComponent\(kenhLoc\)/.test(sess)
-    && /kenhLoc \? "&channel=" \+ encodeURIComponent\(kenhLoc\) : ""\) \+ "&limit=40"/.test(sess));
+    // 0.65.0: với kênh agent:<slug> cả hai còn xin gộp hội thoại của bot chuyên trách (bots=1).
+    && /kenhLoc \? "&channel=" \+ encodeURIComponent\(kenhLoc\)( \+ \(kenhLoc\.indexOf\("agent:"\) === 0 \? "&bots=1" : ""\))? : ""\) \+ "&limit=40"/.test(sess));
   const mainPy = fs.readFileSync(path.join(root, "server", "main.py"), "utf8");
   check("server: /sessions/search nhan channel", /async def sessions_search[\s\S]{0,200}channel: str = Query\(""\)/.test(mainPy));
   const css2 = fs.readFileSync(path.join(root, "dashboard", "console.css"), "utf8");
