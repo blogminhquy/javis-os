@@ -7,7 +7,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.65.9] - 2026-09-30
 ### Cải thiện
 - **Trang Chatbot còn hai tab: Hòm thư và Bot.** Thêm kênh ngay trong tab Bot hoặc trong form Bot mới, không phải nhảy qua lại giữa "Kênh của bot" và "Tạo chatbot" nữa.
-- Kênh chưa có bot (kể cả Zalo cá nhân chỉ ghi hội thoại) nằm ngay dưới danh sách bot. Icon robot thay bằng icon quen hơn.
+- Kênh chưa có bot nằm ngay dưới danh sách bot. Kênh đã có bot hiện thành chip trên thẻ bot, bấm để sửa hoặc xoá.
+- Form Bot mới hiện cả kênh đang do bot khác giữ (mờ, kèm tên bot). Icon robot thay bằng icon quen hơn.
 
 ## [0.65.8] - 2026-09-30
 ### Cải thiện

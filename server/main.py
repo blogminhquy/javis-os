@@ -18946,6 +18946,15 @@ async def chatbots_list(brain: str = ""):
         # không thấy kênh nào để chọn (chủ repo báo 29/09).
         a for a in (channel_accounts.list_accounts(brain=loc) + channel_accounts.tai_khoan_ao())
         if not chatbot_store.bots_using_account(a["id"])
+    ], "tai_khoan_ban": [
+        # Tài khoản đang do một BOT trực (0.65.9): form Bot mới hiện chúng mờ kèm ổ khoá, ghi rõ bot nào (và brain nào, nếu khác
+        # brain đang mở) đang giữ. Trước đây form giấu hẳn các kênh này, người dùng thấy kênh "biến mất" mà không biết vì sao.
+        # Giao diện tự loại các kênh của chính bot đang sửa.
+        {"id": a["id"], "channel": a.get("channel") or "", "label": a.get("label") or "",
+         "external_id": a.get("external_id") or "", "bot_id": u[0].get("id") or "",
+         "bot_name": u[0].get("name") or "", "bot_brain": u[0].get("brain") or ""}
+        for a in (channel_accounts.list_accounts(brain=loc) + channel_accounts.tai_khoan_ao())
+        for u in [chatbot_store.bots_using_account(a["id"])] if u
     ]}
 
 

@@ -313,7 +313,7 @@ async def verify_token(channel: str, token: str, account_id: str = "", bot_id: s
             return {"ok": False, "error": f"Bot {s.nhan} \"{username}\" đã được bot "
                                           f"\"{bots[0]['name']}\" dùng rồi. Mỗi bot phải một token riêng."}
         return {"ok": False, "error": f"Bot {s.nhan} \"{username}\" đã là tài khoản "
-                                      f"\"{trung.get('label')}\" ở tab Kênh. Chọn tài khoản đó thay vì dán lại token.",
+                                      f"\"{trung.get('label')}\" ở tab Bot. Chọn tài khoản đó thay vì dán lại token.",
                 "account_id": trung["id"]}
     ra = {"ok": True, "username": username, "bot_name": r.get("bot_name") or "", "channel": kenh}
     for k in ("vao_duoc_nhom", "account_type"):

@@ -66,7 +66,7 @@ const moi = ["ht.act_answer", "ht.act_draft", "ht.act_back", "ht.act_busy", "ht.
   "ht.act_sent", "ht.act_sent_taught", "ht.act_drafted", "ht.act_silent", "ht.act_fail", "ht.act_send_failed", "ht.act_overwrite"];
 check("khoá mới có ở cả vi và en", moi.every((k) => VI[k] && EN[k]), moi.filter((k) => !VI[k] || !EN[k]).join(","));
 check("đều được mã dùng", moi.every((k) => CV.indexOf('"' + k + '"') > 0), moi.filter((k) => CV.indexOf('"' + k + '"') < 0).join(","));
-check("lý do khi nút tắt nói rõ cách bật lại", /Tự động/.test(VI["ht.why_human"]) && /tab Chatbot/.test(VI["ht.why_off"]));
+check("lý do khi nút tắt nói rõ cách bật lại", /Tự động/.test(VI["ht.why_human"]) && /tab Bot/.test(VI["ht.why_off"]));
 check("tên hàm mới bằng tiếng Anh (quy ước từ 0.65.0)", ["renderActions", "setActionNote", "onAction", "renderStatusLine", "renderSilenceLine"].every((n) => CV.indexOf("function " + n + "(") > 0));
 check("không dùng em dash trong test này", fs.readFileSync(__filename, "utf8").indexOf(String.fromCharCode(0x2014)) < 0);
 

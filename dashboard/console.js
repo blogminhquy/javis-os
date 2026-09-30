@@ -309,7 +309,7 @@
   function navigateTo(id) {
     // Trang Chatbot là TAB của trang Hội thoại từ 0.61.0: nhớ tab rồi đi tới trang đó.
     if (id === "chatbots") {
-      if (window.JavisConversations && window.JavisConversations.chonTab) window.JavisConversations.chonTab("chatbot", true);
+      if (window.JavisConversations && window.JavisConversations.chonTab) window.JavisConversations.chonTab("bot", true);
       id = "conversations";
     }
     id = TRANG_GOP[id] || id;

@@ -378,7 +378,8 @@ check("chưa chọn tài khoản thì không sang được bước 2",
 check("bước 2 tóm tắt lại bot sẽ trả lời ở đâu, kèm lối quay lại đổi",
   /function veTom\(\)/.test(CB) && /class="cb-doi-tk"/.test(CB) &&
   noi("cb.tra_loi_o", "Trả lời ở") && noi("cb.doi", "Đổi"));
-check("sửa bot thì vào thẳng bước 2 (tài khoản đã chọn rồi)", /var buoc = sua \? 2 : 1;/.test(CB));
+check("sửa bot thì vào thẳng bước 2 (tài khoản đã chọn rồi), trừ khi được chỉ mở ở bước chọn kênh (chip Thêm kênh)",
+  /var buoc = \(truoc && truoc\.buoc\) \|\| \(sua \? 2 : 1\);/.test(CB));
 // Một cặp nút cố định đọc dễ hơn hai hàng nút hiện ra rồi biến đi, và trên điện thoại ngón
 // tay luôn tìm thấy chúng ở đúng chỗ cũ.
 check("hai nút ở chân form đổi vai theo bước chứ không mọc thêm hàng nút",
@@ -470,12 +471,12 @@ check("agent để Mặc định thì nói rõ là theo model chính, không đ�
 // ============================================================
 // 6c. Nhãn trang và ba tab (0.62.5)
 // ============================================================
-// Chủ repo chốt 21/09: thanh bên gọi trang này là "Chatbot", ba tab là Hòm thư bot /
-// Tài khoản bot / Tạo chatbot. Nhãn nằm trong từ điển, nên canary soi từ điển.
+// Chủ repo chốt 21/09: thanh bên gọi trang này là "Chatbot"; từ 0.65.9 chỉ còn hai tab, Hòm thư bot và Bot (gộp Kênh của bot với
+// Tạo chatbot). Nhãn nằm trong từ điển, nên canary soi từ điển.
 check("thanh bên gọi trang này là Chatbot", VI["page.conversations.label"] === "Chatbot");
-check("ba tab đúng tên mới",
-  VI["ht.tab_inbox"] === "Hòm thư bot" && VI["ht.tab_kenh"] === "Kênh của bot" &&
-  VI["ht.tab_chatbot"] === "Tạo chatbot");
+check("hai tab đúng tên mới, hai tab cũ không còn trong từ điển",
+  VI["ht.tab_inbox"] === "Hòm thư bot" && VI["ht.tab_bot"] === "Bot" &&
+  VI["ht.tab_kenh"] === undefined && VI["ht.tab_chatbot"] === undefined);
 check("nói tên mới cũng mở đúng trang",
   SRV2.includes('"hom thu bot": "conversations"') && SRV2.includes('"tai khoan bot": "conversations"') && SRV2.includes('"kenh cua bot": "conversations"') &&
   SRV2.includes('"tao chatbot": "chatbots"'));

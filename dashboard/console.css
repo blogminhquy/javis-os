@@ -2196,6 +2196,18 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-acc-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: auto; padding-top: 4px; }
 .ht-acc-acts .ht-switch { margin-right: auto; }
 .ht-kenh-khac { margin-top: 8px; }
+/* Tab Bot (0.65.9): danh sách bot ở trên, mục "Kênh chưa có bot" ngay dưới, gập lại được. */
+.ht-tab-bot { display: flex; flex-direction: column; gap: 18px; }
+.ht-kenh-sec { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--hairline); padding-top: 14px; }
+.ht-kenh-h { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ht-kenh-tog { background: none; border: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 0; margin-right: auto; font-size: 15px; font-weight: 600; color: var(--text); }
+.ht-kenh-tog svg { transition: transform .15s; }
+.ht-kenh-sec.dong .ht-kenh-tog svg { transform: rotate(-90deg); }
+.ht-kenh-sec.dong .ht-tk-loc { display: none; }
+.ht-kenh-n { font-size: 12.5px; font-weight: 400; color: var(--text3); }
+.ht-kenh-het { padding: 16px; }
+@media (max-width: 900px) { .ht-kenh-tog { font-size: 16px; } }
 .ht-form label { display: block; margin: 12px 0 4px; font-size: 13px; color: var(--text2); font-weight: 600; }
 .ht-form input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border);
   background: var(--bg3); color: var(--text); font-size: 14px; }

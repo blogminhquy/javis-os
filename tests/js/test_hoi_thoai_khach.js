@@ -79,8 +79,8 @@ check("khong doan gi theo id kenh: logo va nhan lay tu danh sach server (khong c
 check("tra loi khach tu Hop thu qua /reply, chi khi kenh co nang luc",
       SRC.includes('"/reply", { method: "POST", body: fd({ text: txt })') &&
       SRC.includes('nangLuc(c.channel, "tra_loi_tu_javis")'));
-check("ba tab Hop thu | Kenh | Chatbot, tab Chatbot uy quyen cho chatbots.js",
-      /TABS = \["inbox", "kenh", "chatbot"\]/.test(SRC) && SRC.includes("window.JavisChatbots.render"));
+check("hai tab Hop thu | Bot (0.65.9), tab Bot uy quyen cho chatbots.js",
+      /TABS = \["inbox", "bot"\]/.test(SRC) && SRC.includes("window.JavisChatbots.render"));
 check("dien thoai: mo hoi thoai la them lop thread-on, co nut quay lai",
       SRC.includes('classList.add("thread-on")') && SRC.includes(".ht-back") &&
       /\.ht-wrap\.thread-on \.ht-list \{ display: none; \}/.test(CSS) &&
@@ -125,8 +125,7 @@ check("tab goi API kem brain dang mo",
       /api\("\/channels\/accounts\?brain=" \+ encodeURIComponent\(brain\(\)\)/.test(SRC));
 check("co cong tac xem MOI brain, de tim lai tai khoan gan nham cho",
       /_tkMoiBrain \? "&tat_ca=1" : ""/.test(SRC) &&
-      SRC.includes('window.t("ht.tk_xem_moi_brain")') &&
-      SRC.includes('window.t("ht.tk_chi_brain_nay")'));
+      SRC.includes('window.t("ht.tk_xem_moi_brain")') && /class="ht-tk-moi-brain"/.test(SRC));
 check("hang loc noi ro dang xem brain nao (danh sach ngan di phai co ly do)",
       SRC.includes('window.t("ht.tk_loc_brain", { brain: tenBrain(brain()) })') &&
       VI["ht.tk_loc_brain"].includes("{brain}"));

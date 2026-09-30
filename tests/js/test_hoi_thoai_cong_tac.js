@@ -71,7 +71,7 @@ check("CSS: công tắc không co lại khi tiêu đề dài (flex: none)", /\.h
 const moi = ["ht.sw_aria", "ht.sw_auto", "ht.sw_mine", "ht.st_ai", "ht.st_ai_0", "ht.st_off", "ht.st_human", "ht.silent", "ht.silent_why"];
 check("bot đang tắt thì dòng trạng thái nói thật (không ghi 'đang trực'), kèm cách bật",
   /var off = !human && !_running;/.test(CV) && /human \? "ht\.st_human" : off \? "ht\.st_off"/.test(CV) &&
-  /\.ht-status\.off \{/.test(CSS) && /tab Chatbot/.test(VI["ht.st_off"]));
+  /\.ht-status\.off \{/.test(CSS) && /tab Bot/.test(VI["ht.st_off"]));
 check("khoá mới có ở cả vi và en", moi.every((k) => VI[k] && EN[k]), moi.filter((k) => !VI[k] || !EN[k]).join(","));
 check("đều được mã dùng", moi.every((k) => CV.indexOf('"' + k + '"') > 0));
 check("khoá của nút cũ đã bỏ", ["ht.tra_ai", "ht.tiep_quan", "ht.dang_tiep_quan"].every((k) => !(k in VI) && !(k in EN)));

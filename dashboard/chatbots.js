@@ -54,6 +54,8 @@
   // trong danh sách này thay vì bắt dán token; dán token mới cũng được, và token đó thành một
   // tài khoản ở tab Tài khoản bot.
   var _tkRanh = [];
+  // Tài khoản kênh đang do MỘT bot trực (0.65.9): form Bot mới hiện chúng mờ kèm tên bot giữ, thay vì giấu đi.
+  var _tkBan = [];
 
   // Kênh KHÔNG đoán theo id: mọi thứ (nhãn, logo, năng lực) lấy từ danh sách server cấp. Kênh
   // lạ (server mới có kênh mà giao diện cũ) thì hiện tên trần, không vẽ nhầm logo kênh khác.
@@ -76,8 +78,14 @@
   // Chip MỘT tài khoản kênh trên thẻ bot: logo kênh + tên tài khoản phía nền tảng.
   function chipTK(a) {
     var k = kenhCua(a.channel);
-    return '<span class="cb-kenh-chip" title="' + esc(k.nhan) + '">' + logoKenh(a.channel) + " " +
-           esc(a.external_id ? (k.tien_to_ten || "") + a.external_id : (a.label || k.nhan)) + "</span>";
+    var ten = logoKenh(a.channel) + " " + esc(a.external_id ? (k.tien_to_ten || "") + a.external_id : (a.label || k.nhan));
+    // Kênh kiểu "bot" (Telegram, Zalo Bot) sửa được ngay tại đây: bấm chip mở bảng sửa kênh (nhãn, token, brain, xoá). Kênh kiểu
+    // "account" (Zalo cá nhân) là một kết nối ở trang Kết nối nên chip chỉ để đọc. Từ 0.65.9 không còn tab riêng cho kênh.
+    if (k.kind === "bot") {
+      return '<button type="button" class="cb-kenh-chip cb-kenh-sua" data-tk="' + esc(a.id) + '" title="' +
+             esc(window.t("cb.sua_kenh_title", { kenh: k.nhan })) + '">' + ten + "</button>";
+    }
+    return '<span class="cb-kenh-chip" title="' + esc(k.nhan) + '">' + ten + "</span>";
   }
   // Bot có tài khoản nào đứng được trong nhóm không (quyết định khối cấu hình nhóm).
   function coNhom(b) {
@@ -151,6 +159,7 @@
       _langDS = d.lang_list || [];
       _kenhDS = d.kenh || [];
       _tkRanh = d.tai_khoan || [];
+      _tkBan = d.tai_khoan_ban || [];
       var vet = JSON.stringify(_bots);
       // Nhịp ngầm mà không có gì đổi thì ĐỪNG dựng lại DOM. Không phải để tiết kiệm: dựng lại
       // mỗi 5 giây nghĩa là cứ 5 giây một lần có một khoảnh khắc nút vừa bị thay khỏi cây, và
@@ -200,7 +209,7 @@
     });
     if (!_bots.length) {
       box.innerHTML =
-        '<div class="cb-empty"><div class="cb-empty-ico">' + ic("bot", { cls: "ic-xl" }) + '</div>' +
+        '<div class="cb-empty"><div class="cb-empty-ico">' + ic("headset", { cls: "ic-xl" }) + '</div>' +
         '<b>' + esc(window.t("cb.rong_tieu_de")) + '</b>' +
         '<div>' + esc(window.t("cb.rong_1")) + ' <b>' + esc(window.t("cb.rong_tat")) + '</b>' +
         esc(window.t("cb.rong_2")) + '</div></div>';
@@ -326,7 +335,9 @@
           ((b.accounts || []).length
             ? (b.accounts || []).map(chipTK).join("")
             : '<span class="cb-warn">' + ic("triangle-alert") + ' ' + esc(window.t("cb.chua_token")) + '</span>') +
-          '<span>' + ic("bot") + ' ' + esc(b.agent_name || (b.agent || {}).slug || "?") + '</span>' +
+          // Thêm kênh ngay trên thẻ: mở form Sửa ở bước chọn kênh (kênh rảnh, kênh mới, hoặc sang trang Kết nối cho Zalo cá nhân).
+          '<button type="button" class="cb-kenh-chip cb-kenh-them">' + ic("plus") + ' ' + esc(window.t("ht.them_tk")) + '</button>' +
+          '<span>' + ic("user-round") + ' ' + esc(b.agent_name || (b.agent || {}).slug || "?") + '</span>' +
           // Model bot chạy ra ngoài. Nó là model của trợ lý (0.62.3), nên phải hiện ở đây - nếu không
           // thì chọn model cho trợ lý xong vẫn không biết bot đã theo hay chưa.
           '<span title="' + esc(window.t("cb.model_title")) + '">' + ic("cpu") + ' ' +
@@ -391,6 +402,13 @@
       if (window.JavisConversations) window.JavisConversations.mo({ bot_id: b.id });
     };
     c.querySelector(".cb-edit").onclick = function () { moForm(b); };
+    c.querySelector(".cb-kenh-them").onclick = function () { moForm(b, { buoc: 1 }); };
+    c.querySelectorAll(".cb-kenh-sua").forEach(function (n) {
+      n.onclick = function () {
+        var fn = window.JavisConversations && window.JavisConversations.suaKenh;
+        if (fn) fn(n.dataset.tk);
+      };
+    });
     c.querySelector(".cb-del").onclick = function () { xoa(b); };
     c.querySelectorAll(".cb-nhomcho").forEach(function (n) {
       var cid = n.dataset.cid;
@@ -677,7 +695,21 @@
     var da = {};
     ((b && b.accounts) || []).forEach(function (a) { ds.push(a); da[a.id] = true; });
     _tkRanh.forEach(function (a) { if (!da[a.id]) ds.push(a); });
-    if (!ds.length) return '<div class="cb-trong-tk">' + esc(window.t("cb.tk_chua_co")) + '</div>';
+    // Kênh đang do bot KHÁC trực: hiện mờ, không tick được, ghi rõ bot nào (và brain nào nếu khác brain đang mở).
+    var khoa = _tkBan.filter(function (a) { return !da[a.id]; }).map(function (a) {
+      var k = kenhCua(a.channel);
+      var tb = window.JavisConversations && window.JavisConversations.tenBrain;
+      var khac = a.bot_brain && a.bot_brain !== brain();
+      return '<div class="cb-tk cb-tk-khoa" aria-disabled="true">' +
+        '<span class="cb-tk-logo">' + logoKenh(a.channel, "18px") + '</span>' +
+        '<span class="cb-tk-text"><b>' + esc(a.label || k.nhan) + '</b><small>' + esc(k.nhan) +
+        (a.external_id ? ' · ' + esc((k.tien_to_ten || "") + a.external_id) : "") + '</small>' +
+        '<small class="cb-tk-luu-y">' + ic("lock") + ' ' + esc(window.t("cb.tk_khoa", { bot: a.bot_name || "?" })) +
+        (khac ? ' ' + esc(window.t("cb.tk_khoa_brain", { brain: tb ? tb(a.bot_brain) : a.bot_brain })) : "") + '</small>' +
+        '</span></div>';
+    }).join("");
+    var khoaBox = khoa ? '<div class="cb-tk-list cb-tk-list-khoa">' + khoa + '</div>' : "";
+    if (!ds.length) return '<div class="cb-trong-tk">' + esc(window.t("cb.tk_chua_co")) + '</div>' + khoaBox;
     var chon = {};
     if (!chinhXac) ((b && b.accounts) || []).forEach(function (a) { chon[a.id] = true; });
     (chonSan || []).forEach(function (id) { chon[id] = true; });
@@ -693,7 +725,7 @@
         // nói thẳng ngay lúc chọn. Đọc theo `kind` do server khai, không đoán theo id kênh.
         (k.kind === "account" ? '<small class="cb-tk-luu-y">' + esc(window.t("cb.tk_ca_nhan_luu_y")) + '</small>' : "") +
         '</span></label>';
-    }).join("") + '</div>';
+    }).join("") + '</div>' + khoaBox;
   }
 
   // Mở modal "Thêm tài khoản" của tab Tài khoản bot (chatbots.js KHÔNG tự dựng lại form dán token: xem
@@ -708,6 +740,7 @@
         var d = await api("/chatbots?brain=" + encodeURIComponent(brain()));
         _kenhDS = d.kenh || _kenhDS;
         _tkRanh = d.tai_khoan || [];
+        _tkBan = d.tai_khoan_ban || _tkBan;
       } catch (e) {}
       // Ghép tay tài khoản vừa nối vào danh sách nếu lần nạp lại chưa thấy nó (mạng hỏng, hoặc
       // server trả về trước khi kho kịp thấy bản ghi mới). Không có bước này thì id vừa tích
@@ -717,7 +750,8 @@
     } });
   }
 
-  // `truoc` (tuỳ chọn): { account_id } - tài khoản tích sẵn khi mở từ tab Tài khoản bot ("Tạo bot trực").
+  // `truoc` (tuỳ chọn): { account_id } - tài khoản tích sẵn khi mở từ mục "Kênh chưa có bot" ("Tạo bot cho kênh này");
+  // { buoc: 1 } - mở thẳng ở bước chọn kênh (chip "Thêm kênh" trên thẻ bot).
   //
   // Form tạo bot đi theo HAI BƯỚC, và đó là cả điểm của nó. Bước 1 hỏi đúng một câu - bot trả lời ở
   // đâu - bước 2 mới là cài đặt. Sửa bot thì vào thẳng bước 2: tài khoản đã chọn rồi.
@@ -735,7 +769,7 @@
     var br = brain();                 // brain đang mở = brain của bot, không hỏi lại
     var agents = await nạpAgent(br);
     var chonSan = (truoc && truoc.account_id) ? [truoc.account_id] : [];
-    var buoc = sua ? 2 : 1;
+    var buoc = (truoc && truoc.buoc) || (sua ? 2 : 1);
     var aud0 = (b && b.audience) || "nhom";
     var nguon0 = (b && b.nguon_tra_loi === "tai_lieu") ? "tai_lieu" : "agent";
     var muc0 = (b && b.muc_quyen) || "suggest";

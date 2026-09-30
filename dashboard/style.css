@@ -2652,6 +2652,12 @@ body.ne-full-on .cview { z-index: 250; }
 .cb-ico-kenh { position: absolute; right: -5px; bottom: -5px; display: inline-flex;
   border-radius: 50%; background: var(--bg2); box-shadow: 0 0 0 2px var(--bg2); }
 .cb-kenh-chip { display: inline-flex; align-items: center; gap: 4px; }
+/* Chip kênh trên thẻ bot (0.65.9): viên thuốc có viền. Chip Telegram/Zalo Bot bấm được (sửa hoặc xoá kênh đó), chip "Thêm kênh"
+   viền đứt và mở form Sửa ở bước chọn kênh. Chip Zalo cá nhân chỉ để đọc (nó là một kết nối ở trang Kết nối). */
+.cb-meta .cb-kenh-chip { border: 1px solid var(--hairline); border-radius: 999px; padding: 2px 8px; background: var(--bg3); }
+.cb-meta button.cb-kenh-chip { font: inherit; color: var(--text2); cursor: pointer; }
+.cb-meta button.cb-kenh-chip:hover { border-color: var(--info-line); color: var(--text); }
+.cb-meta .cb-kenh-them { border-style: dashed; color: var(--accent); }
 
 /* Hàng lọc theo kênh. Chỉ hiện khi thật sự có từ hai kênh trở lên (xem chatbots.js: người
    mới chỉ có bot Telegram mà đã phải nhìn nút lọc thì đó là trả lời một câu chưa ai hỏi). */
@@ -3415,6 +3421,10 @@ body.ne-full-on .cview { z-index: 250; }
   border-radius: 10px; cursor: pointer; background: var(--surface-1); margin: 0; font-weight: 400; }
 .cb-form .cb-tk input { width: auto; margin: 0; flex: none; }
 .cb-tk-logo { display: inline-flex; flex: none; }
+/* Kênh đang do bot khác trực (0.65.9): hiện mờ kèm ổ khoá và tên bot giữ, không tick được. */
+.cb-tk-list-khoa { margin-top: 6px; }
+.cb-tk-khoa { cursor: default; opacity: .65; background: transparent; }
+.cb-tk-khoa .cb-tk-luu-y { display: inline-flex; align-items: center; gap: 4px; }
 .cb-tk-text { display: flex; flex-direction: column; min-width: 0; }
 .cb-tk-text b { font-size: 14px; color: var(--text); }
 .cb-tk-text small { font-size: 12px; color: var(--text3); }

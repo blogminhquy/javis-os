@@ -1,14 +1,15 @@
 /* Trang Hội thoại - MỘT trang cho hộp thư khách, kênh và nhân viên AI (Chatbot V2, 0.61.0).
  *
- * Ba tab, cùng một chỗ trên thanh bên:
+ * Hai tab, cùng một chỗ trên thanh bên (từ 0.65.9; trước đó là ba tab Hộp thư | Kênh | Chatbot, và người dùng phải nhảy qua lại
+ * giữa "thêm kênh" và "tạo bot"):
  *   - Hộp thư:  mọi tin khách từ mọi kênh (`/conversations`), đọc lại, tiếp quản, và từ 0.61.0
  *               TRẢ LỜI KHÁCH NGAY TỪ ĐÂY khi kênh có năng lực đó (`/conversations/{id}/reply`).
- *   - Tài khoản bot: mọi tài khoản kênh, MỘT khuôn thẻ bất kể kênh (`/channels/accounts`): bot
- *               Telegram, bot Zalo, Zalo cá nhân, và kênh thêm sau này. Không kênh nào có mục riêng.
- *               Từ 0.62.4 tab này LỌC THEO BRAIN đang mở: tài khoản bot thuộc về một brain, nên
- *               đứng ở brain nào chỉ thấy tài khoản của brain đó (cộng tài khoản chưa gán chủ).
- *               Công tắc "mọi brain" để tìm lại một tài khoản đã gán nhầm chỗ.
- *   - Chatbot:  nhân viên AI (chatbots.js dựng, chạy trong tab này).
+ *   - Bot:      nhân viên AI (chatbots.js dựng vào ô phía trên) và, ngay dưới, mục "Kênh chưa có bot": mọi tài khoản kênh chưa
+ *               bot nào trực, MỘT khuôn thẻ bất kể kênh (`/channels/accounts`): bot Telegram, bot Zalo, Zalo cá nhân, và kênh
+ *               thêm sau này. Kênh ĐÃ có bot hiện thành chip trên thẻ bot (bấm chip để sửa/xoá kênh đó).
+ *               Từ 0.62.4 mục này LỌC THEO BRAIN đang mở: tài khoản bot thuộc về một brain, nên đứng ở brain nào chỉ thấy tài
+ *               khoản của brain đó (cộng tài khoản chưa gán chủ, cộng Zalo cá nhân vì nó là kết nối toàn cục). Công tắc "mọi
+ *               brain" để tìm lại một tài khoản đã gán nhầm chỗ, kể cả tài khoản đang do bot của brain khác trực.
  *
  * Luật sống còn của file này: KHÔNG đoán gì theo id kênh. Logo, nhãn, năng lực đều do server
  * trả trong danh sách kênh (`channels`); thêm kênh ở server là trang này vẽ được ngay.
@@ -52,7 +53,10 @@
 
   var NHIP = 5000;          // nhịp tự làm mới, như trang Chatbot
   var TRANG = 60;           // số hội thoại một trang
-  var TABS = ["inbox", "kenh", "chatbot"];
+  var TABS = ["inbox", "bot"];
+  // Id tab cũ (0.61.0 đến 0.65.8: "kenh", "chatbot") vẫn dẫn về tab Bot: console.js, thông báo và bookmark cũ còn dùng chúng.
+  var TAB_CU = { kenh: "bot", chatbot: "bot" };
+  function chuanTab(id) { return TAB_CU[id] || id; }
   var _host = null, _timer = null, _tab = "inbox";
   var _items = [], _stats = {}, _dauVet = "";
   var _kenhLoc = "", _botLoc = "", _tkLoc = "", _q = "";
@@ -66,7 +70,8 @@
   var _kenhDS = [];         // các LOẠI kênh (server: id, nhan, logo, kind, nang_luc...)
   var _tk = [];             // mọi tài khoản kênh, một khuôn
   var _dauVetTK = "";
-  var _tkMoiBrain = false;  // tab Tài khoản bot: đang xem của MỌI brain thay vì brain đang mở
+  var _tkMoiBrain = false;  // mục Kênh chưa có bot: đang xem của MỌI brain thay vì brain đang mở
+  var _kenhMo = null;       // mục Kênh chưa có bot mở hay gập: null = tự quyết (mở khi có việc cần làm), true/false = người dùng đã bấm
   var _cho = null;          // bộ lọc / tab chờ áp khi trang mở từ nơi khác (nút trên thẻ bot)
   var _dangGui = false;
 
@@ -119,7 +124,7 @@
   // ---------------------------------------------------------------- khung trang + tab
   function render(host) {
     _host = host;
-    if (_cho && _cho.tab && TABS.indexOf(_cho.tab) >= 0) _tab = _cho.tab;
+    if (_cho && _cho.tab && TABS.indexOf(chuanTab(_cho.tab)) >= 0) _tab = chuanTab(_cho.tab);
     host.innerHTML =
       '<div class="cview-section ht-page">' +
         '<div class="ht-tabs"></div>' +
@@ -133,7 +138,7 @@
   function veTabs() {
     var b = _host && _host.querySelector(".ht-tabs");
     if (!b) return;
-    var NHAN = { inbox: ["ht.tab_inbox", "messages-square"], kenh: ["ht.tab_kenh", "plug"], chatbot: ["ht.tab_chatbot", "headset"] };
+    var NHAN = { inbox: ["ht.tab_inbox", "messages-square"], bot: ["ht.tab_bot", "headset"] };
     b.innerHTML = TABS.map(function (t) {
       var chuaDoc = (t === "inbox" && _stats.chua_doc) ? '<span class="ht-badge">' + _stats.chua_doc + '</span>' : "";
       return '<button type="button" class="ht-tab' + (t === _tab ? " on" : "") + '" data-t="' + t + '">' +
@@ -147,6 +152,7 @@
   // `chiDatTruoc`: chỉ ghi nhớ tab để lần render tới mở đúng (console.js gọi lúc chuyển từ id
   // trang cũ "chatbots" sang trang này, trước khi trang được dựng).
   function chonTab(id, chiDatTruoc) {
+    id = chuanTab(id);
     if (TABS.indexOf(id) < 0) return;
     _tab = id;
     if (chiDatTruoc && !(_host && document.body.contains(_host))) return;
@@ -159,8 +165,7 @@
     var body = _host && _host.querySelector(".ht-tab-body");
     if (!body) return;
     body.innerHTML = "";
-    if (_tab === "kenh") return renderKenh(body);
-    if (_tab === "chatbot") return renderChatbot(body);
+    if (_tab === "bot") return renderBot(body);
     return renderInbox(body);
   }
 
@@ -172,17 +177,21 @@
       if (_tab === "inbox") {
         tai(true);
         if (_chon) taiTin(true);
-      } else if (_tab === "kenh") {
+      } else if (_tab === "bot") {
         taiTK(true);
       }
     }, NHIP);
   }
 
-  // Tab Chatbot: chatbots.js dựng vào đúng ô này (nó tự có nhịp riêng, tự dừng khi ô bị tháo).
-  function renderChatbot(body) {
+  // Tab Bot: chatbots.js dựng danh sách bot vào ô phía trên (nó tự có nhịp riêng, tự dừng khi ô bị tháo); ngay dưới là mục
+  // "Kênh chưa có bot" do file này dựng. Hai nửa dùng chung một tab để thêm kênh và tạo bot là MỘT chuyện, không phải hai tab.
+  function renderBot(body) {
+    body.innerHTML = '<div class="ht-tab-bot"><div class="ht-bot-ds"></div><div class="ht-kenh-sec"></div></div>';
+    var ds = body.querySelector(".ht-bot-ds");
     var fn = window.JavisChatbots && window.JavisChatbots.render;
-    if (fn) { try { fn(body); } catch (e) { body.innerHTML = '<div class="ht-empty">' + esc(e.message) + '</div>'; } }
-    else body.innerHTML = '<div class="ht-empty">' + esc(window.t("cs.mod_not_ready", { ten: "chatbots.js" })) + '</div>';
+    if (fn) { try { fn(ds); } catch (e) { ds.innerHTML = '<div class="ht-empty">' + esc(e.message) + '</div>'; } }
+    else ds.innerHTML = '<div class="ht-empty">' + esc(window.t("cs.mod_not_ready", { ten: "chatbots.js" })) + '</div>';
+    renderKenhSec(body.querySelector(".ht-kenh-sec"));
   }
 
   // ---------------------------------------------------------------- tài khoản kênh (dùng chung)
@@ -199,14 +208,14 @@
       if (!im) throw e;
       return false;
     }
-    if (_tab === "kenh") veKenh();
+    if (_tab === "bot") veKenh();
     return true;
   }
 
   // ---------------------------------------------------------------- HỘP THƯ
   function renderInbox(body) {
     if (_cho) {
-      // Mở từ nơi khác (nút trên thẻ bot, tab Tài khoản bot): lọc đúng thứ được chỉ, bỏ tình trạng và loại đã lưu để
+      // Mở từ nơi khác (nút trên thẻ bot, mục Kênh chưa có bot): lọc đúng thứ được chỉ, bỏ tình trạng và loại đã lưu để
       // khỏi giấu mất hội thoại người ta muốn xem.
       _botLoc = _cho.bot_id || ""; _kenhLoc = _cho.channel || ""; _tkLoc = _cho.account_key || "";
       _statusLoc = ""; _typeLoc = "";
@@ -328,7 +337,7 @@
       { n: _items.length >= TRANG ? TRANG + "+" : _items.length, f: active });
     var clr = _host.querySelector(".ht-fclear");
     if (clr) clr.hidden = !active;
-    // Đang lọc theo MỘT tài khoản (mở từ tab Tài khoản bot): một chip có nút bỏ.
+    // Đang lọc theo MỘT tài khoản (mở từ mục Kênh chưa có bot): một chip có nút bỏ.
     var tkChip = _tkLoc ? (_tk.filter(function (a) { return a.account_key === _tkLoc; })[0] || null) : null;
     var loc = _host.querySelector(".ht-loc");
     if (loc) {
@@ -347,10 +356,10 @@
       box.innerHTML = '<div class="ht-empty">' + ic("messages-square") +
         '<b>' + esc(_q || _kenhLoc || _botLoc || _tkLoc || _statusLoc || _typeLoc ? window.t("ht.khong_khop") : window.t("ht.chua_co")) + '</b>' +
         (!coNguon ? '<div>' + esc(window.t("ht.chua_co_goi_y")) + '</div>' +
-          '<button class="s-btn ht-mo-kenh" type="button">' + ic("plug") + ' ' + esc(window.t("ht.tab_kenh")) + '</button>' : "") +
+          '<button class="s-btn ht-mo-kenh" type="button">' + ic("plug") + ' ' + esc(window.t("ht.them_tk")) + '</button>' : "") +
         '</div>';
       var nut = box.querySelector(".ht-mo-kenh");
-      if (nut) nut.onclick = function () { chonTab("kenh"); };
+      if (nut) nut.onclick = function () { chonTab("bot"); };
       return;
     }
     var F = window.JavisConvFilters;
@@ -447,7 +456,7 @@
         (laBot
           ? '<div class="ht-seg" role="group" aria-label="' + esc(window.t("ht.sw_aria")) + '">' +
               '<button type="button" class="ht-seg-b' + (human ? "" : " on") + '" data-m="ai" aria-pressed="' + (!human) + '">' +
-                ic("bot") + ' ' + esc(window.t("ht.sw_auto")) + '</button>' +
+                ic("sparkles") + ' ' + esc(window.t("ht.sw_auto")) + '</button>' +
               '<button type="button" class="ht-seg-b' + (human ? " on" : "") + '" data-m="human" aria-pressed="' + human + '">' +
                 ic("hand") + ' ' + esc(window.t("ht.sw_mine")) + '</button>' +
             '</div>'
@@ -643,36 +652,46 @@
     tai(true);
   }
 
-  // ---------------------------------------------------------------- TÀI KHOẢN BOT
-  function renderKenh(body) {
-    body.innerHTML =
-      '<div class="ht-kenh">' +
-        '<div class="ht-bar">' +
-          '<p class="ht-intro ht-kenh-intro">' + esc(window.t("ht.kenh_intro2")) + '</p>' +
-          '<button class="s-btn ht-them-tk" type="button">' + ic("plus") + ' ' + esc(window.t("ht.them_tk")) + '</button>' +
-        '</div>' +
-        // Nói THẲNG đang lọc theo brain nào. Không nói thì một danh sách ngắn đi trông hệt
-        // như mất dữ liệu, và đó đúng là cái bẫy mà việc lọc này dễ tạo ra.
-        '<div class="ht-tk-loc">' +
-          '<span class="ht-tk-loc-txt">' + ic("brain") + ' ' +
-            esc(_tkMoiBrain ? window.t("ht.tk_loc_tat_ca") : window.t("ht.tk_loc_brain", { brain: tenBrain(brain()) })) +
-          '</span>' +
-          '<button class="s-btn-ghost ht-tk-doi-loc" type="button">' +
-            esc(_tkMoiBrain ? window.t("ht.tk_chi_brain_nay") : window.t("ht.tk_xem_moi_brain")) + '</button>' +
-        '</div>' +
-        '<div class="ht-acc-grid"><div class="ht-empty">' + esc(window.t("common.loading")) + '</div></div>' +
-      '</div>';
-    body.querySelector(".ht-them-tk").onclick = function () { moThemTK(); };
-    body.querySelector(".ht-tk-doi-loc").onclick = function () {
-      _tkMoiBrain = !_tkMoiBrain;
-      renderKenh(body);
+  // ---------------------------------------------------------------- KÊNH CHƯA CÓ BOT
+  function renderKenhSec(box) {
+    box.innerHTML =
+      '<div class="ht-kenh-h">' +
+        '<button type="button" class="ht-kenh-tog" aria-expanded="true">' + ic("chevron-down") +
+          ' <span class="ht-kenh-t">' + esc(window.t("ht.kenh_ranh")) + '</span> <span class="ht-kenh-n"></span></button>' +
+        '<label class="ht-switch ht-kenh-moi"><input type="checkbox" class="ht-tk-moi-brain"' + (_tkMoiBrain ? " checked" : "") + '>' +
+          '<span>' + esc(window.t("ht.tk_xem_moi_brain")) + '</span></label>' +
+        '<button class="s-btn-ghost ht-them-tk" type="button">' + ic("plus") + ' ' + esc(window.t("ht.them_tk")) + '</button>' +
+      '</div>' +
+      // Nói THẲNG đang lọc theo brain nào. Không nói thì một danh sách ngắn đi trông hệt như mất dữ liệu, và đó đúng là cái
+      // bẫy mà việc lọc này dễ tạo ra.
+      '<div class="ht-tk-loc"><span class="ht-tk-loc-txt"></span></div>' +
+      '<div class="ht-acc-grid"><div class="ht-empty">' + esc(window.t("common.loading")) + '</div></div>';
+    box.querySelector(".ht-them-tk").onclick = function () { moThemTK(); };
+    box.querySelector(".ht-kenh-tog").onclick = function () {
+      _kenhMo = !kenhDangMo(dsKenhRanh());
+      veKenh();
+    };
+    box.querySelector(".ht-tk-moi-brain").onchange = function (e) {
+      _tkMoiBrain = !!e.target.checked;
+      _dauVetTK = "";
+      taiTK(false).catch(function () {});
     };
     _dauVetTK = "";
     taiTK(false).catch(function (e) {
-      var g = body.querySelector(".ht-acc-grid");
+      var g = box.querySelector(".ht-acc-grid");
       if (g) g.innerHTML = '<div class="ht-empty">' + esc(window.t("ht.loi_tai")) + ' ' + esc(e.message) + '</div>';
     });
   }
+
+  // Kênh nào nằm trong mục này: kênh CHƯA có bot. Đang xem "mọi brain" thì thêm cả kênh đang do bot của brain KHÁC trực, vì bot
+  // đó không hiện ở trang này nên không còn chỗ nào khác để tìm lại, sửa hay xoá kênh (chủ repo báo 21/09).
+  function dsKenhRanh() {
+    return _tk.filter(function (a) {
+      return !a.bot_id || (_tkMoiBrain && a.bot_brain && a.bot_brain !== brain());
+    });
+  }
+  // Tự quyết mở hay gập: có kênh chưa có bot là có việc cần làm thì mở, hết việc thì gập. Người dùng đã bấm thì theo họ.
+  function kenhDangMo(ds) { return _kenhMo === null ? ds.length > 0 : _kenhMo; }
 
   var TT_TK = {
     running: ["ht.tk_dang_chay", "ok"], starting: ["ht.tk_khoi_dong", "wait"],
@@ -680,17 +699,26 @@
   };
 
   function veKenh() {
-    var g = _host && _host.querySelector(".ht-acc-grid");
+    var sec = _host && _host.querySelector(".ht-kenh-sec");
+    var g = sec && sec.querySelector(".ht-acc-grid");
     if (!g) return;
-    if (!_tk.length) {
-      g.innerHTML = '<div class="ht-empty">' + ic("plug") +
-        '<b>' + esc(window.t("ht.tk_rong")) + '</b><div>' + esc(window.t("ht.tk_rong_goi_y")) + '</div>' +
-        '<button class="s-btn ht-them-tk2" type="button">' + ic("plus") + ' ' + esc(window.t("ht.them_tk")) + '</button></div>';
-      g.querySelector(".ht-them-tk2").onclick = function () { moThemTK(); };
+    var ds = dsKenhRanh();
+    var mo = kenhDangMo(ds);
+    sec.classList.toggle("dong", !mo);
+    sec.querySelector(".ht-kenh-tog").setAttribute("aria-expanded", mo ? "true" : "false");
+    sec.querySelector(".ht-kenh-n").textContent = ds.length ? String(ds.length) : "";
+    var loc = sec.querySelector(".ht-tk-loc-txt");
+    if (loc) loc.innerHTML = ic("brain") + ' ' +
+      esc(_tkMoiBrain ? window.t("ht.tk_loc_tat_ca") : window.t("ht.tk_loc_brain", { brain: tenBrain(brain()) }));
+    if (!mo) { g.innerHTML = ""; return; }
+    if (!ds.length) {
+      g.innerHTML = '<div class="ht-empty ht-kenh-het">' + ic("plug") +
+        '<b>' + esc(window.t(_tk.length ? "ht.kenh_ranh_het" : "ht.tk_rong")) + '</b>' +
+        '<div>' + esc(window.t(_tk.length ? "ht.kenh_ranh_het_goi_y" : "ht.tk_rong_goi_y")) + '</div></div>';
       return;
     }
     g.innerHTML = "";
-    _tk.forEach(function (a) { g.appendChild(theTK(a)); });
+    ds.forEach(function (a) { g.appendChild(theTK(a)); });
   }
 
   // Ô chọn brain cho tài khoản. Danh sách đổ từ CHÍNH ô chọn brain của app (#graphSource),
@@ -785,7 +813,8 @@
     c.querySelector(".ht-acc-inbox").onclick = function () { _cho = { account_key: a.account_key }; chonTab("inbox"); };
     var tb = c.querySelector(".ht-acc-tao-bot");
     if (tb) tb.onclick = function () {
-      chonTab("chatbot");
+      // Đã đứng ở tab Bot rồi: không dựng lại tab (mất nhịp), chỉ mở form với kênh này tích sẵn.
+      if (_tab !== "bot") chonTab("bot");
       try { document.dispatchEvent(new CustomEvent("javis:chatbot-new", { detail: { account_id: a.id } })); } catch (e) {}
     };
     var cb = c.querySelector(".ht-watch");
@@ -804,30 +833,35 @@
     var kn = c.querySelector(".ht-acc-ket-noi");
     if (kn) kn.onclick = function () { try { window.JavisNav.go("mcp"); } catch (e) {} };
     var xoa = c.querySelector(".ht-acc-xoa");
-    if (xoa) xoa.onclick = async function () {
-      // Tài khoản đang có bot trực: GỠ KHỎI BOT RỒI XOÁ ngay tại đây, trong một lần hỏi.
-      //
-      // Bản cũ nhảy sang tab Chatbot mở form con bot ấy, và đó là ngõ cụt đúng trong trường
-      // hợp hay gặp nhất: bot thuộc một brain, tài khoản kênh thì toàn cục, nên con bot đang
-      // giữ tài khoản này thường nằm ở brain KHÁC brain đang mở. Tab Chatbot chỉ nạp bot của
-      // brain đang mở nên không thấy nó, và người dùng nhận một câu bảo "đổi brain rồi thử
-      // lại" mà không biết đổi sang brain nào (chủ repo báo 21/09).
-      var hoi = a.bot_id
-        ? window.t(a.bot_mot_tk ? "ht.xoa_go_bot_cuoi" : "ht.xoa_go_bot",
-                   { ten: a.label, bot: a.bot_name, brain: a.bot_brain || "?" })
-        : window.t("ht.xn_xoa_tk", { ten: a.label });
-      if (!confirm(hoi)) return;
-      try {
-        var r = await api("/channels/accounts/" + encodeURIComponent(a.id) + "/delete",
-                          { method: "POST", body: fd({ go_khoi_bot: a.bot_id ? "1" : "" }) });
-        // Bot mất tài khoản cuối cùng thì server tắt nó đi. Nói ra, vì đó là hệ quả người
-        // dùng không thấy trên màn hình này (con bot nằm ở trang khác, có khi ở brain khác).
-        if (r && r.bot_tat) alert(window.t("ht.da_tat_bot", { bot: r.bot_tat }));
-      } catch (e) { alert(window.t("ht.loi_doi") + " " + e.message); }
-      _dauVetTK = "";
-      taiTK(true);
-    };
+    if (xoa) xoa.onclick = function () { xoaTK(a); };
     return c;
+  }
+
+  // Xoá một tài khoản kênh. Dùng chung cho nút trên thẻ (kênh chưa có bot) và nút trong bảng sửa kênh (mở từ chip trên thẻ bot).
+  async function xoaTK(a) {
+    // Tài khoản đang có bot trực: GỠ KHỎI BOT RỒI XOÁ ngay tại đây, trong một lần hỏi.
+    //
+    // Bản cũ nhảy sang tab Chatbot mở form con bot ấy, và đó là ngõ cụt đúng trong trường
+    // hợp hay gặp nhất: bot thuộc một brain, tài khoản kênh thì toàn cục, nên con bot đang
+    // giữ tài khoản này thường nằm ở brain KHÁC brain đang mở. Tab Chatbot chỉ nạp bot của
+    // brain đang mở nên không thấy nó, và người dùng nhận một câu bảo "đổi brain rồi thử
+    // lại" mà không biết đổi sang brain nào (chủ repo báo 21/09).
+    var hoi = a.bot_id
+      ? window.t(a.bot_mot_tk ? "ht.xoa_go_bot_cuoi" : "ht.xoa_go_bot",
+                 { ten: a.label, bot: a.bot_name, brain: a.bot_brain || "?" })
+      : window.t("ht.xn_xoa_tk", { ten: a.label });
+    if (!confirm(hoi)) return;
+    try {
+      var r = await api("/channels/accounts/" + encodeURIComponent(a.id) + "/delete",
+                        { method: "POST", body: fd({ go_khoi_bot: a.bot_id ? "1" : "" }) });
+      // Bot mất tài khoản cuối cùng thì server tắt nó đi. Nói ra, vì đó là hệ quả người
+      // dùng không thấy trên màn hình này (con bot nằm ở trang khác, có khi ở brain khác).
+      if (r && r.bot_tat) alert(window.t("ht.da_tat_bot", { bot: r.bot_tat }));
+    } catch (e) { alert(window.t("ht.loi_doi") + " " + e.message); }
+    _dauVetTK = "";
+    taiTK(true);
+    // Thẻ bot (chatbots.js) còn chip của kênh vừa xoá: nạp lại tab để chip biến mất.
+    if (_tab === "bot") veTab();
   }
 
   // Thêm tài khoản: bước 1 chọn LOẠI kênh (mọi kênh trong sổ, kể cả kênh không nhận token,
@@ -950,6 +984,8 @@
           '<div class="cb-hint">' + esc(window.t("ht.hint_brain_tk")) + '</div>'
         : "") +
       '<div class="ht-form-acts">' +
+        // Kênh đã có bot không còn thẻ riêng để bấm Xoá (nó là chip trên thẻ bot), nên nút xoá nằm ở đây.
+        (a.kind === "bot" ? '<button class="s-btn-ghost ht-xoa-tk" type="button">' + esc(window.t("ht.xoa_kenh")) + '</button>' : "") +
         '<button class="s-btn-ghost ht-close" type="button">' + esc(window.t("common.cancel")) + '</button>' +
         '<button class="s-btn ht-save" type="button">' + esc(window.t("common.save")) + '</button>' +
       '</div></div></div>');
@@ -957,6 +993,8 @@
     var dong = function () { if (box.parentNode) box.parentNode.removeChild(box); };
     box.onmousedown = function (e) { if (e.target === box) dong(); };
     box.querySelector(".ht-close").onclick = dong;
+    var nutXoa = box.querySelector(".ht-xoa-tk");
+    if (nutXoa) nutXoa.onclick = function () { dong(); xoaTK(a); };
     veChonBrain(box.querySelector("#htBrain"), a.brain || "");
     box.querySelector("#htCheck").onclick = async function () {
       var t = box.querySelector("#htToken").value.trim();
@@ -981,17 +1019,27 @@
       dong();
       _dauVetTK = "";
       taiTK(true);
+      if (_tab === "bot") veTab();
     };
+  }
+
+  // Sửa một kênh theo id: chip kênh trên thẻ bot (chatbots.js) gọi vào đây. Chưa nạp danh sách kênh thì nạp rồi mới mở.
+  async function suaKenh(id) {
+    var tim = function () { return _tk.filter(function (x) { return x.id === id; })[0]; };
+    var a = tim();
+    if (!a) { try { await taiTK(); } catch (e) {} a = tim(); }
+    if (a && a.sua_duoc) moSuaTK(a);
   }
 
   // Mở trang này từ nơi khác (thẻ bot ở tab Chatbot, console.js) với tab hoặc bộ lọc sẵn.
   function moTu(opts) {
     _cho = opts || {};
-    if (_cho.tab) _tab = _cho.tab; else _tab = "inbox";
+    var tabMo = chuanTab(_cho.tab || "");
+    _tab = TABS.indexOf(tabMo) >= 0 ? tabMo : "inbox";
     if (_host && document.body.contains(_host)) { veTabs(); veTab(); return; }
     try { var s = window.Alpine && Alpine.store("nav"); if (s && s.go) s.go("conversations"); } catch (e) {}
   }
 
   window.JavisConversations = { render: render, mo: moTu, chonTab: chonTab,
-                               themTaiKhoan: moThemTK };
+                               themTaiKhoan: moThemTK, suaKenh: suaKenh, tenBrain: tenBrain };
 })();

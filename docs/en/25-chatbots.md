@@ -25,7 +25,7 @@ A dedicated bot **can do real work** if you raise its permission level: writing 
 
 ## Where to open it in Javis
 
-The left navigation rail, the **Capabilities** group, the **Conversations** item, **Chatbots** tab (since 0.61.0 Chatbots, Channels and the Inbox share one page). Saying "open chatbots" lands on this tab.
+The left navigation rail, the **Capabilities** group, the **Conversations** item, **Bots** tab. The page has two tabs, **Bot inbox** and **Bots** (since 0.65.9; before that there were three, Inbox, Channels and Create chatbot, and people had to jump between "add a channel" and "create a bot"). Saying "open chatbots" lands on the Bots tab.
 
 ## Preparing before creating a bot
 
@@ -51,7 +51,7 @@ The bot **reads the Agent at run time** rather than copying it. Editing the Agen
 
 ### 3. A channel account: a dedicated token, taken from the right place for the channel
 
-Since 0.61.0 a token is a **channel account** on the **Channels** tab, and a bot only **points** to it. Add the account on the Channels tab first and tick it when creating the bot, or paste the token right inside the bot form; both lead to the same result. One bot can serve **several** accounts (one role answering on Telegram and Zalo Bot alike), while each account has **one** bot on duty.
+Since 0.61.0 a token is a **channel account**, and a bot only **points** to it. Add the channel with **Add a channel** in the **Channels without a bot** section right under the bot list and tick it when creating the bot, or press **Connect a new channel** inside the New bot form (the new channel is ticked for you); both lead to the same result. One bot can serve **several** accounts (one role answering on Telegram and Zalo Bot alike), while each account has **one** bot on duty.
 
 If the bot runs on **Telegram**: go to **@BotFather**, type `/newbot`, set a name and username, and take the token string shaped `123456789:ABCdef...`.
 
@@ -99,7 +99,7 @@ Click **New bot** and fill in:
 
 | Field | What to enter |
 |---|---|
-| Which channel accounts this bot serves | Tick one or more accounts from the Channels tab (only accounts with no bot on duty are listed). None yet: open **Add a new account with a token**, pick the channel type, paste the token, Check. See [Choosing Telegram or Zalo](#choosing-telegram-or-zalo) |
+| Which channel accounts this bot serves | Tick one or more channels (only channels with no bot on duty can be ticked; channels another bot serves are greyed out with a lock and that bot's name). None yet: open **Add a new account with a token**, pick the channel type, paste the token, Check. See [Choosing Telegram or Zalo](#choosing-telegram-or-zalo) |
 | Bot name | The name you use to tell your bots apart |
 | The Agent as its brain | Pick an Agent in the open brain, or click **Create Agent** |
 | What the bot answers from | See the two modes below |
