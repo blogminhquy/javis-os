@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.11] - 2026-09-30
+### Cải thiện
+- **Hòm thư tải dần, đỡ nặng máy.** Danh sách hội thoại tải 40 dòng đầu, cuộn xuống thì tự tải thêm. Khung tin chỉ tải 40 tin mới nhất, kéo lên thì tải tin cũ hơn mà không nhảy chỗ đang đọc.
+- Cứ 5 giây Javis chỉ hỏi tin MỚI hơn tin cuối rồi chèn vào cuối khung, thay vì tải lại và vẽ lại cả 200 tin. Đang đọc tin cũ mà có tin mới về thì không còn bị kéo về đầu.
+
 ## [0.65.10] - 2026-09-30
 ### Cải thiện
 - **Hòm thư bot gọn hơn, khung tin lớn hơn.** Bỏ bốn thẻ số liệu và dòng phụ đề ở đầu trang. Tiêu đề, hai tab, ô tìm và ô lọc nằm gọn trên cùng, còn danh sách và khung tin chiếm hết phần màn hình còn lại, mỗi bên cuộn riêng.
