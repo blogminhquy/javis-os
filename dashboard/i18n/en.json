@@ -3189,6 +3189,8 @@
   "cb.tk_ca_nhan_luu_y": "Replies go out under your name, in private chats and in groups you allow. The bot decides whether to answer.",
   "ht.tab_inbox": "Bot inbox",
   "ht.tab_bot": "Bots",
+  "ht.xem_them": "Show more",
+  "ht.tin_cu": "Show older messages",
   "ht.kenh_ranh": "Channels without a bot",
   "ht.kenh_ranh_het": "Every channel has a bot",
   "ht.kenh_ranh_het_goi_y": "Tap Add a channel to connect a new one, or New bot to create a bot for an existing channel.",

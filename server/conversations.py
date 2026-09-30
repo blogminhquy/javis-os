@@ -542,25 +542,40 @@ def chi_tiet(conversation_id: int) -> Optional[dict]:
     return d
 
 
-def tin_nhan(conversation_id: int, limit: int = 100, before_id: int = 0) -> List[dict]:
+def tin_nhan(conversation_id: int, limit: int = 100, before_id: int = 0, after_id: int = 0) -> List[dict]:
     """Tin của một hội thoại, CŨ TRƯỚC MỚI SAU trong cửa sổ trả về (cửa sổ lấy từ cuối lên).
 
     `before_id` > 0: lấy các tin CŨ HƠN id đó (cuộn ngược để xem thêm).
+    `after_id` > 0 (0.65.11): lấy các tin MỚI HƠN id đó, cũ trước mới sau. Nhịp làm mới 5 giây của khung tin chỉ hỏi phần này, thay vì
+    tải lại cả trăm tin mỗi lần.
     """
     n = max(1, min(int(limit or 100), MAX_TIN_MOT_LAN))
     args: list = [int(conversation_id)]
     sql = "SELECT * FROM messages WHERE conversation_id=?"
-    if before_id and int(before_id) > 0:
-        sql += " AND id<?"; args.append(int(before_id))
-    sql += " ORDER BY id DESC LIMIT ?"; args.append(n)
+    moi = bool(after_id and int(after_id) > 0)
+    if moi:
+        sql += " AND id>?"; args.append(int(after_id))
+        sql += " ORDER BY id ASC LIMIT ?"; args.append(n)
+    else:
+        if before_id and int(before_id) > 0:
+            sql += " AND id<?"; args.append(int(before_id))
+        sql += " ORDER BY id DESC LIMIT ?"; args.append(n)
     with _lock:
         rows = _conn().execute(sql, args).fetchall()
     out = []
-    for r in reversed(rows):
+    for r in (rows if moi else reversed(rows)):
         d = _row(r)
         d["metadata"] = _loads(d.pop("metadata_json", "{}"), {})
         out.append(d)
     return out
+
+
+def co_tin_cu(conversation_id: int, tin_id: int) -> bool:
+    """Còn tin nào CŨ HƠN `tin_id` trong hội thoại này không (để khung tin biết có nên hiện nút/tự tải tin cũ)."""
+    with _lock:
+        r = _conn().execute("SELECT 1 FROM messages WHERE conversation_id=? AND id<? LIMIT 1",
+                            (int(conversation_id), int(tin_id))).fetchone()
+    return r is not None
 
 
 def danh_dau_da_doc(conversation_id: int) -> bool:

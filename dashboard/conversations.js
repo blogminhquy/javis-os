@@ -52,7 +52,9 @@
   }
 
   var NHIP = 5000;          // nhịp tự làm mới, như trang Chatbot
-  var TRANG = 60;           // số hội thoại một trang
+  var TRANG = 40;           // số hội thoại một trang (0.65.11: cuộn xuống cuối thì tải trang kế, trước đó cố định 60 và không tải thêm được)
+  var MAX_DONG_NHIP = 200;  // nhịp 5 giây làm mới tối đa chừng này dòng đầu; phần đã tải sâu hơn giữ nguyên
+  var TIN_TRANG = 40;       // số tin một lần tải (mở hội thoại lấy 40 tin MỚI NHẤT, kéo lên thì lấy thêm 40 tin cũ hơn)
   var TABS = ["inbox", "bot"];
   // Id tab cũ (0.61.0 đến 0.65.8: "kenh", "chatbot") vẫn dẫn về tab Bot: console.js, thông báo và bookmark cũ còn dùng chúng.
   var TAB_CU = { kenh: "bot", chatbot: "bot" };
@@ -65,6 +67,8 @@
   var _chon = null;         // id hội thoại đang mở
   var _msgs = [], _conv = null, _dauVetTin = "", _silence = null;   // _silence: vì sao bot im ở tin khách cuối
   var _running = false;     // bot của cuộc chat đang mở có đang chạy không (server cấp)
+  var _soTrang = 1, _conDS = false, _dangTaiDS = false;   // phân trang danh sách: số trang đã tải, còn trang sau không
+  var _conCu = false, _dangTaiCu = false, _vetMeta = "";   // khung tin: còn tin cũ không, đang tải tin cũ, chữ ký phần đầu khung
   var _actBusy = "";        // "answer" | "draft" khi đang chờ bot soạn
   var _actNote = null;      // {text, err}: dòng nói kết quả của lần bấm gần nhất, sống qua các lần vẽ lại khung
   var _kenhDS = [];         // các LOẠI kênh (server: id, nhan, logo, kind, nang_luc...)
@@ -268,20 +272,30 @@
   function saveFilters() { if (window.JavisConvFilters) window.JavisConvFilters.save(filterState()); }
   function onFilterChange() { saveFilters(); tai(); }
 
+  function urlDanhSach(limit, offset) {
+    return "/conversations?limit=" + limit + (offset ? "&offset=" + offset : "") + "&account_id=" + encodeURIComponent(_tkLoc) +
+      "&q=" + encodeURIComponent(_q) + (window.JavisConvFilters ? window.JavisConvFilters.query(filterState()) : "");
+  }
+
   // `im` = nhịp tự động: không xoá danh sách đang hiện, mạng hỏng một nhịp thì giữ màn hình cũ.
+  // Không phải nhịp (mở trang, đổi bộ lọc, gõ tìm) thì về trang đầu; nhịp thì hỏi lại đúng số dòng người dùng đã tải (tối đa MAX_DONG_NHIP).
   async function tai(im) {
     var box = _host && _host.querySelector(".ht-list");
     if (!box) return;
-    var url = "/conversations?limit=" + TRANG + "&account_id=" + encodeURIComponent(_tkLoc) +
-      "&q=" + encodeURIComponent(_q) + (window.JavisConvFilters ? window.JavisConvFilters.query(filterState()) : "");
+    if (!im) { _soTrang = 1; box.scrollTop = 0; }
+    var soDong = im ? Math.min(MAX_DONG_NHIP, TRANG * _soTrang) : TRANG;
+    var url = urlDanhSach(soDong, 0);
     try {
       var d = await api(url);
-      _items = d.items || [];
+      var dau = d.items || [];
+      var duoi = im ? _items.slice(soDong) : [];       // phần đã tải sâu hơn nhịp hỏi: giữ nguyên
+      _items = dau.concat(duoi);
+      if (!duoi.length) _conDS = dau.length >= soDong;
       _stats = d.stats || {};
       _facets = d.facets || null;
       _botList = d.bots || [];
       if (d.channels) _kenhDS = d.channels;
-      var vet = JSON.stringify([_items, _stats, _facets, _botList]);
+      var vet = JSON.stringify([_items, _stats, _facets, _botList, _conDS]);
       if (im && vet === _dauVet) return;
       _dauVet = vet;
     } catch (e) {
@@ -291,6 +305,31 @@
     paintFilters();
     veDanhSach();
     veTabs();
+  }
+
+  // Tải trang kế của danh sách (cuộn tới cuối hoặc bấm Xem thêm). Trang thứ hai trở đi server chỉ trả các dòng, không tính lại số đếm.
+  async function taiThem() {
+    if (_dangTaiDS || !_conDS || !_host) return;
+    _dangTaiDS = true;
+    var nut = _host.querySelector(".ht-more-b");
+    if (nut) { nut.disabled = true; nut.textContent = window.t("common.loading"); }
+    try {
+      var d = await api(urlDanhSach(TRANG, _items.length));
+      var them = d.items || [];
+      var co = {};
+      _items.forEach(function (c) { co[c.id] = true; });
+      _items = _items.concat(them.filter(function (c) { return !co[c.id]; }));    // có hội thoại mới chen lên đầu thì dòng bị đẩy qua trang, đừng hiện hai lần
+      _soTrang++;
+      _conDS = them.length >= TRANG;
+      _dauVet = "";
+    } catch (e) {
+      if (nut) { nut.disabled = false; nut.textContent = window.t("ht.xem_them"); }
+      _dangTaiDS = false;
+      return;
+    }
+    _dangTaiDS = false;
+    paintFilters();
+    veDanhSach();
   }
 
   // Bộ lọc dropdown (0.65.3): một hàng chung với ô tìm, số đếm nằm trong từng lựa chọn (chip chiếm quá nhiều chỗ khi
@@ -324,7 +363,7 @@
     var active = F.activeCount(st) + (_tkLoc ? 1 : 0);
     var cnt = _host.querySelector(".ht-fcount");
     if (cnt) cnt.textContent = window.t(active ? "ht.f_count_f" : "ht.f_count",
-      { n: _items.length >= TRANG ? TRANG + "+" : _items.length, f: active });
+      { n: _items.length + (_conDS ? "+" : ""), f: active });
     var clr = _host.querySelector(".ht-fclear");
     if (clr) clr.hidden = !active;
     // Đang lọc theo MỘT tài khoản (mở từ mục Kênh chưa có bot): một chip có nút bỏ.
@@ -376,10 +415,17 @@
             (c.unread_count ? '<span class="ht-badge">' + c.unread_count + '</span>' : "") +
           '</span>' +
         '</span></button>';
-    }).join("");
+    }).join("") + (_conDS ? '<div class="ht-more"><button type="button" class="s-btn-ghost ht-more-b">' +
+                            esc(window.t("ht.xem_them")) + '</button></div>' : "");
     box.querySelectorAll(".ht-item").forEach(function (x) {
       x.onclick = function () { mo(parseInt(x.dataset.id, 10)); };
     });
+    // Còn trang sau: nút Xem thêm ở cuối, và tự tải khi cuộn gần tới đáy. Dùng sự kiện cuộn chứ không dùng IntersectionObserver: callback của
+    // nó bị trình duyệt hoãn khi khung không được vẽ, còn sự kiện cuộn thì luôn tới (và kiểm thử được).
+    var them = box.querySelector(".ht-more");
+    if (them) them.querySelector(".ht-more-b").onclick = taiThem;
+    box.onscroll = function () { if (_conDS && box.scrollHeight - box.scrollTop - box.clientHeight < 240) taiThem(); };
+    if (_conDS && box.clientHeight > 0 && box.scrollHeight <= box.clientHeight + 40) taiThem();       // 40 dòng chưa đủ cao để cuộn (màn rất cao): tải tiếp; clientHeight 0 = đang ẩn, chưa đo được
   }
 
   // ---------------------------------------------------------------- một hội thoại
@@ -387,6 +433,7 @@
     _chon = id;
     _dauVetTin = "";
     _actNote = null;
+    _msgs = []; _conCu = false; _dangTaiCu = false; _vetMeta = "";       // hội thoại khác: tải lại từ tin mới nhất
     _host.querySelector(".ht-wrap").classList.add("thread-on");
     veDanhSach();
     await taiTin(false);
@@ -396,6 +443,7 @@
 
   function dongThread() {
     _chon = null;
+    _msgs = [];
     var w = _host.querySelector(".ht-wrap");
     if (w) w.classList.remove("thread-on");
     var th = _host.querySelector(".ht-thread");
@@ -409,18 +457,98 @@
     var id = _chon;
     var box = _host.querySelector(".ht-thread");
     if (!box) return;
+    // Chưa có tin nào thì lấy 40 tin MỚI NHẤT; đã có thì chỉ hỏi các tin mới hơn tin cuối (nhịp 5 giây trước đây tải lại cả 200 tin rồi
+    // vẽ lại toàn bộ khung, và kéo người đang đọc tin cũ về đầu mỗi khi có tin mới).
+    var dau = !_msgs.length;
+    var moi = [];
     try {
-      var d = await api("/conversations/" + id + "/messages?limit=200");
+      var d = await api("/conversations/" + id + "/messages?" +
+                        (dau ? "limit=" + TIN_TRANG : "after=" + _msgs[_msgs.length - 1].id + "&limit=200"));
       if (_chon !== id) return;
-      var vet = JSON.stringify([d.conversation, d.messages, d.bot_silence, d.bot_running]);
-      if (im && vet === _dauVetTin) return;
-      _dauVetTin = vet;
-      _conv = d.conversation; _msgs = d.messages || []; _silence = d.bot_silence || null; _running = !!d.bot_running;
+      _conv = d.conversation; _silence = d.bot_silence || null; _running = !!d.bot_running;
+      if (dau) { _msgs = d.messages || []; _conCu = !!d.has_more; }
+      else {
+        // Hai lượt hỏi chồng nhau (nhịp và một hành động) có thể cùng nhận một tin: chỉ nhận tin mới hơn tin cuối THẬT lúc này.
+        var cuoi = _msgs.length ? _msgs[_msgs.length - 1].id : 0;
+        moi = (d.messages || []).filter(function (m) { return m.id > cuoi; });
+        _msgs = _msgs.concat(moi);
+      }
     } catch (e) {
-      if (!im) box.innerHTML = '<div class="ht-empty">' + esc(window.t("ht.loi_tai")) + ' ' + esc(e.message) + '</div>';
+      if (!im && dau) box.innerHTML = '<div class="ht-empty">' + esc(window.t("ht.loi_tai")) + ' ' + esc(e.message) + '</div>';
       return;
     }
-    veThread();
+    // Phần đầu khung (tên, công tắc, dòng trạng thái, nút hành động, lý do bot im) chỉ vẽ lại khi thứ nó phụ thuộc đổi, hoặc khi người gọi
+    // đặt `_dauVetTin = ""` để ép vẽ lại. Còn lại chỉ chèn tin mới vào cuối.
+    var sig = metaSig();
+    if (dau || !_dauVetTin || sig !== _vetMeta || !box.querySelector(".ht-msgs")) {
+      _vetMeta = sig; _dauVetTin = "x";
+      veThread();
+      return;
+    }
+    if (moi.length) chenTin(moi);
+  }
+
+  // Chữ ký của mọi thứ ngoài danh sách tin mà phần đầu khung dựa vào. Tin cuối do ai gửi cũng nằm đây vì nó bật/tắt nút "Trả lời giúp tin này".
+  function metaSig() {
+    var c = _conv || {}, u = _msgs[_msgs.length - 1] || {};
+    return JSON.stringify([c.id, c.mode, c.bot_id, c.bot_name, c.title, c.customer_name, c.channel, c.chat_type, c.account_name,
+      _silence, _running, u.sender_type, _msgs.some(function (m) { return m.sender_type === "customer" && (m.text || "").trim(); })]);
+  }
+
+  // Chèn tin mới vào cuối khung, trước dòng "Bot im" nếu có. Đang ở đáy thì trượt theo tin mới; đang đọc tin cũ thì đứng yên.
+  function chenTin(moi) {
+    var m = _host && _host.querySelector(".ht-thread .ht-msgs");
+    if (!m) return veThread();
+    var oDay = m.scrollHeight - m.scrollTop - m.clientHeight < 80;
+    var html = moi.map(veTin).join("");
+    var sil = m.querySelector(".ht-silent");
+    if (sil) sil.insertAdjacentHTML("beforebegin", html); else m.insertAdjacentHTML("beforeend", html);
+    if (oDay) m.scrollTop = m.scrollHeight;
+  }
+
+  function nutTinCu() {
+    return _conCu ? '<button type="button" class="ht-older">' + esc(window.t("ht.tin_cu")) + '</button>' : "";
+  }
+
+  // Kéo lên gần đầu khung (hoặc bấm nút) thì tải 40 tin cũ hơn và chèn lên đầu. Giữ chỗ đang đọc bằng cách đo theo ĐÁY khung
+  // (scrollHeight - scrollTop): phần chèn nằm phía trên nên scrollTop cũ trỏ vào một chỗ khác hẳn (cùng bẫy đã ghi ở khung chat chính).
+  async function taiCu() {
+    if (_dangTaiCu || !_conCu || !_chon || !_msgs.length || !_host) return;
+    var id = _chon;
+    var m = _host.querySelector(".ht-thread .ht-msgs");
+    if (!m) return;
+    _dangTaiCu = true;
+    var nut = m.querySelector(".ht-older");
+    if (nut) { nut.disabled = true; nut.classList.add("busy"); nut.textContent = window.t("common.loading"); }
+    var tiep = false;
+    try {
+      var d = await api("/conversations/" + id + "/messages?before=" + _msgs[0].id + "&limit=" + TIN_TRANG);
+      if (_chon !== id) { _dangTaiCu = false; return; }
+      var cu = d.messages || [];
+      _conCu = !!d.has_more && cu.length > 0;
+      var m2 = _host.querySelector(".ht-thread .ht-msgs");
+      if (cu.length && m2) {
+        _msgs = cu.concat(_msgs);
+        var tuDay = m2.scrollHeight - m2.scrollTop;
+        var cuNut = m2.querySelector(".ht-older");
+        if (cuNut) cuNut.parentNode.removeChild(cuNut);
+        m2.insertAdjacentHTML("afterbegin", nutTinCu() + cu.map(veTin).join(""));
+        m2.scrollTop = m2.scrollHeight - tuDay;
+        noiTinCu(m2);
+        tiep = _conCu && m2.clientHeight > 0 && m2.scrollHeight <= m2.clientHeight + 40;      // tin ngắn chưa đủ cao để cuộn: tải tiếp cho tới khi cuộn được
+      } else if (nut) {
+        nut.disabled = false; nut.classList.remove("busy"); nut.textContent = window.t("ht.tin_cu");
+      }
+    } catch (e) {
+      if (nut) { nut.disabled = false; nut.classList.remove("busy"); nut.textContent = window.t("ht.tin_cu"); }
+    }
+    _dangTaiCu = false;
+    if (tiep) taiCu();
+  }
+
+  function noiTinCu(m) {
+    var nut = m.querySelector(".ht-older");
+    if (nut) nut.onclick = taiCu;
   }
 
   function veThread() {
@@ -433,6 +561,7 @@
     var guiDuoc = nangLuc(c.channel, "tra_loi_tu_javis");
     var cuon = box.querySelector(".ht-msgs");
     var oDay = !cuon || (cuon.scrollHeight - cuon.scrollTop - cuon.clientHeight < 80);
+    var tuDay = cuon ? cuon.scrollHeight - cuon.scrollTop : 0;      // đang đọc giữa chừng thì vẽ lại xong phải đứng đúng chỗ cũ (đo theo đáy)
     // Giữ chữ đang gõ dở khi nhịp tự làm mới vẽ lại khung.
     var oCu = box.querySelector(".ht-compose textarea");
     var nhapDo = oCu ? oCu.value : "";
@@ -452,7 +581,7 @@
             '</div>'
           : "") +
       '</div>' +
-      '<div class="ht-msgs">' + _msgs.map(veTin).join("") + renderSilenceLine(c) + '</div>' +
+      '<div class="ht-msgs">' + nutTinCu() + _msgs.map(veTin).join("") + renderSilenceLine(c) + '</div>' +
       (laBot ? renderStatusLine(c, human) + renderActions(c, human, guiDuoc) : "") +
       (guiDuoc ? veCompose(c, laBot, human) :
         '<div class="ht-foot">' + esc(window.t("ht.kenh_khong_gui", { kenh: nhanKenh(c.channel) })) + '</div>');
@@ -467,6 +596,10 @@
     };
     var m = box.querySelector(".ht-msgs");
     if (oDay) m.scrollTop = m.scrollHeight;
+    else if (cuon) m.scrollTop = m.scrollHeight - tuDay;
+    noiTinCu(m);
+    m.onscroll = function () { if (_conCu && m.scrollTop < 120) taiCu(); };
+    if (_conCu && m.clientHeight > 0 && m.scrollHeight <= m.clientHeight + 40) taiCu();      // 40 tin ngắn chưa đủ cao để cuộn thì kéo thêm tin cũ cho tới khi cuộn được
     var ta = box.querySelector(".ht-compose textarea");
     if (ta) {
       ta.value = nhapDo;
@@ -483,7 +616,7 @@
     // Bot đang tắt mà vẫn ghi "đang trực" là nói dối: khách nhắn vào sẽ không ai đáp. Nói thẳng, và chỉ cách bật.
     var off = !human && !_running;
     var key = human ? "ht.st_human" : off ? "ht.st_off" : (c.bot_name ? "ht.st_ai" : "ht.st_ai_0");
-    return '<div class="ht-status ' + (human ? "human" : off ? "off" : "ai") + '">' + ic(human ? "hand" : off ? "circle-stop" : "bot") +
+    return '<div class="ht-status ' + (human ? "human" : off ? "off" : "ai") + '">' + ic(human ? "hand" : off ? "circle-stop" : "sparkles") +
       ' <span>' + esc(window.t(key, { bot: c.bot_name || window.t("ht.bot") })) + '</span></div>';
   }
 
@@ -502,7 +635,7 @@
         ic(isBusy ? "loader" : icon) + ' <span>' + esc(window.t(isBusy ? "ht.act_busy" : label)) + '</span></button>';
     }
     var row = human
-      ? actionButton("draft", "sparkles", "ht.act_draft", whyDraft, false) + actionButton("back", "bot", "ht.act_back", "", false)
+      ? actionButton("draft", "sparkles", "ht.act_draft", whyDraft, false) + actionButton("back", "undo-2", "ht.act_back", "", false)
       : actionButton("answer", "zap", "ht.act_answer", whyAnswer, true) + actionButton("draft", "sparkles", "ht.act_draft", whyDraft, false);
     return '<div class="ht-acts">' + row + '</div>' +
       (_actNote ? '<div class="ht-acts-note' + (_actNote.err ? " err" : "") + '">' + ic(_actNote.err ? "triangle-alert" : "info") +

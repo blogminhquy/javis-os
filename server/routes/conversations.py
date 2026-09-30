@@ -131,6 +131,13 @@ def register(app, deps: ConversationsDeps):
         items = conversations.danh_sach(channel=channel, bot_id=bot_id, account_id=account_id,
                                         q=q, mode=mode, limit=limit, offset=offset,
                                         status=status, chat_type=chat_type, hesitant=hesitant)
+        if offset > 0:
+            # Trang thứ hai trở đi (0.65.11, cuộn xuống thì tải thêm) chỉ cần các dòng: số đếm, bộ lọc và danh sách bot đã có từ trang
+            # đầu, tính lại cho mỗi trang là tốn công vô ích.
+            for it in items:
+                it["bot_name"] = _ten_bot(str(it.get("bot_id") or ""))
+                it["need_reply"] = conversations.can_tra_loi(it, hesitant)
+            return {"ok": True, "items": items}
         facets = conversations.dem_bo_loc(hesitant)
         ten = {bid: _ten_bot(bid) for bid in facets["bots"] if bid}
         for it in items:
@@ -168,15 +175,24 @@ def register(app, deps: ConversationsDeps):
         return {"ok": True, "conversation": d} if d else _404()
 
     @router.get("/conversations/{conv_id}/messages")
-    async def conversations_messages(conv_id: int, limit: int = 100, before: int = 0):
+    async def conversations_messages(conv_id: int, limit: int = 100, before: int = 0, after: int = 0):
+        """Tin của một hội thoại, cũ trước mới sau.
+
+        Mặc định lấy `limit` tin MỚI NHẤT; `before=<id>` lấy các tin cũ hơn id đó (kéo lên để xem thêm); `after=<id>` (0.65.11) chỉ lấy tin MỚI
+        hơn id đó, dành cho nhịp làm mới 5 giây. `has_more` cho biết còn tin cũ hơn tin đầu của phần trả về hay không."""
         d = conversations.chi_tiet(conv_id)
         if not d:
             return _404()
-        msgs = conversations.tin_nhan(conv_id, limit=limit, before_id=before)
+        moi = after > 0
+        msgs = conversations.tin_nhan(conv_id, limit=limit, before_id=before, after_id=after)
         d["bot_name"] = _ten_bot(str(d.get("bot_id") or ""))
         bot_id = str(d.get("bot_id") or "")
+        # Lý do bot im gắn với tin khách CUỐI của cuộc chat, không phải cuối phần trả về: nhịp chỉ hỏi tin mới có thể trả rỗng, và
+        # kéo lên xem tin cũ thì phần trả về không chứa tin cuối.
+        cuoi = msgs if (not moi and not before) else conversations.tin_nhan(conv_id, limit=1)
         # `bot_running`: giao diện cần biết bot có đang chạy để bật hay nói lý do tắt nút "Trả lời giúp tin này".
-        return {"ok": True, "conversation": d, "messages": msgs, "bot_silence": _bot_silence(d, msgs),
+        return {"ok": True, "conversation": d, "messages": msgs, "bot_silence": _bot_silence(d, cuoi),
+                "has_more": (False if moi else (bool(msgs) and conversations.co_tin_cu(conv_id, msgs[0]["id"]))),
                 "bot_running": bool(bot_id and (_DEPS.bot_status(bot_id) or {}).get("running"))}
 
     @router.post("/conversations/{conv_id}/read")

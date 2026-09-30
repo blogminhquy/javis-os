@@ -46,7 +46,8 @@ check("lý do lấy nhãn từ bộ phán xử (codeLabel), kèm điểm/ngưỡ
   /RP\.codeLabel\(s\.code\)/.test(CV) && /toFixed\(2\)/.test(CV) && /function codeLabel\(code\)/.test(RP) &&
   /CODE_LB\[code\] \? tt\(CODE_LB\[code\]\) : String\(code \|\| ""\)/.test(RP));
 check("nút 'Vì sao' mở đúng bảng Bộ phán xử của bot đó", /JavisReplyPolicy\.openPanel\(\{ id: c\.bot_id, name: c\.bot_name \|\| "" \}\)/.test(CV));
-check("nhịp tự làm mới so cả bot_silence (đổi thì vẽ lại)", /JSON\.stringify\(\[d\.conversation, d\.messages, d\.bot_silence, d\.bot_running\]\)/.test(CV));
+check("nhịp tự làm mới so cả bot_silence (đổi thì vẽ lại phần đầu khung, từ 0.65.11 qua chữ ký metaSig)",
+  /function metaSig\(\)/.test(CV) && /_silence, _running, u\.sender_type/.test(CV) && /sig !== _vetMeta/.test(CV));
 check("lý do do server trả được thoát HTML trước khi vẽ", /esc\(window\.t\("ht\.silent", \{ why: lyDo \+ diem \}\)\)/.test(CV));
 
 // hàm codeLabel chạy thật

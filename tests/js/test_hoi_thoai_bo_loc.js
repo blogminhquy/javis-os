@@ -107,7 +107,7 @@ check("dropdown kênh ẩn khi hòm thư dưới 2 kênh", /ch\.hidden = Object\
 check("gửi tham số lọc lên server qua JavisConvFilters.query", /JavisConvFilters\.query\(filterState\(\)\)/.test(CV) &&
   !/"&bot_id=" \+ encodeURIComponent\(_botLoc\)/.test(CV));
 check("đọc facets và danh sách bot từ server, dùng cho cả nhịp làm mới", /_facets = d\.facets \|\| null/.test(CV) &&
-  /_botList = d\.bots \|\| \[\]/.test(CV) && /JSON\.stringify\(\[_items, _stats, _facets, _botList\]\)/.test(CV));
+  /_botList = d\.bots \|\| \[\]/.test(CV) && /JSON\.stringify\(\[_items, _stats, _facets, _botList, _conDS\]\)/.test(CV));
 check("dropdown ĐANG MỞ không bị dựng lại giữa nhịp tự làm mới", /document\.activeElement !== sel && sel\.dataset\.sig !== html\[k\]/.test(CV));
 check("chọn dropdown thì lưu bộ lọc ở trình duyệt rồi tải lại", /function onFilterChange\(\) \{ saveFilters\(\); tai\(\); \}/.test(CV) &&
   ["_botLoc", "_statusLoc", "_typeLoc", "_kenhLoc"].every((v) => new RegExp(v + " = e\\.target\\.value; onFilterChange\\(\\)").test(CV)));

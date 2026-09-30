@@ -29,7 +29,7 @@ check("hàng nút nằm NGAY SAU dòng trạng thái và TRƯỚC ô nhập", /r
 check("chế độ Tự động: 'Trả lời giúp tin này' (nút chính) + 'Gợi ý câu trả lời'",
   /actionButton\("answer", "zap", "ht\.act_answer", whyAnswer, true\)/.test(ACT) && /actionButton\("draft", "sparkles", "ht\.act_draft", whyDraft, false\)/.test(ACT));
 check("chế độ Tôi trả lời: 'Gợi ý câu trả lời' + 'Trả lại cho bot' (và không có nút Trả lời giúp)",
-  /human\s*\?\s*actionButton\("draft"[\s\S]{0,120}actionButton\("back", "bot", "ht\.act_back"/.test(ACT));
+  /human\s*\?\s*actionButton\("draft"[\s\S]{0,120}actionButton\("back", "undo-2", "ht\.act_back"/.test(ACT));
 check("nút 'Trả lời giúp' chỉ dùng được khi: không tiếp quản, kênh gửi được, bot đang chạy, tin cuối là của khách",
   /whyAnswer = human \? "ht\.why_human" : !guiDuoc \? "ht\.why_nosend" : !_running \? "ht\.why_off" : !lastCustomer \? "ht\.why_done" : ""/.test(ACT) &&
   /sender_type === "customer"/.test(ACT));

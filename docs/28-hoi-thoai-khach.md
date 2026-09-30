@@ -36,6 +36,8 @@ Bên trái là danh sách hội thoại, mới nhất trước. Mỗi dòng: tê
 
 **"Cần trả lời" nghĩa là gì.** Khách nhắn cuối, chưa ai đáp, chưa có người tiếp quản, và: là chat riêng, hoặc là nhóm mà bot vừa **cân nhắc nói rồi im** (chưa chắc, hết hạn mức tự nói, hay bộ phán xử lỗi, trong 24 giờ qua và bạn chưa bấm Đúng/Sai). Nhóm thì phải có điều kiện thứ hai, vì bot chỉ nói khi được gọi thì khách nhắn cuối trong nhóm là chuyện bình thường; đếm hết vào thì bộ lọc đầy rác. Cần bật Tự đánh giá thì mới có dấu "bot cân nhắc" này (xem [Bộ phán xử](25-chatbot.md#bộ-phán-xử-bot-tự-quyết-nói-hay-im-và-học-từ-nhóm)).
 
+**Tải dần, không đơ máy** (từ 0.65.11). Danh sách chỉ tải 40 dòng đầu; cuộn gần tới cuối thì tự tải 40 dòng nữa (hoặc bấm **Xem thêm**), dòng đếm ghi "40+ hội thoại" cho tới khi hết. Khung tin cũng vậy: mở một hội thoại chỉ tải 40 tin **mới nhất**, kéo lên gần đầu (hoặc bấm **Xem tin cũ hơn**) thì tải thêm 40 tin cũ hơn và giữ nguyên chỗ bạn đang đọc. Cứ 5 giây Javis chỉ hỏi các tin **mới hơn tin cuối** rồi chèn vào cuối khung; đang đọc tin cũ mà có tin mới về thì khung đứng yên, không kéo bạn về đầu như trước.
+
 Bấm một hội thoại là lịch sử tin hiện bên phải: tin khách bên trái, câu bot và câu bạn tự nhắn từ điện thoại bên phải. Lượt bot bị gãy cũng nằm đó kèm lý do kỹ thuật, để bạn phân biệt "bot trả lời sai" với "bot đang hỏng".
 
 Trên điện thoại trang chỉ một cột: bấm một hội thoại là mở lịch sử, có nút quay lại. Trang tự làm mới mỗi vài giây, không cần tải lại.

@@ -3189,6 +3189,8 @@
   "cb.tk_ca_nhan_luu_y": "Trả lời dưới tên bạn, ở chat riêng và nhóm đã cho phép. Bot tự quyết có trả lời hay không.",
   "ht.tab_inbox": "Hòm thư bot",
   "ht.tab_bot": "Bot",
+  "ht.xem_them": "Xem thêm",
+  "ht.tin_cu": "Xem tin cũ hơn",
   "ht.kenh_ranh": "Kênh chưa có bot",
   "ht.kenh_ranh_het": "Mọi kênh đều đã có bot",
   "ht.kenh_ranh_het_goi_y": "Bấm Thêm kênh để nối kênh mới, hoặc Bot mới để tạo bot cho kênh có sẵn.",
