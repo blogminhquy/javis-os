@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.2] - 2026-09-30
+### Thêm mới
+- **Thẻ "Tự động hóa tất cả" ở phần Bot trả lời ai.** Một cú chọn để bot trả lời mọi cuộc chat trên kênh và tự quyết nói hay im trong nhóm.
+
 ## [0.65.1] - 2026-09-30
 ### Cải thiện
 - **Bộ phán xử tự vận hành, bỏ hết ô cài đặt.** Chọn Tự đánh giá là xong. Máy tự chọn mức hăng hái cho từng nhóm, tự học từ phản ứng của nhóm, tự soạn vai từ Agent của bot. Bạn chỉ chỉnh bằng nút Đúng/Sai ở menu Bộ phán xử.
