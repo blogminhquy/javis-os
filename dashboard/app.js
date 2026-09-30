@@ -2142,6 +2142,17 @@ function compactToolLabel(toolName) {
 // Knowledge graph (2D canvas)
 // ============================================
 const graphStats = document.getElementById("graphStats");
+// Số note/liên kết hiện ở thanh trên. Nhớ số cuối cùng để vẽ lại khi từ điển i18n về sau: số liệu
+// đồ thị thường về TRƯỚC từ điển trên máy vừa cập nhật, và t() khi đó trả về chính cái khoá
+// (`app.graph_stats`) rồi kẹt mãi ở đó. Lỗi (models.err) là chuỗi đã ghép nên không nhớ.
+let _graphStatsCuoi = null;
+function veGraphStats(n, l) {
+  _graphStatsCuoi = { n: n, l: l };
+  graphStats.textContent = window.t("app.graph_stats", { n: n, l: l });
+}
+window.addEventListener("javis:i18n", () => {
+  if (_graphStatsCuoi) graphStats.textContent = window.t("app.graph_stats", _graphStatsCuoi);
+});
 const graphSource = document.getElementById("graphSource");
 let javisGraph = null;
 
@@ -2264,9 +2275,9 @@ async function reloadGraph() {
   try {
     const data = await javisGraph.load(query);
     const stats = data.stats || {};
-    graphStats.textContent = window.t("app.graph_stats", { n: stats.total_notes, l: stats.total_links });
+    veGraphStats(stats.total_notes, stats.total_links);
     renderConceptLabels(data.categories || [], stats.total_notes || 0);
-  } catch (e) { graphStats.textContent = window.t("models.err") + " " + e.message; }
+  } catch (e) { _graphStatsCuoi = null; graphStats.textContent = window.t("models.err") + " " + e.message; }
 }
 // ---- Việc CHỈ THẤY ĐƯỢC ở màn chính: hoãn khi đang đứng ở trang quản lý ----
 // Đổi brain là đổi cả cockpit: đồ thị, số ký ức, số cộng sự, cờ cấu trúc vault. Nhưng bốn thứ
@@ -2352,7 +2363,7 @@ function connectGraphWatch() {
     const r = javisGraph.addOrUpdate(m.node, m.linkTargets, m.isNew);
     if (r && r.created) {
       const s = javisGraph.nodeStats();
-      graphStats.textContent = window.t("app.graph_stats", { n: s.nodes, l: s.links });
+      veGraphStats(s.nodes, s.links);
       // Nháy nhẹ nhãn để báo có note mới sinh ra
       graphStats.classList.add("pulse");
       setTimeout(() => graphStats.classList.remove("pulse"), 700);

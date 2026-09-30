@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.86] - 2026-09-30
 ### Sửa lỗi
-- **Trang Cộng sự không còn hiện mã khoá thay cho tên nút** (kiểu `ws.tab_agent`, `sess.new_chat`) khi mở lại Javis sau khi cập nhật.
+- **Trang Cộng sự không còn hiện mã kiểu `ws.tab_agent`, `sess.new_chat` thay cho tên nút** khi mở lại Javis sau khi cập nhật. Nhãn giờ tự chuyển thành chữ ngay khi bộ chữ tải xong.
+- **Thanh trên cũng vậy:** số note và liên kết không còn kẹt ở `app.graph_stats`.
 
 ## [0.64.85] - 2026-09-30
 ### Thêm mới

@@ -25,6 +25,10 @@
   // nào" với "gọi /agents hỏng nên không biết có gì": cả hai đều để lại mảng rỗng, nhưng cái
   // sau mà bày màn khởi đầu "Chưa có cộng sự nào" là nói dối người dùng về một lỗi mạng.
   var opening = 0, ready = false, active = false, pendingCommand = null, daTai = false;
+  // Khung được dựng khi từ điển i18n CHƯA về: mọi t() trong khung khi đó trả về chính cái khoá
+  // (`ws.tab_agent`...). Trang này không có data-i18n nên applyDom không cứu được, và nó cũng không
+  // tự nghe "javis:i18n"; console.js hỏi cờ này rồi dựng lại trang đúng một lần khi từ điển về.
+  var dungKhiChuaCoTuDien = false;
   // Phiên chat của BỘ NÃO CHÍNH đang mở trước khi vào trang này, để lúc rời trang trả khung
   // chat về đúng cuộc đang dở (xem traKhungChat).
   var _phienTruoc = null;
@@ -245,6 +249,9 @@
 
   // ---------- dựng khung ----------
   function render(el, opts) {
+    // Đọc TRƯỚC khi vẽ gì: khung bên dưới dùng t() ngay lúc dựng. Thiếu JavisI18n thì không bao giờ
+    // có sự kiện để dựng lại, nên coi như đã xong thay vì đòi một lần dựng lại không ai gọi.
+    dungKhiChuaCoTuDien = !!(window.JavisI18n && window.JavisI18n.ready && !window.JavisI18n.ready());
     S.el = el; active = true; ready = false;
     // DỰNG LẠI TỪ ĐẦU, không nối tiếp lần trước. Trang này còn được dựng lại NGAY TẠI CHỖ khi
     // người dùng đổi bộ não (console.js gọi thẳng renderPage, không đi qua navigateTo nên roi()
@@ -1276,7 +1283,7 @@
     if (inp) inp.placeholder = t("bar.input_ph");
   }
 
-  window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, openTab: openTab, onTurnDone: onTurnDone, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram,
+  window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, openTab: openTab, onTurnDone: onTurnDone, canSend: function () { return !active || ready; }, dungKhiChuaCoTuDien: function () { return dungKhiChuaCoTuDien; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram,
     dangChay: dangChay, tabPhai: chonTabPhai, gomNhom: gomNhom, nhomHtml: nhomHtml, chonNhom: chonNhom, state: function () { return S; } };
   // Sidebar lịch sử mở phiên trực tiếp qua JavisSessions.open, ngoài đường moPhien ở trên.
   // Ghi lại sau khi nó mở xong để lần dựng trang sau vẫn ở đúng cuộc đã chọn.

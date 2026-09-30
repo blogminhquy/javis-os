@@ -8544,6 +8544,17 @@
       const st = window.Alpine && Alpine.store("nav");
       if (st) st.i18nTick++;
     } catch (e) { /* Alpine chưa dựng xong - lát nữa nó đọc từ điển đã đầy rồi */ }
+    // Trang Cộng sự dựng khung bằng t() và không tự nghe sự kiện này. Trang cuối được khôi phục
+    // NGAY lúc khởi động, nên từ điển về chậm một nhịp là khung kẹt ở mã khoá (`ws.tab_agent`,
+    // `sess.new_chat`...) tới khi người dùng đổi trang. Dựng lại tại chỗ một lần: đường này đã có
+    // sẵn (đổi brain cũng gọi thẳng renderPage). Cờ tự hạ sau lần dựng, nên không lặp.
+    try {
+      const st = window.Alpine && Alpine.store("nav");
+      if (st && st.active === "workspace" && window.JavisWorkspace
+          && window.JavisWorkspace.dungKhiChuaCoTuDien && window.JavisWorkspace.dungKhiChuaCoTuDien()) {
+        renderPage("workspace");
+      }
+    } catch (e) { /* dựng lại hỏng thì giữ khung cũ, phần quét nhãn tĩnh bên dưới vẫn phải chạy */ }
     try { window.JavisI18n && JavisI18n.applyDom(); } catch (e) { /* noop */ }
     // Hai ô chọn ngôn ngữ (đáy rail + trang Cài đặt) phải chỉ cùng một giá trị: đổi ở đâu
     // thì ô kia tự nhảy theo, không cần F5.
