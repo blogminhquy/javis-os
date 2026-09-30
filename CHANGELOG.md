@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.9] - 2026-09-30
+### Cải thiện
+- **Trang Chatbot còn hai tab: Hòm thư và Bot.** Thêm kênh ngay trong tab Bot hoặc trong form Bot mới, không phải nhảy qua lại giữa "Kênh của bot" và "Tạo chatbot" nữa.
+- Kênh chưa có bot (kể cả Zalo cá nhân chỉ ghi hội thoại) nằm ngay dưới danh sách bot. Icon robot thay bằng icon quen hơn.
+
 ## [0.65.8] - 2026-09-30
 ### Cải thiện
 - **Bot tag người trong nhóm Zalo nhanh hơn.** Javis tự cài sẵn một bản công cụ Zalo vào thư mục của mình rồi chạy thẳng, không qua `npx` mỗi lần. Trên máy thử, phần khởi động giảm từ khoảng 3,1 giây xuống 0,7 giây.
