@@ -100,7 +100,7 @@ Bấm **Bot mới**. Từ 0.64.85 form có **bốn phần**, mỗi phần một 
 | Phần | Điền gì |
 |---|---|
 | **Bot là ai** | Tích một hay nhiều tài khoản kênh (chỉ hiện tài khoản của brain này mà chưa bot nào trực), đặt tên bot, chọn Agent làm bộ não hoặc bấm **Tạo Agent**. Chưa có tài khoản thì mở **Thêm tài khoản mới bằng token**: chọn loại kênh, dán token, Kiểm tra. Xem [Chọn Telegram hay Zalo](#chọn-telegram-hay-zalo) |
-| **Bot trả lời ai** | Ba thẻ chọn một, xem mục [Bot trả lời ai](#bot-trả-lời-ai) ngay dưới. Chọn nhóm hay người thì tick trong danh sách, không phải gõ id. Kèm nút chọn **khi nào bot lên tiếng trong nhóm**: Được gọi tên (mặc định), Tự đánh giá, hoặc Mọi tin |
+| **Bot trả lời ai** | Bốn thẻ chọn một, xem mục [Bot trả lời ai](#bot-trả-lời-ai) ngay dưới. Chọn nhóm hay người thì tick trong danh sách, không phải gõ id. Kèm nút chọn **khi nào bot lên tiếng trong nhóm**: Được gọi tên (mặc định), Tự đánh giá, hoặc Mọi tin (thẻ Tự động hóa tất cả đã quyết sẵn nên ẩn nút này) |
 | **Bot dựa vào đâu để trả lời** | Agent và tài liệu, hoặc Chỉ tài liệu. Xem mục hai chế độ ở dưới |
 | **Bot được làm gì** | Mức quyền. Cứ để **Chỉ đọc** cho lần đầu; xem mục [Ba mức quyền](#ba-mức-quyền---bot-được-làm-gì) trước khi nâng |
 | Nâng cao | Ngôn ngữ trả lời |
@@ -109,15 +109,16 @@ Chỉ có tài khoản Zalo Bot thì phần chọn nhóm **biến mất** thay v
 
 #### Bot trả lời ai
 
-Đây là quyết định quan trọng nhất của form, nên nó là ba thẻ nằm cạnh nhau để so sánh:
+Đây là quyết định quan trọng nhất của form, nên nó là bốn thẻ nằm cạnh nhau để so sánh:
 
 | Thẻ | Bot làm gì |
 |---|---|
-| **Mọi cuộc chat trên kênh** | Trả lời nhắn riêng và mọi nhóm bot có mặt. Phải tick ô xác nhận, vì nếu đây là tài khoản Zalo cá nhân thì bạn bè và người nhà cũng được trả lời |
+| **Tự động hóa tất cả** (từ 0.65.2) | Như thẻ ngay dưới, nhưng trong nhóm bot **tự quyết nói hay im** (chế độ Tự đánh giá của [Bộ phán xử](#bộ-phán-xử-bot-tự-quyết-nói-hay-im-và-học-từ-nhóm)) và tự học dần. Một cú chọn thay cho hai cài đặt. Lưu xuống vẫn là "mọi cuộc chat" cộng "Tự đánh giá", nên bot cài như vậy từ trước tự hiện đúng thẻ này. Cùng ô xác nhận với thẻ dưới, kèm câu nói bot ghi lại chữ chat của nhóm để học |
+| **Mọi cuộc chat trên kênh** | Trả lời nhắn riêng và mọi nhóm bot có mặt; trong nhóm chọn được Được gọi tên hoặc Mọi tin. Phải tick ô xác nhận, vì nếu đây là tài khoản Zalo cá nhân thì bạn bè và người nhà cũng được trả lời |
 | **Ai nhắn riêng cũng được, nhóm thì tôi chọn** | **Mặc định.** Nhắn riêng thì ai cũng được, nhóm nào chưa tick thì bot im |
 | **Chỉ người và nhóm tôi chọn** | Bot im với mọi cuộc chat khác. Người và nhóm chưa tick nằm ở hàng chờ trên thẻ bot, bấm **Cho phép** là xong |
 
-Chỉ có kênh nhắn riêng (Zalo Bot) thì thẻ đổi nhãn thành "Ai nhắn cũng được" và "Chỉ người tôi chọn". Bấm thẻ cuối là hiện **ô chọn người và nhóm**: hai tab Nhóm / Người có số đếm, ô tìm theo tên, danh sách các cuộc chat đã nhắn tới tài khoản, và ô **Thêm bằng id** cho cuộc chat chưa từng nhắn. Cuộc chat đang chờ bạn cho phép được xếp lên đầu và có nhãn.
+Chỉ có kênh nhắn riêng (Zalo Bot) thì hai thẻ đầu ẩn đi (không có nhóm nào để bot tự quyết), và hai thẻ còn lại đổi nhãn thành "Ai nhắn cũng được" và "Chỉ người tôi chọn". Bấm thẻ cuối là hiện **ô chọn người và nhóm**: hai tab Nhóm / Người có số đếm, ô tìm theo tên, danh sách các cuộc chat đã nhắn tới tài khoản, và ô **Thêm bằng id** cho cuộc chat chưa từng nhắn. Cuộc chat đang chờ bạn cho phép được xếp lên đầu và có nhãn.
 
 Các thẻ không thay đổi việc bot phải được gọi tên trong nhóm: nhóm đã chọn vẫn theo nút "khi nào bot lên tiếng". Thẻ chỉ quyết định **bot có được phép đứng ở cuộc chat đó hay không**.
 
@@ -185,7 +186,7 @@ Chế độ này cũng chạy với nhóm Telegram nếu bạn đã tắt chế 
 
 Chế độ Tự đánh giá cũ dùng một cửa từ khoá: tin nào không giống câu hỏi là bị vứt trong im lặng, không để lại dòng nhật ký nào. Từ 0.65.0 có **Bộ phán xử** thay cửa đó bằng một bộ đọc ngữ cảnh, dùng chung cho mọi bot nhưng mỗi bot một vai. Từ 0.65.1 nó **tự vận hành hoàn toàn: không còn ô cài đặt nào**.
 
-**Bật ở đâu.** Sửa bot, phần **Bot trả lời ai**, chọn **Tự đánh giá** ở nút "Trong nhóm, bot lên tiếng khi". Chỉ vậy. Muốn tắt thì chọn cách khác. Máy tự lo phần còn lại:
+**Bật ở đâu.** Sửa bot, phần **Bot trả lời ai**, chọn thẻ **Tự động hóa tất cả** (mọi cuộc chat), hoặc chọn **Tự đánh giá** ở nút "Trong nhóm, bot lên tiếng khi" (cho những nhóm bạn chọn). Chỉ vậy. Muốn tắt thì chọn cách khác. Máy tự lo phần còn lại:
 - **Mức hăng hái.** Mỗi nhóm có một ngưỡng nói riêng, bắt đầu ở mức vừa. Ngưỡng nhích xuống khi bot im nhầm, nhích lên khi bot chen nhầm, và tự co dần về mức vừa nếu lâu không có phản hồi (chu kỳ bán rã 14 ngày).
 - **Khi không ai gọi, bot chỉ nói nếu có căn cứ.** Bot có tài liệu thì phải có phần tài liệu khớp với câu hỏi. Bot không có tài liệu nào thì dựa vào vai của Agent (nếu không thì nó không bao giờ tự nói được). Máy tự biết bot thuộc loại nào từ brain của bot. Ca đã học không được miễn luật này.
 - **Hồ sơ vai tự soạn** từ file Agent và mục lục tài liệu của CHÍNH bot đó, và tự soạn lại khi Agent hoặc tài liệu đổi.

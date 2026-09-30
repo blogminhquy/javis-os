@@ -337,7 +337,7 @@
         '<div class="cb-meta cb-tt">' +
           '<span class="cb-tt-t">' + ic("users") + ' <b>' + esc(window.t("cb2.tra_loi")) + '</b> ' +
             esc(tomTatDoiTuong(b)) +
-            (window.JavisReplyPolicy && window.JavisReplyPolicy.summary(b)
+            (window.JavisReplyPolicy && window.JavisReplyPolicy.summary(b) && !(b.audience === "all" && b.reply_when === "auto")
               ? ' · ' + esc(window.JavisReplyPolicy.summary(b)) : '') + '</span>' +
         '</div>' +
         '<div class="cb-meta">' +
@@ -640,6 +640,7 @@
     var nhom = (b.groups || []).length, nguoi = (b.people || []).length;
     var cn = coNhom(b);
     var s;
+    if (aud === "all" && cn && b.reply_when === "auto") return window.t("cb2.tt_auto");
     if (aud === "all") s = window.t("cb2.tt_all");
     else if (aud === "chon") {
       s = cn ? window.t("cb2.tt_chon", { nguoi: nguoi, nhom: nhom })
@@ -739,6 +740,9 @@
     var nguon0 = (b && b.nguon_tra_loi === "tai_lieu") ? "tai_lieu" : "agent";
     var muc0 = (b && b.muc_quyen) || "suggest";
     var rw0 = (b && (b.reply_when === "auto" || b.reply_when === "always")) ? b.reply_when : "mention";
+    // "Tự động hóa tất cả" không phải một giá trị lưu riêng: nó là "mọi cuộc chat" cộng "tự đánh giá" gộp làm MỘT cú chọn
+    // (lưu xuống vẫn là audience=all, reply_when=auto), nên bot đã cài như vậy từ trước tự hiện đúng thẻ này.
+    var card0 = (aud0 === "all" && rw0 === "auto") ? "auto" : aud0;
     var RP = window.JavisReplyPolicy;      // bộ phán xử hội thoại nhóm (0.65.0), file chatbots-reply-policy.js
     // Người/nhóm ĐANG được chọn (sự thật của form). Danh sách cuộc chat từ server chỉ là nguồn để
     // chọn; tick hay bỏ tick sửa ở đây, và lúc Lưu mới đổ ra hai danh sách groups/people.
@@ -782,12 +786,13 @@
           // 2. Bot trả lời ai
           '<div class="cb-sec">' + secH("users", "cb2.s_doituong") +
             '<div class="cb-rcs" id="cbRcs">' +
-              htmlThe("all", aud0, "cb2.aud_all_t", "cb2.aud_all_d") +
-              htmlThe("nhom", aud0, "cb2.aud_nhom_t", "cb2.aud_nhom_d") +
-              htmlThe("chon", aud0, "cb2.aud_chon_t", "cb2.aud_chon_d") +
+              htmlThe("auto", card0, "cb2.aud_auto_t", "cb2.aud_auto_d") +
+              htmlThe("all", card0, "cb2.aud_all_t", "cb2.aud_all_d") +
+              htmlThe("nhom", card0, "cb2.aud_nhom_t", "cb2.aud_nhom_d") +
+              htmlThe("chon", card0, "cb2.aud_chon_t", "cb2.aud_chon_d") +
             '</div>' +
             '<label class="cb-ack cb-ack-aud" id="cbAckAudBox" style="display:none"><input type="checkbox" id="cbAckAud"> ' +
-              '<span>' + esc(window.t("cb2.aud_all_ack")) + '</span></label>' +
+              '<span id="cbAckAudT">' + esc(window.t("cb2.aud_all_ack")) + '</span></label>' +
             '<div class="cb-pk" id="cbPk" style="display:none">' +
               '<div class="cb-pk-h">' +
                 '<div class="cb-pk-tabs">' +
@@ -804,12 +809,14 @@
               '<div class="cb-hint cb-pk-hint" id="cbPkHint"></div>' +
             '</div>' +
             '<div id="cbRwBox" style="display:none">' +
-              '<div class="cb-sub">' + esc(window.t("cb2.rw_lb")) + '</div>' +
-              htmlSeg("cbRw", "cbRw", [
-                { v: "mention", t: window.t("cb2.rw_mention") },
-                { v: "auto", t: window.t("cb2.rw_auto") },
-                { v: "always", t: window.t("cb2.rw_always") }], rw0) +
-              '<div class="cb-hint" id="cbRwH"></div>' +
+              '<div id="cbRwSeg">' +
+                '<div class="cb-sub">' + esc(window.t("cb2.rw_lb")) + '</div>' +
+                htmlSeg("cbRw", "cbRw", [
+                  { v: "mention", t: window.t("cb2.rw_mention") },
+                  { v: "auto", t: window.t("cb2.rw_auto") },
+                  { v: "always", t: window.t("cb2.rw_always") }], rw0) +
+                '<div class="cb-hint" id="cbRwH"></div>' +
+              '</div>' +
               '<div class="cb-hint cb-chi-tg" id="cbRwTg">' + esc(window.t("cb2.rw_tg")) + '</div>' +
               // Chỉ hiện khi chọn "Tự đánh giá": một dòng giải thích, không ô cài đặt nào (bộ phán xử tự vận hành).
               (RP ? RP.formHtml() : '') +
@@ -979,8 +986,16 @@
     // ---- Chế độ lên tiếng trong nhóm
     var RW_H = { mention: "cb2.rw_mention_h", auto: "cb2.rw_auto_h", always: "cb2.rw_always_h" };
     function veRw() {
+      var card = giaTri("cbAud") || card0;
+      var tuDong = card === "auto";
+      // Thẻ "mọi cuộc chat" chỉ còn Được gọi tên / Mọi tin: "Tự đánh giá" cho mọi cuộc chat CHÍNH là thẻ Tự động hóa tất cả.
+      var nutAuto = box.querySelector('input[name="cbRw"][value="auto"]');
+      if (nutAuto) nutAuto.parentNode.style.display = card === "all" ? "none" : "";
+      if (card === "all" && giaTri("cbRw") === "auto") box.querySelector('input[name="cbRw"][value="mention"]').checked = true;
       dongBo("cbRw");
-      var v = giaTri("cbRw") || "mention";
+      // Thẻ Tự động hóa tất cả đã quyết chế độ lên tiếng: ẩn nút chọn, không để hai chỗ nói hai điều khác nhau.
+      box.querySelector("#cbRwSeg").style.display = tuDong ? "none" : "";
+      var v = tuDong ? "auto" : (giaTri("cbRw") || "mention");
       box.querySelector("#cbRwH").textContent = window.t(RW_H[v]);
       var coTg = tkDangChon().some(function (a) { return a.channel === "telegram"; });
       box.querySelector("#cbRwTg").style.display = coTg && v !== "mention" ? "" : "none";
@@ -991,7 +1006,7 @@
 
     // ---- Bot trả lời ai: ba thẻ quyết định ô chọn nào hiện, và chữ của ô đó
     function apGoiY() {
-      var aud = giaTri("cbAud") || aud0;
+      var aud = giaTri("cbAud") || card0;
       box.querySelector("#cbPkHint").textContent = window.t(
         aud === "nhom" ? "cb2.pk_goi_nhom" : (pkTab === "group" ? "cb2.pk_goi_nhom" : "cb2.pk_goi_nguoi"));
     }
@@ -1002,11 +1017,13 @@
     }
     function apDoiTuong() {
       var co = coNhomForm();
-      var aud = giaTri("cbAud") || aud0;
+      var aud = giaTri("cbAud") || card0;
       // Kênh không có nhóm (Zalo Bot) thì "mọi cuộc chat" và "nhắn riêng thoải mái" là MỘT: chỉ giữ hai
-      // thẻ, chữ đổi cho đúng chuyện chỉ có người nhắn riêng.
+      // thẻ, chữ đổi cho đúng chuyện chỉ có người nhắn riêng. Thẻ Tự động hóa tất cả (bộ phán xử trong nhóm)
+      // cũng vô nghĩa khi không có nhóm nào.
       box.querySelector('.cb-rc[data-v="all"]').style.display = co ? "" : "none";
-      if (!co && aud === "all") {
+      box.querySelector('.cb-rc[data-v="auto"]').style.display = co ? "" : "none";
+      if (!co && (aud === "all" || aud === "auto")) {
         box.querySelector('input[name="cbAud"][value="nhom"]').checked = true;
         aud = "nhom";
       }
@@ -1021,7 +1038,8 @@
       // Chọn "mọi cuộc chat" mở bot ra cho MỌI người nhắn tới, kể cả bạn bè và người nhà khi đó là
       // Zalo cá nhân: phải tick xác nhận (server cũng tự chặn lần nữa, xem chatbot_store).
       box.querySelector("#cbAckAudBox").style.display =
-        aud === "all" && !(sua && b.audience === "all") ? "" : "none";
+        (aud === "all" || aud === "auto") && !(sua && b.audience === "all") ? "" : "none";
+      box.querySelector("#cbAckAudT").textContent = window.t(aud === "auto" ? "cb2.aud_auto_ack" : "cb2.aud_all_ack");
       var tabs = aud === "nhom" ? (co ? ["group"] : []) : aud === "chon" ? (co ? ["group", "private"] : ["private"]) : [];
       if (tabs.length && tabs.indexOf(pkTab) < 0) pkTab = tabs[0];
       box.querySelector("#cbPk").style.display = tabs.length ? "" : "none";
@@ -1119,8 +1137,10 @@
       }
       if (muc === "full" && !confirm(window.t("cb.xn_full", { ten: ten }))) return;
       var co = coNhomForm();
-      var aud = giaTri("cbAud") || "nhom";
-      if (!co && aud === "all") aud = "nhom";
+      var the = giaTri("cbAud") || "nhom";
+      if (!co && (the === "all" || the === "auto")) the = "nhom";
+      // Thẻ Tự động hóa tất cả lưu xuống thành audience=all + reply_when=auto, không thêm giá trị mới ở server.
+      var aud = the === "auto" ? "all" : the;
       if (aud === "all" && !(sua && b.audience === "all") && !box.querySelector("#cbAckAud").checked) {
         return alert(window.t("cb2.can_ack_aud"));
       }
@@ -1134,7 +1154,7 @@
                     ngon_ngu: (document.getElementById("cbNgonNgu") || {}).value || "auto",
                     audience: aud, people: ds("private").join("\n"),
                     groups: co ? ds("group").join("\n") : "",
-                    reply_when: co ? (giaTri("cbRw") || "mention") : "mention",
+                    reply_when: co ? (the === "auto" ? "auto" : (giaTri("cbRw") || "mention")) : "mention",
                     account_ids: ids.join(",") };
       try {
         if (sua) {

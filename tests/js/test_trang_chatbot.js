@@ -401,9 +401,31 @@ check("bốn phần theo đúng thứ tự: Bot là ai, Bot trả lời ai, Bot 
   CB.indexOf('secH("bot", "cb2.s_ai")') < CB.indexOf('secH("users", "cb2.s_doituong")') &&
   CB.indexOf('secH("users", "cb2.s_doituong")') < CB.indexOf('secH("book-open", "cb2.s_nguon")') &&
   CB.indexOf('secH("book-open", "cb2.s_nguon")') < CB.indexOf('secH("shield", "cb2.s_quyen")'));
-check("'Bot trả lời ai' có ba thẻ chọn: mọi cuộc chat, nhóm thì chọn, chỉ người và nhóm chọn",
-  /htmlThe\("all"/.test(CB) && /htmlThe\("nhom"/.test(CB) && /htmlThe\("chon"/.test(CB) &&
-  /name="cbAud"/.test(CB) && tu("cb2.aud_all_t", "Mọi cuộc chat") && tu("cb2.aud_chon_t", "Chỉ người và nhóm"));
+check("'Bot trả lời ai' có bốn thẻ chọn: tự động hóa tất cả, mọi cuộc chat, nhóm thì chọn, chỉ người và nhóm chọn",
+  /htmlThe\("auto"/.test(CB) && /htmlThe\("all"/.test(CB) && /htmlThe\("nhom"/.test(CB) && /htmlThe\("chon"/.test(CB) &&
+  /name="cbAud"/.test(CB) && tu("cb2.aud_all_t", "Mọi cuộc chat") && tu("cb2.aud_chon_t", "Chỉ người và nhóm") &&
+  tu("cb2.aud_auto_t", "Tự động hóa tất cả"));
+// 0.65.2: thẻ Tự động hóa tất cả là MỘT CÚ CHỌN gộp hai cài đặt cũ, không phải giá trị lưu mới.
+check("thẻ Tự động hóa tất cả lưu thành audience=all + reply_when=auto (server không thêm giá trị mới)",
+  /var aud = the === "auto" \? "all" : the;/.test(CB) &&
+  /reply_when: co \? \(the === "auto" \? "auto" : \(giaTri\("cbRw"\) \|\| "mention"\)\) : "mention"/.test(CB));
+check("bot đã cài mọi cuộc chat + tự đánh giá từ trước tự hiện đúng thẻ này khi mở lại",
+  /var card0 = \(aud0 === "all" && rw0 === "auto"\) \? "auto" : aud0;/.test(CB) &&
+  /htmlThe\("auto", card0/.test(CB) && /htmlThe\("nhom", card0/.test(CB));
+check("thẻ này ẨN nút chọn khi nào lên tiếng (đã quyết sẵn), và thẻ 'mọi cuộc chat' bỏ nút Tự đánh giá",
+  /id="cbRwSeg"/.test(CB) && /#cbRwSeg"\)\.style\.display = tuDong \? "none" : ""/.test(CB) &&
+  /card === "all" \? "none" : ""/.test(CB));
+check("thẻ này đòi cùng ô tick xác nhận với 'mọi cuộc chat' (và nói thêm chuyện ghi chữ chat để học)",
+  /\(aud === "all" \|\| aud === "auto"\) && !\(sua && b\.audience === "all"\)/.test(CB) &&
+  /cb2\.aud_auto_ack/.test(CB) && tu("cb2.aud_auto_ack", "ghi lại chữ chat") && /id="cbAckAudT"/.test(CB));
+check("kênh không có nhóm thì ẩn cả thẻ Tự động hóa tất cả và rơi về 'nhắn riêng thoải mái'",
+  /\.cb-rc\[data-v="auto"\]'\)\.style\.display = co \? "" : "none"/.test(CB) &&
+  /!co && \(aud === "all" \|\| aud === "auto"\)/.test(CB) && /!co && \(the === "all" \|\| the === "auto"\)/.test(CB));
+check("thẻ bot gọi tên chế độ này là 'tự động hóa tất cả', không kèm dòng bộ phán xử thừa",
+  /aud === "all" && cn && b\.reply_when === "auto"\) return window\.t\("cb2\.tt_auto"\)/.test(CB) &&
+  /!\(b\.audience === "all" && b\.reply_when === "auto"\)/.test(CB) && tu("cb2.tt_auto", "tự động hóa tất cả"));
+check("chữ mô tả Tự đánh giá không còn nói về cửa từ khoá cũ", !/từ khoá|tài liệu của nó trả lời được/.test(VI["cb2.rw_auto_h"]) &&
+  /ngữ cảnh/.test(VI["cb2.rw_auto_h"]));
 check("chọn 'mọi cuộc chat' phải tick xác nhận rủi ro (server cũng chặn lần nữa)",
   /id="cbAckAud"/.test(CB) && /cb2\.can_ack_aud/.test(CB) && tu("cb2.aud_all_ack", "bạn bè và người nhà"));
 check("ô chọn người/nhóm lấy danh sách từ Hộp thư qua /chatbots/chats, không bắt dán id",

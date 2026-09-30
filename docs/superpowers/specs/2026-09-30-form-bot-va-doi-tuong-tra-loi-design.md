@@ -83,6 +83,21 @@ người, API chats/people, gõ thử end-to-end với Zalo cá nhân (người 
 danh sách được trả lời). JS: canary cấu trúc form (bốn phần, ba thẻ, không còn ô cũ), i18n đủ vi/en.
 Chạy server thật ở cổng riêng để soi bằng mắt.
 
+## Thẻ thứ tư: Tự động hóa tất cả (0.65.2)
+
+Chủ dự án muốn một lựa chọn "tự động hóa tất cả" ở phần Bot trả lời ai. Nó là **một cú chọn gộp hai cài đặt**, không phải giá trị
+lưu mới: `audience = all` cộng `reply_when = auto` (Tự đánh giá do bộ phán xử quyết). Hệ quả thiết kế:
+
+- Không đổi server, không đổi bản ghi. Thẻ đang chọn suy ra từ bản ghi (`all` + `auto` thì hiện thẻ này), nên bot cài như vậy
+  từ trước tự hiện đúng thẻ khi mở lại.
+- Chọn thẻ này thì ẨN nút "Trong nhóm, bot lên tiếng khi" (đã quyết sẵn, không để hai chỗ nói hai điều). Thẻ "Mọi cuộc chat" bỏ
+  nút Tự đánh giá khỏi nút đó, vì Tự đánh giá cho mọi cuộc chat chính là thẻ mới. Hai thẻ nhóm/người giữ đủ ba lựa chọn.
+- Cùng cổng xác nhận rủi ro của `all` (`can_xac_nhan_doi_tuong` ở kho vẫn chặn lần nữa). Đang lưu `all` rồi thì đổi sang thẻ này
+  không hỏi lại. Câu xác nhận nói thêm chuyện ghi chữ chat để học, khớp với dòng giải thích của bộ phán xử.
+- Kênh không có nhóm (Zalo Bot): thẻ ẩn như thẻ "Mọi cuộc chat", vì bộ phán xử chỉ có nghĩa trong nhóm.
+- Thẻ bot ghi "tự động hóa tất cả" thay cho "mọi cuộc chat · tự đánh giá tin trong nhóm".
+- Mặc định giữ nguyên "Ai nhắn riêng cũng được, nhóm thì tôi chọn".
+
 ## Không làm (cố ý)
 
 - Không đổi cơ chế `reply_when`, hạn mức, Tự đánh giá.

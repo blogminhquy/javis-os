@@ -6,7 +6,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.2] - 2026-09-30
 ### Thêm mới
-- **Thẻ "Tự động hóa tất cả" ở phần Bot trả lời ai.** Một cú chọn để bot trả lời mọi cuộc chat trên kênh và tự quyết nói hay im trong nhóm.
+- **Thẻ "Tự động hóa tất cả" ở phần Bot trả lời ai.** Một cú chọn để bot trả lời mọi cuộc chat trên kênh và tự quyết nói hay im trong nhóm, thay cho hai cài đặt. Bot đã cài như vậy tự hiện đúng thẻ này.
+### Cải thiện
+- **Chữ mô tả chế độ Tự đánh giá đã nói đúng** (bot cân nhắc theo ngữ cảnh, không còn nói về cửa từ khoá cũ), và thẻ "Mọi cuộc chat" gọn hơn.
 
 ## [0.65.1] - 2026-09-30
 ### Cải thiện
