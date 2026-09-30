@@ -127,7 +127,11 @@
     if (_cho && _cho.tab && TABS.indexOf(chuanTab(_cho.tab)) >= 0) _tab = chuanTab(_cho.tab);
     host.innerHTML =
       '<div class="cview-section ht-page">' +
-        '<div class="ht-tabs"></div>' +
+        // Từ 0.65.10 đầu trang chung (tiêu đề + dòng phụ đề, cao khoảng 90px) bị ẩn cho trang này: tiêu đề nằm cùng hàng với hai tab.
+        '<div class="ht-top">' +
+          '<div class="ht-title">' + ic("messages-square") + ' <span>' + esc(window.t("page.conversations.label")) + '</span></div>' +
+          '<div class="ht-tabs"></div>' +
+        '</div>' +
         '<div class="ht-tab-body"></div>' +
       '</div>';
     veTabs();
@@ -227,7 +231,6 @@
     }
     body.innerHTML =
       '<div class="ht-wrap">' +
-        '<div class="ht-stats"></div>' +
         '<div class="ht-bar">' +
           '<input class="ht-search" placeholder="' + esc(window.t("ht.tim_ph")) + '">' +
           '<select class="ht-f ht-f-bot" aria-label="' + esc(window.t("ht.f_aria_bot")) + '"></select>' +
@@ -235,12 +238,15 @@
           '<select class="ht-f ht-f-type" aria-label="' + esc(window.t("ht.f_aria_type")) + '"></select>' +
           '<select class="ht-f ht-f-channel" aria-label="' + esc(window.t("ht.f_aria_kenh")) + '" hidden></select>' +
         '</div>' +
-        '<div class="ht-fsum">' +
-          '<span class="ht-fcount"></span><span class="ht-loc"></span>' +
-          '<button type="button" class="ht-fclear" hidden>' + esc(window.t("ht.f_clear")) + '</button>' +
-        '</div>' +
         '<div class="ht-body">' +
-          '<div class="ht-list"><div class="ht-empty">' + esc(window.t("common.loading")) + '</div></div>' +
+          // Dòng đếm và chip lọc nằm ngay trên danh sách mà chúng nói về, không chiếm cả một hàng suốt bề ngang (0.65.10).
+          '<div class="ht-listcol">' +
+            '<div class="ht-fsum">' +
+              '<span class="ht-fcount"></span><span class="ht-loc"></span>' +
+              '<button type="button" class="ht-fclear" hidden>' + esc(window.t("ht.f_clear")) + '</button>' +
+            '</div>' +
+            '<div class="ht-list"><div class="ht-empty">' + esc(window.t("common.loading")) + '</div></div>' +
+          '</div>' +
           '<div class="ht-thread"><div class="ht-empty ht-thread-empty">' + ic("messages-square") +
             '<div>' + esc(window.t("ht.chon_mot")) + '</div></div></div>' +
         '</div>' +
@@ -282,25 +288,9 @@
       if (!im) box.innerHTML = '<div class="ht-empty">' + esc(window.t("ht.loi_tai")) + ' ' + esc(e.message) + '</div>';
       return;
     }
-    veStats();
     paintFilters();
     veDanhSach();
     veTabs();
-  }
-
-  function veStats() {
-    var b = _host.querySelector(".ht-stats");
-    if (!b) return;
-    var o = [
-      ["ht.st_tong", _stats.tong || 0],
-      ["ht.st_hom_nay", _stats.hom_nay || 0],
-      ["ht.st_chua_doc", _stats.chua_doc || 0],
-      ["ht.st_can_nguoi", _stats.can_nguoi || 0],
-    ];
-    b.innerHTML = o.map(function (x) {
-      return '<div class="ht-stat' + (x[0] === "ht.st_can_nguoi" && x[1] ? " warn" : "") + '">' +
-        '<b>' + x[1] + '</b><span>' + esc(window.t(x[0])) + '</span></div>';
-    }).join("");
   }
 
   // Bộ lọc dropdown (0.65.3): một hàng chung với ô tìm, số đếm nằm trong từng lựa chọn (chip chiếm quá nhiều chỗ khi

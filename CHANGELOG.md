@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.10] - 2026-09-30
 ### Cải thiện
-- **Hòm thư bot gọn hơn, khung tin lớn hơn.** Bỏ bốn thẻ số liệu và dòng phụ đề chiếm chỗ ở đầu trang. Tiêu đề, hai tab, ô tìm và ô lọc nằm gọn trên đầu, còn danh sách và khung tin chiếm hết phần màn hình còn lại.
+- **Hòm thư bot gọn hơn, khung tin lớn hơn.** Bỏ bốn thẻ số liệu và dòng phụ đề ở đầu trang. Tiêu đề, hai tab, ô tìm và ô lọc nằm gọn trên cùng, còn danh sách và khung tin chiếm hết phần màn hình còn lại, mỗi bên cuộn riêng.
+- Số chưa đọc vẫn hiện trên tab, và "người thật đang xử lý" xem bằng ô lọc Tình trạng.
 
 ## [0.65.9] - 2026-09-30
 ### Cải thiện

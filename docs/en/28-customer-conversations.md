@@ -31,7 +31,7 @@ Underneath, every channel normalizes its messages into **one common event** and 
 
 ## The Inbox tab
 
-The top shows four numbers: total conversations, conversations active today, unread, and chats currently handled by a human.
+Since 0.65.10 the top is compact so the working area takes most of the screen: the **Chatbot** title, the two tabs, the search box and the filter row sit on top, and the list and the message pane fill the rest, each scrolling on its own with the reply box pinned at the bottom. The four number cards and the subtitle are gone. The **unread** count still shows as a badge on the tab, and "handled by a human" is available in the **Status** filter.
 
 The left column lists conversations, newest first. Each row: the customer (or group) name, the channel logo, the last message, the time, and the unread count. There is a search box for names or text, channel chips (shown only once two channels exist) and a bot selector (shown only once two bots exist).
 

@@ -1986,12 +1986,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    Hai cột trên màn rộng (danh sách | lịch sử tin), một cột trên điện thoại (bấm một hội thoại
    là mở lịch sử, có nút quay lại). Chữ chính 16px trên màn nhỏ theo chuẩn đọc của chủ repo. */
 .ht-wrap { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; }
-.ht-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.ht-stat { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--surface-1);
-  display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.ht-stat b { font-size: 22px; color: var(--text); line-height: 1.1; }
-.ht-stat span { font-size: 12.5px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ht-stat.warn b { color: var(--warn-ink); }
 .ht-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .ht-loc { display: flex; flex-wrap: wrap; gap: 6px; }
 .ht-loc-chip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border-radius: 999px;
@@ -2006,7 +2000,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-f.on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-wash); }
 .ht-f[hidden], .ht-fclear[hidden] { display: none; }
 .ht-fsum { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--text3);
-  min-height: 20px; margin-top: -6px; }
+  min-height: 20px; padding: 0 4px; }
 .ht-fclear { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer;
   text-decoration: underline; }
 .ht-item-tags { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-width: 0; }
@@ -2023,8 +2017,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .ht-f { flex: 1 1 42%; font-size: 16px; }
   .ht-search, .ht-f-bot, .ht-f-channel { flex-basis: 100%; }
 }
-.ht-body { display: flex; gap: 12px; flex: 1 1 auto; min-height: 0; height: calc(100vh - 300px); min-height: 420px; }
-.ht-list { width: 320px; flex: none; overflow: auto; display: flex; flex-direction: column; gap: 4px;
+/* Từ 0.65.10 vùng làm việc lấp đầy phần còn lại của khung (trước là calc(100vh - 300px), thấp hơn thật khoảng 90px nên cả trang phải cuộn
+   và khung tin bị đẩy xuống). Cột trái = dòng đếm + danh sách; danh sách và khung tin tự cuộn bên trong. */
+.ht-body { display: flex; gap: 12px; flex: 1 1 auto; min-height: 260px; }
+.ht-listcol { width: 320px; flex: none; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.ht-list { flex: 1 1 auto; min-height: 0; width: 100%; overflow: auto; display: flex; flex-direction: column; gap: 4px;
   border: 1px solid var(--border); border-radius: 12px; padding: 6px; background: var(--surface-1); }
 .ht-item { display: flex; align-items: flex-start; gap: 9px; width: 100%; text-align: left; padding: 9px 9px;
   border-radius: 10px; border: 1px solid transparent; background: none; color: var(--text2); cursor: pointer; }
@@ -2137,27 +2134,37 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-switch { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text2); cursor: pointer; }
 .ht-form-acts { display: flex; justify-content: flex-end; margin-top: 14px; }
 @media (max-width: 900px) {
-  .ht-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ht-body { height: auto; min-height: 0; flex: 1 1 auto; }
+  .ht-listcol { width: 100%; }
   .ht-list { width: 100%; }
   .ht-thread { display: none; }
+  .ht-wrap.thread-on .ht-listcol { display: none; }
   .ht-wrap.thread-on .ht-list { display: none; }
   .ht-wrap.thread-on .ht-thread { display: flex; min-height: 70vh; }
   .ht-back { display: inline-flex; }
   .ht-item-top strong, .ht-bubble, .ht-src-text strong { font-size: 16px; }
-  .ht-item-sub small, .ht-stat span, .ht-head-text small, .ht-foot, .ht-intro, .ht-src-text small, .ht-switch { font-size: 14px; }
+  .ht-item-sub small, .ht-head-text small, .ht-foot, .ht-intro, .ht-src-text small, .ht-switch { font-size: 14px; }
   .ht-msg { max-width: 88%; }
 }
 
 /* ---- Trang Hội thoại 0.61.0: ba tab (Hộp thư | Kênh | Chatbot) + thẻ tài khoản kênh + ô trả lời ---- */
 .ht-page { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; }
-.ht-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+/* Tiêu đề và hai tab cùng một hàng (0.65.10); đường kẻ dưới thuộc về hàng, tab đang chọn đè lên nó. */
+.ht-top { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+.ht-title { display: inline-flex; align-items: center; gap: 8px; padding: 8px 0; font-family: var(--font); font-size: 18px;
+  font-weight: 700; letter-spacing: 1px; color: var(--text); }
+.ht-title svg { color: var(--accent); }
+.ht-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+/* Trang Chatbot tự lo đầu trang và chiều cao: ẩn đầu trang chung, thân không cuộn (từng tab tự cuộn), đệm gọn hơn. */
+.cview.cview-hoi-thoai .cview-head { display: none; }
+.cview.cview-hoi-thoai .cview-body { padding: 10px 20px 14px; overflow: hidden; display: flex; flex-direction: column; }
+.cview.cview-hoi-thoai .ht-page { flex: 1 1 auto; height: auto; margin-bottom: 0; }
 .ht-tab { background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; padding: 8px 12px;
   font-size: 14px; color: var(--text3); display: inline-flex; align-items: center; gap: 6px; margin-bottom: -1px; }
 .ht-tab:hover { color: var(--text); }
 .ht-tab.on { color: var(--text); border-bottom-color: var(--accent); }
 .ht-tab .ht-badge { margin-left: 2px; }
-.ht-tab-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.ht-tab-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
 .ht-tab-body > .ht-wrap, .ht-tab-body > .ht-kenh { flex: 1 1 auto; min-height: 0; }
 .ht-kenh { display: flex; flex-direction: column; gap: 12px; }
 .ht-kenh-intro { flex: 1 1 300px; margin: 0; }
@@ -2223,6 +2230,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-compose textarea:focus { border-color: var(--info-line); outline: none; }
 .ht-send { flex: none; white-space: nowrap; }
 @media (max-width: 900px) {
+  .cview.cview-hoi-thoai .cview-body { padding: 8px 14px 10px; }
+  .ht-title { font-size: 16px; }
   .ht-tab { font-size: 16px; padding: 10px 12px; }
   .ht-acc-title strong, .ht-compose textarea, .ht-form input { font-size: 16px; }
   .ht-acc-meta, .ht-acc-title small, .ht-compose-note, .ht-form label { font-size: 14px; }
