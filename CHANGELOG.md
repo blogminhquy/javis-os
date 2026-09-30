@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.86] - 2026-09-30
+### Sửa lỗi
+- **Trang Cộng sự không còn hiện mã khoá thay cho tên nút** (kiểu `ws.tab_agent`, `sess.new_chat`) khi mở lại Javis sau khi cập nhật.
+
 ## [0.64.85] - 2026-09-30
 ### Thêm mới
 - **Chọn bot trả lời ai.** Ba lựa chọn: mọi cuộc chat trên kênh, ai nhắn riêng cũng được còn nhóm thì chọn (như cũ), hoặc chỉ những người và nhóm bạn chọn từ danh sách lấy ở Hộp thư.
