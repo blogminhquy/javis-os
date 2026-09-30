@@ -1,0 +1,22 @@
+{
+  "_ghi_chu": "Từ khoá của bộ phán xử hội thoại nhóm, tiếng Việt, ĐÃ BỎ DẤU và viết thường. Thêm ngôn ngữ = thêm file keywords_<mã>.json cùng khuôn. Chỉ là tín hiệu, không phải luật cứng.",
+  "question_words": [
+    "sao", "nao", "dau", "gi", "bao nhieu", "bao gio", "khi nao", "luc nao", "the nao", "tai sao", "vi sao",
+    "cach", "huong dan", "giup", "hoi", "loi", "khong duoc", "khong chay", "khong vao", "khong thay",
+    "khong mo", "ai biet", "ai co", "chi giup", "nho"
+  ],
+  "openers": ["e", "ne", "nay", "alo", "hi", "hello", "hey", "chao", "xin chao"],
+  "vocatives": ["oi", "a", "nay", "ne", "nha", "e", "ha"],
+  "re_ask": [
+    "sao khong tra loi", "khong ai tra loi", "bot oi", "ai biet khong", "co ai khong", "up",
+    "hoi lai", "chua thay tra loi", "sao im", "sao khong ai", "co ai giup"
+  ],
+  "rejection": [
+    "dung chen", "ai hoi bot", "im di", "khong hoi bot", "bot im", "khong ai hoi", "dung tra loi",
+    "chen vao lam gi", "ai goi bot", "thoi im di"
+  ],
+  "thanks": [
+    "cam on", "thanks", "thank you", "ok roi", "duoc roi", "hay qua", "chuan roi", "dung roi",
+    "xong roi", "hieu roi", "ok", "oke"
+  ]
+}
