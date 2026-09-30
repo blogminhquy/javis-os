@@ -19,6 +19,11 @@ Chủ dự án (2026-09-30): muốn một cơ chế theo ngữ cảnh, không b�
 dần dần tự học cách trả lời trong nhóm; học TRỰC TIẾP chứ không theo tuần; bỏ bước duyệt vì bot dùng
 nick riêng nên nói nhầm là rẻ.
 
+Và điều quan trọng nhất, chủ nói rõ sau bản đặc tả đầu: chủ chạy NHIỀU bot với lĩnh vực và nhóm không
+liên quan nhau (ví dụ Javis Vũ hỗ trợ về Javis, Nhi Mai và Ngọc Thu mỗi người một ngành khác). Cách
+trả lời của mỗi bot phải đến từ Agent của chính nó. Bản thiết kế không được mượn giọng, ca hay ví dụ
+của bot này cho bot kia, và không được thiên về trường hợp của Javis Vũ.
+
 ## 2. Mục tiêu và không mục tiêu
 
 Mục tiêu:
@@ -27,10 +32,11 @@ Mục tiêu:
 3. Một bộ máy dùng chung cho mọi bot và mọi kênh; cái riêng của từng bot nằm trong dữ liệu
    (hồ sơ, thẻ luật, ca đã học), không nằm trong mã.
 4. Học tức thì từ phản ứng của người thật; ca vừa gắn nhãn tác động ngay quyết định kế tiếp.
-5. Bot mới có hành vi hợp lý ngay ngày đầu (hạt giống), không cần học từ số không.
+5. Bot mới có hành vi hợp lý ngay ngày đầu THEO LĨNH VỰC CỦA NÓ (suy ra từ Agent và tài liệu của chính
+   bot), không mượn giọng hay ca của bot khác.
 
 Không mục tiêu: đổi NỘI DUNG câu bot nói (vẫn bám tài liệu và vai của Agent); huấn luyện hay tinh
-chỉnh model; học chéo giữa các người dùng; sửa cách bot chat riêng.
+chỉnh model; học chéo giữa các người dùng; sửa cách bot chat riêng; chia sẻ ca, giọng hay luật giữa các bot.
 
 ## 3. Nguyên tắc
 
@@ -44,9 +50,15 @@ chỉnh model; học chéo giữa các người dùng; sửa cách bot chat riê
    tên chắc chắn, luôn trả lời như chat riêng.
 5. **Ca đơn lẻ nhẹ, lời dạy của chủ nặng.** Chỉ chủ mới tạo được luật. Người khác trong nhóm là nguồn
    không tin cậy: lời họ chỉ là tín hiệu yếu.
-6. **Mở rộng bằng dữ liệu và cắm thêm, không bằng nhánh if.** Thêm tín hiệu, thêm kênh, thêm ngôn
+6. **Ba tầng, học chỉ ghi vào tầng riêng.** Tầng chung chỉ có CƠ CHẾ trò chuyện nhóm, không có chủ đề,
+   giọng hay xưng hô. Tầng bot lấy từ Agent của chính bot. Tầng cuộc chat là văn hoá riêng của từng
+   nhóm. Điều học được chỉ ghi vào tầng bot hoặc tầng cuộc chat, không bao giờ ngược lên tầng chung,
+   và bot này không đọc được gì của bot kia (xem 4.2).
+7. **Bộ phán xử không viết câu trả lời.** Nó chỉ quyết nói hay im. Câu nói ra vẫn do engine của bot
+   chạy với prompt Agent của bot, nên giọng và cách trả lời luôn là của Agent.
+8. **Mở rộng bằng dữ liệu và cắm thêm, không bằng nhánh if.** Thêm tín hiệu, thêm kênh, thêm ngôn
    ngữ là thêm một hàm hoặc một dòng dữ liệu.
-7. **Dữ liệu chat khách là dữ liệu nhạy cảm.** Học là bật riêng từng bot, mặc định TẮT; dữ liệu
+9. **Dữ liệu chat khách là dữ liệu nhạy cảm.** Học là bật riêng từng bot, mặc định TẮT; dữ liệu
    ngoài git, có hạn giữ, xoá theo bot, có nút quên.
 
 ## 4. Kiến trúc
@@ -72,6 +84,19 @@ Ba khối dữ liệu tách rời, đổi cái này không đụng cái kia:
   tự dựng.
 - **Hồ sơ (Profile):** riêng từng bot. Tên gọi, thẻ luật, độ hăng hái, người được dạy bot.
 - **Kho (Store):** ca đã học, nhật ký quyết định, ngưỡng theo cuộc chat.
+
+### 4.2 Ba tầng: cái gì đến từ đâu
+
+| Tầng | Chứa gì | Từ đâu | Ai đổi được |
+|---|---|---|---|
+| Chung | cơ chế: nhận diện gọi tên, tin nối tiếp, cách chấm điểm, ngưỡng gốc, từ khoá phản ứng, mẫu cơ chế | mã và dữ liệu trong repo, KHÔNG có chủ đề nào | chỉ bản cập nhật |
+| Bot | phạm vi đảm nhiệm và không đảm nhiệm, giọng, xưng hô, ngôn ngữ, khi nào nên lên tiếng | biên dịch từ file Agent và mục lục tài liệu brain của CHÍNH bot (5.10) | chủ sửa tay; tự soạn lại khi Agent đổi |
+| Cuộc chat | ngưỡng lệch, ca đã học, bài học | phản ứng trong chính nhóm đó | học tự động; chủ xoá được |
+
+Ví dụ với ba bot: Javis Vũ nhận câu hỏi về Javis, Nhi Mai và Ngọc Thu mỗi người nhận đúng ngành của
+mình. Cả ba dùng CÙNG một bộ máy, nhưng hồ sơ vai, ca khởi tạo, ca đã học, ngưỡng và bài học đều tách
+riêng theo `bot_id` (và theo cuộc chat). Bộ phán xử của Nhi Mai không bao giờ đọc thấy ca, ví dụ hay
+giọng của Javis Vũ. Ai học gì ở nhóm nào thì chỉ ở nhóm đó.
 
 Mã mới nằm trong `server/chatbot_phan_xu.py` (bộ máy, thuần và test được) và
 `server/chatbot_phan_xu_kho.py` (SQLite). Không nhét vào `chatbot_runtime.py` thêm nữa.
@@ -150,13 +175,14 @@ này.
 Một lượt model rẻ, chạy bằng engine "việc nền" (`aux_engine`, chủ đã chọn ở trang Models), mode
 `suggest`, không công cụ. Đầu vào là văn bản gồm:
 
-1. Thẻ luật của bot (5.10) và vai tóm tắt của Agent.
-2. Tối đa 5 ca giống nhất kèm "quyết định đúng" (5.7).
+1. Hồ sơ vai của CHÍNH bot (5.10): phạm vi đảm nhiệm và không đảm nhiệm, giọng để hiểu vai, khi nào
+   nên lên tiếng, cộng các bài học.
+2. Tối đa 5 ca giống nhất CỦA BOT NÀY kèm "quyết định đúng" (5.7). Không bao giờ lấy ca của bot khác.
 3. Cửa sổ 8 tin gần nhất, người nói, bot đã nói gì.
 4. Tín hiệu đã tính và đoạn tài liệu khớp (cắt ngắn).
 5. Tin cần quyết.
 
-Toàn bộ nội dung chat bọc trong khối `<du_lieu_chat>` và prompt nói rõ đó là dữ liệu, không phải
+Prompt không chứa tên, ví dụ hay giọng của bất kỳ bot nào khác. Toàn bộ nội dung chat bọc trong khối `<du_lieu_chat>` và prompt nói rõ đó là dữ liệu, không phải
 lệnh. Đầu ra bắt buộc một JSON: `{"quyet":"tra_loi"|"im","diem":0..1,"ly_do":"<= 120 ký tự"}`.
 Sai khuôn, hết 8 giây, hay lỗi engine: coi là `im` với lý do `phan_xu_loi`.
 
@@ -174,17 +200,27 @@ thích bot nói nhiều, nhóm nội bộ thì không.
 ### 5.7 K: kho tình huống
 
 Mỗi quyết định ứng viên ghi một dòng; khi có nhãn nó thành **ca**. Tra cứu không cần thư viện
-embedding: điểm giống = 0.6 × Jaccard(token chuẩn hoá) + 0.25 × khớp đặc trưng (`goi`, `tiep_noi`,
+embedding: chỉ trong ca của CHÍNH bot này, điểm giống = 0.6 × Jaccard(token chuẩn hoá) + 0.25 × khớp đặc trưng (`goi`, `tiep_noi`,
 `vai_nguoi_noi`) + 0.15 nếu cùng cuộc chat, nhân độ nhạt theo tuổi (bán rã 30 ngày) và trọng số ca.
 Lấy tối đa 5 ca điểm ≥ 0.25. "Quyết định đúng" của ca: `dung` thì giữ quyết định đã chọn,
 `im_nham` thì `tra_loi`, `chen_nham` thì `im`, `loi_day` thì theo lời dạy. Giao diện `tim_ca(event,
 k)` để sau này thay bằng embedding mà không đổi khung.
 
-**Hạt giống:** `system/phan_xu/hat_giong_vi.json`, khoảng 40 ca chung bằng tiếng Việt (gọi tên trơn,
-chào hỏi, chuyện phiếm, hỏi sản phẩm, nhờ giúp giữa người với người, tag người khác, tin nối tiếp,
-xin ý kiến nhóm). Nạp vào mọi bot mới như ca `nguon = hat_giong`, trọng số thấp; ca của bot và của
-cuộc chat đè lên bằng độ giống và độ mới. Đây là cách bot thứ hai, thứ ba khởi động khôn sẵn mà
-không chép hành vi từ bot khác.
+**Khởi động cho bot mới, hai lớp và không lớp nào mang chủ đề của bot khác:**
+
+1. *Mẫu cơ chế* (chung): `system/phan_xu/mau_co_che_vi.json`, khoảng 20 ca TRỪU TƯỢNG chỉ mô tả cơ
+   chế trò chuyện nhóm, viết bằng chỗ giữ `{ten_bot}` và `{chu_de}` thay vì tên hay ngành cụ thể. Ví dụ:
+   "{ten_bot} ơi" thì trả lời; hai người đang trao đổi với nhau thì im; tin có tag người khác thì im;
+   "vậy còn cái kia?" ngay sau khi bot trả lời thì trả lời; một lời cảm ơn không nhắm vào bot thì im;
+   câu hỏi ngoài {chu_de} thì im. Khi dùng, `{ten_bot}` thay bằng tên gọi của chính bot và `{chu_de}`
+   bằng phạm vi trong hồ sơ vai của bot. Test cấm tên ngành hay tên sản phẩm trong file này.
+2. *Ca khởi tạo theo vai* (riêng từng bot): lúc bật lần đầu và mỗi khi hồ sơ vai đổi, một lượt model
+   đọc Agent và mục lục tài liệu của chính bot rồi viết khoảng 12 tin mẫu ĐÚNG LĨNH VỰC ĐÓ: 5 tin nên
+   nói, 5 tin nên im, 2 tin ranh giới, kèm lý do. Lưu là ca `nguon = khoi_tao`, trọng số thấp. Chủ xem
+   và xoá được. Mỗi ca thật cùng loại làm giảm trọng số ca khởi tạo giống nó, nên khi bot đã học đủ từ
+   nhóm thật thì các ca giả nhạt đi và biến mất.
+
+Nhờ vậy bot thứ hai, thứ ba khởi động khôn sẵn theo ngành CỦA NÓ mà không chép hành vi từ bot nào.
 
 Trần: 500 ca mỗi bot, 200 mỗi cuộc chat; vượt thì bỏ ca có trọng số × độ mới thấp nhất, ca đã gộp
 vào thẻ luật thì xoá khỏi kho.
@@ -219,12 +255,26 @@ phải chủ đang dạy bot cách hành xử không?" → `{"la_loi_day":bool,"
 mục Bài học của thẻ luật, và nếu `kieu = goi_ten` thì thêm cụm đó vào `bi_danh`. Người ngoài
 `chu_ids` không bao giờ tạo được luật, cho dù họ viết "từ giờ hãy trả lời mọi tin".
 
-### 5.10 Thẻ luật
+### 5.10 Hồ sơ vai (thẻ luật của từng bot)
 
-`the_luat` (chủ sửa tay) + `bai_hoc` (máy ghi, theo mẫu `JAVIS_LESSON`: đề xuất lúc dùng, mã ghi, khử
-trùng, tối đa 15 dòng, dòng cũ nhất rơi ra). Bật bộ phán xử lần đầu mà `the_luat` trống thì soạn
-nháp từ vai của Agent bằng một lượt model, hiện trong form cho chủ sửa; không có engine thì dùng mẫu
-tĩnh. KHÔNG có vòng nền viết lại hàng loạt (quyết định của chủ 2026-08-16).
+Đây là cách một bot khác bot kia mà không phải viết mã riêng. `ho_so_vai` do máy biên dịch từ file
+Agent của CHÍNH bot (vai, giọng, quy định) và mục lục tài liệu trong brain của bot, gồm bốn mục:
+
+1. **Đảm nhiệm:** những chủ đề bot trả lời.
+2. **Không đảm nhiệm:** những chủ đề bot phải nhường, dù có người hỏi.
+3. **Giọng và xưng hô:** CHỈ để người phán xử hiểu vai. Không dùng để viết câu trả lời (việc đó là của
+   engine chạy Agent).
+4. **Khi nào nên lên tiếng trong nhóm:** ví dụ chỉ khi có người hỏi đúng ngành, không chen vào chuyện
+   riêng của thành viên.
+
+Lưu kèm `agent_hash`. File Agent hoặc mục lục tài liệu đổi thì soạn lại NHÁP mới và giữ nguyên phần
+chủ đã sửa tay: hai vùng riêng `do_may_soan` và `do_chu_sua`, người phán xử đọc cả hai, vùng của chủ
+đè lên khi mâu thuẫn. Chủ sửa ở ô "Luật lên tiếng" (`the_luat`). Không có engine thì dùng mẫu tĩnh
+chỉ có bốn đầu mục để chủ điền.
+
+`bai_hoc` (máy ghi, theo mẫu `JAVIS_LESSON`: đề xuất lúc dùng, mã ghi, khử trùng, tối đa 15 dòng, dòng
+cũ nhất rơi ra) là phần thứ năm, riêng từng bot. KHÔNG có vòng nền viết lại hàng loạt (quyết định
+của chủ 2026-08-16).
 
 ## 6. Dữ liệu
 
@@ -234,8 +284,9 @@ SQLite `chatbot_phan_xu.sqlite3` trong thư mục state, thêm vào `.gitignore`
 quyet_dinh(id, bot_id, chat_id, msg_id, ts, van_ban, nguoi_gui, vai, goi, tin_hieu_json,
            ung_vien, quyet, diem, tau, ly_do, che_do, ma_im, nhan, trong_so_nhan, nhan_ts)
 tinh_huong(id, bot_id, chat_id, ts, van_ban, token, dac_trung_json, quyet_dung, ly_do,
-           nguon, trong_so, ca_goc_id)               -- nguon: tu_dong|chu|hat_giong
+           nguon, trong_so, ca_goc_id)               -- nguon: tu_dong|chu|khoi_tao
 theo_doi(quyet_dinh_id, het_han_ts, so_tin_con_lai)
+ho_so_vai(bot_id, do_may_soan, agent_hash, cap_nhat_ts)
 lech_tau(bot_id, chat_id, lech, cap_nhat_ts)
 ```
 
@@ -302,7 +353,13 @@ Người phán xử luôn thay được bằng bản giả (`ask` là tham số)
    lời; tin phiếm im và có dòng vết; câu hỏi có căn cứ bị im vì điểm thấp, người hỏi hỏi lại nên gắn
    `im_nham` và hạ ngưỡng, câu giống lần sau được trả lời và prompt của người phán xử giả CÓ chứa ca đó;
    nhóm B không bị ảnh hưởng bởi nhóm A; lời dạy của chủ có tác dụng ở tin kế tiếp; nút Quên xoá sạch.
-8. **Ràng buộc chung:** `route_table.json` chụp lại, i18n vi/en đủ khoá, canary JS cho trường mới, không
+8. **Cách ly giữa bot:** dựng ba bot có ba Agent khác lĩnh vực (hỗ trợ phần mềm, mỹ phẩm, dạy tiếng
+   Anh). Kiểm: prompt của người phán xử giả cho bot B chỉ chứa hồ sơ vai của B, không có chữ nào của
+   Agent A hay C; ca học ở bot A không bao giờ được tra ra ở bot B kể cả khi tin y hệt; ca khởi tạo của mỗi
+   bot được sinh từ đúng Agent của bot đó (bộ sinh giả nhận đúng văn bản Agent); file mẫu cơ chế chỉ có
+   chỗ giữ, không có tên ngành; bộ phán xử không bao giờ chạm vào chữ của câu trả lời và engine trả lời
+   luôn được gọi với bản ghi bot của chính nó; ngưỡng và bài học của nhóm này không đổi nhóm kia.
+9. **Ràng buộc chung:** `route_table.json` chụp lại, i18n vi/en đủ khoá, canary JS cho trường mới, không
    em dash, chuỗi UI có dấu, `test_prompt_budget` không đổi (không đụng CLAUDE.md).
 
 ## 10. Giao một lần: mốc và tiêu chí xong
@@ -313,17 +370,17 @@ Một PR (#502), commit theo mốc, mỗi mốc test xanh mới sang mốc sau:
 |---|---|
 | M1 | `chatbot_phan_xu.py`: Event, Profile, nhận diện được gọi, sổ tín hiệu, cổng thô + test |
 | M2 | Kho SQLite, ghi mọi quyết định kể cả im, giữ hạn, xoá theo bot |
-| M3 | Người phán xử, ba chế độ tat/bong/chay, nối vào `_answer` và `xu_ly`, fail-closed |
-| M4 | Kho tình huống, tra cứu, hạt giống, ngưỡng theo cuộc chat |
+| M3 | Hồ sơ vai biên dịch từ Agent, người phán xử, ba chế độ tat/bong/chay, nối vào `_answer` và `xu_ly`, fail-closed |
+| M4 | Kho tình huống, tra cứu chỉ trong bot, mẫu cơ chế, ca khởi tạo theo vai, ngưỡng theo cuộc chat |
 | M5 | Theo dõi hậu quả, gắn nhãn, lời dạy của chủ, bài học |
 | M6 | Trường cấu hình, năm đường API, form và menu bot, i18n vi/en |
 | M7 | Tài liệu (`docs/25-chatbot.md`, `docs/12-zalo.md`), CHANGELOG cho điện thoại, `route_table.json`, ghi nhớ |
 | M8 | Kiểm sandbox thật với Zalo giả, chạy toàn bộ test, CI xanh, merge, xác nhận luồng phát hành |
 
 Xong khi TẤT CẢ đúng:
-1. Bảy nhóm test ở mục 9 có mặt và xanh; toàn bộ test JS xanh; test Python đỏ sẵn trên `main` sạch
+1. Tám nhóm test đầu ở mục 9 có mặt và xanh; toàn bộ test JS xanh; test Python đỏ sẵn trên `main` sạch
    (phân định bằng worktree sạch của `origin/main`) không tính.
-2. Kịch bản đầu cuối mục 9.7 chạy được và đã xem trên sandbox: giao diện form và bảng quyết định
+2. Kịch bản đầu cuối mục 9.7 chạy được, kèm ba bot khác lĩnh vực chạy cạnh nhau không lẫn nhau và đã xem trên sandbox: giao diện form và bảng quyết định
    hiển thị đúng ở 1000 px và 375 px.
 3. Mặc định không đổi hành vi bot cũ (`che_do = tat`, `tu_hoc = false`): test hồi quy của
    `test_bot_zalo_nhom.py` và `test_bot_doi_tuong.py` vẫn xanh nguyên.
@@ -339,10 +396,10 @@ Xong khi TẤT CẢ đúng:
   tuần mới đủ mẫu và nhãn lại nhiễu.
 - **Tiêm lệnh:** chỉ `chu_ids` tạo luật; nội dung chat bị bọc và gỡ marker; đầu ra được kiểm khuôn.
 - **Riêng tư:** học là opt-in từng bot, dữ liệu ngoài git, có hạn giữ, xoá theo bot.
-- **Trôi hành vi:** ngưỡng kẹp biên, thẻ luật có trần, hạt giống làm điểm neo, và luôn có `bong` để
+- **Trôi hành vi:** ngưỡng kẹp biên, thẻ luật có trần, mẫu cơ chế làm điểm neo, và luôn có `bong` để
   so trước khi chuyển sang `chay`.
 
 ## 12. Để ngỏ
 
-Thay `tim_ca` bằng embedding khi có hạ tầng; dùng chung ca giữa các bot cùng loại (qua chợ workflow);
+Thay `tim_ca` bằng embedding khi có hạ tầng; chia sẻ ca giữa các bot cùng lĩnh vực và cùng chủ, chỉ khi chủ bật rõ, không mặc định;
 tín hiệu cảm xúc; gắn nhãn từ reaction của Zalo nếu MCP mở ra; trang tổng hợp nhiều bot.
