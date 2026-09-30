@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.7] - 2026-09-30
+### Thêm mới
+- **Bot trong nhóm Zalo tự tag người nó đang trả lời.** Khách hỏi thì bot mở đầu bằng "@Tên ...". Không có ô cài đặt nào, tag hỏng thì tin vẫn đi như cũ.
+
 ## [0.65.6] - 2026-09-30
 ### Thêm mới
 - **Javis tag đúng người trong nhóm Zalo.** Chỉ cần nói tên (kiểu "@minhquy"), Javis tự tìm ID Zalo thật. Trùng tên hoặc không thấy thì hỏi lại chứ không đoán, vì tag nhầm không rút lại được.
