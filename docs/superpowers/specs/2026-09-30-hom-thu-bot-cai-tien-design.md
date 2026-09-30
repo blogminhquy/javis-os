@@ -45,14 +45,20 @@ Giao làm ba lát, mỗi lát một PR nhỏ. Lát 1 đã giao ở 0.65.3.
   hay kho bộ phán xử chưa có (không tạo file) thì không hiện. Nút "Vì sao" mở bảng Bộ phán xử của bot.
 - Điện thoại: công tắc xuống hàng riêng rộng hết chiều ngang, hai nấc chia đôi, thay vì chèn tiêu đề còn vài chục điểm ảnh.
 
-## 5. Lát 3 (0.65.5): Trả lời giúp tin này và Gợi ý câu trả lời
+## 5. Lát 3 (0.65.5, đã giao): Trả lời giúp tin này và Gợi ý câu trả lời
 
 - `POST /conversations/{id}/ai-reply` với `mode=send|draft`. Dùng đường trả lời sẵn có của CHÍNH bot đó (Agent của nó), bỏ qua cổng
   "có nên nói" nhưng giữ rào quyền và hạn mức an toàn. `send`: gửi qua kênh dưới danh nghĩa bot, cuộc chat vẫn ở Tự động, ghi Hộp thư là tin bot,
   và nếu tin đó từng bị bộ phán xử chọn im thì tính là nhãn "im nhầm" nặng nhất để bot học. `draft`: chỉ trả chữ để đổ vào ô nhập, KHÔNG ghi vào
   phiên Agent (dùng `phien_kho` / `ghi_kho=False` của `_tg_answer`) và không ghi Hộp thư.
 - Chỉ bật khi đúng chế độ: bot đang chạy, cuộc chat đang ở Tự động, kênh gửi được. Không thì nút vẫn hiện, chạm vào nói lý do (không ẩn, không xám câm).
-- Rủi ro cần canh: không ghi trùng tin khách vào Hộp thư, không cho hai lượt cùng chạy trên một cuộc chat, tin nhóm Zalo phải gửi đúng `type=1`.
+- Rủi ro đã canh (đều có test): không ghi trùng tin khách vào Hộp thư; không cho hai lượt chạy chồng trên một cuộc chat (`busy`); tin nhóm Zalo gửi đúng kiểu nhóm;
+  bản nháp luôn dọn dấu vết kể cả khi engine ném lỗi; gửi hỏng thì trả chữ đã soạn; kênh của lượt lấy từ CHÍNH hội thoại (`meta._kenh`) để câu bot
+  ghi ngược vào đúng hội thoại (test đầu tiên bắt được lỗi nó rơi sang kênh mặc định).
+- **Tiếng vọng trên Zalo cá nhân**: đường gửi của kênh không nhớ câu vừa gửi (chỉ `Transport._gui` làm việc đó), nên câu bot gửi từ Hộp thư phải gọi
+  `ghi_da_gui` trước khi gửi, không thì vòng đọc thấy nó quay về như tin của chính chủ (bot tưởng chủ nhắn tay nên im cả quãng) hoặc như tin khách
+  (bot tự đáp chính mình). Đường gửi tay của chủ giữ nguyên hành vi cũ.
+- Dòng trạng thái nói thật khi bot đang tắt ("đang tắt nên không tự trả lời"), không ghi "đang trực".
 
 ## 6. Không làm (cố ý)
 

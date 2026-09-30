@@ -10904,7 +10904,8 @@ async def _start_scheduler():
         # để module tự import main - vòng import là thứ byte-compile không thấy, chỉ chết lúc
         # khởi động (xem bước "Import thật main" trong CI).
         chatbot_runtime.wire(answer=_tg_answer, brain_root=_brain_root,
-                             read_agent=lambda b, slug: _read_md(_agents_dir(b) / f"{slug}.md"))
+                             read_agent=lambda b, slug: _read_md(_agents_dir(b) / f"{slug}.md"),
+                             session_probe=_manual_session_probe, session_undo=_manual_session_undo)
         chatbot_reply_policy.wire(ask=_reply_policy_ask)
         kq = chatbot_runtime.sync_all()
         if kq.get("errors"):
@@ -17266,6 +17267,23 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         context_runtime.reset_trace(_trace_token)
 
 
+def _manual_session_probe(key: str):
+    """(sid trong kho, số tin lịch sử RAM) của phiên bot `key`, cho BẢN NHÁP ở Hộp thư (0.65.5): nháp đọc kho làm ngữ cảnh
+    nhưng không được để lại dấu vết (xem `chatbot_runtime.manual_answer`)."""
+    s = _tg_session(key)
+    return str(s.get("sid") or _TG_SID_MAP.get(key, "") or ""), len(s.get("bot") or [])
+
+
+def _manual_session_undo(key: str, keep: int) -> None:
+    """Gỡ dấu vết một lượt NHÁP: cắt lịch sử RAM về `keep` tin và cắt mạch native của engine (lượt thật sau mồi lại từ kho phiên,
+    vốn không có lượt nháp vì nháp chạy với ghi_kho=False)."""
+    s = _tg_session(key)
+    lich = s.get("bot")
+    if isinstance(lich, list) and len(lich) > keep:
+        del lich[keep:]
+    _tg_ngat_mach(s)
+
+
 def _tg_ket(clean_out, files, canh_bao="", loi=()):
     """Gói câu trả lời Telegram: cảnh báo hệ thống lên đầu, lỗi giữa lượt xuống cuối.
 
@@ -19178,6 +19196,8 @@ channels_routes._DEPS.restart_bot = chatbot_runtime.start_bot   # đổi token t
 channels_routes._DEPS.stop_bot = chatbot_runtime.stop_bot
 conversations_routes.register(app, conversations_routes.ConversationsDeps(
     bot_status=chatbot_runtime.status,
+    manual_answer=chatbot_runtime.manual_answer,
+    manual_done=chatbot_runtime.manual_done,
 ))
 
 # Trang Coding (0.63.0): sổ repo, ràng buộc phiên, worktree, điểm hồi. Không có deps - kho

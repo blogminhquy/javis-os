@@ -111,7 +111,7 @@ check("kho lỗi: hội thoại vẫn đọc được, chỉ mất dòng bot im"
 
 # giao diện dùng đúng khoá
 js = (ROOT / "dashboard" / "conversations.js").read_text(encoding="utf-8")
-check("giao diện đọc bot_silence từ server và vẽ dưới tin cuối", "d.bot_silence" in js and "veBotIm(c)" in js)
+check("giao diện đọc bot_silence từ server và vẽ dưới tin cuối", "d.bot_silence" in js and "renderSilenceLine(c)" in js)
 
 print()
 if _fails:

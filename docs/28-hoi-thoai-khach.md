@@ -45,6 +45,14 @@ Trên điện thoại trang chỉ một cột: bấm một hội thoại là m�
 
 **Công tắc Tự động | Tôi trả lời** (từ 0.65.4) nằm ở đầu mỗi cuộc chat có bot, thay cho nút Tiếp quản nhỏ. Gạt sang **Tôi trả lời** là bạn tiếp quản; gạt về **Tự động** là trả cuộc chat lại cho bot. Bấm đúng nấc đang bật thì không làm gì. Trên điện thoại công tắc xuống một hàng riêng, rộng hết chiều ngang. Ngay trên ô nhập có **một dòng trạng thái** nói ai đang trực ("Nhi Mai đang trực cuộc chat này" hoặc "Bạn đang tiếp quản, bot im"), đứng riêng một dòng nên không lệch với ô nhập.
 
+**Hai nút hành động** nằm ngay dưới dòng trạng thái (từ 0.65.5), cùng cao và chia đôi bề ngang:
+
+- **Trả lời giúp tin này**: bot trả lời NGAY tin khách cuối bằng đúng Agent của nó, dù lúc nãy bộ phán xử đã chọn im. Câu trả lời được gửi qua kênh (nhóm Zalo đi đúng kiểu nhóm), ghi vào Hộp thư như lời của bot, và cuộc chat **vẫn ở Tự động** (khác gõ tay là tiếp quản). Nếu đó đúng là tin bộ phán xử đã im, bot còn **học thêm một ca** (nhãn "im nhầm" nặng nhất): lần sau gặp tin giống vậy bot sẽ nói. Không đi qua cổng "có nên nói", bộ phán xử hay hạn mức tự nói, vì đây là lời nhờ của chính bạn; quyền và giới hạn của Agent thì nguyên vẹn.
+- **Gợi ý câu trả lời**: bot soạn nháp vào ô nhập, chưa gửi. Bạn sửa rồi bấm Gửi (gửi là tiếp quản). Bản nháp **không để lại dấu vết**: không vào kho phiên, không vào Hộp thư, lịch sử tạm của bot được dọn, nên nháp bỏ đi thì bot không "nhớ" mình từng nói câu đó với khách. Dùng được cả lúc bạn đang tiếp quản; ô nhập đang có chữ thì hỏi trước khi thay.
+- Chế độ **Tôi trả lời** thì nút thứ nhất thành **Trả lại cho bot**.
+
+**Nút chưa dùng được vẫn hiện** (viền đứt) và chạm vào thì nói lý do: đang tiếp quản, bot đang tắt (dòng trạng thái cũng nói thẳng "đang tắt nên không tự trả lời"), tin cuối không phải của khách, hay kênh chưa gửi được từ Javis. Bot soạn xong mà gửi hỏng thì câu đã soạn nằm trong ô nhập để bạn gửi tay. Agent chọn im thì báo, không gửi gì. Mỗi cuộc chat chỉ chạy một lượt nhờ-bot một lúc. Tệp đính kèm bot soạn không đi kèm (chỉ chữ).
+
 Dưới tin khách cuối có dòng **"Bot im: lý do"** khi bộ phán xử đã ghi lý do (ví dụ "Điểm thấp hơn ngưỡng (0.52 / 0.60)"), kèm nút **Vì sao** mở thẳng bảng Bộ phán xử của bot đó. Dòng này chỉ hiện khi cuộc chat đang ở Tự động, tin cuối là của khách và quyết định gần nhất là im cho đúng tin đó; người thật đang tiếp quản thì bot im là hiển nhiên nên không nói.
 
 Dưới cùng một hội thoại là ô soạn tin: gõ rồi **Enter** để gửi (Shift+Enter xuống dòng). Tin đi qua đúng kênh của cuộc chat: bot Telegram hay Zalo Bot gửi bằng token của tài khoản đó, Zalo cá nhân gửi qua chính tài khoản bạn đã quét QR, **dưới tên bạn** (ô soạn tin nói rõ điều này). Kênh nào chưa gửi được từ Javis thì ô soạn tin thay bằng một dòng nói vậy.
@@ -102,6 +110,7 @@ Thêm một kênh = thêm một file ở sổ, một dòng đăng ký, một log
 
 - `GET /channels` các loại kênh và năng lực; `GET /channels/accounts` mọi tài khoản, một khuôn.
 - `POST /channels/verify-token`, `POST /channels/accounts`, `POST /channels/accounts/{id}/update`, `.../watch` (loại account), `.../delete`.
+- `POST /conversations/{id}/ai-reply` (từ 0.65.5): `mode=send` hoặc `draft`; lỗi trả `code` (`human`, `bot_off`, `no_bot`, `already_answered`, `busy`, `no_message`, `send_failed`, `engine`).
 - `GET /conversations` danh sách kèm số liệu, lọc theo `channel`, `bot_id` (`-` = cuộc chat không có bot), `account_id`, `q`, và từ 0.65.3 `status` (`unread`, `need_reply`, `human`) và `chat_type` (`group`, `private`; giá trị lạ thì bỏ qua bộ lọc đó). Trả thêm `bot_name` và `need_reply` cho từng dòng, `facets` (số đếm cho dropdown, toàn hòm thư) và `bots` (bot có hội thoại, kèm tên).
 - `GET /conversations/{id}/messages` lịch sử tin; `POST /conversations/{id}/reply` trả lời qua kênh.
 - `POST /conversations/{id}/read`, `POST /conversations/{id}/mode` (`ai` hoặc `human`).

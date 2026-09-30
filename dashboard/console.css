@@ -2071,6 +2071,20 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   font-size: 12.5px; color: var(--text3); }
 .ht-status.ai { color: var(--green); }
 .ht-status.human { color: var(--warn-ink); background: var(--warn-wash); }
+.ht-status.off { color: var(--warn-ink); background: var(--warn-wash); }
+/* Hai nút hành động (0.65.5): cùng cao, chia đôi bề ngang, không bao giờ rớt dòng. Nút chưa dùng được vẫn hiện, viền đứt. */
+.ht-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 12px 0; }
+.ht-act { height: 34px; padding: 0 8px; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 6px;
+  border-radius: 9px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 13px; cursor: pointer; }
+.ht-act span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-act:hover { border-color: var(--accent); }
+.ht-act.pri { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.ht-act.off, .ht-act.pri.off { background: var(--bg3); border: 1px dashed var(--border); color: var(--text3); font-weight: 400; }
+.ht-act.busy { cursor: progress; }
+.ht-act:disabled { cursor: progress; }
+.ht-acts-note { display: flex; align-items: flex-start; gap: 6px; padding: 6px 12px 0; font-size: 12.5px; color: var(--text2); }
+.ht-acts-note.err { color: var(--red, #e5484d); }
+.ht-acts ~ .ht-compose { border-top: 0; }
 .ht-silent { align-self: flex-start; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px;
   color: var(--text3); }
 .ht-silent-why { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer;

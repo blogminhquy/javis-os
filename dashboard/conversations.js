@@ -60,6 +60,9 @@
   var _facets = null, _botList = [];    // số đếm cho dropdown và các bot có hội thoại (server cấp, toàn hòm thư)
   var _chon = null;         // id hội thoại đang mở
   var _msgs = [], _conv = null, _dauVetTin = "", _silence = null;   // _silence: vì sao bot im ở tin khách cuối
+  var _running = false;     // bot của cuộc chat đang mở có đang chạy không (server cấp)
+  var _actBusy = "";        // "answer" | "draft" khi đang chờ bot soạn
+  var _actNote = null;      // {text, err}: dòng nói kết quả của lần bấm gần nhất, sống qua các lần vẽ lại khung
   var _kenhDS = [];         // các LOẠI kênh (server: id, nhan, logo, kind, nang_luc...)
   var _tk = [];             // mọi tài khoản kênh, một khuôn
   var _dauVetTK = "";
@@ -384,6 +387,7 @@
   async function mo(id) {
     _chon = id;
     _dauVetTin = "";
+    _actNote = null;
     _host.querySelector(".ht-wrap").classList.add("thread-on");
     veDanhSach();
     await taiTin(false);
@@ -409,10 +413,10 @@
     try {
       var d = await api("/conversations/" + id + "/messages?limit=200");
       if (_chon !== id) return;
-      var vet = JSON.stringify([d.conversation, d.messages, d.bot_silence]);
+      var vet = JSON.stringify([d.conversation, d.messages, d.bot_silence, d.bot_running]);
       if (im && vet === _dauVetTin) return;
       _dauVetTin = vet;
-      _conv = d.conversation; _msgs = d.messages || []; _silence = d.bot_silence || null;
+      _conv = d.conversation; _msgs = d.messages || []; _silence = d.bot_silence || null; _running = !!d.bot_running;
     } catch (e) {
       if (!im) box.innerHTML = '<div class="ht-empty">' + esc(window.t("ht.loi_tai")) + ' ' + esc(e.message) + '</div>';
       return;
@@ -449,14 +453,15 @@
             '</div>'
           : "") +
       '</div>' +
-      '<div class="ht-msgs">' + _msgs.map(veTin).join("") + veBotIm(c) + '</div>' +
-      (laBot ? veTrangThai(c, human) : "") +
+      '<div class="ht-msgs">' + _msgs.map(veTin).join("") + renderSilenceLine(c) + '</div>' +
+      (laBot ? renderStatusLine(c, human) + renderActions(c, human, guiDuoc) : "") +
       (guiDuoc ? veCompose(c, laBot, human) :
         '<div class="ht-foot">' + esc(window.t("ht.kenh_khong_gui", { kenh: nhanKenh(c.channel) })) + '</div>');
     box.querySelector(".ht-back").onclick = dongThread;
     box.querySelectorAll(".ht-seg-b").forEach(function (b) {
       b.onclick = function () { if (b.dataset.m !== (human ? "human" : "ai")) doiMode(c.id, b.dataset.m); };
     });
+    box.querySelectorAll(".ht-act").forEach(function (b) { b.onclick = function () { onAction(c, b); }; });
     var why = box.querySelector(".ht-silent-why");
     if (why) why.onclick = function () {
       if (window.JavisReplyPolicy) window.JavisReplyPolicy.openPanel({ id: c.bot_id, name: c.bot_name || "" });
@@ -475,14 +480,87 @@
 
   // Một dòng nói ai đang trực cuộc chat này. Đứng riêng (không nhét vào ô nhập) để hai nút hành động ở lát sau có chỗ
   // và dòng này không bao giờ bị nút đẩy xuống hàng.
-  function veTrangThai(c, human) {
-    return '<div class="ht-status ' + (human ? "human" : "ai") + '">' + ic(human ? "hand" : "bot") + ' <span>' +
-      esc(human ? window.t("ht.st_human") : window.t(c.bot_name ? "ht.st_ai" : "ht.st_ai_0", { bot: c.bot_name || "" })) +
-      '</span></div>';
+  function renderStatusLine(c, human) {
+    // Bot đang tắt mà vẫn ghi "đang trực" là nói dối: khách nhắn vào sẽ không ai đáp. Nói thẳng, và chỉ cách bật.
+    var off = !human && !_running;
+    var key = human ? "ht.st_human" : off ? "ht.st_off" : (c.bot_name ? "ht.st_ai" : "ht.st_ai_0");
+    return '<div class="ht-status ' + (human ? "human" : off ? "off" : "ai") + '">' + ic(human ? "hand" : off ? "circle-stop" : "bot") +
+      ' <span>' + esc(window.t(key, { bot: c.bot_name || window.t("ht.bot") })) + '</span></div>';
+  }
+
+  // Hai nút hành động (0.65.5), cùng cao và chia đôi bề ngang: "Trả lời giúp tin này" (bot trả lời NGAY tin khách cuối, dù bộ
+  // phán xử đã chọn im) và "Gợi ý câu trả lời" (bot soạn nháp vào ô nhập, chưa gửi). Chế độ Tôi trả lời thì nút thứ hai là "Trả
+  // lại cho bot". Nút chưa dùng được VẪN HIỆN, chạm vào nói lý do (nút ẩn hay xám câm thì không ai biết phải làm gì để bật nó).
+  function renderActions(c, human, guiDuoc) {
+    var lastCustomer = !!_msgs.length && _msgs[_msgs.length - 1].sender_type === "customer";
+    var hasCustomerMsg = _msgs.some(function (m) { return m.sender_type === "customer" && (m.text || "").trim(); });
+    var whyAnswer = human ? "ht.why_human" : !guiDuoc ? "ht.why_nosend" : !_running ? "ht.why_off" : !lastCustomer ? "ht.why_done" : "";
+    var whyDraft = !hasCustomerMsg ? "ht.why_nomsg" : !guiDuoc ? "ht.why_nosend" : "";
+    function actionButton(a, icon, label, why, pri) {
+      var isBusy = _actBusy === a;
+      return '<button type="button" class="ht-act' + (pri ? " pri" : "") + (why ? " off" : "") + (isBusy ? " busy" : "") +
+        '" data-a="' + a + '"' + (why ? ' data-why="' + why + '" aria-disabled="true"' : "") + (_actBusy ? " disabled" : "") + '>' +
+        ic(isBusy ? "loader" : icon) + ' <span>' + esc(window.t(isBusy ? "ht.act_busy" : label)) + '</span></button>';
+    }
+    var row = human
+      ? actionButton("draft", "sparkles", "ht.act_draft", whyDraft, false) + actionButton("back", "bot", "ht.act_back", "", false)
+      : actionButton("answer", "zap", "ht.act_answer", whyAnswer, true) + actionButton("draft", "sparkles", "ht.act_draft", whyDraft, false);
+    return '<div class="ht-acts">' + row + '</div>' +
+      (_actNote ? '<div class="ht-acts-note' + (_actNote.err ? " err" : "") + '">' + ic(_actNote.err ? "triangle-alert" : "info") +
+        ' <span>' + esc(_actNote.text) + '</span></div>' : "");
+  }
+
+  function setActionNote(text, err) {
+    _actNote = text ? { text: text, err: !!err } : null;
+    var box = _host && _host.querySelector(".ht-thread");
+    var cu = box && box.querySelector(".ht-acts-note");
+    if (cu) cu.parentNode.removeChild(cu);
+    var acts = box && box.querySelector(".ht-acts");
+    if (acts && _actNote) {
+      acts.insertAdjacentHTML("afterend", '<div class="ht-acts-note' + (_actNote.err ? " err" : "") + '">' +
+        ic(_actNote.err ? "triangle-alert" : "info") + ' <span>' + esc(_actNote.text) + '</span></div>');
+    }
+  }
+
+  async function onAction(c, b) {
+    var a = b.dataset.a;
+    if (a === "back") return doiMode(c.id, "ai");
+    if (b.dataset.why) return setActionNote(window.t(b.dataset.why), false);      // chưa dùng được: nói vì sao
+    if (_actBusy) return;
+    var box = _host.querySelector(".ht-thread");
+    var ta = box && box.querySelector(".ht-compose textarea");
+    if (a === "draft" && ta && ta.value.trim() && !confirm(window.t("ht.act_overwrite"))) return;
+    _actBusy = a;
+    setActionNote("", false);
+    veThread();
+    var loi = "", text = "", d = {};
+    try {
+      var r = await fetch("/conversations/" + c.id + "/ai-reply", { method: "POST", body: fd({ mode: a === "draft" ? "draft" : "send" }) });
+      try { d = await r.json(); } catch (e) { d = {}; }
+      if (!r.ok || d.ok === false) loi = (d && d.error) || window.t("cb.loi_ma", { ma: r.status });
+      text = (d && d.text) || "";
+    } catch (e) { loi = e.message; }
+    _actBusy = "";
+    _dauVetTin = "";
+    await taiTin(false);
+    var ta2 = _host.querySelector(".ht-thread .ht-compose textarea");
+    if (loi) {
+      // Không gửi được mà bot đã soạn xong: đổ vào ô nhập để chủ gửi tay, khỏi mất công soạn lại.
+      if (text && ta2) { ta2.value = text; }
+      setActionNote(window.t(text ? "ht.act_send_failed" : "ht.act_fail", { err: loi }), true);
+      return;
+    }
+    if (d.silent) return setActionNote(window.t("ht.act_silent"), false);
+    if (a === "draft") {
+      if (ta2) { ta2.value = text; ta2.focus(); }
+      return setActionNote(window.t("ht.act_drafted", { bot: c.bot_name || window.t("ht.bot") }), false);
+    }
+    tai(true);
+    setActionNote(window.t(d.taught ? "ht.act_sent_taught" : "ht.act_sent"), false);
   }
 
   // "Bot im: lý do" ngay dưới tin khách cuối, lấy từ nhật ký bộ phán xử, khỏi phải mở menu Bộ phán xử để hỏi vì sao.
-  function veBotIm(c) {
+  function renderSilenceLine(c) {
     var s = _silence;
     if (!s || !c.bot_id) return "";
     var RP = window.JavisReplyPolicy;

@@ -117,11 +117,17 @@ BI_LIEN_TIEP_DE_GOI = 2
 _deps: Dict[str, Callable] = {}
 
 
-def wire(*, answer, brain_root, read_agent):
-    """main.py cấp ba thứ: lõi một lượt, đường tới brain, và cách đọc file Agent."""
+def wire(*, answer, brain_root, read_agent, session_probe=None, session_undo=None):
+    """main.py cấp ba thứ: lõi một lượt, đường tới brain, và cách đọc file Agent.
+
+    `session_probe(key) -> (sid, số tin lịch sử RAM)` và `session_undo(key, giữ)` chỉ cho BẢN NHÁP ở Hộp thư (0.65.5): lấy phiên
+    đang nói để đọc ngữ cảnh, rồi gỡ dấu vết của lượt nháp khỏi bộ nhớ (xem `manual_answer`). Thiếu thì bản nháp vẫn chạy, chỉ
+    không có ngữ cảnh lưu trong kho và không tự dọn."""
     _deps["answer"] = answer
     _deps["brain_root"] = brain_root
     _deps["read_agent"] = read_agent
+    _deps["session_probe"] = session_probe
+    _deps["session_undo"] = session_undo
 
 
 # ============================================================
@@ -909,8 +915,10 @@ def _tai_khoan_cua(cfg: dict, meta: dict) -> tuple:
     if not aid:
         ds = cfg.get("accounts") or []
         aid = str((ds[0] or {}).get("id") if ds and isinstance(ds[0], dict) else (ds[0] if ds else "")) or ""
-    kenh = ""
-    if aid:
+    # `_kenh`: lượt dựng từ một hội thoại ĐÃ LƯU (Hộp thư nhờ bot trả lời, 0.65.5) mang sẵn kênh của chính hội thoại đó, để câu
+    # bot ghi ngược vào ĐÚNG hội thoại ấy chứ không rơi sang kênh mặc định.
+    kenh = str((meta or {}).get("_kenh") or "")
+    if aid and not kenh:
         a = channel_accounts.get_account(aid)
         if a:
             kenh = a.get("channel") or ""
@@ -1195,6 +1203,109 @@ def _make_answer_fn(bot_id: str):
                  f"Bí {lien_tiep} câu liên tiếp. Câu gần nhất: {str(text)[:200]}")))
         return out
     return _answer
+
+
+# ============================================================
+# Chủ nhờ bot trả lời ngay từ Hộp thư (0.65.5)
+# ============================================================
+_MANUAL_BUSY: set = set()       # id hội thoại đang có một lượt nhờ-bot chạy dở: không cho chạy chồng
+
+
+def manual_meta(conv: dict, last: dict) -> dict:
+    """`meta` của một lượt bot dựng từ MỘT hội thoại đã lưu và tin khách cuối của nó, y khuôn poller vẫn cấp. `mentioned` = True vì
+    chủ chủ động nhờ: bỏ qua cổng "có nên nói", còn quyền và hạn chế của Agent vẫn nguyên."""
+    key = str(conv.get("channel_account_id") or "")
+    raw = key.split(":", 1)[1] if ":" in key else key
+    grp = conv.get("chat_type") == "group"
+    return {"chat_id": str(conv.get("external_chat_id") or ""), "chat_type": "group" if grp else "private",
+            "chat_title": str(conv.get("title") or "") if grp else "",
+            "user_id": str(last.get("sender_id") or ""), "user_name": str(last.get("sender_name") or ""), "username": "",
+            "message_id": str(last.get("external_message_id") or ""), "account_id": raw,
+            "platform": str(conv.get("channel") or ""), "_kenh": str(conv.get("channel") or ""), "mentioned": True,
+            "ts": float(last.get("created_at") or time.time())}
+
+
+async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
+    """Chủ bấm "Trả lời giúp tin này" (`draft=False`) hoặc "Gợi ý câu trả lời" (`draft=True`) ở Hộp thư: chạy đúng Agent của bot
+    trên tin khách CUỐI của cuộc chat. KHÔNG gửi gì (người gọi gửi), và không đi qua cổng "có nên nói", bộ phán xử hay hạn mức tự nói,
+    vì đây là lời nhờ của chính chủ.
+
+    Không ghi tin khách vào Hộp thư lần nữa (nó đã nằm đó). Bản nháp thì KHÔNG để lại dấu vết: không ghi vào kho phiên (chỉ đọc kho
+    làm ngữ cảnh), gỡ hai dòng vừa thêm vào lịch sử RAM của bot và cắt mạch native của engine, để lượt thật kế tiếp mồi lại từ kho
+    sạch; nháp bỏ đi thì bot không "nhớ" mình từng nói câu đó với khách.
+
+    Trả `{"ok", "text", "silent", "meta", "code", "error"}`; `silent` = Agent chọn không trả lời tin này.
+    """
+    bot_id = str(conv.get("bot_id") or "")
+    cfg = chatbot_store.get_bot(bot_id)
+    if not cfg:
+        return {"ok": False, "code": "no_bot", "error": "Bot của cuộc chat này không còn nữa"}
+    last = next((m for m in reversed(msgs or []) if m.get("sender_type") == "customer"), None)
+    if not last or not str(last.get("text") or "").strip():
+        return {"ok": False, "code": "no_message", "error": "Chưa có tin khách để trả lời"}
+    conv_id = conv.get("id")
+    if conv_id in _MANUAL_BUSY:
+        return {"ok": False, "code": "busy", "error": "Bot đang soạn cho cuộc chat này, chờ một chút"}
+    _MANUAL_BUSY.add(conv_id)
+    meta = manual_meta(conv, last)
+    key = f"bot:{bot_id}:{meta['chat_id']}"
+    probe, undo = _deps.get("session_probe"), _deps.get("session_undo")
+    sid, keep = "", 0
+    if draft and probe:
+        try:
+            sid, keep = probe(key)
+        except Exception as e:      # noqa: BLE001 - không đọc được phiên thì nháp không có ngữ cảnh kho, vẫn chạy
+            print(f"[chatbot {bot_id}] đọc phiên cho bản nháp lỗi: {type(e).__name__}", file=sys.stderr)
+    try:
+        text = str(last["text"])
+        tl = await _tra_tai_lieu(bot_id, cfg, text)
+        _aid, kenh = _tai_khoan_cua(cfg, meta)
+        cfg["_tai_lieu"], cfg["_kenh_luot"], cfg["_tu_dong"] = tl, kenh, False
+        text_engine = text
+        if kenh == "zalo_personal" and meta["chat_type"] == "group" and meta["user_name"]:
+            text_engine = f"[{meta['user_name']}] {text}"      # cả nhóm chung một mạch: model phải biết ai đang nói
+        kw = {"channel": kenh, "bot": cfg}
+        if draft:
+            kw.update(phien_kho=sid, ghi_kho=False)
+        out = await _deps["answer"](text_engine, meta, None, **kw)
+    except Exception as e:      # noqa: BLE001
+        return {"ok": False, "code": "engine", "error": f"{type(e).__name__}: {str(e)[:200]}"}
+    finally:
+        _MANUAL_BUSY.discard(conv_id)
+        if draft and undo:
+            try:
+                undo(key, keep)
+            except Exception as e:      # noqa: BLE001
+                print(f"[chatbot {bot_id}] gỡ dấu vết bản nháp lỗi: {type(e).__name__}", file=sys.stderr)
+    if isinstance(out, str):      # lõi trả CHUỖI khi lượt hỏng: giữ nguyên lý do cho chủ, không gửi cho khách
+        return {"ok": False, "code": "engine", "error": out.strip()[:300] or "Bot không soạn được câu trả lời"}
+    dap = str((out or {}).get("text") or "").strip()
+    if not dap or IM_LANG.lower() in dap.lower():
+        return {"ok": True, "silent": True, "text": "", "meta": meta}
+    return {"ok": True, "silent": False, "text": dap, "meta": meta}
+
+
+def manual_done(conv: dict, msgs: list, text: str, meta: dict) -> dict:
+    """Sau khi câu trả lời nhờ-bot ĐÃ GỬI THÀNH CÔNG: ghi vào Hộp thư như lời của bot, báo bộ phán xử để nhận ra tin nối tiếp, và nếu
+    ngay tin đó bộ phán xử đã chọn im thì gắn nhãn "im nhầm" nặng nhất (chủ vừa nói cho bot biết lẽ ra nên nói). Trả `{"taught": bool}`."""
+    bot_id = str(conv.get("bot_id") or "")
+    cfg = chatbot_store.get_bot(bot_id)
+    out = {"taught": False}
+    if not cfg:
+        return out
+    ghi_tin_bot(cfg, meta, text)
+    try:
+        if cfg.get("reply_when") == "auto":
+            PolicyHooks(bot_id).replied(meta, text)
+            d = chatbot_reply_policy_store.last_decision(bot_id, meta["chat_id"])
+            last = next((m for m in reversed(msgs or []) if m.get("sender_type") == "customer"), {})
+            if (d and d.get("verdict") == "silent" and d.get("label") is None and d.get("candidate")
+                    and float(d.get("ts") or 0) >= float(last.get("created_at") or 0) - 60):
+                profile = _rp_profile(cfg, with_role=False)
+                out["taught"] = bool(chatbot_reply_policy.owner_label(chatbot_reply_policy_store, profile, int(d["id"]), "down"))
+    except Exception as e:      # noqa: BLE001 - việc dạy bot hỏng không được làm mất câu trả lời đã gửi
+        print(f"[reply_policy {bot_id}] gắn nhãn sau khi nhờ bot trả lời lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+    return out
 
 
 def _inbox_dir(bot_cfg: dict):
