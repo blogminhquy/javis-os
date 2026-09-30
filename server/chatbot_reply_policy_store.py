@@ -40,6 +40,7 @@ PURGE_EVERY = 400          # số lần ghi giữa hai lần dọn
 
 _lock = threading.RLock()
 _writes = 0
+_ready: set = set()        # các file kho đã tạo bảng trong tiến trình này (khỏi chạy lại schema mỗi lần mở)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS decisions(
@@ -83,11 +84,16 @@ def db_path() -> Path:
 def _conn():
     p = db_path()
     p.parent.mkdir(parents=True, exist_ok=True)
+    # Nhóm đông thì mỗi tin gọi kho nhiều lần: chỉ tạo bảng lần đầu cho mỗi file. File bị xoá giữa chừng
+    # (không còn trên đĩa) thì tạo lại.
+    fresh = str(p) not in _ready or not p.exists()
     con = sqlite3.connect(str(p), timeout=10)
     con.row_factory = sqlite3.Row
     try:
-        con.execute("PRAGMA journal_mode=WAL")
-        con.executescript(_SCHEMA)
+        if fresh:
+            con.execute("PRAGMA journal_mode=WAL")
+            con.executescript(_SCHEMA)
+            _ready.add(str(p))
         yield con
         con.commit()
     finally:

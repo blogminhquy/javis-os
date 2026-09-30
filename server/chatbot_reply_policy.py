@@ -261,6 +261,7 @@ _WIN: Dict[Tuple[str, str], deque] = {}
 _BOTCTX: Dict[Tuple[str, str], dict] = {}
 _KNOWN: Dict[Tuple[str, str], float] = {}
 _MAX_CHATS = 2000
+_MAX_KNOWN = 20000          # trần thô cho các bảng nhớ theo người; quên bớt còn hơn phình mãi
 
 
 def push_message(bot_id: str, chat_id: str, msg: Message) -> None:
@@ -276,8 +277,13 @@ def note_bot_reply(bot_id: str, chat_id: str, addressee_id: str, text: str, ts: 
     """Bot vừa nói trong cuộc chat: nhớ giờ và người được trả lời (cho tín hiệu `follow_up`)."""
     ts = time.time() if ts is None else ts
     key = (str(bot_id), str(chat_id))
+    if key not in _BOTCTX and len(_BOTCTX) >= _MAX_CHATS:
+        _BOTCTX.pop(next(iter(_BOTCTX)), None)
     _BOTCTX[key] = {"ts": ts, "addressee": str(addressee_id or "")}
     if addressee_id:
+        if len(_KNOWN) >= _MAX_KNOWN:
+            for k in list(_KNOWN)[: _MAX_KNOWN // 2]:
+                _KNOWN.pop(k, None)
         _KNOWN[(str(bot_id), str(addressee_id))] = ts
     push_message(bot_id, chat_id, Message(ts, "__bot__", "bot", True, text))
 
@@ -750,6 +756,8 @@ _CASE_DAY: Dict[Tuple[str, str], int] = {}
 
 
 def _rate_ok(bot_id: str, sender: str, now: float) -> bool:
+    if (bot_id, sender) not in _LABEL_RATE and len(_LABEL_RATE) >= _MAX_KNOWN:
+        _LABEL_RATE.clear()
     dq = _LABEL_RATE.setdefault((bot_id, sender), deque())
     while dq and now - dq[0] > 3600:
         dq.popleft()

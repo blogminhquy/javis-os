@@ -297,6 +297,21 @@ async def chay():
     check("reply_when=mention: gọi tên trơn được trả lời, tin còn lại im", len(GUI) == 1, GUI)
     check("reply_when=mention: bộ phán xử không ghi thêm dòng nào cho tin không ai gọi", len(st.recent_decisions(bid, 500)) == n_dec)
 
+    # Bộ phán xử ném lỗi bất ngờ ở lớp vận chuyển: rơi về luật cũ, KHÔNG được nuốt tin (tin gọi tên vẫn được trả lời).
+    chatbot_store.update_bot(bid, {"reply_when": "auto", "reply_policy": {"mode": "on"}})
+    orig = chatbot_runtime.PolicyHooks.prepare
+
+    def _boom(self, text, meta, owner_typing=False):
+        raise RuntimeError("hỏng bất ngờ")
+
+    chatbot_runtime.PolicyHooks.prepare = _boom
+    sach()
+    KHO_TIN.append(msg("@Javis Vũ cho hỏi lỗi cổng 7777 với", "z1", giay_truoc=2, uid="7770006", nguoi="Học viên F"))
+    await doc()
+    chatbot_runtime.PolicyHooks.prepare = orig
+    check("prepare ném lỗi: tin gọi tên VẪN được trả lời bằng luật cũ", len(GUI) == 1, GUI)
+    sach()
+
     chatbot_runtime.stop_bot(bid)
 
 

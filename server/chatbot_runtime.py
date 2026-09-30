@@ -529,10 +529,21 @@ def _rp_schedule_profile(cfg: dict) -> None:
     try:
         root = _deps["brain_root"](cfg["brain"])
         titles = chatbot_reply_policy.list_doc_titles(root)
-        asyncio.get_running_loop().create_task(chatbot_reply_policy.ensure_role_profile(
-            cfg, _rp_agent_text(cfg), titles, chatbot_reply_policy_store, ask))
+        asyncio.get_running_loop().create_task(_rp_profile_job(cfg, _rp_agent_text(cfg), titles, ask))
     except Exception as e:      # noqa: BLE001
         print(f"[reply_policy] lên lịch soạn hồ sơ vai lỗi: {type(e).__name__}", file=sys.stderr)
+
+
+_RP_BACKOFF_S = 1800
+
+
+async def _rp_profile_job(cfg: dict, agent_text: str, titles: list, ask) -> None:
+    """Soạn hồ sơ vai ở nền. Chưa có hồ sơ mà soạn hỏng (engine việc nền chưa sẵn sàng...) thì lùi 30 phút mới
+    thử lại, thay vì mỗi 5 phút một lần cho tới khi engine sống dậy."""
+    bot_id = str(cfg.get("id") or "")
+    res = await chatbot_reply_policy.ensure_role_profile(cfg, agent_text, titles, chatbot_reply_policy_store, ask)
+    if not res.get("changed") and not res.get("generated_text"):
+        _RP_CHECKED[bot_id] = time.time() + _RP_BACKOFF_S - _RP_CHECK_EVERY_S
 
 
 class PolicyHooks:

@@ -207,7 +207,11 @@ class Transport:
                 # ("nhi mai ơi"); tin nào gọi chắc chắn thì `prepare` đặt `meta["mentioned"]`.
                 meta["aliases_auto"] = [conn.get("label") or "", (zc._ID_MINH.get(self.conn_id) or {}).get("ten") or ""]
                 meta["ts"] = float(ev.get("created_at") or time.time())
-                pol = self.policy.prepare(text, meta)
+                try:
+                    pol = self.policy.prepare(text, meta)
+                except Exception as e:      # noqa: BLE001 - bộ phán xử hỏng thì giữ luật cũ, không được nuốt tin
+                    pol = None
+                    print(f"[zalo-personal bot {self.conn_id}] bộ phán xử lỗi: {type(e).__name__}: {e}", file=sys.stderr)
                 duoc_goi = duoc_goi or bool(meta.get("mentioned"))
         try:
             if self.precheck_fn:

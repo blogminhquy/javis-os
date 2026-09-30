@@ -455,6 +455,39 @@ for i in range(20):
     rp.push_message("bw", "gz", rp.Message(NOW + i, "u", "n", False, f"tin {i}"))
 check("cửa sổ tối đa 8 tin", len(rp.window_of("bw", "gz", NOW + 30)) == rp.WINDOW_MAX)
 
+# ============================================================
+# 9. Trần bộ nhớ: không phình mãi
+# ============================================================
+rp.reset_runtime_state()
+old_max = rp._MAX_KNOWN
+rp._MAX_KNOWN = 10
+for i in range(40):
+    rp.note_bot_reply("bcap", f"g{i}", f"u{i}", "x", NOW + i)
+check("bảng người đã biết có trần", len(rp._KNOWN) <= 10 + 1, len(rp._KNOWN))
+check("bảng ngữ cảnh bot có trần theo số cuộc chat", len(rp._BOTCTX) <= rp._MAX_CHATS)
+for i in range(40):
+    rp._rate_ok("bcap", f"s{i}", NOW)
+check("bộ đếm nhãn theo người có trần", len(rp._LABEL_RATE) <= 10 + 1, len(rp._LABEL_RATE))
+rp._MAX_KNOWN = old_max
+rp.reset_runtime_state()
+
+# ============================================================
+# 10. Soạn hồ sơ vai thất bại thì lùi, không thử lại mỗi 5 phút
+# ============================================================
+import time as _time  # noqa: E402
+import chatbot_runtime as _crt  # noqa: E402
+
+
+async def _hong(prompt, purpose=""):
+    raise RuntimeError("engine chưa sẵn sàng")
+
+
+_crt._RP_CHECKED.clear()
+_crt._RP_CHECKED["bot_backoff"] = _time.time()
+run(_crt._rp_profile_job({"id": "bot_backoff", "name": "X"}, "agent", [], _hong))
+check("soạn hỏng và chưa có hồ sơ: lùi ít nhất 25 phút mới thử lại",
+      _crt._RP_CHECKED["bot_backoff"] + _crt._RP_CHECK_EVERY_S - _time.time() >= 25 * 60, _crt._RP_CHECKED)
+
 print()
 if _fails:
     print(f"{len(_fails)} FAIL")
