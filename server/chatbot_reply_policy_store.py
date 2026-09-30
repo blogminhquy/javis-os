@@ -174,6 +174,26 @@ def recent_decisions(bot_id: str, limit: int = 100, chat_id: str = "", only_sile
         return [dict(r) for r in con.execute(q, args).fetchall()]
 
 
+# Mã im mà chủ nên xem lại: bot ĐÃ cân nhắc nói (tin qua cổng thô) nhưng im vì chưa chắc, hết hạn mức, hoặc bộ phán xử lỗi.
+# Không gồm `agent_silent` (chính Agent chọn im, có chủ ý) và các luật cứng (tin rác, nhắn người khác...).
+HESITANT_CODES = ("judge_silent", "below_threshold", "rate_limited", "rate_limited_user", "policy_error")
+
+
+def hesitant_chats(since_ts: float, limit: int = 200) -> List[tuple]:
+    """(bot_id, chat_id) các cuộc chat mà bot vừa cân nhắc nói rồi im, chưa được chủ gắn nhãn Đúng/Sai. Hòm thư dùng
+    nó để biết NHÓM nào đáng gọi là "cần trả lời": trong nhóm mà bot chỉ nói khi được gọi thì khách nhắn cuối là chuyện
+    bình thường, không phải việc tồn đọng. Kho chưa từng có (bot chưa bật bộ phán xử) thì trả rỗng và KHÔNG tạo file."""
+    if not db_path().exists():
+        return []
+    ph = ",".join("?" * len(HESITANT_CODES))
+    with _lock, _conn() as con:
+        rows = con.execute(
+            f"SELECT DISTINCT bot_id, chat_id FROM decisions WHERE candidate=1 AND verdict='silent' AND label IS NULL"
+            f" AND ts>=? AND silence_code IN ({ph}) ORDER BY ts DESC LIMIT ?",
+            [float(since_ts), *HESITANT_CODES, max(1, min(int(limit), 500))]).fetchall()
+    return [(str(r["bot_id"]), str(r["chat_id"])) for r in rows]
+
+
 def set_label(decision_id: int, label: str, weight: float, now: Optional[float] = None) -> Optional[dict]:
     """Gắn nhãn cho một quyết định. Chỉ gắn MỘT lần: nhãn đầu tiên thắng, để một cuộc trò chuyện dài
     không lật đi lật lại kết luận của cùng một ca."""

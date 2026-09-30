@@ -1998,9 +1998,31 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   border: 1px solid var(--border); background: var(--bg3); color: var(--text2); font-size: 13.5px; cursor: pointer; }
 .ht-loc-chip:hover { color: var(--text); border-color: var(--accent); }
 .ht-loc-chip.on { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
-.ht-bot, .ht-search { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg3);
-  color: var(--text); font-size: 16px; min-width: 0; }
-.ht-search { flex: 1 1 200px; }
+.ht-search { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg3);
+  color: var(--text); font-size: 16px; min-width: 0; flex: 1 1 200px; }
+/* Bộ lọc dropdown (0.65.3): một hàng chung với ô tìm. Đang lọc thì dropdown sáng màu nhấn để nhìn là biết. */
+.ht-f { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg3); color: var(--text);
+  font-size: 14px; min-width: 0; max-width: 100%; }
+.ht-f.on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-wash); }
+.ht-f[hidden], .ht-fclear[hidden] { display: none; }
+.ht-fsum { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--text3);
+  min-height: 20px; margin-top: -6px; }
+.ht-fclear { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer;
+  text-decoration: underline; }
+.ht-item-tags { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-width: 0; }
+.ht-bot-tag, .ht-need { flex: none; max-width: 100%; font-size: 10.5px; padding: 1px 7px; border-radius: 999px;
+  font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-bot-tag.c0 { background: var(--accent2-wash); color: var(--accent2-ink); }
+.ht-bot-tag.c1 { background: var(--info-wash); color: var(--info-ink); }
+.ht-bot-tag.c2 { background: var(--ok-wash); color: var(--green); }
+.ht-bot-tag.c3 { background: var(--accent-wash); color: var(--accent-ink); }
+.ht-need { background: var(--warn-wash); color: var(--warn-ink); }
+@media (max-width: 640px) {
+  /* Điện thoại: ô tìm và dropdown Bot mỗi cái một hàng, Tình trạng và Loại chia đôi hàng thứ ba (cỡ chữ 16px nên
+     ba ô một hàng bị cắt mất chữ). */
+  .ht-f { flex: 1 1 42%; font-size: 16px; }
+  .ht-search, .ht-f-bot, .ht-f-channel { flex-basis: 100%; }
+}
 .ht-body { display: flex; gap: 12px; flex: 1 1 auto; min-height: 0; height: calc(100vh - 300px); min-height: 420px; }
 .ht-list { width: 320px; flex: none; overflow: auto; display: flex; flex-direction: column; gap: 4px;
   border: 1px solid var(--border); border-radius: 12px; padding: 6px; background: var(--surface-1); }

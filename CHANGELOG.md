@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.3] - 2026-09-30
 ### Cải thiện
-- **Hòm thư bot có bộ lọc dạng dropdown gọn một hàng:** theo bot, tình trạng (chưa đọc, cần trả lời, đang tiếp quản) và loại (nhóm hay chat riêng). Mỗi hàng có thẻ tên bot để phân biệt nhiều bot.
+- **Hòm thư bot có bộ lọc dạng dropdown gọn một hàng:** theo bot, tình trạng (chưa đọc, cần trả lời, tôi tiếp quản) và loại (nhóm hay chat riêng). Số hội thoại nằm ngay trong từng lựa chọn, bộ lọc được nhớ lại lần sau.
+- **Mỗi dòng có thẻ tên bot** (mỗi bot một màu) khi bạn chạy từ 2 bot. Thẻ "Cần trả lời" chỉ gắn vào chat riêng chưa ai đáp, và nhóm mà bot vừa cân nhắc nói rồi im, không gắn cho mọi nhóm có người nhắn.
 
 ## [0.65.2] - 2026-09-30
 ### Thêm mới

@@ -33,7 +33,9 @@ Bên dưới, mọi kênh đều đưa tin về **một khuôn chung** rồi và
 
 Đầu tab là bốn con số: tổng hội thoại, hội thoại có tin hôm nay, chưa đọc, và cuộc đang do người thật xử lý.
 
-Bên trái là danh sách hội thoại, mới nhất trước. Mỗi dòng: tên khách (hoặc tên nhóm), logo kênh, tin cuối, giờ, và số tin chưa đọc. Có ô tìm theo tên hoặc nội dung, chip lọc theo kênh (chỉ hiện khi có từ hai kênh), và ô chọn bot (chỉ hiện khi có từ hai bot).
+Bên trái là danh sách hội thoại, mới nhất trước. Mỗi dòng: tên khách (hoặc tên nhóm), logo kênh, tin cuối, giờ, và số tin chưa đọc. Phía trên có ô tìm theo tên hoặc nội dung và **một hàng dropdown lọc** (từ 0.65.3, thay cho hàng chip): **Bot**, **Tình trạng** (chưa đọc, cần trả lời, tôi tiếp quản), **Loại** (chỉ nhóm hay chỉ chat riêng), và **Kênh** (chỉ hiện khi có từ hai kênh). Số hội thoại nằm ngay trong từng lựa chọn, tính trên cả hòm thư nên không nhảy khi lọc. Bộ lọc được nhớ ở trình duyệt; dòng bên dưới ghi "N hội thoại · M bộ lọc" kèm nút **Xoá lọc**. Khi có từ hai bot, mỗi dòng có thẻ tên bot (mỗi bot một màu cố định), và dòng đáng chú ý có thẻ **Cần trả lời** hoặc **Người thật**.
+
+**"Cần trả lời" nghĩa là gì.** Khách nhắn cuối, chưa ai đáp, chưa có người tiếp quản, và: là chat riêng, hoặc là nhóm mà bot vừa **cân nhắc nói rồi im** (chưa chắc, hết hạn mức tự nói, hay bộ phán xử lỗi, trong 24 giờ qua và bạn chưa bấm Đúng/Sai). Nhóm thì phải có điều kiện thứ hai, vì bot chỉ nói khi được gọi thì khách nhắn cuối trong nhóm là chuyện bình thường; đếm hết vào thì bộ lọc đầy rác. Cần bật Tự đánh giá thì mới có dấu "bot cân nhắc" này (xem [Bộ phán xử](25-chatbot.md#bộ-phán-xử-bot-tự-quyết-nói-hay-im-và-học-từ-nhóm)).
 
 Bấm một hội thoại là lịch sử tin hiện bên phải: tin khách bên trái, câu bot và câu bạn tự nhắn từ điện thoại bên phải. Lượt bot bị gãy cũng nằm đó kèm lý do kỹ thuật, để bạn phân biệt "bot trả lời sai" với "bot đang hỏng".
 
@@ -96,7 +98,7 @@ Thêm một kênh = thêm một file ở sổ, một dòng đăng ký, một log
 
 - `GET /channels` các loại kênh và năng lực; `GET /channels/accounts` mọi tài khoản, một khuôn.
 - `POST /channels/verify-token`, `POST /channels/accounts`, `POST /channels/accounts/{id}/update`, `.../watch` (loại account), `.../delete`.
-- `GET /conversations` danh sách kèm số liệu, lọc theo `channel`, `bot_id`, `account_id`, `q`.
+- `GET /conversations` danh sách kèm số liệu, lọc theo `channel`, `bot_id` (`-` = cuộc chat không có bot), `account_id`, `q`, và từ 0.65.3 `status` (`unread`, `need_reply`, `human`) và `chat_type` (`group`, `private`; giá trị lạ thì bỏ qua bộ lọc đó). Trả thêm `bot_name` và `need_reply` cho từng dòng, `facets` (số đếm cho dropdown, toàn hòm thư) và `bots` (bot có hội thoại, kèm tên).
 - `GET /conversations/{id}/messages` lịch sử tin; `POST /conversations/{id}/reply` trả lời qua kênh.
 - `POST /conversations/{id}/read`, `POST /conversations/{id}/mode` (`ai` hoặc `human`).
 - `GET /conversations/channels` và `POST /conversations/zalo/{conn_id}/watch` là bí danh cũ, còn giữ.

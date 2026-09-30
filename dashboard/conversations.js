@@ -56,6 +56,8 @@
   var _host = null, _timer = null, _tab = "inbox";
   var _items = [], _stats = {}, _dauVet = "";
   var _kenhLoc = "", _botLoc = "", _tkLoc = "", _q = "";
+  var _statusLoc = "", _typeLoc = "";   // bộ lọc dropdown (0.65.3), lưu ở trình duyệt qua JavisConvFilters
+  var _facets = null, _botList = [];    // số đếm cho dropdown và các bot có hội thoại (server cấp, toàn hòm thư)
   var _chon = null;         // id hội thoại đang mở
   var _msgs = [], _conv = null, _dauVetTin = "";
   var _kenhDS = [];         // các LOẠI kênh (server: id, nhan, logo, kind, nang_luc...)
@@ -195,23 +197,35 @@
       return false;
     }
     if (_tab === "kenh") veKenh();
-    if (_tab === "inbox") veChonBot();
     return true;
   }
 
   // ---------------------------------------------------------------- HỘP THƯ
   function renderInbox(body) {
     if (_cho) {
+      // Mở từ nơi khác (nút trên thẻ bot, tab Tài khoản bot): lọc đúng thứ được chỉ, bỏ tình trạng và loại đã lưu để
+      // khỏi giấu mất hội thoại người ta muốn xem.
       _botLoc = _cho.bot_id || ""; _kenhLoc = _cho.channel || ""; _tkLoc = _cho.account_key || "";
+      _statusLoc = ""; _typeLoc = "";
       _cho = null;
+      saveFilters();
+    } else if (window.JavisConvFilters) {
+      var saved = window.JavisConvFilters.load();
+      _botLoc = saved.bot; _statusLoc = saved.status; _typeLoc = saved.type; _kenhLoc = saved.channel;
     }
     body.innerHTML =
       '<div class="ht-wrap">' +
         '<div class="ht-stats"></div>' +
         '<div class="ht-bar">' +
-          '<div class="ht-loc"></div>' +
-          '<select class="ht-bot"><option value="">' + esc(window.t("ht.moi_bot")) + '</option></select>' +
           '<input class="ht-search" placeholder="' + esc(window.t("ht.tim_ph")) + '">' +
+          '<select class="ht-f ht-f-bot" aria-label="' + esc(window.t("ht.f_aria_bot")) + '"></select>' +
+          '<select class="ht-f ht-f-status" aria-label="' + esc(window.t("ht.f_aria_status")) + '"></select>' +
+          '<select class="ht-f ht-f-type" aria-label="' + esc(window.t("ht.f_aria_type")) + '"></select>' +
+          '<select class="ht-f ht-f-channel" aria-label="' + esc(window.t("ht.f_aria_kenh")) + '" hidden></select>' +
+        '</div>' +
+        '<div class="ht-fsum">' +
+          '<span class="ht-fcount"></span><span class="ht-loc"></span>' +
+          '<button type="button" class="ht-fclear" hidden>' + esc(window.t("ht.f_clear")) + '</button>' +
         '</div>' +
         '<div class="ht-body">' +
           '<div class="ht-list"><div class="ht-empty">' + esc(window.t("common.loading")) + '</div></div>' +
@@ -221,39 +235,35 @@
       '</div>';
     var s = body.querySelector(".ht-search");
     s.oninput = function () { _q = s.value.trim(); tai(); };
-    body.querySelector(".ht-bot").onchange = function (e) { _botLoc = e.target.value; tai(); };
+    body.querySelector(".ht-f-bot").onchange = function (e) { _botLoc = e.target.value; onFilterChange(); };
+    body.querySelector(".ht-f-status").onchange = function (e) { _statusLoc = e.target.value; onFilterChange(); };
+    body.querySelector(".ht-f-type").onchange = function (e) { _typeLoc = e.target.value; onFilterChange(); };
+    body.querySelector(".ht-f-channel").onchange = function (e) { _kenhLoc = e.target.value; onFilterChange(); };
+    body.querySelector(".ht-fclear").onclick = function () {
+      _botLoc = _statusLoc = _typeLoc = _kenhLoc = _tkLoc = "";
+      onFilterChange();
+    };
     taiTK(false).catch(function () {}).then(function () { tai(); if (_chon) taiTin(false); });
   }
 
-  // Ô chọn bot: dựng từ danh sách tài khoản (tài khoản nào có bot trực). Chỉ hiện khi có từ
-  // hai bot; một bot thì ô chọn là câu hỏi không ai hỏi.
-  function veChonBot() {
-    var sel = _host && _host.querySelector(".ht-bot");
-    if (!sel) return;
-    var bots = {};
-    _tk.forEach(function (a) { if (a.bot_id && !bots[a.bot_id]) bots[a.bot_id] = a.bot_name || a.bot_id; });
-    var ids = Object.keys(bots);
-    var cu = sel.value;
-    sel.innerHTML = '<option value="">' + esc(window.t("ht.moi_bot")) + '</option>' +
-      ids.map(function (id) { return '<option value="' + esc(id) + '">' + esc(bots[id]) + '</option>'; }).join("");
-    sel.value = _botLoc || cu || "";
-    if (sel.value !== (_botLoc || "")) sel.value = "";
-    sel.style.display = ids.length >= 2 ? "" : "none";
-  }
+  function filterState() { return { bot: _botLoc, status: _statusLoc, type: _typeLoc, channel: _kenhLoc }; }
+  function saveFilters() { if (window.JavisConvFilters) window.JavisConvFilters.save(filterState()); }
+  function onFilterChange() { saveFilters(); tai(); }
 
   // `im` = nhịp tự động: không xoá danh sách đang hiện, mạng hỏng một nhịp thì giữ màn hình cũ.
   async function tai(im) {
     var box = _host && _host.querySelector(".ht-list");
     if (!box) return;
-    var url = "/conversations?limit=" + TRANG +
-      "&channel=" + encodeURIComponent(_kenhLoc) + "&bot_id=" + encodeURIComponent(_botLoc) +
-      "&account_id=" + encodeURIComponent(_tkLoc) + "&q=" + encodeURIComponent(_q);
+    var url = "/conversations?limit=" + TRANG + "&account_id=" + encodeURIComponent(_tkLoc) +
+      "&q=" + encodeURIComponent(_q) + (window.JavisConvFilters ? window.JavisConvFilters.query(filterState()) : "");
     try {
       var d = await api(url);
       _items = d.items || [];
       _stats = d.stats || {};
+      _facets = d.facets || null;
+      _botList = d.bots || [];
       if (d.channels) _kenhDS = d.channels;
-      var vet = JSON.stringify([_items, _stats]);
+      var vet = JSON.stringify([_items, _stats, _facets, _botList]);
       if (im && vet === _dauVet) return;
       _dauVet = vet;
     } catch (e) {
@@ -261,7 +271,7 @@
       return;
     }
     veStats();
-    veLoc();
+    paintFilters();
     veDanhSach();
     veTabs();
   }
@@ -281,29 +291,49 @@
     }).join("");
   }
 
-  // Chip lọc kênh: chỉ hiện những kênh THẬT SỰ có hội thoại (cộng kênh đang lọc).
-  function veLoc() {
-    var b = _host.querySelector(".ht-loc");
-    if (!b) return;
-    var co = Object.keys((_stats.theo_kenh) || {});
-    if (_kenhLoc && co.indexOf(_kenhLoc) < 0) co.push(_kenhLoc);
-    var tkChip = _tkLoc ? (_tk.filter(function (a) { return a.account_key === _tkLoc; })[0] || null) : null;
-    if (co.length < 2 && !_kenhLoc && !tkChip) { b.innerHTML = ""; return; }
-    var chips = co.length >= 2 || _kenhLoc
-      ? [{ id: "", nhan: window.t("ht.tat_ca") }].concat(co.map(function (k) { return { id: k, nhan: nhanKenh(k) }; }))
-      : [];
-    b.innerHTML = chips.map(function (c) {
-      return '<button type="button" class="ht-loc-chip' + (c.id === _kenhLoc ? " on" : "") +
-        '" data-k="' + esc(c.id) + '">' + (c.id ? logoKenh(c.id) + " " : "") + esc(c.nhan) + '</button>';
-    }).join("") +
-    // Đang lọc theo MỘT tài khoản (mở từ tab Tài khoản bot): một chip có nút bỏ.
-    (tkChip ? '<button type="button" class="ht-loc-chip on ht-loc-tk">' + logoKenh(tkChip.channel) + ' ' +
-              esc(tkChip.label) + ' ' + ic("x") + '</button>' : "");
-    b.querySelectorAll(".ht-loc-chip[data-k]").forEach(function (x) {
-      x.onclick = function () { _kenhLoc = x.dataset.k; tai(); };
+  // Bộ lọc dropdown (0.65.3): một hàng chung với ô tìm, số đếm nằm trong từng lựa chọn (chip chiếm quá nhiều chỗ khi
+  // chạy nhiều bot). Phần dựng chuỗi <option> nằm ở conversations-filters.js.
+  var FILTER_SEL = { bot: ".ht-f-bot", status: ".ht-f-status", type: ".ht-f-type", channel: ".ht-f-channel" };
+
+  function paintFilters() {
+    var F = window.JavisConvFilters;
+    if (!_host || !F) return;
+    var st = filterState();
+    var html = {
+      bot: F.botOptions(_botList, _facets, st.bot),
+      status: F.statusOptions(_facets, st.status),
+      type: F.typeOptions(_facets, st.type),
+      channel: F.channelOptions(_stats.theo_kenh || {}, st.channel, nhanKenh),
+    };
+    Object.keys(FILTER_SEL).forEach(function (k) {
+      var sel = _host.querySelector(FILTER_SEL[k]);
+      if (!sel) return;
+      // Đang mở dropdown thì KHÔNG dựng lại: nhịp tự làm mới 5 giây sẽ đóng nó giữa chừng, đúng lúc người ta chọn.
+      if (document.activeElement !== sel && sel.dataset.sig !== html[k]) {
+        sel.innerHTML = html[k];
+        sel.dataset.sig = html[k];
+      }
+      sel.value = st[k];
+      sel.classList.toggle("on", !!st[k]);
     });
-    var bo = b.querySelector(".ht-loc-tk");
-    if (bo) bo.onclick = function () { _tkLoc = ""; tai(); };
+    // Kênh chỉ đáng có khi hòm thư có từ 2 kênh (hoặc đang lọc theo một kênh).
+    var ch = _host.querySelector(FILTER_SEL.channel);
+    if (ch) ch.hidden = Object.keys(_stats.theo_kenh || {}).length < 2 && !st.channel;
+    var active = F.activeCount(st) + (_tkLoc ? 1 : 0);
+    var cnt = _host.querySelector(".ht-fcount");
+    if (cnt) cnt.textContent = window.t(active ? "ht.f_count_f" : "ht.f_count",
+      { n: _items.length >= TRANG ? TRANG + "+" : _items.length, f: active });
+    var clr = _host.querySelector(".ht-fclear");
+    if (clr) clr.hidden = !active;
+    // Đang lọc theo MỘT tài khoản (mở từ tab Tài khoản bot): một chip có nút bỏ.
+    var tkChip = _tkLoc ? (_tk.filter(function (a) { return a.account_key === _tkLoc; })[0] || null) : null;
+    var loc = _host.querySelector(".ht-loc");
+    if (loc) {
+      loc.innerHTML = tkChip ? '<button type="button" class="ht-loc-chip on ht-loc-tk">' + logoKenh(tkChip.channel) + ' ' +
+        esc(tkChip.label) + ' ' + ic("x") + '</button>' : "";
+      var bo = loc.querySelector(".ht-loc-tk");
+      if (bo) bo.onclick = function () { _tkLoc = ""; tai(); };
+    }
   }
 
   function veDanhSach() {
@@ -312,7 +342,7 @@
     if (!_items.length) {
       var coNguon = _tk.some(function (a) { return a.ghi; });
       box.innerHTML = '<div class="ht-empty">' + ic("messages-square") +
-        '<b>' + esc(_q || _kenhLoc || _botLoc || _tkLoc ? window.t("ht.khong_khop") : window.t("ht.chua_co")) + '</b>' +
+        '<b>' + esc(_q || _kenhLoc || _botLoc || _tkLoc || _statusLoc || _typeLoc ? window.t("ht.khong_khop") : window.t("ht.chua_co")) + '</b>' +
         (!coNguon ? '<div>' + esc(window.t("ht.chua_co_goi_y")) + '</div>' +
           '<button class="s-btn ht-mo-kenh" type="button">' + ic("plug") + ' ' + esc(window.t("ht.tab_kenh")) + '</button>' : "") +
         '</div>';
@@ -320,18 +350,26 @@
       if (nut) nut.onclick = function () { chonTab("kenh"); };
       return;
     }
+    var F = window.JavisConvFilters;
     box.innerHTML = _items.map(function (c) {
       var ten = c.title || c.customer_name || c.external_chat_id;
       var ai = c.last_sender_type === "ai" ? window.t("ht.bot") + ": "
              : c.last_sender_type === "human" ? window.t("ht.ban") + ": " : "";
+      // Dòng thẻ: tên bot (chỉ khi có từ 2 bot, một bot thì là nhiễu) và tình trạng. Không có thẻ nào thì không có dòng.
+      var tags = [];
+      if (_botList.length >= 2 && c.bot_name) {
+        tags.push('<span class="ht-bot-tag c' + (F ? F.botColor(c.bot_id) : 0) + '">' + esc(c.bot_name) + '</span>');
+      }
+      if (c.mode === "human") tags.push('<span class="ht-mode">' + esc(window.t("ht.mode_human")) + '</span>');
+      else if (c.need_reply) tags.push('<span class="ht-need">' + esc(window.t("ht.tag_need")) + '</span>');
       return '<button type="button" class="ht-item' + (c.id === _chon ? " on" : "") +
           (c.unread_count ? " unread" : "") + '" data-id="' + c.id + '">' +
         '<span class="ht-item-ic">' + (c.chat_type === "group" ? ic("users") : ic("user-round")) + '</span>' +
         '<span class="ht-item-text">' +
           '<span class="ht-item-top"><strong>' + esc(ten) + '</strong>' +
             '<small class="ht-item-time">' + esc(gio(c.last_message_at)) + '</small></span>' +
+          (tags.length ? '<span class="ht-item-tags">' + tags.join("") + '</span>' : "") +
           '<span class="ht-item-sub">' + logoKenh(c.channel) +
-            (c.mode === "human" ? '<span class="ht-mode">' + esc(window.t("ht.mode_human")) + '</span>' : "") +
             '<small>' + esc(ai + (c.last_message || "")) + '</small>' +
             (c.unread_count ? '<span class="ht-badge">' + c.unread_count + '</span>' : "") +
           '</span>' +

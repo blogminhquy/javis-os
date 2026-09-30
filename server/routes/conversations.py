@@ -12,6 +12,7 @@ Không nhận `import main` - mọi thứ cần từ main đi qua `deps`.
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Callable
 
@@ -44,14 +45,44 @@ def register(app, deps: ConversationsDeps):
     global _DEPS
     _DEPS = deps
 
+    def _hesitant() -> list:
+        """Nhóm bot vừa cân nhắc nói rồi im trong 24 giờ qua (kho bộ phán xử). Kho hỏng hay chưa có thì rỗng: bộ lọc
+        chỉ mất phần nhóm chứ không sập hòm thư."""
+        try:
+            import chatbot_reply_policy_store as rps
+            return rps.hesitant_chats(time.time() - 86400)
+        except Exception:      # noqa: BLE001
+            return []
+
+    def _ten_bot(bot_id: str) -> str:
+        """Tên bot để hiện trên hàng hội thoại và ở dropdown lọc. Bot đã xoá thì báo thẳng, không lòi id thô."""
+        if not bot_id:
+            return ""
+        b = chatbot_store.get_bot(bot_id)
+        return str((b or {}).get("name") or "") or "Bot đã xoá"
+
     @router.get("/conversations")
     async def conversations_list(channel: str = "", bot_id: str = "", account_id: str = "",
-                                 q: str = "", mode: str = "", limit: int = 50, offset: int = 0):
-        """Danh sách hội thoại mới nhất trước, kèm vài con số đầu trang (cùng bộ lọc)."""
+                                 q: str = "", mode: str = "", limit: int = 50, offset: int = 0,
+                                 status: str = "", chat_type: str = ""):
+        """Danh sách hội thoại mới nhất trước, kèm vài con số đầu trang (cùng bộ lọc).
+
+        0.65.3: thêm `status` (unread | need_reply | human) và `chat_type` (group | private); mỗi hàng có `bot_name`;
+        `facets` là số hội thoại cho từng lựa chọn dropdown (toàn hòm thư, không theo bộ lọc) và `bots` là danh sách bot
+        có hội thoại kèm tên, cho dropdown Bot."""
+        hesitant = _hesitant()
         items = conversations.danh_sach(channel=channel, bot_id=bot_id, account_id=account_id,
-                                        q=q, mode=mode, limit=limit, offset=offset)
+                                        q=q, mode=mode, limit=limit, offset=offset,
+                                        status=status, chat_type=chat_type, hesitant=hesitant)
+        facets = conversations.dem_bo_loc(hesitant)
+        ten = {bid: _ten_bot(bid) for bid in facets["bots"] if bid}
+        for it in items:
+            it["bot_name"] = ten.get(str(it.get("bot_id") or "")) or _ten_bot(str(it.get("bot_id") or ""))
+            it["need_reply"] = conversations.can_tra_loi(it, hesitant)
         return {"ok": True, "items": items,
                 "stats": conversations.thong_ke(bot_id=bot_id, channel=channel, account_id=account_id),
+                "facets": facets,
+                "bots": [{"id": bid, "name": ten[bid], **facets["bots"][bid]} for bid in ten],
                 "channels": channels.cho_giao_dien()}
 
     @router.get("/conversations/stats")

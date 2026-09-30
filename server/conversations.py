@@ -388,19 +388,65 @@ def _conv_public(r: dict) -> dict:
     return d
 
 
+# Tình trạng lọc ở hòm thư (0.65.3). "Đang tiếp quản" = người thật đã nhận cuộc chat, bot im.
+# "Cần trả lời" = khách nhắn cuối mà chưa ai đáp, chưa có người tiếp quản (bot trực hoặc chờ người), VÀ
+#   - là chat riêng, hoặc
+#   - là nhóm mà bot vừa cân nhắc nói rồi im (`hesitant`, từ kho bộ phán xử).
+# Nhóm thì phải có điều kiện thứ hai: bot chỉ nói khi được gọi thì khách nhắn cuối trong nhóm là chuyện bình thường,
+# đếm hết vào "cần trả lời" thì bộ lọc đầy rác và mất tác dụng.
+_LOC_TINH_TRANG = {
+    "unread": "c.unread_count>0",
+    "human": "c.mode='human'",
+}
+_KHACH_CHUA_DAP = "c.last_sender_type='customer' AND c.mode IN ('ai','waiting')"
+
+
+def _sql_can_tra_loi(hesitant) -> tuple:
+    """(điều kiện SQL, tham số) của "cần trả lời". `hesitant`: các cặp (bot_id, chat_id) nhóm bot đã cân nhắc rồi im."""
+    pairs = [(str(a), str(b)) for a, b in (hesitant or [])][:200]
+    if not pairs:
+        return f"({_KHACH_CHUA_DAP} AND c.chat_type='private')", []
+    vals = ",".join(["(?,?)"] * len(pairs))
+    return (f"({_KHACH_CHUA_DAP} AND (c.chat_type='private' OR (c.bot_id, c.external_chat_id) IN (VALUES {vals})))",
+            [x for p in pairs for x in p])
+
+
+def can_tra_loi(item: dict, hesitant=None) -> bool:
+    """Bản Python của điều kiện SQL ở trên, cho từng hàng danh sách (thẻ "Cần trả lời")."""
+    if item.get("last_sender_type") != "customer" or str(item.get("mode") or "ai") not in ("ai", "waiting"):
+        return False
+    if item.get("chat_type") != "group":
+        return True
+    return (str(item.get("bot_id") or ""), str(item.get("external_chat_id") or "")) in {
+        (str(a), str(b)) for a, b in (hesitant or [])}
+BOT_KHONG_CO = "-"      # giá trị `bot_id` của bộ lọc để chỉ lấy cuộc chat KHÔNG có bot trực
+
+
 def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str = "",
-              mode: str = "", limit: int = 50, offset: int = 0) -> List[dict]:
+              mode: str = "", limit: int = 50, offset: int = 0, status: str = "", chat_type: str = "",
+              hesitant=None) -> List[dict]:
     """Danh sách hội thoại, MỚI NHẤT TRƯỚC, kèm tên khách và kênh.
 
     `q` tìm theo tên khách, tiêu đề, id chat, tin cuối (LIKE, không phân biệt hoa thường).
+    `status` (unread | need_reply | human) và `chat_type` (group | private): giá trị lạ thì BỎ QUA bộ lọc đó, vì
+    một giá trị cũ còn lưu ở trình duyệt không được làm hòm thư trống trơn. `bot_id="-"`: chỉ cuộc chat không có bot.
     """
     n = max(1, min(int(limit or 50), MAX_DANH_SACH))
     o = max(0, int(offset or 0))
     where, args = [], []
     if channel:
         where.append("a.channel=?"); args.append(str(channel))
-    if bot_id:
+    if bot_id == BOT_KHONG_CO:
+        where.append("c.bot_id=''")
+    elif bot_id:
         where.append("c.bot_id=?"); args.append(str(bot_id))
+    if status == "need_reply":
+        sql_nr, args_nr = _sql_can_tra_loi(hesitant)
+        where.append(sql_nr); args += args_nr
+    elif status in _LOC_TINH_TRANG:
+        where.append("(" + _LOC_TINH_TRANG[status] + ")")
+    if chat_type in ("group", "private"):
+        where.append("c.chat_type=?"); args.append(chat_type)
     if account_id:
         where.append("c.channel_account_id=?"); args.append(str(account_id))
     if mode:
@@ -422,6 +468,37 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
     with _lock:
         rows = _conn().execute(sql, args).fetchall()
     return [_conv_public(_row(r)) for r in rows]
+
+
+def dem_bo_loc(hesitant=None) -> dict:
+    """Số hội thoại cho từng lựa chọn của bộ lọc hòm thư, tính trên TOÀN hòm thư và không phụ thuộc bộ lọc đang
+    chọn: con số ở dropdown không nhảy mỗi lần lọc, và biết bot nào còn việc mà không phải mở ra xem.
+
+    `{"tong", "bots": {bot_id: {tong, unread, need_reply, human}}, "status": {...}, "type": {group, private}}`.
+    Cuộc chat không có bot trực nằm ở khoá "" của `bots`.
+    """
+    sql_nr, args_nr = _sql_can_tra_loi(hesitant)
+    with _lock:
+        rows = _conn().execute(
+            "SELECT c.bot_id AS bot_id, COUNT(*) AS tong,"
+            " SUM(CASE WHEN c.unread_count>0 THEN 1 ELSE 0 END) AS unread,"
+            f" SUM(CASE WHEN {sql_nr} THEN 1 ELSE 0 END) AS need_reply,"
+            " SUM(CASE WHEN c.mode='human' THEN 1 ELSE 0 END) AS human,"
+            " SUM(CASE WHEN c.chat_type='group' THEN 1 ELSE 0 END) AS grp"
+            " FROM conversations c GROUP BY c.bot_id", args_nr).fetchall()
+    out = {"tong": 0, "bots": {}, "status": {"unread": 0, "need_reply": 0, "human": 0},
+           "type": {"group": 0, "private": 0}}
+    for r in rows:
+        tong = int(r["tong"] or 0)
+        out["tong"] += tong
+        out["bots"][str(r["bot_id"] or "")] = {
+            "tong": tong, "unread": int(r["unread"] or 0), "need_reply": int(r["need_reply"] or 0),
+            "human": int(r["human"] or 0)}
+        for k in ("unread", "need_reply", "human"):
+            out["status"][k] += int(r[k] or 0)
+        out["type"]["group"] += int(r["grp"] or 0)
+        out["type"]["private"] += tong - int(r["grp"] or 0)
+    return out
 
 
 def cuoc_chat_cua_tai_khoan(channel: str, account_id: str, q: str = "", limit: int = 80) -> List[dict]:
