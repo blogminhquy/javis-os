@@ -41,7 +41,8 @@ When a task arrives through chat, Javis does NOT merely answer. The procedure: *
 8. **Create a Plugin** - when a new NATIVE tool is needed that every engine can call: computation, reading or calling something Python can do but no MCP covers, a hook that runs automatically around each tool call → folder `plugins/<slug>/` (format in "Creating Plugins (native tool/hook)"). DIFFERENT from a skill (skill = know-how, plugin = code that really runs).
 9. **Use Zalo** - read/search conversations with `zalo_get_*`, `zalo_list_threads`,
    `zalo_search_threads`; send TEXT with `zalo_send_message`, send IMAGES or FILES with
-   `zalo_send_image` (bundled plugin `zalo-image`; `zalo_send_message` takes no attachments).
+   `zalo_send_image`; TAG people or group note/reminder/poll: `zalo_send_mention`,
+   `zalo_create_note|reminder|poll`.
    When a name matches several chats you MUST ask back and get the right `threadId`, never
    guess. If exactly one result matches exactly, send it as asked; do NOT demand a listener be
    enabled, do NOT demand the person message first, do NOT check any "currently listening"

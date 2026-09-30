@@ -6,7 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.6] - 2026-09-30
 ### Thêm mới
-- **Javis tag đúng người trong nhóm Zalo, tạo ghi chú, nhắc hẹn và poll.** Năm tool mới cho mọi engine: tag người (chỉ cần nói tên, Javis tìm ID Zalo thật), liệt kê thành viên nhóm, tạo ghi chú nhóm, tạo nhắc hẹn và tạo poll.
+- **Javis tag đúng người trong nhóm Zalo.** Chỉ cần nói tên (kiểu "@minhquy"), Javis tự tìm ID Zalo thật. Trùng tên hoặc không thấy thì hỏi lại chứ không đoán, vì tag nhầm không rút lại được.
+- **Tạo ghi chú nhóm, nhắc hẹn và poll trên Zalo** ngay từ chat, cho mọi bộ não. Nhắc hẹn hiện trong Zalo nên cả nhóm cùng thấy.
+### Sửa lỗi
+- Gửi ảnh Zalo không còn báo "đã gửi" khi Zalo từ chối.
 
 ## [0.65.5] - 2026-09-30
 ### Thêm mới

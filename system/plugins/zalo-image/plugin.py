@@ -18,17 +18,18 @@ lại, để một nguồn sự thật duy nhất về "phiên Zalo nằm ở đ
 """
 from __future__ import annotations
 
-import asyncio
-import subprocess
 import json
-import os
 import shutil
 from pathlib import Path
 
-CONNECTOR_ID = "zalo"
-_CLI_PACKAGE = "zalo-agent-cli@1.6.2"   # ghim đúng bản mà connector Zalo đang chạy
+import zalo_cli
+
+# Phần dùng chung (chọn kết nối, dựng lệnh an toàn, chạy tiến trình con, đọc kết quả) nằm ở `server/zalo_cli.py` vì plugin
+# `zalo-group` cần y hệt. Các tên dưới đây giữ lại làm điểm nối để test còn thay được từng chỗ chạm thế giới thật.
+CONNECTOR_ID = zalo_cli.CONNECTOR_ID
+_CLI_PACKAGE = zalo_cli.CLI_PACKAGE
 _MAX_FILES = 10                          # gửi cả chục file một lượt đã là bất thường
-_TIMEOUT = 120                           # tải file lên Zalo có thể lâu, nhưng không lâu vô hạn
+_TIMEOUT = zalo_cli.DEFAULT_TIMEOUT      # tải file lên Zalo có thể lâu, nhưng không lâu vô hạn
 
 # Đuôi Zalo hiểu là ẢNH. Còn lại đi đường send-file (docx, pdf, zip...). Gửi nhầm đường thì
 # CLI báo lỗi khó hiểu, nên chia ở đây cho rõ.
@@ -36,25 +37,8 @@ _ANH = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 
 
 def _ket_noi_zalo():
-    """Các kết nối Zalo đang BẬT, kèm env đã tính sẵn (trong đó có HOME của phiên).
-
-    Dùng mcp_store.resolved() chứ không list_connections(): bản public che mất `config`, mà
-    đường dẫn HOME nằm trong đó. resolved() cũng đã áp đúng luật fallback khi kết nối chưa
-    ghi home_dir - copy lại luật đó ở đây là hai bản sẽ trôi lệch.
-    """
-    try:
-        import mcp_store
-    except Exception:
-        return []
-    out = []
-    for c in mcp_store.resolved(enabled_only=True):
-        if c.get("connector_id") != CONNECTOR_ID:
-            continue
-        env = c.get("env") or {}
-        home = env.get("HOME") or env.get("USERPROFILE") or ""
-        if home:
-            out.append({"id": c["id"], "label": c.get("label") or "Zalo", "home": home})
-    return out
+    """Các kết nối Zalo đang BẬT, kèm env đã tính sẵn (trong đó có HOME của phiên). Xem `zalo_cli.connections`."""
+    return zalo_cli.connections()
 
 
 def _check():
@@ -97,27 +81,8 @@ def _duong_dan_that(p, vault_root):
 
 
 async def _chay(argv, home):
-    env = dict(os.environ)
-    env["HOME"] = home
-    env["USERPROFILE"] = home
-    kwargs = {}
-    if os.name == "nt":
-        # `asyncio.subprocess` KHÔNG export cờ này - lấy ở đó thì luôn ra 0, tức lời gọi
-        # trông như đã bảo vệ mà thật ra không có gì. Phải lấy từ `subprocess`.
-        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    proc = await asyncio.create_subprocess_exec(
-        *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-        stdin=asyncio.subprocess.DEVNULL, env=env, **kwargs)
-    try:
-        out, err = await asyncio.wait_for(proc.communicate(), timeout=_TIMEOUT)
-    except asyncio.TimeoutError:
-        try:
-            proc.kill()
-        except Exception:
-            pass
-        return None, None, f"quá {_TIMEOUT} giây chưa xong"
-    dec = lambda b: (b or b"").decode("utf-8", "replace")   # noqa: E731
-    return proc.returncode, dec(out), dec(err)
+    """Chạy lệnh con trong HOME của phiên Zalo. Xem `zalo_cli.run` (cờ không cửa sổ console nằm ở đó)."""
+    return await zalo_cli.run(argv, home, _TIMEOUT)
 
 
 async def _send(args, ctx):
@@ -176,21 +141,23 @@ async def _send(args, ctx):
         ttype = 0
     caption = str(args.get("caption") or "")
 
-    npx = shutil.which("npx")
-    argv = [npx, "-y", _CLI_PACKAGE, "--json", "msg", lenh, thread_id]
-    argv += [str(f) for f in thuc]
-    argv += ["-t", str(ttype)]
+    options = ["-t", str(ttype)]
     if caption:
-        argv += ["-m", caption]
-    if npx.lower().endswith((".cmd", ".bat")):
-        argv = ["cmd.exe", "/c"] + argv
+        options += ["-m", caption]
+    argv = zalo_cli.build_argv(["msg", lenh], [thread_id] + [str(f) for f in thuc], options)
+    if argv is None:
+        return "ERROR: máy chưa có Node.js 20+ (lệnh npx)."
+    why = zalo_cli.unsafe_for_cmd(argv)
+    if why:
+        return "ERROR: " + why
 
     rc, out, err = await _chay(argv, chon[0]["home"])
     if rc is None:
         return f"ERROR: gửi Zalo {err}. File nặng thì thử gửi từng cái một."
-    if rc != 0:
-        duoi = (err or out or "").strip()[-400:]
-        return f"ERROR: zalo-agent-cli thoát mã {rc}. {duoi}"
+    # CLI KHÔNG đặt mã thoát khác 0 khi Zalo từ chối (xem zalo_cli.interpret): chỉ tin khi có JSON ở stdout.
+    ok, _data, loi = zalo_cli.interpret(rc, out, err)
+    if not ok:
+        return f"ERROR: {loi}"
     return json.dumps({
         "ok": True,
         "sent": len(thuc),

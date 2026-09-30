@@ -90,6 +90,31 @@ Three things worth knowing:
 
 Node.js 20+ is required on the machine running Javis, same as for the Zalo connection itself.
 
+## Tagging people, notes, reminders and polls
+
+`zalo_send_message` only sends text, so it cannot tag anyone, and the Zalo MCP has no notes, reminders or polls either. The bundled
+`zalo-group` plugin (on by default, built like `zalo-image`) fills exactly those gaps with five tools that every brain can call:
+
+| Tool | What it does | Action level |
+|---|---|---|
+| `zalo_group_members` | List the members of a group (id with name), or look one person up by name | Read |
+| `zalo_send_mention` | Send a message to a group and tag the right people | Dangerous (Full power level) |
+| `zalo_create_note` | Create a group note, can be pinned | Dangerous (Full power level) |
+| `zalo_create_reminder` | A reminder shown inside Zalo, with a time and repeat (daily, weekly, monthly) | Dangerous (Full power level) |
+| `zalo_create_poll` | A poll for the group: multiple answers, anonymous, closing time | Dangerous (Full power level) |
+
+Just say it in chat, for example "message the Sales group and tag @minhquy: meeting at 9am" or "create a poll in the Javis class group: what for lunch".
+
+Four things worth knowing:
+
+- **You only need to say a name to tag.** "@minhquy" or "Minh Quý" both work, ignoring case and accents. Javis looks up the real Zalo
+  id among the people who already spoke in that group first, then in Zalo's member list. **If a name is ambiguous or not found, Javis
+  asks back with the candidates** instead of guessing, because a wrong tag cannot be undone. `@All` only when you ask for it explicitly.
+- **This reminder is not Javis's own reminder** (`javis_schedule`): it shows up inside Zalo, so the whole group sees it. Times use Javis's timezone.
+- **If the group locks note or poll creation for members**, Zalo refuses and Javis reports that reason as is. If a command times out,
+  Javis says it is **not sure whether it was created** and asks you to check the group before trying again, so you do not get two polls.
+- **With several Zalo accounts attached, Javis asks** which one to use, same as for sending images.
+
 ## Using it in chat
 
 You can speak naturally:
@@ -111,7 +136,7 @@ A new connection defaults to **Full power** so that `zalo_send_message` can be u
 
 - **Read only**: only the five read tools.
 - **Draft writes**: adds `zalo_mark_read`, still blocks sending.
-- **Full power**: allows sending (both `zalo_send_message` and `zalo_send_image`).
+- **Full power**: allows sending (`zalo_send_message`, `zalo_send_image`) and the tools that tag people or create notes, reminders and polls.
 
 You change the level in the menu of the account chip on the **Connections** page. Background
 work running at a restricted level is still blocked from sending by the MCP Hub, even when the

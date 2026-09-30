@@ -91,6 +91,31 @@ Ba điều nên biết:
 
 Cần Node.js 20+ trên máy chạy Javis, giống như phần kết nối Zalo.
 
+## Tag người, ghi chú, nhắc hẹn và poll
+
+`zalo_send_message` chỉ gửi chữ nên không tag được ai, và MCP của Zalo cũng không có ghi chú, nhắc hẹn hay poll. Plugin bundled
+`zalo-group` (bật sẵn, làm giống `zalo-image`) bù đúng các chỗ đó bằng năm tool, mọi bộ não đều gọi được:
+
+| Tool | Công dụng | Mức thao tác |
+|---|---|---|
+| `zalo_group_members` | Liệt kê thành viên một nhóm (id kèm tên), hoặc tra một người theo tên | Đọc |
+| `zalo_send_mention` | Gửi tin vào nhóm và tag đúng người | Nguy hiểm (mức Toàn quyền) |
+| `zalo_create_note` | Tạo ghi chú nhóm, ghim được | Nguy hiểm (mức Toàn quyền) |
+| `zalo_create_reminder` | Nhắc hẹn hiện trong Zalo, chọn giờ và lặp (hằng ngày, tuần, tháng) | Nguy hiểm (mức Toàn quyền) |
+| `zalo_create_poll` | Poll cho nhóm: chọn nhiều đáp án, ẩn danh, hạn đóng | Nguy hiểm (mức Toàn quyền) |
+
+Nói trong chat như bình thường, ví dụ “nhắn nhóm Kinh doanh tag @minhquy họp lúc 9h nhé” hoặc “tạo poll trưa nay ăn gì trong nhóm Lớp Javis”.
+
+Bốn điều nên biết:
+
+- **Tag chỉ cần nói tên.** “@minhquy” hay “Minh Quý” đều được, không phân biệt hoa thường hay dấu. Javis tìm ID Zalo thật trong
+  những người đã nhắn ở nhóm đó trước, rồi tới danh sách thành viên của Zalo. **Trùng tên hoặc không thấy thì Javis hỏi lại kèm
+  danh sách ứng viên**, không đoán, vì tag nhầm người thì không rút lại được. Tag cả nhóm (`@All`) chỉ khi bạn yêu cầu rõ.
+- **Nhắc hẹn này khác nhắc hẹn riêng của Javis** (`javis_schedule`): nó hiện trong Zalo nên cả nhóm cùng thấy. Giờ tính theo múi giờ của Javis.
+- **Nhóm khoá quyền tạo ghi chú hoặc poll của thành viên** thì Zalo từ chối và Javis báo thẳng lý do đó. Nếu lệnh quá giờ, Javis nói
+  **không rõ đã tạo chưa** và dặn xem lại nhóm trước khi thử tiếp, để khỏi ra hai poll.
+- **Đấu nhiều tài khoản Zalo thì Javis hỏi lại** nên dùng tài khoản nào, giống phần gửi ảnh.
+
 ## Cách dùng trong chat
 
 Có thể nói tự nhiên:
@@ -111,7 +136,7 @@ Kết nối mới mặc định ở mức **Toàn quyền** để có thể dùn
 
 - **Chỉ đọc**: chỉ dùng năm tool đọc.
 - **Ghi nháp**: thêm `zalo_mark_read`, vẫn chặn gửi tin.
-- **Toàn quyền**: cho phép gửi tin (cả `zalo_send_message` lẫn `zalo_send_image`).
+- **Toàn quyền**: cho phép gửi tin (`zalo_send_message`, `zalo_send_image`) và các tool tag người, ghi chú, nhắc hẹn, poll.
 
 Bạn đổi quyền trong menu của chip tài khoản ở trang **Kết nối**. Việc nền chạy ở chế độ
 giới hạn vẫn bị MCP Hub chặn gửi tin, dù tài khoản đang đặt Toàn quyền.

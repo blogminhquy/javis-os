@@ -507,6 +507,25 @@ def cuoc_chat_cua_tai_khoan(channel: str, account_id: str, q: str = "", limit: i
     return danh_sach(account_id=_tai_khoan_id(channel, account_id), q=q, limit=limit)
 
 
+def group_speakers(account_key: str, chat_id: str, limit: int = 300) -> List[dict]:
+    """Người ĐÃ NHẮN trong một cuộc chat: `[{uid, name, ts}]`, mới nhất trước, tên là tên ở tin gần nhất của người đó.
+
+    Dùng để đổi "@minhquy" thành ID Zalo thật khi tag người trong nhóm (plugin `zalo-group`): kho này có sẵn, tức thì, không
+    tốn một lượt gọi mạng. `account_key` là khoá tài khoản kho dùng (`"<kênh>:<id>"`, ví dụ `zalo_personal:zalo-1`). Người
+    chưa từng nhắn thì không có ở đây (đã có danh sách thành viên từ Zalo lo phần đó); tin của CHÍNH chủ không mang id nên
+    cũng không có."""
+    n = max(1, min(int(limit or 300), 1000))
+    with _lock:
+        rows = _conn().execute(
+            "SELECT m.sender_id AS uid, m.sender_name AS name, MAX(m.created_at) AS ts"
+            " FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+            " WHERE c.channel_account_id=? AND c.external_chat_id=? AND m.sender_type='customer'"
+            " AND m.sender_id != '' AND m.sender_name != ''"
+            " GROUP BY m.sender_id ORDER BY ts DESC LIMIT ?",
+            (str(account_key), str(chat_id), n)).fetchall()
+    return [{"uid": str(r["uid"]), "name": str(r["name"]), "ts": float(r["ts"] or 0)} for r in rows]
+
+
 def chi_tiet(conversation_id: int) -> Optional[dict]:
     with _lock:
         r = _conn().execute(
