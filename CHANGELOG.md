@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.4] - 2026-09-30
+### Cải thiện
+- **Hòm thư: công tắc Tự động / Tôi trả lời** ở đầu mỗi cuộc chat của bot, thay nút Tiếp quản nhỏ, kèm dòng trạng thái rõ ai đang trực.
+
 ## [0.65.3] - 2026-09-30
 ### Cải thiện
 - **Hòm thư bot có bộ lọc dạng dropdown gọn một hàng:** theo bot, tình trạng (chưa đọc, cần trả lời, tôi tiếp quản) và loại (nhóm hay chat riêng). Số hội thoại nằm ngay trong từng lựa chọn, bộ lọc được nhớ lại lần sau.
