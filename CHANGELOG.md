@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.12] - 2026-09-30
 ### Cải thiện
-- **Nhóm chat chỉ giữ 100 tin gần nhất trong Hòm thư**, nên kho không phình mãi và Javis không giữ lời của người lạ lâu hơn cần thiết. Chat riêng với khách vẫn lưu hết như cũ. Lần đầu sau khi cập nhật, các nhóm cũ được cắt xuống 100 tin, sau khi sao lưu file một lần.
+- **Nhóm chat chỉ giữ 100 tin gần nhất trong Hòm thư**, nên kho không phình mãi và Javis không giữ lời của người lạ lâu hơn cần thiết. Chat riêng với khách vẫn lưu hết.
+- Lần đầu sau khi cập nhật, các nhóm cũ được cắt xuống 100 tin. Javis sao lưu file kho một lần trước khi cắt và tự xoá bản sao lưu sau 14 ngày.
 - **Bot trong nhóm xem 30 tin gần nhất để trả lời đúng ngữ cảnh**, không chỉ thấy mỗi câu đang hỏi.
 
 ## [0.65.11] - 2026-09-30

@@ -54,6 +54,8 @@ CHE_DO = ("ai", "human", "waiting", "closed")
 CHE_DO_DEFAULT = "ai"
 
 MAX_CHU = 8_000          # trần độ dài một tin lưu lại
+GIU_TIN_NHOM = 100       # 0.65.12: mỗi NHÓM chỉ giữ chừng này tin gần nhất. Chat riêng với khách vẫn lưu hết (chủ chốt 30/09/2026).
+NGAY_GIU_SAO_LUU = 14    # bản sao lưu trước khi cắt nhóm cũ tự xoá sau chừng này ngày: giữ mãi thì lời của người lạ vẫn nằm đó, trái mục đích cắt
 MAX_TEN = 120
 MAX_DANH_SACH = 200      # trần một trang danh sách hội thoại
 MAX_TIN_MOT_LAN = 500    # trần một trang tin nhắn
@@ -168,8 +170,18 @@ def close() -> None:
         _db, _db_path = None, None
 
 
+_ULTIMO_NOW = 0.0
+
+
 def _now() -> float:
-    return time.time()
+    """Giờ hiện tại, nhưng TĂNG NGHIÊM NGẶT trong tiến trình. Đồng hồ Windows chỉ nhích khoảng 15 ms một lần, nên hai lần ghi liên tiếp
+    nhận cùng một `updated_at` và thứ tự "mới hoạt động trước" của danh sách khách/hội thoại phụ thuộc may rủi (test_hoi_thoai_crm đỏ
+    ngẫu nhiên trên máy Windows). Nhích thêm một phần triệu giây khi trùng là đủ để thứ tự luôn đúng thứ tự ghi."""
+    global _ULTIMO_NOW
+    with _lock:
+        t = time.time()
+        _ULTIMO_NOW = t if t > _ULTIMO_NOW else _ULTIMO_NOW + 1e-6
+        return _ULTIMO_NOW
 
 
 def _s(v: Any, tran: int = MAX_CHU) -> str:
@@ -358,6 +370,10 @@ def ghi_su_kien(ev: dict) -> dict:
                     " unread_count=unread_count+?, message_count=message_count+1, updated_at=?"
                     " WHERE id=?",
                     (tom, ts, e["sender_type"], them_chua_doc, now, conv_id))
+                # 6. NHÓM chỉ giữ GIU_TIN_NHOM tin gần nhất (cùng giao dịch: không có lúc nào kho chứa thừa). `message_count` vẫn là số tin
+                # từng nhận, không giảm theo.
+                if e["chat_type"] == "group":
+                    _cat_nhom_mot_cuoc(db, conv_id)
                 db.execute("COMMIT")
             except Exception:
                 db.execute("ROLLBACK")
@@ -367,6 +383,110 @@ def ghi_su_kien(ev: dict) -> dict:
     except Exception as ex:
         print(f"[conversations] ghi lỗi: {type(ex).__name__}: {ex}", file=sys.stderr)
         return {"ok": False, "loi": f"{type(ex).__name__}: {ex}"}
+
+
+def _cat_nhom_mot_cuoc(db, conv_id: int, giu: int = GIU_TIN_NHOM) -> int:
+    """Xoá các tin CŨ của một cuộc chat, chỉ giữ `giu` tin mới nhất. Trả số tin đã xoá. Phải gọi trong giao dịch đang mở.
+
+    Mốc cắt là id của tin thứ `giu` tính từ mới nhất (truy vấn theo chỉ mục `ix_msg_conv`, không quét cả bảng); chưa đủ `giu` tin thì
+    không có mốc và không xoá gì."""
+    cur = db.execute(
+        "DELETE FROM messages WHERE conversation_id=? AND id < COALESCE("
+        "(SELECT id FROM messages WHERE conversation_id=? ORDER BY id DESC LIMIT 1 OFFSET ?), 0)",
+        (int(conv_id), int(conv_id), int(giu) - 1))
+    return int(cur.rowcount or 0)
+
+
+_DAU_CAT_NHOM = "cat_nhom_v1"
+
+
+def _don_sao_luu_cat_nhom() -> int:
+    """Xoá bản sao lưu của lần cắt nhóm cũ đã quá `NGAY_GIU_SAO_LUU` ngày. Trả số file đã xoá. Không ném."""
+    n = 0
+    try:
+        goc = Path(DB_PATH)
+        for f in goc.parent.glob(goc.name + ".bak-truoc-cat-nhom-*"):
+            try:
+                if _now() - f.stat().st_mtime > NGAY_GIU_SAO_LUU * 86400:
+                    f.unlink()
+                    n += 1
+            except OSError:
+                pass
+    except Exception:      # noqa: BLE001
+        pass
+    return n
+
+
+
+def cat_nhom_cu(giu: int = GIU_TIN_NHOM) -> dict:
+    """DI TRÚ MỘT LẦN (0.65.12): các nhóm đã có từ trước bản này được cắt xuống còn `giu` tin mới nhất.
+
+    Xoá là không hoàn tác, nên: (1) sao lưu NGUYÊN file kho một lần trước khi cắt (API sao lưu của SQLite, nhất quán cả khi đang ghi WAL),
+    (2) chỉ chạy khi thật sự có nhóm vượt mức, (3) ghi dấu vào `sync_state` để lần khởi động sau không chạy lại, và chỉ ghi dấu SAU khi cắt
+    xong (cắt dở thì lần sau chạy lại, cắt lại là vô hại). Sau đó gom chỗ trống (VACUUM) để file nhỏ lại thật; hỏng bước này (hết đĩa...) chỉ là
+    file chưa nhỏ, không phải lỗi dữ liệu.
+
+    Trả `{"da_chay", "nhom", "da_xoa", "sao_luu", "loi"}`. Không ném: gọi lúc khởi động."""
+    out = {"da_chay": False, "nhom": 0, "da_xoa": 0, "sao_luu": "", "loi": ""}
+    try:
+        with _lock:
+            db = _conn()
+            if db.execute("SELECT 1 FROM sync_state WHERE key=?", (_DAU_CAT_NHOM,)).fetchone():
+                out["da_chay"] = True
+                _don_sao_luu_cat_nhom()
+                return out
+            ds = [int(r[0]) for r in db.execute(
+                "SELECT m.conversation_id FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+                " WHERE c.chat_type='group' GROUP BY m.conversation_id HAVING COUNT(*) > ?", (int(giu),)).fetchall()]
+            if ds:
+                ngay = datetime.now().strftime("%Y%m%d-%H%M%S")
+                bak = Path(str(DB_PATH) + f".bak-truoc-cat-nhom-{ngay}")
+                dst = sqlite3.connect(str(bak))
+                try:
+                    db.backup(dst)
+                finally:
+                    dst.close()
+                out["sao_luu"] = str(bak)
+                db.execute("BEGIN IMMEDIATE")
+                try:
+                    for cid in ds:
+                        out["da_xoa"] += _cat_nhom_mot_cuoc(db, cid, giu)
+                    db.execute("COMMIT")
+                except Exception:
+                    db.execute("ROLLBACK")
+                    raise
+                out["nhom"] = len(ds)
+            db.execute("INSERT OR REPLACE INTO sync_state(key, value, updated_at) VALUES(?,?,?)",
+                       (_DAU_CAT_NHOM, _json({"nhom": out["nhom"], "da_xoa": out["da_xoa"], "sao_luu": out["sao_luu"]}), _now()))
+            db.commit()
+            if out["da_xoa"]:
+                try:
+                    db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                    db.execute("VACUUM")
+                except Exception as ex:      # noqa: BLE001
+                    print(f"[conversations] gom chỗ trống sau khi cắt nhóm lỗi: {type(ex).__name__}: {ex}", file=sys.stderr)
+        out["da_chay"] = True
+    except Exception as ex:      # noqa: BLE001
+        out["loi"] = f"{type(ex).__name__}: {ex}"
+        print(f"[conversations] cắt nhóm cũ lỗi: {out['loi']}", file=sys.stderr)
+    return out
+
+
+def tin_gan_day(channel: str, account_id: str, external_chat_id: str, limit: int = 30) -> List[dict]:
+    """`limit` tin MỚI NHẤT của một cuộc chat theo khoá kênh, cũ trước mới sau. Chưa có hội thoại thì rỗng.
+
+    Dùng làm NGỮ CẢNH cho bot trả lời trong nhóm (0.65.12). Không ném: lỗi kho thì bot trả lời không có ngữ cảnh, không hỏng lượt."""
+    n = max(1, min(int(limit or 30), MAX_TIN_MOT_LAN))
+    try:
+        with _lock:
+            rows = _conn().execute(
+                "SELECT m.* FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+                " WHERE c.channel_account_id=? AND c.external_chat_id=? ORDER BY m.id DESC LIMIT ?",
+                (_tai_khoan_id(channel, account_id), str(external_chat_id), n)).fetchall()
+        return [dict(r) for r in reversed(rows)]
+    except Exception as ex:      # noqa: BLE001
+        print(f"[conversations] đọc tin gần đây lỗi: {type(ex).__name__}: {ex}", file=sys.stderr)
+        return []
 
 
 # ============================================================

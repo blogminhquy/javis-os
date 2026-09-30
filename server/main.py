@@ -10900,6 +10900,17 @@ async def _start_scheduler():
     except Exception as e:
         print(f"[channel_accounts brain] {type(e).__name__}: {e}", file=__import__('sys').stderr)
     try:
+        # DI TRÚ 0.65.12: nhóm chat chỉ giữ 100 tin gần nhất trong Hộp thư. Chạy MỘT lần (có dấu trong kho), sao lưu file trước khi cắt, và ở
+        # luồng nền vì VACUUM sau khi cắt có thể mất vài giây trên kho lớn.
+        def _cat_nhom_cu_nen():
+            kq = conversations.cat_nhom_cu()
+            if kq.get("da_xoa") or kq.get("loi"):
+                print("[conversations] cắt nhóm cũ: " + json.dumps(kq, ensure_ascii=False))
+        import threading as _threading      # main.py không import threading ở đầu file
+        _threading.Thread(target=_cat_nhom_cu_nen, daemon=True, name="cat-nhom-cu").start()
+    except Exception as e:
+        print(f"[conversations cắt nhóm] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+    try:
         # Bot chuyên trách: nối bộ giám sát rồi bật những con đang để BẬT. Nối ở đây chứ không
         # để module tự import main - vòng import là thứ byte-compile không thấy, chỉ chết lúc
         # khởi động (xem bước "Import thật main" trong CI).
