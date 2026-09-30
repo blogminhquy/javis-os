@@ -53,7 +53,7 @@ chỉnh model; học chéo giữa các người dùng; sửa cách bot chat riê
 6. **Ba tầng, học chỉ ghi vào tầng riêng.** Tầng chung chỉ có CƠ CHẾ trò chuyện nhóm, không có chủ đề,
    giọng hay xưng hô. Tầng bot lấy từ Agent của chính bot. Tầng cuộc chat là văn hoá riêng của từng
    nhóm. Điều học được chỉ ghi vào tầng bot hoặc tầng cuộc chat, không bao giờ ngược lên tầng chung,
-   và bot này không đọc được gì của bot kia (xem 4.2).
+   và bot này không đọc được gì của bot kia (xem 4.1).
 7. **Bộ phán xử không viết câu trả lời.** Nó chỉ quyết nói hay im. Câu nói ra vẫn do engine của bot
    chạy với prompt Agent của bot, nên giọng và cách trả lời luôn là của Agent.
 8. **Mở rộng bằng dữ liệu và cắm thêm, không bằng nhánh if.** Thêm tín hiệu, thêm kênh, thêm ngôn
@@ -85,7 +85,7 @@ Ba khối dữ liệu tách rời, đổi cái này không đụng cái kia:
 - **Hồ sơ (Profile):** riêng từng bot. Tên gọi, thẻ luật, độ hăng hái, người được dạy bot.
 - **Kho (Store):** ca đã học, nhật ký quyết định, ngưỡng theo cuộc chat.
 
-### 4.2 Ba tầng: cái gì đến từ đâu
+### 4.1 Ba tầng: cái gì đến từ đâu
 
 | Tầng | Chứa gì | Từ đâu | Ai đổi được |
 |---|---|---|---|
@@ -101,7 +101,7 @@ giọng của Javis Vũ. Ai học gì ở nhóm nào thì chỉ ở nhóm đó.
 Mã mới nằm trong `server/chatbot_phan_xu.py` (bộ máy, thuần và test được) và
 `server/chatbot_phan_xu_kho.py` (SQLite). Không nhét vào `chatbot_runtime.py` thêm nữa.
 
-### 4.1 Sự kiện chuẩn hoá
+### 4.2 Sự kiện chuẩn hoá
 
 ```
 Event: kenh, bot_id, chat_id, chat_type, msg_id, ts, text, sender_id, sender_name,
