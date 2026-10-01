@@ -40,8 +40,10 @@ import array
 import asyncio
 import base64
 import json
+import os
 import re
 import shutil
+import sys
 import tempfile
 import time
 from typing import Any, AsyncIterator, Dict, List, Optional
@@ -798,6 +800,7 @@ class ChatGPTLive(LiveProvider):
         self._user_last = ""
         self._user_last_at = 0.0
         self._interrupt_turns: List[str] = []
+        self._held: List[dict] = []   # lời Javis tới lúc người dùng còn đang nói, chờ câu người dùng chốt
         self._bg: set = set()
 
     async def connect(self):
@@ -871,10 +874,16 @@ class ChatGPTLive(LiveProvider):
 
     def _handoff_request(self, req: str) -> str:
         req = str(req or "").strip()
-        recent = self._user_last if time.monotonic() - self._user_last_at <= HANDOFF_MERGE_S else ""
+        # Câu đang nghe dở (handoff hay tới trước done) đầy đủ hơn câu đã chốt lần trước.
+        recent = self._user_buf.strip() or (
+            self._user_last if time.monotonic() - self._user_last_at <= HANDOFF_MERGE_S else "")
+        # Yêu cầu là MẢNH của câu người dùng đang nói ("là bao nhiêu em" trong "Doanh thu hôm nay ...
+        # là bao nhiêu em", đo 01/10) thì dùng cả câu cho đủ ý.
+        if recent and req and req.lower() in recent.lower():
+            return recent
         if len(req.split()) < HANDOFF_SHORT_WORDS and recent:
             # Phiên ngồi im lâu có lúc tách đôi câu ("Doanh" / "là bao nhiêu em"): ghép câu vừa nói.
-            return recent if req.lower() in recent.lower() else (recent + " " + req).strip()
+            return (recent + " " + req).strip()
         return req or recent or "(không rõ yêu cầu, hãy hỏi lại người dùng)"
 
     def translate(self, msg: dict) -> List[dict]:
@@ -889,33 +898,45 @@ class ChatGPTLive(LiveProvider):
             if self._sdp is not None and not self._sdp.done():
                 self._sdp.set_exception(RuntimeError(f"ChatGPT Live không mở được: {text}"))
             return [{"type": "error", "message": f"ChatGPT Live lỗi: {text}"}]
+        # Chỉ thông báo `transcript/done` của người dùng mới tạo bong bóng chốt. Đo trên dashboard thật
+        # (01/10): model hay BẮT ĐẦU trả lời trước khi chữ cuối của người dùng về ("... có khỏe" rồi
+        # mới tới " không"), và handoff tới trước cả done. Chốt sớm theo những mốc đó sinh bong bóng
+        # cụt, bong bóng lặp và đảo thứ tự. Nên lời Javis tới lúc người dùng còn đang nói thì GIỮ
+        # lại, phát ra ngay sau câu người dùng đã chốt.
         if method == "thread/realtime/transcript/delta":
             delta = str(p.get("delta") or "")
             if p.get("role") == "user":
                 self._user_buf += delta
                 return [{"type": "transcript", "role": "user", "text": self._user_buf.strip(), "final": False}] \
                     if self._user_buf.strip() else []
-            out = self._flush_user()
-            if delta:
-                out.append({"type": "transcript", "role": "assistant", "text": delta, "final": False})
-            return out
+            if not delta:
+                return []
+            ev = {"type": "transcript", "role": "assistant", "text": delta, "final": False}
+            if self._user_buf.strip():
+                self._held.append(ev)
+                return []
+            return [ev]
         if method == "thread/realtime/transcript/done":
             if p.get("role") == "user":
                 text = str(p.get("text") or "").strip() or self._user_buf.strip()
                 self._user_buf = ""
-                if not text:
-                    return []
-                self._user_last, self._user_last_at = text, time.monotonic()
-                return [{"type": "transcript", "role": "user", "text": text, "final": True}]
-            return self._flush_user() + [{"type": "turn_done"}]
+                out: List[dict] = []
+                if text:
+                    self._user_last, self._user_last_at = text, time.monotonic()
+                    out.append({"type": "transcript", "role": "user", "text": text, "final": True})
+                out += self._held
+                self._held = []
+                return out
+            # Javis nói xong mà câu người dùng vẫn chưa có done (hiếm): chốt phần đã nghe rồi mới nhả.
+            out = self._flush_user() + self._held + [{"type": "turn_done"}]
+            self._held = []
+            return out
         if method == "thread/realtime/itemAdded":
             item = p.get("item") or {}
             if item.get("type") != "handoff_request":
                 return []
-            out = self._flush_user()
-            out.append({"type": "tool_call", "id": str(item.get("handoff_id") or ""), "name": "ask_javis",
-                        "args": {"request": self._handoff_request(item.get("input_transcript"))}})
-            return out
+            return [{"type": "tool_call", "id": str(item.get("handoff_id") or ""), "name": "ask_javis",
+                     "args": {"request": self._handoff_request(item.get("input_transcript"))}}]
         if method == "turn/started":
             # Mỗi lần giao việc Codex TỰ mở một lượt agent: chặn ngay, việc thật do bộ não Javis làm.
             tid = str(((p.get("turn") or {}).get("id")) or p.get("turnId") or "")
@@ -939,8 +960,14 @@ class ChatGPTLive(LiveProvider):
     async def events(self) -> AsyncIterator[dict]:
         if self.queue is None:
             return
+        debug = bool(os.environ.get("JAVIS_LIVE_DEBUG"))
         while True:
             msg = await self.queue.get()
+            if debug:
+                p = msg.get("params") or {}
+                print(f"[chatgpt live] {msg.get('method')} role={p.get('role')} "
+                      f"delta={p.get('delta')!r} text={p.get('text')!r} item={(p.get('item') or {}).get('type')}",
+                      file=sys.stderr)
             for ev in self.translate(msg):
                 yield ev
             while self._interrupt_turns:
@@ -997,6 +1024,7 @@ _CLASSES = {"chatgpt": ChatGPTLive, "gemini": GeminiLive, "openai": OpenAIRealti
 CHATGPT_UNAVAILABLE = {
     "no_cli": "Chưa cài Codex CLI nên chưa dùng được ChatGPT Live. Cài Codex rồi nối ChatGPT ở trang Models.",
     "no_login": "Chưa nối ChatGPT ở trang Models nên chưa dùng được ChatGPT Live.",
+    "old_cli": "Codex CLI trên máy đã cũ (cần bản 0.153 trở lên) nên chưa dùng được ChatGPT Live. Cập nhật Codex rồi thử lại.",
 }
 
 

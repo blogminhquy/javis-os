@@ -21,10 +21,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import re
 import subprocess
 import sys
 import threading
-from typing import Dict, Optional, Tuple
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 REALTIME_FLAG = ["-c", "features.realtime_conversation=true"]
 INIT_TIMEOUT = 20.0
@@ -199,13 +202,76 @@ class AppServer:
 _SERVER: Optional[AppServer] = None
 _popen_factory = subprocess.Popen
 
+# Bản Codex thấp nhất chạy được ChatGPT Live. Đo 01/10/2026: 0.147 gửi thừa `session.model` và bị
+# OpenAI từ chối ("Field session.model is not allowed for this Codex realtime session"); 0.153.4
+# (Docker đang ghim) và 0.159.3 chạy tốt.
+MIN_VERSION = (0, 153, 0)
+_VERSIONS: Dict[tuple, Optional[tuple]] = {}
+_LAST_CLI_REASON = "no_cli"
 
-def _find_cli() -> Optional[str]:
+
+def _version_of(path: str) -> Optional[tuple]:
+    """(major, minor, patch) của một binary Codex, nhớ theo (đường dẫn, mtime)."""
+    try:
+        key = (path, os.stat(path).st_mtime)
+    except OSError:
+        return None
+    if key not in _VERSIONS:
+        try:
+            out = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=15,
+                                 creationflags=_no_window()).stdout
+            m = re.search(r"(\d+)\.(\d+)\.(\d+)", out or "")
+            _VERSIONS[key] = tuple(int(x) for x in m.groups()) if m else None
+        except Exception:
+            _VERSIONS[key] = None
+    return _VERSIONS[key]
+
+
+def _candidate_clis() -> List[str]:
+    """Mọi bản Codex trên máy. Một máy Windows hay có nhiều bản cùng lúc (Codex Desktop đặt bản
+    riêng trong ~/.codex, npm đặt bản khác), và bản `find_codex_cli` ưu tiên chưa chắc là bản mới."""
+    out: List[str] = []
     try:
         import claude_cli
-        return claude_cli.find_codex_cli()
+        p = claude_cli.find_codex_cli()
+        if p:
+            out.append(p)
+        found = claude_cli.tim_binary("codex")
+        if found and "windowsapps" not in found.lower():
+            out.append(found)
     except Exception:
-        return None
+        pass
+    home = Path.home()
+    appdata = Path(os.environ.get("APPDATA", "") or home)
+    for c in (home / ".codex" / ".sandbox-bin" / "codex.exe",
+              home / ".codex" / "plugins" / ".plugin-appserver" / "codex.exe",
+              appdata / "npm" / "codex.cmd", appdata / "npm" / "codex.exe",
+              home / ".codex" / ".sandbox-bin" / "codex"):
+        try:
+            if c.exists():
+                out.append(str(c))
+        except Exception:
+            pass
+    seen, uniq = set(), []
+    for p in out:
+        k = os.path.normcase(os.path.abspath(p))
+        if k not in seen:
+            seen.add(k)
+            uniq.append(p)
+    return uniq
+
+
+def _find_cli() -> Optional[str]:
+    """Bản Codex MỚI NHẤT trên máy đủ điều kiện chạy ChatGPT Live, hoặc None (lý do ở _LAST_CLI_REASON)."""
+    global _LAST_CLI_REASON
+    best = None
+    cands = _candidate_clis()
+    for p in cands:
+        v = _version_of(p)
+        if v and v >= MIN_VERSION and (best is None or v > best[1]):
+            best = (p, v)
+    _LAST_CLI_REASON = "" if best else ("old_cli" if cands else "no_cli")
+    return best[0] if best else None
 
 
 async def get_app_server() -> AppServer:
@@ -215,6 +281,8 @@ async def get_app_server() -> AppServer:
         return _SERVER
     cli = _find_cli()
     if not cli:
+        if _LAST_CLI_REASON == "old_cli":
+            raise AppServerError("Codex CLI trên máy đã cũ (cần bản 0.153 trở lên) nên chưa dùng được ChatGPT Live. Cập nhật Codex rồi thử lại.")
         raise AppServerError("Chưa cài Codex CLI nên chưa dùng được ChatGPT Live. Cài Codex rồi nối ChatGPT ở trang Models.")
     if _SERVER is not None:
         _SERVER.close()
@@ -241,7 +309,7 @@ def realtime_available(cfg: dict) -> Tuple[bool, str]:
     lúc mở cuộc gọi, và cuộc gọi rơi xuống đường kế tiếp.
     """
     if not _find_cli():
-        return False, "no_cli"
+        return False, _LAST_CLI_REASON or "no_cli"
     o = ((cfg or {}).get("model") or {}).get("openai_oauth") or {}
     if o.get("access_token") or o.get("refresh_token") or _codex_logged_in():
         return True, ""

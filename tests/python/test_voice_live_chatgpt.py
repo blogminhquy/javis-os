@@ -198,6 +198,42 @@ async def main():
 
 asyncio.run(main())
 
+# Thứ tự thật đo trên dashboard 01/10: model trả lời TRƯỚC khi chữ cuối của người dùng về, và
+# handoff tới TRƯỚC done. Bản đầu chốt sớm theo các mốc đó nên sinh "Chào em... khỏe" cụt, bong bóng
+# "không" lẻ và câu hỏi doanh thu hiện hai lần.
+def _n(method, **params):
+    return {"method": method, "params": params}
+
+
+tp = voice_live.ChatGPTLive(app_server_getter=lambda: None)
+seq = [
+    _n("thread/realtime/transcript/delta", role="user", delta="Chào em. Hôm nay em có khỏe"),
+    _n("thread/realtime/transcript/delta", role="assistant", delta="Dạ,"),
+    _n("thread/realtime/transcript/delta", role="user", delta=" không"),
+    _n("thread/realtime/transcript/done", role="user", text="Chào em. Hôm nay em có khỏe không"),
+    _n("thread/realtime/transcript/delta", role="assistant", delta=" em khỏe ạ."),
+    _n("thread/realtime/transcript/done", role="assistant", text="Dạ, em khỏe ạ."),
+]
+evs = [e for m in seq for e in tp.translate(m)]
+finals = [e["text"] for e in evs if e.get("role") == "user" and e.get("final")]
+check("lời Javis chen trước chữ cuối: chỉ MỘT bong bóng người dùng, đủ câu", finals == ["Chào em. Hôm nay em có khỏe không"])
+order = [(e.get("role"), e.get("final")) for e in evs if e["type"] == "transcript" and (e.get("final") or e.get("role") == "assistant")]
+check("câu người dùng chốt đứng TRƯỚC lời Javis đã giữ lại",
+      order[:2] == [("user", True), ("assistant", False)] and evs[-1] == {"type": "turn_done"})
+
+tp2 = voice_live.ChatGPTLive(app_server_getter=lambda: None)
+seq2 = [
+    _n("thread/realtime/transcript/delta", role="user", delta="Doanh thu hôm nay của cửa hàng là bao nhiêu em"),
+    _n("thread/realtime/itemAdded", item={"type": "handoff_request", "handoff_id": "h9", "input_transcript": "là bao nhiêu em"}),
+    _n("thread/realtime/transcript/done", role="user", text="Doanh thu hôm nay của cửa hàng là bao nhiêu em"),
+]
+evs2 = [e for m in seq2 for e in tp2.translate(m)]
+finals2 = [e["text"] for e in evs2 if e.get("role") == "user" and e.get("final")]
+check("handoff tới trước done: câu hỏi chỉ hiện MỘT lần", finals2 == ["Doanh thu hôm nay của cửa hàng là bao nhiêu em"])
+call2 = next(e for e in evs2 if e["type"] == "tool_call")
+check("handoff tới trước done: yêu cầu lấy câu đang nghe dở cho đủ ý",
+      call2["args"]["request"] == "Doanh thu hôm nay của cửa hàng là bao nhiêu em")
+
 # make_provider và nhãn
 codex_realtime._find_cli = lambda: "codex-fake"
 p = voice_live.make_provider({"voice": {"live_provider": "chatgpt", "chatgpt_voice": "maple"},

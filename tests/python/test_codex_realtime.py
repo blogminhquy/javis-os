@@ -179,6 +179,20 @@ codex_realtime._find_cli = lambda: None
 ok, why = codex_realtime.realtime_available({"model": {"openai_oauth": {"refresh_token": "r"}}})
 check("không có Codex CLI -> lý do no_cli", ok is False and why == "no_cli")
 
+# Chọn bản Codex: bản MỚI NHẤT đủ 0.153; chỉ có bản cũ thì lý do old_cli (0.147 bị OpenAI từ chối
+# vì gửi thừa session.model, đo 01/10/2026).
+import importlib
+cr = importlib.reload(codex_realtime)
+cr._candidate_clis = lambda: ["old.exe", "mid.exe", "new.exe"]
+cr._version_of = lambda p: {"old.exe": (0, 147, 0), "mid.exe": (0, 153, 4), "new.exe": (0, 158, 0)}[p]
+check("chọn bản Codex mới nhất đủ điều kiện", cr._find_cli() == "new.exe")
+cr._candidate_clis = lambda: ["old.exe"]
+check("chỉ có Codex cũ -> None, lý do old_cli", cr._find_cli() is None and cr._LAST_CLI_REASON == "old_cli")
+ok, why = cr.realtime_available({"model": {"openai_oauth": {"refresh_token": "r"}}})
+check("realtime_available báo old_cli", ok is False and why == "old_cli")
+cr._candidate_clis = lambda: []
+check("không có Codex nào -> lý do no_cli", cr._find_cli() is None and cr._LAST_CLI_REASON == "no_cli")
+
 if _fails:
     print("\nFAIL:", len(_fails), _fails)
     raise SystemExit(1)
