@@ -312,8 +312,9 @@ def _yeu_cau_thang(text: str) -> str:
     for code in lang_registry.ma_list():
         for tu in lang_registry.get(code).request_words:
             t = re.escape(_bo_dau(tu))
-            if re.search(rf"\b({dong_tu})\b[^.!?\n]{{0,24}}?\b{t}\b", s):
-                return code
+            for m in re.finditer(rf"\b({dong_tu})\b[^.!?\n]{{0,24}}?\b{t}\b", s):
+                if not _la_cau_than(s, m.start()):
+                    return code
     # Dạng đảo ("in English please", "bang tieng Anh nhe") CHỈ tính khi cả tin nhắn là một
     # câu ra lệnh ngắn. Câu dài chỉ NHẮC TỚI một ngôn ngữ thì không phải lệnh: "File hợp đồng
     # bằng tiếng Anh nằm ở đâu trong brain" là một câu hỏi về vị trí file, không phải yêu cầu
@@ -322,9 +323,24 @@ def _yeu_cau_thang(text: str) -> str:
         for code in lang_registry.ma_list():
             for tu in lang_registry.get(code).request_words:
                 t = re.escape(_bo_dau(tu))
-                if re.search(rf"\b(bang|in|sang)\s+{t}\b", s):
+                m = re.search(rf"\b(bang|in|sang)\s+{t}\b", s)
+                if m and not _la_cau_than(s, m.start()):
                     return code
     return ""
+
+
+# Từ hỏi lý do. Đứng ngay trước cụm "trả lời bằng tiếng X" thì câu đó là THAN chứ không phải lệnh.
+_HOI_LY_DO = re.compile(r"\b(sao|tai sao|vi sao|why|how come)\b")
+
+
+def _la_cau_than(s: str, vt: int) -> bool:
+    """Cụm ở vị trí `vt` nằm trong câu hỏi lý do ("sao em lại trả lời bằng tiếng Anh?").
+
+    0.65.29: chủ dự án hỏi đúng câu đó và bản cũ ghim tiếng Anh cho lượt ấy, tức là trả lời câu
+    than bằng chính thứ tiếng đang bị than. Chỉ xét đoạn ngắn ngay trước cụm, trong cùng một câu,
+    nên "trả lời bằng tiếng Anh được không" (nhờ lịch sự) vẫn là lệnh."""
+    truoc = re.split(r"[.!?\n]", s[max(0, vt - 30):vt])[-1]
+    return bool(_HOI_LY_DO.search(truoc))
 
 
 # ---------------------------------------------------------------- bộ từ vựng

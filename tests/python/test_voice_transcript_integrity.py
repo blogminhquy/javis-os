@@ -70,6 +70,25 @@ class ModelCorrections(unittest.TestCase):
         original = "David mở lịch"
         self.assertEqual(voice_brain.safe_transcript_rewrite(original, "[NGỮ CẢNH GIAO DIỆN: trang=files] Javis mở lịch"), original)
 
+    def test_open_file_block_is_not_speech(self):
+        # 0.65.29: đang mở file trong trình sửa thì dashboard chèn khối FILE ĐANG MỞ trước khối
+        # NGỮ CẢNH GIAO DIỆN. Khối đó bị coi là lời nói, nên dòng JAVIS_NGHE (chỉ có lời nói)
+        # trông như "cắt mất chữ", bị từ chối, và cả lượt lặng lẽ sang bộ não chính (chủ dự án
+        # báo 02/10: chọn Antigravity mà lượt nói vẫn do Claude trả lời).
+        file_block = ("[FILE ĐANG MỞ trong trình sửa của Javis: /data/brain/ghi-chu.md\n"
+                      "Đây là file người dùng ĐANG LÀM VIỆC TRÊN ĐÓ - coi như đầu vào của cuộc trò "
+                      "chuyện này. Đọc nó trước khi trả lời. Khi được yêu cầu sửa/viết thêm/dọn lại mà "
+                      "không nói rõ file nào thì ghi thẳng vào chính file này.]\n\n")
+        ui = "[NGỮ CẢNH GIAO DIỆN: kênh=giọng]\n\n"
+        for prefix in (file_block + ui, file_block):
+            with self.subTest(prefix=prefix[:30]):
+                original = prefix + "nghe anh nói chưa"
+                head, speech = nghe_sua.split_ui_context(original)
+                self.assertEqual((head, speech), (prefix, "nghe anh nói chưa"))
+                self.assertEqual(voice_brain.safe_transcript_rewrite(original, "Nghe anh nói chưa?"),
+                                 prefix + "Nghe anh nói chưa?")
+                self.assertEqual(nghe_sua.sua(prefix + "David ơi", ["Javis"]), prefix + "Javis ơi")
+
     def test_model_cannot_rewrite_literal_identifiers(self):
         for original, proposed in [
             ("mở David.txt", "mở Javis.txt"),

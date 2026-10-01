@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.29] - 2026-10-02
 ### Sửa lỗi
-- Đang làm: đang mở file trong trình sửa thì câu nói vẫn đi bộ não trả lời nhanh đã chọn.
+- **Đang mở file trong trình sửa, câu nói vẫn do bộ não trả lời nhanh đã chọn trả lời.** Trước đây hễ có file đang mở là mọi câu nói trong cuộc gọi lặng lẽ chuyển sang bộ não chính: chậm hơn (khoảng 18 giây thay vì 2 đến 5 giây) và không dùng Antigravity dù đã chọn.
+- Hỏi "sao em lại trả lời bằng tiếng Anh?" không còn bị hiểu là lệnh "trả lời bằng tiếng Anh".
 
 ## [0.65.28] - 2026-10-02
 ### Sửa lỗi

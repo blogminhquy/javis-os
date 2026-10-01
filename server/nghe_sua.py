@@ -85,7 +85,12 @@ một hai ba bốn tư năm sáu bảy tám chín mười mươi trăm nghìn ng
 no not never don't stop cancel enable disable open close delete send transfer
 one two three four five six seven eight nine ten hundred thousand million
 """.split())
-_UI_CONTEXT = re.compile(r"\A\s*\[NGỮ CẢNH GIAO DIỆN:[^\]]*\]\s*")
+# Khối ngữ cảnh dashboard chèn TRƯỚC lời nói: FILE ĐANG MỞ (đang mở file trong trình sửa) rồi
+# NGỮ CẢNH GIAO DIỆN. Cả hai không phải lời nói. 0.65.29: trước chỉ nhận khối sau, nên khi đang mở
+# file thì khối FILE bị tính là lời nói; dòng JAVIS_NGHE (chỉ có lời nói) bị coi là cắt chữ, và
+# cả lượt lặng lẽ rơi sang bộ não chính dù đã chọn bộ não trả lời nhanh.
+_UI_CONTEXT = re.compile(r"\A(?:\s*\[(?:FILE ĐANG MỞ trong trình sửa của Javis:|NGỮ CẢNH GIAO DIỆN:)"
+                         r"[^\]]*\]\s*)+")
 # Speech can contain literal identifiers. Do not rewrite pieces of paths, URLs or email.
 VERBATIM = re.compile(r"\S*(?:[/\\@:_]|\w\.\w)\S*")
 

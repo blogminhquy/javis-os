@@ -316,7 +316,7 @@ giữ phần đã đối chiếu đúng với code ngày 01/10/2026. Code trỏ 
 ### A3. Làn nhanh: bộ não giọng (voice_brain.py)
 - Tin mang `voice: true` (kể cả chữ gõ lúc rảnh tay) đi bộ não giọng. Mọi bộ não chỉ cần hợp đồng `stream(text, history)`, tự đóng sau 5 phút không nói.
 - Bốn marker không bao giờ ra loa: `JAVIS_NGHE`, `JAVIS_ASK_MAIN`, `JAVIS_UI`, `JAVIS_BO_QUA` (cái cuối chỉ còn là di sản: prompt cấm dùng, không còn xoá lời).
-- Thiếu `JAVIS_NGHE`, hoặc câu diễn giải bị `safe_transcript_rewrite` từ chối (ngưỡng âm 0,6, tối đa 4 tiếng một cụm, không đụng số, phủ định hay lệnh), thì bộ não chính nhận nguyên văn kèm `GHI_CHU_CAU_NGHE`.
+- Thiếu `JAVIS_NGHE`, hoặc câu diễn giải bị `safe_transcript_rewrite` từ chối (ngưỡng âm 0,6, tối đa 4 tiếng một cụm, không đụng số, phủ định hay lệnh), thì bộ não chính nhận nguyên văn kèm `GHI_CHU_CAU_NGHE`. Việc rơi này IM LẶNG (chỉ một dòng trạng thái thoáng qua), nên khối ngữ cảnh đứng trước lời nói phải được tách đủ: `nghe_sua.split_ui_context` nhận cả khối FILE ĐANG MỞ lẫn NGỮ CẢNH GIAO DIỆN (0.65.29). Trước đó đang mở file thì mọi lượt nói lặng lẽ sang bộ não chính dù đã chọn bộ não trả lời nhanh.
 - `JAVIS_ASK_MAIN`: lượt giọng kết thúc ngay, việc chạy nền dưới khoá `voice:<sid>:<id>`. Task phải được giữ tham chiếu (`_nho_viec_nen_giong`) kẻo bộ gom rác nuốt. Chặn việc trùng (độ giống từ 0,8), tối đa 3 việc song song. "Dừng việc nền" là luật cứng trong code, không thành việc mới.
 - `JAVIS_UI` không đánh thức bộ não chính (lượt đó có lúc mang hơn 200 nghìn token ngữ cảnh).
 - `MODES`, `BRAIN_PROVIDERS`, `STT_PROVIDERS` là nguồn duy nhất cho cả trang Cài đặt lẫn nhánh lưu `POST /settings`.

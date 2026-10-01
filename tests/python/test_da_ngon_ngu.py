@@ -71,6 +71,18 @@ check("lệnh thẳng trong lượt thắng tất cả",
 
 _d = lang_mod.resolve(turn_text="dịch bài này sang tiếng Anh giúp anh")
 check("'dịch bài này sang tiếng Anh' KHÔNG phải lệnh đổi ngôn ngữ", _d.source != "turn")
+# 0.65.29: câu THAN về ngôn ngữ không phải lệnh đổi sang ngôn ngữ đó. Chủ dự án hỏi "sao em lại
+# trả lời bằng tiếng Anh vậy?" thì bản cũ ghim tiếng Anh cho lượt đó, tức là trả lời câu than
+# bằng đúng thứ tiếng đang bị than.
+for _cau in ("sao em lại trả lời bằng tiếng Anh vậy?", "tại sao em nói tiếng Anh",
+             "vì sao lại trả lời bằng tiếng Anh", "why did you reply in English?",
+             "sao em trả lời bằng tiếng Anh"):
+    _d = lang_mod.resolve(turn_text=_cau)
+    check(f"câu than '{_cau}' KHÔNG ghim ngôn ngữ đó", not (_d.source == "turn" and _d.lang == "en"))
+_d = lang_mod.resolve(turn_text="Ý là em trả lời anh bằng tiếng Việt chứ sao em lại trả lời bằng tiếng Anh vậy?")
+check("than tiếng Anh kèm lệnh tiếng Việt -> ghim tiếng Việt", _d.lang == "vi" and _d.source == "turn")
+_d = lang_mod.resolve(turn_text="em trả lời bằng tiếng Anh được không")
+check("nhờ trả lời tiếng Anh dạng hỏi lịch sự vẫn là lệnh", _d.lang == "en" and _d.source == "turn")
 
 check("chatbot ghim thắng cài đặt của chủ",
       lang_mod.resolve(turn_text="anh muốn xem doanh thu tháng này",
