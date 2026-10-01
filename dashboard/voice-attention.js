@@ -2,6 +2,9 @@
 (function (root) {
   "use strict";
   const wake = /^(?:(?:hey|hi|hello|ê|này|alo|chào)\s+)?(?:javis|jarvis)(?=$|[\s,.!?:;])/iu;
+  // Câu mở đầu GẦN GIỐNG tên gọi mà Web Speech hay chép lệch ("David ơi", "Gia vít"). KHÔNG mở
+  // rào: chỉ cho phép đưa âm thanh cho tai nghe lại, rồi rào xét lại trên chữ của tai (0.65.15).
+  const nearWake = /^(?:(?:hey|hi|hello|ê|này|alo|chào)\s+)?(?:david|davis|javix|jarvix|đa\s*vít|gia\s*vít|ja\s*vít|ja\s*vịt|giá\s*vít|chavis)(?=$|[\s,.!?:;])/iu;
   class Attention {
     constructor({ now = Date.now, idleMs = 20000, candidateMs = 120000 } = {}) {
       this.now = now; this.idleMs = idleMs; this.candidateMs = candidateMs;
@@ -21,6 +24,9 @@
       }
       // A provisional wake must be present again in the FINAL before it opens the gate.
       return wake.test(String(text).trim());
+    }
+    wakeCandidate(text) {
+      return this.running && nearWake.test(String(text || '').trim());
     }
     accept(text) {
       const ok = this.running && !!String(text || '').trim() &&

@@ -34,4 +34,14 @@ assert.equal(gate.accept('kết quả quá muộn'), false, 'candidate lease is 
 gate.enabled = false; gate.start(); now += 900000;
 assert.equal(gate.accept('nghe liên tục'), true);
 assert.equal(gate.waiting(), false);
-console.log('voice attention: idle, wake, interim revision, short/long turns, cancellation pass');
+// 0.65.15: câu gần giống tên gọi chỉ được đưa cho tai nghe lại, KHÔNG mở rào.
+const near = new Attention({ now: () => 0 });
+assert.equal(near.wakeCandidate('David ơi mở trang kết nối'), false, 'stopped gate offers nothing');
+near.start();
+for (const text of ['David ơi mở trang kết nối', 'hey Davis', 'Gia vít ơi', 'Javix, mở Telegram']) {
+  assert.equal(near.wakeCandidate(text), true, text);
+}
+for (const text of ['mua ngay hôm nay', 'anh vừa gặp David', 'Davidson', 'Javis ơi']) {
+  assert.equal(near.wakeCandidate(text), false, text);
+}
+console.log('voice attention: idle, wake, interim revision, short/long turns, cancellation, near-wake pass');

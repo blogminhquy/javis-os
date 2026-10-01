@@ -152,6 +152,7 @@ import ui_targets   # đổi lời nói ("mở trang công cụ") thành id tran
 import voice_turn_protocol
 import voice_brain   # Voice V2: bộ não giọng nói riêng (Antigravity sống lâu / Groq / Gemini...)
 import voice_live    # Voice V2: nghe nói thẳng qua Gemini Live / OpenAI Realtime
+import voice_ear     # tai nghe lại: model đa ngôn ngữ nghe âm thanh rồi mới chốt chữ (0.65.15)
 
 app = FastAPI(title="Javis OS")
 _CHAT_RUNTIME = ChatRuntime()
@@ -4590,6 +4591,9 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             v["brain_provider"] = str(patch["brain_provider"] or "")
         if patch.get("stt_provider") in voice_brain.STT_PROVIDERS:
             v["stt_provider"] = patch["stt_provider"]
+        # Tai nghe lại (0.65.15) thay cho stt_provider: auto | groq | off (voice_ear.CHOICES).
+        if patch.get("ear") in voice_ear.CHOICES:
+            v["ear"] = patch["ear"]
         if patch.get("live_provider") in voice_live.PROVIDERS:
             v["live_provider"] = patch["live_provider"]
         # Focus is a browser attention gate. Keep the legacy setting for older clients.
@@ -12162,32 +12166,25 @@ async def stt_route(file: UploadFile = File(...), lang: str = Form(""), draft: s
     `{"ok": false, "ly_do": ...}`; trình duyệt lỗi thì giữ chữ của Web Speech, không mất lượt.
     """
     cfg = cfgmod.read_settings()
-    key = (cfg.get("model", {}) or {}).get("groq_api_key", "")
-    v = cfg.get("voice", {}) or {}
     data = await file.read()
-    # "auto" = ô "Ngôn ngữ nghe" chọn Đa ngôn ngữ: truyền "" xuống để Whisper TỰ DÒ tiếng (xem
-    # chú thích ba giá trị trong stt.groq_nghe). Rỗng hay thiếu vẫn là None -> mặc định "vi".
-    lang = (lang or "").strip()
-    ngon_ngu = "" if lang.lower() == "auto" else (lang.split("-")[0].strip() or None)
-    # Bộ từ vựng (tên trợ lý + từ người dùng khai) đi hai đường: mồi cho Whisper viết đúng, rồi
-    # lớp sửa theo ngữ cảnh quét lại chữ nghe được. WebSocket còn quét thêm lần nữa (cho cả chữ
-    # của Web Speech); nghe_sua.sua idempotent nên hai lần không hại gì.
-    _tv = nghe_sua.tu_vung(cfg)
-    res = await stt.groq_nghe(data, file.filename or "voice.webm", key, v.get("stt_model") or "", ngon_ngu,
-                              hotwords=nghe_sua.goi_y_whisper(_tv))
-    _text = nghe_sua.sua(res.get("text", ""), _tv) if res.get("ok") else res.get("text", "")
-    # Đối chiếu với bản nháp của trình duyệt (stt.khop_ban_nhap): Groq nhận audio thiếu tiếng
-    # thì BỊA câu kết video, lệch hẳn bản nháp. Lệch thì trả ok=false để trình duyệt giữ bản
-    # nháp. Log chỉ ghi SỐ ĐO (độ dài, độ giống), không ghi lời người dùng, để lần sau lần ra
-    # vì sao audio thiếu tiếng.
-    if res.get("ok") and draft.strip():
-        _dung, _tu, _am = stt.khop_ban_nhap(draft, _text)
-        print(f"[stt] audio={len(data)//1024}KB nhap={len(draft.split())}tu groq={len(_text.split())}tu "
-              f"giong_tu={_tu} giong_am={_am} -> {'groq' if _dung else 'GIU NHAP'}", file=sys.stderr)
-        if not _dung:
-            return {"ok": False, "text": "", "ly_do": "lech_ban_nhap", "model": res.get("model", "")}
-    return {"ok": bool(res.get("ok")), "text": _text, "ly_do": res.get("ly_do", ""),
-            "model": res.get("model", "")}
+    # Tai đang được chọn (voice_ear.select_ear). Trình duyệt chỉ tải lên khi /voice/ear báo có
+    # tai dạng tải lên; chặn thêm ở đây phòng trang cũ còn mở. Không có tai thì trả ok=false,
+    # trình duyệt giữ chữ Web Speech như trước.
+    ear = voice_ear.select_ear(cfg, _effective_main(cfg).get("provider", ""))
+    if ear["kind"] != "upload":
+        return {"ok": False, "text": "", "model": "",
+                "ly_do": "tai_tat" if ear["reason"] == voice_ear.REASON_OFF else "thieu_key"}
+    # Mồi từ vựng, sửa tên trợ lý, đối chiếu bản nháp: xem voice_ear.transcribe_upload.
+    # WebSocket còn quét nghe_sua.sua thêm lần nữa (cho cả chữ Web Speech); hàm idempotent.
+    return await voice_ear.transcribe_upload(cfg, data, file.filename or "voice.webm", lang, draft)
+
+
+@app.get("/voice/ear")
+async def voice_ear_route():
+    """Tai nghe lại đang dùng cho lượt nói (voice_ear.select_ear). Nhẹ, không hỏi mạng: dashboard
+    gọi mỗi lần nạp cài đặt giọng, khác /voice/options (có thể mất tới 30 giây vì `agy models`)."""
+    cfg = cfgmod.read_settings()
+    return {"ok": True, **voice_ear.select_ear(cfg, _effective_main(cfg).get("provider", ""))}
 
 
 @app.get("/voice/options")
@@ -12266,7 +12263,14 @@ async def voice_options():
             # Ô gạt, không phải ô chữ: mặc định BẬT, nên brain cũ chưa có khoá vẫn trả về true.
             loc_tap_am=False,
             focus_mode=v.get("focus_mode") is not False,
+            ear=voice_ear.setting(cfg),
         ),
+        # Tai nghe lại đang dùng và vì sao (trang Cài đặt hiện "Đang dùng: ..."), cùng các tai
+        # chọn được. Vẽ từ voice_ear để trang và đường LƯU soi cùng một danh sách.
+        "ear": voice_ear.select_ear(cfg, _effective_main(cfg).get("provider", "")),
+        "ear_choices": [{"id": c, "label": (voice_ear.EARS.get(c) or {}).get("label", ""),
+                         "available": c in ("auto", "off") or voice_ear.availability(cfg).get(c, False)}
+                        for c in voice_ear.CHOICES],
         # Từ luôn có sẵn trong bộ từ vựng nghe (không cần khai): trang Cài đặt hiện cho biết.
         "hotwords_goc": list(nghe_sua.TU_VUNG_GOC),
         "brain_providers": brain_list,

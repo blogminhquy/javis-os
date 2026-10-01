@@ -28,7 +28,7 @@ function check(name, cond) {
 check("app.js: khung WS mang voice: _tuGiong (V3: hoặc đang rảnh tay)", /const payload = \{ message: outMsg[\s\S]{0,300}voice: _tuGiong \|\| handsFree/.test(app));
 check("app.js: commit từ đạo diễn bật cờ _tuGiong", /if \(c\) _tuGiong = true;/.test(app));
 check("app.js: gửi xong hạ cờ", /_tuGiong = false;\s*\n\}/.test(app));
-check("app.js: đọc mode + stt_provider từ /settings", /voiceMode = v\.mode \|\| "standard";/.test(app) && /voice\.sttUpload = v\.stt_provider === "groq";/.test(app));
+check("app.js: đọc mode từ /settings, tai từ /voice/ear", /voiceMode = v\.mode \|\| "standard";/.test(app) && /fetch\("\/voice\/ear"\)/.test(app) && /voice\.sttUpload = upload;/.test(app));
 check("app.js: xuất JavisVoiceMode.refresh cho trang Cài đặt", /window\.JavisVoiceMode = \{ refresh: napCaiDatGiong/.test(app));
 check("server: nhánh voice chỉ khi payload.voice + mode fast", /payload\.get\("voice"\)/.test(main) && /_vconf\.get\("mode"\) == "fast"/.test(main));
 
@@ -67,9 +67,9 @@ check("app.js: Esc hủy toàn bộ phiên giọng", /e\.code === "Escape"[\s\S]
 
 // 5
 check("console.js: thẻ V2 đọc /voice/options", /fetch\("\/voice\/options"/.test(consoleJs) && /renderVoiceV2Card\(\)/.test(consoleJs));
-check("console.js: lưu section voice với mode/brain/stt/live", /saveSetting\("voice", data\)/.test(consoleJs) && /stt_provider: \$\("v2Stt"\)\.value/.test(consoleJs));
+check("console.js: lưu section voice với mode/brain/tai/live", /saveSetting\("voice", data\)/.test(consoleJs) && /ear: \$\("v2Ear"\)\.value/.test(consoleJs));
 check("index.html: nạp voice-live.js", /voice-live\.js\?v=/.test(html));
-["settings.v2_title", "settings.v2_mode_fast", "settings.v2_brain", "settings.v2_stt", "settings.v2_live", "app.live_error"].forEach(k =>
+["settings.v2_title", "settings.v2_mode_fast", "settings.v2_brain", "settings.ear", "settings.v2_live", "app.live_error"].forEach(k =>
   check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string"));
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }

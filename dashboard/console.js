@@ -6463,7 +6463,23 @@
     }
     const optA = (id, label, cur, dis) => `<option value="${esc(id)}" ${id === (cur || "") ? "selected" : ""} ${dis ? "disabled" : ""}>${esc(label)}</option>`;
     const brainOpts = o.brain_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_unavailable") + ")"), naoChon, !p.available && p.id !== "")).join("");
-    const sttOpts = o.stt_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_unavailable") + ")"), v.stt_provider || "browser", !p.available)).join("");
+    // Tai nghe lại (0.65.15): auto | groq | off. Nhãn auto/off dịch ở client, tai thật lấy tên
+    // từ máy chủ; tai chưa dùng được vẫn chọn được (để sẵn), dòng "Đang dùng" nói rõ lý do.
+    const earLabel = (c) => c.id === "auto" ? t("settings.ear_auto") : c.id === "off" ? t("settings.ear_off")
+      : c.label + (c.available ? "" : " (" + t("settings.v2_unavailable") + ")");
+    const earOpts = (o.ear_choices || []).map(c => optA(c.id, earLabel(c), v.ear || "auto", false)).join("");
+    // Mã lý do -> khoá i18n viết ĐỦ (test_i18n quét khoá tĩnh, không đọc được khoá ghép chuỗi).
+    const EAR_REASON = {
+      off: "settings.ear_reason_off", chosen: "settings.ear_reason_chosen",
+      chosen_unavailable: "settings.ear_reason_chosen_unavailable",
+      same_vendor: "settings.ear_reason_same_vendor", best: "settings.ear_reason_best",
+      none: "settings.ear_reason_none",
+    };
+    const earNow = o.ear || {};
+    const earWhy = t(EAR_REASON[earNow.reason] || EAR_REASON.none);
+    const earStatus = earNow.provider
+      ? t("settings.ear_using", { ear: earNow.label || earNow.provider }) + " " + earWhy
+      : earWhy;
     const liveOpts = o.live_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_need_key") + ")"), v.live_provider || "gemini", false)).join("");
     host.innerHTML = `
       <div class="qs-block">
@@ -6502,9 +6518,10 @@
           <div class="gcard-meta" id="v2BrainHint"></div>
         </div>
         <div class="qs-field">
-          <label class="qs-lbl" for="v2Stt">${esc(t("settings.v2_stt"))}</label>
-          <select class="js-input" id="v2Stt">${sttOpts}</select>
-          <div class="qs-hint">${esc(t("settings.v2_stt_note"))}</div>
+          <label class="qs-lbl" for="v2Ear">${esc(t("settings.ear"))}</label>
+          <select class="js-input" id="v2Ear">${earOpts}</select>
+          <div class="qs-hint" id="v2EarStatus">${esc(earStatus)}</div>
+          <div class="qs-hint">${esc(t("settings.ear_note"))}</div>
         </div>
           </div>
         <div class="qs-field">
@@ -6571,7 +6588,7 @@
       const brainModel = (p && p.models && p.models.length) ? $("v2BrainModelSel").value : $("v2BrainModel").value.trim();
       const data = {
         mode: $("v2Mode").value, brain_provider: $("v2Brain").value, brain_model: brainModel,
-        stt_provider: $("v2Stt").value, live_provider: $("v2Live").value,
+        ear: $("v2Ear").value, live_provider: $("v2Live").value,
         live_model: $("v2LiveModel").value.trim(), live_voice: $("v2LiveVoice").value || "",
         hotwords: $("v2Hotwords").value.trim(), focus_mode: $("v2LocTapAm").checked,
       };

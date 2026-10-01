@@ -175,3 +175,6 @@ server/chatbot_reply_policy.sqlite3*
 server/reply_policy_cwd/
 # Tài khoản kênh của bot (token đã mã hoá) là dữ liệu chạy, không phải mã nguồn.
 server/channel_accounts.json
+
+# Bộ đo tai nghe (tools/stt_bench): clip âm thanh và kết quả, không lên git
+server/stt_bench/

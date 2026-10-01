@@ -138,6 +138,9 @@ const voice = new JavisVoice({
   // Chữ Chrome vẫn hiện TẠM lúc đang nói; câu chốt gửi đi là chữ Groq (Groq lỗi thì chữ Chrome).
   onPlaybackError: () => ghiChuThoang(window.t("app.voice_playback_failed")),
   acceptTranscript: (text) => !handsFree || attention.accept(text),
+  // Câu bị rào chú ý chặn nhưng mở đầu gần giống tên gọi ("David ơi"): cho tai nghe lại rồi
+  // xét lại trên chữ của tai (0.65.15, voice.js onTranscript).
+  wakeCandidate: (text) => handsFree && attention.wakeCandidate(text),
   onStart: () => {
     voiceBtn.classList.add("recording");
     if (!adaptive.running()) nhapGiong("");
@@ -221,7 +224,10 @@ const adaptive = window.JavisAdaptiveUI({
       stopCurrent(); cum.reset();
     }
   },
-  send:text=>{_tuGiong=true;sendMessage(text,{adaptive:{utterance_id:newSid(),response_policy:'ack_only',continuation_of:adaptiveContinuation}});adaptiveContinuation='';}
+  send:text=>{_tuGiong=true;sendMessage(text,{adaptive:{utterance_id:newSid(),response_policy:'ack_only',continuation_of:adaptiveContinuation}});adaptiveContinuation='';},
+  // Chế độ tự nhiên chốt câu: tách bản ghi cho tai nghe lại trước khi huỷ phiên nhận dạng, rồi
+  // mới gửi (0.65.15). Không có tai thì commitWithEar trả ngay chữ nháp.
+  commit(text){const d=this;voice.commitWithEar(text).then(t=>d.send(t||text));}
 });
 function renderVoiceReceipt(el, data) {
     if(el) {
@@ -433,13 +439,20 @@ let _tuGiong = false;
 let voiceMode = "standard";   // standard | fast | live (đọc từ /settings)
 async function napCaiDatGiong() {
   try {
-    const s = await (await fetch("/settings")).json();
+    // Tai nghe lại (0.65.15): máy chủ chọn tai (voice_ear.select_ear) từ cài đặt, key và bộ
+    // não chính, nên trình duyệt không tự đoán từ stt_provider nữa. /voice/ear lỗi thì coi
+    // như không có tai: câu gửi đi là chữ của trình duyệt như trước.
+    const [s, ear] = await Promise.all([
+      fetch("/settings").then(r => r.json()),
+      fetch("/voice/ear").then(r => r.json()).catch(() => ({})),
+    ]);
     const v = (s && s.voice) || {};
     const focused = v.focus_mode !== false;
-    if (voiceMode !== (v.mode || "standard") || voice.sttUpload !== (v.stt_provider === "groq") || attention.enabled !== focused) tatRanhTay();
+    const upload = !!(ear && ear.kind === "upload");
+    if (voiceMode !== (v.mode || "standard") || voice.sttUpload !== upload || attention.enabled !== focused) tatRanhTay();
     attention.enabled = focused;
     voiceMode = v.mode || "standard";
-    voice.sttUpload = v.stt_provider === "groq";
+    voice.sttUpload = upload;
   } catch (e) {}
 }
 napCaiDatGiong();

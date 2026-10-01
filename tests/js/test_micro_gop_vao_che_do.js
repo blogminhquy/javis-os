@@ -74,8 +74,11 @@ check("voice.js: setRecognitionLang('auto') bật langAuto và KHÔNG ghi đè t
 check("voice.js: máy nghe trình duyệt giữ tiếng Việt dự phòng khi Groq tự dò",
   (voice.match(/this\.recognition\.lang = this\.lang;/g) || []).length >= 2);
 // Real FormData language snapshot is tested in test_voice_capture_lifecycle.js.
-check("main.py: /stt đổi 'auto' thành '' (Whisper tự dò), rỗng vẫn về None (mặc định vi)",
-  /ngon_ngu = "" if lang\.lower\(\) == "auto" else \(lang\.split\("-"\)\[0\]\.strip\(\) or None\)/.test(main));
+// 0.65.15: /stt gọi voice_ear.transcribe_upload, chỗ đổi mã ngôn ngữ nằm ở voice_ear.whisper_lang.
+const ear = doc("server/voice_ear.py");
+check("voice_ear.py: /stt đổi 'auto' thành '' (Whisper tự dò), rỗng vẫn về None (mặc định vi)",
+  /if lang\.lower\(\) == "auto":\s*\n\s*return ""\s*\n\s*return lang\.split\("-"\)\[0\]\.strip\(\) or None/.test(ear)
+  && /voice_ear\.transcribe_upload\(cfg, data, file\.filename or "voice\.webm", lang, draft\)/.test(main));
 
 // ---- 5. config.py: mặc định Làn nhanh ----
 check("config.py: voice.mode mặc định là fast", /"mode": "fast",/.test(cfg) && !/"mode": "standard",\s*#/.test(cfg));

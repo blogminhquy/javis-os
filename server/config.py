@@ -64,6 +64,9 @@ _DEFAULT = {
         "mode": "fast",
         "brain_provider": "",          # "" = bộ não chính | antigravity | groq | gemini | openai | openrouter
         "brain_model": "",             # rỗng = mặc định của provider (antigravity: gemini flash low)
+        # Khoá CŨ, thay bằng `voice.ear` (auto | groq | off) từ 0.65.15. CỐ Ý không đặt mặc định
+        # cho `ear` ở đây: khoá thiếu nghĩa là "auto", còn stt_provider = "groq" người dùng đã
+        # lưu thì voice_ear.setting vẫn coi là đã chọn Groq. Có mặc định thì mất phân biệt đó.
         "stt_provider": "browser",     # browser (Web Speech) | groq (Whisper, key model.groq_api_key)
         "stt_model": "",               # rỗng = whisper-large-v3 (stt.STT_MODEL_MAC_DINH)
         "live_provider": "gemini",     # gemini | openai (đều cần API key ở trang Models)

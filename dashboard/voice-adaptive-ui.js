@@ -25,7 +25,8 @@
         if(a.type==='commit') {
           if(!manual && !d.accept(a.text)) { actions(controller.save('attention_expired',true)); return; }
           const text=a.text; prefix='';
-          d.cancelCapture(); d.state(false); d.send(text);
+          // d.commit (0.65.15): đưa bản ghi cho tai nghe lại rồi mới gửi; thiếu thì gửi chữ nháp.
+          if(d.commit) { d.state(false); d.commit(text); } else { d.cancelCapture(); d.state(false); d.send(text); }
         } else if(a.type==='cancel') {
           d.stop(); d.cancelCapture(); prefix=''; controller.reset(); d.draft('');
         } else if(a.type==='save_draft') {
