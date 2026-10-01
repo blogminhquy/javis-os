@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.16] - 2026-10-01
 ### Cải thiện
-- **Bản thiết kế "Gọi điện với Javis".** Bấm mic là gọi như điện thoại: Javis nghe và nói cùng lúc, chen ngang lúc nào cũng được, chạy trên gói ChatGPT không cần API key, việc nặng vẫn giao bộ não bạn chọn. Trang cài đặt giọng nói sẽ còn 3 ô.
+- **Bản thiết kế ChatGPT Live.** Bấm mic là gọi Javis như gọi điện thoại: nói chuyện liền mạch, chen ngang lúc nào cũng được, chạy trên gói ChatGPT không cần API key, việc nặng vẫn giao bộ não bạn chọn. Trang cài đặt giọng nói sẽ còn 3 ô.
 - Chưa có gì đổi trên giao diện ở bản này. 13 tài liệu thiết kế giọng nói cũ được gộp vào một tài liệu duy nhất.
 
 ## [0.65.15] - 2026-10-01

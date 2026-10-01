@@ -1,4 +1,4 @@
-# Gọi điện với Javis: Live song công qua gói ChatGPT
+# Gọi điện với Javis: ChatGPT Live
 
 Ngày 01/10/2026. Chủ dự án đã duyệt thiết kế trong phiên cùng ngày. Đây là tài liệu thiết kế
 DUY NHẤT cho giọng nói: các spec giọng nói cũ (Voice V1, V2, tai nghe lại, nhịp thích nghi, tập
@@ -14,10 +14,11 @@ cũng được, đáp gần như ngay, và phải cài đặt ít nhất có th�
 | Bấm nút mic | **Gọi điện**: bấm một lần mở cuộc gọi, bấm lần nữa (hoặc Esc) là cúp |
 | Màn hình lúc gọi | **Thanh gọi mỏng trên khung chat**, lời hai bên thành bong bóng chat thường |
 | Ai trả lời | **Chia việc**: chuyện trò thì model nói chuyện đáp ngay; cần dữ liệu, MCP, file, ghi nhớ, mở trang thì giao bộ não Javis người dùng đã chọn |
-| Đường chính | **Live qua gói ChatGPT** (Codex realtime, không cần API key) |
+| Đường chính | **ChatGPT Live** (Codex realtime, không cần API key) |
 | Im lặng lâu | Im 20 giây thì **ngắt kết nối nghe**, gọi "Javis" là nối lại; thanh gọi vẫn giữ |
 | Phím Space | **Bỏ** phím tắt nói. Chỉ còn nút mic, Esc để cúp |
 | Giọng mặc định | **juniper** |
+| Tên hiện ra | Chỉ ghi **ChatGPT Live** (nhãn, thông báo, CHANGELOG). Không dùng chữ "song công" ở chỗ người dùng đọc |
 | Cài đặt | Trang chính còn 3 thứ; máy tự suy ra mọi thứ còn lại (mục 5) |
 | Tai Claude | Không làm: model Claude không nhận âm thanh, giọng nói của Claude Code cần token claude.ai mà Javis không đọc |
 
@@ -36,7 +37,7 @@ cũng được, đáp gần như ngay, và phải cài đặt ít nhất có th�
 Rào sửa chữ `safe_transcript_rewrite` chặn 9 trên 13 câu sửa đúng, và có câu Chrome làm mất hẳn
 thông tin, nên sửa chữ sau khi nghe không phải đường chính.
 
-**Thử Live qua gói ChatGPT** (Codex 0.153.4 và 0.159.3, 01/10, kịch bản giọng tổng hợp):
+**Thử ChatGPT Live** (Codex 0.153.4 và 0.159.3, 01/10, kịch bản giọng tổng hợp):
 - Tiếng Việt tự nhiên, xưng hô đúng ("Dạ, em vẫn ổn anh ơi, cảm ơn anh").
 - Tiếng đầu tiên của Javis ra **0,44 đến 0,85 giây** sau khi người dùng nói xong (lượt đầu ~2 giây).
 - Handoff tới **0,5 giây** sau câu hỏi; trả kết quả bằng `appendSpeech`, model đọc gần nguyên văn.
@@ -52,7 +53,7 @@ Khoá `voice.call_engine` = `auto` (mặc định) | `chatgpt` | `api` | `basic`
 
 1. **chatgpt**: đã nối ChatGPT (trang Models) và Codex chạy được realtime (dò một lần rồi nhớ).
 2. **api**: Live qua API key hiện có (`voice.live_provider` gemini | openai | gpt-live), khi có key.
-3. **basic**: đường dự phòng bán song công cho mọi máy, mọi bộ não (mục 3.6).
+3. **basic**: đường dự phòng Cơ bản cho mọi máy, mọi bộ não (mục 3.6).
 
 Chọn tay mà đường đó không chạy được thì rơi xuống đường kế tiếp và dòng "Đang dùng" nói rõ lý do,
 giống `voice_ear.select_ear`.
@@ -135,7 +136,7 @@ Tắt "Tập trung" thì giữ kết nối suốt cuộc gọi.
 
 ### 3.6 Đường dự phòng `basic`
 
-Cùng trải nghiệm gọi điện nhưng bán song công, cho máy không có Live: Web Speech làm nháp và điểm
+Cùng trải nghiệm gọi điện nhưng mỗi lúc chỉ một bên nói, cho máy không có Live: Web Speech làm nháp và điểm
 dừng câu, tai nghe lại (Groq) chốt chữ, Làn nhanh nếu có bộ não giọng (không thì bộ não chính),
 giọng Edge. Mic tự mở lại sau mỗi câu, ngắt lời bằng mẹo nhá tiếng (Phụ lục A2). Đây chính là
 chế độ rảnh tay hiện nay, chỉ đổi vỏ.
@@ -158,12 +159,12 @@ chế độ rảnh tay hiện nay, chỉ đổi vỏ.
 
 ```
 GIỌNG NÓI
-  Đang dùng: Live qua gói ChatGPT (song công)        <- kèm lý do khi đang ở đường dự phòng
+  Đang dùng: ChatGPT Live                            <- kèm lý do khi đang ở đường dự phòng
   Giọng Javis   [ juniper                 v ] [▶]    <- danh sách đổi theo đường gọi
   Tập trung khi đàm thoại                    [on]
     Im 20 giây thì phải gọi "Javis" mới nghe tiếp
   > Nâng cao
-      Đường gọi      [ Tự động v ]  (Tự động / Live gói ChatGPT / Live API key / Cơ bản)
+      Đường gọi      [ Tự động v ]  (Tự động / ChatGPT Live / Live API key / Cơ bản)
       Tốc độ đọc     [ 1,10x  v ]   (chỉ đường Cơ bản)
       ElevenLabs     key + Voice ID (chỉ khi chọn giọng ElevenLabs)
 ```
@@ -183,7 +184,7 @@ GIỌNG NÓI
 
 ## 6. Thứ tự làm (mỗi bước một PR, đặt số phiên bản trước theo `docs/quy-uoc-dev.md`)
 
-1. **Live qua gói ChatGPT**: nhà cung cấp `codex-plan`, khung WebRTC trên `/ws/voice-live`, nhánh
+1. **ChatGPT Live**: nhà cung cấp `codex-plan`, khung WebRTC trên `/ws/voice-live`, nhánh
    WebRTC trong `voice-live.js`, handoff về bộ não Javis + bong bóng kết quả, ngắt khi im 20 giây,
    giọng juniper, mẫu thu sẵn 9 giọng. Chọn được trong ô nhà cung cấp Live hiện có.
 2. **Trải nghiệm gọi điện cho mọi đường**: thanh gọi, nút Cúp máy, Tắt mic, bỏ Space, chọn đường

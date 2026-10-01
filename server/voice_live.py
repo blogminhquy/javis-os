@@ -51,7 +51,7 @@ PROVIDERS = {
                "default_voice": "Aoede", "voices": ["Aoede", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Zephyr"]},
     "openai": {"label": "OpenAI Realtime (API)", "key_field": "openai_api_key",
                "default_model": "gpt-realtime", "default_voice": "marin", "voices": _OPENAI_VOICES},
-    "gpt-live": {"label": "OpenAI GPT-Live (API, song công)", "key_field": "openai_api_key",
+    "gpt-live": {"label": "OpenAI GPT-Live (API)", "key_field": "openai_api_key",
                  "default_model": "gpt-live-1", "default_voice": "marin", "voices": _OPENAI_VOICES},
 }
 
