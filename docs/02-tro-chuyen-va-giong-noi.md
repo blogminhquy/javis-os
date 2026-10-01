@@ -377,7 +377,14 @@ Thẻ **Chế độ và bộ não giọng nói** có ba lựa chọn:
 - **Làn nhanh**: khi bạn nói, một bộ não giọng riêng trả lời trong 1 đến 2 giây. Chọn được **Antigravity** (chạy trên gói Google đã đăng nhập, không tốn key; Javis giữ một phiên `agy` sống suốt lúc bạn nói và tắt sau 5 phút im), hoặc Groq, Gemini, OpenAI, OpenRouter bằng key ở trang Models. Câu nào cần số liệu, file, việc, mở app thì bộ não giọng nói "để mình xem" rồi chuyển cho bộ não chính, tất cả trong cùng một hội thoại.
 - **Live**: nghe nói thẳng qua **Gemini Live**, **OpenAI Realtime** hoặc **OpenAI GPT-Live** (cần API key của hãng). Giọng có cảm xúc, ngắt lời tự nhiên, bản ghi chữ hai chiều hiện trong khung chat. Khi cần dữ liệu thật, model giao cho bộ não chính chạy nền rồi vẫn trò chuyện tiếp, có kết quả thì thuật lại (Gemini dòng 3.1 còn im chờ vì Google chưa hỗ trợ việc nền). Phiên Live cũng biết bạn đang mở trang nào, bôi đen đoạn nào.
 
-Ngoài ra ô **Nghe bằng** cho chọn **Groq Whisper** nếu đã có key Groq: chữ chính xác hơn với tiếng Việt, chữ tạm trên màn hình vẫn hiện tức thì.
+### Tai nghe lại: câu Việt xen tiếng Anh
+
+Trình duyệt chỉ nghe được một ngôn ngữ, nên câu như "Mở dashboard Facebook ads" hay bị chép thành "Mở double Facebook add". **Tai nghe lại** là một model đa ngôn ngữ nghe lại chính âm thanh câu bạn vừa nói rồi mới chốt chữ vào bong bóng. Chữ tạm của trình duyệt vẫn hiện tức thì trong lúc bạn nói.
+
+- Mặc định là **Tự chọn**: có key Groq ở trang Models thì Javis dùng **Groq Whisper** làm tai, không có thì dùng chữ của trình duyệt như trước. Dòng "Đang dùng" trong thẻ cài đặt cho biết tai nào đang chạy và vì sao.
+- Đo trên 20 câu lệnh Việt xen Anh: trình duyệt sai 41% số từ, qua tai Groq còn 14%. Mỗi câu mất thêm chừng 1 giây.
+- Tai lỗi, chậm quá 8 giây, hay ra câu lệch hẳn bản nháp (Whisper đôi khi bịa câu khi gặp tiếng ồn) thì Javis giữ chữ của trình duyệt, không mất lượt nói.
+- Muốn tắt, chọn **Tắt** trong ô **Tai nghe lại** (mục nâng cao của thẻ giọng nói).
 
 ## Giọng đọc: nhà cung cấp, giọng, tốc độ
 
@@ -417,7 +424,7 @@ Các bước:
 
 Mọi lựa chọn giọng, tốc độ, ngôn ngữ nghe đều được ghi nhớ trên trình duyệt hiện tại cho lần sau. Emma là mặc định khi chưa lưu lựa chọn; cập nhật không ghi đè giọng bạn đã chọn.
 
-Trong chế độ Chuẩn/Nhanh, chữ đã hiện lúc bạn kết thúc câu được giữ nguyên khi gửi và lưu lịch sử. Bộ nghe phụ Groq chỉ đối chiếu và báo khi khác; AI không sửa lại tin đã gửi. Chữ tạm vẫn có thể thay đổi trong lúc bạn đang nói.
+Trong chế độ Chuẩn/Nhanh, câu gửi đi là chữ của tai nghe lại nếu có tai (xem mục Tai nghe lại ở trên), không thì là chữ của trình duyệt lúc bạn kết thúc câu. Đã gửi rồi thì AI không sửa lại tin trong lịch sử. Chữ tạm vẫn có thể thay đổi trong lúc bạn đang nói.
 
 ## Phóng to khung chat
 

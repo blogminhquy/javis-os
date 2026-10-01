@@ -6,7 +6,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.15] - 2026-10-01
 ### Cải thiện
-- **Javis nghe câu Việt pha tiếng Anh chuẩn hơn.** Đang làm: một "tai" AI nghe lại âm thanh rồi mới chốt chữ vào bong bóng.
+- **Nghe câu Việt xen tiếng Anh đúng hơn hẳn.** Có key Groq thì Javis tự bật "tai nghe lại": một model đa ngôn ngữ nghe lại âm thanh rồi mới chốt chữ vào bong bóng. Đo trên 20 câu lệnh, trình duyệt sai 41% số từ, qua tai còn 14%.
+- Tai giờ chạy đủ mọi lượt: cả câu đầu tiên sau khi mở trang, chế độ tự nhiên, và câu "Javis ơi" mà trình duyệt nghe thành "David ơi".
+- Trang Cài đặt có ô **Tai nghe lại** (Tự chọn / Groq / Tắt) kèm dòng cho biết tai nào đang chạy và vì sao.
 
 ## [0.65.14] - 2026-10-01
 ### Cải thiện
