@@ -2377,7 +2377,13 @@ body.jv-artpanel-open { overflow: hidden; }
 .note-editor { position: absolute; inset: 0; z-index: 12; display: flex; flex-direction: column;
   background: var(--panel-solid); }
 .note-editor[hidden] { display: none; }
-.note-editor.ne-full { position: fixed; inset: 0; z-index: 1000; }
+.note-editor.ne-full { position: fixed; inset: 0; z-index: 1000;
+  /* VÙNG AN TOÀN (0.65.30, cùng bài với .jv-lb): mở Javis từ màn hình chính iPhone thì thanh
+     trạng thái trong suốt (black-translucent) đè lên mép trên, nên thanh tên file + nút nằm lẫn
+     dưới đồng hồ và vạch pin. Đệm ở chính lớp này; box-sizing border-box toàn cục nên inset:0
+     vẫn phủ kín màn hình. Máy không có tai thỏ thì env() bằng 0, không đổi gì. */
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 /* Phóng to = phủ KÍN màn hình, kể cả rail bên trái.
    Vì sao phải thêm luật cho .cview: nó là position:fixed + z-index:40 nên TẠO MỘT
    STACKING CONTEXT. Trình sửa nằm trong đó (trang Trò chuyện, trang Tệp tin), nên

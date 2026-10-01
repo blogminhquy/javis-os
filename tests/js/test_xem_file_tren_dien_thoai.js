@@ -49,9 +49,16 @@ check("bấm tay sang chế độ soạn thì vẫn focus như cũ",
 // ============================================================
 const mq = (FE.match(/@media\(max-width:700px\)\{[\s\S]{0,1200}?\n\s*"\}"/) || [""])[0];
 check("có khối CSS riêng cho màn hẹp", mq.length > 0);
-check("CANARY: thẻ chiếm trọn chiều cao THẬT của màn (dvh), không phải 88vh căn giữa",
-  /100dvh/.test(mq) && /max-height:none/.test(mq));
-check("nền mờ hết padding để thẻ dán vào bốn cạnh", /padding:0/.test(mq));
+// 0.65.30: thẻ cao theo khung nền (fixed inset:0, giãn theo align-items:stretch) thay vì 100dvh,
+// vì khung nền nay chừa VÙNG AN TOÀN của iPhone mở từ màn hình chính (thanh trạng thái trong
+// suốt từng đè lên đầu thẻ, che nút Đóng). 100dvh cộng phần chừa đó là thẻ tràn xuống dưới.
+check("CANARY: thẻ chiếm trọn chiều cao khung (giãn theo nền), không phải 88vh căn giữa",
+  /\.jvfe-card\{[^"]*height:auto;align-self:stretch;max-height:none/.test(mq)
+  && /align-items:stretch/.test(mq));
+check("nền chỉ chừa đúng vùng an toàn để thẻ dán vào bốn cạnh",
+  /\.jvfe-modal\{padding:env\(safe-area-inset-top,0px\) env\(safe-area-inset-right,0px\) " \+\s*\n\s*"env\(safe-area-inset-bottom,0px\) env\(safe-area-inset-left,0px\)/.test(mq));
+check("trình sửa phóng to (màn hẹp luôn phóng to) chừa vùng an toàn của iPhone",
+  /\.note-editor\.ne-full \{[^}]*padding: env\(safe-area-inset-top, 0px\)/.test(fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "style.css"), "utf8")));
 check("đầu thẻ dính ở trên khi thân cuộn", /position:sticky/.test(mq));
 check("nút biểu tượng đủ to cho ngón tay (>=40px)", /\.jvfe-btn\.icon\{width:40px/.test(mq));
 
