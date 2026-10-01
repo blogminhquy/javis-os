@@ -190,7 +190,7 @@ const voice = new JavisVoice({
   // Nhá tiếng xong, chắc là người thật: dừng hẳn và mở tai ngay, không qua cửa sổ chờ chữ.
   onBargeConfirm: () => runActions(turn.bargeConfirmed(voice.lastSpokenPrefix())),
   onSpeakStart: () => runActions(turn.ttsStart()),
-  onSpeakEnd: () => runActions(turn.ttsEnd()),
+  onSpeakEnd: () => { runActions(turn.ttsEnd()); setTimeout(guiCauChoLuot, 0); },   // 0.65.28: loa im thì gửi câu đang chờ
   onSlow: (cham) => runActions(turn.setSlow(cham)),
 });
 
@@ -270,6 +270,7 @@ let _ngatLoiTai = "";     // câu Javis bị ngắt lúc đọc, đi vào tin k�
 const cum = new window.JavisVoiceChunker.Chunker();
 let _cumTimer = null;
 function docCum(chunks, t) {
+  if (t && t.imLoa) return;   // 0.65.28: người dùng đã cắt lời lượt này, chữ còn lại chỉ hiện, không đọc
   (chunks || []).forEach((c) => {
     if (!c || !c.trim()) return;
     voice.enqueueSpeak(c);
@@ -404,10 +405,15 @@ function runActions(acts) {
         clearTimeout(_waitTimer);
         _waitTimer = setTimeout(() => runActions(turn.waitTimeout()), turn.opts.waitTimeoutMs);
         break;
-      case "stop_tts":
+      case "stop_tts": {
         if (a.interrupted) { clearTimeout(_bargeTimer); _bargeTimer = null; ketThucTheoLoi(true); }   // V3: đóng băng chỗ đã nói
         voice.stopSpeaking();
+        // 0.65.28: lượt vẫn chạy tiếp tới hết (không dừng), nhưng phần còn lại không đọc nữa, chỉ
+        // hiện chữ. Không thì Javis nói đè lên câu người dùng vừa chen vào.
+        const _tLuot = savedSessionId ? turns[savedSessionId] : null;
+        if (_tLuot && _tLuot.running) { _tLuot.imLoa = true; cum.reset(); }
         break;
+      }
       case "pause_tts":
         voice.pauseSpeaking();
         clearTimeout(_bargeTimer);
@@ -1105,7 +1111,7 @@ function handleMessage(data) {
       if (!t.bubble) { t.bubble = createStreamingBubble(); showActivity(Icons.msg("pen-line", window.t("app.act_writing"))); }
       t.bubble.dataset.md = t.text;   // copy giữa chừng vẫn ra markdown gốc, kể cả khi đang đọc theo giọng
       // V3: đang nói chuyện bằng giọng thì chữ hiện THEO LỜI ĐỌC, không hiện trước loa.
-      if (dangTheoLoi() && data.tts !== false) batTheoLoi(t.bubble, t.text, null, false);
+      if (dangTheoLoi() && data.tts !== false && !t.imLoa) batTheoLoi(t.bubble, t.text, null, false);
       else { t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text); scrollBottom(); }
       // Đọc NGAY đoạn trung gian (chỉ đọc phiên đang xem). OpenRouter gửi tts:false → đọc 1 lần ở cuối.
       // Voice V3: gom chữ stream thành CỤM đọc được (voice-chunker.js) thay vì đọc từng mẩu.
@@ -1146,7 +1152,7 @@ function handleMessage(data) {
       let msgEl = t && t.bubble;
       if (!msgEl) msgEl = appendJavisMessage(shownText);
       if (t && t.bubble) msgEl.dataset.md = shownText;   // copy ra markdown gốc dù đọc theo giọng hay không
-      if (dangTheoLoi() && t && finalText) {
+      if (dangTheoLoi() && t && finalText && !t.imLoa) {
         batTheoLoi(msgEl, shownText, ask, false);        // V3: chữ theo lời tới khi đọc xong, rồi vẽ đủ + chip
       } else {
         if (t && t.bubble) msgEl.querySelector(".bubble").innerHTML = markdownToHtml(shownText);
@@ -1240,6 +1246,7 @@ function handleMessage(data) {
     if (isActive) { hideActivity(); veKhoiBuoc(t, false); syncActiveUI(); runActions(turn.turnDone()); cum.reset(); }
     if (sid) delete turns[sid];
     if (isActive && _tinChoLuot) guiTinCho();   // câu người dùng chen ngang: lượt cũ dừng hẳn rồi thì gửi
+    if (isActive) guiCauChoLuot();               // câu nói lúc đang trả lời (cuộc gọi): gửi nếu loa đã im
     notifySessions();
     // Lượt vừa xong có thể đã giao việc nền. Đây là ĐÚNG khoảnh khắc người dùng đọc câu trả
     // lời "em đã giao 3 việc" và tự hỏi nó có chạy thật không - dải phải trả lời được ngay.
@@ -1288,6 +1295,26 @@ function guiTinCho() {
   try { if (savedSessionId) delete _luotDaDung[savedSessionId]; } catch (e) {}
   const opts=_tinChoOpts; _tinChoOpts=null;
   if (t) sendMessage(t,opts);       // stopCurrent() đã hạ cờ running nên lần này không quay lại đây
+}
+// ---- Câu nói lúc Javis đang trả lời, trong cuộc gọi (0.65.28) ----
+// Không dừng lượt đang chạy: câu xếp hàng (nói nhiều câu thì ghép lại), hiện thành bong bóng nháp,
+// và chỉ gửi khi lượt cũ đã xong VÀ loa đã đọc xong, vì hàm gửi tin cắt tiếng đang đọc.
+// Gọi từ turn_done và từ lúc loa đọc xong; điều kiện nào chưa đủ thì lần gọi sau gửi.
+let _cauChoLuot = [], _cauChoOpts = null;
+function xepCauChoLuot(text, opts) {
+  const t = String(text || "").trim();
+  if (t) _cauChoLuot.push(t);
+  if (opts) _cauChoOpts = opts;
+  try { nhapGiong(_cauChoLuot.join(" ")); } catch (e) {}
+}
+function guiCauChoLuot() {
+  if (!_cauChoLuot.length || !handsFree) return;
+  const sid = savedSessionId;
+  if (sid && turns[sid] && turns[sid].running) return;
+  if (voice.isSpeaking() || voice.isPaused() || (voice.speechQueue && voice.speechQueue.length)) return;
+  const t = _cauChoLuot.join(" "), opts = _cauChoOpts;
+  _cauChoLuot = []; _cauChoOpts = null;
+  sendMessage(t, opts || undefined);
 }
 // Lượt bị bấm Dừng (hay bị câu nói chen ngang dừng) mà chưa nhận turn_done: sid -> id lượt.
 // turn_done về sau khi lượt MỚI đã chạy thì thuộc về lượt cũ, không được xoá trạng thái lượt mới.
@@ -1462,6 +1489,10 @@ function sendMessage(text, opts) {
       return;
     }
     if (!(_tuGiong || handsFree)) return;   // gõ chữ lúc không rảnh tay: giữ chốt cũ
+    // Đang gọi (0.65.28): KHÔNG dừng lượt đang chạy. Câu mới xếp hàng, gửi khi lượt cũ xong và
+    // loa đọc xong. Chủ dự án báo 02/10: nói chen một câu là "Đã dừng lượt này", mô hình bị
+    // cắt liên tục nên không liền mạch; cuộc gọi chỉ được dừng khi bấm lại nút mic.
+    if (handsFree) { xepCauChoLuot(msg, opts); return; }
     stopCurrent();
     datTinCho(msg, opts);   // gửi khi lượt cũ dừng HẲN, không gửi ngay (xem chú thích ở datTinCho)
     return;
@@ -2861,6 +2892,7 @@ function pumpAudioLevel() {
     // Chốt an toàn: nếu giọng đã im mà đạo diễn còn tưởng đang nói (vd trình duyệt nuốt sự
     // kiện ended), ép về đúng sự thật.
     if (turn.speaking && !voice.isSpeaking() && !voice.isPaused()) runActions(turn.ttsEnd());
+    if (_cauChoLuot.length) guiCauChoLuot();   // 0.65.28: lưới cho câu chờ lượt khi sự kiện loa bị nuốt
   }
   requestAnimationFrame(pumpAudioLevel);
 }
@@ -3537,6 +3569,7 @@ function tatRanhTay() {
   liveWake.cancelListening();
   _sendEpoch++;
   clearTimeout(_tinChoTimer); _tinChoTimer = null; _tinChoLuot = null;
+  _cauChoLuot = []; _cauChoOpts = null;   // 0.65.28: cúp máy thì bỏ câu đang chờ lượt
   clearTimeout(_tinDutMangTimer); _tinDutMangTimer = null; _tinDutMang = [];
   _choTaiLen = null; _tuGiong = false;
   handsFree = false;

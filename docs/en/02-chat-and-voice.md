@@ -66,7 +66,7 @@ The mic button (the large microphone on the left of the input bar) **calls Javis
 
 1. Click the mic button once. It turns red and becomes **Hang up**, and a **call bar** appears right above the chat: the call path (for example **ChatGPT Live**), the status (Listening, Javis is speaking, Working, Waiting), a call timer, a **Mute** button and a **Hang up** button.
 2. Talk naturally. Both sides appear as normal chat bubbles, so tables, files and task results still show in full.
-3. To interrupt while Javis is speaking, just talk; Javis stops and listens.
+3. To interrupt while Javis is speaking, just talk; Javis stops reading to listen. The answer it was writing is still finished in the chat. Talking while Javis is answering does not stop it either: what you said is kept and Javis answers it right after the current answer. The call only stops when you hang up.
 4. To end the call: click **Hang up** (on the call bar or the mic button itself), or press **Esc**.
 
 Javis picks the call path itself: **ChatGPT Live** when your ChatGPT plan is connected, then Live with an API key if you have one, otherwise the **Basic** path (browser listening, Edge voice). If ChatGPT Live cannot start, the call switches to Basic and says so in one line. The Space bar no longer opens the mic.

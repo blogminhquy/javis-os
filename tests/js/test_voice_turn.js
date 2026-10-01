@@ -83,7 +83,9 @@ check("DỪNG khi đang đọc: stop_tts, không commit", has(a, "stop_tts") && 
 const s2 = new T.VoiceTurn();
 s2.micOn(); s2.turnStart();
 a = s2.endpoint("dừng lại");
-check("DỪNG khi đang xử lý: stop_turn", has(a, "stop_turn") && !has(a, "commit"));
+// 0.65.28: trong cuộc gọi, lượt chỉ dừng khi bấm lại nút mic. "dừng lại" làm Javis im, lượt viết nốt.
+check("DỪNG khi đang xử lý: chỉ stop_tts, KHÔNG stop_turn, không commit",
+  has(a, "stop_tts") && !has(a, "stop_turn") && !has(a, "commit") && s2.processing === true);
 
 // ---- 4. Chen ngang ----
 const b = new T.VoiceTurn();

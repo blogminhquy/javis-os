@@ -66,7 +66,7 @@ Nút mic (hình micro to, bên trái thanh nhập) là nút **gọi Javis**, nh�
 
 1. Bấm nút mic một lần. Nút đổi màu đỏ thành **Cúp máy**, và một **thanh gọi** hiện ngay trên khung chat: tên đường gọi (ví dụ **ChatGPT Live**), trạng thái (Đang nghe, Javis đang nói, Đang làm việc, Đang chờ), đồng hồ cuộc gọi, nút **Tắt mic** và nút **Cúp máy**.
 2. Cứ nói tự nhiên. Lời hai bên hiện thành bong bóng chat như tin thường, nên bảng số, file hay kết quả việc vẫn hiện đầy đủ.
-3. Muốn chen ngang lúc Javis đang nói thì cứ nói, Javis dừng lại nghe.
+3. Muốn chen ngang lúc Javis đang nói thì cứ nói, Javis thôi đọc để nghe. Câu trả lời đang viết dở vẫn viết nốt vào khung chat. Nói thêm lúc Javis đang trả lời cũng không làm nó dừng: câu của bạn được giữ lại và Javis trả lời ngay sau khi xong câu đang trả lời. Cuộc gọi chỉ dừng khi bạn cúp máy.
 4. Kết thúc: bấm **Cúp máy** (trên thanh gọi hoặc chính nút mic), hoặc nhấn **Esc**.
 
 Javis tự chọn đường gọi: **ChatGPT Live** khi bạn đã nối gói ChatGPT, rồi Live qua API key nếu có, không thì đường **Cơ bản** (nghe bằng trình duyệt, đọc bằng giọng Edge). Nếu ChatGPT Live chưa mở được, cuộc gọi tự chuyển sang đường Cơ bản và báo một dòng. Phím Cách (Space) không còn mở mic.

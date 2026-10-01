@@ -67,9 +67,10 @@ check("voice.js: iOS cũng ghi _chunkIndex (spokenWords cần)", /this\.currentA
 check("voice-live.js: progress() + resetProgress(), schedMs cộng theo từng khối, xả thì về 0",
       /progress: progress, resetProgress: resetProgress/.test(liveJs) && /schedMs \+= ab\.duration \* 1000;/.test(liveJs)
       && /utterStartAt = 0;\s*\n\s*schedMs = 0;/.test(liveJs));
-check("app.js: stream ở phiên giọng -> batTheoLoi thay vì vẽ cả câu", /if \(dangTheoLoi\(\) && data\.tts !== false\) batTheoLoi\(t\.bubble, t\.text, null, false\);/.test(app));
+check("app.js: stream ở phiên giọng -> batTheoLoi thay vì vẽ cả câu (trừ lượt đã bị cắt lời, 0.65.28)",
+      /if \(dangTheoLoi\(\) && data\.tts !== false && !t\.imLoa\) batTheoLoi\(t\.bubble, t\.text, null, false\);/.test(app));
 check("app.js: response ở phiên giọng -> batTheoLoi mang ask, vẽ đủ + chip khi đọc xong",
-      /if \(dangTheoLoi\(\) && t && finalText\) \{\s*\n\s*batTheoLoi\(msgEl, shownText, ask, false\);/.test(app)
+      /if \(dangTheoLoi\(\) && t && finalText && !t\.imLoa\) \{\s*\n\s*batTheoLoi\(msgEl, shownText, ask, false\);/.test(app)
       && /if \(s\.ask\) window\.JavisAsk\.render\(s\.el, s\.ask, true\);/.test(app));
 check("app.js: ngắt lời thật -> đóng băng chỗ đã nói kèm …", /a\.interrupted\) \{[^\n]*ketThucTheoLoi\(true\);/.test(app)
       && /takeWords\(full, s\.shown\)\) \+ " …";/.test(app));

@@ -80,19 +80,52 @@ check("CA THẬT: sau việc nền, phiên KHÔNG còn bị coi là đang chạy
 // ---- 2. sendMessage không được nuốt lặng tin từ mic ----
 check("CANARY: bỏ hẳn kiểu nuốt lặng `if (turns[sid].running) return;`",
   !/if \(turns\[sid\] && turns\[sid\]\.running\) return;/.test(app));
-check("tin từ mic (hay gõ lúc rảnh tay) thì DỪNG lượt cũ rồi gửi",
-  /if \(!\(_tuGiong \|\| handsFree\)\) return;[\s\S]{0,120}stopCurrent\(\);/.test(app));
+// 0.65.28: trong cuộc gọi KHÔNG dừng lượt cũ nữa (chủ dự án báo 02/10: "Đã dừng lượt này" liên
+// tục, mô hình bị cắt); câu xếp hàng và gửi khi lượt xong. Ngoài cuộc gọi (mic một lần) vẫn dừng rồi gửi.
+check("tin từ mic lúc đang gọi thì XẾP HÀNG, không dừng lượt cũ",
+  /if \(!\(_tuGiong \|\| handsFree\)\) return;[\s\S]{0,400}if \(handsFree\) \{ xepCauChoLuot\(msg, opts\); return; \}\s*\n\s*stopCurrent\(\);/.test(app));
 
-// ---- 3. Cắt lời thì dừng luôn lượt đang chạy ----
+// ---- 3. Cắt lời chỉ làm Javis im, lượt đang chạy viết nốt (0.65.28) ----
 const b = new T.VoiceTurn();
 b.micOn(); b.turnStart(); b.ttsStart();
 check("trước khi cắt lời: đang xử lý và đang đọc", b.processing === true && b.speaking === true);
 let a = b.bargeConfirmed("doanh thu tuần này");
-check("cắt lời -> stop_tts + stop_turn + listen",
-  has(a, "stop_tts") && has(a, "stop_turn") && has(a, "listen"));
-check("cắt lời -> hạ luôn cờ processing (không kẹt 'đang suy nghĩ')", b.processing === false);
-check("thứ tự: stop_tts đứng TRƯỚC stop_turn (đóng băng bong bóng theo lời rồi mới dừng lượt)",
-  a.findIndex(x => x.type === "stop_tts") < a.findIndex(x => x.type === "stop_turn"));
+check("cắt lời -> stop_tts + listen, KHÔNG stop_turn",
+  has(a, "stop_tts") && has(a, "listen") && !has(a, "stop_turn"));
+check("cắt lời -> lượt vẫn đang chạy (processing giữ nguyên), Javis thôi đọc", b.processing === true && b.speaking === false);
+check("app.js: stop_tts lúc lượt còn chạy thì đánh dấu im phần còn lại của lượt",
+  /case "stop_tts": \{[\s\S]{0,600}if \(_tLuot && _tLuot\.running\) \{ _tLuot\.imLoa = true; cum\.reset\(\); \}/.test(app));
+check("app.js: lượt đã bị cắt lời thì không đưa chữ ra loa nữa", /function docCum\(chunks, t\) \{\s*\n\s*if \(t && t\.imLoa\) return;/.test(app));
+
+// ---- 4. Hàng chờ câu nói trong cuộc gọi: chạy THẬT cặp xepCauChoLuot/guiCauChoLuot từ nguồn ----
+const nguon = (app.match(/let _cauChoLuot = \[\], _cauChoOpts = null;[\s\S]*?\nfunction guiCauChoLuot\(\) \{[\s\S]*?\n\}/) || [""])[0];
+check("nhấc được cặp hàm câu chờ lượt", nguon.indexOf("function guiCauChoLuot") > 0);
+const daGui = [], nhap = [];
+const moi = { handsFree: true, running: true, speaking: false, queue: [] };
+const api = new Function("env", "sendMessage", "nhapGiong",
+  "let handsFree = env.handsFree; const savedSessionId = 's1';"
+  + "const turns = { get s1() { return { running: env.running }; } };"
+  + "const voice = { isSpeaking: () => env.speaking, isPaused: () => false, get speechQueue() { return env.queue; } };"
+  + nguon + "\nreturn { xep: xepCauChoLuot, gui: guiCauChoLuot, xem: () => _cauChoLuot.slice() };")(
+  moi, (t, o) => daGui.push([t, o]), (t) => nhap.push(t));
+api.xep("Nói chung là cũng ổn", { x: 1 });
+api.xep("còn cái này nữa");
+check("hai câu nói lúc đang trả lời được xếp hàng, hiện thành nháp ghép", api.xem().length === 2
+  && nhap[nhap.length - 1] === "Nói chung là cũng ổn còn cái này nữa" && daGui.length === 0);
+api.gui();
+check("lượt cũ còn chạy thì CHƯA gửi", daGui.length === 0);
+moi.running = false; moi.speaking = true;
+api.gui();
+check("lượt xong mà loa còn đọc thì CHƯA gửi (không cắt câu trả lời đang đọc)", daGui.length === 0);
+moi.speaking = false;
+api.gui();
+check("lượt xong và loa im thì gửi ĐÚNG MỘT tin ghép", daGui.length === 1 && daGui[0][0] === "Nói chung là cũng ổn còn cái này nữa"
+  && daGui[0][1] && daGui[0][1].x === 1);
+api.gui();
+check("gọi lại lần nữa không gửi lặp", daGui.length === 1);
+check("turn_done và lúc loa đọc xong đều gọi gửi câu chờ",
+  /if \(isActive\) guiCauChoLuot\(\);/.test(app) && /onSpeakEnd: \(\) => \{ runActions\(turn\.ttsEnd\(\)\); setTimeout\(guiCauChoLuot, 0\); \}/.test(app));
+check("cúp máy thì bỏ câu đang chờ", /_cauChoLuot = \[\]; _cauChoOpts = null;\s*\/\/ 0\.65\.28: cúp máy/.test(app));
 
 // Không có lượt nào chạy (đang đọc tin nền chẳng hạn) thì đừng bịa ra stop_turn.
 const b2 = new T.VoiceTurn();

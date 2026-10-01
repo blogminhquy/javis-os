@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.28] - 2026-10-02
 ### Sửa lỗi
-- Đang làm: đang gọi ở đường Cơ bản, nói chen lúc Javis đang trả lời không còn tự dừng lượt.
+- **Đang gọi, nói chen không còn làm Javis dừng câu trả lời.** Trước đây ở đường Cơ bản, nói thêm một câu lúc Javis đang trả lời là hiện "Đã dừng lượt này" và câu trả lời bị cắt, nói nhiều thì bị cắt liên tục. Nay câu trả lời luôn được viết trọn; câu bạn nói thêm được giữ lại và Javis trả lời ngay sau khi đọc xong. Cắt lời hay nói "thôi" chỉ làm Javis thôi đọc. Cuộc gọi chỉ dừng khi bạn cúp máy.
 
 ## [0.65.27] - 2026-10-02
 ### Sửa lỗi
