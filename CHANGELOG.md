@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.14] - 2026-10-01
 ### Cải thiện
-- **Bộ phán xử dễ hiểu hơn.** Nút "Là chủ" đổi thành "Đặt làm chủ bot", người đã đặt hiện nhãn "Chủ" kèm nút bỏ, và có một dòng giải thích Đúng/Sai nghĩa là gì.
+- **Nút "Là chủ" trong Bộ phán xử dễ hiểu hơn.** Đổi thành "Đặt làm chủ bot", rê chuột có giải thích. Người đã đặt hiện nhãn "Chủ", đầu menu có danh sách chủ bot kèm nút "Bỏ chủ".
+- **Đúng/Sai có giải thích.** Một dòng nói rõ nghĩa, và rê chuột vào từng nút thấy nghĩa theo dòng đó (ví dụ "Đáng lẽ bot phải im").
 
 ## [0.65.13] - 2026-10-01
 ### Sửa lỗi

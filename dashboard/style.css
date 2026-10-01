@@ -3446,6 +3446,10 @@ body.ne-full-on .cview { z-index: 250; }
 
 /* ---- Bộ phán xử hội thoại nhóm (0.65.0) ---- */
 .cb-rp-note { margin-top: 10px; }
+.cb-rp-owners { margin: 10px 0 4px; }
+.cb-rp-ownlist { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 4px 0; }
+.cb-rp-own { display: inline-flex; align-items: center; gap: 6px; }
+.cb-rp-thumbh { margin: 6px 0 2px; }
 .cb-form label.cb-rp-learn { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 2px;
   font-weight: 500; cursor: pointer; }
 .cb-rp-form { width: min(820px, 96vw); }

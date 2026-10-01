@@ -3,7 +3,7 @@
 //
 // Từ 0.65.1 KHÔNG còn ô cài đặt nào cho bộ phán xử. Chọn "Tự đánh giá" ở phần Bot trả lời ai là xong: máy tự
 // chọn mức hăng hái, tự tra tài liệu hay dựa vào vai, tự học từ phản ứng trong nhóm. Chủ chỉ còn hai việc, đều
-// làm ngay trên dữ liệu thật: bấm Đúng/Sai ở từng quyết định, và bấm "Là chủ" ở tin của mình để bot nghe lời dạy.
+// làm ngay trên dữ liệu thật: bấm Đúng/Sai ở từng quyết định, và bấm "Đặt làm chủ bot" ở tin của mình để bot nghe lời dạy.
 //
 // Hai mảnh, cả hai do chatbots.js gọi:
 //   - formHtml(): một dòng giải thích trong FORM bot, chỉ hiện khi chọn "Tự đánh giá".
@@ -91,6 +91,33 @@
 
     function chip(cls, text) { return '<span class="cb-rp-chip ' + cls + '">' + esc(text) + '</span>'; }
 
+    // Danh sách chủ bot (`trainer_ids`) chỉ lưu id người gửi. Tên đọc từ các quyết định đang tải; id chưa có tên
+    // (người không còn trong 100 tin gần nhất) vẫn hiện được để bỏ.
+    function chuBot() { return (d.config && d.config.trainer_ids) || []; }
+    function tenNguoi(sid) {
+      var ds = d.decisions || [];
+      for (var i = 0; i < ds.length; i++) if (ds[i].sender_id === sid && ds[i].sender) return ds[i].sender;
+      return tt("rp.owner_unknown");
+    }
+    async function luuChu(ids) {
+      await api("/chatbots/" + encodeURIComponent(bot.id) + "/update",
+                { method: "POST", body: fd({ reply_policy: JSON.stringify({ trainer_ids: ids }) }) });
+      await tai();
+    }
+    function khoiChu() {
+      var ids = chuBot();
+      var h = '<div class="cb-rp-owners"><div class="cb-sub">' + esc(tt("rp.owner_lb")) + '</div>';
+      // Chưa có chủ: MỘT đoạn nói rõ hệ quả và cách đặt. Có chủ: danh sách kèm một dòng ngắn (điện thoại không nên nhồi chữ).
+      h += ids.length
+        ? '<div class="cb-rp-ownlist">' + ids.map(function (sid) {
+            return '<span class="cb-rp-own">' + chip("ok", tenNguoi(sid)) +
+              ' <button type="button" class="cb-rp-lnk rp-unowner" data-sid="' + esc(sid) + '" title="' + esc(tt("rp.owner_remove_tip")) + '">' +
+              esc(tt("rp.owner_remove")) + '</button></span>';
+          }).join("") + '</div><div class="cb-hint">' + esc(tt("rp.owner_h")) + '</div>'
+        : '<div class="cb-hint">' + esc(tt("rp.owner_none")) + '</div>';
+      return h + '</div>';
+    }
+
     function dongQuyetDinh(x) {
       var noi = x.verdict === "reply";
       var diem = (x.score == null) ? "" : (Number(x.score).toFixed(2) + (x.threshold != null ? " / " + Number(x.threshold).toFixed(2) : ""));
@@ -98,14 +125,18 @@
       return '<div class="cb-rp-row" data-id="' + x.id + '">' +
         '<div class="cb-rp-h">' + chip(noi ? "ok" : "off", tt(noi ? "rp.verdict_reply" : "rp.verdict_silent")) +
           ' <b>' + esc(x.sender || "") + '</b>' +
-          (x.sender_id && (d.config.trainer_ids || []).indexOf(x.sender_id) < 0
-            ? ' <button type="button" class="cb-rp-lnk rp-owner" data-sid="' + esc(x.sender_id) + '">' + esc(tt("rp.is_owner")) + '</button>' : '') +
+          (x.sender_id && chuBot().indexOf(x.sender_id) >= 0 ? ' ' + chip("ok", tt("rp.owner_badge")) : '') +
+          (x.sender_id && chuBot().indexOf(x.sender_id) < 0
+            ? ' <button type="button" class="cb-rp-lnk rp-owner" data-sid="' + esc(x.sender_id) + '" title="' + esc(tt("rp.is_owner_tip")) + '">' +
+              esc(tt("rp.is_owner")) + '</button>' : '') +
           ' <span class="cb-rp-ts">' + esc(gio(x.ts)) + '</span></div>' +
         '<div class="cb-rp-t">' + esc(x.text || "") + '</div>' +
         '<div class="cb-rp-m">' + esc(ly) + (diem ? ' · ' + esc(diem) : '') +
           (x.label ? ' ' + chip(x.label === "correct" ? "ok" : "warn", tt(LABEL_LB[x.label] || "rp.label_correct")) : '') +
-          (x.candidate ? ' <button type="button" class="cb-rp-lnk rp-thumb" data-t="up">' + esc(tt("rp.thumb_up")) + '</button>' +
-            '<button type="button" class="cb-rp-lnk rp-thumb" data-t="down">' + esc(tt("rp.thumb_down")) + '</button>' : '') +
+          (x.candidate ? ' <button type="button" class="cb-rp-lnk rp-thumb" data-t="up" title="' +
+              esc(tt(noi ? "rp.thumb_up_reply" : "rp.thumb_up_silent")) + '">' + esc(tt("rp.thumb_up")) + '</button>' +
+            '<button type="button" class="cb-rp-lnk rp-thumb" data-t="down" title="' +
+              esc(tt(noi ? "rp.thumb_down_reply" : "rp.thumb_down_silent")) + '">' + esc(tt("rp.thumb_down")) + '</button>' : '') +
         '</div></div>';
     }
 
@@ -114,8 +145,10 @@
       var h = '<div class="cb-sum">' + esc(tt("rp.stats", { decisions: s.decisions || 0, silent: s.silent || 0,
         labeled: s.labeled || 0, cases: s.cases || 0, lessons: s.lessons || 0 })) + '</div>';
       h += '<div class="cb-hint">' + esc(tt("rp.panel_h")) + '</div>';
+      h += khoiChu();
       h += '<label class="cb-rp-learn"><input type="checkbox" id="rpSolo"' + (soloSilent ? " checked" : "") + '> ' +
         esc(tt("rp.only_silent")) + '</label>';
+      h += '<div class="cb-hint cb-rp-thumbh">' + esc(tt("rp.thumb_hint")) + '</div>';
       h += '<div class="cb-rp-list">' + ((d.decisions || []).length
         ? d.decisions.map(dongQuyetDinh).join("") : '<div class="cb-empty">' + esc(tt("rp.empty")) + '</div>') + '</div>';
       h += '<div class="cb-sub">' + esc(tt("rp.lessons")) + '</div>' + ((d.lessons || []).length
@@ -143,12 +176,13 @@
       });
       than.querySelectorAll(".rp-owner").forEach(function (b) {
         b.onclick = async function () {
-          var ids = (d.config.trainer_ids || []).concat([b.dataset.sid]);
-          try {
-            await api("/chatbots/" + encodeURIComponent(bot.id) + "/update",
-                      { method: "POST", body: fd({ reply_policy: JSON.stringify({ trainer_ids: ids }) }) });
-            await tai();
-          } catch (e) { window.alert(e.message); }
+          try { await luuChu(chuBot().concat([b.dataset.sid])); } catch (e) { window.alert(e.message); }
+        };
+      });
+      than.querySelectorAll(".rp-unowner").forEach(function (b) {
+        b.onclick = async function () {
+          var sid = b.dataset.sid;
+          try { await luuChu(chuBot().filter(function (x) { return x !== sid; })); } catch (e) { window.alert(e.message); }
         };
       });
       than.querySelectorAll(".rp-case-del").forEach(function (b) {
