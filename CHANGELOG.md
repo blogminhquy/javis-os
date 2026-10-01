@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.15] - 2026-10-01
+### Cải thiện
+- **Javis nghe câu Việt pha tiếng Anh chuẩn hơn.** Đang làm: một "tai" AI nghe lại âm thanh rồi mới chốt chữ vào bong bóng.
+
 ## [0.65.14] - 2026-10-01
 ### Cải thiện
 - **Nút "Là chủ" trong Bộ phán xử dễ hiểu hơn.** Đổi thành "Đặt làm chủ bot", rê chuột có giải thích. Người đã đặt hiện nhãn "Chủ", đầu menu có danh sách chủ bot kèm nút "Bỏ chủ".
