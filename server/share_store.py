@@ -101,6 +101,22 @@ def xoa(token: str) -> bool:
         return True
 
 
+def doi_ten(token: str, nhan: str):
+    """Đổi tên hiển thị của một link (0.65.30). Rỗng = bỏ tên tự đặt, trang lại tự lấy tiêu đề
+    file. Trả bản ghi mới, hoặc None nếu token không có. Token và đường dẫn KHÔNG đổi: link đã
+    gửi đi vẫn sống."""
+    tok = str(token or "").strip()
+    ten = " ".join(str(nhan or "").split())[:120]
+    with _LOCK:
+        d = _doc_tho()
+        ban = d.get(tok)
+        if not isinstance(ban, dict):
+            return None
+        ban["nhan"] = ten
+        _ghi_tho(d)
+        return dict(ban, token=tok)
+
+
 def danh_sach(brain: str = "") -> list:
     """Mọi link đang sống, mới nhất trước. Lọc theo brain nếu truyền."""
     d = _doc_tho()

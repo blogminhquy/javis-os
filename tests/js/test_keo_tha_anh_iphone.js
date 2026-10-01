@@ -26,7 +26,7 @@ check("file 0 byte báo lỗi ngay trên chip, không gửi lên máy chủ",
   /if \(!file\.size\) \{[\s\S]{0,120}att\.loi = true; att\.statusText = window\.t\("app\.att_empty"\);/.test(app));
 check("có chữ báo file rỗng (vi/en), không em dash",
   typeof vi["app.att_empty"] === "string" && typeof en["app.att_empty"] === "string"
-  && !/—/.test(vi["app.att_empty"] + en["app.att_empty"]));
+  && !new RegExp(String.fromCharCode(0x2014)).test(vi["app.att_empty"] + en["app.att_empty"]));
 
 // ---- 2. Chạy thật chupFile lấy từ nguồn ----
 const src = (app.match(/function chupFile\(f\) \{[\s\S]*?\n\}/) || [""])[0];

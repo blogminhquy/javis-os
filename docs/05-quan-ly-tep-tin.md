@@ -253,6 +253,8 @@ Trang chia sẻ chạy trong một hộp cách ly: script trong đó không đ�
 
 Thu hồi link: bấm lại nút Chia sẻ rồi chọn thu hồi. Link chết ngay, và mọi file kèm theo nó cũng ngừng phục vụ.
 
+Mọi link đang sống nằm ở trang **Chia sẻ**. Mỗi link có một **tên** tự lấy theo tiêu đề file: thẻ `<title>` của trang `.html`, `title:` hoặc dòng `#` đầu tiên của ghi chú `.md`. File không có tiêu đề thì lấy tên file, riêng `index.html` lấy tên thư mục chứa nó, nên năm app nhỏ không còn cùng hiện là "index.html". Bấm **Đổi tên** để đặt tên khác; để trống là quay về tên theo tiêu đề. Đổi tên không đổi đường link đã gửi đi. Ô tìm kiếm tìm theo tên link, tên file và thư mục.
+
 ## Hai thư mục là vùng cache, đừng để dữ liệu quý ở đó
 
 `attachments/` và `inbox/` của mỗi brain được Javis coi là **vùng cache**, không phải kho lưu trữ:

@@ -6647,14 +6647,14 @@
       return String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .replace(/[đĐ]/g, "d").toLowerCase();
     }
-    // Lọc theo TÊN FILE lẫn ĐƯỜNG DẪN: nhớ tên file thì gõ tên, nhớ nó nằm thư mục nào thì gõ
-    // thư mục. Gõ nhiều từ cách nhau bởi dấu cách thì phải khớp HẾT, để thu hẹp dần.
+    // Lọc theo TÊN LINK, tên file lẫn ĐƯỜNG DẪN: nhớ tên đã đặt thì gõ tên, nhớ nó nằm thư mục
+    // nào thì gõ thư mục. Gõ nhiều từ cách nhau bởi dấu cách thì phải khớp HẾT, để thu hẹp dần.
     function loc(tu) {
       const k = khongDau(tu).trim();
       if (!k) return ds;
       const tus = k.split(/\s+/);
       return ds.filter(m => {
-        const d = khongDau(m.path || "");
+        const d = khongDau((m.ten || "") + " " + (m.path || ""));
         return tus.every(x => d.indexOf(x) >= 0);
       });
     }
@@ -6704,12 +6704,14 @@
       }
       box.querySelectorAll("[data-share-revoke]").forEach(b => { b.onclick = () => thuHoi(b); });
       box.querySelectorAll("[data-share-copy]").forEach(b => { b.onclick = () => chep(b); });
+      box.querySelectorAll("[data-share-rename]").forEach(b => { b.onclick = () => doiTen(b); });
     }
 
     function hang(m) {
       const url = location.origin + m.url;
-      // Tên file để NHẬN RA, đường dẫn đầy đủ để phân biệt hai file trùng tên ở hai thư mục.
-      const ten = String(m.path || "").split("/").pop() || m.path;
+      // TÊN LINK (0.65.30: tự lấy theo tiêu đề file, đổi được) để NHẬN RA; đường dẫn đầy đủ để
+      // phân biệt hai file trùng tên ở hai thư mục. Máy chủ cũ chưa trả `ten` thì dùng tên file.
+      const ten = m.ten || String(m.path || "").split("/").pop() || m.path;
       return `<div class="share-row" data-token="${esc(m.token)}">
         <div class="share-info">
           <div class="share-name">${esc(ten)}</div>
@@ -6717,6 +6719,7 @@
           <a class="share-url" href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a>
         </div>
         <div class="share-acts">
+          <button class="gcard-btn ghost" type="button" data-share-rename="${esc(m.token)}">${esc(t("share.rename"))}</button>
           <button class="gcard-btn" type="button" data-share-copy="${esc(url)}">${esc(t("common.copy"))}</button>
           <button class="gcard-btn ghost" type="button" data-share-revoke="${esc(m.token)}">${esc(t("fedit.share_revoke"))}</button>
         </div>
@@ -6742,6 +6745,26 @@
         try { document.execCommand("copy"); xong(); } catch (e) {}
         o.remove();
       }
+    }
+
+    // Đổi tên link (0.65.30). Hộp nhập của trình duyệt chạy được cả trên iPhone mở từ màn hình
+    // chính. Để trống là quay về tên tự lấy theo tiêu đề file. Token không đổi: link đã gửi vẫn sống.
+    async function doiTen(b) {
+      const token = b.dataset.shareRename;
+      const m = ds.find(x => x.token === token);
+      if (!m) return;
+      const moi = window.prompt(t("share.rename_ask"), m.ten || "");
+      if (moi === null || moi === undefined) return;          // bấm Huỷ
+      b.disabled = true;
+      try {
+        const r = await (await fetch("/share/rename", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, nhan: moi }),
+        })).json();
+        if (r && r.ok) { m.ten = r.ten; veDanhSach(); return; }
+      } catch (e) {}
+      b.disabled = false;
+      b.textContent = t("share.rename_fail");
     }
 
     async function thuHoi(b) {

@@ -74,6 +74,57 @@ def esc(s) -> str:
     return _html.escape(str(s if s is not None else ""), quote=True)
 
 
+# ---- Tên của link (0.65.30) ----
+# Chủ dự án chọn 01/10: link mới tự lấy tên theo TIÊU ĐỀ file, sửa được ở trang Chia sẻ. Mỗi app
+# nhỏ nằm trong thư mục riêng nên tên file gần như luôn là "index.html": nhìn danh sách không
+# biết link nào là app nào.
+TEN_TOI_DA = 120
+_DOC_DAU = 65536          # chỉ đọc đầu file: tiêu đề luôn nằm ở đó, file lớn không làm chậm
+_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title\s*>", re.I | re.S)
+_FM_TITLE_RE = re.compile(r"^title\s*:\s*(.+?)\s*$", re.M | re.I)
+_H1_RE = re.compile(r"^\s{0,3}#\s+(.+?)\s*#*\s*$", re.M)
+
+
+def _gon(s: str) -> str:
+    return re.sub(r"\s+", " ", str(s or "")).strip()[:TEN_TOI_DA]
+
+
+def tieu_de_file(f) -> str:
+    """Tiêu đề của file để đặt tên link: <title> của .html; `title:` trong frontmatter hoặc dòng
+    `# ` đầu tiên của .md. Rỗng khi không có, đuôi khác hay đọc hỏng (không bao giờ ném lỗi)."""
+    try:
+        duoi = f.suffix.lower()
+        if duoi not in DUOI_HTML + DUOI_MD:
+            return ""
+        with open(f, "r", encoding="utf-8", errors="replace") as fh:
+            dau = fh.read(_DOC_DAU)
+    except Exception:
+        return ""
+    if duoi in DUOI_HTML:
+        m = _TITLE_RE.search(dau)
+        return _gon(_html.unescape(m.group(1))) if m else ""
+    than = dau
+    if dau.startswith("---"):
+        het = dau.find("\n---", 3)
+        if het > 0:
+            m = _FM_TITLE_RE.search(dau[3:het])
+            if m:
+                return _gon(m.group(1).strip().strip("\"'"))
+            than = dau[het + 4:]
+    m = _H1_RE.search(than)
+    return _gon(m.group(1)) if m else ""
+
+
+def ten_du_phong(path: str) -> str:
+    """Tên khi file không có tiêu đề: tên file; riêng index.html lấy tên thư mục chứa nó."""
+    phan = [x for x in str(path or "").replace("\\", "/").split("/") if x]
+    if not phan:
+        return ""
+    if phan[-1].lower() in ("index.html", "index.htm") and len(phan) > 1:
+        return phan[-2]
+    return phan[-1]
+
+
 _esc = esc
 
 

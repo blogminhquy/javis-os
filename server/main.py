@@ -7078,9 +7078,13 @@ def _share_asset(ban, p: str):
 @app.post("/share/create")
 async def share_create(body: dict = Body(...)):
     """Bật chia sẻ cho một file. Gọi lại trên cùng file thì trả đúng link cũ, không đẻ link mới."""
+    nhan = str(body.get("nhan") or "").strip()
+    if not nhan:
+        # 0.65.30: link mới tự lấy tên theo TIÊU ĐỀ file (chủ dự án chọn 01/10), không có thì tên
+        # thư mục của index.html hoặc tên file. Sửa lại được ở trang Chia sẻ (/share/rename).
+        nhan = _share_ten_tu_dong({"brain": body.get("brain") or "brain", "path": body.get("path") or ""})
     try:
-        ban = share_store.tao(body.get("brain") or "brain", body.get("path") or "",
-                              body.get("nhan") or "")
+        ban = share_store.tao(body.get("brain") or "brain", body.get("path") or "", nhan)
     except ValueError as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
     # Trả ĐƯỜNG DẪN TƯƠNG ĐỐI, để trình duyệt tự ghép với location.origin. Dựng URL tuyệt đối ở
@@ -7102,12 +7106,26 @@ async def share_of(brain: str = Query("brain"), path: str = Query(...)):
                                   if ban else None)}
 
 
+def _share_ten_tu_dong(ban) -> str:
+    """Tên tự đặt của một link: tiêu đề file, không có thì tên dự phòng (share_render)."""
+    f = _share_file(ban)
+    return (share_render.tieu_de_file(f) if f else "") or share_render.ten_du_phong(ban.get("path") or "")
+
+
+def _share_ten(ban) -> str:
+    """Tên hiển thị: tên đã đặt (tự lúc tạo hoặc người dùng sửa), link cũ chưa có tên thì tự lấy."""
+    return str(ban.get("nhan") or "").strip() or _share_ten_tu_dong(ban)
+
+
 @app.get("/share/list")
 async def share_list(brain: str = Query("")):
     ds = share_store.danh_sach(brain)
+    # Link tạo trước 0.65.30 chưa có tên: đọc đầu file lấy tiêu đề. Luồng phụ vì có thể là vài
+    # trăm file; kho không bị ghi đè (tên vẫn theo file cho tới khi người dùng đặt tên).
+    ten = await asyncio.to_thread(lambda: [_share_ten(b) for b in ds])
     return {"ok": True, "items": [{"token": b["token"], "brain": b.get("brain"),
                                    "path": b.get("path"), "tao_luc": b.get("tao_luc"),
-                                   "url": "/s/" + b["token"]} for b in ds]}
+                                   "ten": t, "url": "/s/" + b["token"]} for b, t in zip(ds, ten)]}
 
 
 @app.get("/s/{token}")
@@ -19844,6 +19862,17 @@ async def voice_brain_models_route(provider: str = ""):
     v = cfg.get("voice", {}) or {}
     return {"ok": True, "provider": pid, "models": models, "default_model": p["default_model"],
             "current": voice_brain.brain_model_for(v, pid)}
+
+
+@app.post("/share/rename")
+async def share_rename(body: dict = Body(...)):
+    """Đổi tên hiển thị của một link ở trang Chia sẻ (0.65.30). Tên rỗng thì quay về tên tự lấy
+    theo tiêu đề file. Đặt sau route cuối để bảng route chỉ thêm một dòng."""
+    ban = share_store.doi_ten(body.get("token") or "", body.get("nhan") or "")
+    if not ban:
+        return {"ok": False, "error": "Link không tồn tại hoặc đã bị thu hồi."}
+    return {"ok": True, "token": ban["token"], "nhan": ban.get("nhan") or "",
+            "ten": await asyncio.to_thread(_share_ten, ban)}
 
 
 @app.on_event("startup")

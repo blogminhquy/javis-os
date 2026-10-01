@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.30] - 2026-10-02
+### Thêm mới
+- **Link chia sẻ có tên.** Link mới tự lấy tên theo tiêu đề file (tiêu đề trang `.html`, tiêu đề ghi chú `.md`), không còn cả loạt cùng tên "index.html". Ở trang Chia sẻ bấm **Đổi tên** để đặt tên khác; link đã gửi đi vẫn giữ nguyên. Ô tìm kiếm tìm được theo tên.
+
+### Sửa lỗi
+- **iPhone mở Javis từ màn hình chính: thanh công cụ của trình sửa file không còn bị thanh trạng thái che.** Trình sửa chừa đúng phần mép trên cho đồng hồ và pin, nút Đóng luôn bấm được.
+- **Kéo ảnh vừa chụp vào ô chat trên iPhone gửi được.** Trước đây ảnh hiện trên chip mà bấm gửi thì hỏng, vì iPhone chỉ cho đọc ảnh kéo thả ngay lúc thả. Nay Javis chép ảnh ngay khi thả; ảnh không đọc được thì báo rõ trên chip.
+
 ## [0.65.29] - 2026-10-02
 ### Sửa lỗi
 - **Đang mở file trong trình sửa, câu nói vẫn do bộ não trả lời nhanh đã chọn trả lời.** Trước đây hễ có file đang mở là mọi câu nói trong cuộc gọi lặng lẽ chuyển sang bộ não chính: chậm hơn (khoảng 18 giây thay vì 2 đến 5 giây) và không dùng Antigravity dù đã chọn.

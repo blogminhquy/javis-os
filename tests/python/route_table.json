@@ -3758,5 +3758,15 @@
    "GET"
   ],
   "trong": null
+ },
+ {
+  "order": 378,
+  "type": "APIRoute",
+  "path": "/share/rename",
+  "name": "share_rename",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
  }
 ]
