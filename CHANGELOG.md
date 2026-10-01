@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.14] - 2026-10-01
+### Cải thiện
+- **Bộ phán xử dễ hiểu hơn.** Nút "Là chủ" đổi thành "Đặt làm chủ bot", người đã đặt hiện nhãn "Chủ" kèm nút bỏ, và có một dòng giải thích Đúng/Sai nghĩa là gì.
+
 ## [0.65.13] - 2026-10-01
 ### Sửa lỗi
 - **Bot trong nhóm Zalo trả lời cả khi bạn tag bằng chú thích của ảnh.** Trước đây tin ảnh bị bỏ qua hết, nên "@Javis Vũ ..." viết trong phần chú thích của ảnh không bao giờ tới bot. Nay chú thích được coi như nội dung tin, và bot biết tin có kèm một ảnh. Ảnh không có chú thích thì vẫn bỏ qua.
