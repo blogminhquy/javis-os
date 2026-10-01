@@ -11322,6 +11322,89 @@ def _git_head(root: str) -> str:
         return ""
 
 
+async def _docker_image_published(version: str):
+    """Image `ghcr.io/<repo>:<version>` đã lên GHCR chưa: True/False, None = không hỏi được.
+
+    VERSION trên nhánh main đổi NGAY lúc gộp PR, còn image Docker đóng gói xong sau đó 2 đến 5 phút.
+    Bấm Cập nhật ngay trong khoảng đó thì Watchtower kéo `latest` vẫn là bản cũ, không thay gì, và
+    nút kẹt "Đang cập nhật rồi" 15 phút (chủ dự án gặp 02/10 với 0.65.26). Hỏi kho ẩn danh (gói
+    công khai), không cần token; lỗi mạng thì trả None để không chặn oan."""
+    if not version:
+        return None
+    repo = GITHUB_REPO.lower()
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=8) as client:
+            tok = (await client.get(f"https://ghcr.io/token?scope=repository:{repo}:pull")).json().get("token")
+            if not tok:
+                return None
+            r = await client.head(f"https://ghcr.io/v2/{repo}/manifests/{version}", headers={
+                "Authorization": f"Bearer {tok}",
+                "Accept": ", ".join(("application/vnd.oci.image.index.v1+json",
+                                     "application/vnd.docker.distribution.manifest.list.v2+json",
+                                     "application/vnd.docker.distribution.manifest.v2+json",
+                                     "application/vnd.oci.image.manifest.v1+json"))})
+        if r.status_code == 200:
+            return True
+        if r.status_code == 404:
+            return False
+    except Exception:
+        return None
+    return None
+
+
+async def _watchtower_post(token: str):
+    """POST /v1/update của Watchtower: (mã HTTP, JSON hoặc None). Watchtower trả lời SAU KHI chạy
+    xong (chế độ đồng bộ); nếu nó thay chính container này thì tiến trình chết trước lúc có trả lời."""
+    import httpx
+    async with httpx.AsyncClient(timeout=180) as client:
+        r = await client.post("http://watchtower:8080/v1/update",
+                              headers={"Authorization": f"Bearer {token}"})
+    try:
+        body = r.json()
+    except Exception:
+        body = None
+    return r.status_code, body
+
+
+def _watchtower_no_update_reason(status: int, body) -> str:
+    """Watchtower đã TRẢ LỜI mà container này vẫn sống, tức là nó không thay bản mới. Trả câu báo
+    cho người dùng; "" khi Watchtower báo đã thay (container mới sắp lên, không có gì để nói)."""
+    if status == 429:
+        return "Watchtower đang bận một lần cập nhật khác. Chờ một phút rồi thử lại."
+    if status >= 400:
+        return f"Watchtower báo lỗi (HTTP {status}). Thử lại sau ít phút; vẫn lỗi thì Redeploy."
+    summary = body.get("summary") if isinstance(body, dict) else None
+    if isinstance(summary, dict):
+        if summary.get("failed"):
+            return "Watchtower kéo hoặc khởi động bản mới bị lỗi. Thử lại sau ít phút; vẫn lỗi thì Redeploy."
+        if summary.get("updated"):
+            return ""
+    return "Watchtower chưa thấy image mới để kéo (bản mới có thể chưa đóng gói xong). Thử lại sau ít phút."
+
+
+async def _watchtower_update(token: str, started_at: str):
+    """Gọi Watchtower rồi, nếu nó trả lời mà không thay container này, nhả trạng thái "restarting"
+    ngay kèm lý do. Trước 0.65.27 trạng thái đó nằm nguyên 15 phút và mọi lần bấm lại đều bị chặn
+    "Đang cập nhật rồi, chờ chút"."""
+    import sys as _sys
+    import datetime as _dt
+    try:
+        status, body = await _watchtower_post(token)
+    except Exception as e:
+        # Mất kết nối thường là vì Watchtower đang dừng chính container này để thay bản mới.
+        print(f"[update] watchtower trigger: {e}", file=_sys.stderr)
+        return
+    reason = _watchtower_no_update_reason(status, body)
+    if not reason:
+        return
+    print(f"[update] watchtower trả lời mà không thay container (HTTP {status}, {body}): {reason}", file=_sys.stderr)
+    st = _read_update_state()
+    if st.get("phase") == "restarting" and st.get("started_at") == started_at:
+        _write_update_state({"phase": "idle", "result": "error", "error": reason,
+                             "finished_at": _dt.datetime.now().isoformat(timespec="seconds")})
+
+
 @app.post("/update")
 async def do_update():
     """Cập nhật lên bản mới nhất. Git checkout (windows/native) → spawn updater.py TÁCH RỜI
@@ -11354,21 +11437,20 @@ async def do_update():
                 "manual": "docker compose up -d --pull always",
                 "current": cur, "latest": latest,
                 "previous_version": st.get("previous_version")}, status_code=400)
+        # Bản mới đã có trên main nhưng image chưa đóng gói xong: báo chờ, đừng gọi Watchtower
+        # (nó sẽ kéo lại đúng bản cũ rồi không làm gì).
+        if latest and _ver_newer(latest, cur) and await _docker_image_published(latest) is False:
+            _write_update_state({"phase": "idle"})   # nhả claim
+            return JSONResponse({"ok": False, "retry": True, "current": cur, "latest": latest,
+                "error": f"Bản v{latest} vừa phát hành, image Docker còn đang đóng gói (thường 2 đến 5 phút "
+                         f"sau khi phát hành). Thử lại sau ít phút."}, status_code=409)
         token = os.getenv("WATCHTOWER_TOKEN", "")
+        started_at = now()
         _write_update_state({"phase": "restarting", "old_version": cur, "target_version": latest,
                              "old_sha": None, "result": None, "error": None, "stashed": False,
-                             "started_at": now(), "finished_at": None})
+                             "started_at": started_at, "finished_at": None})
         import asyncio
-        import httpx
-
-        async def _trigger():
-            try:
-                async with httpx.AsyncClient(timeout=180) as client:
-                    await client.post("http://watchtower:8080/v1/update",
-                                      headers={"Authorization": f"Bearer {token}"})
-            except Exception as e:
-                print(f"[update] watchtower trigger: {e}", file=_sys.stderr)
-        t = asyncio.create_task(_trigger())
+        t = asyncio.create_task(_watchtower_update(token, started_at))
         _UPDATE_TASKS.add(t)
         t.add_done_callback(_UPDATE_TASKS.discard)
         return {"ok": True, "mode": "docker", "message": "Đang kéo image mới + khởi động lại (~20-40s)."}

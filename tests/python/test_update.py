@@ -141,6 +141,84 @@ check("early-return nhả claim → phase idle (không kẹt preparing)", us.rea
 main._deploy_mode = _orig_mode
 main._watchtower_reachable = _orig_wt
 
+# --- 0.65.27: Docker, bản mới đã có trên main mà image chưa đóng gói xong ---
+# Chủ dự án gặp 02/10: bấm Cập nhật ngay ngay sau khi gộp 0.65.26, Watchtower kéo `latest` vẫn là
+# bản cũ, không thay gì, rồi nút kẹt "Đang cập nhật rồi, chờ chút" 15 phút.
+_saved = {k: getattr(main, k) for k in ("_deploy_mode", "_watchtower_reachable", "_latest_remote_version",
+                                        "_read_version", "_docker_image_published", "_watchtower_update")}
+async def _wt_yes():
+    return True
+async def _latest_new(cur=""):
+    return "0.65.27", None
+_published = {"v": False}
+_asked = []
+async def _img(version):
+    _asked.append(version)
+    return _published["v"]
+_triggered = []
+async def _fake_wu(token, started_at):
+    _triggered.append(started_at)
+main._deploy_mode = lambda: "docker"
+main._watchtower_reachable = _wt_yes
+main._latest_remote_version = _latest_new
+main._read_version = lambda: "0.65.26"
+main._docker_image_published = _img
+main._watchtower_update = _fake_wu
+try:
+    us.write_state({"phase": "idle"})
+    _ri = asyncio.run(main.do_update())
+    _body = json.loads(_ri.body) if isinstance(_ri, JSONResponse) else {}
+    check("image chưa lên → báo chờ đóng gói, không gọi Watchtower",
+          isinstance(_ri, JSONResponse) and _ri.status_code == 409 and _body.get("retry") is True
+          and "đang đóng gói" in _body.get("error", "") and _asked == ["0.65.27"])
+    check("image chưa lên → nhả claim, bấm lại được ngay", us.read_state().get("phase") == "idle")
+    _published["v"] = True
+    _ok = asyncio.run(main.do_update())
+    check("image đã lên → gọi Watchtower, phase restarting",
+          isinstance(_ok, dict) and _ok.get("ok") is True and us.read_state().get("phase") == "restarting")
+    _published["v"] = None
+    us.write_state({"phase": "idle"})
+    _ok2 = asyncio.run(main.do_update())
+    check("không hỏi được GHCR → không chặn oan, vẫn gọi Watchtower", isinstance(_ok2, dict) and _ok2.get("ok") is True)
+finally:
+    for _k, _v in _saved.items():
+        setattr(main, _k, _v)
+
+# --- 0.65.27: Watchtower trả lời mà container còn sống = không thay gì → nhả "restarting" ngay ---
+_r = main._watchtower_no_update_reason
+check("Watchtower: không có image mới → nói rõ", "chưa thấy image mới" in _r(200, {"summary": {"scanned": 1, "updated": 0, "failed": 0}}))
+check("Watchtower: thay hỏng → nói lỗi", "bị lỗi" in _r(200, {"summary": {"scanned": 1, "updated": 0, "failed": 1}}))
+check("Watchtower: báo đã thay → im (container mới sắp lên)", _r(200, {"summary": {"updated": 1, "failed": 0}}) == "")
+check("Watchtower bản cũ trả thân rỗng → coi như không thay", "chưa thấy image mới" in _r(200, None))
+check("Watchtower bận → 429", "bận" in _r(429, None))
+check("Watchtower lỗi HTTP → nói mã", "HTTP 503" in _r(503, None))
+
+_saved_post = main._watchtower_post
+_started = _dtmod.datetime.now().isoformat(timespec="seconds")
+async def _post_none(token):
+    return 200, {"summary": {"scanned": 1, "updated": 0, "failed": 0}}
+main._watchtower_post = _post_none
+try:
+    us.write_state({"phase": "restarting", "started_at": _started, "result": None, "error": None})
+    asyncio.run(main._watchtower_update("tok", _started))
+    _st = us.read_state()
+    check("không thay gì → phase idle + result error kèm lý do (trang hiện lý do, nút bấm lại được)",
+          _st.get("phase") == "idle" and _st.get("result") == "error" and "chưa thấy image mới" in (_st.get("error") or ""))
+    check("không thay gì → guard 409 không còn chặn (phase không thuộc nhóm đang chạy)",
+          _st.get("phase") not in main._UPDATE_ACTIVE)
+    us.write_state({"phase": "restarting", "started_at": "2026-10-02T01:02:03", "result": None, "error": None})
+    asyncio.run(main._watchtower_update("tok", _started))
+    check("lần cập nhật khác đã bắt đầu → không đè trạng thái của nó", us.read_state().get("phase") == "restarting")
+    async def _post_cut(token):
+        raise ConnectionError("container đang bị thay")
+    main._watchtower_post = _post_cut
+    us.write_state({"phase": "restarting", "started_at": _started, "result": None, "error": None})
+    asyncio.run(main._watchtower_update("tok", _started))
+    check("mất kết nối (đang bị thay) → giữ restarting", us.read_state().get("phase") == "restarting")
+finally:
+    main._watchtower_post = _saved_post
+    us.write_state({"phase": "idle", "result": None, "error": None})
+
 # --- updater.py --dry-run (không thực thi git/pip) ---
 import subprocess as _sp  # noqa: E402
 _upd = os.path.join(str(SERVER), "updater.py")

@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.27] - 2026-10-02
 ### Sửa lỗi
-- Đang làm: nút Cập nhật ngay trên Docker/VPS không còn kẹt "Đang cập nhật rồi, chờ chút" khi bản mới chưa đóng gói xong.
+- **Nút Cập nhật ngay trên Docker/VPS không còn kẹt "Đang cập nhật rồi, chờ chút".** Bấm ngay sau khi có bản mới thì image Docker có thể chưa đóng gói xong (thường mất 2 đến 5 phút), nên máy kéo về đúng bản cũ rồi khoá nút 15 phút. Nay Javis kiểm tra image trước và báo "đang đóng gói, thử lại sau ít phút". Nếu Watchtower chạy xong mà không thay được bản mới, trang báo lý do và nút bấm lại được ngay.
 
 ## [0.65.26] - 2026-10-02
 ### Sửa lỗi
