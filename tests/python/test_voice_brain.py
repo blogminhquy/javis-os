@@ -170,12 +170,18 @@ async def main():
     check("api: sự kiện error -> RuntimeError", "429" in err)
 
     # ---- 4. sổ phiên ----
-    conf = vb.config_from_settings({"voice": {"mode": "fast", "brain_provider": "groq", "brain_model": "m1"},
+    conf = vb.config_from_settings({"voice": {"mode": "fast", "brain_provider": "groq",
+                                              "brain_models": {"groq": "m1", "antigravity": "gemini-x"}},
                                     "model": {"groq_api_key": "gk"}})
     # Legacy text-only noise filtering is retired; accepted speech is preserved.
-    check("config_from_settings: lấy đúng key theo provider",
+    check("config_from_settings: lấy đúng key và model theo provider",
           conf == {"mode": "fast", "provider": "groq", "model": "m1", "api_key": "gk",
                    "loc_tap_am": False})
+    # 0.65.26: khoá cũ brain_model là một chuỗi chung cho mọi bộ não, đổi bộ não là thành tên model
+    # của hãng khác (Antigravity nhận "--model gpt-6-luna"). Bỏ qua nó, dùng mặc định của hãng.
+    c2 = vb.config_from_settings({"voice": {"mode": "fast", "brain_provider": "antigravity",
+                                            "brain_model": "gpt-6-luna", "brain_models": {"codex": "gpt-6-luna"}}})
+    check("config_from_settings: model của bộ não khác và khoá cũ brain_model không lọt sang", c2["model"] == "")
     b1 = await vb.get_brain("s1", conf)
     b2 = await vb.get_brain("s1", conf)
     check("get_brain: cùng phiên dùng lại", b1 is b2 and vb.active_count() == 1)

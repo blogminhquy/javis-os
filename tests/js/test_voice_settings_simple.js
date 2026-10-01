@@ -31,7 +31,7 @@ function check(name, cond) {
 
 // ---- 1. Khung tĩnh: đúng ba ô và Nâng cao, các ô cũ đã gỡ hẳn (không chỉ ẩn) ----
 const card = html.slice(html.indexOf('id="voiceCard"'), html.indexOf("<!-- THƯƠNG HIỆU."));
-for (const id of ["vcNow", "vcVoice", "vcTry", "vcAdvanced", "vcEngine", "vcBrain", "rateSel", "vcEleven", "vcElKey", "vcElVoice", "vcStatus", "v2LastErr", "voiceSel"])
+for (const id of ["vcNow", "vcVoice", "vcTry", "vcAdvanced", "vcEngine", "vcBrain", "vcBrainModelRow", "vcBrainModel", "rateSel", "vcEleven", "vcElKey", "vcElVoice", "vcStatus", "v2LastErr", "voiceSel"])
   check(`thẻ Giọng nói có #${id}`, card.includes(`id="${id}"`));
 check("Đường gọi có đủ bốn lựa chọn", ["auto", "chatgpt", "api", "basic"].every(v => card.includes(`<option value="${v}"`)));
 check("tên đường gọi viết ChatGPT Live, không có chữ song công", card.includes(">ChatGPT Live<") && !/song công/i.test(card + JSON.stringify(vi)));
@@ -59,7 +59,8 @@ for (const k of ["settings.vc_title", "settings.vc_voice", "settings.vc_advanced
   "settings.vc_detail_no_cli", "settings.vc_detail_no_login", "settings.vc_detail_old_cli", "settings.vc_saved",
   "settings.vc_group_edge", "settings.vc_eleven_opt", "settings.vc_openai_note", "settings.v2_last_error",
   "settings.vc_brain", "settings.vc_brain_hint", "settings.vc_brain_auto", "settings.vc_brain_auto_pick",
-  "settings.vc_brain_main", "settings.vc_brain_unavailable"])
+  "settings.vc_brain_main", "settings.vc_brain_unavailable", "settings.vc_brain_model", "settings.vc_brain_model_default",
+  "settings.vc_brain_model_default_named", "settings.vc_brain_model_missing", "settings.vc_brain_model_loading"])
   check(`i18n vi+en có ${k}`, typeof vi[k] === "string" && typeof en[k] === "string");
 check("câu lỗi làn nhanh không còn bảo chọn bộ não khác rồi Lưu", !/rồi Lưu/.test(vi["settings.v2_last_error"]));
 
@@ -81,7 +82,7 @@ class El {
   dispatchEvent(e) { this.events.push(e.type); }
 }
 
-async function run(options, edgeVoice = "vi-VN-HoaiMyNeural") {
+async function run(options, edgeVoice = "vi-VN-HoaiMyNeural", models = null) {
   const els = {};
   const $ = (id) => els[id] || (els[id] = new El(id));
   $("voiceCard");
@@ -92,7 +93,13 @@ async function run(options, edgeVoice = "vi-VN-HoaiMyNeural") {
   const ctx = {
     document: { getElementById: $ }, _renderGen: 0, _settings: {}, WARN_ICON: "!",
     esc: (s) => String(s), t: (k, p) => (p ? k + JSON.stringify(p) : k),
-    fetch: async (url) => ({ json: async () => (ctx.lastUrl = url, options) }),
+    // /voice/brain-models trả danh sách model của một bộ não (0.65.26), mọi URL khác là /voice/options.
+    fetch: async (url) => ({ json: async () => {
+      ctx.urls.push(url);
+      if (url.startsWith("/voice/brain-models")) return models || { ok: true, models: [] };
+      ctx.lastUrl = url;
+      return options;
+    } }), urls: [],
     saveSetting: async (section, data) => { saves.push([section, data]); return { ok: true }; },
     window: { JavisVoiceMode: { refresh: () => refreshes.push(1) } }, Event: class { constructor(type) { this.type = type; } },
     Audio: class { constructor(src) { ctx.played = src; } play() { return Promise.resolve(); } pause() {} },
@@ -201,6 +208,41 @@ const base = (call, extra = {}) => Object.assign({
   r = await run(base({ engine: "basic", live_provider: "", setting: "basic", reason: "chosen", detail: "" },
     { brain_choices: CHOICES, brain_auto: "codex", voice: { mode: "fast", brain_provider: "groq" } }));
   check("Bộ não: bộ não chọn tay từ bản cũ được giữ", r.els.vcBrain.value === "groq");
+
+  // 3e. Model của bộ não (0.65.26): mỗi bộ não nhớ model riêng, danh sách tải riêng cho đúng bộ não.
+  const settle = () => new Promise(res => setImmediate(res));
+  const MODELS = { ok: true, models: [{ id: "gpt-a", label: "GPT A" }, { id: "gpt-b", label: "GPT B" }] };
+  r = await run(base({ engine: "basic", live_provider: "", setting: "basic", reason: "chosen", detail: "" },
+    { brain_choices: CHOICES, brain_auto: "codex", voice: { mode: "fast", brain_provider: "", brain_models: { codex: "gpt-b", groq: "llama" } } }),
+    undefined, MODELS);
+  await settle(); await settle();
+  const ms = r.els.vcBrainModel;
+  check("Model: Tự động thì chỉnh model của bộ não máy đang chọn, tải đúng danh sách của nó",
+    r.els.vcBrainModelRow.hidden === false && r.ctx.urls.includes("/voice/brain-models?provider=codex"));
+  check("Model: có Mặc định rồi đủ danh sách, model đã lưu được chọn sẵn",
+    ms.options.map(o => o.value).join() === ",gpt-a,gpt-b" && ms.value === "gpt-b"
+    && ms.options[0].textContent === "settings.vc_brain_model_default");
+  ms.value = "gpt-a"; await ms.onchange();
+  check("Model: đổi model là lưu kèm tên bộ não",
+    JSON.stringify(r.saves.at(-1)) === '["voice",{"brain_model_for":"codex","brain_model":"gpt-a"}]');
+  ms.value = ""; await ms.onchange();
+  check("Model: chọn Mặc định là lưu chuỗi rỗng cho bộ não đó",
+    JSON.stringify(r.saves.at(-1)) === '["voice",{"brain_model_for":"codex","brain_model":""}]');
+  r = await run(base({ engine: "basic", live_provider: "", setting: "basic", reason: "chosen", detail: "" },
+    { brain_choices: [{ id: "claude", label: "Claude", available: true, default_model: "haiku" }], brain_auto: "",
+      voice: { mode: "fast", brain_provider: "claude", brain_models: { claude: "opus-cu" } } }),
+    undefined, { ok: true, models: [{ id: "sonnet", label: "Sonnet" }] });
+  await settle(); await settle();
+  const mc = r.els.vcBrainModel;
+  check("Model: Mặc định ghi tên model mặc định của hãng",
+    mc.options[0].textContent === 'settings.vc_brain_model_default_named{"model":"haiku"}');
+  check("Model: model đã lưu mà danh sách không còn vẫn hiện, được đánh dấu",
+    mc.value === "opus-cu" && mc.options[1].textContent === 'settings.vc_brain_model_missing{"model":"opus-cu"}');
+  r = await run(base({ engine: "basic", live_provider: "", setting: "basic", reason: "chosen", detail: "" },
+    { brain_choices: CHOICES, brain_auto: "codex", voice: { mode: "standard", brain_provider: "" } }), undefined, MODELS);
+  await settle();
+  check("Model: Bộ não chính thì ẩn ô Model và không tải danh sách",
+    r.els.vcBrainModelRow.hidden === true && !r.ctx.urls.some(u => u.startsWith("/voice/brain-models")));
 
   if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }
   console.log("\nOK - thẻ Giọng nói gọn");

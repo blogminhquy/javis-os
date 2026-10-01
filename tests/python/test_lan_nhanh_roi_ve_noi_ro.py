@@ -60,6 +60,11 @@ check("câu báo nói lượt này đi bộ não chính", "bộ não chính" in 
 check("câu báo chỉ chỗ sửa (trang Models)", "trang Models" in cau)
 check("câu báo không có gạch dài", "—" not in cau and "–" not in cau)
 check("lỗi rỗng vẫn ra câu đọc được", "không rõ lỗi" in vb.cau_roi_ve_bo_nao_chinh("groq", ""))
+# 0.65.26: lỗi tên model thì chỉ ô Model của thẻ Giọng nói (chủ dự án tưởng bị đăng xuất).
+cau = vb.cau_roi_ve_bo_nao_chinh("antigravity", RuntimeError(
+    'invalid model selection (--model "gpt-6-luna"): model gpt-6-luna is not recognized'))
+check("lỗi tên model: chỉ ô Model ở thẻ Giọng nói, không bảo vào trang Models",
+      "Chọn lại model ở Cài đặt, Giọng nói, Nâng cao." in cau and "trang Models" not in cau)
 
 # ---- 2. run_voice_turn: nhánh except nói ra TRƯỚC khi rơi về run_turn ----
 src = (SERVER / "main.py").read_text(encoding="utf-8")

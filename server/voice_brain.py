@@ -1036,9 +1036,12 @@ def cau_roi_ve_bo_nao_chinh(provider: str, err) -> str:
     gạch dài (luật của chủ dự án) và không đổ lỗi cho người dùng.
     """
     loi = re.sub(r"\s+", " ", str(err or "").strip())[:_LOI_MAX_CHU] or "không rõ lỗi"
+    # Lỗi tên model (0.65.26): sửa ở ô Model của thẻ Giọng nói, không phải trang Models. Chủ dự án
+    # đọc "Kiểm tra ở trang Models" mà tưởng Antigravity bị đăng xuất.
+    sua = ("Chọn lại model ở Cài đặt, Giọng nói, Nâng cao." if re.search(r"\bmodel\b", loi, re.I)
+           else "Kiểm tra bộ não này ở trang Models.")
     return (f"Làn nhanh không chạy được: bộ não giọng {ten_bo_nao(provider)} báo \"{loi}\". "
-            f"Lượt này đi bộ não chính nên chậm hơn bình thường. "
-            f"Kiểm tra bộ não này ở trang Models.")
+            f"Lượt này đi bộ não chính nên chậm hơn bình thường. " + sua)
 
 
 # ============================================================
@@ -1102,6 +1105,19 @@ def auto_brain(cfg: dict) -> str:
     return value
 
 
+def brain_model_for(voice: dict, provider: str) -> str:
+    """Model đã chọn cho MỘT bộ não giọng (0.65.26), "" = mặc định của hãng.
+
+    Lưu theo từng bộ não (`brain_models` = {bộ não: model}) vì tên model chỉ có nghĩa với đúng hãng
+    của nó. Khoá cũ `brain_model` là MỘT chuỗi chung cho mọi bộ não: đổi bộ não ở ô mới mà khoá đó
+    còn giữ tên model ChatGPT thì Antigravity nhận "--model gpt-6-luna" và từ chối (chủ dự án báo
+    02/10). Nên khoá cũ bị bỏ qua, chỉ để nguyên trong file."""
+    models = (voice or {}).get("brain_models")
+    if not isinstance(models, dict) or not provider:
+        return ""
+    return str(models.get(provider) or "").strip()
+
+
 def config_from_settings(cfg: dict) -> dict:
     v = (cfg or {}).get("voice") or {}
     m = (cfg or {}).get("model") or {}
@@ -1115,7 +1131,7 @@ def config_from_settings(cfg: dict) -> dict:
         prov = auto_brain(cfg)
     kf = (BRAIN_PROVIDERS.get(prov) or {}).get("key_field") or ""
     return {"mode": mode, "provider": prov,
-            "model": str(v.get("brain_model") or "").strip(),
+            "model": brain_model_for(v, prov),
             "api_key": str(m.get(kf, "")) if kf else "",
             # Lọc tạp âm MẶC ĐỊNH BẬT: brain cũ chưa có khoá này trong settings.json vẫn được lọc,
             # nên phải hỏi `is False` chứ không phải `or True` (giá trị False hợp lệ).

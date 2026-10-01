@@ -6,7 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.26] - 2026-10-02
 ### Sửa lỗi
-- Đang làm: chọn được model cho bộ não trả lời nhanh; sửa lỗi Antigravity nhận nhầm tên model của ChatGPT.
+- **Sửa lỗi bộ não giọng Antigravity báo "invalid model selection".** Đổi bộ não ở bản 0.65.25 thì tên model của bộ não cũ (ví dụ model ChatGPT) bị gửi nhầm sang Antigravity. Nay mỗi bộ não nhớ model riêng, và tên model cũ bị lẫn được bỏ qua để dùng model mặc định. Không phải do bị đăng xuất.
+- Khi lỗi là do tên model, câu báo trong khung chat chỉ tới ô Model thay vì trang Models.
+
+### Thêm mới
+- **Chọn được model cho bộ não trả lời nhanh**: ô **Model** ngay dưới ô bộ não ở Cài đặt, Giọng nói, Nâng cao, liệt kê các model mà bộ não đó có (Antigravity, ChatGPT, Claude Code, Grok Build).
 
 ## [0.65.25] - 2026-10-02
 ### Sửa lỗi

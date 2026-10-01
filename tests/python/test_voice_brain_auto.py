@@ -121,6 +121,9 @@ try:
     check("brain_choices: gói soi plan_brain_available, API soi key đã lưu",
           ch.get("claude") is True and ch.get("codex") is False and ch.get("openai") is True and ch.get("groq") is False)
     check("brain_auto: bộ não máy đang tự chọn", d.get("brain_auto") == "claude")
+    check("brain_choices: kèm model mặc định của hãng",
+          next(c for c in d["brain_choices"] if c["id"] == "claude")["default_model"] == "haiku")
+    check("voice.brain_models: rỗng khi chưa chọn model nào", d["voice"].get("brain_models") == {})
     d = client.get("/voice/options").json()
     check("mặc định vẫn có danh sách bộ não (client cũ)", len(d.get("brain_providers") or []) > 0 and _goi_agy == [1])
 finally:
@@ -133,6 +136,38 @@ check("brain_available: gói đang sẵn", vb.brain_available("grok", {}) is Tru
 check("brain_available: gói chưa sẵn", vb.brain_available("codex", {}) is False)
 check("brain_available: API có key", vb.brain_available("gemini", {"model": {"gemini_api_key": "k"}}) is True)
 check("brain_available: id rỗng hoặc lạ là không", vb.brain_available("", {}) is False and vb.brain_available("xyz", {}) is False)
+
+# ---- GET /voice/brain-models (0.65.26) ----
+_goc_cfg2 = main.cfgmod.read_settings
+_goc_list2 = main.antigravity_cli.list_models
+main.cfgmod.read_settings = lambda: {"model": {"catalog": {"openai-oauth": [{"id": "gpt-a", "label": "GPT A"}, "gpt-b"]}},
+                                     "voice": {"brain_models": {"codex": "gpt-b"}}}
+_goi_agy2 = []
+main.antigravity_cli.list_models = lambda: _goi_agy2.append(1) or [{"id": "gemini-3.8-flash-high", "label": "Gemini 3.8 Flash (High)"}]
+try:
+    d = client.get("/voice/brain-models?provider=codex").json()
+    check("brain-models codex: danh sách từ catalog gói ChatGPT, model đang chọn",
+          d.get("ok") and d["models"] == [{"id": "gpt-a", "label": "GPT A"}, {"id": "gpt-b", "label": "gpt-b"}]
+          and d["current"] == "gpt-b" and _goi_agy2 == [])
+    d = client.get("/voice/brain-models?provider=antigravity").json()
+    check("brain-models antigravity: hỏi agy models, chỉ khi chọn đúng bộ não này",
+          d["models"][0]["id"] == "gemini-3.8-flash-high" and _goi_agy2 == [1] and d["current"] == "")
+    d = client.get("/voice/brain-models?provider=groq").json()
+    check("brain-models API: chưa có danh sách, kèm model mặc định", d["models"] == [] and d["default_model"])
+    check("brain-models bộ não lạ: báo lỗi", client.get("/voice/brain-models?provider=xyz").json().get("ok") is False)
+finally:
+    main.cfgmod.read_settings = _goc_cfg2
+    main.antigravity_cli.list_models = _goc_list2
+
+# ---- model theo từng bộ não ----
+check("brain_model_for: đúng bộ não", vb.brain_model_for({"brain_models": {"codex": "gpt-a"}}, "codex") == "gpt-a")
+check("brain_model_for: bộ não khác và khoá cũ không lọt sang",
+      vb.brain_model_for({"brain_model": "gpt-a", "brain_models": {"codex": "gpt-a"}}, "antigravity") == "")
+moi("antigravity")
+c = vb.config_from_settings({"voice": {"mode": "fast", "brain_model": "gpt-6-luna",
+                                       "brain_models": {"antigravity": "gemini-3.8-flash-low"}}})
+check("Tự động: dùng model đã chọn cho bộ não máy đang chọn",
+      c["provider"] == "antigravity" and c["model"] == "gemini-3.8-flash-low")
 
 if _fails:
     print("\nFAIL:", len(_fails), _fails)

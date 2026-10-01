@@ -211,6 +211,7 @@ GIỌNG NÓI
   > Nâng cao
       Đường gọi      [ Tự động v ]  (Tự động / ChatGPT Live / Live API key / Cơ bản)
       Bộ não trả lời nhanh [ Tự động (đang là ...) v ]  (chỉ đường Cơ bản)
+      Model          [ Mặc định của hãng v ]  (model của bộ não đang dùng, 0.65.26)
       Tốc độ đọc     [ 1,10x  v ]   (chỉ đường Cơ bản)
       ElevenLabs     key + Voice ID (chỉ khi chọn giọng ElevenLabs)
 ```
@@ -230,6 +231,15 @@ GIỌNG NÓI
   (bộ não đầu tiên sẵn trên gói, ghi kèm tên đang dùng), Bộ não chính (lưu `mode = standard`), hoặc
   một bộ não cụ thể (lưu `mode = fast` + `brain_provider`); bộ não chưa sẵn ghi "(chưa sẵn)". Chỉ
   dùng ở đường Cơ bản: ChatGPT Live tự nghe và tự trả lời, việc cần dữ liệu đi bộ não chính.
+- **Model** (0.65.26): model của bộ não đang dùng (Tự động thì của bộ não máy đang chọn); ẩn khi
+  chọn Bộ não chính. Lưu theo TỪNG bộ não (`brain_models` = {bộ não: model}, gửi lên bằng
+  `brain_model_for` + `brain_model`), vì tên model chỉ có nghĩa với đúng hãng của nó. Khoá chung cũ
+  `brain_model` bị bỏ qua lúc chạy: đổi bộ não ở 0.65.25 mà khoá đó còn tên model ChatGPT thì
+  Antigravity nhận `--model gpt-6-luna` và từ chối. Danh sách tải riêng qua
+  `GET /voice/brain-models?provider=` (chỉ chạy `agy models` khi chọn Antigravity); bộ não API chưa
+  có danh sách nên chỉ có Mặc định. Model đã lưu mà danh sách không còn thì vẫn hiện, ghi "(không
+  còn trong danh sách)". Câu báo trong khung chat khi lỗi tên model chỉ tới ô này, không bảo vào
+  trang Models.
 - **Giữ dữ liệu cũ**: giá trị người dùng đã lưu ở các ô bị bỏ vẫn được đọc và dùng tiếp (ví dụ từ
   đã khai ở hotwords vẫn vào từ mồi); chỉ ô nhập biến mất. Khoá mới không đè khoá cũ.
 - Cập nhật allowlist `POST /settings` (nhánh `voice`) và `test_luu_cai_dat_giong.py` cùng lúc.

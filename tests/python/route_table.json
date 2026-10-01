@@ -3748,5 +3748,15 @@
    "POST"
   ],
   "trong": null
+ },
+ {
+  "order": 377,
+  "type": "APIRoute",
+  "path": "/voice/brain-models",
+  "name": "voice_brain_models_route",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
  }
 ]

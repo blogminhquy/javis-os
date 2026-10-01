@@ -4609,8 +4609,20 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             v["loc_tap_am"] = bool(patch["loc_tap_am"])
         if "focus_mode" in patch:
             v["focus_mode"] = bool(patch["focus_mode"])
+        # 0.65.26: model của bộ não giọng lưu theo TỪNG bộ não (brain_models = {bộ não: model}); ô
+        # Model gửi kèm brain_model_for. Client cũ không gửi brain_model_for thì vẫn ghi khoá chung
+        # brain_model như trước, nhưng khoá đó nay bị bỏ qua lúc chạy (voice_brain.brain_model_for).
+        model_for = str(patch.get("brain_model_for") or "")
+        if "brain_model" in patch and model_for and model_for in voice_brain.BRAIN_PROVIDERS:
+            models = dict(v["brain_models"]) if isinstance(v.get("brain_models"), dict) else {}
+            name = str(patch["brain_model"] or "").strip()
+            if name:
+                models[model_for] = name
+            else:
+                models.pop(model_for, None)   # rỗng = về model mặc định của hãng
+            v["brain_models"] = models
         for k in ("brain_model", "stt_model", "live_model", "live_voice"):
-            if k in patch:
+            if k in patch and not (k == "brain_model" and model_for):
                 v[k] = str(patch[k] or "").strip()
         # Từ hay nghe nhầm (hotwords): chuỗi tự do, chuẩn hoá qua nghe_sua để lưu gọn; rỗng là
         # xoá hết từ người dùng khai (tên trợ lý vẫn luôn có, không cần lưu).
@@ -12204,6 +12216,30 @@ async def voice_ear_route():
     return {"ok": True, **voice_ear.select_ear(cfg, _effective_main(cfg).get("provider", ""))}
 
 
+def _voice_models_items(lst):
+    """Danh sách model của CLI hay catalog (chuỗi hoặc dict) về dạng [{id, label}]."""
+    return [{"id": x.get("id") or x.get("name") or x, "label": x.get("label") or x.get("name") or x}
+            if isinstance(x, dict) else {"id": str(x), "label": str(x)} for x in (lst or [])]
+
+
+def _voice_brain_models(pid: str, cfg: dict) -> list:
+    """Model chọn được của MỘT bộ não giọng (ô Model ở Nâng cao, 0.65.26). Chạy ở luồng phụ: `agy
+    models` có khi tới 30 giây. Bộ não API chưa có danh sách: rỗng, trang chỉ hiện "Mặc định"."""
+    m = (cfg or {}).get("model", {}) or {}
+    try:
+        if pid == "antigravity":
+            return _voice_models_items(antigravity_cli.list_models() or [])
+        if pid == "codex":
+            return _voice_models_items((m.get("catalog", {}) or {}).get("openai-oauth") or [])
+        if pid == "claude":
+            return _voice_models_items(claude_cli.list_models() or [])
+        if pid == "grok":
+            return _voice_models_items(grok_cli.list_models() or []) if grok_cli.find_grok_cli() else []
+    except Exception:
+        return []
+    return []
+
+
 @app.get("/voice/options")
 async def voice_options(brains: int = 1):
     """Cho thẻ Giọng nói ở trang Cài đặt: cái gì đang sẵn, key nào đã có, đường gọi đang dùng.
@@ -12230,9 +12266,7 @@ async def voice_options(brains: int = 1):
     # Vẽ từ voice_brain.BRAIN_PROVIDERS / STT_PROVIDERS chứ không chép lại danh sách ở đây:
     # trang Cài đặt và đường LƯU phải soi CÙNG một danh sách, không thì thêm nhà cung cấp mới
     # là giao diện cho chọn mà server lặng lẽ bỏ.
-    def _models_items(lst):
-        return [{"id": x.get("id") or x.get("name") or x, "label": x.get("label") or x.get("name") or x}
-                if isinstance(x, dict) else {"id": str(x), "label": str(x)} for x in (lst or [])]
+    _models_items = _voice_models_items
 
     brain_list = []
     for pid, p in (voice_brain.BRAIN_PROVIDERS.items() if brains else ()):
@@ -12284,6 +12318,8 @@ async def voice_options(brains: int = 1):
             {k: v.get(k, "") for k in ("mode", "brain_provider", "brain_model", "stt_provider",
                                        "stt_model", "live_provider", "live_model", "live_voice",
                                        "hotwords")},
+            # Model đã chọn theo từng bộ não giọng (0.65.26), {bộ não: model}.
+            brain_models=v.get("brain_models") if isinstance(v.get("brain_models"), dict) else {},
             # Ô gạt, không phải ô chữ: mặc định BẬT, nên brain cũ chưa có khoá vẫn trả về true.
             loc_tap_am=False,
             focus_mode=v.get("focus_mode") is not False,
@@ -12320,7 +12356,8 @@ async def voice_options(brains: int = 1):
         # Ô "Bộ não trả lời nhanh" ở Nâng cao (0.65.25, chủ dự án xin trả lại để tự chỉnh). Chỉ soi
         # máy và key đã lưu, không chạy `agy models`, nên thẻ gọn vẫn nhanh.
         "brain_auto": voice_brain.auto_brain(cfg),
-        "brain_choices": [{"id": pid, "label": p["label"], "available": voice_brain.brain_available(pid, cfg)}
+        "brain_choices": [{"id": pid, "label": p["label"], "available": voice_brain.brain_available(pid, cfg),
+                           "default_model": p["default_model"]}
                           for pid, p in voice_brain.BRAIN_PROVIDERS.items() if pid],
         "tts": {"provider": v.get("tts_provider") or "edge",
                 "openai_voice": v.get("openai_tts_voice") or "alloy",
@@ -19709,6 +19746,22 @@ async def reply_policy_forget(bot_id: str, chat_id: str = Form("")):
     if not chatbot_reply_policy_store.db_path().exists():
         return {"ok": True, "cases": 0, "lessons": 0}
     return {"ok": True, **chatbot_reply_policy_store.forget(bot_id, chat_id)}
+
+
+@app.get("/voice/brain-models")
+async def voice_brain_models_route(provider: str = ""):
+    """Ô Model của bộ não trả lời nhanh (0.65.26): danh sách model của ĐÚNG một bộ não, để trang
+    Cài đặt không phải chờ `agy models` khi người dùng không chọn Antigravity. Đặt sau route cuối
+    để bảng route chỉ thêm một dòng."""
+    pid = str(provider or "").strip().lower()
+    p = voice_brain.BRAIN_PROVIDERS.get(pid)
+    if not pid or not p:
+        return {"ok": False, "error": "unknown provider"}
+    cfg = cfgmod.read_settings()
+    models = await asyncio.to_thread(_voice_brain_models, pid, cfg)
+    v = cfg.get("voice", {}) or {}
+    return {"ok": True, "provider": pid, "models": models, "default_model": p["default_model"],
+            "current": voice_brain.brain_model_for(v, pid)}
 
 
 @app.on_event("startup")

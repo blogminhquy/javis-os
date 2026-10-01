@@ -88,6 +88,19 @@ check("lưu thẻ giọng đọc KHÔNG xoá cài đặt làn nhanh",
       v.get("mode") == "fast" and v.get("brain_provider") == "groq" and v.get("brain_model") == "m1")
 check("thẻ giọng đọc vẫn lưu được phần của nó", v.get("tts_provider") == "openai")
 
+# ---- 4b. Model theo từng bộ não (0.65.26) ----
+luu({"brain_model_for": "codex", "brain_model": "gpt-a"})
+luu({"brain_model_for": "antigravity", "brain_model": "gemini-3.8-flash-high"})
+v = doc()
+check("model lưu riêng theo từng bộ não",
+      v.get("brain_models") == {"codex": "gpt-a", "antigravity": "gemini-3.8-flash-high"})
+check("lưu model theo bộ não không đụng khoá chung cũ", v.get("brain_model") == "m1")
+luu({"brain_model_for": "codex", "brain_model": ""})
+check("model rỗng là về mặc định của bộ não đó", doc().get("brain_models") == {"antigravity": "gemini-3.8-flash-high"})
+luu({"brain_model_for": "khong-co", "brain_model": "x"})
+check("bộ não lạ không ghi model", doc().get("brain_models") == {"antigravity": "gemini-3.8-flash-high"}
+      and doc().get("brain_model") == "m1")
+
 # ---- 5. Chốt chặn: key nào console.js gửi thì main.py phải nhận ----
 # 0.65.19: thẻ Giọng nói TỰ LƯU từng ô qua luuGiong({...}), không còn một khối data của nút Lưu.
 # Gom key từ MỌI lời gọi luuGiong trong console.js rồi soi nhánh voice của main.py.

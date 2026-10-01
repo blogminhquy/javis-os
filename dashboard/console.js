@@ -6556,8 +6556,35 @@
       const provider = val === "auto" || val === "main" ? "" : val;
       if (val === "main") await luuGiong({ mode: "standard", brain_provider: "" });
       else await luuGiong({ mode: "fast", brain_provider: provider });
-      renderVoiceCard();   // dòng "Đang dùng" đổi theo bộ não mới
+      renderVoiceCard();   // dòng "Đang dùng" và ô Model đổi theo bộ não mới
     };
+
+    // Model của bộ não đang dùng (0.65.26). Mỗi bộ não nhớ model riêng (brain_models), vì tên model
+    // chỉ có nghĩa với đúng hãng của nó. Tự động thì chỉnh model của bộ não máy đang chọn. Danh
+    // sách tải riêng cho đúng một bộ não (/voice/brain-models): `agy models` có khi tới 30 giây.
+    const modelRow = $("vcBrainModelRow"), modelSel = $("vcBrainModel");
+    const modelFor = brainCur === "main" ? "" : brainCur === "auto" ? (o.brain_auto || "") : brainCur;
+    let curModel = ((v.brain_models || {})[modelFor]) || "";
+    const fillModels = (list, loading) => {
+      const pick = choices.find(b => b.id === modelFor) || {};
+      const def = pick.default_model ? t("settings.vc_brain_model_default_named", { model: pick.default_model }) : t("settings.vc_brain_model_default");
+      const ids = list.map(m => m.id);
+      // Model đã lưu mà danh sách không còn (hãng đổi tên, gói bị bớt): vẫn hiện để người dùng thấy và đổi.
+      const missing = curModel && !ids.includes(curModel)
+        ? opt(curModel, loading ? curModel : t("settings.vc_brain_model_missing", { model: curModel }), curModel) : "";
+      modelSel.innerHTML = opt("", def, curModel) + missing
+        + list.map(m => opt(m.id, m.label || m.id, curModel)).join("")
+        + (loading ? `<option value="" disabled>${esc(t("settings.vc_brain_model_loading"))}</option>` : "");
+    };
+    modelRow.hidden = !modelFor;
+    if (modelFor) {
+      fillModels([], true);
+      modelSel.onchange = () => { curModel = modelSel.value; return luuGiong({ brain_model_for: modelFor, brain_model: curModel }); };
+      // Không await: các ô bên dưới phải dùng được ngay trong lúc chờ danh sách.
+      fetch("/voice/brain-models?provider=" + encodeURIComponent(modelFor), { cache: "no-store" })
+        .then(r => r.json()).catch(() => null)
+        .then(ml => { if (gen === _renderGen) fillModels((ml && ml.ok && ml.models) || [], false); });
+    }
 
     // ElevenLabs: key chỉ gửi khi gõ key MỚI (ô để trống là giữ key cũ), Voice ID lưu khi rời ô.
     $("vcElKey").onchange = async () => {

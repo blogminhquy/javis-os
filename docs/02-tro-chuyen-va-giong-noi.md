@@ -389,6 +389,7 @@ Nếu giọng trả phí gặp lỗi (hết hạn mức, sai key, mất mạng),
 
 - **Đường gọi**: **Tự động (khuyên dùng)**, **ChatGPT Live**, **Live qua API key** hoặc **Cơ bản**. Tự động thử lần lượt ChatGPT Live, Live qua API key, rồi Cơ bản. Chọn tay một đường chưa chạy được thì Javis dùng đường kế tiếp và nói lý do ở dòng "Đang dùng".
 - **Bộ não trả lời nhanh**: **Tự động** (mặc định, ghi kèm bộ não đang dùng), **Bộ não chính (như gõ chữ)**, hoặc một bộ não cụ thể; bộ não chưa cài hay chưa có key ghi "(chưa sẵn)". Ô này chỉ dùng ở đường Cơ bản, xem mục **Đường Cơ bản và trả lời nhanh**. Gọi bằng ChatGPT Live thì ChatGPT tự nghe và tự trả lời.
+- **Model**: model của bộ não đang dùng, ví dụ `gemini-3.8-flash-low` cho Antigravity hay `haiku` cho Claude Code. Mặc định là model của hãng. Mỗi bộ não nhớ model riêng, nên đổi qua đổi lại giữa các bộ não không làm lẫn tên model. Ô này ẩn khi chọn Bộ não chính.
 - **Tốc độ đọc**: từ 0,85× tới 1,45×, mặc định 1,10×. Chỉ hiện ở đường Cơ bản.
 - **API key ElevenLabs** và **Voice ID** (lấy ở ElevenLabs → Voices): chỉ hiện khi bạn chọn giọng ElevenLabs. Để trống ô key là giữ key đã lưu.
 
