@@ -6,7 +6,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.21] - 2026-10-01
 ### Sửa lỗi
-- Đang làm: ChatGPT Live không còn lặp câu trả lời.
+- **ChatGPT Live không còn lặp câu trả lời.** Đang chờ Javis làm việc mà nói thêm "ok, xong thì báo anh nhé" từng làm bộ não chính chạy lần hai, ra hai bong bóng kết quả khác chữ. Nay câu xác nhận không chạy lại gì; câu có ý mới được làm tiếp sau việc đang chạy.
+- Lời Javis đọc tóm tắt kết quả không còn hiện thành bong bóng thứ hai, vì bản đầy đủ đã nằm ngay trên.
 
 ## [0.65.20] - 2026-10-01
 ### Sửa lỗi

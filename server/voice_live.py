@@ -250,6 +250,11 @@ class LiveProvider:
     async def send_tool_result(self, call_id: str, name: str, result: str):
         await self._send_all(self.tool_result_messages(call_id, name, result))
 
+    async def send_tool_ack(self, call_id: str, name: str, text: str):
+        """Đóng một lần giao việc KHÔNG có kết quả mới (lời nói thêm lúc đang chờ, 0.65.21). Live qua
+        API cần đúng một kết quả cho mỗi lời gọi tool, không thì model chờ mãi."""
+        await self.send_tool_result(call_id, name, text)
+
     async def send_context(self, text: str):
         await self._send_all(self.context_messages(text))
 
@@ -727,8 +732,10 @@ CHATGPT_LIVE_PROMPT = (
     "xưng với bạn (phần bộ nhớ bên dưới cho biết nếu có), không tự đổi. Chuyện trò, hỏi thăm, giải "
     "thích kiến thức chung thì trả lời thẳng. Mọi câu cần dữ liệu thật hay hành động (doanh thu, đơn "
     "hàng, lịch, email, file, ghi chú, ký ức, mở trang trên màn hình, gửi tin, nhắc hẹn, tạo việc) thì "
-    "KHÔNG đoán: nói một câu đệm rất ngắn kiểu 'Để em xem nhé' rồi giao việc cho hệ thống. Khi hệ thống "
-    "trả kết quả, đọc lại tự nhiên, không thêm số liệu. Bị chen ngang thì dừng ngay và nghe."
+    "KHÔNG đoán: nói một câu đệm rất ngắn kiểu 'Để em xem nhé' rồi giao việc cho hệ thống. Trong lúc "
+    "đang chờ kết quả mà người dùng chỉ nói kiểu 'ok', 'xong thì báo anh nhé', 'cảm ơn' thì KHÔNG giao "
+    "việc lần nữa, chỉ đáp một câu ngắn là đang làm. Khi hệ thống trả kết quả, đọc lại tự nhiên, ngắn "
+    "gọn, không thêm số liệu (bản đầy đủ đã hiện trên màn hình). Bị chen ngang thì dừng ngay và nghe."
 )
 SPEAK_MAX = 600          # kết quả bộ não đọc ra loa: phần đầu, đủ ý; bản đầy đủ hiện thành bong bóng
 HANDOFF_SHORT_WORDS = 3  # yêu cầu giao việc ngắn hơn thì ghép câu người dùng vừa nói
@@ -736,6 +743,53 @@ HANDOFF_MERGE_S = 10.0
 HISTORY_ITEMS = 12
 HISTORY_CHARS = 8000
 MEMORY_CHARS = 4000
+
+# Lời nói thêm trong lúc bộ não chính còn đang làm (0.65.21, lỗi chủ dự án báo 01/10): model nói
+# chuyện hay giao việc LẦN NỮA với câu kiểu "Ok, xem xong kiểm tra xong thì báo anh nhé" (Codex coi
+# handoff tới giữa chừng là lời chỉnh hướng việc đang chạy). Route /ws/voice-live xếp hàng các lần giao
+# việc: câu chỉ gồm từ xác nhận thì bỏ, câu có yêu cầu thật chạy SAU việc đang chạy kèm ngữ cảnh, và bộ
+# não được phép trả FOLLOWUP_NOOP khi chẳng có gì mới.
+FOLLOWUP_NOOP = "JAVIS_NOOP"
+FOLLOWUP_ACK = "Đã ghi nhận. Việc đang làm sẽ báo kết quả ngay khi xong, không có việc mới."
+_ACK_WORDS = frozenset("""
+ok oke okie okay ừ ừm ờ ừa vâng dạ được rồi nhé nha nhá nhỉ nghen thế vậy thì là xong xem kiểm tra
+báo lại cho anh em chị mình tôi tớ bạn biết đi cảm ơn cám chờ đợi tí chút xíu nhanh lên cứ làm khi nào
+có kết quả đó đấy nghe hiểu ạ à nhớ giúp hộ với luôn sau javis jarvis
+sure yes yeah yep thanks thank you let me know when done fine great cool alright got it please
+""".split())
+_ACK_MAX_WORDS = 16
+
+
+def is_followup_ack(text: str) -> bool:
+    """Câu nói thêm CHỈ gồm từ xác nhận, nhắc báo kết quả, bảo chờ. Một từ lạ là coi như có yêu cầu thật
+    (thà chạy thêm một lượt còn hơn nuốt mất yêu cầu)."""
+    words = re.findall(r"[^\W\d_]+", str(text or "").lower())
+    return 0 < len(words) <= _ACK_MAX_WORDS and all(w in _ACK_WORDS for w in words)
+
+
+def _norm_words(text: str) -> str:
+    return " ".join(re.findall(r"[^\W_]+", str(text or "").lower()))
+
+
+def is_same_request(previous: str, followup: str) -> bool:
+    """Lần giao việc lặp lại (một phần) chính yêu cầu đang chạy: model hay bắn handoff đôi cho cùng
+    một câu. Câu dài hơn yêu cầu cũ (thêm ý mới) KHÔNG tính là lặp."""
+    new, old = _norm_words(followup), _norm_words(previous)
+    return bool(new) and bool(old) and f" {new} " in f" {old} "
+
+
+def followup_request(previous: str, followup: str) -> str:
+    """Yêu cầu gửi bộ não chính cho câu nói thêm, chạy SAU khi việc trước đã xong và đã báo kết quả."""
+    return (f"Trong lúc em đang làm yêu cầu trước của người dùng (\"{str(previous).strip()}\"), người dùng "
+            f"nói thêm qua cuộc gọi: \"{str(followup).strip()}\". Kết quả yêu cầu trước đã gửi cho người dùng "
+            f"ngay trước tin này. Nếu câu nói thêm chỉ là đồng ý, nhắc báo kết quả hay bảo chờ thì trả lời "
+            f"đúng một dòng {FOLLOWUP_NOOP} và không làm gì thêm. Nếu có yêu cầu mới hoặc chỉnh lại yêu cầu "
+            f"trước thì làm phần đó rồi trả lời như thường, không lặp lại kết quả đã báo.")
+
+
+def is_noop_result(text: str) -> bool:
+    t = str(text or "").strip()
+    return FOLLOWUP_NOOP in t and len(t) <= 80
 
 
 def speakable(text: str, limit: int = SPEAK_MAX) -> str:
@@ -965,8 +1019,10 @@ class ChatGPTLive(LiveProvider):
             msg = await self.queue.get()
             if debug:
                 p = msg.get("params") or {}
+                item = p.get("item") or {}
                 print(f"[chatgpt live] {msg.get('method')} role={p.get('role')} "
-                      f"delta={p.get('delta')!r} text={p.get('text')!r} item={(p.get('item') or {}).get('type')}",
+                      f"delta={p.get('delta')!r} text={p.get('text')!r} item={item.get('type')}"
+                      + (f" request={item.get('input_transcript')!r}" if item.get("type") == "handoff_request" else ""),
                       file=sys.stderr)
             for ev in self.translate(msg):
                 yield ev
@@ -987,6 +1043,9 @@ class ChatGPTLive(LiveProvider):
     async def send_tool_result(self, call_id: str, name: str, result: str):
         await self.srv.request("thread/realtime/appendSpeech",
                                {"threadId": self.thread_id, "text": speakable(result) or "Em chưa có kết quả."})
+
+    async def send_tool_ack(self, call_id: str, name: str, text: str):
+        return   # handoff do client tự quản không cần kết quả; nói gì ở đây là đọc thừa ra loa
 
     async def send_tool_running(self, call_id: str, name: str):
         return

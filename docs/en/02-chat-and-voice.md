@@ -383,7 +383,8 @@ OpenAI voices need an OpenAI API key on the **Models** page; the voice page no l
 **ChatGPT Live** uses the ChatGPT plan you connected on the **Models** page, no API key needed. Javis picks this path itself when the ChatGPT plan is connected and the machine has Codex CLI 0.153 or later; there is nothing to select.
 
 - Press the mic to start talking: Javis listens continuously, answers in under a second, and you can interrupt at any time.
-- Small talk gets an instant answer. Anything that needs real data or an action (revenue, calendar, email, files, opening a page) is handed to the main brain you chose (Claude or another), which works with all your MCPs and tools; Javis reads back a summary and the full result (with tables) appears as a chat bubble.
+- Small talk gets an instant answer. Anything that needs real data or an action (revenue, calendar, email, files, opening a page) is handed to the main brain you chose (Claude or another), which works with all your MCPs and tools; Javis reads back a summary and the full result (with tables) appears as a chat bubble. The spoken summary does not show up as a second bubble.
+- If you add something like "ok, tell me when it's done" while Javis is working, it does not start over. A remark with something new (for example "add the cancelled orders too") is handled right after the current task.
 - Change the voice in **Javis's voice** (9 voices, see above).
 - Audio goes straight from the browser to OpenAI, so it works even when Javis runs on a VPS.
 - Calls count against your ChatGPT plan's usage.

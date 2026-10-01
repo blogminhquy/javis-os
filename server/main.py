@@ -12428,6 +12428,13 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
     asst_buf = {"text": ""}
     ui_ctx = {"text": ""}          # khối [NGỮ CẢNH GIAO DIỆN: ...] mới nhất từ trình duyệt
     tool_tasks: set = set()
+    # Không lặp câu trả lời (0.65.21, chủ dự án báo 01/10). Lần giao việc tới khi bộ não chính còn đang
+    # làm là LỜI NÓI THÊM ("Ok, xong thì báo anh nhé"): xếp hàng sau việc đang chạy chứ không chạy song
+    # song (voice_live.is_followup_ack / followup_request). `readback`: model đọc lại kết quả đã có bong
+    # bóng đầy đủ, nên lời đọc đó không thành bong bóng thứ hai và không vào lịch sử.
+    ask_lock = asyncio.Lock()
+    ask_state = {"waiting": 0, "last": ""}
+    readback = {"pending": 0, "active": False}
 
     async def from_client():
         while True:
@@ -12442,6 +12449,7 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                 except Exception:
                     continue
                 if d.get("type") == "text" and d.get("text"):
+                    readback["pending"] = 0   # gõ chữ cũng là nói tiếp: lời đáp sau đó phải hiện
                     try:
                         store.append_message(conv_sid, "user", str(d["text"]))
                     except Exception:
@@ -12486,12 +12494,35 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
         """
         name = str(ev.get("name") or "")
         cid = str(ev.get("id") or "")
+        req = str((ev.get("args") or {}).get("request") or "")
+        if name != "ask_javis":
+            return await _run_one(name, cid, req, None)
+        previous = ask_state["last"] if ask_state["waiting"] else None
+        if previous is not None and (voice_live.is_followup_ack(req) or voice_live.is_same_request(previous, req)):
+            # Chỉ là xác nhận trong lúc chờ, hay model bắn lặp chính yêu cầu đang chạy: kết quả việc đang
+            # chạy sẽ tới, không chạy bộ não lần nữa.
+            print(f"[voice live] bỏ lời nói thêm (xác nhận hoặc lặp): {req[:80]!r}", file=sys.stderr)
+            try:
+                await prov.send_tool_ack(cid, name, voice_live.FOLLOWUP_ACK)
+            except Exception:
+                pass
+            return
+        ask_state["waiting"] += 1
+        try:
+            async with ask_lock:
+                ask_state["last"] = req
+                await _run_one(name, cid, req, previous)
+        finally:
+            ask_state["waiting"] -= 1
+
+    async def _run_one(name: str, cid: str, req: str, previous):
         await _j({"type": "tool", "name": name, "status": "running"})
         try:
             await prov.send_tool_running(cid, name)
         except Exception:
             pass
-        req = str((ev.get("args") or {}).get("request") or "")
+        if previous is not None:
+            req = voice_live.followup_request(previous, req)
         if ui_ctx["text"]:
             req = ui_ctx["text"] + "\n\n" + req
         try:
@@ -12499,6 +12530,15 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                 else f"Tool {name} không có."
         except Exception as e:
             result = f"Bộ não chính lỗi: {type(e).__name__}: {e}"
+        if previous is not None and voice_live.is_noop_result(result):
+            # Bộ não thấy câu nói thêm không có việc mới: không bong bóng, không đọc ra loa.
+            print(f"[voice live] lời nói thêm không có việc mới: {str(previous)[:60]!r}", file=sys.stderr)
+            try:
+                await prov.send_tool_ack(cid, name, voice_live.FOLLOWUP_ACK)
+            except Exception:
+                pass
+            await _j({"type": "tool", "name": name, "status": "done"})
+            return
         # Bản ĐẦY ĐỦ (bảng, link, file) hiện thành bong bóng và vào lịch sử; model chỉ đọc phần
         # tóm tắt (spec mục 3.2), nên không có bong bóng này thì số liệu chi tiết mất hút.
         if name == "ask_javis" and str(result or "").strip():
@@ -12507,6 +12547,8 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
             except Exception:
                 pass
             await _j({"type": "tool_result", "name": name, "text": str(result)})
+            # Đặt TRƯỚC khi trả model: lời đọc lại có thể về ngay khi lệnh vừa đi.
+            readback["pending"] += 1
         try:
             await prov.send_tool_result(cid, name, result)
         except Exception as e:
@@ -12544,14 +12586,22 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                 task.add_done_callback(tool_tasks.discard)
             elif t == "transcript":
                 if ev.get("role") == "assistant":
+                    if readback["active"] or readback["pending"]:
+                        # Lượt nói đầu tiên sau khi trả kết quả là lời đọc lại bản đã hiện đầy đủ.
+                        if not readback["active"]:
+                            readback["active"] = True
+                            readback["pending"] -= 1
+                        return True
                     asst_buf["text"] += str(ev.get("text") or "")
                 elif ev.get("final") and ev.get("text"):
+                    readback["pending"] = 0   # người dùng nói tiếp: lời sau đó là lời đáp mới
                     try:
                         store.append_message(conv_sid, "user", str(ev["text"]))
                     except Exception:
                         pass
                 await _j(ev)
             elif t == "turn_done":
+                readback["active"] = False
                 if asst_buf["text"].strip():
                     try:
                         store.append_message(conv_sid, "assistant", asst_buf["text"].strip())
@@ -12560,6 +12610,7 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                 asst_buf["text"] = ""
                 await _j(ev)
             elif t == "interrupted":
+                readback["active"], readback["pending"] = False, 0
                 # Đoạn đã đọc dở vẫn là lời Javis đã nói: chốt vào phiên rồi xoá bộ đệm,
                 # không để nó dính sang lượt sau.
                 if asst_buf["text"].strip():

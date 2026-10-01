@@ -101,7 +101,18 @@ cả khi Javis nằm trên VPS. Javis không bao giờ đọc token: app-server 
 4. Codex luôn TỰ mở một lượt agent cho mỗi handoff (`turn/started`): gọi `turn/interrupt` ngay.
    `developerInstructions` ở trên là lưới đỡ khi interrupt thua cuộc đua.
 5. Có kết quả: bản ĐẦY ĐỦ hiện thành bong bóng chat (bảng, link, file). Bản NÓI được rút từ đó
-   (lột markdown, giữ số liệu, trần ~600 ký tự) rồi gửi `thread/realtime/appendSpeech`.
+   (lột markdown, giữ số liệu, trần ~600 ký tự) rồi gửi `thread/realtime/appendSpeech`. Lượt model
+   nói ngay sau đó là lời ĐỌC LẠI bản đã hiện: route không gửi chữ của nó lên trình duyệt và không
+   ghi vào lịch sử (0.65.21), nếu không người dùng thấy cùng một nội dung hai lần. Người dùng nói
+   hay gõ tiếp, hoặc chen ngang, thì xoá cờ đó để lời đáp mới vẫn hiện.
+6. **Lời nói thêm trong lúc chờ** (0.65.21, lỗi chủ dự án báo 01/10): Codex coi handoff tới khi việc
+   trước còn chạy là lời CHỈNH HƯỚNG việc đó, nên câu kiểu "Ok, xong thì báo anh nhé" thành một
+   handoff nữa. Route xếp hàng các lần giao việc theo phiên gọi: câu chỉ gồm từ xác nhận
+   (`voice_live.is_followup_ack`) hay chỉ lặp lại yêu cầu đang chạy (`is_same_request`) thì đóng
+   bằng `send_tool_ack` (ChatGPT Live: không nói gì; Live qua API: trả một câu ghi nhận cho đúng lời
+   gọi tool) và không chạy bộ não; câu có ý mới chạy SAU việc đang chạy với `followup_request` (kèm
+   yêu cầu trước), bộ não trả `JAVIS_NOOP` khi chẳng có gì mới thì không bong bóng, không đọc. Prompt
+   cũng dặn model đừng giao việc lại khi người dùng chỉ xác nhận.
 
 **Sự kiện dịch sang khung Live chung.** `sdp` thành `webrtc_answer`; `started` thành `ready`;
 `transcript/delta|done` thành `transcript` (lời người dùng `done` là `final`); assistant `done`

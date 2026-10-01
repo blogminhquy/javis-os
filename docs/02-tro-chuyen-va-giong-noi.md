@@ -399,7 +399,8 @@ Giọng OpenAI cần OpenAI API key ở trang **Models**; trang giọng nói kh�
 **ChatGPT Live** dùng gói ChatGPT bạn đã nối ở trang **Models**, không cần API key. Javis tự chọn đường này khi gói ChatGPT đã nối và máy có Codex CLI bản 0.153 trở lên, bạn không phải chọn gì.
 
 - Bấm mic là bắt đầu nói chuyện: Javis nghe liên tục, đáp sau chưa tới một giây, bạn chen ngang lúc nào cũng được.
-- Chuyện trò thì Javis đáp ngay. Câu cần dữ liệu thật hay hành động (doanh thu, lịch, email, file, mở trang) thì Javis nói một câu đệm kiểu "để xem nhé", giao bộ não chính bạn đã chọn (Claude hay bộ khác) làm với đủ MCP và tool, rồi đọc tóm tắt; bản đầy đủ (có bảng) hiện thành bong bóng trong khung chat.
+- Chuyện trò thì Javis đáp ngay. Câu cần dữ liệu thật hay hành động (doanh thu, lịch, email, file, mở trang) thì Javis nói một câu đệm kiểu "để xem nhé", giao bộ não chính bạn đã chọn (Claude hay bộ khác) làm với đủ MCP và tool, rồi đọc tóm tắt; bản đầy đủ (có bảng) hiện thành bong bóng trong khung chat. Lời Javis đọc tóm tắt không hiện thành bong bóng thứ hai.
+- Trong lúc Javis đang làm mà bạn nói thêm kiểu "ok, xong thì báo anh nhé", Javis không làm lại từ đầu. Câu có ý mới (ví dụ "thêm cả số đơn huỷ nữa") được làm tiếp ngay sau việc đang chạy.
 - Đổi giọng ở ô **Giọng Javis** (9 giọng, xem ở trên).
 - Âm thanh đi thẳng từ trình duyệt tới OpenAI, nên chạy được cả khi Javis nằm trên VPS.
 - Cuộc gọi tính vào hạn mức gói ChatGPT của bạn.
