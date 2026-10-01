@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.26] - 2026-10-02
+### Sửa lỗi
+- Đang làm: chọn được model cho bộ não trả lời nhanh; sửa lỗi Antigravity nhận nhầm tên model của ChatGPT.
+
 ## [0.65.25] - 2026-10-02
 ### Sửa lỗi
 - **Giữa cuộc gọi ChatGPT Live, Javis không còn tự đổi giọng.** Trước đây lúc nối lại sau khi tạm ngắt mà hỏng, Javis lặng lẽ chuyển sang đường Cơ bản đọc bằng giọng khác (nữ thành nam). Nay Javis giữ ChatGPT Live: thử lại một lần, vẫn hỏng thì báo một dòng và chờ, bạn nói lại là thử tiếp.
