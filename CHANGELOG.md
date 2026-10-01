@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.20] - 2026-10-01
+### Sửa lỗi
+- **Nút "Cập nhật ngay" chạy lại trên VPS cài mới, nhất là Hostinger.** Bộ phận cập nhật đi kèm (Watchtower) dùng bản cũ đã ngừng phát triển, nói chuyện với Docker bằng phiên bản quá cũ nên Docker mới từ chối và nó khởi động lại liên tục. Nay đổi sang bản còn được bảo trì, tự thương lượng phiên bản với Docker.
+- Máy đã cài trước bản này cần **Redeploy một lần** bằng file compose mới (Hostinger: Docker Manager, dán lại URL compose rồi Deploy). Sau đó nút cập nhật tự chạy, không phải làm lại.
+
 ## [0.65.19] - 2026-10-01
 ### Cải thiện
 - **Trang cài đặt Giọng nói gọn còn 3 ô, đổi là tự lưu.** Dòng "Đang dùng" cho biết cuộc gọi đang chạy đường nào và vì sao, ô **Giọng Javis** đổi theo đường gọi (có nút nghe thử), và công tắc **Tập trung**. Đường gọi, tốc độ đọc và ElevenLabs nằm trong Nâng cao.
