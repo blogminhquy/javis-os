@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.27] - 2026-10-02
+### Sửa lỗi
+- Đang làm: nút Cập nhật ngay trên Docker/VPS không còn kẹt "Đang cập nhật rồi, chờ chút" khi bản mới chưa đóng gói xong.
+
 ## [0.65.26] - 2026-10-02
 ### Sửa lỗi
 - **Sửa lỗi bộ não giọng Antigravity báo "invalid model selection".** Đổi bộ não ở bản 0.65.25 thì tên model của bộ não cũ (ví dụ model ChatGPT) bị gửi nhầm sang Antigravity. Nay mỗi bộ não nhớ model riêng, và tên model cũ bị lẫn được bỏ qua để dùng model mặc định. Không phải do bị đăng xuất.
