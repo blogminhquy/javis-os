@@ -686,6 +686,8 @@ class JavisVoice {
   // `giuTieng` = true: mở nghe trong lúc audio đang TẠM DỪNG vì nghi chen ngang (Voice V1).
   // Không được giết tiếng đang đọc ở đây, vì nếu hoá ra là chen ngang giả thì phải phát tiếp.
   startListening(tuDong, giuTieng) {
+    // Tắt mic giữa cuộc gọi (thanh gọi, 0.65.18): không mở nghe cho tới khi bật lại.
+    if (this.muted) return;
     if (!this.recognition) {
       this.onError("not-supported");
       return;

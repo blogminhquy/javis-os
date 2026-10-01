@@ -28,7 +28,7 @@ function check(name, cond) {
 check("app.js: khung WS mang voice: _tuGiong (V3: hoặc đang rảnh tay)", /const payload = \{ message: outMsg[\s\S]{0,300}voice: _tuGiong \|\| handsFree/.test(app));
 check("app.js: commit từ đạo diễn bật cờ _tuGiong", /if \(c\) _tuGiong = true;/.test(app));
 check("app.js: gửi xong hạ cờ", /_tuGiong = false;\s*\n\}/.test(app));
-check("app.js: đọc mode từ /settings, tai từ /voice/ear", /voiceMode = v\.mode \|\| "standard";/.test(app) && /fetch\("\/voice\/ear"\)/.test(app) && /voice\.sttUpload = upload;/.test(app));
+check("app.js: chế độ theo đường gọi /voice/call, tai từ /voice/ear", /fetch\("\/voice\/call"\)/.test(app) && /voiceMode = mode;/.test(app) && /fetch\("\/voice\/ear"\)/.test(app) && /voice\.sttUpload = upload;/.test(app));
 check("app.js: xuất JavisVoiceMode.refresh cho trang Cài đặt", /window\.JavisVoiceMode = \{ refresh: napCaiDatGiong/.test(app));
 check("server: nhánh voice chỉ khi payload.voice + mode fast", /payload\.get\("voice"\)/.test(main) && /_vconf\.get\("mode"\) == "fast"/.test(main));
 

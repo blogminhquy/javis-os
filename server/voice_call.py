@@ -53,7 +53,7 @@ def _basic_mode(cfg: dict) -> str:
 
 
 def select_call_engine(cfg: dict) -> dict:
-    """{"engine", "live_provider", "voice_mode", "setting", "reason", "detail"}.
+    """{"engine", "live_provider", "voice_mode", "basic_mode", "setting", "reason", "detail"}.
 
     voice_mode là thứ trình duyệt dùng: "live" cho chatgpt/api, "fast"/"standard" cho basic.
     reason: auto | auto_api | auto_basic | chosen | chosen_unavailable. detail: vì sao ChatGPT
@@ -66,6 +66,8 @@ def select_call_engine(cfg: dict) -> dict:
     def out(engine, reason, provider=""):
         return {"engine": engine, "live_provider": provider,
                 "voice_mode": "live" if engine in ("chatgpt", "api") else _basic_mode(cfg),
+                # Đường Cơ bản dự phòng khi Live mở không được giữa chừng (trình duyệt tự chuyển).
+                "basic_mode": _basic_mode(cfg),
                 "setting": choice, "reason": reason, "detail": "" if chat_ok else why}
 
     if choice == "basic":

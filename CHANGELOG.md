@@ -6,7 +6,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.18] - 2026-10-01
 ### Cải thiện
-- Đang làm: bấm mic là gọi Javis, có thanh gọi và nút Cúp máy.
+- **Bấm mic là gọi Javis.** Nút mic thành nút Cúp máy màu đỏ, và một thanh gọi hiện trên khung chat: đang nghe, Javis đang nói hay đang làm việc, kèm đồng hồ, nút Tắt mic và Cúp máy. Esc cũng cúp máy.
+- Javis tự chọn đường gọi: ChatGPT Live khi đã nối gói ChatGPT, rồi Live qua API key, không thì đường Cơ bản. ChatGPT Live mở không được thì cuộc gọi tự chuyển sang Cơ bản thay vì tắt.
+- Phím Space không còn mở mic, để không ai lỡ chạm mà bật nghe.
 
 ## [0.65.17] - 2026-10-01
 ### Thêm mới

@@ -60,31 +60,24 @@ Use this page when you want the full width just for chatting. To see the globe a
 
 Javis's answer streams into the CONVERSATION column on the right, character by character.
 
-### Step 2 - Speak: hold the Space bar
+### Step 2 - Call Javis by voice: click the mic button
 
-The fastest way to say one sentence:
+The mic button (the large microphone on the left of the input bar) **calls Javis**, like a phone call:
 
-1. Make sure the cursor is **not** inside the chat box or any other input (while typing, Space produces a space instead of opening the mic).
-2. **Hold the Space bar**. The status line in the middle changes to **LISTENING** and the mic button lights up.
-3. Say your sentence. What you say appears under the status line so you can see whether Javis heard you correctly.
-4. **Release Space**. Javis sends everything you just said and starts answering.
+1. Click the mic button once. It turns red and becomes **Hang up**, and a **call bar** appears right above the chat: the call path (for example **ChatGPT Live**), the status (Listening, Javis is speaking, Working, Waiting), a call timer, a **Mute** button and a **Hang up** button.
+2. Talk naturally. Both sides appear as normal chat bubbles, so tables, files and task results still show in full.
+3. To interrupt while Javis is speaking, just talk; Javis stops and listens.
+4. To end the call: click **Hang up** (on the call bar or the mic button itself), or press **Esc**.
+
+Javis picks the call path itself: **ChatGPT Live** when your ChatGPT plan is connected, then Live with an API key if you have one, otherwise the **Basic** path (browser listening, Edge voice). If ChatGPT Live cannot start, the call switches to Basic and says so in one line. The Space bar no longer opens the mic.
 
 The first time you use the mic, the browser asks for microphone permission. Allow it. If you deny it, Javis cannot hear you and reports that the page needs microphone permission.
-
-### Step 3 - Speak: click the mic button (hands-free mode)
-
-The mic button (the large microphone on the left of the input bar) turns on **always-listening mode**, handy when you do not want to hold a key:
-
-1. Click the mic button once. The status becomes **LISTENING • ALWAYS** and the mic button lights up.
-2. Talk naturally. When you pause (about 1.5 seconds of silence), Javis closes the sentence and sends it.
-3. After answering, Javis reopens the mic on its own; you do not have to click again.
-4. To turn the mode off: click the mic button again, or press **Esc**.
 
 In hands-free mode, Javis stops speaking the moment you start talking, so you can interrupt at any time. The mechanism measures loudness on the echo-cancelled mic stream (about 0.3 seconds of continuous speech, clearly louder than the room), so Javis's own speaker output does not interrupt it.
 
 Interrupting only works while the **mic is open**. With the mic off, a noise in the room will not reopen it even while Javis is speaking.
 
-### Step 4 - Hear Javis answer out loud
+### Step 3 - Hear Javis answer out loud
 
 By default Javis **reads every answer aloud** in a Vietnamese voice (Edge TTS running on the server). The graph pulses along with the speech.
 
@@ -94,7 +87,7 @@ Turning speech on and off has **3 places** that do the same thing, always in syn
 - The **speaker** button on the chat input bar (tooltip "Mute voice" / "Unmute voice"). When muted, the button turns red with a slash through it. This button is hidden on phones.
 - **Settings → Voice**, toggle **"🔊 Read answers aloud"**.
 
-### Step 5 - Stop Javis mid-answer
+### Step 4 - Stop Javis mid-answer
 
 While Javis is thinking or speaking, the send button turns into a **stop button** (a square). Clicking it aborts the running turn and stops the speech immediately, and the status returns to READY. Typing **`/stop`** and pressing Enter does exactly the same.
 
@@ -434,7 +427,7 @@ The line under the globe says what Javis is doing:
 | Text shown | Meaning |
 |---|---|
 | READY | Idle, waiting for you |
-| LISTENING | Listening to you (Space held) |
+| LISTENING | Listening to you |
 | LISTENING • ALWAYS | Hands-free mode is on |
 | THINKING | The brain is processing the question |
 | SPEAKING | Javis is reading the answer aloud |
@@ -459,13 +452,11 @@ Keyboard shortcuts:
 
 | Action | Result |
 |---|---|
-| Hold **Space** (outside an input) | Open the mic and listen until you release |
-| Release **Space** | Send what you just said |
 | **Enter** | Send the message you typed |
 | **Shift + Enter** | Line break inside a message |
 | **Ctrl + V** | Paste an image, or paste long text as an attached .txt file |
 | **/** (start of the input) | Open the command menu; ↑ ↓ to move, Enter or Tab to confirm |
-| **Esc** | Exit hands-free mode and turn off the mic; close the command menu; close the artifact panel. Does **not** stop the answer |
+| **Esc** | Hang up the voice call; close the command menu; close the artifact panel. Does **not** stop the answer |
 
 ## Tips
 
@@ -479,8 +470,7 @@ Keyboard shortcuts:
 
 ## Common problems
 
-- **Holding Space does not open the mic.** The cursor is inside the chat box or another input. Click an empty part of the page, then hold Space again.
-- **A sentence you never typed appears in the chat.** Almost certainly the mic picked up room noise (music, TV, someone talking), transcribed it and sent it, because Javis sends as soon as a sentence ends rather than asking first. Look at the status line: **LISTENING** or **LISTENING • ALWAYS** means the mic is still open, so click the mic button or press **Esc** to close it. Since version 0.52.6 the mic no longer sticks open when you tap and release Space very quickly, and Javis speaking no longer reopens the mic by itself. To clear that stray message, start a new conversation; Javis has no way to type into your chat box, and every background result appears as a bubble on the left.
+- **A sentence you never typed appears in the chat.** Almost certainly the mic picked up room noise (music, TV, someone talking), transcribed it and sent it, because Javis sends as soon as a sentence ends rather than asking first. Look at the status line: **LISTENING** or **LISTENING • ALWAYS** means the mic is still open, so click the mic button or press **Esc** to close it. Javis speaking does not reopen the mic after you hang up. To clear that stray message, start a new conversation; Javis has no way to type into your chat box, and every background result appears as a bubble on the left.
 - **The browser cannot hear.** Javis reports that the browser does not support speech and suggests Chrome or Edge. Open the dashboard in Chrome or Edge.
 - **The microphone does not work.** The browser is blocking microphone permission. Open the site permissions in your browser, allow the microphone, then reload the page.
 - **Pressing Esc but Javis keeps talking.** That is the current design: Esc no longer stops a turn. Click the stop button (the square) on the input bar, or click the speaker button to mute.

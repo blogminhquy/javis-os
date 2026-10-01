@@ -60,25 +60,18 @@ Dùng trang này khi bạn muốn màn hình rộng chỉ để chat. Muốn xem
 
 Câu trả lời của Javis hiện dần ở cột HỘI THOẠI bên phải, chữ chạy ra theo thời gian thực.
 
-### Bước 2 - Nói bằng giọng: giữ phím Cách
+### Bước 2 - Gọi Javis bằng giọng: bấm nút mic
 
-Cách nhanh nhất để nói một câu:
+Nút mic (hình micro to, bên trái thanh nhập) là nút **gọi Javis**, như gọi điện thoại:
 
-1. Đảm bảo con trỏ **không** đang nằm trong ô gõ chữ hay ô nhập nào (nếu đang gõ thì phím Cách sẽ ra dấu cách chứ không bật mic).
-2. **Giữ phím Cách (Space)**. Dòng chữ giữa màn hình đổi thành **ĐANG NGHE**, nút mic sáng lên.
-3. Nói câu của bạn. Chữ bạn nói hiện ngay dưới trạng thái để bạn thấy Javis nghe đúng chưa.
-4. **Thả phím Cách** ra. Javis tự gửi toàn bộ câu vừa nói và bắt đầu trả lời.
+1. Bấm nút mic một lần. Nút đổi màu đỏ thành **Cúp máy**, và một **thanh gọi** hiện ngay trên khung chat: tên đường gọi (ví dụ **ChatGPT Live**), trạng thái (Đang nghe, Javis đang nói, Đang làm việc, Đang chờ), đồng hồ cuộc gọi, nút **Tắt mic** và nút **Cúp máy**.
+2. Cứ nói tự nhiên. Lời hai bên hiện thành bong bóng chat như tin thường, nên bảng số, file hay kết quả việc vẫn hiện đầy đủ.
+3. Muốn chen ngang lúc Javis đang nói thì cứ nói, Javis dừng lại nghe.
+4. Kết thúc: bấm **Cúp máy** (trên thanh gọi hoặc chính nút mic), hoặc nhấn **Esc**.
 
-Lần đầu bấm mic, trình duyệt sẽ hỏi quyền dùng micro. Bấm cho phép. Nếu từ chối, Javis không nghe được và sẽ báo "Anh cần cấp quyền microphone cho trang này.".
+Javis tự chọn đường gọi: **ChatGPT Live** khi bạn đã nối gói ChatGPT, rồi Live qua API key nếu có, không thì đường **Cơ bản** (nghe bằng trình duyệt, đọc bằng giọng Edge). Nếu ChatGPT Live chưa mở được, cuộc gọi tự chuyển sang đường Cơ bản và báo một dòng. Phím Cách (Space) không còn mở mic.
 
-### Bước 3 - Nói bằng giọng: bấm nút mic (chế độ rảnh tay)
-
-Nút mic (hình micro to, bên trái thanh nhập) bật **chế độ luôn nghe**, tiện khi bạn không muốn giữ phím:
-
-1. Bấm nút mic một lần. Trạng thái đổi thành **ĐANG NGHE • LUÔN** và nút mic sáng.
-2. Cứ nói tự nhiên. Khi bạn ngừng nói một chút (khoảng 1,5 giây im lặng), Javis tự chốt câu và gửi đi.
-3. Sau khi trả lời xong, Javis tự bật mic nghe lại, không cần bạn bấm.
-4. Muốn tắt chế độ này: bấm lại nút mic, hoặc nhấn phím **Esc**.
+Lần đầu bấm mic, trình duyệt sẽ hỏi quyền dùng micro. Bấm cho phép. Nếu từ chối, Javis không nghe được và sẽ báo cần cấp quyền microphone cho trang này.
 
 Trong chế độ rảnh tay, khi bạn bắt đầu nói thì Javis **tạm dừng** phần nó đang đọc để lắng nghe. Nếu trong 2 giây bạn thật sự nói thành câu, Javis dừng hẳn và tin kế tiếp của bạn mang theo câu nó đang đọc dở, nên nó trả lời tiếp từ chỗ đó chứ không đọc lại từ đầu. Nếu chỉ là tiếng ho hay tiếng động, Javis đọc tiếp từ chỗ dừng. Cơ chế đo độ to của giọng qua luồng mic đã khử vọng (nói liên tục khoảng 0,5 giây, to hơn hẳn nền), nên tiếng loa của chính Javis không tự làm nó ngắt lời. Tắt cơ chế này bằng công tắc **Ngắt lời Javis bằng giọng** trong Cài đặt nhanh.
 
@@ -100,7 +93,7 @@ Nói (hoặc gõ) là được, Javis dùng đúng công cụ và báo lại k�
 - **"Mở Chrome"**, **"bật Excel lên"**, **"mở trang youtube.com"**, **"tắt Chrome"**, **"đang mở app nào"**: Javis mở hay đóng app trên **chính máy đang chạy Javis**. Đóng app là đóng lịch sự (app có tài liệu chưa lưu sẽ tự hỏi lưu); nói "ép tắt" thì Javis tắt hẳn. Nếu Javis chạy trong Docker trên máy chủ thì nó nói rõ là không điều khiển được máy bạn.
 - Đang bôi đen một đoạn chữ rồi nói "tóm tắt đoạn này": Javis biết bạn đang chỉ đoạn nào, không hỏi lại.
 
-### Bước 4 - Nghe Javis trả lời bằng giọng
+### Bước 3 - Nghe Javis trả lời bằng giọng
 
 Mặc định Javis **đọc thành tiếng** mọi câu trả lời bằng giọng Việt (Edge TTS chạy trên máy chủ). Đồ thị sáng theo nhịp giọng đọc.
 
@@ -110,7 +103,7 @@ Bật/tắt đọc bằng giọng có **3 chỗ** làm cùng một việc, luôn
 - Nút **loa** nằm ngay trên thanh nhập chat (gợi ý "Tắt giọng đọc" / "Bật giọng đọc"). Đang tắt tiếng thì nút chuyển đỏ và có một gạch chéo. Nút này bị ẩn trên điện thoại.
 - Vào **Cài đặt → Giọng nói**, gạt công tắc **"🔊 Đọc trả lời bằng giọng"**.
 
-### Bước 5 - Dừng khi Javis đang trả lời
+### Bước 4 - Dừng khi Javis đang trả lời
 
 Khi Javis đang suy nghĩ hoặc đang đọc, nút gửi ở thanh nhập biến thành **nút dừng** (hình vuông). Bấm nút đó là ngắt lượt đang chạy và dừng đọc ngay, trạng thái về SẴN SÀNG. Gõ **`/stop`** rồi Enter cũng ra đúng kết quả đó.
 
@@ -469,7 +462,7 @@ Dòng chữ ngay dưới quả cầu cho biết Javis đang làm gì:
 | Chữ hiện | Nghĩa |
 |---|---|
 | SẴN SÀNG | Đang nghỉ, chờ bạn |
-| ĐANG NGHE | Đang nghe bạn nói (giữ phím Cách) |
+| ĐANG NGHE | Đang nghe bạn nói |
 | ĐANG NGHE • LUÔN | Chế độ rảnh tay đang bật |
 | ĐANG SUY NGHĨ | Bộ não đang xử lý câu hỏi |
 | ĐANG GỌI <tên tool> | Bộ não đang gọi một công cụ (POS, lịch, mở trang...) |
@@ -500,13 +493,11 @@ Phím tắt:
 
 | Thao tác | Kết quả |
 |---|---|
-| Giữ **Space** (khi không ở ô nhập) | Bật mic, nghe cho tới khi thả phím |
-| Thả **Space** | Gửi câu vừa nói |
 | **Enter** | Gửi tin nhắn đang gõ |
 | **Shift + Enter** | Xuống dòng trong tin nhắn |
 | **Ctrl + V** | Dán ảnh, hoặc dán văn bản dài thành file .txt đính kèm |
 | **/** (đầu ô nhập) | Mở menu lệnh; ↑ ↓ chọn, Enter hoặc Tab chốt |
-| **Esc** | Thoát chế độ rảnh tay + tắt mic; đóng menu lệnh; đóng panel artifact. **Không** dừng câu trả lời |
+| **Esc** | Cúp máy (kết thúc cuộc gọi bằng giọng); đóng menu lệnh; đóng panel artifact. **Không** dừng câu trả lời |
 
 ## Mẹo
 
@@ -521,7 +512,7 @@ Phím tắt:
 ## Sự cố thường gặp
 
 - **Giữ phím Cách không bật mic.** Con trỏ đang nằm trong ô gõ chữ hoặc một ô nhập khác. Bấm ra vùng trống của trang rồi giữ lại phím Cách.
-- **Trong chat hiện ra một câu bạn không hề gõ.** Gần như chắc chắn là mic nghe được tiếng trong phòng (nhạc, TV, người khác nói) rồi chép thành chữ và gửi luôn, vì câu nói xong là Javis gửi ngay chứ không hỏi lại. Nhìn dòng chữ giữa màn hình: còn **ĐANG NGHE** hay **ĐANG NGHE • LUÔN** nghĩa là mic vẫn mở, bấm nút mic hoặc **Esc** để tắt. Từ bản 0.52.6, mic không còn kẹt mở khi bạn bấm rồi thả phím Cách quá nhanh, và Javis đang đọc thành tiếng cũng không tự bật mic lại nữa. Xoá câu lạ đó thì bắt đầu một hội thoại mới; Javis không có cách nào tự gõ vào ô chat của bạn, mọi kết quả chạy nền đều hiện ở bong bóng bên trái.
+- **Trong chat hiện ra một câu bạn không hề gõ.** Gần như chắc chắn là mic nghe được tiếng trong phòng (nhạc, TV, người khác nói) rồi chép thành chữ và gửi luôn, vì câu nói xong là Javis gửi ngay chứ không hỏi lại. Nhìn dòng chữ giữa màn hình: còn **ĐANG NGHE** hay **ĐANG NGHE • LUÔN** nghĩa là mic vẫn mở, bấm nút mic hoặc **Esc** để tắt. Javis đang đọc thành tiếng cũng không tự bật mic lại khi bạn đã cúp máy. Xoá câu lạ đó thì bắt đầu một hội thoại mới; Javis không có cách nào tự gõ vào ô chat của bạn, mọi kết quả chạy nền đều hiện ở bong bóng bên trái.
 - **Trình duyệt không nghe được.** Javis báo "Trình duyệt không hỗ trợ giọng nói. Dùng Chrome/Edge." Hãy mở dashboard bằng Chrome hoặc Edge.
 - **Micro không hoạt động.** Trình duyệt chặn quyền micro. Vào phần quyền của trang trong trình duyệt và cho phép micro, rồi tải lại trang.
 - **Nhấn Esc mà Javis vẫn nói tiếp.** Đúng như thiết kế hiện tại: Esc không dừng lượt nữa. Bấm nút dừng (ô vuông) trên thanh nhập, hoặc bấm nút loa để tắt tiếng.

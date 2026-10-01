@@ -314,6 +314,9 @@
           </span>
         </div>
         <!-- MỨC DÙNG token đã DỜI xuống góc dưới-phải khung giữa (giải phóng chỗ cho khung chat). -->
+        <!-- Thanh gọi (call-bar.js, 0.65.18): hiện khi bấm mic gọi Javis. Nằm trong CHAT_NODE_IDS
+             (console.js) nên sang trang Trò chuyện là đi theo khung chat. -->
+        <div class="call-bar" id="callBar" hidden></div>
         <div class="transcript" id="chatArea"></div>
         <!-- Thanh #toolBar cũ ĐÃ BỎ: trạng thái "đang suy nghĩ / gọi tool" giờ hiện bằng
              chip hoạt động NGAY TRONG #chatArea (app.js showActivity) → tự đi theo cả khi
@@ -514,7 +517,7 @@
     <!-- ===== BOTTOM: voice bar ===== -->
     <div class="hud-voice" id="hudVoice">
       <button id="voiceFocusResume" class="voice-focus-resume" hidden></button>
-      <button class="mic-big" id="voiceBtn" title="Bấm để nói (hoặc giữ Space)" data-i18n-title="bar.mic">
+      <button class="mic-big" id="voiceBtn" title="Bấm để gọi Javis" data-i18n-title="bar.mic">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
           <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
@@ -867,8 +870,9 @@
   <script src="/static/ui-context.js?v=1"></script>
   <script src="/static/ui-actions.js?v=1"></script>
   <!-- Voice V2: nghe nói thẳng (Live), app.js gọi lười khi bấm mic ở chế độ Live. -->
-  <script src="/static/voice-live.js?v=3"></script>
-  <script src="/static/app.js?v=119"></script>
+  <script src="/static/voice-live.js?v=4"></script>
+  <script src="/static/call-bar.js?v=1"></script>
+  <script src="/static/app.js?v=120"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=3"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và

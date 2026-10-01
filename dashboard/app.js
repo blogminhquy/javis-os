@@ -389,6 +389,7 @@ function capNhatOrb() {
   // Linh vật tách "đang chờ nghe" với "ĐÃ BẮT ĐƯỢC giọng" (user_speaking): orb dùng chung một
   // lớp cho cả hai, nên trước 0.64.39 nói xong một câu mà pet không tỏ ra là đã nghe thấy gì.
   setOrbState(cls, label, cls === "listening" && turn.state === "user_speaking" ? "hearing" : cls);
+  if (typeof capNhatThanhGoi === "function") capNhatThanhGoi();
 }
 // Báo linh vật những việc không phải trạng thái orb (xem JavisPet.react trong pet.js).
 function petReact(ten) { try { if (window.JavisPet && window.JavisPet.react) window.JavisPet.react(ten); } catch (e) {} }
@@ -436,22 +437,89 @@ let _tuGiong = false;
 // ============================================
 // Voice V2 - cài đặt giọng nói (chế độ, nghe bằng Groq) và bậc Live
 // ============================================
-let voiceMode = "standard";   // standard | fast | live (đọc từ /settings)
+let voiceMode = "standard";   // standard | fast | live (đọc từ /voice/call, xem napCaiDatGiong)
+
+// ============================================
+// Gọi điện (0.65.18, docs/dev/2026-10-voice-call-spec.md mục 4): bấm mic là GỌI Javis. Thanh gọi
+// (call-bar.js) trên khung chat cho biết cuộc gọi đang ở đâu, có nút tắt mic và cúp máy. Trạng
+// thái lấy từ đúng nguồn thật của orb (đạo diễn lượt nói, rào chú ý, phiên Live).
+// ============================================
+// `var`, không `let/const`: capNhatOrb có thể chạy trước dòng này (vùng chết tạm thời ném lỗi).
+var _callInfo = { engine: "basic", voice_mode: "standard", basic_mode: "standard", live_provider: "" };
+var _callMuted = false;
+var callBar = window.JavisCallBar ? window.JavisCallBar.create({
+  el: document.getElementById("callBar"),
+  t: (k, p) => window.t(k, p),
+  onMute: (want) => datTatMic(want),
+  onHangup: () => cupMay(),
+}) : null;
+const _TEN_LIVE_API = { gemini: "Gemini", openai: "OpenAI", "gpt-live": "GPT-Live" };
+function tenDuongGoi() {
+  if (voiceMode !== "live") return window.t("call.engine_basic");
+  if (_callInfo.engine === "chatgpt") return "ChatGPT Live";
+  return window.t("call.engine_api", { provider: _TEN_LIVE_API[_callInfo.live_provider] || "API" });
+}
+function capNhatThanhGoi() {
+  if (!callBar || !handsFree) return;
+  const live = window.JavisVoiceLive;
+  let st = "listening", info = "";
+  if (_liveWaitingWake || attention.waiting()) st = "waiting_wake";
+  else if (turn.state === "reconnecting") st = "reconnecting";
+  else if (voiceMode === "live" && !(live && live.isOn())) st = "connecting";
+  else if (turn.state === "speaking" || (voiceMode === "live" && live && live.isSpeaking())) st = "speaking";
+  else if (turn.state === "processing" || _liveToolCount > 0) {
+    st = "working";
+    // ask_javis là "giao bộ não chính", không phải tên công cụ người dùng hiểu: để "Đang làm việc".
+    if (turn.tool && turn.tool !== "ask_javis") info = compactToolLabel(turn.tool).label;
+  }
+  callBar.setState(st, info);
+}
+// Tắt mic giữa cuộc gọi: Javis vẫn nói được, chỉ không nghe. Live tắt track; đường Cơ bản dừng
+// nghe và vòng giữ mic (bên dưới) không mở lại cho tới khi bật lại.
+function datTatMic(muted) {
+  _callMuted = !!muted;
+  // Cờ nằm trên voice (voice.muted): startListening tự từ chối, nên vòng giữ mic không cần biết.
+  voice.muted = _callMuted && voiceMode !== "live";
+  if (voiceMode === "live") { try { window.JavisVoiceLive.setMuted(_callMuted); } catch (e) {} }
+  else if (_callMuted) voice.cancelListening();
+  if (callBar) callBar.setMuted(_callMuted);
+}
+function cupMay() {
+  tatRanhTay();
+  try { if (window.JavisTts) window.JavisTts.set(false); } catch (e) {}
+}
+// Live (ChatGPT Live hay Live API) mở không được trước khi sẵn sàng: cuộc gọi chuyển sang đường
+// Cơ bản thay vì cúp, báo một dòng (spec mục 4). Lần gọi sau vẫn thử đường chính trước.
+function chuyenSangCoBan() {
+  if (!voice.isSupported()) { tatRanhTay(); return false; }
+  voiceMode = _callInfo.basic_mode || "standard";
+  ghiChuThoang(window.t("call.fallback"));
+  if (callBar) callBar.setEngine(window.t("call.engine_basic"));
+  voice.handsFree = true;
+  adaptive.start();
+  voice.startListening();
+  return true;
+}
 async function napCaiDatGiong() {
   try {
     // Tai nghe lại (0.65.15): máy chủ chọn tai (voice_ear.select_ear) từ cài đặt, key và bộ
     // não chính, nên trình duyệt không tự đoán từ stt_provider nữa. /voice/ear lỗi thì coi
     // như không có tai: câu gửi đi là chữ của trình duyệt như trước.
-    const [s, ear] = await Promise.all([
+    // Đường gọi (0.65.18): máy chủ chọn ChatGPT Live / Live API / Cơ bản (voice_call.py), nên
+    // chế độ của nút mic không còn đọc thẳng từ voice.mode nữa. /voice/call lỗi thì giữ khoá cũ.
+    const [s, ear, call] = await Promise.all([
       fetch("/settings").then(r => r.json()),
       fetch("/voice/ear").then(r => r.json()).catch(() => ({})),
+      fetch("/voice/call").then(r => r.json()).catch(() => null),
     ]);
     const v = (s && s.voice) || {};
     const focused = v.focus_mode !== false;
     const upload = !!(ear && ear.kind === "upload");
-    if (voiceMode !== (v.mode || "standard") || voice.sttUpload !== upload || attention.enabled !== focused) tatRanhTay();
+    if (call && call.voice_mode) _callInfo = call;
+    const mode = (call && call.voice_mode) || v.mode || "standard";
+    if (voiceMode !== mode || voice.sttUpload !== upload || attention.enabled !== focused) tatRanhTay();
     attention.enabled = focused;
-    voiceMode = v.mode || "standard";
+    voiceMode = mode;
     voice.sttUpload = upload;
   } catch (e) {}
 }
@@ -608,10 +676,14 @@ async function batLive(wakeText = "") {
       appendJavisError(String(msg || "").startsWith("mic:") ? window.t("app.mic_denied") : (window.t("app.live_error") + " " + msg));
       runActions(turn.turnDone());
     },
-    onClosed: () => tatRanhTay(),
+    // Đóng TRƯỚC khi sẵn sàng là mở không được: để nhánh dưới chuyển sang đường Cơ bản.
+    onClosed: () => { if (readySeen) tatRanhTay(); },
   });
   if (ticket !== _liveStartSeq) return false;
-  if (!ok) tatRanhTay();
+  if (!ok) {
+    if (handsFree && !readySeen) return chuyenSangCoBan();
+    tatRanhTay();
+  }
   return ok;
 }
 function tatLive() { _liveStartSeq++; try { if (window.JavisVoiceLive) window.JavisVoiceLive.stop(); } catch (e) {} }
@@ -3318,6 +3390,17 @@ function tatRanhTay() {
   handsFree = false;
   voice.handsFree = false;        // thôi rình ngắt lời ngay, đừng đợi vòng 500 ms
   voiceBtn.classList.remove("handsfree");
+  // Gọi điện (0.65.18): cúp máy thì ẩn thanh gọi, nút mic về lại "gọi", và lần gọi sau thử lại
+  // đường chính (chuyenSangCoBan chỉ đổi chế độ cho MỘT cuộc gọi).
+  // Bọc try: vài test bóc riêng hàm này ra chạy, ở đó không có thanh gọi.
+  try {
+    _callMuted = false; voice.muted = false;
+    if (callBar) callBar.hide();
+    voiceBtn.classList.remove("in-call");
+    voiceBtn.title = window.t("bar.mic");
+    voiceBtn.setAttribute("aria-label", window.t("bar.mic"));
+    if (_callInfo && _callInfo.voice_mode) voiceMode = _callInfo.voice_mode;
+  } catch (e) {}
   voice.cancelListening();
   voice.stopSpeaking();
   tatLive();
@@ -3358,6 +3441,14 @@ voiceBtn.addEventListener("click", () => {
   handsFree = !handsFree;
   if (handsFree) attention.start();
   voiceBtn.classList.toggle("handsfree", handsFree);
+  if (handsFree) {
+    // Bấm mic là GỌI: hiện thanh gọi, nút mic thành Cúp máy (0.65.18).
+    _callMuted = false;
+    voiceBtn.classList.add("in-call");
+    voiceBtn.title = window.t("call.hangup");
+    voiceBtn.setAttribute("aria-label", window.t("call.hangup"));
+    if (callBar) { callBar.show(tenDuongGoi()); capNhatThanhGoi(); }
+  }
   voice.handsFree = handsFree && voiceMode !== "live";   // bật ngay, không đợi vòng 500 ms
   // Loa đi theo mic (chủ repo yêu cầu 02/09): bật nghe là muốn NÓI CHUYỆN bằng giọng, nên
   // Javis phải đáp bằng giọng; tắt nghe là quay về gõ chữ, Javis im. Điện thoại từng không
@@ -3430,18 +3521,9 @@ setInterval(() => {
 
 document.getElementById("voiceFocusResume").addEventListener("click", () => resumeVoiceFocus());
 
-let spacePressed = false;
+// Phím Space KHÔNG còn mở mic (0.65.18, chủ dự án chốt 01/10): bấm mic là gọi, Esc là cúp. Bỏ để
+// không ai lỡ chạm Space mà mở mic, và không còn kiểu bộ đàm song song với kiểu gọi điện.
 document.addEventListener("keydown", (e) => {
-  // KHÔNG cướp phím Space khi con trỏ đang ở BẤT KỲ ô nhập nào (input/textarea/select/
-  // contenteditable) - nếu không sẽ không gõ được dấu cách trong form skill, editor file, settings…
-  const _ae = document.activeElement;
-  const _typing = _ae && (_ae.tagName === "INPUT" || _ae.tagName === "TEXTAREA" || _ae.tagName === "SELECT" || _ae.isContentEditable);
-  if (e.code === "Space" && !handsFree && !spacePressed && !_typing) {
-    // Bấm-giữ Space cũng là mở mic -> bật loa. Thả phím là hết câu, không phải "tắt nghe",
-    // nên KHÔNG tắt loa ở keyup - tắt thì câu trả lời ngay sau đó bị câm.
-    try { if (window.JavisTts) window.JavisTts.set(true); } catch (e2) {}
-    e.preventDefault(); spacePressed = true; voice.startListening();
-  }
   if (e.code === "Escape") {
     // Esc chỉ thoát chế độ rảnh tay + tắt mic + đóng popup node nếu đang mở. KHÔNG còn dừng câu
     // trả lời hay ngắt Javis đang nói (đã bỏ theo yêu cầu - đã có nút bật/tắt tiếng và nút Dừng).
@@ -3449,9 +3531,6 @@ document.addEventListener("keydown", (e) => {
     try { if (window.JavisTts) window.JavisTts.set(false); } catch (e2) {}   // Esc = thoát nói chuyện bằng giọng
     if (typeof closeNodePopup === "function") closeNodePopup();
   }
-});
-document.addEventListener("keyup", (e) => {
-  if (e.code === "Space" && spacePressed) { spacePressed = false; voice.stopListening(); }
 });
 
 // Reset
