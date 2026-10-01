@@ -388,6 +388,7 @@ Nếu giọng trả phí gặp lỗi (hết hạn mức, sai key, mất mạng),
 ### Nâng cao
 
 - **Đường gọi**: **Tự động (khuyên dùng)**, **ChatGPT Live**, **Live qua API key** hoặc **Cơ bản**. Tự động thử lần lượt ChatGPT Live, Live qua API key, rồi Cơ bản. Chọn tay một đường chưa chạy được thì Javis dùng đường kế tiếp và nói lý do ở dòng "Đang dùng".
+- **Bộ não trả lời nhanh**: **Tự động** (mặc định, ghi kèm bộ não đang dùng), **Bộ não chính (như gõ chữ)**, hoặc một bộ não cụ thể; bộ não chưa cài hay chưa có key ghi "(chưa sẵn)". Ô này chỉ dùng ở đường Cơ bản, xem mục **Đường Cơ bản và trả lời nhanh**. Gọi bằng ChatGPT Live thì ChatGPT tự nghe và tự trả lời.
 - **Tốc độ đọc**: từ 0,85× tới 1,45×, mặc định 1,10×. Chỉ hiện ở đường Cơ bản.
 - **API key ElevenLabs** và **Voice ID** (lấy ở ElevenLabs → Voices): chỉ hiện khi bạn chọn giọng ElevenLabs. Để trống ô key là giữ key đã lưu.
 
@@ -403,6 +404,7 @@ Giọng OpenAI cần OpenAI API key ở trang **Models**; trang giọng nói kh�
 - Đổi giọng ở ô **Giọng Javis** (9 giọng, xem ở trên).
 - Âm thanh đi thẳng từ trình duyệt tới OpenAI, nên chạy được cả khi Javis nằm trên VPS.
 - Cuộc gọi tính vào hạn mức gói ChatGPT của bạn.
+- Giữa cuộc gọi Javis không tự đổi sang đường khác (giọng khác). Lỡ nối lại không được thì Javis thử thêm một lần, vẫn không được thì báo một dòng và chờ, bạn nói lại là Javis thử tiếp.
 
 ### Live qua API key
 
@@ -417,7 +419,7 @@ Chưa có ChatGPT Live thì Javis dùng **Gemini Live**, **OpenAI Realtime** ho�
 3. Claude Code
 4. Grok Build
 
-Không có cái nào thì lượt nói đi thẳng bộ não chính. Câu cần số liệu, file, việc vẫn được giao cho bộ não chính, tất cả trong cùng một hội thoại. Bộ não giọng bạn đã chọn ở bản cũ vẫn chạy tiếp.
+Không có cái nào thì lượt nói đi thẳng bộ não chính. Câu cần số liệu, file, việc vẫn được giao cho bộ não chính, tất cả trong cùng một hội thoại. Muốn tự chọn thì đổi ô **Bộ não trả lời nhanh** ở **Nâng cao**; bộ não bạn đã chọn ở bản cũ vẫn được giữ.
 
 ### Tai nghe lại: câu Việt xen tiếng Anh
 
@@ -440,7 +442,7 @@ Các ô dưới đây đã bỏ khỏi trang vì máy tự quyết được:
 - **Ngắt lời Javis bằng giọng**: luôn bật.
 - **Nhịp hội thoại (thử nghiệm)**: bỏ hẳn.
 - **Tai nghe lại**: máy luôn tự chọn, xem mục ở trên.
-- **Chế độ nói chuyện** (Chuẩn, Làn nhanh, Live) và **Bộ não giọng nói**: thay bằng đường gọi, xem mục **Đường Cơ bản và trả lời nhanh**.
+- **Chế độ nói chuyện** (Chuẩn, Làn nhanh, Live): thay bằng đường gọi. Bộ não giọng nói nay là ô **Bộ não trả lời nhanh** ở **Nâng cao**.
 - **Từ hay nghe nhầm**: Javis tự dựng danh sách từ tên trợ lý và tên các MCP đã nối. Từ bạn đã lưu trước đó vẫn được dùng.
 
 ## Phóng to khung chat

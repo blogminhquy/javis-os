@@ -167,6 +167,15 @@ nối nào để ngắt nên nghe suốt cuộc gọi (`attention.enabled` chỉ
 Máy không có bộ nhận giọng của trình duyệt (hay nó bị chặn): dự phòng đo âm lượng mic
 (`SpeechLevel`, nền chỉ học từ mẫu yên và có trần). Có người nói là nối lại, nhưng câu đó mất chữ.
 
+**Nối lại hỏng giữa cuộc gọi (0.65.25).** Cuộc gọi đã nối ChatGPT Live ít nhất một lần
+(`_cuocGoiDaNoi`) thì nối lại hỏng KHÔNG chuyển sang đường Cơ bản: thử lại một lần sau 0,8 giây
+với đúng câu vừa nói, vẫn hỏng thì báo một dòng ("Chưa nối lại được ChatGPT Live. Cứ nói lại là
+Javis thử tiếp.") và quay về chờ. Chủ dự án báo 02/10: nối lại hỏng rơi xuống đường Cơ bản đọc
+bằng giọng Edge nên nghe như Javis tự đổi giọng nữ sang giọng nam giữa chừng, trong khi ý muốn là
+ChatGPT lo trọn cuộc gọi. Chỉ lần mở ĐẦU cuộc gọi hỏng mới chuyển đường Cơ bản như mục 3.1. Nối sớm
+không nằm trong cú bấm nào, nên `AudioContext.resume()` chỉ được chờ tối đa 1 giây (iPhone có thể
+treo nó mãi).
+
 **Màn hình sáng.** Điện thoại khoá màn hình là trình duyệt cắt mic, cuộc gọi chết lặng (chủ dự án
 báo trên iPhone, app mở từ màn hình chính). Trong lúc gọi, `screen-awake.js` xin Screen Wake Lock
 ngay trong cú bấm mic, xin lại khi trang hiện lại, nhả khi cúp máy. Máy không hỗ trợ thì bỏ qua.
@@ -189,7 +198,8 @@ chế độ rảnh tay hiện nay, chỉ đổi vỏ.
   đọc; kết quả handoff là một bong bóng đầy đủ. Tất cả vào lịch sử phiên như tin thường.
 - **Orb** (trang chủ) và linh vật vẫn theo trạng thái thật, vẽ qua `capNhatOrb()`.
 - **Lỗi**: không nối được đường đang dùng thì báo một dòng và tự chuyển xuống đường kế tiếp trong
-  mục 3.1, không bắt người dùng vào cài đặt.
+  mục 3.1, không bắt người dùng vào cài đặt. Riêng nối lại GIỮA cuộc gọi ChatGPT Live thì không
+  chuyển đường (mục 3.5).
 - Gõ chữ trong lúc gọi vẫn được: chữ gửi vào cuộc gọi (`appendText`).
 
 ## 5. Trang cài đặt Giọng nói
@@ -200,6 +210,7 @@ GIỌNG NÓI
   Giọng Javis   [ juniper                 v ] [▶]    <- danh sách đổi theo đường gọi
   > Nâng cao
       Đường gọi      [ Tự động v ]  (Tự động / ChatGPT Live / Live API key / Cơ bản)
+      Bộ não trả lời nhanh [ Tự động (đang là ...) v ]  (chỉ đường Cơ bản)
       Tốc độ đọc     [ 1,10x  v ]   (chỉ đường Cơ bản)
       ElevenLabs     key + Voice ID (chỉ khi chọn giọng ElevenLabs)
 ```
@@ -213,8 +224,12 @@ GIỌNG NÓI
 - **Bỏ khỏi giao diện, máy tự lo**: đọc trả lời bằng giọng (trùng nút mic), nhịp hội thoại thử
   nghiệm (gỡ hẳn ô nhập; code điều khiển ép tắt, chờ PR dọn riêng), từ hay nghe nhầm (tự lấy tên trợ lý và tên kết nối MCP), ô
   API key OpenAI (ở trang Models), ngôn ngữ nghe (theo ngôn ngữ giao diện), im lặng rồi gửi (mặc
-  định 1,2 giây), ngắt lời bằng giọng (luôn bật), tai nghe lại (luôn tự chọn), bộ não giọng (bộ não
-  đầu tiên sẵn trên gói), khoá chết `loc_tap_am`, khoá cũ `stt_provider`.
+  định 1,2 giây), ngắt lời bằng giọng (luôn bật), tai nghe lại (luôn tự chọn), khoá chết
+  `loc_tap_am`, khoá cũ `stt_provider`.
+- **Bộ não trả lời nhanh** (bỏ ở 0.65.19, trả lại ở 0.65.25 vì chủ dự án muốn tự chỉnh): Tự động
+  (bộ não đầu tiên sẵn trên gói, ghi kèm tên đang dùng), Bộ não chính (lưu `mode = standard`), hoặc
+  một bộ não cụ thể (lưu `mode = fast` + `brain_provider`); bộ não chưa sẵn ghi "(chưa sẵn)". Chỉ
+  dùng ở đường Cơ bản: ChatGPT Live tự nghe và tự trả lời, việc cần dữ liệu đi bộ não chính.
 - **Giữ dữ liệu cũ**: giá trị người dùng đã lưu ở các ô bị bỏ vẫn được đọc và dùng tiếp (ví dụ từ
   đã khai ở hotwords vẫn vào từ mồi); chỉ ô nhập biến mất. Khoá mới không đè khoá cũ.
 - Cập nhật allowlist `POST /settings` (nhánh `voice`) và `test_luu_cai_dat_giong.py` cùng lúc.
@@ -223,7 +238,9 @@ GIỌNG NÓI
   token đã lưu, không hỏi mạng, nhớ 60 giây). Không có cái nào thì tin từ mic đi bộ não chính.
   Khoá cũ `mode = live` tính như Làn nhanh vì Live nay là đường gọi riêng.
 - Thẻ đọc `GET /voice/options?brains=0`: bỏ danh sách bộ não nên không chạy `agy models` (có khi
-  tới 30 giây); trả thêm `call` (đường gọi), `tts` (giọng đọc đường basic) và `voice_brain`.
+  tới 30 giây); trả thêm `call` (đường gọi), `tts` (giọng đọc đường basic), `voice_brain`, và
+  từ 0.65.25 `brain_choices` (`voice_brain.brain_available`: gói soi binary và token, API soi key
+  đã lưu) cùng `brain_auto`.
 
 ## 6. Thứ tự làm (mỗi bước một PR, đặt số phiên bản trước theo `docs/quy-uoc-dev.md`)
 

@@ -3311,6 +3311,12 @@
   "settings.vc_engine_auto": "Tự động (khuyên dùng)",
   "settings.vc_engine_api": "Live qua API key",
   "settings.vc_engine_basic": "Cơ bản",
+  "settings.vc_brain": "Bộ não trả lời nhanh",
+  "settings.vc_brain_hint": "Chỉ dùng ở đường Cơ bản. Gọi bằng ChatGPT Live thì ChatGPT tự nghe và trả lời, việc cần dữ liệu đi bộ não chính.",
+  "settings.vc_brain_auto": "Tự động",
+  "settings.vc_brain_auto_pick": "Tự động (đang là {brain})",
+  "settings.vc_brain_main": "Bộ não chính (như gõ chữ)",
+  "settings.vc_brain_unavailable": "{brain} (chưa sẵn)",
   "settings.vc_now": "Đang dùng: {engine}.",
   "settings.vc_now_brain": "Trả lời nhanh bằng {brain}.",
   "settings.vc_reason_auto_api": "ChatGPT Live chưa dùng được nên đang gọi qua API key.",
@@ -3322,5 +3328,6 @@
   "settings.vc_saved": "Đã lưu.",
   "settings.vc_group_edge": "Edge (miễn phí)",
   "settings.vc_eleven_opt": "Giọng ElevenLabs của bạn (Voice ID ở Nâng cao)",
-  "settings.vc_openai_note": "Muốn dùng giọng OpenAI: dán API key OpenAI ở trang Models."
+  "settings.vc_openai_note": "Muốn dùng giọng OpenAI: dán API key OpenAI ở trang Models.",
+  "call.reconnect_failed": "Chưa nối lại được ChatGPT Live. Cứ nói lại là Javis thử tiếp."
 }

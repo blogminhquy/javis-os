@@ -62,7 +62,10 @@ assert.match(con, /CHAT_NODE_IDS = \["callBar", "chatArea"/, 'call bar follows t
 assert.ok(!/e\.code === "Space"/.test(app), 'Space no longer opens the mic');
 assert.match(app, /if \(e\.code === "Escape"\) \{\s*\n[\s\S]{0,400}tatRanhTay\(\)/, 'Esc still hangs up');
 assert.match(app, /fetch\("\/voice\/call"\)/, 'mode comes from the call engine');
-assert.match(app, /if \(handsFree && !readySeen\) return chuyenSangCoBan\(\);/, 'Live that cannot start falls back to Basic');
+// 0.65.25: only the FIRST connection of a call falls back to Basic; mid-call it retries and waits
+// (test_voice_focus_app.js runs both cases).
+assert.match(app, /if \(handsFree && !readySeen\) return _cuocGoiDaNoi \? noiLaiHong\(wakeText, lanThu\) : chuyenSangCoBan\(\);/,
+  'Live that cannot start falls back to Basic only before the call has connected');
 assert.match(app, /voice.muted = _callMuted/, "mute stops the basic path from reopening the mic");
 assert.match(app, /capNhatThanhGoi\(\);\s*\n\}/, 'orb updates also update the call bar');
 const vi = JSON.parse(read('dashboard/i18n/vi.json'));

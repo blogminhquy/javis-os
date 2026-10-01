@@ -231,7 +231,12 @@
         return false;
       }
     }
-    try { await inCtx.resume(); await outCtx.resume(); } catch (e) {}
+    // Nối lại tự động (khi người dùng nói) không nằm trong cú bấm nào; trên iPhone resume() lúc đó có
+    // thể treo mãi. Chờ tối đa 1 giây: WebRTC phát tiếng qua thẻ audio, không cần outCtx mới có tiếng.
+    try {
+      await Promise.race([Promise.all([inCtx.resume(), outCtx.resume()]),
+                          new Promise(function (r) { setTimeout(r, 1000); })]);
+    } catch (e) {}
     if (id !== generation) return false;
     var sid = "", brain = "brain", language = "vi-VN";
     try { sid = (opts.sessionId && opts.sessionId()) || ""; brain = (opts.brain && opts.brain()) || "brain"; } catch (e) {}

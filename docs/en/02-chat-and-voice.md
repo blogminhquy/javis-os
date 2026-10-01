@@ -372,6 +372,7 @@ If a paid voice fails (quota used up, wrong key, no network), Javis reports the 
 ### Advanced
 
 - **Call path**: **Automatic (recommended)**, **ChatGPT Live**, **Live with an API key** or **Basic**. Automatic tries ChatGPT Live, then Live with an API key, then Basic. If you pick a path that is not ready, Javis uses the next one and says why on the "Using" line.
+- **Quick-reply brain**: **Automatic** (default, shows the brain in use), **Main brain (same as typing)**, or a specific brain; one that is not installed or has no key is marked "(not ready)". It only applies to the Basic path, see **The Basic path and quick replies**. On a ChatGPT Live call, ChatGPT listens and replies itself.
 - **Speaking rate**: 0.85× to 1.45×, default 1.10×. Shown only on the Basic path.
 - **ElevenLabs API key** and **Voice ID** (from ElevenLabs → Voices): shown only when the ElevenLabs voice is picked. Leaving the key box empty keeps the saved key.
 
@@ -387,6 +388,7 @@ OpenAI voices need an OpenAI API key on the **Models** page; the voice page no l
 - Change the voice in **Javis's voice** (9 voices, see above).
 - Audio goes straight from the browser to OpenAI, so it works even when Javis runs on a VPS.
 - Calls count against your ChatGPT plan's usage.
+- Mid-call, Javis does not switch to another path (and another voice) on its own. If reconnecting fails, it tries once more; if that fails too it shows one line and waits, and speaking again makes it retry.
 
 ### Live with an API key
 
@@ -401,7 +403,7 @@ The Basic path listens through the browser and speaks with the voice you picked.
 3. Claude Code
 4. Grok Build
 
-If none is available, spoken turns go to the main brain. Questions that need data, files or tasks are still handed to the main brain, all in the same conversation. A voice brain you chose in an older version keeps working.
+If none is available, spoken turns go to the main brain. Questions that need data, files or tasks are still handed to the main brain, all in the same conversation. To choose yourself, change **Quick-reply brain** under **Advanced**; a brain you chose in an older version is kept.
 
 ### Listening ear: Vietnamese mixed with English
 
@@ -424,7 +426,7 @@ These fields were removed from the page because the machine decides them:
 - **Interrupt Javis by voice**: always on.
 - **Conversation timing (experimental)**: removed entirely.
 - **Listening ear**: always picked automatically, see above.
-- **Conversation mode** (Standard, Fast lane, Live) and **Voice brain**: replaced by the call path, see **The Basic path and quick replies**.
+- **Conversation mode** (Standard, Fast lane, Live): replaced by the call path. The voice brain is now **Quick-reply brain** under **Advanced**.
 - **Often-misheard words**: Javis builds the list itself from the assistant name and the names of connected MCPs. Words you saved earlier are still used.
 
 ## Enlarging the chat

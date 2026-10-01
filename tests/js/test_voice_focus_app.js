@@ -6,6 +6,8 @@ const { Attention } = require('../../dashboard/voice-attention.js');
 const source = fs.readFileSync('dashboard/app.js', 'utf8');
 let now = 0, liveOptions, wakeOptions, voiceOptions, stopCount = 0;
 let captureEnd = Promise.resolve(true);
+let startResult = true, basicCalls = 0;
+const timers = [], notes = [];
 const sent = [], stored = [], drafts = [], events = [];
 const button = {};
 const noop = () => {};
@@ -14,7 +16,7 @@ const box = {
   adaptiveOutbox:new Map(), adaptiveContinuation:'',
 
   window: { JavisVoiceAttention: { Attention: class extends Attention { constructor() { super({now: () => now}); } } },
-    t: x => x, JavisVoiceLive: { start: async o => { liveOptions = o; events.push('live-start'); return true; },
+    t: x => x, JavisVoiceLive: { start: async o => { liveOptions = o; events.push('live-start'); return startResult; },
       attachMic: async () => { events.push('attach-mic'); return true; },
       stop: () => { stopCount++; }, isSpeaking: () => false, sendText: t => sent.push(t) } },
   JavisVoice: class { constructor(o) { if (!voiceOptions) voiceOptions = o; else wakeOptions = o; this.lang = 'vi-VN'; }
@@ -33,7 +35,9 @@ const box = {
   runActions: noop, petReact: noop, nhapGiong: t => drafts.push(t), veTinTuGiong: t => t, sendMessage: t => sent.push(t),
   capNhatOrb: noop, appendUserMessage: noop, recordTurn: (role, text) => stored.push([role, text]),
   currentBrainPath: () => 'brain', persistSession: noop, guiNguCanhLive: noop,
-  setInterval: () => 1, clearInterval: noop, clearTimeout: noop, setTimeout: () => 1, capNhatThanhGoi: noop,
+  setInterval: () => 1, clearInterval: noop, clearTimeout: noop, capNhatThanhGoi: noop,
+  setTimeout: (fn) => { timers.push(fn); return timers.length; },
+  chuyenSangCoBan: () => { basicCalls++; return true; }, ghiChuThoang: (k) => notes.push(k),
 };
 vm.createContext(box);
 vm.runInContext(source.slice(source.indexOf('const attention ='), source.indexOf('// ============================================\n// Voice V1 -')), box);
@@ -123,5 +127,27 @@ function final(text) { if (voiceOptions.acceptTranscript(text)) voiceOptions.onT
   const opening = box.batLive('câu đang chờ nhả mic');
   box.tatRanhTay(); release(true); await opening;
   assert.equal(events.filter(e => e === 'live-start').length, starts, 'cancel while waiting for capture release never opens provider');
-  console.log('voice focus app: basic listens through the call, Live sleeps at 30 s and wakes on real speech, duplicate ready, stale handoff pass');
+  // 0.65.25: nối lại hỏng GIỮA cuộc gọi không chuyển sang đường Cơ bản (giọng Edge khác hẳn, chủ dự án
+  // nghe như Javis tự đổi giọng nữ sang nam). Thử lại một lần đúng câu đó, rồi quay về chờ và báo.
+  captureEnd = Promise.resolve(true);
+  box.handsFree = true; box.voiceMode = 'live';
+  run('attention.enabled = true; attention.start(); _liveWaitingWake = false; _liveSom = null; _cuocGoiDaNoi = true');
+  startResult = false; timers.length = 0; notes.length = 0; basicCalls = 0;
+  const before = events.filter(e => e === 'live-start').length;
+  await box.batLive('câu sau khi tạm ngắt');
+  assert.equal(basicCalls, 0, 'a mid-call reconnect failure never switches to the Basic path');
+  assert.equal(timers.length, 1, 'one retry is scheduled');
+  timers.shift()();
+  for (let i = 0; i < 5; i++) await new Promise(setImmediate);
+  assert.equal(events.filter(e => e === 'live-start').length, before + 2, 'retried once');
+  assert.equal(basicCalls, 0);
+  assert.equal(timers.length, 0, 'no endless retry loop');
+  assert.equal(run('_liveWaitingWake'), true, 'after the retry fails the call goes back to waiting');
+  assert.deepEqual(notes, ['call.reconnect_failed']);
+  // Đầu cuộc gọi (chưa nối lần nào) vẫn chuyển đường Cơ bản như trước.
+  run('_liveWaitingWake = false; _cuocGoiDaNoi = false');
+  await box.batLive('');
+  assert.equal(basicCalls, 1, 'a first-connect failure still falls back to Basic');
+  startResult = true;
+  console.log('voice focus app: basic listens through the call, Live sleeps at 30 s and wakes on real speech, duplicate ready, stale handoff, no mid-call voice switch pass');
 })().catch(e => { console.error(e); process.exitCode = 1; });

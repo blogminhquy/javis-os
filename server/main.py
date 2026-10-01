@@ -12209,7 +12209,8 @@ async def voice_options(brains: int = 1):
     """Cho thẻ Giọng nói ở trang Cài đặt: cái gì đang sẵn, key nào đã có, đường gọi đang dùng.
 
     `brains=0` (thẻ gọn từ 0.65.19): bỏ danh sách bộ não giọng, nên không chạy `agy models` (có khi
-    tới 30 giây). Thẻ gọn không còn ô bộ não giọng, máy tự chọn (voice_brain.auto_brain)."""
+    tới 30 giây). Thẻ gọn chọn bộ não giọng bằng `brain_choices` (không có danh sách model), mặc định
+    máy tự chọn (voice_brain.auto_brain)."""
     cfg = cfgmod.read_settings()
     m = cfg.get("model", {}) or {}
     v = cfg.get("voice", {}) or {}
@@ -12316,6 +12317,11 @@ async def voice_options(brains: int = 1):
         "call": voice_call.select_call_engine(cfg),
         # Bộ não giọng của đường Cơ bản (đã chọn từ bản cũ, hoặc máy tự chọn trên gói), "" = bộ não chính.
         "voice_brain": {"id": _vb, "label": (voice_brain.BRAIN_PROVIDERS.get(_vb) or {}).get("label", "")},
+        # Ô "Bộ não trả lời nhanh" ở Nâng cao (0.65.25, chủ dự án xin trả lại để tự chỉnh). Chỉ soi
+        # máy và key đã lưu, không chạy `agy models`, nên thẻ gọn vẫn nhanh.
+        "brain_auto": voice_brain.auto_brain(cfg),
+        "brain_choices": [{"id": pid, "label": p["label"], "available": voice_brain.brain_available(pid, cfg)}
+                          for pid, p in voice_brain.BRAIN_PROVIDERS.items() if pid],
         "tts": {"provider": v.get("tts_provider") or "edge",
                 "openai_voice": v.get("openai_tts_voice") or "alloy",
                 "openai_key_set": bool(m.get("openai_api_key")),

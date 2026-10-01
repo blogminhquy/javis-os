@@ -1,9 +1,9 @@
 /* Thẻ Giọng nói gọn (0.65.19, docs/dev/2026-10-voice-call-spec.md mục 5).
 
    Bấm mic là gọi Javis, nên trang Cài đặt chỉ còn: dòng "Đang dùng", Giọng Javis (danh sách đổi
-   theo đường gọi); Nâng cao có Đường gọi, Tốc độ đọc, ElevenLabs. Mọi ô tự lưu, không
-   còn nút Lưu. Phần máy tự lo (ngôn ngữ nghe, im lặng rồi gửi, ngắt lời, nhịp hội thoại, tai nghe
-   lại, bộ não giọng, đọc trả lời bằng giọng, key OpenAI) không còn ô nhập.
+   theo đường gọi); Nâng cao có Đường gọi, Bộ não trả lời nhanh (trả lại ở 0.65.25), Tốc độ đọc,
+   ElevenLabs. Mọi ô tự lưu, không còn nút Lưu. Phần máy tự lo (ngôn ngữ nghe, im lặng rồi gửi,
+   ngắt lời, nhịp hội thoại, tai nghe lại, đọc trả lời bằng giọng, key OpenAI) không còn ô nhập.
 
    Phần 1 soi khung tĩnh và dây nối; phần 2 CHẠY renderVoiceCard() thật trên DOM giả cho ba đường
    gọi và kiểm cái gì được lưu khi đổi từng ô.
@@ -31,7 +31,7 @@ function check(name, cond) {
 
 // ---- 1. Khung tĩnh: đúng ba ô và Nâng cao, các ô cũ đã gỡ hẳn (không chỉ ẩn) ----
 const card = html.slice(html.indexOf('id="voiceCard"'), html.indexOf("<!-- THƯƠNG HIỆU."));
-for (const id of ["vcNow", "vcVoice", "vcTry", "vcAdvanced", "vcEngine", "rateSel", "vcEleven", "vcElKey", "vcElVoice", "vcStatus", "v2LastErr", "voiceSel"])
+for (const id of ["vcNow", "vcVoice", "vcTry", "vcAdvanced", "vcEngine", "vcBrain", "rateSel", "vcEleven", "vcElKey", "vcElVoice", "vcStatus", "v2LastErr", "voiceSel"])
   check(`thẻ Giọng nói có #${id}`, card.includes(`id="${id}"`));
 check("Đường gọi có đủ bốn lựa chọn", ["auto", "chatgpt", "api", "basic"].every(v => card.includes(`<option value="${v}"`)));
 check("tên đường gọi viết ChatGPT Live, không có chữ song công", card.includes(">ChatGPT Live<") && !/song công/i.test(card + JSON.stringify(vi)));
@@ -57,7 +57,9 @@ for (const k of ["settings.vc_title", "settings.vc_voice", "settings.vc_advanced
   "settings.vc_engine", "settings.vc_engine_auto", "settings.vc_engine_api", "settings.vc_engine_basic", "settings.vc_now",
   "settings.vc_now_brain", "settings.vc_reason_auto_api", "settings.vc_reason_auto_basic", "settings.vc_reason_chosen_unavailable",
   "settings.vc_detail_no_cli", "settings.vc_detail_no_login", "settings.vc_detail_old_cli", "settings.vc_saved",
-  "settings.vc_group_edge", "settings.vc_eleven_opt", "settings.vc_openai_note", "settings.v2_last_error"])
+  "settings.vc_group_edge", "settings.vc_eleven_opt", "settings.vc_openai_note", "settings.v2_last_error",
+  "settings.vc_brain", "settings.vc_brain_hint", "settings.vc_brain_auto", "settings.vc_brain_auto_pick",
+  "settings.vc_brain_main", "settings.vc_brain_unavailable"])
   check(`i18n vi+en có ${k}`, typeof vi[k] === "string" && typeof en[k] === "string");
 check("câu lỗi làn nhanh không còn bảo chọn bộ não khác rồi Lưu", !/rồi Lưu/.test(vi["settings.v2_last_error"]));
 
@@ -171,6 +173,34 @@ const base = (call, extra = {}) => Object.assign({
   r.els.vcVoice.value = "openai:coral"; await r.els.vcVoice.onchange();
   check("Cơ bản + OpenAI: đổi giọng lưu cả nhà cung cấp lẫn giọng",
     JSON.stringify(r.saves.at(-1)) === '["voice",{"tts_provider":"openai","openai_tts_voice":"coral"}]');
+
+  // 3d. Bộ não trả lời nhanh (0.65.25, chủ dự án xin trả lại ô này để tự chỉnh).
+  const CHOICES = [{ id: "antigravity", label: "Antigravity", available: false },
+    { id: "codex", label: "ChatGPT", available: true }, { id: "groq", label: "Groq", available: false }];
+  r = await run(base({ engine: "chatgpt", live_provider: "chatgpt", setting: "auto", reason: "auto", detail: "" },
+    { brain_choices: CHOICES, brain_auto: "codex", voice: { mode: "fast", brain_provider: "" } }));
+  const br = r.els.vcBrain;
+  check("Bộ não: Tự động ghi bộ não máy đang chọn, được chọn sẵn",
+    br.value === "auto" && br.options[0].textContent === 'settings.vc_brain_auto_pick{"brain":"ChatGPT"}');
+  check("Bộ não: có Bộ não chính và đủ các bộ não, cái chưa sẵn được đánh dấu",
+    br.options.map(o => o.value).join() === "auto,main,antigravity,codex,groq"
+    && br.options[2].textContent === 'settings.vc_brain_unavailable{"brain":"Antigravity"}' && br.options[3].textContent === "ChatGPT");
+  br.value = "codex"; await br.onchange();
+  check("Bộ não: chọn một bộ não là lưu làn nhanh với bộ não đó",
+    JSON.stringify(r.saves.at(-1)) === '["voice",{"mode":"fast","brain_provider":"codex"}]');
+  br.value = "main"; await br.onchange();
+  check("Bộ não: chọn Bộ não chính là lưu chế độ Chuẩn",
+    JSON.stringify(r.saves.at(-1)) === '["voice",{"mode":"standard","brain_provider":""}]');
+  br.value = "auto"; await br.onchange();
+  check("Bộ não: chọn Tự động là xoá bộ não đã chọn",
+    JSON.stringify(r.saves.at(-1)) === '["voice",{"mode":"fast","brain_provider":""}]');
+  r = await run(base({ engine: "basic", live_provider: "", setting: "basic", reason: "chosen", detail: "" },
+    { brain_choices: CHOICES, brain_auto: "", voice: { mode: "standard", brain_provider: "codex" } }));
+  check("Bộ não: chế độ Chuẩn đã lưu hiện Bộ não chính; không gói nào sẵn thì Tự động không kèm tên",
+    r.els.vcBrain.value === "main" && r.els.vcBrain.options[0].textContent === "settings.vc_brain_auto");
+  r = await run(base({ engine: "basic", live_provider: "", setting: "basic", reason: "chosen", detail: "" },
+    { brain_choices: CHOICES, brain_auto: "codex", voice: { mode: "fast", brain_provider: "groq" } }));
+  check("Bộ não: bộ não chọn tay từ bản cũ được giữ", r.els.vcBrain.value === "groq");
 
   if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }
   console.log("\nOK - thẻ Giọng nói gọn");

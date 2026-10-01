@@ -1078,6 +1078,17 @@ def plan_brain_available(pid: str, cfg: dict) -> bool:
     return False
 
 
+def brain_available(pid: str, cfg: dict) -> bool:
+    """Ô "Bộ não trả lời nhanh" (0.65.25): bộ não trên gói soi như plan_brain_available, bộ não API
+    soi đã có key ở trang Models chưa. Không hỏi mạng."""
+    p = BRAIN_PROVIDERS.get(pid)
+    if not pid or not p:
+        return False
+    if p["key_field"]:
+        return bool(((cfg or {}).get("model") or {}).get(p["key_field"]))
+    return plan_brain_available(pid, cfg)
+
+
 def auto_brain(cfg: dict) -> str:
     """Bộ não giọng đầu tiên đang sẵn trong PLAN_BRAINS, "" khi không có. Nhớ 60 giây: hàm chạy mỗi
     câu nói, còn dò binary là đi quét PATH."""

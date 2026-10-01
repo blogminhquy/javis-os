@@ -114,11 +114,25 @@ try:
     check("trả bộ não giọng tự chọn kèm nhãn", (d.get("voice_brain") or {}).get("id") == "claude"
           and "Claude" in d["voice_brain"].get("label", ""))
     check("vẫn trả giọng ChatGPT Live và nhà cung cấp Live", d.get("chatgpt_voice") and d.get("live_providers"))
+    # 0.65.25: ô "Bộ não trả lời nhanh" ở Nâng cao, không cần `agy models`.
+    ch = {c["id"]: c["available"] for c in d.get("brain_choices") or []}
+    check("brain_choices: đủ bộ não, không có dòng bộ não chính rỗng",
+          "" not in ch and set(ch) == {k for k in vb.BRAIN_PROVIDERS if k})
+    check("brain_choices: gói soi plan_brain_available, API soi key đã lưu",
+          ch.get("claude") is True and ch.get("codex") is False and ch.get("openai") is True and ch.get("groq") is False)
+    check("brain_auto: bộ não máy đang tự chọn", d.get("brain_auto") == "claude")
     d = client.get("/voice/options").json()
     check("mặc định vẫn có danh sách bộ não (client cũ)", len(d.get("brain_providers") or []) > 0 and _goi_agy == [1])
 finally:
     main.antigravity_cli.list_models = _goc_list
     main.cfgmod.read_settings = _goc_cfg
+
+# ---- brain_available ----
+moi("grok")
+check("brain_available: gói đang sẵn", vb.brain_available("grok", {}) is True)
+check("brain_available: gói chưa sẵn", vb.brain_available("codex", {}) is False)
+check("brain_available: API có key", vb.brain_available("gemini", {"model": {"gemini_api_key": "k"}}) is True)
+check("brain_available: id rỗng hoặc lạ là không", vb.brain_available("", {}) is False and vb.brain_available("xyz", {}) is False)
 
 if _fails:
     print("\nFAIL:", len(_fails), _fails)

@@ -6541,6 +6541,24 @@
       renderVoiceCard();   // dòng "Đang dùng" và danh sách giọng đổi theo đường mới
     };
 
+    // Bộ não trả lời nhanh của đường Cơ bản (0.65.25, chủ dự án xin trả lại để tự chỉnh). Tự động
+    // là bộ não đầu tiên đang sẵn trên gói (voice_brain.auto_brain); Bộ não chính là tin từ mic đi
+    // như gõ chữ (mode standard). ChatGPT Live không dùng ô này: ChatGPT tự nghe và tự trả lời.
+    const brainSel = $("vcBrain");
+    const choices = o.brain_choices || [];
+    const brainCur = v.mode === "standard" ? "main" : (v.brain_provider || "auto");
+    const autoPick = choices.find(b => b.id === o.brain_auto);
+    brainSel.innerHTML = opt("auto", autoPick ? t("settings.vc_brain_auto_pick", { brain: autoPick.label }) : t("settings.vc_brain_auto"), brainCur)
+      + opt("main", t("settings.vc_brain_main"), brainCur)
+      + choices.map(b => opt(b.id, b.available ? b.label : t("settings.vc_brain_unavailable", { brain: b.label }), brainCur)).join("");
+    brainSel.onchange = async () => {
+      const val = brainSel.value;
+      const provider = val === "auto" || val === "main" ? "" : val;
+      if (val === "main") await luuGiong({ mode: "standard", brain_provider: "" });
+      else await luuGiong({ mode: "fast", brain_provider: provider });
+      renderVoiceCard();   // dòng "Đang dùng" đổi theo bộ não mới
+    };
+
     // ElevenLabs: key chỉ gửi khi gõ key MỚI (ô để trống là giữ key cũ), Voice ID lưu khi rời ô.
     $("vcElKey").onchange = async () => {
       const key = $("vcElKey").value.trim();

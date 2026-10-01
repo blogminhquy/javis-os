@@ -376,6 +376,11 @@
                     <option value="basic" data-i18n="settings.vc_engine_basic">Cơ bản</option>
                   </select>
                 </div>
+                <div class="qs-field">
+                  <label class="qs-lbl" for="vcBrain" data-i18n="settings.vc_brain">Bộ não trả lời nhanh</label>
+                  <select class="js-input" id="vcBrain"></select>
+                </div>
+                <div class="qs-hint" data-i18n="settings.vc_brain_hint">Chỉ dùng ở đường Cơ bản. Gọi bằng ChatGPT Live thì ChatGPT tự nghe và trả lời, việc cần dữ liệu đi bộ não chính.</div>
                 <div class="qs-field" id="vcRateRow">
                   <label class="qs-lbl" for="rateSel" data-i18n="qs.rate_lbl">Tốc độ đọc</label>
                   <select class="js-input" id="rateSel">
@@ -835,10 +840,10 @@
   <script src="/static/ui-context.js?v=1"></script>
   <script src="/static/ui-actions.js?v=1"></script>
   <!-- Voice V2: nghe nói thẳng (Live), app.js gọi lười khi bấm mic ở chế độ Live. -->
-  <script src="/static/voice-live.js?v=5"></script>
+  <script src="/static/voice-live.js?v=6"></script>
   <script src="/static/screen-awake.js?v=1"></script>
   <script src="/static/call-bar.js?v=1"></script>
-  <script src="/static/app.js?v=123"></script>
+  <script src="/static/app.js?v=124"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=3"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
@@ -873,7 +878,7 @@
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
   <!-- Phần đọc cấu hình của form "Tự thêm MCP" (thuần, có test node). Nạp TRƯỚC console.js. -->
   <script src="/static/mcp-form-parse.js?v=1"></script>
-  <script src="/static/console.js?v=163"></script>
+  <script src="/static/console.js?v=164"></script>
   <script src="/static/mobile-chat.js?v=11"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>

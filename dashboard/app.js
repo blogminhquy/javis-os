@@ -545,6 +545,10 @@ let _liveWaitingWake = false, _liveBusyUntil = 0;
 // mic (deferMic) vì bộ nghe của trình duyệt còn đang nghe nốt câu và điện thoại chỉ cho một bên giữ mic.
 let _liveSom = null;
 const NOI_SOM_HUY_MS = 12000;   // nối sớm mà mãi không có câu chốt (tiếng động) thì đóng, đỡ tốn hạn mức
+// Cuộc gọi này đã nối Live ít nhất một lần (0.65.25). Từ đó trở đi, nối lại hỏng KHÔNG chuyển sang đường
+// Cơ bản: chủ dự án muốn ChatGPT Live lo trọn cuộc gọi, còn đường Cơ bản đọc bằng giọng Edge khác hẳn
+// nên nghe như Javis "tự đổi giọng nữ sang giọng nam" giữa chừng (chủ báo 02/10).
+let _cuocGoiDaNoi = false;
 let _liveToolCount = 0;
 // Only one capture is alive: Live is closed before this free browser listener starts.
 // Lúc Live đã ngắt vì im lâu, CÂU NÓI THẬT đầu tiên là nối lại (0.65.22, attention.wakes): không
@@ -577,6 +581,22 @@ function doTreChotCauCho(text) {
   const d = turn.delayFor(text);
   return d > turn.opts.minDelay ? d : Math.min(d, CHOT_CAU_CHO_MS);
 }
+// Nối lại hỏng GIỮA cuộc gọi: thử lại một lần với đúng câu vừa nói (câu không mất); vẫn hỏng thì báo
+// một dòng và quay về chờ, nói lại là thử tiếp. Lý do hỏng đã hiện ở dòng lỗi của onError.
+const NOI_LAI_THU_LAI_MS = 800;
+function noiLaiHong(text, lanThu) {
+  if (!handsFree) return false;
+  if (lanThu < 1) {
+    setTimeout(() => {
+      if (handsFree && voiceMode === "live" && !_liveWaitingWake && !_liveSom) batLive(text, { lanThu: lanThu + 1 });
+    }, NOI_LAI_THU_LAI_MS);
+    return false;
+  }
+  ghiChuThoang(window.t("call.reconnect_failed"));
+  _liveWaitingWake = true;   // bộ nghe chờ câu sau (tickVoiceFocus mở lại nó)
+  capNhatThanhGoi();
+  return false;
+}
 function noiSom() {
   if (_liveSom || !_liveWaitingWake || !handsFree || voiceMode !== "live" || !window.JavisVoiceLive) return;
   batLive("", { som: true });
@@ -600,7 +620,7 @@ async function noiTiepPhienSom(phien, wakeText) {
   const ok = await phien.promise;   // bắt tay còn dở thì chờ nốt
   if (phien.ticket !== _liveStartSeq) return false;
   if (!ok) {
-    if (handsFree) return chuyenSangCoBan();
+    if (handsFree) return _cuocGoiDaNoi ? noiLaiHong(wakeText, 0) : chuyenSangCoBan();
     return false;
   }
   if (!(await window.JavisVoiceLive.attachMic())) return false;   // lỗi mic: attachMic tự báo và đóng
@@ -701,7 +721,7 @@ function guiNguCanhLive() {
     window.JavisVoiceLive.sendContext(ctx);
   } catch (e) {}
 }
-async function batLive(wakeText = "", { som = false } = {}) {
+async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
   if (!window.JavisVoiceLive) { alert(window.t("app.live_missing")); return false; }
   if (!som && _liveSom) return noiTiepPhienSom(_liveSom, wakeText);
   const ticket = ++_liveStartSeq;
@@ -748,7 +768,7 @@ async function batLive(wakeText = "", { som = false } = {}) {
     },
     onReady: (d) => {
       if (ticket !== _liveStartSeq || !handsFree) return;
-      if (!readySeen) { readySeen = phien.readySeen = true; _liveBusyUntil = 0; attention.keepActive(); }
+      if (!readySeen) { readySeen = phien.readySeen = true; _cuocGoiDaNoi = true; _liveBusyUntil = 0; attention.keepActive(); }
       if (d && d.session_id && !savedSessionId) { savedSessionId = d.session_id; persistSession(); }
       // Nối sớm: mic chưa gắn thì câu đánh thức chờ noiTiepPhienSom gửi sau khi gắn mic.
       if (_liveSom !== phien) phien.guiCauDanhThuc();
@@ -811,7 +831,9 @@ async function batLive(wakeText = "", { som = false } = {}) {
     return ok;
   }
   if (!ok) {
-    if (handsFree && !readySeen) return chuyenSangCoBan();
+    // Mở không được TRƯỚC khi sẵn sàng. Đầu cuộc gọi: chuyển đường Cơ bản như cũ. Giữa cuộc gọi: giữ
+    // ChatGPT Live, thử lại rồi chờ (noiLaiHong), không đổi giọng.
+    if (handsFree && !readySeen) return _cuocGoiDaNoi ? noiLaiHong(wakeText, lanThu) : chuyenSangCoBan();
     tatRanhTay();
   }
   return ok;
@@ -3534,6 +3556,7 @@ function tatRanhTay() {
     tatNgheAmLuong();
     if (window.JavisScreenAwake) window.JavisScreenAwake.release();
     if (_liveSom) { clearTimeout(_liveSom.henHuy); _liveSom = null; }   // 0.65.24: phiên nối sớm (tatLive đóng nó)
+    _cuocGoiDaNoi = false;   // 0.65.25: cuộc gọi sau lại được chuyển đường Cơ bản nếu Live không mở
   } catch (e) {}
   voice.cancelListening();
   voice.stopSpeaking();
