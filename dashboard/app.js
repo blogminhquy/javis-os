@@ -3380,6 +3380,15 @@ async function uploadFile(file, att) {
   }
   // Giữ lại chính File để nút "tải lại" trên chip gửi lại được mà không phải chọn lại.
   att.file = file;
+  // File rỗng (0 byte): tải lên chỉ ra một lỗi khó hiểu ở máy chủ. Báo ngay trên chip, nói cách
+  // khác để đưa ảnh vào (0.65.30, ảnh kéo thả trên iPhone có lúc tới tay trình duyệt là rỗng).
+  if (!file.size) {
+    att.uploading = false; att.loi = true; att.statusText = window.t("app.att_empty");
+    att.xong = Promise.resolve();
+    if (moi) pendingAttachments.push(att);
+    renderChips();
+    return;
+  }
   att.uploading = true; att.loi = false; att.statusText = window.t("app.att_uploading");
   // Lời hứa "tải xong" (thành hay hỏng đều xong) để sendMessage đợi được thay vì gửi thiếu.
   att.xong = new Promise(r => { _xong = r; });
@@ -3486,7 +3495,7 @@ document.addEventListener("paste", (e) => {
   for (const it of items) {
     if (it.kind === "file") {
       const f = it.getAsFile();
-      if (f) { uploadFile(f); e.preventDefault(); }
+      if (f) { chupFile(f).then(uploadFile); e.preventDefault(); }   // 0.65.30: chép ngay, như lúc thả
     }
   }
   // Văn bản dài: CHỈ khi đang dán vào ô chat - không cướp paste của các ô khác
@@ -3522,8 +3531,20 @@ window.addEventListener("drop", (e) => {
   dragDepth = 0; dropOverlay.classList.remove("show");
   if (inLocalDrop(e)) return;   // chỗ kia đã preventDefault + chặn bọt, không đụng vào
   e.preventDefault();
-  if (e.dataTransfer?.files) [...e.dataTransfer.files].forEach(f => uploadFile(f));
+  // chupFile gọi NGAY trong sự kiện thả, trước mọi await (xem chú thích ở hàm).
+  if (e.dataTransfer?.files) [...e.dataTransfer.files].map(chupFile).forEach(p => p.then(f => uploadFile(f)));
 });
+// Chép dữ liệu file NGAY lúc thả hay dán (0.65.30). iPhone chỉ cho đọc file kéo thả (ảnh vừa chụp
+// kéo từ góc màn hình) trong lúc sự kiện đang chạy; tải lên thì đọc SAU đó, lúc quyền đã hết, nên
+// chủ dự án thấy ảnh hiện trên chip mà gửi thì hỏng. Lệnh đọc phải BẮT ĐẦU đồng bộ trong sự kiện;
+// đọc được thì gói lại thành File mới mang bản sao, không đọc được thì trả file gốc như cũ.
+function chupFile(f) {
+  let doc;
+  try { doc = f.arrayBuffer(); } catch (err) { return Promise.resolve(f); }
+  return Promise.resolve(doc).then((buf) => (buf && buf.byteLength
+    ? new File([buf], f.name || "anh-keo-tha.png", { type: f.type || "application/octet-stream", lastModified: f.lastModified || Date.now() })
+    : f)).catch(() => f);
+}
 
 // ============================================
 // Events
