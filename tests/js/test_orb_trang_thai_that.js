@@ -70,8 +70,10 @@ check("index.html: voice-turn.js trước voice.js", iTurn > 0 && iTurn < iVoice
 check("index.html: ui-context.js và ui-actions.js trước app.js", iCtx > 0 && iAct > 0 && iCtx < iApp && iAct < iApp);
 const vVoice = +((html.match(/\/static\/voice\.js\?v=(\d+)/) || [])[1] || 0), vApp = +((html.match(/\/static\/app\.js\?v=(\d+)/) || [])[1] || 0);
 check("index.html: ?v= voice.js >= 19 và app.js >= 104 (bản Voice V1)", vVoice >= 19 && vApp >= 104);
-check("index.html: hàng chọn im lặng (name=endpoint) và công tắc #qsBarge", /name="endpoint"/.test(html) && /id="qsBarge"/.test(html));
-["app.orb_waiting", "app.orb_tool", "app.orb_paused", "app.orb_reconnecting", "app.orb_mic_error", "app.orb_slow", "app.orb_background", "qs.endpoint", "qs.barge"].forEach(k => {
+// 0.65.19: ô "im lặng rồi gửi" và công tắc ngắt lời đã gỡ khỏi Cài đặt (máy tự lo: 1,2 giây,
+// ngắt lời luôn bật), xem test_voice_settings_simple.js.
+check("index.html: không còn ô im lặng rồi gửi và công tắc ngắt lời", !/name="endpoint"/.test(html) && !/id="qsBarge"/.test(html));
+["app.orb_waiting", "app.orb_tool", "app.orb_paused", "app.orb_reconnecting", "app.orb_mic_error", "app.orb_slow", "app.orb_background"].forEach(k => {
   check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string");
 });
 check("css: lớp orb waiting/paused/reconnecting/error", /\.orb-state\.waiting/.test(css) && /\.orb-state\.paused/.test(css) && /\.orb-state\.reconnecting/.test(css) && /\.orb-state\.error/.test(css));

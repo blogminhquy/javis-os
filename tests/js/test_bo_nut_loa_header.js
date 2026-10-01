@@ -5,8 +5,9 @@
    27/08/2026: cùng MỘT công tắc giọng mà có tới ba chỗ bấm - nút loa ở header, nút loa trên
    thanh nhập chat, và công tắc trong Cài đặt nhanh. Bỏ nút header để lấy chỗ cho hòm thư.
    02/09/2026: chủ repo chốt "không cần nút bật tắt loa nữa, chỉ cần mic, bật mic là bật loa".
-   Nút thanh nhập (#ttsToggleBar) bỏ nốt; app.js gọi window.JavisTts.set() theo mic. Công tắc
-   trong Cài đặt nhanh giữ lại làm chỗ tắt tiếng thủ công.
+   Nút thanh nhập (#ttsToggleBar) bỏ nốt; app.js gọi window.JavisTts.set() theo mic.
+   01/10/2026 (0.65.19): công tắc trong Cài đặt nhanh (#qsTts) bỏ nốt vì trùng nút mic: bấm mic
+   là gọi Javis (bật loa), cúp máy là tắt. quick-settings.js vẫn phải chịu được khi thiếu nó.
 
    Bẫy của việc gỡ một element: app.js giữ nó ở một `const` cấp module rồi gọi thẳng
    `ttsToggle.addEventListener(...)` KHÔNG có chốt null. Gỡ nút mà quên dòng đó thì
@@ -33,7 +34,7 @@ function check(name, cond, extra) {
 check("thanh tiêu đề KHÔNG còn nút loa", html.indexOf('id="ttsToggle"') === -1);
 check("nút loa trên THANH NHẬP cũng KHÔNG còn (02/09: loa đi theo mic)",
   html.indexOf('id="ttsToggleBar"') === -1);
-check("công tắc giọng trong Cài đặt nhanh vẫn còn", html.indexOf('id="qsTts"') !== -1);
+check("công tắc giọng trong Cài đặt nhanh đã bỏ (0.65.19, trùng nút mic)", html.indexOf('id="qsTts"') === -1);
 
 // ---- 2. CANARY: không file JS nào còn cầm id đã gỡ ----
 // Đây là chốt thật. `ttsToggle.addEventListener` trên một null là TypeError, và app.js
@@ -61,7 +62,8 @@ check("chỉ MIC bật được loa (công tắc Cài đặt nhanh phải hỏi 
   /qs\.checked && micDangBat\(\)/.test(qs) && /handsFreeActive/.test(qs));
 check("voice.js cũng không còn ghi lựa chọn qua reload",
   read("dashboard/voice.js").indexOf("javis.ttsEnabled") === -1);
-check("vẫn đồng bộ với công tắc trong Cài đặt nhanh", /\$\("qsTts"\)/.test(qs));
+check("CANARY: quick-settings chịu được khi không còn #qsTts (tra cứu null thì thôi, không chết)",
+  /var qs = \$\("qsTts"\); if \(!qs\) return;/.test(qs) && /var qs = \$\("qsTts"\); if \(qs\)/.test(qs));
 check("app.js bật loa theo mic", /window\.JavisTts\.set\(handsFree\)/.test(app));
 
 // ---- 4. cache-bust: sửa file nào thì bump file đó, không thì trình duyệt xài bản cũ ----

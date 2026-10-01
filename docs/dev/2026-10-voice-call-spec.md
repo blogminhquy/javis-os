@@ -4,6 +4,10 @@ Ngày 01/10/2026. Chủ dự án đã duyệt thiết kế trong phiên cùng ng
 DUY NHẤT cho giọng nói: các spec giọng nói cũ (Voice V1, V2, tai nghe lại, nhịp thích nghi, tập
 trung, kiểm toán 24/09) đã gộp phần còn đúng vào Phụ lục A rồi xoá. Code trỏ về tài liệu này.
 
+**Trạng thái: đã làm xong** cả ba bước của mục 6: ChatGPT Live ở 0.65.17, trải nghiệm gọi điện ở
+0.65.18, trang cài đặt gọn ở 0.65.19. Còn treo một việc dọn dẹp: gỡ hẳn code nhịp thích nghi đã
+tắt (Phụ lục A8).
+
 ## 1. Mục tiêu và các quyết định đã chốt
 
 Người dùng muốn nói chuyện với Javis như gọi điện: nghe và nói cùng lúc, chen ngang lúc nào
@@ -171,16 +175,24 @@ GIỌNG NÓI
 
 - **Mọi ô tự lưu khi đổi**, không còn nút Lưu. Xếp một cột.
 - **Giọng Javis**: đường chatgpt hiện 9 giọng v3, "Nghe thử" phát mẫu thu sẵn
-  (`dashboard/assets/voices/<giọng>.mp3`, vài chục KB mỗi giọng); đường api hiện giọng của nhà cung
-  cấp đó; đường basic hiện giọng Edge (và OpenAI, ElevenLabs nếu có key).
+  (`dashboard/voices/<giọng>.mp3`, vài chục KB mỗi giọng); đường api hiện giọng của nhà cung
+  cấp đó; đường basic hiện giọng Edge, giọng OpenAI khi đã có key ở trang Models, và giọng
+  ElevenLabs riêng (key và Voice ID ở Nâng cao). Ở đường basic, chọn giọng là chọn luôn nhà
+  cung cấp giọng đọc.
 - **Bỏ khỏi giao diện, máy tự lo**: đọc trả lời bằng giọng (trùng nút mic), nhịp hội thoại thử
-  nghiệm (gỡ hẳn chứ không chỉ ẩn), từ hay nghe nhầm (tự lấy tên trợ lý và tên kết nối MCP), ô
+  nghiệm (gỡ hẳn ô nhập; code điều khiển ép tắt, chờ PR dọn riêng), từ hay nghe nhầm (tự lấy tên trợ lý và tên kết nối MCP), ô
   API key OpenAI (ở trang Models), ngôn ngữ nghe (theo ngôn ngữ giao diện), im lặng rồi gửi (mặc
   định 1,2 giây), ngắt lời bằng giọng (luôn bật), tai nghe lại (luôn tự chọn), bộ não giọng (bộ não
   đầu tiên sẵn trên gói), khoá chết `loc_tap_am`, khoá cũ `stt_provider`.
 - **Giữ dữ liệu cũ**: giá trị người dùng đã lưu ở các ô bị bỏ vẫn được đọc và dùng tiếp (ví dụ từ
   đã khai ở hotwords vẫn vào từ mồi); chỉ ô nhập biến mất. Khoá mới không đè khoá cũ.
 - Cập nhật allowlist `POST /settings` (nhánh `voice`) và `test_luu_cai_dat_giong.py` cùng lúc.
+- **Bộ não giọng tự chọn** (`voice_brain.auto_brain`): Làn nhanh mà khoá `brain_provider` rỗng thì
+  dùng bộ não đầu tiên sẵn trên gói theo thứ tự antigravity, codex, claude, grok (dò binary và
+  token đã lưu, không hỏi mạng, nhớ 60 giây). Không có cái nào thì tin từ mic đi bộ não chính.
+  Khoá cũ `mode = live` tính như Làn nhanh vì Live nay là đường gọi riêng.
+- Thẻ đọc `GET /voice/options?brains=0`: bỏ danh sách bộ não nên không chạy `agy models` (có khi
+  tới 30 giây); trả thêm `call` (đường gọi), `tts` (giọng đọc đường basic) và `voice_brain`.
 
 ## 6. Thứ tự làm (mỗi bước một PR, đặt số phiên bản trước theo `docs/quy-uoc-dev.md`)
 
@@ -278,8 +290,8 @@ giữ phần đã đối chiếu đúng với code ngày 01/10/2026. Code trỏ 
 - Live khi đang chờ: đóng kết nối, gửi câu gọi đúng một lần sau `ready`, nạp lại tối đa 12 tin hoặc 8.000 ký tự.
 - Giới hạn đã biết: TV nói "Javis" vẫn đánh thức được.
 
-### A8. Nhịp hội thoại thích nghi (sắp gỡ khỏi giao diện, mục 5)
-- Bật qua `javis.adaptive` (off | observe | natural), chỉ cho Chuẩn và Nhanh; học nhịp nghỉ chỉ trong RAM.
+### A8. Nhịp hội thoại thích nghi (đã gỡ khỏi giao diện ở 0.65.19, code còn chờ dọn)
+- Từng bật qua `javis.adaptive` (off | observe | natural). Từ 0.65.19 `voice-adaptive-ui.js` ép `off`, bỏ qua giá trị đã lưu, và không còn ô nào trên trang; code điều khiển (`voice-adaptive.js`, nhánh `adaptive` trong `app.js`) chờ một PR gỡ hẳn.
 - Biên nhận SQLite (`voice_turn_protocol.py`) bảo đảm gửi lại không làm chạy lại hành động. `ack_only` (ghi nhận mà không trả lời) rất hẹp: chưa chắc thì trả lời bình thường.
 - Khi gỡ giao diện phải giữ hai bảo đảm: chữ đã chốt là bất biến, và epoch chặn callback cũ.
 

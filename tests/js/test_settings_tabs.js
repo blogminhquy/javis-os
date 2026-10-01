@@ -70,28 +70,9 @@ vm.runInContext(fn("parkQuickSet") + "\n" + fn("renderPage"), renderCtx);
   await renderCtx.renderPage("settings");
   assert.equal(controls.value, "unchanged");
   assert.equal(controls.onchange(), "still wired");
-  // The OpenAI key must be captured at click time, before an awaited save allows
-  // another tab/visit to refresh the form. No real credentials or requests are used.
-  const fields = Object.fromEntries(Object.entries({ vpOaVoice: "nova", vpElVoice: "", vpElKey: "", vpOaKey: "test-key", vpSave: "" })
-    .map(([id, value]) => [id, { value }]));
-  const writes = [];
-  let finishVoice;
-  const saveCtx = {
-    document: { getElementById: id => fields[id] }, provSel: { value: "openai" }, st: {},
-    t: x => x, esc: x => x, window: { t: x => x }, OK_ICON: "", WARN_ICON: "", _settings: {},
-    saveSetting: (section, data) => {
-      writes.push([section, data]);
-      return section === "voice" ? new Promise(resolve => { finishVoice = resolve; }) : Promise.resolve({ ok: true });
-    },
-  };
-  vm.createContext(saveCtx);
-  const saveStart = src.indexOf('      document.getElementById("vpSave").onclick =');
-  vm.runInContext(src.slice(saveStart, src.indexOf("\n      };", saveStart) + 9), saveCtx);
-  const saving = fields.vpSave.onclick();
-  fields.vpOaKey.value = "";
-  finishVoice({ ok: true });
-  await saving;
-  assert.equal(writes[1]?.[0], "model", "key was lost while saving");
-  assert.equal(writes[1][1].openai_api_key, "test-key");
+  // 0.65.19: the voice card no longer has its own OpenAI key field (the key lives on the Models
+  // page) nor a Save button; every field saves on change (test_voice_settings_simple.js).
+  assert.ok(!src.includes('getElementById("vpOaKey")') && !src.includes('getElementById("vpSave")'),
+    "voice card must not keep a second OpenAI key field");
   console.log("OK - settings aliases, same-page tab navigation, and preserved controls");
 })().catch(e => { console.error(e); process.exitCode = 1; });

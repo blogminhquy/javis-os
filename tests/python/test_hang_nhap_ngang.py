@@ -84,8 +84,11 @@ check("markup: hàng tên miền vẫn là input + nút .gcard-btn",
 _qs = INDEX.split('<div class="quick-set-body">', 1)[1].split("</details>", 1)[0]
 check("trong quick-set không còn nút .s-btn/.test-btn lẫn vào",
       not re.search(r'class="[^"]*\b(s-btn|s-btn-ghost|test-btn)\b', _qs))
+# 0.65.19: thẻ Giọng nói tự lưu từng ô nên không còn nút Lưu; thẻ có <details> Nâng cao, nên phải
+# cắt tới hết quick-set chứ không dừng ở </details> đầu tiên.
+_qs_all = INDEX.split('<div class="quick-set-body">', 1)[1].split('\n        </details>', 1)[0]
 check("nút Lưu của mỗi thẻ nằm trong hàng hành động canh phải",
-      _qs.count('class="js-actions qs-foot"') >= 2
+      _qs_all.count('class="js-actions qs-foot"') >= 1
       and ".quick-set-body .js-actions.qs-foot { justify-content: flex-end;" in STYLE)
 
 

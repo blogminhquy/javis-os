@@ -6,7 +6,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.19] - 2026-10-01
 ### Cải thiện
-- Đang làm: trang cài đặt Giọng nói gọn lại còn 3 ô.
+- **Trang cài đặt Giọng nói gọn còn 3 ô, đổi là tự lưu.** Dòng "Đang dùng" cho biết cuộc gọi đang chạy đường nào và vì sao, ô **Giọng Javis** đổi theo đường gọi (có nút nghe thử), và công tắc **Tập trung**. Đường gọi, tốc độ đọc và ElevenLabs nằm trong Nâng cao.
+- Máy tự lo phần còn lại: ngôn ngữ nghe theo ngôn ngữ giao diện, ngắt lời bằng giọng luôn bật, bộ não trả lời nhanh tự chọn trên gói bạn đã đăng nhập (Antigravity, ChatGPT, Claude Code, Grok Build). Cài đặt cũ vẫn dùng tiếp.
+- Bỏ công tắc "Đọc trả lời bằng giọng" (trùng nút mic), nhịp hội thoại thử nghiệm, ô từ hay nghe nhầm và ô API key OpenAI trong trang Giọng nói (key nằm ở trang Models).
 
 ## [0.65.18] - 2026-10-01
 ### Cải thiện

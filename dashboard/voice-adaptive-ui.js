@@ -3,7 +3,9 @@
   'use strict';
   root.JavisAdaptiveUI = function(d) {
     const controller = new root.JavisVoiceAdaptive.Controller();
-    let mode=localStorage.getItem('javis.adaptive')||'off', prefix='', lastState='', active=false;
+    // Nhịp hội thoại thích nghi đã GỠ khỏi giao diện (0.65.19, spec mục 5): luôn 'off', kể cả máy
+    // từng lưu 'natural' trong localStorage. Code điều khiển còn lại chỉ để gỡ hẳn ở PR riêng.
+    let mode='off', prefix='', lastState='', active=false;
     const configured=()=>mode!=='off' && d.browserMode();
     const enabled=()=>configured() && mode==='natural' && d.capable();
     const running=()=>enabled() && d.handsFree();
@@ -62,17 +64,7 @@
       const b=document.createElement('button'); b.type='button'; b.dataset[key]=''; b.className='js-btn'; b.textContent=root.t('app.adaptive_'+key); b.onclick=fn; box.appendChild(b);
     });
     document.getElementById('chatArea').after(box);
-    const select=document.getElementById('adaptiveMode');
-    select.value=['off','observe','natural'].includes(mode)?mode:'off'; mode=select.value;
-    select.onchange=()=>{d.cancelCapture();cancel();mode=select.value;localStorage.setItem('javis.adaptive',mode);d.draft('');};
-    const pace=document.getElementById('adaptivePace'); pace.value=localStorage.getItem('javis.adaptivePace')||'balanced';
-    controller.pace=pace.value||'balanced';
-    pace.onchange=()=>{controller.pace=pace.value;localStorage.setItem('javis.adaptivePace',pace.value);controller.resetLearning();};
-    document.getElementById('adaptiveReset').onclick=()=>controller.resetLearning();
-    document.getElementById('adaptiveExport').onclick=()=>{
-      const url=URL.createObjectURL(new Blob([JSON.stringify({version:1,mode,events:controller.diagnostics()},null,2)],{type:'application/json'}));
-      const a=document.createElement('a');a.href=url;a.download='javis-voice-diagnostics.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-    };
+    controller.pace='balanced';
     document.addEventListener('visibilitychange',()=>{if(document.hidden)save('hidden');});
     setInterval(()=>{
       if(mode==='observe' && d.handsFree() && d.browserMode()) { controller.tick(); return; }

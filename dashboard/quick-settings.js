@@ -2,7 +2,8 @@
    Từ 02/09 loa ĐI THEO MIC: app.js gọi window.JavisTts.set() khi bật/tắt mic, và mic là công
    tắc duy nhất bật được loa. Nút loa trên thanh nhập (#ttsToggleBar) đã bỏ theo yêu cầu
    chủ repo; nút loa header (#ttsToggle) bỏ từ 0.48.3. Công tắc trong Cài đặt nhanh (#qsTts)
-   giữ lại làm chỗ TẮT tiếng thủ công, và nó cũng đi qua applyState.
+   bỏ từ 0.65.19 vì trùng nút mic (bấm mic là gọi, cúp máy là tắt tiếng); code dưới vẫn chịu
+   được khi thiếu nó.
 
    Lựa chọn này KHÔNG được nhớ qua reload: mỗi lần nạp trang bắt đầu im lặng, vì trang tự đọc
    thành tiếng ngay khi mở là điều không ai chờ đợi. Vì thế ở đây không còn ghi localStorage. */

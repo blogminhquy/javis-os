@@ -138,11 +138,11 @@ Thao tác này an toàn: chỉ di chuyển khi thư mục đích chưa có, khô
 
 ### Tab Giọng nói và phần thương hiệu trong tab Chung
 
-Tab **Giọng nói** chứa giọng đọc, chế độ trò chuyện và micro. Ngôn ngữ giao diện, ảnh đại diện và tên miền nằm trong tab **Chung**:
+Tab **Giọng nói** chỉ còn một thẻ cho cuộc gọi bằng giọng, ô nào cũng tự lưu ngay, không có nút Lưu. Ngôn ngữ giao diện, ảnh đại diện và tên miền nằm trong tab **Chung**:
 
-- Công tắc **🔊 Đọc trả lời bằng giọng**.
-- Khối **NHÀ CUNG CẤP GIỌNG ĐỌC**: chọn "Edge TTS - miễn phí (mặc định)", "OpenAI - mượt, đa ngôn ngữ" hoặc "ElevenLabs - tự nhiên nhất", dán key tương ứng rồi bấm **Lưu nhà cung cấp**. Provider trả phí lỗi sẽ tự về Edge.
-- **NGÔN NGỮ NGHE** (Tiếng Việt `vi-VN` hoặc Tiếng Anh `en-US`), **GIỌNG ĐỌC (Edge)** (Hoài My, Nam Minh hoặc 5 giọng đa ngôn ngữ), **TỐC ĐỘ** và nút **▶ Nghe thử**. Khối giọng Edge chỉ hiện khi nhà cung cấp là Edge.
+- Dòng **Đang dùng**: đường gọi đang chạy (ChatGPT Live, Live qua API key hoặc Cơ bản), kèm lý do và việc cần làm nếu Javis phải lùi xuống đường thấp hơn.
+- **Giọng Javis**: danh sách giọng theo đường gọi, chọn giọng là chọn luôn nhà cung cấp (Edge, OpenAI hay ElevenLabs), nút **▶ Nghe thử**. Giọng OpenAI cần OpenAI API key ở trang **Models**.
+- Công tắc **Tập trung khi đàm thoại**, và mục **Nâng cao** chứa **Đường gọi**, **Tốc độ đọc** (chỉ ở đường Cơ bản), API key và Voice ID ElevenLabs (chỉ khi chọn giọng ElevenLabs). Ngôn ngữ nghe tự theo ngôn ngữ giao diện.
 - **ẢNH ĐẠI DIỆN**: **Tải ảnh lên** hoặc **Khôi phục mặc định**.
 - **TÊN MIỀN & SSL**: nhập tên miền, bấm **Lưu & kiểm tra**, xem hai nhãn `DNS:` và `SSL:`, rồi **Bật SSL** hoặc **Kiểm tra lại**.
 

@@ -3468,32 +3468,15 @@ voiceBtn.addEventListener("click", () => {
   }
 });
 
-// ---- Voice V1: hai nút trong Cài đặt nhanh (lưu localStorage, không đụng settings.json) ----
-// Im lặng bao lâu thì gửi (500 / 800 / 1200 ms, mặc định 1200 - chủ dự án chốt 17/09) và có cho ngắt lời Javis bằng giọng không.
+// ---- Micro: máy tự lo, không còn ô cài đặt (0.65.19, docs/dev/2026-10-voice-call-spec.md mục 5) ----
+// Im lặng bao lâu thì gửi: mặc định 1,2 giây; máy nào đã chọn mức khác ở bản cũ thì giữ mức đó
+// (giá trị cũ vẫn dùng tiếp). Ngắt lời Javis bằng giọng: LUÔN bật, vì gọi điện mà không chen
+// ngang được là cuộc gọi một chiều; khoá cũ javis.bargeIn = "0" không còn ô nào để bật lại nên
+// không đọc nữa.
 (function () {
-  // 0.58.8: ba thẻ radio đổi thành một ô chọn (#endpointSel). Giá trị lưu KHÔNG đổi nên
-  // người đang dùng không bị reset về mặc định.
-  const ep = localStorage.getItem("javis.endpoint") || "1200";
-  const epSel = document.getElementById("endpointSel");
-  if (epSel) {
-    epSel.value = ep;
-    if (!epSel.value) epSel.value = "1200";      // giá trị cũ không còn trong danh sách
-    turn.opts.minDelay = parseInt(epSel.value, 10) || 1200;
-    epSel.addEventListener("change", () => {
-      turn.opts.minDelay = parseInt(epSel.value, 10) || 1200;
-      localStorage.setItem("javis.endpoint", epSel.value);
-    });
-  }
-  const barge = localStorage.getItem("javis.bargeIn") !== "0";
-  voice.bargeEnabled = barge;
-  const qb = document.getElementById("qsBarge");
-  if (qb) {
-    qb.checked = barge;
-    qb.addEventListener("change", () => {
-      voice.bargeEnabled = qb.checked;
-      localStorage.setItem("javis.bargeIn", qb.checked ? "1" : "0");
-    });
-  }
+  const ep = parseInt(localStorage.getItem("javis.endpoint") || "1200", 10);
+  turn.opts.minDelay = [500, 800, 1200].includes(ep) ? ep : 1200;
+  voice.bargeEnabled = true;
 })();
 
 // Tự nghe lại khi rảnh (không đang xử lý, không đang nói) - giữ mic sống ở hands-free
@@ -3548,10 +3531,13 @@ document.getElementById("resetBtn").addEventListener("click", () => {
 // nằm thẳng trong trang Cài đặt. KHOÁ localStorage giữ nguyên nên không ai bị reset.
 const voiceSel = document.getElementById("voiceSel");
 const rateSel = document.getElementById("rateSel");
-const recLangSel = document.getElementById("recLangSel");
 const savedVoice = localStorage.getItem("javis.voice") || "en-US-EmmaMultilingualNeural";
 const savedRate = parseFloat(localStorage.getItem("javis.rate") || "1.10");
-const savedRecLang = localStorage.getItem("javis.recLang") || "vi-VN";
+// Ngôn ngữ NGHE theo ngôn ngữ giao diện (0.65.19, bỏ ô "Ngôn ngữ nghe"): en thì en-US, còn lại
+// vi-VN. Câu Việt xen tiếng Anh đã có tai nghe lại (voice_ear) lo, không cần chọn tay nữa.
+function recLangTheoGiaoDien() {
+  try { return (window.JavisI18n && window.JavisI18n.lang() === "en") ? "en-US" : "vi-VN"; } catch (e) { return "vi-VN"; }
+}
 function rateToPct(r) { const p = ((r - 1) * 100).toFixed(0); return (p >= 0 ? "+" : "") + p + "%"; }
 // Gán value cho <select> mà giá trị đó không có trong danh sách thì select về RỖNG (ô trắng,
 // không lỗi, không ai biết). Nên mọi chỗ gán đều phải có đường lùi.
@@ -3562,7 +3548,7 @@ function _chonHoacDau(sel, val) {
   return sel.value;
 }
 const voiceNow = _chonHoacDau(voiceSel, savedVoice);
-const recNow = _chonHoacDau(recLangSel, savedRecLang);
+const recNow = recLangTheoGiaoDien();
 // Tốc độ: thanh trượt cũ đẻ ra giá trị bất kỳ (1,37×) còn ô chọn chỉ có 5 mức, nên phải NÉO
 // về mức gần nhất thay vì bỏ trống ô.
 let rateNow = savedRate;
@@ -3582,16 +3568,17 @@ if (rateSel) rateSel.addEventListener("change", () => {
   const r = parseFloat(rateSel.value);
   voice.setRate(rateToPct(r)); localStorage.setItem("javis.rate", r.toString());
 });
-if (recLangSel) recLangSel.addEventListener("change", () => {
+window.addEventListener("javis:i18n", () => {
+  const lang = recLangTheoGiaoDien();
+  if (lang === voice.lang && !voice.langAuto) return;
   tatRanhTay();
-  voice.setRecognitionLang(recLangSel.value); localStorage.setItem("javis.recLang", recLangSel.value);
+  voice.setRecognitionLang(lang);
 });
-document.getElementById("testVoiceBtn")?.addEventListener("click", () => {
-  // force: nghe thử là hành động chủ động của user, phải kêu kể cả khi đang tắt tiếng (mặc định).
-  voice.speak(window.t("app.voice_sample"), { force: true });
-});
-// Nút loa header đã bỏ (0.48.3) - công tắc giọng nay chỉ còn nút trên THANH NHẬP
-// (#ttsToggleBar) và công tắc trong Cài đặt nhanh, cả hai do quick-settings.js lo.
+// Nút "Nghe thử" của thẻ Giọng nói (console.js renderVoiceCard) khi đường gọi là Cơ bản: đọc một
+// câu bằng giọng đang chọn. force: nghe thử là hành động chủ động, phải kêu kể cả khi loa đang tắt.
+window.JavisVoiceSample = () => voice.speak(window.t("app.voice_sample"), { force: true });
+// Loa đi theo cuộc gọi: bấm mic là gọi (bật loa), cúp máy là tắt (quick-settings.js giữ trạng thái).
+// Công tắc "Đọc trả lời bằng giọng" ở Cài đặt đã bỏ từ 0.65.19 vì trùng với nút mic.
 
 // Resume AudioContext khi user tương tác lần đầu (để analyser pulse hoạt động)
 function resumeAudio() {

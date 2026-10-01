@@ -13,6 +13,7 @@ chạy được thì rơi xuống đường kế tiếp và báo lý do, giống
 from __future__ import annotations
 
 import codex_realtime
+import voice_brain
 
 ENGINES = ("auto", "chatgpt", "api", "basic")
 API_PROVIDERS = ("gemini", "openai", "gpt-live")
@@ -46,10 +47,12 @@ def _api_provider(cfg: dict) -> str:
 
 
 def _basic_mode(cfg: dict) -> str:
+    """fast khi đường Cơ bản có bộ não giọng: đã chọn từ bản cũ, hoặc máy tự chọn bộ não đầu tiên
+    sẵn trên gói (voice_brain.auto_brain, 0.65.19). Không có thì standard: tin đi bộ não chính."""
     v = (cfg or {}).get("voice") or {}
-    if v.get("mode") == "standard" or not v.get("brain_provider"):
+    if v.get("mode") == "standard":
         return "standard"
-    return "fast"
+    return "fast" if voice_brain.config_from_settings(cfg).get("provider") else "standard"
 
 
 def select_call_engine(cfg: dict) -> dict:

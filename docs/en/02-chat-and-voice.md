@@ -2,7 +2,7 @@
 
 *[Tiếng Việt](../02-tro-chuyen-va-giong-noi.md) · **English***
 
-This is where you spend most of your time with Javis: type or speak, and Javis answers in text while reading the answer aloud. This page covers the whole chat frame, from keyboard shortcuts, slash commands and the buttons under each message to picking a voice and asking Javis to generate images.
+This is where you spend most of your time with Javis: type and Javis answers in text, or click the mic to call Javis and it speaks out loud. This page covers the whole chat frame, from keyboard shortcuts, slash commands and the buttons under each message to picking a voice and asking Javis to generate images.
 
 If you have not finished the first-run setup, read [Getting started & first-run setup](01-getting-started.md) first.
 
@@ -11,8 +11,8 @@ If you have not finished the first-run setup, read [Getting started & first-run 
 One place to work with Javis:
 
 - Type messages like any chat app.
-- Speak, and Javis listens then sends automatically when you stop talking.
-- Javis answers in text and reads the answer aloud in a Vietnamese voice.
+- Click the mic to call Javis and talk like on a phone call; Javis sends automatically when you stop talking.
+- Javis answers in text; during a call it also speaks out loud.
 - Attach files or images to a message for Javis to read.
 - Javis embeds images, files, diagrams and HTML pages back into its answers so you can view them in place.
 - Watch the knowledge globe react to sound (it lights up while listening and while speaking).
@@ -35,7 +35,7 @@ Left navigation rail, group **Assistant** → item **Javis**. This is also the d
 | Knowledge graph + status | Centre | The note network, the status line (READY, LISTENING...), and the **AGENTS** / **SKILLS** / **WORKFLOWS** counters at the bottom |
 | CONVERSATION | Right column | Chat history, the engine badge, and the **⛶** button that opens the Chat page |
 | Model bar | Just above the input | The model and Effort chip, plus the **SYSTEM** and **MCP** strips currently in use |
-| Input bar | Bottom | Mic button, attach button, speaker button, the text box, and the send button (which becomes a stop button while a turn runs) |
+| Input bar | Bottom | Mic button, attach button, the text box, and the send button (which becomes a stop button while a turn runs) |
 
 The left column **no longer** holds a grid of business metric cards; it is the vault explorer, and clicking a note opens it for editing right there (see [File manager](05-file-manager.md)). Clicking the AGENTS / SKILLS / WORKFLOWS numbers jumps straight to the matching page in the **Capabilities** group.
 
@@ -73,25 +73,25 @@ Javis picks the call path itself: **ChatGPT Live** when your ChatGPT plan is con
 
 The first time you use the mic, the browser asks for microphone permission. Allow it. If you deny it, Javis cannot hear you and reports that the page needs microphone permission.
 
-In hands-free mode, Javis stops speaking the moment you start talking, so you can interrupt at any time. The mechanism measures loudness on the echo-cancelled mic stream (about 0.3 seconds of continuous speech, clearly louder than the room), so Javis's own speaker output does not interrupt it.
+During a call, when you start talking Javis **pauses** what it is saying to listen. If you really speak a sentence within 2 seconds, Javis stops for good and your next message carries the sentence it was cut off in, so it continues from there instead of starting over. If it was only a cough or a noise, Javis resumes where it paused. The mechanism measures loudness on the echo-cancelled mic stream (about 0.5 seconds of continuous speech, clearly louder than the room), so Javis's own speaker output does not interrupt it. This is always on.
 
 Interrupting only works while the **mic is open**. With the mic off, a noise in the room will not reopen it even while Javis is speaking.
 
 ### Step 3 - Hear Javis answer out loud
 
-By default Javis **reads every answer aloud** in a Vietnamese voice (Edge TTS running on the server). The graph pulses along with the speech.
+During a call, Javis **speaks every answer** out loud. The graph pulses along with the voice.
 
-Turning speech on and off has **3 places** that do the same thing, always in sync, and the choice survives a page reload:
+- Hanging up (the **Hang up** button, the mic button or **Esc**) silences it at once.
+- Typed chat outside a call is answered in text only.
+- There is no separate speaker button or voice switch any more: the call decides whether Javis speaks.
 
-- The **speaker** button in the top right corner (tooltip: "Toggle Javis voice"). When muted, the button dims noticeably.
-- The **speaker** button on the chat input bar (tooltip "Mute voice" / "Unmute voice"). When muted, the button turns red with a slash through it. This button is hidden on phones.
-- **Settings → Voice**, toggle **"🔊 Read answers aloud"**.
+To change the voice, go to **Settings → Voice**, see **Voice settings** below.
 
 ### Step 4 - Stop Javis mid-answer
 
 While Javis is thinking or speaking, the send button turns into a **stop button** (a square). Clicking it aborts the running turn and stops the speech immediately, and the status returns to READY. Typing **`/stop`** and pressing Enter does exactly the same.
 
-**The Esc key NO LONGER stops an answer or the speech.** Esc only exits hands-free mode, turns off the mic and closes any open popup. The "(Esc)" hint on the stop button is leftover text from an older build.
+**Esc hangs up; it does not stop the answer.** Esc turns off the mic and silences the voice, while the answer keeps being written and appears as text. Esc also closes any open popup. The "(Esc)" hint on the stop button is leftover text from an older build.
 
 The stop button only stops **the session you are looking at**; other sessions running in the background continue. See [Sessions](04-sessions.md).
 
@@ -338,7 +338,7 @@ Since version 0.26.9, answers in the web chat are written for **eyes**, not for 
 - Long answers with several distinct parts get a heading per part.
 - Tables when comparing the same set of fields across several items, for example revenue for three channels by week.
 
-Before that, Javis was told to write flowing prose because it was often used by **voice**. That trade-off is gone: the speaker button **strips markdown** (headings, bold, bullets, links, code blocks) before reading aloud, so formatting that looks good on screen does not trip up the voice.
+Before that, Javis was told to write flowing prose because it was often used by **voice**. That trade-off is gone: the voice **strips markdown** (headings, bold, bullets, links, code blocks) before reading aloud, so formatting that looks good on screen does not trip up the voice.
 
 Short questions still get a one-sentence answer. Formatting exists for readability, not to make every answer look like a report.
 
@@ -346,53 +346,84 @@ Plain-text channels are stricter because they cannot render: **Telegram** and **
 
 > If Javis still answers in long prose: most likely the brain's long-term memory still holds an old fact such as "dislikes markdown tables, prefers short spoken prose" from when you used voice, and that memory is loaded into **every** turn. Open `memory/MEMORY.md` in the **Files** page, find the line about answer style, and delete it along with the matching file in `memory/facts/`. See [Second Brain, memory & wiki](13-second-brain.md).
 
-## Voice: provider, voice, speed
+## Voice settings
 
-Everything about the voice lives in **Settings → Voice**.
+Everything about the voice lives in **Settings → Voice**. The page is a single card, and every field saves itself as soon as you change it; there is no Save button.
+
+The card holds three things:
+
+- **The "Using: ..." line**: the call path in use, **ChatGPT Live**, **Live (provider name)** with an API key, or **Basic**. On Basic it also says which brain gives quick replies, for example Antigravity CLI on your Google plan.
+- **Javis's voice**: the list depends on the call path, see below.
+- **Focused conversation**: when on, after 20 quiet seconds you must say "Javis" to continue. Meanwhile Live disconnects.
+
+When Javis had to fall back to a lower path, the "Using" line says why and what to do, for example connect ChatGPT on the **Models** page, install Codex CLI, or update Codex CLI to 0.153 or later.
+
+### Javis's voice
+
+The voice list depends on the call path:
+
+- **ChatGPT Live**: 9 voices, juniper (default), maple, spruce, ember, vale, breeze, arbor, sol, cove. **▶ Preview** plays a recorded sample.
+- **Live with an API key**: that provider's voices, with no preview button.
+- **Basic**: 7 free Edge voices, Emma (default), Hoài My, Nam Minh, Ava, Andrew, Brian, William. With an OpenAI API key on the **Models** page you also get the 11 OpenAI voices (alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer, verse). Last in the list is **Your ElevenLabs voice**. **▶ Preview** reads a sample sentence.
+
+Picking a voice also picks the provider (Edge, OpenAI or ElevenLabs). The Edge voice and the speaking rate are stored on this device; updates do not overwrite the voice you picked.
+
+If a paid voice fails (quota used up, wrong key, no network), Javis reports the error so you can retry or pick another voice. It does not switch voices on its own.
+
+### Advanced
+
+- **Call path**: **Automatic (recommended)**, **ChatGPT Live**, **Live with an API key** or **Basic**. Automatic tries ChatGPT Live, then Live with an API key, then Basic. If you pick a path that is not ready, Javis uses the next one and says why on the "Using" line.
+- **Speaking rate**: 0.85× to 1.45×, default 1.10×. Shown only on the Basic path.
+- **ElevenLabs API key** and **Voice ID** (from ElevenLabs → Voices): shown only when the ElevenLabs voice is picked. Leaving the key box empty keeps the saved key.
+
+OpenAI voices need an OpenAI API key on the **Models** page; the voice page no longer has an OpenAI key field.
 
 ### ChatGPT Live: call Javis on your ChatGPT plan
 
-**ChatGPT Live** uses the ChatGPT plan you connected on the **Models** page, no API key needed. Pick **Live**, then **ChatGPT Live (ChatGPT plan)** in the voice card.
+**ChatGPT Live** uses the ChatGPT plan you connected on the **Models** page, no API key needed. Javis picks this path itself when the ChatGPT plan is connected and the machine has Codex CLI 0.153 or later; there is nothing to select.
 
 - Press the mic to start talking: Javis listens continuously, answers in under a second, and you can interrupt at any time.
 - Small talk gets an instant answer. Anything that needs real data or an action (revenue, calendar, email, files, opening a page) is handed to the main brain you chose (Claude or another), which works with all your MCPs and tools; Javis reads back a summary and the full result (with tables) appears as a chat bubble.
-- 9 voices: juniper (default), maple, spruce, ember, vale, breeze, arbor, sol, cove. Click **▶ Preview** to hear a sample.
-- The machine needs the Codex CLI. Audio goes straight from the browser to OpenAI, so it works even when Javis runs on a VPS.
+- Change the voice in **Javis's voice** (9 voices, see above).
+- Audio goes straight from the browser to OpenAI, so it works even when Javis runs on a VPS.
 - Calls count against your ChatGPT plan's usage.
 
-### Choosing a voice provider
+### Live with an API key
 
-The **VOICE PROVIDER** block has three options:
+Without ChatGPT Live, Javis uses **Gemini Live**, **OpenAI Realtime** or **OpenAI GPT-Live**, with the Gemini or OpenAI API key you pasted on the **Models** page. Expressive voices, natural interruptions, and a two-way transcript in the chat. When real data is needed, the model hands the work to the main brain in the background and keeps talking, then relays the result (the Gemini 3.1 line still waits silently because Google does not support background work yet).
 
-| Option in the list | What else it needs |
-|---|---|
-| Edge TTS - free (default) | Nothing |
-| OpenAI - smooth, multilingual | An OpenAI API key (shared with chat) plus one of 11 voices: alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer, verse |
-| ElevenLabs - most natural | An ElevenLabs API key plus a **Voice ID** (from ElevenLabs → Voices) |
+### The Basic path and quick replies
 
-After selecting a provider, save the setting. If the selected voice fails, Javis reports the error so you can retry or select another voice. It does not switch voices automatically.
+The Basic path listens through the browser and speaks with the voice you picked. Ordinary spoken turns get a quick reply in 1 to 2 seconds from a voice brain (the "fast lane"). Javis takes the first voice brain available on a plan you are already signed in to, in this order:
 
-When you pick OpenAI or ElevenLabs, the Edge voices (Hoài My, Nam Minh and the 5 multilingual ones) hide themselves, because the voice is then chosen inside the provider's own block.
+1. Antigravity CLI
+2. ChatGPT (via Codex)
+3. Claude Code
+4. Grok Build
 
-### Choosing an Edge voice and the speed
+If none is available, spoken turns go to the main brain. Questions that need data, files or tasks are still handed to the main brain, all in the same conversation. A voice brain you chose in an older version keeps working.
 
-| Option | Value | Note |
-|---|---|---|
-| Voice | **Emma Multilingual** | Female, multilingual (default; Edge code `en-US-EmmaMultilingualNeural`) |
-| Voice | **Nam Minh** | Male, deeper (Edge code `vi-VN-NamMinhNeural`) |
-| Voice | **Ava, Emma** (female), **Andrew, Brian, William** (male) | Edge's 5 newer multilingual voices: they detect Vietnamese on their own and sound smoother than the two above, but may slur a few words. Preview before choosing. |
-| Speed | Slider from 0.70× to 1.80× | Default 1.10× |
-| Listening language | **Vietnamese** (vi-VN) | Default |
-| Listening language | **English** (en-US) | Use it if you speak entirely in English |
+### Listening ear: Vietnamese mixed with English
 
-Steps:
+On the Basic path the browser only hears one language, so a sentence like "Mở dashboard Facebook ads" often comes out as "Mở double Facebook add". The **listening ear** is a multilingual model that listens to the audio of what you just said again before settling the text in the bubble. The browser's interim text still shows instantly while you talk.
 
-1. Pick Hoài My, Nam Minh or one of the 5 multilingual voices.
-2. Drag the **SPEED** slider; the number next to it shows the current rate (for example 1.10×).
-3. Click **▶ Preview** to hear a sample greeting in the chosen voice.
-4. "Listening language" is the language Javis uses to recognise your speech, which is separate from the answer voice. Leave it on Vietnamese unless you normally speak English.
+- Javis always picks the ear itself: **Groq Whisper** when a Groq key is on the **Models** page, otherwise the browser's text as before.
+- Measured on 20 Vietnamese-English mixed commands: the browser got 41% of words wrong, the Groq ear 14%. Each sentence takes about 1 second longer.
+- If the ear fails, takes over 8 seconds, or returns a sentence far from the draft (Whisper sometimes invents sentences from noise), Javis keeps the browser's text and the turn is not lost.
+- The message sent is the ear's text when there is an ear, otherwise the browser's text when you finished the sentence. Once sent, the AI does not rewrite the message in history.
 
-Voice, speed and listening language are all remembered for next time.
+### Handled by the machine
+
+These fields were removed from the page because the machine decides them:
+
+- **Read answers aloud**: removed because it duplicated the mic. During a call Javis speaks every answer; hanging up (the **Hang up** button, the mic button or **Esc**) mutes it. Typed chat outside a call is answered in text only.
+- **Listening language**: follows the interface language (an English interface listens in `en-US`, otherwise `vi-VN`). Mixed Vietnamese and English is handled by the listening ear.
+- **Send after silence**: fixed at 1.2 seconds. A level you picked earlier on that device is still used. Javis still waits longer after "và", "nhưng", "thì" (and, but, then) or a comma, and saying "khoan" or "đợi chút" (wait, hold on) still makes it wait.
+- **Interrupt Javis by voice**: always on.
+- **Conversation timing (experimental)**: removed entirely.
+- **Listening ear**: always picked automatically, see above.
+- **Conversation mode** (Standard, Fast lane, Live) and **Voice brain**: replaced by the call path, see **The Basic path and quick replies**.
+- **Often-misheard words**: Javis builds the list itself from the assistant name and the names of connected MCPs. Words you saved earlier are still used.
 
 ## Enlarging the chat
 
@@ -414,9 +445,10 @@ Below 860px wide, the interface changes to fit the screen:
 
 - Navigation collapses into a drawer: tap **☰** to open it, then tap the dimmed background, pick an item or press Esc to close.
 - The **model chip** and the **+** button (new conversation) move into the header.
-- The **System** group (brain picker, light/dark toggle, speaker button, the SYSTEM and MCP strips) moves to the bottom of the navigation drawer.
+- The **System** group (brain picker, light/dark toggle, the SYSTEM and MCP strips) moves to the bottom of the navigation drawer.
 - The input shortens its placeholder to "Speak or type to Javis…".
-- The speaker button on the input bar and the **🕘 History** button in the header are hidden (the drawer already has a speaker button, and the **Chat** page has the history built in).
+- The **🕘 History** button in the header is hidden (the **Chat** page has the history built in).
+- There is no speaker button anywhere: the call (the mic button) decides whether Javis speaks out loud.
 - There is no mouse to hover with, so **tap a message** to reveal its button row; tapping elsewhere hides it again.
 - On the **Chat** page, the **🕘** button in the title bar opens and closes the history drawer sliding in from the left.
 
@@ -428,7 +460,7 @@ The line under the globe says what Javis is doing:
 |---|---|
 | READY | Idle, waiting for you |
 | LISTENING | Listening to you |
-| LISTENING • ALWAYS | Hands-free mode is on |
+| LISTENING • ALWAYS | On a call, the mic stays open |
 | THINKING | The brain is processing the question |
 | SPEAKING | Javis is reading the answer aloud |
 
@@ -438,9 +470,8 @@ Buttons around the chat frame:
 
 | Button | Where | What it does |
 |---|---|---|
-| Large mic | Left of the input | Toggle hands-free (always listening) mode |
+| Large mic | Left of the input | Call Javis; during a call it becomes **Hang up** |
 | Paperclip | Next to the mic | Pick files to attach |
-| Speaker | Next to the paperclip | Toggle reading answers aloud (hidden on phones) |
 | Arrow | Right of the input | Send the message |
 | Square | Replaces send while running | Stop the running turn and stop speaking |
 | ⛶ | Corner of the CONVERSATION panel | Enlarge the chat |
@@ -460,10 +491,10 @@ Keyboard shortcuts:
 
 ## Tips
 
-- To speak several sentences without Javis sending early, use hands-free mode (the mic button) and talk continuously; only pause fully when you are actually done.
-- Tired of listening and would rather read in silence: turn off "🔊 Read answers aloud"; the answer still appears in full as text.
+- To speak several sentences without Javis sending early, call Javis (the mic button) and talk continuously; only pause fully when you are actually done.
+- To read in silence: hang up and type; Javis answers in text only.
 - Send several screenshots at once by dragging them all into the window; Javis processes each one.
-- If you normally speak English, switch "Listening language" to English for better recognition.
+- If you normally speak English, switch the interface language to English (**Settings → General**): Javis listens in the interface language.
 - Feel free to paste a whole long article into the chat box: Javis turns it into an attached `.txt` file and the chat stays tidy.
 - To reask a question with a few words changed: click **✎** on the old message, edit it in the input and send, instead of retyping.
 - The **⛶** button on the CONVERSATION panel and the **Chat** item in the Assistant group lead to the same place; use whichever is closer.
@@ -473,8 +504,8 @@ Keyboard shortcuts:
 - **A sentence you never typed appears in the chat.** Almost certainly the mic picked up room noise (music, TV, someone talking), transcribed it and sent it, because Javis sends as soon as a sentence ends rather than asking first. Look at the status line: **LISTENING** or **LISTENING • ALWAYS** means the mic is still open, so click the mic button or press **Esc** to close it. Javis speaking does not reopen the mic after you hang up. To clear that stray message, start a new conversation; Javis has no way to type into your chat box, and every background result appears as a bubble on the left.
 - **The browser cannot hear.** Javis reports that the browser does not support speech and suggests Chrome or Edge. Open the dashboard in Chrome or Edge.
 - **The microphone does not work.** The browser is blocking microphone permission. Open the site permissions in your browser, allow the microphone, then reload the page.
-- **Pressing Esc but Javis keeps talking.** That is the current design: Esc no longer stops a turn. Click the stop button (the square) on the input bar, or click the speaker button to mute.
-- **You cannot hear Javis.** Check whether the speaker button is muted (dimmed in the top right, or red with a slash on the input bar), and check the system volume. Click "▶ Preview" to test speech on its own. If you use OpenAI or ElevenLabs and the voice sounds unfamiliar, that provider probably failed and Javis fell back to Edge.
+- **Pressing Esc but the answer keeps appearing.** That is by design: Esc hangs up, turning off the mic and the voice, while the answer keeps being written as text. To stop the turn for good, click the stop button (the square) on the input bar or type `/stop`.
+- **You cannot hear Javis.** Javis only speaks during a call, so click the mic to call. If it is still silent during a call, check the system volume, then click "▶ Preview" in **Settings → Voice** to test speech on its own. If you use an OpenAI or ElevenLabs voice, check whether Javis reported a voice error (quota used up, wrong key, no network); Javis does not switch to another voice on its own.
 - **Typing "/" shows no menu.** The menu only opens when "/" starts the input with no space after it. If there are still no skill rows, the selected brain has no enabled skills.
 - **Clicking one of Javis's option buttons does nothing.** That row belongs to an older turn and froze when you sent a new message. Just type the answer instead.
 - **An image in the conversation became a grey "Image expired" box.** The file lived in the `attachments/` cache area and passed 30 days, or was cleaned when the 300MB ceiling was hit. Ask Javis to regenerate it, or next time copy important images into another folder in the brain.
@@ -494,18 +525,3 @@ Keyboard shortcuts:
 - [Telegram channel](11-telegram.md) and [Zalo](12-zalo-agent-mcp.md) - chat with Javis outside the dashboard.
 
 Still stuck? See [Troubleshooting & FAQ](17-troubleshooting.md).
-
-In Standard/Fast mode, the displayed transcript is kept when the utterance ends. Optional Groq recognition reports differences without rewriting sent messages. Emma is the default for new browser preferences; saved voice choices survive updates.
-
-From 0.64.34, conversation settings prioritize voice, speed, conversation mode and focus. Open **Advanced** for model, secondary recognition, hints and microphone settings. Open **Provider and connection** to configure an API and save the provider. Controls that do not affect the selected mode are hidden; recognition language remains available in Live for the Javis wake listener.
-
-
-## Experimental conversation timing (0.64.35)
-
-Settings → Conversation → Advanced → Conversation timing offers Fixed wait (default), Observe for testing, and Natural. Natural applies only to Standard/Fast with a compatible server and requires no extra API. Choose Fast/Balanced/Patient. Observe calculates metadata in memory without changing endpoint behavior.
-
-Incomplete phrases are retained as drafts after 10 seconds. Explicit requests to wait hold the floor for up to 90 seconds. Send, Continue and Discard controls keep the text available; saying Javis can resume a saved draft. Drafts pause at 120 seconds or 4,000 characters without silently truncating words.
-
-Acknowledgement-only replies are deliberately narrow: the server must know the previous explanation is complete, and the utterance must be an unambiguous closing. Unknown intent still gets a normal response. Saved acknowledgements have a Request an answer button in history.
-
-Diagnostics exports at most 200 in-memory timing/state events, with no transcript, audio or credentials. Physical tablet/phone acoustic testing remains necessary before making Natural the default.

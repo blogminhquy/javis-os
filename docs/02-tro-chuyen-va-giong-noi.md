@@ -2,7 +2,7 @@
 
 ***Tiếng Việt** · [English](en/02-chat-and-voice.md)*
 
-Đây là chỗ bạn làm việc với Javis nhiều nhất: gõ chữ hoặc nói, Javis trả lời bằng chữ kèm đọc thành tiếng. Trang này mô tả toàn bộ khung chat, từ phím tắt, lệnh gạch chéo, nút bấm dưới mỗi tin nhắn cho tới cách chọn giọng đọc và nhờ Javis tạo ảnh.
+Đây là chỗ bạn làm việc với Javis nhiều nhất: gõ chữ thì Javis trả lời bằng chữ, bấm mic gọi Javis thì nó nói thành tiếng. Trang này mô tả toàn bộ khung chat, từ phím tắt, lệnh gạch chéo, nút bấm dưới mỗi tin nhắn cho tới cách chọn giọng đọc và nhờ Javis tạo ảnh.
 
 Nếu chưa cài đặt xong lần đầu, xem [Bắt đầu & thiết lập lần đầu](01-bat-dau-thiet-lap.md) trước.
 
@@ -11,8 +11,8 @@ Nếu chưa cài đặt xong lần đầu, xem [Bắt đầu & thiết lập l�
 Một chỗ duy nhất để làm việc với Javis:
 
 - Gõ tin nhắn như chat bình thường.
-- Nói bằng giọng, Javis nghe rồi tự gửi khi bạn ngừng nói.
-- Javis trả lời bằng chữ, đồng thời đọc thành tiếng bằng giọng Việt.
+- Bấm mic để gọi Javis, nói chuyện như gọi điện thoại; Javis tự gửi khi bạn ngừng nói.
+- Javis trả lời bằng chữ; trong cuộc gọi thì Javis nói thêm thành tiếng.
 - Đính kèm file hoặc ảnh vào tin nhắn để Javis đọc.
 - Javis nhúng ngược ảnh, file, sơ đồ và trang HTML vào câu trả lời để bạn xem tại chỗ.
 - Xem quả cầu tri thức phản ứng theo âm thanh (sáng lên khi nghe / khi đọc).
@@ -35,7 +35,7 @@ Rail điều hướng bên trái, nhóm **Trợ lý** → mục **Javis**. Đây
 | Đồ thị tri thức + trạng thái | Chính giữa | Mạng ghi chú, dòng chữ trạng thái (SẴN SÀNG, ĐANG NGHE...), dải số **AGENTS** / **SKILLS** / **WORKFLOWS** ở đáy |
 | HỘI THOẠI | Cột phải | Lịch sử chat, badge engine, nút **⛶** sang trang Trò chuyện |
 | Thanh model | Ngay trên thanh nhập | Chip chọn model + Effort, dải **HỆ THỐNG** và **MCP** đang dùng |
-| Thanh nhập liệu | Dưới cùng | Nút mic, nút kẹp file, nút loa, ô gõ chữ, nút gửi (đang chạy thì thành nút dừng) |
+| Thanh nhập liệu | Dưới cùng | Nút mic, nút kẹp file, ô gõ chữ, nút gửi (đang chạy thì thành nút dừng) |
 
 Cột trái **không còn** bảng thẻ số liệu kinh doanh; đó là Vault explorer, bấm một note là mở ra sửa ngay trên màn hình (xem [Quản lý tệp tin](05-quan-ly-tep-tin.md)). Bấm vào số AGENTS / SKILLS / WORKFLOWS thì nhảy thẳng sang trang tương ứng trong nhóm **Năng lực**.
 
@@ -73,7 +73,7 @@ Javis tự chọn đường gọi: **ChatGPT Live** khi bạn đã nối gói Ch
 
 Lần đầu bấm mic, trình duyệt sẽ hỏi quyền dùng micro. Bấm cho phép. Nếu từ chối, Javis không nghe được và sẽ báo cần cấp quyền microphone cho trang này.
 
-Trong chế độ rảnh tay, khi bạn bắt đầu nói thì Javis **tạm dừng** phần nó đang đọc để lắng nghe. Nếu trong 2 giây bạn thật sự nói thành câu, Javis dừng hẳn và tin kế tiếp của bạn mang theo câu nó đang đọc dở, nên nó trả lời tiếp từ chỗ đó chứ không đọc lại từ đầu. Nếu chỉ là tiếng ho hay tiếng động, Javis đọc tiếp từ chỗ dừng. Cơ chế đo độ to của giọng qua luồng mic đã khử vọng (nói liên tục khoảng 0,5 giây, to hơn hẳn nền), nên tiếng loa của chính Javis không tự làm nó ngắt lời. Tắt cơ chế này bằng công tắc **Ngắt lời Javis bằng giọng** trong Cài đặt nhanh.
+Trong cuộc gọi, khi bạn bắt đầu nói thì Javis **tạm dừng** phần nó đang đọc để lắng nghe. Nếu trong 2 giây bạn thật sự nói thành câu, Javis dừng hẳn và tin kế tiếp của bạn mang theo câu nó đang đọc dở, nên nó trả lời tiếp từ chỗ đó chứ không đọc lại từ đầu. Nếu chỉ là tiếng ho hay tiếng động, Javis đọc tiếp từ chỗ dừng. Cơ chế đo độ to của giọng qua luồng mic đã khử vọng (nói liên tục khoảng 0,5 giây, to hơn hẳn nền), nên tiếng loa của chính Javis không tự làm nó ngắt lời. Cơ chế này luôn bật.
 
 Chen ngang chỉ hoạt động khi **mic đang mở**. Mic đã tắt thì dù Javis đang đọc, một tiếng động trong phòng cũng không bật mic trở lại.
 
@@ -83,7 +83,7 @@ Chen ngang chỉ hoạt động khi **mic đang mở**. Mic đã tắt thì dù 
 - **"Thôi"**, **"dừng lại"**, **"đủ rồi"** (hoặc "stop"): đang đọc thì im ngay, đang suy nghĩ thì bấm hộ nút Dừng. Không gửi gì.
 - Chỉ những câu **ngắn đúng cụm đó** mới được hiểu là lệnh. "Khoan, mở Chrome" là một tin nhắn bình thường.
 
-Javis cũng tự chờ lâu hơn khi câu bạn nói kết bằng "và", "nhưng", "thì" hay dấu phẩy, vì lúc đó bạn thường chưa nói xong. Chỉnh mức im lặng trước khi gửi (Nhanh 0,5 giây, Vừa 0,8 giây, Chậm 1,2 giây) trong Cài đặt nhanh, mục **Im lặng rồi gửi**.
+Javis cũng tự chờ lâu hơn khi câu bạn nói kết bằng "và", "nhưng", "thì" hay dấu phẩy, vì lúc đó bạn thường chưa nói xong. Còn lại, Javis gửi câu sau 1,2 giây im lặng; mức bạn đã chọn ở bản cũ trên máy đó vẫn được dùng.
 
 ### Điều khiển Javis và máy tính bằng lời
 
@@ -95,19 +95,19 @@ Nói (hoặc gõ) là được, Javis dùng đúng công cụ và báo lại k�
 
 ### Bước 3 - Nghe Javis trả lời bằng giọng
 
-Mặc định Javis **đọc thành tiếng** mọi câu trả lời bằng giọng Việt (Edge TTS chạy trên máy chủ). Đồ thị sáng theo nhịp giọng đọc.
+Trong cuộc gọi, Javis **nói thành tiếng** mọi câu trả lời. Đồ thị sáng theo nhịp giọng nói.
 
-Bật/tắt đọc bằng giọng có **3 chỗ** làm cùng một việc, luôn đồng bộ với nhau và nhớ lựa chọn sau khi tải lại trang:
+- Cúp máy (nút **Cúp máy**, nút mic hoặc **Esc**) là Javis im ngay.
+- Gõ chữ ngoài cuộc gọi thì Javis chỉ trả lời bằng chữ.
+- Không còn nút loa hay công tắc bật tắt giọng riêng: cuộc gọi quyết định Javis có nói hay không.
 
-- Nút hình **loa** ở góc trên phải (tên gợi ý khi rê chuột: "Bật/tắt giọng Javis"). Đang tắt tiếng thì nút mờ hẳn đi.
-- Nút **loa** nằm ngay trên thanh nhập chat (gợi ý "Tắt giọng đọc" / "Bật giọng đọc"). Đang tắt tiếng thì nút chuyển đỏ và có một gạch chéo. Nút này bị ẩn trên điện thoại.
-- Vào **Cài đặt → Giọng nói**, gạt công tắc **"🔊 Đọc trả lời bằng giọng"**.
+Đổi giọng ở **Cài đặt → Giọng nói**, xem mục **Cài đặt Giọng nói** bên dưới.
 
 ### Bước 4 - Dừng khi Javis đang trả lời
 
 Khi Javis đang suy nghĩ hoặc đang đọc, nút gửi ở thanh nhập biến thành **nút dừng** (hình vuông). Bấm nút đó là ngắt lượt đang chạy và dừng đọc ngay, trạng thái về SẴN SÀNG. Gõ **`/stop`** rồi Enter cũng ra đúng kết quả đó.
 
-**Phím Esc KHÔNG còn dừng câu trả lời hay ngắt giọng đọc.** Esc chỉ thoát chế độ rảnh tay, tắt mic và đóng popup đang mở. Chú thích trên nút dừng vẫn ghi "(Esc)" là chữ sót lại từ bản cũ.
+**Phím Esc là cúp máy, không dừng câu trả lời.** Esc tắt mic và tắt giọng, còn câu trả lời vẫn được viết tiếp và hiện thành chữ. Esc cũng đóng popup đang mở. Chú thích trên nút dừng vẫn ghi "(Esc)" là chữ sót lại từ bản cũ.
 
 Nút dừng chỉ dừng **phiên bạn đang xem**; phiên khác đang chạy nền vẫn tiếp tục. Xem [Phiên hội thoại](04-phien-hoi-thoai.md).
 
@@ -354,7 +354,7 @@ Từ bản 0.26.9, câu trả lời trên khung chat web được viết cho **m
 - Câu trả lời dài có nhiều phần rõ rệt thì mỗi phần một tiêu đề.
 - Bảng khi so sánh cùng một bộ trường giữa nhiều mục, ví dụ doanh thu ba kênh theo tuần.
 
-Trước đó Javis được dặn viết văn xuôi trơn vì Javis vốn hay được dùng bằng **giọng nói**. Nay không cần đánh đổi nữa: nút loa **tự bóc markdown** (tiêu đề, in đậm, gạch đầu dòng, link, khối mã) trước khi đọc thành tiếng, nên định dạng đẹp cho mắt không làm giọng đọc vấp.
+Trước đó Javis được dặn viết văn xuôi trơn vì Javis vốn hay được dùng bằng **giọng nói**. Nay không cần đánh đổi nữa: giọng đọc **tự bóc markdown** (tiêu đề, in đậm, gạch đầu dòng, link, khối mã) trước khi đọc thành tiếng, nên định dạng đẹp cho mắt không làm giọng đọc vấp.
 
 Câu hỏi ngắn vẫn được trả lời bằng một câu. Định dạng là để dễ đọc, không phải để mọi câu trả lời trông như một bản báo cáo.
 
@@ -362,72 +362,84 @@ Các kênh chữ thuần thì siết hơn vì bản thân chúng không vẽ đ�
 
 > Nếu Javis vẫn trả lời bằng văn xuôi dài: nhiều khả năng bộ nhớ dài hạn của brain còn một ký ức cũ kiểu "không thích bảng markdown, thích văn nói ngắn" từ thời bạn dùng bằng giọng nói, và ký ức đó được nạp vào **mọi** lượt chat. Mở `memory/MEMORY.md` trong trang **Tệp tin**, tìm dòng nói về cách trả lời rồi xoá dòng đó cùng file tương ứng trong `memory/facts/`. Xem [Second Brain, bộ nhớ & wiki](13-second-brain-bo-nho-wiki.md).
 
-## Ba chế độ nói chuyện (Cài đặt → Giọng nói)
+## Cài đặt Giọng nói
 
-Thẻ **Chế độ và bộ não giọng nói** có ba lựa chọn:
+Mọi thứ về giọng nằm trong **Cài đặt → Giọng nói**. Trang chỉ còn một thẻ, ô nào cũng tự lưu ngay khi bạn đổi, không có nút Lưu.
 
-- **Chuẩn**: nghe bằng trình duyệt, bộ não chính trả lời. Đúng như trước.
-- **Làn nhanh**: khi bạn nói, một bộ não giọng riêng trả lời trong 1 đến 2 giây. Chọn được **Antigravity** (chạy trên gói Google đã đăng nhập, không tốn key; Javis giữ một phiên `agy` sống suốt lúc bạn nói và tắt sau 5 phút im), hoặc Groq, Gemini, OpenAI, OpenRouter bằng key ở trang Models. Câu nào cần số liệu, file, việc, mở app thì bộ não giọng nói "để mình xem" rồi chuyển cho bộ não chính, tất cả trong cùng một hội thoại.
-- **Live**: nghe nói thẳng qua **ChatGPT Live** (chạy trên gói ChatGPT, không cần API key), **Gemini Live**, **OpenAI Realtime** hoặc **OpenAI GPT-Live** (ba đường sau cần API key của hãng). Giọng có cảm xúc, ngắt lời tự nhiên, bản ghi chữ hai chiều hiện trong khung chat. Khi cần dữ liệu thật, model giao cho bộ não chính chạy nền rồi vẫn trò chuyện tiếp, có kết quả thì thuật lại (Gemini dòng 3.1 còn im chờ vì Google chưa hỗ trợ việc nền). Phiên Live cũng biết bạn đang mở trang nào, bôi đen đoạn nào.
+Thẻ có ba thứ:
+
+- **Dòng "Đang dùng: ..."**: đường gọi đang chạy là **ChatGPT Live**, **Live (tên hãng)** qua API key hay **Cơ bản**. Ở đường Cơ bản, dòng này nói thêm bộ não nào trả lời nhanh, ví dụ "Trả lời nhanh bằng Antigravity CLI (gói Google)".
+- **Giọng Javis**: danh sách giọng đổi theo đường gọi, xem bên dưới.
+- **Tập trung khi đàm thoại**: bật thì sau 20 giây im lặng, bạn phải gọi "Javis" mới nói tiếp được. Trong lúc chờ, Live tạm ngắt kết nối.
+
+Khi Javis phải lùi xuống đường thấp hơn, dòng "Đang dùng" nói vì sao và cần làm gì, ví dụ nối ChatGPT ở trang **Models**, cài Codex CLI, hoặc cập nhật Codex CLI lên bản 0.153 trở lên.
+
+### Giọng Javis
+
+Danh sách giọng tuỳ đường gọi:
+
+- **ChatGPT Live**: 9 giọng juniper (mặc định), maple, spruce, ember, vale, breeze, arbor, sol, cove. **▶ Nghe thử** phát một đoạn mẫu thu sẵn.
+- **Live qua API key**: các giọng của hãng đang dùng, không có nút nghe thử.
+- **Cơ bản**: 7 giọng Edge miễn phí là Emma (mặc định), Hoài My, Nam Minh, Ava, Andrew, Brian, William. Có OpenAI API key ở trang **Models** thì có thêm 11 giọng OpenAI (alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer, verse). Cuối danh sách là **Giọng ElevenLabs của bạn**. **▶ Nghe thử** đọc một câu mẫu.
+
+Chọn giọng là chọn luôn nhà cung cấp (Edge, OpenAI hay ElevenLabs). Giọng Edge và tốc độ đọc được lưu trên chính thiết bị này; cập nhật không ghi đè giọng bạn đã chọn.
+
+Nếu giọng trả phí gặp lỗi (hết hạn mức, sai key, mất mạng), Javis báo lỗi để bạn thử lại hoặc chọn giọng khác; không tự chuyển giọng.
+
+### Nâng cao
+
+- **Đường gọi**: **Tự động (khuyên dùng)**, **ChatGPT Live**, **Live qua API key** hoặc **Cơ bản**. Tự động thử lần lượt ChatGPT Live, Live qua API key, rồi Cơ bản. Chọn tay một đường chưa chạy được thì Javis dùng đường kế tiếp và nói lý do ở dòng "Đang dùng".
+- **Tốc độ đọc**: từ 0,85× tới 1,45×, mặc định 1,10×. Chỉ hiện ở đường Cơ bản.
+- **API key ElevenLabs** và **Voice ID** (lấy ở ElevenLabs → Voices): chỉ hiện khi bạn chọn giọng ElevenLabs. Để trống ô key là giữ key đã lưu.
+
+Giọng OpenAI cần OpenAI API key ở trang **Models**; trang giọng nói không còn ô nhập key OpenAI.
 
 ### ChatGPT Live: gọi Javis qua gói ChatGPT
 
-**ChatGPT Live** dùng gói ChatGPT bạn đã nối ở trang **Models**, không cần API key. Chọn **Live** rồi chọn **ChatGPT Live (gói ChatGPT)** trong thẻ giọng nói.
+**ChatGPT Live** dùng gói ChatGPT bạn đã nối ở trang **Models**, không cần API key. Javis tự chọn đường này khi gói ChatGPT đã nối và máy có Codex CLI bản 0.153 trở lên, bạn không phải chọn gì.
 
 - Bấm mic là bắt đầu nói chuyện: Javis nghe liên tục, đáp sau chưa tới một giây, bạn chen ngang lúc nào cũng được.
 - Chuyện trò thì Javis đáp ngay. Câu cần dữ liệu thật hay hành động (doanh thu, lịch, email, file, mở trang) thì Javis nói một câu đệm kiểu "để xem nhé", giao bộ não chính bạn đã chọn (Claude hay bộ khác) làm với đủ MCP và tool, rồi đọc tóm tắt; bản đầy đủ (có bảng) hiện thành bong bóng trong khung chat.
-- Có 9 giọng: juniper (mặc định), maple, spruce, ember, vale, breeze, arbor, sol, cove. Bấm **▶ Nghe thử** để nghe mẫu.
-- Máy cần có Codex CLI. Âm thanh đi thẳng từ trình duyệt tới OpenAI, nên chạy được cả khi Javis nằm trên VPS.
+- Đổi giọng ở ô **Giọng Javis** (9 giọng, xem ở trên).
+- Âm thanh đi thẳng từ trình duyệt tới OpenAI, nên chạy được cả khi Javis nằm trên VPS.
 - Cuộc gọi tính vào hạn mức gói ChatGPT của bạn.
+
+### Live qua API key
+
+Chưa có ChatGPT Live thì Javis dùng **Gemini Live**, **OpenAI Realtime** hoặc **OpenAI GPT-Live**, bằng API key Gemini hay OpenAI bạn đã dán ở trang **Models**. Giọng có cảm xúc, ngắt lời tự nhiên, bản ghi chữ hai chiều hiện trong khung chat. Khi cần dữ liệu thật, model giao cho bộ não chính chạy nền rồi vẫn trò chuyện tiếp, có kết quả thì thuật lại (Gemini dòng 3.1 còn im chờ vì Google chưa hỗ trợ việc nền).
+
+### Đường Cơ bản và trả lời nhanh
+
+Đường Cơ bản nghe bằng trình duyệt và đọc bằng giọng bạn chọn. Câu nói thường được một bộ não giọng trả lời nhanh trong 1 đến 2 giây ("làn nhanh"). Javis tự lấy bộ não đầu tiên sẵn sàng trên gói bạn đã đăng nhập, theo thứ tự:
+
+1. Antigravity CLI
+2. ChatGPT (qua Codex)
+3. Claude Code
+4. Grok Build
+
+Không có cái nào thì lượt nói đi thẳng bộ não chính. Câu cần số liệu, file, việc vẫn được giao cho bộ não chính, tất cả trong cùng một hội thoại. Bộ não giọng bạn đã chọn ở bản cũ vẫn chạy tiếp.
 
 ### Tai nghe lại: câu Việt xen tiếng Anh
 
-Trình duyệt chỉ nghe được một ngôn ngữ, nên câu như "Mở dashboard Facebook ads" hay bị chép thành "Mở double Facebook add". **Tai nghe lại** là một model đa ngôn ngữ nghe lại chính âm thanh câu bạn vừa nói rồi mới chốt chữ vào bong bóng. Chữ tạm của trình duyệt vẫn hiện tức thì trong lúc bạn nói.
+Ở đường Cơ bản, trình duyệt chỉ nghe được một ngôn ngữ, nên câu như "Mở dashboard Facebook ads" hay bị chép thành "Mở double Facebook add". **Tai nghe lại** là một model đa ngôn ngữ nghe lại chính âm thanh câu bạn vừa nói rồi mới chốt chữ vào bong bóng. Chữ tạm của trình duyệt vẫn hiện tức thì trong lúc bạn nói.
 
-- Mặc định là **Tự chọn**: có key Groq ở trang Models thì Javis dùng **Groq Whisper** làm tai, không có thì dùng chữ của trình duyệt như trước. Dòng "Đang dùng" trong thẻ cài đặt cho biết tai nào đang chạy và vì sao.
+- Javis luôn tự chọn tai: có key Groq ở trang **Models** thì dùng **Groq Whisper**, không có thì dùng chữ của trình duyệt như trước.
 - Đo trên 20 câu lệnh Việt xen Anh: trình duyệt sai 41% số từ, qua tai Groq còn 14%. Mỗi câu mất thêm chừng 1 giây.
 - Tai lỗi, chậm quá 8 giây, hay ra câu lệch hẳn bản nháp (Whisper đôi khi bịa câu khi gặp tiếng ồn) thì Javis giữ chữ của trình duyệt, không mất lượt nói.
-- Muốn tắt, chọn **Tắt** trong ô **Tai nghe lại** (mục nâng cao của thẻ giọng nói).
+- Câu gửi đi là chữ của tai nếu có tai, không thì là chữ của trình duyệt lúc bạn kết thúc câu. Đã gửi rồi thì AI không sửa lại tin trong lịch sử.
 
-## Giọng đọc: nhà cung cấp, giọng, tốc độ
+### Máy tự lo
 
-Mọi thứ về giọng nằm trong **Cài đặt → Giọng nói**.
+Các ô dưới đây đã bỏ khỏi trang vì máy tự quyết được:
 
-### Chọn nhà cung cấp giọng đọc
-
-Khối **NHÀ CUNG CẤP GIỌNG ĐỌC** có ba lựa chọn:
-
-| Lựa chọn trong danh sách | Cần gì thêm |
-|---|---|
-| Edge TTS - miễn phí (mặc định) | Không cần gì |
-| OpenAI - mượt, đa ngôn ngữ | OpenAI API key (dùng chung với chat) + chọn một trong 11 giọng: alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer, verse |
-| ElevenLabs - tự nhiên nhất | ElevenLabs API key + **Voice ID** (lấy ở ElevenLabs → Voices) |
-
-Chọn xong bấm **Lưu nhà cung cấp**. Dòng trạng thái bên dưới ghi đang dùng cái nào. Nếu giọng đã chọn gặp lỗi (hết hạn mức, sai key, mất mạng), Javis báo lỗi để bạn thử lại hoặc chọn giọng khác; không tự chuyển giọng.
-
-Khi chọn OpenAI hoặc ElevenLabs, khối giọng Edge (Hoài My, Nam Minh và 5 giọng đa ngôn ngữ) tự ẩn đi vì lúc đó giọng chọn ngay trong khối của nhà cung cấp.
-
-### Chọn giọng Edge và tốc độ
-
-| Tuỳ chọn | Giá trị | Ghi chú |
-|---|---|---|
-| Giọng đọc | **Emma Multilingual** | Giọng nữ đa ngôn ngữ (mặc định; mã Edge: `en-US-EmmaMultilingualNeural`) |
-| Giọng đọc | **Nam Minh** | Nam, trầm (mã Edge: `vi-VN-NamMinhNeural`) |
-| Giọng đọc | **Ava, Emma** (nữ), **Andrew, Brian, William** (nam) | 5 giọng đa ngôn ngữ thế hệ mới của Edge: tự nhận tiếng Việt, ngữ điệu mượt hơn hai giọng trên nhưng có thể lơ lớ vài chữ. Nghe thử rồi chọn. |
-| Tốc độ | Thanh trượt 0.70× đến 1.80× | Mặc định 1.10× |
-| Ngôn ngữ nghe | **Tiếng Việt** (vi-VN) | Mặc định |
-| Ngôn ngữ nghe | **Tiếng Anh** (en-US) | Dùng khi bạn nói toàn tiếng Anh |
-
-Các bước:
-
-1. Chọn Hoài My, Nam Minh hoặc một trong 5 giọng đa ngôn ngữ.
-2. Kéo thanh **TỐC ĐỘ** để chỉnh nhanh/chậm; số bên cạnh hiện tốc độ hiện tại (ví dụ 1.10×).
-3. Bấm **▶ Nghe thử** để nghe một câu chào mẫu bằng giọng vừa chọn.
-4. "Ngôn ngữ nghe" là ngôn ngữ Javis dùng để nhận diện lời bạn nói, khác với giọng đọc trả lời. Để mặc định Tiếng Việt trừ khi bạn quen nói tiếng Anh.
-
-Mọi lựa chọn giọng, tốc độ, ngôn ngữ nghe đều được ghi nhớ trên trình duyệt hiện tại cho lần sau. Emma là mặc định khi chưa lưu lựa chọn; cập nhật không ghi đè giọng bạn đã chọn.
-
-Trong chế độ Chuẩn/Nhanh, câu gửi đi là chữ của tai nghe lại nếu có tai (xem mục Tai nghe lại ở trên), không thì là chữ của trình duyệt lúc bạn kết thúc câu. Đã gửi rồi thì AI không sửa lại tin trong lịch sử. Chữ tạm vẫn có thể thay đổi trong lúc bạn đang nói.
+- **Đọc trả lời bằng giọng**: bỏ vì trùng với nút mic. Trong cuộc gọi Javis nói mọi câu trả lời; cúp máy (nút **Cúp máy**, nút mic hoặc **Esc**) là im. Chat gõ chữ ngoài cuộc gọi chỉ trả lời bằng chữ.
+- **Ngôn ngữ nghe**: theo ngôn ngữ giao diện (giao diện tiếng Anh thì nghe `en-US`, còn lại `vi-VN`). Câu Việt xen tiếng Anh đã có tai nghe lại lo.
+- **Im lặng rồi gửi**: cố định 1,2 giây. Mức bạn đã chọn ở bản cũ trên máy đó vẫn được dùng. Javis vẫn chờ lâu hơn sau "và", "nhưng", "thì" hay dấu phẩy, và nói "khoan", "đợi chút" vẫn làm Javis chờ.
+- **Ngắt lời Javis bằng giọng**: luôn bật.
+- **Nhịp hội thoại (thử nghiệm)**: bỏ hẳn.
+- **Tai nghe lại**: máy luôn tự chọn, xem mục ở trên.
+- **Chế độ nói chuyện** (Chuẩn, Làn nhanh, Live) và **Bộ não giọng nói**: thay bằng đường gọi, xem mục **Đường Cơ bản và trả lời nhanh**.
+- **Từ hay nghe nhầm**: Javis tự dựng danh sách từ tên trợ lý và tên các MCP đã nối. Từ bạn đã lưu trước đó vẫn được dùng.
 
 ## Phóng to khung chat
 
@@ -449,9 +461,10 @@ Dưới 860px chiều ngang, giao diện đổi hẳn cho vừa màn hình:
 
 - Điều hướng thu thành ngăn kéo: bấm nút **☰** để mở, bấm nền mờ, chọn một mục hoặc nhấn Esc để đóng.
 - **Chip model** và nút **+** (hội thoại mới) dời lên header.
-- Nhóm **Hệ thống** (chọn brain, nút đổi tông sáng/tối, nút loa, dải HỆ THỐNG và MCP) dời xuống đáy ngăn kéo điều hướng.
+- Nhóm **Hệ thống** (chọn brain, nút đổi tông sáng/tối, dải HỆ THỐNG và MCP) dời xuống đáy ngăn kéo điều hướng.
 - Ô nhập rút gọn lời nhắc thành "Nói hoặc gõ cho Javis…".
-- Nút loa trên thanh nhập và nút **🕘 Lịch sử** ở header bị ẩn (đã có nút loa trong ngăn kéo, và trang **Trò chuyện** có sẵn lịch sử).
+- Nút **🕘 Lịch sử** ở header bị ẩn (trang **Trò chuyện** có sẵn lịch sử).
+- Không có nút loa ở đâu cả: cuộc gọi bằng nút mic quyết định Javis có nói thành tiếng hay không.
 - Không có chuột để rê, nên **chạm vào một tin nhắn** để hiện hàng nút của đúng tin đó; chạm ra chỗ khác thì ẩn đi.
 - Trong trang **Trò chuyện**, nút **🕘** ở thanh tiêu đề mở/đóng ngăn lịch sử trượt từ trái.
 
@@ -463,7 +476,7 @@ Dòng chữ ngay dưới quả cầu cho biết Javis đang làm gì:
 |---|---|
 | SẴN SÀNG | Đang nghỉ, chờ bạn |
 | ĐANG NGHE | Đang nghe bạn nói |
-| ĐANG NGHE • LUÔN | Chế độ rảnh tay đang bật |
+| ĐANG NGHE • LUÔN | Đang trong cuộc gọi, mic mở liên tục |
 | ĐANG SUY NGHĨ | Bộ não đang xử lý câu hỏi |
 | ĐANG GỌI <tên tool> | Bộ não đang gọi một công cụ (POS, lịch, mở trang...) |
 | ĐANG NÓI | Javis đang đọc câu trả lời |
@@ -479,9 +492,8 @@ Nút quanh khung chat:
 
 | Nút | Ở đâu | Làm gì |
 |---|---|---|
-| Mic to | Trái thanh nhập | Bật/tắt chế độ rảnh tay (luôn nghe) |
+| Mic to | Trái thanh nhập | Gọi Javis; trong cuộc gọi nút thành **Cúp máy** |
 | Kẹp giấy | Cạnh nút mic | Chọn file đính kèm |
-| Loa | Cạnh nút kẹp giấy | Bật/tắt đọc trả lời (ẩn trên điện thoại) |
 | Mũi tên | Phải thanh nhập | Gửi tin nhắn |
 | Ô vuông | Thay nút gửi khi đang chạy | Dừng lượt đang trả lời + dừng đọc |
 | ⛶ | Góc mục HỘI THOẠI | Phóng to khung chat |
@@ -501,22 +513,21 @@ Phím tắt:
 
 ## Mẹo
 
-- Muốn nói dài nhiều câu mà không sợ Javis gửi sớm, dùng chế độ rảnh tay (nút mic) và nói liền mạch; chỉ ngừng hẳn khi thật sự nói xong.
-- Nghe Javis đọc lâu, muốn im lặng đọc chữ: tắt công tắc "🔊 Đọc trả lời bằng giọng", câu trả lời vẫn hiện đầy đủ dạng chữ.
+- Muốn nói dài nhiều câu mà không sợ Javis gửi sớm, gọi Javis (nút mic) và nói liền mạch; chỉ ngừng hẳn khi thật sự nói xong.
+- Muốn im lặng đọc chữ: cúp máy rồi gõ, Javis chỉ trả lời bằng chữ.
 - Đưa nhiều ảnh chụp màn hình cùng lúc bằng cách kéo - thả tất cả vào cửa sổ, Javis xử lý từng cái.
-- Nếu bạn quen nói tiếng Anh, đổi "Ngôn ngữ nghe" sang Tiếng Anh để nhận diện chính xác hơn.
+- Nếu bạn quen nói tiếng Anh, đổi ngôn ngữ giao diện sang tiếng Anh (**Cài đặt → Chung**): Javis nghe theo ngôn ngữ giao diện.
 - Dán nguyên một bài dài vào ô chat cứ dán thoải mái: Javis tự biến thành file `.txt` đính kèm, khung chat vẫn gọn.
 - Hỏi lại một câu đã hỏi mà muốn đổi vài chữ: bấm **✎** trên tin cũ, sửa trong ô nhập rồi gửi, khỏi gõ lại từ đầu.
 - Nút **⛶** trên mục HỘI THOẠI và mục **Trò chuyện** trong nhóm Trợ lý dẫn tới cùng một chỗ, dùng đường nào tiện hơn thì dùng.
 
 ## Sự cố thường gặp
 
-- **Giữ phím Cách không bật mic.** Con trỏ đang nằm trong ô gõ chữ hoặc một ô nhập khác. Bấm ra vùng trống của trang rồi giữ lại phím Cách.
 - **Trong chat hiện ra một câu bạn không hề gõ.** Gần như chắc chắn là mic nghe được tiếng trong phòng (nhạc, TV, người khác nói) rồi chép thành chữ và gửi luôn, vì câu nói xong là Javis gửi ngay chứ không hỏi lại. Nhìn dòng chữ giữa màn hình: còn **ĐANG NGHE** hay **ĐANG NGHE • LUÔN** nghĩa là mic vẫn mở, bấm nút mic hoặc **Esc** để tắt. Javis đang đọc thành tiếng cũng không tự bật mic lại khi bạn đã cúp máy. Xoá câu lạ đó thì bắt đầu một hội thoại mới; Javis không có cách nào tự gõ vào ô chat của bạn, mọi kết quả chạy nền đều hiện ở bong bóng bên trái.
 - **Trình duyệt không nghe được.** Javis báo "Trình duyệt không hỗ trợ giọng nói. Dùng Chrome/Edge." Hãy mở dashboard bằng Chrome hoặc Edge.
 - **Micro không hoạt động.** Trình duyệt chặn quyền micro. Vào phần quyền của trang trong trình duyệt và cho phép micro, rồi tải lại trang.
-- **Nhấn Esc mà Javis vẫn nói tiếp.** Đúng như thiết kế hiện tại: Esc không dừng lượt nữa. Bấm nút dừng (ô vuông) trên thanh nhập, hoặc bấm nút loa để tắt tiếng.
-- **Không nghe thấy Javis đọc.** Kiểm tra nút loa (góc trên phải bị mờ, hoặc nút trên thanh nhập bị gạch chéo đỏ) có đang tắt tiếng không; kiểm tra âm lượng máy. Bấm "▶ Nghe thử" để kiểm tra riêng phần đọc. Nếu đang dùng OpenAI hoặc ElevenLabs mà giọng nghe lạ, nhiều khả năng nhà cung cấp đó lỗi và Javis đã tự quay về Edge.
+- **Nhấn Esc rồi mà câu trả lời vẫn hiện tiếp.** Đúng như thiết kế: Esc là cúp máy, tắt mic và tắt giọng, còn câu trả lời vẫn viết tiếp thành chữ. Muốn dừng hẳn lượt thì bấm nút dừng (ô vuông) trên thanh nhập hoặc gõ `/stop`.
+- **Không nghe thấy Javis nói.** Javis chỉ nói thành tiếng trong cuộc gọi, nên bấm mic để gọi. Đang gọi mà vẫn im: kiểm tra âm lượng máy, rồi bấm "▶ Nghe thử" trong **Cài đặt → Giọng nói** để thử riêng phần đọc. Nếu dùng giọng OpenAI hoặc ElevenLabs, xem Javis có báo lỗi giọng không (hết hạn mức, sai key, mất mạng); Javis không tự chuyển sang giọng khác.
 - **Gõ "/" mà không thấy menu.** Menu chỉ mở khi dấu "/" đứng đầu ô nhập và chưa có dấu cách theo sau. Nếu vẫn không có dòng skill nào, brain đang chọn chưa có skill nào bật.
 - **Bấm nút lựa chọn của Javis mà không ăn gì.** Đó là hàng nút của lượt cũ, đã bị đông cứng khi bạn gửi tin mới. Cứ gõ câu trả lời bằng tay.
 - **Ảnh trong hội thoại thành ô xám "Ảnh đã hết hạn".** File nằm trong vùng cache `attachments/` đã quá 30 ngày hoặc bị dọn do chạm trần 300MB. Nhờ Javis tạo lại, hoặc lần sau chép ảnh quan trọng sang thư mục khác trong brain.
@@ -536,20 +547,3 @@ Phím tắt:
 - [Kênh Telegram](11-telegram.md) và [Kênh Zalo](12-zalo.md) - chat với Javis ngoài dashboard.
 
 Vẫn kẹt? Xem [Khắc phục sự cố & FAQ](17-khac-phuc-su-co.md).
-
-Từ 0.64.34, cài đặt trò chuyện ưu tiên giọng, tốc độ, chế độ và tập trung. Mở **Nâng cao** để chỉnh bộ não/model, bộ nghe phụ, từ gợi ý và micro. Mở **Nhà cung cấp và kết nối** để cấu hình API và lưu nhà cung cấp. Các lựa chọn không tác động tới chế độ đang dùng được ẩn; ngôn ngữ nghe vẫn có trong Live vì dùng cho tiếng gọi Javis.
-
-
-## Nhịp hội thoại thử nghiệm (0.64.35)
-
-Vào **Cài đặt → Trò chuyện → Nâng cao → Nhịp hội thoại (thử nghiệm)**:
-
-- **Chờ cố định**: mặc định, giữ cách nghe hiện tại.
-- **Quan sát để kiểm tra**: giữ cách nghe hiện tại, chỉ tính quyết định thử trong bộ nhớ.
-- **Tự nhiên**: chờ theo câu nói và nhịp ngắt nghỉ trong phiên; chọn Nhanh/Cân bằng/Kiên nhẫn. Chỉ dùng ở Chuẩn/Làn nhanh với máy chủ hỗ trợ, không thêm API.
-
-Câu dang dở không tự gửi. Sau 10 giây chưa nói tiếp, phần chữ ở lại dưới dạng bản nháp với **Gửi phần đã nói / Tiếp tục / Bỏ**. Nói “khoan để anh nghĩ” giữ lượt tối đa 90 giây. Có thể gọi Javis hoặc bấm Tiếp tục để mở lại bản nháp. Tới 120 giây hoặc 4.000 ký tự, cần kiểm tra phần đã nghe trước khi tiếp tục; không cắt chữ âm thầm.
-
-Bản đầu chỉ tự im lặng với lời kết thúc rõ ràng và một số lời giải thích đã được server xác định chắc chắn là hoàn tất. Ngữ cảnh khác vẫn trả lời; không coi mọi câu “vâng” là lời kết thúc. Tin được ghi nhận có nút **Yêu cầu trả lời** và vẫn nằm trong lịch sử.
-
-**Tải chẩn đoán** xuất tối đa 200 sự kiện về trạng thái/thời điểm từ RAM, không chứa nội dung câu nói, âm thanh hay khóa API. Đặt lại nhịp đã học không xóa hội thoại. Chưa có kiểm chứng âm học trên mọi tablet: giữ Chờ cố định nếu Tự nhiên chưa phù hợp, và thử lại cùng một đoạn nói để so sánh.

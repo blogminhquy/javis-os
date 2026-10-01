@@ -6419,207 +6419,148 @@
         + ` <button class="s-btn" data-settings-go="account">${esc(window.t("cs.tfa_row_enable"))}</button>`;
   }
 
-  // ---- Voice V2: thẻ "Chế độ và bộ não giọng nói" (docs/dev/2026-10-voice-call-spec.md mục 5) ----
-  // Đọc /voice/options để biết cái gì đang sẵn (agy đã cài chưa, key nào đã dán), rồi vẽ ba
-  // khối: chế độ, bộ não giọng cho làn nhanh, nghe bằng gì, và nhà cung cấp cho bậc Live.
-  async function renderVoiceV2Card() {
+  // ---- Thẻ GIỌNG NÓI (0.65.19, docs/dev/2026-10-voice-call-spec.md mục 5) ----
+  // Ba ô: dòng "Đang dùng", Giọng Javis (danh sách đổi theo đường gọi), Tập trung. Nâng cao: Đường
+  // gọi, Tốc độ đọc, ElevenLabs. MỌI Ô TỰ LƯU khi đổi, không còn nút Lưu. Khung là node tĩnh trong
+  // index.html (#voiceCard); hàm này chỉ đổ lựa chọn và nối tay bắt, nên gọi lại bao nhiêu lần
+  // cũng được (mỗi lần mở tab Giọng nói, mỗi lần đổi đường gọi).
+  // Đọc /voice/options?brains=0: bỏ danh sách bộ não giọng (máy tự chọn) nên không phải chờ
+  // `agy models`, có khi tới 30 giây.
+  const OPENAI_TTS_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse"];
+  const LIVE_API_NAMES = { gemini: "Gemini", openai: "OpenAI", "gpt-live": "GPT-Live" };
+  // Mã lý do -> khoá i18n viết ĐỦ (test_i18n quét khoá tĩnh, không đọc được khoá ghép chuỗi).
+  const CALL_REASON = {
+    auto_api: "settings.vc_reason_auto_api", auto_basic: "settings.vc_reason_auto_basic",
+    chosen_unavailable: "settings.vc_reason_chosen_unavailable",
+  };
+  const CHATGPT_DETAIL = {
+    no_cli: "settings.vc_detail_no_cli", no_login: "settings.vc_detail_no_login", old_cli: "settings.vc_detail_old_cli",
+  };
+
+  async function renderVoiceCard() {
     const gen = _renderGen;
-    const host = document.getElementById("vpV2Host");
-    if (!host) return;
-    // Ba mục micro (ngôn ngữ nghe, im lặng rồi gửi, ngắt lời) là node TĨNH của index.html:
-    // app.js gắn tay bắt cho chúng đúng một lần lúc tải trang, nên không vẽ lại bằng chuỗi
-    // HTML được (vẽ lại là mất tay bắt). Chúng nằm cùng thẻ với chế độ nói chuyện (chủ dự án
-    // chốt 17/09) bằng cách DỜI node vào thẻ, và phải TRẢ về nhà (#qsMicHome) trước khi
-    // host.innerHTML ghi đè, không thì lần vẽ lại thứ hai xoá sạch chúng.
-    const micHome = document.getElementById("qsMicHome"), micFields = document.getElementById("qsMicFields");
-    const traMicVeNha = () => { if (micHome && micFields && micFields.parentNode !== micHome) micHome.appendChild(micFields); };
-    const gheMicVaoThe = (truoc) => {
-      const the = host.querySelector(".qs-block");
-      if (!micFields || !the) return;
-      if (truoc) truoc.parentNode.insertBefore(micFields, truoc); else the.appendChild(micFields);
-      micFields.hidden = false;
-      if (micHome) micHome.hidden = true;
-    };
-    traMicVeNha();
-    let o = null;
-    try { o = await (await fetch("/voice/options", { cache: "no-store" })).json(); } catch (e) { o = null; }
-    if (gen !== _renderGen) return;
-    if (!o || !o.ok) {
-      // Máy chủ cũ: vẫn phải cho chỉnh micro, ba mục đó không cần máy chủ.
-      host.innerHTML = `<div class="qs-block"><div class="popover-label">${esc(t("settings.v2_title"))}</div><div class="gcard-meta">${esc(t("settings.v2_load_fail"))}</div></div>`;
-      gheMicVaoThe(null);
-      return;
-    }
-    const v = o.voice || {};
-    // Mặc định là Làn nhanh (chủ dự án chốt 17/09). Làn nhanh cần một bộ não giọng, mà cài
-    // đặt mới chưa chọn bộ não nào: gợi sẵn bộ não ĐANG SẴN đầu tiên (thứ tự của máy chủ ưu
-    // tiên bộ não chạy trên gói đã đăng nhập) để bấm Lưu là dùng được ngay, thay vì chặn
-    // bằng câu "cần chọn bộ não". Chỉ gợi trên màn hình; chưa bấm Lưu thì chưa ghi gì.
-    const cheDo = v.mode || "fast";
-    let naoChon = v.brain_provider || "";
-    if (cheDo === "fast" && !naoChon) {
-      const san = (o.brain_providers || []).find(p => p.id && p.available);
-      if (san) naoChon = san.id;
-    }
-    const optA = (id, label, cur, dis) => `<option value="${esc(id)}" ${id === (cur || "") ? "selected" : ""} ${dis ? "disabled" : ""}>${esc(label)}</option>`;
-    const brainOpts = o.brain_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_unavailable") + ")"), naoChon, !p.available && p.id !== "")).join("");
-    // Tai nghe lại (0.65.15): auto | groq | off. Nhãn auto/off dịch ở client, tai thật lấy tên
-    // từ máy chủ; tai chưa dùng được vẫn chọn được (để sẵn), dòng "Đang dùng" nói rõ lý do.
-    const earLabel = (c) => c.id === "auto" ? t("settings.ear_auto") : c.id === "off" ? t("settings.ear_off")
-      : c.label + (c.available ? "" : " (" + t("settings.v2_unavailable") + ")");
-    const earOpts = (o.ear_choices || []).map(c => optA(c.id, earLabel(c), v.ear || "auto", false)).join("");
-    // Mã lý do -> khoá i18n viết ĐỦ (test_i18n quét khoá tĩnh, không đọc được khoá ghép chuỗi).
-    const EAR_REASON = {
-      off: "settings.ear_reason_off", chosen: "settings.ear_reason_chosen",
-      chosen_unavailable: "settings.ear_reason_chosen_unavailable",
-      same_vendor: "settings.ear_reason_same_vendor", best: "settings.ear_reason_best",
-      none: "settings.ear_reason_none",
-    };
-    const earNow = o.ear || {};
-    const earWhy = t(EAR_REASON[earNow.reason] || EAR_REASON.none);
-    const earStatus = earNow.provider
-      ? t("settings.ear_using", { ear: earNow.label || earNow.provider }) + " " + earWhy
-      : earWhy;
-    // ChatGPT Live không cần key: chưa sẵn là do chưa cài Codex hay chưa nối ChatGPT (p.hint nói rõ).
-    const liveOpts = o.live_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t(p.id === "chatgpt" ? "settings.v2_unavailable" : "settings.v2_need_key") + ")"), v.live_provider || "gemini", false)).join("");
-    host.innerHTML = `
-      <div class="qs-block">
-        <div class="popover-label">${esc(t("settings.v2_title"))}</div>
-        <div class="qs-field">
-          <label class="qs-lbl" for="v2Mode">${esc(t("settings.v2_mode"))}</label>
-          <select class="js-input" id="v2Mode">
-            ${optA("standard", t("settings.v2_mode_standard"), cheDo)}
-            ${optA("fast", t("settings.v2_mode_fast"), cheDo)}
-            ${optA("live", t("settings.v2_mode_live"), cheDo)}
-          </select>
-        </div>
-        <div class="qs-field">
-          <label class="qs-lbl" for="v2LocTapAm">${esc(t("settings.v2_loc_tap_am"))}</label>
-          <label class="toggle"><input type="checkbox" id="v2LocTapAm" ${v.focus_mode === false ? "" : "checked"}><span></span></label>
-        </div>
-        <div class="qs-hint">${esc(t("settings.voice_focus_short"))}</div>
-        <div id="v2LiveBox">
-          <label class="js-lbl">${esc(t("settings.v2_live"))}</label>
-          <select class="js-input" id="v2Live">${liveOpts}</select>
-          <div id="v2LiveModelBox">
-          <label class="js-lbl">${esc(t("settings.v2_live_model"))}</label>
-          <input class="js-input" id="v2LiveModel" value="${esc(v.live_model || "")}" placeholder="">
-          </div>
-          <label class="js-lbl">${esc(t("settings.v2_live_voice"))}</label>
-          <div class="v2-voice-row"><select class="js-input" id="v2LiveVoice"></select>
-          <button class="gcard-btn" type="button" id="v2LiveVoiceTry" hidden>${esc(t("settings.chatgpt_voice_try"))}</button></div>
-          <div class="gcard-meta" id="v2LiveHint">${esc(t("settings.v2_live_note"))}</div>
-        </div>
-        <details class="qs-advanced" id="v2Advanced">
-          <summary>${esc(t("settings.voice_advanced"))}</summary>
-          <div id="v2BrowserAdvanced">
-        <div id="v2FastBox">
-          <label class="js-lbl">${esc(t("settings.v2_brain"))}</label>
-          <select class="js-input" id="v2Brain">${brainOpts}</select>
-          <label class="js-lbl">${esc(t("settings.v2_brain_model"))}</label>
-          <select class="js-input" id="v2BrainModelSel" style="display:none"></select>
-          <input class="js-input" id="v2BrainModel" value="${esc(v.brain_model || "")}" placeholder="${esc(t("settings.v2_model_ph"))}">
-          <div class="gcard-meta" id="v2BrainHint"></div>
-        </div>
-        <div class="qs-field">
-          <label class="qs-lbl" for="v2Ear">${esc(t("settings.ear"))}</label>
-          <select class="js-input" id="v2Ear">${earOpts}</select>
-          <div class="qs-hint" id="v2EarStatus">${esc(earStatus)}</div>
-          <div class="qs-hint">${esc(t("settings.ear_note"))}</div>
-        </div>
-          </div>
-        <div class="qs-field">
-          <label class="qs-lbl" for="v2Hotwords">${esc(t("settings.v2_hotwords"))}</label>
-          <input class="js-input" id="v2Hotwords" value="${esc(v.hotwords || "")}" placeholder="${esc(t("settings.v2_hotwords_ph"))}">
-          <div class="gcard-meta">${esc(t("settings.v2_hotwords_note", { goc: (o.hotwords_goc || ["Javis"]).join(", ") }))}</div>
-        </div>
-          <div class="qs-hint">${esc(t("settings.v2_loc_tap_am_note"))}</div>
-          <div id="v2AdvancedEnd"></div>
-        </details>
-        <div class="js-actions qs-foot"><button class="gcard-btn" id="v2Save">${esc(t("settings.v2_save"))}</button></div>
-        <div class="gcard-meta" id="v2Status" role="status"></div>
-        <div class="gcard-meta" id="v2LastErr" style="display:none"></div>
-      </div>`;
-    gheMicVaoThe(host.querySelector("#v2AdvancedEnd"));   // giữ node và handler micro trong Nâng cao
     const $ = (id) => document.getElementById(id);
-    const byId = (arr, id) => (arr || []).find(p => p.id === id) || null;
-    const syncBrain = () => {
-      const p = byId(o.brain_providers, $("v2Brain").value);
-      const sel = $("v2BrainModelSel"), inp = $("v2BrainModel");
-      if (p && p.models && p.models.length) {
-        sel.innerHTML = p.models.map(m => optA(m.id, m.label || m.id, v.brain_model || p.models[0].id)).join("");
-        sel.style.display = ""; inp.style.display = "none";
-        if (!p.models.some(m => m.id === v.brain_model)) { const low = p.models.find(m => /flash.*low/i.test(m.id)); if (low) sel.value = low.id; }
+    if (!$("voiceCard")) return;
+    let o = null;
+    try { o = await (await fetch("/voice/options?brains=0", { cache: "no-store" })).json(); } catch (e) { o = null; }
+    if (gen !== _renderGen) return;
+    if (!o || !o.ok) { $("vcNow").textContent = t("settings.v2_load_fail"); return; }
+    const call = o.call || {}, tts = o.tts || {}, v = o.voice || {};
+    const opt = (val, label, cur) => `<option value="${esc(val)}"${val === cur ? " selected" : ""}>${esc(label)}</option>`;
+
+    // Dòng "Đang dùng": tên đường gọi, bộ não trả lời nhanh khi ở đường Cơ bản, và lý do khi
+    // máy đang ở đường dự phòng (chưa nối ChatGPT, Codex cũ, thiếu key...).
+    const engineName = call.engine === "chatgpt" ? "ChatGPT Live"
+      : call.engine === "api" ? t("call.engine_api", { provider: LIVE_API_NAMES[call.live_provider] || "API" })
+      : t("call.engine_basic");
+    const parts = [t("settings.vc_now", { engine: engineName })];
+    if (call.engine === "basic" && o.voice_brain && o.voice_brain.id) parts.push(t("settings.vc_now_brain", { brain: o.voice_brain.label }));
+    if (CALL_REASON[call.reason]) parts.push(t(CALL_REASON[call.reason]));
+    if (call.engine !== "chatgpt" && ["auto", "chatgpt"].includes(call.setting || "auto") && CHATGPT_DETAIL[call.detail]) parts.push(t(CHATGPT_DETAIL[call.detail]));
+    $("vcNow").textContent = parts.join(" ");
+
+    const luuGiong = async (data) => {
+      const st = $("vcStatus");
+      st.textContent = t("settings.saving");
+      const r = await saveSetting("voice", data);
+      st.textContent = r && r.ok ? t("settings.vc_saved") : t("settings.save_failed");
+      _settings = null;
+      try { if (window.JavisVoiceMode) window.JavisVoiceMode.refresh(); } catch (e) {}
+      return r;
+    };
+
+    // Giọng Javis: mỗi đường gọi một bộ giọng.
+    const sel = $("vcVoice"), tryBtn = $("vcTry");
+    const edgeSel = $("voiceSel");
+    let basicVoice = "";
+    if (call.engine === "chatgpt") {
+      const p = (o.live_providers || []).find(x => x.id === "chatgpt") || {};
+      sel.innerHTML = (p.voices || []).map(x => opt(x, x, o.chatgpt_voice || p.default_voice)).join("");
+    } else if (call.engine === "api") {
+      const p = (o.live_providers || []).find(x => x.id === call.live_provider) || {};
+      const voices = p.voices || [];
+      const cur = voices.includes(v.live_voice) ? v.live_voice : (p.default_voice || voices[0] || "");
+      sel.innerHTML = voices.map(x => opt(x, x, cur)).join("");
+    } else {
+      // Đường Cơ bản: giọng Edge (miễn phí), giọng OpenAI khi đã có key ở trang Models, và giọng
+      // ElevenLabs riêng (key và Voice ID ở Nâng cao). Chọn giọng là chọn luôn nhà cung cấp.
+      basicVoice = tts.provider === "openai" ? "openai:" + (tts.openai_voice || "alloy")
+        : tts.provider === "elevenlabs" ? "elevenlabs" : "edge:" + (edgeSel ? edgeSel.value : "");
+      const edgeOpts = edgeSel ? Array.from(edgeSel.options).map(x => opt("edge:" + x.value, x.textContent, basicVoice)).join("") : "";
+      const oaOn = tts.openai_key_set || tts.provider === "openai";
+      sel.innerHTML = `<optgroup label="${esc(t("settings.vc_group_edge"))}">${edgeOpts}</optgroup>`
+        + (oaOn ? `<optgroup label="OpenAI">${OPENAI_TTS_VOICES.map(x => opt("openai:" + x, x, basicVoice)).join("")}</optgroup>` : "")
+        + `<optgroup label="ElevenLabs">${opt("elevenlabs", t("settings.vc_eleven_opt"), basicVoice)}</optgroup>`;
+    }
+    const basic = call.engine === "basic";
+    const isEleven = () => basic && sel.value === "elevenlabs";
+    tryBtn.hidden = call.engine === "api";   // giọng của Live qua API không có mẫu thu sẵn
+    $("vcVoiceNote").hidden = !(basic && sel.value.startsWith("edge:"));
+    $("vcRateRow").hidden = !basic;          // tốc độ đọc chỉ áp cho giọng đọc của đường Cơ bản
+    $("vcOpenaiNote").hidden = !basic || !!tts.openai_key_set;
+    $("vcEleven").hidden = !isEleven();
+    $("vcElKeySet").hidden = !tts.elevenlabs_key_set;
+    $("vcElVoice").value = tts.elevenlabs_voice || "";
+    sel.onchange = async () => {
+      const val = sel.value;
+      if (call.engine === "chatgpt") { await luuGiong({ chatgpt_voice: val }); return; }
+      if (call.engine === "api") { await luuGiong({ live_voice: val }); return; }
+      $("vcVoiceNote").hidden = !val.startsWith("edge:");
+      $("vcEleven").hidden = val !== "elevenlabs";
+      if (val.startsWith("edge:")) {
+        // Giọng Edge sống ở máy này (localStorage, app.js nghe sự kiện change của #voiceSel).
+        if (edgeSel) { edgeSel.value = val.slice(5); edgeSel.dispatchEvent(new Event("change")); }
+        if (tts.provider !== "edge") { await luuGiong({ tts_provider: "edge" }); tts.provider = "edge"; }
+        else $("vcStatus").textContent = t("settings.vc_saved");
+      } else if (val.startsWith("openai:")) {
+        await luuGiong({ tts_provider: "openai", openai_tts_voice: val.slice(7) });
+        tts.provider = "openai";
       } else {
-        sel.style.display = "none"; inp.style.display = "";
-        if (p && !inp.value && p.default_model) inp.placeholder = p.default_model;
+        await luuGiong({ tts_provider: "elevenlabs" });
+        tts.provider = "elevenlabs";
+        $("vcAdvanced").open = true;
+        if (!tts.elevenlabs_key_set) $("vcElKey").focus();
       }
-      $("v2BrainHint").textContent = (p && p.hint) || (p && p.id === "antigravity" ? t("settings.v2_agy_hint") : "");
     };
-    const syncLive = () => {
-      const p = byId(o.live_providers, $("v2Live").value);
-      const vs = $("v2LiveVoice");
-      const chatgpt = !!(p && p.id === "chatgpt");
-      // ChatGPT Live: 9 giọng riêng của gói (mặc định juniper), không có ô model, có mẫu nghe thử.
-      const cur = chatgpt ? (o.chatgpt_voice || p.default_voice) : (v.live_voice || (p && p.voices && p.voices[0]));
-      vs.innerHTML = (p && p.voices || []).map(x => optA(x, x, cur)).join("");
-      $("v2LiveModel").placeholder = (p && p.default_model) || "";
-      $("v2LiveModelBox").hidden = chatgpt;
-      $("v2LiveVoiceTry").hidden = !chatgpt;
-      $("v2LiveHint").textContent = chatgpt
-        ? (p.available ? t("settings.chatgpt_live_note") : (p.hint || t("settings.chatgpt_live_note")))
-        : t("settings.v2_live_note");
-    };
-    // Mẫu thu sẵn (dashboard/voices/<giọng>.mp3): nghe thử không cần mở phiên realtime nào.
-    $("v2LiveVoiceTry").onclick = () => {
+    // Nghe thử: ChatGPT Live phát mẫu thu sẵn (dashboard/voices/<giọng>.mp3, không mở phiên
+    // realtime nào); đường Cơ bản đọc một câu bằng giọng đang chọn (app.js JavisVoiceSample).
+    tryBtn.onclick = () => {
       try {
-        if (window._v2VoiceSample) window._v2VoiceSample.pause();
-        window._v2VoiceSample = new Audio("/static/voices/" + encodeURIComponent($("v2LiveVoice").value) + ".mp3");
-        window._v2VoiceSample.play().catch(() => {});
+        if (window._vcSample) window._vcSample.pause();
+        if (call.engine === "chatgpt") {
+          window._vcSample = new Audio("/static/voices/" + encodeURIComponent(sel.value) + ".mp3");
+          window._vcSample.play().catch(() => {});
+        } else if (window.JavisVoiceSample) window.JavisVoiceSample();
       } catch (e) {}
     };
-    const syncMode = () => {
-      const m = $("v2Mode").value;
-      $("v2FastBox").style.display = m === "fast" ? "" : "none";
-      $("v2LiveBox").style.display = m === "live" ? "" : "none";
-      $("v2BrowserAdvanced").hidden = m === "live";
-      const browserMic = $("qsBrowserMicFields");
-      if (browserMic) browserMic.hidden = m === "live";
-      if (m === "fast" && !v.brain_provider) $("v2Advanced").open = true;
+
+    $("vcFocus").checked = v.focus_mode !== false;
+    $("vcFocus").onchange = () => luuGiong({ focus_mode: $("vcFocus").checked });
+
+    $("vcEngine").value = call.setting || "auto";
+    $("vcEngine").onchange = async () => {
+      await luuGiong({ call_engine: $("vcEngine").value });
+      renderVoiceCard();   // dòng "Đang dùng" và danh sách giọng đổi theo đường mới
     };
-    $("v2Brain").onchange = syncBrain; $("v2Live").onchange = syncLive; $("v2Mode").onchange = syncMode;
-    syncBrain(); syncLive(); syncMode();
-    // Lỗi gần nhất khiến làn nhanh rơi về bộ não chính (server nhớ tới khi một lượt chạy tốt).
-    // Không có dòng này thì người dùng chỉ thấy mic "đi thẳng vào bộ não chính" mà không biết
-    // là bộ não giọng đang hỏng hay cài đặt đã trôi về chế độ chuẩn.
-    const le = o.last_error || {};
+
+    // ElevenLabs: key chỉ gửi khi gõ key MỚI (ô để trống là giữ key cũ), Voice ID lưu khi rời ô.
+    $("vcElKey").onchange = async () => {
+      const key = $("vcElKey").value.trim();
+      if (!key) return;
+      const r = await luuGiong({ elevenlabs_key: key });
+      if (r && r.ok) { $("vcElKey").value = ""; tts.elevenlabs_key_set = true; $("vcElKeySet").hidden = false; }
+    };
+    $("vcElVoice").onchange = () => luuGiong({ elevenlabs_voice: $("vcElVoice").value.trim() });
+
+    // Lỗi gần nhất khiến câu nói rơi về bộ não chính (server nhớ tới khi một lượt chạy tốt).
+    // Không có dòng này thì người dùng chỉ thấy mic "đi thẳng vào bộ não chính" mà không biết vì sao.
+    const le = o.last_error || {}, elErr = $("v2LastErr");
+    elErr.hidden = !le.error;
     if (le.error) {
-      $("v2Advanced").open = true;
       const phut = Math.max(0, Math.round((Date.now() / 1000 - Number(le.at || 0)) / 60));
-      const elErr = $("v2LastErr");
-      elErr.style.display = "";
       elErr.innerHTML = WARN_ICON + " " + esc(t("settings.v2_last_error",
         { brain: le.label || le.provider || "?", error: le.error, min: phut }));
     }
-    $("v2Save").onclick = async () => {
-      const st = $("v2Status");
-      st.textContent = t("settings.saving");
-      const p = byId(o.brain_providers, $("v2Brain").value);
-      const brainModel = (p && p.models && p.models.length) ? $("v2BrainModelSel").value : $("v2BrainModel").value.trim();
-      const data = {
-        mode: $("v2Mode").value, brain_provider: $("v2Brain").value, brain_model: brainModel,
-        ear: $("v2Ear").value, live_provider: $("v2Live").value,
-        live_model: $("v2LiveModel").value.trim(),
-        live_voice: $("v2Live").value === "chatgpt" ? undefined : ($("v2LiveVoice").value || ""),
-        chatgpt_voice: $("v2Live").value === "chatgpt" ? $("v2LiveVoice").value : undefined,
-        hotwords: $("v2Hotwords").value.trim(), focus_mode: $("v2LocTapAm").checked,
-      };
-      if (data.mode === "fast" && !data.brain_provider) { $("v2Advanced").open = true; $("v2Brain").focus(); st.textContent = t("settings.v2_need_brain"); return; }
-      const r = await saveSetting("voice", data);
-      st.textContent = r && r.ok ? t("settings.v2_saved") : t("settings.save_failed");
-      try { if (window.JavisVoiceMode) window.JavisVoiceMode.refresh(); } catch (e) {}
-    };
-    host.dataset.settingsReady = "true";
   }
 
   // ---- Thẻ LINH VẬT trên trang Cài đặt ----
@@ -6886,10 +6827,6 @@
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     const s = await freshSettings();
     if (gen !== _renderGen) return;       // đã sang trang khác → KHÔNG ghi đè trang mới bằng nội dung cũ
-    const v = s.voice || {};
-    const prov = v.tts_provider || "edge";
-    const oaSet = !!(s.model && s.model.openai_api_key_set);
-    const elSet = !!v.elevenlabs_key_set;
     const model = s.model || {};
     const telegram = s.telegram || {};
     const dashboard = s.dashboard || {};
@@ -6900,7 +6837,6 @@
     const engine = mainProvider?.label || ({ "openrouter": "OpenRouter", "openai": "OpenAI API", "openai-oauth": "ChatGPT OAuth", "anthropic-cli": "Claude CLI" }[mainProviderId] || mainProviderId);
     const currentModel = model.main?.model || (mainProviderId === "openrouter" ? model.openrouter_model : model.claude_model) || t("common.default");
     const opt = (val, label, cur) => `<option value="${esc(val)}"${val === cur ? " selected" : ""}>${esc(label)}</option>`;
-    const oaVoices = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse"];
     // NGÔN NGỮ TRẢ LỜI. Danh sách lấy từ /lang/list (sổ đăng ký phía server) chứ KHÔNG khai
     // lại ở đây: khai hai nơi thì thêm ngôn ngữ mới lại phải nhớ sửa cả hai, và chỗ bị quên
     // là chỗ hỏng trong im lặng.
@@ -6931,33 +6867,6 @@
         <div class="qs-hint">${esc(t("settings.lang.hint"))}</div>
       </div>`;
 
-    // Nhà cung cấp giọng đọc. KHÔNG còn vỏ thẻ .qs-block của riêng nó, cũng không còn nút Lưu
-    // và dòng trạng thái riêng (0.58.8): khối này giờ nằm BÊN TRONG thẻ "GIỌNG ĐỌC" của
-    // index.html, dùng chung nút #vpSave và ô #vpStatus ở cuối thẻ đó. Chọn nhà cung cấp rồi
-    // chọn giọng là MỘT việc, trước đây tách hai thẻ nên có hai chỗ bấm Lưu cho cùng một việc.
-    const provHtml = `
-      <div class="qs-field">
-        <label class="qs-lbl" for="vpProvider">${esc(t("settings.tts_provider"))}</label>
-        <select class="js-input" id="vpProvider">
-          ${opt("edge", t("settings.tts_edge"), prov)}
-          ${opt("openai", t("settings.tts_openai"), prov)}
-          ${opt("elevenlabs", t("settings.tts_eleven"), prov)}
-        </select>
-      </div>
-      <div id="vpOpenai" style="display:none">
-        <label class="js-lbl">OpenAI API key ${oaSet ? `<span class="dim">${esc(t("settings.key_set"))}</span>` : ""}</label>
-        <input class="js-input" id="vpOaKey" type="password" placeholder="${esc(t("settings.oa_key_ph"))}">
-        <div class="qs-field">
-          <label class="qs-lbl" for="vpOaVoice">${esc(t("settings.tts_openai_voice"))}</label>
-          <select class="js-input" id="vpOaVoice">${oaVoices.map(x => opt(x, x, v.openai_tts_voice || "alloy")).join("")}</select>
-        </div>
-      </div>
-      <div id="vpEleven" style="display:none">
-        <label class="js-lbl">ElevenLabs API key ${elSet ? `<span class="dim">${esc(t("settings.key_set"))}</span>` : ""}</label>
-        <input class="js-input" id="vpElKey" type="password" placeholder="${esc(t("settings.eleven_ph"))}">
-        <label class="js-lbl">Voice ID <span class="dim">${esc(t("settings.voice_id_hint"))}</span></label>
-        <input class="js-input" id="vpElVoice" value="${esc(v.elevenlabs_voice || "")}" placeholder="${esc(t("settings.eleven_voice_ph"))}">
-      </div>`;
     el.innerHTML = `<div class="settings-page">
       <details class="settings-group" data-settings-section="general" open>
         <summary><span><b>${esc(t("settings.grp_system"))}</b><small>${esc(t("settings.grp_system_sub"))}</small></span><span class="settings-caret">${ic("chevron-down")}</span></summary>
@@ -7054,56 +6963,9 @@
         refreshSettings();
       };
     }
-    // Hai điểm neo TÁCH BẠCH trong index.html: #ttsProviderHost nằm trong thẻ "Giọng đọc",
-    // còn #vpV2Host là thẻ "Chế độ nói chuyện" của riêng nó (trước đây V2 bị nhét vào trong
-    // khối nhà cung cấp, nên một thẻ có hai nút Lưu chồng nhau).
-    const provHost = document.getElementById("ttsProviderHost");
-    // Giữ nguyên các ô chưa Lưu khi chuyển TAB. Chỉ nạp lại khi mở một lượt Cài đặt mới.
-    const keepVoiceDraft = provHost && provHost.dataset.settingsReady === "true";
-    if (provHost && !keepVoiceDraft) { provHost.innerHTML = provHtml; provHost.dataset.settingsReady = "true"; }
-    const voiceHost = document.getElementById("vpV2Host");
-    if (tab === "voice" && voiceHost && voiceHost.dataset.settingsReady !== "true") renderVoiceV2Card();
-
-    const provSel = document.getElementById("vpProvider");
-    const ttsAdvanced = document.getElementById("ttsAdvanced");
-    if (ttsAdvanced && !keepVoiceDraft) ttsAdvanced.open = prov !== "edge";
-    if (provSel) {   // guard: thiếu điểm neo (vd cache index.html cũ) thì avatar/tên miền vẫn chạy, không sập trang
-      const showFields = () => {
-        const p = provSel.value;
-        document.getElementById("vpOpenai").style.display = p === "openai" ? "block" : "none";
-        document.getElementById("vpEleven").style.display = p === "elevenlabs" ? "block" : "none";
-        // Giọng Hoài My/Nam Minh và 5 giọng đa ngôn ngữ chỉ áp dụng cho Edge. Provider khác chọn giọng ngay trong khối trên
-        // (vpOaVoice / vpElVoice) nên ẩn khối này cho gọn. Radio vẫn nằm trong DOM + giữ 'checked'
-        // để app.js đọc input[name=voice] không lỗi; server dùng provider đã lưu nên giá trị này vô hại.
-        const edgeVoice = document.getElementById("edgeVoiceSection");
-        if (edgeVoice) edgeVoice.style.display = p === "edge" ? "" : "none";
-      };
-      provSel.onchange = showFields; showFields();
-
-      // Dòng trạng thái nằm sẵn trong index.html (rỗng) nên câu mở đầu phải đặt từ đây.
-      const st = document.getElementById("vpStatus");
-      if (st && !keepVoiceDraft) st.innerHTML = esc(t("settings.tts_using")) + " <b>" + esc({ edge: "Edge", openai: "OpenAI", elevenlabs: "ElevenLabs" }[prov] || prov) + "</b>";
-      document.getElementById("vpSave").onclick = async () => {
-        st.textContent = t("settings.saving");
-        const data = {
-          tts_provider: provSel.value,
-          openai_tts_voice: document.getElementById("vpOaVoice").value,
-          elevenlabs_voice: document.getElementById("vpElVoice").value.trim(),
-        };
-        const elKey = document.getElementById("vpElKey").value.trim();
-        if (elKey) data.elevenlabs_key = elKey;
-        const oaKey = document.getElementById("vpOaKey").value.trim();
-        let r = await saveSetting("voice", data);
-        if (oaKey) {
-          const keyResult = await saveSetting("model", { openai_api_key: oaKey });
-          if (!keyResult.ok) r = keyResult;
-        }
-        _settings = null;
-        st.innerHTML = r.ok
-          ? OK_ICON + " " + esc(window.t("cs.vo_saved_a")) + " <b>" + esc(data.tts_provider) + "</b>. " + esc(window.t("cs.vo_saved_b"))
-          : WARN_ICON + " " + esc(window.t("cs.ch_save_err"));
-      };
-    }
+    // Thẻ Giọng nói (0.65.19): khung tĩnh trong index.html, mọi ô tự lưu nên không có bản nháp
+    // nào phải giữ khi chuyển tab; mỗi lần mở tab là đọc lại trạng thái thật từ máy chủ.
+    if (tab === "voice") renderVoiceCard();
 
     el.querySelectorAll("[data-settings-go]").forEach(btn => {
       btn.onclick = () => navigateTo(btn.dataset.settingsGo);

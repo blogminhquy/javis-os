@@ -88,8 +88,9 @@ APP_JS = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
 # Bubble removal and stale raw-text guards are exercised by test_voice_app_session.js.
 check("app.js để lại dòng ghi chú thoáng qua", 'ghiChuThoang(window.t("app.tap_am_bo_qua"))' in APP_JS)
 CONSOLE_JS = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
-check("trang Cài đặt có ô gạt", 'id="v2LocTapAm"' in CONSOLE_JS)
-check("ô gạt được gửi lên khi bấm Lưu", 'focus_mode: $("v2LocTapAm").checked' in CONSOLE_JS)
+INDEX_HTML = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
+check("trang Cài đặt có ô gạt", 'id="vcFocus"' in INDEX_HTML and '$("vcFocus")' in CONSOLE_JS)
+check("ô gạt tự lưu khi đổi", 'luuGiong({ focus_mode: $("vcFocus").checked })' in CONSOLE_JS)
 
 print()
 if _fails:

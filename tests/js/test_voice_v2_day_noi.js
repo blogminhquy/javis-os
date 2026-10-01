@@ -8,7 +8,7 @@
      2. voice.js ghi âm song song khi sttUpload, gửi /stt, bỏ đoạn dở khi mic tắt vì TTS.
      3. voice-live.js: PCM16 16 kHz lên, phát 24 kHz, interrupted xả hàng đợi, có sendText.
      4. app.js: chế độ live thì nút mic mở phiên Live, keep-alive không mở Web Speech.
-     5. console.js có thẻ cài đặt V2 đọc /voice/options và lưu section voice; i18n đủ; index.html nạp voice-live.js. */
+     5. console.js có thẻ Giọng nói đọc /voice/options và tự lưu section voice; i18n đủ; index.html nạp voice-live.js. */
 const fs = require("fs");
 const path = require("path");
 const root = path.join(__dirname, "..", "..");
@@ -66,10 +66,12 @@ check("app.js: bản ghi Javis khi live ghi vào hội thoại", /recordTurn\("j
 check("app.js: Esc hủy toàn bộ phiên giọng", /e\.code === "Escape"[\s\S]{0,500}tatRanhTay\(\)/.test(app));
 
 // 5
-check("console.js: thẻ V2 đọc /voice/options", /fetch\("\/voice\/options"/.test(consoleJs) && /renderVoiceV2Card\(\)/.test(consoleJs));
-check("console.js: lưu section voice với mode/brain/tai/live", /saveSetting\("voice", data\)/.test(consoleJs) && /ear: \$\("v2Ear"\)\.value/.test(consoleJs));
+// 0.65.19: thẻ V2 (chế độ, bộ não, tai, nhà cung cấp Live, nút Lưu) thay bằng thẻ Giọng nói gọn tự lưu,
+// canh chi tiết ở test_voice_settings_simple.js. Ở đây chỉ giữ dây nối tới máy chủ.
+check("console.js: thẻ Giọng nói đọc /voice/options và tự lưu section voice",
+  /fetch\("\/voice\/options\?brains=0"/.test(consoleJs) && /renderVoiceCard\(\)/.test(consoleJs) && /saveSetting\("voice", data\)/.test(consoleJs));
 check("index.html: nạp voice-live.js", /voice-live\.js\?v=/.test(html));
-["settings.v2_title", "settings.v2_mode_fast", "settings.v2_brain", "settings.ear", "settings.v2_live", "app.live_error"].forEach(k =>
+["settings.vc_title", "settings.vc_engine", "settings.vc_voice", "app.live_error"].forEach(k =>
   check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string"));
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }

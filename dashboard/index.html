@@ -32,8 +32,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=101">
-  <link rel="stylesheet" href="/static/console.css?v=77">
+  <link rel="stylesheet" href="/static/style.css?v=103">
+  <link rel="stylesheet" href="/static/console.css?v=79">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
   <script>(function(){try{if(localStorage.getItem('javis.theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
@@ -336,11 +336,6 @@
           </summary>
           <div class="quick-set-body">
 
-            <label class="qs-row" data-settings-section="voice">
-              <span><i data-ic="volume-2"></i> <span data-i18n="qs.tts">Đọc trả lời bằng giọng</span></span>
-              <span class="toggle"><input type="checkbox" id="qsTts"><span></span></span>
-            </label>
-
             <!-- MỘT CỘT, mỗi thẻ một việc (0.58.8). Bản trước xếp lưới HAI cột: các thẻ cao
                  thấp chênh nhau rất xa (thẻ giọng nói 1200px nằm cạnh thẻ ảnh đại diện 150px)
                  nên ô ngắn bị ô dài kéo giãn theo, để lại mảng trống gần một màn hình - chủ
@@ -352,96 +347,70 @@
                  Đặt TRÊN nhóm giọng nói vì giọng đọc phụ thuộc ngôn ngữ, không ngược lại. -->
             <div id="replyLangHost" data-settings-section="general"></div>
 
-            <!-- GIỌNG ĐỌC. Nhà cung cấp do console.js đổ vào #ttsProviderHost (nằm TRONG thẻ
-                 này, không tách thẻ riêng nữa: chọn nhà cung cấp rồi chọn giọng là một việc).
-                 Bảy giọng trước đây là bảy thẻ radio xếp dọc, cao gần 600px cho một lựa chọn
-                 duy nhất; nay là một ô chọn cao một hàng. Tốc độ cũng vậy: thanh trượt đổi
-                 thành ô chọn có tên mức, vì không ai cần 1.37× mà cần "hơi nhanh". -->
-            <div class="qs-block" data-settings-section="voice">
-              <div class="popover-label" data-i18n="qs.voice">GIỌNG ĐỌC</div>
-              <!-- #edgeVoiceSection: console.js ẩn khối này khi nhà cung cấp không phải Edge
-                   (OpenAI/ElevenLabs chọn giọng ngay trong khối nhà cung cấp ở trên). -->
-              <div id="edgeVoiceSection">
-                <div class="qs-field">
-                  <label class="qs-lbl" for="voiceSel" data-i18n="qs.voice_pick">Giọng Edge</label>
-                  <select class="js-input" id="voiceSel" name="voice">
-                    <option value="en-US-EmmaMultilingualNeural" data-i18n="qs.voice_opt_emma">Emma · Nữ, vui tươi rõ chữ · đa ngôn ngữ</option>
-                    <option value="vi-VN-HoaiMyNeural" data-i18n="qs.voice_opt_hoaimy">Hoài My · Nữ, tự nhiên ấm áp</option>
-                    <option value="vi-VN-NamMinhNeural" data-i18n="qs.voice_opt_namminh">Nam Minh · Nam, trầm</option>
-                    <option value="en-US-AvaMultilingualNeural" data-i18n="qs.voice_opt_ava">Ava · Nữ, dịu và biểu cảm · đa ngôn ngữ</option>
-                    <option value="en-US-AndrewMultilingualNeural" data-i18n="qs.voice_opt_andrew">Andrew · Nam, ấm và tự tin · đa ngôn ngữ</option>
-                    <option value="en-US-BrianMultilingualNeural" data-i18n="qs.voice_opt_brian">Brian · Nam, gần gũi đời thường · đa ngôn ngữ</option>
-                    <option value="en-AU-WilliamMultilingualNeural" data-i18n="qs.voice_opt_william">William · Nam, thân thiện giọng Úc · đa ngôn ngữ</option>
-                  </select>
-                </div>
-                <div class="qs-hint" data-i18n="qs.voice_ml_note">Giọng đa ngôn ngữ: đọc tiếng Việt mượt hơn, có thể lơ lớ vài chữ</div>
-              </div>
+            <!-- GIỌNG NÓI (0.65.19, docs/dev/2026-10-voice-call-spec.md mục 5): MỘT thẻ, ba ô, mọi ô
+                 tự lưu khi đổi, không còn nút Lưu. Bấm mic là gọi Javis, nên những gì máy tự lo được
+                 (bộ não giọng, tai nghe lại, ngôn ngữ nghe, im bao lâu thì gửi, ngắt lời bằng giọng,
+                 nhịp hội thoại, đọc trả lời bằng giọng) không còn ô nhập. Giá trị đã lưu từ bản cũ
+                 vẫn được đọc và dùng tiếp. console.js renderVoiceCard() đổ lựa chọn và nối tay bắt;
+                 khung là node TĨNH để data-i18n dịch được và #rateSel giữ tay bắt của app.js. -->
+            <div class="qs-block" id="voiceCard" data-settings-section="voice">
+              <div class="popover-label" data-i18n="settings.vc_title">GIỌNG NÓI</div>
+              <div class="qs-hint" id="vcNow" role="status"></div>
               <div class="qs-field">
-                <label class="qs-lbl" for="rateSel" data-i18n="qs.rate_lbl">Tốc độ đọc</label>
-                <select class="js-input" id="rateSel">
-                  <option value="0.85" data-i18n="qs.rate_opt_slow">Chậm · 0,85×</option>
-                  <option value="1.00" data-i18n="qs.rate_opt_normal">Bình thường · 1,00×</option>
-                  <option value="1.10" data-i18n="qs.rate_opt_default">Hơi nhanh · 1,10× (mặc định)</option>
-                  <option value="1.25" data-i18n="qs.rate_opt_fast">Nhanh · 1,25×</option>
-                  <option value="1.45" data-i18n="qs.rate_opt_veryfast">Rất nhanh · 1,45×</option>
-                </select>
+                <label class="qs-lbl" for="vcVoice" data-i18n="settings.vc_voice">Giọng Javis</label>
+                <div class="v2-voice-row">
+                  <select class="js-input" id="vcVoice"></select>
+                  <button class="gcard-btn ghost" type="button" id="vcTry" data-i18n="qs.test_voice">▶ Nghe thử</button>
+                </div>
               </div>
-              <div class="js-actions qs-foot">
-                <button class="gcard-btn ghost" id="testVoiceBtn" data-i18n="qs.test_voice">▶ Nghe thử</button>
-              </div>
-              <div class="qs-hint" data-i18n="qs.voice_local">Giọng Edge và tốc độ được lưu ngay trên thiết bị này.</div>
-              <details class="qs-advanced" id="ttsAdvanced">
-                <summary data-i18n="settings.tts_advanced">Nhà cung cấp và kết nối</summary>
-                <div id="ttsProviderHost"></div>
-                <div class="js-actions qs-foot"><button class="gcard-btn" id="vpSave" data-i18n="qs.voice_save">Lưu nhà cung cấp</button></div>
+              <div class="qs-hint" id="vcVoiceNote" data-i18n="qs.voice_ml_note" hidden>Giọng đa ngôn ngữ hỗ trợ tiếng Việt.</div>
+              <label class="qs-field">
+                <span class="qs-lbl" data-i18n="settings.vc_focus">Tập trung khi đàm thoại</span>
+                <span class="toggle"><input type="checkbox" id="vcFocus" checked><span></span></span>
+              </label>
+              <div class="qs-hint" data-i18n="settings.vc_focus_hint">Im 20 giây thì phải gọi "Javis" mới nghe tiếp.</div>
+              <details class="qs-advanced" id="vcAdvanced">
+                <summary data-i18n="settings.vc_advanced">Nâng cao</summary>
+                <div class="qs-field">
+                  <label class="qs-lbl" for="vcEngine" data-i18n="settings.vc_engine">Đường gọi</label>
+                  <select class="js-input" id="vcEngine">
+                    <option value="auto" data-i18n="settings.vc_engine_auto">Tự động</option>
+                    <option value="chatgpt">ChatGPT Live</option>
+                    <option value="api" data-i18n="settings.vc_engine_api">Live qua API key</option>
+                    <option value="basic" data-i18n="settings.vc_engine_basic">Cơ bản</option>
+                  </select>
+                </div>
+                <div class="qs-field" id="vcRateRow">
+                  <label class="qs-lbl" for="rateSel" data-i18n="qs.rate_lbl">Tốc độ đọc</label>
+                  <select class="js-input" id="rateSel">
+                    <option value="0.85" data-i18n="qs.rate_opt_slow">Chậm · 0,85×</option>
+                    <option value="1.00" data-i18n="qs.rate_opt_normal">Bình thường · 1,00×</option>
+                    <option value="1.10" data-i18n="qs.rate_opt_default">Hơi nhanh · 1,10× (mặc định)</option>
+                    <option value="1.25" data-i18n="qs.rate_opt_fast">Nhanh · 1,25×</option>
+                    <option value="1.45" data-i18n="qs.rate_opt_veryfast">Rất nhanh · 1,45×</option>
+                  </select>
+                </div>
+                <div id="vcEleven" hidden>
+                  <label class="js-lbl" for="vcElKey">ElevenLabs API key <span class="dim" id="vcElKeySet" data-i18n="settings.key_set" hidden>(đã có - để trống nếu không đổi)</span></label>
+                  <input class="js-input" id="vcElKey" type="password" autocomplete="off" data-i18n-ph="settings.eleven_ph" placeholder="Dán API key ElevenLabs">
+                  <label class="js-lbl" for="vcElVoice">Voice ID <span class="dim" data-i18n="settings.voice_id_hint">(lấy ở ElevenLabs → Voices)</span></label>
+                  <input class="js-input" id="vcElVoice" data-i18n-ph="settings.eleven_voice_ph" placeholder="Ví dụ: 21m00Tcm4TlvDq8ikWAM (Rachel)">
+                </div>
+                <div class="qs-hint" id="vcOpenaiNote" data-i18n="settings.vc_openai_note" hidden>Muốn giọng OpenAI: dán API key OpenAI ở trang Models.</div>
               </details>
-              <div class="gcard-meta" id="vpStatus" role="status"></div>
-            </div>
-
-            <!-- CHẾ ĐỘ NÓI CHUYỆN (Voice V2): console.js renderVoiceV2Card() đổ vào đây.
-                 Là thẻ RIÊNG chứ không lồng trong thẻ giọng đọc, vì nó có nút Lưu của chính
-                 nó - luật của trang này: một thẻ, một nút Lưu, luôn ở góc dưới phải. -->
-            <div id="vpV2Host" data-settings-section="voice"></div>
-
-            <!-- MICRO (Voice V1): ba mục ghi thẳng localStorage của máy đang dùng. Từ 0.59.27
-                 chúng nằm CÙNG THẺ với "Chế độ nói chuyện" (chủ dự án chốt 17/09): console.js
-                 renderVoiceV2Card() DỜI #qsMicFields vào thẻ đó, ngay trên nút Lưu chế độ, rồi
-                 ẩn cái nhà này. Là node tĩnh chứ không vẽ bằng JS vì app.js gắn tay bắt cho ba
-                 ô này đúng một lần lúc tải trang. Nhà mang lớp .qs-block để lỡ thẻ kia không
-                 vẽ được (máy chủ cũ) thì ba mục vẫn đứng trong một thẻ tử tế. -->
-            <div class="qs-block" id="qsMicHome" data-settings-section="voice">
-              <div id="qsMicFields">
-                <div class="qs-sub" data-i18n="qs.mic">MICRO</div>
-                <div class="qs-field">
-                  <label class="qs-lbl" for="recLangSel" data-i18n="qs.rec_lang">Ngôn ngữ nghe</label>
-                  <select class="js-input" id="recLangSel" name="recognitionLang">
-                    <option value="vi-VN" data-i18n="qs.rec_vi_opt">Tiếng Việt · vi-VN</option>
-                    <option value="en-US" data-i18n="qs.rec_en_opt">Tiếng Anh · en-US</option>
-                    <option value="auto" data-i18n="qs.rec_auto_opt">Đa ngôn ngữ · không cố định</option>
-                  </select>
-                </div>
-                <div class="qs-hint" data-i18n="qs.rec_auto_hint">Đa ngôn ngữ: Groq Whisper tự nhận ra tiếng đang nói; máy nghe của trình duyệt vẫn dùng một ngôn ngữ cố định (mặc định tiếng Việt).</div>
-                <div id="qsBrowserMicFields">
-                  <div class="qs-field"><label class="qs-lbl" for="adaptiveMode" data-i18n="qs.adaptive_mode">Nhịp hội thoại (thử nghiệm)</label><select class="js-input" id="adaptiveMode"><option value="off" data-i18n="qs.adaptive_off">Chờ cố định</option><option value="observe" data-i18n="qs.adaptive_observe">Quan sát để kiểm tra</option><option value="natural" data-i18n="qs.adaptive_natural">Tự nhiên</option></select></div>
-                  <div class="qs-hint" data-i18n="qs.adaptive_hint">Tự nhiên chờ theo câu nói, không thêm API. Quan sát chỉ ghi chẩn đoán trong bộ nhớ. Áp dụng cho Chuẩn và Làn nhanh.</div>
-                  <div class="qs-field"><label for="adaptivePace" class="qs-lbl" data-i18n="qs.adaptive_pace">Nhịp phản hồi</label><select id="adaptivePace" class="js-input"><option value="fast" data-i18n="qs.adaptive_fast">Nhanh</option><option value="balanced" data-i18n="qs.adaptive_balanced">Cân bằng</option><option value="patient" data-i18n="qs.adaptive_patient">Kiên nhẫn</option></select></div>
-                  <div class="qs-field"><button type="button" class="js-btn" id="adaptiveReset" data-i18n="qs.adaptive_reset">Đặt lại nhịp đã học</button><button type="button" class="js-btn" id="adaptiveExport" data-i18n="qs.adaptive_export">Tải chẩn đoán</button></div>
-                <div class="qs-field">
-                  <label class="qs-lbl" for="endpointSel" data-i18n="qs.endpoint">Im lặng rồi gửi</label>
-                  <select class="js-input" id="endpointSel" name="endpoint">
-                    <option value="500" data-i18n="qs.endpoint_fast_opt">Nhanh · 0,5 giây</option>
-                    <option value="800" data-i18n="qs.endpoint_mid_opt">Vừa · 0,8 giây</option>
-                    <option value="1200" data-i18n="qs.endpoint_slow_opt">Chậm · 1,2 giây (mặc định)</option>
-                  </select>
-                </div>
-                <div class="qs-hint" data-i18n="qs.endpoint_hint">Câu kết bằng "và", "nhưng", dấu phẩy thì Javis tự chờ lâu hơn. Nói "khoan" hay "đợi chút" là Javis im chờ bạn.</div>
-                <label class="qs-field">
-                  <span class="qs-lbl" data-i18n="qs.barge">Ngắt lời Javis bằng giọng</span>
-                  <span class="toggle"><input type="checkbox" id="qsBarge" checked><span></span></span>
-                </label>
-                <div class="gcard-meta" data-i18n="qs.mic_local">Ba mục micro áp dụng ngay trên máy đang dùng, không cần bấm Lưu; nút Lưu chế độ chỉ lưu phần chế độ và bộ não giọng.</div>
-                </div>
-              </div>
+              <div class="gcard-meta" id="vcStatus" role="status"></div>
+              <div class="gcard-meta" id="v2LastErr" hidden></div>
+              <!-- Kho giọng Edge: app.js đọc/ghi giọng Edge qua ô này (localStorage javis.voice), còn
+                   người dùng chọn ở #vcVoice. Ẩn, nhưng vẫn là danh sách gốc của bảy giọng Edge. -->
+              <select id="voiceSel" name="voice" hidden aria-hidden="true" tabindex="-1">
+                <option value="en-US-EmmaMultilingualNeural" data-i18n="qs.voice_opt_emma">Emma · Nữ, vui tươi rõ chữ · đa ngôn ngữ</option>
+                <option value="vi-VN-HoaiMyNeural" data-i18n="qs.voice_opt_hoaimy">Hoài My · Nữ, tự nhiên ấm áp</option>
+                <option value="vi-VN-NamMinhNeural" data-i18n="qs.voice_opt_namminh">Nam Minh · Nam, trầm</option>
+                <option value="en-US-AvaMultilingualNeural" data-i18n="qs.voice_opt_ava">Ava · Nữ, dịu và biểu cảm · đa ngôn ngữ</option>
+                <option value="en-US-AndrewMultilingualNeural" data-i18n="qs.voice_opt_andrew">Andrew · Nam, ấm và tự tin · đa ngôn ngữ</option>
+                <option value="en-US-BrianMultilingualNeural" data-i18n="qs.voice_opt_brian">Brian · Nam, gần gũi đời thường · đa ngôn ngữ</option>
+                <option value="en-AU-WilliamMultilingualNeural" data-i18n="qs.voice_opt_william">William · Nam, thân thiện giọng Úc · đa ngôn ngữ</option>
+              </select>
             </div>
 
             <!-- THƯƠNG HIỆU. Hai nút trước đây là hai thanh tràn ngang (một tím đặc, một
@@ -838,7 +807,7 @@
   <script src="/static/voice-turn.js?v=2"></script>
   <script src="/static/voice-turn-policy.js?v=1"></script>
   <script src="/static/voice-adaptive.js?v=1"></script>
-  <script src="/static/voice-adaptive-ui.js?v=1"></script>
+  <script src="/static/voice-adaptive-ui.js?v=2"></script>
   <script src="/static/voice-attention.js?v=1"></script>
   <script src="/static/voice-chunker.js?v=1"></script>
   <script src="/static/voice.js?v=27"></script>
@@ -872,7 +841,7 @@
   <!-- Voice V2: nghe nói thẳng (Live), app.js gọi lười khi bấm mic ở chế độ Live. -->
   <script src="/static/voice-live.js?v=4"></script>
   <script src="/static/call-bar.js?v=1"></script>
-  <script src="/static/app.js?v=120"></script>
+  <script src="/static/app.js?v=121"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=3"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
@@ -880,7 +849,7 @@
   <script src="/static/model-list.js?v=3"></script>
   <script src="/static/model-picker.js?v=10"></script>
   <script src="/static/branding.js?v=7"></script>
-  <script src="/static/quick-settings.js?v=10"></script>
+  <script src="/static/quick-settings.js?v=11"></script>
   <script src="/static/chat-zoom.js?v=6"></script>
   <script src="/static/brains-ui.js?v=7"></script>
   <script src="/static/sessions-ui.js?v=20"></script>
@@ -907,7 +876,7 @@
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
   <!-- Phần đọc cấu hình của form "Tự thêm MCP" (thuần, có test node). Nạp TRƯỚC console.js. -->
   <script src="/static/mcp-form-parse.js?v=1"></script>
-  <script src="/static/console.js?v=161"></script>
+  <script src="/static/console.js?v=162"></script>
   <script src="/static/mobile-chat.js?v=11"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>

@@ -2352,3 +2352,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* ChatGPT Live: ô chọn giọng và nút nghe thử mẫu nằm cùng một hàng (0.65.17). */
 .v2-voice-row { display: flex; gap: 8px; align-items: center; }
 .v2-voice-row select { flex: 1; min-width: 0; }
+/* Nút Nghe thử chỉ rộng theo chữ: .gcard-btn trong thẻ cài đặt mặc định tràn ngang, đứng cạnh ô
+   chọn thì nó nuốt hết chỗ của ô chọn giọng. */
+.v2-voice-row > .gcard-btn { flex: none; width: auto; white-space: nowrap; }
+/* Thẻ Giọng nói ẩn/hiện từng hàng bằng thuộc tính hidden theo đường gọi (renderVoiceCard), nhưng
+   .qs-field và .gcard-btn tự đặt display nên đè mất hidden; luật này trả lại nghĩa cho hidden. */
+#voiceCard [hidden] { display: none !important; }

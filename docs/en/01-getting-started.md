@@ -138,11 +138,11 @@ It is safe: it only moves when the destination does not exist, it never overwrit
 
 ### Voice tab and branding in General
 
-The **Voice** tab contains speech, conversation modes and microphone controls. Interface language, avatar and domain settings live in **General**:
+The **Voice** tab is a single card for voice calls, and every field saves itself at once; there is no Save button. Interface language, avatar and domain settings live in **General**:
 
-- The **🔊 Read answers aloud** switch.
-- The **VOICE PROVIDER** block: choose "Edge TTS - free (default)", "OpenAI - smooth, multilingual" or "ElevenLabs - most natural", paste the matching key and press **Save provider**. A paid provider that errors falls back to Edge.
-- **LISTENING LANGUAGE** (Vietnamese `vi-VN` or English `en-US`), **VOICE (Edge)**, **SPEED** and a **▶ Preview** button. The Edge voice block only appears when the provider is Edge.
+- The **Using** line: the call path in use (ChatGPT Live, Live with an API key or Basic), plus the reason and what to do when Javis had to fall back to a lower path.
+- **Javis's voice**: the voice list for the call path; picking a voice also picks the provider (Edge, OpenAI or ElevenLabs), with a **▶ Preview** button. OpenAI voices need an OpenAI API key on the **Models** page.
+- The **Focused conversation** switch, and **Advanced** with **Call path**, **Speaking rate** (Basic path only), and the ElevenLabs API key and Voice ID (only when the ElevenLabs voice is picked). The listening language follows the interface language.
 - **AVATAR**: **Upload an image** or **Restore default**.
 - **DOMAIN & SSL**: enter a domain, press **Save & check**, watch the `DNS:` and `SSL:` labels, then **Enable SSL** or **Re-check**.
 

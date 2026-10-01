@@ -12203,17 +12203,21 @@ async def voice_ear_route():
 
 
 @app.get("/voice/options")
-async def voice_options():
-    """Cho thẻ 'Chế độ và bộ não giọng nói' ở trang Cài đặt: cái gì đang sẵn, key nào đã có."""
+async def voice_options(brains: int = 1):
+    """Cho thẻ Giọng nói ở trang Cài đặt: cái gì đang sẵn, key nào đã có, đường gọi đang dùng.
+
+    `brains=0` (thẻ gọn từ 0.65.19): bỏ danh sách bộ não giọng, nên không chạy `agy models` (có khi
+    tới 30 giây). Thẻ gọn không còn ô bộ não giọng, máy tự chọn (voice_brain.auto_brain)."""
     cfg = cfgmod.read_settings()
     m = cfg.get("model", {}) or {}
     v = cfg.get("voice", {}) or {}
     agy_models = None
-    try:
-        # Luồng phụ: `agy models` có thể mất tới 30 giây, chạy trên loop là cả app đứng theo.
-        agy_models = await asyncio.to_thread(antigravity_cli.list_models)
-    except Exception:
-        agy_models = None
+    if brains:
+        try:
+            # Luồng phụ: `agy models` có thể mất tới 30 giây, chạy trên loop là cả app đứng theo.
+            agy_models = await asyncio.to_thread(antigravity_cli.list_models)
+        except Exception:
+            agy_models = None
     keys = {k: bool(m.get(k)) for k in ("groq_api_key", "gemini_api_key", "openai_api_key", "openrouter_key")}
     _chatgpt_live_ok = codex_realtime.realtime_available(cfg)
 
@@ -12228,7 +12232,7 @@ async def voice_options():
                 if isinstance(x, dict) else {"id": str(x), "label": str(x)} for x in (lst or [])]
 
     brain_list = []
-    for pid, p in voice_brain.BRAIN_PROVIDERS.items():
+    for pid, p in (voice_brain.BRAIN_PROVIDERS.items() if brains else ()):
         item = {"id": pid, "label": p["label"], "available": _san(p["key_field"])}
         if p["default_model"]:
             item["default_model"] = p["default_model"]
@@ -12270,6 +12274,7 @@ async def voice_options():
                             "một cục chứ không stream từng chữ." if item["available"]
                             else "Chưa cài Grok Build (grok). Xem trang Models.")
         brain_list.append(item)
+    _vb = voice_brain.config_from_settings(cfg).get("provider") or ""
     return {
         "ok": True,
         "voice": dict(
@@ -12305,6 +12310,15 @@ async def voice_options():
         ],
         "chatgpt_voice": v.get("chatgpt_voice") or voice_live.PROVIDERS["chatgpt"]["default_voice"],
         "voice_brains_active": voice_brain.active_count(),
+        # Thẻ gọn (0.65.19): dòng "Đang dùng", ô Giọng Javis đổi theo đường gọi, ô Đường gọi.
+        "call": voice_call.select_call_engine(cfg),
+        # Bộ não giọng của đường Cơ bản (đã chọn từ bản cũ, hoặc máy tự chọn trên gói), "" = bộ não chính.
+        "voice_brain": {"id": _vb, "label": (voice_brain.BRAIN_PROVIDERS.get(_vb) or {}).get("label", "")},
+        "tts": {"provider": v.get("tts_provider") or "edge",
+                "openai_voice": v.get("openai_tts_voice") or "alloy",
+                "openai_key_set": bool(m.get("openai_api_key")),
+                "elevenlabs_voice": v.get("elevenlabs_voice") or "",
+                "elevenlabs_key_set": bool(str(v.get("elevenlabs_key") or "").strip())},
     }
 
 
@@ -12752,9 +12766,10 @@ def _bao_lan_nhanh_bo_qua(vconf) -> bool:
         _LAN_NHANH_DA_BAO.add(khoa)
         ly_do = ("không đọc được cài đặt giọng nói" if not vconf
                  else f"chế độ giọng nói = {mode or 'standard'!r}" if mode != "fast"
-                 else "chế độ Làn nhanh nhưng chưa chọn bộ não giọng")
+                 else "chế độ Làn nhanh nhưng chưa chọn bộ não giọng và không có bộ não nào sẵn trên gói "
+                      "(Antigravity, ChatGPT, Claude Code, Grok Build)")
         print(f"[voice lane] tin từ mic đi bộ não chính: {ly_do}. "
-              f"Chỉnh ở Cài đặt, mục Giọng nói.", file=sys.stderr)
+              f"Đăng nhập một gói ở trang Models để có làn nhanh.", file=sys.stderr)
     return True
 
 
