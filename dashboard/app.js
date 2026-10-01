@@ -569,6 +569,13 @@ async function batLive(wakeText = "") {
     onSpeakStart: () => runActions(turn.ttsStart()),
     onSpeakEnd: () => { _liveBusyUntil = 0; attention.keepActive(); runActions(turn.ttsEnd()); },
     onInterrupted: () => { ketThucTheoLoi(true); attention.keepActive(); _liveBusyUntil = Date.now() + 120000; _liveJavisText = ""; _liveJavisBubble = null; },
+    // Kết quả ĐẦY ĐỦ của bộ não chính (bảng, link, file) thành bong bóng riêng: model nói chuyện
+    // chỉ đọc phần tóm tắt, không có bong bóng này thì số liệu chi tiết mất hút (0.65.17).
+    onToolResult: (name, text) => {
+      if (!String(text || "").trim()) return;
+      appendJavisMessage(text, Date.now(), currentBrainPath());
+      recordTurn("javis", text, null, null);
+    },
     onTool: (name, status) => {
       // A running tool is real work, not idle: only done/connection close/user stop may
       // release it. An arbitrary idle timeout must not cancel a legitimate long task.

@@ -357,6 +357,16 @@ Plain-text channels are stricter because they cannot render: **Telegram** and **
 
 Everything about the voice lives in **Settings → Voice**.
 
+### ChatGPT Live: call Javis on your ChatGPT plan
+
+**ChatGPT Live** uses the ChatGPT plan you connected on the **Models** page, no API key needed. Pick **Live**, then **ChatGPT Live (ChatGPT plan)** in the voice card.
+
+- Press the mic to start talking: Javis listens continuously, answers in under a second, and you can interrupt at any time.
+- Small talk gets an instant answer. Anything that needs real data or an action (revenue, calendar, email, files, opening a page) is handed to the main brain you chose (Claude or another), which works with all your MCPs and tools; Javis reads back a summary and the full result (with tables) appears as a chat bubble.
+- 9 voices: juniper (default), maple, spruce, ember, vale, breeze, arbor, sol, cove. Click **▶ Preview** to hear a sample.
+- The machine needs the Codex CLI. Audio goes straight from the browser to OpenAI, so it works even when Javis runs on a VPS.
+- Calls count against your ChatGPT plan's usage.
+
 ### Choosing a voice provider
 
 The **VOICE PROVIDER** block has three options:

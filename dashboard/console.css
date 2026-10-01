@@ -2348,3 +2348,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .cd-menu button { font-size: 16px; padding: 9px 10px; }
   .cd-menu button small { font-size: 14px; }
 }
+
+/* ChatGPT Live: ô chọn giọng và nút nghe thử mẫu nằm cùng một hàng (0.65.17). */
+.v2-voice-row { display: flex; gap: 8px; align-items: center; }
+.v2-voice-row select { flex: 1; min-width: 0; }

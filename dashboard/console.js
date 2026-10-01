@@ -6480,7 +6480,8 @@
     const earStatus = earNow.provider
       ? t("settings.ear_using", { ear: earNow.label || earNow.provider }) + " " + earWhy
       : earWhy;
-    const liveOpts = o.live_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_need_key") + ")"), v.live_provider || "gemini", false)).join("");
+    // ChatGPT Live không cần key: chưa sẵn là do chưa cài Codex hay chưa nối ChatGPT (p.hint nói rõ).
+    const liveOpts = o.live_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t(p.id === "chatgpt" ? "settings.v2_unavailable" : "settings.v2_need_key") + ")"), v.live_provider || "gemini", false)).join("");
     host.innerHTML = `
       <div class="qs-block">
         <div class="popover-label">${esc(t("settings.v2_title"))}</div>
@@ -6500,10 +6501,13 @@
         <div id="v2LiveBox">
           <label class="js-lbl">${esc(t("settings.v2_live"))}</label>
           <select class="js-input" id="v2Live">${liveOpts}</select>
+          <div id="v2LiveModelBox">
           <label class="js-lbl">${esc(t("settings.v2_live_model"))}</label>
           <input class="js-input" id="v2LiveModel" value="${esc(v.live_model || "")}" placeholder="">
+          </div>
           <label class="js-lbl">${esc(t("settings.v2_live_voice"))}</label>
-          <select class="js-input" id="v2LiveVoice"></select>
+          <div class="v2-voice-row"><select class="js-input" id="v2LiveVoice"></select>
+          <button class="gcard-btn" type="button" id="v2LiveVoiceTry" hidden>${esc(t("settings.chatgpt_voice_try"))}</button></div>
           <div class="gcard-meta" id="v2LiveHint">${esc(t("settings.v2_live_note"))}</div>
         </div>
         <details class="qs-advanced" id="v2Advanced">
@@ -6555,8 +6559,24 @@
     const syncLive = () => {
       const p = byId(o.live_providers, $("v2Live").value);
       const vs = $("v2LiveVoice");
-      vs.innerHTML = (p && p.voices || []).map(x => optA(x, x, v.live_voice || (p.voices && p.voices[0]))).join("");
+      const chatgpt = !!(p && p.id === "chatgpt");
+      // ChatGPT Live: 9 giọng riêng của gói (mặc định juniper), không có ô model, có mẫu nghe thử.
+      const cur = chatgpt ? (o.chatgpt_voice || p.default_voice) : (v.live_voice || (p && p.voices && p.voices[0]));
+      vs.innerHTML = (p && p.voices || []).map(x => optA(x, x, cur)).join("");
       $("v2LiveModel").placeholder = (p && p.default_model) || "";
+      $("v2LiveModelBox").hidden = chatgpt;
+      $("v2LiveVoiceTry").hidden = !chatgpt;
+      $("v2LiveHint").textContent = chatgpt
+        ? (p.available ? t("settings.chatgpt_live_note") : (p.hint || t("settings.chatgpt_live_note")))
+        : t("settings.v2_live_note");
+    };
+    // Mẫu thu sẵn (dashboard/voices/<giọng>.mp3): nghe thử không cần mở phiên realtime nào.
+    $("v2LiveVoiceTry").onclick = () => {
+      try {
+        if (window._v2VoiceSample) window._v2VoiceSample.pause();
+        window._v2VoiceSample = new Audio("/static/voices/" + encodeURIComponent($("v2LiveVoice").value) + ".mp3");
+        window._v2VoiceSample.play().catch(() => {});
+      } catch (e) {}
     };
     const syncMode = () => {
       const m = $("v2Mode").value;
@@ -6589,7 +6609,9 @@
       const data = {
         mode: $("v2Mode").value, brain_provider: $("v2Brain").value, brain_model: brainModel,
         ear: $("v2Ear").value, live_provider: $("v2Live").value,
-        live_model: $("v2LiveModel").value.trim(), live_voice: $("v2LiveVoice").value || "",
+        live_model: $("v2LiveModel").value.trim(),
+        live_voice: $("v2Live").value === "chatgpt" ? undefined : ($("v2LiveVoice").value || ""),
+        chatgpt_voice: $("v2Live").value === "chatgpt" ? $("v2LiveVoice").value : undefined,
         hotwords: $("v2Hotwords").value.trim(), focus_mode: $("v2LocTapAm").checked,
       };
       if (data.mode === "fast" && !data.brain_provider) { $("v2Advanced").open = true; $("v2Brain").focus(); st.textContent = t("settings.v2_need_brain"); return; }

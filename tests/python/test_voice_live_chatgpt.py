@@ -218,6 +218,10 @@ check("catalog có ChatGPT Live, transport webrtc, 9 giọng",
       and len(cat["chatgpt"]["voices"]) == 9 and cat["gemini"]["transport"] == "pcm")
 check("không nhãn nhà cung cấp nào ghi 'song công'",
       not any("song công" in v["label"].lower() for v in cat.values()))
+missing = [v for v in voice_live.CHATGPT_VOICES
+           if not (ROOT / "dashboard" / "voices" / f"{v}.mp3").exists()
+           or (ROOT / "dashboard" / "voices" / f"{v}.mp3").stat().st_size < 5000]
+check("đủ mẫu nghe thử cho 9 giọng ChatGPT Live (dashboard/voices)", not missing)
 
 if _fails:
     print("\nFAIL:", len(_fails), _fails)

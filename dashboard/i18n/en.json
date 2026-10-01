@@ -400,6 +400,8 @@
   "settings.v2_live_model": "Realtime model",
   "settings.v2_live_voice": "Voice",
   "settings.v2_live_note": "Both vendors rename models often: leave empty for the suggested one, or paste the latest name from their docs.",
+  "settings.chatgpt_voice_try": "▶ Preview",
+  "settings.chatgpt_live_note": "ChatGPT Live runs on the ChatGPT plan connected on the Models page, no API key needed. Press the mic to call: talk naturally and interrupt any time; tasks that need data go to the main brain and Javis reads back the result. Calls count against the ChatGPT plan's usage.",
   "settings.v2_save": "Save mode",
   "settings.v2_saved": "Saved. Press the mic to use it.",
   "settings.v2_note": "Fast lane and Live both write into the same conversation as typed chat.",

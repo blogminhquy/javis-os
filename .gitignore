@@ -11,6 +11,8 @@ __pycache__/
 .staging/
 server/*.pid
 *.mp3
+# Mẫu nghe thử 9 giọng ChatGPT Live đi kèm app (0.65.17), không phải file tạm.
+!dashboard/voices/*.mp3
 test_output*.mp3
 server/*.log
 server/loop_config.json

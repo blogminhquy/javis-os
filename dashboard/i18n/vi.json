@@ -400,6 +400,8 @@
   "settings.v2_live_model": "Model realtime",
   "settings.v2_live_voice": "Giọng",
   "settings.v2_live_note": "Tên model hai hãng đổi liên tục: để trống là dùng gợi ý, hoặc dán tên mới nhất từ tài liệu của họ.",
+  "settings.chatgpt_voice_try": "▶ Nghe thử",
+  "settings.chatgpt_live_note": "ChatGPT Live chạy trên gói ChatGPT đã nối ở trang Models, không cần API key. Bấm mic là gọi: nói chuyện liền mạch, chen ngang lúc nào cũng được; việc cần dữ liệu thì Javis giao bộ não chính rồi đọc kết quả. Cuộc gọi tính vào hạn mức gói ChatGPT.",
   "settings.v2_save": "Lưu chế độ",
   "settings.v2_saved": "Đã lưu. Bấm mic để dùng ngay.",
   "settings.v2_note": "Làn nhanh và Live đều ghi vào cùng hội thoại với chat gõ chữ.",

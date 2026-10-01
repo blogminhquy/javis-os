@@ -6,7 +6,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.17] - 2026-10-01
 ### Thêm mới
-- Đang làm: ChatGPT Live, gọi Javis bằng giọng qua gói ChatGPT.
+- **ChatGPT Live: nói chuyện với Javis qua gói ChatGPT, không cần API key.** Vào Cài đặt → Giọng nói, chọn Live rồi ChatGPT Live. Nói liền mạch, Javis đáp chưa tới một giây, chen ngang lúc nào cũng được.
+- Câu cần dữ liệu thật thì Javis giao bộ não chính bạn đã chọn rồi đọc tóm tắt; bản đầy đủ (có bảng) hiện thành bong bóng trong khung chat.
+- Có 9 giọng, mặc định juniper, kèm nút nghe thử. Cuộc gọi tính vào hạn mức gói ChatGPT.
 
 ## [0.65.16] - 2026-10-01
 ### Cải thiện
