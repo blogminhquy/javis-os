@@ -430,7 +430,7 @@ Không có cái nào thì lượt nói đi thẳng bộ não chính. Câu cần 
 
 ### Máy tự lo
 
-- **Im lâu thì tạm ngắt, nói là nối lại**: trong cuộc gọi ChatGPT Live, im 30 giây thì Javis tạm ngắt cho đỡ tốn hạn mức, thanh gọi ghi "Đang chờ, cứ nói là Javis nghe". Bạn cứ nói tiếp, không cần gọi tên: Javis nối lại sau chừng 2 đến 3 giây và trả lời luôn câu vừa nói. Tiếng TV hay người bên cạnh nói đủ rõ cũng làm nó nối lại. Từ 0.65.22 không còn công tắc "Tập trung khi đàm thoại".
+- **Im lâu thì tạm ngắt, nói là nối lại**: trong cuộc gọi ChatGPT Live, im 30 giây thì Javis tạm ngắt cho đỡ tốn hạn mức, thanh gọi ghi "Đang chờ, cứ nói là Javis nghe". Bạn cứ nói tiếp, không cần gọi tên: Javis bắt đầu nối lại ngay khi nghe được mấy chữ đầu, nên thường chỉ khoảng 2 giây sau khi bạn ngừng nói là nghe Javis trả lời câu đó. Tiếng TV hay người bên cạnh nói đủ rõ cũng làm nó nối lại. Từ 0.65.22 không còn công tắc "Tập trung khi đàm thoại".
 - **Giữ màn hình sáng khi đang gọi**: điện thoại khoá màn hình là trình duyệt cắt mic, nên trong lúc gọi Javis giữ màn hình không tự tắt; cúp máy là màn hình tắt như thường. Bấm nút nguồn tắt hẳn thì cuộc gọi vẫn ngừng.
 Các ô dưới đây đã bỏ khỏi trang vì máy tự quyết được:
 

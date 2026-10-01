@@ -150,7 +150,11 @@ qua đường PCM của các Live khác. Điện thoại chạy được vì Web
 Im 30 giây (đếm từ lúc cả hai bên cùng im) thì `thread/realtime/stop`, đóng WebRTC, thanh gọi
 chuyển sang "Đang chờ, cứ nói là Javis nghe". Bộ nghe miễn phí của trình duyệt (`liveWake` trong
 app.js) chờ CÂU NÓI THẬT (`attention.wakes`: có tên gọi, hoặc từ hai chữ trở lên); nghe được thì mở
-thread mới (~2 đến 3 giây) và gửi câu đó làm lời đầu (`appendText`). Lợi ích: đỡ hạn mức lúc im, và
+thread mới và gửi câu đó làm lời đầu (`appendText`). Từ 0.65.24 nối SỚM: chữ tạm đầu tiên đủ hai
+chữ là bắt tay WebRTC ngay mà chưa giữ mic (`deferMic`, bộ nghe còn giữ mic, điện thoại chỉ cho một
+bên), câu chốt xong mới `attachMic` và gửi câu; câu chốt chỉ là tiếng ậm ừ hay 12 giây không có câu
+thì đóng. Lúc chờ, câu trọn ý chốt sau 0,7 giây (câu dở dang giữ độ chờ dài). Đo trên server thử
+(Codex 0.153.4): từ câu chốt tới chữ đầu của Javis 3,29 giây xuống 1,35 giây. Lợi ích: đỡ hạn mức lúc im, và
 tránh lỗi phiên ngồi im lâu. Chữ đang nghe hiện thành nháp, `console.debug` ghi câu nghe được và
 quyết định.
 

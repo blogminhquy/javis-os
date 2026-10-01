@@ -15,6 +15,7 @@ const box = {
 
   window: { JavisVoiceAttention: { Attention: class extends Attention { constructor() { super({now: () => now}); } } },
     t: x => x, JavisVoiceLive: { start: async o => { liveOptions = o; events.push('live-start'); return true; },
+      attachMic: async () => { events.push('attach-mic'); return true; },
       stop: () => { stopCount++; }, isSpeaking: () => false, sendText: t => sent.push(t) } },
   JavisVoice: class { constructor(o) { if (!voiceOptions) voiceOptions = o; else wakeOptions = o; this.lang = 'vi-VN'; }
     isSupported() { return true; } micHong() { return false; } isSpeaking() { return false; }
@@ -32,7 +33,7 @@ const box = {
   runActions: noop, petReact: noop, nhapGiong: t => drafts.push(t), veTinTuGiong: t => t, sendMessage: t => sent.push(t),
   capNhatOrb: noop, appendUserMessage: noop, recordTurn: (role, text) => stored.push([role, text]),
   currentBrainPath: () => 'brain', persistSession: noop, guiNguCanhLive: noop,
-  setInterval: () => 1, clearInterval: noop, clearTimeout: noop,
+  setInterval: () => 1, clearInterval: noop, clearTimeout: noop, setTimeout: () => 1, capNhatThanhGoi: noop,
 };
 vm.createContext(box);
 vm.runInContext(source.slice(source.indexOf('const attention ='), source.indexOf('// ============================================\n// Voice V1 -')), box);
@@ -64,16 +65,31 @@ function final(text) { if (voiceOptions.acceptTranscript(text)) voiceOptions.onT
   now += 2; box.tickVoiceFocus();
   assert.equal(stopCount, 1, 'provider closed on idle');
   assert.equal(events.at(-1), 'wake-listen');
+  wakeOptions.onInterim('ừ');
+  assert.equal(liveOptions, undefined, 'a single grunt does not start a connection');
+  // 0.65.24: hai chữ thật trong chữ tạm là bắt tay NGAY, chưa giữ mic (bộ nghe còn nghe nốt câu).
   wakeOptions.onInterim('mở trò');
   assert.equal(drafts.at(-1), 'mở trò', 'what the waiting listener hears is shown as a draft');
-  wakeOptions.onTranscript('ừ'); assert.equal(liveOptions, undefined, 'a single grunt does not reconnect');
-  assert.equal(drafts.at(-1), '');
-  wakeOptions.onTranscript('mở trò chuyện giúp anh');
   await new Promise(setImmediate);
-  assert.deepEqual(events.slice(-2), ['cancel-capture', 'live-start'], 'real speech reconnects without the name');
-  assert.equal(sent.length, 0, 'handoff waits for ready');
-  liveOptions.onReady({session_id:'session-A'}); liveOptions.onReady({});
-  assert.deepEqual(sent, ['mở trò chuyện giúp anh'], 'the waking sentence becomes the first message');
+  assert.equal(liveOptions && liveOptions.deferMic, true, 'early handshake without the microphone');
+  wakeOptions.onInterim('mở trò chuyện');
+  await new Promise(setImmediate);
+  assert.equal(events.filter(e => e === 'live-start').length, 1, 'one early connection, not one per interim');
+  wakeOptions.onTranscript('ừ');
+  assert.equal(drafts.at(-1), '');
+  assert.equal(stopCount, 2, 'the final was only a grunt: the early connection is closed');
+  assert.equal(run('_liveSom'), null);
+  wakeOptions.onInterim('mở trò');
+  await new Promise(setImmediate);
+  assert.equal(events.filter(e => e === 'live-start').length, 2);
+  liveOptions.onReady({session_id:'session-A'});   // bắt tay xong trước khi câu chốt
+  assert.equal(sent.length, 0, 'nothing is sent before the sentence is final');
+  wakeOptions.onTranscript('mở trò chuyện giúp anh');
+  for (let i = 0; i < 5; i++) await new Promise(setImmediate);
+  assert.deepEqual(events.slice(-2), ['cancel-capture', 'attach-mic'], 'listener releases the mic, then the mic joins the open call');
+  assert.equal(events.filter(e => e === 'live-start').length, 2, 'the early connection is reused, not reopened');
+  liveOptions.onReady({});
+  assert.deepEqual(sent, ['mở trò chuyện giúp anh'], 'the waking sentence becomes the first message, once');
   assert.deepEqual(stored, [['user', 'mở trò chuyện giúp anh']]);
   run('_liveJavisText = "Latest answer"');
   liveOptions.onStopped(); liveOptions.onStopped();

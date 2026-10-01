@@ -31,6 +31,9 @@
   // ---- WebRTC (ChatGPT Live) ----
   var pc = null, rtc = false, remoteAudio = null, remoteSrc = null, rtcTimer = null;
   var rtcSpeaking = false, rtcLoudAt = 0, answerWaiter = null, muted = false;
+  // Nối sớm (0.65.24, opts.deferMic): bắt tay xong mà CHƯA giữ mic, vì lúc đó bộ nghe của trình duyệt
+  // còn đang nghe nốt câu đánh thức và điện thoại chỉ cho một bên giữ mic. attachMic() gắn sau.
+  var rtcSender = null, pcmSocket = null;
   var RTC_LOUD = 0.01, RTC_HANGOVER_MS = 400;
 
   function emit(name) {
@@ -164,7 +167,8 @@
       pc = new RTCPeerConnection();
       var conn = pc;
       var tr = conn.addTransceiver("audio", { direction: "sendrecv" });
-      await tr.sender.replaceTrack(stream.getAudioTracks()[0]);
+      rtcSender = tr.sender;
+      if (stream) await tr.sender.replaceTrack(stream.getAudioTracks()[0]);
       conn.createDataChannel("oai-events");
       conn.ontrack = function (e) { attachRemote(e.streams && e.streams[0] ? e.streams[0] : new MediaStream([e.track]), id); };
       conn.onconnectionstatechange = function () {
@@ -217,13 +221,15 @@
     } catch (e) { stop(); emit("onError", "audio"); return false; }
     inCtx.resume().catch(function () {});
     outCtx.resume().catch(function () {});
-    try {
-      var acquired = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
-      if (id !== generation) { acquired.getTracks().forEach(function (t) { t.stop(); }); return false; }
-      stream = acquired;
-    } catch (e) {
-      if (id === generation) { stop(); emit("onError", "mic:" + (e && e.name || "error")); }
-      return false;
+    if (!opts.deferMic) {
+      try {
+        var acquired = await getMic();
+        if (id !== generation) { acquired.getTracks().forEach(function (t) { t.stop(); }); return false; }
+        stream = acquired;
+      } catch (e) {
+        if (id === generation) { stop(); emit("onError", "mic:" + (e && e.name || "error")); }
+        return false;
+      }
     }
     try { await inCtx.resume(); await outCtx.resume(); } catch (e) {}
     if (id !== generation) return false;
@@ -300,6 +306,20 @@
       emit("onReady", ready);
       return true;
     }
+    pcmSocket = socket;
+    if (stream && !wirePcm(id)) { stop(); emit("onError", "audio"); return false; }
+    on = true;
+    emit("onStarted");
+    return true;
+  }
+
+  function getMic() {
+    return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+  }
+
+  // Đường PCM (Live qua API): tiếng mic đi qua WebSocket của máy chủ.
+  function wirePcm(id) {
+    var socket = pcmSocket;
     try {
       src = inCtx.createMediaStreamSource(stream);
       proc = inCtx.createScriptProcessor(4096, 1, 1);
@@ -310,10 +330,30 @@
       };
       src.connect(proc);
       proc.connect(inCtx.destination);   // Chrome chỉ chạy onaudioprocess khi node nối tới đích
-    } catch (e) { stop(); emit("onError", "audio"); return false; }
-    on = true;
-    emit("onStarted");
-    return true;
+      return true;
+    } catch (e) { return false; }
+  }
+
+  // Gắn mic vào phiên đã nối sớm (opts.deferMic). Gọi khi bộ nghe của trình duyệt đã nhả mic.
+  async function attachMic() {
+    if (stream) return true;
+    var id = generation;
+    try {
+      var acquired = await getMic();
+      if (id !== generation) { acquired.getTracks().forEach(function (t) { t.stop(); }); return false; }
+      stream = acquired;
+      if (muted) stream.getAudioTracks().forEach(function (t) { t.enabled = false; });
+      if (rtc) {
+        if (!rtcSender) return false;
+        await rtcSender.replaceTrack(stream.getAudioTracks()[0]);
+      } else if (!wirePcm(id)) {
+        stop(); emit("onError", "audio"); return false;
+      }
+      return true;
+    } catch (e) {
+      if (id === generation) { stop(); emit("onError", "mic:" + (e && e.name || "error")); emit("onClosed"); }
+      return false;
+    }
   }
 
   function sendText(text) {
@@ -340,7 +380,7 @@
     if (answerWaiter) answerWaiter(null);
     clearInterval(rtcTimer); rtcTimer = null;
     try { if (pc) { pc.ontrack = pc.onconnectionstatechange = null; pc.close(); } } catch (e) {}
-    pc = null;
+    pc = null; rtcSender = null;
     try { if (remoteAudio) { remoteAudio.pause(); remoteAudio.srcObject = null; } } catch (e) {}
     remoteAudio = null;
     try { if (remoteSrc) remoteSrc.disconnect(); } catch (e) {}
@@ -364,7 +404,7 @@
     ws = null;
     lastCtx = ""; utterStartAt = 0;
     try { if (proc) { proc.disconnect(); proc.onaudioprocess = null; } if (src) src.disconnect(); } catch (e) {}
-    proc = null; src = null;
+    proc = null; src = null; pcmSocket = null;
     try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
     stream = null;
     try { if (inCtx) inCtx.close().catch(function () {}); } catch (e) {}
@@ -373,7 +413,8 @@
     emit("onStopped");
   }
 
-  window.JavisVoiceLive = { start: start, stop: stop, sendText: sendText, sendContext: sendContext,
+  window.JavisVoiceLive = { start: start, stop: stop, sendText: sendText, sendContext: sendContext, attachMic: attachMic,
+                            hasMic: function () { return !!stream; },
                             playedMs: playedMs, progress: progress, resetProgress: resetProgress,
                             setMuted: setMuted, isMuted: function () { return muted; },
                             isOn: function () { return on; },

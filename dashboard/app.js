@@ -471,7 +471,8 @@ function capNhatThanhGoi() {
   if (!callBar || !handsFree) return;
   const live = window.JavisVoiceLive;
   let st = "listening", info = "";
-  if (_liveWaitingWake || attention.waiting()) st = "waiting_wake";
+  if (_liveSom) st = "reconnecting";   // đang nghe nốt câu đánh thức, đường gọi đang nối sẵn (0.65.24)
+  else if (_liveWaitingWake || attention.waiting()) st = "waiting_wake";
   else if (turn.state === "reconnecting") st = "reconnecting";
   else if (voiceMode === "live" && !(live && live.isOn())) st = "connecting";
   else if (turn.state === "speaking" || (voiceMode === "live" && live && live.isSpeaking())) st = "speaking";
@@ -537,6 +538,13 @@ window.JavisVoiceMode = { refresh: napCaiDatGiong, get: () => voiceMode };
 let _liveUserBubble = null, _liveJavisText = "", _liveJavisBubble = null, _liveCtxTimer = null;
 let _liveStartSeq = 0;
 let _liveWaitingWake = false, _liveBusyUntil = 0;
+// Nối lại NHANH (0.65.24, chủ dự án duyệt 02/10). Đo trên server thử: từ lúc người dùng ngừng nói tới
+// lúc nghe Javis mất ~5 giây, trong đó ~2,6 giây là mở mic, nối máy chủ, OpenAI dựng phiên và nối
+// đường âm thanh. Nên nghe được mấy chữ đầu là bắt tay NGAY (noiSom), song song với lúc người dùng
+// còn đang nói; câu chốt xong chỉ còn gắn mic và gửi câu (noiTiepPhienSom). Bắt tay lúc đó CHƯA giữ
+// mic (deferMic) vì bộ nghe của trình duyệt còn đang nghe nốt câu và điện thoại chỉ cho một bên giữ mic.
+let _liveSom = null;
+const NOI_SOM_HUY_MS = 12000;   // nối sớm mà mãi không có câu chốt (tiếng động) thì đóng, đỡ tốn hạn mức
 let _liveToolCount = 0;
 // Only one capture is alive: Live is closed before this free browser listener starts.
 // Lúc Live đã ngắt vì im lâu, CÂU NÓI THẬT đầu tiên là nối lại (0.65.22, attention.wakes): không
@@ -545,16 +553,60 @@ let _liveToolCount = 0;
 const liveWake = new JavisVoice({
   lang: "vi-VN",
   inputOnly: true,
-  endpointDelay: text => turn.delayFor(text),
-  onInterim: text => { if (_liveWaitingWake && handsFree) nhapGiong(text); },
+  endpointDelay: text => doTreChotCauCho(text),
+  onInterim: text => {
+    if (!_liveWaitingWake || !handsFree) return;
+    nhapGiong(text);
+    if (voiceMode === "live" && attention.wakes(text)) noiSom();
+  },
   onTranscript: text => {
     const ok = _liveWaitingWake && handsFree && voiceMode === "live" && attention.wakes(text);
     try { console.debug("[javis] nghe lúc chờ:", JSON.stringify(text), ok ? "-> nối lại" : "-> bỏ qua"); } catch (e) {}
     nhapGiong("");
     if (ok) resumeVoiceFocus(text);
+    else huyNoiSom();
   },
   onError: () => updateVoiceFocus(),
 });
+
+// Lúc chờ, câu trọn ý chốt sau 0,7 giây im thay vì 1,2 giây (0.65.24): đường gọi đã nối sẵn nên phần
+// nói thêm sau đó vẫn tới model qua mic. Câu dở dang (kết bằng "và", dấu phẩy...) giữ độ chờ dài của
+// đạo diễn, không cắt ngang người đang nói.
+const CHOT_CAU_CHO_MS = 700;
+function doTreChotCauCho(text) {
+  const d = turn.delayFor(text);
+  return d > turn.opts.minDelay ? d : Math.min(d, CHOT_CAU_CHO_MS);
+}
+function noiSom() {
+  if (_liveSom || !_liveWaitingWake || !handsFree || voiceMode !== "live" || !window.JavisVoiceLive) return;
+  batLive("", { som: true });
+}
+function huyNoiSom() {
+  const phien = _liveSom;
+  if (!phien) return;
+  _liveSom = null;
+  clearTimeout(phien.henHuy);
+  if (_liveWaitingWake) tatLive();   // vẫn đang chờ: đóng đường nối sớm, bộ nghe chờ câu sau
+  capNhatThanhGoi();
+}
+// Câu đánh thức chốt xong mà đường gọi đã nối sớm: nhả mic của bộ nghe, gắn mic vào phiên, gửi câu.
+async function noiTiepPhienSom(phien, wakeText) {
+  _liveSom = null;
+  clearTimeout(phien.henHuy);
+  const released = await liveWake.waitForCaptureEnd();
+  if (phien.ticket !== _liveStartSeq || !handsFree) return false;
+  if (!released) { tatRanhTay(); appendJavisError(window.t("app.voice_focus_mic_busy")); return false; }
+  phien.pendingWake = wakeText;
+  const ok = await phien.promise;   // bắt tay còn dở thì chờ nốt
+  if (phien.ticket !== _liveStartSeq) return false;
+  if (!ok) {
+    if (handsFree) return chuyenSangCoBan();
+    return false;
+  }
+  if (!(await window.JavisVoiceLive.attachMic())) return false;   // lỗi mic: attachMic tự báo và đóng
+  phien.guiCauDanhThuc();
+  return true;
+}
 
 // Dự phòng khi máy không có bộ nhận giọng của trình duyệt (hay nó bị chặn): đo âm lượng mic, có
 // người nói là nối lại. Câu đầu mất chữ (không có gì chép lại), nhưng cuộc gọi không kẹt ở "Đang chờ".
@@ -649,18 +701,37 @@ function guiNguCanhLive() {
     window.JavisVoiceLive.sendContext(ctx);
   } catch (e) {}
 }
-async function batLive(wakeText = "") {
+async function batLive(wakeText = "", { som = false } = {}) {
   if (!window.JavisVoiceLive) { alert(window.t("app.live_missing")); return false; }
+  if (!som && _liveSom) return noiTiepPhienSom(_liveSom, wakeText);
   const ticket = ++_liveStartSeq;
   // Web Speech abort is asynchronous. On phones, wait until it actually releases capture.
-  const released = await liveWake.waitForCaptureEnd();
-  if (ticket !== _liveStartSeq || !handsFree) return false;
-  if (!released) { tatRanhTay(); appendJavisError(window.t("app.voice_focus_mic_busy")); return false; }
-  let pendingWake = wakeText, readySeen = false;
+  // Nối sớm thì KHÔNG chờ: bộ nghe còn đang nghe nốt câu, phiên chưa giữ mic (deferMic).
+  if (!som) {
+    const released = await liveWake.waitForCaptureEnd();
+    if (ticket !== _liveStartSeq || !handsFree) return false;
+    if (!released) { tatRanhTay(); appendJavisError(window.t("app.voice_focus_mic_busy")); return false; }
+  }
+  const phien = { ticket, pendingWake: wakeText, readySeen: false, promise: null, henHuy: 0 };
+  let readySeen = false;
+  // Câu đánh thức đi làm lời đầu, chỉ khi phiên đã sẵn sàng; nối sớm thì câu tới sau ready.
+  phien.guiCauDanhThuc = () => {
+    if (!phien.pendingWake || !phien.readySeen || ticket !== _liveStartSeq) return;
+    const text = phien.pendingWake; phien.pendingWake = ""; // some providers emit ready twice
+    window.JavisVoiceLive.sendText(text);
+    appendUserMessage(text, []); recordTurn("user", text, []);
+    _liveBusyUntil = Date.now() + 120000;
+  };
+  if (som) {
+    _liveSom = phien;
+    phien.henHuy = setTimeout(() => { if (_liveSom === phien) huyNoiSom(); }, NOI_SOM_HUY_MS);
+    capNhatThanhGoi();
+  }
   _liveToolCount = 0;
   _liveBusyUntil = Date.now() + 120000; // bounded setup, cleared by the first ready
   _liveJavisText = ""; _liveJavisBubble = null;
-  const ok = await window.JavisVoiceLive.start({
+  const startP = window.JavisVoiceLive.start({
+    deferMic: som,
     sessionId: () => savedSessionId,
     brain: () => currentBrainPath(),
     language: () => voice.langAuto ? "auto" : voice.lang,
@@ -677,14 +748,10 @@ async function batLive(wakeText = "") {
     },
     onReady: (d) => {
       if (ticket !== _liveStartSeq || !handsFree) return;
-      if (!readySeen) { readySeen = true; _liveBusyUntil = 0; attention.keepActive(); }
+      if (!readySeen) { readySeen = phien.readySeen = true; _liveBusyUntil = 0; attention.keepActive(); }
       if (d && d.session_id && !savedSessionId) { savedSessionId = d.session_id; persistSession(); }
-      if (pendingWake) {
-        const text = pendingWake; pendingWake = ""; // some providers emit ready twice
-        window.JavisVoiceLive.sendText(text);
-        appendUserMessage(text, []); recordTurn("user", text, []);
-        _liveBusyUntil = Date.now() + 120000;
-      }
+      // Nối sớm: mic chưa gắn thì câu đánh thức chờ noiTiepPhienSom gửi sau khi gắn mic.
+      if (_liveSom !== phien) phien.guiCauDanhThuc();
     },
     onSpeakStart: () => runActions(turn.ttsStart()),
     onSpeakEnd: () => { _liveBusyUntil = 0; attention.keepActive(); runActions(turn.ttsEnd()); },
@@ -725,13 +792,24 @@ async function batLive(wakeText = "") {
     },
     onError: (msg) => {
       _liveBusyUntil = 0;
+      if (_liveSom === phien) return;   // nối sớm hỏng: im lặng, câu chốt sẽ mở lại từ đầu
       appendJavisError(String(msg || "").startsWith("mic:") ? window.t("app.mic_denied") : (window.t("app.live_error") + " " + msg));
       runActions(turn.turnDone());
     },
     // Đóng TRƯỚC khi sẵn sàng là mở không được: để nhánh dưới chuyển sang đường Cơ bản.
-    onClosed: () => { if (readySeen) tatRanhTay(); },
+    onClosed: () => {
+      if (_liveSom === phien) { _liveSom = null; clearTimeout(phien.henHuy); capNhatThanhGoi(); return; }
+      if (readySeen) tatRanhTay();
+    },
   });
+  phien.promise = startP;
+  const ok = await startP;
   if (ticket !== _liveStartSeq) return false;
+  if (som) {
+    // Nối sớm hỏng thì bỏ, vẫn chờ: câu chốt sẽ mở phiên mới (batLive thường).
+    if (!ok && _liveSom === phien) { _liveSom = null; clearTimeout(phien.henHuy); capNhatThanhGoi(); }
+    return ok;
+  }
   if (!ok) {
     if (handsFree && !readySeen) return chuyenSangCoBan();
     tatRanhTay();
@@ -3455,6 +3533,7 @@ function tatRanhTay() {
     // Cúp máy (0.65.22): thôi đo âm lượng lúc chờ và trả màn hình về tự tắt như thường.
     tatNgheAmLuong();
     if (window.JavisScreenAwake) window.JavisScreenAwake.release();
+    if (_liveSom) { clearTimeout(_liveSom.henHuy); _liveSom = null; }   // 0.65.24: phiên nối sớm (tatLive đóng nó)
   } catch (e) {}
   voice.cancelListening();
   voice.stopSpeaking();

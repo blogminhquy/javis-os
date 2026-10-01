@@ -414,7 +414,7 @@ On the Basic path the browser only hears one language, so a sentence like "Mở 
 
 ### Handled by the machine
 
-- **Long silence pauses the line, speaking resumes it**: on a ChatGPT Live call, after 30 quiet seconds Javis pauses the connection to save plan usage and the call bar says "Waiting, just speak to continue". Just keep talking, no need to say its name: Javis reconnects in about 2 to 3 seconds and answers what you just said. A TV or someone nearby speaking clearly also resumes it. Since 0.65.22 there is no "Focused conversation" switch.
+- **Long silence pauses the line, speaking resumes it**: on a ChatGPT Live call, after 30 quiet seconds Javis pauses the connection to save plan usage and the call bar says "Waiting, just speak to continue". Just keep talking, no need to say its name: Javis starts reconnecting as soon as it hears your first few words, so it usually answers about 2 seconds after you stop talking. A TV or someone nearby speaking clearly also resumes it. Since 0.65.22 there is no "Focused conversation" switch.
 - **The screen stays on during a call**: phones cut the microphone when the screen locks, so during a call Javis keeps the screen from turning off; hanging up lets it sleep as usual. Pressing the power button still ends the call.
 These fields were removed from the page because the machine decides them:
 

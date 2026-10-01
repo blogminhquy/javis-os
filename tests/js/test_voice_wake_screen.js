@@ -85,5 +85,15 @@ const { create } = require("../../dashboard/screen-awake.js");
   assert.ok(!("settings.vc_focus" in vi) && !("settings.vc_focus_hint" in en));
   assert.ok(!/gọi/i.test(vi["call.waiting_wake"]) && /nói/.test(vi["call.waiting_wake"]), "the call bar says: just speak");
   assert.ok(!/say "?Javis/i.test(en["call.waiting_wake"]));
+  // 0.65.24: lúc chờ, câu trọn ý chốt sau 0,7 giây; câu dở dang giữ độ chờ dài của đạo diễn.
+  assert.match(app, /endpointDelay: text => doTreChotCauCho\(text\)/);
+  const fnSrc = app.slice(app.indexOf("const CHOT_CAU_CHO_MS"), app.indexOf("function noiSom()"));
+  const doTre = (minDelay) => new Function("turn", fnSrc + "; return doTreChotCauCho;")(
+    { opts: { minDelay }, delayFor: (t) => (/(và|nhưng|,)$/.test(t.trim()) ? 2200 : minDelay) });
+  assert.equal(doTre(1200)("mở lịch tuần này"), 700, "complete sentence: 0.7 s");
+  assert.equal(doTre(1200)("mở lịch tuần này và"), 2200, "trailing conjunction keeps the long wait");
+  assert.equal(doTre(500)("mở lịch"), 500, "a user who chose 0.5 s is not slowed down");
+  assert.match(app, /if \(voiceMode === "live" && attention\.wakes\(text\)\) noiSom\(\);/, "interim real words start the early connection");
+  assert.match(app, /else huyNoiSom\(\);/, "a final that is not real speech closes the early connection");
   console.log("OK - im lâu thì ngắt, nói là nối lại, giữ màn hình sáng");
 })().catch(e => { console.error(e); process.exitCode = 1; });

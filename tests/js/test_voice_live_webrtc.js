@@ -128,6 +128,45 @@ test('pcm providers keep the old path: ScriptProcessor, no peer connection, read
   live.stop();
 });
 
+// 0.65.24: nối sớm lúc người dùng còn đang nói câu đánh thức: bắt tay xong mà CHƯA giữ mic (bộ nghe
+// của trình duyệt còn giữ mic, điện thoại chỉ cho một bên), mic gắn sau bằng attachMic.
+test('webrtc deferMic: handshake without the mic, attachMic adds it to the same peer', async () => {
+  const { live, FakeWS, log, track } = setup();
+  let mics = 0;
+  const { opts, seen } = events();
+  const started = live.start(Object.assign(opts, { deferMic: true }));
+  await tick(5);
+  FakeWS.last.serverSend({ type: 'ready', provider: 'chatgpt', transport: 'webrtc' });
+  await tick(5);
+  assert.equal(log.peers.length, 1);
+  assert.equal(log.peers[0].track, null, 'no mic track during the early handshake');
+  assert.equal(live.hasMic(), false);
+  FakeWS.last.serverSend({ type: 'webrtc_answer', sdp: 'v=0 answer' });
+  assert.equal(await started, true);
+  assert.ok(seen.some(e => e[0] === 'onReady'), 'the call is ready before the mic joins');
+  assert.equal(await live.attachMic(), true);
+  assert.equal(log.peers[0].track, track, 'mic joins the existing peer, no second handshake');
+  assert.equal(log.peers.length, 1);
+  assert.equal(live.hasMic(), true);
+  assert.equal(await live.attachMic(), true, 'a second attach is a no-op');
+  live.setMuted(true);
+  assert.equal(track.enabled, false, 'mute still works after a late attach');
+  live.stop();
+});
+
+test('pcm deferMic: ready without capture, attachMic starts the ScriptProcessor', async () => {
+  const { live, FakeWS, log } = setup();
+  const { opts } = events();
+  const started = live.start(Object.assign(opts, { deferMic: true }));
+  await tick(5);
+  FakeWS.last.serverSend({ type: 'ready', provider: 'gemini', transport: 'pcm' });
+  assert.equal(await started, true);
+  assert.equal(log.scriptProcessors, 0, 'no capture before attachMic');
+  assert.equal(await live.attachMic(), true);
+  assert.equal(log.scriptProcessors, 1);
+  live.stop();
+});
+
 (async () => {
   let failures = 0;
   for (const [name, fn] of tests) {
