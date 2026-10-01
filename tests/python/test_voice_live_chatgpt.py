@@ -158,8 +158,17 @@ async def main():
     check("lượt Codex tự mở bị turn/interrupt ngay",
           call(fake, "turn/interrupt") == [{"threadId": "th-9", "turnId": "turn-7"}])
 
+    # 0.65.23: kết quả chỉ được đẩy khi model đã nói xong lượt đang nói (hàng chờ lời đọc, xem
+    # test_voice_live_speech_queue.py); ở đây cho lượt "x" khép lại trước.
+    fake.push("thread/realtime/transcript/done", role="assistant", text="x")
+    await asyncio.wait_for(agen.__anext__(), 2)
+    prov.SPEECH_GAP = 0
     await prov.send_tool_result("h1", "ask_javis",
                                 "## Doanh thu\n\n| Ngày | Tiền |\n|---|---|\n| Hôm nay | **12.500.000** |\n\nTăng [8%](http://x) so với hôm qua. " + "Rất dài. " * 200)
+    for _ in range(100):
+        if call(fake, "thread/realtime/appendSpeech"):
+            break
+        await asyncio.sleep(0.02)
     sp = call(fake, "thread/realtime/appendSpeech")[0]
     check("kết quả đi appendSpeech, đã lột markdown",
           "##" not in sp["text"] and "**" not in sp["text"] and "](" not in sp["text"] and "12.500.000" in sp["text"])

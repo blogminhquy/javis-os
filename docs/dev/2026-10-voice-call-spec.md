@@ -101,7 +101,11 @@ cả khi Javis nằm trên VPS. Javis không bao giờ đọc token: app-server 
 4. Codex luôn TỰ mở một lượt agent cho mỗi handoff (`turn/started`): gọi `turn/interrupt` ngay.
    `developerInstructions` ở trên là lưới đỡ khi interrupt thua cuộc đua.
 5. Có kết quả: bản ĐẦY ĐỦ hiện thành bong bóng chat (bảng, link, file). Bản NÓI được rút từ đó
-   (lột markdown, giữ số liệu, trần ~600 ký tự) rồi gửi `thread/realtime/appendSpeech`. Lượt model
+   (lột markdown, giữ số liệu, trần ~600 ký tự) rồi gửi `thread/realtime/appendSpeech`, qua HÀNG CHỜ
+   (0.65.23): đẩy giữa lúc model đang nói thì nó trộn hai nội dung vào cùng một lượt (đo trên Codex
+   0.153.4 và 0.158, chủ dự án nghe như hai giọng chồng nhau), nên chỉ đẩy khi model im 0,4 giây, vừa
+   đẩy mà model chưa mở lời thì chờ tới 8 giây, 4 giây không có chữ mới coi như đã im, trần 90 giây.
+   `send_tool_result` trả về ngay, route không đứng chờ. Lượt model
    nói ngay sau đó là lời ĐỌC LẠI bản đã hiện: route không gửi chữ của nó lên trình duyệt và không
    ghi vào lịch sử (0.65.21), nếu không người dùng thấy cùng một nội dung hai lần. Người dùng nói
    hay gõ tiếp, hoặc chen ngang, thì xoá cờ đó để lời đáp mới vẫn hiện.

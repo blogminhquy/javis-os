@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.23] - 2026-10-01
 ### Sửa lỗi
-- Đang làm: ChatGPT Live đọc hai câu trả lời liền nhau lần lượt, không chồng lên nhau.
+- **ChatGPT Live đọc các câu trả lời lần lượt.** Khi kết quả thứ hai về lúc Javis còn đang đọc kết quả thứ nhất, hai câu từng bị đọc trộn vào nhau như hai giọng chồng lên nhau. Nay Javis đọc xong câu đang nói rồi mới đọc câu tiếp theo.
 
 ## [0.65.22] - 2026-10-01
 ### Cải thiện

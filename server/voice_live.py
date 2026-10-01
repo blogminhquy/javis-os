@@ -831,6 +831,13 @@ class ChatGPTLive(LiveProvider):
     """
     name = "chatgpt"
     transport = "webrtc"
+    # Hàng chờ lời đọc kết quả (0.65.23): đẩy appendSpeech giữa lúc model đang nói thì nó TRỘN hai
+    # nội dung vào cùng một lượt (đo trên Codex 0.153.4 và 0.158), người nghe thấy hai câu trả lời lẫn
+    # vào nhau. Nên chỉ đẩy khi model im; vừa đẩy mà model chưa mở lời thì chờ một khoảng ân hạn.
+    SPEECH_START_GRACE = 8.0   # giây: chờ model mở lời cho kết quả vừa đẩy
+    SPEECH_GAP = 0.4           # giây im sau lượt nói trước, cho nghe ra hai câu tách nhau
+    SPEECH_WAIT_MAX = 90.0     # giây: trần chờ, mất khung transcript cũng không kẹt
+    SPEECH_STALL = 4.0         # giây không có chữ mới thì coi lượt nói đã dừng (bị chen ngang, mất done)
 
     def __init__(self, api_key: str = "", model: str = "", voice: str = "", system: str = CHATGPT_LIVE_PROMPT,
                  tools: Optional[List[dict]] = None, recognition_lang: str = "vi-VN", memory_index: str = "",
@@ -856,6 +863,12 @@ class ChatGPTLive(LiveProvider):
         self._interrupt_turns: List[str] = []
         self._held: List[dict] = []   # lời Javis tới lúc người dùng còn đang nói, chờ câu người dùng chốt
         self._bg: set = set()
+        self._speaking = False        # model đang có một lượt nói chưa xong (theo transcript)
+        self._last_delta_at = 0.0
+        self._quiet_since = 0.0       # lúc lượt nói gần nhất xong
+        self._pushed_at = 0.0         # lúc vừa đẩy appendSpeech mà model chưa mở lời
+        self._speech_q: List[str] = []
+        self._speech_task: Optional[asyncio.Task] = None
 
     async def connect(self):
         self._closing = False
@@ -965,6 +978,7 @@ class ChatGPTLive(LiveProvider):
                     if self._user_buf.strip() else []
             if not delta:
                 return []
+            self._speaking, self._pushed_at, self._last_delta_at = True, 0.0, time.monotonic()
             ev = {"type": "transcript", "role": "assistant", "text": delta, "final": False}
             if self._user_buf.strip():
                 self._held.append(ev)
@@ -981,6 +995,7 @@ class ChatGPTLive(LiveProvider):
                 out += self._held
                 self._held = []
                 return out
+            self._speaking, self._pushed_at, self._quiet_since = False, 0.0, time.monotonic()
             # Javis nói xong mà câu người dùng vẫn chưa có done (hiếm): chốt phần đã nghe rồi mới nhả.
             out = self._flush_user() + self._held + [{"type": "turn_done"}]
             self._held = []
@@ -1020,7 +1035,7 @@ class ChatGPTLive(LiveProvider):
             if debug:
                 p = msg.get("params") or {}
                 item = p.get("item") or {}
-                print(f"[chatgpt live] {msg.get('method')} role={p.get('role')} "
+                print(f"[chatgpt live] {time.monotonic():.1f} {msg.get('method')} role={p.get('role')} "
                       f"delta={p.get('delta')!r} text={p.get('text')!r} item={item.get('type')}"
                       + (f" request={item.get('input_transcript')!r}" if item.get("type") == "handoff_request" else ""),
                       file=sys.stderr)
@@ -1041,8 +1056,36 @@ class ChatGPTLive(LiveProvider):
         await self.srv.request("thread/realtime/appendText", {"threadId": self.thread_id, "text": str(text)})
 
     async def send_tool_result(self, call_id: str, name: str, result: str):
-        await self.srv.request("thread/realtime/appendSpeech",
-                               {"threadId": self.thread_id, "text": speakable(result) or "Em chưa có kết quả."})
+        """Xếp lời đọc kết quả vào hàng, trả về ngay (route không phải đứng chờ model đọc xong)."""
+        self._speech_q.append(speakable(result) or "Em chưa có kết quả.")
+        if self._speech_task is None or self._speech_task.done():
+            self._speech_task = asyncio.ensure_future(self._drain_speech())
+            self._bg.add(self._speech_task)
+            self._speech_task.add_done_callback(self._bg.discard)
+
+    def _model_busy(self) -> bool:
+        now = time.monotonic()
+        if self._speaking and now - self._last_delta_at < self.SPEECH_STALL:
+            return True
+        if self._pushed_at and now - self._pushed_at < self.SPEECH_START_GRACE:
+            return True
+        return bool(self._quiet_since) and now - self._quiet_since < self.SPEECH_GAP
+
+    async def _drain_speech(self):
+        while self._speech_q and not self._closing:
+            deadline = time.monotonic() + self.SPEECH_WAIT_MAX
+            while self._model_busy() and time.monotonic() < deadline and not self._closing:
+                await asyncio.sleep(0.05)
+            if self._closing or not self._speech_q:
+                return
+            text = self._speech_q.pop(0)
+            self._pushed_at = time.monotonic()
+            if os.environ.get("JAVIS_LIVE_DEBUG"):
+                print(f"[chatgpt live] {time.monotonic():.1f} appendSpeech ({len(text)} ký tự)", file=sys.stderr)
+            try:
+                await self.srv.request("thread/realtime/appendSpeech", {"threadId": self.thread_id, "text": text})
+            except Exception as e:
+                print(f"[chatgpt live] appendSpeech lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
     async def send_tool_ack(self, call_id: str, name: str, text: str):
         return   # handoff do client tự quản không cần kết quả; nói gì ở đây là đọc thừa ra loa
@@ -1061,6 +1104,7 @@ class ChatGPTLive(LiveProvider):
 
     async def close(self):
         self._closing = True
+        self._speech_q.clear()   # cúp máy thì không đọc nốt
         srv, tid = self.srv, self.thread_id
         if srv is not None and tid:
             try:
