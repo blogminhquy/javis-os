@@ -144,7 +144,8 @@ except RuntimeError as e:
     err = str(e)
 check("make_provider: provider lạ -> liệt kê provider có", "gemini" in err and "openai" in err)
 cat = vl.catalog()
-check("catalog: ba nhà cung cấp kèm giọng", set(cat) == {"gemini", "openai", "gpt-live"} and cat["gemini"]["voices"])
+check("catalog: bốn nhà cung cấp kèm giọng (ChatGPT Live từ 0.65.17)",
+      set(cat) == {"chatgpt", "gemini", "openai", "gpt-live"} and cat["gemini"]["voices"])
 
 # ---- GPT-Live (song công, ủy nhiệm client) ----
 gl = vl.GPTLive("KEY", voice="cedar")

@@ -41,18 +41,28 @@ import asyncio
 import base64
 import json
 import re
+import shutil
+import tempfile
+import time
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 _OPENAI_VOICES = ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"]
+# Giọng của realtime v3 trên gói ChatGPT (Codex app-server). marin/alloy... của API bị v3 từ chối.
+CHATGPT_VOICES = ["juniper", "maple", "spruce", "ember", "vale", "breeze", "arbor", "sol", "cove"]
 
+# `transport`: "pcm" = trình duyệt đẩy PCM qua /ws/voice-live; "webrtc" = trình duyệt nối THẲNG
+# nhà cung cấp, /ws/voice-live chỉ chuyển gói bắt tay SDP và chữ (ChatGPT Live).
 PROVIDERS = {
+    "chatgpt": {"label": "ChatGPT Live (gói ChatGPT)", "key_field": None,
+                "default_model": "", "default_voice": "juniper", "voices": CHATGPT_VOICES, "transport": "webrtc"},
     "gemini": {"label": "Google Gemini Live (API)", "key_field": "gemini_api_key",
                "default_model": "gemini-3.1-flash-live-preview",   # 03/2026; bản cũ: gemini-2.5-flash-native-audio-preview-12-2025
-               "default_voice": "Aoede", "voices": ["Aoede", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Zephyr"]},
+               "default_voice": "Aoede", "voices": ["Aoede", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Zephyr"],
+               "transport": "pcm"},
     "openai": {"label": "OpenAI Realtime (API)", "key_field": "openai_api_key",
-               "default_model": "gpt-realtime", "default_voice": "marin", "voices": _OPENAI_VOICES},
+               "default_model": "gpt-realtime", "default_voice": "marin", "voices": _OPENAI_VOICES, "transport": "pcm"},
     "gpt-live": {"label": "OpenAI GPT-Live (API)", "key_field": "openai_api_key",
-                 "default_model": "gpt-live-1", "default_voice": "marin", "voices": _OPENAI_VOICES},
+                 "default_model": "gpt-live-1", "default_voice": "marin", "voices": _OPENAI_VOICES, "transport": "pcm"},
 }
 
 ASK_JAVIS_TOOL = {
@@ -707,16 +717,306 @@ class GPTLive(LiveProvider):
         return []
 
 
-_CLASSES = {"gemini": GeminiLive, "openai": OpenAIRealtime, "gpt-live": GPTLive}
+# ChatGPT Live (docs/dev/2026-10-voice-call-spec.md mục 3.3): model nói chuyện của OpenAI lo chuyện
+# trò, việc cần dữ liệu thì GIAO cho bộ não Javis. Xưng hô theo người dùng, không ép cố định.
+CHATGPT_LIVE_PROMPT = (
+    "Bạn là Javis, trợ lý cá nhân, đang nói chuyện với người dùng qua cuộc gọi bằng giọng nói. "
+    "Nói tự nhiên như người qua điện thoại, ngắn 1 đến 2 câu. Xưng hô đúng theo cách người dùng đang "
+    "xưng với bạn (phần bộ nhớ bên dưới cho biết nếu có), không tự đổi. Chuyện trò, hỏi thăm, giải "
+    "thích kiến thức chung thì trả lời thẳng. Mọi câu cần dữ liệu thật hay hành động (doanh thu, đơn "
+    "hàng, lịch, email, file, ghi chú, ký ức, mở trang trên màn hình, gửi tin, nhắc hẹn, tạo việc) thì "
+    "KHÔNG đoán: nói một câu đệm rất ngắn kiểu 'Để em xem nhé' rồi giao việc cho hệ thống. Khi hệ thống "
+    "trả kết quả, đọc lại tự nhiên, không thêm số liệu. Bị chen ngang thì dừng ngay và nghe."
+)
+SPEAK_MAX = 600          # kết quả bộ não đọc ra loa: phần đầu, đủ ý; bản đầy đủ hiện thành bong bóng
+HANDOFF_SHORT_WORDS = 3  # yêu cầu giao việc ngắn hơn thì ghép câu người dùng vừa nói
+HANDOFF_MERGE_S = 10.0
+HISTORY_ITEMS = 12
+HISTORY_CHARS = 8000
+MEMORY_CHARS = 4000
 
 
-def make_provider(cfg: dict, system: str = "", recognition_lang: str = "vi-VN") -> LiveProvider:
+def speakable(text: str, limit: int = SPEAK_MAX) -> str:
+    """Chữ đọc được từ câu trả lời markdown của bộ não: bỏ khối mã, ký hiệu, link; giữ số liệu.
+
+    Bảng giữ lại thành các ô ngăn bằng phẩy (số liệu nằm ở đó). Cắt ở dấu kết câu gần nhất
+    trước `limit` để câu nói ra không cụt giữa chừng.
+    """
+    s = str(text or "")
+    s = re.sub(r"```.*?```", " ", s, flags=re.S)
+    s = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", s)
+    s = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", s)
+    lines = []
+    for line in s.splitlines():
+        t = line.strip()
+        if re.fullmatch(r"\|?[\s:\-|]+\|?", t) and "-" in t:
+            continue   # dòng kẻ của bảng
+        if t.startswith("|"):
+            t = ", ".join(c.strip() for c in t.strip("|").split("|") if c.strip())
+        t = re.sub(r"^#{1,6}\s*", "", t)
+        t = re.sub(r"^[>\-*+]\s+", "", t)
+        lines.append(t)
+    s = " ".join(x for x in lines if x)
+    s = re.sub(r"[*_`#>]+", "", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    if len(s) <= limit:
+        return s
+    cut = s[:limit]
+    end = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
+    return (cut[:end + 1] if end > limit // 3 else cut.rsplit(" ", 1)[0]).strip()
+
+
+class ChatGPTLive(LiveProvider):
+    """ChatGPT Live: realtime v3 của Codex app-server trên gói ChatGPT, KHÔNG cần API key.
+
+    Âm thanh đi WebRTC thẳng trình duyệt tới OpenAI; lớp này chỉ dựng thread, chuyển SDP, dịch
+    thông báo chữ và trả kết quả giao việc. Đo 01/10/2026: tiếng đầu 0,44 đến 0,85 giây khi ấm,
+    handoff 0,5 giây sau câu hỏi, phiên 15 phút không rớt (spec mục 2).
+    """
+    name = "chatgpt"
+    transport = "webrtc"
+
+    def __init__(self, api_key: str = "", model: str = "", voice: str = "", system: str = CHATGPT_LIVE_PROMPT,
+                 tools: Optional[List[dict]] = None, recognition_lang: str = "vi-VN", memory_index: str = "",
+                 app_server_getter=None):
+        super().__init__(api_key, model=model, voice=voice, system=system, tools=tools, recognition_lang=recognition_lang)
+        if self.voice not in CHATGPT_VOICES:
+            self.voice = PROVIDERS["chatgpt"]["default_voice"]
+        self.memory_index = str(memory_index or "")[:MEMORY_CHARS]
+        if app_server_getter is None:
+            import codex_realtime
+            app_server_getter = codex_realtime.get_app_server
+        self._get_server = app_server_getter
+        self.srv = None
+        self.thread_id = ""
+        self.queue: Optional[asyncio.Queue] = None
+        self.initial_items: List[dict] = []
+        self._cwd = ""
+        self._sdp: Optional[asyncio.Future] = None
+        self._closing = False
+        self._user_buf = ""
+        self._user_last = ""
+        self._user_last_at = 0.0
+        self._interrupt_turns: List[str] = []
+        self._bg: set = set()
+
+    async def connect(self):
+        self._closing = False
+        self.srv = await self._get_server()
+        # Thư mục tạm rỗng: lượt Codex nào lỡ chạy cũng không thấy file thật của người dùng.
+        self._cwd = tempfile.mkdtemp(prefix="javis-live-")
+        res = await self.srv.request("thread/start", {
+            "ephemeral": True, "cwd": self._cwd, "sandbox": "read-only", "approvalPolicy": "never",
+            "developerInstructions": "Reply only: [FINAL]",
+        }, timeout=40)
+        self.thread_id = str(((res or {}).get("thread") or {}).get("id") or "")
+        if not self.thread_id:
+            raise RuntimeError("Codex app-server không mở được thread cho ChatGPT Live.")
+        self.queue = self.srv.subscribe(self.thread_id)
+
+    async def reconnect(self):
+        # Không nối lại trong suốt được: trình duyệt phải bắt tay WebRTC lại từ đầu.
+        await self.close()
+        raise RuntimeError("ChatGPT Live đã ngắt, hãy bấm gọi lại.")
+
+    async def restore_history(self, messages: List[dict]):
+        items, budget = [], HISTORY_CHARS
+        for message in reversed((messages or [])[-HISTORY_ITEMS:]):
+            role = message.get("role")
+            if role not in ("user", "assistant"):
+                continue
+            text = str(message.get("content") or "")[:min(2000, budget)].strip()
+            if text:
+                items.insert(0, {"role": role, "text": text})
+                budget -= len(text)
+            if budget <= 0:
+                break
+        self.initial_items = items
+
+    def start_params(self, sdp: str) -> dict:
+        prompt = self.system
+        if self.memory_index.strip():
+            prompt += "\n\nBộ nhớ về người dùng (mục lục, chỉ làm ngữ cảnh):\n" + self.memory_index.strip()
+        params = {
+            "threadId": self.thread_id, "version": "v3", "outputModality": "audio",
+            "transport": {"type": "webrtc", "sdp": sdp},
+            "prompt": prompt, "voice": self.voice,
+            # BẮT BUỘC tắt: mặc định Codex nhét ~5.300 token quét máy và thư mục làm việc vào prompt.
+            "includeStartupContext": False,
+            "clientManagedHandoffs": True, "delegationAckFiller": True,
+            "flushTranscriptTailOnSessionEnd": False,
+            "realtimeStartInstructions": "Do no work. Reply only: [FINAL]",
+        }
+        if self.initial_items:
+            params["initialItems"] = self.initial_items
+        return params
+
+    async def start_webrtc(self, sdp: str) -> str:
+        """Gửi offer của trình duyệt, trả answer. events() phải đang chạy (nó nhận thông báo sdp)."""
+        loop = asyncio.get_running_loop()
+        self._sdp = loop.create_future()
+        await self.srv.request("thread/realtime/start", self.start_params(sdp), timeout=30)
+        try:
+            return await asyncio.wait_for(self._sdp, 25)
+        except asyncio.TimeoutError:
+            raise RuntimeError("ChatGPT Live không trả lời bắt tay sau 25 giây.")
+
+    def _flush_user(self) -> List[dict]:
+        if not self._user_buf.strip():
+            return []
+        text = self._user_buf.strip()
+        self._user_buf = ""
+        self._user_last, self._user_last_at = text, time.monotonic()
+        return [{"type": "transcript", "role": "user", "text": text, "final": True}]
+
+    def _handoff_request(self, req: str) -> str:
+        req = str(req or "").strip()
+        recent = self._user_last if time.monotonic() - self._user_last_at <= HANDOFF_MERGE_S else ""
+        if len(req.split()) < HANDOFF_SHORT_WORDS and recent:
+            # Phiên ngồi im lâu có lúc tách đôi câu ("Doanh" / "là bao nhiêu em"): ghép câu vừa nói.
+            return recent if req.lower() in recent.lower() else (recent + " " + req).strip()
+        return req or recent or "(không rõ yêu cầu, hãy hỏi lại người dùng)"
+
+    def translate(self, msg: dict) -> List[dict]:
+        method = str(msg.get("method") or "")
+        p = msg.get("params") or {}
+        if method == "thread/realtime/sdp":
+            if self._sdp is not None and not self._sdp.done():
+                self._sdp.set_result(str(p.get("sdp") or ""))
+            return []
+        if method == "thread/realtime/error":
+            text = str(p.get("message") or "lỗi không rõ")
+            if self._sdp is not None and not self._sdp.done():
+                self._sdp.set_exception(RuntimeError(f"ChatGPT Live không mở được: {text}"))
+            return [{"type": "error", "message": f"ChatGPT Live lỗi: {text}"}]
+        if method == "thread/realtime/transcript/delta":
+            delta = str(p.get("delta") or "")
+            if p.get("role") == "user":
+                self._user_buf += delta
+                return [{"type": "transcript", "role": "user", "text": self._user_buf.strip(), "final": False}] \
+                    if self._user_buf.strip() else []
+            out = self._flush_user()
+            if delta:
+                out.append({"type": "transcript", "role": "assistant", "text": delta, "final": False})
+            return out
+        if method == "thread/realtime/transcript/done":
+            if p.get("role") == "user":
+                text = str(p.get("text") or "").strip() or self._user_buf.strip()
+                self._user_buf = ""
+                if not text:
+                    return []
+                self._user_last, self._user_last_at = text, time.monotonic()
+                return [{"type": "transcript", "role": "user", "text": text, "final": True}]
+            return self._flush_user() + [{"type": "turn_done"}]
+        if method == "thread/realtime/itemAdded":
+            item = p.get("item") or {}
+            if item.get("type") != "handoff_request":
+                return []
+            out = self._flush_user()
+            out.append({"type": "tool_call", "id": str(item.get("handoff_id") or ""), "name": "ask_javis",
+                        "args": {"request": self._handoff_request(item.get("input_transcript"))}})
+            return out
+        if method == "turn/started":
+            # Mỗi lần giao việc Codex TỰ mở một lượt agent: chặn ngay, việc thật do bộ não Javis làm.
+            tid = str(((p.get("turn") or {}).get("id")) or p.get("turnId") or "")
+            if tid:
+                self._interrupt_turns.append(tid)
+            return []
+        if method == "thread/realtime/closed":
+            if self._closing:
+                return []
+            return [{"type": "error", "message": f"ChatGPT Live đã ngắt ({p.get('reason') or 'không rõ lý do'})."}]
+        if method == "_exit":
+            return [] if self._closing else [{"type": "error", "message": "Codex app-server đã dừng, cuộc gọi ChatGPT Live kết thúc."}]
+        return []
+
+    async def _interrupt(self, turn_id: str):
+        try:
+            await self.srv.request("turn/interrupt", {"threadId": self.thread_id, "turnId": turn_id}, timeout=10)
+        except Exception:
+            pass
+
+    async def events(self) -> AsyncIterator[dict]:
+        if self.queue is None:
+            return
+        while True:
+            msg = await self.queue.get()
+            for ev in self.translate(msg):
+                yield ev
+            while self._interrupt_turns:
+                task = asyncio.ensure_future(self._interrupt(self._interrupt_turns.pop(0)))
+                self._bg.add(task)
+                task.add_done_callback(self._bg.discard)
+            if msg.get("method") == "_exit" or (msg.get("method") == "thread/realtime/closed" and self._closing):
+                return
+
+    async def send_audio(self, pcm16_16k: bytes):
+        return   # âm thanh đi WebRTC, không qua máy chủ
+
+    async def send_text(self, text: str):
+        self._user_last, self._user_last_at = str(text), time.monotonic()
+        await self.srv.request("thread/realtime/appendText", {"threadId": self.thread_id, "text": str(text)})
+
+    async def send_tool_result(self, call_id: str, name: str, result: str):
+        await self.srv.request("thread/realtime/appendSpeech",
+                               {"threadId": self.thread_id, "text": speakable(result) or "Em chưa có kết quả."})
+
+    async def send_tool_running(self, call_id: str, name: str):
+        return
+
+    async def send_context(self, text: str):
+        return   # ngữ cảnh giao diện đi kèm yêu cầu giao việc (route ghép vào), không nói ra
+
+    async def truncate_played(self, played_ms: int):
+        return
+
+    async def interrupt(self):
+        return   # model tự xử lý chen ngang (VAD phía OpenAI)
+
+    async def close(self):
+        self._closing = True
+        srv, tid = self.srv, self.thread_id
+        if srv is not None and tid:
+            try:
+                await srv.request("thread/realtime/stop", {"threadId": tid}, timeout=5)
+            except Exception:
+                pass
+            try:
+                srv.unsubscribe(tid)
+            except Exception:
+                pass
+        for task in list(self._bg):
+            task.cancel()
+        if self._cwd:
+            shutil.rmtree(self._cwd, ignore_errors=True)
+            self._cwd = ""
+
+
+_CLASSES = {"chatgpt": ChatGPTLive, "gemini": GeminiLive, "openai": OpenAIRealtime, "gpt-live": GPTLive}
+
+CHATGPT_UNAVAILABLE = {
+    "no_cli": "Chưa cài Codex CLI nên chưa dùng được ChatGPT Live. Cài Codex rồi nối ChatGPT ở trang Models.",
+    "no_login": "Chưa nối ChatGPT ở trang Models nên chưa dùng được ChatGPT Live.",
+}
+
+
+def make_provider(cfg: dict, system: str = "", recognition_lang: str = "vi-VN", memory_index: str = "") -> LiveProvider:
     """Dựng nhà cung cấp Live từ settings. Ném RuntimeError có câu người đọc hiểu được."""
     v = (cfg or {}).get("voice") or {}
     m = (cfg or {}).get("model") or {}
     prov = str(v.get("live_provider") or "gemini").strip().lower()
     if prov not in PROVIDERS:
         raise RuntimeError(f"Nhà cung cấp Live '{prov}' không có. Chọn: {', '.join(PROVIDERS)}.")
+    if prov == "chatgpt":
+        import codex_realtime
+        ok, why = codex_realtime.realtime_available(cfg)
+        if not ok:
+            raise RuntimeError(CHATGPT_UNAVAILABLE.get(why, "ChatGPT Live chưa dùng được."))
+        kw = {"voice": str(v.get("chatgpt_voice") or ""), "recognition_lang": recognition_lang,
+              "memory_index": memory_index}
+        if system:
+            kw["system"] = system
+        return ChatGPTLive(**kw)
     key = str(m.get(PROVIDERS[prov]["key_field"]) or "").strip()
     if not key:
         raise RuntimeError(f"{PROVIDERS[prov]['label']} chưa có API key ở trang Models.")
@@ -729,6 +1029,7 @@ def make_provider(cfg: dict, system: str = "", recognition_lang: str = "vi-VN") 
 
 
 def catalog() -> dict:
-    """Cho trang Cài đặt: nhà cung cấp, model gợi ý, giọng."""
+    """Cho trang Cài đặt: nhà cung cấp, model gợi ý, giọng, kiểu truyền âm thanh."""
     return {k: {"label": p["label"], "default_model": p["default_model"], "voices": p["voices"],
-                "key_field": p["key_field"]} for k, p in PROVIDERS.items()}
+                "key_field": p["key_field"], "transport": p["transport"],
+                "default_voice": p["default_voice"]} for k, p in PROVIDERS.items()}
