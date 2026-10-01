@@ -153,6 +153,7 @@ import voice_turn_protocol
 import voice_brain   # Voice V2: bộ não giọng nói riêng (Antigravity sống lâu / Groq / Gemini...)
 import voice_live    # Voice V2: nghe nói thẳng qua Gemini Live / OpenAI Realtime
 import voice_ear     # tai nghe lại: model đa ngôn ngữ nghe âm thanh rồi mới chốt chữ (0.65.15)
+import codex_realtime  # ChatGPT Live: một Codex app-server sống lâu, realtime trên gói ChatGPT (0.65.17)
 
 app = FastAPI(title="Javis OS")
 _CHAT_RUNTIME = ChatRuntime()
@@ -4594,6 +4595,9 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         # Tai nghe lại (0.65.15) thay cho stt_provider: auto | groq | off (voice_ear.CHOICES).
         if patch.get("ear") in voice_ear.CHOICES:
             v["ear"] = patch["ear"]
+        # Giọng của ChatGPT Live (realtime v3 chỉ nhận 9 giọng riêng, mặc định juniper).
+        if patch.get("chatgpt_voice") in voice_live.CHATGPT_VOICES:
+            v["chatgpt_voice"] = patch["chatgpt_voice"]
         if patch.get("live_provider") in voice_live.PROVIDERS:
             v["live_provider"] = patch["live_provider"]
         # Focus is a browser attention gate. Keep the legacy setting for older clients.
@@ -12200,6 +12204,7 @@ async def voice_options():
     except Exception:
         agy_models = None
     keys = {k: bool(m.get(k)) for k in ("groq_api_key", "gemini_api_key", "openai_api_key", "openrouter_key")}
+    _chatgpt_live_ok = codex_realtime.realtime_available(cfg)
 
     def _san(key_field):
         return True if not key_field else bool(m.get(key_field))
@@ -12278,11 +12283,16 @@ async def voice_options():
         "last_error": voice_brain.loi_lan_nhanh_gan_nhat(),
         "stt_providers": [{"id": pid, "label": p["label"], "available": _san(p["key_field"])}
                           for pid, p in voice_brain.STT_PROVIDERS.items()],
+        # ChatGPT Live không cần key: sẵn hay không là có Codex CLI và đã nối ChatGPT chưa.
         "live_providers": [
-            {"id": k, "label": p["label"], "available": keys.get(p["key_field"], False),
-             "default_model": p["default_model"], "voices": p["voices"]}
+            {"id": k, "label": p["label"],
+             "available": (_chatgpt_live_ok[0] if k == "chatgpt" else keys.get(p["key_field"], False)),
+             "hint": (voice_live.CHATGPT_UNAVAILABLE.get(_chatgpt_live_ok[1], "") if k == "chatgpt" else ""),
+             "default_model": p["default_model"], "voices": p["voices"],
+             "default_voice": p["default_voice"], "transport": p["transport"]}
             for k, p in voice_live.catalog().items()
         ],
+        "chatgpt_voice": v.get("chatgpt_voice") or voice_live.PROVIDERS["chatgpt"]["default_voice"],
         "voice_brains_active": voice_brain.active_count(),
     }
 
@@ -12342,8 +12352,23 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
             pass
 
     cfg = cfgmod.read_settings()
+    memory_index = ""
+    if str(((cfg.get("voice") or {}).get("live_provider")) or "") == "chatgpt":
+        # ChatGPT Live chạy qua Codex app-server: bắc cầu token đã nối ở trang Models sang
+        # ~/.codex/auth.json như đường chat Codex, và nạp mục lục bộ nhớ để model nói chuyện
+        # biết người dùng (xưng hô, việc kinh doanh) ngay từ câu đầu.
+        try:
+            await asyncio.to_thread(openai_oauth.write_codex_auth)
+        except Exception as e:
+            print(f"[chatgpt live] bắc cầu token: {e}", file=sys.stderr)
+        try:
+            idx = _brain_memory_dir(_brain_root(brain)) / "MEMORY.md"
+            if idx.exists():
+                memory_index = _fit_memory_index(idx.read_text(encoding="utf-8"), cap=voice_live.MEMORY_CHARS)
+        except Exception:
+            memory_index = ""
     try:
-        prov = voice_live.make_provider(cfg, recognition_lang=lang)
+        prov = voice_live.make_provider(cfg, recognition_lang=lang, memory_index=memory_index)
         await prov.connect()
     except Exception as e:
         await _j({"type": "error", "message": f"{type(e).__name__}: {e}" if not isinstance(e, RuntimeError) else str(e)})
@@ -12366,8 +12391,11 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
         await prov.close()
         await ws.close()
         return
+    # transport "webrtc" (ChatGPT Live): trình duyệt nối THẲNG nhà cung cấp, gửi offer qua khung
+    # webrtc_offer; route này chỉ chuyển SDP và chữ, không có byte audio nào đi qua.
     await _j({"type": "ready", "provider": prov.name, "model": prov.model, "session_id": conv_sid,
-              "async_tools": prov.supports_async_tools()})
+              "async_tools": prov.supports_async_tools(),
+              "transport": getattr(prov, "transport", "pcm")})
     asst_buf = {"text": ""}
     ui_ctx = {"text": ""}          # khối [NGỮ CẢNH GIAO DIỆN: ...] mới nhất từ trình duyệt
     tool_tasks: set = set()
@@ -12404,8 +12432,21 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                         await prov.truncate_played(int(d.get("ms") or 0))
                     except Exception:
                         pass
+                elif d.get("type") == "webrtc_offer" and hasattr(prov, "start_webrtc"):
+                    # Chạy nền: chờ answer mất 1 đến 3 giây, vòng đọc trình duyệt không được đứng.
+                    task = asyncio.create_task(_answer_webrtc(str(d.get("sdp") or "")))
+                    tool_tasks.add(task)
+                    task.add_done_callback(tool_tasks.discard)
                 elif d.get("type") == "stop":
                     return
+
+    async def _answer_webrtc(sdp: str):
+        try:
+            answer = await prov.start_webrtc(sdp)
+        except Exception as e:
+            await _j({"type": "error", "message": str(e) if isinstance(e, RuntimeError) else f"{type(e).__name__}: {e}"})
+            return
+        await _j({"type": "webrtc_answer", "sdp": answer})
 
     async def _run_tool(ev: dict):
         """Tool chạy NỀN: vòng đọc sự kiện không đứng lại, model vẫn nghe/nói trong lúc chờ.
@@ -12429,6 +12470,14 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                 else f"Tool {name} không có."
         except Exception as e:
             result = f"Bộ não chính lỗi: {type(e).__name__}: {e}"
+        # Bản ĐẦY ĐỦ (bảng, link, file) hiện thành bong bóng và vào lịch sử; model chỉ đọc phần
+        # tóm tắt (spec mục 3.2), nên không có bong bóng này thì số liệu chi tiết mất hút.
+        if name == "ask_javis" and str(result or "").strip():
+            try:
+                store.append_message(conv_sid, "assistant", str(result))
+            except Exception:
+                pass
+            await _j({"type": "tool_result", "name": name, "text": str(result)})
         try:
             await prov.send_tool_result(cid, name, result)
         except Exception as e:
