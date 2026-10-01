@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.18] - 2026-10-01
+### Cải thiện
+- Đang làm: bấm mic là gọi Javis, có thanh gọi và nút Cúp máy.
+
 ## [0.65.17] - 2026-10-01
 ### Thêm mới
 - **ChatGPT Live: nói chuyện với Javis qua gói ChatGPT, không cần API key.** Vào Cài đặt → Giọng nói, chọn Live rồi ChatGPT Live. Nói liền mạch, Javis đáp chưa tới một giây, chen ngang lúc nào cũng được.
