@@ -29,6 +29,7 @@ Tên file cố ý KHÔNG phải `conversations.db`: tên đó đã thuộc về 
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import sys
 import threading
@@ -870,6 +871,19 @@ _DAU_MEDIA = (
     ("audio", "audio"), ("video", "video"), ("sticker", "sticker"), ("file", "file"),
     ("tài liệu", "file"), ("document", "file"),
 )
+
+
+_NEN_ANH = re.compile(r"^(?:https?://\S+|\[(?:chat\.)?(?:photo|image)[^\]]*\]|\[[^\]]*khách gửi [a-z]+\])$", re.IGNORECASE)
+
+
+def chu_thich_anh(text: str) -> str:
+    """Chú thích thật của một tin ảnh, hoặc "" nếu tin ảnh trơn.
+
+    MCP của zalo-agent-cli chuẩn hoá tin không phải chữ thành `text = content.title || content.href || "[<msgType>]"` (xem `normalizeMessage` ở
+    `src/commands/mcp.js`, bản 1.6.2): ảnh CÓ chú thích thì `text` là chú thích; ảnh trơn thì `text` là đường dẫn ảnh, hoặc "[chat.photo]". Javis
+    cũng tự thay chữ trống bằng "[Zalo cá nhân: khách gửi image]". Cả ba loại "nền" đó không phải lời của người gửi nên trả rỗng."""
+    t = " ".join(str(text or "").split())
+    return "" if (not t or _NEN_ANH.match(t)) else t
 
 
 def loai_tin_tu_chu(text: str) -> str:

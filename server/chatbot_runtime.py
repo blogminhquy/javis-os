@@ -264,6 +264,18 @@ def build_bot_prompt(bot: dict) -> str:
 
 
 # ============================================================
+# Tin kèm ảnh (0.65.13)
+# ============================================================
+_KEM_ANH = "(tin này kèm một ảnh mà bạn không xem được, chỉ có phần chú thích) "
+
+
+def gan_nhan_anh(text_engine: str, meta: dict) -> str:
+    """Tin ảnh có chú thích tới bot chỉ mang CHÚ THÍCH (bot không có ảnh). Nói thẳng cho model biết, kẻo nó trả lời như thể đã nhìn thấy ảnh,
+    hoặc ngơ ngác vì câu hỏi nhắc "ảnh này"."""
+    return (_KEM_ANH + text_engine) if (meta or {}).get("co_anh") else text_engine
+
+
+# ============================================================
 # Ngữ cảnh nhóm (0.65.12)
 # ============================================================
 NGU_CANH_TIN = 30            # số tin ngay trước tin đang hỏi đưa cho bot trong nhóm
@@ -1148,6 +1160,7 @@ def _make_answer_fn(bot_id: str):
             ten_nguoi = str((meta or {}).get("user_name") or "").strip()
             if ten_nguoi:
                 text_engine = f"[{ten_nguoi}] {text}"
+        text_engine = gan_nhan_anh(text_engine, meta)
 
         # Bản ghi truyền xuống lõi phải có brain và slug - lõi dựa vào đó để đổi brain, đổi
         # khoá phiên và đổi nhãn kênh.
@@ -1265,12 +1278,15 @@ def manual_meta(conv: dict, last: dict) -> dict:
     key = str(conv.get("channel_account_id") or "")
     raw = key.split(":", 1)[1] if ":" in key else key
     grp = conv.get("chat_type") == "group"
-    return {"chat_id": str(conv.get("external_chat_id") or ""), "chat_type": "group" if grp else "private",
+    meta = {"chat_id": str(conv.get("external_chat_id") or ""), "chat_type": "group" if grp else "private",
             "chat_title": str(conv.get("title") or "") if grp else "",
             "user_id": str(last.get("sender_id") or ""), "user_name": str(last.get("sender_name") or ""), "username": "",
             "message_id": str(last.get("external_message_id") or ""), "account_id": raw,
             "platform": str(conv.get("channel") or ""), "_kenh": str(conv.get("channel") or ""), "mentioned": True,
             "ts": float(last.get("created_at") or time.time())}
+    if last.get("message_type") == "image":
+        meta["co_anh"] = True
+    return meta
 
 
 async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
@@ -1289,7 +1305,10 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
     if not cfg:
         return {"ok": False, "code": "no_bot", "error": "Bot của cuộc chat này không còn nữa"}
     last = next((m for m in reversed(msgs or []) if m.get("sender_type") == "customer"), None)
-    if not last or not str(last.get("text") or "").strip():
+    # Tin ảnh thì chỉ phần chú thích là lời của khách; ảnh trơn (đường dẫn hoặc chữ giữ chỗ) không có gì để trả lời.
+    chu_khach = (conversations.chu_thich_anh(last.get("text")) if (last or {}).get("message_type") == "image"
+                 else str((last or {}).get("text") or "").strip())
+    if not last or not chu_khach:
         return {"ok": False, "code": "no_message", "error": "Chưa có tin khách để trả lời"}
     conv_id = conv.get("id")
     if conv_id in _MANUAL_BUSY:
@@ -1305,7 +1324,7 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
         except Exception as e:      # noqa: BLE001 - không đọc được phiên thì nháp không có ngữ cảnh kho, vẫn chạy
             print(f"[chatbot {bot_id}] đọc phiên cho bản nháp lỗi: {type(e).__name__}", file=sys.stderr)
     try:
-        text = str(last["text"])
+        text = chu_khach
         tl = await _tra_tai_lieu(bot_id, cfg, text)
         _aid, kenh = _tai_khoan_cua(cfg, meta)
         cfg["_tai_lieu"], cfg["_kenh_luot"], cfg["_tu_dong"] = tl, kenh, False
@@ -1313,6 +1332,7 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
         text_engine = text
         if kenh == "zalo_personal" and meta["chat_type"] == "group" and meta["user_name"]:
             text_engine = f"[{meta['user_name']}] {text}"      # cả nhóm chung một mạch: model phải biết ai đang nói
+        text_engine = gan_nhan_anh(text_engine, meta)
         kw = {"channel": kenh, "bot": cfg}
         if draft:
             kw.update(phien_kho=sid, ghi_kho=False)

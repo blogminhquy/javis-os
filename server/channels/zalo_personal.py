@@ -241,7 +241,8 @@ class Transport:
         """Quyết định có trả lời một tin khách không, và trả lời nếu có.
 
         Các rào, theo thứ tự rẻ tới đắt (cái nào chặn thì KHÔNG tốn một lượt model):
-          - chỉ tin dạng CHỮ, ở chat riêng hoặc nhóm (ảnh/tiếng/file bỏ qua: chủ chưa giao việc đó);
+          - chỉ tin dạng CHỮ, hoặc tin ẢNH có CHÚ THÍCH (0.65.13: chú thích coi như nội dung tin, nên "@bot ..." viết trong chú thích ảnh là một cái tag thật),
+            ở chat riêng hoặc nhóm (ảnh trơn, tiếng, file bỏ qua: chủ chưa giao việc đó, và bot không xem được ảnh);
           - tin cũ quá `TUOI_TOI_DA` bỏ qua (bộ đệm MCP lúc mới bật);
           - chủ vừa TỰ TAY nhắn cuộc chat này thì nhường;
           - nhóm: phải được chủ cho phép (chưa thì im TUYỆT ĐỐI và hiện lên hàng chờ duyệt);
@@ -254,12 +255,17 @@ class Transport:
         này" của Telegram): nick này là người thật, câu đó khai với cả nhóm rằng đây là máy.
         """
         import chatbot_tu_dong
+        import conversations      # nhập trễ: conversations nạp sổ kênh lúc import, nhập ở đầu file là vòng import
         import zalo_personal_channel as zc
         loai = ev.get("chat_type")
-        if loai not in ("private", "group") or ev.get("message_type") != "text":
+        kieu = ev.get("message_type")
+        if loai not in ("private", "group") or kieu not in ("text", "image"):
             return
         nhom = loai == "group"
-        text = str(ev.get("text") or "").strip()
+        # Tin ảnh có CHÚ THÍCH (0.65.13) xử lý như tin chữ với chú thích làm nội dung: "@Javis Vũ ..." viết trong phần chú thích của ảnh
+        # là một cái tag thật. Trước đây mọi tin không phải chữ bị bỏ, nên tag kèm ảnh không bao giờ tới bot. Ảnh trơn (không chú thích) vẫn bỏ.
+        co_anh = kieu == "image"
+        text = (conversations.chu_thich_anh(ev.get("text")) if co_anh else str(ev.get("text") or "").strip())
         thread = str(ev.get("external_chat_id") or "")
         if not text or not thread:
             return
@@ -287,6 +293,8 @@ class Transport:
             "message_id": str(ev.get("external_message_id") or ""),
             "account_id": self.conn_id,
         }
+        if co_anh:
+            meta["co_anh"] = True
         duoc_goi = False
         pol = None
         if nhom:

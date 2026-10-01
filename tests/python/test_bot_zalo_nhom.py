@@ -296,6 +296,37 @@ async def chay():
     CONN.pop("env", None)
     zc._TAY.clear()
 
+    # ---------- 2a2. ẢNH kèm chú thích có tag (0.65.13) -------------------------------------------
+    # Dạng tin ảnh THẬT của MCP (zalo-agent-cli normalizeMessage): type "chat.photo", text = chú thích, hoặc đường dẫn ảnh, hoặc "[chat.photo]" khi
+    # ảnh trơn. Trước 0.65.13 mọi tin không phải chữ bị bỏ nên tag nằm trong chú thích ảnh không bao giờ tới bot (báo cáo 01/10/2026).
+    GUI.clear()
+    zc._TAY.clear()
+    n0 = len(LUOT_ENGINE)
+    KHO_TIN.append(nhom_msg("@Javis Vũ hướng dẫn thao tác tạo Agent giúp em", "ph1", type="chat.photo", nguoi="Ngô Văn Ngợi", uid="7770555"))
+    await doc()
+    check("CANARY: ảnh có chú thích TAG bot thì bot trả lời (trước đây mọi tin ảnh bị bỏ)", len(GUI) == 1 and len(LUOT_ENGINE) == n0 + 1, (GUI, len(LUOT_ENGINE) - n0))
+    check("gửi vào đúng nhóm, kiểu nhóm", GUI and GUI[0]["threadId"] == NHOM and GUI[0]["type"] == 1, GUI)
+    check("model nhận CHÚ THÍCH làm nội dung tin, kèm tên người gửi", LUOT_ENGINE[-1]["text"].startswith("[Ngô Văn Ngợi]") or "tạo Agent giúp em" in LUOT_ENGINE[-1]["text"],
+          LUOT_ENGINE[-1]["text"])
+    check("meta đánh dấu tin có ảnh, và vẫn là lượt được gọi tên", LUOT_ENGINE[-1]["meta"].get("co_anh") is True and LUOT_ENGINE[-1]["meta"].get("mentioned") is True,
+          LUOT_ENGINE[-1]["meta"])
+    check("model được báo tin có kèm ảnh mà nó không xem được", "kèm một ảnh" in LUOT_ENGINE[-1]["text"] and "tạo Agent giúp em" in LUOT_ENGINE[-1]["text"],
+          LUOT_ENGINE[-1]["text"])
+    check("Hộp thư ghi tin đó là ảnh (loại 'image') kèm chú thích", ("@Javis Vũ hướng dẫn thao tác tạo Agent giúp em", "customer") in _tin_tho())
+
+    GUI.clear()
+    n0 = len(LUOT_ENGINE)
+    KHO_TIN.append(nhom_msg("https://f55-zpc.zdn.vn/abc/def.jpg", "ph2", type="chat.photo", nguoi="Ngô Văn Ngợi", uid="7770555"))
+    KHO_TIN.append(nhom_msg("[chat.photo]", "ph3", type="chat.photo", nguoi="Ngô Văn Ngợi", uid="7770555"))
+    await doc()
+    check("CANARY: ảnh TRƠN (đường dẫn hoặc '[chat.photo]') vẫn bị bỏ, bot không trả lời một đường dẫn", not GUI and len(LUOT_ENGINE) == n0, (GUI, len(LUOT_ENGINE) - n0))
+
+    GUI.clear()
+    n0 = len(LUOT_ENGINE)
+    KHO_TIN.append(nhom_msg("ảnh chụp màn hình lỗi, ai biết cách sửa không", "ph4", type="chat.photo", nguoi="Ngô Văn Ngợi", uid="7770555"))
+    await doc()
+    check("ảnh có chú thích nhưng KHÔNG gọi bot thì im như tin chữ (chế độ chỉ khi được gọi tên)", not GUI and len(LUOT_ENGINE) == n0, (GUI, len(LUOT_ENGINE) - n0))
+
     # ---------- 2b. tiếng vọng KHÔNG có cờ "của mình" -----------------------------------------
     # Ví dụ trong tài liệu của MCP không có cờ isSelf. Nếu câu bot vừa gửi quay về như tin của một
     # khách thì trong nhóm bot sẽ tự trả lời chính nó, và Hộp thư ghi câu bot nói thành tin khách.
