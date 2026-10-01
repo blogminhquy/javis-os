@@ -6,7 +6,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.22] - 2026-10-01
 ### Cải thiện
-- Đang làm: im lâu thì tạm ngắt, nói là Javis tự nối lại; giữ màn hình sáng khi đang gọi.
+- **Im lâu thì tạm ngắt, nói là Javis tự nối lại.** Trong cuộc gọi ChatGPT Live, im 30 giây (trước là 20) thì tạm ngắt cho đỡ tốn hạn mức; cứ nói tiếp là Javis nối lại và trả lời luôn câu đó. Không cần gọi "Javis" nữa, nên hết cảnh gọi mãi không nối lại vì máy nghe thành "David".
+- **Giữ màn hình sáng khi đang gọi**, để điện thoại không tự khoá màn hình rồi cắt mic giữa cuộc gọi.
+- Bỏ công tắc "Tập trung khi đàm thoại" ở trang Giọng nói.
 
 ## [0.65.21] - 2026-10-01
 ### Sửa lỗi

@@ -1,7 +1,7 @@
 /* Thẻ Giọng nói gọn (0.65.19, docs/dev/2026-10-voice-call-spec.md mục 5).
 
    Bấm mic là gọi Javis, nên trang Cài đặt chỉ còn: dòng "Đang dùng", Giọng Javis (danh sách đổi
-   theo đường gọi), Tập trung; Nâng cao có Đường gọi, Tốc độ đọc, ElevenLabs. Mọi ô tự lưu, không
+   theo đường gọi); Nâng cao có Đường gọi, Tốc độ đọc, ElevenLabs. Mọi ô tự lưu, không
    còn nút Lưu. Phần máy tự lo (ngôn ngữ nghe, im lặng rồi gửi, ngắt lời, nhịp hội thoại, tai nghe
    lại, bộ não giọng, đọc trả lời bằng giọng, key OpenAI) không còn ô nhập.
 
@@ -31,7 +31,7 @@ function check(name, cond) {
 
 // ---- 1. Khung tĩnh: đúng ba ô và Nâng cao, các ô cũ đã gỡ hẳn (không chỉ ẩn) ----
 const card = html.slice(html.indexOf('id="voiceCard"'), html.indexOf("<!-- THƯƠNG HIỆU."));
-for (const id of ["vcNow", "vcVoice", "vcTry", "vcFocus", "vcAdvanced", "vcEngine", "rateSel", "vcEleven", "vcElKey", "vcElVoice", "vcStatus", "v2LastErr", "voiceSel"])
+for (const id of ["vcNow", "vcVoice", "vcTry", "vcAdvanced", "vcEngine", "rateSel", "vcEleven", "vcElKey", "vcElVoice", "vcStatus", "v2LastErr", "voiceSel"])
   check(`thẻ Giọng nói có #${id}`, card.includes(`id="${id}"`));
 check("Đường gọi có đủ bốn lựa chọn", ["auto", "chatgpt", "api", "basic"].every(v => card.includes(`<option value="${v}"`)));
 check("tên đường gọi viết ChatGPT Live, không có chữ song công", card.includes(">ChatGPT Live<") && !/song công/i.test(card + JSON.stringify(vi)));
@@ -52,7 +52,8 @@ check("app.js: im lặng rồi gửi mặc định 1,2 giây, giữ mức cũ h�
   /turn\.opts\.minDelay = \[500, 800, 1200\]\.includes\(ep\) \? ep : 1200;/.test(app)
   && /minDelay: parseInt\(localStorage\.getItem\("javis\.endpoint"\) \|\| "1200", 10\) \|\| 1200,/.test(app));
 check("app.js: nút Nghe thử của đường Cơ bản đi qua window.JavisVoiceSample", /window\.JavisVoiceSample = \(\) => voice\.speak\(/.test(app));
-for (const k of ["settings.vc_title", "settings.vc_voice", "settings.vc_focus", "settings.vc_focus_hint", "settings.vc_advanced",
+check("0.65.22: công tắc Tập trung đã gỡ (im 30 giây thì ngắt, nói là nối lại)", !card.includes('id="vcFocus"') && !/vcFocus/.test(cs));
+for (const k of ["settings.vc_title", "settings.vc_voice", "settings.vc_advanced",
   "settings.vc_engine", "settings.vc_engine_auto", "settings.vc_engine_api", "settings.vc_engine_basic", "settings.vc_now",
   "settings.vc_now_brain", "settings.vc_reason_auto_api", "settings.vc_reason_auto_basic", "settings.vc_reason_chosen_unavailable",
   "settings.vc_detail_no_cli", "settings.vc_detail_no_login", "settings.vc_detail_old_cli", "settings.vc_saved",
@@ -124,8 +125,6 @@ const base = (call, extra = {}) => Object.assign({
   check("tự lưu xong thì đường gọi của nút mic nạp lại", r.refreshes.length === 1 && $("vcStatus").textContent === "settings.vc_saved");
   $("vcTry").onclick();
   check("ChatGPT Live: Nghe thử phát mẫu thu sẵn", r.ctx.played === "/static/voices/maple.mp3");
-  $("vcFocus").checked = false; await $("vcFocus").onchange();
-  check("Tập trung: tắt là tự lưu focus_mode false", JSON.stringify(r.saves.at(-1)) === '["voice",{"focus_mode":false}]');
   $("vcEngine").value = "basic"; await $("vcEngine").onchange();
   check("Đường gọi: đổi là tự lưu call_engine", r.saves.some(s => s[1].call_engine === "basic"));
 
@@ -137,7 +136,6 @@ const base = (call, extra = {}) => Object.assign({
     now.includes('call.engine_api{\\"provider\\":\\"Gemini\\"}') && now.includes("settings.vc_reason_auto_api") && now.includes("settings.vc_detail_no_login"));
   check("Live API: ô giọng là giọng Gemini, giữ giọng đã lưu", r.els.vcVoice.options.length === 2 && r.els.vcVoice.value === "Kore");
   check("Live API: không có nút nghe thử", r.els.vcTry.hidden === true);
-  check("Tập trung: đọc đúng giá trị đã lưu", r.els.vcFocus.checked === false);
   r.els.vcVoice.value = "Puck"; await r.els.vcVoice.onchange();
   check("Live API: đổi giọng tự lưu live_voice", JSON.stringify(r.saves.at(-1)) === '["voice",{"live_voice":"Puck"}]');
 

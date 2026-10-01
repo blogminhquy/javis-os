@@ -350,11 +350,10 @@ Plain-text channels are stricter because they cannot render: **Telegram** and **
 
 Everything about the voice lives in **Settings → Voice**. The page is a single card, and every field saves itself as soon as you change it; there is no Save button.
 
-The card holds three things:
+The card holds two things:
 
 - **The "Using: ..." line**: the call path in use, **ChatGPT Live**, **Live (provider name)** with an API key, or **Basic**. On Basic it also says which brain gives quick replies, for example Antigravity CLI on your Google plan.
 - **Javis's voice**: the list depends on the call path, see below.
-- **Focused conversation**: when on, after 20 quiet seconds you must say "Javis" to continue. Meanwhile Live disconnects.
 
 When Javis had to fall back to a lower path, the "Using" line says why and what to do, for example connect ChatGPT on the **Models** page, install Codex CLI, or update Codex CLI to 0.153 or later.
 
@@ -415,6 +414,8 @@ On the Basic path the browser only hears one language, so a sentence like "Mở 
 
 ### Handled by the machine
 
+- **Long silence pauses the line, speaking resumes it**: on a ChatGPT Live call, after 30 quiet seconds Javis pauses the connection to save plan usage and the call bar says "Waiting, just speak to continue". Just keep talking, no need to say its name: Javis reconnects in about 2 to 3 seconds and answers what you just said. A TV or someone nearby speaking clearly also resumes it. Since 0.65.22 there is no "Focused conversation" switch.
+- **The screen stays on during a call**: phones cut the microphone when the screen locks, so during a call Javis keeps the screen from turning off; hanging up lets it sleep as usual. Pressing the power button still ends the call.
 These fields were removed from the page because the machine decides them:
 
 - **Read answers aloud**: removed because it duplicated the mic. During a call Javis speaks every answer; hanging up (the **Hang up** button, the mic button or **Esc**) mutes it. Typed chat outside a call is answered in text only.

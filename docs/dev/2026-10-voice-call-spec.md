@@ -19,7 +19,7 @@ cũng được, đáp gần như ngay, và phải cài đặt ít nhất có th�
 | Màn hình lúc gọi | **Thanh gọi mỏng trên khung chat**, lời hai bên thành bong bóng chat thường |
 | Ai trả lời | **Chia việc**: chuyện trò thì model nói chuyện đáp ngay; cần dữ liệu, MCP, file, ghi nhớ, mở trang thì giao bộ não Javis người dùng đã chọn |
 | Đường chính | **ChatGPT Live** (Codex realtime, không cần API key) |
-| Im lặng lâu | Im 20 giây thì **ngắt kết nối nghe**, gọi "Javis" là nối lại; thanh gọi vẫn giữ |
+| Im lặng lâu | Im 30 giây thì **ngắt kết nối nghe**, câu nói thật đầu tiên là nối lại, không cần gọi tên (0.65.22); thanh gọi vẫn giữ |
 | Phím Space | **Bỏ** phím tắt nói. Chỉ còn nút mic, Esc để cúp |
 | Giọng mặc định | **juniper** |
 | Tên hiện ra | Chỉ ghi **ChatGPT Live** (nhãn, thông báo, CHANGELOG). Không dùng chữ "song công" ở chỗ người dùng đọc |
@@ -47,7 +47,7 @@ thông tin, nên sửa chữ sau khi nghe không phải đường chính.
 - Handoff tới **0,5 giây** sau câu hỏi; trả kết quả bằng `appendSpeech`, model đọc gần nguyên văn.
 - Chen ngang khi Javis đang kể chuyện: Javis dừng, đáp "Dạ vâng, em dừng đây ạ".
 - Phiên 15 phút không rớt. Lỗi lẻ: câu đầu sau 3 phút im bị tách đôi ("Doanh" / "là bao nhiêu
-  em") và chữ về trễ ~29 giây. Ngắt khi im 20 giây và ghép yêu cầu ngắn (mục 3.2) xử lý chuyện này.
+  em") và chữ về trễ ~29 giây. Ngắt khi im 30 giây và ghép yêu cầu ngắn (mục 3.2) xử lý chuyện này.
 
 ## 3. Kiến trúc
 
@@ -141,13 +141,27 @@ không đoán; có kết quả thì đọc lại, không thêm số; bị chen n
 orb lấy từ analyser (track remote phải gắn vào một phần tử media thì mới chảy vào WebAudio). Bỏ
 qua đường PCM của các Live khác. Điện thoại chạy được vì WebRTC chỉ dùng MỘT đường mic.
 
-### 3.5 Tập trung khi im lặng
+### 3.5 Im lâu thì ngắt, nói là nối lại (0.65.22)
 
-Im 20 giây (đếm từ lúc cả hai bên cùng im) thì `thread/realtime/stop`, đóng WebRTC, thanh gọi
-chuyển sang "Đang chờ, gọi Javis để nói tiếp". Bộ nghe miễn phí của trình duyệt (`liveWake`, đã
-có) chờ tên gọi; nghe thấy thì mở thread mới (~2 đến 3 giây) và gửi câu vừa nói làm lời đầu
-(`appendText`). Lợi ích: tiếng TV không bị gửi đi, đỡ hạn mức, và tránh lỗi phiên ngồi im lâu.
-Tắt "Tập trung" thì giữ kết nối suốt cuộc gọi.
+Im 30 giây (đếm từ lúc cả hai bên cùng im) thì `thread/realtime/stop`, đóng WebRTC, thanh gọi
+chuyển sang "Đang chờ, cứ nói là Javis nghe". Bộ nghe miễn phí của trình duyệt (`liveWake` trong
+app.js) chờ CÂU NÓI THẬT (`attention.wakes`: có tên gọi, hoặc từ hai chữ trở lên); nghe được thì mở
+thread mới (~2 đến 3 giây) và gửi câu đó làm lời đầu (`appendText`). Lợi ích: đỡ hạn mức lúc im, và
+tránh lỗi phiên ngồi im lâu. Chữ đang nghe hiện thành nháp, `console.debug` ghi câu nghe được và
+quyết định.
+
+Bản 0.65.15 đến 0.65.21 bắt phải gọi "Javis" và có công tắc "Tập trung" (tắt thì giữ kết nối suốt).
+Chủ dự án bỏ cả hai ngày 01/10: trình duyệt hay chép tên thành "David" nên gọi tên không nối lại
+được (không dùng Groq cho việc này vì người dùng cơ bản không cài), và lúc còn nối thì Live vốn đã
+nghe mọi tiếng trong phòng nên bắt gọi tên không chặn được TV bao nhiêu. Đường Cơ bản không có kết
+nối nào để ngắt nên nghe suốt cuộc gọi (`attention.enabled` chỉ bật ở Live, `datCheDoGiong`).
+
+Máy không có bộ nhận giọng của trình duyệt (hay nó bị chặn): dự phòng đo âm lượng mic
+(`SpeechLevel`, nền chỉ học từ mẫu yên và có trần). Có người nói là nối lại, nhưng câu đó mất chữ.
+
+**Màn hình sáng.** Điện thoại khoá màn hình là trình duyệt cắt mic, cuộc gọi chết lặng (chủ dự án
+báo trên iPhone, app mở từ màn hình chính). Trong lúc gọi, `screen-awake.js` xin Screen Wake Lock
+ngay trong cú bấm mic, xin lại khi trang hiện lại, nhả khi cúp máy. Máy không hỗ trợ thì bỏ qua.
 
 ### 3.6 Đường dự phòng `basic`
 
@@ -176,8 +190,6 @@ chế độ rảnh tay hiện nay, chỉ đổi vỏ.
 GIỌNG NÓI
   Đang dùng: ChatGPT Live                            <- kèm lý do khi đang ở đường dự phòng
   Giọng Javis   [ juniper                 v ] [▶]    <- danh sách đổi theo đường gọi
-  Tập trung khi đàm thoại                    [on]
-    Im 20 giây thì phải gọi "Javis" mới nghe tiếp
   > Nâng cao
       Đường gọi      [ Tự động v ]  (Tự động / ChatGPT Live / Live API key / Cơ bản)
       Tốc độ đọc     [ 1,10x  v ]   (chỉ đường Cơ bản)
@@ -221,10 +233,10 @@ GIỌNG NÓI
   với yêu cầu ghép khi quá ngắn; `turn/started` bị interrupt; kết quả đi `appendSpeech` đã rút gọn
   và bong bóng đầy đủ; từ chối yêu cầu duyệt quyền; nối lại một lần khi `closed`; chọn đường gọi.
 - **JS** (node): nhánh WebRTC tạo offer có `oai-events`, đặt answer, không phát PCM; thanh gọi
-  theo trạng thái; Esc cúp, Space không làm gì; im 20 giây thì ngắt và `liveWake` nối lại; trang
+  theo trạng thái; Esc cúp, Space không làm gì; im 30 giây thì ngắt và câu nói thật nối lại (`liveWake`); trang
   cài đặt tự lưu và không còn các ô đã bỏ.
 - **Thử thật**: máy tính và điện thoại (Android Chrome, iPhone Safari): chuyện trò, hỏi số liệu
-  (handoff), mở trang, chen ngang, im quá 20 giây rồi gọi lại, cuộc gọi 15 phút.
+  (handoff), mở trang, chen ngang, im quá 30 giây rồi nói tiếp, cuộc gọi 15 phút.
 - **Bộ đo**: `tools/stt_bench` cho phần nghe; bộ thử trong scratchpad của phiên 01/10
   (`spike_live.py`) là mẫu cho một runner Live sau này.
 
@@ -233,7 +245,7 @@ GIỌNG NÓI
 - **API realtime của Codex là bản thử nghiệm**: dò khả năng khi mở cuộc gọi, hỏng thì tự xuống
   đường kế tiếp và báo lý do. Bám bản Codex mới (0.159 đã ổn định cờ realtime).
 - **Hạn mức gói ChatGPT**: cả cuộc gọi lẫn mỗi lượt Codex bị interrupt đều tính vào hạn mức. Chủ
-  dự án chấp nhận. Ngắt khi im 20 giây giảm đáng kể.
+  dự án chấp nhận. Ngắt khi im 30 giây giảm đáng kể.
 - **Điều khoản dùng gói**: OpenAI chưa nói rõ giới hạn cho cách dùng này. Một người ngồi gọi thì
   gần với dùng cá nhân thường; nhiều người dùng chung một gói qua cùng một Javis thì nằm ngoài
   cách dùng cá nhân, giống lưu ý trong CLAUDE.md về gói Claude và gói xAI. Đừng hứa suông.
@@ -294,9 +306,9 @@ giữ phần đã đối chiếu đúng với code ngày 01/10/2026. Code trỏ 
 - desktop-apps: mở và đóng làm ngay không hỏi lại (chủ dự án chọn). Đóng mặc định là đóng lịch sự để app tự hỏi lưu; `force` chỉ khi người dùng nói ép tắt. Tự chặn khi chạy trong Docker hay Linux không màn hình.
 - Khối `[NGỮ CẢNH GIAO DIỆN: ...]` bị lột khỏi bong bóng và tiêu đề; `kênh=giọng` yêu cầu trả lời 2 đến 4 câu. Đường tắt `JAVIS_UI` chỉ có `open_page`, `open_group`, `sidebar`, `scroll`; `open_file` và `open_task` chỉ có ở tool `javis_ui`.
 
-### A7. Chế độ tập trung (voice-attention.js, focus_mode)
-- Đây là cửa chú ý, KHÔNG phải nhận diện người nói. Bấm mic là mở hội thoại; sau 20 giây không có lượt nào được nhận thì phải gọi "Javis", và tên gọi phải có trong bản final.
-- `focus_mode` mặc định bật. Không xoá lời đã nhận dựa trên việc đoán tạp âm từ chữ.
+### A7. Cửa chú ý khi im lâu (voice-attention.js)
+- Đây là cửa chú ý, KHÔNG phải nhận diện người nói. Từ 0.65.22 chỉ bật ở đường Live: im 30 giây (`IDLE_MS`) thì ngắt nhà cung cấp, câu nói thật đầu tiên (`wakes`) là nối lại. Đường Cơ bản nghe suốt cuộc gọi.
+- Công tắc `focus_mode` đã gỡ khỏi trang Cài đặt; khoá cũ server vẫn nhận nhưng app.js không đọc. Không xoá lời đã nhận dựa trên việc đoán tạp âm từ chữ.
 - Câu mở đầu gần giống tên gọi ("David ơi") không mở cửa, chỉ được đưa cho tai nghe lại.
 - Live khi đang chờ: đóng kết nối, gửi câu gọi đúng một lần sau `ready`, nạp lại tối đa 12 tin hoặc 8.000 ký tự.
 - Giới hạn đã biết: TV nói "Javis" vẫn đánh thức được.

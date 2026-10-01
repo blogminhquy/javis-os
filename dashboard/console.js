@@ -6534,8 +6534,6 @@
       } catch (e) {}
     };
 
-    $("vcFocus").checked = v.focus_mode !== false;
-    $("vcFocus").onchange = () => luuGiong({ focus_mode: $("vcFocus").checked });
 
     $("vcEngine").value = call.setting || "auto";
     $("vcEngine").onchange = async () => {

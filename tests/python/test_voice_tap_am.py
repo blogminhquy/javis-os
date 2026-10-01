@@ -89,8 +89,10 @@ APP_JS = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
 check("app.js để lại dòng ghi chú thoáng qua", 'ghiChuThoang(window.t("app.tap_am_bo_qua"))' in APP_JS)
 CONSOLE_JS = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 INDEX_HTML = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
-check("trang Cài đặt có ô gạt", 'id="vcFocus"' in INDEX_HTML and '$("vcFocus")' in CONSOLE_JS)
-check("ô gạt tự lưu khi đổi", 'luuGiong({ focus_mode: $("vcFocus").checked })' in CONSOLE_JS)
+# 0.65.22: công tắc Tập trung đã gỡ (chủ dự án chốt 01/10): im 30 giây thì ngắt Live, nói là nối
+# lại. Khoá focus_mode cũ server vẫn nhận (client cũ) nhưng trang Cài đặt không còn gửi.
+check("trang Cài đặt không còn ô gạt Tập trung", 'id="vcFocus"' not in INDEX_HTML and "vcFocus" not in CONSOLE_JS)
+check("trang Cài đặt không còn lưu focus_mode", "focus_mode" not in CONSOLE_JS)
 
 print()
 if _fails:

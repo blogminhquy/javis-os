@@ -350,7 +350,8 @@
             <!-- GIỌNG NÓI (0.65.19, docs/dev/2026-10-voice-call-spec.md mục 5): MỘT thẻ, ba ô, mọi ô
                  tự lưu khi đổi, không còn nút Lưu. Bấm mic là gọi Javis, nên những gì máy tự lo được
                  (bộ não giọng, tai nghe lại, ngôn ngữ nghe, im bao lâu thì gửi, ngắt lời bằng giọng,
-                 nhịp hội thoại, đọc trả lời bằng giọng) không còn ô nhập. Giá trị đã lưu từ bản cũ
+                 nhịp hội thoại, đọc trả lời bằng giọng; từ 0.65.22 cả "Tập trung": im 30 giây thì ngắt
+                 Live, nói là nối lại) không còn ô nhập. Giá trị đã lưu từ bản cũ
                  vẫn được đọc và dùng tiếp. console.js renderVoiceCard() đổ lựa chọn và nối tay bắt;
                  khung là node TĨNH để data-i18n dịch được và #rateSel giữ tay bắt của app.js. -->
             <div class="qs-block" id="voiceCard" data-settings-section="voice">
@@ -364,11 +365,6 @@
                 </div>
               </div>
               <div class="qs-hint" id="vcVoiceNote" data-i18n="qs.voice_ml_note" hidden>Giọng đa ngôn ngữ hỗ trợ tiếng Việt.</div>
-              <label class="qs-field">
-                <span class="qs-lbl" data-i18n="settings.vc_focus">Tập trung khi đàm thoại</span>
-                <span class="toggle"><input type="checkbox" id="vcFocus" checked><span></span></span>
-              </label>
-              <div class="qs-hint" data-i18n="settings.vc_focus_hint">Im 20 giây thì phải gọi "Javis" mới nghe tiếp.</div>
               <details class="qs-advanced" id="vcAdvanced">
                 <summary data-i18n="settings.vc_advanced">Nâng cao</summary>
                 <div class="qs-field">
@@ -808,7 +804,7 @@
   <script src="/static/voice-turn-policy.js?v=1"></script>
   <script src="/static/voice-adaptive.js?v=1"></script>
   <script src="/static/voice-adaptive-ui.js?v=2"></script>
-  <script src="/static/voice-attention.js?v=1"></script>
+  <script src="/static/voice-attention.js?v=2"></script>
   <script src="/static/voice-chunker.js?v=1"></script>
   <script src="/static/voice.js?v=27"></script>
   <script src="/static/graph.js?v=17"></script>
@@ -840,8 +836,9 @@
   <script src="/static/ui-actions.js?v=1"></script>
   <!-- Voice V2: nghe nói thẳng (Live), app.js gọi lười khi bấm mic ở chế độ Live. -->
   <script src="/static/voice-live.js?v=4"></script>
+  <script src="/static/screen-awake.js?v=1"></script>
   <script src="/static/call-bar.js?v=1"></script>
-  <script src="/static/app.js?v=121"></script>
+  <script src="/static/app.js?v=122"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=3"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
@@ -876,7 +873,7 @@
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
   <!-- Phần đọc cấu hình của form "Tự thêm MCP" (thuần, có test node). Nạp TRƯỚC console.js. -->
   <script src="/static/mcp-form-parse.js?v=1"></script>
-  <script src="/static/console.js?v=162"></script>
+  <script src="/static/console.js?v=163"></script>
   <script src="/static/mobile-chat.js?v=11"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>

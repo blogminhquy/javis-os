@@ -366,11 +366,10 @@ Các kênh chữ thuần thì siết hơn vì bản thân chúng không vẽ đ�
 
 Mọi thứ về giọng nằm trong **Cài đặt → Giọng nói**. Trang chỉ còn một thẻ, ô nào cũng tự lưu ngay khi bạn đổi, không có nút Lưu.
 
-Thẻ có ba thứ:
+Thẻ có hai thứ:
 
 - **Dòng "Đang dùng: ..."**: đường gọi đang chạy là **ChatGPT Live**, **Live (tên hãng)** qua API key hay **Cơ bản**. Ở đường Cơ bản, dòng này nói thêm bộ não nào trả lời nhanh, ví dụ "Trả lời nhanh bằng Antigravity CLI (gói Google)".
 - **Giọng Javis**: danh sách giọng đổi theo đường gọi, xem bên dưới.
-- **Tập trung khi đàm thoại**: bật thì sau 20 giây im lặng, bạn phải gọi "Javis" mới nói tiếp được. Trong lúc chờ, Live tạm ngắt kết nối.
 
 Khi Javis phải lùi xuống đường thấp hơn, dòng "Đang dùng" nói vì sao và cần làm gì, ví dụ nối ChatGPT ở trang **Models**, cài Codex CLI, hoặc cập nhật Codex CLI lên bản 0.153 trở lên.
 
@@ -431,6 +430,8 @@ Không có cái nào thì lượt nói đi thẳng bộ não chính. Câu cần 
 
 ### Máy tự lo
 
+- **Im lâu thì tạm ngắt, nói là nối lại**: trong cuộc gọi ChatGPT Live, im 30 giây thì Javis tạm ngắt cho đỡ tốn hạn mức, thanh gọi ghi "Đang chờ, cứ nói là Javis nghe". Bạn cứ nói tiếp, không cần gọi tên: Javis nối lại sau chừng 2 đến 3 giây và trả lời luôn câu vừa nói. Tiếng TV hay người bên cạnh nói đủ rõ cũng làm nó nối lại. Từ 0.65.22 không còn công tắc "Tập trung khi đàm thoại".
+- **Giữ màn hình sáng khi đang gọi**: điện thoại khoá màn hình là trình duyệt cắt mic, nên trong lúc gọi Javis giữ màn hình không tự tắt; cúp máy là màn hình tắt như thường. Bấm nút nguồn tắt hẳn thì cuộc gọi vẫn ngừng.
 Các ô dưới đây đã bỏ khỏi trang vì máy tự quyết được:
 
 - **Đọc trả lời bằng giọng**: bỏ vì trùng với nút mic. Trong cuộc gọi Javis nói mọi câu trả lời; cúp máy (nút **Cúp máy**, nút mic hoặc **Esc**) là im. Chat gõ chữ ngoài cuộc gọi chỉ trả lời bằng chữ.
