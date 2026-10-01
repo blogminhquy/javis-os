@@ -6419,7 +6419,7 @@
         + ` <button class="s-btn" data-settings-go="account">${esc(window.t("cs.tfa_row_enable"))}</button>`;
   }
 
-  // ---- Voice V2: thẻ "Chế độ và bộ não giọng nói" (docs/dev/2026-09-voice-v2-spec.md) ----
+  // ---- Voice V2: thẻ "Chế độ và bộ não giọng nói" (docs/dev/2026-10-voice-call-spec.md mục 5) ----
   // Đọc /voice/options để biết cái gì đang sẵn (agy đã cài chưa, key nào đã dán), rồi vẽ ba
   // khối: chế độ, bộ não giọng cho làn nhanh, nghe bằng gì, và nhà cung cấp cho bậc Live.
   async function renderVoiceV2Card() {

@@ -88,7 +88,7 @@ class JavisVoice {
     this._resumeAfterTTS = false;  // mic đang mở khi TTS bắt đầu → đọc xong tự mở nghe lại
     this._resumeTimer = null;
 
-    // ---- Voice V1 (docs/dev/2026-09-voice-v1-spec.md): móc nối với đạo diễn voice-turn.js ----
+    // ---- Voice V1 (docs/dev/2026-10-voice-call-spec.md phụ lục A1): móc nối với đạo diễn voice-turn.js ----
     // voice.js chỉ lo TAI và MIỆNG; luật "chờ bao lâu rồi gửi, có được ngắt không" nằm ở đạo
     // diễn, app.js gắn các móc này. Không gắn thì hành vi cũ giữ nguyên (silenceMs cố định,
     // chen ngang giết ngay).
@@ -121,7 +121,7 @@ class JavisVoice {
     this._countThis = true;
     this._uncounted = [];
 
-    // ---- Voice V2: nghe bằng Groq Whisper (docs/dev/2026-09-voice-v2-spec.md mục 3) ----
+    // ---- Voice V2: nghe bằng Groq Whisper (docs/dev/2026-10-voice-call-spec.md phụ lục A4) ----
     // Web Speech vẫn cho chữ tạm và điểm dừng câu; song song đó MediaRecorder ghi âm, hết câu
     // thì gửi file lên /stt và chữ Groq THAY chữ Chrome. Groq lỗi thì giữ chữ Chrome. Bọc
     // onTranscript ở đây để onend của recognition không phải biết gì về chuyện này.

@@ -1,4 +1,4 @@
-"""Bộ não GIỌNG NÓI riêng (Voice V2, docs/dev/2026-09-voice-v2-spec.md mục 2).
+"""Bộ não GIỌNG NÓI riêng (Voice V2, docs/dev/2026-10-voice-call-spec.md phụ lục A3).
 
 Khi người dùng NÓI với Javis, lượt đi qua một bộ não nhanh và nhẹ ở đây thay vì bộ não chính
 (vốn dựng tiến trình, nạp MCP và prompt dài, mất 5-10 giây mới ra chữ đầu). Bộ não giọng trả

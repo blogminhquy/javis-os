@@ -3,7 +3,7 @@
 Vì sao là plugin chứ không phải Desktop Agent riêng (roadmap Phase 5): trên máy chủ dự án Javis
 ĐANG chạy ngay trên máy Windows của họ, nên hai file Python làm được phần lớn giá trị. Khi Javis
 chạy trong Docker trên VPS, `check_fn` chặn và nói rõ lý do; điều khiển máy KHÁC máy chạy Javis
-là việc của Desktop Agent sau này. Xem docs/dev/2026-09-voice-v1-spec.md mục 7.
+là việc của Desktop Agent sau này. Xem docs/dev/2026-10-voice-call-spec.md phụ lục A6.
 
 Ba tool, ba mức quyền:
   - javis_app_list   readonly  app đã cài + app đang chạy

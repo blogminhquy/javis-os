@@ -13954,7 +13954,7 @@ async def websocket_endpoint(ws: WebSocket):
 
         async def run_voice_turn(conv_sid, user_message, brain, turn_tag, runtime_trace, conf,
                                  voice_turn_id="", giu_ban_chep=False):
-            """LÀN NHANH giọng nói (Voice V2, docs/dev/2026-09-voice-v2-spec.md mục 2).
+            """LÀN NHANH giọng nói (Voice V2, docs/dev/2026-10-voice-call-spec.md phụ lục A3).
 
             Tin đến từ mic đi qua bộ não giọng (voice_brain) thay vì bộ não chính: trả lời
             ngắn trong 1-2 giây. Câu nào cần dữ liệu, tool hay hành động thì bộ não giọng trả

@@ -195,7 +195,7 @@ const voice = new JavisVoice({
 });
 
 // ============================================
-// Voice V1 - đạo diễn hội thoại (docs/dev/2026-09-voice-v1-spec.md mục 3 và 4)
+// Voice V1 - đạo diễn hội thoại (docs/dev/2026-10-voice-call-spec.md phụ lục A1)
 // ============================================
 // voice-turn.js giữ toàn bộ luật (chờ bao lâu rồi gửi, "khoan" nghĩa là gì, chen ngang thật
 // hay giả); app.js chỉ THỰC HIỆN mảng hành động nó trả về và vẽ orb theo trạng thái thật.
@@ -264,7 +264,7 @@ let _bargeTimer = null;   // 2 giây sau khi tạm dừng mà không có chữ -
 let _waitTimer = null;    // "khoan" rồi im lâu -> thôi chờ
 let _ngatLoiTai = "";     // câu Javis bị ngắt lúc đọc, đi vào tin kế tiếp rồi xoá
 
-// ---- Voice V3: cắt cụm cho loa + câu tiến độ (docs/dev/2026-09-voice-v2-spec.md mục 11) ----
+// ---- Voice V3: cắt cụm cho loa + câu tiến độ (docs/dev/2026-10-voice-call-spec.md phụ lục A2) ----
 // Chữ stream của MỌI làn đi qua voice-chunker.js rồi mới ra loa: đọc theo cụm tự nhiên (hết
 // câu, hoặc phẩy/liên từ khi cụm đầu, hoặc im lâu mà loa đang im) thay vì đọc từng mẩu vài từ.
 const cum = new window.JavisVoiceChunker.Chunker();

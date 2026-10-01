@@ -1,4 +1,4 @@
-/* voice-chunker.js - CẮT CỤM tự nhiên cho loa (Voice V3, docs/dev/2026-09-voice-v2-spec.md mục 11).
+/* voice-chunker.js - CẮT CỤM tự nhiên cho loa (Voice V3, docs/dev/2026-10-voice-call-spec.md phụ lục A2).
 
    Module THUẦN: không đụng DOM, không gọi TTS. app.js đổ từng mẩu chữ stream vào đây và
    nhận về những cụm ĐỌC ĐƯỢC; mỗi cụm là một yêu cầu TTS. Trước đây mỗi khung stream của bộ

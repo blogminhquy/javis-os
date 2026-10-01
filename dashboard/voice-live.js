@@ -1,4 +1,4 @@
-/* voice-live.js - NGHE NÓI THẲNG (Voice V2 bậc Live, docs/dev/2026-09-voice-v2-spec.md mục 2).
+/* voice-live.js - NGHE NÓI THẲNG (Voice V2 bậc Live, docs/dev/2026-10-voice-call-spec.md phụ lục A5).
 
    Mở WebSocket /ws/voice-live, đẩy PCM16 mono 16 kHz từ mic lên, nhận PCM16 mono 24 kHz về và
    phát nối tiếp. Server nói chuyện với nhà cung cấp (Gemini Live / OpenAI Realtime) nên file

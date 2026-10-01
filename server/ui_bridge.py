@@ -2,7 +2,7 @@
 
 Vì sao có file này
 ==================
-Voice V1 (docs/dev/2026-09-voice-v1-spec.md, mục 6) cho model mở trang, mở file, mở việc trên
+Voice V1 (docs/dev/2026-10-voice-call-spec.md, phụ lục A6) cho model mở trang, mở file, mở việc trên
 dashboard bằng tool `javis_ui`. Tool chạy ở server, còn thứ cần bấm nằm trong trình duyệt, nên
 phải có một đường đi qua WebSocket `/ws` sẵn có và một chỗ ĐỢI trình duyệt trả lời: model cần
 biết "đã mở" hay "không có tab nào đang mở" ngay trong lượt, không phải đoán.

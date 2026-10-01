@@ -4,7 +4,7 @@
     .venv/Scripts/python tools/stt_bench/bench.py run groq        # cho tai Groq nghe hết các clip
     .venv/Scripts/python tools/stt_bench/bench.py score           # bảng điểm mọi tai đã chạy + mốc 01/10
 
-Vì sao có (0.65.15, docs/dev/2026-10-voice-ear-spec.md): đổi tai hay đổi model mà không có số đo
+Vì sao có (0.65.15, docs/dev/2026-10-voice-call-spec.md mục 2): đổi tai hay đổi model mà không có số đo
 thì chỉ là đoán. Bộ này chấm trên cùng một bộ câu (corpus.py) bằng ba con số:
   - WER: tỉ lệ từ sai (thêm, bớt, thay) sau khi bỏ dấu câu và chữ hoa; "hai"/"ba" coi như 2/3.
   - terms: số thuật ngữ nghe đúng (tên công cụ, tên người, số liệu quảng cáo).

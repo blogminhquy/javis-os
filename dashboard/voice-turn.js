@@ -1,4 +1,4 @@
-/* voice-turn.js - ĐẠO DIỄN hội thoại bằng giọng (Voice V1, docs/dev/2026-09-voice-v1-spec.md mục 3).
+/* voice-turn.js - ĐẠO DIỄN hội thoại bằng giọng (Voice V1, docs/dev/2026-10-voice-call-spec.md phụ lục A1).
 
    Module THUẦN: không đụng DOM, không gọi recognition hay audio. voice.js và app.js bắn sự kiện
    vào đây, nhận về một MẢNG hành động rồi tự thực hiện. Nhờ vậy toàn bộ luật "ai đang nói, đã

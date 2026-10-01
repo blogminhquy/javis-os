@@ -4,7 +4,7 @@ Vì sao là TOOL chứ không phải khối `<!-- JAVIS_UI -->` trong câu trả
 ngay trong lượt (dashboard đáp "đã mở" hay "không có tab nào"), đi qua hub nên mọi bộ não gọi
 được như nhau, và tôn trọng ba mức quyền bằng code. Khối trong câu trả lời thì server đang lột
 mọi `JAVIS_*` trước khi lưu, và không có đường báo kết quả về. Xem
-docs/dev/2026-09-voice-v1-spec.md mục 6.
+docs/dev/2026-10-voice-call-spec.md phụ lục A6.
 
 Đường đi: handler -> ui_bridge.request() -> frame `ui_action` qua /ws -> dashboard chạy và trả
 `ui_result` -> ui_bridge.resolve() -> handler có kết quả. Không import main: main gắn runtime vào

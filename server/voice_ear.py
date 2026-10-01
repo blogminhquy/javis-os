@@ -1,6 +1,6 @@
 """Tai nghe lại (ear): một model đa ngôn ngữ nghe lại ÂM THANH rồi mới chốt chữ vào bong bóng.
 
-Vì sao có (0.65.15, docs/dev/2026-10-voice-ear-spec.md): Chrome Web Speech chỉ nghe được một
+Vì sao có (0.65.15, docs/dev/2026-10-voice-call-spec.md mục 2 và phụ lục A4): Chrome Web Speech chỉ nghe được một
 ngôn ngữ (vi-VN), nên câu Việt pha tiếng Anh hỏng nặng. Đo trên 20 câu pha (tools/stt_bench),
 Chrome sai 41% số từ, "Mở dashboard Facebook ads" thành "Mở double Facebook add". Sửa chữ sau
 khi Chrome nghe không cứu được câu đã mất hẳn thông tin ("John Smith về deadline" thành "Dung

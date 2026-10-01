@@ -2,7 +2,7 @@
 
        node tests/js/test_voice_chunker.js
 
-   Voice V3 (docs/dev/2026-09-voice-v2-spec.md mục 11). Khoá các luật:
+   Voice V3 (docs/dev/2026-10-voice-call-spec.md phụ lục A2). Khoá các luật:
      1. Vài từ chưa có dấu -> chưa phát; câu khép -> phát; mấy câu ngắn liền -> gộp một cụm.
      2. Cụm ĐẦU ngắn: đủ 6 từ + dấu phẩy hay liên từ thì cắt ngay; 12 từ không có điểm đẹp thì
         cắt ở khoảng trắng. Cụm SAU không cắt giữa câu trừ khi quá 220 ký tự.

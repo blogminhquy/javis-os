@@ -6,7 +6,7 @@
    "ĐANG NÓI" khi đã im, không bao giờ hiện "ĐANG KẾT NỐI LẠI"), không có lỗi nào trên console.
      1. app.js: mọi orb đi qua đạo diễn (không còn setOrbState("thinking"/"speaking") rải rác).
      2. app.js: mất WebSocket -> wsDown; hello -> wsUp; tool_call -> toolCall; turn_done -> turnDone.
-     3. voice.js: chen ngang cần 5 nhịp (500 ms), tạm dừng qua onBargeStart chứ không giết ngay;
+     3. voice.js: chen ngang cần 2 nhịp (200 ms) để nghi ngờ rồi nhá tiếng xác nhận (từ 0.57.14);
         pause/resume/lastSpokenPrefix có thật; isSpeaking() = false khi đang tạm dừng.
      4. index.html nạp voice-turn.js TRƯỚC voice.js; ui-context/ui-actions TRƯỚC app.js; có hai
         hàng cài đặt mới; từ điển có đủ nhãn orb ở cả vi lẫn en; CSS có lớp cho trạng thái mới. */
