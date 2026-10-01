@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.13] - 2026-10-01
+### Sửa lỗi
+- **Bot trong nhóm Zalo trả lời cả khi bạn tag bằng chú thích của ảnh.** Trước đây tin ảnh bị bỏ qua hết, nên "@Javis Vũ ..." viết trong phần chú thích của ảnh không bao giờ tới bot. Nay chú thích được coi như nội dung tin, và bot biết tin có kèm một ảnh. Ảnh không có chú thích thì vẫn bỏ qua.
+
 ## [0.65.12] - 2026-09-30
 ### Cải thiện
 - **Nhóm chat chỉ giữ 100 tin gần nhất trong Hòm thư**, nên kho không phình mãi và Javis không giữ lời của người lạ lâu hơn cần thiết. Chat riêng với khách vẫn lưu hết.
