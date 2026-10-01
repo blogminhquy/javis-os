@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.21] - 2026-10-01
+### Sửa lỗi
+- Đang làm: ChatGPT Live không còn lặp câu trả lời.
+
 ## [0.65.20] - 2026-10-01
 ### Sửa lỗi
 - **Nút "Cập nhật ngay" chạy lại trên VPS cài mới, nhất là Hostinger.** Bộ phận cập nhật đi kèm (Watchtower) dùng bản cũ đã ngừng phát triển, nói chuyện với Docker bằng phiên bản quá cũ nên Docker mới từ chối và nó khởi động lại liên tục. Nay đổi sang bản còn được bảo trì, tự thương lượng phiên bản với Docker.
