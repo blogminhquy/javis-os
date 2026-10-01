@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.16] - 2026-10-01
+### Cải thiện
+- Đang làm: bản thiết kế gọi điện song công với Javis qua gói ChatGPT.
+
 ## [0.65.15] - 2026-10-01
 ### Cải thiện
 - **Nghe câu Việt xen tiếng Anh đúng hơn hẳn.** Có key Groq thì Javis tự bật "tai nghe lại": một model đa ngôn ngữ nghe lại âm thanh rồi mới chốt chữ vào bong bóng. Đo trên 20 câu lệnh, trình duyệt sai 41% số từ, qua tai còn 14%.
