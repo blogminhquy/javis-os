@@ -52,6 +52,7 @@ class LiveFocusTests(unittest.IsolatedAsyncioTestCase):
             namespace = dict(asyncio=asyncio, json=json, WebSocket=Socket, Query=lambda x: x,
                              cfgmod=types.SimpleNamespace(gate_active=lambda: False, read_settings=lambda: {}),
                              voice_live=types.SimpleNamespace(make_provider=lambda *a, **k: provider),
+                             voice_call=types.SimpleNamespace(live_settings=lambda c: c),
                              get_store=lambda: store, _brain_key=lambda b: b)
             tree = ast.parse((SERVER / 'main.py').read_text(encoding='utf-8'))
             route = next(n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == 'voice_live_ws')

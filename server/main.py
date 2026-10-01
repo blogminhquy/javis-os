@@ -154,6 +154,7 @@ import voice_brain   # Voice V2: bộ não giọng nói riêng (Antigravity số
 import voice_live    # Voice V2: nghe nói thẳng qua Gemini Live / OpenAI Realtime
 import voice_ear     # tai nghe lại: model đa ngôn ngữ nghe âm thanh rồi mới chốt chữ (0.65.15)
 import codex_realtime  # ChatGPT Live: một Codex app-server sống lâu, realtime trên gói ChatGPT (0.65.17)
+import voice_call     # nút mic là gọi Javis: tự chọn ChatGPT Live / Live API / Cơ bản (0.65.18)
 
 app = FastAPI(title="Javis OS")
 _CHAT_RUNTIME = ChatRuntime()
@@ -4598,6 +4599,9 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         # Giọng của ChatGPT Live (realtime v3 chỉ nhận 9 giọng riêng, mặc định juniper).
         if patch.get("chatgpt_voice") in voice_live.CHATGPT_VOICES:
             v["chatgpt_voice"] = patch["chatgpt_voice"]
+        # Đường gọi của nút mic (0.65.18): auto | chatgpt | api | basic (voice_call.ENGINES).
+        if patch.get("call_engine") in voice_call.ENGINES:
+            v["call_engine"] = patch["call_engine"]
         if patch.get("live_provider") in voice_live.PROVIDERS:
             v["live_provider"] = patch["live_provider"]
         # Focus is a browser attention gate. Keep the legacy setting for older clients.
@@ -12183,6 +12187,13 @@ async def stt_route(file: UploadFile = File(...), lang: str = Form(""), draft: s
     return await voice_ear.transcribe_upload(cfg, data, file.filename or "voice.webm", lang, draft)
 
 
+@app.get("/voice/call")
+async def voice_call_route():
+    """Đường gọi của nút mic (voice_call.select_call_engine). Nhẹ, không hỏi mạng: dashboard gọi
+    mỗi lần nạp cài đặt giọng để biết bấm mic là mở ChatGPT Live, Live API hay đường Cơ bản."""
+    return {"ok": True, **voice_call.select_call_engine(cfgmod.read_settings())}
+
+
 @app.get("/voice/ear")
 async def voice_ear_route():
     """Tai nghe lại đang dùng cho lượt nói (voice_ear.select_ear). Nhẹ, không hỏi mạng: dashboard
@@ -12351,7 +12362,9 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
         except Exception:
             pass
 
-    cfg = cfgmod.read_settings()
+    # Nhà cung cấp theo ĐƯỜNG GỌI đã chọn (voice_call), không theo khoá live_provider cũ: auto
+    # với ChatGPT sẵn sàng là ChatGPT Live dù live_provider còn ghi gemini mặc định.
+    cfg = voice_call.live_settings(cfgmod.read_settings())
     memory_index = ""
     if str(((cfg.get("voice") or {}).get("live_provider")) or "") == "chatgpt":
         # ChatGPT Live chạy qua Codex app-server: bắc cầu token đã nối ở trang Models sang
