@@ -11187,9 +11187,11 @@ async def _watchtower_ly_do() -> str:
       `docker compose up -d --pull always`.
     - watchtower_off: token có nhưng không nối được tới container. Hai khả năng, và câu trả
       lời cho cả hai đều là "deploy lại bằng compose mới": stack cũ có Watchtower trong
-      `profiles: ["update"]` nên `docker compose up -d` không bật nó; hoặc Watchtower có chạy
-      nhưng không đụng được Docker socket của host (Hostinger từng dính, xem log container
-      `<tên>-watchtower`).
+      `profiles: ["update"]` nên `docker compose up -d` không bật nó; hoặc Watchtower Restarting
+      mãi. Khả năng sau là cảnh của MỌI máy cài bằng compose trước 0.65.20: image
+      `containrrr/watchtower` nói Docker API 1.25, Docker Engine mới từ chối ("client version
+      1.25 is too old"). Từng bị đoán nhầm là "không đụng được socket" - log container
+      `<tên>-watchtower` mới là bằng chứng.
 
     Điều KHÔNG đổi: cả hai đều là app CÒN SỐNG, chỉ mất cái nút. Không được vẽ chúng như lỗi.
     """

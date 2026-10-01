@@ -90,23 +90,30 @@ services:
   # Cập nhật 1-CLICK từ trong app (nút "Cập nhật ngay" ở trang Cập nhật). CÓ SẴN từ 0.55.56.
   #
   # Lịch sử phải nói thật, vì nó là lý do khối này từng KHÔNG có: bản 2026-07-18 đã thử rồi gỡ
-  # đi, do trên Docker Manager container Watchtower bị Restarting liên tục (không đụng được
-  # Docker socket) và stack hiện "Partially running". Nay đưa lại vì cái giá của việc thiếu nó
-  # lớn hơn: máy cài mới không tự cập nhật được, phải nhớ vào Docker Manager bấm Redeploy - mà
-  # chủ repo báo đúng cảnh đó (2026-09-08).
+  # đi, do trên Docker Manager container Watchtower bị Restarting liên tục và stack hiện
+  # "Partially running". Hồi đó đoán là "không đụng được Docker socket" - SAI. Log thật (đo lại
+  # 2026-10-01 trên VPS Hostinger) là:
+  #   client version 1.25 is too old. Minimum supported API version is 1.40
+  # Image cũ `containrrr/watchtower` mặc định nói Docker API 1.25, Docker Engine mới từ chối.
+  # Repo đó đã bị archive (read-only từ 12/2025) nên lỗi không bao giờ được sửa ở đó.
   #
-  # Điều KHÔNG đổi kể cả khi host chặn socket: container javis ở trên CHẠY BÌNH THƯỜNG. Watchtower
-  # là một container RIÊNG, nó hỏng thì chỉ mất cái nút, không kéo theo app. Gặp "Partially
-  # running" thì mở log container `javis-watchtower`; không sửa được thì cập nhật bằng REDEPLOY
-  # y như trước, trang Cập nhật trong app cũng tự nói ra điều đó.
+  # Nay dùng bản fork còn bảo trì `nicholas-fedor/watchtower`: TỰ thương lượng phiên bản API với
+  # Docker, cùng cổng 8080, cùng `POST /v1/update` + Bearer token mà app đang gọi. Ghim major `:1`
+  # để bản v2 (sẽ bỏ các biến HTTP API kiểu cũ) không tự lọt vào làm chết nút lần nữa.
+  # ĐỪNG vá bằng DOCKER_API_VERSION=1.40 trên image cũ: Docker còn nâng mức tối thiểu tiếp.
+  #
+  # Điều KHÔNG đổi: container javis ở trên CHẠY BÌNH THƯỜNG dù Watchtower hỏng. Nó là một
+  # container RIÊNG, hỏng thì chỉ mất cái nút, không kéo theo app. Gặp "Partially running" thì
+  # mở log container `javis-watchtower`; không sửa được thì cập nhật bằng REDEPLOY y như trước,
+  # trang Cập nhật trong app cũng tự nói ra điều đó.
   watchtower:
-    image: containrrr/watchtower
+    image: ghcr.io/nicholas-fedor/watchtower:1
     container_name: ${JAVIS_NAME:-javis}-watchtower
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      WATCHTOWER_HTTP_API_UPDATE: "true"                    # nhận lệnh cập nhật từ nút bấm
+      WATCHTOWER_HTTP_API_ENDPOINTS: update                 # nhận lệnh cập nhật từ nút bấm
       WATCHTOWER_HTTP_API_TOKEN: javis-update               # khớp WATCHTOWER_TOKEN của app ở trên
       # TỰ tìm bản mới rồi dựng lại, KHÔNG chờ ai bấm nút. Đây là ô Environment thứ TƯ, và là
       # `${...}` duy nhất được thêm vào file này - vì nó là một LỰA CHỌN của người cài, không

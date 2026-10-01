@@ -92,14 +92,19 @@ services:
   # tục và Docker Manager báo stack "Partially running" - CONTAINER JAVIS VẪN CHẠY BÌNH THƯỜNG,
   # chỉ mất cái nút, và trang Cập nhật sẽ nói thẳng là phải cập nhật tay. Không muốn có nó:
   #   docker compose up -d --scale watchtower=0
+  #
+  # Image là bản fork còn bảo trì, KHÔNG phải `containrrr/watchtower`: bản đó đã archive và mặc
+  # định nói Docker API 1.25, Docker Engine mới từ chối ("client version 1.25 is too old") nên
+  # nó Restarting mãi - lý do thật của cảnh "máy mới không cập nhật được" (2026-10-01). Bản fork
+  # tự thương lượng phiên bản API. Ghim major `:1`, xem giải thích trong docker-compose.hostinger.yml.
   watchtower:
-    image: containrrr/watchtower
+    image: ghcr.io/nicholas-fedor/watchtower:1
     container_name: ${JAVIS_NAME:-javis}-watchtower
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      WATCHTOWER_HTTP_API_UPDATE: "true"                    # nhận lệnh cập nhật từ nút bấm
+      WATCHTOWER_HTTP_API_ENDPOINTS: update                 # nhận lệnh cập nhật từ nút bấm
       WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_TOKEN:-javis-update}
       # TỰ đi tìm bản mới theo chu kỳ, KHÔNG chờ ai bấm nút. Mặc định TẮT có chủ ý: bật lên là
       # Javis tự khởi động lại bất cứ lúc nào có image mới, cắt ngang việc nền và phiên chat

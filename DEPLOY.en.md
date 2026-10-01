@@ -319,6 +319,12 @@ Stop it with `stop-javis.bat`. Open http://localhost:7777
 >   Only Watchtower is granted Docker access (the socket); the Javis app is NOT, which is what makes it
 >   safe. Going without it is fine too, and the panel then only *reports a new version* and explains how
 >   to update by hand.
+> - **The button is there but does nothing, and `javis-watchtower` keeps Restarting:** a stack
+>   built from a compose file older than 0.65.20 uses the `containrrr/watchtower` image (no
+>   longer maintained), whose log says `client version 1.25 is too old`. Newer Docker rejects it.
+>   Redeploy ONCE from the new compose (Hostinger: Docker Manager, paste the compose URL again and
+>   Deploy; VPS: the two commands above); it uses the maintained fork
+>   `ghcr.io/nicholas-fedor/watchtower:1`, which negotiates the API version with Docker.
 > - **Want it fully automatic, with no button:** set `JAVIS_AUTO_UPDATE=true` in `.env`
 >   (Hostinger: the Environment box) and bring the stack up again. It is off by default because
 >   auto-updating means the app restarts itself whenever a new version lands, cutting across
