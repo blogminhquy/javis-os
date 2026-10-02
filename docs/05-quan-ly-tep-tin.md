@@ -121,6 +121,7 @@ Vài điều nên biết về tìm kiếm:
 3. Sửa xong bấm **💾 Lưu** (hoặc `Ctrl` + `S`). Khi lưu thành công, nút đổi thành **✓ Đã lưu** rồi trở lại như cũ.
 4. Bấm **✕** (hoặc phím `Esc`) để đóng và quay lại danh sách file. Danh sách tự nạp lại, nên file bạn vừa đổi tên hay xoá ngay trong trình sửa hiện đúng trạng thái mới.
 5. Thanh trên trình sửa còn có: đổi tên, xoá, **↗** mở tab mới, **⤓ Tải** về máy, và nút phóng to toàn màn hình.
+6. **Số từ và số ký tự** hiện ở cuối thanh công cụ, tự cập nhật khi bạn gõ. Ghi chú `.md` chỉ đếm chữ hiện ra, không tính ký hiệu định dạng (`#`, `**`, đường link). Rê chuột vào con số để xem số ký tự không tính khoảng trắng.
 
 **Khối "Thuộc tính" ở đầu note .md.** Nếu file mở đầu bằng khối `---` (frontmatter: `type`, `status`, `created`...), Javis hiện nó thành một khối riêng, **khoá lại không cho sửa** trong chế độ Sửa. Đó là metadata chứ không phải văn bản, và khoá lại chính là thứ giữ cho nó nguyên vẹn từng ký tự sau mỗi lần lưu. Muốn sửa metadata thì chuyển sang chế độ **Nguồn**.
 

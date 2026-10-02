@@ -2594,6 +2594,8 @@
   "cs.ne_fwd_none": "No note ahead yet",
   "cs.ne_opening": "Opening…",
   "cs.ne_source": "Source",
+  "cs.ne_count": "{words} words · {chars} characters",
+  "cs.ne_count_title": "Without spaces: {nospace} characters",
   "cs.ne_save_title": "Save (Ctrl+S)",
   "cs.ne_saved": "Saved",
   "cs.ne_rename_file": "Rename the file",

@@ -2594,6 +2594,8 @@
   "cs.ne_fwd_none": "Chưa có note nào ở phía trước",
   "cs.ne_opening": "Đang mở…",
   "cs.ne_source": "Nguồn",
+  "cs.ne_count": "{words} từ · {chars} ký tự",
+  "cs.ne_count_title": "Không tính khoảng trắng: {nospace} ký tự",
   "cs.ne_save_title": "Lưu (Ctrl+S)",
   "cs.ne_saved": "Đã lưu",
   "cs.ne_rename_file": "Đổi tên file",

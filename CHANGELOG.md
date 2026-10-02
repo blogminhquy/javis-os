@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.32] - 2026-10-02
+### Thêm mới
+- **Trình sửa file có bộ đếm từ và ký tự** ở cuối thanh công cụ, tự cập nhật khi gõ. Ghi chú `.md` chỉ đếm chữ hiện ra, không tính ký hiệu định dạng (`#`, `**`, đường link). Rê chuột vào số để xem số ký tự không tính khoảng trắng.
+
 ## [0.65.31] - 2026-10-02
 ### Cải thiện
 - **Ô Bộ não trả lời nhanh và Model chỉ hiện khi cuộc gọi chạy đường Cơ bản.** Gọi bằng ChatGPT Live thì ChatGPT tự nghe và tự trả lời, nên để ô đó hiện (ví dụ ghi Antigravity) dễ hiểu nhầm là Antigravity đang trả lời. Đường Tự động mà đang phải dùng đường Cơ bản thì ô vẫn hiện, vì lúc đó nó đang được dùng thật.

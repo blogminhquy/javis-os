@@ -2440,6 +2440,10 @@ body.ne-full-on .cview { z-index: 250; }
 .ne-fmt button { background: var(--surface-1); border: 1px solid var(--border); color: var(--text2); cursor: pointer;
   font-size: 13px; min-width: 28px; height: 26px; border-radius: 5px; padding: 0 6px; }
 .ne-fmt button:hover { color: var(--text); border-color: var(--info-line); }
+/* Số từ · số ký tự (0.65.32): đứng cuối thanh công cụ, đẩy sang phải, chữ mờ để không tranh
+   chỗ với nút. Rê chuột vào thì hiện số ký tự không tính khoảng trắng. */
+.ne-count { margin-left: auto; align-self: center; padding: 0 4px; font-size: 12px;
+  color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; cursor: default; }
 .ne-panes { flex: 1; display: flex; min-height: 0; overflow: hidden; }
 .ne-wys { outline: none; border-left: none; }                  /* bản render sửa trực tiếp: full màn, không viền */
 .ne-wys:focus { outline: none; }

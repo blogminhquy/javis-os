@@ -436,6 +436,9 @@
       var lang = window.JavisCodeHL ? window.JavisCodeHL.langFromPath(ceil) : "";
       if (lang) window.JavisCodeHL.attach(ta, lang);
     } catch (e) {}
+    // Bo dem tu + ky tu (0.65.32), dung chung ham cua trinh sua dinh (console.js).
+    var NE0 = window.JavisNoteEditor;
+    if (NE0 && NE0.ganDemTu) NE0.ganDemTu(elActions, function () { return { text: ta.value, md: false }; }, [ta]);
     appendSaveAndClose(b, ceil, function () { return ta.value; });
     focusNeuDuocPhep(ta);
   }
@@ -479,6 +482,7 @@
       if (m === "source") wysToSrc(); else srcToWys();
       curMode = m;
       neBody.className = "ne-body ne-md " + (m === "wys" ? "mode-wys" : "mode-source");
+      if (demLai) demLai();
       bWys.classList.toggle("active", m === "wys"); bSrc.classList.toggle("active", m === "source");
     }
     // Nguoi dung TU BAM sang che do soan thi cho focus that: do la y dinh ro rang cua ho,
@@ -487,7 +491,13 @@
     bSrc.onclick = function () { setMode("source"); try { ta.focus(); } catch (e) {} };
     seg.appendChild(bWys); seg.appendChild(bSrc); elActions.appendChild(seg);
 
-    NE.buildToolbar(neBody.querySelector(".ne-fmt"), { mode: function () { return curMode; }, ta: ta, wys: wys });
+    var demLai = null;
+    NE.buildToolbar(neBody.querySelector(".ne-fmt"), { mode: function () { return curMode; }, ta: ta, wys: wys,
+      onChange: function () { if (demLai) demLai(); } });
+    // Bo dem tu + ky tu (0.65.32): dem chu HIEN RA, giong trinh sua dinh.
+    if (NE.ganDemTu) demLai = NE.ganDemTu(neBody.querySelector(".ne-fmt"), function () {
+      return curMode === "wys" ? { text: wys.innerText, md: false } : { text: ta.value, md: true };
+    }, [ta, wys]);
     appendSaveAndClose(b, ceil, mdGetter);
 
     // Vao che do Sua (WYSIWYG) khi Turndown san sang; offline khong nap duoc thi o lai Nguon (van sua tot).

@@ -8288,9 +8288,35 @@
       b.innerHTML = EC.btnHtml(c);
       if (c.btn.style) b.style.cssText += c.btn.style;
       b.onmousedown = (e) => e.preventDefault();
-      b.onclick = () => EC.run(c.id, ctx);
+      // Lệnh định dạng chèn chữ thẳng vào ô soạn mà không bắn sự kiện input, nên báo bộ đếm từ.
+      b.onclick = () => { EC.run(c.id, ctx); if (ctx.onChange) ctx.onChange(); };
       host.appendChild(b);
     });
+  }
+
+  // Bộ đếm "N từ · M ký tự" trên thanh công cụ của trình sửa (0.65.32, chủ dự án xin 02/10).
+  // `doc()` trả {text, md}: md=true thì bỏ cú pháp markdown trước khi đếm (word-count.js).
+  // Đếm lại sau mỗi lần gõ, gom 250 ms để file dài không giật. Trả hàm "đếm lại" cho chỗ gọi.
+  function _neGanDemTu(host, doc, nguon) {
+    if (!host || !window.JavisWordCount) return () => {};
+    const el = document.createElement("span");
+    el.className = "ne-count";
+    let lg = "vi";
+    try { lg = window.JavisI18n.lang(); } catch (e) {}
+    const loc = lg === "en" ? "en-US" : "vi-VN";
+    const so = (n) => Number(n || 0).toLocaleString(loc);
+    const ve = () => {
+      let r;
+      try { const d = doc(); r = window.JavisWordCount.dem(d.text, { md: d.md }); } catch (e) { return; }
+      el.textContent = window.t("cs.ne_count", { words: so(r.words), chars: so(r.chars) });
+      el.title = window.t("cs.ne_count_title", { nospace: so(r.charsNoSpace) });
+    };
+    let timer = null;
+    const hen = () => { clearTimeout(timer); timer = setTimeout(ve, 250); };
+    (nguon || []).forEach((n) => { if (n) n.addEventListener("input", hen); });
+    host.appendChild(el);
+    ve();
+    return hen;
   }
 
   // Cho khung sua file trong chat (file-editor.js) dung LAI dung bo may WYSIWYG cua editor cay:
@@ -8300,6 +8326,7 @@
       ensureTurndown: _ensureTurndown,
       mdFromHtml: _mdFromHtml,
       buildToolbar: _neBuildToolbar,
+      ganDemTu: _neGanDemTu,   // bộ đếm từ + ký tự (0.65.32), khung sửa trong chat dùng chung
     };
   }
 
@@ -8455,7 +8482,12 @@
         wys.addEventListener("jv-task-toggle", () => { if (_neSaveFn) _neSaveFn(); });
         const wysToSrc = () => { const md = _mdFromHtml(wys.innerHTML); if (md != null) ta.value = md; };
         const srcToWys = () => { wys.innerHTML = window.mdToHtml ? window.mdToHtml(ta.value, null, { trinhSua: true, thuMuc: neThuMuc }) : esc(ta.value); };
-        _neBuildToolbar(body.querySelector(".ne-fmt"), { mode: () => curMode, ta, wys });   // thanh công cụ chạy cả 2 chế độ
+        let demLai = null;
+        _neBuildToolbar(body.querySelector(".ne-fmt"), { mode: () => curMode, ta, wys,
+          onChange: () => { if (demLai) demLai(); } });   // thanh công cụ chạy cả 2 chế độ
+        // Đếm chữ HIỆN RA: chế độ Sửa lấy chữ của bản render, chế độ Mã nguồn bỏ cú pháp markdown.
+        demLai = _neGanDemTu(body.querySelector(".ne-fmt"),
+          () => (curMode === "wys" ? { text: wys.innerText, md: false } : { text: ta.value, md: true }), [ta, wys]);
         mdGetter = () => (curMode === "wys" ? (_mdFromHtml(wys.innerHTML) != null ? _mdFromHtml(wys.innerHTML) : ta.value) : ta.value);
         const seg = document.createElement("span"); seg.className = "ne-seg";
         [[window.t("common.edit"), "mode-wys"], [window.t("cs.ne_source"), "mode-source"]].forEach(([lbl, cls]) => {
@@ -8466,6 +8498,7 @@
             else if (!toSrc && curMode === "source") srcToWys();
             curMode = toSrc ? "source" : "wys";
             body.className = "ne-body ne-md " + cls;
+            if (demLai) demLai();
             seg.querySelectorAll("button").forEach(x => x.classList.remove("active")); b.classList.add("active");
           };
           seg.appendChild(b);
@@ -8479,6 +8512,8 @@
           const hlLang = window.JavisCodeHL ? window.JavisCodeHL.langFromPath(rel) : "";
           if (hlLang) window.JavisCodeHL.attach(ta, hlLang);
         } catch (e) {}
+        // File chữ khác không có thanh định dạng: bộ đếm đứng đầu thanh nút phía trên, đếm nguyên văn.
+        _neGanDemTu(actions, () => ({ text: ta.value, md: false }), [ta]);
       }
       const saveBtn = document.createElement("button"); saveBtn.innerHTML = SAVE_ICON + " " + esc(window.t("common.save")); saveBtn.title = window.t("cs.ne_save_title");
       // Mốc so sánh "đã sửa gì chưa": lấy SAU khi dựng xong khung soạn, tức là bản đã vòng
