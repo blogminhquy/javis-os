@@ -140,7 +140,8 @@ def ensure_brain_pattern(root: str, wiki_dir: str = "") -> dict:
             fp = wd / fn
             if not fp.exists():
                 fp.parent.mkdir(parents=True, exist_ok=True)
-                fp.write_text(content, encoding="utf-8")
+                import brain_seed_i18n   # lazy: tránh vòng import lúc nạp module
+                fp.write_text(brain_seed_i18n.chon(content), encoding="utf-8")
                 created.append(f"wiki:{fn}")
         except Exception as e:
             print(f"[brain pattern {fn}] {e}", file=__import__('sys').stderr)

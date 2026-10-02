@@ -81,6 +81,8 @@ for hs in ("MEMORY_SEED", "JAVIS_README", "DASHBOARD_SEED"):
     check(f"main.py ghi {hs} qua brain_seed_i18n.chon()", f"brain_seed_i18n.chon({hs})" in _main_src)
 check("lưu ui_lang thì đổi ngôn ngữ file hạt giống của mọi brain",
       re.search(r'lc\["ui_lang"\] = .*\n\s*_doi_ngon_ngu_hat_giong\(lc\["ui_lang"\]\)', _main_src))
+check("meta_tools ghi file điều hướng wiki qua brain_seed_i18n.chon()",
+      "brain_seed_i18n.chon(content)" in (SERVER / "meta_tools.py").read_text(encoding="utf-8"))
 _learn = (SERVER / "learn.py").read_text(encoding="utf-8")
 check("learn.py thay dòng giữ chỗ bộ nhớ ở mọi ngôn ngữ", "GIU_CHO_BO_NHO" in _learn)
 check("thay bằng hàm, không bằng chuỗi (ký ức có dấu \\ không vỡ)",
