@@ -21,9 +21,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config import STATE_DIR
+import localefmt
 
 TRANG_THAI = ("running", "done", "error", "waiting")
 NHAN_TRANG_THAI = {"running": "đang chạy", "done": "xong", "error": "lỗi", "waiting": "chờ duyệt"}
+NHAN_TRANG_THAI_EN = {"running": "running", "done": "done", "error": "error", "waiting": "awaiting review"}
 
 # Trần ký tự. Kết quả tool đi thẳng vào ngữ cảnh chat (engine API cắt 8000), nên kho giữ đủ
 # để đọc lại chứ không giữ nguyên bản: đầu vào 4000, việc mỗi bước 2000, kết quả mỗi bước
@@ -130,7 +132,8 @@ class WorkflowRunStore:
     def _row(r: sqlite3.Row, day_du: bool) -> Dict[str, Any]:
         d = {k: r[k] for k in _COT}
         d["steps"] = json.loads(d.pop("steps_json") or "[]")
-        d["nhan"] = NHAN_TRANG_THAI.get(d["status"], d["status"])
+        d["nhan"] = localefmt.chu(NHAN_TRANG_THAI.get(d["status"], d["status"]),
+                                  NHAN_TRANG_THAI_EN.get(d["status"], d["status"]))
         if not day_du:
             d["output_tom_tat"] = _cat(d.pop("output"), TRAN_TOM_TAT)
             d["steps"] = [{"i": s.get("i"), "agent": s.get("agent"), "verified": s.get("verified"),

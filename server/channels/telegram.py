@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from channels import KenhSpec
+import localefmt
 
 TG_API = "https://api.telegram.org/bot{token}/{method}"
 
@@ -37,10 +38,12 @@ async def verify_token(token: str) -> dict:
             r = await client.get(TG_API.format(token=tok, method="getMe"))
         d = r.json()
     except Exception as e:
-        return {"ok": False, "error": f"Không nối được Telegram: {e}"}
+        return {"ok": False, "error": localefmt.chu(f"Không nối được Telegram: {e}", f"Could not reach Telegram: {e}")}
     if not d.get("ok"):
-        return {"ok": False, "error": "Token không hợp lệ (Telegram từ chối). Kiểm lại xem token "
-                                      "này có đúng là token Telegram không."}
+        return {"ok": False, "error": localefmt.chu(
+            "Token không hợp lệ (Telegram từ chối). Kiểm lại xem token "
+            "này có đúng là token Telegram không.",
+            "Invalid token (Telegram refused it). Check that this really is a Telegram bot token.")}
     info = d.get("result") or {}
     return {"ok": True, "username": info.get("username") or "",
             "bot_name": info.get("first_name") or "",
@@ -51,6 +54,6 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private"):
     """Gửi một tin chữ từ bot `tk` (có `token`) tới `chat_id`. Trả (ok, lỗi)."""
     token = str(tk.get("token") or "").strip()
     if not token:
-        return False, "tài khoản Telegram này chưa có token"
+        return False, localefmt.chu("tài khoản Telegram này chưa có token", "this Telegram account has no token yet")
     bot = _Transport()(token, "", None, giau_trang_thai=True)
     return await bot.send_text(chat_id, text)

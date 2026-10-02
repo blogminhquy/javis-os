@@ -46,6 +46,7 @@ from pathlib import Path
 from urllib.parse import urlencode, urlparse, parse_qs
 
 import config as cfgmod
+import localefmt
 import codex_models
 
 CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
@@ -217,20 +218,27 @@ def start_device():
                                     "Accept": "application/json", "User-Agent": UA},
                            timeout=30)
             if r.status_code >= 500:
-                cuoi = RuntimeError(f"OpenAI đang lỗi phía họ ({r.status_code}). Thử lại sau ít phút.")
+                cuoi = RuntimeError(localefmt.chu(
+                    f"OpenAI đang lỗi phía họ ({r.status_code}). Thử lại sau ít phút.",
+                    f"OpenAI is having an error on their side ({r.status_code}). Try again in a few minutes."))
             else:
                 r.raise_for_status()
                 break
         except httpx.TimeoutException:
-            cuoi = TimeoutError("OpenAI không trả lời kịp. Mạng chậm hoặc phía họ đang quá tải, "
-                                "bấm Đăng nhập lần nữa.")
+            cuoi = TimeoutError(localefmt.chu(
+                "OpenAI không trả lời kịp. Mạng chậm hoặc phía họ đang quá tải, "
+                "bấm Đăng nhập lần nữa.",
+                "OpenAI did not answer in time. The network is slow or they are overloaded, "
+                "press Sign in again."))
         except httpx.HTTPStatusError as e:
-            raise RuntimeError(f"OpenAI từ chối yêu cầu ({e.response.status_code}): "
-                               f"{e.response.text[:200]}") from e
+            raise RuntimeError(localefmt.chu(f"OpenAI từ chối yêu cầu ({e.response.status_code}): ",
+                                             f"OpenAI refused the request ({e.response.status_code}): ")
+                               + f"{e.response.text[:200]}") from e
         if lan < 2:
             time.sleep(1.5 * (lan + 1))   # lùi dần, tổng cộng chờ thêm tối đa 4.5 giây
     else:
-        raise cuoi or RuntimeError("Không xin được mã đăng nhập từ OpenAI.")
+        raise cuoi or RuntimeError(localefmt.chu("Không xin được mã đăng nhập từ OpenAI.",
+                                                  "Could not get a sign-in code from OpenAI."))
     d = r.json()
     dev = d.get("device_auth_id") or d.get("deviceAuthId")
     uc = d.get("user_code") or d.get("usercode") or d.get("userCode")
@@ -243,10 +251,10 @@ def start_device():
 def poll():
     """Bước 2-3: poll 1 lần. Trả pending | connected | error."""
     if not _pending:
-        return {"status": "error", "error": "Chưa bắt đầu đăng nhập."}
+        return {"status": "error", "error": localefmt.chu("Chưa bắt đầu đăng nhập.", "Sign-in has not started.")}
     if time.time() - _pending["ts"] > 15 * 60:
         _pending.clear()
-        return {"status": "error", "error": "Mã hết hạn (15 phút), thử lại."}
+        return {"status": "error", "error": localefmt.chu("Mã hết hạn (15 phút), thử lại.", "The code expired (15 minutes), try again.")}
     try:
         r = httpx.post(DEVICE_TOKEN_URL, json={"device_auth_id": _pending["device_auth_id"], "user_code": _pending["user_code"]},
                        headers={"Content-Type": "application/json", "Accept": "application/json", "User-Agent": UA}, timeout=20)
@@ -264,7 +272,8 @@ def poll():
     try:
         _save_tokens(_exchange(code, verifier))
     except Exception as e:
-        return {"status": "error", "error": f"Đổi token lỗi: {type(e).__name__}: {e}"}
+        return {"status": "error", "error": localefmt.chu(f"Đổi token lỗi: {type(e).__name__}: {e}",
+                                                         f"Token exchange failed: {type(e).__name__}: {e}")}
     _pending.clear()
     o = cfgmod.read_settings()["model"].get("openai_oauth") or {}
     return {"status": "connected", "account_id": o.get("account_id", ""), "plan": o.get("plan", "")}
@@ -305,13 +314,13 @@ def finish_browser(callback):
     """Bước 2-3 luồng browser: nhận URL callback user dán về (hoặc chính chuỗi code), tách code,
     kiểm state, đổi lấy token. Trả pending-free: connected | error."""
     if not _browser_pending:
-        return {"status": "error", "error": "Chưa bắt đầu đăng nhập bằng trình duyệt."}
+        return {"status": "error", "error": localefmt.chu("Chưa bắt đầu đăng nhập bằng trình duyệt.", "Browser sign-in has not started.")}
     if time.time() - _browser_pending["ts"] > 15 * 60:
         _browser_pending.clear()
-        return {"status": "error", "error": "Phiên hết hạn (15 phút), thử lại."}
+        return {"status": "error", "error": localefmt.chu("Phiên hết hạn (15 phút), thử lại.", "The session expired (15 minutes), try again.")}
     raw = (callback or "").strip()
     if not raw:
-        return {"status": "error", "error": "Chưa dán đường dẫn callback."}
+        return {"status": "error", "error": localefmt.chu("Chưa dán đường dẫn callback.", "No callback link was pasted.")}
     code = None
     state = None
     if raw.startswith("http://") or raw.startswith("https://"):
@@ -320,17 +329,20 @@ def finish_browser(callback):
         state = (q.get("state") or [None])[0]
         err = (q.get("error") or [None])[0]
         if err:
-            return {"status": "error", "error": f"OpenAI trả lỗi: {err}"}
+            return {"status": "error", "error": localefmt.chu(f"OpenAI trả lỗi: {err}", f"OpenAI returned an error: {err}")}
     else:
         code = raw   # user dán thẳng mã code
     if not code:
-        return {"status": "error", "error": "Không tìm thấy 'code' trong đường dẫn dán vào."}
+        return {"status": "error", "error": localefmt.chu("Không tìm thấy 'code' trong đường dẫn dán vào.",
+                                                         "No 'code' found in the pasted link.")}
     if state and state != _browser_pending.get("state"):
-        return {"status": "error", "error": "State không khớp - đăng nhập lại cho chắc."}
+        return {"status": "error", "error": localefmt.chu("State không khớp - đăng nhập lại cho chắc.",
+                                                         "State mismatch - sign in again to be safe.")}
     try:
         _save_tokens(_exchange(code, _browser_pending["verifier"], redirect_uri=BROWSER_REDIRECT_URI))
     except Exception as e:
-        return {"status": "error", "error": f"Đổi token lỗi: {type(e).__name__}: {e}"}
+        return {"status": "error", "error": localefmt.chu(f"Đổi token lỗi: {type(e).__name__}: {e}",
+                                                         f"Token exchange failed: {type(e).__name__}: {e}")}
     _browser_pending.clear()
     o = cfgmod.read_settings()["model"].get("openai_oauth") or {}
     return {"status": "connected", "account_id": o.get("account_id", ""), "plan": o.get("plan", "")}

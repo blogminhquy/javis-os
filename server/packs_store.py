@@ -36,6 +36,7 @@ import time
 from urllib.parse import urljoin, urlparse
 
 from config import STATE_DIR
+import localefmt
 
 CACHE = STATE_DIR / "packs-store-cache.json"
 TTL = 6 * 3600
@@ -168,13 +169,14 @@ async def lay(lam_moi: bool = False) -> dict:
         raw = await packs_fetch.tai(u, tran=4 * 1024 * 1024)
         d = json.loads(raw.decode("utf-8"))
         if not isinstance(d, dict):
-            raise ValueError("gốc phải là object")
+            raise ValueError(localefmt.chu("gốc phải là object", "the root must be an object"))
         if str(d.get("format")) != FORMAT:
-            raise ValueError("tệp này không phải danh mục gói của Javis")
+            raise ValueError(localefmt.chu("tệp này không phải danh mục gói của Javis", "this file is not a Javis pack catalog"))
         fv = int(d.get("format_version") or 0)
         if fv > FORMAT_VERSION:
             # Đọc nửa vời một định dạng mới hơn là cách chắc chắn để hiện sai. Nói thẳng.
-            raise ValueError(f"kho này cần bản Javis mới hơn (định dạng v{fv})")
+            raise ValueError(localefmt.chu(f"kho này cần bản Javis mới hơn (định dạng v{fv})",
+                                           f"this store needs a newer Javis (format v{fv})"))
         goi = [_lam_sach(x) for x in (d.get("packs") or [])[:MAX_GOI] if isinstance(x, dict)]
         # Mục thiếu id hoặc thiếu chỗ tải thì bỏ: hiện một thẻ bấm vào không cài được thì tệ
         # hơn là không hiện.

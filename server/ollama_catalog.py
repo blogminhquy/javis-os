@@ -30,6 +30,8 @@ import os
 import time
 from pathlib import Path
 
+import localefmt
+
 # name, size_gb, ho (họ model), mô tả ngắn, các nhãn năng lực
 _NEN = [
     # Qwen3 bản thường là model LAI: có thể suy nghĩ dài trước khi trả lời, và trên CPU thì
@@ -187,14 +189,19 @@ def goi_y(specs: dict) -> list:
         cham_vi_nghi = (not co_gpu) and "thinking" in (m.get("tags") or [])
         d["cham_vi_nghi"] = cham_vi_nghi
         if co_gpu and vram > 0 and cd <= vram:
-            d["note"] = "Chạy trọn trong GPU, nhanh nhất"
+            d["note"] = localefmt.chu("Chạy trọn trong GPU, nhanh nhất", "Runs fully on the GPU, fastest")
+            d["chay_gpu"] = True
             nhanh.append(d)
         else:
-            d["note"] = ("Vượt VRAM, phải bù bằng RAM nên chậm hơn" if (co_gpu and vram > 0)
-                         else "Chưa đọc được cấu hình máy - đây là mức an toàn" if not biet
-                         else "Chạy bằng CPU và RAM")
+            d["note"] = (localefmt.chu("Vượt VRAM, phải bù bằng RAM nên chậm hơn",
+                                       "Exceeds VRAM, spills into RAM so it is slower") if (co_gpu and vram > 0)
+                         else localefmt.chu("Chưa đọc được cấu hình máy - đây là mức an toàn",
+                                            "Could not read the machine specs - this is the safe size") if not biet
+                         else localefmt.chu("Chạy bằng CPU và RAM", "Runs on CPU and RAM"))
             if cham_vi_nghi:
-                d["note"] += ". Model này suy nghĩ dài trước khi trả lời, trên CPU sẽ rất chậm - nên chọn bản instruct"
+                d["note"] += localefmt.chu(
+                    ". Model này suy nghĩ dài trước khi trả lời, trên CPU sẽ rất chậm - nên chọn bản instruct",
+                    ". This model thinks at length before answering, which is very slow on CPU - pick the instruct version")
             lon.append(d)
 
     # Lớn trước trong cả hai rổ: cùng một hạng thì model to hơn gần như luôn trả lời khá hơn.
@@ -233,9 +240,11 @@ def goi_y(specs: dict) -> list:
     # Chọn xong mới sắp để HIỆN: nhóm chạy trong GPU lên trước, trong mỗi nhóm lớn trước. Việc
     # trải rộng đã xong ở trên nên sắp lại không làm mất model lớn nào, chỉ để mắt đọc xuôi -
     # không còn cảnh một model 70B nằm chen giữa mấy model chạy GPU.
-    ra.sort(key=lambda m: (0 if m.get("note", "").startswith("Chạy trọn") else 1,
+    # Xếp theo cờ chứ không theo chữ của note: note giờ theo ngôn ngữ giao diện.
+    ra.sort(key=lambda m: (0 if m.get("chay_gpu") else 1,
                            1 if m.get("cham_vi_nghi") else 0,
                            -float(m.get("size_gb") or 0)))
     for m in ra:
         m.pop("cham_vi_nghi", None)       # cờ nội bộ để xếp, không phải dữ liệu cho giao diện
+        m.pop("chay_gpu", None)
     return ra[:MAX_GOI_Y]

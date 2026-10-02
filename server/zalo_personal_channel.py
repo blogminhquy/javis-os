@@ -42,6 +42,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 import config as cfgmod
+import localefmt
 import conversations
 
 CONNECTOR_ID = "zalo"
@@ -80,9 +81,10 @@ def bat(conn_id: str, on: bool) -> dict:
     """Bật/tắt ghi hội thoại cho một tài khoản Zalo. Trả về trạng thái sau khi đổi."""
     cid = str(conn_id or "").strip()
     if not cid:
-        return {"ok": False, "error": "thiếu id kết nối"}
+        return {"ok": False, "error": localefmt.chu("thiếu id kết nối", "missing connection id")}
     if not any(c["id"] == cid for c in _ket_noi()):
-        return {"ok": False, "error": "không có kết nối Zalo nào id đó (hoặc đang tắt ở trang Kết nối)"}
+        return {"ok": False, "error": localefmt.chu("không có kết nối Zalo nào id đó (hoặc đang tắt ở trang Kết nối)",
+                                                    "no Zalo connection has that id (or it is turned off on the Connections page)")}
     cfg = cfgmod.read_settings()
     ht = cfg.setdefault("conversations", {})
     if not isinstance(ht, dict):

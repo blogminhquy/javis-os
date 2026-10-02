@@ -18,6 +18,7 @@ import urllib.parse
 import httpx
 
 import mcp_store
+import localefmt
 import secrets_store
 from config import STATE_DIR
 
@@ -107,11 +108,16 @@ def _meta_localhost(uri):
 
 def _meta_token_error(tk, redirect_uri=""):
     e = (tk or {}).get("error") or {}
-    msg = e.get("message") or (json.dumps(tk, ensure_ascii=False)[:200] if tk else "không rõ")
+    msg = e.get("message") or (json.dumps(tk, ensure_ascii=False)[:200] if tk
+                               else localefmt.chu("không rõ", "unknown"))
     rd = redirect_uri or "http://localhost:7777/connect/oauth/callback"
-    return (f"Facebook từ chối: {msg}. Kiểm tra: (1) 'Valid OAuth Redirect URIs' trong app khớp CHÍNH XÁC "
-            f"{rd} (dùng 'localhost' KHÔNG phải 127.0.0.1); (2) App đang ở Development Mode và bạn là "
-            f"Admin/Developer/Tester của app; (3) App ID + App Secret dán đúng.")
+    return localefmt.chu(
+        f"Facebook từ chối: {msg}. Kiểm tra: (1) 'Valid OAuth Redirect URIs' trong app khớp CHÍNH XÁC "
+        f"{rd} (dùng 'localhost' KHÔNG phải 127.0.0.1); (2) App đang ở Development Mode và bạn là "
+        f"Admin/Developer/Tester của app; (3) App ID + App Secret dán đúng.",
+        f"Facebook refused: {msg}. Check: (1) 'Valid OAuth Redirect URIs' in the app matches EXACTLY "
+        f"{rd} (use 'localhost', NOT 127.0.0.1); (2) the app is in Development Mode and you are an "
+        f"Admin/Developer/Tester of the app; (3) the App ID + App Secret are pasted correctly.")
 
 
 async def _meta_longlive(token_endpoint, client_id, client_secret, token):
@@ -203,7 +209,7 @@ async def start_auth(conn_id, redirect_uri):
     - DISCOVERY (còn lại, vd Meta): tự tìm metadata + tự đăng ký client (DCR) như chuẩn MCP."""
     conn = _conn(conn_id)
     if not conn:
-        return {"ok": False, "error": "Kết nối không tồn tại"}
+        return {"ok": False, "error": localefmt.chu("Kết nối không tồn tại", "Connection does not exist")}
     auth = (conn.get("connector") or {}).get("auth") or {}
     store = _load()
     ent = store.get(conn_id) or {}
@@ -214,8 +220,11 @@ async def start_auth(conn_id, redirect_uri):
         client_id = (creds.get("client_id") or "").strip()
         client_secret = creds.get("client_secret") or ""
         if not client_id:
-            return {"ok": False, "error": "Chưa có Client ID. Dán Client ID + Client Secret bạn tạo "
-                                          "ở nhà cung cấp (Google Cloud / Slack app) rồi bấm Kết nối lại."}
+            return {"ok": False, "error": localefmt.chu(
+                "Chưa có Client ID. Dán Client ID + Client Secret bạn tạo "
+                "ở nhà cung cấp (Google Cloud / Slack app) rồi bấm Kết nối lại.",
+                "No Client ID yet. Paste the Client ID + Client Secret you created "
+                "at the provider (Google Cloud / Slack app), then press Connect again.")}
         authorize_endpoint = auth["authorize_url"]
         token_endpoint = auth["token_url"]
         scopes = auth.get("scopes") or []
@@ -228,11 +237,14 @@ async def start_auth(conn_id, redirect_uri):
         provider = (auth.get("provider") or "").strip().lower()
     else:
         if not conn.get("url"):
-            return {"ok": False, "error": "Kết nối không có URL"}
+            return {"ok": False, "error": localefmt.chu("Kết nối không có URL", "The connection has no URL")}
         md = await _discover(conn["url"])
         if not md:
-            return {"ok": False, "error": "Server này không khai OAuth chuẩn MCP (không tìm thấy "
-                                          ".well-known metadata). Dùng API key nếu nhà cung cấp có."}
+            return {"ok": False, "error": localefmt.chu(
+                "Server này không khai OAuth chuẩn MCP (không tìm thấy "
+                ".well-known metadata). Dùng API key nếu nhà cung cấp có.",
+                "This server does not declare standard MCP OAuth (no "
+                ".well-known metadata found). Use an API key if the provider offers one.")}
         authorize_endpoint = md["authorization_endpoint"]
         token_endpoint = md["token_endpoint"]
         client_id = ent.get("client_id", "")
@@ -259,12 +271,17 @@ async def start_auth(conn_id, redirect_uri):
             # Máy chủ MCP chỉ nhận ứng dụng được cấp phép sẵn + tắt tự đăng ký (DCR). Với Meta Ads
             # đây là beta giới hạn (allowlist client như ChatGPT/Claude/Perplexity) - không phải lỗi
             # máy user, và dán client_id thủ công cũng không qua được resource server. Báo trung thực.
-            msg = ("Máy chủ này chưa cho phép kết nối tự phục vụ: nó chỉ chấp nhận các ứng dụng "
-                   "được nhà cung cấp cấp phép sẵn và đã TẮT tự đăng ký ứng dụng (DCR). Đây là giới "
-                   "hạn phía nhà cung cấp (Meta Ads đang mở beta dần theo tài khoản), không phải lỗi "
-                   "máy bạn - thử lại sau khi tài khoản được mở.")
+            msg = localefmt.chu(
+                "Máy chủ này chưa cho phép kết nối tự phục vụ: nó chỉ chấp nhận các ứng dụng "
+                "được nhà cung cấp cấp phép sẵn và đã TẮT tự đăng ký ứng dụng (DCR). Đây là giới "
+                "hạn phía nhà cung cấp (Meta Ads đang mở beta dần theo tài khoản), không phải lỗi "
+                "máy bạn - thử lại sau khi tài khoản được mở.",
+                "This server does not allow self-service connections yet: it only accepts apps "
+                "pre-approved by the provider and has TURNED OFF dynamic client registration (DCR). "
+                "This is a provider-side limit (Meta Ads is rolling out its beta account by account), "
+                "not a problem with your machine - try again once your account is enabled.")
             if dcr_detail:
-                msg += f" (máy chủ báo: {dcr_detail})"
+                msg += localefmt.chu(f" (máy chủ báo: {dcr_detail})", f" (server says: {dcr_detail})")
             return {"ok": False, "error": msg}
         scopes = md.get("scopes_supported") or []
         scope_param, scope_sep = "scope", " "
@@ -320,7 +337,8 @@ def _email_from_id_token(idt):
 async def handle_callback(state, code):
     p = _pending.pop(state or "", None)
     if not p:
-        return {"ok": False, "error": "Phiên OAuth không hợp lệ hoặc đã hết hạn - thử lại từ đầu"}
+        return {"ok": False, "error": localefmt.chu("Phiên OAuth không hợp lệ hoặc đã hết hạn - thử lại từ đầu",
+                                                    "The OAuth session is invalid or has expired - start again")}
     is_meta = (p.get("provider") == "meta")
     try:
         if is_meta:
@@ -345,9 +363,11 @@ async def handle_callback(state, code):
                 r = await client.post(p["token_endpoint"], data=data, headers={"Accept": "application/json"})
             tk = r.json()
             if "access_token" not in tk:
-                return {"ok": False, "error": f"Đổi code thất bại: {json.dumps(tk, ensure_ascii=False)[:200]}"}
+                return {"ok": False, "error": localefmt.chu("Đổi code thất bại: ", "Code exchange failed: ")
+                        + json.dumps(tk, ensure_ascii=False)[:200]}
     except Exception as e:
-        return {"ok": False, "error": f"Đổi code thất bại: {type(e).__name__}: {e}"}
+        return {"ok": False, "error": localefmt.chu(f"Đổi code thất bại: {type(e).__name__}: {e}",
+                                                    f"Code exchange failed: {type(e).__name__}: {e}")}
     store = _load()
     ent = store.get(p["conn_id"]) or {}
     first_auth = not ent.get("access_token")   # lần đăng nhập ĐẦU (chưa từng có token) mới tự đặt tên

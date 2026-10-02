@@ -106,8 +106,13 @@ MO_TA = {
     FRONTMATTER: "khối thuộc tính đầu note bị biến thành đường kẻ ngang",
     DAU_THOAT: "dấu gạch chéo dồn lên trong chữ",
 }
+MO_TA_EN = {
+    FRONTMATTER: "the note's property block at the top was turned into a horizontal rule",
+    DAU_THOAT: "backslashes piled up in the text",
+}
 
 
 def mo_ta_van_de(van_de) -> str:
     """Câu chữ cho người đọc, không phải mã lỗi."""
-    return " · ".join(MO_TA.get(v, v) for v in van_de)
+    import localefmt   # lười: file này chỉ dùng stdlib ở mức module
+    return " · ".join(localefmt.chu(MO_TA.get(v, v), MO_TA_EN.get(v, v)) for v in van_de)

@@ -136,11 +136,14 @@ class NotifyNotReady(ValueError):
 
     def __init__(self, reason: str):
         self.reason = reason
-        super().__init__(
+        super().__init__(localefmt.chu(
             f"Chưa gửi được kết quả về đâu: {reason}. Vào trang Kênh đấu bot Telegram "
             "(dán bot token + Chat ID) rồi tạo lại. Nếu vẫn muốn tạo, đặt allow_no_channel=true - "
-            "việc sẽ chạy nhưng không ai được báo."
-        )
+            "việc sẽ chạy nhưng không ai được báo.",
+            f"There is nowhere to send the result yet: {reason}. Connect a Telegram bot on the "
+            "Channels page (paste the bot token + Chat ID), then create it again. To create it "
+            "anyway, set allow_no_channel=true - it will run but nobody will be notified."
+        ))
 
 
 def _now() -> float:
@@ -190,7 +193,7 @@ def resolve_due(delay_min=None, delay_sec=None, at=None, due_at=None) -> float:
         d = float(delay_min) * 60.0
     if d is not None:
         if d < 0:
-            raise ValueError("delay không được âm")
+            raise ValueError(localefmt.chu("delay không được âm", "delay cannot be negative"))
         return now + max(d, MIN_LEAD_S)
     # 2) due_at tuyệt đối: epoch hoặc ISO
     if due_at not in (None, ""):
@@ -200,7 +203,7 @@ def resolve_due(delay_min=None, delay_sec=None, at=None, due_at=None) -> float:
         dt = _parse_iso_vn(s)
         if dt:
             return dt.timestamp()
-        raise ValueError(f"due_at không hiểu: {due_at}")
+        raise ValueError(localefmt.chu(f"due_at không hiểu: {due_at}", f"due_at not understood: {due_at}"))
     # 3) at: giờ trong ngày (HH:MM) hoặc ngày-giờ cụ thể
     if at not in (None, ""):
         s = str(at).strip().lower().replace("g", "h")   # "8g30" (kiểu VN) → "8h30"
@@ -210,7 +213,7 @@ def resolve_due(delay_min=None, delay_sec=None, at=None, due_at=None) -> float:
             try:
                 return datetime(y, mo, da, hh, mm, tzinfo=VN_TZ()).timestamp()
             except ValueError as e:
-                raise ValueError(f"ngày giờ sai: {at}") from e
+                raise ValueError(localefmt.chu(f"ngày giờ sai: {at}", f"invalid date/time: {at}")) from e
         hh = mm = None
         m = _AT_HHMM.match(s)
         if m:
@@ -220,12 +223,14 @@ def resolve_due(delay_min=None, delay_sec=None, at=None, due_at=None) -> float:
             if m:
                 hh, mm = int(m.group(1)), 0
         if hh is None or not (0 <= hh <= 23 and 0 <= mm <= 59):
-            raise ValueError(f"at không hiểu (dùng HH:MM hoặc YYYY-MM-DD HH:MM): {at}")
+            raise ValueError(localefmt.chu(f"at không hiểu (dùng HH:MM hoặc YYYY-MM-DD HH:MM): {at}",
+                                           f"at not understood (use HH:MM or YYYY-MM-DD HH:MM): {at}"))
         cand = _vnow().replace(hour=hh, minute=mm, second=0, microsecond=0)
         if cand.timestamp() <= now + MIN_LEAD_S:      # giờ đã qua trong hôm nay → sang mai
             cand = cand + timedelta(days=1)
         return cand.timestamp()
-    raise ValueError("Thiếu thời điểm: cần delay_min HOẶC at HOẶC due_at")
+    raise ValueError(localefmt.chu("Thiếu thời điểm: cần delay_min HOẶC at HOẶC due_at",
+                                   "Missing time: need delay_min OR at OR due_at"))
 
 
 @dataclass
@@ -287,19 +292,23 @@ class RemindersFeature:
         Trả path thật đã kiểm tra tồn tại. Ném ValueError nếu không hợp lệ."""
         name = str(script or "").strip().replace("\\", "/")
         if not name:
-            raise ValueError("mode 'script' cần tên file trong Javis/scripts")
+            raise ValueError(localefmt.chu("mode 'script' cần tên file trong Javis/scripts",
+                                           "mode 'script' needs a file name in Javis/scripts"))
         if "/" in name or name.startswith("."):
-            raise ValueError("script chỉ nhận TÊN FILE trong Javis/scripts (không đường dẫn)")
+            raise ValueError(localefmt.chu("script chỉ nhận TÊN FILE trong Javis/scripts (không đường dẫn)",
+                                           "script only takes a FILE NAME in Javis/scripts (no path)"))
         base = self._scripts_dir(brain)
         p = base / name
         try:
             rp, rbase = p.resolve(), base.resolve()
         except Exception:
-            raise ValueError("đường dẫn script không hợp lệ")
+            raise ValueError(localefmt.chu("đường dẫn script không hợp lệ", "invalid script path"))
         if rp.parent != rbase or not rp.is_file():
-            raise ValueError(f"không thấy script '{name}' trong Javis/scripts")
+            raise ValueError(localefmt.chu(f"không thấy script '{name}' trong Javis/scripts",
+                                           f"script '{name}' not found in Javis/scripts"))
         if rp.suffix.lower() not in _SCRIPT_RUNNERS and not os.access(rp, os.X_OK):
-            raise ValueError(f"đuôi '{rp.suffix}' chưa hỗ trợ (dùng .py/.sh/.ps1/.js/.bat)")
+            raise ValueError(localefmt.chu(f"đuôi '{rp.suffix}' chưa hỗ trợ (dùng .py/.sh/.ps1/.js/.bat)",
+                                           f"extension '{rp.suffix}' is not supported (use .py/.sh/.ps1/.js/.bat)"))
         return rp
 
     def notify_status(self) -> tuple:
@@ -327,7 +336,7 @@ class RemindersFeature:
         if mode in ("notify", "task") and not allow_no_channel:
             ready, why = self.notify_status()
             if not ready:
-                raise NotifyNotReady(why or "chưa có kênh gửi")
+                raise NotifyNotReady(why or localefmt.chu("chưa có kênh gửi", "no delivery channel yet"))
         text = (text or "").strip()
         script_name = ""
         if mode == "script":
@@ -336,7 +345,7 @@ class RemindersFeature:
             if not text:
                 text = f"chạy script {script_name}"
         elif not text:
-            raise ValueError("Thiếu nội dung nhắc (text)")
+            raise ValueError(localefmt.chu("Thiếu nội dung nhắc (text)", "Missing reminder content (text)"))
         cron_expr = (str(cron).strip() if cron not in (None, "") else "")
         if cron_expr:
             cron_expr = cron_util.validate_cron(cron_expr)     # chuẩn hoá + bắt lỗi
@@ -345,7 +354,7 @@ class RemindersFeature:
         else:
             due = resolve_due(delay_min=delay_min, at=at, due_at=due_at)
             if due > _now() + MAX_DELAY_DAYS * 86400:
-                raise ValueError("Hẹn quá xa (giới hạn ~1 năm)")
+                raise ValueError(localefmt.chu("Hẹn quá xa (giới hạn ~1 năm)", "Too far ahead (limit ~1 year)"))
             try:
                 rep = max(0, int(float(repeat_min or 0)))
             except (TypeError, ValueError):
@@ -393,9 +402,10 @@ class RemindersFeature:
         data = self._load(brain)
         cur = next((r for r in data.get("reminders", []) if r.get("id") == rid), None)
         if cur is None:
-            return {"ok": False, "error": "không thấy nhắc hẹn này"}
+            return {"ok": False, "error": localefmt.chu("không thấy nhắc hẹn này", "reminder not found")}
         if cur.get("status") != "pending":
-            return {"ok": False, "error": "chỉ sửa được nhắc đang chờ (mục đã xong/đã huỷ thì tạo mới)"}
+            return {"ok": False, "error": localefmt.chu("chỉ sửa được nhắc đang chờ (mục đã xong/đã huỷ thì tạo mới)",
+                                                        "only pending reminders can be edited (create a new one for done/cancelled items)")}
         if text not in (None, ""):
             cur["text"] = str(text)[:2000]
         if label is not None:
@@ -403,12 +413,13 @@ class RemindersFeature:
         if mode not in (None, ""):
             m = str(mode).strip().lower()
             if m not in VALID_MODE:
-                return {"ok": False, "error": f"kiểu không hợp lệ: {mode}"}
+                return {"ok": False, "error": localefmt.chu(f"kiểu không hợp lệ: {mode}", f"invalid type: {mode}")}
             if cur.get("mode") == "script":
                 pass   # job script GIỮ NGUYÊN kiểu (đổi là mất tên file script) - vẫn sửa được
                        # tên/nội dung/lịch, nên bỏ qua trường mode thay vì chặn cả lệnh sửa
             elif m == "script":
-                return {"ok": False, "error": "đổi sang job script thì tạo mới (cần chọn file script)"}
+                return {"ok": False, "error": localefmt.chu("đổi sang job script thì tạo mới (cần chọn file script)",
+                                                            "to switch to a script job, create a new one (a script file must be chosen)")}
             else:
                 cur["mode"] = m
         if chat_id is not None:
@@ -416,7 +427,7 @@ class RemindersFeature:
         if muc_quyen not in (None, ""):
             mq = str(muc_quyen).strip().lower()
             if mq not in VALID_MUC_QUYEN:
-                return {"ok": False, "error": f"mức quyền không hợp lệ: {muc_quyen}"}
+                return {"ok": False, "error": localefmt.chu(f"mức quyền không hợp lệ: {muc_quyen}", f"invalid permission level: {muc_quyen}")}
             cur["muc_quyen"] = mq
         has_when = any(v not in (None, "") for v in (cron, at, delay_min, due_at))
         if has_when:
@@ -429,7 +440,7 @@ class RemindersFeature:
                 else:
                     due = resolve_due(delay_min=delay_min, at=at, due_at=due_at)
                     if due > _now() + MAX_DELAY_DAYS * 86400:
-                        return {"ok": False, "error": "Hẹn quá xa (giới hạn ~1 năm)"}
+                        return {"ok": False, "error": localefmt.chu("Hẹn quá xa (giới hạn ~1 năm)", "Too far ahead (limit ~1 year)")}
                     cur["cron"] = ""          # chuyển lịch lặp → một lần: bỏ cron kẻo nó tự hồi sinh
                     cur["due_at"] = float(due)
             except ValueError as e:
@@ -477,13 +488,13 @@ class RemindersFeature:
             src_root = str(Path(self.deps.brain_root(from_brain)).resolve())
             dst_root = str(Path(self.deps.brain_root(to_brain)).resolve())
         except Exception:
-            return {"ok": False, "error": "brain không hợp lệ"}
+            return {"ok": False, "error": localefmt.chu("brain không hợp lệ", "invalid brain")}
         if src_root == dst_root:
-            return {"ok": False, "error": "brain nguồn và đích trùng nhau"}
+            return {"ok": False, "error": localefmt.chu("brain nguồn và đích trùng nhau", "source and target brain are the same")}
         src = self._load(from_brain)
         rec = next((r for r in src.get("reminders", []) if r.get("id") == rid), None)
         if rec is None:
-            return {"ok": False, "error": "không thấy nhắc hẹn ở brain nguồn"}
+            return {"ok": False, "error": localefmt.chu("không thấy nhắc hẹn ở brain nguồn", "reminder not found in the source brain")}
         dst = self._load(to_brain)
         dst.setdefault("reminders", []).append(rec)
         self._save(to_brain, dst)
@@ -563,9 +574,9 @@ class RemindersFeature:
                 # vừa làm lộ chỉ dẫn máy như ca Coach Mục Tiêu & Kỷ Luật.
                 msg = body.strip()
             elif err:
-                msg = "⚠ Nhắc hẹn chưa chạy được nhiệm vụ: " + err[:300]
+                msg = localefmt.chu("⚠ Nhắc hẹn chưa chạy được nhiệm vụ: ", "⚠ The reminder could not run its task: ") + err[:300]
             else:
-                msg = "⚠ Nhắc hẹn đã chạy nhưng không trả về nội dung."
+                msg = localefmt.chu("⚠ Nhắc hẹn đã chạy nhưng không trả về nội dung.", "⚠ The reminder ran but returned nothing.")
         elif mode == "script":
             async with self.lock:
                 out, serr, code = await self._run_script(brain, rem.get("script", ""))
@@ -573,7 +584,8 @@ class RemindersFeature:
             if code != 0:
                 err = (serr or out or "").strip()
                 tail = err[-1500:]
-                msg = f"⚠ Job script '{rem.get('script')}' lỗi (exit {code})" + (":\n" + tail if tail else "")
+                msg = localefmt.chu(f"⚠ Job script '{rem.get('script')}' lỗi (exit {code})",
+                                    f"⚠ Script job '{rem.get('script')}' failed (exit {code})") + (":\n" + tail if tail else "")
             else:
                 clean = (out or "").strip()
                 if clean == "" or "[SILENT]" in out:
@@ -581,7 +593,7 @@ class RemindersFeature:
                 else:
                     msg = clean[:SCRIPT_OUT_CAP]
         else:   # notify
-            msg = "⏰ Nhắc bạn: " + text
+            msg = localefmt.chu("⏰ Nhắc bạn: ", "⏰ Reminder: ") + text
 
         ok, send_err = True, ""
         if deliver:
@@ -653,7 +665,8 @@ class RemindersFeature:
         if runner:
             exe = shutil.which(runner[0]) or runner[0]
             if not (shutil.which(runner[0]) or Path(runner[0]).exists()):
-                return "", f"thiếu trình chạy '{runner[0]}' cho {rp.suffix}", -1
+                return "", localefmt.chu(f"thiếu trình chạy '{runner[0]}' cho {rp.suffix}",
+                                         f"missing runner '{runner[0]}' for {rp.suffix}"), -1
             argv = [exe] + runner[1:] + [str(rp)]
         else:
             argv = [str(rp)]   # file thực thi có shebang (đã kiểm tra os.X_OK lúc tạo)
@@ -665,7 +678,8 @@ class RemindersFeature:
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
                 **winproc.kwargs_no_window())
         except Exception as e:
-            return "", f"không chạy được script: {type(e).__name__}: {e}", -1
+            return "", localefmt.chu(f"không chạy được script: {type(e).__name__}: {e}",
+                                     f"could not run the script: {type(e).__name__}: {e}"), -1
         try:
             out_b, err_b = await asyncio.wait_for(proc.communicate(), timeout=SCRIPT_TIMEOUT_S)
         except asyncio.TimeoutError:
@@ -673,7 +687,8 @@ class RemindersFeature:
                 proc.kill()
             except Exception:
                 pass
-            return "", f"script quá {SCRIPT_TIMEOUT_S}s → đã kill", -1
+            return "", localefmt.chu(f"script quá {SCRIPT_TIMEOUT_S}s → đã kill",
+                                     f"script exceeded {SCRIPT_TIMEOUT_S}s → killed"), -1
         out = (out_b or b"").decode("utf-8", "replace")
         err = (err_b or b"").decode("utf-8", "replace")
         return out, err, (proc.returncode if proc.returncode is not None else -1)
@@ -734,7 +749,7 @@ class RemindersFeature:
         # từng giết việc lịch thật đang chạy dở - xem doc tại aux_engine.bg_max_wall_s.
         cli.max_wall_s = aux_engine.bg_max_wall_s()
         if not cli.is_available():
-            return "", "Claude CLI chưa cài"
+            return "", localefmt.chu("Claude CLI chưa cài", "Claude CLI is not installed")
         rang_buoc = {
             "suggest": ("Mức quyền của nhắc hẹn này là CHỈ ĐỌC: được đọc dữ liệu thật qua MCP "
                         "và đọc file, KHÔNG ghi file, KHÔNG hành động ra ngoài. Việc nào cần "

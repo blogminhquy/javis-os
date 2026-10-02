@@ -45,6 +45,7 @@ import time
 from pathlib import Path
 
 from config import STATE_DIR
+import localefmt
 
 TRASH_DIR = STATE_DIR / "purge-trash"
 HOME_DIR = STATE_DIR / "connector-home"
@@ -141,33 +142,35 @@ def plan_connection(cid: str) -> dict:
 
     conn = mcp_store.get_connection(cid)
     if not conn:
-        return {"ok": False, "error": "Không tìm thấy kết nối"}
+        return {"ok": False, "error": localefmt.chu("Không tìm thấy kết nối", "Connection not found")}
 
     con = mcp_catalog.get(conn.get("connector_id")) or {}
     homes = _thu_muc_home(conn)
     cred = _thu_muc_cred(conn)
     files = _tep_secret(cid)
-    muc: list[dict] = [{"kind": "connection", "label": "Kết nối và khoá đã lưu", "n": 1}]
+    muc: list[dict] = [{"kind": "connection",
+                        "label": localefmt.chu("Kết nối và khoá đã lưu", "Connection and saved keys"), "n": 1}]
     if conn.get("secrets"):
-        muc.append({"kind": "secrets", "label": "Khoá hoặc mật khẩu đã mã hoá",
+        muc.append({"kind": "secrets", "label": localefmt.chu("Khoá hoặc mật khẩu đã mã hoá", "Encrypted keys or passwords"),
                     "n": len(conn.get("secrets") or {})})
     if homes:
-        muc.append({"kind": "home", "label": "Phiên đăng nhập riêng của kết nối",
+        muc.append({"kind": "home", "label": localefmt.chu("Phiên đăng nhập riêng của kết nối", "The connection's own sign-in session"),
                     "n": len(homes), "bytes": sum(_co(p) for p in homes),
                     "paths": [str(p) for p in homes]})
     if cred:
-        muc.append({"kind": "cred", "label": "Kho token connector tự giữ",
+        muc.append({"kind": "cred", "label": localefmt.chu("Kho token connector tự giữ", "Token store kept by the connector"),
                     "n": 1, "bytes": _co(cred), "paths": [str(cred)]})
     if files:
-        muc.append({"kind": "files", "label": "Tệp bí mật đã ghi ra đĩa",
+        muc.append({"kind": "files", "label": localefmt.chu("Tệp bí mật đã ghi ra đĩa", "Secret files written to disk"),
                     "n": len(files), "bytes": sum(_co(p) for p in files)})
     try:
         n_audit = len(mcp_hub.audit_tail(limit=100000, conn_id=cid))
     except Exception:
         n_audit = 0
     if n_audit:
-        muc.append({"kind": "audit", "label": "Dòng nhật ký gọi tool", "n": n_audit,
-                    "note": "Mặc định GIỮ LẠI, chỉ xoá tên hiển thị."})
+        muc.append({"kind": "audit", "label": localefmt.chu("Dòng nhật ký gọi tool", "Tool call log lines"), "n": n_audit,
+                    "note": localefmt.chu("Mặc định GIỮ LẠI, chỉ xoá tên hiển thị.",
+                                          "KEPT by default, only the display name is removed.")})
 
     return {
         "ok": True,
@@ -199,14 +202,15 @@ async def purge_connection(cid: str, *, mode: str = "trash", purge_audit: bool =
 
     conn = mcp_store.get_connection(cid)
     if not conn:
-        return {"ok": False, "error": "Không tìm thấy kết nối"}
+        return {"ok": False, "error": localefmt.chu("Không tìm thấy kết nối", "Connection not found")}
 
     # 1. LÀM IM. Chờ thật, không bắn-rồi-quên: bước 2 sắp dời đi thư mục mà tiến trình này
     #    đang giữ khoá. Đang chạy dở một tool call thì DỪNG LẠI - đóng phiên stdio là giết cả
     #    cây tiến trình, có thể đang đặt một cái đơn thật.
     if mcp_client.pool.dang_ban_theo_key(cid):
         return {"ok": False, "busy": True,
-                "error": "Kết nối đang chạy dở một việc. Chờ nó xong rồi xoá."}
+                "error": localefmt.chu("Kết nối đang chạy dở một việc. Chờ nó xong rồi xoá.",
+                                       "The connection is in the middle of a job. Wait for it to finish, then delete.")}
     da_dong = await mcp_client.pool.close_now(cid)
 
     bao_cao: dict = {"ok": True, "id": cid, "label": conn.get("label") or cid,

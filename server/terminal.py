@@ -54,6 +54,7 @@ import uuid
 from pathlib import Path
 
 import winproc
+import localefmt
 
 IS_WINDOWS = os.name == "nt"
 
@@ -595,8 +596,11 @@ class Kho:
             self._bo(cu)
         song = [p for p in self._phien.values() if p.song()]
         if len(song) >= MAX_PHIEN:
-            raise RuntimeError(f"Đang mở {len(song)} phiên terminal rồi (tối đa {MAX_PHIEN}). "
-                               "Đóng bớt một phiên rồi thử lại.")
+            raise RuntimeError(localefmt.chu(
+                f"Đang mở {len(song)} phiên terminal rồi (tối đa {MAX_PHIEN}). "
+                "Đóng bớt một phiên rồi thử lại.",
+                f"{len(song)} terminal sessions are already open (max {MAX_PHIEN}). "
+                "Close one and try again."))
         p = Phien(uuid.uuid4().hex[:12], cwd, cols, rows, loop, extra_env=extra_env)
         self._phien[p.id] = p
         self._bat_don(loop)

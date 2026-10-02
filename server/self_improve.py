@@ -400,29 +400,31 @@ class LoopFeature:
         slug -> đây là va chạm thật sẽ gặp). Trả {"ok":bool, "error":str}."""
         src_fp = self._loop_path(from_brain, slug)
         if src_fp is None or not src_fp.exists():
-            return {"ok": False, "error": "không thấy việc ở brain nguồn"}
+            return {"ok": False, "error": localefmt.chu("không thấy việc ở brain nguồn", "job not found in the source brain")}
         dst_fp = self._loop_path(to_brain, slug)
         if dst_fp is None:
-            return {"ok": False, "error": "tên việc không hợp lệ"}
+            return {"ok": False, "error": localefmt.chu("tên việc không hợp lệ", "invalid job name")}
         try:
             src_root = str(Path(self.deps.brain_root(from_brain)).resolve())
             dst_root = str(Path(self.deps.brain_root(to_brain)).resolve())
         except Exception:
-            return {"ok": False, "error": "brain không hợp lệ"}
+            return {"ok": False, "error": localefmt.chu("brain không hợp lệ", "invalid brain")}
         if src_root == dst_root:
-            return {"ok": False, "error": "brain nguồn và đích trùng nhau"}
+            return {"ok": False, "error": localefmt.chu("brain nguồn và đích trùng nhau", "source and target brain are the same")}
         # Đang chạy đúng loop này -> để yên, tránh dời file dưới chân vòng đang thực thi.
         if self._running and self._running[1] == slug and self._running[0] == src_root:
-            return {"ok": False, "error": "việc đang chạy, thử lại sau"}
+            return {"ok": False, "error": localefmt.chu("việc đang chạy, thử lại sau", "job is running, try again later")}
         if dst_fp.exists():
             return {"ok": False,
-                    "error": f"brain đích đã có việc '{slug}' - đổi tên hoặc xoá bên đó trước"}
+                    "error": localefmt.chu(f"brain đích đã có việc '{slug}' - đổi tên hoặc xoá bên đó trước",
+                                           f"the target brain already has a job '{slug}' - rename or delete it there first")}
         try:
             content = src_fp.read_text(encoding="utf-8")
             dst_fp.parent.mkdir(parents=True, exist_ok=True)
             self.deps.atomic_write_text(dst_fp, content)   # ghi ĐÍCH trước (mất điện = còn nguồn)
         except Exception as e:
-            return {"ok": False, "error": f"ghi file đích lỗi: {type(e).__name__}: {e}"}
+            return {"ok": False, "error": localefmt.chu(f"ghi file đích lỗi: {type(e).__name__}: {e}",
+                                                        f"could not write the target file: {type(e).__name__}: {e}")}
         # Dời entry state runtime (last_run/runs_today/fail_streak) để đích không nổ lại ngay.
         try:
             src_state = self.read_state(from_brain)
@@ -612,10 +614,10 @@ class LoopFeature:
         """Shim run_loop_cycle của main.py: chạy loop đến hạn nhất (nếu có)."""
         self.ensure_migrated()
         if self.lock.locked():
-            return {"ok": False, "error": "Đang chạy một vòng khác"}
+            return {"ok": False, "error": localefmt.chu("Đang chạy một vòng khác", "Another cycle is running")}
         target = self._pick_due()
         if not target:
-            return {"ok": True, "summary": "Không có loop nào đến hạn."}
+            return {"ok": True, "summary": localefmt.chu("Không có loop nào đến hạn.", "No loop is due.")}
         return await self.run_cycle(target[0], target[1]["slug"], reason)
 
     # ══════════════════════ log ══════════════════════
@@ -835,11 +837,11 @@ class LoopFeature:
         """1 vòng của 1 loop: dựng prompt theo goal → chạy CLI cô lập → (mode auto) kiểm chứng
         độc lập 'giả định SAI' → ghi log + cập nhật state. Giữ nguyên khung bản gốc."""
         if self.lock.locked():
-            return {"ok": False, "error": "Đang chạy một vòng khác"}
+            return {"ok": False, "error": localefmt.chu("Đang chạy một vòng khác", "Another cycle is running")}
         async with self.lock:
             loop = self.get_loop(brain, slug)
             if not loop:
-                return {"ok": False, "error": f"Không tìm thấy loop '{slug}'"}
+                return {"ok": False, "error": localefmt.chu(f"Không tìm thấy loop '{slug}'", f"Loop '{slug}' not found")}
             self._running = (str(Path(self.deps.brain_root(brain)).resolve()), slug)
             try:
                 return await self._run_cycle_inner(brain, slug, loop, reason)
@@ -886,15 +888,18 @@ class LoopFeature:
             # trạng thái và tên loop, nên bản web bỏ câu đầu có emoji.
             viec = {"kind": "loop", "id": slug, "title": str(loop.get("name") or slug)[:160],
                     "status": "blocked" if paused_now else ("failed" if failed else "done")}
+            bat_lai = localefmt.chu(" - bật lại hoặc bấm Chạy ngay để tiếp tục.",
+                                    " - turn it back on or press Run now to continue.")
             if loop.get("notify", True) and self.deps.report:
                 head = "⚠" if failed else "✅"
-                parts = [f"{head} Loop '{loop['name']}' vừa chạy ({reason})."]
+                parts = [localefmt.chu(f"{head} Loop '{loop['name']}' vừa chạy ({reason}).",
+                                      f"{head} Loop '{loop['name']}' just ran ({reason}).")]
                 if summary:
                     parts.append(summary[:1500])
                 if verify_line:
-                    parts.append("Kiểm chứng: " + verify_line)
+                    parts.append(localefmt.chu("Kiểm chứng: ", "Verification: ") + verify_line)
                 if paused_now:
-                    parts.append("⚠ " + patch["auto_paused_reason"] + " - bật lại hoặc bấm Chạy ngay để tiếp tục.")
+                    parts.append("⚠ " + patch["auto_paused_reason"] + bat_lai)
                 try:
                     # Telegram là kênh chữ thuần: lọc khối JAVIS_METRICS/JAVIS_ASK trước khi báo,
                     # kẻo lộ nguyên cụm "<!-- JAVIS_...: ... -->" (system prompt loop dùng chung
@@ -920,8 +925,10 @@ class LoopFeature:
             if paused_now and self.deps.notify and not report_sent:
                 try:
                     asyncio.create_task(self.deps.notify(
-                        f"⚠ Loop '{loop['name']}' ({slug}) đã tự tạm dừng sau 3 lần lỗi liên tiếp. "
-                        "Mở trang Việc định kỳ để xem log."))
+                        localefmt.chu(f"⚠ Loop '{loop['name']}' ({slug}) đã tự tạm dừng sau 3 lần lỗi liên tiếp. "
+                                      "Mở trang Việc định kỳ để xem log.",
+                                      f"⚠ Loop '{loop['name']}' ({slug}) paused itself after 3 failures in a row. "
+                                      "Open the Recurring work page to see the log.")))
                 except Exception:
                     pass
             return {"ok": not failed, "summary": summary, "verify": verify_line,
@@ -950,7 +957,7 @@ class LoopFeature:
         if gcli is None:
             return _finish("Lỗi: không tạo được file MCP rỗng để cô lập (profile code từ chối chạy)", "", True)
         if not gcli.is_available():
-            return {"ok": False, "error": "Claude CLI chưa cài"}
+            return {"ok": False, "error": localefmt.chu("Claude CLI chưa cài", "Claude CLI is not installed")}
         # Trần thời gian như mọi việc nền khác (Kanban, nhắc hẹn): không có thì một vòng treo
         # là treo tới khi tắt máy chủ.
         try:
@@ -1076,7 +1083,7 @@ class LoopFeature:
         ):
             self.ensure_migrated()
             if mode not in ("suggest", "auto", "full"):
-                return {"ok": False, "error": "mode phải là suggest, auto hoặc full"}
+                return {"ok": False, "error": localefmt.chu("mode phải là suggest, auto hoặc full", "mode must be suggest, auto or full")}
             # Tra loop cũ theo slug NGUYÊN VĂN trước (stem tự do, vd tiếng Việt user tự đặt),
             # rồi mới thử bản ascii - để "Sửa" ghi đè đúng file gốc thay vì fork bản sao.
             raw = (slug or name).strip()
@@ -1086,14 +1093,14 @@ class LoopFeature:
             # giữ giá trị loop cũ (sửa), hoặc mặc định an toàn (tạo mới: goal=custom = freeform).
             goal = goal or (old["goal"] if old else "custom")
             if goal not in GOALS:
-                return {"ok": False, "error": f"goal phải là 1 trong {'/'.join(GOALS)}"}
+                return {"ok": False, "error": localefmt.chu(f"goal phải là 1 trong {'/'.join(GOALS)}", f"goal must be one of {'/'.join(GOALS)}")}
             tools_profile = tools_profile or (old["tools_profile"] if old else "vault-safe")
             if tools_profile not in ("vault-safe", "code"):
-                return {"ok": False, "error": "tools_profile phải là vault-safe hoặc code"}
+                return {"ok": False, "error": localefmt.chu("tools_profile phải là vault-safe hoặc code", "tools_profile must be vault-safe or code")}
             workspace = workspace if workspace is not None else (old["workspace"] if old else "vault")
             ws = (workspace or "vault").strip() or "vault"
             if ws != "vault" and not Path(ws).is_dir():
-                return {"ok": False, "error": f"workspace '{ws}' không tồn tại"}
+                return {"ok": False, "error": localefmt.chu(f"workspace '{ws}' không tồn tại", f"workspace '{ws}' does not exist")}
             if quiet_hours is None:
                 quiet_hours = old["quiet_hours"] if old else ""
             if max_runs_per_day is None:
@@ -1145,7 +1152,7 @@ class LoopFeature:
         @router.post("/loops/run-now")
         async def loops_run_now(slug: str = Form(...), brain: str = Form("brain")):
             if self.lock.locked():
-                return {"ok": False, "error": "Đang chạy một vòng khác"}
+                return {"ok": False, "error": localefmt.chu("Đang chạy một vòng khác", "Another cycle is running")}
             if not self.get_loop(brain, slug):
                 return {"ok": False, "error": "not found"}
             self.register_brain(brain)
@@ -1200,11 +1207,11 @@ class LoopFeature:
         @router.post("/loop/run-now")
         async def loop_run_now():
             if self.lock.locked():
-                return {"ok": False, "error": "Đang chạy"}
+                return {"ok": False, "error": localefmt.chu("Đang chạy", "Already running")}
             self.ensure_migrated()
             brain = self._read_legacy_raw().get("brain") or "brain"
             if not self.get_loop(brain, LEGACY_SLUG):
-                return {"ok": False, "error": f"Chưa có loop {LEGACY_SLUG}"}
+                return {"ok": False, "error": localefmt.chu(f"Chưa có loop {LEGACY_SLUG}", f"Loop {LEGACY_SLUG} does not exist yet")}
             asyncio.create_task(self.run_cycle(brain, LEGACY_SLUG, "manual"))
             return {"ok": True, "started": True}
 

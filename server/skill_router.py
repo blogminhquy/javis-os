@@ -83,14 +83,23 @@ def validate_description(desc) -> Optional[str]:
     d = (desc or "").strip()
     if not d:
         return None    # rỗng là hợp lệ: POST /skills có body-fallback lo
+    import localefmt   # lười: module này giữ import mức module ở stdlib + fastyaml
     if len(d) > SKILL_DESC_MAX:
-        return (f"description dài {len(d)} ký tự, vượt trần {SKILL_DESC_MAX}. Router cắt "
-                f"đúng ở {SKILL_DESC_MAX} nên phần dư MẤT IM LẶNG và skill không route "
-                "được. Đưa ví dụ trigger xuống mục '## Khi nào dùng' trong thân file.")
+        return localefmt.chu(
+            f"description dài {len(d)} ký tự, vượt trần {SKILL_DESC_MAX}. Router cắt "
+            f"đúng ở {SKILL_DESC_MAX} nên phần dư MẤT IM LẶNG và skill không route "
+            "được. Đưa ví dụ trigger xuống mục '## Khi nào dùng' trong thân file.",
+            f"description is {len(d)} characters, over the {SKILL_DESC_MAX} limit. The router cuts "
+            f"at exactly {SKILL_DESC_MAX}, so the rest is LOST SILENTLY and the skill cannot be "
+            "routed. Move trigger examples into a '## When to use' section in the body.")
     if _DESC_BOILERPLATE_RE.match(d):
-        return ("description mở đầu bằng cụm sáo rỗng (vd 'Kích hoạt khi ...'). Mọi skill "
-                "đều mở như vậy nên nó đốt ngân sách mà không phân biệt gì. Nêu thẳng "
-                "năng lực, vd 'Tóm tắt biên bản họp thành danh sách việc cần làm.'")
+        return localefmt.chu(
+            "description mở đầu bằng cụm sáo rỗng (vd 'Kích hoạt khi ...'). Mọi skill "
+            "đều mở như vậy nên nó đốt ngân sách mà không phân biệt gì. Nêu thẳng "
+            "năng lực, vd 'Tóm tắt biên bản họp thành danh sách việc cần làm.'",
+            "description opens with filler (e.g. 'Activates when ...'). Every skill "
+            "opens that way, so it burns the budget without telling skills apart. State the "
+            "capability directly, e.g. 'Summarize meeting minutes into a list of action items.'")
     return None
 
 

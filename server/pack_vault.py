@@ -40,6 +40,7 @@ import sys
 from pathlib import Path
 
 import system_sync
+import localefmt
 from config import STATE_DIR
 
 HIEU_UNG_DIR = STATE_DIR / "packs-state"
@@ -177,10 +178,12 @@ def cai(pack_id: str, thu_muc_goi: Path, brain_root: str) -> dict:
                     h = _hash(dich)
                     if khoa not in muc_cu:
                         # Của người dùng, hoặc của một gói khác. Không đụng.
-                        bao["bo_qua"].append({"khoa": khoa, "vi_sao": "brain đã có mục cùng tên"})
+                        bao["bo_qua"].append({"khoa": khoa, "vi_sao": localefmt.chu("brain đã có mục cùng tên",
+                                                                                  "the brain already has an item with that name")})
                         continue
                     if h != muc_cu[khoa].get("hash"):
-                        bao["bo_qua"].append({"khoa": khoa, "vi_sao": "bạn đã sửa, giữ bản của bạn"})
+                        bao["bo_qua"].append({"khoa": khoa, "vi_sao": localefmt.chu("bạn đã sửa, giữ bản của bạn",
+                                                                                  "you edited it, your version is kept")})
                         moi[khoa] = muc_cu[khoa]      # vẫn ghi nhận là của gói, để lúc gỡ còn biết
                         continue
                     ke = "cap_nhat"

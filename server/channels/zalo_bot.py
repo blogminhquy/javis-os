@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from channels import KenhSpec
+import localefmt
 
 ZALO_API = "https://bot-api.zaloplatforms.com/bot{token}/{method}"
 
@@ -37,10 +38,12 @@ async def verify_token(token: str) -> dict:
             r = await client.post(ZALO_API.format(token=tok, method="getMe"), json={})
         d = r.json()
     except Exception as e:
-        return {"ok": False, "error": f"Không nối được Zalo Bot: {e}"}
+        return {"ok": False, "error": localefmt.chu(f"Không nối được Zalo Bot: {e}", f"Could not reach Zalo Bot: {e}")}
     if not d.get("ok"):
-        return {"ok": False, "error": "Token không hợp lệ (Zalo Bot từ chối). Kiểm lại xem token "
-                                      "này có đúng là token Zalo Bot không."}
+        return {"ok": False, "error": localefmt.chu(
+            "Token không hợp lệ (Zalo Bot từ chối). Kiểm lại xem token "
+            "này có đúng là token Zalo Bot không.",
+            "Invalid token (Zalo Bot refused it). Check that this really is a Zalo Bot token.")}
     info = d.get("result") or {}
     return {"ok": True, "username": info.get("account_name") or "",
             "bot_name": info.get("account_name") or "",
@@ -52,6 +55,6 @@ async def verify_token(token: str) -> dict:
 async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private"):
     token = str(tk.get("token") or "").strip()
     if not token:
-        return False, "tài khoản Zalo Bot này chưa có token"
+        return False, localefmt.chu("tài khoản Zalo Bot này chưa có token", "this Zalo Bot account has no token yet")
     bot = _Transport()(token, "", None, giau_trang_thai=True)
     return await bot.send_text(chat_id, text)

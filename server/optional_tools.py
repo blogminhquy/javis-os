@@ -33,6 +33,7 @@ from pathlib import Path
 
 
 import winproc
+import localefmt
 from config import STATE_DIR
 
 # Nơi tải trình duyệt về. Playwright đọc biến môi trường này cho cả lúc tải lẫn lúc chạy, nên
@@ -57,10 +58,12 @@ _TASKS: set = set()       # giữ ref mạnh, không để bộ gom rác nuốt 
 def _mo_ta_trinh_duyet() -> dict:
     return {
         "id": "browser",
-        "ten": "Trình duyệt (Chromium)",
-        "mo_ta": "Cho Javis tự mở trang, chụp màn hình và kiểm thử giao diện sau khi sửa code. "
-                 "Cần cho kết nối Playwright.",
-        "dung_luong_uoc": "khoảng 100 MB",
+        "ten": localefmt.chu("Trình duyệt (Chromium)", "Browser (Chromium)"),
+        "mo_ta": localefmt.chu("Cho Javis tự mở trang, chụp màn hình và kiểm thử giao diện sau khi sửa code. "
+                               "Cần cho kết nối Playwright.",
+                               "Lets Javis open pages, take screenshots and test the interface after editing code. "
+                               "Needed for the Playwright connection."),
+        "dung_luong_uoc": localefmt.chu("khoảng 100 MB", "about 100 MB"),
     }
 
 
@@ -190,14 +193,18 @@ def chan_doan_trinh_duyet() -> str:
     """
     try:
         if not BROWSERS_DIR.exists():
-            return f"Javis đã tìm trong {BROWSERS_DIR} nhưng thư mục đó chưa có."
+            return localefmt.chu(f"Javis đã tìm trong {BROWSERS_DIR} nhưng thư mục đó chưa có.",
+                                 f"Javis looked in {BROWSERS_DIR} but that folder does not exist.")
         ten = sorted(d.name for d in BROWSERS_DIR.iterdir() if d.is_dir())
         if not ten:
-            return f"Javis đã tìm trong {BROWSERS_DIR} nhưng thư mục đó rỗng."
-        return (f"Javis đã tìm trong {BROWSERS_DIR}, thấy {', '.join(ten[:6])} "
-                f"nhưng không có file chạy nào bên trong.")
+            return localefmt.chu(f"Javis đã tìm trong {BROWSERS_DIR} nhưng thư mục đó rỗng.",
+                                 f"Javis looked in {BROWSERS_DIR} but that folder is empty.")
+        return localefmt.chu(f"Javis đã tìm trong {BROWSERS_DIR}, thấy {', '.join(ten[:6])} "
+                             f"nhưng không có file chạy nào bên trong.",
+                             f"Javis looked in {BROWSERS_DIR}, found {', '.join(ten[:6])} "
+                             f"but no executable inside.")
     except OSError as e:
-        return f"Javis không đọc được {BROWSERS_DIR}: {e}"
+        return localefmt.chu(f"Javis không đọc được {BROWSERS_DIR}: {e}", f"Javis could not read {BROWSERS_DIR}: {e}")
 
 
 def _so_ban(ten: str) -> int:
@@ -294,16 +301,23 @@ def _trang_thai_browser(d: dict, viec: dict) -> dict:
     chay_duoc = duong_dan_chrome()
     tu_tai = bool(tai_ve and chay_duoc and chay_duoc.startswith(str(BROWSERS_DIR)))
     if dang_chay:
-        tt, ly_do = "dang_cai", "Đang tải trình duyệt về, việc này mất vài phút."
+        tt, ly_do = "dang_cai", localefmt.chu("Đang tải trình duyệt về, việc này mất vài phút.",
+                                               "Downloading the browser, this takes a few minutes.")
     elif tu_tai:
-        tt, ly_do = "san_sang", "Javis đã tải sẵn một bản Chromium riêng."
+        tt, ly_do = "san_sang", localefmt.chu("Javis đã tải sẵn một bản Chromium riêng.",
+                                               "Javis has downloaded its own copy of Chromium.")
     elif chay_duoc:
-        tt, ly_do = "san_sang", f"Dùng trình duyệt có sẵn trên máy: {chay_duoc}"
+        tt, ly_do = "san_sang", localefmt.chu(f"Dùng trình duyệt có sẵn trên máy: {chay_duoc}",
+                                               f"Using the browser already on this machine: {chay_duoc}")
     elif tai_ve:
-        tt, ly_do = "chua_cai", ("Có thư mục trình duyệt nhưng thiếu file chạy, bản tải về "
-                                 "hỏng dở. Bấm Gỡ rồi tải lại. " + chan_doan_trinh_duyet())
+        tt, ly_do = "chua_cai", (localefmt.chu("Có thư mục trình duyệt nhưng thiếu file chạy, bản tải về "
+                                               "hỏng dở. Bấm Gỡ rồi tải lại. ",
+                                               "There is a browser folder but no executable, the download "
+                                               "broke midway. Press Remove, then download again. ")
+                                 + chan_doan_trinh_duyet())
     else:
-        tt, ly_do = "chua_cai", "Máy này chưa có trình duyệt nào Javis lái được."
+        tt, ly_do = "chua_cai", localefmt.chu("Máy này chưa có trình duyệt nào Javis lái được.",
+                                               "This machine has no browser Javis can drive yet.")
     d.update({
         "trang_thai": tt, "ly_do": ly_do,
         "go_duoc": bool(tai_ve),           # chỉ gỡ được thứ CHÍNH JAVIS tải về
@@ -316,7 +330,7 @@ def _trang_thai_browser(d: dict, viec: dict) -> dict:
 def trang_thai(cong_cu: str = "browser") -> dict:
     """Trạng thái một công cụ tuỳ chọn, đủ để vẽ thẻ trên màn hình."""
     if cong_cu not in CONG_CU:
-        return {"ok": False, "error": f"không có công cụ tên {cong_cu!r}"}
+        return {"ok": False, "error": localefmt.chu(f"không có công cụ tên {cong_cu!r}", f"no tool named {cong_cu!r}")}
     d = dict(CONG_CU[cong_cu]())
     viec = _viec.get(cong_cu) or {}
     d["ok"] = True
@@ -362,14 +376,16 @@ def _lenh_cai(cong_cu: str) -> tuple:
     return (
         ["npx", "-y", "playwright@latest", "install", "--only-shell", "chromium"],
         str(BROWSERS_DIR), moi_truong, TAI_TIMEOUT,
-        "Máy này không có Node (npx), không tải được trình duyệt.",
+        localefmt.chu("Máy này không có Node (npx), không tải được trình duyệt.",
+                      "This machine has no Node (npx), so the browser cannot be downloaded."),
     )
 
 
 async def _chay_tai(cong_cu: str) -> None:
     """Cài một công cụ tuỳ chọn. Chạy nền, mọi đường ra đều ghi lại trạng thái."""
     v = _viec.setdefault(cong_cu, {})
-    v.update({"dang_chay": True, "loi": "", "log": "", "tien_do": "Đang chuẩn bị...", "bat_dau": time.time()})
+    v.update({"dang_chay": True, "loi": "", "log": "", "tien_do": localefmt.chu("Đang chuẩn bị...", "Preparing..."),
+              "bat_dau": time.time()})
     lenh, thu_muc, moi_truong, tran_gio, loi_thieu = _lenh_cai(cong_cu)
     try:
         tt = await asyncio.create_subprocess_exec(
@@ -398,14 +414,15 @@ async def _chay_tai(cong_cu: str) -> None:
         except Exception:
             pass
         v.update({"dang_chay": False,
-                  "loi": f"Chạy quá {int(tran_gio // 60)} phút chưa xong nên đã dừng. Thử lại khi mạng rảnh hơn."})
+                  "loi": localefmt.chu(f"Chạy quá {int(tran_gio // 60)} phút chưa xong nên đã dừng. Thử lại khi mạng rảnh hơn.",
+                                      f"Still not done after {int(tran_gio // 60)} minutes, so it was stopped. Try again when the network is less busy.")})
         return
     except asyncio.CancelledError:
         try:
             tt.kill()
         except Exception:
             pass
-        v.update({"dang_chay": False, "loi": "Đã dừng giữa chừng."})
+        v.update({"dang_chay": False, "loi": localefmt.chu("Đã dừng giữa chừng.", "Stopped midway.")})
         raise
     except Exception as e:
         v.update({"dang_chay": False, "loi": f"{type(e).__name__}: {e}"})
@@ -413,20 +430,22 @@ async def _chay_tai(cong_cu: str) -> None:
 
     v["dang_chay"] = False
     if ma != 0:
-        v["loi"] = f"Lệnh cài trả mã lỗi {ma}. Xem log bên dưới."
+        v["loi"] = localefmt.chu(f"Lệnh cài trả mã lỗi {ma}. Xem log bên dưới.",
+                                 f"The install command returned error code {ma}. See the log below.")
     elif not duong_dan_chrome():
-        v["loi"] = "Lệnh chạy xong nhưng không thấy thứ vừa cài đâu."
+        v["loi"] = localefmt.chu("Lệnh chạy xong nhưng không thấy thứ vừa cài đâu.",
+                                 "The command finished but what it installed cannot be found.")
     else:
-        v["tien_do"] = "Xong."
+        v["tien_do"] = localefmt.chu("Xong.", "Done.")
     print(f"[cong-cu] tải {cong_cu}: mã {ma}, lỗi={v.get('loi') or 'không'}", file=sys.stderr)
 
 
 def bat_dau_cai(cong_cu: str = "browser") -> dict:
     """Khởi động việc tải ở NỀN rồi trả về ngay. Màn hình hỏi tiến độ qua `trang_thai`."""
     if cong_cu not in CONG_CU:
-        return {"ok": False, "error": f"không có công cụ tên {cong_cu!r}"}
+        return {"ok": False, "error": localefmt.chu(f"không có công cụ tên {cong_cu!r}", f"no tool named {cong_cu!r}")}
     if (_viec.get(cong_cu) or {}).get("dang_chay"):
-        return {"ok": True, "dang_chay": True, "note": "đang tải rồi"}
+        return {"ok": True, "dang_chay": True, "note": localefmt.chu("đang tải rồi", "already downloading")}
     t = asyncio.get_event_loop().create_task(_chay_tai(cong_cu))
     _TASKS.add(t)
     t.add_done_callback(_TASKS.discard)
@@ -436,10 +455,11 @@ def bat_dau_cai(cong_cu: str = "browser") -> dict:
 def go(cong_cu: str = "browser") -> dict:
     """Xoá bản Javis tự tải. KHÔNG bao giờ đụng tới trình duyệt có sẵn của máy."""
     if cong_cu not in CONG_CU:
-        return {"ok": False, "error": f"không có công cụ tên {cong_cu!r}"}
+        return {"ok": False, "error": localefmt.chu(f"không có công cụ tên {cong_cu!r}", f"no tool named {cong_cu!r}")}
     goc = BROWSERS_DIR
     if not _da_tai():
-        return {"ok": False, "error": "Không có bản nào do Javis cài để gỡ."}
+        return {"ok": False, "error": localefmt.chu("Không có bản nào do Javis cài để gỡ.",
+                                                    "There is no copy installed by Javis to remove.")}
     try:
         shutil.rmtree(goc, ignore_errors=True)
         _viec.pop(cong_cu, None)

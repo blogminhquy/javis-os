@@ -30,6 +30,8 @@ import ipaddress
 import socket
 from urllib.parse import urlparse
 
+import localefmt
+
 MAX_TAI = 25 * 1024 * 1024      # khớp trần của pack_install.MAX_ZIP
 MAX_CHUYEN_HUONG = 3
 TIMEOUT_KET_NOI = 10.0
@@ -62,22 +64,25 @@ def kiem_dia_chi(url: str) -> str:
     nhiều bản ghi, và chỉ cần một cái trỏ vào trong là đủ."""
     p = urlparse(str(url or "").strip())
     if p.scheme != "https":
-        raise LoiTai("Chỉ tải được qua https://")
+        raise LoiTai(localefmt.chu("Chỉ tải được qua https://", "Downloads only work over https://"))
     if not p.hostname:
-        raise LoiTai("Địa chỉ thiếu tên máy")
+        raise LoiTai(localefmt.chu("Địa chỉ thiếu tên máy", "The address is missing a host name"))
     if p.port not in (None, 443):
         # Cổng lạ gần như luôn là dịch vụ nội bộ. Chặn thẳng thay vì đoán.
-        raise LoiTai("Chỉ tải được từ cổng 443")
+        raise LoiTai(localefmt.chu("Chỉ tải được từ cổng 443", "Downloads only work from port 443"))
     try:
         thong_tin = socket.getaddrinfo(p.hostname, 443, proto=socket.IPPROTO_TCP)
     except OSError as e:
-        raise LoiTai(f"Không phân giải được tên máy: {p.hostname}") from e
+        raise LoiTai(localefmt.chu(f"Không phân giải được tên máy: {p.hostname}",
+                                   f"Could not resolve the host name: {p.hostname}")) from e
     dia_chi = {x[4][0] for x in thong_tin}
     if not dia_chi:
-        raise LoiTai(f"Không phân giải được tên máy: {p.hostname}")
+        raise LoiTai(localefmt.chu(f"Không phân giải được tên máy: {p.hostname}",
+                                   f"Could not resolve the host name: {p.hostname}"))
     cam = sorted(a for a in dia_chi if _dia_chi_cam(a))
     if cam:
-        raise LoiTai(f"Địa chỉ này trỏ vào mạng nội bộ ({cam[0]}), không tải được.")
+        raise LoiTai(localefmt.chu(f"Địa chỉ này trỏ vào mạng nội bộ ({cam[0]}), không tải được.",
+                                   f"This address points into a private network ({cam[0]}), it cannot be downloaded."))
     return p.hostname
 
 
@@ -101,7 +106,8 @@ async def tai(url: str, *, header: dict = None, tran: int = MAX_TAI) -> bytes:
                     if r.status_code in (301, 302, 303, 307, 308):
                         ke = r.headers.get("location")
                         if not ke:
-                            raise LoiTai("Máy chủ chuyển hướng nhưng không nói đi đâu")
+                            raise LoiTai(localefmt.chu("Máy chủ chuyển hướng nhưng không nói đi đâu",
+                                                       "The server redirected but did not say where"))
                         truoc = httpx.URL(hien).host
                         hien = str(httpx.URL(hien).join(ke))
                         if httpx.URL(hien).host != truoc:
@@ -113,23 +119,26 @@ async def tai(url: str, *, header: dict = None, tran: int = MAX_TAI) -> bytes:
                             hd.update(header_xac_thuc(hien))
                         continue
                     if r.status_code == 404:
-                        raise LoiTai("Không tìm thấy tệp ở địa chỉ này (404)")
+                        raise LoiTai(localefmt.chu("Không tìm thấy tệp ở địa chỉ này (404)", "No file found at this address (404)"))
                     if r.status_code in (401, 403):
-                        raise LoiTai("Không có quyền tải tệp này (%d)" % r.status_code)
+                        raise LoiTai(localefmt.chu("Không có quyền tải tệp này (%d)",
+                                                  "No permission to download this file (%d)") % r.status_code)
                     if r.status_code >= 400:
-                        raise LoiTai(f"Máy chủ trả lỗi {r.status_code}")
+                        raise LoiTai(localefmt.chu(f"Máy chủ trả lỗi {r.status_code}", f"The server returned error {r.status_code}"))
                     # Trần áp theo BYTE THẬT NHẬN ĐƯỢC, không tin Content-Length: header đó do
                     # bên kia khai, và khai một đằng gửi một nẻo là chuyện thường.
                     khoi, tong = [], 0
                     async for mieng in r.aiter_bytes(1 << 16):
                         tong += len(mieng)
                         if tong > tran:
-                            raise LoiTai(f"Tệp quá lớn, trần {tran // 1024 // 1024}MB")
+                            raise LoiTai(localefmt.chu(f"Tệp quá lớn, trần {tran // 1024 // 1024}MB",
+                                                       f"File too large, limit {tran // 1024 // 1024}MB"))
                         khoi.append(mieng)
                     return b"".join(khoi)
             except httpx.HTTPError as e:
-                raise LoiTai(f"Không tải được: {type(e).__name__}") from e
-    raise LoiTai("Chuyển hướng quá nhiều lần")
+                raise LoiTai(localefmt.chu(f"Không tải được: {type(e).__name__}",
+                                           f"Download failed: {type(e).__name__}")) from e
+    raise LoiTai(localefmt.chu("Chuyển hướng quá nhiều lần", "Too many redirects"))
 
 
 def token_cho(url: str) -> str:
@@ -175,11 +184,12 @@ def url_zip_github(raw: str) -> str:
     nhất. Mọi thứ khác giữ nguyên và để `kiem_dia_chi` phán."""
     s = str(raw or "").strip()
     if not s:
-        raise LoiTai("Chưa nhập địa chỉ")
+        raise LoiTai(localefmt.chu("Chưa nhập địa chỉ", "No address entered"))
     if s.startswith("https://"):
         return s
     if "/" in s and "://" not in s and " " not in s:
         kho, _, ref = s.partition("@")
         if kho.count("/") == 1:
             return f"https://codeload.github.com/{kho}/zip/refs/heads/{ref or 'main'}"
-    raise LoiTai("Địa chỉ phải là https://, hoặc dạng owner/repo@nhánh")
+    raise LoiTai(localefmt.chu("Địa chỉ phải là https://, hoặc dạng owner/repo@nhánh",
+                               "The address must be https://, or of the form owner/repo@branch"))

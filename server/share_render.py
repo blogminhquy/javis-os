@@ -376,7 +376,9 @@ def trang_markdown(tieu_de: str, src: str, goc_asset: str, chan: str = "") -> st
 
 
 def trang_loi(thong_diep: str) -> str:
-    return trang("Không mở được", "<h1>Không mở được</h1><p>" + _esc(thong_diep) + "</p>")
+    import localefmt   # lười: trang chia sẻ dựng bằng stdlib, chỉ trang lỗi cần chữ theo ngôn ngữ
+    tieu_de = localefmt.chu("Không mở được", "Cannot open")
+    return trang(tieu_de, "<h1>" + _esc(tieu_de) + "</h1><p>" + _esc(thong_diep) + "</p>")
 
 
 # ── Vá kho lưu trữ cho trang .html chia sẻ ───────────────────────────────────

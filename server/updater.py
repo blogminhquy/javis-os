@@ -37,6 +37,18 @@ def _now():
     return datetime.datetime.now().isoformat(timespec="seconds")
 
 
+def _chu(vi, en):
+    """Câu hiện trên màn hình cập nhật, theo ngôn ngữ giao diện của máy (`locale.ui_lang`).
+
+    Nạp `localefmt` LƯỜI và nuốt mọi lỗi: updater phải chạy được cả khi cây mã đang dở dang giữa
+    hai bản, nên hỏng ở đây thì rơi về tiếng Việt chứ không được làm gãy lượt cập nhật."""
+    try:
+        import localefmt
+        return localefmt.chu(vi, en)
+    except Exception:
+        return vi
+
+
 def log(msg):
     line = f"[{time.strftime('%H:%M:%S')}] {msg}"
     print(line, flush=True)
@@ -201,15 +213,18 @@ def stash_local_changes():
     """Return (stash commit, error), retaining a recoverable backup on failure."""
     status = run(["git", "status", "--porcelain", "--untracked-files=no"])
     if status.returncode != 0:
-        return "", "Không kiểm tra được các sửa đổi cục bộ; dừng cập nhật để tránh mất dữ liệu."
+        return "", _chu("Không kiểm tra được các sửa đổi cục bộ; dừng cập nhật để tránh mất dữ liệu.",
+                         "Could not check local changes; update stopped to avoid losing data.")
     if not (status.stdout or "").strip():
         return "", ""
     previous = _stash_head()
     saved = run(["git", "stash", "push", "-m", "javis-auto-update"])
     current = _stash_head()
     if saved.returncode != 0 or not current or current == previous:
-        return "", ("Không cất được sửa đổi cục bộ; dừng cập nhật. Kiểm tra git stash list "
-                    "và update.log trước khi thử lại.")
+        return "", _chu("Không cất được sửa đổi cục bộ; dừng cập nhật. Kiểm tra git stash list "
+                        "và update.log trước khi thử lại.",
+                        "Could not stash local changes; update stopped. Check git stash list "
+                        "and update.log before trying again.")
     return current, ""
 
 
@@ -219,9 +234,11 @@ def restore_local_changes(stash_oid):
     if restored.returncode == 0:
         return True, ""
     cleaned = run(["git", "reset", "--hard", "HEAD"])
-    detail = (restored.stderr or restored.stdout or "Xung đột khi khôi phục.").strip()[:500]
+    detail = (restored.stderr or restored.stdout
+              or _chu("Xung đột khi khôi phục.", "Conflict while restoring.")).strip()[:500]
     if cleaned.returncode != 0:
-        detail += " Không dọn được xung đột; cần kiểm tra cây git bằng tay."
+        detail += _chu(" Không dọn được xung đột; cần kiểm tra cây git bằng tay.",
+                       " Could not clean up the conflict; check the git tree by hand.")
     return False, detail
 
 
@@ -251,14 +268,17 @@ def merge_release():
     remote, branch = release_source()
     before = _head_hien_tai()
     if not before or remote.startswith("-") or branch.startswith("-"):
-        error = "Không xác định được HEAD hoặc nguồn phát hành hợp lệ."
+        error = _chu("Không xác định được HEAD hoặc nguồn phát hành hợp lệ.",
+                     "Could not determine HEAD or a valid release source.")
         return subprocess.CompletedProcess(["git", "fetch"], 1, "", error), True
     current_branch = run(["git", "symbolic-ref", "-q", "--short", "HEAD"])
     if current_branch.returncode != 0:
-        error = "detached HEAD: hãy chọn một nhánh trước khi cập nhật."
+        error = _chu("detached HEAD: hãy chọn một nhánh trước khi cập nhật.",
+                     "detached HEAD: check out a branch before updating.")
         return subprocess.CompletedProcess(["git", "merge"], 1, "", error), True
     if not _clean_tracked_tree():
-        error = "Cây git chưa sạch sau khi cất sửa đổi; dừng cập nhật để giữ dữ liệu."
+        error = _chu("Cây git chưa sạch sau khi cất sửa đổi; dừng cập nhật để giữ dữ liệu.",
+                     "The git tree is not clean after stashing changes; update stopped to keep your data.")
         return subprocess.CompletedProcess(["git", "merge"], 1, "", error), False
     fetched = run(["git", "fetch", remote, branch])
     if fetched.returncode != 0:
@@ -267,7 +287,8 @@ def merge_release():
     if merged.returncode == 0:
         if _clean_tracked_tree():
             return merged, True
-        error = "Đã hợp nhất nhưng cây git còn sửa đổi ngoài dự kiến; dừng cập nhật."
+        error = _chu("Đã hợp nhất nhưng cây git còn sửa đổi ngoài dự kiến; dừng cập nhật.",
+                         "Merged, but the git tree has unexpected changes; update stopped.")
         return subprocess.CompletedProcess(merged.args, 1, merged.stdout, error), False
     in_merge = run(["git", "rev-parse", "--verify", "-q", "MERGE_HEAD"]).returncode == 0
     if in_merge:
@@ -282,10 +303,14 @@ def chan_doan_pull(pull_out: str) -> str:
     out = (pull_out or "").strip()
     remote, branch = release_source()
     if "up to date" in out.lower() or "up-to-date" in out.lower():
-        return (f"Nguồn phát hành {remote}/{branch} chưa có phiên bản mới hơn. Nếu chạy bằng "
-                "Docker hoặc bản đóng gói, hãy cập nhật image thay vì nút này.")
-    return (f"Đã hợp nhất {remote}/{branch} nhưng VERSION không tăng như dự kiến. "
-            "Kiểm tra phiên bản trên nhánh phát hành và update.log.")
+        return _chu(f"Nguồn phát hành {remote}/{branch} chưa có phiên bản mới hơn. Nếu chạy bằng "
+                    "Docker hoặc bản đóng gói, hãy cập nhật image thay vì nút này.",
+                    f"The release source {remote}/{branch} has no newer version yet. If you run "
+                    "Docker or a packaged build, update the image instead of using this button.")
+    return _chu(f"Đã hợp nhất {remote}/{branch} nhưng VERSION không tăng như dự kiến. "
+                "Kiểm tra phiên bản trên nhánh phát hành và update.log.",
+                f"Merged {remote}/{branch} but VERSION did not go up as expected. "
+                "Check the version on the release branch and update.log.")
 
 
 def chan_doan_pull_hong(loi: str, nhanh: str = "", theo_doi: str = "",
@@ -298,27 +323,41 @@ def chan_doan_pull_hong(loi: str, nhanh: str = "", theo_doi: str = "",
     if "conflict" in thap or "automatic merge failed" in thap:
         files = list(dict.fromkeys(re.findall(r"Merge conflict in (\S+)", out, re.IGNORECASE)))
         names = (": " + ", ".join(files[:5])
-                 + (f" và {len(files) - 5} file khác" if len(files) > 5 else "")) if files else ""
+                 + (_chu(f" và {len(files) - 5} file khác", f" and {len(files) - 5} other files")
+                    if len(files) > 5 else "")) if files else ""
         if not merge_aborted:
-            return ("Bản phát hành xung đột với code sửa riêng" + names
-                    + ". Chưa hủy được lần hợp nhất; kiểm tra git status và giữ nguyên "
-                      "git stash trước khi sửa bằng tay.")
-        return ("Bản phát hành xung đột với code sửa riêng" + names
-                + f". Updater đã hủy lần hợp nhất; commit riêng giữ nguyên. Cần gộp tay: "
-                  f"git fetch {remote} {branch} && git merge FETCH_HEAD, sửa xung đột rồi commit.")
+            return _chu("Bản phát hành xung đột với code sửa riêng" + names
+                        + ". Chưa hủy được lần hợp nhất; kiểm tra git status và giữ nguyên "
+                          "git stash trước khi sửa bằng tay.",
+                        "The release conflicts with your own code changes" + names
+                        + ". The merge could not be aborted; check git status and keep "
+                          "the git stash before fixing it by hand.")
+        return _chu("Bản phát hành xung đột với code sửa riêng" + names
+                    + f". Updater đã hủy lần hợp nhất; commit riêng giữ nguyên. Cần gộp tay: "
+                      f"git fetch {remote} {branch} && git merge FETCH_HEAD, sửa xung đột rồi commit.",
+                    "The release conflicts with your own code changes" + names
+                    + f". The updater aborted the merge; your commits are kept. Merge by hand: "
+                      f"git fetch {remote} {branch} && git merge FETCH_HEAD, fix the conflicts, then commit.")
     if "not possible to fast-forward" in thap or "diverging" in thap or "diverged" in thap:
-        return ("Lịch sử nhánh phát hành và nhánh hiện tại khác nhau, Git chưa hợp nhất được. "
-                "Các commit riêng vẫn ở nhánh hiện tại; xem update.log để xử lý bằng tay.")
+        return _chu("Lịch sử nhánh phát hành và nhánh hiện tại khác nhau, Git chưa hợp nhất được. "
+                    "Các commit riêng vẫn ở nhánh hiện tại; xem update.log để xử lý bằng tay.",
+                    "The release branch history and the current branch have diverged, so Git could not "
+                    "merge. Your commits are still on the current branch; see update.log to fix it by hand.")
     if "you are not currently on a branch" in thap or nhanh == "HEAD":
-        return "Máy đang ở trạng thái detached HEAD; hãy chọn một nhánh trước khi cập nhật."
+        return _chu("Máy đang ở trạng thái detached HEAD; hãy chọn một nhánh trước khi cập nhật.",
+                    "This machine is on a detached HEAD; check out a branch before updating.")
     if "authentication" in thap or "permission denied" in thap or "403" in thap:
-        return "GitHub từ chối quyền truy cập. Kiểm tra lại thông tin đăng nhập git của máy."
+        return _chu("GitHub từ chối quyền truy cập. Kiểm tra lại thông tin đăng nhập git của máy.",
+                    "GitHub denied access. Check this machine's git credentials.")
     if ("could not resolve host" in thap or "unable to access" in thap
             or "connection" in thap or "timed out" in thap):
-        return "Không nối được tới GitHub. Kiểm tra mạng rồi bấm cập nhật lại."
+        return _chu("Không nối được tới GitHub. Kiểm tra mạng rồi bấm cập nhật lại.",
+                    "Could not reach GitHub. Check the network, then press update again.")
     if "local changes" in thap or "would be overwritten" in thap:
-        return ("Có file cục bộ chặn bản phát hành. Kiểm tra git status, cất hoặc đổi tên "
-                "file đó rồi cập nhật lại; bản sao sửa đổi đã cất vẫn ở git stash.")
+        return _chu("Có file cục bộ chặn bản phát hành. Kiểm tra git status, cất hoặc đổi tên "
+                    "file đó rồi cập nhật lại; bản sao sửa đổi đã cất vẫn ở git stash.",
+                    "A local file is blocking the release. Check git status, stash or rename "
+                    "that file, then update again; the stashed copy of your changes is still in git stash.")
     return ""
 
 
@@ -395,7 +434,8 @@ def main():
     if stash_error:
         log(stash_error)
         start_server(mode, a.port)
-        them = "" if poll_health(a.port, 60) else " Server cũ chưa lên lại."
+        them = "" if poll_health(a.port, 60) else _chu(" Server cũ chưa lên lại.",
+                                                        " The old server has not come back up.")
         us.write_state({"phase": "error", "result": "error", "error": stash_error + them,
                         "finished_at": _now()})
         return 1
@@ -406,12 +446,17 @@ def main():
         git_error = "\n".join(x for x in (pull.stdout, pull.stderr) if x)
         log("Hợp nhất bản phát hành LỖI:\n" + git_error)
         if not tree_safe:
-            note = (f"Không xác nhận được cây Git an toàn. Kiểm tra git status và update.log "
-                    f"trước khi khởi động lại; "
-                    f"bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash."
+            note = (_chu(f"Không xác nhận được cây Git an toàn. Kiểm tra git status và update.log "
+                         f"trước khi khởi động lại; "
+                         f"bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash.",
+                         f"Could not confirm the Git tree is safe. Check git status and update.log "
+                         f"before restarting; "
+                         f"the copy of your changes {stash_oid[:12]} is still in git stash.")
                     if stash_oid else
-                    "Không xác nhận được cây Git an toàn. Kiểm tra git status và update.log "
-                    "trước khi khởi động lại.")
+                    _chu("Không xác nhận được cây Git an toàn. Kiểm tra git status và update.log "
+                         "trước khi khởi động lại.",
+                         "Could not confirm the Git tree is safe. Check git status and update.log "
+                         "before restarting."))
             us.write_state({"phase": "error", "result": "pull_failed", "error": note,
                             "finished_at": _now()})
             return 1
@@ -421,19 +466,24 @@ def main():
             if restored and drop_update_stash(stash_oid, restored):
                 us.write_state({"stashed": False})
             elif restored:
-                stash_note = f" Đã áp lại sửa đổi, nhưng bản sao {stash_oid[:12]} vẫn trong git stash."
+                stash_note = _chu(f" Đã áp lại sửa đổi, nhưng bản sao {stash_oid[:12]} vẫn trong git stash.",
+                                  f" Your changes were reapplied, but the copy {stash_oid[:12]} is still in git stash.")
             else:
-                stash_note = (f" Chưa khôi phục được sửa đổi; bản sao {stash_oid[:12]} vẫn "
-                              f"trong git stash: {restore_error}")
+                stash_note = _chu(f" Chưa khôi phục được sửa đổi; bản sao {stash_oid[:12]} vẫn "
+                                  f"trong git stash: {restore_error}",
+                                  f" Could not restore your changes; the copy {stash_oid[:12]} is still "
+                                  f"in git stash: {restore_error}")
         # Merge đã hủy hoặc fetch thất bại; xác nhận server cũ thật sự lên lại.
         start_server(mode, a.port)
-        them = "" if poll_health(a.port, 60) else (
-            " Server cũ CŨNG chưa lên lại - mở Javis bằng tay để chạy tiếp.")
+        them = "" if poll_health(a.port, 60) else _chu(
+            " Server cũ CŨNG chưa lên lại - mở Javis bằng tay để chạy tiếp.",
+            " The old server has NOT come back up either - start Javis by hand to continue.")
         ly_do = chan_doan_pull_hong(git_error, merge_aborted=tree_safe)
         log("Chẩn đoán: " + (ly_do or "(không nhận ra nguyên nhân quen thuộc)"))
-        tho = (git_error or "Không hợp nhất được bản phát hành").strip()
+        tho = (git_error or _chu("Không hợp nhất được bản phát hành", "Could not merge the release")).strip()
         us.write_state({"phase": "error", "result": "pull_failed",
-                        "error": ((ly_do + " (chi tiết trong update.log)") if ly_do else tho[:400])
+                        "error": ((ly_do + _chu(" (chi tiết trong update.log)", " (details in update.log)"))
+                                  if ly_do else tho[:400])
                                  + stash_note + them,
                         "finished_at": _now()})
         return 1
@@ -445,8 +495,10 @@ def main():
         if stash_restored:
             log("Đã áp lại sửa đổi cục bộ; giữ bản sao tới khi bản mới chạy ổn.")
         else:
-            stash_note = (f"Sửa đổi cục bộ chưa khôi phục được trên bản mới; bản sao "
-                          f"{stash_oid[:12]} vẫn trong git stash: {restore_error}")
+            stash_note = _chu(f"Sửa đổi cục bộ chưa khôi phục được trên bản mới; bản sao "
+                              f"{stash_oid[:12]} vẫn trong git stash: {restore_error}",
+                              f"Local changes could not be restored on the new version; the copy "
+                              f"{stash_oid[:12]} is still in git stash: {restore_error}")
             log(stash_note)
 
     us.write_state({"phase": "installing"})
@@ -470,7 +522,8 @@ def main():
             if drop_update_stash(stash_oid, stash_restored):
                 us.write_state({"stashed": False})
             else:
-                stash_note = f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash."
+                stash_note = _chu(f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash.",
+                                  f"The copy of your changes {stash_oid[:12]} is still in git stash.")
         if stash_note:
             us.write_state({"phase": "done", "result": "error", "error": stash_note,
                             "finished_at": _now()})
@@ -482,11 +535,13 @@ def main():
             if drop_update_stash(stash_oid, stash_restored):
                 us.write_state({"stashed": False})
             else:
-                stash_note = f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash."
+                stash_note = _chu(f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash.",
+                                  f"The copy of your changes {stash_oid[:12]} is still in git stash.")
         ly_do = chan_doan_pull(pull.stdout or "")
         log("Phiên bản không đổi. Chẩn đoán: " + ly_do)
         us.write_state({"phase": "done", "result": "error",
-                        "error": f"Vẫn đang chạy {current}, chưa lên {target}. {ly_do} {stash_note}",
+                        "error": _chu(f"Vẫn đang chạy {current}, chưa lên {target}. {ly_do} {stash_note}",
+                                      f"Still running {current}, not yet {target}. {ly_do} {stash_note}"),
                         "finished_at": _now()})
         return 1
 
@@ -495,8 +550,9 @@ def main():
     us.write_state({"phase": "rolling_back"})
     if not a.old_sha:
         us.write_state({"phase": "error", "result": "rollback_failed",
-                        "error": "Không có commit cũ để lùi. "
-                                 + (f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash."
+                        "error": _chu("Không có commit cũ để lùi. ", "There is no old commit to roll back to. ")
+                                 + (_chu(f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash.",
+                                         f"The copy of your changes {stash_oid[:12]} is still in git stash.")
                                     if stash_oid else ""), "finished_at": _now()})
         return 1
     # Từ đây trở xuống mọi bước đều KIỂM MÃ LỖI. Trước đây không bước nào kiểm, nên khi đường
@@ -510,9 +566,12 @@ def main():
     if rs.returncode != 0 or not head.startswith(a.old_sha[:7]):
         # Reset trượt là chuyện NẶNG NHẤT ở đây: mã nguồn vẫn là bản mới đang hỏng, nên bật
         # lại bao nhiêu lần cũng hỏng y như vậy. Phải nói thẳng, kèm lệnh chữa.
-        hong.append(f"lùi mã nguồn KHÔNG thành (git reset rc={rs.returncode}, "
-                    f"HEAD={head[:7] or '?'}). Mã nguồn vẫn là bản mới đang lỗi. "
-                    f"Chạy tay: git reset --hard {a.old_sha[:12]}")
+        hong.append(_chu(f"lùi mã nguồn KHÔNG thành (git reset rc={rs.returncode}, "
+                         f"HEAD={head[:7] or '?'}). Mã nguồn vẫn là bản mới đang lỗi. "
+                         f"Chạy tay: git reset --hard {a.old_sha[:12]}",
+                         f"rolling back the code FAILED (git reset rc={rs.returncode}, "
+                         f"HEAD={head[:7] or '?'}). The code is still the broken new version. "
+                         f"Run by hand: git reset --hard {a.old_sha[:12]}"))
 
     # Reset xóa cả sửa đổi đã áp trên bản mới; áp lại từ bản sao nếu đã về commit cũ.
     if stash_oid:
@@ -522,14 +581,19 @@ def main():
             if stash_restored:
                 stash_note = ""
             else:
-                stash_note = (f"Chưa khôi phục được sửa đổi sau rollback; bản sao "
-                              f"{stash_oid[:12]} vẫn trong git stash: {restore_error}")
+                stash_note = _chu(f"Chưa khôi phục được sửa đổi sau rollback; bản sao "
+                                  f"{stash_oid[:12]} vẫn trong git stash: {restore_error}",
+                                  f"Could not restore your changes after rollback; the copy "
+                                  f"{stash_oid[:12]} is still in git stash: {restore_error}")
         else:
-            stash_note = f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash."
+            stash_note = _chu(f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash.",
+                              f"The copy of your changes {stash_oid[:12]} is still in git stash.")
 
     if pip_install().returncode != 0:
-        hong.append("cài lại thư viện cho bản cũ thất bại - kiểm tra mạng rồi chạy lại: "
-                    "pip install -r requirements.txt")
+        hong.append(_chu("cài lại thư viện cho bản cũ thất bại - kiểm tra mạng rồi chạy lại: "
+                         "pip install -r requirements.txt",
+                         "reinstalling libraries for the old version failed - check the network, then run: "
+                         "pip install -r requirements.txt"))
 
     # Bản mới có thể đang chạy dở (lên tiến trình nhưng /health đỏ) → dừng hẳn trước khi
     # bật bản cũ, kẻo nohup bind trùng cổng. Windows/systemd dừng lại cũng vô hại.
@@ -541,26 +605,34 @@ def main():
             if drop_update_stash(stash_oid, stash_restored):
                 us.write_state({"stashed": False})
             else:
-                stash_note = f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash."
+                stash_note = _chu(f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash.",
+                                  f"The copy of your changes {stash_oid[:12]} is still in git stash.")
         if stash_note:
             us.write_state({"phase": "error", "result": "rollback_failed",
-                            "error": "Bản cũ đã chạy lại nhưng " + stash_note,
+                            "error": _chu("Bản cũ đã chạy lại nhưng ", "The old version is running again, but ") + stash_note,
                             "finished_at": _now()})
             return 1
         us.write_state({"phase": "done", "result": "rolled_back",
-                        "error": "Bản mới lỗi, đã tự quay về bản cũ.", "finished_at": _now()})
+                        "error": _chu("Bản mới lỗi, đã tự quay về bản cũ.",
+                                      "The new version failed, so Javis rolled back to the old one."),
+                        "finished_at": _now()})
         return 0
 
     if pip_moi.returncode != 0:
-        hong.append("bản mới cũng không cài nổi thư viện, nên nhiều khả năng lỗi nằm ở môi "
-                    "trường chứ không ở mã nguồn")
+        hong.append(_chu("bản mới cũng không cài nổi thư viện, nên nhiều khả năng lỗi nằm ở môi "
+                         "trường chứ không ở mã nguồn",
+                         "the new version could not install its libraries either, so the problem is "
+                         "most likely the environment rather than the code"))
     if stash_note:
         hong.append(stash_note)
     us.write_state({"phase": "error", "result": "rollback_failed",
-                    "error": ("Bản mới lỗi và bản cũ cũng chưa lên. "
+                    "error": (_chu("Bản mới lỗi và bản cũ cũng chưa lên. ",
+                                   "The new version failed and the old one has not come up either. ")
                               + ("; ".join(hong) if hong else
-                                 "Mã nguồn đã lùi đúng và thư viện cài xong, nhưng server vẫn "
-                                 "không lên - nhiều khả năng cổng đang bị tiến trình khác giữ.")),
+                                 _chu("Mã nguồn đã lùi đúng và thư viện cài xong, nhưng server vẫn "
+                                      "không lên - nhiều khả năng cổng đang bị tiến trình khác giữ.",
+                                      "The code rolled back correctly and the libraries installed, but the "
+                                      "server still does not start - most likely another process holds the port."))),
                     "finished_at": _now()})
     return 1
 

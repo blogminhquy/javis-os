@@ -27,6 +27,7 @@ import os
 import time
 
 import config as cfgmod
+import localefmt
 
 _LOCALHOST = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
 MUTATING = {"POST", "PUT", "DELETE", "PATCH"}
@@ -151,7 +152,8 @@ def navigation_decision(path: str, sec_fetch_site):
     site = (sec_fetch_site or "").strip().lower()
     if site in ("", "none", "same-origin"):
         return None
-    return 403, "lệnh có tác dụng phụ chỉ chạy được từ chính dashboard"
+    return 403, localefmt.chu("lệnh có tác dụng phụ chỉ chạy được từ chính dashboard",
+                              "commands with side effects can only run from the dashboard itself")
 
 
 # Ký tự KHÔNG bao giờ hợp lệ trong header Host (RFC 9110: chỉ host[:port]). Có mặt một cái
@@ -173,7 +175,7 @@ def host_hop_le(host_header) -> bool:
 def csrf_decision(method: str, host_header: str, origin_header, gate_active: bool):
     """Trả None nếu CHO QUA, hoặc (status_code, message) nếu CHẶN. Hàm THUẦN - dễ test."""
     if not host_hop_le(host_header):
-        return 400, "host header không hợp lệ"
+        return 400, localefmt.chu("host header không hợp lệ", "invalid host header")
     host = host_only(host_header)
     allowed = None
     # 1) CSRF: ghi + có Origin chéo (khác host, ngoài allowlist) → chặn.
@@ -182,12 +184,12 @@ def csrf_decision(method: str, host_header: str, origin_header, gate_active: boo
         if oh != host:
             allowed = allowed_web_hosts()
             if oh not in allowed:
-                return 403, "cross-origin request bị chặn"
+                return 403, localefmt.chu("cross-origin request bị chặn", "cross-origin request blocked")
     # 2) DNS-rebinding: chỉ siết Host khi CHƯA có cổng đăng nhập (trường hợp hở thật sự).
     if not gate_active and host:
         if not _is_ip(host):
             if allowed is None:
                 allowed = allowed_web_hosts()
             if host not in allowed:
-                return 403, "host không được phép"
+                return 403, localefmt.chu("host không được phép", "host not allowed")
     return None

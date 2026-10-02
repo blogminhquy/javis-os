@@ -55,6 +55,7 @@ import zipfile
 from pathlib import Path
 
 import packs
+import localefmt
 from config import STATE_DIR
 
 LEDGER = STATE_DIR / "packs.json"
@@ -122,16 +123,16 @@ def _ten_xau(ten: str) -> str:
     """Lý do từ chối một member, hoặc chuỗi rỗng nếu member đó ổn."""
     t = ten.replace("\\", "/")
     if t.startswith("/") or (len(t) > 1 and t[1] == ":"):
-        return "đường dẫn tuyệt đối"
+        return localefmt.chu("đường dẫn tuyệt đối", "absolute path")
     phan = [x for x in t.split("/") if x]
     if any(x == ".." for x in phan):
-        return "đường dẫn leo ra ngoài"
+        return localefmt.chu("đường dẫn leo ra ngoài", "path escapes the folder")
     for x in phan:
         thap = x.lower()
         if thap in _TEN_CAM or thap.startswith("id_rsa"):
-            return f"tên tệp không cho phép: {x}"
+            return localefmt.chu(f"tên tệp không cho phép: {x}", f"file name not allowed: {x}")
         if any(thap.endswith(d) for d in _DUOI_CAM):
-            return f"tệp khoá riêng không cho phép: {x}"
+            return localefmt.chu(f"tệp khoá riêng không cho phép: {x}", f"private key file not allowed: {x}")
     return ""
 
 
@@ -154,23 +155,23 @@ def _kiem_zip(zf: zipfile.ZipFile) -> tuple[list, str, str]:
     """Duyệt mọi member, áp mọi luật. Trả (danh sách member giữ lại, gốc chung, lý do từ chối)."""
     infos = [i for i in zf.infolist() if not i.is_dir()]
     if not infos:
-        return [], "", "tệp nén rỗng"
+        return [], "", localefmt.chu("tệp nén rỗng", "the archive is empty")
     if len(infos) > MAX_SO_TEP:
-        return [], "", f"quá nhiều tệp ({len(infos)} > {MAX_SO_TEP})"
+        return [], "", localefmt.chu(f"quá nhiều tệp ({len(infos)} > {MAX_SO_TEP})", f"too many files ({len(infos)} > {MAX_SO_TEP})")
     tong = 0
     for i in infos:
         if _la_symlink(i):
-            return [], "", f"chứa liên kết tượng trưng: {i.filename}"
+            return [], "", localefmt.chu(f"chứa liên kết tượng trưng: {i.filename}", f"contains a symbolic link: {i.filename}")
         vs = _ten_xau(i.filename)
         if vs:
             return [], "", f"{vs} ({i.filename})"
         if i.file_size > MAX_MOT_TEP:
-            return [], "", f"tệp quá lớn: {i.filename}"
+            return [], "", localefmt.chu(f"tệp quá lớn: {i.filename}", f"file too large: {i.filename}")
         if i.compress_size and i.file_size / max(i.compress_size, 1) > MAX_TI_LE:
-            return [], "", f"tỉ lệ nén bất thường ở {i.filename}"
+            return [], "", localefmt.chu(f"tỉ lệ nén bất thường ở {i.filename}", f"abnormal compression ratio in {i.filename}")
         tong += i.file_size
         if tong > MAX_GIAI_NEN:
-            return [], "", "tổng dung lượng sau giải nén vượt trần"
+            return [], "", localefmt.chu("tổng dung lượng sau giải nén vượt trần", "total size after extraction exceeds the limit")
     return infos, _goc_chung([i.filename for i in infos]), ""
 
 
@@ -221,8 +222,10 @@ def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
     don_staging()
     if len(du_lieu) > MAX_ZIP:
         return {"ok": False, "stage": "verify",
-                "error": f"tệp quá lớn ({len(du_lieu) // 1024 // 1024}MB, trần "
-                         f"{MAX_ZIP // 1024 // 1024}MB)"}
+                "error": localefmt.chu(f"tệp quá lớn ({len(du_lieu) // 1024 // 1024}MB, trần "
+                                       f"{MAX_ZIP // 1024 // 1024}MB)",
+                                       f"file too large ({len(du_lieu) // 1024 // 1024}MB, limit "
+                                       f"{MAX_ZIP // 1024 // 1024}MB)")}
     sha = hashlib.sha256(du_lieu).hexdigest()
     # Bố cục staging: STAGING/<sha>/<pid>/. Lớp <sha> là thư mục BỌC, còn <pid> mới là thư mục
     # gói - `packs._nap_mot` lấy TÊN THƯ MỤC làm id, nên nó phải đúng bằng id trong manifest,
@@ -244,7 +247,7 @@ def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
             kho.mkdir(parents=True, exist_ok=True)
             _giai_nen(zf, infos, goc, kho)
     except zipfile.BadZipFile:
-        return {"ok": False, "stage": "verify", "error": "không phải tệp .zip hợp lệ"}
+        return {"ok": False, "stage": "verify", "error": localefmt.chu("không phải tệp .zip hợp lệ", "not a valid .zip file")}
     except Exception as e:
         shutil.rmtree(kho, ignore_errors=True)
         return {"ok": False, "stage": "extract", "error": f"{type(e).__name__}: {e}"}
@@ -257,10 +260,10 @@ def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
     manifest = next((kho / t for t in packs.MANIFEST_TEN if (kho / t).is_file()), None)
     if manifest is None:
         shutil.rmtree(kho, ignore_errors=True)
-        return {"ok": False, "stage": "validate", "error": "trong gói không có javis-pack.yaml"}
+        return {"ok": False, "stage": "validate", "error": localefmt.chu("trong gói không có javis-pack.yaml", "the pack has no javis-pack.yaml")}
     if manifest.stat().st_size > MAX_MANIFEST:
         shutil.rmtree(kho, ignore_errors=True)
-        return {"ok": False, "stage": "validate", "error": "manifest quá lớn"}
+        return {"ok": False, "stage": "validate", "error": localefmt.chu("manifest quá lớn", "manifest too large")}
 
     # Id là TÊN THƯ MỤC, mà zip thì chưa có thư mục nào - nên lấy từ manifest rồi đổi tên thư
     # mục staging cho khớp, để `packs._nap_mot` kiểm được đúng như lúc đã cài thật.
@@ -269,10 +272,10 @@ def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
         pid = str((m or {}).get("id") or "").strip()
     except Exception as e:
         shutil.rmtree(kho, ignore_errors=True)
-        return {"ok": False, "stage": "validate", "error": f"manifest lỗi: {e}"}
+        return {"ok": False, "stage": "validate", "error": localefmt.chu(f"manifest lỗi: {e}", f"manifest error: {e}")}
     if not packs._ID_RE.match(pid):
         shutil.rmtree(kho, ignore_errors=True)
-        return {"ok": False, "stage": "validate", "error": f"id gói không hợp lệ: {pid!r}"}
+        return {"ok": False, "stage": "validate", "error": localefmt.chu(f"id gói không hợp lệ: {pid!r}", f"invalid pack id: {pid!r}")}
 
     tam = boc / pid
     if tam.is_dir():
@@ -311,8 +314,10 @@ def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
     if trung:
         shutil.rmtree(boc, ignore_errors=True)
         return {"ok": False, "stage": "validate",
-                "error": ("gói mang plugin trùng tên plugin có sẵn của Javis: "
-                          + ", ".join(trung) + ". Đổi tên trong gói rồi thử lại.")}
+                "error": localefmt.chu("gói mang plugin trùng tên plugin có sẵn của Javis: "
+                                       + ", ".join(trung) + ". Đổi tên trong gói rồi thử lại.",
+                                       "the pack carries a plugin with the same name as a built-in Javis plugin: "
+                                       + ", ".join(trung) + ". Rename it in the pack and try again.")}
     return {
         "ok": bool(ban["ok"]), "stage": "" if ban["ok"] else "validate",
         "error": ban["error"] if not ban["ok"] else "",
@@ -346,17 +351,17 @@ def cai(staging_id: str, consent_sha256: str, *, enable: bool = False,
     sha = str(staging_id or "").strip()
     boc = STAGING / sha
     if not sha or not boc.is_dir() or STAGING.resolve() not in boc.resolve().parents:
-        return {"ok": False, "stage": "commit", "error": "bản soi đã hết hạn, hãy chọn lại tệp"}
+        return {"ok": False, "stage": "commit", "error": localefmt.chu("bản soi đã hết hạn, hãy chọn lại tệp", "the preview has expired, please choose the file again")}
     if not consent_sha256 or consent_sha256 != sha:
         # Ràng buộc cốt lõi của luồng hai bước: cái đã hiện ra phải chính là cái được cài.
         return {"ok": False, "stage": "commit",
-                "error": "nội dung gói đã đổi so với lúc xem, hãy xem lại"}
+                "error": localefmt.chu("nội dung gói đã đổi so với lúc xem, hãy xem lại", "the pack changed since you previewed it, please review it again")}
     con = [d for d in boc.iterdir() if d.is_dir()]
     if len(con) != 1:
-        return {"ok": False, "stage": "commit", "error": "bản soi hỏng, hãy chọn lại tệp"}
+        return {"ok": False, "stage": "commit", "error": localefmt.chu("bản soi hỏng, hãy chọn lại tệp", "the preview is broken, please choose the file again")}
     tam, pid = con[0], con[0].name
     if not packs._ID_RE.match(pid):
-        return {"ok": False, "stage": "commit", "error": "id gói không hợp lệ"}
+        return {"ok": False, "stage": "commit", "error": localefmt.chu("id gói không hợp lệ", "invalid pack id")}
     # Từ chối cài lại đúng thứ bản soi đã báo hỏng. Không có nó thì một gói manifest sai vẫn
     # vào được kho chỉ vì người dùng bấm qua màn hình cảnh báo.
     kiem = packs._nap_mot(tam, set())
@@ -440,7 +445,7 @@ def _digest_ma(thu_muc: Path) -> str:
 def dat_bat_tat(pid: str, bat: bool) -> dict:
     so = doc_so()
     if pid not in so:
-        return {"ok": False, "error": "gói này không có trong sổ cài đặt"}
+        return {"ok": False, "error": localefmt.chu("gói này không có trong sổ cài đặt", "this pack is not in the install ledger")}
     so[pid]["enabled"] = bool(bat)
     _ghi_so(so)
     return {"ok": True, "enabled": bool(bat)}
@@ -488,7 +493,7 @@ def ke_hoach_go(pid: str) -> dict:
     """Gỡ gói này thì mất những gì. Hộp thoại vẽ từ đúng kết quả này."""
     ban = next((p for p in packs.installed() if p["id"] == pid), None)
     if ban is None:
-        return {"ok": False, "error": "không tìm thấy gói"}
+        return {"ok": False, "error": localefmt.chu("không tìm thấy gói", "pack not found")}
     try:
         import mcp_store
         ket_noi = [{"id": c["id"], "label": c.get("label") or c["id"]}
@@ -533,8 +538,10 @@ async def go(pid: str, *, purge_data: bool = False, purge_audit: bool = False) -
             r = await purge.purge_connection(kn["id"], mode="trash", purge_audit=purge_audit)
             if r.get("busy"):
                 return {"ok": False, "busy": True,
-                        "error": f"Kết nối '{kn['label']}' đang chạy dở một việc. "
-                                 f"Chờ nó xong rồi gỡ."}
+                        "error": localefmt.chu(f"Kết nối '{kn['label']}' đang chạy dở một việc. "
+                                               f"Chờ nó xong rồi gỡ.",
+                                               f"Connection '{kn['label']}' is in the middle of a job. "
+                                               f"Wait for it to finish, then uninstall.")}
             bao["connections_purged"].append(kn["label"])
         except Exception as e:
             bao["errors"].append(f"{kn['label']}: {e}")
@@ -548,7 +555,7 @@ async def go(pid: str, *, purge_data: bool = False, purge_audit: bool = False) -
             plugins_host.unload(slug)
         plugins_host.invalidate()
     except Exception as e:
-        bao["errors"].append(f"dừng plugin của gói: {e}")
+        bao["errors"].append(localefmt.chu(f"dừng plugin của gói: {e}", f"stopping the pack plugins: {e}"))
 
     thu_muc = packs.PACKS_DIR / pid
     if thu_muc.is_dir() and packs.PACKS_DIR.resolve() in thu_muc.resolve().parents:
@@ -557,7 +564,7 @@ async def go(pid: str, *, purge_data: bool = False, purge_audit: bool = False) -
             thu_muc.replace(rac)
             shutil.rmtree(rac, ignore_errors=True)
         except OSError as e:
-            bao["errors"].append(f"xoá thư mục gói: {e}")
+            bao["errors"].append(localefmt.chu(f"xoá thư mục gói: {e}", f"deleting the pack folder: {e}"))
 
     if purge_data:
         for slug in ke.get("plugin_data") or []:
@@ -571,7 +578,7 @@ async def go(pid: str, *, purge_data: bool = False, purge_audit: bool = False) -
         import pack_vault
         bao["vault"] = pack_vault.go(pid)
     except Exception as e:
-        bao["errors"].append(f"dọn năng lực trong brain: {e}")
+        bao["errors"].append(localefmt.chu(f"dọn năng lực trong brain: {e}", f"cleaning capabilities in the brain: {e}"))
 
     so = doc_so()
     so.pop(pid, None)
@@ -581,5 +588,5 @@ async def go(pid: str, *, purge_data: bool = False, purge_audit: bool = False) -
         import mcp_hub
         mcp_hub.invalidate_cache()
     except Exception as e:
-        bao["errors"].append(f"làm mới cache: {e}")
+        bao["errors"].append(localefmt.chu(f"làm mới cache: {e}", f"refreshing the cache: {e}"))
     return bao

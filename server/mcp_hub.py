@@ -25,6 +25,7 @@ from urllib.parse import quote, unquote
 from fastapi.responses import JSONResponse, Response
 
 import config
+import localefmt
 import mcp_catalog
 import mcp_client
 import mcp_store
@@ -1715,7 +1716,9 @@ def chan_doan_loi(err, conn_id=""):
 def _friendly_tool_error(err, conn_id=""):
     """Bản cho nút Test: nhận ra thì nói đúng bệnh, không nhận ra thì giữ nguyên câu cũ kèm
     nguyên văn lỗi (hành vi lịch sử, có canary trong test canh)."""
-    return chan_doan_loi(err, conn_id) or ("Key chưa đúng hoặc chưa đủ quyền: " + (err or "").strip()[:200])
+    return chan_doan_loi(err, conn_id) or (
+        localefmt.chu("Key chưa đúng hoặc chưa đủ quyền: ", "The key is wrong or lacks permission: ")
+        + (err or "").strip()[:200])
 
 
 async def validate_connection(conn_id):
@@ -1723,7 +1726,8 @@ async def validate_connection(conn_id):
     Trả {ok, label, tools, error}."""
     conn = next((c for c in mcp_store.resolved(enabled_only=False) if c["id"] == conn_id), None)
     if not conn:
-        return {"ok": False, "label": "", "tools": 0, "error": "Không tìm thấy kết nối"}
+        return {"ok": False, "label": "", "tools": 0,
+                "error": localefmt.chu("Không tìm thấy kết nối", "Connection not found")}
     # Connector ẢO (không URL, không command, không phải internal): tool do PLUGIN phục vụ (vd
     # Meta/Facebook gọi Graph API/cookie), không có MCP server để dial. Coi là hợp lệ; đếm tool
     # theo tool_meta để hiển thị.
@@ -1744,9 +1748,17 @@ async def validate_connection(conn_id):
             rep = oauth_mcp.scope_report(conn_id)
             if rep.get("missing"):
                 return {"ok": False, "label": "", "tools": 0,
-                        "error": "Đăng nhập rồi nhưng token thiếu quyền: "
-                                 + ", ".join(oauth_mcp.short_scopes(rep["missing"]))
-                                 + ". Bấm Đăng nhập lại và tick đủ mọi ô quyền." + REVOKE_HINT}
+                        "error": localefmt.chu(
+                            "Đăng nhập rồi nhưng token thiếu quyền: "
+                            + ", ".join(oauth_mcp.short_scopes(rep["missing"]))
+                            + ". Bấm Đăng nhập lại và tick đủ mọi ô quyền." + REVOKE_HINT,
+                            "Signed in, but the token is missing permissions: "
+                            + ", ".join(oauth_mcp.short_scopes(rep["missing"]))
+                            + ". Press Sign in again and tick every permission box."
+                            " If Google shows no permission boxes when you sign in again, that is"
+                            " normal: permissions already granted are passed straight through. To"
+                            " tick them again from scratch, remove Javis at"
+                            " https://myaccount.google.com/permissions and then Connect again.")}
         except Exception as e:
             print(f"[hub scope] {e}", file=sys.stderr)
     spec = mcp_client._conn_spec(conn)
@@ -1770,11 +1782,15 @@ async def validate_connection(conn_id):
         # có hệ thống (họ sẽ tạo lại key/service account mãi mà không bao giờ ra).
         la_loi_goi = any(k in chi_tiet for k in (
             "ModuleNotFoundError", "ImportError", "Traceback", "No module named"))
-        goi_y = ("Gói MCP này hỏng phụ thuộc - lỗi nằm ở gói, KHÔNG phải key của bạn. "
-                 "Cần ghim phiên bản thư viện trong lệnh chạy (vd uvx --with 'mcp<2' ...)."
-                 if la_loi_goi else "Kiểm tra lại key/URL hoặc thử lại.")
+        goi_y = (localefmt.chu(
+                    "Gói MCP này hỏng phụ thuộc - lỗi nằm ở gói, KHÔNG phải key của bạn. "
+                    "Cần ghim phiên bản thư viện trong lệnh chạy (vd uvx --with 'mcp<2' ...).",
+                    "This MCP package has a broken dependency - the fault is in the package, NOT your key. "
+                    "Pin the library version in the run command (e.g. uvx --with 'mcp<2' ...).")
+                 if la_loi_goi else localefmt.chu("Kiểm tra lại key/URL hoặc thử lại.",
+                                                  "Check the key/URL again or try again."))
         return {"ok": False, "label": "", "tools": 0,
-                "error": "Không kết nối được (" + type(e).__name__
+                "error": localefmt.chu("Không kết nối được (", "Could not connect (") + type(e).__name__
                          + (": " + chi_tiet if chi_tiet else "")
                          + "). " + goi_y}
     label = ""

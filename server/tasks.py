@@ -999,17 +999,21 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
         if not items or not self.deps.report:
             return
         if len(items) == 1:
-            parts = [f"⚠ Việc '{items[0]['title']}' bị chặn, cần bạn xem.",
-                     "Lý do: " + (items[0]["reason"][:240] or "không rõ"),
-                     "Xem chi tiết ở trang Việc."]
+            parts = [localefmt.chu(f"⚠ Việc '{items[0]['title']}' bị chặn, cần bạn xem.",
+                                   f"⚠ Job '{items[0]['title']}' is blocked and needs you."),
+                     localefmt.chu("Lý do: ", "Reason: ")
+                     + (items[0]["reason"][:240] or localefmt.chu("không rõ", "unknown")),
+                     localefmt.chu("Xem chi tiết ở trang Việc.", "See details on the Work page.")]
         else:
-            dong = [f"⚠ {len(items)} việc đang chờ bạn xử lý:"]
+            dong = [localefmt.chu(f"⚠ {len(items)} việc đang chờ bạn xử lý:",
+                                  f"⚠ {len(items)} jobs are waiting for you:")]
             for it in items[:BAO_GOM_LIET_KE]:
-                dong.append(f"- {it['title']}: " + (it["reason"][:120] or "không rõ lý do"))
+                dong.append(f"- {it['title']}: " + (it["reason"][:120]
+                                                    or localefmt.chu("không rõ lý do", "reason unknown")))
             con = len(items) - BAO_GOM_LIET_KE
             if con > 0:
-                dong.append(f"…và {con} việc nữa.")
-            dong.append("Xem chi tiết ở trang Việc.")
+                dong.append(localefmt.chu(f"…và {con} việc nữa.", f"…and {con} more."))
+            dong.append(localefmt.chu("Xem chi tiết ở trang Việc.", "See details on the Work page."))
             parts = dong
         try:
             await self.deps.report(
@@ -1067,12 +1071,13 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
             await self._gom_bao(task)
             return
         labels = {
-            "review": "đã làm xong, cần duyệt ngoại lệ",
-            "done": "đã hoàn thành",
-            "blocked": "bị chặn, cần bạn xem",
+            "review": localefmt.chu("đã làm xong, cần duyệt ngoại lệ", "is done and needs an exception review"),
+            "done": localefmt.chu("đã hoàn thành", "is complete"),
+            "blocked": localefmt.chu("bị chặn, cần bạn xem", "is blocked and needs you"),
         }
         icon = "✅" if status in ("review", "done") else "⚠"
-        dau = f"{icon} Việc '{task.get('title', '')}' {labels.get(status, status)}."
+        dau = localefmt.chu(f"{icon} Việc '{task.get('title', '')}' {labels.get(status, status)}.",
+                            f"{icon} Job '{task.get('title', '')}' {labels.get(status, status)}.")
         # HAI bản, vì hai kênh chịu được hai thứ khác nhau - và bản trước chỉ có một, nên ai
         # ngồi trên web cũng chỉ nhận được mẩu 240 ký tự dành cho Telegram (chủ repo báo
         # 2026-09-08: "việc ngầm chạy xong nó không đẩy hết kết quả lên màn chat hiện tại").
@@ -1084,11 +1089,12 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
         # `_notify_owner` chọn bản nào theo kênh; ở đây chỉ dựng nội dung.
         if status == "blocked":
             reason = str(task.get("block_reason") or task.get("block_kind") or "").strip()
-            than = "Lý do: " + (reason or "không rõ")
+            than = localefmt.chu("Lý do: ", "Reason: ") + (reason or localefmt.chu("không rõ", "unknown"))
             # Việc bị chặn: chỉ cần LÝ DO (result lúc này là tường thuật dở dang, dán vào chỉ
             # tổ thành bức tường văn và lặp lại chính lý do).
             parts = [dau, than]
-            parts_ngan = [dau, "Lý do: " + (reason[:240] or "không rõ")]
+            parts_ngan = [dau, localefmt.chu("Lý do: ", "Reason: ")
+                          + (reason[:240] or localefmt.chu("không rõ", "unknown"))]
         else:
             # GIỮ dòng trống giữa các đoạn (0.64.48). Bản trước bỏ MỌI dòng trống nên đoạn văn,
             # danh sách, tiêu đề markdown dính liền thành một bức tường chữ trong khung chat.
@@ -1100,8 +1106,9 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
         # Bản cho KHUNG CHAT web: thẻ việc (dashboard/chat-viec.js) đã có dòng đầu nói trạng thái,
         # tên việc và nút mở trang Việc, nên bỏ câu đầu có emoji và câu "xem ở trang Việc".
         web = "\n\n".join(parts[1:]) or dau
-        parts.append("Xem chi tiết ở trang Việc.")
-        parts_ngan.append("Xem chi tiết ở trang Việc.")
+        xem = localefmt.chu("Xem chi tiết ở trang Việc.", "See details on the Work page.")
+        parts.append(xem)
+        parts_ngan.append(xem)
         # Việc chạy xong TRÓT LỌT thì báo LẶNG: kết quả vẫn rơi vào khung chat đã giao việc và
         # vẫn vào hòm thư, nhưng không nổi chấm đỏ trên chuông và không rung thông báo đẩy.
         # Chỉ `blocked` (kẹt, cần gỡ) và `review` (chờ duyệt) mới kêu, vì đó là thứ CẦN người
@@ -1253,9 +1260,9 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
             if not task or task.get("brain_root") != root:
                 return {"ok": False, "error": "not found"}
             if status not in VALID_STATUS:
-                return {"ok": False, "error": "status không hợp lệ"}
+                return {"ok": False, "error": localefmt.chu("status không hợp lệ", "invalid status")}
             if not self.store.move(id, status):
-                return {"ok": False, "error": "không thể chuyển task đang chạy"}
+                return {"ok": False, "error": localefmt.chu("không thể chuyển task đang chạy", "cannot move a running task")}
             await self._asnapshot(root)
             self.wake()
             return {"ok": True, "status": status}
@@ -1269,7 +1276,7 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
             if not task or task.get("brain_root") != root:
                 return {"ok": False, "error": "not found"}
             if not self.store.move(id, "archived", "operator archive"):
-                return {"ok": False, "error": "không thể archive task đang chạy"}
+                return {"ok": False, "error": localefmt.chu("không thể archive task đang chạy", "cannot archive a running task")}
             await self._asnapshot(root)
             return {"ok": True, "archived": True}
 
@@ -1292,9 +1299,9 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
             if not task or task.get("brain_root") != root:
                 return {"ok": False, "error": "not found"}
             if str(task.get("block_kind") or "") != "capability":
-                return {"ok": False, "error": "việc này không bị chặn vì thiếu quyền"}
+                return {"ok": False, "error": localefmt.chu("việc này không bị chặn vì thiếu quyền", "this job is not blocked for lack of permission")}
             if not self.store.grant_full(id):
-                return {"ok": False, "error": "không cấp quyền được cho task đang chạy"}
+                return {"ok": False, "error": localefmt.chu("không cấp quyền được cho task đang chạy", "cannot grant permission to a running task")}
             await self._asnapshot(root)
             self.wake()
             return {"ok": True, "execution_mode": "full"}
@@ -1317,7 +1324,7 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
                 removed = self.store.purge_terminal(
                     root, statuses=("archived", "cancelled", "done"))
             else:
-                return {"ok": False, "error": "panel phải là 'attention' hoặc 'history'"}
+                return {"ok": False, "error": localefmt.chu("panel phải là 'attention' hoặc 'history'", "panel must be 'attention' or 'history'")}
             await self._asnapshot(root)
             return {"ok": True, "removed": removed}
 
@@ -1348,7 +1355,7 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
             mode: str = Form(...), brain: str = Form("brain")
         ):
             if mode not in ("off", "manual", "auto"):
-                return {"ok": False, "error": "mode không hợp lệ"}
+                return {"ok": False, "error": localefmt.chu("mode không hợp lệ", "invalid mode")}
             root = self._ensure(brain)
             self.store.set_orchestration(root, mode)
             await self._asnapshot(root)
@@ -1361,7 +1368,7 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
             self._housekeep(root)
             candidate = self.store.next_candidate(root)
             if not candidate:
-                return {"ok": True, "started": False, "note": "không có task sẵn sàng"}
+                return {"ok": True, "started": False, "note": localefmt.chu("không có task sẵn sàng", "no task is ready")}
             started = await self._claim_and_spawn(candidate["id"])
             return {"ok": True, "started": started, "id": candidate["id"]}
 
@@ -1375,7 +1382,7 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
                 return {"ok": False, "error": "not found"}
             if task.get("status") not in ("triage", "ready"):
                 if not self.store.move(id, "ready", "operator run"):
-                    return {"ok": False, "error": "task đang chạy"}
+                    return {"ok": False, "error": localefmt.chu("task đang chạy", "task is running")}
             started = await self._claim_and_spawn(id)
             return {"ok": started, "started": started, "id": id}
 
@@ -1388,7 +1395,7 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
             if not task or task.get("brain_root") != root:
                 return {"ok": False, "error": "not found"}
             if not self.store.move(id, "ready", "operator retry"):
-                return {"ok": False, "error": "task đang chạy"}
+                return {"ok": False, "error": localefmt.chu("task đang chạy", "task is running")}
             await self._asnapshot(root)
             self.wake()
             return {"ok": True, "status": "ready"}
@@ -1406,7 +1413,7 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
                 cancel_all(f"dispatch:{id}")
                 worker.cancel()
             elif not self.store.move(id, "cancelled", "operator cancel"):
-                return {"ok": False, "error": "không thể huỷ"}
+                return {"ok": False, "error": localefmt.chu("không thể huỷ", "cannot cancel")}
             await self._asnapshot(root)
             return {"ok": True, "cancelled": True}
 

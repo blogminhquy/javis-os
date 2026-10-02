@@ -42,6 +42,7 @@ import yaml
 import fastyaml
 
 import mcp_catalog
+import localefmt
 from config import STATE_DIR
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -834,7 +835,7 @@ def set_removed(slug: str, removed: bool) -> dict:
     cập nhật sau không làm nó mọc lại."""
     slug = str(slug or "").strip()
     if not slug:
-        return {"ok": False, "error": "thiếu slug"}
+        return {"ok": False, "error": localefmt.chu("thiếu slug", "missing slug")}
     st = _read_state()
     ds = set(st.get("removed") or [])
     ds.add(slug) if removed else ds.discard(slug)
@@ -1017,7 +1018,7 @@ def set_enabled(slug: str, enabled: bool, vault_root: Optional[str] = None) -> d
     """Bật/tắt 1 plugin. Bundled → ghi STATE_DIR/plugins.json (không đụng file app);
     vault → ghi enabled vào frontmatter plugin.yaml. Trả {ok, source, gated, note}."""
     if not valid_slug(slug):
-        return {"ok": False, "error": "slug không hợp lệ"}
+        return {"ok": False, "error": localefmt.chu("slug không hợp lệ", "invalid slug")}
     # xác định plugin thuộc nguồn nào
     found = None
     for source, pdir in _iter_plugin_dirs(vault_root):
@@ -1025,7 +1026,7 @@ def set_enabled(slug: str, enabled: bool, vault_root: Optional[str] = None) -> d
             found = (source, pdir)
             break
     if not found:
-        return {"ok": False, "error": "không tìm thấy plugin"}
+        return {"ok": False, "error": localefmt.chu("không tìm thấy plugin", "plugin not found")}
     source, pdir = found
     if not enabled:
         # "Tắt" phải là DỪNG, không phải "biến khỏi danh sách". Thiếu bước này thì thread hay
@@ -1036,7 +1037,8 @@ def set_enabled(slug: str, enabled: bool, vault_root: Optional[str] = None) -> d
         # tắt. Ghi `enabled` vào manifest trong thư mục gói sẽ làm chữ ký mã lệch ngay lần nạp
         # sau, tức tự tay biến gói thành "đã đổi so với lúc đồng ý".
         return {"ok": False, "source": source,
-                "error": "Plugin này đến từ một gói. Bật hoặc tắt cả gói ở Kho cài đặt."}
+                "error": localefmt.chu("Plugin này đến từ một gói. Bật hoặc tắt cả gói ở Kho cài đặt.",
+                                       "This plugin comes from a pack. Turn the whole pack on or off in the Store.")}
     if source == "bundled":
         st = _read_state()
         en = set(st.get("enabled") or [])
@@ -1060,9 +1062,13 @@ def set_enabled(slug: str, enabled: bool, vault_root: Optional[str] = None) -> d
     try:
         f.write_text(yaml.safe_dump(manifest, allow_unicode=True, sort_keys=False), encoding="utf-8")
     except Exception as e:
-        return {"ok": False, "error": f"ghi manifest lỗi: {e}"}
+        return {"ok": False, "error": localefmt.chu(f"ghi manifest lỗi: {e}", f"could not write the manifest: {e}")}
     invalidate()
     gated = bool(enabled and not _env_user_enabled())
-    note = ("Đã bật trong manifest NHƯNG plugin do người dùng cài chỉ chạy khi đặt biến môi trường "
-            "JAVIS_ENABLE_USER_PLUGINS=true rồi khởi động lại (bảo vệ chống chạy code lạ).") if gated else ""
+    note = localefmt.chu(
+        "Đã bật trong manifest NHƯNG plugin do người dùng cài chỉ chạy khi đặt biến môi trường "
+        "JAVIS_ENABLE_USER_PLUGINS=true rồi khởi động lại (bảo vệ chống chạy code lạ).",
+        "Enabled in the manifest, BUT user-installed plugins only run once the environment variable "
+        "JAVIS_ENABLE_USER_PLUGINS=true is set and Javis is restarted (protection against running "
+        "unknown code).") if gated else ""
     return {"ok": True, "source": source, "gated": gated, "note": note}

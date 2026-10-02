@@ -27,6 +27,7 @@ from pathlib import Path
 import httpx
 
 import stt
+import localefmt
 from bot_gateway import HangLuot, dong_vet, ten_tool
 
 
@@ -272,9 +273,11 @@ class TelegramBot(HangLuot):
             except Exception as e:
                 loi.append(f"{ten}: {type(e).__name__}: {e}")
         if loi:
-            self.loi_menu_lenh = (
+            self.loi_menu_lenh = localefmt.chu(
                 "Không đặt được menu lệnh / trên Telegram (" + "; ".join(loi) + "). "
-                "Bot vẫn hiểu lệnh khi gõ tay, chỉ là danh sách không tự sổ ra.")
+                "Bot vẫn hiểu lệnh khi gõ tay, chỉ là danh sách không tự sổ ra.",
+                "Could not set the / command menu on Telegram (" + "; ".join(loi) + "). "
+                "The bot still understands typed commands, the list just does not pop up.")
             print(f"[telegram setMyCommands] {'; '.join(loi)}", file=sys.stderr)
         else:
             self.loi_menu_lenh = ""
@@ -541,10 +544,13 @@ class TelegramBot(HangLuot):
                 loi = f"{type(e).__name__}: {e}"
             if i < lan - 1:
                 await asyncio.sleep(2 ** i)
-        self.loi_danh_tinh = (
+        self.loi_danh_tinh = localefmt.chu(
             f"Không hỏi được danh tính bot từ Telegram ({loi}). Bot vẫn trả lời tin nhắn RIÊNG, "
             "nhưng trong nhóm nó không nhận ra được ai đang gọi tên mình nên sẽ im. "
-            "Tắt rồi bật lại bot để thử lại.")
+            "Tắt rồi bật lại bot để thử lại.",
+            f"Could not get the bot's identity from Telegram ({loi}). The bot still answers PRIVATE "
+            "messages, but in groups it cannot tell who is calling it, so it stays silent. "
+            "Turn the bot off and on again to retry.")
         print(f"[telegram getMe] {loi}", file=sys.stderr)
         return False
 
@@ -808,12 +814,14 @@ class TelegramBot(HangLuot):
                     if not data.get("ok"):
                         if data.get("error_code") == 409:
                             self.status = "conflict"
-                            self.last_error = data.get("description") or "409 - token bị poll nơi khác hoặc còn webhook."
+                            self.last_error = data.get("description") or localefmt.chu(
+                                "409 - token bị poll nơi khác hoặc còn webhook.",
+                                "409 - the token is being polled elsewhere or a webhook is still set.")
                             print("[telegram] 409 CONFLICT - cùng token đang poll ở nơi khác. Chỉ chạy 1 nơi.", file=sys.stderr)
                             await asyncio.sleep(20)
                         else:
                             self.status = "error"
-                            self.last_error = data.get("description") or "getUpdates lỗi"
+                            self.last_error = data.get("description") or localefmt.chu("getUpdates lỗi", "getUpdates failed")
                             print(f"[telegram] getUpdates lỗi: {data.get('description')}", file=sys.stderr)
                             await asyncio.sleep(10)
                         continue

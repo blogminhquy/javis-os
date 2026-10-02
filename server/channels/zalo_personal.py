@@ -18,6 +18,7 @@ import time
 from typing import Optional
 
 from channels import KenhSpec
+import localefmt
 
 SPEC = KenhSpec(
     id="zalo_personal", nhan="Zalo cá nhân", kind="account", logo="zalo", mau="#0068FF",
@@ -139,7 +140,8 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", men
     import zalo_personal_channel
     conn = zalo_personal_channel.ket_noi_theo_id(str(tk.get("id") or tk.get("external_id") or ""))
     if not conn:
-        return False, "tài khoản Zalo này không còn ở trang Kết nối (hoặc đang tắt)"
+        return False, localefmt.chu("tài khoản Zalo này không còn ở trang Kết nối (hoặc đang tắt)",
+                                     "this Zalo account is no longer on the Connections page (or is turned off)")
     loai = 1 if str(chat_type or "") == "group" else 0
     if loai == 1 and mention:
         r = await _send_tagged(conn, str(chat_id), str(text or ""), mention)
@@ -153,7 +155,7 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", men
     except Exception as e:
         return False, str(e)[:300]
     if isinstance(d, dict) and d.get("success") is False:
-        return False, str(d.get("error") or d.get("message") or "Zalo từ chối")[:300]
+        return False, str(d.get("error") or d.get("message") or localefmt.chu("Zalo từ chối", "Zalo refused"))[:300]
     return True, ""
 
 
@@ -203,8 +205,11 @@ class Transport:
                 tt = zc._TT.get(self.conn_id) or {}
                 if not zc.ket_noi_theo_id(self.conn_id):
                     self.status = "error"
-                    self.last_error = ("Kết nối Zalo này không còn (hoặc đang tắt) ở trang Kết nối, "
-                                       "bot không nhận được tin.")
+                    self.last_error = localefmt.chu(
+                        "Kết nối Zalo này không còn (hoặc đang tắt) ở trang Kết nối, "
+                        "bot không nhận được tin.",
+                        "This Zalo connection is gone (or turned off) on the Connections page, "
+                        "so the bot receives no messages.")
                 elif tt.get("loi"):
                     self.status = "error"
                     self.last_error = str(tt["loi"])
@@ -365,7 +370,7 @@ class Transport:
         tag = {"uid": (meta or {}).get("user_id"), "name": (meta or {}).get("user_name")} if chat_type == "group" else None
         ok, loi = await gui({"id": self.conn_id}, thread, cau, chat_type, tag)
         if not ok:
-            self.last_error = f"Gửi Zalo lỗi: {loi}"[:300]
+            self.last_error = localefmt.chu(f"Gửi Zalo lỗi: {loi}", f"Zalo send failed: {loi}")[:300]
             print(f"[zalo-personal bot {self.conn_id}] {self.last_error}", file=sys.stderr)
             self._ghi_loi_gui(thread, cau, loi, chat_type)
 

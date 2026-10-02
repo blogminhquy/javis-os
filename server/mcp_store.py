@@ -16,6 +16,7 @@ import uuid
 from pathlib import Path
 
 import mcp_catalog
+import localefmt
 import secrets_store
 import config as cfgmod
 from config import STATE_DIR
@@ -203,9 +204,11 @@ def add_connection(connector_id, data):
     connector_id = (connector_id or "custom").strip() or "custom"
     con = mcp_catalog.get(connector_id)
     if connector_id != "custom" and not con:
-        return None, f"Không có connector '{connector_id}' trong kho"
+        return None, localefmt.chu(f"Không có connector '{connector_id}' trong kho",
+                                  f"There is no connector '{connector_id}' in the catalog")
     if con and con.get("status") == "soon":
-        return None, "Connector này chưa mở (đang chờ xác minh endpoint)"
+        return None, localefmt.chu("Connector này chưa mở (đang chờ xác minh endpoint)",
+                                  "This connector is not open yet (waiting for endpoint verification)")
     d = _load()
     label = (data.get("label") or "").strip() or (con or {}).get("name") or connector_id
     base = _slugify(label)

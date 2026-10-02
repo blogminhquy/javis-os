@@ -19,6 +19,7 @@ import time
 import uuid
 
 import mcp_store
+import localefmt
 import winproc
 from config import STATE_DIR
 
@@ -77,7 +78,8 @@ def _finish_ok(sess, obj):
         "config": {"home_dir": sess["home"]},
     })
     if err:
-        sess.update(state="error", error=f"Đăng nhập được nhưng không lưu kết nối: {err}")
+        sess.update(state="error", error=localefmt.chu(f"Đăng nhập được nhưng không lưu kết nối: {err}",
+                                                       f"Signed in, but the connection could not be saved: {err}"))
         return
     sess.update(state="done", label=str(label)[:60], conn_id=cid)
     try:
@@ -117,7 +119,8 @@ def _reader(sid):
                 _finish_ok(sess, obj)
                 break
             if ev in ("error", "failed"):
-                sess.update(state="error", error=str(obj.get("message") or obj.get("error") or "Đăng nhập thất bại"))
+                sess.update(state="error", error=str(obj.get("message") or obj.get("error")
+                                                     or localefmt.chu("Đăng nhập thất bại", "Sign-in failed")))
                 break
     except Exception as e:
         if sess.get("state") not in ("done", "error"):
@@ -138,14 +141,15 @@ def _reader(sid):
                 except Exception:
                     pass
                 sess.update(state="error",
-                            error="Đăng nhập chưa hoàn tất" + (f" (exit {rc}): {err_tail}" if rc else ""))
+                            error=localefmt.chu("Đăng nhập chưa hoàn tất", "Sign-in did not complete")
+                            + (f" (exit {rc}): {err_tail}" if rc else ""))
 
 
 def _watchdog(sid):
     time.sleep(_TIMEOUT)
     sess = _sessions.get(sid)
     if sess and sess.get("state") in ("starting", "qr"):
-        sess.update(state="error", error="Mã QR hết hạn, bấm thử lại")
+        sess.update(state="error", error=localefmt.chu("Mã QR hết hạn, bấm thử lại", "The QR code expired, press try again"))
         cancel(sid, keep=True)
 
 
@@ -154,7 +158,8 @@ def start(label=None):
     _sweep()
     argv = _npx_argv()
     if not argv:
-        return {"ok": False, "error": "Cần cài Node.js 20+ (lệnh npx) trên máy chạy Javis - tải tại nodejs.org"}
+        return {"ok": False, "error": localefmt.chu("Cần cài Node.js 20+ (lệnh npx) trên máy chạy Javis - tải tại nodejs.org",
+                                                    "Node.js 20+ (the npx command) must be installed on the machine running Javis - download it at nodejs.org")}
     sid = uuid.uuid4().hex[:10]
     slug = mcp_store._slugify(label or "zalo")
     # Kèm sid: 2 tài khoản đặt CÙNG tên gợi nhớ vẫn phải 2 home riêng (account active của
@@ -172,7 +177,7 @@ def start(label=None):
                                 stdin=subprocess.DEVNULL, text=True, encoding="utf-8",
                                 errors="replace", env=env, **kwargs)
     except OSError as e:
-        return {"ok": False, "error": f"Không chạy được npx: {e}"}
+        return {"ok": False, "error": localefmt.chu(f"Không chạy được npx: {e}", f"Could not run npx: {e}")}
     _sessions[sid] = {"state": "starting", "qr": "", "label": (label or "").strip(),
                       "conn_id": "", "error": "", "proc": proc, "home": home, "ts": time.time()}
     threading.Thread(target=_reader, args=(sid,), daemon=True).start()
@@ -183,7 +188,8 @@ def start(label=None):
 def status(sid):
     sess = _sessions.get(sid)
     if not sess:
-        return {"state": "error", "error": "Phiên đăng nhập không tồn tại (hết hạn?)"}
+        return {"state": "error", "error": localefmt.chu("Phiên đăng nhập không tồn tại (hết hạn?)",
+                                                       "The sign-in session does not exist (expired?)")}
     return {"state": sess["state"], "qr": sess.get("qr", ""), "label": sess.get("label", ""),
             "conn_id": sess.get("conn_id", ""), "error": sess.get("error", "")}
 
@@ -204,5 +210,5 @@ def cancel(sid, keep=False):
     if not keep:
         if sess.get("state") not in ("done",):
             sess["state"] = "error"
-            sess.setdefault("error", "Đã huỷ")
+            sess.setdefault("error", localefmt.chu("Đã huỷ", "Cancelled"))
     return {"ok": True}

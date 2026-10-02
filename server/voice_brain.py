@@ -26,6 +26,7 @@ import time
 from typing import AsyncIterator, Callable, Dict, List, Optional
 
 import winproc         # lệnh con câm lặng trên Windows (canary test_windows_no_console)
+import localefmt
 import nghe_sua
 import phien_am
 
@@ -503,7 +504,7 @@ class ApiVoiceBrain(VoiceBrain):
                 if t == "text" and ev.get("content"):
                     yield ev["content"]
                 elif t == "error":
-                    raise RuntimeError(str(ev.get("content") or "lỗi provider"))
+                    raise RuntimeError(str(ev.get("content") or localefmt.chu("lỗi provider", "provider error")))
 
 
 class AntigravityVoiceBrain(VoiceBrain):
@@ -539,7 +540,7 @@ class AntigravityVoiceBrain(VoiceBrain):
         if self.proc is not None and self.proc.returncode is None:
             return
         if not self.cli_path and not self._spawn:
-            raise RuntimeError("Chưa cài Antigravity CLI (agy).")
+            raise RuntimeError(localefmt.chu("Chưa cài Antigravity CLI (agy).", "Antigravity CLI (agy) is not installed."))
         if self._spawn:
             self.proc = await self._spawn(self._args())
         else:
@@ -569,15 +570,18 @@ class AntigravityVoiceBrain(VoiceBrain):
                 left = deadline - time.time()
                 if left <= 0:
                     await self.close()
-                    raise RuntimeError("Antigravity không trả lời trong 90 giây.")
+                    raise RuntimeError(localefmt.chu("Antigravity không trả lời trong 90 giây.",
+                                                      "Antigravity did not answer within 90 seconds."))
                 try:
                     raw = await asyncio.wait_for(self.proc.stdout.readline(), timeout=left)
                 except asyncio.TimeoutError:
                     await self.close()
-                    raise RuntimeError("Antigravity không trả lời trong 90 giây.")
+                    raise RuntimeError(localefmt.chu("Antigravity không trả lời trong 90 giây.",
+                                                      "Antigravity did not answer within 90 seconds."))
                 if not raw:
                     await self.close()
-                    raise RuntimeError("Antigravity đóng tiến trình giữa chừng.")
+                    raise RuntimeError(localefmt.chu("Antigravity đóng tiến trình giữa chừng.",
+                                                      "Antigravity closed the process midway."))
                 try:
                     ev = json.loads(raw.decode("utf-8", "ignore"))
                 except Exception:
@@ -591,7 +595,7 @@ class AntigravityVoiceBrain(VoiceBrain):
                 elif kind == "result":
                     r = ev.get("result") or {}
                     if r.get("status") != "SUCCESS":
-                        raise RuntimeError(str(r.get("error") or "Antigravity báo lỗi."))
+                        raise RuntimeError(str(r.get("error") or localefmt.chu("Antigravity báo lỗi.", "Antigravity reported an error.")))
                     if not got_delta and r.get("response"):
                         yield str(r["response"])
                     return
@@ -654,7 +658,8 @@ class CodexVoiceBrain(VoiceBrain):
         self.last_used = time.time()
         creds = (self._creds_fn or _codex_creds)() or {}
         if not creds.get("access_token"):
-            raise RuntimeError("Chưa kết nối ChatGPT (OAuth) ở trang Models.")
+            raise RuntimeError(localefmt.chu("Chưa kết nối ChatGPT (OAuth) ở trang Models.",
+                                              "ChatGPT (OAuth) is not connected on the Models page."))
         if self._stream_fn:
             fn = self._stream_fn
         else:
@@ -668,9 +673,10 @@ class CodexVoiceBrain(VoiceBrain):
                 if t == "text" and ev.get("content"):
                     yield ev["content"]
                 elif t == "limit_exceeded":
-                    raise RuntimeError("ChatGPT hết hạn mức gói cho lượt này.")
+                    raise RuntimeError(localefmt.chu("ChatGPT hết hạn mức gói cho lượt này.",
+                                                      "ChatGPT plan limit reached for this turn."))
                 elif t == "error":
-                    raise RuntimeError(str(ev.get("content") or "lỗi ChatGPT"))
+                    raise RuntimeError(str(ev.get("content") or localefmt.chu("lỗi ChatGPT", "ChatGPT error")))
 
 
 def claude_pieces(msg):
@@ -749,7 +755,8 @@ class ClaudeVoiceBrain(VoiceBrain):
             import claude_cli
             import claude_sdk_engine
             if not claude_sdk_engine.sdk_available() or not claude_cli.find_claude_cli():
-                raise RuntimeError("Chưa cài hoặc chưa đăng nhập Claude Code (claude).")
+                raise RuntimeError(localefmt.chu("Chưa cài hoặc chưa đăng nhập Claude Code (claude).",
+                                                  "Claude Code (claude) is not installed or not signed in."))
             from claude_agent_sdk import ClaudeSDKClient
             try:
                 import claude_token_gate
@@ -791,11 +798,13 @@ class ClaudeVoiceBrain(VoiceBrain):
                                 yield data
                         elif kind == "result":
                             if getattr(data, "is_error", False):
-                                raise RuntimeError(str(getattr(data, "result", "") or "Claude báo lỗi."))
+                                raise RuntimeError(str(getattr(data, "result", "")
+                                                               or localefmt.chu("Claude báo lỗi.", "Claude reported an error.")))
                             return
             except asyncio.TimeoutError:
                 await self.close()
-                raise RuntimeError("Claude không trả lời trong 90 giây.")
+                raise RuntimeError(localefmt.chu("Claude không trả lời trong 90 giây.",
+                                                  "Claude did not answer within 90 seconds."))
             except RuntimeError:
                 raise
             except Exception as e:
@@ -833,7 +842,8 @@ class GrokVoiceBrain(VoiceBrain):
         else:
             import grok_cli
             if not grok_cli.find_grok_cli():
-                raise RuntimeError("Chưa cài Grok Build (grok). Cài rồi đăng nhập ở trang Models.")
+                raise RuntimeError(localefmt.chu("Chưa cài Grok Build (grok). Cài rồi đăng nhập ở trang Models.",
+                                                  "Grok Build (grok) is not installed. Install it, then sign in on the Models page."))
             import tempfile
             self.cli = grok_cli.GrokCLI(cwd=tempfile.gettempdir(), tag="voice", model=self.model or None,
                                         instructions=SYSTEM_PROMPT)
@@ -856,7 +866,7 @@ class GrokVoiceBrain(VoiceBrain):
                     if not got and ev.get("content"):
                         yield str(ev["content"])
                 elif t == "error":
-                    raise RuntimeError(str(ev.get("content") or "Grok báo lỗi."))
+                    raise RuntimeError(str(ev.get("content") or localefmt.chu("Grok báo lỗi.", "Grok reported an error.")))
 
     async def close(self) -> None:
         self.cli = None
@@ -1035,13 +1045,19 @@ def cau_roi_ve_bo_nao_chinh(provider: str, err) -> str:
     gì (lượt này chậm hơn vì đi bộ não chính), và sửa ở đâu (trang Models). Không dùng
     gạch dài (luật của chủ dự án) và không đổ lỗi cho người dùng.
     """
-    loi = re.sub(r"\s+", " ", str(err or "").strip())[:_LOI_MAX_CHU] or "không rõ lỗi"
+    loi = (re.sub(r"\s+", " ", str(err or "").strip())[:_LOI_MAX_CHU]
+           or localefmt.chu("không rõ lỗi", "unknown error"))
     # Lỗi tên model (0.65.26): sửa ở ô Model của thẻ Giọng nói, không phải trang Models. Chủ dự án
     # đọc "Kiểm tra ở trang Models" mà tưởng Antigravity bị đăng xuất.
-    sua = ("Chọn lại model ở Cài đặt, Giọng nói, Nâng cao." if re.search(r"\bmodel\b", loi, re.I)
-           else "Kiểm tra bộ não này ở trang Models.")
-    return (f"Làn nhanh không chạy được: bộ não giọng {ten_bo_nao(provider)} báo \"{loi}\". "
-            f"Lượt này đi bộ não chính nên chậm hơn bình thường. " + sua)
+    sua = (localefmt.chu("Chọn lại model ở Cài đặt, Giọng nói, Nâng cao.",
+                         "Pick the model again in Settings, Voice, Advanced.")
+           if re.search(r"\bmodel\b", loi, re.I)
+           else localefmt.chu("Kiểm tra bộ não này ở trang Models.", "Check this brain on the Models page."))
+    return localefmt.chu(
+        f"Làn nhanh không chạy được: bộ não giọng {ten_bo_nao(provider)} báo \"{loi}\". "
+        f"Lượt này đi bộ não chính nên chậm hơn bình thường. ",
+        f"The fast lane could not run: voice brain {ten_bo_nao(provider)} reported \"{loi}\". "
+        f"This turn went to the main brain, so it is slower than usual. ") + sua
 
 
 # ============================================================
@@ -1155,9 +1171,10 @@ def _make(conf: dict) -> VoiceBrain:
         return GrokVoiceBrain(model=conf.get("model") or "")
     if prov in PROVIDERS:
         if not conf.get("api_key"):
-            raise RuntimeError(f"Bộ não giọng nói {prov} chưa có API key ở trang Models.")
+            raise RuntimeError(localefmt.chu(f"Bộ não giọng nói {prov} chưa có API key ở trang Models.",
+                                              f"Voice brain {prov} has no API key on the Models page."))
         return ApiVoiceBrain(prov, conf["api_key"], conf.get("model") or BRAIN_PROVIDERS[prov]["default_model"])
-    raise RuntimeError("Chưa chọn bộ não giọng nói.")
+    raise RuntimeError(localefmt.chu("Chưa chọn bộ não giọng nói.", "No voice brain selected."))
 
 
 async def get_brain(session_id: str, conf: dict) -> VoiceBrain:

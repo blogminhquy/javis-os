@@ -213,14 +213,16 @@ def import_bundle(data: bytes, filename, *, agents_dir, workflows_dir, skills_ro
         try:
             text = data.decode("utf-8")
         except Exception:
-            res["errors"].append("File không đọc được (cần .zip hoặc .md UTF-8).")
+            res["errors"].append(localefmt.chu("File không đọc được (cần .zip hoặc .md UTF-8).",
+                                               "The file cannot be read (needs a .zip or a UTF-8 .md)."))
             return res
         meta, _ = _parse(text)
         typ = str(meta.get("type") or "").lower()
         if typ in ("agent", "workflow"):
             slug = slugify(meta.get("slug") or meta.get("name") or Path(name).stem)
             if not _valid_slug(slug):
-                res["errors"].append("Không xác định được slug hợp lệ từ file.")
+                res["errors"].append(localefmt.chu("Không xác định được slug hợp lệ từ file.",
+                                                   "Could not work out a valid slug from the file."))
                 return res
             target = (Path(agents_dir) if typ == "agent" else Path(workflows_dir)) / f"{slug}.md"
             write_one(target, data, typ, slug)
@@ -228,30 +230,32 @@ def import_bundle(data: bytes, filename, *, agents_dir, workflows_dir, skills_ro
             # SKILL.md lẻ (skill Claude chưa nén) → tạo skills/<slug>/SKILL.md
             slug = slugify(meta.get("name"))
             if not _valid_slug(slug):
-                res["errors"].append("Không xác định được tên skill hợp lệ từ file SKILL.md.")
+                res["errors"].append(localefmt.chu("Không xác định được tên skill hợp lệ từ file SKILL.md.",
+                                                   "Could not work out a valid skill name from SKILL.md."))
                 return res
             write_one(Path(skills_root) / slug / "SKILL.md", data, "skill", slug)
         else:
-            res["errors"].append("File .md không rõ là agent/skill/workflow. Skill nên nhập bằng gói .zip / .skill.")
+            res["errors"].append(localefmt.chu("File .md không rõ là agent/skill/workflow. Skill nên nhập bằng gói .zip / .skill.",
+                                               "The .md file is not clearly an agent/skill/workflow. Import skills as a .zip / .skill bundle."))
             return res
     else:
         try:
             z = zipfile.ZipFile(io.BytesIO(data))
         except Exception as e:
-            res["errors"].append(f"Không mở được file .zip: {e}")
+            res["errors"].append(localefmt.chu(f"Không mở được file .zip: {e}", f"Could not open the .zip file: {e}"))
             return res
         infos = [i for i in z.infolist() if not i.is_dir()]
         if len(infos) > _MAX_FILES:
-            res["errors"].append(f"Gói có quá nhiều file (>{_MAX_FILES}).")
+            res["errors"].append(localefmt.chu(f"Gói có quá nhiều file (>{_MAX_FILES}).", f"The bundle has too many files (>{_MAX_FILES})."))
             return res
         if sum(i.file_size for i in infos) > _MAX_TOTAL:
-            res["errors"].append("Gói giải nén quá lớn (>20MB).")
+            res["errors"].append(localefmt.chu("Gói giải nén quá lớn (>20MB).", "The bundle is too large when extracted (>20MB)."))
             return res
         def _bad(arc, i):   # rào chung: kích thước + path traversal
             if i.file_size > _MAX_ONE:
-                res["errors"].append(f"{arc}: file quá lớn (>5MB)."); return True
+                res["errors"].append(f"{arc}: " + localefmt.chu("file quá lớn (>5MB).", "file too large (>5MB).")); return True
             if arc.startswith("/") or ".." in arc.split("/") or ":" in arc:
-                res["errors"].append(f"{arc}: đường dẫn không hợp lệ."); return True
+                res["errors"].append(f"{arc}: " + localefmt.chu("đường dẫn không hợp lệ.", "invalid path.")); return True
             return False
 
         arcs = [i.filename.replace("\\", "/") for i in infos]
@@ -277,7 +281,8 @@ def import_bundle(data: bytes, filename, *, agents_dir, workflows_dir, skills_ro
             # Gói SKILL kiểu CLAUDE (.skill / .zip): SKILL.md ở gốc hoặc trong 1 thư mục con.
             cand = sorted([a for a in arcs if a.rsplit("/", 1)[-1] == "SKILL.md"], key=lambda a: a.count("/"))
             if not cand:
-                res["errors"].append("Gói .zip không phải javis-bundle và không có SKILL.md - không rõ nhập gì.")
+                res["errors"].append(localefmt.chu("Gói .zip không phải javis-bundle và không có SKILL.md - không rõ nhập gì.",
+                                                   "The .zip is not a javis-bundle and has no SKILL.md - unclear what to import."))
                 return res
             prefix = cand[0][:-len("SKILL.md")]   # "" (gốc) hoặc "thu-muc/"
             try:
@@ -286,7 +291,8 @@ def import_bundle(data: bytes, filename, *, agents_dir, workflows_dir, skills_ro
                 sk_meta = {}
             slug = slugify(sk_meta.get("name") or "") or slugify(prefix.rstrip("/"))
             if not _valid_slug(slug):
-                res["errors"].append("Không xác định được tên skill hợp lệ từ gói (thiếu 'name' trong SKILL.md).")
+                res["errors"].append(localefmt.chu("Không xác định được tên skill hợp lệ từ gói (thiếu 'name' trong SKILL.md).",
+                                                   "Could not work out a valid skill name from the bundle (no 'name' in SKILL.md)."))
                 return res
             if (Path(skills_root) / slug).exists() and not overwrite:
                 skp.add(f"skill:{slug}")

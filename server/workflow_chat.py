@@ -24,6 +24,8 @@ import re
 import unicodedata
 from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
 
+import localefmt
+
 TRAN_KET_QUA_TRUOC = 8000
 _LOAI = ("agent", "workflow")
 
@@ -47,22 +49,28 @@ def ghep_dau_vao(user_message: str, ket_qua_truoc: str) -> str:
 
 
 def tin_xong(so_lan: int, so_buoc: int, giay: int, ket_qua: str) -> str:
-    than = str(ket_qua or "").strip() or "(quy trình xong nhưng không có nội dung)"
-    return f"Lần chạy #{int(so_lan)} · {int(so_buoc)} bước · {int(giay)} giây\n\n{than}"
+    than = str(ket_qua or "").strip() or localefmt.chu("(quy trình xong nhưng không có nội dung)",
+                                                       "(the workflow finished but returned nothing)")
+    return localefmt.chu(f"Lần chạy #{int(so_lan)} · {int(so_buoc)} bước · {int(giay)} giây\n\n{than}",
+                         f"Run #{int(so_lan)} · {int(so_buoc)} steps · {int(giay)} seconds\n\n{than}")
 
 
 def tin_loi(i: Optional[int], agent: str, loi: str) -> str:
-    loi = str(loi or "").strip() or "không rõ lý do"
+    loi = str(loi or "").strip() or localefmt.chu("không rõ lý do", "reason unknown")
     if i is None:
-        return f"Quy trình dừng vì lỗi: {loi}"
+        return localefmt.chu(f"Quy trình dừng vì lỗi: {loi}", f"The workflow stopped on an error: {loi}")
     ten = f" ({agent})" if agent else ""
-    return f"Quy trình dừng ở bước {int(i) + 1}{ten}: {loi}"
+    return localefmt.chu(f"Quy trình dừng ở bước {int(i) + 1}{ten}: {loi}",
+                         f"The workflow stopped at step {int(i) + 1}{ten}: {loi}")
 
 
 def tin_cho_duyet(node: str, prompt: str) -> str:
     p = str(prompt or "").strip()
-    dau = f"Quy trình đang chờ duyệt bước \"{node}\""
-    return (dau + (f": {p}" if p else "") + ". Bấm Duyệt ở cột phải để chạy tiếp.")
+    dau = localefmt.chu(f"Quy trình đang chờ duyệt bước \"{node}\"",
+                        f"The workflow is waiting for approval of step \"{node}\"")
+    return (dau + (f": {p}" if p else "")
+            + localefmt.chu(". Bấm Duyệt ở cột phải để chạy tiếp.",
+                            ". Press Approve in the right column to continue."))
 
 
 async def chay(events, emit: Callable[[dict], Awaitable[None]]) -> Dict[str, Any]:
@@ -91,7 +99,9 @@ async def chay(events, emit: Callable[[dict], Awaitable[None]]) -> Dict[str, Any
                 buoc_dang_chay = i
                 agent_cua_buoc[i] = str(ev.get("agent") or "")
                 tong = kq["so_buoc"] or (i + 1)
-                await emit({"type": "status", "content": f"Bước {i + 1}/{tong}: {agent_cua_buoc[i]} đang làm..."})
+                await emit({"type": "status", "content": localefmt.chu(
+                    f"Bước {i + 1}/{tong}: {agent_cua_buoc[i]} đang làm...",
+                    f"Step {i + 1}/{tong}: {agent_cua_buoc[i]} is working...")})
             elif t == "done":
                 kq["trang_thai"] = "done"
                 kq["ket_qua"] = str(ev.get("result") or "")
@@ -124,7 +134,8 @@ async def chay(events, emit: Callable[[dict], Awaitable[None]]) -> Dict[str, Any
     if not da_ket:
         kq["trang_thai"] = "error"
         kq["loi"] = {"i": buoc_dang_chay, "agent": agent_cua_buoc.get(buoc_dang_chay if buoc_dang_chay is not None else -1, ""),
-                     "content": "luồng chạy không kết thúc (engine dừng mà không báo)"}
+                     "content": localefmt.chu("luồng chạy không kết thúc (engine dừng mà không báo)",
+                                              "the run never finished (the engine stopped without saying so)")}
     return kq
 
 
@@ -241,9 +252,13 @@ def quyet_dinh_luot(user_message: str, ep_chay: bool = False) -> Tuple[str, str]
 def tin_khong_chay(ten: str = "") -> str:
     """Dòng nói THẲNG là lần chạy đã không khởi động, và cách ép chạy nếu đoán sai."""
     cua = f' "{ten}"' if str(ten or "").strip() else ""
-    return ("Tin này đang nói về chính quy trình" + cua + " nên mình trả lời thay vì chạy nó. "
-            "Muốn chạy thật với đúng câu này thì bấm nút Chạy ở cột phải, hoặc gửi lại với "
-            "\"chạy:\" ở đầu tin.")
+    return localefmt.chu(
+        "Tin này đang nói về chính quy trình" + cua + " nên mình trả lời thay vì chạy nó. "
+        "Muốn chạy thật với đúng câu này thì bấm nút Chạy ở cột phải, hoặc gửi lại với "
+        "\"chạy:\" ở đầu tin.",
+        "This message is about the workflow" + cua + " itself, so I answered instead of running it. "
+        "To really run it with this exact message, press Run in the right column, or send it again "
+        "starting with \"chạy:\".")
 
 
 def khoi_quy_trinh_dang_mo(ten: str, slug: str, duong_dan: str, so_buoc: int,

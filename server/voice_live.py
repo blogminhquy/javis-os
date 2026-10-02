@@ -48,6 +48,8 @@ import tempfile
 import time
 from typing import Any, AsyncIterator, Dict, List, Optional
 
+import localefmt
+
 _OPENAI_VOICES = ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"]
 # Giọng của realtime v3 trên gói ChatGPT (Codex app-server). marin/alloy... của API bị v3 từ chối.
 CHATGPT_VOICES = ["juniper", "maple", "spruce", "ember", "vale", "breeze", "arbor", "sol", "cove"]
@@ -716,7 +718,8 @@ class GPTLive(LiveProvider):
                 self._asst_open = False
                 out.append({"type": "turn_done"})
             if reason and reason != "close_requested":
-                out.append({"type": "error", "message": f"Phiên GPT-Live kết thúc: {reason}"})
+                out.append({"type": "error", "message": localefmt.chu(f"Phiên GPT-Live kết thúc: {reason}",
+                                                                       f"GPT-Live session ended: {reason}")})
             return out
         if t == "error":
             e = msg.get("error") or {}
@@ -881,13 +884,15 @@ class ChatGPTLive(LiveProvider):
         }, timeout=40)
         self.thread_id = str(((res or {}).get("thread") or {}).get("id") or "")
         if not self.thread_id:
-            raise RuntimeError("Codex app-server không mở được thread cho ChatGPT Live.")
+            raise RuntimeError(localefmt.chu("Codex app-server không mở được thread cho ChatGPT Live.",
+                                              "Codex app-server could not open a thread for ChatGPT Live."))
         self.queue = self.srv.subscribe(self.thread_id)
 
     async def reconnect(self):
         # Không nối lại trong suốt được: trình duyệt phải bắt tay WebRTC lại từ đầu.
         await self.close()
-        raise RuntimeError("ChatGPT Live đã ngắt, hãy bấm gọi lại.")
+        raise RuntimeError(localefmt.chu("ChatGPT Live đã ngắt, hãy bấm gọi lại.",
+                                          "ChatGPT Live disconnected, press call again."))
 
     async def restore_history(self, messages: List[dict]):
         items, budget = [], HISTORY_CHARS
@@ -929,7 +934,8 @@ class ChatGPTLive(LiveProvider):
         try:
             return await asyncio.wait_for(self._sdp, 25)
         except asyncio.TimeoutError:
-            raise RuntimeError("ChatGPT Live không trả lời bắt tay sau 25 giây.")
+            raise RuntimeError(localefmt.chu("ChatGPT Live không trả lời bắt tay sau 25 giây.",
+                                              "ChatGPT Live did not answer the handshake after 25 seconds."))
 
     def _flush_user(self) -> List[dict]:
         if not self._user_buf.strip():
@@ -964,7 +970,7 @@ class ChatGPTLive(LiveProvider):
             text = str(p.get("message") or "lỗi không rõ")
             if self._sdp is not None and not self._sdp.done():
                 self._sdp.set_exception(RuntimeError(f"ChatGPT Live không mở được: {text}"))
-            return [{"type": "error", "message": f"ChatGPT Live lỗi: {text}"}]
+            return [{"type": "error", "message": localefmt.chu(f"ChatGPT Live lỗi: {text}", f"ChatGPT Live error: {text}")}]
         # Chỉ thông báo `transcript/done` của người dùng mới tạo bong bóng chốt. Đo trên dashboard thật
         # (01/10): model hay BẮT ĐẦU trả lời trước khi chữ cuối của người dùng về ("... có khỏe" rồi
         # mới tới " không"), và handoff tới trước cả done. Chốt sớm theo những mốc đó sinh bong bóng
@@ -1015,9 +1021,13 @@ class ChatGPTLive(LiveProvider):
         if method == "thread/realtime/closed":
             if self._closing:
                 return []
-            return [{"type": "error", "message": f"ChatGPT Live đã ngắt ({p.get('reason') or 'không rõ lý do'})."}]
+            return [{"type": "error", "message": localefmt.chu(
+                f"ChatGPT Live đã ngắt ({p.get('reason') or 'không rõ lý do'}).",
+                f"ChatGPT Live disconnected ({p.get('reason') or 'reason unknown'}).")}]
         if method == "_exit":
-            return [] if self._closing else [{"type": "error", "message": "Codex app-server đã dừng, cuộc gọi ChatGPT Live kết thúc."}]
+            return [] if self._closing else [{"type": "error", "message": localefmt.chu(
+                "Codex app-server đã dừng, cuộc gọi ChatGPT Live kết thúc.",
+                "Codex app-server stopped, the ChatGPT Live call has ended.")}]
         return []
 
     async def _interrupt(self, turn_id: str):
@@ -1137,12 +1147,14 @@ def make_provider(cfg: dict, system: str = "", recognition_lang: str = "vi-VN", 
     m = (cfg or {}).get("model") or {}
     prov = str(v.get("live_provider") or "gemini").strip().lower()
     if prov not in PROVIDERS:
-        raise RuntimeError(f"Nhà cung cấp Live '{prov}' không có. Chọn: {', '.join(PROVIDERS)}.")
+        raise RuntimeError(localefmt.chu(f"Nhà cung cấp Live '{prov}' không có. Chọn: {', '.join(PROVIDERS)}.",
+                                         f"Live provider '{prov}' does not exist. Choose: {', '.join(PROVIDERS)}."))
     if prov == "chatgpt":
         import codex_realtime
         ok, why = codex_realtime.realtime_available(cfg)
         if not ok:
-            raise RuntimeError(CHATGPT_UNAVAILABLE.get(why, "ChatGPT Live chưa dùng được."))
+            raise RuntimeError(CHATGPT_UNAVAILABLE.get(why, localefmt.chu("ChatGPT Live chưa dùng được.",
+                                                                           "ChatGPT Live is not available yet.")))
         kw = {"voice": str(v.get("chatgpt_voice") or ""), "recognition_lang": recognition_lang,
               "memory_index": memory_index}
         if system:
@@ -1150,7 +1162,8 @@ def make_provider(cfg: dict, system: str = "", recognition_lang: str = "vi-VN", 
         return ChatGPTLive(**kw)
     key = str(m.get(PROVIDERS[prov]["key_field"]) or "").strip()
     if not key:
-        raise RuntimeError(f"{PROVIDERS[prov]['label']} chưa có API key ở trang Models.")
+        raise RuntimeError(localefmt.chu(f"{PROVIDERS[prov]['label']} chưa có API key ở trang Models.",
+                                         f"{PROVIDERS[prov]['label']} has no API key on the Models page."))
     cls = _CLASSES[prov]
     kw = {"model": str(v.get("live_model") or ""), "voice": str(v.get("live_voice") or ""),
           "recognition_lang": recognition_lang}

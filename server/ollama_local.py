@@ -32,6 +32,7 @@ from urllib.parse import urlparse
 import httpx
 
 import deploy_info
+import localefmt
 import winproc               # lệnh con chạy câm trên Windows, không nháy console đen
 
 # Cổng mặc định của Ollama (docs.ollama.com). Chỉ dùng để GỢI Ý sẵn trong ô nhập.
@@ -59,14 +60,15 @@ def chuan_hoa_endpoint(raw: str) -> str:
     """
     u = (raw or "").strip().rstrip("/")
     if not u:
-        raise LoiEndpoint("Chưa nhập địa chỉ Ollama")
+        raise LoiEndpoint(localefmt.chu("Chưa nhập địa chỉ Ollama", "No Ollama address entered"))
     if "://" not in u:
         u = "http://" + u          # gõ "192.168.1.20:11434" là ý người dùng, đừng bắt gõ đủ
     p = urlparse(u)
     if p.scheme not in ("http", "https"):
-        raise LoiEndpoint("Địa chỉ phải bắt đầu bằng http:// hoặc https://")
+        raise LoiEndpoint(localefmt.chu("Địa chỉ phải bắt đầu bằng http:// hoặc https://",
+                                       "The address must start with http:// or https://"))
     if not p.hostname:
-        raise LoiEndpoint("Địa chỉ thiếu tên máy hoặc IP")
+        raise LoiEndpoint(localefmt.chu("Địa chỉ thiếu tên máy hoặc IP", "The address is missing a host name or IP"))
     # Link-local (169.254.x.x) là dải metadata của AWS/GCP/Azure - hỏi vào đó là moi thông tin
     # máy chủ, không bao giờ là một Ollama thật.
     #
@@ -78,9 +80,11 @@ def chuan_hoa_endpoint(raw: str) -> str:
     except ValueError:
         ip = None                   # tên miền, không phải IP - bình thường
     if ip is not None and (ip.is_link_local or ip.is_multicast or ip.is_reserved):
-        raise LoiEndpoint("Địa chỉ này không phải một máy chạy Ollama")
+        raise LoiEndpoint(localefmt.chu("Địa chỉ này không phải một máy chạy Ollama",
+                                       "This address is not a machine running Ollama"))
     if p.path not in ("", "/"):
-        raise LoiEndpoint("Chỉ nhập địa chỉ máy chủ, không kèm đường dẫn (vd http://127.0.0.1:11434)")
+        raise LoiEndpoint(localefmt.chu("Chỉ nhập địa chỉ máy chủ, không kèm đường dẫn (vd http://127.0.0.1:11434)",
+                                       "Enter only the server address, without a path (e.g. http://127.0.0.1:11434)"))
     # Gõ thiếu CỔNG thì thêm cổng mặc định của Ollama, đừng để rơi về 80. Vụ thật 02/09: chủ
     # repo gõ mỗi IP máy chủ, Javis hiểu thành cổng 80, đi trúng web server của chính VPS đó và
     # nhận 301 - một mã lỗi không nói lên điều gì về Ollama cả. Cổng 80 gần như không bao giờ
@@ -152,29 +156,41 @@ async def probe(endpoint: str, key: str | None = None) -> dict:
         # dùng không có đường nào lần ra; nói đúng bệnh thì họ sửa được ngay.
         if 300 <= r.status_code < 400:
             return {"reachable": False, "models": [],
-                    "error": (f"Địa chỉ này trả về chuyển hướng (mã {r.status_code}), tức là một "
-                              "web server chứ không phải Ollama. Ollama nghe ở cổng 11434 - kiểm "
-                              "tra lại xem đã ghi đúng cổng chưa.")}
+                    "error": localefmt.chu(
+                        f"Địa chỉ này trả về chuyển hướng (mã {r.status_code}), tức là một "
+                        "web server chứ không phải Ollama. Ollama nghe ở cổng 11434 - kiểm "
+                        "tra lại xem đã ghi đúng cổng chưa.",
+                        f"This address returns a redirect (code {r.status_code}), so it is a "
+                        "web server, not Ollama. Ollama listens on port 11434 - check that "
+                        "the port is right.")}
         if r.status_code != 200:
             return {"reachable": False, "models": [],
-                    "error": f"Máy chủ trả lỗi {r.status_code}"}
+                    "error": localefmt.chu(f"Máy chủ trả lỗi {r.status_code}", f"The server returned error {r.status_code}")}
         try:
             data = r.json() or {}
         except ValueError:
             # Trả 200 nhưng không phải JSON = có máy chủ ở đó, chỉ là không phải Ollama.
             return {"reachable": False, "models": [],
-                    "error": ("Địa chỉ này có máy chủ trả lời nhưng không phải Ollama. Kiểm tra "
-                              "lại cổng (Ollama dùng 11434).")}
+                    "error": localefmt.chu(
+                        "Địa chỉ này có máy chủ trả lời nhưng không phải Ollama. Kiểm tra "
+                        "lại cổng (Ollama dùng 11434).",
+                        "A server answers at this address but it is not Ollama. Check "
+                        "the port (Ollama uses 11434).")}
         if "models" not in data:
             return {"reachable": False, "models": [],
-                    "error": ("Địa chỉ này trả lời nhưng không giống Ollama. Kiểm tra lại cổng "
-                              "(Ollama dùng 11434).")}
+                    "error": localefmt.chu(
+                        "Địa chỉ này trả lời nhưng không giống Ollama. Kiểm tra lại cổng "
+                        "(Ollama dùng 11434).",
+                        "This address answers but does not look like Ollama. Check the port "
+                        "(Ollama uses 11434).")}
         return {"reachable": True, "models": data.get("models") or [], "error": None}
     except httpx.ConnectError:
         return {"reachable": False, "models": [],
-                "error": "Không nối được. Ollama đã chạy chưa, và địa chỉ có đúng không?"}
+                "error": localefmt.chu("Không nối được. Ollama đã chạy chưa, và địa chỉ có đúng không?",
+                                       "Could not connect. Is Ollama running, and is the address right?")}
     except httpx.TimeoutException:
-        return {"reachable": False, "models": [], "error": "Hết giờ chờ - máy không trả lời"}
+        return {"reachable": False, "models": [],
+                "error": localefmt.chu("Hết giờ chờ - máy không trả lời", "Timed out - the machine did not answer")}
     except Exception as e:
         return {"reachable": False, "models": [], "error": str(e)[:200]}
 
@@ -236,7 +252,8 @@ async def delete_model(endpoint: str, model: str, key: str | None = None) -> dic
                                   json={"model": model, "name": model})
         if r.status_code in (200, 204):
             return {"ok": True}
-        return {"ok": False, "error": f"Ollama trả lỗi {r.status_code}: {r.text[:200]}"}
+        return {"ok": False, "error": localefmt.chu(f"Ollama trả lỗi {r.status_code}: ",
+                                                    f"Ollama returned error {r.status_code}: ") + r.text[:200]}
     except Exception as e:
         return {"ok": False, "error": str(e)[:200]}
 
@@ -254,7 +271,8 @@ async def pull_stream(endpoint: str, model: str, key: str | None = None):
                               json={"model": model, "name": model, "stream": True}) as r:
             if r.status_code != 200:
                 await r.aread()
-                yield {"status": "error", "error": f"Ollama trả lỗi {r.status_code}"}
+                yield {"status": "error", "error": localefmt.chu(f"Ollama trả lỗi {r.status_code}",
+                                                                 f"Ollama returned error {r.status_code}")}
                 return
             async for dong in r.aiter_lines():
                 dong = (dong or "").strip()
