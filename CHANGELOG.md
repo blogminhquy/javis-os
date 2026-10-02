@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.31] - 2026-10-02
+### Cải thiện
+- Đang làm: ô Bộ não trả lời nhanh chỉ hiện khi cuộc gọi chạy đường Cơ bản.
+
 ## [0.65.30] - 2026-10-02
 ### Thêm mới
 - **Link chia sẻ có tên.** Link mới tự lấy tên theo tiêu đề file (tiêu đề trang `.html`, tiêu đề ghi chú `.md`), không còn cả loạt cùng tên "index.html". Ở trang Chia sẻ bấm **Đổi tên** để đặt tên khác; link đã gửi đi vẫn giữ nguyên. Ô tìm kiếm tìm được theo tên.
