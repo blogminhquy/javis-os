@@ -10,6 +10,7 @@ from pathlib import Path
 import voice_brain
 import nghe_sua
 import sessions
+import localefmt  # main.py dịch dòng trạng thái của handler bằng localefmt.chu (0.67.0)
 
 
 class VoiceTurnIntegrity(unittest.IsolatedAsyncioTestCase):
@@ -51,7 +52,7 @@ class VoiceTurnIntegrity(unittest.IsolatedAsyncioTestCase):
 
             proxy = types.SimpleNamespace(**vars(voice_brain))
             proxy.get_brain = get_brain
-            namespace = dict(voice_brain=proxy, nghe_sua=nghe_sua, asyncio=asyncio, sys=sys,
+            namespace = dict(voice_brain=proxy, nghe_sua=nghe_sua, asyncio=asyncio, sys=sys, localefmt=localefmt,
                              store=store, send_raw=send, run_turn=fallback, _persist_turn=persist,
                              _CHAT_RUNTIME=types.SimpleNamespace(finish_job=lambda *a: None),
                              ui_targets=types.SimpleNamespace(normalize_target=lambda a, t: t),
