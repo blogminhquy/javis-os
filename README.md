@@ -373,10 +373,11 @@ javis-os/
 | What | Languages today |
 |---|---|
 | **Javis's replies** | Any language: it answers in the language you write in, or one you pin in Settings |
-| **Dashboard** | 🇬🇧 English · 🇻🇳 Tiếng Việt (follows your browser until you pick one) |
-| **Docs and README** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
+| **Dashboard and server messages** | 🇬🇧 English · 🇻🇳 Tiếng Việt, per device: each browser gets its own language until you pick one |
+| **Connection store, plugins, a new brain's starter files** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
+| **Docs, README and [website](website/index.html)** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
-Adding a language is a data change, not a code change: one entry in `server/lang_registry.py` plus one `dashboard/i18n/<code>.json`. See [CONTRIBUTING.en.md](CONTRIBUTING.en.md#translations) if you would like to help.
+Adding a language is a data change, not a code change: one entry in `server/lang_registry.py` plus one `dashboard/i18n/<code>.json`, and optionally `system/mcp-catalog.<code>.json`. Anything not translated yet shows in English. See [CONTRIBUTING.en.md](CONTRIBUTING.en.md#translations) if you would like to help.
 
 ---
 
