@@ -1,7 +1,9 @@
 name: Gửi ảnh & file qua Zalo
+name_en: "Send images & files on Zalo"
 slug: zalo-image
 version: 1.0.0
 description: Gửi ẢNH hoặc FILE qua Zalo kèm lời nhắn, bằng chính tài khoản đã quét QR ở trang Kết nối. Bù đúng chỗ MCP chuẩn của zalo-agent-cli còn thiếu - tool zalo_send_message của nó chỉ nhận chữ.
+description_en: "Sends an IMAGE or FILE on Zalo with a message, using the very account you scanned on the Connections page. Fills exactly what the standard zalo-agent-cli MCP lacks: its zalo_send_message tool takes text only."
 author: Javis (bundled)
 enabled: true
 min_mode: full

@@ -1,7 +1,9 @@
 name: Đặt việc định kỳ & nhắc hẹn
+name_en: "Recurring jobs & reminders"
 slug: javis-schedule
 version: 1.0.0
 description: Tạo/liệt kê/huỷ việc chạy định kỳ và nhắc hẹn ngay từ chat. Tự chọn kho - việc lặp và bền thì ghi Javis/loops/<slug>.md để sửa được trong Obsidian; nhắc một lần hoặc lịch cron thì vào kho nhắc hẹn (đã có sẵn cron 5 trường). Thay cho việc gõ YAML tay hoặc curl.
+description_en: "Create, list and cancel recurring jobs and reminders right from chat. Picks the right store itself: lasting repeat work goes to Javis/loops/<slug>.md so you can edit it in Obsidian; one-off reminders or cron schedules go to the reminder store (5-field cron built in). Replaces hand-writing YAML or curl."
 author: Javis (bundled)
 enabled: true
 min_mode: safe

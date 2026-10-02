@@ -1,7 +1,9 @@
 name: Việc chạy nền
+name_en: "Background jobs"
 slug: javis-job
 version: 1.0.0
 description: Theo dõi lệnh chạy ngầm engine bỏ lại (render, build, tải về). Dặn trước "xong thì làm tiếp gì", xem việc đang chạy, dừng một việc. Xong là Javis tự báo về đúng khung chat và tự làm tiếp.
+description_en: "Tracks background commands an engine leaves running (render, build, download). Say in advance \"when it's done, do this next\", see running jobs, stop one. When it finishes Javis reports back to the right chat and carries on by itself."
 author: Javis (bundled)
 enabled: true
 min_mode: safe

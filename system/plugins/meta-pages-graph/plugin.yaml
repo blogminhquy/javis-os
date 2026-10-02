@@ -1,7 +1,9 @@
 name: Facebook Trang (Graph API)
+name_en: "Facebook Pages (Graph API)"
 slug: meta-pages-graph
 version: 1.0.0
 description: Quản lý Trang/Fanpage Facebook qua Graph API - liệt kê Trang, đọc bài và bình luận (chỉ đọc), đăng bài/ảnh/video/album, sửa chữ, xoá bài và trả lời bình luận (toàn quyền). Dùng token của kết nối "Facebook Trang (tự tạo app)".
+description_en: "Manages Facebook Pages through the Graph API: list Pages, read posts and comments (read-only), publish posts, photos, videos and albums, edit text, delete posts and reply to comments (full access). Uses the token of the \"Facebook Pages (your own app)\" connection."
 author: Javis (bundled)
 enabled: true
 min_mode: full

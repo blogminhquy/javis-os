@@ -1,7 +1,9 @@
 name: Theo dõi Facebook (Apify)
+name_en: "Facebook monitor (Apify)"
 slug: fb-monitor-apify
 version: 1.0.0
 description: Theo dõi Trang/Nhóm CÔNG KHAI Facebook tìm bài nhiều share qua dịch vụ Apify. Chỉ đọc, không đụng tài khoản cá nhân, chạy tốt trên VPS. Dùng token của kết nối "facebook-monitor".
+description_en: "Watches PUBLIC Facebook Pages and Groups for highly shared posts through the Apify service. Read-only, never touches a personal account, runs fine on a VPS. Uses the token of the \"facebook-monitor\" connection."
 author: Javis (bundled)
 enabled: true
 min_mode: readonly

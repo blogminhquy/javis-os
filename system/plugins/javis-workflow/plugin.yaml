@@ -1,7 +1,9 @@
 name: Lịch sử quy trình
+name_en: "Workflow history"
 slug: javis-workflow
 version: 1.0.0
 description: Xem các lần chạy quy trình gần đây và kết quả từng lần, ngay từ chat. Trước tool này, chạy quy trình xong là kết quả mất, hỏi "quy trình chạy gần nhất ra sao" Javis không có gì để tra.
+description_en: "Shows recent workflow runs and the result of each, right from chat. Before this tool a finished workflow's result was lost, and asking \"how did the last workflow run go\" left Javis nothing to look up."
 author: Javis (bundled)
 enabled: true
 min_mode: readonly

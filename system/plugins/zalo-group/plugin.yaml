@@ -1,7 +1,9 @@
 name: Zalo nhóm - tag người, ghi chú, nhắc hẹn, poll
+name_en: "Zalo groups: mention people, notes, reminders, polls"
 slug: zalo-group
 version: 1.0.0
 description: Tag ĐÚNG người trong nhóm Zalo (nói tên, Javis tự tìm ID Zalo thật), liệt kê thành viên, tạo ghi chú nhóm, tạo nhắc hẹn và tạo poll, bằng chính tài khoản đã quét QR ở trang Kết nối. Bù đúng chỗ MCP chuẩn của zalo-agent-cli còn thiếu - nó chỉ có bảy tool và tool gửi tin chỉ nhận chữ.
+description_en: "Mentions the RIGHT person in a Zalo group (say the name, Javis finds the real Zalo ID), lists members, creates group notes, reminders and polls, using the very account you scanned on the Connections page. Fills exactly what the standard zalo-agent-cli MCP lacks: it has only seven tools and its send tool takes text only."
 author: Javis (bundled)
 enabled: true
 min_mode: full

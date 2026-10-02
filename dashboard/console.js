@@ -8695,11 +8695,15 @@
         const I = window.JavisI18n;
         const langs0 = s.lang_list || [];
         const srv = String((s.locale && s.locale.ui_lang) || "");
+        // Giá trị do dashboard TỰ GHI theo trình duyệt (ui_lang_nguon = "tu_dong") không được áp
+        // lên thiết bị khác: nó chỉ nói thiết bị ghé đầu tiên đọc tiếng gì, không phải chủ máy
+        // đã chọn. Giá trị không có nguồn là của bản cài cũ, coi như đã chọn.
+        const srvChon = srv && (s.locale && s.locale.ui_lang_nguon) !== "tu_dong";
         if (I && !I.daChon()) {
-          if (srv && langs0.some(l => l.ma === srv)) {
+          if (srvChon && langs0.some(l => l.ma === srv)) {
             if (srv !== I.lang()) await I.setLang(srv);
           } else if (!srv && langs0.some(l => l.ma === I.lang())) {
-            saveSetting("locale", { ui_lang: I.lang() });
+            saveSetting("locale", { ui_lang: I.lang(), tu_dong: true });
           }
         }
       } catch (e) { /* lỗi thì giữ ngôn ngữ đang hiện, không chặn phần còn lại */ }

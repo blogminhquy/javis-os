@@ -1,7 +1,9 @@
 name: Thời gian & ngày
+name_en: "Date & time"
 slug: datetime-vn
 version: 1.0.0
 description: Xem ngày giờ hiện tại theo múi giờ đã cấu hình và tính ngày tương đối (mai, mốt, N ngày nữa, tuần trước). Thuần stdlib, chỉ đọc, không cần mạng.
+description_en: "Shows the current date and time in the configured timezone and works out relative dates (tomorrow, in N days, last week). Pure stdlib, read-only, no network needed."
 author: Javis (bundled)
 enabled: true
 min_mode: readonly

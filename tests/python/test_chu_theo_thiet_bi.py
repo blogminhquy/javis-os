@@ -67,8 +67,31 @@ try:
     check("app: cookie javis_lang=en -> tiếng Anh", c.get("/__test_chu").json().get("chu") == "Hello")
     c.cookies.set("javis_lang", "vi")
     check("app: cookie javis_lang=vi -> tiếng Việt", c.get("/__test_chu").json().get("chu") == "Xin chào")
+    # Nguồn của ui_lang: dashboard tự ghi theo trình duyệt thì đánh dấu "tu_dong", người chọn
+    # thì "chon". Thiết bị khác chỉ bị áp giá trị người CHỌN (console.js), không thì người ghé
+    # đầu tiên quyết định ngôn ngữ của mọi người.
+    c.post("/settings", data={"section": "locale", "data": '{"ui_lang":"en","tu_dong":true}'})
+    lc = c.get("/settings").json()["locale"]
+    check("app: ui_lang tự ghi -> nguồn tu_dong", lc.get("ui_lang") == "en" and lc.get("ui_lang_nguon") == "tu_dong", lc)
+    c.post("/settings", data={"section": "locale", "data": '{"ui_lang":"vi"}'})
+    lc = c.get("/settings").json()["locale"]
+    check("app: ui_lang người chọn -> nguồn chon", lc.get("ui_lang") == "vi" and lc.get("ui_lang_nguon") == "chon", lc)
 except Exception as e:  # noqa: BLE001
     check("app: nạp được main để thử middleware", False, f"{type(e).__name__}: {e}")
+
+# Trang Plugins: plugin đi kèm app có tên/mô tả tiếng Anh (name_en / description_en).
+import glob  # noqa: E402
+import fastyaml  # noqa: E402
+import plugins_host  # noqa: E402
+_thieu = [f for f in glob.glob(str(ROOT / "system" / "plugins" / "*" / "plugin.yaml"))
+          if not (lambda m: m.get("name_en") and m.get("description_en"))(fastyaml.safe_load(open(f, encoding="utf-8").read()) or {})]
+check("mọi plugin đi kèm app có name_en + description_en", not _thieu, _thieu[:3])
+_m = {"name": "Thời gian & ngày", "name_en": "Date & time"}
+check("plugin: không cookie -> tên gốc", plugins_host._theo_ngon_ngu(_m, "name", _m["name"]) == "Thời gian & ngày")
+tok = localefmt.dat_ngon_ngu_yeu_cau("en")
+check("plugin: cookie en -> name_en", plugins_host._theo_ngon_ngu(_m, "name", _m["name"]) == "Date & time")
+check("plugin: thiếu bản dịch -> tên gốc", plugins_host._theo_ngon_ngu({"name": "X"}, "name", "X") == "X")
+localefmt.bo_ngon_ngu_yeu_cau(tok)
 
 print()
 if _fails:

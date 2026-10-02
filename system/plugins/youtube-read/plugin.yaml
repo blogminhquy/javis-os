@@ -1,7 +1,9 @@
 name: Đọc video YouTube
+name_en: "Read YouTube videos"
 slug: youtube-read
 version: 1.1.0
 description: Đọc lời thoại (phụ đề) của video YouTube từ link để tóm tắt. Tự đổi qua 6 kiểu trình phát rồi tới yt-dlp khi YouTube chặn máy chủ. Không cần đăng nhập, không cần API key.
+description_en: "Reads the transcript (subtitles) of a YouTube video from its link so it can be summarised. Cycles through 6 player types, then yt-dlp, when YouTube blocks the server. No sign-in, no API key."
 author: Javis (bundled)
 enabled: true
 min_mode: readonly

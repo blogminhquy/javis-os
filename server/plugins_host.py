@@ -225,6 +225,28 @@ def _slug_bundled() -> set:
         return set()
 
 
+def _theo_ngon_ngu(manifest: dict, khoa: str, goc: str) -> str:
+    """Tên/mô tả HIỂN THỊ trên trang Plugins theo ngôn ngữ giao diện của thiết bị đang xem.
+
+    Cùng quy ước với SKILL.md: khoá `name_<mã>` / `description_<mã>` nằm cạnh bản gốc
+    (`name_en: ...`). Không có bản cho ngôn ngữ đó thì dùng bản tiếng Anh nếu có (cùng luật suy
+    biến với dashboard), không nữa thì bản gốc. Chỉ dùng để HIỂN THỊ: mô tả tool gửi cho model
+    vẫn lấy bản gốc."""
+    try:
+        import lang_registry
+        import localefmt
+        ma = localefmt.ngon_ngu_giao_dien()
+        if ma == lang_registry.MAC_DINH:
+            return goc
+        for m in (ma, lang_registry.DU_PHONG_GIAO_DIEN):
+            v = manifest.get(f"{khoa}_{m}")
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+    except Exception:
+        pass
+    return goc
+
+
 def _read_manifest(pdir: Path) -> Tuple[dict, str]:
     f = pdir / "plugin.yaml"
     if not f.is_file():
@@ -300,8 +322,8 @@ def describe(vault_root: Optional[str] = None) -> List[dict]:
         loaded = want and (env_ok or source in ("bundled", "pack"))
         mm = manifest.get("min_mode", "readonly")
         out.append({
-            "slug": slug, "name": name, "source": source,
-            "description": manifest.get("description", ""),
+            "slug": slug, "name": _theo_ngon_ngu(manifest, "name", name), "source": source,
+            "description": _theo_ngon_ngu(manifest, "description", manifest.get("description", "")),
             "version": str(manifest.get("version", "")), "author": manifest.get("author", ""),
             "enabled": bool(want), "loaded": bool(loaded), "gated": gated,
             "min_mode": mm if mm in VALID_MIN_MODE else "readonly",

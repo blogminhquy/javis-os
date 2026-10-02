@@ -4482,6 +4482,10 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             lc["reply_lang"] = "auto" if v in ("", "auto") else (lang_registry.chuan_hoa(v) or "auto")
         if "ui_lang" in patch:
             lc["ui_lang"] = lang_registry.chuan_hoa(patch["ui_lang"]) or lang_registry.MAC_DINH
+            # Nguồn của giá trị: "tu_dong" = dashboard tự ghi theo trình duyệt của thiết bị ghé
+            # đầu tiên, "chon" = người dùng chọn. Chỉ giá trị người CHỌN mới được áp lên thiết bị
+            # khác (console.js); không thì người ghé đầu tiên quyết định ngôn ngữ của mọi người.
+            lc["ui_lang_nguon"] = "tu_dong" if patch.get("tu_dong") else "chon"
             _doi_ngon_ngu_hat_giong(lc["ui_lang"])
         if "tz" in patch:
             lc["tz"] = str(patch["tz"] or "").strip() or "Asia/Ho_Chi_Minh"

@@ -121,8 +121,10 @@ const cho = (ms = 30) => new Promise((r) => setTimeout(r, ms));
   const con = fs.readFileSync(path.join(ROOT, "dashboard/console.js"), "utf8");
   check("console.js: máy chưa chọn thì áp ui_lang của server (giữ người dùng cũ)",
         /!I\.daChon\(\)/.test(con) && /s\.locale && s\.locale\.ui_lang/.test(con) && /await I\.setLang\(srv\)/.test(con));
+  check("console.js: giá trị server TỰ GHI theo trình duyệt không áp lên thiết bị khác",
+        /ui_lang_nguon\) !== "tu_dong"/.test(con) && /if \(srvChon && /.test(con));
   check("console.js: server chưa có ui_lang thì ghi ngôn ngữ vừa đoán lên",
-        /saveSetting\("locale", \{ ui_lang: I\.lang\(\) \}\)/.test(con));
+        /saveSetting\("locale", \{ ui_lang: I\.lang\(\), tu_dong: true \}\)/.test(con));
   const cfg = fs.readFileSync(path.join(ROOT, "server/config.py"), "utf8");
   check("config.py: ui_lang mặc định rỗng cho bản cài mới", /"ui_lang": "",/.test(cfg));
 
