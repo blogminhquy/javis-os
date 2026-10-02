@@ -341,7 +341,9 @@ class _ApiAuxEngine:
 
         key = api_key_for(self.provider)
         if not key:
-            yield {"type": "error", "content": f"Chưa có API key cho {self.provider}."}
+            import localefmt
+            yield {"type": "error", "content": localefmt.chu(f"Chưa có API key cho {self.provider}.",
+                                                             f"No API key for {self.provider}.")}
             return
 
         # OpenRouter model trống = "tự chọn free mạnh nhất". User ghi đè bằng
@@ -358,7 +360,9 @@ class _ApiAuxEngine:
             except Exception as e:
                 print(f"[aux router] chọn model free lỗi: {e}", file=sys.stderr)
             if not self.model:
-                yield {"type": "error", "content": "Không chọn được model free OpenRouter."}
+                import localefmt
+                yield {"type": "error", "content": localefmt.chu("Không chọn được model free OpenRouter.",
+                                                                 "Could not pick a free OpenRouter model.")}
                 return
 
         tools, route = [], {}

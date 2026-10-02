@@ -23,6 +23,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
 
+import localefmt
 import workflow_graph
 from workflow_graph import WorkflowGraph, WorkflowNode
 from workflow_runtime import WorkflowCanary, WorkflowRunResult
@@ -314,7 +315,8 @@ class AgentRunner:
                     return AgentRunResult(
                         "ESCALATED", text, "repeated_failure_signature",
                         result.task_id, rounds, tuple(added),
-                        "Agent gặp lại đúng một lỗi nhiều lần nên dừng để bạn xem.",
+                        localefmt.chu("Agent gặp lại đúng một lỗi nhiều lần nên dừng để bạn xem.",
+                                      "The agent hit the same error several times, so it stopped for you to look."),
                         events, from_node)
 
             if rounds >= policy.max_replan_rounds:
@@ -364,7 +366,8 @@ class AgentRunner:
                 return AgentRunResult(
                     "ESCALATED", text, str(exc), result.task_id,
                     rounds, tuple(added),
-                    "Kế hoạch mới đòi quyền chưa được cấp nên Javis đã dừng.",
+                    localefmt.chu("Kế hoạch mới đòi quyền chưa được cấp nên Javis đã dừng.",
+                                  "The new plan needs permissions that were not granted, so Javis stopped."),
                     events, from_node)
             if len(current.nodes) + len(new_nodes) > policy.max_total_nodes:
                 text, from_node = self._best_output(state, current.output_node_id)

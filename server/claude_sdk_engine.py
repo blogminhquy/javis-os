@@ -37,6 +37,7 @@ except Exception:
     _SDK_OK = False
 
 from config import STATE_DIR
+import localefmt
 
 _AUDIT_PATH = STATE_DIR / "logs" / "sdk_tool_audit.jsonl"
 
@@ -135,15 +136,24 @@ def loi_de_hieu(e, tran_init=None):
     """
     raw = str(e)
     if "Control request timeout: initialize" in raw:
-        n = f"{int(tran_init)}s" if tran_init else "trần cho phép"
-        return ("Claude Code không khởi động xong trong " + n + " nên lượt này bị huỷ. Gần như "
-                "luôn là do NGUỒN DỮ LIỆU (MCP): lúc khởi động, Claude phải kết nối xong mọi "
-                "nguồn rồi mới nhận việc, nên một nguồn chết hoặc chậm là kéo cả lượt chờ theo "
-                "rồi hết giờ. Mở trang Kết nối, bấm Kiểm tra để tìm nguồn đang đỏ rồi tắt nó đi "
-                "và gửi lại tin nhắn. (JAVIS_CLAUDE_INIT_TIMEOUT=<giây> để nới thêm trần này)")
+        n = f"{int(tran_init)}s" if tran_init else localefmt.chu("trần cho phép", "the allowed limit")
+        return localefmt.chu(
+            "Claude Code không khởi động xong trong " + n + " nên lượt này bị huỷ. Gần như "
+            "luôn là do NGUỒN DỮ LIỆU (MCP): lúc khởi động, Claude phải kết nối xong mọi "
+            "nguồn rồi mới nhận việc, nên một nguồn chết hoặc chậm là kéo cả lượt chờ theo "
+            "rồi hết giờ. Mở trang Kết nối, bấm Kiểm tra để tìm nguồn đang đỏ rồi tắt nó đi "
+            "và gửi lại tin nhắn. (JAVIS_CLAUDE_INIT_TIMEOUT=<giây> để nới thêm trần này)",
+            "Claude Code did not finish starting within " + n + ", so this turn was cancelled. It is "
+            "almost always a DATA SOURCE (MCP): at startup Claude must connect every source "
+            "before taking work, so one dead or slow source makes the whole turn wait "
+            "until it times out. Open the Connections page, click Check to find the red source, turn it off "
+            "and send the message again. (JAVIS_CLAUDE_INIT_TIMEOUT=<seconds> raises this limit)")
     if "Control request timeout:" in raw:
-        return (f"Claude Code không phản hồi lệnh điều khiển ({raw}). Gửi lại tin nhắn; còn lặp "
-                "lại thì mở hội thoại mới.")
+        return localefmt.chu(
+            f"Claude Code không phản hồi lệnh điều khiển ({raw}). Gửi lại tin nhắn; còn lặp "
+            "lại thì mở hội thoại mới.",
+            f"Claude Code did not answer a control request ({raw}). Send the message again; if it keeps "
+            "happening, start a new conversation.")
     return f"SDK engine: {type(e).__name__}: {e}"
 
 
@@ -230,19 +240,31 @@ def map_message(msg):
         resume_failed = la_loi_mat_mach(msg)
         if resume_failed:
             events.append({"type": "error", "resume_failed": True,
-                           "content": "Phiên Claude cũ không còn trên máy (mạch hội thoại phía "
-                                      "Claude Code đã mất). Javis mở mạch mới và mồi lại từ "
-                                      "lịch sử đã lưu."})
+                           "content": localefmt.chu(
+                               "Phiên Claude cũ không còn trên máy (mạch hội thoại phía "
+                               "Claude Code đã mất). Javis mở mạch mới và mồi lại từ "
+                               "lịch sử đã lưu.",
+                               "The old Claude session is no longer on this machine (Claude Code lost "
+                               "the conversation thread). Javis opens a new thread and primes it from "
+                               "the saved history.")})
         elif msg.is_error and not (msg.result or "").strip():
             events.append({"type": "error",
-                           "content": f"Claude kết thúc lỗi ({msg.subtype}) - không có nội dung trả về. "
-                                      "Gửi lại tin nhắn; nếu vẫn lặp lại, mở hội thoại mới "
-                                      "(phiên cũ có thể đã hỏng sau khi bị ngắt giữa chừng)."})
+                           "content": localefmt.chu(
+                               f"Claude kết thúc lỗi ({msg.subtype}) - không có nội dung trả về. "
+                               "Gửi lại tin nhắn; nếu vẫn lặp lại, mở hội thoại mới "
+                               "(phiên cũ có thể đã hỏng sau khi bị ngắt giữa chừng).",
+                               f"Claude ended with an error ({msg.subtype}) - nothing was returned. "
+                               "Send the message again; if it keeps happening, start a new conversation "
+                               "(the old session may have broken after being interrupted).")})
         ket = msg.result or ""
         if dua_token:
-            ket = ("Lượt này rơi đúng lúc phiên đăng nhập Claude đang được làm mới nên bị chặn "
-                   "giữa chừng. Phiên KHÔNG mất - gửi lại tin nhắn là chạy tiếp bình thường. "
-                   "Hay gặp khi hai người cùng chat trên một tài khoản Claude.")
+            ket = localefmt.chu(
+                "Lượt này rơi đúng lúc phiên đăng nhập Claude đang được làm mới nên bị chặn "
+                "giữa chừng. Phiên KHÔNG mất - gửi lại tin nhắn là chạy tiếp bình thường. "
+                "Hay gặp khi hai người cùng chat trên một tài khoản Claude.",
+                "This turn hit the moment the Claude sign-in was being refreshed, so it was cut off "
+                "midway. The session is NOT lost - send the message again and it continues normally. "
+                "This often happens when two people chat on one Claude account.")
         events.append({
             "type": "final",
             "content": ket,
@@ -629,8 +651,11 @@ class ClaudeSDK:
 
     async def query(self, prompt: str):
         if not self.is_available():
-            yield {"type": "error", "content": "claude-agent-sdk chưa sẵn sàng (pip install claude-agent-sdk "
-                                               "+ cài/đăng nhập Claude Code CLI)."}
+            yield {"type": "error", "content": localefmt.chu(
+                "claude-agent-sdk chưa sẵn sàng (pip install claude-agent-sdk "
+                "+ cài/đăng nhập Claude Code CLI).",
+                "claude-agent-sdk is not ready (pip install claude-agent-sdk "
+                "+ install/sign in to the Claude Code CLI).")}
             return
         from claude_agent_sdk import ClaudeSDKClient, ResultMessage
         # Ba trần watchdog, None = không giới hạn. Xem `tran_watchdog` để biết vì sao hai trần
@@ -709,19 +734,32 @@ class ClaudeSDK:
                                "session_id": self.session_id, "completion_recovered": True}
                         break
                     if ly_do == "wall":
-                        err = f"Fork vượt trần {int(self.max_wall_s)}s - đã dừng (cap wall-clock nền)."
+                        err = localefmt.chu(f"Fork vượt trần {int(self.max_wall_s)}s - đã dừng (cap wall-clock nền).",
+                                            f"Fork went over the {int(self.max_wall_s)}s limit - stopped (background wall-clock cap).")
                     elif ly_do == "tool":
-                        err = (f"Tool chạy quá {int(TOOL_IDLE)}s chưa xong - đã dừng để tránh treo server. "
-                               f"(tăng JAVIS_CLAUDE_TOOL_TIMEOUT nếu tác vụ thật sự dài hơn, "
-                               f"đặt 0 để bỏ hẳn trần)")
+                        err = localefmt.chu(
+                            f"Tool chạy quá {int(TOOL_IDLE)}s chưa xong - đã dừng để tránh treo server. "
+                            f"(tăng JAVIS_CLAUDE_TOOL_TIMEOUT nếu tác vụ thật sự dài hơn, "
+                            f"đặt 0 để bỏ hẳn trần)",
+                            f"A tool ran over {int(TOOL_IDLE)}s without finishing - stopped to avoid hanging the server. "
+                            f"(raise JAVIS_CLAUDE_TOOL_TIMEOUT if the job really takes longer, "
+                            f"set 0 to remove the limit)")
                     elif ly_do == "dau":
-                        err = (f"Claude chưa trả lời gì sau {int(FIRST_IDLE)}s - đã dừng để tránh treo "
-                               f"server. Hay gặp khi hội thoại đã rất dài: lượt đầu phải nạp lại toàn bộ "
-                               f"ngữ cảnh nên lâu. Mở hội thoại mới thường hết ngay. "
-                               f"(JAVIS_CLAUDE_FIRST_TIMEOUT=0 để bỏ hẳn trần này)")
+                        err = localefmt.chu(
+                            f"Claude chưa trả lời gì sau {int(FIRST_IDLE)}s - đã dừng để tránh treo "
+                            f"server. Hay gặp khi hội thoại đã rất dài: lượt đầu phải nạp lại toàn bộ "
+                            f"ngữ cảnh nên lâu. Mở hội thoại mới thường hết ngay. "
+                            f"(JAVIS_CLAUDE_FIRST_TIMEOUT=0 để bỏ hẳn trần này)",
+                            f"Claude had not answered after {int(FIRST_IDLE)}s - stopped to avoid hanging the "
+                            f"server. Common when the conversation is very long: the first turn must reload the whole "
+                            f"context, which is slow. A new conversation usually fixes it. "
+                            f"(JAVIS_CLAUDE_FIRST_TIMEOUT=0 removes this limit)")
                     else:
-                        err = (f"Claude đang trả lời rồi im {int(IDLE)}s - đã dừng để tránh treo server. "
-                               f"(JAVIS_CLAUDE_IDLE_TIMEOUT=0 để bỏ hẳn trần này)")
+                        err = localefmt.chu(
+                            f"Claude đang trả lời rồi im {int(IDLE)}s - đã dừng để tránh treo server. "
+                            f"(JAVIS_CLAUDE_IDLE_TIMEOUT=0 để bỏ hẳn trần này)",
+                            f"Claude went silent for {int(IDLE)}s mid-answer - stopped to avoid hanging the server. "
+                            f"(JAVIS_CLAUDE_IDLE_TIMEOUT=0 removes this limit)")
                     try:
                         await client.interrupt()
                     except Exception:

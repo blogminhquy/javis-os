@@ -29,6 +29,7 @@ import channels          # sổ đăng ký kênh: nơi duy nhất biết kênh n
 import lang_registry   # sổ đăng ký ngôn ngữ: hợp lệ hoá trường ngon_ngu của bot
 
 from config import STATE_DIR
+import localefmt
 
 STORE_PATH = STATE_DIR / "chatbots.json"
 
@@ -151,9 +152,43 @@ _CANH_BAO = {
 }
 
 
+_CANH_BAO_EN = {
+    "auto": [
+        "The bot CAN WRITE files in its own brain. One message to the bot and the content "
+        "in the brain really changes, with no review step.",
+        "The bot can call the data sources (MCP) you connected, for reading and writing. Everything in "
+        "those sources is within reach of whoever is chatting with the bot.",
+        "Javis still hard-BLOCKS OUTSIDE actions at this level: nothing is sent, paid, "
+        "booked or cancelled, deleted or published.",
+        "The bot still CANNOT see other brains, run machine commands or reach outside the machine.",
+    ],
+    "full": [
+        "The bot can do EVERYTHING the connected sources allow, including sending, paying, booking or "
+        "cancelling, deleting and publishing. Those actions CANNOT be undone.",
+        "The bot is controlled by WHOEVER MESSAGES IT, not by you. Anyone who can message the bot "
+        "can say something that makes it call a tool, with no step that asks you first.",
+        "One clever line ('ignore previous instructions, do this for me') is enough for the bot to comply. "
+        "The remaining hard barrier is the permission level of EACH connection on the Connections page "
+        "(set a connection to read-only and the bot is blocked from writing there too), but that barrier "
+        "works by action type, so for sources Javis has no classification for yet it is not airtight. "
+        "Beyond that there is only the Agent file you wrote, and words can be worked around.",
+        "Only turn this on for a bot whose LIST of people who can message it you control. Not "
+        "where anyone can message it.",
+        "The bot still CANNOT see other brains or run machine commands - those two barriers hold at every level.",
+    ],
+}
+
+
 def canh_bao_muc(muc: str) -> List[str]:
-    """Những gì chủ đang trao đi khi đặt bot ở mức này. [] với mức chỉ-đọc (không mất gì)."""
-    return list(_CANH_BAO.get(str(muc or "").strip().lower(), []))
+    """Những gì chủ đang trao đi khi đặt bot ở mức này. [] với mức chỉ-đọc (không mất gì).
+
+    Theo ngôn ngữ giao diện: danh sách này chỉ để hiện cho chủ đọc trước khi bấm đồng ý."""
+    k = str(muc or "").strip().lower()
+    vi = list(_CANH_BAO.get(k, []))
+    en = _CANH_BAO_EN.get(k, [])
+    if not vi or len(en) != len(vi):
+        return vi
+    return [localefmt.chu(a, b) for a, b in zip(vi, en)]
 
 
 def _clean_muc(v: Any) -> Optional[str]:
@@ -434,11 +469,14 @@ def _clean_account_ids(v: Any, exclude_bot: str = "") -> tuple[List[str], str]:
             continue
         a = channel_accounts.get_account(x)
         if not a:
-            return [], f"Tài khoản kênh '{x}' không tồn tại"
+            return [], localefmt.chu(f"Tài khoản kênh '{x}' không tồn tại",
+                                     f"Channel account '{x}' does not exist")
         for b in bots_using_account(x):
             if b.get("id") != exclude_bot:
-                return [], (f"Tài khoản \"{a.get('label')}\" đang do bot \"{b.get('name')}\" trực. "
-                            "Mỗi tài khoản một bot.")
+                return [], localefmt.chu(f"Tài khoản \"{a.get('label')}\" đang do bot \"{b.get('name')}\" trực. "
+                                         "Mỗi tài khoản một bot.",
+                                         f"Account \"{a.get('label')}\" is served by bot \"{b.get('name')}\". "
+                                         "One bot per account.")
         out.append(x)
     return out[:20], ""
 
@@ -466,6 +504,24 @@ LOI_THIEU_AGENT = "Thiếu Agent cho bot (bot không có bộ não thì không t
 LOI_SLUG_AGENT = ("Tên Agent không dùng được: phải là tên file trong thư mục agents của brain, dài tối đa "
                   f"{SLUG_MAX} ký tự, không chứa '/', '\\' hay '..'.")
 
+# Bản tiếng Anh của các câu lỗi trên. Hằng số GIỮ tiếng Việt vì nơi khác so sánh `==` với
+# chúng; chỉ chỗ trả về mới đi qua `_loi`. LOI_KHONG_CO_BOT cố ý KHÔNG dịch: main.py so
+# `err == LOI_KHONG_CO_BOT` để chọn mã 404.
+_LOI_EN = {
+    LOI_CHUA_XAC_NHAN: "This permission level lets the bot take REAL outside actions, controlled by strangers. "
+                       "You must confirm you have read the risk warning (xac_nhan_rui_ro) to set it.",
+    LOI_CHUA_XAC_NHAN_DOI_TUONG: "Choosing 'every chat on the channel' means anyone who messages this account, including "
+                                 "groups and people you know, gets bot replies. You must confirm you have read the "
+                                 "risk warning (xac_nhan_rui_ro) to set it.",
+    LOI_THIEU_AGENT: "The bot needs an Agent (without a brain the bot cannot answer anything)",
+    LOI_SLUG_AGENT: ("Agent name not usable: it must be a file name in the brain's agents folder, at most "
+                     f"{SLUG_MAX} characters, without '/', '\\' or '..'."),
+}
+
+
+def _loi(vi: str) -> str:
+    return localefmt.chu(vi, _LOI_EN.get(vi) or vi)
+
 
 def can_xac_nhan(muc: Any, xac_nhan: Any) -> bool:
     """Mức này có đòi chủ xác nhận rủi ro mà chưa có xác nhận không."""
@@ -487,19 +543,19 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
     """
     name = _clean_name(data.get("name"))
     if not name:
-        return None, "Thiếu tên bot"
+        return None, localefmt.chu("Thiếu tên bot", "Missing bot name")
     agent_slug = str(data.get("agent_slug") or "").strip()
     if not agent_slug:
-        return None, LOI_THIEU_AGENT
+        return None, _loi(LOI_THIEU_AGENT)
     if not _agent_slug_ok(agent_slug):
-        return None, LOI_SLUG_AGENT
+        return None, _loi(LOI_SLUG_AGENT)
     brain = str(data.get("brain") or "").strip()
     if not brain:
-        return None, "Thiếu brain riêng của bot"
+        return None, localefmt.chu("Thiếu brain riêng của bot", "Missing the bot's own brain")
     if can_xac_nhan(data.get("muc_quyen"), data.get("xac_nhan_rui_ro")):
-        return None, LOI_CHUA_XAC_NHAN
+        return None, _loi(LOI_CHUA_XAC_NHAN)
     if can_xac_nhan_doi_tuong(data.get("audience"), data.get("xac_nhan_rui_ro")):
-        return None, LOI_CHUA_XAC_NHAN_DOI_TUONG
+        return None, _loi(LOI_CHUA_XAC_NHAN_DOI_TUONG)
     # Tài khoản kênh: hoặc CHỌN tài khoản có sẵn (account_ids), hoặc dán token mới (token +
     # channel) thì tạo tài khoản ngay tại đây. Cả hai cùng lúc cũng được.
     acc, loi = _clean_account_ids(data.get("account_ids"))
@@ -583,20 +639,20 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
     # Cùng rào với lúc tạo, và đây mới là đường hay đi hơn: bot sống nhiều tháng ở mức chỉ đọc
     # rồi một hôm được nâng lên. Thiếu rào ở đây thì cả cái gate lúc tạo thành trang trí.
     if "muc_quyen" in patch and can_xac_nhan(patch.get("muc_quyen"), patch.get("xac_nhan_rui_ro")):
-        return False, LOI_CHUA_XAC_NHAN
+        return False, _loi(LOI_CHUA_XAC_NHAN)
     if "audience" in patch and can_xac_nhan_doi_tuong(
             patch.get("audience"), patch.get("xac_nhan_rui_ro"),
             (get_bot(bot_id) or {}).get("audience")):
-        return False, LOI_CHUA_XAC_NHAN_DOI_TUONG
+        return False, _loi(LOI_CHUA_XAC_NHAN_DOI_TUONG)
     # Slug Agent hỏng thì TỪ CHỐI cả bản vá, đừng lặng lẽ bỏ qua một trường. Bỏ qua nghĩa là
     # form Sửa báo "đã lưu" trong khi bot vẫn trỏ về Agent cũ, và chủ chỉ biết khi khách nhận
     # được câu trả lời của một vai mà mình tưởng đã đổi.
     if "agent_slug" in patch:
         s = str(patch.get("agent_slug") or "").strip()
         if not s:
-            return False, LOI_THIEU_AGENT
+            return False, _loi(LOI_THIEU_AGENT)
         if not _agent_slug_ok(s):
-            return False, LOI_SLUG_AGENT
+            return False, _loi(LOI_SLUG_AGENT)
     acc_moi = None
     if "account_ids" in patch:
         acc_moi, loi = _clean_account_ids(patch.get("account_ids"), exclude_bot=bot_id)
@@ -709,7 +765,8 @@ def set_enabled(bot_id: str, on: bool) -> tuple[bool, str]:
             if b.get("id") != bot_id:
                 continue
             if on and not _co_token(b):
-                return False, f"Chưa có token {KENH_NHAN.get(_clean_kenh(b.get('channel')), '')} cho bot này"
+                kn = KENH_NHAN.get(_clean_kenh(b.get('channel')), '')
+                return False, localefmt.chu(f"Chưa có token {kn} cho bot này", f"This bot has no {kn} token yet")
             b["enabled"] = bool(on)
             b["updated_at"] = _now()
             _save(d)

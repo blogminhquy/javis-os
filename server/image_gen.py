@@ -26,6 +26,7 @@ from typing import Any, Optional
 
 import httpx
 
+import localefmt
 import openai_oauth
 
 CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses"
@@ -66,24 +67,29 @@ def read_reference_image(path: str, vault_root: Optional[str] = None) -> dict:
     """
     raw_path = str(path or "").strip()
     if not raw_path:
-        return {"ok": False, "error": "Thiếu đường dẫn ảnh."}
+        return {"ok": False, "error": localefmt.chu("Thiếu đường dẫn ảnh.", "Missing image path.")}
     vault = _resolve_vault(vault_root).resolve()
     p = Path(raw_path).expanduser()
     p = (p if p.is_absolute() else (vault / p)).resolve()
     try:
         p.relative_to(vault)
     except ValueError:
-        return {"ok": False, "error": f"Ảnh '{raw_path}' nằm ngoài brain - chỉ gửi được ảnh trong brain."}
+        return {"ok": False, "error": localefmt.chu(f"Ảnh '{raw_path}' nằm ngoài brain - chỉ gửi được ảnh trong brain.",
+                                                f"Image '{raw_path}' is outside the brain - only images inside the brain can be sent.")}
     if not p.is_file():
-        return {"ok": False, "error": f"Không thấy ảnh '{raw_path}' trong brain."}
+        return {"ok": False, "error": localefmt.chu(f"Không thấy ảnh '{raw_path}' trong brain.",
+                                                f"Image '{raw_path}' not found in the brain.")}
     mime = _IMG_MIME.get(p.suffix.lower())
     if not mime:
-        return {"ok": False, "error": f"'{p.name}' không phải ảnh (chỉ nhận png/jpg/webp/gif)."}
+        return {"ok": False, "error": localefmt.chu(f"'{p.name}' không phải ảnh (chỉ nhận png/jpg/webp/gif).",
+                                                f"'{p.name}' is not an image (only png/jpg/webp/gif).")}
     data = p.read_bytes()
     if len(data) > MAX_REF_BYTES:
         return {"ok": False,
-                "error": f"Ảnh '{p.name}' nặng {len(data) // (1024 * 1024)}MB, quá trần "
-                         f"{MAX_REF_BYTES // (1024 * 1024)}MB - dùng bản nhẹ hơn."}
+                "error": localefmt.chu(f"Ảnh '{p.name}' nặng {len(data) // (1024 * 1024)}MB, quá trần "
+                                       f"{MAX_REF_BYTES // (1024 * 1024)}MB - dùng bản nhẹ hơn.",
+                                       f"Image '{p.name}' is {len(data) // (1024 * 1024)}MB, over the "
+                                       f"{MAX_REF_BYTES // (1024 * 1024)}MB limit - use a smaller one.")}
     return {"ok": True, "data_url": f"data:{mime};base64," + base64.b64encode(data).decode("ascii"),
             "name": p.name}
 
@@ -251,9 +257,9 @@ def save_png_b64(b64: str, vault_root: Optional[str], prefix: str = "javis-img")
     try:
         raw = base64.b64decode(b64)
     except Exception as e:
-        return {"ok": False, "error": f"Ảnh base64 hỏng: {e}"}
+        return {"ok": False, "error": localefmt.chu(f"Ảnh base64 hỏng: {e}", f"Broken base64 image: {e}")}
     if not raw:
-        return {"ok": False, "error": "Ảnh rỗng."}
+        return {"ok": False, "error": localefmt.chu("Ảnh rỗng.", "Empty image.")}
     if _strip_c2pa_on():
         raw = strip_c2pa_png(raw)
     raw = brand_png(raw)
@@ -264,7 +270,7 @@ def save_png_b64(b64: str, vault_root: Optional[str], prefix: str = "javis-img")
     try:
         fpath.write_bytes(raw)
     except Exception as e:
-        return {"ok": False, "error": f"Lưu ảnh lỗi: {e}"}
+        return {"ok": False, "error": localefmt.chu(f"Lưu ảnh lỗi: {e}", f"Saving the image failed: {e}")}
     rel = os.path.relpath(fpath, vault).replace(os.sep, "/")
     return {"ok": True, "rel_path": rel, "abs_path": str(fpath), "file": fname}
 
@@ -293,7 +299,7 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
     """
     prompt = (prompt or "").strip()
     if not prompt:
-        return {"ok": False, "error": "Thiếu mô tả ảnh (prompt)."}
+        return {"ok": False, "error": localefmt.chu("Thiếu mô tả ảnh (prompt).", "Missing image description (prompt).")}
     aspect = (aspect_ratio or "square").strip().lower()
     if aspect not in _SIZES:
         aspect = "square"
@@ -303,19 +309,21 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
 
     creds = openai_oauth.valid_creds()
     if not creds or not creds.get("access_token"):
-        return {"ok": False, "error": "Chưa kết nối ChatGPT (OAuth). Vào trang Model đăng nhập ChatGPT rồi thử lại."}
+        return {"ok": False, "error": localefmt.chu("Chưa kết nối ChatGPT (OAuth). Vào trang Model đăng nhập ChatGPT rồi thử lại.",
+                                                "ChatGPT (OAuth) is not connected. Sign in to ChatGPT on the Models page and try again.")}
 
     # Đọc ảnh mẫu TRƯỚC khi gọi mạng: ảnh sai đường dẫn thì báo ngay và nói rõ ảnh nào,
     # thay vì đốt một lượt gọi rồi trả về một tấm vẽ từ mô tả suông mà người dùng tưởng là
     # đã dựng theo ảnh của mình.
     ds_anh = [x for x in (images or []) if str(x or "").strip()]
     if len(ds_anh) > MAX_REF_IMAGES:
-        return {"ok": False, "error": f"Gửi tối đa {MAX_REF_IMAGES} ảnh mẫu một lượt (đang gửi {len(ds_anh)})."}
+        return {"ok": False, "error": localefmt.chu(f"Gửi tối đa {MAX_REF_IMAGES} ảnh mẫu một lượt (đang gửi {len(ds_anh)}).",
+                                                f"Send at most {MAX_REF_IMAGES} reference images per request (sending {len(ds_anh)}).")}
     data_urls = []
     for x in ds_anh:
         r = read_reference_image(x, vault_root)
         if not r.get("ok"):
-            return {"ok": False, "error": r.get("error") or f"Không đọc được ảnh '{x}'."}
+            return {"ok": False, "error": r.get("error") or localefmt.chu(f"Không đọc được ảnh '{x}'.", f"Could not read image '{x}'.")}
         data_urls.append(r["data_url"])
 
     size = resolve_size(aspect)
@@ -350,7 +358,8 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
                     if kind in ("response.failed", "error", "response.error", "response.incomplete"):
                         e = (obj.get("response") or {}).get("error") or obj.get("error") or {}
                         err = e.get("message") if isinstance(e, dict) else str(e)
-                        err = err or f"ChatGPT không hoàn tất tạo ảnh ({kind})."
+                        err = err or localefmt.chu(f"ChatGPT không hoàn tất tạo ảnh ({kind}).",
+                                                   f"ChatGPT did not finish creating the image ({kind}).")
                         break
                     # Ảnh nháp không phải kết quả cuối. Chỉ giữ result của image_generation_call.
                     got = extract_image_b64(obj, include_partial=False)
@@ -361,10 +370,13 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
                     if kind == "response.completed":
                         break
     except Exception as e:
-        return {"ok": False, "error": f"Gọi ChatGPT lỗi: {type(e).__name__}: {e}"}
+        return {"ok": False, "error": localefmt.chu(f"Gọi ChatGPT lỗi: {type(e).__name__}: {e}",
+                                                f"Calling ChatGPT failed: {type(e).__name__}: {e}")}
 
     if err or not b64:
-        return {"ok": False, "error": err or "ChatGPT không trả ảnh (gói ChatGPT có thể chưa hỗ trợ tạo ảnh qua Codex)."}
+        return {"ok": False, "error": err or localefmt.chu(
+            "ChatGPT không trả ảnh (gói ChatGPT có thể chưa hỗ trợ tạo ảnh qua Codex).",
+            "ChatGPT returned no image (the ChatGPT plan may not support image generation through Codex yet).")}
 
     saved = save_png_b64(b64, vault_root, prefix="javis-img")
     if not saved.get("ok"):

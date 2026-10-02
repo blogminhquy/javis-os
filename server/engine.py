@@ -22,6 +22,12 @@ from datetime import datetime, timezone
 import httpx
 
 import limit_learner
+import localefmt
+
+
+def _c(vi: str, en: str) -> str:
+    """Chữ hiện cho người dùng (lỗi, ghi chú cuối câu trả lời) theo ngôn ngữ giao diện."""
+    return localefmt.chu(vi, en)
 
 # Lone surrogate (U+D800–U+DFFF) sanitizer - port từ hermes-agent/agent/message_sanitization.py.
 # Model open-weight (qwen/deepseek/minimax/glm…) thi thoảng stream ra lone surrogate trong content.
@@ -301,14 +307,17 @@ async def thu_lai_khi_tam_thoi(tao_stream, *, so_lan=3, nhan=""):
             cuoi.pop("cho", None)
             cuoi["da_thu"] = lan
             if lan > 1:
-                cuoi["content"] = f"{cuoi['content']} (đã thử lại {lan} lần)"
+                cuoi["content"] = cuoi["content"] + _c(f" (đã thử lại {lan} lần)", f" (retried {lan} times)")
             # Câu này đi thẳng lên thẻ bot của CHỦ. Một cục JSON của nhà cung cấp không nói
             # được phải làm gì tiếp, mà đó đúng là thứ chủ cần biết khi nhìn thẻ đỏ.
             if loi_hoan.get("ma") == 429:
-                cuoi["content"] += (
+                cuoi["content"] += _c(
                     f" - hạn mức nhà cung cấp đang đầy"
                     + (f", cửa sổ mở lại sau khoảng {cho:.0f}s" if cho > _WINDOW_WAIT_MAX else "")
-                    + ". Chờ cửa sổ trôi qua, hoặc đổi bộ não cho bot ở trang Models."
+                    + ". Chờ cửa sổ trôi qua, hoặc đổi bộ não cho bot ở trang Models.",
+                    f" - the provider's rate limit is full"
+                    + (f", the window reopens in about {cho:.0f}s" if cho > _WINDOW_WAIT_MAX else "")
+                    + ". Wait for the window to pass, or switch the bot's brain on the Models page."
                 )
             yield cuoi
             return
@@ -647,9 +656,10 @@ async def _openai_compat_stream(url, label, api_key, model, messages, reasoning,
                 if usage:
                     yield {"type": "usage", "input": usage.get("prompt_tokens", 0), "output": usage.get("completion_tokens", 0)}
                 if not got:
-                    yield {"type": "error", "content": f"{label} trả về rỗng. Thử model khác."}
+                    yield {"type": "error", "content": _c(f"{label} trả về rỗng. Thử model khác.",
+                                                          f"{label} returned nothing. Try another model.")}
     except Exception as e:
-        yield ev_loi_exc(f"{label} lỗi", e)
+        yield ev_loi_exc(_c(f"{label} lỗi", f"{label} error"), e)
 
 
 async def openai_stream(api_key, model, messages, reasoning="off"):
@@ -682,7 +692,7 @@ async def ollama_local_stream(api_key, model, messages, reasoning="off"):
     """Ollama trên máy nhà - nhánh KHÔNG tool. Cùng khuôn `ollama_stream`, chỉ khác URL."""
     url = ollama_local_url()
     if not url:
-        yield {"type": "error", "content": "Chưa đặt địa chỉ Ollama trong trang Models."}
+        yield {"type": "error", "content": _c("Chưa đặt địa chỉ Ollama trong trang Models.", "No Ollama address set on the Models page.")}
         return
     async for ev in _openai_compat_stream(url, "Ollama (Local)", api_key, model,
                                           messages, reasoning, False):
@@ -696,7 +706,7 @@ async def openai_compat_stream(api_key, model, messages, reasoning="off"):
     mà gửi thừa thì có server trả 400 cho cả lượt."""
     url = openai_compat_url()
     if not url:
-        yield {"type": "error", "content": "Chưa đặt Base URL cho OpenAI Compatible trong trang Models."}
+        yield {"type": "error", "content": _c("Chưa đặt Base URL cho OpenAI Compatible trong trang Models.", "No Base URL set for OpenAI Compatible on the Models page.")}
         return
     async for ev in _openai_compat_stream(url, "OpenAI Compatible", api_key or "none", model,
                                           messages, reasoning, False):
@@ -707,7 +717,7 @@ async def openai_compat_chat_with_mcp(api_key, model, messages, reasoning, mcp_t
     """Endpoint OpenAI-compatible tự khai + vòng tool-calling MCP (model phải biết gọi tool)."""
     url = openai_compat_url()
     if not url:
-        yield {"type": "error", "content": "Chưa đặt Base URL cho OpenAI Compatible trong trang Models."}
+        yield {"type": "error", "content": _c("Chưa đặt Base URL cho OpenAI Compatible trong trang Models.", "No Base URL set for OpenAI Compatible on the Models page.")}
         return
     headers = {"Authorization": f"Bearer {api_key or 'none'}", "Content-Type": "application/json"}
     yield {"type": "meta", "model": model}
@@ -721,7 +731,7 @@ async def ollama_local_chat_with_mcp(api_key, model, messages, reasoning, mcp_to
     thì có đủ đồ nghề của Javis y như mọi provider API khác."""
     url = ollama_local_url()
     if not url:
-        yield {"type": "error", "content": "Chưa đặt địa chỉ Ollama trong trang Models."}
+        yield {"type": "error", "content": _c("Chưa đặt địa chỉ Ollama trong trang Models.", "No Ollama address set on the Models page.")}
         return
     headers = {"Authorization": f"Bearer {api_key or 'local'}", "Content-Type": "application/json"}
     yield {"type": "meta", "model": model}
@@ -806,22 +816,26 @@ async def anthropic_stream(api_key, model, messages, reasoning="off"):
                         if (obj.get("usage") or {}).get("output_tokens"):
                             usage_out = obj["usage"]["output_tokens"]
                     elif t == "error":
-                        yield {"type": "error", "content": f"Anthropic: {(obj.get('error') or {}).get('message', 'lỗi')}"}
+                        yield {"type": "error", "content": f"Anthropic: {(obj.get('error') or {}).get('message', _c('lỗi', 'error'))}"}
                         return
                 if usage_in or usage_out:
                     yield {"type": "usage", "input": usage_in, "output": usage_out}
                 if not got:
-                    yield {"type": "error", "content": f"Anthropic trả về rỗng (stop_reason={stop_reason}). Thử model khác trong Models."}
+                    yield {"type": "error", "content": _c(f"Anthropic trả về rỗng (stop_reason={stop_reason}). Thử model khác trong Models.",
+                                                          f"Anthropic returned nothing (stop_reason={stop_reason}). Try another model in Models.")}
                     return
                 # Stream xong nhưng KHÔNG phải end_turn/stop_sequence (max_tokens / refusal / ...) → báo user
                 if stop_reason and stop_reason not in ("end_turn", "stop_sequence"):
                     notes = {
-                        "max_tokens": "⚠️ Phản hồi bị cắt do hết max_tokens. Nhắn 'tiếp tục' để model viết tiếp.",
-                        "refusal": "⚠️ Model từ chối phản hồi (refusal).",
+                        "max_tokens": _c("⚠️ Phản hồi bị cắt do hết max_tokens. Nhắn 'tiếp tục' để model viết tiếp.",
+                                         "⚠️ The reply was cut off at max_tokens. Say 'continue' to let the model keep writing."),
+                        "refusal": _c("⚠️ Model từ chối phản hồi (refusal).", "⚠️ The model refused to answer (refusal)."),
                     }
-                    yield {"type": "text", "content": "\n\n" + notes.get(stop_reason, f"⚠️ Stream kết thúc bất thường (stop_reason={stop_reason}).")}
+                    yield {"type": "text", "content": "\n\n" + notes.get(stop_reason, _c(
+                        f"⚠️ Stream kết thúc bất thường (stop_reason={stop_reason}).",
+                        f"⚠️ The stream ended abnormally (stop_reason={stop_reason})."))}
     except Exception as e:
-        yield ev_loi_exc("Anthropic lỗi", e)
+        yield ev_loi_exc(_c("Anthropic lỗi", "Anthropic error"), e)
 
 
 async def single_tool_plan(provider, api_key, model, messages, reasoning, tool_spec):
@@ -1018,15 +1032,21 @@ async def openrouter_stream(api_key, model, messages, reasoning="off"):
                             yield {"type": "text", "content": _sanitize_surrogates(reasoning.strip())}
                             got_content = True   # reasoning đã là nội dung - vẫn cần báo truncation phía dưới
                         else:
-                            yield {"type": "error", "content": f"Model trả về rỗng (finish_reason={finish}). Thử lại hoặc đổi sang model khác trong Cài đặt."}
+                            yield {"type": "error", "content": _c(
+                                f"Model trả về rỗng (finish_reason={finish}). Thử lại hoặc đổi sang model khác trong Cài đặt.",
+                                f"The model returned nothing (finish_reason={finish}). Retry or switch to another model in Settings.")}
                             return
                     # Stream kết thúc nhưng KHÔNG phải 'stop' (length / content_filter / ...) → user cần biết phản hồi bị cắt
                     if finish and finish != "stop":
                         notes = {
-                            "length": "⚠️ Phản hồi bị cắt do hết max_tokens. Nhắn 'tiếp tục' để model viết tiếp.",
-                            "content_filter": "⚠️ Phản hồi bị lọc do bộ lọc nội dung.",
+                            "length": _c("⚠️ Phản hồi bị cắt do hết max_tokens. Nhắn 'tiếp tục' để model viết tiếp.",
+                                         "⚠️ The reply was cut off at max_tokens. Say 'continue' to let the model keep writing."),
+                            "content_filter": _c("⚠️ Phản hồi bị lọc do bộ lọc nội dung.",
+                                                 "⚠️ The reply was blocked by the content filter."),
                         }
-                        yield {"type": "text", "content": "\n\n" + notes.get(finish, f"⚠️ Stream kết thúc bất thường (finish_reason={finish}).")}
+                        yield {"type": "text", "content": "\n\n" + notes.get(finish, _c(
+                            f"⚠️ Stream kết thúc bất thường (finish_reason={finish}).",
+                            f"⚠️ The stream ended abnormally (finish_reason={finish})."))}
                     if usage:
                         yield {"type": "usage", "input": usage.get("prompt_tokens", 0), "output": usage.get("completion_tokens", 0)}
                     return  # success → thoát vòng retry
@@ -1037,11 +1057,13 @@ async def openrouter_stream(api_key, model, messages, reasoning="off"):
         except _RETRY_EXC as e:
             # Đã yield text → KHÔNG retry (tránh duplicate output); hết lượt → cũng fail-fast
             if got_content or attempt >= max_attempts:
-                yield {"type": "error", "content": f"OpenRouter mạng lỗi: {_describe_exc(e)}"}
+                yield {"type": "error", "content": _c(f"OpenRouter mạng lỗi: {_describe_exc(e)}",
+                                                      f"OpenRouter network error: {_describe_exc(e)}")}
                 return
             await asyncio.sleep(_jittered_backoff(attempt))
         except Exception as e:
-            yield {"type": "error", "content": f"OpenRouter lỗi: {_describe_exc(e)}"}
+            yield {"type": "error", "content": _c(f"OpenRouter lỗi: {_describe_exc(e)}",
+                                                  f"OpenRouter error: {_describe_exc(e)}")}
             return
 
 
@@ -1066,7 +1088,8 @@ def _codex_input(messages):
 async def openai_responses_stream(access_token, account_id, model, messages, reasoning="off"):
     """Chat qua gói ChatGPT (OAuth) - backend Codex Responses API. Model: gpt-5-codex / gpt-5."""
     if not access_token:
-        yield {"type": "error", "content": "Chưa đăng nhập ChatGPT (OAuth). Vào Models để kết nối."}
+        yield {"type": "error", "content": _c("Chưa đăng nhập ChatGPT (OAuth). Vào Models để kết nối.",
+                                              "Not signed in to ChatGPT (OAuth). Go to Models to connect.")}
         return
     import uuid
     instructions, inp = _codex_input(messages)
@@ -1134,14 +1157,15 @@ async def openai_responses_stream(access_token, account_id, model, messages, rea
                     elif et in ("response.failed", "error", "response.error"):
                         err = (obj.get("response") or {}).get("error") or obj.get("error") or {}
                         msg = err.get("message") if isinstance(err, dict) else str(err)
-                        yield {"type": "error", "content": "ChatGPT: " + (msg or "lỗi")}
+                        yield {"type": "error", "content": "ChatGPT: " + (msg or _c("lỗi", "error"))}
                         return
                 if usage:
                     yield {"type": "usage", "input": usage.get("input_tokens", 0), "output": usage.get("output_tokens", 0)}
                 if not got:
-                    yield {"type": "error", "content": "ChatGPT trả về rỗng. Kiểm tra gói Plus/Pro hoặc thử lại."}
+                    yield {"type": "error", "content": _c("ChatGPT trả về rỗng. Kiểm tra gói Plus/Pro hoặc thử lại.",
+                                                          "ChatGPT returned nothing. Check the Plus/Pro plan or try again.")}
     except Exception as e:
-        yield ev_loi_exc("ChatGPT OAuth lỗi", e)
+        yield ev_loi_exc(_c("ChatGPT OAuth lỗi", "ChatGPT OAuth error"), e)
 
 
 # ============================================================
@@ -1622,7 +1646,8 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                         # Còn ép gọi một tool vừa bị gỡ thì request sau lại 400 ngay.
                         requirement_pending = False
                         yield {"type": "tool_call", "name": "javis_no_tools",
-                               "content": "⚙ Model vấp cú pháp gọi công cụ, trả lời không dùng công cụ..."}
+                               "content": _c("⚙ Model vấp cú pháp gọi công cụ, trả lời không dùng công cụ...",
+                                             "⚙ The model fumbled the tool-call syntax, answering without tools...")}
                     continue
                 _fact = limit_learner.parse_limit_error(r.status_code, body_text)
                 if _fact:
@@ -1635,8 +1660,10 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                             and not waited_for_window):
                         waited_for_window = True
                         yield {"type": "tool_call", "name": "javis_wait_quota",
-                               "content": (f"⚙ Hạn mức phút này đã đầy, chờ "
-                                           f"{_fact.retry_after:.0f}s rồi thử lại...")}
+                               "content": _c(f"⚙ Hạn mức phút này đã đầy, chờ "
+                                             f"{_fact.retry_after:.0f}s rồi thử lại...",
+                                             f"⚙ This minute's rate limit is full, waiting "
+                                             f"{_fact.retry_after:.0f}s before retrying...")}
                         await asyncio.sleep(_fact.retry_after + 0.5)
                         continue
                     yield {"type": "limit_exceeded", "provider": label, "model": model,
@@ -1650,7 +1677,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                 return
             data = r.json()
         except Exception as e:
-            yield ev_loi_exc(f"{label} lỗi", e)
+            yield ev_loi_exc(_c(f"{label} lỗi", f"{label} error"), e)
             return
         u = data.get("usage") or {}   # cộng dồn token mọi vòng (kể cả vòng gọi tool)
         usage_in += u.get("prompt_tokens", 0) or 0
@@ -1697,9 +1724,11 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                 continue
             yield {
                 "type": "error",
-                "content": (
+                "content": _c(
                     f"{label} model '{model}' đã bỏ qua tool bắt buộc nên Javis không dùng câu trả lời "
-                    "có nguy cơ bịa dữ liệu. Hãy chọn model có hỗ trợ tool/function calling."
+                    "có nguy cơ bịa dữ liệu. Hãy chọn model có hỗ trợ tool/function calling.",
+                    f"{label} model '{model}' skipped a required tool, so Javis did not use an answer "
+                    "that risks made-up data. Pick a model that supports tool/function calling."
                 ),
             }
             return
@@ -1708,7 +1737,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
         if content:
             yield {"type": "text", "content": content}
         else:
-            yield {"type": "error", "content": f"{label} trả về rỗng."}
+            yield {"type": "error", "content": _c(f"{label} trả về rỗng.", f"{label} returned nothing.")}
         return
     yield {"type": "text", "content": _het_vong_msg()}
 
@@ -1733,9 +1762,12 @@ def _het_vong_msg() -> str:
     """Chạm trần phải nói ĐƯỢC VIỆC CẦN LÀM. Bản cũ chỉ báo con số rồi im, người dùng không
     biết mình vừa mất gì hay chỉnh ở đâu."""
     n = _max_tool_rounds()
-    return (f"\n\n⚠ Đã chạy hết {n} vòng gọi tool cho lượt này nên phải dừng, câu trả lời ở "
-            f"trên có thể còn dở. Cách xử lý: chia nhỏ yêu cầu thành từng bước, hoặc nâng trần "
-            f"bằng biến môi trường JAVIS_MAX_TOOL_ROUNDS (tối đa 120) rồi khởi động lại Javis.")
+    return _c(f"\n\n⚠ Đã chạy hết {n} vòng gọi tool cho lượt này nên phải dừng, câu trả lời ở "
+              f"trên có thể còn dở. Cách xử lý: chia nhỏ yêu cầu thành từng bước, hoặc nâng trần "
+              f"bằng biến môi trường JAVIS_MAX_TOOL_ROUNDS (tối đa 120) rồi khởi động lại Javis.",
+              f"\n\n⚠ All {n} tool-call rounds for this turn were used, so it had to stop; the answer "
+              f"above may be incomplete. To fix: split the request into steps, or raise the limit "
+              f"with the environment variable JAVIS_MAX_TOOL_ROUNDS (up to 120) and restart Javis.")
 
 
 class _LapGuard:
@@ -1776,9 +1808,12 @@ class _LapGuard:
 
 
 def _loi_ket_vong() -> str:
-    return (f"\n\n⚠ Model gọi lại cùng tool với cùng tham số {_LapGuard.DUNG} vòng liên tiếp "
-            "(kẹt vòng lặp) nên Javis dừng lượt này để không đốt token vô ích. Câu trả lời ở "
-            "trên có thể còn dở - thử hỏi lại, nói rõ hơn yêu cầu, hoặc đổi model ở trang Models.")
+    return _c(f"\n\n⚠ Model gọi lại cùng tool với cùng tham số {_LapGuard.DUNG} vòng liên tiếp "
+              "(kẹt vòng lặp) nên Javis dừng lượt này để không đốt token vô ích. Câu trả lời ở "
+              "trên có thể còn dở - thử hỏi lại, nói rõ hơn yêu cầu, hoặc đổi model ở trang Models.",
+              f"\n\n⚠ The model called the same tool with the same arguments {_LapGuard.DUNG} rounds in a row "
+              "(stuck in a loop), so Javis stopped this turn to avoid burning tokens. The answer "
+              "above may be incomplete - ask again, state the request more clearly, or switch model on the Models page.")
 
 
 async def openai_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
@@ -1847,7 +1882,7 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
     import uuid
     import mcp_client
     if not access_token:
-        yield {"type": "error", "content": "Chưa đăng nhập ChatGPT (OAuth)."}
+        yield {"type": "error", "content": _c("Chưa đăng nhập ChatGPT (OAuth).", "Not signed in to ChatGPT (OAuth).")}
         return
     tools = [{"type": "function", "name": t["fn"], "description": (t.get("description") or t["fn"])[:1024],
               "parameters": t.get("schema") or {"type": "object", "properties": {}}} for t in mcp_tools]
@@ -1917,10 +1952,10 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                         elif et in ("response.failed", "error", "response.error"):
                             err = (obj.get("response") or {}).get("error") or obj.get("error") or {}
                             msg = err.get("message") if isinstance(err, dict) else str(err)
-                            yield {"type": "error", "content": "ChatGPT: " + (msg or "lỗi")}
+                            yield {"type": "error", "content": "ChatGPT: " + (msg or _c("lỗi", "error"))}
                             return
             except Exception as e:
-                yield ev_loi_exc("ChatGPT lỗi", e)
+                yield ev_loi_exc(_c("ChatGPT lỗi", "ChatGPT error"), e)
                 return
             fcalls = [o for o in output if o.get("type") == "function_call"]
             if fcalls:
@@ -1960,7 +1995,8 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
             if text:
                 yield {"type": "text", "content": text}
             else:
-                yield {"type": "error", "content": "ChatGPT trả về rỗng (backend Codex có thể chưa hỗ trợ tool)."}
+                yield {"type": "error", "content": _c("ChatGPT trả về rỗng (backend Codex có thể chưa hỗ trợ tool).",
+                                                      "ChatGPT returned nothing (the Codex backend may not support tools yet).")}
             return
         yield {"type": "text", "content": _het_vong_msg()}
 
@@ -2001,7 +2037,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             try:
                 r = await client.post(ANTHROPIC_URL, headers=headers, json=payload)
             except Exception as e:
-                yield ev_loi_exc("Anthropic lỗi", e)
+                yield ev_loi_exc(_c("Anthropic lỗi", "Anthropic error"), e)
                 return
             if r.status_code == 400 and extras and "thinking" in (r.text or "").lower():
                 extras = {}   # thinking không tương thích payload/tool này → bỏ thinking, thử lại
@@ -2021,7 +2057,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             try:
                 data = r.json()
             except Exception:
-                yield {"type": "error", "content": "Anthropic trả về không phải JSON."}
+                yield {"type": "error", "content": _c("Anthropic trả về không phải JSON.", "Anthropic did not return JSON.")}
                 return
             _u = data.get("usage") or {}   # cộng dồn token mọi vòng tool
             usage_in += ((_u.get("input_tokens") or 0) + (_u.get("cache_read_input_tokens") or 0)
@@ -2060,6 +2096,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             if text:
                 yield {"type": "text", "content": text}
             else:
-                yield {"type": "error", "content": "Anthropic trả về rỗng. Thử model khác trong Models."}
+                yield {"type": "error", "content": _c("Anthropic trả về rỗng. Thử model khác trong Models.",
+                                                      "Anthropic returned nothing. Try another model in Models.")}
             return
         yield {"type": "text", "content": _het_vong_msg()}

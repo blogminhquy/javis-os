@@ -23,6 +23,7 @@ import channel_accounts
 import channels
 import chatbot_store
 import conversations
+import localefmt
 import routes.channels as channels_routes
 
 router = APIRouter()
@@ -41,7 +42,8 @@ class ConversationsDeps:
 _DEPS: "ConversationsDeps" = None   # type: ignore
 
 
-def _404(msg: str = "không có hội thoại nào id đó"):
+def _404(msg: str = ""):
+    msg = msg or localefmt.chu("không có hội thoại nào id đó", "no conversation with that id")
     return JSONResponse({"ok": False, "error": msg}, status_code=404)
 
 
@@ -72,7 +74,8 @@ def register(app, deps: ConversationsDeps):
                 pass
         s = channels.spec(kenh)
         if not s:
-            return False, f"kênh '{kenh}' không có trong sổ đăng ký"
+            return False, localefmt.chu(f"kênh '{kenh}' không có trong sổ đăng ký",
+                                        f"channel '{kenh}' is not in the registry")
         tk = {"id": raw, "channel": kenh}
         if s.kind == "bot":
             a = channel_accounts.get_account(raw) or {}
@@ -116,7 +119,7 @@ def register(app, deps: ConversationsDeps):
         if not bot_id:
             return ""
         b = chatbot_store.get_bot(bot_id)
-        return str((b or {}).get("name") or "") or "Bot đã xoá"
+        return str((b or {}).get("name") or "") or localefmt.chu("Bot đã xoá", "Deleted bot")
 
     @router.get("/conversations")
     async def conversations_list(channel: str = "", bot_id: str = "", account_id: str = "",
@@ -165,7 +168,8 @@ def register(app, deps: ConversationsDeps):
         """Bí danh cũ của POST /channels/accounts/{id}/watch cho Zalo cá nhân."""
         m = channels.module("zalo_personal")
         if not m:
-            return JSONResponse({"ok": False, "error": "kênh Zalo cá nhân chưa có trong sổ"}, status_code=400)
+            return JSONResponse({"ok": False, "error": localefmt.chu("kênh Zalo cá nhân chưa có trong sổ",
+                                                                      "the personal Zalo channel is not in the registry")}, status_code=400)
         r = m.bat(conn_id, str(on).strip().lower() in ("1", "true", "on", "yes"))
         return r if r.get("ok") else JSONResponse(r, status_code=400)
 
@@ -214,13 +218,15 @@ def register(app, deps: ConversationsDeps):
             return _404()
         txt = str(text or "").strip()
         if not txt:
-            return JSONResponse({"ok": False, "error": "tin rỗng"}, status_code=400)
+            return JSONResponse({"ok": False, "error": localefmt.chu("tin rỗng", "empty message")}, status_code=400)
         if len(txt) > conversations.MAX_CHU:
-            return JSONResponse({"ok": False, "error": f"tin dài quá {conversations.MAX_CHU} ký tự"}, status_code=400)
+            return JSONResponse({"ok": False, "error": localefmt.chu(f"tin dài quá {conversations.MAX_CHU} ký tự",
+                                                                   f"message longer than {conversations.MAX_CHU} characters")}, status_code=400)
         kenh = str(c.get("channel") or "")
         ok, loi = await _gui_tin(c, txt)
         if not ok:
-            return JSONResponse({"ok": False, "error": loi or "không gửi được"}, status_code=400)
+            return JSONResponse({"ok": False, "error": loi or localefmt.chu("không gửi được", "could not send")},
+                                status_code=400)
         raw = _tk_goc(c)
         r = conversations.ghi_su_kien({
             "channel": kenh, "account_id": raw, "account_name": c.get("account_name") or "",
@@ -245,29 +251,34 @@ def register(app, deps: ConversationsDeps):
         Chỉ đúng chế độ mới chạy, và trả `code` để giao diện nói được lý do: `human` (đang tiếp quản), `bot_off` (bot đang tắt),
         `no_bot`, `already_answered` (tin cuối không phải của khách), `busy`, `no_message`, `send_failed`, `engine`."""
         if mode not in ("send", "draft"):
-            return JSONResponse({"ok": False, "code": "bad_mode", "error": "mode phải là send hoặc draft"}, status_code=400)
+            return JSONResponse({"ok": False, "code": "bad_mode", "error": localefmt.chu("mode phải là send hoặc draft",
+                                                                                         "mode must be send or draft")}, status_code=400)
         if _DEPS.manual_answer is None:
-            return JSONResponse({"ok": False, "code": "unavailable", "error": "Chưa nối bot vào Hộp thư"}, status_code=503)
+            return JSONResponse({"ok": False, "code": "unavailable", "error": localefmt.chu("Chưa nối bot vào Hộp thư",
+                                                                                            "Bots are not wired to the Inbox yet")}, status_code=503)
         c = conversations.chi_tiet(conv_id)
         if not c:
             return _404()
         bot_id = str(c.get("bot_id") or "")
         if not bot_id:
-            return JSONResponse({"ok": False, "code": "no_bot", "error": "Cuộc chat này không có bot trực"}, status_code=400)
+            return JSONResponse({"ok": False, "code": "no_bot", "error": localefmt.chu("Cuộc chat này không có bot trực",
+                                                                                           "No bot is on duty in this chat")}, status_code=400)
         msgs = conversations.tin_nhan(conv_id, limit=30)
         send = mode == "send"
         if send:
             # Tin cuối phải là của khách: bot đã đáp (hay bạn đã đáp) rồi thì "trả lời giúp" là nói lần hai.
             if not msgs or msgs[-1].get("sender_type") != "customer":
-                return JSONResponse({"ok": False, "code": "already_answered", "error": "Tin cuối không phải của khách"}, status_code=409)
+                return JSONResponse({"ok": False, "code": "already_answered", "error": localefmt.chu("Tin cuối không phải của khách",
+                                                                                                         "The last message is not from the customer")}, status_code=409)
             if str(c.get("mode") or "ai") != "ai":
-                return JSONResponse({"ok": False, "code": "human", "error": "Bạn đang tiếp quản cuộc chat này"}, status_code=409)
+                return JSONResponse({"ok": False, "code": "human", "error": localefmt.chu("Bạn đang tiếp quản cuộc chat này",
+                                                                                              "You have taken over this chat")}, status_code=409)
             if not (_DEPS.bot_status(bot_id) or {}).get("running"):
-                return JSONResponse({"ok": False, "code": "bot_off", "error": "Bot đang tắt"}, status_code=409)
+                return JSONResponse({"ok": False, "code": "bot_off", "error": localefmt.chu("Bot đang tắt", "The bot is off")}, status_code=409)
         r = await _DEPS.manual_answer(c, msgs, not send)
         if not r.get("ok"):
             status = 409 if r.get("code") == "busy" else 400 if r.get("code") in ("no_bot", "no_message") else 502
-            return JSONResponse({"ok": False, "code": r.get("code") or "engine", "error": r.get("error") or "Bot không soạn được"},
+            return JSONResponse({"ok": False, "code": r.get("code") or "engine", "error": r.get("error") or localefmt.chu("Bot không soạn được", "The bot could not draft a reply")},
                                 status_code=status)
         if r.get("silent"):
             return {"ok": True, "silent": True, "text": ""}
@@ -276,7 +287,7 @@ def register(app, deps: ConversationsDeps):
         ok, loi = await _gui_tin(c, r["text"], tieng_vong=True, reply_to=msgs[-1])
         if not ok:
             # Không gửi được thì trả chữ đã soạn để chủ dán vào ô nhập gửi tay, khỏi mất công soạn lại.
-            return JSONResponse({"ok": False, "code": "send_failed", "error": loi or "không gửi được", "text": r["text"]},
+            return JSONResponse({"ok": False, "code": "send_failed", "error": loi or localefmt.chu("không gửi được", "could not send"), "text": r["text"]},
                                 status_code=400)
         done = _DEPS.manual_done(c, msgs, r["text"], r["meta"]) if _DEPS.manual_done else {}
         return {"ok": True, "silent": False, "text": r["text"], "taught": bool((done or {}).get("taught")),
@@ -287,8 +298,11 @@ def register(app, deps: ConversationsDeps):
         """ai | human | waiting | closed. `human` = người thật tiếp quản, bot im ở cuộc chat đó."""
         ok, err = conversations.dat_che_do(conv_id, mode)
         if not ok:
+            # Chế độ hợp lệ mà vẫn hỏng thì chỉ có thể là không có hội thoại đó. Không dò chữ
+            # của câu lỗi: câu đó theo ngôn ngữ giao diện.
+            hop_le = str(mode or "").strip().lower() in conversations.CHE_DO
             return JSONResponse({"ok": False, "error": err},
-                                status_code=404 if "không có" in err else 400)
+                                status_code=404 if hop_le else 400)
         return {"ok": True, "conversation": conversations.chi_tiet(conv_id)}
 
     app.include_router(router)

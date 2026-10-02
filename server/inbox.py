@@ -109,7 +109,8 @@ def _tieu_de(text: str) -> str:
         s = re.sub(r"\*\*|__|`", "", s).strip()
         if s:
             return s[:MAX_TITLE]
-    return "Javis vừa gửi một tin"
+    import localefmt
+    return localefmt.chu("Javis vừa gửi một tin", "Javis just sent a message")
 
 
 def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "",

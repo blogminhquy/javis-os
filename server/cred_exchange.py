@@ -27,6 +27,12 @@ BẢO MẬT:
 _ANDROID_ID = "0123456789abcdef"
 
 
+def _c(vi: str, en: str) -> str:
+    """Câu lỗi hiện ở form kết nối, theo ngôn ngữ giao diện (`localefmt.chu`)."""
+    import localefmt
+    return localefmt.chu(vi, en)
+
+
 def _google_master_token(fields):
     """App Password HOẶC oauth_token (cookie trang EmbeddedSetup) -> master token. Trả (token, lỗi).
 
@@ -37,42 +43,55 @@ def _google_master_token(fields):
     try:
         import gpsoauth
     except ImportError:
-        return None, ("Máy chủ Javis thiếu thư viện gpsoauth. Chạy: pip install -r requirements.txt "
-                      "rồi khởi động lại Javis.")
+        return None, _c("Máy chủ Javis thiếu thư viện gpsoauth. Chạy: pip install -r requirements.txt "
+                        "rồi khởi động lại Javis.",
+                        "The Javis server is missing the gpsoauth library. Run: pip install -r requirements.txt "
+                        "and restart Javis.")
 
     email = str(fields.get("google_email") or "").strip()
     # Google hiển thị App Password thành 4 nhóm 4 ký tự có dấu cách; người dùng hay copy cả cách.
     pw = str(fields.get("app_password") or "").replace(" ", "").strip()
     otk = str(fields.get("oauth_token") or "").strip()
     if not email:
-        return None, "Cần điền Email Google."
+        return None, _c("Cần điền Email Google.", "Enter the Google email.")
     if not pw and not otk:
-        return None, ("Cần App Password, hoặc oauth_token lấy từ trình duyệt theo hướng dẫn "
-                      "trong form (một trong hai).")
+        return None, _c("Cần App Password, hoặc oauth_token lấy từ trình duyệt theo hướng dẫn "
+                        "trong form (một trong hai).",
+                        "An App Password is needed, or an oauth_token taken from the browser as the form "
+                        "explains (one of the two).")
 
     if otk:
         try:
             res = gpsoauth.exchange_token(email, otk, _ANDROID_ID)
         except Exception as e:
-            return None, (f"Không gọi được máy chủ Google ({type(e).__name__}). Kiểm tra mạng của "
-                          "máy chạy Javis rồi thử lại.")
+            return None, _c(f"Không gọi được máy chủ Google ({type(e).__name__}). Kiểm tra mạng của "
+                            "máy chạy Javis rồi thử lại.",
+                            f"Could not reach Google's server ({type(e).__name__}). Check the network of "
+                            "the machine running Javis and try again.")
         token = res.get("Token")
         if token:
             return token, ""
         ma = str(res.get("Error") or res.get("error") or "").strip()
-        return None, (f"Google từ chối oauth_token (mã: {ma or 'không rõ'}). Cookie này dùng MỘT "
-                      "lần và hết hạn nhanh: mở lại accounts.google.com/EmbeddedSetup trong tab "
-                      "ẩn danh, lấy cookie oauth_token MỚI rồi dán và bấm Kết nối ngay.")
+        return None, _c(f"Google từ chối oauth_token (mã: {ma or 'không rõ'}). Cookie này dùng MỘT "
+                        "lần và hết hạn nhanh: mở lại accounts.google.com/EmbeddedSetup trong tab "
+                        "ẩn danh, lấy cookie oauth_token MỚI rồi dán và bấm Kết nối ngay.",
+                        f"Google rejected the oauth_token (code: {ma or 'unknown'}). This cookie works ONCE "
+                        "and expires fast: reopen accounts.google.com/EmbeddedSetup in a private "
+                        "tab, take a NEW oauth_token cookie, paste it and click Connect right away.")
 
     if len(pw) != 16:
-        return None, (f"App Password phải đúng 16 ký tự (đang nhận {len(pw)}). Đây KHÔNG phải mật "
-                      "khẩu Gmail thường, mà là chuỗi Google sinh ra ở myaccount.google.com/apppasswords.")
+        return None, _c(f"App Password phải đúng 16 ký tự (đang nhận {len(pw)}). Đây KHÔNG phải mật "
+                        "khẩu Gmail thường, mà là chuỗi Google sinh ra ở myaccount.google.com/apppasswords.",
+                        f"The App Password must be exactly 16 characters (got {len(pw)}). It is NOT your "
+                        "normal Gmail password but the string Google generates at myaccount.google.com/apppasswords.")
 
     try:
         res = gpsoauth.perform_master_login(email, pw, _ANDROID_ID)
     except Exception as e:
-        return None, (f"Không gọi được máy chủ Google ({type(e).__name__}). Kiểm tra mạng của máy "
-                      "chạy Javis rồi thử lại.")
+        return None, _c(f"Không gọi được máy chủ Google ({type(e).__name__}). Kiểm tra mạng của máy "
+                        "chạy Javis rồi thử lại.",
+                        f"Could not reach Google's server ({type(e).__name__}). Check the network of the "
+                        "machine running Javis and try again.")
 
     token = res.get("Token")
     if token:
@@ -80,20 +99,32 @@ def _google_master_token(fields):
 
     ma = str(res.get("Error") or res.get("error") or "").strip()
     if ma == "BadAuthentication":
-        return None, ("Google từ chối đăng nhập. Ba khả năng: (1) sai email hoặc App Password, "
-                      "tạo lại chuỗi mới ở myaccount.google.com/apppasswords; (2) Google đã siết "
-                      "đường App Password với tài khoản này, dùng đường lui oauth_token theo hướng "
-                      "dẫn trong form (mở accounts.google.com/EmbeddedSetup); (3) Javis chạy trên "
-                      "VPS bị Google chặn IP trung tâm dữ liệu, lấy token ở máy cá nhân rồi dán "
-                      "vào ô Master token hoặc oauth_token.")
+        return None, _c("Google từ chối đăng nhập. Ba khả năng: (1) sai email hoặc App Password, "
+                        "tạo lại chuỗi mới ở myaccount.google.com/apppasswords; (2) Google đã siết "
+                        "đường App Password với tài khoản này, dùng đường lui oauth_token theo hướng "
+                        "dẫn trong form (mở accounts.google.com/EmbeddedSetup); (3) Javis chạy trên "
+                        "VPS bị Google chặn IP trung tâm dữ liệu, lấy token ở máy cá nhân rồi dán "
+                        "vào ô Master token hoặc oauth_token.",
+                        "Google rejected the sign-in. Three possibilities: (1) wrong email or App Password, "
+                        "create a new one at myaccount.google.com/apppasswords; (2) Google has tightened "
+                        "the App Password route for this account, use the oauth_token fallback as the form "
+                        "explains (open accounts.google.com/EmbeddedSetup); (3) Javis runs on a "
+                        "VPS whose data-center IP Google blocks, get the token on a personal machine and paste "
+                        "it into the Master token or oauth_token box.")
     if ma in ("NeedsBrowser", "DeviceManagementRequiredOrSyncDisabled"):
-        return None, ("Google đòi xác minh thêm bằng trình duyệt. Đăng nhập tài khoản này trên "
-                      "trình duyệt một lần, xác nhận cảnh báo bảo mật, rồi thử lại.")
+        return None, _c("Google đòi xác minh thêm bằng trình duyệt. Đăng nhập tài khoản này trên "
+                        "trình duyệt một lần, xác nhận cảnh báo bảo mật, rồi thử lại.",
+                        "Google wants extra verification in a browser. Sign in to this account in a "
+                        "browser once, confirm the security alert, then try again.")
     if ma == "NotAvailable":
-        return None, ("Tài khoản chưa bật xác minh 2 bước nên chưa tạo được App Password. Bật 2 bước "
-                      "rồi tạo lại chuỗi.")
-    return None, (f"Google từ chối đăng nhập (mã: {ma or 'không rõ'}). Thử tạo lại App Password, "
-                  "hoặc lấy master token ở máy cá nhân rồi dán thẳng vào ô Master token.")
+        return None, _c("Tài khoản chưa bật xác minh 2 bước nên chưa tạo được App Password. Bật 2 bước "
+                        "rồi tạo lại chuỗi.",
+                        "2-Step Verification is off for this account, so no App Password can be created. Turn it on "
+                        "and create the password again.")
+    return None, _c(f"Google từ chối đăng nhập (mã: {ma or 'không rõ'}). Thử tạo lại App Password, "
+                    "hoặc lấy master token ở máy cá nhân rồi dán thẳng vào ô Master token.",
+                    f"Google rejected the sign-in (code: {ma or 'unknown'}). Try creating a new App Password, "
+                    "or get the master token on a personal machine and paste it into the Master token box.")
 
 
 def _apify_verify_token(fields):
@@ -102,19 +133,24 @@ def _apify_verify_token(fields):
 
     token = str(fields.get("apify_token") or fields.get("apify_token_raw") or "").strip()
     if not token:
-        return None, "Cần dán Apify Personal API token."
+        return None, _c("Cần dán Apify Personal API token.", "Paste an Apify Personal API token.")
     try:
         response = httpx.get("https://api.apify.com/v2/users/me",
                              headers={"Authorization": f"Bearer {token}"}, timeout=15)
     except Exception as error:
-        return None, (f"Không gọi được máy chủ Apify ({type(error).__name__}). "
-                      "Kiểm tra mạng rồi thử lại.")
+        return None, _c(f"Không gọi được máy chủ Apify ({type(error).__name__}). "
+                        "Kiểm tra mạng rồi thử lại.",
+                        f"Could not reach Apify's server ({type(error).__name__}). "
+                        "Check the network and try again.")
     if response.status_code == 200:
         return token, ""
     if response.status_code in (401, 403):
-        return None, ("Apify từ chối token này. Copy lại Personal API token tại "
-                      "console.apify.com/settings/integrations rồi thử lại.")
-    return None, f"Apify trả HTTP {response.status_code}. Thử lại sau ít phút."
+        return None, _c("Apify từ chối token này. Copy lại Personal API token tại "
+                        "console.apify.com/settings/integrations rồi thử lại.",
+                        "Apify rejected this token. Copy the Personal API token again at "
+                        "console.apify.com/settings/integrations and try again.")
+    return None, _c(f"Apify trả HTTP {response.status_code}. Thử lại sau ít phút.",
+                    f"Apify returned HTTP {response.status_code}. Try again in a few minutes.")
 
 
 HANDLERS = {
@@ -168,20 +204,23 @@ def run(connector, fields):
              if not str(fields.get(k) or "").strip() and not (nhan.get(k) or {}).get("optional")]
     if thieu:
         ten = ", ".join((nhan.get(k) or {}).get("label") or k for k in thieu)
-        return _bo_rac(fields), f"Thiếu: {ten}."
+        return _bo_rac(fields), _c(f"Thiếu: {ten}.", f"Missing: {ten}.")
 
     fn = HANDLERS.get(str(ex.get("handler") or ""))
     if not fn:
-        return _bo_rac(fields), ("Bản Javis này chưa biết cách đổi credential cho connector đó. "
-                                 "Cập nhật Javis rồi thử lại.")
+        return _bo_rac(fields), _c("Bản Javis này chưa biết cách đổi credential cho connector đó. "
+                                   "Cập nhật Javis rồi thử lại.",
+                                   "This Javis version does not know how to exchange credentials for that connector. "
+                                   "Update Javis and try again.")
 
     try:
         gia_tri, loi = fn({k: fields.get(k) for k in inputs})
     except Exception as e:
-        return _bo_rac(fields), f"Lỗi khi đổi credential ({type(e).__name__})."
+        return _bo_rac(fields), _c(f"Lỗi khi đổi credential ({type(e).__name__}).",
+                                   f"Error while exchanging credentials ({type(e).__name__}).")
 
     if loi or not gia_tri:
-        return _bo_rac(fields), loi or "Không đổi được credential."
+        return _bo_rac(fields), loi or _c("Không đổi được credential.", "Could not exchange the credentials.")
 
     fields[out_key] = gia_tri
     return _bo_rac(fields), ""

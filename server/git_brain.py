@@ -27,6 +27,12 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
+
+def _c(vi: str, en: str) -> str:
+    """Câu lỗi hiện trên màn hình (trang Học, trang Sao lưu) theo ngôn ngữ giao diện."""
+    import localefmt
+    return localefmt.chu(vi, en)
+
 # Commit ĐÁNG coi là "học" (hiện ở review + undo được). Baseline dùng "chore:" nên KHÔNG
 # lọt vào đây → bấm undo khi chưa học gì sẽ báo "không có commit học" thay vì lỡ revert baseline.
 # /reflect ghi qua engine nên commit là "learn:" (không phải "reflect:").
@@ -297,7 +303,7 @@ def ensure_git_repo(root: str) -> dict:
     Trả {ok, created, error}. KHÔNG push (backup là việc user chủ động)."""
     root = str(root)
     if not has_git():
-        return {"ok": False, "created": False, "error": "Máy chưa cài git"}
+        return {"ok": False, "created": False, "error": _c("Máy chưa cài git", "git is not installed on this machine")}
     if is_git_checkout(root):
         # Brain ĐÃ là repo: trước đây return thẳng ở đây nên template .gitignore mới không
         # bao giờ tới được brain cũ. Merge dòng còn thiếu rồi commit riêng bằng prefix
@@ -345,7 +351,8 @@ def ensure_git_repo(root: str) -> dict:
         Path(root).mkdir(parents=True, exist_ok=True)
         r = _git(root, "init")
         if r.returncode != 0:
-            return {"ok": False, "created": False, "error": (r.stderr or "git init lỗi")[:200]}
+            return {"ok": False, "created": False,
+                    "error": (r.stderr or _c("git init lỗi", "git init failed"))[:200]}
         # Cấu hình identity cục bộ (repo có thể chạy trong container không có global config)
         _git(root, "config", "user.email", "javis@localhost")
         _git(root, "config", "user.name", "Javis Learn")
@@ -453,22 +460,23 @@ def list_learn_commits(root: str, n: int = 20) -> List[dict]:
 def revert_last_learn(root: str) -> dict:
     """git revert commit HỌC gần nhất (undo 1-click). Trả {ok, reverted, subject, error}."""
     if not is_git_checkout(root):
-        return {"ok": False, "error": "Brain chưa phải git repo"}
+        return {"ok": False, "error": _c("Brain chưa phải git repo", "The brain is not a git repo yet")}
     try:
         commits = list_learn_commits(root, 1)
         if not commits:
-            return {"ok": False, "error": "Không có commit học nào để undo"}
+            return {"ok": False, "error": _c("Không có commit học nào để undo", "There is no learning commit to undo")}
         h = commits[0]["hash"]
         # Chỉ từ chối nếu CHÍNH file trong commit học đó đang bị sửa dở (tránh mất chỉnh tay).
         # File dirty KHÔNG liên quan (conversations/log/note khác) KHÔNG chặn undo.
         target = set(commits[0].get("files") or [])
         overlap = [p for p in changed_paths(root) if p in target]
         if overlap:
-            return {"ok": False, "error": f"Các file học đang bị sửa dở, hãy tự xử lý trước: {overlap[:3]}"}
+            return {"ok": False, "error": _c(f"Các file học đang bị sửa dở, hãy tự xử lý trước: {overlap[:3]}",
+                                             f"The learned files have unsaved edits, sort them out first: {overlap[:3]}")}
         r = _git(root, "revert", "--no-edit", h)
         if r.returncode != 0:
             _git(root, "revert", "--abort")   # dọn trạng thái revert dở nếu conflict
-            return {"ok": False, "error": (r.stderr or "revert lỗi")[:200]}
+            return {"ok": False, "error": (r.stderr or _c("revert lỗi", "revert failed"))[:200]}
         return {"ok": True, "reverted": h, "subject": commits[0]["subject"]}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
@@ -506,15 +514,16 @@ def _auth_url(repo_url: str, token: str) -> str:
 def remote_reachable(repo_url: str, token: str, timeout: int = 30) -> dict:
     """Kiểm tra token + repo hợp lệ (git ls-remote). Trả {ok, error}. Redact token khỏi lỗi."""
     if not has_git():
-        return {"ok": False, "error": "Máy chưa cài git"}
+        return {"ok": False, "error": _c("Máy chưa cài git", "git is not installed on this machine")}
     if not repo_url or not token:
-        return {"ok": False, "error": "Thiếu repo URL hoặc token"}
+        return {"ok": False, "error": _c("Thiếu repo URL hoặc token", "Missing repo URL or token")}
     try:
         r = subprocess.run(["git", "ls-remote", _auth_url(repo_url, token), "HEAD"],
                            capture_output=True, text=True, encoding="utf-8", errors="replace",
                            timeout=timeout, creationflags=_no_window())
         if r.returncode != 0:
-            return {"ok": False, "error": _redact((r.stderr or "không kết nối được").strip()[:250], token)}
+            return {"ok": False, "error": _redact((r.stderr or _c("không kết nối được", "could not connect")).strip()[:250],
+                                                  token)}
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": _redact(f"{type(e).__name__}: {e}", token)}
@@ -716,7 +725,7 @@ def _merge_with_policy(root: str) -> dict:
     # Không phải trạng thái conflict (lỗi khác) → dọn và báo
     if _git(root, "rev-parse", "-q", "--verify", "MERGE_HEAD").returncode != 0:
         _git(root, "merge", "--abort")
-        return {"error": "merge lỗi: " + ((m.stderr or m.stdout or "?").strip())[:250]}
+        return {"error": _c("merge lỗi: ", "merge failed: ") + ((m.stderr or m.stdout or "?").strip())[:250]}
     conflicts = []
     stamp = time.strftime("%Y%m%d-%H%M%S")
     for p in _git_lines_z(root, "diff", "--name-only", "--diff-filter=U", "-z"):
@@ -745,16 +754,17 @@ def _merge_with_policy(root: str) -> dict:
                 fp.write_bytes((ours if has_o else theirs).stdout)
                 _git(root, "add", "--", p)
                 conflicts.append({"path": p, "winner": "local" if has_o else "remote",
-                                  "note": "một bên xoá - giữ bản sửa"})
+                                  "note": _c("một bên xoá - giữ bản sửa", "deleted on one side - kept the edited copy")})
             else:
                 _git(root, "rm", "-f", "--", p)
         except Exception as e:
             _git(root, "merge", "--abort")
-            return {"error": f"xử lý conflict {p}: {type(e).__name__}: {e}"}
+            return {"error": _c(f"xử lý conflict {p}: {type(e).__name__}: {e}",
+                                f"resolving conflict {p}: {type(e).__name__}: {e}")}
     c = _git(root, "commit", "--no-edit")
     if c.returncode != 0:
         _git(root, "merge", "--abort")
-        return {"error": "commit merge lỗi: " + ((c.stderr or "?").strip())[:200]}
+        return {"error": _c("commit merge lỗi: ", "merge commit failed: ") + ((c.stderr or "?").strip())[:200]}
     return {"merged": True, "conflicts": conflicts}
 
 
@@ -766,7 +776,8 @@ def _integrate_remote(root: str, pre_head: Optional[str]) -> dict:
         if r.returncode != 0:   # nhánh chưa sinh (repo rỗng) trên vài bản git → fallback checkout
             r = _git(root, "checkout", "-f", "-B", "javis-sync", "FETCH_HEAD")
             if r.returncode != 0:
-                return {"error": "nhận bản remote lỗi: " + ((r.stderr or "?").strip())[:200]}
+                return {"error": _c("nhận bản remote lỗi: ", "taking the remote copy failed: ")
+                        + ((r.stderr or "?").strip())[:200]}
         return {"merged": True, "conflicts": []}
     head = (_git(root, "rev-parse", "HEAD").stdout or "").strip()
     fh = (_git(root, "rev-parse", "FETCH_HEAD").stdout or "").strip()
@@ -775,7 +786,7 @@ def _integrate_remote(root: str, pre_head: Optional[str]) -> dict:
     if _git(root, "merge-base", "--is-ancestor", "HEAD", "FETCH_HEAD").returncode == 0:
         r = _git(root, "merge", "--ff-only", "FETCH_HEAD")
         if r.returncode != 0:
-            return {"error": "fast-forward lỗi: " + ((r.stderr or "?").strip())[:200]}
+            return {"error": _c("fast-forward lỗi: ", "fast-forward failed: ") + ((r.stderr or "?").strip())[:200]}
         return {"merged": True, "conflicts": []}
     return _merge_with_policy(root)
 
@@ -981,13 +992,16 @@ def sync_brains(brains_dir: str, mirror_dir: str, repo_url: str, token: str, bra
     """Đồng bộ 2 CHIỀU toàn bộ thư mục brains với repo GitHub. Trả
     {ok, pushed, committed, merged, restored, conflicts, applied, deleted, error?}."""
     if not has_git():
-        return {"ok": False, "error": "Máy chưa cài git (cần cài git để đồng bộ)"}
+        return {"ok": False, "error": _c("Máy chưa cài git (cần cài git để đồng bộ)",
+                                         "git is not installed on this machine (git is needed to sync)")}
     if not repo_url or not token:
-        return {"ok": False, "error": "Chưa cấu hình repo URL hoặc token"}
+        return {"ok": False, "error": _c("Chưa cấu hình repo URL hoặc token", "Repo URL or token is not configured")}
     if not Path(brains_dir).is_dir():
-        return {"ok": False, "error": f"Thư mục brains không tồn tại: {brains_dir}"}
+        return {"ok": False, "error": _c(f"Thư mục brains không tồn tại: {brains_dir}",
+                                         f"The brains folder does not exist: {brains_dir}")}
     if not _SYNC_LOCK.acquire(blocking=False):
-        return {"ok": False, "error": "Đang có phiên đồng bộ khác chạy - thử lại sau"}
+        return {"ok": False, "error": _c("Đang có phiên đồng bộ khác chạy - thử lại sau",
+                                         "Another sync is running - try again later")}
     try:
         return _sync_brains_locked(str(brains_dir), str(mirror_dir), repo_url, token, branch,
                                    trash_dir, protected_names, sync_images)
@@ -1015,7 +1029,7 @@ def _sync_brains_locked(brains_dir: str, mirror_dir: str, repo_url: str, token: 
     if not is_git_checkout(mirror_dir):
         r = _git(mirror_dir, "init")
         if r.returncode != 0:
-            return {**rep, "error": (r.stderr or "git init lỗi")[:200]}
+            return {**rep, "error": (r.stderr or _c("git init lỗi", "git init failed"))[:200]}
     _git(mirror_dir, "config", "user.email", "javis@localhost")
     _git(mirror_dir, "config", "user.name", f"Javis Sync ({_host_tag()})")
     # Sync truyền BYTE NGUYÊN VĂN giữa các máy: tắt autocrlf để git Windows không tự đổi
@@ -1053,7 +1067,7 @@ def _sync_brains_locked(brains_dir: str, mirror_dir: str, repo_url: str, token: 
         remote_missing = f.returncode != 0 and \
             "couldn't find remote ref" in ((f.stderr or "") + (f.stdout or "")).lower()
         if f.returncode != 0 and not remote_missing:
-            return {**rep, "error": _redact("fetch: " + ((f.stderr or "lỗi").strip())[:250], token)}
+            return {**rep, "error": _redact("fetch: " + ((f.stderr or _c("lỗi", "error")).strip())[:250], token)}
         changed = set()
         if not remote_missing:
             m = _integrate_remote(mirror_dir, pre_head)
@@ -1067,8 +1081,10 @@ def _sync_brains_locked(brains_dir: str, mirror_dir: str, repo_url: str, token: 
         tomb = _apply_tombstones(brains_dir, mirror_dir, trash_dir, protected_names)
         if tomb["failed"]:
             _rollback_mirror(mirror_dir, pre_head)
-            return {**rep, "error": "Áp giấy báo tử lỗi (" + ", ".join(tomb["failed"][:2]) +
-                    ") - hoãn push, lần sau tự thử lại"}
+            return {**rep, "error": _c("Áp giấy báo tử lỗi (" + ", ".join(tomb["failed"][:2]) +
+                                       ") - hoãn push, lần sau tự thử lại",
+                                       "Applying deletion markers failed (" + ", ".join(tomb["failed"][:2]) +
+                                       ") - push postponed, it retries next time")}
         if tomb["deleted"]:
             rep["brains_deleted"] = (rep["brains_deleted"] + tomb["deleted"])[:50]
         # Tự vá: file có trong HEAD mirror nhưng THIẾU trong brains → luôn áp về. Bao trường hợp
@@ -1087,8 +1103,10 @@ def _sync_brains_locked(brains_dir: str, mirror_dir: str, repo_url: str, token: 
             if ab["failed"]:
                 # BẤT BIẾN AN TOÀN: áp không trọn → rollback mirror + KHÔNG push.
                 _rollback_mirror(mirror_dir, pre_head)
-                return {**rep, "error": f"Áp bản đồng bộ về máy lỗi {len(ab['failed'])} file "
-                        f"(vd {ab['failed'][:2]}) - đã hoãn push, lần sau tự thử lại"}
+                return {**rep, "error": _c(f"Áp bản đồng bộ về máy lỗi {len(ab['failed'])} file "
+                                           f"(vd {ab['failed'][:2]}) - đã hoãn push, lần sau tự thử lại",
+                                           f"Applying the synced copy to this machine failed for {len(ab['failed'])} files "
+                                           f"(e.g. {ab['failed'][:2]}) - push postponed, it retries next time")}
         hv2 = _git(mirror_dir, "rev-parse", "-q", "--verify", "HEAD")
         if hv2.returncode != 0:
             rep["ok"] = True   # cả local lẫn remote đều trống → không có gì để đồng bộ
@@ -1102,8 +1120,8 @@ def _sync_brains_locked(brains_dir: str, mirror_dir: str, repo_url: str, token: 
         if attempt == 1 and any(s in err for s in ("fetch first", "non-fast-forward", "rejected")):
             pre_head = (hv2.stdout or "").strip()   # máy khác vừa đẩy chen → vòng 2 hoà tiếp
             continue
-        return {**rep, "error": _redact(("push: " + (err or "lỗi"))[:300], token)}
-    return {**rep, "error": "push liên tục bị vượt - thử lại sau"}
+        return {**rep, "error": _redact(("push: " + (err or _c("lỗi", "error")))[:300], token)}
+    return {**rep, "error": _c("push liên tục bị vượt - thử lại sau", "push kept getting overtaken - try again later")}
 
 
 # ============================================================

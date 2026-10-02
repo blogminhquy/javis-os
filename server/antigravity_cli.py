@@ -43,6 +43,7 @@ import uuid
 from pathlib import Path
 from typing import AsyncIterator, Optional
 
+import localefmt
 from claude_cli import _home_dir, _no_window, tim_binary
 
 # Model mặc định khi người dùng chưa chọn gì. KHÔNG phải bảng model: chỉ là hạt giống để lượt
@@ -279,11 +280,17 @@ _NHIP_THU_LAI = (2.0, 6.0)
 
 def _cau_bao_tam_thoi(loi: str) -> str:
     """Câu nói cho người dùng khi thử lại hết nhịp mà vẫn gãy. Nói rõ LỖI CỦA AI."""
-    return ("Google (Antigravity) đang trục trặc tạm thời nên lượt này không gửi đi được. "
-            "Javis đã tự thử lại " + str(len(_NHIP_THU_LAI)) + " lần, vẫn chưa được.\n\n"
-            "Chờ một lát rồi nhắn lại, hoặc đổi sang bộ não khác ở trang Models. Đây là lỗi "
-            "phía Google, không phải cấu hình của bạn.\n\n"
-            "_Nguyên văn:_ " + (loi or "")[:400])
+    return localefmt.chu(
+        "Google (Antigravity) đang trục trặc tạm thời nên lượt này không gửi đi được. "
+        "Javis đã tự thử lại " + str(len(_NHIP_THU_LAI)) + " lần, vẫn chưa được.\n\n"
+        "Chờ một lát rồi nhắn lại, hoặc đổi sang bộ não khác ở trang Models. Đây là lỗi "
+        "phía Google, không phải cấu hình của bạn.\n\n"
+        "_Nguyên văn:_ " + (loi or "")[:400],
+        "Google (Antigravity) is having a temporary problem, so this turn could not be sent. "
+        "Javis retried " + str(len(_NHIP_THU_LAI)) + " times without success.\n\n"
+        "Wait a moment and send again, or switch to another brain on the Models page. This is an error "
+        "on Google's side, not your configuration.\n\n"
+        "_Raw message:_ " + (loi or "")[:400])
 
 
 def nhan_prompt_qua_stdin() -> bool:
@@ -621,6 +628,11 @@ _CANH_BAO_CHUA_DOC = (
     "lời mà chưa có system prompt và bộ nhớ của Javis. Muốn chuẩn thì nâng cấp `agy` lên bản mới "
     "(nhận prompt qua stdin), hoặc đổi bộ não khác ở trang Models.)_"
 )
+_CANH_BAO_CHUA_DOC_EN = (
+    "\n\n_(Note from Javis: the `agy` version on this machine does not open the context file, so the last "
+    "answer was given without Javis's system prompt and memory. To fix this, upgrade `agy` to a newer version "
+    "(that takes the prompt over stdin), or switch to another brain on the Models page.)_"
+)
 # Bơm stdin theo mẩu bao nhiêu byte. 4096 là kích thước một trang ống dẫn: đủ nhỏ để bên đọc
 # nhận từng mẩu rời, đủ lớn để không tốn hàng chục nghìn lời gọi ghi.
 _MAU_STDIN = 4096
@@ -669,10 +681,20 @@ _CANH_BAO_HONG_DAU = (
     "(chữ biến thành `�`), và đổi đường gửi cũng không cứu được. Lỗi nằm trong chính CLI, "
     "Javis không vá được - nâng cấp `agy` lên bản mới, hoặc đổi bộ não khác ở trang Models.)_"
 )
+_CANH_BAO_HONG_DAU_EN = (
+    "\n\n_(Note from Javis: the `agy` version on this machine breaks Vietnamese diacritics in long prompts "
+    "(letters turn into `�`), and switching the delivery route did not help. The bug is in the CLI itself, "
+    "Javis cannot patch it - upgrade `agy`, or switch to another brain on the Models page.)_"
+)
 _CANH_BAO_DOC_HONG = (
     "\n\n_(Lưu ý của Javis: `agy` có thử mở file ngữ cảnh nhưng KHÔNG đọc được (thường là do mức "
     "quyền hoặc sandbox chặn), nên lượt vừa rồi trả lời mà chưa có system prompt và bộ nhớ của "
     "Javis. Nâng cấp `agy` lên bản nhận prompt qua stdin là hết hẳn đường vòng này.)_"
+)
+_CANH_BAO_DOC_HONG_EN = (
+    "\n\n_(Note from Javis: `agy` tried to open the context file but could NOT read it (usually blocked by "
+    "the permission level or sandbox), so the last answer was given without Javis's system prompt and "
+    "memory. Upgrading `agy` to a version that takes the prompt over stdin removes this detour.)_"
 )
 
 
@@ -830,13 +852,13 @@ def auth_status(bo_qua_cache: bool = False) -> dict:
     cli = find_antigravity_cli()
     if not cli:
         return {"connected": False, "method": "", "email": "",
-                "error": f"Chưa cài Antigravity CLI. Cài một lần: {lenh_cai()}"}
+                "error": _chua_cai()}
     now = time.time()
     if not bo_qua_cache and _AUTH_CACHE["val"] and now - _AUTH_CACHE["ts"] < _AUTH_TTL:
-        return dict(_AUTH_CACHE["val"])
+        return _hien_auth(_AUTH_CACHE["val"])
     ds = list_models()
     if ds:
-        d = {"connected": True, "method": "google (keyring của máy)", "email": "", "error": ""}
+        d = {"connected": True, "method": _METHOD_KEYRING, "email": "", "error": ""}
     else:
         # Nói rõ chuyện ĐÚNG USER (16/08): nhiều người đã đăng nhập agy thành công qua SSH
         # nhưng bằng user khác (vd root), còn Javis chạy bằng user riêng nên không thấy gì -
@@ -848,7 +870,37 @@ def auth_status(bo_qua_cache: bool = False) -> dict:
                       "phải đăng nhập bằng ĐÚNG user đang chạy Javis; SSH bằng user khác "
                       "(vd root) đăng nhập xong Javis vẫn không thấy."}
     _AUTH_CACHE.update(ts=now, val=dict(d))
-    return d
+    return _hien_auth(d)
+
+
+# Cache trạng thái giữ chữ tiếng Việt (nó được làm mới ở thread nền, không có ai đang nhìn);
+# lúc trả ra mới chọn theo ngôn ngữ giao diện của người hỏi.
+_METHOD_KEYRING = "google (keyring của máy)"
+_AUTH_EN = {
+    _METHOD_KEYRING: "google (machine keyring)",
+    "Đã cài Antigravity CLI nhưng phiên của Javis chưa đăng nhập. Mở trang "
+    "Code (Terminal) NGAY TRONG Javis, gõ `agy` rồi làm theo hướng dẫn - "
+    "phải đăng nhập bằng ĐÚNG user đang chạy Javis; SSH bằng user khác "
+    "(vd root) đăng nhập xong Javis vẫn không thấy.":
+        "Antigravity CLI is installed but Javis's session is not signed in. Open the "
+        "Terminal page RIGHT IN Javis, type `agy` and follow the steps - "
+        "you must sign in as the SAME user that runs Javis; signing in over SSH as another user "
+        "(e.g. root) still leaves Javis unable to see it.",
+}
+
+
+def _chua_cai() -> str:
+    return localefmt.chu(f"Chưa cài Antigravity CLI. Cài một lần: {lenh_cai()}",
+                         f"Antigravity CLI is not installed. Install it once: {lenh_cai()}")
+
+
+def _hien_auth(d: dict) -> dict:
+    ra = dict(d)
+    for k in ("method", "error"):
+        v = ra.get(k) or ""
+        if v in _AUTH_EN:
+            ra[k] = localefmt.chu(v, _AUTH_EN[v])
+    return ra
 
 
 _AUTH_LAM_MOI = {"dang_chay": False}   # single-flight: một thread làm mới là đủ
@@ -873,11 +925,11 @@ def auth_status_nen() -> dict:
     cli = find_antigravity_cli()
     if not cli:
         return {"connected": False, "method": "", "email": "",
-                "error": f"Chưa cài Antigravity CLI. Cài một lần: {lenh_cai()}"}
+                "error": _chua_cai()}
     now = time.time()
     cu = _AUTH_CACHE["val"]
     if cu and now - _AUTH_CACHE["ts"] < _AUTH_TTL:
-        return dict(cu)
+        return _hien_auth(cu)
     if not _AUTH_LAM_MOI["dang_chay"]:
         _AUTH_LAM_MOI["dang_chay"] = True
 
@@ -891,7 +943,7 @@ def auth_status_nen() -> dict:
 
         threading.Thread(target=_lam_moi, daemon=True, name="agy-auth-refresh").start()
     if cu:
-        return dict(cu)   # cache cũ còn hơn chặn cả app: sai lệch tối đa một vòng làm mới
+        return _hien_auth(cu)   # cache cũ còn hơn chặn cả app: sai lệch tối đa một vòng làm mới
     return {"connected": False, "method": "", "email": "", "error": "", "dang_kiem": True}
 
 
@@ -913,17 +965,30 @@ def login_huong_dan() -> dict:
     return {
         "cai": lenh_cai(),
         "dang_nhap": "agy",
-        "ghi_chu": ("Dùng trang Code (Terminal) NGAY TRONG Javis - nó mở shell bằng đúng user "
-                    "đang chạy Javis, đăng nhập ở đó là Javis nhận liền. (SSH bằng user khác, "
-                    "vd root, đăng nhập xong Javis vẫn không thấy - đây là lý do hay gặp nhất "
-                    "của cảnh 'cài rồi mà không nhận'.) Gõ `agy`: nó in ra một đường link. Mở "
-                    "link đó trên máy của bạn, đăng nhập Google xong trình duyệt nhảy sang một "
-                    "địa chỉ localhost báo không mở được - đó là bước ĐÚNG, copy nguyên địa "
-                    "chỉ trên thanh URL rồi dán ngược vào terminal và Enter. Chỉ phải làm một "
-                    "lần."),
-        "cuu_ho": ("Nếu terminal không hiện chỗ dán (bản `agy` cũ): mở thêm một phiên terminal "
-                   "rồi chạy curl \"<địa chỉ localhost vừa copy>\" - cổng đó đang mở ngay "
-                   "trên máy chạy Javis nên mã về đúng chỗ."),
+        "ghi_chu": localefmt.chu(
+            "Dùng trang Code (Terminal) NGAY TRONG Javis - nó mở shell bằng đúng user "
+            "đang chạy Javis, đăng nhập ở đó là Javis nhận liền. (SSH bằng user khác, "
+            "vd root, đăng nhập xong Javis vẫn không thấy - đây là lý do hay gặp nhất "
+            "của cảnh 'cài rồi mà không nhận'.) Gõ `agy`: nó in ra một đường link. Mở "
+            "link đó trên máy của bạn, đăng nhập Google xong trình duyệt nhảy sang một "
+            "địa chỉ localhost báo không mở được - đó là bước ĐÚNG, copy nguyên địa "
+            "chỉ trên thanh URL rồi dán ngược vào terminal và Enter. Chỉ phải làm một "
+            "lần.",
+            "Use the Terminal page RIGHT IN Javis - it opens a shell as the same user "
+            "running Javis, so signing in there is picked up right away. (Signing in over SSH as another user, "
+            "e.g. root, still leaves Javis unable to see it - the most common reason "
+            "for 'installed but not recognized'.) Type `agy`: it prints a link. Open "
+            "that link on your own machine; after the Google sign-in the browser jumps to a "
+            "localhost address that fails to load - that is the CORRECT step, copy the whole "
+            "address from the URL bar, paste it back into the terminal and press Enter. You only do this "
+            "once."),
+        "cuu_ho": localefmt.chu(
+            "Nếu terminal không hiện chỗ dán (bản `agy` cũ): mở thêm một phiên terminal "
+            "rồi chạy curl \"<địa chỉ localhost vừa copy>\" - cổng đó đang mở ngay "
+            "trên máy chạy Javis nên mã về đúng chỗ.",
+            "If the terminal shows no place to paste (older `agy`): open another terminal session "
+            "and run curl \"<the localhost address you copied>\" - that port is open right "
+            "on the machine running Javis, so the code lands in the right place."),
     }
 
 
@@ -1208,9 +1273,13 @@ class AntigravityCLI:
         """Một lượt chat. Tự chọn đường đưa prompt, và tự thử lại nếu đường đó không tới nơi."""
         if not self.cli_path:
             yield {"type": "error",
-                   "content": f"Không tìm thấy Antigravity CLI (`agy`). Cài một lần trên máy "
-                              f"chạy Javis:\n\n`{lenh_cai()}`\n\nRồi gõ `agy` một lần để đăng "
-                              f"nhập Google."}
+                   "content": localefmt.chu(
+                       f"Không tìm thấy Antigravity CLI (`agy`). Cài một lần trên máy "
+                       f"chạy Javis:\n\n`{lenh_cai()}`\n\nRồi gõ `agy` một lần để đăng "
+                       f"nhập Google.",
+                       f"Antigravity CLI (`agy`) not found. Install it once on the machine "
+                       f"running Javis:\n\n`{lenh_cai()}`\n\nThen type `agy` once to sign "
+                       f"in to Google.")}
             return
         full = (self.instructions.strip() + "\n\n" + prompt) if self.instructions else prompt
         # Ba đường đưa prompt cho CLI, xếp theo mức trung thực giảm dần:
@@ -1325,22 +1394,27 @@ class AntigravityCLI:
                 print(f"[antigravity] model không đọc được file ngữ cảnh "
                       f"{ket.get('ten_ngu_canh')} (đã thử: {ket.get('da_thu_doc')})",
                       file=sys.stderr)
-                text += (_CANH_BAO_DOC_HONG if ket.get("da_thu_doc") else _CANH_BAO_CHUA_DOC)
+                text += (localefmt.chu(_CANH_BAO_DOC_HONG, _CANH_BAO_DOC_HONG_EN) if ket.get("da_thu_doc")
+                         else localefmt.chu(_CANH_BAO_CHUA_DOC, _CANH_BAO_CHUA_DOC_EN))
             # Đổi đường rồi mà chữ vẫn hỏng dấu: hết cách trong tầm Javis. Nói thẳng, đừng để
             # người dùng ngồi đoán xem mình gõ sai hay máy hỏng.
             elif "�" in text:
                 print("[antigravity] câu trả lời vẫn còn ký tự hỏng sau khi đổi đường",
                       file=sys.stderr)
-                text += _CANH_BAO_HONG_DAU
+                text += localefmt.chu(_CANH_BAO_HONG_DAU, _CANH_BAO_HONG_DAU_EN)
             yield {"type": "final", "content": text}
         elif not ket.get("loi"):
             # Lưới an toàn cuối. Bản 1.0.0 của agy có lỗi nuốt stdout khi chạy qua ống dẫn
             # (issue #76 của google-antigravity/antigravity-cli); im lặng ở đây thì người dùng
             # lại thấy đúng cái bong bóng rỗng như hồi Gemini CLI.
             yield {"type": "error",
-                   "content": "Antigravity CLI chạy xong nhưng không trả về nội dung nào. Bản "
-                              "CLI quá cũ có lỗi mất stdout khi chạy nền - thử nâng cấp: "
-                              f"`{lenh_cai()}`"}
+                   "content": localefmt.chu(
+                       "Antigravity CLI chạy xong nhưng không trả về nội dung nào. Bản "
+                       "CLI quá cũ có lỗi mất stdout khi chạy nền - thử nâng cấp: "
+                       f"`{lenh_cai()}`",
+                       "Antigravity CLI finished but returned nothing. Very old "
+                       "CLI versions lose stdout when run in the background - try upgrading: "
+                       f"`{lenh_cai()}`")}
 
     async def _mot_luot(self, full: str, prompt: str, duong: str, ket: dict,
                         giu_loi: bool = False) -> AsyncIterator[dict]:
@@ -1364,11 +1438,17 @@ class AntigravityCLI:
                 ket.update(text="", loi=True, doc_duoc=True, ten_ngu_canh="",
                            cac_loi=[])
                 yield {"type": "error",
-                       "content": f"Không ghi được file ngữ cảnh cho Antigravity CLI "
-                                  f"({type(e).__name__}: {e}). Prompt của Javis dài hơn trần "
-                                  f"dòng lệnh của hệ điều hành nên phải đi qua file. Kiểm tra "
-                                  f"quyền ghi của thư mục state, hoặc đổi bộ não khác ở trang "
-                                  f"Models."}
+                       "content": localefmt.chu(
+                           f"Không ghi được file ngữ cảnh cho Antigravity CLI "
+                           f"({type(e).__name__}: {e}). Prompt của Javis dài hơn trần "
+                           f"dòng lệnh của hệ điều hành nên phải đi qua file. Kiểm tra "
+                           f"quyền ghi của thư mục state, hoặc đổi bộ não khác ở trang "
+                           f"Models.",
+                           f"Could not write the context file for Antigravity CLI "
+                           f"({type(e).__name__}: {e}). Javis's prompt is longer than the operating "
+                           f"system's command-line limit, so it must go through a file. Check "
+                           f"write permission on the state folder, or switch to another brain on the "
+                           f"Models page.")}
                 return
             prompt_argv = _loi_nhac_file(ten_ngu_canh, prompt)
             # File nằm ngoài cwd (xem `_viet_file_ngu_canh`) nên phải mở quyền đọc cho đúng thư
@@ -1436,9 +1516,13 @@ class AntigravityCLI:
             except subprocess.TimeoutExpired:
                 loop.call_soon_threadsafe(
                     hang.put_nowait,
-                    {"_exit": -1, "_err": f"Antigravity CLI chạy quá {int(self.timeout)}s nên bị "
-                                          f"cắt. Nếu việc thật sự dài thì nâng biến môi trường "
-                                          f"JAVIS_AGY_TIMEOUT."})
+                    {"_exit": -1, "_err": localefmt.chu(
+                        f"Antigravity CLI chạy quá {int(self.timeout)}s nên bị "
+                        f"cắt. Nếu việc thật sự dài thì nâng biến môi trường "
+                        f"JAVIS_AGY_TIMEOUT.",
+                        f"Antigravity CLI ran over {int(self.timeout)}s and was cut off. "
+                        f"If the job really is long, raise the environment variable "
+                        f"JAVIS_AGY_TIMEOUT.")})
             except OSError as e:
                 # E2BIG = prompt vượt trần dòng lệnh của hệ điều hành. Phép đo ở `_chon_duong`
                 # có thể vẫn hụt (biến môi trường to chiếm chỗ trong ARG_MAX chung, hoặc bản
@@ -1544,11 +1628,16 @@ class AntigravityCLI:
                 return []
             if _la_loi_chua_dang_nhap(loi):
                 return [{"type": "error",
-                         "content": "Antigravity CLI chưa đăng nhập. Mở terminal trên máy chạy "
-                                    "Javis, gõ `agy` rồi làm theo hướng dẫn (qua SSH thì nó in "
-                                    "ra một link để mở trên máy bạn)."}]
+                         "content": localefmt.chu(
+                             "Antigravity CLI chưa đăng nhập. Mở terminal trên máy chạy "
+                             "Javis, gõ `agy` rồi làm theo hướng dẫn (qua SSH thì nó in "
+                             "ra một link để mở trên máy bạn).",
+                             "Antigravity CLI is not signed in. Open a terminal on the machine running "
+                             "Javis, type `agy` and follow the steps (over SSH it prints "
+                             "a link to open on your own machine).")}]
             if not loi:
-                loi = f"Antigravity CLI thoát với mã {ev.get('_exit')}."
+                loi = localefmt.chu(f"Antigravity CLI thoát với mã {ev.get('_exit')}.",
+                                    f"Antigravity CLI exited with code {ev.get('_exit')}.")
             return [{"type": "error", "content": loi[:1500]}]
 
         t = str(ev.get("type") or ev.get("event") or "").lower()
@@ -1612,11 +1701,14 @@ class AntigravityCLI:
                      "status": str(ev.get("status") or ""),
                      "content": str(ev.get("output") or ev.get("content") or "")[:2000]}]
         if t == "error":
-            tin = str(ev.get("message") or ev.get("error") or "Antigravity CLI lỗi.")
+            tin = str(ev.get("message") or ev.get("error")
+                      or localefmt.chu("Antigravity CLI lỗi.", "Antigravity CLI error."))
             if _la_loi_chua_dang_nhap(tin):
                 return [{"type": "error",
-                         "content": "Antigravity CLI chưa đăng nhập. Gõ `agy` một lần trên máy "
-                                    "chạy Javis."}]
+                         "content": localefmt.chu("Antigravity CLI chưa đăng nhập. Gõ `agy` một lần trên máy "
+                                                  "chạy Javis.",
+                                                  "Antigravity CLI is not signed in. Type `agy` once on the machine "
+                                                  "running Javis.")}]
             if str(ev.get("severity") or "error") == "warning":
                 return []
             return [{"type": "error", "content": tin[:1500]}]
@@ -1636,7 +1728,8 @@ class AntigravityCLI:
                 e = ev.get("error") or {}
                 tin = str(e.get("message") if isinstance(e, dict) else e) or ""
                 ra.append({"type": "error",
-                           "content": tin[:1500] or "Antigravity CLI kết thúc với lỗi."})
+                           "content": tin[:1500] or localefmt.chu("Antigravity CLI kết thúc với lỗi.",
+                                                                  "Antigravity CLI ended with an error.")})
                 return ra
             # Sự kiện kết thúc mang LẠI TOÀN VĂN câu trả lời trong `response`, trong khi các
             # `text_delta` trước đó đã gom đủ rồi -> gom tiếp là câu trả lời hiện HAI LẦN.
@@ -1715,7 +1808,8 @@ def kiem_tra_nhanh(timeout: float = 60.0) -> dict:
     """
     cli = find_antigravity_cli()
     if not cli:
-        return {"ok": False, "error": f"Chưa cài Antigravity CLI. {lenh_cai()}"}
+        return {"ok": False, "error": localefmt.chu(f"Chưa cài Antigravity CLI. {lenh_cai()}",
+                                                    f"Antigravity CLI is not installed. {lenh_cai()}")}
     args = [cli]
     if co_co("--output-format"):
         args += ["--output-format", "json"]
@@ -1740,21 +1834,28 @@ def kiem_tra_nhanh(timeout: float = 60.0) -> dict:
                 _ra += _t
         if _la_loi_chua_dang_nhap(_ra) or "select login method" in _ra.lower():
             return {"ok": False,
-                    "error": "Chưa đăng nhập - CLI đang đứng ở màn chọn cách đăng nhập. Mở "
-                             "terminal trên máy chạy Javis, gõ `agy` rồi làm theo hướng dẫn."}
-        return {"ok": False, "error": "Antigravity CLI không trả lời kịp."}
+                    "error": localefmt.chu("Chưa đăng nhập - CLI đang đứng ở màn chọn cách đăng nhập. Mở "
+                                           "terminal trên máy chạy Javis, gõ `agy` rồi làm theo hướng dẫn.",
+                                           "Not signed in - the CLI is waiting at the sign-in method menu. Open a "
+                                           "terminal on the machine running Javis, type `agy` and follow the steps.")}
+        return {"ok": False, "error": localefmt.chu("Antigravity CLI không trả lời kịp.",
+                                                    "Antigravity CLI did not answer in time.")}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     out = (r.stdout or "").strip()
     if r.returncode != 0:
         loi = (r.stderr or out or "").strip()
         if _la_loi_chua_dang_nhap(loi):
-            return {"ok": False, "error": "Chưa đăng nhập. Gõ `agy` một lần trên máy chạy Javis."}
-        return {"ok": False, "error": loi[:400] or f"Thoát mã {r.returncode}"}
+            return {"ok": False, "error": localefmt.chu("Chưa đăng nhập. Gõ `agy` một lần trên máy chạy Javis.",
+                                                        "Not signed in. Type `agy` once on the machine running Javis.")}
+        return {"ok": False, "error": loi[:400] or localefmt.chu(f"Thoát mã {r.returncode}",
+                                                                 f"Exit code {r.returncode}")}
     if not out:
         return {"ok": False,
-                "error": "CLI chạy xong nhưng không in ra gì. Bản cũ có lỗi mất stdout khi chạy "
-                         f"nền - nâng cấp bằng: {lenh_cai()}"}
+                "error": localefmt.chu("CLI chạy xong nhưng không in ra gì. Bản cũ có lỗi mất stdout khi chạy "
+                                       f"nền - nâng cấp bằng: {lenh_cai()}",
+                                       "The CLI finished but printed nothing. Old versions lose stdout when run in "
+                                       f"the background - upgrade with: {lenh_cai()}")}
     try:
         d = json.loads(out)
     except json.JSONDecodeError:

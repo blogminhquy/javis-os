@@ -40,9 +40,19 @@ CANH_BAO_SUBSCRIPTION = (
     "hoặc trỏ 'model việc nền' sang một provider khác."
 )
 
+CANH_BAO_SUBSCRIPTION_EN = (
+    "Anthropic counts a Claude Pro/Max plan only for ordinary personal use of Claude Code. "
+    "Continuous background runs (loops, reminders, Kanban work, chatbots), running on a VPS, "
+    "or several people sharing one account all fall OUTSIDE that, and accounts have been "
+    "locked for it. To run background work safely, switch to an API key on the Models page, "
+    "or point the 'background model' at another provider."
+)
+
 # Câu ngắn cho chỗ chật (badge, tooltip, dòng trạng thái).
 CANH_BAO_NGAN = ("Chạy nền bằng gói subscription có thể bị Anthropic khoá tài khoản. "
                  "Dùng API key cho việc nền là an toàn nhất.")
+CANH_BAO_NGAN_EN = ("Running background work on a subscription plan can get the account locked by "
+                    "Anthropic. An API key is the safest choice for background work.")
 
 
 def che_do(settings: dict = None) -> str:
@@ -77,4 +87,7 @@ def canh_bao_neu_can(settings: dict = None) -> str:
     if che_do(s) == API_KEY:
         return ""
     import aux_engine
-    return CANH_BAO_SUBSCRIPTION if aux_engine.is_claude(aux_engine.read_spec(s)) else ""
+    if not aux_engine.is_claude(aux_engine.read_spec(s)):
+        return ""
+    import localefmt
+    return localefmt.chu(CANH_BAO_SUBSCRIPTION, CANH_BAO_SUBSCRIPTION_EN)

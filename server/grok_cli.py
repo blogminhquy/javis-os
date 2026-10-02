@@ -73,6 +73,7 @@ import uuid
 from pathlib import Path
 from typing import AsyncIterator, Optional
 
+import localefmt
 from claude_cli import _home_dir, _no_window, tim_binary
 
 try:                       # Python 3.11+ có sẵn; đọc TOML, KHÔNG ghi được.
@@ -567,7 +568,8 @@ def auth_status() -> dict:
     cli = find_grok_cli()
     if not cli:
         return {"connected": False, "method": "", "account": "", "plan": "",
-                "error": f"Chưa cài Grok CLI ({lenh_cai()})."}
+                "error": localefmt.chu(f"Chưa cài Grok CLI ({lenh_cai()}).",
+                                       f"Grok CLI is not installed ({lenh_cai()}).")}
     f, auth = _doc_phien()
     if auth is not None:
         acc = _tim_chuoi(auth, ("email", "account", "username", "handle", "user", "name"))
@@ -584,11 +586,16 @@ def auth_status() -> dict:
     co_file = [x["ten"] for x in _liet_ke_home()]
     if co_file:
         return {"connected": False, "method": "", "account": "", "plan": "",
-                "error": ("Thư mục " + str(_grok_home()) + " đã có file (" + ", ".join(co_file[:6])
-                          + ") nhưng Javis không nhận ra token đăng nhập trong đó. "
-                            "Bấm \"Kiểm tra lại\" để xem chi tiết.")}
+                "error": localefmt.chu(
+                    "Thư mục " + str(_grok_home()) + " đã có file (" + ", ".join(co_file[:6])
+                    + ") nhưng Javis không nhận ra token đăng nhập trong đó. "
+                      "Bấm \"Kiểm tra lại\" để xem chi tiết.",
+                    "The folder " + str(_grok_home()) + " has files (" + ", ".join(co_file[:6])
+                    + ") but Javis does not recognize a sign-in token in them. "
+                      "Click \"Re-check\" for details.")}
     return {"connected": False, "method": "", "account": "", "plan": "",
-            "error": "Đã cài Grok CLI nhưng chưa đăng nhập. Bấm \"Đăng nhập\" ngay trên thẻ này."}
+            "error": localefmt.chu("Đã cài Grok CLI nhưng chưa đăng nhập. Bấm \"Đăng nhập\" ngay trên thẻ này.",
+                                   "Grok CLI is installed but not signed in. Click \"Sign in\" on this card.")}
 
 
 def _liet_ke_home() -> list:
@@ -647,9 +654,13 @@ def login_huong_dan() -> dict:
     return {
         "cai": lenh_cai(),
         "dang_nhap": "grok login --device-auth",
-        "ghi_chu": ("Cách khác: chạy `grok login` trong terminal. Qua SSH thì thêm "
-                    "`--device-auth`, nó in ra một link và một mã để mở trên máy bạn. "
-                    "Javis nhận ra cả tài khoản đăng nhập kiểu đó."),
+        "ghi_chu": localefmt.chu(
+            "Cách khác: chạy `grok login` trong terminal. Qua SSH thì thêm "
+            "`--device-auth`, nó in ra một link và một mã để mở trên máy bạn. "
+            "Javis nhận ra cả tài khoản đăng nhập kiểu đó.",
+            "Alternatively: run `grok login` in a terminal. Over SSH add "
+            "`--device-auth`; it prints a link and a code to open on your own machine. "
+            "Javis recognizes accounts signed in that way too."),
     }
 
 
@@ -771,7 +782,8 @@ def login_start(cho_giay: float = 30.0) -> dict:
     """
     cli = find_grok_cli()
     if not cli:
-        return {"ok": False, "error": f"Chưa cài Grok CLI ({lenh_cai()})."}
+        return {"ok": False, "error": localefmt.chu(f"Chưa cài Grok CLI ({lenh_cai()}).",
+                                                    f"Grok CLI is not installed ({lenh_cai()}).")}
     logout_huy_tien_trinh()
     args = [cli, "login"]
     if co_co("--device-auth", "--device-code"):
@@ -802,8 +814,11 @@ def login_start(cho_giay: float = 30.0) -> dict:
         if proc.poll() is not None and auth_status().get("connected"):
             return {"ok": True, "xong": True, "url": "", "code": ""}
         return {"ok": False,
-                "error": ("Grok CLI không in ra link đăng nhập trong " f"{int(cho_giay)}s. "
-                          "Thử chạy `grok login --device-auth` trong terminal của máy chủ."),
+                "error": localefmt.chu(
+                    "Grok CLI không in ra link đăng nhập trong " f"{int(cho_giay)}s. "
+                    "Thử chạy `grok login --device-auth` trong terminal của máy chủ.",
+                    f"Grok CLI printed no sign-in link within {int(cho_giay)}s. "
+                    "Try running `grok login --device-auth` in the server's terminal."),
                 "nhat_ky": nhat_ky_dang_nhap()}
     return {"ok": True, "xong": False, "url": _LOGIN["url"], "code": _LOGIN["code"],
             "nhat_ky": nhat_ky_dang_nhap()}
@@ -828,11 +843,11 @@ def login_trang_thai() -> dict:
     if not d.get("connected") and not dang_chay:
         ma = _LOGIN.get("ma_thoat")
         cuoi = [x for x in nhat_ky_dang_nhap() if not x.startswith("[")]
-        loi = (d.get("error") or "Đăng nhập chưa xong.")
+        loi = (d.get("error") or localefmt.chu("Đăng nhập chưa xong.", "Sign-in not finished."))
         if ma not in (None, 0):
-            loi = f"`grok login` thoát với mã {ma}. " + loi
+            loi = localefmt.chu(f"`grok login` thoát với mã {ma}. ", f"`grok login` exited with code {ma}. ") + loi
         if cuoi:
-            loi += " CLI nói: " + cuoi[-1][:200]
+            loi += localefmt.chu(" CLI nói: ", " CLI says: ") + cuoi[-1][:200]
     return {"connected": bool(d.get("connected")), "dang_cho": dang_chay,
             "url": _LOGIN.get("url", ""), "code": _LOGIN.get("code", ""),
             "account": d.get("account", ""), "plan": d.get("plan", ""),
@@ -859,7 +874,7 @@ def logout() -> dict:
     logout_huy_tien_trinh()
     cli = find_grok_cli()
     if not cli:
-        return {"ok": False, "error": "Chưa cài Grok CLI."}
+        return {"ok": False, "error": localefmt.chu("Chưa cài Grok CLI.", "Grok CLI is not installed.")}
     try:
         r = subprocess.run([cli, "logout"], capture_output=True, text=True, encoding="utf-8",
                            errors="replace", timeout=30, creationflags=_no_window(),
@@ -868,7 +883,7 @@ def logout() -> dict:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     if r.returncode != 0:
         return {"ok": False, "error": ((r.stderr or r.stdout or "").strip()[:300]
-                                       or f"Thoát mã {r.returncode}")}
+                                       or localefmt.chu(f"Thoát mã {r.returncode}", f"Exit code {r.returncode}"))}
     return {"ok": True}
 
 
@@ -1075,8 +1090,10 @@ class GrokCLI:
     async def query(self, prompt: str) -> AsyncIterator[dict]:
         if not self.cli_path:
             yield {"type": "error",
-                   "content": f"Không tìm thấy Grok CLI. Cài bằng `{lenh_cai()}` rồi chạy "
-                              "`grok login` một lần để đăng nhập."}
+                   "content": localefmt.chu(f"Không tìm thấy Grok CLI. Cài bằng `{lenh_cai()}` rồi chạy "
+                                            "`grok login` một lần để đăng nhập.",
+                                            f"Grok CLI not found. Install it with `{lenh_cai()}`, then run "
+                                            "`grok login` once to sign in.")}
             return
         # Grok không nhận system prompt riêng ở chế độ headless → gộp vào đầu prompt, đúng cách
         # CodexCLI và GeminiCLI đang làm.
@@ -1222,9 +1239,12 @@ class GrokCLI:
                 if qua_gio.is_set():
                     loop.call_soon_threadsafe(
                         hang.put_nowait,
-                        {"_exit": -1, "_err": f"Grok CLI chạy quá {int(self.timeout)}s nên bị "
-                                              f"cắt. Nếu việc thật sự dài thì nâng biến môi "
-                                              f"trường JAVIS_GROK_TIMEOUT."})
+                        {"_exit": -1, "_err": localefmt.chu(
+                            f"Grok CLI chạy quá {int(self.timeout)}s nên bị "
+                            f"cắt. Nếu việc thật sự dài thì nâng biến môi "
+                            f"trường JAVIS_GROK_TIMEOUT.",
+                            f"Grok CLI ran over {int(self.timeout)}s and was cut off. "
+                            f"If the job really is long, raise the environment variable JAVIS_GROK_TIMEOUT.")})
                 elif ma != 0:
                     loop.call_soon_threadsafe(hang.put_nowait, {"_exit": ma, "_err": err})
                 elif err:
@@ -1239,9 +1259,13 @@ class GrokCLI:
                 # KHÔNG có đường lùi nào khác, nên nói thẳng bằng câu người dùng làm theo được
                 # thay vì ném "OSError: [Errno 7] Argument list too long" ra màn hình.
                 if getattr(e, "errno", None) in (errno.E2BIG, errno.ENAMETOOLONG):
-                    _t = ("Hội thoại đã quá dài so với trần dòng lệnh của hệ điều hành, mà bản "
-                          "Grok CLI trên máy này chưa có `--prompt-file` để đi đường khác. "
-                          "Nâng cấp Grok CLI (" + lenh_cai() + ") hoặc mở một hội thoại mới.")
+                    _t = localefmt.chu(
+                        "Hội thoại đã quá dài so với trần dòng lệnh của hệ điều hành, mà bản "
+                        "Grok CLI trên máy này chưa có `--prompt-file` để đi đường khác. "
+                        "Nâng cấp Grok CLI (" + lenh_cai() + ") hoặc mở một hội thoại mới.",
+                        "The conversation is longer than the operating system's command-line limit, and the "
+                        "Grok CLI on this machine has no `--prompt-file` to take another route. "
+                        "Upgrade Grok CLI (" + lenh_cai() + ") or start a new conversation.")
                     loop.call_soon_threadsafe(hang.put_nowait, {"_exit": -1, "_err": _t})
                 else:
                     loop.call_soon_threadsafe(
@@ -1313,30 +1337,42 @@ class GrokCLI:
         loai = sorted(x for x in (chan.get("loai") or []) if x)
         dong = _chan_dong(chan)
         n = int(chan.get("so_dong") or 0) or len(dong)
+        # Dựng song song hai bản (vi, en); câu cuối chọn theo ngôn ngữ giao diện.
         if not n:
             noi = ("Grok CLI chạy xong (mã thoát "
                    f"{chan.get('ma_thoat')}) nhưng KHÔNG in ra gì cả")
+            en = f"Grok CLI finished (exit code {chan.get('ma_thoat')}) but printed NOTHING"
             if chan.get("lan_hai"):
                 noi += ", kể cả khi thử lại với prompt đưa thẳng qua dòng lệnh"
+                en += ", even when retried with the prompt passed directly on the command line"
             noi += (". Thử chạy tay trên máy chủ để xem nó nói gì:\n"
                     "`grok -p \"chào\" --output-format streaming-json`")
+            en += (". Try running it by hand on the server to see what it says:\n"
+                   "`grok -p \"hello\" --output-format streaming-json`")
         else:
             noi = (f"Grok CLI in ra {n} dòng nhưng Javis không nhận ra loại sự kiện nào là "
                    "câu trả lời")
+            en = f"Grok CLI printed {n} lines but Javis recognized no event type as the answer"
             if loai:
                 noi += " (thấy: " + ", ".join(loai[:12]) + ")"
+                en += " (seen: " + ", ".join(loai[:12]) + ")"
             noi += "."
+            en += "."
             # Dòng ĐẦU và dòng CUỐI. Chỉ in dòng đầu là bản 0.50.3, và nó đã dẫn sai hướng:
             # dòng đầu luôn là bảng khai báo tool, còn câu trả lời thì nằm ở cuối.
             if dong:
                 noi += "\nDòng đầu: " + dong[0][:250]
+                en += "\nFirst line: " + dong[0][:250]
             if len(dong) > 1:
                 noi += "\nDòng cuối: " + dong[-1][:400]
+                en += "\nLast line: " + dong[-1][:400]
         if chan.get("stderr"):
             noi += "\nCLI báo ở stderr: " + chan["stderr"][:300]
+            en += "\nCLI stderr: " + chan["stderr"][:300]
         if chan.get("args"):
             noi += "\nCờ đã truyền: " + " ".join(chan["args"])
-        return noi
+            en += "\nFlags passed: " + " ".join(chan["args"])
+        return localefmt.chu(noi, en)
 
     # -- dịch sự kiện -------------------------------------------------------
     @staticmethod
@@ -1366,10 +1402,14 @@ class GrokCLI:
             l = loi.lower()
             if "xai_api_key" in l or "not authenticated" in l or "unauthorized" in l:
                 return [{"type": "error",
-                         "content": "Grok CLI chưa đăng nhập. Mở trang Models bấm \"Đăng nhập\", "
-                                    "hoặc chạy `grok login --device-auth` trong terminal."}]
+                         "content": localefmt.chu(
+                             "Grok CLI chưa đăng nhập. Mở trang Models bấm \"Đăng nhập\", "
+                             "hoặc chạy `grok login --device-auth` trong terminal.",
+                             "Grok CLI is not signed in. Open the Models page and click \"Sign in\", "
+                             "or run `grok login --device-auth` in a terminal.")}]
             if not loi:
-                loi = f"Grok CLI thoát với mã {ev.get('_exit')}."
+                loi = localefmt.chu(f"Grok CLI thoát với mã {ev.get('_exit')}.",
+                                    f"Grok CLI exited with code {ev.get('_exit')}.")
             return [{"type": "error", "content": loi[:1500]}]
 
         t = str(ev.get("type") or "")
@@ -1434,11 +1474,12 @@ class GrokCLI:
             if ly_do in ("error", "max_turns"):
                 tin = str(self._lay(ev, "error", "message"))
                 ra.append({"type": "error",
-                           "content": tin or f"Grok CLI kết thúc sớm ({ly_do})."})
+                           "content": tin or localefmt.chu(f"Grok CLI kết thúc sớm ({ly_do}).",
+                                                           f"Grok CLI ended early ({ly_do}).")})
             return ra
         if t == "error":
             tin = str(self._lay(ev, "message", "error", "content"))
-            return [{"type": "error", "content": tin or "Grok CLI lỗi."}]
+            return [{"type": "error", "content": tin or localefmt.chu("Grok CLI lỗi.", "Grok CLI error.")}]
         # Loại KHÔNG BIẾT. Vẫn KHÔNG đưa vào câu trả lời ở đường chính - đoán bừa một loại lạ
         # là câu trả lời thì lượt nào cũng dính rác. Nhưng để dành lại hai thứ: tên loại (đã
         # ghi ở trên) và phần chữ vớt được, để nếu hết lượt mà không ra chữ nào thì còn cái mà
@@ -1478,7 +1519,8 @@ def kiem_tra_nhanh(timeout: float = 30.0) -> dict:
     """
     cli = find_grok_cli()
     if not cli:
-        return {"ok": False, "error": f"Chưa cài Grok CLI ({lenh_cai()})."}
+        return {"ok": False, "error": localefmt.chu(f"Chưa cài Grok CLI ({lenh_cai()}).",
+                                                    f"Grok CLI is not installed ({lenh_cai()}).")}
     args = [cli]
     args += permission_cho_mode("suggest")
     if co_co("--output-format"):
@@ -1492,19 +1534,23 @@ def kiem_tra_nhanh(timeout: float = 30.0) -> dict:
                            env=_moi_truong(), cwd=str(Path.home()),
                            stdin=subprocess.DEVNULL)
     except subprocess.TimeoutExpired:
-        return {"ok": False, "error": "Grok CLI không trả lời kịp."}
+        return {"ok": False, "error": localefmt.chu("Grok CLI không trả lời kịp.", "Grok CLI did not answer in time.")}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     if r.returncode != 0:
         loi = (r.stderr or r.stdout or "").strip()
         l = loi.lower()
         if "xai_api_key" in l or "not authenticated" in l or "unauthorized" in l:
-            loi = ("Chưa đăng nhập. Bấm \"Đăng nhập\" trên thẻ này, hoặc chạy "
-                   "`grok login --device-auth`.")
+            loi = localefmt.chu("Chưa đăng nhập. Bấm \"Đăng nhập\" trên thẻ này, hoặc chạy "
+                                "`grok login --device-auth`.",
+                                "Not signed in. Click \"Sign in\" on this card, or run "
+                                "`grok login --device-auth`.")
         elif "subscription" in l or "not eligible" in l or "forbidden" in l:
-            loi = ("Tài khoản đăng nhập không có quyền dùng Grok Build. Nó đi kèm gói SuperGrok "
-                   "hoặc X Premium+, không phải cứ có API key là chạy được.")
-        return {"ok": False, "error": loi[:400] or f"Thoát mã {r.returncode}"}
+            loi = localefmt.chu("Tài khoản đăng nhập không có quyền dùng Grok Build. Nó đi kèm gói SuperGrok "
+                                "hoặc X Premium+, không phải cứ có API key là chạy được.",
+                                "The signed-in account has no access to Grok Build. It comes with a SuperGrok "
+                                "or X Premium+ plan; an API key alone is not enough.")
+        return {"ok": False, "error": loi[:400] or localefmt.chu(f"Thoát mã {r.returncode}", f"Exit code {r.returncode}")}
     tho = (r.stdout or "").strip()
     try:
         d = json.loads(tho or "{}")
@@ -1512,8 +1558,10 @@ def kiem_tra_nhanh(timeout: float = 30.0) -> dict:
         # Không phải JSON nhưng CÓ chữ: bản CLI cũ chưa có `--output-format`. Vẫn là chạy được.
         return {"ok": True, "reply": tho[:200]} if tho else {
             "ok": False,
-            "error": ("Grok CLI thoát 0 nhưng không in ra gì cả. Thử chạy tay trên máy chủ: "
-                      "`grok -p \"chào\" --output-format json`")}
+            "error": localefmt.chu("Grok CLI thoát 0 nhưng không in ra gì cả. Thử chạy tay trên máy chủ: "
+                                   "`grok -p \"chào\" --output-format json`",
+                                   "Grok CLI exited 0 but printed nothing. Try running it by hand on the server: "
+                                   "`grok -p \"hello\" --output-format json`")}
     tra = str(d.get("text") or d.get("response") or "").strip()
     if not tra:
         # Sơ đồ JSON khác cái Javis đoán. Vớt ở mọi tầng đã, rồi mới chịu thua - và nếu chịu
@@ -1522,5 +1570,7 @@ def kiem_tra_nhanh(timeout: float = 30.0) -> dict:
     if tra:
         return {"ok": True, "reply": tra[:200]}
     return {"ok": False,
-            "error": ("Grok CLI chạy xong nhưng Javis không đọc ra câu trả lời trong thứ nó "
-                      "in ra. Nguyên văn: " + tho[:300])}
+            "error": localefmt.chu("Grok CLI chạy xong nhưng Javis không đọc ra câu trả lời trong thứ nó "
+                                   "in ra. Nguyên văn: " + tho[:300],
+                                   "Grok CLI finished but Javis could not read an answer from its "
+                                   "output. Raw output: " + tho[:300])}

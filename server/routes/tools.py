@@ -14,6 +14,7 @@ from typing import Callable
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+import localefmt
 import optional_tools
 
 router = APIRouter()
@@ -29,7 +30,7 @@ _DEPS: "ToolsDeps" = None   # type: ignore
 
 
 def _tu_choi():
-    return JSONResponse({"ok": False, "error": "cần đăng nhập"}, status_code=401)
+    return JSONResponse({"ok": False, "error": localefmt.chu("cần đăng nhập", "sign-in required")}, status_code=401)
 
 
 def register(app, deps: ToolsDeps):

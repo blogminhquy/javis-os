@@ -20,6 +20,7 @@ from typing import AsyncIterator, Optional
 
 # Chỉ để dùng strip_provider_markers. engine KHÔNG import ngược claude_cli nên không có vòng.
 import engine
+import localefmt
 
 
 # Registry các tiến trình Claude đang chạy - để ngắt giữa chừng.
@@ -345,15 +346,22 @@ def cau_thieu_cli(ten: str, nhan: str = "") -> str:
     lenh, env = _LENH_CAI_CLI.get(ten, ("", ""))
     hien = nhan or ten
     cau = f"{hien} CLI chưa cài"
+    en = f"{hien} CLI is not installed"
     if lenh:
         cau += f". Cài: {lenh}"
+        en += ". Install: " + lenh.replace("  (Windows) hoặc ", "  (Windows) or ")
     cau += (". Cài rồi vẫn thấy dòng này thì KHỞI ĐỘNG LẠI JAVIS: tiến trình đang chạy giữ "
             "PATH của lúc nó bật nên không thấy binary vừa cài")
+    en += (". Still seeing this after installing? RESTART JAVIS: the running process keeps the "
+           "PATH from when it started, so it cannot see the newly installed binary")
     if os.name == "nt":
         cau += (". Windows: một số installer ghi PATH bằng `setx` và cắt PATH ở 1024 ký tự, "
                 "làm biến mất thư mục npm - lúc đó chỉ thẳng đường dẫn bằng biến môi trường "
                 f"{env}")
-    return cau + "."
+        en += (". Windows: some installers write PATH with `setx`, which cuts PATH at 1024 characters "
+               "and drops the npm folder - in that case point to the binary with the environment "
+               f"variable {env}")
+    return localefmt.chu(cau + ".", en + ".")
 
 
 # ---- Danh sách model của gói Claude Code, đọc từ CHÍNH BINARY `claude` ----
@@ -627,7 +635,8 @@ def auth_status(bo_qua_cache: bool = False):
             ra["stale"] = True
             return ra
         return {"connected": False, "unknown": True,
-                "error": "vừa hỏi hỏng, tạm nghỉ vài giây rồi thử lại"}
+                "error": localefmt.chu("vừa hỏi hỏng, tạm nghỉ vài giây rồi thử lại",
+                                       "the last check failed, wait a few seconds and try again")}
     try:
         # 8 giây cho đường VẼ TRANG, 25 giây cho nút "Kiểm tra lại" (bo_qua_cache=True). Người
         # bấm nút thì sẵn lòng chờ; người chỉ mở trang thì không, và họ không có cách nào biết
@@ -852,19 +861,21 @@ def auth_login_ui_start():
             break
         time.sleep(0.2)
     if not (_LOGIN["url"] or _LOGIN["done"] or _LOGIN["error"]):
-        return {"ok": False, "error": "Không lấy được link đăng nhập (claude CLI không in URL)."}
+        return {"ok": False, "error": localefmt.chu("Không lấy được link đăng nhập (claude CLI không in URL).",
+                                                    "Could not get the sign-in link (the claude CLI printed no URL).")}
     return {"ok": True, "url": _LOGIN["url"], "done": _LOGIN["done"], "error": _LOGIN["error"]}
 
 
 def auth_login_ui_code(code):
     proc = _LOGIN.get("proc")
     if not proc:
-        return {"ok": False, "error": "Chưa bắt đầu đăng nhập (bấm Đăng nhập trước)."}
+        return {"ok": False, "error": localefmt.chu("Chưa bắt đầu đăng nhập (bấm Đăng nhập trước).",
+                                                    "Sign-in has not started (click Sign in first).")}
     try:
         proc.stdin.write((code or "").strip() + "\n")
         proc.stdin.flush()
     except Exception as e:
-        return {"ok": False, "error": f"Không gửi được code: {e}"}
+        return {"ok": False, "error": localefmt.chu(f"Không gửi được code: {e}", f"Could not send the code: {e}")}
     for _ in range(120):   # ~24s
         if _LOGIN["done"]:
             auth_quen_cache()   # đăng nhập xong thẻ phải xanh NGAY, không chờ hết hạn nhớ
@@ -873,7 +884,8 @@ def auth_login_ui_code(code):
             return {"ok": False, "error": _LOGIN["error"]}
         if proc.poll() is not None:
             return {"ok": proc.returncode == 0,
-                    "error": "" if proc.returncode == 0 else "Đăng nhập thất bại - thử lại."}
+                    "error": "" if proc.returncode == 0 else localefmt.chu("Đăng nhập thất bại - thử lại.",
+                                                                           "Sign-in failed - try again.")}
         time.sleep(0.2)
     return {"ok": _LOGIN["done"], "error": _LOGIN.get("error", "")}
 
@@ -976,7 +988,7 @@ def mcp_open_auth_terminal():
                     subprocess.Popen([term, "-e", "claude"])
                     break
             else:
-                return {"ok": False, "error": "Không tìm thấy terminal"}
+                return {"ok": False, "error": localefmt.chu("Không tìm thấy terminal", "No terminal found")}
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
@@ -1131,8 +1143,9 @@ def codex_mcp_parse_list(out):
         enabled = it.get("enabled")
         auth = str(it.get("auth_status") or it.get("auth") or "").lower()
         needs_login = auth in ("unauthenticated", "needs_login", "not_logged_in", "logged_out")
-        status = ("tắt" if enabled is False
-                  else "cần đăng nhập (codex mcp login)" if needs_login else "đã khai báo")
+        status = (localefmt.chu("tắt", "off") if enabled is False
+                  else localefmt.chu("cần đăng nhập (codex mcp login)", "sign-in needed (codex mcp login)")
+                  if needs_login else localefmt.chu("đã khai báo", "declared"))
         servers.append({"name": name, "url": url, "command": cmd, "transport": ttype,
                         "status": status, "connected": enabled is not False and not needs_login})
     return servers
@@ -1152,7 +1165,7 @@ def codex_mcp_parse_list_text(out):
         if first.lower() in ("name", "server"):    # dòng header bảng
             continue
         servers.append({"name": first, "url": "", "command": "", "transport": "",
-                        "status": "đã khai báo", "connected": True})
+                        "status": localefmt.chu("đã khai báo", "declared"), "connected": True})
     return servers
 
 
@@ -1198,7 +1211,7 @@ def codex_mcp_native_add(name, url=None, command=None, bearer_env=None):
     if not find_codex_cli():
         return {"ok": False, "error": cau_thieu_cli("codex", "Codex")}
     if not (url or command):
-        return {"ok": False, "error": "Thiếu url hoặc command"}
+        return {"ok": False, "error": localefmt.chu("Thiếu url hoặc command", "Missing url or command")}
     try:
         r = _codex_run(_codex_mcp_add_args(name, url, command, bearer_env), timeout=30)
         ok = r is not None and r.returncode == 0
@@ -1244,7 +1257,7 @@ def codex_mcp_open_login_terminal(name):
     # Tên đi vào chuỗi shell trên Windows → chỉ nhận chữ/số/_/- để khỏi tiêm lệnh.
     safe = "".join(ch for ch in str(name or "") if ch.isalnum() or ch in "_-")
     if not safe or safe != str(name):
-        return {"ok": False, "error": "Tên server không hợp lệ"}
+        return {"ok": False, "error": localefmt.chu("Tên server không hợp lệ", "Invalid server name")}
     try:
         if os.name == "nt":
             subprocess.Popen(f'start "Javis - Dang nhap MCP Codex" cmd /k codex mcp login {safe}',
@@ -1255,7 +1268,7 @@ def codex_mcp_open_login_terminal(name):
                     subprocess.Popen([term, "-e", cli, "mcp", "login", safe])
                     break
             else:
-                return {"ok": False, "error": "Không tìm thấy terminal"}
+                return {"ok": False, "error": localefmt.chu("Không tìm thấy terminal", "No terminal found")}
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
@@ -1280,6 +1293,13 @@ _NOTE_SANDBOX_HONG = (
     "container chứ không phải lỗi của lượt chạy, và thử lại bao nhiêu lần cũng vậy. Hai lối ra: "
     "đặt biến môi trường JAVIS_CODEX_SANDBOX=off để Codex chạy không có rào riêng (chính "
     "container vẫn là rào), hoặc chuyển việc nền này sang bộ não Claude."
+)
+_NOTE_SANDBOX_HONG_EN = (
+    "⚠ Javis self-check: Codex's own sandbox (ChatGPT) CANNOT start in this "
+    "environment, so every file read/write command it runs is blocked from the start. This is a limit of "
+    "the container, not a failure of this run, and retrying will not change it. Two ways out: "
+    "set the environment variable JAVIS_CODEX_SANDBOX=off so Codex runs without its own sandbox (the "
+    "container itself is still the sandbox), or move this background work to the Claude brain."
 )
 
 
@@ -1378,10 +1398,13 @@ def cau_ket_noi_lai(msg: str) -> str:
     """Dòng trạng thái tiếng Việt cho một tin thử lại của Codex (hiện tạm, không thành bong bóng)."""
     s = str(msg or "")
     if s.lower().lstrip().startswith("falling back"):
-        return "Codex chuyển sang đường HTTPS để tới ChatGPT…"
+        return localefmt.chu("Codex chuyển sang đường HTTPS để tới ChatGPT…",
+                             "Codex is switching to HTTPS to reach ChatGPT…")
     m = re.search(r"(\d+)\s*/\s*(\d+)", s)
     lan = f" (lần {m.group(1)}/{m.group(2)})" if m else ""
-    return f"Kết nối tới ChatGPT bị ngắt, Codex đang tự kết nối lại{lan}…"
+    lan_en = f" (attempt {m.group(1)}/{m.group(2)})" if m else ""
+    return localefmt.chu(f"Kết nối tới ChatGPT bị ngắt, Codex đang tự kết nối lại{lan}…",
+                         f"The connection to ChatGPT dropped, Codex is reconnecting{lan_en}…")
 
 
 class CodexCLI:
@@ -1438,7 +1461,8 @@ class CodexCLI:
 
     async def query(self, prompt: str) -> AsyncIterator[dict]:
         if not self.cli_path:
-            yield {"type": "error", "content": "Không tìm thấy Codex CLI (cần ChatGPT login qua codex)."}
+            yield {"type": "error", "content": localefmt.chu("Không tìm thấy Codex CLI (cần ChatGPT login qua codex).",
+                                                             "Codex CLI not found (ChatGPT sign-in through codex is needed).")}
             return
         resume_requested = bool(self.session_id)
         t_bat_dau = time.time()
@@ -1506,17 +1530,29 @@ class CodexCLI:
                             tinfo["timed_out"] = True
                             _kill_tree(p)
                             if ly_do == "tool":
-                                err = (f"Tool chạy quá {int(TOOL_IDLE)}s chưa xong - đã dừng để tránh treo "
-                                       f"server. (tăng JAVIS_CLAUDE_TOOL_TIMEOUT nếu tác vụ thật sự dài hơn, "
-                                       f"đặt 0 để bỏ hẳn trần)")
+                                err = localefmt.chu(
+                                    f"Tool chạy quá {int(TOOL_IDLE)}s chưa xong - đã dừng để tránh treo "
+                                    f"server. (tăng JAVIS_CLAUDE_TOOL_TIMEOUT nếu tác vụ thật sự dài hơn, "
+                                    f"đặt 0 để bỏ hẳn trần)",
+                                    f"A tool ran over {int(TOOL_IDLE)}s without finishing - stopped to avoid hanging the "
+                                    f"server. (raise JAVIS_CLAUDE_TOOL_TIMEOUT if the job really takes longer, "
+                                    f"set 0 to remove the limit)")
                             elif ly_do == "dau":
-                                err = (f"Codex chưa trả lời gì sau {int(FIRST_IDLE)}s - đã dừng để tránh treo "
-                                       f"server. Hay gặp khi hội thoại đã rất dài: lượt đầu phải nạp lại toàn "
-                                       f"bộ ngữ cảnh nên lâu. Mở hội thoại mới thường hết ngay. "
-                                       f"(JAVIS_CLAUDE_FIRST_TIMEOUT=0 để bỏ hẳn trần này)")
+                                err = localefmt.chu(
+                                    f"Codex chưa trả lời gì sau {int(FIRST_IDLE)}s - đã dừng để tránh treo "
+                                    f"server. Hay gặp khi hội thoại đã rất dài: lượt đầu phải nạp lại toàn "
+                                    f"bộ ngữ cảnh nên lâu. Mở hội thoại mới thường hết ngay. "
+                                    f"(JAVIS_CLAUDE_FIRST_TIMEOUT=0 để bỏ hẳn trần này)",
+                                    f"Codex had not answered after {int(FIRST_IDLE)}s - stopped to avoid hanging the "
+                                    f"server. Common when the conversation is very long: the first turn must reload the whole "
+                                    f"context, which is slow. A new conversation usually fixes it. "
+                                    f"(JAVIS_CLAUDE_FIRST_TIMEOUT=0 removes this limit)")
                             else:
-                                err = (f"Codex đang trả lời rồi im {int(IDLE)}s - đã dừng để tránh treo server. "
-                                       f"(JAVIS_CLAUDE_IDLE_TIMEOUT=0 để bỏ hẳn trần này)")
+                                err = localefmt.chu(
+                                    f"Codex đang trả lời rồi im {int(IDLE)}s - đã dừng để tránh treo server. "
+                                    f"(JAVIS_CLAUDE_IDLE_TIMEOUT=0 để bỏ hẳn trần này)",
+                                    f"Codex went silent for {int(IDLE)}s mid-answer - stopped to avoid hanging the server. "
+                                    f"(JAVIS_CLAUDE_IDLE_TIMEOUT=0 removes this limit)")
                             asyncio.run_coroutine_threadsafe(queue.put({"__error__": err}), loop)
                             return
                         time.sleep(5)
@@ -1629,7 +1665,8 @@ class CodexCLI:
                 # một bài dài model tự kể lại nỗi bối rối của nó, và không ai đọc ra được là
                 # phải đi sửa ở tầng container.
                 if sandbox_hong:
-                    final_text = (final_text + "\n\n" if final_text else "") + _NOTE_SANDBOX_HONG
+                    final_text = ((final_text + "\n\n" if final_text else "")
+                                  + localefmt.chu(_NOTE_SANDBOX_HONG, _NOTE_SANDBOX_HONG_EN))
                 # Ảnh Codex vẽ bằng skill imagegen riêng nằm ở ~/.codex/generated_images, ngoài
                 # brain: chép về attachments/ và nhúng lại để khung chat, Telegram hiện được.
                 # Làm ở đây thì mọi đường gọi Codex (chat, Telegram, workflow, việc nền) cùng có.

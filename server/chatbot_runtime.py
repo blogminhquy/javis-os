@@ -45,6 +45,7 @@ import chatbot_reply_policy_store
 import chatbot_store
 import chatbot_tu_dong
 import conversations
+import localefmt
 
 # Kênh -> lớp vận chuyển: tra SỔ ĐĂNG KÝ KÊNH (server/channels). Trước 0.61.0 là một bảng chép
 # tay ở đây; nay thêm kênh là thêm một module ở sổ, bộ giám sát không đổi.
@@ -927,8 +928,11 @@ async def _gui_nhan_vien(bot_cfg: dict, dich: str, chat_id: str, ly_do: str) -> 
         async with httpx.AsyncClient(timeout=15) as client:
             await client.post(tb._url("sendMessage"), json={
                 "chat_id": dich,
-                "text": (f"🔔 Bot \"{bot_cfg.get('name')}\" cần người thật.\n"
-                         f"Người nhắn: {chat_id}\nLý do: {ly_do}"),
+                # Tin cho CHỦ / người trực (không phải khách): theo ngôn ngữ giao diện của máy.
+                "text": localefmt.chu(f"🔔 Bot \"{bot_cfg.get('name')}\" cần người thật.\n"
+                                      f"Người nhắn: {chat_id}\nLý do: {ly_do}",
+                                      f"🔔 Bot \"{bot_cfg.get('name')}\" needs a human.\n"
+                                      f"Sender: {chat_id}\nReason: {ly_do}"),
             })
     except Exception as e:
         print(f"[chatbot handoff] {e}", file=sys.stderr)
@@ -1260,8 +1264,10 @@ def _make_answer_fn(bot_id: str):
             # bot đang gãy chứ không phải đang thiếu tài liệu. Hai chuyện đó sửa khác nhau hoàn toàn.
             asyncio.ensure_future(_gui_nhan_vien(
                 cfg, str(cfg["handoff_to"]), chat_id,
-                (f"Bot đang LỖI: {loi_ky_thuat[:300]}" if loi_ky_thuat else
-                 f"Bí {lien_tiep} câu liên tiếp. Câu gần nhất: {str(text)[:200]}")))
+                (localefmt.chu(f"Bot đang LỖI: {loi_ky_thuat[:300]}",
+                               f"The bot is FAILING: {loi_ky_thuat[:300]}") if loi_ky_thuat else
+                 localefmt.chu(f"Bí {lien_tiep} câu liên tiếp. Câu gần nhất: {str(text)[:200]}",
+                               f"Stuck on {lien_tiep} messages in a row. Latest: {str(text)[:200]}"))))
         return out
     return _answer
 
@@ -1303,16 +1309,19 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
     bot_id = str(conv.get("bot_id") or "")
     cfg = chatbot_store.get_bot(bot_id)
     if not cfg:
-        return {"ok": False, "code": "no_bot", "error": "Bot của cuộc chat này không còn nữa"}
+        return {"ok": False, "code": "no_bot", "error": localefmt.chu("Bot của cuộc chat này không còn nữa",
+                                                                      "The bot of this chat no longer exists")}
     last = next((m for m in reversed(msgs or []) if m.get("sender_type") == "customer"), None)
     # Tin ảnh thì chỉ phần chú thích là lời của khách; ảnh trơn (đường dẫn hoặc chữ giữ chỗ) không có gì để trả lời.
     chu_khach = (conversations.chu_thich_anh(last.get("text")) if (last or {}).get("message_type") == "image"
                  else str((last or {}).get("text") or "").strip())
     if not last or not chu_khach:
-        return {"ok": False, "code": "no_message", "error": "Chưa có tin khách để trả lời"}
+        return {"ok": False, "code": "no_message", "error": localefmt.chu("Chưa có tin khách để trả lời",
+                                                                          "No customer message to reply to yet")}
     conv_id = conv.get("id")
     if conv_id in _MANUAL_BUSY:
-        return {"ok": False, "code": "busy", "error": "Bot đang soạn cho cuộc chat này, chờ một chút"}
+        return {"ok": False, "code": "busy", "error": localefmt.chu("Bot đang soạn cho cuộc chat này, chờ một chút",
+                                                                    "The bot is already drafting for this chat, wait a moment")}
     _MANUAL_BUSY.add(conv_id)
     meta = manual_meta(conv, last)
     key = f"bot:{bot_id}:{meta['chat_id']}"
@@ -1347,7 +1356,9 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
             except Exception as e:      # noqa: BLE001
                 print(f"[chatbot {bot_id}] gỡ dấu vết bản nháp lỗi: {type(e).__name__}", file=sys.stderr)
     if isinstance(out, str):      # lõi trả CHUỖI khi lượt hỏng: giữ nguyên lý do cho chủ, không gửi cho khách
-        return {"ok": False, "code": "engine", "error": out.strip()[:300] or "Bot không soạn được câu trả lời"}
+        return {"ok": False, "code": "engine",
+                "error": out.strip()[:300] or localefmt.chu("Bot không soạn được câu trả lời",
+                                                            "The bot could not draft a reply")}
     dap = str((out or {}).get("text") or "").strip()
     if not dap or IM_LANG.lower() in dap.lower():
         return {"ok": True, "silent": True, "text": "", "meta": meta}
@@ -1419,13 +1430,13 @@ def start_bot(bot_id: str) -> tuple[bool, str]:
     """Bật một bot: MỖI tài khoản kênh của nó một poller. Đã chạy thì khởi động LẠI."""
     cfg = chatbot_store.get_bot(bot_id)
     if not cfg:
-        return False, "Không có bot nào id đó"
+        return False, localefmt.chu("Không có bot nào id đó", "No bot with that id")
     if not _deps.get("answer"):
-        return False, "Bộ giám sát chưa được nối vào server"
+        return False, localefmt.chu("Bộ giám sát chưa được nối vào server", "The supervisor is not wired into the server yet")
     ds = chatbot_store.tokens(bot_id)
     nhan_kenh = chatbot_store.KENH_NHAN.get(str(cfg.get("channel") or ""), str(cfg.get("channel") or ""))
     if not any(tok for _, tok in ds):
-        return False, f"Chưa có token {nhan_kenh} cho bot này"
+        return False, localefmt.chu(f"Chưa có token {nhan_kenh} cho bot này", f"This bot has no {nhan_kenh} token yet")
     stop_bot(bot_id)      # huỷ TRƯỚC khi tạo: hai poller cùng token thì máy chủ trả 409 và cả hai chết
     pollers = {}
     loi = []
@@ -1435,7 +1446,8 @@ def start_bot(bot_id: str) -> tuple[bool, str]:
         kenh = str(tk.get("channel") or "")
         Lop = _lop_kenh(kenh)
         if not Lop:
-            loi.append(f"Kênh '{kenh}' chưa có lớp vận chuyển nào")
+            loi.append(localefmt.chu(f"Kênh '{kenh}' chưa có lớp vận chuyển nào",
+                                     f"Channel '{kenh}' has no transport yet"))
             continue
         aid = tk["id"]
         chung = dict(
@@ -1465,7 +1477,8 @@ def start_bot(bot_id: str) -> tuple[bool, str]:
         tb.start()
         pollers[aid] = tb
     if not pollers:
-        return False, "; ".join(loi) or f"Chưa có token {nhan_kenh} cho bot này"
+        return False, "; ".join(loi) or localefmt.chu(f"Chưa có token {nhan_kenh} cho bot này",
+                                                      f"This bot has no {nhan_kenh} token yet")
     _RUNNING[bot_id] = {"pollers": pollers, "cfg": cfg, "started": time.time(), "answered": 0}
     return True, ("; ".join(loi) if loi else "")
 

@@ -20,6 +20,12 @@ from typing import Optional, Set, Tuple
 
 import lang_registry   # tên thứ trong tuần theo ngôn ngữ
 
+
+def _loi(vi: str, en: str) -> str:
+    """Câu lỗi cron hiện trên màn hình (form nhắc hẹn) theo ngôn ngữ giao diện."""
+    import localefmt
+    return localefmt.chu(vi, en)
+
 _MONTHS = {m: i for i, m in enumerate(
     ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], start=1)}
 _DOWS = {d: i for i, d in enumerate(
@@ -45,12 +51,12 @@ def _parse_atom(atom: str, lo: int, hi: int, names: dict) -> Tuple[Set[int], boo
     """1 phần (giữa các dấu phẩy). Trả (tập giá trị, is_star). Trường cron không có số âm."""
     atom = atom.strip().lower()
     if atom == "":
-        raise ValueError("trường cron rỗng")
+        raise ValueError(_loi("trường cron rỗng", "empty cron field"))
     step = 1
     if "/" in atom:                       # tách bước /n
         base, _, s = atom.partition("/")
         if not s.isdigit() or int(s) < 1:
-            raise ValueError(f"bước cron không hợp lệ: {atom}")
+            raise ValueError(_loi(f"bước cron không hợp lệ: {atom}", f"invalid cron step: {atom}"))
         step = int(s)
         atom = base.strip() or "*"
 
@@ -59,7 +65,7 @@ def _parse_atom(atom: str, lo: int, hi: int, names: dict) -> Tuple[Set[int], boo
         if tok in names:
             return names[tok]
         if not tok.isdigit():
-            raise ValueError(f"giá trị cron không hiểu: {tok}")
+            raise ValueError(_loi(f"giá trị cron không hiểu: {tok}", f"unrecognized cron value: {tok}"))
         return int(tok)
 
     if atom == "*":
@@ -71,10 +77,10 @@ def _parse_atom(atom: str, lo: int, hi: int, names: dict) -> Tuple[Set[int], boo
         v = _num(atom)
         start, end, is_star = v, (hi if step != 1 else v), False   # "n/step" = n..hi bước step
     if start > end:
-        raise ValueError(f"khoảng cron ngược: {atom}")
+        raise ValueError(_loi(f"khoảng cron ngược: {atom}", f"reversed cron range: {atom}"))
     vals = {v for v in range(start, end + 1, step) if lo <= v <= hi}
     if not vals:
-        raise ValueError(f"trường cron không có giá trị hợp lệ: {atom}")
+        raise ValueError(_loi(f"trường cron không có giá trị hợp lệ: {atom}", f"cron field has no valid value: {atom}"))
     return vals, is_star
 
 
@@ -99,7 +105,8 @@ class CronExpr:
             s = _MACROS[s]
         fields = s.split()
         if len(fields) != 5:
-            raise ValueError("cron phải có 5 trường (phút giờ ngày tháng thứ) hoặc macro @daily...")
+            raise ValueError(_loi("cron phải có 5 trường (phút giờ ngày tháng thứ) hoặc macro @daily...",
+                                  "cron needs 5 fields (minute hour day month weekday) or a macro like @daily..."))
         self.minutes, _ = _parse_field(fields[0], 0, 59, {})
         self.hours, _ = _parse_field(fields[1], 0, 23, {})
         self.doms, self.dom_star = _parse_field(fields[2], 1, 31, {})
@@ -137,7 +144,8 @@ class CronExpr:
                 dt = (dt + timedelta(minutes=1)).replace(second=0, microsecond=0)
                 continue
             return dt
-        raise ValueError(f"cron '{self.raw}' không có lần chạy nào trong {_MAX_YEARS_AHEAD} năm tới")
+        raise ValueError(_loi(f"cron '{self.raw}' không có lần chạy nào trong {_MAX_YEARS_AHEAD} năm tới",
+                              f"cron '{self.raw}' has no run in the next {_MAX_YEARS_AHEAD} years"))
 
 
 def _first_of_next_month(dt: datetime) -> datetime:

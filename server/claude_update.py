@@ -28,6 +28,7 @@ from pathlib import Path
 import claude_cli
 import config as cfgmod
 import deploy_info
+import localefmt
 
 CHU_KY = 24 * 3600
 _TRANG_THAI = "claude-update.json"
@@ -92,17 +93,20 @@ def cap_nhat(ly_do: str = "tay") -> dict:
     now = time.time()
     if deploy_info.deploy_mode() == "docker":
         return {"ok": False, "docker": True,
-                "error": "Bản Docker nhận Claude Code mới theo mỗi bản cập nhật Javis, "
-                         "không cập nhật riêng được."}
+                "error": localefmt.chu("Bản Docker nhận Claude Code mới theo mỗi bản cập nhật Javis, "
+                                       "không cập nhật riêng được.",
+                                       "The Docker build gets a new Claude Code with each Javis update; "
+                                       "it cannot be updated on its own.")}
     cli = claude_cli.find_claude_cli()
     if not cli:
-        return {"ok": False, "error": "Chưa thấy Claude Code trên máy."}
+        return {"ok": False, "error": localefmt.chu("Chưa thấy Claude Code trên máy.",
+                                                    "Claude Code was not found on this machine.")}
     truoc = phien_ban(cli)
     try:
         r = _chay([cli, "update"], 300)
         rc, ra = r.returncode, ((r.stdout or "") + (r.stderr or "")).strip()
     except subprocess.TimeoutExpired:
-        rc, ra = -1, "quá 5 phút chưa xong"
+        rc, ra = -1, localefmt.chu("quá 5 phút chưa xong", "not done after 5 minutes")
     except Exception as e:
         rc, ra = -1, f"{type(e).__name__}: {e}"
     sau = phien_ban(cli) or truoc
@@ -111,6 +115,6 @@ def cap_nhat(ly_do: str = "tay") -> dict:
     if rc != 0:
         # Dòng cuối là câu CLI tự giải thích (vd "managed by Homebrew"), đủ cho người đọc.
         dong = [x for x in ra.splitlines() if x.strip()]
-        kq["error"] = (dong[-1] if dong else "không rõ lỗi")[:300]
+        kq["error"] = (dong[-1] if dong else localefmt.chu("không rõ lỗi", "unknown error"))[:300]
     _ghi_trang_thai(kq)
     return kq

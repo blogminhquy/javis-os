@@ -18,6 +18,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse
 
 import config as cfgmod
+import localefmt
 
 
 @dataclass
@@ -90,20 +91,22 @@ async def _probe_https(domain: str):
     """Mở https://<domain>/health TỪ CHÍNH server → buộc Caddy On-Demand cấp chứng chỉ ở lần đầu
     và xác minh HTTPS chạy thật. Trả (active: bool, reason: str) với lý do dễ hiểu để hướng dẫn."""
     if not domain:
-        return False, "Chưa đặt tên miền"
+        return False, localefmt.chu("Chưa đặt tên miền", "No domain set")
     try:
         import httpx
         async with httpx.AsyncClient(timeout=12, follow_redirects=True) as client:
             r = await client.get(f"https://{domain}/health")
         if r.status_code < 500:
-            return True, "HTTPS đang hoạt động"
-        return False, f"Máy chủ trả HTTP {r.status_code}"
+            return True, localefmt.chu("HTTPS đang hoạt động", "HTTPS is working")
+        return False, localefmt.chu(f"Máy chủ trả HTTP {r.status_code}", f"The server returned HTTP {r.status_code}")
     except Exception as e:
         s = (str(e) + " " + type(e).__name__).lower()
         if "ssl" in s or "certificate" in s or "verify" in s:
-            return False, "Chứng chỉ chưa hợp lệ - DNS chưa trỏ đúng hoặc chứng chỉ chưa cấp xong"
+            return False, localefmt.chu("Chứng chỉ chưa hợp lệ - DNS chưa trỏ đúng hoặc chứng chỉ chưa cấp xong",
+                                        "Certificate not valid yet - DNS does not point here yet or the certificate is still being issued")
         if "connect" in s or "timeout" in s or "timed out" in s or "refused" in s:
-            return False, "Không kết nối được cổng 443 - Caddy/HTTPS chưa chạy, hoặc cổng 80/443 bị proxy khác chiếm"
+            return False, localefmt.chu("Không kết nối được cổng 443 - Caddy/HTTPS chưa chạy, hoặc cổng 80/443 bị proxy khác chiếm",
+                                        "Cannot connect to port 443 - Caddy/HTTPS is not running, or ports 80/443 are taken by another proxy")
         return False, type(e).__name__
 
 
@@ -124,7 +127,8 @@ def _make_router() -> APIRouter:
     async def domain_set(domain: str = Form("")):
         d = _norm_domain(domain)
         if d and not _DOMAIN_RE.match(d):
-            return JSONResponse({"ok": False, "error": "Tên miền không hợp lệ (vd: javis.tencuaban.com)"}, status_code=400)
+            return JSONResponse({"ok": False, "error": localefmt.chu("Tên miền không hợp lệ (vd: javis.tencuaban.com)",
+                                                                   "Invalid domain (e.g. javis.yourdomain.com)")}, status_code=400)
         cfg = cfgmod.read_settings()
         cfg.setdefault("domain", {})
         cfg["domain"]["custom"] = d
@@ -151,10 +155,10 @@ def _make_router() -> APIRouter:
         on_domain = bool(custom) and host == custom
         secure_now = _req_is_secure(request)
         # SSL: nếu đang mở chính tên miền qua HTTPS thì chắc chắn đang chạy; nếu không, chủ động probe.
-        ssl_active, ssl_reason = False, "Chưa đặt tên miền"
+        ssl_active, ssl_reason = False, localefmt.chu("Chưa đặt tên miền", "No domain set")
         if custom:
             if on_domain and secure_now:
-                ssl_active, ssl_reason = True, "Bạn đang mở qua HTTPS"
+                ssl_active, ssl_reason = True, localefmt.chu("Bạn đang mở qua HTTPS", "You are browsing over HTTPS")
             else:
                 ssl_active, ssl_reason = await _probe_https(custom)
         target = _domain_deploy_target(request)
@@ -176,11 +180,14 @@ def _make_router() -> APIRouter:
         cfg.setdefault("domain", {})
         custom = _norm_domain(cfg["domain"].get("custom", ""))
         if on and not custom:
-            return JSONResponse({"ok": False, "error": "Hãy nhập và lưu tên miền trước khi bật SSL."}, status_code=400)
+            return JSONResponse({"ok": False, "error": localefmt.chu("Hãy nhập và lưu tên miền trước khi bật SSL.",
+                                                                   "Enter and save a domain before turning on SSL.")}, status_code=400)
         if on and _domain_deploy_target(request) == "hostinger":
             return JSONResponse({
                 "ok": False,
-                "error": "Hostinger quản lý HTTPS bằng Traefik. Hãy đặt DOMAIN_NAME trong Docker Manager rồi Redeploy; Javis không thể sửa route của hPanel từ bên trong container.",
+                "error": localefmt.chu(
+                    "Hostinger quản lý HTTPS bằng Traefik. Hãy đặt DOMAIN_NAME trong Docker Manager rồi Redeploy; Javis không thể sửa route của hPanel từ bên trong container.",
+                    "Hostinger manages HTTPS with Traefik. Set DOMAIN_NAME in Docker Manager and Redeploy; Javis cannot change hPanel routes from inside the container."),
                 "hostinger": True,
                 "domain": custom,
                 "docs": "https://github.com/blogminhquy/javis-os/blob/main/docs/15-thuong-hieu-ten-mien.md",
@@ -188,7 +195,7 @@ def _make_router() -> APIRouter:
         cfg["domain"]["ssl_enabled"] = on
         cfgmod.write_settings(cfg)
         if not on:
-            return {"ok": True, "enabled": False, "ssl_active": False, "ssl_reason": "Đã tắt SSL"}
+            return {"ok": True, "enabled": False, "ssl_active": False, "ssl_reason": localefmt.chu("Đã tắt SSL", "SSL turned off")}
         active, reason = await _probe_https(custom)
         resp = {"ok": True, "enabled": True, "ssl_active": active, "ssl_reason": reason}
         if not active and _DEPS.deploy_mode() == "docker":

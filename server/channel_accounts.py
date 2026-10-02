@@ -31,6 +31,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 import channels
+import localefmt
 import secrets_store
 from config import STATE_DIR
 
@@ -126,7 +127,8 @@ def _ao_cua(conn_id: str, label: str = "") -> dict:
     return {
         "id": conn_id, "channel": "zalo_personal", "label": label or (s.nhan if s else "Zalo"),
         "external_id": "", "brain": "", "meta": {}, "token_set": True, "kind": "account",
-        "channel_label": s.nhan if s else "Zalo cá nhân", "logo": s.logo if s else "zalo",
+        "channel_label": (channels.nhan_giao_dien("zalo_personal") if s
+                          else localefmt.chu("Zalo cá nhân", "Personal Zalo")), "logo": s.logo if s else "zalo",
         "ao": True,
     }
 
@@ -201,21 +203,24 @@ def create_account(data: dict, account_id: str = "") -> tuple[Optional[str], str
     """
     kenh = _clean_kenh(data.get("channel"))
     if not kenh:
-        return None, (f"Kênh '{data.get('channel')}' không gắn được tài khoản token. Kênh có: "
+        return None, (localefmt.chu(f"Kênh '{data.get('channel')}' không gắn được tài khoản token. Kênh có: ",
+                                    f"Channel '{data.get('channel')}' cannot take a token account. Available channels: ")
                       + ", ".join(channels.bot_token_ids()))
     tok = str(data.get("token") or "").strip()
     if not tok:
-        return None, f"Thiếu token {channels.nhan(kenh)}"
+        return None, localefmt.chu(f"Thiếu token {channels.nhan(kenh)}", f"Missing {channels.nhan(kenh)} token")
     ext = _clean_external(data.get("external_id"))
     trung = owner_of(ext, kenh) if ext else None
     if trung:
-        return None, (f"Bot {channels.nhan(kenh)} \"{ext}\" đã có ở tài khoản "
-                      f"\"{trung.get('label') or ext}\" rồi. Mỗi token một tài khoản.")
+        return None, localefmt.chu(f"Bot {channels.nhan(kenh)} \"{ext}\" đã có ở tài khoản "
+                                   f"\"{trung.get('label') or ext}\" rồi. Mỗi token một tài khoản.",
+                                   f"{channels.nhan(kenh)} bot \"{ext}\" is already in account "
+                                   f"\"{trung.get('label') or ext}\". One account per token.")
     with _lock:
         d = _load()
         aid = str(account_id or "").strip() or ("acc_" + uuid.uuid4().hex[:10])
         if any(a.get("id") == aid for a in d["accounts"]):
-            return None, "Trùng id tài khoản"
+            return None, localefmt.chu("Trùng id tài khoản", "Duplicate account id")
         meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
         a = {
             "id": aid, "channel": kenh,
@@ -246,7 +251,8 @@ def update_account(account_id: str, patch: dict) -> tuple[bool, str]:
             if "external_id" in patch:
                 ext = _clean_external(patch.get("external_id"))
                 if ext and owner_of(ext, a.get("channel") or "", exclude_id=account_id):
-                    return False, f"Bot \"{ext}\" đã có ở một tài khoản khác."
+                    return False, localefmt.chu(f"Bot \"{ext}\" đã có ở một tài khoản khác.",
+                                                f"Bot \"{ext}\" is already in another account.")
                 a["external_id"] = ext
             if "label" in patch:
                 lb = _clean_label(patch.get("label"))

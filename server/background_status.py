@@ -29,6 +29,7 @@ from __future__ import annotations
 import lang as lang_mod
 import lang_registry
 import lexicon   # mẫu lời hứa theo ngôn ngữ
+import localefmt
 import re
 import time
 import unicodedata
@@ -119,15 +120,21 @@ def promise_note(orchestration: str = "") -> str:
     hai câu hỏi của người đọc: có báo cáo nào tự về không, và giờ phải làm gì.
     """
     lines = [
-        "⚠ Mình vừa hẹn sẽ báo lại nhưng KHÔNG đặt việc nền nào, nên sẽ không có báo cáo nào "
-        "tự về đây. Nhắn \"làm luôn\" là mình làm ngay, hoặc \"giao việc nền\" để mình đẩy vào "
-        "hàng đợi và kết quả tự rơi về khung chat này.",
+        localefmt.chu(
+            "⚠ Mình vừa hẹn sẽ báo lại nhưng KHÔNG đặt việc nền nào, nên sẽ không có báo cáo nào "
+            "tự về đây. Nhắn \"làm luôn\" là mình làm ngay, hoặc \"giao việc nền\" để mình đẩy vào "
+            "hàng đợi và kết quả tự rơi về khung chat này.",
+            "⚠ I said I would report back but queued NO background work, so no report will "
+            "arrive here on its own. Reply \"do it now\" and I will do it right away, or \"queue it\" "
+            "and I will queue it so the result lands in this chat by itself."),
     ]
     if orchestration and orchestration != "auto":
-        lines.append(
+        lines.append(localefmt.chu(
             "Lưu ý thêm: việc nền của brain này chưa tự chạy, có giao thì cũng nằm chờ. Bật "
-            "\"AI tự vận hành\" ở trang Việc nếu muốn nó chạy một mình."
-        )
+            "\"AI tự vận hành\" ở trang Việc nếu muốn nó chạy một mình.",
+            "Also note: background work in this brain does not run on its own yet, so queued work "
+            "just waits. Turn on \"AI self-driving\" on the Tasks page to let it run by itself."
+        ))
     return "\n\n".join(lines)
 
 
@@ -174,7 +181,7 @@ def _job_item(job: dict, chat_id: str) -> dict:
     return {
         "kind": "job",
         "id": str(job.get("id") or ""),
-        "title": str(job.get("mo_ta") or "tiến trình nền")[:160],
+        "title": str(job.get("mo_ta") or localefmt.chu("tiến trình nền", "background process"))[:160],
         "status": "running",
         "mine": bool(chat_id) and str(job.get("chat_id") or "") == chat_id,
         "at": float(job.get("bat_dau") or 0),

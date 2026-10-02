@@ -20,6 +20,7 @@ import context_runtime
 import lang as lang_mod
 import lang_registry
 import lexicon
+import localefmt
 
 
 CANARY_POLICY_VERSION = "fast-path-canary-v1"
@@ -388,9 +389,11 @@ class FastPathCanary:
             return FastPathPlan(
                 "reject", "compile_rejected", "fast", bucket=bucket,
                 policy_version=policy.version,
-                rejection_message=(
+                rejection_message=localefmt.chu(
                     "Request này vượt ngân sách context đã xác minh của model hiện tại. "
-                    "Javis chưa gửi request; bạn hãy rút gọn nội dung hoặc đổi model/provider."
+                    "Javis chưa gửi request; bạn hãy rút gọn nội dung hoặc đổi model/provider.",
+                    "This request exceeds the verified context budget of the current model. "
+                    "Javis did not send it; shorten the content or switch model/provider."
                 ),
             )
         if report.get("path") != "fast" or report.get("preflight_decision") != "would_allow":
@@ -414,9 +417,11 @@ class FastPathCanary:
                 estimated_input_tokens=estimate, reserved_input_tokens=reserved_input,
                 reserved_output_tokens=rule.reserved_output_tokens,
                 policy_version=policy.version,
-                rejection_message=(
+                rejection_message=localefmt.chu(
                     "Request này quá sát hard limit của model sau khi cộng biên an toàn. "
-                    "Javis chưa gửi request; bạn hãy rút gọn nội dung hoặc đổi model/provider."
+                    "Javis chưa gửi request; bạn hãy rút gọn nội dung hoặc đổi model/provider.",
+                    "This request is too close to the model's hard limit once the safety margin is added. "
+                    "Javis did not send it; shorten the content or switch model/provider."
                 ),
             )
         admission = self.runtime.admit_quota(
@@ -429,9 +434,11 @@ class FastPathCanary:
                 estimated_input_tokens=estimate, reserved_input_tokens=reserved_input,
                 reserved_output_tokens=rule.reserved_output_tokens,
                 policy_version=policy.version,
-                rejection_message=(
+                rejection_message=localefmt.chu(
                     "Model hiện tại đã hết ngân sách token trong cửa sổ quota. "
-                    "Javis chưa gửi request; bạn chờ hết cửa sổ hoặc đổi model/provider."
+                    "Javis chưa gửi request; bạn chờ hết cửa sổ hoặc đổi model/provider.",
+                    "The current model has used up its token budget for this quota window. "
+                    "Javis did not send the request; wait for the window to reset or switch model/provider."
                 ),
             )
         rendered = compiled.capsule.rendered_request

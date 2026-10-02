@@ -23,6 +23,54 @@ _CHECK_TIMEOUT = 60       # trần một lần ping (stdio spawn nguội trên W
 _state: dict = {}         # conn_id -> {ok, kind, message, checked_at, tools}
 _task = None
 
+# Bản tiếng Anh của các câu cố định bên dưới. `_state` và `_engines` vẫn GIỮ câu tiếng Việt
+# (`javis_connections` của bộ não đọc chúng), chỉ lúc trả ra màn hình (`snapshot`,
+# `engines_snapshot`, `check_by_id`) mới chọn theo ngôn ngữ giao diện. Câu có phần động
+# (thiếu quyền gì) mang sẵn `message_en` trong bản ghi.
+_EN = {
+    "Hết phiên đăng nhập - bấm Kết nối lại để đăng nhập lại.":
+        "Signed out - click Reconnect to sign in again.",
+    "Không khởi động được trình kết nối trên máy chạy Javis.":
+        "Could not start the connector on the machine running Javis.",
+    "Dịch vụ không phản hồi - có thể do mạng hoặc máy chủ dịch vụ.":
+        "The service is not responding - possibly the network or the service's server.",
+    "Lỗi không rõ": "Unknown error",
+    "Chưa hoàn tất đăng nhập - bấm Kết nối lại để đăng nhập.":
+        "Sign-in not completed - click Reconnect to sign in.",
+    "Nối được nhưng máy chủ không đưa ra công cụ nào - phiên có thể vừa bị máy chủ xoá. "
+    "Bấm Kiểm tra để nối lại.":
+        "Connected, but the server offers no tools - the session may have just been dropped "
+        "by the server. Click Check to reconnect.",
+    "Đang chạy tool nên chưa ping được - không phải lỗi kết nối.":
+        "A tool is running so it could not be pinged yet - this is not a connection error.",
+    "Không tìm thấy kết nối": "Connection not found",
+    "Hết phiên đăng nhập (phát hiện khi chạy).": "Signed out (detected while running).",
+    "Chưa đăng nhập Claude Code trên máy này.": "Claude Code is not signed in on this machine.",
+    "Không đọc được thông tin đăng nhập Claude Code.": "Could not read the Claude Code sign-in data.",
+    "Phiên đăng nhập Claude Code đã hết hạn và không tự làm mới được.":
+        "The Claude Code session has expired and could not refresh itself.",
+    "Chưa kết nối ChatGPT (OAuth).": "ChatGPT (OAuth) is not connected.",
+    "Composio từ chối consumer key mà Javis đang dùng. Vào Composio "
+    "For You → Connect my agent, lấy key ck_*, nhập vào thẻ Composio "
+    "trong Javis rồi bấm Kết nối hoặc Kết nối lại. Kết nối lại riêng "
+    "Calendar không thay đổi key này.":
+        "Composio rejected the consumer key Javis is using. In Composio go to "
+        "For You → Connect my agent, get a ck_* key, enter it on the Composio card "
+        "in Javis, then click Connect or Reconnect. Reconnecting only "
+        "Calendar does not change this key.",
+}
+
+
+def _hien(rec: dict) -> dict:
+    """Bản ghi cho MÀN HÌNH: `message` theo ngôn ngữ giao diện, bỏ trường phụ `message_en`."""
+    d = dict(rec)
+    en = d.pop("message_en", "")
+    vi = d.get("message") or ""
+    if vi:
+        import localefmt
+        d["message"] = localefmt.chu(vi, en or _EN.get(vi) or vi)
+    return d
+
 
 # Thứ tự các nhánh CÓ Ý NGHĨA: auth soi trước (chuỗi 401/unauthorized đặc trưng),
 # spawn trước net (lỗi spawn stdio hay kèm chữ chung chung như "connection closed").
@@ -82,7 +130,12 @@ async def check_one(conn, pool=None) -> dict:
                            message="Thiếu quyền: " + ", ".join(oauth_mcp.short_scopes(missing))
                                    + " - bấm Kết nối lại và tick đủ mọi ô quyền. Google không"
                                    " hiện ô tick nào (quyền cũ đã cấp) thì gỡ Javis tại"
-                                   " myaccount.google.com/permissions rồi kết nối lại.")
+                                   " myaccount.google.com/permissions rồi kết nối lại.",
+                           message_en="Missing permissions: "
+                                      + ", ".join(oauth_mcp.short_scopes(missing))
+                                      + " - click Reconnect and tick every permission box. If Google"
+                                      " shows no boxes (old permissions already granted), remove Javis at"
+                                      " myaccount.google.com/permissions and reconnect.")
                 _state[conn["id"]] = rec
                 return rec
         except Exception:
@@ -132,9 +185,9 @@ async def check_by_id(conn_id, pool=None) -> dict:
     conn = next((c for c in mcp_store.resolved(enabled_only=False)
                  if c["id"] == conn_id), None)
     if not conn:
-        return {"ok": False, "kind": "unknown", "message": "Không tìm thấy kết nối",
-                "checked_at": time.time(), "tools": 0}
-    return await check_one(conn, pool)
+        return _hien({"ok": False, "kind": "unknown", "message": "Không tìm thấy kết nối",
+                      "checked_at": time.time(), "tools": 0})
+    return _hien(await check_one(conn, pool))
 
 
 async def sweep(pool=None) -> int:
@@ -153,7 +206,7 @@ async def sweep(pool=None) -> int:
 def snapshot() -> dict:
     """Trạng thái hiện có cho GET /connect/health. Connection chưa check thì vắng mặt
     (UI hiểu là 'chưa rõ' - chấm vàng)."""
-    return {cid: dict(rec) for cid, rec in _state.items()}
+    return {cid: _hien(rec) for cid, rec in _state.items()}
 
 
 def forget(conn_id) -> None:
@@ -189,6 +242,11 @@ ENGINE_FIX = {
     "codex": "Vào trang Models để kết nối lại ChatGPT.",
 }
 ENGINE_FIX_DEFAULT = "Vào trang Models để kết nối và sử dụng Javis."
+ENGINE_FIX_EN = {
+    "claude": "Go to the Models page to reconnect.",
+    "codex": "Go to the Models page to reconnect ChatGPT.",
+}
+ENGINE_FIX_DEFAULT_EN = "Go to the Models page to connect and use Javis."
 
 
 def _set_engine(name, ok, message="", source="probe"):
@@ -213,10 +271,14 @@ def _set_engine(name, ok, message="", source="probe"):
             # Nói theo góc NGƯỜI DÙNG: với họ chỉ có một sự thật là chưa dùng được Javis,
             # và một việc phải làm. Tên engine để trong ngoặc cho ai cần đi tra, không đặt
             # lên đầu câu.
-            coro = on_engine_down(
+            import localefmt
+            coro = on_engine_down(localefmt.chu(
                 "⚠ Javis chưa dùng được: chưa kết nối được Model AI. "
                 + ENGINE_FIX.get(name, ENGINE_FIX_DEFAULT)
-                + f" (chi tiết: {name} - {message})")
+                + f" (chi tiết: {name} - {message})",
+                "⚠ Javis is not usable yet: no AI model is connected. "
+                + ENGINE_FIX_EN.get(name, ENGINE_FIX_DEFAULT_EN)
+                + f" (details: {name} - {_EN.get(message) or message})"))
             if asyncio.iscoroutine(coro):
                 asyncio.ensure_future(coro)
         except Exception as e:
@@ -393,7 +455,7 @@ def engines_snapshot() -> dict:
     xong mà banner đỏ còn treo thêm 10 phút thì người dùng tưởng đổi không ăn. read_settings
     có cache theo mtime nên lọc ở đây gần như không tốn gì."""
     live = engines_in_use()
-    return {n: dict(r) for n, r in _engines.items() if n in live}
+    return {n: _hien(r) for n, r in _engines.items() if n in live}
 
 
 async def _loop():

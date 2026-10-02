@@ -53,10 +53,19 @@ _LY_DO = {
     "het_han_nguoi": "Người này đã được bot tự trả lời đủ số lần trong giờ vừa qua.",
     "vua_tra_loi": "Bot vừa tự trả lời trong nhóm này, chờ một chút mới trả lời tiếp.",
 }
+_LY_DO_EN = {
+    "khong_co_tai_lieu": "Looks like a question, but nothing in the bot's documents matches, so the bot stayed quiet.",
+    "het_han_muc": "The bot has already auto-replied the maximum number of times in this group this past hour.",
+    "het_han_nguoi": "The bot has already auto-replied to this person the maximum number of times this past hour.",
+    "vua_tra_loi": "The bot just auto-replied in this group; it waits a moment before replying again.",
+}
 
 
 def ly_do_de_doc(ma: str) -> str:
-    return _LY_DO.get(ma, ma)
+    if ma not in _LY_DO:
+        return ma
+    import localefmt
+    return localefmt.chu(_LY_DO[ma], _LY_DO_EN[ma])
 
 
 def can_danh_gia(cfg: dict, meta: dict) -> bool:

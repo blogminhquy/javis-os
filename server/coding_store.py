@@ -50,6 +50,7 @@ from typing import Any, Dict, List, Optional
 
 import winproc            # lệnh con chạy câm trên Windows (không nháy cửa sổ console đen)
 from config import STATE_DIR
+import localefmt
 
 STORE_PATH = STATE_DIR / "coding.json"
 _lock = threading.RLock()
@@ -84,6 +85,15 @@ GIT_TIMEOUT = 30
 
 LOI_CAN_GIT = ("Thư mục này chưa phải repo git nên chưa có {viec}. "
                "Nhắn Javis `git init` giúp một câu là xong, rồi thử lại.")
+LOI_CAN_GIT_EN = ("This folder is not a git repo yet, so it has no {viec}. "
+                  "Ask Javis to run `git init` once, then try again.")
+# Tên việc (đối số `viec` của `_can_git`) bằng tiếng Anh, cho LOI_CAN_GIT_EN.
+_VIEC_EN = {"điểm hồi": "restore points", "worktree": "worktrees"}
+
+
+def _loi_can_git(viec: str) -> str:
+    return localefmt.chu(LOI_CAN_GIT.format(viec=viec),
+                         LOI_CAN_GIT_EN.format(viec=_VIEC_EN.get(viec, viec)))
 
 
 class LoiCoding(Exception):
@@ -178,12 +188,14 @@ def _git(args: List[str], cwd: str) -> str:
                            encoding="utf-8", errors="replace", timeout=GIT_TIMEOUT,
                            creationflags=winproc.no_window())
     except FileNotFoundError:
-        raise LoiCoding("Máy này chưa cài git.")
+        raise LoiCoding(localefmt.chu("Máy này chưa cài git.", "git is not installed on this machine."))
     except subprocess.TimeoutExpired:
-        raise LoiCoding(f"Lệnh git chạy quá {GIT_TIMEOUT} giây, đã dừng: git {' '.join(args)}")
+        raise LoiCoding(localefmt.chu(f"Lệnh git chạy quá {GIT_TIMEOUT} giây, đã dừng: git {' '.join(args)}",
+                                      f"The git command ran over {GIT_TIMEOUT} seconds and was stopped: git {' '.join(args)}"))
     if p.returncode != 0:
         loi = (p.stderr or p.stdout or "").strip().splitlines()
-        raise LoiCoding(f"git {args[0]} hỏng: {loi[-1] if loi else 'không rõ lý do'}")
+        raise LoiCoding(localefmt.chu(f"git {args[0]} hỏng: {loi[-1] if loi else 'không rõ lý do'}",
+                                      f"git {args[0]} failed: {loi[-1] if loi else 'unknown reason'}"))
     return (p.stdout or "").strip()
 
 
@@ -259,14 +271,14 @@ def them_thu_muc(duong_dan: str, brain: str = "", ten: str = "") -> Dict[str, An
     """
     raw = str(duong_dan or "").strip()
     if not raw:
-        raise LoiCoding("Chưa nhập đường dẫn thư mục.")
+        raise LoiCoding(localefmt.chu("Chưa nhập đường dẫn thư mục.", "No folder path entered."))
     p = Path(raw).expanduser()
     try:
         p = p.resolve()
     except Exception:
-        raise LoiCoding(f"Đường dẫn không đọc được: {raw}")
+        raise LoiCoding(localefmt.chu(f"Đường dẫn không đọc được: {raw}", f"Cannot read path: {raw}"))
     if not p.is_dir():
-        raise LoiCoding(f"Không có thư mục {p}")
+        raise LoiCoding(localefmt.chu(f"Không có thư mục {p}", f"Folder does not exist: {p}"))
     with _lock:
         d = _load()
         for r in d["thu_muc"]:
@@ -316,11 +328,12 @@ def dat_rang_buoc(sid: str, *, thu_muc_id: Optional[str] = None, nhanh: Optional
     """
     sid = str(sid or "").strip()
     if not sid:
-        raise LoiCoding("Thiếu session id.")
+        raise LoiCoding(localefmt.chu("Thiếu session id.", "Missing session id."))
     if muc_quyen is not None and muc_quyen not in MUC_QUYEN:
-        raise LoiCoding(f"Mức quyền phải là một trong {', '.join(MUC_QUYEN)}.")
+        raise LoiCoding(localefmt.chu(f"Mức quyền phải là một trong {', '.join(MUC_QUYEN)}.",
+                                      f"Permission level must be one of {', '.join(MUC_QUYEN)}."))
     if thu_muc_id is not None and thu_muc_id and not thu_muc(thu_muc_id):
-        raise LoiCoding("Thư mục không có trong sổ.")
+        raise LoiCoding(localefmt.chu("Thư mục không có trong sổ.", "That folder is not registered."))
     if thu_muc_ids is not None:
         # Bỏ trùng mà GIỮ thứ tự: thứ tự quyết định cái nào là thư mục chính.
         sach, thay = [], set()
@@ -329,7 +342,7 @@ def dat_rang_buoc(sid: str, *, thu_muc_id: Optional[str] = None, nhanh: Optional
             if not tid or tid in thay:
                 continue
             if not thu_muc(tid):
-                raise LoiCoding("Thư mục không có trong sổ.")
+                raise LoiCoding(localefmt.chu("Thư mục không có trong sổ.", "That folder is not registered."))
             thay.add(tid)
             sach.append(tid)
         thu_muc_ids = sach
@@ -419,9 +432,9 @@ def _can_git(sid: str, viec: str) -> str:
     """cwd của phiên, sau khi chắc chắn nó là repo git. Không phải thì nói rõ cách có được."""
     cwd = cwd_cua_phien(sid)
     if not cwd:
-        raise LoiCoding("Phiên này chưa gắn thư mục nào.")
+        raise LoiCoding(localefmt.chu("Phiên này chưa gắn thư mục nào.", "This session has no folder attached."))
     if not la_git(cwd):
-        raise LoiCoding(LOI_CAN_GIT.format(viec=viec))
+        raise LoiCoding(_loi_can_git(viec))
     return cwd
 
 
@@ -437,12 +450,12 @@ def tao_worktree(sid: str) -> Dict[str, Any]:
     rb = rang_buoc(sid)
     r = thu_muc(rb.get("thu_muc") or "")
     if not r:
-        raise LoiCoding("Phiên này chưa gắn thư mục nào.")
+        raise LoiCoding(localefmt.chu("Phiên này chưa gắn thư mục nào.", "This session has no folder attached."))
     cu = (rb.get("worktree") or "").strip()
     if cu and Path(cu).is_dir():
         return {"worktree": cu, "nhanh": rb.get("nhanh") or "", "da_co": True}
     if not la_git(r["duong_dan"]):
-        raise LoiCoding(LOI_CAN_GIT.format(viec="worktree"))
+        raise LoiCoding(_loi_can_git("worktree"))
     goc = (rb.get("nhanh") or nhanh_hien_tai(r["duong_dan"]) or "HEAD")
     ten_nhanh = f"javis/{_sid_ngan(sid)}"
     dich = WORKTREE_DIR / f"{r['id']}-{_sid_ngan(sid)}"
@@ -468,13 +481,15 @@ def go_worktree(sid: str, ep: bool = False) -> Dict[str, Any]:
     rb = rang_buoc(sid)
     wt = (rb.get("worktree") or "").strip()
     if not wt:
-        return {"da_go": False, "ly_do": "Phiên này không có worktree."}
+        return {"da_go": False, "ly_do": localefmt.chu("Phiên này không có worktree.",
+                                                       "This session has no worktree.")}
     r = thu_muc(rb.get("thu_muc") or "")
     if not r:
-        raise LoiCoding("Phiên này chưa gắn thư mục nào.")
+        raise LoiCoding(localefmt.chu("Phiên này chưa gắn thư mục nào.", "This session has no folder attached."))
     if Path(wt).is_dir() and not ep and not cay_sach(wt):
         return {"da_go": False, "giu_tai": wt,
-                "ly_do": f"Worktree còn sửa đổi chưa commit, đang giữ tại {wt}"}
+                "ly_do": localefmt.chu(f"Worktree còn sửa đổi chưa commit, đang giữ tại {wt}",
+                                       f"The worktree has uncommitted changes, kept at {wt}")}
     _git(["worktree", "remove", "--force", wt], r["duong_dan"])
     dat_rang_buoc(sid, worktree="")
     return {"da_go": True}
@@ -507,8 +522,10 @@ def tao_diem_hoi(sid: str) -> Dict[str, Any]:
     try:
         head = _git(["rev-parse", "HEAD"], cwd)
     except LoiCoding:
-        raise LoiCoding("Repo chưa có commit nào nên chưa đặt được điểm hồi. "
-                        "Commit lần đầu rồi thử lại.")
+        raise LoiCoding(localefmt.chu("Repo chưa có commit nào nên chưa đặt được điểm hồi. "
+                                      "Commit lần đầu rồi thử lại.",
+                                      "The repo has no commits yet, so a restore point cannot be set. "
+                                      "Make the first commit and try again."))
     tag = _tag_moi(sid, cwd)
     _git(["tag", tag, head], cwd)
     with _lock:
@@ -536,7 +553,8 @@ def rollback(sid: str, tag: str) -> Dict[str, Any]:
     tag = str(tag or "").strip()
     cwd = _can_git(sid, "điểm hồi")
     if tag not in {x.get("tag") for x in danh_sach_diem_hoi(sid)}:
-        raise LoiCoding("Điểm hồi đó không phải của phiên này.")
+        raise LoiCoding(localefmt.chu("Điểm hồi đó không phải của phiên này.",
+                                      "That restore point does not belong to this session."))
     _git(["reset", "--hard", tag], cwd)
     return {"ok": True, "tag": tag, "cwd": cwd}
 

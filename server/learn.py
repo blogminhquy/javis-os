@@ -1633,7 +1633,7 @@ class LearnFeature:
         """force_write=True (nút thủ công /reflect): ghi bất kể mode/rate, NHƯNG vẫn fail-closed
         qua git + secret-scan. caps_override: bộ capability riêng cho lần chạy (không lưu config)."""
         if self.lock.locked():
-            return {"ok": False, "error": "Đang chạy batch khác"}
+            return {"ok": False, "error": localefmt.chu("Đang chạy batch khác", "Another batch is running")}
         async with self.lock:
             cfg = self.read_config()
             caps = caps_override or cfg.get("capabilities", {})
@@ -1653,21 +1653,24 @@ class LearnFeature:
                 except Exception:
                     convs = []
             if not convs and not jobs:
-                return {"ok": True, "summary": "Không có hội thoại để học."}
+                return {"ok": True, "summary": localefmt.chu("Không có hội thoại để học.", "No conversation to learn from.")}
 
             digest = self._build_digest(brain, convs, jobs)
             if len(digest.strip()) < 40:
-                return {"ok": True, "summary": "Hội thoại quá ngắn, bỏ qua."}
+                return {"ok": True, "summary": localefmt.chu("Hội thoại quá ngắn, bỏ qua.",
+                                                             "The conversation is too short, skipped.")}
 
             prompt = self._build_prompt(caps, brain, digest)
             out = await self._spawn_readonly(brain, prompt, cfg)
             if not out or out.startswith("__ERROR__"):
                 self._log(brain, "learn", f"fork lỗi/không phản hồi ({reason})", out[:200] if out else "")
-                return {"ok": False, "error": "Fork học lỗi: " + (out[:160] if out else "rỗng")}
+                return {"ok": False, "error": localefmt.chu("Fork học lỗi: ", "Learning fork failed: ")
+                        + (out[:160] if out else localefmt.chu("rỗng", "empty"))}
             manifest = _extract_json(out)
             if not manifest:
                 self._log(brain, "learn", f"không parse được manifest ({reason})", out[:300])
-                return {"ok": False, "error": "Không parse được JSON từ fork"}
+                return {"ok": False, "error": localefmt.chu("Không parse được JSON từ fork",
+                                                            "Could not parse JSON from the fork")}
 
             # verify skill (spawn thứ 2) chỉ khi có skill + (auto hoặc thủ công) + cap skill
             if caps.get("skill") and (cfg.get("mode") == "auto" or force_write) and (manifest.get("skills")):
@@ -1766,7 +1769,7 @@ class LearnFeature:
     # ── CURATOR (định kỳ - bảo trì, KHÔNG xoá) ──
     async def run_curator(self, brain: str, reason: str = "scheduled") -> dict:
         if self.lock.locked():
-            return {"ok": False, "error": "Engine bận"}
+            return {"ok": False, "error": localefmt.chu("Engine bận", "Engine busy")}
         async with self.lock:
             cfg = self.read_config()
             root = self.deps.brain_root(brain)
@@ -2008,20 +2011,24 @@ class LearnFeature:
             bs = set(cfg.get("brains") or []); bs.add(brain); cfg["brains"] = list(bs)
             self.write_config(cfg)
             return {"ok": True, "git": g, "config": cfg,
-                    "note": ("Đã git-init brain → auto-write an toàn/undo được." if g.get("ok")
-                             else "⚠ Chưa git được (thiếu git?) → auto sẽ tự hạ dry-run. " + str(g.get("error", "")))}
+                    "note": (localefmt.chu("Đã git-init brain → auto-write an toàn/undo được.",
+                                           "The brain is now a git repo → auto-write is safe and can be undone.")
+                             if g.get("ok")
+                             else localefmt.chu("⚠ Chưa git được (thiếu git?) → auto sẽ tự hạ dry-run. ",
+                                                "⚠ Could not set up git (git missing?) → auto falls back to dry-run. ")
+                             + str(g.get("error", "")))}
 
         @router.post("/learn/run-now")
         async def learn_run_now(brain: str = Form("brain")):
             if self.lock.locked():
-                return {"ok": False, "error": "Đang chạy"}
+                return {"ok": False, "error": localefmt.chu("Đang chạy", "Already running")}
             asyncio.create_task(self.run_once(brain, "manual"))
             return {"ok": True, "started": True}
 
         @router.post("/learn/curator-now")
         async def learn_curator_now(brain: str = Form("brain")):
             if self.lock.locked():
-                return {"ok": False, "error": "Đang chạy"}
+                return {"ok": False, "error": localefmt.chu("Đang chạy", "Already running")}
             asyncio.create_task(self.run_curator(brain, "manual"))
             return {"ok": True, "started": True}
 

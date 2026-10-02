@@ -104,13 +104,16 @@ def them_file(meta, path, name="") -> tuple:
     """
     duong = str(path or "").strip()
     if not duong:
-        raise ValueError("thiếu đường dẫn")
+        import localefmt
+        raise ValueError(localefmt.chu("thiếu đường dẫn", "missing path"))
     kho = doc(meta)
     for f in kho["files"]:
         if f["path"] == duong:
             return _ghi(meta, kho["files"], kho["links"]), f["id"]
     if len(kho["files"]) >= TRAN_MOI_LOAI:
-        raise ValueError(f"Mỗi trợ lý chỉ gắn được tối đa {TRAN_MOI_LOAI} file")
+        import localefmt
+        raise ValueError(localefmt.chu(f"Mỗi trợ lý chỉ gắn được tối đa {TRAN_MOI_LOAI} file",
+                                       f"Each assistant can have at most {TRAN_MOI_LOAI} files"))
     fid = uuid.uuid4().hex
     ten = str(name or "").strip() or duong.replace("\\", "/").split("/")[-1]
     kho["files"].append({"id": fid, "path": duong, "name": ten[:_TEN_MAX],
@@ -122,13 +125,16 @@ def them_link(meta, url, label="") -> tuple:
     """Như them_file nhưng cho link. Caller phải chặn scheme lạ trước (chỉ http/https)."""
     u = str(url or "").strip()
     if not u:
-        raise ValueError("thiếu URL")
+        import localefmt
+        raise ValueError(localefmt.chu("thiếu URL", "missing URL"))
     kho = doc(meta)
     for l in kho["links"]:
         if l["url"] == u:
             return _ghi(meta, kho["files"], kho["links"]), l["id"]
     if len(kho["links"]) >= TRAN_MOI_LOAI:
-        raise ValueError(f"Mỗi trợ lý chỉ gắn được tối đa {TRAN_MOI_LOAI} link")
+        import localefmt
+        raise ValueError(localefmt.chu(f"Mỗi trợ lý chỉ gắn được tối đa {TRAN_MOI_LOAI} link",
+                                       f"Each assistant can have at most {TRAN_MOI_LOAI} links"))
     lid = uuid.uuid4().hex
     kho["links"].append({"id": lid, "url": u[:_URL_MAX], "label": str(label or "").strip()[:_TEN_MAX],
                          "pinned": False, "added_at": time.time()})

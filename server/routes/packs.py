@@ -32,6 +32,7 @@ import pack_install
 import packs
 import packs_fetch
 import packs_store
+import localefmt
 
 # Chỉ ảnh, và KHÔNG SVG: một SVG phục vụ cùng origin thì trơ trong thẻ <img> nhưng chạy script
 # khi người dùng mở thẳng nó ra một tab, tức là XSS trên chính origin của dashboard.
@@ -121,7 +122,8 @@ def _connector_cua_app() -> list:
 
 
 def _tu_choi():
-    return JSONResponse({"ok": False, "error": "Cần đăng nhập vào Javis để quản lý gói."},
+    return JSONResponse({"ok": False, "error": localefmt.chu("Cần đăng nhập vào Javis để quản lý gói.",
+                                                         "Sign in to Javis to manage packs.")},
                         status_code=401)
 
 
@@ -151,7 +153,8 @@ def _make_router() -> APIRouter:
             tong += len(b)
             if tong > MAX_UPLOAD:
                 return JSONResponse({"ok": False, "stage": "verify",
-                                     "error": f"tệp quá lớn, trần {MAX_UPLOAD // 1024 // 1024}MB"},
+                                     "error": localefmt.chu(f"tệp quá lớn, trần {MAX_UPLOAD // 1024 // 1024}MB",
+                                                            f"file too large, limit {MAX_UPLOAD // 1024 // 1024}MB")},
                                     status_code=413)
             khoi.append(b)
         return pack_install.soi(b"".join(khoi), (file.filename or "").strip())
@@ -269,7 +272,8 @@ def _make_router() -> APIRouter:
         if mong and r.get("ok") and r.get("sha256") != mong:
             return JSONResponse(
                 {"ok": False, "stage": "verify",
-                 "error": "Tệp tải về không khớp dấu vân tay mà kho công bố. Đã dừng."},
+                 "error": localefmt.chu("Tệp tải về không khớp dấu vân tay mà kho công bố. Đã dừng.",
+                                         "The downloaded file does not match the fingerprint the store published. Stopped.")},
                 status_code=400)
         r["source"] = {"kind": "url", "url": url}
         return r if r.get("ok") else JSONResponse(r, status_code=400)
@@ -292,7 +296,7 @@ def _make_router() -> APIRouter:
         d = await request.json()
         host = str(d.get("host") or "").strip().lower()
         if not host or "/" in host or " " in host:
-            return JSONResponse({"ok": False, "error": "Tên máy không hợp lệ"}, status_code=400)
+            return JSONResponse({"ok": False, "error": localefmt.chu("Tên máy không hợp lệ", "Invalid host name")}, status_code=400)
         tk = str(d.get("token") or "").strip()
         cfg = cfgmod.read_settings()
         kho = dict((cfg.get("packs") or {}).get("tokens") or {})

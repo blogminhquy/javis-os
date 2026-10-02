@@ -28,6 +28,7 @@ from fastapi import APIRouter, Form, Query
 from fastapi.responses import JSONResponse
 
 import coding_store
+import localefmt
 import sessions
 
 router = APIRouter()
@@ -96,7 +97,7 @@ def _make_router() -> APIRouter:
         # Chỉ gỡ khỏi sổ. Nói rõ trong câu trả lời để giao diện nhắc lại được cho người dùng:
         # "đã bỏ khỏi Javis, thư mục còn nguyên trên đĩa".
         if not coding_store.bo_thu_muc(tid):
-            return JSONResponse({"ok": False, "error": "Không có thư mục nào id đó"}, status_code=404)
+            return JSONResponse({"ok": False, "error": localefmt.chu("Không có thư mục nào id đó", "No folder with that id")}, status_code=404)
         return {"ok": True, "con_tren_dia": True}
 
     @r.get("/coding/sessions")
