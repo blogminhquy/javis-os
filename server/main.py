@@ -1325,12 +1325,12 @@ async def auth_setup(request: Request, username: str = Form(...), password: str 
                      setup_token: str = Form("")):
     cfg = cfgmod.read_settings()
     if cfgmod.auth_enabled(cfg):
-        return JSONResponse({"ok": False, "error": "Đã có tài khoản - hãy đăng nhập."}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Đã có tài khoản - hãy đăng nhập.", "An account already exists - please sign in.")}, status_code=400)
     # MÃ THIẾT LẬP đã bỏ (0.64.47, chủ dự án chốt 24/09): lần đầu chỉ cần tên + mật khẩu, bảo
     # vệ tiếp theo là 2FA. `setup_token` vẫn nhận nhưng bỏ qua, để client cũ còn gửi không lỗi.
     # Máy cài bằng install.sh có admin sẵn từ .env nên màn này không bao giờ hiện ra ở đó.
     if len(password) < 8:
-        return JSONResponse({"ok": False, "error": "Mật khẩu tối thiểu 8 ký tự"}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Mật khẩu tối thiểu 8 ký tự", "Password must be at least 8 characters")}, status_code=400)
     h, salt = cfgmod.hash_password(password)
     cfg["auth"] = {"username": username.strip() or "admin", "password_hash": h, "salt": salt}
     cfgmod.write_settings(cfg)
@@ -1367,14 +1367,14 @@ async def auth_login(request: Request, username: str = Form(...), password: str 
     """
     ip = request.client.host if request.client else "?"
     if _login_locked(ip):
-        return JSONResponse({"ok": False, "error": "Quá nhiều lần sai - thử lại sau ít phút."}, status_code=429)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Quá nhiều lần sai - thử lại sau ít phút.", "Too many failed attempts - try again in a few minutes.")}, status_code=429)
     cfg = cfgmod.read_settings()
     if not cfgmod.auth_enabled(cfg):
-        return {"ok": True, "note": "auth chưa bật"}
+        return {"ok": True, "note": localefmt.chu("auth chưa bật", "auth is not enabled")}
     if username.strip() != cfg["auth"].get("username") or not cfgmod.verify_password(password, cfg):
         _login_fail(ip)
         await asyncio.sleep(0.5)   # làm chậm brute-force online
-        return JSONResponse({"ok": False, "error": "Sai tài khoản hoặc mật khẩu"}, status_code=401)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Sai tài khoản hoặc mật khẩu", "Wrong username or password")}, status_code=401)
     # totp_hong: 2FA bật trong file nhưng secret không giải mã được (mất .secret_key).
     # Vẫn PHẢI hỏi mã (fail-closed) - chỉ mã khôi phục qua được vì nó băm, không mã hoá.
     # Trước 0.35.6 nhánh này fail-open: totp_enabled trả False nên cổng thôi hỏi mã luôn,
@@ -1386,8 +1386,12 @@ async def auth_login(request: Request, username: str = Form(...), password: str 
             # 401 kèm needs_2fa để giao diện hiện ô mã. KHÔNG tính là một lần sai: người dùng
             # chưa gõ gì cả, tính vào hạn mức là tự khoá chính chủ sau vài lần mở màn đăng nhập.
             return JSONResponse({"ok": False, "needs_2fa": True,
-                                 "error": ("Máy chủ không giải mã được khoá 2FA - nhập MÃ KHÔI PHỤC "
-                                           "để vào." if _tfa_hong else "Nhập mã xác thực 2 lớp.")},
+                                 "error": (localefmt.chu("Máy chủ không giải mã được khoá 2FA - nhập MÃ KHÔI PHỤC "
+                                                         "để vào.",
+                                                         "The server cannot decrypt the 2FA key - enter a RECOVERY CODE "
+                                                         "to sign in.")
+                                           if _tfa_hong else localefmt.chu("Nhập mã xác thực 2 lớp.",
+                                                                           "Enter your two-factor code."))},
                                 status_code=401)
         buoc = totp.kiem(cfgmod.totp_secret(cfg), ma,
                          buoc_da_dung=cfgmod.totp_last_step(cfg))
@@ -1400,12 +1404,19 @@ async def auth_login(request: Request, username: str = Form(...), password: str 
             _login_fail(ip)
             await asyncio.sleep(0.5)
             return JSONResponse({"ok": False, "needs_2fa": True,
-                                 "error": ("Khoá 2FA trên máy chủ không giải mã được (file "
-                                           ".secret_key đổi/mất?) nên mã 6 số KHÔNG dùng được - "
-                                           "chỉ MÃ KHÔI PHỤC vào được. Mất cả mã khôi phục thì "
-                                           "SSH vào server xoá khối auth.totp trong "
-                                           "settings.json." if _tfa_hong
-                                           else "Mã xác thực không đúng hoặc đã dùng rồi.")},
+                                 "error": (localefmt.chu(
+                                     "Khoá 2FA trên máy chủ không giải mã được (file "
+                                     ".secret_key đổi/mất?) nên mã 6 số KHÔNG dùng được - "
+                                     "chỉ MÃ KHÔI PHỤC vào được. Mất cả mã khôi phục thì "
+                                     "SSH vào server xoá khối auth.totp trong "
+                                     "settings.json.",
+                                     "The 2FA key on the server cannot be decrypted (was the "
+                                     ".secret_key file changed or lost?), so 6-digit codes do NOT work - "
+                                     "only a RECOVERY CODE gets you in. If the recovery codes are lost too, "
+                                     "SSH into the server and delete the auth.totp block in "
+                                     "settings.json.") if _tfa_hong
+                                           else localefmt.chu("Mã xác thực không đúng hoặc đã dùng rồi.",
+                                                              "The code is wrong or has already been used."))},
                                 status_code=401)
     _LOGIN_FAILS.pop(ip, None)
     return _session_cookie(JSONResponse({"ok": True}), cfgmod.new_session(), request)
@@ -1417,7 +1428,7 @@ async def auth_login(request: Request, username: str = Form(...), password: str 
 # của mình vào rồi khoá chính chủ ra ngoài.
 def _doi_phien_that(request: Request):
     if cfgmod.gate_active() and not cfgmod.valid_session(request.cookies.get("javis_session", "")):
-        return JSONResponse({"ok": False, "error": "Thao tác này phải đăng nhập bằng trình duyệt."},
+        return JSONResponse({"ok": False, "error": localefmt.chu("Thao tác này phải đăng nhập bằng trình duyệt.", "This action requires signing in from a browser.")},
                             status_code=403)
     return None
 
@@ -1452,7 +1463,7 @@ async def auth_2fa_start(request: Request):
         return loi
     cfg = cfgmod.read_settings()
     if cfgmod.totp_enabled(cfg):
-        return JSONResponse({"ok": False, "error": "2FA đang bật rồi - tắt trước nếu muốn đổi."},
+        return JSONResponse({"ok": False, "error": localefmt.chu("2FA đang bật rồi - tắt trước nếu muốn đổi.", "2FA is already on - turn it off first to change it.")},
                             status_code=400)
     secret = totp.sinh_secret()
     _TOTP_CHO.clear()
@@ -1469,12 +1480,15 @@ async def auth_2fa_enable(request: Request, code: str = Form(...)):
         return loi
     cho = dict(_TOTP_CHO)
     if not cho.get("secret") or time.time() - float(cho.get("ts") or 0) > _TOTP_CHO_TTL:
-        return JSONResponse({"ok": False, "error": "Phiên bật 2FA đã hết hạn - bấm Bật lại."},
+        return JSONResponse({"ok": False, "error": localefmt.chu("Phiên bật 2FA đã hết hạn - bấm Bật lại.", "The 2FA setup session expired - click Enable again.")},
                             status_code=400)
     buoc = totp.kiem(cho["secret"], code)
     if buoc is None:
-        return JSONResponse({"ok": False, "error": "Mã không đúng. Kiểm tra giờ trên điện thoại "
-                                                   "rồi nhập mã đang hiện."}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu(
+            "Mã không đúng. Kiểm tra giờ trên điện thoại "
+            "rồi nhập mã đang hiện.",
+            "Wrong code. Check the time on your phone, "
+            "then enter the code it shows now.")}, status_code=400)
     ma_khoi_phuc = totp.sinh_ma_khoi_phuc()
     cfgmod.totp_set(secret=cho["secret"], enabled=True, recovery=ma_khoi_phuc, last_step=buoc)
     _TOTP_CHO.clear()
@@ -1492,13 +1506,13 @@ async def auth_2fa_disable(request: Request, password: str = Form(...), code: st
         return loi
     cfg = cfgmod.read_settings()
     if not cfgmod.totp_enabled(cfg):
-        return {"ok": True, "note": "2FA vốn đã tắt"}
+        return {"ok": True, "note": localefmt.chu("2FA vốn đã tắt", "2FA was already off")}
     if not cfgmod.verify_password(password, cfg):
-        return JSONResponse({"ok": False, "error": "Sai mật khẩu."}, status_code=401)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Sai mật khẩu.", "Wrong password.")}, status_code=401)
     ma = (code or "").strip()
     if totp.kiem(cfgmod.totp_secret(cfg), ma, buoc_da_dung=cfgmod.totp_last_step(cfg)) is None \
             and not cfgmod.totp_dung_ma_khoi_phuc(ma):
-        return JSONResponse({"ok": False, "error": "Mã xác thực không đúng."}, status_code=401)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Mã xác thực không đúng.", "Wrong verification code.")}, status_code=401)
     cfgmod.totp_tat()
     return {"ok": True}
 
@@ -1510,9 +1524,9 @@ async def auth_2fa_recovery(request: Request, password: str = Form(...)):
         return loi
     cfg = cfgmod.read_settings()
     if not cfgmod.totp_enabled(cfg):
-        return JSONResponse({"ok": False, "error": "2FA chưa bật."}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("2FA chưa bật.", "2FA is not on.")}, status_code=400)
     if not cfgmod.verify_password(password, cfg):
-        return JSONResponse({"ok": False, "error": "Sai mật khẩu."}, status_code=401)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Sai mật khẩu.", "Wrong password.")}, status_code=401)
     ma_khoi_phuc = totp.sinh_ma_khoi_phuc()
     cfgmod.totp_set(secret=None, recovery=ma_khoi_phuc)
     return {"ok": True, "recovery": ma_khoi_phuc}
@@ -1538,16 +1552,16 @@ async def auth_password(request: Request, current_password: str = Form(""),
         return loi
     cfg = cfgmod.read_settings()
     if not cfgmod.auth_enabled(cfg):
-        return JSONResponse({"ok": False, "error": "Chưa có tài khoản nào - đặt mật khẩu lần đầu đã."},
+        return JSONResponse({"ok": False, "error": localefmt.chu("Chưa có tài khoản nào - đặt mật khẩu lần đầu đã.", "No account yet - set the first password first.")},
                             status_code=400)
     if not cfgmod.verify_password(current_password, cfg):
         await asyncio.sleep(0.5)   # cùng nhịp làm chậm với /auth/login
-        return JSONResponse({"ok": False, "error": "Sai mật khẩu hiện tại."}, status_code=401)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Sai mật khẩu hiện tại.", "Wrong current password.")}, status_code=401)
     ten = (username or "").strip()
     if password and len(password) < 8:
-        return JSONResponse({"ok": False, "error": "Mật khẩu tối thiểu 8 ký tự"}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Mật khẩu tối thiểu 8 ký tự", "Password must be at least 8 characters")}, status_code=400)
     if not password and not ten:
-        return JSONResponse({"ok": False, "error": "Không có gì để đổi."}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không có gì để đổi.", "Nothing to change.")}, status_code=400)
     # GHI ĐÈ TỪNG KHOÁ, không thay cả object `auth`: 2FA cũng nằm trong đó, gán đè nguyên cục
     # là lặng lẽ tắt xác thực 2 lớp của người ta ngay lúc họ vừa đổi mật khẩu.
     a = dict(cfg.get("auth") or {})
@@ -1582,8 +1596,11 @@ async def auth_tokens_create(request: Request, name: str = Form(""), scope: str 
     thu hồi cái đã rò cũng vô nghĩa.
     """
     if cfgmod.gate_active() and not cfgmod.valid_session(request.cookies.get("javis_session", "")):
-        return JSONResponse({"ok": False, "error": "Tạo token phải đăng nhập bằng trình duyệt "
-                                                  "(không dùng token để tạo token)."},
+        return JSONResponse({"ok": False, "error": localefmt.chu(
+            "Tạo token phải đăng nhập bằng trình duyệt "
+            "(không dùng token để tạo token).",
+            "Creating a token requires signing in from a browser "
+            "(a token cannot create another token).")},
                             status_code=403)
     return {"ok": True, **cfgmod.create_api_token(name, scope)}
 
@@ -2185,7 +2202,7 @@ async def _claude_sub_doc(cli, prompt, model):
             if ti or to:
                 yield {"type": "usage", "input": ti, "output": to}
         elif et == "error":
-            yield {"type": "error", "content": str(ev.get("content") or "lỗi không rõ")}
+            yield {"type": "error", "content": str(ev.get("content") or localefmt.chu("lỗi không rõ", "unknown error"))}
 
 
 def _claude_sub_stream(model, messages, reasoning="off", *, brain=None, tag="chat",
@@ -2274,7 +2291,7 @@ async def _cli_sub_doc(g, prompt, model):
             yield {"type": "usage", "input": int(ev.get("input_tokens") or 0),
                    "output": int(ev.get("output_tokens") or 0)}
         elif et == "error":
-            yield {"type": "error", "content": str(ev.get("content") or "lỗi không rõ")}
+            yield {"type": "error", "content": str(ev.get("content") or localefmt.chu("lỗi không rõ", "unknown error"))}
 
 
 # Tool NATIVE của Claude Code mà bot chuyên trách TUYỆT ĐỐI không được chạm, ở mọi mức quyền.
@@ -3827,14 +3844,14 @@ async def mcp_list():
 async def mcp_add(request: Request):
     data = await request.json()
     if not (data.get("name") or "").strip():
-        return JSONResponse({"ok": False, "error": "Thiếu tên server"}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Thiếu tên server", "Missing server name")}, status_code=400)
     codex_ok = False
     if (data.get("auth") or "header") == "oauth":
         # Đăng ký native để Claude Code tự lo OAuth (cần xác thực 1 lần trong terminal: claude → /mcp)
         res = mcp_native_add(data["name"].strip(), (data.get("url") or "").strip(),
                              data.get("transport", "http"), None, data.get("client_id") or None)
         if not res.get("ok"):
-            return JSONResponse({"ok": False, "error": res.get("error") or res.get("out") or "native add lỗi"}, status_code=400)
+            return JSONResponse({"ok": False, "error": res.get("error") or res.get("out") or localefmt.chu("native add lỗi", "native add failed")}, status_code=400)
         # Đối xứng cho engine ChatGPT: server OAuth không đi qua hub được (CLI tự lo OAuth) nên
         # đăng ký thêm vào kho MCP gốc của Codex (best-effort - chưa cài codex thì bỏ qua).
         # User xác thực 1 lần bằng `codex mcp login <tên>`.
@@ -3990,7 +4007,7 @@ async def _goi_plugin_http(request: Request, lp, handler, bo_cookie: bool):
             kq = await asyncio.to_thread(handler, request, lp.ctx)
     except Exception as e:
         print(f"[plugin-http] {lp.slug}: {type(e).__name__}: {e}", file=__import__('sys').stderr)
-        return JSONResponse({"error": f"plugin {lp.slug} lỗi: {type(e).__name__}"}, status_code=500)
+        return JSONResponse({"error": localefmt.chu(f"plugin {lp.slug} lỗi: {type(e).__name__}", f"plugin {lp.slug} failed: {type(e).__name__}")}, status_code=500)
     if isinstance(kq, Response):
         return kq
     if isinstance(kq, (dict, list)):
@@ -4011,7 +4028,7 @@ async def plugin_http(request: Request, slug: str, rest: str = ""):
     # qua, nhưng một token rò ra không được mở trang cài đặt của plugin.
     if (not r["public"] and cfgmod.gate_active()
             and not cfgmod.valid_session(request.cookies.get("javis_session", ""))):
-        return JSONResponse({"error": "Trang này phải đăng nhập bằng trình duyệt."}, status_code=401)
+        return JSONResponse({"error": localefmt.chu("Trang này phải đăng nhập bằng trình duyệt.", "This page requires signing in from a browser.")}, status_code=401)
     return await _goi_plugin_http(request, lp, r["handler"], r["no_cookie"])
 
 
@@ -4038,7 +4055,7 @@ async def connect_core_toggle(request: Request):
     cid = (data.get("id") or "").strip()
     off = bool(data.get("off"))
     if cid not in mcp_catalog.tat_ca():
-        return JSONResponse({"ok": False, "error": "Không có connector này trong kho"},
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không có connector này trong kho", "This connector is not in the catalog")},
                             status_code=400)
     anh_huong = [{"id": c["id"], "label": c.get("label") or c["id"]}
                  for c in mcp_store.list_connections() if c.get("connector_id") == cid]
@@ -4076,12 +4093,18 @@ async def connect_add(request: Request):
             request.headers.get("x-forwarded-proto", ""),
             request.headers.get("x-forwarded-host", ""))
         if not web_security.host_kieu_local(host_thay):
-            return {"ok": False, "can_force": True, "error":
+            return {"ok": False, "can_force": True, "error": localefmt.chu(
                     "Kết nối này chạy OAuth trên CHÍNH MÁY cài Javis (Google sẽ chuyển về "
                     "localhost:8000), mà bạn đang mở Javis qua domain public - đăng nhập Google "
                     "sẽ đứt giữa chừng với lỗi không kết nối được. Trên VPS hãy dùng thẻ Lịch "
                     "và Gmail riêng (hai thẻ đó đăng nhập ngay trong dashboard). Nếu máy chạy "
-                    "Javis có màn hình và bạn sẽ bấm đồng ý trên đó, bấm Kết nối lần nữa."}
+                    "Javis có màn hình và bạn sẽ bấm đồng ý trên đó, bấm Kết nối lần nữa.",
+                    "This connection runs OAuth on the SAME MACHINE Javis is installed on (Google "
+                    "redirects back to localhost:8000), but you are opening Javis through a public "
+                    "domain, so the Google sign-in will break halfway with a connection error. On a "
+                    "VPS, use the separate Calendar and Gmail cards (those two sign in right inside "
+                    "the dashboard). If the machine running Javis has a screen and you will click "
+                    "Allow there, click Connect again.")}
     # Dùng lại key OAuth client của connection khác (vd Gmail dùng lại key đã tạo cho
     # Calendar) - copy server-side, secrets không bao giờ về browser.
     fields_in = mcp_store.reuse_client_fields(
@@ -4101,7 +4124,7 @@ async def connect_add(request: Request):
     val = await mcp_hub.validate_connection(cid)
     if not val.get("ok"):
         mcp_store.delete_connection(cid)
-        return {"ok": False, "error": val.get("error") or "Không kết nối được"}
+        return {"ok": False, "error": val.get("error") or localefmt.chu("Không kết nối được", "Could not connect")}
     if val.get("label") and not (data.get("label") or "").strip():
         mcp_store.update_connection(cid, {"label": val["label"]})
     mcp_hub.invalidate_cache()
@@ -4151,7 +4174,9 @@ async def connect_substack_resolve_uid(q: str = Query("")):
     m = re.search(r"@([A-Za-z0-9_-]+)", raw) or re.search(r"substack\.com/([A-Za-z0-9_-]+)", raw)
     handle = (m.group(1) if m else raw).lstrip("@").strip().strip("/")
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", handle):
-        return {"ok": False, "error": "Handle không hợp lệ. Dán link trang Hồ sơ (vd substack.com/@ten) hoặc chính handle."}
+        return {"ok": False, "error": localefmt.chu(
+            "Handle không hợp lệ. Dán link trang Hồ sơ (vd substack.com/@ten) hoặc chính handle.",
+            "Invalid handle. Paste the Profile page link (e.g. substack.com/@name) or the handle itself.")}
     # Substack đứng sau Cloudflare - chặn httpx theo TLS fingerprint (403), nhưng để curl qua.
     # Dùng curl (có sẵn cả trên Windows lẫn Docker image); handle đã validate + truyền dạng argv
     # riêng (không qua shell) nên không có nguy cơ chèn lệnh/SSRF.
@@ -4165,16 +4190,22 @@ async def connect_substack_resolve_uid(q: str = Query("")):
             **winproc.kwargs_no_window())
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
     except Exception as e:
-        return {"ok": False, "error": f"Không gọi được Substack ({type(e).__name__}). Dùng Cách B (Console) nếu vẫn lỗi."}
+        return {"ok": False, "error": localefmt.chu(
+            f"Không gọi được Substack ({type(e).__name__}). Dùng Cách B (Console) nếu vẫn lỗi.",
+            f"Could not reach Substack ({type(e).__name__}). Use Method B (Console) if it keeps failing.")}
     try:
         d = json.loads(out.decode("utf-8", "replace"))
     except Exception:
-        return {"ok": False, "error": f"Không đọc được hồ sơ '{handle}'. Kiểm tra lại handle, hoặc dùng Cách B (Console)."}
+        return {"ok": False, "error": localefmt.chu(
+            f"Không đọc được hồ sơ '{handle}'. Kiểm tra lại handle, hoặc dùng Cách B (Console).",
+            f"Could not read the profile '{handle}'. Check the handle, or use Method B (Console).")}
     if isinstance(d, dict) and d.get("error"):
-        return {"ok": False, "error": f"Substack: {d.get('error')} - kiểm tra lại handle '{handle}'."}
+        return {"ok": False, "error": localefmt.chu(
+            f"Substack: {d.get('error')} - kiểm tra lại handle '{handle}'.",
+            f"Substack: {d.get('error')} - check the handle '{handle}'.")}
     uid = d.get("id")
     if not uid:
-        return {"ok": False, "error": "Hồ sơ Substack không trả về id."}
+        return {"ok": False, "error": localefmt.chu("Hồ sơ Substack không trả về id.", "The Substack profile returned no id.")}
     pubs, seen = [], set()
     for pu in (d.get("publicationUsers") or []):
         p = pu.get("publication") or {}
@@ -4244,16 +4275,20 @@ async def connect_relogin(request: Request):
     data = await request.json()
     cid = (data.get("id") or "").strip()
     if not cid:
-        return JSONResponse({"ok": False, "error": "Thiếu id kết nối"}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Thiếu id kết nối", "Missing connection id")}, status_code=400)
     done = mcp_store.forget_cred_dir_by_id(cid)
     mcp_client.pool.invalidate(cid)   # giết tiến trình con đang giữ token cũ trong RAM
     mcp_hub.invalidate_cache()
     connect_health.forget(cid)
     return {"ok": True, "cleared": done,
-            "message": ("Đã xoá đăng nhập Google cũ. Nhờ Javis làm một việc bất kỳ với nguồn này, "
-                        "trình duyệt trên máy chạy Javis sẽ mở để bạn cấp lại quyền."
+            "message": (localefmt.chu(
+                "Đã xoá đăng nhập Google cũ. Nhờ Javis làm một việc bất kỳ với nguồn này, "
+                "trình duyệt trên máy chạy Javis sẽ mở để bạn cấp lại quyền.",
+                "The old Google sign-in was removed. Ask Javis to do anything with this source and "
+                "the browser on the machine running Javis will open so you can grant access again.")
                         if done else
-                        "Kết nối này không tự giữ token riêng, hoặc chưa từng đăng nhập.")}
+                        localefmt.chu("Kết nối này không tự giữ token riêng, hoặc chưa từng đăng nhập.",
+                                      "This connection keeps no token of its own, or was never signed in."))}
 
 
 @app.post("/connect/default")
@@ -4334,12 +4369,12 @@ async def connect_oauth_start(request: Request):
             mcp_store.update_connection(conn_id, {"auth": "header"})
             mcp_hub.invalidate_cache()
             return {"ok": False, "id": conn_id, "auth": "header",
-                    "error": res.get("error") or "Không mở được trang đăng nhập."}
+                    "error": res.get("error") or localefmt.chu("Không mở được trang đăng nhập.", "Could not open the sign-in page.")}
         oauth_mcp.forget(conn_id)
         connect_health.forget(conn_id)
         mcp_store.delete_connection(conn_id)
         mcp_hub.invalidate_cache()
-        return {"ok": False, "error": res.get("error") or "Không mở được trang đăng nhập."}
+        return {"ok": False, "error": res.get("error") or localefmt.chu("Không mở được trang đăng nhập.", "Could not open the sign-in page.")}
     res["id"] = conn_id
     if not res.get("ok") and conn_id:
         res["auth"] = (mcp_store.get_connection(conn_id) or {}).get("auth")
@@ -4376,10 +4411,13 @@ async def connect_oauth_callback(state: str = Query(""), code: str = Query("")):
         except Exception as e:
             print(f"[oauth label] {e}")
         html = ("<html><body style='font-family:sans-serif;background:#111;color:#eee;text-align:center;padding-top:80px'>"
-                "<h2>✓ Đã kết nối thành công</h2><p>Đóng tab này và quay lại Javis, bấm Làm mới ở trang Kết nối.</p></body></html>")
+                + localefmt.chu("<h2>✓ Đã kết nối thành công</h2><p>Đóng tab này và quay lại Javis, bấm Làm mới ở trang Kết nối.</p>",
+                                "<h2>✓ Connected successfully</h2><p>Close this tab, go back to Javis and click Refresh on the Connections page.</p>")
+                + "</body></html>")
     else:
         html = (f"<html><body style='font-family:sans-serif;background:#111;color:#eee;text-align:center;padding-top:80px'>"
-                f"<h2>⚠ Kết nối thất bại</h2><p>{res.get('error', '')}</p></body></html>")
+                + localefmt.chu("<h2>⚠ Kết nối thất bại</h2>", "<h2>⚠ Connection failed</h2>")
+                + f"<p>{res.get('error', '')}</p></body></html>")
     return HTMLResponse(html)
 
 
@@ -4428,7 +4466,7 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
     try:
         patch = json.loads(data)
     except json.JSONDecodeError:
-        return JSONResponse({"ok": False, "error": "data không phải JSON"}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("data không phải JSON", "data is not JSON")}, status_code=400)
 
     if section == "locale":
         # Nhánh RIÊNG chứ không nhét vào "general": endpoint này dùng allowlist TỪNG KEY chứ
@@ -4647,11 +4685,15 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         # hiện tại VÀ nhận cả token API scope `full`, nghĩa là một token rò ra là đổi được mật
         # khẩu chủ máy rồi khoá chính chủ ra ngoài. Nó cũng nhận mật khẩu 4 ký tự trong khi mọi
         # đường khác đòi 8.
-        return JSONResponse({"ok": False, "error": "Đổi mật khẩu chuyển sang trang Tài khoản "
-                                                   "(phải nhập mật khẩu hiện tại). Tải lại trang "
-                                                   "nếu vẫn thấy form cũ."}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu(
+            "Đổi mật khẩu chuyển sang trang Tài khoản "
+            "(phải nhập mật khẩu hiện tại). Tải lại trang "
+            "nếu vẫn thấy form cũ.",
+            "Changing the password moved to the Account page "
+            "(the current password is required). Reload the page "
+            "if you still see the old form.")}, status_code=400)
     else:
-        return JSONResponse({"ok": False, "error": "section không hợp lệ"}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("section không hợp lệ", "invalid section")}, status_code=400)
 
     cfgmod.write_settings(cfg)
     if section == "model":
@@ -4693,7 +4735,7 @@ def _do_backup(brain: str = "") -> dict:
     cfg = cfgmod.read_settings()
     b = cfg.get("backup", {}) or {}
     if not (b.get("repo_url") and b.get("token")):
-        return {"ok": False, "error": "Chưa cấu hình repo URL + token"}
+        return {"ok": False, "error": localefmt.chu("Chưa cấu hình repo URL + token", "Repo URL and token are not configured yet")}
     mirror = str(cfgmod.STATE_DIR / "brains-backup")   # repo mirror riêng (tránh nested git từng brain)
     res = git_brain.sync_brains(BRAINS_DIR, mirror, b["repo_url"], b["token"], b.get("branch") or "main",
                                 trash_dir=str(cfgmod.STATE_DIR / "brain-trash"),
@@ -5022,29 +5064,46 @@ def _vi_sao_khong_co_model(provider: str, m: dict) -> str:
     d = _provider_def(provider) or {}
     if provider == "openai-oauth":
         if not (openai_oauth.valid_creds() or {}).get("access_token"):
-            return ("Chưa kết nối ChatGPT (hoặc phiên đăng nhập đã hết hạn) - "
-                    "đăng nhập lại ở thẻ ChatGPT.")
+            return localefmt.chu("Chưa kết nối ChatGPT (hoặc phiên đăng nhập đã hết hạn) - "
+                                 "đăng nhập lại ở thẻ ChatGPT.",
+                                 "ChatGPT is not connected (or the sign-in expired) - "
+                                 "sign in again on the ChatGPT card.")
         if not find_codex_cli():
-            return ("Không thấy Codex CLI trên máy - danh sách model của gói ChatGPT do chính "
-                    "Codex cấp. Cài bằng `npm i -g @openai/codex` (macOS có thể dùng "
-                    "`brew install codex`) rồi bấm lại. Cài ở chỗ lạ thì trỏ thẳng bằng biến "
-                    "môi trường JAVIS_CODEX_BIN.")
-        return ("Có Codex CLI nhưng nó chưa trả được danh sách model. Thường là bản Codex quá "
-                "cũ (`npm i -g @openai/codex@latest`), hoặc máy chưa chạy `codex login` lần nào.")
+            return localefmt.chu(
+                "Không thấy Codex CLI trên máy - danh sách model của gói ChatGPT do chính "
+                "Codex cấp. Cài bằng `npm i -g @openai/codex` (macOS có thể dùng "
+                "`brew install codex`) rồi bấm lại. Cài ở chỗ lạ thì trỏ thẳng bằng biến "
+                "môi trường JAVIS_CODEX_BIN.",
+                "Codex CLI was not found on this machine - the model list of the ChatGPT plan comes "
+                "from Codex itself. Install it with `npm i -g @openai/codex` (on macOS you can use "
+                "`brew install codex`), then click again. If it is installed somewhere unusual, point "
+                "to it with the JAVIS_CODEX_BIN environment variable.")
+        return localefmt.chu(
+            "Có Codex CLI nhưng nó chưa trả được danh sách model. Thường là bản Codex quá "
+            "cũ (`npm i -g @openai/codex@latest`), hoặc máy chưa chạy `codex login` lần nào.",
+            "Codex CLI is present but has not returned a model list yet. Usually Codex is too "
+            "old (`npm i -g @openai/codex@latest`), or `codex login` has never been run on this machine.")
     if provider == "ollama":
-        return "Không gọi được Ollama. Kiểm tra máy chủ Ollama còn chạy và key còn hạn."
+        return localefmt.chu("Không gọi được Ollama. Kiểm tra máy chủ Ollama còn chạy và key còn hạn.",
+                             "Could not reach Ollama. Check that the Ollama server is running and the key is still valid.")
     if provider == "ollama-local":
         if not (m.get("ollama_local_endpoint") or "").strip():
-            return "Chưa đặt địa chỉ Ollama - vào trang Models, tab Local Model để kết nối."
-        return ("Không gọi được Ollama ở địa chỉ đã lưu. Mở trang Models, tab Local Model để "
-                "xem lỗi cụ thể.")
+            return localefmt.chu("Chưa đặt địa chỉ Ollama - vào trang Models, tab Local Model để kết nối.",
+                                 "No Ollama address set - go to the Models page, Local Model tab, to connect.")
+        return localefmt.chu("Không gọi được Ollama ở địa chỉ đã lưu. Mở trang Models, tab Local Model để "
+                             "xem lỗi cụ thể.",
+                             "Could not reach Ollama at the saved address. Open the Models page, Local Model "
+                             "tab, to see the exact error.")
     if provider == "openai-compat":
         if not (m.get("openai_compat_base") or "").strip():
-            return "Chưa đặt Base URL cho OpenAI Compatible."
-        return ("Không đọc được danh sách model từ {base}/models. Kiểm tra Base URL (tính tới /v1) "
-                "và key, hoặc gõ tên model bằng tay.")
+            return localefmt.chu("Chưa đặt Base URL cho OpenAI Compatible.",
+                                 "No Base URL set for OpenAI Compatible.")
+        return localefmt.chu("Không đọc được danh sách model từ {base}/models. Kiểm tra Base URL (tính tới /v1) "
+                             "và key, hoặc gõ tên model bằng tay.",
+                             "Could not read the model list from {base}/models. Check the Base URL (up to /v1) "
+                             "and the key, or type the model name by hand.")
     if d.get("key_field") and not m.get(d["key_field"]):
-        return "Chưa có API key cho nhà cung cấp này."
+        return localefmt.chu("Chưa có API key cho nhà cung cấp này.", "No API key for this provider yet.")
     return ""
 
 
@@ -5118,7 +5177,7 @@ async def reflect(brain: str = Form("brain")):
     except Exception:
         pass
     if not res.get("ok"):
-        return {"ok": False, "error": res.get("error", "reflect lỗi"), "git": g}
+        return {"ok": False, "error": res.get("error", localefmt.chu("reflect lỗi", "reflect failed")), "git": g}
     rep = res.get("report", {})
     return {"ok": True, "summary": res.get("summary", ""), "facts": facts,
             "status": res.get("status", ""), "report": rep, "git": g}
@@ -5357,7 +5416,7 @@ async def upload(file: UploadFile = File(...), brain: str = Form("")):
     except Exception as e:
         import sys, traceback
         traceback.print_exc(file=sys.stderr)
-        return {"ok": False, "error": f"Không lưu được file tạm: {e}"}
+        return {"ok": False, "error": localefmt.chu(f"Không lưu được file tạm: {e}", f"Could not save the temporary file: {e}")}
 
 
 def _duong_staging(name: str) -> Path:
@@ -5368,11 +5427,11 @@ def _duong_staging(name: str) -> Path:
     viết lạ) còn lớp sau là sự thật của hệ thống tệp (symlink, "..", tên Windows)."""
     ten = str(name or "").strip()
     if not ten or ten in (".", "..") or "/" in ten or "\\" in ten or "\x00" in ten:
-        raise ValueError("Tên file không hợp lệ")
+        raise ValueError(localefmt.chu("Tên file không hợp lệ", "Invalid file name"))
     goc = Path(STAGING).resolve()
     f = (goc / ten).resolve()
     if f.parent != goc:      # symlink trỏ ra ngoài cũng rơi vào đây (resolve đã đi theo nó)
-        raise ValueError("Tên file không hợp lệ")
+        raise ValueError(localefmt.chu("Tên file không hợp lệ", "Invalid file name"))
     return f
 
 
@@ -5395,7 +5454,7 @@ async def upload_raw(name: str = Query(...), dl: int = Query(0)):
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     if not f.is_file():
-        return JSONResponse({"error": "File tạm đã hết hạn hoặc đã được dọn"}, status_code=404)
+        return JSONResponse({"error": localefmt.chu("File tạm đã hết hạn hoặc đã được dọn", "The temporary file expired or was cleaned up")}, status_code=404)
     if dl:
         return FileResponse(str(f), filename=f.name)
     mt, _ = mimetypes.guess_type(f.name)
@@ -5413,7 +5472,7 @@ async def ingest_upload(
     cli = claude_engine(system_prompt=SYSTEM_PROMPT, cwd=CLAUDE_CWD)
     cli = _aux_swap(cli, mode="auto", tag="ingest")   # việc nền: theo model phụ đã chọn
     if not cli.is_available():
-        return {"ok": False, "error": "Engine việc nền chưa sẵn sàng (kiểm tra trang Model)"}
+        return {"ok": False, "error": localefmt.chu("Engine việc nền chưa sẵn sàng (kiểm tra trang Model)", "The background engine is not ready (check the Models page)")}
     slug = _sanitize_filename(os.path.splitext(name)[0]) or "source"
 
     if kind == "image":
@@ -5451,7 +5510,7 @@ async def ingest_upload(
     if os.path.exists(md_path):
         return {"ok": True, "md_path": md_path, "md_name": os.path.basename(md_path),
                 "folder": os.path.basename(sources)}
-    return {"ok": False, "error": "Không tạo được .md", "raw": final[:200]}
+    return {"ok": False, "error": localefmt.chu("Không tạo được .md", "Could not create the .md file"), "raw": final[:200]}
 
 # Cấu trúc chuẩn Javis - kiểm tra khi mở vault
 # detect: regex khớp tên folder top-level (linh hoạt "06 - Sources" / "Sources")
@@ -5692,7 +5751,8 @@ async def brain_migrate(brain: str = Form("brain")):
     for old_rel, new_rel in [("Javis/agents", "agents"), ("Javis/workflows", "workflows"), ("Memory", "memory")]:
         src, dst = root / old_rel, root / new_rel
         if dst.exists():
-            skipped.append(f"{new_rel} (đã tồn tại - bỏ qua)")
+            skipped.append(localefmt.chu(f"{new_rel} (đã tồn tại - bỏ qua)",
+                                         f"{new_rel} (already exists - skipped)"))
             continue
         if src.is_dir():
             try:
@@ -5766,10 +5826,10 @@ async def new_brain(name: str = Form(...)):
     """Tạo brain mới = folder con trong BRAINS_DIR + seed cấu trúc chuẩn."""
     safe = _safe_brain_name(name)
     if not safe:
-        return JSONResponse({"ok": False, "error": "Tên brain không hợp lệ"}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Tên brain không hợp lệ", "Invalid brain name")}, status_code=400)
     root = Path(BRAINS_DIR) / safe
     if root.exists():
-        return JSONResponse({"ok": False, "error": "Brain đã tồn tại"}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Brain đã tồn tại", "Brain already exists")}, status_code=400)
     try:
         _ensure_brain_scaffold(root)
     except Exception as e:
@@ -5787,17 +5847,17 @@ async def delete_brain(name: str = Form(...), confirm: str = Form("")):
     sang mọi máy đồng bộ. Yêu cầu confirm == name. Chặn xoá não mặc định + chỉ trong BRAINS_DIR."""
     safe = _safe_brain_name(name)
     if not safe:
-        return JSONResponse({"ok": False, "error": "Tên brain không hợp lệ"}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Tên brain không hợp lệ", "Invalid brain name")}, status_code=400)
     if (confirm or "").strip() != safe:
-        return JSONResponse({"ok": False, "error": "Xác nhận không khớp tên brain"}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Xác nhận không khớp tên brain", "The confirmation does not match the brain name")}, status_code=400)
     root = (Path(BRAINS_DIR) / safe).resolve()
     base = Path(BRAINS_DIR).resolve()
     if root == base or base not in root.parents:
-        return JSONResponse({"ok": False, "error": "Brain ngoài phạm vi quản lý"}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Brain ngoài phạm vi quản lý", "Brain is outside the managed area")}, status_code=400)
     if root == _default_brain_dir().resolve():
-        return JSONResponse({"ok": False, "error": "Không thể xoá Brain mặc định"}, status_code=400)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không thể xoá Brain mặc định", "The default Brain cannot be deleted")}, status_code=400)
     if not root.is_dir():
-        return JSONResponse({"ok": False, "error": "Brain không tồn tại"}, status_code=404)
+        return JSONResponse({"ok": False, "error": localefmt.chu("Brain không tồn tại", "Brain does not exist")}, status_code=404)
     trash_dir = str(cfgmod.STATE_DIR / "brain-trash")
 
     def _trash_and_mark():
@@ -5815,7 +5875,7 @@ async def delete_brain(name: str = Form(...), confirm: str = Form("")):
     try:
         dest = await asyncio.to_thread(_trash_and_mark)
     except Exception as e:
-        return JSONResponse({"ok": False, "error": f"Không xoá được (brain đang bận?): {e}"},
+        return JSONResponse({"ok": False, "error": localefmt.chu(f"Không xoá được (brain đang bận?): {e}", f"Could not delete (is the brain busy?): {e}")},
                             status_code=500)
 
     # Eager sync (nền, best-effort): đẩy lệnh xoá + tombstone lên remote NGAY thay vì chờ chu kỳ 6h.
@@ -6030,7 +6090,7 @@ def agent_get(slug: str = Query(...), brain: str = Query("brain")):
     """
     path = _agent_md_path(brain, slug)
     if not path:
-        return JSONResponse({"error": "Không tìm thấy trợ lý"}, status_code=404)
+        return JSONResponse({"error": localefmt.chu("Không tìm thấy trợ lý", "Assistant not found")}, status_code=404)
     meta, body = _read_md(path)
     return {"slug": slug, "name": meta.get("name", slug), "role": meta.get("role", ""),
             "skills": meta.get("skills", []) or [], "model": meta.get("model", ""),
@@ -6148,7 +6208,7 @@ async def agent_assets_add_file(slug: str, path: str = Form(...), name: str = Fo
     # `is_file` chứ không phải `exists`: một đường dẫn rỗng giải ra chính thư mục trần, mà
     # thư mục thì "có tồn tại" - gắn được một hàng trỏ vào thư mục, ghim vào là đọc lỗi.
     if not alo.is_file():
-        return JSONResponse({"error": "Không tìm thấy file trong brain này"}, status_code=404)
+        return JSONResponse({"error": localefmt.chu("Không tìm thấy file trong brain này", "File not found in this brain")}, status_code=404)
     fid, loi = _agent_assets_sua(
         brain, slug, lambda m: agent_assets.them_file(m, path, name or alo.name))
     return loi or {"ok": True, "id": fid}
@@ -6176,7 +6236,7 @@ async def agent_assets_add_link(slug: str, url: str = Form(...), label: str = Fo
     # Chỉ nhận http/https, cùng rào với link của project: `javascript:` hay `file:` lọt vào
     # danh sách là thành một liên kết bấm được ngay trong giao diện.
     if not re.match(r"^https?://", u, re.I):
-        return JSONResponse({"error": "URL phải bắt đầu bằng http:// hoặc https://"},
+        return JSONResponse({"error": localefmt.chu("URL phải bắt đầu bằng http:// hoặc https://", "The URL must start with http:// or https://")},
                             status_code=400)
     lid, loi = _agent_assets_sua(brain, slug, lambda m: agent_assets.them_link(m, u, label))
     return loi or {"ok": True, "id": lid}
@@ -6257,7 +6317,7 @@ async def skill_toggle(slug: str = Form(...), enabled: str = Form(...), brain: s
     tắt bên dưới, đây là chỗ vá CRITICAL 1 của bản 0.9.64 (tắt rồi bật lại làm mất mirror vĩnh viễn)."""
     want = enabled in ("1", "true", "True", "on")
     if not skill_router.valid_slug(slug):   # chống traversal: slug 1 đoạn, dùng cho rmtree/rename bên dưới
-        return JSONResponse({"error": "slug không hợp lệ"}, status_code=400)
+        return JSONResponse({"error": localefmt.chu("slug không hợp lệ", "invalid slug")}, status_code=400)
     root = _brain_root(brain)
     try:
         system_sync.migrate_brain(root)   # brain cũ: kéo skill legacy .claude/skills → skills/ trước
@@ -6268,7 +6328,7 @@ async def skill_toggle(slug: str = Form(...), enabled: str = Form(...), brain: s
     src = (dis / slug) if want else (sk / slug)
     dst = (sk / slug) if want else (dis / slug)
     if not src.is_dir():
-        return {"ok": True} if dst.is_dir() else JSONResponse({"error": "Không tìm thấy skill"}, status_code=404)
+        return {"ok": True} if dst.is_dir() else JSONResponse({"error": localefmt.chu("Không tìm thấy skill", "Skill not found")}, status_code=404)
     try:
         dst.parent.mkdir(parents=True, exist_ok=True)
         if dst.exists():
@@ -6297,7 +6357,7 @@ async def skill_toggle(slug: str = Form(...), enabled: str = Form(...), brain: s
 @app.get("/skills/get")
 async def skill_get(slug: str = Query(...), brain: str = Query("brain")):
     if not skill_router.valid_slug(slug):
-        return JSONResponse({"error": "slug không hợp lệ"}, status_code=400)
+        return JSONResponse({"error": localefmt.chu("slug không hợp lệ", "invalid slug")}, status_code=400)
     root = _brain_root(brain)
     smd = skill_router.resolve_skill_file(root, slug)   # canonical → .claude → .agents (bản BẬT)
     if not smd:
@@ -6307,7 +6367,7 @@ async def skill_get(slug: str = Query(...), brain: str = Query("brain")):
                 smd = cand
                 break
     if not smd or not smd.is_file():
-        return JSONResponse({"error": "Không tìm thấy skill"}, status_code=404)
+        return JSONResponse({"error": localefmt.chu("Không tìm thấy skill", "Skill not found")}, status_code=404)
     meta, body = _read_md(smd)
     return {"slug": slug, "name": meta.get("name", slug), "description": meta.get("description", ""),
             "group": meta.get("group") or "Chung", "body": body}
@@ -6320,7 +6380,7 @@ async def save_skill(name: str = Form(...), description: str = Form(""), group: 
     nhóm. Sau khi ghi, mirror sang .claude/skills để Claude native (cwd=brain) thấy ngay."""
     slug = (slug or _ascii_slug(name)).strip()
     if not skill_router.valid_slug(slug):
-        return JSONResponse({"error": "Tên skill không hợp lệ"}, status_code=400)
+        return JSONResponse({"error": localefmt.chu("Tên skill không hợp lệ", "Invalid skill name")}, status_code=400)
     # Ép trần description NGAY, trước khi tạo bất cứ thư mục nào -> request bị từ chối không
     # để lại folder skill rỗng trên đĩa. Router cắt ở SKILL_DESC_MAX nên vượt trần = mất chữ
     # im lặng; chặn ở đây tốt hơn là ghi bừa rồi để runtime cắt.
@@ -6357,11 +6417,15 @@ async def save_skill(name: str = Form(...), description: str = Form(""), group: 
 @app.post("/skills/delete")
 async def delete_skill(slug: str = Form(...), brain: str = Form("brain")):
     if system_sync.is_system_skill(slug):
-        return JSONResponse({"error": "Skill hệ thống của Javis OS - không xoá được (đi theo "
-                             "phiên bản app, xoá cũng tự cài lại khi cập nhật). Muốn ngừng dùng "
-                             "thì TẮT skill (bỏ tích)."}, status_code=400)
+        return JSONResponse({"error": localefmt.chu(
+            "Skill hệ thống của Javis OS - không xoá được (đi theo "
+            "phiên bản app, xoá cũng tự cài lại khi cập nhật). Muốn ngừng dùng "
+            "thì TẮT skill (bỏ tích).",
+            "This is a Javis OS system skill and cannot be deleted (it ships with "
+            "the app version and would reinstall itself on update). To stop using it, "
+            "turn the skill OFF (untick it).")}, status_code=400)
     if not skill_router.valid_slug(slug):
-        return JSONResponse({"error": "slug không hợp lệ"}, status_code=400)
+        return JSONResponse({"error": localefmt.chu("slug không hợp lệ", "invalid slug")}, status_code=400)
     root = Path(_brain_root(brain))
     # Xoá ở MỌI nơi: canonical (bật+tắt) + bản mirror .claude (bật+tắt) + legacy .agents.
     targets = [root / "skills" / slug, root / "skills" / ".disabled" / slug,
@@ -6375,17 +6439,17 @@ async def delete_skill(slug: str = Form(...), brain: str = Form("brain")):
                 found = True
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
-    return {"ok": True} if found else JSONResponse({"error": "Không tìm thấy skill"}, status_code=404)
+    return {"ok": True} if found else JSONResponse({"error": localefmt.chu("Không tìm thấy skill", "Skill not found")}, status_code=404)
 
 
 @app.post("/skills/group")
 async def skill_set_group(slug: str = Form(...), group: str = Form(...), brain: str = Form("brain")):
     """Đổi nhóm 1 skill (chỉ cập nhật field group, giữ nguyên body)."""
     if not skill_router.valid_slug(slug):
-        return JSONResponse({"error": "slug không hợp lệ"}, status_code=400)
+        return JSONResponse({"error": localefmt.chu("slug không hợp lệ", "invalid slug")}, status_code=400)
     smd = skill_router.resolve_skill_file(_brain_root(brain), slug)
     if not smd or not smd.is_file():
-        return JSONResponse({"error": "Không tìm thấy"}, status_code=404)
+        return JSONResponse({"error": localefmt.chu("Không tìm thấy", "Not found")}, status_code=404)
     meta, body = _read_md(smd)
     meta["group"] = (group or "Chung").strip()
     _write_md(smd, meta, body)
@@ -6446,7 +6510,7 @@ def _safe_path(brain: str, rel: str) -> Path:
     rel = (rel or "").strip().replace("\\", "/").lstrip("/")
     target = (root / rel).resolve()
     if target != root and root not in target.parents:
-        raise ValueError("Đường dẫn ngoài phạm vi cho phép")
+        raise ValueError(localefmt.chu("Đường dẫn ngoài phạm vi cho phép", "The path is outside the allowed area"))
     return target
 
 
@@ -6470,7 +6534,7 @@ def _safe_serve_path(brain: str, rel: str) -> Path:
         if (brain_target == broot or broot in brain_target.parents) and brain_target.exists():
             return brain_target                         # đường dẫn vault, vẫn nằm trong gốc brain
     if not ceil_in:
-        raise ValueError("Đường dẫn ngoài phạm vi cho phép")
+        raise ValueError(localefmt.chu("Đường dẫn ngoài phạm vi cho phép", "The path is outside the allowed area"))
     return ceil_target                                  # không thấy: trả theo trần để 404 nhất quán
 
 
@@ -6711,7 +6775,7 @@ async def files_md_hong_sua(brain: str = Form("brain"), paths: str = Form("")):
         try:
             chi = {str(x).replace("\\", "/").strip("/") for x in json.loads(paths)}
         except (ValueError, TypeError):
-            return JSONResponse({"error": "Danh sách đường dẫn không đọc được"}, status_code=400)
+            return JSONResponse({"error": localefmt.chu("Danh sách đường dẫn không đọc được", "Could not read the path list")}, status_code=400)
 
     def _lam():
         da_sua, loi = [], []
@@ -6736,13 +6800,13 @@ async def files_read(brain: str = Query("brain"), path: str = Query(...)):
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     if not f.is_file():
-        return JSONResponse({"error": "Không tìm thấy file"}, status_code=404)
+        return JSONResponse({"error": localefmt.chu("Không tìm thấy file", "File not found")}, status_code=404)
     if f.stat().st_size > 2_000_000:
-        return JSONResponse({"error": "File quá lớn để xem (>2MB) - hãy tải về"}, status_code=413)
+        return JSONResponse({"error": localefmt.chu("File quá lớn để xem (>2MB) - hãy tải về", "File too large to view (>2MB) - download it instead")}, status_code=413)
     try:
         text = f.read_text(encoding="utf-8")
     except Exception:
-        return JSONResponse({"error": "File nhị phân - không xem được dạng văn bản"}, status_code=415)
+        return JSONResponse({"error": localefmt.chu("File nhị phân - không xem được dạng văn bản", "Binary file - cannot be shown as text")}, status_code=415)
     # `abs` để trình sửa ghim được file đang mở vào khung chat: engine cần ĐƯỜNG DẪN THẬT
     # mới mở được file, mà đường dẫn tương đối ở đây tính theo TRẦN DUYỆT chứ không theo gốc
     # brain (hai cái khác nhau khi trần cao hơn brain) nên client tự ghép là ghép sai.
@@ -6778,7 +6842,7 @@ async def files_delete(brain: str = Form("brain"), path: str = Form(...)):
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     if p == _files_root(brain) or p == Path(_brain_root(brain)).resolve():
-        return JSONResponse({"error": "Không thể xoá thư mục gốc / brain"}, status_code=400)
+        return JSONResponse({"error": localefmt.chu("Không thể xoá thư mục gốc / brain", "Cannot delete the root / brain folder")}, status_code=400)
     try:
         if p.is_dir():
             shutil.rmtree(p)
@@ -6798,7 +6862,7 @@ async def files_rename(brain: str = Form("brain"), path: str = Form(...), newnam
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     if not p.exists():
-        return JSONResponse({"error": "Không tìm thấy"}, status_code=404)
+        return JSONResponse({"error": localefmt.chu("Không tìm thấy", "Not found")}, status_code=404)
     p.rename(dst)
     return {"ok": True}
 
@@ -6820,14 +6884,14 @@ async def files_upload(file: UploadFile = File(...), brain: str = Form("brain"),
     if folder:
         mau = _THU_MUC_LOGIC.get(folder.strip().lower())
         if not mau:
-            return JSONResponse({"error": "Thư mục không hợp lệ"}, status_code=400)
+            return JSONResponse({"error": localefmt.chu("Thư mục không hợp lệ", "Invalid folder")}, status_code=400)
         d = Path(_resolve_subfolder(_brain_root(brain), *mau))
         try:
             # Client lưu và mở file bằng đường dẫn tương đối TRẦN duyệt, nên phải quy về đó -
             # trả đường tuyệt đối là đẩy một đường dẫn máy chủ vào cơ sở dữ liệu project.
             rel_dir = d.relative_to(_files_root(brain)).as_posix()
         except ValueError:
-            return JSONResponse({"error": "Thư mục nằm ngoài phạm vi duyệt"}, status_code=400)
+            return JSONResponse({"error": localefmt.chu("Thư mục nằm ngoài phạm vi duyệt", "The folder is outside the browsable area")}, status_code=400)
     else:
         try:
             d = _safe_path(brain, path)
@@ -6839,7 +6903,7 @@ async def files_upload(file: UploadFile = File(...), brain: str = Form("brain"),
     try:
         await _save_upload_stream(file, dest)
     except Exception as e:
-        return JSONResponse({"error": f"Ghi file thất bại: {e}"}, status_code=500)
+        return JSONResponse({"error": localefmt.chu(f"Ghi file thất bại: {e}", f"Writing the file failed: {e}")}, status_code=500)
     ten = os.path.basename(dest)
     # Trả luôn đường dẫn ĐÃ DÙNG: caller khỏi phải ghép lại và khỏi đoán sai tên thư mục.
     return {"ok": True, "name": ten, "dir": rel_dir,
@@ -6855,7 +6919,7 @@ async def files_download(brain: str = Query("brain"), path: str = Query(...)):
     if f.is_dir():
         return await zip_dir_response(brain, path)   # trỏ vào thư mục → tự nén .zip
     if not f.is_file():
-        return JSONResponse({"error": "Không tìm thấy file"}, status_code=404)
+        return JSONResponse({"error": localefmt.chu("Không tìm thấy file", "File not found")}, status_code=404)
     return FileResponse(str(f), filename=f.name)
 
 
@@ -6915,8 +6979,10 @@ def _rm_quiet(p):
 
 
 def _zip_too_big_msg():
-    return (f"Thư mục quá lớn để nén (trần {_ZIP_MAX_FILES:,} file hoặc "
-            f"{_ZIP_MAX_BYTES // (1024 ** 3)}GB). Hãy tải từng thư mục con.")
+    return localefmt.chu(f"Thư mục quá lớn để nén (trần {_ZIP_MAX_FILES:,} file hoặc "
+                         f"{_ZIP_MAX_BYTES // (1024 ** 3)}GB). Hãy tải từng thư mục con.",
+                         f"Folder too large to compress (limit {_ZIP_MAX_FILES:,} files or "
+                         f"{_ZIP_MAX_BYTES // (1024 ** 3)}GB). Download the subfolders one by one.")
 
 
 async def zip_dir_response(brain: str, path: str, probe: bool = False):
@@ -6933,7 +6999,7 @@ async def zip_dir_response(brain: str, path: str, probe: bool = False):
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     if not d.is_dir():
-        return JSONResponse({"error": "Không phải thư mục"}, status_code=404)
+        return JSONResponse({"error": localefmt.chu("Không phải thư mục", "Not a folder")}, status_code=404)
     name = (d.name or "brain") + ".zip"
     if probe:
         try:
@@ -6941,7 +7007,7 @@ async def zip_dir_response(brain: str, path: str, probe: bool = False):
         except _ZipTooBig:
             return JSONResponse({"error": _zip_too_big_msg()}, status_code=413)
         except Exception as e:
-            return JSONResponse({"error": f"Không đọc được thư mục: {e}"}, status_code=500)
+            return JSONResponse({"error": localefmt.chu(f"Không đọc được thư mục: {e}", f"Could not read the folder: {e}")}, status_code=500)
         return {"ok": True, "files": files, "bytes": total, "name": name}
     fd, tmp = tempfile.mkstemp(prefix="javis-zip-", suffix=".zip")
     os.close(fd)
@@ -6952,7 +7018,7 @@ async def zip_dir_response(brain: str, path: str, probe: bool = False):
         return JSONResponse({"error": _zip_too_big_msg()}, status_code=413)
     except Exception as e:
         _rm_quiet(tmp)
-        return JSONResponse({"error": f"Nén thất bại: {e}"}, status_code=500)
+        return JSONResponse({"error": localefmt.chu(f"Nén thất bại: {e}", f"Compression failed: {e}")}, status_code=500)
     return FileResponse(tmp, media_type="application/zip", filename=name,
                         background=BackgroundTask(_rm_quiet, tmp))
 
@@ -6974,7 +7040,7 @@ def raw_file_response(brain: str, path: str, dl: bool = False):
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     if not f.is_file():
-        return JSONResponse({"error": "Không tìm thấy file"}, status_code=404)
+        return JSONResponse({"error": localefmt.chu("Không tìm thấy file", "File not found")}, status_code=404)
     if dl:
         return FileResponse(str(f), filename=f.name)   # ép tải (giữ tên, kể cả tên tiếng Việt)
     mt, _ = mimetypes.guess_type(f.name)
@@ -7004,7 +7070,7 @@ async def files_raw(brain: str = Query("brain"), path: str = Query(...), dl: int
 def _share_chan(ban) -> str:
     """Dòng chân trang: nói rõ đây là file được chia sẻ, để người xem biết mình đang xem gì."""
     ten = os.path.basename(str(ban.get("path") or "")) or "file"
-    return share_render.esc(ten) + " · được chia sẻ từ Javis OS"
+    return share_render.esc(ten) + localefmt.chu(" · được chia sẻ từ Javis OS", " · shared from Javis OS")
 
 
 def _share_file(ban):
@@ -7147,11 +7213,11 @@ async def share_xem(token: str):
     """TRANG XEM công khai. Không cần đăng nhập - xem chú thích đầu khối."""
     ban = share_store.doc(token)
     if not ban:
-        return HTMLResponse(share_render.trang_loi("Link không tồn tại hoặc đã bị thu hồi."),
+        return HTMLResponse(share_render.trang_loi(localefmt.chu("Link không tồn tại hoặc đã bị thu hồi.", "This link does not exist or has been revoked.")),
                             status_code=404)
     f = _share_file(ban)
     if f is None:
-        return HTMLResponse(share_render.trang_loi("File đã bị xoá hoặc đổi tên."), status_code=404)
+        return HTMLResponse(share_render.trang_loi(localefmt.chu("File đã bị xoá hoặc đổi tên.", "The file was deleted or renamed.")), status_code=404)
     duoi = f.suffix.lower()
     goc_asset = "/s/" + ban["token"] + "/asset"
     chan = _share_chan(ban)
@@ -7172,7 +7238,7 @@ async def share_xem(token: str):
     try:
         noi = f.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return HTMLResponse(share_render.trang_loi("Không đọc được file."), status_code=404)
+        return HTMLResponse(share_render.trang_loi(localefmt.chu("Không đọc được file.", "Could not read the file.")), status_code=404)
     if duoi in share_render.DUOI_MD:
         trang = share_render.trang_markdown(f.stem, noi, goc_asset, chan)
     else:
@@ -7274,18 +7340,18 @@ async def share_xem_html(token: str):
     """Trang .html chia sẻ, ở địa chỉ có dấu gạch cuối (xem share_xem vì sao)."""
     ban = share_store.doc(token)
     if not ban:
-        return HTMLResponse(share_render.trang_loi("Link không tồn tại hoặc đã bị thu hồi."),
+        return HTMLResponse(share_render.trang_loi(localefmt.chu("Link không tồn tại hoặc đã bị thu hồi.", "This link does not exist or has been revoked.")),
                             status_code=404)
     f = _share_file(ban)
     if f is None:
-        return HTMLResponse(share_render.trang_loi("File đã bị xoá hoặc đổi tên."), status_code=404)
+        return HTMLResponse(share_render.trang_loi(localefmt.chu("File đã bị xoá hoặc đổi tên.", "The file was deleted or renamed.")), status_code=404)
     if f.suffix.lower() not in share_render.DUOI_HTML:
         return RedirectResponse(url="/s/" + ban["token"], status_code=307)
     # Nội dung của NGƯỜI DÙNG, có script: phục vụ nguyên văn nhưng trong hộp cách ly.
     try:
         noi = f.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return HTMLResponse(share_render.trang_loi("Không đọc được file."), status_code=404)
+        return HTMLResponse(share_render.trang_loi(localefmt.chu("Không đọc được file.", "Could not read the file.")), status_code=404)
     # Thứ DUY NHẤT được thêm vào trang của người dùng: bản vá kho lưu trữ. Hộp cách ly cho
     # trang gốc "null", mà gốc null thì localStorage ném SecurityError ngay dòng đầu chạm vào
     # nó và giết cả script - trang trắng dù dữ liệu đã tải xong. Xem share_render.
@@ -7335,11 +7401,11 @@ async def brain_file_compat(brain_name: str, path: str, dl: int = Query(0)):
     """
     safe_name = _safe_brain_name(brain_name)
     if not safe_name or safe_name != str(brain_name or "").strip():
-        return JSONResponse({"error": "Tên brain không hợp lệ"}, status_code=400)
+        return JSONResponse({"error": localefmt.chu("Tên brain không hợp lệ", "Invalid brain name")}, status_code=400)
     base = Path(BRAINS_DIR).resolve()
     root = (base / safe_name).resolve()
     if root.parent != base or not root.is_dir():
-        return JSONResponse({"error": "Không tìm thấy brain"}, status_code=404)
+        return JSONResponse({"error": localefmt.chu("Không tìm thấy brain", "Brain not found")}, status_code=404)
     return raw_file_response(str(root), path, dl=bool(dl))
 
 
@@ -7561,15 +7627,15 @@ async def files_taskadd(brain: str = Form("brain"), text: str = Form(...),
     Đây là chỗ DUY NHẤT sinh ra file đó - brain mới không còn được rải sẵn nó nữa. `due` dạng YYYY-MM-DD thì gắn "📅 due" kiểu obsidian-tasks."""
     text = " ".join((text or "").split())
     if not text:
-        return JSONResponse({"error": "Nội dung việc trống"}, status_code=400)
+        return JSONResponse({"error": localefmt.chu("Nội dung việc trống", "The task text is empty")}, status_code=400)
     broot = Path(_brain_root(brain)).resolve()
     rel = (path or "").strip().replace("\\", "/").strip("/")
     if rel:
         target = (broot / rel).resolve()
         if target != broot and broot not in target.parents:
-            return JSONResponse({"error": "Đường dẫn ngoài phạm vi cho phép"}, status_code=400)
+            return JSONResponse({"error": localefmt.chu("Đường dẫn ngoài phạm vi cho phép", "The path is outside the allowed area")}, status_code=400)
         if target.suffix.lower() not in (".md", ".txt"):
-            return JSONResponse({"error": "Chỉ thêm task vào file .md/.txt"}, status_code=400)
+            return JSONResponse({"error": localefmt.chu("Chỉ thêm task vào file .md/.txt", "Tasks can only be added to .md/.txt files")}, status_code=400)
     else:
         dash = _resolve_subfolder(str(broot), r"^(\d+\s*[-_.]\s*)?dashboard$", "00 - Dashboard")
         target = Path(dash) / "Task Inbox.md"
@@ -7604,11 +7670,11 @@ async def files_taskcheck(brain: str = Form("brain"), path: str = Form(...),
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     if not f.is_file() or f.suffix.lower() not in (".md", ".txt"):
-        return JSONResponse({"error": "Không tìm thấy file task"}, status_code=404)
+        return JSONResponse({"error": localefmt.chu("Không tìm thấy file task", "Task file not found")}, status_code=404)
     try:
         text = f.read_text(encoding="utf-8")
     except Exception:
-        return JSONResponse({"error": "Không đọc được file"}, status_code=415)
+        return JSONResponse({"error": localefmt.chu("Không đọc được file", "Could not read the file")}, status_code=415)
     lines = text.split("\n")
     exp = (expect or "").strip()
     idx = None
@@ -7620,7 +7686,7 @@ async def files_taskcheck(brain: str = Form("brain"), path: str = Form(...),
         if len(hits) == 1:
             idx = hits[0]
     if idx is None:
-        return JSONResponse({"error": "File đã thay đổi - tải lại rồi tick lại giúp nhé"},
+        return JSONResponse({"error": localefmt.chu("File đã thay đổi - tải lại rồi tick lại giúp nhé", "The file has changed - reload, then tick it again")},
                             status_code=409)
     m = _MD_TASK_RE.match(lines[idx])
     want = bool(int(checked))
@@ -7753,11 +7819,11 @@ async def capability_meta(kind: str = Form(...), slug: str = Form(...),
     """
     thu_muc = _META_KIND.get((kind or "").strip())
     if not thu_muc:
-        return JSONResponse({"ok": False, "error": "kind phải là agent hoặc workflow"},
+        return JSONResponse({"ok": False, "error": localefmt.chu("kind phải là agent hoặc workflow", "kind must be agent or workflow")},
                             status_code=400)
     f = thu_muc(brain) / f"{slug}.md"
     if not f.is_file():
-        return JSONResponse({"ok": False, "error": f"không thấy {kind} '{slug}'"},
+        return JSONResponse({"ok": False, "error": localefmt.chu(f"không thấy {kind} '{slug}'", f"{kind} '{slug}' not found")},
                             status_code=404)
     # Gọi THẲNG hàm này từ Python (test, Telegram) thì tham số không truyền vẫn là object
     # `Form(...)` chứ không phải None - truthy, nên nhánh "không gửi thì không đụng" bên dưới
@@ -7803,20 +7869,20 @@ async def export_capability(kind: str = Query(...), slug: str = Query(...),
     `slug` nhận MỘT slug hoặc NHIỀU slug cách nhau bằng dấu phẩy (chọn nhiều / chọn tất
     cả trên trang Studio, 16/08) - nhiều cái vẫn ra một gói duy nhất, nhập lại một phát."""
     if kind not in ("agent", "skill", "workflow"):
-        return JSONResponse({"error": "kind phải là agent/skill/workflow"}, status_code=400)
+        return JSONResponse({"error": localefmt.chu("kind phải là agent/skill/workflow", "kind must be agent/skill/workflow")}, status_code=400)
     slugs = [s.strip() for s in str(slug or "").split(",") if s.strip()]
     if not slugs or len(slugs) > 200:
-        return JSONResponse({"error": "slug rỗng hoặc quá nhiều (tối đa 200)"}, status_code=400)
+        return JSONResponse({"error": localefmt.chu("slug rỗng hoặc quá nhiều (tối đa 200)", "slug is empty or there are too many (max 200)")}, status_code=400)
     xau = [s for s in slugs if not skill_router.valid_slug(s)]
     if xau:
-        return JSONResponse({"error": f"slug không hợp lệ: {', '.join(xau[:5])}"}, status_code=400)
+        return JSONResponse({"error": localefmt.chu(f"slug không hợp lệ: {', '.join(xau[:5])}", f"invalid slug: {', '.join(xau[:5])}")}, status_code=400)
     data, fname = share_bundle.build_bundle(
         kind, slugs if len(slugs) > 1 else slugs[0],
         agents_dir=_agents_dir(brain), workflows_dir=_workflows_dir(brain),
         skills_root=_skills_dir(brain), include_deps=bool(deps),
         system_slugs=system_sync.system_skill_slugs(), app_version=_app_version())
     if not data:
-        return JSONResponse({"error": f"Không tìm thấy {kind} '{slug}' để xuất"}, status_code=404)
+        return JSONResponse({"error": localefmt.chu(f"Không tìm thấy {kind} '{slug}' để xuất", f"{kind} '{slug}' not found for export")}, status_code=404)
     return Response(content=data, media_type="application/zip",
                     headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
@@ -7828,9 +7894,9 @@ async def import_capability(file: UploadFile = File(...), brain: str = Form("bra
     tick ghi đè. Có rào chống zip-slip + giới hạn dung lượng ở share_bundle."""
     data = await file.read()
     if not data:
-        return JSONResponse({"error": "File rỗng"}, status_code=400)
+        return JSONResponse({"error": localefmt.chu("File rỗng", "Empty file")}, status_code=400)
     if len(data) > 25 * 1024 * 1024:
-        return JSONResponse({"error": "File quá lớn (>25MB)"}, status_code=413)
+        return JSONResponse({"error": localefmt.chu("File quá lớn (>25MB)", "File too large (>25MB)")}, status_code=413)
     root = _brain_root(brain)
     res = share_bundle.import_bundle(
         data, file.filename,
@@ -7992,31 +8058,40 @@ def _cau_mo_dau(d: dict) -> str:
     goi = t.get("goi") or {}
     that = float((t.get("that") or {}).get("usd") or 0)
     quy = float((t.get("quy_doi") or {}).get("usd") or 0)
-    ky = d.get("ten_ky") or "Kỳ này"
+    ky = d.get("ten_ky") or localefmt.chu("Kỳ này", "This period")
     ve = []
     if goi.get("so_duoc"):
         lan = goi.get("roi_lan") or 0
         # Nói đủ cả ba ca. Chỉ khoe khi thật sự lời, và dám nói khi gói đang đắt hơn API -
         # một trang chỉ biết khen thì lần sau không ai tin nó nữa.
         if lan >= 1.2:
-            ket = f", tức gói đang lời {lan:g} lần."
+            ket = localefmt.chu(f", tức gói đang lời {lan:g} lần.",
+                                f", so the plan is paying off {lan:g} times over.")
         elif lan >= 0.8:
-            ket = ", tức gói đang hoà vốn so với giá API."
+            ket = localefmt.chu(", tức gói đang hoà vốn so với giá API.",
+                                ", so the plan is breaking even against API prices.")
         elif lan > 0:
-            ket = ", tức với nhịp dùng này thì gói đang đắt hơn trả theo API."
+            ket = localefmt.chu(", tức với nhịp dùng này thì gói đang đắt hơn trả theo API.",
+                                ", so at this pace the plan costs more than paying per API call.")
         else:
             ket = "."
-        ve.append(f"{ky} bạn trả ${goi['gia_thang_usd']:g} tiền gói, "
-                  f"lượng việc đã chạy nếu tính theo giá API đáng ${quy:,.0f}" + ket)
+        ve.append(localefmt.chu(f"{ky} bạn trả ${goi['gia_thang_usd']:g} tiền gói, "
+                                f"lượng việc đã chạy nếu tính theo giá API đáng ${quy:,.0f}",
+                                f"{ky} you paid ${goi['gia_thang_usd']:g} for the plan, "
+                                f"and the work done would be worth ${quy:,.0f} at API prices") + ket)
     elif quy > 0:
-        ve.append(f"{ky} lượng việc đã chạy quy theo giá API là khoảng ${quy:,.2f}.")
+        ve.append(localefmt.chu(f"{ky} lượng việc đã chạy quy theo giá API là khoảng ${quy:,.2f}.",
+                                f"{ky} the work done comes to about ${quy:,.2f} at API prices."))
     if that > 0:
-        ve.append(f"Tiền mặt thật đã tiêu: ${that:,.2f}.")
+        ve.append(localefmt.chu(f"Tiền mặt thật đã tiêu: ${that:,.2f}.",
+                                f"Real cash spent: ${that:,.2f}."))
     else:
-        ve.append("Chưa có nhánh nào tính tiền theo token, nên tiền mặt thật là $0.")
+        ve.append(localefmt.chu("Chưa có nhánh nào tính tiền theo token, nên tiền mặt thật là $0.",
+                                "Nothing is billed per token yet, so real cash spent is $0."))
     tk = d.get("tiet_kiem") or {}
     if tk.get("token"):
-        ve.append(f"Chế độ tiết kiệm đã tránh được {_fmt_tok_vn(tk['token'])} token.")
+        ve.append(localefmt.chu(f"Chế độ tiết kiệm đã tránh được {_fmt_tok_vn(tk['token'])} token.",
+                                f"Saving mode avoided {_fmt_tok_en(tk['token'])} tokens."))
     return " ".join(ve)
 
 
@@ -8031,9 +8106,24 @@ def _fmt_tok_vn(n) -> str:
     return str(n)
 
 
+def _fmt_tok_en(n) -> str:
+    """Bản tiếng Anh của `_fmt_tok_vn`, cho chữ hiện trên màn hình giao diện tiếng Anh."""
+    n = int(n or 0)
+    if n >= 1_000_000_000:
+        return f"{n / 1_000_000_000:.1f}B"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.0f}K"
+    return str(n)
+
+
 _TEN_KY = {"today": "Hôm nay", "yesterday": "Hôm qua", "this_week": "Tuần này",
            "last_week": "Tuần trước", "this_month": "Tháng này", "last_month": "Tháng trước",
            "last_3_months": "3 tháng qua", "this_year": "Năm nay"}
+_TEN_KY_EN = {"today": "Today", "yesterday": "Yesterday", "this_week": "This week",
+              "last_week": "Last week", "this_month": "This month", "last_month": "Last month",
+              "last_3_months": "Past 3 months", "this_year": "This year"}
 
 
 @app.get("/usage/tong-quan")
@@ -8121,7 +8211,8 @@ async def usage_tong_quan(period: str = "this_month", brain: str = "brain", refr
 
     usd_cache = _tien_cache(s.get("by_model") or [], prices)
     d = {
-        "period": period, "ten_ky": _TEN_KY.get(period, "Kỳ này"), "range": s.get("range"),
+        "period": period, "range": s.get("range"),
+        "ten_ky": localefmt.chu(_TEN_KY.get(period, "Kỳ này"), _TEN_KY_EN.get(period, "This period")),
         "engine": _engine_runtime_view(cfgmod.read_settings().get("context_runtime") or {}),
         "tien": {
             "that": {"usd": tien_that, "usd_thang": tien_that_thang, "openrouter": orb},
@@ -8192,11 +8283,17 @@ async def usage_ngan_sach(gia_goi_thang_usd: str = Form(""), ngan_sach_thang_usd
     canh_bao = []
     co_ngoai, ly_do = _kenh_con_thieu()
     if not co_ngoai and (m.get("bao_cao_tuan") or m["ngan_sach_thang_usd"] > 0):
-        canh_bao.append("Chưa đấu Telegram hoặc Zalo (" + (ly_do or "chưa bật kênh nào") +
-                        ") nên báo cáo và cảnh báo ngân sách chỉ nằm trong hòm thư trên "
-                        "dashboard, không tới được điện thoại.")
+        canh_bao.append(localefmt.chu(
+            "Chưa đấu Telegram hoặc Zalo (" + (ly_do or "chưa bật kênh nào") +
+            ") nên báo cáo và cảnh báo ngân sách chỉ nằm trong hòm thư trên "
+            "dashboard, không tới được điện thoại.",
+            "Telegram or Zalo is not connected (" + (ly_do or "no channel is on") +
+            "), so reports and budget alerts stay in the dashboard inbox "
+            "and cannot reach your phone."))
     if m["ngan_sach_thang_usd"] > 0 and not m.get("tu_phanh"):
-        canh_bao.append("Tự phanh đang tắt, nên chạm trần Javis chỉ nhắc chứ không dừng tiêu tiền.")
+        canh_bao.append(localefmt.chu(
+            "Tự phanh đang tắt, nên chạm trần Javis chỉ nhắc chứ không dừng tiêu tiền.",
+            "Auto-brake is off, so when the cap is hit Javis only reminds you and does not stop spending."))
 
     await _kiem_ngan_sach(nhac=False)     # đặt lại phanh ngay, đừng đợi vòng lặp nền
     return {"ok": True, "gia_goi_thang_usd": m["gia_goi_thang_usd"],
@@ -8853,8 +8950,11 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
             # Đã phát event ra client rồi thì chạy lại bằng runner cũ là CHẠY HAI LẦN.
             # Báo lỗi và dừng, để người dùng quyết định chạy lại.
             yield {"type": "error",
-                   "content": "Workflow dừng giữa chừng ở đường mới. Không tự chạy lại "
-                              "để tránh làm hai lần; bạn chạy lại nếu cần."}
+                   "content": localefmt.chu(
+                       "Workflow dừng giữa chừng ở đường mới. Không tự chạy lại "
+                       "để tránh làm hai lần; bạn chạy lại nếu cần.",
+                       "The workflow stopped halfway on the new path. It will not rerun by itself "
+                       "to avoid doing the work twice; run it again if needed.")}
             return
     meta, _ = _read_md(wf_file)
     steps = meta.get("steps", []) or []
@@ -9073,7 +9173,8 @@ async def _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tool
         return
     trace = _CONTEXT_RUNTIME.resume_trace(task_id)
     if trace is None:
-        yield {"type": "error", "content": "Không tìm thấy hoặc không resume được task này."}
+        yield {"type": "error", "content": localefmt.chu("Không tìm thấy hoặc không resume được task này.",
+                                                         "This task was not found or cannot be resumed.")}
         return
     canary = _get_workflow_canary(brain)
     mk, agent_sysprompt, log_run, learn = _workflow_agent_helpers(brain, tools)

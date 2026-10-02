@@ -139,7 +139,7 @@ check("mật khẩu vẫn là cái cũ", c.verify_password("matkhau123") is True
       and c.verify_password("cuasau123456") is False)
 
 _src = (SERVER / "main.py").read_text(encoding="utf-8")
-_khoi_settings = _src[_src.index('elif section == "password":'):_src.index('    else:\n        return JSONResponse({"ok": False, "error": "section không hợp lệ"}')]
+_khoi_settings = _src[_src.index('elif section == "password":'):_src.index('    else:\n        return JSONResponse({"ok": False, "error": localefmt.chu("section không hợp lệ"')]
 check("CANARY: nhánh đó không còn băm mật khẩu nào cả", "hash_password" not in _khoi_settings)
 
 # Endpoint đổi mật khẩu phải đòi SESSION trình duyệt, không nhận token API - cùng lý do với
