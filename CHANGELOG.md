@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.65.31] - 2026-10-02
 ### Cải thiện
-- Đang làm: ô Bộ não trả lời nhanh chỉ hiện khi cuộc gọi chạy đường Cơ bản.
+- **Ô Bộ não trả lời nhanh và Model chỉ hiện khi cuộc gọi chạy đường Cơ bản.** Gọi bằng ChatGPT Live thì ChatGPT tự nghe và tự trả lời, nên để ô đó hiện (ví dụ ghi Antigravity) dễ hiểu nhầm là Antigravity đang trả lời. Đường Tự động mà đang phải dùng đường Cơ bản thì ô vẫn hiện, vì lúc đó nó đang được dùng thật.
 
 ## [0.65.30] - 2026-10-02
 ### Thêm mới

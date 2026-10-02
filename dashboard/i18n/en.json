@@ -3316,7 +3316,7 @@
   "settings.vc_engine_api": "Live with an API key",
   "settings.vc_engine_basic": "Basic",
   "settings.vc_brain": "Quick-reply brain",
-  "settings.vc_brain_hint": "Only used on the Basic path. On a ChatGPT Live call, ChatGPT listens and replies itself; tasks that need data go to the main brain.",
+  "settings.vc_brain_hint": "The brain that answers spoken turns on the Basic path. Tasks that need data still go to the main brain.",
   "settings.vc_brain_auto": "Automatic",
   "settings.vc_brain_auto_pick": "Automatic (now {brain})",
   "settings.vc_brain_main": "Main brain (same as typing)",

@@ -6544,6 +6544,11 @@
     // Bộ não trả lời nhanh của đường Cơ bản (0.65.25, chủ dự án xin trả lại để tự chỉnh). Tự động
     // là bộ não đầu tiên đang sẵn trên gói (voice_brain.auto_brain); Bộ não chính là tin từ mic đi
     // như gõ chữ (mode standard). ChatGPT Live không dùng ô này: ChatGPT tự nghe và tự trả lời.
+    // 0.65.31: cả khối (bộ não + Model) CHỈ hiện khi đường đang dùng THẬT là Cơ bản, kể cả khi Tự
+    // động rơi xuống Cơ bản. Chủ dự án góp ý 02/10: đường gọi ChatGPT Live mà ô dưới ghi Antigravity
+    // thì đọc như Antigravity đang trả lời, trong khi câu trả lời vẫn là ChatGPT.
+    const brainBox = $("vcBrainBox");
+    if (brainBox) brainBox.hidden = !basic;
     const brainSel = $("vcBrain");
     const choices = o.brain_choices || [];
     const brainCur = v.mode === "standard" ? "main" : (v.brain_provider || "auto");
@@ -6577,7 +6582,7 @@
         + (loading ? `<option value="" disabled>${esc(t("settings.vc_brain_model_loading"))}</option>` : "");
     };
     modelRow.hidden = !modelFor;
-    if (modelFor) {
+    if (modelFor && basic) {   // khối đang ẩn thì đừng chạy `agy models` (có khi 30 giây)
       fillModels([], true);
       modelSel.onchange = () => { curModel = modelSel.value; return luuGiong({ brain_model_for: modelFor, brain_model: curModel }); };
       // Không await: các ô bên dưới phải dùng được ngay trong lúc chờ danh sách.

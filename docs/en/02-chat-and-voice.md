@@ -372,7 +372,7 @@ If a paid voice fails (quota used up, wrong key, no network), Javis reports the 
 ### Advanced
 
 - **Call path**: **Automatic (recommended)**, **ChatGPT Live**, **Live with an API key** or **Basic**. Automatic tries ChatGPT Live, then Live with an API key, then Basic. If you pick a path that is not ready, Javis uses the next one and says why on the "Using" line.
-- **Quick-reply brain**: **Automatic** (default, shows the brain in use), **Main brain (same as typing)**, or a specific brain; one that is not installed or has no key is marked "(not ready)". It only applies to the Basic path, see **The Basic path and quick replies**. On a ChatGPT Live call, ChatGPT listens and replies itself.
+- **Quick-reply brain**: **Automatic** (default, shows the brain in use), **Main brain (same as typing)**, or a specific brain; one that is not installed or has no key is marked "(not ready)". This box (with its **Model** box) only appears while calls run on the Basic path, including when Automatic falls back to Basic; see **The Basic path and quick replies**. On ChatGPT Live or Live with an API key the Live model listens and replies itself, so the box is hidden.
 - **Model**: the model of the brain in use, for example `gemini-3.8-flash-low` for Antigravity or `haiku` for Claude Code. The default is the provider's model. Each brain remembers its own model, so switching between brains never mixes up model names. Hidden when Main brain is picked.
 - **Speaking rate**: 0.85× to 1.45×, default 1.10×. Shown only on the Basic path.
 - **ElevenLabs API key** and **Voice ID** (from ElevenLabs → Voices): shown only when the ElevenLabs voice is picked. Leaving the key box empty keeps the saved key.

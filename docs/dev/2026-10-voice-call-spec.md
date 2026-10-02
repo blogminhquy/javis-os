@@ -227,7 +227,7 @@ GIỌNG NÓI
   API key OpenAI (ở trang Models), ngôn ngữ nghe (theo ngôn ngữ giao diện), im lặng rồi gửi (mặc
   định 1,2 giây), ngắt lời bằng giọng (luôn bật), tai nghe lại (luôn tự chọn), khoá chết
   `loc_tap_am`, khoá cũ `stt_provider`.
-- **Bộ não trả lời nhanh** (bỏ ở 0.65.19, trả lại ở 0.65.25 vì chủ dự án muốn tự chỉnh): Tự động
+- **Bộ não trả lời nhanh** (bỏ ở 0.65.19, trả lại ở 0.65.25 vì chủ dự án muốn tự chỉnh; từ 0.65.31 cả khối bộ não + Model chỉ HIỆN khi `call.engine` là basic, kể cả Tự động rơi xuống Cơ bản, vì để hiện cạnh ChatGPT Live thì đọc như bộ não đó đang trả lời): Tự động
   (bộ não đầu tiên sẵn trên gói, ghi kèm tên đang dùng), Bộ não chính (lưu `mode = standard`), hoặc
   một bộ não cụ thể (lưu `mode = fast` + `brain_provider`); bộ não chưa sẵn ghi "(chưa sẵn)". Chỉ
   dùng ở đường Cơ bản: ChatGPT Live tự nghe và tự trả lời, việc cần dữ liệu đi bộ não chính.

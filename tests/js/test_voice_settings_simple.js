@@ -31,7 +31,7 @@ function check(name, cond) {
 
 // ---- 1. Khung tĩnh: đúng ba ô và Nâng cao, các ô cũ đã gỡ hẳn (không chỉ ẩn) ----
 const card = html.slice(html.indexOf('id="voiceCard"'), html.indexOf("<!-- THƯƠNG HIỆU."));
-for (const id of ["vcNow", "vcVoice", "vcTry", "vcAdvanced", "vcEngine", "vcBrain", "vcBrainModelRow", "vcBrainModel", "rateSel", "vcEleven", "vcElKey", "vcElVoice", "vcStatus", "v2LastErr", "voiceSel"])
+for (const id of ["vcNow", "vcVoice", "vcTry", "vcAdvanced", "vcEngine", "vcBrainBox", "vcBrain", "vcBrainModelRow", "vcBrainModel", "rateSel", "vcEleven", "vcElKey", "vcElVoice", "vcStatus", "v2LastErr", "voiceSel"])
   check(`thẻ Giọng nói có #${id}`, card.includes(`id="${id}"`));
 check("Đường gọi có đủ bốn lựa chọn", ["auto", "chatgpt", "api", "basic"].every(v => card.includes(`<option value="${v}"`)));
 check("tên đường gọi viết ChatGPT Live, không có chữ song công", card.includes(">ChatGPT Live<") && !/song công/i.test(card + JSON.stringify(vi)));
@@ -187,6 +187,9 @@ const base = (call, extra = {}) => Object.assign({
   r = await run(base({ engine: "chatgpt", live_provider: "chatgpt", setting: "auto", reason: "auto", detail: "" },
     { brain_choices: CHOICES, brain_auto: "codex", voice: { mode: "fast", brain_provider: "" } }));
   const br = r.els.vcBrain;
+  // 0.65.31: đường đang dùng là ChatGPT Live thì cả khối bộ não + Model ẩn, không tải danh sách model.
+  check("ChatGPT Live: khối Bộ não trả lời nhanh ẩn, không tải danh sách model",
+    r.els.vcBrainBox.hidden === true && !r.ctx.urls.some(u => u.startsWith("/voice/brain-models")));
   check("Bộ não: Tự động ghi bộ não máy đang chọn, được chọn sẵn",
     br.value === "auto" && br.options[0].textContent === 'settings.vc_brain_auto_pick{"brain":"ChatGPT"}');
   check("Bộ não: có Bộ não chính và đủ các bộ não, cái chưa sẵn được đánh dấu",
@@ -203,11 +206,19 @@ const base = (call, extra = {}) => Object.assign({
     JSON.stringify(r.saves.at(-1)) === '["voice",{"mode":"fast","brain_provider":""}]');
   r = await run(base({ engine: "basic", live_provider: "", setting: "basic", reason: "chosen", detail: "" },
     { brain_choices: CHOICES, brain_auto: "", voice: { mode: "standard", brain_provider: "codex" } }));
+  check("Cơ bản: khối Bộ não trả lời nhanh hiện", r.els.vcBrainBox.hidden === false);
   check("Bộ não: chế độ Chuẩn đã lưu hiện Bộ não chính; không gói nào sẵn thì Tự động không kèm tên",
     r.els.vcBrain.value === "main" && r.els.vcBrain.options[0].textContent === "settings.vc_brain_auto");
   r = await run(base({ engine: "basic", live_provider: "", setting: "basic", reason: "chosen", detail: "" },
     { brain_choices: CHOICES, brain_auto: "codex", voice: { mode: "fast", brain_provider: "groq" } }));
   check("Bộ não: bộ não chọn tay từ bản cũ được giữ", r.els.vcBrain.value === "groq");
+  r = await run(base({ engine: "api", live_provider: "gemini", setting: "auto", reason: "auto_api", detail: "no_login" },
+    { brain_choices: CHOICES, brain_auto: "codex", voice: { mode: "fast", brain_provider: "codex", live_voice: "Kore" } }));
+  check("Live qua API: khối Bộ não trả lời nhanh cũng ẩn", r.els.vcBrainBox.hidden === true);
+  r = await run(base({ engine: "basic", live_provider: "", setting: "auto", reason: "auto_basic", detail: "no_cli" },
+    { brain_choices: CHOICES, brain_auto: "codex", voice: { mode: "fast", brain_provider: "" } }));
+  check("Tự động mà đang rơi xuống Cơ bản: khối Bộ não trả lời nhanh hiện (nó đang được dùng thật)",
+    r.els.vcBrainBox.hidden === false);
 
   // 3e. Model của bộ não (0.65.26): mỗi bộ não nhớ model riêng, danh sách tải riêng cho đúng bộ não.
   const settle = () => new Promise(res => setImmediate(res));

@@ -376,15 +376,21 @@
                     <option value="basic" data-i18n="settings.vc_engine_basic">Cơ bản</option>
                   </select>
                 </div>
-                <div class="qs-field">
-                  <label class="qs-lbl" for="vcBrain" data-i18n="settings.vc_brain">Bộ não trả lời nhanh</label>
-                  <select class="js-input" id="vcBrain"></select>
+                <!-- Bộ não trả lời nhanh + Model: CHỈ hiện khi cuộc gọi chạy đường Cơ bản (0.65.31, chủ dự
+                     án góp ý 02/10). ChatGPT Live và Live qua API tự nghe, tự trả lời nên ô này không có
+                     tác dụng; để hiện ở đó thì chọn Antigravity mà vẫn nghe ChatGPT trả lời, rất khó hiểu.
+                     console.js renderVoiceCard() bật/tắt theo đường đang dùng thật (call.engine). -->
+                <div id="vcBrainBox" hidden>
+                  <div class="qs-field">
+                    <label class="qs-lbl" for="vcBrain" data-i18n="settings.vc_brain">Bộ não trả lời nhanh</label>
+                    <select class="js-input" id="vcBrain"></select>
+                  </div>
+                  <div class="qs-field" id="vcBrainModelRow" hidden>
+                    <label class="qs-lbl" for="vcBrainModel" data-i18n="settings.vc_brain_model">Model</label>
+                    <select class="js-input" id="vcBrainModel"></select>
+                  </div>
+                  <div class="qs-hint" data-i18n="settings.vc_brain_hint">Bộ não trả lời các câu nói ở đường Cơ bản. Việc cần dữ liệu vẫn đi bộ não chính.</div>
                 </div>
-                <div class="qs-field" id="vcBrainModelRow" hidden>
-                  <label class="qs-lbl" for="vcBrainModel" data-i18n="settings.vc_brain_model">Model</label>
-                  <select class="js-input" id="vcBrainModel"></select>
-                </div>
-                <div class="qs-hint" data-i18n="settings.vc_brain_hint">Chỉ dùng ở đường Cơ bản. Gọi bằng ChatGPT Live thì ChatGPT tự nghe và trả lời, việc cần dữ liệu đi bộ não chính.</div>
                 <div class="qs-field" id="vcRateRow">
                   <label class="qs-lbl" for="rateSel" data-i18n="qs.rate_lbl">Tốc độ đọc</label>
                   <select class="js-input" id="rateSel">
@@ -882,7 +888,7 @@
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
   <!-- Phần đọc cấu hình của form "Tự thêm MCP" (thuần, có test node). Nạp TRƯỚC console.js. -->
   <script src="/static/mcp-form-parse.js?v=1"></script>
-  <script src="/static/console.js?v=166"></script>
+  <script src="/static/console.js?v=167"></script>
   <script src="/static/mobile-chat.js?v=11"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>

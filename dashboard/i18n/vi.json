@@ -3316,7 +3316,7 @@
   "settings.vc_engine_api": "Live qua API key",
   "settings.vc_engine_basic": "Cơ bản",
   "settings.vc_brain": "Bộ não trả lời nhanh",
-  "settings.vc_brain_hint": "Chỉ dùng ở đường Cơ bản. Gọi bằng ChatGPT Live thì ChatGPT tự nghe và trả lời, việc cần dữ liệu đi bộ não chính.",
+  "settings.vc_brain_hint": "Bộ não trả lời các câu nói ở đường Cơ bản. Việc cần dữ liệu vẫn đi bộ não chính.",
   "settings.vc_brain_auto": "Tự động",
   "settings.vc_brain_auto_pick": "Tự động (đang là {brain})",
   "settings.vc_brain_main": "Bộ não chính (như gõ chữ)",
