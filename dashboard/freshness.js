@@ -167,7 +167,7 @@
         try { sessionStorage.removeItem(KHOA_DA_TAI); } catch (e) { /* noop */ }
         return;
       }
-      console.warn("[javis fresh] đang chạy bản cũ của:", ds.join(", "));
+      console.warn("[javis fresh] running a stale copy of:", ds.join(", "));
       baoChayBanCu(ds, daThu);
     });
   }

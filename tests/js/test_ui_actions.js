@@ -36,6 +36,11 @@ check("scroll top: ok", A.validate({ action: "scroll", target: "top" }).ok);
 check("scroll left: chặn", !A.validate({ action: "scroll", target: "left" }).ok);
 check("action lạ: chặn", !A.validate({ action: "eval", target: "x" }).ok);
 check("frame null: chặn không nổ", !A.validate(null).ok);
+// Câu báo lỗi đã về từ điển (ui.err_*). Ngoài trình duyệt hàm rào tra vi.json và điền chỗ
+// {ten}, nên model vẫn nhận đúng câu cũ, không phải mã khoá trần.
+check("lỗi validate là chữ đọc được, đã điền chỗ trống",
+      A.validate({ action: "eval", target: "x" }).error === "action không hỗ trợ: eval"
+      && A.validate({ action: "scroll", target: "left" }).error.indexOf("chat_bottom") > 0);
 
 // Danh sách trang khớp ba nơi
 const railM = consoleJs.match(/const RAIL_ITEMS = \[\s*([\s\S]*?)\]\.map/);

@@ -320,7 +320,7 @@ class JavisVoice {
   _initRecognition() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
-      console.warn("Trình duyệt không hỗ trợ SpeechRecognition. Dùng Chrome hoặc Edge.");
+      console.warn("This browser does not support SpeechRecognition. Use Chrome or Edge.");
       return;
     }
 

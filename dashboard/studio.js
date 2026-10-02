@@ -173,7 +173,7 @@
   function _spNoAccent(s) {
     s = String(s == null ? "" : s);
     try { s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); } catch (e) {}
-    return s.replace(/[đĐ]/g, "d").toLowerCase();
+    return s.replace(/[\u0111\u0110]/g, "d").toLowerCase();
   }
 
   function demNhom(items) {

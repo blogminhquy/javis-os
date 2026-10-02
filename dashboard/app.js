@@ -571,7 +571,7 @@ const liveWake = new JavisVoice({
   },
   onTranscript: text => {
     const ok = _liveWaitingWake && handsFree && voiceMode === "live" && attention.wakes(text);
-    try { console.debug("[javis] nghe lúc chờ:", JSON.stringify(text), ok ? "-> nối lại" : "-> bỏ qua"); } catch (e) {}
+    try { console.debug("[javis] heard while waiting:", JSON.stringify(text), ok ? "-> resume" : "-> ignore"); } catch (e) {}
     nhapGiong("");
     if (ok) resumeVoiceFocus(text);
     else huyNoiSom();
@@ -654,7 +654,7 @@ async function batNgheAmLuong() {
       let sum = 0;
       for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
       if (det.feed(Math.sqrt(sum / buf.length))) {
-        try { console.debug("[javis] nghe lúc chờ: có tiếng nói (đo âm lượng) -> nối lại"); } catch (e) {}
+        try { console.debug("[javis] heard while waiting: speech detected (volume meter) -> resume"); } catch (e) {}
         tatNgheAmLuong();
         resumeVoiceFocus("");
       }
@@ -3437,7 +3437,7 @@ async function _taiLen(file, att) {
     } catch (e) {
       const kind = (e && e.kind) || (e && e.name === "TypeError" ? "client" : "net");
       if (kind === "client") {
-        try { console.error("[upload] lỗi phía trình duyệt:", e); } catch (_e) {}
+        try { console.error("[upload] browser-side error:", e); } catch (_e) {}
         att.loi = true;
         att.statusText = window.t("app.att_client_err", { msg: String((e && (e.chiTiet || e.message)) || e).slice(0, 80) });
         return;

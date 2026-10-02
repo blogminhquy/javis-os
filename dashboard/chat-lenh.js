@@ -199,7 +199,7 @@
 
   function tenFileXuat(title, ngay) {
     var slug = String(title || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
-      .replace(/[đĐ]/g, "d").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+      .replace(/[\u0111\u0110]/g, "d").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
     return "javis-" + (slug || "hoi-thoai") + "-" + (ngay || "") + ".md";
   }
 

@@ -909,7 +909,7 @@
   function wkNoAccent(s) {
     s = String(s == null ? "" : s);
     try { s = s.normalize("NFD").replace(/[̀-ͯ]/g, ""); } catch (e) {}
-    return s.replace(/[đĐ]/g, "d").toLowerCase();
+    return s.replace(/[\u0111\u0110]/g, "d").toLowerCase();
   }
   function wkGetHome(b) {
     if (wkHome && wkHome.b === b) return Promise.resolve(wkHome.v);

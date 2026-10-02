@@ -207,7 +207,7 @@
 
   function bo_dau(s) {
     return String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "")
-      .replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
+      .replace(/\u0111/g, "d").replace(/\u0110/g, "D").toLowerCase();
   }
   // Cac lenh duoc bay trong menu "/". Loc san theo slash !== false, nen bo/them mot lenh khoi
   // menu chi la sua ĐUNG mot chO trong bang CMDS.

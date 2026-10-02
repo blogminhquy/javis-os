@@ -60,7 +60,7 @@
     var moi = ok ? icon("check") : icon("triangle-alert");
     if (moi) btn.innerHTML = moi;
     btn.classList.add(ok ? "da-chep" : "chep-loi");
-    btn.title = ok ? chu("common.copied", "Đã chép") : chu("common.copy_fail", "Không chép được");
+    btn.title = ok ? chu("common.copied", "Copied") : chu("common.copy_fail", "Could not copy");
     clearTimeout(btn._saoTimer);
     btn._saoTimer = setTimeout(function () {
       btn.innerHTML = cu;
@@ -82,7 +82,7 @@
       // lui phải nằm càng gần cú bấm càng tốt.
       var ok = quaTextarea(s);
       nhay(btn, ok);
-      if (!ok) { try { window.prompt(chu("common.copy_manual", "Chép tay đoạn này:"), s); } catch (e) {} }
+      if (!ok) { try { window.prompt(chu("common.copy_manual", "Copy this by hand:"), s); } catch (e) {} }
       return ok;
     };
     // Không có clipboard API (http trần) thì đi thẳng đường lui NGAY trong luồng bấm, đừng

@@ -549,7 +549,7 @@
   // tài liệu nó đọc. Bản trước bắt chọn brain trong form, và chọn xong lại phải nhớ Agent nằm
   // ở brain nào - hai lớp phải khớp nhau mà không có gì bắt chúng khớp. Bỏ hẳn ô đó thì phạm
   // vi của trang chính là câu trả lời, và không còn gì để lệch.
-  async function nạpAgent(br) {
+  async function napAgent(br) {
     try {
       // Bản NHẸ: ô chọn chỉ hiện tên + vai trò, không đụng tới system prompt.
       var ad = await api("/agents?brain=" + encodeURIComponent(br || "brain") + "&prompt=0");
@@ -767,7 +767,7 @@
   async function moForm(b, truoc) {
     var sua = !!b;
     var br = brain();                 // brain đang mở = brain của bot, không hỏi lại
-    var agents = await nạpAgent(br);
+    var agents = await napAgent(br);
     var chonSan = (truoc && truoc.account_id) ? [truoc.account_id] : [];
     var buoc = (truoc && truoc.buoc) || (sua ? 2 : 1);
     var aud0 = (b && b.audience) || "nhom";

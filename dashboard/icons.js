@@ -61,8 +61,8 @@
     if (!missing[name]) {
       missing[name] = true;
       console.warn(
-        "[icons] Thiếu icon '" + name + "'. Thêm tên vào " +
-        "dashboard/icons.manifest.json rồi chạy: python tools/gen_icons.py"
+        "[icons] Missing icon '" + name + "'. Add the name to " +
+        "dashboard/icons.manifest.json, then run: python tools/gen_icons.py"
       );
     }
     return RAW[FALLBACK] || "";

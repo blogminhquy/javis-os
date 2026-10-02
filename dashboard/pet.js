@@ -479,14 +479,14 @@
     var icon = function (ten) { return window.ic ? window.ic(ten) : ""; };
     var mic = micDangBat();
     var muc = [
-      { id: "chat", ic: icon("message-circle"), nhan: t("pet.menu.chat", "Trò chuyện") },
-      { id: "agent", ic: icon("bot"), nhan: t("pet.menu.agent", "Trợ lý") },
-      { id: "workflow", ic: icon("workflow"), nhan: t("pet.menu.workflow", "Quy trình") },
+      { id: "chat", ic: icon("message-circle"), nhan: t("pet.menu.chat", "Chat") },
+      { id: "agent", ic: icon("bot"), nhan: t("pet.menu.agent", "Assistants") },
+      { id: "workflow", ic: icon("workflow"), nhan: t("pet.menu.workflow", "Workflows") },
       // Mic là CÔNG TẮC, nên nhãn phải nói việc sắp xảy ra chứ không phải trạng thái hiện tại:
       // đang tắt thì mời "Bật mic", đang bật thì mời "Tắt mic". Nhãn tính lại mỗi lần mở menu
       // (xem moMenu), vì mic còn bật tắt được từ nút mic dưới ô nhập và từ phiên Live.
-      { id: "mic", ic: icon("mic"), nhan: mic ? t("pet.menu.mic_off", "Tắt mic") : t("pet.menu.mic_on", "Bật mic") },
-      { id: "pet", ic: icon("settings"), nhan: t("pet.menu.settings", "Cài đặt pet") },
+      { id: "mic", ic: icon("mic"), nhan: mic ? t("pet.menu.mic_off", "Turn mic off") : t("pet.menu.mic_on", "Turn mic on") },
+      { id: "pet", ic: icon("settings"), nhan: t("pet.menu.settings", "Mascot settings") },
     ];
     menu.innerHTML = muc.map(function (m) {
       return '<button type="button" data-pet-go="' + m.id + '"><span aria-hidden="true">' + m.ic + '</span>' +
@@ -1044,8 +1044,8 @@
   }
   function nhanCo(px) { return t(nacGan(SIZES, "px", px).key) + " · " + px + "px"; }
   function nhanCoMat(k) { return t(nacGan(EYE_SIZES, "k", k).key) + " · " + Math.round(k * 100) + "%"; }
-  function nhanMau(v) { return v.palette === "custom" ? t("pet.color.custom", "Tùy chọn") : t((PALETTES[v.palette] || PALETTES.amber).key); }
-  function nhanMat(v) { return v.eye === "custom" ? t("pet.eye.custom", "Tùy chọn") : t((MAU_MAT[v.eye] || MAU_MAT.den).key); }
+  function nhanMau(v) { return v.palette === "custom" ? t("pet.color.custom", "Custom") : t((PALETTES[v.palette] || PALETTES.amber).key); }
+  function nhanMat(v) { return v.eye === "custom" ? t("pet.eye.custom", "Custom") : t((MAU_MAT[v.eye] || MAU_MAT.den).key); }
   function chuanLook(v) {
     var c = Object.assign({}, v || {});
     if (!SHAPES[c.shape]) c.shape = MAC_DINH.shape;
@@ -1075,7 +1075,7 @@
       '<input type="color" data-pet-' + (loai === "eye" ? "eye-color" : "color") + ' value="' + esc(mauGiaTri) + '" aria-label="' + esc(nhan) + '"></label>';
   }
   function oMa(loai, giaTri) {
-    return '<label class="pet-hex"><span>' + esc(t("settings.pet_hex", "Mã màu")) + '</span>' +
+    return '<label class="pet-hex"><span>' + esc(t("settings.pet_hex", "Color code")) + '</span>' +
       '<input type="text" data-pet-' + (loai === "eye" ? "eye-color" : "color") + '-hex value="' + esc(giaTri.toUpperCase()) + '" maxlength="7" ' +
       'spellcheck="false" autocomplete="off" autocapitalize="off"></label>';
   }
@@ -1090,29 +1090,29 @@
         '<input type="range" class="pet-range" ' + attr + ' min="' + min + '" max="' + max + '" step="' + step + '" value="' + gt + '" aria-label="' + esc(nhan) + '">' +
         '<span>' + esc(nhanCuoi) + '</span></div>';
     };
-    var h = dau(t("settings.pet_shape", "Hình dáng")) +
+    var h = dau(t("settings.pet_shape", "Shape")) +
       '<div class="pet-picker" role="group" data-pet-part="shapes">' + hinhHtml(v, o) + '</div>';
     if (o.size) {
-      h += dau(t("settings.pet_size", "Kích cỡ"), "size", nhanCo(v.size)) +
-        truot("data-pet-size", CO_MIN, CO_MAX, 2, v.size, t("pet.size.nho", "Nhỏ"), t("pet.size.rat_lon", "Rất lớn"), t("settings.pet_size", "Kích cỡ"));
+      h += dau(t("settings.pet_size", "Size"), "size", nhanCo(v.size)) +
+        truot("data-pet-size", CO_MIN, CO_MAX, 2, v.size, t("pet.size.nho", "Small"), t("pet.size.rat_lon", "Extra large"), t("settings.pet_size", "Size"));
     }
-    var nhanTuChon = t("pet.color.custom", "Tùy chọn");
-    h += dau(t("settings.pet_color", "Bảng màu"), "palette", nhanMau(v)) +
+    var nhanTuChon = t("pet.color.custom", "Custom");
+    h += dau(t("settings.pet_color", "Palette"), "palette", nhanMau(v)) +
       '<div class="pet-picker" role="group">' + Object.keys(PALETTES).map(function (k) {
         var ten = t(PALETTES[k].key);
         return '<button type="button" class="pet-swatch" data-pet-palette="' + esc(k) + '" aria-pressed="' + (k === v.palette) + '" title="' + esc(ten) + '" aria-label="' + esc(ten) + '">' +
           '<i style="background:' + esc(toneCua(k)[0]) + '"></i></button>';
       }).join("") + oTuChon("palette", v.palette === "custom", toneCua("custom", v.color)[0], v.color, nhanTuChon) + '</div>' +
       oMa("palette", v.palette === "custom" ? v.color : (PALETTES[v.palette] || PALETTES.amber).sun[0]);
-    h += dau(t("settings.pet_eye", "Màu mắt"), "eye", nhanMat(v)) +
+    h += dau(t("settings.pet_eye", "Eye colour"), "eye", nhanMat(v)) +
       '<div class="pet-picker" role="group">' + Object.keys(MAU_MAT).map(function (k) {
         var ten = t(MAU_MAT[k].key);
         return '<button type="button" class="pet-swatch" data-pet-eye="' + esc(k) + '" aria-pressed="' + (k === v.eye) + '" title="' + esc(ten) + '" aria-label="' + esc(ten) + '">' +
           '<i style="background:' + esc(MAU_MAT[k].mau) + '"></i></button>';
-      }).join("") + oTuChon("eye", v.eye === "custom", v.eyeColor, v.eyeColor, t("pet.eye.custom", "Tùy chọn")) + '</div>' +
+      }).join("") + oTuChon("eye", v.eye === "custom", v.eyeColor, v.eyeColor, t("pet.eye.custom", "Custom")) + '</div>' +
       oMa("eye", mauMatCua(v.eye, v.eyeColor) || MAU_MAT.den.mau);
-    h += dau(t("settings.pet_eye_size", "Cỡ mắt"), "eyeSize", nhanCoMat(v.eyeSize)) +
-      truot("data-pet-eye-size", MAT_MIN, MAT_MAX, 0.05, v.eyeSize, t("pet.eyesize.nho", "Nhỏ"), t("pet.eyesize.rat_to", "Rất to"), t("settings.pet_eye_size", "Cỡ mắt"));
+    h += dau(t("settings.pet_eye_size", "Eye size"), "eyeSize", nhanCoMat(v.eyeSize)) +
+      truot("data-pet-eye-size", MAT_MIN, MAT_MAX, 0.05, v.eyeSize, t("pet.eyesize.nho", "Small"), t("pet.eyesize.rat_to", "Extra large"), t("settings.pet_eye_size", "Eye size"));
     return h;
   }
   // Lúc KÉO (sự kiện input) chỉ sửa đúng mấy chỗ cần đổi, không vẽ lại cả bộ: vẽ lại là thay

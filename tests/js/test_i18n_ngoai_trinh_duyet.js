@@ -3,8 +3,8 @@
  *     python tests/run.py i18n_ngoai_trinh_duyet
  *
  * Vì sao có file này. Một số module (chat-render, dataview, file-editor, background-strip,
- * chat-ask, graph, chat-acts, task-suggest, chat-slash, editor-cmds) được require() thẳng
- * trong test node. Ở đó `window` CHƯA KHAI BÁO, nên đọc `window.t` ném ReferenceError chứ
+ * chat-ask, graph, chat-acts, task-suggest, chat-slash, editor-cmds, ui-actions) được require()
+ * thẳng trong test node. Ở đó `window` CHƯA KHAI BÁO, nên đọc `window.t` ném ReferenceError chứ
  * không trả undefined - phải hỏi bằng typeof. Mỗi file vì thế có một hàm rào riêng.
  *
  * Cái bẫy mà file này sinh ra để canh (dính thật ngày 07/09, bản 0.55.14): hàm rào bị sửa
@@ -40,7 +40,7 @@ const VI = JSON.parse(fs.readFileSync(path.join(D, "i18n", "vi.json"), "utf8"));
 const RAO = {
   "background-strip.js": "tw", "chat-acts.js": "tw", "chat-ask.js": "tw",
   "chat-render.js": "tw", "chat-slash.js": "tw", "dataview.js": "tw",
-  "file-editor.js": "tw", "task-suggest.js": "tw",
+  "file-editor.js": "tw", "task-suggest.js": "tw", "ui-actions.js": "tw",
   "editor-cmds.js": "dich", "graph.js": "graphTw",
 };
 

@@ -202,7 +202,7 @@ check("CANARY: form KHÔNG còn ô chọn brain", CB.indexOf('id="cbBrain"') ===
 check("CANARY: form KHÔNG còn nút tạo brain", CB.indexOf('cbNewBrain') === -1);
 check("trang lọc bot theo brain đang mở", /\/chatbots\?brain=" \+ encodeURIComponent\(brain\(\)\)/.test(CB));
 check("form nạp Agent của brain đang mở",
-  /var br = brain\(\)/.test(CB) && /nạpAgent\(br\)/.test(CB));
+  /var br = brain\(\)/.test(CB) && /napAgent\(br\)/.test(CB));
 check("lưu bot thì Agent và tài liệu cùng một brain", /agent_brain: br, brain: br,/.test(CB));
 check("trang nói rõ đang xem bot của brain nào",
   /window\.t\("cb\.intro_1"\)\) \+ ' <b>' \+ esc\(brain\(\)\)/.test(CB)

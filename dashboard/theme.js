@@ -39,12 +39,13 @@
     if (!b) return;
     b.setAttribute("aria-pressed", light ? "true" : "false");
     // Tooltip lấy từ từ điển i18n khi nó đã nạp; chưa nạp (theme.js chạy rất sớm) thì dùng
-    // tiếng Việt tại chỗ - và nghe "javis:i18n" bên dưới để tự sửa lại ngay khi từ điển về.
+    // tiếng Anh tại chỗ - cùng nấc suy biến đầu của i18n/index.js - và nghe "javis:i18n" bên
+    // dưới để tự sửa lại ngay khi từ điển về. Chữ gốc tiếng Việt nằm ở vi.json, không chép ra đây.
     var key = light ? "top.theme_light" : "top.theme_dark";
     var txt = window.t ? window.t(key) : key;
     if (txt === key) {
-      txt = light ? "Đang dùng tông sáng - bấm để chuyển sang tông tối"
-                  : "Đang dùng tông tối - bấm để chuyển sang tông sáng";
+      txt = light ? "Light theme is on - click to switch to dark"
+                  : "Dark theme is on - click to switch to light";
     }
     b.title = txt;
     b.setAttribute("aria-label", b.title);

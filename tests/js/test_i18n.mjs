@@ -1,14 +1,16 @@
-/* i18n giao diện: từ điển phải khớp nhau, và file đã dịch KHÔNG được lấm lại tiếng Việt.
+/* i18n giao diện: từ điển phải khớp nhau, và mã chạy của dashboard KHÔNG được lấm lại tiếng Việt.
  *
  *     python tests/run.py i18n
  *
- * Vì sao có `I18N_MIGRATED`. Việc dịch 3.520 chuỗi giao diện không làm một phát được, nên nó
- * sẽ kéo dài qua nhiều lượt sửa tính năng khác. Không có chốt chặn thì chuyện xảy ra gần như
- * chắc chắn: một lượt sửa tính năng vội nhúng thẳng một chuỗi tiếng Việt vào file vừa dọn,
- * không ai để ý, và vài tháng sau cả file lấm lại như cũ.
+ * Vì sao có mục 6 (chốt chặn thoái lui). Việc dịch hơn 3.500 chuỗi giao diện kéo dài qua nhiều
+ * lượt sửa tính năng khác. Không có chốt chặn thì chuyện xảy ra gần như chắc chắn: một lượt sửa
+ * tính năng vội nhúng thẳng một chuỗi tiếng Việt vào file vừa dọn, không ai để ý, và vài tháng
+ * sau cả file lấm lại như cũ.
  *
- * Test này KHÔNG đòi dịch hết ngay. Nó chỉ đòi: file nào ĐÃ tuyên bố dịch xong thì không được
- * thụt lùi. Dọn tới đâu, thêm tên file vào danh sách tới đó.
+ * Trước đây test chỉ canh một danh sách file ĐÃ tuyên bố dọn xong (`I18N_MIGRATED`). Từ khi
+ * mọi chữ hiện ra trong `dashboard/*.js` đã về từ điển, chiều canh đảo lại: MỌI file đều phải
+ * sạch, trừ những file nằm trong `NGOAI_LE_DU_LIEU` vì tiếng Việt còn lại ở đó là DỮ LIỆU
+ * (câu người dùng nói, lời dặn gửi AI, khoá lọc), và file ngoại lệ cũng bị khoá trần số dòng.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -197,30 +199,83 @@ for (const [ten, o] of [["vi.json", vi], ["en.json", en]]) {
 }
 
 // ---- 6. CHỐT CHẶN THOÁI LUI ----
-// File nào đã dọn xong thì tên nó vào đây. Từ đó trở đi, nhúng một chuỗi tiếng Việt vào file
-// đó là test đỏ ngay. Dọn thêm file nào thì thêm tên vào danh sách này.
-const I18N_MIGRATED = [
-  "dashboard/i18n/index.js",
-  "dashboard/chatbots-reply-policy.js",      // 0.65.0: viết mới, sạch chuỗi Việt từ đầu
-];
+// MỌI file .js ngay dưới dashboard/ (và i18n/index.js) phải sạch tiếng Việt trong mã chạy. Quét
+// cả thư mục thay vì một danh sách chép tay: file mới thêm sau này tự động bị canh, không phải
+// nhớ ghi tên vào đây (chuyện không ai nhớ). vendor/ là mã bên thứ ba nên không quét.
+//
+// NGOAI_LE_DU_LIEU: file mà tiếng Việt còn lại là DỮ LIỆU chứ không phải chữ hiện ra - regex và
+// danh sách từ khớp câu người Việt GÕ hoặc NÓI, lời dặn gửi cho AI, tên nhóm dùng làm khoá lọc.
+// Dịch mấy thứ đó là làm hỏng tính năng: người dùng vẫn nói "javis ơi" dù giao diện đang tiếng
+// Anh. Mỗi file ghi kèm `tran` = số dòng mã chạy có dấu Việt ĐO ĐƯỢC hôm nay.
+//
+// Trần là bánh cóc HAI CHIỀU, không phải mức trần lỏng:
+//   - vượt trần: có người vừa nhúng chữ hiện ra vào file dữ liệu. Đưa chữ đó vào từ điển.
+//   - dưới trần: cũng đỏ, đòi hạ trần xuống đúng số mới. Chừa khe là để ngỏ đúng chỗ đó cho một
+//     chuỗi giao diện lọt vào sau này mà test vẫn xanh.
+//   - về 0: bỏ hẳn file khỏi bảng, từ đó nó chịu luật sạch hoàn toàn như mọi file khác.
+//
+// Gập dấu kiểu `.replace(/[đĐ]/g, "d")` không cần vào bảng: viết ký tự bằng mã `đĐ`
+// là giữ nguyên hành vi mà file vẫn sạch (chat-render.js, studio.js... đã làm vậy).
+const NGOAI_LE_DU_LIEU = {
+  "app.js": { tran: 12, vi_sao: "khối ngữ cảnh gửi cho AI (file đính kèm, FILE ĐANG MỞ) và tiền tố để bóc chúng khỏi bong bóng" },
+  "chat-slash.js": { tran: 5, vi_sao: "lời dặn dùng skill gửi cho AI, và gập dấu tên skill" },
+  "console.js": { tran: 11, vi_sao: "từ khoá xếp loại nhật ký thay đổi, đơn vị thời gian người dùng gõ, tên danh mục làm khoá lọc, gập dấu" },
+  "packs.js": { tran: 12, vi_sao: "tên nhóm của kho gói là khoá lọc data-kho-nhom, nhãn hiện ra đã dịch qua tw()" },
+  "ui-context.js": { tran: 4, vi_sao: "khối [NGỮ CẢNH GIAO DIỆN: ...] gửi cho AI, server đọc đúng các nhãn này" },
+  "voice-adaptive-ui.js": { tran: 1, vi_sao: "regex bóc lời gọi \"javis ơi\" người dùng nói" },
+  "voice-attention.js": { tran: 1, vi_sao: "regex bắt lời gọi tên Javis nghe nhầm khi nói tiếng Việt" },
+  "voice-chunker.js": { tran: 1, vi_sao: "liên từ tiếng Việt để cắt câu cho giọng đọc" },
+  "voice-turn-policy.js": { tran: 5, vi_sao: "regex phân loại câu người dùng nói (chờ, gọi, lệnh, chưa nói xong)" },
+  "voice-turn.js": { tran: 13, vi_sao: "danh sách từ người dùng nói: bảo chờ, bảo dừng, tiểu từ, liên từ" },
+};
 
-for (const rel of I18N_MIGRATED) {
-  const src = fs.readFileSync(path.join(ROOT, rel), "utf8");
-  // Bỏ chú thích trước khi soi: giải thích bằng tiếng Việt trong chú thích là chuyện TỐT và
-  // là quy ước của repo này. Chỉ mã chạy mới phải sạch.
-  const chay = src
-    .replace(/\/\*[\s\S]*?\*\//g, "")
+// Bỏ chú thích trước khi soi: giải thích bằng tiếng Việt trong chú thích là chuyện TỐT và là quy
+// ước của repo này. Chỉ mã chạy mới phải sạch. Chú thích được thay bằng dòng TRỐNG chứ không xoá
+// hẳn, để số dòng báo lỗi khớp đúng số dòng trong file.
+function dongVietTrongMaChay(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ""))
     .split("\n")
-    .filter((d) => !d.trim().startsWith("//"))
+    .map((d) => (d.trim().startsWith("//") ? "" : d))
     // Chú thích CUỐI DÒNG cũng phải bóc. Điều kiện "không đứng sau dấu hai chấm" là để
     // không cắt nhầm giữa một URL ("https://..."), chỗ mà hai dấu gạch chéo là dữ liệu
     // chứ không phải chú thích.
     .map((d) => d.replace(/(^|[^:])\/\/.*$/, "$1"))
-    .join("\n");
-  const dinh = chay.split("\n").map((d, i) => [i + 1, d])
+    .map((d, i) => [i + 1, d])
     .filter(([, d]) => DAU_VIET.test(d));
-  check(`${rel} không còn chuỗi tiếng Việt trong mã chạy`, dinh.length === 0,
-        dinh.slice(0, 3).map(([n, d]) => `${n}: ${d.trim().slice(0, 60)}`).join(" | "));
+}
+{
+  const thuMuc = path.join(ROOT, "dashboard");
+  const cacFile = fs.readdirSync(thuMuc).filter((f) => f.endsWith(".js")).sort();
+  const quet = [...cacFile.map((f) => ["dashboard/" + f, f]), ["dashboard/i18n/index.js", null]];
+  let soDongDuLieu = 0;
+  for (const [rel, ten] of quet) {
+    const dinh = dongVietTrongMaChay(fs.readFileSync(path.join(ROOT, rel), "utf8"));
+    const mau = dinh.slice(0, 3).map(([n, d]) => `${n}: ${d.trim().slice(0, 60)}`).join(" | ");
+    const ngoaiLe = ten && NGOAI_LE_DU_LIEU[ten];
+    if (!ngoaiLe) {
+      check(`${rel} không còn chuỗi tiếng Việt trong mã chạy`, dinh.length === 0,
+            `${dinh.length} dòng (chữ hiện ra thì đưa vào vi.json/en.json) ${mau}`);
+      continue;
+    }
+    soDongDuLieu += dinh.length;
+    check(`${rel}: tiếng Việt còn lại chỉ là dữ liệu, không vượt trần ${ngoaiLe.tran} dòng`,
+          dinh.length <= ngoaiLe.tran,
+          `${dinh.length} dòng - dòng mới là chữ hiện ra thì đưa vào từ điển. ${mau}`);
+    check(`${rel}: trần ${ngoaiLe.tran} khớp số đo, không chừa khe`,
+          dinh.length >= ngoaiLe.tran,
+          dinh.length === 0 ? "đã sạch hẳn: bỏ file khỏi NGOAI_LE_DU_LIEU"
+                            : `chỉ còn ${dinh.length} dòng: hạ tran xuống ${dinh.length}`);
+  }
+  // Bảng ngoại lệ không được giữ tên file đã đổi tên hoặc đã xoá: dòng chết làm người đọc tưởng
+  // file đó còn được miễn.
+  const chet = Object.keys(NGOAI_LE_DU_LIEU).filter((f) => !cacFile.includes(f));
+  check("NGOAI_LE_DU_LIEU chỉ nhắc file có thật", chet.length === 0, chet.join(", "));
+  check("mỗi ngoại lệ đều ghi lý do", Object.values(NGOAI_LE_DU_LIEU).every((x) => String(x.vi_sao || "").length > 10));
+  // Canary cho chính vòng quét: regex hay bộ bóc chú thích hỏng thì nó lặng lẽ thấy 0 dòng và
+  // báo xanh mãi mãi. File giọng nói CHẮC CHẮN còn chữ Việt, nên phải đếm được chúng.
+  check("vòng quét THẬT SỰ thấy tiếng Việt trong file dữ liệu (bộ quét chưa hỏng)",
+        cacFile.length > 40 && soDongDuLieu > 30, `${cacFile.length} file, ${soDongDuLieu} dòng`);
 }
 
 console.log("");

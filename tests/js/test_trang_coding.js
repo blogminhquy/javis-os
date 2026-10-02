@@ -107,9 +107,9 @@ check("icon đó có thật trong bộ icon đã sinh sẵn", (() => {
   return co && D("vendor/lucide-icons.js").includes('"code-xml":');
 })());
 check("nhóm Code giữ icon file-code như trước khi có mục Coding",
-  /"Code": ic\("file-code"\)/.test(CON));
+  /\bcode: ic\("file-code"\)/.test(CON));
 check("icon nhóm và icon mục KHÔNG trùng nhau",
-  (CON.match(/"Code": ic\("([a-z-]+)"\)/) || [])[1] !== (CON.match(/coding: "([a-z-]+)"/) || [])[1]);
+  (CON.match(/\bcode: ic\("([a-z-]+)"\)/) || [])[1] !== (CON.match(/coding: "([a-z-]+)"/) || [])[1]);
 
 // ---- 4. Cột trái MƯỢN nguyên cột hội thoại của trang Trò chuyện ----
 check("gắn module lịch sử thật, không tự vẽ danh sách",

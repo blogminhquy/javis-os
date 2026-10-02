@@ -52,7 +52,9 @@ check("Terminal là một mục trong nhóm Code", !!nhomCode && /"terminal"/.te
 const nhomBoNao = /nav\.group\.bo_nao"\)[\s\S]{0,140}?ids:\s*\[([^\]]*)\]/.exec(CON_CODE);
 check("CANARY: nhóm Bộ não KHÔNG chứa Code/Terminal",
       !!nhomBoNao && !/"code"|"terminal"/.test(nhomBoNao[1]));
-check("nhóm Code có icon riêng ở tầng nhãn nhóm", /"Code":\s*ic\(/.test(CON_CODE));
+// GICON khoá theo id nhóm (code, bo_nao...) từ khi bỏ tên nhóm tiếng Việt khỏi mã chạy.
+check("nhóm Code có icon riêng ở tầng nhãn nhóm",
+      /\bcode:\s*ic\(/.test(CON_CODE) && /icon:\s*GICON\.code\b/.test(CON_CODE));
 
 check("VIEW_ICON có mục 'terminal'", /\bterminal:\s*"terminal"/.test(CON_CODE));
 // RAIL_ITEMS nay là danh sách ID; nhãn lấy từ dashboard/i18n/*.json qua t().
