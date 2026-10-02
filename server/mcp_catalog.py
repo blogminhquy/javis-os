@@ -181,7 +181,8 @@ def public_catalog():
             # Nguồn: connector do GÓI cấp không bao giờ được trông y hệt hàng chính chủ.
             "pack": c.get("_pack", ""), "pack_name": c.get("_pack_name", ""),
         })
-    return out
+    import catalog_i18n   # lazy: catalog_i18n -> localefmt -> config, tránh vòng import
+    return catalog_i18n.phu(out)
 
 
 def match_url(url):

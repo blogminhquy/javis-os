@@ -1,0 +1,209 @@
+{
+ "_doc": "English overlay for system/mcp-catalog.json. Only display text lives here (name, description, group_line, risk, guide, field labels and placeholders, wizard steps, setup link labels), keyed by connector id. The server lays it over the Vietnamese source when the device reads the interface in English (or in a language with no overlay of its own). Steps and setup links match the source by position. Add a language = add mcp-catalog.<code>.json; no code change.",
+ "connectors": {
+  "composio": {
+   "description": "Composio's multi-app gateway: one connection opens up 500+ apps (Gmail, Notion, Google Sheets, GitHub, Linear, Slack...). Javis finds the tool, links each app account and runs actions through Composio, with no dedicated connector needed per app. Paste an API key (ck_...) and you are done.",
+   "risk": "Composio is a multi-app gateway: every action on a real app (read mail, send mail, edit a sheet, create an issue...) runs through ONE shared tool.\nJavis inspects EACH inner command by name: a read verb (LIST, GET, FETCH, SEARCH...) counts as a read, anything else counts as a write.\n\nRead-only: read data from linked apps (view calendars, read mail, list files) and see which accounts are linked. Any command that is not clearly a read is blocked.\n\nDraft: also allows linking new apps (Composio gives you a sign-in link, you sign in yourself, Javis never sees the password).\n\nFull access: Javis can run EVERY action of the apps you linked through Composio, including sending messages and editing or deleting real data.\nOnly raise it when you really need to; the reach is exactly the permissions you granted each app on Composio.",
+   "guide": "One-time setup:\n1. Go to Composio For You → Connect my agent and pick the MCP client app.\n2. Copy the consumer key (ck_*) from the connection guide. Javis sends it in the x-consumer-api-key header to https://connect.composio.dev/mcp.\nDo not use a Project API key (ak_*) or an MCP server created in Platform.\n3. Paste the key here and press Connect. If Javis is already connected, choose Reconnect on the Composio card to swap the key, then press Test.\n\nLink Calendar or other apps under Composio For You → Connect Apps.\nLinking apps does not update the consumer key saved in Javis. Once connected, Javis can find tools, open app sign-in links and run actions through Composio.\n\nNOTE: at Read-only, Javis can read data from linked apps (view calendars, read mail, list files...) and see the list of linked accounts. To let Javis edit, send or delete, raise it to Full access.",
+   "fields": {
+    "api_key": {"label": "API key (Composio)", "placeholder": "e.g. ck_..."}
+   }
+  },
+  "zalo": {
+   "description": "The standard zalo-agent-cli MCP: read new messages and history, find chats, view media and send messages from a personal Zalo account.",
+   "risk": "This connector defaults to FULL ACCESS, which means the send tool is on. To block sending, lower it to Draft or Read-only.\n\nzalo-agent-cli uses Zalo's unofficial API through zca-js. The account MAY be restricted or LOCKED; use a secondary account and do not auto-send in bulk.",
+   "guide": "Needs Node.js 20+. Press Connect, scan the QR code with the Zalo app, then use the 7 MCP tools of zalo-agent-cli directly. There is no separate Javis listener, webhook or Zalo rules file any more."
+  },
+  "botcake": {
+   "description": "Customers, tags, flows and sending messages from a Botcake chatbot (through the Public API: Javis builds the bridge itself, nothing else to install).",
+   "risk": "Read-only (the default) only views customers, tags and flows.\n\nFull access lets Javis SEND REAL MESSAGES to customers through the chatbot, using an existing flow or text it writes. A sent message cannot be recalled.\n\nIf you only need to look at the data, keep Read-only.",
+   "guide": "Open Botcake > Settings > Integrations > Public API > Create API Key.\n\nNote: refreshing or deleting the key disables existing connections.",
+   "fields": {
+    "page_id": {"label": "Page ID (the Facebook page linked to Botcake)", "placeholder": "e.g. 1234567890..."},
+    "api_key": {"label": "The page's API key", "placeholder": "Paste the Botcake API key..."}
+   }
+  },
+  "google-sheets": {
+   "description": "Read and write Google spreadsheets: push revenue, stock and receivables reports to Sheets automatically. Connects with a service account, no sign-in needed.",
+   "group_line": "Read and write Google Sheets spreadsheets.",
+   "risk": "Draft (the default) lets Javis CREATE and EDIT real spreadsheets in Drive, including overwriting existing data.\n\nFull access adds permission to SHARE spreadsheets with other people. Sharing pushes business numbers outside, so it counts as dangerous, just like sharing a Google Keep note.\n\nJavis can only touch the Drive folder you shared with the service account.",
+   "guide": "One-time setup:\n1. Go to console.cloud.google.com and create a project.\n2. Enable the Google Sheets API and the Google Drive API.\n3. Under IAM > Service Accounts, create an account, then create a JSON key.\n4. Share the Drive folder with the service account's email, as Editor.\n5. Paste the JSON file's content and the folder ID here.\n\nWhen done, press Test to make sure it works.",
+   "fields": {
+    "service_account": {"label": "Service account JSON (paste the WHOLE key file)", "placeholder": "e.g. { \"type\": \"service_account\", \"project_id\": ... }"},
+    "folder_id": {"label": "Working Drive folder ID (shared with the service account's email)", "placeholder": "From the folder URL, e.g. 1AbCdEf..."}
+   }
+  },
+  "google-search-console": {
+   "description": "Website SEO numbers: which keywords bring people to your pages, impressions, clicks and top pages.",
+   "guide": "One-time setup:\n1. Create a service account and a JSON key in the Google Cloud Console, and enable the Search Console API.\n2. In Search Console > Settings > Users and permissions, add the service account's email.\n3. Paste the JSON file's content here.",
+   "fields": {
+    "service_account": {"label": "Service account JSON (paste the WHOLE key file)", "placeholder": "e.g. { \"type\": \"service_account\", ... }"}
+   }
+  },
+  "google-workspace": {
+   "name": "Google Workspace (Gmail, Calendar, Drive, Docs)",
+   "description": "Gmail, Calendar, Drive, Docs, Sheets, Slides, Forms, Tasks... in ONE connection. Create an OAuth client once, about 10 minutes, with step-by-step help. The first time a Google tool is called, a browser opens ON THE MACHINE RUNNING JAVIS for you to approve, so that machine needs a screen.",
+   "group_line": "Gmail, Calendar, Drive, Docs and Sheets in ONE connection. Needs a machine with a screen; on a VPS use the separate Calendar and Gmail cards.",
+   "risk": "Draft (the default) lets Javis draft email, create events, create documents, and also EDIT existing documents and MOVE files in Drive.\nCombined tools (manage_event, manage_task...) belong here too, so Javis can edit and delete individual calendar events or to-dos.\n\nFull access adds permission to SEND REAL EMAIL and DELETE files and mail from your Google account.\n\nIf you only need to read, lower it to Read-only.",
+   "guide": "This connection runs ON THE MACHINE WHERE JAVIS IS INSTALLED: the first time a Google tool is called, that machine's own browser\nopens for you to approve. A machine with no screen (a VPS) should use the separate Calendar and Gmail cards instead,\nwhich sign in right inside the dashboard.\n\nOne-time setup, about 10 minutes:\n1. Go to console.cloud.google.com and create a new project, or reuse the one you made for the Calendar/Gmail cards.\n2. Enable the API for each service you want. The four basics: Gmail API, Google Calendar API,\nGoogle Drive API, Google Docs API.\nTo let Javis touch Sheets, Slides, Forms, Contacts or Tasks, also enable the Google Sheets API,\nGoogle Slides API, Google Forms API, People API and Google Tasks API.\nForget one and only that group of tools errors out; the rest keeps working.\n3. OAuth consent screen: choose External, then add your Google email under Test users.\nSkip this and Google blocks the sign-in right away.\n4. Create an OAuth client of type 'Desktop app'.\nThis type needs NO redirect URI at all, unlike the Calendar/Gmail cards, so an empty section is correct.\n5. Download the client's JSON file and drop it on the box below (it fills in the Client ID and Secret),\nor copy those two values by hand.\n6. Fill in the Google email box too, then press Connect.\n\nThe first time Javis calls a Google tool, a browser opens on the machine running Javis. If you see an 'app isn't\nverified' warning, press Advanced, then Continue: this is your own app. Remember to TICK EVERY permission\nbox: untick one and that group of tools dies.",
+   "fields": {
+    "client_id": {"label": "OAuth Client ID", "placeholder": "e.g. xxxx.apps.googleusercontent.com"},
+    "client_secret": {"label": "OAuth Client Secret", "placeholder": "e.g. GOCSPX-..."},
+    "user_email": {"label": "Your Google email (recommended: leave it empty and every tool call asks for the email again)", "placeholder": "e.g. name@gmail.com"}
+   },
+   "steps": [
+    {"text": "BEFORE YOU START: this connection runs on the machine where Javis is installed, and the first tool call opens THAT MACHINE'S browser for you to approve. If Javis runs on a VPS with no screen, skip this card and use the separate Google Calendar and Gmail cards, which sign in right inside the dashboard."},
+    {"text": "Create a new project in Google Cloud, or reuse the one you made for the Calendar/Gmail cards.", "link_label": "Create project"},
+    {"text": "Enable the API for each service you want. The four basics: Gmail API, Google Calendar API, Google Drive API, Google Docs API. To let Javis touch Sheets, Slides, Forms, Contacts or Tasks, also enable the Google Sheets API, Google Slides API, Google Forms API, People API and Google Tasks API. Forget one and only that group of tools errors out; the rest keeps working.", "link_label": "Open API library"},
+    {"text": "OAuth consent screen: choose External, then add your Google email under Test users. Skip this and Google blocks the sign-in right away.", "link_label": "Open consent screen"},
+    {"text": "Create an OAuth client of type 'Desktop app'. This type needs NO redirect URI at all, unlike the Calendar/Gmail cards, so an empty section is correct; don't go looking for it.", "link_label": "Create OAuth client"},
+    {"text": "Download the client's JSON file and drop it on the box below; Javis fills in the Client ID and Secret. Or copy those two values into the two boxes by hand."},
+    {"text": "Fill in the Google email box too, then press Connect. Leave it empty and the server asks which account to use on every tool call."},
+    {"text": "The first time Javis calls a Google tool, a browser opens on the machine running Javis. If you see an 'app isn't verified' warning, press Advanced, then Continue: this is your own app. Remember to TICK EVERY permission box; untick one and that group of tools dies."}
+   ]
+  },
+  "google-tasks": {
+   "description": "To-dos in Google Tasks: view lists, add tasks, set due dates, mark them done. Only asks for Tasks access, never Gmail or Drive. Signs in with an OAuth client you create yourself (~10 minutes, with help).",
+   "group_line": "To-dos: view lists, add tasks, set due dates, mark done. Only asks for Tasks access.",
+   "risk": "Draft (the default) lets Javis CREATE and EDIT real tasks in Google Tasks: add tasks, change due dates, mark them done, and delete a single task (the combined manage_task tool has a delete action).\n\nFull access adds permission to CREATE, RENAME and DELETE whole task LISTS. Deleting a list loses every task in it, and it cannot be undone.\n\nThis connection only asks for Google Tasks access; it cannot read Gmail, Drive or Calendar.",
+   "guide": "This connection runs ON THE MACHINE WHERE JAVIS IS INSTALLED: the first time a Google Tasks tool is called, that machine's own\nbrowser opens for you to approve. A machine with no screen (a VPS) cannot use this route.\n\nOne-time setup, about 10 minutes. If Google Workspace is already connected, reuse the same Client ID and Secret\nand only do step 2:\n1. Go to console.cloud.google.com and create a project, or use an existing one.\n2. Enable the Google Tasks API for that project.\n3. OAuth consent screen: choose External, then add your Google email under Test users.\nSkip this and Google blocks the sign-in right away.\n4. Create an OAuth client of type 'Desktop app'.\nThis type needs NO redirect URI at all, so an empty section is correct.\n5. Download the client's JSON file and drop it on the box below, or copy the Client ID and Secret by hand.\n6. Fill in the Google email box too, then press Connect.\n\nOn the first tool call, if you see an 'app isn't verified' warning, press Advanced, then Continue,\nbecause this is your own app. Remember to TICK EVERY permission box.",
+   "fields": {
+    "client_id": {"label": "OAuth Client ID", "placeholder": "e.g. xxxx.apps.googleusercontent.com"},
+    "client_secret": {"label": "OAuth Client Secret", "placeholder": "e.g. GOCSPX-..."},
+    "user_email": {"label": "Your Google email (recommended: leave it empty and every tool call asks for the email again)", "placeholder": "e.g. name@gmail.com"}
+   },
+   "steps": [
+    {"text": "BEFORE YOU START, read this: this connection runs on the machine where Javis is installed, and the first tool call opens THAT MACHINE'S browser for you to approve. If Javis runs on a VPS with no screen, this route will not work."},
+    {"text": "If Google Workspace or another Google service is already connected, REUSE its key (the button below the input), and only do the enable-API step."},
+    {"text": "Create a project in Google Cloud (or use an existing one) and enable the Google Tasks API.", "link_label": "Enable Tasks API"},
+    {"text": "OAuth consent screen: choose External, then add your Google email under Test users. Skip this and Google blocks the sign-in right away.", "link_label": "Open consent screen"},
+    {"text": "Create an OAuth client of type 'Desktop app'. This type needs NO redirect URI at all, so an empty section is correct.", "link_label": "Create OAuth client"},
+    {"text": "Download the client's JSON file and drop it on the box below; Javis fills in the Client ID and Secret. Or copy those two values into the two boxes by hand."},
+    {"text": "Fill in the Google email box too, then press Connect. Leave it empty and the server asks which account to use on every tool call."},
+    {"text": "The first time Javis calls a Google Tasks tool, a browser opens on the machine running Javis. If you see an 'app isn't verified' warning, press Advanced, then Continue: this is your own app. Remember to TICK EVERY permission box."}
+   ]
+  },
+  "google-ads": {
+   "description": "Google Ads numbers through Google's official MCP (read-only): campaigns, spend, conversions and keywords through GAQL queries. Runs locally; needs a developer token and Google Cloud, a somewhat technical one-time setup.",
+   "guide": "Needed first: Git on the machine running Javis (uvx downloads the server from GitHub).\n\nOne-time setup, about 10 minutes:\n1. Google Ads > MCC manager account > Tools > API Center: get a developer token; Explorer level is enough for reading.\n2. Go to console.cloud.google.com, create a project and enable the Google Ads API. Note the Project ID for the box below.\n3. OAuth consent screen: choose External and add your email under Test users.\n4. Credentials > Create an OAuth client ID of type 'Web application'.\n5. Under 'Authorized redirect URIs', add exactly this address:\nhttp://localhost:7777/connect/oauth/callback\nOn a VPS also add https://<your-domain>/connect/oauth/callback\n6. Fill in the boxes below, then press the sign-in button. A browser opens so you can let Javis read Google Ads.\n\nJavis builds the credentials file itself: NO Google Cloud CLI install and no commands to run.\n\nIf you see an 'app isn't verified' warning, press Advanced > Continue: this is your own app.\n\nAlready ran gcloud yourself? Paste the content of application_default_credentials.json into the last box and Javis uses it as is.",
+   "fields": {
+    "client_id": {"label": "OAuth Client ID", "placeholder": "e.g. xxxx.apps.googleusercontent.com"},
+    "client_secret": {"label": "OAuth Client Secret", "placeholder": "e.g. GOCSPX-..."},
+    "developer_token": {"label": "Developer token (Google Ads API Center)", "placeholder": "22 characters, from the MCC manager account"},
+    "project_id": {"label": "Google Cloud Project ID", "placeholder": "e.g. my-ads-project"},
+    "login_customer_id": {"label": "MCC manager account ID (optional: when the ads account sits under an MCC or agency)", "placeholder": "10 digits, no dashes"},
+    "adc_json": {"label": "Or paste an ADC file if you already ran gcloud yourself (leave empty if you sign in above)", "placeholder": "e.g. { \"type\": \"authorized_user\", \"refresh_token\": ... }"}
+   }
+  },
+  "google-calendar": {
+   "description": "Google Calendar through Google's official MCP: view calendars, find free time, create and edit events and reminders. Sign in to Google inside the dashboard; works on a VPS too. Needs a one-time OAuth client plus Google's Developer Preview enrolment (~10 minutes).",
+   "group_line": "View calendars, find free time, create and edit events. Sign in inside the dashboard; works on a VPS too.",
+   "risk": "Draft lets Javis CREATE and EDIT real events on your calendar (handy for \"remind me to call the supplier on Thursday\").\n\nFull access adds permission to DELETE events.\n\nIf you only need to look at your calendar, keep Read-only.",
+   "guide": "Google's Calendar MCP server is in Developer Preview: you must enrol in the programme (free) and enable a separate MCP API, otherwise you get a 403 even after a successful sign-in.\nOne-time setup, about 10 minutes:\n1. Enrol in the Google Workspace Developer Preview Program with the same Google account you will sign in with (button below).\n2. Go to console.cloud.google.com, create a project and enable ALL THREE APIs: Google Calendar API, Google Calendar MCP API\n(search 'Calendar MCP' in the API library, there is a button below) and People API, used to find free time with attendees.\n3. OAuth consent screen: choose External and add your email under Test users.\n4. Data Access > Add or remove scopes: paste all 5 Calendar scopes below, then Update and Save.\nhttps://www.googleapis.com/auth/calendar\nhttps://www.googleapis.com/auth/calendar.events\nhttps://www.googleapis.com/auth/calendar.calendarlist.readonly\nhttps://www.googleapis.com/auth/calendar.events.readonly\nhttps://www.googleapis.com/auth/calendar.events.freebusy\n5. Credentials > Create an OAuth client ID of type 'Web application'.\n6. Under 'Authorized redirect URIs', add exactly this address:\nhttp://localhost:7777/connect/oauth/callback\nOn a VPS also add https://<your-domain>/connect/oauth/callback\n7. Copy the Client ID and Client Secret here, then press Connect.\n\nA browser opens for you to sign in to Google and approve. If you see an 'app isn't verified' warning,\npress Advanced > Continue: this is your own app.\nThe consent screen has a tick box for each permission group: TICK THEM ALL; untick one and the matching tool dies immediately.\n\nWHY ALL 5 SCOPES: Google's MCP server does not accept the combined 'calendar' scope alone.\nFinding free time (suggest_time) needs exactly 'calendar.events.freebusy'. Without it the sign-in\nstill shows green and list_calendars still works, but every free/busy check gets\nACCESS_TOKEN_SCOPE_INSUFFICIENT from Google, however many times you reinstall.\n\nIf Test still reports missing permissions after signing in, re-check steps 1, 2 and 4, the three most often skipped.",
+   "fields": {
+    "client_id": {"label": "OAuth Client ID", "placeholder": "e.g. xxxx.apps.googleusercontent.com"},
+    "client_secret": {"label": "OAuth Client Secret", "placeholder": "e.g. GOCSPX-..."}
+   },
+   "steps": [
+    {"text": "Enrol in the Google Workspace Developer Preview (free) with EXACTLY the Google account you will sign in with. Skip this and you get a 403 even after a successful sign-in.", "link_label": "Open enrolment page"},
+    {"text": "Create a project in Google Cloud, then enable the Google Calendar API and the Google Calendar MCP API.", "link_label": "Enable Calendar MCP API"},
+    {"text": "Also enable the People API in the same project. It is used to find free time with attendees; without it everything else works, only suggest_time reports missing permissions.", "link_label": "Enable People API"},
+    {"text": "OAuth consent screen: choose External and add your email under Test users.", "link_label": "Open consent screen"},
+    {"text": "Data Access > Add or remove scopes: paste all 5 Calendar scopes (calendar, calendar.events, calendar.calendarlist.readonly, calendar.events.readonly, calendar.events.freebusy). Without freebusy, finding free time reports missing permissions even after a successful sign-in.", "link_label": "Open Data Access"},
+    {"text": "Create an OAuth client of type 'Web application' and add the address below under 'Authorized redirect URIs'.", "link_label": "Create OAuth client"},
+    {"text": "Download the client's JSON file (or copy the Client ID and Secret), drop the file on the box below, then press Connect. If you see an 'app isn't verified' warning, press Advanced, then Continue."},
+    {"text": "SIGNED IN AGAIN AND GOOGLE DID NOT SHOW THE PERMISSION BOXES? That is how Google works: permissions already granted are passed straight through next time without asking. To see every box again, open your Google account's permissions page, remove Javis from the app list, then come back and press Connect; Google will ask from scratch.", "link_label": "Remove old access at Google"}
+   ],
+   "setup": {
+    "links": [
+     {"label": "Enrol in Developer Preview"},
+     {"label": "Enable Google Calendar MCP API"},
+     {"label": "Enable People API"},
+     {"label": "Declare scopes (Data Access)"}
+    ]
+   }
+  },
+  "gmail": {
+   "description": "Gmail through Google's official MCP: read and search mail, write DRAFTS, label and sort the inbox. The official server has NO direct send tool: it always stops at a draft so you press send yourself. Needs a one-time OAuth client plus Google's Developer Preview enrolment.",
+   "group_line": "Read and search mail, write drafts, add labels. No direct send tool: always stops at a draft.",
+   "risk": "Draft lets Javis WRITE DRAFT emails and add or remove labels in your inbox.\n\nThe official Gmail server has no direct send tool, so Javis cannot send on its own: it always stops at a draft for you to send.\n\nIf you only need to read and search mail, keep Read-only.",
+   "guide": "Google's Gmail MCP server is in Developer Preview: you must enrol in the programme (free) and enable a separate MCP API, otherwise you get a 403 even after a successful sign-in.\nOne-time setup, about 10 minutes:\n1. Enrol in the Google Workspace Developer Preview Program with the same Google account you will sign in with (button below).\n2. Go to console.cloud.google.com, create a project and enable BOTH APIs: Gmail API and Gmail MCP API (search 'Gmail MCP' in the API library, there is a button below).\n3. OAuth consent screen: choose External and add your email under Test users.\n4. Credentials > Create an OAuth client ID of type 'Web application'.\n5. Under 'Authorized redirect URIs', add exactly this address:\nhttp://localhost:7777/connect/oauth/callback\nOn a VPS also add https://<your-domain>/connect/oauth/callback\n6. Copy the Client ID and Client Secret here, then press Connect.\n\nA browser opens for you to sign in to Google and approve. If you see an 'app isn't verified' warning, press Advanced > Continue: this is your own app.\n\nYou can SHARE one OAuth client with Google Calendar; just enable the Gmail API and Gmail MCP API and add the Gmail scopes on the Data Access page.\nThe consent screen has a tick box for each permission group: TICK THEM ALL; untick one and the matching tool dies immediately.\nIf Test still reports missing permissions after signing in, re-check enrolment, enabling the APIs and declaring the scopes, the three most often skipped steps.",
+   "fields": {
+    "client_id": {"label": "OAuth Client ID", "placeholder": "e.g. xxxx.apps.googleusercontent.com"},
+    "client_secret": {"label": "OAuth Client Secret", "placeholder": "e.g. GOCSPX-..."}
+   },
+   "steps": [
+    {"text": "If Google Calendar is already connected, REUSE its key (the button below the input) and only do step 2 for Gmail."},
+    {"text": "Enrol in the Google Workspace Developer Preview (free) with EXACTLY the Google account you will sign in with. Skip this and you get a 403 even after a successful sign-in.", "link_label": "Open enrolment page"},
+    {"text": "Create a project in Google Cloud (or use an existing one) and enable BOTH APIs: Gmail API and Gmail MCP API.", "link_label": "Enable Gmail MCP API"},
+    {"text": "OAuth consent screen: choose External and add your email under Test users.", "link_label": "Open consent screen"},
+    {"text": "Data Access > Add or remove scopes: paste all 4 Gmail scopes (gmail.modify, gmail.readonly, gmail.compose, gmail.labels). The last three are inside gmail.modify, so this widens nothing; it only matches the per-tool list Google accepts.", "link_label": "Open Data Access"},
+    {"text": "Create an OAuth client of type 'Web application' and add the address below under 'Authorized redirect URIs'.", "link_label": "Create OAuth client"},
+    {"text": "Download the client's JSON file (or copy the Client ID and Secret), drop the file on the box below, then press Connect. If you see an 'app isn't verified' warning, press Advanced, then Continue."},
+    {"text": "SIGNED IN AGAIN AND GOOGLE DID NOT SHOW THE PERMISSION BOXES? That is how Google works: permissions already granted are passed straight through next time without asking. To see every box again, open your Google account's permissions page, remove Javis from the app list, then come back and press Connect; Google will ask from scratch.", "link_label": "Remove old access at Google"}
+   ],
+   "setup": {
+    "links": [
+     {"label": "Enrol in Developer Preview"},
+     {"label": "Enable Gmail MCP API"}
+    ]
+   }
+  },
+  "substack": {
+   "description": "Write and PUBLISH posts and newsletters on Substack by asking: list drafts, create drafts and publish (optionally emailing subscribers). Javis wraps the Substack API itself (internal Python, NO Node/npx needed), one session token per account.",
+   "risk": "Draft (the default) lets Javis CREATE DRAFT posts on your Substack. Nothing is published or sent.\n\nTo let Javis PUBLISH FOR REAL, raise this connection to Full access. Even then Javis only publishes when you ask directly in chat; a background loop never publishes on its own.\n\nPublishing goes to the web only by default, with NO email. Javis only turns on emailing when you clearly say \"email the subscribers\", and a sent email CANNOT be undone.\n\nThe session token grants full access to the Substack account, so keep it as private as a password. If it expires when you sign out, reconnect.",
+   "guide": "You need 3 things:\n1. Publication URL: your Substack address, e.g. https://yourname.substack.com\n2. Session token: the 'substack.sid' cookie, taken from DevTools.\n3. User ID: a number.\n\nPress 'Guide' to open a page with a HELPER that grabs the User ID and Publication URL quickly, and how to allow publishing.",
+   "fields": {
+    "publication_url": {"label": "Substack address (publication URL)", "placeholder": "e.g. https://yourname.substack.com"},
+    "session_token": {"label": "Session token (substack.sid cookie)", "placeholder": "Paste the substack.sid cookie value..."},
+    "user_id": {"label": "User ID (a number)", "placeholder": "e.g. 12345678"}
+   }
+  },
+  "google-keep": {
+   "description": "Read and edit Google Keep notes: find notes, create notes and checklists, add labels, pin and archive. NOTE: Keep has no official API, so it needs a master token with FULL ACCESS to the Google account, not scoped OAuth like Gmail or Calendar. Javis only works on notes, but the token opens the whole account if it leaks.",
+   "group_line": "Keep notes: find, create, pin. Uses a FULL ACCESS account token, think it over.",
+   "risk": "This connection uses a Google MASTER TOKEN, a token with FULL ACCESS to the Google account (Gmail, Drive, Photos), not scoped OAuth like Gmail or Calendar.\n\nDraft lets Javis create and edit notes, pin, archive and label for real in Keep.\n\nFull access adds permission to TRASH and DELETE notes and SHARE notes with other people.\n\nIf you typed true in the UNSAFE_MODE box, Javis can touch the notes you wrote by hand too, not only the ones it created.",
+   "guide": "Google Keep has no official API for regular Gmail accounts, so Javis signs in with an App Password and exchanges it for a token.\n\nWARNING: the resulting token has FULL ACCESS to your Google account (Gmail, Drive, Photos...), the same as your password.\n\nOne-time setup:\n1. Turn on 2-Step Verification for the Google account.\n2. Press the button below, create an App Password and copy the 16-character string.\n3. Paste the email and that string below, then press Connect.\n\nJavis exchanges it for a token, stores the token, and does NOT keep the App Password. Copying the spaces too is fine.\n\nIf Google refuses (common when Javis runs on a VPS), get a master token on your own computer and paste it into the Master token box.\n\nLeave unsafe_mode empty and Javis can only edit notes it created itself. Type true and Javis can edit every note, including the ones you wrote by hand.\n\nIf it says 'Google refused the sign-in' even though the string is right: Google is gradually tightening the App Password route. Fallback with oauth_token:\n1. Press 'Open the oauth_token page' below in a PRIVATE WINDOW, sign in to the right account and press I agree.\n2. In that same tab press F12 > Application > Cookies > accounts.google.com and find the cookie named oauth_token (its value starts with oauth2_4/).\n3. Copy that value into the oauth_token box and press Connect RIGHT AWAY (the cookie works once and expires fast). Javis exchanges it for a master token and does not keep the cookie.",
+   "fields": {
+    "google_email": {"label": "Google email", "placeholder": "e.g. name@gmail.com"},
+    "app_password": {"label": "16-character App Password (Javis exchanges it for a token and does NOT keep this string)", "placeholder": "e.g. abcd efgh ijkl mnop"},
+    "oauth_token": {"label": "Or paste an oauth_token taken from the browser (fallback when Google refuses the App Password, see the end of the guide)", "placeholder": "e.g. oauth2_4/..."},
+    "master_token": {"label": "Or paste a master token if you already have one (leave empty if you use the App Password above)", "placeholder": "e.g. aas_et/..."},
+    "unsafe_mode": {"label": "Allow editing EVERY note: type true to allow (empty = only notes Javis created)", "placeholder": "Leave empty to stay safe"}
+   },
+   "steps": [
+    {"text": "WARNING: Keep has no official API, so it needs a FULL ACCESS Google account token (the same as your password). Think it over before connecting."},
+    {"text": "Turn on 2-Step Verification for the Google account (required to create an App Password).", "link_label": "Open Security"},
+    {"text": "Create an App Password and copy the 16-character string (copying the spaces is fine).", "link_label": "Create App Password"},
+    {"text": "Paste the email and App Password below, then press Connect. Javis exchanges it for a token and does NOT keep the App Password."},
+    {"text": "If Google refuses the App Password: open the EmbeddedSetup page in a private window, sign in, press I agree, then take the oauth_token cookie (F12 > Application > Cookies, value starting with oauth2_4/), paste it into the oauth_token box and press Connect RIGHT AWAY; the cookie works only once.", "link_label": "Open EmbeddedSetup"}
+   ],
+   "setup": {
+    "links": [
+     {"label": "Create App Password"},
+     {"label": "Open the oauth_token page"}
+    ]
+   }
+  },
+  "notebooklm": {
+   "description": "Read and work with notebooks in Google NotebookLM: list notebooks, read sources, ask questions inside a notebook, add sources, save notes, create summaries and audio in Studio. NOTE: NotebookLM has no official API, so it borrows your BROWSER SIGN-IN SESSION (Google cookies), not scoped OAuth like Gmail or Calendar.",
+   "risk": "This connection uses Google SESSION COOKIES, a credential equal to being signed in to your Google account, not scoped OAuth like Gmail or Calendar.\n\nRead-only: list notebooks, read sources, check status. Changes nothing.\n\nDraft: adds creating notebooks, adding sources, saving notes, asking questions in a notebook and creating summaries and audio in Studio; these use up your NotebookLM quota.\n\nFull access: adds DELETING notebooks and sources, and SHARING notebooks with other people. A wrong share can be undone, but people may already have read it, so it sits at the highest level.\n\nnotebooklm-py is an UNOFFICIAL library built on NotebookLM's internal protocol. Google can break this connection any time it changes that protocol.",
+   "guide": "NotebookLM has no official API yet, so Javis has to borrow your browser's SIGN-IN SESSION.\n\nWARNING: what you paste here is a Google session cookie, equal to being signed in to your Google account, NOT scoped OAuth. Only do this on a machine you trust.\n\nOne-time setup, ON A PERSONAL COMPUTER with a browser (it cannot be done on a VPS):\n1. Install uv if you don't have it.\n2. Run: uvx --from \"notebooklm-py[browser]\" notebooklm login\n   A browser opens; sign in to Google and visit notebooklm.google.com once.\n3. Open the file it just created: ~/.notebooklm/profiles/default/storage_state.json (Windows: %USERPROFILE%\\.notebooklm\\profiles\\default\\storage_state.json). Copy ALL of its content.\n4. Paste it into the box above and press Connect.\n\nWhen the Google session expires, run step 2 again and paste the new string. To connect several accounts, add another connection and paste that account's session; each connection keeps its own session.",
+   "fields": {
+    "auth_json": {"label": "Sign-in session (paste the whole content of storage_state.json)", "placeholder": "e.g. {\"cookies\":[{\"name\":\"SID\",\"value\":\"...\"}],\"origins\":[]}"}
+   },
+   "steps": [
+    {"text": "WARNING: this is a Google session cookie (equal to being signed in), not scoped OAuth. Think it over before connecting."},
+    {"text": "Install uv on the machine running Javis; Javis uses uvx to run the notebooklm-py MCP server.", "link_label": "Install uv"},
+    {"text": "On a PERSONAL COMPUTER with a browser, run: uvx --from \"notebooklm-py[browser]\" notebooklm login, then sign in to Google and open NotebookLM once.", "link_label": "Open NotebookLM"},
+    {"text": "Open ~/.notebooklm/profiles/default/storage_state.json, copy all of its content into the box below, then press Connect."}
+   ],
+   "setup": {
+    "links": [
+     {"label": "Open NotebookLM"},
+     {"label": "Install uv"}
+    ]
+   }
+  }
+ }
+}
