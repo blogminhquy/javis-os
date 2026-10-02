@@ -38,6 +38,9 @@ làm việc trên repo) - đáng đọc qua trước khi sửa nhiều, đặc b
 - `CHANGELOG.md` viết cho người đọc trên điện thoại: vài gạch đầu dòng, nói người dùng
   **thấy gì khác**, không kể tên hàm/đường dẫn file (chi tiết kỹ thuật để trong PR).
 - Không dùng ký tự em dash (U+2014); thay bằng dấu gạch nối `-`.
+- Chữ hiện lên màn hình không viết trần trong code: ở dashboard thêm khoá vào cả
+  `dashboard/i18n/vi.json` lẫn `en.json` rồi gọi `t("...")`; ở server viết
+  `localefmt.chu("tiếng Việt", "English")`. Prompt gửi cho model AI thì giữ nguyên.
 
 ## Báo lỗi / đề xuất tính năng trước khi code
 

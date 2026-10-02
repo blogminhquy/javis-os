@@ -105,7 +105,7 @@ python tests/run.py
 
 ---
 
-## Hai bước tuỳ chọn, làm sau cũng được
+## Các bước tuỳ chọn, làm sau cũng được
 
 ### 5. Mô tả skill theo ngôn ngữ
 
@@ -127,7 +127,22 @@ gõ và danh sách skill, nên cùng thứ tiếng thì định tuyến sắc h�
 Bản dịch cũng chịu đúng trần `SKILL_DESC_MAX` (150 ký tự) như bản gốc, vì nó đi vào cùng chỗ
 trong prompt. `system_sync._cap_desc` cắt mọi khoá mô tả, không riêng khoá gốc.
 
-### 6. Tài liệu
+### 6. Chữ phía server, kho Kết nối, brain mẫu, website
+
+Từ 0.67.0 chữ phía server đi theo ngôn ngữ giao diện của THIẾT BỊ đang gọi (cookie
+`javis_lang`, do `dashboard/i18n/index.js` đặt). Thứ gì chưa có bản cho tiếng Thái thì hiện
+tiếng Anh, nên không bước nào dưới đây là bắt buộc để mời người dùng Thái vào.
+
+- **Thông báo của server** viết hai bản ngay tại chỗ: `localefmt.chu("Đã lưu", "Saved")`. Bản
+  thứ ba chưa có chỗ, tức tiếng Thái hiện tiếng Anh. Khi cần thật, mở rộng `chu()` nhận thêm
+  `**ban` theo mã ngôn ngữ, đừng rẽ nhánh `if lang == ...` ở chỗ gọi.
+- **Kho Kết nối:** chép `system/mcp-catalog.en.json` thành `system/mcp-catalog.th.json` rồi
+  dịch phần chữ. Bước wizard và link cài đặt khớp theo VỊ TRÍ, giữ đúng số lượng.
+- **File hạt giống của brain mới:** thêm bản `"th"` cho từng mục trong `HAT_GIONG` ở
+  `server/brain_seed_i18n.py`.
+- **Website:** thêm `website/th/index.html` và một dòng `hreflang` ở các bản còn lại.
+
+### 7. Tài liệu
 
 Tài liệu người dùng dịch tay, không qua từ điển. Từ 0.66.0 README gốc (`README.md`) là bản
 **tiếng Anh**; bản dịch README nằm ở `docs/i18n/<mã>/README.md` (tiếng Việt: `docs/i18n/vi/`),

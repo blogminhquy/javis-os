@@ -40,6 +40,9 @@ and AI agents working on the repo), worth reading before a large change, especia
   **sees differently**, without naming functions or file paths (technical detail belongs in
   the PR).
 - Do not use the em dash character; use the hyphen `-` instead.
+- Text shown on screen is never plain Vietnamese or plain English in code: in the dashboard add a
+  key to both `dashboard/i18n/vi.json` and `en.json` and call `t("...")`; on the server write
+  `localefmt.chu("Vietnamese", "English")`. Prompts sent to the AI model stay as they are.
 
 ## Reporting bugs and proposing features before coding
 

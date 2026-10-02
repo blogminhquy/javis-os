@@ -50,6 +50,19 @@ Quy ước này giảm va chạm chứ không diệt hết: hai phiên khởi đ
 cùng đọc `main` rồi cùng chọn một số. Cái nó tránh là va chạm ở phút cuối, lúc PR đã xanh và
 mọi thứ đã xong.
 
+## Chữ hiện lên màn hình (từ 0.67.0)
+
+Giao diện chạy bằng tiếng Anh với người dùng trình duyệt tiếng Anh, nên chữ MỚI viết cho màn hình
+không được là tiếng Việt trần:
+
+- **Dashboard (JS, HTML):** thêm khoá vào CẢ `dashboard/i18n/vi.json` lẫn `en.json`, gọi `t("...")`
+  (hoặc hàm rào `tw()` của file). `tests/js/test_i18n.mjs` đỏ khi một file JS có chữ Việt trong mã
+  chạy mà không nằm trong danh sách ngoại lệ dữ liệu.
+- **Server:** chữ trả về cho màn hình (lỗi, thông báo, nhãn) viết `localefmt.chu("tiếng Việt",
+  "English")`. Không có request (Telegram, việc nền) thì nó theo `ui_lang` của máy.
+- **KHÔNG dịch:** prompt và mô tả tool gửi cho model, regex nhận câu người dùng gõ hay nói, log,
+  nội dung ghi vào brain của người dùng. Lý do ở `docs/dev/them-mot-ngon-ngu.md`.
+
 ## Viết CHANGELOG.md
 
 Chủ repo đọc nhật ký cập nhật trên màn hình dọc (2026-08-12), nên viết CHO NGƯỜI ĐỌC TRÊN ĐIỆN
