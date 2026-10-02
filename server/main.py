@@ -5,6 +5,7 @@ Kiến trúc: Voice (browser) ⇄ FastAPI WebSocket ⇄ Claude Code CLI subproce
 Javis KHÔNG gọi Anthropic API trực tiếp. Mọi reasoning + tool calling đi qua
 `claude` CLI đã cài trên máy → tự kế thừa MCP, skills, auth.
 """
+import brain_seed_i18n   # file hạt giống của brain mới theo ngôn ngữ người dùng
 import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import posixpath
 import os
@@ -572,7 +573,7 @@ def _brain_memory_dir(brain: str) -> Path:
         (mem / "conversations").mkdir(parents=True, exist_ok=True)
         idx = mem / "MEMORY.md"
         if not idx.exists():
-            idx.write_text(MEMORY_SEED, encoding="utf-8")
+            idx.write_text(brain_seed_i18n.chon(MEMORY_SEED), encoding="utf-8")
     except Exception as e:
         print(f"[memory dir error] {e}", file=__import__('sys').stderr)
     return mem
@@ -4481,6 +4482,7 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             lc["reply_lang"] = "auto" if v in ("", "auto") else (lang_registry.chuan_hoa(v) or "auto")
         if "ui_lang" in patch:
             lc["ui_lang"] = lang_registry.chuan_hoa(patch["ui_lang"]) or lang_registry.MAC_DINH
+            _doi_ngon_ngu_hat_giong(lc["ui_lang"])
         if "tz" in patch:
             lc["tz"] = str(patch["tz"] or "").strip() or "Asia/Ho_Chi_Minh"
         if "currency" in patch:
@@ -5623,7 +5625,7 @@ def _ensure_brain_scaffold(root):
     jr = root / "Javis" / "README.md"
     if not jr.exists():
         jr.parent.mkdir(parents=True, exist_ok=True)
-        jr.write_text(JAVIS_README, encoding="utf-8")
+        jr.write_text(brain_seed_i18n.chon(JAVIS_README), encoding="utf-8")
     try:
         # Seed trang Dashboard trong thư mục dashboard (create-if-missing, user sửa gì giữ
         # nấy). Khối ```tasks trong seed chạy thật trên dashboard Javis.
@@ -5633,7 +5635,7 @@ def _ensure_brain_scaffold(root):
         # người không dùng tính năng đó - chủ repo báo 03/09 là chưa mở tới nó lần nào.
         dash = Path(_resolve_subfolder(str(root), r"^(\d+\s*[-_.]\s*)?dashboard$", "00 - Dashboard"))
         if not (dash / "Dashboard.md").exists():
-            (dash / "Dashboard.md").write_text(DASHBOARD_SEED, encoding="utf-8")
+            (dash / "Dashboard.md").write_text(brain_seed_i18n.chon(DASHBOARD_SEED), encoding="utf-8")
     except Exception as e:
         print(f"[brain scaffold] dashboard seed: {e}", file=__import__('sys').stderr)
     try:
@@ -5685,6 +5687,21 @@ def _sync_system_all_brains():
                 system_sync.ensure_synced(p)
     except Exception as e:
         print(f"[system sync all] {e}", file=__import__('sys').stderr)
+
+
+def _doi_ngon_ngu_hat_giong(ma: str):
+    """Người dùng vừa chốt ngôn ngữ giao diện: viết lại file hạt giống CÒN NGUYÊN của mọi brain
+    sang ngôn ngữ đó (brain_seed_i18n.doi_ngon_ngu). Brain mặc định được tạo lúc khởi động, trước
+    khi biết người dùng đọc tiếng gì, nên đây là lúc duy nhất nó ra đúng ngôn ngữ."""
+    try:
+        base = Path(BRAINS_DIR)
+        if not base.is_dir():
+            return
+        for p in sorted(base.iterdir()):
+            if p.is_dir() and not p.name.startswith("."):
+                brain_seed_i18n.doi_ngon_ngu(p, ma)
+    except Exception as e:
+        print(f"[brain seed lang] {e}", file=__import__('sys').stderr)
 
 
 def _migrate_legacy_brain():

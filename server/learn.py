@@ -1509,8 +1509,11 @@ class LearnFeature:
             if f"facts/{slug}.md" in text:
                 return
             line = f"- [{title}](facts/{slug}.md) - {hook}".rstrip(" -")
-            if "_(Chưa có ký ức" in text:
-                text = re.sub(r"_\(Chưa có ký ức.*?\)_", line, text, flags=re.DOTALL)
+            # Dòng giữ chỗ có ở MỌI ngôn ngữ của file hạt giống (brain_seed_i18n.GIU_CHO_BO_NHO):
+            # bỏ sót bản tiếng Anh là brain tiếng Anh giữ dòng "No memories yet" mãi.
+            import brain_seed_i18n
+            if brain_seed_i18n.GIU_CHO_BO_NHO.search(text):
+                text = brain_seed_i18n.GIU_CHO_BO_NHO.sub(lambda _m: line, text, count=1)
             else:
                 text = text.rstrip() + "\n" + line + "\n"
             self.deps.atomic_write_text(idx, text)

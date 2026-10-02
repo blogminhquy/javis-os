@@ -75,6 +75,17 @@ check("đổi lại sang vi được (người dùng đổi ý)", "dashboard" in
 check("đã đúng ngôn ngữ thì không ghi gì", bs.doi_ngon_ngu(root, "vi") == [])
 check("mã rác thì không làm gì", bs.doi_ngon_ngu(root, "") == [] and bs.doi_ngon_ngu(root, "xx") == [])
 
+# Phần gắn vào server: tạo file theo chon(), chốt ngôn ngữ thì đổi, learn.py nhận dòng giữ chỗ.
+_main_src = (SERVER / "main.py").read_text(encoding="utf-8")
+for hs in ("MEMORY_SEED", "JAVIS_README", "DASHBOARD_SEED"):
+    check(f"main.py ghi {hs} qua brain_seed_i18n.chon()", f"brain_seed_i18n.chon({hs})" in _main_src)
+check("lưu ui_lang thì đổi ngôn ngữ file hạt giống của mọi brain",
+      re.search(r'lc\["ui_lang"\] = .*\n\s*_doi_ngon_ngu_hat_giong\(lc\["ui_lang"\]\)', _main_src))
+_learn = (SERVER / "learn.py").read_text(encoding="utf-8")
+check("learn.py thay dòng giữ chỗ bộ nhớ ở mọi ngôn ngữ", "GIU_CHO_BO_NHO" in _learn)
+check("thay bằng hàm, không bằng chuỗi (ký ức có dấu \\ không vỡ)",
+      bs.GIU_CHO_BO_NHO.sub(lambda _m: r"- [a\1](facts/a.md)", bs.HAT_GIONG["memory"]["en"], count=1).count("a\\1") == 1)
+
 print()
 if _fails:
     print(f"THẤT BẠI {len(_fails)}: {_fails}")
