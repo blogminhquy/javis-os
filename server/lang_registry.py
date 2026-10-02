@@ -23,6 +23,12 @@ from typing import Dict, Tuple
 # còn rơi về tiếng Anh thì mọi người dùng hiện tại bị đổi ngôn ngữ trong im lặng.
 MAC_DINH = "vi"
 
+# Ngôn ngữ CHỮ TRÊN MÀN HÌNH khi thiết bị chọn một thứ tiếng mà chuỗi đó chưa có bản dịch.
+# Khác MAC_DINH có chủ ý (0.67.0): người đọc tiếng Nhật gặp một câu chưa dịch thì tiếng Anh còn
+# đọc được, tiếng Việt thì không. MAC_DINH vẫn là tiếng Việt cho những chỗ KHÔNG có ai đang
+# nhìn màn hình (Telegram, việc nền) - đổi nó là đổi ngôn ngữ của người dùng hiện tại.
+DU_PHONG_GIAO_DIEN = "en"
+
 
 @dataclass(frozen=True)
 class Lang:
@@ -189,6 +195,19 @@ def get(code: str) -> Lang:
     lời chỉ vì ai đó lưu nhầm mã ngôn ngữ vào settings.
     """
     return LANGS.get(chuan_hoa(code) or MAC_DINH, LANGS[MAC_DINH])
+
+
+def chon_ban_dich(code: str, ban: dict) -> str:
+    """Chọn bản chữ cho ngôn ngữ `code` từ `{"vi": ..., "en": ...}`.
+
+    Thứ tự: đúng ngôn ngữ đó -> DU_PHONG_GIAO_DIEN -> MAC_DINH -> bản nào có chữ. Không bao giờ
+    trả rỗng khi còn một bản có chữ: chữ sai ngôn ngữ vẫn hơn một ô trống trên màn hình.
+    """
+    for k in (chuan_hoa(code), DU_PHONG_GIAO_DIEN, MAC_DINH):
+        v = ban.get(k) if k else None
+        if v:
+            return v
+    return next((v for v in ban.values() if v), "")
 
 
 def ma_list() -> Tuple[str, ...]:

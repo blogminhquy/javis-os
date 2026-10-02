@@ -183,6 +183,12 @@
       _tu = (lang === GOC) ? _goc : (lang === DU_PHONG ? _en : (kq[2] || {}));
       _san_sang = true;
       try { document.documentElement.setAttribute("lang", _lang); } catch (e) { /* noop */ }
+      // Báo cho SERVER biết thiết bị này đọc tiếng gì: mọi request sau đó (fetch, ảnh, SSE)
+      // tự mang cookie theo, và localefmt.chu() phía server trả chữ đúng thứ tiếng. Cookie chứ
+      // không header: không phải sửa hàng trăm lời gọi fetch rải khắp dashboard.
+      try {
+        document.cookie = "javis_lang=" + encodeURIComponent(_lang) + "; path=/; max-age=31536000; SameSite=Lax";
+      } catch (e) { /* trình duyệt chặn cookie: server rơi về ui_lang của cả máy */ }
       applyDom();
       // Báo cho phần còn lại của dashboard biết từ điển đã về. Alpine không theo dõi được
       // một object thuần, nên nơi nào vẽ nhãn từ `t()` phải nghe sự kiện này rồi vẽ lại.

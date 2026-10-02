@@ -375,6 +375,20 @@ async def _static_cache_headers(request: Request, call_next):
         resp.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")
     return resp
 
+
+@app.middleware("http")
+async def _ngon_ngu_thiet_bi(request: Request, call_next):
+    """Mỗi request mang ngôn ngữ giao diện của THIẾT BỊ gọi nó (cookie `javis_lang`, do
+    dashboard/i18n/index.js đặt), để `localefmt.chu()` trả đúng thứ tiếng người đang nhìn.
+
+    Đặt SAU cùng nên chạy NGOÀI cùng (Starlette bọc từ ngoài vào): câu báo lỗi của cả hàng
+    rào CSRF và đăng nhập cũng được trả đúng ngôn ngữ."""
+    tok = localefmt.dat_ngon_ngu_yeu_cau(request.cookies.get("javis_lang", ""))
+    try:
+        return await call_next(request)
+    finally:
+        localefmt.bo_ngon_ngu_yeu_cau(tok)
+
 CLAUDE_MD_PATH = Path(__file__).parent.parent / "CLAUDE.md"
 SYSTEM_PROMPT = CLAUDE_MD_PATH.read_text(encoding="utf-8") if CLAUDE_MD_PATH.exists() else None
 

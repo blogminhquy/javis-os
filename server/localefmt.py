@@ -14,6 +14,7 @@ cái nhanh nhất.
 """
 from __future__ import annotations
 
+import contextvars
 from datetime import datetime, timedelta, timezone, tzinfo
 
 import config as cfgmod
@@ -54,9 +55,52 @@ def _cau_hinh() -> dict:
         return {}
 
 
+# Ngôn ngữ giao diện của THIẾT BỊ đang gọi (cookie `javis_lang`, middleware trong main.py đặt
+# cho từng request). Cần riêng vì `ui_lang` trong settings là chung CẢ MÁY, còn ngôn ngữ giao
+# diện là theo từng trình duyệt: chủ máy đọc tiếng Việt trên điện thoại, nhân viên đọc tiếng Anh
+# trên laptop, cùng một Javis. Ngoài request (Telegram, việc nền) biến này rỗng.
+_UI_YEU_CAU: contextvars.ContextVar = contextvars.ContextVar("javis_ui_lang", default="")
+
+
+def dat_ngon_ngu_yeu_cau(ma: str):
+    """Đặt ngôn ngữ giao diện cho request hiện tại. Trả token để `bo_ngon_ngu_yeu_cau` gỡ."""
+    return _UI_YEU_CAU.set(lang_registry.chuan_hoa(ma or ""))
+
+
+def bo_ngon_ngu_yeu_cau(token) -> None:
+    try:
+        _UI_YEU_CAU.reset(token)
+    except Exception:
+        pass   # token của context khác (task con): bỏ qua, context đó tự hết hạn
+
+
 def ngon_ngu_giao_dien() -> str:
-    """Ngôn ngữ CHỮ TRÊN MÀN HÌNH. Dùng cho danh sách skill, nhãn nút, thông báo lỗi."""
-    return lang_registry.chuan_hoa(_cau_hinh().get("ui_lang") or "") or lang_registry.MAC_DINH
+    """Ngôn ngữ CHỮ TRÊN MÀN HÌNH. Dùng cho danh sách skill, nhãn nút, thông báo lỗi.
+
+    Thiết bị đang gọi (cookie) -> `ui_lang` của cả máy -> mặc định."""
+    return (_UI_YEU_CAU.get()
+            or lang_registry.chuan_hoa(_cau_hinh().get("ui_lang") or "")
+            or lang_registry.MAC_DINH)
+
+
+def chu(vi: str, en: str, **bien) -> str:
+    """Chữ hiện trên màn hình, đúng ngôn ngữ giao diện của người đang nhìn.
+
+        return JSONResponse({"error": chu("Không tìm thấy file", "File not found")})
+        chu("Đã lưu {n} mục", "Saved {n} items", n=3)
+
+    Viết hai bản NGAY TẠI CHỖ thay vì một kho khoá như dashboard: chuỗi phía server rải ở hàng
+    trăm chỗ, mỗi chỗ chỉ dùng một lần, và đọc code thấy luôn cả hai bản thì sửa một bản không
+    quên bản kia. Thứ tiếng thứ ba rơi về tiếng Anh (`lang_registry.chon_ban_dich`).
+    `bien` chỉ được thay khi có truyền, nên chữ chứa dấu ngoặc nhọn vẫn an toàn.
+    """
+    s = lang_registry.chon_ban_dich(ngon_ngu_giao_dien(), {"vi": vi, "en": en})
+    if bien:
+        try:
+            return s.format(**bien)
+        except (KeyError, IndexError, ValueError):
+            return s
+    return s
 
 
 def ngon_ngu_tra_loi() -> str:
