@@ -20,7 +20,7 @@ Vậy đăng ký để được gì. Đúng bốn thứ, đều là chỗ **khô
 
 | Được gì | Không đăng ký thì sao |
 |---------|-----------------------|
-| Chữ trên màn hình dịch được | giao diện vẫn tiếng Việt |
+| Chữ trên màn hình dịch được | giao diện hiện tiếng Anh (từ 0.66.0; trước đó là tiếng Việt) |
 | Giọng đọc TTS đúng tiếng | đọc bằng giọng Việt, nghe như máy hỏng |
 | Múi giờ, tiền tệ, định dạng số mặc định | dùng của Việt Nam cho tới khi user tự đổi |
 | Đường tắt tiết kiệm token bật được | vẫn chạy, chỉ tốn hơn |
@@ -129,8 +129,10 @@ trong prompt. `system_sync._cap_desc` cắt mọi khoá mô tả, không riêng 
 
 ### 6. Tài liệu
 
-Tài liệu người dùng dịch tay, không qua từ điển. Quy ước đặt tên: `README.en.md`,
-`QUICKSTART.en.md`, `docs/en/*.md`. Mỗi bản đặt một dòng link qua lại ở đầu file.
+Tài liệu người dùng dịch tay, không qua từ điển. Từ 0.66.0 README gốc (`README.md`) là bản
+**tiếng Anh**; bản dịch README nằm ở `docs/i18n/<mã>/README.md` (tiếng Việt: `docs/i18n/vi/`),
+và thanh chọn ngôn ngữ đầu README.md phải có thêm thứ tiếng mới. Các tài liệu khác vẫn theo quy
+ước cũ: `QUICKSTART.en.md`, `docs/en/*.md`. Mỗi bản đặt một dòng link qua lại ở đầu file.
 
 ---
 

@@ -47,6 +47,25 @@ For a small change, open the PR directly. For a large feature or an architectura
 **Issue** describing it first so the direction can be discussed, avoiding the case where the code
 is finished but the direction does not fit the project.
 
+## Translations
+
+Javis already **replies** in whatever language you write in. What a translation adds is the
+interface, the docs and the voice in that language. Three ways to help, from small to large:
+
+1. **The README.** Translate [README.md](README.md) into `docs/i18n/<code>/README.md` (for
+   example `docs/i18n/es/README.md`), fix the relative links (they go three folders up:
+   `../../../`), and add your language to the language bar at the top of README.md.
+2. **The dashboard.** Copy `dashboard/i18n/en.json` to `dashboard/i18n/<code>.json` and
+   translate the values, never the keys. A half-finished file is fine: any key you have not
+   translated yet falls back to English.
+3. **The whole language.** Register it in `server/lang_registry.py` so the voice, date formats
+   and currency follow it too. The step-by-step handbook is
+   [docs/dev/them-mot-ngon-ngu.md](docs/dev/them-mot-ngon-ngu.md) (in Vietnamese for now;
+   open an Issue and we will walk you through it).
+
+English is the source language for the README. When you change it, update the translations or
+mention in the PR which ones are now behind.
+
 ## Security issues
 
 Do not report a security issue through a public Issue. Contact the maintainer directly.

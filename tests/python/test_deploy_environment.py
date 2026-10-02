@@ -124,7 +124,7 @@ for key in (
 
 docs = "\n".join(
     (ROOT / name).read_text(encoding="utf-8")
-    for name in ("README.md", "DEPLOY.md", "docs/16-cau-hinh-env.md")
+    for name in ("docs/i18n/vi/README.md", "DEPLOY.md", "docs/16-cau-hinh-env.md")
 )
 check(
     "tài liệu nói rõ ba trường Hostinger",

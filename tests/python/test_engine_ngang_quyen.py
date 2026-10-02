@@ -108,7 +108,7 @@ CLAUDE_MD = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 CONSOLE_JS = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 INDEX = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
 MAIN_PY = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
-README = (ROOT / "README.md").read_text(encoding="utf-8")
+README = (ROOT / "docs" / "i18n" / "vi" / "README.md").read_text(encoding="utf-8")
 DOC10 = (ROOT / "docs" / "10-models-va-engine.md").read_text(encoding="utf-8")
 DOC01 = (ROOT / "docs" / "01-bat-dau-thiet-lap.md").read_text(encoding="utf-8")
 

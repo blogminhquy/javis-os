@@ -6,7 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.66.0] - 2026-10-02
 ### Cải thiện
-- **Javis nói tiếng Anh làm gốc trên GitHub.** (đang viết)
+- **Trang GitHub của Javis giờ là tiếng Anh**, có ảnh chụp màn hình thật, bảng 12 bộ não và thanh chọn ngôn ngữ. Bản tiếng Việt vẫn đầy đủ, bấm "Tiếng Việt" ngay đầu trang là sang.
+- **Giao diện tự theo ngôn ngữ của trình duyệt** khi máy đó chưa chọn ngôn ngữ nào. Máy đang dùng tiếng Việt thì giữ nguyên, không bị đổi sang tiếng Anh.
+- **Chỗ nào chưa dịch sẽ hiện tiếng Anh** thay vì tiếng Việt, để người dùng thứ tiếng khác vẫn đọc được.
+- **Lệnh cài đặt và cập nhật trên Linux/macOS in thông báo bằng tiếng Anh.**
 
 ## [0.65.33] - 2026-10-02
 ### Sửa lỗi

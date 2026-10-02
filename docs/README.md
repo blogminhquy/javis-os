@@ -4,7 +4,7 @@
 
 Hướng dẫn sử dụng chi tiết từng chức năng của Javis OS. Mỗi trang là một how-to độc lập: mở ở đâu, bấm gì, dùng thế nào.
 
-> Mới bắt đầu? Đọc [Cài đặt trong README](../README.md#-cài-đặt) trước, rồi qua [01 - Bắt đầu & thiết lập lần đầu](01-bat-dau-thiet-lap.md).
+> Mới bắt đầu? Đọc [Cài đặt trong README](i18n/vi/README.md#-cài-đặt) trước, rồi qua [01 - Bắt đầu & thiết lập lần đầu](01-bat-dau-thiet-lap.md).
 
 Thanh điều hướng của dashboard gom **19 trang** thành **7 nhóm**: Trợ lý · Bộ não · Code · Năng lực · Việc · Kết nối · Hệ thống. Mục lục dưới đây xếp theo cùng logic đó.
 
@@ -62,11 +62,13 @@ Thanh điều hướng của dashboard gom **19 trang** thành **7 nhóm**: Tr�
 
 **Toàn bộ tài liệu đã có bản tiếng Anh.** Mỗi trang có dòng chuyển ngôn ngữ ngay dưới tiêu đề,
 bấm là sang đúng trang tương ứng. Mục lục tiếng Anh ở [docs/en/](en/README.md); ngoài ra ở gốc
-repo có [README.en.md](../README.en.md), [QUICKSTART.en.md](../QUICKSTART.en.md),
+repo có [README.md](../README.md), [QUICKSTART.en.md](../QUICKSTART.en.md),
 [DEPLOY.en.md](../DEPLOY.en.md) và [CONTRIBUTING.en.md](../CONTRIBUTING.en.md).
 
-Bản tiếng Việt là bản gốc: sửa nội dung thì sửa bên tiếng Việt trước rồi cập nhật bản tiếng Anh
-tương ứng, đừng để hai bên nói khác nhau. Thêm một ngôn ngữ vào chính Javis (không phải tài
+Bản tiếng Việt là bản gốc của tài liệu: sửa nội dung thì sửa bên tiếng Việt trước rồi cập nhật
+bản tiếng Anh tương ứng, đừng để hai bên nói khác nhau. Riêng README thì ngược lại: từ 0.66.0
+`README.md` ở gốc repo là bản tiếng Anh, bản tiếng Việt nằm ở
+[i18n/vi/README.md](i18n/vi/README.md). Thêm một ngôn ngữ vào chính Javis (không phải tài
 liệu) thì theo [sổ tay thêm ngôn ngữ](dev/them-mot-ngon-ngu.md).
 
 ---

@@ -8684,7 +8684,24 @@
     // Khôi phục ngay, trước các lời gọi mạng ở freshSettings, để tránh nháy màn Javis.
     khoiPhucTrang();
 
-    freshSettings().then(s => {
+    freshSettings().then(async s => {
+      // Máy này CHƯA chọn ngôn ngữ (i18n đang đoán theo trình duyệt): ngôn ngữ đã lưu trên
+      // server thắng phần đoán. Không có bước này thì người dùng Việt cũ có trình duyệt để
+      // tiếng Anh sẽ bị đổi sang tiếng Anh trong im lặng khi lên 0.66.0. Server chưa lưu gì
+      // (bản cài mới, `ui_lang` rỗng) thì ngược lại: ghi ngôn ngữ vừa đoán lên, để Telegram
+      // và việc nền cũng biết chủ máy đọc tiếng gì.
+      try {
+        const I = window.JavisI18n;
+        const langs0 = s.lang_list || [];
+        const srv = String((s.locale && s.locale.ui_lang) || "");
+        if (I && !I.daChon()) {
+          if (srv && langs0.some(l => l.ma === srv)) {
+            if (srv !== I.lang()) await I.setLang(srv);
+          } else if (!srv && langs0.some(l => l.ma === I.lang())) {
+            saveSetting("locale", { ui_lang: I.lang() });
+          }
+        }
+      } catch (e) { /* lỗi thì giữ ngôn ngữ đang hiện, không chặn phần còn lại */ }
       // Ô đổi ngôn ngữ giao diện dưới đáy rail. Danh sách từ sổ đăng ký phía server
       // (s.lang_list) - cùng nguồn với trang Cài đặt, không khai lại ở client. Chỉ hiện khi
       // có từ 2 ngôn ngữ: một ngôn ngữ thì ô chọn là đồ trang trí.

@@ -146,6 +146,7 @@
   "orb.stat_skills": "Open Studio · Skills",
   "orb.stat_workflows": "Open Studio · Workflows",
   "chat.col_expand": "Reopen the conversation panel",
+  "chat.empty_hint": "Speak or type to start a conversation with Javis.",
   "chat.panel": "CONVERSATION",
   "chat.zoom": "Open the Chat page (full-screen chat)",
   "chat.col_collapse": "Collapse the conversation panel to the right (like the sidebar)",

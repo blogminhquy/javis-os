@@ -37,13 +37,14 @@ _DEFAULT = {
     # Tên miền riêng cho HTTPS tự động (Caddy On-Demand TLS hỏi /tls-check trước khi xin cert).
     "domain": {"custom": ""},
     # Ngôn ngữ và locale. TÁCH BA BIẾN có chủ ý (spec đa ngôn ngữ mục 4.1):
-    #   ui_lang     chữ trên màn hình      - chưa dùng tới, dành cho lượt i18n giao diện
+    #   ui_lang     chữ trên màn hình      - "" = chưa ai chọn: dashboard đoán theo trình duyệt
+    #               rồi ghi lại đây (0.66.0). Bản cài cũ đã lưu "vi" nên không bị đổi.
     #   reply_lang  Javis trả lời          - "auto" = bám theo ngôn ngữ người dùng đang viết
     #   tz/currency locale, KHÁC ngôn ngữ  - người dùng tiếng Anh ở VN vẫn xài UTC+7 và VND
     # Gộp ba cái làm một là chặn đứng ca dùng đáng tiền nhất: chủ Việt, giao diện Việt, brain
     # Việt, nhưng chatbot đối ngoại trả lời tiếng Nhật.
     "locale": {
-        "ui_lang": "vi",
+        "ui_lang": "",
         "reply_lang": "auto",              # auto | vi | en
         "tz": "Asia/Ho_Chi_Minh",
         "currency": "VND",
@@ -753,6 +754,18 @@ def _no_rong_pham_vi_bo_nao(cfg: dict) -> bool:
     return doi
 
 
+def _ui_lang_ban_cu(cfg: dict, data: dict) -> None:
+    """Máy đã có settings.json mà file chưa từng ghi `locale.ui_lang` thì coi là "vi".
+
+    Từ 0.66.0 mặc định `ui_lang` là "" (chưa chọn: dashboard đoán theo trình duyệt). Máy cài
+    trước khi có khối locale thì file của nó không có khoá này, và đọc ra "" sẽ làm người dùng
+    Việt có trình duyệt để tiếng Anh bị đổi giao diện trong im lặng. Hồi đó Javis chỉ có tiếng
+    Việt, nên "vi" là đúng sự thật chứ không phải đoán. Chỉ chạm vào bộ nhớ, không ghi file.
+    """
+    if data and "ui_lang" not in (data.get("locale") or {}):
+        cfg.setdefault("locale", {})["ui_lang"] = "vi"
+
+
 def read_settings():
     try:
         st = SETTINGS_PATH.stat()
@@ -762,12 +775,14 @@ def read_settings():
     if sig is not None and sig == _SETTINGS_CACHE["sig"] and _SETTINGS_CACHE["cfg"] is not None:
         return json.loads(_SETTINGS_CACHE["cfg"])
     cfg = json.loads(json.dumps(_DEFAULT))   # deep copy
+    data = {}
     try:
         if SETTINGS_PATH.exists():
-            data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
-            _deep_merge(cfg, data or {})
+            data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8")) or {}
+            _deep_merge(cfg, data)
     except Exception:
         pass
+    _ui_lang_ban_cu(cfg, data)
     _nan_provider_da_go(cfg)
     _no_rong_pham_vi_bo_nao(cfg)
     _ap_muc_mac_dinh(cfg)

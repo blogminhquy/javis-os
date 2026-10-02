@@ -26,7 +26,7 @@ cd "$APP_DIR"
 SVC="${JAVIS_NAME:-javis}"
 PORT="${JAVIS_PORT:-7777}"
 case "$SVC" in
-  *[!A-Za-z0-9._-]*) err "JAVIS_NAME chi duoc dung chu, so, '.', '_', '-' (dang co: $SVC)"; exit 1;;
+  *[!A-Za-z0-9._-]*) err "JAVIS_NAME may only contain letters, digits, '.', '_' and '-' (got: $SVC)"; exit 1;;
 esac
 
 SUDO=""; [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && SUDO="sudo"
@@ -136,7 +136,7 @@ cai_them_cli() {   # <gói npm> <tên binary> <tên hiển thị>
   if npm install -g "$1" >/dev/null 2>&1 || $SUDO npm install -g "$1" >/dev/null 2>&1; then
     ok "$3 $("$2" --version 2>/dev/null || echo installed)"
   else
-    warn "Chua cai duoc $3 - engine do se khong hien o trang Models. Cai tay: npm i -g $1"
+    warn "Could not install $3 - that engine will not show on the Models page. Install it by hand: npm i -g $1"
   fi
 }
 # Engine Gemini CLI đã GỠ HẲN ở 0.50.0 (Google ngắt mọi tài khoản cá nhân từ 18/06/2026).
@@ -158,10 +158,10 @@ cai_cli_script() {   # <tên binary> <tên hiển thị> <URL script cài>
   if curl -fsSL "$3" | bash >/dev/null 2>&1; then
     export PATH="$HOME/.local/bin:$PATH"
     if command -v "$1" >/dev/null 2>&1; then ok "$2"; else
-      warn "$2: script chay xong nhung chua thay binary '$1'. Mo terminal moi roi thu lai: curl -fsSL $3 | bash"
+      warn "$2: the installer finished but binary '$1' is not on PATH yet. Open a new terminal and retry: curl -fsSL $3 | bash"
     fi
   else
-    warn "Chua cai duoc $2 - engine do se khong hien o trang Models. Cai tay: curl -fsSL $3 | bash"
+    warn "Could not install $2 - that engine will not show on the Models page. Install it by hand: curl -fsSL $3 | bash"
   fi
 }
 cai_cli_script agy "Antigravity CLI (Google)" https://antigravity.google/cli/install.sh
@@ -237,24 +237,24 @@ _env_has() { grep -qE "^[[:space:]]*$1=[\"']?[^\"'[:space:]]" .env 2>/dev/null; 
 
 ADMIN_PW_SINH=""      # chỉ có giá trị khi script TỰ SINH - để in ra đúng một lần ở cuối
 if _env_has JAVIS_ADMIN_PASSWORD; then
-  ok "Tài khoản quản trị đã có sẵn trong .env - giữ nguyên"
+  ok "Admin account already set in .env - keeping it"
 else
   ADMIN_USER="admin"
   ADMIN_PW=""
   if [ -t 0 ]; then
     echo ""
-    log "Tài khoản quản trị của Javis (Claude chạy full quyền nên bắt buộc có):"
-    read -rp "  Tên đăng nhập [admin]: " AU || true
+    log "Javis admin account (required: the AI brain runs with full rights on this machine):"
+    read -rp "  Username [admin]: " AU || true
     [ -n "${AU:-}" ] && ADMIN_USER="$AU"
     while :; do
-      read -rsp "  Mật khẩu (Enter = tự sinh một cái mạnh): " AP || true; echo ""
+      read -rsp "  Password (Enter = generate a strong one): " AP || true; echo ""
       if [ -z "${AP:-}" ]; then ADMIN_PW="$(_gen_pw)"; ADMIN_PW_SINH="$ADMIN_PW"; break; fi
       # Server cũng chặn dưới 8 ký tự (main.py /auth/setup). Chặn luôn ở đây để người ta biết
       # ngay lúc gõ, thay vì lúc đăng nhập lần đầu mới phát hiện .env có mật khẩu không xài được.
-      if [ "${#AP}" -lt 8 ]; then warn "  Tối thiểu 8 ký tự."; continue; fi
-      read -rsp "  Nhập lại: " AP2 || true; echo ""
+      if [ "${#AP}" -lt 8 ]; then warn "  At least 8 characters."; continue; fi
+      read -rsp "  Repeat it: " AP2 || true; echo ""
       if [ "$AP" = "${AP2:-}" ]; then ADMIN_PW="$AP"; break; fi
-      warn "  Hai lần nhập không khớp, thử lại."
+      warn "  The two entries do not match, try again."
     done
   else
     # Chạy không có bàn phím (curl | bash, CI, script khác gọi vào). Tự sinh chứ KHÔNG bỏ trống:
@@ -264,7 +264,7 @@ else
   _env_set JAVIS_ADMIN_USER "$ADMIN_USER"
   _env_set JAVIS_ADMIN_PASSWORD "$ADMIN_PW"
   chmod 600 .env
-  ok "Đã đặt sẵn tài khoản quản trị trong .env - khỏi cần MÃ THIẾT LẬP"
+  ok "Admin account saved in .env"
 fi
 
 # --- 7c. Xác thực 2 lớp: HỎI ở đây, BẬT ở trình duyệt ---
@@ -278,13 +278,13 @@ fi
 # người dùng quét QR và nhập đúng một mã, vì bật trước lúc họ chứng minh app sinh đúng mã là
 # tự khoá họ ra ngoài chính máy vừa cài.
 if ! _env_has JAVIS_SETUP_2FA && [ -t 0 ]; then
-  read -rp "  Bật xác thực 2 lớp (Google Authenticator)? [y/N]: " TFA || true
+  read -rp "  Turn on two-factor sign-in (Google Authenticator)? [y/N]: " TFA || true
   case "${TFA:-}" in
     [yY]*)
       _env_set JAVIS_SETUP_2FA 1
-      ok "Đã ghi nhận - lần đầu vào Dashboard sẽ có sẵn màn quét QR ở trang Tài khoản"
+      ok "Noted - the first time you open the dashboard, the Account page will show the QR code to scan"
       ;;
-    *) log "Bỏ qua - bật lúc nào cũng được ở Dashboard → Tài khoản" ;;
+    *) log "Skipped - you can turn it on any time under Dashboard → Account" ;;
   esac
 fi
 
@@ -342,18 +342,18 @@ log "Remote access (SSH tunnel): ssh -L $PORT:localhost:$PORT $(whoami)@<vps-ip>
 if [ -n "${ADMIN_PW_SINH:-}" ]; then
   echo ""
   echo "=================================================================="
-  echo "  TÀI KHOẢN QUẢN TRỊ (đã lưu trong .env, chỉ hiện MỘT LẦN):"
-  echo "      Tên đăng nhập:  ${ADMIN_USER:-admin}"
-  echo "      Mật khẩu:       $ADMIN_PW_SINH"
-  echo "  Chép ra chỗ an toàn ngay. Đổi được sau trong Dashboard → Tài khoản."
+  echo "  ADMIN ACCOUNT (saved in .env, shown only ONCE):"
+  echo "      Username:  ${ADMIN_USER:-admin}"
+  echo "      Password:  $ADMIN_PW_SINH"
+  echo "  Copy it somewhere safe now. You can change it later under Dashboard → Account."
   echo "=================================================================="
 fi
 echo ""
-log "Truy cập từ xa qua Cloudflare Tunnel (không cần mở port, có HTTPS):"
-echo "    1) Đăng nhập bằng tài khoản quản trị ở trên (Claude chạy full quyền!)."
+log "Remote access through a Cloudflare Tunnel (no open port, HTTPS included):"
+echo "    1) Sign in with the admin account above (the AI brain runs with full rights!)."
 if command -v cloudflared >/dev/null 2>&1; then
-  echo "    2) cloudflared tunnel --url http://localhost:$PORT   → mở URL https://<random>.trycloudflare.com"
+  echo "    2) cloudflared tunnel --url http://localhost:$PORT   → open https://<random>.trycloudflare.com"
 else
-  echo "    2) Cài cloudflared:  curl -fsSL https://pkg.cloudflare.com/cloudflared.deb -o /tmp/cf.deb && $SUDO dpkg -i /tmp/cf.deb"
-  echo "       Rồi:  cloudflared tunnel --url http://localhost:$PORT"
+  echo "    2) Install cloudflared:  curl -fsSL https://pkg.cloudflare.com/cloudflared.deb -o /tmp/cf.deb && $SUDO dpkg -i /tmp/cf.deb"
+  echo "       Then:  cloudflared tunnel --url http://localhost:$PORT"
 fi

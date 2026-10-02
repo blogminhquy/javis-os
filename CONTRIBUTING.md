@@ -44,6 +44,19 @@ làm việc trên repo) - đáng đọc qua trước khi sửa nhiều, đặc b
 Với thay đổi nhỏ, cứ mở PR thẳng. Với tính năng lớn hoặc đổi kiến trúc, nên mở **Issue**
 mô tả trước để bàn hướng làm - tránh trường hợp code xong mà hướng không khớp với dự án.
 
+## Dịch thuật
+
+Javis vốn đã **trả lời** bằng bất kỳ thứ tiếng nào người dùng viết. Bản dịch thêm vào là giao
+diện, tài liệu và giọng đọc bằng thứ tiếng đó. Ba cách góp, từ nhỏ tới lớn:
+
+1. **README.** Dịch [README.md](README.md) (bản tiếng Anh, là bản gốc từ 0.66.0) vào
+   `docs/i18n/<mã>/README.md` (ví dụ `docs/i18n/es/README.md`), sửa link tương đối (lùi ba cấp:
+   `../../../`), rồi thêm ngôn ngữ đó vào thanh chọn ngôn ngữ đầu README.md.
+2. **Giao diện.** Chép `dashboard/i18n/en.json` thành `dashboard/i18n/<mã>.json` rồi dịch phần
+   giá trị, không đụng tới khoá. Dịch dở cũng được: khoá nào chưa dịch sẽ hiện tiếng Anh.
+3. **Trọn một ngôn ngữ.** Đăng ký trong `server/lang_registry.py` để giọng đọc, định dạng ngày
+   và tiền tệ cũng theo. Từng bước ở [sổ tay thêm ngôn ngữ](docs/dev/them-mot-ngon-ngu.md).
+
 ## Vấn đề bảo mật
 
 Đừng báo lỗi bảo mật qua Issue công khai. Liên hệ trực tiếp với người giữ repo.

@@ -1,379 +1,418 @@
 <div align="center">
 
-# 🧠 Javis OS
+<img src="dashboard/logo.svg" width="88" alt="Javis OS logo">
 
-**AI agentic đổi được bộ não + Second Brain - chạy trên model nào bạn muốn (Claude Code, ChatGPT/Codex, Antigravity CLI, OpenRouter, OpenAI, Gemini, Anthropic API, Groq, Ollama), có giọng nói, đồ thị tri thức, và tự thông minh dần lên.**
+# Javis OS
 
-***Tiếng Việt** · [English](README.en.md)*
+### Your self-hosted AI agent with a swappable brain, and a Second Brain that gets smarter every day.
+
+Run it on your laptop or a small VPS. Talk to it by voice. Plug in Claude, ChatGPT, Grok, Gemini or any of 12 providers, keep every tool when you switch, and let it work in the background while you sleep.
+
+[![GitHub stars](https://img.shields.io/github/stars/blogminhquy/javis-os?style=flat&logo=github&label=stars)](https://github.com/blogminhquy/javis-os/stargazers)
+[![License: MIT](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/blogminhquy/javis-os?color=f97316)](https://github.com/blogminhquy/javis-os/commits/main)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-3776ab?logo=python&logoColor=white)](requirements.txt)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-2496ed?logo=docker&logoColor=white)](https://github.com/blogminhquy/javis-os/pkgs/container/javis-os)
+[![MCP](https://img.shields.io/badge/tools-Model%20Context%20Protocol-8b5cf6)](https://modelcontextprotocol.io)
+
+🇬🇧 **English** · [🇻🇳 Tiếng Việt](docs/i18n/vi/README.md) · [🌍 Help translate](CONTRIBUTING.en.md#translations)
+
+[Quick start](#-quick-start) · [Why Javis](#-why-javis) · [Brains](#-12-brains-one-toolkit) · [Features](#-features) · [Install](#-installation) · [Docs](docs/en/README.md) · [Support](#-support-javis-os)
+
+<br>
+
+<img src="docs/assets/screenshots/graph.jpg" alt="The Javis OS dashboard: brain file tree on the left, the knowledge graph in the middle, the conversation panel on the right and the chat bar at the bottom" width="100%">
 
 </div>
 
 ---
 
-## Cài nhanh bằng chính AI của bạn
+## ⚡ Quick start
 
-Đưa link repo này cho **Claude Code** hoặc **Codex** đang chạy trên máy bạn và nói "cài Javis OS giúp tôi". Nó chỉ cần chạy **một lệnh duy nhất**:
+**The easy way: let your own AI install it.** Give this repo link to Claude Code or Codex on your machine and say *"install Javis OS for me"*. It only needs to run one command:
 
-| Máy | Một lệnh cài hết |
+| Machine | One command installs everything |
 |---|---|
-| **Windows** | `powershell -ExecutionPolicy Bypass -File install.ps1` |
-| **Linux / macOS** | `chmod +x install.sh && ./install.sh` |
+| **Linux / macOS** | `git clone https://github.com/blogminhquy/javis-os.git javis && cd javis && chmod +x install.sh && ./install.sh` |
+| **Windows** | `git clone https://github.com/blogminhquy/javis-os.git javis; cd javis; powershell -ExecutionPolicy Bypass -File install.ps1` |
+| **Docker** | `curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.yml && docker compose up -d` |
 
-Lệnh đó cài trọn gói: Python + thư viện, **bốn bộ não CLI chạy bằng gói thuê bao bạn đang có** (`claude`, `codex`, `agy`, `grok`), `.env`, rồi bật server ở `http://localhost:7777`. Sau đó đăng nhập từng bộ não **ngay trong trang Models** của dashboard, không phải gõ lệnh nữa.
+Then open **http://localhost:7777**. The installer sets up Python, the four subscription CLI brains (`claude`, `codex`, `agy`, `grok`) and a `.env`, then starts the server. You sign in to each brain **on the Models page of the dashboard**, no more typing commands.
 
-> ⚠️ Cài thêm một CLI **sau khi** Javis đã chạy thì **khởi động lại Javis**. Tiến trình đang chạy giữ PATH của lúc nó bật, nên CLI vừa cài nó chưa thấy.
+> [!NOTE]
+> Installed an extra CLI **after** Javis was already running? **Restart Javis.** A running process keeps the PATH it started with, so it cannot see a CLI installed later.
 
 ---
 
-## Javis là gì?
+## 🤔 Why Javis?
 
-Javis OS **không phải** một chatbot. Nó là một **AI agentic tự host** chạy trên máy/VPS của bạn: đọc/ghi file, gọi công cụ (MCP), chạy skill, giao việc chạy nền, tự đặt lịch - rồi gói tất cả vào một **dashboard đẹp, điều khiển bằng giọng nói**, kèm một **Second Brain** (bộ nhớ + wiki) tích luỹ tri thức theo thời gian.
+Javis OS is **not** a chatbot. It is a **self-hosted agentic AI** that runs on your own machine or VPS: it reads and writes files, calls tools over MCP, runs skills, queues background work and schedules itself. All of that sits behind a **voice-controlled dashboard** with a **Second Brain** (memory + wiki) that accumulates knowledge over time.
 
-**Bộ não thì bạn chọn, và đổi lúc nào cũng được.** Mười đường dùng được ngay: **Claude Code**, **ChatGPT/Codex**, **Grok Build** và **Antigravity CLI** (dùng chính gói subscription bạn đang trả, không cần mua API riêng), **OpenRouter · OpenAI API · Google Gemini · Anthropic API · Groq · Ollama Cloud** (chỉ cần API key).
-
-> ⚠️ **Đọc trước khi cho gói subscription chạy việc nền.** Anthropic chỉ tính gói Claude Pro/Max cho việc dùng **cá nhân, thông thường** của Claude Code. Chạy nền liên tục (loop, nhắc hẹn, việc Kanban, chatbot), chạy trên VPS, hoặc nhiều người dùng chung một tài khoản đều nằm ngoài phạm vi đó, và đã có người **bị khoá tài khoản** vì lý do này. Javis không tự đọc token đăng nhập của bạn (đường đó đã gỡ ở 0.26.17) - nó chạy qua đúng binary `claude`, nhưng như vậy vẫn không làm việc chạy nền 24/7 trở thành hợp lệ. Muốn yên tâm: ở trang **Models**, đặt Claude Code chạy bằng **API key**, hoặc trỏ **model việc nền** sang một provider khác. Xem `server/claude_auth.py`.
-
-> Triết lý: **năng lực nằm ở Javis, không nằm ở model.** Mọi bộ não đều được cấp cùng bộ đồ nghề qua trung tâm kết nối (MCP Hub) chung - MCP đã đấu, tool đọc/ghi brain, skill, việc Kanban, agent/workflow/loop/nhắc hẹn. Khác biệt duy nhất: hai engine CLI chạy thêm được **lệnh máy**. Đổi từ Claude sang Gemini không làm Javis mất chức năng nào ngoài chuyện đó.
-
-Bạn đấu các **kết nối** của riêng mình vào (bán hàng/POS, quảng cáo, lịch, email, Zalo, ghi chú…) → Javis tự phát hiện và **báo cáo kinh doanh + cuộc sống** bằng số liệu thật, nói chuyện như người.
-
-### Vì sao Javis khác biệt
-
-| | Chatbot thường | **Javis OS** |
+| | An ordinary chatbot | **Javis OS** |
 |---|---|---|
-| Bộ não | Khoá cứng 1 model, API gọi rời từng câu | **Đổi được**: 12 nhà cung cấp, cái nào cũng đủ tool, MCP, skill, session - kể cả model chạy ngay trên máy bạn qua Ollama |
-| Trí nhớ | Quên sau mỗi phiên | **Second Brain sống** - nhớ bạn, dày lên qua từng hội thoại |
-| Dữ liệu | Bịa hoặc không có | **Số liệu thật** từ kết nối bạn đấu vào (POS, Ads, Lịch, Zalo…) |
-| Tự cải thiện | Không | **Vòng lặp tự chạy nền** + hàng đợi việc do AI tự vận hành |
-| Giao diện | Khung chat | Dashboard + đồ thị tri thức + **giọng nói rảnh tay** + Telegram |
-| Triển khai | Khoá vào 1 nhà cung cấp | **Tự host**: Hostinger 1-click / Docker / VPS bất kỳ |
+| **Brain** | Locked to one model, one stateless API call per message | **Swappable**: 12 providers, each with the full set of tools, MCP, skills and sessions, including models running on your own machine through Ollama |
+| **Memory** | Forgets after every session | **A living Second Brain** that remembers you and thickens with every conversation |
+| **Data** | Made up, or absent | **Real numbers** from the connections you wire in (sales, ads, calendar, email, messaging) |
+| **Work** | Answers, then waits | **Background loops, reminders and an AI-run task queue** that report back to you |
+| **Interface** | A chat box | Dashboard + knowledge graph + **hands-free voice** + Telegram + a CLI |
+| **Deployment** | Someone else's cloud | **Self-hosted**: one-click Hostinger, Docker, or any VPS |
 
-> 💡 **Triết lý:** Javis *biên dịch một lần* tri thức từ ghi chú thô → Wiki, rồi *duy trì* nó sống cùng mỗi nguồn mới. Tri thức **tích luỹ**, không tái phát hiện mỗi lần.
-
----
-
-## ✨ Tính năng nổi bật
-
-- 🎙️ **Trò chuyện bằng giọng nói rảnh tay** - nói, Javis nghe và trả lời bằng giọng. Chọn được nhà cung cấp giọng đọc: Edge TTS (miễn phí, mặc định), OpenAI hoặc ElevenLabs.
-- 🌌 **Đồ thị tri thức** - bộ não của bạn hiện ra thành mạng note nối nhau qua `[[wikilink]]`, bằng canvas nhẹ và chạy được ngoại tuyến.
-- 💬 **Phiên hội thoại** - lưu / mở lại / **tìm kiếm toàn văn** mọi cuộc trò chuyện cũ; phiên dài được nén tóm tắt thay vì cắt cụt trí nhớ.
-- 🗂️ **Quản lý tệp tin** - duyệt, **sửa file `.md`/`.txt` trực tiếp** trong trình duyệt, tìm file theo tên hoặc theo nội dung, tải lên/về.
-- 🧩 **Skills** - gom nhóm, tìm kiếm, **bật/tắt từng skill**, thêm/sửa/xoá, nhập/xuất gói; Javis tự xếp skill mới vào đúng nhóm.
-- 🧰 **Plugins** - thả một thư mục Python vào là có thêm **tool/hook native** cho MỌI engine, không phải sửa lõi.
-- 🤖 **Agents & Workflows** - tạo trợ lý chuyên biệt (có bộ nhớ riêng) + chuỗi tự động nhiều bước, có bước kiểm chứng.
-- ♻️ **Việc định kỳ & nhắc hẹn** - nhiều vòng lặp chạy nền song song, mỗi vòng làm đúng một việc bạn mô tả rồi tự kiểm chứng; kèm nhắc hẹn theo giờ cố định hoặc cron.
-- 🗃️ **Việc (Kanban)** - giao một "goal" bằng lời, AI tự đặc tả, chọn worker, chạy nền và chỉ gọi bạn khi có ngoại lệ.
-- 🧠 **Tự học** - sau mỗi hội thoại Javis tự rút ký ức, đúc tri thức Wiki và kỹ năng; mỗi lần học là một commit git nên **hoàn tác được một chạm**.
-- 🔌 **Kho kết nối đa tài khoản** - Pancake POS, Zalo, Meta/Google/TikTok Ads, Google Workspace, Slack, Webcake, Substack… nhiều tài khoản cùng một dịch vụ, mỗi tài khoản một mức quyền riêng, Javis **chặn cứng** thao tác vượt quyền.
-- 📱 **Telegram & Zalo** - hỏi Javis qua Telegram; đọc, tìm lịch sử và gửi tin Zalo bằng MCP chuẩn của `zalo-agent-cli`.
-- 🎨 **Tạo ảnh** bằng chính gói ChatGPT đã đăng nhập, không cần API key riêng.
-- 📊 **Mức dùng** - Javis tự đo token vào/ra và chi phí theo ngày, theo nhà cung cấp, tách rõ phần bạn gõ tay với phần Javis tự chạy nền.
-- ⇅ **Sao lưu brain lên GitHub** - đồng bộ 2 chiều mọi brain lên một repo riêng tư, dùng chung giữa máy nhà và VPS.
-- 🔄 **Đa engine, đổi không mất chức năng** - Claude Code, ChatGPT (Codex), OpenRouter, OpenAI API, Google Gemini, Anthropic API, Groq. Đổi trong **Models** một cú bấm; bộ não nào cũng gọi được MCP Javis, tool file brain và skill.
-- 🔐 **An toàn khi lên VPS** - tự bắt buộc đăng nhập khi chạy public, chống chiếm tài khoản, rate-limit, chặn CSRF, mã hoá khoá bí mật trong cấu hình.
+> 💡 **The philosophy: capability lives in Javis, not in the model.** Every brain gets the same toolbox through one shared connection hub (the MCP Hub). Switching from Claude to Gemini costs you nothing except shell access, which only the CLI engines have.
 
 ---
 
-## 🚀 Cài đặt
+## 🧠 12 brains, one toolkit
 
-> ⚠️ **Quan trọng về bảo mật:** Javis chạy bộ não AI với **toàn quyền** trên máy. Khi chạy public (Docker/VPS/Hostinger), Javis **tự bắt buộc đăng nhập** - mở app ra là màn tạo tài khoản / đăng nhập, không ai điều khiển được khi chưa có mật khẩu.
+Pick the brain on the **Models** page and change it whenever you like. Javis supports **12 providers** today.
 
-### Cách 1 - Hostinger Docker Manager (tên miền + HTTPS) ⚡
+| Brain | How you pay | Shell, web, sub-agents |
+|---|---|---|
+| **Claude Code** | Your Claude plan, or an Anthropic API key | ✅ |
+| **ChatGPT** (via Codex) | Your ChatGPT plan | ✅ |
+| **Grok Build** | Your SuperGrok or X Premium+ plan | ✅ |
+| **Antigravity CLI** | Your Google plan (same lineup as the Antigravity IDE, Claude included) | Shell ✅ |
+| **OpenRouter** | API key (hundreds of models behind one key) | via Javis tools |
+| **OpenAI API** · **Anthropic API** · **Google Gemini** · **Groq** | API key | via Javis tools |
+| **Ollama Cloud** · **Ollama on this machine** | API key, or free on your own hardware | via Javis tools |
+| **Any OpenAI-compatible endpoint** | Whatever that endpoint needs | via Javis tools |
 
-VPS Hostinger → **Docker Manager → Compose → URL** → dán **file Hostinger** rồi **Deploy**:
+Every brain can call your connected MCP servers, read and write the brain, run skills, queue Kanban work, and create agents, workflows, loops and reminders. The CLI engines additionally run **shell commands**, **fetch and search the web**, and **spawn parallel sub-agents**.
+
+> [!WARNING]
+> **Read this before letting a subscription run background work.** Anthropic scopes Claude Pro/Max to **ordinary personal use** of Claude Code. Continuous background execution (loops, reminders, Kanban jobs, chatbots), running on a VPS, or several people sharing one account all fall outside that scope, and accounts **have been suspended** over it. Javis never reads your login token: it runs the real `claude` binary, but that does not make round-the-clock background use legitimate. To be safe, set Claude Code to run on an **API key** on the Models page, or point the **background-work model** at another provider. The same caution applies to the xAI plan. See `server/claude_auth.py`.
+
+---
+
+## ✨ Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🗣️ Talk to it
+- **Hands-free voice**: speak, Javis listens and answers out loud (Edge TTS free by default, or OpenAI and ElevenLabs).
+- **Chat sessions** you can save, reopen and full-text search. Long sessions are compacted into summaries instead of being cut off.
+- **Telegram, a CLI and a web dashboard**, all talking to the same Javis.
+- **Any language**: Javis replies in the language you write in. The interface ships in English and Vietnamese.
+
+### 🧠 Remember everything
+- **Second Brain**: a markdown vault (Obsidian-compatible) with long-term memory, a Wiki and raw Sources.
+- **Knowledge graph** of your notes joined by `[[wikilink]]`, on a light canvas that works offline.
+- **Self-learning**: after each conversation Javis distils memories, wiki knowledge and skills. Every learning pass is a git commit, so it is **one-tap undoable**.
+- **Back up to GitHub**: two-way sync of every brain to a private repo, shared between your laptop and your VPS.
+
+</td>
+<td width="50%" valign="top">
+
+### ⚙️ Work while you sleep
+- **Tasks (Kanban)**: hand over a goal in plain words. The AI writes the spec, picks a worker, runs it in the background and only calls you on exceptions.
+- **Loops and reminders**: background jobs on an interval, a clock time or a cron expression, each checking its own work.
+- **Agents and workflows**: specialist assistants with their own memory, chained into multi-step workflows with verification.
+- **Chatbots**: put an agent in front of your customers on its own Telegram or Zalo bot, with a shared inbox you can take over.
+
+### 🔌 Connect anything
+- **MCP connection store** with several accounts per service and three permission levels that Javis **hard-enforces**.
+- **Skills and plugins**: drop in a folder to add know-how (skill) or a native Python tool (plugin) for every engine.
+- **Image generation** on the ChatGPT plan you are already signed in to.
+- **Usage tracking**: tokens and cost per day, per provider, split between what you typed and what ran on its own.
+
+</td>
+</tr>
+</table>
+
+<div align="center">
+<img src="docs/assets/screenshots/tasks.jpg" alt="The Tasks page: dispatcher status, worker counts, dispatcher mode and the task queue" width="49%">
+<img src="docs/assets/screenshots/skills.jpg" alt="The Skills page: skills grouped by topic, each with a toggle, a description and its folder" width="49%">
+</div>
+
+---
+
+## 🏗️ How it works
+
+```mermaid
+flowchart LR
+    subgraph You
+        W[Web dashboard<br>voice + graph]
+        T[Telegram]
+        C[Javis CLI]
+        Z[Zalo / bot channels]
+    end
+    subgraph Javis["Javis OS (FastAPI, self-hosted)"]
+        R[Engine router]
+        H[MCP Hub<br>shared toolbox]
+        B[(Second Brain<br>Memory + Wiki + Sources)]
+        Q[Background work<br>Tasks, loops, reminders]
+    end
+    subgraph Brains
+        S[Subscription CLIs<br>Claude Code, Codex, Grok, Antigravity]
+        A[API engines<br>OpenRouter, OpenAI, Anthropic, Gemini, Groq, Ollama]
+    end
+    W & T & C & Z --> R
+    R --> S & A
+    S & A --> H
+    H --> B
+    H --> M[Your MCP servers<br>sales, ads, calendar, email...]
+    Q --> R
+```
+
+- **Backend:** Python FastAPI in `server/`: engines (`claude_sdk_engine.py`, `claude_cli.py`, `antigravity_cli.py`, `engine.py`, `aux_engine.py`), tools (`mcp_hub.py`, `mcp_store.py`, `plugins_host.py`), background work (`tasks.py`, `self_improve.py`, `reminders.py`, `learn.py`), language and locale (`lang.py`, `lang_registry.py`, `localefmt.py`).
+- **Frontend:** plain HTML/CSS/JS in `dashboard/`. No framework and no build step, so it stays light on a small VPS. Interface strings live in `dashboard/i18n/`.
+- **Second Brain:** a markdown vault in `brains/<brain name>/`.
+
+---
+
+## 🚀 Installation
+
+> [!IMPORTANT]
+> Javis runs an AI brain with **full rights** on the machine. When it runs publicly (Docker, VPS, Hostinger), Javis **forces login by itself**: opening the app shows a create-account or sign-in screen, and nobody can drive it without a password.
+
+<details open>
+<summary><b>Option 1: Hostinger Docker Manager (domain + HTTPS, one click)</b></summary>
+
+Hostinger VPS → **Docker Manager → Compose → URL** → paste the Hostinger file and press **Deploy**:
+
 ```
 https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.hostinger.yml
 ```
-Ô **Environment** của mẫu mới chỉ còn 3 trường cần thiết: `DOMAIN_NAME`,
-`JAVIS_ADMIN_USER`, `JAVIS_ADMIN_PASSWORD`, cộng một trường tuỳ chọn
-`JAVIS_AUTO_UPDATE` (đặt `true` là Javis tự cập nhật mỗi ngày, bỏ trống thì cập
-nhật bằng nút trong app). Các biến kỹ thuật về cổng, state, brain và thư mục chạy
-đã được ẩn vì Docker image tự đặt đúng.
 
-Đặt `DOMAIN_NAME` để Traefik của Hostinger cấp HTTPS:
-- **Link miễn phí** (không cần mua tên miền): `DOMAIN_NAME=javis.<hostname-vps>.hstgr.cloud`
-  (hostname xem ở hPanel → VPS, vd `javis.srv1562015.hstgr.cloud`).
-- **Tên miền riêng:** `DOMAIN_NAME=tenmien.com` + trỏ DNS A về IP VPS.
+The **Environment** box needs only three fields: `DOMAIN_NAME`, `JAVIS_ADMIN_USER`, `JAVIS_ADMIN_PASSWORD`, plus an optional `JAVIS_AUTO_UPDATE` (set it to `true` and Javis updates itself daily).
 
-Deploy → đợi 1-3 phút Traefik cấp SSL → mở `https://<DOMAIN_NAME>`. (Chi tiết + xử lý sự cố: [DEPLOY.md](DEPLOY.md).)
+Set `DOMAIN_NAME` so Hostinger's Traefik issues HTTPS:
+- **Free link** (no domain purchase): `DOMAIN_NAME=javis.<vps-hostname>.hstgr.cloud` (hostname under hPanel → VPS, e.g. `javis.srv1562015.hstgr.cloud`).
+- **Your own domain:** `DOMAIN_NAME=example.com` and point an A record at the VPS IP.
 
-> Chỉ muốn chạy nhanh bằng `http://<ip>:7777` (chưa cần tên miền): dùng `docker-compose.yml` (Cách 2).
+Wait 1-3 minutes for the certificate, then open `https://<DOMAIN_NAME>`.
 
-**3 việc làm 1 lần:**
-1. **Để image GHCR ở chế độ Public:** GitHub → repo → **Packages** → `javis-os` → *Package settings* → Visibility = **Public**.
-2. **Tạo tài khoản admin** (chọn 1):
-   - *Khuyến nghị:* điền sẵn `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` đang có trong ô Environment → mở app **đăng nhập luôn**.
-   - *Hoặc:* bỏ trống rồi mở app **ngay sau khi deploy** và tự đặt tên đăng nhập + mật khẩu (tối thiểu 8 ký tự). Lưu ý: khi chưa có admin, ai mở link trước sẽ tạo được tài khoản, nên đừng để trống lâu.
-   - Vào được rồi thì **bật 2FA** (xem [Bảo mật & tài khoản](docs/14-bao-mat-tai-khoan.md)).
-3. **Đăng nhập bộ não:** App terminal → `claude auth login --claudeai` → mở link, dán code. (Dùng gói ChatGPT thì đăng nhập ở trang **Models** sau khi mở app.)
+**Three one-time steps:**
+1. **Make the GHCR image Public:** GitHub → repo → **Packages** → `javis-os` → *Package settings* → Visibility = **Public**.
+2. **Create the admin account:** fill in `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` (recommended), or open the app right after deploying and set one yourself. While no admin exists, whoever opens the link first can create it. Then **turn on 2FA** ([Security and accounts](docs/en/14-security-and-accounts.md)).
+3. **Sign in to a brain** on the **Models** page.
 
-### Cách 2 - Docker trên VPS bất kỳ (pull image, không cần clone)
+Details and troubleshooting: [DEPLOY.en.md](DEPLOY.en.md).
+
+</details>
+
+<details>
+<summary><b>Option 2: Docker on any VPS (no clone needed)</b></summary>
 
 ```bash
-# Cần Docker (chưa có?  curl -fsSL https://get.docker.com | sh)
+# Docker required (don't have it?  curl -fsSL https://get.docker.com | sh)
 mkdir javis && cd javis
 curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.yml
 
-docker compose run --rm javis claude auth login --claudeai   # đăng nhập Claude 1 lần
-docker compose up -d                                          # pull image + chạy
+docker compose run --rm javis claude auth login --claudeai   # sign in to Claude once (optional)
+docker compose up -d                                          # pull the image and run
 ```
-Mở `http://<ip-vps>:7777` → màn tạo tài khoản admin: đặt tên đăng nhập + mật khẩu (tối thiểu 8 ký tự), làm ngay sau khi chạy vì ai mở link trước sẽ tạo được admin (hoặc đặt sẵn `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` trong env). Vào được rồi thì bật 2FA.
 
-### Cách 3 - Cài trực tiếp lên Linux/macOS (không Docker)
+Open `http://<vps-ip>:7777` and set the admin username and password right away (at least 8 characters), or preset `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` in the environment. Then turn on 2FA.
+
+Remote access without a domain: `docker compose --profile tunnel up -d`, then `docker compose logs tunnel | grep trycloudflare` prints an HTTPS link.
+
+</details>
+
+<details>
+<summary><b>Option 3: Linux or macOS, no Docker</b></summary>
 
 ```bash
 git clone https://github.com/blogminhquy/javis-os.git javis && cd javis
 chmod +x install.sh && ./install.sh
 ```
-Script tự cài Python + Node + hai engine CLI (Claude Code, Codex), tạo venv, đăng ký dịch vụ systemd tự chạy khi boot, in ra địa chỉ. Báo Claude chưa đăng nhập thì chạy 1 lần: `claude auth login --claudeai`.
 
-> 🍎 **macOS - mở như một app:** sau khi cài xong, double-click `JAVIS OS.app` (hoặc `Start JAVIS OS.command`) để chạy server + mở dashboard; tự chạy khi đăng nhập máy: `./bin/javis-autostart.sh install`. Chi tiết: [bin/README.md](bin/README.md).
+The script installs Python, Node and the CLI brains, creates a venv, registers a service that starts at boot, and prints the address.
 
-### Cách 4 - Windows (máy cá nhân)
+🍎 **macOS, open it like an app:** double-click `JAVIS OS.app` (or `Start JAVIS OS.command`). Start at login: `./bin/javis-autostart.sh install`. Details: [bin/README.md](bin/README.md).
 
-**Một lệnh, cài hết:**
+</details>
+
+<details>
+<summary><b>Option 4: Windows (personal machine)</b></summary>
 
 ```powershell
 git clone https://github.com/blogminhquy/javis-os.git javis; cd javis
 powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
-`install.ps1` làm trọn một lượt: Python + venv + thư viện, rồi **cả bốn bộ não CLI chạy bằng gói thuê bao** (`claude`, `codex`, `agy`, `grok`), tạo `.env`, giải phóng port 7777 và bật server. Cuối cùng nó in một bảng cho biết bộ não nào đã sẵn sàng. Đăng nhập từng bộ não ngay trong **trang Models** của dashboard, không cần gõ lệnh.
-
-Không có `winget` để tự cài Python/Node thì cài tay trước: Python 3.12 (tick "Add python.exe to PATH") và Node.js LTS, rồi chạy lại.
+`install.ps1` does it all in one pass: Python, venv and libraries, the four subscription CLI brains (`claude`, `codex`, `agy`, `grok`), the `.env`, freeing port 7777 and starting the server. It ends with a table of which brains are ready. Without `winget`, install Python 3.12 (tick "Add python.exe to PATH") and Node.js LTS by hand first, then run it again.
 
 ```
-Chạy hiện cửa sổ (xem log trực tiếp):  setup.bat
-Chạy ngầm từ lần sau:                  start-javis.vbs   (log ở server\javis.log)
-Dừng:                                  stop-javis.bat
-Mở dashboard:                          http://localhost:7777
+Run with a visible window (live log):  setup.bat
+Run silently from then on:             start-javis.vbs   (log at server\javis.log)
+Stop:                                  stop-javis.bat
+Dashboard:                             http://localhost:7777
 ```
 
-> ⚠️ **Cài thêm một CLI sau khi Javis đang chạy thì phải khởi động lại Javis** (`stop-javis.bat` rồi `start-javis.vbs`). Tiến trình đang chạy giữ PATH của lúc nó bật, nên CLI vừa cài nó không thấy - trang Models sẽ vẫn báo "CLI chưa cài" cho một CLI đã nằm sẵn trên ổ đĩa.
+🪟 **Open it like an app:** after the first run, double-click **`JAVIS OS.bat`**. The server starts in the background and the dashboard opens in **its own window** with its own taskbar entry. Start at login: `javis-autostart.bat install` (remove: `uninstall`).
 
-> 🪟 **Windows - mở như một app:** sau khi `setup.bat` chạy xong lần đầu, từ đó về sau chỉ cần double-click **`JAVIS OS.bat`** - server tự chạy nền (không cửa sổ đen) rồi dashboard tự mở thành **cửa sổ riêng** không thanh địa chỉ, có ô riêng trên taskbar. Tự chạy khi đăng nhập máy: `javis-autostart.bat install` (gỡ: `uninstall`).
+</details>
 
-### Nhiều bản Javis trên cùng một VPS (mỗi bản một link riêng)
+<details>
+<summary><b>Several Javis instances on one VPS</b></summary>
 
-Chạy được bao nhiêu bản cũng được - brain, cài đặt và tài khoản của mỗi bản tách bạch hoàn toàn.
-Chỉ cần ba giá trị khác nhau giữa các bản: `JAVIS_NAME`, `JAVIS_HOST_PORT`, `DOMAIN_NAME`.
+Brains, settings and accounts stay fully separate per instance. Only three values differ between them: `JAVIS_NAME`, `JAVIS_HOST_PORT`, `DOMAIN_NAME`.
 
-- **Hostinger:** deploy `docker-compose.hostinger.yml` thành stack thứ hai, điền ba ô đó.
-- **VPS tự quản:** chạy proxy dùng chung `docker-compose.proxy.yml` **một lần cho cả máy**, rồi
-  mỗi bản một thư mục riêng dùng kèm `docker-compose.multi.yml`. Proxy tự phát hiện bản mới,
-  tự xin SSL - thêm bản không phải sửa gì ở proxy.
+- **Hostinger:** deploy `docker-compose.hostinger.yml` again as a second stack and fill in those three fields.
+- **Self-managed VPS:** run the shared proxy `docker-compose.proxy.yml` once for the whole machine, then give each instance its own folder with `docker-compose.multi.yml`. The proxy discovers new instances and requests SSL by itself.
 - **Native:** `JAVIS_NAME=javis-shop JAVIS_PORT=7778 ./install.sh`.
 
-Bỏ trống các biến = y hệt cách cài cũ. Từng bước một: **[DEPLOY.md](DEPLOY.md)**.
+Step by step: [DEPLOY.en.md](DEPLOY.en.md).
 
-📄 Chi tiết hơn (named tunnel URL cố định, build từ source…) xem **[DEPLOY.md](DEPLOY.md)**.
+</details>
 
----
+### 🎬 First run
 
-## 🎬 Thiết lập lần đầu
+Open Javis and the setup wizard walks you through it, in your browser's language:
 
-Mở Javis → bộ cài đặt sẽ dẫn bạn qua:
-
-1. **Tài khoản admin** - đặt mật khẩu (bắt buộc khi chạy public, để chặn người lạ).
-2. **Chọn bộ não** - đi bằng gói subscription thì đăng nhập 1 lần, không cần API key: Claude Code lưu token trong `~/.claude` (Docker: volume riêng → không mất khi update), ChatGPT/Codex đăng nhập ngay trong trang **Models**. Đi bằng API key thì chỉ dán key OpenRouter / OpenAI / Gemini / Anthropic là xong. Ở thẻ Claude Code còn một ô **"Chạy bằng"**: giữ gói đang đăng nhập, hoặc chuyển sang API key Anthropic - hai lựa chọn giữ nguyên năng lực, chỉ khác ai trả tiền và ai chịu rủi ro (xem cảnh báo ở trên).
-3. **Chọn model** - mặc định chọn sẵn Claude Code, nhưng đổi sang nhà cung cấp nào trong **Models** cũng được và **không mất chức năng nào** (trừ chạy lệnh máy, vốn chỉ có ở hai engine CLI).
-4. **Đấu kết nối** (tuỳ chọn) - vào **Kết nối**, chọn dịch vụ trong Kho rồi dán key hoặc quét QR. Javis sẽ báo cáo số liệu thật từ đó.
+1. **Admin account**: required when running publicly, to keep strangers out.
+2. **Pick a brain**: sign in once with a subscription, or paste an API key. The Claude Code card has a **"Runs on"** switch between your signed-in plan and an Anthropic API key.
+3. **Pick a model**: switching providers later loses no features (except shell commands, which only the CLI engines have).
+4. **Wire up connections** (optional): open **Connections**, pick a service and paste a key or scan a QR code. Javis then reports on real numbers from it.
 
 ---
 
-## 📖 Hướng dẫn sử dụng
+## 📖 Using Javis
 
-> 📚 **Tài liệu chi tiết:** xem thư mục **[docs/](docs/README.md)** - hướng dẫn từng chức năng (mở ở đâu, bấm gì, dùng thế nào). Bảng dưới là bản đồ nhanh; cột **Chi tiết** dẫn tới trang hướng dẫn tương ứng.
+The left rail groups the pages into **6 groups**. Every page has a guide in [docs/en/](docs/en/README.md).
 
-Thanh điều hướng bên trái gom **22 trang** thành **6 nhóm** (bấm tên nhóm để mở):
-
-| Nhóm | Mục | Làm gì | Chi tiết |
-|---|---|---|---|
-| **Bộ não** | **Đồ thị** | Màn chính khi mở app: đồ thị tri thức, trò chuyện (gõ hoặc nói), cây thư mục brain bên trái. | [Trò chuyện & giọng nói](docs/02-tro-chuyen-va-giong-noi.md) · [Đồ thị tri thức](docs/03-do-thi-tri-thuc.md) |
-| | **Trò chuyện** | Khung chat rộng toàn màn hình kèm cột lịch sử hội thoại. | [Phiên hội thoại](docs/04-phien-hoi-thoai.md) |
-| | **Tệp tin** | Duyệt brain, **sửa `.md`/`.txt` trực tiếp**, tìm file theo tên/nội dung, tải lên/về. | [Quản lý tệp tin](docs/05-quan-ly-tep-tin.md) |
-| | **Tự học** | Javis tự rút ký ức, đúc Wiki, kỹ năng sau mỗi hội thoại; hoàn tác được. | [Tự học](docs/22-tu-hoc.md) |
-| **Code** | **Terminal** | **Dòng lệnh thật** của máy chạy Javis, mở ngay trong trình duyệt - khỏi mở SSH. | [Nhóm Code: Terminal](docs/27-tab-code-terminal.md) |
-| **Năng lực** | **Agents** | Tạo trợ lý chuyên biệt (vai trò + skill + bộ nhớ riêng). | [Agents & Workflows](docs/07-agents-va-workflows.md) |
-| | **Skills** | Gom nhóm + tìm kiếm + **bật/tắt** + thêm/sửa/xoá + nhập/xuất skill. | [Skills](docs/06-skills.md) |
-| | **Workflows** | Tạo/chạy chuỗi tự động (agent → agent), có bước kiểm chứng. | [Agents & Workflows](docs/07-agents-va-workflows.md) |
-| | **Plugins** | Thêm tool/hook native cho mọi engine bằng một thư mục Python. | [Plugins](docs/20-plugins.md) |
-| | **Chatbot** | Đem Agent ra trả lời khách qua bot Telegram/Zalo riêng, brain riêng. | [Chatbot](docs/25-chatbot.md) |
-| | **Hội thoại** | Hộp thư gom mọi cuộc chat khách nhắn cho bot và Zalo cá nhân; đọc lại, tiếp quản khi cần người thật. | [Hội thoại khách](docs/28-hoi-thoai-khach.md) |
-| **Việc** | **Việc** | Hàng đợi task nền do AI tự đặc tả và tự chạy; bạn chỉ xử lý ngoại lệ. | [Việc (Kanban)](docs/21-viec-kanban.md) |
-| | **Việc định kỳ** | Nhiều vòng lặp chạy nền + nhắc hẹn theo giờ hoặc cron. | [Việc định kỳ & Nhắc hẹn](docs/08-viec-dinh-ky.md) |
-| **Kết nối** | **Kết nối** | Kho dịch vụ ngoài, đa tài khoản cùng một dịch vụ, phân quyền 3 mức. | [Kết nối & số liệu](docs/09-mcp-va-so-lieu.md) |
-| | **Kênh** | Bật bot Telegram (hỏi Javis qua điện thoại). | [Kênh Telegram](docs/11-telegram.md) · [Kênh Zalo](docs/12-zalo.md) |
-| | *(terminal)* | `pip install javis-cli` rồi gõ `javis "..."` - kênh thứ ba, cùng một Javis. | [Javis CLI](docs/24-cli-terminal.md) |
-| | **Models** | Main model + các provider + mức suy nghĩ + model việc nền. | [Models & engine](docs/10-models-va-engine.md) |
-| **Hệ thống** | **Mức dùng** | Token và chi phí theo ngày, theo nhà cung cấp, theo nguồn phát sinh. | [Mức dùng](docs/23-muc-dung-token.md) |
-| | **Cài đặt** | Trạng thái hệ thống, giao diện & brain, giọng nói, thương hiệu, tên miền. | [Bắt đầu & thiết lập](docs/01-bat-dau-thiet-lap.md) |
-| | **Linh vật** | Hình dáng, bảng màu và bật tắt con pet nép ở mép màn hình. | [Bắt đầu & thiết lập](docs/01-bat-dau-thiet-lap.md) |
-| | **Cập nhật** | Phiên bản hiện tại, cập nhật/Redeploy, tiến trình và nhật ký tính năng mới. | [Khắc phục sự cố](docs/17-khac-phuc-su-co.md) |
-| | **Tài khoản** | Workspace, đăng nhập/đăng xuất, đổi/tắt mật khẩu, token API cho CLI. | [Bảo mật & tài khoản](docs/14-bao-mat-tai-khoan.md) · [Javis CLI](docs/24-cli-terminal.md) |
-
-**Mục lục đầy đủ (27 trang):** [docs/README.md](docs/README.md) - gồm thêm [Second Brain: bộ nhớ / Wiki / INGEST](docs/13-second-brain-bo-nho-wiki.md), [Sao lưu brain lên GitHub](docs/18-sao-luu-github.md), [Task & Dataview trong note](docs/19-task-va-dataview.md), [Thương hiệu & tên miền riêng](docs/15-thuong-hieu-ten-mien.md), [Cấu hình .env](docs/16-cau-hinh-env.md).
-
-### Vài luồng hay dùng
-
-- **Hỏi số liệu:** *"Doanh thu hôm nay thế nào? So với hôm qua?"* → Javis gọi đúng kết nối, trả số thật + đề xuất.
-- **Tiêu hoá tri thức (INGEST):** thả file/ghi chú vào → Javis tóm tắt, rút insight, viết vào Wiki, gợi ý task.
-- **Giao việc nền:** vào **Việc** → **+ Giao goal** → mô tả bằng lời (vd *"tổng hợp bán hàng tuần này, tìm hàng bán chậm, soạn 3 caption đẩy hàng"*) → AI tự đặc tả và chạy, báo kết quả về Telegram.
-- **Việc định kỳ:** vào **Việc định kỳ** → **+ Thêm việc** → chọn *Việc lặp* (mỗi N phút) hoặc *Nhắc hẹn* (8h30 mỗi ngày).
-- **Giọng nói:** bấm mic (hoặc bật rảnh tay) → nói → Javis trả lời bằng giọng.
-
----
-
-## ⚙️ Cấu hình (`.env`)
-
-Mọi dòng để trống vẫn chạy được. Sao chép `env.example` → `.env` rồi thêm biến bạn cần.
-
-File mẫu cố ý **chỉ có dòng `TÊN=giá trị`, không một dòng chú thích nào**: các nền tảng deploy (Docker Manager của Hostinger chẳng hạn) tự quét file cấu hình trong repo rồi cắt mọi dòng có dấu `=` thành một biến, nên một dòng chú thích thành một biến tên `#` và cả bảng Environment đỏ lên. **Danh sách đầy đủ kèm giải thích từng biến: [docs/16-cau-hinh-env.md](docs/16-cau-hinh-env.md).**
-
-| Biến | Ý nghĩa | Mặc định |
+| Group | Pages | Guides |
 |---|---|---|
-| `JAVIS_HOST` | Địa chỉ nghe. `127.0.0.1`=chỉ máy này; `0.0.0.0`=public | `127.0.0.1` |
-| `JAVIS_PORT` | Cổng | `7777` |
-| `JAVIS_REQUIRE_LOGIN` | `1`/`0` ép bật/tắt bắt buộc đăng nhập (mặc định: bật khi bind public) | *(auto)* |
-| `JAVIS_ADMIN_USER` / `JAVIS_ADMIN_PASSWORD` | Tạo sẵn admin lúc deploy (khuyến nghị khi chạy public) | - |
-| `JAVIS_ALLOWED_HOSTS` | Thêm hostname vào danh sách cho phép (chống CSRF / DNS-rebinding) | localhost + tên miền đã đặt |
-| `JAVIS_SECURE_COOKIE` | Ép cookie `Secure`. Chỉ bật khi chắc chắn HTTPS đầu-cuối | *(auto theo tên miền)* |
-| `JAVIS_STATE_DIR` | Nơi ghi state (settings, sessions, khoá mã hoá, cấu hình việc định kỳ) | `server/` (Docker: `/data/state`) |
-| `BRAINS_DIR` | Thư mục CHA chứa mọi brain | `brains/` (Docker: `/brains`) |
-| `OBSIDIAN_VAULT_PATH` | Vault Second Brain ngoài (nếu bạn đã có vault sẵn) | `vault/` (Docker: `/data/vault`) |
-| `CLAUDE_CWD` | Thư mục dự phòng của bộ não Claude (chat chạy trong thư mục brain) | repo root |
-| `JAVIS_ENABLE_USER_PLUGINS` | `true` mới cho phép chạy plugin do bạn cài (code Python thật trong server) | *(tắt)* |
-| `WATCHTOWER_TOKEN` | Token cho nút "Cập nhật ngay" trên bản Docker | `javis-update` |
-| `TTS_VOICE` / `TTS_RATE` | Giọng đọc + tốc độ (Edge TTS) | `en-US-EmmaMultilingualNeural` / `+5%` |
+| **Brain** | Graph, Chat, Files, Self-learning | [Chat and voice](docs/en/02-chat-and-voice.md) · [Knowledge graph](docs/en/03-knowledge-graph.md) · [Sessions](docs/en/04-sessions.md) · [File manager](docs/en/05-file-manager.md) · [Self-learning](docs/en/22-self-learning.md) |
+| **Code** | Terminal, Coding | [Code terminal](docs/en/27-code-terminal.md) |
+| **Capabilities** | Partners (agents and workflows), Chatbot, Skills, Plugins | [Agents and workflows](docs/en/07-agents-and-workflows.md) · [Chatbots](docs/en/25-chatbots.md) · [Customer conversations](docs/en/28-customer-conversations.md) · [Skills](docs/en/06-skills.md) · [Plugins](docs/en/20-plugins.md) |
+| **Work** | Tasks, Scheduled | [Tasks (Kanban)](docs/en/21-kanban-work.md) · [Recurring jobs and reminders](docs/en/08-recurring-jobs.md) |
+| **Connections** | Connections, Javis Store, Channels, Models | [Connections and business data](docs/en/09-connections-and-business-data.md) · [Telegram](docs/en/11-telegram.md) · [Zalo](docs/en/12-zalo-agent-mcp.md) · [Models and engines](docs/en/10-models-and-engines.md) |
+| **System** | Settings, Share links, Account | [Getting started](docs/en/01-getting-started.md) · [Security and accounts](docs/en/14-security-and-accounts.md) · [Usage and cost](docs/en/23-usage-and-cost.md) · [Javis CLI](docs/en/24-cli.md) |
 
-Danh sách đầy đủ mọi biến: [docs/16 - Cấu hình .env](docs/16-cau-hinh-env.md).
+More: [Second Brain: memory, Wiki and INGEST](docs/en/13-second-brain.md) · [GitHub backup](docs/en/18-github-backup.md) · [Tasks and Dataview in notes](docs/en/19-tasks-and-dataview.md) · [Branding and custom domains](docs/en/15-branding-and-domains.md) · [Troubleshooting](docs/en/17-troubleshooting.md)
 
----
+### A few things to try
 
-## 🔐 Bảo mật
+- **Ask for numbers:** *"How is revenue today compared with yesterday?"* Javis calls the right connection and answers with real figures plus suggestions.
+- **Digest knowledge:** drop in a file or a note. Javis summarises it, extracts insight, writes it into the Wiki and proposes tasks.
+- **Hand over background work:** **Tasks** → **+ Assign goal** → *"summarise this week's sales, find slow-moving stock, draft three captions to push it"*. The AI specs it, runs it and reports back.
+- **Schedule something:** *"remind me every weekday at 8:30 to check the ads budget"*, in chat or on the **Scheduled** page.
+- **Use your voice:** press the mic (or turn on hands-free), speak, and Javis answers out loud.
 
-- Khi chạy public, **bắt buộc đăng nhập** trước khi dùng bất kỳ chức năng nào (bộ não chạy full quyền trên máy).
-- Màn chạy lần đầu chỉ hỏi tên đăng nhập + mật khẩu. Trên server public, **ai mở link trước khi có admin sẽ tạo được admin** → đặt sẵn admin qua env (`JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD`) hoặc tạo tài khoản ngay sau khi deploy, rồi **bật 2FA** (TOTP).
-- **Rate-limit** đăng nhập (khoá tạm sau nhiều lần sai), mật khẩu ≥ 8 ký tự, cookie `secure` khi HTTPS, session hết hạn 30 ngày.
-- **Chặn CSRF và DNS-rebinding**: mọi request ghi có Origin lạ đều bị từ chối.
-- **Khoá bí mật được mã hoá** trong `settings.json` (API key, token OAuth, token bot Telegram, token backup) bằng khoá riêng của máy ở `JAVIS_STATE_DIR/.secret_key`.
-- **Plugin do bạn cài mặc định bị chặn** - phải tự bật `JAVIS_ENABLE_USER_PLUGINS=true` vì chúng chạy code Python thật trong tiến trình server.
-- Truy cập từ xa nên qua **HTTPS** (Hostinger `*.hstgr.cloud` hoặc Cloudflare Tunnel) - đừng phơi cổng thô.
+<div align="center">
+<img src="docs/assets/screenshots/mobile.jpg" alt="Javis OS on a phone: the knowledge graph on top, the conversation below and the chat bar at the bottom" width="300">
+<br><sub>Works on your phone too: add it to the home screen and it opens like an app.</sub>
+</div>
 
 ---
 
-## 🔄 Cập nhật
+## ⚙️ Configuration (`.env`)
 
-```bash
-# Trên máy bạn (sau khi sửa code): đẩy lên GitHub
-git add -A && git commit -m "..." && git push     # → CI tự build image mới lên GHCR
+Every line can stay empty and Javis still runs. Copy `env.example` → `.env` and add what you need. The full list with an explanation per variable is in [docs/en/16-env-configuration.md](docs/en/16-env-configuration.md).
 
-# Trên VPS: kéo bản mới
-cd javis && ./update.sh          # tự pull image + restart (dữ liệu trong volume KHÔNG mất)
-```
-
-Trong app: mở **Cập nhật** (nhóm Hệ thống) → **⬆ Cập nhật ngay** nếu môi trường hỗ trợ, có thanh tiến trình và nút lùi bản khi bản mới hỏng.
-
-## 🌐 Truy cập từ xa (VPS không phải Hostinger)
-
-```bash
-docker compose --profile tunnel up -d
-docker compose logs tunnel | grep trycloudflare   # → URL https://xxx.trycloudflare.com
-```
+| Variable | Meaning | Default |
+|---|---|---|
+| `JAVIS_HOST` | Listen address. `127.0.0.1` = this machine only, `0.0.0.0` = public | `127.0.0.1` |
+| `JAVIS_PORT` | Port | `7777` |
+| `JAVIS_REQUIRE_LOGIN` | `1`/`0` to force login on or off (default: on when bound publicly) | *(auto)* |
+| `JAVIS_ADMIN_USER` / `JAVIS_ADMIN_PASSWORD` | Create the admin at deploy time | - |
+| `JAVIS_ALLOWED_HOSTS` | Extra hostnames on the allow-list (CSRF and DNS-rebinding protection) | localhost + your domain |
+| `JAVIS_STATE_DIR` | Where settings, sessions and the encryption key live | `server/` (Docker: `/data/state`) |
+| `BRAINS_DIR` | Parent folder holding every brain | `brains/` (Docker: `/brains`) |
+| `JAVIS_ENABLE_USER_PLUGINS` | `true` lets your own plugins run (real Python inside the server) | *(off)* |
+| `TTS_VOICE` / `TTS_RATE` | Voice and speed for Edge TTS | `en-US-EmmaMultilingualNeural` / `+5%` |
 
 ---
 
-## 🏗️ Kiến trúc
+## 🔐 Security
 
-```
-Trình duyệt (voice + đồ thị) ─┐                        ┌→ Claude Agent SDK   (gói Claude)
-Telegram ─────────────────────┤→ FastAPI (server/) ────┼→ Codex CLI          (gói ChatGPT)
-Zalo Agent MCP ──────────────┤          │             └→ OpenRouter / OpenAI / Gemini / Anthropic API
-                              │          ├→ MCP Hub  (kho Kết nối dùng chung cho MỌI engine)
-                              └──────────┴→ Second Brain (vault markdown: Memory + Wiki + Sources)
-```
-- **Backend:** Python FastAPI trong `server/`.
-  - Bộ não & engine: `claude_sdk_engine.py` (engine Claude, qua Claude Agent SDK), `claude_cli.py` (factory + auth cho Claude/Codex), `engine.py` (năm engine API kèm vòng gọi tool MCP), `aux_engine.py` (chọn engine cho việc nền + chuỗi dự phòng khi engine chết).
-  - Công cụ: `mcp_hub.py`, `mcp_store.py`, `mcp_client.py`, `mcp_catalog.py`, `plugins_host.py`, `oauth_mcp.py`.
-  - Việc nền: `self_improve.py` (việc định kỳ), `reminders.py` (nhắc hẹn), `tasks.py` + `task_store.py` (Kanban), `learn.py` (tự học).
-  - Dữ liệu: `sessions.py`, `compaction.py`, `git_brain.py`, `media_gc.py`, `usage_index.py` + `usage_store.py`.
-  - Kênh: `telegram_bot.py`, `channel_context.py`; Zalo đi qua MCP Hub.
-  - Nền tảng: `main.py`, `routes/` (domain, graph), `config.py`, `web_security.py`, `secrets_store.py`.
-- **Frontend:** HTML/CSS/JS thuần (`dashboard/`) - không framework, nhẹ cho VPS.
-- **Second Brain:** vault markdown trong `brains/<tên brain>/` - bộ nhớ sống + Wiki tích luỹ.
+- **Login is required** on a public server before any feature works, because the brain runs with full rights on the machine.
+- **2FA (TOTP)**, login rate limiting, passwords of at least 8 characters, `Secure` cookies under HTTPS, sessions that expire after 30 days.
+- **CSRF and DNS-rebinding protection**: any write request from an unknown origin is rejected.
+- **Secrets are encrypted** in `settings.json` (API keys, OAuth tokens, bot tokens) with a per-machine key.
+- **Your own plugins are blocked by default** until you set `JAVIS_ENABLE_USER_PLUGINS=true`.
+- **Connection permissions are enforced** by the hub, not by the model: a read-only account cannot be used to send, pay or publish.
+
+Found a vulnerability? Please follow [CONTRIBUTING.en.md](CONTRIBUTING.en.md#security-issues) instead of opening a public issue.
 
 ---
 
-## 🩺 Khắc phục sự cố
+## 🔄 Updating
 
-| Hiện tượng | Cách xử lý |
+In the app: **Settings → Updates → Update now**, with a progress bar and a rollback button if the new build breaks. On a VPS: `cd javis && ./update.sh` (pulls the new image and restarts; your data in the volumes is kept).
+
+---
+
+## 🩺 Troubleshooting
+
+| Symptom | What to do |
 |---|---|
-| Sửa code mà không thấy đổi | Đã đổi `.py`? **Khởi động lại server** (Windows: `stop-javis.bat` → `start-javis.vbs`). Đổi giao diện? **Ctrl+Shift+R**. |
-| Port 7777 bị giữ, bản mới không lên | Kill tiến trình cũ TRƯỚC (`stop-javis.bat`, hoặc `taskkill /F /PID <pid>`), rồi start lại. |
-| Hostinger không pull được image | Để package GHCR = **Public**; đợi GitHub Action build xong (tab Actions). |
-| Bộ não báo chưa đăng nhập | Vào **Models**, thẻ nhà cung cấp tương ứng, bấm đăng nhập. Hoặc chạy 1 lần `claude auth login --claudeai` (Docker: trong App terminal). |
-| Ảnh cũ trong hội thoại hiện ô xám | Đúng thiết kế: `attachments/` là vùng cache, hết hạn 30 ngày hoặc 300MB. Xem [Khắc phục sự cố](docs/17-khac-phuc-su-co.md). |
+| The Models page says a CLI is not installed, but it is | **Restart Javis**: the running process keeps the PATH from when it started. |
+| Port 7777 is taken and the new build will not start | Stop the old process first (`stop-javis.bat`, or kill the PID), then start again. |
+| Hostinger cannot pull the image | Set the GHCR package to **Public** and wait for the GitHub Action build to finish. |
+| A brain says it is not signed in | **Models** → that provider's card → sign in. |
+
+More in [docs/en/17-troubleshooting.md](docs/en/17-troubleshooting.md).
 
 ---
 
-## 📂 Cấu trúc thư mục
+## 📂 Repository layout
 
 ```
 javis-os/
-├── server/              # Backend FastAPI (engine, kết nối, việc nền, kênh, bộ nhớ…)
-│   └── routes/          # Route tách riêng (tên miền, đồ thị)
-├── dashboard/           # Frontend (voice, đồ thị, console, studio, usage)
-│   └── i18n/            # Từ điển chữ trên giao diện, mỗi ngôn ngữ 1 file JSON
-├── brains/              # MỌI second brain (brain mặc định: brains/Brain Default)
-├── system/              # Đi kèm app: plugin bundled, skill hệ thống, kho kết nối mẫu
-├── tests/               # Bộ test Python
-├── website/             # Trang giới thiệu
-├── docs/                # Hướng dẫn sử dụng chi tiết (27 trang + mục lục; bản tiếng Anh ở docs/en/)
-├── Dockerfile           # Image: python + Node + Claude CLI
-├── docker-compose.yml   # Production (pull image GHCR) - VPS thường, vào bằng http://<ip>:7777
-├── docker-compose.hostinger.yml  # Cho Hostinger: tên miền + HTTPS qua Traefik (đặt DOMAIN_NAME)
-├── docker-compose.https.yml      # Auto-HTTPS bằng Caddy cho VPS thường (kèm file trên)
-├── install.sh           # Cài native Linux/macOS
-├── update.sh            # Cập nhật trên VPS
-├── env.example          # Mẫu biến môi trường
-├── VERSION · CHANGELOG.md
-├── QUICKSTART.md        # Bắt đầu nhanh (QUICKSTART.en.md: bản tiếng Anh)
-├── DEPLOY.md            # Hướng dẫn deploy chi tiết
-└── CLAUDE.md            # "System prompt" + quy ước cho AI agent
+├── server/          # FastAPI backend: engines, connections, background work, channels, memory
+├── dashboard/       # Frontend (plain JS, no build step)
+│   └── i18n/        # Interface strings, one JSON file per language
+├── brains/          # Every Second Brain (default: brains/Brain Default)
+├── system/          # Ships with the app: bundled plugins, system skills, connection catalogue
+├── docs/            # User guides (docs/en/ in English) and translations (docs/i18n/)
+├── tests/           # Python + JS test suite (python tests/run.py)
+├── website/         # Landing page
+├── install.sh · install.ps1 · update.sh
+├── Dockerfile · docker-compose*.yml
+└── CLAUDE.md        # The system prompt Javis runs on
 ```
 
 ---
 
-## 🙏 Cảm hứng & ghi nhận
+## 🌍 Languages
 
-- **Bộ não:** [Claude Code](https://claude.com/claude-code) và [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview) (Anthropic), [Codex CLI](https://developers.openai.com/codex/cli) (OpenAI), cùng API của [OpenRouter](https://openrouter.ai), OpenAI, [Google Gemini](https://ai.google.dev), Anthropic và [Groq](https://groq.com).
-- **Chuẩn công cụ:** [Model Context Protocol](https://modelcontextprotocol.io) - toàn bộ kho Kết nối của Javis chạy trên chuẩn này.
-- Pattern Second Brain + Bullet Journal số hoá.
+| What | Languages today |
+|---|---|
+| **Javis's replies** | Any language: it answers in the language you write in, or one you pin in Settings |
+| **Dashboard** | 🇬🇧 English · 🇻🇳 Tiếng Việt (follows your browser until you pick one) |
+| **Docs and README** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
----
-
-## 📄 Giấy phép
-
-Mã nguồn mở theo giấy phép **MIT** - dùng, sửa, phân phối tự do, chỉ cần giữ dòng ghi công. Xem [LICENSE](LICENSE).
+Adding a language is a data change, not a code change: one entry in `server/lang_registry.py` plus one `dashboard/i18n/<code>.json`. See [CONTRIBUTING.en.md](CONTRIBUTING.en.md#translations) if you would like to help.
 
 ---
 
-## ☕ Ủng hộ Javis OS
+## 🤝 Contributing
 
-Javis OS mã nguồn mở, dùng miễn phí, và mình vẫn đang một mình vừa code vừa gánh chi phí server chạy thử mỗi ngày. Nếu Javis đang giúp được gì cho công việc hay cuộc sống của bạn, một chút ủng hộ sẽ giúp mình có thêm thời gian ngồi sửa bug, viết tính năng mới, thay vì lo tiền server.
+Bug reports, ideas and pull requests are all welcome. Read [CONTRIBUTING.en.md](CONTRIBUTING.en.md) first: it covers running the tests (`python tests/run.py`) and the code conventions.
 
-Không bắt buộc, không đổi lấy quyền lợi gì cả - đơn giản là một lời cảm ơn gửi bằng tiền cho người đang âm thầm code buổi tối.
+If Javis is useful to you, a ⭐ on the repo helps other people find it.
 
-- 🏦 **MB Bank**: `6636966369`
-- 📱 **Ví MoMo**: `0372752740`
+[![Star History Chart](https://api.star-history.com/svg?repos=blogminhquy/javis-os&type=Date)](https://star-history.com/#blogminhquy/javis-os&Date)
+
+---
+
+## 🙏 Credits
+
+- **Brains:** [Claude Code](https://claude.com/claude-code) and the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview) (Anthropic), [Codex CLI](https://developers.openai.com/codex/cli) (OpenAI), [Grok Build](https://x.ai) (xAI), [Antigravity](https://antigravity.google) (Google), plus the APIs of [OpenRouter](https://openrouter.ai), OpenAI, [Google Gemini](https://ai.google.dev), Anthropic, [Groq](https://groq.com) and [Ollama](https://ollama.com).
+- **Tool standard:** [Model Context Protocol](https://modelcontextprotocol.io). The whole Javis connection store runs on it.
+- The Second Brain and digital Bullet Journal patterns.
+
+## 📄 License
+
+Open source under the **MIT License**: use, modify and distribute freely, just keep the copyright notice. See [LICENSE](LICENSE).
+
+---
+
+## ☕ Support Javis OS
+
+Javis OS is free and open source, and it is still one person writing the code and paying for the test servers. If Javis helps your work or your life, a small donation buys more time for bug fixes and new features.
+
 - 🌍 **PayPal**: [paypal.me/quy01](https://paypal.me/quy01)
+- 🏦 **MB Bank** (Vietnam): `6636966369`
+- 📱 **MoMo wallet** (Vietnam): `0372752740`
 
-Không tiện donate cũng không sao - dùng Javis, góp ý, hay gửi một Pull Request cũng đã là ủng hộ rồi.
-
----
+Can't donate? Using Javis, sending feedback or opening a pull request counts as support too.
 
 <div align="center">
-
-Made with ☕ by **[Minh Quý](https://minhquy.vn)** · Repo: `github.com/blogminhquy/javis-os`
-
+<br>
+Made with ☕ in Vietnam by <b><a href="https://minhquy.vn">Minh Quý</a></b>
 </div>

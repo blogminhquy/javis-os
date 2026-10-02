@@ -1013,7 +1013,8 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   min-height: clamp(280px, 46vh, 620px);
 }
 .transcript:empty::after {
-  content: "Nói hoặc gõ để bắt đầu hội thoại với Javis.";
+  /* Câu mời lấy từ từ điển (data-i18n-empty -> data-empty-hint), không viết cứng ở đây. */
+  content: attr(data-empty-hint);
   color: var(--text3); font-size: 14px; font-style: italic;
 }
 .msg { animation: fadeIn 0.2s ease; }

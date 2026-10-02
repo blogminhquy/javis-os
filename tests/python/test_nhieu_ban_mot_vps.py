@@ -159,7 +159,7 @@ check("install.sh: ghi unit theo tên bản, không đè javis.service",
       '/etc/systemd/system/$SVC.service' in ins)
 check("install.sh: không còn --port 7777 đóng cứng", "--port 7777" not in ins)
 check("install.sh: chặn tên có ký tự lạ trước khi ghi vào /etc/systemd",
-      "JAVIS_NAME chi duoc dung" in ins)
+      "JAVIS_NAME may only contain" in ins)
 
 upd = src("update.sh")
 check("update.sh: đọc JAVIS_NAME từ .env của thư mục đang đứng", "JAVIS_NAME" in upd)
@@ -195,7 +195,7 @@ check("không còn đường dẫn javis.config.toml đóng cứng trong server/
 # ============================================================
 # 6. Tài liệu phải có đường đi, không thì tính năng coi như không tồn tại
 # ============================================================
-docs = src("DEPLOY.md") + src("README.md")
+docs = src("DEPLOY.md") + src("docs/i18n/vi/README.md")
 check("DEPLOY/README có mục cài nhiều bản", "nhiều bản" in docs.lower())
 for f in ("docker-compose.proxy.yml", "docker-compose.multi.yml"):
     check(f"tài liệu nhắc tới {f}", f in docs)

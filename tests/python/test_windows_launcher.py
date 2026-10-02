@@ -58,8 +58,8 @@ check("wrapper .bat gọi ps1 với ExecutionPolicy Bypass (máy user mặc đ�
       "ExecutionPolicy Bypass" in as_bat)
 
 # ---- README hai thứ tiếng đều chỉ tới launcher ----
-vi = (ROOT / "README.md").read_text(encoding="utf-8")
-en = (ROOT / "README.en.md").read_text(encoding="utf-8")
+vi = (ROOT / "docs" / "i18n" / "vi" / "README.md").read_text(encoding="utf-8")
+en = (ROOT / "README.md").read_text(encoding="utf-8")
 check("README (vi) nhắc JAVIS OS.bat", "JAVIS OS.bat" in vi and "javis-autostart.bat" in vi)
 check("README (en) nhắc JAVIS OS.bat", "JAVIS OS.bat" in en and "javis-autostart.bat" in en)
 

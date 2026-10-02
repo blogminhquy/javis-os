@@ -168,11 +168,16 @@ _che = subprocess.run(["git", "check-ignore", "server/bin_paths.json"], cwd=ROOT
                       capture_output=True, text=True)
 check("bản nhớ bị .gitignore che (STATE_DIR mặc định là server/)", _che.returncode == 0)
 
-readme = (ROOT / "README.md").read_text(encoding="utf-8")
+readme = (ROOT / "docs" / "i18n" / "vi" / "README.md").read_text(encoding="utf-8")
+readme_en = (ROOT / "README.md").read_text(encoding="utf-8")
 check("README nói một lệnh cài hết cho Windows", "install.ps1" in readme)
 check("README nhắc phải khởi động lại Javis khi cài thêm CLI",
       "khởi động lại javis" in readme.lower())
 check("README không còn mời Gemini CLI (đã gỡ ở 0.50.0)", "Gemini CLI" not in readme)
+# Từ 0.66.0 README.md gốc là tiếng Anh: ba điều trên phải đúng ở cả bản đó.
+check("README (en) nói một lệnh cài hết cho Windows", "install.ps1" in readme_en)
+check("README (en) nhắc phải khởi động lại Javis khi cài thêm CLI", "restart javis" in readme_en.lower())
+check("README (en) không mời Gemini CLI", "Gemini CLI" not in readme_en)
 
 if _fails:
     print(f"\nFAIL {len(_fails)} muc: " + ", ".join(_fails))

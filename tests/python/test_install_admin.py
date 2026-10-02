@@ -111,7 +111,7 @@ check("và KHÔNG ghi đè lên chính dòng comment đó",
 _env2, _out2 = _chay_khoi(_env1)
 check("chạy lần hai KHÔNG đổi mật khẩu đang dùng",
       _doc(_env2, "JAVIS_ADMIN_PASSWORD") == _pw1)
-check("và nói rõ là giữ nguyên", "giữ nguyên" in _out2)
+check("và nói rõ là giữ nguyên", "keeping it" in _out2)
 
 # Không có .env sẵn (người dùng xoá đi) cũng phải chạy được.
 _env3, _ = _chay_khoi("")
