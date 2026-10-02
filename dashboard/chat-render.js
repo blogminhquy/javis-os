@@ -304,6 +304,7 @@
   var registry = {};   // id -> { type, lang, code }
   var _choTrinhSua = false;   // dang render cho trinh sua .md (xem mdToHtml)
   var _thuMucForRender = "";  // thu muc chua file .md dang render (xem mdToHtml / ungVienAnh)
+  var _anhVForRender = "";    // phien ban anh cua bong bong dang render (xem phienBanAnh)
   function fenceType(lang, code) {
     lang = (lang || "").trim().toLowerCase();
     var head = code.slice(0, 400).replace(/^\s+/, "").toLowerCase();
@@ -404,8 +405,15 @@
     el.replaceWith(box);
   }
   // duPhong (tuy chon): cac URL thu TIEP THEO neu URL dau tai hong. Xem ungVienAnh.
+  // Phien ban anh cua bong bong dang render (opts.anhV, 0.65.33). Gan vao duong /files/raw de AI
+  // ghi de anh cu bang anh moi cung ten thi tin moi van hien anh MOI: cung mot URL thi trinh
+  // duyet dung lai anh da nap. Trinh sua .md khong truyen anhV nen duong dan trong no y nguyen.
+  function phienBanAnh(u) {
+    return (_anhVForRender && /^\/files\/raw\?/.test(u)) ? u + "&v=" + encodeURIComponent(_anhVForRender) : u;
+  }
   function imgHtml(u, alt, rawpath, duPhong) {
-    var con = (duPhong || []).filter(function (x) { return x && x !== u; });
+    u = phienBanAnh(u);
+    var con = (duPhong || []).map(phienBanAnh).filter(function (x) { return x && x !== u; });
     var img = '<img class="chat-img" src="' + esc(u) + '" alt="' + esc(alt || "") + '"' +
       (con.length ? ' data-jv-thu="' + esc(con.join("|")) + '"' : "") +
       ' loading="lazy" onerror="jvImgGone(this)">';
@@ -569,14 +577,15 @@
   // artifact (xem renderFence) - trong mot trinh sua thi noi dung phai NHIN THAY va sua
   // duoc, khong phai nam sau mot cai the.
   function mdToHtml(raw, brain, opts) {
-    var truoc = _brainForRender, truocTS = _choTrinhSua, truocTM = _thuMucForRender;
+    var truoc = _brainForRender, truocTS = _choTrinhSua, truocTM = _thuMucForRender, truocAV = _anhVForRender;
+    _anhVForRender = String((opts && opts.anhV) || "");
     _brainForRender = (brain == null || brain === "") ? null : String(brain);
     _choTrinhSua = !!(opts && opts.trinhSua);
     // opts.thuMuc: thu muc chua CHINH file .md nay, de duong dan tuong doi trong no phan giai
     // dung nhu Obsidian/VS Code. Bo trong = giu hanh vi cu (phan giai theo goc brain).
     _thuMucForRender = String((opts && opts.thuMuc) || "").replace(/^\.?\//, "").replace(/\/+$/, "");
     try { return _mdToHtmlThan(raw); }
-    finally { _brainForRender = truoc; _choTrinhSua = truocTS; _thuMucForRender = truocTM; }
+    finally { _brainForRender = truoc; _choTrinhSua = truocTS; _thuMucForRender = truocTM; _anhVForRender = truocAV; }
   }
   function visibleMarkdown(raw) {
     raw = String(raw == null ? "" : raw);

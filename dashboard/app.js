@@ -337,7 +337,7 @@ function ketThucTheoLoi(biNgat) {
   if (biNgat && s.shown > 0 && s.shown < tong) {
     host.innerHTML = escapeHtml(window.JavisVoiceChunker.takeWords(full, s.shown)) + " …";
   } else {
-    host.innerHTML = markdownToHtml(s.text);
+    host.innerHTML = markdownToHtml(s.text, undefined, s.el.dataset.anhV);
   }
   if (s.ask) window.JavisAsk.render(s.el, s.ask, true);
   if (s.live && window.JavisVoiceLive) window.JavisVoiceLive.resetProgress();
@@ -807,7 +807,7 @@ async function batLive(wakeText = "", { som = false, lanThu = 0 } = {}) {
       if (!_liveJavisBubble) _liveJavisBubble = createStreamingBubble();
       _liveJavisBubble.dataset.md = _liveJavisText;   // copy ra markdown gốc, kể cả hội thoại bằng giọng
       if (dangTheoLoi()) batTheoLoi(_liveJavisBubble, _liveJavisText, null, true);   // V3: chữ theo tiếng
-      else { _liveJavisBubble.querySelector(".bubble").innerHTML = markdownToHtml(_liveJavisText); scrollBottom(); }
+      else { _liveJavisBubble.querySelector(".bubble").innerHTML = markdownToHtml(_liveJavisText, undefined, _liveJavisBubble.dataset.anhV); scrollBottom(); }
     },
     onTurnDone: () => {
       _liveBusyUntil = 0; attention.keepActive();
@@ -1112,7 +1112,7 @@ function handleMessage(data) {
       t.bubble.dataset.md = t.text;   // copy giữa chừng vẫn ra markdown gốc, kể cả khi đang đọc theo giọng
       // V3: đang nói chuyện bằng giọng thì chữ hiện THEO LỜI ĐỌC, không hiện trước loa.
       if (dangTheoLoi() && data.tts !== false && !t.imLoa) batTheoLoi(t.bubble, t.text, null, false);
-      else { t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text); scrollBottom(); }
+      else { t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text, undefined, t.bubble.dataset.anhV); scrollBottom(); }
       // Đọc NGAY đoạn trung gian (chỉ đọc phiên đang xem). OpenRouter gửi tts:false → đọc 1 lần ở cuối.
       // Voice V3: gom chữ stream thành CỤM đọc được (voice-chunker.js) thay vì đọc từng mẩu.
       // Trước đây mỗi khung stream của bộ não chính (vài từ) là một yêu cầu TTS riêng nên nghe
@@ -1155,7 +1155,7 @@ function handleMessage(data) {
       if (dangTheoLoi() && t && finalText && !t.imLoa) {
         batTheoLoi(msgEl, shownText, ask, false);        // V3: chữ theo lời tới khi đọc xong, rồi vẽ đủ + chip
       } else {
-        if (t && t.bubble) msgEl.querySelector(".bubble").innerHTML = markdownToHtml(shownText);
+        if (t && t.bubble) msgEl.querySelector(".bubble").innerHTML = markdownToHtml(shownText, undefined, msgEl.dataset.anhV);
         if (ask) window.JavisAsk.render(msgEl, ask, true);   // chip chỉ mọc khi lượt xong
       }
       _renderCtxLine(msgEl, data);   // lượt này đi đường nào, tốn bao nhiêu
@@ -1905,7 +1905,7 @@ async function openStoredSession(id, stillCurrent) {
     const t = turns[id];
     if (t && t.running) {
       t.bubble = createStreamingBubble();
-      if (t.text) t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text);
+      if (t.text) t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text, undefined, t.bubble.dataset.anhV);
       showActivity(Icons.msg("pen-line", window.t("app.act_writing")));
       runActions(turn.turnStart());
     } else {
@@ -2106,7 +2106,10 @@ function appendJavisMessage(text, ts, brain) {
   const tv = window.JavisViec ? window.JavisViec.tach(text) : { clean: text, viec: null };
   const div = document.createElement("div");
   div.className = "msg msg-javis";
-  div.innerHTML = `<div class="bubble">${markdownToHtml(tv.clean, brain)}</div>` +
+  // Phiên bản ẢNH của tin này (0.65.33, xem markdownToHtml): tin cũ dựng lại dùng đúng mốc giờ của
+  // nó nên tải lại trang vẫn trúng cache; tin mới mang mốc giờ mới nên ảnh vừa sửa luôn tải lại.
+  div.dataset.anhV = String(ts === undefined ? Date.now() : (ts || ""));
+  div.innerHTML = `<div class="bubble">${markdownToHtml(tv.clean, brain, div.dataset.anhV)}</div>` +
     actsHtml("javis", ts === undefined ? Date.now() : ts, !!lastUserText().trim());
   if (tv.viec) window.JavisViec.ve(div, tv.viec);
   div.dataset.md = tv.clean || "";   // copy nội dung markdown, không chép marker việc nền
@@ -2138,14 +2141,19 @@ function appendLenhReply(md) {
 function createStreamingBubble() {
   const div = document.createElement("div");
   div.className = "msg msg-javis";
+  div.dataset.anhV = String(Date.now());   // giữ nguyên suốt lượt stream: ảnh không nạp lại mỗi khung
   div.innerHTML = `<div class="bubble"></div>` +
     actsHtml("javis", Date.now(), !!lastUserText().trim());
   chatAppend(div); scrollBottom();
   return div;
 }
-function markdownToHtml(text, brain) {
+// anhV (0.65.33): "phiên bản" ảnh của bong bóng, gắn vào đường /files/raw của ảnh. Chủ dự án báo
+// 02/10: AI sửa ảnh rồi GHI ĐÈ đúng đường dẫn cũ thì khung chat vẫn hiện ảnh cũ tới khi tải lại
+// trang, vì cùng một URL thì trình duyệt dùng lại ảnh đã nạp. Mỗi bong bóng một phiên bản là đủ:
+// tin mới luôn tải ảnh mới, còn tin cũ giữ URL cũ nên không tải lại vô cớ.
+function markdownToHtml(text, brain, anhV) {
   // Render đầy đủ (markdown + tô màu code + artifact) nằm ở chat-render.js.
-  if (typeof window.mdToHtml === "function") return window.mdToHtml(text, brain);
+  if (typeof window.mdToHtml === "function") return window.mdToHtml(text, brain, anhV ? { anhV: String(anhV) } : undefined);
   // Fallback nếu chat-render.js chưa nạp: bộ render gọn cũ (không có artifact).
   const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   const safeHref = (x) => /^(https?:\/\/|mailto:|\/)/i.test((x || "").trim()) ? x : "";

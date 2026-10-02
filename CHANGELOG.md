@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.65.33] - 2026-10-02
+### Sửa lỗi
+- **Nhờ AI sửa ảnh, khung chat hiện ngay ảnh mới.** Trước đây AI sửa ảnh và ghi đè đúng đường dẫn cũ thì khung chat vẫn hiện ảnh cũ, phải tải lại trang mới thấy, vì trình duyệt dùng lại ảnh đã nạp. Nay mỗi câu trả lời mang một phiên bản ảnh riêng nên ảnh vừa sửa luôn được nạp mới; tin cũ vẫn giữ nguyên, tải lại trang không phải tải lại ảnh.
+
 ## [0.65.32] - 2026-10-02
 ### Thêm mới
 - **Trình sửa file có bộ đếm từ và ký tự** ở cuối thanh công cụ, tự cập nhật khi gõ. Ghi chú `.md` chỉ đếm chữ hiện ra, không tính ký hiệu định dạng (`#`, `**`, đường link). Rê chuột vào số để xem số ký tự không tính khoảng trắng.
