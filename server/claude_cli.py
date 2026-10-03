@@ -1047,6 +1047,27 @@ def _home_dir() -> Path:
     return Path("")
 
 
+_CODEX_VERSIONS: dict = {}
+
+
+def _codex_version(path: str) -> Optional[tuple]:
+    """(major, minor, patch) của một binary Codex, nhớ theo (đường dẫn, mtime) để chỉ tốn một
+    tiến trình `--version` mỗi bản, và tự đo lại khi bản đó được cập nhật."""
+    try:
+        key = (path, os.stat(path).st_mtime)
+    except OSError:
+        return None
+    if key not in _CODEX_VERSIONS:
+        try:
+            out = subprocess.run([path, "--version"], capture_output=True, text=True,
+                                 timeout=15, creationflags=_no_window()).stdout
+            m = re.search(r"(\d+)\.(\d+)\.(\d+)", out or "")
+            _CODEX_VERSIONS[key] = tuple(int(x) for x in m.groups()) if m else None
+        except Exception:
+            _CODEX_VERSIONS[key] = None
+    return _CODEX_VERSIONS[key]
+
+
 def find_codex_cli() -> Optional[str]:
     envp = os.environ.get("JAVIS_CODEX_BIN")     # cửa thoát: chỉ thẳng chỗ cài lạ
     if envp:
@@ -1064,18 +1085,32 @@ def find_codex_cli() -> Optional[str]:
         home / ".codex" / ".sandbox-bin" / "codex",
     ]
     # Windows Store có thể đặt app-execution alias ``codex.exe`` lên PATH nhưng
-    # service/tiến trình nền không được quyền chạy alias đó (WinError 5). Bản
-    # executable Codex Desktop xuất trong ~/.codex chạy được thật, nên ưu tiên
-    # nó trên Windows. POSIX vẫn tôn trọng PATH trước như thông lệ.
+    # service/tiến trình nền không được quyền chạy alias đó (WinError 5), nên alias
+    # đó chỉ là đường lui cuối. POSIX vẫn tôn trọng PATH trước như thông lệ.
     cli = tim_binary("codex")
-    if cli and (os.name != "nt" or "windowsapps" not in cli.lower()):
+    if cli and os.name != "nt":
         return cli
+    co = []
+    if cli and "windowsapps" not in cli.lower():
+        co.append(cli)
     for p in cands:
         try:
             if p.exists():
-                return str(p)
+                co.append(str(p))
         except Exception:
             pass
+    # Một máy Windows hay có NHIỀU bản Codex cùng lúc: Codex Desktop xuất một bản vào
+    # ~/.codex/.sandbox-bin và không phải lúc nào cũng cập nhật nó, npm đặt bản khác. Trước
+    # 0.71.1 bản đứng đầu danh sách thắng, và chủ repo đo 03/10/2026: sandbox-bin kẹt ở 0.147
+    # (tháng 8) trong khi npm đã 0.160, nên `model/list` chỉ trả đời GPT-5.6 và trang Models
+    # không có GPT-6.1-Sol. Danh sách model là lời của CHÍNH binary được hỏi, nên phải hỏi bản
+    # MỚI NHẤT. Không đọc được số phiên bản thì giữ thứ tự cũ.
+    if len(co) > 1:
+        best = max(co, key=lambda p: _codex_version(p) or ())
+        if _codex_version(best):
+            return best
+    if co:
+        return co[0]
     if cli:
         return cli
     for p in ("/usr/local/bin/codex", "~/.local/bin/codex"):
