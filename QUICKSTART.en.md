@@ -2,7 +2,7 @@
 
 *[Tiếng Việt](QUICKSTART.md) · **English** · [简体中文](docs/i18n/zh/QUICKSTART.md) · [Español](docs/i18n/es/QUICKSTART.md) · [日本語](docs/i18n/ja/QUICKSTART.md)*
 
-Get Javis OS running in a few minutes. Full guides: [docs/](docs/README.md).
+Get Javis OS running in a few minutes. Full guides: [docs/en/](docs/en/README.md).
 
 ## Option 1 - Hostinger VPS (Docker Manager, one click)
 
@@ -38,16 +38,16 @@ Open http://localhost:7777. For HTTPS through Caddy, add `-f docker-compose.http
 ## Once it is running
 
 - **Pick an engine/model**: the **Models** page (Claude Code, ChatGPT/Codex, Antigravity CLI, OpenRouter, OpenAI, Google Gemini, Anthropic API, Groq, Ollama).
-- **Wire up connections** (POS, ads, calendar, Zalo...) so reports run on real numbers: the **Connections** page - see [docs/09](docs/09-mcp-va-so-lieu.md).
-- **Back the brain up to GitHub** so you do not lose data: the **Self-learning** page - see [docs/18](docs/18-sao-luu-github.md).
-- **Watch token spend**: the **Usage** page - see [docs/23](docs/23-muc-dung-token.md).
+- **Wire up connections** (POS, ads, calendar, Zalo...) so reports run on real numbers: the **Connections** page - see [docs/09](docs/en/09-connections-and-business-data.md).
+- **Back the brain up to GitHub** so you do not lose data: the **Self-learning** page - see [docs/18](docs/en/18-github-backup.md).
+- **Watch token spend**: the **Usage** page - see [docs/23](docs/en/23-usage-and-cost.md).
 
 ## Full documentation
 
-See [docs/README.md](docs/README.md) - a guide per feature (chat/voice, knowledge graph, skills, agents, workflows, recurring jobs, Kanban, self-learning, connections, Telegram, Zalo, plugins, security, backup...). Most pages are in Vietnamese; [docs/en/](docs/en/README.md) holds what has been translated so far.
+See [docs/en/README.md](docs/en/README.md) - a guide per feature (chat/voice, knowledge graph, skills, agents, workflows, recurring jobs, Kanban, self-learning, connections, Telegram, Zalo, plugins, security, backup...). The same guides in Vietnamese: [docs/README.md](docs/README.md).
 
 ## Common problems
 
 - **The in-app update button does nothing on Hostinger**: that is by design - on Hostinger use **Redeploy** in Docker Manager. The in-app button needs Watchtower, and Hostinger usually blocks the Docker socket.
 - **ChatGPT/Codex says "model not supported"**: pick a valid Codex model on the Models page (e.g. `gpt-5.5`). Do not use `gpt-5-mini` or `gpt-4o` - those are API models and a Codex account cannot run them.
-- More: [docs/17 - Troubleshooting](docs/17-khac-phuc-su-co.md).
+- More: [docs/17 - Troubleshooting](docs/en/17-troubleshooting.md).
