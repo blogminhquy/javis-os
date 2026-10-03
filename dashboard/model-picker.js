@@ -1,4 +1,4 @@
-// model-picker.js — đổi model (đa nhà cung cấp) + effort ngay trên khung chat.
+// model-picker.js: đổi model (đa nhà cung cấp) + effort ngay trên khung chat.
 // Thuần frontend: đọc/ghi qua /settings + /provider/models (đã có sẵn ở backend).
 //
 // MODEL THEO PHIÊN (16/08): đổi model NGAY TRONG một phiên chat = ghim model đó cho

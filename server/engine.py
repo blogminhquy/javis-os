@@ -29,7 +29,7 @@ def _c(vi: str, en: str) -> str:
     """Chữ hiện cho người dùng (lỗi, ghi chú cuối câu trả lời) theo ngôn ngữ giao diện."""
     return localefmt.chu(vi, en)
 
-# Lone surrogate (U+D800–U+DFFF) sanitizer - port từ hermes-agent/agent/message_sanitization.py.
+# Lone surrogate (U+D800-U+DFFF) sanitizer - port từ hermes-agent/agent/message_sanitization.py.
 # Model open-weight (qwen/deepseek/minimax/glm…) thi thoảng stream ra lone surrogate trong content.
 # Ký tự này KHÔNG hợp lệ UTF-8: (1) ghi conversations/*.md (open encoding utf-8) ném UnicodeEncodeError
 # → mất log học; (2) resend history → httpx ensure_ascii escape thành \udXXX gửi sang provider → có nơi
