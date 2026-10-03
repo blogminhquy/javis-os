@@ -959,6 +959,12 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   z-index: 400; display: none; align-items: center; justify-content: center;
 }
 .modal-overlay.open { display: flex; }
+/* Màn đăng nhập là CỔNG, không phải hộp thoại nổi trên một trang đang dùng: người nhìn chưa được
+   thấy gì phía sau. Lớp mờ chung (--scrim + blur) vẫn để lộ bố cục dashboard, rõ nhất ở giao diện
+   sáng (alpha 0.34). Dữ liệu thì máy chủ đã chặn bằng 401, nên đây chỉ che nốt phần nhìn. Dùng
+   nền đặc của chính trang; --bg không có alpha ở cả hai giao diện nên che kín hẳn.
+   Chỉ riêng #authOverlay: các hộp thoại khác do người ĐÃ đăng nhập mở, cần thấy trang phía sau. */
+#authOverlay { background: var(--bg); backdrop-filter: none; }
 .folder-modal {
   width: 560px; max-width: 90vw; max-height: 80vh; background: var(--bg2);
   border: 1px solid var(--border); border-radius: 14px; display: flex; flex-direction: column;
