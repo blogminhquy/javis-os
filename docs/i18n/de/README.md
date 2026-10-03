@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:b4a0c4282066 -->
+<!-- translated-from: README.md sha256:a93defe7ef8b -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Javis OS Logo">
