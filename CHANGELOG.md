@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.71.2] - 2026-10-04
+### Sửa lỗi
+- **Gọi ChatGPT Live trong lúc Javis đang làm việc dài không còn im re.** Trước đây mọi câu anh hỏi thêm phải xếp hàng sau việc đang chạy, nên hỏi "xong chưa" thì không ai trả lời, rồi lúc việc xong Javis đọc dồn một loạt câu trả lời cũ. Giờ hỏi tiến độ là được trả lời ngay bằng trạng thái thật: đang làm việc gì, được mấy phút, tới bước nào.
+- **Việc mới không phải chờ việc cũ.** Nhờ thêm một việc khác trong lúc Javis còn đang làm thì việc đó chạy song song, kết quả về khi nào đọc khi đó.
+- **Việc kéo dài thì Javis tự lên tiếng.** Quá một phút mà chưa xong thì khoảng mỗi phút rưỡi Javis nói một câu ngắn cho biết vẫn đang làm, lúc anh không nói. Câu này không ghi vào lịch sử chat.
+
 ## [0.71.1] - 2026-10-03
 ### Sửa lỗi
 - **Trang Models hiện đủ model ChatGPT mới, như GPT-6.1-Sol.** Máy có cài cả Codex Desktop lẫn Codex CLI thì Javis trước đây luôn hỏi bản đi kèm Codex Desktop, kể cả khi bản đó đã cũ vài tháng, nên danh sách model dừng ở đời cũ. Giờ Javis chọn bản Codex mới nhất trên máy.
