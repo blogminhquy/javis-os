@@ -11,6 +11,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ## [0.70.1] - 2026-10-03
 ### Improved
 - **The README explains why your data stays yours.** "Why Javis" now covers the lock-in of keeping all your work on one AI vendor, and lists where each thing you build up (chat history, memory, skills, agents, workflows) lives on your machine, so a new model is a switch, not a fresh start.
+- **A row of flags at the top of the README.** Twelve flags, each linking to its translation. Emoji flags show as letters on Windows; these are real images.
 
 ## [0.70.0] - 2026-10-03
 ### Improved

@@ -87,7 +87,7 @@ diện, tài liệu và giọng đọc bằng thứ tiếng đó. Ba cách góp,
    [QUICKSTART.en.md](../../../QUICKSTART.en.md) vào `docs/i18n/<mã>/` (ví dụ
    `docs/i18n/fr/README.md`), sửa link tương đối (lùi ba cấp: `../../../`), thêm thứ tiếng vào
    `LANGS` trong `tools/check_translations.py`, rồi chạy `python tools/check_translations.py --bars`
-   (viết lại thanh chọn ngôn ngữ ở mọi README và hướng dẫn cài nhanh) và `--stamp <file>` (gắn
+   (viết lại thanh chọn ngôn ngữ và hàng lá cờ ở mọi README và hướng dẫn cài nhanh) và `--stamp <file>` (gắn
    dòng đánh dấu).
 2. **Giao diện.** Chép `dashboard/i18n/en.json` thành `dashboard/i18n/<mã>.json` rồi dịch phần
    giá trị, không đụng tới khoá. Dịch dở cũng được: khoá nào chưa dịch sẽ hiện tiếng Anh.

@@ -16,6 +16,24 @@ Lass ihn auf deinem Laptop oder einem kleinen VPS laufen. Sprich mit ihm per Sti
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-2496ed?logo=docker&logoColor=white)](https://github.com/blogminhquy/javis-os/pkgs/container/javis-os)
 [![MCP](https://img.shields.io/badge/tools-Model%20Context%20Protocol-8b5cf6)](https://modelcontextprotocol.io)
 
+<!-- flags:start -->
+<p align="center">
+<b>🌐 In 12 Sprachen verfügbar</b><br><br>
+<a href="../../../README.md"><img src="../../assets/flags/gb.svg" width="30" alt="English" title="English"></a>
+<a href="../vi/README.md"><img src="../../assets/flags/vn.svg" width="30" alt="Tiếng Việt" title="Tiếng Việt"></a>
+<a href="../zh/README.md"><img src="../../assets/flags/cn.svg" width="30" alt="简体中文" title="简体中文"></a>
+<a href="../es/README.md"><img src="../../assets/flags/es.svg" width="30" alt="Español" title="Español"></a>
+<a href="../ja/README.md"><img src="../../assets/flags/jp.svg" width="30" alt="日本語" title="日本語"></a>
+<a href="../hi/README.md"><img src="../../assets/flags/in.svg" width="30" alt="हिन्दी" title="हिन्दी"></a>
+<a href="../pt-BR/README.md"><img src="../../assets/flags/br.svg" width="30" alt="Português" title="Português"></a>
+<a href="../ko/README.md"><img src="../../assets/flags/kr.svg" width="30" alt="한국어" title="한국어"></a>
+<a href="../ru/README.md"><img src="../../assets/flags/ru.svg" width="30" alt="Русский" title="Русский"></a>
+<img src="../../assets/flags/de.svg" width="30" alt="Deutsch" title="Deutsch">
+<a href="../fr/README.md"><img src="../../assets/flags/fr.svg" width="30" alt="Français" title="Français"></a>
+<a href="../id/README.md"><img src="../../assets/flags/id.svg" width="30" alt="Bahasa Indonesia" title="Bahasa Indonesia"></a>
+</p>
+<!-- flags:end -->
+
 [🇬🇧 English](../../../README.md) · [🇻🇳 Tiếng Việt](../vi/README.md) · [🇨🇳 简体中文](../zh/README.md) · [🇪🇸 Español](../es/README.md) · [🇯🇵 日本語](../ja/README.md) · [🇮🇳 हिन्दी](../hi/README.md) · [🇧🇷 Português](../pt-BR/README.md) · [🇰🇷 한국어](../ko/README.md) · [🇷🇺 Русский](../ru/README.md) · 🇩🇪 **Deutsch** · [🇫🇷 Français](../fr/README.md) · [🇮🇩 Bahasa Indonesia](../id/README.md) · [🌍 Beim Übersetzen helfen](../../../CONTRIBUTING.md#translations)
 
 [Schnellstart](#-schnellstart) · [Warum Javis](#-warum-javis) · [Gehirne](#-12-gehirne-ein-werkzeugkasten) · [Funktionen](#-funktionen) · [Installation](#-installation) · [Dokumentation](../../../docs/en/README.md) · [Unterstützen](#-unterstütze-javis-os)

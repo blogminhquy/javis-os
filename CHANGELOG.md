@@ -9,6 +9,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.70.1] - 2026-10-03
 ### Cải thiện
 - **README nói rõ vì sao nên dùng Javis: dữ liệu là của bạn.** Mục "Why Javis" giải thích nỗi lo bị khoá vào một nhà cung cấp AI, và liệt kê từng thứ bạn tích luỹ (lịch sử chat, trí nhớ, skill, agent, workflow) nằm ở file nào trên máy bạn, để khi có model mới chỉ cần đổi, không phải làm lại từ đầu.
+- **Hàng lá cờ ở đầu README.** 12 lá cờ, bấm vào là sang đúng bản dịch. Trên Windows biểu tượng cờ hay hiện thành chữ cái, nay là hình thật.
 
 ## [0.70.0] - 2026-10-03
 ### Cải thiện

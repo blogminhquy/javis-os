@@ -37,6 +37,18 @@ LANGS = [
     ("pt-BR", "🇧🇷", "Português"), ("ko", "🇰🇷", "한국어"), ("ru", "🇷🇺", "Русский"),
     ("de", "🇩🇪", "Deutsch"), ("fr", "🇫🇷", "Français"), ("id", "🇮🇩", "Bahasa Indonesia"),
 ]
+# Flag image per language (docs/assets/flags/<cc>.svg). Emoji flags show as two letters on
+# Windows, so the README also carries a row of real images.
+FLAG_FILE = {"en": "gb", "vi": "vn", "zh": "cn", "es": "es", "ja": "jp", "hi": "in", "pt-BR": "br",
+             "ko": "kr", "ru": "ru", "de": "de", "fr": "fr", "id": "id"}
+FLAG_LABEL = {
+    "en": "Available in {n} languages", "vi": "Có {n} thứ tiếng", "zh": "提供 {n} 种语言",
+    "es": "Disponible en {n} idiomas", "ja": "{n} 言語で読めます", "hi": "{n} भाषाओं में उपलब्ध",
+    "pt-BR": "Disponível em {n} idiomas", "ko": "{n}개 언어로 제공", "ru": "Доступно на {n} языках",
+    "de": "In {n} Sprachen verfügbar", "fr": "Disponible en {n} langues", "id": "Tersedia dalam {n} bahasa",
+}
+FLAGS_START, FLAGS_END = "<!-- flags:start -->", "<!-- flags:end -->"
+FLAGS_BLOCK = re.compile(re.escape(FLAGS_START) + r".*?" + re.escape(FLAGS_END), re.S)
 MARKER = re.compile(r"<!--\s*translated-from:\s*(\S+)\s+sha256:([0-9a-f]{6,64})\s*-->")
 
 
@@ -48,6 +60,8 @@ def lists_languages(line: str) -> bool:
 
 def source_hash(path: Path) -> str:
     text = path.read_text(encoding="utf-8")
+    # The flag row and the blank line it brought along, so a file reads as it did before.
+    text = re.sub(FLAGS_BLOCK.pattern + r"\n\n", "", text, flags=re.S)
     kept = "\n".join(line for line in text.split("\n") if not lists_languages(line))
     return hashlib.sha256(kept.encode("utf-8")).hexdigest()[:12]
 
@@ -111,6 +125,21 @@ def is_bar(line: str, doc: str) -> bool:
     return "🌍" in line if doc == "README" else line.startswith("*")
 
 
+def flag_row(current: str, here: Path) -> str:
+    present = [(c, n) for c, _f, n in LANGS if target(c, "README").is_file()]
+    label = FLAG_LABEL.get(current, FLAG_LABEL["en"]).format(n=len(present))
+    lines = [FLAGS_START, '<p align="center">', f"<b>🌐 {label}</b><br><br>"]
+    for code, name in present:
+        img = os.path.relpath(ROOT / "docs" / "assets" / "flags" / f"{FLAG_FILE[code]}.svg", here.parent)
+        tag = f'<img src="{img.replace(os.sep, "/")}" width="30" alt="{name}" title="{name}">'
+        if code != current:
+            href = os.path.relpath(target(code, "README"), here.parent).replace(os.sep, "/")
+            tag = f'<a href="{href}">{tag}</a>'
+        lines.append(tag)
+    lines += ["</p>", FLAGS_END]
+    return "\n".join(lines)
+
+
 def rewrite_bars(write: bool = True) -> list[str]:
     """Bring every language bar in line with LANGS. write=False only reports what would change."""
     changed = []
@@ -132,8 +161,22 @@ def rewrite_bars(write: bool = True) -> list[str]:
                     lines[i] = new
                     changed.append(path.relative_to(ROOT).as_posix())
                 break
+            text = "\n".join(lines)
+            if doc == "README":
+                row = flag_row(code, path)
+                if FLAGS_BLOCK.search(text):
+                    new_text = FLAGS_BLOCK.sub(lambda _m: row, text, count=1)
+                else:
+                    # First run: the row goes right above the text language bar.
+                    idx = next((i for i, l in enumerate(lines) if is_bar(l, "README")), None)
+                    new_text = text if idx is None else "\n".join(lines[:idx] + [row, ""] + lines[idx:])
+                if new_text != text:
+                    text = new_text
+                    rel = path.relative_to(ROOT).as_posix()
+                    if not changed or changed[-1] != rel:
+                        changed.append(rel)
             if write and changed and changed[-1] == path.relative_to(ROOT).as_posix():
-                path.write_text("\n".join(lines), encoding="utf-8")
+                path.write_text(text, encoding="utf-8")
     return changed
 
 

@@ -15,6 +15,24 @@ Run it on your laptop or a small VPS. Talk to it by voice. Plug in Claude, ChatG
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-2496ed?logo=docker&logoColor=white)](https://github.com/blogminhquy/javis-os/pkgs/container/javis-os)
 [![MCP](https://img.shields.io/badge/tools-Model%20Context%20Protocol-8b5cf6)](https://modelcontextprotocol.io)
 
+<!-- flags:start -->
+<p align="center">
+<b>🌐 Available in 12 languages</b><br><br>
+<img src="docs/assets/flags/gb.svg" width="30" alt="English" title="English">
+<a href="docs/i18n/vi/README.md"><img src="docs/assets/flags/vn.svg" width="30" alt="Tiếng Việt" title="Tiếng Việt"></a>
+<a href="docs/i18n/zh/README.md"><img src="docs/assets/flags/cn.svg" width="30" alt="简体中文" title="简体中文"></a>
+<a href="docs/i18n/es/README.md"><img src="docs/assets/flags/es.svg" width="30" alt="Español" title="Español"></a>
+<a href="docs/i18n/ja/README.md"><img src="docs/assets/flags/jp.svg" width="30" alt="日本語" title="日本語"></a>
+<a href="docs/i18n/hi/README.md"><img src="docs/assets/flags/in.svg" width="30" alt="हिन्दी" title="हिन्दी"></a>
+<a href="docs/i18n/pt-BR/README.md"><img src="docs/assets/flags/br.svg" width="30" alt="Português" title="Português"></a>
+<a href="docs/i18n/ko/README.md"><img src="docs/assets/flags/kr.svg" width="30" alt="한국어" title="한국어"></a>
+<a href="docs/i18n/ru/README.md"><img src="docs/assets/flags/ru.svg" width="30" alt="Русский" title="Русский"></a>
+<a href="docs/i18n/de/README.md"><img src="docs/assets/flags/de.svg" width="30" alt="Deutsch" title="Deutsch"></a>
+<a href="docs/i18n/fr/README.md"><img src="docs/assets/flags/fr.svg" width="30" alt="Français" title="Français"></a>
+<a href="docs/i18n/id/README.md"><img src="docs/assets/flags/id.svg" width="30" alt="Bahasa Indonesia" title="Bahasa Indonesia"></a>
+</p>
+<!-- flags:end -->
+
 🇬🇧 **English** · [🇻🇳 Tiếng Việt](docs/i18n/vi/README.md) · [🇨🇳 简体中文](docs/i18n/zh/README.md) · [🇪🇸 Español](docs/i18n/es/README.md) · [🇯🇵 日本語](docs/i18n/ja/README.md) · [🇮🇳 हिन्दी](docs/i18n/hi/README.md) · [🇧🇷 Português](docs/i18n/pt-BR/README.md) · [🇰🇷 한국어](docs/i18n/ko/README.md) · [🇷🇺 Русский](docs/i18n/ru/README.md) · [🇩🇪 Deutsch](docs/i18n/de/README.md) · [🇫🇷 Français](docs/i18n/fr/README.md) · [🇮🇩 Bahasa Indonesia](docs/i18n/id/README.md) · [🌍 Help translate](CONTRIBUTING.md#translations)
 
 [Quick start](#-quick-start) · [Why Javis](#-why-javis) · [Brains](#-12-brains-one-toolkit) · [Features](#-features) · [Install](#-installation) · [Docs](docs/en/README.md) · [Support](#-support-javis-os)

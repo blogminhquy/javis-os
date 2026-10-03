@@ -117,6 +117,10 @@ with tempfile.TemporaryDirectory() as _d:
     _a.write_text("# T\n[🇬🇧 English](x) · [🇻🇳 Tiếng Việt](y) · [🌍 Help](z)\nBody\n", encoding="utf-8")
     _b.write_text("# T\n[🇬🇧 English](x) · [🇻🇳 Tiếng Việt](y) · [🇫🇷 Français](f) · [🌍 Help](z)\nBody\n", encoding="utf-8")
     check("source hash ignores language bars", ct.source_hash(_a) == ct.source_hash(_b))
+    _b.write_text("# T\n<!-- flags:start -->\n<p>flags</p>\n<!-- flags:end -->\n\n"
+                  "[🇬🇧 English](x) · [🇻🇳 Tiếng Việt](y) · [🌍 Help](z)\nBody\n", encoding="utf-8")
+    _a.write_text("# T\n[🇬🇧 English](x) · [🇻🇳 Tiếng Việt](y) · [🌍 Help](z)\nBody\n", encoding="utf-8")
+    check("source hash ignores the flag row", ct.source_hash(_a) == ct.source_hash(_b))
     _b.write_text("# T\n[🇬🇧 English](x) · [🇻🇳 Tiếng Việt](y) · [🌍 Help](z)\nBody changed\n", encoding="utf-8")
     check("source hash still sees a content change", ct.source_hash(_a) != ct.source_hash(_b))
 
