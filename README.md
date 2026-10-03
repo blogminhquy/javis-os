@@ -52,6 +52,42 @@ Then open **http://localhost:7777**. The installer sets up Python, the four subs
 
 Javis OS is **not** a chatbot. It is a **self-hosted agentic AI** that runs on your own machine or VPS: it reads and writes files, calls tools over MCP, runs skills, queues background work and schedules itself. All of that sits behind a **voice-controlled dashboard** with a **Second Brain** (memory + wiki) that accumulates knowledge over time.
 
+### The lock-in nobody warns you about
+
+Pick one AI app and use it every day for a year. Then look at what has piled up inside it:
+
+- **Hundreds of conversations**, holding the decisions and context you worked out along the way.
+- **Memory** of who you are, how you work and what your business sells.
+- **Custom instructions, assistants and projects**: know-how you spent hours tuning.
+- **Automations and agents** that only run on that one platform.
+
+All of it sits on the vendor's servers, in the vendor's format. Then a better model ships somewhere else. You can try it, but you cannot bring your work along: the new app knows nothing about you, your instructions do not carry over, and your history stays behind. Exports, where they exist, are usually a dump of chat logs, not memory another tool can use.
+
+So you stay. Not because the old model is still the best, but because leaving means starting from zero. And when the vendor raises prices, tightens limits, retires a model or locks your account, there is no plan B.
+
+### Javis turns it around: rent the model, own the brain
+
+In Javis the model is a part you can swap. Everything you build up lives with you, as files you can open:
+
+| What you build up | Where it lives | Format |
+|---|---|---|
+| **Conversations** | `conversations.db` on your own machine or VPS, one store whichever brain answered | SQLite, full-text searchable |
+| **Memory about you** | `memory/` in your brain: `MEMORY.md` plus one file per fact | Markdown |
+| **Knowledge** | the Wiki and Sources folders of your brain | Markdown, Obsidian-compatible |
+| **Skills** | `skills/<name>/SKILL.md` | Markdown |
+| **Agents and workflows** | `agents/*.md`, `workflows/*.md` | Markdown with front matter |
+| **Loops and reminders** | `Javis/loops/*.md`, `Javis/reminders.json` | Markdown, JSON |
+
+What that buys you:
+
+- **A new model comes out? Switch on the Models page and keep going.** It reads the same memory, runs the same skills, agents and workflows, and calls the same connections through the MCP Hub. Nothing to migrate, nothing to rebuild.
+- **Use several brains at once.** A strong model for the conversation, a cheaper one for background work, a local Ollama model for private notes, all working on the same brain.
+- **Readable without Javis.** Your brain is a folder of markdown. Open it in Obsidian or any editor. If Javis disappeared tomorrow, your knowledge would still be there, in plain text.
+- **Versioned and portable.** Every learning pass is a git commit you can undo in one tap, and the whole brain can sync to your own private GitHub repo, shared between your laptop and your VPS.
+- **Your data stays on your hardware.** There is no Javis cloud in between. A request goes only to the model provider you picked for it, and with a local Ollama model it never leaves your machine.
+
+### Javis next to an ordinary chatbot
+
 | | An ordinary chatbot | **Javis OS** |
 |---|---|---|
 | **Brain** | Locked to one model, one stateless API call per message | **Swappable**: 12 providers, each with the full set of tools, MCP, skills and sessions, including models running on your own machine through Ollama |
@@ -59,6 +95,7 @@ Javis OS is **not** a chatbot. It is a **self-hosted agentic AI** that runs on y
 | **Data** | Made up, or absent | **Real numbers** from the connections you wire in (sales, ads, calendar, email, messaging) |
 | **Work** | Answers, then waits | **Background loops, reminders and an AI-run task queue** that report back to you |
 | **Interface** | A chat box | Dashboard + knowledge graph + **hands-free voice** + Telegram + a CLI |
+| **Your work** | Stays on the vendor's servers, in the vendor's format | **Plain files on your machine**: history, memory, skills, agents and workflows carry over to any new model |
 | **Deployment** | Someone else's cloud | **Self-hosted**: one-click Hostinger, Docker, or any VPS |
 
 > 💡 **The philosophy: capability lives in Javis, not in the model.** Every brain gets the same toolbox through one shared connection hub (the MCP Hub). Switching from Claude to Gemini costs you nothing except shell access, which only the CLI engines have.

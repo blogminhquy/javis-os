@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.70.1] - 2026-10-03
+### Cải thiện
+- **README nói rõ vì sao nên dùng Javis: dữ liệu là của bạn.** Mục "Why Javis" giải thích nỗi lo bị khoá vào một nhà cung cấp AI, và liệt kê từng thứ bạn tích luỹ (lịch sử chat, trí nhớ, skill, agent, workflow) nằm ở file nào trên máy bạn, để khi có model mới chỉ cần đổi, không phải làm lại từ đầu.
+
 ## [0.70.0] - 2026-10-03
 ### Cải thiện
 - **README có 5 hình động.** Cài đặt bằng một lệnh, đổi bộ não mà giữ nguyên công cụ, một câu chat thành đúng hành động, Second Brain lớn dần, việc chạy nền qua đêm. Hình nhẹ, nét trên điện thoại, và đứng yên nếu máy bật chế độ giảm chuyển động.
