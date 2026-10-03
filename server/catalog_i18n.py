@@ -50,9 +50,14 @@ def lop_phu(ma: str) -> dict:
     ma = lang_registry.chuan_hoa(ma) or lang_registry.MAC_DINH
     if ma == lang_registry.MAC_DINH:
         return {}
-    return _doc_lop_phu(ma) or (
-        {} if lang_registry.DU_PHONG_GIAO_DIEN == lang_registry.MAC_DINH
-        else _doc_lop_phu(lang_registry.DU_PHONG_GIAO_DIEN))
+    du_phong = ({} if lang_registry.DU_PHONG_GIAO_DIEN == lang_registry.MAC_DINH
+                else _doc_lop_phu(lang_registry.DU_PHONG_GIAO_DIEN))
+    rieng = _doc_lop_phu(ma)
+    if not rieng or rieng is du_phong:
+        return du_phong
+    # Suy biến THEO TỪNG connector: file tiếng Thái dịch dở thì connector chưa dịch hiện bản
+    # tiếng Anh, không rơi thẳng về tiếng Việt gốc.
+    return {**du_phong, **rieng}
 
 
 def _dat(dich: dict, goc: dict, khoa: str) -> None:

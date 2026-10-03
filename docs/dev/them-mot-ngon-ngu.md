@@ -72,8 +72,8 @@ trước tiếng Trung vì văn bản Nhật có kanji lẫn kana.
 cp dashboard/i18n/vi.json dashboard/i18n/th.json
 ```
 
-Rồi dịch phần giá trị. **Không cần dịch hết ngay.** Key thiếu tự rơi về `vi`, rồi rơi về chính
-tên key - giao diện không bao giờ vỡ, chỉ lẫn tiếng cho tới khi bản dịch đầy dần.
+Rồi dịch phần giá trị. **Không cần dịch hết ngay.** Từ 0.66.0 key thiếu rơi về `en`, rồi `vi`,
+rồi mới tới chính tên key - giao diện không bao giờ vỡ, chỉ lẫn tiếng cho tới khi bản dịch đầy dần.
 
 Hai key kỹ thuật phải sửa: `_meta.name` (tên hiện trong ô chọn) và `_meta.number_locale`.
 
@@ -136,8 +136,9 @@ Từ 0.67.0 chữ phía server đi theo ngôn ngữ giao diện của THIẾT B�
 tiếng Anh, nên không bước nào dưới đây là bắt buộc để mời người dùng Thái vào.
 
 - **Thông báo của server** viết hai bản ngay tại chỗ: `localefmt.chu("Đã lưu", "Saved")`. Bản
-  thứ ba chưa có chỗ, tức tiếng Thái hiện tiếng Anh. Khi cần thật, mở rộng `chu()` nhận thêm
-  `**ban` theo mã ngôn ngữ, đừng rẽ nhánh `if lang == ...` ở chỗ gọi.
+  thứ ba chưa có chỗ, tức tiếng Thái hiện tiếng Anh. Khi cần thật, mở rộng `chu()` bằng một tham
+  số RIÊNG nhận map `{mã: chữ}` (không dùng `**kwargs`: `**bien` đã là biến điền vào chữ), đừng rẽ
+  nhánh `if lang == ...` ở chỗ gọi.
 - **Kho Kết nối:** chép `system/mcp-catalog.en.json` thành `system/mcp-catalog.th.json` rồi
   dịch phần chữ. Bước wizard và link cài đặt khớp theo VỊ TRÍ, giữ đúng số lượng.
 - **File hạt giống của brain mới:** thêm bản `"th"` cho từng mục trong `HAT_GIONG` ở

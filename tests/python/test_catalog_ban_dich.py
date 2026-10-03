@@ -89,6 +89,19 @@ try:
           catalog_i18n.lop_phu("ja") is catalog_i18n._doc_lop_phu("en") and bool(catalog_i18n.lop_phu("ja")))
 finally:
     lang_registry.chuan_hoa = _goc_ch
+# File của thứ tiếng thứ ba dịch dở: connector nào chưa có trong đó phải lấy bản tiếng Anh,
+# không rơi thẳng về tiếng Việt (lỗi người dịch sổ tay tìm ra, 0.68.0).
+_goc_doc = catalog_i18n._doc_lop_phu
+_goc_ch2 = lang_registry.chuan_hoa
+catalog_i18n._doc_lop_phu = lambda m: ({"botcake": {"description": "JA"}} if m == "ja" else _goc_doc(m))
+lang_registry.chuan_hoa = lambda m: "ja" if str(m).startswith("ja") else _goc_ch2(m)
+try:
+    _ja = catalog_i18n.lop_phu("ja")
+    check("thứ tiếng thứ ba dịch dở: mục đã dịch dùng bản của nó", _ja["botcake"]["description"] == "JA")
+    check("thứ tiếng thứ ba dịch dở: mục chưa dịch dùng bản tiếng Anh", _ja.get("gmail") == en.get("gmail"))
+finally:
+    catalog_i18n._doc_lop_phu = _goc_doc
+    lang_registry.chuan_hoa = _goc_ch2
 check("ngôn ngữ gốc của catalog thì không phủ gì", catalog_i18n.lop_phu(lang_registry.MAC_DINH) == {})
 
 print()
