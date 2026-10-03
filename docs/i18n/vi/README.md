@@ -51,7 +51,41 @@ Javis OS **không phải** một chatbot. Nó là một **AI agentic tự host**
 
 Bạn đấu các **kết nối** của riêng mình vào (bán hàng/POS, quảng cáo, lịch, email, Zalo, ghi chú…) → Javis tự phát hiện và **báo cáo kinh doanh + cuộc sống** bằng số liệu thật, nói chuyện như người.
 
-### Vì sao Javis khác biệt
+### Cái bẫy không ai nói trước: bị khoá vào một nhà cung cấp AI
+
+Thử dùng một app AI mỗi ngày trong một năm, rồi nhìn lại xem bên trong nó đã chất những gì:
+
+- **Hàng trăm cuộc trò chuyện**, chứa những quyết định và bối cảnh bạn đã mất công cùng nó nghĩ ra.
+- **Trí nhớ** về bạn: bạn là ai, làm việc kiểu gì, kinh doanh bán gì.
+- **Hướng dẫn riêng, trợ lý, dự án**: bí quyết bạn đã ngồi chỉnh hàng giờ.
+- **Tự động hoá và agent** chỉ chạy được trên đúng nền tảng đó.
+
+Tất cả nằm trên máy chủ của nhà cung cấp, theo định dạng của họ. Rồi một model tốt hơn ra đời ở chỗ khác. Bạn dùng thử được, nhưng không mang công việc theo được: app mới không biết gì về bạn, hướng dẫn cũ không sang được, lịch sử thì ở lại. Nếu có nút xuất dữ liệu, thứ nhận về thường chỉ là một đống log chat, không phải trí nhớ mà công cụ khác dùng được.
+
+Thế là bạn ở lại. Không phải vì model cũ còn tốt nhất, mà vì rời đi nghĩa là làm lại từ con số không. Và khi nhà cung cấp tăng giá, siết giới hạn, khai tử model hay khoá tài khoản, bạn không có đường lui.
+
+### Javis đảo ngược chuyện đó: model đi thuê, bộ não là của bạn
+
+Trong Javis, model chỉ là một bộ phận thay được. Mọi thứ bạn tích luỹ đều nằm trong tay bạn, dưới dạng file mở ra đọc được:
+
+| Thứ bạn tích luỹ | Nằm ở đâu | Định dạng |
+|---|---|---|
+| **Lịch sử trò chuyện** | `conversations.db` trên máy hoặc VPS của bạn, chung một chỗ dù bộ não nào trả lời | SQLite, tìm kiếm toàn văn |
+| **Trí nhớ về bạn** | `memory/` trong brain: `MEMORY.md` và mỗi điều nhớ một file | Markdown |
+| **Tri thức** | thư mục Wiki và Sources của brain | Markdown, mở được bằng Obsidian |
+| **Skill** | `skills/<tên>/SKILL.md` | Markdown |
+| **Agent và workflow** | `agents/*.md`, `workflows/*.md` | Markdown có front matter |
+| **Loop và nhắc hẹn** | `Javis/loops/*.md`, `Javis/reminders.json` | Markdown, JSON |
+
+Nhờ vậy:
+
+- **Có model mới? Đổi ở trang Models rồi làm tiếp.** Model mới đọc cùng trí nhớ, chạy cùng skill, agent, workflow, gọi cùng các kết nối qua MCP Hub. Không phải chuyển dữ liệu, không phải dựng lại gì cả.
+- **Dùng nhiều bộ não cùng lúc.** Model mạnh để trò chuyện, model rẻ chạy việc nền, model Ollama chạy ngay trên máy cho ghi chú riêng tư, tất cả cùng làm việc trên một brain.
+- **Không cần Javis vẫn đọc được.** Brain là một thư mục markdown, mở bằng Obsidian hay trình soạn thảo nào cũng được. Lỡ mai Javis không còn, tri thức của bạn vẫn nằm đó, bằng chữ thường.
+- **Có lịch sử phiên bản, mang đi đâu cũng được.** Mỗi lần Javis tự học là một commit git, hoàn tác bằng một chạm, và cả brain đồng bộ được lên repo GitHub riêng tư của bạn, dùng chung giữa laptop và VPS.
+- **Dữ liệu nằm trên máy của bạn.** Không có máy chủ Javis nào đứng giữa. Mỗi yêu cầu chỉ đi tới đúng nhà cung cấp model bạn chọn, còn dùng model Ollama trên máy thì không rời khỏi máy bạn.
+
+### Javis so với chatbot thường
 
 | | Chatbot thường | **Javis OS** |
 |---|---|---|
@@ -60,6 +94,7 @@ Bạn đấu các **kết nối** của riêng mình vào (bán hàng/POS, quả
 | Dữ liệu | Bịa hoặc không có | **Số liệu thật** từ kết nối bạn đấu vào (POS, Ads, Lịch, Zalo…) |
 | Tự cải thiện | Không | **Vòng lặp tự chạy nền** + hàng đợi việc do AI tự vận hành |
 | Giao diện | Khung chat | Dashboard + đồ thị tri thức + **giọng nói rảnh tay** + Telegram |
+| Công việc của bạn | Nằm trên máy chủ nhà cung cấp, theo định dạng của họ | **File thường trên máy bạn**: lịch sử, trí nhớ, skill, agent, workflow mang sang được mọi model mới |
 | Triển khai | Khoá vào 1 nhà cung cấp | **Tự host**: Hostinger 1-click / Docker / VPS bất kỳ |
 
 > 💡 **Triết lý:** Javis *biên dịch một lần* tri thức từ ghi chú thô → Wiki, rồi *duy trì* nó sống cùng mỗi nguồn mới. Tri thức **tích luỹ**, không tái phát hiện mỗi lần.
