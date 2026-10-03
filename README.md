@@ -21,7 +21,7 @@ Run it on your laptop or a small VPS. Talk to it by voice. Plug in Claude, ChatG
 
 <br>
 
-<img src="docs/assets/screenshots/graph.jpg" alt="The Javis OS dashboard: brain file tree on the left, the knowledge graph in the middle, the conversation panel on the right and the chat bar at the bottom" width="100%">
+<img src="docs/assets/screenshots/graph.jpg" alt="The Javis OS dashboard on a real brain of 1,633 notes and 2,413 links: the file tree on the left, the knowledge graph in the middle and the chat bar at the bottom" width="100%">
 
 </div>
 
