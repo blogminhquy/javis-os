@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:461cc289f23a -->
+<!-- translated-from: README.md sha256:0928e7bc4ccb -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Javis OS のロゴ">
@@ -45,6 +45,10 @@
 > [!NOTE]
 > Javis の起動 **後に** CLI を追加でインストールした場合は、**Javis を再起動してください。** 実行中のプロセスは起動時の PATH を保持しているため、あとからインストールした CLI は見えません。
 
+<p align="center">
+<img src="../../../docs/assets/diagrams/install-terminal.svg" width="100%" alt="アニメーションするターミナル：1 行のインストーラーが Python、4 つのサブスクリプション CLI 頭脳、.env を準備し、Javis が http://localhost:7777 で動作中であることを表示します">
+</p>
+
 ---
 
 ## 🤔 Javis を選ぶ理由
@@ -62,11 +66,19 @@ Javis OS はチャットボット **ではありません**。自分のマシン
 
 > 💡 **設計思想：能力はモデルではなく Javis に宿る。** どの頭脳も、ひとつの共有接続ハブ（MCP Hub）を通じて同じツール一式を受け取ります。Claude から Gemini に切り替えても失うものはありません。例外はシェルアクセスだけで、これは CLI エンジンにしかありません。
 
+<p align="center">
+<img src="../../../docs/assets/diagrams/chat-to-action.svg" width="100%" alt="アニメーション図：チャットのメッセージが Javis に入り、Javis はその仕事を終えられる最小のツールを選びます。直接回答からタスクのキュー登録、Agent、Workflow、リマインダー、Loop の作成まで">
+</p>
+
 ---
 
 ## 🧠 12 の頭脳、ひとつのツールキット
 
 頭脳は **Models** ページで選び、いつでも好きなときに変更できます。Javis は現在 **12 のプロバイダー** に対応しています。
+
+<p align="center">
+<img src="../../../docs/assets/diagrams/swappable-brain.svg" width="100%" alt="アニメーション図：中央に Javis のコア、周囲にツールキット（MCP Hub、Skills、Second Brain、Tasks、Schedules、Plugins）。12 の頭脳が順番に接続され、ツールはずっと点灯したまま">
+</p>
 
 | 頭脳 | 支払い方法 | シェル、Web、サブエージェント |
 |---|---|---|
@@ -87,6 +99,10 @@ Javis OS はチャットボット **ではありません**。自分のマシン
 ---
 
 ## ✨ 機能
+
+<p align="center">
+<img src="../../../docs/assets/diagrams/second-brain-grows.svg" width="100%" alt="アニメーションするナレッジグラフ：ノートとリンクが 1 つずつ現れ、Second Brain が数件のノートから 1,000 件以上へ成長します">
+</p>
 
 <table>
 <tr>
@@ -122,6 +138,10 @@ Javis OS はチャットボット **ではありません**。自分のマシン
 </td>
 </tr>
 </table>
+
+<p align="center">
+<img src="../../../docs/assets/diagrams/background-work.svg" width="100%" alt="夜のアニメーション Kanban ボード：タスクが Queued から Running、Review、Done へ自動で進み、朝には Telegram にレポートが届きます">
+</p>
 
 <div align="center">
 <img src="../../../docs/assets/screenshots/tasks.jpg" alt="Tasks ページ：ディスパッチャーの状態、ワーカー数、ディスパッチャーのモード、タスクキュー" width="49%">
@@ -377,7 +397,7 @@ javis-os/
 | **Javis の返答** | どの言語でも：あなたが書いた言語、または Settings で固定した言語で答えます |
 | **ダッシュボードとサーバーのメッセージ** | 🇬🇧 English · 🇻🇳 Tiếng Việt。デバイスごとに設定され、言語を選ぶまでは各ブラウザの言語が使われます |
 | **接続ストア、Plugin、新しい Brain の初期ファイル** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
-| **README とクイックスタート** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 |
+| **README とクイックスタート** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 · 🇮🇳 हिन्दी · 🇧🇷 Português · 🇰🇷 한국어 · 🇷🇺 Русский · 🇩🇪 Deutsch · 🇫🇷 Français · 🇮🇩 Bahasa Indonesia |
 | **詳細ドキュメント** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
 言語の追加はコードの変更ではなく、データの変更です。`server/lang_registry.py` へのエントリ 1 件と `dashboard/i18n/<code>.json` 1 ファイル、必要に応じて `system/mcp-catalog.<code>.json` を追加するだけです。まだ翻訳されていない部分は英語で表示されます。協力していただける方は [CONTRIBUTING.en.md](../../../CONTRIBUTING.md#translations) をご覧ください。

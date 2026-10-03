@@ -110,6 +110,11 @@ for code in langs:
     check(f"QUICKSTART.en.md links docs/i18n/{code}/QUICKSTART.md",
           f"(docs/i18n/{code}/QUICKSTART.md)" in quick_en)
 
+# Every language bar lists every language that exists, in the same order (run --bars to fix).
+_stale_bars = ct.rewrite_bars(write=False)
+check("language bars are complete and consistent (tools/check_translations.py --bars)",
+      not _stale_bars, ", ".join(_stale_bars[:5]))
+
 # The English README must not point at a translation that does not exist.
 for code in re.findall(r"\(docs/i18n/([A-Za-z-]+)/README\.md\)", readme_en):
     check(f"README.md links an existing docs/i18n/{code}/README.md",

@@ -12,6 +12,10 @@ README edit on three re-translations would make the owner stop editing the READM
     python tools/check_translations.py           # human-readable list
     python tools/check_translations.py --github  # also emit ::warning annotations + job summary
     python tools/check_translations.py --stamp docs/i18n/es/README.md   # mark as up to date
+    python tools/check_translations.py --bars    # rewrite every language bar from LANGS
+
+Adding a language: add it to LANGS, put its files in docs/i18n/<code>/, run --bars. Bars only
+ever list languages whose file exists, so a half-added language never shows a dead link.
 """
 from __future__ import annotations
 
@@ -25,6 +29,14 @@ ROOT = Path(__file__).resolve().parent.parent
 I18N = ROOT / "docs" / "i18n"
 # Vietnamese is maintained by hand alongside the English original, not machine-translated.
 HAND_KEPT = {"vi"}
+# Order of the language bars. (code, flag, native name). English and Vietnamese live outside
+# docs/i18n for historical reasons, see target().
+LANGS = [
+    ("en", "🇬🇧", "English"), ("vi", "🇻🇳", "Tiếng Việt"), ("zh", "🇨🇳", "简体中文"),
+    ("es", "🇪🇸", "Español"), ("ja", "🇯🇵", "日本語"), ("hi", "🇮🇳", "हिन्दी"),
+    ("pt-BR", "🇧🇷", "Português"), ("ko", "🇰🇷", "한국어"), ("ru", "🇷🇺", "Русский"),
+    ("de", "🇩🇪", "Deutsch"), ("fr", "🇫🇷", "Français"), ("id", "🇮🇩", "Bahasa Indonesia"),
+]
 MARKER = re.compile(r"<!--\s*translated-from:\s*(\S+)\s+sha256:([0-9a-f]{6,64})\s*-->")
 
 
@@ -62,7 +74,66 @@ def stamp(path: Path) -> None:
     path.write_text(new_first + "\n" + rest, encoding="utf-8")
 
 
+def target(code: str, doc: str) -> Path:
+    """Where `doc` ("README" or "QUICKSTART") lives for language `code`."""
+    if doc == "README":
+        return ROOT / "README.md" if code == "en" else I18N / code / "README.md"
+    if code == "en":
+        return ROOT / "QUICKSTART.en.md"
+    return ROOT / "QUICKSTART.md" if code == "vi" else I18N / code / "QUICKSTART.md"
+
+
+def bar(current: str, doc: str, here: Path) -> str:
+    items = []
+    for code, flag, name in LANGS:
+        dest = target(code, doc)
+        if not dest.is_file():
+            continue
+        label = f"{flag} {name}" if doc == "README" else name
+        if code == current:
+            items.append(f"{flag} **{name}**" if doc == "README" else f"**{name}**")
+        else:
+            items.append(f"[{label}]({os.path.relpath(dest, here.parent).replace(os.sep, '/')})")
+    return " · ".join(items)
+
+
+def is_bar(line: str, doc: str) -> bool:
+    if line.count(" · ") < 2 or "English" not in line or "Tiếng Việt" not in line:
+        return False
+    return "🌍" in line if doc == "README" else line.startswith("*")
+
+
+def rewrite_bars(write: bool = True) -> list[str]:
+    """Bring every language bar in line with LANGS. write=False only reports what would change."""
+    changed = []
+    for code, _flag, _name in LANGS:
+        for doc in ("README", "QUICKSTART"):
+            path = target(code, doc)
+            if not path.is_file():
+                continue
+            lines = path.read_text(encoding="utf-8").split("\n")
+            for i, line in enumerate(lines):
+                if not is_bar(line, doc):
+                    continue
+                if doc == "README":
+                    help_part = line[line.rindex(" · [🌍"):] if " · [🌍" in line else ""
+                    new = bar(code, doc, path) + help_part
+                else:
+                    new = "*" + bar(code, doc, path) + "*"
+                if new != line:
+                    lines[i] = new
+                    changed.append(path.relative_to(ROOT).as_posix())
+                break
+            if write and changed and changed[-1] == path.relative_to(ROOT).as_posix():
+                path.write_text("\n".join(lines), encoding="utf-8")
+    return changed
+
+
 def main(argv: list[str]) -> int:
+    if argv[:1] == ["--bars"]:
+        for rel in rewrite_bars():
+            print("updated", rel)
+        return 0
     if argv[:1] == ["--stamp"]:
         for name in argv[1:]:
             stamp(Path(name).resolve())

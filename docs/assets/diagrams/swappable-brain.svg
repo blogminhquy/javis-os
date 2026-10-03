@@ -1,0 +1,135 @@
+<svg viewBox="0 0 1200 620" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="t d">
+<title id="t">Swappable brain: change the model, keep every tool</title>
+<desc id="d">Twelve AI brains take turns plugging into the Javis core while its six tools (MCP Hub, Skills, Second Brain, Tasks, Schedules, Plugins) stay connected the whole time.</desc>
+<style>
+.c{opacity:0;animation:slot 12s linear infinite}
+.c.on{opacity:1}
+.hb{opacity:0;animation:hl 12s linear infinite}
+.hb.on{opacity:1}
+.rt{fill:#9ca3af;animation:ht 12s linear infinite}
+.rt.on{fill:#fdba74}
+.flow{animation:flow 1.2s linear infinite}
+.pulse{animation:pulse 1s ease-out infinite}
+.breath{opacity:.85;animation:breath 4s ease-in-out infinite}
+@keyframes slot{0%{opacity:0;transform:translateX(-40px)}1.8%{opacity:1;transform:translateX(0)}7%{opacity:1;transform:translateY(0)}8.33%{opacity:0;transform:translateY(-18px)}100%{opacity:0;transform:translateY(-18px)}}
+@keyframes hl{0%{opacity:0}1.2%{opacity:1}7.6%{opacity:1}8.33%{opacity:0}100%{opacity:0}}
+@keyframes ht{0%{fill:#9ca3af}1.2%{fill:#fdba74}7.6%{fill:#fdba74}8.33%{fill:#9ca3af}100%{fill:#9ca3af}}
+@keyframes flow{from{stroke-dashoffset:0}to{stroke-dashoffset:-24}}
+@keyframes pulse{0%{opacity:.4}20%{opacity:1}100%{opacity:.4}}
+@keyframes breath{0%,100%{opacity:.55}50%{opacity:.95}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+</style>
+<defs>
+<radialGradient id="bgGlow" cx="0.62" cy="0.55" r="0.55"><stop offset="0" stop-color="#7c3aed" stop-opacity="0.12"/><stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></radialGradient>
+<radialGradient id="coreGlow"><stop offset="0" stop-color="#f97316" stop-opacity="0.55"/><stop offset="0.5" stop-color="#f97316" stop-opacity="0.18"/><stop offset="1" stop-color="#f97316" stop-opacity="0"/></radialGradient>
+<linearGradient id="coreFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fb923c"/><stop offset="1" stop-color="#ea580c"/></linearGradient>
+<linearGradient id="cardFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a1a14"/><stop offset="1" stop-color="#1a1420"/></linearGradient>
+<pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#ffffff" stroke-opacity="0.04" stroke-width="1"/></pattern>
+<filter id="blur" x="-30%" y="-60%" width="160%" height="220%"><feGaussianBlur stdDeviation="6"/></filter>
+<clipPath id="slotClip"><rect x="422" y="324" width="252" height="72" rx="14"/></clipPath>
+<clipPath id="bgClip"><rect width="1200" height="620" rx="20"/></clipPath>
+</defs>
+<rect width="1200" height="620" rx="20" fill="#0b0b14"/>
+<g clip-path="url(#bgClip)"><rect width="1200" height="620" fill="url(#grid)"/><rect width="1200" height="620" fill="url(#bgGlow)"/></g>
+<text x="48" y="62" font-family="ui-monospace, 'SFMono-Regular', Consolas, 'Courier New', monospace" font-size="16" letter-spacing="2.5" fill="#f97316">SWAPPABLE BRAIN</text>
+<text x="48" y="104" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="28" font-weight="700" fill="#e5e7eb">Change the model. <tspan fill="#f97316">Keep every tool.</tspan></text>
+
+<rect x="40" y="140" width="290" height="420" rx="16" fill="#151525" stroke="#2a2a40"/>
+<text x="64" y="174" font-family="ui-monospace, 'SFMono-Regular', Consolas, 'Courier New', monospace" font-size="15" letter-spacing="2" fill="#9ca3af">12 BRAINS</text>
+<circle cx="68" cy="208.0" r="3.5" fill="#3a3a55"/>
+<g class="hb on"><rect x="52" y="195.0" width="266" height="26" rx="8" fill="#f97316" fill-opacity="0.14" stroke="#f97316" stroke-opacity="0.45"/><circle cx="68" cy="208.0" r="4.5" fill="#f97316"/></g>
+<text class="rt on" x="84" y="214.0" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="18">Claude Code</text>
+<circle cx="68" cy="236.5" r="3.5" fill="#3a3a55"/>
+<g class="hb" style="animation-delay:1s"><rect x="52" y="223.5" width="266" height="26" rx="8" fill="#f97316" fill-opacity="0.14" stroke="#f97316" stroke-opacity="0.45"/><circle cx="68" cy="236.5" r="4.5" fill="#f97316"/></g>
+<text class="rt" style="animation-delay:1s" x="84" y="242.5" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="18">ChatGPT (Codex)</text>
+<circle cx="68" cy="265.0" r="3.5" fill="#3a3a55"/>
+<g class="hb" style="animation-delay:2s"><rect x="52" y="252.0" width="266" height="26" rx="8" fill="#f97316" fill-opacity="0.14" stroke="#f97316" stroke-opacity="0.45"/><circle cx="68" cy="265.0" r="4.5" fill="#f97316"/></g>
+<text class="rt" style="animation-delay:2s" x="84" y="271.0" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="18">Grok Build</text>
+<circle cx="68" cy="293.5" r="3.5" fill="#3a3a55"/>
+<g class="hb" style="animation-delay:3s"><rect x="52" y="280.5" width="266" height="26" rx="8" fill="#f97316" fill-opacity="0.14" stroke="#f97316" stroke-opacity="0.45"/><circle cx="68" cy="293.5" r="4.5" fill="#f97316"/></g>
+<text class="rt" style="animation-delay:3s" x="84" y="299.5" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="18">Antigravity CLI</text>
+<circle cx="68" cy="322.0" r="3.5" fill="#3a3a55"/>
+<g class="hb" style="animation-delay:4s"><rect x="52" y="309.0" width="266" height="26" rx="8" fill="#f97316" fill-opacity="0.14" stroke="#f97316" stroke-opacity="0.45"/><circle cx="68" cy="322.0" r="4.5" fill="#f97316"/></g>
+<text class="rt" style="animation-delay:4s" x="84" y="328.0" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="18">OpenRouter</text>
+<circle cx="68" cy="350.5" r="3.5" fill="#3a3a55"/>
+<g class="hb" style="animation-delay:5s"><rect x="52" y="337.5" width="266" height="26" rx="8" fill="#f97316" fill-opacity="0.14" stroke="#f97316" stroke-opacity="0.45"/><circle cx="68" cy="350.5" r="4.5" fill="#f97316"/></g>
+<text class="rt" style="animation-delay:5s" x="84" y="356.5" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="18">OpenAI API</text>
+<circle cx="68" cy="379.0" r="3.5" fill="#3a3a55"/>
+<g class="hb" style="animation-delay:6s"><rect x="52" y="366.0" width="266" height="26" rx="8" fill="#f97316" fill-opacity="0.14" stroke="#f97316" stroke-opacity="0.45"/><circle cx="68" cy="379.0" r="4.5" fill="#f97316"/></g>
+<text class="rt" style="animation-delay:6s" x="84" y="385.0" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="18">Anthropic API</text>
+<circle cx="68" cy="407.5" r="3.5" fill="#3a3a55"/>
+<g class="hb" style="animation-delay:7s"><rect x="52" y="394.5" width="266" height="26" rx="8" fill="#f97316" fill-opacity="0.14" stroke="#f97316" stroke-opacity="0.45"/><circle cx="68" cy="407.5" r="4.5" fill="#f97316"/></g>
+<text class="rt" style="animation-delay:7s" x="84" y="413.5" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="18">Google Gemini</text>
+<circle cx="68" cy="436.0" r="3.5" fill="#3a3a55"/>
+<g class="hb" style="animation-delay:8s"><rect x="52" y="423.0" width="266" height="26" rx="8" fill="#f97316" fill-opacity="0.14" stroke="#f97316" stroke-opacity="0.45"/><circle cx="68" cy="436.0" r="4.5" fill="#f97316"/></g>
+<text class="rt" style="animation-delay:8s" x="84" y="442.0" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="18">Groq</text>
+<circle cx="68" cy="464.5" r="3.5" fill="#3a3a55"/>
+<g class="hb" style="animation-delay:9s"><rect x="52" y="451.5" width="266" height="26" rx="8" fill="#f97316" fill-opacity="0.14" stroke="#f97316" stroke-opacity="0.45"/><circle cx="68" cy="464.5" r="4.5" fill="#f97316"/></g>
+<text class="rt" style="animation-delay:9s" x="84" y="470.5" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="18">Ollama Cloud</text>
+<circle cx="68" cy="493.0" r="3.5" fill="#3a3a55"/>
+<g class="hb" style="animation-delay:10s"><rect x="52" y="480.0" width="266" height="26" rx="8" fill="#f97316" fill-opacity="0.14" stroke="#f97316" stroke-opacity="0.45"/><circle cx="68" cy="493.0" r="4.5" fill="#f97316"/></g>
+<text class="rt" style="animation-delay:10s" x="84" y="499.0" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="18">Ollama (local)</text>
+<circle cx="68" cy="521.5" r="3.5" fill="#3a3a55"/>
+<g class="hb" style="animation-delay:11s"><rect x="52" y="508.5" width="266" height="26" rx="8" fill="#f97316" fill-opacity="0.14" stroke="#f97316" stroke-opacity="0.45"/><circle cx="68" cy="521.5" r="4.5" fill="#f97316"/></g>
+<text class="rt" style="animation-delay:11s" x="84" y="527.5" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="18">OpenAI-compatible</text>
+<line x1="800" y1="360" x2="700" y2="200" stroke="#8b5cf6" stroke-opacity="0.35" stroke-width="2"/>
+<line class="flow" x1="800" y1="360" x2="700" y2="200" stroke="#a78bfa" stroke-width="5" stroke-linecap="round" stroke-dasharray="0 24"/>
+<line x1="800" y1="360" x2="900" y2="200" stroke="#8b5cf6" stroke-opacity="0.35" stroke-width="2"/>
+<line class="flow" x1="800" y1="360" x2="900" y2="200" stroke="#a78bfa" stroke-width="5" stroke-linecap="round" stroke-dasharray="0 24"/>
+<line x1="800" y1="360" x2="1050" y2="300" stroke="#8b5cf6" stroke-opacity="0.35" stroke-width="2"/>
+<line class="flow" x1="800" y1="360" x2="1050" y2="300" stroke="#a78bfa" stroke-width="5" stroke-linecap="round" stroke-dasharray="0 24"/>
+<line x1="800" y1="360" x2="1050" y2="420" stroke="#8b5cf6" stroke-opacity="0.35" stroke-width="2"/>
+<line class="flow" x1="800" y1="360" x2="1050" y2="420" stroke="#a78bfa" stroke-width="5" stroke-linecap="round" stroke-dasharray="0 24"/>
+<line x1="800" y1="360" x2="900" y2="520" stroke="#8b5cf6" stroke-opacity="0.35" stroke-width="2"/>
+<line class="flow" x1="800" y1="360" x2="900" y2="520" stroke="#a78bfa" stroke-width="5" stroke-linecap="round" stroke-dasharray="0 24"/>
+<line x1="800" y1="360" x2="700" y2="520" stroke="#8b5cf6" stroke-opacity="0.35" stroke-width="2"/>
+<line class="flow" x1="800" y1="360" x2="700" y2="520" stroke="#a78bfa" stroke-width="5" stroke-linecap="round" stroke-dasharray="0 24"/>
+<rect x="674" y="350" width="62" height="20" rx="4" fill="#151525" stroke="#2a2a40"/>
+<line class="flow" x1="680" y1="360" x2="736" y2="360" stroke="#fb923c" stroke-width="5" stroke-linecap="round" stroke-dasharray="0 24"/>
+<circle class="breath" cx="800" cy="360" r="140" fill="url(#coreGlow)"/>
+<polygon points="870.0,360.0 835.0,420.6 765.0,420.6 730.0,360.0 765.0,299.4 835.0,299.4" fill="url(#coreFill)" stroke="#fb923c" stroke-width="18" stroke-linejoin="round"/>
+<polygon points="870.0,360.0 835.0,420.6 765.0,420.6 730.0,360.0 765.0,299.4 835.0,299.4" fill="none" stroke="#fed7aa" stroke-opacity="0.5" stroke-width="2" stroke-linejoin="round" transform="translate(800 360) scale(0.78) translate(-800 -360)"/>
+<text x="800" y="370" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="28" font-weight="800" letter-spacing="2" fill="#1a0f08">JAVIS</text>
+<rect x="602.0" y="175" width="196" height="50" rx="25" fill="#2dd4bf" fill-opacity="0.18" filter="url(#blur)"/>
+<rect x="602.0" y="175" width="196" height="50" rx="25" fill="#151525" stroke="#2dd4bf" stroke-opacity="0.75" stroke-width="1.5"/>
+<circle cx="626.0" cy="200" r="5" fill="#4ade80"/>
+<text x="710" y="207" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="19" font-weight="600" fill="#e5e7eb">MCP Hub</text>
+<rect x="802.0" y="175" width="196" height="50" rx="25" fill="#2dd4bf" fill-opacity="0.18" filter="url(#blur)"/>
+<rect x="802.0" y="175" width="196" height="50" rx="25" fill="#151525" stroke="#2dd4bf" stroke-opacity="0.75" stroke-width="1.5"/>
+<circle cx="826.0" cy="200" r="5" fill="#4ade80"/>
+<text x="910" y="207" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="19" font-weight="600" fill="#e5e7eb">Skills</text>
+<rect x="952.0" y="275" width="196" height="50" rx="25" fill="#2dd4bf" fill-opacity="0.18" filter="url(#blur)"/>
+<rect x="952.0" y="275" width="196" height="50" rx="25" fill="#151525" stroke="#2dd4bf" stroke-opacity="0.75" stroke-width="1.5"/>
+<circle cx="976.0" cy="300" r="5" fill="#4ade80"/>
+<text x="1060" y="307" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="19" font-weight="600" fill="#e5e7eb">Second Brain</text>
+<rect x="952.0" y="395" width="196" height="50" rx="25" fill="#2dd4bf" fill-opacity="0.18" filter="url(#blur)"/>
+<rect x="952.0" y="395" width="196" height="50" rx="25" fill="#151525" stroke="#2dd4bf" stroke-opacity="0.75" stroke-width="1.5"/>
+<circle cx="976.0" cy="420" r="5" fill="#4ade80"/>
+<text x="1060" y="427" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="19" font-weight="600" fill="#e5e7eb">Tasks</text>
+<rect x="802.0" y="495" width="196" height="50" rx="25" fill="#2dd4bf" fill-opacity="0.18" filter="url(#blur)"/>
+<rect x="802.0" y="495" width="196" height="50" rx="25" fill="#151525" stroke="#2dd4bf" stroke-opacity="0.75" stroke-width="1.5"/>
+<circle cx="826.0" cy="520" r="5" fill="#4ade80"/>
+<text x="910" y="527" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="19" font-weight="600" fill="#e5e7eb">Schedules</text>
+<rect x="602.0" y="495" width="196" height="50" rx="25" fill="#2dd4bf" fill-opacity="0.18" filter="url(#blur)"/>
+<rect x="602.0" y="495" width="196" height="50" rx="25" fill="#151525" stroke="#2dd4bf" stroke-opacity="0.75" stroke-width="1.5"/>
+<circle cx="626.0" cy="520" r="5" fill="#4ade80"/>
+<text x="710" y="527" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="19" font-weight="600" fill="#e5e7eb">Plugins</text>
+<text x="548" y="306" text-anchor="middle" font-family="ui-monospace, 'SFMono-Regular', Consolas, 'Courier New', monospace" font-size="15" letter-spacing="2" fill="#9ca3af">BRAIN SLOT</text>
+<rect class="pulse" x="420" y="322" width="256" height="76" rx="16" fill="none" stroke="#f97316" stroke-width="6" filter="url(#blur)"/>
+<rect x="420" y="322" width="256" height="76" rx="16" fill="#120f1c" stroke="#f97316" stroke-opacity="0.8" stroke-width="2"/>
+<g clip-path="url(#slotClip)">
+<g class="c on"><rect x="436" y="334" width="224" height="52" rx="12" fill="url(#cardFill)" stroke="#fb923c" stroke-width="1.5"/><rect x="660" y="346" width="12" height="6" rx="2" fill="#fb923c"/><rect x="660" y="368" width="12" height="6" rx="2" fill="#fb923c"/><text x="548" y="367" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff">Claude Code</text></g>
+<g class="c" style="animation-delay:1s"><rect x="436" y="334" width="224" height="52" rx="12" fill="url(#cardFill)" stroke="#fb923c" stroke-width="1.5"/><rect x="660" y="346" width="12" height="6" rx="2" fill="#fb923c"/><rect x="660" y="368" width="12" height="6" rx="2" fill="#fb923c"/><text x="548" y="367" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff">ChatGPT (Codex)</text></g>
+<g class="c" style="animation-delay:2s"><rect x="436" y="334" width="224" height="52" rx="12" fill="url(#cardFill)" stroke="#fb923c" stroke-width="1.5"/><rect x="660" y="346" width="12" height="6" rx="2" fill="#fb923c"/><rect x="660" y="368" width="12" height="6" rx="2" fill="#fb923c"/><text x="548" y="367" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff">Grok Build</text></g>
+<g class="c" style="animation-delay:3s"><rect x="436" y="334" width="224" height="52" rx="12" fill="url(#cardFill)" stroke="#fb923c" stroke-width="1.5"/><rect x="660" y="346" width="12" height="6" rx="2" fill="#fb923c"/><rect x="660" y="368" width="12" height="6" rx="2" fill="#fb923c"/><text x="548" y="367" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff">Antigravity CLI</text></g>
+<g class="c" style="animation-delay:4s"><rect x="436" y="334" width="224" height="52" rx="12" fill="url(#cardFill)" stroke="#fb923c" stroke-width="1.5"/><rect x="660" y="346" width="12" height="6" rx="2" fill="#fb923c"/><rect x="660" y="368" width="12" height="6" rx="2" fill="#fb923c"/><text x="548" y="367" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff">OpenRouter</text></g>
+<g class="c" style="animation-delay:5s"><rect x="436" y="334" width="224" height="52" rx="12" fill="url(#cardFill)" stroke="#fb923c" stroke-width="1.5"/><rect x="660" y="346" width="12" height="6" rx="2" fill="#fb923c"/><rect x="660" y="368" width="12" height="6" rx="2" fill="#fb923c"/><text x="548" y="367" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff">OpenAI API</text></g>
+<g class="c" style="animation-delay:6s"><rect x="436" y="334" width="224" height="52" rx="12" fill="url(#cardFill)" stroke="#fb923c" stroke-width="1.5"/><rect x="660" y="346" width="12" height="6" rx="2" fill="#fb923c"/><rect x="660" y="368" width="12" height="6" rx="2" fill="#fb923c"/><text x="548" y="367" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff">Anthropic API</text></g>
+<g class="c" style="animation-delay:7s"><rect x="436" y="334" width="224" height="52" rx="12" fill="url(#cardFill)" stroke="#fb923c" stroke-width="1.5"/><rect x="660" y="346" width="12" height="6" rx="2" fill="#fb923c"/><rect x="660" y="368" width="12" height="6" rx="2" fill="#fb923c"/><text x="548" y="367" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff">Google Gemini</text></g>
+<g class="c" style="animation-delay:8s"><rect x="436" y="334" width="224" height="52" rx="12" fill="url(#cardFill)" stroke="#fb923c" stroke-width="1.5"/><rect x="660" y="346" width="12" height="6" rx="2" fill="#fb923c"/><rect x="660" y="368" width="12" height="6" rx="2" fill="#fb923c"/><text x="548" y="367" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff">Groq</text></g>
+<g class="c" style="animation-delay:9s"><rect x="436" y="334" width="224" height="52" rx="12" fill="url(#cardFill)" stroke="#fb923c" stroke-width="1.5"/><rect x="660" y="346" width="12" height="6" rx="2" fill="#fb923c"/><rect x="660" y="368" width="12" height="6" rx="2" fill="#fb923c"/><text x="548" y="367" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff">Ollama Cloud</text></g>
+<g class="c" style="animation-delay:10s"><rect x="436" y="334" width="224" height="52" rx="12" fill="url(#cardFill)" stroke="#fb923c" stroke-width="1.5"/><rect x="660" y="346" width="12" height="6" rx="2" fill="#fb923c"/><rect x="660" y="368" width="12" height="6" rx="2" fill="#fb923c"/><text x="548" y="367" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff">Ollama (local)</text></g>
+<g class="c" style="animation-delay:11s"><rect x="436" y="334" width="224" height="52" rx="12" fill="url(#cardFill)" stroke="#fb923c" stroke-width="1.5"/><rect x="660" y="346" width="12" height="6" rx="2" fill="#fb923c"/><rect x="660" y="368" width="12" height="6" rx="2" fill="#fb923c"/><text x="548" y="367" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff">OpenAI-compatible</text></g>
+</g>
+<text x="600" y="596" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="17" fill="#9ca3af">12 brains · one toolkit · switch on the Models page</text>
+</svg>

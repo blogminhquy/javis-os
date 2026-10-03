@@ -1,0 +1,86 @@
+<svg viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="t d">
+<title id="t">Install Javis OS with one command</title>
+<desc id="d">A terminal clones the javis-os repository, runs install.sh, checks the Python environment, the four subscription CLIs and the .env file, then starts Javis at http://localhost:7777, and a browser window opens the dashboard.</desc>
+<defs>
+<radialGradient id="gl" cx="0.78" cy="0.2" r="0.75"><stop offset="0" stop-color="#7c3aed" stop-opacity=".14"/><stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></radialGradient>
+<pattern id="gr" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#ffffff" stroke-opacity=".04"/></pattern>
+<clipPath id="tc"><rect x="60" y="140" width="1080" height="420" rx="14"/></clipPath>
+<filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="12"/></filter>
+</defs>
+<style>
+@keyframes cl0{0%,1.15%{opacity:0}1.23%,100%{opacity:1}}
+.cl0{animation:cl0 13.0s linear infinite}
+@keyframes cv0{0%,3.85%{transform:translateX(0px);animation-timing-function:steps(59,end)}17.69%,100%{transform:translateX(601.8px)}}
+.cv0{transform:translateX(601.8px);animation:cv0 13.0s linear infinite}
+@keyframes cu0{0%,1.15%{opacity:0}1.23%,19.62%{opacity:1}19.69%,100%{opacity:0}}
+.cu0{opacity:0;animation:cu0 13.0s linear infinite}
+@keyframes cl1{0%,19.62%{opacity:0}19.69%,100%{opacity:1}}
+.cl1{animation:cl1 13.0s linear infinite}
+@keyframes cv1{0%,22.31%{transform:translateX(0px);animation-timing-function:steps(24,end)}28.46%,100%{transform:translateX(244.8px)}}
+.cv1{transform:translateX(244.8px);animation:cv1 13.0s linear infinite}
+@keyframes cu1{0%,19.62%{opacity:0}19.69%,30.38%{opacity:1}30.46%,100%{opacity:0}}
+.cu1{opacity:0;animation:cu1 13.0s linear infinite}
+@keyframes ol0{0%,33.08%{opacity:0}34.00%,100%{opacity:1}}
+.ol0{animation:ol0 13.0s ease-out infinite}
+@keyframes ol1{0%,36.54%{opacity:0}37.46%,100%{opacity:1}}
+.ol1{animation:ol1 13.0s ease-out infinite}
+@keyframes ol2{0%,40.00%{opacity:0}40.92%,100%{opacity:1}}
+.ol2{animation:ol2 13.0s ease-out infinite}
+@keyframes ol3{0%,43.46%{opacity:0}44.38%,100%{opacity:1}}
+.ol3{animation:ol3 13.0s ease-out infinite}
+@keyframes ol4{0%,46.92%{opacity:0}47.85%,100%{opacity:1}}
+.ol4{animation:ol4 13.0s ease-out infinite}
+@keyframes ol5{0%,50.38%{opacity:0}51.31%,100%{opacity:1}}
+.ol5{animation:ol5 13.0s ease-out infinite}
+@keyframes ol6{0%,54.62%{opacity:0}55.54%,100%{opacity:1}}
+.ol6{animation:ol6 13.0s ease-out infinite}
+@keyframes br{0%,59.23%{opacity:0;transform:translateY(48px)}65.00%,100%{opacity:1;transform:translateY(0px)}}
+.br{animation:br 13.0s cubic-bezier(.2,.8,.2,1) infinite}
+@keyframes sc{0%,90.00%{opacity:1}94.62%,100%{opacity:0}}
+.sc{animation:sc 13.0s ease-in-out infinite}
+@keyframes blink{0%,49.9%{opacity:1}50%,100%{opacity:0}}
+.blink{animation:blink 1.1s steps(1,end) infinite}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+</style>
+<rect width="1200" height="600" rx="20" fill="#0b0b14"/>
+<rect width="1200" height="600" rx="20" fill="url(#gr)"/>
+<rect width="1200" height="600" rx="20" fill="url(#gl)"/>
+<text x="60" y="64" fill="#f97316" font-size="16" letter-spacing="2.5" font-family="ui-monospace, 'SFMono-Regular', Consolas, 'Courier New', monospace">ONE COMMAND</text>
+<text x="60" y="106" fill="#ffffff" font-size="28" font-weight="700" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif">From zero to <tspan fill="#f97316">your own AI agent</tspan> in minutes.</text>
+<rect x="66" y="152" width="1080" height="420" rx="14" fill="#000" opacity=".35" filter="url(#sh)"/>
+<rect x="60" y="140" width="1080" height="420" rx="14" fill="#12121f" stroke="#2a2a40" stroke-width="1.5"/>
+<path d="M61,184 V154 a13,13 0 0 1 13,-13 H1126 a13,13 0 0 1 13,13 V184 Z" fill="#1a1a2c"/>
+<line x1="60" y1="184" x2="1140" y2="184" stroke="#2a2a40"/>
+<circle cx="88" cy="162" r="7" fill="#ff5f57"/><circle cx="111" cy="162" r="7" fill="#febc2e"/><circle cx="134" cy="162" r="7" fill="#28c840"/>
+<text x="600" y="168" fill="#9ca3af" font-size="16" text-anchor="middle" font-family="ui-monospace, 'SFMono-Regular', Consolas, 'Courier New', monospace">javis - install.sh</text>
+<g class="sc">
+<g clip-path="url(#tc)" font-size="17" font-family="ui-monospace, 'SFMono-Regular', Consolas, 'Courier New', monospace" xml:space="preserve">
+<g class="cl0"><text x="92" y="220" fill="#a78bfa">$</text><text x="116" y="220" fill="#e5e7eb" textLength="601.8" lengthAdjust="spacing">git clone https://github.com/blogminhquy/javis-os.git javis</text><g class="cv0"><rect x="116" y="200" width="617.8" height="28" fill="#12121f"/><rect class="cu0" x="117" y="204" width="10" height="20" rx="1.5" fill="#e5e7eb"/></g></g>
+<g class="cl1"><text x="92" y="256" fill="#a78bfa">$</text><text x="116" y="256" fill="#e5e7eb" textLength="244.8" lengthAdjust="spacing">cd javis &amp;&amp; ./install.sh</text><g class="cv1"><rect x="116" y="236" width="260.8" height="28" fill="#12121f"/><rect class="cu1" x="117" y="240" width="10" height="20" rx="1.5" fill="#e5e7eb"/></g></g>
+<g class="ol0"><text x="92" y="302" fill="#4ade80" font-weight="700">✓</text><text x="116" y="302" fill="#d1d5db">Python environment ready</text></g>
+<g class="ol1"><text x="92" y="336" fill="#4ade80" font-weight="700">✓</text><text x="116" y="336" fill="#d1d5db">Claude Code CLI</text><text x="330.2" y="336" fill="#9ca3af">(claude)</text></g>
+<g class="ol2"><text x="92" y="370" fill="#4ade80" font-weight="700">✓</text><text x="116" y="370" fill="#d1d5db">ChatGPT via Codex</text><text x="330.2" y="370" fill="#9ca3af">(codex)</text></g>
+<g class="ol3"><text x="92" y="404" fill="#4ade80" font-weight="700">✓</text><text x="116" y="404" fill="#d1d5db">Antigravity CLI</text><text x="330.2" y="404" fill="#9ca3af">(agy)</text></g>
+<g class="ol4"><text x="92" y="438" fill="#4ade80" font-weight="700">✓</text><text x="116" y="438" fill="#d1d5db">Grok Build</text><text x="330.2" y="438" fill="#9ca3af">(grok)</text></g>
+<g class="ol5"><text x="92" y="472" fill="#4ade80" font-weight="700">✓</text><text x="116" y="472" fill="#d1d5db">.env created</text></g>
+<g class="ol6"><text x="92" y="516" fill="#f97316">▶</text><text x="116" y="516" fill="#fb923c" font-weight="700" textLength="418.2" lengthAdjust="spacing">Javis is running at http://localhost:7777</text><rect class="blink" x="542.2" y="500" width="10" height="20" rx="1.5" fill="#fb923c"/></g>
+</g>
+<g class="br">
+<rect x="748" y="310" width="370" height="236" rx="14" fill="#000" opacity=".45" filter="url(#sh)"/>
+<rect x="742" y="296" width="370" height="236" rx="14" fill="#151525" stroke="#3a3a58" stroke-width="1.5"/>
+<path d="M743,336 V310 a13,13 0 0 1 13,-13 H1098 a13,13 0 0 1 13,13 V336 Z" fill="#1c1c30"/>
+<path d="M754,336 V312 a6,6 0 0 1 6,-6 H906 a6,6 0 0 1 6,6 V336 Z" fill="#151525"/>
+<path d="M772,314 C773.76,320.24 773.76,320.24 780,322 C773.76,323.76 773.76,323.76 772,330 C770.24,323.76 770.24,323.76 764,322 C770.24,320.24 770.24,320.24 772,314Z" fill="#f97316"/>
+<text x="788" y="327" fill="#e5e7eb" font-size="16" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif">Javis OS</text>
+<line x1="742" y1="336" x2="1112" y2="336" stroke="#2a2a40"/>
+<rect x="756" y="346" width="342" height="30" rx="15" fill="#0b0b14" stroke="#2a2a40"/>
+<circle cx="774" cy="361" r="4.5" fill="#4ade80"/>
+<text x="788" y="367" fill="#d1d5db" font-size="16" font-family="ui-monospace, 'SFMono-Regular', Consolas, 'Courier New', monospace">localhost:7777 <tspan fill="#9ca3af">· Javis OS</tspan></text>
+<path d="M784,399 C787.74,412.26 787.74,412.26 801,416 C787.74,419.74 787.74,419.74 784,433 C780.26,419.74 780.26,419.74 767,416 C780.26,412.26 780.26,412.26 784,399Z" fill="#f97316"/>
+<text x="812" y="424" fill="#ffffff" font-size="22" font-weight="700" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif">Javis OS</text>
+<text x="766" y="464" fill="#9ca3af" font-size="16" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif">Sign in to a brain on the Models page</text>
+<rect x="766" y="480" width="138" height="34" rx="9" fill="#f97316"/>
+<text x="835" y="502" fill="#0b0b14" font-size="16" font-weight="700" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif">Open Models</text>
+</g>
+</g>
+</svg>

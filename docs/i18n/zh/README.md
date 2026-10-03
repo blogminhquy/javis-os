@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:461cc289f23a -->
+<!-- translated-from: README.md sha256:0928e7bc4ccb -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Javis OS 标志">
@@ -45,6 +45,10 @@
 > [!NOTE]
 > 在 Javis 已经运行**之后**又安装了新的 CLI？请**重启 Javis**。正在运行的进程保留的是它启动时的 PATH，因此看不到之后才安装的 CLI。
 
+<p align="center">
+<img src="../../../docs/assets/diagrams/install-terminal.svg" width="100%" alt="动画终端：一行安装命令装好 Python、四个订阅制 CLI 大脑和 .env，然后提示 Javis 已在 http://localhost:7777 运行">
+</p>
+
 ---
 
 ## 🤔 为什么选择 Javis？
@@ -62,11 +66,19 @@ Javis OS **不是**聊天机器人。它是一个运行在你自己的机器或 
 
 > 💡 **设计理念：能力在 Javis 身上，而不在模型身上。** 每个大脑都通过同一个共享连接中心（MCP Hub）获得同一套工具箱。从 Claude 切换到 Gemini 不会让你失去任何东西，唯一的例外是 shell 访问，只有 CLI 引擎才有。
 
+<p align="center">
+<img src="../../../docs/assets/diagrams/chat-to-action.svg" width="100%" alt="动画示意图：一条聊天消息进入 Javis，Javis 选择能完成任务的最小工具，从直接回答到排队任务，或创建 Agent、Workflow、提醒、Loop">
+</p>
+
 ---
 
 ## 🧠 12 种大脑，一套工具
 
 在 **Models** 页面选择大脑，随时都可以更换。Javis 目前支持 **12 家提供商**。
+
+<p align="center">
+<img src="../../../docs/assets/diagrams/swappable-brain.svg" width="100%" alt="动画示意图：Javis 核心居中，工具箱（MCP Hub、Skills、Second Brain、Tasks、Schedules、Plugins）环绕四周，12 种大脑轮流接入，所有工具始终保持可用">
+</p>
 
 | 大脑 | 付费方式 | Shell、网页、子 Agent |
 |---|---|---|
@@ -87,6 +99,10 @@ Javis OS **不是**聊天机器人。它是一个运行在你自己的机器或 
 ---
 
 ## ✨ 功能特性
+
+<p align="center">
+<img src="../../../docs/assets/diagrams/second-brain-grows.svg" width="100%" alt="动画知识图谱：笔记和链接逐个出现，Second Brain 从寥寥几篇笔记增长到一千多篇">
+</p>
 
 <table>
 <tr>
@@ -122,6 +138,10 @@ Javis OS **不是**聊天机器人。它是一个运行在你自己的机器或 
 </td>
 </tr>
 </table>
+
+<p align="center">
+<img src="../../../docs/assets/diagrams/background-work.svg" width="100%" alt="夜间的动画 Kanban 看板：任务自动从 Queued 依次移到 Running、Review、Done，早上报告送达 Telegram">
+</p>
 
 <div align="center">
 <img src="../../../docs/assets/screenshots/tasks.jpg" alt="Tasks 页面：调度器状态、执行者数量、调度器模式和任务队列" width="49%">
@@ -377,7 +397,7 @@ javis-os/
 | **Javis 的回复** | 任意语言：你用什么语言写，它就用什么语言回答，也可以在 Settings 中固定一种语言 |
 | **仪表盘和服务器消息** | 🇬🇧 English · 🇻🇳 Tiếng Việt，按设备区分：在你选定语言之前，每个浏览器使用各自的语言 |
 | **连接商店、Plugin、新 Brain 的初始文件** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
-| **README 和快速开始** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 |
+| **README 和快速开始** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 · 🇮🇳 हिन्दी · 🇧🇷 Português · 🇰🇷 한국어 · 🇷🇺 Русский · 🇩🇪 Deutsch · 🇫🇷 Français · 🇮🇩 Bahasa Indonesia |
 | **完整文档** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
 新增一种语言只需改动数据，而不必改代码：在 `server/lang_registry.py` 中添加一个条目，再加一个 `dashboard/i18n/<code>.json`，可选再加 `system/mcp-catalog.<code>.json`。尚未翻译的内容会以英文显示。如果你愿意帮忙，请参阅 [CONTRIBUTING.en.md](../../../CONTRIBUTING.md#translations)。

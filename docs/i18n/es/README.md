@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:461cc289f23a -->
+<!-- translated-from: README.md sha256:0928e7bc4ccb -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Logotipo de Javis OS">
@@ -45,6 +45,10 @@ Después abre **http://localhost:7777**. El instalador configura Python, los cua
 > [!NOTE]
 > ¿Instalaste otra CLI **después** de que Javis ya estuviera en marcha? **Reinicia Javis.** Un proceso en ejecución conserva el PATH con el que arrancó, así que no puede ver una CLI instalada más tarde.
 
+<p align="center">
+<img src="../../../docs/assets/diagrams/install-terminal.svg" width="100%" alt="Terminal animada: el instalador de una línea prepara Python, los cuatro cerebros CLI por suscripción y un .env, y luego avisa que Javis está funcionando en http://localhost:7777">
+</p>
+
 ---
 
 ## 🤔 ¿Por qué Javis?
@@ -62,11 +66,19 @@ Javis OS **no** es un chatbot. Es una **IA agéntica autoalojada** que se ejecut
 
 > 💡 **La filosofía: la capacidad vive en Javis, no en el modelo.** Todos los cerebros reciben la misma caja de herramientas a través de un único hub de conexiones compartido (el MCP Hub). Cambiar de Claude a Gemini no te cuesta nada salvo el acceso a la shell, que solo tienen los motores CLI.
 
+<p align="center">
+<img src="../../../docs/assets/diagrams/chat-to-action.svg" width="100%" alt="Diagrama animado: un mensaje de chat entra en Javis, que elige la herramienta más pequeña que resuelve la tarea, desde responder directamente hasta encolar una tarea o crear un agent, un workflow, un recordatorio o un loop">
+</p>
+
 ---
 
 ## 🧠 12 cerebros, un solo kit de herramientas
 
 Elige el cerebro en la página **Models** (Modelos) y cámbialo cuando quieras. Javis admite hoy **12 proveedores**.
+
+<p align="center">
+<img src="../../../docs/assets/diagrams/swappable-brain.svg" width="100%" alt="Diagrama animado: el núcleo de Javis en el centro con sus herramientas (MCP Hub, Skills, Second Brain, Tasks, Schedules, Plugins) alrededor, mientras los 12 cerebros se conectan por turnos y todas las herramientas siguen encendidas">
+</p>
 
 | Cerebro | Cómo pagas | Shell, web, subagentes |
 |---|---|---|
@@ -87,6 +99,10 @@ Todos los cerebros pueden llamar a tus servidores MCP conectados, leer y escribi
 ---
 
 ## ✨ Funciones
+
+<p align="center">
+<img src="../../../docs/assets/diagrams/second-brain-grows.svg" width="100%" alt="Grafo de conocimiento animado: notas y enlaces aparecen uno a uno mientras el Second Brain crece de unas pocas notas a más de mil">
+</p>
 
 <table>
 <tr>
@@ -122,6 +138,10 @@ Todos los cerebros pueden llamar a tus servidores MCP conectados, leer y escribi
 </td>
 </tr>
 </table>
+
+<p align="center">
+<img src="../../../docs/assets/diagrams/background-work.svg" width="100%" alt="Tablero Kanban animado de noche: las tareas pasan solas de Queued a Running, Review y Done, y por la mañana llega un informe a Telegram">
+</p>
 
 <div align="center">
 <img src="../../../docs/assets/screenshots/tasks.jpg" alt="La página Tasks: estado del despachador, número de trabajadores, modo del despachador y la cola de tareas" width="49%">
@@ -377,7 +397,7 @@ javis-os/
 | **Respuestas de Javis** | Cualquier idioma: responde en el idioma en el que escribes, o en el que fijes en Settings |
 | **Panel y mensajes del servidor** | 🇬🇧 English · 🇻🇳 Tiếng Việt, por dispositivo: cada navegador tiene su propio idioma hasta que eliges uno |
 | **Tienda de conexiones, plugins, archivos iniciales de un Brain nuevo** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
-| **README y guía de inicio rápido** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 |
+| **README y guía de inicio rápido** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 · 🇮🇳 हिन्दी · 🇧🇷 Português · 🇰🇷 한국어 · 🇷🇺 Русский · 🇩🇪 Deutsch · 🇫🇷 Français · 🇮🇩 Bahasa Indonesia |
 | **Documentación completa** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
 Añadir un idioma es un cambio de datos, no de código: una entrada en `server/lang_registry.py` más un `dashboard/i18n/<code>.json` y, opcionalmente, `system/mcp-catalog.<code>.json`. Todo lo que aún no está traducido se muestra en inglés. Consulta [CONTRIBUTING.en.md](../../../CONTRIBUTING.md#translations) si quieres ayudar.
