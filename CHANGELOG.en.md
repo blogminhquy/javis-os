@@ -12,6 +12,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ### Security
 - **The sign-in screen now fully covers the dashboard.** It used to sit over the dashboard behind a blur, so you could still make out the layout underneath, most clearly in the light theme. The backdrop is now solid: until you sign in, all you see is the sign-in box. Your data was already blocked by the server; this hides the rest.
 
+## [0.71.0] - 2026-10-03
+### Added
+- **Slack and WhatsApp.**
+
 ## [0.70.1] - 2026-10-03
 ### Improved
 - **The README explains why your data stays yours.** "Why Javis" now covers the lock-in of keeping all your work on one AI vendor, and lists where each thing you build up (chat history, memory, skills, agents, workflows) lives on your machine, so a new model is a switch, not a fresh start.
