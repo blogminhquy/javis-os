@@ -94,10 +94,14 @@ Repo mở cho người đóng góp quốc tế, nên phần NGƯỜI NGOÀI Đ�
 
 - `README.md` và `QUICKSTART.en.md` (tiếng Anh) là bản gốc. Bản tiếng Việt ở `docs/i18n/vi/` và
   `QUICKSTART.md` vẫn sửa tay cùng lúc như trước.
-- Bản tiếng Trung, Tây Ban Nha, Nhật ở `docs/i18n/<mã>/` là bản MÁY DỊCH. Dòng đầu mỗi file ghi
+- Các bản khác ở `docs/i18n/<mã>/` (Trung, Tây Ban Nha, Nhật, Hindi, Bồ Đào Nha, Hàn, Nga, Đức,
+  Pháp, Indonesia) là bản MÁY DỊCH. Thanh chọn ngôn ngữ sinh từ danh sách `LANGS` trong
+  `tools/check_translations.py` bằng lệnh `--bars`, đừng sửa tay từng file. Dòng đầu mỗi file ghi
   file gốc và hash của nó lúc dịch. Sửa README tiếng Anh xong KHÔNG bắt buộc dịch lại ngay:
   workflow **Translations** sẽ cảnh báo bản nào đã cũ. Khi dịch lại, chạy
   `python tools/check_translations.py --stamp <file>` để cập nhật hash.
+- Hình động trong README nằm ở `docs/assets/diagrams/*.svg`: chữ trong hình là tiếng Anh, mọi
+  bản dịch dùng chung. Chú thích (alt) của hình thì dịch theo từng bản.
 - `tests/python/test_machine_translations.py` canh link chết, anchor lệch và dấu gạch dài trong
   các bản dịch, nên dịch lại xong phải chạy test này.
 - Giao diện app chỉ giữ tiếng Anh và tiếng Việt. Chủ repo chốt ngày 2026-10-03: thêm thứ tiếng
