@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:ee6b89779a60 -->
+<!-- translated-from: README.md sha256:461cc289f23a -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Javis OS のロゴ">
@@ -363,7 +363,6 @@ javis-os/
 ├── system/          # Ships with the app: bundled plugins, system skills, connection catalogue
 ├── docs/            # User guides (docs/en/ in English) and translations (docs/i18n/)
 ├── tests/           # Python + JS test suite (python tests/run.py)
-├── website/         # Landing page
 ├── install.sh · install.ps1 · update.sh
 ├── Dockerfile · docker-compose*.yml
 └── CLAUDE.md        # The system prompt Javis runs on
@@ -378,7 +377,8 @@ javis-os/
 | **Javis の返答** | どの言語でも：あなたが書いた言語、または Settings で固定した言語で答えます |
 | **ダッシュボードとサーバーのメッセージ** | 🇬🇧 English · 🇻🇳 Tiếng Việt。デバイスごとに設定され、言語を選ぶまでは各ブラウザの言語が使われます |
 | **接続ストア、Plugin、新しい Brain の初期ファイル** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
-| **ドキュメント、README、[Web サイト](../../../website/index.html)** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
+| **README とクイックスタート** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 |
+| **詳細ドキュメント** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
 言語の追加はコードの変更ではなく、データの変更です。`server/lang_registry.py` へのエントリ 1 件と `dashboard/i18n/<code>.json` 1 ファイル、必要に応じて `system/mcp-catalog.<code>.json` を追加するだけです。まだ翻訳されていない部分は英語で表示されます。協力していただける方は [CONTRIBUTING.en.md](../../../CONTRIBUTING.md#translations) をご覧ください。
 

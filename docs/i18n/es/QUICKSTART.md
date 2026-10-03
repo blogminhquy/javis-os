@@ -1,11 +1,11 @@
-<!-- translated-from: QUICKSTART.en.md sha256:5d7f812cbbae -->
+<!-- translated-from: QUICKSTART.en.md sha256:0fd33f15ff66 -->
 # Javis OS - Inicio rápido
 
 *[English](../../../QUICKSTART.en.md) · [Tiếng Việt](../../../QUICKSTART.md) · [简体中文](../zh/QUICKSTART.md) · **Español** · [日本語](../ja/QUICKSTART.md)*
 
 > Esta es una traducción automática de la guía de inicio rápido en inglés.
 
-Pon Javis OS en marcha en pocos minutos. Guías completas: [docs/](../../../docs/en/README.md).
+Pon Javis OS en marcha en pocos minutos. Guías completas: [docs/en/](../../../docs/en/README.md).
 
 ## Opción 1 - VPS de Hostinger (Docker Manager, en un clic)
 
@@ -47,7 +47,7 @@ Abre http://localhost:7777. Para HTTPS mediante Caddy, añade `-f docker-compose
 
 ## Documentación completa
 
-Consulta [docs/en/README.md](../../../docs/en/README.md): una guía por función (chat/voz, grafo de conocimiento, skills, agents, workflows, trabajos periódicos, Kanban, autoaprendizaje, conexiones, Telegram, Zalo, plugins, seguridad, copias de seguridad...). La documentación original está en vietnamita; [docs/en/](../../../docs/en/README.md) reúne lo que se ha traducido al inglés hasta ahora.
+Consulta [docs/en/README.md](../../../docs/en/README.md): una guía por función (chat/voz, grafo de conocimiento, skills, agents, workflows, trabajos periódicos, Kanban, autoaprendizaje, conexiones, Telegram, Zalo, plugins, seguridad, copias de seguridad...). Las mismas guías en vietnamita: [docs/README.md](../../../docs/README.md).
 
 ## Problemas habituales
 

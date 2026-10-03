@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:ee6b89779a60 -->
+<!-- translated-from: README.md sha256:461cc289f23a -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Logotipo de Javis OS">
@@ -363,7 +363,6 @@ javis-os/
 ├── system/          # Ships with the app: bundled plugins, system skills, connection catalogue
 ├── docs/            # User guides (docs/en/ in English) and translations (docs/i18n/)
 ├── tests/           # Python + JS test suite (python tests/run.py)
-├── website/         # Landing page
 ├── install.sh · install.ps1 · update.sh
 ├── Dockerfile · docker-compose*.yml
 └── CLAUDE.md        # The system prompt Javis runs on
@@ -378,7 +377,8 @@ javis-os/
 | **Respuestas de Javis** | Cualquier idioma: responde en el idioma en el que escribes, o en el que fijes en Settings |
 | **Panel y mensajes del servidor** | 🇬🇧 English · 🇻🇳 Tiếng Việt, por dispositivo: cada navegador tiene su propio idioma hasta que eliges uno |
 | **Tienda de conexiones, plugins, archivos iniciales de un Brain nuevo** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
-| **Documentación, README y [sitio web](../../../website/index.html)** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
+| **README y guía de inicio rápido** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 |
+| **Documentación completa** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
 Añadir un idioma es un cambio de datos, no de código: una entrada en `server/lang_registry.py` más un `dashboard/i18n/<code>.json` y, opcionalmente, `system/mcp-catalog.<code>.json`. Todo lo que aún no está traducido se muestra en inglés. Consulta [CONTRIBUTING.en.md](../../../CONTRIBUTING.md#translations) si quieres ayudar.
 

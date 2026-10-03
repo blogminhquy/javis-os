@@ -1,11 +1,11 @@
-<!-- translated-from: QUICKSTART.en.md sha256:5d7f812cbbae -->
+<!-- translated-from: QUICKSTART.en.md sha256:0fd33f15ff66 -->
 # Javis OS - 快速开始
 
 *[English](../../../QUICKSTART.en.md) · [Tiếng Việt](../../../QUICKSTART.md) · **简体中文** · [Español](../es/QUICKSTART.md) · [日本語](../ja/QUICKSTART.md)*
 
 > 本文是英文快速开始指南的自动翻译版本。
 
-几分钟内让 Javis OS 跑起来。完整指南：[docs/](../../../docs/en/README.md)。
+几分钟内让 Javis OS 跑起来。完整指南：[docs/en/](../../../docs/en/README.md)。
 
 ## 方式一 - Hostinger VPS（Docker Manager，一键部署）
 
@@ -47,7 +47,7 @@ docker compose -f docker-compose.yml up -d
 
 ## 完整文档
 
-请参阅 [docs/README.md](../../../docs/en/README.md)：每个功能都有一篇指南（聊天/语音、知识图谱、Skill、Agent、Workflow、周期任务、Kanban、自我学习、连接、Telegram、Zalo、Plugin、安全、备份...）。大部分页面最初以越南语编写；[docs/en/](../../../docs/en/README.md) 收录了目前已翻译的英文内容。
+请参阅 [docs/en/README.md](../../../docs/en/README.md)：每个功能都有一篇指南（聊天/语音、知识图谱、Skill、Agent、Workflow、周期任务、Kanban、自我学习、连接、Telegram、Zalo、Plugin、安全、备份...）。同一套指南的越南语版：[docs/README.md](../../../docs/README.md)。
 
 ## 常见问题
 

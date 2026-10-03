@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:ee6b89779a60 -->
+<!-- translated-from: README.md sha256:461cc289f23a -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Javis OS 标志">
@@ -363,7 +363,6 @@ javis-os/
 ├── system/          # Ships with the app: bundled plugins, system skills, connection catalogue
 ├── docs/            # User guides (docs/en/ in English) and translations (docs/i18n/)
 ├── tests/           # Python + JS test suite (python tests/run.py)
-├── website/         # Landing page
 ├── install.sh · install.ps1 · update.sh
 ├── Dockerfile · docker-compose*.yml
 └── CLAUDE.md        # The system prompt Javis runs on
@@ -378,7 +377,8 @@ javis-os/
 | **Javis 的回复** | 任意语言：你用什么语言写，它就用什么语言回答，也可以在 Settings 中固定一种语言 |
 | **仪表盘和服务器消息** | 🇬🇧 English · 🇻🇳 Tiếng Việt，按设备区分：在你选定语言之前，每个浏览器使用各自的语言 |
 | **连接商店、Plugin、新 Brain 的初始文件** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
-| **文档、README 和[网站](../../../website/index.html)** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
+| **README 和快速开始** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 |
+| **完整文档** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
 新增一种语言只需改动数据，而不必改代码：在 `server/lang_registry.py` 中添加一个条目，再加一个 `dashboard/i18n/<code>.json`，可选再加 `system/mcp-catalog.<code>.json`。尚未翻译的内容会以英文显示。如果你愿意帮忙，请参阅 [CONTRIBUTING.en.md](../../../CONTRIBUTING.md#translations)。
 

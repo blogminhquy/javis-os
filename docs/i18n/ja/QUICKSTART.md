@@ -1,11 +1,11 @@
-<!-- translated-from: QUICKSTART.en.md sha256:5d7f812cbbae -->
+<!-- translated-from: QUICKSTART.en.md sha256:0fd33f15ff66 -->
 # Javis OS - クイックスタート
 
 *[English](../../../QUICKSTART.en.md) · [Tiếng Việt](../../../QUICKSTART.md) · [简体中文](../zh/QUICKSTART.md) · [Español](../es/QUICKSTART.md) · **日本語***
 
 > このページは英語版クイックスタートの自動翻訳です。
 
-数分で Javis OS を動かせます。詳しいガイド：[docs/](../../../docs/en/README.md)。
+数分で Javis OS を動かせます。詳しいガイド：[docs/en/](../../../docs/en/README.md)。
 
 ## 方法 1 - Hostinger VPS（Docker Manager、ワンクリック）
 
@@ -47,7 +47,7 @@ http://localhost:7777 を開きます。Caddy 経由で HTTPS を使う場合は
 
 ## 完全なドキュメント
 
-[docs/README.md](../../../docs/en/README.md) をご覧ください。機能ごとのガイドがあります（チャット／音声、ナレッジグラフ、Skill、Agent、Workflow、定期ジョブ、Kanban、自己学習、接続、Telegram、Zalo、Plugin、セキュリティ、バックアップなど）。ほとんどのページはベトナム語で書かれており、これまでに翻訳された分は [docs/en/](../../../docs/en/README.md) にあります。
+[docs/en/README.md](../../../docs/en/README.md) をご覧ください。機能ごとのガイドがあります（チャット／音声、ナレッジグラフ、Skill、Agent、Workflow、定期ジョブ、Kanban、自己学習、接続、Telegram、Zalo、Plugin、セキュリティ、バックアップなど）。同じガイドのベトナム語版は [docs/README.md](../../../docs/README.md) にあります。
 
 ## よくある問題
 
