@@ -40,8 +40,16 @@ LANGS = [
 MARKER = re.compile(r"<!--\s*translated-from:\s*(\S+)\s+sha256:([0-9a-f]{6,64})\s*-->")
 
 
+def lists_languages(line: str) -> bool:
+    """Language bars and the README's language table row: they change whenever a language is
+    added, which says nothing about whether a translation's content is current."""
+    return line.count(" · ") >= 2 and "English" in line and "Tiếng Việt" in line
+
+
 def source_hash(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()[:12]
+    text = path.read_text(encoding="utf-8")
+    kept = "\n".join(line for line in text.split("\n") if not lists_languages(line))
+    return hashlib.sha256(kept.encode("utf-8")).hexdigest()[:12]
 
 
 def translations() -> list[Path]:
@@ -98,7 +106,7 @@ def bar(current: str, doc: str, here: Path) -> str:
 
 
 def is_bar(line: str, doc: str) -> bool:
-    if line.count(" · ") < 2 or "English" not in line or "Tiếng Việt" not in line:
+    if not lists_languages(line) or line.startswith("|"):
         return False
     return "🌍" in line if doc == "README" else line.startswith("*")
 

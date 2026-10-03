@@ -1,4 +1,4 @@
-<!-- translated-from: QUICKSTART.en.md sha256:5cc349381363 -->
+<!-- translated-from: QUICKSTART.en.md sha256:2f4928f341af -->
 # Javis OS - क्विक स्टार्ट
 
 *[English](../../../QUICKSTART.en.md) · [Tiếng Việt](../../../QUICKSTART.md) · [简体中文](../zh/QUICKSTART.md) · [Español](../es/QUICKSTART.md) · [日本語](../ja/QUICKSTART.md) · **हिन्दी** · [Português](../pt-BR/QUICKSTART.md) · [한국어](../ko/QUICKSTART.md) · [Русский](../ru/QUICKSTART.md) · [Deutsch](../de/QUICKSTART.md) · [Français](../fr/QUICKSTART.md) · [Bahasa Indonesia](../id/QUICKSTART.md)*
