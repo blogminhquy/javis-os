@@ -1,6 +1,6 @@
 # Javis OS - Quick start
 
-***Tiếng Việt** · [English](QUICKSTART.en.md)*
+***Tiếng Việt** · [English](QUICKSTART.en.md) · [简体中文](docs/i18n/zh/QUICKSTART.md) · [Español](docs/i18n/es/QUICKSTART.md) · [日本語](docs/i18n/ja/QUICKSTART.md)*
 
 Chạy Javis OS trong vài phút. Chi tiết từng phần: [docs/](docs/README.md).
 

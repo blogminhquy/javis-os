@@ -81,14 +81,23 @@ nằm ở [docs/quy-uoc-dev.md](../../quy-uoc-dev.md).
 Javis vốn đã **trả lời** bằng bất kỳ thứ tiếng nào người dùng viết. Bản dịch thêm vào là giao
 diện, tài liệu và giọng đọc bằng thứ tiếng đó. Ba cách góp, từ nhỏ tới lớn:
 
-1. **README.** Dịch [README.md](../../../README.md) (bản tiếng Anh, là bản gốc từ 0.66.0) vào
-   `docs/i18n/<mã>/README.md` (ví dụ `docs/i18n/es/README.md`), sửa link tương đối (lùi ba cấp:
-   `../../../`), rồi thêm ngôn ngữ đó vào thanh chọn ngôn ngữ đầu README.md.
+1. **README.** README và hướng dẫn cài nhanh tiếng Trung, Tây Ban Nha, Nhật trong
+   `docs/i18n/<mã>/` là bản máy dịch: người bản xứ sửa lại thì rất quý, chỉ cần giữ dòng đánh dấu
+   `translated-from` ở đầu file. Thêm thứ tiếng mới thì dịch [README.md](../../../README.md) và
+   [QUICKSTART.en.md](../../../QUICKSTART.en.md) vào `docs/i18n/<mã>/` (ví dụ
+   `docs/i18n/fr/README.md`), sửa link tương đối (lùi ba cấp: `../../../`), thêm vào thanh chọn
+   ngôn ngữ của README.md và QUICKSTART.en.md, rồi chạy
+   `python tools/check_translations.py --stamp <file>` để gắn dòng đánh dấu.
 2. **Giao diện.** Chép `dashboard/i18n/en.json` thành `dashboard/i18n/<mã>.json` rồi dịch phần
    giá trị, không đụng tới khoá. Dịch dở cũng được: khoá nào chưa dịch sẽ hiện tiếng Anh.
 3. **Trọn một ngôn ngữ.** Đăng ký trong `server/lang_registry.py` để giọng đọc, định dạng ngày
    và tiền tệ cũng theo; tuỳ chọn thêm `system/mcp-catalog.<mã>.json` cho kho Kết nối. Từng bước ở
    [sổ tay thêm ngôn ngữ](../../dev/them-mot-ngon-ngu.md).
+
+Bản gốc của README và hướng dẫn cài nhanh là tiếng Anh. Khi bản gốc đổi, workflow
+**Translations** liệt kê bản dịch nào đã cũ (chỉ cảnh báo, không bao giờ làm đỏ build); dịch lại
+xong thì chạy `python tools/check_translations.py --stamp <file>`. Riêng giao diện app chỉ giữ
+tiếng Anh và tiếng Việt, và chỉ thêm thứ tiếng khi có người dùng thật cần.
 
 ## Cần hỏi
 

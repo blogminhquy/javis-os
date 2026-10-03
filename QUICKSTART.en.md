@@ -1,6 +1,6 @@
 # Javis OS - Quick start
 
-*[Tiếng Việt](QUICKSTART.md) · **English***
+*[Tiếng Việt](QUICKSTART.md) · **English** · [简体中文](docs/i18n/zh/QUICKSTART.md) · [Español](docs/i18n/es/QUICKSTART.md) · [日本語](docs/i18n/ja/QUICKSTART.md)*
 
 Get Javis OS running in a few minutes. Full guides: [docs/](docs/README.md).
 

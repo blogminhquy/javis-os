@@ -63,11 +63,11 @@ The maintainer's own working rules (version reservation, merge policy, how chang
 
 Javis already **replies** in whatever language you write in. A translation adds the interface, the docs and the voice in that language. Three ways to help, from small to large:
 
-1. **The README.** Translate [README.md](README.md) into `docs/i18n/<code>/README.md` (for example `docs/i18n/es/README.md`), fix the relative links (they go three folders up: `../../../`), and add your language to the language bar at the top of README.md.
+1. **The README.** The Chinese, Spanish and Japanese READMEs and quick starts in `docs/i18n/<code>/` are machine translations: corrections from native speakers are very welcome, just keep the `translated-from` marker on the first line. For a new language, translate [README.md](README.md) and [QUICKSTART.en.md](QUICKSTART.en.md) into `docs/i18n/<code>/` (for example `docs/i18n/fr/README.md`), fix the relative links (they go three folders up: `../../../`), add your language to the language bars of README.md and QUICKSTART.en.md, and run `python tools/check_translations.py --stamp <file>` to add the marker.
 2. **The dashboard.** Copy `dashboard/i18n/en.json` to `dashboard/i18n/<code>.json` and translate the values, never the keys. A half-finished file is fine: any key you have not translated yet shows in English.
 3. **The whole language.** Register it in `server/lang_registry.py` so the voice, date formats and currency follow it too, and optionally add `system/mcp-catalog.<code>.json` for the connection store. The step-by-step handbook is [docs/dev/adding-a-language.md](docs/dev/adding-a-language.md).
 
-English is the source language for the README. When you change it, update the translations or say in the PR which ones are now behind.
+English is the source language for the README and the quick start. When either changes, the **Translations** workflow lists which translations are now behind (a warning, never a failed build); after updating one, run `python tools/check_translations.py --stamp <file>`. The app interface itself is kept in English and Vietnamese only, and gains a language when there are real users asking for it.
 
 ## Getting help
 

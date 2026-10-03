@@ -89,3 +89,17 @@ Repo mở cho người đóng góp quốc tế, nên phần NGƯỜI NGOÀI Đ�
 - **Giữ tiếng Việt:** `CHANGELOG.md` (bản gốc, chủ repo đọc), file quy ước này, spec trong
   `docs/dev/`, và prompt gửi cho model (lý do ở `docs/dev/them-mot-ngon-ngu.md`).
 - PR từ người ngoài không cần đụng `VERSION`/CHANGELOG: người merge tăng số và viết nhật ký.
+
+## Bản dịch README và hướng dẫn cài nhanh (từ 0.69.0)
+
+- `README.md` và `QUICKSTART.en.md` (tiếng Anh) là bản gốc. Bản tiếng Việt ở `docs/i18n/vi/` và
+  `QUICKSTART.md` vẫn sửa tay cùng lúc như trước.
+- Bản tiếng Trung, Tây Ban Nha, Nhật ở `docs/i18n/<mã>/` là bản MÁY DỊCH. Dòng đầu mỗi file ghi
+  file gốc và hash của nó lúc dịch. Sửa README tiếng Anh xong KHÔNG bắt buộc dịch lại ngay:
+  workflow **Translations** sẽ cảnh báo bản nào đã cũ. Khi dịch lại, chạy
+  `python tools/check_translations.py --stamp <file>` để cập nhật hash.
+- `tests/python/test_machine_translations.py` canh link chết, anchor lệch và dấu gạch dài trong
+  các bản dịch, nên dịch lại xong phải chạy test này.
+- Giao diện app chỉ giữ tiếng Anh và tiếng Việt. Chủ repo chốt ngày 2026-10-03: thêm thứ tiếng
+  cho app khi có người dùng thật cần, không làm trước. Tài liệu hướng dẫn đầy đủ cũng chỉ hai
+  thứ tiếng.
