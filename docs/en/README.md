@@ -63,7 +63,7 @@ The dashboard's navigation rail groups **19 pages** into **7 groups**: Assistant
 - [README.md](../../README.md) - what Javis is and how to install it.
 - [QUICKSTART.en.md](../../QUICKSTART.en.md) - the first 10 minutes.
 - [DEPLOY.en.md](../../DEPLOY.en.md) - installing on a server or VPS.
-- [CONTRIBUTING.en.md](../../CONTRIBUTING.en.md) - contributing to the project.
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) - contributing to the project.
 
 Screenshots, button names and menu paths match the interface language you selected on the Settings page, so an English page lines up with an English interface everywhere.
 

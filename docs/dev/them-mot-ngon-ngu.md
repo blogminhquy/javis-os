@@ -1,5 +1,7 @@
 # Thêm một ngôn ngữ vào Javis
 
+***Tiếng Việt** · [English](adding-a-language.md)*
+
 Tài liệu này là **bài kiểm tra nghiệm thu** của cả tầng đa ngôn ngữ. Nếu thêm một thứ tiếng mà
 phải sửa file ngoài danh sách dưới đây, thì kiến trúc đã hỏng ở đâu đó - **sửa kiến trúc trước,
 đừng vá lén một chỗ cho xong**.

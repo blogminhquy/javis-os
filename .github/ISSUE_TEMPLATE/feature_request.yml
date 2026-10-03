@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an idea or an improvement for Javis.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        English or Vietnamese are both fine. (Viết bằng tiếng Việt cũng được.)
+        Describe the problem first: a clear problem often leads to a better solution than the first idea.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: How you imagine it working. Screens, examples and links are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Can you help build it?
+      options:
+        - label: I would like to open a pull request for this (see CONTRIBUTING.md)

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/blogminhquy/javis-os/security/advisories/new
+    about: Please report security problems privately, never in a public issue. See SECURITY.md.
+  - name: Documentation
+    url: https://github.com/blogminhquy/javis-os/blob/main/docs/en/README.md
+    about: Guides for every page of Javis (English). Tiếng Việt - docs/README.md.

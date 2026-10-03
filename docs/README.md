@@ -63,7 +63,7 @@ Thanh điều hướng của dashboard gom **19 trang** thành **7 nhóm**: Tr�
 **Toàn bộ tài liệu đã có bản tiếng Anh.** Mỗi trang có dòng chuyển ngôn ngữ ngay dưới tiêu đề,
 bấm là sang đúng trang tương ứng. Mục lục tiếng Anh ở [docs/en/](en/README.md); ngoài ra ở gốc
 repo có [README.md](../README.md), [QUICKSTART.en.md](../QUICKSTART.en.md),
-[DEPLOY.en.md](../DEPLOY.en.md) và [CONTRIBUTING.en.md](../CONTRIBUTING.en.md).
+[DEPLOY.en.md](../DEPLOY.en.md) và [CONTRIBUTING.md](../CONTRIBUTING.md) (bản tiếng Việt: [i18n/vi/CONTRIBUTING.md](i18n/vi/CONTRIBUTING.md)).
 
 Bản tiếng Việt là bản gốc của tài liệu: sửa nội dung thì sửa bên tiếng Việt trước rồi cập nhật
 bản tiếng Anh tương ứng, đừng để hai bên nói khác nhau. Riêng README thì ngược lại: từ 0.66.0

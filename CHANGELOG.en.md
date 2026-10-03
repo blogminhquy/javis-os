@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.68.0] - 2026-10-03
 ### Improved
-- **Open to international contributors.** (in progress)
+- **The Updates page speaks English.** Devices reading in English see the release notes in English from 0.66.0 on; older releases still show in Vietnamese.
+- **Open to international contributors.** The repo now has an English contributing guide, an architecture overview and a glossary of the Vietnamese names used in the code, plus forms for bug reports, feature requests and translation offers.
+- **A security policy and a code of conduct.** Security problems are reported privately, never in a public issue.
 
 ## [0.67.0] - 2026-10-02
 ### Improved

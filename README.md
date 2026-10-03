@@ -15,7 +15,7 @@ Run it on your laptop or a small VPS. Talk to it by voice. Plug in Claude, ChatG
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-2496ed?logo=docker&logoColor=white)](https://github.com/blogminhquy/javis-os/pkgs/container/javis-os)
 [![MCP](https://img.shields.io/badge/tools-Model%20Context%20Protocol-8b5cf6)](https://modelcontextprotocol.io)
 
-🇬🇧 **English** · [🇻🇳 Tiếng Việt](docs/i18n/vi/README.md) · [🌍 Help translate](CONTRIBUTING.en.md#translations)
+🇬🇧 **English** · [🇻🇳 Tiếng Việt](docs/i18n/vi/README.md) · [🌍 Help translate](CONTRIBUTING.md#translations)
 
 [Quick start](#-quick-start) · [Why Javis](#-why-javis) · [Brains](#-12-brains-one-toolkit) · [Features](#-features) · [Install](#-installation) · [Docs](docs/en/README.md) · [Support](#-support-javis-os)
 
@@ -326,7 +326,7 @@ Every line can stay empty and Javis still runs. Copy `env.example` → `.env` an
 - **Your own plugins are blocked by default** until you set `JAVIS_ENABLE_USER_PLUGINS=true`.
 - **Connection permissions are enforced** by the hub, not by the model: a read-only account cannot be used to send, pay or publish.
 
-Found a vulnerability? Please follow [CONTRIBUTING.en.md](CONTRIBUTING.en.md#security-issues) instead of opening a public issue.
+Found a vulnerability? Please follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
 ---
 
@@ -377,13 +377,23 @@ javis-os/
 | **Connection store, plugins, a new brain's starter files** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 | **Docs, README and [website](website/index.html)** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
-Adding a language is a data change, not a code change: one entry in `server/lang_registry.py` plus one `dashboard/i18n/<code>.json`, and optionally `system/mcp-catalog.<code>.json`. Anything not translated yet shows in English. See [CONTRIBUTING.en.md](CONTRIBUTING.en.md#translations) if you would like to help.
+Adding a language is a data change, not a code change: one entry in `server/lang_registry.py` plus one `dashboard/i18n/<code>.json`, and optionally `system/mcp-catalog.<code>.json`. Anything not translated yet shows in English. See [CONTRIBUTING.en.md](CONTRIBUTING.md#translations) if you would like to help.
 
 ---
 
 ## 🤝 Contributing
 
-Bug reports, ideas and pull requests are all welcome. Read [CONTRIBUTING.en.md](CONTRIBUTING.en.md) first: it covers running the tests (`python tests/run.py`) and the code conventions.
+Bug reports, ideas, translations and pull requests are all welcome, in English or Vietnamese.
+
+| Start here | What it gives you |
+|---|---|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Setting up, running the tests (`python tests/run.py`), the code conventions |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | How the pieces fit together, and a map of the server modules |
+| [docs/dev/GLOSSARY.md](docs/dev/GLOSSARY.md) | The code base was written in Vietnamese: this decodes names like `nhac_hen` (reminder) |
+| [docs/dev/adding-a-language.md](docs/dev/adding-a-language.md) | Translating Javis into your language, step by step |
+| [Issue templates](https://github.com/blogminhquy/javis-os/issues/new/choose) | Bug report, feature request, translation offer |
+
+Please follow the [Code of Conduct](CODE_OF_CONDUCT.md), and report security problems privately as described in [SECURITY.md](SECURITY.md).
 
 If Javis is useful to you, a ⭐ on the repo helps other people find it.
 

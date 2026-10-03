@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in Javis does not work as it should.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. English or Vietnamese are both fine.
+        (Viết bằng tiếng Việt cũng được.)
+        Security problems go through SECURITY.md, not here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Models page
+        2. Press ...
+        3. See the error ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Javis version
+      description: Shown under Settings → Updates, or in the VERSION file.
+      placeholder: "0.68.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: How is Javis running?
+      options:
+        - Docker on a VPS
+        - Hostinger Docker Manager
+        - Linux or macOS (install.sh)
+        - Windows (install.ps1)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: brain
+    attributes:
+      label: Which brain (model provider)?
+      placeholder: "Claude Code, ChatGPT (Codex), OpenRouter, ..."
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Server log lines (server/javis.log, or `docker compose logs`) and screenshots help a lot. Remove any API keys or tokens first.
+      render: text

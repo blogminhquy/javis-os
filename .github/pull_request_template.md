@@ -1,18 +1,19 @@
-## Tóm tắt
+## Summary
 
-<!-- Vì sao cần thay đổi này? Vấn đề gì đang gặp, hoặc tính năng gì đang thiếu. -->
+<!-- Why is this change needed? What problem does it solve, or what is missing? English or Vietnamese are both fine. -->
 
-## Thay đổi chính
+## Changes
 
 -
 
-## Test
+## Tests
 
-<!-- Đã chạy `python tests/run.py` chưa? Có test thủ công gì thêm không (vd thử trên UI)? -->
+<!-- Did you run `python tests/run.py`? Any manual checks (for example in the dashboard)? -->
 
-- [ ] `python tests/run.py` chạy xanh
+- [ ] `python tests/run.py` passes
+- [ ] Text shown on screen goes through `t("...")` (dashboard) or `localefmt.chu(...)` (server)
 - [ ]
 
-## Ảnh hưởng
+## Impact
 
-<!-- File/tính năng nào bị đụng tới? Có rủi ro phá tính năng khác không? -->
+<!-- Which files or features does this touch? Could it break anything else? -->

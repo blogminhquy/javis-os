@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.68.0] - 2026-10-03
 ### Cải thiện
-- **Mở cửa cho người đóng góp quốc tế.** (đang viết)
+- **Trang Cập nhật có bản tiếng Anh.** Thiết bị đọc tiếng Anh thấy nhật ký phiên bản bằng tiếng Anh từ bản 0.66.0 trở đi; các bản cũ hơn vẫn hiện tiếng Việt.
+- **Mở cửa cho người đóng góp quốc tế.** Repo có hướng dẫn đóng góp, sơ đồ kiến trúc và bảng giải nghĩa tên hàm tiếng Việt bằng tiếng Anh, cùng mẫu báo lỗi, đề xuất tính năng và đăng ký dịch.
+- **Có chính sách bảo mật và quy tắc ứng xử.** Lỗi bảo mật được báo riêng tư, không qua Issue công khai.
 
 ## [0.67.0] - 2026-10-02
 ### Cải thiện

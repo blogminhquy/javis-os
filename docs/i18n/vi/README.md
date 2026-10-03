@@ -4,7 +4,7 @@
 
 **AI agentic đổi được bộ não + Second Brain - chạy trên model nào bạn muốn (Claude Code, ChatGPT/Codex, Antigravity CLI, OpenRouter, OpenAI, Gemini, Anthropic API, Groq, Ollama), có giọng nói, đồ thị tri thức, và tự thông minh dần lên.**
 
-[🇬🇧 English](../../../README.md) · 🇻🇳 **Tiếng Việt** · [🌍 Giúp dịch](../../../CONTRIBUTING.md#dịch-thuật)
+[🇬🇧 English](../../../README.md) · 🇻🇳 **Tiếng Việt** · [🌍 Giúp dịch](CONTRIBUTING.md#dịch-thuật)
 
 </div>
 
@@ -343,6 +343,16 @@ javis-os/
 ├── DEPLOY.md            # Hướng dẫn deploy chi tiết
 └── CLAUDE.md            # "System prompt" + quy ước cho AI agent
 ```
+
+---
+
+## 🤝 Đóng góp
+
+Báo lỗi, góp ý, bản dịch và Pull Request đều được chào đón, viết tiếng Việt hay tiếng Anh đều được.
+Đọc [hướng dẫn đóng góp](CONTRIBUTING.md) trước (cách dựng môi trường, chạy test, quy ước code).
+Người đóng góp quốc tế có [ARCHITECTURE.md](../../../ARCHITECTURE.md) và
+[bảng từ điển định danh tiếng Việt](../../dev/GLOSSARY.md) bằng tiếng Anh. Tham gia là đồng ý theo
+[Quy tắc ứng xử](../../../CODE_OF_CONDUCT.md); lỗi bảo mật báo riêng theo [SECURITY.md](../../../SECURITY.md).
 
 ---
 
