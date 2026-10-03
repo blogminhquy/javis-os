@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.68.0] - 2026-10-03
+### Cải thiện
+- **Mở cửa cho người đóng góp quốc tế.** (đang viết)
+
 ## [0.67.0] - 2026-10-02
 ### Cải thiện
 - **Javis nói tiếng Anh trọn vẹn với người dùng nước ngoài.** Thông báo lỗi, trang Models, kho Kết nối (mô tả, hướng dẫn, cảnh báo quyền), trang Plugins và brain mới tạo đều ra tiếng Anh khi trình duyệt để tiếng Anh. Người dùng tiếng Việt thấy y như cũ.
