@@ -1,0 +1,256 @@
+<svg viewBox="0 0 1200 612" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="t d" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif">
+<title id="t">Javis picks the smallest tool that finishes the job</title>
+<desc id="d">A chat message goes to the Javis router, which picks one option on a ladder from light to heavy: answer directly, queue a task, create a skill, agent or workflow, set a reminder, or start a loop.</desc>
+<style>.b0,.b1,.h0,.h1{opacity:0}
+@keyframes kb0{0.00%{opacity:0;transform:translateY(8px)} 2.22%{opacity:1;transform:translateY(0)} 31.11%{opacity:1;transform:translateY(0)} 32.96%{opacity:0;transform:translateY(8px)} 100.00%{opacity:0;transform:translateY(8px)}}
+.b0{animation:kb0 13.5s ease-in-out infinite;}
+@keyframes kt00{0.00%{transform:scaleX(0)} 2.22%{transform:scaleX(0);animation-timing-function:steps(26,end)} 8.52%{transform:scaleX(1)} 33.04%{transform:scaleX(1)} 33.11%{transform:scaleX(0)} 100.00%{transform:scaleX(0)}}
+.ty00{animation:kt00 13.5s linear infinite;transform-origin:156.9px 0}
+@keyframes kh0{0.00%{opacity:0;transform:translateY(6px)} 16.52%{opacity:0;transform:translateY(6px)} 18.74%{opacity:1;transform:translateY(0)} 31.11%{opacity:1;transform:translateY(0)} 32.96%{opacity:0;transform:translateY(6px)} 100.00%{opacity:0;transform:translateY(6px)}}
+.h0{animation:kh0 13.5s ease-in-out infinite;}
+@keyframes kb1{0.00%{opacity:0;transform:translateY(8px)} 33.33%{opacity:0;transform:translateY(8px)} 35.56%{opacity:1;transform:translateY(0)} 64.44%{opacity:1;transform:translateY(0)} 66.30%{opacity:0;transform:translateY(8px)} 100.00%{opacity:0;transform:translateY(8px)}}
+.b1{animation:kb1 13.5s ease-in-out infinite;}
+@keyframes kt10{0.00%{transform:scaleX(0)} 35.56%{transform:scaleX(0);animation-timing-function:steps(22,end)} 39.02%{transform:scaleX(1)} 66.37%{transform:scaleX(1)} 66.44%{transform:scaleX(0)} 100.00%{transform:scaleX(0)}}
+.ty10{animation:kt10 13.5s linear infinite;transform-origin:199.8px 0}
+@keyframes kt11{0.00%{transform:scaleX(0)} 39.02%{transform:scaleX(0);animation-timing-function:steps(18,end)} 41.85%{transform:scaleX(1)} 66.37%{transform:scaleX(1)} 66.44%{transform:scaleX(0)} 100.00%{transform:scaleX(0)}}
+.ty11{animation:kt11 13.5s linear infinite;transform-origin:199.8px 0}
+@keyframes kh1{0.00%{opacity:0;transform:translateY(6px)} 49.85%{opacity:0;transform:translateY(6px)} 52.07%{opacity:1;transform:translateY(0)} 64.44%{opacity:1;transform:translateY(0)} 66.30%{opacity:0;transform:translateY(6px)} 100.00%{opacity:0;transform:translateY(6px)}}
+.h1{animation:kh1 13.5s ease-in-out infinite;}
+@keyframes kb2{0.00%{opacity:0;transform:translateY(8px)} 66.67%{opacity:0;transform:translateY(8px)} 68.89%{opacity:1;transform:translateY(0)} 97.78%{opacity:1;transform:translateY(0)} 99.63%{opacity:0;transform:translateY(8px)} 100.00%{opacity:0;transform:translateY(8px)}}
+.b2{animation:kb2 13.5s ease-in-out infinite;}
+@keyframes kt20{0.00%{transform:scaleX(0)} 68.89%{transform:scaleX(0);animation-timing-function:steps(20,end)} 72.20%{transform:scaleX(1)} 99.70%{transform:scaleX(1)} 99.78%{transform:scaleX(0)} 100.00%{transform:scaleX(0)}}
+.ty20{animation:kt20 13.5s linear infinite;transform-origin:221.3px 0}
+@keyframes kt21{0.00%{transform:scaleX(0)} 72.20%{transform:scaleX(0);animation-timing-function:steps(18,end)} 75.19%{transform:scaleX(1)} 99.70%{transform:scaleX(1)} 99.78%{transform:scaleX(0)} 100.00%{transform:scaleX(0)}}
+.ty21{animation:kt21 13.5s linear infinite;transform-origin:221.3px 0}
+@keyframes kh2{0.00%{opacity:0;transform:translateY(6px)} 87.04%{opacity:0;transform:translateY(6px)} 89.26%{opacity:1;transform:translateY(0)} 97.78%{opacity:1;transform:translateY(0)} 99.63%{opacity:0;transform:translateY(6px)} 100.00%{opacity:0;transform:translateY(6px)}}
+.h2{animation:kh2 13.5s ease-in-out infinite;}
+@keyframes kp{0.00%{opacity:0;transform:translateX(0)} 8.15%{opacity:0;transform:translateX(0)} 8.74%{opacity:1;transform:translateX(0)} 11.11%{opacity:1;transform:translateX(86px)} 11.70%{opacity:0;transform:translateX(86px)} 41.48%{opacity:0;transform:translateX(0)} 42.07%{opacity:1;transform:translateX(0)} 44.44%{opacity:1;transform:translateX(86px)} 45.04%{opacity:0;transform:translateX(86px)} 74.81%{opacity:0;transform:translateX(0)} 75.41%{opacity:1;transform:translateX(0)} 77.78%{opacity:1;transform:translateX(86px)} 78.37%{opacity:0;transform:translateX(86px)} 100.00%{opacity:0;transform:translateX(86px)}}
+.pulse{animation:kp 13.5s ease-in-out infinite;}
+@keyframes kr{0.00%{opacity:0;transform:scale(0.85)} 10.74%{opacity:0;transform:scale(0.85)} 12.22%{opacity:1;transform:scale(1)} 15.19%{opacity:0;transform:scale(1.15)} 44.07%{opacity:0;transform:scale(0.85)} 45.56%{opacity:1;transform:scale(1)} 48.52%{opacity:0;transform:scale(1.15)} 77.41%{opacity:0;transform:scale(0.85)} 78.89%{opacity:1;transform:scale(1)} 81.85%{opacity:0;transform:scale(1.15)} 100.00%{opacity:0;transform:scale(1.15)}}
+.ring{animation:kr 13.5s ease-in-out infinite;transform-origin:588px 355.0px}
+@keyframes ks{0.00%{opacity:0;transform:translateY(0)} 12.59%{opacity:0;transform:translateY(0)} 13.70%{opacity:1;transform:translateY(0)} 14.44%{opacity:1;transform:translateY(0)} 15.41%{opacity:1;transform:translateY(0px)} 16.15%{opacity:1;transform:translateY(0px)} 18.00%{opacity:0;transform:translateY(0px)} 45.93%{opacity:0;transform:translateY(0)} 47.04%{opacity:1;transform:translateY(0)} 47.78%{opacity:1;transform:translateY(0);animation-timing-function:steps(1,end)} 48.74%{opacity:1;transform:translateY(64px)} 49.48%{opacity:1;transform:translateY(64px)} 51.33%{opacity:0;transform:translateY(64px)} 79.26%{opacity:0;transform:translateY(0)} 80.37%{opacity:1;transform:translateY(0)} 81.11%{opacity:1;transform:translateY(0);animation-timing-function:steps(5,end)} 85.93%{opacity:1;transform:translateY(320px)} 86.67%{opacity:1;transform:translateY(320px)} 88.52%{opacity:0;transform:translateY(320px)} 100.00%{opacity:0;transform:translateY(320px)}}
+.scan{animation:ks 13.5s ease-in-out infinite;}
+@keyframes ka0{0.00%{opacity:0} 15.26%{opacity:0} 16.37%{opacity:1} 31.11%{opacity:1} 32.96%{opacity:0} 100.00%{opacity:0}}
+.a0{animation:ka0 13.5s ease-in-out infinite;}
+@keyframes ka1{0.00%{opacity:0} 48.59%{opacity:0} 49.70%{opacity:1} 64.44%{opacity:1} 66.30%{opacity:0} 100.00%{opacity:0}}
+.a1{animation:ka1 13.5s ease-in-out infinite;}
+@keyframes ka2{0.00%{opacity:0} 85.78%{opacity:0} 86.89%{opacity:1} 97.78%{opacity:1} 99.63%{opacity:0} 100.00%{opacity:0}}
+.a2{animation:ka2 13.5s ease-in-out infinite;}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}</style>
+<defs>
+<radialGradient id="glow" cx="0.490" cy="0.580" r="0.6"><stop offset="0" stop-color="#7c3aed" stop-opacity="0.13"/><stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></radialGradient>
+<pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#ffffff" stroke-opacity="0.04"/></pattern>
+<radialGradient id="rglow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#8b5cf6" stop-opacity="0.35"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/></radialGradient>
+<clipPath id="bgclip"><rect width="1200" height="612" rx="20"/></clipPath>
+<symbol id="i-answer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H10l-5 4v-4H4z"/></symbol>
+<symbol id="i-task" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16M5.5 8h1.5M11 8h2M11 12h2M17 8h1.5"/></symbol>
+<symbol id="i-skill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19V6a2 2 0 0 1 2-2h12v13H7a2 2 0 0 0-2 2 2 2 0 0 0 2 2h12"/><path d="M9 8h6"/></symbol>
+<symbol id="i-agent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+<symbol id="i-workflow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="12" r="2.5"/><circle cx="5" cy="18" r="2.5"/><path d="M7.4 7l9.2 4M16.6 13l-9.2 4"/></symbol>
+<symbol id="i-reminder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M5 3.5 2.5 6M19 3.5 21.5 6"/></symbol>
+<symbol id="i-loop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v4h-4"/></symbol>
+<clipPath id="c00"><rect class="ty00" x="156.9" y="338.5" width="299.1" height="31"/></clipPath>
+<clipPath id="c10"><rect class="ty10" x="199.8" y="324.0" width="256.2" height="31"/></clipPath>
+<clipPath id="c11"><rect class="ty11" x="199.8" y="353.0" width="256.2" height="31"/></clipPath>
+<clipPath id="c20"><rect class="ty20" x="221.3" y="324.0" width="234.7" height="31"/></clipPath>
+<clipPath id="c21"><rect class="ty21" x="221.3" y="353.0" width="234.7" height="31"/></clipPath>
+</defs>
+<g clip-path="url(#bgclip)">
+<rect width="1200" height="612" fill="#0b0b14"/>
+<rect width="1200" height="612" fill="url(#grid)"/>
+<rect width="1200" height="612" fill="url(#glow)"/>
+</g>
+<text x="48" y="62" font-family="ui-monospace, 'SFMono-Regular', Consolas, 'Courier New', monospace" font-size="16" letter-spacing="2.5" fill="#f97316">ONE MESSAGE, THE RIGHT TOOL</text>
+<text x="48" y="102" font-size="28" font-weight="700" fill="#e5e7eb">Javis picks the <tspan fill="#f97316">smallest tool</tspan> that finishes the job.</text>
+<rect x="48" y="136" width="430" height="438" rx="16" fill="#151525" stroke="#2a2a40" stroke-width="1.5"/>
+<circle cx="74" cy="164" r="5" fill="#4ade80"/>
+<text x="88" y="171" font-size="19" font-weight="600" fill="#e5e7eb">Chat</text>
+<text x="456" y="171" font-size="16" fill="#9ca3af" text-anchor="end">web or Telegram</text>
+<path d="M48 192H478" stroke="#2a2a40" stroke-width="1.5"/>
+<rect x="68" y="512" width="390" height="44" rx="22" fill="#0f0f1c" stroke="#2a2a40" stroke-width="1.5"/>
+<text x="90" y="540" font-size="16" fill="#6b7280">Message Javis...</text>
+<circle cx="436" cy="534" r="15" fill="#8b5cf6"/>
+<path d="M430 534h12M437 528l6 6-6 6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+<g class="b0">
+<rect x="138.9" y="324.5" width="319.1" height="61" rx="16" fill="#2b2050" stroke="#8b5cf6" stroke-opacity="0.55" stroke-width="1.5"/>
+<text clip-path="url(#c00)" x="158.9" y="359.5" font-size="19" fill="#e5e7eb">What were sales yesterday?</text>
+</g>
+<g class="h0">
+<circle cx="82" cy="423.5" r="14" fill="#241b3d" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="82" y="429.5" font-size="16" font-weight="700" fill="#a78bfa" text-anchor="middle">J</text>
+<rect x="102" y="403.5" width="296.3" height="40" rx="20" fill="#11261c" stroke="#4ade80" stroke-opacity="0.7" stroke-width="1.5"/>
+<path d="M118 424.0l5 5 9-10" fill="none" stroke="#4ade80" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="142" y="429.5" font-size="17" fill="#4ade80">answered with real numbers</text>
+</g>
+<g class="b1">
+<rect x="181.8" y="310.0" width="276.2" height="90" rx="16" fill="#2b2050" stroke="#8b5cf6" stroke-opacity="0.55" stroke-width="1.5"/>
+<text clip-path="url(#c10)" x="201.8" y="345.0" font-size="19" fill="#e5e7eb">Research 3 competitors</text>
+<text clip-path="url(#c11)" x="201.8" y="374.0" font-size="19" fill="#e5e7eb">and write a report</text>
+</g>
+<g class="h1">
+<circle cx="82" cy="438.0" r="14" fill="#241b3d" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="82" y="444.0" font-size="16" font-weight="700" fill="#a78bfa" text-anchor="middle">J</text>
+<rect x="102" y="418.0" width="359.3" height="40" rx="20" fill="#11261c" stroke="#4ade80" stroke-opacity="0.7" stroke-width="1.5"/>
+<path d="M118 438.5l5 5 9-10" fill="none" stroke="#4ade80" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="142" y="444.0" font-size="17" fill="#4ade80">queued, result lands in this chat</text>
+</g>
+<g class="b2">
+<rect x="203.3" y="310.0" width="254.7" height="90" rx="16" fill="#2b2050" stroke="#8b5cf6" stroke-opacity="0.55" stroke-width="1.5"/>
+<text clip-path="url(#c20)" x="223.3" y="345.0" font-size="19" fill="#e5e7eb">Every Monday at 8am,</text>
+<text clip-path="url(#c21)" x="223.3" y="374.0" font-size="19" fill="#e5e7eb">summarize ad spend</text>
+</g>
+<g class="h2">
+<circle cx="82" cy="438.0" r="14" fill="#241b3d" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="82" y="444.0" font-size="16" font-weight="700" fill="#a78bfa" text-anchor="middle">J</text>
+<rect x="102" y="418.0" width="341.3" height="40" rx="20" fill="#11261c" stroke="#4ade80" stroke-opacity="0.7" stroke-width="1.5"/>
+<path d="M118 438.5l5 5 9-10" fill="none" stroke="#4ade80" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="142" y="444.0" font-size="17" fill="#4ade80">reminder created: Mondays 08:00</text>
+</g>
+<path d="M458 355.0H544M632 355.0H676" stroke="#3a3a5c" stroke-width="2" stroke-dasharray="4 6" stroke-linecap="round"/>
+<path d="M676 163.0V547.0" stroke="#3a3a5c" stroke-width="2"/>
+<path d="M676 163.0H700" stroke="#3a3a5c" stroke-width="2"/>
+<path d="M676 227.0H700" stroke="#3a3a5c" stroke-width="2"/>
+<path d="M676 291.0H700" stroke="#3a3a5c" stroke-width="2"/>
+<path d="M676 355.0H700" stroke="#3a3a5c" stroke-width="2"/>
+<path d="M676 419.0H700" stroke="#3a3a5c" stroke-width="2"/>
+<path d="M676 483.0H700" stroke="#3a3a5c" stroke-width="2"/>
+<path d="M676 547.0H700" stroke="#3a3a5c" stroke-width="2"/>
+<circle cx="588" cy="355.0" r="92" fill="url(#rglow)"/>
+<circle class="ring" cx="588" cy="355.0" r="53" fill="none" stroke="#f97316" stroke-width="2.5" opacity="0"/>
+<circle cx="588" cy="355.0" r="44" fill="#1c1530" stroke="#8b5cf6" stroke-width="2.5"/>
+<text x="588" y="362.0" font-size="21" font-weight="700" fill="#e5e7eb" text-anchor="middle">Javis</text>
+<text x="588" y="429.0" font-size="16" fill="#9ca3af" text-anchor="middle">reads the brain,</text>
+<text x="588" y="449.0" font-size="16" fill="#9ca3af" text-anchor="middle">picks one tool</text>
+<circle class="pulse" cx="458" cy="355.0" r="7" fill="#fb923c" opacity="0"/>
+<rect x="700" y="136" width="452" height="54" rx="12" fill="#151525" stroke="#2a2a40" stroke-width="1.5"/>
+<circle cx="730" cy="163.0" r="15" fill="#23233a"/>
+<text x="730" y="169.0" font-size="16" font-weight="700" fill="#9ca3af" text-anchor="middle">1</text>
+<use href="#i-answer" x="758" y="151.0" width="24" height="24" style="color:#7d8194"/>
+<text x="798" y="170.0" font-size="20" font-weight="500" fill="#9ca3af">Answer directly</text>
+<rect x="1052" y="159.0" width="6" height="8.0" rx="2" fill="#4b4470"/>
+<rect x="1062" y="157.8" width="6" height="10.4" rx="2" fill="#24243a"/>
+<rect x="1072" y="156.6" width="6" height="12.8" rx="2" fill="#24243a"/>
+<rect x="1082" y="155.4" width="6" height="15.2" rx="2" fill="#24243a"/>
+<rect x="1092" y="154.2" width="6" height="17.6" rx="2" fill="#24243a"/>
+<rect x="1102" y="153.0" width="6" height="20.0" rx="2" fill="#24243a"/>
+<rect x="1112" y="151.8" width="6" height="22.4" rx="2" fill="#24243a"/>
+<rect x="700" y="200" width="452" height="54" rx="12" fill="#151525" stroke="#2a2a40" stroke-width="1.5"/>
+<circle cx="730" cy="227.0" r="15" fill="#23233a"/>
+<text x="730" y="233.0" font-size="16" font-weight="700" fill="#9ca3af" text-anchor="middle">2</text>
+<use href="#i-task" x="758" y="215.0" width="24" height="24" style="color:#7d8194"/>
+<text x="798" y="234.0" font-size="20" font-weight="500" fill="#9ca3af">Queue a task</text>
+<rect x="1052" y="223.0" width="6" height="8.0" rx="2" fill="#4b4470"/>
+<rect x="1062" y="221.8" width="6" height="10.4" rx="2" fill="#4b4470"/>
+<rect x="1072" y="220.6" width="6" height="12.8" rx="2" fill="#24243a"/>
+<rect x="1082" y="219.4" width="6" height="15.2" rx="2" fill="#24243a"/>
+<rect x="1092" y="218.2" width="6" height="17.6" rx="2" fill="#24243a"/>
+<rect x="1102" y="217.0" width="6" height="20.0" rx="2" fill="#24243a"/>
+<rect x="1112" y="215.8" width="6" height="22.4" rx="2" fill="#24243a"/>
+<rect x="700" y="264" width="452" height="54" rx="12" fill="#151525" stroke="#2a2a40" stroke-width="1.5"/>
+<circle cx="730" cy="291.0" r="15" fill="#23233a"/>
+<text x="730" y="297.0" font-size="16" font-weight="700" fill="#9ca3af" text-anchor="middle">3</text>
+<use href="#i-skill" x="758" y="279.0" width="24" height="24" style="color:#7d8194"/>
+<text x="798" y="298.0" font-size="20" font-weight="500" fill="#9ca3af">Create a skill</text>
+<rect x="1052" y="287.0" width="6" height="8.0" rx="2" fill="#4b4470"/>
+<rect x="1062" y="285.8" width="6" height="10.4" rx="2" fill="#4b4470"/>
+<rect x="1072" y="284.6" width="6" height="12.8" rx="2" fill="#4b4470"/>
+<rect x="1082" y="283.4" width="6" height="15.2" rx="2" fill="#24243a"/>
+<rect x="1092" y="282.2" width="6" height="17.6" rx="2" fill="#24243a"/>
+<rect x="1102" y="281.0" width="6" height="20.0" rx="2" fill="#24243a"/>
+<rect x="1112" y="279.8" width="6" height="22.4" rx="2" fill="#24243a"/>
+<rect x="700" y="328" width="452" height="54" rx="12" fill="#151525" stroke="#2a2a40" stroke-width="1.5"/>
+<circle cx="730" cy="355.0" r="15" fill="#23233a"/>
+<text x="730" y="361.0" font-size="16" font-weight="700" fill="#9ca3af" text-anchor="middle">4</text>
+<use href="#i-agent" x="758" y="343.0" width="24" height="24" style="color:#7d8194"/>
+<text x="798" y="362.0" font-size="20" font-weight="500" fill="#9ca3af">Create an agent</text>
+<rect x="1052" y="351.0" width="6" height="8.0" rx="2" fill="#4b4470"/>
+<rect x="1062" y="349.8" width="6" height="10.4" rx="2" fill="#4b4470"/>
+<rect x="1072" y="348.6" width="6" height="12.8" rx="2" fill="#4b4470"/>
+<rect x="1082" y="347.4" width="6" height="15.2" rx="2" fill="#4b4470"/>
+<rect x="1092" y="346.2" width="6" height="17.6" rx="2" fill="#24243a"/>
+<rect x="1102" y="345.0" width="6" height="20.0" rx="2" fill="#24243a"/>
+<rect x="1112" y="343.8" width="6" height="22.4" rx="2" fill="#24243a"/>
+<rect x="700" y="392" width="452" height="54" rx="12" fill="#151525" stroke="#2a2a40" stroke-width="1.5"/>
+<circle cx="730" cy="419.0" r="15" fill="#23233a"/>
+<text x="730" y="425.0" font-size="16" font-weight="700" fill="#9ca3af" text-anchor="middle">5</text>
+<use href="#i-workflow" x="758" y="407.0" width="24" height="24" style="color:#7d8194"/>
+<text x="798" y="426.0" font-size="20" font-weight="500" fill="#9ca3af">Create a workflow</text>
+<rect x="1052" y="415.0" width="6" height="8.0" rx="2" fill="#4b4470"/>
+<rect x="1062" y="413.8" width="6" height="10.4" rx="2" fill="#4b4470"/>
+<rect x="1072" y="412.6" width="6" height="12.8" rx="2" fill="#4b4470"/>
+<rect x="1082" y="411.4" width="6" height="15.2" rx="2" fill="#4b4470"/>
+<rect x="1092" y="410.2" width="6" height="17.6" rx="2" fill="#4b4470"/>
+<rect x="1102" y="409.0" width="6" height="20.0" rx="2" fill="#24243a"/>
+<rect x="1112" y="407.8" width="6" height="22.4" rx="2" fill="#24243a"/>
+<rect x="700" y="456" width="452" height="54" rx="12" fill="#151525" stroke="#2a2a40" stroke-width="1.5"/>
+<circle cx="730" cy="483.0" r="15" fill="#23233a"/>
+<text x="730" y="489.0" font-size="16" font-weight="700" fill="#9ca3af" text-anchor="middle">6</text>
+<use href="#i-reminder" x="758" y="471.0" width="24" height="24" style="color:#7d8194"/>
+<text x="798" y="490.0" font-size="20" font-weight="500" fill="#9ca3af">Set a reminder</text>
+<rect x="1052" y="479.0" width="6" height="8.0" rx="2" fill="#4b4470"/>
+<rect x="1062" y="477.8" width="6" height="10.4" rx="2" fill="#4b4470"/>
+<rect x="1072" y="476.6" width="6" height="12.8" rx="2" fill="#4b4470"/>
+<rect x="1082" y="475.4" width="6" height="15.2" rx="2" fill="#4b4470"/>
+<rect x="1092" y="474.2" width="6" height="17.6" rx="2" fill="#4b4470"/>
+<rect x="1102" y="473.0" width="6" height="20.0" rx="2" fill="#4b4470"/>
+<rect x="1112" y="471.8" width="6" height="22.4" rx="2" fill="#24243a"/>
+<rect x="700" y="520" width="452" height="54" rx="12" fill="#151525" stroke="#2a2a40" stroke-width="1.5"/>
+<circle cx="730" cy="547.0" r="15" fill="#23233a"/>
+<text x="730" y="553.0" font-size="16" font-weight="700" fill="#9ca3af" text-anchor="middle">7</text>
+<use href="#i-loop" x="758" y="535.0" width="24" height="24" style="color:#7d8194"/>
+<text x="798" y="554.0" font-size="20" font-weight="500" fill="#9ca3af">Start a loop</text>
+<rect x="1052" y="543.0" width="6" height="8.0" rx="2" fill="#4b4470"/>
+<rect x="1062" y="541.8" width="6" height="10.4" rx="2" fill="#4b4470"/>
+<rect x="1072" y="540.6" width="6" height="12.8" rx="2" fill="#4b4470"/>
+<rect x="1082" y="539.4" width="6" height="15.2" rx="2" fill="#4b4470"/>
+<rect x="1092" y="538.2" width="6" height="17.6" rx="2" fill="#4b4470"/>
+<rect x="1102" y="537.0" width="6" height="20.0" rx="2" fill="#4b4470"/>
+<rect x="1112" y="535.8" width="6" height="22.4" rx="2" fill="#4b4470"/>
+<text x="1086" y="126" font-size="16" fill="#9ca3af" text-anchor="middle">light to heavy</text>
+<g class="scan" opacity="0">
+<rect x="700" y="136" width="452" height="54" rx="12" fill="#f97316" fill-opacity="0.10" stroke="#fb923c" stroke-width="2" stroke-opacity="0.8"/>
+<circle cx="676" cy="163.0" r="6" fill="#fb923c"/>
+</g>
+<g class="a0" opacity="0">
+<rect x="700" y="136" width="452" height="54" rx="12" fill="#2a1a10" stroke="#f97316" stroke-width="2"/>
+<circle cx="730" cy="163.0" r="15" fill="#f97316"/>
+<text x="730" y="169.0" font-size="16" font-weight="700" fill="#0b0b14" text-anchor="middle">1</text>
+<use href="#i-answer" x="758" y="151.0" width="24" height="24" style="color:#fb923c"/>
+<text x="798" y="170.0" font-size="20" font-weight="500" fill="#fb923c">Answer directly</text>
+<rect x="1052" y="159.0" width="6" height="8.0" rx="2" fill="#f97316"/>
+<rect x="1062" y="157.8" width="6" height="10.4" rx="2" fill="#5a3418"/>
+<rect x="1072" y="156.6" width="6" height="12.8" rx="2" fill="#5a3418"/>
+<rect x="1082" y="155.4" width="6" height="15.2" rx="2" fill="#5a3418"/>
+<rect x="1092" y="154.2" width="6" height="17.6" rx="2" fill="#5a3418"/>
+<rect x="1102" y="153.0" width="6" height="20.0" rx="2" fill="#5a3418"/>
+<rect x="1112" y="151.8" width="6" height="22.4" rx="2" fill="#5a3418"/>
+</g>
+<g class="a1" opacity="0">
+<rect x="700" y="200" width="452" height="54" rx="12" fill="#2a1a10" stroke="#f97316" stroke-width="2"/>
+<circle cx="730" cy="227.0" r="15" fill="#f97316"/>
+<text x="730" y="233.0" font-size="16" font-weight="700" fill="#0b0b14" text-anchor="middle">2</text>
+<use href="#i-task" x="758" y="215.0" width="24" height="24" style="color:#fb923c"/>
+<text x="798" y="234.0" font-size="20" font-weight="500" fill="#fb923c">Queue a task</text>
+<rect x="1052" y="223.0" width="6" height="8.0" rx="2" fill="#f97316"/>
+<rect x="1062" y="221.8" width="6" height="10.4" rx="2" fill="#f97316"/>
+<rect x="1072" y="220.6" width="6" height="12.8" rx="2" fill="#5a3418"/>
+<rect x="1082" y="219.4" width="6" height="15.2" rx="2" fill="#5a3418"/>
+<rect x="1092" y="218.2" width="6" height="17.6" rx="2" fill="#5a3418"/>
+<rect x="1102" y="217.0" width="6" height="20.0" rx="2" fill="#5a3418"/>
+<rect x="1112" y="215.8" width="6" height="22.4" rx="2" fill="#5a3418"/>
+</g>
+<g class="a2">
+<rect x="700" y="456" width="452" height="54" rx="12" fill="#2a1a10" stroke="#f97316" stroke-width="2"/>
+<circle cx="730" cy="483.0" r="15" fill="#f97316"/>
+<text x="730" y="489.0" font-size="16" font-weight="700" fill="#0b0b14" text-anchor="middle">6</text>
+<use href="#i-reminder" x="758" y="471.0" width="24" height="24" style="color:#fb923c"/>
+<text x="798" y="490.0" font-size="20" font-weight="500" fill="#fb923c">Set a reminder</text>
+<rect x="1052" y="479.0" width="6" height="8.0" rx="2" fill="#f97316"/>
+<rect x="1062" y="477.8" width="6" height="10.4" rx="2" fill="#f97316"/>
+<rect x="1072" y="476.6" width="6" height="12.8" rx="2" fill="#f97316"/>
+<rect x="1082" y="475.4" width="6" height="15.2" rx="2" fill="#f97316"/>
+<rect x="1092" y="474.2" width="6" height="17.6" rx="2" fill="#f97316"/>
+<rect x="1102" y="473.0" width="6" height="20.0" rx="2" fill="#f97316"/>
+<rect x="1112" y="471.8" width="6" height="22.4" rx="2" fill="#5a3418"/>
+</g>
+</svg>
