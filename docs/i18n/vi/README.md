@@ -25,17 +25,29 @@ Lệnh đó cài trọn gói: Python + thư viện, **bốn bộ não CLI chạy
 
 > ⚠️ Cài thêm một CLI **sau khi** Javis đã chạy thì **khởi động lại Javis**. Tiến trình đang chạy giữ PATH của lúc nó bật, nên CLI vừa cài nó chưa thấy.
 
+<p align="center">
+<img src="../../../docs/assets/diagrams/install-terminal.svg" width="100%" alt="Terminal động: lệnh cài một dòng dựng Python, bốn bộ não CLI chạy bằng gói thuê bao và file .env, rồi báo Javis đang chạy ở http://localhost:7777">
+</p>
+
 ---
 
 ## Javis là gì?
 
 Javis OS **không phải** một chatbot. Nó là một **AI agentic tự host** chạy trên máy/VPS của bạn: đọc/ghi file, gọi công cụ (MCP), chạy skill, giao việc chạy nền, tự đặt lịch - rồi gói tất cả vào một **dashboard đẹp, điều khiển bằng giọng nói**, kèm một **Second Brain** (bộ nhớ + wiki) tích luỹ tri thức theo thời gian.
 
-**Bộ não thì bạn chọn, và đổi lúc nào cũng được.** Mười đường dùng được ngay: **Claude Code**, **ChatGPT/Codex**, **Grok Build** và **Antigravity CLI** (dùng chính gói subscription bạn đang trả, không cần mua API riêng), **OpenRouter · OpenAI API · Google Gemini · Anthropic API · Groq · Ollama Cloud** (chỉ cần API key).
+**Bộ não thì bạn chọn, và đổi lúc nào cũng được.** 12 đường dùng được ngay: **Claude Code**, **ChatGPT/Codex**, **Grok Build** và **Antigravity CLI** (dùng chính gói subscription bạn đang trả, không cần mua API riêng), **OpenRouter · OpenAI API · Google Gemini · Anthropic API · Groq · Ollama Cloud** (chỉ cần API key), cộng thêm **Ollama chạy ngay trên máy bạn** và **mọi endpoint tương thích OpenAI**.
+
+<p align="center">
+<img src="../../../docs/assets/diagrams/swappable-brain.svg" width="100%" alt="Hình động: lõi Javis ở giữa, bộ đồ nghề (MCP Hub, Skills, Second Brain, Tasks, Schedules, Plugins) bao quanh, 12 bộ não lần lượt lắp vào mà mọi công cụ vẫn sáng nguyên">
+</p>
 
 > ⚠️ **Đọc trước khi cho gói subscription chạy việc nền.** Anthropic chỉ tính gói Claude Pro/Max cho việc dùng **cá nhân, thông thường** của Claude Code. Chạy nền liên tục (loop, nhắc hẹn, việc Kanban, chatbot), chạy trên VPS, hoặc nhiều người dùng chung một tài khoản đều nằm ngoài phạm vi đó, và đã có người **bị khoá tài khoản** vì lý do này. Javis không tự đọc token đăng nhập của bạn (đường đó đã gỡ ở 0.26.17) - nó chạy qua đúng binary `claude`, nhưng như vậy vẫn không làm việc chạy nền 24/7 trở thành hợp lệ. Muốn yên tâm: ở trang **Models**, đặt Claude Code chạy bằng **API key**, hoặc trỏ **model việc nền** sang một provider khác. Xem `server/claude_auth.py`.
 
 > Triết lý: **năng lực nằm ở Javis, không nằm ở model.** Mọi bộ não đều được cấp cùng bộ đồ nghề qua trung tâm kết nối (MCP Hub) chung - MCP đã đấu, tool đọc/ghi brain, skill, việc Kanban, agent/workflow/loop/nhắc hẹn. Khác biệt duy nhất: hai engine CLI chạy thêm được **lệnh máy**. Đổi từ Claude sang Gemini không làm Javis mất chức năng nào ngoài chuyện đó.
+
+<p align="center">
+<img src="../../../docs/assets/diagrams/chat-to-action.svg" width="100%" alt="Hình động: một câu chat đi vào Javis, Javis chọn công cụ nhỏ nhất đủ làm xong việc, từ trả lời thẳng, xếp việc, tới tạo agent, workflow, nhắc hẹn hay loop">
+</p>
 
 Bạn đấu các **kết nối** của riêng mình vào (bán hàng/POS, quảng cáo, lịch, email, Zalo, ghi chú…) → Javis tự phát hiện và **báo cáo kinh doanh + cuộc sống** bằng số liệu thật, nói chuyện như người.
 
@@ -56,6 +68,10 @@ Bạn đấu các **kết nối** của riêng mình vào (bán hàng/POS, quả
 
 ## ✨ Tính năng nổi bật
 
+<p align="center">
+<img src="../../../docs/assets/diagrams/second-brain-grows.svg" width="100%" alt="Đồ thị tri thức động: ghi chú và liên kết lần lượt mọc ra, Second Brain lớn dần từ vài ghi chú lên hơn một nghìn">
+</p>
+
 - 🎙️ **Trò chuyện bằng giọng nói rảnh tay** - nói, Javis nghe và trả lời bằng giọng. Chọn được nhà cung cấp giọng đọc: Edge TTS (miễn phí, mặc định), OpenAI hoặc ElevenLabs.
 - 🌌 **Đồ thị tri thức** - bộ não của bạn hiện ra thành mạng note nối nhau qua `[[wikilink]]`, bằng canvas nhẹ và chạy được ngoại tuyến.
 - 💬 **Phiên hội thoại** - lưu / mở lại / **tìm kiếm toàn văn** mọi cuộc trò chuyện cũ; phiên dài được nén tóm tắt thay vì cắt cụt trí nhớ.
@@ -73,6 +89,11 @@ Bạn đấu các **kết nối** của riêng mình vào (bán hàng/POS, quả
 - ⇅ **Sao lưu brain lên GitHub** - đồng bộ 2 chiều mọi brain lên một repo riêng tư, dùng chung giữa máy nhà và VPS.
 - 🔄 **Đa engine, đổi không mất chức năng** - Claude Code, ChatGPT (Codex), OpenRouter, OpenAI API, Google Gemini, Anthropic API, Groq. Đổi trong **Models** một cú bấm; bộ não nào cũng gọi được MCP Javis, tool file brain và skill.
 - 🔐 **An toàn khi lên VPS** - tự bắt buộc đăng nhập khi chạy public, chống chiếm tài khoản, rate-limit, chặn CSRF, mã hoá khoá bí mật trong cấu hình.
+
+
+<p align="center">
+<img src="../../../docs/assets/diagrams/background-work.svg" width="100%" alt="Bảng Kanban động trong đêm: việc tự đi từ Queued sang Running, Review rồi Done, sáng ra báo cáo bay về Telegram">
+</p>
 
 ---
 

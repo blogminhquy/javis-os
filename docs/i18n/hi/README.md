@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:555dea39f5f9 -->
+<!-- translated-from: README.md sha256:b4a0c4282066 -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Javis OS का लोगो">
@@ -400,7 +400,7 @@ javis-os/
 | **README और quick start** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 · 🇮🇳 हिन्दी · 🇧🇷 Português · 🇰🇷 한국어 · 🇷🇺 Русский · 🇩🇪 Deutsch · 🇫🇷 Français · 🇮🇩 Bahasa Indonesia |
 | **पूरा documentation** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
-नई भाषा जोड़ना data का बदलाव है, code का नहीं: `server/lang_registry.py` में एक entry और एक `dashboard/i18n/<code>.json`, और चाहें तो `system/mcp-catalog.<code>.json`। जो कुछ अभी अनुवादित नहीं है, वह अंग्रेज़ी में दिखता है। अगर आप मदद करना चाहें तो [CONTRIBUTING.en.md](../../../CONTRIBUTING.md#translations) देखिए।
+नई भाषा जोड़ना data का बदलाव है, code का नहीं: `server/lang_registry.py` में एक entry और एक `dashboard/i18n/<code>.json`, और चाहें तो `system/mcp-catalog.<code>.json`। जो कुछ अभी अनुवादित नहीं है, वह अंग्रेज़ी में दिखता है। अगर आप मदद करना चाहें तो [CONTRIBUTING.md](../../../CONTRIBUTING.md#translations) देखिए।
 
 ---
 

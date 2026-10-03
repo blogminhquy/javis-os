@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:555dea39f5f9 -->
+<!-- translated-from: README.md sha256:b4a0c4282066 -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Logo Javis OS">
@@ -400,7 +400,7 @@ javis-os/
 | **README dan panduan mulai cepat** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 · 🇮🇳 हिन्दी · 🇧🇷 Português · 🇰🇷 한국어 · 🇷🇺 Русский · 🇩🇪 Deutsch · 🇫🇷 Français · 🇮🇩 Bahasa Indonesia |
 | **Dokumentasi lengkap** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
-Menambahkan bahasa adalah perubahan data, bukan perubahan kode: satu entri di `server/lang_registry.py` ditambah satu `dashboard/i18n/<code>.json`, dan opsional `system/mcp-catalog.<code>.json`. Apa pun yang belum diterjemahkan akan tampil dalam bahasa Inggris. Lihat [CONTRIBUTING.en.md](../../../CONTRIBUTING.md#translations) jika Anda ingin membantu.
+Menambahkan bahasa adalah perubahan data, bukan perubahan kode: satu entri di `server/lang_registry.py` ditambah satu `dashboard/i18n/<code>.json`, dan opsional `system/mcp-catalog.<code>.json`. Apa pun yang belum diterjemahkan akan tampil dalam bahasa Inggris. Lihat [CONTRIBUTING.md](../../../CONTRIBUTING.md#translations) jika Anda ingin membantu.
 
 ---
 

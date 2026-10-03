@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:555dea39f5f9 -->
+<!-- translated-from: README.md sha256:b4a0c4282066 -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Javis OS 로고">
@@ -400,7 +400,7 @@ javis-os/
 | **README와 빠른 시작** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 · 🇮🇳 हिन्दी · 🇧🇷 Português · 🇰🇷 한국어 · 🇷🇺 Русский · 🇩🇪 Deutsch · 🇫🇷 Français · 🇮🇩 Bahasa Indonesia |
 | **전체 문서** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
-언어 추가는 코드 변경이 아니라 데이터 변경입니다. `server/lang_registry.py` 에 항목 하나와 `dashboard/i18n/<code>.json` 하나를 추가하고, 필요하면 `system/mcp-catalog.<code>.json` 도 추가하면 됩니다. 아직 번역되지 않은 부분은 영어로 표시됩니다. 도와주실 분은 [CONTRIBUTING.en.md](../../../CONTRIBUTING.md#translations) 를 참고하세요.
+언어 추가는 코드 변경이 아니라 데이터 변경입니다. `server/lang_registry.py` 에 항목 하나와 `dashboard/i18n/<code>.json` 하나를 추가하고, 필요하면 `system/mcp-catalog.<code>.json` 도 추가하면 됩니다. 아직 번역되지 않은 부분은 영어로 표시됩니다. 도와주실 분은 [CONTRIBUTING.md](../../../CONTRIBUTING.md#translations) 를 참고하세요.
 
 ---
 

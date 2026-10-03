@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:555dea39f5f9 -->
+<!-- translated-from: README.md sha256:b4a0c4282066 -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Logotipo de Javis OS">
@@ -400,7 +400,7 @@ javis-os/
 | **README y guía de inicio rápido** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 · 🇮🇳 हिन्दी · 🇧🇷 Português · 🇰🇷 한국어 · 🇷🇺 Русский · 🇩🇪 Deutsch · 🇫🇷 Français · 🇮🇩 Bahasa Indonesia |
 | **Documentación completa** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
-Añadir un idioma es un cambio de datos, no de código: una entrada en `server/lang_registry.py` más un `dashboard/i18n/<code>.json` y, opcionalmente, `system/mcp-catalog.<code>.json`. Todo lo que aún no está traducido se muestra en inglés. Consulta [CONTRIBUTING.en.md](../../../CONTRIBUTING.md#translations) si quieres ayudar.
+Añadir un idioma es un cambio de datos, no de código: una entrada en `server/lang_registry.py` más un `dashboard/i18n/<code>.json` y, opcionalmente, `system/mcp-catalog.<code>.json`. Todo lo que aún no está traducido se muestra en inglés. Consulta [CONTRIBUTING.md](../../../CONTRIBUTING.md#translations) si quieres ayudar.
 
 ---
 
