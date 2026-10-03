@@ -4,7 +4,7 @@
 
 **AI agentic đổi được bộ não + Second Brain - chạy trên model nào bạn muốn (Claude Code, ChatGPT/Codex, Antigravity CLI, OpenRouter, OpenAI, Gemini, Anthropic API, Groq, Ollama), có giọng nói, đồ thị tri thức, và tự thông minh dần lên.**
 
-[🇬🇧 English](../../../README.md) · 🇻🇳 **Tiếng Việt** · [🌍 Giúp dịch](CONTRIBUTING.md#dịch-thuật)
+[🇬🇧 English](../../../README.md) · 🇻🇳 **Tiếng Việt** · [🇨🇳 简体中文](../zh/README.md) · [🇪🇸 Español](../es/README.md) · [🇯🇵 日本語](../ja/README.md) · [🌍 Giúp dịch](CONTRIBUTING.md#dịch-thuật)
 
 </div>
 
@@ -329,7 +329,6 @@ javis-os/
 ├── brains/              # MỌI second brain (brain mặc định: brains/Brain Default)
 ├── system/              # Đi kèm app: plugin bundled, skill hệ thống, kho kết nối mẫu
 ├── tests/               # Bộ test Python
-├── website/             # Trang giới thiệu
 ├── docs/                # Hướng dẫn sử dụng chi tiết (27 trang + mục lục; bản tiếng Anh ở docs/en/)
 ├── Dockerfile           # Image: python + Node + Claude CLI
 ├── docker-compose.yml   # Production (pull image GHCR) - VPS thường, vào bằng http://<ip>:7777

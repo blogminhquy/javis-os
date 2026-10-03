@@ -179,7 +179,7 @@ The translation is subject to the same `SKILL_DESC_MAX` ceiling (150 characters)
 original, because it goes into the same place in the prompt. `system_sync._cap_desc` trims
 every description key, not just the original one.
 
-### 6. Server-side text, Connections store, starter brain, website
+### 6. Server-side text, Connections store, starter brain
 
 Since 0.67.0, server-side text follows the interface language of the DEVICE making the request
 (cookie `javis_lang`, set by `dashboard/i18n/index.js`). Anything with no Thai version yet is
@@ -197,8 +197,8 @@ users in.
 - **Connections store (Kho Kết nối):** copy `system/mcp-catalog.en.json` to
   `system/mcp-catalog.th.json` and translate the text. Wizard steps and setup links are matched
   by POSITION, so keep exactly the same count. Until the file exists, Thai readers get the
-  English overlay; once it exists, any connector or field missing from it shows the Vietnamese
-  original (`server/catalog_i18n.py`).
+  English overlay. Once it exists, a connector missing from it still shows English; a field
+  missing inside a translated connector shows the Vietnamese original (`server/catalog_i18n.py`).
 - **Starter files of a new brain:** add a `"th"` version for each entry in `HAT_GIONG` in
   `server/brain_seed_i18n.py`.
 - **Cron descriptions:** the phrases that turn a cron expression into words ("every day",
@@ -206,8 +206,6 @@ users in.
   but a language with no entry there falls back to the Vietnamese phrases, so add a `"th"` entry.
 - **Currency symbol:** `localefmt._TIEN` only knows VND, USD and EUR; any other currency prints
   as the number followed by its code ("1,234.00 THB"), which is correct but plain.
-- **Website:** add `website/th/index.html`, plus an `hreflang` line in the `<head>` of the other
-  versions and a link in their visible language switchers (header and footer).
 
 ### 7. Documentation
 

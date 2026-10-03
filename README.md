@@ -15,7 +15,7 @@ Run it on your laptop or a small VPS. Talk to it by voice. Plug in Claude, ChatG
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-2496ed?logo=docker&logoColor=white)](https://github.com/blogminhquy/javis-os/pkgs/container/javis-os)
 [![MCP](https://img.shields.io/badge/tools-Model%20Context%20Protocol-8b5cf6)](https://modelcontextprotocol.io)
 
-🇬🇧 **English** · [🇻🇳 Tiếng Việt](docs/i18n/vi/README.md) · [🌍 Help translate](CONTRIBUTING.md#translations)
+🇬🇧 **English** · [🇻🇳 Tiếng Việt](docs/i18n/vi/README.md) · [🇨🇳 简体中文](docs/i18n/zh/README.md) · [🇪🇸 Español](docs/i18n/es/README.md) · [🇯🇵 日本語](docs/i18n/ja/README.md) · [🌍 Help translate](CONTRIBUTING.md#translations)
 
 [Quick start](#-quick-start) · [Why Javis](#-why-javis) · [Brains](#-12-brains-one-toolkit) · [Features](#-features) · [Install](#-installation) · [Docs](docs/en/README.md) · [Support](#-support-javis-os)
 
@@ -360,7 +360,6 @@ javis-os/
 ├── system/          # Ships with the app: bundled plugins, system skills, connection catalogue
 ├── docs/            # User guides (docs/en/ in English) and translations (docs/i18n/)
 ├── tests/           # Python + JS test suite (python tests/run.py)
-├── website/         # Landing page
 ├── install.sh · install.ps1 · update.sh
 ├── Dockerfile · docker-compose*.yml
 └── CLAUDE.md        # The system prompt Javis runs on
@@ -375,7 +374,8 @@ javis-os/
 | **Javis's replies** | Any language: it answers in the language you write in, or one you pin in Settings |
 | **Dashboard and server messages** | 🇬🇧 English · 🇻🇳 Tiếng Việt, per device: each browser gets its own language until you pick one |
 | **Connection store, plugins, a new brain's starter files** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
-| **Docs, README and [website](website/index.html)** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
+| **README and quick start** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 |
+| **Full documentation** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
 Adding a language is a data change, not a code change: one entry in `server/lang_registry.py` plus one `dashboard/i18n/<code>.json`, and optionally `system/mcp-catalog.<code>.json`. Anything not translated yet shows in English. See [CONTRIBUTING.en.md](CONTRIBUTING.md#translations) if you would like to help.
 

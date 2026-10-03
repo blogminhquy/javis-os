@@ -129,7 +129,7 @@ gõ và danh sách skill, nên cùng thứ tiếng thì định tuyến sắc h�
 Bản dịch cũng chịu đúng trần `SKILL_DESC_MAX` (150 ký tự) như bản gốc, vì nó đi vào cùng chỗ
 trong prompt. `system_sync._cap_desc` cắt mọi khoá mô tả, không riêng khoá gốc.
 
-### 6. Chữ phía server, kho Kết nối, brain mẫu, website
+### 6. Chữ phía server, kho Kết nối, brain mẫu
 
 Từ 0.67.0 chữ phía server đi theo ngôn ngữ giao diện của THIẾT BỊ đang gọi (cookie
 `javis_lang`, do `dashboard/i18n/index.js` đặt). Thứ gì chưa có bản cho tiếng Thái thì hiện
@@ -143,7 +143,6 @@ tiếng Anh, nên không bước nào dưới đây là bắt buộc để mời
   dịch phần chữ. Bước wizard và link cài đặt khớp theo VỊ TRÍ, giữ đúng số lượng.
 - **File hạt giống của brain mới:** thêm bản `"th"` cho từng mục trong `HAT_GIONG` ở
   `server/brain_seed_i18n.py`.
-- **Website:** thêm `website/th/index.html` và một dòng `hreflang` ở các bản còn lại.
 
 ### 7. Tài liệu
 
