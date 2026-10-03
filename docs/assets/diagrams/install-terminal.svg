@@ -4,7 +4,7 @@
 <defs>
 <radialGradient id="gl" cx="0.78" cy="0.2" r="0.75"><stop offset="0" stop-color="#7c3aed" stop-opacity=".14"/><stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></radialGradient>
 <pattern id="gr" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#ffffff" stroke-opacity=".04"/></pattern>
-<clipPath id="tc"><rect x="60" y="140" width="1080" height="420" rx="14"/></clipPath>
+<clipPath id="tc"><rect x="62" y="186" width="1076" height="372" rx="12"/></clipPath>
 <filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="12"/></filter>
 </defs>
 <style>
@@ -54,7 +54,7 @@
 <circle cx="88" cy="162" r="7" fill="#ff5f57"/><circle cx="111" cy="162" r="7" fill="#febc2e"/><circle cx="134" cy="162" r="7" fill="#28c840"/>
 <text x="600" y="168" fill="#9ca3af" font-size="16" text-anchor="middle" font-family="ui-monospace, 'SFMono-Regular', Consolas, 'Courier New', monospace">javis - install.sh</text>
 <g class="sc">
-<g clip-path="url(#tc)" font-size="17" font-family="ui-monospace, 'SFMono-Regular', Consolas, 'Courier New', monospace" xml:space="preserve">
+<g clip-path="url(#tc)" font-size="17" font-family="ui-monospace, 'SFMono-Regular', Consolas, 'Courier New', monospace">
 <g class="cl0"><text x="92" y="220" fill="#a78bfa">$</text><text x="116" y="220" fill="#e5e7eb" textLength="601.8" lengthAdjust="spacing">git clone https://github.com/blogminhquy/javis-os.git javis</text><g class="cv0"><rect x="116" y="200" width="617.8" height="28" fill="#12121f"/><rect class="cu0" x="117" y="204" width="10" height="20" rx="1.5" fill="#e5e7eb"/></g></g>
 <g class="cl1"><text x="92" y="256" fill="#a78bfa">$</text><text x="116" y="256" fill="#e5e7eb" textLength="244.8" lengthAdjust="spacing">cd javis &amp;&amp; ./install.sh</text><g class="cv1"><rect x="116" y="236" width="260.8" height="28" fill="#12121f"/><rect class="cu1" x="117" y="240" width="10" height="20" rx="1.5" fill="#e5e7eb"/></g></g>
 <g class="ol0"><text x="92" y="302" fill="#4ade80" font-weight="700">✓</text><text x="116" y="302" fill="#d1d5db">Python environment ready</text></g>
