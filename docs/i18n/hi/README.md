@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:b4a0c4282066 -->
+<!-- translated-from: README.md sha256:a93defe7ef8b -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Javis OS का लोगो">
@@ -55,6 +55,42 @@
 
 Javis OS कोई chatbot **नहीं** है। यह एक **self-hosted agentic AI** है जो आपकी अपनी मशीन या VPS पर चलता है: यह files पढ़ता और लिखता है, MCP के ज़रिए tools call करता है, skills चलाता है, background काम queue करता है और खुद को schedule करता है। यह सब एक **आवाज़ से चलने वाले dashboard** के पीछे है, जिसके साथ एक **Second Brain** (memory + wiki) है जो समय के साथ ज्ञान जमा करता जाता है।
 
+### वह lock-in जिसके बारे में कोई पहले नहीं बताता
+
+कोई एक AI app चुनिए और साल भर रोज़ उसका इस्तेमाल कीजिए। फिर देखिए कि उसके अंदर क्या-क्या जमा हो गया है:
+
+- **सैकड़ों बातचीतें**, जिनमें वे फ़ैसले और वह context है जो आपने रास्ते में तय किए।
+- **Memory** कि आप कौन हैं, कैसे काम करते हैं और आपका business क्या बेचता है।
+- **Custom instructions, assistants और projects**: वह know-how जिसे tune करने में आपने घंटों लगाए।
+- **Automations और agents** जो सिर्फ़ उसी एक platform पर चलते हैं।
+
+यह सब vendor के servers पर है, vendor के format में। फिर कहीं और एक बेहतर model आ जाता है। आप उसे आज़मा सकते हैं, पर अपना काम साथ नहीं ले जा सकते: नया app आपके बारे में कुछ नहीं जानता, आपके instructions साथ नहीं आते, और आपकी history पीछे छूट जाती है। Export, जहाँ होता भी है, आम तौर पर chat logs का एक ढेर होता है, ऐसी memory नहीं जिसे कोई दूसरा tool इस्तेमाल कर सके।
+
+तो आप वहीं रुक जाते हैं। इसलिए नहीं कि पुराना model अब भी सबसे अच्छा है, बल्कि इसलिए कि छोड़ने का मतलब है शून्य से शुरू करना। और जब vendor दाम बढ़ाता है, limits कड़ी करता है, कोई model बंद करता है या आपका account lock कर देता है, तो कोई plan B नहीं होता।
+
+### Javis इसे उलट देता है: model किराए पर लीजिए, Brain अपना रखिए
+
+Javis में model एक ऐसा पुर्ज़ा है जिसे आप बदल सकते हैं। आप जो कुछ भी बनाते हैं, वह आपके पास रहता है, ऐसी files के रूप में जिन्हें आप खोल सकते हैं:
+
+| आप क्या बनाते हैं | यह कहाँ रहता है | Format |
+|---|---|---|
+| **बातचीतें** | आपकी अपनी मशीन या VPS पर `conversations.db`, एक ही store, चाहे जवाब किसी भी ब्रेन ने दिया हो | SQLite, full-text search के साथ |
+| **आपके बारे में memory** | आपके Brain में `memory/`: `MEMORY.md` और हर fact के लिए एक file | Markdown |
+| **ज्ञान** | आपके Brain के Wiki और Sources folders | Markdown, Obsidian-compatible |
+| **Skills** | `skills/<name>/SKILL.md` | Markdown |
+| **Agents और workflows** | `agents/*.md`, `workflows/*.md` | Front matter वाला Markdown |
+| **Loops और reminders** | `Javis/loops/*.md`, `Javis/reminders.json` | Markdown, JSON |
+
+इससे आपको क्या मिलता है:
+
+- **नया model आया? Models page पर switch कीजिए और काम जारी रखिए।** वह वही memory पढ़ता है, वही skills, agents और workflows चलाता है, और MCP Hub के ज़रिए वही connections call करता है। न कुछ migrate करना, न कुछ दोबारा बनाना।
+- **एक साथ कई ब्रेन इस्तेमाल कीजिए।** बातचीत के लिए एक दमदार model, background काम के लिए एक सस्ता model, private notes के लिए एक local Ollama model, और सब एक ही Brain पर काम करते हुए।
+- **Javis के बिना भी पढ़ा जा सकता है।** आपका Brain markdown का एक folder है। इसे Obsidian या किसी भी editor में खोलिए। अगर Javis कल गायब हो जाए, तब भी आपका ज्ञान plain text में वहीं मौजूद रहेगा।
+- **Versioned और portable।** हर learning pass एक git commit है जिसे आप एक tap में undo कर सकते हैं, और पूरा Brain आपकी अपनी private GitHub repo से sync हो सकता है, जो आपके laptop और VPS के बीच शेयर होती है।
+- **आपका data आपके hardware पर रहता है।** बीच में कोई Javis cloud नहीं है। Request सिर्फ़ उसी model provider के पास जाती है जिसे आपने उसके लिए चुना है, और local Ollama model के साथ वह आपकी मशीन से बाहर ही नहीं जाती।
+
+### Javis बनाम एक आम chatbot
+
 | | एक आम chatbot | **Javis OS** |
 |---|---|---|
 | **ब्रेन** | एक ही model से बंधा, हर message पर एक stateless API call | **बदला जा सकता है**: 12 providers, हर एक के साथ tools, MCP, skills और sessions का पूरा सेट, Ollama के ज़रिए आपकी अपनी मशीन पर चलने वाले models भी |
@@ -62,6 +98,7 @@ Javis OS कोई chatbot **नहीं** है। यह एक **self-hoste
 | **डेटा** | मनगढ़ंत, या होता ही नहीं | आपके जोड़े गए connections (sales, ads, calendar, email, messaging) से **असली आंकड़े** |
 | **काम** | जवाब देता है, फिर इंतज़ार करता है | **Background loops, reminders और AI से चलने वाली task queue** जो आपको नतीजे वापस भेजती हैं |
 | **इंटरफ़ेस** | एक chat box | Dashboard + knowledge graph + **hands-free आवाज़** + Telegram + एक CLI |
+| **आपका काम** | Vendor के servers पर, vendor के format में ही रह जाता है | **आपकी मशीन पर plain files**: history, memory, skills, agents और workflows किसी भी नए model के साथ चलते हैं |
 | **Deployment** | किसी और का cloud | **Self-hosted**: one-click Hostinger, Docker, या कोई भी VPS |
 
 > 💡 **फ़लसफ़ा: क्षमता Javis में रहती है, model में नहीं।** हर ब्रेन को एक ही साझा connection hub (MCP Hub) के ज़रिए एक जैसा toolbox मिलता है। Claude से Gemini पर जाने में आपका कुछ नहीं जाता, सिवाय shell access के, जो सिर्फ़ CLI engines के पास होता है।
