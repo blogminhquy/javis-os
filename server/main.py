@@ -12040,6 +12040,77 @@ async def changelog_full(refresh: bool = False):
     return data
 
 
+# ── Nhật ký cập nhật theo ngôn ngữ (0.68.0) ──────────────────────────────────────────────
+# CHANGELOG.md tiếng Việt vẫn là gốc (lịch sử 680+ phiên bản, chủ repo đọc trên điện thoại).
+# CHANGELOG.<mã>.md chỉ chứa bản dịch của các phiên bản đã dịch (tiếng Anh từ 0.66.0). Phủ lên
+# SAU khi gộp và cắt trang, theo ngôn ngữ của thiết bị đang xem, nên ba lớp cache ở trên giữ
+# nguyên một bản tiếng Việt duy nhất; phiên bản chưa có bản dịch thì hiện bản gốc.
+_CL_DICH_LOCAL: dict = {}    # mã -> {"sig":…, "map":{version: release}}
+_CL_DICH_REMOTE: dict = {}   # mã -> {"at":…, "map":{…}}
+
+
+def _cl_dich_local(ma: str) -> dict:
+    p = PROJECT_ROOT / f"CHANGELOG.{ma}.md"
+    try:
+        st = p.stat()
+        sig = (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return {}
+    c = _CL_DICH_LOCAL.get(ma)
+    if c and c["sig"] == sig:
+        return c["map"]
+    try:
+        m = {r["version"]: r for r in _parse_changelog(p.read_text(encoding="utf-8"))}
+    except Exception:
+        return (c or {}).get("map", {})
+    _CL_DICH_LOCAL[ma] = {"sig": sig, "map": m}
+    return m
+
+
+async def _cl_dich_remote(ma: str, refresh: bool = False) -> dict:
+    """Bản dịch trên GitHub, để phiên bản CHƯA cài cũng hiện đúng ngôn ngữ. Cache như bản gốc;
+    hỏng mạng thì giữ bản đã có (thiếu thì chỉ là hiện bản tiếng Việt, không sao)."""
+    now = time.monotonic()
+    c = _CL_DICH_REMOTE.get(ma) or {"at": 0.0, "map": {}}
+    if not refresh and c["map"] and now - c["at"] < _CL_REMOTE_TTL:
+        return c["map"]
+    try:
+        import httpx
+        url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/CHANGELOG.{ma}.md"
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(url)
+        if r.status_code == 200:
+            rel = await asyncio.to_thread(_parse_changelog, r.text)
+            c = {"at": now, "map": {x["version"]: x for x in rel}}
+        else:
+            c = {"at": now - _CL_REMOTE_TTL + 300, "map": c["map"]}
+    except Exception:
+        c = {"at": now - _CL_REMOTE_TTL + 30, "map": c["map"]}
+    _CL_DICH_REMOTE[ma] = c
+    return c["map"]
+
+
+async def _cl_theo_ngon_ngu(rels: list, refresh: bool = False) -> list:
+    """Thay phần chữ của từng phiên bản bằng bản dịch theo ngôn ngữ giao diện, nếu có.
+    Thứ tiếng chưa có CHANGELOG riêng thì dùng của DU_PHONG_GIAO_DIEN."""
+    ma = localefmt.ngon_ngu_giao_dien()
+    if ma == lang_registry.MAC_DINH or not rels:
+        return rels
+    if not (PROJECT_ROOT / f"CHANGELOG.{ma}.md").exists():
+        ma = lang_registry.DU_PHONG_GIAO_DIEN
+        if ma == lang_registry.MAC_DINH:
+            return rels
+    ban = dict(await asyncio.to_thread(_cl_dich_local, ma))
+    for v, r in (await _cl_dich_remote(ma, refresh)).items():
+        ban[v] = r   # bản trên GitHub mới hơn: thắng bản cục bộ
+    out = []
+    for r in rels:
+        d = ban.get(r.get("version"))
+        out.append(dict(r, sections=d["sections"], date=d.get("date") or r.get("date"), lang=ma)
+                   if d and d.get("sections") else r)
+    return out
+
+
 async def changelog_index(limit: int = 0, offset: int = 0, refresh: bool = False):
     """Lõi thuần của GET /changelog. Dùng chung với /notifications (gọi nội bộ).
 
@@ -12053,6 +12124,7 @@ async def changelog_index(limit: int = 0, offset: int = 0, refresh: bool = False
         rels = rels[offset:offset + limit]
     else:
         offset = 0
+    rels = await _cl_theo_ngon_ngu(rels, refresh)
     return dict(d, releases=rels, offset=offset)
 
 

@@ -1,5 +1,7 @@
 # Nhật ký cập nhật
 
+***Tiếng Việt** · [English](CHANGELOG.en.md)*
+
 Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay trong app tại **Cài đặt → Cập nhật**.
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
