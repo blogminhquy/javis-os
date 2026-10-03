@@ -14,6 +14,7 @@ import importlib.util
 import os
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 R = Path(ROOT)
@@ -40,7 +41,10 @@ def slug(h: str) -> str:
     """GitHub's heading anchor: lowercase, drop punctuation and emoji, spaces to hyphens."""
     h = re.sub(r"<[^>]+>", "", h)
     h = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", h).replace("`", "").replace("*", "")
-    return re.sub(r"[^\w\- ]", "", h.strip().lower()).replace(" ", "-")
+    # Keep letters, combining marks (Devanagari vowel signs are marks, which \w misses), digits.
+    h = "".join(ch for ch in h.strip().lower()
+                if ch in "-_ " or unicodedata.category(ch)[0] in "LMN")
+    return h.replace(" ", "-")
 
 
 def anchors(text: str) -> set:
@@ -107,7 +111,7 @@ for code in langs:
           f"(docs/i18n/{code}/QUICKSTART.md)" in quick_en)
 
 # The English README must not point at a translation that does not exist.
-for code in re.findall(r"\(docs/i18n/([a-z-]+)/README\.md\)", readme_en):
+for code in re.findall(r"\(docs/i18n/([A-Za-z-]+)/README\.md\)", readme_en):
     check(f"README.md links an existing docs/i18n/{code}/README.md",
           (R / "docs" / "i18n" / code / "README.md").is_file())
 
