@@ -15,7 +15,7 @@ Run it on your laptop or a small VPS. Talk to it by voice. Plug in Claude, ChatG
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-2496ed?logo=docker&logoColor=white)](https://github.com/blogminhquy/javis-os/pkgs/container/javis-os)
 [![MCP](https://img.shields.io/badge/tools-Model%20Context%20Protocol-8b5cf6)](https://modelcontextprotocol.io)
 
-🇬🇧 **English** · [🇻🇳 Tiếng Việt](docs/i18n/vi/README.md) · [🇨🇳 简体中文](docs/i18n/zh/README.md) · [🇪🇸 Español](docs/i18n/es/README.md) · [🇯🇵 日本語](docs/i18n/ja/README.md) · [🌍 Help translate](CONTRIBUTING.md#translations)
+🇬🇧 **English** · [🇻🇳 Tiếng Việt](docs/i18n/vi/README.md) · [🇨🇳 简体中文](docs/i18n/zh/README.md) · [🇪🇸 Español](docs/i18n/es/README.md) · [🇯🇵 日本語](docs/i18n/ja/README.md) · [🇮🇳 हिन्दी](docs/i18n/hi/README.md) · [🇧🇷 Português](docs/i18n/pt-BR/README.md) · [🇰🇷 한국어](docs/i18n/ko/README.md) · [🇷🇺 Русский](docs/i18n/ru/README.md) · [🇩🇪 Deutsch](docs/i18n/de/README.md) · [🇫🇷 Français](docs/i18n/fr/README.md) · [🇮🇩 Bahasa Indonesia](docs/i18n/id/README.md) · [🌍 Help translate](CONTRIBUTING.md#translations)
 
 [Quick start](#-quick-start) · [Why Javis](#-why-javis) · [Brains](#-12-brains-one-toolkit) · [Features](#-features) · [Install](#-installation) · [Docs](docs/en/README.md) · [Support](#-support-javis-os)
 
@@ -42,6 +42,10 @@ Then open **http://localhost:7777**. The installer sets up Python, the four subs
 > [!NOTE]
 > Installed an extra CLI **after** Javis was already running? **Restart Javis.** A running process keeps the PATH it started with, so it cannot see a CLI installed later.
 
+<p align="center">
+<img src="docs/assets/diagrams/install-terminal.svg" width="100%" alt="Animated terminal: the one-line installer sets up Python, the four subscription CLI brains and a .env, then reports that Javis is running at http://localhost:7777">
+</p>
+
 ---
 
 ## 🤔 Why Javis?
@@ -59,11 +63,19 @@ Javis OS is **not** a chatbot. It is a **self-hosted agentic AI** that runs on y
 
 > 💡 **The philosophy: capability lives in Javis, not in the model.** Every brain gets the same toolbox through one shared connection hub (the MCP Hub). Switching from Claude to Gemini costs you nothing except shell access, which only the CLI engines have.
 
+<p align="center">
+<img src="docs/assets/diagrams/chat-to-action.svg" width="100%" alt="Animated diagram: a chat message goes into Javis, which picks the smallest tool that finishes the job, from answering directly to queuing a task, creating an agent, a workflow, a reminder or a loop">
+</p>
+
 ---
 
 ## 🧠 12 brains, one toolkit
 
 Pick the brain on the **Models** page and change it whenever you like. Javis supports **12 providers** today.
+
+<p align="center">
+<img src="docs/assets/diagrams/swappable-brain.svg" width="100%" alt="Animated diagram: the Javis core in the middle with its toolkit (MCP Hub, Skills, Second Brain, Tasks, Schedules, Plugins) around it, while the 12 brains take turns plugging in and every tool stays lit">
+</p>
 
 | Brain | How you pay | Shell, web, sub-agents |
 |---|---|---|
@@ -84,6 +96,10 @@ Every brain can call your connected MCP servers, read and write the brain, run s
 ---
 
 ## ✨ Features
+
+<p align="center">
+<img src="docs/assets/diagrams/second-brain-grows.svg" width="100%" alt="Animated knowledge graph: notes and links appear one by one as the Second Brain grows from a handful of notes to more than a thousand">
+</p>
 
 <table>
 <tr>
@@ -119,6 +135,10 @@ Every brain can call your connected MCP servers, read and write the brain, run s
 </td>
 </tr>
 </table>
+
+<p align="center">
+<img src="docs/assets/diagrams/background-work.svg" width="100%" alt="Animated Kanban board at night: tasks move from Queued to Running to Review to Done on their own, and a report lands on Telegram in the morning">
+</p>
 
 <div align="center">
 <img src="docs/assets/screenshots/tasks.jpg" alt="The Tasks page: dispatcher status, worker counts, dispatcher mode and the task queue" width="49%">
@@ -374,7 +394,7 @@ javis-os/
 | **Javis's replies** | Any language: it answers in the language you write in, or one you pin in Settings |
 | **Dashboard and server messages** | 🇬🇧 English · 🇻🇳 Tiếng Việt, per device: each browser gets its own language until you pick one |
 | **Connection store, plugins, a new brain's starter files** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
-| **README and quick start** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 |
+| **README and quick start** | 🇬🇧 English · 🇻🇳 Tiếng Việt · 🇨🇳 简体中文 · 🇪🇸 Español · 🇯🇵 日本語 · 🇮🇳 हिन्दी · 🇧🇷 Português · 🇰🇷 한국어 · 🇷🇺 Русский · 🇩🇪 Deutsch · 🇫🇷 Français · 🇮🇩 Bahasa Indonesia |
 | **Full documentation** | 🇬🇧 English · 🇻🇳 Tiếng Việt |
 
 Adding a language is a data change, not a code change: one entry in `server/lang_registry.py` plus one `dashboard/i18n/<code>.json`, and optionally `system/mcp-catalog.<code>.json`. Anything not translated yet shows in English. See [CONTRIBUTING.en.md](CONTRIBUTING.md#translations) if you would like to help.
