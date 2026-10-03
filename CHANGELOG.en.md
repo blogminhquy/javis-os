@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.69.0] - 2026-10-03
+### Improved
+- **The README now also comes in Chinese, Spanish and Japanese.**
+
 ## [0.68.1] - 2026-10-03
 ### Improved
 - **The GitHub page shows a real brain.** The screenshot at the top of the README and the link preview image now show the graph of a brain with more than 1,600 notes, instead of an empty one.
