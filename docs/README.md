@@ -28,6 +28,7 @@ Thanh điều hướng của dashboard gom **19 trang** thành **7 nhóm**: Tr�
 - [20 - Plugins](20-plugins.md) - thêm tool/hook native cho mọi engine bằng một thư mục Python.
 - [25 - Chatbot (Bot chuyên trách)](25-chatbot.md) - đem Agent ra trả lời khách qua bot Telegram hoặc Zalo riêng, brain riêng, chuyển nhân viên khi bí.
 - [28 - Hội thoại khách (Hộp thư)](28-hoi-thoai-khach.md) - đọc lại mọi cuộc chat khách nhắn cho bot và Zalo cá nhân ở một chỗ, tiếp quản khi cần người thật.
+- [29 - Slack và WhatsApp](29-slack-whatsapp.md) - chat với Javis và đặt bot khách hàng trên Slack (không cần tên miền) và WhatsApp (API chính thức của Meta).
 
 ### Việc chạy nền (nhóm Việc & Bộ não)
 - [08 - Việc định kỳ & Nhắc hẹn](08-viec-dinh-ky.md) - nhiều vòng lặp chạy nền + nhắc hẹn theo giờ hoặc cron.

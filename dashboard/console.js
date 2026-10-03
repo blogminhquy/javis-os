@@ -5933,7 +5933,11 @@
           <div id="zlCho"></div>
         </div>
       </div>
+      ${ownerChannelHtml("slack", s.slack || {})}
+      ${ownerChannelHtml("whatsapp", s.whatsapp || {})}
       ${placeholder("channels", window.t("cs.ch_soon"))}`;
+    wireOwnerChannel("slack");
+    wireOwnerChannel("whatsapp");
     const st = document.getElementById("tgStatus");
     async function refreshTgStatus() {
       let d; try { d = await (await fetch("/telegram/status")).json(); } catch (e) { return; }
@@ -6032,6 +6036,119 @@
           : Icons.warn(r.error || window.t("cs.ch_no_bot_cfg"));
       }
       catch (e) { zst.innerHTML = WARN_ICON + " " + esc(window.t("cs.ch_net_err")); }
+    };
+  }
+
+  // ---- Slack and WhatsApp control channels (0.71.0) ----
+  // One renderer for both: same card shape as Zalo (enable, credentials, allow-list, pairing
+  // queue), only the credential fields differ. Secrets are never echoed back: an empty field
+  // means "keep what is saved", exactly like the Telegram token.
+  const OWNER_CH = {
+    slack: { title: "Slack", fields: [["bot_token", true, "xoxb-..."], ["app_token", true, "xapp-..."]] },
+    whatsapp: { title: "WhatsApp", fields: [["phone_number_id", false, "123456789012345"], ["access_token", true, "EAA..."], ["app_secret", true, ""]] },
+  };
+  const DOC_CH = "https://github.com/blogminhquy/javis-os/blob/main/docs/en/29-slack-whatsapp.md";
+
+  function ownerChannelHtml(key, c) {
+    const def = OWNER_CH[key];
+    const id = (f) => `oc_${key}_${f}`;
+    const fields = def.fields.map(([f, secret, ph]) => {
+      const isSet = secret && c[f + "_set"];
+      const label = esc(window.t(`cs.oc_${key}_${f}`)) + (isSet ? ' <span class="dim">' + esc(window.t("cs.ch_token_set")) + "</span>" : "");
+      const val = secret ? "" : esc(c[f] || "");
+      const pholder = esc(isSet ? window.t("cs.ch_token_keep") : ph);
+      return `<label class="js-lbl">${label}</label><input class="js-input" id="${id(f)}" type="${secret ? "password" : "text"}" value="${val}" placeholder="${pholder}" autocomplete="off">`;
+    }).join("");
+    const webhook = key === "whatsapp"
+      ? `<div class="gcard-meta oc-hook" id="${id("hook")}"></div>`
+      : "";
+    return `
+      <div class="cview-section">
+        <h3>${Icons.kenh(key, { size: "18px" })} ${esc(def.title)}</h3>
+        <div class="gcard" style="max-width:560px">
+          <div class="gcard-meta" style="margin-bottom:8px">${esc(window.t(`cs.oc_${key}_intro`))}</div>
+          <label class="js-row"><span>${esc(window.t(`cs.oc_${key}_enable`))}</span><input type="checkbox" id="${id("enabled")}" ${c.enabled ? "checked" : ""}></label>
+          ${fields}
+          <div class="gcard-meta">${esc(window.t(`cs.oc_${key}_guide`))} <a href="${DOC_CH}" target="_blank" rel="noopener">${esc(window.t("cs.oc_guide_link"))} ↗</a></div>
+          ${webhook}
+          <label class="js-lbl">${esc(window.t(`cs.oc_${key}_allow`))} <span class="dim">${esc(window.t("cs.oc_allow_hint"))}</span></label>
+          <input class="js-input" id="${id("allow")}" value="${esc(c.allow || "")}" placeholder="${esc(window.t(`cs.oc_${key}_allow_ph`))}">
+          <div class="js-actions"><button class="gcard-btn" id="${id("save")}">${esc(window.t("cs.ch_save_enable"))}</button><button class="gcard-btn ghost" id="${id("test")}">${esc(window.t("cs.ch_send_test"))}</button></div>
+          <div class="gcard-meta" id="${id("status")}"></div>
+          <div id="${id("cho")}"></div>
+        </div>
+      </div>`;
+  }
+
+  function wireOwnerChannel(key) {
+    const def = OWNER_CH[key];
+    const el = (f) => document.getElementById(`oc_${key}_${f}`);
+    const st = el("status");
+    const cho = el("cho");
+    if (!st) return;
+    async function refresh() {
+      let d; try { d = await (await fetch(`/${key}/status`)).json(); } catch (e) { return; }
+      let line;
+      if (!d.enabled) line = ic("circle", { cls: "ic-dim" }) + " " + esc(window.t("cs.oc_st_off"));
+      else if (!d.configured) line = ic("circle", { cls: "ic-dim" }) + " " + esc(window.t("cs.oc_st_missing"));
+      else if (d.status === "polling") {
+        const n = (d.allow_ids || []).length;
+        line = `${ic("circle", { cls: "ic-fill ic-ok" })} ${esc(window.t("cs.oc_st_running"))}${d.bot_name ? " (" + esc(d.bot_name) + ")" : ""} - ${esc(n ? window.t("cs.ch_n_ids", { count: n }) : window.t("cs.ch_zl_st_noallow"))}.`;
+      }
+      else if (d.status === "error") line = WARN_ICON + " " + esc(window.t("cs.ch_st_boterr")) + " " + esc(d.last_error || "");
+      else if (d.status === "starting") line = ic("loader", { cls: "ic-spin" }) + " " + esc(window.t("cs.ch_st_starting"));
+      else line = ic("circle", { cls: "ic-dim" }) + " " + esc(window.t("cs.ch_st_stopped"));
+      if (d.status !== "error" && d.last_error) line += "<br>" + WARN_ICON + " " + esc(d.last_error);
+      st.innerHTML = line;
+      const hook = el("hook");
+      if (hook && d.webhook_url) {
+        hook.innerHTML = `<b>${esc(window.t("cs.oc_wa_hook_url"))}</b> <code>${esc(d.webhook_url)}</code><br>`
+          + `<b>${esc(window.t("cs.oc_wa_hook_token"))}</b> <code>${esc(d.verify_token || "")}</code><br>`
+          + esc(window.t("cs.oc_wa_hook_field"))
+          + (d.https ? "" : "<br>" + WARN_ICON + " " + esc(window.t("cs.oc_wa_need_https")));
+      }
+      const q = d.cho || [];
+      cho.innerHTML = q.length
+        ? '<div class="gcard-meta" style="margin-top:10px"><b>' + esc(window.t("cs.ch_zl_wait_head")) + "</b></div>" +
+          q.map(g => `<div class="zl-cho" data-cid="${esc(g.chat_id)}">
+              <div><b>${esc(g.ten || g.chat_id)}</b> <span class="dim">${esc(window.t("cs.ch_zl_code"))} ${esc(g.ma)}</span></div>
+              <div class="dim">${esc(window.t("cs.ch_zl_sent_n", { count: Number(g.lan) || 1 }))} ${esc(window.t("cs.ch_zl_verify"))}</div>
+              <div class="js-actions"><button class="gcard-btn zl-ok">${esc(window.t("cs.ch_zl_allow"))}</button><button class="gcard-btn ghost zl-bo">${esc(window.t("cs.ch_zl_skip"))}</button></div>
+            </div>`).join("")
+        : "";
+      cho.querySelectorAll(".zl-cho").forEach(n => {
+        const cid = n.dataset.cid;
+        const send = async (on) => {
+          const f = new FormData(); f.append("chat_id", cid); f.append("on", on ? "1" : "0");
+          try { await fetch(`/${key}/allow`, { method: "POST", body: f }); } catch (e) {}
+          const inp = el("allow");
+          if (on && inp) inp.value = inp.value ? inp.value + ", " + cid : cid;
+          refresh();
+        };
+        n.querySelector(".zl-ok").onclick = () => send(true);
+        n.querySelector(".zl-bo").onclick = () => send(false);
+      });
+    }
+    refresh();
+    el("save").onclick = async () => {
+      const data = { enabled: el("enabled").checked, allow: el("allow").value.trim() };
+      def.fields.forEach(([f, secret]) => {
+        const v = el(f).value.trim();
+        if (v || !secret) data[f] = v;
+      });
+      st.textContent = window.t("settings.saving");
+      const r = await saveSetting(key, data);
+      st.innerHTML = r.ok ? OK_ICON + " " + esc(window.t("cs.ch_saved_starting")) : WARN_ICON + " " + esc(window.t("cs.ch_save_err"));
+      if (r.ok) setTimeout(refresh, 1800);
+    };
+    el("test").onclick = async () => {
+      st.textContent = window.t("cs.ch_sending_test");
+      try {
+        const r = await (await fetch(`/${key}/test`, { method: "POST" })).json();
+        st.innerHTML = r.ok
+          ? `${OK_ICON} ${esc(window.t("cs.ch_test_sent_n", { sent: Number(r.sent) || 0, tong: Number(r.total) || 0 }))}` + (r.error ? " " + esc(window.t("app.err_cap")) + ": " + esc(r.error) : "")
+          : Icons.warn(r.error || window.t("cs.ch_no_bot_cfg"));
+      } catch (e) { st.innerHTML = WARN_ICON + " " + esc(window.t("cs.ch_net_err")); }
     };
   }
 

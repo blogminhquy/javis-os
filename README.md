@@ -112,7 +112,7 @@ What that buys you:
 | **Memory** | Forgets after every session | **A living Second Brain** that remembers you and thickens with every conversation |
 | **Data** | Made up, or absent | **Real numbers** from the connections you wire in (sales, ads, calendar, email, messaging) |
 | **Work** | Answers, then waits | **Background loops, reminders and an AI-run task queue** that report back to you |
-| **Interface** | A chat box | Dashboard + knowledge graph + **hands-free voice** + Telegram + a CLI |
+| **Interface** | A chat box | Dashboard + knowledge graph + **hands-free voice** + Telegram, Slack, WhatsApp, Zalo + a CLI |
 | **Your work** | Stays on the vendor's servers, in the vendor's format | **Plain files on your machine**: history, memory, skills, agents and workflows carry over to any new model |
 | **Deployment** | Someone else's cloud | **Self-hosted**: one-click Hostinger, Docker, or any VPS |
 
@@ -163,7 +163,7 @@ Every brain can call your connected MCP servers, read and write the brain, run s
 ### 🗣️ Talk to it
 - **Hands-free voice**: speak, Javis listens and answers out loud (Edge TTS free by default, or OpenAI and ElevenLabs).
 - **Chat sessions** you can save, reopen and full-text search. Long sessions are compacted into summaries instead of being cut off.
-- **Telegram, a CLI and a web dashboard**, all talking to the same Javis.
+- **Telegram, Slack, WhatsApp, Zalo, a CLI and a web dashboard**, all talking to the same Javis ([setup for Slack and WhatsApp](docs/en/29-slack-whatsapp.md)).
 - **Any language**: Javis replies in the language you write in. The interface ships in English and Vietnamese.
 
 ### 🧠 Remember everything
@@ -179,7 +179,7 @@ Every brain can call your connected MCP servers, read and write the brain, run s
 - **Tasks (Kanban)**: hand over a goal in plain words. The AI writes the spec, picks a worker, runs it in the background and only calls you on exceptions.
 - **Loops and reminders**: background jobs on an interval, a clock time or a cron expression, each checking its own work.
 - **Agents and workflows**: specialist assistants with their own memory, chained into multi-step workflows with verification.
-- **Chatbots**: put an agent in front of your customers on its own Telegram or Zalo bot, with a shared inbox you can take over.
+- **Chatbots**: put an agent in front of your customers on its own Telegram, Slack, WhatsApp or Zalo bot, with a shared inbox you can take over.
 
 ### 🔌 Connect anything
 - **MCP connection store** with several accounts per service and three permission levels that Javis **hard-enforces**.

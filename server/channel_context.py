@@ -47,6 +47,10 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
         platforms.append("Telegram bot")
     if source == "zalo":
         platforms.append("Zalo bot")
+    if source == "slack":
+        platforms.append("Slack bot")
+    if source == "whatsapp":
+        platforms.append("WhatsApp")
 
     lines = [
         "", "",
@@ -224,6 +228,46 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             f"http://127.0.0.1:{port}/kanban/task. Giữ NGUYÊN cả tiền tố `zalo:` - đó chính là "
             "thứ server đọc để biết gửi về Zalo chứ không phải Telegram.",
             "- Bỏ trống thì kết quả rơi về chủ bot Telegram, tức là người đang hỏi không thấy gì.",
+        ]
+    elif source in ("slack", "whatsapp"):
+        # Slack and WhatsApp (0.71.0). One branch because the rules that matter are the same
+        # (short chat replies, no Markdown tables, keep the prefix so results come back here);
+        # the lines that differ are picked inside. The prompt stays in Vietnamese like every
+        # other block the model reads.
+        is_slack = source == "slack"
+        ten = "Slack" if is_slack else "WhatsApp"
+        who = (meta.get("user_name") or "").strip() or "user"
+        conv = (f"kênh Slack, tin nhắn từ {who}" if meta.get("chat_type") == "group"
+                else f"chat riêng với {who}")
+        chat_id = meta.get("chat_id") or "?"
+        tien_to = "slack:" if is_slack else "whatsapp:"
+        lines += [
+            f"- Nguồn tin nhắn này: {ten} ({conv}, chat_id {chat_id}).",
+            f"- Nền tảng đang kết nối: {', '.join(platforms)}.",
+            f"- Đang chat qua {ten}: trả lời NGẮN gọn kiểu tin nhắn. {ten} KHÔNG hiển thị bảng "
+            "markdown - đừng dùng bảng. Đậm/nghiêng/`code`/khối mã thì gateway tự đổi sang "
+            "định dạng của nền tảng.",
+            "- Liệt kê từ 3 ý trở lên thì gạch đầu dòng `- `, in đậm con số và kết luận.",
+            ("- Trong kênh Slack, câu trả lời đi vào THREAD của tin vừa gọi bạn, nên không cần "
+             "nhắc lại câu hỏi." if is_slack else
+             "- TRẦN khoảng 4000 ký tự một tin. Viết gọn ngay từ đầu, đừng để gateway cắt hộ."),
+            ("- Lệnh bot trên Slack gõ bằng dấu chấm than (`!stop`, `!new`) vì Slack giữ dấu `/` "
+             "cho lệnh của chính nó." if is_slack else
+             "- WhatsApp chỉ cho Javis nhắn trước trong vòng 24 GIỜ kể từ tin cuối người này "
+             "gửi. Việc nền chạy lâu hơn thế thì kết quả có thể không tới được: nói rõ điều này "
+             "khi giao việc dài hạn qua WhatsApp."),
+            "",
+            f"## Gửi file qua {ten}",
+            "- Javis tự đính kèm ảnh và tài liệu khi bạn nhúng `![](attachments/...)` hoặc link "
+            "file trong brain như thường lệ. Không nói \"đã gửi\" khi chưa nhúng gì.",
+            "- File user gửi lên đã được gateway tải về máy sẵn - đường dẫn nằm ngay trong tin nhắn.",
+            "",
+            "## Đặt nhắc hẹn và giao việc nền",
+            "- Nhắc hẹn: gọi tool `javis_schedule` (op=create). Nó tự gắn đúng brain phiên này.",
+            f"- Kết quả loop và việc Kanban phải về ĐÚNG người đang hỏi: gắn `owner_chat: "
+            f"\"{chat_id}\"` cho loop, hoặc field \"chat_id\":\"{chat_id}\" khi POST "
+            f"http://127.0.0.1:{port}/kanban/task. Giữ NGUYÊN cả tiền tố `{tien_to}` - đó là thứ "
+            f"server đọc để gửi về {ten}.",
         ]
     elif source == "cli":
         # Terminal. Khác web ở chỗ KHÔNG render được gì: không ảnh, không bảng, không link bấm

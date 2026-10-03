@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:a93defe7ef8b -->
+<!-- translated-from: README.md sha256:2e10ad3d2a86 -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Logo de Javis OS">
@@ -115,7 +115,7 @@ Ce que cela vous apporte :
 | **Mémoire** | Oublie tout après chaque session | **Un Second Brain vivant** qui se souvient de vous et s'enrichit à chaque conversation |
 | **Données** | Inventées, ou absentes | **De vrais chiffres** issus des connexions que vous branchez (ventes, publicité, agenda, e-mail, messagerie) |
 | **Travail** | Répond, puis attend | **Loops en arrière-plan, rappels et une file de tâches pilotée par l'IA** qui vous rendent compte |
-| **Interface** | Une zone de chat | Tableau de bord + graphe de connaissances + **voix mains libres** + Telegram + une CLI |
+| **Interface** | Une zone de chat | Tableau de bord + graphe de connaissances + **voix mains libres** + Telegram, Slack, WhatsApp, Zalo + une CLI |
 | **Votre travail** | Reste sur les serveurs du fournisseur, dans le format du fournisseur | **De simples fichiers sur votre machine** : historique, mémoire, skills, agents et workflows vous suivent vers n'importe quel nouveau modèle |
 | **Déploiement** | Le cloud de quelqu'un d'autre | **Auto-hébergé** : Hostinger en un clic, Docker, ou n'importe quel VPS |
 
@@ -166,7 +166,7 @@ Chaque cerveau peut appeler vos serveurs MCP connectés, lire et écrire dans le
 ### 🗣️ Parlez-lui
 - **Voix mains libres** : vous parlez, Javis écoute et répond à voix haute (Edge TTS gratuit par défaut, ou OpenAI et ElevenLabs).
 - **Sessions de chat** que vous pouvez enregistrer, rouvrir et parcourir en recherche plein texte. Les longues sessions sont condensées en résumés au lieu d'être coupées.
-- **Telegram, une CLI et un tableau de bord web**, qui parlent tous au même Javis.
+- **Telegram, Slack, WhatsApp, Zalo, une CLI et un tableau de bord web**, qui parlent tous au même Javis ([configuration de Slack et WhatsApp](../../../docs/en/29-slack-whatsapp.md)).
 - **N'importe quelle langue** : Javis répond dans la langue dans laquelle vous écrivez. L'interface est livrée en anglais et en vietnamien.
 
 ### 🧠 Retenez tout
@@ -182,7 +182,7 @@ Chaque cerveau peut appeler vos serveurs MCP connectés, lire et écrire dans le
 - **Tâches (Kanban)** : confiez un objectif en langage courant. L'IA rédige la spécification, choisit un exécutant, le lance en arrière-plan et ne vous sollicite qu'en cas d'exception.
 - **Loops et rappels** : des tâches de fond à intervalle régulier, à heure fixe ou selon une expression cron, chacune vérifiant son propre travail.
 - **Agents et workflows** : des assistants spécialisés avec leur propre mémoire, enchaînés en workflows à plusieurs étapes avec vérification.
-- **Chatbots** : placez un agent face à vos clients sur son propre bot Telegram ou Zalo, avec une boîte de réception partagée dont vous pouvez reprendre la main.
+- **Chatbots** : placez un agent face à vos clients sur son propre bot Telegram, Slack, WhatsApp ou Zalo, avec une boîte de réception partagée dont vous pouvez reprendre la main.
 
 ### 🔌 Connectez tout
 - **Boutique de connexions MCP** avec plusieurs comptes par service et trois niveaux de permission que Javis **applique strictement**.

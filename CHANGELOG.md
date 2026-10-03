@@ -6,13 +6,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.71.0] - 2026-10-03
+### Tính năng mới
+- **Chat với Javis qua Slack và WhatsApp.** Bật ở trang Kênh như Telegram và Zalo. Slack chạy được cả trên laptop, không cần tên miền; WhatsApp dùng API chính thức của Meta và cần Javis có tên miền HTTPS.
+- **Bot khách hàng trên Slack và WhatsApp.** Thêm tài khoản ở trang Chatbot, khách nhắn vào là agent trả lời, mọi cuộc chat vào hộp thư chung và bạn tiếp quản được như với Telegram, Zalo.
+- **Người lạ không chạm được vào brain.** Danh sách để trống là chưa ai được phép: ai nhắn tới sẽ nhận mã ghép nối, bạn bấm Cho phép một lần là xong. Việc nền giao từ Slack hay WhatsApp báo kết quả về đúng nơi đó.
+- **Hướng dẫn từng bước** ở docs/29-slack-whatsapp.md, kèm manifest app Slack dán vào là chạy.
+
 ## [0.70.2] - 2026-10-03
 ### Bảo mật
 - **Màn đăng nhập che kín hẳn.** Trước đây ô đăng nhập nằm đè lên dashboard qua một lớp mờ, nên vẫn thấy lờ mờ bố cục phía sau, rõ nhất ở giao diện sáng. Giờ nền đặc hoàn toàn: chưa đăng nhập thì chỉ thấy đúng ô đăng nhập. Dữ liệu vốn đã bị máy chủ chặn từ trước, thay đổi này che nốt phần nhìn.
-
-## [0.71.0] - 2026-10-03
-### Tính năng mới
-- **Slack và WhatsApp.**
 
 ## [0.70.1] - 2026-10-03
 ### Cải thiện

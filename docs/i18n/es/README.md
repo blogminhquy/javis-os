@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:a93defe7ef8b -->
+<!-- translated-from: README.md sha256:2e10ad3d2a86 -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Logotipo de Javis OS">
@@ -115,7 +115,7 @@ Lo que ganas con eso:
 | **Memoria** | Lo olvida todo tras cada sesión | **Un Second Brain vivo** que te recuerda y se enriquece con cada conversación |
 | **Datos** | Inventados o inexistentes | **Cifras reales** de las conexiones que configures (ventas, anuncios, calendario, correo, mensajería) |
 | **Trabajo** | Responde y se queda esperando | **Loops en segundo plano, recordatorios y una cola de tareas gestionada por la IA** que te informan de los resultados |
-| **Interfaz** | Un cuadro de chat | Panel + grafo de conocimiento + **voz manos libres** + Telegram + una CLI |
+| **Interfaz** | Un cuadro de chat | Panel + grafo de conocimiento + **voz manos libres** + Telegram, Slack, WhatsApp, Zalo + una CLI |
 | **Tu trabajo** | Se queda en los servidores del proveedor, en el formato del proveedor | **Archivos planos en tu máquina**: historial, memoria, skills, agents y workflows pasan tal cual a cualquier modelo nuevo |
 | **Despliegue** | La nube de otra persona | **Autoalojado**: Hostinger en un clic, Docker o cualquier VPS |
 
@@ -166,7 +166,7 @@ Todos los cerebros pueden llamar a tus servidores MCP conectados, leer y escribi
 ### 🗣️ Háblale
 - **Voz manos libres**: hablas, Javis escucha y responde en voz alta (Edge TTS gratis por defecto, u OpenAI y ElevenLabs).
 - **Sesiones de chat** que puedes guardar, reabrir y buscar a texto completo. Las sesiones largas se compactan en resúmenes en lugar de cortarse.
-- **Telegram, una CLI y un panel web**, todos hablando con el mismo Javis.
+- **Telegram, Slack, WhatsApp, Zalo, una CLI y un panel web**, todos hablando con el mismo Javis ([configuración de Slack y WhatsApp](../../../docs/en/29-slack-whatsapp.md)).
 - **Cualquier idioma**: Javis responde en el idioma en el que escribes. La interfaz viene en inglés y vietnamita.
 
 ### 🧠 Recuérdalo todo
@@ -182,7 +182,7 @@ Todos los cerebros pueden llamar a tus servidores MCP conectados, leer y escribi
 - **Tareas (Kanban)**: entrega un objetivo en lenguaje natural. La IA redacta la especificación, elige un trabajador, lo ejecuta en segundo plano y solo te avisa cuando hay excepciones.
 - **Loops y recordatorios**: trabajos en segundo plano por intervalo, a una hora fija o con una expresión cron, cada uno verificando su propio trabajo.
 - **Agents y workflows**: asistentes especializados con memoria propia, encadenados en workflows de varios pasos con verificación.
-- **Chatbots**: pon un agent delante de tus clientes en su propio bot de Telegram o Zalo, con una bandeja de entrada compartida en la que puedes tomar el control.
+- **Chatbots**: pon un agent delante de tus clientes en su propio bot de Telegram, Slack, WhatsApp o Zalo, con una bandeja de entrada compartida en la que puedes tomar el control.
 
 ### 🔌 Conecta lo que quieras
 - **Tienda de conexiones MCP** con varias cuentas por servicio y tres niveles de permisos que Javis **aplica de forma estricta**.

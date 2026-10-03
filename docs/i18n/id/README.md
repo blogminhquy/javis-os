@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:a93defe7ef8b -->
+<!-- translated-from: README.md sha256:2e10ad3d2a86 -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Logo Javis OS">
@@ -115,7 +115,7 @@ Apa yang Anda dapatkan dari situ:
 | **Memori** | Lupa setiap kali sesi selesai | **Second Brain yang hidup**, yang mengingat Anda dan makin tebal di setiap percakapan |
 | **Data** | Mengarang, atau tidak ada | **Angka nyata** dari koneksi yang Anda pasang (penjualan, iklan, kalender, email, pesan) |
 | **Pekerjaan** | Menjawab, lalu menunggu | **Loop background, pengingat, dan antrean tugas yang dijalankan AI** yang melapor kembali ke Anda |
-| **Antarmuka** | Kotak chat | Dashboard + knowledge graph + **suara hands-free** + Telegram + CLI |
+| **Antarmuka** | Kotak chat | Dashboard + knowledge graph + **suara hands-free** + Telegram, Slack, WhatsApp, Zalo + CLI |
 | **Hasil kerja Anda** | Tertinggal di server vendor, dalam format vendor | **File biasa di mesin Anda**: riwayat, memori, skill, agent, dan workflow ikut pindah ke model baru mana pun |
 | **Deployment** | Cloud milik orang lain | **Self-hosted**: Hostinger sekali klik, Docker, atau VPS apa pun |
 
@@ -166,7 +166,7 @@ Setiap otak bisa memanggil server MCP yang Anda hubungkan, membaca dan menulis B
 ### 🗣️ Ajak bicara
 - **Suara hands-free**: Anda bicara, Javis mendengarkan dan menjawab dengan suara (Edge TTS gratis secara default, atau OpenAI dan ElevenLabs).
 - **Sesi chat** yang bisa disimpan, dibuka lagi, dan dicari dengan full-text search. Sesi panjang dipadatkan menjadi ringkasan, bukan dipotong.
-- **Telegram, CLI, dan dashboard web**, semuanya terhubung ke Javis yang sama.
+- **Telegram, Slack, WhatsApp, Zalo, CLI, dan dashboard web**, semuanya terhubung ke Javis yang sama ([pengaturan Slack dan WhatsApp](../../../docs/en/29-slack-whatsapp.md)).
 - **Bahasa apa pun**: Javis membalas dalam bahasa yang Anda gunakan. Antarmukanya tersedia dalam bahasa Inggris dan Vietnam.
 
 ### 🧠 Ingat semuanya
@@ -182,7 +182,7 @@ Setiap otak bisa memanggil server MCP yang Anda hubungkan, membaca dan menulis B
 - **Tasks (Kanban)**: serahkan sebuah tujuan dengan kata-kata biasa. AI menulis spesifikasinya, memilih worker, menjalankannya di background, dan hanya menghubungi Anda saat ada pengecualian.
 - **Loop dan pengingat**: job background berdasarkan interval, jam tertentu, atau ekspresi cron, masing-masing memeriksa hasil kerjanya sendiri.
 - **Agent dan workflow**: asisten spesialis dengan memorinya sendiri, dirangkai menjadi workflow multi-langkah dengan verifikasi.
-- **Chatbot**: tempatkan agent di depan pelanggan Anda lewat bot Telegram atau Zalo-nya sendiri, dengan inbox bersama yang bisa Anda ambil alih.
+- **Chatbot**: tempatkan agent di depan pelanggan Anda lewat bot Telegram, Slack, WhatsApp, atau Zalo-nya sendiri, dengan inbox bersama yang bisa Anda ambil alih.
 
 ### 🔌 Hubungkan apa saja
 - **Toko koneksi MCP** dengan beberapa akun per layanan dan tiga level izin yang **ditegakkan secara ketat** oleh Javis.

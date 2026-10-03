@@ -33,7 +33,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, UploadFile, 
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse, Response, RedirectResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse, Response, RedirectResponse, PlainTextResponse
 # edge_tts CỐ TÌNH không import ở đây mà nạp lười trong _tts_edge và /tts/voices.
 # Nó chiếm 944ms trong 2.263ms nạp main (41%), và kéo theo cả chuỗi aiohttp 212ms vào
 # đường khởi động, trong khi TTS là tính năng TUỲ CHỌN mà đa số phiên không đụng tới.
@@ -122,6 +122,8 @@ import workflow_runtime        # Phase 10: chạy graph có checkpoint/resume
 import write_path_runtime    # Phase 9: write có xác nhận, idempotency và reconcile
 from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import zalo_bot   # kênh Zalo Bot của chủ (API chính thức) - cùng khế ước với TelegramBot
+import owner_channels   # owner's control channels on Slack and WhatsApp (0.71.0)
+import whatsapp_bot     # WhatsApp transport + webhook router (0.71.0)
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 import lang as lang_mod   # chốt ngôn ngữ trả lời cho một lượt
 import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ nằm đúng một chỗ
@@ -202,7 +204,11 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth
                       "/brand-logo", "/tls-check",
                       # /hub/mcp: Claude CLI/Codex gọi bằng Bearer hub_token riêng (không có cookie).
                       # /connect/oauth/callback: browser redirect từ provider OAuth về.
-                      "/hub/mcp", "/connect/oauth/callback")
+                      "/hub/mcp", "/connect/oauth/callback",
+                      # /whatsapp/webhook: Meta calls it with no cookie. GET is the setup
+                      # handshake (verify token), POST must carry a valid X-Hub-Signature-256
+                      # under a known app secret, checked in the route itself.
+                      "/whatsapp/webhook")
 # Endpoint CHỈ-LOCALHOST: agent (Claude CLI chạy cùng máy/container) curl được mà không cần
 # cookie đăng nhập; request từ ngoài (qua Traefik/Caddy/LAN) đến từ IP khác loopback → vẫn bị chặn.
 # /reminders/cancel đi cùng nhóm với /reminders (TẠO nhắc): huỷ là thao tác YẾU HƠN tạo, nên
@@ -4448,6 +4454,13 @@ def settings_get():
     tok = cfg["telegram"].get("token", "")
     safe["telegram"]["token"] = ("••••" + tok[-4:]) if tok else ""
     safe["telegram"]["token_set"] = bool(tok)
+    for _sec, _keys in (("slack", ("bot_token", "app_token")),
+                        ("whatsapp", ("access_token", "app_secret"))):
+        safe.setdefault(_sec, {})
+        for _k in _keys:
+            _v = str((cfg.get(_sec, {}) or {}).get(_k, "") or "")
+            safe[_sec][_k] = ("••••" + _v[-4:]) if _v else ""
+            safe[_sec][_k + "_set"] = bool(_v)
     vk = (cfg.get("voice", {}) or {}).get("elevenlabs_key", "")
     safe.setdefault("voice", {})
     safe["voice"]["elevenlabs_key"] = ("••••" + vk[-4:]) if vk else ""
@@ -4577,6 +4590,24 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             z["chat_id"] = ",".join(tg_parse_ids(patch["chat_id"]))
         if patch.get("token"):
             z["token"] = patch["token"]
+    elif section in ("slack", "whatsapp"):
+        # Secrets are only overwritten when a new value is sent: the form shows masked values
+        # and an empty field means "keep what is saved", like the Telegram token.
+        sec = cfg.setdefault(section, {})
+        if "enabled" in patch:
+            sec["enabled"] = bool(patch["enabled"])
+        if "allow" in patch:
+            sec["allow"] = ", ".join(tg_parse_ids(patch["allow"]))
+        plain = ("phone_number_id",) if section == "whatsapp" else ()
+        secret = (("bot_token", "app_token") if section == "slack"
+                  else ("access_token", "app_secret"))
+        for k in plain:
+            if k in patch:
+                sec[k] = re.sub(r"\D", "", str(patch[k] or ""))
+        for k in secret:
+            v = str(patch.get(k) or "").strip()
+            if v and not v.startswith("••••"):
+                sec[k] = v
     elif section == "dashboard":
         cfg.setdefault("dashboard", {})
         if "graph_enabled" in patch:
@@ -4724,6 +4755,11 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             restart_zalo_bot()   # áp cấu hình bot ngay
         except Exception as e:
             print(f"[zalo restart] {e}", file=__import__('sys').stderr)
+    if section in ("slack", "whatsapp"):
+        try:
+            (owner_channels.SLACK if section == "slack" else owner_channels.WHATSAPP).restart()
+        except Exception as e:
+            print(f"[{section} restart] {e}", file=__import__('sys').stderr)
     if section == "voice":
         cfgmod.apply_tool_env(cfg)   # key ElevenLabs -> env cho tool ngoài (video-use) ngay, không cần restart
     return {"ok": True}
@@ -9393,6 +9429,9 @@ async def _tg_send_to(chat_id, text) -> tuple:
     cid_raw = str(chat_id or "").strip()
     if cid_raw.startswith(ZALO_CHAT_PREFIX):
         return await _zalo_send_to(cid_raw[len(ZALO_CHAT_PREFIX):], text)
+    _oc, _raw = owner_channels.by_prefix(cid_raw)
+    if _oc:
+        return await _oc.send_to(_raw, text)
     tg = cfgmod.read_settings().get("telegram", {})
     token = tg.get("token")
     ids = tg_parse_ids(tg.get("chat_id"))
@@ -9727,6 +9766,10 @@ async def _gui_qua_kenh(owner_chat, text, *, ngan="", viec=None, web="") -> tupl
     # rõ của ai - và máy chưa đấu Telegram thì mất hút hoàn toàn.
     if cid.startswith(ZALO_CHAT_PREFIX):
         return await _zalo_send_to(cid[len(ZALO_CHAT_PREFIX):], text)
+    # Work handed over from Slack or WhatsApp reports back there (0.71.0), same reason as Zalo.
+    _oc, _raw = owner_channels.by_prefix(cid)
+    if _oc:
+        return await _oc.send_to(_raw, text)
     tg = cfgmod.read_settings().get("telegram", {})
     token = tg.get("token")
     ids = tg_parse_ids(tg.get("chat_id"))
@@ -9910,6 +9953,11 @@ def _kenh_con_thieu() -> tuple:
                                        f"{ten} bot has no allowed Chat ID"))
         else:
             return True, ""
+    for _oc in owner_channels.ALL:
+        _m = _oc.missing()
+        if not _m:
+            return True, ""
+        thieu.append(_m)
     return False, localefmt.chu(" và ", " and ").join(thieu)
 
 
@@ -9926,6 +9974,10 @@ def _notify_live_warn() -> str:
         if _ZALO_BOT and _ZALO_BOT.status == "error":
             loi.append(localefmt.chu(f"bot Zalo đang lỗi: {(_ZALO_BOT.last_error or '')[:160]}",
                                      f"Zalo bot error: {(_ZALO_BOT.last_error or '')[:160]}"))
+        for _oc in owner_channels.ALL:
+            if _oc.bot and _oc.bot.status == "error":
+                loi.append(localefmt.chu(f"{_oc.label} đang lỗi: {(_oc.bot.last_error or '')[:160]}",
+                                         f"{_oc.label} error: {(_oc.bot.last_error or '')[:160]}"))
         return "; ".join(loi)
     except Exception:
         return ""
@@ -11068,6 +11120,14 @@ async def _start_scheduler():
         restart_zalo_bot()   # bật bot Zalo nếu đã cấu hình
     except Exception as e:
         print(f"[zalo start] {e}", file=__import__('sys').stderr)
+    for _oc in owner_channels.ALL:
+        try:
+            _oc.wire(answer=_tg_answer, command=_tg_command, stt=_stt_nghe,
+                     brain_root_for=lambda key: _brain_root(_tg_brain(key)),
+                     read_settings=cfgmod.read_settings, write_settings=cfgmod.write_settings)
+            _oc.restart()   # Slack / WhatsApp control channel, if configured
+        except Exception as e:
+            print(f"[{_oc.key} start] {type(e).__name__}: {e}", file=__import__('sys').stderr)
     try:
         # DI TRÚ 0.62.4: tài khoản kênh có trước bản này chưa có trường `brain`. Suy từ con bot
         # đang trực nó; không bot nào trực thì để rỗng (= hiện ở mọi brain) chứ không đoán đại.
@@ -19544,6 +19604,99 @@ async def zalo_bot_test():
     return {"ok": sent > 0, "sent": sent, "total": len(ids), "error": "; ".join(errs)[:300]}
 
 
+# ============================================================
+# Owner's control channels on Slack and WhatsApp (0.71.0). The logic lives in
+# server/owner_channels.py; this block only wires it and exposes the same four endpoints the
+# Zalo control bot has (status, restart, allow, test), plus the WhatsApp webhook.
+# ============================================================
+def _wa_verify_token() -> str:
+    """The handshake string Meta echoes when the webhook is set up. Generated once."""
+    w = cfgmod.read_settings().get("whatsapp", {}) or {}
+    tok = str(w.get("verify_token") or "").strip()
+    if not tok:
+        tok = secrets.token_urlsafe(24)
+        cfgmod.write_settings({"whatsapp": {"verify_token": tok}})
+    return tok
+
+
+def _wa_account_secrets() -> list:
+    """App secrets of the customer-bot WhatsApp accounts (one Meta app per account)."""
+    out = []
+    try:
+        for a in channel_accounts.list_accounts(channel="whatsapp"):
+            cr = whatsapp_bot.split_credentials(channel_accounts.get_token(a.get("id", "")))
+            if cr.get("app_secret"):
+                out.append(cr["app_secret"])
+    except Exception as e:
+        print(f"[whatsapp secrets] {type(e).__name__}: {e}", file=sys.stderr)
+    return out
+
+
+def _owner_channel_routes(ch):
+    @app.get(f"/{ch.key}/status", name=f"{ch.key}_status")
+    async def _status(request: Request):
+        d = ch.status()
+        if ch.key == "whatsapp":
+            base = web_security.external_base(
+                request.url.scheme, request.url.netloc,
+                request.headers.get("x-forwarded-proto", ""),
+                request.headers.get("x-forwarded-host", ""))
+            d["webhook_url"] = base + "/whatsapp/webhook"
+            d["verify_token"] = _wa_verify_token()
+            d["https"] = d["webhook_url"].startswith("https://")
+        return d
+
+    @app.post(f"/{ch.key}/restart", name=f"{ch.key}_restart")
+    async def _restart():
+        return {"ok": True, "running": ch.restart()}
+
+    @app.post(f"/{ch.key}/allow", name=f"{ch.key}_allow")
+    async def _allow(chat_id: str = Form(...), on: str = Form("1")):
+        if not str(chat_id or "").strip():
+            return JSONResponse({"ok": False, "error": localefmt.chu("Thiếu ID", "Missing ID")},
+                                status_code=400)
+        ids = ch.allow(chat_id, str(on).strip() not in ("", "0", "false"))
+        return {"ok": True, "allow_ids": ids}
+
+    @app.post(f"/{ch.key}/test", name=f"{ch.key}_test")
+    async def _test():
+        return await ch.test()
+
+
+for _ch in owner_channels.ALL:
+    _owner_channel_routes(_ch)
+
+
+@app.get("/whatsapp/webhook")
+async def whatsapp_webhook_verify(request: Request):
+    """Meta's setup handshake: echo `hub.challenge` only when the verify token matches."""
+    q = request.query_params
+    want = _wa_verify_token()
+    got = str(q.get("hub.verify_token") or "")
+    if q.get("hub.mode") == "subscribe" and got and secrets.compare_digest(got, want):
+        return PlainTextResponse(str(q.get("hub.challenge") or ""))
+    return PlainTextResponse("forbidden", status_code=403)
+
+
+@app.post("/whatsapp/webhook")
+async def whatsapp_webhook(request: Request):
+    """Inbound WhatsApp messages. Public URL, so nothing is trusted before the signature check;
+    a request no known app secret signed is dropped with 401 and never parsed further."""
+    raw = await request.body()
+    if len(raw) > 2_000_000:
+        return PlainTextResponse("too large", status_code=413)
+    sig = request.headers.get("x-hub-signature-256", "")
+    if not whatsapp_bot.verify_signature(raw, sig, owner_channels.whatsapp_app_secrets(_wa_account_secrets())):
+        return PlainTextResponse("bad signature", status_code=401)
+    try:
+        payload = json.loads(raw.decode("utf-8") or "{}")
+    except Exception:
+        return PlainTextResponse("bad json", status_code=400)
+    # Answer 200 right away (Meta retries anything slower); the messages run as tasks.
+    n = await whatsapp_bot.handle_webhook(payload)
+    return {"ok": True, "messages": n}
+
+
 def restart_telegram():
     """Bật lại bot theo cấu hình settings.telegram (tắt bot cũ nếu có)."""
     global _TG_BOT
@@ -20443,6 +20596,11 @@ async def _shutdown_mcp_pool():
         zalo_personal_channel.stop()
     except Exception:
         pass
+    for _oc in owner_channels.ALL:
+        try:
+            _oc.stop()
+        except Exception:
+            pass
     try:
         await mcp_client.pool.close_all()
     except Exception:

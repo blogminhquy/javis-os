@@ -205,6 +205,13 @@ _DEFAULT = {
     # cho bot thì Javis đưa họ vào hàng chờ kèm mã ghép nối, chủ bấm một nút là xong.
     # Xem `_ZALO_CHO` trong main.py.
     "zalo_bot": {"enabled": False, "token": "", "chat_id": ""},
+    # Owner's control channels on Slack (Socket Mode) and WhatsApp (Cloud API), 0.71.0. `allow`
+    # is the allow-list: Slack user ids (U...) / phone numbers. Empty = nobody (fail-closed,
+    # strangers get a pairing code, see server/owner_channels.py). `verify_token` is the
+    # handshake string Meta sends when the webhook is set up; it is generated, not secret.
+    "slack": {"enabled": False, "bot_token": "", "app_token": "", "allow": ""},
+    "whatsapp": {"enabled": False, "phone_number_id": "", "access_token": "", "app_secret": "",
+                 "allow": "", "verify_token": ""},
     # Backup brain lên GitHub (repo RIÊNG TƯ). token = GitHub PAT (fine-grained, quyền Contents).
     # Lưu trong settings.json (đã gitignored) - KHÔNG bao giờ đẩy lên brain repo.
     # sync_images: đồng bộ CẢ ẢNH (jpg/png/gif/webp, mỗi ảnh <= trần ~10MB) lên repo backup.
@@ -501,6 +508,7 @@ _SECRET_PATHS = (
     # Gemini CLI (đăng nhập Google ngay trên dashboard). Refresh token ở đây mở được cả gói
     # Code Assist của tài khoản Google, nên nó ngang hàng mọi secret khác trong danh sách.
     "telegram.token", "zalo_bot.token", "backup.token", "voice.elevenlabs_key",
+    "slack.bot_token", "slack.app_token", "whatsapp.access_token", "whatsapp.app_secret",
     # Secret TOTP là thứ SINH RA mã đăng nhập, nên nó ngang hàng mật khẩu chứ không phải một
     # tuỳ chọn. Ai đọc được nó thì tự sinh mã 2FA mãi mãi, và chủ máy không hề hay biết.
     "auth.totp.secret",

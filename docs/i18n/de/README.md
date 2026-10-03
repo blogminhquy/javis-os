@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:a93defe7ef8b -->
+<!-- translated-from: README.md sha256:2e10ad3d2a86 -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Javis OS Logo">
@@ -115,7 +115,7 @@ Was dir das bringt:
 | **Gedächtnis** | Vergisst nach jeder Sitzung alles | **Ein lebendiges Second Brain**, das sich an dich erinnert und mit jedem Gespräch wächst |
 | **Daten** | Erfunden oder gar nicht vorhanden | **Echte Zahlen** aus den Verbindungen, die du einrichtest (Verkauf, Werbung, Kalender, E-Mail, Messaging) |
 | **Arbeit** | Antwortet und wartet dann | **Hintergrund-Loops, Erinnerungen und eine von der KI gesteuerte Aufgabenwarteschlange**, die dir Bericht erstatten |
-| **Oberfläche** | Ein Chatfenster | Dashboard + Wissensgraph + **freihändige Sprachsteuerung** + Telegram + eine CLI |
+| **Oberfläche** | Ein Chatfenster | Dashboard + Wissensgraph + **freihändige Sprachsteuerung** + Telegram, Slack, WhatsApp, Zalo + eine CLI |
 | **Deine Arbeit** | Bleibt auf den Servern des Anbieters, im Format des Anbieters | **Einfache Dateien auf deinem Rechner**: Verlauf, Gedächtnis, Skills, Agents und Workflows lassen sich zu jedem neuen Modell mitnehmen |
 | **Bereitstellung** | Die Cloud von jemand anderem | **Selbst gehostet**: Hostinger mit einem Klick, Docker oder ein beliebiger VPS |
 
@@ -166,7 +166,7 @@ Jedes Gehirn kann deine verbundenen MCP-Server aufrufen, das Brain lesen und sch
 ### 🗣️ Mit ihm sprechen
 - **Freihändige Sprachsteuerung**: Du sprichst, Javis hört zu und antwortet laut (standardmäßig kostenlos mit Edge TTS, oder mit OpenAI und ElevenLabs).
 - **Chatsitzungen**, die du speichern, wieder öffnen und im Volltext durchsuchen kannst. Lange Sitzungen werden zu Zusammenfassungen verdichtet, statt abgeschnitten zu werden.
-- **Telegram, eine CLI und ein Web-Dashboard**, die alle mit demselben Javis sprechen.
+- **Telegram, Slack, WhatsApp, Zalo, eine CLI und ein Web-Dashboard**, die alle mit demselben Javis sprechen ([Einrichtung von Slack und WhatsApp](../../../docs/en/29-slack-whatsapp.md)).
 - **Jede Sprache**: Javis antwortet in der Sprache, in der du schreibst. Die Oberfläche gibt es auf Englisch und Vietnamesisch.
 
 ### 🧠 Sich an alles erinnern
@@ -182,7 +182,7 @@ Jedes Gehirn kann deine verbundenen MCP-Server aufrufen, das Brain lesen und sch
 - **Aufgaben (Kanban)**: Übergib ein Ziel in einfachen Worten. Die KI schreibt die Spezifikation, wählt einen Worker, führt ihn im Hintergrund aus und meldet sich nur bei Ausnahmen.
 - **Loops und Erinnerungen**: Hintergrundjobs in einem Intervall, zu einer Uhrzeit oder per Cron-Ausdruck, die jeweils ihre eigene Arbeit überprüfen.
 - **Agents und Workflows**: spezialisierte Assistenten mit eigenem Gedächtnis, verkettet zu mehrstufigen Workflows mit Verifikation.
-- **Chatbots**: Stell einen Agent mit einem eigenen Telegram- oder Zalo-Bot vor deine Kunden, mit einem gemeinsamen Posteingang, den du jederzeit übernehmen kannst.
+- **Chatbots**: Stell einen Agent mit einem eigenen Telegram-, Slack-, WhatsApp- oder Zalo-Bot vor deine Kunden, mit einem gemeinsamen Posteingang, den du jederzeit übernehmen kannst.
 
 ### 🔌 Alles anbinden
 - **MCP-Verbindungsstore** mit mehreren Konten pro Dienst und drei Berechtigungsstufen, die Javis **strikt durchsetzt**.

@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:a93defe7ef8b -->
+<!-- translated-from: README.md sha256:2e10ad3d2a86 -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Javis OS 标志">
@@ -115,7 +115,7 @@ Javis OS **不是**聊天机器人。它是一个运行在你自己的机器或 
 | **记忆** | 每次会话结束就遗忘 | **一个活的 Second Brain**，记住你，并随着每次对话变得更丰富 |
 | **数据** | 编造的，或者干脆没有 | 来自你接入的连接（销售、广告、日历、邮件、消息）的**真实数据** |
 | **工作** | 回答完就等着 | **后台 Loop、提醒和由 AI 运行的任务队列**，并把结果汇报给你 |
-| **界面** | 一个聊天框 | 仪表盘 + 知识图谱 + **免手动语音** + Telegram + CLI |
+| **界面** | 一个聊天框 | 仪表盘 + 知识图谱 + **免手动语音** + Telegram、Slack、WhatsApp、Zalo + CLI |
 | **你的成果** | 留在厂商的服务器上，用的是厂商的格式 | **你机器上的普通文件**：历史、记忆、Skill、Agent 和 Workflow 都能带到任何新模型 |
 | **部署** | 别人的云 | **自托管**：Hostinger 一键部署、Docker，或任意 VPS |
 
@@ -166,7 +166,7 @@ Javis OS **不是**聊天机器人。它是一个运行在你自己的机器或 
 ### 🗣️ 和它对话
 - **免手动语音**：你说话，Javis 听完后大声回答（默认使用免费的 Edge TTS，也可选 OpenAI 和 ElevenLabs）。
 - **聊天会话**可以保存、重新打开并全文搜索。长会话会被压缩成摘要，而不是被截断。
-- **Telegram、CLI 和网页仪表盘**，连接的都是同一个 Javis。
+- **Telegram、Slack、WhatsApp、Zalo、CLI 和网页仪表盘**，连接的都是同一个 Javis（[Slack 和 WhatsApp 的设置](../../../docs/en/29-slack-whatsapp.md)）。
 - **任意语言**：你用什么语言写，Javis 就用什么语言回复。界面提供英文和越南语。
 
 ### 🧠 记住一切
@@ -182,7 +182,7 @@ Javis OS **不是**聊天机器人。它是一个运行在你自己的机器或 
 - **任务（Kanban）**：用大白话交代一个目标。AI 会写出规格说明、挑选执行者、在后台运行，只有出现异常时才找你。
 - **Loop 和提醒**：按间隔、固定时刻或 cron 表达式运行的后台任务，每个都会自行检查工作成果。
 - **Agent 和 Workflow**：拥有各自记忆的专业助手，可以串联成带验证步骤的多步 Workflow。
-- **聊天机器人**：把一个 Agent 放到你的客户面前，使用它自己的 Telegram 或 Zalo 机器人，并配有一个你可以随时接管的共享收件箱。
+- **聊天机器人**：把一个 Agent 放到你的客户面前，使用它自己的 Telegram、Slack、WhatsApp 或 Zalo 机器人，并配有一个你可以随时接管的共享收件箱。
 
 ### 🔌 连接一切
 - **MCP 连接商店**：每个服务可接入多个账号，并有三个由 Javis **强制执行**的权限级别。

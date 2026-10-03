@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:a93defe7ef8b -->
+<!-- translated-from: README.md sha256:2e10ad3d2a86 -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Javis OS का लोगो">
@@ -115,7 +115,7 @@ Javis में model एक ऐसा पुर्ज़ा है जिसे
 | **मेमोरी** | हर session के बाद सब भूल जाता है | **एक जीवंत Second Brain** जो आपको याद रखता है और हर बातचीत के साथ और समृद्ध होता है |
 | **डेटा** | मनगढ़ंत, या होता ही नहीं | आपके जोड़े गए connections (sales, ads, calendar, email, messaging) से **असली आंकड़े** |
 | **काम** | जवाब देता है, फिर इंतज़ार करता है | **Background loops, reminders और AI से चलने वाली task queue** जो आपको नतीजे वापस भेजती हैं |
-| **इंटरफ़ेस** | एक chat box | Dashboard + knowledge graph + **hands-free आवाज़** + Telegram + एक CLI |
+| **इंटरफ़ेस** | एक chat box | Dashboard + knowledge graph + **hands-free आवाज़** + Telegram, Slack, WhatsApp, Zalo + एक CLI |
 | **आपका काम** | Vendor के servers पर, vendor के format में ही रह जाता है | **आपकी मशीन पर plain files**: history, memory, skills, agents और workflows किसी भी नए model के साथ चलते हैं |
 | **Deployment** | किसी और का cloud | **Self-hosted**: one-click Hostinger, Docker, या कोई भी VPS |
 
@@ -166,7 +166,7 @@ Javis में model एक ऐसा पुर्ज़ा है जिसे
 ### 🗣️ इससे बात कीजिए
 - **Hands-free आवाज़**: आप बोलिए, Javis सुनता है और बोलकर जवाब देता है (default रूप से मुफ़्त Edge TTS, या OpenAI और ElevenLabs)।
 - **Chat sessions** जिन्हें आप save कर सकते हैं, दोबारा खोल सकते हैं और full-text search कर सकते हैं। लंबे sessions काटे नहीं जाते, बल्कि summaries में compact हो जाते हैं।
-- **Telegram, एक CLI और एक web dashboard**, सब एक ही Javis से बात करते हैं।
+- **Telegram, Slack, WhatsApp, Zalo, एक CLI और एक web dashboard**, सब एक ही Javis से बात करते हैं ([Slack और WhatsApp का setup](../../../docs/en/29-slack-whatsapp.md))।
 - **कोई भी भाषा**: आप जिस भाषा में लिखते हैं, Javis उसी में जवाब देता है। इंटरफ़ेस अंग्रेज़ी और वियतनामी में आता है।
 
 ### 🧠 सब कुछ याद रखिए
@@ -182,7 +182,7 @@ Javis में model एक ऐसा पुर्ज़ा है जिसे
 - **Tasks (Kanban)**: सीधे शब्दों में एक लक्ष्य सौंपिए। AI spec लिखता है, एक worker चुनता है, उसे background में चलाता है और सिर्फ़ exceptions पर आपको बुलाता है।
 - **Loops और reminders**: interval, घड़ी के किसी समय या cron expression पर चलने वाले background jobs, जिनमें से हर एक अपना काम खुद जाँचता है।
 - **Agents और workflows**: अपनी memory वाले specialist assistants, जिन्हें verification के साथ multi-step workflows में जोड़ा जाता है।
-- **Chatbots**: किसी agent को उसके अपने Telegram या Zalo bot पर अपने customers के सामने रखिए, एक shared inbox के साथ जिसे आप कभी भी अपने हाथ में ले सकते हैं।
+- **Chatbots**: किसी agent को उसके अपने Telegram, Slack, WhatsApp या Zalo bot पर अपने customers के सामने रखिए, एक shared inbox के साथ जिसे आप कभी भी अपने हाथ में ले सकते हैं।
 
 ### 🔌 कुछ भी जोड़िए
 - **MCP connection store**, हर service के लिए कई accounts और तीन permission levels के साथ, जिन्हें Javis **सख़्ती से लागू** करता है।
