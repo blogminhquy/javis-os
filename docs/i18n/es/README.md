@@ -1,4 +1,4 @@
-<!-- translated-from: README.md sha256:b4a0c4282066 -->
+<!-- translated-from: README.md sha256:a93defe7ef8b -->
 <div align="center">
 
 <img src="../../../dashboard/logo.svg" width="88" alt="Logotipo de Javis OS">
@@ -55,6 +55,42 @@ Después abre **http://localhost:7777**. El instalador configura Python, los cua
 
 Javis OS **no** es un chatbot. Es una **IA agéntica autoalojada** que se ejecuta en tu propia máquina o VPS: lee y escribe archivos, llama a herramientas mediante MCP, ejecuta skills, encola trabajo en segundo plano y se programa a sí misma. Todo eso está detrás de un **panel controlado por voz** con un **Second Brain** (memoria + wiki) que acumula conocimiento con el tiempo.
 
+### El encierro del que nadie te avisa
+
+Elige una app de IA y úsala a diario durante un año. Luego mira todo lo que se ha ido acumulando dentro:
+
+- **Cientos de conversaciones**, con las decisiones y el contexto que fuiste resolviendo por el camino.
+- **Memoria** sobre quién eres, cómo trabajas y qué vende tu negocio.
+- **Instrucciones personalizadas, asistentes y proyectos**: know-how que te costó horas afinar.
+- **Automatizaciones y agentes** que solo funcionan en esa plataforma.
+
+Todo eso está en los servidores del proveedor, en el formato del proveedor. Y un día sale un modelo mejor en otra parte. Puedes probarlo, pero no puedes llevarte tu trabajo: la app nueva no sabe nada de ti, tus instrucciones no se trasladan y tu historial se queda atrás. Las exportaciones, cuando existen, suelen ser un volcado de registros de chat, no una memoria que otra herramienta pueda aprovechar.
+
+Así que te quedas. No porque el modelo de siempre siga siendo el mejor, sino porque irte significa empezar de cero. Y cuando el proveedor sube los precios, endurece los límites, retira un modelo o bloquea tu cuenta, no hay plan B.
+
+### Javis le da la vuelta: alquila el modelo, sé dueño del Brain
+
+En Javis el modelo es una pieza que puedes cambiar. Todo lo que construyes se queda contigo, en archivos que puedes abrir:
+
+| Lo que construyes | Dónde vive | Formato |
+|---|---|---|
+| **Conversaciones** | `conversations.db` en tu propia máquina o VPS, un único almacén sin importar qué cerebro respondió | SQLite, con búsqueda de texto completo |
+| **Memoria sobre ti** | `memory/` en tu Brain: `MEMORY.md` más un archivo por cada dato | Markdown |
+| **Conocimiento** | las carpetas Wiki y Sources de tu Brain | Markdown, compatible con Obsidian |
+| **Skills** | `skills/<name>/SKILL.md` | Markdown |
+| **Agents y workflows** | `agents/*.md`, `workflows/*.md` | Markdown con front matter |
+| **Loops y recordatorios** | `Javis/loops/*.md`, `Javis/reminders.json` | Markdown, JSON |
+
+Lo que ganas con eso:
+
+- **¿Sale un modelo nuevo? Cámbialo en la página Models y sigue trabajando.** Lee la misma memoria, ejecuta las mismas skills, agents y workflows, y llama a las mismas conexiones a través del MCP Hub. Nada que migrar, nada que reconstruir.
+- **Usa varios cerebros a la vez.** Un modelo potente para la conversación, otro más barato para el trabajo en segundo plano, un modelo local de Ollama para las notas privadas, todos trabajando sobre el mismo Brain.
+- **Legible sin Javis.** Tu Brain es una carpeta de markdown. Ábrela en Obsidian o en cualquier editor. Si Javis desapareciera mañana, tu conocimiento seguiría ahí, en texto plano.
+- **Versionado y portátil.** Cada pasada de aprendizaje es un commit de git que deshaces con un toque, y todo el Brain puede sincronizarse con tu propio repositorio privado de GitHub, compartido entre tu portátil y tu VPS.
+- **Tus datos se quedan en tu hardware.** No hay ninguna nube de Javis de por medio. Cada petición va solo al proveedor de modelos que elegiste para ella, y con un modelo local de Ollama nunca sale de tu máquina.
+
+### Javis frente a un chatbot corriente
+
 | | Un chatbot corriente | **Javis OS** |
 |---|---|---|
 | **Cerebro** | Atado a un solo modelo, una llamada a la API sin estado por mensaje | **Intercambiable**: 12 proveedores, cada uno con el conjunto completo de herramientas, MCP, skills y sesiones, incluidos modelos que se ejecutan en tu propia máquina con Ollama |
@@ -62,6 +98,7 @@ Javis OS **no** es un chatbot. Es una **IA agéntica autoalojada** que se ejecut
 | **Datos** | Inventados o inexistentes | **Cifras reales** de las conexiones que configures (ventas, anuncios, calendario, correo, mensajería) |
 | **Trabajo** | Responde y se queda esperando | **Loops en segundo plano, recordatorios y una cola de tareas gestionada por la IA** que te informan de los resultados |
 | **Interfaz** | Un cuadro de chat | Panel + grafo de conocimiento + **voz manos libres** + Telegram + una CLI |
+| **Tu trabajo** | Se queda en los servidores del proveedor, en el formato del proveedor | **Archivos planos en tu máquina**: historial, memoria, skills, agents y workflows pasan tal cual a cualquier modelo nuevo |
 | **Despliegue** | La nube de otra persona | **Autoalojado**: Hostinger en un clic, Docker o cualquier VPS |
 
 > 💡 **La filosofía: la capacidad vive en Javis, no en el modelo.** Todos los cerebros reciben la misma caja de herramientas a través de un único hub de conexiones compartido (el MCP Hub). Cambiar de Claude a Gemini no te cuesta nada salvo el acceso a la shell, que solo tienen los motores CLI.
