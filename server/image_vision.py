@@ -14,9 +14,13 @@ told to answer in the user's language anyway.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
-from typing import Any, Iterable, List, Optional
+import re
+from pathlib import Path
+from typing import Any, Iterable, List, Optional, Tuple
+from urllib.parse import urlparse
 
 import httpx
 
@@ -72,6 +76,89 @@ def text_from_completed(obj: Any) -> str:
             if isinstance(c, dict) and c.get("type") in ("output_text", "text") and c.get("text"):
                 out.append(str(c["text"]))
     return "".join(out)
+
+
+# ---------------------------------------------------------------------------
+# Fetching an image someone posted in a chat (0.74.1: the Zalo customer bot)
+# ---------------------------------------------------------------------------
+FETCH_TIMEOUT = 60
+MAX_REDIRECTS = 3
+_EXT_BY_TYPE = {"image/jpeg": ".jpg", "image/jpg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
+_EXT_RE = re.compile(r"\.(jpe?g|png|webp|gif)$", re.IGNORECASE)
+SAFE_PART = re.compile(r"[^0-9A-Za-z_-]")
+
+
+def url_allowed(url: str) -> bool:
+    """Only https on a hostname, never localhost or a literal IP: the link comes from a chat message, so it is untrusted input."""
+    try:
+        u = urlparse(str(url or ""))
+    except ValueError:
+        return False
+    host = (u.hostname or "").lower()
+    if u.scheme != "https" or not host or host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        return True
+
+
+def image_extension(url: str, content_type: str = "") -> str:
+    ct = str(content_type or "").split(";")[0].strip().lower()
+    if ct in _EXT_BY_TYPE:
+        return _EXT_BY_TYPE[ct]
+    m = _EXT_RE.search(urlparse(str(url or "")).path or "")
+    if m:
+        e = m.group(1).lower()
+        return ".jpg" if e == "jpeg" else "." + e
+    return ".jpg"
+
+
+async def fetch_image(url: str, dest_dir: Path, stem: str, max_bytes: int = image_gen.MAX_REF_BYTES) -> Tuple[Optional[Path], str]:
+    """Save one posted image as `<dest_dir>/<stem>.<ext>` and return `(path, "")` or `(None, reason)`.
+
+    Reuses a copy saved earlier under the same stem. Redirects are followed by hand so every hop is checked BEFORE it is requested;
+    letting httpx follow them would already have sent a request to whatever internal address a hop pointed at."""
+    dest_dir = Path(dest_dir)
+    if dest_dir.is_dir():
+        for old in dest_dir.glob(stem + ".*"):
+            if old.is_file() and old.stat().st_size > 0:
+                return old, ""
+    if not url_allowed(url):
+        return None, "link ảnh không phải https hợp lệ nên không tải"
+    buf = bytearray()
+    ctype = ""
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(FETCH_TIMEOUT, connect=15), follow_redirects=False) as client:
+            for _hop in range(MAX_REDIRECTS + 1):
+                async with client.stream("GET", url) as r:
+                    if r.status_code in (301, 302, 303, 307, 308):
+                        nxt = str(r.url.join(r.headers.get("location") or ""))
+                        if not url_allowed(nxt):
+                            return None, "link ảnh chuyển hướng ra địa chỉ không an toàn nên không tải"
+                        url = nxt
+                        continue
+                    if r.status_code != 200:
+                        return None, f"máy chủ ảnh trả HTTP {r.status_code} (link có thể đã hết hạn)"
+                    ctype = r.headers.get("content-type") or ""
+                    if ctype and not ctype.lower().startswith("image/"):
+                        return None, f"link không phải ảnh ({ctype.split(';')[0]})"
+                    async for chunk in r.aiter_bytes():
+                        buf.extend(chunk)
+                        if len(buf) > max_bytes:
+                            return None, f"ảnh lớn hơn {max_bytes // (1024 * 1024)}MB nên không tải"
+                    break
+            else:
+                return None, "link ảnh chuyển hướng quá nhiều lần"
+    except Exception as e:      # noqa: BLE001 - a caller answers with a sentence, never a traceback
+        return None, f"tải ảnh lỗi: {type(e).__name__}: {e}"
+    if not buf:
+        return None, "ảnh rỗng"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / (stem + image_extension(url, ctype))
+    dest.write_bytes(bytes(buf))
+    return dest, ""
 
 
 def connected() -> bool:

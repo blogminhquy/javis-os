@@ -10,7 +10,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.74.1] - 2026-10-04
 ### Fixed
-- **The Zalo bot can see images customers send.** (in progress)
+- **The Zalo bot can see the images customers send.** Tag the bot on a photo (like "@Javis Vũ here it is") and it no longer replies "I can only read the caption": Javis saves the photo into the bot's brain and has ChatGPT on your signed-in plan look at it and describe it, so the bot answers from what the photo actually shows. It also works when you press "Reply for me" in the Inbox.
+- **Without ChatGPT signed in, the bot still replies as before**, from the caption, and says plainly it could not see the photo, never guessing what is in it.
 
 ## [0.74.0] - 2026-10-04
 ### Added

@@ -252,6 +252,20 @@ def _loai_tin(msg: dict) -> str:
     return "other"
 
 
+def _link_anh(msg: dict) -> str:
+    """Link of the photo in an image message (0.74.1), or "".
+
+    The MCP normalizes a photo as `attachment: {type, url: content.href, description: content.title}` (zalo-agent-cli 1.6.2,
+    `normalizeMessage` in src/commands/mcp.js). Before 0.74.1 this was dropped here, so the inbox and the customer bot only ever got
+    the caption and the bot answered "I can only see the caption". A bare photo also carries the link as its `text`."""
+    att = msg.get("attachment") if isinstance(msg.get("attachment"), dict) else {}
+    for v in (att.get("url"), msg.get("mediaUrl"), msg.get("url"), msg.get("text")):
+        v = str(v or "").strip()
+        if v.startswith("https://"):
+            return v
+    return ""
+
+
 def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]:
     """Một tin của `zalo_get_messages` -> sự kiện chung của kho. None nếu không biết thread."""
     if not isinstance(msg, dict):
@@ -291,7 +305,8 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
         "created_at": _ts(_lay(msg, "ts", "timestamp", "time", mac_dinh=0)),
         "metadata": dict({k: msg.get(k) for k in ("replyTo", "mentions", "mediaUrl", "url", "fileName")
                           if msg.get(k) not in (None, "")},
-                         **({"chua_ro_loai": True} if _chua_ro_loai(msg, ten) else {})),
+                         **({"chua_ro_loai": True} if _chua_ro_loai(msg, ten) else {}),
+                         **({"image_url": _link_anh(msg)} if loai == "image" and _link_anh(msg) else {})),
     }
 
 
