@@ -918,10 +918,21 @@
   }
 
   // ===== Skills (cột nhóm + tìm kiếm + bật/tắt) =====
-  const _skState = { cat: "ALL", q: "", skills: [] };
+  // 0.75.0 thiết kế lại theo bản mẫu chủ repo duyệt 05/10: mỗi thẻ có ô tick CHỌN ĐỂ XUẤT ở
+  // đầu và công tắc bật/tắt ở cuối (trước đây hai ô tick cùng kiểu đứng hai đầu thẻ, ô cam bật/
+  // tắt trông y như ô chọn nên bấm "chọn" là tắt luôn skill), bấm thân thẻ mở khung chi tiết,
+  // tick từ một skill trở lên thì hiện thanh xuất. Lọc theo trạng thái + sắp xếp nằm cạnh ô tìm.
+  const _skState = { cat: "ALL", q: "", skills: [], status: "all", sort: "used", page: 0,
+                     open: "", merged: [], bodies: Object.create(null) };
+
+  // Trần mô tả của bộ định tuyến skill: server/skill_router.SKILL_DESC_MAX. Vượt trần thì router
+  // cắt im lặng phần đuôi và POST /skills từ chối lưu, nên form phải đếm trước cho người viết.
+  // tests/python/test_trang_ky_nang.py ghim hai con số này bằng nhau.
+  const SKILL_DESC_MAX = 150;
+  const _doDai = (s) => [...String(s || "").trim()].length;   // đếm như len() của Python
 
   // CSS tiêm một lần cho CẢ BA trang Studio: phần `.gr*` là khung nhóm dùng chung (cột nhóm +
-  // ô tìm), phần `.sk2*`/`.ag-group`/`.wf-group` là thẻ riêng của từng trang.
+  // ô tìm), phần `.sk3*`/`.ag-group`/`.wf-group` là thẻ riêng của từng trang.
   function _injectStudioCss() {
     if (window._skCss) return; window._skCss = true;
     const css = `
@@ -939,27 +950,108 @@
        mở form ra xem. Cùng biểu tượng thư mục với dòng nhóm ở thẻ skill. */
     .ag-group{color:var(--text3);font-size:13px;margin-top:7px;display:flex;align-items:center;gap:5px}
     .wf-group{color:var(--text3);font-size:13px;display:inline-flex;align-items:center;gap:4px;flex:none}
-    .sk2-selwrap{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text3);cursor:pointer;white-space:nowrap}
-    .sk2-list{display:flex;flex-direction:column;gap:8px}
-    .sk2-card{display:flex;gap:12px;align-items:flex-start;padding:11px 13px;border:1px solid var(--hairline);border-radius:10px}
-    .sk2-card:hover{border-color:var(--info-line);background:var(--info-wash)}
-    .sk2-card.off{opacity:.5} .sk2-tog{flex:none;margin-top:3px;width:16px;height:16px;cursor:pointer;accent-color:var(--accent)}
-    .sk2-info{flex:1;min-width:0} .sk2-info .nm{color:var(--text);font-size:15px;font-weight:600}
-    .sk2-info .ds{color:var(--text3);font-size:14px;margin-top:3px;line-height:1.45}
-    .sk2-info .gp{color:var(--text3);font-size:13px;margin-top:4px}
-    .sk2-act{display:flex;gap:5px;opacity:0;transition:.15s;flex:none} .sk2-card:hover .sk2-act{opacity:1}
-    .sk2-act button{background:var(--surface-2);border:1px solid var(--hairline);color:var(--text2);border-radius:6px;cursor:pointer;font-size:13px;padding:3px 9px} .sk2-act button:hover{color:var(--text-hi);border-color:rgba(120,180,255,.5)}
-    .sk2-act button.danger:hover{color:var(--red);border-color:rgba(255,120,120,.5)}
-    .sysb{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--link-ink);background:var(--info-wash);border:1px solid var(--info-line);vertical-align:2px}
+    .sk2-list{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}
     /* .sk2-list là flex cột, nên hàng phân trang phải tự căn giữa - để mặc định nó dính mép
        trái, nhìn như rơi rớt lại chứ không ra một hàng điều khiển. */
     .sk2-list .jv-pager{justify-content:center}
-    .sk-usage{font-size:11px;color:var(--text3);margin-left:8px}
-    .sk-stale{opacity:.75;font-style:italic;cursor:help}
+
+    /* ---- Trang Kỹ năng (0.75.0) ---- một màu nhấn: cam của app, không tím, không xanh */
+    #panel-skills .gr-cat.sel{background:var(--accent-wash-2);color:var(--accent-ink);font-weight:600}
+    #panel-skills .gr-cat.sel .n{color:var(--accent-ink)}
+    #panel-skills .gr-cat:hover{background:var(--surface-2)}
+    .sk3-top h3{font-weight:600}
+    .sk3-top .pb-actions{flex-wrap:wrap}
+    .sk3-top .pb-actions button{display:inline-flex;align-items:center;gap:6px}
+    .sk3-new{background:var(--accent-solid)!important}
+    .sk3-all{display:flex;align-items:center;justify-content:center;width:40px;height:40px;flex:none;cursor:pointer}
+    .sk3-all input,.sk3-pick input{width:18px;height:18px;accent-color:var(--accent-solid);cursor:pointer;margin:0}
+    .sk3-seg{display:flex;gap:3px;padding:3px;border-radius:10px;background:var(--surface-2)}
+    .sk3-seg button{height:34px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--text2);font-size:13.5px;font-weight:500;cursor:pointer}
+    .sk3-seg button.sel{background:var(--panel-solid);color:var(--text);box-shadow:var(--shadow-1)}
+    .sk3-sort{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--text2)}
+    .sk3-sort select{height:36px;padding:0 8px;border-radius:8px;border:1px solid var(--hairline);background:var(--field-bg);color:var(--text);font-size:14px}
+    .sk3-merged{margin:10px 6px 2px;padding-top:10px;border-top:1px solid var(--hairline);font-size:12.5px;line-height:1.5;color:var(--text3)}
+    .sk3-cols{display:flex;gap:16px;align-items:flex-start}
+    .sk3-card{display:flex;align-items:center;gap:6px;padding:2px 6px 2px 2px;border:1px solid var(--hairline);border-radius:12px;background:var(--panel-bg)}
+    .sk3-card:hover{border-color:var(--accent-line)}
+    .sk3-card.open{border-color:var(--accent-line);background:var(--accent-wash)}
+    .sk3-pick{display:flex;align-items:center;justify-content:center;width:40px;height:44px;flex:none;cursor:pointer}
+    .sk3-pick input:disabled{cursor:not-allowed;opacity:.45}
+    .sk3-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;padding:11px 8px;border:0;border-radius:10px;background:transparent;color:inherit;text-align:left;cursor:pointer;font:inherit}
+    .sk3-card.off .sk3-main{opacity:.55}
+    .sk3-main:focus-visible,.sk3-sw:focus-visible{outline:2px solid var(--accent-solid);outline-offset:2px}
+    .sk3-nm{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:15px;font-weight:600;color:var(--text)}
+    .sk3-main:hover .sk3-nm{color:var(--accent-ink)}
+    .sk3-ds{font-size:14px;line-height:1.5;color:var(--text2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .sk3-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--text3)}
+    .sk3-chip{padding:2px 9px;border-radius:999px;background:var(--surface-2);color:var(--text2);font-weight:500}
+    .sk3-warn{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;background:var(--warn-wash);color:var(--warn-ink);font-weight:500}
+    .sysb{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;border:1px solid var(--hairline);font-size:11.5px;font-weight:600;color:var(--text2)}
+    .sk3-sw{flex:none;display:flex;align-items:center;justify-content:center;width:52px;height:44px;padding:0;border:0;background:transparent;cursor:pointer}
+    .sk3-tr{position:relative;display:block;width:40px;height:22px;border-radius:999px;background:var(--surface-3);transition:background .15s}
+    .sk3-kn{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(28,26,36,.3);transition:left .15s}
+    .sk3-sw[aria-checked="true"] .sk3-tr{background:var(--accent-solid)}
+    .sk3-sw[aria-checked="true"] .sk3-kn{left:20px}
+    .sk3-sw:disabled{opacity:.5;cursor:wait}
+    /* Thanh xuất: nền đảo màu so với trang (chữ sáng trên nền tối ở tông sáng, ngược lại ở tông
+       tối) để tách hẳn khỏi danh sách - nó là việc ĐANG làm dở, không phải một thẻ nữa. */
+    .sk3-bulk{display:flex;flex-direction:column;gap:8px;padding:12px 14px;margin-bottom:10px;border-radius:12px;background:var(--text);color:var(--bg)}
+    .sk3-bulk-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .sk3-bulk-row strong{font-size:14.5px;margin-right:auto}
+    .sk3-bulk-row.sub{font-size:13px}
+    .sk3-bulk-hint{margin-right:auto;opacity:.78;flex:1 1 260px;line-height:1.45}
+    .sk3-bulk button{height:34px;padding:0 12px;border-radius:8px;border:1px solid color-mix(in srgb, var(--bg) 35%, transparent);background:transparent;color:var(--bg);font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+    .sk3-bulk button.main{border:0;background:var(--accent-solid);color:var(--on-accent);font-weight:600;height:38px;padding:0 16px;font-size:14px}
+    .sk3-bulk button.link{border:0;text-decoration:underline}
+    .sk3-bulk button:disabled{opacity:.55;cursor:wait}
+    .sk3-detail{flex:0 0 360px;max-width:400px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px;padding:18px;border:1px solid var(--hairline);border-radius:14px;background:var(--panel-solid);box-shadow:var(--shadow-2)}
+    .sk3-detail[hidden],.sk3-scrim[hidden],#skBulk[hidden],.sk3-d-sec[hidden]{display:none}   /* display:flex đè thuộc tính hidden */
+    .sk3-d-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+    .sk3-d-head h4{margin:0;font-size:18px;line-height:1.3;color:var(--text);word-break:break-word}
+    .sk3-d-sub{font-size:13px;color:var(--text3);margin-top:4px}
+    .sk3-x{flex:none;width:36px;height:36px;border-radius:8px;border:0;background:var(--surface-2);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px}
+    .sk3-d-state{display:flex;justify-content:space-between;align-items:center;padding:4px 4px 4px 12px;border-radius:10px;background:var(--surface-1);font-size:14px;font-weight:500;color:var(--text)}
+    .sk3-d-sec{display:flex;flex-direction:column;gap:7px}
+    .sk3-d-sec h5{margin:0;font-size:13px;font-weight:600;color:var(--text2);display:flex;justify-content:space-between;gap:8px}
+    .sk3-d-sec p{margin:0;font-size:14px;line-height:1.55;color:var(--text)}
+    .sk3-d-sec ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px;line-height:1.5;color:var(--text)}
+    .sk3-n{font-variant-numeric:tabular-nums;color:var(--green)} .sk3-n.over{color:var(--red)}
+    .sk3-cut{background:var(--danger-wash);color:var(--red);text-decoration:line-through}
+    .sk3-note{padding:8px 10px;border-radius:8px;background:var(--warn-wash);font-size:13px!important;line-height:1.5;color:var(--warn-ink)!important}
+    .sk3-path{font-size:12.5px!important;color:var(--text3)!important}
+    .sk3-path code{font-family:ui-monospace,Consolas,monospace;font-size:12px;padding:1px 5px;border-radius:4px;background:var(--code-bg);color:var(--code-ink);word-break:break-all}
+    .sk3-full summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--text2)}
+    .sk3-full .sk3-md{margin-top:8px;max-height:320px;overflow:auto;font-size:13.5px;line-height:1.55;padding:10px 12px;border-radius:8px;background:var(--surface-1)}
+    .sk3-d-act{display:flex;flex-wrap:wrap;gap:8px;padding-top:14px;border-top:1px solid var(--hairline)}
+    .sk3-d-act button{height:40px;padding:0 14px;border-radius:9px;font-size:14px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--hairline);background:var(--panel-solid);color:var(--text)}
+    .sk3-d-act button.pri{border:0;background:var(--accent-solid);color:var(--on-accent);font-weight:600}
+    .sk3-d-act button.del{margin-left:auto;border:0;background:transparent;color:var(--red)}
+    .sk3-d-act .sk3-sysnote{flex-basis:100%;margin:0;font-size:12.5px;line-height:1.5;color:var(--text3)}
+    .sk3-scrim{position:fixed;inset:0;background:var(--scrim);z-index:59;display:none}
+    /* Form sửa: một cột, nút Lưu ở cuối (chủ repo: trang cài đặt xếp một cột). */
+    .sk3-form{display:flex;flex-direction:column;gap:18px;max-width:720px}
+    .sk3-form .fld{display:flex;flex-direction:column;gap:6px}
+    .sk3-form .fld > label,.sk3-form .lbl{font-size:14px;font-weight:600;color:var(--text)}
+    .sk3-form .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+    .sk3-form .hint{font-size:12.5px;line-height:1.5;color:var(--text3)}
+    .sk3-form .hint.over{color:var(--red)}
+    .sk3-form textarea.over{border-color:var(--red)!important}
+    .sk3-form .tabs{display:flex;gap:3px;padding:3px;border-radius:9px;background:var(--surface-2)}
+    .sk3-form .tabs button{height:30px;padding:0 12px;border:0;border-radius:7px;background:transparent;color:var(--text2);font-size:13px;cursor:pointer}
+    .sk3-form .tabs button.sel{background:var(--panel-solid);color:var(--text);box-shadow:var(--shadow-1)}
+    .sk3-form .prev{min-height:200px;padding:12px 14px;border:1px solid var(--hairline);border-radius:9px;background:var(--panel-solid);font-size:14px;line-height:1.55}
+    .sk3-form .err{padding:9px 12px;border-radius:9px;background:var(--danger-wash);border:1px solid var(--danger-line);color:var(--red);font-size:13.5px}
+    .sk3-form .acts{display:flex;gap:10px}
+    .sk3-form .acts .s-btn{background:var(--accent-solid)}
+    /* Màn vừa (laptop nhỏ, máy tính bảng): khung chi tiết thành ngăn kéo bên phải đè lên trang
+       thay vì chen cột thứ ba bóp danh sách. */
+    @media (max-width:1180px){
+      .sk3-detail{position:fixed;top:0;right:0;bottom:0;z-index:60;width:min(420px,100vw);max-width:none;border-radius:0;overflow:auto}
+      .sk3-scrim:not([hidden]){display:block}
+    }
     /* ===== Mobile (<=860px) ===== xep DOC: nhom thanh dai chip cuon ngang o tren, danh sach
        full-width ben duoi (truoc day cot nhom 210px bop cot con lai con ~150px -> chu vo tung
-       tu). Nut thao tac luon hien (truoc day opacity:0 + chi hien khi :hover -> tren dien
-       thoai khong co hover nen Sua/Xuat/Xoa khong bao gio bam duoc). */
+       tu). */
     @media (max-width:860px){
       .gr{flex-direction:column;gap:12px}
       .gr-side{width:auto;max-height:none;display:flex;flex-direction:row;gap:6px;padding:6px;
@@ -970,16 +1062,45 @@
         border-radius:999px;white-space:nowrap}
       .gr-cat .n{padding:1px 6px;border-radius:9px;background:var(--surface-3)}
       .gr-cat.sel{border-color:var(--info-line)}
+      #panel-skills .gr-cat.sel{border-color:var(--accent-line)}
       .gr-bar input{max-width:none;font-size:16px}   /* 16px: chan iOS tu zoom khi focus */
-      .sk2-tog{width:20px;height:20px;margin-top:2px}  /* vung cham lon hon */
-      .sk2-card{flex-wrap:wrap;padding:12px 13px}
-      .sk2-info .nm{font-size:16px}
-      .sk2-act{flex:1 1 100%;opacity:1;margin-top:11px;padding-top:11px;gap:8px;
-        border-top:1px solid var(--surface-2);justify-content:flex-end}
-      .sk2-act button{padding:7px 14px;font-size:14px}
+      .sk3-merged{display:none}
+      .sk3-top{flex-wrap:wrap;gap:10px}
+      .sk3-top h3{flex:1 1 100%}
+      .sk3-bulk-hint{flex-basis:100%;font-size:12.5px}
+      .sk3-pick{width:44px}
+      .sk3-pick input,.sk3-all input{width:20px;height:20px}
+      .sk3-nm{font-size:16px}
+      .sk3-detail{top:auto;left:0;width:100%;max-height:86vh;border-radius:16px 16px 0 0}
     }`;
     const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
   }
+
+  // ---- Gộp nhóm trùng tên ----
+  // Ô Nhóm cũ là ô gõ tự do nên một brain dùng lâu có "ai" cạnh "AI", "vận-hành" cạnh "Vận hành"
+  // (ảnh chủ repo 05/10). Gộp theo khoá bỏ dấu + chữ thường + gạch nối thành dấu cách, lấy tên
+  // của BẢN ĐÔNG NHẤT làm tên hiển thị (hoà thì ưu tiên tên có dấu, viết hoa, không gạch nối).
+  // Chỉ gộp KHI HIỂN THỊ; lưu skill qua form là file được sửa về tên chuẩn.
+  const _khoaNhom = (g) => _spNoAccent(g).replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+  const _diemTen = (g) => (/[^\x00-\x7f]/.test(g) ? 2 : 0)
+    + (g && g[0] !== g[0].toLowerCase() ? 1 : 0) + (/[-_]/.test(g) ? 0 : 1);
+  function gopNhomSkill(skills) {
+    const theoKhoa = new Map();
+    skills.forEach(s => {
+      const g = nhomCua(s), k = _khoaNhom(g);
+      if (!theoKhoa.has(k)) theoKhoa.set(k, new Map());
+      const m = theoKhoa.get(k); m.set(g, (m.get(g) || 0) + 1);
+    });
+    const chuan = new Map(), daGop = [];
+    theoKhoa.forEach((m, k) => {
+      const ds = [...m.entries()].sort((a, b) => b[1] - a[1] || _diemTen(b[0]) - _diemTen(a[0]));
+      chuan.set(k, ds[0][0]);
+      ds.slice(1).forEach(([ten]) => daGop.push(ten + " → " + ds[0][0]));
+    });
+    skills.forEach(s => { s.groupRaw = nhomCua(s); s.group = chuan.get(_khoaNhom(s.groupRaw)); });
+    return daGop;
+  }
+  const _nhomDangCo = () => [...new Set(_skState.skills.map(nhomCua))].sort((a, b) => a.localeCompare(b, LOC()));
 
   async function loadSkills() {
     _injectStudioCss();
@@ -987,35 +1108,97 @@
     panel.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
     let d; try { d = await api(`/skills?brain=${encodeURIComponent(brain())}`); } catch (e) { panel.innerHTML = `<div class="empty">${esc(t("studio.sk_load_err"))}</div>`; return; }
     refreshStats();
-    _skState.skills = d.skills || [];
     _sel.skill.clear();   // nạp lại là làm mới lựa chọn (danh sách có thể đã đổi)
+    _skState.bodies = Object.create(null);
+    napDanhSach(d);
     renderSkillUI();
   }
 
-  const _skFiltered = () => locTheoNhom(_skState.skills, _skState,
-    (s) => `${s.name} ${s.slug} ${s.description || ""}`);
+  function napDanhSach(d) {
+    _skState.skills = (d && d.skills) || [];
+    _skState.merged = gopNhomSkill(_skState.skills);
+    if (_skState.open && !_skState.skills.some(s => s.slug === _skState.open)) _skState.open = "";
+  }
+
+  // Tải lại mà GIỮ trang đang xem và các ô đã tick (sau khi bật/tắt cả loạt).
+  async function taiLaiGiuViTri() {
+    const d = await api(`/skills?brain=${encodeURIComponent(brain())}`);
+    if (!d || !Array.isArray(d.skills)) return;
+    napDanhSach(d);
+    const con = new Set(_skState.skills.map(s => s.slug));
+    [..._sel.skill].forEach(sl => { if (!con.has(sl)) _sel.skill.delete(sl); });
+    renderSkillUI(); refreshStats();
+  }
+
+  const _skFiltered = () => {
+    let list = locTheoNhom(_skState.skills, _skState,
+      (s) => `${s.name} ${s.slug} ${s.description || ""} ${s.group || ""}`);
+    if (_skState.status === "on") list = list.filter(s => s.enabled !== false);
+    else if (_skState.status === "off") list = list.filter(s => s.enabled === false);
+    else if (_skState.status === "system") list = list.filter(s => s.system);
+    list = list.slice();
+    if (_skState.sort === "name") list.sort((a, b) => String(a.name).localeCompare(String(b.name), LOC()));
+    else if (_skState.sort === "off") list.sort((a, b) => (a.enabled === false ? 0 : 1) - (b.enabled === false ? 0 : 1));
+    else list.sort((a, b) => (b.use_count || 0) - (a.use_count || 0));   // sort ổn định: hoà giữ thứ tự server
+    return list;
+  };
+
+  const SK_TRANG_THAI = [["all", "studio.sk_st_all"], ["on", "studio.sk_st_on"],
+                         ["off", "studio.sk_st_off"], ["system", "studio.sk_st_sys"]];
+  const SK_SAP_XEP = [["used", "studio.sk_sort_used"], ["name", "studio.sk_sort_name"], ["off", "studio.sk_sort_off"]];
 
   function renderSkillUI() {
     const panel = document.getElementById("panel-skills");
     const all = _skState.skills;
     const enabledN = all.filter(s => s.enabled !== false).length;
     panel.innerHTML = `
-      <div class="panel-bar"><h3>${esc(t("page.skills.label"))} <span class="dim">${enabledN}/${all.length} ${esc(t("studio.on_count"))} · ${esc(t("studio.source"))} <code>skills/</code></span></h3>
-        <div class="pb-actions"><button class="s-btn-ghost" id="skSelAll" title="${esc(t("studio.selall_sk_title"))}">${esc(t("studio.selall"))}</button><button class="s-btn-ghost" id="skDl" disabled title="${esc(t("studio.dl_title"))}">${esc(t("studio.dl_sel"))}</button><button class="s-btn-ghost" id="skImport">${esc(t("studio.import"))}</button><button class="s-btn" id="skNew">+ ${esc(t("page.skills.label"))}</button></div></div>
-      ${all.length ? khungNhomHtml(all, _skState, { bodyId: "skList", bodyCls: "sk2-list",
-                                                    searchId: "skSearch", searchPh: t("studio.sk_search_ph") })
+      <div class="panel-bar sk3-top"><h3 id="skHead">${esc(t("studio.sk_count", { n: all.length, on: enabledN }))}</h3>
+        <div class="pb-actions"><button class="s-btn-ghost" id="skImport">${ic("package")} ${esc(t("studio.sk_import"))}</button><button class="s-btn sk3-new" id="skNew">${ic("plus")} ${esc(t("studio.sk_new_btn"))}</button></div></div>
+      ${all.length ? khungNhomHtml(all, _skState, { bodyId: "skBody", bodyCls: "sk3-body",
+                                                    searchId: "skSearch", searchPh: t("studio.sk_search_ph2") })
       : `<div class="empty">${esc(t("studio.sk_empty"))}</div>`}`;
     document.getElementById("skNew").onclick = () => openSkillForm(null);
     document.getElementById("skImport").onclick = () => importItems(loadSkills);
-    document.getElementById("skDl").onclick = () => taiDaChon("skill");
-    // Chọn tất cả = toàn bộ danh sách ĐANG HIỆN (đúng nhóm + đúng ô tìm), trừ skill hệ
-    // thống - chúng không xuất được (server bỏ qua) vì brain nào cũng có sẵn theo app.
-    document.getElementById("skSelAll").onclick = () =>
-      chonTatCa("skill", "skDl", "sk2-sel", _skFiltered().filter(s => !s.system).map(s => s.slug));
-    capNhatNutTai("skill", "skDl");
     if (!all.length) return;
-    ganKhungNhom(panel, _skState, { searchId: "skSearch", veLai: renderSkillUI, veDanhSach: renderSkillList });
+
+    const bar = panel.querySelector(".gr-bar");
+    bar.insertAdjacentHTML("afterbegin", `<label class="sk3-all" title="${esc(t("studio.sk_selall_aria"))}"><input type="checkbox" id="skAll" aria-label="${esc(t("studio.sk_selall_aria"))}"></label>`);
+    bar.insertAdjacentHTML("beforeend", `<div class="sk3-seg" role="group" aria-label="${esc(t("studio.sk_status_aria"))}">${
+      SK_TRANG_THAI.map(([k, nhan]) => `<button type="button" data-st="${k}" class="${_skState.status === k ? "sel" : ""}" aria-pressed="${_skState.status === k}">${esc(t(nhan))}</button>`).join("")
+    }</div><label class="sk3-sort">${esc(t("studio.sk_sort"))} <select id="skSort">${
+      SK_SAP_XEP.map(([k, nhan]) => `<option value="${k}"${_skState.sort === k ? " selected" : ""}>${esc(t(nhan))}</option>`).join("")
+    }</select></label>`);
+    if (_skState.merged.length) {
+      panel.querySelector(".gr-side").insertAdjacentHTML("beforeend",
+        `<div class="sk3-merged">${esc(t("studio.sk_merged", { ds: _skState.merged.join(", ") }))}</div>`);
+    }
+    document.getElementById("skBody").innerHTML = `<div id="skBulk" hidden></div>
+      <div class="sk3-cols"><div class="sk2-list" id="skList"></div><aside class="sk3-detail" id="skDetail" aria-label="${esc(t("studio.sk_detail_aria"))}" hidden></aside></div>
+      <div class="sk3-scrim" id="skScrim" hidden></div>`;
+
+    // Chọn tất cả = toàn bộ danh sách ĐANG HIỆN (đúng nhóm + bộ lọc + ô tìm), trừ skill hệ
+    // thống - chúng không xuất được (server bỏ qua) vì brain nào cũng có sẵn theo app.
+    // Khác chonTatCa() của Agents/Workflows: chỉ THÊM/BỚT phần đang hiện, không thay cả tập, vì
+    // thanh xuất giữ lựa chọn xuyên nhóm (tick ở Bán hàng rồi sang Marketing chọn tất cả thì
+    // mấy skill Bán hàng vẫn còn trong gói).
+    document.getElementById("skAll").onchange = () => {
+      const ds = _skFiltered().filter(s => !s.system).map(s => s.slug);
+      const du = ds.length > 0 && ds.every(sl => _sel.skill.has(sl));
+      ds.forEach(sl => { if (du) _sel.skill.delete(sl); else _sel.skill.add(sl); });
+      document.querySelectorAll(".sk2-sel").forEach(c => { c.checked = _sel.skill.has(c.dataset.slug); });
+      veThanhChon();
+    };
+    panel.querySelectorAll(".sk3-seg [data-st]").forEach(b => {
+      b.onclick = () => { _skState.status = b.dataset.st; _skState.page = 0; renderSkillUI(); };
+    });
+    document.getElementById("skSort").onchange = (e) => { _skState.sort = e.target.value; _skState.page = 0; renderSkillList(); };
+    document.getElementById("skScrim").onclick = dongChiTiet;
+    ganKhungNhom(panel, _skState, { searchId: "skSearch",
+      veLai: () => { _skState.page = 0; renderSkillUI(); },
+      veDanhSach: () => { _skState.page = 0; renderSkillList(); } });
     renderSkillList();
+    veThanhChon();
+    veChiTiet();
   }
 
   const SK_MOI_TRANG = 20;   // brain dùng lâu có cả trăm skill: đổ hết ra là cuộn mãi không hết
@@ -1023,82 +1206,290 @@
   function renderSkillList() {
     const box = document.getElementById("skList"); if (!box) return;
     const list = _skFiltered();
-    datSoLuong(document.getElementById("panel-skills"), list.length + " skill");
+    datSoLuong(document.getElementById("panel-skills"), t("studio.sk_n", { n: list.length }));
+    capNhatChonTatCa(list);
     if (!list.length) { box.innerHTML = `<div class="empty">${esc(t("studio.sk_no_match"))}</div>`; return; }
-    // Phân trang bằng pager() dùng chung của console.js. Đổi nhóm hoặc gõ ô tìm thì hàm này
-    // chạy lại từ đầu nên tự về trang 1 - đúng cái người dùng mong, vì danh sách đã khác.
     const veTrang = (phan) => {
       const fr = document.createDocumentFragment();
       phan.forEach(s => fr.appendChild(theSkill(s)));
       return fr;
     };
+    // Phân trang bằng pager() dùng chung của console.js. Đổi nhóm, bộ lọc hay ô tìm thì nơi gọi
+    // đặt page về 0; bật/tắt một skill thì KHÔNG, nên người đang ở trang 3 vẫn ở trang 3.
     if (typeof window.JavisPager === "function") {
-      window.JavisPager(box, list, SK_MOI_TRANG, veTrang);
+      window.JavisPager(box, list, SK_MOI_TRANG, veTrang, "",
+                        { page: _skState.page, onPage: (p) => { _skState.page = p; } });
     } else {
       box.innerHTML = ""; box.appendChild(veTrang(list));
     }
   }
 
-  // Một thẻ skill. Tách khỏi renderSkillList để phân trang gọi lại được từng trang một.
+  // Một thẻ skill. Tách khỏi renderSkillList để phân trang gọi lại được từng trang một, và để
+  // bật/tắt chỉ thay đúng một thẻ thay vì vẽ lại cả trang.
   function theSkill(s) {
     const on = s.enabled !== false;
-    const div = document.createElement("div"); div.className = "sk2-card" + (on ? "" : " off");
-    const sysBadge = s.system ? ` <span class="sysb" title="${esc(t("studio.sys_title"))}">${esc(t("studio.sys"))}</span>` : "";
+    const div = document.createElement("div");
+    div.className = "sk3-card" + (on ? "" : " off") + (_skState.open === s.slug ? " open" : "");
+    div.dataset.slug = s.slug;
+    const sysBadge = s.system ? ` <span class="sysb" title="${esc(t("studio.sys_title"))}">${ic("lock")} ${esc(t("studio.sk_sys_badge"))}</span>` : "";
     // Telemetry: use_count là tín hiệu DƯƠNG một chiều. Skill nạp native qua .claude/skills
-    // không đi qua bộ đếm, nên "chưa thấy dùng" là tham khảo, KHÔNG phải phán quyết.
+    // không đi qua bộ đếm, nên chưa có số thì im, không in "chưa thấy dùng" lên gần hết các thẻ.
     let usageHtml = "";
     if (s.use_count > 0) {
       const when = s.last_used_at ? new Date(s.last_used_at * 1000).toLocaleDateString(LOC()) : "";
-      usageHtml = ` · <span class="sk-usage">${esc(t("studio.used", { n: s.use_count }))}${when ? ", " + esc(t("studio.last_used")) + " " + when : ""}</span>`;
-    } else if (s.stale) {
-      usageHtml = ` · <span class="sk-usage sk-stale" title="${esc(t("studio.unused_title"))}">${esc(t("studio.unused"))}</span>`;
+      usageHtml = `<span>${esc(t("studio.used", { n: s.use_count }))}${when ? ", " + esc(t("studio.last_used")) + " " + when : ""}</span>`;
     }
-    div.innerHTML = `<input type="checkbox" class="sk2-tog" ${on ? "checked" : ""} title="${esc(on ? t("studio.tog_on") : t("studio.tog_off"))}">
-      <div class="sk2-info"><div class="nm">${ic("puzzle")} ${esc(s.name)}${sysBadge}</div><div class="ds">${esc(s.description || "")}</div><div class="gp">${ic("folder-open")} ${esc(s.group || "Chung")} · ${esc(s.slug)}${s.source === ".agents" ? " · .agents" : ""}${usageHtml}</div></div>
-      <div class="sk2-act">${s.system ? "" : `<label class="sk2-selwrap" title="${esc(t("studio.sel_one"))}"><input type="checkbox" class="sk2-sel" data-slug="${esc(s.slug)}"> ${esc(t("studio.pick"))}</label>`}<button class="edit">${esc(t("common.edit"))}</button>${s.system ? "" : `<button class="exp" title="${esc(t("studio.export_title"))}">${esc(t("studio.export"))}</button><button class="del danger">${esc(t("common.delete"))}</button>`}</div>`;
-    div.querySelector(".sk2-tog").onchange = (e) => toggleSkill(s, e.target.checked);
+    const quaDai = _doDai(s.description) > SKILL_DESC_MAX
+      ? `<span class="sk3-warn">${ic("triangle-alert")} ${esc(t("studio.sk_too_long"))}</span>` : "";
+    div.innerHTML = `<label class="sk3-pick" title="${esc(s.system ? t("studio.sk_pick_sys") : t("studio.sel_one"))}"><input type="checkbox" class="sk2-sel" data-slug="${esc(s.slug)}"${s.system ? " disabled" : ""} aria-label="${esc(t("studio.sk_pick_aria", { ten: s.name }))}"></label>
+      <button type="button" class="sk3-main"><span class="sk3-nm">${esc(s.name)}${sysBadge}</span><span class="sk3-ds">${esc(s.description || "")}</span><span class="sk3-meta"><span class="sk3-chip">${esc(nhomCua(s))}</span>${usageHtml}${quaDai}</span></button>
+      <button type="button" class="sk3-sw" role="switch" aria-checked="${on}" title="${esc(on ? t("studio.tog_on") : t("studio.tog_off"))}" aria-label="${esc(t("studio.sk_sw_aria", { ten: s.name }))}"><span class="sk3-tr"><span class="sk3-kn"></span></span></button>`;
     const selBox = div.querySelector(".sk2-sel");
-    if (selBox) noiSel("skill", "skDl", selBox, s.slug);
-    div.querySelector(".edit").onclick = () => openSkillForm(s.slug);
-    const expBtn = div.querySelector(".exp");
-    if (expBtn) expBtn.onclick = () => exportItem("skill", s.slug);
-    const delBtn = div.querySelector(".del");
-    if (delBtn) delBtn.onclick = () => deleteSkill(s.slug, s.name);
+    if (!s.system) {
+      noiSel("skill", "skDl", selBox, s.slug);
+      selBox.addEventListener("change", veThanhChon);
+    }
+    div.querySelector(".sk3-main").onclick = () => moChiTiet(s.slug);
+    const sw = div.querySelector(".sk3-sw");
+    sw.onclick = () => { sw.disabled = true; toggleSkill(s, !on); };
     return div;
+  }
+
+  // Ô "Chọn tất cả": tick khi mọi skill xuất được đang hiện đều đã chọn, gạch ngang khi chọn một phần.
+  function capNhatChonTatCa(list) {
+    const el = document.getElementById("skAll"); if (!el) return;
+    const ds = (list || _skFiltered()).filter(s => !s.system);
+    const n = ds.filter(s => _sel.skill.has(s.slug)).length;
+    el.checked = ds.length > 0 && n === ds.length;
+    el.indeterminate = n > 0 && n < ds.length;
+    el.disabled = !ds.length;
+  }
+
+  // Thanh xuất: hiện khi đã tick ít nhất một skill. Gói .zip đã sẵn cấu trúc chuẩn
+  // skills/<slug>/SKILL.md nên KHÔNG có ô chọn định dạng: cùng một gói nhập lại được vào Javis
+  // và giải nén vào .claude là Claude Code dùng ngay.
+  function veThanhChon() {
+    const bar = document.getElementById("skBulk"); if (!bar) return;
+    capNhatChonTatCa();
+    const n = _sel.skill.size;
+    if (!n) { bar.hidden = true; bar.innerHTML = ""; return; }
+    bar.hidden = false;
+    bar.innerHTML = `<div class="sk3-bulk" role="region" aria-label="${esc(t("studio.sk_picked", { n }))}">
+      <div class="sk3-bulk-row"><strong>${esc(t("studio.sk_picked", { n }))}</strong><button type="button" class="main" id="skBulkExport">${ic("download")} ${esc(t("studio.sk_export_n", { n }))}</button></div>
+      <div class="sk3-bulk-row sub"><span class="sk3-bulk-hint">${esc(t("studio.sk_export_hint"))}</span><button type="button" id="skBulkOn">${esc(t("studio.sk_bulk_on"))}</button><button type="button" id="skBulkOff">${esc(t("studio.sk_bulk_off"))}</button><button type="button" class="link" id="skBulkClear">${esc(t("studio.sk_bulk_clear"))}</button></div></div>`;
+    document.getElementById("skBulkExport").onclick = () => taiDaChon("skill");
+    document.getElementById("skBulkOn").onclick = () => batTatLoat(true);
+    document.getElementById("skBulkOff").onclick = () => batTatLoat(false);
+    document.getElementById("skBulkClear").onclick = () => {
+      _sel.skill.clear();
+      document.querySelectorAll(".sk2-sel").forEach(c => { c.checked = false; });
+      veThanhChon();
+    };
+  }
+
+  async function batTatLoat(enabled) {
+    const ds = _skState.skills.filter(s => _sel.skill.has(s.slug) && (s.enabled !== false) !== enabled);
+    document.querySelectorAll("#skBulk button").forEach(b => { b.disabled = true; });
+    const loi = [];
+    for (const s of ds) {   // tuần tự: mỗi lần là đổi tên thư mục + đồng bộ mirror trên đĩa
+      const r = await api("/skills/toggle", { method: "POST", body: fd({ slug: s.slug, enabled: enabled ? "1" : "0", brain: brain() }) });
+      if (!r || !r.ok) loi.push(s.name + ((r && r.error) ? ": " + r.error : ""));
+    }
+    quenForm();
+    if (loi.length) alert(t("studio.toggle_err") + "\n" + loi.join("\n"));
+    await taiLaiGiuViTri();
   }
 
   async function toggleSkill(s, enabled) {
     const r = await api("/skills/toggle", { method: "POST", body: fd({ slug: s.slug, enabled: enabled ? "1" : "0", brain: brain() }) });
     quenForm();   // danh sách skill của form trợ lý vừa đổi
-    if (r && r.error) { alert(t("studio.toggle_err") + " " + r.error); }
-    s.enabled = enabled;
-    renderSkillUI(); refreshStats();
+    if (!r || !r.ok) {
+      alert(t("studio.toggle_err") + " " + ((r && r.error) || t("studio.sk_net_err")));
+    } else {
+      s.enabled = enabled;
+      refreshStats();
+    }
+    capNhatMotThe(s);
   }
 
+  // Thay đúng thẻ của một skill + số đếm đầu trang + khung chi tiết, không vẽ lại cả trang.
+  function capNhatMotThe(s) {
+    const box = document.getElementById("skList");
+    const cu = box && [...box.querySelectorAll(".sk3-card")].find(el => el.dataset.slug === s.slug);
+    if (cu) cu.replaceWith(theSkill(s));
+    const head = document.getElementById("skHead");
+    if (head) head.textContent = t("studio.sk_count", { n: _skState.skills.length,
+      on: _skState.skills.filter(x => x.enabled !== false).length });
+    if (_skState.open === s.slug) veChiTiet();
+  }
+
+  // ---- Khung chi tiết ----
+  function moChiTiet(slug) {
+    _skState.open = slug;
+    document.querySelectorAll("#skList .sk3-card").forEach(el => el.classList.toggle("open", el.dataset.slug === slug));
+    veChiTiet();
+    const x = document.querySelector("#skDetail .sk3-x"); if (x) x.focus({ preventScroll: true });
+  }
+
+  function dongChiTiet() {
+    _skState.open = "";
+    document.querySelectorAll("#skList .sk3-card.open").forEach(el => el.classList.remove("open"));
+    veChiTiet();
+  }
+
+  // Lấy các gạch đầu dòng của mục "When to use" / "Dùng khi nào" trong SKILL.md (quy ước của
+  // javis-builder: ví dụ kích hoạt nằm trong thân, mô tả chỉ 150 ký tự).
+  function phanDungKhiNao(body) {
+    const dong = String(body || "").split(/\r?\n/);
+    const i = dong.findIndex(l => /^#{1,4}\s*(when to use|dùng khi nào|khi nào dùng|khi nào nên dùng)\b/i.test(l.trim()));
+    if (i < 0) return [];
+    const out = [];
+    for (let j = i + 1; j < dong.length && out.length < 8; j++) {
+      const l = dong[j].trim();
+      if (/^#{1,4}\s/.test(l)) break;
+      const m = l.match(/^(?:[-*+]|\d+[.)])\s+(.*)$/);
+      if (m) out.push(m[1].replace(/\*\*|__|`/g, ""));
+    }
+    return out;
+  }
+
+  function veChiTiet() {
+    const box = document.getElementById("skDetail"), scrim = document.getElementById("skScrim");
+    if (!box) return;
+    const s = _skState.skills.find(x => x.slug === _skState.open);
+    if (!s) { box.hidden = true; box.innerHTML = ""; if (scrim) scrim.hidden = true; return; }
+    box.hidden = false; if (scrim) scrim.hidden = false;
+    const on = s.enabled !== false;
+    const desc = String(s.description || "").trim();
+    const len = _doDai(desc), chu = [...desc];
+    const giu = chu.slice(0, SKILL_DESC_MAX).join(""), cat = chu.slice(SKILL_DESC_MAX).join("");
+    const used = s.use_count > 0
+      ? t("studio.used", { n: s.use_count }) + (s.last_used_at ? ", " + t("studio.last_used") + " " + new Date(s.last_used_at * 1000).toLocaleDateString(LOC()) : "")
+      : t("studio.sk_no_usage");
+    const duongDan = (s.source === ".agents" ? ".agents/skills/" : "skills/") + s.slug + "/SKILL.md";
+    box.innerHTML = `
+      <div class="sk3-d-head"><div><h4>${esc(s.name)}</h4><div class="sk3-d-sub">${esc(nhomCua(s))} · ${esc(s.system ? t("studio.sk_system_lbl") : t("studio.sk_by_you"))}</div></div>
+        <button type="button" class="sk3-x" aria-label="${esc(t("studio.sk_close"))}">${ic("x")}</button></div>
+      <div class="sk3-d-state"><span>${esc(on ? t("studio.sk_state_on") : t("studio.sk_state_off"))}</span>
+        <button type="button" class="sk3-sw" role="switch" aria-checked="${on}" aria-label="${esc(t("studio.sk_sw_aria", { ten: s.name }))}"><span class="sk3-tr"><span class="sk3-kn"></span></span></button></div>
+      <section class="sk3-d-sec"><h5><span>${esc(t("studio.sk_desc_h"))}</span><span class="sk3-n${len > SKILL_DESC_MAX ? " over" : ""}">${esc(t("studio.sk_chars", { n: len, max: SKILL_DESC_MAX }))}</span></h5>
+        <p>${esc(giu)}${cat ? `<span class="sk3-cut">${esc(cat)}</span>` : ""}</p>
+        ${cat ? `<p class="sk3-note">${esc(t("studio.sk_cut_note", { max: SKILL_DESC_MAX }))}</p>` : ""}</section>
+      <section class="sk3-d-sec" id="skWhen" hidden><h5>${esc(t("studio.sk_when_h"))}</h5><ul></ul></section>
+      <section class="sk3-d-sec"><h5>${esc(t("studio.sk_activity_h"))}</h5><p>${esc(used)}</p>
+        <p class="sk3-path">${esc(t("studio.sk_file"))}: <code>${esc(duongDan)}</code></p></section>
+      <details class="sk3-full"><summary>${esc(t("studio.sk_full"))}</summary><div class="sk3-md" id="skMd">${esc(t("common.loading"))}</div></details>
+      <div class="sk3-d-act"><button type="button" class="pri" id="skDEdit">${ic("pencil")} ${esc(t("common.edit"))}</button>${s.system
+        ? `<p class="sk3-sysnote">${esc(t("studio.sk_sys_note"))}</p>`
+        : `<button type="button" id="skDExp" title="${esc(t("studio.export_title"))}">${ic("download")} ${esc(t("studio.sk_export_one"))}</button><button type="button" class="del" id="skDDel">${ic("trash-2")} ${esc(t("common.delete"))}</button>`}</div>`;
+    box.querySelector(".sk3-x").onclick = dongChiTiet;
+    const sw = box.querySelector(".sk3-sw");
+    sw.onclick = () => { sw.disabled = true; toggleSkill(s, !on); };
+    box.querySelector("#skDEdit").onclick = () => openSkillForm(s.slug);
+    const exp = box.querySelector("#skDExp"); if (exp) exp.onclick = () => exportItem("skill", s.slug);
+    const del = box.querySelector("#skDDel"); if (del) del.onclick = () => deleteSkill(s.slug, s.name);
+    napThanSkill(s.slug);
+  }
+
+  // Thân SKILL.md cho mục "Dùng khi nào" + "Xem toàn bộ": tải một lần mỗi skill rồi nhớ lại.
+  async function napThanSkill(slug) {
+    let body = _skState.bodies[slug];
+    if (body == null) {
+      const r = await api(`/skills/get?slug=${encodeURIComponent(slug)}&brain=${encodeURIComponent(brain())}`);
+      body = (r && typeof r.body === "string") ? r.body : "";
+      _skState.bodies[slug] = body;
+    }
+    if (_skState.open !== slug) return;   // người dùng đã bấm sang skill khác trong lúc chờ
+    const when = phanDungKhiNao(body), sec = document.getElementById("skWhen");
+    if (sec && when.length) {
+      sec.querySelector("ul").innerHTML = when.map(w => `<li>${esc(w)}</li>`).join("");
+      sec.hidden = false;
+    }
+    const md = document.getElementById("skMd");
+    if (md) md.innerHTML = body.trim()
+      ? (window.mdToHtml ? window.mdToHtml(body, null) : `<pre>${esc(body)}</pre>`)
+      : esc(t("studio.sk_empty_body"));
+  }
+
+  if (!window._skEscGan) {
+    window._skEscGan = true;
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && _skState.open && document.getElementById("skDetail")) dongChiTiet();
+    });
+  }
+
+  // ---- Form tạo / sửa ----
   async function openSkillForm(slug) {
     const panel = document.getElementById("panel-skills");
     let sk = { slug: "", name: "", group: "Chung", description: "", body: "" };
     if (slug) { try { sk = await api(`/skills/get?slug=${encodeURIComponent(slug)}&brain=${encodeURIComponent(brain())}`); } catch (e) {} }
-    const groupOpts = [...new Set(_skState.skills.map(s => s.group || "Chung"))].map(g => `<option value="${esc(g)}">`).join("");
+    // Nhóm trong file có thể là bản "trùng tên" (vd "ai"): chọn sẵn tên chuẩn đang hiện ở cột
+    // nhóm, lưu lại là file được sửa luôn.
+    const nhoms = _nhomDangCo();
+    const khoa = _khoaNhom(sk.group || NHOM_MD);
+    const nhomChon = nhoms.find(g => _khoaNhom(g) === khoa) || "";
+    const opts = nhoms.map(g => `<option value="${esc(g)}"${g === nhomChon ? " selected" : ""}>${esc(g)}</option>`).join("")
+      + `<option value="__new__"${nhomChon ? "" : " selected"}>${esc(t("studio.group_new"))}</option>`;
     panel.innerHTML = `<div class="panel-bar"><h3>${esc(slug ? t("studio.sk_edit") : t("studio.sk_new"))}</h3></div>
-      <div style="display:flex;flex-direction:column;gap:12px;max-width:660px">
-        <div><label>${esc(t("studio.sk_name"))}</label><input id="skName" class="js-input" value="${esc(sk.name)}" placeholder="${esc(t("studio.sk_name_ph"))}"></div>
-        <div><label>${esc(t("studio.groups"))}</label><input id="skGroup" class="js-input" list="skGroupList" value="${esc(sk.group || "Chung")}" placeholder="${esc(t("studio.sk_group_ph"))}">
-          <datalist id="skGroupList">${groupOpts}</datalist></div>
-        <div><label>${esc(t("studio.sk_desc"))}</label><textarea id="skDesc" class="js-input" style="min-height:60px">${esc(sk.description || "")}</textarea></div>
-        <div><label>${esc(t("studio.sk_body"))}</label><textarea id="skBody" class="js-input" style="min-height:200px;font-family:ui-monospace,monospace">${esc(sk.body || "")}</textarea></div>
-        <div style="display:flex;gap:10px"><button class="s-btn" id="skSave">${ic("save")} ${esc(t("common.save"))}</button><button class="s-btn-ghost" id="skCancel">${esc(t("common.cancel"))}</button></div>
+      <div class="sk3-form">
+        <div class="fld"><label for="skName">${esc(t("studio.sk_name"))}</label><input id="skName" class="js-input" value="${esc(sk.name)}" placeholder="${esc(t("studio.sk_name_ph"))}"></div>
+        <div class="fld"><label for="skGroupSel">${esc(t("studio.groups"))}</label>
+          <select id="skGroupSel" class="js-input">${opts}</select>
+          <input id="skGroupNew" class="js-input" placeholder="${esc(t("studio.sk_group_ph"))}" value="${esc(nhomChon ? "" : (sk.group || ""))}"${nhomChon ? " hidden" : ""}>
+          <span class="hint">${esc(t("studio.sk_group_hint"))}</span></div>
+        <div class="fld"><div class="row"><label for="skDesc">${esc(t("studio.sk_desc_lbl"))}</label><span class="hint" id="skDescN"></span></div>
+          <textarea id="skDesc" class="js-input" style="min-height:76px">${esc(sk.description || "")}</textarea>
+          <span class="hint" id="skDescHint">${esc(t("studio.sk_desc_hint", { max: SKILL_DESC_MAX }))}</span></div>
+        <div class="fld"><div class="row"><span class="lbl">${esc(t("studio.sk_body_lbl"))}</span>
+            <div class="tabs" role="tablist"><button type="button" role="tab" class="sel" aria-selected="true" data-tab="edit">${esc(t("studio.sk_tab_edit"))}</button><button type="button" role="tab" aria-selected="false" data-tab="preview">${esc(t("studio.sk_tab_preview"))}</button></div></div>
+          <textarea id="skBody" class="js-input" aria-label="${esc(t("studio.sk_body_lbl"))}" style="min-height:260px;font-family:ui-monospace,monospace">${esc(sk.body || "")}</textarea>
+          <div class="prev" id="skPrev" hidden></div></div>
+        <div class="err" id="skErr" role="alert" hidden></div>
+        <div class="acts"><button class="s-btn" id="skSave">${ic("save")} ${esc(t("common.save"))}</button><button class="s-btn-ghost" id="skCancel">${esc(t("common.cancel"))}</button></div>
       </div>`;
-    panel.querySelector("#skCancel").onclick = () => loadSkills();
-    panel.querySelector("#skSave").onclick = async () => {
-      const name = panel.querySelector("#skName").value.trim();
-      if (!name) { alert(t("studio.need_sk_name")); return; }
-      const b = panel.querySelector("#skSave"); b.disabled = true; b.textContent = t("settings.saving");
-      await api("/skills", { method: "POST", body: fd({
-        name, group: panel.querySelector("#skGroup").value.trim() || "Chung",
-        description: panel.querySelector("#skDesc").value, body: panel.querySelector("#skBody").value,
+    const $ = (sel) => panel.querySelector(sel);
+    const gSel = $("#skGroupSel"), gNew = $("#skGroupNew"), desc = $("#skDesc"), err = $("#skErr");
+    gSel.onchange = () => { gNew.hidden = gSel.value !== "__new__"; if (!gNew.hidden) gNew.focus(); };
+    const demMoTa = () => {
+      const n = _doDai(desc.value), over = n > SKILL_DESC_MAX;
+      $("#skDescN").textContent = t("studio.sk_chars", { n, max: SKILL_DESC_MAX });
+      $("#skDescN").classList.toggle("over", over);
+      desc.classList.toggle("over", over);
+      const h = $("#skDescHint");
+      h.textContent = over ? t("studio.sk_desc_over", { n, max: SKILL_DESC_MAX }) : t("studio.sk_desc_hint", { max: SKILL_DESC_MAX });
+      h.classList.toggle("over", over);
+      return over;
+    };
+    desc.oninput = demMoTa; demMoTa();
+    panel.querySelectorAll(".tabs [data-tab]").forEach(b => {
+      b.onclick = () => {
+        const xem = b.dataset.tab === "preview";
+        panel.querySelectorAll(".tabs [data-tab]").forEach(x => { x.classList.toggle("sel", x === b); x.setAttribute("aria-selected", String(x === b)); });
+        const body = $("#skBody").value;
+        $("#skPrev").innerHTML = xem ? (window.mdToHtml ? window.mdToHtml(body, null) : `<pre>${esc(body)}</pre>`) : "";
+        $("#skPrev").hidden = !xem; $("#skBody").hidden = xem;
+      };
+    });
+    $("#skCancel").onclick = () => loadSkills();
+    $("#skSave").onclick = async () => {
+      const name = $("#skName").value.trim();
+      const baoLoi = (m) => { err.textContent = m; err.hidden = false; };
+      err.hidden = true;
+      if (!name) { baoLoi(t("studio.need_sk_name")); $("#skName").focus(); return; }
+      if (demMoTa()) { desc.focus(); return; }   // câu báo đã đỏ ngay dưới ô mô tả, không lặp lại
+      const group = (gSel.value === "__new__" ? gNew.value.trim() : gSel.value) || NHOM_MD;
+      const b = $("#skSave"); b.disabled = true; b.textContent = t("settings.saving");
+      // Trước 0.75.0 lỗi từ server (vd mô tả quá trần) bị nuốt: form đóng như đã lưu xong.
+      const r = await api("/skills", { method: "POST", body: fd({
+        name, group, description: desc.value, body: $("#skBody").value,
         slug: sk.slug || "", brain: brain() }) });
+      if (!r || r.error || r.ok === false) {
+        baoLoi(t("studio.sk_save_err") + " " + ((r && r.error) || t("studio.sk_net_err")));
+        b.disabled = false; b.innerHTML = `${ic("save")} ${esc(t("common.save"))}`;
+        return;
+      }
       quenForm();
+      if (sk.slug) delete _skState.bodies[sk.slug];
       loadSkills();
     };
   }
@@ -1107,6 +1498,7 @@
     if (!confirm(t("studio.del_sk", { ten: name, slug }))) return;
     await api("/skills/delete", { method: "POST", body: fd({ slug, brain: brain() }) });
     quenForm();
+    if (_skState.open === slug) _skState.open = "";
     loadSkills();
   }
 })();

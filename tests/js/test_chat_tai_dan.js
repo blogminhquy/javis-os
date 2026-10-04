@@ -114,7 +114,11 @@ check("có CSS cho mồi tải tin cũ", CSS.indexOf(".older-seed") !== -1 && CS
 check("console.js xuất pager ra cho module khác", /window\.JavisPager = pager;/.test(CONSOLE));
 check("pager nhận được cả Node lẫn chuỗi HTML", /if \(ruot && ruot\.nodeType\)/.test(CONSOLE));
 check("trang Kỹ năng gọi pager dùng chung, không tự viết bản thứ hai",
-  /window\.JavisPager\(box, list, SK_MOI_TRANG, veTrang\)/.test(STUDIO));
+  /window\.JavisPager\(box, list, SK_MOI_TRANG, veTrang[,)]/.test(STUDIO));
+// 0.75.0: bật/tắt một skill ở trang 3 từng nhảy về trang 1 vì pager giữ số trang trong biến
+// cục bộ. Trang Kỹ năng nay truyền trang đang xem vào và nhận lại mỗi lần lật.
+check("trang Kỹ năng nhớ trang đang xem qua pager",
+  /page: _skState\.page, onPage: \(p\) => \{ _skState\.page = p; \}/.test(STUDIO));
 check("có hằng số số skill mỗi trang", /const SK_MOI_TRANG = \d+;/.test(STUDIO));
 check("thẻ skill tách thành hàm riêng để mỗi trang dựng lại được",
   /function theSkill\(s\) \{/.test(STUDIO) && /phan\.forEach\(s => fr\.appendChild\(theSkill\(s\)\)\)/.test(STUDIO));

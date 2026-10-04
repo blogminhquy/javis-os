@@ -8,7 +8,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.76.0] - 2026-10-05
 ### Cải thiện
-- (đang viết)
+- **Trang Kỹ năng làm lại cho dễ dùng.** Mỗi kỹ năng có công tắc bật/tắt riêng ở bên phải, hết cảnh hai ô tick giống nhau mà bấm nhầm là tắt mất kỹ năng. Bấm vào một kỹ năng là mở khung chi tiết: mô tả, mục "Dùng khi nào", số lần dùng, nút Sửa, Xuất, Xoá.
+- **Chọn nhiều kỹ năng để mang đi nơi khác.** Ô tick ở đầu mỗi thẻ luôn có sẵn, chọn xong là hiện nút "Xuất N kỹ năng". Gói .zip nhập lại được vào Javis khác, hoặc giải nén vào thư mục .claude là Claude Code dùng ngay. Chiều ngược lại, nhập một gói chứa nhiều thư mục kỹ năng giờ vào đủ cả, không chỉ cái đầu tiên.
+- **Lọc và sắp xếp:** lọc Đang bật, Đang tắt, Hệ thống, sắp theo Hay dùng nhất hoặc Tên. Nhóm trùng tên kiểu "ai" với "AI" được gộp lại, lưu kỹ năng là sửa luôn về tên chuẩn.
+- **Sửa lỗi:** bật/tắt ở trang 3 không còn nhảy về trang 1. Ô mô tả đếm ký tự, báo ngay khi quá 150 ký tự (phần Javis không đọc được tô đỏ), và lưu lỗi thì hiện lý do thay vì đóng form như đã lưu.
+
 
 ## [0.75.1] - 2026-10-05
 ### Cải thiện

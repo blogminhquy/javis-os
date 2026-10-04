@@ -53,8 +53,13 @@ def _parse(text: str):
 
 
 def slugify(name: str) -> str:
-    """ascii-slug không dấu (khớp cách main.py sinh slug)."""
-    s = unicodedata.normalize("NFKD", str(name or "")).encode("ascii", "ignore").decode()
+    """ascii-slug không dấu (khớp cách main.py sinh slug).
+
+    "đ" không tách dấu được trong Unicode (nó là một chữ riêng, không phải d + dấu), nên phải đổi
+    tay TRƯỚC khi lọc ASCII; thiếu bước này "Chốt đơn" thành `chot-on` (bắt được 05/10/2026 khi
+    viết test nhập nhiều skill), lệch với `_ascii_slug` của main.py vốn đã đổi đ → d."""
+    s = str(name or "").replace("đ", "d").replace("Đ", "D")
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
     s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
     return s
 
@@ -278,25 +283,35 @@ def import_bundle(data: bytes, filename, *, agents_dir, workflows_dir, skills_ro
                         skip_skill.add(slug); skp.add(f"skill:{slug}"); continue
                 write_one(target, z.read(i), typ, slug, arc=arc)
         else:
-            # Gói SKILL kiểu CLAUDE (.skill / .zip): SKILL.md ở gốc hoặc trong 1 thư mục con.
-            cand = sorted([a for a in arcs if a.rsplit("/", 1)[-1] == "SKILL.md"], key=lambda a: a.count("/"))
+            # Gói SKILL kiểu CLAUDE (.skill / .zip): SKILL.md ở gốc hoặc trong thư mục con. Một gói
+            # có thể chứa NHIỀU thư mục skill cùng cấp (nén nguyên thư mục skills của công cụ khác,
+            # hay gói "chọn nhiều" mà người dùng giải nén rồi nén lại): trước 0.75.0 chỉ skill
+            # đứng đầu được nhập, phần còn lại mất im lặng.
+            cand = sorted([a for a in arcs if a.rsplit("/", 1)[-1] == "SKILL.md" and "__MACOSX/" not in a],
+                          key=lambda a: (a.count("/"), a))
             if not cand:
                 res["errors"].append(localefmt.chu("Gói .zip không phải javis-bundle và không có SKILL.md - không rõ nhập gì.",
                                                    "The .zip is not a javis-bundle and has no SKILL.md - unclear what to import."))
                 return res
-            prefix = cand[0][:-len("SKILL.md")]   # "" (gốc) hoặc "thu-muc/"
-            try:
-                sk_meta, _ = _parse(z.read(cand[0]).decode("utf-8", "replace"))
-            except Exception:
-                sk_meta = {}
-            slug = slugify(sk_meta.get("name") or "") or slugify(prefix.rstrip("/"))
-            if not _valid_slug(slug):
-                res["errors"].append(localefmt.chu("Không xác định được tên skill hợp lệ từ gói (thiếu 'name' trong SKILL.md).",
-                                                   "Could not work out a valid skill name from the bundle (no 'name' in SKILL.md)."))
-                return res
-            if (Path(skills_root) / slug).exists() and not overwrite:
-                skp.add(f"skill:{slug}")
-            else:
+            sau = cand[0].count("/")
+            # SKILL.md ngay ở gốc gói = cả gói là MỘT skill. Ngược lại mọi SKILL.md CÙNG CẤP nông
+            # nhất là các skill anh em; SKILL.md nằm sâu hơn thuộc về thư mục cha của nó.
+            goc_skill = cand[:1] if sau == 0 else [a for a in cand if a.count("/") == sau]
+
+            def nhap_mot_skill(smd_arc):
+                prefix = smd_arc[:-len("SKILL.md")]   # "" (gốc) hoặc ".../thu-muc/"
+                try:
+                    sk_meta, _ = _parse(z.read(smd_arc).decode("utf-8", "replace"))
+                except Exception:
+                    sk_meta = {}
+                slug = slugify(sk_meta.get("name") or "") or slugify(prefix.rstrip("/").rsplit("/", 1)[-1])
+                if not _valid_slug(slug):
+                    res["errors"].append(localefmt.chu("Không xác định được tên skill hợp lệ từ gói (thiếu 'name' trong SKILL.md).",
+                                                       "Could not work out a valid skill name from the bundle (no 'name' in SKILL.md)."))
+                    return
+                if (Path(skills_root) / slug).exists() and not overwrite:
+                    skp.add(f"skill:{slug}")
+                    return
                 for i in infos:
                     arc = i.filename.replace("\\", "/")
                     if not arc.startswith(prefix) or _bad(arc, i):
@@ -306,6 +321,9 @@ def import_bundle(data: bytes, filename, *, agents_dir, workflows_dir, skills_ro
                     if not rel or "__MACOSX/" in arc or base in (".DS_Store",):
                         continue   # bỏ rác của trình nén Mac
                     write_one(Path(skills_root) / slug / rel, z.read(i), "skill", slug, arc=arc)
+
+            for smd_arc in goc_skill:
+                nhap_mot_skill(smd_arc)
 
     res["imported"] = sorted(imp)
     res["skipped"] = sorted(skp - imp)

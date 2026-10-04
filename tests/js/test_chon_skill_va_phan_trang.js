@@ -58,7 +58,7 @@ check("danh sách skill có giới hạn chiều cao (55+ skill không đẩy n�
 // ============================================================
 // B. Phân trang
 // ============================================================
-check("có helper phân trang dùng chung", /function pager\(box, items, perPage, renderPage, emptyHtml\)/.test(CONSOLE));
+check("có helper phân trang dùng chung", /function pager\(box, items, perPage, renderPage, emptyHtml(, opts)?\)/.test(CONSOLE));
 check("CSS thanh lật trang gom về một chỗ", /\.jv-pager \{/.test(CSS));
 
 // Ba chỗ dùng, và KHÔNG chỗ nào tự vẽ lại nút Trước/Sau.
@@ -124,6 +124,21 @@ check("trang cuối chỉ còn phần dư", box.innerHTML.indexOf("<i>5</i>") ==
 check("trang cuối thì nút Sau bị khoá", /data-pg="next" disabled/.test(box.innerHTML));
 nhan['[data-pg="prev"]'].onclick();
 check("bấm Trước thì lùi lại", box.innerHTML.indexOf("<i>3</i><i>4</i>") === 0);
+
+// ---- Nhớ trang (0.75.0): trang Kỹ năng vẽ lại sau khi bật/tắt mà không được quay về trang 1 ----
+let nho = -1;
+const nhan2 = {};
+box.querySelector = (sel) => (box.innerHTML.indexOf(sel.replace(/[[\]]/g, "")) !== -1
+  ? (nhan2[sel] = nhan2[sel] || {}) : null);
+const ve = (page) => page.map((x) => `<i>${x}</i>`).join("");
+pager(box, [1, 2, 3, 4, 5], 2, ve, "", { page: 1, onPage: (p) => { nho = p; } });
+check("mở thẳng trang được chỉ định", box.innerHTML.indexOf("<i>3</i><i>4</i>") === 0);
+check("báo lại trang đang xem", nho === 1);
+nhan2['[data-pg="next"]'].onclick();
+check("lật trang thì báo trang mới", nho === 2 && box.innerHTML.indexOf("<i>5</i>") === 0);
+pager(box, [1, 2, 3], 2, ve, "", { page: 9, onPage: (p) => { nho = p; } });
+check("trang nhớ lớn hơn số trang hiện có (danh sách vừa ngắn đi) thì về trang cuối",
+  box.innerHTML.indexOf("<i>3</i>") === 0 && nho === 1);
 
 if (fails.length) {
   console.log("\nFAIL - test_chon_skill_va_phan_trang: " + fails.length + " lỗi: " + fails.join(", "));

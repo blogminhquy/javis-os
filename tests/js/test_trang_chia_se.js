@@ -104,8 +104,8 @@ const NGUONG_TIM = hangSo("SHARE_NGUONG_TIM", 8);
 
 // pager() THẬT của console.js, không phải bản giả: phân trang của trang Chia sẻ chạy đúng bộ
 // máy dùng chung với trang Kỹ năng, nên test phải chạy đúng bộ máy đó.
-const thanPager = bocHam(consoleSrc, "function pager(box, items, perPage, renderPage, emptyHtml) {");
-const pagerThat = new Function("box", "items", "perPage", "renderPage", "emptyHtml", "window",
+const thanPager = bocHam(consoleSrc, "function pager(box, items, perPage, renderPage, emptyHtml, opts) {");
+const pagerThat = new Function("box", "items", "perPage", "renderPage", "emptyHtml", "opts", "window",
   thanPager)
   ;
 
@@ -148,7 +148,7 @@ async function chay(items, opts) {
   const win = {
     prompt: (opts && opts.prompt) || (() => null),
     isSecureContext: false,
-    JavisPager: (box, arr, per, ve, trong) => pagerThat(box, arr, per, ve, trong, win),
+    JavisPager: (box, arr, per, ve, trong, opts) => pagerThat(box, arr, per, ve, trong, opts, win),
     t: t,
   };
   await new Function("el", "_renderGen", "ic", "t", "esc", "fetch", "location",

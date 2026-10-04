@@ -234,15 +234,19 @@
    *   ký dựng bằng chuỗi; danh sách có nút bấm (trang Kỹ năng) phải dựng bằng node, vì gắn
    *   handler qua chuỗi HTML thì mỗi lần lật trang lại phải đi dò lại từng nút mà nối.
    * @param emptyHtml HTML hiện khi không có mục nào
+   * @param opts      tuỳ chọn: { page, onPage }. `page` = trang mở ra (đếm từ 0), `onPage(p)`
+   *   báo lại mỗi lần lật để nơi gọi nhớ trang. Trang Kỹ năng cần cái này: vẽ lại danh sách
+   *   sau khi bật/tắt một skill mà quay về trang 1 thì người đang ở trang 3 phải lật lại từ đầu.
    */
-  function pager(box, items, perPage, renderPage, emptyHtml) {
+  function pager(box, items, perPage, renderPage, emptyHtml, opts) {
     if (!box) return;
     const all = items || [];
     if (!all.length) { box.innerHTML = emptyHtml || `<div class="dim" style="color:var(--text3)">${window.t("common.none")}</div>`; return; }
     const pages = Math.max(1, Math.ceil(all.length / perPage));
-    let page = 0;
+    let page = (opts && opts.page) || 0;
     const draw = () => {
       page = Math.min(Math.max(0, page), pages - 1);
+      if (opts && typeof opts.onPage === "function") opts.onPage(page);
       const nav = pages > 1 ? `<div class="jv-pager">
           <button class="s-btn-ghost" data-pg="prev"${page === 0 ? " disabled" : ""}>← ${window.t("cs.pager_prev")}</button>
           <span class="jv-pager-n">${window.t("cs.pager_info", { trang: page + 1, tong: pages, so: all.length })}</span>
