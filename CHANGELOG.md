@@ -13,7 +13,6 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Lọc và sắp xếp:** lọc Đang bật, Đang tắt, Hệ thống, sắp theo Hay dùng nhất hoặc Tên. Nhóm trùng tên kiểu "ai" với "AI" được gộp lại, lưu kỹ năng là sửa luôn về tên chuẩn.
 - **Sửa lỗi:** bật/tắt ở trang 3 không còn nhảy về trang 1. Ô mô tả đếm ký tự, báo ngay khi quá 150 ký tự (phần Javis không đọc được tô đỏ), và lưu lỗi thì hiện lý do thay vì đóng form như đã lưu.
 
-
 ## [0.75.1] - 2026-10-05
 ### Cải thiện
 - **Tông màu mặc định là Tự động.** Máy chưa từng chọn tông giờ tự sáng từ 06:00 và tự tối từ 18:00, thay vì tối cả ngày như trước. Ai đã chọn Tối hay Sáng bằng tay thì giữ nguyên lựa chọn đó.
