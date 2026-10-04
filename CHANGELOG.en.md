@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.72.1] - 2026-10-04
 ### Fixed
-- **When Claude Code is too slow to start, Javis now says where it got stuck.** The error used to guess "probably a data source (MCP)", and from the second turn on it printed "the allowed limit" instead of the real number of seconds. Javis now records what Claude Code printed at startup and whether it ever reached Javis's tool hub, and states a conclusion from that evidence, both in the error message and in the bot's "Latest run ERROR" line.
+- **When Claude Code is too slow to start, Javis now says where it got stuck instead of guessing "probably a data source".** The error now tells you whether Claude Code reached Javis's tool hub at all, whether the hub answered fast or slow, and quotes the line Claude Code itself printed, such as an expired sign-in. The verdict comes first, so it stays readable on the bot card.
+- **The error no longer says "the allowed limit" from the second turn on.** It always names the real number of seconds.
+- Full details of every timeout are also written to the server log on a `[claude init timeout]` line.
 
 ## [0.71.2] - 2026-10-04
 ### Fixed

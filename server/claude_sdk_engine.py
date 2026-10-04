@@ -19,6 +19,7 @@ quyền enforce PER-CALL bằng callback can_use_tool - tool ngoài whitelist b�
 từng lần gọi (kể cả Bash/Write builtin) + ghi audit, thay vì chỉ dựa --allowedTools tĩnh.
 """
 import asyncio
+import collections
 import fnmatch
 import json
 import os
@@ -37,6 +38,7 @@ except Exception:
     _SDK_OK = False
 
 from config import STATE_DIR
+import hub_trace
 import localefmt
 
 _AUDIT_PATH = STATE_DIR / "logs" / "sdk_tool_audit.jsonl"
@@ -129,14 +131,110 @@ def ap_tran_khoi_dong():
     return giay
 
 
-def loi_de_hieu(e, tran_init=None):
+_HUB_SLOW_S = 30.0   # giây - cổng công cụ của Javis trả lời lâu hơn mức này thì coi là chậm
+
+
+def _init_limit_label(tran_init):
+    """Số giây của trần khởi động để in ra câu lỗi.
+
+    `tran_init` là None từ lượt thứ hai: `ap_tran_khoi_dong` đã tự ghi biến của SDK ở lượt đầu,
+    nên lượt sau thấy biến đó và coi như người dùng tự đặt. Câu lỗi vì thế in chung chung
+    "trần cho phép" (khách báo 2026-10-04), dù trần thật vẫn nằm đó. Số thật nằm trong chính
+    biến này (mili giây) nên đọc ngược từ đây."""
+    if tran_init:
+        return f"{int(tran_init)}s"
+    try:
+        giay = float(os.getenv("CLAUDE_CODE_STREAM_CLOSE_TIMEOUT", "")) / 1000.0
+        if giay > 0:
+            return f"{int(giay)}s"
+    except (TypeError, ValueError):
+        pass
+    return localefmt.chu("trần cho phép", "the allowed limit")
+
+
+def _giay(x):
+    return "<1s" if x < 1 else f"{x:.0f}s"
+
+
+def _init_timeout_text(n, cd):
+    """Câu báo lỗi hết giờ khởi động DỰA TRÊN BẰNG CHỨNG. Trả None khi không có bằng chứng.
+
+    `cd` = {"hub_attached", "hub": hub_trace.since(...), "stderr": [dòng cuối của claude]}.
+    Ba hướng khác nhau hẳn, và bản cũ gộp hết thành "chắc do nguồn MCP":
+      - claude chưa hề gọi hub: nó kẹt TRƯỚC đó (đăng nhập, mạng, tự cập nhật), tắt nguồn MCP
+        chẳng giúp gì;
+      - hub trả chậm hoặc chưa trả: bước dò nguồn MCP là nghi can thật;
+      - hub trả nhanh mà vẫn hết giờ: hub vô can.
+    Kết luận đặt ĐẦU câu vì ô "Lượt gần nhất LỖI" của bot chỉ hiện 160 ký tự đầu."""
+    if not cd:
+        return None
+    hub = cd.get("hub") or {}
+    login_vi = "Kiểm tra đăng nhập Claude ở trang Models rồi gửi lại tin nhắn."
+    login_en = "Check the Claude sign-in on the Models page, then send the message again."
+    mcp_vi = ("Nghi nhất là một NGUỒN DỮ LIỆU (MCP) chết hoặc chậm: mở trang Kết nối, bấm Kiểm tra, "
+              "tắt nguồn đang đỏ rồi gửi lại tin nhắn. (JAVIS_CLAUDE_INIT_TIMEOUT=<giây> để nới thêm trần này)")
+    mcp_en = ("A dead or slow DATA SOURCE (MCP) is the prime suspect: open the Connections page, click "
+              "Check, turn off the red source and send the message again. "
+              "(JAVIS_CLAUDE_INIT_TIMEOUT=<seconds> raises this limit)")
+    cham = max([x for x in (hub.get("init_s"), hub.get("list_s")) if x is not None] or [0.0])
+    list_s = hub.get("list_s")
+    if not cd.get("hub_attached", True):
+        vi = ("lượt này không đấu cổng công cụ của Javis nên hub không phải thủ phạm. Nếu máy có đấu "
+              "connector của chính Claude Code (claude.ai, cài đặt người dùng) thì kiểm tra chúng; "
+              "không thì " + login_vi[0].lower() + login_vi[1:])
+        en = ("this run did not attach the Javis tool hub, so the hub is not the culprit. If the machine "
+              "attaches Claude Code's own connectors (claude.ai, user settings) check those; otherwise "
+              + login_en[0].lower() + login_en[1:])
+    elif not hub.get("called"):
+        vi = ("nó chưa hề gọi tới cổng công cụ của Javis, nên KHÔNG phải do nguồn MCP. Nó kẹt từ trước "
+              "đó, thường vì đăng nhập Claude hết hạn, máy không ra được mạng hoặc đang tự cập nhật. "
+              + login_vi)
+        en = ("it never reached the Javis tool hub, so it is NOT a data source (MCP). It got stuck "
+              "before that, usually an expired Claude sign-in, no network or a self-update. " + login_en)
+    elif hub.get("pending") and hub.get("pending_s", 0.0) >= _HUB_SLOW_S:
+        vi = (f"cổng công cụ của Javis nhận yêu cầu {_giay(hub['pending_s'])} trước mà chưa trả lời. "
+              + mcp_vi)
+        en = (f"the Javis tool hub got a request {_giay(hub['pending_s'])} ago and has not answered. "
+              + mcp_en)
+    elif cham >= _HUB_SLOW_S:
+        vi = f"cổng công cụ của Javis trả quá chậm (mất {_giay(cham)} mới trả lời). " + mcp_vi
+        en = f"the Javis tool hub answered far too slowly ({_giay(cham)} to reply). " + mcp_en
+    elif list_s is not None:
+        vi = (f"cổng công cụ của Javis trả lời bình thường (liệt kê công cụ mất {_giay(list_s)}), nên "
+              "không phải do nguồn MCP. Claude Code kẹt ở bước khác, thường là đăng nhập hết hạn hoặc "
+              "mạng. " + login_vi)
+        en = (f"the Javis tool hub answered normally (listing tools took {_giay(list_s)}), so it is not "
+              "a data source (MCP). Claude Code is stuck on something else, usually an expired sign-in "
+              "or the network. " + login_en)
+    else:
+        vi = ("cổng công cụ của Javis đã nhận kết nối nhưng Claude Code chưa hỏi tới danh sách công cụ, "
+              "nên chưa tới bước dò nguồn MCP. Nó kẹt ở bước khác, thường là đăng nhập hết hạn hoặc "
+              "mạng. " + login_vi)
+        en = ("the Javis tool hub accepted the connection but Claude Code never asked for the tool "
+              "list, so the data sources (MCP) were not even reached. It is stuck on something else, "
+              "usually an expired sign-in or the network. " + login_en)
+    tail = [str(x).strip()[:120] for x in (cd.get("stderr") or []) if str(x).strip()][-2:]
+    if tail:
+        vi += ' Claude Code in ra: "' + " | ".join(tail) + '"'
+        en += ' Claude Code printed: "' + " | ".join(tail) + '"'
+    return localefmt.chu(
+        "Claude Code không khởi động xong trong " + n + ": " + vi,
+        "Claude Code did not finish starting within " + n + ": " + en)
+
+
+def loi_de_hieu(e, tran_init=None, chan_doan=None):
     """Đổi exception của SDK thành câu người dùng ĐỌC RA ĐƯỢC VIỆC PHẢI LÀM.
 
     Mẫu nào không khớp thì giữ nguyên chuỗi gốc: đoán bừa nguyên nhân còn tệ hơn tiếng Anh trần.
+    `chan_doan` (xem `_init_timeout_text`) có thì câu hết giờ khởi động nêu thủ phạm theo bằng
+    chứng; không có thì quay về gợi ý chung.
     """
     raw = str(e)
     if "Control request timeout: initialize" in raw:
-        n = f"{int(tran_init)}s" if tran_init else localefmt.chu("trần cho phép", "the allowed limit")
+        n = _init_limit_label(tran_init)
+        theo_bang_chung = _init_timeout_text(n, chan_doan)
+        if theo_bang_chung:
+            return theo_bang_chung
         return localefmt.chu(
             "Claude Code không khởi động xong trong " + n + " nên lượt này bị huỷ. Gần như "
             "luôn là do NGUỒN DỮ LIỆU (MCP): lúc khởi động, Claude phải kết nối xong mọi "
@@ -399,6 +497,33 @@ class ClaudeSDK:
         # claude_code thì tự nhét lại prompt đầy đủ của Claude Code và ăn sạch phần tiết kiệm.
         self.system_prompt_raw = False
         self._tmp_files = []      # file tạm (system prompt) dọn sau mỗi query
+        # Vài chục dòng cuối `claude` in ra stderr, để câu báo lỗi hết giờ khởi động trích được
+        # lý do nó kẹt. Xoá ở đầu mỗi query.
+        self._stderr_tail = collections.deque(maxlen=40)
+        # `_options` đặt: lượt này có đấu cổng công cụ của Javis không (None = chưa biết).
+        self._hub_attached = None
+
+    def _on_stderr(self, line):
+        """Nhận từng dòng stderr của tiến trình `claude`.
+
+        Không đặt callback thì SDK để `claude` thừa hưởng stderr của server, tức mọi dòng nó in
+        rơi thẳng vào log. Đặt callback thì SDK gom stderr vào ống, nên PHẢI in lại ở đây kẻo mất
+        dấu vết vốn có."""
+        text = (line or "").rstrip("\r\n")
+        if not text.strip():
+            return
+        self._stderr_tail.append(text[:300])
+        print(f"[claude stderr] {text}", file=sys.stderr)
+
+    def _startup_diagnosis(self, t_start):
+        """Bằng chứng cho lỗi hết giờ khởi động: `claude` có chạm tới hub không, và nó đã in gì.
+        Lỗi lấy bằng chứng không được che mất lỗi gốc nên trả None."""
+        try:
+            return {"hub_attached": self._hub_attached is not False,
+                    "hub": hub_trace.since(t_start),
+                    "stderr": list(self._stderr_tail)}
+        except Exception:
+            return None
 
     def is_available(self) -> bool:
         if not _SDK_OK:
@@ -604,6 +729,9 @@ class ClaudeSDK:
         # ảnh chụp màn hình) vượt ngưỡng này là vỡ buffer -> SDKJSONDecodeError.
         if "max_buffer_size" in getattr(ClaudeAgentOptions, "__dataclass_fields__", {}):
             kw["max_buffer_size"] = 32 * 1024 * 1024
+        # Thu stderr của `claude` để lỗi hết giờ khởi động nêu được lý do (xem `_on_stderr`).
+        if "stderr" in fields:
+            kw["stderr"] = self._on_stderr
         # Chế độ API key: đưa ANTHROPIC_API_KEY xuống tiến trình `claude`. Phải MERGE với
         # os.environ chứ không thay thế - SDK truyền thẳng dict này cho tiến trình con, và một
         # env chỉ có mỗi API key là mất PATH, mất HOME, tiến trình chết trước khi kịp chào.
@@ -631,6 +759,9 @@ class ClaudeSDK:
         if self.session_id:
             kw["resume"] = self.session_id
         servers, strict = self._mcp_servers()
+        # Nhớ lượt này có đấu hub Javis không: lỗi hết giờ khởi động cần biết để khỏi đổ cho hub
+        # khi hub vốn không được đấu. Chuỗi (đường dẫn thô) coi như có đấu vì không đọc được.
+        self._hub_attached = True if isinstance(servers, str) else bool(servers) and "javis" in servers
         if servers is not None:
             kw["mcp_servers"] = servers
             if strict:
@@ -677,6 +808,7 @@ class ClaudeSDK:
         self._sweep_stale_tmp()   # dọn file prompt tạm sót từ lượt trước bị crash/kill
         # Nới trần `initialize` TRƯỚC khi dựng client: SDK đọc env ngay trong connect().
         tran_init = ap_tran_khoi_dong()
+        self._stderr_tail.clear()   # chỉ giữ dòng của lượt này
         loop = asyncio.get_running_loop()
         options = self._options()
         completion = _CompletionWatch(RESULT_IDLE if getattr(options, "include_hook_events", False) else None)
@@ -790,7 +922,14 @@ class ClaudeSDK:
                 if isinstance(msg, ResultMessage):
                     break
         except Exception as e:
-            yield {"type": "error", "content": loi_de_hieu(e, tran_init)}
+            chan_doan = None
+            if "Control request timeout: initialize" in str(e):
+                # Hết giờ khởi động: lấy bằng chứng (claude có gọi tới hub không, nó in gì) để câu
+                # báo lỗi nêu đúng thủ phạm, và ghi đủ chi tiết vào log cho chủ soi lại sau.
+                chan_doan = self._startup_diagnosis(started)
+                print(f"[claude init timeout] tag={self.tag} sau={time.time() - started:.0f}s "
+                      f"chan_doan={chan_doan}", file=sys.stderr)
+            yield {"type": "error", "content": loi_de_hieu(e, tran_init, chan_doan)}
         finally:
             with _LOCK:
                 _ACTIVE.pop(client, None)

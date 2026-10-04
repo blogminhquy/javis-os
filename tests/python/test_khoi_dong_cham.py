@@ -203,7 +203,7 @@ _than = _sdk.split("async def query")[1]
 check("engine nới trần trước khi dựng ClaudeSDKClient",
       _than.index("ap_tran_khoi_dong()") < _than.index("ClaudeSDKClient(options="))
 check("engine trả lỗi qua loi_de_hieu chứ không f-string thô",
-      "loi_de_hieu(e, tran_init)" in _than
+      re.search(r"loi_de_hieu\(e, tran_init(, \w+)?\)", _than) is not None
       and not re.search(r'"SDK engine: \{type\(e\)', _than))
 
 _mc = (SERVER / "mcp_client.py").read_text(encoding="utf-8")

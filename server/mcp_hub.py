@@ -25,6 +25,7 @@ from urllib.parse import quote, unquote
 from fastapi.responses import JSONResponse, Response
 
 import config
+import hub_trace
 import localefmt
 import mcp_catalog
 import mcp_client
@@ -1380,6 +1381,18 @@ async def handle_http(request):
                                  raw_vault=request.headers.get("x-javis-vault"))
 
 
+async def _handle_one_traced(msg, *args, **kwargs):
+    """`_handle_one` plus a trace of the startup requests (initialize, tools/list).
+
+    A Claude Code startup timeout reads this trace to tell "Claude never reached the hub" from
+    "the hub answered late". See hub_trace."""
+    ev = hub_trace.begin(msg.get("method") if isinstance(msg, dict) else None)
+    try:
+        return await _handle_one(msg, *args, **kwargs)
+    finally:
+        hub_trace.end(ev)
+
+
 async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=False,
                           raw_vault=None):
     """Đọc thân JSON-RPC của `request`, chạy qua hub, trả Response. KHÔNG xác thực gì cả.
@@ -1396,14 +1409,14 @@ async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=F
         return JSONResponse(_rpc_error(None, -32700, "parse error"), status_code=400)
     try:
         if isinstance(body, list):
-            out = [r for r in [await _handle_one(m, mode, include_plugins, include_ambient,
-                                                 vault_root, vault_nguon, vault_header_hong)
+            out = [r for r in [await _handle_one_traced(m, mode, include_plugins, include_ambient,
+                                                        vault_root, vault_nguon, vault_header_hong)
                                for m in body] if r is not None]
             if not out:
                 return Response(status_code=202)
             return JSONResponse(out)
-        res = await _handle_one(body, mode, include_plugins, include_ambient, vault_root,
-                                vault_nguon, vault_header_hong)
+        res = await _handle_one_traced(body, mode, include_plugins, include_ambient, vault_root,
+                                       vault_nguon, vault_header_hong)
         if res is None:
             return Response(status_code=202)
         return JSONResponse(res)
