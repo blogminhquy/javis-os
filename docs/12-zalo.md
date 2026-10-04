@@ -56,7 +56,7 @@ Nút **Hướng dẫn trên GitHub** trong thẻ Zalo luôn mở trang tài li�
 | `zalo_get_history` | Lấy lịch sử một cuộc chat, có phân trang | Đọc |
 | `zalo_list_threads` | Liệt kê các cuộc chat đang có trong bộ đệm | Đọc |
 | `zalo_search_threads` | Tìm nhóm hoặc người theo tên | Đọc |
-| `zalo_view_media` | Tải/mở ảnh, âm thanh hoặc video của tin nhắn | Đọc |
+| `zalo_view_media` | Tải/mở ảnh, âm thanh hoặc video trên máy chủ (bộ não không thấy ảnh, xem `zalo_read_images` bên dưới) | Đọc |
 | `zalo_mark_read` | Đánh dấu đã xử lý đến một cursor | Ghi |
 | `zalo_send_message` | Gửi tin cho cá nhân hoặc nhóm | Nguy hiểm |
 
@@ -66,11 +66,48 @@ tài liệu MCP, vì hai bên từng lệch nhau: kiểu cuộc chat của `zalo
 
 <https://github.com/PhucMPham/zalo-agent-cli/blob/main/skill/references/mcp-guide.md>
 
+## Gói Zalo mở rộng (Javis Store)
+
+Ba nhóm tool dưới đây (đọc ảnh, gửi ảnh và file, tag người cùng ghi chú, nhắc hẹn, poll) bù đúng
+chỗ MCP chuẩn còn thiếu. Từ 0.73.0 chúng nằm trong gói **`javis.zalo`** trên Javis Store thay vì
+đi sẵn trong app, để ai không dùng Zalo thì không phải mang theo:
+
+- **Quét QR Zalo xong là Javis mời cài gói**, qua đúng màn hình đồng ý của kho: liệt kê từng tệp
+  mã, công tắc "chạy ngay" bật sẵn vì bạn vừa tự đấu Zalo. Bấm Cài là có đủ tool.
+- **Máy đã đấu Zalo từ trước** thì trang Kết nối hiện dải nhắc kèm nút **Cài gói đi kèm**.
+  Javis không bao giờ tự cài gói có mã mà không hỏi.
+- Kết nối Zalo, Hộp thư và chatbot Zalo vẫn ở trong app, chạy bình thường dù chưa cài gói. Thiếu
+  gói thì chỉ thiếu các tool mở rộng.
+
+## Đọc ảnh trong nhóm
+
+MCP của Zalo chỉ trả **đường link** của ảnh, giữ tin trong 2 giờ, và `zalo_view_media` mở ảnh
+bằng trình xem ảnh của máy chủ chứ không đưa cho bộ não. Nên gói `javis.zalo` có tool
+`zalo_read_images`:
+
+| Tool | Công dụng | Mức thao tác |
+|---|---|---|
+| `zalo_read_images` | Lấy ảnh người ta gửi trong nhóm về brain và cho bộ não biết trong ảnh có gì | Ghi (lưu ảnh vào brain) |
+
+Nói trong chat như bình thường, ví dụ “xem ảnh hoá đơn chị Lan vừa gửi trong nhóm Kinh doanh”.
+
+- **Ảnh lấy thẳng từ Zalo**, không phụ thuộc bộ đệm 2 giờ của MCP: Javis hỏi Zalo các tin gần
+  nhất của nhóm (mặc định 30, tối đa 100) và lấy tối đa 8 ảnh mới nhất. Chat riêng thì chỉ lấy
+  được ảnh còn trong bộ đệm MCP.
+- **Ảnh lưu vào `attachments/zalo/<id nhóm>/`** của brain, nên hiện được ngay trong khung chat.
+- **Mọi bộ não đều "thấy" ảnh.** Claude Code và Codex tự mở file ảnh. Các engine API (OpenRouter,
+  Gemini...) không tự xem ảnh được, nên ChatGPT trên gói bạn đang đăng nhập nhìn ảnh rồi tả lại,
+  chép nguyên văn chữ và số trong ảnh. Chưa đăng nhập ChatGPT ở trang Model thì vẫn tải được ảnh,
+  chỉ thiếu phần tả.
+
+Phần ChatGPT xem ảnh nằm trong app (plugin có sẵn `image-chatgpt`, tool `javis_describe_image`),
+nên xem được cả mọi ảnh khác trong brain, có cài gói Zalo hay không.
+
 ## Gửi ảnh và file
 
 `zalo_send_message` ở trên **chỉ gửi được chữ**. Muốn gửi ảnh (ví dụ ảnh Javis vừa tạo) hay
-file (báo cáo PDF, bảng tính) thì dùng tool `zalo_send_image` do plugin bundled `zalo-image`
-cung cấp. Plugin bật sẵn, không cần cài gì thêm, và dùng đúng tài khoản Zalo bạn đã quét QR.
+file (báo cáo PDF, bảng tính) thì dùng tool `zalo_send_image` trong gói `javis.zalo`. Nó dùng
+đúng tài khoản Zalo bạn đã quét QR.
 
 | Tool | Công dụng | Mức thao tác |
 |---|---|---|
@@ -93,8 +130,8 @@ Cần Node.js 20+ trên máy chạy Javis, giống như phần kết nối Zalo.
 
 ## Tag người, ghi chú, nhắc hẹn và poll
 
-`zalo_send_message` chỉ gửi chữ nên không tag được ai, và MCP của Zalo cũng không có ghi chú, nhắc hẹn hay poll. Plugin bundled
-`zalo-group` (bật sẵn, làm giống `zalo-image`) bù đúng các chỗ đó bằng năm tool, mọi bộ não đều gọi được:
+`zalo_send_message` chỉ gửi chữ nên không tag được ai, và MCP của Zalo cũng không có ghi chú, nhắc hẹn hay poll. Gói
+`javis.zalo` bù đúng các chỗ đó bằng năm tool, mọi bộ não đều gọi được:
 
 | Tool | Công dụng | Mức thao tác |
 |---|---|---|

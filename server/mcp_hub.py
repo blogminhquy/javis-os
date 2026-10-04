@@ -45,6 +45,7 @@ _CACHE_TTL = 60
 _CACHE_TTL_THIEU = 10
 _cache = {}          # (mode, vault_root) -> {"tools", "route", "ts", "mtime"}
 _rate = {}           # conn_id -> deque[timestamps]
+_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".heic"}
 
 
 # ============================================================
@@ -577,6 +578,12 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
                     f"dùng vừa đính kèm vào khung chat.")
         if not p.is_file():
             return f"ERROR: không có file '{rel}'"
+        if p.suffix.lower() in _IMAGE_SUFFIXES:
+            # Reading a photo as text hands the model a page of mojibake it then "describes" with confidence. Say what the
+            # file is and how to actually see it (0.73.0).
+            return (f"'{rel}' là file ẢNH ({p.stat().st_size // 1024} KB), tool này chỉ đọc chữ nên không cho bạn thấy ảnh. "
+                    f"Muốn biết trong ảnh có gì, gọi tool javis_describe_image với images=['{rel}'] (ChatGPT nhìn ảnh thật "
+                    f"rồi tả lại). Muốn người dùng xem ảnh thì nhúng ![]({rel}) vào câu trả lời.")
         text = p.read_text(encoding="utf-8", errors="replace")
         return text[:100_000] + (f"\n… [cắt, file dài {len(text):,} ký tự]" if len(text) > 100_000 else "")
 

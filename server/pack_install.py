@@ -100,6 +100,31 @@ def doc_so() -> dict:
             return {}
 
 
+
+def companion_packs(catalog: dict, connector_ids) -> list:
+    """Connected services whose extra tools live in a store pack (catalog field `companion_pack`).
+
+    0.73.0 moved the three Zalo plugins (send images, tag people, read group images) out of the app into
+    the store pack `javis.zalo`, so people who never use Zalo no longer carry them. The Zalo connection
+    stays in the app (QR sign-in cannot be declared by a pack). Javis never installs a pack on its own, so
+    a machine that already used Zalo would silently lose those tools: this list lets the Connect page say
+    so and open the pack's consent screen. `state` is installed | disabled | missing."""
+    ledger = doc_so()
+    used = set(connector_ids or ())
+    out = []
+    for cid, con in (catalog or {}).items():
+        pid = str((con or {}).get("companion_pack") or "").strip()
+        if not pid or cid not in used:
+            continue
+        row = ledger.get(pid)
+        if row:
+            state = "disabled" if row.get("enabled") is False else "installed"
+        else:
+            # Dropped in by hand (no ledger row) counts as installed, same rule as `packs.py`.
+            state = "installed" if (packs.PACKS_DIR / pid).is_dir() else "missing"
+        out.append({"connector_id": cid, "name": (con or {}).get("name") or cid, "pack": pid, "state": state})
+    return out
+
 def _ghi_so(d: dict) -> None:
     LEDGER.parent.mkdir(parents=True, exist_ok=True)
     if LEDGER.is_file():

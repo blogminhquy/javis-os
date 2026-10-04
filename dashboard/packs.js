@@ -247,8 +247,14 @@
   //
   // `tuTep` là hàm quay về bước chọn tệp. Có khi cài từ kho thì không có nó, và chân hộp hiện
   // "Huỷ" thay cho "Chọn tệp khác".
-  function manHinhDongY(d, el, tuTep) {
+  //
+  // `tuy` (0.73.0) cho lối vào từ chỗ khác ngoài trang kho, như "vừa quét QR Zalo xong thì mời cài gói
+  // Zalo": `batSan` bật sẵn công tắc chạy ngay (người dùng vừa tự tay đấu đúng dịch vụ này, gói tắt thì
+  // cài xong không có gì xảy ra), `sauKhiCai(r)` thay cho việc vẽ lại trang kho vào `el`.
+  function manHinhDongY(d, el, tuTep, tuy) {
+    tuy = tuy || {};
     const coMa = d.tier === "code";
+    const batSan = !coMa || !!tuy.batSan;
     const py = (d.py_files || []);
     const kn = (d.connectors || []);
     const vt = vaultTom(d.vault);
@@ -323,11 +329,11 @@
       //           vài tệp vào bộ não - nên cài xong mà nó nằm im là một cái bẫy chứ không phải
       //           một lớp an toàn. Vấp thật khi thử đường di trú: kết nối đang chết, người dùng
       //           bấm cài đúng gói cần, và KHÔNG có gì xảy ra vì gói vào máy ở trạng thái tắt.
-      + '<button class="pkm-gat" id="pkBat" type="button" aria-pressed="' + (coMa ? "false" : "true") + '">'
+      + '<button class="pkm-gat" id="pkBat" type="button" aria-pressed="' + (batSan ? "true" : "false") + '">'
       + '<span><span class="pkm-gat-t">' + tw("store.inspect.enable.title") + '</span>'
       + '<span class="pkm-gat-s">'
-      + (coMa ? tw("store.inspect.enable.off_note")
-              : tw("store.inspect.enable.on_note"))
+      + (batSan ? tw("store.inspect.enable.on_note")
+                : tw("store.inspect.enable.off_note"))
       + '</span></span>'
       + '<span class="pkm-cong"><span></span></span></button>'
       + '</div>'
@@ -362,11 +368,12 @@
         return;
       }
       dong();
-      veLai(el);
+      if (typeof tuy.sauKhiCai === "function") tuy.sauKhiCai(r);
+      else veLai(el);
     };
   }
 
-  async function tuUrl(el, url, expect, tin) {
+  async function tuUrl(el, url, expect, tin, tuy) {
     // Tải từ kho hay từ link đều dừng ở bước SOI rồi mở đúng màn hình xác nhận như tệp tải
     // lên. Đường từ kho về máy không được phép ngắn hơn đường từ tệp: cùng một thứ để đọc,
     // cùng một chốt dấu vân tay.
@@ -378,7 +385,27 @@
       return;
     }
     d._tin = tin || null;
-    manHinhDongY(d, el);
+    manHinhDongY(d, el, null, tuy);
+  }
+
+  // Mở thẳng màn hình đồng ý cài của MỘT gói trong kho, theo id, từ bất kỳ trang nào (0.73.0).
+  // Lối vào đầu tiên: quét QR Zalo xong thì mời cài `javis.zalo`, vì ba tool Zalo mở rộng đã rời
+  // app sang kho. Đi qua ĐÚNG đường cài từ kho (`tuUrl`: tải, soi, hiện mã, chốt vân tay), không
+  // có đường tắt nào cài mà người dùng chưa thấy màn hình này.
+  //
+  // Trả "da_cai" khi gói đã cài và đang bật (không mở gì), "da_tat" khi đã cài nhưng đang tắt
+  // (bật lại là việc của người dùng ở trang kho), "khong_co" khi kho không có gói đó, "mo" khi
+  // đã mở màn hình đồng ý.
+  async function caiGoiKho(id, tuy) {
+    tuy = tuy || {};
+    let ds;
+    try { ds = await (await fetch("/packs/store")).json(); } catch (e) { ds = null; }
+    const g = ((ds && ds.packs) || []).find(x => x && x.id === id && x.nguon !== "app");
+    if (!g || !g.download || !g.download.url) return "khong_co";
+    if (g.installed) return g.enabled === false ? "da_tat" : "da_cai";
+    const el = tuy.el || document.createElement("div");
+    await tuUrl(el, g.download.url, g.download.sha256, g, tuy);
+    return "mo";
   }
 
   // ---- Gỡ một connector ĐI KÈM APP khỏi kho Kết nối ----
@@ -1016,5 +1043,6 @@
   // được lỗi đó.
   window.JavisPacks = { render: render, moKho: moKho, LOAI: LOAI, goApp: goApp, hoi: hoi,
                         coBanMoi: coBanMoi, nutThe: nutThe, theKho: theKho,
-                        ghiConTro: ghiConTro, traConTro: traConTro, veKho: veKho };
+                        ghiConTro: ghiConTro, traConTro: traConTro, veKho: veKho,
+                        caiGoiKho: caiGoiKho };
 })();

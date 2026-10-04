@@ -73,6 +73,7 @@
         "danger": ["zalo_send_message"]
       },
       "default_perm": "full",
+      "companion_pack": "javis.zalo",
       "purge_warning": "Xoá kết nối này là mất luôn phiên đăng nhập QR. Muốn dùng lại phải mở app Zalo trên điện thoại quét mã một lần nữa.",
       "risk": "Connector này MẶC ĐỊNH ở mức TOÀN QUYỀN, tức tool gửi tin đang bật. Muốn chặn gửi, hãy hạ xuống Ghi nháp hoặc Chỉ đọc.\n\nzalo-agent-cli dùng API Zalo không chính thức qua zca-js. Tài khoản CÓ THỂ bị hạn chế hoặc KHOÁ; khuyến nghị dùng tài khoản phụ và không tự động gửi hàng loạt.",
       "rate_limit": { "calls_per_min": 20 }

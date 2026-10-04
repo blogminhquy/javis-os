@@ -166,6 +166,8 @@ def public_catalog():
                           if not c.get("_pack") or str(auth.get("guide_url", "")).startswith(
                               ("http://", "https://")) else ""),
             "setup": auth.get("setup") or {},
+            # Store pack holding this service's extra tools (0.73.0, Zalo -> javis.zalo): the QR flow offers it right after sign-in.
+            "companion_pack": str(c.get("companion_pack") or ""),
             # Nhóm hiển thị (vd mọi dịch vụ Google gom về MỘT card) + wizard từng bước
             # thay guide tường chữ. steps: [{text, link?, link_label?, copy?}] -
             # copy="redirect" chèn ô sao chép Redirect URI ngay tại bước đó;

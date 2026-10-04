@@ -172,7 +172,8 @@ line each, grouped by area.
 - `compaction.py`, `limit_learner.py`, `limit_resume.py`, `model_limits.py`,
   `quota_scheduler.py`: long-history compression, rate-limit learning, shared TPM ledger.
 - `image_gen.py`, `anh_codex.py`: image generation on the ChatGPT plan; moving Codex images into
-  the brain.
+  the brain. `image_vision.py`: ChatGPT looks at brain images and describes them, the eyes of
+  engines that cannot view images.
 
 **Tools and MCP**
 - `mcp_hub.py`, `mcp_client.py`, `mcp_store.py`, `mcp_catalog.py`, `catalog_i18n.py`,

@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.73.0] - 2026-10-04
+### Tính năng mới
+- **Javis xem được ảnh người ta gửi trong nhóm Zalo.** Hỏi kiểu "xem ảnh hoá đơn chị Lan vừa gửi trong nhóm Kinh doanh" là Javis lấy ảnh về, hiện ngay trong khung chat và nói trong ảnh có gì, chép nguyên văn chữ và số. Ảnh lấy thẳng từ Zalo nên không còn giới hạn 2 giờ.
+- **Mọi bộ não đều nhìn được ảnh.** Claude Code và Codex tự mở ảnh. OpenRouter, Gemini và các engine API khác nhờ ChatGPT trên gói đang đăng nhập nhìn rồi tả lại, không cần API key, với mọi ảnh trong brain chứ không riêng ảnh Zalo.
+### Cải thiện
+- **Tool Zalo mở rộng chuyển sang gói "Zalo mở rộng" trên Javis Store.** Gửi ảnh, tag người, ghi chú, nhắc hẹn, poll và đọc ảnh nhóm không còn đi sẵn trong app, ai không dùng Zalo thì không phải mang theo. Quét QR Zalo xong là Javis mời cài gói ngay.
+- **Máy đã dùng Zalo từ trước:** vào trang Kết nối bấm **Cài gói đi kèm** một lần là có lại đủ tool. Kết nối Zalo, Hộp thư và chatbot Zalo vẫn chạy bình thường dù chưa cài.
+
 ## [0.72.1] - 2026-10-04
 ### Sửa lỗi
 - **Khi Claude Code khởi động quá hạn, Javis nói rõ nó kẹt ở đâu thay vì đoán "chắc do nguồn dữ liệu".** Câu báo lỗi nay cho biết Claude Code có chạm tới cổng công cụ của Javis không, cổng đó trả lời nhanh hay chậm, và trích luôn dòng lỗi Claude Code tự in ra, ví dụ đăng nhập hết hạn. Kết luận nằm ngay đầu câu nên đọc được cả trên thẻ bot.

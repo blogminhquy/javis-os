@@ -4934,6 +4934,13 @@
     };
   }
 
+  // Open the consent screen of a connector's companion store pack. Returns what `caiGoiKho` returned,
+  // or "" when there is nothing to offer. Never installs anything by itself.
+  async function moiGoiDiKem(el, pack) {
+    if (!pack || !window.JavisPacks || typeof window.JavisPacks.caiGoiKho !== "function") return "";
+    return window.JavisPacks.caiGoiKho(pack, { batSan: true, sauKhiCai: () => renderConnect(el) });
+  }
+
   function openQrFlow(el, con, isFirst) {
     const risk = con.risk ? '<div class="conn-risk">' + WARN_ICON + ' ' + esc(con.risk) + '</div>' : "";
     const guide = con.guide
@@ -4965,7 +4972,13 @@
           clearInterval(_connPoll); _connPoll = null;
           zone.innerHTML = '<div class="conn-ok">' + CHECK_ICON + ' ' + esc(window.t("cs.cn_signed_in")) + ' <b>' + esc(st.label || "Zalo") + '</b>'
             + (isFirst ? '<div class="conn-hint">' + esc(window.t("cs.cn_hint_zalo")) + '</div>' : "") + '</div>';
-          setTimeout(() => { closeConnModal(); renderConnect(el); }, 1800);
+          setTimeout(() => {
+            closeConnModal(); renderConnect(el);
+            // 0.73.0: the extra tools of this service (Zalo: send images, tag people, read group images)
+            // live in a store pack. Offer it right away, through the pack's own consent screen, with
+            // "run now" pre-set: the user just connected this very service on purpose.
+            moiGoiDiKem(el, con.companion_pack);
+          }, 1800);
         } else if (st.state === "error") {
           clearInterval(_connPoll); _connPoll = null;
           zone.innerHTML = "";
@@ -5467,6 +5480,16 @@
             : "")
         + '</div>'
       : "";
+    // A connected service whose extra tools moved to a store pack the machine does not have yet
+    // (0.73.0: Zalo -> javis.zalo). Javis never installs a pack silently, so it has to be said here.
+    const banDiKem = (d.companions || []).filter(c => c.state !== "installed").map(c =>
+      '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:12px">'
+      + WARN_ICON + ' ' + esc(window.t(c.state === "disabled" ? "cs.cn_companion_disabled" : "cs.cn_companion_missing",
+                                    { ten: c.name, goi: c.pack }))
+      + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center">'
+      + '<button class="gcard-btn" style="width:auto;flex:none" data-dikem="' + esc(c.pack) + '" data-dikem-tt="' + esc(c.state) + '">'
+      + esc(window.t(c.state === "disabled" ? "cs.cn_companion_enable" : "cs.cn_companion_install")) + '</button>'
+      + '<span class="mp-note" data-dikem-note="' + esc(c.pack) + '"></span></div></div>').join("");
     const khuDaGo = removed.length
       ? '<details class="cview-section"><summary><h3 style="display:inline">◆ ' + esc(window.t("cs.cn_removed_head")) + ' '
         + '<span style="opacity:.5">' + esc(window.t("cs.cn_removed_n", { count: removed.length })) + '</span></h3></summary>'
@@ -5478,7 +5501,7 @@
             + '<button class="gcard-btn" data-coreon="' + esc(r.id) + '">' + esc(window.t("store.reinstall")) + '</button></div>').join("")
         + '</div></details>'
       : "";
-    el.innerHTML = warn + banMoCoi
+    el.innerHTML = warn + banMoCoi + banDiKem
       // Hai TAB, không phải một mạch cuộn. Trang này gộp hai danh sách rất khác nhau:
       // thứ đang chạy, và thứ có thể đấu thêm. Gộp lại thì người đã đấu vài chục tài
       // khoản phải cuộn qua hết đống đó mới tới chỗ đấu cái mới.
@@ -5532,6 +5555,19 @@
     if (nutSanCo) nutSanCo.onclick = () => doiTab("sanco");
     // Từ banner mồ côi sang thẳng gói cần cài, ô tìm điền sẵn id connector. Thả người dùng vào
     // một kho ba chục mục rồi bảo tự tìm cái vừa biến mất là bắt họ làm việc của mình.
+    el.querySelectorAll("[data-dikem]").forEach(b => b.onclick = async () => {
+      const pack = b.dataset.dikem;
+      const note = el.querySelector('[data-dikem-note="' + pack + '"]');
+      if (b.dataset.dikemTt === "disabled") {
+        const r = await postJson("/packs/toggle", { id: pack, enabled: true });
+        if (r && r.ok) renderConnect(el);
+        else if (note) note.textContent = (r && r.error) || window.t("app.err_cap");
+        return;
+      }
+      const kq = await moiGoiDiKem(el, pack);
+      if (kq === "khong_co" && note) note.textContent = window.t("cs.cn_companion_unavail", { goi: pack });
+      else if (kq === "da_cai" || kq === "da_tat") renderConnect(el);
+    });
     el.querySelectorAll("[data-mocoi]").forEach(b => b.onclick = () => {
       if (window.JavisPacks && window.JavisPacks.moKho) {
         window.JavisPacks.moKho("connector", "mcp",

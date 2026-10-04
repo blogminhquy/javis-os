@@ -56,7 +56,7 @@ The **Guide on GitHub** button in the Zalo card always opens this documentation 
 | `zalo_get_history` | Fetch the history of one chat, paginated | Read |
 | `zalo_list_threads` | List the chats currently in the buffer | Read |
 | `zalo_search_threads` | Find a group or person by name | Read |
-| `zalo_view_media` | Download/open an image, audio or video from a message | Read |
+| `zalo_view_media` | Download/open an image, audio or video on the server (the brain does not see it, see `zalo_read_images` below) | Read |
 | `zalo_mark_read` | Mark as handled up to a cursor | Write |
 | `zalo_send_message` | Send a message to a person or group | Dangerous |
 
@@ -64,12 +64,51 @@ The list follows the `zalo-agent-cli` 1.6.2 source. Upstream MCP documentation:
 
 <https://github.com/PhucMPham/zalo-agent-cli/blob/main/skill/references/mcp-guide.md>
 
+## The Zalo extras pack (Javis Store)
+
+The three groups of tools below (reading images, sending images and files, tagging people plus
+notes, reminders and polls) fill exactly what the standard MCP lacks. Since 0.73.0 they live in
+the **`javis.zalo`** pack on Javis Store instead of shipping inside the app, so people who do not
+use Zalo do not carry them:
+
+- **Right after you scan the Zalo QR, Javis offers the pack** through the store's own consent
+  screen: it lists every code file, with the "run now" switch on because you just connected
+  Zalo yourself. Press Install and every tool is there.
+- **On a machine that connected Zalo earlier**, the Connections page shows a reminder with an
+  **Install companion pack** button. Javis never installs a code pack without asking.
+- The Zalo connection, the Inbox and the Zalo chatbot stay in the app and keep working without
+  the pack. Without it you only miss the extra tools.
+
+## Reading images in a group
+
+The Zalo MCP only returns a **link** to an image, keeps messages for 2 hours, and
+`zalo_view_media` opens the image in the server's own image viewer instead of handing it to the
+brain. So the `javis.zalo` pack has the `zalo_read_images` tool:
+
+| Tool | What it does | Action level |
+|---|---|---|
+| `zalo_read_images` | Fetches the images people post in a group into the brain and tells the brain what is in them | Write (saves images to the brain) |
+
+Just ask in chat, for example "look at the receipt Lan just posted in the Sales group".
+
+- **Images come straight from Zalo**, not from the MCP's 2-hour buffer: Javis asks Zalo for the
+  group's recent messages (30 by default, at most 100) and takes up to the 8 newest images. For a
+  private chat, only images still in the MCP buffer can be fetched.
+- **Images are saved to `attachments/zalo/<group id>/`** in the brain, so they show right in chat.
+- **Every brain can "see" them.** Claude Code and Codex open the image file themselves. The API
+  engines (OpenRouter, Gemini...) cannot view images, so ChatGPT on the plan you are signed in to
+  looks at them and describes them, copying any text and numbers verbatim. Without ChatGPT signed
+  in on the Models page the images are still fetched, just without the description.
+
+The part where ChatGPT looks at images lives in the app (the bundled `image-chatgpt` plugin, tool
+`javis_describe_image`), so it can view any other image in the brain too, with or without the
+Zalo pack.
+
 ## Sending images and files
 
 `zalo_send_message` above **only sends text**. To send an image (say one Javis just generated)
-or a file (a PDF report, a spreadsheet), use the `zalo_send_image` tool provided by the bundled
-`zalo-image` plugin. The plugin is on by default, needs no extra install, and uses exactly the
-Zalo account you scanned the QR with.
+or a file (a PDF report, a spreadsheet), use the `zalo_send_image` tool from the `javis.zalo`
+pack. It uses exactly the Zalo account you scanned the QR with.
 
 | Tool | What it does | Action level |
 |---|---|---|
@@ -92,8 +131,8 @@ Node.js 20+ is required on the machine running Javis, same as for the Zalo conne
 
 ## Tagging people, notes, reminders and polls
 
-`zalo_send_message` only sends text, so it cannot tag anyone, and the Zalo MCP has no notes, reminders or polls either. The bundled
-`zalo-group` plugin (on by default, built like `zalo-image`) fills exactly those gaps with five tools that every brain can call:
+`zalo_send_message` only sends text, so it cannot tag anyone, and the Zalo MCP has no notes, reminders or polls either. The
+`javis.zalo` pack fills exactly those gaps with five tools that every brain can call:
 
 | Tool | What it does | Action level |
 |---|---|---|

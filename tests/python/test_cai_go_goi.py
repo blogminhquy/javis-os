@@ -300,8 +300,10 @@ check("nút Cài không còn chặn vì ô gõ mã",
 # biết. Nên chốt thẳng vào biểu thức quyết định.
 _i = src_js.index('id="pkBat"')
 _o = src_js[_i - 40:_i + 200]
-check("CANARY: gói CÓ MÃ thì công tắc mặc định tắt",
-      'coMa ? "false" : "true"' in _o)
+# 0.73.0: lối vào "vừa quét QR Zalo xong, mời cài gói đi kèm" được bật sẵn công tắc (`tuy.batSan`), vì người dùng vừa
+# tự tay đấu đúng dịch vụ đó. Mọi lối vào khác vẫn theo bậc. Hành vi chạy thật nằm ở tests/js/test_cai_goi_di_kem.js.
+check("CANARY: gói CÓ MÃ thì công tắc mặc định tắt (trừ khi lối vào xin bật sẵn)",
+      "const batSan = !coMa || !!tuy.batSan;" in src_js and '(batSan ? "true" : "false")' in _o)
 check("nói thẳng gói chạy mã thật, không làm mềm",
       "store.inspect.code.title" in src_js
       and "chạy Python thật" in _VI.get("store.inspect.code.title", "")

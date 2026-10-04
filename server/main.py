@@ -3961,8 +3961,19 @@ async def connect_catalog():
                   "icon": (tat_ca.get(i) or {}).get("icon") or "plug",
                   "category": (tat_ca.get(i) or {}).get("category") or "Khác"}
                  for i in da_go), key=lambda x: x["name"]),
-            "orphans": mcp_store.orphans(),
+            "orphans": mcp_store.orphans(), "companions": _companion_packs(),
             "strict": bool(cfgmod.read_settings().get("mcp", {}).get("strict")), "hub": _hub_enabled()}
+
+
+def _companion_packs() -> list:
+    """See `pack_install.companion_packs`. A hint on the Connect page must never break the page."""
+    try:
+        import pack_install
+        return pack_install.companion_packs(
+            mcp_catalog.load(), {c.get("connector_id") for c in mcp_store.list_connections()})
+    except Exception as e:      # noqa: BLE001
+        print(f"[connect] companion packs: {type(e).__name__}: {e}", file=sys.stderr)
+        return []
 
 
 # Trang Gói: xem, cài từ .zip, bật tắt, gỡ. Router riêng vì main.py đã quá dài; xem
