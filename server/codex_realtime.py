@@ -52,6 +52,15 @@ def _no_window() -> int:
         return 0
 
 
+def _codex_env() -> Optional[dict]:
+    """CODEX_HOME do Javis dò ra (claude_cli.codex_env). None = kế thừa môi trường như cũ."""
+    try:
+        import claude_cli
+        return claude_cli.codex_env()
+    except Exception:
+        return None
+
+
 class AppServer:
     def __init__(self, cli: str, popen_factory=subprocess.Popen):
         self.cli = cli
@@ -95,7 +104,7 @@ class AppServer:
             [self.cli, *REALTIME_FLAG, "app-server"],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             text=True, encoding="utf-8", errors="replace", bufsize=1,
-            creationflags=_no_window(),
+            creationflags=_no_window(), env=_codex_env(),
         )
         threading.Thread(target=self._reader, name="javis-codex-realtime", daemon=True).start()
 

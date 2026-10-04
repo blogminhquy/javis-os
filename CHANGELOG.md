@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.74.2] - 2026-10-04
 ### Sửa lỗi
-- (đang viết)
+- **ChatGPT hết chết ngay lượt đầu với lỗi "Could not find home directory".** Trên một số máy Windows, Codex không tự tìm ra thư mục người dùng nên không thấy đăng nhập ChatGPT, dù trang Models vẫn báo đã kết nối. Giờ Javis tự chỉ đường cho Codex, nên chat, danh sách model và ChatGPT Live chạy được trên các máy đó.
+- **Nếu vẫn gặp thì lỗi nói rõ phải làm gì**: đăng xuất Windows rồi đăng nhập lại, hoặc khởi động lại máy, thay cho một dòng tiếng Anh khó hiểu.
 
 ## [0.74.1] - 2026-10-04
 ### Sửa lỗi

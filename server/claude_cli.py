@@ -1132,7 +1132,7 @@ def _codex_run(sub_args, timeout=30):
         return None
     return subprocess.run([cli] + list(sub_args), capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=timeout,
-                          creationflags=_no_window())
+                          creationflags=_no_window(), env=codex_env())
 
 
 def codex_mcp_parse_list(out):
@@ -1296,11 +1296,11 @@ def codex_mcp_open_login_terminal(name):
     try:
         if os.name == "nt":
             subprocess.Popen(f'start "Javis - Dang nhap MCP Codex" cmd /k codex mcp login {safe}',
-                             shell=True)
+                             shell=True, env=codex_env())
         else:
             for term in ("x-terminal-emulator", "gnome-terminal", "konsole", "xterm"):
                 if shutil.which(term):
-                    subprocess.Popen([term, "-e", cli, "mcp", "login", safe])
+                    subprocess.Popen([term, "-e", cli, "mcp", "login", safe], env=codex_env())
                     break
             else:
                 return {"ok": False, "error": localefmt.chu("Không tìm thấy terminal", "No terminal found")}
@@ -1374,6 +1374,55 @@ _RECONNECT_RE = re.compile(r"^\s*(Reconnecting\.\.\.|Falling back from WebSocket
 def _codex_home() -> Path:
     home = os.getenv("CODEX_HOME")
     return Path(home) if home else _home_dir() / ".codex"
+
+
+# Báo lỗi khách 04/10/2026 (Windows, 0.71.0): mọi lượt chat ChatGPT chết với "Codex lỗi (exit 1):
+# WARNING: proceeding, even though we could not create PATH aliases: Could not find home
+# directory". Codex tự tìm home bằng `dirs::home_dir()`: trên Windows hàm đó hỏi thẳng hồ sơ người
+# dùng của Windows (SHGetKnownFolderPath), KHÔNG đọc USERPROFILE, nên hồ sơ hỏng, hồ sơ tạm hay
+# tài khoản không có hồ sơ là Codex mù home, không thấy auth.json, trong khi Javis (đọc
+# USERPROFILE/HOME qua `_home_dir`) vẫn thấy đăng nhập ChatGPT đầy đủ. Đặt CODEX_HOME thì Codex
+# bỏ qua hẳn bước hỏi Windows, và cả hai bên nhìn cùng một thư mục.
+def codex_env() -> dict:
+    """Biến môi trường cho MỌI tiến trình Codex mà Javis bật."""
+    env = dict(os.environ)
+    if str(env.get("CODEX_HOME") or "").strip():
+        return env                      # người dùng tự trỏ chỗ khác: tôn trọng
+    home = _home_dir()
+    if str(home) in ("", "."):
+        return env                      # Javis cũng không biết home: để Codex tự xoay như cũ
+    codex_home = home / ".codex"
+    try:
+        # Codex bắt CODEX_HOME phải tồn tại sẵn (nó canonicalize), máy chưa từng đăng nhập thì chưa có.
+        codex_home.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return env
+    env["CODEX_HOME"] = str(codex_home)
+    if os.name == "nt":
+        if not env.get("USERPROFILE"):
+            env["USERPROFILE"] = str(home)
+    elif not env.get("HOME"):
+        env["HOME"] = str(home)
+    return env
+
+
+def codex_error_text(returncode, stderr_lines) -> str:
+    """Câu lỗi khi Codex thoát giữa chừng. Lỗi không tìm thấy home thì nói bằng lời người
+    dùng hiểu và chỉ cách xử lý, dòng gốc của Codex vẫn giữ ở dưới để chẩn đoán."""
+    raw = "\n".join(stderr_lines[-5:])
+    if any("could not find home directory" in str(l).lower() for l in stderr_lines):
+        return localefmt.chu(
+            "Codex không tìm thấy thư mục người dùng trên máy này nên không đọc được đăng nhập "
+            "ChatGPT. Hay gặp khi Windows đang dùng hồ sơ tạm hoặc Javis được bật bằng một tài "
+            "khoản khác. Đăng xuất Windows rồi đăng nhập lại (hoặc khởi động lại máy), sau đó bật "
+            "lại Javis bằng chính tài khoản đó.\n\nChi tiết từ Codex (exit "
+            + str(returncode) + "):\n" + raw,
+            "Codex could not find the user folder on this computer, so it cannot read the ChatGPT "
+            "sign-in. This usually happens when Windows is on a temporary profile or Javis was "
+            "started under another account. Sign out of Windows and back in (or restart), then "
+            "start Javis again from that same account.\n\nDetails from Codex (exit "
+            + str(returncode) + "):\n" + raw)
+    return "Codex lỗi (exit " + str(returncode) + "):\n" + raw
 
 
 def _codex_dung_provider_rieng() -> bool:
@@ -1532,6 +1581,7 @@ class CodexCLI:
                     args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     cwd=self.cwd, text=True, encoding="utf-8", errors="replace", bufsize=1,
                     creationflags=creationflags, start_new_session=(os.name != "nt"),
+                    env=codex_env(),
                 )
                 with _PROC_LOCK:
                     _ACTIVE_PROCS[proc] = self.tag
@@ -1617,7 +1667,7 @@ class CodexCLI:
                 st.join(timeout=2)
                 if proc.returncode not in (0, None) and stderr_lines and not tinfo["timed_out"]:
                     asyncio.run_coroutine_threadsafe(
-                        queue.put({"__error__": "Codex lỗi (exit " + str(proc.returncode) + "):\n" + "\n".join(stderr_lines[-5:])}), loop)
+                        queue.put({"__error__": codex_error_text(proc.returncode, stderr_lines)}), loop)
             except Exception as e:
                 traceback.print_exc()
                 asyncio.run_coroutine_threadsafe(queue.put({"__error__": f"Codex subprocess: {type(e).__name__}: {e}"}), loop)

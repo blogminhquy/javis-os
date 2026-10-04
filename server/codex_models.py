@@ -14,7 +14,7 @@ import threading
 import time
 from typing import Any, Optional
 
-from claude_cli import find_codex_cli
+from claude_cli import codex_env, find_codex_cli
 
 
 def _no_window() -> int:
@@ -164,6 +164,7 @@ def list_models(timeout: float = 20.0, cli_path: Optional[str] = None,
             errors="replace",
             bufsize=1,
             creationflags=_no_window(),
+            env=codex_env(),
         )
         threading.Thread(target=reader, name="javis-codex-models", daemon=True).start()
         send({

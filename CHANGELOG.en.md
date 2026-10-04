@@ -10,7 +10,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.74.2] - 2026-10-04
 ### Fixed
-- (in progress)
+- **ChatGPT no longer dies on the first turn with "Could not find home directory".** On some Windows computers Codex could not find the user folder, so it missed the ChatGPT sign-in even though the Models page showed it as connected. Javis now tells Codex where that folder is, so chat, the model list and ChatGPT Live work there.
+- **If it still happens, the error says what to do**: sign out of Windows and back in, or restart, instead of one cryptic English line.
 
 ## [0.74.1] - 2026-10-04
 ### Fixed
