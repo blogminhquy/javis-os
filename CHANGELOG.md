@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.76.0] - 2026-10-05
+### Cải thiện
+- (đang viết)
+
 ## [0.75.1] - 2026-10-05
 ### Cải thiện
 - **Tông màu mặc định là Tự động.** Máy chưa từng chọn tông giờ tự sáng từ 06:00 và tự tối từ 18:00, thay vì tối cả ngày như trước. Ai đã chọn Tối hay Sáng bằng tay thì giữ nguyên lựa chọn đó.
