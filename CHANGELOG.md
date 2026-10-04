@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.75.1] - 2026-10-05
+### Cải thiện
+- **Tông màu mặc định là Tự động.** (đang viết)
+
 ## [0.74.2] - 2026-10-04
 ### Sửa lỗi
 - **ChatGPT hết chết ngay lượt đầu với lỗi "Could not find home directory".** Trên một số máy Windows, Codex không tự tìm ra thư mục người dùng nên không thấy đăng nhập ChatGPT, dù trang Models vẫn báo đã kết nối. Giờ Javis tự chỉ đường cho Codex, nên chat, danh sách model và ChatGPT Live chạy được trên các máy đó.
