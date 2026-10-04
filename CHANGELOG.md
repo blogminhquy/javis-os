@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.72.1] - 2026-10-04
+### Sửa lỗi
+- **Khi Claude Code khởi động quá hạn, Javis nói rõ nó kẹt ở đâu.** Trước đây câu báo lỗi chỉ đoán "chắc do nguồn dữ liệu (MCP)", và từ lượt thứ hai còn in "trần cho phép" thay vì số giây thật. Giờ Javis ghi lại những gì Claude Code in ra lúc khởi động và việc nó có gọi tới cổng công cụ của Javis hay không, rồi nêu kết luận theo bằng chứng đó, ở cả câu báo lỗi lẫn mục "Lượt gần nhất LỖI" của bot.
+
 ## [0.71.2] - 2026-10-04
 ### Sửa lỗi
 - **Gọi ChatGPT Live trong lúc Javis đang làm việc dài không còn im re.** Trước đây mọi câu anh hỏi thêm phải xếp hàng sau việc đang chạy, nên hỏi "xong chưa" thì không ai trả lời, rồi lúc việc xong Javis đọc dồn một loạt câu trả lời cũ. Giờ hỏi tiến độ là được trả lời ngay bằng trạng thái thật: đang làm việc gì, được mấy phút, tới bước nào.

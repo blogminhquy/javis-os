@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.72.1] - 2026-10-04
+### Fixed
+- **When Claude Code is too slow to start, Javis now says where it got stuck.** The error used to guess "probably a data source (MCP)", and from the second turn on it printed "the allowed limit" instead of the real number of seconds. Javis now records what Claude Code printed at startup and whether it ever reached Javis's tool hub, and states a conclusion from that evidence, both in the error message and in the bot's "Latest run ERROR" line.
+
 ## [0.71.2] - 2026-10-04
 ### Fixed
 - **A ChatGPT Live call no longer goes silent while Javis works on something long.** Every follow-up question used to wait behind the running job, so "are you done yet?" got no answer, and when the job finished Javis read out a pile of stale replies. Now a progress question is answered at once from the real state: what is running, for how long, and which step it is on.
