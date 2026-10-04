@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.74.0] - 2026-10-04
 ### Tính năng mới
-- **Tông sáng tối tự đổi theo giờ.** (đang viết)
+- **Tông màu tự đổi theo giờ.** Vào **Cài đặt → Chung → Tông màu** chọn Tối, Sáng hoặc Tự động. Để Tự động thì tới giờ sáng trang tự sáng, tới giờ tối tự tối, mặc định 06:00 và 18:00, sửa được cả hai mốc.
+- **Mỗi máy chọn riêng.** Điện thoại để Tự động, máy tính ghim nền tối đều được. Nút mặt trăng trên thanh trên cùng vẫn đổi nhanh bằng tay; muốn quay lại Tự động thì chọn lại trong Cài đặt.
 
 ## [0.73.0] - 2026-10-04
 ### Tính năng mới

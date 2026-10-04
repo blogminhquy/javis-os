@@ -7008,6 +7008,72 @@
     ve();
   }
 
+  // TÔNG MÀU (0.74.0): Tối / Sáng / Tự động theo giờ. Mọi thứ nằm ở theme.js và localStorage
+  // của MÁY NÀY, không gọi server: điện thoại để tự động còn máy bàn ghim tối là hợp lệ. Thẻ tự
+  // vẽ lại khi tông đổi từ chỗ khác (nút trên thanh trên cùng, đồng hồ tự động, tab khác), nên
+  // dòng "bây giờ đang nền..." không bao giờ nói sai tông đang thấy.
+  function themeNowText(T) {
+    const at = T.nextChange();
+    if (!at) return t("settings.theme.now_flat");
+    const light = T.isLight();
+    return t("settings.theme.now_auto", {
+      cur: t(light ? "settings.theme.cur_light" : "settings.theme.cur_dark"),
+      next: t(light ? "settings.theme.cur_dark" : "settings.theme.cur_light"),
+      at,
+    });
+  }
+  function renderThemeBox(box) {
+    const T = window.javisTheme;
+    if (!box || !T || !T.mode) return;
+    const mode = T.mode();
+    const sch = T.schedule();
+    // Khoá viết rõ từng cái (không ghép chuỗi) để test_i18n soát được chúng có trong từ điển.
+    const segBtn = (v, lb, d) => `<button type="button" class="seg-btn ${mode === v ? "sel" : ""}" data-theme-mode="${v}"
+      aria-pressed="${mode === v}"><span class="seg-lb">${esc(lb)}</span>
+      <span class="seg-d">${esc(d)}</span></button>`;
+    const now = mode === "auto" ? themeNowText(T) : "";
+    // Hai ô giờ chỉ VẼ khi đang tự động, không dùng thuộc tính hidden: .qs-field là flex và
+    // display của nó đè hidden (đã cắn một lần ở thẻ giọng nói).
+    box.innerHTML = `
+      <div class="popover-label">${esc(t("settings.theme.title"))}</div>
+      <div class="seg" role="group" aria-label="${esc(t("settings.theme.title"))}">
+        ${segBtn("dark", t("settings.theme.dark"), t("settings.theme.dark_d"))}
+        ${segBtn("light", t("settings.theme.light"), t("settings.theme.light_d"))}
+        ${segBtn("auto", t("settings.theme.auto"), t("settings.theme.auto_d"))}
+      </div>
+      ${mode === "auto" ? `
+      <div class="qs-field">
+        <label class="qs-lbl" for="vpThemeLight">${esc(t("settings.theme.light_from"))}</label>
+        <input type="time" class="js-input" id="vpThemeLight" value="${esc(sch.light)}">
+      </div>
+      <div class="qs-field">
+        <label class="qs-lbl" for="vpThemeDark">${esc(t("settings.theme.dark_from"))}</label>
+        <input type="time" class="js-input" id="vpThemeDark" value="${esc(sch.dark)}">
+      </div>
+      <div class="qs-hint" role="status">${esc(now)}</div>` : ""}
+      <div class="qs-hint">${esc(t("settings.theme.hint"))}</div>`;
+    box.querySelectorAll("[data-theme-mode]").forEach(b => {
+      b.onclick = () => T.setMode(b.dataset.themeMode);   // sự kiện javis-theme-change vẽ lại thẻ
+    });
+    const inL = box.querySelector("#vpThemeLight");
+    const inD = box.querySelector("#vpThemeDark");
+    const saveSch = () => {
+      if (!T.setSchedule(inL.value, inD.value)) { toast(t("settings.theme.bad_time"), true); return; }
+      // Ô giờ còn giữ con trỏ nên thẻ không vẽ lại (xem bộ nghe bên dưới): chỉ thay dòng trạng thái.
+      const st = box.querySelector("[role=status]");
+      if (st) st.textContent = themeNowText(T);
+    };
+    if (inL) inL.onchange = saveSch;
+    if (inD) inD.onchange = saveSch;
+  }
+  // Đăng ký MỘT lần cho cả phiên; thẻ không có trên trang thì bỏ qua. Đang gõ dở ô giờ thì
+  // không vẽ lại, kẻo đồng hồ tự động hay tab khác giật mất ô người dùng đang sửa.
+  window.addEventListener("javis-theme-change", () => {
+    const box = document.getElementById("vpThemeBox");
+    if (!box || box.contains(document.activeElement) && document.activeElement.type === "time") return;
+    renderThemeBox(box);
+  });
+
   async function renderSettingsPage(el) {
     const tabs = ["general", "voice", "pet", "usage", "updates"];
     const tab = Alpine.store("nav").settingsTab || "general";
@@ -7170,7 +7236,8 @@
     }
     const langHost = document.getElementById("replyLangHost");
     if (langHost) {
-      langHost.innerHTML = langHtml;
+      langHost.innerHTML = `<div class="qs-block" id="vpThemeBox"></div>` + langHtml;
+      renderThemeBox(document.getElementById("vpThemeBox"));
       const sel = document.getElementById("vpReplyLang");
       if (sel) sel.onchange = async () => {
         const r = await saveSetting("locale", { reply_lang: sel.value });
