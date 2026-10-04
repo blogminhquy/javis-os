@@ -111,12 +111,30 @@ cả khi Javis nằm trên VPS. Javis không bao giờ đọc token: app-server 
    hay gõ tiếp, hoặc chen ngang, thì xoá cờ đó để lời đáp mới vẫn hiện.
 6. **Lời nói thêm trong lúc chờ** (0.65.21, lỗi chủ dự án báo 01/10): Codex coi handoff tới khi việc
    trước còn chạy là lời CHỈNH HƯỚNG việc đó, nên câu kiểu "Ok, xong thì báo anh nhé" thành một
-   handoff nữa. Route xếp hàng các lần giao việc theo phiên gọi: câu chỉ gồm từ xác nhận
+   handoff nữa. Route lọc các lần giao việc theo phiên gọi: câu chỉ gồm từ xác nhận
    (`voice_live.is_followup_ack`) hay chỉ lặp lại yêu cầu đang chạy (`is_same_request`) thì đóng
    bằng `send_tool_ack` (ChatGPT Live: không nói gì; Live qua API: trả một câu ghi nhận cho đúng lời
-   gọi tool) và không chạy bộ não; câu có ý mới chạy SAU việc đang chạy với `followup_request` (kèm
-   yêu cầu trước), bộ não trả `JAVIS_NOOP` khi chẳng có gì mới thì không bong bóng, không đọc. Prompt
-   cũng dặn model đừng giao việc lại khi người dùng chỉ xác nhận.
+   gọi tool) và không chạy bộ não; câu có ý mới chạy với `parallel_request` (kèm việc đang chạy, báo
+   rõ chúng CHƯA xong), bộ não trả `JAVIS_NOOP` khi chẳng có gì mới thì không bong bóng, không đọc.
+   Prompt cũng dặn model đừng giao việc lại khi người dùng chỉ xác nhận. (0.65.21 xếp hàng câu có ý
+   mới SAU việc đang chạy; 0.71.2 bỏ khoá đó, xem mục 7.)
+7. **Hỏi giữa chừng không im re** (0.71.2, chủ dự án báo 03/10): khoá xếp hàng của 0.65.21 làm MỌI
+   câu giao việc chờ cả việc dài xong. Việc chạy mấy phút thì "xong chưa", "có nghe không" đều im, rồi
+   khi việc xong các câu chờ chạy lần lượt và câu trả lời cũ bị đọc dồn (câu hỏi 17:45 trả lời 17:56).
+   Nay route giữ sổ `jobs` (việc nào, bắt đầu lúc nào, bước hiện tại từ `progress` của
+   `_voice_ask_javis`) và:
+   - câu HỎI TIẾN ĐỘ (`is_progress_question`, cố ý hẹp) khi đang có việc: trả lời NGAY bằng
+     `status_line` qua `say_status`, không chạy bộ não. Hãng không có kênh nói thêm (Live qua API)
+     thì trả đúng câu đó bằng `send_tool_ack`. Không đánh dấu `readback`, vì model tự nói một câu đệm
+     ngay sau mỗi lần giao việc, đánh dấu sẽ nuốt nhầm câu đệm đó;
+   - việc mới thật chạy SONG SONG, mạch engine riêng (`key` dùng một lần, `_voice_ask_javis` dọn
+     phiên RAM của nó), kết quả về khi nào đọc khi đó, mỗi kết quả trả đúng handoff của nó;
+   - `_heartbeat`: việc chạy quá `STATUS_FIRST_S` (60 giây) thì mỗi `STATUS_EVERY_S` (90 giây) Javis tự
+     nói một câu tiến độ, chỉ khi `is_quiet()` (không ai nói, hàng lời đọc trống). Câu này là
+     `readback` nên không thành bong bóng, không vào lịch sử;
+   - `ChatGPTLive.say_status` đi chung hàng với lời đọc kết quả (không chen giữa câu đang nói) và bị
+     BỎ khỏi hàng nếu kết quả thật về trước, nếu không "em vẫn đang làm" bị đọc sau "xong rồi".
+   Chưa chạy trên cuộc gọi ChatGPT Live thật: kiểm bằng route chạy với nhà cung cấp giả.
 
 **Sự kiện dịch sang khung Live chung.** `sdp` thành `webrtc_answer`; `started` thành `ready`;
 `transcript/delta|done` thành `transcript` (lời người dùng `done` là `final`); assistant `done`

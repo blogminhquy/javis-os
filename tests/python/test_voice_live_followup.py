@@ -7,23 +7,19 @@ nói thêm "Ok, xem xong kiểm tra xong thì báo anh nhé". Model nói chuyệ
 việc nữa (Codex coi handoff tới giữa chừng là lời CHỈNH HƯỚNG việc đang chạy), Javis chạy bộ não chính
 lần hai, ra hai bong bóng kết quả khác chữ, rồi lời đọc lại tóm tắt thành bong bóng thứ ba. Khoá:
   - câu nói thêm chỉ là xác nhận/nhắc báo: không chạy bộ não lần nữa, không bong bóng;
-  - câu nói thêm có yêu cầu thật: chạy SAU việc đang chạy, kèm yêu cầu trước làm ngữ cảnh;
+  - câu nói thêm có yêu cầu thật: chạy SONG SONG với việc đang chạy (0.71.2; trước đó xếp hàng chờ việc
+    đầu xong, nên hỏi giữa chừng im re mấy phút), kèm việc đang chạy làm ngữ cảnh;
     bộ não trả JAVIS_NOOP thì không bong bóng, không đọc;
   - lời model đọc lại kết quả (đã có bong bóng đầy đủ) không thành bong bóng thứ hai, không vào lịch sử;
   - lời Javis sau khi người dùng nói tiếp vẫn hiện như thường.
+Câu hỏi tiến độ và lời tự lên tiếng khi việc chạy lâu nằm ở test_voice_live_progress.py.
 """
 from _paths import ROOT, SERVER  # noqa: F401
-import ast
 import asyncio
-import json
-import sys
-import tempfile
-import types
 import unittest
-from pathlib import Path
 
-import sessions
 import voice_live
+from _live_route import LiveRouteMixin
 
 
 class FollowupWordsTests(unittest.TestCase):
@@ -43,11 +39,7 @@ class FollowupWordsTests(unittest.TestCase):
         self.assertFalse(voice_live.is_same_request("xem anh", "an"), "khớp theo từ, không theo mảnh chữ")
         self.assertFalse(voice_live.is_same_request("", "xem lịch"))
 
-    def test_followup_request_and_noop(self):
-        req = voice_live.followup_request("Doanh thu hôm nay", "thêm cả số đơn huỷ nữa")
-        self.assertIn("Doanh thu hôm nay", req)
-        self.assertIn("thêm cả số đơn huỷ nữa", req)
-        self.assertIn(voice_live.FOLLOWUP_NOOP, req)
+    def test_noop_result(self):
         self.assertTrue(voice_live.is_noop_result("JAVIS_NOOP"))
         self.assertTrue(voice_live.is_noop_result("`JAVIS_NOOP`\n"))
         self.assertFalse(voice_live.is_noop_result("Số đơn huỷ hôm nay là 3. " * 10 + "JAVIS_NOOP"))
@@ -59,121 +51,11 @@ class FollowupWordsTests(unittest.TestCase):
         asyncio.run(live.send_tool_ack("h2", "ask_javis", "x"))   # không gọi app-server nào
 
 
-def _route():
-    tree = ast.parse((SERVER / "main.py").read_text(encoding="utf-8"))
-    route = next(n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "voice_live_ws")
-    route.decorator_list = []
-    return ast.Module(body=[route], type_ignores=[])
+def acked(prov, cid):
+    return any(c == cid for c, _ in prov.acks)
 
 
-class LiveRouteFollowupTests(unittest.IsolatedAsyncioTestCase):
-    async def _run(self, script, answers):
-        """Chạy route với nhà cung cấp giả; `script(prov, h)` đẩy sự kiện, `answers` trả lời của bộ não."""
-        with tempfile.TemporaryDirectory() as directory:
-            store = sessions.SessionStore(str(Path(directory) / "sessions.db"))
-            try:
-                return await self._run_in(store, directory, script, answers)
-            finally:
-                store._conn.close()
-
-    async def _run_in(self, store, directory, script, answers):
-        if True:
-            sid = store.get_or_create(None, brain="brain", engine="test", model="test")
-            frames, asks = [], []
-            inbox = asyncio.Queue()   # khung trình duyệt gửi lên
-
-            class Provider:
-                name = "chatgpt"
-                model = ""
-                transport = "webrtc"
-                wants_reconnect = False
-
-                def __init__(self):
-                    self.q = asyncio.Queue()
-                    self.results, self.acks = [], []
-
-                async def connect(self): pass
-                async def restore_history(self, history): pass
-                def supports_async_tools(self): return True
-                async def close(self): pass
-                async def send_tool_running(self, cid, name): pass
-                async def send_context(self, text): pass
-
-                async def send_tool_result(self, cid, name, result):
-                    self.results.append((cid, result))
-
-                async def send_tool_ack(self, cid, name, text):
-                    self.acks.append(cid)
-
-                async def send_text(self, text):
-                    pass
-
-                async def events(self):
-                    while True:
-                        ev = await self.q.get()
-                        if ev is None:
-                            return
-                        yield ev
-
-            prov = Provider()
-
-            class Socket:
-                async def accept(self): pass
-
-                async def send_text(self, text):
-                    frames.append(json.loads(text))
-
-                async def receive(self):
-                    return {"text": json.dumps(await inbox.get())}
-
-                async def close(self): pass
-
-            gates = {}
-
-            async def ask(req, conv_sid, brain, key=""):
-                n = len(asks)
-                asks.append(req)
-                gate = gates.setdefault(n, asyncio.Event())
-                await gate.wait()
-                return answers[n]
-
-            namespace = dict(
-                asyncio=asyncio, json=json, sys=sys, WebSocket=Socket, Query=lambda x: x,
-                cfgmod=types.SimpleNamespace(gate_active=lambda: False,
-                                             read_settings=lambda: {"voice": {"live_provider": "chatgpt"}}),
-                voice_live=types.SimpleNamespace(
-                    make_provider=lambda cfg, recognition_lang="vi-VN", memory_index="": prov, MEMORY_CHARS=4000,
-                    is_followup_ack=voice_live.is_followup_ack, followup_request=voice_live.followup_request,
-                    is_noop_result=voice_live.is_noop_result, FOLLOWUP_ACK=voice_live.FOLLOWUP_ACK,
-                    is_same_request=voice_live.is_same_request),
-                openai_oauth=types.SimpleNamespace(write_codex_auth=lambda: None),
-                _brain_memory_dir=lambda root: Path(directory), _brain_root=lambda b: directory,
-                _fit_memory_index=lambda mem, cap=None: mem[:cap],
-                _voice_ask_javis=ask, get_store=lambda: store, _brain_key=lambda b: b,
-                voice_call=types.SimpleNamespace(live_settings=lambda c: c))
-            exec(compile(_route(), "live-route", "exec"), namespace)
-            route = asyncio.ensure_future(namespace["voice_live_ws"](Socket(), sid, "brain", "vi-VN"))
-
-            async def until(cond, what):
-                for _ in range(200):
-                    if cond():
-                        return
-                    await asyncio.sleep(0.01)
-                self.fail("chờ quá lâu: " + what)
-
-            def release(n):
-                gates.setdefault(n, asyncio.Event()).set()
-
-            try:
-                await script(prov, types.SimpleNamespace(until=until, release=release, asks=asks, frames=frames, inbox=inbox))
-            finally:
-                await inbox.put({"type": "stop"})
-                await prov.q.put(None)
-                for gate in gates.values():
-                    gate.set()
-                await asyncio.wait_for(route, 5)
-            return prov, frames, asks, [m for m in store.get_messages(sid)]
-
+class LiveRouteFollowupTests(LiveRouteMixin, unittest.IsolatedAsyncioTestCase):
     async def test_ack_followup_runs_brain_once_and_readback_is_not_a_bubble(self):
         async def script(prov, h):
             await prov.q.put({"type": "tool_call", "id": "h1", "name": "ask_javis",
@@ -183,7 +65,7 @@ class LiveRouteFollowupTests(unittest.IsolatedAsyncioTestCase):
                               "final": True})
             await prov.q.put({"type": "tool_call", "id": "h2", "name": "ask_javis",
                               "args": {"request": "Ok, xem xong kiểm tra xong thì báo anh nhé"}})
-            await h.until(lambda: "h2" in prov.acks, "xác nhận câu nói thêm")
+            await h.until(lambda: acked(prov, "h2"), "xác nhận câu nói thêm")
             h.release(0)
             await h.until(lambda: len(prov.results) == 1, "trả kết quả cho model")
             # Model đọc lại kết quả: lời này không được thành bong bóng thứ hai.
@@ -196,9 +78,9 @@ class LiveRouteFollowupTests(unittest.IsolatedAsyncioTestCase):
             await prov.q.put({"type": "turn_done"})
             await h.until(lambda: sum(f["type"] == "turn_done" for f in h.frames) == 2, "hai lượt xong")
 
-        prov, frames, asks, saved = await self._run(script, ["- Hoa hồng đã về: **21.234.050 đ**"])
+        prov, frames, asks, saved = await self.run_route(script, ["- Hoa hồng đã về: **21.234.050 đ**"])
         self.assertEqual(len(asks), 1, "câu nói thêm kiểu xác nhận không chạy bộ não chính lần nữa")
-        self.assertEqual(prov.acks, ["h2"])
+        self.assertEqual([c for c, _ in prov.acks], ["h2"])
         self.assertEqual([cid for cid, _ in prov.results], ["h1"])
         self.assertEqual(sum(f["type"] == "tool_result" for f in frames), 1, "đúng một bong bóng kết quả")
         said = [f["text"] for f in frames if f["type"] == "transcript" and f.get("role") == "assistant"]
@@ -218,30 +100,29 @@ class LiveRouteFollowupTests(unittest.IsolatedAsyncioTestCase):
             await prov.q.put({"type": "turn_done"})
             await h.until(lambda: any(f["type"] == "turn_done" for f in h.frames), "lượt xong")
 
-        prov, frames, asks, saved = await self._run(script, ["Doanh thu 12 triệu."])
+        prov, frames, asks, saved = await self.run_route(script, ["Doanh thu 12 triệu."])
         said = [f["text"] for f in frames if f["type"] == "transcript" and f.get("role") == "assistant"]
         self.assertEqual(said, ["Để em xem nhé."], "gõ chữ trong lúc gọi: lời đáp sau đó vẫn hiện")
 
-    async def test_real_followup_runs_after_first_with_context(self):
+    async def test_real_followup_runs_alongside_first_with_context(self):
         async def script(prov, h):
             await prov.q.put({"type": "tool_call", "id": "h1", "name": "ask_javis",
                               "args": {"request": "Doanh thu hôm nay"}})
             await h.until(lambda: len(h.asks) == 1, "việc đầu")
             await prov.q.put({"type": "tool_call", "id": "h2", "name": "ask_javis",
                               "args": {"request": "thêm cả số đơn huỷ nữa"}})
-            await asyncio.sleep(0.05)
-            self.assertEqual(len(h.asks), 1, "việc nói thêm chờ việc đầu xong, không chạy song song")
+            # Từ 0.71.2: không chờ việc đầu. Trước đó câu này nằm im tới khi việc đầu xong.
+            await h.until(lambda: len(h.asks) == 2, "việc nói thêm chạy song song, không chờ việc đầu")
             h.release(0)
-            await h.until(lambda: len(h.asks) == 2, "việc nói thêm chạy sau")
             h.release(1)
             await h.until(lambda: len(prov.results) == 2, "hai kết quả")
 
-        prov, frames, asks, saved = await self._run(script, ["Doanh thu 12 triệu.", "Hôm nay có 3 đơn huỷ."])
+        prov, frames, asks, saved = await self.run_route(script, ["Doanh thu 12 triệu.", "Hôm nay có 3 đơn huỷ."])
         self.assertIn("Doanh thu hôm nay", asks[1])
         self.assertIn("thêm cả số đơn huỷ nữa", asks[1])
         self.assertIn(voice_live.FOLLOWUP_NOOP, asks[1])
-        self.assertEqual([cid for cid, _ in prov.results], ["h1", "h2"])
-        self.assertEqual([f["text"] for f in frames if f["type"] == "tool_result"],
+        self.assertEqual(sorted(cid for cid, _ in prov.results), ["h1", "h2"])
+        self.assertEqual(sorted(f["text"] for f in frames if f["type"] == "tool_result"),
                          ["Doanh thu 12 triệu.", "Hôm nay có 3 đơn huỷ."])
 
     async def test_duplicate_handoff_of_running_request_runs_brain_once(self):
@@ -250,11 +131,11 @@ class LiveRouteFollowupTests(unittest.IsolatedAsyncioTestCase):
             await prov.q.put({"type": "tool_call", "id": "h1", "name": "ask_javis", "args": {"request": q}})
             await h.until(lambda: len(h.asks) == 1, "việc đầu")
             await prov.q.put({"type": "tool_call", "id": "h2", "name": "ask_javis", "args": {"request": q}})
-            await h.until(lambda: "h2" in prov.acks, "handoff lặp được đóng")
+            await h.until(lambda: acked(prov, "h2"), "handoff lặp được đóng")
             h.release(0)
             await h.until(lambda: len(prov.results) == 1, "kết quả")
 
-        prov, frames, asks, saved = await self._run(script, ["Có 7 ghi chú."])
+        prov, frames, asks, saved = await self.run_route(script, ["Có 7 ghi chú."])
         self.assertEqual(len(asks), 1, "model bắn handoff đôi cho cùng câu: bộ não chỉ chạy một lần")
 
     async def test_followup_noop_result_is_silent(self):
@@ -264,13 +145,13 @@ class LiveRouteFollowupTests(unittest.IsolatedAsyncioTestCase):
             await h.until(lambda: len(h.asks) == 1, "việc đầu")
             await prov.q.put({"type": "tool_call", "id": "h2", "name": "ask_javis",
                               "args": {"request": "vậy hả, để anh ngồi chờ"}})
-            await asyncio.sleep(0.05)
-            h.release(0)
-            await h.until(lambda: len(h.asks) == 2, "việc nói thêm chạy sau")
+            await h.until(lambda: len(h.asks) == 2, "việc nói thêm chạy song song")
             h.release(1)
-            await h.until(lambda: "h2" in prov.acks, "xác nhận không có việc mới")
+            await h.until(lambda: acked(prov, "h2"), "xác nhận không có việc mới")
+            h.release(0)
+            await h.until(lambda: len(prov.results) == 1, "kết quả việc đầu")
 
-        prov, frames, asks, saved = await self._run(script, ["Doanh thu 12 triệu.", "JAVIS_NOOP"])
+        prov, frames, asks, saved = await self.run_route(script, ["Doanh thu 12 triệu.", "JAVIS_NOOP"])
         self.assertEqual([cid for cid, _ in prov.results], ["h1"], "JAVIS_NOOP không được đọc ra loa")
         self.assertEqual([f["text"] for f in frames if f["type"] == "tool_result"], ["Doanh thu 12 triệu."])
         self.assertFalse(any("JAVIS_NOOP" in m["content"] for m in saved), "JAVIS_NOOP không vào lịch sử")
@@ -290,7 +171,7 @@ class LiveRouteFollowupTests(unittest.IsolatedAsyncioTestCase):
             h.release(1)
             await h.until(lambda: len(prov.results) == 2, "kết quả hai")
 
-        prov, frames, asks, saved = await self._run(script, ["Doanh thu 12 triệu.", "Dạ."])
+        prov, frames, asks, saved = await self.run_route(script, ["Doanh thu 12 triệu.", "Dạ."])
         self.assertEqual(asks[1], "ok báo anh nhé", "việc đã xong thì câu sau là việc mới, không ghép ngữ cảnh")
 
 

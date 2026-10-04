@@ -12796,14 +12796,17 @@ async def voice_options(brains: int = 1):
     }
 
 
-async def _voice_ask_javis(request: str, conv_sid: str, brain: str, key: str = "") -> str:
+async def _voice_ask_javis(request: str, conv_sid: str, brain: str, key: str = "", progress=None) -> str:
     """Tool `ask_javis` của phiên Live, và việc nền của làn nhanh (V3): chạy MỘT lượt bộ não
     chính rồi trả chữ.
 
     Đi qua `_tg_answer` (vỏ chung của Telegram/CLI) với khoá phiên `voice:<sid>`. `key` riêng
-    (làn nhanh truyền `voice:<sid>:<id>`) để nhiều việc chạy song song không xếp hàng chung
-    một mạch engine. Lỗi thì trả câu lỗi để model nói lại cho người dùng, không ném ra ngoài
-    (ném là rớt cả phiên Live).
+    (làn nhanh truyền `voice:<sid>:<id>`, phiên Live truyền khi đã có việc khác đang chạy) để
+    nhiều việc chạy song song không xếp hàng chung một mạch engine. Lỗi thì trả câu lỗi để
+    model nói lại cho người dùng, không ném ra ngoài (ném là rớt cả phiên Live).
+
+    `progress`: hàm async nhận câu trạng thái từng bước của bộ não ("⚙ Đang dùng công cụ: ...").
+    Phiên Live giữ câu mới nhất để trả lời "đang làm tới đâu rồi" bằng số liệu thật.
 
     Khoá ấy là khoá của MẠCH ENGINE, không phải của cuộc trò chuyện - và tới 0.59.28 vỏ chung
     lẫn lộn hai thứ đó. Vì khoá dùng một lần nên vỏ tra ra "chưa có phiên nào cho chat này" và
@@ -12813,6 +12816,7 @@ async def _voice_ask_javis(request: str, conv_sid: str, brain: str, key: str = "
     `ghi_kho=False` vì phần ghi kết quả đã có `push_to_chat` (làn nhanh) hoặc chính vòng
     hội thoại Live lo - vỏ chen tin vào nữa là ghi đôi.
     """
+    own_key = bool(key)   # khoá riêng dùng một lần: phiên RAM của nó phải chết theo, xem finally
     key = key or f"voice:{conv_sid}"
     sess = _tg_session(key)
     try:
@@ -12822,10 +12826,13 @@ async def _voice_ask_javis(request: str, conv_sid: str, brain: str, key: str = "
     except Exception:
         pass
     try:
-        out = await _tg_answer(request, meta={"chat_id": key}, channel="cli",
+        out = await _tg_answer(request, meta={"chat_id": key}, progress=progress, channel="cli",
                                phien_kho=str(conv_sid or ""), ghi_kho=False)
     except Exception as e:
         return f"Bộ não chính lỗi: {type(e).__name__}: {e}"
+    finally:
+        if own_key:
+            _TG_SESS.pop(key, None)
     if isinstance(out, dict):
         return channel_context.strip_control_blocks(str(out.get("text") or ""))[:6000] or "(không có nội dung)"
     return str(out or "")[:6000]
@@ -12902,11 +12909,15 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
     ui_ctx = {"text": ""}          # khối [NGỮ CẢNH GIAO DIỆN: ...] mới nhất từ trình duyệt
     tool_tasks: set = set()
     # Không lặp câu trả lời (0.65.21, chủ dự án báo 01/10). Lần giao việc tới khi bộ não chính còn đang
-    # làm là LỜI NÓI THÊM ("Ok, xong thì báo anh nhé"): xếp hàng sau việc đang chạy chứ không chạy song
-    # song (voice_live.is_followup_ack / followup_request). `readback`: model đọc lại kết quả đã có bong
-    # bóng đầy đủ, nên lời đọc đó không thành bong bóng thứ hai và không vào lịch sử.
-    ask_lock = asyncio.Lock()
-    ask_state = {"waiting": 0, "last": ""}
+    # làm có thể là LỜI NÓI THÊM ("Ok, xong thì báo anh nhé": bỏ), CÂU HỎI TIẾN ĐỘ ("xong chưa": trả lời
+    # ngay từ `jobs`) hoặc việc mới thật (chạy SONG SONG, voice_live.parallel_request). Trước 0.71.2 cả
+    # ba xếp hàng sau một khoá chung, nên hỏi giữa chừng im re mấy phút (chủ dự án báo 03/10: câu hỏi
+    # 17:45 được trả lời 17:56). `readback`: model đọc lại kết quả đã có bong bóng đầy đủ (hoặc đọc một
+    # câu tiến độ), nên lời đọc đó không thành bong bóng thứ hai và không vào lịch sử.
+    jobs: dict = {}                  # việc bộ não chính đang chạy: số thứ tự -> {request, started, step}
+    job_seq = {"n": 0}
+    spoke = {"t": 0.0}               # lần gần nhất Javis nói về việc nền (kết quả hay tiến độ)
+    heartbeat = {"task": None}
     readback = {"pending": 0, "active": False}
 
     async def from_client():
@@ -12969,9 +12980,27 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
         cid = str(ev.get("id") or "")
         req = str((ev.get("args") or {}).get("request") or "")
         if name != "ask_javis":
-            return await _run_one(name, cid, req, None)
-        previous = ask_state["last"] if ask_state["waiting"] else None
-        if previous is not None and (voice_live.is_followup_ack(req) or voice_live.is_same_request(previous, req)):
+            return await _run_one(name, cid, req, [])
+        running = [j["request"] for j in jobs.values()]
+        if running and voice_live.is_progress_question(req):
+            # Hỏi tiến độ ("xong chưa", "đang làm gì"): trả lời NGAY từ sổ việc đang chạy, không chạy
+            # bộ não. Bộ não chỉ trả lời được sau khi việc dài xong, nên đẩy câu này sang đó là im
+            # re mấy phút rồi mới có câu trả lời cũ.
+            text = voice_live.status_line(list(jobs.values()), asyncio.get_running_loop().time())
+            print(f"[voice live] câu hỏi tiến độ, trả lời từ trạng thái: {req[:80]!r}", file=sys.stderr)
+            try:
+                if await prov.say_status(text):
+                    # KHÔNG đánh dấu `readback` ở đây (khác câu tự lên tiếng ở `_heartbeat`): mỗi lần giao
+                    # việc model tự nói một câu đệm ("Dạ, đợi em xem ạ"), nó tới ngay sau lệnh này và
+                    # trước lúc model đọc câu tiến độ. Đánh dấu bây giờ là nuốt nhầm câu đệm và để câu
+                    # tiến độ hiện thành bong bóng. Cả hai cứ hiện như lời model nói bình thường.
+                    spoke["t"] = asyncio.get_running_loop().time()
+                else:
+                    await prov.send_tool_ack(cid, name, text)   # hãng không có kênh nói thêm: trả như kết quả tool
+            except Exception:
+                pass
+            return
+        if running and (voice_live.is_followup_ack(req) or any(voice_live.is_same_request(p, req) for p in running)):
             # Chỉ là xác nhận trong lúc chờ, hay model bắn lặp chính yêu cầu đang chạy: kết quả việc đang
             # chạy sẽ tới, không chạy bộ não lần nữa.
             print(f"[voice live] bỏ lời nói thêm (xác nhận hoặc lặp): {req[:80]!r}", file=sys.stderr)
@@ -12980,32 +13009,77 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
             except Exception:
                 pass
             return
-        ask_state["waiting"] += 1
-        try:
-            async with ask_lock:
-                ask_state["last"] = req
-                await _run_one(name, cid, req, previous)
-        finally:
-            ask_state["waiting"] -= 1
+        await _run_one(name, cid, req, running)
 
-    async def _run_one(name: str, cid: str, req: str, previous):
+    async def _heartbeat():
+        """Việc chạy lâu thì Javis tự lên tiếng: người dùng đang không nhìn màn hình, im lặng mấy phút
+        là họ không biết còn sống hay đã chết (chủ dự án 03/10: "anh sẽ rất lo lắng về việc đấy").
+
+        Chỉ nói khi không ai đang nói và đã cách lần nói trước đủ lâu. Câu này không thành bong bóng,
+        không vào lịch sử. Hết việc thì vòng tự dừng; việc mới bật lại qua `_ensure_heartbeat`."""
+        loop = asyncio.get_running_loop()
+        while jobs:
+            await asyncio.sleep(voice_live.STATUS_TICK_S)
+            if not jobs:
+                return
+            now = loop.time()
+            if now - min(j["started"] for j in jobs.values()) < voice_live.STATUS_FIRST_S:
+                continue
+            if spoke["t"] and now - spoke["t"] < voice_live.STATUS_EVERY_S:
+                continue
+            if not prov.is_quiet():
+                continue
+            try:
+                said = await prov.say_status(voice_live.status_line(list(jobs.values()), now))
+            except Exception:
+                said = False
+            if not said:
+                return   # hãng này không có kênh nói thêm
+            readback["pending"] += 1
+            spoke["t"] = now
+
+    def _ensure_heartbeat():
+        task = heartbeat["task"]
+        if task is None or task.done():
+            heartbeat["task"] = asyncio.create_task(_heartbeat())
+            tool_tasks.add(heartbeat["task"])
+            heartbeat["task"].add_done_callback(tool_tasks.discard)
+
+    async def _run_one(name: str, cid: str, req: str, running: list):
         await _j({"type": "tool", "name": name, "status": "running"})
         try:
             await prov.send_tool_running(cid, name)
         except Exception:
             pass
-        if previous is not None:
-            req = voice_live.followup_request(previous, req)
+        loop = asyncio.get_running_loop()
+        job = {"request": req, "started": loop.time(), "step": ""}
+        job_seq["n"] += 1
+        job_id = job_seq["n"]
+        if name == "ask_javis":
+            jobs[job_id] = job
+            _ensure_heartbeat()
+        sent = voice_live.parallel_request(running, req) if running else req
         if ui_ctx["text"]:
-            req = ui_ctx["text"] + "\n\n" + req
+            sent = ui_ctx["text"] + "\n\n" + sent
+
+        async def _note_step(step):
+            job["step"] = str(step or "")
+
         try:
-            result = await _voice_ask_javis(req, conv_sid, brain) if name == "ask_javis" \
-                else f"Tool {name} không có."
+            if name == "ask_javis":
+                # Đang có việc khác chạy thì việc này cần MẠCH ENGINE riêng: dùng chung khoá phiên là nó
+                # xếp hàng trong engine sau việc kia, đúng cái chờ mà 0.71.2 bỏ khoá chung để tránh.
+                key = f"voice:{conv_sid}:p{job_id}" if running else ""
+                result = await _voice_ask_javis(sent, conv_sid, brain, key=key, progress=_note_step)
+            else:
+                result = f"Tool {name} không có."
         except Exception as e:
             result = f"Bộ não chính lỗi: {type(e).__name__}: {e}"
-        if previous is not None and voice_live.is_noop_result(result):
+        finally:
+            jobs.pop(job_id, None)
+        if running and voice_live.is_noop_result(result):
             # Bộ não thấy câu nói thêm không có việc mới: không bong bóng, không đọc ra loa.
-            print(f"[voice live] lời nói thêm không có việc mới: {str(previous)[:60]!r}", file=sys.stderr)
+            print(f"[voice live] lời nói thêm không có việc mới: {str(running[0])[:60]!r}", file=sys.stderr)
             try:
                 await prov.send_tool_ack(cid, name, voice_live.FOLLOWUP_ACK)
             except Exception:
@@ -13027,6 +13101,7 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
         except Exception as e:
             await _j({"type": "error", "message": localefmt.chu(f"Không trả được kết quả cho model: {e}",
                                                                 f"Could not return the result to the model: {e}")})
+        spoke["t"] = loop.time()   # vừa đọc một kết quả: chưa cần chen câu tiến độ ngay sau đó
         await _j({"type": "tool", "name": name, "status": "done"})
 
     async def from_provider():

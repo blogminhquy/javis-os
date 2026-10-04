@@ -19,6 +19,7 @@ import unittest
 from pathlib import Path
 
 import sessions
+import voice_live
 
 
 class ChatGPTLiveRouteTests(unittest.IsolatedAsyncioTestCase):
@@ -85,7 +86,7 @@ class ChatGPTLiveRouteTests(unittest.IsolatedAsyncioTestCase):
 
                 async def close(self): pass
 
-            async def ask(req, conv_sid, brain, key=""):
+            async def ask(req, conv_sid, brain, key="", progress=None):
                 return "## Doanh thu hôm nay\n\n| Kênh | Tiền |\n|---|---|\n| POS | 12.500.000 |"
 
             def write_auth():
@@ -95,7 +96,11 @@ class ChatGPTLiveRouteTests(unittest.IsolatedAsyncioTestCase):
                 asyncio=asyncio, json=json, sys=sys, WebSocket=Socket, Query=lambda x: x,
                 cfgmod=types.SimpleNamespace(gate_active=lambda: False,
                                              read_settings=lambda: {"voice": {"live_provider": "chatgpt"}}),
-                voice_live=types.SimpleNamespace(make_provider=make_provider, MEMORY_CHARS=4000),
+                voice_live=types.SimpleNamespace(
+                    make_provider=make_provider, MEMORY_CHARS=4000,
+                    # the route's long-job heartbeat reads these as soon as a job starts
+                    STATUS_FIRST_S=voice_live.STATUS_FIRST_S, STATUS_EVERY_S=voice_live.STATUS_EVERY_S,
+                    STATUS_TICK_S=voice_live.STATUS_TICK_S),
                 openai_oauth=types.SimpleNamespace(write_codex_auth=write_auth),
                 _brain_memory_dir=lambda root: mem_dir, _brain_root=lambda b: directory,
                 _fit_memory_index=lambda mem, cap=None: mem[:cap],

@@ -46,6 +46,7 @@ import shutil
 import sys
 import tempfile
 import time
+import unicodedata
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 import localefmt
@@ -197,6 +198,15 @@ class LiveProvider:
 
     def supports_async_tools(self) -> bool:
         """Model có tiếp tục nói trong lúc chờ kết quả tool không."""
+        return False
+
+    async def say_status(self, text: str) -> bool:
+        """Cho model đọc to một câu tiến độ (việc đang chạy tới đâu), không phải câu trả lời của việc nào.
+        Trả False khi nhà cung cấp không có kênh đó: bên gọi tự tìm đường khác hoặc im."""
+        return False
+
+    def is_quiet(self) -> bool:
+        """Không ai đang nói (người dùng lẫn model) nên chen một câu tiến độ vào được không."""
         return False
 
     def translate(self, msg: dict) -> List[dict]:  # pragma: no cover
@@ -749,10 +759,16 @@ MEMORY_CHARS = 4000
 
 # Lời nói thêm trong lúc bộ não chính còn đang làm (0.65.21, lỗi chủ dự án báo 01/10): model nói
 # chuyện hay giao việc LẦN NỮA với câu kiểu "Ok, xem xong kiểm tra xong thì báo anh nhé" (Codex coi
-# handoff tới giữa chừng là lời chỉnh hướng việc đang chạy). Route /ws/voice-live xếp hàng các lần giao
-# việc: câu chỉ gồm từ xác nhận thì bỏ, câu có yêu cầu thật chạy SAU việc đang chạy kèm ngữ cảnh, và bộ
-# não được phép trả FOLLOWUP_NOOP khi chẳng có gì mới.
+# handoff tới giữa chừng là lời chỉnh hướng việc đang chạy). Route /ws/voice-live lọc các lần giao
+# việc: câu chỉ gồm từ xác nhận thì bỏ, câu hỏi tiến độ thì trả lời ngay từ trạng thái thật, câu có yêu
+# cầu thật chạy SONG SONG với việc đang chạy kèm ngữ cảnh, và bộ não được phép trả FOLLOWUP_NOOP khi
+# chẳng có gì mới. Từ 0.71.2 không còn xếp hàng: trước đó mọi câu nói thêm chờ cả việc dài xong, nên
+# hỏi "xong chưa" giữa chừng im re mấy phút rồi các câu trả lời cũ bị đọc dồn một lượt.
 FOLLOWUP_NOOP = "JAVIS_NOOP"
+# Việc chạy lâu thì Javis tự lên tiếng cho người dùng (đang không nhìn màn hình) biết còn sống.
+STATUS_FIRST_S = 60.0    # việc chạy quá chừng này thì bắt đầu nói
+STATUS_EVERY_S = 90.0    # rồi cách chừng này mới nói lại
+STATUS_TICK_S = 5.0      # nhịp kiểm tra của vòng nền
 FOLLOWUP_ACK = "Đã ghi nhận. Việc đang làm sẽ báo kết quả ngay khi xong, không có việc mới."
 _ACK_WORDS = frozenset("""
 ok oke okie okay ừ ừm ờ ừa vâng dạ được rồi nhé nha nhá nhỉ nghen thế vậy thì là xong xem kiểm tra
@@ -781,18 +797,97 @@ def is_same_request(previous: str, followup: str) -> bool:
     return bool(new) and bool(old) and f" {new} " in f" {old} "
 
 
-def followup_request(previous: str, followup: str) -> str:
-    """Yêu cầu gửi bộ não chính cho câu nói thêm, chạy SAU khi việc trước đã xong và đã báo kết quả."""
-    return (f"Trong lúc em đang làm yêu cầu trước của người dùng (\"{str(previous).strip()}\"), người dùng "
-            f"nói thêm qua cuộc gọi: \"{str(followup).strip()}\". Kết quả yêu cầu trước đã gửi cho người dùng "
-            f"ngay trước tin này. Nếu câu nói thêm chỉ là đồng ý, nhắc báo kết quả hay bảo chờ thì trả lời "
-            f"đúng một dòng {FOLLOWUP_NOOP} và không làm gì thêm. Nếu có yêu cầu mới hoặc chỉnh lại yêu cầu "
-            f"trước thì làm phần đó rồi trả lời như thường, không lặp lại kết quả đã báo.")
+def parallel_request(running: List[str], followup: str) -> str:
+    """Yêu cầu gửi bộ não chính cho câu nói thêm, chạy SONG SONG với các việc đang chạy.
+
+    Báo rõ các việc kia CHƯA xong: bộ não không được coi kết quả của chúng là đã có, cũng không được
+    ghi đè thứ chúng đang làm dở (tệp, tin đang soạn) trừ khi người dùng bảo rõ."""
+    work = "; ".join('"' + str(r).strip()[:200] + '"' for r in running)
+    return (f"Em đang làm các việc sau cho người dùng và chúng CHƯA xong: {work}. Trong lúc đó người dùng "
+            f"nói thêm qua cuộc gọi: \"{str(followup).strip()}\". Việc này chạy SONG SONG với các việc trên, "
+            f"không chờ chúng và kết quả của chúng chưa có. Nếu câu nói thêm chỉ là đồng ý, nhắc báo kết quả "
+            f"hay bảo chờ thì trả lời đúng một dòng {FOLLOWUP_NOOP} và không làm gì thêm. Nếu có yêu cầu "
+            f"mới thì làm phần đó rồi trả lời như thường; đừng sửa hay ghi đè thứ mà các việc đang chạy "
+            f"đang làm dở (tệp, tin nhắn đang soạn), trừ khi người dùng bảo rõ.")
 
 
 def is_noop_result(text: str) -> bool:
     t = str(text or "").strip()
     return FOLLOWUP_NOOP in t and len(t) <= 80
+
+
+# Câu HỎI TIẾN ĐỘ trong lúc một việc đang chạy ("xong chưa", "đang làm gì", "có nghe thấy không").
+# Model nói chuyện giao từng câu đó cho bộ não như một việc mới, mà bộ não chỉ biết trả lời sau khi việc
+# dài xong. Nhận ra câu này để trả lời ngay từ trạng thái thật. Cố ý HẸP: nhận hụt thì câu đó vẫn chạy
+# song song và được trả lời (chậm hơn một chút), còn nhận nhầm thì nuốt mất một yêu cầu thật.
+_PROGRESS_MAX_WORDS = 12
+_PROGRESS_RE = re.compile("|".join((
+    r"\bxong\b.{0,20}\bchưa\b",                      # "xong chưa", "em xong chỗ đấy chưa"
+    r"^(?:vẫn |còn )?chưa xong\b",                   # "vẫn chưa xong à" (câu đầu: "anh chưa xong" là lời của người dùng)
+    r"\bxong rồi (?:hả|à|chưa|sao)\b",
+    r"\btiến độ\b",
+    r"\b(?:đến|tới) đâu rồi\b",
+    r"\b(?:bao lâu|bao nhiêu lâu|bao nhiêu phút|mấy phút)\b.{0,20}\b(?:xong|hoàn thiện|hoàn thành|có kết quả|nữa)\b",
+    r"\bcòn bao lâu\b",
+    r"\bkhi nào (?:thì )?(?:xong|có kết quả|hoàn thiện)\b",
+    r"\b(?:đang|vẫn đang|còn đang) làm (?:gì|việc gì|cái gì|nhiệm vụ nào|đến đâu|tới đâu)\b",
+    r"\bmình đang làm (?:nhiệm vụ|việc|gì)\b",
+    r"^(?:vẫn|còn) (?:đang )?(?:làm|chạy)\b.{0,25}\b(?:đúng không|không|hả|à)\b",
+    r"\b(?:em|bạn|javis) (?:vẫn |còn )?(?:đang )?(?:làm|chạy)\b.{0,12}\b(?:đúng không|không|chưa|hả)\b",
+    r"\bcó nghe (?:thấy|rõ|được)\b.{0,30}\bkhông\b",
+    r"\bnghe (?:thấy|rõ) (?:không|chứ)\b",
+    r"^(?:alo|a lô)\b",
+    r"\b(?:are you|is it) (?:done|finished)\b", r"\bdone yet\b", r"\bhow(?:'s| is) it going\b",
+    r"\bany (?:progress|update)\b", r"\bwhat are you (?:doing|working on)\b",
+    r"\bhow long (?:until|till|will|is)\b", r"\bcan you hear me\b", r"\bare you (?:still )?(?:there|working)\b",
+)))
+
+
+def is_progress_question(text: str) -> bool:
+    # NFC trước: chữ có dấu tách rời (NFD) làm `\b` của Python đứt giữa từ.
+    s = unicodedata.normalize("NFC", str(text or "")).lower()
+    s = " ".join(re.findall(r"[\w']+", s))
+    words = s.split()
+    return 0 < len(words) <= _PROGRESS_MAX_WORDS and bool(_PROGRESS_RE.search(s))
+
+
+def _spoken_elapsed(seconds: float) -> str:
+    s = max(0, int(seconds))
+    if s < 90:
+        return localefmt.chu(f"{s} giây", f"{s} seconds")
+    m = round(s / 60)
+    return localefmt.chu(f"{m} phút", f"{m} minutes")
+
+
+def _short_request(text: str, limit: int = 80) -> str:
+    s = re.sub(r"\s+", " ", str(text or "")).strip()
+    return s if len(s) <= limit else s[:limit].rsplit(" ", 1)[0].strip()
+
+
+def _spoken_step(step: str) -> str:
+    """Bước hiện tại để đọc to: bỏ biểu tượng đầu dòng và dấu chấm lửng ("⚙ Đang dùng công cụ: Write")."""
+    return re.sub(r"\s+", " ", re.sub(r"^[^\w]+", "", str(step or ""))).strip().rstrip(".… ")[:80]
+
+
+def status_line(jobs: List[dict], now: float) -> str:
+    """Câu đọc to cho biết các việc đang chạy: làm gì, bao lâu rồi, tới bước nào.
+
+    `jobs`: {"request", "started", "step"}; `now` cùng đồng hồ với `started`. Chỉ dùng số liệu thật
+    (không đoán bao giờ xong): người nghe đang không nhìn màn hình, nói sai còn tệ hơn im."""
+    jobs = sorted(jobs, key=lambda j: j.get("started", 0.0))
+    if not jobs:
+        return localefmt.chu("Em không có việc nào đang chạy ạ.", "Nothing is running right now.")
+    longest = _spoken_elapsed(now - jobs[0].get("started", now))
+    if len(jobs) == 1:
+        what = _short_request(jobs[0].get("request", ""))
+        step = _spoken_step(jobs[0].get("step", ""))
+        step_vi = (", hiện " + step[:1].lower() + step[1:]) if step else ""
+        step_en = (", now: " + step) if step else ""
+        return localefmt.chu(f'Em vẫn đang làm việc "{what}", được {longest}{step_vi}.',
+                             f'Still working on "{what}", {longest} so far{step_en}.')
+    names = "; ".join('"' + _short_request(j.get("request", ""), 50) + '"' for j in jobs[:3])
+    return localefmt.chu(f"Em đang làm {len(jobs)} việc: {names}. Việc lâu nhất đã được {longest}.",
+                         f"Working on {len(jobs)} jobs: {names}. The longest has run {longest}.")
 
 
 def speakable(text: str, limit: int = SPEAK_MAX) -> str:
@@ -823,6 +918,10 @@ def speakable(text: str, limit: int = SPEAK_MAX) -> str:
     cut = s[:limit]
     end = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
     return (cut[:end + 1] if end > limit // 3 else cut.rsplit(" ", 1)[0]).strip()
+
+
+class _Status(str):
+    """Câu tiến độ trong hàng lời đọc: phân biệt với lời đọc kết quả để bỏ được khi kết quả về."""
 
 
 class ChatGPTLive(LiveProvider):
@@ -1065,13 +1164,30 @@ class ChatGPTLive(LiveProvider):
         self._user_last, self._user_last_at = str(text), time.monotonic()
         await self.srv.request("thread/realtime/appendText", {"threadId": self.thread_id, "text": str(text)})
 
-    async def send_tool_result(self, call_id: str, name: str, result: str):
-        """Xếp lời đọc kết quả vào hàng, trả về ngay (route không phải đứng chờ model đọc xong)."""
-        self._speech_q.append(speakable(result) or "Em chưa có kết quả.")
+    def _enqueue_speech(self, text: str):
+        self._speech_q.append(text)
         if self._speech_task is None or self._speech_task.done():
             self._speech_task = asyncio.ensure_future(self._drain_speech())
             self._bg.add(self._speech_task)
             self._speech_task.add_done_callback(self._bg.discard)
+
+    async def send_tool_result(self, call_id: str, name: str, result: str):
+        """Xếp lời đọc kết quả vào hàng, trả về ngay (route không phải đứng chờ model đọc xong)."""
+        # Câu tiến độ còn kẹt trong hàng là câu cũ ngay khi kết quả thật về: đọc nó SAU câu trả lời
+        # ("em vẫn đang làm" rồi mới "xong rồi") nghe như Javis lú.
+        self._speech_q[:] = [t for t in self._speech_q if not isinstance(t, _Status)]
+        self._enqueue_speech(speakable(result) or "Em chưa có kết quả.")
+
+    async def say_status(self, text: str) -> bool:
+        """Câu tiến độ cho người đang không nhìn màn hình. Đi chung hàng với lời đọc kết quả nên không
+        bao giờ chen vào giữa câu model đang nói, và bị bỏ nếu kết quả thật về trước."""
+        if self._closing:
+            return False
+        self._enqueue_speech(_Status(text))
+        return True
+
+    def is_quiet(self) -> bool:
+        return not self._user_buf.strip() and not self._speech_q and not self._model_busy()
 
     def _model_busy(self) -> bool:
         now = time.monotonic()
