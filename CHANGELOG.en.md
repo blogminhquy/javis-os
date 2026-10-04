@@ -10,7 +10,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.75.1] - 2026-10-05
 ### Improved
-- **Theme defaults to Auto.** (in progress)
+- **The theme now defaults to Auto.** A device that never picked a theme turns light at 06:00 and dark at 18:00 by itself, instead of staying dark all day. If you already picked Dark or Light by hand, that choice stays.
 
 ## [0.74.2] - 2026-10-04
 ### Fixed

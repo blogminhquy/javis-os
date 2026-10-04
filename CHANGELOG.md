@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.75.1] - 2026-10-05
 ### Cải thiện
-- **Tông màu mặc định là Tự động.** (đang viết)
+- **Tông màu mặc định là Tự động.** Máy chưa từng chọn tông giờ tự sáng từ 06:00 và tự tối từ 18:00, thay vì tối cả ngày như trước. Ai đã chọn Tối hay Sáng bằng tay thì giữ nguyên lựa chọn đó.
 
 ## [0.74.2] - 2026-10-04
 ### Sửa lỗi
