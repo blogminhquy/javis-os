@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.74.0] - 2026-10-04
+### Tính năng mới
+- **Tông sáng tối tự đổi theo giờ.** (đang viết)
+
 ## [0.73.0] - 2026-10-04
 ### Tính năng mới
 - **Javis xem được ảnh người ta gửi trong nhóm Zalo.** Hỏi kiểu "xem ảnh hoá đơn chị Lan vừa gửi trong nhóm Kinh doanh" là Javis lấy ảnh về, hiện ngay trong khung chat và nói trong ảnh có gì, chép nguyên văn chữ và số. Ảnh lấy thẳng từ Zalo nên không còn giới hạn 2 giờ.
