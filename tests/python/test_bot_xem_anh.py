@@ -87,7 +87,7 @@ mm = cr.manual_meta(conv, {"sender_id": "777", "sender_name": "Quý", "external_
 check("owner's 'reply for me' from the inbox carries the link too", mm.get("co_anh") is True and mm.get("image_url") == URL, mm)
 
 # ============================================================
-# 3. The photo goes INTO the chat (0.79.0): saved in the bot's brain, returned as a path for the bot's own model.
+# 3. The photo goes INTO the chat (0.81.0): saved in the bot's brain, returned as a path for the bot's own model.
 #    No ChatGPT describing it any more; every failure falls back to the honest label.
 # ============================================================
 brain = Path(tempfile.mkdtemp(prefix="javis-bxa-brain-"))

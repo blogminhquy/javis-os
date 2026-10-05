@@ -872,7 +872,7 @@ class TelegramBot(HangLuot):
                             ingested = await self._ingest_attachment(client, msg) or ""
                             text = _caption_command_text(ingested, msg.get("caption"))
                         else:
-                            # Trả lời vào một ẢNH rồi gọi bot ("@bot xem giúp ảnh này", 0.79.0): tải đúng ảnh được
+                            # Trả lời vào một ẢNH rồi gọi bot ("@bot xem giúp ảnh này", 0.81.0): tải đúng ảnh được
                             # trả lời về, như thể ảnh nằm ngay trong tin này.
                             anh_rep = self._anh_cua_tin_duoc_tra_loi(msg)
                             if anh_rep:

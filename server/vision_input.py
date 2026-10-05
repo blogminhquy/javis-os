@@ -1,4 +1,4 @@
-"""vision_input.py - put a customer's photo INTO the chat turn, so the bot's own model looks at it (0.79.0).
+"""vision_input.py - put a customer's photo INTO the chat turn, so the bot's own model looks at it (0.81.0).
 
 Owner decision (2026-10-05): no second model "describing" the photo for the bot (that was ChatGPT in 0.74.1, and it meant no ChatGPT
 = no eyes for any brain). The photo is downloaded into the bot's brain (inbox/ or attachments/, swept by media_gc after 30 days or

@@ -306,7 +306,7 @@ _ANH_CHO: Dict[tuple, tuple] = {}     # (bot_id, chat_id, user_id) -> (paths, ts
 
 
 async def anh_cho_bot(text_engine: str, meta: dict, cfg: dict) -> tuple:
-    """The photos of this turn, put INTO the chat for the bot's own model (0.79.0). Returns (text, image paths).
+    """The photos of this turn, put INTO the chat for the bot's own model (0.81.0). Returns (text, image paths).
 
     Owner decision (2026-10-05): no second model describes the photo (0.74.1 used ChatGPT, so no ChatGPT meant no eyes for any
     brain). The photo is saved in the bot's own brain (swept by media_gc) and sent as image input with this turn; main.py

@@ -2224,7 +2224,7 @@ def _claude_sub_tach(messages):
     Engine Claude Code nhận MỘT prompt chứ không nhận mảng messages, nên lịch sử được gói lại
     bằng chính `compaction.bootstrap_prompt` mà nhánh Codex và nhánh xoay-mạch vẫn dùng.
     """
-    # `content` có thể là danh sách có ảnh (0.79.0): ở đây chỉ lấy CHỮ, ảnh do người gọi gửi kèm riêng.
+    # `content` có thể là danh sách có ảnh (0.81.0): ở đây chỉ lấy CHỮ, ảnh do người gọi gửi kèm riêng.
     _txt = vision_input.content_text
     sys_txt = "\n\n".join(_txt(m.get("content") or "") for m in messages
                           if m.get("role") == "system").strip()
@@ -2291,7 +2291,7 @@ def _claude_sub_stream(model, messages, reasoning="off", *, brain=None, tag="cha
 
 
 def _claude_kem_anh(messages, prompt):
-    """Prompt cho engine Claude Code, kèm ẢNH của lượt nếu có (0.79.0): chuỗi khi không có ảnh (y như cũ), danh sách
+    """Prompt cho engine Claude Code, kèm ẢNH của lượt nếu có (0.81.0): chuỗi khi không có ảnh (y như cũ), danh sách
     khối Anthropic (ảnh trước, chữ sau) khi có. `claude_sdk_engine.query` nhận cả hai."""
     _, imgs = vision_input.split_last_images(messages)
     return vision_input.anthropic_blocks(prompt, imgs) if imgs else prompt
@@ -18335,7 +18335,7 @@ def _bot_ket(out, lich_su):
 
 
 def _bot_gan_anh(messages, prov, text, images):
-    """Gắn ẢNH khách gửi vào tin user CUỐI của lượt (0.79.0). Trả (messages để gửi, True nếu đã gắn ảnh thật).
+    """Gắn ẢNH khách gửi vào tin user CUỐI của lượt (0.81.0). Trả (messages để gửi, True nếu đã gắn ảnh thật).
 
     Chủ dự án chốt 05/10: ảnh đi THẲNG vào lượt chat, chính model đang chạy bot nhìn ảnh; không model thứ hai nào tả hộ.
     Bộ não không có đường gửi ảnh (Antigravity, Grok Build) hoặc ảnh không đọc được thì nhận dòng nhãn thật thà "kèm một

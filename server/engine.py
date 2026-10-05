@@ -758,7 +758,7 @@ async def anthropic_stream(api_key, model, messages, reasoning="off"):
     gỡ (xem claude_auth.py). Gói Claude Code nay đi qua binary `claude`, không qua đây.
     """
     sys_parts = [m.get("content", "") for m in messages if m.get("role") == "system"]
-    # Ảnh khách gửi (0.79.0) đi theo khuôn OpenAI trong Javis; Anthropic có khuôn riêng, đổi ở đây.
+    # Ảnh khách gửi (0.81.0) đi theo khuôn OpenAI trong Javis; Anthropic có khuôn riêng, đổi ở đây.
     conv = [{"role": m["role"], "content": vision_input.to_anthropic(m.get("content", ""))}
             for m in messages if m.get("role") in ("user", "assistant")]
     headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
@@ -1082,7 +1082,7 @@ def _codex_input(messages):
         if role == "system":
             instructions.append(vision_input.content_text(content))
             continue
-        # `content` có thể là danh sách có ẢNH khách gửi (0.79.0): đổi sang input_text/input_image.
+        # `content` có thể là danh sách có ẢNH khách gửi (0.81.0): đổi sang input_text/input_image.
         inp.append({"type": "message", "role": role, "content": vision_input.to_responses(content, role)})
     return "\n\n".join(s for s in instructions if s), inp
 

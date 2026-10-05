@@ -831,7 +831,7 @@ class ClaudeSDK:
             with _LOCK:
                 _ACTIVE[client] = (self.tag, loop)
             if isinstance(prompt, list):
-                # Lượt có ẢNH (0.79.0): `prompt` là danh sách khối nội dung Anthropic (ảnh + chữ). SDK nhận một luồng
+                # Lượt có ẢNH (0.81.0): `prompt` là danh sách khối nội dung Anthropic (ảnh + chữ). SDK nhận một luồng
                 # tin nhắn thay cho chuỗi; gửi đúng MỘT tin user mang các khối đó.
                 blocks = prompt
 

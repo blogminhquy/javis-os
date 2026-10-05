@@ -1,4 +1,4 @@
-"""Customer photos go INTO the chat turn and the bot's own model looks at them (0.79.0).
+"""Customer photos go INTO the chat turn and the bot's own model looks at them (0.81.0).
 
     python tests/run.py bot_anh_vao_chat      (no network: fake streams)
 
