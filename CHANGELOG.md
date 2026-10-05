@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.81.1] - 2026-10-05
 ### Sửa lỗi
-- Đang viết.
+- **Khoá mã hoá lệch không còn xoá sạch các kết nối.** Key API, đăng nhập ChatGPT, token Telegram được mã hoá bằng khoá riêng của máy. Khi khoá bị lệch (dựng lại volume, mất file khoá), trước đây chỉ cần một lần lưu cài đặt, hay lần khởi động đầu sau cập nhật, là các giá trị đó bị ghi rỗng vĩnh viễn. Giờ Javis giữ nguyên bản mã hoá cũ, trả đúng khoá về là mọi kết nối quay lại.
+- Khoá vẫn đúng thì không có gì thay đổi: bạn xoá hay đổi key vẫn như bình thường, và key gõ lại mới luôn được lưu.
 
 ## [0.81.0] - 2026-10-05
 ### Thêm mới

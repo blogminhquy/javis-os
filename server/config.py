@@ -827,7 +827,44 @@ def write_settings(cfg):
                 t["secret"] = cu
     except Exception:
         pass
+    try:
+        _giu_secret_khong_giai_duoc(out)
+    except Exception as e:      # noqa: BLE001 - tấm che hỏng thì vẫn ghi như cũ, không chặn việc lưu
+        print(f"[config] giữ secret khi khoá lệch lỗi: {e}", file=__import__('sys').stderr)
     SETTINGS_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _giu_secret_khong_giai_duoc(out):
+    """KHÔNG ghi rỗng đè lên một secret mà máy này không giải mã được (0.81.1).
+
+    Khoá `.secret_key` lệch (volume dựng lại, file khoá mất hay chép từ máy khác) thì read_settings giải mã mọi secret ra
+    "". Ghi lại dict đó là ghi "" đè lên bản mã hoá, và trả đúng khoá về cũng không cứu được nữa: mọi kết nối phải nhập
+    lại. Trước 0.77.1 lúc khởi động không ai ghi settings nên trả khoá là đủ; từ 0.77.1 việc áp mật khẩu admin từ env ghi
+    lại settings một lần lúc boot trên hầu hết máy Hostinger, biến một lỗi tạm thành mất vĩnh viễn.
+
+    Luật: bản CŨ trong file là "enc:..." mà máy này KHÔNG giải được, và bản MỚI rỗng hoặc thiếu -> giữ bản cũ. Khoá đúng
+    thì không đụng gì: chủ xoá key là xoá được. Giá trị mới chủ vừa gõ (khác rỗng) luôn thắng."""
+    if not SETTINGS_PATH.exists():
+        return
+    import secrets_store
+    raw_cu = json.loads(SETTINGS_PATH.read_text(encoding="utf-8")) or {}
+    for path in _SECRET_PATHS:
+        if path == "auth.totp.secret":
+            # 2FA có tấm che RIÊNG ngay trên (giữ khi còn bật): tắt 2FA lúc khoá lệch (đăng nhập bằng mã khôi phục rồi
+            # tắt) phải xoá được secret, không được hồi sinh nó ở đây.
+            continue
+        parts = path.split(".")
+        for cha_cu, key in _secret_keys(raw_cu, path):
+            cu = cha_cu.get(key)
+            if not (isinstance(cu, str) and cu.startswith("enc:")) or secrets_store.decrypt(cu):
+                continue
+            cha_moi = out
+            for p in parts[:-1]:
+                if not isinstance(cha_moi.get(p), dict):
+                    cha_moi[p] = {}
+                cha_moi = cha_moi[p]
+            if not cha_moi.get(key):
+                cha_moi[key] = cu
 
 
 _TOOL_ENV_OWNED = False   # ELEVENLABS_API_KEY trong env hiện do apply_tool_env đặt → được phép gỡ khi user xoá key
