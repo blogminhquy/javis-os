@@ -55,6 +55,7 @@ _record_boot_version = update_state.record_boot_version
 _update_outcome = update_state.update_outcome
 import git_brain
 import engine
+import vision_input
 import openai_oauth
 import claude_update   # tự chạy `claude update` hằng ngày để model mới hiện ra
 import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi bằng API key, nếu có)
@@ -2223,11 +2224,13 @@ def _claude_sub_tach(messages):
     Engine Claude Code nhận MỘT prompt chứ không nhận mảng messages, nên lịch sử được gói lại
     bằng chính `compaction.bootstrap_prompt` mà nhánh Codex và nhánh xoay-mạch vẫn dùng.
     """
-    sys_txt = "\n\n".join((m.get("content") or "") for m in messages
+    # `content` có thể là danh sách có ảnh (0.79.0): ở đây chỉ lấy CHỮ, ảnh do người gọi gửi kèm riêng.
+    _txt = vision_input.content_text
+    sys_txt = "\n\n".join(_txt(m.get("content") or "") for m in messages
                           if m.get("role") == "system").strip()
-    conv = [{"role": m["role"], "content": m.get("content") or ""}
+    conv = [{"role": m["role"], "content": _txt(m.get("content") or "")}
             for m in messages
-            if m.get("role") in ("user", "assistant") and (m.get("content") or "").strip()]
+            if m.get("role") in ("user", "assistant") and _txt(m.get("content") or "").strip()]
     if not conv:
         return sys_txt, "(tiếp tục)"
     if conv[-1]["role"] == "user":
@@ -2284,7 +2287,14 @@ def _claude_sub_stream(model, messages, reasoning="off", *, brain=None, tag="cha
                         tag=tag, allowed_tools=CLAUDE_SUB_KHONG_TOOL,
                         model=_claude_api_model(model) or None)
     cli.system_prompt_raw = bool(tiet_kiem)
-    return _claude_sub_doc(cli, _cli_do_sau(cli, reasoning, prompt), model)
+    return _claude_sub_doc(cli, _claude_kem_anh(messages, _cli_do_sau(cli, reasoning, prompt)), model)
+
+
+def _claude_kem_anh(messages, prompt):
+    """Prompt cho engine Claude Code, kèm ẢNH của lượt nếu có (0.79.0): chuỗi khi không có ảnh (y như cũ), danh sách
+    khối Anthropic (ảnh trước, chữ sau) khi có. `claude_sdk_engine.query` nhận cả hai."""
+    _, imgs = vision_input.split_last_images(messages)
+    return vision_input.anthropic_blocks(prompt, imgs) if imgs else prompt
 
 
 def _antigravity_sub_stream(model, messages, reasoning="off", *, brain=None, tag="chat",
@@ -2396,7 +2406,7 @@ def _claude_sub_stream_tools(model, messages, reasoning="off", *, brain=None, ta
     cli.mcp_strict = cli.mcp_config is not None
     # Lớp hai cho OWNER_ONLY_TOOLS (0.77.0): hub đã giấu nhờ header X-Javis-Bot, chặn thêm ở đây phòng hub đổi.
     cli.disallowed_tools = list(BOT_CAM_NATIVE) + [f"mcp__javis__{t}" for t in sorted(mcp_hub.OWNER_ONLY_TOOLS)]
-    return _claude_sub_doc(cli, _cli_do_sau(cli, reasoning, prompt), model)
+    return _claude_sub_doc(cli, _claude_kem_anh(messages, _cli_do_sau(cli, reasoning, prompt)), model)
 
 
 def _api_stream_goc(prov, key, model, messages, reasoning="off"):
@@ -18324,8 +18334,36 @@ def _bot_ket(out, lich_su):
 # `claude` ngay từ `_api_stream`, nên một đường lui cũng dẫn tới đúng engine ấy là vô nghĩa.
 
 
+def _bot_gan_anh(messages, prov, text, images):
+    """Gắn ẢNH khách gửi vào tin user CUỐI của lượt (0.79.0). Trả (messages để gửi, True nếu đã gắn ảnh thật).
+
+    Chủ dự án chốt 05/10: ảnh đi THẲNG vào lượt chat, chính model đang chạy bot nhìn ảnh; không model thứ hai nào tả hộ.
+    Bộ não không có đường gửi ảnh (Antigravity, Grok Build) hoặc ảnh không đọc được thì nhận dòng nhãn thật thà "kèm một
+    ảnh mà bạn không xem được", để model khỏi trả lời như thể đã thấy ảnh. Lịch sử giữ chữ trơn (xem `_bot_tra_loi`)."""
+    if not images:
+        return messages, False
+    import chatbot_runtime
+    parts = vision_input.user_parts(text, images) if vision_input.supported(prov) else None
+    last = {"role": "user", "content": parts if parts else chatbot_runtime._KEM_ANH + str(text or "")}
+    return messages[:-1] + [last], bool(parts)
+
+
+def _bot_bo_anh(messages, text):
+    """Bản gửi lại khi model TỪ CHỐI ảnh (model chữ thuần trên Groq, Ollama...): bỏ ảnh, gắn nhãn thật thà."""
+    import chatbot_runtime
+    return messages[:-1] + [{"role": "user", "content": chatbot_runtime._KEM_ANH + str(text or "")}]
+
+
+def _bot_lich_su_chu(text, images):
+    """Câu user GHI VÀO LỊCH SỬ: chữ trơn, kèm một dòng ghi chú nếu lượt có ảnh. Ảnh không gửi lại ở lượt sau (tốn token),
+    nhưng model vẫn biết khách từng gửi ảnh khi họ hỏi tiếp "cái áo trong ảnh lúc nãy"."""
+    if not images:
+        return text
+    return f"{text}\n(khách gửi kèm {len(images)} ảnh ở tin này)"
+
+
 async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reasoning,
-                       progress, runtime_trace, brain=None, chat_id=""):
+                       progress, runtime_trace, brain=None, chat_id="", images=None):
     """Một lượt của Bot chuyên trách. MỘT đường duy nhất cho CẢ TÁM bộ não.
 
     Vì sao không đi theo bốn nhánh engine như đường chat của chủ:
@@ -18356,17 +18394,25 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
     là không có tool nào, và một test canh đúng thân hàm này (test_chatbot_cach_ly.py mục B2).
     """
     lich_su = _bot_lich_su(sess)
-    lich_su.append({"role": "user", "content": text})
+    lich_su.append({"role": "user", "content": _bot_lich_su_chu(text, images)})
     _bot_cat_lich_su(lich_su)
 
     # System dựng LẠI mỗi lượt: tài liệu tra được đổi theo từng câu hỏi. Giữ system cũ là bot
     # trả lời câu này bằng tài liệu của câu trước.
     messages = [{"role": "system", "content": sysprompt}] + lich_su
     _bot_ghim_duong(runtime_trace, prov, api_model, messages)
+    gui, co_anh = _bot_gan_anh(messages, prov, text, images)
 
     out, loi = await _bot_doc_stream(
-        _api_stream(prov, api_key, api_model, messages, reasoning),
+        _api_stream(prov, api_key, api_model, gui, reasoning),
         progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
+    if not out and co_anh:
+        # Model không nhận ảnh (model chữ thuần): trả lời lại bằng chữ, nói thật là không xem được ảnh.
+        print(f"[bot {prov} chat {chat_id}] model từ chối ảnh ({loi[0] if loi else '?'}), gửi lại chỉ chữ",
+              file=__import__('sys').stderr)
+        out, loi = await _bot_doc_stream(
+            _api_stream(prov, api_key, api_model, _bot_bo_anh(messages, text), reasoning),
+            progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
 
     if not out:
         lich_su.pop()   # lượt hỏng thì đừng để câu hỏi treo lơ lửng không có câu trả lời
@@ -18436,7 +18482,7 @@ def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route,
 
 
 async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_model, reasoning,
-                               progress, runtime_trace, brain, chat_id, muc_quyen):
+                               progress, runtime_trace, brain, chat_id, muc_quyen, images=None):
     """Một lượt của bot ở mức **Đọc tài liệu** (read_docs), **Được ghi** (auto) hoặc **Toàn quyền** (full).
 
     Mức Đọc tài liệu (0.80.0) đi chung đường này, chỉ khác ở bộ tool: `mcp_hub.discover_all` trả về
@@ -18469,9 +18515,10 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
     đưa file cho khách thì nói đường dẫn trong câu trả lời.
     """
     lich_su = _bot_lich_su(sess)
-    lich_su.append({"role": "user", "content": text})
+    lich_su.append({"role": "user", "content": _bot_lich_su_chu(text, images)})
     _bot_cat_lich_su(lich_su)
     messages = [{"role": "system", "content": sysprompt}] + lich_su
+    gui, co_anh = _bot_gan_anh(messages, prov, text, images)
 
     # vault_root = brain CỦA BOT. Đây là một tham số, không phải một quy ước - truyền nhầm brain
     # của chủ vào đây là mở toang đúng thứ cả tính năng này đang giữ.
@@ -18485,9 +18532,18 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
     _bot_ghim_duong(runtime_trace, prov, api_model, messages, tools)
 
     out, loi = await _bot_doc_stream(
-        _bot_stream_co_tool(prov, api_key, api_model, messages, reasoning, tools, route,
+        _bot_stream_co_tool(prov, api_key, api_model, gui, reasoning, tools, route,
                             brain=brain, tag_bot=f"bot:{chat_id}", muc_quyen=muc_quyen),
         progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
+    if not out and co_anh:
+        # Model không nhận ảnh: thử lại CÙNG vòng tool, chỉ chữ + nhãn thật thà (mất ảnh, không mất công cụ).
+        print(f"[bot {prov} chat {chat_id}] model từ chối ảnh ({loi[0] if loi else '?'}), gửi lại chỉ chữ",
+              file=__import__('sys').stderr)
+        gui = _bot_bo_anh(messages, text)
+        out, loi = await _bot_doc_stream(
+            _bot_stream_co_tool(prov, api_key, api_model, gui, reasoning, tools, route,
+                                brain=brain, tag_bot=f"bot:{chat_id}", muc_quyen=muc_quyen),
+            progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
 
     # Engine KHÔNG chạy nổi vòng tool: trả lời lại lượt này mà bỏ tool đi.
     #
@@ -18506,7 +18562,7 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
         print(f"[bot {prov} chat {chat_id}] vòng tool rỗng ({loi[0] if loi else '?'}), "
               f"trả lời lại KHÔNG tool", file=__import__('sys').stderr)
         out, loi2 = await _bot_doc_stream(
-            _api_stream(prov, api_key, api_model, messages, reasoning),
+            _api_stream(prov, api_key, api_model, gui, reasoning),
             progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
         if out:
             canh_bao = (f"Engine đang chạy ({_api_label(prov)}) không gọi được công cụ cho bot, "
@@ -18603,15 +18659,17 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # Fail-closed là bắt buộc ở đây: đoán sai theo hướng kia là cấp tool cho một con bot
         # đang nói chuyện với người lạ.
         _muc = str((bot or {}).get("muc_quyen") or "").strip().lower()
+        # Ảnh khách gửi ở lượt này (0.81.0), do chatbot_runtime gắn vào bản ghi bot của lượt.
+        _anh = list((bot or {}).get("_anh") or [])
         if _muc in chatbot_store.MUC_CO_TOOL:
             return await _bot_tra_loi_co_tool(
                 text, sess=sess, sysprompt=_sys_bot, prov=prov, api_key=api_key,
                 api_model=api_model, reasoning=reasoning, progress=_p,
-                runtime_trace=runtime_trace, brain=brain, chat_id=chat_id, muc_quyen=_muc)
+                runtime_trace=runtime_trace, brain=brain, chat_id=chat_id, muc_quyen=_muc, images=_anh)
         return await _bot_tra_loi(text, sess=sess, sysprompt=_sys_bot,
                                   prov=prov, api_key=api_key, api_model=api_model,
                                   reasoning=reasoning, progress=_p, runtime_trace=runtime_trace,
-                                  brain=brain, chat_id=chat_id)
+                                  brain=brain, chat_id=chat_id, images=_anh)
     # ===== Hệ Tiết kiệm cho kênh NGOÀI dashboard =====
     #
     # Tới 0.23.1, cả Tối ưu lẫn Siêu tiết kiệm chỉ được nối vào đúng handler WebSocket của

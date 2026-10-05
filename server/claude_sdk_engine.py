@@ -780,7 +780,7 @@ class ClaudeSDK:
             kw["setting_sources"] = ["user", "project", "local"]
         return ClaudeAgentOptions(**kw)
 
-    async def query(self, prompt: str):
+    async def query(self, prompt):
         if not self.is_available():
             yield {"type": "error", "content": localefmt.chu(
                 "claude-agent-sdk chưa sẵn sàng (pip install claude-agent-sdk "
@@ -830,7 +830,17 @@ class ClaudeSDK:
             await client.connect()
             with _LOCK:
                 _ACTIVE[client] = (self.tag, loop)
-            await client.query(prompt)
+            if isinstance(prompt, list):
+                # Lượt có ẢNH (0.79.0): `prompt` là danh sách khối nội dung Anthropic (ảnh + chữ). SDK nhận một luồng
+                # tin nhắn thay cho chuỗi; gửi đúng MỘT tin user mang các khối đó.
+                blocks = prompt
+
+                async def _one_message():
+                    yield {"type": "user", "message": {"role": "user", "content": blocks},
+                           "parent_tool_use_id": None}
+                await client.query(_one_message())
+            else:
+                await client.query(prompt)
             agen = client.receive_response().__aiter__()
             while True:
                 # Watchdog parity với CLI: idle-timeout + trần wall-clock cho fork nền.

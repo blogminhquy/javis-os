@@ -23,6 +23,7 @@ import httpx
 
 import limit_learner
 import localefmt
+import vision_input
 
 
 def _c(vi: str, en: str) -> str:
@@ -757,7 +758,8 @@ async def anthropic_stream(api_key, model, messages, reasoning="off"):
     gỡ (xem claude_auth.py). Gói Claude Code nay đi qua binary `claude`, không qua đây.
     """
     sys_parts = [m.get("content", "") for m in messages if m.get("role") == "system"]
-    conv = [{"role": m["role"], "content": m.get("content", "")}
+    # Ảnh khách gửi (0.79.0) đi theo khuôn OpenAI trong Javis; Anthropic có khuôn riêng, đổi ở đây.
+    conv = [{"role": m["role"], "content": vision_input.to_anthropic(m.get("content", ""))}
             for m in messages if m.get("role") in ("user", "assistant")]
     headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
                "content-type": "application/json"}
@@ -1078,10 +1080,10 @@ def _codex_input(messages):
         role = mm.get("role")
         content = mm.get("content", "") or ""
         if role == "system":
-            instructions.append(content)
+            instructions.append(vision_input.content_text(content))
             continue
-        ctype = "input_text" if role == "user" else "output_text"
-        inp.append({"type": "message", "role": role, "content": [{"type": ctype, "text": content}]})
+        # `content` có thể là danh sách có ẢNH khách gửi (0.79.0): đổi sang input_text/input_image.
+        inp.append({"type": "message", "role": role, "content": vision_input.to_responses(content, role)})
     return "\n\n".join(s for s in instructions if s), inp
 
 
@@ -1211,7 +1213,7 @@ def _schedule_intent_text(messages, max_chars=600):
     """
     last = next((m.get("content") or "" for m in reversed(messages or [])
                  if m.get("role") == "user"), "")
-    text = str(last or "").strip()
+    text = vision_input.content_text(last).strip()
 
     # Dashboard đặt marker file nhiều dòng trước caption; Telegram đặt marker tải file ở
     # dòng đầu. Control text không phải lời user và không được tham gia nhận diện mutation.
@@ -2011,7 +2013,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
     """
     import mcp_client
     sys_txt = "\n\n".join(m.get("content", "") for m in messages if m.get("role") == "system")
-    conv = [{"role": m["role"], "content": m.get("content", "")}
+    conv = [{"role": m["role"], "content": vision_input.to_anthropic(m.get("content", ""))}
             for m in messages if m.get("role") in ("user", "assistant")]
     headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
                "content-type": "application/json"}

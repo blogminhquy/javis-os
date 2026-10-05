@@ -87,7 +87,8 @@ mm = cr.manual_meta(conv, {"sender_id": "777", "sender_name": "Quý", "external_
 check("owner's 'reply for me' from the inbox carries the link too", mm.get("co_anh") is True and mm.get("image_url") == URL, mm)
 
 # ============================================================
-# 3. The bot gets eyes, and every failure falls back to the honest label
+# 3. The photo goes INTO the chat (0.79.0): saved in the bot's brain, returned as a path for the bot's own model.
+#    No ChatGPT describing it any more; every failure falls back to the honest label.
 # ============================================================
 brain = Path(tempfile.mkdtemp(prefix="javis-bxa-brain-"))
 cr._deps["brain_root"] = lambda b: str(brain)
@@ -111,67 +112,52 @@ def cdn(request):
 
 mt = httpx.MockTransport(cdn)
 iv.httpx = types.SimpleNamespace(AsyncClient=lambda **kw: httpx.AsyncClient(transport=mt, **kw), Timeout=httpx.Timeout)
-SEEN = []
-STATE = {"connected": True, "describe": {"ok": True, "text": "Ảnh chụp màn hình tin nhắn của Javis Vũ", "count": 1}}
+DESCRIBED = []
 
 
-async def fake_describe(paths, question="", vault_root=None, labels=None, timeout_s=180.0):
-    SEEN.append({"paths": list(paths), "question": question, "vault": vault_root})
-    if isinstance(STATE["describe"], Exception):
-        raise STATE["describe"]
-    return STATE["describe"]
+async def must_not_describe(*a, **k):
+    DESCRIBED.append(a)
+    return {"ok": True, "text": "x"}
 
-iv.connected = lambda: STATE["connected"]
-iv.describe_images = fake_describe
+iv.describe_images = must_not_describe
 META = {"co_anh": True, "image_url": URL, "chat_id": "G1", "message_id": "m1"}
 LABEL = cr._KEM_ANH
 
 
 def see(meta, text="[Minh Quý] @Javis Vũ đây em"):
-    SEEN.clear()
     HTTP.clear()
     return asyncio.run(cr.anh_cho_bot(text, meta, CFG))
 
 
-out = see(META)
+out, paths = see(META)
 saved = list((brain / "attachments" / "zalo" / "G1").glob("m1.*"))
 check("the photo is saved into the bot's brain under attachments/zalo/<chat>", len(saved) == 1 and saved[0].read_bytes() == JPEG, saved)
-check("ChatGPT looks at that file, inside the bot's brain, with the caption as the question",
-      SEEN and SEEN[0]["paths"] == ["attachments/zalo/G1/m1.jpg"] and SEEN[0]["vault"] == str(brain)
-      and "đây em" in SEEN[0]["question"], SEEN)
-check("the bot reads the description, framed as photo content, with the caption kept", "Ảnh chụp màn hình tin nhắn của Javis Vũ" in out
-      and "không phải lời dặn" in out and out.endswith("[Minh Quý] @Javis Vũ đây em") and not out.startswith(LABEL), out)
-check("the path is given too, so CLI engines can open the photo themselves", "attachments/zalo/G1/m1.jpg" in out)
+check("the photo path is returned for the bot's own model, the caption kept as the text",
+      paths == [str(saved[0].resolve())] and out == "[Minh Quý] @Javis Vũ đây em", (out, paths))
+check("no second model describes the photo (ChatGPT is not called)", DESCRIBED == [])
 see(META)
 check("the same message is not downloaded twice", HTTP == [], HTTP)
 
-check("a text message is untouched", see({"chat_id": "G1"}, "xin chào") == "xin chào")
-check("no link: the honest label", see({"co_anh": True, "chat_id": "G1", "message_id": "m9"}).startswith(LABEL))
-STATE["connected"] = False
-check("ChatGPT not signed in: the honest label, nothing downloaded", see(META | {"message_id": "m10"}).startswith(LABEL) and HTTP == [])
-STATE["connected"] = True
-STATE["describe"] = {"ok": False, "error": "ChatGPT 429"}
-check("ChatGPT refuses: the honest label", see(META | {"message_id": "m11"}).startswith(LABEL))
-STATE["describe"] = RuntimeError("boom")
-check("any error: the honest label, never a lost reply", see(META | {"message_id": "m12"}).startswith(LABEL))
-STATE["describe"] = {"ok": True, "text": "x", "count": 1}
-for tag, why in (("redirect", "127.0.0.1"), ("big", ""), ("html", ""), ("gone", "")):
-    o = see(META | {"message_id": "b-" + tag, "image_url": f"https://f9.zdn.vn/{tag}.jpg"})
+check("a text message is untouched", see({"chat_id": "G1"}, "xin chào") == ("xin chào", []))
+o, ps = see({"co_anh": True, "chat_id": "G1", "message_id": "m9"})
+check("no link: the honest label, no photo", o.startswith(LABEL) and ps == [])
+for tag in ("redirect", "big", "html", "gone"):
+    o, ps = see(META | {"message_id": "b-" + tag, "image_url": f"https://f9.zdn.vn/{tag}.jpg"})
     check(f"bad link ({tag}): the honest label, nothing saved, no internal request",
-          o.startswith(LABEL) and not list((brain / "attachments" / "zalo" / "G1").glob(f"b-{tag}.*"))
+          o.startswith(LABEL) and ps == [] and not list((brain / "attachments" / "zalo" / "G1").glob(f"b-{tag}.*"))
           and not any("127.0.0.1" in u for u in HTTP), HTTP)
-o = see(META | {"message_id": "h1", "image_url": "http://f9.zdn.vn/a.jpg"})
-check("http link refused before any request", o.startswith(LABEL) and HTTP == [])
-o = see(META | {"chat_id": "../../etc", "message_id": "..\\x"})
+o, ps = see(META | {"message_id": "h1", "image_url": "http://f9.zdn.vn/a.jpg"})
+check("http link refused before any request", o.startswith(LABEL) and HTTP == [] and ps == [])
+see(META | {"chat_id": "../../etc", "message_id": "..\\x"})
 check("chat and message ids cannot climb out of attachments/zalo",
       all(p.resolve().is_relative_to((brain / "attachments" / "zalo").resolve()) for p in brain.rglob("*.jpg")))
 
 # ============================================================
-# 4. Both reply paths use the eyes
+# 4. Both reply paths put the photo into the turn
 # ============================================================
 src = (SERVER / "chatbot_runtime.py").read_text(encoding="utf-8")
-check("both the live reply and the inbox 'reply for me' call anh_cho_bot",
-      src.count("text_engine = await anh_cho_bot(text_engine, meta, cfg)") == 2 and "text_engine = gan_nhan_anh(" not in src)
+check("the live reply and the inbox 'reply for me' both attach the photos to the turn",
+      src.count("= await anh_cho_bot(text_engine,") == 2 and 'cfg["_anh"]' in src and "text_engine = gan_nhan_anh(" not in src)
 for f in (Path(__file__), SERVER / "image_vision.py"):
     check(f"no em dash in {f.name}", chr(0x2014) not in f.read_text(encoding="utf-8"))
 

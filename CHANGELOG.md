@@ -8,7 +8,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.81.0] - 2026-10-05
 ### Thêm mới
-- Đang viết.
+- **Bot tự nhìn ảnh khách gửi bằng chính bộ não của nó.** Ảnh đi thẳng vào lượt chat cho Claude, GPT, Gemini, OpenRouter, Groq, Ollama, gói ChatGPT hay gói Claude Code xem, không còn phụ thuộc ChatGPT tả hộ. Ảnh lưu trong brain của bot và tự dọn như mọi file tải về.
+- **Telegram đọc được ảnh trong nhóm.** Ảnh có tag bot trong chú thích, trả lời vào một ảnh rồi tag bot, hoặc gửi ảnh trước rồi tag bot ngay sau (trong 3 phút, cùng một người) đều được. Logo gửi dạng File cũng được tính là ảnh.
+- Bộ não không xem được ảnh (Antigravity, Grok Build, model chữ thuần) thì bot nói thật là không xem được ảnh, không đoán. Model từ chối ảnh thì Javis tự gửi lại phần chữ để khách vẫn có câu trả lời.
+### Sửa lỗi
+- Bot Telegram trước đây nói "em đọc được ảnh" dù thực ra chỉ nhận một dòng đường dẫn file, và dòng đó còn lộ đường dẫn trên máy chủ cho model. Giờ dòng đó bị gỡ trước khi tới bot.
 
 ## [0.80.1] - 2026-10-05
 ### Sửa lỗi

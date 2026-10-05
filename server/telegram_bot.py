@@ -505,6 +505,23 @@ class TelegramBot(HangLuot):
                     return True
         return False
 
+    def _anh_cua_tin_duoc_tra_loi(self, msg):
+        """Tin này trả lời vào một ẢNH (ảnh thường, hoặc ảnh gửi dạng file) VÀ đang gọi bot: trả một tin giả chỉ mang ảnh đó
+        để `_ingest_attachment` tải về. Không gọi bot (trong nhóm) thì None: không tải ảnh của người khác cho vui.
+
+        Telegram gửi kèm nguyên tin được trả lời trong `reply_to_message`, kể cả khi tin gốc chưa từng tới bot (chế độ riêng
+        tư đang bật), nên đây là cách chắc nhất để bot thấy một ảnh trong nhóm."""
+        rep = msg.get("reply_to_message") or {}
+        doc = rep.get("document") or {}
+        la_anh_file = str(doc.get("mime_type") or "").startswith("image/")
+        if not (rep.get("photo") or la_anh_file):
+            return None
+        rieng = str((msg.get("chat") or {}).get("type") or "") == "private"
+        if not (rieng or self._co_nhac_ten(msg) or self._la_reply_bot(msg)):
+            return None
+        return {"photo": rep.get("photo") or [], "document": doc if la_anh_file else None,
+                "chat": msg.get("chat") or {}, "message_id": rep.get("message_id")}
+
     def _la_reply_bot(self, msg):
         """Tin này có phải reply vào một tin của CHÍNH con bot này không.
 
@@ -854,6 +871,14 @@ class TelegramBot(HangLuot):
                             # dòng "[đã tải về: path]" cho skill dùng file.
                             ingested = await self._ingest_attachment(client, msg) or ""
                             text = _caption_command_text(ingested, msg.get("caption"))
+                        else:
+                            # Trả lời vào một ẢNH rồi gọi bot ("@bot xem giúp ảnh này", 0.79.0): tải đúng ảnh được
+                            # trả lời về, như thể ảnh nằm ngay trong tin này.
+                            anh_rep = self._anh_cua_tin_duoc_tra_loi(msg)
+                            if anh_rep:
+                                phu = await self._ingest_attachment(client, anh_rep) or ""
+                                if phu:
+                                    text = text + "\n" + phu
                         if not text:
                             continue
                         await self._dispatch(client, chat, text, self._build_meta(msg))
