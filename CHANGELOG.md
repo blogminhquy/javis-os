@@ -8,7 +8,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.83.0] - 2026-10-05
 ### Cải thiện
-- Zalo chạy bản CLI riêng của Javis (đang làm).
+- **Zalo chạy bản riêng của Javis.** Kết nối Zalo cá nhân giờ dùng `javis-zalo`, do Javis tự giữ và tự sửa, thay cho công cụ của tác giả bên ngoài. Tài khoản đã quét QR từ trước tự chuyển sang, không phải quét lại.
+- **Đọc được lịch sử tin nhóm.** Bộ não lấy được tin cũ của cả nhóm lẫn chat riêng, biết ai trả lời ai và ai được tag, và tìm được mọi tin của một người hay trong một khoảng ngày.
+- Mã QR hết hạn hay bị Zalo từ chối thì cửa sổ đăng nhập nói đúng lý do, thay vì báo đăng nhập thành công rồi không dùng được.
+### Bảo mật
+- Trang QR đăng nhập Zalo không còn gửi địa chỉ IP của máy cho dịch vụ bên ngoài, và mở trình duyệt hay tệp không còn đi qua dòng lệnh nên tên tệp lạ không chèn được lệnh.
 
 ## [0.82.0] - 2026-10-05
 ### Cải thiện

@@ -17,23 +17,24 @@
 >
 > Dùng cả ba cùng lúc cũng được, chúng không đụng nhau.
 
-Javis kết nối Zalo cá nhân bằng MCP chuẩn của dự án
-[`zalo-agent-cli`](https://github.com/PhucMPham/zalo-agent-cli). Luồng mới chỉ có một
-tiến trình MCP: đăng nhập QR, đọc hoặc tìm hội thoại và gửi tin qua các tool do dự án
-gốc cung cấp.
+Javis kết nối Zalo cá nhân bằng MCP của
+[`javis-zalo`](https://github.com/blogminhquy/javis-zalo), bản CLI Zalo riêng của Javis. Chỉ có
+một tiến trình MCP: đăng nhập QR, đọc hoặc tìm hội thoại và gửi tin qua các tool của nó.
 
-> `zalo-agent-cli` dùng API Zalo không chính thức qua `zca-js`. Zalo không hỗ trợ cách
+> `javis-zalo` dùng API Zalo không chính thức qua `zca-js`. Zalo không hỗ trợ cách
 > kết nối này và tài khoản có thể bị hạn chế hoặc khoá. Nên dùng tài khoản phụ, tránh
 > gửi tự động hàng loạt và tự chịu trách nhiệm khi sử dụng.
 
 ## Cần chuẩn bị
 
-- Node.js 20 trở lên trên máy hoặc VPS chạy Javis.
+- Node.js 20 trở lên trên máy hoặc VPS chạy Javis, và máy tải được từ GitHub (lần đầu).
 - Điện thoại đã đăng nhập tài khoản Zalo cần kết nối.
 - Javis đã được khởi động và bạn đăng nhập được dashboard.
 
-Javis đang ghim `zalo-agent-cli` ở phiên bản `1.6.2`, là phiên bản đã được kiểm tra với
-bảy tool MCP bên dưới.
+Javis ghim `javis-zalo` theo tag phát hành (hiện là `v1.0.0`) và cài thẳng từ tarball của tag
+đó trên GitHub, không cần tài khoản npm hay Git. Chỉ thư viện `zca-js` bên dưới đi theo bản chính
+thức trên npm. Từ 0.83.0 Javis thay `zalo-agent-cli` 1.6.2 của tác giả ngoài bằng bản riêng này;
+kết nối đã đăng nhập từ trước tự chuyển sang mà không phải quét QR lại.
 
 ## Kết nối bằng QR
 
@@ -53,18 +54,18 @@ Nút **Hướng dẫn trên GitHub** trong thẻ Zalo luôn mở trang tài li�
 | Tool | Công dụng | Mức thao tác |
 |---|---|---|
 | `zalo_get_messages` | Đọc tin mới trong bộ đệm, đọc tiếp bằng `since` (số thứ tự) | Đọc |
-| `zalo_get_history` | Lấy lịch sử một cuộc chat, có phân trang | Đọc |
+| `zalo_get_history` | Lấy lịch sử một cuộc chat (kể cả nhóm), có phân trang, kèm `replyTo` và `mentions` | Đọc |
+| `zalo_search_history` | Tìm trong lịch sử mọi cuộc chat theo người gửi hoặc khoảng ngày | Đọc |
 | `zalo_list_threads` | Liệt kê các cuộc chat đang có trong bộ đệm | Đọc |
 | `zalo_search_threads` | Tìm nhóm hoặc người theo tên | Đọc |
 | `zalo_view_media` | Tải/mở ảnh, âm thanh hoặc video trên máy chủ (bộ não không thấy ảnh, xem `zalo_read_images` bên dưới) | Đọc |
 | `zalo_mark_read` | Đánh dấu đã xử lý đến một cursor | Ghi |
 | `zalo_send_message` | Gửi tin cho cá nhân hoặc nhóm | Nguy hiểm |
 
-Danh sách trên theo mã nguồn `zalo-agent-cli` 1.6.2. Tên tham số lấy từ mã nguồn chứ không từ
-tài liệu MCP, vì hai bên từng lệch nhau: kiểu cuộc chat của `zalo_send_message` là `threadType`
-(0 = chat riêng, 1 = nhóm), và `zalo_get_messages` đọc bằng `since` chứ không có `cursor`. Tài liệu MCP của dự án gốc:
-
-<https://github.com/PhucMPham/zalo-agent-cli/blob/main/skill/references/mcp-guide.md>
+Danh sách trên theo mã nguồn `javis-zalo` 1.0.0. Tên tham số lấy từ mã nguồn: kiểu cuộc chat của
+`zalo_send_message` là `threadType` (0 = chat riêng, 1 = nhóm), và `zalo_get_messages` đọc bằng
+`since` chứ không có `cursor`. Lịch sử chỉ có từ lúc MCP kết nối, cộng phần Zalo gửi lại lúc kết
+nối (khoảng hai tuần gần nhất); tin cũ hơn thì không API nào lấy được.
 
 ## Gói Zalo mở rộng (Javis Store)
 
@@ -192,18 +193,19 @@ hỏi Javis; MCP có thể dùng `zalo_get_messages` cho tin đang đệm hoặc
 
 ## Xử lý lỗi
 
-- **Không hiện QR**: kiểm tra `node --version` phải từ 20 trở lên và máy truy cập được npm.
+- **Không hiện QR**: kiểm tra `node --version` phải từ 20 trở lên và máy truy cập được npm và
+  GitHub (`codeload.github.com`).
 - **QR hết hạn**: đóng cửa sổ kết nối rồi bấm **Kết nối** để tạo mã mới.
 - **Không thấy cuộc chat**: thử `zalo_search_threads`; nếu cần tin cũ, dùng
   `zalo_get_history` thay vì chỉ dùng `zalo_get_messages`.
 - **Tool gửi bị chặn**: mở menu chip tài khoản và chuyển quyền sang **Toàn quyền**.
 - **Báo phiên đang được dùng nơi khác**: đóng Zalo Web hoặc tiến trình
-  `zalo-agent-cli` khác đang dùng cùng tài khoản, rồi thử lại.
+  `javis-zalo` (hay `zalo-agent-cli` cũ) khác đang dùng cùng tài khoản, rồi thử lại.
 - **Muốn đăng nhập lại từ đầu**: xoá connection trên dashboard, sau đó kết nối và quét QR
   lại. Thư mục phiên của connection khác không bị ảnh hưởng.
 
 ## Tham khảo
 
-- [Repository `zalo-agent-cli`](https://github.com/PhucMPham/zalo-agent-cli)
-- [Hướng dẫn MCP upstream](https://github.com/PhucMPham/zalo-agent-cli/blob/main/skill/references/mcp-guide.md)
+- [Repository `javis-zalo`](https://github.com/blogminhquy/javis-zalo)
+- [zca-js](https://github.com/RFS-ADRENO/zca-js), thư viện nói chuyện với Zalo bên dưới
 - [Kết nối và phân quyền MCP trong Javis](09-mcp-va-so-lieu.md)

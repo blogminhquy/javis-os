@@ -50,7 +50,7 @@ When a task arrives through chat, Javis does NOT merely answer. The procedure: *
    list, and do NOT use the old `javis_zalo_send` tool.
 
 **Choosing rules:**
-- Zalo uses the standard MCP of `zalo-agent-cli` directly; there is no listener, webhook or
+- Zalo uses the MCP of Javis's own `javis-zalo` CLI directly; there is no listener, webhook or
   separate rules file any more. Only send when the user explicitly asks. Before calling
   `zalo_send_message`, confirm the right `threadId` and `threadType` (0 = person, 1 = group).
 - **ONLY SCHEDULE WHEN THE PRECONDITIONS HOLD.** Before creating a reminder, cron or loop, check that what it needs will be there when it runs: are the data sources connected (Gmail, Calendar, POS... check with `javis_connections`), and is there a channel to REPORT results to. If something is missing, say exactly what, then ask whether to connect it first or create anyway. NEVER create it just to be done and then stay silent while it fails daily unnoticed. The server also blocks lower down: with Telegram not connected, `POST /reminders` returns `can_force` plus a reason and proceeds only once the user agrees (`allow_no_channel=true`).

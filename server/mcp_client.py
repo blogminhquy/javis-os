@@ -1,7 +1,7 @@
 """
 MCP client của Javis - để MỌI bộ não (API/OAuth lẫn hub) dùng được MCP.
 v2: SESSION POOL sống lâu giữa các tin nhắn (hết cảnh mỗi tool call mở session mới),
-thêm transport stdio (MCP local như zalo-agent-cli, webcake-landing-mcp) và
+thêm transport stdio (MCP local như javis-zalo, webcake-landing-mcp) và
 "internal" (cầu nối Python nội bộ như botcake_mcp).
 
 3 transport:
@@ -508,7 +508,7 @@ class SessionPool:
         """Số hiệu của phiên MCP đang sống cho spec này, 0 nếu chưa có phiên nào.
 
         Đổi mỗi khi phiên bị dựng lại (tiến trình chết, đổi cấu hình, đóng vì rảnh). Cần cho những
-        MCP giữ trạng thái TRONG tiến trình, ví dụ bộ đệm tin của zalo-agent-cli đánh số thứ tự từ
+        MCP giữ trạng thái TRONG tiến trình, ví dụ bộ đệm tin của javis-zalo đánh số thứ tự từ
         1 sau mỗi lần khởi động: con trỏ đọc giữ qua một lần dựng lại phiên là bỏ qua tin mới.
         """
         ent = self._sessions.get(spec.get("key") or _spec_hash(spec))

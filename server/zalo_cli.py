@@ -1,10 +1,13 @@
-"""Chạy lại CHÍNH `zalo-agent-cli` cho các plugin Zalo (`zalo-image`, `zalo-group`).
+"""Chạy lại CHÍNH CLI Zalo (`javis-zalo`) cho các plugin Zalo (`zalo-image`, `zalo-group`).
 
-Vì sao có file này. MCP chuẩn của `zalo-agent-cli` bản 1.6.2 chỉ phơi bảy tool, và tool gửi tin chỉ nhận CHỮ, trong khi chính CLI đó đã
-có lệnh gửi ảnh/file, tag người (`msg send --mention`), ghi chú nhóm (`group note-create`), nhắc hẹn (`reminder create`) và poll
-(`poll create`). Javis gọi lại đúng CLI đó bằng lệnh con nó đã có,
-với `HOME` trỏ vào thư mục phiên của kết nối Zalo đang đăng nhập (xem `zalo_login.py`): không fork package Node, không viết lại giao
-thức, không bắt quét QR lần hai. Bản 1.6.2 là bản MỚI NHẤT trên npm, nên chờ upstream phơi thêm tool là chờ vô hạn.
+Vì sao có file này. Tool gửi tin của MCP chỉ nhận CHỮ, trong khi chính CLI đó đã có lệnh gửi ảnh/file, tag người
+(`msg send --mention`), ghi chú nhóm (`group note-create`), nhắc hẹn (`reminder create`) và poll (`poll create`). Javis gọi lại
+đúng CLI đó bằng lệnh con nó đã có, với `HOME` trỏ vào thư mục phiên của kết nối Zalo đang đăng nhập (xem `zalo_login.py`): không
+viết lại giao thức, không bắt quét QR lần hai.
+
+Từ 0.83.0 CLI là bản riêng của Javis (github.com/blogminhquy/javis-zalo, thay cho zalo-agent-cli 1.6.2 của tác giả ngoài), cài
+bằng tarball của tag phát hành. Chỉ zca-js bên dưới đi theo bản chính thức trên npm. Muốn lên bản CLI mới: ra tag mới ở repo đó rồi
+đổi CẢ BA chỗ ghim (catalog, `CLI_PACKAGE` ở đây, `_CLI_PACKAGE` ở zalo_login.py).
 
 Bẫy cần biết (đều đã dính hoặc suýt dính):
   - Windows: `npx` là `npx.cmd`, chạy qua `cmd.exe /c` thì cmd DIỄN GIẢI `& | < > ^ % !` trong tham số. Nội dung tin nhắn là chữ
@@ -12,7 +15,7 @@ Bẫy cần biết (đều đã dính hoặc suýt dính):
     Chỉ khi không tìm thấy mới rơi về cmd, và lúc đó TỪ CHỐI tham số chứa ký tự nguy hiểm thay vì đoán cách thoát.
   - Tham số bắt đầu bằng "-" ("- Họp lúc 9h") bị Commander coi là cờ. Dùng `--` chặn trước các tham số vị trí.
   - CLI KHÔNG thoát mã khác 0 khi Zalo từ chối (xem `interpret`).
-  - Tốc độ: mỗi lần `npx -y zalo-agent-cli@...` mất khoảng 3 giây chỉ để khởi động (đo trên Windows), cộng thêm việc HOME của
+  - Tốc độ: mỗi lần `npx -y <gói>` mất khoảng 3 giây chỉ để khởi động (đo trên Windows), cộng thêm việc HOME của
     phiên Zalo là thư mục riêng nên trên Linux npx còn có thể tải lại gói vào cache của HOME đó. Nên Javis cài ngầm MỘT bản ghim vào
     thư mục của mình (`install_dir`) và chạy thẳng `node index.js`; chưa cài xong thì vẫn chạy bằng npx như cũ.
 """
@@ -31,7 +34,8 @@ from typing import Any, List, Optional, Tuple
 import winproc
 
 CONNECTOR_ID = "zalo"
-CLI_PACKAGE = "zalo-agent-cli@1.6.2"     # ghim đúng bản mà connector Zalo đang chạy
+CLI_PACKAGE = "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.0.0"  # ghim đúng bản mà connector Zalo đang chạy
+CLI_NAME = "javis-zalo"                   # tên gói trong package.json của bản ghim: thư mục trong node_modules
 DEFAULT_TIMEOUT = 120                     # tải file lên Zalo có thể lâu, nhưng không lâu vô hạn
 TIMEOUT_MARK = "giây chưa xong"          # đuôi câu báo hết giờ; `is_timeout` nhận ra câu đó
 AUTO_INSTALL = True                       # test tắt cờ này để không cài thật
@@ -39,6 +43,7 @@ INSTALL_TIMEOUT = 300                     # giây cho một lần `npm install`
 INSTALL_RETRY = 1800                      # cài hỏng thì chờ chừng này giây mới thử lại (không cài lại ở mọi câu trả lời)
 _INSTALL_MARK = ".javis-installed"        # ghi SAU KHI cài xong; cài dở (tắt máy giữa chừng) thì không có dấu này nên không dùng
 _install_state: dict = {"task": None, "failed_at": 0.0}
+_OLD_INSTALL_DIRS = ("zalo-agent-cli",)  # thư mục cài của gói cũ trong `tools/`, dọn sau khi cài xong bản mới
 
 # Ký tự mà cmd.exe diễn giải dù nằm trong ngoặc kép (hoặc khi tham số không có khoảng trắng nên không được bọc).
 _CMD_UNSAFE = re.compile(r'[&|<>^%!"\r\n]')
@@ -97,7 +102,7 @@ def check() -> Optional[str]:
 def install_dir() -> Path:
     """Thư mục Javis tự cài bản ghim của CLI. Nằm trong state (volume trên Docker) nên sống qua khởi động lại và cập nhật ảnh."""
     import config
-    return Path(config.STATE_DIR) / "tools" / "zalo-agent-cli"
+    return Path(config.STATE_DIR) / "tools" / CLI_NAME
 
 
 def cli_entry() -> Optional[Path]:
@@ -108,7 +113,7 @@ def cli_entry() -> Optional[Path]:
             return None
     except OSError:
         return None
-    entry = root / "node_modules" / "zalo-agent-cli" / "src" / "index.js"
+    entry = root / "node_modules" / CLI_NAME / "src" / "index.js"
     return entry if entry.is_file() else None
 
 
@@ -170,11 +175,21 @@ async def _install() -> bool:
     if proc.returncode != 0:
         print("[zalo-cli] cài lỗi: " + _ANSI.sub("", (err or b"").decode("utf-8", "replace")).strip()[-300:], file=sys.stderr)
         return False
-    if not (root / "node_modules" / "zalo-agent-cli" / "src" / "index.js").is_file():
+    if not (root / "node_modules" / CLI_NAME / "src" / "index.js").is_file():
         print("[zalo-cli] cài xong nhưng không thấy index.js", file=sys.stderr)
         return False
     (root / _INSTALL_MARK).write_text(CLI_PACKAGE, encoding="utf-8")
+    _drop_old_installs(root)
     return True
+
+
+def _drop_old_installs(root: Path) -> None:
+    """Xoá bản cài của gói CŨ nằm cạnh `root` (vd `tools/zalo-agent-cli` trước 0.83.0): không ai chạy nó nữa mà node_modules
+    nặng cả trăm MB nằm mãi trong state. Chỉ xoá sau khi bản mới đã cài xong; xoá hỏng (Windows khoá file) thì để lần sau."""
+    for name in _OLD_INSTALL_DIRS:
+        old = root.parent / name
+        if old != root and old.is_dir():
+            shutil.rmtree(old, ignore_errors=True)
 
 
 async def _install_guarded() -> None:
@@ -226,7 +241,7 @@ def npx_command() -> Optional[List[str]]:
 
 def build_argv(command: List[str], positionals: Optional[List[str]] = None,
                options: Optional[List[str]] = None) -> Optional[List[str]]:
-    """Dựng `node index.js --json <lệnh con> …` (bản đã cài sẵn) hoặc `npx -y zalo-agent-cli@… --json <lệnh con> …`.
+    """Dựng `node index.js --json <lệnh con> …` (bản đã cài sẵn) hoặc `npx -y --prefer-offline <gói> --json <lệnh con> …`.
 
     `command` là lệnh con (`["msg", "send"]`), `positionals` là chữ TỰ DO (nội dung tin), `options` là các cờ do mã Javis viết
     (`["-t", "1", "--mention", "0:123:5"]`).
@@ -243,7 +258,9 @@ def build_argv(command: List[str], positionals: Optional[List[str]] = None,
         head = npx_command()
         if head is None:
             return None
-        argv = head + ["-y", CLI_PACKAGE, "--json"] + list(command)
+        # --prefer-offline: gói ghim theo tag không đổi, nên lần sau dùng bản trong cache thay vì hỏi lại GitHub
+        # (mạng chậm thì npx đợi hết các lần thử lại, đo được 77 giây, rồi mới dùng cache).
+        argv = head + ["-y", "--prefer-offline", CLI_PACKAGE, "--json"] + list(command)
     pos = [str(p) for p in (positionals or [])]
     opts = [str(o) for o in (options or [])]
     if any(p.startswith("-") for p in pos):
@@ -323,7 +340,7 @@ def interpret(rc: Optional[int], out: Optional[str], err: str) -> Tuple[bool, An
     """Đọc kết quả một lệnh `--json` của CLI thành `(ok, dữ liệu, lỗi)`.
 
     QUAN TRỌNG: CLI này KHÔNG đặt mã thoát khác 0 khi lệnh hỏng. Mọi lệnh bọc trong `try { ... } catch (e) { error(e.message) }` mà
-    `error()` chỉ in một dòng "✗ ..." ra stderr rồi thoát mã 0 (đọc `src/utils/output.js`). Nên chỉ nhìn `rc == 0` là báo "đã gửi" cho cả
+    `error()` chỉ in một dòng "✗ ..." ra stderr rồi thoát mã 0 (đọc `src/utils/output.js`; bản 1.6.2 cũ in ra stdout). Nên chỉ nhìn `rc == 0` là báo "đã gửi" cho cả
     những lần Zalo từ chối. Ở chế độ `--json`, lệnh THÀNH CÔNG luôn in JSON ra stdout, còn lệnh hỏng thì stdout trống; vậy thành công =
     mã thoát 0 VÀ có JSON. Lỗi lấy từ các dòng "✗" ở stderr.
     """
@@ -331,11 +348,11 @@ def interpret(rc: Optional[int], out: Optional[str], err: str) -> Tuple[bool, An
         return False, None, f"Zalo {err}"
     if rc != 0:
         tail = _ANSI.sub("", (err or out or "")).strip()[-400:]
-        return False, None, f"zalo-agent-cli thoát mã {rc}. {tail}"
+        return False, None, f"CLI Zalo thoát mã {rc}. {tail}"
     data = parse_json(out)
     if data is None:
         clean = _ANSI.sub("", err or "")
-        # Dòng "✗ ..." thường ở stderr nhưng có lệnh in ra stdout ("✗ Not logged in. Run: zalo-agent login" khi chưa có phiên).
+        # Dòng "✗ ..." ở stderr (javis-zalo) hoặc stdout (bản 1.6.2 cũ, vd "✗ Not logged in" khi chưa có phiên): đọc cả hai.
         both = clean + "\n" + _ANSI.sub("", out or "")
         marks = [ln.strip().lstrip("✗").strip() for ln in both.splitlines() if "✗" in ln]
         why = "; ".join(m for m in marks if m) or clean.strip()[-300:] or (out or "").strip()[-300:] or "không có phản hồi"

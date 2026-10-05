@@ -74,7 +74,7 @@ Cần Node.js 20+ trên máy chạy Javis (tải tại nodejs.org, cài một l�
 4. Quét xong, tài khoản tự xuất hiện. Nối thêm số Zalo khác bằng **+ Thêm tài khoản** - các tài khoản chạy cô lập, không giẫm nhau.
 
 Zalo mặc định ở mức Toàn quyền để dùng được tool gửi tin. Có thể hạ xuống Ghi nháp hoặc
-Chỉ đọc trên chip tài khoản. Tích hợp mới dùng trực tiếp bảy tool của `zalo-agent-cli`,
+Chỉ đọc trên chip tài khoản. Tích hợp mới dùng trực tiếp tám tool của `javis-zalo`,
 không còn listener/webhook riêng hay chuyển tiếp tin sang Telegram. Xem
 [hướng dẫn Zalo Agent MCP](12-zalo.md).
 
@@ -261,6 +261,6 @@ Không đổi so với trước: hỏi trực tiếp trong chat ("hôm nay bán 
 ## Liên quan
 
 - [Models & engine](10-models-va-engine.md) - bộ não nào dùng được gì, đổi model ở đâu.
-- [Zalo Agent MCP](12-zalo.md) - đăng nhập QR, bảy tool và cách phân quyền.
+- [Zalo Agent MCP](12-zalo.md) - đăng nhập QR, tám tool và cách phân quyền.
 - [Trò chuyện & giọng nói](02-tro-chuyen-va-giong-noi.md) - hỏi số liệu bằng lời.
 - [Mức dùng: token & chi phí](23-muc-dung-token.md) - xem việc gọi công cụ đang đốt bao nhiêu.

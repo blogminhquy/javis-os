@@ -330,6 +330,6 @@ def register(ctx):
 - [Connections and business data](09-connections-and-business-data.md) - attaching external data sources; the Meta Ads, Facebook Pages and Apify plugins take their tokens from here.
 - [Models and engines](10-models-and-engines.md) - why every engine can call plugin tools.
 - [Recurring jobs and reminders](08-recurring-jobs.md) - the three permission levels of background work, and the `javis-schedule` plugin.
-- [Zalo Agent MCP](12-zalo-agent-mcp.md) - Zalo now uses the upstream MCP and no longer has its own plugin.
+- [Zalo Agent MCP](12-zalo-agent-mcp.md) - Zalo now uses the MCP of Javis's own `javis-zalo` CLI and no longer has its own plugin.
 - [.env configuration](16-env-configuration.md) - how to set an environment variable and restart.
 - [Agents and Workflows](07-agents-and-workflows.md) - Javis's other kinds of capability.

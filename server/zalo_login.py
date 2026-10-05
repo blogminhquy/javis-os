@@ -1,11 +1,12 @@
 """
-Đăng nhập Zalo bằng QR ngay trong UI Javis (connector "zalo" - zalo-agent-cli).
-Flow: POST /connect/zalo/start → spawn `npx -y zalo-agent-cli login --json` với HOME
+Đăng nhập Zalo bằng QR ngay trong UI Javis (connector "zalo" - CLI javis-zalo).
+Flow: POST /connect/zalo/start → spawn `npx -y --prefer-offline <gói> login --json` với HOME
 cô lập riêng cho tài khoản → bắt event {"event":"qr", dataUrl} đưa lên modal →
 user quét bằng app Zalo → thành công thì TỰ TẠO connection (config.home_dir trỏ
 home cô lập đó, mcp_store.resolved tự set env HOME/USERPROFILE khi chạy MCP).
 
-Đã verify (v1.6.2): bin "zalo-agent"; account active là TOÀN CỤC theo home dir
+Đã verify (zalo-agent-cli 1.6.2, giữ nguyên ở javis-zalo 1.0.0): account active là TOÀN CỤC theo home dir
+(thư mục phiên vẫn tên ~/.zalo-agent-cli để tài khoản đã đăng nhập không bị đăng xuất)
 → mỗi connection 1 home riêng để nhiều tài khoản Zalo chạy song song.
 """
 import base64
@@ -28,7 +29,8 @@ _SESS_TTL = 900
 _sessions = {}        # sid -> {state, qr, label, conn_id, error, proc, home, ts}
 
 _SUCCESS_EVENTS = {"login", "login_success", "success", "ready", "logged_in", "authenticated"}
-_CLI_PACKAGE = "zalo-agent-cli@1.6.2"
+_ERROR_EVENTS = {"error", "failed", "login_error"}   # CLI in {"event":"login_error","message":...} khi QR hỏng
+_CLI_PACKAGE = "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.0.0"  # trùng zalo_cli.CLI_PACKAGE và catalog
 
 
 def _sweep():
@@ -42,7 +44,7 @@ def _npx_argv():
     npx = shutil.which("npx")
     if not npx:
         return None
-    argv = [npx, "-y", _CLI_PACKAGE, "login", "--json"]
+    argv = [npx, "-y", "--prefer-offline", _CLI_PACKAGE, "login", "--json"]
     if npx.lower().endswith((".cmd", ".bat")):
         argv = ["cmd.exe", "/c"] + argv
     return argv
@@ -118,7 +120,7 @@ def _reader(sid):
             if ev in _SUCCESS_EVENTS or (not ev and (obj.get("ownId") or obj.get("own_id"))):
                 _finish_ok(sess, obj)
                 break
-            if ev in ("error", "failed"):
+            if ev in _ERROR_EVENTS:
                 sess.update(state="error", error=str(obj.get("message") or obj.get("error")
                                                      or localefmt.chu("Đăng nhập thất bại", "Sign-in failed")))
                 break

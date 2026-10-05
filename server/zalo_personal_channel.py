@@ -1,4 +1,4 @@
-"""Adapter kênh Zalo CÁ NHÂN cho Hộp thư hội thoại: đọc tin mới từ MCP `zalo-agent-cli` rồi
+"""Adapter kênh Zalo CÁ NHÂN cho Hộp thư hội thoại: đọc tin mới từ MCP `javis-zalo` rồi
 đổ vào kho `conversations`.
 
 Ở Việt Nam khách nhắn qua Zalo cá nhân nhiều hơn mọi kênh khác, và không phải ai bán hàng cũng
@@ -255,8 +255,8 @@ def _loai_tin(msg: dict) -> str:
 def _link_anh(msg: dict) -> str:
     """Link of the photo in an image message (0.74.1), or "".
 
-    The MCP normalizes a photo as `attachment: {type, url: content.href, description: content.title}` (zalo-agent-cli 1.6.2,
-    `normalizeMessage` in src/commands/mcp.js). Before 0.74.1 this was dropped here, so the inbox and the customer bot only ever got
+    The MCP normalizes a photo as `attachment: {type, url: content.href, description: content.title}` (javis-zalo,
+    `normalizeMessage` in src/mcp/message-normalize.js; same shape as zalo-agent-cli 1.6.2). Before 0.74.1 this was dropped here, so the inbox and the customer bot only ever got
     the caption and the bot answered "I can only see the caption". A bare photo also carries the link as its `text`."""
     att = msg.get("attachment") if isinstance(msg.get("attachment"), dict) else {}
     for v in (att.get("url"), msg.get("mediaUrl"), msg.get("url"), msg.get("text")):

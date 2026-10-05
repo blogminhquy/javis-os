@@ -1,4 +1,4 @@
-"""Phần dùng chung để Javis chạy lại `zalo-agent-cli` (server/zalo_cli.py), cho plugin zalo-image và zalo-group.
+"""Phần dùng chung để Javis chạy lại CLI Zalo `javis-zalo` (server/zalo_cli.py), cho plugin zalo-image và zalo-group.
 
     python tests/run.py zalo_cli      (KHÔNG mạng, không gọi npx thật)
 
@@ -30,7 +30,7 @@ import zalo_cli as Z  # noqa: E402
 
 # Hermetic: thư mục cài trỏ vào chỗ trống và không bao giờ cài thật (không thì test đụng npm và mạng).
 EMPTY = Path(tempfile.mkdtemp(prefix="zcli-empty-"))
-Z.install_dir = lambda: EMPTY / "tools" / "zalo-agent-cli"
+Z.install_dir = lambda: EMPTY / "tools" / Z.CLI_NAME
 Z.AUTO_INSTALL = False
 
 fails = []
@@ -63,7 +63,7 @@ rf = with_env(False, {"npx": "/usr/bin/npx"})
 a = Z.build_argv(["msg", "send"], ["T1", "xin chào @Quý"], ["-t", "1", "--mention", "0:111:5", "9:222:4"])
 check("tham số vị trí đứng TRƯỚC, cờ nhiều giá trị đứng CUỐI (nếu không --mention nuốt luôn threadId và nội dung)",
       a[a.index("send") + 1:] == ["T1", "xin chào @Quý", "-t", "1", "--mention", "0:111:5", "9:222:4"], a)
-check("cờ --json đứng trước lệnh con, package ghim đúng", a[:4] == ["/usr/bin/npx", "-y", "zalo-agent-cli@1.6.2", "--json"]
+check("cờ --json đứng trước lệnh con, package ghim đúng, npx dùng cache trước (tag không đổi)", a[:5] == ["/usr/bin/npx", "-y", "--prefer-offline", Z.CLI_PACKAGE, "--json"]
       and a.index("--json") < a.index("msg"), a)
 
 b = Z.build_argv(["msg", "send"], ["T1", "- họp lúc 9h"], ["-t", "1", "--mention", "0:111:5"])
@@ -128,11 +128,11 @@ check("mã 0 + '✗ ...' ở STDOUT (chưa đăng nhập) = thất bại, câu l
 # ============================================================
 # 3c. Bản đã cài sẵn: chạy thẳng bằng Node, không qua npx
 # ============================================================
-ROOT_INST = Path(tempfile.mkdtemp(prefix="zcli-inst-")) / "tools" / "zalo-agent-cli"
+ROOT_INST = Path(tempfile.mkdtemp(prefix="zcli-inst-")) / "tools" / Z.CLI_NAME
 Z.install_dir = lambda: ROOT_INST
-ENTRY = ROOT_INST / "node_modules" / "zalo-agent-cli" / "src" / "index.js"
+ENTRY = ROOT_INST / "node_modules" / Z.CLI_NAME / "src" / "index.js"
 rf = with_env(False, {"npx": "/usr/bin/npx", "node": "/usr/bin/node", "npm": "/usr/bin/npm"})
-check("chưa cài thì không chạy thẳng, vẫn dùng npx", Z.direct_command() is None and Z.build_argv(["msg", "send"], ["a", "b"])[:4] == ["/usr/bin/npx", "-y", Z.CLI_PACKAGE, "--json"])
+check("chưa cài thì không chạy thẳng, vẫn dùng npx", Z.direct_command() is None and Z.build_argv(["msg", "send"], ["a", "b"])[:5] == ["/usr/bin/npx", "-y", "--prefer-offline", Z.CLI_PACKAGE, "--json"])
 
 ENTRY.parent.mkdir(parents=True)
 ENTRY.write_text("", encoding="utf-8")
@@ -168,7 +168,7 @@ Z.os, Z.shutil = real_os, real_shutil
 
 def fresh_install_dir():
     global ROOT_INST
-    ROOT_INST = Path(tempfile.mkdtemp(prefix="zcli-inst-")) / "tools" / "zalo-agent-cli"
+    ROOT_INST = Path(tempfile.mkdtemp(prefix="zcli-inst-")) / "tools" / Z.CLI_NAME
     Z.install_dir = lambda: ROOT_INST
     Z._install_state.update(task=None, failed_at=0.0)
 
@@ -176,11 +176,15 @@ def fresh_install_dir():
 GHI = ("import sys, pathlib\n"
        "root = pathlib.Path(sys.argv[sys.argv.index('--prefix') + 1])\n"
        "sys.stderr.write(' '.join(sys.argv[1:]))\n"
-       "(root / 'node_modules' / 'zalo-agent-cli' / 'src').mkdir(parents=True)\n"
-       "(root / 'node_modules' / 'zalo-agent-cli' / 'src' / 'index.js').write_text('')\n")
+       "(root / 'node_modules' / 'javis-zalo' / 'src').mkdir(parents=True)\n"
+       "(root / 'node_modules' / 'javis-zalo' / 'src' / 'index.js').write_text('')\n")
 fresh_install_dir()
+OLD = ROOT_INST.parent / "zalo-agent-cli"
+(OLD / "node_modules" / "zalo-agent-cli" / "src").mkdir(parents=True)
+(OLD / "node_modules" / "zalo-agent-cli" / "src" / "index.js").write_text("", encoding="utf-8")
 Z.npm_command = lambda: [sys.executable, "-c", GHI]
 ok = asyncio.run(Z._install())
+check("cài xong bản mới thì dọn bản cài của gói cũ (zalo-agent-cli) cạnh nó", ok and not OLD.exists())
 check("cài thật (npm giả): ghi index.js VÀ dấu cài xong", ok and Z.cli_entry() is not None and (ROOT_INST / "package.json").is_file(), ok)
 check("CANARY: dấu cài chỉ có SAU khi index.js đã có (cài dở không được coi là xong)", (ROOT_INST / Z._INSTALL_MARK).read_text(encoding="utf-8") == Z.CLI_PACKAGE)
 
@@ -250,7 +254,7 @@ check("không có npm thì bỏ qua, không cài, không lỗi", CHAY == [])
 Z.npm_command = lambda: ["npm"]
 Z.start_install()
 check("gọi ngoài vòng lặp sự kiện thì không làm gì, không lỗi", CHAY == [] and Z._install_state["task"] is None)
-ENTRY2 = ROOT_INST / "node_modules" / "zalo-agent-cli" / "src" / "index.js"
+ENTRY2 = ROOT_INST / "node_modules" / Z.CLI_NAME / "src" / "index.js"
 ENTRY2.parent.mkdir(parents=True)
 ENTRY2.write_text("", encoding="utf-8")
 (ROOT_INST / Z._INSTALL_MARK).write_text(Z.CLI_PACKAGE, encoding="utf-8")

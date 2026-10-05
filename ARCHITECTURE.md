@@ -109,7 +109,7 @@ User docs: [docs/en/10-models-and-engines.md](docs/en/10-models-and-engines.md).
   The hub applies the stricter of the two in `mcp_catalog.allowed()`, regardless of what the
   prompt says.
 - **Transports.** `mcp_client.py` keeps a long-lived session pool over HTTP/SSE, stdio (local
-  servers such as `zalo-agent-cli`) and "internal" Python bridges (`botcake_mcp.py`,
+  servers such as `javis-zalo`) and "internal" Python bridges (`botcake_mcp.py`,
   `substack_mcp.py`). `oauth_mcp.py` does MCP OAuth 2.1 so no engine needs a terminal login.
 - **Plugins.** `plugins_host.py` loads Python plugin folders (`plugin.yaml` + `plugin.py`) from,
   in order: `system/plugins/` (bundled), installed packs, `STATE_DIR/plugins/` (global user

@@ -94,7 +94,7 @@ CHAY = [
     "server/kanban.sqlite3", "server/tg_brain.json", "server/update_state.json",
     "server/logs/x.jsonl", "server/brain-trash/x/y.md", "server/plugins/p/plugin.py",
     "server/connector-home/x", "server/usage.json", "server/javis.log",
-    "server/tools/zalo-agent-cli/node_modules/zalo-agent-cli/src/index.js",
+    "server/tools/javis-zalo/node_modules/javis-zalo/src/index.js",
 ]
 NANG = [
     "server/brains-backup/.git/objects/x", "server/.staging/sach.txt", ".staging/x",

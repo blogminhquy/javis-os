@@ -17,23 +17,24 @@
 >
 > Running all three at once is fine, they do not collide.
 
-Javis connects a personal Zalo account through the standard MCP of the
-[`zalo-agent-cli`](https://github.com/PhucMPham/zalo-agent-cli) project. The new flow has a
-single MCP process: sign in by QR, read or search conversations and send messages through the
-tools the upstream project provides.
+Javis connects a personal Zalo account through the MCP of
+[`javis-zalo`](https://github.com/blogminhquy/javis-zalo), Javis's own Zalo CLI. There is a single
+MCP process: sign in by QR, read or search conversations and send messages through its tools.
 
-> `zalo-agent-cli` uses the unofficial Zalo API via `zca-js`. Zalo does not support this way
+> `javis-zalo` uses the unofficial Zalo API via `zca-js`. Zalo does not support this way
 > of connecting and the account may be restricted or locked. Use a secondary account, avoid
 > automated bulk sending, and accept the risk yourself.
 
 ## What you need
 
-- Node.js 20 or newer on the machine or VPS running Javis.
+- Node.js 20 or newer on the machine or VPS running Javis, able to download from GitHub (first run).
 - A phone already signed in to the Zalo account you want to connect.
 - Javis started and you able to sign in to the dashboard.
 
-Javis pins `zalo-agent-cli` at version `1.6.2`, the version verified against the seven MCP
-tools below.
+Javis pins `javis-zalo` to a release tag (currently `v1.0.0`) and installs it straight from that
+tag's tarball on GitHub, with no npm account or Git needed. Only the `zca-js` library underneath
+follows its official npm releases. Since 0.83.0 Javis runs this build instead of the third-party
+`zalo-agent-cli` 1.6.2; connections signed in earlier switch over without a new QR scan.
 
 ## Connecting by QR
 
@@ -53,16 +54,17 @@ The **Guide on GitHub** button in the Zalo card always opens this documentation 
 | Tool | What it does | Action level |
 |---|---|---|
 | `zalo_get_messages` | Read new messages in the buffer, supports a cursor | Read |
-| `zalo_get_history` | Fetch the history of one chat, paginated | Read |
+| `zalo_get_history` | Fetch the history of one chat (groups too), paginated, with `replyTo` and `mentions` | Read |
+| `zalo_search_history` | Search history across every chat by sender or date range | Read |
 | `zalo_list_threads` | List the chats currently in the buffer | Read |
 | `zalo_search_threads` | Find a group or person by name | Read |
 | `zalo_view_media` | Download/open an image, audio or video on the server (the brain does not see it, see `zalo_read_images` below) | Read |
 | `zalo_mark_read` | Mark as handled up to a cursor | Write |
 | `zalo_send_message` | Send a message to a person or group | Dangerous |
 
-The list follows the `zalo-agent-cli` 1.6.2 source. Upstream MCP documentation:
-
-<https://github.com/PhucMPham/zalo-agent-cli/blob/main/skill/references/mcp-guide.md>
+The list follows the `javis-zalo` 1.0.0 source. History only covers what arrived since the MCP
+connected, plus what Zalo replays on connect (roughly the last two weeks); nothing older is
+available through any API.
 
 ## The Zalo extras pack (Javis Store)
 
@@ -194,19 +196,19 @@ want to check messages, ask Javis; MCP can use `zalo_get_messages` for buffered 
 ## Troubleshooting
 
 - **No QR appears**: check that `node --version` is 20 or higher and that the machine can reach
-  npm.
+  npm and GitHub (`codeload.github.com`).
 - **QR expired**: close the connection window and click **Connect** to generate a new code.
 - **A chat is missing**: try `zalo_search_threads`; for older messages use `zalo_get_history`
   rather than only `zalo_get_messages`.
 - **The send tool is blocked**: open the account chip menu and switch the level to **Full
   power**.
-- **It reports the session is in use elsewhere**: close Zalo Web or another `zalo-agent-cli`
-  process using the same account, then try again.
+- **It reports the session is in use elsewhere**: close Zalo Web or another `javis-zalo`
+  (or old `zalo-agent-cli`) process using the same account, then try again.
 - **You want to sign in from scratch**: delete the connection on the dashboard, then connect and
   scan the QR again. Other connections' session folders are unaffected.
 
 ## References
 
-- [The `zalo-agent-cli` repository](https://github.com/PhucMPham/zalo-agent-cli)
-- [Upstream MCP guide](https://github.com/PhucMPham/zalo-agent-cli/blob/main/skill/references/mcp-guide.md)
+- [The `javis-zalo` repository](https://github.com/blogminhquy/javis-zalo)
+- [zca-js](https://github.com/RFS-ADRENO/zca-js), the library that talks to Zalo underneath
 - [Connections and MCP permissions in Javis](09-connections-and-business-data.md)

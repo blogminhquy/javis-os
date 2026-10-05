@@ -48,27 +48,29 @@
       "name": "Zalo Agent MCP",
       "icon": "/static/logos/zalo.png",
       "category": "Nhắn tin",
-      "description": "MCP chuẩn của zalo-agent-cli: đọc tin mới/lịch sử, tìm cuộc chat, xem media và gửi tin bằng tài khoản Zalo cá nhân.",
+      "description": "MCP của javis-zalo (bản CLI Zalo riêng của Javis): đọc tin mới/lịch sử, tìm cuộc chat, xem media và gửi tin bằng tài khoản Zalo cá nhân.",
       "status": "beta",
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "zalo-agent-cli@1.6.2", "mcp", "start"],
+      "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.0.0", "mcp", "start"],
       "lenh_cu": [
-        { "command": "npx", "args": ["-y", "zalo-agent-cli", "mcp", "start"] }
+        { "command": "npx", "args": ["-y", "zalo-agent-cli", "mcp", "start"] },
+        { "command": "npx", "args": ["-y", "zalo-agent-cli@1.6.2", "mcp", "start"] }
       ],
-      "ngoai_le_ban_chinh_thuc": "Zalo KHÔNG đi theo bản gốc nữa (chủ repo chốt 2026-10-05): Javis chuyển sang bản CLI riêng, chỉ giữ thư viện zca-js đi theo bản chính thức. Trong lúc chờ, chạy nguyên bản zalo-agent-cli 1.6.2 (chưa sửa dòng nào) vì đăng nhập QR (zalo_login.py), gửi ảnh/tag/ghi chú nhóm (zalo_cli.py) và gói javis.zalo đọc thẳng định dạng của đúng bản đó. Ba chỗ ghim (ở đây, zalo_cli.py, zalo_login.py) phải luôn trùng nhau.",
+      "ngoai_le_ban_chinh_thuc": "Zalo KHÔNG đi theo bản gốc nữa (chủ repo chốt 2026-10-05): Javis chạy bản CLI riêng javis-zalo (github.com/blogminhquy/javis-zalo), cài từ tarball của tag phát hành, chỉ thư viện zca-js bên dưới đi theo bản chính thức trên npm. Ghim theo tag vì đăng nhập QR (zalo_login.py), gửi ảnh/tag/ghi chú nhóm (zalo_cli.py) và gói javis.zalo đọc thẳng định dạng của đúng bản đó. Ba chỗ ghim (ở đây, zalo_cli.py, zalo_login.py) phải luôn trùng nhau; --prefer-offline vì tag không đổi nên khỏi hỏi lại GitHub mỗi lần khởi động.",
       "requires": { "node": ">=20" },
       "isolate_home": true,
       "auth": {
         "type": "qr",
         "fields": [],
-        "guide": "Cần Node.js 20+. Bấm Kết nối, quét QR bằng app Zalo rồi dùng trực tiếp 7 tool MCP của zalo-agent-cli. Không còn listener/webhook/luật Zalo riêng của Javis.",
+        "guide": "Cần Node.js 20+. Bấm Kết nối, quét QR bằng app Zalo rồi dùng trực tiếp 8 tool MCP của javis-zalo. Không còn listener/webhook/luật Zalo riêng của Javis.",
         "guide_url": "https://github.com/blogminhquy/javis-os/blob/main/docs/12-zalo.md"
       },
       "tool_meta": {
         "read": [
           "zalo_get_messages",
           "zalo_get_history",
+          "zalo_search_history",
           "zalo_list_threads",
           "zalo_search_threads",
           "zalo_view_media"
@@ -79,7 +81,7 @@
       "default_perm": "full",
       "companion_pack": "javis.zalo",
       "purge_warning": "Xoá kết nối này là mất luôn phiên đăng nhập QR. Muốn dùng lại phải mở app Zalo trên điện thoại quét mã một lần nữa.",
-      "risk": "Connector này MẶC ĐỊNH ở mức TOÀN QUYỀN, tức tool gửi tin đang bật. Muốn chặn gửi, hãy hạ xuống Ghi nháp hoặc Chỉ đọc.\n\nzalo-agent-cli dùng API Zalo không chính thức qua zca-js. Tài khoản CÓ THỂ bị hạn chế hoặc KHOÁ; khuyến nghị dùng tài khoản phụ và không tự động gửi hàng loạt.",
+      "risk": "Connector này MẶC ĐỊNH ở mức TOÀN QUYỀN, tức tool gửi tin đang bật. Muốn chặn gửi, hãy hạ xuống Ghi nháp hoặc Chỉ đọc.\n\njavis-zalo dùng API Zalo không chính thức qua zca-js. Tài khoản CÓ THỂ bị hạn chế hoặc KHOÁ; khuyến nghị dùng tài khoản phụ và không tự động gửi hàng loạt.",
       "rate_limit": { "calls_per_min": 20 }
     },
             {

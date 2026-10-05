@@ -330,6 +330,6 @@ def register(ctx):
 - [Kết nối & số liệu kinh doanh](09-mcp-va-so-lieu.md) - đấu nguồn dữ liệu ngoài; các plugin Meta Ads, Facebook Trang và Apify lấy token từ đây.
 - [Models & engine](10-models-va-engine.md) - vì sao mọi engine đều gọi được tool của plugin.
 - [Việc định kỳ & Nhắc hẹn](08-viec-dinh-ky.md) - ba mức quyền của việc chạy nền, và plugin `javis-schedule`.
-- [Zalo Agent MCP](12-zalo.md) - Zalo nay dùng MCP upstream, không còn plugin riêng.
+- [Zalo Agent MCP](12-zalo.md) - Zalo nay dùng MCP của CLI riêng `javis-zalo`, không còn plugin riêng.
 - [Cấu hình .env](16-cau-hinh-env.md) - cách đặt biến môi trường và khởi động lại.
 - [Agents & Workflows](07-agents-va-workflows.md) - các loại năng lực khác của Javis.

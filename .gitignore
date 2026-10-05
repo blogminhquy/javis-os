@@ -48,7 +48,7 @@ server/connector-home/
 server/connector-files/
 server/connector-cred/
 server/purge-trash/
-# Công cụ Javis tự cài ngầm lúc chạy (bản ghim của zalo-agent-cli, chạy thẳng bằng Node). Sinh ra lúc chạy, có node_modules nặng.
+# Công cụ Javis tự cài ngầm lúc chạy (bản ghim của CLI Zalo javis-zalo, chạy thẳng bằng Node). Sinh ra lúc chạy, có node_modules nặng.
 server/tools/
 # Lựa chọn GỠ năng lực mặc định (connector lõi...). Dữ liệu người dùng, mỗi máy một kiểu.
 server/core-off.json
