@@ -483,12 +483,14 @@ def features_of(level: str, signals: dict) -> dict:
 # C: cổng thô
 # ============================================================
 def coarse_gate(ev: Event, level: str, signals: dict, has_positive_case: bool = False,
-                consider_tagged: bool = False) -> Tuple[bool, str]:
+                consider_tagged: bool = False, tag_case: bool = False) -> Tuple[bool, str]:
     """(ứng viên?, mã im). Chỉ vứt thứ hiển nhiên không phải; phần còn lại có ít nhất một tín hiệu
     (được nhắc tên, tin nối tiếp, giống câu hỏi, hoặc kho có ca dương giống) thì là ứng viên.
 
-    Tin mở đầu bằng "@người khác" bị loại, TRỪ KHI kho có ca dương giống nó (chủ đã bấm Sai cho một tin như vậy)
-    hoặc nút `consider_tagged` bật (0.77.0). Trước bản đó luật này chạy trước mọi thứ, nên dạy hay bấm Sai đều
+    Tin mở đầu bằng "@người khác" bị loại, TRỪ KHI kho có ca dương giống nó do CHỦ hoặc vòng tự soát tạo
+    (`tag_case`: chủ bấm Sai cho một tin như vậy) hoặc nút `consider_tagged` bật (0.77.0). Ca khởi tạo do model viết
+    và ca tự học từ phản ứng của người lạ KHÔNG được gỡ chặn này: "@Lan lớp mấy giờ" giống một ca mẫu "lớp mấy giờ"
+    mà bot chen vào là chen vào chuyện giữa hai người. Trước bản đó luật này chạy trước mọi thứ, nên dạy hay bấm Sai đều
     không gỡ được: khách tag chủ hỏi đúng việc của bot mà bot vẫn im."""
     if level == "certain":
         return True, ""
@@ -498,7 +500,7 @@ def coarse_gate(ev: Event, level: str, signals: dict, has_positive_case: bool = 
     no_link = _URL.sub(" ", raw).strip()
     if len(no_link) < 4 or len(norm(no_link).split()) < 2:
         return False, "junk"
-    if raw.startswith("@") and level == "none" and not (has_positive_case or consider_tagged):
+    if raw.startswith("@") and level == "none" and not (tag_case or consider_tagged):
         return False, "addressed_other"
     follow_up = _sig(signals, "follow_up") >= 1
     if (level == "possible" or follow_up or _sig(signals, "question_score") >= QUESTION_CANDIDATE
@@ -558,8 +560,13 @@ def find_cases(store, bot_id: str, chat_id: str, text: str, features: dict, *, k
     return out
 
 
-def has_positive(cases: List[dict]) -> bool:
-    return any(c["verdict"] == "reply" and c["source"] != "mechanic" and c["sim"] >= POSITIVE_CASE_SIM for c in cases)
+# Nguồn ca được phép gỡ chặn tin "@người khác" (0.77.0): chỉ ý của chủ, hoặc vòng tự soát (có bằng chứng).
+TAG_CASE_SOURCES = ("owner", "review")
+
+
+def has_positive(cases: List[dict], sources: Optional[Tuple[str, ...]] = None) -> bool:
+    return any(c["verdict"] == "reply" and c["source"] != "mechanic" and c["sim"] >= POSITIVE_CASE_SIM
+               and (sources is None or c["source"] in sources) for c in cases)
 
 
 # ============================================================
@@ -744,7 +751,8 @@ def pre_screen(ev: Event, profile: BotProfile, store, now: Optional[float] = Non
         level = "possible"
     cases = find_cases(store, profile.bot_id, ev.chat_id, ev.text, features_of(level, sig),
                        bot_name=profile.name, topic=_topic_of(profile), now=now)
-    cand, code = coarse_gate(ev, level, sig, has_positive(cases), profile.consider_tagged)
+    cand, code = coarse_gate(ev, level, sig, has_positive(cases), profile.consider_tagged,
+                             has_positive(cases, sources=TAG_CASE_SOURCES))
     return {"address": addr, "level": level, "signals": sig, "cases": cases, "candidate": cand, "code": code}
 
 

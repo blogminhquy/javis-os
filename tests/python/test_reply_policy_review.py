@@ -73,7 +73,8 @@ check("due once 8 labels gathered", rv.due_bots(st, NOW) == ["A"])
 report, shown = rv.build_report(st, "A", since=NOW - 2 * DAY, now=NOW, bot_name="Javis Vũ")
 check("report shows the wrong and silenced decisions", set(wrong_ids) <= shown and set(tag_ids) & shown)
 check("report never shows another bot's chat", "1234" not in report and secret not in shown)
-check("chat text is fenced as data", report.count("<chat_data>") == 2)
+check("chat text, lessons and change reasons are fenced as data",
+      report.count("<chat_data>") == 4 and report.count("</chat_data>") == 4)
 
 # ---- a review that applies two changes and rejects the rest ----
 st.add_lesson("A", "chủ dạy: chuyện giá cả thì để anh trả lời", NOW - DAY)
@@ -117,9 +118,21 @@ for change, why in bad:
 check("owner lesson still there", st.get_lesson("A", owner_lesson) is not None)
 
 # ---- owner (through chat) may do more ----
+ok, _m, _c = rv.apply_change(st, "A", {"op": "role_profile_set", "text": "Đảm nhiệm: hỗ trợ học viên Javis."},
+                             actor="owner", now=NOW)
+check("no role profile generated yet: editing waits (an empty hash would be overwritten)", not ok)
+st.set_role_profile("A", "Đảm nhiệm: hồ sơ máy soạn", "hash-agent-1", NOW)
 ok, _m, cid_role = rv.apply_change(st, "A", {"op": "role_profile_set", "text": "Đảm nhiệm: hỗ trợ học viên Javis và lịch học."},
                                    actor="owner", now=NOW)
-check("owner may edit the role profile", ok and "lịch học" in st.get_role_profile("A")["generated_text"])
+check("owner may edit the role profile, the agent hash is kept",
+      ok and "lịch học" in st.get_role_profile("A")["generated_text"]
+      and st.get_role_profile("A")["agent_hash"] == "hash-agent-1")
+ok, _m, _c = rv.apply_change(st, "A", {"op": "case_add", "text": "câu tự bịa không có trong báo cáo", "verdict": "reply",
+                                       "reason": "r", "evidence": [wrong_ids[0]]}, actor="review", valid_evidence=shown, now=NOW)
+check("review cannot add a free-text case", not ok)
+ok, _m, _c = rv.apply_change(st, "A", {"op": "case_add", "decision_id": secret, "verdict": "reply", "reason": "r",
+                                       "evidence": [wrong_ids[0]]}, actor="review", valid_evidence=shown, now=NOW)
+check("review cannot add a case from a decision outside the report", not ok)
 
 # ---- each op undoes cleanly ----
 def roundtrip(change, probe, name):
@@ -144,6 +157,24 @@ rv.revert_change(st, cid_role, bot_id="A", now=NOW)
 ok, _ = rv.revert_change(st, cid_role, bot_id="A", now=NOW)
 check("an undone change cannot be undone twice", not ok)
 
+# ---- undo never clobbers a newer value ----
+ok, _m, c_rev = rv.apply_change(st, "A", {"op": "eagerness_set", "value": "high", "reason": "r", "evidence": [wrong_ids[0]]},
+                                actor="review", review_id="rvS", valid_evidence=shown, now=NOW)
+rv.apply_change(st, "A", {"op": "eagerness_set", "value": "low"}, actor="owner", now=NOW + 1)
+ok2, msg2 = rv.revert_change(st, c_rev, bot_id="A", now=NOW + 2)
+check("undoing a review change the owner has since overridden keeps the owner's value",
+      ok and not ok2 and st.get_tuning("A").get("eagerness") == "low" and st.get_change(c_rev)["status"] == "superseded", msg2)
+ok, msg3, _c = rv.apply_change(st, "A", {"op": "eagerness_set", "value": "medium", "reason": "r", "evidence": [wrong_ids[0]]},
+                               actor="review", valid_evidence=shown, now=NOW + 3)
+check("the review leaves a knob the owner set alone", not ok and st.get_tuning("A").get("eagerness") == "low", msg3)
+_low = [c for c in st.list_changes("A") if c["op"] == "eagerness_set" and c["actor"] == "owner" and c["status"] == "applied"]
+rv.revert_change(st, _low[0]["id"], bot_id="A", now=NOW + 4)
+ok, _m, c_off = rv.apply_change(st, "A", {"op": "offset_set", "chat_id": "g7", "value": -0.2, "reason": "r",
+                                          "evidence": [wrong_ids[0]]}, actor="review", valid_evidence=shown, now=NOW)
+st.adjust_offset("A", "g7", 0.15, NOW + 5)        # the judge learned something on top
+ok2, _ = rv.revert_change(st, c_off, bot_id="A", now=NOW + 6)
+check("an offset the judge moved since is not reset", ok and not ok2 and st.get_change(c_off)["status"] == "superseded")
+
 # ---- undo a whole review, then the same change is not retried for 14 days ----
 n, lines = rv.revert_review(st, res["review_id"], bot_id="A", now=NOW + H)
 check("revert_review undoes both changes", n == 2 and st.get_tuning("A").get("consider_tagged") in (None, "0")
@@ -164,6 +195,12 @@ for payload_bad, why in (("không phải json", "bad JSON"), (RuntimeError("engi
           and st.get_review_ts("A") == NOW + 3 * H)
 check("no message when nothing happened", rv.review_message({"ok": True, "applied": [], "feedback": ""}) == "")
 check("fenced JSON parses", rv.parse_review('```json\n{"changes": [], "summary": "ok"}\n```') is not None)
+check('"changes": null is an empty list', (rv.parse_review('{"changes": null}') or {}).get("changes") == [])
+check("links and code fences are stripped from model text",
+      "http" not in rv.untrusted_text("xem https://evil.example/x ```rm -rf```", 200)
+      and "```" not in rv.untrusted_text("```x```", 50))
+check("the owner message does not echo the model summary",
+      "BÍ MẬT" not in rv.review_message({"ok": True, "applied": ["x"], "summary": "BÍ MẬT", "review_id": "r", "bot_id": "A"}))
 
 # ---- code feedback is noted and written ----
 written = []

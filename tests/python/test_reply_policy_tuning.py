@@ -69,7 +69,10 @@ check("get_offset reads it back", abs(st.get_offset("A", "g1", NOW) - st.OFFSET_
 ev = rp.Event(channel="zalo", bot_id="A", chat_id="g1", chat_type="group", msg_id="m", ts=NOW,
               text="@Quý anh ơi lịch học Javis tuần này thế nào", sender_id="u1")
 check("tagging someone else is filtered by default", rp.coarse_gate(ev, "none", {}) == (False, "addressed_other"))
-check("a positive case opens the gate", rp.coarse_gate(ev, "none", {}, has_positive_case=True)[0])
+Q0 = {"question_score": {"value": 0.8, "evidence": ""}}
+check("a positive case from the owner or the review opens the gate", rp.coarse_gate(ev, "none", Q0, tag_case=True)[0])
+check("any other positive case (bootstrap, learned from strangers) does not",
+      rp.coarse_gate(ev, "none", Q0, has_positive_case=True) == (False, "addressed_other"))
 Q = {"question_score": {"value": 0.8, "evidence": ""}}
 check("consider_tagged opens the gate", rp.coarse_gate(ev, "none", Q, consider_tagged=True)[0])
 ev_junk = rp.Event(channel="zalo", bot_id="A", chat_id="g1", chat_type="group", msg_id="m", ts=NOW, text="@Quý",

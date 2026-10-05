@@ -366,11 +366,13 @@ class _ApiAuxEngine:
                 return
 
         tools, route = [], {}
-        try:
-            tools, route = await mcp_hub.discover_all(self.javis_mode or "full",
-                                                      vault_root=self.vault_root)
-        except Exception as e:
-            print(f"[aux discover] {e}", file=sys.stderr)
+        # `no_tools` (strip_tools): text-only turn on untrusted input, so the hub is never asked for anything.
+        if not getattr(self, "no_tools", False):
+            try:
+                tools, route = await mcp_hub.discover_all(self.javis_mode or "full",
+                                                          vault_root=self.vault_root)
+            except Exception as e:
+                print(f"[aux discover] {e}", file=sys.stderr)
 
         messages = []
         sysprompt = self.system_prompt or ""
@@ -704,6 +706,58 @@ def _openrouter_free_engine(cli, mode, tag, settings):
         mode=mode or getattr(cli, "javis_mode", None) or "full",
         tag=(tag or getattr(cli, "tag", "aux")) + "-orfree",
     )
+
+
+def strip_tools(engine, base):
+    """Make a swapped engine (or fallback chain) TEXT-ONLY: no hub, no MCP of any kind (0.77.0).
+
+    For turns whose prompt carries untrusted text (the group reply judge, its self-review): a stranger can write
+    instructions into a group message, and the prompt fences them as data, but the only real wall is that the
+    model has nothing to call. `base` is the sandboxed Claude engine the caller built before `swap` (allowed_tools
+    set, empty MCP file, empty cwd), so it is safe as is. Every other link is stripped or DROPPED:
+
+    - API engines: `no_tools` skips `discover_all`.
+    - Codex: no `-p` profile (that is where the hub entry lives) and `mcp_servers={}` wipes any MCP the user's
+      own config.toml declares.
+    - Grok: its MCP file lives in the working directory (the empty sandbox folder), so the hub entry is removed.
+    - Antigravity (`agy`) and anything unknown: dropped. `agy` reads MCP servers from the shared HOME file, which
+      also serves the owner's own chats, so there is no way to take the hub away for one turn.
+
+    Nothing left: fall back to `base` (a dead Claude login then fails the turn, which the judge treats as silence).
+    """
+    try:
+        links = list(engine._all()) if isinstance(engine, _FallbackChain) else [engine]
+    except Exception:       # noqa: BLE001
+        return base
+    keep = []
+    for e in links:
+        if e is base:
+            keep.append(e)
+            continue
+        try:
+            if isinstance(e, _ApiAuxEngine):
+                e.no_tools = True
+                keep.append(e)
+                continue
+            from claude_cli import CodexCLI
+            if isinstance(e, CodexCLI):
+                e.profile = None
+                e.extra_config = [c for c in (e.extra_config or []) if not str(c).startswith("mcp_servers")]
+                e.extra_config.append("mcp_servers={}")
+                keep.append(e)
+                continue
+            import grok_cli
+            if isinstance(e, grok_cli.GrokCLI):
+                grok_cli.ghi_mcp_settings(e.cwd, None)
+                keep.append(e)
+                continue
+        except Exception as ex:      # noqa: BLE001 - cannot prove it is tool-free: drop it
+            print(f"[aux strip_tools] bỏ {type(e).__name__}: {type(ex).__name__}: {ex}", file=sys.stderr)
+            continue
+        print(f"[aux strip_tools] bỏ {type(e).__name__}: không tắt được công cụ cho riêng lượt này", file=sys.stderr)
+    if not keep:
+        return base
+    return keep[0] if len(keep) == 1 else _FallbackChain(keep)
 
 
 def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
