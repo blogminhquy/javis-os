@@ -8,7 +8,7 @@ Dùng được cho bất cứ việc gì bạn phải trả lời đi trả lờ
 
 Khác với [Kênh Telegram](11-telegram.md) ở một điểm quyết định: bot Telegram ở trang **Kênh** là **Javis của bạn** (toàn quyền, đọc brain chính, gọi được mọi nguồn dữ liệu, chỉ bạn nhắn được). Bot ở trang **Chatbot** là **một Agent đứng trực** (mặc định chỉ đọc, chỉ thấy brain của nó, người lạ nhắn được). Đừng dùng cái này thay cái kia.
 
-Bot chuyên trách **làm việc thật được** nếu bạn nâng mức quyền cho nó - ghi file, gọi nguồn dữ liệu, thậm chí thao tác ra ngoài. Nhưng người điều khiển nó là người nhắn cho nó chứ không phải bạn, nên đọc kỹ mục [Ba mức quyền](#ba-mức-quyền---bot-được-làm-gì) trước khi nâng.
+Bot chuyên trách **làm việc thật được** nếu bạn nâng mức quyền cho nó - ghi file, gọi nguồn dữ liệu, thậm chí thao tác ra ngoài. Nhưng người điều khiển nó là người nhắn cho nó chứ không phải bạn, nên đọc kỹ mục [Bốn mức quyền](#bốn-mức-quyền---bot-được-làm-gì) trước khi nâng.
 
 ## Tính năng này là gì
 
@@ -17,7 +17,7 @@ Bot chuyên trách **làm việc thật được** nếu bạn nâng mức quy�
 - Trang Chatbot **thuộc về brain đang mở**: đổi brain ở đầu trang là thấy bot của brain đó, y như trang Agents và Skills.
 - Người ta nhắn riêng cho bot, hoặc bạn thả bot vào nhóm.
 - **Bot làm theo đúng file Agent của bạn.** Javis không chèn thêm luật nào của mình vào.
-- **Ba mức quyền**, chọn khi tạo và đổi được sau: Chỉ đọc (mặc định), Được ghi, Toàn quyền. Nâng mức phải tick vào ô đồng ý sau khi đọc phần rủi ro.
+- **Bốn mức quyền**, chọn khi tạo và đổi được sau: Chỉ đọc (mặc định), Đọc tài liệu, Được ghi, Toàn quyền. Hai mức đầu không ghi gì và không gọi nguồn nào; nâng lên hai mức sau phải tick vào ô đồng ý sau khi đọc phần rủi ro.
 - Hai rào **không đổi theo mức**, và khoá bằng mã nguồn chứ không bằng câu dặn: **bot chỉ thấy brain của chính nó**, và **không chạy được lệnh máy**.
 - Câu bot không trả lời nổi được ghi vào tab **Bot bí** để bạn bổ sung tài liệu, và bạn bấm **Tiếp quản** ở trang Hội thoại khi cần người thật vào cuộc.
 - Trang Chatbot dựng theo hướng **nhiều bot** ngay từ đầu: lưới thẻ, ô tìm, thêm/sửa/xoá, bật/tắt tại chỗ. Chạy một con hay mười con đều cùng một giao diện.
@@ -102,7 +102,7 @@ Bấm **Bot mới**. Từ 0.64.85 form có **bốn phần**, mỗi phần một 
 | **Bot là ai** | Tích một hay nhiều tài khoản kênh (chỉ hiện tài khoản của brain này mà chưa bot nào trực), đặt tên bot, chọn Agent làm bộ não hoặc bấm **Tạo Agent**. Kênh đang do bot khác trực hiện **mờ kèm ổ khoá**, ghi rõ bot nào (và brain nào nếu khác brain đang mở) đang giữ. Chưa có kênh thì bấm **Kết nối kênh mới**: chọn loại kênh, dán token, Kiểm tra. Xem [Chọn Telegram hay Zalo](#chọn-telegram-hay-zalo) |
 | **Bot trả lời ai** | Bốn thẻ chọn một, xem mục [Bot trả lời ai](#bot-trả-lời-ai) ngay dưới. Chọn nhóm hay người thì tick trong danh sách, không phải gõ id. Kèm nút chọn **khi nào bot lên tiếng trong nhóm**: Được gọi tên (mặc định), Tự đánh giá, hoặc Mọi tin (thẻ Tự động hóa tất cả đã quyết sẵn nên ẩn nút này) |
 | **Bot dựa vào đâu để trả lời** | Agent và tài liệu, hoặc Chỉ tài liệu. Xem mục hai chế độ ở dưới |
-| **Bot được làm gì** | Mức quyền. Cứ để **Chỉ đọc** cho lần đầu; xem mục [Ba mức quyền](#ba-mức-quyền---bot-được-làm-gì) trước khi nâng |
+| **Bot được làm gì** | Mức quyền. Cứ để **Chỉ đọc** cho lần đầu; xem mục [Bốn mức quyền](#bốn-mức-quyền---bot-được-làm-gì) trước khi nâng |
 | Nâng cao | Ngôn ngữ trả lời |
 
 Chỉ có tài khoản Zalo Bot thì phần chọn nhóm **biến mất** thay vì hiện ra rồi vô tác dụng: gói bot cơ bản của Zalo không cho bot vào nhóm, nên chọn nhóm ở đó chỉ là một lời hứa suông nằm lại trong dữ liệu.
@@ -346,19 +346,42 @@ Hai điều dưới đây đúng kể cả khi bạn cho bot toàn quyền. Chú
 - Bot **không thấy brain khác**, kể cả brain chính của bạn. Mọi đường đọc và ghi file đều bị kẹp trong đúng thư mục brain của bot; trèo ra bằng `../` hay đường dẫn tuyệt đối đều bị từ chối ngay.
 - Bot **không chạy được lệnh máy**, không tự mở một trang web lạ ra đọc, không đẻ agent con. Bot cũng **không có lệnh quản trị**: `/brain`, `/model`, `/status` không có tác dụng.
 
-Cách Javis bảo đảm: **bot không bao giờ chạm vào công cụ gốc của engine.** Ở mức Chỉ đọc nó không có công cụ nào; ở hai mức trên, mọi công cụ đều đi qua trung tâm kết nối của Javis, nơi đường dẫn file bị kẹp và mức quyền được áp ngay tại chỗ gọi. Bot không mở CLI, nên `Bash` và `Read` đường dẫn tuyệt đối của Claude Code không có mặt ở đây.
+Cách Javis bảo đảm: **bot không bao giờ chạm vào công cụ gốc của engine.** Ở mức Chỉ đọc nó không có công cụ nào; ở mức Đọc tài liệu nó chỉ có ba công cụ đọc tài liệu; ở hai mức trên, mọi công cụ đều đi qua trung tâm kết nối của Javis, nơi đường dẫn file bị kẹp và mức quyền được áp ngay tại chỗ gọi. Bot không mở CLI, nên `Bash` và `Read` đường dẫn tuyệt đối của Claude Code không có mặt ở đây.
 
 Còn tài liệu thì vẫn được tra sẵn bằng Python trước khi model chạy rồi đưa vào đầu bài, ở mọi mức. Bot đọc được brain của nó mà không cần công cụ nào.
 
-## Ba mức quyền - bot được làm gì
+## Bốn mức quyền - bot được làm gì
 
 Chọn ở ô **Bot được làm gì** khi tạo hoặc sửa bot. Mặc định là **Chỉ đọc**.
 
 | Mức | Bot làm được | Hợp với |
 |---|---|---|
 | **Chỉ đọc** (mặc định) | Chỉ đọc tài liệu rồi trả lời. Không công cụ nào. | Trực và hỏi đáp - gần như mọi việc |
+| **Đọc tài liệu** | Như Chỉ đọc, cộng ba công cụ chỉ-đọc để **tự tìm và mở** tài liệu trong brain của nó. Không ghi, không gọi nguồn nào | Bot hay im oan vì khách gõ khác chữ tài liệu |
 | **Được ghi** | Thêm: ghi file trong brain của chính nó, gọi nguồn dữ liệu đã đấu ở mức đọc/ghi | Ghi nhận yêu cầu, cập nhật ghi chú, tra số liệu thật |
 | **Toàn quyền** | Thêm: gửi đi, thanh toán, đặt/huỷ, xoá, công bố ra ngoài | Nơi bạn kiểm soát được danh sách người nhắn vào |
+
+### Mức Đọc tài liệu (từ 0.80.0)
+
+Ở mức Chỉ đọc, Javis tra tài liệu **theo chữ** trước mỗi lượt rồi đưa vài đoạn khớp nhất cho bot. Cách này giữ bot không bịa, nhưng trượt khi khách dùng chữ khác tài liệu: tài liệu ghi "hoàn trả" mà khách gõ "đổi trả" là không ra, và bot im hoặc nói chưa có thông tin.
+
+Mức **Đọc tài liệu** giữ nguyên phần tra sẵn đó, rồi cho bot thêm ba công cụ để **tự** đọc brain của nó như Javis chính đọc sổ tay:
+
+- **Tìm** trong tài liệu, thử lại bằng từ khác khi lần đầu không ra.
+- **Xem danh sách** tài liệu kèm tên các mục, để tự chọn tài liệu đúng chủ đề.
+- **Mở đọc trọn** một tài liệu.
+
+Bot được dặn: câu hỏi cần thông tin cụ thể mà phần tra sẵn không có thì phải tự tìm trước, chỉ khi tìm kỹ vẫn không có mới nói chưa có thông tin.
+
+**Bộ phán xử cũng nhìn mục lục.** Ở các mức khác, tin không ai gọi bot mà khớp chữ trượt thì bộ phán xử cho im ngay. Ở mức này nó được xem mục lục tài liệu của bot và tự xét tin đó có thuộc chủ đề nào không, nên khách gõ khác chữ không còn bị im oan.
+
+**Vì sao mức này không bắt tick đồng ý:** nó không lấy đi thứ gì phần tra sẵn chưa lấy.
+
+- Không có công cụ ghi nào, không gọi nguồn dữ liệu nào, không plugin, kể cả khi bạn đã đấu nhiều nguồn. Javis khoá ở tầng gọi công cụ, không phải bằng lời dặn.
+- Bot chỉ mở được đúng những file mà phần tra sẵn vẫn tra: trừ `memory/`, `inbox/` (file khách gửi), skill, plugin, file quy ước của Javis, và thêm cả `agents/`, `workflows/` (hướng dẫn nội bộ của bạn). Đường dẫn khách gõ chỉ được so với danh sách đó, nên `../`, đường dẫn tuyệt đối hay file liên kết trỏ ra ngoài đều không mở được.
+- Chỉ đúng brain của bot. Thiếu thông tin brain thì bot không có công cụ nào, chứ không lấy brain bạn đang mở.
+
+Nút **Thử** chạy đúng mức này (vì nó chỉ đọc), nên thử trước được ngay. Mức này tốn thêm vài lượt gọi model khi bot tự tìm, và nhạy với engine giống hai mức trên (xem mục [Engine nào chạy được mức nâng quyền](#engine-nào-chạy-được-mức-nâng-quyền)).
 
 ### Cái mất được khi nâng mức
 
@@ -396,7 +419,7 @@ Thẻ bot nào được nâng quyền đều có một dải màu ghi rõ mức 
 
 Mức **Chỉ đọc** chạy giống hệt nhau trên cả chín bộ não, không có ngoại lệ.
 
-Hai mức nâng quyền cần engine gọi được công cụ. Sáu engine API (OpenRouter, OpenAI, Anthropic, Gemini, Groq, Ollama) và gói Claude Code dùng đường đã chạy thật lâu nay. Riêng **gói ChatGPT** đi qua một đường của backend Codex mà nhà cung cấp chưa công bố ổn định, nên có thể không gọi được công cụ.
+Ba mức còn lại (Đọc tài liệu, Được ghi, Toàn quyền) cần engine gọi được công cụ. Sáu engine API (OpenRouter, OpenAI, Anthropic, Gemini, Groq, Ollama) và gói Claude Code dùng đường đã chạy thật lâu nay. Riêng **gói ChatGPT** đi qua một đường của backend Codex mà nhà cung cấp chưa công bố ổn định, nên có thể không gọi được công cụ.
 
 Gặp trường hợp đó thì **bot không chết**: nó trả lời lượt đó ở mức Chỉ đọc, và thẻ bot hiện một dải vàng nói rõ nó đang chạy thiếu quyền so với mức bạn đặt. Nâng quyền không bao giờ được phép lấy đi năng lực bot vốn đã có.
 
@@ -451,7 +474,7 @@ Nhật ký giữ 2000 lượt gần nhất mỗi bot, cũ hơn thì tự cắt. 
 
 **Ở mọi mức, bot KHÔNG làm được:** đọc hay ghi brain khác, chạy lệnh máy, tự mở trang web lạ, đẻ agent con, dùng lệnh quản trị (`/brain`, `/model`, `/status`... đều không có tác dụng, bot chỉ trả lời chung chung).
 
-**Phần còn lại tuỳ mức quyền** bạn đặt - ghi file, gọi nguồn dữ liệu, thao tác ra ngoài. Xem bảng ở mục [Ba mức quyền](#ba-mức-quyền---bot-được-làm-gì). Mặc định là Chỉ đọc, tức không làm được thứ nào trong số đó.
+**Phần còn lại tuỳ mức quyền** bạn đặt - ghi file, gọi nguồn dữ liệu, thao tác ra ngoài. Xem bảng ở mục [Bốn mức quyền](#bốn-mức-quyền---bot-được-làm-gì). Mặc định là Chỉ đọc, tức không làm được thứ nào trong số đó.
 
 Menu lệnh trong Telegram của bot chỉ có ba mục (`/help`, `/nhanvien`, `/id`), không phải menu quản trị của bot Javis chính. Liệt kê ở đó những lệnh bot từ chối chạy là dạy người ta đi tìm một tập lệnh khác.
 

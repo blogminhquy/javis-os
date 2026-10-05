@@ -24,6 +24,7 @@ from urllib.parse import quote, unquote
 
 from fastapi.responses import JSONResponse, Response
 
+import chatbot_doc_tools
 import config
 import hub_trace
 import localefmt
@@ -1048,6 +1049,11 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         Nhận cả DANH SÁCH: một phiên gắn được nhiều thư mục từ 0.63.9.
     Nằm TRONG khoá cache vì hai phiên coding khác repo phải thấy hai danh sách route khác nhau."""
     mode = (mode or "full").strip().lower()
+    # A bot at the "read_docs" level (0.80.0) gets its three document tools and NOTHING else: no
+    # connection, no builtin, no plugin, no lazy tier. Returned before any of those are discovered so
+    # a later change to them cannot leak into this level. See chatbot_doc_tools.
+    if mode == chatbot_doc_tools.MODE:
+        return chatbot_doc_tools.build(vault_root)
     # Ngôn ngữ đọc từ CẤU HÌNH, không truyền từ lượt chat: danh sách tool được cache dùng chung
     # cho mọi lượt, nên nó không thể mang ngôn ngữ dò được của riêng một câu. Đổi lại, ngôn ngữ
     # phải nằm TRONG khoá cache - thiếu nó thì đổi ngôn ngữ ở trang Cài đặt xong vẫn nhận danh
@@ -1428,6 +1434,11 @@ async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=F
     lệch nhau.
     """
     vault_root, vault_nguon, vault_header_hong = resolve_vault(raw_vault)
+    # "read_docs" opens documents of ONE brain, the bot's, named by the X-Javis-Vault header Javis
+    # writes into the bot's config. Without a valid header `resolve_vault` would fall back to the
+    # brain the owner has open, i.e. hand a stranger the owner's documents. No header, no tools.
+    if (mode or "").strip().lower() == chatbot_doc_tools.MODE and vault_nguon != "header":
+        vault_root = None
     try:
         body = await request.json()
     except Exception:
@@ -1482,7 +1493,8 @@ def claude_config_path(mode="full", vault_root=None, bot=False):
     hai brain chạy cùng lúc mà ghi chung một file là brain nọ đọc header của brain kia.
     """
     mode = (mode or "full").strip().lower()
-    if not _has_connections():
+    # The "read_docs" bot level needs no connection at all: its tools come from the bot's own brain.
+    if not _has_connections() and mode != chatbot_doc_tools.MODE:
         return None
     headers = {"Authorization": f"Bearer {hub_token()}", "X-Javis-Mode": mode,
                "X-Javis-Engine": "claude"}

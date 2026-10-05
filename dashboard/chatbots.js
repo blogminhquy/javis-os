@@ -256,6 +256,7 @@
     var mq = b.muc_quyen || "suggest";
     var mqLoi = {
       suggest: " - " + window.t("cb.mq_suggest"),
+      read_docs: " - " + window.t("cb.mq_read_docs"),
       auto: " - " + window.t("cb.mq_auto"),
       full: " - " + window.t("cb.mq_full"),
     };
@@ -265,7 +266,7 @@
         // "shield-alert" không có trong bộ icon đã vendor nên bản trước vẽ ra một ô trống ở
         // đúng chỗ đáng chú ý nhất. Test icon không bắt được vì nó chỉ dò tên viết thẳng trong
         // lời gọi, không dò lời gọi có biểu thức ở trong.
-        ic(mq === "full" ? "shield" : mq === "auto" ? "pencil" : "eye") +
+        ic(mq === "full" ? "shield" : mq === "auto" ? "pencil" : mq === "read_docs" ? "book-open" : "eye") +
         ' <b>' + esc(mucCua(mq).nhan) + '</b>' +
       '</span>';
     // Nhóm có người gọi bot mà chủ chưa cho phép. Đây là chỗ sửa cho lỗi "thả bot vào nhóm,
@@ -645,7 +646,7 @@
   function veCanhBao(id) {
     var m = mucCua(id);
     if (!(m.canh_bao || []).length) {
-      return '<div class="cb-hint">' + esc(window.t("cb2.mq_doc")) + '</div>';
+      return '<div class="cb-hint">' + esc(window.t(id === "read_docs" ? "cb2.mq_read_docs" : "cb2.mq_doc")) + '</div>';
     }
     var HIEN = 2;
     return '<div class="cb-canhbao ' + (id === "full" ? "full" : "ghi") + '">' +

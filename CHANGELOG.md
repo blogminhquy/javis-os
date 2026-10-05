@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.80.0] - 2026-10-05
 ### Thêm mới
-- **Mức quyền mới cho bot: Đọc tài liệu.** (đang viết)
+- **Mức quyền mới cho bot: Đọc tài liệu.** Nằm giữa Chỉ đọc và Được ghi: bot tự tìm, xem danh sách và mở tài liệu trong brain của nó, nên khách gõ khác chữ tài liệu ("đổi trả" với "hoàn trả") bot vẫn tìm ra thay vì nói chưa có thông tin.
+- **Vẫn không ghi và không gọi nguồn nào.** Bot chỉ có ba công cụ đọc, chỉ mở đúng những tài liệu phần tra sẵn vẫn dùng (không `memory/`, không file khách gửi, không hướng dẫn nội bộ của agent), và chỉ trong brain của chính nó. Vì vậy chọn mức này không phải tick đồng ý rủi ro.
+- **Bộ phán xử cũng nhìn mục lục tài liệu.** Ở mức này, tin trong nhóm không khớp chữ với tài liệu không còn bị im ngay; bộ phán xử tự xét tin đó có thuộc chủ đề tài liệu nào không.
+- Nút **Thử** chạy đúng mức này. Bot dùng gói ChatGPT có thể chưa gọi được công cụ; khi đó thẻ bot hiện dải vàng và lượt đó trả lời như Chỉ đọc.
 
 ## [0.78.0] - 2026-10-05
 ### Thêm mới

@@ -8,7 +8,7 @@ It suits anything you answer over and over for other people: questions about a p
 
 It differs from [the Telegram channel](11-telegram.md) in one decisive way: the Telegram bot on the **Channels** page is **your own Javis** (full power, reading the main brain, able to call every data source, and only you can message it). The bot on the **Chatbot** page is **an Agent on duty** (read-only by default, seeing only its own brain, and strangers can message it). Do not use one in place of the other.
 
-A dedicated bot **can do real work** if you raise its permission level: writing files, calling data sources, even acting outside. But whoever drives it is the person messaging it, not you, so read [The three permission levels](#the-three-permission-levels-what-the-bot-may-do) carefully before raising it.
+A dedicated bot **can do real work** if you raise its permission level: writing files, calling data sources, even acting outside. But whoever drives it is the person messaging it, not you, so read [The four permission levels](#the-four-permission-levels-what-the-bot-may-do) carefully before raising it.
 
 ## What this feature is
 
@@ -17,7 +17,7 @@ A dedicated bot **can do real work** if you raise its permission level: writing 
 - The Chatbot page **belongs to the open brain**: switching brains at the top of the page shows that brain's bots, just like the Agents and Skills pages.
 - People message the bot directly, or you drop the bot into a group.
 - **The bot follows your Agent file exactly.** Javis inserts no rules of its own.
-- **Three permission levels**, chosen at creation and changeable later: Read only (the default), Can write, Full power. Raising the level requires ticking a consent box after reading the risks.
+- **Four permission levels**, chosen at creation and changeable later: Read only (the default), Reads documents, Can write, Full power. The first two write nothing and call no source; the last two require ticking a consent box after reading the risks.
 - Two rails **do not change with the level**, and they are locked in code rather than in wording: **the bot only sees its own brain**, and **it cannot run machine commands**.
 - Questions beyond its knowledge are handed to the human on duty you nominate.
 - The Chatbot page is built for **many bots** from the start: a card grid, a search field, add/edit/delete, and enable/disable in place. Running one bot or ten uses the same interface.
@@ -103,7 +103,7 @@ Click **New bot** and fill in:
 | Bot name | The name you use to tell your bots apart |
 | The Agent as its brain | Pick an Agent in the open brain, or click **Create Agent** |
 | What the bot answers from | See the two modes below |
-| What the bot may do | The permission level. Leave it at **Read only** the first time; read [The three permission levels](#the-three-permission-levels-what-the-bot-may-do) before raising it |
+| What the bot may do | The permission level. Leave it at **Read only** the first time; read [The four permission levels](#the-four-permission-levels-what-the-bot-may-do) before raising it |
 | The on-duty Chat ID | The Telegram number of the person receiving handovers (see below) |
 | Allowed groups | Shown only when an account is on a channel that supports groups (Telegram). Leaving it empty is fine, drop the bot into a group then allow it with one click later (see Step 4) |
 | When the bot speaks in a group | Same condition. By default only when named or replied to |
@@ -259,19 +259,42 @@ The two points below hold even when you give the bot full power. They live in th
 - The bot **cannot see another brain**, your main brain included. Every file read and write is clamped inside the bot's own brain folder; climbing out with `../` or an absolute path is refused outright.
 - The bot **cannot run machine commands**, cannot open an unfamiliar web page to read, cannot spawn child agents. The bot also has **no admin commands**: `/brain`, `/model`, `/status` do nothing.
 
-How Javis guarantees it: **the bot never touches the engine's native tools.** At the Read only level it has no tools at all; at the two higher levels every tool goes through Javis's connection hub, where file paths are clamped and the permission level is applied right at the call site. The bot does not open a CLI, so Claude Code's `Bash` and absolute-path `Read` are simply not present here.
+How Javis guarantees it: **the bot never touches the engine's native tools.** At the Read only level it has no tools at all; at Reads documents it has only the three document-reading tools; at the two higher levels every tool goes through Javis's connection hub, where file paths are clamped and the permission level is applied right at the call site. The bot does not open a CLI, so Claude Code's `Bash` and absolute-path `Read` are simply not present here.
 
 Documents are still looked up by Python before the model runs and placed into the prompt, at every level. The bot reads its own brain without needing any tool.
 
-## The three permission levels: what the bot may do
+## The four permission levels: what the bot may do
 
 Chosen in the **What the bot may do** field when creating or editing a bot. The default is **Read only**.
 
 | Level | What the bot can do | Suits |
 |---|---|---|
 | **Read only** (default) | Only read documents and answer. No tools. | Duty and Q&A, which is nearly everything |
+| **Reads documents** | Like Read only, plus three read-only tools to **search and open** documents in its own brain. No writing, no data sources | Bots that stay silent because customers use different words than the documents |
 | **Can write** | Adds: writing files in its own brain, calling attached data sources at read/write level | Recording requests, updating notes, looking up real figures |
 | **Full power** | Adds: sending, paying, booking and cancelling, deleting, publishing outward | Places where you control the list of people who can message it |
+
+### The Reads documents level (from 0.80.0)
+
+At Read only, Javis searches the documents **by keyword** before each turn and hands the bot the few best chunks. That keeps the bot from making things up, but it misses when a customer uses other words than the document: the document says "refund" and the customer types "money back", nothing matches, and the bot stays silent or says it has no information.
+
+The **Reads documents** level keeps that pre-search and gives the bot three tools to read its brain **itself**, the way the main Javis reads its notebook:
+
+- **Search** the documents, retrying with other words when the first try finds nothing.
+- **List** the documents with their section titles, to pick the right one.
+- **Open** a whole document.
+
+The bot is told: when a question needs specific information the pre-search did not find, search first, and only say there is no information after searching properly.
+
+**The reply judge sees the table of contents too.** At the other levels, a message nobody addressed to the bot that misses the keyword search is silenced straight away. At this level the judge reads the bot's table of contents and decides whether the message fits a topic, so different wording no longer silences the bot for nothing.
+
+**Why this level asks for no consent tick:** it takes nothing the pre-search did not already expose.
+
+- No write tool, no data source, no plugin, even if you connected many sources. Javis enforces this where tools are called, not with instructions.
+- The bot opens only files the pre-search already reads: not `memory/`, `inbox/` (customer uploads), skills, plugins or Javis' convention files, and also not `agents/` or `workflows/` (your internal instructions). The path a customer types is only compared against that list, so `../`, absolute paths and links pointing out of the brain open nothing.
+- Only the bot's own brain. Without it the bot gets no tools at all, rather than the brain you have open.
+
+The **Try** button runs this level as is (it only reads), so you can test it right away. It costs a few extra model calls when the bot searches, and depends on the engine like the two levels above (see [Which engines can run the raised levels](#which-engines-can-run-the-raised-levels)).
 
 ### What you lose by raising the level
 
@@ -309,7 +332,7 @@ A bot card with a raised level carries a coloured band naming the level, yellow 
 
 The **Read only** level runs identically on all nine brains, with no exceptions.
 
-The two raised levels need an engine that can call tools. The six API engines (OpenRouter, OpenAI, Anthropic, Gemini, Groq, Ollama) and the Claude Code plan use a route that has run reliably for a long time. The **ChatGPT plan** alone goes through a Codex backend route the provider has not published as stable, so tool calling may fail.
+The other three levels (Reads documents, Can write, Full power) need an engine that can call tools. The six API engines (OpenRouter, OpenAI, Anthropic, Gemini, Groq, Ollama) and the Claude Code plan use a route that has run reliably for a long time. The **ChatGPT plan** alone goes through a Codex backend route the provider has not published as stable, so tool calling may fail.
 
 In that case **the bot does not die**: it answers that turn at the Read only level, and the bot card shows a yellow band stating it is running with fewer permissions than you set. Raising permissions must never take away a capability the bot already had.
 
@@ -362,7 +385,7 @@ The log keeps the 2000 most recent turns per bot, trimming older ones. Deleting 
 
 **At every level, a bot CANNOT:** read or write another brain, run machine commands, open an unfamiliar web page, spawn child agents, use admin commands (`/brain`, `/model`, `/status` all do nothing and the bot only answers generically).
 
-**Everything else depends on the permission level** you set: writing files, calling data sources, acting outside. See the table in [The three permission levels](#the-three-permission-levels-what-the-bot-may-do). The default is Read only, meaning none of those.
+**Everything else depends on the permission level** you set: writing files, calling data sources, acting outside. See the table in [The four permission levels](#the-four-permission-levels-what-the-bot-may-do). The default is Read only, meaning none of those.
 
 The bot's Telegram command menu has only three items (`/help`, `/nhanvien`, `/id`), not the main Javis bot's admin menu. Listing commands the bot refuses to run there would only teach people to go looking for a different command set.
 

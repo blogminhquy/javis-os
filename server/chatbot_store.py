@@ -104,16 +104,31 @@ NGUON_DEFAULT = "agent"
 # cho một con bot đang nói chuyện với NGƯỜI LẠ.
 #
 #   "suggest" - chỉ đọc. Không có tool nào cả (xem `main._bot_tra_loi`). MẶC ĐỊNH.
+#   "read_docs" - đọc tài liệu (0.80.0). Vẫn không ghi, không gọi nguồn dữ liệu nào, nhưng bot có
+#               ba tool chỉ-đọc để TỰ tìm và mở tài liệu trong brain của nó (`chatbot_doc_tools`),
+#               thay vì chỉ trông vào vài đoạn Javis khớp chữ sẵn. Riêng mức này không có tên bên
+#               hub cũ: hub nhận đúng chữ này và trả ba tool đó, không gì khác. Không lấy đi thứ gì
+#               mà phần tra sẵn chưa lấy, nên KHÔNG đòi xác nhận rủi ro.
 #   "auto"    - đọc + GHI file trong brain của chính bot, gọi được MCP đã đấu ở mức đọc/ghi.
 #               Hub chặn nhóm THAO TÁC RA NGOÀI (`mcp_catalog` xếp loại 'danger').
 #   "full"    - toàn quyền, kể cả nhóm ra ngoài. Người lạ nói chuyện với bot điều khiển được
 #               những tool đó, và thao tác ra ngoài thì không hoàn tác được.
-MUC_QUYEN = ("suggest", "auto", "full")
+MUC_QUYEN = ("suggest", "read_docs", "auto", "full")
 MUC_QUYEN_DEFAULT = "suggest"
 MUC_NANG = ("auto", "full")     # hai mức phải có xác nhận rủi ro mới đặt được
+# Các mức chạy đường CÓ tool (`main._bot_tra_loi_co_tool`). Rộng hơn MUC_NANG đúng một mức:
+# "read_docs" có tool nhưng tool chỉ đọc tài liệu, nên không đòi xác nhận.
+MUC_CO_TOOL = ("read_docs",) + MUC_NANG
 
 # Nhãn tiếng Việt, để server và giao diện gọi cùng một tên cho cùng một mức.
-MUC_NHAN = {"suggest": "Chỉ đọc", "auto": "Được ghi", "full": "Toàn quyền"}
+MUC_NHAN = {"suggest": "Chỉ đọc", "read_docs": "Đọc tài liệu", "auto": "Được ghi", "full": "Toàn quyền"}
+MUC_NHAN_EN = {"suggest": "Read only", "read_docs": "Reads documents", "auto": "Can write", "full": "Full power"}
+
+
+def nhan_muc(muc: str) -> str:
+    """Nhãn của một mức theo ngôn ngữ giao diện, cho chữ hiện lên màn hình. Prompt và log vẫn dùng MUC_NHAN."""
+    vi = MUC_NHAN.get(muc, muc)
+    return localefmt.chu(vi, MUC_NHAN_EN.get(muc, vi))
 
 # Rủi ro của từng mức, viết bằng lời người. Trả về DANH SÁCH câu chứ không phải một đoạn văn:
 # giao diện vẽ thành gạch đầu dòng, kênh chữ in thành nhiều dòng, và test đếm được từng ý.

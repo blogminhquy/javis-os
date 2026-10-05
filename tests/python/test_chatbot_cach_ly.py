@@ -235,13 +235,14 @@ check("LỚP 4: strict, nên bot không thấy MCP ambient của máy chủ",
 check("và cwd của engine cũng là brain của bot, không phải gốc project",
       "cwd=vault" in _ham_sub)
 
-# Fail-closed: chỉ HAI chữ đã khai mới mở tool, mọi thứ khác (bản ghi cũ thiếu khoá, file sửa
+# Fail-closed: chỉ những chữ đã khai mới mở tool (từ 0.80.0 là ba: read_docs, auto, full; read_docs
+# chỉ nhận ba tool đọc tài liệu, xem test_chatbot_doc_tools), mọi thứ khác (bản ghi cũ thiếu khoá, file sửa
 # tay gõ sai, None) rơi về đường không tool. Viết ngược lại - "khác 'suggest' thì mở tool" - là
 # một lỗi chính tả trong chatbots.json cũng đủ cấp tool cho bot đang chat với người lạ.
 _ren = _SRC[_SRC.index("async def _tg_answer_engine"):]
 _ren = _ren[:_ren.index("return await _bot_tra_loi(")]
 check("rẽ sang đường có tool CHỈ khi mức nằm trong danh sách đã khai",
-      "if _muc in chatbot_store.MUC_NANG:" in _ren)
+      "if _muc in chatbot_store.MUC_CO_TOOL:" in _ren)
 
 # _api_stream phục vụ đủ TÁM provider, kể cả hai gói subscription - nên không con nào phải mở
 # CLI, và không con nào bị bỏ lại.

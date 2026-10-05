@@ -38,6 +38,7 @@ from typing import Any, Callable, Dict, Optional
 
 import channel_accounts
 import channels
+import chatbot_doc_tools
 import chatbot_grounding
 import chatbot_log
 import chatbot_reply_policy
@@ -164,6 +165,20 @@ TÀI LIỆU, nên lượt này hãy nói bạn chưa có thông tin thay vì tr�
 """
 
 
+# Mức "Đọc tài liệu" (0.80.0): bot có ba tool chỉ-đọc để tự tìm và mở tài liệu. Có tool KHÔNG bằng
+# có dùng (xem đầu `chatbot_grounding`), nên prompt nói thẳng lúc nào phải dùng: phần tra sẵn khớp
+# theo chữ, khách gõ khác chữ là trượt, và lúc đó việc của bot là tự tìm chứ không phải nói "chưa có".
+_TU_MO_TAI_LIEU = """
+## Tự tra tài liệu
+
+Bạn có công cụ javis_docs_search, javis_docs_list và javis_docs_read để tự tìm và mở tài liệu trong
+brain của bạn. Phần tra sẵn chỉ khớp theo chữ nên hay sót khi khách dùng chữ khác tài liệu. Câu hỏi
+cần thông tin cụ thể mà phần tra sẵn không có thì PHẢI tự tìm trước (thử vài cách gọi khác, xem danh
+sách tài liệu), rồi mới trả lời theo tài liệu đã mở.{chat}
+"""
+_TU_MO_CHAT = " Đã tìm kỹ mà vẫn không có thì nói bạn chưa có thông tin, không trả lời bằng kiến thức chung."
+
+
 # Zalo CÁ NHÂN của chủ (0.64.80). Khác Telegram/Zalo Bot ở chỗ người nhắn tới không chỉ là khách:
 # đây là nick chủ dùng hằng ngày nên bạn bè, người nhà, đồng nghiệp đều nhắn vào. Chủ đã chọn
 # (29/09) để bot TỰ QUYẾT có trả lời không thay vì bật công tắc từng người, nên quyết định đó phải
@@ -244,18 +259,25 @@ def build_bot_prompt(bot: dict) -> str:
     # nghĩa là prompt đang được dựng ngoài luồng một lượt thật (vd để xem trước), lúc đó không
     # bịa ra khối tài liệu nào cả.
     tl = (bot or {}).get("_tai_lieu")
+    tu_mo = str((bot or {}).get("muc_quyen") or "").strip().lower() == "read_docs"
     if isinstance(tl, dict):
         if tl.get("co"):
             phan.append(_CO_TAI_LIEU.format(khoi=tl.get("khoi") or ""))
-        elif bot.get("nguon_tra_loi") == "tai_lieu":
+        elif bot.get("nguon_tra_loi") == "tai_lieu" and not tu_mo:
             phan.append(_KHONG_TAI_LIEU_CHAT)
+    if tu_mo:
+        phan.append(_TU_MO_TAI_LIEU.format(
+            chat=_TU_MO_CHAT if bot.get("nguon_tra_loi") == "tai_lieu" else ""))
     # Kênh của LƯỢT này, do _make_answer_fn gắn vào. Chỉ Zalo cá nhân mới có thêm đoạn này.
     if (bot or {}).get("_kenh_luot") == "zalo_personal":
         phan.append(_CAU_ZALO_CA_NHAN)
     # Lượt Tự đánh giá do _make_answer_fn gắn. Cờ chứ không suy từ meta: prompt được dựng ở đây,
     # nơi không có meta của lượt.
     if (bot or {}).get("_tu_dong"):
-        phan.append(_CAU_NHOM_TU_DONG)
+        # Bot tự mở được tài liệu thì "tài liệu ở trên" chưa phải toàn bộ căn cứ: không sửa câu này,
+        # bộ phán xử có thể đã cho nói nhờ mục lục dù phần tra sẵn trống, rồi bot lại tự im.
+        phan.append(_CAU_NHOM_TU_DONG.replace("tài liệu ở trên", "tài liệu (tra sẵn ở trên hoặc bạn tự mở)")
+                    if tu_mo else _CAU_NHOM_TU_DONG)
     # Ngữ cảnh nhóm của LƯỢT này (0.65.12): các tin ngay trước tin đang hỏi. Nằm trong prompt hệ thống chứ KHÔNG trong tin của người hỏi,
     # nếu không mỗi lượt lại ghi thêm 30 tin vào lịch sử phiên của Agent và phình dần.
     nc = (bot or {}).get("_ngu_canh_nhom")
@@ -778,7 +800,7 @@ class PolicyHooks:
         try:
             await chatbot_reply_policy.decide(
                 ev, profile, store=chatbot_reply_policy_store, ask=chatbot_reply_policy.ask_fn(),
-                doc_search=lambda t: _tra_tai_lieu(self.bot_id, cfg, t), commit=False, mode="shadow")
+                doc_search=lambda t: _tra_cho_phan_xu(self.bot_id, cfg, t), commit=False, mode="shadow")
         except Exception as e:      # noqa: BLE001
             print(f"[reply_policy {self.bot_id}] chạy thử lỗi: {type(e).__name__}: {e}", file=sys.stderr)
         finally:
@@ -1100,6 +1122,24 @@ async def _tra_tai_lieu(bot_id: str, cfg: dict, text: str) -> dict:
     return tl
 
 
+async def _tra_cho_phan_xu(bot_id: str, cfg: dict, text: str) -> dict:
+    """`doc_search` của bộ phán xử. Như `_tra_tai_lieu`, cộng MỤC LỤC tài liệu khi bot ở mức "Đọc tài
+    liệu" mà khớp chữ trượt: bot đó tự mở được tài liệu, nên "khách gõ khác chữ" không còn là lý do
+    để im (xem `chatbot_reply_policy.decide`). Mức khác giữ nguyên luật cũ."""
+    tl = await _tra_tai_lieu(bot_id, cfg, text)
+    if tl.get("co") or str(cfg.get("muc_quyen") or "").strip().lower() != chatbot_doc_tools.MODE:
+        return tl
+    try:
+        root = _deps["brain_root"](cfg["brain"])
+        ml = await asyncio.to_thread(chatbot_doc_tools.table_of_contents, root)
+    except Exception as e:
+        print(f"[chatbot {bot_id}] dựng mục lục lỗi: {e}", file=sys.stderr)
+        ml = ""
+    if ml:
+        tl = dict(tl, muc_luc=ml)
+    return tl
+
+
 def _ghi_bo_qua(bot_id: str, cfg: dict, meta: dict, text: str, ma: str, tl: dict = None) -> None:
     """Ghi nhật ký một tin bot CHỌN bỏ qua ở chế độ Tự đánh giá, kèm lý do đọc được.
 
@@ -1157,7 +1197,7 @@ def _make_answer_fn(bot_id: str):
                     return {"text": "", "files": [], "im_lang": True}
                 dec = await chatbot_reply_policy.decide(
                     ev, profile, store=chatbot_reply_policy_store, ask=chatbot_reply_policy.ask_fn(),
-                    doc_search=lambda t: _tra_tai_lieu(bot_id, cfg, t),
+                    doc_search=lambda t: _tra_cho_phan_xu(bot_id, cfg, t),
                     rate_check=lambda fu: _rp_rate(bot_id, chat_id, user_id, fu))
             except Exception as e:      # noqa: BLE001 - hỏng thì IM, không tự mở miệng
                 print(f"[reply_policy {bot_id}] {type(e).__name__}: {e}", file=sys.stderr)
@@ -1265,8 +1305,11 @@ def _make_answer_fn(bot_id: str):
         # Lượt gãy cũng là "bot không trả lời được", nên tính là bí để bộ đếm gọi người thấy nó.
         # Nhưng nó KHÔNG phải lỗ hổng tài liệu - `chatbot_log.lo_hong` lọc bỏ lượt có `loi`,
         # nếu không thì tab "Bot bí" đầy dòng lỗi kỹ thuật đúng chỗ chỉ nên có câu khách hỏi.
+        # Mức "Đọc tài liệu": phần tra sẵn trống KHÔNG có nghĩa là bí, vì bot tự mở tài liệu sau đó. Lấy nó làm
+        # dấu hiệu thì mọi câu khách gõ khác chữ đều thành "bí" dù bot đã trả lời đúng, và người trực bị gọi oan.
         bi = bool(loi_ky_thuat) or _co_bi(dap) or (
-            cfg.get("nguon_tra_loi") == "tai_lieu" and not tl.get("co"))
+            cfg.get("nguon_tra_loi") == "tai_lieu" and not tl.get("co")
+            and str(cfg.get("muc_quyen") or "").strip().lower() != chatbot_doc_tools.MODE)
 
         khoa = (bot_id, chat_id)
         lien_tiep = (_BI_LIEN_TIEP.get(khoa, 0) + 1) if bi else 0
@@ -1483,7 +1526,8 @@ async def try_message(bot_id: str, text: str, chat_type: str = "private", mentio
     Lời hứa "không gửi ra ngoài" giữ bằng cấu trúc, không bằng lời dặn:
       - không gọi kênh nào, không ghi Hộp thư (`ghi_tin_khach`/`ghi_tin_bot`), không ghi nhật ký bot;
       - bộ phán xử chạy trên kho chỉ đọc, không kiểm và không tiêu hạn mức tự nói;
-      - Agent chạy ở mức Chỉ đọc dù bot đặt mức cao hơn: một lượt thử không được đặt đơn hay gửi tin qua tool;
+      - Agent chạy ở mức Chỉ đọc dù bot đặt mức cao hơn (mức Đọc tài liệu giữ nguyên vì tool của nó chỉ đọc): một
+        lượt thử không được đặt đơn hay gửi tin qua tool;
       - phiên engine chạy kiểu bản nháp (như "Gợi ý câu trả lời"): không ghi kho phiên, gỡ lịch sử RAM sau lượt.
     Nhóm/người chưa được cho phép thì GIẢ ĐỊNH đã được phép (ghi chú `group_assumed_allowed`): việc cho phép đã
     có hàng chờ duyệt trên thẻ, còn cái chủ muốn thử là nội dung và bộ phán xử.
@@ -1506,7 +1550,10 @@ async def try_message(bot_id: str, text: str, chat_type: str = "private", mentio
     notes = []
     if cfg.get("muc_quyen") in chatbot_store.MUC_NANG:
         notes.append("readonly_tools")
-    cfg["muc_quyen"] = "suggest"
+    # "Đọc tài liệu" giữ nguyên: ba tool của nó chỉ đọc nên lượt thử không chạm được gì, và hạ nó xuống
+    # là thử một con bot khác hẳn (không tự tìm tài liệu, bộ phán xử không có mục lục).
+    if cfg.get("muc_quyen") != chatbot_doc_tools.MODE:
+        cfg["muc_quyen"] = "suggest"
     if grp and _audience_cua(cfg) != "all" and not _khop_nhom(cfg.get("groups") or [], TRY_CHAT_ID):
         cfg["groups"] = list(cfg.get("groups") or []) + [TRY_CHAT_ID]
         notes.append("group_assumed_allowed")
@@ -1541,7 +1588,7 @@ async def try_message(bot_id: str, text: str, chat_type: str = "private", mentio
                 ev = _rp_event(cfg, profile, text, meta)
                 dec = await chatbot_reply_policy.decide(
                     ev, profile, store=_ReadOnlyPolicyStore(chatbot_reply_policy_store),
-                    ask=chatbot_reply_policy.ask_fn(), doc_search=lambda t: _tra_tai_lieu(bot_id, cfg, t),
+                    ask=chatbot_reply_policy.ask_fn(), doc_search=lambda t: _tra_cho_phan_xu(bot_id, cfg, t),
                     commit=False, mode="shadow")
                 # Chỉ lý do do người phán xử VIẾT mới là câu cho người đọc; các mã cổng mang lý do kỹ thuật tiếng Anh
                 # ("gate", "no matching document"), giao diện tự dịch mã đó thành nhãn.

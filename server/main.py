@@ -18417,7 +18417,10 @@ def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route,
 
 async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_model, reasoning,
                                progress, runtime_trace, brain, chat_id, muc_quyen):
-    """Một lượt của bot ở mức **Được ghi** (auto) hoặc **Toàn quyền** (full).
+    """Một lượt của bot ở mức **Đọc tài liệu** (read_docs), **Được ghi** (auto) hoặc **Toàn quyền** (full).
+
+    Mức Đọc tài liệu (0.80.0) đi chung đường này, chỉ khác ở bộ tool: `mcp_hub.discover_all` trả về
+    đúng ba tool chỉ-đọc của `chatbot_doc_tools` cho brain của bot, không nguồn nào, không ghi gì.
 
     Khác `_bot_tra_loi` đúng một thứ: có tool. Mọi thứ còn lại - prompt của Agent, tài liệu tra
     sẵn, lịch sử, cách đọc stream - dùng chung mã, nên hai mức không trôi xa nhau.
@@ -18508,9 +18511,15 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
     if not tools:
         # Bot được đặt ở mức có quyền mà lại chẳng có công cụ nào - im lặng ở đây thì chủ tưởng
         # bot đang làm việc, còn thực tế nó chỉ đang nói chuyện.
-        canh_bao = (f"Bot đang ở mức {chatbot_store.MUC_NHAN.get(muc_quyen, muc_quyen)} nhưng "
-                    f"chưa có nguồn dữ liệu nào đấu vào, nên không có công cụ nào để dùng. "
-                    f"Đấu thêm ở trang Kết nối, hoặc hạ mức bot xuống Chỉ đọc.")
+        if muc_quyen == "read_docs":
+            # Mức này không cần nguồn nào: thiếu tool chỉ có thể là không mở được brain của bot.
+            canh_bao = (f"Bot đang ở mức {chatbot_store.MUC_NHAN.get(muc_quyen, muc_quyen)} nhưng "
+                        f"không mở được brain của nó, nên lượt vừa rồi chỉ dùng phần tài liệu tra sẵn. "
+                        f"Kiểm tra brain của bot còn tồn tại không.")
+        else:
+            canh_bao = (f"Bot đang ở mức {chatbot_store.MUC_NHAN.get(muc_quyen, muc_quyen)} nhưng "
+                        f"chưa có nguồn dữ liệu nào đấu vào, nên không có công cụ nào để dùng. "
+                        f"Đấu thêm ở trang Kết nối, hoặc hạ mức bot xuống Chỉ đọc.")
         print(f"[bot {prov} chat {chat_id}] mức '{muc_quyen}' nhưng hub không trả tool nào - "
               f"lượt này chỉ chat", file=__import__('sys').stderr)
     ket = _bot_ket(out, lich_su)
@@ -18574,7 +18583,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # Fail-closed là bắt buộc ở đây: đoán sai theo hướng kia là cấp tool cho một con bot
         # đang nói chuyện với người lạ.
         _muc = str((bot or {}).get("muc_quyen") or "").strip().lower()
-        if _muc in chatbot_store.MUC_NANG:
+        if _muc in chatbot_store.MUC_CO_TOOL:
             return await _bot_tra_loi_co_tool(
                 text, sess=sess, sysprompt=_sys_bot, prov=prov, api_key=api_key,
                 api_model=api_model, reasoning=reasoning, progress=_p,
@@ -19940,7 +19949,7 @@ async def chatbots_list(brain: str = ""):
     # riêng. Chép riêng thì một hôm server siết thêm một rào mà ô cảnh báo vẫn hứa như cũ, và
     # chủ bấm đồng ý dựa trên một câu đã sai.
     return {"bots": out, "lang_list": lang_registry.cho_giao_dien(), "muc_quyen": [
-        {"id": m, "nhan": chatbot_store.MUC_NHAN.get(m, m),
+        {"id": m, "nhan": chatbot_store.nhan_muc(m),
          "canh_bao": chatbot_store.canh_bao_muc(m),
          "can_xac_nhan": m in chatbot_store.MUC_NANG}
         for m in chatbot_store.MUC_QUYEN
@@ -19995,7 +20004,7 @@ def _chan_nang_quyen(muc, xac_nhan):
     m = str(muc).strip().lower()
     return JSONResponse({"ok": False, "error": chatbot_store.LOI_CHUA_XAC_NHAN,
                          "can_force": True, "muc_quyen": m,
-                         "nhan": chatbot_store.MUC_NHAN.get(m, m),
+                         "nhan": chatbot_store.nhan_muc(m),
                          "canh_bao": chatbot_store.canh_bao_muc(m)}, status_code=400)
 
 

@@ -166,6 +166,18 @@ def _duyet(root: Path):
         yield p
 
 
+def ds_tai_lieu(root: Any) -> List[str]:
+    """Đường dẫn tương đối (dạng posix) của mọi file được tính là tài liệu của bot. Bộ công cụ đọc
+    tài liệu ở mức "Đọc tài liệu" (`chatbot_doc_tools`) chỉ mở được đúng những file trong danh sách
+    này, nên nó không bao giờ thấy nhiều hơn phần tra sẵn đã thấy."""
+    r = Path(str(root))
+    try:
+        return [p.relative_to(r).as_posix() for p in _duyet(r)]
+    except Exception as e:
+        print(f"[chatbot grounding] liệt kê {r} lỗi: {e}", file=sys.stderr)
+        return []
+
+
 def _cat_manh(text: str, tieu_de: str) -> List[dict]:
     """Cắt một file thành các MẢNH theo tiêu đề markdown.
 
