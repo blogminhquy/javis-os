@@ -113,6 +113,7 @@ import readonly_path_runtime # Phase 6: exact-schema, two-round read-only canary
 import readonly_orchestrator # Phase 7: checkpointed multi-round read-only DAG
 import adaptive_context_runtime # Phase 8: state + sourced memory + lazy skill canaries
 import agent_runtime           # Phase 11: agent = workflow có quyền replan trong quyền đã cấp
+import resonance               # Javis Resonance MVP: một lượt engine chỉ chữ + receipt do host quan sát
 import limit_learner          # học hạn mức từ chính lỗi nhà cung cấp trả về
 import limit_resume           # tự chạy lại lượt chat khi gói thuê bao mở lại hạn mức
 import quota_scheduler        # sổ cái TPM dùng chung (Việc 6)
@@ -1892,9 +1893,10 @@ def _aux_swap(cli, mode=None, tag=None):
     return aux_engine.swap(cli, mode=mode, tag=tag, codex_profile=_write_codex_profile)
 
 
-def _reply_policy_sandbox_engine(system_prompt: str, tag: str):
-    """Engine Claude trong thư mục TRỐNG, không MCP, không công cụ: dùng chung cho người phán xử và vòng tự soát."""
-    cwd = cfgmod.STATE_DIR / "reply_policy_cwd"
+def _reply_policy_sandbox_engine(system_prompt: str, tag: str, cwd_name: str = "reply_policy_cwd"):
+    """Engine Claude trong thư mục TRỐNG, không MCP, không công cụ: dùng chung cho người phán xử, vòng tự soát
+    và lượt chỉ chữ của Resonance. `cwd_name` tách thư mục trống theo nơi gọi để phiên Claude của chúng không lẫn nhau."""
+    cwd = cfgmod.STATE_DIR / cwd_name
     cwd.mkdir(parents=True, exist_ok=True)
     cli = claude_engine(system_prompt=system_prompt, cwd=str(cwd), tag=tag,
                         allowed_tools=["javis_reply_policy_khong_cong_cu"])
@@ -1978,6 +1980,22 @@ async def _reply_policy_ask(prompt: str, purpose: str = "") -> str:
         elif ev.get("type") == "error":
             raise RuntimeError(str(ev.get("content") or "lỗi engine")[:200])
     return final
+
+
+def _resonance_engine(system_prompt: str, tag: str = "resonance"):
+    """Engine cho MỘT lượt Resonance (M1): đúng engine việc nền người dùng chọn, CHỈ CHỮ, KHÔNG chuỗi dự phòng.
+
+    Dựng như người phán xử nhóm (thư mục trống riêng, không MCP, cổng `can_use_tool` từ chối mọi công cụ), swap
+    theo model việc nền ở mức suggest, `strip_tools` lột hub/MCP của mắt khác Claude, rồi
+    `resonance.pick_text_only_link` giữ ĐÚNG mắt đầu. Mắt đầu không phải provider đã chọn thì trả (None, lý do):
+    swap ở mức dưới full tự thêm Claude, bộ não chính, OpenRouter free làm mắt sau, và Resonance không được tự đổi
+    provider. Trả (engine | None, info). Resonance mặc định tắt: ngoài test, chưa có đường chạy nào gọi hàm này.
+    """
+    base = _reply_policy_sandbox_engine(system_prompt, tag, cwd_name="resonance_cwd")
+    spec = aux_engine.read_spec()
+    eng = aux_engine.strip_tools(
+        aux_engine.swap(base, mode="suggest", tag=tag, spec=spec, codex_profile=_write_codex_profile), base)
+    return resonance.pick_text_only_link(eng, base, spec, aux_engine._FallbackChain)
 
 # Model đã GỠ khỏi Javis mà cài đặt cũ của người dùng có thể còn giữ. `chatgpt-web` (0.64.0 tới
 # 0.64.18) chạy bằng một trình duyệt lái trang chatgpt.com, và bị gỡ ở 0.64.20 vì trên máy chủ

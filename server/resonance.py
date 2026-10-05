@@ -100,6 +100,10 @@ class CallBudget:
         self.used += 1
         return True
 
+    def release(self) -> None:
+        """Đối soát: chỗ đã giữ mà model KHÔNG được gọi (engine bị chặn, chưa sẵn sàng) thì trả lại."""
+        self.used = max(0, self.used - 1)
+
 
 def _short(text: Any) -> str:
     return str(text or "").strip().replace("\n", " ")[:ERROR_DETAIL_MAX]
@@ -206,17 +210,23 @@ class GoalDeps:
         if not self.budget.try_reserve():
             return done("cancelled", code="budget_exhausted", detail=f"đã dùng hết {self.budget.max_calls} lượt gọi")
 
+        # Từ đây tới trước lúc gọi model, mọi đường dừng đều trả lại chỗ đã giữ: chưa có lượt gọi nào xảy ra.
         try:
             engine, engine_info = self.engine_factory(SYSTEM_PROMPT, self.tag)
         except Exception as e:  # noqa: BLE001
+            self.budget.release()
             return done("failed", code="engine_build", detail=f"{type(e).__name__}: {e}")
         if engine is None:
+            self.budget.release()
             return done("failed", code="engine_blocked", detail=engine_info.get("blocked") or "không có engine")
         try:
-            if not engine.is_available():
-                return done("failed", code="engine_unavailable", detail="engine đã chọn chưa sẵn sàng")
+            available = engine.is_available()
         except Exception as e:  # noqa: BLE001
+            self.budget.release()
             return done("failed", code="engine_unavailable", detail=f"{type(e).__name__}: {e}")
+        if not available:
+            self.budget.release()
+            return done("failed", code="engine_unavailable", detail="engine đã chọn chưa sẵn sàng")
         try:
             engine.max_wall_s = int(self.max_wall_s)
         except Exception:  # noqa: BLE001 - engine không có trần riêng thì vẫn còn wait_for bên dưới

@@ -133,12 +133,14 @@ check("hết lượt: cancelled budget_exhausted", r5.status == "cancelled" and 
 check("hết lượt: không dựng engine, không gọi model", built5["n"] == 0 and eng5.queries == 0)
 
 
-def fail_case(name, events, code, **kw):
+def fail_case(name, events, code, called=True, **kw):
     t = Path(tempfile.mkdtemp(prefix="res-out-"))
     d, _ = make_deps(FakeEngine(events, **kw))
     rr = run(d, goal_in(t), "act_fail")
     check(f"{name}: failed {code}", rr.status == "failed" and rr.error_code == code)
     check(f"{name}: không có file đầu ra", not any(t.iterdir()))
+    # Giữ chỗ trước, đối soát sau: model đã được gọi thì tính một lượt, chưa gọi thì trả chỗ lại.
+    check(f"{name}: hạn mức {'tính 1 lượt' if called else 'được trả lại'}", d.budget.used == (1 if called else 0))
     return rr
 
 
@@ -152,15 +154,26 @@ rr = fail_case("gọi công cụ trong lượt chỉ chữ",
 check("gọi công cụ: đếm được số lần", rr.tool_calls_observed == 1)
 fail_case("trả rỗng", [{"type": "final", "content": "   "}], "empty_output")
 fail_case("không có final", [{"type": "usage", "input": 1, "output": 0}], "empty_output")
-fail_case("engine chưa sẵn sàng", [{"type": "final", "content": "x"}], "engine_unavailable", available=False)
+fail_case("engine chưa sẵn sàng", [{"type": "final", "content": "x"}], "engine_unavailable", called=False,
+          available=False)
 
-# 6. Factory báo blocked thì không chạy gì
+# 6. Factory báo blocked thì không chạy gì, và không mất lượt
 tb = Path(tempfile.mkdtemp())
 db = R.GoalDeps(engine_factory=lambda s, t: (None, {"blocked": "antigravity không tắt được công cụ"}),
                 budget=R.CallBudget(2))
 rb = run(db, goal_in(tb), "act_blk")
 check("factory blocked: failed engine_blocked kèm lý do",
       rb.status == "failed" and rb.error_code == "engine_blocked" and "antigravity" in rb.error_detail)
+check("factory blocked: trả lại chỗ đã giữ", db.budget.used == 0)
+
+
+def boom(s, t):
+    raise RuntimeError("không dựng được")
+
+
+de = R.GoalDeps(engine_factory=boom, budget=R.CallBudget(2))
+re_ = run(de, goal_in(Path(tempfile.mkdtemp())), "act_boom")
+check("factory ném lỗi: failed engine_build, trả lại chỗ", re_.error_code == "engine_build" and de.budget.used == 0)
 
 # 7. Quá trần thời gian
 tt = Path(tempfile.mkdtemp())
