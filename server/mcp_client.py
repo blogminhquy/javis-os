@@ -37,6 +37,7 @@ PROTOCOL = "2025-06-18"
 # session ấm: một tiến trình sống lâu thay vì đẻ mới mỗi 10 phút. Vụ VPS Hostinger
 # 15/08: 100 tiến trình mcp-google-sheets, ăn 6,9 GB RAM.
 _IDLE_TTL = 900          # đóng session không dùng > 15 phút
+_DOWN_TTL = 60           # nguồn vừa khởi động hỏng: trả lỗi ngay trong chừng này giây (SessionPool.call_tool)
 _INTERNAL = {"botcake": "botcake_mcp", "substack": "substack_mcp"}   # transport internal → tên module
 
 _DIAL_SONG_SONG = 8      # số connection dò tool CÙNG LÚC (đừng để npx nổ ra 30 tiến trình)
@@ -461,6 +462,7 @@ class SessionPool:
 
     def __init__(self):
         self._sessions = {}   # key -> {"obj", "hash", "last"}
+        self._down = {}       # key -> (thời điểm, spec hash, lỗi): nguồn vừa KHỞI ĐỘNG hỏng, xem `call_tool`
 
     def _close_later(self, obj):
         try:
@@ -605,6 +607,8 @@ class SessionPool:
 
     async def list_tools(self, spec):
         tools = await self._retry(spec, lambda s: s.list_tools(), idempotent=True)
+        # Dò được là nguồn đã sống lại (nút Kiểm tra, vòng quét sức khoẻ): bỏ dấu "vừa hỏng" ngay.
+        self._down.pop(spec.get("key") or _spec_hash(spec), None)
         # Nhớ lại để vòng dò sau còn thứ mà dùng khi phiên đang bận (xem `tool_da_biet`).
         ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
         if ent is not None and tools:
@@ -625,10 +629,34 @@ class SessionPool:
             except Exception as e:
                 print(f"[mcp] inject_args {spec.get('label')}: {type(e).__name__}: {e}",
                       file=sys.stderr)
+        # Nguồn vừa KHỞI ĐỘNG hỏng thì trả lỗi ngay, không dựng phiên mới (0.83.2). Trước đây mỗi lần gọi
+        # vào một nguồn chết là một lần spawn lại: server stdio treo chờ tới 90 giây ở `initialize`, model
+        # còn gọi lại 2-3 lần, một vòng loop kẹt vài phút và tốn token vô ích. Chỉ nhớ lỗi KHỞI ĐỘNG
+        # (request chưa đi): lỗi giữa chừng có thể chỉ là server chậm. Dấu gắn với spec hash nên đổi
+        # token/cấu hình là thử lại ngay, và `list_tools` thành công thì xoá dấu.
+        key, h = spec.get("key") or _spec_hash(spec), _spec_hash(spec)
+        down = self._down.get(key)
+        if down and down[1] == h and time.time() - down[0] < _DOWN_TTL:
+            return (f"ERROR: nguồn {spec.get('label') or key} vừa không khởi động được "
+                    f"({down[2]}). Javis tạm ngừng gọi nguồn này {_DOWN_TTL} giây, đừng gọi lại "
+                    "liên tục: báo người dùng bấm Kiểm tra ở trang Kết nối.")
+        started = [False]
+
+        async def _op(s):
+            started[0] = False
+            init = getattr(s, "ensure_init", None)
+            if init:
+                await init()          # đã khởi động thì là no-op
+            started[0] = True
+            return await s.call_tool(tool, args)
+
         try:
-            return await self._retry(spec, lambda s: s.call_tool(tool, args), idempotent=False,
-                                     ban=True)
+            res = await self._retry(spec, _op, idempotent=False, ban=True)
+            self._down.pop(key, None)
+            return res
         except Exception as e:
+            if not started[0]:
+                self._down[key] = (time.time(), h, f"{type(e).__name__}: {str(e)[-300:]}")
             return f"ERROR: gọi tool lỗi: {type(e).__name__}: {e}"
 
 

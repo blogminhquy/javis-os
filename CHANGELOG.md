@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.83.2] - 2026-10-06
 ### Bảo mật
-- (đang viết)
+- **Bot không còn đọc được lệnh giấu bằng ký tự vô hình.** Người lạ nhắn tin có thể chèn chữ không hiện ra trên màn hình (ký tự ẩn, ký tự đảo chiều chữ) để lén ra lệnh cho bot mà chủ đọc hộp thư không thấy. Giờ mọi tin từ Telegram, Zalo và bot khách đều được gỡ sạch các ký tự này trước khi tới bộ não và trước khi lưu lại.
+### Cải thiện
+- **Một nguồn kết nối đang hỏng không còn làm Javis đứng chờ.** Khi một nguồn vừa không khởi động được, các lần gọi tiếp theo trong 1 phút được báo lỗi ngay thay vì mỗi lần chờ tới cả phút rồi mới hỏng. Bấm Kiểm tra ở trang Kết nối thành công thì Javis dùng lại nguồn đó ngay.
 
 ## [0.83.1] - 2026-10-05
 ### Sửa lỗi
