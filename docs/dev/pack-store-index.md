@@ -145,7 +145,9 @@ thể đổi mã, và mã đổi mà không ai xem thì toàn bộ chốt chữ 
 connector đi theo bản đó. Connector chạy qua `npx`/`uvx` lấy MCP từ npm/PyPI và ghi tên gói kèm
 `@latest`; để trống phiên bản là chưa đủ, vì `npx`/`uvx` dùng lại bản đã tải lần đầu. Bên thứ 3 ra
 bản mới thì máy chạy bản đó ở lần khởi động kế tiếp, không cần ra bản gói hay bản Javis. Ngoại lệ
-khai bằng `ngoai_le_ban_chinh_thuc` kèm lý do (Zalo trong `system/mcp-catalog.json`).
+khai bằng `ngoai_le_ban_chinh_thuc` kèm lý do. Ngoại lệ duy nhất hiện có là Zalo: bản dành riêng
+cho Javis, ghim vĩnh viễn ở `zalo-agent-cli@1.6.2` và không đi theo bản gốc nữa, vì phần Javis dựng
+trên bản đó đã khác bản gốc rất nhiều.
 `tests/python/test_mcp_official_release.py` canh catalog của app, `tools/kiem-tra.py` canh kho, và
 job `soi-ban-moi` trong CI của kho chạy thử bản mới nhất thật mỗi ngày để bắt tool mới chưa phân
 loại.
