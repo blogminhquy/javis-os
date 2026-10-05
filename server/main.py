@@ -11052,8 +11052,12 @@ async def _start_scheduler():
     except Exception as e:
         print(f"[connect health start] {e}", file=_sys.stderr)
     try:
-        if cfgmod.provision_admin_from_env():
+        _env_admin = cfgmod.provision_admin_from_env()
+        if _env_admin == "created":
             print("[auth] Đã tạo tài khoản admin từ JAVIS_ADMIN_PASSWORD (env).", file=_sys.stderr)
+        elif _env_admin == "reset":
+            print("[auth] JAVIS_ADMIN_PASSWORD/JAVIS_ADMIN_USER đổi so với lần trước: đã đặt lại "
+                  "tài khoản admin theo env (giữ 2FA, huỷ các phiên cũ).", file=_sys.stderr)
         # Mã thiết lập đã bỏ (0.64.47): dọn file .setup_token còn sót từ bản cũ, để không còn
         # một "chìa khoá" nằm trong thư mục state mà không ai dùng tới.
         cfgmod.clear_setup_token()

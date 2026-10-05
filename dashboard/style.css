@@ -764,10 +764,21 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
   background: var(--field-bg); border: 1px solid var(--border); color: var(--text);
   border-radius: 8px; padding: 10px 12px; font-size: 16px;
 }
+.auth-pw { position: relative; display: flex; }
+.auth-pw input { flex: 1; min-width: 0; padding-right: 44px; }
+.auth-pw-eye {
+  position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+  display: grid; place-items: center; width: 40px; height: 40px;
+  background: none; border: 0; border-radius: 6px; color: var(--text3); cursor: pointer;
+}
+.auth-pw-eye:hover { color: var(--text); }
+.auth-pw-eye[aria-pressed="true"] { color: var(--accent); }
+.auth-pw-eye svg { width: 18px; height: 18px; }
 .auth-err { color: var(--red); font-size: 14px; min-height: 16px; }
 .auth-help { font-size: 14px; }
 .auth-help span { color: var(--accent); cursor: pointer; text-decoration: underline; }
 .auth-reset { font-size: 13px; color: var(--text3); line-height: 1.6; background: var(--bg3); border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; }
+.auth-reset-srv { margin-top: 6px; }
 .auth-reset code { background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
 
 .settings-modal {

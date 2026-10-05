@@ -250,6 +250,8 @@ You are reaching Javis through a domain it does not know, while no password is s
 You are calling the Javis API from another page (a script, an extension, a third-party iframe). This is the CSRF layer doing its job. If it is your own tool, add its hostname to `JAVIS_ALLOWED_HOSTS`.
 
 **You forgot the password.**
+On Docker or Hostinger (since 0.77.1): change `JAVIS_ADMIN_PASSWORD` (and `JAVIS_ADMIN_USER` if you like) in the Environment box and redeploy. At startup Javis sees the env value differs from last time and resets the admin to it; 2FA stays on and every old session is signed out. Leaving the env unchanged changes nothing, so a password you set in the dashboard is not overwritten on every restart.
+
 On Windows the repo ships a **`reset-auth.bat`** script in the project root: running it clears the account and password in `server/settings.json` and returns the app to setup (it prints an OK line then tells you to restart). If the script is not usable: edit or delete the `auth` section of `settings.json` in the state folder (Docker: `/data/state`) then restart; or set the admin again with `JAVIS_ADMIN_PASSWORD` after deleting the old `auth` section.
 
 **After changing machines or restoring a backup, every API key is empty.**

@@ -1248,16 +1248,49 @@ def clear_setup_token():
 
 
 def provision_admin_from_env():
-    """Có JAVIS_ADMIN_PASSWORD (+ tùy chọn JAVIS_ADMIN_USER) và CHƯA có admin → tạo admin lúc boot
-    → đóng /auth/setup cho mọi người (cách an toàn nhất cho deploy public). Trả True nếu vừa tạo."""
-    if auth_enabled():
-        return False
+    """Apply JAVIS_ADMIN_PASSWORD (+ optional JAVIS_ADMIN_USER) at boot.
+
+    - No admin yet: create it, which also closes /auth/setup (safest for a public deploy).
+    - Admin exists and the env value CHANGED since it was last applied: reset to it, keep 2FA,
+      drop other sessions. Before 0.77.1 this case was silently ignored, so a customer who
+      changed the password on Hostinger and redeployed got "Wrong username or password"
+      forever, and a VPS owner had no reset path short of editing settings.json over SSH.
+    - Env unchanged: do nothing, so a password changed later in the dashboard survives reboots.
+
+    `auth.env_applied` keeps only a salted hash of the last applied env value, never the value.
+    Returns "created", "reset" or "" (nothing done).
+    """
     pw = os.getenv("JAVIS_ADMIN_PASSWORD", "")
     if not pw:
-        return False
+        return ""
     user = (os.getenv("JAVIS_ADMIN_USER", "admin").strip() or "admin")
-    h, salt = hash_password(pw)
     cfg = read_settings()
-    cfg["auth"] = {"username": user, "password_hash": h, "salt": salt}
+    a = dict(cfg.get("auth") or {})
+    m_salt = secrets.token_hex(16)
+    marker = {"username": user, "hash": hash_password(pw, m_salt)[0], "salt": m_salt}
+    if not a.get("password_hash"):
+        h, salt = hash_password(pw)
+        cfg["auth"] = {"username": user, "password_hash": h, "salt": salt, "env_applied": marker}
+        write_settings(cfg)
+        return "created"
+    applied = a.get("env_applied") if isinstance(a.get("env_applied"), dict) else {}
+    if applied.get("hash"):
+        same = (applied.get("username") == user and secrets.compare_digest(
+            hash_password(pw, str(applied.get("salt") or ""))[0], str(applied["hash"])))
+        if same:
+            return ""
+    elif a.get("username") == user and verify_password(pw, cfg):
+        # Upgrade from a version without the marker, and the env already matches the account:
+        # just remember it, so a later dashboard change is not reverted on the next boot.
+        a["env_applied"] = marker
+        cfg["auth"] = a
+        write_settings(cfg)
+        return ""
+    # Overwrite key by key: `auth` also holds the 2FA config, replacing it whole would turn 2FA off.
+    a["username"] = user
+    a["password_hash"], a["salt"] = hash_password(pw)
+    a["env_applied"] = marker
+    cfg["auth"] = a
     write_settings(cfg)
-    return True
+    clear_sessions()
+    return "reset"

@@ -4060,6 +4060,18 @@ document.getElementById("authSubmit").addEventListener("click", async () => {
     err.textContent = d.error || window.t("app.login_failed");
   } catch (e) { err.textContent = window.t("app.err_net"); }
 });
+// Eye button: lets the user check what they typed (a Hostinger customer could not tell a typo
+// from a wrong env password, 2026-10-05). Focus stays in the field so Enter still signs in.
+(() => {
+  const eye = document.getElementById("authPassEye"), inp = document.getElementById("authPass");
+  if (!eye || !inp) return;
+  eye.addEventListener("mousedown", (e) => e.preventDefault());
+  eye.addEventListener("click", () => {
+    const show = inp.type === "password";
+    inp.type = show ? "text" : "password";
+    eye.setAttribute("aria-pressed", show ? "true" : "false");
+  });
+})();
 ["authPass", "authCode"].forEach((id) => {
   const el = document.getElementById(id);
   if (el) el.addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("authSubmit").click(); });
