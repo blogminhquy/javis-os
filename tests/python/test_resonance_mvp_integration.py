@@ -195,8 +195,11 @@ check("vùng ghi / id sai: không dựng engine", bsc["n"] == 0)
 def fake_cli(allowed_tools=("javis_reply_policy_khong_cong_cu",)):
     # Giống engine Claude của _reply_policy_sandbox_engine: allowed_tools có giá trị thì cổng can_use_tool
     # từ chối mọi công cụ. Đó là cơ chế chỉ chữ duy nhất bộ chọn tin cho mắt Claude.
+    # cwd là thư mục tạm, như thư mục trống thật: strip_tools của Grok ghi .grok/config.toml vào cwd, và cwd
+    # None thì nó ghi vào thư mục đang đứng (gốc repo), làm test_ignore_files đỏ.
     return types.SimpleNamespace(system_prompt="s", javis_vault=None, javis_mode="suggest", tag="resonance",
-                                 model=None, cwd=None, allowed_tools=list(allowed_tools) if allowed_tools else None)
+                                 model=None, cwd=tempfile.mkdtemp(prefix="res-cwd-"),
+                                 allowed_tools=list(allowed_tools) if allowed_tools else None)
 
 
 CLAUDE = {"provider": "anthropic-cli", "model": "sonnet"}
