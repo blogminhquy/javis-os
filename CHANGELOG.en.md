@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.84.0] - 2026-10-06
+### Improved
+- **Groundwork for Resonance.** Javis starts gaining a layer that lets a request you hand it be pursued until there is evidence it is done. This release only checks the internal execution path; nothing is switched on for users and nothing about how Javis works today changes.
+
 ## [0.83.2] - 2026-10-06
 ### Security
 - **Bots can no longer be steered by invisible characters.** A stranger could slip instructions into a message using characters that do not show on screen (hidden characters, text-direction overrides), so the bot read them while the owner saw nothing in the inbox. Every message from Telegram, Zalo and customer bots is now cleaned of them before it reaches the brain and before it is saved.

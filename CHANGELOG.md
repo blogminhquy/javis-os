@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.84.0] - 2026-10-06
+### Cải thiện
+- **Chuẩn bị nền cho Hệ thống cộng hưởng.** Javis bắt đầu có lớp giúp một việc anh nhờ được theo đuổi tới khi có bằng chứng xong. Bản này chỉ kiểm đường chạy bên trong, chưa bật gì cho người dùng và không đổi cách Javis đang làm việc.
+
 ## [0.83.2] - 2026-10-06
 ### Bảo mật
 - **Bot không còn đọc được lệnh giấu bằng ký tự vô hình.** Người lạ nhắn tin có thể chèn chữ không hiện ra trên màn hình (ký tự ẩn, ký tự đảo chiều chữ) để lén ra lệnh cho bot mà chủ đọc hộp thư không thấy. Giờ mọi tin từ Telegram, Zalo và bot khách đều được gỡ sạch các ký tự này trước khi tới bộ não và trước khi lưu lại.
