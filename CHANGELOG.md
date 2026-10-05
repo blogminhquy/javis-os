@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.78.0] - 2026-10-05
 ### Thêm mới
-- Đang viết.
+- **Nút Thử trên thẻ bot.** Gõ một tin như khách gửi (nhắn riêng hoặc trong nhóm, có tag bot hay không) là thấy ngay bot sẽ trả lời hay im, vì sao, trả lời gì và dùng tài liệu nào.
+- **Không gửi gì ra ngoài.** Lượt thử không gửi lên Zalo hay Telegram, không vào Hòm thư, không làm lệch số liệu tự học của bộ phán xử, và chạy ở mức Chỉ đọc nên bot không đặt đơn hay gửi tin thật.
+- Bot Telegram còn bật chế độ riêng tư thì kết quả thử nhắc luôn: trong nhóm thật tin đó sẽ không tới được bot.
 
 ## [0.77.2] - 2026-10-05
 ### Sửa lỗi

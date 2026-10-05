@@ -20612,6 +20612,22 @@ async def share_rename(body: dict = Body(...)):
             "ten": await asyncio.to_thread(_share_ten, ban)}
 
 
+@app.post("/chatbots/{bot_id}/try")
+async def chatbot_try(bot_id: str, text: str = Form(""), chat_type: str = Form("private"),
+                      mentioned: str = Form(""), user_name: str = Form("")):
+    """Nút Thử bot (0.78.0): chạy một tin giả qua đúng các bước của tin thật, KHÔNG gửi gì ra ngoài và không để
+    lại dấu vết (xem `chatbot_runtime.try_message`). Đặt sau route cuối để bảng route chỉ thêm một dòng."""
+    res = await chatbot_runtime.try_message(bot_id, text, chat_type=chat_type,
+                                            mentioned=_env_like_true(mentioned), user_name=user_name)
+    if res.get("code") == "no_bot":
+        return JSONResponse(res, status_code=404)
+    return res
+
+
+def _env_like_true(v) -> bool:
+    return str(v or "").strip().lower() in ("1", "true", "yes", "on")
+
+
 @app.on_event("startup")
 async def _ve_si_claude_creds():
     """Vòng vệ sĩ ~/.claude/.credentials.json mỗi 5 phút: bản lành thì sao lưu, file hỏng/mất

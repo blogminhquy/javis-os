@@ -1434,6 +1434,184 @@ def manual_done(conv: dict, msgs: list, text: str, meta: dict) -> dict:
     return out
 
 
+# ============================================================
+# Thử bot (0.78.0): chạy một tin giả qua đúng các bước thật, KHÔNG gửi, KHÔNG để lại dấu vết
+# ============================================================
+TRY_CHAT_ID = "javis-try"
+TRY_USER_ID = "javis-try-user"
+TRY_MAX_CHARS = 2000
+_TRY_BUSY: set = set()       # bot đang có một lượt thử chạy dở: không cho bấm chồng
+
+
+class _ReadOnlyPolicyStore:
+    """Kho bộ phán xử CHỈ ĐỌC cho lượt thử. `decide()` luôn ghi một dòng quyết định (kể cả `commit=False`), mà dòng
+    thử lọt vào kho là làm lệch số liệu tự học và vòng tự soát (0.77.0 đếm nhãn, đếm tin im). Hàm đọc chuyển thẳng
+    xuống kho thật; hàm ghi thành no-op; hàm lạ thì báo lỗi to (fail-closed: thà lượt thử hỏng còn hơn ghi nhầm)."""
+
+    _READ = ("get_", "list_", "last_", "candidate_", "tokens_of", "open_", "recent_", "stats", "db_path")
+    _WRITE = ("log_", "add_", "close_", "tick_", "adjust_", "delete_", "set_", "amend_", "forget", "update_",
+              "note_", "record_", "save_", "clear_")
+
+    def __init__(self, real):
+        self._real = real
+
+    def __getattr__(self, name):
+        if name.startswith(self._READ):
+            return getattr(self._real, name)
+        if name.startswith(self._WRITE):
+            return lambda *a, **k: 0
+        raise AttributeError(f"try store: {name} is neither a known read nor a known write")
+
+
+def try_notes(cfg: dict, meta: dict, st: dict) -> list:
+    """Ghi chú kèm kết quả thử mà chủ cần biết về KÊNH THẬT. Hiện chỉ có chế độ riêng tư của Telegram: lượt thử
+    chạy ngay trong Javis nên luôn "tới" được bot, còn ngoài nhóm Telegram thật tin đó bị chặn từ phía Telegram
+    nếu không phải lệnh hay tin trả lời thẳng vào bot. Không nói ra thì thử thấy bot trả lời mà nhóm thật vẫn im."""
+    notes = []
+    co_tg = any(isinstance(a, dict) and a.get("channel") == "telegram" for a in (cfg.get("accounts") or []))
+    if (co_tg and _rp_is_group(meta) and not (meta or {}).get("reply_to_bot")
+            and (st or {}).get("da_hoi_telegram") and not (st or {}).get("doc_moi_tin_nhom")):
+        notes.append("telegram_privacy")
+    return notes
+
+
+async def try_message(bot_id: str, text: str, chat_type: str = "private", mentioned: bool = False,
+                      user_name: str = "") -> dict:
+    """Nút "Thử bot": cho một tin giả đi qua đúng ba bước của tin thật (cổng "ai được trả lời", bộ phán xử ở chế
+    độ Tự đánh giá, câu trả lời của Agent) và trả lại bot SẼ nói hay im, vì sao, nói gì.
+
+    Lời hứa "không gửi ra ngoài" giữ bằng cấu trúc, không bằng lời dặn:
+      - không gọi kênh nào, không ghi Hộp thư (`ghi_tin_khach`/`ghi_tin_bot`), không ghi nhật ký bot;
+      - bộ phán xử chạy trên kho chỉ đọc, không kiểm và không tiêu hạn mức tự nói;
+      - Agent chạy ở mức Chỉ đọc dù bot đặt mức cao hơn: một lượt thử không được đặt đơn hay gửi tin qua tool;
+      - phiên engine chạy kiểu bản nháp (như "Gợi ý câu trả lời"): không ghi kho phiên, gỡ lịch sử RAM sau lượt.
+    Nhóm/người chưa được cho phép thì GIẢ ĐỊNH đã được phép (ghi chú `group_assumed_allowed`): việc cho phép đã
+    có hàng chờ duyệt trên thẻ, còn cái chủ muốn thử là nội dung và bộ phán xử.
+
+    Trả `{"ok", "would_reply", "stage", "code", "reason", "score", "threshold", "text", "sources", "notes", "error"}`.
+    `stage`: gate | judge | auto_gate | agent_silent | answered.
+    """
+    cfg0 = chatbot_store.get_bot(bot_id)
+    if not cfg0:
+        return {"ok": False, "code": "no_bot", "error": chatbot_store.LOI_KHONG_CO_BOT}
+    text = str(text or "").strip()[:TRY_MAX_CHARS]
+    if not text:
+        return {"ok": False, "code": "no_message", "error": localefmt.chu("Gõ một tin để thử", "Type a message to try")}
+    if bot_id in _TRY_BUSY:
+        return {"ok": False, "code": "busy", "error": localefmt.chu("Đang thử một tin khác, chờ chút",
+                                                                    "Another try is running, wait a moment")}
+    import copy
+    cfg = copy.deepcopy(cfg0)
+    grp = str(chat_type or "") == "group"
+    notes = []
+    if cfg.get("muc_quyen") in chatbot_store.MUC_NANG:
+        notes.append("readonly_tools")
+    cfg["muc_quyen"] = "suggest"
+    if grp and _audience_cua(cfg) != "all" and not _khop_nhom(cfg.get("groups") or [], TRY_CHAT_ID):
+        cfg["groups"] = list(cfg.get("groups") or []) + [TRY_CHAT_ID]
+        notes.append("group_assumed_allowed")
+    if not grp and _audience_cua(cfg) == "chon":
+        cfg["people"] = list(cfg.get("people") or []) + [TRY_CHAT_ID]
+        notes.append("person_assumed_allowed")
+    aid, kenh = _tai_khoan_cua(cfg, {})
+    meta = {"chat_id": TRY_CHAT_ID, "chat_type": "group" if grp else "private",
+            "chat_title": localefmt.chu("Nhóm thử", "Test group") if grp else "",
+            "user_id": TRY_USER_ID, "user_name": str(user_name or "").strip()[:60] or localefmt.chu("Khách thử", "Test user"),
+            "username": "", "message_id": "", "account_id": aid if aid != cfg.get("id") else "",
+            "platform": kenh, "_kenh": kenh, "mentioned": bool(mentioned), "ts": time.time()}
+    meta = _rp_named_meta(cfg, text, meta)
+    notes += try_notes(cfg, meta, status(bot_id))
+    out = {"ok": True, "would_reply": False, "stage": "", "code": "", "reason": "", "score": None,
+           "threshold": None, "text": "", "sources": [], "notes": notes}
+
+    ly_do = _ly_do_im(cfg, meta)
+    if ly_do:
+        out.update(stage="gate", code=ly_do, reason=_try_reason(ly_do))
+        return out
+
+    _TRY_BUSY.add(bot_id)
+    key = f"bot:{bot_id}:{TRY_CHAT_ID}"
+    probe, undo = _deps.get("session_probe"), _deps.get("session_undo")
+    sid, keep = "", 0
+    try:
+        tl = None
+        if chatbot_tu_dong.can_danh_gia(cfg, meta):
+            if chatbot_reply_policy.normalize_config(cfg.get("reply_policy"))["mode"] == "on":
+                profile = _rp_profile(cfg, meta)
+                ev = _rp_event(cfg, profile, text, meta)
+                dec = await chatbot_reply_policy.decide(
+                    ev, profile, store=_ReadOnlyPolicyStore(chatbot_reply_policy_store),
+                    ask=chatbot_reply_policy.ask_fn(), doc_search=lambda t: _tra_tai_lieu(bot_id, cfg, t),
+                    commit=False, mode="shadow")
+                # Chỉ lý do do người phán xử VIẾT mới là câu cho người đọc; các mã cổng mang lý do kỹ thuật tiếng Anh
+                # ("gate", "no matching document"), giao diện tự dịch mã đó thành nhãn.
+                judged = dec.verdict == "reply" or dec.silence_code in ("judge_silent", "below_threshold")
+                out.update(score=dec.score, threshold=dec.threshold, reason=str(dec.reason or "") if judged else "")
+                if dec.verdict != "reply":
+                    out.update(stage="judge", code=dec.silence_code or "judge_silent")
+                    return out
+                tl = dec.doc or None
+            else:
+                if not chatbot_tu_dong.nhin_nhu_cau_hoi(text)[0]:
+                    out.update(stage="auto_gate", code="khong_giong_cau_hoi",
+                               reason=_try_reason("khong_giong_cau_hoi"))
+                    return out
+                tl = await _tra_tai_lieu(bot_id, cfg, text)
+                if not tl.get("co"):
+                    out.update(stage="auto_gate", code="khong_co_tai_lieu",
+                               reason=_try_reason("khong_co_tai_lieu"))
+                    return out
+        if tl is None:
+            tl = await _tra_tai_lieu(bot_id, cfg, text)
+        out["sources"] = list(tl.get("nguon") or [])[:8]
+        if probe:
+            try:
+                sid, keep = probe(key)
+            except Exception as e:      # noqa: BLE001 - không đọc được phiên thì thử không có ngữ cảnh kho, vẫn chạy
+                print(f"[chatbot {bot_id}] đọc phiên cho lượt thử lỗi: {type(e).__name__}", file=sys.stderr)
+        cfg["_tai_lieu"], cfg["_kenh_luot"], cfg["_tu_dong"] = tl, kenh, chatbot_tu_dong.can_danh_gia(cfg, meta)
+        cfg["_ngu_canh_nhom"] = ngu_canh_nhom(meta, kenh, aid)
+        text_engine = text
+        if kenh == "zalo_personal" and grp:
+            text_engine = f"[{meta['user_name']}] {text}"
+        res = await _deps["answer"](text_engine, meta, None, channel=kenh, bot=cfg, phien_kho=sid, ghi_kho=False)
+    except Exception as e:      # noqa: BLE001
+        return {"ok": False, "code": "engine", "error": f"{type(e).__name__}: {str(e)[:200]}", "notes": notes}
+    finally:
+        _TRY_BUSY.discard(bot_id)
+        if undo:
+            try:
+                undo(key, keep)
+            except Exception as e:      # noqa: BLE001
+                print(f"[chatbot {bot_id}] gỡ dấu vết lượt thử lỗi: {type(e).__name__}", file=sys.stderr)
+    if isinstance(res, str):      # lõi trả CHUỖI khi lượt hỏng: đưa nguyên lý do cho chủ
+        return {"ok": False, "code": "engine", "notes": notes,
+                "error": res.strip()[:300] or localefmt.chu("Bot không soạn được câu trả lời",
+                                                            "The bot could not draft a reply")}
+    dap = str((res or {}).get("text") or "").strip()
+    if not dap or IM_LANG.lower() in dap.lower():
+        out.update(stage="agent_silent", code="agent_silent",
+                   reason=localefmt.chu("Agent đọc tin và chọn không trả lời.", "The Agent read it and chose not to reply."))
+        return out
+    out.update(stage="answered", would_reply=True, text=dap)
+    return out
+
+
+def _try_reason(code: str) -> str:
+    """Lý do đọc được cho các mã cổng của lượt thử. Dịch lúc GỌI (theo ngôn ngữ của request), không lúc import."""
+    vi_en = {
+        "khong_goi_ten": ("Bot chỉ trả lời trong nhóm khi được gọi tên hoặc tag, tin này không gọi bot.",
+                          "In groups the bot only replies when named or tagged, and this message does not."),
+        "nhom_chua_bat": ("Nhóm này chưa được cho phép.", "This group is not allowed yet."),
+        "nguoi_chua_chon": ("Người này chưa được chọn.", "This person is not selected yet."),
+        "khong_giong_cau_hoi": ("Tin này không giống một câu hỏi hay lời nhờ giúp, nên bot không tự chen vào.",
+                                "This does not look like a question or a request for help, so the bot does not step in."),
+    }
+    if code in vi_en:
+        return localefmt.chu(*vi_en[code])
+    return chatbot_tu_dong.ly_do_de_doc(code)
+
+
 def _inbox_dir(bot_cfg: dict):
     def _fn(chat):
         root = _deps["brain_root"](bot_cfg["brain"])

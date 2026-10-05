@@ -372,6 +372,8 @@
                        : ic("play") + " " + esc(window.t("cb.bat"))) + '</button>' +
           '<button class="s-btn-ghost cb-edit" type="button">' + ic("pencil") + ' ' +
             esc(window.t("common.edit")) + '</button>' +
+          '<button class="s-btn-ghost cb-try" type="button">' + ic("play") + ' ' +
+            esc(window.t("try.btn")) + '</button>' +
           '<span class="cb-mn">' +
             '<button class="s-btn-ghost cb-mn-b" type="button" aria-label="' + esc(window.t("cb2.mn")) +
               '" title="' + esc(window.t("cb2.mn")) + '">&#8943;</button>' +
@@ -402,6 +404,11 @@
       if (window.JavisConversations) window.JavisConversations.mo({ bot_id: b.id });
     };
     c.querySelector(".cb-edit").onclick = function () { moForm(b); };
+    // Thử bot (0.78.0): chạy một tin giả, không gửi gì ra ngoài. Xem chatbots-try.js.
+    c.querySelector(".cb-try").onclick = function () {
+      // Bot chưa gắn kênh nào vẫn thử được "Trong nhóm": chỉnh bot cho ổn rồi mới gắn kênh.
+      if (window.JavisTryBot) window.JavisTryBot.open(b, { groups: coNhom(b) || !(b.accounts || []).length });
+    };
     c.querySelector(".cb-kenh-them").onclick = function () { moForm(b, { buoc: 1 }); };
     c.querySelectorAll(".cb-kenh-sua").forEach(function (n) {
       n.onclick = function () {

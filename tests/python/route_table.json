@@ -3868,5 +3868,15 @@
    "POST"
   ],
   "trong": null
+ },
+ {
+  "order": 389,
+  "type": "APIRoute",
+  "path": "/chatbots/{bot_id}/try",
+  "name": "chatbot_try",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
  }
 ]

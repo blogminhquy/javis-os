@@ -3487,6 +3487,25 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
   font-weight: 500; cursor: pointer; }
 .cb-rp-form { width: min(820px, 96vw); }
 .cb-rp-body { max-height: 64vh; overflow-y: auto; }
+/* Thử bot (0.78.0) */
+.cb-try-form textarea { width: 100%; background: var(--field-bg); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 9px 11px; font-size: 15px; font-family: inherit; resize: vertical; min-height: 72px; }
+.cb-try-where { display: flex; flex-wrap: wrap; gap: 14px; font-size: 14px; }
+.cb-try-where label, .cb-try-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+.cb-try-out { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto; }
+.cb-try-out:empty { display: none; }
+.cb-try-wait { font-size: 13.5px; color: var(--text3); }
+.cb-try-verdict { display: flex; align-items: center; gap: 6px; font-size: 14.5px; }
+.cb-try-verdict.yes { color: var(--green); }
+.cb-try-verdict.no { color: var(--text2); }
+.cb-try-why, .cb-try-src { font-size: 13px; color: var(--text3); line-height: 1.5; }
+.cb-try-src { display: flex; align-items: flex-start; gap: 5px; }
+.cb-try-ans { white-space: pre-wrap; font-size: 14.5px; line-height: 1.55; background: var(--surface-3);
+  border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; }
+.cb-try-note { display: flex; align-items: flex-start; gap: 6px; font-size: 12.5px; line-height: 1.5; color: var(--text3); }
+.cb-try-note > svg { flex: none; margin-top: 2px; }
+.cb-try-note.warn { color: var(--warn-ink); background: var(--warn-wash); border: 1px solid var(--warn-line);
+  border-radius: 7px; padding: 6px 8px; }
 .cb-rp-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
 .cb-rp-row { border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; background: var(--surface-1); }
 .cb-rp-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
