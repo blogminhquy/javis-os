@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.83.0] - 2026-10-05
+### Cải thiện
+- Zalo chạy bản CLI riêng của Javis (đang làm).
+
 ## [0.82.0] - 2026-10-05
 ### Cải thiện
 - **Kết nối MCP của bên thứ 3 luôn chạy bản chính thức mới nhất.** Google Search Console, Google Workspace, Google Tasks, Google Keep, NotebookLM và Google Ads tự lên bản mới mỗi khi bên phát hành ra bản, thay vì kẹt ở bản máy tải lần đầu.
