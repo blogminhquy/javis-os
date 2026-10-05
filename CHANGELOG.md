@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.80.0] - 2026-10-05
+### Thêm mới
+- **Mức quyền mới cho bot: Đọc tài liệu.** (đang viết)
+
 ## [0.78.0] - 2026-10-05
 ### Thêm mới
 - **Nút Thử trên thẻ bot.** Gõ một tin như khách gửi (nhắn riêng hoặc trong nhóm, có tag bot hay không) là thấy ngay bot sẽ trả lời hay im, vì sao, trả lời gì và dùng tài liệu nào.
