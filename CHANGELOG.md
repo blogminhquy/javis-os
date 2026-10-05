@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.83.1] - 2026-10-05
 ### Sửa lỗi
-- Hai lỗi chỉ gặp trên Windows (đang làm).
+- **Trên Windows, đường dẫn file trong câu trả lời lại bấm được.** Khi Javis báo "Đã lưu tại C:\...ai-1.txt" mà không bọc trong dấu nháy ngược, khung chat giờ biến nó thành link mở file như trên Linux và macOS.
+- **Trên Windows, đổi múi giờ ở Cài đặt giờ có tác dụng.** Trước đây chọn múi giờ nào khác Việt Nam thì Javis vẫn lặng lẽ tính theo giờ Việt Nam, vì Windows thiếu bảng múi giờ. Bản cập nhật tự cài bảng đó.
 
 ## [0.83.0] - 2026-10-05
 ### Cải thiện

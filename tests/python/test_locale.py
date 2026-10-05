@@ -65,6 +65,13 @@ finally:
     _tra(_goc)
 check("trả về đúng múi giờ cũ sau khi hoàn tác", localefmt.ten_tz() == "Asia/Ho_Chi_Minh")
 
+# Windows không có bảng múi giờ của hệ điều hành; thiếu gói tzdata thì đổi sang Tokyo vẫn ra UTC+7
+# mà không báo gì (0.83.1). Kiểm ngay trong requirements.txt để CI Linux, vốn có sẵn bảng của hệ
+# điều hành, cũng bắt được khi ai đó gỡ dòng này.
+_req = (pathlib.Path(ROOT) / "requirements.txt").read_text(encoding="utf-8")
+check("requirements.txt khai tzdata (Windows và image Docker gọn cần nó để đổi múi giờ)",
+      re.search(r"^tzdata\b", _req, flags=re.M) is not None)
+
 # Máy thiếu tzdata hoặc người dùng gõ sai tên: KHÔNG được ném lỗi giữa lượt chat.
 _goc = _voi_locale(tz="Khong/CoThat")
 try:

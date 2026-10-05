@@ -103,6 +103,21 @@ check("tuyệt đối trong backtick → tương đối (khung chat mới biến
 check("tuyệt đối TRẦN trong brain → bọc backtick tương đối, giữ dấu câu",
       H(f"Đã lưu tại {brain}/bai-viet/bai-1.txt.") == "Đã lưu tại `bai-viet/bai-1.txt`.",
       H(f"Đã lưu tại {brain}/bai-viet/bai-1.txt."))
+# Đường dẫn ổ đĩa Windows (0.83.1). Trước đó mẫu đường dẫn trần chỉ nhận `/...`, nên trên Windows câu
+# "Đã lưu tại C:\...\bai-1.txt" không bao giờ thành link; còn `C:/...` thì bị cắt lấy `/Users/...` rồi
+# resolve theo ổ của thư mục hiện hành.
+check("CANARY: ổ đĩa không có thật không bị cắt đôi thành `C:` + link",
+      H("Xem Q:/khong/co/that.txt nhé") == "Xem Q:/khong/co/that.txt nhé",
+      H("Xem Q:/khong/co/that.txt nhé"))
+if os.name != "nt":
+    check("CANARY: `/...` đứng ngay sau `:` không bị cắt ra làm đường dẫn (trên Windows đó là `C:/...`)",
+          H(f"tại:{brain}/bai-viet/bai-1.txt") == f"tại:{brain}/bai-viet/bai-1.txt")
+else:
+    _sep = chr(92)
+    for _ten, _duong in (("C:\\...", str(brain) + _sep + "bai-viet" + _sep + "bai-1.txt"),
+                         ("C:/...", brain.as_posix() + "/bai-viet/bai-1.txt")):
+        check(f"Windows: đường dẫn trần {_ten} trong brain → bọc backtick tương đối, giữ dấu câu",
+              H(f"Đã lưu tại {_duong}.") == "Đã lưu tại `bai-viet/bai-1.txt`.", H(f"Đã lưu tại {_duong}."))
 check("%20 trong link vault được gỡ (tên thật trên đĩa không có %20)",
       H("[ghi chú](06%20-%20Sources/ghi%20chu.md)") == "[ghi chú](06 - Sources/ghi chu.md)",
       H("[ghi chú](06%20-%20Sources/ghi%20chu.md)"))

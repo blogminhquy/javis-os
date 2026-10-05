@@ -10561,7 +10561,11 @@ def _chuan_hoa_link_file(brain_root: str, text: str, files_written=None) -> str:
             return m.group(0)
         return m.group(0)[:m.start(1) - m.start(0)] + f"`{rel}`" + duoi
 
-    ra = re.sub(r"(?<![`\[(/\w])(/[^\s`\"'()\[\]<>|*?:]+)", _tran, ra)
+    # Windows: `C:\...` và `C:/...`. Chạy TRƯỚC mẫu `/...`, và mẫu đó không nhận dấu `/` đứng
+    # sau `:`, kẻo nó cắt `/Users/...` ra khỏi `C:/Users/...` rồi resolve theo ổ của thư mục
+    # hiện hành (đúng ổ thì còn chèn link vào giữa, thành `C:` + `bai-1.txt`).
+    ra = re.sub(r"(?<![`\[(/\\\w])([A-Za-z]:[\\/][^\s`\"'()\[\]<>|*?:]+)", _tran, ra)
+    ra = re.sub(r"(?<![`\[(/\w:])(/[^\s`\"'()\[\]<>|*?:]+)", _tran, ra)
 
     def _uri_tran(m):
         moi = _link_muc_tieu_moi(brain_root, m.group(0), files_written)
