@@ -140,7 +140,36 @@ finally:
 check("người phán xử chạy được và trả chữ", "verdict" in out)
 check("allowed_tools CÓ giá trị (khác rỗng) nên cổng can_use_tool từ chối mọi công cụ", bool(seen.get("allowed_tools")), seen)
 check("cwd là thư mục trống riêng, không phải repo hay brain", "reply_policy_cwd" in str(seen.get("cwd")), seen.get("cwd"))
-src_ask = __import__("inspect").getsource(main._reply_policy_ask)
+# Hai lớp rào nằm trong hàm dựng engine dùng chung cho người phán xử VÀ vòng tự soát (0.77.0).
+src_ask = (__import__("inspect").getsource(main._reply_policy_ask)
+           + __import__("inspect").getsource(main._reply_policy_sandbox_engine))
+check("người phán xử dựng engine qua hộp cát dùng chung",
+      "_reply_policy_sandbox_engine(" in __import__("inspect").getsource(main._reply_policy_ask))
+_src_rv = __import__("inspect").getsource(main._reply_policy_review_ask)
+check("vòng tự soát cũng dùng hộp cát đó, và chạy trên BỘ NÃO CHÍNH",
+      "_reply_policy_sandbox_engine(" in _src_rv and "main_spec()" in _src_rv)
+
+# Chạy thật đường tự soát với engine giả: phải đi qua swap với spec của bộ não chính, và vẫn bị nhốt.
+seen.clear()
+_swap_seen = {}
+_orig_aux_swap = main.aux_engine.swap
+
+
+def _swap_gia(cli, mode=None, tag=None, spec=None, **kw):
+    _swap_seen.update(mode=mode, tag=tag, spec=spec)
+    return cli
+
+
+main.claude_engine = lambda **kw: _CliGia(**kw)
+main.aux_engine.swap = _swap_gia
+try:
+    out = _aio.run(main._reply_policy_review_ask("báo cáo thử"))
+finally:
+    main.claude_engine, main.aux_engine.swap = _orig_engine, _orig_aux_swap
+check("vòng tự soát chạy được và trả chữ", "verdict" in out)
+check("vòng tự soát chọn engine theo bộ não chính", _swap_seen.get("spec") == main.aux_engine.main_spec(), _swap_seen)
+check("vòng tự soát bị nhốt như người phán xử", bool(seen.get("allowed_tools"))
+      and "reply_policy_cwd" in str(seen.get("cwd")), seen)
 check("lớp thứ hai: danh sách công cụ bị cấm gồm Bash, Read, PowerShell, Skill", all(x in src_ask for x in ("BOT_CAM_NATIVE", "PowerShell", "Skill")))
 check("và không dùng MCP", "mcp_strict = True" in src_ask)
 
@@ -173,6 +202,16 @@ runtime_codes = set(main.chatbot_runtime._RP_RATE.values()) | set(main.chatbot_r
 check("mã hạn mức của runtime cũng có nhãn", runtime_codes <= labels, sorted(runtime_codes - labels))
 
 check("không dùng em dash trong file test này", chr(0x2014) not in open(__file__, encoding="utf-8").read())
+# Góp ý sửa mã của vòng tự soát nối vào file trong brain CỦA BOT, không ghi đè lần trước.
+import tempfile as _tf  # noqa: E402
+_brain = _tf.mkdtemp(prefix="javis-rp-brain-")
+main._reply_policy_write_feedback({"id": "x", "name": "Bot Thử", "brain": _brain}, "luật A chặn tin B")
+main._reply_policy_write_feedback({"id": "x", "name": "Bot Thử", "brain": _brain}, "luật C chặn tin D")
+_gy = os.path.join(_brain, "Javis", "gop-y-bo-phan-xu.md")
+_txt = open(_gy, encoding="utf-8").read() if os.path.exists(_gy) else ""
+check("góp ý ghi vào brain của bot, nối thêm chứ không ghi đè",
+      "luật A" in _txt and "luật C" in _txt and _txt.count("# Góp ý") == 1 and "Bot Thử" in _txt, _txt[:200])
+
 print()
 if _fails:
     print(f"{len(_fails)} FAIL")

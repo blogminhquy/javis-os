@@ -213,6 +213,7 @@ class BotProfile:
     learning_enabled: bool = False
     trainer_ids: List[str] = field(default_factory=list)
     role_text: str = ""                                       # hồ sơ vai (máy soạn) hoặc vai thô của Agent
+    consider_tagged: bool = False                             # 0.77.0: tin "@người khác" vẫn được xét (nút do AI vặn)
 
     @classmethod
     def from_bot(cls, cfg: dict, auto_aliases=(), role_text: str = "", has_docs: Optional[bool] = None) -> "BotProfile":
@@ -481,9 +482,14 @@ def features_of(level: str, signals: dict) -> dict:
 # ============================================================
 # C: cổng thô
 # ============================================================
-def coarse_gate(ev: Event, level: str, signals: dict, has_positive_case: bool = False) -> Tuple[bool, str]:
+def coarse_gate(ev: Event, level: str, signals: dict, has_positive_case: bool = False,
+                consider_tagged: bool = False) -> Tuple[bool, str]:
     """(ứng viên?, mã im). Chỉ vứt thứ hiển nhiên không phải; phần còn lại có ít nhất một tín hiệu
-    (được nhắc tên, tin nối tiếp, giống câu hỏi, hoặc kho có ca dương giống) thì là ứng viên."""
+    (được nhắc tên, tin nối tiếp, giống câu hỏi, hoặc kho có ca dương giống) thì là ứng viên.
+
+    Tin mở đầu bằng "@người khác" bị loại, TRỪ KHI kho có ca dương giống nó (chủ đã bấm Sai cho một tin như vậy)
+    hoặc nút `consider_tagged` bật (0.77.0). Trước bản đó luật này chạy trước mọi thứ, nên dạy hay bấm Sai đều
+    không gỡ được: khách tag chủ hỏi đúng việc của bot mà bot vẫn im."""
     if level == "certain":
         return True, ""
     raw = str(ev.text or "").strip()
@@ -492,7 +498,7 @@ def coarse_gate(ev: Event, level: str, signals: dict, has_positive_case: bool = 
     no_link = _URL.sub(" ", raw).strip()
     if len(no_link) < 4 or len(norm(no_link).split()) < 2:
         return False, "junk"
-    if raw.startswith("@") and level == "none":
+    if raw.startswith("@") and level == "none" and not (has_positive_case or consider_tagged):
         return False, "addressed_other"
     follow_up = _sig(signals, "follow_up") >= 1
     if (level == "possible" or follow_up or _sig(signals, "question_score") >= QUESTION_CANDIDATE
@@ -574,9 +580,11 @@ def build_prompt(ev: Event, profile: BotProfile, level: str, address: AddressRes
     ex = "\n".join(f'{i}. Tin: "{clean_chat_text(c["text"], 200)}" -> {c["verdict"]}. Lý do: '
                    f'{clean_chat_text(c["reason"], 160)}' for i, c in enumerate(cases, 1)) or "(chưa có)"
     les = "\n".join(f"- {clean_chat_text(x, 200)}" for x in lessons) or "(chưa có)"
+    tagged_other = str(ev.text or "").lstrip().startswith("@") and level == "none"
     sig = (f"- Ai đang được gọi: {level} ({', '.join(address.evidence) or 'không có bằng chứng'})\n"
            f"- Giống câu hỏi: {_sig(signals, 'question_score')}\n"
            f"- Tin nối tiếp sau lượt bot vừa nói: {'có' if _sig(signals, 'follow_up') >= 1 else 'không'}\n"
+           f"- Tin mở đầu bằng tag một người khác: {'có' if tagged_other else 'không'}\n"
            f"- Người gửi: {ev.sender_role}\n"
            f"- Nhịp nhóm (tin mỗi phút): {_sig(signals, 'chat_pace')}")
     doc = clean_chat_text(doc_text, 800) or "(không có)"
@@ -668,6 +676,23 @@ async def run_judge(ask, prompt: str, timeout: float = JUDGE_TIMEOUT_S) -> Optio
 # ============================================================
 # D: ngưỡng
 # ============================================================
+TUNING_KEYS = {"eagerness": EAGERNESS, "consider_tagged": ("0", "1")}
+
+
+def apply_tuning(profile: BotProfile, store) -> BotProfile:
+    """Ghi đè các nút mà vòng tự soát (hoặc chủ nhờ qua chat) đã vặn cho bot (0.77.0). Giá trị lạ bị bỏ qua."""
+    try:
+        t = store.get_tuning(profile.bot_id) or {}
+    except Exception as e:      # noqa: BLE001 - kho hỏng thì giữ mặc định, không làm chết đường nhắn
+        print(f"[reply_policy] đọc nút lỗi: {type(e).__name__}", file=sys.stderr)
+        return profile
+    if t.get("eagerness") in EAGERNESS:
+        profile.eagerness = t["eagerness"]
+    if t.get("consider_tagged") in ("0", "1"):
+        profile.consider_tagged = t["consider_tagged"] == "1"
+    return profile
+
+
 def threshold_for(profile: BotProfile, store, chat_id: str, now: Optional[float] = None) -> float:
     base = BASE_THRESHOLD.get(profile.eagerness, BASE_THRESHOLD["low"])
     off = store.get_offset(profile.bot_id, chat_id, now) if profile.learning_enabled else 0.0
@@ -719,7 +744,7 @@ def pre_screen(ev: Event, profile: BotProfile, store, now: Optional[float] = Non
         level = "possible"
     cases = find_cases(store, profile.bot_id, ev.chat_id, ev.text, features_of(level, sig),
                        bot_name=profile.name, topic=_topic_of(profile), now=now)
-    cand, code = coarse_gate(ev, level, sig, has_positive(cases))
+    cand, code = coarse_gate(ev, level, sig, has_positive(cases), profile.consider_tagged)
     return {"address": addr, "level": level, "signals": sig, "cases": cases, "candidate": cand, "code": code}
 
 

@@ -1,0 +1,13 @@
+name: Bộ phán xử của bot nhóm
+name_en: "Group bot reply judge"
+slug: javis-reply-policy
+version: 1.0.0
+description: Cho Javis đọc số liệu bộ phán xử (bot nói hay im trong nhóm, vì sao, bị chấm sai ở đâu) và chỉnh nó khi chủ nhờ, rồi hoàn lại được. Chỉ phiên của chủ thấy hai tool này, bot chăm khách không bao giờ thấy.
+description_en: "Lets Javis read the reply judge's numbers (when a group bot spoke or stayed silent, why, where it was marked wrong) and tune it when the owner asks, with undo. Only the owner's own sessions see these two tools; customer-facing bots never do."
+author: Javis (bundled)
+enabled: true
+min_mode: readonly
+tools:
+  - javis_reply_policy
+  - javis_reply_policy_tune
+hooks: []

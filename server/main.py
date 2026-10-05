@@ -137,6 +137,7 @@ import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi các
 import chatbot_cuoc_chat  # danh sách cuộc chat cho ô chọn người/nhóm của form bot
 import chatbot_reply_policy        # bộ phán xử hội thoại nhóm (0.65.0): bot tự quyết nói hay im
 import chatbot_reply_policy_store  # kho quyết định, ca đã học, ngưỡng theo cuộc chat
+import chatbot_reply_policy_review  # vòng tự soát bộ phán xử bằng bộ não chính (0.77.0)
 import chatbot_store     # kho bản ghi bot + token qua secrets_store
 import channel_accounts  # tài khoản kênh dạng token (0.61.0), bot chỉ trỏ tới
 import channels          # sổ đăng ký kênh của Hộp thư hội thoại (0.61.0)
@@ -1890,6 +1891,58 @@ def _aux_swap(cli, mode=None, tag=None):
     return aux_engine.swap(cli, mode=mode, tag=tag, codex_profile=_write_codex_profile)
 
 
+def _reply_policy_sandbox_engine(system_prompt: str, tag: str):
+    """Engine Claude trong thư mục TRỐNG, không MCP, không công cụ: dùng chung cho người phán xử và vòng tự soát."""
+    cwd = cfgmod.STATE_DIR / "reply_policy_cwd"
+    cwd.mkdir(parents=True, exist_ok=True)
+    cli = claude_engine(system_prompt=system_prompt, cwd=str(cwd), tag=tag,
+                        allowed_tools=["javis_reply_policy_khong_cong_cu"])
+    _mcpf = _empty_mcp_file()
+    if _mcpf:
+        cli.mcp_config = _mcpf
+        cli.mcp_strict = True
+    cli.disallowed_tools = list(BOT_CAM_NATIVE) + ["PowerShell", "Skill", "SlashCommand", "TodoWrite", "MultiEdit",
+                                                    "ExitPlanMode", "NotebookRead"]
+    return cli
+
+
+async def _reply_policy_review_ask(prompt: str) -> str:
+    """Một lượt của vòng TỰ SOÁT bộ phán xử (0.77.0) trên BỘ NÃO CHÍNH, model mạnh nhất chủ đang dùng, chứ không phải
+    model rẻ của việc nền. Báo cáo chứa chữ chat của người lạ nên engine y hệt người phán xử: thư mục trống, không MCP,
+    không công cụ. Model chỉ trả chữ; `chatbot_reply_policy_review` kiểm từng thay đổi rồi mới áp dụng."""
+    cli = _reply_policy_sandbox_engine("Bạn rà soát bộ phán xử của một bot chat nhóm. Chỉ trả về đúng khuôn JSON "
+                                       "được yêu cầu, không thêm lời dẫn.", "reply-policy-review")
+    # spec=main_spec(): bộ não CHÍNH, không phải model việc nền. mode="suggest" giữ chuỗi dự phòng của việc nền.
+    cli = aux_engine.swap(cli, mode="suggest", tag="reply-policy-review", spec=aux_engine.main_spec(),
+                          codex_profile=_write_codex_profile)
+    if not cli.is_available():
+        raise RuntimeError("bộ não chính chưa sẵn sàng (kiểm tra trang Models)")
+    final = ""
+    async for ev in cli.query(prompt):
+        if ev.get("type") == "final":
+            final = ev.get("content", "") or ""
+        elif ev.get("type") == "error":
+            raise RuntimeError(str(ev.get("content") or "lỗi engine")[:200])
+    return final
+
+
+def _reply_policy_write_feedback(bot: dict, text: str) -> None:
+    """Góp ý sửa mã từ vòng tự soát: nối vào `Javis/gop-y-bo-phan-xu.md` trong brain của bot."""
+    root = Path(_brain_root((bot or {}).get("brain") or None))
+    f = root / "Javis" / "gop-y-bo-phan-xu.md"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    head = "" if f.exists() else ("# Góp ý sửa mã cho bộ phán xử\n\nVòng tự soát ghi vào đây những chỗ nó không tự "
+                                  "chỉnh được vì nằm cứng trong mã.\n")
+    with open(f, "a", encoding="utf-8", newline="\n") as fh:
+        fh.write(head + f"\n## {time.strftime('%Y-%m-%d %H:%M')} - {(bot or {}).get('name') or (bot or {}).get('id')}\n\n"
+                 f"{str(text or '').strip()}\n")
+
+
+async def _reply_policy_notify(text: str) -> None:
+    await _notify_owner("", text, kind="answer", label=localefmt.chu("Bộ phán xử", "Reply judge"),
+                        source="reply-policy")
+
+
 async def _reply_policy_ask(prompt: str, purpose: str = "") -> str:
     """Một lượt model RẺ cho bộ phán xử hội thoại nhóm (0.65.0), theo model "việc nền" chủ đã chọn ở
     trang Models (gói thuê bao hay API rẻ đều được).
@@ -1898,20 +1951,12 @@ async def _reply_policy_ask(prompt: str, purpose: str = "") -> str:
     ghi hay chạy lệnh: dù có ai chèn câu lệnh vào tin nhắn thì model cũng không có gì để làm ngoài việc
     trả lời chữ. Lỗi thì ném ra; `chatbot_reply_policy` coi mọi lỗi là "im".
     """
-    cwd = cfgmod.STATE_DIR / "reply_policy_cwd"
-    cwd.mkdir(parents=True, exist_ok=True)
     # `allowed_tools` PHẢI có giá trị: để trống thì engine chạy `bypassPermissions` (tự duyệt mọi công cụ chưa bị cấm)
     # và nạp cả cài đặt máy của người dùng. Có giá trị thì cổng `can_use_tool` TỪ CHỐI mọi công cụ từng lần gọi; tên
-    # dưới đây cố ý không khớp công cụ nào. `disallowed_tools` là lớp thứ hai (cùng danh sách bot khách hàng dùng).
-    cli = claude_engine(system_prompt="Bạn là bộ phán xử của một bot chat nhóm. Chỉ trả về đúng khuôn được yêu cầu, "
-                                      "không thêm lời dẫn.", cwd=str(cwd), tag="reply-policy",
-                        allowed_tools=["javis_reply_policy_khong_cong_cu"])
-    _mcpf = _empty_mcp_file()
-    if _mcpf:
-        cli.mcp_config = _mcpf
-        cli.mcp_strict = True
-    cli.disallowed_tools = list(BOT_CAM_NATIVE) + ["PowerShell", "Skill", "SlashCommand", "TodoWrite", "MultiEdit",
-                                                    "ExitPlanMode", "NotebookRead"]
+    # trong `_reply_policy_sandbox_engine` cố ý không khớp công cụ nào. `disallowed_tools` là lớp thứ hai (cùng danh
+    # sách bot khách hàng dùng).
+    cli = _reply_policy_sandbox_engine("Bạn là bộ phán xử của một bot chat nhóm. Chỉ trả về đúng khuôn được yêu "
+                                       "cầu, không thêm lời dẫn.", "reply-policy")
     cli = _aux_swap(cli, mode="suggest", tag="reply-policy")
     if not cli.is_available():
         raise RuntimeError("engine việc nền chưa sẵn sàng (kiểm tra trang Models)")
@@ -2337,9 +2382,10 @@ def _claude_sub_stream_tools(model, messages, reasoning="off", *, brain=None, ta
                         model=_claude_api_model(model) or None)
     cli.javis_mode = mode
     cli.javis_vault = vault
-    cli.mcp_config = mcp_hub.claude_config_path(mode, vault_root=vault)
+    cli.mcp_config = mcp_hub.claude_config_path(mode, vault_root=vault, bot=True)
     cli.mcp_strict = cli.mcp_config is not None
-    cli.disallowed_tools = list(BOT_CAM_NATIVE)
+    # Lớp hai cho OWNER_ONLY_TOOLS (0.77.0): hub đã giấu nhờ header X-Javis-Bot, chặn thêm ở đây phòng hub đổi.
+    cli.disallowed_tools = list(BOT_CAM_NATIVE) + [f"mcp__javis__{t}" for t in sorted(mcp_hub.OWNER_ONLY_TOOLS)]
     return _claude_sub_doc(cli, _cli_do_sau(cli, reasoning, prompt), model)
 
 
@@ -11029,6 +11075,12 @@ async def _start_scheduler():
                     await reminders_feature.tick()
                 except Exception as rte:
                     print(f"[reminders tick] {type(rte).__name__}: {rte}", file=__import__('sys').stderr)
+                # 3b2) Bộ phán xử tự soát (0.77.0): tick() tự giữ nhịp 30 phút, đo các lần soát cũ rồi khởi tối đa
+                #      một lần soát mới chạy NỀN (create_task), nên không giữ chân vòng lặp này.
+                try:
+                    await chatbot_reply_policy_review.tick()
+                except Exception as rpe:
+                    print(f"[reply_policy review tick] {type(rpe).__name__}: {rpe}", file=__import__('sys').stderr)
                 # 3c) Ngân sách token + báo cáo tuần. Nhịp RIÊNG 10 phút chứ không theo 30s:
                 #     mỗi lượt kiểm là một truy vấn sqlite cả tháng, chạy 30 giây một lần thì
                 #     chính cái đồng hồ đo tiền lại thành thứ tốn tài nguyên nhất.
@@ -11171,6 +11223,8 @@ async def _start_scheduler():
                              read_agent=lambda b, slug: _read_md(_agents_dir(b) / f"{slug}.md"),
                              session_probe=_manual_session_probe, session_undo=_manual_session_undo)
         chatbot_reply_policy.wire(ask=_reply_policy_ask)
+        chatbot_reply_policy_review.wire(ask=_reply_policy_review_ask, notify=_reply_policy_notify,
+                                         write_feedback=_reply_policy_write_feedback, get_bot=chatbot_store.get_bot)
         kq = chatbot_runtime.sync_all()
         if kq.get("errors"):
             print(f"[chatbot] bật lỗi: {kq['errors']}", file=__import__('sys').stderr)
@@ -18386,7 +18440,8 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
     # của chủ vào đây là mở toang đúng thứ cả tính năng này đang giữ.
     tools, route = [], {}
     try:
-        tools, route = await mcp_hub.discover_all(muc_quyen, vault_root=_brain_root(brain))
+        # for_bot=True: khách lạ đang lái model, nên tool chỉ-của-chủ (bộ phán xử, 0.77.0) bị bỏ khỏi danh sách.
+        tools, route = await mcp_hub.discover_all(muc_quyen, vault_root=_brain_root(brain), for_bot=True)
     except Exception as e:
         print(f"[bot {prov} chat {chat_id}] nạp tool hỏng: {type(e).__name__}: {e}",
               file=__import__('sys').stderr)

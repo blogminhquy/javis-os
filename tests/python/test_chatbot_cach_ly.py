@@ -211,7 +211,8 @@ check("CANARY: đường bot CÓ TOOL không tự dựng engine, chỉ gọi đ�
 check("bot không nhận block kênh, kể cả ở mức có tool",
       "build_channel_block" not in _ham_tool)
 check("tool của bot lấy từ hub, cắm vào ĐÚNG brain của bot",
-      "discover_all(muc_quyen, vault_root=_brain_root(brain))" in _ham_tool)
+      "discover_all(muc_quyen, vault_root=_brain_root(brain), for_bot=True)" in _ham_tool)
+check("tool chỉ-của-chủ (bộ phán xử, 0.77.0) bị bỏ khỏi đường bot API", "for_bot=True" in _ham_tool)
 check("mức quyền đi thẳng xuống hub, không qua bảng dịch nào",
       "discover_all(muc_quyen" in _ham_tool)
 
@@ -226,7 +227,9 @@ for _t in ('"Bash"', '"WebFetch"', '"WebSearch"', '"Task"', '"Read"', '"Write"',
     check(f"LỚP 2 gồm {_t}", _t in _SRC[_SRC.index("BOT_CAM_NATIVE = ["):
                                         _SRC.index("BOT_CAM_NATIVE = [") + 400])
 check("LỚP 3: config hub mang brain CỦA BOT, nên tool file bị _safe_path khoá đúng brain đó",
-      "mcp_hub.claude_config_path(mode, vault_root=vault)" in _ham_sub)
+      "mcp_hub.claude_config_path(mode, vault_root=vault, bot=True)" in _ham_sub)
+check("LỚP 5 (0.77.0): config hub đánh dấu là bot, và tool chỉ-của-chủ bị chặn thêm ở disallowed_tools",
+      "bot=True" in _ham_sub and "mcp_hub.OWNER_ONLY_TOOLS" in _ham_sub)
 check("LỚP 4: strict, nên bot không thấy MCP ambient của máy chủ",
       "cli.mcp_strict = cli.mcp_config is not None" in _ham_sub)
 check("và cwd của engine cũng là brain của bot, không phải gốc project",

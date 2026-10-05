@@ -592,10 +592,12 @@ def _rp_fold_guidelines(cfg: dict) -> None:
 
 def _rp_profile(cfg: dict, meta: dict = None, with_role: bool = True):
     _rp_fold_guidelines(cfg)
-    return chatbot_reply_policy.BotProfile.from_bot(
+    profile = chatbot_reply_policy.BotProfile.from_bot(
         cfg, auto_aliases=(meta or {}).get("aliases_auto") or (),
         role_text=_rp_role_text(cfg) if with_role else "",
         has_docs=_RP_HAS_DOCS.get(str(cfg.get("id") or "")))
+    # Nút do vòng tự soát (hoặc chủ nhờ qua chat) vặn: độ hăng nói, xét tin tag người khác (0.77.0).
+    return chatbot_reply_policy.apply_tuning(profile, chatbot_reply_policy_store)
 
 
 def _rp_event(cfg: dict, profile, text: str, meta: dict, owner_typing: bool = False):

@@ -70,7 +70,20 @@ CREATE TABLE IF NOT EXISTS threshold_offsets(
 CREATE TABLE IF NOT EXISTS lessons(
   id INTEGER PRIMARY KEY AUTOINCREMENT, bot_id TEXT NOT NULL, text TEXT NOT NULL, ts REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_lessons_bot ON lessons(bot_id, ts);
+CREATE TABLE IF NOT EXISTS tuning(
+  bot_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, updated_ts REAL NOT NULL,
+  PRIMARY KEY(bot_id, key));
+CREATE TABLE IF NOT EXISTS changes(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, bot_id TEXT NOT NULL, ts REAL NOT NULL, actor TEXT NOT NULL,
+  review_id TEXT, op TEXT NOT NULL, target TEXT, before_json TEXT, after_json TEXT, reason TEXT,
+  evidence_json TEXT, status TEXT NOT NULL, status_ts REAL);
+CREATE INDEX IF NOT EXISTS idx_changes_bot ON changes(bot_id, ts);
+CREATE TABLE IF NOT EXISTS review_state(bot_id TEXT PRIMARY KEY, last_ts REAL NOT NULL);
 """
+
+# Columns added after a table first shipped. `CREATE TABLE IF NOT EXISTS` never alters an existing table, so an
+# older store needs these added by hand. Each one is tried once per process; "duplicate column" is the normal case.
+_MIGRATIONS = ("ALTER TABLE lessons ADD COLUMN source TEXT NOT NULL DEFAULT ''",)
 
 _STOP = frozenset("la va cua thi cho voi nhe a oi da co khong roi ma nay kia the thoi vay nhi nha".split())
 _TOK = re.compile(r"[^\W_]+", re.U)
@@ -93,6 +106,11 @@ def _conn():
         if fresh:
             con.execute("PRAGMA journal_mode=WAL")
             con.executescript(_SCHEMA)
+            for sql in _MIGRATIONS:
+                try:
+                    con.execute(sql)
+                except sqlite3.OperationalError:
+                    pass        # column already there
             _ready.add(str(p))
         yield con
         con.commit()
@@ -411,29 +429,247 @@ def set_role_profile(bot_id: str, generated_text: str, agent_hash: str, now: Opt
                     " VALUES(?,?,?,?)", (str(bot_id), str(generated_text or "")[:3000], str(agent_hash), now))
 
 
-def add_lesson(bot_id: str, text: str, now: Optional[float] = None) -> bool:
+def add_lesson(bot_id: str, text: str, now: Optional[float] = None, source: str = "") -> bool:
     """Thêm một bài học (khử trùng, tối đa 15 dòng, dòng cũ nhất rơi ra). True nếu thật sự thêm."""
+    return insert_lesson(bot_id, text, now, source) is not None
+
+
+def insert_lesson(bot_id: str, text: str, now: Optional[float] = None, source: str = "") -> Optional[int]:
+    """Like `add_lesson` but returns the new row id (None when empty or a duplicate).
+
+    `source`: '' for the owner's own lessons (taught in the group, or older rows), 'owner_chat' when the owner asked
+    Javis in chat, 'review' when the self-review wrote it. Over the cap, machine-written 'review' lessons drop first,
+    so the review can never push out what the owner taught."""
     now = time.time() if now is None else now
     line = " ".join(str(text or "").split())[:200]
     if not line:
-        return False
+        return None
     key = " ".join(tokens_of(line))
     with _lock, _conn() as con:
         for r in con.execute("SELECT text FROM lessons WHERE bot_id=?", (str(bot_id),)).fetchall():
             if " ".join(tokens_of(r["text"])) == key:
-                return False
-        con.execute("INSERT INTO lessons(bot_id, text, ts) VALUES(?,?,?)", (str(bot_id), line, now))
+                return None
+        lid = int(con.execute("INSERT INTO lessons(bot_id, text, ts, source) VALUES(?,?,?,?)",
+                              (str(bot_id), line, now, str(source or ""))).lastrowid)
         n = con.execute("SELECT COUNT(*) FROM lessons WHERE bot_id=?", (str(bot_id),)).fetchone()[0]
-        if n > MAX_LESSONS:
-            con.execute("DELETE FROM lessons WHERE id IN (SELECT id FROM lessons WHERE bot_id=?"
-                        " ORDER BY id LIMIT ?)", (str(bot_id), n - MAX_LESSONS))
-    return True
+        over = n - MAX_LESSONS
+        if over > 0:
+            spare = [r[0] for r in con.execute(
+                "SELECT id FROM lessons WHERE bot_id=? AND id!=? AND source='review' ORDER BY id LIMIT ?",
+                (str(bot_id), lid, over)).fetchall()]
+            if len(spare) < over and source == "review":
+                # The review may only displace its own lessons. A full list of the owner's lessons wins.
+                con.execute("DELETE FROM lessons WHERE id=?", (lid,))
+                return None
+            if len(spare) < over:
+                spare += [r[0] for r in con.execute(
+                    "SELECT id FROM lessons WHERE bot_id=? AND id!=? AND source!='review' ORDER BY id LIMIT ?",
+                    (str(bot_id), lid, over - len(spare))).fetchall()]
+            con.executemany("DELETE FROM lessons WHERE id=?", [(i,) for i in spare])
+    return lid
+
+
+def get_lesson(bot_id: str, lesson_id: int) -> Optional[dict]:
+    with _lock, _conn() as con:
+        return _row(con.execute("SELECT id, text, ts, source FROM lessons WHERE bot_id=? AND id=?",
+                                (str(bot_id), int(lesson_id))).fetchone())
+
+
+def delete_lesson(bot_id: str, lesson_id: int) -> bool:
+    with _lock, _conn() as con:
+        return con.execute("DELETE FROM lessons WHERE bot_id=? AND id=?", (str(bot_id), int(lesson_id))).rowcount > 0
 
 
 def list_lessons(bot_id: str) -> List[dict]:
     with _lock, _conn() as con:
         return [dict(r) for r in con.execute(
-            "SELECT id, text, ts FROM lessons WHERE bot_id=? ORDER BY id", (str(bot_id),)).fetchall()]
+            "SELECT id, text, ts, source FROM lessons WHERE bot_id=? ORDER BY id", (str(bot_id),)).fetchall()]
+
+
+# ============================================================
+# Self-review (0.77.0): knobs, change log, review state, metrics
+# ============================================================
+def get_case(bot_id: str, case_id: int) -> Optional[dict]:
+    with _lock, _conn() as con:
+        return _row(con.execute("SELECT * FROM cases WHERE bot_id=? AND id=?", (str(bot_id), int(case_id))).fetchone())
+
+
+def set_offset(bot_id: str, chat_id: str, value: float, now: Optional[float] = None) -> float:
+    """Set a chat's threshold offset outright (clamped). It still fades with the same half-life as learned offsets."""
+    now = time.time() if now is None else now
+    v = max(-OFFSET_LIMIT, min(OFFSET_LIMIT, float(value)))
+    with _lock, _conn() as con:
+        con.execute("INSERT OR REPLACE INTO threshold_offsets(bot_id, chat_id, offset, updated_ts) VALUES(?,?,?,?)",
+                    (str(bot_id), str(chat_id), v, now))
+    return v
+
+
+def get_tuning(bot_id: str) -> Dict[str, str]:
+    """Knobs the self-review (or the owner, through chat) has set for a bot. Missing key = engine default.
+    A store that was never created returns {} without creating the file."""
+    if not db_path().exists():
+        return {}
+    with _lock, _conn() as con:
+        return {r["key"]: r["value"] for r in con.execute(
+            "SELECT key, value FROM tuning WHERE bot_id=?", (str(bot_id),)).fetchall()}
+
+
+def set_tuning(bot_id: str, key: str, value: Optional[str], now: Optional[float] = None) -> None:
+    """`value=None` removes the knob (back to the default)."""
+    now = time.time() if now is None else now
+    with _lock, _conn() as con:
+        if value is None:
+            con.execute("DELETE FROM tuning WHERE bot_id=? AND key=?", (str(bot_id), str(key)))
+        else:
+            con.execute("INSERT OR REPLACE INTO tuning(bot_id, key, value, updated_ts) VALUES(?,?,?,?)",
+                        (str(bot_id), str(key), str(value), now))
+
+
+def log_change(rec: dict, now: Optional[float] = None) -> int:
+    now = time.time() if now is None else now
+    with _lock, _conn() as con:
+        return int(con.execute(
+            "INSERT INTO changes(bot_id, ts, actor, review_id, op, target, before_json, after_json, reason,"
+            " evidence_json, status, status_ts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (str(rec.get("bot_id") or ""), now, str(rec.get("actor") or ""), rec.get("review_id") or None,
+             str(rec.get("op") or ""), _cut(rec.get("target"), 200),
+             json.dumps(rec.get("before"), ensure_ascii=False)[:4000],
+             json.dumps(rec.get("after"), ensure_ascii=False)[:4000], _cut(rec.get("reason"), 400),
+             json.dumps(rec.get("evidence") or [], ensure_ascii=False)[:1000],
+             str(rec.get("status") or "applied"), now)).lastrowid)
+
+
+def _change_row(r) -> dict:
+    d = dict(r)
+    for k in ("before_json", "after_json", "evidence_json"):
+        try:
+            d[k[:-5]] = json.loads(d.pop(k) or "null")
+        except ValueError:
+            d[k[:-5]] = None
+    return d
+
+
+def get_change(change_id: int) -> Optional[dict]:
+    with _lock, _conn() as con:
+        r = con.execute("SELECT * FROM changes WHERE id=?", (int(change_id),)).fetchone()
+    return _change_row(r) if r else None
+
+
+def list_changes(bot_id: str = "", limit: int = 50, status: str = "", review_id: str = "",
+                 since_ts: float = 0.0) -> List[dict]:
+    q, args = "SELECT * FROM changes WHERE ts>=?", [float(since_ts)]
+    if bot_id:
+        q += " AND bot_id=?"
+        args.append(str(bot_id))
+    if status:
+        q += " AND status=?"
+        args.append(str(status))
+    if review_id:
+        q += " AND review_id=?"
+        args.append(str(review_id))
+    q += " ORDER BY id DESC LIMIT ?"
+    args.append(max(1, min(int(limit), 500)))
+    if not db_path().exists():
+        return []
+    with _lock, _conn() as con:
+        return [_change_row(r) for r in con.execute(q, args).fetchall()]
+
+
+def set_change_status(change_id: int, status: str, now: Optional[float] = None) -> None:
+    now = time.time() if now is None else now
+    with _lock, _conn() as con:
+        con.execute("UPDATE changes SET status=?, status_ts=? WHERE id=?", (str(status), now, int(change_id)))
+
+
+def get_review_ts(bot_id: str) -> float:
+    with _lock, _conn() as con:
+        r = con.execute("SELECT last_ts FROM review_state WHERE bot_id=?", (str(bot_id),)).fetchone()
+    return float(r["last_ts"]) if r else 0.0
+
+
+def set_review_ts(bot_id: str, ts: float) -> None:
+    with _lock, _conn() as con:
+        con.execute("INSERT OR REPLACE INTO review_state(bot_id, last_ts) VALUES(?,?)", (str(bot_id), float(ts)))
+
+
+def activity_since(since_ts: float) -> List[dict]:
+    """Per bot, what happened after `since_ts`: decisions, silent ones, and labels given. Cheap enough for a 30-minute
+    tick (one grouped query). A store that was never created returns [] without creating the file."""
+    if not db_path().exists():
+        return []
+    with _lock, _conn() as con:
+        rows = con.execute(
+            "SELECT bot_id, COUNT(*) AS n, SUM(verdict='silent') AS silent, MIN(ts) AS first_ts FROM decisions"
+            " WHERE ts>=? GROUP BY bot_id", (float(since_ts),)).fetchall()
+        labels = {r["bot_id"]: int(r["n"]) for r in con.execute(
+            "SELECT bot_id, COUNT(*) AS n FROM decisions WHERE label_ts>=? GROUP BY bot_id", (float(since_ts),))}
+    return [{"bot_id": r["bot_id"], "decisions": int(r["n"]), "silent": int(r["silent"] or 0),
+             "labels": labels.get(r["bot_id"], 0)} for r in rows]
+
+
+def counts_since(bot_id: str, since_ts: float) -> dict:
+    """{'labels': n, 'silent': n} for one bot after `since_ts` (labels counted by when they were given)."""
+    with _lock, _conn() as con:
+        lab = con.execute("SELECT COUNT(*) FROM decisions WHERE bot_id=? AND label_ts>=?",
+                          (str(bot_id), float(since_ts))).fetchone()[0]
+        sil = con.execute("SELECT COUNT(*) FROM decisions WHERE bot_id=? AND ts>=? AND verdict='silent'",
+                          (str(bot_id), float(since_ts))).fetchone()[0]
+    return {"labels": int(lab), "silent": int(sil)}
+
+
+def label_counts(bot_id: str, since_ts: float, until_ts: float) -> Dict[str, int]:
+    """Labels on decisions MADE in [since, until): {'correct': n, 'missed': n, 'intruded': n, 'taught': n}."""
+    with _lock, _conn() as con:
+        rows = con.execute("SELECT label, COUNT(*) AS n FROM decisions WHERE bot_id=? AND ts>=? AND ts<?"
+                           " AND label IS NOT NULL GROUP BY label",
+                           (str(bot_id), float(since_ts), float(until_ts))).fetchall()
+    return {r["label"]: int(r["n"]) for r in rows}
+
+
+def decisions_between(bot_id: str, since_ts: float, until_ts: float = 0.0, *, chat_id: str = "", code: str = "",
+                      label: str = "", only_silent: bool = False, labeled_wrong: bool = False,
+                      limit: int = 50) -> List[dict]:
+    """Filtered decision rows, newest first. `labeled_wrong` = labelled missed or intruded."""
+    q, args = "SELECT * FROM decisions WHERE bot_id=? AND ts>=?", [str(bot_id), float(since_ts)]
+    if until_ts:
+        q += " AND ts<?"
+        args.append(float(until_ts))
+    if chat_id:
+        q += " AND chat_id=?"
+        args.append(str(chat_id))
+    if code:
+        q += " AND silence_code=?"
+        args.append(str(code))
+    if label:
+        q += " AND label=?"
+        args.append(str(label))
+    if only_silent:
+        q += " AND verdict='silent'"
+    if labeled_wrong:
+        q += " AND label IN ('missed','intruded')"
+    q += " ORDER BY id DESC LIMIT ?"
+    args.append(max(1, min(int(limit), 500)))
+    with _lock, _conn() as con:
+        return [dict(r) for r in con.execute(q, args).fetchall()]
+
+
+def summary_between(bot_id: str, since_ts: float, until_ts: float) -> dict:
+    """Totals for a report: by verdict, by silence code, by label, and per chat."""
+    b, a, z = str(bot_id), float(since_ts), float(until_ts)
+    with _lock, _conn() as con:
+        verdicts = {r["verdict"]: int(r["n"]) for r in con.execute(
+            "SELECT verdict, COUNT(*) AS n FROM decisions WHERE bot_id=? AND ts>=? AND ts<? GROUP BY verdict", (b, a, z))}
+        codes = {r["silence_code"] or "": int(r["n"]) for r in con.execute(
+            "SELECT silence_code, COUNT(*) AS n FROM decisions WHERE bot_id=? AND ts>=? AND ts<? AND verdict='silent'"
+            " GROUP BY silence_code ORDER BY n DESC", (b, a, z))}
+        labels = {r["label"]: int(r["n"]) for r in con.execute(
+            "SELECT label, COUNT(*) AS n FROM decisions WHERE bot_id=? AND ts>=? AND ts<? AND label IS NOT NULL"
+            " GROUP BY label", (b, a, z))}
+        chats = [dict(r) for r in con.execute(
+            "SELECT chat_id, COUNT(*) AS n, SUM(verdict='silent') AS silent, SUM(label='missed') AS missed,"
+            " SUM(label='intruded') AS intruded FROM decisions WHERE bot_id=? AND ts>=? AND ts<?"
+            " GROUP BY chat_id ORDER BY n DESC LIMIT 20", (b, a, z))]
+    return {"verdicts": verdicts, "codes": codes, "labels": labels, "chats": chats}
 
 
 # ============================================================
@@ -460,6 +696,8 @@ def forget(bot_id: str, chat_id: str = "", keep_log: bool = False) -> dict:
         n_cases = con.execute("DELETE FROM cases WHERE bot_id=? AND source!='bootstrap'", (b,)).rowcount
         n_les = con.execute("DELETE FROM lessons WHERE bot_id=?", (b,)).rowcount
         con.execute("DELETE FROM threshold_offsets WHERE bot_id=?", (b,))
+        for t in ("tuning", "changes", "review_state"):
+            con.execute(f"DELETE FROM {t} WHERE bot_id=?", (b,))
         con.execute("DELETE FROM watches WHERE bot_id=?", (b,))
         if keep_log:
             con.execute("UPDATE decisions SET label=NULL, label_weight=NULL, label_ts=NULL WHERE bot_id=?", (b,))
@@ -473,7 +711,8 @@ def delete_bot(bot_id: str) -> None:
     """Xoá sạch mọi thứ của bot. Gọi khi xoá bot."""
     b = str(bot_id)
     with _lock, _conn() as con:
-        for t in ("decisions", "cases", "watches", "role_profiles", "threshold_offsets", "lessons"):
+        for t in ("decisions", "cases", "watches", "role_profiles", "threshold_offsets", "lessons", "tuning",
+                  "changes", "review_state"):
             con.execute(f"DELETE FROM {t} WHERE bot_id=?", (b,))
 
 

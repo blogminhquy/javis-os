@@ -219,9 +219,36 @@ Học chỉ đổi việc **nói hay im**, không bao giờ đổi điều bot k
 
 **Riêng tư.** Vì tự vận hành, bot ở chế độ Tự đánh giá ghi lại chữ của mọi tin nhóm đáng cân nhắc để hiện trong menu Bộ phán xử: tối đa 400 ký tự mỗi tin, giữ 14 ngày. Các ca đã học (từ phản hồi của bạn hoặc của nhóm) giữ tối đa 180 ngày. Tất cả nằm trong thư mục dữ liệu của Javis (không lên git). Bot không ở chế độ Tự đánh giá thì không lưu gì. **Quên hết** hoặc xoá bot xoá sạch dữ liệu này.
 
-**Ai chạy và tốn gì.** Mỗi tin đáng cân nhắc tốn một lượt model rẻ theo model "việc nền" bạn chọn ở trang **Models** (gói thuê bao hay API rẻ đều được), thêm khoảng vài giây; model chạy trong thư mục trống, không công cụ ghi hay chạy lệnh. Tin hiển nhiên không đáng (rỗng, chỉ có link, nhắn người khác) và tin gọi tên rõ ràng không tốn lượt nào. Bộ phán xử dùng đủ trên **Zalo cá nhân** (cửa sổ tin, tin nối tiếp). Trên **Telegram** nó cũng quyết trong nhóm nhưng không có cửa sổ tin nối tiếp.
+**Ai chạy và tốn gì.** Mỗi tin đáng cân nhắc tốn một lượt model rẻ theo model "việc nền" bạn chọn ở trang **Models** (gói thuê bao hay API rẻ đều được), thêm khoảng vài giây; model chạy trong thư mục trống, không công cụ ghi hay chạy lệnh. Tin hiển nhiên không đáng (rỗng, chỉ có link, nhắn người khác khi chưa học được gì khác) và tin gọi tên rõ ràng không tốn lượt nào. Bộ phán xử dùng đủ trên **Zalo cá nhân** (cửa sổ tin, tin nối tiếp). Trên **Telegram** nó cũng quyết trong nhóm nhưng không có cửa sổ tin nối tiếp.
 
 **Cho người vận hành.** Muốn quan sát trước khi tin tưởng, đặt biến môi trường `JAVIS_REPLY_POLICY_SHADOW=1` rồi khởi động lại: mọi bot chạy thử, luật cũ vẫn quyết còn bộ phán xử chỉ ghi quyết định của nó để so sánh. Đây là công tắc của người vận hành, không có trong giao diện.
+
+### Bộ phán xử tự soát, và nhờ Javis chỉnh (từ 0.77.0)
+
+Ca học tức thì ở trên sửa từng tin một. Từ 0.77.0 còn có một **vòng tự soát** nhìn cả bức tranh: khi một bot gom đủ bằng chứng mới (khoảng 8 nhãn Đúng/Sai, hoặc 40 tin bị im) và đã qua 24 giờ từ lần soát trước, Javis gửi báo cáo của bot đó cho **bộ não chính** (model bạn chọn ở trang **Models**, thường mạnh hơn model rẻ chấm từng tin). Model tìm mẫu lặp lại, ví dụ "khách tag anh Quý hỏi lịch học mà bot im cả bảy lần", rồi tự chỉnh tối đa 3 chỗ. Không có mẫu rõ thì không đổi gì.
+
+**Chỉnh được những gì.** Chỉ việc nói hay im, trong một danh sách đóng:
+- thêm hoặc bỏ **bài học** (vòng soát chỉ bỏ được bài nó tự viết, không bao giờ đẩy bài bạn dạy ra ngoài);
+- biến một tin bị im thành **ca mẫu** "nên trả lời" (hoặc ngược lại);
+- **ngưỡng** của từng nhóm, **độ hăng nói** chung của bot;
+- **xét cả tin tag người khác**: mặc định tin mở đầu bằng "@ai đó" bị bỏ qua. Bật lên thì tin như "@anh Quý ơi lịch học sao" vẫn được cân nhắc, nhưng bot vẫn chỉ nói khi tài liệu có phần khớp và bộ phán xử đồng ý. Bấm **Sai** ở một tin tag như vậy giờ cũng có tác dụng: tin giống nó lần sau sẽ được xét.
+
+Mỗi thay đổi phải dẫn đúng những tin của chính bot đó làm bằng chứng, nên chữ khách gõ trong nhóm không biến thành lệnh được. Hạn mức, việc nhường khi bạn gõ tay, quyền và nội dung câu trả lời vẫn nằm ngoài tầm.
+
+**Tự đo, tự hoàn.** Sau mỗi lần soát, máy so tỉ lệ bot bị chấm sai trước và sau. Sai nhiều hơn rõ rệt thì cả lần soát đó tự hoàn lại, và bạn nhận một tin báo. Chỗ nào nằm cứng trong mã (vòng soát không chỉnh được) thì nó ghi góp ý vào `Javis/gop-y-bo-phan-xu.md` trong brain của bot.
+
+**Bạn biết bằng cách nào.** Lần soát nào có chỉnh hay có góp ý thì gửi đúng một tin vào **hộp thư** (cái chuông) và Telegram của bạn, liệt kê từng thay đổi và mã lần soát.
+
+**Muốn can thiệp thì nói với Javis**, không cần mở cài đặt nào:
+- "Thống kê bộ phán xử của Javis Vũ tuần này, vì sao bot im nhiều thế?"
+- "Cho Javis Vũ trả lời thay anh khi khách tag anh hỏi về lịch học."
+- "Hoàn lại lần tự soát a1b2c3 của Javis Vũ."
+
+Javis đọc đúng số liệu của bộ phán xử (cùng báo cáo mà vòng soát đọc), đề xuất, và chỉnh khi bạn đồng ý. Mọi thay đổi, của vòng soát hay do bạn nhờ, đều có nhật ký và hoàn lại được. Muốn phân tích kỹ hơn thì chuyển bộ não chính sang model mạnh hơn ở trang **Models** trước khi hỏi.
+
+**Bot chăm khách không bao giờ thấy hai công cụ này.** Kho của bộ phán xử chứa chữ chat của mọi khách, nên chỉ phiên của chính bạn đọc và chỉnh được. Bot ở mức Được ghi hay Toàn quyền cũng không thấy.
+
+**Lưu ý gói thuê bao.** Vòng tự soát là việc chạy nền trên bộ não chính. Nếu đó là gói Claude Pro/Max thì đây thuộc loại dùng mà Anthropic không tính là cá nhân thông thường. Tần suất rất thấp (tối đa một lần mỗi ngày mỗi bot, chỉ khi có bằng chứng), nhưng an toàn nhất là để bộ não chính chạy bằng gói ChatGPT, Grok hoặc một API key. Người vận hành tắt hẳn vòng soát bằng biến môi trường `JAVIS_REPLY_POLICY_REVIEW=0`.
 
 ### Chế độ riêng tư của Telegram (đọc mục này nếu bot im trong nhóm)
 

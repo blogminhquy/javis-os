@@ -91,6 +91,14 @@ def allow_patterns():
     return ["mcp__javis"]
 
 
+# Tools that only the OWNER's own sessions may see (0.77.0). A dedicated bot at the "can write" / "full" level gets
+# hub tools, and there the person steering the model is a stranger. These two read every customer chat the reply
+# judge logged and retune the bot itself, so a customer must never reach them, not even through the lazy
+# `javis_run_tool`. `discover_all(for_bot=True)` drops them before the lazy tier; bot paths pass that flag (API
+# engines directly, Claude Code through the X-Javis-Bot header written by `claude_config_path(bot=True)`).
+OWNER_ONLY_TOOLS = frozenset({"javis_reply_policy", "javis_reply_policy_tune"})
+
+
 # ============================================================
 # Audit
 # ============================================================
@@ -1026,7 +1034,7 @@ def _store_mtime():
 
 async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
                        force_refresh=False, force_lazy=False, staging=False, workspace_root=None,
-                       coding_ctx_cua_phien=None):
+                       coding_ctx_cua_phien=None, for_bot=False):
     """(tools_spec, route) đầy đủ cho 1 mode. route entries ĐÃ bọc quyền + audit.
     include_plugins=False: bỏ nhóm tool plugin - dùng khi engine SDK đã đấu plugin
     IN-PROCESS (header X-Javis-No-Plugins) để model không thấy tool trùng chức năng.
@@ -1054,7 +1062,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     # `suggest` chạy được lệnh bằng quyền của phiên `full`.
     _quyen_ctx = getattr(coding_ctx_cua_phien, "permission_mode", "") or ""
     key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient),
-           bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root), _quyen_ctx)
+           bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root), _quyen_ctx, bool(for_bot))
     ent = _cache.get(key)
     mt = _store_mtime()
     if (not force_refresh and ent and time.time() - ent["ts"] < ent.get("ttl", _CACHE_TTL)
@@ -1129,6 +1137,12 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
                     route[fn]["call"] = plugins_host.wrap_with_hooks(fn, base, mode, vault_root)
     except Exception as e:
         print(f"[hub] plugin host lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+
+    # Owner-only tools leave a bot's list BEFORE the lazy tier, or `javis_run_tool` would still dispatch them.
+    if for_bot:
+        tools_spec = [t for t in tools_spec if t.get("fn") not in OWNER_ONLY_TOOLS]
+        for fn in OWNER_ONLY_TOOLS:
+            route.pop(fn, None)
 
     # Snapshot ĐẦY ĐỦ trước lazy cho Capability Registry Phase 2. Registry chỉ dùng metadata;
     # model vẫn nhận đúng danh sách sau lazy như trước.
@@ -1316,7 +1330,7 @@ def _chan_doan_thieu_brain(header_hong):
 
 
 async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, vault_root=None,
-                      vault_nguon="", vault_header_hong=""):
+                      vault_nguon="", vault_header_hong="", for_bot=False):
     mid = msg.get("id")
     method = msg.get("method") or ""
     params = msg.get("params") or {}
@@ -1341,14 +1355,15 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
         return {"jsonrpc": "2.0", "id": mid, "result": {khoa: []}}
     if method == "tools/list":
         tools, _ = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
-                                      include_ambient=include_ambient)   # Claude/Codex có tool file native → không builtin file
+                                      include_ambient=include_ambient,
+                                      for_bot=for_bot)   # Claude/Codex có tool file native → không builtin file
         return {"jsonrpc": "2.0", "id": mid, "result": {"tools": [
             {"name": t["fn"], "description": (t.get("description") or t["fn"]),
              "inputSchema": t.get("schema") or {"type": "object", "properties": {}}}
             for t in tools]}}
     if method == "tools/call":
         _, route = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
-                                      include_ambient=include_ambient)
+                                      include_ambient=include_ambient, for_bot=for_bot)
         name = params.get("name") or ""
         result = str(await mcp_client.call_route(route, name, params.get("arguments") or {}))
         ghi_chu = _ghi_chu_brain(vault_nguon, vault_root, vault_header_hong)
@@ -1383,9 +1398,12 @@ async def handle_http(request):
     # Header chỉ nhận đường dẫn thư mục có thật; thiếu header thì `resolve_vault` suy ra brain
     # đang mở rồi NÓI RA ở kết quả tool (xem khối chú thích ở `_brain_dang_mo`). Bearer
     # hub_token vẫn là lớp auth bắt buộc phía trên.
+    # A dedicated bot's Claude Code config carries X-Javis-Bot: 1 (see `claude_config_path(bot=True)`), so the hub
+    # hides OWNER_ONLY_TOOLS from it. The header can only take tools AWAY; leaving it out grants nothing new.
+    for_bot = (request.headers.get("x-javis-bot") or "").strip() == "1"
     return await tra_loi_jsonrpc(request, mode, include_plugins=include_plugins,
                                  include_ambient=include_ambient,
-                                 raw_vault=request.headers.get("x-javis-vault"))
+                                 raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot)
 
 
 async def _handle_one_traced(msg, *args, **kwargs):
@@ -1401,7 +1419,7 @@ async def _handle_one_traced(msg, *args, **kwargs):
 
 
 async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=False,
-                          raw_vault=None):
+                          raw_vault=None, for_bot=False):
     """Đọc thân JSON-RPC của `request`, chạy qua hub, trả Response. KHÔNG xác thực gì cả.
 
     Tách khỏi `handle_http` để một cửa khác (ví dụ plugin tự lo OAuth qua `register_http`) đi
@@ -1417,13 +1435,14 @@ async def tra_loi_jsonrpc(request, mode, include_plugins=True, include_ambient=F
     try:
         if isinstance(body, list):
             out = [r for r in [await _handle_one_traced(m, mode, include_plugins, include_ambient,
-                                                        vault_root, vault_nguon, vault_header_hong)
+                                                        vault_root, vault_nguon, vault_header_hong,
+                                                        for_bot=for_bot)
                                for m in body] if r is not None]
             if not out:
                 return Response(status_code=202)
             return JSONResponse(out)
         res = await _handle_one_traced(body, mode, include_plugins, include_ambient, vault_root,
-                                       vault_nguon, vault_header_hong)
+                                       vault_nguon, vault_header_hong, for_bot=for_bot)
         if res is None:
             return Response(status_code=202)
         return JSONResponse(res)
@@ -1443,7 +1462,7 @@ def _has_connections():
         return False
 
 
-def claude_config_path(mode="full", vault_root=None):
+def claude_config_path(mode="full", vault_root=None, bot=False):
     """Ghi file --mcp-config 1 entry 'javis'. 0 connection bật → None (giữ hành vi cũ:
     không config → Claude dùng MCP sẵn của máy).
 
@@ -1455,6 +1474,9 @@ def claude_config_path(mode="full", vault_root=None):
     Chỗ cần nó là đường Claude bị CHẶN tool native - bot chuyên trách ở mức Được ghi/Toàn
     quyền. Bot không được chạm Read/Write của Claude Code (nó nhận đường dẫn tuyệt đối, trèo
     ra khỏi brain được), nên tool file phải đi qua hub để `_safe_path` chặn.
+
+    `bot=True` (0.77.0) adds X-Javis-Bot: 1 so the hub hides OWNER_ONLY_TOOLS, and writes a separate file (suffix
+    `_bot`) so the owner's own config for the same brain never carries the header.
 
     File tách riêng theo brain (hậu tố băm) vì đây là file DÙNG CHUNG cho mọi phiên: hai bot
     hai brain chạy cùng lúc mà ghi chung một file là brain nọ đọc header của brain kia.
@@ -1472,6 +1494,9 @@ def claude_config_path(mode="full", vault_root=None):
             vault = str(vault_root)
         headers["X-Javis-Vault"] = vault
         hau_to = "_" + hashlib.sha1(vault.encode("utf-8")).hexdigest()[:10]
+    if bot:
+        headers["X-Javis-Bot"] = "1"
+        hau_to += "_bot"
     p = STATE_DIR / f".mcp_hub_{mode}{hau_to}.json"
     # X-Javis-Engine=claude: báo hub đây là engine Claude (có tool native mcp__* của connector
     # tài khoản Claude) → javis_connections/lazy search kèm gợi ý ambient. Codex/engine API không gắn.

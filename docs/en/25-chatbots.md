@@ -152,6 +152,19 @@ In an allowed group, by default the bot only answers when someone **names it** (
 
 To make it answer **every message in the group**, change the "When the bot speaks in a group" field. Weigh it carefully: in a busy group it is very noisy and burns model quota fast. And it only works once privacy mode is off, so read the next section.
 
+### The reply judge reviews and tunes itself (from 0.77.0)
+
+In "Self-assess" mode a **reply judge** decides, message by message, whether a group bot speaks or stays silent, and learns from thumbs up/down and from how people react. From 0.77.0 a **self-review** also looks at the whole picture: once a bot has gathered enough new evidence (about 8 labels, or 40 silences) and a day has passed since the last review, Javis sends that bot's report to your **main brain** (the model chosen on the **Models** page, usually stronger than the cheap model that judges each message). It looks for repeated patterns and changes at most 3 things, or nothing when there is no clear pattern.
+
+- **What it can change:** lessons (it only ever removes its own, never yours), example messages, each group's threshold, the bot's overall eagerness, and whether messages that start by tagging someone else ("@Quy, when is class?") are considered at all. The bot still only speaks when its documents match and the judge agrees. Rate limits, yielding to you, permissions and what the bot says stay out of reach.
+- **Every change must cite this bot's own messages as evidence**, so text a customer types cannot become an instruction.
+- **It measures itself:** if the bot is marked wrong noticeably more often after a review, that review is undone and you get a message. Issues only a code change can fix are written to `Javis/gop-y-bo-phan-xu.md` in the bot's brain.
+- **You hear about it** in one message to the inbox (the bell) and Telegram per review that changed something.
+
+**To step in, just tell Javis:** "show me Javis Vu's reply judge stats this week", "let Javis Vu answer for me when customers tag me about class times", "undo review a1b2c3 of Javis Vu". Javis reads the same report, proposes, and applies when you agree; every change is logged and can be undone. Customer-facing bots never see these tools, even at the "can write" or "full" levels.
+
+If your main brain runs on a Claude Pro/Max plan, note that the review is background work on that plan, which Anthropic does not count as ordinary personal use. It runs at most once a day per bot and only with evidence, but the safest setup is a ChatGPT or Grok plan or an API key for the main brain. Operators can turn the review off with the environment variable `JAVIS_REPLY_POLICY_REVIEW=0`.
+
 ### Telegram's privacy mode (read this if the bot is silent in a group)
 
 Every new bot has privacy mode **on**. While it is on, Telegram **does not forward** most group messages to the bot, blocking them on Telegram's side, so Javis never sees those messages whatever you set in the dashboard.
