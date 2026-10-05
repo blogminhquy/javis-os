@@ -181,12 +181,13 @@ for moc, ten in ((_than.index('if prov == "openai-oauth":'), "nhánh Codex"),
                  (_than.index("_schedule_cancel_action("), "xử lý lệnh lịch của chủ")):
     check(f"lượt bot thoát ra TRƯỚC {ten}", _vi_bot < moc)
 
-check("bot đi đường không tool (_api_stream), không phải đường có tool (_api_stream_mcp)",
-      "_api_stream(prov, api_key, api_model, messages, reasoning)" in _SRC)
 # Cắt ĐÚNG thân `_bot_tra_loi` - đường của mức Chỉ đọc. Từ 0.22.0 có thêm `_bot_tra_loi_co_tool`
 # cho hai mức nới quyền, và nó nằm ngay dưới; cắt tới `_tg_answer_engine` như trước là nuốt luôn
 # hàm kia vào rồi báo động giả. Mốc cắt phải là hàm ngay sau, không phải "hàm nào đó ở xa".
 _ham = _SRC[_SRC.index("async def _bot_tra_loi("):_SRC.index("def _bot_stream_co_tool(")]
+# Từ 0.79.0 lượt gửi đi là `gui` (messages kèm ảnh khách gửi, xem `_bot_gan_anh`), nên canh ngay trong thân hàm.
+check("bot đi đường không tool (_api_stream), không phải đường có tool (_api_stream_mcp)",
+      "_api_stream(prov, api_key, api_model, gui, reasoning)" in _ham)
 for cam in ("_api_stream_mcp", "mcp_hub", "discover_all", "claude_engine", "CodexCLI",
             "_apply_mcp", "collect_turn_files"):
     check(f"đường của bot KHÔNG đụng tới '{cam}'", cam not in _ham)
