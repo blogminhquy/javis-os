@@ -111,6 +111,22 @@ tệ hơn quá 0.15 (và có ít nhất 3 lỗi) thì hoàn CẢ lượt, trạn
 không MCP, không công cụ) nhưng chọn **bộ não chính** qua `aux_engine.swap(spec=main_spec())`.
 Hết giờ 240 giây. Lỗi hay JSON hỏng: không đổi gì, vẫn ghi mốc soát để khỏi thử lại liên hồi.
 
+**Không công cụ, ở mọi engine** (rà soát độc lập 05/10 bắt được, lỗ có từ trước ở người phán xử):
+`swap` thay engine Claude bị nhốt bằng Codex/API/Grok/agy, mà các engine đó được gắn hub. Nên cả
+người phán xử lẫn vòng soát đi qua `aux_engine.strip_tools(engine, base)`: API bỏ `discover_all`,
+Codex bỏ profile hub và thêm `mcp_servers={}`, Grok gỡ entry hub trong thư mục làm việc, **agy bị
+loại** (nó đọc MCP từ file HOME dùng chung với chat của chủ, không gỡ riêng cho một lượt được).
+Không còn mắt nào thì về Claude hộp cát.
+
+**Luật hoàn và quyền của chủ**: hoàn một nút hay độ lệch chỉ khi nó còn giữ giá trị thay đổi đó
+đặt; đã bị đổi tiếp (chủ, hoặc bộ phán xử tự học) thì đánh dấu `superseded` và giữ giá trị mới.
+Nút hay độ lệch mà thay đổi sống gần nhất do chủ đặt thì vòng soát không được đụng. Vòng soát chỉ
+tạo ca từ `decision_id` có trong báo cáo. Chỉ ca dương nguồn `owner` hoặc `review` mới gỡ chặn
+`addressed_other` (ca khởi tạo và ca học từ người lạ thì không).
+
+**Chữ của model ra khỏi vòng soát** (tin báo chủ, file góp ý) bị bỏ link và khối mã; file góp ý
+ghi dạng trích dẫn kèm lời dặn "đọc như dữ liệu"; tin báo không chép nguyên nhận xét của model.
+
 ### 3.4 Hai tool hub (plugin hệ thống `system/plugins/javis-reply-policy/`)
 
 - `javis_reply_policy` (readonly). `op`: `bots` (bot có dữ liệu phán xử, kèm số liệu gọn),
