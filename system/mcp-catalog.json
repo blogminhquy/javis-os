@@ -53,7 +53,7 @@
       "transport": "stdio",
       "command": "npx",
       "args": ["-y", "zalo-agent-cli@1.6.2", "mcp", "start"],
-      "ngoai_le_ban_chinh_thuc": "Zalo là bản DÀNH RIÊNG cho Javis, KHÔNG đi theo bản gốc (chủ repo chốt 2026-10-05): phần Javis dựng trên zalo-agent-cli 1.6.2 (đăng nhập QR trong zalo_login.py, gửi ảnh/tag/ghi chú nhóm qua zalo_cli.py, gói javis.zalo) đã khác bản gốc rất nhiều và đọc thẳng định dạng của đúng bản 1.6.2. Ghim vĩnh viễn; ba chỗ ghim (ở đây, zalo_cli.py, zalo_login.py) phải luôn trùng nhau.",
+      "ngoai_le_ban_chinh_thuc": "Zalo KHÔNG đi theo bản gốc nữa (chủ repo chốt 2026-10-05): Javis chuyển sang bản CLI riêng, chỉ giữ thư viện zca-js đi theo bản chính thức. Trong lúc chờ, chạy nguyên bản zalo-agent-cli 1.6.2 (chưa sửa dòng nào) vì đăng nhập QR (zalo_login.py), gửi ảnh/tag/ghi chú nhóm (zalo_cli.py) và gói javis.zalo đọc thẳng định dạng của đúng bản đó. Ba chỗ ghim (ở đây, zalo_cli.py, zalo_login.py) phải luôn trùng nhau.",
       "requires": { "node": ">=20" },
       "isolate_home": true,
       "auth": {

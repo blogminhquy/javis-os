@@ -8,10 +8,10 @@ No network. Three things are guarded here:
 1. Every built-in connector launched through npx/uvx takes its MCP from npm/PyPI and ends the
    package with `@latest`. A bare name is not enough: npx and uvx reuse whatever version a
    machine cached first, so two machines would run two versions forever. The one exception must
-   say why in `ngoai_le_ban_chinh_thuc`: Zalo is a Javis-only build that no longer follows upstream
-   (owner, 2026-10-05). What Javis built on zalo-agent-cli 1.6.2 reads that version's formats
-   directly, so it stays pinned and its three pins (catalog, zalo_cli.py, zalo_login.py) must
-   match. The store runs the same rule in javis-store/tools/ban_chinh_thuc.py.
+   say why in `ngoai_le_ban_chinh_thuc`: Zalo no longer follows upstream (owner, 2026-10-05);
+   Javis moves to its own CLI and only zca-js keeps following official releases. Until then it
+   runs the unmodified zalo-agent-cli 1.6.2, whose formats Javis reads directly, so its three
+   pins (catalog, zalo_cli.py, zalo_login.py) must match. The store runs the same rule in javis-store/tools/ban_chinh_thuc.py.
 2. workspace-mcp 2.x added `run_script_function` (runs Apps Script) and `import_to_google_*`.
    Their names carry no write hint, so classify() used to put both in the READ group.
 3. `call_rules` without `items`: a single-action gateway such as Hostinger 2.x `execute`, which
@@ -78,7 +78,7 @@ for c in launched:
 
 zalo = next(c for c in raw["connectors"] if c["id"] == "zalo")
 zalo_pkg = package_of("npx", zalo["args"])
-check("Zalo is the documented exception: a Javis-only build, pinned for good",
+check("Zalo is the documented exception and says it no longer follows upstream",
       "KHÔNG đi theo bản gốc" in str(zalo.get("ngoai_le_ban_chinh_thuc") or ""))
 check("Zalo MCP, zalo_cli and zalo_login pin the SAME CLI version",
       zalo_pkg == zalo_cli.CLI_PACKAGE == zalo_login._CLI_PACKAGE,
