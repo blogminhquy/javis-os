@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.77.0] - 2026-10-05
+### Thêm mới
+- **Bộ phán xử tự soát lại mình.** (đang làm)
+
 ## [0.76.0] - 2026-10-05
 ### Cải thiện
 - **Trang Kỹ năng làm lại cho dễ dùng.** Mỗi kỹ năng có công tắc bật/tắt riêng ở bên phải, hết cảnh hai ô tick giống nhau mà bấm nhầm là tắt mất kỹ năng. Bấm vào một kỹ năng là mở khung chi tiết: mô tả, mục "Dùng khi nào", số lần dùng, nút Sửa, Xuất, Xoá.
