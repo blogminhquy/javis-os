@@ -18088,6 +18088,10 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     và `ghi_kho=False` khi người gọi tự lo phần ghi (việc nền ghi bằng `push_to_chat`), nên
     lịch sử chỉ được ĐỌC làm ngữ cảnh chứ không bị chèn thêm tin nào.
     """
+    # Gỡ ký tự vô hình (tag U+E0000, ghi đè hướng chữ, zero-width...) ngay ở cửa chung của mọi kênh: người lạ
+    # giấu lệnh vào đó, model đọc được còn chủ thì không thấy. Gỡ TRƯỚC khi ghi kho vì vòng tự học đọc lại kho (0.83.2).
+    if isinstance(text, str):
+        text = chatbot_reply_policy.strip_hidden(text)
     # ĐA PHIÊN: định tuyến theo chat_id → ngữ cảnh của mỗi tài khoản tách biệt.
     chat_id = str((meta or {}).get("chat_id") or "default")
     if bot:

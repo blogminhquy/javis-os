@@ -117,6 +117,15 @@ _PUNCT = re.compile(r"[^\w@\s]", re.U)
 # Thẻ bọc dữ liệu chat: bắt cả biến thể có khoảng trắng, hoa thường, thiếu ngoặc đóng ("</chat_data >", "< /chat_data").
 _MARKERS = re.compile(r"\[IM_LANG\]|JAVIS_[A-Z_]+|<\s*/?\s*chat[_\s-]*data\b[^>\n]{0,40}>?", re.I)
 _CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+# Ký tự hiện ra là KHÔNG CÓ GÌ: model đọc được, chủ xem hộp thư thì không thấy, nên người lạ giấu lệnh vào đó
+# (0.83.2, ý lấy từ the-security-guide của repo ECC). Gồm: zero-width, đánh dấu và ghi đè hướng chữ (đảo thứ tự chủ
+# nhìn thấy), BOM, soft hyphen, chữ lấp Hangul, chú thích liên dòng, khối "tag" U+E0000 (giấu nguyên câu ASCII), và
+# bộ chọn biến thể dùng để giấu byte sau một emoji. Giữ MỘT U+FE0E/FE0F đứng lẻ vì emoji thường cần nó (❤️), chỉ
+# gỡ cả chuỗi liền nhau. Gỡ HẲN chứ không thay bằng khoảng trắng: marker bị chèn zero-width ở giữa được nối lại
+# rồi `_MARKERS` bắt được, thay vì lọt qua thành hai nửa.
+_HIDDEN = re.compile(
+    "[­ᅟᅠ᠎​-‏‪-‮⁠-⁤⁦-⁯ㅤ︀-︍"
+    "﻿ﾠ￹-￻\U000e0000-\U000e007f\U000e0100-\U000e01ef]|[︎️]{2,}")
 _URL = re.compile(r"(?:https?://|www\.)\S+", re.I)
 
 
@@ -133,10 +142,17 @@ def raw_tokens(text: Any) -> List[str]:
     return " ".join(_PUNCT.sub(" ", t).split()).split()
 
 
+def strip_hidden(text: Any) -> str:
+    """Chỉ gỡ ký tự ẩn (`_HIDDEN`), giữ nguyên xuống dòng và mọi chữ khác. Dành cho tin khách mà bot TRẢ LỜI, đi
+    thẳng vào engine ở `_tg_answer`: tin đó không bị ép một dòng hay gỡ marker như dữ liệu trong `<chat_data>`."""
+    return _HIDDEN.sub("", str(text or ""))
+
+
 def clean_chat_text(text: Any, limit: int = TEXT_MAX) -> str:
     """Nội dung chat trước khi vào prompt: gỡ ký tự điều khiển, gỡ marker nội bộ và thẻ bọc dữ liệu
     (không cho tin nhắn đóng khối `<chat_data>` để thoát ra ngoài), cắt độ dài."""
-    t = _CTRL.sub(" ", str(text or ""))
+    t = _HIDDEN.sub("", str(text or ""))
+    t = _CTRL.sub(" ", t)
     t = _MARKERS.sub(" ", t)
     return " ".join(t.split())[:limit]
 
@@ -144,7 +160,7 @@ def clean_chat_text(text: Any, limit: int = TEXT_MAX) -> str:
 def clean_block(text: Any, limit: int = 3000) -> str:
     """Như `clean_chat_text` nhưng GIỮ xuống dòng (bỏ dòng trống, gộp khoảng trắng trong từng dòng). Dành cho văn bản
     có cấu trúc do máy soạn hoặc chủ viết (hồ sơ vai, luật lên tiếng): ép thành một dòng thì mất bốn mục của hồ sơ."""
-    t = str(text or "").replace("\r", "\n")
+    t = _HIDDEN.sub("", str(text or "")).replace("\r", "\n")
     t = _CTRL.sub(" ", t)
     t = _MARKERS.sub(" ", t)
     return "\n".join(l for l in (" ".join(x.split()) for x in t.split("\n")) if l)[:limit]
