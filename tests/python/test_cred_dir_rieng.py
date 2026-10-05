@@ -36,7 +36,7 @@ catalog = json.loads((ROOT / "system" / "mcp-catalog.json").read_text(encoding="
 by_id = {c["id"]: c for c in catalog["connectors"]}
 
 # ---- 1. Mọi connector chạy workspace-mcp đều phải khai kho token riêng ----
-chay_ws = [c for c in catalog["connectors"] if "workspace-mcp" in (c.get("args") or [])]
+chay_ws = [c for c in catalog["connectors"] if "workspace-mcp@latest" in (c.get("args") or [])]
 check("tìm được connector chạy workspace-mcp", len(chay_ws) >= 2)
 thieu = [c["id"] for c in chay_ws
          if (c.get("cred_dir") or {}).get("env") != "WORKSPACE_MCP_CREDENTIALS_DIR"]

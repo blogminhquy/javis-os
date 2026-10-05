@@ -50,7 +50,7 @@ check("chạy bằng uvx (khớp các connector stdio sẵn có)", con.get("comm
 # của nó. Cài xong thì SDK thắng, nên `uvx --from keep-mcp mcp` chạy nhầm sang CLI của SDK.
 # Đường duy nhất không mơ hồ là module `server/__main__.py`. Đã kiểm bằng bắt tay MCP thật.
 check("args dùng --from + python -m server (KHÔNG phải `uvx keep-mcp`, xem ghi chú trên)",
-      (con.get("args") or []) == ["--from", "keep-mcp", "python", "-m", "server"])
+      (con.get("args") or []) == ["--from", "keep-mcp@latest", "python", "-m", "server"])
 check("default_perm = readonly (đấu xong chỉ đọc, tự nâng quyền sau)",
       con.get("default_perm") == "readonly")
 check("có mô tả rủi ro master token", "MASTER TOKEN" in (con.get("risk") or "").upper())

@@ -111,7 +111,7 @@ check("không có em/en dash trong step", not any(("—" in s.get("text", "") or
 # google-tasks dùng CHUNG server này (chỉ khác --tools tasks) nên dính y hệt. Vá một cái mà bỏ
 # cái kia là để lại đúng nửa con bug, và nửa còn lại thì không ai nhớ.
 chay_workspace_mcp = [c for c in catalog["connectors"]
-                      if "workspace-mcp" in (c.get("args") or [])]
+                      if "workspace-mcp@latest" in (c.get("args") or [])]
 check("tìm được các connector chạy workspace-mcp", len(chay_workspace_mcp) >= 2)
 thieu = [c["id"] for c in chay_workspace_mcp
          if (c.get("env") or {}).get("OAUTHLIB_INSECURE_TRANSPORT") != "1"]

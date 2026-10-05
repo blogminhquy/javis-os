@@ -53,6 +53,7 @@
       "transport": "stdio",
       "command": "npx",
       "args": ["-y", "zalo-agent-cli@1.6.2", "mcp", "start"],
+      "ngoai_le_ban_chinh_thuc": "Ghim 1.6.2 có chủ ý: zalo_cli.py và zalo_login.py chạy chính CLI này và đọc thẳng định dạng đầu ra của bản 1.6.2 (đăng nhập QR, tài khoản dùng chung với MCP). Lên bản thì đổi cả ba chỗ cùng lúc, sau khi thử QR.",
       "requires": { "node": ">=20" },
       "isolate_home": true,
       "auth": {
@@ -175,7 +176,7 @@
       "status": "beta",
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "mcp-server-gsc"],
+      "args": ["-y", "mcp-server-gsc@latest"],
       "requires": { "node": ">=18" },
       "auth": {
         "type": "apikey",
@@ -205,7 +206,7 @@
       "status": "beta",
       "transport": "stdio",
       "command": "uvx",
-      "args": ["workspace-mcp", "--tool-tier", "core"],
+      "args": ["workspace-mcp@latest", "--tool-tier", "core"],
       "_env_doc": "workspace-mcp nhận Client ID + Secret nên chạy luồng OAuth 'confidential', mà chỗ nó hứng kết quả đăng nhập là http://localhost:8000/oauth2callback - HTTP trần. Thư viện oauthlib mặc định NÉM InsecureTransportError với http, nên thiếu biến này là bấm đồng ý xong quay về vẫn lỗi, không tài nào đăng nhập xong - đúng kiểu bế tắc mà hướng dẫn không nói ra được. README upstream khai biến này 'required'; đây là hằng số kỹ thuật của package, không phải thứ bắt user gõ. An toàn vì callback chỉ chạy trên loopback của chính máy đó.",
       "env": { "OAUTHLIB_INSECURE_TRANSPORT": "1" },
       "_needs_local_browser_doc": "workspace-mcp tự chạy OAuth với callback CỨNG http://localhost:8000/oauth2callback - chỉ sống khi trình duyệt và server Javis là CÙNG MỘT MÁY. Truy cập Javis qua domain public là Google redirect về localhost CỦA NGƯỜI DÙNG rồi chết ERR_CONNECTION_REFUSED (issue #112). Cờ này cho /connect/add chặn kèm lời giải thích (can_force) thay vì để user đâm vào ngõ cụt; VPS thì chỉ sang thẻ Lịch và Gmail riêng - hai thẻ đó đi qua OAuth của chính Javis nên chạy được sau proxy.",
@@ -249,11 +250,13 @@
         ]
       },
       "tool_meta": {
-        "write": ["*create*", "*update*", "*upload*", "*draft*", "*modify*", "*move*", "*add*", "*set*", "*manage*"],
-        "danger": ["*send*", "*delete*"]
+        "write": ["*create*", "*update*", "*upload*", "*draft*", "*modify*", "*move*", "*add*", "*set*", "*manage*", "import_*"],
+        "danger": ["*send*", "*delete*", "run_*"]
       },
+      "_tool_meta_doc": "workspace-mcp 2.x thêm run_script_function (CHẠY một hàm Apps Script, tức làm được mọi thứ script đó làm) và import_to_google_*. Tên không chứa từ gợi ý ghi nào nên trước đây classify xếp cả hai vào nhóm ĐỌC. generate_trigger_code chỉ sinh đoạn code, không tạo trigger.",
+      "ghi_da_can_nhac": ["generate_trigger_code"],
       "default_perm": "safe",
-      "risk": "Mức Ghi nháp (mặc định) cho phép Javis soạn nháp thư, tạo lịch, tạo tài liệu, và cả SỬA tài liệu có sẵn lẫn DI CHUYỂN file trong Drive.\nCác tool gộp (manage_event, manage_task...) cũng thuộc mức này, nên Javis sửa và xoá được từng sự kiện lịch hay việc cần làm lẻ.\n\nMức Toàn quyền thêm quyền GỬI EMAIL THẬT và XOÁ file, thư bằng tài khoản Google của bạn.\n\nChỉ cần đọc thì hạ xuống Chỉ đọc."
+      "risk": "Mức Ghi nháp (mặc định) cho phép Javis soạn nháp thư, tạo lịch, tạo tài liệu, và cả SỬA tài liệu có sẵn lẫn DI CHUYỂN file trong Drive.\nCác tool gộp (manage_event, manage_task...) cũng thuộc mức này, nên Javis sửa và xoá được từng sự kiện lịch hay việc cần làm lẻ.\n\nMức Toàn quyền thêm quyền GỬI EMAIL THẬT, XOÁ file, thư, và CHẠY hàm Apps Script bằng tài khoản Google của bạn.\n\nChỉ cần đọc thì hạ xuống Chỉ đọc."
     },
     {
       "id": "google-tasks",
@@ -267,7 +270,7 @@
       "transport": "stdio",
       "command": "uvx",
       "_args_doc": "Chạy chung server workspace-mcp với connector google-workspace nhưng chỉ nạp service tasks. Tier complete vì list_task_lists nằm ở tier complete - thiếu nó thì không biết ID danh sách để đọc việc.",
-      "args": ["workspace-mcp", "--tools", "tasks", "--tool-tier", "complete"],
+      "args": ["workspace-mcp@latest", "--tools", "tasks", "--tool-tier", "complete"],
       "_env_doc": "Cùng server workspace-mcp với connector google-workspace nên dính y hệt: thiếu biến này là oauthlib chặn callback http://localhost, bấm đồng ý xong vẫn không đăng nhập được. Xem _env_doc của google-workspace.",
       "env": { "OAUTHLIB_INSECURE_TRANSPORT": "1" },
       "_needs_local_browser_doc": "workspace-mcp tự chạy OAuth với callback CỨNG http://localhost:8000/oauth2callback - chỉ sống khi trình duyệt và server Javis là CÙNG MỘT MÁY. Truy cập Javis qua domain public là Google redirect về localhost CỦA NGƯỜI DÙNG rồi chết ERR_CONNECTION_REFUSED (issue #112). Cờ này cho /connect/add chặn kèm lời giải thích (can_force) thay vì để user đâm vào ngõ cụt; VPS thì chỉ sang thẻ Lịch và Gmail riêng - hai thẻ đó đi qua OAuth của chính Javis nên chạy được sau proxy.",
@@ -327,7 +330,7 @@
       "status": "beta",
       "transport": "stdio",
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/googleads/google-ads-mcp.git", "google-ads-mcp"],
+      "args": ["google-ads-mcp@latest"],
       "auth": {
         "type": "oauth",
         "provider": "google",
@@ -361,12 +364,6 @@
             "env": "GOOGLE_ADS_DEVELOPER_TOKEN"
           },
           {
-            "key": "project_id",
-            "label": "Google Cloud Project ID",
-            "placeholder": "Ví dụ: my-ads-project",
-            "env": "GOOGLE_PROJECT_ID"
-          },
-          {
             "key": "login_customer_id",
             "label": "ID tài khoản quản lý MCC (tuỳ chọn - khi tài khoản ads nằm dưới MCC/agency)",
             "placeholder": "Gồm 10 số, bỏ dấu gạch",
@@ -383,7 +380,7 @@
             "optional": true
           }
         ],
-        "guide": "Cần trước: Git trên máy chạy Javis (uvx tải server từ GitHub).\n\nLàm 1 lần, khoảng 10 phút:\n1. Google Ads > tài khoản quản lý MCC > Công cụ > API Center: lấy developer token, mức Explorer đủ để đọc.\n2. Vào console.cloud.google.com, tạo project rồi bật Google Ads API. Nhớ Project ID để điền bên dưới.\n3. Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.\n4. Thông tin xác thực > Tạo OAuth client ID loại 'Ứng dụng web'.\n5. Ở phần 'URI chuyển hướng được ủy quyền', thêm đúng địa chỉ này:\nhttp://localhost:7777/connect/oauth/callback\nNếu chạy trên VPS thì thêm cả https://<tên-miền>/connect/oauth/callback\n6. Điền các ô bên dưới rồi bấm nút đăng nhập. Trình duyệt sẽ mở để bạn cho phép Javis đọc Google Ads.\n\nJavis tự dựng file đăng nhập, KHÔNG cần cài Google Cloud CLI và không phải chạy lệnh nào.\n\nGặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao > Tiếp tục, vì đây là app của chính bạn.\n\nĐã tự chạy gcloud rồi thì dán nội dung file application_default_credentials.json vào ô cuối, Javis sẽ dùng luôn.",
+        "guide": "Cần trước: không cài thêm gì. Javis tự tải bản chính thức mới nhất của Google (PyPI) mỗi lần khởi động.\n\nLàm 1 lần, khoảng 10 phút:\n1. Google Ads > tài khoản quản lý MCC > Công cụ > API Center: lấy developer token, mức Explorer đủ để đọc.\n2. Vào console.cloud.google.com, tạo project rồi bật Google Ads API.\n3. Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.\n4. Thông tin xác thực > Tạo OAuth client ID loại 'Ứng dụng web'.\n5. Ở phần 'URI chuyển hướng được ủy quyền', thêm đúng địa chỉ này:\nhttp://localhost:7777/connect/oauth/callback\nNếu chạy trên VPS thì thêm cả https://<tên-miền>/connect/oauth/callback\n6. Điền các ô bên dưới rồi bấm nút đăng nhập. Trình duyệt sẽ mở để bạn cho phép Javis đọc Google Ads.\n\nJavis tự dựng file đăng nhập, KHÔNG cần cài Google Cloud CLI và không phải chạy lệnh nào.\n\nGặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao > Tiếp tục, vì đây là app của chính bạn.\n\nĐã tự chạy gcloud rồi thì dán nội dung file application_default_credentials.json vào ô cuối, Javis sẽ dùng luôn.",
         "guide_url": "https://console.cloud.google.com/apis/credentials"
       },
       "validate": {
@@ -577,7 +574,7 @@
       "transport": "stdio",
       "command": "uvx",
       "_args_doc": "KHÔNG dùng `uvx keep-mcp`: package keep-mcp khai console script tên `mcp` (server.cli:main), trùng tên với CLI của MCP SDK (mcp.cli:app) vốn là dependency của nó, nên chạy nhầm sang CLI của SDK. Module `server/__main__.py` là đường duy nhất không mơ hồ.",
-      "args": ["--from", "keep-mcp", "python", "-m", "server"],
+      "args": ["--from", "keep-mcp@latest", "python", "-m", "server"],
       "requires": { "uv": true },
       "auth": {
         "type": "apikey",
@@ -653,7 +650,7 @@
       "transport": "stdio",
       "command": "uvx",
       "_args_doc": "Tên package (notebooklm-py) KHÁC tên lệnh (notebooklm-mcp) nên bắt buộc `--from`, và phải kèm extra [mcp] vì fastmcp không nằm trong dependency lõi - thiếu nó thì lệnh chạy được nhưng chết ngay ở import. Đúng loại bẫy đã ghi ở connector google-keep. Server MCP là của CHÍNH thư viện (console script notebooklm-mcp, transport stdio), Javis không viết wrapper.",
-      "args": ["--from", "notebooklm-py[mcp]", "notebooklm-mcp"],
+      "args": ["--from", "notebooklm-py[mcp]@latest", "notebooklm-mcp"],
       "requires": { "uv": true },
       "isolate_home": true,
       "auth": {

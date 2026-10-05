@@ -141,6 +141,15 @@ lại: tải, mở ra xem, xác nhận. **Javis không bao giờ tự cập nh�
 thể đổi mã, và mã đổi mà không ai xem thì toàn bộ chốt chữ ký nội dung ở
 `plugins_host._pack_duoc_nap` thành vô nghĩa.
 
+**MCP của bên thứ 3 thì khác** (chủ repo chốt 2026-10-05): bên đó có bản phát hành chính thức thì
+connector đi theo bản đó. Connector chạy qua `npx`/`uvx` lấy MCP từ npm/PyPI và ghi tên gói kèm
+`@latest`; để trống phiên bản là chưa đủ, vì `npx`/`uvx` dùng lại bản đã tải lần đầu. Bên thứ 3 ra
+bản mới thì máy chạy bản đó ở lần khởi động kế tiếp, không cần ra bản gói hay bản Javis. Ngoại lệ
+khai bằng `ngoai_le_ban_chinh_thuc` kèm lý do (Zalo trong `system/mcp-catalog.json`).
+`tests/python/test_mcp_official_release.py` canh catalog của app, `tools/kiem-tra.py` canh kho, và
+job `soi-ban-moi` trong CI của kho chạy thử bản mới nhất thật mỗi ngày để bắt tool mới chưa phân
+loại.
+
 ---
 
 ## Gói mang theo agent, workflow, skill

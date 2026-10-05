@@ -405,7 +405,9 @@ def _loai_theo_call_rule(rule, args):
     """Mức NẶNG NHẤT trong danh sách hành động con của một lời gọi tool cổng. Danh sách rỗng,
     sai kiểu hoặc vắng hẳn đều fail-closed về mức `else`."""
     tren_loi = str(rule.get("else") or "danger")
-    items = args.get(rule.get("items") or "")
+    # Luật KHÔNG khai `items`: tool cổng chạy MỘT hành động con, tên nằm ngay ở cấp ngoài của
+    # args (Hostinger 2.x `execute`: {"operation": ..., "params": ...}), nên chính args là món.
+    items = args.get(rule["items"]) if rule.get("items") else [args]
     if not isinstance(items, list) or not items:
         return tren_loi
     muc = "read"

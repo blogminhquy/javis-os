@@ -52,6 +52,10 @@ fields = {f["key"]: f for f in (auth.get("fields") or [])}
 check("có ô Client ID + Client Secret", "client_id" in fields and "client_secret" in fields)
 check("giữ ô developer_token", "developer_token" in fields)
 check("giữ đường lui dán tay file ADC", bool(fields.get("adc_json", {}).get("optional")))
+# google-ads-mcp không còn đọc GOOGLE_PROJECT_ID, và file ADC Javis dựng cũng không cần nó (0.82.0).
+check("bỏ ô Project ID (server không đọc nữa)", "project_id" not in fields)
+check("chạy bản PyPI chính thức mới nhất, không chạy code GitHub",
+      (con or {}).get("args") == ["google-ads-mcp@latest"])
 
 guide = auth.get("guide") or ""
 # Nhắc gcloud như ĐƯỜNG LUI cho ai đã lỡ chạy thì được; bắt CÀI hoặc bắt CHẠY thì không.
@@ -72,7 +76,7 @@ check("chưa đăng nhập -> trả rỗng", oauth_mcp.credentials_file("khong-c
 cid, err = mcp_store.add_connection("google-ads", {
     "label": "thử", "auth": "oauth",
     "fields": {"client_id": "CID.apps.googleusercontent.com", "client_secret": "GOCSPX-bimat",
-               "developer_token": "DEVTOK", "project_id": "du-an-cua-toi"}})
+               "developer_token": "DEVTOK", "login_customer_id": "123-456-7890"}})
 check("tạo được connection oauth", bool(cid) and not err)
 
 # Giả lập đã đăng nhập xong: nhét refresh_token vào kho oauth y như handle_callback làm.
@@ -107,12 +111,12 @@ if duong_dan and os.path.exists(duong_dan):
 
 check("các biến môi trường khác vẫn được truyền",
       env.get("GOOGLE_ADS_DEVELOPER_TOKEN") == "DEVTOK"
-      and env.get("GOOGLE_PROJECT_ID") == "du-an-cua-toi")
+      and env.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID") == "123-456-7890")
 
 # ---- đường lui: dán tay file ADC thì KHÔNG bị OAuth ghi đè ----
 cid2, _ = mcp_store.add_connection("google-ads", {
     "label": "dán tay", "fields": {
-        "client_id": "x", "client_secret": "y", "developer_token": "D", "project_id": "P",
+        "client_id": "x", "client_secret": "y", "developer_token": "D",
         "adc_json": json.dumps({"type": "authorized_user", "refresh_token": "TU-DAN-TAY"})}})
 res2 = next((c for c in mcp_store.resolved(enabled_only=False) if c["id"] == cid2), None)
 dd2 = ((res2 or {}).get("env") or {}).get("GOOGLE_APPLICATION_CREDENTIALS", "")

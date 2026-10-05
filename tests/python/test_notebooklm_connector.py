@@ -51,7 +51,7 @@ check("chạy qua uvx", con.get("command") == "uvx")
 check("transport stdio", con.get("transport") == "stdio")
 check("CANARY: có --from (tên package khác tên lệnh)", "--from" in args, args)
 check("CANARY: kèm extra [mcp] (thiếu là chết ở import fastmcp)",
-      any("notebooklm-py[mcp]" == a for a in args), args)
+      "notebooklm-py[mcp]@latest" in args, args)
 check("gọi đúng console script notebooklm-mcp", "notebooklm-mcp" in args, args)
 check("khai là cần uv", bool((con.get("requires") or {}).get("uv")))
 # Phiên nằm trong ~/.notebooklm của HOME; không cô lập thì hai tài khoản đè nhau, và xoá
