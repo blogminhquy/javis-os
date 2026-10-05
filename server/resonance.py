@@ -12,6 +12,9 @@ công cụ, không MCP, thư mục trống), và KHÔNG có chuỗi dự phòng.
 tức là lượt này có thể lặng lẽ chạy bằng provider khác (kể cả API trả phí). Kế hoạch cấm
 tự đổi provider; engine đã chọn không chạy được thì receipt phải nói thẳng như vậy.
 
+M1 chỉ nhận hai loại engine có cơ chế chỉ chữ đã kiểm: Claude với cổng can_use_tool, và engine
+API với no_tools. Codex và Grok còn công cụ native nên bị chặn trước khi gọi (review PR #566).
+
 Model chỉ sinh chữ. HOST mới là bên ghi đầu ra vào vùng đã cấp cho mục tiêu, rồi tự đọc lại
 file vừa ghi để lấy hash. Receipt chỉ chứa thứ host thấy tận mắt, không chép lời tự báo
 của model.
@@ -109,34 +112,51 @@ def _short(text: Any) -> str:
     return str(text or "").strip().replace("\n", " ")[:ERROR_DETAIL_MAX]
 
 
+# Tên khoá usage theo từng engine: Claude SDK ghi trên `final` (tokens_in/tokens_out/cost_usd), engine API
+# phát `usage` (input/output/cost), Grok phát `usage` (input_tokens/output_tokens).
+_USAGE_KEYS = (("tokens_in", ("tokens_in", "input_tokens", "input")),
+               ("tokens_out", ("tokens_out", "output_tokens", "output")),
+               ("cost_usd", ("cost_usd", "cost")))
+
+
 def _usage_from(ev: dict, usage: Optional[dict]) -> Optional[dict]:
-    """Gom usage từ hai kiểu sự kiện engine đang phát: final của Claude SDK
-    (tokens_in/tokens_out/cost_usd) và usage của engine API (input/output/cost)."""
-    t = ev.get("type")
-    if t == "final" and any(k in ev for k in ("tokens_in", "tokens_out", "cost_usd")):
-        usage = dict(usage or {})
-        usage["tokens_in"] = int(ev.get("tokens_in") or 0) + int(usage.get("tokens_in") or 0)
-        usage["tokens_out"] = int(ev.get("tokens_out") or 0) + int(usage.get("tokens_out") or 0)
-        if ev.get("cost_usd") is not None:
-            usage["cost_usd"] = float(ev.get("cost_usd") or 0) + float(usage.get("cost_usd") or 0)
-        if ev.get("duration_ms") is not None:
-            usage["engine_ms"] = int(ev.get("duration_ms") or 0)
-    elif t == "usage":
-        usage = dict(usage or {})
-        usage["tokens_in"] = int(ev.get("input") or 0) + int(usage.get("tokens_in") or 0)
-        usage["tokens_out"] = int(ev.get("output") or 0) + int(usage.get("tokens_out") or 0)
-        if ev.get("cost") is not None:
-            usage["cost_usd"] = float(ev.get("cost") or 0) + float(usage.get("cost_usd") or 0)
+    """Cộng usage của một sự kiện vào tổng. Trường nào engine KHÔNG báo thì để vắng, không ghi 0.
+
+    Cộng dồn đúng với các engine M1 nhận (một `final` của Claude, hoặc một `usage` mỗi vòng của engine API
+    không công cụ, tức đúng một vòng). Engine phát số TỔNG lặp lại nhiều lần thì phải xử lý riêng trước khi
+    nhận vào; Grok hiện bị bộ chọn chặn nên chưa tới đây.
+    """
+    if ev.get("type") not in ("final", "usage"):
+        return usage
+    got = {}
+    for name, keys in _USAGE_KEYS:
+        for k in keys:
+            if ev.get(k) is not None:
+                got[name] = float(ev[k] or 0) if name == "cost_usd" else int(ev[k] or 0)
+                break
+    if not got:
+        return usage
+    usage = dict(usage or {})
+    for name, val in got.items():
+        usage[name] = (usage.get(name) or 0) + val
+    if ev.get("type") == "final" and ev.get("duration_ms") is not None:
+        usage["engine_ms"] = int(ev.get("duration_ms") or 0)
     return usage
 
 
 def pick_text_only_link(engine: Any, base: Any, requested: dict, chain_type: type = None) -> tuple:
-    """Từ engine sau `aux_engine.swap` + `strip_tools`, giữ ĐÚNG mắt người dùng đã chọn.
+    """Từ engine sau `aux_engine.swap` + `strip_tools`, giữ ĐÚNG mắt người dùng đã chọn, và chỉ khi mắt đó
+    THẬT SỰ không gọi được công cụ.
 
-    Trả (engine, info). engine=None khi không còn đường đáp ứng: mắt đầu không phải provider
-    đã chọn nghĩa là swap/strip_tools đã lặng lẽ lùi về Claude (provider chưa sẵn sàng, hoặc
-    không tắt được công cụ cho riêng lượt này, như Antigravity). Khi đó KHÔNG chạy thay bằng
-    Claude, vì như thế là tự đổi provider.
+    Trả (engine, info). engine=None (kèm lý do, `text_only=False`) trong ba trường hợp:
+    - Mắt đầu không phải provider đã chọn: swap/strip_tools đã lặng lẽ lùi về Claude (provider chưa sẵn
+      sàng, hoặc không tắt được công cụ, như Antigravity). Không chạy thay, vì như thế là tự đổi provider.
+    - Mắt Claude nhưng không có `allowed_tools`: thiếu cổng `can_use_tool` thì không có gì chặn công cụ.
+    - Mắt khác Claude mà không mang `no_tools`: Codex và Grok còn công cụ NATIVE (đọc, ghi file, chạy lệnh).
+      `strip_tools` chỉ gỡ MCP của chúng, và `JAVIS_CODEX_SANDBOX=off` còn bỏ cả sandbox. Đếm tool_call sau
+      lượt chạy không phải là chặn: công cụ native có thể đã tác động trước khi receipt được trả.
+    Hai cơ chế chỉ chữ M1 nhận: Claude với cổng `can_use_tool` (allowed_tools không khớp công cụ nào), và
+    engine API với `no_tools` (không hỏi hub, model không được đưa công cụ nào).
     """
     if chain_type is not None and isinstance(engine, chain_type):
         links = list(engine._all())
@@ -157,7 +177,7 @@ def pick_text_only_link(engine: Any, base: Any, requested: dict, chain_type: typ
         "model": str(getattr(first, "model", "") or ""),
         "kind": type(first).__name__ if first is not None else "",
         "fallback_links_dropped": max(0, len(links) - 1),
-        "text_only": True,
+        "text_only": False,
     }
     if first is None:
         info["blocked"] = "không dựng được engine nào"
@@ -166,6 +186,15 @@ def pick_text_only_link(engine: Any, base: Any, requested: dict, chain_type: typ
         info["blocked"] = (f"engine đã chọn ({req_prov}) không chạy được ở chế độ chỉ chữ; "
                            f"hệ thống định lùi về {actual_prov} nhưng Resonance không tự đổi provider")
         return None, info
+    if first is base:
+        if not getattr(first, "allowed_tools", None):
+            info["blocked"] = "engine Claude không có cổng chặn công cụ (allowed_tools trống), không bảo đảm chỉ chữ"
+            return None, info
+    elif getattr(first, "no_tools", False) is not True:
+        info["blocked"] = (f"engine {actual_prov} còn công cụ native, chưa có cơ chế chỉ chữ được kiểm; "
+                           "Resonance M1 chỉ nhận Claude (cổng can_use_tool) và engine API (no_tools)")
+        return None, info
+    info["text_only"] = True
     return first, info
 
 
@@ -252,6 +281,12 @@ class GoalDeps:
                     if ev.get("dua_token"):
                         err = ("engine_session_race", ev.get("content"))
                         return
+                    if ev.get("is_error"):
+                        # Engine báo kết thúc lỗi nhưng vẫn kèm chữ (ví dụ câu "hết lượt"). Chữ đó là lời báo lỗi,
+                        # không phải đầu ra; giữ usage, không ghi file.
+                        err = ("engine_result_error",
+                               f"{ev.get('subtype') or 'error'}: {ev.get('content') or ''}")
+                        return
                     final_text = ev.get("content") or ""
 
         try:
@@ -278,7 +313,11 @@ class GoalDeps:
                         usage=usage, tool_calls_observed=tool_calls)
         if not (final_text or "").strip():
             return done("failed", code="empty_output", detail="engine không trả chữ nào", usage=usage)
-        text = final_text[:OUTPUT_MAX_CHARS]
+        if len(final_text) > OUTPUT_MAX_CHARS:
+            # Không cắt âm thầm: hash của bản bị cắt sẽ chứng nhận một đầu ra không đầy đủ là "xong".
+            return done("failed", code="output_too_large",
+                        detail=f"{len(final_text)} ký tự, trần {OUTPUT_MAX_CHARS}", usage=usage)
+        text = final_text
         if not text.endswith("\n"):
             text += "\n"
 

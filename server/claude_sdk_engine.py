@@ -371,6 +371,11 @@ def map_message(msg):
             # lại được - nó phải biết mà nhảy sang bộ não kế tiếp.
             "dua_token": dua_token,
             "resume_failed": resume_failed,
+            # Claude kết thúc LỖI nhưng vẫn có chữ (hết lượt, lỗi giữa chừng) vẫn ra `final`, nên phải mang cờ theo:
+            # nơi nào cần biết lượt có thành công thật không (receipt của Resonance) đọc cờ này, không đoán qua chữ.
+            # Thêm khoá, không đổi hành vi của nơi gọi cũ.
+            "is_error": bool(msg.is_error),
+            "subtype": msg.subtype,
             "session_id": None if resume_failed else msg.session_id,
             "cost_usd": msg.total_cost_usd,
             "duration_ms": msg.duration_ms,

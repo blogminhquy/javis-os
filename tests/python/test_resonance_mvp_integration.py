@@ -192,9 +192,11 @@ check("vùng ghi / id sai: không dựng engine", bsc["n"] == 0)
 
 # ─────────────── bộ chọn engine chỉ chữ, chạy trên aux_engine thật ───────────────
 
-def fake_cli():
+def fake_cli(allowed_tools=("javis_reply_policy_khong_cong_cu",)):
+    # Giống engine Claude của _reply_policy_sandbox_engine: allowed_tools có giá trị thì cổng can_use_tool
+    # từ chối mọi công cụ. Đó là cơ chế chỉ chữ duy nhất bộ chọn tin cho mắt Claude.
     return types.SimpleNamespace(system_prompt="s", javis_vault=None, javis_mode="suggest", tag="resonance",
-                                 model=None)
+                                 model=None, cwd=None, allowed_tools=list(allowed_tools) if allowed_tools else None)
 
 
 CLAUDE = {"provider": "anthropic-cli", "model": "sonnet"}
@@ -236,20 +238,98 @@ check("chọn: OpenRouter giữ mắt API, không lùi về Claude", e4 is not N
       and i4["provider"] == "openrouter" and getattr(e4, "no_tools", False) is True)
 
 
-# Codex / Grok: engine CLI không mang `provider`. Không được chặn oan người đã chọn chúng.
-class CodexCLI:  # cùng tên lớp aux_engine._build_codex dựng
-    model = "gpt-5"
+# Mắt Claude mà KHÔNG có allowed_tools thì không có gì chặn công cụ: không được khai là chỉ chữ.
+base_open = fake_cli(allowed_tools=None)
+e7, i7 = R.pick_text_only_link(base_open, base_open, CLAUDE)
+check("chọn: Claude không có cổng chặn công cụ thì chặn", e7 is None and "chỉ chữ" in i7.get("blocked", ""))
+
+# Review PR #566 P1-2: Codex / Grok còn công cụ NATIVE (strip_tools chỉ gỡ MCP). Dựng bằng builder THẬT qua
+# aux_engine.swap; chỉ giả availability để không cần CLI trên máy, KHÔNG chạy CLI.
+_avail_that = aux_engine.availability
+aux_engine.availability = lambda spec, settings=None: (True, "")
+try:
+    import claude_cli  # noqa: E402
+    import grok_cli  # noqa: E402
+    CODEX = {"provider": "openai-oauth", "model": "gpt-5"}
+    for sandbox_env in ("auto", "off"):
+        os.environ["JAVIS_CODEX_SANDBOX"] = sandbox_env
+        bc = fake_cli()
+        swc = aux_engine.strip_tools(aux_engine.swap(bc, mode="suggest", tag="resonance", spec=CODEX,
+                                                     settings={"model": {"auxiliary": CODEX}}), bc)
+        first_c = swc._all()[0] if isinstance(swc, aux_engine._FallbackChain) else swc
+        check(f"Codex thật (sandbox={sandbox_env}): builder dựng đúng CodexCLI", isinstance(first_c, claude_cli.CodexCLI))
+        if sandbox_env == "off":
+            check("Codex thật (sandbox=off): sandbox thật sự là None", first_c.sandbox is None)
+        ec, ic = R.pick_text_only_link(swc, bc, CODEX, aux_engine._FallbackChain)
+        check(f"chọn: Codex (sandbox={sandbox_env}) bị chặn trước khi gọi vì còn công cụ native",
+              ec is None and "công cụ native" in ic.get("blocked", "") and ic.get("text_only") is False)
+    os.environ.pop("JAVIS_CODEX_SANDBOX", None)
+    GROK = {"provider": "grok-cli", "model": ""}
+    bg = fake_cli()
+    swg = aux_engine.strip_tools(aux_engine.swap(bg, mode="suggest", tag="resonance", spec=GROK,
+                                                 settings={"model": {"auxiliary": GROK}}), bg)
+    first_g = swg._all()[0] if isinstance(swg, aux_engine._FallbackChain) else swg
+    check("Grok thật: builder dựng đúng GrokCLI", isinstance(first_g, grok_cli.GrokCLI))
+    eg, ig = R.pick_text_only_link(swg, bg, GROK, aux_engine._FallbackChain)
+    check("chọn: Grok bị chặn trước khi gọi vì còn công cụ native",
+          eg is None and "công cụ native" in ig.get("blocked", ""))
+    # Engine bị chặn thì run_once không gọi gì và trả lại chỗ đã giữ
+    dcx = R.GoalDeps(engine_factory=lambda s, t: R.pick_text_only_link(swg, bg, GROK, aux_engine._FallbackChain),
+                     budget=R.CallBudget(1))
+    rcx = run(dcx, goal_in(Path(tempfile.mkdtemp())), "act_grok")
+    check("run_once với Grok: failed engine_blocked, không tốn lượt",
+          rcx.error_code == "engine_blocked" and dcx.budget.used == 0)
+finally:
+    aux_engine.availability = _avail_that
+    os.environ.pop("JAVIS_CODEX_SANDBOX", None)
 
 
-class GrokCLI:
-    model = ""
+# ─────────── Review PR #566 P1-1: Claude kết thúc LỖI nhưng vẫn có chữ (đi qua mapper SDK thật) ───────────
+import claude_sdk_engine  # noqa: E402
+from claude_agent_sdk import ResultMessage  # noqa: E402
 
 
-base5 = fake_cli()
-e5, i5 = R.pick_text_only_link(CodexCLI(), base5, {"provider": "openai-oauth", "model": "gpt-5"})
-check("chọn: Codex nhận đúng provider, không chặn oan", e5 is not None and i5["provider"] == "openai-oauth")
-e6, i6 = R.pick_text_only_link(GrokCLI(), base5, {"provider": "grok-cli", "model": ""})
-check("chọn: Grok nhận đúng provider, không chặn oan", e6 is not None and i6["provider"] == "grok-cli")
+def sdk_result(is_error, subtype, result, usage=None, cost=0.01):
+    evs, _sid = claude_sdk_engine.map_message(ResultMessage(
+        subtype=subtype, duration_ms=1200, duration_api_ms=900, is_error=is_error, num_turns=1,
+        session_id="s_m1", total_cost_usd=cost, usage=usage or {"input_tokens": 100, "output_tokens": 5},
+        result=result))
+    return evs
+
+
+t_err = Path(tempfile.mkdtemp(prefix="res-out-"))
+d_err, _ = make_deps(FakeEngine(sdk_result(True, "error_during_execution",
+                                           "You've hit your limit; try again after the reset.")))
+r_err = run(d_err, goal_in(t_err), "act_sdkerr")
+check("SDK lỗi có chữ: failed engine_result_error", r_err.status == "failed" and r_err.error_code == "engine_result_error")
+check("SDK lỗi có chữ: không ghi file đầu ra", not any(t_err.iterdir()))
+check("SDK lỗi có chữ: vẫn giữ usage của lượt lỗi", r_err.usage and r_err.usage.get("tokens_in") == 100)
+check("SDK lỗi có chữ: model đã gọi nên tính 1 lượt", d_err.budget.used == 1)
+t_ok = Path(tempfile.mkdtemp(prefix="res-out-"))
+d_ok, _ = make_deps(FakeEngine(sdk_result(False, "success", "# Việc đang dở\n- một")))
+r_ok = run(d_ok, goal_in(t_ok), "act_sdkok")
+check("SDK thành công qua mapper thật: succeeded", r_ok.status == "succeeded" and (t_ok / "act_sdkok.md").is_file())
+check("SDK thành công: usage đúng từ mapper thật", r_ok.usage and r_ok.usage["tokens_in"] == 100
+      and r_ok.usage["tokens_out"] == 5)
+
+
+# ─────────── Review PR #566 P2-1: chuẩn hoá usage, thiếu là thiếu ───────────
+u_g = R._usage_from(grok_cli.GrokCLI._usage({"input_tokens": 9028, "output_tokens": 54}), None)
+check("usage Grok thật (input_tokens/output_tokens): đọc đúng", u_g and u_g["tokens_in"] == 9028 and u_g["tokens_out"] == 54)
+u_c = R._usage_from({"type": "final", "content": "x", "cost_usd": 0.02}, None)
+check("final chỉ có cost: không bịa token bằng 0", u_c == {"cost_usd": 0.02})
+u_n = R._usage_from({"type": "final", "content": "x"}, None)
+check("final không có số liệu: usage vẫn None", u_n is None)
+
+
+# ─────────── Review PR #566 P2-2: đầu ra quá dài không bị cắt âm thầm ───────────
+t_big = Path(tempfile.mkdtemp(prefix="res-out-"))
+d_big, _ = make_deps(FakeEngine([{"type": "final", "content": "x" * R.OUTPUT_MAX_CHARS + "IMPORTANT_TAIL",
+                                  "tokens_in": 10, "tokens_out": 9}]))
+r_big = run(d_big, goal_in(t_big), "act_big")
+check("đầu ra quá dài: failed output_too_large", r_big.status == "failed" and r_big.error_code == "output_too_large")
+check("đầu ra quá dài: không công bố file bị cắt", not any(t_big.iterdir()))
+check("đầu ra quá dài: vẫn giữ usage", r_big.usage and r_big.usage["tokens_out"] == 9)
 
 
 # ───────────────────────────── pilot thật ─────────────────────────────
@@ -265,18 +345,41 @@ if PILOT:
               "có tiêu đề '# Việc đang dở' và đúng ba gạch đầu dòng, mỗi gạch một việc, kèm một bước kế tiếp ngắn.")
     receipt = asyncio.run(deps.run_once(goal, prompt, "pilot_m1_001"))
     replay = asyncio.run(deps.run_once(goal, prompt, "pilot_m1_001"))
-    rep = {"receipt": receipt.to_dict(), "replay_same_action": replay.to_dict(),
+    out_file = Path(receipt.output_ref) if receipt.output_ref else None
+    out_bytes = out_file.read_bytes() if out_file and out_file.is_file() else b""
+    out_text = out_bytes.decode("utf-8") if out_bytes else ""
+    disk_sha = hashlib.sha256(out_bytes).hexdigest() if out_bytes else None
+    lines = [ln for ln in out_text.splitlines() if ln.strip()]
+    import subprocess  # noqa: E402
+    try:
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(ROOT), capture_output=True, text=True,
+                              timeout=10).stdout.strip()
+        dirty = bool(subprocess.run(["git", "status", "--porcelain", "--", "server"], cwd=str(ROOT),
+                                    capture_output=True, text=True, timeout=10).stdout.strip())
+    except Exception:  # noqa: BLE001
+        head, dirty = "", None
+
+    def _no_path(d):
+        # Bỏ đường dẫn cá nhân: chỉ giữ tên file đầu ra.
+        d = dict(d)
+        if d.get("output_ref"):
+            d["output_ref"] = Path(d["output_ref"]).name
+        return d
+    rep = {"commit": head, "server_dirty": dirty, "prompt": prompt,
+           "receipt": _no_path(receipt.to_dict()), "replay_same_action": _no_path(replay.to_dict()),
            "budget": {"max_calls": deps.budget.max_calls, "used": deps.budget.used},
-           "output_preview": (Path(receipt.output_ref).read_text(encoding="utf-8")[:600]
-                              if receipt.output_ref and Path(receipt.output_ref).is_file() else None)}
+           "disk_sha256": disk_sha, "output": out_text}
     print("PILOT_REPORT " + json.dumps(rep, ensure_ascii=False))
     outp = os.environ.get("JAVIS_RESONANCE_PILOT_OUT")
     if outp:
-        Path(outp).write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
+        Path(outp).write_text(json.dumps(rep, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     check("pilot: receipt succeeded", receipt.status == "succeeded")
     check("pilot: chạy đúng provider đã chọn",
           receipt.engine.get("provider") == receipt.engine.get("requested_provider"))
-    check("pilot: host ghi đầu ra và có hash", bool(receipt.output_ref and receipt.output_sha256))
+    check("pilot: SHA-256 tính lại từ byte trên đĩa khớp receipt", bool(disk_sha) and disk_sha == receipt.output_sha256)
+    check("pilot: đầu ra đúng cấu trúc yêu cầu (tiêu đề + đúng 3 gạch đầu dòng)",
+          bool(lines) and lines[0].strip() == "# Việc đang dở"
+          and sum(1 for ln in lines if ln.lstrip().startswith("- ")) == 3)
     check("pilot: không gọi công cụ", receipt.tool_calls_observed == 0)
     check("pilot: chạy lại cùng action_id không gọi model", replay.error_code == "action_exists"
           and deps.budget.used == 1)
