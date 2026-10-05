@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.81.1] - 2026-10-05
+### Sửa lỗi
+- Đang viết.
+
 ## [0.81.0] - 2026-10-05
 ### Thêm mới
 - **Bot tự nhìn ảnh khách gửi bằng chính bộ não của nó.** Ảnh đi thẳng vào lượt chat cho Claude, GPT, Gemini, OpenRouter, Groq, Ollama, gói ChatGPT hay gói Claude Code xem, không còn phụ thuộc ChatGPT tả hộ. Ảnh lưu trong brain của bot và tự dọn như mọi file tải về.
