@@ -20,7 +20,9 @@ import io
 import os
 import sys
 import tempfile
+import struct
 import time
+import zlib
 from pathlib import Path
 
 os.environ["JAVIS_STATE_DIR"] = tempfile.mkdtemp(prefix="javis-anhchat-")
@@ -30,7 +32,10 @@ try:
 except Exception:
     pass
 
-from PIL import Image  # noqa: E402
+try:
+    from PIL import Image  # noqa: E402
+except Exception:      # noqa: BLE001 - Pillow is NOT a dependency of Javis (CI and the Docker image run without it)
+    Image = None
 
 import vision_input as vi  # noqa: E402
 import engine  # noqa: E402
@@ -44,32 +49,58 @@ def check(name, cond, them=""):
         fails.append(name)
 
 
+def png_bytes(w, h, rgb=(0, 128, 0)):
+    """A real PNG written with the stdlib, so this test runs with or without Pillow."""
+    raw = b"".join(b"\x00" + bytes(rgb) * w for _ in range(h))
+
+    def chunk(t, d):
+        return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
 BRAIN = Path(tempfile.mkdtemp(prefix="brain-anhchat-"))
 (BRAIN / "inbox" / "khach").mkdir(parents=True)
+SMALL = BRAIN / "inbox" / "khach" / "photo_2.png"
+SMALL.write_bytes(png_bytes(400, 300))
 BIG = BRAIN / "inbox" / "khach" / "photo_1.png"
-Image.new("RGBA", (3000, 2000), (255, 0, 0, 128)).save(BIG)
-SMALL = BRAIN / "inbox" / "khach" / "photo_2.jpg"
-Image.new("RGB", (400, 300), (0, 128, 0)).save(SMALL, "JPEG")
-OUTSIDE = Path(tempfile.mkdtemp(prefix="outside-")) / "secret.jpg"
-Image.new("RGB", (10, 10)).save(OUTSIDE, "JPEG")
+BIG.write_bytes(png_bytes(3000, 2000))
+OUTSIDE = Path(tempfile.mkdtemp(prefix="outside-")) / "secret.png"
+OUTSIDE.write_bytes(png_bytes(10, 10))
 
 # ---- 1. vision_input ---------------------------------------------------------------------------------------------------
-mime, b64 = vi.load(BIG)
-im = Image.open(io.BytesIO(base64.b64decode(b64)))
-check("a big transparent PNG is shrunk to 1568 px and sent as JPEG on white", mime == "image/jpeg" and max(im.size) == vi.MAX_SIDE
-      and im.mode == "RGB", (mime, im.size, im.mode))
 mime2, b642 = vi.load(SMALL)
-check("a small JPEG is sent as is", mime2 == "image/jpeg" and base64.b64decode(b642) == SMALL.read_bytes())
+check("a small PNG is sent as is", mime2 == "image/png" and base64.b64decode(b642) == SMALL.read_bytes())
 check("a missing or non-image file loads as None", vi.load(BRAIN / "nope.jpg") is None and vi.load(BRAIN) is None)
+if Image is not None:
+    mime, b64 = vi.load(BIG)
+    im = Image.open(io.BytesIO(base64.b64decode(b64)))
+    check("with Pillow: a big photo is shrunk to 1568 px and sent as JPEG", mime == "image/jpeg"
+          and max(im.size) == vi.MAX_SIDE and im.mode == "RGB", (mime, im.size, im.mode))
+# Without Pillow (CI, the Docker image): small files go as they are, files over the cap are refused, never a crash.
+_saved_pil = sys.modules.get("PIL")
+sys.modules["PIL"] = None
+try:
+    m3, b3 = vi.load(BIG)
+    check("without Pillow: a photo under the size cap is sent unchanged", m3 == "image/png"
+          and base64.b64decode(b3) == BIG.read_bytes())
+    HUGE = BRAIN / "inbox" / "khach" / "huge.png"
+    HUGE.write_bytes(b"\x89PNG" + b"0" * (vi.MAX_RAW_BYTES + 10))
+    check("without Pillow: a photo over the size cap is refused (honest label), not sent", vi.load(HUGE) is None)
+finally:
+    if _saved_pil is None:
+        sys.modules.pop("PIL", None)
+    else:
+        sys.modules["PIL"] = _saved_pil
 parts = vi.user_parts("áo này còn size M không?", [SMALL, BIG])
 check("user_parts: the text first, then one image_url part per photo",
       parts[0] == {"type": "text", "text": "áo này còn size M không?"} and len(parts) == 3
-      and parts[1]["image_url"]["url"].startswith("data:image/jpeg;base64,"), parts and parts[0])
+      and parts[1]["image_url"]["url"].startswith("data:image/png;base64,"), parts and parts[0])
 check("user_parts with nothing loadable returns None (caller keeps plain text)", vi.user_parts("x", [BRAIN / "nope.jpg"]) is None)
 ant = vi.to_anthropic(parts)
 check("Anthropic: images become base64 image blocks, placed BEFORE the text",
       [b["type"] for b in ant] == ["image", "image", "text"] and ant[0]["source"]["type"] == "base64"
-      and ant[0]["source"]["media_type"] == "image/jpeg", [b["type"] for b in ant])
+      and ant[0]["source"]["media_type"].startswith("image/"), [b["type"] for b in ant])
 check("Anthropic: a plain string passes through", vi.to_anthropic("chào") == "chào")
 resp = vi.to_responses(parts, "user")
 check("Responses (ChatGPT plan): input_text + input_image items",
@@ -77,7 +108,7 @@ check("Responses (ChatGPT plan): input_text + input_image items",
 msgs = [{"role": "system", "content": "sys"}, {"role": "user", "content": parts}]
 plain, imgs = vi.split_last_images(msgs)
 check("split_last_images: plain text messages + the images on the side",
-      plain[1]["content"] == "áo này còn size M không?" and len(imgs) == 2 and imgs[0][0] == "image/jpeg")
+      plain[1]["content"] == "áo này còn size M không?" and len(imgs) == 2 and imgs[0][0] == "image/png")
 check("content_text reads a parts list", vi.content_text(parts) == "áo này còn size M không?")
 blocks = vi.anthropic_blocks("prompt", imgs)
 check("Claude Code blocks: images first, then the prompt text", [b["type"] for b in blocks] == ["image", "image", "text"])
