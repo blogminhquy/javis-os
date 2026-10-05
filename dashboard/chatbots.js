@@ -243,8 +243,8 @@
     // nguồn nào). Màu vàng chứ không đỏ: bot vẫn trả lời tử tế, chỉ là chạy thiếu quyền. Để im
     // thì chủ tưởng bot đang làm việc thật - đúng kiểu hỏng lặng lẽ mà cả trang này chống.
     var cbao = b.canh_bao_luot
-      ? '<div class="cb-quyen ghi">' + ic("triangle-alert") + ' ' +
-        esc(String(b.canh_bao_luot).slice(0, 300)) + '</div>' : "";
+      ? '<div class="cb-quyen ghi">' + ic("triangle-alert") + '<span class="cb-quyen-t">' +
+        esc(String(b.canh_bao_luot).slice(0, 300)) + '</span></div>' : "";
     // Mức quyền phải nhìn thấy TỪ NGOÀI THẺ, không phải mở form Sửa mới biết. Một con bot toàn
     // quyền lẫn giữa mấy con chỉ đọc mà nhìn giống hệt nhau là đúng kiểu hỏng im lặng: chủ nhớ
     // nhầm con nào là con nào rồi thả nhầm vào chỗ ai cũng nhắn được.
@@ -307,7 +307,7 @@
     // người dùng đi mở @BotFather tìm một cài đặt không tồn tại cho con bot đó.
     var coTelegram = (b.accounts || []).some(function (a) { return a.channel === "telegram"; });
     var riengTu = (coTelegram && duNhom && st.da_hoi_telegram && !st.doc_moi_tin_nhom)
-      ? '<div class="cb-quyen ghi">' + ic("triangle-alert") + ' ' + esc(window.t("cb.rt_1")) +
+      ? '<div class="cb-quyen ghi">' + ic("triangle-alert") + '<span class="cb-quyen-t">' + esc(window.t("cb.rt_1")) +
         ' <b>' + esc(window.t("cb.rt_che_do")) + '</b> ' + esc(window.t("cb.rt_2")) +
         ' <b>' + esc(window.t("cb.rt_lenh")) + '</b> ' + esc(window.t("cb.rt_va")) +
         ' <b>' + esc(window.t("cb.rt_tra_thang")) + '</b>' +
@@ -315,7 +315,7 @@
         esc(window.t("cb.rt_fix_1")) + ' <b>@BotFather</b> ' + esc(window.t("cb.rt_go")) +
         ' <b>/setprivacy</b>' + esc(window.t("cb.rt_fix_2")) + ' <b>Disable</b>' +
         esc(window.t("cb.rt_fix_3")) + ' <b>' + esc(window.t("cb.rt_quan_tri")) + '</b>. ' +
-        esc(window.t("cb.rt_fix_4")) + '</div>' : "";
+        esc(window.t("cb.rt_fix_4")) + '</span></div>' : "";
     var c = el(
       '<div class="cb-card">' +
         '<div class="cb-head">' +

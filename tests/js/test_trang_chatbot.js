@@ -297,6 +297,14 @@ check("cảnh báo chế độ riêng tư cho mọi bot có dùng nhóm",
 // `/setprivacy` là LỆNH gõ cho BotFather nên cố ý không dịch, vẫn nằm thẳng trong .js.
 check("cảnh báo chỉ ra CẢ HAI cách sửa, không chỉ BotFather",
   /setprivacy/.test(CB) && noi("cb.rt_quan_tri", "quản trị viên"));
+// Telegram docs: disabling privacy mode only takes effect after the bot is re-added to the group.
+check("cảnh báo nhắc xoá bot khỏi nhóm rồi thêm lại sau khi tắt riêng tư",
+  noi("cb.rt_fix_4", "THÊM LẠI") && tu("cb2.rw_tg", "thêm lại"));
+// 0.77.2: the box is a flex row, so loose text and <b> as direct children each became a column
+// (one word per line on the card). All text must sit in ONE .cb-quyen-t span.
+check("chữ của khung cảnh báo nằm trong một span, không vỡ thành cột",
+  /triangle-alert"\) \+ '<span class="cb-quyen-t">' \+ esc\(window\.t\("cb\.rt_1"\)\)/.test(CB) &&
+  /\.cb-quyen-t \{ flex: 1/.test(CSS));
 // getMe hỏng: bot trả lời tin nhắn riêng hoàn hảo nhưng điếc trong mọi nhóm, vì không biết
 // @username của chính mình. Chấm vẫn xanh, lượt vẫn chạy - không có dòng này thì không ai đoán ra.
 check("thẻ nói ra khi bot không hỏi được danh tính của chính nó",

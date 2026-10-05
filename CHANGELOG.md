@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.77.2] - 2026-10-05
+### Sửa lỗi
+- **Khung cảnh báo Telegram trên thẻ bot hết vỡ chữ.** Trước đây mỗi cụm chữ đậm bị dựng thành một cột hẹp, đọc từng chữ một. Giờ hiện thành đoạn văn bình thường.
+- **Hướng dẫn tắt chế độ riêng tư của Telegram đủ bước.** Tắt ở @BotFather xong phải xoá bot khỏi nhóm rồi thêm lại thì mới có tác dụng; trước đây thiếu bước này nên làm theo vẫn không thấy bot trả lời trong nhóm.
+
 ## [0.77.1] - 2026-10-05
 ### Sửa lỗi
 - **Đổi mật khẩu admin trên Hostinger giờ có tác dụng.** Trước đây `JAVIS_ADMIN_PASSWORD` chỉ dùng lúc máy chưa có admin, nên đổi trong ô Environment rồi Redeploy vẫn báo "Sai tài khoản hoặc mật khẩu". Nay env đổi so với lần trước là Javis đặt lại tài khoản theo nó, 2FA giữ nguyên, phiên cũ bị đăng xuất.

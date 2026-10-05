@@ -912,8 +912,9 @@ def _chan_doan_nhom(bot_id: str, chat: str, meta: dict) -> str:
                     "chắn tới được em là **lệnh `/...`** và **tin trả lời thẳng vào tin của "
                     "em**. Tag tên mà em im thì gần như luôn là vì cái này.")
         dong.append("Sửa bằng MỘT trong hai cách: mở **@BotFather** gõ `/setprivacy`, chọn em, "
-                    "chọn **Disable**; hoặc cho em làm **quản trị viên** nhóm này. Xong thì tắt "
-                    "bật lại em ở trang Chatbot.")
+                    "chọn **Disable**, rồi **xoá em khỏi nhóm và thêm lại** (Telegram chỉ áp chế độ "
+                    "mới khi em vào lại nhóm); hoặc cho em làm **quản trị viên** nhóm này. Xong "
+                    "thì tắt bật lại em ở trang Chatbot.")
     return "\n\n".join(dong)
 
 

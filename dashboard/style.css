@@ -2748,6 +2748,10 @@ body.ne-full-on .cview { z-index: 250; }
    này không nói? Ba màu để phân biệt được từ xa giữa một lưới thẻ giống hệt nhau. */
 .cb-quyen { display: flex; align-items: flex-start; gap: 6px; font-size: 12.5px;
   line-height: 1.5; border-radius: 7px; padding: 6px 8px; }
+/* Text of a warning box: ONE flex item. Loose text and <b> as direct children each became a
+   column of their own (0.77.2, the Telegram privacy warning rendered one word per line). */
+div.cb-quyen > svg { flex: none; margin-top: 2px; }
+.cb-quyen-t { flex: 1; min-width: 0; }
 .cb-quyen.doc { color: var(--text3); background: var(--surface-3);
   border: 1px solid var(--border); }
 .cb-quyen.ghi { color: var(--warn-ink); background: var(--warn-wash);
