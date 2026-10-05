@@ -81,8 +81,9 @@ check("chưa tải thì KHÔNG đặt đường dẫn kho trình duyệt (để 
 
 # ---- 5. Hub phải truyền env đó cho tiến trình Playwright ----
 ms = open(os.path.join(ROOT, "server", "mcp_store.py"), encoding="utf-8").read()
+# `lenh` là lệnh SAU KHI đã đổi lệnh mặc định cũ sang lệnh hiện hành (`lenh_cu`, 0.82.0).
 check("mcp_store nhận biết connector Playwright theo LỆNH, không theo id",
-      re.search(r'if "playwright" in \(str\(c\.get\("command"\)', ms) is not None)
+      re.search(r'if "playwright" in \(str\(lenh', ms) is not None)
 check("và hỏi optional_tools chứ không tự biết tên biến của một connector",
       "optional_tools.env_playwright()" in ms)
 check("dùng setdefault: người dùng tự chọn trong form thì KHÔNG bị đè",

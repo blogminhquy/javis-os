@@ -133,6 +133,42 @@ check("read-only connection can run a read operation through the gateway", ok is
 ok, _ = mcp_catalog.allowed(gw, "safe", "full", "execute", {"operation": "domains_portfolio_purchase"})
 check("Draft level cannot run an unlisted operation through the gateway", ok is False)
 
+# ============================================================
+# 4. Existing connections move to the new command
+# ============================================================
+# A connection stores its command when it is created, so without `lenh_cu` an existing Google
+# Ads connection would keep running GitHub main forever and the rule would only reach new ones.
+import mcp_store  # noqa: E402
+
+
+def resolved_of(cid):
+    return next(r for r in mcp_store.resolved(enabled_only=False) if r["id"] == cid)
+
+
+old_ads = ["--from", "git+https://github.com/googleads/google-ads-mcp.git", "google-ads-mcp"]
+cid_old, _ = mcp_store.add_connection("google-ads", {
+    "label": "old", "command": "uvx", "args": old_ads,
+    "fields": {"client_id": "x", "client_secret": "y", "developer_token": "D"}})
+r = resolved_of(cid_old)
+check("old Google Ads connection now runs the official release",
+      r["command"] == "uvx" and r["args"] == ["google-ads-mcp@latest"], (r["command"], r["args"]))
+custom = ["--from", "google-ads-mcp==0.0.3", "google-ads-mcp"]
+cid_custom, _ = mcp_store.add_connection("google-ads", {
+    "label": "custom", "command": "uvx", "args": custom,
+    "fields": {"client_id": "x", "client_secret": "y", "developer_token": "D"}})
+check("a command the user changed by hand is kept", resolved_of(cid_custom)["args"] == custom)
+cid_new, _ = mcp_store.add_connection("google-ads", {
+    "label": "new", "fields": {"client_id": "x", "client_secret": "y", "developer_token": "D"}})
+check("a new connection takes the catalog command", resolved_of(cid_new)["args"] == ["google-ads-mcp@latest"])
+cid_zalo, _ = mcp_store.add_connection("zalo", {
+    "label": "zalo-old", "command": "npx", "args": ["-y", "zalo-agent-cli", "mcp", "start"]})
+check("old unpinned Zalo connection moves to the pinned command",
+      resolved_of(cid_zalo)["args"] == zalo["args"], resolved_of(cid_zalo)["args"])
+for c in raw["connectors"]:
+    for cu in c.get("lenh_cu") or []:
+        check(f"{c['id']}: an old command is never the current one",
+              (cu.get("command"), cu.get("args")) != (c.get("command"), c.get("args")))
+
 if _fails:
     print(f"\nFAIL - test_mcp_official_release: {len(_fails)} failed: {_fails}")
     raise SystemExit(1)

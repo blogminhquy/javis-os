@@ -9,6 +9,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.82.0] - 2026-10-05
 ### Cải thiện
 - **Kết nối MCP của bên thứ 3 luôn chạy bản chính thức mới nhất.** Google Search Console, Google Workspace, Google Tasks, Google Keep, NotebookLM và Google Ads tự lên bản mới mỗi khi bên phát hành ra bản, thay vì kẹt ở bản máy tải lần đầu.
+- **Kết nối đã tạo từ trước cũng tự lên lệnh mới.** Trước đây mỗi kết nối giữ nguyên lệnh chạy lúc tạo, nên bản sửa trong app không tới được máy đã kết nối sẵn (Zalo cũ chạy bản không ghim, Google Sheets cũ thiếu bản vá). Lệnh bạn tự sửa tay thì vẫn giữ nguyên.
 - **Google Ads không cần cài Git nữa.** Javis chạy bản chính thức của Google trên PyPI thay cho code chưa phát hành trên GitHub, và bỏ ô Google Cloud Project ID vì không còn dùng tới.
 ### Bảo mật
 - **Google Workspace không còn chạy Apps Script ở mức Ghi nháp.** Bản mới của Workspace có công cụ chạy hàm Apps Script mà Javis lỡ xếp vào nhóm chỉ đọc. Giờ nó cần Toàn quyền, còn các công cụ nhập tệp vào Docs, Sheets, Slides tính là ghi.

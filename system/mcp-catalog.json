@@ -53,6 +53,9 @@
       "transport": "stdio",
       "command": "npx",
       "args": ["-y", "zalo-agent-cli@1.6.2", "mcp", "start"],
+      "lenh_cu": [
+        { "command": "npx", "args": ["-y", "zalo-agent-cli", "mcp", "start"] }
+      ],
       "ngoai_le_ban_chinh_thuc": "Zalo KHÔNG đi theo bản gốc nữa (chủ repo chốt 2026-10-05): Javis chuyển sang bản CLI riêng, chỉ giữ thư viện zca-js đi theo bản chính thức. Trong lúc chờ, chạy nguyên bản zalo-agent-cli 1.6.2 (chưa sửa dòng nào) vì đăng nhập QR (zalo_login.py), gửi ảnh/tag/ghi chú nhóm (zalo_cli.py) và gói javis.zalo đọc thẳng định dạng của đúng bản đó. Ba chỗ ghim (ở đây, zalo_cli.py, zalo_login.py) phải luôn trùng nhau.",
       "requires": { "node": ">=20" },
       "isolate_home": true,
@@ -130,6 +133,9 @@
       "command": "uvx",
       "_args_doc": "Ghim mcp<2 vì mcp-google-sheets khai `mcp>=1.8.0` KHÔNG chặn trần, mà mcp 2.0 đã bỏ đường dẫn mcp.server.fastmcp → uvx giải phụ thuộc tươi mỗi lần chạy nên luôn kéo mcp 2.x và gói chết ngay dòng import đầu tiên (ModuleNotFoundError), trước cả khi nói gì qua stdout. Đã tái hiện và xác nhận fix 2026-08-16.",
       "args": ["--with", "mcp<2", "mcp-google-sheets@latest"],
+      "lenh_cu": [
+        { "command": "uvx", "args": ["mcp-google-sheets@latest"] }
+      ],
       "auth": {
         "type": "apikey",
         "fields": [
@@ -177,6 +183,9 @@
       "transport": "stdio",
       "command": "npx",
       "args": ["-y", "mcp-server-gsc@latest"],
+      "lenh_cu": [
+        { "command": "npx", "args": ["-y", "mcp-server-gsc"] }
+      ],
       "requires": { "node": ">=18" },
       "auth": {
         "type": "apikey",
@@ -207,6 +216,9 @@
       "transport": "stdio",
       "command": "uvx",
       "args": ["workspace-mcp@latest", "--tool-tier", "core"],
+      "lenh_cu": [
+        { "command": "uvx", "args": ["workspace-mcp", "--tool-tier", "core"] }
+      ],
       "_env_doc": "workspace-mcp nhận Client ID + Secret nên chạy luồng OAuth 'confidential', mà chỗ nó hứng kết quả đăng nhập là http://localhost:8000/oauth2callback - HTTP trần. Thư viện oauthlib mặc định NÉM InsecureTransportError với http, nên thiếu biến này là bấm đồng ý xong quay về vẫn lỗi, không tài nào đăng nhập xong - đúng kiểu bế tắc mà hướng dẫn không nói ra được. README upstream khai biến này 'required'; đây là hằng số kỹ thuật của package, không phải thứ bắt user gõ. An toàn vì callback chỉ chạy trên loopback của chính máy đó.",
       "env": { "OAUTHLIB_INSECURE_TRANSPORT": "1" },
       "_needs_local_browser_doc": "workspace-mcp tự chạy OAuth với callback CỨNG http://localhost:8000/oauth2callback - chỉ sống khi trình duyệt và server Javis là CÙNG MỘT MÁY. Truy cập Javis qua domain public là Google redirect về localhost CỦA NGƯỜI DÙNG rồi chết ERR_CONNECTION_REFUSED (issue #112). Cờ này cho /connect/add chặn kèm lời giải thích (can_force) thay vì để user đâm vào ngõ cụt; VPS thì chỉ sang thẻ Lịch và Gmail riêng - hai thẻ đó đi qua OAuth của chính Javis nên chạy được sau proxy.",
@@ -271,6 +283,9 @@
       "command": "uvx",
       "_args_doc": "Chạy chung server workspace-mcp với connector google-workspace nhưng chỉ nạp service tasks. Tier complete vì list_task_lists nằm ở tier complete - thiếu nó thì không biết ID danh sách để đọc việc.",
       "args": ["workspace-mcp@latest", "--tools", "tasks", "--tool-tier", "complete"],
+      "lenh_cu": [
+        { "command": "uvx", "args": ["workspace-mcp", "--tools", "tasks", "--tool-tier", "complete"] }
+      ],
       "_env_doc": "Cùng server workspace-mcp với connector google-workspace nên dính y hệt: thiếu biến này là oauthlib chặn callback http://localhost, bấm đồng ý xong vẫn không đăng nhập được. Xem _env_doc của google-workspace.",
       "env": { "OAUTHLIB_INSECURE_TRANSPORT": "1" },
       "_needs_local_browser_doc": "workspace-mcp tự chạy OAuth với callback CỨNG http://localhost:8000/oauth2callback - chỉ sống khi trình duyệt và server Javis là CÙNG MỘT MÁY. Truy cập Javis qua domain public là Google redirect về localhost CỦA NGƯỜI DÙNG rồi chết ERR_CONNECTION_REFUSED (issue #112). Cờ này cho /connect/add chặn kèm lời giải thích (can_force) thay vì để user đâm vào ngõ cụt; VPS thì chỉ sang thẻ Lịch và Gmail riêng - hai thẻ đó đi qua OAuth của chính Javis nên chạy được sau proxy.",
@@ -331,6 +346,9 @@
       "transport": "stdio",
       "command": "uvx",
       "args": ["google-ads-mcp@latest"],
+      "lenh_cu": [
+        { "command": "uvx", "args": ["--from", "git+https://github.com/googleads/google-ads-mcp.git", "google-ads-mcp"] }
+      ],
       "auth": {
         "type": "oauth",
         "provider": "google",
@@ -575,6 +593,9 @@
       "command": "uvx",
       "_args_doc": "KHÔNG dùng `uvx keep-mcp`: package keep-mcp khai console script tên `mcp` (server.cli:main), trùng tên với CLI của MCP SDK (mcp.cli:app) vốn là dependency của nó, nên chạy nhầm sang CLI của SDK. Module `server/__main__.py` là đường duy nhất không mơ hồ.",
       "args": ["--from", "keep-mcp@latest", "python", "-m", "server"],
+      "lenh_cu": [
+        { "command": "uvx", "args": ["--from", "keep-mcp", "python", "-m", "server"] }
+      ],
       "requires": { "uv": true },
       "auth": {
         "type": "apikey",
@@ -651,6 +672,9 @@
       "command": "uvx",
       "_args_doc": "Tên package (notebooklm-py) KHÁC tên lệnh (notebooklm-mcp) nên bắt buộc `--from`, và phải kèm extra [mcp] vì fastmcp không nằm trong dependency lõi - thiếu nó thì lệnh chạy được nhưng chết ngay ở import. Đúng loại bẫy đã ghi ở connector google-keep. Server MCP là của CHÍNH thư viện (console script notebooklm-mcp, transport stdio), Javis không viết wrapper.",
       "args": ["--from", "notebooklm-py[mcp]@latest", "notebooklm-mcp"],
+      "lenh_cu": [
+        { "command": "uvx", "args": ["--from", "notebooklm-py[mcp]", "notebooklm-mcp"] }
+      ],
       "requires": { "uv": true },
       "isolate_home": true,
       "auth": {
