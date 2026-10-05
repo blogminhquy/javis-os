@@ -11255,9 +11255,17 @@ async def _start_scheduler():
 _BROWSE_MD_CAP = 500        # trần đếm .md cho mỗi thư mục con
 _BROWSE_HERE_CAP = 1000     # trần đếm .md ngay tại thư mục đang đứng
 _BROWSE_DEPTH = 8           # tầng sâu tối đa khi đếm
+# Trần THỜI GIAN cho việc đếm, vì trần số file .md không đủ: một cây khổng lồ mà gần như không
+# có file .md thì không bao giờ chạm trần đó. Ca thật 2026-10-05: chọn ổ C trên Windows là hộp
+# treo ở "Đang tải..." mãi, vì riêng C:\Windows có hàng trăm nghìn mục (đo 20 giây vẫn chưa
+# quét xong) mà chỉ vài file .md. Hết giờ thì trả số đếm được tới lúc đó (cận dưới, giống
+# hệt khi chạm trần số), hoặc bỏ hẳn nhãn nếu chưa kịp đếm.
+_BROWSE_DIR_BUDGET_S = 0.5      # mỗi thư mục con
+_BROWSE_HERE_BUDGET_S = 1.0     # thư mục đang đứng (here_md)
+_BROWSE_TOTAL_BUDGET_S = 4.0    # cả danh sách thư mục con cộng lại
 
 
-def _count_md(root: str, cap: int) -> int:
+def _count_md(root: str, cap: int, deadline: float | None = None) -> int:
     """Đếm file .md dưới root, có TRẦN THẬT: chạm cap là dừng ngay, không đi nốt cây.
 
     Bản cũ dùng `glob.glob(..., recursive=True)[:500]` - lát cắt chỉ áp lên KẾT QUẢ nên
@@ -11266,10 +11274,15 @@ def _count_md(root: str, cap: int) -> int:
     gắn unhealthy và Traefik gỡ route: cả trang thành 404 dù app vẫn sống.
 
     Không đi theo symlink (symlink trỏ ngược lên cha làm glob recursive lặp vô tận), có
-    trần độ sâu, và lỗi quyền ở một nhánh không giết cả lần đếm."""
+    trần độ sâu, và lỗi quyền ở một nhánh không giết cả lần đếm.
+
+    `deadline` (mốc time.monotonic()) là trần thời gian: quá mốc thì dừng và trả số đã đếm.
+    Xem _BROWSE_DIR_BUDGET_S để biết vì sao trần số file thôi là chưa đủ."""
     n = 0
     stack = [(root, 0)]
     while stack:
+        if deadline is not None and time.monotonic() >= deadline:
+            return n
         cur, depth = stack.pop()
         try:
             with os.scandir(cur) as it:
@@ -11320,15 +11333,20 @@ def _browse_sync(path: str, dem_md: bool = True) -> dict:
 
     try:
         dirs = []
+        het_gio = time.monotonic() + _BROWSE_TOTAL_BUDGET_S
         for name in sorted(os.listdir(path), key=str.lower):
             if name.startswith(".") or name.startswith("$"):
                 continue
             full = os.path.join(path, name)
             if os.path.isdir(full):
                 md = None
-                if dem_md:
+                con_lai = het_gio - time.monotonic()
+                if dem_md and con_lai > 0:
+                    # Hết ngân sách tổng thì các thư mục còn lại không có nhãn (md=None):
+                    # danh sách thư mục vẫn hiện đủ, chỉ thiếu con số phụ.
                     try:
-                        md = _count_md(full, _BROWSE_MD_CAP)
+                        md = _count_md(full, _BROWSE_MD_CAP,
+                                       deadline=time.monotonic() + min(_BROWSE_DIR_BUDGET_S, con_lai))
                     except Exception:
                         md = 0
                 dirs.append({"name": name, "path": full, "md": md, "git": _la_repo(full)})
@@ -11337,7 +11355,9 @@ def _browse_sync(path: str, dem_md: bool = True) -> dict:
         parent = os.path.dirname(path.rstrip("\\/")) or None
         if os.name == "nt" and parent and len(parent) <= 2:
             parent = ""  # về danh sách ổ đĩa
-        here_md = _count_md(path, _BROWSE_HERE_CAP) if dem_md else None
+        here_md = (_count_md(path, _BROWSE_HERE_CAP,
+                             deadline=time.monotonic() + _BROWSE_HERE_BUDGET_S)
+                   if dem_md else None)
         return {"path": path, "parent": parent, "here_md": here_md,
                 "git": _la_repo(path), "dirs": dirs}
     except PermissionError:

@@ -117,6 +117,40 @@ def test_browse_cay_khong_lo_van_tra_nhanh(tmp_path):
     assert mat < 8, f"quét mất {mat:.1f}s - trần không có tác dụng"
 
 
+def test_dem_md_dung_khi_het_gio(tmp_path):
+    """Trần số file chưa đủ: cây khổng lồ gần như không có .md (C:\\Windows) không bao giờ
+    chạm trần đó. Quá mốc deadline là phải dừng, kể cả khi chưa đếm được gì."""
+    _cay_sau(tmp_path, nhanh=4, moi_nhanh=50)
+    assert main._count_md(str(tmp_path), cap=500, deadline=time.monotonic() - 1) == 0
+    assert main._count_md(str(tmp_path), cap=500, deadline=time.monotonic() + 60) == 200
+
+
+def test_browse_o_dia_cham_van_tra_trong_tran_tong(tmp_path, monkeypatch):
+    """Ca thật 2026-10-05: chọn ổ C là hộp treo ở "Đang tải..." vì đếm .md trong từng thư mục
+    con (Windows, Program Files...) không bao giờ xong. Giả lập mỗi lần đếm chạy tới tận
+    deadline: cả lần duyệt vẫn phải trả về trong trần tổng, danh sách thư mục vẫn ĐỦ, chỉ
+    những thư mục quá giờ là mất nhãn số."""
+    for i in range(20):
+        (tmp_path / f"thu-muc-{i:02d}").mkdir()
+
+    def dem_toi_het_gio(root, cap, deadline=None):
+        assert deadline is not None, "_browse_sync gọi đếm mà không truyền deadline"
+        time.sleep(max(0.0, deadline - time.monotonic()))
+        return 1
+
+    monkeypatch.setattr(main, "_count_md", dem_toi_het_gio)
+    monkeypatch.setattr(main, "_BROWSE_DIR_BUDGET_S", 0.05)
+    monkeypatch.setattr(main, "_BROWSE_HERE_BUDGET_S", 0.05)
+    monkeypatch.setattr(main, "_BROWSE_TOTAL_BUDGET_S", 0.3)
+    bat_dau = time.monotonic()
+    res = main._browse_sync(str(tmp_path), True)
+    mat = time.monotonic() - bat_dau
+    assert len(res["dirs"]) == 20, "hết giờ đếm không được làm mất thư mục nào"
+    co_so = [d for d in res["dirs"] if d["md"] is not None]
+    assert 0 < len(co_so) < 20, "phải đếm vài thư mục đầu rồi bỏ nhãn phần còn lại"
+    assert mat < 1.5, f"duyệt mất {mat:.2f}s, trần tổng không có tác dụng"
+
+
 def test_browse_van_tra_dung_du_lieu(tmp_path):
     (tmp_path / "brain-a").mkdir()
     (tmp_path / "brain-a" / "note.md").write_text("x", encoding="utf-8")
