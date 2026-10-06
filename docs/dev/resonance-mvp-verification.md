@@ -386,7 +386,7 @@ Lượt chạy toàn bộ đầu tiên của M2 (commit `66328b61`) có `test_vo
 
 ### Kết quả với engine giả
 
-`tests/python/test_resonance_mvp_run.py` (71 kiểm tra), kho SQLite thật, engine giả theo hợp đồng sự kiện của aux_engine, cổng bằng chứng giả cùng hợp đồng với `_ResonanceEvidence`. Đủ các test Task M3 đặt tên: `done_is_not_success`, `missing_evidence_unknown`, `restart_does_not_repeat_effect`, `old_revision_cannot_finish`, `pause_and_revoke`, `audit_failure_before_effect`, `budget_reserved_before_call`, `limit_keeps_checkpoint`, `no_paid_provider_fallback`, `idle_does_not_call_model`, `guard_wakes_without_worker`, `no_source_uses_bounded_review`. Thêm: không ghi đè file người dùng đã sửa, chín đường dẫn bị cấm đăng, mục tiêu duy trì làm tiếp sau tin bổ sung (lời gửi model có cả lời gốc, tin mới và bản hiện có), báo một lần mỗi revision.
+`tests/python/test_resonance_mvp_run.py` (71 kiểm tra ở bản đầu, 92 sau sửa review), kho SQLite thật, engine giả theo hợp đồng sự kiện của aux_engine, cổng bằng chứng giả cùng hợp đồng với `_ResonanceEvidence`. Đủ các test Task M3 đặt tên: `done_is_not_success`, `missing_evidence_unknown`, `restart_does_not_repeat_effect`, `old_revision_cannot_finish`, `pause_and_revoke`, `audit_failure_before_effect`, `budget_reserved_before_call`, `limit_keeps_checkpoint`, `no_paid_provider_fallback`, `idle_does_not_call_model`, `guard_wakes_without_worker`, `no_source_uses_bounded_review`. Thêm: không ghi đè file người dùng đã sửa, chín đường dẫn bị cấm đăng, mục tiêu duy trì làm tiếp sau tin bổ sung (lời gửi model có cả lời gốc, tin mới và bản hiện có), báo một lần mỗi revision.
 
 `tests/python/test_resonance_mvp_main.py` thêm 10 kiểm tra (tổng 32): cổng bằng chứng ghi rồi đọc lại EvidenceStore THẬT, `_resonance_deps` dựng đúng principal và engine, và một mục tiêu đi trọn vòng trên host với engine giả: tool `javis_goal` tạo, `main._resonance_tick` làm ở nền, sản phẩm vào brain, mục tiêu thành công, báo về đúng `web:<phiên>` kèm link; nhịp sau không gọi engine.
 
@@ -410,6 +410,21 @@ Phép thử đột biến (phá từng hành vi rồi chạy lại test, phải 
 - **Sản phẩm có thể tạo file cấu hình Javis.** Tự soát diff thấy đường dẫn do model khai có thể tạo `Javis/loops/*.md`, `agents/*.md`, `skills/*/SKILL.md`, `memory/...` hay `CLAUDE.md`, tức tự mở rộng quyền. Thêm danh sách cấm ở `_publish`.
 - **Hai lỗi trong test của chính em:** chân trời `maintain` làm mục tiêu thành maintain nên không "thành công" (đúng thiết kế, sửa test); `tick` chung xử lý cả mục tiêu khác đang tới hạn (sửa test đếm theo mục tiêu).
 
+### Sửa theo review PR #570
+
+Review của ChatGPT (`exports/reviews/PR-570-M3-review.md`, diff `fa7e264d..e5a42409`) nêu 5 lỗi P1 và 1 lỗi P2, cả sáu đều tái hiện được trên GoalStore SQLite thật. Đồng ý cả sáu. Sửa trong một commit, test hồi quy nằm ở cuối `test_resonance_mvp_run.py` (lên 92 kiểm tra).
+
+- **P1-1, pause giữa lượt bị bỏ qua ở bước đăng.** Thêm `_gate`: mục tiêu còn active, công tắc brain còn bật, người dùng không tạm dừng, mọi guard clear. Cổng chạy trước MỌI lần đăng sản phẩm và mọi kết luận thành công, kể cả ngay sau khi model trả về. Bị chặn thì đầu ra giữ trong vùng làm việc, receipt và lượt đã dùng vẫn ghi. Tiếp tục (`set_paused(False)` nay hẹn lịch làm ngay) thì `_publish_latest` đăng đầu ra đã lưu của revision hiện tại qua cổng, KHÔNG gọi model lần hai.
+- **P1-2, guard chưa bảo vệ đủ đường.** (a) Sau khi model chạy, cổng quan sát guard lại. (b) `_reconcile` nay chỉ chốt receipt; việc đăng đầu ra đã đối soát đi qua cổng như mọi lần khác, nên guard đã nhảy thì receipt được chốt mà sản phẩm không được đăng. (c) Guard unknown (nguồn chưa hỗ trợ hoặc không đọc được) không còn coi như clear: blocked `guard_unknown`, không đăng, không kết luận, báo người dùng một lần mỗi revision, kiểm lại bằng code sau ít nhất 6 giờ. Kết quả guard đi cùng assessment.
+- **P1-3, bản cập nhật bỏ được guard.** Guard đang có được giữ qua mọi bản cập nhật: `guards=[]`, đổi path, đổi evaluator đều chỉ có thể THÊM guard mới, guard cũ giữ nguyên id và điều kiện; phần muốn bỏ hay sửa báo "chưa hỗ trợ". Cùng phạm vi đã chốt cho hạn, chỉ tiêu và ràng buộc ở M2.
+- **P1-4, nhận lịch bằng xoá làm mất việc.** `tick` nhận lịch bằng `claim_wake`: CAS trên `due_at` rồi DỜI lịch tới lúc hết hạn nhận (thời gian tối đa một lượt cộng biên), không xoá. Tiến trình chết sau khi nhận mà trước khi `advance` ghi gì thì lịch tự tới hạn lại; `advance` ghi đè hoặc xoá lịch khi đã có trạng thái tiếp theo. Mục tiêu đang bận khoá của lượt khác thì lịch còn đó để chạy sau.
+- **P1-5, đạt bước khám phá đóng luôn nhu cầu gốc.** Tiêu chí met ở stage `discovery` không gọi `finish`: mục tiêu chờ `discovery_done`, báo người dùng đây mới là bước tìm hiểu. Kèm sửa một lỗi mặc định từ M2 lộ ra khi sửa ca này: không khai `stage` thì trước đây luôn là `discovery`, nay là `delivery` khi đã có cách hiểu cụ thể (đúng nghĩa chữ S), nếu không mọi mục tiêu bộ não lập mà bỏ trống stage sẽ không bao giờ hoàn thành.
+- **P2-1, chỉ có tiêu chí người dùng thì chưa làm đã chờ.** "Chỉ còn chờ người dùng" nay đòi đã có sản phẩm của revision hiện tại khi không có tiêu chí kiểm được nào khác. Mục tiêu chỉ có `human_confirmation` làm ra bản để duyệt trước, tin chờ duyệt kèm link tới bản đó trong vùng làm việc.
+
+Chạy lại `PR-570-M3-checks.py`: script dừng ở assertion REPRO đầu tiên vì lỗi đó đã hết. Một bản sao bọc riêng từng ca cho kết quả: 2 PASS đối chứng vẫn qua (đường cơ bản, hash pilot lưu trữ), cả 8 assertion REPRO đều không còn đúng. Sáu phép thử đột biến trên phần sửa (bỏ cổng sau khi model chạy, coi guard unknown là clear, bỏ kế thừa guard, nhận lịch bằng xoá, cho discovery đóng mục tiêu, cho human-only chờ khi chưa có bản) đều làm test đỏ.
+
+Không chạy lại pilot thật cho phần sửa này: các thay đổi nằm ở cổng kiểm, đối soát và lịch, đều kiểm được tất định bằng engine giả.
+
 ### Giới hạn và những gì chưa kiểm
 
 1. **Chưa có chính sách khi tới hạn chót.** Không mục tiêu nào bị kết luận `failed`; tới deadline mà chưa đạt vẫn chỉ là chưa đạt. Spec 7 yêu cầu ghi unknown và áp chính sách deadline đã chốt.
@@ -417,7 +432,7 @@ Phép thử đột biến (phá từng hành vi rồi chạy lại test, phải 
 3. **Một sản phẩm mỗi mục tiêu.** Chỉ tiêu chí `artifact_contract` đầu tiên có `path` được đăng; tiêu chí khác chỉ được đánh giá.
 4. **Khe giữa kiểm và ghi khi đăng sản phẩm.** Người dùng sửa file đúng giữa lúc host so hash và lúc thay file thì bản của người dùng có thể bị thay. Chưa có khoá file.
 5. **Báo tin ít nhất một lần.** Tiến trình chết giữa lúc gửi và lúc đánh dấu thì tin có thể gửi lặp. Phát lại không trùng tại kho tin nhắn là việc của M4.
-6. **Guard.** Chỉ đọc file; đọc guard không chụp vào kho bằng chứng; guard đã nhảy chưa có đường mở lại (lệnh người dùng ở M4).
+6. **Guard.** Chỉ `artifact_contract` đọc được; nguồn khác làm mục tiêu dừng ở `guard_unknown` cho tới khi có adapter; đọc guard không chụp vào kho bằng chứng; guard đã nhảy và guard cũ chưa có đường mở lại hay sửa (lệnh người dùng ở M4).
 7. **Bằng chứng không ghim.** Hạn lưu 90 ngày; quá hạn thì đánh giá lại ra unknown.
 8. **Thao tác SQLite đồng bộ trong event loop.** Mỗi lần nhỏ, nhưng chưa đưa ra luồng riêng. Mỗi nhịp xử lý tối đa 3 lịch.
 9. **Pilot thật chạy ở `9f3dad13`**, trước hai thay đổi cuối (báo `goal.maintained`, danh sách cấm đăng); hai thay đổi đó chỉ kiểm bằng engine giả.
@@ -425,10 +440,12 @@ Phép thử đột biến (phá từng hành vi rồi chạy lại test, phải 
 
 ### Toàn bộ test Python
 
-| | Main sạch (`7d264236`) | Nhánh M3 (`e07c68cd`) |
-|---|---|---|
-| Xanh | 387/403 | 396/411 |
-| File đỏ | 16 | 15 |
-| Đỏ mới so với main | | không có |
+| | Main sạch (`7d264236`) | Nhánh M3 (`e07c68cd`) | M3 sau review (`6c840c93`) |
+|---|---|---|---|
+| Xanh | 387/403 | 396/411 | 395/411 |
+| File đỏ | 16 | 15 | 16 |
+| Đỏ mới so với main | | không có | không có |
+
+Lượt sau review: 15 file đỏ sẵn ở mục M1 cộng `test_project_khung.py` (đỏ trên main sạch, chập chờn).
 
 15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1. Một lượt chạy trước đó (trên cây đang sửa, giữa hai commit) bị ngắt ở file 408/411 và để lại năm file Zalo/YouTube đỏ liền nhau ngay trước lúc dừng; chạy riêng tám file cuối đều xanh, nên không tính lượt đó.
