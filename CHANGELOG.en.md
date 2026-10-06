@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.84.4] - 2026-10-06
+### Improved
+- **Resonance: goals are carried forward and checked against evidence.** A goal Javis has framed is now worked step by step within its budget, reported done only when there is evidence against its criteria, and scheduled for its next step instead of checking in on a timer. Off by default, not enabled for anyone yet.
+
 ## [0.84.1] - 2026-10-06
 ### Improved
 - **Resonance: Javis turns a request into a goal by itself.** When you hand Javis something that needs following up after the chat turn, it frames it as a goal with a way to tell when it is done, without asking you to fill anything in. Ordinary questions stay ordinary questions. Off by default, not enabled for anyone yet.
