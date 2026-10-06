@@ -291,7 +291,7 @@ Chạy lại `PR-567-M2-repro.py` trên nhánh: assertion mô tả lỗi P1 khô
 
 Review vòng 2 (`exports/reviews/PR-567-M2-review-round2.md`, diff `c79e27c5..9f2e9a32`) xác nhận P2 thiếu id và P2 tiêu chí rỗng đã đóng, nêu thêm 1 P1 và 1 P2.
 
-- **P1: nhãn `replace` không thay được căn cứ.** Bản vòng 1 vẫn để bộ não gửi `targets=[]` hay tự dời hạn ở một tin chỉ đổi trình bày; host lưu và ghi `replace`. Nay hạn chót và chỉ tiêu người dùng đã nêu là chỉ dẫn đang có hiệu lực (bất biến 2.1). Bản cập nhật chỉ đổi hay bỏ được chúng khi tin HIỆN TẠI có câu trích làm căn cứ:
+- **P1: nhãn `replace` không thay được căn cứ.** (Cách sửa ở mục này bị vòng 3 bác và đã thay, xem mục Sửa theo review vòng 3.) Bản vòng 1 vẫn để bộ não gửi `targets=[]` hay tự dời hạn ở một tin chỉ đổi trình bày; host lưu và ghi `replace`. Nay hạn chót và chỉ tiêu người dùng đã nêu là chỉ dẫn đang có hiệu lực (bất biến 2.1). Bản cập nhật chỉ đổi hay bỏ được chúng khi tin HIỆN TẠI có câu trích làm căn cứ:
   - đổi hạn: hạn mới kèm `quote` trích từ tin này;
   - bỏ hạn: chân trời mới kèm `horizon.quote` trích câu bỏ hạn; chân trời ghi lại câu và tin làm căn cứ;
   - bỏ chỉ tiêu: một mục trong `remove_targets` (trường mới của tool) cùng chữ, kèm `quote` trích từ tin này.
@@ -305,6 +305,18 @@ Review vòng 2 (`exports/reviews/PR-567-M2-review-round2.md`, diff `c79e27c5..9f
 
 Chạy lại `PR-567-M2-round2-checks.py` trên nhánh: assertion REPRO của P1 (bộ não gửi `targets=[]` làm mất chỉ tiêu) không còn đúng, tức lỗi đã hết; các ca P1 và P2 còn lại được phủ bằng test hành vi ở trên.
 
+### Sửa theo review PR #567 vòng 3
+
+Review vòng 3 (`exports/reviews/PR-567-M2-review-round3.md`, diff `9f2e9a32..2b1b212f`) xác nhận ràng buộc kế thừa, bảo vệ khi bộ não quên trường hay dùng câu trích cũ, ý định ghi cùng transaction và test handoff đều đạt. Còn hai điểm:
+
+- **P1: câu trích CÓ MẶT trong tin vẫn bỏ được chỉ dẫn.** Bộ não trích "thêm bảng tổng hợp" làm căn cứ bỏ chỉ tiêu và bỏ hạn, host chấp nhận. Phép tìm chuỗi chỉ chứng minh câu có trong tin, không chứng minh người dùng muốn đổi. Lỗ này rộng hơn review nêu: đường ĐỔI hạn (hạn mới kèm câu trích từ tin hiện tại) cũng có cùng điểm yếu.
+
+  Chọn phương án thu hẹp phạm vi M2 do review đề xuất, khớp bất biến 2.1 của thiết kế chuẩn: hạn chót, chỉ tiêu và ràng buộc người dùng đã nêu KHÔNG đổi hay bỏ được qua bản cập nhật ở M2, dù câu trích có mặt hay không. Host giữ nguyên cả giá trị lẫn nguồn. Tool trả "Host giữ nguyên chỉ dẫn cũ, phần sau CHƯA áp dụng" và dặn bộ não nói rõ với người dùng là chưa đổi được, đừng báo là đã đổi. Bản cập nhật không còn gì đổi được áp dụng thì không ghi revision, không ghi ý định, và tool nói "KHÔNG có thay đổi nào được áp dụng". Thêm chỉ dẫn MỚI vẫn được, cùng luật trích như lúc tạo: chỉ tiêu mới, ràng buộc mới, và hạn khi mục tiêu chưa có hạn người dùng. Người dùng nhắc lại một chỉ tiêu thì vẫn một mục, giữ nguồn cũ. Agent vẫn tự sửa cách hiểu, tiêu chí, giả định, câu hỏi. Đường sửa chỉ dẫn có thẩm quyền do host xác định (thao tác của người dùng trên thẻ mục tiêu, hoặc xác nhận đúng phần thay đổi) để sang M4.
+- **P2: chỉ gửi `remove_targets` thì báo thành công mà không bỏ gì.** Không còn là chức năng: trường `remove_targets` đã gỡ khỏi schema của tool; nếu bộ não vẫn gửi thì host báo "remove_targets chưa hỗ trợ" và không ghi revision.
+- **Test:** `test_resonance_mvp_revise.py` lên 48 kiểm tra, viết lại các ca đổi/bỏ chỉ dẫn theo phạm vi mới: câu trích cũ, câu trích có mặt nhưng không liên quan (đúng phép tái hiện vòng 3), người dùng thật sự dời hạn, người dùng thật sự bỏ chỉ tiêu và hạn, chỉ gửi `remove_targets`, thêm chỉ tiêu mới, thêm hạn khi chưa có hạn người dùng, nhắc lại chỉ tiêu. Mỗi ca kiểm trạng thái cuối trong kho, không chỉ kiểm tool trả thành công.
+
+Chạy lại `PR-567-M2-round3-checks.py`: hai assertion PASS đầu vẫn qua. Bước 4 của script dừng ở xung đột revision, vì script giả định bước 3 ghi revision mới, trong khi nay bản cập nhật không đổi được gì thì không ghi revision. Chạy một bản sao chỉ đổi `expected_revision` bước 4 thành revision hiện tại: assertion REPRO P1 không còn đúng (chỉ tiêu và hạn còn nguyên). Ca P2 được phủ trong test của PR.
+
 ### Giới hạn và những gì chưa kiểm
 
 1. **Chưa gọi model thật ở M2.** Chưa đo bộ não thật có gọi `javis_goal` đúng lúc hay không, và có điền đề xuất qua được luật SMART hay không. Pilot thật một mục tiêu là việc của M3 theo kế hoạch.
@@ -316,18 +328,20 @@ Chạy lại `PR-567-M2-round2-checks.py` trên nhánh: assertion REPRO của P1
 7. **Không chạy test JS.** M2 không đổi file JS nào.
 8. **Không phải mọi đường giọng nói đều hỗ trợ Resonance.** Việc nền do làn nhanh giao (V3, `JAVIS_ASK_MAIN`), là đường giao việc bình thường của làn nhanh, không gọi `run_turn` và không đăng ký lượt kèm id tin, nên tool từ chối. Chỉ hai nhánh giọng nói chuyển về `run_turn` (giữ câu gốc, rơi về bộ não chính) mang id. Nếu pilot M3 có giao việc bằng giọng nói thì phải truyền nguồn yêu cầu đáng tin qua đường việc nền trước.
 9. **Đường truyền id kiểm bằng hàm thật với dịch vụ giả.** Chưa chạy end-to-end với model, micro, HTTP/WebSocket thật hay chờ hạn mức thật.
-10. **Căn cứ của việc bỏ chỉ dẫn chỉ được kiểm là có thật trong tin.** Host kiểm câu trích của `remove_targets` hay `horizon.quote` có nằm trong tin hiện tại; câu đó có thật sự nói bỏ hay không vẫn do bộ não phán. Câu, tin và quan hệ `replace` được ghi lại để soát.
+10. **Chưa đổi hay bỏ được chỉ dẫn người dùng đã nêu.** Hạn chót, chỉ tiêu, ràng buộc đã lưu chỉ thêm được, không đổi hay bỏ được bằng chat ở M2; tool báo rõ phần chưa áp dụng. Đường sửa có thẩm quyền để M4. Không dùng giới hạn này để bỏ qua lệnh dừng hay thu hồi quyền khi có runtime thực thi.
 11. **Kiểm `params` theo từng evaluator chưa làm.** Hiện chỉ kiểm là object rồi sao chép; việc của M3.
 
 ### Toàn bộ test Python
 
-| | Main sạch (`7d264236`) | Nhánh M2 (`f6fd4841`) | M2 sau review (`279ef56a`) | M2 sau review vòng 2 (`daa5684e`) |
-|---|---|---|---|---|
-| Xanh | 387/403 | 392/407 | 391/408 | 393/409 |
-| File đỏ | 16 | 15 | 17 | 16 |
-| Đỏ mới so với main | | không có | không có do M2 gây ra | không có |
+| | Main sạch (`7d264236`) | Nhánh M2 (`f6fd4841`) | M2 sau review (`279ef56a`) | M2 sau review vòng 2 (`daa5684e`) | M2 sau review vòng 3 (`1f9099c9`) |
+|---|---|---|---|---|---|
+| Xanh | 387/403 | 392/407 | 391/408 | 393/409 | 391/409 |
+| File đỏ | 16 | 15 | 17 | 16 | 18 |
+| Đỏ mới so với main | | không có | không có do M2 gây ra | không có | không có do M2 gây ra |
 
 Lượt vòng 2: 16 file đỏ đúng bằng danh sách đỏ trên main sạch (15 file ở mục M1 cộng `test_project_khung.py`).
+
+Lượt vòng 3: 16 file đó cộng hai file chập chờn. `test_hoi_thoai_nhom.py` đã ghi ở trên. `test_bao_viec_ve_chat_web.py` đỏ trong lượt toàn bộ, chạy riêng ba lần trên cùng mã đều xanh, không chạm mã Resonance.
 
 Ở lượt sau review, 17 file đỏ gồm 15 file đỏ sẵn ở mục M1, `test_project_khung.py` (đỏ trên main sạch) và `test_write_path_phase9.py`. File cuối chạy riêng hai lần trên cùng mã thì một xanh một đỏ (`test_restart_marks_running_writes_unknown_without_rerunning`), không chạm mã Resonance nào: test chập chờn. `test_hoi_thoai_nhom.py` cũng chập chờn (chạy riêng ba lần: xanh một, đỏ hai, kiểm thứ tự ghim hội thoại M2 không đụng tới); lượt toàn bộ này nó xanh.
 
