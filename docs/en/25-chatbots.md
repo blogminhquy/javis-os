@@ -393,6 +393,18 @@ And **how it speaks, what scope it accepts, what it refuses** are decided by you
 
 The right way to understand the limits above: they live in the **permission level in the source code**, not in wording inside the prompt. Wording can be talked around by clever phrasing; a permission level cannot, because the tool is simply not granted for that run. The flip side of the same truth: when you **do** grant tools for that run, the wording in the Agent cannot hold it back either.
 
+## The bot sends images (since 0.84.3)
+
+A bot can send images on Telegram, personal Zalo, Slack and WhatsApp, at **every permission level**. To use it, tell the Agent file when to send which image, for example "when a customer asks about shirts, send `![Shirt](attachments/shirt.jpg)`". The Agent puts that image syntax in its reply; Javis removes it from the text and sends the real image right after the text message. In a Zalo group the text still tags the person who asked.
+
+Javis only sends an image when all of these hold:
+
+- It is **inside the bot's own brain** (paths count from that brain's root). Images in another brain or elsewhere on the machine are refused.
+- It really is an image (`.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`), exists, and is at most 10 MB. Documents such as PDFs or `.md` notes are not sent.
+- At most 4 images per reply.
+
+An image that fails these checks stays in the text as written, so you can see in the inbox what the bot tried to send. Javis does **not** attach files the bot just created on its own: a stranger is steering the bot, so only images the Agent names on purpose go out.
+
 ## The bot speaks like a person, exposing no machine state
 
 A dedicated bot **shows no Javis status lines** to the person messaging it. This is the sharp difference from your own main Javis bot (which does show everything, see [Telegram](11-telegram.md), because the owner needs to see how far Javis has got).

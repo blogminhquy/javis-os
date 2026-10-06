@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.84.3] - 2026-10-06
 ### Thêm mới
-- Bot Zalo gửi được ảnh (đang làm).
+- **Bot chuyên trách gửi được ảnh cho khách.** Dặn trong Agent khi nào gửi ảnh nào (vd "khách hỏi mẫu áo thì gửi `![Mẫu áo](attachments/mau-ao.jpg)`"), bot gửi ảnh thật ngay sau câu trả lời. Chạy trên Zalo cá nhân, Telegram, Slack và WhatsApp, ở mọi mức quyền.
+- Chỉ ảnh có thật trong brain của chính bot mới được gửi, tối đa 4 ảnh mỗi lần, không quá 10 MB. File tài liệu như PDF không gửi, và bot không tự đính kèm file nào ngoài ảnh Agent đã chỉ đích danh.
 
 ## [0.84.2] - 2026-10-06
 ### Thêm mới

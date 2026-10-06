@@ -23,7 +23,7 @@ import localefmt
 SPEC = KenhSpec(
     id="zalo_personal", nhan="Zalo cá nhân", kind="account", logo="zalo", mau="#0068FF",
     tom_tat="Tài khoản Zalo của chính bạn. Bot trực thì tự trả lời chat riêng và nhóm đã cho phép, dưới tên bạn.",
-    nang_luc={"nhom": True, "gui_chu": True, "gui_file": False},
+    nang_luc={"nhom": True, "gui_chu": True, "gui_file": True},
 )
 
 
@@ -182,6 +182,26 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", men
     if isinstance(d, dict) and d.get("success") is False:
         return False, str(d.get("error") or d.get("message") or localefmt.chu("Zalo từ chối", "Zalo refused"))[:300]
     return True, ""
+
+
+async def gui_anh(tk: dict, chat_id: str, paths, chat_type: str = "private"):
+    """Send images the bot asked for (0.84.3), after its text. `(ok, error)`.
+
+    The MCP send tool takes text only, so this goes through the CLI (`msg send-image`) in the session of the signed-in
+    account, like tagging does (`zalo_cli`). `paths` are absolute and already checked by `bot_images.pick`."""
+    import zalo_cli
+    import zalo_personal_channel
+    conn = zalo_personal_channel.ket_noi_theo_id(str(tk.get("id") or tk.get("external_id") or ""))
+    if not conn:
+        return False, localefmt.chu("tài khoản Zalo này không còn ở trang Kết nối (hoặc đang tắt)",
+                                     "this Zalo account is no longer on the Connections page (or is turned off)")
+    home = zalo_cli.home_of(conn)
+    ds = [str(x) for x in (paths or []) if str(x or "").strip()]
+    if not home or not ds:
+        return False, localefmt.chu("không có ảnh hoặc thư mục phiên để gửi", "no image or session folder to send with")
+    loai = "1" if str(chat_type or "") == "group" else "0"
+    ok, _data, err = await zalo_cli.run_cli({"home": home}, ["msg", "send-image"], [str(chat_id)] + ds, ["-t", loai])
+    return (True, "") if ok else (False, str(err or "")[:300])
 
 
 class Transport:
@@ -386,15 +406,22 @@ class Transport:
             khoa = self._khoa.setdefault(thread, asyncio.Lock())
             async with khoa:
                 out = await self.answer_fn(text, meta, None)
+                anh = []
                 if isinstance(out, dict):
                     if out.get("im_lang"):
                         return
                     cau = str(out.get("text") or "").strip()
+                    # 0.84.3: images the Agent asked to send, already checked by `bot_images.pick`.
+                    anh = [str((f.get("path") if isinstance(f, dict) else f) or "") for f in (out.get("files") or [])]
+                    anh = [x for x in anh if x]
                 else:
                     cau = str(out or "").strip()
-                if cau and zc._BOTS.get(self.conn_id) is self:
-                    await self._gui(thread, cau, loai, meta)
-                    if nhom and self.policy is not None:
+                if (cau or anh) and zc._BOTS.get(self.conn_id) is self:
+                    if cau:
+                        await self._gui(thread, cau, loai, meta)
+                    if anh:
+                        await self._gui_anh(thread, anh, loai)
+                    if cau and nhom and self.policy is not None:
                         self.policy.replied(meta, cau)
         except asyncio.CancelledError:
             raise
@@ -414,6 +441,13 @@ class Transport:
             self.last_error = localefmt.chu(f"Gửi Zalo lỗi: {loi}", f"Zalo send failed: {loi}")[:300]
             print(f"[zalo-personal bot {self.conn_id}] {self.last_error}", file=sys.stderr)
             self._ghi_loi_gui(thread, cau, loi, chat_type)
+
+    async def _gui_anh(self, thread: str, anh: list, chat_type: str = "private"):
+        ok, loi = await gui_anh({"id": self.conn_id}, thread, anh, chat_type)
+        if not ok:
+            self.last_error = localefmt.chu(f"Gửi ảnh Zalo lỗi: {loi}", f"Zalo image send failed: {loi}")[:300]
+            print(f"[zalo-personal bot {self.conn_id}] {self.last_error}", file=sys.stderr)
+            self._ghi_loi_gui(thread, localefmt.chu(f"({len(anh)} ảnh)", f"({len(anh)} image(s))"), loi, chat_type)
 
     def _ghi_loi_gui(self, thread: str, cau: str, loi: str, chat_type: str):
         """Để lại dấu ở nhật ký bot khi gửi lỗi.

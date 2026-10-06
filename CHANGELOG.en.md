@@ -10,7 +10,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.84.3] - 2026-10-06
 ### Added
-- Zalo bots can send images (in progress).
+- **Dedicated bots can send images to customers.** Tell the Agent when to send which image (e.g. "when asked about shirts, send `![Shirt](attachments/shirt.jpg)`") and the bot sends the real image right after its reply. Works on personal Zalo, Telegram, Slack and WhatsApp, at every permission level.
+- Only real images inside the bot's own brain are sent, at most 4 per reply and 10 MB each. Documents such as PDFs are not sent, and the bot never attaches anything other than images the Agent named on purpose.
 
 ## [0.84.2] - 2026-10-06
 ### Added

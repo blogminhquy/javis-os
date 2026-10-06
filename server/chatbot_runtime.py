@@ -39,6 +39,7 @@ from typing import Any, Callable, Dict, Optional
 import channel_accounts
 import channels
 import chatbot_doc_tools
+import bot_images
 import chatbot_grounding
 import chatbot_log
 import chatbot_reply_policy
@@ -272,6 +273,9 @@ def build_bot_prompt(bot: dict) -> str:
     # Kênh của LƯỢT này, do _make_answer_fn gắn vào. Chỉ Zalo cá nhân mới có thêm đoạn này.
     if (bot or {}).get("_kenh_luot") == "zalo_personal":
         phan.append(_CAU_ZALO_CA_NHAN)
+    # The channel of THIS turn sends files (0.84.3): tell the Agent how to send an image, or it never knows it can.
+    if bot_images.channel_sends_files((bot or {}).get("_kenh_luot")):
+        phan.append(bot_images.PROMPT_HINT)
     # Lượt Tự đánh giá do _make_answer_fn gắn. Cờ chứ không suy từ meta: prompt được dựng ở đây,
     # nơi không có meta của lượt.
     if (bot or {}).get("_tu_dong"):
@@ -1375,6 +1379,18 @@ def _make_answer_fn(bot_id: str):
                 "muc_quyen": cfg.get("muc_quyen") or "suggest",
             })
             return {"text": "", "files": [], "im_lang": True}
+        # Images the Agent asked to send (0.84.3): `![...](path)` inside the bot's own brain becomes a file the
+        # channel sends after the text. Only on channels that send files; see bot_images for the gates.
+        if not loi_ky_thuat and dap and bot_images.channel_sends_files(kenh_luot):
+            try:
+                dap, anh = bot_images.pick(dap, _deps["brain_root"](cfg["brain"]))
+            except Exception as e:      # noqa: BLE001 - a broken image pick must not cost the customer the reply
+                anh = []
+                print(f"[chatbot {bot_id}] tách ảnh lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+            if anh:
+                out = dict(out or {})
+                out["text"] = dap
+                out["files"] = list(out.get("files") or []) + anh
         # Chỉ lượt bot THẬT SỰ nói mới tốn hạn mức tự trả lời: lượt viết [IM_LANG] ở trên đã
         # return, và lượt gãy không phải một câu trả lời.
         if tu_dong and not loi_ky_thuat and dap.strip():
