@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.84.1] - 2026-10-06
+### Cải thiện
+- **Hệ thống cộng hưởng: Javis tự lập mục tiêu từ việc anh nhờ.** Khi anh giao một việc cần theo đuổi sau lượt chat, Javis tự hiểu thành một mục tiêu có cách nhận biết xong, không bắt anh điền gì. Hỏi đáp thường vẫn chỉ là hỏi đáp. Tính năng tắt sẵn, chưa bật cho ai.
+
 ## [0.84.0] - 2026-10-06
 ### Cải thiện
 - **Chuẩn bị nền cho Hệ thống cộng hưởng.** Javis bắt đầu có lớp giúp một việc anh nhờ được theo đuổi tới khi có bằng chứng xong. Bản này chỉ kiểm đường chạy bên trong, chưa bật gì cho người dùng và không đổi cách Javis đang làm việc.
