@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.84.10] - 2026-10-07
 ### Sửa lỗi
-- Bot chuyên trách đọc được link Google Docs và Google Sheets gắn vào Agent.
+- **Bot chuyên trách đọc được link Google Docs và Google Sheets gắn vào Agent.** Trước đây bot chỉ tra file trong brain, nên Agent dặn "chỉ trả lời theo tài liệu" mà bảng giá nằm trên Google Sheets thì bot báo "chưa có thông tin" với mọi sản phẩm.
+- Bảng tính được đọc đủ mọi tab, từng dòng kèm tên cột. Sửa file trên Google thì vài phút sau bot dùng bản mới. Chạy ở mọi mức quyền, không cần nâng bot lên Được ghi.
+- File phải chia sẻ "Bất kỳ ai có đường liên kết". File chưa chia sẻ thì thẻ bot hiện cảnh báo vàng nói rõ link nào. Link khách dán vào tin nhắn không bao giờ được mở.
 
 ## [0.84.8] - 2026-10-07
 ### Cải thiện

@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.84.10] - 2026-10-07
 ### Fixed
-- Dedicated bots can read the Google Docs and Google Sheets links attached to their Agent.
+- **Dedicated bots now read the Google Docs and Google Sheets links attached to their Agent.** Bots used to search only brain files, so an Agent told to "answer only from the documents" with its price list on Google Sheets said "no information" about every product.
+- Spreadsheets are read tab by tab, every row with its column names. Edits on Google reach the bot within a few minutes. Works at every permission level, no need to raise the bot to Can write.
+- The file must be shared with "Anyone with the link". An unshared file shows a yellow warning on the bot card naming the link. A link a customer pastes into a message is never opened.
 
 ## [0.84.8] - 2026-10-07
 ### Improved

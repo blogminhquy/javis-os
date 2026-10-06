@@ -40,6 +40,7 @@ import channel_accounts
 import channels
 import chatbot_doc_tools
 import bot_images
+import bot_linked_docs
 import chatbot_grounding
 import chatbot_log
 import chatbot_reply_policy
@@ -777,11 +778,16 @@ def _rp_collect(cfg: dict) -> tuple:
     """(nguyên văn Agent, mục lục tài liệu) của bot. Đọc đĩa nên chạy trong thread, không trên vòng sự kiện.
     Tiện thể nhớ brain của bot có tài liệu để tra không: bot không có tài liệu nào thì lời tự nói dựa vào vai."""
     root = _deps["brain_root"](cfg["brain"])
+    linked = []
     try:
-        _RP_HAS_DOCS[str(cfg.get("id") or "")] = bool(chatbot_grounding.chi_muc(root).get("manh"))
+        linked = _linked_docs(cfg)["docs"]
+    except Exception as e:      # noqa: BLE001
+        print(f"[reply_policy] đọc link Google của Agent lỗi: {type(e).__name__}", file=sys.stderr)
+    try:
+        _RP_HAS_DOCS[str(cfg.get("id") or "")] = bool(linked) or bool(chatbot_grounding.chi_muc(root).get("manh"))
     except Exception as e:      # noqa: BLE001 - chưa biết thì giữ luật chặt (phải có căn cứ)
         print(f"[reply_policy] đếm tài liệu lỗi: {type(e).__name__}", file=sys.stderr)
-    return _rp_agent_text(cfg), chatbot_reply_policy.list_doc_titles(root)
+    return _rp_agent_text(cfg), [d["title"] for d in linked] + chatbot_reply_policy.list_doc_titles(root)
 
 
 async def _rp_profile_job(cfg: dict, ask) -> None:
@@ -1199,10 +1205,32 @@ async def _tra_tai_lieu(bot_id: str, cfg: dict, text: str) -> dict:
     tl = {"co": False, "khoi": "", "nguon": []}
     try:
         root = _deps["brain_root"](cfg["brain"])
-        tl = await asyncio.to_thread(chatbot_grounding.thu_thap, root, text)
+        linked = await asyncio.to_thread(_linked_docs, cfg)
+        tl = await asyncio.to_thread(chatbot_grounding.thu_thap, root, text, 4, linked["docs"])
+        if linked["warnings"]:
+            # The answer still goes out; the owner sees why a linked file was left out on the bot card.
+            tl = dict(tl, canh_bao_link=" · ".join(linked["warnings"])[:500])
     except Exception as e:
         print(f"[chatbot {bot_id}] tra tài liệu lỗi: {e}", file=sys.stderr)
     return tl
+
+
+def _linked_docs(cfg: dict) -> dict:
+    """Google Docs/Sheets the owner linked from this bot's Agent, as extra documents for the keyword
+    search (see bot_linked_docs). Blocking (reads the Agent file, may fetch from Google): thread only."""
+    a = cfg.get("agent") or {}
+    reader = _deps.get("read_agent")
+    if not reader or not a.get("slug"):
+        return {"docs": [], "warnings": []}
+    try:
+        meta, body = reader(a.get("brain") or cfg.get("brain") or "brain", a.get("slug"))
+    except Exception as e:      # noqa: BLE001 - a missing Agent is reported elsewhere (prompt, bot card)
+        print(f"[chatbot linked docs] đọc Agent lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+        return {"docs": [], "warnings": []}
+    links = bot_linked_docs.links_of_agent(meta, body)
+    if not links:
+        return {"docs": [], "warnings": []}
+    return bot_linked_docs.collect(links)
 
 
 async def _tra_cho_phan_xu(bot_id: str, cfg: dict, text: str) -> dict:
@@ -1444,7 +1472,7 @@ def _make_answer_fn(bot_id: str):
             # nổi công cụ). Cố ý KHÔNG nhét vào `loi`: `loi` kéo theo `bi`, kéo theo gọi người
             # trực, và làm bẩn tab "Bot bí" - trong khi đây là lượt trả lời bình thường. Chủ
             # cần biết, người đang hỏi thì không cần.
-            "canh_bao": (out or {}).get("canh_bao") or "",
+            "canh_bao": " · ".join(x for x in ((out or {}).get("canh_bao"), tl.get("canh_bao_link")) if x),
         })
         # Câu bot nói (kể cả câu xin lỗi khi gãy) vào Hộp thư hội thoại, cạnh tin khách.
         ghi_tin_bot(cfg, meta or {}, dap, loi=loi_ky_thuat, files=(out or {}).get("files"))

@@ -231,6 +231,17 @@ Every time someone asks, Javis **looks up documents in the bot's brain first**, 
 
 That differs from "the bot has permission to read the brain". Permission to read does not mean it will read: the model can answer straight from its general knowledge, the sentence flows just as confidently, and **you cannot tell from the outside**. So Javis looks up first rather than leaving that decision to the model.
 
+### Google Docs and Google Sheets linked from the Agent (from 0.84.10)
+
+A price list or guide that lives on Google does not need copying into the brain. Attach the link to the Agent (the **Assistant documents** section when you open the Agent) or paste it into the Agent text, and the bot searches it just like a brain file:
+
+- Google Sheets are read **tab by tab**, every row carrying its column names, so "how much is the Stanley cutter" finds that exact row. A link to one specific tab (ending in `#gid=`) reads only that tab.
+- The file must be shared as **Anyone with the link, Viewer**, with downloading not turned off. An unshared file does not stop the bot from answering, it just answers without that file, and the bot card shows a warning naming the link to share.
+- Edits on Google reach the bot within a few minutes. If Google is briefly unreachable, the bot keeps using the last copy it read.
+- Only links **you** put in the Agent are read. A link a customer pastes into a message is never opened. Two bots on one brain with different Agents never see each other's links.
+
+At the **Reads documents** level, the bot's three search tools still open only brain files. Google link content reaches the bot through the lookup done before each turn.
+
 ### Two modes, chosen when creating the bot
 
 The difference lies only in **what happens when no matching document is found**. When one is found, both modes behave identically.

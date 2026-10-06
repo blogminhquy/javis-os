@@ -318,6 +318,17 @@ Mỗi lần có người hỏi, Javis **tra tài liệu trong brain của bot tr
 
 Điều này khác với "bot có quyền đọc brain". Có quyền đọc không có nghĩa là nó chịu đọc: model hoàn toàn có thể trả lời thẳng bằng kiến thức chung của nó, câu vẫn trôi chảy tự tin y hệt, và anh **không phân biệt được từ bên ngoài**. Nên Javis tra trước, không giao việc đó cho model tự quyết.
 
+### Link Google Docs và Google Sheets gắn vào Agent (từ 0.84.10)
+
+Bảng giá hay hướng dẫn đang nằm trên Google thì không cần chép về brain. Gắn link vào Agent (mục **Tài liệu của trợ lý** khi mở Agent) hoặc dán thẳng link vào nội dung Agent, bot sẽ tra trong đó y như tra file của brain:
+
+- Google Sheets đọc **mọi tab**, mỗi dòng kèm tên cột, nên khách hỏi "kìm cắt Stanley giá bao nhiêu" là ra đúng dòng đó. Link trỏ vào một tab cụ thể (có `#gid=` ở cuối) thì chỉ đọc tab đó.
+- File phải được chia sẻ ở chế độ **Bất kỳ ai có đường liên kết, quyền Người xem**, và không tắt quyền tải xuống. File chưa chia sẻ thì bot vẫn trả lời bình thường nhưng không có phần đó, và thẻ bot hiện cảnh báo nói rõ link nào cần chia sẻ.
+- Sửa file trên Google thì vài phút sau bot dùng bản mới. Google tạm trục trặc thì bot dùng bản đọc được lần trước.
+- Chỉ link **bạn** gắn trong Agent mới được đọc. Khách dán link vào tin nhắn thì Javis không mở. Hai bot cùng brain nhưng khác Agent thì không thấy link của nhau.
+
+Ở mức **Đọc tài liệu**, ba công cụ tự tìm của bot vẫn chỉ mở file trong brain. Nội dung link Google đến với bot qua phần tra sẵn trước mỗi lượt.
+
 ### Hai chế độ, chọn khi tạo bot
 
 Khác biệt chỉ nằm ở **lúc không tìm thấy tài liệu nào khớp**. Tìm thấy thì hai chế độ hành xử y hệt.
