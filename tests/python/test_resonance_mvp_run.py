@@ -394,6 +394,32 @@ check("guard chưa hỗ trợ nguồn: unknown và nói rõ chưa hỗ trợ",
 adv(g_g.id, {"kind": "wake"}, deps_g)
 check("guard đã nhảy không tự mở lại khi được đánh thức", built_g["n"] == 0 and store.run_state(P, g_g.id)["block_reason"] == "guard")
 
+# ═══════════════════════ sự kiện tiếp tục: người dùng bổ sung, mục tiêu duy trì làm tiếp ═══════════════════════
+g_c = make_goal(mode="maintain", horizon={"kind": "maintain"},
+                criteria=[{"description": "Ghi chú có đủ việc", "evaluator": "artifact_contract",
+                           "params": {"path": "Inbox/duy-tri.md", "must_contain": ["báo cáo quý", "máy lạnh"]}}])
+deps_c, _, eng_c = make_deps()
+a_c1 = adv(g_c.id, {"kind": "start"}, deps_c)
+check("maintain: đạt thì không đóng mục tiêu, giữ active và hẹn xem lại",
+      a_c1.verdict == "met" and store.get(P, g_c.id).status == "active"
+      and any(w["kind"] == "work" for w in store.wakes(P, g_c.id)))
+MSG_ADD = "Thêm việc: gia hạn tên miền trước cuối tháng."
+R.revise_goal(store, P, g_c.id, 1, {
+    "relevant_quote": "gia hạn tên miền",
+    "criteria": [{"description": "Ghi chú có đủ việc", "evaluator": "artifact_contract",
+                  "params": {"path": "Inbox/duy-tri.md", "must_contain": ["báo cáo quý", "máy lạnh", "tên miền"]}}]},
+    {"message_ref": R.message_ref("s3", 950), "session_id": "s3", "message_id": 950, "user_text": MSG_ADD})
+eng_c2 = FakeEngine(text=GOOD + "4. Gia hạn tên miền\n")
+deps_c2, _, _ = make_deps(engine=eng_c2)
+a_c2 = adv(g_c.id, {"kind": "wake"}, deps_c2)
+check("tiếp tục sau bổ sung: lời gửi model có CẢ lời gốc lẫn tin bổ sung",
+      "gọi thợ sửa máy lạnh" in eng_c2.last_prompt and "gia hạn tên miền trước cuối tháng" in eng_c2.last_prompt)
+check("tiếp tục sau bổ sung: lời gửi model có bản sản phẩm hiện có để sửa tiếp",
+      "Bản hiện có" in eng_c2.last_prompt and "Nộp báo cáo quý" in eng_c2.last_prompt)
+check("tiếp tục sau bổ sung: revision mới đạt, file trong brain được cập nhật (cùng mục tiêu ghi trước thì ghi đè được)",
+      a_c2.verdict == "met" and a_c2.revision == 2
+      and "tên miền" in (Path(BRAIN) / "Inbox" / "duy-tri.md").read_text(encoding="utf-8"))
+
 # ═══════════════════════ test_no_source_uses_bounded_review ═══════════════════════
 now = 1_800_000_000.0
 gm = store.get(P, make_goal(mode="maintain", horizon={"kind": "maintain"}).id)

@@ -802,6 +802,7 @@ WORK_EVENTS = ("start", "wake", "user_message", "resume")
 PUBLISH_SUFFIXES = (".md", ".txt")
 PUBLISH_MAX_BYTES = 1_000_000
 PREV_OUTPUT_CHARS = 3000
+INTENT_CHAIN_MAX = 5
 NOTIFY_KINDS = ("goal.succeeded", "goal.failed", "goal.blocked", "goal.guard", "goal.waiting_human",
                 "goal.publish_conflict")
 WORK_SYSTEM = (SYSTEM_PROMPT + " Viết TOÀN BỘ sản phẩm cuối, đúng các tiêu chí được nêu. "
@@ -1076,8 +1077,8 @@ def _work_prompt(goal: GoalRecord, intent_text: str, last: Optional[Assessment],
     if last is not None and last.verdict == "not_met":
         miss = [f"- {r['description']}: {r['reason']}" for r in last.criterion_results if r["verdict"] == "not_met"]
         parts.append("Lần trước CHƯA ĐẠT:\n" + "\n".join(miss))
-        if prev_text:
-            parts.append("Bản lần trước (dữ liệu):\n<<<\n" + prev_text[:PREV_OUTPUT_CHARS] + "\n>>>")
+    if prev_text:
+        parts.append("Bản hiện có, sửa tiếp trên bản này (dữ liệu):\n<<<\n" + prev_text[:PREV_OUTPUT_CHARS] + "\n>>>")
     parts.append("Viết toàn bộ nội dung sản phẩm cuối bằng Markdown. Chỉ trả nội dung sản phẩm, không lời dẫn.")
     return "\n\n".join(parts)
 
@@ -1237,9 +1238,18 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
         return last
     store.set_run_state(p, goal.id, "running", "")
     Path(goal.output_root).mkdir(parents=True, exist_ok=True)
-    intent = store.get_intent(p, goal.intent_id) or {}
-    prev = [x for x in store.actions(p, goal.id) if x["kind"] == "work" and x["status"] == "succeeded"
-            and x["revision"] == goal.revision]
+    # Lời người dùng là CẢ CHUỖI ý định (tin gốc và các tin bổ sung nối qua prev_intent_id), không chỉ tin mới
+    # nhất: tin "thêm việc X" một mình không đủ để làm lại sản phẩm.
+    chain, iid = [], goal.intent_id
+    while iid and len(chain) < INTENT_CHAIN_MAX:
+        it = store.get_intent(p, iid) or {}
+        if not it:
+            break
+        chain.append(str(it.get("text") or ""))
+        iid = it.get("prev_intent_id")
+    intent_text = "\n---\n".join(reversed(chain))
+    # Bản sản phẩm gần nhất (mọi revision): làm tiếp trên đó thay vì viết lại từ đầu.
+    prev = [x for x in store.actions(p, goal.id) if x["kind"] == "work" and x["status"] == "succeeded"]
     prev_text = ""
     if prev and prev[-1]["receipt"].get("output_ref"):
         try:
@@ -1247,7 +1257,7 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
         except OSError:
             prev_text = ""
     sub = dataclasses_replace(deps, budget=_ReservedCall(store, p, goal.id))
-    receipt = await sub.run_once(goal, _work_prompt(goal, intent.get("text", ""), last, prev_text), act["id"])
+    receipt = await sub.run_once(goal, _work_prompt(goal, intent_text, last, prev_text), act["id"])
     rd = receipt.to_dict()
     text = ""
     if receipt.status == "succeeded":
