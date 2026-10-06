@@ -85,6 +85,79 @@ try:
 finally:
     main._resonance_store = _old
 
+# ───────────── M3: cổng bằng chứng thật và nhịp scheduler ─────────────
+_g_ev = R.GoalRecord(id="g_evtest", brain_id=BRAIN, owner="javis", revision=1, output_root=BRAIN, session_id=SID)
+try:
+    _eid = main._RESONANCE_EVIDENCE.put(_g_ev, "act_evtest01", "Nội dung bằng chứng thử", {"kind": "test"})
+    _back = main._RESONANCE_EVIDENCE.valid(_eid)
+    check("M3 cổng bằng chứng: ghi vào EvidenceStore thật rồi đọc lại đúng nội dung và hash",
+          _back is not None and _back["text"] == "Nội dung bằng chứng thử"
+          and _back["content_hash"] == __import__("hashlib").sha256("Nội dung bằng chứng thử".encode()).hexdigest())
+except RuntimeError as _e:
+    # Máy không có khoá mã hoá hoặc runtime tắt: put phải ném lỗi rõ, Resonance coi như chưa có bằng chứng.
+    check(f"M3 cổng bằng chứng: không có mã hoá/runtime thì ném lỗi rõ ({_e})", "unavailable" in str(_e)
+          or "disabled" in str(_e))
+check("M3 cổng bằng chứng: id lạ thì không có gì", main._RESONANCE_EVIDENCE.valid("ev_khong_co") is None)
+_dp = main._resonance_deps(main._brain_key(BRAIN))
+check("M3 _resonance_deps: principal là agent của đúng brain, engine là engine Resonance chỉ chữ",
+      _dp is not None and _dp.principal.brain_id == main._brain_key(BRAIN) and _dp.principal.kind == "agent"
+      and _dp.engine_factory is main._resonance_engine and _dp.brain_root == main._brain_key(BRAIN))
+check("M3 _resonance_deps: brain không tồn tại thì không dựng", main._resonance_deps(str(Path(BRAIN) / "khong-co")) is None)
+
+# Một mục tiêu đi trọn vòng trên host: tool tạo -> tick nền làm -> sản phẩm vào brain -> báo đúng khung chat.
+_USER3 = "Viết giúp anh ghi chú Inbox/tom-tat.md tóm tắt ba việc: gọi thợ máy lạnh, nộp báo cáo quý, mua quà cho mẹ."
+_k3 = luot_dang_chay.bat_dau(f"{main.WEB_CHAT_PREFIX}{SID}", BRAIN, msg_id=301, user_text=_USER3)
+_out3 = asyncio.run(route["javis_goal"]["call"]({
+    "op": "create", "understanding": "Ghi chú tóm tắt ba việc trong Inbox",
+    "criteria": [{"description": "Ghi chú có đủ ba việc", "evaluator": "artifact_contract",
+                  "params": {"path": "Inbox/tom-tat.md", "must_contain": ["máy lạnh", "báo cáo quý", "quà"]}}],
+    "relevant_quote": "Viết giúp anh ghi chú Inbox/tom-tat.md",
+    "horizon": {"kind": "review", "at_iso": "2027-01-01T09:00:00+07:00"}, "mode": "achieve"}))
+luot_dang_chay.ket_thuc(_k3)
+check("M3 lời dặn của tool: nói rõ làm tiếp ở nền và kết quả tự về khung chat", "làm tiếp ở NỀN" in _out3)
+_g3 = main._resonance_store().find_by_key(RS.Principal("agent", "javis", main._brain_key(BRAIN)),
+                                         R.message_ref(SID, 301))
+_calls, _sent = {"n": 0}, []
+
+
+class _Eng:
+    max_wall_s = None
+
+    def is_available(self):
+        return True
+
+    async def query(self, prompt):
+        _calls["n"] += 1
+        yield {"type": "final", "content": "# Tóm tắt\n\n- Nộp báo cáo quý\n- Gọi thợ máy lạnh\n- Mua quà cho mẹ\n"}
+
+
+async def _fake_notify(owner_chat, text, **kw):
+    _sent.append((owner_chat, text))
+    return True, ""
+
+_old_eng, _old_notify = main._resonance_engine, main._notify_owner
+main._resonance_engine = lambda s, t="resonance": (_Eng(), {"provider": "fake", "text_only": True})
+main._notify_owner = _fake_notify
+try:
+    asyncio.run(main._resonance_tick())
+finally:
+    main._resonance_engine, main._notify_owner = _old_eng, _old_notify
+_g3b = main._resonance_store().get(RS.Principal("agent", "javis", main._brain_key(BRAIN)), _g3.id)
+_P3 = RS.Principal("agent", "javis", main._brain_key(BRAIN))
+check("M3 trọn vòng: mục tiêu này được làm đúng một lượt engine (tick cũng làm mục tiêu khác đang tới hạn)",
+      len([x for x in main._resonance_store().actions(_P3, _g3.id) if x["kind"] == "work"]) == 1)
+check("M3 trọn vòng: sản phẩm nằm đúng chỗ trong brain", (Path(BRAIN) / "Inbox" / "tom-tat.md").is_file())
+check("M3 trọn vòng: mục tiêu thành công sau khi host kiểm bằng chứng", _g3b.status == "succeeded")
+check("M3 trọn vòng: báo về ĐÚNG khung chat web của phiên đã giao, có link sản phẩm",
+      any(c == f"{main.WEB_CHAT_PREFIX}{SID}" and "Inbox/tom-tat.md" in t for c, t in _sent))
+_calls["n"] = 0
+main._resonance_engine = lambda s, t="resonance": (_Eng(), {"provider": "fake", "text_only": True})
+try:
+    asyncio.run(main._resonance_tick())
+finally:
+    main._resonance_engine = _old_eng
+check("M3 trọn vòng: nhịp sau không có gì tới hạn thì không gọi engine", _calls["n"] == 0)
+
 # ───────────── mọi nhánh web mang id tin gốc tới run_turn (review PR #567, P2-1) ─────────────
 # run_turn nằm trong closure của websocket nên không gọi thẳng được; kiểm bằng AST các chỗ gọi nó.
 import ast  # noqa: E402

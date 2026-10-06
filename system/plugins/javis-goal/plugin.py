@@ -15,15 +15,18 @@ Host làm phần code làm chắc hơn model
 - Một tin nhắn chỉ tạo một mục tiêu; cập nhật cần đúng `expected_revision`.
 
 Chỉ hiện ở brain đã bật Hệ thống cộng hưởng (`<brain>/Javis/resonance.json`), qua `visible_fn`.
-Ở M2 tool chỉ LƯU mục tiêu; chưa có gì tự thực hiện, nên kết quả trả về dặn bộ não đừng hứa suông.
+Từ M3 mục tiêu được làm tiếp ở NỀN (resonance.advance qua scheduler) trong hạn mức lượt gọi riêng; kết quả,
+việc chờ xác nhận hay lý do phải dừng tự về đúng khung chat. Kết quả trả về dặn bộ não nói đúng điều đó và
+không hứa thời điểm. Bộ thực thi nền CHỈ có lời người dùng và khung mục tiêu, không đọc được file hay dữ liệu.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
-_NOTE = ("Lưu ý: bản hiện tại chỉ LƯU mục tiêu và cách hiểu, chưa tự thực hiện hay tự báo cáo. "
-         "Đừng hứa sẽ tự làm tiếp hay tự báo lại. Phần làm được ngay thì làm trong lượt này; "
-         "việc nền một lần thì giao javis_task.")
+_NOTE = ("Lưu ý: mục tiêu sẽ được Javis làm tiếp ở NỀN từng bước, trong hạn mức {budget} lượt gọi model; "
+         "kết quả, việc cần người dùng xác nhận hay lý do phải dừng tự hiện trong khung chat này. Nói đúng như vậy, "
+         "đừng hứa thời điểm cụ thể. Bộ thực thi nền chỉ có lời người dùng và khung mục tiêu, KHÔNG đọc được file "
+         "hay dữ liệu khác: phần cần dữ liệu thì làm ngay trong lượt này.")
 
 
 def _enabled(vault_root) -> bool:
@@ -35,7 +38,7 @@ def _proposal(args: dict) -> dict:
     # remove_targets đã gỡ khỏi schema (M2 chưa bỏ được chỉ tiêu người dùng) nhưng lời gọi cũ vẫn có thể mang
     # nó: chuyển tiếp để validator báo "chưa hỗ trợ" thay vì lặng lẽ bỏ qua.
     keys = ("understanding", "criteria", "relevant_quote", "horizon", "stage", "mode", "assumptions",
-            "constraints", "targets", "open_questions", "remove_targets")
+            "constraints", "targets", "open_questions", "guards", "remove_targets")
     return {k: args.get(k) for k in keys if k in args}
 
 
@@ -70,7 +73,10 @@ def _summary(g, head: str) -> str:
         lines.append("Ràng buộc của người dùng: " + "; ".join(g.constraints))
     if g.open_questions:
         lines.append("Câu hỏi còn mở (chỉ hỏi nếu thật cần): " + "; ".join(g.open_questions))
-    lines.append(_NOTE)
+    if g.guards:
+        lines.append("Guard (host tự kiểm định kỳ, nhảy thì dừng mục tiêu): "
+                     + "; ".join(f"{x.get('id')} {x.get('description')}" for x in g.guards))
+    lines.append(_NOTE.format(budget=g.budget_calls))
     return "\n".join(lines)
 
 
@@ -190,6 +196,12 @@ _SCHEMA = {
         "targets": {"type": "array", "items": {"type": "object", "properties": {
             "text": {"type": "string"}, "quote": {"type": "string"}}}},
         "open_questions": {"type": "array", "items": {"type": "string"}},
+        "guards": {"type": "array", "description": "Điều kiện bảo vệ host tự kiểm định kỳ bằng code; nhảy thì "
+                   "dừng mục tiêu và báo người dùng. Ví dụ ràng buộc 'không xoá ghi chú cũ': artifact_contract với "
+                   "path của ghi chú đó.", "items": {"type": "object", "properties": {
+                       "description": {"type": "string"},
+                       "evaluator": {"type": "string", "enum": ["artifact_contract"]},
+                       "params": {"type": "object"}}, "required": ["description", "evaluator"]}},
         "user_unsure": {"type": "boolean"},
         "goal_id": {"type": "string"},
         "expected_revision": {"type": "integer"},

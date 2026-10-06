@@ -2041,6 +2041,74 @@ def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
         print(f"[resonance route] {type(e).__name__}: {e}", file=sys.stderr)
         return None
 
+
+class _ResonanceEvidence:
+    """Cổng bằng chứng của Resonance (M3) trên EvidenceStore có sẵn: mã hoá, kiểm hash khi đọc lại, có hạn lưu.
+
+    EvidenceStore gắn bằng chứng với một task của context runtime, nên mỗi lần ghi mở một turn riêng kênh
+    `resonance`. Runtime tắt hoặc chưa có khoá mã hoá thì put ném lỗi: Resonance coi như CHƯA có bằng chứng và
+    không xác nhận thành công. Kho chưa có cơ chế ghim; hạn lưu đặt dài (resonance.EVIDENCE_RETENTION_S).
+    """
+
+    def put(self, goal, action_id, text, metadata):
+        trace = _CONTEXT_RUNTIME.start_turn(goal.session_id, goal.brain_id, "resonance")
+        if trace is None:
+            raise RuntimeError("context_runtime_disabled")
+        try:
+            ev = _EVIDENCE_STORE.put(trace, "resonance_output", f"{goal.id}:{action_id}", str(text),
+                                     trust="host_receipt", metadata=dict(metadata or {}),
+                                     retention_seconds=resonance.EVIDENCE_RETENTION_S)
+        except Exception:
+            _CONTEXT_RUNTIME.finish(trace, "FAILED", "resonance_evidence")
+            raise
+        _CONTEXT_RUNTIME.finish(trace, "COMPLETED")
+        return ev.id
+
+    def valid(self, evidence_id):
+        ev = _EVIDENCE_STORE.get_valid(evidence_id)
+        if ev is None:
+            return None
+        return {"text": _EVIDENCE_STORE.read_artifact(evidence_id), "content_hash": ev.content_hash}
+
+
+_RESONANCE_EVIDENCE = _ResonanceEvidence()
+_RESONANCE_TICK_BUSY = [False]
+
+
+async def _resonance_notify(goal, kind, text) -> bool:
+    """Báo kết quả của mục tiêu về ĐÚNG khung chat web đã giao nó, kèm một mục trong hộp thư."""
+    if not goal.session_id:
+        return False
+    ok, _err = await _notify_owner(f"{WEB_CHAT_PREFIX}{goal.session_id}", text, kind="answer",
+                                   label=localefmt.chu("Mục tiêu", "Goal"), source="resonance")
+    return bool(ok)
+
+
+def _resonance_deps(brain_id):
+    """Phụ thuộc của vòng M3 cho MỘT brain. brain_id là đường dẫn đã resolve (cùng khoá với _brain_key)."""
+    root = str(brain_id or "")
+    if not root or not Path(root).is_dir():
+        return None
+    return resonance.GoalDeps(engine_factory=_resonance_engine, budget=resonance.CallBudget(0),
+                              store=_resonance_store(), principal=resonance_store.Principal("agent", "javis", root),
+                              brain_root=root, evidence=_RESONANCE_EVIDENCE, notify=_resonance_notify)
+
+
+async def _resonance_tick():
+    """Một nhịp Resonance trong scheduler (M3). Chưa từng có kho thì thoát ngay, không tạo file nào. Chạy NỀN
+    (create_task) vì một bước có thể gọi model tới max_wall_s; cờ bận giữ cho hai nhịp không chồng nhau."""
+    if _RESONANCE_TICK_BUSY[0] or not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").exists():
+        return
+    _RESONANCE_TICK_BUSY[0] = True
+    try:
+        store = _resonance_store()
+        await resonance.tick(store, time.time(), _resonance_deps)
+        await resonance.drain_outbox(store, _resonance_notify)
+    except Exception as e:  # noqa: BLE001
+        print(f"[resonance tick] {type(e).__name__}: {e}", file=sys.stderr)
+    finally:
+        _RESONANCE_TICK_BUSY[0] = False
+
 # Model đã GỠ khỏi Javis mà cài đặt cũ của người dùng có thể còn giữ. `chatgpt-web` (0.64.0 tới
 # 0.64.18) chạy bằng một trình duyệt lái trang chatgpt.com, và bị gỡ ở 0.64.20 vì trên máy chủ
 # thuê Cloudflare chặn IP. Ai đang chọn nó thì lượt chat kế tiếp rơi vào nhánh Codex, và nhánh
@@ -11182,6 +11250,10 @@ async def _start_scheduler():
                     await chatbot_reply_policy_review.tick()
                 except Exception as rpe:
                     print(f"[reply_policy review tick] {type(rpe).__name__}: {rpe}", file=__import__('sys').stderr)
+                # 3b3) Hệ thống cộng hưởng (M3): đọc lịch tới hạn bằng code; bước cần gọi model chạy NỀN, không giữ
+                #      chân vòng lặp này. Chưa brain nào bật Resonance thì không có kho, thoát ngay.
+                if not _RESONANCE_TICK_BUSY[0]:
+                    asyncio.create_task(_resonance_tick())
                 # 3c) Ngân sách token + báo cáo tuần. Nhịp RIÊNG 10 phút chứ không theo 30s:
                 #     mỗi lượt kiểm là một truy vấn sqlite cả tháng, chạy 30 giây một lần thì
                 #     chính cái đồng hồ đo tiền lại thành thứ tốn tài nguyên nhất.
