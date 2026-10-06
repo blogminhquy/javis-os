@@ -472,11 +472,11 @@ def _prior_view(prior) -> dict:
     return {"understanding": prior.understanding, "criteria": [dict(c) for c in prior.criteria],
             "horizon": dict(prior.horizon or {}), "stage": prior.stage, "mode": prior.mode,
             "assumptions": list(prior.assumptions), "targets": [dict(t) for t in prior.targets],
-            "open_questions": list(prior.open_questions)}
+            "open_questions": list(prior.open_questions), "constraints": list(prior.constraints)}
 
 
 def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = False,
-                      user_constraints=(), prior=None, source_ref: str = "") -> dict:
+                      user_constraints=(), prior=None, source_ref: str = "", notes=None) -> dict:
     """Kiểm một đề xuất mục tiêu theo SMART và trả khung đã chuẩn hoá. Sai luật thì ném GoalRejected.
 
     R: `relevant_quote` phải là một đoạn trong lời người dùng. Đây là chốt chặn mục tiêu do agent tự nghĩ ra.
@@ -488,10 +488,14 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
     Người dùng đã nói chưa biết thì không hỏi lại: bỏ câu hỏi, ghi giả định, bắt đầu bằng khám phá.
     Ràng buộc người dùng đã nêu luôn có mặt trong khung.
 
-    `prior` (khi cập nhật): revision đang có. Trường bản cập nhật bỏ trống thì kế thừa. Hạn chót và chỉ tiêu
-    người dùng nêu ở tin TRƯỚC được giữ nguyên cả giá trị lẫn nguồn khi bản cập nhật giữ đúng chúng, nên tin
-    chỉ bổ sung một chi tiết khác không làm mất chúng. Hạn hay chỉ tiêu MỚI vẫn phải trích được từ tin hiện
-    tại; người dùng sửa hạn thì hạn mới thắng, không bị đóng băng ở hạn cũ.
+    `prior` (khi cập nhật): revision đang có. Trường bản cập nhật bỏ trống thì kế thừa; ràng buộc cũ luôn
+    được giữ và hợp với ràng buộc mới. Hạn chót và chỉ tiêu người dùng đã nêu là CHỈ DẪN ĐANG CÓ HIỆU LỰC:
+    chỉ đổi hay bỏ được khi tin hiện tại có căn cứ (bất biến 2.1, chỉ người dùng thay được chỉ dẫn của họ):
+    - hạn: hạn mới trích được từ tin hiện tại, hoặc chân trời mới có `quote` trích từ tin hiện tại (người dùng
+      bỏ hạn);
+    - chỉ tiêu: một mục trong `remove_targets` cùng chữ, có `quote` trích từ tin hiện tại.
+    Thiếu căn cứ thì host GIỮ chỉ dẫn cũ, không âm thầm làm mất, và ghi lý do vào `notes` (danh sách truyền vào,
+    nếu có) để bộ não biết. Nhãn amend/replace chỉ ghi lại thay đổi đã được phép, không thay cho căn cứ.
     `source_ref`: tin nhắn (message_ref) làm căn cứ cho hạn và chỉ tiêu mới.
     """
     if not isinstance(proposal, dict):
@@ -523,10 +527,12 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
         raise GoalRejected("thiếu chân trời (T): deadline, review, event hoặc maintain")
     at = _at(h) if kind in ("deadline", "review") else 0.0
     horizon = None
+    user_deadline_now = False
     if kind == "deadline":
         if bool(h.get("from_user")) and _quoted(h.get("quote"), user_text):
             horizon = {"kind": "deadline", "from_user": True, "quote": str(h.get("quote") or "")[:200],
                        "reason": str(h.get("reason") or "")[:200], "at": at, "source": source_ref}
+            user_deadline_now = True
         elif (ph.get("kind") == "deadline" and ph.get("from_user") and at and abs(at - _at(ph)) < 1
               and (not h.get("quote") or _norm(h.get("quote")) == _norm(ph.get("quote")))):
             horizon = dict(ph)      # hạn người dùng nêu ở tin trước: giữ nguyên cả nguồn
@@ -542,6 +548,15 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
         horizon["event"] = str(h.get("event") or "").strip()[:200]
         if not horizon["event"]:
             raise GoalRejected("chân trời event cần mô tả sự kiện")
+    if ph.get("kind") == "deadline" and ph.get("from_user") and horizon != ph and not user_deadline_now:
+        if kind != "deadline" and _quoted(h.get("quote"), user_text):
+            # Người dùng bỏ hạn ở tin này: ghi đúng câu và tin làm căn cứ.
+            horizon.update(quote=str(h.get("quote"))[:200], source=source_ref)
+        else:
+            horizon = dict(ph)
+            if notes is not None:
+                notes.append("Giữ hạn chót người dùng đã nêu (\"" + str(ph.get("quote") or "") + "\"): tin này "
+                             "không có câu nào yêu cầu đổi hay bỏ hạn.")
     assumptions = _clean_list(proposal.get("assumptions"))
     old_targets = {(_norm(t.get("text")), _norm(t.get("quote"))): t
                    for t in (base.get("targets") or []) if isinstance(t, dict)}
@@ -561,6 +576,17 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
             note = f"Chỉ tiêu chưa có căn cứ từ lời người dùng, không dùng làm thước đo: {text}"
             if note not in assumptions:
                 assumptions.append(note)
+    removals = {_norm(r.get("text")) for r in (proposal.get("remove_targets") or [])
+                if isinstance(r, dict) and _quoted(r.get("quote"), user_text)}
+    for t in (base.get("targets") or []):
+        if not isinstance(t, dict) or _norm(t.get("text")) in {_norm(x.get("text")) for x in targets}:
+            continue                # còn nguyên, hoặc người dùng nhắc lại ở tin này (nguồn mới)
+        if _norm(t.get("text")) in removals:
+            continue                # người dùng bỏ chỉ tiêu này ở tin hiện tại, có câu trích
+        targets.append(dict(t))
+        if notes is not None:
+            notes.append(f"Giữ chỉ tiêu người dùng đã nêu \"{t.get('text')}\": tin này không có câu nào yêu cầu "
+                         "bỏ. Muốn bỏ thì đưa vào remove_targets kèm câu trích từ tin hiện tại.")
     understanding = str(proposal.get("understanding") or "").strip()[:500]
     stage = proposal.get("stage") if proposal.get("stage") in ("discovery", "delivery") else "discovery"
     if not understanding:
@@ -572,7 +598,8 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
         note = "Người dùng chưa rõ mong muốn; bắt đầu bằng một bước khám phá nhỏ, sửa được"
         if note not in assumptions:
             assumptions.append(note)
-    constraints = _clean_list(list(user_constraints or []) + list(proposal.get("constraints") or []))
+    constraints = _clean_list(list(base.get("constraints") or []) + list(user_constraints or [])
+                              + list(proposal.get("constraints") or []))
     mode = "maintain" if (proposal.get("mode") == "maintain" or kind == "maintain") else "achieve"
     return {"understanding": understanding, "criteria": criteria, "relevant_quote": quote[:300],
             "horizon": horizon, "stage": stage, "mode": mode, "assumptions": assumptions[:20],
@@ -595,11 +622,13 @@ def revision_relation(prior, frame: dict) -> str:
 
 
 def revise_goal(store, p, goal_id: str, expected_revision: int, proposal: dict, context: dict):
-    """Cập nhật một mục tiêu từ tin nhắn bổ sung. Trả (GoalRecord, relation).
+    """Cập nhật một mục tiêu từ tin nhắn bổ sung. Trả (GoalRecord, relation, notes).
 
-    Đọc revision hiện tại TRƯỚC khi kiểm, để hạn chót và chỉ tiêu người dùng nêu ở tin trước được kế thừa
-    (validate_proposal với `prior`). Bản ghi ý định mới nối về ý định của revision trước. Revision đã đổi
-    thì ném ConflictError từ kho; mục tiêu không thuộc brain thì ScopeError.
+    Đọc revision hiện tại TRƯỚC khi kiểm, để chỉ dẫn người dùng nêu ở tin trước được giữ trừ khi tin này có
+    căn cứ đổi (validate_proposal với `prior`). `notes`: những chỉ dẫn host đã giữ lại thay vì để bản cập nhật
+    làm mất. Bản ghi ý định mới nối về ý định của revision trước và được ghi CÙNG transaction với revision, nên
+    cập nhật bị từ chối không để lại ý định mồ côi. Revision đã đổi thì ConflictError; mục tiêu không thuộc
+    brain thì ScopeError.
     """
     from resonance_store import ConflictError
     prior = store.get(p, goal_id)
@@ -610,15 +639,16 @@ def revise_goal(store, p, goal_id: str, expected_revision: int, proposal: dict, 
     mref = str(context.get("message_ref") or "")
     user_text = str(context.get("user_text") or "")
     constraints = list(context.get("constraints") or ())
+    notes: list = []
     frame = validate_proposal(proposal, user_text, user_unsure=bool(context.get("user_unsure")),
-                              user_constraints=constraints, prior=prior, source_ref=mref)
+                              user_constraints=constraints, prior=prior, source_ref=mref, notes=notes)
     relation = revision_relation(prior, frame)
-    intent = store.add_intent(p, context.get("session_id") or "", context.get("message_id"), user_text,
+    intent = store.new_intent(p, context.get("session_id") or "", context.get("message_id"), user_text,
                               constraints=constraints, prev_intent_id=prior.intent_id or None, relation=relation)
     goal = store.revise(p, goal_id, expected_revision, frame,
                         reason=str(context.get("reason") or "người dùng bổ sung")[:500],
-                        intent_id=intent["id"], message_ref=mref, relation=relation)
-    return goal, relation
+                        message_ref=mref, relation=relation, intent=intent)
+    return goal, relation, notes
 
 
 def route_request(message_ref: str, turn_context: dict) -> RouteDecision:

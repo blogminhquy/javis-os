@@ -33,7 +33,7 @@ def _enabled(vault_root) -> bool:
 
 def _proposal(args: dict) -> dict:
     keys = ("understanding", "criteria", "relevant_quote", "horizon", "stage", "mode", "assumptions",
-            "constraints", "targets", "open_questions")
+            "constraints", "targets", "open_questions", "remove_targets")
     return {k: args.get(k) for k in keys if k in args}
 
 
@@ -124,7 +124,7 @@ async def javis_goal(args, ctx):
         return "ERROR: update cần expected_revision (số revision bạn đang thấy)."
     try:
         # Đọc revision hiện tại trước khi kiểm: hạn và chỉ tiêu người dùng nêu ở tin trước được giữ nguyên.
-        g, _relation = R.revise_goal(store, p, gid, exp, _proposal(args), {
+        g, _relation, kept = R.revise_goal(store, p, gid, exp, _proposal(args), {
             "message_ref": mref, "session_id": sid, "message_id": mid, "user_text": user_text,
             "constraints": constraints, "user_unsure": unsure, "reason": args.get("reason")})
     except RS.ConflictError as e:
@@ -133,7 +133,10 @@ async def javis_goal(args, ctx):
         return f"ERROR: {e}."
     except R.GoalRejected as e:
         return f"ERROR: Chưa cập nhật được mục tiêu: {e}."
-    return _summary(g, "Đã cập nhật mục tiêu")
+    out = _summary(g, "Đã cập nhật mục tiêu")
+    if kept:
+        out += "\nHost giữ lại chỉ dẫn cũ của người dùng:\n" + "\n".join("- " + k for k in kept)
+    return out
 
 
 _DESC = (
@@ -144,7 +147,10 @@ _DESC = (
     "javis_schedule. relevant_quote phải trích NGUYÊN VĂN lời người dùng. Không bịa hạn chót hay chỉ tiêu: "
     "người dùng không nêu hạn thì horizon.kind=review (mốc xem lại nội bộ). Người dùng nói chưa biết muốn gì "
     "thì user_unsure=true, stage=discovery. Người dùng bổ sung ý cho mục tiêu đang mở: op=update với goal_id "
-    "và expected_revision (xem bằng op=list); chỉ gửi trường thay đổi, trường bỏ trống giữ như cũ."
+    "và expected_revision (xem bằng op=list); chỉ gửi trường thay đổi, trường bỏ trống giữ như cũ. Hạn và "
+    "chỉ tiêu người dùng đã nêu chỉ đổi được khi tin HIỆN TẠI nói đổi: hạn mới kèm quote trích từ tin này, bỏ "
+    "hạn thì horizon.quote trích câu bỏ hạn, bỏ chỉ tiêu thì remove_targets kèm quote. Chưa hỗ trợ gỡ ràng buộc "
+    "người dùng đã nêu; người dùng muốn gỡ thì nói rõ là chưa làm được."
 )
 
 _SCHEMA = {
@@ -176,6 +182,9 @@ _SCHEMA = {
         "targets": {"type": "array", "items": {"type": "object", "properties": {
             "text": {"type": "string"}, "quote": {"type": "string"}}}},
         "open_questions": {"type": "array", "items": {"type": "string"}},
+        "remove_targets": {"type": "array", "description": "Chỉ dùng với update: chỉ tiêu người dùng YÊU CẦU bỏ ở "
+                           "tin này, quote trích nguyên văn câu đó.", "items": {"type": "object", "properties": {
+                               "text": {"type": "string"}, "quote": {"type": "string"}}}},
         "user_unsure": {"type": "boolean"},
         "goal_id": {"type": "string"},
         "expected_revision": {"type": "integer"},

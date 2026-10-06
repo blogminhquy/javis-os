@@ -121,17 +121,27 @@ class GoalStore:
                    prev_intent_id: Optional[str] = None, relation: str = "") -> dict:
         """Ghi nguyên văn lời người dùng. `prev_intent_id`: ý định của revision trước khi tin này cập nhật
         một mục tiêu; `relation`: "amend" (bổ sung) hay "replace" (thay chỉ dẫn đã nêu)."""
-        rec = {"id": _nid("in"), "brain_id": p.brain_id, "session_id": str(session_id or ""),
-               "message_id": message_id, "text": str(text or ""),
-               "constraints": [str(x).strip() for x in (constraints or ()) if str(x).strip()],
-               "prev_intent_id": prev_intent_id, "relation": str(relation or ""), "created_at": time.time()}
+        rec = self.new_intent(p, session_id, message_id, text, constraints, prev_intent_id, relation)
         with self._Tx(self) as c:
-            if prev_intent_id:
-                self._intent(c, p, prev_intent_id)
-            c.execute("INSERT INTO intents VALUES(?,?,?,?,?,?,?,?,?)",
-                      (rec["id"], rec["brain_id"], rec["session_id"], rec["message_id"], rec["text"],
-                       _j(rec["constraints"]), prev_intent_id, rec["relation"], rec["created_at"]))
+            self._insert_intent(c, p, rec)
         return rec
+
+    def new_intent(self, p: Principal, session_id: str, message_id, text: str, constraints=(),
+                   prev_intent_id: Optional[str] = None, relation: str = "") -> dict:
+        """Dựng bản ghi ý định CHƯA ghi; `revise(intent=...)` ghi nó cùng transaction với revision."""
+        return {"id": _nid("in"), "brain_id": p.brain_id, "session_id": str(session_id or ""),
+                "message_id": message_id, "text": str(text or ""),
+                "constraints": [str(x).strip() for x in (constraints or ()) if str(x).strip()],
+                "prev_intent_id": prev_intent_id, "relation": str(relation or ""), "created_at": time.time()}
+
+    def _insert_intent(self, c, p: Principal, rec: dict) -> None:
+        if rec.get("brain_id") != p.brain_id:
+            raise ScopeError("bản ghi ý định không thuộc brain này")
+        if rec.get("prev_intent_id"):
+            self._intent(c, p, rec["prev_intent_id"])
+        c.execute("INSERT INTO intents VALUES(?,?,?,?,?,?,?,?,?)",
+                  (rec["id"], rec["brain_id"], rec["session_id"], rec["message_id"], rec["text"],
+                   _j(rec["constraints"]), rec.get("prev_intent_id"), rec.get("relation") or "", rec["created_at"]))
 
     def _intent(self, c, p: Principal, intent_id: str) -> dict:
         r = c.execute("SELECT * FROM intents WHERE id=?", (intent_id,)).fetchone()
@@ -232,7 +242,8 @@ class GoalStore:
             return [self._record(c, r) for r in c.execute(q, args).fetchall()]
 
     def revise(self, p: Principal, goal_id: str, expected_revision: int, frame: dict, reason: str,
-               intent_id: Optional[str] = None, message_ref: str = "", relation: str = "") -> R.GoalRecord:
+               intent_id: Optional[str] = None, message_ref: str = "", relation: str = "",
+               intent: Optional[dict] = None) -> R.GoalRecord:
         now = time.time()
         with self._Tx(self) as c:
             row = self._goal_row(c, p, goal_id)
@@ -241,6 +252,10 @@ class GoalStore:
             if int(row["revision"]) != int(expected_revision):
                 raise ConflictError(f"mục tiêu đang ở revision {row['revision']}, không phải {expected_revision}")
             user_cons = json.loads(row["user_constraints_json"] or "[]")
+            if intent is not None:
+                # Ghi ý định trong CÙNG transaction: revision bị từ chối thì ý định cũng không còn.
+                self._insert_intent(c, p, intent)
+                intent_id = intent["id"]
             if intent_id:
                 for x in self._intent(c, p, intent_id)["constraints"]:
                     if x not in user_cons:
