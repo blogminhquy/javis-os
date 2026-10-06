@@ -425,6 +425,15 @@ Chạy lại `PR-570-M3-checks.py`: script dừng ở assertion REPRO đầu ti�
 
 Không chạy lại pilot thật cho phần sửa này: các thay đổi nằm ở cổng kiểm, đối soát và lịch, đều kiểm được tất định bằng engine giả.
 
+### Sửa theo review PR #570 vòng 2
+
+Review vòng 2 (`exports/reviews/PR-570-M3-review-round2.md`, diff `e5a42409..9aad1f5d`) xác nhận sáu nhóm sửa vòng 1 đạt bằng assertion theo hành vi đúng, và nêu một lỗi P1 còn hở của P1-2: cổng kiểm guard chạy TRƯỚC khi đăng, rồi ảnh chụp đó được gắn vào đánh giá SAU khi đăng. Khi guard đọc đúng file sản phẩm và bản mới làm guard sai (ví dụ bỏ mất tiêu đề phải giữ), mục tiêu vẫn bị đóng thành công. Lỗi xảy ra tuần tự, không phải khe tranh chấp đã ghi ở giới hạn.
+
+- **Kiểm bản ứng viên trước khi thay file.** `_publish` đem nội dung sắp ghi kiểm theo mọi guard `artifact_contract` đọc đúng file đích. Bản mới làm guard sai thì giữ bản đang hợp lệ, bản mới ở lại vùng làm việc, ghi sự kiện `publish_blocked_by_guard`.
+- **Kiểm lại trên trạng thái cuối.** `_after_publish` chạy lại cổng sau khi đăng rồi mới đánh giá; guard trong assessment là kết quả của lần kiểm này. Bản ứng viên bị guard chặn thì assessment thêm một dòng not_met nêu tên guard, nên không kết luận đạt, không báo `goal.maintained`, và lượt làm lại đưa phản hồi đó cho model.
+- **Cả hai đường.** Đường làm việc thường và đường dùng lại đầu ra đã lưu (sau pause, sau gián đoạn) đều đi qua hai bước trên. Đầu ra đã lưu mà hợp lệ thì resume vẫn đăng và đạt KHÔNG tốn thêm lượt model; đầu ra đã lưu làm guard sai thì không đăng, và host làm lại một lượt trong hạn mức có phản hồi về guard.
+- **Test:** thêm 7 kiểm tra theo đúng hai kịch bản của review cùng ca đối chứng (`test_resonance_mvp_run.py` lên 99). Bỏ bước kiểm bản ứng viên thì 6 kiểm tra đỏ. Script `PR-570-M3-round2-checks.py`: 10 PASS đầu vẫn qua; ở cả hai ca REPRO guard thật vẫn clear và mục tiêu không bị đóng. Ca resume của script còn một assertion "không có lượt gọi thêm" viết cho trạng thái lỗi; sau sửa, đầu ra vi phạm guard dẫn tới đúng một lượt làm lại có phản hồi, theo thiết kế ở trên.
+
 ### Giới hạn và những gì chưa kiểm
 
 1. **Chưa có chính sách khi tới hạn chót.** Không mục tiêu nào bị kết luận `failed`; tới deadline mà chưa đạt vẫn chỉ là chưa đạt. Spec 7 yêu cầu ghi unknown và áp chính sách deadline đã chốt.
@@ -440,11 +449,11 @@ Không chạy lại pilot thật cho phần sửa này: các thay đổi nằm �
 
 ### Toàn bộ test Python
 
-| | Main sạch (`7d264236`) | Nhánh M3 (`e07c68cd`) | M3 sau review (`6c840c93`) |
-|---|---|---|---|
-| Xanh | 387/403 | 396/411 | 395/411 |
-| File đỏ | 16 | 15 | 16 |
-| Đỏ mới so với main | | không có | không có |
+| | Main sạch (`7d264236`) | Nhánh M3 (`e07c68cd`) | M3 sau review (`6c840c93`) | M3 sau review vòng 2 (`7ceb987e`) |
+|---|---|---|---|---|
+| Xanh | 387/403 | 396/411 | 395/411 | 396/411 |
+| File đỏ | 16 | 15 | 16 | 15 |
+| Đỏ mới so với main | | không có | không có | không có |
 
 Lượt sau review: 15 file đỏ sẵn ở mục M1 cộng `test_project_khung.py` (đỏ trên main sạch, chập chờn).
 
