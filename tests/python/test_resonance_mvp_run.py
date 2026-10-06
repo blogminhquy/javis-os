@@ -258,6 +258,15 @@ check("không ghi đè file người dùng đã sửa (xung đột thì giữ ng
       and any(e["kind"] == "publish_conflict" for e in store.events(P, g_pub2.id)))
 target(g_pub).unlink(missing_ok=True)
 
+# Sản phẩm không được tạo file ở chỗ Javis tự chạy hay tự nạp (loop, agent, skill, plugin, bộ nhớ, CLAUDE.md...).
+for bad in ("Javis/loops/tu-chay.md", "agents/moi.md", "Skills/x/SKILL.md", "memory/facts/gia.md",
+            ".claude/commands/x.md", "Notes/CLAUDE.md", "plugins/p/README.md", "workflows/w.md", "Inbox/x.py"):
+    g_bad = make_goal(criteria=[{"description": "Có file", "evaluator": "artifact_contract", "params": {"path": bad}}])
+    deps_bad, _, _ = make_deps()
+    adv(g_bad.id, {"kind": "start"}, deps_bad)
+    check(f"không đăng sản phẩm vào {bad}: file không được tạo, ghi sự kiện từ chối",
+          not (Path(BRAIN) / bad).exists() and any(e["kind"] == "publish_rejected" for e in store.events(P, g_bad.id)))
+
 # ═══════════════════════ test_old_revision_cannot_finish ═══════════════════════
 g_o = make_goal()
 target(g_o).unlink(missing_ok=True)

@@ -1108,6 +1108,24 @@ class _ReservedCall:
             self.store.release_call(self.principal, self.goal_id)
 
 
+# Chỗ trong brain mà file .md ở đó LÀ cấu hình hay năng lực Javis tự chạy hoặc tự nạp vào prompt: loop, agent,
+# skill, workflow, plugin, bộ nhớ, công tắc Resonance, CLAUDE.md. Sản phẩm của một mục tiêu không được tạo file ở
+# đó: như thế là tự mở rộng quyền (bất biến 2.1), dù chỉ là file chữ. So không phân biệt hoa thường (Windows).
+_PUBLISH_DENY_TOP = frozenset({"javis", "plugins", "skills", "agents", "workflows", "memory"})
+_PUBLISH_DENY_NAMES = frozenset({"claude.md", "agents.md", "gemini.md", "memory.md"})
+
+
+def _publish_allowed(brain_root: str, f: Path) -> bool:
+    try:
+        parts = f.relative_to(Path(brain_root).resolve()).parts
+    except Exception:  # noqa: BLE001
+        return False
+    low = [x.lower() for x in parts]
+    if not low or any(x.startswith(".") for x in low):
+        return False
+    return low[0] not in _PUBLISH_DENY_TOP and low[-1] not in _PUBLISH_DENY_NAMES
+
+
 def _publish(goal: GoalRecord, text: str, deps: GoalDeps, now: float) -> dict:
     """Đặt sản phẩm vào đường dẫn tiêu chí khai trong brain. KHÔNG ghi đè file người dùng hay tác vụ khác đã sửa:
     file đã có mà hash khác lần mục tiêu này ghi trước thì là xung đột, giữ nguyên file, báo người dùng."""
@@ -1116,7 +1134,7 @@ def _publish(goal: GoalRecord, text: str, deps: GoalDeps, now: float) -> dict:
     if not rel:
         return {"status": "none"}
     f = _brain_file(deps.brain_root, rel)
-    if f is None or f.suffix.lower() not in PUBLISH_SUFFIXES:
+    if f is None or f.suffix.lower() not in PUBLISH_SUFFIXES or not _publish_allowed(deps.brain_root, f):
         store.append_event(p, goal.id, "publish_rejected", {"path": rel, "reason": "đường dẫn hoặc loại file không nhận"},
                            idempotency_key=f"publish_rejected:{goal.revision}:{rel}", revision=goal.revision)
         return {"status": "rejected"}
