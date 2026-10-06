@@ -360,3 +360,75 @@ Lượt vòng 4: 15 file đỏ sẵn ở mục M1 cộng `test_hoi_thoai_nhom.py
 Danh sách 15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1. `test_project_khung.py` tiếp tục xanh trên nhánh, như ở M1.
 
 Lượt chạy toàn bộ đầu tiên của M2 (commit `66328b61`) có `test_voice_ten_javis.py` đỏ do M2 gây ra, đã sửa ở `f6fd4841` như ghi ở mục Lỗi tự gây.
+
+## M3: thực thi, bằng chứng và lịch nhỏ (06/10/2026)
+
+### Nền và nhánh
+
+- Nhánh `claude/resonance-mvp-m3` tách từ head M2 đã qua review (`fa7e264d`), PR nháp #570 xếp chồng trên #567. Phiên bản 0.84.4: `origin/main` đã lên 0.84.2 (`bacb1cfe`) và PR #569 đang giữ 0.84.3.
+- `origin/main` đi tiếp đúng một commit so với nền `7d264236` của chuỗi (`bacb1cfe`, Zalo vào nhóm). Commit đó chỉ sửa phần Zalo cùng `VERSION` và hai CHANGELOG, không chạm file nào của Resonance. Không đồng bộ vào chuỗi lúc này: đồng bộ sẽ thêm merge commit vào hai PR đã qua review mà không đổi gì của Resonance. VERSION và CHANGELOG sẽ chỉnh một lần lúc merge.
+
+### Quyết định thiết kế cần người review soát
+
+1. **Một vòng `advance(goal_id, event, deps)` tiếp tục được sau restart** (spec mục 7). Mỗi lần: kiểm công tắc brain, pause, guard; nhận khoá lượt có hạn (`claim_lease`); đối soát hành động dở; đánh giá bằng chứng đã gắn với ĐÚNG revision hiện tại; chỉ khi chưa đạt và sự kiện là loại được làm việc (`start`, `wake`, `user_message`, `resume`) mới làm MỘT bước. `observe` chỉ quan sát guard; `reaction` không làm gì; `user_schedule` sửa lịch.
+2. **Ghi ý định trước tác động.** `GoalStore.begin_action` ghi hành động `running` và giữ một lượt gọi model trong CÙNG giao dịch (`calls_used < budget_calls`), kèm lịch phục hồi tại lúc hết khoá. Không ghi được thì không dựng engine. Hết hạn mức thì blocked `budget`, không gọi.
+3. **Đối soát sau restart.** Hành động `running` mà khoá đã hết: có file đầu ra đúng `action_id` thì chốt succeeded (`reconciled: true`), không gọi model lại; không có thì `failed: interrupted` (model có thể đã được gọi nên vẫn tính vào hạn mức) và lượt sau dùng id MỚI. Hành động đăng sản phẩm đối soát bằng hash file đích.
+4. **Bằng chứng qua EvidenceStore thật.** `main._ResonanceEvidence` mở một turn runtime kênh `resonance` cho mỗi lần ghi, mã hoá, đọc lại qua `get_valid` (kiểm hạn và hash). Kho chưa có cơ chế ghim nên hạn lưu đặt 90 ngày. Không ghi được bằng chứng thì coi như CHƯA có bằng chứng và không xác nhận thành công. Mỗi lần đánh giá file trong brain cũng chụp nội dung vào kho (bỏ qua nếu cùng hash).
+5. **Đặt sản phẩm vào brain có rào.** Đầu ra của model nằm trong vùng làm việc `Javis/resonance/outputs/<goal>`; host đăng bản đó vào đường dẫn tiêu chí `artifact_contract` đầu tiên khai `path`, khi và chỉ khi: đường dẫn nằm trong brain sau resolve; đuôi `.md` hoặc `.txt`; KHÔNG nằm ở chỗ Javis tự chạy hay tự nạp (thư mục ẩn, `Javis/`, `agents/`, `skills/`, `workflows/`, `plugins/`, `memory/`, file `CLAUDE.md`/`AGENTS.md`/`GEMINI.md`/`MEMORY.md`); file chưa có, hoặc có nhưng hash đúng bằng lần chính mục tiêu này đăng trước. File người dùng hay tác vụ khác đã sửa thì xung đột: giữ nguyên, ghi `publish_conflict`, báo người dùng. Kiểm lại công tắc brain NGAY TRƯỚC khi đăng.
+6. **Kết luận.** `evaluate_artifact` trả met / not_met / unknown theo từng tiêu chí: thiếu file khai rõ là not_met; chưa có hoặc không đọc lại được bằng chứng là unknown; đường dẫn ra ngoài brain là unknown (lỗi evaluator); `human_confirmation` luôn unknown tới M4. Mục tiêu achieve chỉ thành `succeeded` khi MỌI tiêu chí met và `GoalStore.finish` so đúng revision đã đánh giá (CAS). Mục tiêu maintain đạt thì giữ active, hẹn xem lại. Chỉ còn tiêu chí người dùng thì chuyển `waiting`, không hẹn gọi model.
+7. **Lịch.** Bảng `wakeups` (một lịch `work` và một lịch `observe` mỗi mục tiêu). `main._resonance_tick` được scheduler 30 giây có sẵn khởi bằng `create_task` (cờ bận chống chồng nhịp); chưa có `resonance.sqlite3` thì thoát ngay. `tick` chỉ đọc lịch tới hạn bằng code và nhận mỗi lịch bằng CAS. `next_wake`: không có nguồn sự kiện thì xem lại trong khoảng 6 đến 24 giờ; chân trời `event` chưa có adapter nên cũng chỉ xem lại có giới hạn; chưa đạt sau một lượt thì làm lại sau 15 phút nếu còn hạn mức; lỗi engine lùi 1 giờ, 4 giờ, 24 giờ hoặc chờ mốc mở lại hạn mức gói (`limit_learner.parse_subscription_limit`); người dùng hẹn thì sửa lịch trực tiếp; reaction không đổi gì. Tạo và sửa mục tiêu ghi lịch `work` ngay trong giao dịch của chúng.
+8. **Guard.** Trường mới `guards` trong khung mục tiêu (tool nhận). Chỉ `artifact_contract` có adapter đọc: file khai phải còn và đạt điều kiện. Nguồn khác ghi unknown "chưa hỗ trợ nguồn ... (chưa có adapter đọc)". Lịch quan sát guard riêng (1 giờ), đọc bằng code, không gọi model. Guard nhảy thì blocked `guard`, xoá mọi lịch, báo người dùng, không tự mở lại khi bị đánh thức.
+9. **Báo người dùng qua outbox.** `drain_outbox` gửi đúng các tin có ý nghĩa (`goal.succeeded`, `goal.maintained`, `goal.waiting_human`, `goal.blocked`, `goal.guard`, `goal.publish_conflict`) tới `_notify_owner("web:<phiên đã giao>")` (khung chat cộng hộp thư) rồi đánh dấu đã gửi; tin nội bộ chỉ đánh dấu. Khoá `idem` duy nhất theo mục tiêu chống báo lặp. Gửi lỗi thì để lại cho nhịp sau.
+10. **Lời gửi model.** Mục tiêu, CẢ chuỗi lời người dùng (lần theo `prev_intent_id`, tối đa 5 tin), tiêu chí, ràng buộc, giả định, phần chưa đạt lần trước và bản sản phẩm hiện có, lời người dùng và bản cũ nằm trong rào dữ liệu. Engine vẫn là đường chỉ chữ của M1 (`main._resonance_engine`), không có chuỗi dự phòng.
+11. **Schema.** Bảng mới `actions`, `assessments`, `evidence_links`, `wakeups`, `published`; cột mới `goals.run_state/block_reason/lease_owner/lease_until`, `outbox.idem` thêm bằng `ALTER TABLE` khi mở kho, nên kho tạo bởi bản M2 nâng cấp tại chỗ, không xoá dữ liệu.
+12. **Kiểm `params` theo evaluator** (review M2 giao cho M3): `artifact_contract` của tiêu chí và guard chỉ nhận `path` (tương đối, không `..`, không ổ đĩa), `min_chars` (số nguyên trong trần đầu ra), `must_contain` (tối đa 10 chuỗi không rỗng); tham số lạ hay sai kiểu thì từ chối đề xuất với lời nói rõ. `human_confirmation` không mang params.
+13. **`run_once` đổi em dash thành "-" trước khi ghi** (luật cấm em dash trong file, kể cả brain), receipt ghi số chỗ đã đổi (`normalized_em_dash`); hash là của đúng bytes đã ghi.
+
+### Kết quả với engine giả
+
+`tests/python/test_resonance_mvp_run.py` (71 kiểm tra), kho SQLite thật, engine giả theo hợp đồng sự kiện của aux_engine, cổng bằng chứng giả cùng hợp đồng với `_ResonanceEvidence`. Đủ các test Task M3 đặt tên: `done_is_not_success`, `missing_evidence_unknown`, `restart_does_not_repeat_effect`, `old_revision_cannot_finish`, `pause_and_revoke`, `audit_failure_before_effect`, `budget_reserved_before_call`, `limit_keeps_checkpoint`, `no_paid_provider_fallback`, `idle_does_not_call_model`, `guard_wakes_without_worker`, `no_source_uses_bounded_review`. Thêm: không ghi đè file người dùng đã sửa, chín đường dẫn bị cấm đăng, mục tiêu duy trì làm tiếp sau tin bổ sung (lời gửi model có cả lời gốc, tin mới và bản hiện có), báo một lần mỗi revision.
+
+`tests/python/test_resonance_mvp_main.py` thêm 10 kiểm tra (tổng 32): cổng bằng chứng ghi rồi đọc lại EvidenceStore THẬT, `_resonance_deps` dựng đúng principal và engine, và một mục tiêu đi trọn vòng trên host với engine giả: tool `javis_goal` tạo, `main._resonance_tick` làm ở nền, sản phẩm vào brain, mục tiêu thành công, báo về đúng `web:<phiên>` kèm link; nhịp sau không gọi engine.
+
+Phép thử đột biến (phá từng hành vi rồi chạy lại test, phải đỏ): bỏ kiểm xung đột khi đăng, bỏ trần hạn mức, bỏ kiểm pause, đối soát không xem file đầu ra, coi unknown là xong, `finish` không so revision, cắt chuỗi ý định, bỏ danh sách cấm đăng. Cả tám đều bị test bắt.
+
+### Kết quả pilot thật
+
+`tests/python/test_resonance_mvp_pilot.py`, chỉ chạy khi `JAVIS_RESONANCE_PILOT=1`. Bằng chứng: `docs/dev/resonance-mvp-m3-pilot.json` (không có đường dẫn cá nhân).
+
+- **Commit:** `9f3dad13`, cây `server/` sạch. Sau đó có thêm thay đổi ở đường báo tin (`goal.maintained`) và danh sách cấm đăng; hai phần này được kiểm bằng engine giả, KHÔNG chạy lại pilot thật để giữ hạn mức.
+- **Môi trường:** `JAVIS_STATE_DIR` tạm, chỉ chép các ô chọn engine (`anthropic-cli` / `sonnet`), brain tạm với dữ liệu mô phỏng, kênh báo thay bằng bộ ghi lại.
+- **Kịch bản:** mục tiêu duy trì "ghi chú `Inbox/viec-tuan.md` liệt kê việc đang dở" có guard "ghi chú cũ vẫn còn", hạn mức 3 lượt. Nhịp 1 qua `main._resonance_tick`; người dùng bổ sung "gia hạn tên miền"; giả lập khởi động lại (bỏ đối tượng kho, mở kho mới); nhịp 2; nhịp 3.
+- **Kết quả:** 2 lượt gọi model thật (6,0 và 5,0 giây), cả hai receipt succeeded, đúng provider đã chọn, 0 lần gọi công cụ, hash khớp file trên đĩa. Hai lần đăng sản phẩm succeeded (lần 2 ghi đè được vì đúng hash lần 1 của chính mục tiêu). Cả hai revision host kiểm met. Nhịp 3 không gọi thêm. Dùng 2/3 lượt. Bằng chứng revision 2 đọc lại được từ EvidenceStore thật, hash khớp. Ghi chú cũ còn nguyên, không có em dash.
+- **Usage engine báo:** khoảng 18,1 nghìn và 18,5 nghìn token vào, khoảng 300 token ra mỗi lượt; `cost_usd` là con số SDK tự tính trên gói thuê bao, không phải hoá đơn.
+- **Pilot làm lộ hai điều:** (a) mục tiêu duy trì đạt mà không báo người dùng gì, đã sửa bằng `goal.maintained`; (b) model tự viết câu sai "các ghi chú cũ trong Inbox/viec-tuan.md được giữ nguyên", trong khi ghi chú cũ nằm ở `Notes/`. Bộ thực thi chỉ chữ chỉ thấy ràng buộc dạng chữ, không thấy file, nên có thể viết lời khẳng định không kiểm chứng. Đây là giới hạn chất lượng, không sửa ở M3.
+
+### Lỗi tự gây hoặc tự phát hiện trong lúc làm, đã sửa
+
+- **Mất ngữ cảnh khi làm tiếp.** Sau tin bổ sung, ý định của revision là tin bổ sung đó, nên bước làm tiếp chỉ đưa tin mới cho model, mất lời giao gốc và bản đã làm. Phát hiện khi thiết kế pilot; sửa ở `9f3dad13`.
+- **Mục tiêu duy trì im lặng.** Phát hiện ở pilot; sửa ở `a71b124e`.
+- **Sản phẩm có thể tạo file cấu hình Javis.** Tự soát diff thấy đường dẫn do model khai có thể tạo `Javis/loops/*.md`, `agents/*.md`, `skills/*/SKILL.md`, `memory/...` hay `CLAUDE.md`, tức tự mở rộng quyền. Thêm danh sách cấm ở `_publish`.
+- **Hai lỗi trong test của chính em:** chân trời `maintain` làm mục tiêu thành maintain nên không "thành công" (đúng thiết kế, sửa test); `tick` chung xử lý cả mục tiêu khác đang tới hạn (sửa test đếm theo mục tiêu).
+
+### Giới hạn và những gì chưa kiểm
+
+1. **Chưa có chính sách khi tới hạn chót.** Không mục tiêu nào bị kết luận `failed`; tới deadline mà chưa đạt vẫn chỉ là chưa đạt. Spec 7 yêu cầu ghi unknown và áp chính sách deadline đã chốt.
+2. **Bộ thực thi chỉ có chữ.** Không đọc được file hay dữ liệu của brain; mục tiêu cần dữ liệu thì bộ não phải làm trong lượt chat. Model có thể viết lời khẳng định không kiểm chứng (ví dụ ở pilot).
+3. **Một sản phẩm mỗi mục tiêu.** Chỉ tiêu chí `artifact_contract` đầu tiên có `path` được đăng; tiêu chí khác chỉ được đánh giá.
+4. **Khe giữa kiểm và ghi khi đăng sản phẩm.** Người dùng sửa file đúng giữa lúc host so hash và lúc thay file thì bản của người dùng có thể bị thay. Chưa có khoá file.
+5. **Báo tin ít nhất một lần.** Tiến trình chết giữa lúc gửi và lúc đánh dấu thì tin có thể gửi lặp. Phát lại không trùng tại kho tin nhắn là việc của M4.
+6. **Guard.** Chỉ đọc file; đọc guard không chụp vào kho bằng chứng; guard đã nhảy chưa có đường mở lại (lệnh người dùng ở M4).
+7. **Bằng chứng không ghim.** Hạn lưu 90 ngày; quá hạn thì đánh giá lại ra unknown.
+8. **Thao tác SQLite đồng bộ trong event loop.** Mỗi lần nhỏ, nhưng chưa đưa ra luồng riêng. Mỗi nhịp xử lý tối đa 3 lịch.
+9. **Pilot thật chạy ở `9f3dad13`**, trước hai thay đổi cuối (báo `goal.maintained`, danh sách cấm đăng); hai thay đổi đó chỉ kiểm bằng engine giả.
+10. **Từ M2 vẫn còn:** việc nền do làn giọng nói tự giao chưa lập mục tiêu; chưa đổi hay bỏ được chỉ dẫn người dùng đã nêu.
+
+### Toàn bộ test Python
+
+| | Main sạch (`7d264236`) | Nhánh M3 (`e07c68cd`) |
+|---|---|---|
+| Xanh | 387/403 | 396/411 |
+| File đỏ | 16 | 15 |
+| Đỏ mới so với main | | không có |
+
+15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1. Một lượt chạy trước đó (trên cây đang sửa, giữa hai commit) bị ngắt ở file 408/411 và để lại năm file Zalo/YouTube đỏ liền nhau ngay trước lúc dừng; chạy riêng tám file cuối đều xanh, nên không tính lượt đó.
