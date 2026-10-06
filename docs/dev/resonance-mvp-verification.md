@@ -317,6 +317,16 @@ Review vòng 3 (`exports/reviews/PR-567-M2-review-round3.md`, diff `9f2e9a32..2b
 
 Chạy lại `PR-567-M2-round3-checks.py`: hai assertion PASS đầu vẫn qua. Bước 4 của script dừng ở xung đột revision, vì script giả định bước 3 ghi revision mới, trong khi nay bản cập nhật không đổi được gì thì không ghi revision. Chạy một bản sao chỉ đổi `expected_revision` bước 4 thành revision hiện tại: assertion REPRO P1 không còn đúng (chỉ tiêu và hạn còn nguyên). Ca P2 được phủ trong test của PR.
 
+### Sửa theo review PR #567 vòng 4
+
+Review vòng 4 (`exports/reviews/PR-567-M2-review-round4.md`, diff `2b1b212f..439fe922`) đóng P1 trong phạm vi M2 đã thu hẹp và giữ nguyên quyết định phạm vi. Còn hai lỗi P2 cục bộ:
+
+- **P2-1: chân trời bị chặn vẫn kéo `mode` đổi theo.** `mode` được tính từ biến `kind` của đề xuất chứ không từ chân trời cuối cùng host nhận, nên đề xuất `maintain` bị chặn vẫn đổi mục tiêu `achieve` thành `maintain` và ghi một revision. Nay `mode` tính từ chân trời đã nhận; không gửi `mode` thì giữ mode trước đó.
+- **P2-2: tool lọc mất `remove_targets` trước khi validator kịp báo.** `_proposal` của plugin nay chuyển tiếp trường cũ này (vẫn ngoài schema) để validator báo "chưa hỗ trợ". Tóm tắt của tool nay có dòng "Chỉ tiêu người dùng nêu", nên bộ não thấy chỉ tiêu còn giữ.
+- **Test:** `test_resonance_mvp_revise.py` lên 58 kiểm tra. `_frozen` kiểm thêm mode và stage. Ba ca mới đi qua `plugins_host` thật, so toàn bộ `GoalRecord` và số dòng của `intents`, `goal_revisions`, `goal_events`, `outbox` trước và sau: chân trời maintain bị chặn; chỉ gửi `remove_targets`; sửa hợp lệ pha trộn với `remove_targets` (phần hợp lệ được áp dụng, tool báo "Đã cập nhật" kèm phần CHƯA áp dụng và chỉ tiêu còn giữ). Đếm dòng dùng `closing` để không giữ kết nối SQLite.
+
+Chạy lại `PR-567-M2-round4-checks.py`: hai PASS qua; assertion REPRO P2-1 không còn đúng. Một bản sao bỏ hai assertion của P2-1 để chạy tới P2-2: assertion REPRO P2-2 cũng không còn đúng.
+
 ### Giới hạn và những gì chưa kiểm
 
 1. **Chưa gọi model thật ở M2.** Chưa đo bộ não thật có gọi `javis_goal` đúng lúc hay không, và có điền đề xuất qua được luật SMART hay không. Pilot thật một mục tiêu là việc của M3 theo kế hoạch.
@@ -333,15 +343,17 @@ Chạy lại `PR-567-M2-round3-checks.py`: hai assertion PASS đầu vẫn qua. 
 
 ### Toàn bộ test Python
 
-| | Main sạch (`7d264236`) | Nhánh M2 (`f6fd4841`) | M2 sau review (`279ef56a`) | M2 sau review vòng 2 (`daa5684e`) | M2 sau review vòng 3 (`1f9099c9`) |
-|---|---|---|---|---|---|
-| Xanh | 387/403 | 392/407 | 391/408 | 393/409 | 391/409 |
-| File đỏ | 16 | 15 | 17 | 16 | 18 |
-| Đỏ mới so với main | | không có | không có do M2 gây ra | không có | không có do M2 gây ra |
+| | Main sạch (`7d264236`) | Nhánh M2 (`f6fd4841`) | M2 sau review (`279ef56a`) | M2 sau review vòng 2 (`daa5684e`) | M2 sau review vòng 3 (`1f9099c9`) | M2 sau review vòng 4 (`d57cd14e`) |
+|---|---|---|---|---|---|---|
+| Xanh | 387/403 | 392/407 | 391/408 | 393/409 | 391/409 | 393/409 |
+| File đỏ | 16 | 15 | 17 | 16 | 18 | 16 |
+| Đỏ mới so với main | | không có | không có do M2 gây ra | không có | không có do M2 gây ra | không có do M2 gây ra |
 
 Lượt vòng 2: 16 file đỏ đúng bằng danh sách đỏ trên main sạch (15 file ở mục M1 cộng `test_project_khung.py`).
 
 Lượt vòng 3: 16 file đó cộng hai file chập chờn. `test_hoi_thoai_nhom.py` đã ghi ở trên. `test_bao_viec_ve_chat_web.py` đỏ trong lượt toàn bộ, chạy riêng ba lần trên cùng mã đều xanh, không chạm mã Resonance.
+
+Lượt vòng 4: 15 file đỏ sẵn ở mục M1 cộng `test_hoi_thoai_nhom.py` (chập chờn). `test_project_khung.py` xanh ở lượt này.
 
 Ở lượt sau review, 17 file đỏ gồm 15 file đỏ sẵn ở mục M1, `test_project_khung.py` (đỏ trên main sạch) và `test_write_path_phase9.py`. File cuối chạy riêng hai lần trên cùng mã thì một xanh một đỏ (`test_restart_marks_running_writes_unknown_without_rerunning`), không chạm mã Resonance nào: test chập chờn. `test_hoi_thoai_nhom.py` cũng chập chờn (chạy riêng ba lần: xanh một, đỏ hai, kiểm thứ tự ghim hội thoại M2 không đụng tới); lượt toàn bộ này nó xanh.
 
