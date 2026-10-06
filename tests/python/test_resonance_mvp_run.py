@@ -207,10 +207,38 @@ g_p = make_goal(criteria=[{"description": "File có mặt", "evaluator": "artifa
                            "params": {"path": "Inbox/khong-co.md"}}])
 check("tài nguyên khai rõ đường dẫn mà không tồn tại: not_met (khách quan)",
       R.evaluate_artifact(store.get(P, g_p.id), (), deps_m).verdict == "not_met")
-g_out = make_goal(criteria=[{"description": "File ngoài brain", "evaluator": "artifact_contract",
-                             "params": {"path": "../ngoai-brain.md"}}])
-check("đường dẫn ra ngoài brain: unknown (lỗi evaluator), không đọc",
-      R.evaluate_artifact(store.get(P, g_out.id), (), deps_m).verdict == "unknown")
+try:
+    make_goal(criteria=[{"description": "File ngoài brain", "evaluator": "artifact_contract",
+                         "params": {"path": "../ngoai-brain.md"}}])
+    _rej = False
+except R.GoalRejected as _e:
+    _rej = "path" in str(_e)
+check("đường dẫn ra ngoài brain bị từ chối ngay lúc lập mục tiêu, nói rõ vì sao", _rej)
+g_out = R.GoalRecord(id="g_out", brain_id=BRAIN, owner="javis", revision=1, output_root=BRAIN,
+                     criteria=({"id": "c1", "description": "File ngoài brain", "evaluator": "artifact_contract",
+                                "params": {"path": "../ngoai-brain.md"}},))
+check("evaluator vẫn tự vệ: khung lỗi lọt tới thì unknown (lỗi evaluator), không đọc ngoài brain",
+      R.evaluate_artifact(g_out, (), deps_m).verdict == "unknown")
+# Kiểm cấu trúc params theo evaluator (review M2 giao cho M3).
+for bad_params, label in (({"path": "a.md", "regex": ".*"}, "tham số lạ"), ({"min_chars": "50"}, "min_chars chữ"),
+                          ({"must_contain": [""]}, "must_contain rỗng"), ({"path": "C:/x.md"}, "đường dẫn ổ đĩa"),
+                          ({"must_contain": [str(i) for i in range(11)]}, "quá 10 mục")):
+    try:
+        R.validate_proposal(proposal(criteria=[{"description": "x", "evaluator": "artifact_contract",
+                                                "params": bad_params}]), USER)
+        _ok = False
+    except R.GoalRejected:
+        _ok = True
+    check(f"params sai cấu trúc bị từ chối: {label}", _ok)
+_fr = R.validate_proposal(proposal(criteria=[{"description": "x", "evaluator": "human_confirmation",
+                                              "params": {"bat_ky": 1}}]), USER)
+check("human_confirmation không mang params", _fr["criteria"][0]["params"] == {})
+try:
+    R.validate_proposal(proposal(guards=[{"description": "g", "evaluator": "artifact_contract", "params": {}}]), USER)
+    _ok = False
+except R.GoalRejected:
+    _ok = True
+check("guard artifact_contract thiếu path bị từ chối", _ok)
 deps_fail, _, eng_fail = make_deps()
 deps_fail.evidence.fail_put = True
 g_ev = make_goal(criteria=[{"description": "Có bản tổng hợp", "evaluator": "artifact_contract",

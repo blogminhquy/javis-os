@@ -480,6 +480,43 @@ def _at(h: dict) -> float:
     return _iso_ts(h.get("at_iso") or v)
 
 
+_ARTIFACT_KEYS = ("path", "min_chars", "must_contain")
+
+
+def _artifact_params(raw: Any, need_path: bool = False) -> tuple:
+    """Kiểm cấu trúc tham số của artifact_contract (review M2: kiểm params theo evaluator khi nối ở M3).
+    Trả (params đã chuẩn hoá, lỗi). Lỗi là chuỗi nói rõ để bộ não sửa đề xuất; không âm thầm bỏ tham số lạ."""
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        return {}, "params phải là object"
+    extra = [k for k in raw if k not in _ARTIFACT_KEYS]
+    if extra:
+        return {}, f"tham số không hỗ trợ: {', '.join(map(str, extra[:5]))} (chỉ nhận path, min_chars, must_contain)"
+    out = {}
+    if raw.get("path") not in (None, ""):
+        path = str(raw["path"]).strip().replace("\\", "/")
+        if (not isinstance(raw["path"], str) or len(path) > 260 or path.startswith("/") or ":" in path
+                or ".." in path.split("/")):
+            return {}, "path phải là đường dẫn tương đối trong brain, không có .. hay ổ đĩa"
+        out["path"] = path
+    elif need_path:
+        return {}, "guard artifact_contract cần path"
+    if raw.get("min_chars") not in (None, ""):
+        if isinstance(raw["min_chars"], bool) or not isinstance(raw["min_chars"], (int, float)) \
+                or int(raw["min_chars"]) != raw["min_chars"] or not 0 <= int(raw["min_chars"]) <= OUTPUT_MAX_CHARS:
+            return {}, f"min_chars phải là số nguyên từ 0 tới {OUTPUT_MAX_CHARS}"
+        out["min_chars"] = int(raw["min_chars"])
+    need = raw.get("must_contain")
+    if need not in (None, "", []):
+        need = [need] if isinstance(need, str) else need
+        if not isinstance(need, list) or len(need) > 10 or not all(isinstance(x, str) and x.strip() and len(x) <= 200
+                                                                    for x in need):
+            return {}, "must_contain phải là danh sách tối đa 10 chuỗi không rỗng, mỗi chuỗi tối đa 200 ký tự"
+        out["must_contain"] = [x.strip() for x in need]
+    return out, ""
+
+
 def _prior_view(prior) -> dict:
     """Khung của revision đang có, ở dạng một đề xuất, để trường bản cập nhật bỏ trống được kế thừa."""
     if prior is None:
@@ -529,8 +566,13 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
         if not desc:
             blank += 1
             continue
+        params = {}
+        if c["evaluator"] == "artifact_contract":
+            params, err = _artifact_params(c.get("params"))
+            if err:
+                raise GoalRejected(f"tiêu chí \"{desc[:60]}\": {err}")
         criteria.append({"id": f"c{len(criteria) + 1}", "description": desc, "evaluator": c["evaluator"],
-                         "params": dict(c.get("params") or {}) if isinstance(c.get("params"), dict) else {}})
+                         "params": params})
     if not criteria:
         if blank:
             raise GoalRejected("tiêu chí phải nói rõ cần kiểm điều gì (description không được rỗng)")
@@ -615,8 +657,13 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
         desc = " ".join(str(gd.get("description") or "").split())[:300]
         if not desc:
             continue
-        guards.append({"id": f"gd{len(guards) + 1}", "description": desc, "evaluator": str(gd.get("evaluator") or ""),
-                       "params": dict(gd.get("params") or {}) if isinstance(gd.get("params"), dict) else {}})
+        gev = str(gd.get("evaluator") or "")
+        gparams = dict(gd.get("params") or {}) if isinstance(gd.get("params"), dict) else {}
+        if gev == "artifact_contract":
+            gparams, err = _artifact_params(gd.get("params"), need_path=True)
+            if err:
+                raise GoalRejected(f"guard \"{desc[:60]}\": {err}")
+        guards.append({"id": f"gd{len(guards) + 1}", "description": desc, "evaluator": gev, "params": gparams})
     # Theo chân trời CUỐI CÙNG đã nhận: chân trời đề xuất bị host chặn không được kéo mode đổi theo.
     mode = "maintain" if (proposal.get("mode") == "maintain" or horizon.get("kind") == "maintain") else "achieve"
     return {"understanding": understanding, "criteria": criteria, "relevant_quote": quote[:300],
