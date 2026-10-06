@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.84.6] - 2026-10-06
+### Fixed
+- Bot rate limit in groups (in progress).
+
 ## [0.84.3] - 2026-10-06
 ### Added
 - **Dedicated bots can send images to customers.** Tell the Agent when to send which image (e.g. "when asked about shirts, send `![Shirt](attachments/shirt.jpg)`") and the bot sends the real image right after its reply. Works on personal Zalo, Telegram, Slack and WhatsApp, at every permission level.
