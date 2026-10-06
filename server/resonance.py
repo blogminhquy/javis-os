@@ -590,7 +590,8 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
             assumptions.append(note)
     constraints = _clean_list(list(base.get("constraints") or []) + list(user_constraints or [])
                               + list(proposal.get("constraints") or []))
-    mode = "maintain" if (proposal.get("mode") == "maintain" or kind == "maintain") else "achieve"
+    # Theo chân trời CUỐI CÙNG đã nhận: chân trời đề xuất bị host chặn không được kéo mode đổi theo.
+    mode = "maintain" if (proposal.get("mode") == "maintain" or horizon.get("kind") == "maintain") else "achieve"
     return {"understanding": understanding, "criteria": criteria, "relevant_quote": quote[:300],
             "horizon": horizon, "stage": stage, "mode": mode, "assumptions": assumptions[:20],
             "constraints": constraints, "targets": targets, "open_questions": questions}

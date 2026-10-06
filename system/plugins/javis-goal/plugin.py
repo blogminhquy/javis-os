@@ -32,8 +32,10 @@ def _enabled(vault_root) -> bool:
 
 
 def _proposal(args: dict) -> dict:
+    # remove_targets đã gỡ khỏi schema (M2 chưa bỏ được chỉ tiêu người dùng) nhưng lời gọi cũ vẫn có thể mang
+    # nó: chuyển tiếp để validator báo "chưa hỗ trợ" thay vì lặng lẽ bỏ qua.
     keys = ("understanding", "criteria", "relevant_quote", "horizon", "stage", "mode", "assumptions",
-            "constraints", "targets", "open_questions")
+            "constraints", "targets", "open_questions", "remove_targets")
     return {k: args.get(k) for k in keys if k in args}
 
 
@@ -59,6 +61,9 @@ def _summary(g, head: str) -> str:
              f"Cách hiểu: {g.understanding or '(chưa rõ, đang ở bước khám phá)'}",
              "Tiêu chí: " + "; ".join(f"{c['id']} {c['description']} [{c['evaluator']}]" for c in g.criteria),
              f"Chân trời: {hz}"]
+    if g.targets:
+        lines.append("Chỉ tiêu người dùng nêu: " + "; ".join(f"{t.get('text')} (\"{t.get('quote')}\")"
+                                                         for t in g.targets))
     if g.assumptions:
         lines.append("Giả định: " + "; ".join(g.assumptions))
     if g.constraints:

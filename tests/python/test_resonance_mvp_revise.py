@@ -111,6 +111,8 @@ def _frozen(label, mid, text, upd):
     check(f"{label}: hạn chót người dùng còn nguyên cả giá trị lẫn nguồn (tin 1)", g.horizon == g1.horizon)
     check(f"{label}: chỉ tiêu người dùng còn nguyên cả giá trị lẫn nguồn (tin 1)", list(g.targets) == list(g1.targets))
     check(f"{label}: không ghi replace, báo phần chưa áp dụng cho bộ não", rel != "replace" and len(kept) >= 1)
+    check(f"{label}: phần bị chặn không kéo mode hay stage đổi theo",
+          g.mode == before.mode and g.stage == before.stage)
     return g, rel, kept
 
 
@@ -210,8 +212,14 @@ _db = Path(_STATE) / "resonance.sqlite3"
 
 
 def _n_intents():
-    with sqlite3.connect(_db) as c:
-        return c.execute("SELECT COUNT(*) FROM intents").fetchone()[0]
+    return _counts()["intents"]
+
+
+def _counts():
+    from contextlib import closing
+    with closing(sqlite3.connect(_db)) as c:
+        return {t: c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                for t in ("intents", "goal_revisions", "goal_events", "outbox")}
 
 
 _before = _n_intents()
@@ -278,6 +286,35 @@ out = tool(12, MSG2, {"op": "update", "goal_id": gk.id, "expected_revision": 1, 
                       "understanding": "Bản tổng hợp kèm bảng"})
 check("tool: cập nhật từng phần trên mục tiêu có ràng buộc thành công, ràng buộc còn",
       not out.startswith("ERROR") and store.get(P, gk.id).constraints == ("không xoá ghi chú cũ",))
+
+# ───────────── Review vòng 4: qua tool thật, phần bị chặn không đổi gì khác và được báo đúng ─────────────
+out = tool(13, MSG1, {"op": "create", **proposal(mode="achieve")})
+gm = store.find_by_key(P, R.message_ref("tool", 13))
+_c0 = _counts()
+out = tool(14, MSG2, {"op": "update", "goal_id": gm.id, "expected_revision": gm.revision,
+                      "relevant_quote": "Thêm bảng tổng hợp", "targets": [],
+                      "horizon": {"kind": "maintain", "quote": "Thêm bảng tổng hợp"}})
+check("tool, horizon maintain bị chặn: bản ghi y nguyên (mode vẫn achieve, revision giữ)",
+      gm.mode == "achieve" and store.get(P, gm.id) == gm)
+check("tool, horizon maintain bị chặn: không thêm dòng intent, revision, event, outbox", _counts() == _c0)
+check("tool, horizon maintain bị chặn: báo không có thay đổi và phần CHƯA áp dụng",
+      "KHÔNG có thay đổi" in out and "CHƯA áp dụng" in out)
+out = tool(15, MSG4, {"op": "update", "goal_id": gm.id, "expected_revision": gm.revision,
+                      "relevant_quote": "Không cần đủ 10 hồ sơ nữa",
+                      "remove_targets": [{"text": "10 hồ sơ", "quote": "Không cần đủ 10 hồ sơ nữa"}]})
+check("tool, chỉ gửi remove_targets (trường cũ): báo chưa hỗ trợ, không đổi gì",
+      "KHÔNG có thay đổi" in out and "remove_targets" in out and store.get(P, gm.id) == gm and _counts() == _c0)
+MSG6 = "Thêm bảng tổng hợp. Không cần đủ 10 hồ sơ nữa."
+out = tool(16, MSG6, {"op": "update", "goal_id": gm.id, "expected_revision": gm.revision,
+                      "relevant_quote": "Thêm bảng tổng hợp", "understanding": "Báo cáo hồ sơ có bảng tổng hợp",
+                      "remove_targets": [{"text": "10 hồ sơ", "quote": "Không cần đủ 10 hồ sơ nữa"}]})
+gm2 = store.get(P, gm.id)
+check("tool, pha trộn sửa hợp lệ + remove_targets: phần hợp lệ được áp dụng, chỉ tiêu vẫn giữ",
+      gm2.understanding == "Báo cáo hồ sơ có bảng tổng hợp" and list(gm2.targets) == list(gm.targets)
+      and gm2.revision == gm.revision + 1)
+check("tool, pha trộn: báo đã cập nhật KÈM phần CHƯA áp dụng nhắc remove_targets, tóm tắt hiện chỉ tiêu còn giữ",
+      "Đã cập nhật mục tiêu" in out and "CHƯA áp dụng" in out and "remove_targets" in out
+      and "Chỉ tiêu người dùng nêu: 10 hồ sơ" in out)
 
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)
