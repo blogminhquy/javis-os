@@ -180,3 +180,112 @@ Các file đỏ có sẵn trên main sạch, không liên quan M1:
 `test_project_khung.py` đỏ trên main sạch nhưng xanh trên nhánh M1 ở cả ba lượt chạy sau đó. M1 không đụng mã mà test này kiểm, nên nhiều khả năng đây là test chập chờn chứ không phải được M1 sửa.
 
 Một lượt chạy giữa chừng (sau commit `ba404185`) có `test_ignore_files.py` đỏ. Nguyên nhân là file `.grok/config.toml` do test Grok mới của M1 để lại ở gốc repo, đã sửa ở `5162dfab` như ghi ở mục Sửa theo review. Lượt chạy trên head cuối không còn file đỏ mới.
+
+## M2: phân luồng và tự hình thành mục tiêu (06/10/2026)
+
+### Nền và nhánh
+
+| Mục | Giá trị |
+|---|---|
+| Nhánh, PR | `claude/resonance-mvp-m2`, PR #567 (nháp), xếp chồng trên #566; phiên bản xí chỗ 0.84.1 |
+| Base của PR | `claude/resonance-mvp-m1` tại `306e96cb` (head M1 đã qua review, CI xanh) |
+| Commit nền của chuỗi | `origin/main` = `7d264236` (0.83.2), không đổi khi bắt đầu M2 |
+| Model thật | Không gọi lượt nào ở M2. Tất cả kiểm chứng dùng engine giả hoặc gọi thẳng tool như engine sẽ gọi |
+
+### Quyết định thiết kế cần người review soát
+
+1. **Bộ não tự quyết định có lập mục tiêu hay không, ngay trong lượt chat, bằng tool `javis_goal`.**
+   - Spec mục 4.0 yêu cầu "tận dụng bộ định tuyến hội thoại hiện có" và "không gọi thêm một model cho mọi tin nhắn". Dò mã 0.83.2 cho thấy chưa có bộ định tuyến bốn nhánh nào.
+   - Thứ gần nhất là cách bộ não đã tự quyết giao việc nền bằng tool `javis_task` (Kanban) và `javis_schedule` (nhắc hẹn, loop). Nên `javis_goal` đi đúng mẫu đó: một plugin bundled, không thêm lượt gọi model, không dò từ khoá.
+   - Đổi lại, chất lượng quyết định phụ thuộc vào bộ não đọc mô tả tool. Pilot thật để đo điều này thuộc M3.
+2. **Host kiểm đề xuất theo SMART** (`resonance.validate_proposal`):
+   - **R:** `relevant_quote` phải trích đúng một đoạn trong lời người dùng (so khớp bỏ hoa thường và khoảng trắng). Đây là chốt chặn mục tiêu do agent tự nghĩ ra.
+   - **M:** ít nhất một tiêu chí dùng evaluator đã có (`artifact_contract`, `human_confirmation`); evaluator lạ bị loại.
+   - **T:** có chân trời `deadline`, `review`, `event` hoặc `maintain`. Hạn chót chỉ giữ khi trích được câu người dùng nêu hạn; không thì thành mốc xem lại nội bộ, `from_user=false`.
+   - **S:** chưa nói được kết quả cụ thể thì mục tiêu ở `discovery`, không bị từ chối.
+   - Chỉ tiêu không có câu trích trong lời người dùng chuyển thành giả định. Người dùng đã nói chưa biết thì bỏ câu hỏi, ghi giả định, bắt đầu bằng khám phá.
+   - Ràng buộc người dùng nêu luôn có trong khung. Kho từ chối mọi revision bỏ chúng.
+3. **Phân nhánh sau lượt dựa trên những gì lượt đó thật sự đã làm** (`resonance.route_request`, `route_after_turn`):
+   - Có sự kiện `created` của đúng tin nhắn này thì là `create_goal`; sự kiện `reframe` thì là `continue_goal`.
+   - Có việc Kanban mới của đúng khung chat này, tạo trong lượt, thì là `task_now`. Còn lại là `answer_now`.
+   - Có mục tiêu đang mở KHÔNG đủ để nối tin mới vào nó. Đây là lỗi bản review trước đã bắt ở phụ lục cũ.
+   - Không đoán tên tool từ luồng sự kiện (tên khác nhau theo engine, và chế độ lazy giấu tên thật sau `javis_run_tool`); đọc thẳng kho mục tiêu và kho Kanban.
+4. **Khoá chống trùng là id tin nhắn người dùng trong kho phiên.**
+   - Trước M2, id này bị bỏ ngay sau `append_message`. Giờ `main.py` giữ lại cho cả tin gõ lẫn tin giọng nói (`message_id` của phiếu nhận giọng nói), và truyền xuống sổ lượt đang chạy (`luot_dang_chay`) cùng lời người dùng.
+   - Tool chạy qua hub, có khi ở tiến trình khác, nên đọc sổ đó để biết đúng tin nào. Không chắc (hai khung chat cùng chạy trên một brain, hoặc kênh chưa truyền id tin như Telegram) thì tool từ chối, không đoán.
+5. **Tool chỉ hiện ở brain đã bật.**
+   - `plugins_host.register_tool` nhận thêm `visible_fn(vault_root)`; `plugin_tools` giấu tool khi hàm trả False. `check_fn` có sẵn chỉ chặn lúc gọi nhưng tool vẫn hiện, không đủ.
+   - Công tắc là `<brain>/Javis/resonance.json` có `{"enabled": true}`. Mặc định tắt, file hỏng coi như tắt. Giao diện bật tắt thuộc M4.
+   - Chỉ mục năng lực (dòng trong system prompt và `Javis/index.md`) cũng chỉ liệt kê tool đang hiện với brain đó; trước sửa, chỉ mục đọc manifest và vẫn kể `javis_goal` ở brain chưa bật.
+6. **System prompt có thêm đúng một dòng gợi ý `javis_goal`, chỉ ở brain đã bật.** `CLAUDE.md` còn đúng 1 ký tự ngân sách nên không đụng tới; brain chưa bật không dài thêm chữ nào.
+7. **M2 chỉ LƯU mục tiêu.** Kết quả tool dặn bộ não rằng chưa có gì tự thực hiện hay tự báo cáo, để nó không hứa suông (đúng luật "không hứa sẽ làm rồi báo lại" của `CLAUDE.md`).
+
+### Thay đổi
+
+| File | Nội dung |
+|---|---|
+| `server/resonance_store.py` (mới) | `GoalStore` trên `resonance.sqlite3`: bảng `intents`, `goals`, `goal_revisions`, `goal_events`, `outbox`. Mọi thao tác qua `Principal` đúng brain. Tạo và sửa ghi sự kiện cùng outbox trong một giao dịch `BEGIN IMMEDIATE`. `revise` cần `expected_revision`, giữ pause, ngân sách, số lượt đã dùng. Chỉ người dùng đổi được pause |
+| `server/resonance.py` | `GoalRecord` thêm khung SMART và trạng thái (giữ nguyên sáu trường của M1). `GoalRejected`, `RouteDecision`, `enabled_for`, `validate_proposal`, `route_request`, `route_after_turn`, `message_ref`, `framer_prompt`, `form_goal`. Phần gọi engine của `run_once` tách thành `GoalDeps._ask` dùng chung với bộ lập mục tiêu, hành vi M1 không đổi |
+| `system/plugins/javis-goal/` (mới) | Tool `javis_goal`: `create`, `update`, `list` |
+| `server/plugins_host.py` | `visible_fn` cho tool plugin |
+| `server/luot_dang_chay.py` | `bat_dau` nhận `msg_id`, `user_text`; thêm `doan_luot`. Gọi kiểu cũ vẫn chạy |
+| `server/main.py` | Giữ id tin người dùng; truyền vào `run_turn`; `_resonance_after_turn` ghi runtime event `resonance.route`; dòng gợi ý system prompt; chỉ mục năng lực lọc tool đang giấu |
+
+### Kết quả với engine giả
+
+```
+python tests/run.py resonance -v
+  test_resonance_mvp_core.py         58 kiểm tra
+  test_resonance_mvp_integration.py  73 kiểm tra (M1, vẫn xanh sau khi tách _ask)
+  test_resonance_mvp_main.py         15 kiểm tra
+  test_resonance_mvp_wiring.py       29 kiểm tra
+```
+
+TDD: cả ba file mới chạy đỏ trước khi có mã (`ModuleNotFoundError: No module named 'resonance_store'`, rồi `TypeError: bat_dau() got an unexpected keyword argument 'msg_id'`).
+
+Tám test kế hoạch M2 nêu tên, đều có mặt trong `test_resonance_mvp_core.py` (nhãn kiểm tra mang đúng tên):
+
+| Test kế hoạch | Kiểm gì |
+|---|---|
+| `test_chat_does_not_create_goal` | Lượt không gọi tool mục tiêu là `answer_now`, kể cả khi đang có mục tiêu mở |
+| `test_inline_job_stays_inline` | Làm xong trong lượt, có ghi file, vẫn là `answer_now` |
+| `test_followup_reuses_goal` | Bổ sung ý cho mục tiêu mở là `continue_goal` đúng mục tiêu đó |
+| `test_persistent_request_creates_once` | Cùng tin nhắn hai lần: một mục tiêu, một sự kiện `created` |
+| `test_proposed_plan_does_not_schedule` | Câu căn cứ không có trong lời người dùng (ý agent tự đề xuất) bị từ chối |
+| `test_ambiguous_goal_smart` | Thiếu S về `discovery`; thiếu M hoặc T bị từ chối |
+| `test_user_unsure_discovers` | Người dùng chưa rõ: vẫn lập mục tiêu khám phá, không hỏi lại, ghi giả định |
+| `test_no_invented_target_or_deadline` | Hạn không trích được thành mốc xem lại; chỉ tiêu không căn cứ thành giả định |
+
+Kiểm thêm:
+
+- **Kho:** chống trùng theo tin nhắn; brain khác không đọc, sửa, liệt kê được; `expected_revision` cũ thì xung đột và không đổi gì; revision cũ còn nguyên; pause, ngân sách, số lượt đã dùng giữ qua revision; không bỏ được ràng buộc của người dùng; outbox có `goal.created` và `goal.revised`; tạo với bản ghi ý định không tồn tại thì không để lại mục tiêu nửa vời; mở lại kho vẫn còn dữ liệu.
+- **`form_goal`:** có đề xuất của bộ não thì không gọi model, không tốn lượt; không có đề xuất thì bộ lập mục tiêu gọi đúng một lượt chỉ chữ, lời người dùng nằm trong rào như dữ liệu; trả rác thì từ chối và vẫn tính một lượt; engine bị chặn thì trả lại lượt.
+- **Plugin qua `plugins_host` thật:** brain chưa bật không thấy tool, bật ở brain này không làm brain khác thấy; tạo, tạo lặp, đề xuất sai luật (không để lại mục tiêu), cập nhật lên revision 2 và route `continue_goal`, cập nhật lặp bị xung đột, mục tiêu không tồn tại, `list`; hai khung chat cùng chạy và lượt không có id tin thì từ chối; tắt lại thì tool biến mất và gọi bằng tham chiếu cũ cũng bị từ chối.
+- **`main.py`:** brain tắt thì không làm gì, không tạo file kho, prompt không nhắc `javis_goal`; brain bật thì có dòng gợi ý (dưới 450 ký tự); bộ não gọi tool trong lượt rồi `main` phân nhánh `create_goal`, mục tiêu đúng brain theo `_brain_key`, vùng đầu ra nằm trong brain; việc Kanban của đúng khung chat trong lượt là `task_now`, việc tạo trước lượt không tính; kho lỗi thì nuốt, không làm hỏng lượt chat.
+
+### Lỗi tự gây trong lúc làm, đã sửa
+
+- **Canary giọng nói.** `test_voice_ten_javis.py` đọc mã nguồn `main.py`, tìm đúng dòng `store.append_message(conv_sid, "user", user_message)` để chắc tên nghe nhầm được sửa trước khi lưu. Em bọc dòng đó trong `int(... or 0)` nên canary đỏ ở lượt chạy toàn bộ đầu tiên. Sửa mã cho khớp canary (commit `f6fd4841`), không sửa canary.
+- **Chỉ mục năng lực.** Test `main` bắt được `javis_goal` vẫn hiện trong system prompt của brain chưa bật, qua dòng "Plugins đang chạy". Đã lọc theo tool thật sự hiện.
+
+### Giới hạn và những gì chưa kiểm
+
+1. **Chưa gọi model thật ở M2.** Chưa đo bộ não thật có gọi `javis_goal` đúng lúc hay không, và có điền đề xuất qua được luật SMART hay không. Pilot thật một mục tiêu là việc của M3 theo kế hoạch.
+2. **Chỉ khung chat web.** Telegram, Zalo và phiên cộng sự (workflow) chưa truyền id tin, nên tool từ chối lập mục tiêu ở đó.
+3. **Chưa có guard trong mô hình dữ liệu.** Kế hoạch nói đổi cách hiểu giữ "quyền, ngân sách, guard, pause". M2 giữ ngân sách, số lượt đã dùng, pause; guard đến cùng M3.
+4. **Bản ghi ý định có thể mồ côi.** Cập nhật thất bại vì xung đột revision thì bản ghi ý định đã ghi trước đó còn lại. Bảng chỉ ghi thêm, không gây sai, nhưng chưa sạch.
+5. **`reminders_created` chưa được nối.** Hàm phân nhánh nhận số nhắc hẹn tạo trong lượt, nhưng `main` mới đếm việc Kanban. Lượt chỉ đặt nhắc hẹn hiện được ghi là `answer_now`.
+6. **Nhánh phân xong mới chỉ được ghi vào runtime event.** M4 dùng nó để vẽ thẻ "Em đang hướng tới".
+7. **Không chạy test JS.** M2 không đổi file JS nào.
+
+### Toàn bộ test Python
+
+| | Main sạch (`7d264236`) | Nhánh M2 (`f6fd4841`) |
+|---|---|---|
+| Xanh | 387/403 | 392/407 |
+| File đỏ | 16 | 15 |
+| Đỏ mới so với main | | không có |
+
+Danh sách 15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1. `test_project_khung.py` tiếp tục xanh trên nhánh, như ở M1.
+
+Lượt chạy toàn bộ đầu tiên của M2 (commit `66328b61`) có `test_voice_ten_javis.py` đỏ do M2 gây ra, đã sửa ở `f6fd4841` như ghi ở mục Lỗi tự gây.
