@@ -6,6 +6,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.84.7] - 2026-10-06
+### Thêm mới
+- Duyệt người xin vào nhóm Zalo (đang làm).
 ## [0.84.6] - 2026-10-06
 ### Sửa lỗi
 - **Bot trong nhóm không còn báo "Anh chị nhắn hơi nhanh" với người mới hỏi lần đầu.** Giới hạn số câu trả lời mỗi giờ trước đây tính chung cho cả nhóm, nên nhóm đông gọi bot đủ 20 lần là ai tag bot sau đó cũng bị từ chối kèm tag tên mình. Giờ hạn mức tính riêng từng người, đúng như ô cài đặt ghi.
