@@ -14911,6 +14911,8 @@ async def websocket_endpoint(ws: WebSocket):
             _nghe_xong = False      # đã xét dòng đầu (JAVIS_NGHE) của lượt này chưa
             _nghe_hop_le = False
             original_message = user_message
+            # Lời người dùng cho javis_goal: câu gốc, bóc khối ngữ cảnh giao diện (Resonance M2).
+            _loi_goc = nghe_sua.split_ui_context(original_message)[1]
 
             async def _giu_cau_goc():
                 await send_raw({"type": "status", "session_id": conv_sid,
@@ -14919,8 +14921,7 @@ async def websocket_endpoint(ws: WebSocket):
                 # Kho phiên và bong bóng giữ câu gốc; chỉ lời gửi bộ não chính kèm ghi chú để
                 # nó tự hiểu từ nghe nhầm mà không giải thích ra (voice_brain.GHI_CHU_CAU_NGHE).
                 await run_turn(conv_sid, original_message + "\n\n" + voice_brain.GHI_CHU_CAU_NGHE,
-                               brain, turn_tag, runtime_trace, user_mid=user_mid,
-                               user_text=nghe_sua.split_ui_context(original_message)[1])
+                               brain, turn_tag, runtime_trace, user_mid=user_mid, user_text=_loi_goc)
 
             async def _ap_dien_giai(nghe):
                 """Nhận câu bộ não giọng HIỂU theo ngữ cảnh, nhưng chỉ khi đó là sửa từ nghe nhầm

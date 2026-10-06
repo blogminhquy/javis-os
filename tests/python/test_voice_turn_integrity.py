@@ -33,7 +33,8 @@ class VoiceTurnIntegrity(unittest.IsolatedAsyncioTestCase):
             async def send(frame):
                 frames.append(frame)
 
-            async def fallback(sid, message, *args):
+            async def fallback(sid, message, *args, **kwargs):
+                # kwargs: user_mid/user_text (Resonance M2) mang id tin gốc sang bộ não chính.
                 # 0.64.72: lượt quay về câu gốc gửi bộ não chính CÂU GỐC + đúng một lời dặn cố
                 # định (voice_brain.GHI_CHU_CAU_NGHE). Bóc lời dặn ra để mọi phép so bên dưới
                 # vẫn canh câu gốc còn nguyên từng chữ; self.ghi_chu đếm số lần có lời dặn.
