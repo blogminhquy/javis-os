@@ -268,23 +268,46 @@ Kiểm thêm:
 - **Canary giọng nói.** `test_voice_ten_javis.py` đọc mã nguồn `main.py`, tìm đúng dòng `store.append_message(conv_sid, "user", user_message)` để chắc tên nghe nhầm được sửa trước khi lưu. Em bọc dòng đó trong `int(... or 0)` nên canary đỏ ở lượt chạy toàn bộ đầu tiên. Sửa mã cho khớp canary (commit `f6fd4841`), không sửa canary.
 - **Chỉ mục năng lực.** Test `main` bắt được `javis_goal` vẫn hiện trong system prompt của brain chưa bật, qua dòng "Plugins đang chạy". Đã lọc theo tool thật sự hiện.
 
+### Sửa theo review PR #567
+
+Review của ChatGPT (`exports/reviews/PR-567-M2-review.md`, diff `306e96cb..c79e27c5`) nêu 1 lỗi P1 và 2 lỗi P2, cả ba đều tái hiện được qua tool thật. Sửa ở commit `709f016a` và `279ef56a`, test hành vi ở `tests/python/test_resonance_mvp_revise.py` (28 kiểm tra) và 7 kiểm tra thêm trong `test_resonance_mvp_main.py`.
+
+- **P1-1: tin bổ sung làm mất hạn và chỉ tiêu cũ.** Nhánh `update` của tool nay gọi `resonance.revise_goal`. Hàm này đọc revision hiện tại TRƯỚC khi kiểm, rồi gọi `validate_proposal(..., prior=..., source_ref=...)`:
+  - trường bản cập nhật bỏ trống thì kế thừa;
+  - hạn chót người dùng nêu ở tin trước được giữ nguyên cả giá trị lẫn nguồn khi bản cập nhật giữ đúng thời điểm và câu trích; chỉ tiêu cũ cũng vậy khi giữ đúng chữ và câu trích;
+  - hạn hay chỉ tiêu MỚI vẫn phải trích được từ tin hiện tại, nên người dùng dời hạn thì hạn mới thắng; agent tự dời hạn thì vẫn thành mốc xem lại;
+  - mượn câu trích cũ cho một chỉ tiêu khác chữ thì không được coi là chỉ tiêu cũ;
+  - mỗi hạn chót và chỉ tiêu của người dùng nay mang `source` là tin nhắn làm căn cứ.
+
+  Host tự suy quan hệ của bản cập nhật: `replace` khi hạn hay chỉ tiêu có nguồn người dùng không còn nguyên, còn lại `amend`. Quan hệ ghi vào bản ghi ý định mới (nay nối về ý định của revision trước qua `prev_intent_id`, thay cột `supersedes` chưa dùng) và vào sự kiện `reframe`. Bộ não bỏ một chỉ tiêu thì không bị chặn, vì người dùng có thể đã bỏ thật, nhưng để lại dấu `replace` soát được.
+- **P2-1: làn giọng nói và lượt chạy lại không mang id tin.** `run_voice_turn` nhận `user_mid` và truyền vào cả hai lời gọi `run_turn` (giữ câu gốc, rơi về bộ não chính). Hẹn chạy lại sau hạn mức mang theo `user_mid` và `user_text` của lượt gốc, nên chạy lại cùng tin không tạo mục tiêu thứ hai. Nhánh trả lời trong phiên quy trình cũng truyền id. `run_turn` nhận thêm `user_text`: đúng lời người dùng, đã bóc khối ngữ cảnh giao diện và không kèm ghi chú câu nghe hay khối quy trình host gắn vào prompt. Lượt nối tiếp do host tự mở sau việc nền vẫn KHÔNG mang id, vì chữ mở lượt là của host.
+- **P2-2: tiêu chí rỗng vẫn qua cổng M.** Mô tả được chuẩn hoá khoảng trắng; tiêu chí rỗng bị loại; không còn tiêu chí nào thì từ chối với lời nói rõ cần mô tả điều cần kiểm. Kiểm cấu trúc `params` theo từng evaluator để sang M3, như review đề nghị.
+
+Sửa P2-1 làm đỏ hai canary giọng nói đọc mã nguồn `main.py` ở lượt chạy toàn bộ đầu tiên. `test_dien_giai_thuat_ngu.py` cấm `_giu_cau_goc` nhắc tới câu bộ não giọng diễn giải, nên lời người dùng được tính một lần thành `_loi_goc` cạnh `original_message`, sửa mã chứ không sửa canary. `test_voice_turn_integrity.py` dựng `run_voice_turn` với một `run_turn` giả không nhận tham số từ khoá; hàm giả được cho nhận thêm `user_mid`, `user_text`, mọi kiểm tra của nó giữ nguyên.
+
+Chạy lại `PR-567-M2-repro.py` trên nhánh: assertion mô tả lỗi P1 không còn đúng (hạn giữ là `deadline`), tức lỗi đã hết. Hai phép còn lại được phủ bằng test hành vi ở trên.
+
 ### Giới hạn và những gì chưa kiểm
 
 1. **Chưa gọi model thật ở M2.** Chưa đo bộ não thật có gọi `javis_goal` đúng lúc hay không, và có điền đề xuất qua được luật SMART hay không. Pilot thật một mục tiêu là việc của M3 theo kế hoạch.
-2. **Chỉ khung chat web.** Telegram, Zalo và phiên cộng sự (workflow) chưa truyền id tin, nên tool từ chối lập mục tiêu ở đó.
+2. **Chỉ khung chat web.** Telegram và Zalo chưa truyền id tin, nên tool từ chối lập mục tiêu ở đó. (Bản đầu còn sót làn giọng nói, lượt chạy lại sau hạn mức và phiên quy trình; đã sửa theo review, xem mục dưới.)
 3. **Chưa có guard trong mô hình dữ liệu.** Kế hoạch nói đổi cách hiểu giữ "quyền, ngân sách, guard, pause". M2 giữ ngân sách, số lượt đã dùng, pause; guard đến cùng M3.
-4. **Bản ghi ý định có thể mồ côi.** Cập nhật thất bại vì xung đột revision thì bản ghi ý định đã ghi trước đó còn lại. Bảng chỉ ghi thêm, không gây sai, nhưng chưa sạch.
+4. **Bản ghi ý định có thể mồ côi.** Sau sửa review, cập nhật kiểm revision trước khi ghi ý định nên ca xung đột thường không còn để lại bản ghi. Vẫn còn khe nhỏ khi hai lượt sửa cùng mục tiêu chen nhau giữa hai bước. Bảng chỉ ghi thêm, không gây sai.
 5. **`reminders_created` chưa được nối.** Hàm phân nhánh nhận số nhắc hẹn tạo trong lượt, nhưng `main` mới đếm việc Kanban. Lượt chỉ đặt nhắc hẹn hiện được ghi là `answer_now`.
 6. **Nhánh phân xong mới chỉ được ghi vào runtime event.** M4 dùng nó để vẽ thẻ "Em đang hướng tới".
 7. **Không chạy test JS.** M2 không đổi file JS nào.
+8. **Việc nền do làn giọng nói giao (V3, `JAVIS_ASK_MAIN`) chưa lập mục tiêu được.** Nhánh này không gọi `run_turn` mà giao một việc chạy nền riêng, không đăng ký lượt kèm id tin, nên tool từ chối. Các nhánh giọng nói CÓ gọi `run_turn` đã mang id sau sửa review.
+9. **Kiểm chuỗi truyền id bằng AST.** `run_turn` nằm trong closure của websocket nên test kiểm các chỗ gọi bằng AST, chưa chạy một cuộc gọi giọng nói hay một lượt chạy lại thật.
 
 ### Toàn bộ test Python
 
-| | Main sạch (`7d264236`) | Nhánh M2 (`f6fd4841`) |
-|---|---|---|
-| Xanh | 387/403 | 392/407 |
-| File đỏ | 16 | 15 |
-| Đỏ mới so với main | | không có |
+| | Main sạch (`7d264236`) | Nhánh M2 (`f6fd4841`) | M2 sau review (`279ef56a`) |
+|---|---|---|---|
+| Xanh | 387/403 | 392/407 | 391/408 |
+| File đỏ | 16 | 15 | 17 |
+| Đỏ mới so với main | | không có | không có do M2 gây ra |
+
+Ở lượt sau review, 17 file đỏ gồm 15 file đỏ sẵn ở mục M1, `test_project_khung.py` (đỏ trên main sạch) và `test_write_path_phase9.py`. File cuối chạy riêng hai lần trên cùng mã thì một xanh một đỏ (`test_restart_marks_running_writes_unknown_without_rerunning`), không chạm mã Resonance nào: test chập chờn. `test_hoi_thoai_nhom.py` cũng chập chờn (chạy riêng ba lần: xanh một, đỏ hai, kiểm thứ tự ghim hội thoại M2 không đụng tới); lượt toàn bộ này nó xanh.
 
 Danh sách 15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1. `test_project_khung.py` tiếp tục xanh trên nhánh, như ở M1.
 
