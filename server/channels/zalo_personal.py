@@ -27,6 +27,31 @@ SPEC = KenhSpec(
 )
 
 
+def cau_vao_nhom(ev: dict) -> str:
+    """What the Agent reads when someone joins a group (0.84.2). Written for the model, so Vietnamese like the
+    rest of the bot prompts. It says plainly this is an event and not a message, gives the join time Zalo
+    reported, and tells the Agent to stay silent unless its own instructions cover newcomers: Javis has no
+    greeting of its own, so a bot whose owner never asked for one must not start greeting people."""
+    from datetime import datetime
+    md = (ev.get("metadata") or {}).get("member_join") or {}
+    ten = str(ev.get("sender_name") or "").strip() or str(ev.get("sender_id") or "").strip() or "Một người"
+    try:
+        luc = datetime.fromtimestamp(float(md.get("time") or ev.get("created_at") or time.time()), localefmt.tz())
+        gio = luc.strftime("%H:%M ngày %d/%m/%Y")
+    except (TypeError, ValueError, OverflowError, OSError):
+        gio = ""
+    if md.get("added_by_me"):
+        cach = ", do chính tài khoản này thêm vào"
+    elif md.get("added_by"):
+        cach = ", do một thành viên khác thêm vào"
+    else:
+        cach = ""
+    return (f"[Sự kiện nhóm, KHÔNG phải tin nhắn: {ten} vừa vào nhóm"
+            + (f" lúc {gio}" if gio else "") + cach + ". "
+            "Làm đúng theo chỉ dẫn của bạn về người mới vào nhóm; câu bạn gửi sẽ tự tag người này. "
+            "Chỉ dẫn của bạn không nói gì về người mới vào nhóm thì trả đúng [IM_LANG].]")
+
+
 def tai_khoan():
     import zalo_personal_channel
     return zalo_personal_channel.tai_khoan()
@@ -264,13 +289,22 @@ class Transport:
         import zalo_personal_channel as zc
         loai = ev.get("chat_type")
         kieu = ev.get("message_type")
-        if loai not in ("private", "group") or kieu not in ("text", "image"):
+        vao_nhom = (ev.get("metadata") or {}).get("member_join")
+        if vao_nhom and loai != "group":
+            return
+        if loai not in ("private", "group") or (kieu not in ("text", "image") and not vao_nhom):
             return
         nhom = loai == "group"
         # Tin ảnh có CHÚ THÍCH (0.65.13) xử lý như tin chữ với chú thích làm nội dung: "@Javis Vũ ..." viết trong phần chú thích của ảnh
         # là một cái tag thật. Trước đây mọi tin không phải chữ bị bỏ, nên tag kèm ảnh không bao giờ tới bot. Ảnh trơn (không chú thích) vẫn bỏ.
         co_anh = kieu == "image"
-        text = (conversations.chu_thich_anh(ev.get("text")) if co_anh else str(ev.get("text") or "").strip())
+        if vao_nhom:
+            # 0.84.2: someone joined the group. The newcomer is the "sender", so a reply tags them (`_gui`).
+            # Javis writes no greeting of its own: the bot's Agent decides, and stays silent when its
+            # instructions say nothing about newcomers.
+            text = cau_vao_nhom(ev)
+        else:
+            text = (conversations.chu_thich_anh(ev.get("text")) if co_anh else str(ev.get("text") or "").strip())
         thread = str(ev.get("external_chat_id") or "")
         if not text or not thread:
             return
@@ -304,7 +338,12 @@ class Transport:
             meta["image_url"] = str((ev.get("metadata") or {}).get("image_url") or "")
         duoc_goi = False
         pol = None
-        if nhom:
+        if vao_nhom:
+            # An event, not chat: it reaches the Agent in every enabled group whatever "reply when" says
+            # (see `chatbot_runtime._ly_do_im`), and skips the reply-policy judge, which scores chat.
+            meta["member_join"] = True
+            duoc_goi = True
+        elif nhom:
             conn = zc.ket_noi_theo_id(self.conn_id) or {}
             tag, rep = zc.nhan_dien_goi(self.conn_id, ev, (conn.get("label") or "",))
             meta["mentioned"], meta["reply_to_bot"] = tag, rep

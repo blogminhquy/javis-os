@@ -266,6 +266,18 @@ def _link_anh(msg: dict) -> str:
     return ""
 
 
+def _su_kien_vao_nhom(msg: dict) -> Optional[dict]:
+    """Someone joined the group (javis-zalo >= 1.1.0): `{time, added_by, added_by_me}` in seconds, else None.
+
+    javis-zalo puts each join in the live feed as a message of type `group.join` sent BY the newcomer, with
+    `event: {kind: "join", time (ms), addedBy, addedByMe}`. The type alone is enough; `event` adds detail."""
+    ev = msg.get("event") if isinstance(msg.get("event"), dict) else {}
+    if str(msg.get("type") or "").lower() != "group.join" and ev.get("kind") != "join":
+        return None
+    t = _ts(ev.get("time") or _lay(msg, "ts", "timestamp", "time", mac_dinh=0))
+    return {"time": t, "added_by": str(ev.get("addedBy") or ""), "added_by_me": bool(ev.get("addedByMe"))}
+
+
 def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]:
     """Một tin của `zalo_get_messages` -> sự kiện chung của kho. None nếu không biết thread."""
     if not isinstance(msg, dict):
@@ -286,6 +298,10 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
     text = str(text or "")
     if loai != "text" and not text.strip():
         text = f"[{conversations.KENH_NHAN[KENH]}: khách gửi {loai}]"
+    vao_nhom = _su_kien_vao_nhom(msg) if nhom else None
+    if vao_nhom is not None:
+        ten_moi = sender_name or sender_id
+        text = localefmt.chu(f"[{ten_moi} vừa vào nhóm]", f"[{ten_moi} joined the group]")
     cua_minh = _la_cua_minh(msg)
     return {
         "channel": KENH,
@@ -306,6 +322,7 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
         "metadata": dict({k: msg.get(k) for k in ("replyTo", "mentions", "mediaUrl", "url", "fileName")
                           if msg.get(k) not in (None, "")},
                          **({"chua_ro_loai": True} if _chua_ro_loai(msg, ten) else {}),
+                         **({"member_join": vao_nhom} if vao_nhom is not None else {}),
                          **({"image_url": _link_anh(msg)} if loai == "image" and _link_anh(msg) else {})),
     }
 

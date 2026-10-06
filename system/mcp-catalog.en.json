@@ -10,9 +10,9 @@
    }
   },
   "zalo": {
-   "description": "The javis-zalo MCP (Javis's own Zalo CLI): read new messages and history, find chats, view media and send messages from a personal Zalo account.",
+   "description": "The javis-zalo MCP (Javis's own Zalo CLI): read new messages and history, find chats, see who joined a group and when, view media and send messages from a personal Zalo account.",
    "risk": "This connector defaults to FULL ACCESS, which means the send tool is on. To block sending, lower it to Draft or Read-only.\n\njavis-zalo uses Zalo's unofficial API through zca-js. The account MAY be restricted or LOCKED; use a secondary account and do not auto-send in bulk.",
-   "guide": "Needs Node.js 20+. Press Connect, scan the QR code with the Zalo app, then use the 8 MCP tools of javis-zalo directly. There is no separate Javis listener, webhook or Zalo rules file any more."
+   "guide": "Needs Node.js 20+. Press Connect, scan the QR code with the Zalo app, then use the 9 MCP tools of javis-zalo directly. There is no separate Javis listener, webhook or Zalo rules file any more."
   },
   "botcake": {
    "description": "Customers, tags, flows and sending messages from a Botcake chatbot (through the Public API: Javis builds the bridge itself, nothing else to install).",

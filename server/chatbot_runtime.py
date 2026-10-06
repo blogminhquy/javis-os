@@ -532,6 +532,10 @@ def _ly_do_im(bot_cfg: dict, meta: dict) -> str:
     # Với `all` mọi nhóm bot có mặt đều đã được phép: chỉ còn `reply_when` quyết khi nào lên tiếng.
     if not _nhom_duoc_phep(bot_cfg, (meta or {}).get("chat_id")):
         return "nhom_chua_bat"
+    # Someone joined the group (0.84.2, Zalo personal): an event, not chat, so "reply when" does not
+    # apply. The Agent's own instructions decide, and it answers [IM_LANG] when they say nothing.
+    if (meta or {}).get("member_join"):
+        return ""
     if bot_cfg.get("reply_when") == "always":
         return ""
     if (meta or {}).get("mentioned") or (meta or {}).get("reply_to_bot"):
@@ -898,6 +902,9 @@ def _make_precheck_fn(bot_id: str):
         ly_do = _ly_do_im(cfg, meta or {})
         if not ly_do:
             return None
+        if (meta or {}).get("member_join"):
+            # A join in a group the bot may not speak in: silent, and not a "call" for the approval queue.
+            return {}
         if ly_do == "nguoi_chua_chon":
             # Người ngoài danh sách (audience `chon`): im TUYỆT ĐỐI, nhưng nổi lên hàng chờ duyệt
             # kèm nút Cho phép. Im mà không để lại dấu thì chủ chỉ thấy "bot hỏng" (cùng bài học
@@ -1285,6 +1292,9 @@ def _make_answer_fn(bot_id: str):
                 _ghi_bo_qua(bot_id, cfg, meta, text, ma, tl)
                 return {"text": "", "files": [], "im_lang": True}
         if _qua_han_muc(bot_id, chat_id, cfg.get("rate_limit")):
+            if (meta or {}).get("member_join"):
+                # Many people joining at once must not make the bot say "you are typing too fast" to them.
+                return {"text": "", "files": [], "im_lang": True}
             if tu_dong:
                 # Tin tự trả lời mà quá hạn mức thì im, KHÔNG nói "nhắn hơi nhanh" trước cả nhóm:
                 # người ta đâu có gọi bot.
@@ -1326,6 +1336,9 @@ def _make_answer_fn(bot_id: str):
             out = await _deps["answer"](text_engine, meta, progress, channel=kenh_luot, bot=cfg)
         except Exception as e:
             print(f"[chatbot {bot_id}] {type(e).__name__}: {e}", file=sys.stderr)
+            if (meta or {}).get("member_join"):
+                # Nobody asked anything: an apology tagged to a newcomer would only confuse them.
+                return {"text": "", "files": [], "im_lang": True}
             xin_loi = "Em đang gặp trục trặc, anh chị nhắn lại giúp em sau ít phút ạ."
             ghi_tin_bot(cfg, meta or {}, xin_loi, loi=f"{type(e).__name__}: {e}")
             return {"text": xin_loi, "files": []}

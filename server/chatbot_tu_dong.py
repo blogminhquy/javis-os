@@ -77,7 +77,9 @@ def can_danh_gia(cfg: dict, meta: dict) -> bool:
     meta = meta or {}
     return (str(meta.get("chat_type") or "private") != "private"
             and (cfg or {}).get("reply_when") == "auto"
-            and not meta.get("mentioned") and not meta.get("reply_to_bot"))
+            and not meta.get("mentioned") and not meta.get("reply_to_bot")
+            # A member joining is an event for the Agent's own rules, not a question to score (0.84.2).
+            and not meta.get("member_join"))
 
 
 def nhin_nhu_cau_hoi(text: str) -> Tuple[bool, str]:

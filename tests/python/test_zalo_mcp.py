@@ -39,9 +39,9 @@ check("kết nối Zalo đã đăng nhập bằng bản 1.6.2 tự sang bản m�
 
 expected_read = {
     "zalo_get_messages", "zalo_get_history", "zalo_list_threads",
-    "zalo_search_threads", "zalo_view_media", "zalo_search_history",
+    "zalo_search_threads", "zalo_view_media", "zalo_search_history", "zalo_get_group_joins",
 }
-check("catalog khai đủ sáu tool đọc", set(zalo["tool_meta"]["read"]) == expected_read)
+check("catalog khai đủ bảy tool đọc", set(zalo["tool_meta"]["read"]) == expected_read)
 check("mark-read là ghi và send-message là nguy hiểm",
       mcp_catalog.classify(zalo, "zalo_mark_read") == "write"
       and mcp_catalog.classify(zalo, "zalo_send_message") == "danger")
@@ -67,7 +67,7 @@ check("hai plugin Zalo cũ đã được gỡ",
 
 guide_url = "https://github.com/blogminhquy/javis-os/blob/main/docs/12-zalo.md"
 check("catalog trỏ nút hướng dẫn đến doc GitHub", zalo["auth"]["guide_url"] == guide_url)
-check("doc nêu đủ tám tool và link repo javis-zalo",
+check("doc nêu đủ chín tool và link repo javis-zalo",
       all(name in doc for name in expected_read | {"zalo_mark_read", "zalo_send_message"})
       and "https://github.com/blogminhquy/javis-zalo" in doc)
 check("prompt cho gửi trực tiếp, không phụ thuộc listener/tool cũ",

@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.84.2] - 2026-10-06
 ### Added
-- Know who just joined a Zalo group and when (in progress).
+- **See who joined a Zalo group and when.** Ask "who joined group X this week" and Javis answers with names and join times, including people your own account added. The log survives restarts.
+- **Bots receive a "new member joined" event.** In a group the bot is allowed in, its Agent follows the instructions you wrote (welcome, a question) and what it sends tags the newcomer. Javis has no greeting of its own: if the Agent was told nothing about newcomers, the bot stays silent.
+- Zalo only reports joins while connected, and the member list has no join date, so people who joined before this feature or while the machine was off have no join time.
 
 ## [0.83.2] - 2026-10-06
 ### Security

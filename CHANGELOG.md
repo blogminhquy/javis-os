@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.84.2] - 2026-10-06
 ### Thêm mới
-- Biết ai vừa vào nhóm Zalo và vào lúc nào (đang làm).
+- **Biết ai vừa vào nhóm Zalo và vào lúc nào.** Hỏi "tuần này ai mới vào nhóm X" là Javis trả tên kèm giờ vào, kể cả người do chính tài khoản của bạn thêm vào. Nhật ký giữ lại sau khi khởi động lại.
+- **Bot nhận được sự kiện người mới vào nhóm.** Ở nhóm đã cho phép, Agent của bot làm theo chỉ dẫn bạn viết (chào, hỏi thăm) và câu nó gửi tự tag đúng người mới. Javis không có lời chào mặc định: Agent không được dặn gì về người mới thì bot im.
+- Zalo chỉ báo lúc đang kết nối, và danh sách thành viên không có ngày vào nhóm, nên người vào trước khi có tính năng này hay trong lúc máy tắt thì không có giờ vào.
 
 ## [0.83.2] - 2026-10-06
 ### Bảo mật

@@ -74,7 +74,7 @@ Requires Node.js 20+ on the machine running Javis (download from nodejs.org, ins
 4. Once scanned, the account appears. Add another Zalo number with **+ Add account**; accounts run isolated and do not interfere.
 
 Zalo defaults to Full power so the send-message tool is usable. You can lower it to Draft or
-Read only on the account chip. The current integration uses the eight `javis-zalo` tools directly,
+Read only on the account chip. The current integration uses the nine `javis-zalo` tools directly,
 with no separate listener, webhook or Telegram forwarding. See
 [the Zalo Agent MCP guide](12-zalo-agent-mcp.md).
 
@@ -261,6 +261,6 @@ Unchanged from before: ask directly in chat ("how much did we sell today, compar
 ## Related
 
 - [Models & engines](10-models-and-engines.md) - which brain can use what, and where to switch model.
-- [Zalo Agent MCP](12-zalo-agent-mcp.md) - QR sign-in, the eight tools and permissions.
+- [Zalo Agent MCP](12-zalo-agent-mcp.md) - QR sign-in, the nine tools and permissions.
 - [Chat & voice](02-chat-and-voice.md) - asking for numbers in words.
 - [Usage: tokens & cost](23-usage-and-cost.md) - seeing how much tool calling is burning.
