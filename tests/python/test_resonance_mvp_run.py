@@ -595,6 +595,80 @@ check("P2-1 tin chờ duyệt kèm link tới bản mẫu trong brain",
       any(k == "goal.waiting_human" and "Javis/resonance/outputs/" in t
           for (gid, k, t) in deps_ho.notify.sent if gid == g_ho.id))
 
+# Review M3 vòng 2: chính lần đăng làm guard sai (guard đọc đúng file sản phẩm). Không được đóng thành công.
+SAMPLE = "Inbox/sample.md"
+
+
+def _sample_goal():
+    g0 = make_goal(mode="maintain", horizon={"kind": "maintain"},
+                   criteria=[{"description": "Ghi chú mẫu có tiêu đề", "evaluator": "artifact_contract",
+                              "params": {"path": SAMPLE, "must_contain": ["Sample"]}}])
+    (Path(BRAIN) / SAMPLE).unlink(missing_ok=True)
+    d0, _, _ = make_deps(engine=FakeEngine(text="# Sample\n\nBản một.\n"))
+    adv(g0.id, {"kind": "start"}, d0)
+    msg = "Thêm nội dung REVISION TWO và giữ tiêu đề Sample nhé."
+    g1, _, _ = R.revise_goal(store, P, g0.id, 1, {
+        "relevant_quote": "giữ tiêu đề Sample",
+        "criteria": [{"description": "Có nội dung revision hai", "evaluator": "artifact_contract",
+                      "params": {"path": SAMPLE, "must_contain": ["REVISION TWO"]}}],
+        "guards": [{"description": "Tiêu đề Sample còn giữ", "evaluator": "artifact_contract",
+                    "params": {"path": SAMPLE, "must_contain": ["Sample"]}}]},
+        {"message_ref": R.message_ref("s3", 970 + _n["mid"]), "session_id": "s3", "message_id": 970 + _n["mid"],
+         "user_text": msg})
+    return g1
+
+
+def _guard_now(g):
+    return R.observe_guards(store.get(P, g.id), make_deps()[0])[0]["verdict"]
+
+
+g_sv = _sample_goal()
+deps_sv, _, eng_sv = make_deps(engine=FakeEngine(text="REVISION TWO, quên mất tiêu đề.\n"), notes=Notes())
+a_sv = adv(g_sv.id, {"kind": "wake"}, deps_sv)
+asyncio.run(R.drain_outbox(store, deps_sv.notify))
+check("vòng 2: bản mới làm guard sai thì KHÔNG ghi đè bản đang hợp lệ, guard vẫn clear",
+      "# Sample" in (Path(BRAIN) / SAMPLE).read_text(encoding="utf-8") and _guard_now(g_sv) == "clear"
+      and any(e["kind"] == "publish_blocked_by_guard" for e in store.events(P, g_sv.id)))
+check("vòng 2: không kết luận đạt, không báo maintained cho revision mới, hẹn làm lại có phản hồi",
+      a_sv.verdict == "not_met" and store.get(P, g_sv.id).status == "active"
+      and not any(k == "goal.maintained" and gid == g_sv.id and "REVISION" in t
+                  for (gid, k, t) in deps_sv.notify.sent)
+      and [k for (gid, k, _) in deps_sv.notify.sent if gid == g_sv.id].count("goal.maintained") <= 1
+      and any(r.get("evaluator") == "guard" and r["verdict"] == "not_met" for r in a_sv.criterion_results))
+check("vòng 2: guard trong assessment là kết quả SAU khi đăng",
+      all(x["verdict"] == "clear" for x in a_sv.guards) and a_sv.guards)
+eng_sv.text = "# Sample\n\nREVISION TWO đã thêm.\n"
+a_sv2 = adv(g_sv.id, {"kind": "wake"}, deps_sv)
+check("vòng 2: lượt sau có phản hồi về guard, bản giữ đúng điều kiện thì đăng và đạt",
+      "Tiêu đề Sample còn giữ" in eng_sv.last_prompt and a_sv2.verdict == "met"
+      and "REVISION TWO" in (Path(BRAIN) / SAMPLE).read_text(encoding="utf-8") and _guard_now(g_sv) == "clear")
+# Đường dùng lại đầu ra sau pause.
+g_sp = _sample_goal()
+deps_sp, _, eng_sp = make_deps(engine=FakeEngine(text="REVISION TWO, quên mất tiêu đề.\n",
+                                                 on_query=lambda: store.set_paused(OWNER, g_sp.id, True)))
+adv(g_sp.id, {"kind": "wake"}, deps_sp)
+store.set_paused(OWNER, g_sp.id, False)
+eng_sp.on_query = None
+eng_sp.text = "# Sample\n\nREVISION TWO bản sửa.\n"
+q_before = eng_sp.queries
+a_sp = adv(g_sp.id, {"kind": "wake"}, deps_sp)
+check("vòng 2 (resume): đầu ra đã lưu làm guard sai thì không đăng, guard vẫn clear, không đóng sai",
+      _guard_now(g_sp) == "clear" and store.get(P, g_sp.id).status == "active"
+      and any(e["kind"] == "publish_blocked_by_guard" for e in store.events(P, g_sp.id)))
+check("vòng 2 (resume): lượt đó làm lại có phản hồi về guard rồi đạt",
+      eng_sp.queries == q_before + 1 and a_sp.verdict == "met")
+# Đối chứng: resume với đầu ra hợp lệ vẫn không tốn thêm lượt model.
+g_ok = _sample_goal()
+deps_ok, _, eng_ok = make_deps(engine=FakeEngine(text="# Sample\n\nREVISION TWO ổn.\n",
+                                                 on_query=lambda: store.set_paused(OWNER, g_ok.id, True)))
+adv(g_ok.id, {"kind": "wake"}, deps_ok)
+store.set_paused(OWNER, g_ok.id, False)
+eng_ok.on_query = None
+q_ok = eng_ok.queries
+a_ok = adv(g_ok.id, {"kind": "wake"}, deps_ok)
+check("vòng 2 (resume, bản hợp lệ): đăng và đạt mà không gọi thêm model",
+      eng_ok.queries == q_ok and a_ok.verdict == "met")
+
 # ═══════════════════════ test_no_source_uses_bounded_review ═══════════════════════
 now = 1_800_000_000.0
 gm = store.get(P, make_goal(mode="maintain", horizon={"kind": "maintain"}).id)

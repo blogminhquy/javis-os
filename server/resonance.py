@@ -1231,6 +1231,21 @@ def _publish(goal: GoalRecord, text: str, deps: GoalDeps, now: float) -> dict:
     if len(data) > PUBLISH_MAX_BYTES:
         return {"status": "rejected"}
     sha = _sha(data)
+    # Guard đọc ĐÚNG file sắp thay: kiểm bản ứng viên trước khi ghi (review M3 vòng 2). Bản mới làm guard sai thì
+    # giữ bản đang hợp lệ, bản mới ở lại vùng làm việc kèm lý do; không để chính lần đăng phá điều kiện bảo vệ.
+    for gd in goal.guards:
+        if gd.get("evaluator") != "artifact_contract":
+            continue
+        gparams = dict(gd.get("params") or {})
+        if _brain_file(deps.brain_root, gparams.get("path")) != f:
+            continue
+        verdict, why = _check_text(data.decode("utf-8"), gparams)
+        if verdict != "met":
+            store.append_event(p, goal.id, "publish_blocked_by_guard",
+                               {"path": rel, "guard": gd.get("description"), "reason": why, "candidate_sha256": sha},
+                               idempotency_key=f"publish_guard:{goal.revision}:{sha[:16]}", revision=goal.revision)
+            return {"status": "guard_blocked", "guard_id": gd.get("id"), "guard": gd.get("description"),
+                    "reason": why}
     before = None
     if f.exists():
         try:
@@ -1340,17 +1355,38 @@ def _gate(goal_id: str, deps: GoalDeps, now: float) -> tuple:
     return cur, guards, ""
 
 
-def _publish_latest(goal: GoalRecord, deps: GoalDeps, now: float) -> None:
+def _publish_latest(goal: GoalRecord, deps: GoalDeps, now: float) -> dict:
     """Đăng đầu ra đã lưu của revision hiện tại (sau pause, sau gián đoạn) mà KHÔNG gọi model lại. Người gọi đã
-    qua _gate. _publish tự bỏ qua khi file đích đã đúng nội dung."""
+    qua _gate. _publish tự bỏ qua khi file đích đã đúng nội dung, và tự chặn bản làm guard sai."""
     aid, path = _latest_output(goal, deps)
     if aid is None or not _deliverable_rel(goal):
-        return
+        return {"status": "none"}
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
-        return
-    _publish(goal, text, deps, now)
+        return {"status": "none"}
+    return _publish(goal, text, deps, now)
+
+
+def _after_publish(goal: GoalRecord, pub: dict, refs: tuple, deps: GoalDeps, now: float) -> tuple:
+    """Sau tác động: kiểm lại cổng trên TRẠNG THÁI CUỐI rồi mới đánh giá. Trả (assessment | None, lý do chặn).
+
+    Guard trong assessment là kết quả của lần kiểm SAU khi đăng, không phải ảnh chụp trước đó (review M3 vòng 2).
+    Bản ứng viên bị guard chặn thì thêm một dòng not_met để lượt sau biết vì sao, và không kết luận đạt."""
+    cur, guards, why = _gate(goal.id, deps, now)
+    if why:
+        return Assessment(goal.id, goal.revision, "unknown", guards=guards,
+                          rationale="sau khi đăng, cổng kiểm chặn kết luận: " + why, evaluated_at=now), why
+    a = _with_guards(evaluate_artifact(goal, refs, deps), guards)
+    if pub.get("status") == "guard_blocked":
+        extra = {"id": f"guard:{pub.get('guard_id') or ''}", "evaluator": "guard", "verdict": "not_met",
+                 "description": str(pub.get("guard") or ""),
+                 "reason": "bản mới làm điều kiện bảo vệ này không còn đúng (" + str(pub.get("reason") or "") + "); "
+                           "bản đang hợp lệ được giữ, bản mới ở vùng làm việc"}
+        a = Assessment(**{**a.to_dict(), "criterion_results": tuple(a.criterion_results) + (extra,),
+                          "evidence_ids": tuple(a.evidence_ids), "guards": tuple(guards), "verdict": "not_met",
+                          "rationale": extra["reason"] + "; " + a.rationale})
+    return a, ""
 
 
 def _settle(goal: GoalRecord, a: Assessment, deps: GoalDeps, now: float, worked: bool, has_output: bool) -> Assessment:
@@ -1487,10 +1523,13 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
                        rationale="đầu ra giữ trong vùng làm việc, chưa đăng: " + why, evaluated_at=now)
         store.add_assessment(p, a.to_dict())
         return a
-    _publish(goal, text, deps, now)
+    pub = _publish(goal, text, deps, now)
     refs = tuple(e["evidence_id"] for e in store.evidence_for(p, goal.id, goal.revision, kind="action_output"))
-    return _settle(goal, _with_guards(evaluate_artifact(goal, refs, deps), guards), deps, now, worked=True,
-                   has_output=bool(refs))
+    a, why = _after_publish(goal, pub, refs, deps, now)
+    if why:
+        store.add_assessment(p, a.to_dict())
+        return a
+    return _settle(goal, a, deps, now, worked=True, has_output=bool(refs))
 
 
 async def advance(goal_id: str, event: dict, deps: GoalDeps) -> Assessment:
@@ -1538,9 +1577,12 @@ async def advance(goal_id: str, event: dict, deps: GoalDeps) -> Assessment:
             store.add_assessment(p, a.to_dict())
             return a
         # Đầu ra đã có của revision này (giữ lại vì pause, gián đoạn) được đăng mà không gọi model lại.
-        _publish_latest(g, deps, now)
+        pub = _publish_latest(g, deps, now)
         refs = tuple(e["evidence_id"] for e in store.evidence_for(p, g.id, g.revision, kind="action_output"))
-        a = _with_guards(evaluate_artifact(g, refs, deps), guards)
+        a, why = _after_publish(g, pub, refs, deps, now)
+        if why:
+            store.add_assessment(p, a.to_dict())
+            return a
         if a.verdict == "met" or (a.verdict == "unknown" and _human_only(a, bool(refs))) or kind not in WORK_EVENTS:
             return _settle(g, a, deps, now, worked=False, has_output=bool(refs))
         return await _work_step(g, a, deps, now)
