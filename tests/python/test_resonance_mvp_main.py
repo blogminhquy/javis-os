@@ -85,6 +85,52 @@ try:
 finally:
     main._resonance_store = _old
 
+# ───────────── mọi nhánh web mang id tin gốc tới run_turn (review PR #567, P2-1) ─────────────
+# run_turn nằm trong closure của websocket nên không gọi thẳng được; kiểm bằng AST các chỗ gọi nó.
+import ast  # noqa: E402
+
+_tree = ast.parse(Path(main.__file__).read_text(encoding="utf-8"))
+_fns = {n.name: n for n in ast.walk(_tree) if isinstance(n, (ast.AsyncFunctionDef, ast.FunctionDef))}
+
+
+def _calls(node, name):
+    return [n for n in ast.walk(node) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+            and n.func.id == name]
+
+
+def _kw(call, name):
+    return next((k.value for k in call.keywords if k.arg == name), None)
+
+
+_voice = _calls(_fns["run_voice_turn"], "run_turn")
+check("giọng nói chuyển bộ não chính: mọi lời gọi run_turn đều truyền user_mid",
+      len(_voice) >= 2 and all(_kw(c, "user_mid") is not None for c in _voice))
+_goc = [c for c in _voice if any(isinstance(a, ast.BinOp) for a in c.args)]
+check("đường giữ câu gốc: user_text là lời người dùng, không kèm ghi chú câu nghe của host",
+      len(_goc) == 1 and _kw(_goc[0], "user_text") is not None
+      and "GHI_CHU_CAU_NGHE" not in ast.unparse(_kw(_goc[0], "user_text")))
+_resume = _calls(_fns["_start_resumed_turn"], "run_turn")
+check("chạy lại sau hạn mức: truyền đúng user_mid và user_text của lượt gốc",
+      len(_resume) == 1 and ast.unparse(_kw(_resume[0], "user_mid")) == "user_mid"
+      and ast.unparse(_kw(_resume[0], "user_text")) == "user_text")
+_sched = _calls(_fns["_do_turn"], "_start_resumed_turn")
+check("hẹn chạy lại mang theo id và lời người dùng của lượt gốc",
+      len(_sched) == 1 and _kw(_sched[0], "user_mid") is not None and _kw(_sched[0], "user_text") is not None)
+_ws = _fns["_start_resumed_turn"]
+_handler = next(n for n in ast.walk(_tree) if isinstance(n, ast.AsyncFunctionDef)
+                and any(f is _ws for f in ast.walk(n)) and n is not _ws)
+_direct = [c for c in _calls(_handler, "run_turn")
+           if not any(c in list(ast.walk(f)) for f in ast.walk(_handler)
+                      if isinstance(f, ast.AsyncFunctionDef) and f is not _handler)]
+check("khung chat web (thường và trả lời trong phiên quy trình): run_turn nhận user_mid=_user_mid",
+      len(_direct) >= 2 and all(ast.unparse(_kw(c, "user_mid") or ast.Constant(0)) == "_user_mid" for c in _direct))
+_vt = _calls(_handler, "run_voice_turn")
+check("khung chat web: làn nhanh giọng nói nhận user_mid=_user_mid",
+      len(_vt) == 1 and ast.unparse(_kw(_vt[0], "user_mid") or ast.Constant(0)) == "_user_mid")
+_follow = _calls(_fns["_start_followup_turn"], "run_turn")
+check("lượt nối tiếp do host tự mở (chữ của host) KHÔNG mang id tin người dùng",
+      len(_follow) == 1 and _kw(_follow[0], "user_mid") is None)
+
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)
     sys.exit(1)

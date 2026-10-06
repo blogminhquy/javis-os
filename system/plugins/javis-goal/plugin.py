@@ -123,12 +123,10 @@ async def javis_goal(args, ctx):
     except (TypeError, ValueError):
         return "ERROR: update cần expected_revision (số revision bạn đang thấy)."
     try:
-        frame = R.validate_proposal(_proposal(args), user_text, user_unsure=unsure, user_constraints=constraints)
-        if store.get(p, gid) is None:
-            return "ERROR: Không có mục tiêu này trong brain."
-        intent = store.add_intent(p, sid, mid, user_text, constraints=constraints)
-        g = store.revise(p, gid, exp, frame, reason=str(args.get("reason") or "người dùng bổ sung")[:500],
-                         intent_id=intent["id"], message_ref=mref)
+        # Đọc revision hiện tại trước khi kiểm: hạn và chỉ tiêu người dùng nêu ở tin trước được giữ nguyên.
+        g, _relation = R.revise_goal(store, p, gid, exp, _proposal(args), {
+            "message_ref": mref, "session_id": sid, "message_id": mid, "user_text": user_text,
+            "constraints": constraints, "user_unsure": unsure, "reason": args.get("reason")})
     except RS.ConflictError as e:
         return f"ERROR: Mục tiêu đã đổi trước đó ({e}). Gọi op=list để xem revision hiện tại."
     except RS.ScopeError as e:
@@ -146,7 +144,7 @@ _DESC = (
     "javis_schedule. relevant_quote phải trích NGUYÊN VĂN lời người dùng. Không bịa hạn chót hay chỉ tiêu: "
     "người dùng không nêu hạn thì horizon.kind=review (mốc xem lại nội bộ). Người dùng nói chưa biết muốn gì "
     "thì user_unsure=true, stage=discovery. Người dùng bổ sung ý cho mục tiêu đang mở: op=update với goal_id "
-    "và expected_revision (xem bằng op=list)."
+    "và expected_revision (xem bằng op=list); chỉ gửi trường thay đổi, trường bỏ trống giữ như cũ."
 )
 
 _SCHEMA = {
@@ -156,7 +154,8 @@ _SCHEMA = {
         "understanding": {"type": "string", "description": "Kết quả cần tạo, một câu. Rỗng nếu chưa rõ."},
         "criteria": {"type": "array", "description": "Cách nhận biết xong. Ít nhất một mục.", "items": {
             "type": "object", "properties": {
-                "description": {"type": "string"},
+                "description": {"type": "string",
+                                "description": "Điều cần kiểm, cụ thể. Rỗng thì host từ chối."},
                 "evaluator": {"type": "string", "enum": ["artifact_contract", "human_confirmation"]},
                 "params": {"type": "object", "description": "artifact_contract: path (tương đối trong brain), "
                                                             "min_chars, must_contain"}},

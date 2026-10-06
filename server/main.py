@@ -13624,7 +13624,7 @@ async def websocket_endpoint(ws: WebSocket):
 
     try:
         async def _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
-                           has_attachments=False, resume_attempt=0):
+                           has_attachments=False, resume_attempt=0, user_mid=0, user_text=None):
             ws = _SendProxy(conv_sid, runtime_trace)  # các nhánh engine bên dưới dùng ws proxy này
             _cfg_all = cfgmod.read_settings()
             mcfg = _cfg_all.get("model", {})
@@ -14675,7 +14675,8 @@ async def websocket_endpoint(ws: WebSocket):
                 _item = limit_resume.REGISTRY.schedule(
                     conv_sid, float(getattr(_lim, "reset_epoch", 0) or 0),
                     lambda attempt, _n=_noi: _start_resumed_turn(
-                        conv_sid, user_message, brain, attempt, _n),
+                        conv_sid, user_message, brain, attempt, _n,
+                        user_mid=user_mid, user_text=user_text),
                     engine=getattr(_lim, "engine", ""), notice=_noi,
                     scope=getattr(_lim, "scope", ""), attempt=int(resume_attempt or 0),
                     auto_default=_auto_pref)
@@ -14751,18 +14752,23 @@ async def websocket_endpoint(ws: WebSocket):
             return final_text
 
         async def run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
-                           has_attachments=False, resume_attempt=0, goc_chat="", user_mid=0):
+                           has_attachments=False, resume_attempt=0, goc_chat="", user_mid=0,
+                           user_text=None):
             _trace_token = context_runtime.bind_trace(runtime_trace)
             # Ghi vào sổ lượt đang chạy để tool giao việc biết kết quả phải về khung chat này
             # khi model quên truyền chat_id (luot_dang_chay.py, 0.64.49). Kèm id tin và lời người
             # dùng để tool javis_goal (Resonance) biết đúng tin nhắn nào; 0 thì tool từ chối lập mục tiêu.
+            # `user_text` là ĐÚNG lời người dùng, tách khỏi ghi chú host gắn vào prompt (ghi chú câu
+            # nghe, khối quy trình) và khối ngữ cảnh giao diện, để câu căn cứ không trích nhầm chữ của host.
+            if user_text is None:
+                user_text = nghe_sua.split_ui_context(user_message)[1]
             _t0_luot = time.time()
             _khoa_luot = luot_dang_chay.bat_dau(f"{WEB_CHAT_PREFIX}{conv_sid}", _brain_root(brain),
-                                                msg_id=user_mid, user_text=user_message)
+                                                msg_id=user_mid, user_text=user_text)
             try:
                 final_text = await _do_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
-                    resume_attempt=resume_attempt,
+                    resume_attempt=resume_attempt, user_mid=user_mid, user_text=user_text,
                 )
                 _resonance_after_turn(conv_sid, brain, user_mid, _t0_luot, runtime_trace)
                 # Phiên TRỢ LÝ mở từ một lệnh "/" gõ ở khung Trò chuyện: câu trả lời quay về
@@ -14858,7 +14864,7 @@ async def websocket_endpoint(ws: WebSocket):
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
 
         async def run_voice_turn(conv_sid, user_message, brain, turn_tag, runtime_trace, conf,
-                                 voice_turn_id="", giu_ban_chep=False):
+                                 voice_turn_id="", giu_ban_chep=False, user_mid=0):
             """LÀN NHANH giọng nói (Voice V2, docs/dev/2026-10-voice-call-spec.md phụ lục A3).
 
             Tin đến từ mic đi qua bộ não giọng (voice_brain) thay vì bộ não chính: trả lời
@@ -14913,7 +14919,8 @@ async def websocket_endpoint(ws: WebSocket):
                 # Kho phiên và bong bóng giữ câu gốc; chỉ lời gửi bộ não chính kèm ghi chú để
                 # nó tự hiểu từ nghe nhầm mà không giải thích ra (voice_brain.GHI_CHU_CAU_NGHE).
                 await run_turn(conv_sid, original_message + "\n\n" + voice_brain.GHI_CHU_CAU_NGHE,
-                               brain, turn_tag, runtime_trace)
+                               brain, turn_tag, runtime_trace, user_mid=user_mid,
+                               user_text=nghe_sua.split_ui_context(original_message)[1])
 
             async def _ap_dien_giai(nghe):
                 """Nhận câu bộ não giọng HIỂU theo ngữ cảnh, nhưng chỉ khi đó là sửa từ nghe nhầm
@@ -15007,7 +15014,7 @@ async def websocket_endpoint(ws: WebSocket):
                                     f"Bộ não giọng nói lỗi ({e}), dùng bộ não chính...",
                                     f"Voice brain error ({e}), using the main brain..."),
                                 "session_id": conv_sid})
-                await run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace)
+                await run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace, user_mid=user_mid)
                 return
             # Bộ não giọng vừa trả lời trót lọt: lỗi cũ (nếu có) không còn đúng, thôi khoe ở Cài đặt.
             voice_brain.xoa_loi_lan_nhanh()
@@ -15265,7 +15272,8 @@ async def websocket_endpoint(ws: WebSocket):
                 runtime_step_id=runtime_trace.step_id if runtime_trace else "",
             )
 
-        async def _start_resumed_turn(conv_sid, user_message, brain, attempt, notice):
+        async def _start_resumed_turn(conv_sid, user_message, brain, attempt, notice,
+                                      user_mid=0, user_text=None):
             """Chạy lại một lượt đã vấp hạn mức gói thuê bao (limit_resume gọi tới, khi tới mốc
             reset hoặc khi người dùng bấm "Chạy lại ngay").
 
@@ -15283,9 +15291,10 @@ async def websocket_endpoint(ws: WebSocket):
             runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
             await send_raw({"type": "resume", "session_id": conv_sid, "state": "running",
                             "attempt": int(attempt or 0)})
+            # Cùng id tin gốc: chạy lại không tạo mục tiêu thứ hai (khoá chống trùng theo tin).
             task = asyncio.create_task(run_turn(
                 conv_sid, user_message, brain, turn_tag, runtime_trace, False,
-                resume_attempt=int(attempt or 0)))
+                resume_attempt=int(attempt or 0), user_mid=user_mid, user_text=user_text))
             _CHAT_RUNTIME.register_job(
                 conv_sid, task, turn_tag,
                 runtime_task_id=runtime_trace.task_id if runtime_trace else "",
@@ -15528,7 +15537,8 @@ async def websocket_endpoint(ws: WebSocket):
                         conv_sid, _khoi_wf + "\n\n" + _msg_wf,
                         brain, turn_tag, runtime_trace,
                         bool(payload.get("attachments") or payload.get("files")),
-                        goc_chat=_goc))
+                        goc_chat=_goc, user_mid=_user_mid,
+                        user_text=nghe_sua.split_ui_context(user_message)[1]))
                 else:
                     task = asyncio.create_task(run_workflow_turn(
                         conv_sid, _msg_wf, brain, turn_tag, runtime_trace, _pers[1],
@@ -15555,7 +15565,7 @@ async def websocket_endpoint(ws: WebSocket):
                 _voice_coro = run_voice_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, _vconf,
                     voice_turn_id=str(payload.get("voice_turn_id") or ""),
-                    giu_ban_chep=bool(_voice_uid))
+                    giu_ban_chep=bool(_voice_uid), user_mid=_user_mid)
                 task = asyncio.create_task(voice_turn_protocol.run(_voice_coro, store, conv_sid, _voice_uid) if _voice_uid else _voice_coro)
             else:
                 _voice_coro = run_turn(

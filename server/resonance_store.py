@@ -29,7 +29,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS intents(
   id TEXT PRIMARY KEY, brain_id TEXT NOT NULL, session_id TEXT NOT NULL DEFAULT '',
   message_id INTEGER, text TEXT NOT NULL, constraints_json TEXT NOT NULL DEFAULT '[]',
-  supersedes TEXT, created_at REAL NOT NULL);
+  prev_intent_id TEXT, relation TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS goals(
   id TEXT PRIMARY KEY, brain_id TEXT NOT NULL, owner TEXT NOT NULL, revision INTEGER NOT NULL,
   status TEXT NOT NULL, session_id TEXT NOT NULL DEFAULT '', request_ref TEXT NOT NULL DEFAULT '',
@@ -118,22 +118,34 @@ class GoalStore:
     # ───────────── bản ghi ý định ─────────────
 
     def add_intent(self, p: Principal, session_id: str, message_id, text: str, constraints=(),
-                   supersedes: Optional[str] = None) -> dict:
+                   prev_intent_id: Optional[str] = None, relation: str = "") -> dict:
+        """Ghi nguyên văn lời người dùng. `prev_intent_id`: ý định của revision trước khi tin này cập nhật
+        một mục tiêu; `relation`: "amend" (bổ sung) hay "replace" (thay chỉ dẫn đã nêu)."""
         rec = {"id": _nid("in"), "brain_id": p.brain_id, "session_id": str(session_id or ""),
                "message_id": message_id, "text": str(text or ""),
                "constraints": [str(x).strip() for x in (constraints or ()) if str(x).strip()],
-               "supersedes": supersedes, "created_at": time.time()}
+               "prev_intent_id": prev_intent_id, "relation": str(relation or ""), "created_at": time.time()}
         with self._Tx(self) as c:
-            c.execute("INSERT INTO intents VALUES(?,?,?,?,?,?,?,?)",
+            if prev_intent_id:
+                self._intent(c, p, prev_intent_id)
+            c.execute("INSERT INTO intents VALUES(?,?,?,?,?,?,?,?,?)",
                       (rec["id"], rec["brain_id"], rec["session_id"], rec["message_id"], rec["text"],
-                       _j(rec["constraints"]), supersedes, rec["created_at"]))
+                       _j(rec["constraints"]), prev_intent_id, rec["relation"], rec["created_at"]))
         return rec
 
     def _intent(self, c, p: Principal, intent_id: str) -> dict:
         r = c.execute("SELECT * FROM intents WHERE id=?", (intent_id,)).fetchone()
         if r is None or r["brain_id"] != p.brain_id:
             raise ScopeError("bản ghi ý định không tồn tại trong brain này")
-        return {"id": r["id"], "text": r["text"], "constraints": json.loads(r["constraints_json"] or "[]")}
+        return {"id": r["id"], "text": r["text"], "constraints": json.loads(r["constraints_json"] or "[]"),
+                "prev_intent_id": r["prev_intent_id"], "relation": r["relation"]}
+
+    def get_intent(self, p: Principal, intent_id: str) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            try:
+                return self._intent(c, p, intent_id)
+            except ScopeError:
+                return None
 
     # ───────────── mục tiêu ─────────────
 
@@ -220,7 +232,7 @@ class GoalStore:
             return [self._record(c, r) for r in c.execute(q, args).fetchall()]
 
     def revise(self, p: Principal, goal_id: str, expected_revision: int, frame: dict, reason: str,
-               intent_id: Optional[str] = None, message_ref: str = "") -> R.GoalRecord:
+               intent_id: Optional[str] = None, message_ref: str = "", relation: str = "") -> R.GoalRecord:
         now = time.time()
         with self._Tx(self) as c:
             row = self._goal_row(c, p, goal_id)
@@ -248,7 +260,8 @@ class GoalStore:
             c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,message_ref,payload_json,by,"
                       "idempotency_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
                       (goal_id, rev, "reframe", "host", str(message_ref or ""),
-                       _j({"reason": reason[:500], "diff": diff}), p.by, f"reframe:{rev}", now))
+                       _j({"reason": reason[:500], "relation": relation, "diff": diff}), p.by,
+                       f"reframe:{rev}", now))
             c.execute("INSERT INTO outbox(goal_id,kind,payload_json,created_at) VALUES(?,?,?,?)",
                       (goal_id, "goal.revised", _j({"revision": rev}), now))
             return self._record(c, c.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone())
