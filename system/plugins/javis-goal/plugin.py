@@ -164,7 +164,8 @@ _DESC = (
     "thì user_unsure=true, stage=discovery. Người dùng bổ sung ý cho mục tiêu đang mở: op=update với goal_id "
     "và expected_revision (xem bằng op=list); chỉ gửi trường thay đổi, trường bỏ trống giữ như cũ. Bản này "
     "CHƯA đổi hay bỏ được hạn chót, chỉ tiêu và ràng buộc người dùng đã nêu: host giữ nguyên và báo lại; khi "
-    "đó nói rõ với người dùng là chưa đổi được. Thêm chỉ tiêu hay ràng buộc mới thì được."
+    "đó nói rõ với người dùng là bạn không đổi được, người dùng tự bỏ bằng nút Bỏ trên thẻ mục tiêu trong khung chat. "
+    "Thêm chỉ tiêu hay ràng buộc mới thì được."
 )
 
 _SCHEMA = {

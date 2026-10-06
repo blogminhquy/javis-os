@@ -749,3 +749,67 @@ class GoalStore:
                       "VALUES(?,?,?,?,?,?,?)", (goal_id, row["revision"], "unblocked", "owner",
                                                 _j({"reason": reason}), p.by, now))
             return True
+
+    DIRECTIVE_FIELDS = ("deadline", "target", "constraint", "guard")
+
+    def drop_directive(self, p: Principal, goal_id: str, expected_revision: int, field: str, key: str) -> "R.GoalRecord":
+        """ĐƯỜNG CÓ THẨM QUYỀN để bỏ một chỉ dẫn người dùng đã nêu (hạn chót, chỉ tiêu, ràng buộc) hay một guard:
+        CHỈ owner, qua thao tác trên thẻ mục tiêu (M4). Bản cập nhật của bộ não không làm được việc này (M2, M3).
+        Gắn revision (CAS), tạo revision mới ghi nguồn là người dùng, rồi hẹn làm tiếp theo cách hiểu mới. Bỏ guard
+        đang chặn thì mở chặn đó; các chặn khác giữ nguyên."""
+        if p.kind != "owner":
+            raise PermissionError("chỉ người dùng mới bỏ được chỉ dẫn của mình")
+        if field not in self.DIRECTIVE_FIELDS:
+            raise R.GoalRejected(f"không bỏ được loại chỉ dẫn này: {field}")
+        now = time.time()
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            if row["status"] != "active":
+                raise R.GoalRejected(f"mục tiêu đã {row['status']}")
+            if int(row["revision"]) != int(expected_revision):
+                raise ConflictError(f"mục tiêu đang ở revision {row['revision']}, không phải {expected_revision}")
+            prev = c.execute("SELECT * FROM goal_revisions WHERE goal_id=? AND revision=?",
+                             (goal_id, row["revision"])).fetchone()
+            fr = json.loads(prev["frame_json"]) if prev else {}
+            user_cons = json.loads(row["user_constraints_json"] or "[]")
+            key = str(key or "")
+            if field == "deadline":
+                h = dict(fr.get("horizon") or {})
+                if h.get("kind") != "deadline" or not h.get("from_user"):
+                    raise R.GoalRejected("mục tiêu không có hạn chót của người dùng để bỏ")
+                fr["horizon"] = {"kind": "review", "from_user": False, "quote": "", "at": h.get("at"),
+                                 "reason": "người dùng bỏ hạn chót"}
+            elif field == "target":
+                left = [t for t in (fr.get("targets") or []) if str(t.get("text")) != key]
+                if len(left) == len(fr.get("targets") or []):
+                    raise R.GoalRejected("không có chỉ tiêu này")
+                fr["targets"] = left
+            elif field == "constraint":
+                if key not in (fr.get("constraints") or []) and key not in user_cons:
+                    raise R.GoalRejected("không có ràng buộc này")
+                fr["constraints"] = [x for x in (fr.get("constraints") or []) if x != key]
+                user_cons = [x for x in user_cons if x != key]
+            else:
+                left = [g for g in (fr.get("guards") or []) if str(g.get("id")) != key]
+                if len(left) == len(fr.get("guards") or []):
+                    raise R.GoalRejected("không có điều kiện bảo vệ này")
+                fr["guards"] = left
+            rev = int(row["revision"]) + 1
+            c.execute("INSERT INTO goal_revisions VALUES(?,?,?,?,?,?,?)",
+                      (goal_id, rev, prev["intent_id"] if prev else "", _j(fr), f"người dùng bỏ {field}", p.by, now))
+            unblock = field == "guard" and row["block_reason"] in ("guard", "guard_unknown")
+            c.execute("UPDATE goals SET revision=?, user_constraints_json=?, updated_at=?"
+                      + (", run_state='ready', block_reason=''" if unblock else "") + " WHERE id=?",
+                      (rev, _j(user_cons), now, goal_id))
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,idempotency_key,created_at) "
+                      "VALUES(?,?,?,?,?,?,?,?)",
+                      (goal_id, rev, "reframe", "owner", _j({"reason": f"người dùng bỏ {field}", "relation": "replace",
+                                                            "field": field, "key": key}), p.by, f"reframe:{rev}", now))
+            c.execute("INSERT INTO outbox(goal_id,kind,payload_json,created_at) VALUES(?,?,?,?)",
+                      (goal_id, "goal.revised", _j({"revision": rev}), now))
+            self._wake(c, goal_id, p.brain_id, "work", now, "người dùng đổi chỉ dẫn")
+            if not fr.get("guards"):
+                c.execute("DELETE FROM wakeups WHERE goal_id=? AND kind='observe'", (goal_id,))
+            return self._record(c, c.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone())

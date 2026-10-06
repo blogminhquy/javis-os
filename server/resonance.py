@@ -613,8 +613,8 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
         same = horizon.get("kind") == "deadline" and abs(_at(horizon) - _at(ph)) < 1
         horizon = dict(ph)      # hạn người dùng đã nêu: giữ nguyên cả giá trị lẫn nguồn
         if not same and notes is not None:
-            notes.append("Đổi hay bỏ hạn chót người dùng đã nêu (\"" + str(ph.get("quote") or "") + "\") chưa hỗ "
-                         "trợ qua chat ở bản này; hạn cũ vẫn giữ.")
+            notes.append("Đổi hay bỏ hạn chót người dùng đã nêu (\"" + str(ph.get("quote") or "") + "\") không làm "
+                         "qua bản cập nhật được; hạn cũ vẫn giữ. Người dùng bỏ được bằng nút Bỏ trên thẻ mục tiêu.")
     assumptions = _clean_list(proposal.get("assumptions"))
     old_targets = {_norm(t.get("text")): t for t in (base.get("targets") or []) if isinstance(t, dict)}
     targets = []
@@ -637,8 +637,8 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
             continue
         targets.append(dict(t))
         if notes is not None:
-            notes.append(f"Bỏ chỉ tiêu người dùng đã nêu \"{t.get('text')}\" chưa hỗ trợ qua chat ở bản này; "
-                         "chỉ tiêu vẫn giữ.")
+            notes.append(f"Bỏ chỉ tiêu người dùng đã nêu \"{t.get('text')}\" không làm qua bản cập nhật được; "
+                         "chỉ tiêu vẫn giữ. Người dùng bỏ được bằng nút Bỏ trên thẻ mục tiêu.")
     if proposal.get("remove_targets") and notes is not None:
         notes.append("remove_targets chưa hỗ trợ ở bản này; không chỉ tiêu nào bị bỏ.")
     understanding = str(proposal.get("understanding") or "").strip()[:500]
@@ -1816,8 +1816,9 @@ def apply_feedback(store, owner, goal_id: str, kind: str, payload: dict) -> dict
 
 
 def apply_command(store, owner, goal_id: str, command: str, payload: dict, brain_root: str) -> dict:
-    """Lệnh của người dùng: pause / resume / cancel. Can thiệp của người dùng luôn có hiệu lực (spec 2.3) nên KHÔNG
-    đòi khớp revision; revision người dùng đang nhìn vẫn được ghi lại. Resume mở lại guard đã nhảy chỉ khi guard
+    """Lệnh của người dùng: pause / resume / cancel / drop_directive. Pause, resume, cancel là can thiệp luôn có hiệu
+    lực (spec 2.3) nên KHÔNG đòi khớp revision; revision người dùng đang nhìn vẫn được ghi lại. drop_directive (bỏ
+    hạn, chỉ tiêu, ràng buộc hay guard) là SỬA chỉ dẫn nên đòi đúng revision đang hiện. Resume mở lại guard đã nhảy chỉ khi guard
     hiện đã clear (người dùng đã sửa), không bỏ qua guard; không mở được "Chưa đúng ý" (cần nói rõ hơn)."""
     from resonance_store import ScopeError
     payload = dict(payload or {})
@@ -1830,6 +1831,13 @@ def apply_command(store, owner, goal_id: str, command: str, payload: dict, brain
         return {"ok": True, "status": "paused"}
     if command == "cancel":
         return {"ok": store.cancel(owner, goal_id, seen), "status": "cancelled"}
+    if command == "drop_directive":
+        try:
+            exp = int(seen)
+        except (TypeError, ValueError):
+            raise GoalRejected("cần expected_revision (revision đang hiện trên thẻ)")
+        g2 = store.drop_directive(owner, goal_id, exp, str(payload.get("field") or ""), str(payload.get("key") or ""))
+        return {"ok": True, "status": "revised", "revision": g2.revision}
     if command != "resume":
         raise GoalRejected(f"lệnh không hỗ trợ: {command}")
     if g.paused:
@@ -1849,6 +1857,19 @@ def apply_command(store, owner, goal_id: str, command: str, payload: dict, brain
     elif reason in ("budget",):
         return {"ok": False, "status": "blocked", "reason": "đã hết hạn mức lượt gọi của mục tiêu"}
     return {"ok": True, "status": "resumed"}
+
+
+def _directives(g: GoalRecord) -> list:
+    """Những chỉ dẫn người dùng bỏ được trên thẻ (đường có thẩm quyền, M4): hạn chót người dùng nêu, chỉ tiêu,
+    ràng buộc, guard. `key` là thứ drop_directive dùng để tìm đúng mục."""
+    out = []
+    h = g.horizon or {}
+    if h.get("kind") == "deadline" and h.get("from_user"):
+        out.append({"field": "deadline", "key": "", "text": str(h.get("quote") or "")})
+    out += [{"field": "target", "key": str(t.get("text")), "text": str(t.get("text"))} for t in g.targets]
+    out += [{"field": "constraint", "key": str(x), "text": str(x)} for x in g.constraints]
+    out += [{"field": "guard", "key": str(x.get("id")), "text": str(x.get("description"))} for x in g.guards]
+    return out
 
 
 def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]:
@@ -1886,6 +1907,7 @@ def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]
         "targets": [t.get("text") for t in g.targets], "open_questions": list(g.open_questions),
         "horizon": dict(g.horizon or {}), "guards": [{"id": x.get("id"), "description": x.get("description")}
                                                    for x in g.guards],
+        "directives": _directives(g),
         "criteria": criteria, "fit": store.fit_status(principal, goal_id, g.revision),
         "artifact_ref": _artifact_ref_of(store, principal, g),
         "deliverable": _deliverable_rel(g) or _rel_to_brain(Path(out_path) if out_path else None, brain_root),

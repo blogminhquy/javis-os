@@ -273,6 +273,60 @@ check("Huỷ: mục tiêu cancelled, không còn lịch", body.get("ok") is True
 code, body = api("post", f"/goals/{g7.id}/commands", json={"command": "xoa_het"})
 check("lệnh lạ: 400", code == 400)
 
+# ───────────── đường có thẩm quyền: người dùng bỏ chỉ dẫn của mình trên thẻ (M4) ─────────────
+USER_D = "Gom giúp mình ghi chú việc tuần đến ngày 20/10/2026, cần đủ 5 việc, không xoá ghi chú cũ."
+mid_d = main.get_store().append_message(SID, "user", USER_D)
+keep.write_text("giữ\n", encoding="utf-8")
+gd = asyncio.run(R.form_goal(R.message_ref(SID, mid_d), {
+    "principal": P, "brain_root": KEY, "session_id": SID, "message_id": mid_d, "user_text": USER_D,
+    "constraints": ["không xoá ghi chú cũ"], "budget_calls": 4, "proposal": {
+        "understanding": "Ghi chú việc tuần", "relevant_quote": "Gom giúp mình ghi chú việc tuần",
+        "criteria": [{"description": "Có ghi chú", "evaluator": "artifact_contract", "params": {"path": "Inbox/tuan.md"}}],
+        "horizon": {"kind": "deadline", "at_iso": "2026-10-20T23:00:00+07:00", "from_user": True,
+                    "quote": "đến ngày 20/10/2026"},
+        "targets": [{"text": "5 việc", "quote": "cần đủ 5 việc"}], "constraints": ["không xoá ghi chú cũ"],
+        "guards": [{"description": "Ghi chú giữ còn", "evaluator": "artifact_contract", "params": {"path": "Notes/giu.md"}}],
+        "stage": "delivery"}}, R.GoalDeps(engine_factory=lambda s, t: (None, {}), budget=R.CallBudget(0), store=store)))
+vd = api("get", f"/goals/{gd.id}")[1]["goal"]
+check("thẻ liệt kê chỉ dẫn người dùng bỏ được: hạn, chỉ tiêu, ràng buộc, guard",
+      sorted(d["field"] for d in vd["directives"]) == ["constraint", "deadline", "guard", "target"])
+code, body = api("post", f"/goals/{gd.id}/commands", json={"command": "drop_directive", "field": "target",
+                                                            "key": "5 việc", "expected_revision": 0})
+check("bỏ chỉ dẫn từ thẻ cũ (sai revision): 409, không đổi gì", code == 409 and store.get(P, gd.id).revision == 1)
+check("agent không tự bỏ được chỉ dẫn người dùng",
+      _perm(lambda: store.drop_directive(P, gd.id, 1, "target", "5 việc")))
+code, body = api("post", f"/goals/{gd.id}/commands", json={"command": "drop_directive", "field": "target",
+                                                            "key": "5 việc", "expected_revision": 1})
+gd2 = store.get(P, gd.id)
+ev = [e for e in store.events(P, gd.id) if e["kind"] == "reframe"][-1]
+check("bỏ chỉ tiêu: revision mới, chỉ tiêu mất, sự kiện ghi nguồn là người dùng và quan hệ replace",
+      code == 200 and gd2.revision == 2 and gd2.targets == () and ev["source"] == "owner"
+      and ev["payload"].get("relation") == "replace" and ev["by"].startswith("owner"))
+api("post", f"/goals/{gd.id}/commands", json={"command": "drop_directive", "field": "deadline", "key": "",
+                                               "expected_revision": 2})
+check("bỏ hạn chót: chân trời thành mốc xem lại, không còn là hạn của người dùng",
+      store.get(P, gd.id).horizon["kind"] == "review" and store.get(P, gd.id).horizon["from_user"] is False)
+api("post", f"/goals/{gd.id}/commands", json={"command": "drop_directive", "field": "constraint",
+                                               "key": "không xoá ghi chú cũ", "expected_revision": 3})
+check("bỏ ràng buộc: ràng buộc mất khỏi khung và khỏi danh sách ràng buộc người dùng của kho",
+      store.get(P, gd.id).constraints == () and store.get(P, gd.id).revision == 4)
+g_after, _, _ = R.revise_goal(store, P, gd.id, 4, {"relevant_quote": "Gom giúp mình", "understanding": "Ghi chú việc tuần gọn"},
+                              {"message_ref": R.message_ref(SID, 9100), "session_id": SID, "message_id": 9100,
+                               "user_text": USER_D})
+check("sau khi người dùng bỏ ràng buộc, bộ não cập nhật cách hiểu mà không bị kho đòi lại ràng buộc đó",
+      g_after.revision == 5 and g_after.constraints == ())
+keep.unlink()
+asyncio.run(R.advance(gd.id, {"kind": "wake"}, deps(Eng())))
+check("guard nhảy thì mục tiêu dừng", store.run_state(P, gd.id)["block_reason"] == "guard")
+code, body = api("post", f"/goals/{gd.id}/commands", json={"command": "drop_directive", "field": "guard",
+                                                            "key": "gd1", "expected_revision": 5})
+check("người dùng bỏ guard đang chặn: mở chặn, có lịch làm tiếp, guard mất khỏi khung",
+      code == 200 and store.run_state(P, gd.id)["block_reason"] == "" and store.get(P, gd.id).guards == ()
+      and any(w["kind"] == "work" for w in store.wakes(P, gd.id)))
+code, body = api("post", f"/goals/{gd.id}/commands", json={"command": "drop_directive", "field": "target",
+                                                            "key": "không có", "expected_revision": 6})
+check("bỏ chỉ dẫn không tồn tại: 400", code == 400)
+
 # ───────────── test_reload_keeps_goal_action_links + test_report_replay_same_mid ─────────────
 g8 = make_goal(criteria=[{"description": "Ghi chú có đủ ba việc", "evaluator": "artifact_contract",
                           "params": {"path": "Inbox/ke-hoach.md", "must_contain": ["Gọi thợ"]}}])

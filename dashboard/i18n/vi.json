@@ -3528,5 +3528,12 @@
   "resonance.settings_desc": "Cho Javis tự lập mục tiêu từ việc bạn nhờ, làm tiếp ở nền trong hạn mức và chỉ báo xong khi có bằng chứng. Chỉ áp dụng cho brain đang chọn.",
   "resonance.settings_on": "Bật cho brain này",
   "resonance.out_ok_hint": "Đã ghi nhận. Javis sẽ kiểm lại cùng các tiêu chí khác trong giây lát.",
-  "resonance.see_latest": "xem thẻ mới nhất bên dưới"
+  "resonance.see_latest": "xem thẻ mới nhất bên dưới",
+  "resonance.directives": "Chỉ dẫn của bạn (Javis không tự đổi được)",
+  "resonance.dir_deadline": "Hạn chót: \"{text}\"",
+  "resonance.dir_target": "Chỉ tiêu: {text}",
+  "resonance.dir_constraint": "Ràng buộc: {text}",
+  "resonance.dir_guard": "Điều kiện bảo vệ: {text}",
+  "resonance.btn_drop": "Bỏ",
+  "resonance.drop_confirm": "Bỏ chỉ dẫn này? Javis sẽ làm tiếp theo cách hiểu mới, những gì đã làm vẫn giữ."
 }

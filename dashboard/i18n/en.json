@@ -3528,5 +3528,12 @@
   "resonance.settings_desc": "Let Javis turn what you ask into goals, carry them forward in the background within a budget, and report done only with evidence. Applies to the selected brain only.",
   "resonance.settings_on": "Enable for this brain",
   "resonance.out_ok_hint": "Recorded. Javis will check it together with the other criteria shortly.",
-  "resonance.see_latest": "see the latest card below"
+  "resonance.see_latest": "see the latest card below",
+  "resonance.directives": "Your instructions (Javis cannot change these itself)",
+  "resonance.dir_deadline": "Deadline: \"{text}\"",
+  "resonance.dir_target": "Target: {text}",
+  "resonance.dir_constraint": "Constraint: {text}",
+  "resonance.dir_guard": "Protective condition: {text}",
+  "resonance.btn_drop": "Remove",
+  "resonance.drop_confirm": "Remove this instruction? Javis will continue with the new understanding; what was done stays."
 }

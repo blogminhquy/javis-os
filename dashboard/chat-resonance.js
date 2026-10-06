@@ -107,6 +107,16 @@
       h += '<div class="rs-label">' + esc(tw("resonance.assumptions")) + '</div><ul class="rs-list">' +
         g.assumptions.map(function (a) { return "<li>" + esc(a) + "</li>"; }).join("") + "</ul>";
     }
+    if (active && (g.directives || []).length) {
+      var DIR = { deadline: "resonance.dir_deadline", target: "resonance.dir_target",
+                  constraint: "resonance.dir_constraint", guard: "resonance.dir_guard" };
+      h += '<div class="rs-label">' + esc(tw("resonance.directives")) + '</div><ul class="rs-list">' +
+        g.directives.map(function (d) {
+          return '<li class="rs-dir">' + esc(tw(DIR[d.field] || "resonance.dir_target", { text: d.text })) +
+            ' <button type="button" class="rs-act rs-drop" data-act="drop" data-field="' + esc(d.field) +
+            '" data-key="' + esc(d.key) + '">' + esc(tw("resonance.btn_drop")) + "</button></li>";
+        }).join("") + "</ul>";
+    }
     if (g.next_wake && active && !g.paused) {
       h += '<div class="rs-line rs-muted">' + esc(tw("resonance.next_wake", { at: fmtTime(g.next_wake.at) })) +
         (g.next_wake.reason ? " (" + esc(g.next_wake.reason) + ")" : "") + "</div>";
@@ -141,7 +151,7 @@
 
   /* Request của một nút, dựng TỪ TRẠNG THÁI ĐÃ TẢI: revision, artifact_ref, criterion_id đều là của đúng bản
      người dùng đang nhìn. Thuần để test. */
-  function requestFor(act, g, critId) {
+  function requestFor(act, g, critId, dir) {
     var id = encodeURIComponent(g.goal_id);
     var rev = Number(g.revision) || 0;
     var key = g.goal_id + ":" + rev + ":" + act + (critId ? ":" + critId : "") + ":" + (g.artifact_ref || "");
@@ -153,6 +163,10 @@
       return { url: "/goals/" + id + "/feedback", body: { kind: act === "out_ok" ? "outcome_accepted" : "outcome_rejected",
         expected_revision: rev, criterion_id: String(critId || ""), artifact_ref: String(g.artifact_ref || ""),
         idempotency_key: key } };
+    }
+    if (act === "drop") {
+      return { url: "/goals/" + id + "/commands", body: { command: "drop_directive", expected_revision: rev,
+        field: String((dir || {}).field || ""), key: String((dir || {}).key || "") } };
     }
     return { url: "/goals/" + id + "/commands", body: { command: act, expected_revision: rev } };
   }
@@ -211,11 +225,12 @@
     return el;
   }
 
-  function send(el, act, critId) {
+  function send(el, act, critId, dir) {
     var g = el._goal;
     if (!g) return;
     if (act === "cancel" && !window.confirm(tw("resonance.cancel_confirm"))) return;
-    var req = requestFor(act, g, critId);
+    if (act === "drop" && !window.confirm(tw("resonance.drop_confirm"))) return;
+    var req = requestFor(act, g, critId, dir);
     var btns = el.querySelectorAll("button.rs-act");
     for (var i = 0; i < btns.length; i++) btns[i].disabled = true;
     fetch(req.url + "?brain=" + encodeURIComponent(brain()), {
@@ -244,7 +259,8 @@
       var el = b.closest(".rs-card");
       if (!el) return;
       ev.preventDefault();
-      send(el, b.getAttribute("data-act"), b.getAttribute("data-crit"));
+      send(el, b.getAttribute("data-act"), b.getAttribute("data-crit"),
+           { field: b.getAttribute("data-field"), key: b.getAttribute("data-key") });
     });
   }
 

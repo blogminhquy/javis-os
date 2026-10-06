@@ -64,6 +64,20 @@ const compact = RS.compactHtml(waiting);
 check("thẻ cũ của cùng mục tiêu: chỉ một dòng tình trạng, không có nút (không mâu thuẫn thẻ mới nhất)",
       !/class="rs-act/.test(compact) && compact.includes(vi["resonance.st_human_confirmation"]) && compact.includes(vi["resonance.see_latest"]));
 
+const withDir = RS.viewHtml(Object.assign({}, waiting, { directives: [
+  { field: "deadline", key: "", text: "đến ngày 20/10" }, { field: "target", key: "5 việc", text: "5 việc" },
+  { field: "guard", key: "gd1", text: "Ghi chú giữ còn" }] }));
+check("thẻ có mục Chỉ dẫn của bạn, mỗi mục một nút Bỏ mang đúng loại và khoá",
+      withDir.includes(vi["resonance.directives"]) && /data-act="drop" data-field="deadline" data-key=""/.test(withDir)
+      && /data-act="drop" data-field="target" data-key="5 việc"/.test(withDir)
+      && /data-act="drop" data-field="guard" data-key="gd1"/.test(withDir));
+check("thẻ đã xong không có nút Bỏ", !RS.viewHtml(Object.assign({}, waiting, { status: "succeeded",
+      directives: [{ field: "target", key: "x", text: "x" }] })).includes('data-act="drop"'));
+const rDrop = RS.requestFor("drop", waiting, null, { field: "target", key: "5 việc" });
+check("Bỏ chỉ dẫn: lệnh drop_directive với revision đang hiện, đúng loại và khoá",
+      rDrop.url === "/goals/g_abc/commands" && rDrop.body.command === "drop_directive" && rDrop.body.expected_revision === 2
+      && rDrop.body.field === "target" && rDrop.body.key === "5 việc");
+
 // ───────────── request của từng nút ─────────────
 const rOk = RS.requestFor("out_ok", waiting, "c2");
 check("Đạt yêu cầu: gửi đúng revision, criterion, artifact_ref của bản ĐANG HIỆN",

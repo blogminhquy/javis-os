@@ -147,6 +147,9 @@ def register(app, deps: ResonanceApiDeps):
             res = R.apply_command(store, owner, goal_id, str(body.get("command") or ""), body, root)
         except RS.ScopeError:
             return _err(404, "Không có mục tiêu này trong brain", "No such goal in this brain")
+        except RS.ConflictError as e:
+            return _err(409, f"Mục tiêu đã đổi, xem lại thẻ: {e}", f"The goal changed, please review the card: {e}",
+                        goal=R.goal_view(store, owner, goal_id, root))
         except R.GoalRejected as e:
             return _err(400, f"Chưa làm được: {e}", f"Not done: {e}")
         except PermissionError as e:
