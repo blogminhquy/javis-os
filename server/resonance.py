@@ -517,6 +517,12 @@ def _artifact_params(raw: Any, need_path: bool = False) -> tuple:
     return out, ""
 
 
+def _guard_key(g: dict) -> tuple:
+    import json as _json
+    return (_norm(g.get("description")), str(g.get("evaluator") or ""),
+            _json.dumps(g.get("params") or {}, sort_keys=True, ensure_ascii=False))
+
+
 def _prior_view(prior) -> dict:
     """Khung của revision đang có, ở dạng một đề xuất, để trường bản cập nhật bỏ trống được kế thừa."""
     if prior is None:
@@ -636,7 +642,9 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
     if proposal.get("remove_targets") and notes is not None:
         notes.append("remove_targets chưa hỗ trợ ở bản này; không chỉ tiêu nào bị bỏ.")
     understanding = str(proposal.get("understanding") or "").strip()[:500]
-    stage = proposal.get("stage") if proposal.get("stage") in ("discovery", "delivery") else "discovery"
+    # Không khai stage: có cách hiểu cụ thể thì là delivery, chưa có thì mới là discovery (chữ S của SMART).
+    stage = proposal.get("stage") if proposal.get("stage") in ("discovery", "delivery") else (
+        "delivery" if str(proposal.get("understanding") or "").strip() else "discovery")
     if not understanding:
         stage = "discovery"
     questions = _clean_list(proposal.get("open_questions"), limit=QUESTIONS_MAX)
@@ -650,9 +658,9 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
                               + list(proposal.get("constraints") or []))
     # Guard (M3): điều kiện bảo vệ host tự kiểm định kỳ bằng code. Evaluator chưa có adapter vẫn được giữ để
     # báo rõ "chưa hỗ trợ" mỗi lần quan sát, không âm thầm coi là ổn.
-    guards = []
+    proposed = []
     for gd in (proposal.get("guards") or []):
-        if not isinstance(gd, dict) or len(guards) >= GUARDS_MAX:
+        if not isinstance(gd, dict):
             continue
         desc = " ".join(str(gd.get("description") or "").split())[:300]
         if not desc:
@@ -663,7 +671,21 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
             gparams, err = _artifact_params(gd.get("params"), need_path=True)
             if err:
                 raise GoalRejected(f"guard \"{desc[:60]}\": {err}")
-        guards.append({"id": f"gd{len(guards) + 1}", "description": desc, "evaluator": gev, "params": gparams})
+        proposed.append({"description": desc, "evaluator": gev, "params": gparams})
+    # Guard đang có là điều kiện bảo vệ: bản cập nhật KHÔNG bỏ hay nới được (guards=[], đổi path, đổi điều kiện),
+    # cũng như hạn và chỉ tiêu người dùng (review M3, P1-3). Giữ nguyên guard cũ, chỉ THÊM guard mới; phần muốn bỏ
+    # hay sửa ghi vào notes là chưa áp dụng. Đường sửa có thẩm quyền để M4.
+    prior_guards = [dict(x) for x in (base.get("guards") or []) if isinstance(x, dict)]
+    prior_keys = {_guard_key(x) for x in prior_guards}
+    proposed_keys = {_guard_key(x) for x in proposed}
+    for x in prior_guards:
+        if _guard_key(x) not in proposed_keys and notes is not None:
+            notes.append(f"Bỏ hay sửa guard đã có \"{x.get('description')}\" chưa hỗ trợ ở bản này; guard vẫn giữ.")
+    guards = list(prior_guards)
+    for x in proposed:
+        if _guard_key(x) not in prior_keys and len(guards) < GUARDS_MAX:
+            guards.append({"id": f"gd{len(guards) + 1}", **x})
+            prior_keys.add(_guard_key(x))
     # Theo chân trời CUỐI CÙNG đã nhận: chân trời đề xuất bị host chặn không được kéo mode đổi theo.
     mode = "maintain" if (proposal.get("mode") == "maintain" or horizon.get("kind") == "maintain") else "achieve"
     return {"understanding": understanding, "criteria": criteria, "relevant_quote": quote[:300],
@@ -850,8 +872,8 @@ PUBLISH_SUFFIXES = (".md", ".txt")
 PUBLISH_MAX_BYTES = 1_000_000
 PREV_OUTPUT_CHARS = 3000
 INTENT_CHAIN_MAX = 5
-NOTIFY_KINDS = ("goal.succeeded", "goal.maintained", "goal.failed", "goal.blocked", "goal.guard",
-                "goal.waiting_human", "goal.publish_conflict")
+NOTIFY_KINDS = ("goal.succeeded", "goal.maintained", "goal.discovery_done", "goal.failed", "goal.blocked",
+                "goal.guard", "goal.waiting_human", "goal.publish_conflict")
 WORK_SYSTEM = (SYSTEM_PROMPT + " Viết TOÀN BỘ sản phẩm cuối, đúng các tiêu chí được nêu. "
                "Không dùng ký tự gạch dài.")
 
@@ -1094,10 +1116,30 @@ def _deliverable_rel(goal: GoalRecord) -> str:
     return ""
 
 
-def _human_only(a: Assessment) -> bool:
+def _human_only(a: Assessment, has_output: bool) -> bool:
+    """Chỉ còn chờ người dùng xác nhận: có tiêu chí human, mọi tiêu chí khác đã met, VÀ đã có sản phẩm cho người
+    dùng xem. Mục tiêu chỉ có tiêu chí human mà chưa làm gì thì chưa có gì để duyệt (review M3, P2-1)."""
     rs = list(a.criterion_results)
     human = [r for r in rs if r.get("evaluator") == "human_confirmation"]
-    return bool(human) and all(r["verdict"] == "met" for r in rs if r.get("evaluator") != "human_confirmation")
+    others = [r for r in rs if r.get("evaluator") != "human_confirmation"]
+    return bool(human) and all(r["verdict"] == "met" for r in others) and (bool(others) or has_output)
+
+
+def _latest_output(goal: GoalRecord, deps: GoalDeps) -> tuple:
+    """(action_id, đường dẫn) của đầu ra thành công mới nhất thuộc ĐÚNG revision hiện tại, hoặc (None, None)."""
+    for x in reversed(deps.store.actions(deps.principal, goal.id)):
+        if x["kind"] == "work" and x["status"] == "succeeded" and x["revision"] == goal.revision:
+            ref = (x.get("receipt") or {}).get("output_ref")
+            if ref and Path(ref).is_file():
+                return x["id"], Path(ref)
+    return None, None
+
+
+def _rel_to_brain(path: Optional[Path], brain_root: str) -> str:
+    try:
+        return path.resolve().relative_to(Path(brain_root).resolve()).as_posix() if path else ""
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def _work_prompt(goal: GoalRecord, intent_text: str, last: Optional[Assessment], prev_text: str) -> str:
@@ -1226,7 +1268,8 @@ def _publish(goal: GoalRecord, text: str, deps: GoalDeps, now: float) -> dict:
 
 def _reconcile(goal: GoalRecord, deps: GoalDeps, now: float) -> None:
     """Đối soát hành động dở (khoá đã hết mà chưa có receipt): tiến trình chết giữa chừng. Không gọi lại model,
-    không đoán là xong khi không thấy tác động."""
+    không đoán là xong khi không thấy tác động. CHỈ chốt receipt: việc đăng sản phẩm của đầu ra đã đối soát đi qua
+    cổng kiểm (_gate: công tắc, pause, guard) như mọi lần đăng khác (review M3, P1-2)."""
     store, p = deps.store, deps.principal
     for a in store.stale_actions(p, goal.id, now):
         if a["kind"] == "work":
@@ -1238,8 +1281,6 @@ def _reconcile(goal: GoalRecord, deps: GoalDeps, now: float) -> None:
                 store.finish_action(p, a["id"], "succeeded", {
                     "action_id": a["id"], "status": "succeeded", "reconciled": True, "output_ref": str(out),
                     "output_sha256": _sha(data), "evidence_ids": [eid] if eid else []})
-                if a["revision"] == goal.revision and enabled_for(deps.brain_root):
-                    _publish(goal, text, deps, now)
             else:
                 store.finish_action(p, a["id"], "failed", {
                     "action_id": a["id"], "status": "failed", "reconciled": True, "error_code": "interrupted",
@@ -1255,22 +1296,89 @@ def _reconcile(goal: GoalRecord, deps: GoalDeps, now: float) -> None:
                 store.set_published(p, goal.id, it["path"], it["sha256"], a["id"])
 
 
-def _settle(goal: GoalRecord, a: Assessment, deps: GoalDeps, now: float, worked: bool) -> Assessment:
-    """Ghi đánh giá và quyết định bước sau: kết thúc (chỉ khi met và revision còn đúng), chờ người dùng, hay
-    hẹn lần thức tiếp theo."""
+def _with_guards(a: Assessment, guards: tuple) -> Assessment:
+    if not guards:
+        return a
+    return Assessment(**{**a.to_dict(), "criterion_results": tuple(a.criterion_results),
+                         "evidence_ids": tuple(a.evidence_ids), "guards": tuple(guards)})
+
+
+def _gate(goal_id: str, deps: GoalDeps, now: float) -> tuple:
+    """Cổng kiểm trước MỌI tác động (đăng sản phẩm) và trước mọi kết luận thành công, ở cả đường chạy thường lẫn
+    đường khôi phục: mục tiêu còn active, công tắc brain còn bật, người dùng không tạm dừng, guard clear.
+
+    Trả (goal hiện hành | None, guards, lý do chặn). Lý do rỗng nghĩa là được đi tiếp. Guard triggered thì blocked
+    `guard` (không tự mở lại, xoá lịch). Guard unknown (nguồn chưa hỗ trợ hoặc không đọc được) không phải clear:
+    blocked `guard_unknown`, không đăng, không kết luận, hẹn kiểm lại có giới hạn bằng code (review M3, P1-2)."""
+    store, p = deps.store, deps.principal
+    cur = store.get(p, goal_id)
+    if cur is None or cur.status != "active":
+        return cur, (), f"mục tiêu đã {cur.status if cur else 'không còn'}"
+    if not enabled_for(deps.brain_root):
+        store.set_run_state(p, cur.id, "blocked", "feature_off")
+        store.set_wake(p, cur.id, "work", now + REVIEW_MIN_S, "kiểm lại công tắc Resonance")
+        return cur, (), "Resonance đã tắt ở brain này"
+    if cur.paused:
+        store.set_run_state(p, cur.id, "paused", "")
+        return cur, (), "người dùng tạm dừng mục tiêu"
+    guards = observe_guards(cur, deps)
+    hit = [x["description"] for x in guards if x["verdict"] == "triggered"]
+    if hit:
+        store.set_run_state(p, cur.id, "blocked", "guard", notify="goal.guard", payload={"guards": hit},
+                            idem=f"guard:{cur.revision}")
+        store.clear_wake(p, cur.id)
+        store.add_assessment(p, Assessment(cur.id, cur.revision, "unknown", guards=guards,
+                                           rationale="guard bị chạm: " + "; ".join(hit), evaluated_at=now).to_dict())
+        return cur, guards, "guard bị chạm: " + "; ".join(hit)
+    unknown = [f"{x['description']} ({x['reason']})" for x in guards if x["verdict"] != "clear"]
+    if unknown:
+        store.set_run_state(p, cur.id, "blocked", "guard_unknown", notify="goal.blocked",
+                            payload={"code": "guard_unknown", "detail": "; ".join(unknown)},
+                            idem=f"blocked:guard_unknown:{cur.revision}")
+        store.set_wake(p, cur.id, "work", now + REVIEW_MIN_S, "kiểm lại guard chưa xác định")
+        return cur, guards, "guard chưa xác định: " + "; ".join(unknown)
+    return cur, guards, ""
+
+
+def _publish_latest(goal: GoalRecord, deps: GoalDeps, now: float) -> None:
+    """Đăng đầu ra đã lưu của revision hiện tại (sau pause, sau gián đoạn) mà KHÔNG gọi model lại. Người gọi đã
+    qua _gate. _publish tự bỏ qua khi file đích đã đúng nội dung."""
+    aid, path = _latest_output(goal, deps)
+    if aid is None or not _deliverable_rel(goal):
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return
+    _publish(goal, text, deps, now)
+
+
+def _settle(goal: GoalRecord, a: Assessment, deps: GoalDeps, now: float, worked: bool, has_output: bool) -> Assessment:
+    """Ghi đánh giá và quyết định bước sau: kết thúc (chỉ khi met, mọi guard clear, không ở bước khám phá, revision
+    còn đúng), chờ người dùng, hay hẹn lần thức tiếp theo."""
     store, p = deps.store, deps.principal
     store.add_assessment(p, a.to_dict())
-    if a.verdict == "met" and goal.mode != "maintain":
+    guards_clear = all(x.get("verdict") == "clear" for x in a.guards)
+    if a.verdict == "met" and goal.mode != "maintain" and goal.stage == "discovery":
+        # Đạt tiêu chí KHÁM PHÁ không đóng nhu cầu gốc (spec 4.3): chờ xem lại cách hiểu, không phát succeeded.
+        store.set_run_state(p, goal.id, "waiting", "discovery_done", notify="goal.discovery_done",
+                            payload={"deliverable": _deliverable_rel(goal)
+                                     or _rel_to_brain(_latest_output(goal, deps)[1], deps.brain_root)},
+                            idem=f"discovery_done:{goal.revision}")
+        store.clear_wake(p, goal.id, "work")
+        return a
+    if a.verdict == "met" and goal.mode != "maintain" and guards_clear:
         ok = store.finish(p, goal.id, goal.revision, "succeeded",
                           {"evidence_ids": list(a.evidence_ids), "deliverable": _deliverable_rel(goal)})
         if not ok:
             store.set_wake(p, goal.id, "work", now, "revision đã đổi, đánh giá lại")
         return a
-    if a.verdict == "unknown" and _human_only(a):
+    if a.verdict == "unknown" and _human_only(a, has_output):
         store.set_run_state(p, goal.id, "waiting", "human_confirmation", notify="goal.waiting_human",
                             payload={"criteria": [r["description"] for r in a.criterion_results
                                                   if r.get("evaluator") == "human_confirmation"],
-                                     "deliverable": _deliverable_rel(goal)},
+                                     "deliverable": _deliverable_rel(goal)
+                                     or _rel_to_brain(_latest_output(goal, deps)[1], deps.brain_root)},
                             idem=f"waiting_human:{goal.revision}")
         store.clear_wake(p, goal.id, "work")
         return a
@@ -1371,15 +1479,18 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
             store.set_wake(p, goal.id, "work", now, "làm lại theo revision mới")
             store.set_run_state(p, goal.id, "ready", "")
         return a
-    if not enabled_for(deps.brain_root):
-        # Kiểm lại quyền NGAY TRƯỚC tác động vào brain: bị tắt giữa lượt thì không đăng.
-        store.set_run_state(p, goal.id, "blocked", "feature_off")
-        store.clear_wake(p, goal.id, "work")
-        return Assessment(goal.id, goal.revision, "unknown", rationale="Resonance bị tắt giữa lượt; không đăng sản phẩm",
-                          evaluated_at=now)
+    # Kiểm lại NGAY TRƯỚC tác động: công tắc, pause của người dùng, guard có thể đã đổi trong lúc model chạy
+    # (review M3, P1-1 và P1-2). Bị chặn thì đầu ra GIỮ trong vùng làm việc; lượt sau đăng nó mà không gọi model.
+    cur, guards, why = _gate(goal.id, deps, now)
+    if why:
+        a = Assessment(goal.id, goal.revision, "unknown", guards=guards,
+                       rationale="đầu ra giữ trong vùng làm việc, chưa đăng: " + why, evaluated_at=now)
+        store.add_assessment(p, a.to_dict())
+        return a
     _publish(goal, text, deps, now)
     refs = tuple(e["evidence_id"] for e in store.evidence_for(p, goal.id, goal.revision, kind="action_output"))
-    return _settle(goal, evaluate_artifact(goal, refs, deps), deps, now, worked=True)
+    return _settle(goal, _with_guards(evaluate_artifact(goal, refs, deps), guards), deps, now, worked=True,
+                   has_output=bool(refs))
 
 
 async def advance(goal_id: str, event: dict, deps: GoalDeps) -> Assessment:
@@ -1396,8 +1507,8 @@ async def advance(goal_id: str, event: dict, deps: GoalDeps) -> Assessment:
     if g is None:
         return Assessment(goal_id, 0, "unknown", rationale="không có mục tiêu này trong brain", evaluated_at=now)
 
-    def quiet(why: str) -> Assessment:
-        return Assessment(g.id, g.revision, "unknown", rationale=why, evaluated_at=now)
+    def quiet(why: str, guards: tuple = ()) -> Assessment:
+        return Assessment(g.id, g.revision, "unknown", guards=guards, rationale=why, evaluated_at=now)
 
     if g.status != "active":
         return quiet(f"mục tiêu đã {g.status}")
@@ -1408,13 +1519,6 @@ async def advance(goal_id: str, event: dict, deps: GoalDeps) -> Assessment:
         if w:
             store.set_wake(p, g.id, "work", w["earliest_at"], w["reason"])
         return quiet("đã đổi lịch theo người dùng")
-    if not enabled_for(deps.brain_root):
-        store.set_run_state(p, g.id, "blocked", "feature_off")
-        store.clear_wake(p, g.id, "work")
-        return quiet("Resonance đã tắt ở brain này")
-    if g.paused:
-        store.set_run_state(p, g.id, "paused", "")
-        return quiet("người dùng tạm dừng mục tiêu")
     if (store.run_state(p, g.id) or {}).get("block_reason") == "guard":
         return quiet("guard đã nhảy; không tự mở lại")
     owner = secrets.token_hex(6)
@@ -1422,33 +1526,23 @@ async def advance(goal_id: str, event: dict, deps: GoalDeps) -> Assessment:
                              now):
         return quiet("mục tiêu đang có lượt khác chạy")
     try:
+        # Đối soát chỉ chốt receipt của lượt dở; mọi tác động sau đó đi qua cổng kiểm.
         _reconcile(g, deps, now)
-        g = store.get(p, goal_id) or g
-        if g.status != "active":
-            return quiet(f"mục tiêu đã {g.status}")
-        guards = observe_guards(g, deps)
-        if any(x["verdict"] == "triggered" for x in guards):
-            hit = [x["description"] for x in guards if x["verdict"] == "triggered"]
-            store.set_run_state(p, g.id, "blocked", "guard", notify="goal.guard", payload={"guards": hit},
-                                idem=f"guard:{g.revision}")
-            store.clear_wake(p, g.id)
-            a = Assessment(g.id, g.revision, "unknown", guards=guards, rationale="guard bị chạm: " + "; ".join(hit),
-                           evaluated_at=now)
-            store.add_assessment(p, a.to_dict())
-            return a
+        g, guards, why = _gate(goal_id, deps, now)
+        if why:
+            return quiet(why, guards)
         if g.guards:
             store.set_wake(p, g.id, "observe", now + GUARD_OBSERVE_S, "quan sát guard")
         if kind == "observe":
             a = Assessment(g.id, g.revision, "unknown", guards=guards, rationale="quan sát guard", evaluated_at=now)
             store.add_assessment(p, a.to_dict())
             return a
+        # Đầu ra đã có của revision này (giữ lại vì pause, gián đoạn) được đăng mà không gọi model lại.
+        _publish_latest(g, deps, now)
         refs = tuple(e["evidence_id"] for e in store.evidence_for(p, g.id, g.revision, kind="action_output"))
-        a = evaluate_artifact(g, refs, deps)
-        if guards:
-            a = Assessment(**{**a.to_dict(), "criterion_results": tuple(a.criterion_results),
-                              "evidence_ids": tuple(a.evidence_ids), "guards": guards})
-        if a.verdict == "met" or (a.verdict == "unknown" and _human_only(a)) or kind not in WORK_EVENTS:
-            return _settle(g, a, deps, now, worked=False)
+        a = _with_guards(evaluate_artifact(g, refs, deps), guards)
+        if a.verdict == "met" or (a.verdict == "unknown" and _human_only(a, bool(refs))) or kind not in WORK_EVENTS:
+            return _settle(g, a, deps, now, worked=False, has_output=bool(refs))
         return await _work_step(g, a, deps, now)
     except Exception as e:  # noqa: BLE001
         import sys
@@ -1460,13 +1554,17 @@ async def advance(goal_id: str, event: dict, deps: GoalDeps) -> Assessment:
 
 async def tick(store, now: float, deps_for: Callable[[str], Optional[GoalDeps]], limit: int = 3) -> int:
     """Một nhịp của scheduler: chỉ đọc lịch tới hạn (code, rẻ). Không có gì tới hạn thì không dựng engine nào.
-    Mỗi lịch được nhận bằng CAS rồi mới chạy, nên hai nhịp chồng nhau không chạy cùng một lịch hai lần."""
+
+    Mỗi lịch được NHẬN bằng CAS và dời tới lúc hết hạn nhận (không xoá): tiến trình chết sau khi nhận mà trước khi
+    advance ghi được trạng thái tiếp theo thì lịch tự tới hạn lại, không mất việc (review M3, P1-4). advance ghi đè
+    hoặc xoá lịch khi đã có trạng thái tiếp theo. Hai nhịp chồng nhau không nhận cùng một lịch."""
     n = 0
     for w in store.due_wakeups(now, limit=limit):
         deps = deps_for(w["brain_id"])
         if deps is None:
             continue
-        if not store.consume_wake(deps.principal, w["goal_id"], w["kind"], w["due_at"]):
+        until = now + float(deps.max_wall_s) + float(deps.wall_grace_s) + LEASE_EXTRA_S + 60
+        if not store.claim_wake(deps.principal, w["goal_id"], w["kind"], w["due_at"], until):
             continue
         await advance(w["goal_id"], {"kind": "observe" if w["kind"] == "observe" else "wake"}, deps)
         n += 1
@@ -1488,6 +1586,11 @@ def notice_text(goal: GoalRecord, kind: str, payload: dict) -> str:
                   "Javis sẽ xem lại định kỳ có giới hạn, chỉ báo khi có thay đổi đáng kể.",
                   f"Updated for the ongoing goal: {u}. Javis checked the evidence against its criteria.{link_en} "
                   "Javis will review it on a bounded schedule and only report meaningful changes.")
+    if kind == "goal.discovery_done":
+        return _t(f"Bước khám phá đã xong: {u}.{link_vi} Đây mới là bước tìm hiểu, nhu cầu gốc CHƯA đóng; "
+                  "Javis chờ người dùng xem và nói hướng tiếp theo.",
+                  f"The exploration step is done: {u}.{link_en} This was only the discovery step; the original need "
+                  "is NOT closed yet. Javis is waiting for your direction.")
     if kind == "goal.waiting_human":
         crit = "; ".join((payload or {}).get("criteria") or [])
         return _t(f"Đã xong phần kiểm được của mục tiêu: {u}.{link_vi} Còn chờ người dùng xác nhận: {crit}.",
@@ -1509,6 +1612,11 @@ def notice_text(goal: GoalRecord, kind: str, payload: dict) -> str:
         if code == "budget":
             why_vi = f"đã dùng hết {goal.budget_calls} lượt gọi model dành cho mục tiêu này"
             why_en = f"it used all {goal.budget_calls} model calls set aside for it"
+        elif code == "guard_unknown":
+            why_vi = (f"có điều kiện bảo vệ chưa kiểm được ({detail}); Javis không đăng sản phẩm hay báo xong khi "
+                      "chưa biết điều kiện đó còn đúng")
+            why_en = (f"a protective condition cannot be checked yet ({detail}); Javis will not publish or report done "
+                      "while it is unknown")
         elif code in ("engine_blocked", "engine_build"):
             why_vi = f"engine việc nền đang chọn không chạy được ở chế độ chỉ chữ, Javis không tự đổi provider ({detail})"
             why_en = f"the selected background engine cannot run text-only, and Javis does not switch providers ({detail})"

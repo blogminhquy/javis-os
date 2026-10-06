@@ -464,6 +464,137 @@ check("tiếp tục sau bổ sung: revision mới đạt, file trong brain đư�
       a_c2.verdict == "met" and a_c2.revision == 2
       and "tên miền" in (Path(BRAIN) / "Inbox" / "duy-tri.md").read_text(encoding="utf-8"))
 
+# ═══════════════════════ Review M3 (PR #570): sáu ca tái hiện, giờ là kỳ vọng hành vi ═══════════════════════
+# P1-1: pause GIỮA lượt chặn đăng và kết luận; tiếp tục thì dùng lại đầu ra đã lưu, không gọi model lần hai.
+g_pm = make_goal()
+target(g_pm).unlink(missing_ok=True)
+deps_pm, _, eng_pm = make_deps(engine=FakeEngine(on_query=lambda: store.set_paused(OWNER, g_pm.id, True)))
+adv(g_pm.id, {"kind": "start"}, deps_pm)
+check("P1-1 pause giữa lượt: không đăng sản phẩm, không kết luận thành công, receipt và lượt đã dùng vẫn giữ",
+      not target(g_pm).exists() and store.get(P, g_pm.id).status == "active"
+      and store.run_state(P, g_pm.id)["run_state"] == "paused" and store.get(P, g_pm.id).calls_used == 1
+      and any(x["status"] == "succeeded" for x in store.actions(P, g_pm.id)))
+store.set_paused(OWNER, g_pm.id, False)
+check("P1-1 tiếp tục: có lịch làm ngay", any(w["kind"] == "work" for w in store.wakes(P, g_pm.id)))
+eng_pm.on_query = None
+adv(g_pm.id, {"kind": "wake"}, deps_pm)
+check("P1-1 tiếp tục: dùng lại đầu ra đã lưu, KHÔNG gọi model lần hai, đăng rồi mới thành công",
+      eng_pm.queries == 1 and target(g_pm).is_file() and store.get(P, g_pm.id).status == "succeeded")
+target(g_pm).unlink(missing_ok=True)
+
+# P1-2a: guard đổi trong lúc worker chạy.
+keep2 = Path(BRAIN) / "Notes" / "giu.md"
+keep2.parent.mkdir(parents=True, exist_ok=True)
+GUARD_KEEP = [{"description": "Ghi chú giữ lại vẫn còn", "evaluator": "artifact_contract", "params": {"path": "Notes/giu.md"}}]
+keep2.write_text("giữ\n", encoding="utf-8")
+g_gw = make_goal(guards=GUARD_KEEP)
+target(g_gw).unlink(missing_ok=True)
+deps_gw, _, _ = make_deps(engine=FakeEngine(on_query=lambda: keep2.unlink()))
+a_gw = adv(g_gw.id, {"kind": "start"}, deps_gw)
+check("P1-2a guard mất trong lúc worker chạy: không đăng, không thành công, blocked guard, kết quả guard có trong đánh giá",
+      not target(g_gw).exists() and store.get(P, g_gw.id).status == "active"
+      and store.run_state(P, g_gw.id)["block_reason"] == "guard"
+      and any(x["verdict"] == "triggered" for x in a_gw.guards))
+# P1-2b: khôi phục sau gián đoạn khi guard đã nhảy: chốt receipt nhưng KHÔNG đăng.
+keep2.write_text("giữ\n", encoding="utf-8")
+g_gr = make_goal(guards=GUARD_KEEP)
+target(g_gr).unlink(missing_ok=True)
+act_gr = store.begin_action(P, g_gr.id, g_gr.revision, "work", lease_until=Clock()() - 5, now=Clock()() - 600)
+Path(g_gr.output_root).mkdir(parents=True, exist_ok=True)
+(Path(g_gr.output_root) / f"{act_gr['id']}.md").write_text(GOOD.replace("—", "-"), encoding="utf-8", newline="\n")
+keep2.unlink()
+deps_gr, _, eng_gr = make_deps()
+adv(g_gr.id, {"kind": "wake"}, deps_gr)
+check("P1-2b khôi phục khi guard đã nhảy: receipt được chốt, sản phẩm KHÔNG đăng, không gọi model",
+      store.get_action(P, act_gr["id"])["status"] == "succeeded" and not target(g_gr).exists()
+      and eng_gr.queries == 0 and store.run_state(P, g_gr.id)["block_reason"] == "guard")
+# P1-2c: guard nguồn chưa hỗ trợ (unknown) không cho kết luận thành công.
+g_gu = make_goal(guards=[{"description": "Doanh số không giảm", "evaluator": "metric_series", "params": {}}])
+target(g_gu).unlink(missing_ok=True)
+deps_gu, _, eng_gu = make_deps(notes=Notes())
+adv(g_gu.id, {"kind": "start"}, deps_gu)
+asyncio.run(R.drain_outbox(store, deps_gu.notify))
+check("P1-2c guard unknown: không đăng, không thành công, blocked guard_unknown, báo rõ lý do, không gọi model",
+      store.get(P, g_gu.id).status == "active" and not target(g_gu).exists() and eng_gu.queries == 0
+      and store.run_state(P, g_gu.id)["block_reason"] == "guard_unknown"
+      and any(k == "goal.blocked" and "chưa hỗ trợ" in t for (gid, k, t) in deps_gu.notify.sent if gid == g_gu.id))
+check("P1-2c guard unknown: vẫn có lịch kiểm lại bằng code, có giới hạn",
+      any(w["kind"] == "work" and w["due_at"] >= Clock()() + R.REVIEW_MIN_S - 1 for w in store.wakes(P, g_gu.id)))
+
+# P1-3: bản cập nhật không bỏ hay nới guard đang có.
+keep2.write_text("giữ\n", encoding="utf-8")
+g_gk = make_goal(guards=GUARD_KEEP)
+MSG_T = "Thêm tiêu đề cho ghi chú nhé."
+for label, upd in (("guards=[]", {"guards": []}),
+                   ("đổi path guard", {"guards": [{"description": "Ghi chú giữ lại vẫn còn", "evaluator": "artifact_contract",
+                                                   "params": {"path": "Notes/khac.md"}}]}),
+                   ("đổi evaluator guard", {"guards": [{"description": "Ghi chú giữ lại vẫn còn",
+                                                        "evaluator": "metric_series", "params": {}}]})):
+    fr_k = R.validate_proposal({"relevant_quote": "Thêm tiêu đề", **upd}, MSG_T, prior=store.get(P, g_gk.id),
+                               notes=(nk := []))
+    check(f"P1-3 {label}: guard cũ vẫn giữ nguyên, báo phần chưa áp dụng",
+          fr_k["guards"][0] == dict(store.get(P, g_gk.id).guards[0]) and any("guard" in x for x in nk))
+fr_add = R.validate_proposal({"relevant_quote": "Thêm tiêu đề", "guards": list(store.get(P, g_gk.id).guards) + [
+    {"description": "Bản nháp vẫn còn", "evaluator": "artifact_contract", "params": {"path": "Notes/nhap.md"}}]},
+    MSG_T, prior=store.get(P, g_gk.id))
+check("P1-3 thêm guard mới vẫn được, guard cũ giữ id", [x["id"] for x in fr_add["guards"]] == ["gd1", "gd2"])
+g_gk2, rel_gk, kept_gk = R.revise_goal(store, P, g_gk.id, 1, {"relevant_quote": "Thêm tiêu đề", "guards": [],
+                                                              "understanding": "Ghi chú có tiêu đề"},
+                                       {"message_ref": R.message_ref("s3", 960), "session_id": "s3", "message_id": 960,
+                                        "user_text": MSG_T})
+check("P1-3 qua revise_goal: revision mới vẫn còn guard", len(g_gk2.guards) == 1 and kept_gk)
+
+# P1-4: nhận lịch rồi chết trước khi advance ghi gì: lịch tự tới hạn lại, không mất việc.
+g_lw = make_goal()
+target(g_lw).unlink(missing_ok=True)
+now_lw = 4_100_000_000.0
+w_lw = [w for w in store.wakes(P, g_lw.id) if w["kind"] == "work"][0]
+check("P1-4 nhận lịch bằng CAS", store.claim_wake(P, g_lw.id, "work", w_lw["due_at"], now_lw + 900))
+check("P1-4 nhận lại cùng lịch lần hai thì không được", not store.claim_wake(P, g_lw.id, "work", w_lw["due_at"], now_lw + 900))
+for w in store.due_wakeups(now_lw + 5000, limit=500):   # chỉ để lại lịch của mục tiêu đang thử
+    if w["goal_id"] != g_lw.id:
+        store.clear_wake(RS.Principal("agent", "javis", w["brain_id"]), w["goal_id"], w["kind"])
+store2 = RS.GoalStore()          # "khởi động lại": kho mới trên cùng SQLite
+check("P1-4 sau khởi động lại: chưa tới hạn nhận lại thì chưa chạy",
+      not any(w["goal_id"] == g_lw.id for w in store2.due_wakeups(now_lw + 10)))
+deps_lw, _, eng_lw = make_deps(clock=Clock(now_lw + 901))
+deps_lw.store = store2
+asyncio.run(R.tick(store2, now_lw + 901, lambda b: deps_lw, limit=50))
+check("P1-4 sau khởi động lại: lịch tự tới hạn lại, mục tiêu được làm, không mất việc",
+      eng_lw.queries == 1 and store2.get(P, g_lw.id).status == "succeeded")
+g_bz = make_goal()
+target(g_bz).unlink(missing_ok=True)
+store.claim_lease(P, g_bz.id, "lượt-khác", now_lw + 2000, now_lw)
+deps_bz, _, eng_bz = make_deps(clock=Clock(now_lw + 1000))
+asyncio.run(R.tick(store, now_lw + 1000, lambda b: deps_bz, limit=50))
+check("P1-4 mục tiêu đang bận (khoá của lượt khác): không chạy, lịch vẫn còn để chạy sau",
+      eng_bz.queries == 0 and any(w["kind"] == "work" for w in store.wakes(P, g_bz.id)))
+store.release_lease(P, g_bz.id, "lượt-khác")
+
+# P1-5: đạt bước khám phá không đóng nhu cầu gốc.
+g_dc = make_goal(stage="discovery")
+target(g_dc).unlink(missing_ok=True)
+deps_dc, _, _ = make_deps(notes=Notes())
+a_dc = adv(g_dc.id, {"kind": "start"}, deps_dc)
+asyncio.run(R.drain_outbox(store, deps_dc.notify))
+check("P1-5 discovery đạt: mục tiêu gốc vẫn active, chờ xem lại cách hiểu, không phát goal.succeeded",
+      a_dc.verdict == "met" and store.get(P, g_dc.id).status == "active"
+      and store.run_state(P, g_dc.id)["block_reason"] == "discovery_done"
+      and [k for (gid, k, _) in deps_dc.notify.sent if gid == g_dc.id] == ["goal.discovery_done"])
+check("P1-5 stage không khai mà có cách hiểu cụ thể thì là delivery",
+      R.validate_proposal({k: v for k, v in proposal().items() if k != "stage"}, USER)["stage"] == "delivery")
+
+# P2-1: chỉ có tiêu chí người dùng xác nhận thì phải LÀM ra bản để duyệt trước khi chờ.
+g_ho = make_goal(criteria=[{"description": "Anh duyệt bản mẫu", "evaluator": "human_confirmation"}])
+deps_ho, _, eng_ho = make_deps(notes=Notes())
+adv(g_ho.id, {"kind": "start"}, deps_ho)
+asyncio.run(R.drain_outbox(store, deps_ho.notify))
+check("P2-1 chỉ có human_confirmation: làm ra bản mẫu (một lượt) rồi mới chờ người dùng",
+      eng_ho.queries == 1 and store.run_state(P, g_ho.id)["block_reason"] == "human_confirmation")
+check("P2-1 tin chờ duyệt kèm link tới bản mẫu trong brain",
+      any(k == "goal.waiting_human" and "Javis/resonance/outputs/" in t
+          for (gid, k, t) in deps_ho.notify.sent if gid == g_ho.id))
+
 # ═══════════════════════ test_no_source_uses_bounded_review ═══════════════════════
 now = 1_800_000_000.0
 gm = store.get(P, make_goal(mode="maintain", horizon={"kind": "maintain"}).id)

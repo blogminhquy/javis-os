@@ -337,6 +337,9 @@ class GoalStore:
             if self._goal_row(c, p, goal_id) is None:
                 raise ScopeError("mục tiêu không tồn tại trong brain này")
             c.execute("UPDATE goals SET paused=?, updated_at=? WHERE id=?", (1 if paused else 0, time.time(), goal_id))
+            if not paused:
+                # Tiếp tục: làm ngay ở nhịp kế; đầu ra đã lưu trước khi dừng được dùng lại, không gọi model lần nữa.
+                self._wake(c, goal_id, p.brain_id, "work", time.time(), "người dùng cho tiếp tục")
             c.execute("INSERT INTO goal_events(goal_id,kind,source,payload_json,by,created_at) VALUES(?,?,?,?,?,?)",
                       (goal_id, "paused" if paused else "resumed", "owner", "{}", p.by, time.time()))
 
@@ -445,11 +448,13 @@ class GoalStore:
                              "ORDER BY w.due_at LIMIT ?", (float(now), int(limit))).fetchall()
             return [dict(r) for r in rows]
 
-    def consume_wake(self, p: Principal, goal_id: str, kind: str, due_at: float) -> bool:
-        """Nhận một lịch tới hạn. So đúng due_at (CAS): hai tick cùng thấy một lịch thì chỉ một bên nhận."""
+    def claim_wake(self, p: Principal, goal_id: str, kind: str, due_at: float, until: float) -> bool:
+        """NHẬN một lịch tới hạn bằng CAS trên due_at và DỜI nó tới `until` thay vì xoá: tiến trình chết sau khi nhận
+        thì lịch tự tới hạn lại. Hai nhịp cùng thấy một lịch thì chỉ một bên nhận được."""
         with self._Tx(self) as c:
-            cur = c.execute("DELETE FROM wakeups WHERE goal_id=? AND kind=? AND brain_id=? AND due_at=?",
-                            (goal_id, kind, p.brain_id, float(due_at)))
+            cur = c.execute("UPDATE wakeups SET due_at=?, reason=?, updated_at=? WHERE goal_id=? AND kind=? AND "
+                            "brain_id=? AND due_at=?", (float(until), "đang xử lý (tự tới hạn lại nếu bị ngắt)",
+                                                        time.time(), goal_id, kind, p.brain_id, float(due_at)))
             return cur.rowcount == 1
 
     # ───────────── trạng thái chạy và khoá lượt ─────────────
