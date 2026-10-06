@@ -1867,8 +1867,14 @@ def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]
                        and x["revision"] == g.revision), None)
     out_path = (latest_out or {}).get("receipt", {}).get("output_ref")
     criteria = []
+    probe = GoalDeps(engine_factory=lambda s, t: (None, {}), budget=CallBudget(0), store=store, principal=principal,
+                     brain_root=brain_root)
     for c in g.criteria:
         r = results.get(c.get("id")) or {}
+        if c.get("evaluator") == "human_confirmation" and g.status == "active":
+            # Xác nhận của người dùng đọc SỐNG từ kho theo đúng luật đánh giá (đúng revision, đúng bản sản phẩm):
+            # vừa bấm Đạt yêu cầu thì thẻ hiện ngay, không đợi nhịp đánh giá kế tiếp.
+            r = _human_verdict(g, c, probe)
         criteria.append({"id": c.get("id"), "description": c.get("description"), "evaluator": c.get("evaluator"),
                          "verdict": r.get("verdict") or "unknown", "reason": r.get("reason") or ""})
     wakes = store.wakes(principal, goal_id)

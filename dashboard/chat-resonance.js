@@ -107,7 +107,7 @@
       h += '<div class="rs-label">' + esc(tw("resonance.assumptions")) + '</div><ul class="rs-list">' +
         g.assumptions.map(function (a) { return "<li>" + esc(a) + "</li>"; }).join("") + "</ul>";
     }
-    if (g.next_wake && active) {
+    if (g.next_wake && active && !g.paused) {
       h += '<div class="rs-line rs-muted">' + esc(tw("resonance.next_wake", { at: fmtTime(g.next_wake.at) })) +
         (g.next_wake.reason ? " (" + esc(g.next_wake.reason) + ")" : "") + "</div>";
     }
@@ -162,10 +162,26 @@
     catch (e) { return "brain"; }
   }
 
+  /* HTML gọn cho thẻ CŨ của cùng mục tiêu: một mục tiêu có thể xuất hiện ở nhiều tin (lúc lập, lúc báo tiến
+     triển). Chỉ thẻ mới nhất hiện đầy đủ và có nút; thẻ cũ chỉ còn một dòng tình trạng, không mâu thuẫn nhau. */
+  function compactHtml(g) {
+    return '<div class="rs-head"><span class="rs-title">' + esc(tw("resonance.card_title")) + "</span>" +
+      '<span class="rs-state rs-' + esc(String(g.status || "")) + '">' + esc(tw(stateKey(g))) + "</span></div>" +
+      '<div class="rs-muted">' + esc(g.understanding || "") + " · " + esc(tw("resonance.see_latest")) + "</div>";
+  }
+
+  /* Vẽ MỌI thẻ của cùng mục tiêu theo cùng một trạng thái: thẻ cuối đầy đủ, thẻ trước gọn. */
   function render(el, g, note) {
-    el._goal = g;
-    el.classList.toggle("rs-done", g.status !== "active");
-    el.innerHTML = viewHtml(g, note);
+    var all = (typeof document !== "undefined" && document.querySelectorAll)
+      ? Array.prototype.slice.call(document.querySelectorAll('.rs-card[data-goal="' + g.goal_id + '"]')) : [el];
+    if (all.indexOf(el) < 0) all.push(el);
+    var last = all[all.length - 1];
+    all.forEach(function (x) {
+      x._goal = g;
+      x.classList.toggle("rs-done", g.status !== "active");
+      x.classList.toggle("rs-old", x !== last);
+      x.innerHTML = x === last ? viewHtml(g, note) : compactHtml(g);
+    });
   }
 
   function load(el) {
@@ -214,6 +230,7 @@
         else if (res.j.ok === false && res.j.reason) note = res.j.reason;
         else if (act === "fit_no") note = tw("resonance.fit_no_hint");
         else if (act === "out_no") note = tw("resonance.out_no_hint");
+        else if (act === "out_ok") note = tw("resonance.out_ok_hint");
         if (res.j.goal) render(el, res.j.goal, note);
         else load(el).then(function () { if (note) el.insertAdjacentHTML("beforeend", '<div class="rs-note">' + esc(note) + "</div>"); });
       })
@@ -259,7 +276,8 @@
     else settingsInit();
   }
 
-  var api = { tach: tach, viewHtml: viewHtml, requestFor: requestFor, stateKey: stateKey, ve: ve, render: render };
+  var api = { tach: tach, viewHtml: viewHtml, compactHtml: compactHtml, requestFor: requestFor, stateKey: stateKey,
+    ve: ve, render: render };
   if (typeof window !== "undefined") window.JavisResonance = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

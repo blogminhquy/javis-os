@@ -150,6 +150,9 @@ code2, body2 = api("post", f"/goals/{g.id}/feedback", json={"kind": "outcome_acc
                                                              "criterion_id": human, "artifact_ref": v["artifact_ref"],
                                                              "idempotency_key": "k-accept-1"})
 check("bấm lại cùng khoá: không ghi lần hai", code2 == 200 and body2.get("duplicate") is True)
+check("thẻ hiện ngay xác nhận vừa bấm (đọc sống, đúng luật đánh giá), chưa cần đợi nhịp đánh giá",
+      body.get("goal", {}).get("criteria", [{}, {}])[1].get("verdict") == "met"
+      and body.get("goal", {}).get("status") == "active")
 asyncio.run(R.advance(g.id, {"kind": "wake"}, deps(eng)))
 check("sau xác nhận đúng: host đánh giá lại và kết luận thành công, không gọi model thêm",
       store.get(P, g.id).status == "succeeded" and eng.queries == 1)

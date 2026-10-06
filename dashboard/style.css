@@ -3583,3 +3583,4 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .rs-details { margin-top: 8px; font-size: 13px; color: var(--text2); }
 .rs-details summary { cursor: pointer; }
 .rs-note { margin-top: 8px; font-size: 13px; color: var(--text2); }
+.rs-card.rs-old { padding: 8px 12px; opacity: .8; }

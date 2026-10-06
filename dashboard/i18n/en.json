@@ -3526,5 +3526,7 @@
   "resonance.out_no_hint": "Javis will redo it. Say in the chat what exactly to change.",
   "resonance.settings_title": "Resonance (experimental)",
   "resonance.settings_desc": "Let Javis turn what you ask into goals, carry them forward in the background within a budget, and report done only with evidence. Applies to the selected brain only.",
-  "resonance.settings_on": "Enable for this brain"
+  "resonance.settings_on": "Enable for this brain",
+  "resonance.out_ok_hint": "Recorded. Javis will check it together with the other criteria shortly.",
+  "resonance.see_latest": "see the latest card below"
 }

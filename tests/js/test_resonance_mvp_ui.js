@@ -60,6 +60,10 @@ check("đang tạm dừng: nút Tiếp tục thay cho Tạm dừng", paused.incl
 const guard = RS.viewHtml(Object.assign({}, waiting, { block_reason: "guard" }));
 check("dừng vì guard: có nút Đã sửa, chạy lại", guard.includes(vi["resonance.btn_reopen"]) && guard.includes(vi["resonance.st_guard"]));
 
+const compact = RS.compactHtml(waiting);
+check("thẻ cũ của cùng mục tiêu: chỉ một dòng tình trạng, không có nút (không mâu thuẫn thẻ mới nhất)",
+      !/class="rs-act/.test(compact) && compact.includes(vi["resonance.st_human_confirmation"]) && compact.includes(vi["resonance.see_latest"]));
+
 // ───────────── request của từng nút ─────────────
 const rOk = RS.requestFor("out_ok", waiting, "c2");
 check("Đạt yêu cầu: gửi đúng revision, criterion, artifact_ref của bản ĐANG HIỆN",

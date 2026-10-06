@@ -3526,5 +3526,7 @@
   "resonance.out_no_hint": "Javis sẽ làm lại. Muốn chỉnh gì cụ thể thì nói trong khung chat.",
   "resonance.settings_title": "Hệ thống cộng hưởng (thử nghiệm)",
   "resonance.settings_desc": "Cho Javis tự lập mục tiêu từ việc bạn nhờ, làm tiếp ở nền trong hạn mức và chỉ báo xong khi có bằng chứng. Chỉ áp dụng cho brain đang chọn.",
-  "resonance.settings_on": "Bật cho brain này"
+  "resonance.settings_on": "Bật cho brain này",
+  "resonance.out_ok_hint": "Đã ghi nhận. Javis sẽ kiểm lại cùng các tiêu chí khác trong giây lát.",
+  "resonance.see_latest": "xem thẻ mới nhất bên dưới"
 }
