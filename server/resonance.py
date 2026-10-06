@@ -803,8 +803,8 @@ PUBLISH_SUFFIXES = (".md", ".txt")
 PUBLISH_MAX_BYTES = 1_000_000
 PREV_OUTPUT_CHARS = 3000
 INTENT_CHAIN_MAX = 5
-NOTIFY_KINDS = ("goal.succeeded", "goal.failed", "goal.blocked", "goal.guard", "goal.waiting_human",
-                "goal.publish_conflict")
+NOTIFY_KINDS = ("goal.succeeded", "goal.maintained", "goal.failed", "goal.blocked", "goal.guard",
+                "goal.waiting_human", "goal.publish_conflict")
 WORK_SYSTEM = (SYSTEM_PROMPT + " Viết TOÀN BỘ sản phẩm cuối, đúng các tiêu chí được nêu. "
                "Không dùng ký tự gạch dài.")
 
@@ -1209,6 +1209,11 @@ def _settle(goal: GoalRecord, a: Assessment, deps: GoalDeps, now: float, worked:
                             idem=f"waiting_human:{goal.revision}")
         store.clear_wake(p, goal.id, "work")
         return a
+    if a.verdict == "met" and goal.mode == "maintain":
+        # Mục tiêu duy trì không "hoàn thành", nhưng lần đầu một revision đạt là mốc có ý nghĩa với người đã giao
+        # việc (pilot M3: không báo thì người dùng nhờ xong không nghe gì). Báo MỘT lần mỗi revision.
+        store.notice(p, goal.id, "goal.maintained", {"deliverable": _deliverable_rel(goal)},
+                     idem=f"maintained:{goal.revision}")
     cur = store.get(p, goal.id) or goal
     w = next_wake(cur, {"kind": "assessed", "verdict": a.verdict, "worked": worked}, now)
     if w:
@@ -1413,6 +1418,11 @@ def notice_text(goal: GoalRecord, kind: str, payload: dict) -> str:
         n = len(goal.criteria)
         return _t(f"Mục tiêu đã đạt: {u}. Javis đã kiểm bằng chứng theo {n} tiêu chí.{link_vi}",
                   f"Goal achieved: {u}. Javis checked the evidence against {n} criteria.{link_en}")
+    if kind == "goal.maintained":
+        return _t(f"Đã cập nhật theo mục tiêu duy trì: {u}. Javis đã kiểm bằng chứng theo tiêu chí.{link_vi} "
+                  "Javis sẽ xem lại định kỳ có giới hạn, chỉ báo khi có thay đổi đáng kể.",
+                  f"Updated for the ongoing goal: {u}. Javis checked the evidence against its criteria.{link_en} "
+                  "Javis will review it on a bounded schedule and only report meaningful changes.")
     if kind == "goal.waiting_human":
         crit = "; ".join((payload or {}).get("criteria") or [])
         return _t(f"Đã xong phần kiểm được của mục tiêu: {u}.{link_vi} Còn chờ người dùng xác nhận: {crit}.",

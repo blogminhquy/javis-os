@@ -403,6 +403,13 @@ a_c1 = adv(g_c.id, {"kind": "start"}, deps_c)
 check("maintain: đạt thì không đóng mục tiêu, giữ active và hẹn xem lại",
       a_c1.verdict == "met" and store.get(P, g_c.id).status == "active"
       and any(w["kind"] == "work" for w in store.wakes(P, g_c.id)))
+_nc = Notes()
+asyncio.run(R.drain_outbox(store, _nc))
+adv(g_c.id, {"kind": "wake"}, deps_c)
+asyncio.run(R.drain_outbox(store, _nc))
+check("maintain: lần đầu revision đạt thì báo người dùng MỘT lần, kèm link sản phẩm; xem lại sau không báo lặp",
+      [k for (gid, k, _) in _nc.sent if gid == g_c.id] == ["goal.maintained"]
+      and any("Inbox/duy-tri.md" in t for (gid, _, t) in _nc.sent if gid == g_c.id) and eng_c.queries == 1)
 MSG_ADD = "Thêm việc: gia hạn tên miền trước cuối tháng."
 R.revise_goal(store, P, g_c.id, 1, {
     "relevant_quote": "gia hạn tên miền",

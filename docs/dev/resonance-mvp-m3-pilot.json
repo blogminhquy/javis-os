@@ -1,0 +1,120 @@
+{
+  "commit": "9f3dad13d20271140ebbbca625e704007bb263b8",
+  "server_dirty": false,
+  "user_messages": [
+    "Dữ liệu mô phỏng, không phải việc thật. Duy trì giúp anh ghi chú Inbox/viec-tuan.md liệt kê việc đang dở: gửi báo giá cho khách B, kiểm kho bút bi, đặt lịch họp nhóm thứ Năm. Đừng xoá ghi chú cũ.",
+    "Thêm việc: gia hạn tên miền trước cuối tháng."
+  ],
+  "seconds": {
+    "tick1": 6.1,
+    "tick2": 5.1
+  },
+  "work_receipts": [
+    {
+      "action_id": "act_71d49d36e12c44fe",
+      "goal_id": "g_53fd33fef33f",
+      "revision": 1,
+      "status": "succeeded",
+      "started_at": 1791279634.2639444,
+      "finished_at": 1791279640.2457798,
+      "engine": {
+        "requested_provider": "anthropic-cli",
+        "requested_model": "sonnet",
+        "provider": "anthropic-cli",
+        "model": "sonnet",
+        "kind": "ClaudeSDK",
+        "fallback_links_dropped": 0,
+        "text_only": true
+      },
+      "output_ref": "act_71d49d36e12c44fe.md",
+      "output_sha256": "e166fef97ac95531ae5ee20d9a947d5fc14fa1646834278f541efb1ea6837ac3",
+      "output_chars": 475,
+      "usage": {
+        "tokens_in": 18141,
+        "tokens_out": 292,
+        "cost_usd": 0.07547999999999999,
+        "engine_ms": 2908
+      },
+      "tool_calls_observed": 0,
+      "error_code": "",
+      "error_detail": "",
+      "evidence_ids": [
+        "ev_be67a0522f4c456d9e08f480242d7c64"
+      ],
+      "normalized_em_dash": 0
+    },
+    {
+      "action_id": "act_ccdea97519116009",
+      "goal_id": "g_53fd33fef33f",
+      "revision": 2,
+      "status": "succeeded",
+      "started_at": 1791279640.4227655,
+      "finished_at": 1791279645.3935137,
+      "engine": {
+        "requested_provider": "anthropic-cli",
+        "requested_model": "sonnet",
+        "provider": "anthropic-cli",
+        "model": "sonnet",
+        "kind": "ClaudeSDK",
+        "fallback_links_dropped": 0,
+        "text_only": true
+      },
+      "output_ref": "act_ccdea97519116009.md",
+      "output_sha256": "fcc94000cab0d02359712ccbf84531218c455a263f9d486c974c39e92e608d8a",
+      "output_chars": 530,
+      "usage": {
+        "tokens_in": 18493,
+        "tokens_out": 325,
+        "cost_usd": 0.0173186,
+        "engine_ms": 2641
+      },
+      "tool_calls_observed": 0,
+      "error_code": "",
+      "error_detail": "",
+      "evidence_ids": [
+        "ev_0871b62001fa4d7980cd77e9575a4248"
+      ],
+      "normalized_em_dash": 0
+    }
+  ],
+  "publish_actions": [
+    {
+      "status": "succeeded",
+      "path": "Inbox/viec-tuan.md",
+      "sha256": "e166fef97ac95531ae5ee20d9a947d5fc14fa1646834278f541efb1ea6837ac3"
+    },
+    {
+      "status": "succeeded",
+      "path": "Inbox/viec-tuan.md",
+      "sha256": "fcc94000cab0d02359712ccbf84531218c455a263f9d486c974c39e92e608d8a"
+    }
+  ],
+  "assessments": [
+    {
+      "revision": 1,
+      "verdict": "met",
+      "rationale": "c1: đạt",
+      "guards": []
+    },
+    {
+      "revision": 2,
+      "verdict": "met",
+      "rationale": "c1: đạt",
+      "guards": []
+    }
+  ],
+  "wakes_after": [
+    {
+      "kind": "observe",
+      "reason": "quan sát guard"
+    },
+    {
+      "kind": "work",
+      "reason": "xem lại có giới hạn (không có nguồn sự kiện)"
+    }
+  ],
+  "calls_used": 2,
+  "budget_calls": 3,
+  "notices": [],
+  "final_output": "# Việc đang dở trong tuần\n\n*(Dữ liệu mô phỏng, không phải việc thật.)*\n\n## Danh sách việc cần làm\n\n- [ ] **Báo giá:** Gửi báo giá cho khách B.\n- [ ] **Kiểm kho:** Kiểm kho bút bi, đối chiếu số lượng thực tế với sổ sách.\n- [ ] **Họp nhóm:** Đặt lịch họp nhóm vào thứ Năm.\n- [ ] **Tên miền:** Gia hạn tên miền trước cuối tháng.\n\n## Ghi chú\n\n- Các ghi chú cũ trong `Inbox/viec-tuan.md` được giữ nguyên, không xoá. Mục này chỉ bổ sung thêm danh sách việc đang dở ở trên.\n- Khi hoàn thành việc nào, đánh dấu `[x]` thay vì xoá dòng đó.\n"
+}
