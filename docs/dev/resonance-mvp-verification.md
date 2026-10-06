@@ -458,3 +458,72 @@ Review vòng 2 (`exports/reviews/PR-570-M3-review-round2.md`, diff `e5a42409..9a
 Lượt sau review: 15 file đỏ sẵn ở mục M1 cộng `test_project_khung.py` (đỏ trên main sạch, chập chờn).
 
 15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1. Một lượt chạy trước đó (trên cây đang sửa, giữa hai commit) bị ngắt ở file 408/411 và để lại năm file Zalo/YouTube đỏ liền nhau ngay trước lúc dừng; chạy riêng tám file cuối đều xanh, nên không tính lượt đó.
+
+## M4: thẻ mục tiêu và phản hồi có nghĩa rõ (07/10/2026)
+
+### Nền và nhánh
+
+- Nhánh `claude/resonance-mvp-m4` tách từ head M3 đã qua review (`1fe86a04`), PR nháp #575 xếp chồng trên #570. Phiên bản 0.84.9: `origin/main` đã lên 0.84.8 (`3e3d7d48`) và PR #571 giữ 0.84.5.
+- `origin/main` đã đi thêm 5 commit so với nền `7d264236`; trong các file M4 sửa, chỉ `server/main.py` có đổi (2 dòng ở phần Zalo, không chạm vùng Resonance). Chưa đồng bộ vào chuỗi, cùng lý do ở M3; chỉnh một lần lúc merge.
+
+### Quyết định thiết kế cần người review soát
+
+1. **Hai câu hỏi tách riêng** (spec 4.5, 4.7). `goal_fit_confirmed` / `goal_fit_rejected` xác nhận cách hiểu của đúng revision đang hiện. `outcome_accepted` / `outcome_rejected` chỉ nhận cho tiêu chí `human_confirmation` (tiêu chí host kiểm tự động trả 400), gắn đúng `artifact_ref` = sha256 đầu ra mới nhất của revision; sản phẩm đổi thì xác nhận cũ không còn áp dụng. Xác nhận không vượt kiểm tra khách quan hay guard. Im lặng là unknown.
+2. **Chỉ người dùng ghi được phản hồi.** Dashboard có một tài khoản đăng nhập; request tới API đã qua `_auth_guard` và `_csrf_guard` nên host dựng `Principal("owner")` từ brain đã resolve. Agent gọi `record_feedback` thì `PermissionError`.
+3. **Mọi phản hồi gắn revision (CAS).** Thẻ cũ gửi revision cũ thì 409 kèm trạng thái mới để thẻ vẽ lại. Cùng `idempotency_key` thì không ghi lần hai.
+4. **"Chưa đúng ý"** dừng tác động tiếp theo của revision đó (`waiting / fit_rejected`, kiểm trong `_gate`), không phải lệnh dừng toàn bộ: revision mới (người dùng nói rõ hơn, bộ não cập nhật) mở lại bình thường. "Tiếp tục" không vượt được nó.
+5. **Lệnh tạm dừng, tiếp tục, huỷ luôn có hiệu lực**, không đòi khớp revision (can thiệp của người dùng, spec 2.3); revision người dùng đang nhìn vẫn được ghi. "Tiếp tục" mở lại guard đã nhảy chỉ khi guard hiện đã clear.
+6. **Đường có thẩm quyền để bỏ chỉ dẫn của người dùng** (việc M2, M3 hẹn cho M4): thẻ liệt kê hạn chót, chỉ tiêu, ràng buộc và guard với nút "Bỏ"; lệnh `drop_directive` chỉ owner, đòi đúng revision, tạo revision mới ghi nguồn là người dùng và quan hệ `replace`, bỏ cả khỏi danh sách ràng buộc người dùng của kho, mở chặn nếu bỏ đúng guard đang chặn. Bộ não vẫn không làm được qua `javis_goal`; lời báo phần chưa áp dụng và mô tả tool nay chỉ người dùng tới nút này. Đổi hạn sang ngày khác vẫn là hai bước: bỏ hạn cũ trên thẻ, rồi nói hạn mới trong chat để bộ não thêm.
+7. **Báo cáo không lặp sau sự cố.** Tin báo mang khối `JAVIS_RESONANCE` có khoá `outbox:<id>`. `drain_outbox` hỏi kho tin nhắn khoá đó đã có chưa (`main._resonance_reported`): tiến trình chết giữa lúc lưu tin và lúc đánh dấu outbox thì nhịp sau chỉ đánh dấu, không gửi lần hai. `push_to_chat`, `_gui_qua_kenh`, `_notify_owner` thêm tham số tuỳ chọn `card`, chỉ nhận đúng khuôn khối đó; các chỗ gọi cũ không đổi.
+8. **Khối thẻ chỉ mang id.** Thẻ đọc trạng thái sống qua `GET /goals/{id}`, nên F5, mở lại hội thoại cũ hay kết nối lại đều vẽ đúng tình trạng hiện tại. Tên khối là `JAVIS_RESONANCE`, khác `JAVIS_GOAL` của lệnh `/goal` đã có.
+9. **Một mục tiêu nhiều tin.** Mục tiêu có thể xuất hiện ở tin lúc lập, lúc báo tiến triển, lúc xong. Mọi thẻ của cùng mục tiêu vẽ từ một trạng thái; chỉ thẻ mới nhất đầy đủ và có nút, thẻ cũ là một dòng tình trạng.
+10. **Chờ người dùng duyệt** nay đòi có sản phẩm của ĐÚNG revision hiện tại. Trước đó revision mới mà file khai vẫn đạt nhờ bản của revision cũ sẽ chờ xác nhận trong khi không có bản nào để gắn nút.
+11. **Công tắc theo brain** trên trang Cài đặt nhanh ("Hệ thống cộng hưởng (thử nghiệm)", mặc định tắt), qua `GET/POST /resonance/settings`.
+12. **`POST /goal-requests`** lập mục tiêu từ một tin người dùng có sẵn (`msg:<phiên>:<id>`, phiên phải thuộc brain, tin phải của người dùng), một lượt bộ lập mục tiêu, cùng tin trả mục tiêu cũ. Chưa có nút giao diện gọi tới.
+
+### Kết quả với engine giả và API thật
+
+- `tests/python/test_resonance_mvp_feedback.py`: TestClient trên `main.app` (http://127.0.0.1:8080), kho SQLite, kho phiên thật, engine giả. Đủ các test Task M4 đặt tên: `goal_fit_not_outcome`, `feedback_old_revision`, `feedback_cross_brain`, `silence_is_unknown`, `reload_keeps_goal_action_links`, `report_replay_same_mid`. Thêm: xác nhận không vượt guard hay kiểm tra khách quan; "Cần chỉnh" làm lại có phản hồi và xác nhận cũ không áp cho bản mới; "Chưa đúng ý" chặn tới revision mới; lệnh tạm dừng, tiếp tục, huỷ; bỏ từng loại chỉ dẫn; `goal-requests`; công tắc theo brain.
+- `tests/js/test_resonance_mvp_ui.js`: bóc khối (kể cả JSON hỏng), HTML thẻ chống chèn mã, nút Đạt yêu cầu chỉ cho tiêu chí người dùng duyệt và chỉ khi đã có sản phẩm, request lấy revision / criterion / artifact_ref từ trạng thái đã tải, thẻ cũ gửi đúng revision cũ, thẻ gọn, nút Bỏ chỉ dẫn, khoá từ điển vi/en, điểm nối trong app.js / index.html / style.css.
+- Phép thử đột biến: bỏ đối soát báo lặp, bỏ chặn "Chưa đúng ý", cho xác nhận áp cho bản cũ, cho xác nhận tay tiêu chí tự động. Cả bốn làm test đỏ.
+- Hai canary cũ (`test_the_viec_nen.js`, `test_voice_v3_mot_luong.js`) ràng nguyên văn hai dòng đọc thành tiếng trong `app.js`; giữ đúng hai dòng đó, bóc khối thẻ ở dòng trước.
+- Lượt chạy toàn bộ đầu tiên làm đỏ thêm hai file do M4 gây ra, đã sửa ở `4ae62efa`: `test_viec_nen_khong_moc_lung_tung.py` ràng nguyên văn lời gọi `push_to_chat` cho thẻ việc nền trong `_gui_qua_kenh` (tách nhánh thẻ mục tiêu ra riêng, giữ nguyên dòng cũ); `test_route_table.py` là ảnh chụp bảng route, chụp lại có chủ ý cho 7 route mới, không route cũ nào bị bỏ hay trùng tiền tố.
+
+### Kiểm giao diện thật
+
+Server sandbox của worktree (cổng 7788, `JAVIS_STATE_DIR` và `BRAINS_DIR` tạm, engine việc nền đặt là một provider bộ chọn chỉ chữ chặn sẵn nên KHÔNG có lượt gọi model nào), trình duyệt trong app, khung hẹp cỡ điện thoại:
+
+- Thẻ hiện đủ cách hiểu, tình trạng, tiêu chí (Đạt / Chưa biết), sản phẩm, giả định, hạn mức, nút; không tràn ngang.
+- Bấm chuột "Đúng ý": ghi nhận, thẻ hiện "Bạn đã xác nhận cách hiểu này". Bàn phím: focus "Đạt yêu cầu" rồi Enter: ghi nhận; nhịp lập lịch sau đó đánh giá lại và kết luận "Đã đạt" mà không gọi model; có tin báo hoàn thành.
+- F5 và mở lại hội thoại: mọi thẻ đọc lại đúng trạng thái sống.
+- Thẻ đang hiện revision 1, mục tiêu bị sửa sang revision 2 phía sau, bấm "Đúng ý": 409, thẻ vẽ lại revision 2 kèm câu báo, không ghi xác nhận nào cho revision 2.
+- Tạm dừng bằng chuột, tiếp tục: đúng trạng thái; tiếp tục dẫn tới lượt làm việc, engine bị chặn có chủ ý nên thẻ hiện "Bộ não việc nền chưa chạy được".
+- Công tắc theo brain trên trang Cài đặt: đọc đúng, tắt rồi bật lại ghi đúng.
+
+Ba điều lần kiểm này làm lộ ra, đã sửa ở `a2cf6cc7`: thẻ vẫn ghi "Chưa biết" ngay sau khi bấm "Đạt yêu cầu" (nay đọc xác nhận sống theo đúng luật đánh giá và báo đã ghi nhận); nhiều thẻ của cùng mục tiêu hiện trạng thái mâu thuẫn (nay vẽ chung, thẻ cũ thu gọn); "Lần làm tiếp" vẫn hiện khi đang tạm dừng (nay ẩn). Một cú bấm chuột bằng toạ độ tính trong lúc trang còn đang cuộn đã trượt khỏi nút; bấm lại theo ảnh chụp thì đúng, ghi lại để phân biệt với lỗi.
+
+Đường dẫn rất dài trên Windows: ở thư mục sandbox đầu tiên (đường dẫn tạm rất sâu), ghi đầu ra vào `Javis/resonance/outputs/<mục tiêu>/<hành động>.md` vượt giới hạn 260 ký tự và lượt làm kết thúc `write_failed` (host báo lỗi đúng, không giả thành công). Brain ở đường dẫn thường không gặp; brain đặt rất sâu thì có thể gặp.
+
+Không chạy pilot model thật cho M4: phần mới là API, kho và giao diện, kiểm được tất định; đường gọi model không đổi từ M3.
+
+### Giới hạn và những gì chưa kiểm
+
+1. **Chưa có nút giao diện cho `POST /goal-requests`.** API có, test có; người dùng chưa bấm được "theo đuổi tin này".
+2. **Chưa sửa được chỉ dẫn tại chỗ.** Chỉ bỏ được; muốn đổi hạn hay chỉ tiêu thì bỏ cái cũ rồi nói cái mới trong chat. Chưa nhận yêu cầu bằng lời để tự áp dụng thay đổi chỉ dẫn.
+3. **"Cần chỉnh" chưa có ô nhập lời.** Lời chỉnh cụ thể người dùng nói trong khung chat; API đã nhận `comment` nếu có.
+4. **Undo tổng quát không thuộc MVP**, đúng kế hoạch; thẻ chỉ cho xem sản phẩm và lịch sử, không có nút hoàn tác.
+5. **Trang Việc chưa hiện mục tiêu** (spec 13 nói Trang Việc hiển thị mục tiêu đang theo đuổi); M4 chỉ có thẻ trong khung chat và `GET /resonance/goals`.
+6. **Thẻ chỉ ở khung chat web.** Telegram, Zalo nhận chữ, khối thẻ bị bóc như mọi khối điều khiển.
+7. **Giới hạn đường dẫn Windows** nêu ở trên.
+8. **Từ M2, M3 vẫn còn:** chính sách deadline, bộ thực thi chỉ chữ, một sản phẩm mỗi mục tiêu, khe giữa kiểm hash và thay file, tin báo ít nhất một lần ở các kênh ngoài khoá báo cáo, bằng chứng giữ 90 ngày, việc nền làn giọng nói.
+
+### Toàn bộ test
+
+| | Main sạch (`7d264236`) | Nhánh M4 (`4ae62efa`) |
+|---|---|---|
+| Python xanh | 387/403 | 397/412 |
+| File Python đỏ | 16 | 15 |
+| Đỏ mới so với main | | không có |
+| JS (`tests/run.py --js`) | | 177/177 (tại `7c9776c6`; commit sau chỉ sửa `server/main.py` và ảnh chụp route) |
+
+15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1.
