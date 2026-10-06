@@ -445,13 +445,17 @@ def ngu_canh_nhom(meta: dict, kenh: str, tai_khoan: str) -> str:
 # ============================================================
 # Rào
 # ============================================================
-def _qua_han_muc(bot_id: str, chat_id: str, tran: int) -> bool:
+def _qua_han_muc(bot_id: str, chat_id: str, tran: int, user_id: str = "") -> bool:
     """Giới hạn tần suất theo GIỜ trượt, tính riêng từng người trong từng bot.
 
     Vì sao cần: một người rảnh trong nhóm đủ đốt hết quota model của chủ trong một buổi chiều,
     và chủ chỉ biết khi nhìn hoá đơn.
+
+    Trong NHÓM phải truyền `user_id` (0.84.6). Trước đó khoá chỉ là cuộc chat, nên cả nhóm dùng CHUNG
+    một hạn mức: nhóm 140 người gọi bot 20 lần trong một giờ là người thứ 21, dù mới hỏi lần đầu, nhận
+    câu "nhắn hơi nhanh" kèm tag tên mình trước cả nhóm. Chat riêng thì cuộc chat đã là một người.
     """
-    key = (bot_id, str(chat_id))
+    key = (bot_id, str(chat_id), str(user_id or ""))
     now = time.time()
     dq = _HITS.setdefault(key, deque())
     while dq and now - dq[0] > 3600:
@@ -1295,7 +1299,7 @@ def _make_answer_fn(bot_id: str):
             if ma:
                 _ghi_bo_qua(bot_id, cfg, meta, text, ma, tl)
                 return {"text": "", "files": [], "im_lang": True}
-        if _qua_han_muc(bot_id, chat_id, cfg.get("rate_limit")):
+        if _qua_han_muc(bot_id, chat_id, cfg.get("rate_limit"), user_id if _rp_is_group(meta) else ""):
             if (meta or {}).get("member_join"):
                 # Many people joining at once must not make the bot say "you are typing too fast" to them.
                 return {"text": "", "files": [], "im_lang": True}

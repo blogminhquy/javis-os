@@ -339,6 +339,17 @@ check("người KHÁC không bị vạ lây",
       chatbot_runtime._qua_han_muc("b1", "kh2", 3) is False)
 check("bot KHÁC đếm riêng",
       chatbot_runtime._qua_han_muc("b2", "kh1", 3) is False)
+# 0.84.6: trong NHÓM khoá theo người. Trước đó cả nhóm chung một hạn mức, nên người mới hỏi lần đầu cũng
+# nhận "nhắn hơi nhanh" chỉ vì người khác trong nhóm đã gọi bot đủ số lần.
+chatbot_runtime._HITS.clear()
+for _ in range(3):
+    chatbot_runtime._qua_han_muc("b1", "-nhom1", 3, "nguoiA")
+check("trong nhóm: người A hết hạn mức thì A bị chặn",
+      chatbot_runtime._qua_han_muc("b1", "-nhom1", 3, "nguoiA") is True)
+check("CANARY: nhưng người B cùng nhóm, mới hỏi lần đầu, KHÔNG bị chặn",
+      chatbot_runtime._qua_han_muc("b1", "-nhom1", 3, "nguoiB") is False)
+check("cùng người A ở nhóm khác thì đếm riêng",
+      chatbot_runtime._qua_han_muc("b1", "-nhom2", 3, "nguoiA") is False)
 
 
 # ============================================================

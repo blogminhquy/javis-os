@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.84.6] - 2026-10-06
 ### Sửa lỗi
-- Giới hạn tần suất của bot trong nhóm (đang làm).
+- **Bot trong nhóm không còn báo "Anh chị nhắn hơi nhanh" với người mới hỏi lần đầu.** Giới hạn số câu trả lời mỗi giờ trước đây tính chung cho cả nhóm, nên nhóm đông gọi bot đủ 20 lần là ai tag bot sau đó cũng bị từ chối kèm tag tên mình. Giờ hạn mức tính riêng từng người, đúng như ô cài đặt ghi.
 
 ## [0.84.3] - 2026-10-06
 ### Thêm mới

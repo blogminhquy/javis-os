@@ -10,7 +10,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.84.6] - 2026-10-06
 ### Fixed
-- Bot rate limit in groups (in progress).
+- **A group bot no longer tells someone asking for the first time that they are "typing too fast".** The hourly reply limit used to be shared by the whole group, so once a busy group had called the bot 20 times, anyone who tagged it next was turned away with their name tagged. The limit now counts per person, as the setting says.
 
 ## [0.84.3] - 2026-10-06
 ### Added

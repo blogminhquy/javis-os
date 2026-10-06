@@ -209,6 +209,25 @@ async def chay():
     await doc()
     check("sự kiện vào nhóm quá cũ (bộ đệm lúc mới bật) thì bỏ qua", not LUOT, LUOT)
 
+    # 0.84.6: hạn mức trong nhóm tính THEO NGƯỜI. Trước đó cả nhóm chung một hạn mức, nên ai tag bot sau khi
+    # người khác đã gọi đủ số lần đều nhận "Anh chị nhắn hơi nhanh..." kèm tag tên mình trước cả nhóm.
+    chatbot_store.update_bot(bid, {"rate_limit": 1})
+    chatbot_runtime._HITS.clear()
+    CLI.clear()
+    LUOT.clear()
+    TRA_LOI["v"] = "Dạ em trả lời đây ạ"
+    for i, (uid, ten) in enumerate((("7201", "An"), ("7202", "Vũ Hồng Sơn"))):
+        KHO_TIN.append({"threadId": NHOM, "from": uid, "senderName": ten, "type": "text",
+                        "text": "@Javis Vũ cho hỏi lịch học", "id": f"r{i}", "ts": _ms(1), "threadType": "group"})
+        await doc()
+    gui_ra = [c["pos"][1] for c in CLI]
+    check("CANARY: hạn mức 1 câu/giờ, hai người KHÁC nhau cùng tag bot thì cả hai đều được trả lời",
+          len(LUOT) == 2 and not any("nhắn hơi nhanh" in x for x in gui_ra), gui_ra)
+    KHO_TIN.append({"threadId": NHOM, "from": "7202", "senderName": "Vũ Hồng Sơn", "type": "text",
+                    "text": "@Javis Vũ hỏi thêm câu nữa", "id": "r9", "ts": _ms(1), "threadType": "group"})
+    await doc()
+    check("chính người đã hết hạn mức thì mới bị chặn", len(LUOT) == 2, len(LUOT))
+
     with conversations._conn() as cx:
         rows = [r[0] for r in cx.execute("SELECT text FROM messages").fetchall()]
     check("Hộp thư ghi lại người mới vào nhóm", any("Thu Hà" in r and ("vừa vào nhóm" in r or "joined" in r) for r in rows), rows)
