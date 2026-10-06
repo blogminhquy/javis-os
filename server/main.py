@@ -15485,7 +15485,7 @@ async def websocket_endpoint(ws: WebSocket):
                     continue
                 _user_mid = int(_receipt.get("message_id") or 0)
             else:
-                _user_mid = int(store.append_message(conv_sid, "user", user_message) or 0)
+                _user_mid = store.append_message(conv_sid, "user", user_message)
             # Bong bóng đang hiện chữ thô của máy nghe: báo câu đã sửa tên để người dùng thấy
             # Javis hiểu câu nào, chữ thô hiện nhỏ bên dưới.
             if _nghe_tho:
