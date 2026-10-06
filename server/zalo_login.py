@@ -30,7 +30,7 @@ _sessions = {}        # sid -> {state, qr, label, conn_id, error, proc, home, ts
 
 _SUCCESS_EVENTS = {"login", "login_success", "success", "ready", "logged_in", "authenticated"}
 _ERROR_EVENTS = {"error", "failed", "login_error"}   # CLI in {"event":"login_error","message":...} khi QR hỏng
-_CLI_PACKAGE = "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.1.0"  # trùng zalo_cli.CLI_PACKAGE và catalog
+_CLI_PACKAGE = "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.2.0"  # trùng zalo_cli.CLI_PACKAGE và catalog
 
 
 def _sweep():

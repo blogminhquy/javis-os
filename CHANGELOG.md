@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.84.7] - 2026-10-06
 ### Thêm mới
-- Duyệt người xin vào nhóm Zalo (đang làm).
+- **Duyệt người xin vào nhóm Zalo ngay trong Javis.** Có người xin vào nhóm phải duyệt là Javis báo bạn qua chuông và Telegram. Hỏi "ai đang xin vào nhóm X" để xem danh sách, bảo "duyệt hết" hay "duyệt Lan, từ chối Minh" là Javis làm và báo lại từng người.
+- Bot chuyên trách không bao giờ tự duyệt. Tài khoản Zalo phải là trưởng hoặc phó nhóm, và kết nối Zalo ở mức Toàn quyền.
+
 ## [0.84.6] - 2026-10-06
 ### Sửa lỗi
 - **Bot trong nhóm không còn báo "Anh chị nhắn hơi nhanh" với người mới hỏi lần đầu.** Giới hạn số câu trả lời mỗi giờ trước đây tính chung cho cả nhóm, nên nhóm đông gọi bot đủ 20 lần là ai tag bot sau đó cũng bị từ chối kèm tag tên mình. Giờ hạn mức tính riêng từng người, đúng như ô cài đặt ghi.

@@ -11261,6 +11261,8 @@ async def _start_scheduler():
     try:
         # Hộp thư hội thoại: vòng đọc Zalo cá nhân. Chạy nhẹ khi chưa bật tài khoản nào (chỉ
         # đọc cấu hình mỗi nhịp), để bật từ trang Hội thoại là có tác dụng ngay.
+        # Người xin vào nhóm Zalo (0.84.7) báo chủ qua đúng cửa của việc nền: hòm thư + Telegram của chủ.
+        zalo_personal_channel.NOTIFY_OWNER = _notify_owner
         zalo_personal_channel.start()
     except Exception as e:
         print(f"[zalo-personal start] {type(e).__name__}: {e}", file=__import__('sys').stderr)

@@ -48,15 +48,16 @@
       "name": "Zalo Agent MCP",
       "icon": "/static/logos/zalo.png",
       "category": "Nhắn tin",
-      "description": "MCP của javis-zalo (bản CLI Zalo riêng của Javis): đọc tin mới/lịch sử, tìm cuộc chat, biết ai vừa vào nhóm và vào lúc nào, xem media và gửi tin bằng tài khoản Zalo cá nhân.",
+      "description": "MCP của javis-zalo (bản CLI Zalo riêng của Javis): đọc tin mới/lịch sử, tìm cuộc chat, biết ai vừa vào nhóm và vào lúc nào, duyệt người xin vào nhóm, xem media và gửi tin bằng tài khoản Zalo cá nhân.",
       "status": "beta",
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.1.0", "mcp", "start"],
+      "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.2.0", "mcp", "start"],
       "lenh_cu": [
         { "command": "npx", "args": ["-y", "zalo-agent-cli", "mcp", "start"] },
         { "command": "npx", "args": ["-y", "zalo-agent-cli@1.6.2", "mcp", "start"] },
-        { "command": "npx", "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.0.0", "mcp", "start"] }
+        { "command": "npx", "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.0.0", "mcp", "start"] },
+        { "command": "npx", "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.1.0", "mcp", "start"] }
       ],
       "ngoai_le_ban_chinh_thuc": "Zalo KHÔNG đi theo bản gốc nữa (chủ repo chốt 2026-10-05): Javis chạy bản CLI riêng javis-zalo (github.com/blogminhquy/javis-zalo), cài từ tarball của tag phát hành, chỉ thư viện zca-js bên dưới đi theo bản chính thức trên npm. Ghim theo tag vì đăng nhập QR (zalo_login.py), gửi ảnh/tag/ghi chú nhóm (zalo_cli.py) và gói javis.zalo đọc thẳng định dạng của đúng bản đó. Ba chỗ ghim (ở đây, zalo_cli.py, zalo_login.py) phải luôn trùng nhau; --prefer-offline vì tag không đổi nên khỏi hỏi lại GitHub mỗi lần khởi động.",
       "requires": { "node": ">=20" },
@@ -64,7 +65,7 @@
       "auth": {
         "type": "qr",
         "fields": [],
-        "guide": "Cần Node.js 20+. Bấm Kết nối, quét QR bằng app Zalo rồi dùng trực tiếp 9 tool MCP của javis-zalo. Không còn listener/webhook/luật Zalo riêng của Javis.",
+        "guide": "Cần Node.js 20+. Bấm Kết nối, quét QR bằng app Zalo rồi dùng trực tiếp 11 tool MCP của javis-zalo. Không còn listener/webhook/luật Zalo riêng của Javis.",
         "guide_url": "https://github.com/blogminhquy/javis-os/blob/main/docs/12-zalo.md"
       },
       "tool_meta": {
@@ -73,12 +74,13 @@
           "zalo_get_history",
           "zalo_search_history",
           "zalo_get_group_joins",
+          "zalo_list_join_requests",
           "zalo_list_threads",
           "zalo_search_threads",
           "zalo_view_media"
         ],
         "write": ["zalo_mark_read"],
-        "danger": ["zalo_send_message"]
+        "danger": ["zalo_send_message", "zalo_review_join_requests"]
       },
       "default_perm": "full",
       "companion_pack": "javis.zalo",
