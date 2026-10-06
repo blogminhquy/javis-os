@@ -649,3 +649,103 @@ class GoalStore:
                 raise ScopeError("mục tiêu không tồn tại trong brain này")
             c.execute("INSERT OR IGNORE INTO outbox(goal_id,kind,payload_json,created_at,idem) VALUES(?,?,?,?,?)",
                       (goal_id, kind, _j({"revision": row["revision"], **(payload or {})}), time.time(), idem))
+
+    # ═══════════════════ M4: phản hồi của người dùng và lệnh ═══════════════════
+
+    FEEDBACK_KINDS = ("goal_fit_confirmed", "goal_fit_rejected", "outcome_accepted", "outcome_rejected")
+
+    def record_feedback(self, p: Principal, goal_id: str, expected_revision: int, kind: str, data: dict,
+                        idempotency_key: Optional[str] = None) -> dict:
+        """Ghi một phản hồi có nghĩa rõ (spec 4.7). CHỈ người dùng (owner): agent không tự xác nhận. Gắn đúng
+        revision (CAS): thẻ cũ không xác nhận được revision mới. Cùng khoá chống trùng thì không ghi lần hai.
+        Hệ quả ghi CÙNG giao dịch: "Chưa đúng ý" dừng tác động tới khi có revision mới; phản hồi khác hẹn đánh giá lại."""
+        if p.kind != "owner":
+            raise PermissionError("chỉ người dùng mới xác nhận được")
+        if kind not in self.FEEDBACK_KINDS:
+            raise R.GoalRejected(f"loại phản hồi không hỗ trợ: {kind}")
+        now = time.time()
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            if idempotency_key:
+                old = c.execute("SELECT id FROM goal_events WHERE goal_id=? AND idempotency_key=?",
+                                (goal_id, f"fb:{idempotency_key}")).fetchone()
+                if old is not None:
+                    return {"event_id": int(old["id"]), "duplicate": True}
+            if row["status"] != "active":
+                raise R.GoalRejected(f"mục tiêu đã {row['status']}")
+            if int(row["revision"]) != int(expected_revision):
+                raise ConflictError(f"mục tiêu đang ở revision {row['revision']}, không phải {expected_revision}")
+            cur = c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,idempotency_key,"
+                            "created_at) VALUES(?,?,?,?,?,?,?,?)",
+                            (goal_id, int(expected_revision), f"feedback.{kind}", "owner", _j(data or {}), p.by,
+                             f"fb:{idempotency_key}" if idempotency_key else None, now))
+            if kind == "goal_fit_rejected":
+                c.execute("UPDATE goals SET run_state='waiting', block_reason='fit_rejected', updated_at=? WHERE id=?",
+                          (now, goal_id))
+                c.execute("DELETE FROM wakeups WHERE goal_id=? AND kind='work'", (goal_id,))
+            else:
+                self._wake(c, goal_id, p.brain_id, "work", now, f"người dùng phản hồi: {kind}")
+            return {"event_id": int(cur.lastrowid), "duplicate": False}
+
+    def _latest_feedback(self, p: Principal, goal_id: str, revision: int, kinds: tuple) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return None
+            marks = ",".join("?" for _ in kinds)
+            rows = c.execute(f"SELECT * FROM goal_events WHERE goal_id=? AND revision=? AND kind IN ({marks}) "
+                             "ORDER BY id DESC", (goal_id, int(revision), *[f"feedback.{k}" for k in kinds])).fetchall()
+            return [{"kind": r["kind"][len("feedback."):], "by": r["by"], "created_at": r["created_at"],
+                     **json.loads(r["payload_json"] or "{}")} for r in rows]
+
+    def fit_status(self, p: Principal, goal_id: str, revision: int) -> str:
+        """Xác nhận cách hiểu của ĐÚNG revision này: confirmed / rejected / unknown (im lặng là unknown)."""
+        rows = self._latest_feedback(p, goal_id, revision, ("goal_fit_confirmed", "goal_fit_rejected")) or []
+        if not rows:
+            return "unknown"
+        return "confirmed" if rows[0]["kind"] == "goal_fit_confirmed" else "rejected"
+
+    def confirmation(self, p: Principal, goal_id: str, revision: int, criterion_id: str) -> Optional[dict]:
+        """Xác nhận đầu ra mới nhất của một tiêu chí ở đúng revision, hoặc None."""
+        for r in self._latest_feedback(p, goal_id, revision, ("outcome_accepted", "outcome_rejected")) or []:
+            if r.get("criterion_id") == criterion_id:
+                return {"verdict": r.get("verdict"), "artifact_ref": r.get("artifact_ref"), "comment": r.get("comment"),
+                        "by": r.get("by"), "created_at": r.get("created_at")}
+        return None
+
+    def cancel(self, p: Principal, goal_id: str, seen_revision: Optional[int] = None) -> bool:
+        """Người dùng huỷ mục tiêu. Luôn có hiệu lực (can thiệp của người dùng, spec 2.3); ghi revision người dùng
+        đang nhìn. Tác động đã xảy ra không được mô tả là đã hoàn tác."""
+        if p.kind != "owner":
+            raise PermissionError("chỉ người dùng mới huỷ được mục tiêu")
+        now = time.time()
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            if row["status"] != "active":
+                return False
+            c.execute("UPDATE goals SET status='cancelled', run_state='dormant', block_reason='', updated_at=? "
+                      "WHERE id=?", (now, goal_id))
+            c.execute("DELETE FROM wakeups WHERE goal_id=?", (goal_id,))
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                      "VALUES(?,?,?,?,?,?,?)", (goal_id, row["revision"], "cancelled", "owner",
+                                                _j({"seen_revision": seen_revision}), p.by, now))
+            return True
+
+    def clear_block(self, p: Principal, goal_id: str, reason: str) -> bool:
+        """Người dùng mở lại một chặn cụ thể (ví dụ guard sau khi đã sửa). Chỉ owner; chỉ khi đúng lý do đang chặn."""
+        if p.kind != "owner":
+            raise PermissionError("chỉ người dùng mới mở lại được")
+        now = time.time()
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None or row["block_reason"] != reason:
+                return False
+            c.execute("UPDATE goals SET run_state='ready', block_reason='', updated_at=? WHERE id=?", (now, goal_id))
+            self._wake(c, goal_id, p.brain_id, "work", now, "người dùng mở lại")
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                      "VALUES(?,?,?,?,?,?,?)", (goal_id, row["revision"], "unblocked", "owner",
+                                                _j({"reason": reason}), p.by, now))
+            return True

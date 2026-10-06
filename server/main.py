@@ -115,6 +115,7 @@ import adaptive_context_runtime # Phase 8: state + sourced memory + lazy skill c
 import agent_runtime           # Phase 11: agent = workflow có quyền replan trong quyền đã cấp
 import resonance               # Javis Resonance MVP: một lượt engine chỉ chữ + receipt do host quan sát
 import resonance_store         # Javis Resonance MVP: kho mục tiêu SQLite có revision (M2)
+import resonance_api           # Javis Resonance MVP: API thẻ mục tiêu và phản hồi (M4)
 import limit_learner          # học hạn mức từ chính lỗi nhà cung cấp trả về
 import limit_resume           # tự chạy lại lượt chat khi gói thuê bao mở lại hạn mức
 import quota_scheduler        # sổ cái TPM dùng chung (Việc 6)
@@ -2036,10 +2037,30 @@ def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
                                        f"{WEB_CHAT_PREFIX}{conv_sid}", t0)
         _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "resonance.route", {
             "route": d.kind, "reason": d.reason, "goal_id": d.goal_id or "", "message_ref": mref})
+        if d.kind in ("create_goal", "continue_goal") and d.goal_id:
+            try:
+                asyncio.get_running_loop().create_task(_resonance_push_card(conv_sid, root, d))
+            except RuntimeError:
+                pass       # gọi ngoài event loop (test): không có gì để đẩy
         return d
     except Exception as e:  # noqa: BLE001
         print(f"[resonance route] {type(e).__name__}: {e}", file=sys.stderr)
         return None
+
+
+async def _resonance_push_card(conv_sid, brain_root, decision) -> bool:
+    """Đặt thẻ "Em đang hướng tới" vào khung chat sau lượt vừa lập (hoặc cập nhật) mục tiêu. Khoá báo cáo theo
+    tin nhắn: chạy lại cùng lượt không đặt thẻ thứ hai."""
+    g = _resonance_store().get(resonance_store.Principal("agent", "javis", _brain_key(brain_root)), decision.goal_id)
+    if g is None:
+        return False
+    key = f"turn:{decision.message_ref}"
+    if _resonance_reported(g, key):
+        return False
+    text = (localefmt.chu("Javis đã lập mục tiêu từ việc này.", "Javis set a goal from this request.")
+            if decision.kind == "create_goal" else
+            localefmt.chu("Javis đã cập nhật cách hiểu mục tiêu.", "Javis updated its understanding of the goal."))
+    return await push_to_chat(conv_sid, text, card=resonance.goal_block(g.id, g.revision, report=key))
 
 
 class _ResonanceEvidence:
@@ -2072,16 +2093,33 @@ class _ResonanceEvidence:
 
 
 _RESONANCE_EVIDENCE = _ResonanceEvidence()
+resonance_api.register(app, resonance_api.ResonanceApiDeps(
+    store=lambda: _resonance_store(), brain_key=lambda b: _brain_key(b),
+    engine_factory=lambda s, t="resonance": _resonance_engine(s, t), session_store=lambda: get_store()))
 _RESONANCE_TICK_BUSY = [False]
 
 
-async def _resonance_notify(goal, kind, text) -> bool:
-    """Báo kết quả của mục tiêu về ĐÚNG khung chat web đã giao nó, kèm một mục trong hộp thư."""
+async def _resonance_notify(goal, kind, text, card="") -> bool:
+    """Báo kết quả của mục tiêu về ĐÚNG khung chat web đã giao nó, kèm một mục trong hộp thư và thẻ mục tiêu."""
     if not goal.session_id:
         return False
     ok, _err = await _notify_owner(f"{WEB_CHAT_PREFIX}{goal.session_id}", text, kind="answer",
-                                   label=localefmt.chu("Mục tiêu", "Goal"), source="resonance")
+                                   label=localefmt.chu("Mục tiêu", "Goal"), source="resonance", card=card)
     return bool(ok)
+
+
+def _resonance_reported(goal, report_key) -> bool:
+    """Đối soát báo lặp (M4): tin mang đúng khoá báo cáo này đã nằm trong kho phiên chưa. Tiến trình chết giữa lúc
+    lưu tin và lúc đánh dấu outbox thì nhịp sau thấy tin đã có, chỉ đánh dấu, không gửi lần hai."""
+    try:
+        for m in reversed(get_store().get_messages(goal.session_id)[-300:]):
+            if m.get("role") != "assistant":
+                continue
+            if any(b.get("report") == report_key for b in resonance.parse_goal_blocks(m.get("content") or "")):
+                return True
+    except Exception as e:  # noqa: BLE001
+        print(f"[resonance reported] {type(e).__name__}: {e}", file=sys.stderr)
+    return False
 
 
 def _resonance_deps(brain_id):
@@ -2103,7 +2141,7 @@ async def _resonance_tick():
     try:
         store = _resonance_store()
         await resonance.tick(store, time.time(), _resonance_deps)
-        await resonance.drain_outbox(store, _resonance_notify)
+        await resonance.drain_outbox(store, _resonance_notify, already=_resonance_reported)
     except Exception as e:  # noqa: BLE001
         print(f"[resonance tick] {type(e).__name__}: {e}", file=sys.stderr)
     finally:
@@ -9681,7 +9719,7 @@ def khoi_viec(viec) -> str:
     return "<!-- JAVIS_VIEC: " + json.dumps(gon, ensure_ascii=False).replace("-->", "- ->") + " -->"
 
 
-async def push_to_chat(session_id, text, viec=None) -> bool:
+async def push_to_chat(session_id, text, viec=None, card="") -> bool:
     """Đẩy MỘT tin của Javis vào đúng phiên chat web, ngoài luồng hỏi-đáp thường.
 
     Vì sao cần: việc Kanban / loop / nhắc hẹn chạy nền xong thì lượt chat đã kết thúc từ lâu,
@@ -9699,6 +9737,10 @@ async def push_to_chat(session_id, text, viec=None) -> bool:
     _k = khoi_viec(viec)
     if _k:
         clean = _k + "\n" + clean
+    # `card` (Resonance M4): khối JAVIS_RESONANCE để khung chat vẽ thẻ "Em đang hướng tới". Gắn SAU khi bóc như
+    # thẻ việc, và chỉ nhận đúng khuôn khối đó (không cho chuỗi tuỳ ý lọt vào kho phiên).
+    if card and resonance.GOAL_BLOCK_RE.fullmatch(str(card).strip()):
+        clean = clean + "\n" + str(card).strip()
     try:
         get_store().append_message(sid, "assistant", clean)
     except Exception as e:
@@ -9890,7 +9932,7 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
 
 
 async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
-                        quiet=False, ngan="", viec=None, web="") -> tuple:
+                        quiet=False, ngan="", viec=None, web="", card="") -> tuple:
     """Báo cáo cho NGƯỜI YÊU CẦU loop/task (mặc định của Javis). Quy tắc:
       - owner_chat dạng "web:<sid>" → đẩy thẳng vào ĐÚNG khung chat web đã giao việc.
       - owner_chat dạng "zalo:<id>" → gửi qua bot Zalo cho ĐÚNG người đó.
@@ -9923,7 +9965,7 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
     Telegram không còn bị ghi là "failed" trong khi nội dung đang nằm sẵn trong hòm."""
     vao_hom = await _bo_vao_hom_thu(owner_chat, text, kind=kind, label=label, source=source,
                                     quiet=quiet)
-    ok, err = await _gui_qua_kenh(owner_chat, text, ngan=ngan, viec=viec, web=web)
+    ok, err = await _gui_qua_kenh(owner_chat, text, ngan=ngan, viec=viec, web=web, card=card)
     if ok or not vao_hom:
         return ok, ("" if ok else err)
     # Kênh hỏng nhưng hòm thư đã giữ tin: với NGƯỜI DÙNG đây là thành công, nên đừng trả lỗi
@@ -9951,7 +9993,7 @@ def _cat_cho_tg(text: str) -> str:
     return t[:_TRAN_TIN_TG].rstrip() + "\n\n… (còn nữa - xem đầy đủ trong hòm thư của Javis)"
 
 
-async def _gui_qua_kenh(owner_chat, text, *, ngan="", viec=None, web="") -> tuple:
+async def _gui_qua_kenh(owner_chat, text, *, ngan="", viec=None, web="", card="") -> tuple:
     """Gửi qua ĐÚNG kênh đã giao việc. Tách khỏi `_notify_owner` để chỗ đó chỉ còn lo việc
     ghép hai đường (hòm thư + kênh), không lẫn với chi tiết của từng nhà.
 
@@ -9964,7 +10006,7 @@ async def _gui_qua_kenh(owner_chat, text, *, ngan="", viec=None, web="") -> tupl
         sid = cid[len(WEB_CHAT_PREFIX):]
         # `web` (0.64.48): bản riêng cho khung chat khi có thẻ việc. Thẻ đã có dòng đầu (trạng
         # thái, tên việc) và nút mở trang Việc, nên bỏ câu đầu và câu "xem ở trang Việc".
-        if await push_to_chat(sid, (web or text) if viec else text, viec=viec):
+        if await push_to_chat(sid, (web or text) if viec else text, viec=viec, card=card):
             return True, ""
         return False, "Không tìm thấy phiên chat web để báo"
     text = str(ngan or text or "")

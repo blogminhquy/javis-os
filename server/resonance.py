@@ -978,6 +978,34 @@ def _put_evidence(goal: GoalRecord, label: str, text: str, kind: str, deps: Goal
     return eid
 
 
+def current_artifact_ref(goal: GoalRecord, deps: GoalDeps) -> str:
+    """Định danh bản sản phẩm người dùng đang xem của revision hiện tại: sha256 đầu ra thành công mới nhất. Xác
+    nhận "Đạt yêu cầu" gắn với đúng chuỗi này; sản phẩm đổi thì xác nhận cũ không còn áp dụng (spec 4.7)."""
+    if deps.store is None or deps.principal is None:
+        return ""
+    for x in reversed(deps.store.actions(deps.principal, goal.id)):
+        if x["kind"] == "work" and x["status"] == "succeeded" and x["revision"] == goal.revision:
+            return str((x.get("receipt") or {}).get("output_sha256") or "")
+    return ""
+
+
+def _human_verdict(goal: GoalRecord, criterion: dict, deps: GoalDeps) -> dict:
+    """Tiêu chí human_confirmation: met/not_met CHỈ khi người dùng (owner) đã xác nhận đúng tiêu chí này, đúng
+    revision, đúng bản sản phẩm đang có. Im lặng, xác nhận cho bản cũ hay revision cũ đều là unknown."""
+    if deps.store is None or deps.principal is None:
+        return {"verdict": "unknown", "reason": "chờ người dùng xác nhận"}
+    conf = deps.store.confirmation(deps.principal, goal.id, goal.revision, criterion.get("id"))
+    if not conf:
+        return {"verdict": "unknown", "reason": "chờ người dùng xác nhận"}
+    if conf.get("artifact_ref") != current_artifact_ref(goal, deps):
+        return {"verdict": "unknown", "reason": "xác nhận trước đó là cho bản sản phẩm cũ; chờ xác nhận bản mới"}
+    if conf.get("verdict") == "met":
+        return {"verdict": "met", "reason": "người dùng xác nhận đạt", "confirmed_by": conf.get("by")}
+    note = str(conf.get("comment") or "").strip()
+    return {"verdict": "not_met", "reason": "người dùng nói cần chỉnh" + (f": {note}" if note else ""),
+            "confirmed_by": conf.get("by")}
+
+
 def evaluate_artifact(goal: GoalRecord, evidence_refs: tuple, deps: GoalDeps) -> Assessment:
     """Đánh giá các tiêu chí của ĐÚNG revision `goal` bằng bằng chứng host đọc được.
 
@@ -1000,7 +1028,7 @@ def evaluate_artifact(goal: GoalRecord, evidence_refs: tuple, deps: GoalDeps) ->
         ev, params = c.get("evaluator"), dict(c.get("params") or {})
         base = {"id": c.get("id"), "evaluator": ev, "description": c.get("description", "")}
         if ev == "human_confirmation":
-            results.append({**base, "verdict": "unknown", "reason": "chờ người dùng xác nhận"})
+            results.append({**base, **_human_verdict(goal, c, deps)})
             continue
         if ev != "artifact_contract":
             results.append({**base, "verdict": "unknown", "reason": "evaluator chưa hỗ trợ"})
@@ -1117,12 +1145,14 @@ def _deliverable_rel(goal: GoalRecord) -> str:
 
 
 def _human_only(a: Assessment, has_output: bool) -> bool:
-    """Chỉ còn chờ người dùng xác nhận: có tiêu chí human, mọi tiêu chí khác đã met, VÀ đã có sản phẩm cho người
-    dùng xem. Mục tiêu chỉ có tiêu chí human mà chưa làm gì thì chưa có gì để duyệt (review M3, P2-1)."""
+    """Chỉ còn chờ người dùng xác nhận: có tiêu chí human, mọi tiêu chí khác đã met, VÀ đã có sản phẩm CỦA ĐÚNG
+    revision hiện tại cho người dùng xem. Mục tiêu chỉ có tiêu chí human mà chưa làm gì thì chưa có gì để duyệt
+    (review M3, P2-1); revision mới mà file khai vẫn đạt nhờ bản của revision cũ thì cũng chưa có bản để xác nhận
+    (M4: nếu không, người dùng bị kẹt vì nút Đạt yêu cầu không có bản nào để gắn)."""
     rs = list(a.criterion_results)
     human = [r for r in rs if r.get("evaluator") == "human_confirmation"]
     others = [r for r in rs if r.get("evaluator") != "human_confirmation"]
-    return bool(human) and all(r["verdict"] == "met" for r in others) and (bool(others) or has_output)
+    return bool(human) and all(r["verdict"] == "met" for r in others) and has_output
 
 
 def _latest_output(goal: GoalRecord, deps: GoalDeps) -> tuple:
@@ -1336,6 +1366,12 @@ def _gate(goal_id: str, deps: GoalDeps, now: float) -> tuple:
     if cur.paused:
         store.set_run_state(p, cur.id, "paused", "")
         return cur, (), "người dùng tạm dừng mục tiêu"
+    if store.fit_status(p, cur.id, cur.revision) == "rejected":
+        # Người dùng bấm "Chưa đúng ý" cho cách hiểu này: xem lại trước tác động tiếp theo (spec 4.7). Không phải
+        # lệnh dừng toàn bộ: revision mới (người dùng nói rõ hơn, bộ não cập nhật) mở lại bình thường.
+        store.set_run_state(p, cur.id, "waiting", "fit_rejected")
+        store.clear_wake(p, cur.id, "work")
+        return cur, (), "người dùng nói cách hiểu chưa đúng; chờ nói rõ hơn"
     guards = observe_guards(cur, deps)
     hit = [x["description"] for x in guards if x["verdict"] == "triggered"]
     if hit:
@@ -1669,9 +1705,13 @@ def notice_text(goal: GoalRecord, kind: str, payload: dict) -> str:
     return _t(f"Cập nhật mục tiêu: {u}.", f"Goal update: {u}.")
 
 
-async def drain_outbox(store, notify: Callable, limit: int = 50) -> int:
-    """Gửi các tin outbox có ý nghĩa cho người dùng rồi đánh dấu đã gửi. Gửi lỗi thì để lại cho nhịp sau (ít nhất
-    một lần). Tin nội bộ (goal.created, goal.revised) chỉ đánh dấu, không gửi."""
+async def drain_outbox(store, notify: Callable, limit: int = 50, already: Optional[Callable] = None) -> int:
+    """Gửi các tin outbox có ý nghĩa cho người dùng rồi đánh dấu đã gửi. Tin nội bộ (goal.created, goal.revised) chỉ
+    đánh dấu, không gửi. Mỗi tin mang thẻ mục tiêu kèm khoá báo cáo `outbox:<id>`; `already(goal, khoá)` cho biết tin
+    đó đã nằm trong kho tin nhắn chưa (tiến trình chết giữa lúc lưu tin và lúc đánh dấu): có rồi thì chỉ đánh dấu,
+    không gửi lần hai (M4). Gửi lỗi thì để lại cho nhịp sau.
+
+    notify: async (goal, kind, text, card=khối thẻ) -> bool."""
     sent = 0
     for row in store.outbox_pending(limit):
         if row["kind"] not in NOTIFY_KINDS:
@@ -1681,11 +1721,170 @@ async def drain_outbox(store, notify: Callable, limit: int = 50) -> int:
         if g is None:
             store.outbox_mark_delivered(row["id"])
             continue
+        key = f"outbox:{row['id']}"
+        if already is not None and already(g, key):
+            store.outbox_mark_delivered(row["id"])
+            continue
         try:
-            ok = await notify(g, row["kind"], notice_text(g, row["kind"], row["payload"]))
+            ok = await notify(g, row["kind"], notice_text(g, row["kind"], row["payload"]),
+                              card=goal_block(g.id, g.revision, report=key))
         except Exception:  # noqa: BLE001
             ok = False
         if ok:
             store.outbox_mark_delivered(row["id"])
             sent += 1
     return sent
+
+
+# ═════════════════════════════════ M4: thẻ mục tiêu và phản hồi có nghĩa rõ ═════════════════════════════════
+#
+# Hai câu hỏi tách riêng (spec 4.5, 4.7): "cách hiểu có đúng ý không" (goal_fit_*) và "sản phẩm có đạt tiêu chí
+# không" (outcome_*). Xác nhận cách hiểu không chứng minh sản phẩm đạt; "Đạt yêu cầu" chỉ đóng ĐÚNG tiêu chí
+# human_confirmation được chỉ định, cho ĐÚNG bản sản phẩm đang có, và không vượt kiểm tra khách quan hay guard.
+# Im lặng là unknown. Mọi phản hồi gắn revision: thẻ cũ không xác nhận được revision mới.
+
+GOAL_BLOCK_RE = re.compile(r"<!--\s*JAVIS_RESONANCE:\s*(\{.*?\})\s*-->", re.S)
+
+
+def goal_block(goal_id: str, revision: int, report: str = "") -> str:
+    """Khối ẩn gắn vào tin nhắn trong khung chat để dashboard vẽ thẻ "Em đang hướng tới" (tên khối khác JAVIS_GOAL của lệnh /goal). Chỉ mang id, revision
+    lúc gửi và khoá báo cáo (chống báo lặp); trạng thái sống luôn đọc lại qua GET /goals/{id}."""
+    import json as _json
+    data = {"goal_id": str(goal_id), "revision": int(revision)}
+    if report:
+        data["report"] = str(report)
+    return f"<!-- JAVIS_RESONANCE: {_json.dumps(data, ensure_ascii=False)} -->"
+
+
+def parse_goal_blocks(text: str) -> list:
+    import json as _json
+    out = []
+    for m in GOAL_BLOCK_RE.finditer(str(text or "")):
+        try:
+            d = _json.loads(m.group(1))
+        except Exception:  # noqa: BLE001
+            continue
+        if isinstance(d, dict) and d.get("goal_id"):
+            out.append(d)
+    return out
+
+
+def _artifact_ref_of(store, principal, goal: GoalRecord) -> str:
+    for x in reversed(store.actions(principal, goal.id)):
+        if x["kind"] == "work" and x["status"] == "succeeded" and x["revision"] == goal.revision:
+            return str((x.get("receipt") or {}).get("output_sha256") or "")
+    return ""
+
+
+def apply_feedback(store, owner, goal_id: str, kind: str, payload: dict) -> dict:
+    """Ghi phản hồi từ thẻ. Kiểm payload theo từng loại TRƯỚC khi ghi:
+    - goal_fit_confirmed / goal_fit_rejected: cần expected_revision;
+    - outcome_accepted / outcome_rejected: cần expected_revision, criterion_id của một tiêu chí human_confirmation
+      (tiêu chí do host kiểm tự động không nhận xác nhận tay), và artifact_ref đúng bản sản phẩm hiện có.
+    Sai revision hay bản sản phẩm đã đổi thì ConflictError để thẻ tải lại, không ghi gì."""
+    from resonance_store import ConflictError, ScopeError
+    payload = dict(payload or {})
+    g = store.get(owner, goal_id)
+    if g is None:
+        raise ScopeError("mục tiêu không tồn tại trong brain này")
+    try:
+        exp = int(payload.get("expected_revision"))
+    except (TypeError, ValueError):
+        raise GoalRejected("cần expected_revision (revision đang hiện trên thẻ)")
+    comment = str(payload.get("comment") or "").strip()[:500]
+    data = {"comment": comment} if comment else {}
+    if kind in ("outcome_accepted", "outcome_rejected"):
+        cid = str(payload.get("criterion_id") or "")
+        crit = next((c for c in g.criteria if c.get("id") == cid), None)
+        if crit is None:
+            raise GoalRejected("không có tiêu chí này trong revision hiện tại")
+        if crit.get("evaluator") != "human_confirmation":
+            raise GoalRejected("tiêu chí này do host kiểm bằng bằng chứng, không nhận xác nhận tay")
+        if exp != g.revision:
+            raise ConflictError(f"mục tiêu đang ở revision {g.revision}, không phải {exp}")
+        ref = _artifact_ref_of(store, owner, g)
+        if not ref:
+            raise GoalRejected("chưa có sản phẩm của cách hiểu này để xác nhận")
+        if str(payload.get("artifact_ref") or "") != ref:
+            raise ConflictError("sản phẩm đã đổi so với bản đang hiện; xem bản mới rồi xác nhận lại")
+        data.update({"criterion_id": cid, "artifact_ref": ref,
+                     "verdict": "met" if kind == "outcome_accepted" else "not_met"})
+    elif kind not in ("goal_fit_confirmed", "goal_fit_rejected"):
+        raise GoalRejected(f"loại phản hồi không hỗ trợ: {kind}")
+    idem = str(payload.get("idempotency_key") or "").strip()[:120] or None
+    return store.record_feedback(owner, goal_id, exp, kind, data, idem)
+
+
+def apply_command(store, owner, goal_id: str, command: str, payload: dict, brain_root: str) -> dict:
+    """Lệnh của người dùng: pause / resume / cancel. Can thiệp của người dùng luôn có hiệu lực (spec 2.3) nên KHÔNG
+    đòi khớp revision; revision người dùng đang nhìn vẫn được ghi lại. Resume mở lại guard đã nhảy chỉ khi guard
+    hiện đã clear (người dùng đã sửa), không bỏ qua guard; không mở được "Chưa đúng ý" (cần nói rõ hơn)."""
+    from resonance_store import ScopeError
+    payload = dict(payload or {})
+    g = store.get(owner, goal_id)
+    if g is None:
+        raise ScopeError("mục tiêu không tồn tại trong brain này")
+    seen = payload.get("expected_revision")
+    if command == "pause":
+        store.set_paused(owner, goal_id, True)
+        return {"ok": True, "status": "paused"}
+    if command == "cancel":
+        return {"ok": store.cancel(owner, goal_id, seen), "status": "cancelled"}
+    if command != "resume":
+        raise GoalRejected(f"lệnh không hỗ trợ: {command}")
+    if g.paused:
+        store.set_paused(owner, goal_id, False)
+    reason = (store.run_state(owner, goal_id) or {}).get("block_reason")
+    if reason == "guard":
+        probe = GoalDeps(engine_factory=lambda s, t: (None, {}), budget=CallBudget(0), store=store, principal=owner,
+                         brain_root=brain_root)
+        still = [x["description"] for x in observe_guards(g, probe) if x["verdict"] != "clear"]
+        if still:
+            return {"ok": False, "status": "blocked",
+                    "reason": "điều kiện bảo vệ vẫn chưa đúng: " + "; ".join(still)}
+        store.clear_block(owner, goal_id, "guard")
+    elif reason == "fit_rejected":
+        return {"ok": False, "status": "waiting",
+                "reason": "cách hiểu đang bị đánh dấu chưa đúng; nói rõ hơn trong khung chat để Javis sửa cách hiểu"}
+    elif reason in ("budget",):
+        return {"ok": False, "status": "blocked", "reason": "đã hết hạn mức lượt gọi của mục tiêu"}
+    return {"ok": True, "status": "resumed"}
+
+
+def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]:
+    """Dữ liệu cho thẻ "Em đang hướng tới" (spec 13): cách hiểu, tình trạng, giả định, bằng chứng mới nhất, việc
+    đang làm, điều đang chờ, lần thức tiếp theo. Không có phần trăm tiến độ giả."""
+    g = store.get(principal, goal_id)
+    if g is None:
+        return None
+    st = store.run_state(principal, goal_id) or {}
+    assessments = store.assessments(principal, goal_id)
+    last = next((a for a in reversed(assessments) if a.get("revision") == g.revision and a.get("criterion_results")),
+                None)
+    results = {r.get("id"): r for r in ((last or {}).get("criterion_results") or [])}
+    actions = store.actions(principal, goal_id)
+    latest_out = next((x for x in reversed(actions) if x["kind"] == "work" and x["status"] == "succeeded"
+                       and x["revision"] == g.revision), None)
+    out_path = (latest_out or {}).get("receipt", {}).get("output_ref")
+    criteria = []
+    for c in g.criteria:
+        r = results.get(c.get("id")) or {}
+        criteria.append({"id": c.get("id"), "description": c.get("description"), "evaluator": c.get("evaluator"),
+                         "verdict": r.get("verdict") or "unknown", "reason": r.get("reason") or ""})
+    wakes = store.wakes(principal, goal_id)
+    nxt = next((w for w in wakes if w["kind"] == "work"), None)
+    return {
+        "goal_id": g.id, "revision": g.revision, "status": g.status, "run_state": st.get("run_state"),
+        "block_reason": st.get("block_reason"), "paused": g.paused, "stage": g.stage, "mode": g.mode,
+        "understanding": g.understanding, "assumptions": list(g.assumptions), "constraints": list(g.constraints),
+        "targets": [t.get("text") for t in g.targets], "open_questions": list(g.open_questions),
+        "horizon": dict(g.horizon or {}), "guards": [{"id": x.get("id"), "description": x.get("description")}
+                                                   for x in g.guards],
+        "criteria": criteria, "fit": store.fit_status(principal, goal_id, g.revision),
+        "artifact_ref": _artifact_ref_of(store, principal, g),
+        "deliverable": _deliverable_rel(g) or _rel_to_brain(Path(out_path) if out_path else None, brain_root),
+        "calls_used": g.calls_used, "budget_calls": g.budget_calls,
+        "next_wake": {"at": nxt["due_at"], "reason": nxt["reason"]} if nxt else None,
+        "timeline": [{"kind": x["kind"], "status": x["status"], "revision": x["revision"], "at": x["created_at"],
+                      "error_code": (x.get("receipt") or {}).get("error_code") or ""} for x in actions[-8:]],
+    }

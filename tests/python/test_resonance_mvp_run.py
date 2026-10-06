@@ -100,8 +100,9 @@ class Notes:
     def __init__(self):
         self.sent = []
 
-    async def __call__(self, goal, kind, text):
+    async def __call__(self, goal, kind, text, card=""):
         self.sent.append((goal.id, kind, text))
+        self.cards = getattr(self, "cards", []) + [card]
         return True
 
 
