@@ -10006,7 +10006,11 @@ async def _gui_qua_kenh(owner_chat, text, *, ngan="", viec=None, web="", card=""
         sid = cid[len(WEB_CHAT_PREFIX):]
         # `web` (0.64.48): bản riêng cho khung chat khi có thẻ việc. Thẻ đã có dòng đầu (trạng
         # thái, tên việc) và nút mở trang Việc, nên bỏ câu đầu và câu "xem ở trang Việc".
-        if await push_to_chat(sid, (web or text) if viec else text, viec=viec, card=card):
+        if card:
+            # Thẻ mục tiêu (Resonance M4) đi đường riêng; dòng dưới giữ nguyên cho thẻ việc nền.
+            if await push_to_chat(sid, text, card=card):
+                return True, ""
+        elif await push_to_chat(sid, (web or text) if viec else text, viec=viec):
             return True, ""
         return False, "Không tìm thấy phiên chat web để báo"
     text = str(ngan or text or "")
