@@ -488,14 +488,13 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
     Người dùng đã nói chưa biết thì không hỏi lại: bỏ câu hỏi, ghi giả định, bắt đầu bằng khám phá.
     Ràng buộc người dùng đã nêu luôn có mặt trong khung.
 
-    `prior` (khi cập nhật): revision đang có. Trường bản cập nhật bỏ trống thì kế thừa; ràng buộc cũ luôn
-    được giữ và hợp với ràng buộc mới. Hạn chót và chỉ tiêu người dùng đã nêu là CHỈ DẪN ĐANG CÓ HIỆU LỰC:
-    chỉ đổi hay bỏ được khi tin hiện tại có căn cứ (bất biến 2.1, chỉ người dùng thay được chỉ dẫn của họ):
-    - hạn: hạn mới trích được từ tin hiện tại, hoặc chân trời mới có `quote` trích từ tin hiện tại (người dùng
-      bỏ hạn);
-    - chỉ tiêu: một mục trong `remove_targets` cùng chữ, có `quote` trích từ tin hiện tại.
-    Thiếu căn cứ thì host GIỮ chỉ dẫn cũ, không âm thầm làm mất, và ghi lý do vào `notes` (danh sách truyền vào,
-    nếu có) để bộ não biết. Nhãn amend/replace chỉ ghi lại thay đổi đã được phép, không thay cho căn cứ.
+    `prior` (khi cập nhật): revision đang có. Trường bản cập nhật bỏ trống thì kế thừa. Hạn chót, chỉ tiêu và
+    ràng buộc người dùng đã nêu là CHỈ DẪN ĐANG CÓ HIỆU LỰC (bất biến 2.1: chỉ người dùng thay được chỉ dẫn của
+    họ). Host không phân biệt được bằng phép tìm chuỗi một câu trích "có mặt trong tin" với một câu "yêu cầu
+    đổi", nên M2 KHÔNG đổi hay bỏ chúng qua bản cập nhật: luôn giữ nguyên cả giá trị lẫn nguồn, và ghi phần
+    chưa áp dụng vào `notes` (danh sách truyền vào, nếu có) để bộ não nói thật với người dùng. Thêm chỉ dẫn
+    MỚI (hạn khi chưa có hạn người dùng, chỉ tiêu mới, ràng buộc mới) vẫn được, cùng luật trích như lúc tạo.
+    Đường sửa chỉ dẫn có thẩm quyền do host xác định để sang M4.
     `source_ref`: tin nhắn (message_ref) làm căn cứ cho hạn và chỉ tiêu mới.
     """
     if not isinstance(proposal, dict):
@@ -527,12 +526,10 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
         raise GoalRejected("thiếu chân trời (T): deadline, review, event hoặc maintain")
     at = _at(h) if kind in ("deadline", "review") else 0.0
     horizon = None
-    user_deadline_now = False
     if kind == "deadline":
         if bool(h.get("from_user")) and _quoted(h.get("quote"), user_text):
             horizon = {"kind": "deadline", "from_user": True, "quote": str(h.get("quote") or "")[:200],
                        "reason": str(h.get("reason") or "")[:200], "at": at, "source": source_ref}
-            user_deadline_now = True
         elif (ph.get("kind") == "deadline" and ph.get("from_user") and at and abs(at - _at(ph)) < 1
               and (not h.get("quote") or _norm(h.get("quote")) == _norm(ph.get("quote")))):
             horizon = dict(ph)      # hạn người dùng nêu ở tin trước: giữ nguyên cả nguồn
@@ -548,45 +545,38 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
         horizon["event"] = str(h.get("event") or "").strip()[:200]
         if not horizon["event"]:
             raise GoalRejected("chân trời event cần mô tả sự kiện")
-    if ph.get("kind") == "deadline" and ph.get("from_user") and horizon != ph and not user_deadline_now:
-        if kind != "deadline" and _quoted(h.get("quote"), user_text):
-            # Người dùng bỏ hạn ở tin này: ghi đúng câu và tin làm căn cứ.
-            horizon.update(quote=str(h.get("quote"))[:200], source=source_ref)
-        else:
-            horizon = dict(ph)
-            if notes is not None:
-                notes.append("Giữ hạn chót người dùng đã nêu (\"" + str(ph.get("quote") or "") + "\"): tin này "
-                             "không có câu nào yêu cầu đổi hay bỏ hạn.")
+    if ph.get("kind") == "deadline" and ph.get("from_user") and horizon != ph:
+        same = horizon.get("kind") == "deadline" and abs(_at(horizon) - _at(ph)) < 1
+        horizon = dict(ph)      # hạn người dùng đã nêu: giữ nguyên cả giá trị lẫn nguồn
+        if not same and notes is not None:
+            notes.append("Đổi hay bỏ hạn chót người dùng đã nêu (\"" + str(ph.get("quote") or "") + "\") chưa hỗ "
+                         "trợ qua chat ở bản này; hạn cũ vẫn giữ.")
     assumptions = _clean_list(proposal.get("assumptions"))
-    old_targets = {(_norm(t.get("text")), _norm(t.get("quote"))): t
-                   for t in (base.get("targets") or []) if isinstance(t, dict)}
+    old_targets = {_norm(t.get("text")): t for t in (base.get("targets") or []) if isinstance(t, dict)}
     targets = []
     for t in (proposal.get("targets") or []):
         if not isinstance(t, dict):
             continue
         text = str(t.get("text") or "").strip()[:200]
-        if not text:
+        if not text or any(_norm(x.get("text")) == _norm(text) for x in targets):
             continue
-        kept = old_targets.get((_norm(text), _norm(t.get("quote"))))
-        if _quoted(t.get("quote"), user_text):
+        if _norm(text) in old_targets:
+            targets.append(dict(old_targets[_norm(text)]))  # chỉ tiêu người dùng đã nêu: giữ nguyên cả nguồn
+        elif _quoted(t.get("quote"), user_text):
             targets.append({"text": text, "quote": str(t.get("quote"))[:200], "source": source_ref})
-        elif kept is not None:
-            targets.append(dict(kept))      # chỉ tiêu người dùng nêu ở tin trước: giữ nguyên cả nguồn
         else:
             note = f"Chỉ tiêu chưa có căn cứ từ lời người dùng, không dùng làm thước đo: {text}"
             if note not in assumptions:
                 assumptions.append(note)
-    removals = {_norm(r.get("text")) for r in (proposal.get("remove_targets") or [])
-                if isinstance(r, dict) and _quoted(r.get("quote"), user_text)}
-    for t in (base.get("targets") or []):
-        if not isinstance(t, dict) or _norm(t.get("text")) in {_norm(x.get("text")) for x in targets}:
-            continue                # còn nguyên, hoặc người dùng nhắc lại ở tin này (nguồn mới)
-        if _norm(t.get("text")) in removals:
-            continue                # người dùng bỏ chỉ tiêu này ở tin hiện tại, có câu trích
+    for k, t in old_targets.items():
+        if any(_norm(x.get("text")) == k for x in targets):
+            continue
         targets.append(dict(t))
         if notes is not None:
-            notes.append(f"Giữ chỉ tiêu người dùng đã nêu \"{t.get('text')}\": tin này không có câu nào yêu cầu "
-                         "bỏ. Muốn bỏ thì đưa vào remove_targets kèm câu trích từ tin hiện tại.")
+            notes.append(f"Bỏ chỉ tiêu người dùng đã nêu \"{t.get('text')}\" chưa hỗ trợ qua chat ở bản này; "
+                         "chỉ tiêu vẫn giữ.")
+    if proposal.get("remove_targets") and notes is not None:
+        notes.append("remove_targets chưa hỗ trợ ở bản này; không chỉ tiêu nào bị bỏ.")
     understanding = str(proposal.get("understanding") or "").strip()[:500]
     stage = proposal.get("stage") if proposal.get("stage") in ("discovery", "delivery") else "discovery"
     if not understanding:
@@ -624,9 +614,9 @@ def revision_relation(prior, frame: dict) -> str:
 def revise_goal(store, p, goal_id: str, expected_revision: int, proposal: dict, context: dict):
     """Cập nhật một mục tiêu từ tin nhắn bổ sung. Trả (GoalRecord, relation, notes).
 
-    Đọc revision hiện tại TRƯỚC khi kiểm, để chỉ dẫn người dùng nêu ở tin trước được giữ trừ khi tin này có
-    căn cứ đổi (validate_proposal với `prior`). `notes`: những chỉ dẫn host đã giữ lại thay vì để bản cập nhật
-    làm mất. Bản ghi ý định mới nối về ý định của revision trước và được ghi CÙNG transaction với revision, nên
+    Đọc revision hiện tại TRƯỚC khi kiểm, để chỉ dẫn người dùng nêu ở tin trước được giữ (validate_proposal
+    với `prior`). `notes`: phần bản cập nhật muốn đổi nhưng CHƯA được áp dụng. Không còn gì đổi thì trả
+    relation "none" và revision cũ, không ghi gì. Bản ghi ý định mới nối về ý định của revision trước và được ghi CÙNG transaction với revision, nên
     cập nhật bị từ chối không để lại ý định mồ côi. Revision đã đổi thì ConflictError; mục tiêu không thuộc
     brain thì ScopeError.
     """
@@ -642,6 +632,9 @@ def revise_goal(store, p, goal_id: str, expected_revision: int, proposal: dict, 
     notes: list = []
     frame = validate_proposal(proposal, user_text, user_unsure=bool(context.get("user_unsure")),
                               user_constraints=constraints, prior=prior, source_ref=mref, notes=notes)
+    before = {**_prior_view(prior), "criteria": [dict(c) for c in prior.criteria]}
+    if all(frame.get(k) == before.get(k) for k in before):
+        return prior, "none", notes     # không có gì đổi được áp dụng: không ghi revision, không ghi ý định
     relation = revision_relation(prior, frame)
     intent = store.new_intent(p, context.get("session_id") or "", context.get("message_id"), user_text,
                               constraints=constraints, prev_intent_id=prior.intent_id or None, relation=relation)

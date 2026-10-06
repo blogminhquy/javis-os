@@ -2,8 +2,9 @@
 
     python tests/run.py resonance_mvp_revise -v
 
-P1: tin bổ sung một chi tiết khác KHÔNG làm mất hạn chót và chỉ tiêu người dùng nêu ở tin trước, kể cả khi
-bộ não gửi bỏ chúng; chỉ đổi hay bỏ được khi tin hiện tại có câu trích làm căn cứ. Ràng buộc được kế thừa. P2-2: tiêu chí mô tả rỗng không qua cổng M.
+P1: hạn chót, chỉ tiêu và ràng buộc người dùng nêu ở tin trước là chỉ dẫn đang có hiệu lực; M2 không đổi hay
+bỏ chúng qua bản cập nhật (vòng 3: câu trích có mặt trong tin không chứng minh người dùng muốn đổi), chỉ thêm
+chỉ dẫn mới. Phần chưa áp dụng được báo lại. P2-2: tiêu chí mô tả rỗng không qua cổng M.
 Đi qua kho SQLite thật và plugin javis_goal thật (plugins_host); không gọi model.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
@@ -102,67 +103,87 @@ check("cập nhật chỉ gửi trường đổi: hạn, chỉ tiêu, tiêu chí
       and [c["description"] for c in g2b.criteria] == [c["description"] for c in g1.criteria]
       and g2b.understanding == "Báo cáo hồ sơ kèm bảng tổng hợp" and rel2b == "amend")
 
-# Review vòng 2 (P1): tin chỉ đổi trình bày, bộ não bỏ chỉ tiêu và tự dời hạn. Host GIỮ chỉ dẫn cũ.
-g_bad, rel_bad, kept_bad = R.revise_goal(store, P, g1.id, 3, {
+# Review vòng 2-3 (P1): hạn chót và chỉ tiêu người dùng đã nêu là chỉ dẫn đang có hiệu lực. M2 KHÔNG đổi hay
+# bỏ chúng qua bản cập nhật, dù câu trích có mặt trong tin hay không: host giữ nguyên và báo phần chưa áp dụng.
+def _frozen(label, mid, text, upd):
+    before = store.get(P, g1.id)
+    g, rel, kept = R.revise_goal(store, P, g1.id, before.revision, upd, ctx(mid, text))
+    check(f"{label}: hạn chót người dùng còn nguyên cả giá trị lẫn nguồn (tin 1)", g.horizon == g1.horizon)
+    check(f"{label}: chỉ tiêu người dùng còn nguyên cả giá trị lẫn nguồn (tin 1)", list(g.targets) == list(g1.targets))
+    check(f"{label}: không ghi replace, báo phần chưa áp dụng cho bộ não", rel != "replace" and len(kept) >= 1)
+    return g, rel, kept
+
+
+# Tin chỉ đổi trình bày, bộ não bỏ chỉ tiêu và tự dời hạn.
+_, rel_a, kept_a = _frozen("bỏ chỉ tiêu + tự dời hạn, câu trích cũ", 22, MSG2, {
     "relevant_quote": "bảng tổng hợp", "targets": [],
-    "horizon": {**DEADLINE_1, "at_iso": "2026-10-20T23:00:00+07:00"}}, ctx(22, MSG2))
-check("tin chỉ đổi trình bày + bộ não gửi targets=[]: chỉ tiêu người dùng vẫn còn, nguồn tin 1",
-      list(g_bad.targets) == list(g1.targets))
-check("tin chỉ đổi trình bày + bộ não tự dời hạn: hạn 11/10 của người dùng vẫn là deadline, nguồn tin 1",
-      g_bad.horizon == g1.horizon)
-check("chỉ dẫn được giữ: không ghi replace, và báo lại cho bộ não biết đã giữ gì",
-      rel_bad == "amend" and len(kept_bad) == 2 and any("10 hồ sơ" in k for k in kept_bad)
-      and any("hạn chót" in k for k in kept_bad))
-# Bộ não muốn mốc xem lại nội bộ: không được đè lên hạn đang có hiệu lực của người dùng.
+    "horizon": {**DEADLINE_1, "at_iso": "2026-10-20T23:00:00+07:00"}})
+check("không còn gì đổi được áp dụng: không ghi revision mới (relation none)",
+      rel_a == "none" and store.get(P, g1.id).revision == 3
+      and any("hạn chót" in k for k in kept_a) and any("10 hồ sơ" in k for k in kept_a))
+# Đúng phép tái hiện vòng 3: câu trích CÓ MẶT trong tin hiện tại nhưng không nói bỏ gì.
+_frozen("câu trích có mặt nhưng không liên quan (vòng 3)", 23, MSG2, {
+    "relevant_quote": "Thêm bảng tổng hợp", "targets": [],
+    "remove_targets": [{"text": "10 hồ sơ", "quote": "Thêm bảng tổng hợp"}],
+    "horizon": {"kind": "maintain", "quote": "Thêm bảng tổng hợp"}})
+# Người dùng THẬT SỰ dời hạn: M2 chưa áp dụng, báo rõ, không đóng vai là đã đổi.
+MSG4 = "Không cần đủ 10 hồ sơ nữa, cũng không cần hạn, cứ theo dõi đều là được."
+_frozen("người dùng thật sự dời hạn (chưa hỗ trợ ở M2)", 3, MSG3, proposal(
+    relevant_quote="Dời hạn sang ngày 15/10/2026",
+    horizon={"kind": "deadline", "at_iso": "2026-10-15T23:00:00+07:00", "from_user": True,
+             "quote": "Dời hạn sang ngày 15/10/2026"}))
+_frozen("người dùng thật sự bỏ chỉ tiêu và bỏ hạn (chưa hỗ trợ ở M2)", 4, MSG4, {
+    "relevant_quote": "cứ theo dõi đều là được", "targets": [],
+    "remove_targets": [{"text": "10 hồ sơ", "quote": "Không cần đủ 10 hồ sơ nữa"}],
+    "horizon": {"kind": "maintain", "quote": "cũng không cần hạn"}})
+# Chỉ gửi remove_targets (vòng 3, P2): không âm thầm "thành công" mà vẫn còn chỉ tiêu; báo rõ chưa hỗ trợ.
+_, rel_rm, kept_rm = R.revise_goal(store, P, g1.id, store.get(P, g1.id).revision, {
+    "relevant_quote": "Không cần đủ 10 hồ sơ nữa",
+    "remove_targets": [{"text": "10 hồ sơ", "quote": "Không cần đủ 10 hồ sơ nữa"}]}, ctx(5, MSG4))
+check("chỉ gửi remove_targets: không đổi gì, relation none, báo remove_targets chưa hỗ trợ",
+      rel_rm == "none" and any("remove_targets" in k for k in kept_rm)
+      and [t["text"] for t in store.get(P, g1.id).targets] == ["10 hồ sơ"])
+# Mốc xem lại do agent đặt không đè lên deadline đang có hiệu lực.
 fr_rv = R.validate_proposal({"relevant_quote": "bảng tổng hợp",
                              "horizon": {"kind": "review", "at_iso": "2026-10-09T08:00:00+07:00"}},
                             MSG2, prior=store.get(P, g1.id), notes=[])
 check("mốc xem lại do agent đặt không thay deadline của người dùng", fr_rv["horizon"] == g1.horizon)
-# Bỏ chỉ tiêu bằng câu trích KHÔNG có trong tin hiện tại: vẫn giữ.
-fr_rm = R.validate_proposal({"relevant_quote": "bảng tổng hợp", "targets": [],
-                             "remove_targets": [{"text": "10 hồ sơ", "quote": "không cần đủ 10 hồ sơ nữa"}]},
-                            MSG2, prior=store.get(P, g1.id))
-check("remove_targets với câu trích không có trong tin hiện tại: chỉ tiêu vẫn giữ",
-      [t["text"] for t in fr_rm["targets"]] == ["10 hồ sơ"])
-# Mượn câu trích cũ cho một chỉ tiêu MỚI: không được coi là chỉ tiêu cũ, chỉ tiêu cũ vẫn còn.
+# Mượn câu trích cũ cho một chỉ tiêu MỚI: không được coi là chỉ tiêu, chỉ tiêu cũ vẫn còn.
 fr_t = R.validate_proposal(proposal(relevant_quote="bảng tổng hợp", targets=[{"text": "12 hồ sơ",
                                                                              "quote": "cần đủ 10 hồ sơ"}]),
                            MSG2, prior=store.get(P, g1.id))
 check("mượn câu trích cũ cho chỉ tiêu mới: không thành chỉ tiêu, ghi là giả định, chỉ tiêu cũ còn nguyên",
       [t["text"] for t in fr_t["targets"]] == ["10 hồ sơ"] and any("12 hồ sơ" in a for a in fr_t["assumptions"]))
-
-# Người dùng THẬT SỰ sửa hạn: hạn mới thắng, nguồn là tin mới, quan hệ là thay chỉ dẫn.
-g3, rel3, _ = R.revise_goal(store, P, g1.id, 4, proposal(
+# Người dùng nhắc lại chỉ tiêu ở tin mới: vẫn một mục, giữ nguồn cũ (không nhân đôi, không đổi chỉ dẫn).
+fr_re = R.validate_proposal(proposal(relevant_quote="Dời hạn", targets=[dict(TARGET_1)]), MSG3,
+                            prior=store.get(P, g1.id), source_ref=R.message_ref("rv", 6))
+check("người dùng nhắc lại chỉ tiêu: một mục, nguồn vẫn là tin 1",
+      [(t["text"], t["source"]) for t in fr_re["targets"]] == [("10 hồ sơ", R.message_ref("rv", 1))])
+# THÊM chỉ dẫn mới vẫn được: chỉ tiêu mới trích từ tin hiện tại, chỉ tiêu cũ giữ nguyên.
+MSG5 = "Thêm nữa, cần có ít nhất 3 hồ sơ ưu tiên."
+g5, rel5, kept5 = R.revise_goal(store, P, g1.id, store.get(P, g1.id).revision, {
+    "relevant_quote": "cần có ít nhất 3 hồ sơ ưu tiên",
+    "targets": [dict(TARGET_1), {"text": "3 hồ sơ ưu tiên", "quote": "ít nhất 3 hồ sơ ưu tiên"}]}, ctx(7, MSG5))
+check("thêm chỉ tiêu mới có căn cứ: được thêm với nguồn tin mới, chỉ tiêu cũ giữ, quan hệ amend",
+      [(t["text"], t["source"]) for t in g5.targets] == [("10 hồ sơ", R.message_ref("rv", 1)),
+                                                          ("3 hồ sơ ưu tiên", R.message_ref("rv", 7))]
+      and rel5 == "amend" and kept5 == [])
+# Mục tiêu CHƯA có hạn người dùng: người dùng nêu hạn ở tin sau thì được thêm (cùng luật trích như lúc tạo).
+g_nd = asyncio.run(R.form_goal(R.message_ref("rv", 40), {**ctx(40, MSG1), "proposal": proposal(
+    horizon={"kind": "review", "at_iso": "2026-10-09T08:00:00+07:00"})}, deps))
+g_nd2, rel_nd, _ = R.revise_goal(store, P, g_nd.id, 1, proposal(
     relevant_quote="Dời hạn sang ngày 15/10/2026",
     horizon={"kind": "deadline", "at_iso": "2026-10-15T23:00:00+07:00", "from_user": True,
-             "quote": "Dời hạn sang ngày 15/10/2026"}), ctx(3, MSG3))
-check("người dùng sửa hạn: hạn mới là deadline của người dùng, nguồn là tin 3",
-      g3.horizon["kind"] == "deadline" and g3.horizon["from_user"] is True
-      and g3.horizon["source"] == R.message_ref("rv", 3)
-      and g3.horizon["at"] == R._iso_ts("2026-10-15T23:00:00+07:00"))
-check("người dùng sửa hạn: không đóng băng ở hạn cũ", g3.horizon["at"] != g1.horizon["at"])
-check("người dùng sửa hạn: host ghi quan hệ là thay chỉ dẫn (replace)", rel3 == "replace")
-check("người dùng nhắc lại chỉ tiêu: một chỉ tiêu, nguồn mới là tin 3, không nhân đôi",
-      [(t["text"], t["source"]) for t in g3.targets] == [("10 hồ sơ", R.message_ref("rv", 3))])
-
-# Người dùng THẬT SỰ bỏ chỉ tiêu và bỏ hạn, có câu trích ở tin hiện tại.
-MSG4 = "Không cần đủ 10 hồ sơ nữa, cũng không cần hạn, cứ theo dõi đều là được."
-g4, rel4, kept4 = R.revise_goal(store, P, g1.id, 5, {
-    "relevant_quote": "cứ theo dõi đều là được", "targets": [],
-    "remove_targets": [{"text": "10 hồ sơ", "quote": "Không cần đủ 10 hồ sơ nữa"}],
-    "horizon": {"kind": "maintain", "quote": "cũng không cần hạn"}}, ctx(4, MSG4))
-check("người dùng bỏ chỉ tiêu có câu trích: chỉ tiêu được bỏ", g4.targets == () and kept4 == [])
-check("người dùng bỏ hạn có câu trích: chân trời mới ghi đúng câu và tin làm căn cứ",
-      g4.horizon["kind"] == "maintain" and g4.horizon["quote"] == "cũng không cần hạn"
-      and g4.horizon["source"] == R.message_ref("rv", 4))
-check("bỏ chỉ dẫn có căn cứ: ghi quan hệ replace", rel4 == "replace"
-      and store.get_intent(P, g4.intent_id)["relation"] == "replace")
+             "quote": "Dời hạn sang ngày 15/10/2026"}), ctx(41, MSG3))
+check("chưa có hạn người dùng: hạn mới có căn cứ được thêm, nguồn tin mới",
+      g_nd2.horizon["kind"] == "deadline" and g_nd2.horizon["source"] == R.message_ref("rv", 41) and rel_nd == "amend")
 
 # expected_revision cũ: xung đột, không đổi gì
+_rev = store.get(P, g1.id).revision
 check("expected_revision cũ: ConflictError",
       raises(RS.ConflictError, lambda: R.revise_goal(store, P, g1.id, 2, proposal(relevant_quote="bảng tổng hợp"),
-                                                      ctx(5, MSG2))))
-check("xung đột không tạo revision mới", store.get(P, g1.id).revision == 6)
+                                                      ctx(8, MSG2))))
+check("xung đột không tạo revision mới", store.get(P, g1.id).revision == _rev)
 
 # ───────────── Review vòng 2 (P2): ràng buộc người dùng được kế thừa ─────────────
 MSG_C = "Gom ghi chú họp vào một bản tổng hợp, không xoá ghi chú cũ."
@@ -177,9 +198,10 @@ check("cập nhật từng phần trên mục tiêu có ràng buộc: thành cô
 gc3, _, _ = R.revise_goal(store, P, gc.id, 2, {"relevant_quote": "chỉ đọc", "constraints": ["chỉ đọc"]},
                           ctx(32, "Từ giờ chỉ đọc thôi nhé.", constraints=["chỉ đọc"]))
 check("bổ sung ràng buộc mới: giữ cả ràng buộc cũ", set(gc3.constraints) == {"không xoá ghi chú cũ", "chỉ đọc"})
-gc4, _, _ = R.revise_goal(store, P, gc.id, 3, {"relevant_quote": "bảng tổng hợp", "constraints": []},
+gc4, rel_c4, _ = R.revise_goal(store, P, gc.id, 3, {"relevant_quote": "bảng tổng hợp", "constraints": []},
                           ctx(33, MSG2))
-check("bộ não gửi constraints=[]: không gỡ được ràng buộc nào", set(gc4.constraints) == set(gc3.constraints))
+check("bộ não gửi constraints=[]: không gỡ được ràng buộc nào, không ghi revision",
+      set(gc4.constraints) == set(gc3.constraints) and rel_c4 == "none")
 
 # Ý định ghi cùng transaction với revision: kho từ chối thì không để lại ý định mồ côi.
 import sqlite3  # noqa: E402
@@ -196,7 +218,7 @@ _before = _n_intents()
 _bad_frame = R.validate_proposal({"relevant_quote": "bảng tổng hợp"}, MSG2, prior=store.get(P, gc.id))
 _bad_frame["constraints"] = []          # giả một khung thiếu ràng buộc lọt tới kho
 check("kho từ chối revision thiếu ràng buộc",
-      raises(R.GoalRejected, lambda: store.revise(P, gc.id, 4, _bad_frame, reason="thử",
+      raises(R.GoalRejected, lambda: store.revise(P, gc.id, store.get(P, gc.id).revision, _bad_frame, reason="thử",
                                                   intent=store.new_intent(P, "rv", 34, MSG2))))
 check("revision bị từ chối không để lại ý định mồ côi", _n_intents() == _before)
 
@@ -245,8 +267,9 @@ check("tool update tin bổ sung: hạn chót còn nguyên và tóm tắt vẫn 
 check("tool update tin bổ sung: chỉ tiêu còn nguyên", list(gt2.targets) == list(gt.targets))
 out = tool(10, MSG2, {"op": "update", "goal_id": gt.id, "expected_revision": 2, "relevant_quote": "Thêm bảng tổng hợp",
                       "targets": []})
-check("tool: bộ não gửi targets=[] ở tin chỉ đổi trình bày thì chỉ tiêu còn, và tool báo đã giữ lại",
-      list(store.get(P, gt.id).targets) == list(gt.targets) and "Host giữ lại chỉ dẫn cũ" in out)
+check("tool: bộ não gửi targets=[] ở tin chỉ đổi trình bày thì chỉ tiêu còn, tool báo không áp dụng gì",
+      list(store.get(P, gt.id).targets) == list(gt.targets) and "CHƯA áp dụng" in out
+      and "KHÔNG có thay đổi nào" in out and store.get(P, gt.id).revision == 2)
 out = tool(11, MSG_C, {"op": "create", **proposal(relevant_quote="Gom ghi chú họp", targets=[],
                                                   horizon={"kind": "maintain"},
                                                   constraints=["không xoá ghi chú cũ"])})
