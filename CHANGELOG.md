@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.84.8] - 2026-10-07
+### Cải thiện
+- Tài liệu Chatbot nói đúng giới hạn hiện tại: bot trả lời mỗi người tối đa 20 câu một giờ, trong nhóm tính riêng từng người, và con số này chưa chỉnh được trên trang Chatbot.
+
 ## [0.84.7] - 2026-10-06
 ### Thêm mới
 - **Duyệt người xin vào nhóm Zalo ngay trong Javis.** Có người xin vào nhóm phải duyệt là Javis báo bạn qua chuông và Telegram. Hỏi "ai đang xin vào nhóm X" để xem danh sách, bảo "duyệt hết" hay "duyệt Lan, từ chối Minh" là Javis làm và báo lại từng người.

@@ -513,7 +513,9 @@ Một chỗ vẫn cố ý nói thẳng: khi có người gọi bot trong **nhóm
 
 ## Giới hạn tần suất
 
-Mỗi người bị giới hạn số lượt hỏi trong một giờ (mặc định 20, sửa được khi Sửa bot). Vượt thì bot lịch sự xin trả lời lại sau.
+Mỗi người được bot trả lời tối đa **20 câu trong một giờ**. Trong nhóm, hạn mức này tính riêng từng người (từ 0.84.6), nên người mới hỏi không bị vạ lây vì người khác trong nhóm đã hỏi nhiều. Vượt thì bot lịch sự xin trả lời lại sau; lượt bot tự nói (chế độ Tự đánh giá) và sự kiện người mới vào nhóm thì bot im thay vì nói câu đó.
+
+Con số này hiện cố định, trang Chatbot không có ô chỉnh.
 
 Cần thiết vì một người rảnh trong nhóm đủ đốt hết quota model của bạn trong một buổi chiều, và bạn chỉ biết khi nhìn hoá đơn.
 

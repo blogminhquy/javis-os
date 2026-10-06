@@ -424,7 +424,9 @@ One place still deliberately speaks plainly: when someone calls the bot in **a g
 
 ## Rate limiting
 
-Each person is limited to a number of questions per hour (20 by default, editable when editing the bot). Over that, the bot politely asks to answer later.
+The bot answers each person at most **20 times per hour**. In a group the limit counts per person (since 0.84.6), so someone asking for the first time is not blocked because others in the group asked a lot. Over the limit the bot politely asks to answer later; for turns the bot starts on its own (auto mode) and for new-member events it stays silent instead.
+
+The number is fixed for now; the Chatbots page has no field to change it.
 
 This is necessary because one bored person in a group can burn your whole model quota in an afternoon, and you only find out from the bill.
 
