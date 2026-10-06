@@ -47,12 +47,27 @@ def has_git() -> bool:
     return shutil.which("git") is not None
 
 
+def _git_env() -> dict:
+    """Env cho subprocess git: ép message TIẾNG ANH, chỉ cho riêng tiến trình git.
+
+    Vì sao bắt buộc: nhiều chỗ trong file này nhận diện tình huống bằng CHUỖI lỗi của git
+    ("couldn't find remote ref" lúc bootstrap repo rỗng, "unrelated histories" lúc merge chéo,
+    "fetch first"/"non-fast-forward" lúc push vượt). git dịch các chuỗi đó theo locale, nên
+    trên máy đặt tiếng Việt stderr thành "không thể tìm thấy tham chiếu máy chủ" và nhánh
+    repo-rỗng không bao giờ khớp - first sync vào repo GitHub mới FAIL thật (06/10/2026).
+    Chú ý macOS: libintl của git Homebrew còn đọc ngôn ngữ hệ thống (AppleLanguages) khi env
+    locale TRỐNG, nên không thể trông vào "server không set LANG là an toàn". LC_ALL=C tắt
+    được cả đường đó; LANG/LANGUAGE=C là phòng thủ thêm cho gettext Linux (LANGUAGE được ưu
+    tiên khi LC_ALL khác C). Chỉ đổi env của SUBPROCESS git - locale của app giữ nguyên."""
+    return {**os.environ, "LC_ALL": "C", "LANG": "C", "LANGUAGE": "C"}
+
+
 def _git(root: str, *args, timeout: int = 30) -> subprocess.CompletedProcess:
     """Chạy git trong <root>. KHÔNG raise; caller đọc returncode/stdout."""
     return subprocess.run(
         ["git", "-C", str(root), *args],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
-        timeout=timeout, creationflags=_no_window(),
+        timeout=timeout, creationflags=_no_window(), env=_git_env(),
     )
 
 
