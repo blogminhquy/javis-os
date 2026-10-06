@@ -114,6 +114,7 @@ import readonly_orchestrator # Phase 7: checkpointed multi-round read-only DAG
 import adaptive_context_runtime # Phase 8: state + sourced memory + lazy skill canaries
 import agent_runtime           # Phase 11: agent = workflow có quyền replan trong quyền đã cấp
 import resonance               # Javis Resonance MVP: một lượt engine chỉ chữ + receipt do host quan sát
+import resonance_store         # Javis Resonance MVP: kho mục tiêu SQLite có revision (M2)
 import limit_learner          # học hạn mức từ chính lỗi nhà cung cấp trả về
 import limit_resume           # tự chạy lại lượt chat khi gói thuê bao mở lại hạn mức
 import quota_scheduler        # sổ cái TPM dùng chung (Việc 6)
@@ -898,6 +899,15 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
         "(xem mục 'Tạo/sửa Agent & Workflow qua chat' và 'Điều phối' trong system prompt) bằng "
         "ĐƯỜNG DẪN TUYỆT ĐỐI ở trên. Trang Agents/Workflows/Việc định kỳ sẽ tự nhận file mới."
     )
+    # Resonance (M2): chỉ brain đã bật mới có dòng này và mới thấy tool javis_goal. CLAUDE.md đã hết ngân sách
+    # ký tự, và brain chưa bật thì không được dài thêm chữ nào.
+    if resonance.enabled_for(root):
+        base += (
+            "\n- MỤC TIÊU (Hệ thống cộng hưởng đang bật): người dùng giao việc cần theo đuổi SAU lượt chat "
+            "(duy trì, theo dõi, chờ sự kiện, làm tới khi đạt) thì gọi tool javis_goal op=create; người dùng "
+            "bổ sung ý cho mục tiêu đang mở thì op=update. Chưa thấy tool thì tìm bằng javis_search_tools. "
+            "Câu hỏi, tư vấn, việc xong ngay trong lượt: KHÔNG lập mục tiêu."
+        )
     # Quét cây skill MỘT lần cho cả hai khối dưới. Trước đây _javis_capability_summary
     # gọi list_skills còn _skill_router_block gọi list_enabled_meta (vốn chỉ là list_skills
     # lọc lại), nên cả cây skill bị đi và parse YAML HAI lần mỗi lượt chat - đo được 18ms
@@ -1996,6 +2006,40 @@ def _resonance_engine(system_prompt: str, tag: str = "resonance"):
     eng = aux_engine.strip_tools(
         aux_engine.swap(base, mode="suggest", tag=tag, spec=spec, codex_profile=_write_codex_profile), base)
     return resonance.pick_text_only_link(eng, base, spec, aux_engine._FallbackChain)
+
+
+_RESONANCE_STORE = None
+
+
+def _resonance_store():
+    """Kho mục tiêu, mở lười: brain chưa bật Resonance thì không tạo file resonance.sqlite3 nào."""
+    global _RESONANCE_STORE
+    if _RESONANCE_STORE is None:
+        _RESONANCE_STORE = resonance_store.GoalStore()
+    return _RESONANCE_STORE
+
+
+def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
+    """Sau một lượt chat web: lượt đó thuộc nhánh nào của Resonance (M2).
+
+    Chỉ chạy khi brain đã bật Resonance và lượt có id tin nhắn. Không gọi model: đọc sự kiện mục tiêu
+    của đúng tin này và việc Kanban vừa giao cho đúng khung chat này. Ghi nhánh vào runtime event
+    `resonance.route`. Lỗi ở đây không được làm hỏng lượt chat, nên nuốt vào stderr.
+    """
+    try:
+        root = _brain_root(brain)
+        if not user_mid or not resonance.enabled_for(root):
+            return None
+        p = resonance_store.Principal("agent", "javis", _brain_key(brain))
+        mref = resonance.message_ref(conv_sid, user_mid)
+        d = resonance.route_after_turn(_resonance_store(), p, mref, tasks_feature.store.list_tasks(root),
+                                       f"{WEB_CHAT_PREFIX}{conv_sid}", t0)
+        _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "resonance.route", {
+            "route": d.kind, "reason": d.reason, "goal_id": d.goal_id or "", "message_ref": mref})
+        return d
+    except Exception as e:  # noqa: BLE001
+        print(f"[resonance route] {type(e).__name__}: {e}", file=sys.stderr)
+        return None
 
 # Model đã GỠ khỏi Javis mà cài đặt cũ của người dùng có thể còn giữ. `chatgpt-web` (0.64.0 tới
 # 0.64.18) chạy bằng một trình duyệt lái trang chatgpt.com, và bị gỡ ở 0.64.20 vì trên máy chủ
@@ -10722,11 +10766,22 @@ def _gather_capabilities(brain: str, skills=None) -> dict:
                 "paused": bool(st.get(lp["slug"], {}).get("auto_paused_reason"))})
     except Exception:
         pass
+    # Tool thật sự hiện với brain này. `describe` chỉ đọc manifest nên không biết `visible_fn` (ví dụ javis_goal
+    # chỉ hiện ở brain đã bật Resonance); liệt kê tool đang bị giấu là mời bộ não gọi một tool không tồn tại.
+    try:
+        _visible = {t["fn"] for t in plugins_host.plugin_tools("full", str(root))[0]}
+    except Exception:
+        _visible = None
     try:
         for p in plugins_host.describe(str(root)):
+            tools = p["tools"]
+            if _visible is not None and p["loaded"] and tools:
+                tools = [t for t in tools if t in _visible]
+                if not tools:
+                    continue
             caps["plugins"].append({"slug": p["slug"], "name": p["name"], "source": p["source"],
                 "description": p["description"], "enabled": p["enabled"], "loaded": p["loaded"],
-                "gated": p["gated"], "min_mode": p["min_mode"], "tools": p["tools"],
+                "gated": p["gated"], "min_mode": p["min_mode"], "tools": tools,
                 "hooks": p["hooks"], "error": p["error"]})
     except Exception:
         pass
@@ -14696,16 +14751,20 @@ async def websocket_endpoint(ws: WebSocket):
             return final_text
 
         async def run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
-                           has_attachments=False, resume_attempt=0, goc_chat=""):
+                           has_attachments=False, resume_attempt=0, goc_chat="", user_mid=0):
             _trace_token = context_runtime.bind_trace(runtime_trace)
             # Ghi vào sổ lượt đang chạy để tool giao việc biết kết quả phải về khung chat này
-            # khi model quên truyền chat_id (luot_dang_chay.py, 0.64.49).
-            _khoa_luot = luot_dang_chay.bat_dau(f"{WEB_CHAT_PREFIX}{conv_sid}", _brain_root(brain))
+            # khi model quên truyền chat_id (luot_dang_chay.py, 0.64.49). Kèm id tin và lời người
+            # dùng để tool javis_goal (Resonance) biết đúng tin nhắn nào; 0 thì tool từ chối lập mục tiêu.
+            _t0_luot = time.time()
+            _khoa_luot = luot_dang_chay.bat_dau(f"{WEB_CHAT_PREFIX}{conv_sid}", _brain_root(brain),
+                                                msg_id=user_mid, user_text=user_message)
             try:
                 final_text = await _do_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
                     resume_attempt=resume_attempt,
                 )
+                _resonance_after_turn(conv_sid, brain, user_mid, _t0_luot, runtime_trace)
                 # Phiên TRỢ LÝ mở từ một lệnh "/" gõ ở khung Trò chuyện: câu trả lời quay về
                 # đúng khung đó, kèm link mở lại cuộc hội thoại (cùng luật với quy trình).
                 if goc_chat:
@@ -15406,6 +15465,8 @@ async def websocket_endpoint(ws: WebSocket):
             if limit_resume.REGISTRY.cancel(conv_sid):
                 await send_raw({"type": "resume", "session_id": conv_sid, "state": "cancelled"})
             _pending_voice_receipt = None
+            # Id dòng của tin người dùng trong kho phiên (Resonance M2): khoá chống trùng khi lượt này lập mục tiêu.
+            _user_mid = 0
             _voice_uid = str(payload.get("utterance_id") or "") if payload.get("voice") else ""
             if _voice_uid:
                 try:
@@ -15422,8 +15483,9 @@ async def websocket_endpoint(ws: WebSocket):
                 if not _answer_receipt and (not _receipt["created"] or _receipt["response_policy"] == "ack_only"):
                     await send_client(_pending_voice_receipt)
                     continue
+                _user_mid = int(_receipt.get("message_id") or 0)
             else:
-                store.append_message(conv_sid, "user", user_message)
+                _user_mid = int(store.append_message(conv_sid, "user", user_message) or 0)
             # Bong bóng đang hiện chữ thô của máy nghe: báo câu đã sửa tên để người dùng thấy
             # Javis hiểu câu nào, chữ thô hiện nhỏ bên dưới.
             if _nghe_tho:
@@ -15498,7 +15560,7 @@ async def websocket_endpoint(ws: WebSocket):
             else:
                 _voice_coro = run_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
-                    goc_chat=_goc)
+                    goc_chat=_goc, user_mid=_user_mid)
                 task = asyncio.create_task(voice_turn_protocol.run(_voice_coro, store, conv_sid, _voice_uid) if _voice_uid else _voice_coro)
             _CHAT_RUNTIME.register_job(
                 conv_sid, task, turn_tag,

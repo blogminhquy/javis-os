@@ -35,11 +35,16 @@ def _chuan(vault) -> str:
         return v
 
 
-def bat_dau(chat_id: str, vault) -> str:
-    """Ghi một lượt đang chạy. Trả khoá để `ket_thuc` gạch đúng lượt này."""
+def bat_dau(chat_id: str, vault, msg_id: int = 0, user_text: str = "") -> str:
+    """Ghi một lượt đang chạy. Trả khoá để `ket_thuc` gạch đúng lượt này.
+
+    `msg_id` + `user_text` (Resonance M2): id tin nhắn người dùng trong kho phiên và đúng lời họ viết.
+    Tool lập mục tiêu dùng id làm khoá chống trùng và dùng lời để kiểm câu căn cứ. Kênh chưa truyền
+    id thì để 0, và tool đó từ chối tạo mục tiêu thay vì đoán."""
     khoa = uuid.uuid4().hex
     if str(chat_id or "").strip():
-        _DANG[khoa] = {"chat_id": str(chat_id).strip(), "vault": _chuan(vault), "at": time.time()}
+        _DANG[khoa] = {"chat_id": str(chat_id).strip(), "vault": _chuan(vault), "at": time.time(),
+                       "msg_id": int(msg_id or 0), "user_text": str(user_text or "")}
     return khoa
 
 
@@ -55,3 +60,19 @@ def doan_chat_id(vault, now: float = 0.0) -> str:
     v = _chuan(vault)
     ung = {x["chat_id"] for x in _DANG.values() if not v or not x["vault"] or x["vault"] == v}
     return ung.pop() if len(ung) == 1 else ""
+
+
+def doan_luot(vault, now: float = 0.0):
+    """Lượt DUY NHẤT đang chạy trên brain này: {chat_id, msg_id, user_text}. Không chắc thì None.
+
+    Chặt hơn `doan_chat_id`: phải đúng một lượt (không chỉ một khung chat), vì tool lập mục tiêu cần biết
+    đúng TIN NHẮN nào chứ không chỉ khung chat nào."""
+    now = now or time.time()
+    for k in [k for k, x in _DANG.items() if now - x["at"] > TUOI_TOI_DA]:
+        _DANG.pop(k, None)
+    v = _chuan(vault)
+    ung = [x for x in _DANG.values() if not v or not x["vault"] or x["vault"] == v]
+    if len(ung) != 1:
+        return None
+    x = ung[0]
+    return {"chat_id": x["chat_id"], "msg_id": int(x.get("msg_id") or 0), "user_text": x.get("user_text") or ""}

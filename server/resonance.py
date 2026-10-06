@@ -627,3 +627,17 @@ async def form_goal(message_ref: str, context: dict, deps: "GoalDeps") -> GoalRe
         budget_calls=int(context.get("budget_calls") or GOAL_DEFAULT_CALLS), message_ref=message_ref)
     return goal
 
+
+def message_ref(session_id: str, message_id) -> str:
+    """Định danh bền của một tin nhắn người dùng: phiên + id dòng trong kho phiên. Là khoá chống trùng."""
+    return f"msg:{session_id}:{int(message_id)}"
+
+
+def route_after_turn(store, principal, msg_ref: str, tasks: list, chat_id: str, t0: float) -> RouteDecision:
+    """Gom những gì lượt vừa xong đã làm rồi phân nhánh. `tasks`: việc Kanban của brain; chỉ tính việc của
+    ĐÚNG khung chat này và tạo trong lượt (từ t0). Không gọi model."""
+    events = store.events_for_message(principal, msg_ref)
+    n = sum(1 for t in (tasks or []) if str(t.get("chat_id") or "") == chat_id
+            and float(t.get("created_at") or 0) >= float(t0))
+    return route_request(msg_ref, {"goal_events": events, "tasks_created": n})
+
