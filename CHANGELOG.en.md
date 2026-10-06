@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.84.9] - 2026-10-07
+### Improved
+- **Resonance: the "What I'm working toward" card and confirm buttons.** Every goal Javis is pursuing gets a card in the chat: how Javis understood your request, how far it has got, and what comes next. You mark the understanding as right or not right, and the output as meeting the bar, as two separate things. There are pause and resume buttons. Off by default, not enabled for anyone yet.
+
 ## [0.84.4] - 2026-10-06
 ### Improved
 - **Resonance: goals are carried forward and checked against evidence.** A goal Javis has framed is now worked step by step within its budget, reported done only when there is evidence against its criteria, and scheduled for its next step instead of checking in on a timer. Off by default, not enabled for anyone yet.
