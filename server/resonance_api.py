@@ -1,4 +1,4 @@
-"""API của Hệ thống cộng hưởng cho dashboard (M4): thẻ "Em đang hướng tới", phản hồi có nghĩa rõ, lệnh của người dùng.
+"""API của Hệ thống cộng hưởng cho dashboard (M4): thẻ "Javis đang hướng tới", phản hồi có nghĩa rõ, lệnh của người dùng.
 
 Kế hoạch: docs/superpowers/plans/2026-10-06-resonance-00-mvp.md, Task M4. Dashboard có một tài khoản đăng nhập
 duy nhất; middleware `_auth_guard` và `_csrf_guard` của main.py đã chặn trước khi tới đây, nên request tới được
@@ -6,7 +6,8 @@ route này là của người dùng (owner). Host tự dựng Principal từ đ�
 body không làm quyền.
 
 Lỗi trả mã rõ: 404 không có mục tiêu trong brain này, 409 revision hoặc sản phẩm đã đổi (kèm trạng thái hiện tại
-để thẻ vẽ lại), 400 payload sai luật, 403 Resonance chưa bật ở brain.
+để thẻ vẽ lại), 400 payload sai luật, 403 Resonance chưa bật ở brain (chỉ cho phản hồi và lập mục tiêu mới; xem thẻ và lệnh
+tạm dừng, huỷ, tiếp tục, bỏ chỉ dẫn luôn dùng được để người dùng can thiệp kể cả khi đã tắt).
 """
 from __future__ import annotations
 
@@ -99,16 +100,25 @@ def register(app, deps: ResonanceApiDeps):
 
     @app.get("/resonance/goals")
     async def resonance_goals(brain: str = "brain", session_id: Optional[str] = None):
-        root, owner, err = _need(brain)
+        root, owner, err = _manage(brain)
         if err:
             return err
         store = deps.store()
         goals = store.list_open(owner, session_id=session_id)
         return {"ok": True, "goals": [R.goal_view(store, owner, g.id, root) for g in goals[:20]]}
 
+    def _manage(brain: str):
+        """Xem và can thiệp (tạm dừng, huỷ, tiếp tục, bỏ chỉ dẫn) KHÔNG đòi công tắc bật (review M4, P2-1): tắt
+        Resonance không được ngăn người dùng dừng hay huỷ mục tiêu đang có. Việc chạy tiếp vẫn bị công tắc chặn ở
+        advance/_gate; phản hồi và lập mục tiêu mới vẫn đòi công tắc bật."""
+        root, owner = _ctx(brain)
+        if root is None:
+            return None, None, _err(404, "Không tìm thấy brain", "Brain not found")
+        return root, owner, None
+
     @app.get("/goals/{goal_id}")
     async def goal_get(goal_id: str, brain: str = "brain"):
-        root, owner, err = _need(brain)
+        root, owner, err = _manage(brain)
         if err:
             return err
         view = R.goal_view(deps.store(), owner, goal_id, root)
@@ -124,7 +134,7 @@ def register(app, deps: ResonanceApiDeps):
         body = await _body(request)
         store = deps.store()
         try:
-            res = R.apply_feedback(store, owner, goal_id, str(body.get("kind") or ""), body)
+            res = R.apply_feedback(store, owner, goal_id, str(body.get("kind") or ""), body, root)
         except RS.ScopeError:
             return _err(404, "Không có mục tiêu này trong brain", "No such goal in this brain")
         except RS.ConflictError as e:
@@ -138,7 +148,7 @@ def register(app, deps: ResonanceApiDeps):
 
     @app.post("/goals/{goal_id}/commands")
     async def goal_command(goal_id: str, request: Request, brain: str = "brain"):
-        root, owner, err = _need(brain)
+        root, owner, err = _manage(brain)
         if err:
             return err
         body = await _body(request)

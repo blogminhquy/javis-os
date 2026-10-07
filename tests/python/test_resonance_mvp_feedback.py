@@ -107,8 +107,12 @@ def api(method, path, **kw):
 
 
 # ───────────── công tắc theo brain ─────────────
+code, body = api("post", "/goals/g_khong_co/feedback", json={"kind": "goal_fit_confirmed", "expected_revision": 1})
+check("brain chưa bật Resonance: phản hồi trả 403", code == 403)
+code, body = api("post", "/goal-requests", json={"message_ref": "msg:x:1"})
+check("brain chưa bật Resonance: lập mục tiêu mới trả 403", code == 403)
 code, body = api("get", "/goals/g_khong_co")
-check("brain chưa bật Resonance: API trả 403, không lộ gì", code == 403)
+check("brain chưa bật Resonance: xem mục tiêu không có trả 404, không lộ gì", code == 404)
 code, body = api("post", "/resonance/settings", json={"enabled": True})
 check("bật Resonance qua API: ghi đúng Javis/resonance.json của brain", code == 200 and body.get("enabled") is True
       and R.enabled_for(KEY))
@@ -411,6 +415,161 @@ check("goal-requests: cùng tin gửi lại trả đúng mục tiêu cũ", code2
 mid_a = main.get_store().append_message(SID, "assistant", "Đây là câu trả lời của Javis.")
 code, body = api("post", "/goal-requests", json={"message_ref": R.message_ref(SID, mid_a)})
 check("goal-requests: tin của trợ lý không lập được mục tiêu", code == 400)
+
+# ───────────── Review M4 vòng 1: năm lỗi, nay là hành vi mong đợi ─────────────
+import hashlib  # noqa: E402
+import json  # noqa: E402
+from contextlib import closing  # noqa: E402
+
+DELIV = Path(KEY) / "Inbox" / "ke-hoach.md"
+
+
+def _sha_file(f):
+    return hashlib.sha256(f.read_bytes()).hexdigest()
+
+
+# P1-1: artifact_ref là bytes của file người dùng đang xem, không phải hash trong receipt.
+g9 = make_goal()
+e9 = Eng()
+asyncio.run(R.advance(g9.id, {"kind": "start"}, deps(e9)))
+v9 = api("get", f"/goals/{g9.id}")[1]["goal"]
+check("P1-1: artifact_ref trên thẻ đúng bằng sha256 bytes hiện tại của file sản phẩm",
+      v9["artifact_ref"] == _sha_file(DELIV))
+code, _ = api("post", f"/goals/{g9.id}/feedback", json={"kind": "outcome_accepted", "expected_revision": 1,
+                                                         "criterion_id": v9["criteria"][1]["id"],
+                                                         "artifact_ref": v9["artifact_ref"]})
+DELIV.write_text(GOOD + "\nSửa tay sau khi duyệt, chưa ai duyệt bản này.\n", encoding="utf-8", newline="\n")
+v9b = api("get", f"/goals/{g9.id}")[1]["goal"]
+asyncio.run(R.advance(g9.id, {"kind": "wake"}, deps(e9)))
+check("P1-1: file đổi sau khi duyệt thì thẻ đổi artifact_ref, xác nhận cũ thành unknown, mục tiêu KHÔNG thành công",
+      code == 200 and v9b["artifact_ref"] == _sha_file(DELIV) != v9["artifact_ref"]
+      and v9b["criteria"][1]["verdict"] == "unknown" and store.get(P, g9.id).status == "active")
+
+g10 = make_goal()
+asyncio.run(R.advance(g10.id, {"kind": "start"}, deps(Eng())))
+v10 = api("get", f"/goals/{g10.id}")[1]["goal"]
+DELIV.write_text(GOOD + "\nBản thay thế chưa duyệt.\n", encoding="utf-8", newline="\n")
+code, body = api("post", f"/goals/{g10.id}/feedback", json={"kind": "outcome_accepted", "expected_revision": 1,
+                                                             "criterion_id": v10["criteria"][1]["id"],
+                                                             "artifact_ref": v10["artifact_ref"]})
+check("P1-1: thẻ cũ (bản trước khi file đổi) bấm Đạt yêu cầu: 409, trả artifact_ref mới, không ghi xác nhận",
+      code == 409 and body.get("goal", {}).get("artifact_ref") == _sha_file(DELIV)
+      and not store.confirmation(OWNER, g10.id, 1, v10["criteria"][1]["id"]))
+code, _ = api("post", f"/goals/{g10.id}/feedback", json={"kind": "outcome_accepted", "expected_revision": 1,
+                                                          "criterion_id": v10["criteria"][1]["id"],
+                                                          "artifact_ref": body["goal"]["artifact_ref"]})
+asyncio.run(R.advance(g10.id, {"kind": "wake"}, deps(Eng())))
+check("P1-1: duyệt đúng bản đang có trên đĩa thì kết luận thành công",
+      code == 200 and store.get(P, g10.id).status == "succeeded")
+
+g11 = make_goal()
+asyncio.run(R.advance(g11.id, {"kind": "start"}, deps(Eng())))
+R.revise_goal(store, P, g11.id, 1, {"relevant_quote": "Anh sẽ duyệt", "understanding": "Ghi chú kế hoạch bản hai"},
+              {"message_ref": R.message_ref(SID, 9201), "session_id": SID, "message_id": 9201, "user_text": USER})
+v11 = api("get", f"/goals/{g11.id}")[1]["goal"]
+code, _ = api("post", f"/goals/{g11.id}/feedback", json={"kind": "outcome_accepted", "expected_revision": 2,
+                                                          "criterion_id": v11["criteria"][1]["id"],
+                                                          "artifact_ref": _sha_file(DELIV)})
+check("P1-1: revision mới chưa có lượt làm thì không có bản để duyệt (file trên đĩa là của cách hiểu cũ)",
+      v11["artifact_ref"] == "" and code == 400)
+
+# P1-2: mỗi lần bấm một khoá; gửi lại cùng khoá mới là trùng.
+g12 = make_goal()
+for i, kind in enumerate(("goal_fit_rejected", "goal_fit_confirmed", "goal_fit_rejected")):
+    code, body = api("post", f"/goals/{g12.id}/feedback", json={"kind": kind, "expected_revision": 1,
+                                                                 "idempotency_key": f"{g12.id}:1:click{i}"})
+check("P1-2: Chưa đúng ý -> Đúng ý -> Chưa đúng ý: lần bấm cuối được ghi, trạng thái là Chưa đúng ý",
+      code == 200 and not body.get("duplicate") and store.fit_status(OWNER, g12.id, 1) == "rejected")
+code, body = api("post", f"/goals/{g12.id}/feedback", json={"kind": "goal_fit_rejected", "expected_revision": 1,
+                                                             "idempotency_key": f"{g12.id}:1:click2"})
+check("P1-2: gửi lại đúng lần bấm cuối (mạng chập chờn): trùng, không ghi lần hai",
+      body.get("duplicate") is True and store.fit_status(OWNER, g12.id, 1) == "rejected")
+g12b = make_goal()
+for i, kind in enumerate(("goal_fit_confirmed", "goal_fit_rejected", "goal_fit_confirmed")):
+    api("post", f"/goals/{g12b.id}/feedback", json={"kind": kind, "expected_revision": 1,
+                                                     "idempotency_key": f"{g12b.id}:1:click{i}"})
+check("P1-2: thứ tự ngược lại (Đúng ý -> Chưa đúng ý -> Đúng ý) cũng lấy đúng lần bấm cuối",
+      store.fit_status(OWNER, g12b.id, 1) == "confirmed")
+
+# P1-3: id guard không tái dùng sau khi bỏ; dữ liệu cũ id trùng thì từ chối, không xoá cả hai.
+GS = [{"description": "Giữ ghi chú một", "evaluator": "artifact_contract", "params": {"path": "Notes/mot.md"}},
+      {"description": "Giữ ghi chú hai", "evaluator": "artifact_contract", "params": {"path": "Notes/hai.md"}}]
+g13 = make_goal(guards=GS)
+check("P1-3: guard đầu tiên cấp gd1, gd2", [x["id"] for x in store.get(P, g13.id).guards] == ["gd1", "gd2"])
+code, _ = api("post", f"/goals/{g13.id}/commands", json={"command": "drop_directive", "field": "guard", "key": "gd1",
+                                                          "expected_revision": 1})
+cur = store.get(P, g13.id)
+R.revise_goal(store, P, g13.id, cur.revision,
+              {"relevant_quote": "Anh sẽ duyệt", "guards": [dict(x) for x in cur.guards] + [
+                  {"description": "Giữ ghi chú ba", "evaluator": "artifact_contract", "params": {"path": "Notes/ba.md"}}]},
+              {"message_ref": R.message_ref(SID, 9202), "session_id": SID, "message_id": 9202, "user_text": USER})
+ids = [x["id"] for x in store.get(P, g13.id).guards]
+check("P1-3: bỏ gd1 rồi thêm guard mới: id mới là gd3, không trùng gd2", code == 200 and ids == ["gd2", "gd3"])
+cur = store.get(P, g13.id)
+code, _ = api("post", f"/goals/{g13.id}/commands", json={"command": "drop_directive", "field": "guard", "key": "gd3",
+                                                          "expected_revision": cur.revision})
+check("P1-3: bỏ gd3 chỉ bỏ đúng gd3", code == 200 and [x["id"] for x in store.get(P, g13.id).guards] == ["gd2"])
+cur = store.get(P, g13.id)
+with closing(store._conn()) as c:
+    row = c.execute("SELECT frame_json FROM goal_revisions WHERE goal_id=? AND revision=?", (g13.id, cur.revision)).fetchone()
+    fr = json.loads(row["frame_json"])
+    fr["guards"] = [dict(fr["guards"][0]), {**fr["guards"][0], "description": "Bản ghi cũ cùng id"}]
+    c.execute("UPDATE goal_revisions SET frame_json=? WHERE goal_id=? AND revision=?",
+              (json.dumps(fr, ensure_ascii=False), g13.id, cur.revision))
+code, _ = api("post", f"/goals/{g13.id}/commands", json={"command": "drop_directive", "field": "guard", "key": "gd2",
+                                                          "expected_revision": cur.revision})
+check("P1-3: dữ liệu cũ có hai guard cùng id: lệnh bỏ bị từ chối (400), không xoá mục nào",
+      code == 400 and len(store.get(P, g13.id).guards) == 2 and store.get(P, g13.id).revision == cur.revision)
+
+# P2-1: tắt Resonance không chặn người dùng xem, tạm dừng, huỷ.
+g14 = make_goal()
+g15 = make_goal()
+api("post", "/resonance/settings", json={"enabled": False})
+code_get, _ = api("get", f"/goals/{g14.id}")
+code_list, _ = api("get", "/resonance/goals")
+code_p, body_p = api("post", f"/goals/{g14.id}/commands", json={"command": "pause", "expected_revision": 1})
+code_c, body_c = api("post", f"/goals/{g15.id}/commands", json={"command": "cancel", "expected_revision": 1})
+code_f, _ = api("post", f"/goals/{g14.id}/feedback", json={"kind": "goal_fit_confirmed", "expected_revision": 1})
+e14 = Eng()
+asyncio.run(R.advance(g14.id, {"kind": "wake"}, deps(e14)))
+check("P2-1: Resonance tắt: xem thẻ và danh sách vẫn được (200)", code_get == 200 and code_list == 200)
+check("P2-1: Resonance tắt: Tạm dừng và Huỷ vẫn có hiệu lực",
+      code_p == 200 and store.get(P, g14.id).paused and code_c == 200 and store.get(P, g15.id).status == "cancelled")
+check("P2-1: Resonance tắt: phản hồi vẫn 403, và mục tiêu không chạy", code_f == 403 and e14.queries == 0)
+api("post", "/resonance/settings", json={"enabled": True})
+asyncio.run(R.advance(g14.id, {"kind": "wake"}, deps(e14)))
+check("P2-1: bật lại: mục tiêu đã tạm dừng vẫn đứng yên, mục tiêu đã huỷ vẫn huỷ",
+      e14.queries == 0 and store.get(P, g14.id).paused and store.get(P, g15.id).status == "cancelled")
+
+# P2-2: khoá báo cáo tìm trên toàn bộ phiên, không giới hạn 300 tin.
+import dataclasses  # noqa: E402
+g16 = make_goal()
+SID2 = main.get_store().get_or_create(None, brain=BRAIN, engine="test", model="test")
+store.notice(P, g16.id, "goal.blocked", {"code": "budget"}, idem="review-p22")
+row16 = [r for r in store.outbox_pending(500) if r["goal_id"] == g16.id and r["kind"] == "goal.blocked"][0]
+key16 = f"outbox:{row16['id']}"
+main.get_store().append_message(SID2, "assistant", "Đã báo\n" + R.goal_block(g16.id, 1, report=key16))
+for i in range(350):
+    main.get_store().append_message(SID2, "user", f"Tin sau {i}")
+probe = dataclasses.replace(store.get(P, g16.id), session_id=SID2)
+check("P2-2: báo cáo đã lưu, sau đó 350 tin khác: vẫn nhận ra là đã báo", main._resonance_reported(probe, key16))
+check("P2-2: khoá báo cáo khác (chưa lưu) không bị nhận nhầm",
+      not main._resonance_reported(probe, f"outbox:{row16['id'] + 100000}"))
+
+
+async def _notify16(goal, kind, text, card=""):
+    return await main.push_to_chat(SID2, text, card=card)
+
+
+def _already16(goal, report_key):
+    return main._resonance_reported(dataclasses.replace(goal, session_id=SID2), report_key)
+
+
+asyncio.run(R.drain_outbox(store, _notify16, already=_already16))
+copies = [m for m in main.get_store().get_messages(SID2)
+          if any(b.get("report") == key16 for b in R.parse_goal_blocks(m.get("content") or ""))]
+check("P2-2: nhịp đối soát sau đó không gửi lại báo cáo cũ", len(copies) == 1 and not any(
+    r["id"] == row16["id"] for r in store.outbox_pending(500)))
 
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)

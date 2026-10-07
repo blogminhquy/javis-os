@@ -68,6 +68,7 @@ class GoalRecord:
     horizon: dict = field(default_factory=dict)
     relevant_quote: str = ""
     guards: tuple = ()
+    guard_seq: int = 0
     stage: str = "discovery"
     mode: str = "achieve"
     status: str = "active"
@@ -517,6 +518,11 @@ def _artifact_params(raw: Any, need_path: bool = False) -> tuple:
     return out, ""
 
 
+def _guard_num(gid: Any) -> int:
+    m = re.fullmatch(r"gd(\d+)", str(gid or ""))
+    return int(m.group(1)) if m else 0
+
+
 def _guard_key(g: dict) -> tuple:
     import json as _json
     return (_norm(g.get("description")), str(g.get("evaluator") or ""),
@@ -531,7 +537,7 @@ def _prior_view(prior) -> dict:
             "horizon": dict(prior.horizon or {}), "stage": prior.stage, "mode": prior.mode,
             "assumptions": list(prior.assumptions), "targets": [dict(t) for t in prior.targets],
             "open_questions": list(prior.open_questions), "constraints": list(prior.constraints),
-            "guards": [dict(x) for x in prior.guards]}
+            "guards": [dict(x) for x in prior.guards], "guard_seq": int(prior.guard_seq or 0)}
 
 
 def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = False,
@@ -682,15 +688,22 @@ def validate_proposal(proposal: dict, user_text: str, *, user_unsure: bool = Fal
         if _guard_key(x) not in proposed_keys and notes is not None:
             notes.append(f"Bỏ hay sửa guard đã có \"{x.get('description')}\" chưa hỗ trợ ở bản này; guard vẫn giữ.")
     guards = list(prior_guards)
+    # id cấp từ bộ đếm TĂNG DẦN lưu trong khung (review M4, P1-3): bỏ rồi thêm guard không bao giờ tái dùng id, nên
+    # nút Bỏ luôn trỏ đúng một mục.
+    seq = max([int(base.get("guard_seq") or 0)] + [_guard_num(x.get("id")) for x in prior_guards])
     for x in proposed:
         if _guard_key(x) not in prior_keys and len(guards) < GUARDS_MAX:
-            guards.append({"id": f"gd{len(guards) + 1}", **x})
+            seq += 1
+            guards.append({"id": f"gd{seq}", **x})
             prior_keys.add(_guard_key(x))
+    if len({x["id"] for x in guards}) != len(guards):
+        raise GoalRejected("id điều kiện bảo vệ bị trùng; không lưu khung này")
     # Theo chân trời CUỐI CÙNG đã nhận: chân trời đề xuất bị host chặn không được kéo mode đổi theo.
     mode = "maintain" if (proposal.get("mode") == "maintain" or horizon.get("kind") == "maintain") else "achieve"
     return {"understanding": understanding, "criteria": criteria, "relevant_quote": quote[:300],
             "horizon": horizon, "stage": stage, "mode": mode, "assumptions": assumptions[:20],
-            "constraints": constraints, "targets": targets, "open_questions": questions, "guards": guards}
+            "constraints": constraints, "targets": targets, "open_questions": questions, "guards": guards,
+            "guard_seq": seq}
 
 
 def revision_relation(prior, frame: dict) -> str:
@@ -979,14 +992,14 @@ def _put_evidence(goal: GoalRecord, label: str, text: str, kind: str, deps: Goal
 
 
 def current_artifact_ref(goal: GoalRecord, deps: GoalDeps) -> str:
-    """Định danh bản sản phẩm người dùng đang xem của revision hiện tại: sha256 đầu ra thành công mới nhất. Xác
-    nhận "Đạt yêu cầu" gắn với đúng chuỗi này; sản phẩm đổi thì xác nhận cũ không còn áp dụng (spec 4.7)."""
+    """Định danh bản sản phẩm người dùng đang xem: sha256 BYTES HIỆN TẠI của đúng file thẻ cho xem (review M4,
+    P1-1). Có file sản phẩm khai trong tiêu chí thì là file đó trong brain (cũng là bytes evaluator đọc để chốt);
+    không có thì là file đầu ra mới nhất của revision trong vùng làm việc. File đổi, mất hay chưa có thì chuỗi đổi
+    hoặc rỗng, nên xác nhận gắn với bản cũ không đóng được bản mới. Không lấy hash trong receipt: receipt chỉ chứng
+    minh worker đã tạo nội dung lúc đó, không chứng minh người dùng đã duyệt file đang nằm trên đĩa."""
     if deps.store is None or deps.principal is None:
         return ""
-    for x in reversed(deps.store.actions(deps.principal, goal.id)):
-        if x["kind"] == "work" and x["status"] == "succeeded" and x["revision"] == goal.revision:
-            return str((x.get("receipt") or {}).get("output_sha256") or "")
-    return ""
+    return _artifact_ref_of(deps.store, deps.principal, goal, deps.brain_root)
 
 
 def _human_verdict(goal: GoalRecord, criterion: dict, deps: GoalDeps) -> dict:
@@ -1769,14 +1782,33 @@ def parse_goal_blocks(text: str) -> list:
     return out
 
 
-def _artifact_ref_of(store, principal, goal: GoalRecord) -> str:
-    for x in reversed(store.actions(principal, goal.id)):
-        if x["kind"] == "work" and x["status"] == "succeeded" and x["revision"] == goal.revision:
-            return str((x.get("receipt") or {}).get("output_sha256") or "")
-    return ""
+def _artifact_file(store, principal, goal: GoalRecord, brain_root: str) -> Optional[Path]:
+    """File thẻ cho người dùng xem: file sản phẩm khai trong tiêu chí (trong brain), hoặc đầu ra mới nhất của
+    revision trong vùng làm việc. None khi revision hiện tại chưa có lượt làm thành công nào: bản trên đĩa khi đó
+    là của cách hiểu cũ, không được duyệt thay cho cách hiểu mới."""
+    work = next((x for x in reversed(store.actions(principal, goal.id))
+                 if x["kind"] == "work" and x["status"] == "succeeded" and x["revision"] == goal.revision), None)
+    if work is None:
+        return None
+    rel = _deliverable_rel(goal)
+    if rel:
+        f = _brain_file(brain_root, rel)
+        return f if f is not None and f.is_file() else None
+    ref = (work.get("receipt") or {}).get("output_ref")
+    return Path(ref) if ref and Path(ref).is_file() else None
 
 
-def apply_feedback(store, owner, goal_id: str, kind: str, payload: dict) -> dict:
+def _artifact_ref_of(store, principal, goal: GoalRecord, brain_root: str = "") -> str:
+    f = _artifact_file(store, principal, goal, brain_root)
+    if f is None:
+        return ""
+    try:
+        return _sha(f.read_bytes())
+    except OSError:
+        return ""
+
+
+def apply_feedback(store, owner, goal_id: str, kind: str, payload: dict, brain_root: str = "") -> dict:
     """Ghi phản hồi từ thẻ. Kiểm payload theo từng loại TRƯỚC khi ghi:
     - goal_fit_confirmed / goal_fit_rejected: cần expected_revision;
     - outcome_accepted / outcome_rejected: cần expected_revision, criterion_id của một tiêu chí human_confirmation
@@ -1802,7 +1834,7 @@ def apply_feedback(store, owner, goal_id: str, kind: str, payload: dict) -> dict
             raise GoalRejected("tiêu chí này do host kiểm bằng bằng chứng, không nhận xác nhận tay")
         if exp != g.revision:
             raise ConflictError(f"mục tiêu đang ở revision {g.revision}, không phải {exp}")
-        ref = _artifact_ref_of(store, owner, g)
+        ref = _artifact_ref_of(store, owner, g, brain_root)
         if not ref:
             raise GoalRejected("chưa có sản phẩm của cách hiểu này để xác nhận")
         if str(payload.get("artifact_ref") or "") != ref:
@@ -1909,7 +1941,7 @@ def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]
                                                    for x in g.guards],
         "directives": _directives(g),
         "criteria": criteria, "fit": store.fit_status(principal, goal_id, g.revision),
-        "artifact_ref": _artifact_ref_of(store, principal, g),
+        "artifact_ref": _artifact_ref_of(store, principal, g, brain_root),
         "deliverable": _deliverable_rel(g) or _rel_to_brain(Path(out_path) if out_path else None, brain_root),
         "calls_used": g.calls_used, "budget_calls": g.budget_calls,
         "next_wake": {"at": nxt["due_at"], "reason": nxt["reason"]} if nxt else None,

@@ -2112,11 +2112,12 @@ def _resonance_reported(goal, report_key) -> bool:
     """Đối soát báo lặp (M4): tin mang đúng khoá báo cáo này đã nằm trong kho phiên chưa. Tiến trình chết giữa lúc
     lưu tin và lúc đánh dấu outbox thì nhịp sau thấy tin đã có, chỉ đánh dấu, không gửi lần hai."""
     try:
-        for m in reversed(get_store().get_messages(goal.session_id)[-300:]):
-            if m.get("role") != "assistant":
-                continue
-            if any(b.get("report") == report_key for b in resonance.parse_goal_blocks(m.get("content") or "")):
-                return True
+        # Tìm trên TOÀN BỘ phiên bằng SQL (review M4, P2-2): hội thoại thêm hàng trăm tin trước lần đối soát kế tiếp
+        # vẫn nhận ra tin đã lưu. Chuỗi tìm đúng khuôn json.dumps của goal_block.
+        needle = '"report": ' + json.dumps(str(report_key), ensure_ascii=False)
+        mid = get_store().find_message_containing(goal.session_id, needle)
+        if mid is not None:
+            return True
     except Exception as e:  # noqa: BLE001
         print(f"[resonance reported] {type(e).__name__}: {e}", file=sys.stderr)
     return False

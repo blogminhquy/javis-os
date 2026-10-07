@@ -151,10 +151,18 @@
 
   /* Request của một nút, dựng TỪ TRẠNG THÁI ĐÃ TẢI: revision, artifact_ref, criterion_id đều là của đúng bản
      người dùng đang nhìn. Thuần để test. */
-  function requestFor(act, g, critId, dir) {
+  /* `nonce` định danh MỘT lần bấm (review M4, P1-2): gửi lại chính request đó dùng lại khoá nên server ghi đúng
+     một lần, còn một lần bấm mới (kể cả sau khi đã bấm ý ngược lại) có khoá mới và luôn được ghi. Không truyền
+     nonce thì tự sinh: mỗi request dựng ra là một lần bấm riêng. */
+  function newNonce() {
+    return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+  }
+
+  function requestFor(act, g, critId, dir, nonce) {
+    nonce = nonce || newNonce();
     var id = encodeURIComponent(g.goal_id);
     var rev = Number(g.revision) || 0;
-    var key = g.goal_id + ":" + rev + ":" + act + (critId ? ":" + critId : "") + ":" + (g.artifact_ref || "");
+    var key = g.goal_id + ":" + rev + ":" + act + (critId ? ":" + critId : "") + ":" + String(nonce);
     if (act === "fit_ok" || act === "fit_no") {
       return { url: "/goals/" + id + "/feedback", body: { kind: act === "fit_ok" ? "goal_fit_confirmed" : "goal_fit_rejected",
         expected_revision: rev, idempotency_key: key } };
@@ -230,7 +238,7 @@
     if (!g) return;
     if (act === "cancel" && !window.confirm(tw("resonance.cancel_confirm"))) return;
     if (act === "drop" && !window.confirm(tw("resonance.drop_confirm"))) return;
-    var req = requestFor(act, g, critId, dir);
+    var req = requestFor(act, g, critId, dir, newNonce());
     var btns = el.querySelectorAll("button.rs-act");
     for (var i = 0; i < btns.length; i++) btns[i].disabled = true;
     fetch(req.url + "?brain=" + encodeURIComponent(brain()), {

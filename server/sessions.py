@@ -544,6 +544,13 @@ class SessionStore:
             return cur.lastrowid
         return self._write(_do)
 
+    def find_message_containing(self, session_id: str, needle: str, role: str = "assistant") -> Optional[int]:
+        """id tin ĐẦU TIÊN của phiên (đúng vai) có chứa chuỗi `needle`, tìm trên toàn bộ phiên, không giới hạn độ sâu.
+        Dùng để đối soát báo cáo đã lưu (Resonance M4): khoá báo cáo nằm trong khối ẩn của tin."""
+        rows = self._read("SELECT id FROM messages WHERE session_id = ? AND role = ? AND instr(content, ?) > 0 "
+                          "ORDER BY id LIMIT 1", (session_id, role, str(needle)))
+        return int(rows[0]["id"]) if rows else None
+
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         rows = self._read("SELECT * FROM sessions WHERE id = ?", (session_id,))
         return dict(rows[0]) if rows else None

@@ -208,7 +208,7 @@ class GoalStore:
             assumptions=tuple(fr.get("assumptions") or ()), constraints=tuple(fr.get("constraints") or ()),
             targets=tuple(fr.get("targets") or ()), open_questions=tuple(fr.get("open_questions") or ()),
             horizon=dict(fr.get("horizon") or {}), relevant_quote=fr.get("relevant_quote", ""),
-            guards=tuple(fr.get("guards") or ()),
+            guards=tuple(fr.get("guards") or ()), guard_seq=int(fr.get("guard_seq") or 0),
             stage=fr.get("stage", "discovery"), mode=fr.get("mode", "achieve"), status=row["status"],
             budget_calls=row["budget_calls"], calls_used=row["calls_used"], paused=bool(row["paused"]))
 
@@ -792,10 +792,15 @@ class GoalStore:
                 fr["constraints"] = [x for x in (fr.get("constraints") or []) if x != key]
                 user_cons = [x for x in user_cons if x != key]
             else:
-                left = [g for g in (fr.get("guards") or []) if str(g.get("id")) != key]
-                if len(left) == len(fr.get("guards") or []):
+                cur_guards = list(fr.get("guards") or [])
+                hits = [g for g in cur_guards if str(g.get("id")) == key]
+                if not hits:
                     raise R.GoalRejected("không có điều kiện bảo vệ này")
-                fr["guards"] = left
+                if len(hits) > 1:
+                    # Dữ liệu cũ có id trùng: không đoán người dùng muốn bỏ mục nào, không xoá cả hai (review M4, P1-3).
+                    raise R.GoalRejected("có nhiều điều kiện bảo vệ cùng id; không bỏ để tránh xoá nhầm")
+                fr["guards"] = [g for g in cur_guards if g is not hits[0]]
+                fr["guard_seq"] = max(int(fr.get("guard_seq") or 0), max(R._guard_num(g.get("id")) for g in cur_guards))
             rev = int(row["revision"]) + 1
             c.execute("INSERT INTO goal_revisions VALUES(?,?,?,?,?,?,?)",
                       (goal_id, rev, prev["intent_id"] if prev else "", _j(fr), f"người dùng bỏ {field}", p.by, now))

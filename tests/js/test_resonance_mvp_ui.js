@@ -11,6 +11,7 @@ const ROOT = path.join(__dirname, "..", "..");
 const RS = require(path.join(ROOT, "dashboard", "chat-resonance.js"));
 const vi = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
 const en = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "en.json"), "utf8"));
+const SRC = fs.readFileSync(path.join(ROOT, "dashboard", "chat-resonance.js"), "utf8");
 
 let fails = 0;
 function check(name, cond, extra) {
@@ -91,9 +92,17 @@ check("thẻ cũ gửi đúng revision CŨ của nó (server sẽ trả 409), kh
       rOld.body.expected_revision === 1);
 const rCmd = RS.requestFor("pause", waiting);
 check("Tạm dừng: gửi lệnh vào /commands", rCmd.url === "/goals/g_abc/commands" && rCmd.body.command === "pause");
-check("khoá chống bấm trùng đổi theo bản sản phẩm (bản mới bấm lại được)",
-      RS.requestFor("out_ok", waiting, "c2").body.idempotency_key
-      !== RS.requestFor("out_ok", Object.assign({}, waiting, { artifact_ref: "b".repeat(64) }), "c2").body.idempotency_key);
+// Review M4, P1-2: khoá định danh MỘT lần bấm. Gửi lại đúng lần bấm đó (cùng nonce) giữ khoá; lần bấm mới
+// (kể cả Chưa đúng ý -> Đúng ý -> Chưa đúng ý) có khoá mới nên không bị server coi là trùng.
+check("khoá chống bấm trùng: cùng một lần bấm gửi lại giữ nguyên khoá",
+      RS.requestFor("fit_no", waiting, null, null, "n1").body.idempotency_key
+      === RS.requestFor("fit_no", waiting, null, null, "n1").body.idempotency_key);
+check("khoá chống bấm trùng: hai lần bấm khác nhau cùng nút có khoá khác nhau",
+      RS.requestFor("fit_no", waiting, null, null, "n1").body.idempotency_key
+      !== RS.requestFor("fit_no", waiting, null, null, "n2").body.idempotency_key);
+check("không truyền nonce: mỗi request dựng ra là một lần bấm riêng, khoá khác nhau",
+      RS.requestFor("fit_no", waiting).body.idempotency_key !== RS.requestFor("fit_no", waiting).body.idempotency_key);
+check("send() sinh nonce mới cho mỗi lần bấm", /var req = requestFor\(act, g, critId, dir, newNonce\(\)\);/.test(SRC));
 
 // ───────────── từ điển: mọi khoá trạng thái đều có ở cả vi và en ─────────────
 const states = ["human_confirmation", "fit_rejected", "guard", "guard_unknown", "budget", "discovery_done", "healthy",
