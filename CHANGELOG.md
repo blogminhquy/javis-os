@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.85.4] - 2026-10-07
+### Cải thiện
+- Bỏ giới hạn 20 câu mỗi người mỗi giờ của bot.
+
 ## [0.85.3] - 2026-10-07
 ### Sửa lỗi
 - **Bot ở mức Toàn quyền giờ chạy y như kênh admin.** Trước đây mức này vẫn đi đường hẹp của bot: với Grok Build và Antigravity bot không dùng được công cụ nào, với Claude Code thì không thấy các kết nối Gmail, Drive, lịch của tài khoản Claude. Giờ bot Toàn quyền có đúng bộ não, công cụ, MCP và kỹ năng như khi bạn chat trực tiếp, chỉ giữ vai của Agent.

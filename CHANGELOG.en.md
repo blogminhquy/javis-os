@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.85.4] - 2026-10-07
+### Improved
+- Removed the bot's 20 answers per person per hour limit.
+
 ## [0.85.3] - 2026-10-07
 ### Fixed
 - **Bots at Full power now run exactly like the admin channel.** This level used to take the bot's narrow route: with Grok Build and Antigravity the bot could use no tool at all, and with Claude Code it could not see the Gmail, Drive and calendar connections of the Claude account. A Full power bot now has the same brain, tools, MCP and skills as when you chat directly, keeping only the Agent's role.
