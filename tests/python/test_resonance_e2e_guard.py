@@ -132,9 +132,9 @@ check("danh sách một dòng mỗi việc: met",
 check("danh sách nhiều dòng (tên và việc ở dòng đầu, hạn ở dòng thụt kế tiếp, ca của reviewer): met",
       V("- Lan: soạn kế hoạch bài viết tháng 11\n  Hạn: 09/10\n- Minh: kiểm lại lịch đăng\n  Hạn: 10/10\n"
         "- Hà: gửi bảng số liệu cho cả nhóm\n  Hạn: 12/10\n") == "met")
-check("gom theo người dưới tiêu đề: met",
+check("gom theo người dưới tiêu đề: unverified (không gộp mục tiêu đề nữa, để người review đọc)",
       V("## Lan\nSoạn kế hoạch bài viết tháng 11\nHạn 09/10\n\n## Minh\nKiểm lại lịch đăng\nHạn 10/10\n\n"
-        "## Hà\nGửi bảng số liệu cho cả nhóm\nHạn 12/10\n") == "met")
+        "## Hà\nGửi bảng số liệu cho cả nhóm\nHạn 12/10\n") == "unverified")
 check("chỉ có người và hạn, không có việc nào (ca của reviewer): not_met",
       V("Lan | 09/10\nMinh | 10/10\nHà | 12/10\n") == "not_met")
 check("bảng chỉ có cột người và hạn: not_met", V("| Người | Hạn |\n|---|---|\n| Lan | 09/10 |\n| Minh | 10/10 |\n"
@@ -156,6 +156,30 @@ r_un = G.content_contract("- Lan: chuẩn bị đề cương nội dung, hạn 0
 check("mô tả việc bằng cách nói chưa hỗ trợ: unverified (không tính là đạt, không kết luận làm sai)",
       r_un["verdict"] == "unverified" and r_un["items"][0]["verdict"] == "unverified")
 check("sản phẩm rỗng: not_met", V("") == "not_met")
+# Review e2e vòng 4
+r_sec = G.content_contract("- Lan: soạn kế hoạch bài viết tháng 11, hạn 09/10\n- Minh: kiểm lại lịch đăng, hạn 10/10\n"
+                           "## Hà\n- Gửi bảng số liệu cho cả nhóm, hạn 13/10\n- Họp nội bộ, hạn 12/10\n", ITEMS)
+check("hạn mượn từ việc khác cùng mục tiêu đề (ca của reviewer): KHÔNG met",
+      r_sec["verdict"] != "met" and r_sec["items"][2]["verdict"] != "met")
+r_multi = G.content_contract("Lan soạn kế hoạch bài viết tháng 11 hạn 09/10; Minh kiểm lại lịch đăng hạn 10/10; "
+                             "Hà gửi bảng số liệu cho cả nhóm hạn 12/10.\n", ITEMS)
+check("cả ba việc đúng trong một câu nhiều người (ca của reviewer): unverified, không phải 'không thấy người'",
+      r_multi["verdict"] == "unverified" and all("nhiều người" in x["why"] for x in r_multi["items"]))
+check("không thấy tên ở đâu trong văn bản: not_met, nói rõ không thấy",
+      "không thấy tên" in G.content_contract("- Lan: soạn kế hoạch bài viết tháng 11, hạn 09/10\n",
+                                             ITEMS)["items"][1]["why"])
+check("đúng việc nhưng ngày không phải hạn của ai (11/10): not_met",
+      G.content_contract("- Minh: kiểm lại lịch đăng, hạn 11/10\n", ITEMS[1:2])["verdict"] == "not_met")
+check("docstring nói rõ đây là chỉ báo, không phải chứng nhận nội dung",
+      "CHỈ BÁO" in G.content_contract.__doc__ and "không phải chứng nhận" in G.content_contract.__doc__.lower())
+src_f = tmp / "sp.md"
+src_f.write_text("# Việc\n- Lan: soạn kế hoạch\n", encoding="utf-8")
+pa = G.preserve_artifact(src_f, tmp / "out" / "pilot-deliverable.md")
+check("lưu nguyên vẹn sản phẩm ra ngoài: hash bản chép khớp bản nguồn",
+      pa["ok"] and pa["saved"] == "pilot-deliverable.md" and (tmp / "out" / "pilot-deliverable.md").read_bytes() ==
+      src_f.read_bytes())
+check("không có file sản phẩm thì không lưu được, báo ok=False",
+      G.preserve_artifact(tmp / "khong-co.md", tmp / "out" / "x.md")["ok"] is False)
 check("văn xuôi hai dòng cho mỗi người (đoạn chỉ nói về một người): met",
       V("Lan sẽ soạn kế hoạch bài viết tháng 11.\nHạn chót 09/10.\n\nMinh kiểm lại lịch đăng.\nHạn chót 10/10.\n\n"
         "Hà gửi bảng số liệu cho cả nhóm.\nHạn chót 12/10.\n") == "met")

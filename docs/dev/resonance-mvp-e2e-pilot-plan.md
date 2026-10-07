@@ -1,6 +1,6 @@
 # Pilot đầu-cuối Resonance MVP qua đường chat thật: kịch bản và hạn mức
 
-**Trạng thái: lần chạy 1 (07/10/2026) đã chạy, bộ não chọn `javis_task`, không lập mục tiêu (xem cuối tài liệu). Bộ chạy đã sửa theo review e2e vòng 1 (P1-1, P1-2, P2-1), vòng 2 (P2-1, P2-2, nguồn cấu hình) và vòng 3 (chấm đủ việc, người, hạn). Lần chạy 2 CHỜ người dùng duyệt; chưa gọi thêm model nào.**
+**Trạng thái: lần chạy 1 (07/10/2026) đã chạy, bộ não chọn `javis_task`, không lập mục tiêu (xem cuối tài liệu). Bộ chạy đã sửa theo review e2e vòng 1 (P1-1, P1-2, P2-1), vòng 2 (P2-1, P2-2, nguồn cấu hình) vòng 3 (chấm đủ việc, người, hạn) và vòng 4 (nội dung do người review chốt). Lần chạy 2 CHỜ người dùng duyệt; chưa gọi thêm model nào.**
 
 ## Mục đích
 
@@ -48,13 +48,13 @@ Lời người dùng, loại **duy trì** (đúng nhóm `javis_goal` theo luật
 | Kiểm lại lịch đăng | Minh | 10/10 | "lịch đăng"; "lịch" + "đăng bài" |
 | Gửi bảng số liệu cho cả nhóm | Hà | 12/10 | "số liệu" |
 
-Chấm trên file thật theo **đơn vị trình bày** (`_e2e_pilot_guard.content_contract`): một hàng bảng; một mục danh sách cùng các dòng tiếp nối; một đoạn văn; một mục dưới tiêu đề; và từng dòng. Chỉ đơn vị nói về ĐÚNG MỘT người của hợp đồng được tính (đơn vị nhắc nhiều người thì quan hệ không rõ). Ngày chấp nhận 9/10 hay 09/10, có thể kèm năm. Ba kết quả:
+**Nghiệm thu nội dung do NGƯỜI REVIEW chốt** (điều chỉnh quy trình nghiệm thu theo review e2e vòng 4, phương án 1; không đổi luật đánh giá của Resonance trong sản phẩm). Khớp cụm từ không hiểu được phủ định ("không gửi"), hành động trái nghĩa ("hủy lịch đăng"), sai tháng hay chỉ đúng chủ đề ("kiểm tra số liệu"), nên không dùng làm căn cứ nghiệm thu:
 
-- **met:** cả ba bộ đều có một đơn vị chứa đúng người, đúng việc, đúng hạn.
-- **not_met:** thiếu người; đơn vị chỉ có người và hạn mà không có việc; việc của người khác nằm ở đơn vị của người này (gán sai); hạn sai hay hạn của người khác. Pilot FAIL.
-- **unverified:** đơn vị của người có chữ mô tả việc nhưng không khớp cụm đặc trưng nào (cách nói đồng nghĩa chưa hỗ trợ). Pilot KHÔNG đạt, ghi `unverified_format`, giữ sản phẩm cho người review; không kết luận bộ não làm sai.
+- Bộ chạy tính **chỉ báo hỗ trợ** `content_candidate` (`_e2e_pilot_guard.content_contract`) theo đơn vị trình bày (hàng bảng, mục danh sách cùng dòng tiếp nối, đoạn văn, từng dòng; KHÔNG gộp mục dưới tiêu đề), chỉ đơn vị nói về đúng một người. Kết quả: `met` (các cụm, người, hạn cùng một đơn vị), `not_met` (có bằng chứng sai rõ: không thấy tên, việc của người khác, đúng việc mà khác hạn, có người và hạn mà không có việc), `unverified` (không trích được quan hệ: câu nhắc nhiều người, tiêu đề, việc không kèm ngày, cách nói chưa hỗ trợ). Chỉ báo được ghi vào báo cáo để người review tham khảo.
+- Bộ chạy **lưu NGUYÊN VẸN** file sản phẩm ra ngoài thư mục tạm (cạnh báo cáo, `<tên báo cáo>-deliverable.md`) trước khi dọn, kiểm hash bản chép bằng hash nguồn; báo cáo trỏ đúng tên file và hash. Chế độ real bắt buộc có `JAVIS_RESONANCE_E2E_OUT`.
+- Mọi kiểm kỹ thuật đạt thì kết luận của lần chạy là `acceptance: pending_content_review` và `content_review: pending`: **chưa nghiệm thu pilot**. Người review đối chiếu ba bộ việc, người, hạn trên đúng file và hash đó rồi mới chốt; không bao giờ tự suy ra từ chỉ báo. Kỹ thuật không đạt thì `technical_failed`; dừng giữa chừng thì `stopped`.
 
-Mục tiêu hiểu sai vẫn được lưu làm bằng chứng nhưng pilot FAIL.
+Mục tiêu hiểu sai về kiểu hay file vẫn là lỗi kỹ thuật cứng (pilot FAIL); sai về nội dung do người review bắt.
 
 Mọi điều kiện dưới đây là lỗi CỨNG (một điều không đạt là pilot FAIL, không có nhánh "ghi chú rồi OK").
 
@@ -62,11 +62,11 @@ Mọi điều kiện dưới đây là lỗi CỨNG (một điều không đạt
 |---|---|---|
 | 0 | Server A lên (nhịp tạm dừng); cổng an toàn | Đúng binary, gói thuê bao gốc, settings sạch; WebSocket nhận kết nối |
 | 1 | Gửi MỘT tin qua `/ws`, chờ `turn_done` | Bộ não lập ĐÚNG MỘT mục tiêu qua `javis_goal`, gắn đúng phiên; **kiểu là `maintain`**; **file sản phẩm của mục tiêu đúng file người dùng nêu**; ý định gốc TRÙNG KHỚP toàn bộ lời người dùng; thẻ đặt vào đúng phiên có biên nhận; chưa có lượt việc nền nào. Không lập mục tiêu: ghi kết quả, DỪNG |
-| 2 | Giết A, dựng B (nhịp chạy) | Nhịp lập lịch tự làm lượt việc nền; receipt succeeded, đúng provider, 0 lần gọi công cụ; **file người dùng nêu** tồn tại và bytes khớp hash host ghi khi đăng; **hợp đồng nội dung `met`** (đủ ba bộ việc, người, hạn); tin báo về đúng phiên có biên nhận |
+| 2 | Giết A, dựng B (nhịp chạy) | Nhịp lập lịch tự làm lượt việc nền; receipt succeeded, đúng provider, 0 lần gọi công cụ; **file người dùng nêu** tồn tại và bytes khớp hash host ghi khi đăng; sản phẩm được **lưu nguyên vẹn** ra ngoài thư mục tạm, hash khớp; chỉ báo nội dung được ghi (không quyết định); tin báo về đúng phiên có biên nhận |
 | 3 | Giết B, dựng C, chờ hơn hai nhịp | Không báo lặp; không gọi thêm |
 | 4 | Nếu mục tiêu có tiêu chí người dùng duyệt | BẮT BUỘC có sản phẩm để duyệt (`artifact_ref`); bấm "Đạt yêu cầu" qua API như nút trên thẻ: 200 |
 | 5 | Khép vòng theo KIỂU KỊCH BẢN (không theo kiểu bộ não chọn) | Đánh giá met, vẫn active, đã báo `goal.maintained` về phiên có biên nhận, lịch xem lại nằm trong **[6 giờ, 24 giờ] sau mốc đánh giá (cả hai đầu)**; rồi người dùng **tạm dừng qua API** để không còn việc nền. Không gọi thêm model ở bước 4, 5 |
-| Cuối | | Ghi chú cũ còn nguyên (hash); tổng lượt trong trần |
+| Cuối | | Ghi chú cũ còn nguyên (hash); tổng lượt trong trần; kết luận `pending_content_review` nếu mọi kiểm kỹ thuật đạt. **Người review chốt nội dung** trên file đã lưu |
 
 Bằng chứng lưu thêm: khung `tool_call` / `tool_result` (gồm `ToolSearch`; engine chỉ chuyển kết quả công cụ đã cắt còn 500 ký tự), câu trả lời cuối, việc Kanban nếu có, hash phiên bản `CLAUDE.md` của repo và của brain cùng plugin `javis_goal` (luật định tuyến đang dùng).
 
@@ -121,6 +121,12 @@ Script kỳ vọng `PR-579-e2e-round3-expected-checks.py` (dựng từ script v�
 Test fixture (`test_resonance_e2e_guard.py`, tổng 49 kiểm): bảng đúng, danh sách một dòng, danh sách nhiều dòng (ca của reviewer), gom theo người dưới tiêu đề, văn xuôi hai dòng, bảng kèm dòng tóm tắt nhắc cả ba người: `met`. Chỉ người và hạn (ca của reviewer), bảng chỉ cột người và hạn, thiếu một việc, gán nhầm người (ca của reviewer), sai hạn, hạn của người khác, sản phẩm rỗng: `not_met`. Cách nói chưa hỗ trợ: `unverified`.
 
 Script kỳ vọng `PR-579-e2e-round4-expected-checks.py` (dựng từ script vòng 3 của reviewer: mục tiêu duy trì thật đạt theo tiêu chí host, đúng file, hash, lịch; chạy chính biểu thức kiểm nội dung của bộ chạy): thiếu việc và gán nhầm FAIL, đúng và nhiều dòng qua; exit 0. Trên `d5cff3d2` script dừng ở kiểm đầu vì hợp đồng cũ không có việc.
+
+### Vòng 4 (diff `d5cff3d2..5c414d6f` được review)
+
+**P2, chấm từ khoá vẫn báo đạt cho nội dung sai.** Theo khuyến nghị của review, chọn **phương án 1**: bỏ phép chấm nội dung khỏi các kiểm nghiệm thu; giữ nó làm chỉ báo hỗ trợ; kỹ thuật đạt thì `pending_content_review`; lưu nguyên vẹn sản phẩm với hash để người review chốt. Không mở rộng thêm từ khoá. Chỉ báo được chỉnh cho thận trọng hơn: không gộp mục dưới tiêu đề (ca mượn hạn của việc khác không còn `met`); tên chỉ nằm trong đơn vị nhắc nhiều người thì `unverified`, không phải "không thấy người"; có đúng việc mà ngày không phải hạn của ai thì `not_met`.
+
+Test (`test_resonance_e2e_guard.py`, 56 kiểm): thêm ca mượn hạn trong mục tiêu đề, câu nhiều người, không thấy tên, ngày lạ, chỉ báo tự nói là chỉ báo, lưu nguyên vẹn (hash khớp) và không có file. Script kỳ vọng `PR-579-e2e-round5-expected-checks.py`: bộ chạy không còn kiểm nội dung để nghiệm thu, đòi lưu nguyên vẹn; `acceptance` chỉ phụ thuộc kỹ thuật (`rep`, `_fails`, `MODE`); bốn ca sai nghĩa của reviewer chỉ báo vẫn nói `met` nhưng kết luận là chờ người review; mượn hạn và câu nhiều người không còn `met`; sản phẩm hơn 4.000 ký tự được lưu đủ. Exit 0; trên `5c414d6f` thì đỏ.
 
 Trả lời ba câu hỏi của review vòng 1: **giữ luật định tuyến hiện tại** và đổi kịch bản sang loại duy trì, nghiệm thu theo kiểu mục tiêu (maintain: met, `goal.maintained`, lịch xem lại, rồi tạm dừng); trần nay đủ cho mọi đường Resonance gọi engine trên cùng kho với cùng biến ở mỗi tiến trình, nhưng không phải trần request nội bộ SDK; lọc môi trường không tự đủ, nên có cổng xác thực và soát settings.
 

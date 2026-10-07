@@ -94,6 +94,10 @@ KEY = str(BRAIN.resolve())
 P = RS.Principal("agent", "javis", KEY)
 ORIGIN = f"http://127.0.0.1:{PORT}"
 # Lời giao loại DUY TRÌ (đúng nhóm javis_goal theo luật hiện hành), dữ liệu mô phỏng, không nêu tên công cụ.
+OUT = os.environ.get("JAVIS_RESONANCE_E2E_OUT", "")
+if MODE == "real" and not OUT:
+    print("FAIL pilot: chế độ real cần JAVIS_RESONANCE_E2E_OUT (báo cáo và bản lưu sản phẩm cho người review)")
+    sys.exit(1)
 USER_MSG = ("(Dữ liệu mô phỏng để thử nghiệm.) Từ giờ duy trì giúp mình ghi chú Inbox/viec-dang-do.md: lúc nào cũng "
             "liệt kê đủ các việc đang dở bên dưới, mỗi việc ghi người phụ trách và hạn chót. Khi mình báo thêm việc "
             "thì cập nhật vào, có bản mới thì báo mình xem. Đừng đụng tới Notes/ghi-chu-cu.md.\n"
@@ -494,16 +498,19 @@ try:
         pub = goal_store().published(P, g.id, deliv) or {}
         f = BRAIN / deliv
         text = f.read_text(encoding="utf-8") if f.is_file() else ""
-        contract = G.content_contract(text, SCENARIO["items"])
+        # Chỉ báo hỗ trợ, KHÔNG phải căn cứ nghiệm thu (review e2e vòng 4): nội dung do người review chốt trên file
+        # nguyên vẹn đã lưu ra ngoài thư mục tạm.
+        candidate = G.content_contract(text, SCENARIO["items"])
+        saved = G.preserve_artifact(f, Path(OUT).with_name(Path(OUT).stem + "-deliverable.md")) if OUT else \
+            {"ok": False}
         rep["deliverable"] = {"path": deliv, "agent_path": R._deliverable_rel(cur), "sha256": _sha_file(f),
-                              "published_sha256": pub.get("sha256"), "content_contract": contract,
-                              "text": _cut(text, 4000)}
+                              "published_sha256": pub.get("sha256"), "content_candidate": candidate,
+                              "saved_copy": saved, "text_preview": _cut(text, 4000)}
         check("sản phẩm có ở đúng file người dùng nêu, bytes trên đĩa khớp hash host đã ghi khi đăng",
               f.is_file() and bool(pub) and _sha_file(f) == pub.get("sha256"))
-        check(f"nội dung đủ ba bộ việc, người, hạn trong cùng đơn vị (chấm độc lập trên file thật: "
-              f"{contract['verdict']})", f.is_file() and contract["verdict"] == "met")
-        if contract["verdict"] == "unverified":
-            rep["unverified_format"] = "sản phẩm có bố cục hay cách nói chưa hỗ trợ: chưa nghiệm thu, giữ cho người review"
+        check("sản phẩm được lưu NGUYÊN VẸN ra ngoài thư mục tạm cho người review (hash khớp)",
+              saved.get("ok") is True and saved.get("sha256") == _sha_file(f))
+        rep["content_review"] = "pending"        # người review chốt; KHÔNG suy ra từ content_candidate
     else:
         check("dry: engine việc nền bị chặn trước khi gọi model, mục tiêu blocked có lý do",
               rs.get("run_state") == "blocked" and background_calls() == 0)
@@ -573,6 +580,9 @@ finally:
     check(f"tổng lượt engine cấp host trong trần {MAX_CALLS}", brain_turns + background_calls() <= MAX_CALLS)
     rep["servers"] = SRV.started
     rep["seconds_total"] = round(time.time() - t_start, 1)
+    # Kết luận của lần chạy (review e2e vòng 4): kỹ thuật đạt thì nội dung CHỜ người review, không bao giờ tự "đạt".
+    rep["acceptance"] = ("stopped" if rep.get("stopped") else "technical_failed" if _fails else
+                         "pending_content_review" if MODE == "real" else "dry_ok")
     rep["checks"] = _log
     try:
         head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(ROOT), capture_output=True, text=True,
@@ -584,7 +594,7 @@ finally:
     rep["commit"], rep["server_dirty"] = head, dirty
     print("E2E_REPORT " + json.dumps({k: rep[k] for k in ("mode", "host_engine_turns", "seconds_total") if k in rep},
                                      ensure_ascii=False))
-    outp = os.environ.get("JAVIS_RESONANCE_E2E_OUT")
+    outp = OUT
     if outp:
         txt = json.dumps(rep, ensure_ascii=True, indent=2) + "\n"
         for secret_path in (str(BASE), str(Path.home())):
@@ -593,6 +603,9 @@ finally:
     if not os.environ.get("JAVIS_RESONANCE_E2E_KEEP"):
         shutil.rmtree(BASE, ignore_errors=True)
 
+if rep.get("acceptance") == "pending_content_review":
+    print("\nOK (kỹ thuật): mọi kiểm kỹ thuật đạt. Nội dung CHỜ người review trên file đã lưu; CHƯA nghiệm thu pilot.")
+    sys.exit(0)
 if _fails or rep.get("stopped"):
     print(f"\n{len(_fails)} FAIL:", _fails)
     sys.exit(1)

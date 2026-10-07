@@ -241,19 +241,10 @@ def _units(text: str) -> list:
             flush()
         cur.append(ln)
     flush()
-    # Mục dưới tiêu đề: tiêu đề cùng các dòng sau nó tới tiêu đề kế tiếp.
-    sec, sections = [], []
-    for ln in lines:
-        if ln.strip().startswith("#"):
-            if sec:
-                sections.append("\n".join(sec))
-            sec = [ln]
-        elif sec:
-            sec.append(ln)
-    if sec:
-        sections.append("\n".join(sec))
+    # KHÔNG gộp cả mục dưới tiêu đề (review e2e vòng 4): nhiều việc của cùng một người dưới một tiêu đề sẽ bị ghép việc
+    # này với hạn của việc khác. Bố cục gom theo tiêu đề vì thế ra "chưa xác minh", để người review đọc.
     # Mỗi dòng cũng là một đơn vị: các dòng không gạch đầu dòng liền nhau (một "đoạn") có thể là ba việc của ba người.
-    return units + [x for x in sections if "\n" in x] + [ln.strip() for ln in lines if ln.strip()]
+    return units + [ln.strip() for ln in lines if ln.strip()]
 
 
 def _norm(s: str) -> str:
@@ -272,15 +263,17 @@ def _has_task(unit: str, item: dict) -> bool:
 
 
 def content_contract(text: str, items) -> dict:
-    """Chấm sản phẩm theo hợp đồng ba bộ việc/người/hạn. items: [{"who", "when", "task", "task_keys": [[cụm,...],
-    ...]}]; một phương án cụm khớp khi MỌI cụm của nó có trong đơn vị. Trả {"verdict": met | not_met | unverified,
-    "items": [{"who", "verdict", "why"}]}.
+    """CHỈ BÁO HỖ TRỢ cho người review nội dung, KHÔNG phải chứng nhận nội dung đúng (review e2e vòng 4): khớp cụm từ
+    không hiểu được phủ định, hành động trái nghĩa, sai tháng hay chỉ đúng chủ đề, nên "met" ở đây chỉ nghĩa là các cụm
+    đặc trưng, người và hạn cùng nằm trong một đơn vị. Nghiệm thu nội dung là việc của người review trên file nguyên vẹn.
 
-    - met: có một đơn vị chứa người, đúng hạn và đúng việc của người đó.
-    - not_met: không thấy người; đơn vị của người chỉ có người và hạn, không có chữ việc; việc của NGƯỜI KHÁC nằm ở đơn
-      vị của người này (gán sai); hay hạn của người khác thay cho hạn của người này.
-    - unverified: đơn vị của người có chữ mô tả việc nhưng không khớp cụm đặc trưng nào (có thể là cách nói đồng
-      nghĩa chưa hỗ trợ). KHÔNG tính là đạt; giữ sản phẩm cho người review, không kết luận bộ não làm sai."""
+    items: [{"who", "when", "task", "task_keys": [[cụm,...], ...]}]; một phương án cụm khớp khi MỌI cụm của nó có trong
+    đơn vị. Trả {"verdict": met | not_met | unverified, "items": [{"who", "verdict", "why"}]}.
+    - met: có một đơn vị chỉ nói về người này, chứa đúng cụm việc và đúng hạn.
+    - not_met (có bằng chứng sai rõ): không thấy tên ở đâu trong văn bản; việc của người khác nằm ở đơn vị của người
+      này; có đúng việc mà ghi một ngày khác hạn (hay hạn của người khác); có người và hạn mà không có chữ việc nào.
+    - unverified (không trích được quan hệ): tên chỉ nằm trong đơn vị nhắc nhiều người, chỉ ở dòng tiêu đề, có việc mà
+      không thấy ngày, hay có mô tả việc không khớp cụm nào. Không tính là đạt, không kết luận bộ não làm sai."""
     import re
     units = _units(text)
     out, verdicts = [], []
@@ -289,30 +282,51 @@ def content_contract(text: str, items) -> dict:
         others = [o for o in items if o is not it]
         # Chỉ đơn vị nói về ĐÚNG MỘT người của hợp đồng: đơn vị có nhiều người thì quan hệ việc/người/hạn không rõ.
         mine = [u for u in units if _has_person(u, it["who"]) and not any(_has_person(u, o["who"]) for o in others)]
-        v, why = "not_met", "không thấy người này trong sản phẩm"
+        any_date = re.compile(r"(?<!\d)\d{1,2}\s*/\s*\d{1,2}(?!\d)")
+        filler = {"hạn", "chót", "người", "phụ", "trách", "việc", "ngày", "deadline", "là", "và"}
         if any(own_date.search(_norm(u)) and _has_task(u, it) for u in mine):
-            v, why = "met", "đủ việc, người, hạn trong cùng một đơn vị"
-        elif mine:
-            v, why = "not_met", "không đơn vị nào có đủ việc, người và đúng hạn"
+            v, why = "met", "các cụm việc, người, hạn cùng nằm trong một đơn vị (chỉ báo, chưa phải nghiệm thu)"
+        elif not mine:
+            if _has_person(text, it["who"]):
+                v, why = "unverified", "có tên nhưng chỉ trong đơn vị nhắc nhiều người: không trích được quan hệ"
+            else:
+                v, why = "not_met", "không thấy tên người này ở đâu trong sản phẩm"
+        else:
+            found = []
             for u in mine:
                 nu = _norm(u)
-                wrong_task = [o["who"] for o in others if _has_task(u, o) and not _has_person(u, o["who"])]
-                wrong_date = (not own_date.search(nu)) and any(_date_re(o["when"]).search(nu) for o in others)
-                if wrong_task:
-                    v, why = "not_met", "việc của người khác nằm ở đơn vị của người này: " + ", ".join(wrong_task)
-                    break
-                if wrong_date:
-                    v, why = "not_met", "hạn của người khác thay cho hạn của người này"
-                    break
                 rest = re.sub(r"(?<!\w)" + re.escape(_norm(it["who"])) + r"(?!\w)", " ", nu)
-                for o in items:
-                    rest = _date_re(o["when"]).sub(" ", rest)
-                rest = re.sub(r"[\W_\d]+", " ", rest).split()
-                filler = {"hạn", "chót", "người", "phụ", "trách", "việc", "ngày", "deadline", "là", "và"}
-                if own_date.search(nu) and [w for w in rest if w not in filler] and not _has_task(u, it):
-                    v, why = "unverified", "có mô tả việc nhưng không khớp cụm đặc trưng nào (cách nói chưa hỗ trợ)"
+                rest = [w for w in re.sub(r"[\W_\d]+", " ", any_date.sub(" ", rest)).split() if w not in filler]
+                wrong_task = [o["who"] for o in others if _has_task(u, o)]
+                if wrong_task:
+                    found.append(("not_met", "việc của người khác nằm ở đơn vị của người này: " + ", ".join(wrong_task)))
+                elif _has_task(u, it) and any_date.search(nu) and not own_date.search(nu):
+                    found.append(("not_met", "đúng việc nhưng ghi một ngày khác hạn (hay hạn của người khác)"))
+                elif own_date.search(nu) and not _has_task(u, it):
+                    found.append(("unverified", "có mô tả việc không khớp cụm đặc trưng nào") if rest else
+                                 ("not_met", "có người và hạn mà không có việc nào"))
+                else:
+                    found.append(("unverified", "không trích được việc hay hạn từ đơn vị của người này "
+                                                "(tiêu đề, việc không kèm ngày)"))
+            bad = [f for f in found if f[0] == "not_met"]
+            v, why = bad[0] if bad else found[0]
         out.append({"who": it["who"], "verdict": v, "why": why})
         verdicts.append(v)
     overall = "met" if verdicts and all(x == "met" for x in verdicts) else (
         "not_met" if "not_met" in verdicts else "unverified")
     return {"verdict": overall, "items": out}
+
+
+def preserve_artifact(src: Path, dest: Path) -> dict:
+    """Chép NGUYÊN VẸN file sản phẩm ra ngoài thư mục tạm của pilot trước khi dọn, để người review đọc đúng bytes đã
+    chấm (review e2e vòng 4). Kiểm hash bản chép bằng hash nguồn. Trả {"saved": tên file, "sha256", "bytes", "ok"}."""
+    import hashlib
+    import shutil
+    src, dest = Path(src), Path(dest)
+    if not src.is_file():
+        return {"saved": "", "sha256": "", "bytes": 0, "ok": False}
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, dest)
+    a = hashlib.sha256(src.read_bytes()).hexdigest()
+    b = hashlib.sha256(dest.read_bytes()).hexdigest()
+    return {"saved": dest.name, "sha256": b, "bytes": dest.stat().st_size, "ok": a == b}
