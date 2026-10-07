@@ -439,11 +439,9 @@ One place still deliberately speaks plainly: when someone calls the bot in **a g
 
 Since 0.85.4 there is **no limit on how many times the bot answers each person**. Anyone who messages the bot directly or calls it by name gets an answer, however many times. (Before, each person got at most 20 answers per hour, after which the bot asked to answer later.)
 
-The only limit left is when the bot **speaks up on its own** in a group nobody called it in (auto mode, see above): at most 8 times per group and 3 times per person per hour, so the bot does not become a broadcaster. Turns where it is called by name are not held back by this.
+Since 0.85.5 there is also **no limit on the bot speaking up on its own** in a group nobody called it in (auto mode). How often it does is decided by the reply judge and the model, following the Agent's role and the documents; you tune it by marking decisions Right/Wrong in the reply judge.
 
-No limit means one person messaging non-stop keeps spending your model usage. If something looks off, click **Take over** for that chat on the Conversations page, or narrow **Who the bot answers**.
-
-This is necessary because one bored person in a group can burn your whole model quota in an afternoon, and you only find out from the bill.
+No limit means one person messaging non-stop, or a busy group asking a lot, keeps spending your model usage. If something looks off, click **Take over** for that chat on the Conversations page, narrow **Who the bot answers**, or switch that group back to answering only when called by name.
 
 ## Deleting a bot
 

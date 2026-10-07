@@ -174,9 +174,9 @@ Từ 0.64.82 bot gắn vào **tài khoản Zalo cá nhân** (nối ở trang K�
 2. **Tài liệu trong brain của bot** có phần nào khớp câu hỏi không. Đây là cách bot hiểu "chủ đề mình trả lời được": có căn cứ trong tài liệu bạn đưa, không phải kiến thức chung của model. Không có thì im.
 3. Cuối cùng một lượt model, trong đó Agent vẫn được quyền tự chọn im nếu thấy không nên chen vào.
 
-Để bot không thành máy phát thanh: bot **chờ khoảng 20 giây** trước khi tự trả lời, và nếu trong lúc đó có người nhắn tay bằng nick này thì nhường. Mỗi nhóm bot chỉ tự trả lời tối đa **8 lần mỗi giờ**, mỗi người **3 lần mỗi giờ**, và giữa hai lần có một khoảng nghỉ. Lượt được tag không bị các giới hạn này chặn.
+Bot **chờ khoảng 20 giây** trước khi tự trả lời, và nếu trong lúc đó có người nhắn tay bằng nick này thì nhường. Từ 0.85.5 **không còn hạn mức số lần tự trả lời** (trước đó tối đa 8 lần mỗi nhóm, 3 lần mỗi người mỗi giờ, kèm khoảng nghỉ giữa hai lần): nói hay im là việc của bộ phán xử và mô hình, theo vai của Agent và tài liệu.
 
-Tin bị bỏ qua vì đáng lẽ trả lời được mà tài liệu không có, hay vì hết hạn mức, đều có **một dòng lý do trong nhật ký bot** (thẻ bot, mục nhật ký). Dòng "tài liệu không có phần nào khớp" chính là câu hỏi thật của người trong nhóm mà brain của bot còn thiếu, nên đó là danh sách để bổ sung tài liệu. Các dòng bỏ qua **không** tính vào số lượt hay tỉ lệ bí của bot.
+Tin bị bỏ qua vì đáng lẽ trả lời được mà tài liệu không có đều có **một dòng lý do trong nhật ký bot** (thẻ bot, mục nhật ký). Dòng "tài liệu không có phần nào khớp" chính là câu hỏi thật của người trong nhóm mà brain của bot còn thiếu, nên đó là danh sách để bổ sung tài liệu. Các dòng bỏ qua **không** tính vào số lượt hay tỉ lệ bí của bot.
 
 Chế độ này cũng chạy với nhóm Telegram nếu bạn đã tắt chế độ riêng tư (mục ngay dưới), nhưng phần chờ nhường và nhận tag theo tên chỉ có ở Zalo cá nhân.
 
@@ -200,8 +200,8 @@ Chế độ Tự đánh giá cũ dùng một cửa từ khoá: tin nào không g
 
 **Khác luật cũ ở đâu.**
 - **Gọi tên trơn cũng là gọi bot**, không cần @: "nhi mai ơi", "alo nhi mai", hoặc tên đứng đầu câu. Riêng điều này áp dụng cho MỌI bot, kể cả khi chưa ở chế độ Tự đánh giá. Tên tự nhận là nhãn kết nối Zalo và tên hiển thị của nick. Muốn bot nhận thêm một tên (ví dụ "Thu") thì gọi bot rồi dạy, ví dụ "Nhi Mai ơi, từ giờ gọi em là Thu nhé", bằng tài khoản của người được dạy (xem dưới). Tên nằm giữa câu ("hỏi nhi mai xem") chưa đủ để coi là gọi: bộ phán xử sẽ cân nhắc.
-- **Đọc vài tin gần nhất** thay vì đúng một tin, nên người vừa được bot trả lời hỏi tiếp ("vậy còn cái kia?") được hiểu là hỏi tiếp cho bot, và không bị chặn bởi khoảng nghỉ 20 giây giữa hai lần bot tự nói.
-- **Mọi quyết định đều có dấu vết, kể cả lúc bot im.** Menu "..." của thẻ bot, mục **Bộ phán xử**, liệt kê từng tin kèm lý do (ví dụ "Tài liệu không có phần khớp", "Điểm thấp hơn ngưỡng", "Hết hạn mức tự nói") và điểm so với ngưỡng.
+- **Đọc vài tin gần nhất** thay vì đúng một tin, nên người vừa được bot trả lời hỏi tiếp ("vậy còn cái kia?") được hiểu là hỏi tiếp cho bot.
+- **Mọi quyết định đều có dấu vết, kể cả lúc bot im.** Menu "..." của thẻ bot, mục **Bộ phán xử**, liệt kê từng tin kèm lý do (ví dụ "Tài liệu không có phần khớp", "Điểm thấp hơn ngưỡng") và điểm so với ngưỡng.
 
 **Mỗi bot một vai.** Bộ phán xử **không viết câu trả lời**: giọng và cách trả lời vẫn là của Agent, nên Nhi Mai nói kiểu Nhi Mai và Javis Vũ nói kiểu Javis Vũ. Ba bot khác ngành không đọc được ca đã học, bài học hay hồ sơ của nhau, và ngưỡng của nhóm này không đổi nhóm kia. Bot mới có sẵn khoảng 12 tin mẫu đúng ngành của nó, do model viết từ Agent, và các mẫu này nhạt dần khi bot học được ca thật. Bản 0.65.0 có ô "Luật lên tiếng" viết tay: chữ đã viết được gộp một lần vào **bài học** của bot (thấy trong menu Bộ phán xử), form không còn ô đó.
 
@@ -215,7 +215,7 @@ Chế độ Tự đánh giá cũ dùng một cửa từ khoá: tin nào không g
 - Bot được cảm ơn hoặc được hỏi tiếp đúng mạch: ghi nhận là đúng.
 - Bị phớt lờ thì **không tính**, vì người ta phớt lờ liên tục.
 
-Học chỉ đổi việc **nói hay im**, không bao giờ đổi điều bot khẳng định: câu trả lời vẫn bám tài liệu và vai của Agent. Hạn mức tự nói, việc nhường khi bạn đang gõ tay, nhóm nào được phép và mức quyền đều nằm ngoài vòng học. Bộ phán xử gặp lỗi, hết giờ hay trả về rác thì bot **im** (riêng tin gọi tên chắc chắn vẫn được trả lời). Nút **Quên hết** xoá ca, ngưỡng, bài học **và cả nhật ký quyết định** của bot (không hoàn tác được).
+Học chỉ đổi việc **nói hay im**, không bao giờ đổi điều bot khẳng định: câu trả lời vẫn bám tài liệu và vai của Agent. Việc nhường khi bạn đang gõ tay, nhóm nào được phép và mức quyền đều nằm ngoài vòng học. Bộ phán xử gặp lỗi, hết giờ hay trả về rác thì bot **im** (riêng tin gọi tên chắc chắn vẫn được trả lời). Nút **Quên hết** xoá ca, ngưỡng, bài học **và cả nhật ký quyết định** của bot (không hoàn tác được).
 
 **Riêng tư.** Vì tự vận hành, bot ở chế độ Tự đánh giá ghi lại chữ của mọi tin nhóm đáng cân nhắc để hiện trong menu Bộ phán xử: tối đa 400 ký tự mỗi tin, giữ 14 ngày. Các ca đã học (từ phản hồi của bạn hoặc của nhóm) giữ tối đa 180 ngày. Tất cả nằm trong thư mục dữ liệu của Javis (không lên git). Bot không ở chế độ Tự đánh giá thì không lưu gì. **Quên hết** hoặc xoá bot xoá sạch dữ liệu này.
 
@@ -528,11 +528,9 @@ Một chỗ vẫn cố ý nói thẳng: khi có người gọi bot trong **nhóm
 
 Từ 0.85.4 **không còn giới hạn số câu bot trả lời mỗi người**. Ai nhắn riêng hay gọi tên bot đều được trả lời, bao nhiêu câu cũng được. (Trước đó mỗi người tối đa 20 câu một giờ, quá thì bot xin trả lời lại sau.)
 
-Giới hạn duy nhất còn lại là lúc bot **tự lên tiếng** trong nhóm khi không ai gọi (chế độ Tự đánh giá, xem mục ở trên): tối đa 8 lần mỗi nhóm và 3 lần mỗi người mỗi giờ, để bot không thành máy phát thanh. Lượt được gọi tên không bị giới hạn này chặn.
+Từ 0.85.5 cũng **không còn hạn mức lúc bot tự lên tiếng** trong nhóm khi không ai gọi (chế độ Tự đánh giá, xem mục ở trên). Bot tự trả lời bao nhiêu lần là do bộ phán xử và mô hình quyết, theo vai của Agent và tài liệu; bạn chỉnh bằng cách bấm Đúng/Sai ở Bộ phán xử.
 
-Không còn giới hạn nghĩa là một người nhắn liên tục sẽ tốn lượt dùng model của bạn liên tục. Thấy bất thường thì bấm **Tiếp quản** cuộc chat đó ở trang Hội thoại, hoặc thu hẹp mục **Bot trả lời ai**.
-
-Cần thiết vì một người rảnh trong nhóm đủ đốt hết quota model của bạn trong một buổi chiều, và bạn chỉ biết khi nhìn hoá đơn.
+Không còn giới hạn nghĩa là một người nhắn liên tục, hay một nhóm đông hỏi nhiều, sẽ tốn lượt dùng model của bạn liên tục. Thấy bất thường thì bấm **Tiếp quản** cuộc chat đó ở trang Hội thoại, thu hẹp mục **Bot trả lời ai**, hoặc đổi nhóm đó về **Được gọi tên**.
 
 ## Xoá bot
 

@@ -605,7 +605,6 @@ def bo_nhom_cho(bot_id: str, chat_id: str = "") -> None:
 # `chatbot_reply_policy`; file này chỉ dựng Event/BotProfile từ bản ghi bot và meta của kênh, rồi
 # cắm vào ba chỗ: nhận diện gọi tên trơn (mọi bot), móc cho lớp vận chuyển đọc được cả nhóm (Zalo
 # cá nhân), và nhánh `on` trong `_answer`.
-_RP_RATE = {"het_han_muc": "rate_limited", "het_han_nguoi": "rate_limited_user", "vua_tra_loi": "just_spoke"}
 _RP_CHECK_EVERY_S = 300
 _RP_CHECKED: Dict[str, float] = {}
 
@@ -716,11 +715,6 @@ def _rp_retract(dec, code: str) -> None:
         chatbot_reply_policy_store.close_watch(dec.decision_id)
     except Exception:      # noqa: BLE001
         pass
-
-
-def _rp_rate(bot_id: str, chat_id: str, user_id: str, follow_up: bool = False) -> str:
-    code = chatbot_tu_dong.duoc_tra_loi(bot_id, chat_id, user_id, follow_up=follow_up)
-    return _RP_RATE.get(code, code)
 
 
 def _rp_add_alias(bot_id: str, alias: str) -> None:
@@ -1285,8 +1279,7 @@ def _make_answer_fn(bot_id: str):
                     return {"text": "", "files": [], "im_lang": True}
                 dec = await chatbot_reply_policy.decide(
                     ev, profile, store=chatbot_reply_policy_store, ask=chatbot_reply_policy.ask_fn(),
-                    doc_search=lambda t: _tra_cho_phan_xu(bot_id, cfg, t),
-                    rate_check=lambda fu: _rp_rate(bot_id, chat_id, user_id, fu))
+                    doc_search=lambda t: _tra_cho_phan_xu(bot_id, cfg, t))
             except Exception as e:      # noqa: BLE001 - hỏng thì IM, không tự mở miệng
                 print(f"[reply_policy {bot_id}] {type(e).__name__}: {e}", file=sys.stderr)
                 return {"text": "", "files": [], "im_lang": True}
@@ -1299,13 +1292,11 @@ def _make_answer_fn(bot_id: str):
                 return {"text": "", "files": [], "im_lang": True}
             tl = await _tra_tai_lieu(bot_id, cfg, text)
             ma = "" if tl.get("co") else "khong_co_tai_lieu"
-            ma = ma or chatbot_tu_dong.duoc_tra_loi(bot_id, chat_id, user_id)
             if ma:
                 _ghi_bo_qua(bot_id, cfg, meta, text, ma, tl)
                 return {"text": "", "files": [], "im_lang": True}
-        # Không còn trần số câu trả lời mỗi người mỗi giờ (0.85.4, chủ gỡ 2026-10-07). Người gọi tên hay
-        # nhắn riêng cho bot luôn được trả lời. Trần khi bot TỰ lên tiếng trong nhóm thì vẫn giữ, ở
-        # `chatbot_tu_dong.duoc_tra_loi` ngay trên: đó là rào chống bot nói tràn lan khi không ai gọi.
+        # Không còn trần số câu trả lời nào (chủ gỡ 2026-10-07): mỗi người mỗi giờ ở 0.85.4, lúc bot TỰ lên
+        # tiếng trong nhóm ở 0.85.5. Nói hay im là việc của bộ phán xử và mô hình.
         # Hộp thư hội thoại: ghi tin khách TRƯỚC khi gọi engine, để lượt gãy vẫn còn tin khách.
         ghi_tin_khach(cfg, meta or {}, text)
         # Người thật đã TIẾP QUẢN cuộc chat này ở trang Hội thoại thì bot im: tin khách vẫn vào
@@ -1390,10 +1381,6 @@ def _make_answer_fn(bot_id: str):
                 out = dict(out or {})
                 out["text"] = dap
                 out["files"] = list(out.get("files") or []) + anh
-        # Chỉ lượt bot THẬT SỰ nói mới tốn hạn mức tự trả lời: lượt viết [IM_LANG] ở trên đã
-        # return, và lượt gãy không phải một câu trả lời.
-        if tu_dong and not loi_ky_thuat and dap.strip():
-            chatbot_tu_dong.ghi_da_tra_loi(bot_id, chat_id, user_id)
         # "Bí" đo bằng chính CÂU BOT VỪA NÓI, không bằng việc có tìm ra tài liệu hay không.
         #
         # Ở chế độ theo Agent thì không có tài liệu là chuyện thường - bot vẫn trả lời tốt bằng

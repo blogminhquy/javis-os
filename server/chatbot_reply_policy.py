@@ -791,8 +791,8 @@ async def decide(ev: Event, profile: BotProfile, *, store, ask=None, doc_search=
     """Quyết định NÓI hay IM cho một tin nhóm. Luôn ghi một dòng `decisions`, kể cả khi im.
 
     `doc_search(text) -> {"co": bool, "khoi": str, ...}`: tra tài liệu của bot (chỉ gọi cho ứng viên).
-    `rate_check(follow_up) -> ""|mã`: hạn mức tự nói, KHÔNG tiêu hạn mức (người gọi ghi khi bot thật sự
-    nói). `follow_up` cho phép nới với tin nối tiếp, xem `chatbot_tu_dong.duoc_tra_loi`.
+    `rate_check(follow_up) -> ""|mã`: cổng hạn mức tuỳ chọn, KHÔNG tiêu hạn mức. Runtime không truyền từ
+    0.85.5 (chủ gỡ hạn mức tự nói 2026-10-07 để bộ phán xử tự quyết); giữ tham số cho người gọi khác.
     `commit=False` (chế độ chạy thử): vẫn ghi quyết định nhưng KHÔNG mở cửa theo dõi, vì nhãn sinh ra
     từ phản ứng với việc luật cũ làm, không phải với việc người phán xử chọn.
     """

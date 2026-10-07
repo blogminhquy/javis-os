@@ -175,16 +175,12 @@ d = run(rp.decide(ev("vậy còn cái kia thì sao đây", ts=NOW + 8, bot_last_
 check("tin nối tiếp sau lượt bot: level possible, hỏi model, không đòi tài liệu",
       d.address_level == "possible" and d.verdict == "reply" and len(j.prompts) == 1, d)
 
-# Hạn mức: tin nối tiếp được nới (khoảng nghỉ, trần theo người), tin tự nói thường thì không.
+# Hạn mức tự nói đã gỡ (0.85.5, chủ 2026-10-07): bot không còn bộ đếm nào, và runtime không truyền
+# rate_check nữa. `decide` vẫn nhận rate_check (tuỳ chọn) nên phần dưới vẫn canh đúng hợp đồng đó.
 import chatbot_tu_dong as td  # noqa: E402
-td.reset_cho_test()
-td.ghi_da_tra_loi("bot_rate", "g1", "u1", NOW)
-check("vừa nói xong: tin tự nói bị chặn bởi khoảng nghỉ", td.duoc_tra_loi("bot_rate", "g1", "u1", NOW + 1) == "vua_tra_loi")
-check("nhưng tin NỐI TIẾP của người vừa được trả lời thì qua", td.duoc_tra_loi("bot_rate", "g1", "u1", NOW + 1, follow_up=True) == "")
-for i in range(td.TRAN_NHOM_GIO):
-    td.ghi_da_tra_loi("bot_rate", "g1", f"x{i}", NOW + 2)
-check("trần theo nhóm mỗi giờ vẫn áp cả với tin nối tiếp", td.duoc_tra_loi("bot_rate", "g1", "u1", NOW + 100, follow_up=True) == "het_han_muc")
-td.reset_cho_test()
+check("không còn bộ đếm hạn mức tự nói", not hasattr(td, "duoc_tra_loi") and not hasattr(td, "TRAN_NHOM_GIO"))
+check("runtime không truyền rate_check cho bộ phán xử nữa",
+      "rate_check=" not in (SERVER / "chatbot_runtime.py").read_text(encoding="utf-8"))
 seen = []
 run(rp.decide(ev("vậy còn cái kia thì sao đây", ts=NOW + 8, bot_last_spoke_ts=NOW + 1, last_bot_addressee="u1"), P, store=st,
               ask=Judge("reply", 0.8), doc_search=docs_no, rate_check=lambda fu: seen.append(fu) or "", now=NOW + 8))
