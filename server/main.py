@@ -18496,6 +18496,25 @@ def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route,
     return engine.thu_lai_khi_tam_thoi(_vong, nhan=f"bot {prov}/{model or 'mặc định'}")
 
 
+class _BoQua(Exception):
+    """Nhảy qua một khối try khi bước đó không áp cho lượt này (bot Toàn quyền bỏ nguồn chọn lọc)."""
+
+
+def _bot_full_prompt(brain, sys_bot, lang, conv_sid=""):
+    """Prompt của bot mức Toàn quyền (0.85.3): ĐỦ prompt của kênh admin (CLAUDE.md, bộ nhớ, kỹ năng,
+    hướng dẫn điều phối) cho brain của bot, rồi VAI của Agent đè lên.
+
+    Đủ prompt admin vì chủ muốn bot Toàn quyền làm được đúng những gì kênh admin làm, và phần hướng
+    dẫn công cụ, kỹ năng, giao việc nằm ở đó. Vai Agent đứng SAU và nói rõ nó thắng phần giới thiệu
+    Javis ở trên, để bot vẫn là con bot chủ dựng chứ không tự xưng Javis với khách."""
+    base = build_system_prompt(brain, lang=lang, session_id=conv_sid or "")
+    return (base + "\n\n# === BOT TOÀN QUYỀN: VAI CỦA BẠN TRONG CUỘC CHAT NÀY ===\n"
+            "Bạn đang trả lời qua một bot chuyên trách mà chủ đã đặt ở mức TOÀN QUYỀN: bạn có đủ công "
+            "cụ, kết nối, kỹ năng và quyền thao tác như khi chủ chat trực tiếp với Javis. Người đang "
+            "nhắn có thể KHÔNG phải chủ. Nói chuyện theo đúng vai và quy định dưới đây; chỗ nào khác "
+            "phần giới thiệu Javis ở trên thì làm theo phần dưới.\n\n" + str(sys_bot or ""))
+
+
 async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_model, reasoning,
                                progress, runtime_trace, brain, chat_id, muc_quyen, images=None):
     """Một lượt của bot ở mức **Đọc tài liệu** (read_docs), **Được ghi** (auto) hoặc **Toàn quyền** (full).
@@ -18538,9 +18557,15 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
     # vault_root = brain CỦA BOT. Đây là một tham số, không phải một quy ước - truyền nhầm brain
     # của chủ vào đây là mở toang đúng thứ cả tính năng này đang giữ.
     tools, route = [], {}
+    # Grok Build và Antigravity là CLI có lệnh máy riêng, chưa có đường công cụ HẸP nào giữ được rào của
+    # hai mức này (chỉ brain của bot, không lệnh máy). Trước 0.85.3 chúng không có nhánh nào ở
+    # `_bot_stream_co_tool` và rơi vào lời gọi Anthropic API với khoá sai: lượt nào cũng hỏng rồi mới
+    # lùi về chỉ chat. Giờ nói thẳng ngay từ đầu: lượt này không công cụ, và chủ biết đường ra.
+    cli_khong_tool = prov in ("grok-cli", "antigravity-cli")
     try:
-        # for_bot=True: khách lạ đang lái model, nên tool chỉ-của-chủ (bộ phán xử, 0.77.0) bị bỏ khỏi danh sách.
-        tools, route = await mcp_hub.discover_all(muc_quyen, vault_root=_brain_root(brain), for_bot=True)
+        if not cli_khong_tool:
+            # for_bot=True: khách lạ đang lái model, nên tool chỉ-của-chủ (bộ phán xử, 0.77.0) bị bỏ khỏi danh sách.
+            tools, route = await mcp_hub.discover_all(muc_quyen, vault_root=_brain_root(brain), for_bot=True)
     except Exception as e:
         print(f"[bot {prov} chat {chat_id}] nạp tool hỏng: {type(e).__name__}: {e}",
               file=__import__('sys').stderr)
@@ -18602,7 +18627,12 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
     if not tools:
         # Bot được đặt ở mức có quyền mà lại chẳng có công cụ nào - im lặng ở đây thì chủ tưởng
         # bot đang làm việc, còn thực tế nó chỉ đang nói chuyện.
-        if muc_quyen == "read_docs":
+        if cli_khong_tool:
+            canh_bao = (f"Bộ não {_api_label(prov)} chưa dùng được công cụ ở mức "
+                        f"{chatbot_store.MUC_NHAN.get(muc_quyen, muc_quyen)} của bot, nên lượt vừa rồi chỉ "
+                        f"trả lời. Cần công cụ thì đặt bot ở mức Toàn quyền (chạy như kênh admin) hoặc "
+                        f"chọn bộ não khác cho Agent.")
+        elif muc_quyen == "read_docs":
             # Mức này không cần nguồn nào: thiếu tool chỉ có thể là không mở được brain của bot.
             canh_bao = (f"Bot đang ở mức {chatbot_store.MUC_NHAN.get(muc_quyen, muc_quyen)} nhưng "
                         f"không mở được brain của nó, nên lượt vừa rồi chỉ dùng phần tài liệu tra sẵn. "
@@ -18664,6 +18694,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     # Bot chuyên trách KHÔNG dùng system prompt của Javis: prompt đó dạy cách điều phối, ghi
     # vault, giao việc - toàn thứ bot trả lời người ngoài không được làm. Nó dùng prompt của
     # chính Agent nó trỏ tới. Xem chatbot_runtime.build_bot_prompt.
+    _bot_full = False   # bot mức Toàn quyền: chạy ĐÚNG đường engine của kênh admin (0.85.3)
     if bot:
         import chatbot_runtime
         # Prompt của bot KHÔNG kèm block kênh: block đó dạy cách tự gửi file qua Telegram và
@@ -18676,15 +18707,35 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         _muc = str((bot or {}).get("muc_quyen") or "").strip().lower()
         # Ảnh khách gửi ở lượt này (0.81.0), do chatbot_runtime gắn vào bản ghi bot của lượt.
         _anh = list((bot or {}).get("_anh") or [])
-        if _muc in chatbot_store.MUC_CO_TOOL:
+        # Toàn quyền = giống hệt kênh admin (chủ chốt 2026-10-07: "bot nếu có toàn quyền sẽ giống như
+        # kênh admin"). Trước đó mức này vẫn đi đường hẹp của bot bên dưới, nên: Grok Build và
+        # Antigravity không có nhánh nào (rơi vào lời gọi Anthropic API sai khoá, lượt nào cũng tụt về
+        # chỉ chat), Claude Code chỉ thấy công cụ của hub và tắt hẳn kết nối claude.ai (Gmail, Drive,
+        # lịch...), ChatGPT đi vòng tool tự dựng thay vì Codex CLI. Chủ bật Toàn quyền mà bot không
+        # dùng nổi MCP nào anh vẫn dùng ở kênh admin.
+        #
+        # Nên mức này KHÔNG dừng ở đây: nó rơi xuống đúng các nhánh engine của chủ bên dưới (công cụ
+        # gốc, MCP hub, kết nối của tài khoản Claude/ChatGPT, kỹ năng), chỉ khác hai chỗ: prompt mang
+        # VAI của Agent, và brain là brain của bot. Đường tắt, nguồn chọn lọc và gateway huỷ lịch của
+        # chủ bị bỏ qua vì chúng thay prompt bằng giọng Javis.
+        if _muc == "full":
+            _bot_full = True
+            _sys_bot_full = _sys_bot
+            if _anh:
+                # Ảnh khách gửi: engine của chủ đọc ảnh bằng công cụ mở file (như ảnh chủ gửi qua
+                # Telegram), nên đưa đường dẫn vào câu hỏi thay cho cổng ảnh riêng của bot.
+                text = (str(text or "") + "\n" + "\n".join(
+                    f"[Người nhắn gửi kèm ảnh, đã lưu tại: {a}]" for a in _anh)).strip()
+        elif _muc in chatbot_store.MUC_CO_TOOL:
             return await _bot_tra_loi_co_tool(
                 text, sess=sess, sysprompt=_sys_bot, prov=prov, api_key=api_key,
                 api_model=api_model, reasoning=reasoning, progress=_p,
                 runtime_trace=runtime_trace, brain=brain, chat_id=chat_id, muc_quyen=_muc, images=_anh)
-        return await _bot_tra_loi(text, sess=sess, sysprompt=_sys_bot,
-                                  prov=prov, api_key=api_key, api_model=api_model,
-                                  reasoning=reasoning, progress=_p, runtime_trace=runtime_trace,
-                                  brain=brain, chat_id=chat_id, images=_anh)
+        else:
+            return await _bot_tra_loi(text, sess=sess, sysprompt=_sys_bot,
+                                      prov=prov, api_key=api_key, api_model=api_model,
+                                      reasoning=reasoning, progress=_p, runtime_trace=runtime_trace,
+                                      brain=brain, chat_id=chat_id, images=_anh)
     # ===== Hệ Tiết kiệm cho kênh NGOÀI dashboard =====
     #
     # Tới 0.23.1, cả Tối ưu lẫn Siêu tiết kiệm chỉ được nối vào đúng handler WebSocket của
@@ -18732,13 +18783,19 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                 pass
         return _n
 
+    if _bot_full:
+        sysprompt = _bot_full_prompt(brain, _sys_bot_full, _lang_qd, conv_sid)
     try:
+        if _bot_full:
+            raise _BoQua()   # nguồn chọn lọc thay prompt bằng giọng Javis: không dùng cho bot
         _p8 = await asyncio.to_thread(
             _get_adaptive_context().prepare, runtime_trace, text, _brain_root(brain),
             str(conv_sid or chat_id), [], channel, prov,
             api_model or mcfg.get("claude_model") or "mặc định", kind, _nen_goc)
         if _p8.action == "use":
             sysprompt = _p8.system_prompt
+    except _BoQua:
+        pass
     except Exception as _e:
         _CONTEXT_RUNTIME.record_runtime_event(
             runtime_trace, "adaptive_context.prepare_error",
@@ -18749,16 +18806,20 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     if not sysprompt:
         sysprompt = build_system_prompt(brain, lang=_lang_qd, project_id=_pid,
                                         session_id=conv_sid or "")
-    sysprompt += channel_context.build_channel_block(
-        channel, meta, telegram_running=(channel == "telegram"), port=_javis_port(),
-        brain_root=_brain_root(brain))
+    if not _bot_full:
+        # Khối kênh dạy cách tự gửi file qua Telegram của CHỦ và cách báo kết quả việc nền về chủ:
+        # với bot thì người nhắn là người khác, nên bỏ.
+        sysprompt += channel_context.build_channel_block(
+            channel, meta, telegram_running=(channel == "telegram"), port=_javis_port(),
+            brain_root=_brain_root(brain))
     if kind in ("cli", "oauth"):
         _schedule_registry_discovery_shadow(
             runtime_trace, brain, text,
             "codex" if prov == "openai-oauth" else "cli",
             api_model or mcfg.get("claude_model") or "mặc định", kind,
         )
-    schedule_action = await _schedule_cancel_action(text, brain)
+    # Gateway huỷ lịch bằng câu chữ là lối tắt của chủ; bot Toàn quyền vẫn huỷ được qua tool javis_schedule.
+    schedule_action = None if _bot_full else await _schedule_cancel_action(text, brain)
     if schedule_action:
         for call in schedule_action.get("calls") or []:
             await _p(f"⚙ Lịch: {call.split(':')[-1]}")
@@ -18766,7 +18827,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         return {"text": channel_context.strip_control_blocks(_schedule_cancel_reply(schedule_action)),
                 "files": []}
 
-    if _FAST_PATH is not None:
+    if _FAST_PATH is not None and not _bot_full:
         try:
             _fp = await asyncio.to_thread(
                 _FAST_PATH.prepare, runtime_trace, text, _brain_root(brain), channel, prov,
@@ -18828,7 +18889,12 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         if not out and loi:
             _noi = _subscription_limit_message(loi[0], "grok-cli")
             return _noi or ("⚠ Grok Build CLI lỗi: " + loi[0][:400])
-        return out or "(không có nội dung)"
+        # Câu trả lời THẬT phải là dict (quy ước ở `_tg_answer`: chuỗi = thông báo lỗi). Trước 0.85.3
+        # nhánh này trả chuỗi, nên mọi câu trả lời qua Telegram/Zalo/Slack... bằng bộ não này bị lưu
+        # như một câu lỗi: không vào nhật ký bộ nhớ, không vào vòng tự học.
+        if not out:
+            return "(không có nội dung)"
+        return {"text": channel_context.strip_control_blocks(out), "files": []}
 
     if prov == "antigravity-cli":
         # Cùng khuôn nhánh Grok Build ngay trên: giữ object engine trong `sess` để mạch hội
@@ -18869,7 +18935,12 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         if not out and loi:
             _noi = _subscription_limit_message(loi[0], "antigravity-cli")
             return _noi or ("⚠ Antigravity CLI lỗi: " + loi[0][:400])
-        return out or "(không có nội dung)"
+        # Câu trả lời THẬT phải là dict (quy ước ở `_tg_answer`: chuỗi = thông báo lỗi). Trước 0.85.3
+        # nhánh này trả chuỗi, nên mọi câu trả lời qua Telegram/Zalo/Slack... bằng bộ não này bị lưu
+        # như một câu lỗi: không vào nhật ký bộ nhớ, không vào vòng tự học.
+        if not out:
+            return "(không có nội dung)"
+        return {"text": channel_context.strip_control_blocks(out), "files": []}
 
     if prov == "openai-oauth":
         # Telegram dùng cùng Codex CLI + MCP native như dashboard. Trước đây nhánh OAuth

@@ -350,14 +350,14 @@ Ngoại lệ duy nhất là chế độ "chỉ tài liệu" ở trên, và đó 
 
 Nên **file Agent là thứ quyết định chất lượng bot, gần như hoàn toàn**. Viết như dặn một người mới vào làm: nói năng thế nào, phạm vi tới đâu, cái gì không được hứa, gặp trường hợp nào thì chuyển người thật. Bot cư xử sai thì sửa Agent, đừng tìm nút nào khác.
 
-### Hai rào Javis khoá ở MỌI mức
+### Hai rào Javis khoá ở ba mức đầu
 
-Hai điều dưới đây đúng kể cả khi bạn cho bot toàn quyền. Chúng nằm trong mã nguồn chứ không nằm trong lời dặn, nên không lách được bằng lời lẽ:
+Hai điều dưới đây đúng ở Chỉ đọc, Đọc tài liệu và Được ghi. Mức **Toàn quyền** thì không (từ 0.85.3 nó chạy y như kênh admin, xem mức Toàn quyền bên dưới). Chúng nằm trong mã nguồn chứ không nằm trong lời dặn, nên không lách được bằng lời lẽ:
 
 - Bot **không thấy brain khác**, kể cả brain chính của bạn. Mọi đường đọc và ghi file đều bị kẹp trong đúng thư mục brain của bot; trèo ra bằng `../` hay đường dẫn tuyệt đối đều bị từ chối ngay.
 - Bot **không chạy được lệnh máy**, không tự mở một trang web lạ ra đọc, không đẻ agent con. Bot cũng **không có lệnh quản trị**: `/brain`, `/model`, `/status` không có tác dụng.
 
-Cách Javis bảo đảm: **bot không bao giờ chạm vào công cụ gốc của engine.** Ở mức Chỉ đọc nó không có công cụ nào; ở mức Đọc tài liệu nó chỉ có ba công cụ đọc tài liệu; ở hai mức trên, mọi công cụ đều đi qua trung tâm kết nối của Javis, nơi đường dẫn file bị kẹp và mức quyền được áp ngay tại chỗ gọi. Bot không mở CLI, nên `Bash` và `Read` đường dẫn tuyệt đối của Claude Code không có mặt ở đây.
+Cách Javis bảo đảm: **bot không bao giờ chạm vào công cụ gốc của engine.** Ở mức Chỉ đọc nó không có công cụ nào; ở mức Đọc tài liệu nó chỉ có ba công cụ đọc tài liệu; ở mức Được ghi, mọi công cụ đều đi qua trung tâm kết nối của Javis, nơi đường dẫn file bị kẹp và mức quyền được áp ngay tại chỗ gọi. Bot không mở CLI, nên `Bash` và `Read` đường dẫn tuyệt đối của Claude Code không có mặt ở đây.
 
 Còn tài liệu thì vẫn được tra sẵn bằng Python trước khi model chạy rồi đưa vào đầu bài, ở mọi mức. Bot đọc được brain của nó mà không cần công cụ nào.
 
@@ -370,7 +370,7 @@ Chọn ở ô **Bot được làm gì** khi tạo hoặc sửa bot. Mặc địn
 | **Chỉ đọc** (mặc định) | Chỉ đọc tài liệu rồi trả lời. Không công cụ nào. | Trực và hỏi đáp - gần như mọi việc |
 | **Đọc tài liệu** | Như Chỉ đọc, cộng ba công cụ chỉ-đọc để **tự tìm và mở** tài liệu trong brain của nó. Không ghi, không gọi nguồn nào | Bot hay im oan vì khách gõ khác chữ tài liệu |
 | **Được ghi** | Thêm: ghi file trong brain của chính nó, gọi nguồn dữ liệu đã đấu ở mức đọc/ghi | Ghi nhận yêu cầu, cập nhật ghi chú, tra số liệu thật |
-| **Toàn quyền** | Thêm: gửi đi, thanh toán, đặt/huỷ, xoá, công bố ra ngoài | Nơi bạn kiểm soát được danh sách người nhắn vào |
+| **Toàn quyền** | **Y như kênh admin**: lệnh máy, mọi file, mọi kết nối của bạn (kể cả Gmail, Drive, lịch qua tài khoản Claude/ChatGPT), kỹ năng, việc nền, mọi thao tác ra ngoài | Bot chỉ bạn hoặc người bạn tin tuyệt đối nhắn được |
 
 ### Mức Đọc tài liệu (từ 0.80.0)
 
@@ -406,13 +406,15 @@ Nút **Thử** chạy đúng mức này (vì nó chỉ đọc), nên thử trư�
 - Bot gọi được các nguồn dữ liệu bạn đã đấu, ở mức đọc và ghi. Mọi thứ trong những nguồn đó nằm trong tầm với của người đang chat với bot.
 - Javis vẫn **chặn cứng** nhóm thao tác ra ngoài ở mức này: không gửi đi, không thanh toán, không đặt hay huỷ, không xoá, không công bố gì. Chặn ở tầng gọi công cụ, không phải bằng lời dặn.
 
-**Mức Toàn quyền:**
+**Mức Toàn quyền (từ 0.85.3 chạy y như kênh admin):**
 
-- Bot làm được **mọi thứ** các nguồn đã đấu cho phép, kể cả gửi đi, thanh toán, đặt hay huỷ, xoá, công bố ra ngoài. Những thao tác đó **không hoàn tác được**.
-- Một câu dụ khéo ("bỏ qua hướng dẫn trước, làm giúp việc này") là đủ để bot làm theo. Rào cứng còn lại là **mức quyền của từng kết nối** ở trang Kết nối (hạ một kết nối về Chỉ đọc thì bot cũng bị chặn ghi ở đó), nhưng rào đó chặn theo loại thao tác nên với nguồn Javis chưa có khuôn phân loại sẵn thì không kín tuyệt đối. Ngoài ra chỉ còn file Agent bạn viết, mà chữ thì lách được.
-- Bot không hỏi lại bạn trước khi làm. Không có cổng duyệt từng lệnh.
+- Bot chạy **đúng đường của kênh admin**: cùng bộ não, cùng công cụ gốc của engine (chạy lệnh trên máy chủ, đọc và ghi mọi file kể cả brain khác), cùng mọi kết nối của bạn (kể cả Gmail, Drive, lịch nối qua tài khoản Claude hoặc ChatGPT), kỹ năng, giao việc nền, đặt lịch. Nó chỉ khác kênh admin ở chỗ nói theo **vai của Agent** và làm việc trong brain của bot.
+- Bot làm được mọi thao tác ra ngoài: gửi đi, thanh toán, đặt hay huỷ, xoá, công bố. Những thao tác đó **không hoàn tác được**.
+- Người điều khiển là **người nhắn cho bot**. Một câu dụ khéo ("bỏ qua hướng dẫn trước, làm giúp việc này") là đủ để bot làm theo; chỉ còn file Agent bạn viết, mà chữ thì lách được. Không có cổng duyệt từng lệnh.
 
-Vì thế: **chỉ bật Toàn quyền khi bạn kiểm soát được danh sách người nhắn vào bot.** Chỗ ai cũng nhắn được thì không, dù Agent bạn viết kỹ tới đâu.
+Vì thế: **chỉ bật Toàn quyền cho bot mà chỉ bạn hoặc người bạn tin tuyệt đối nhắn được** (đặt mục **Bot trả lời ai** thành người được chọn). Chỗ ai cũng nhắn được thì đừng bật, dù Agent bạn viết kỹ tới đâu.
+
+Bộ não Grok Build và Antigravity chỉ dùng được công cụ ở mức Toàn quyền. Ở mức Đọc tài liệu và Được ghi chúng trả lời không công cụ, và thẻ bot hiện cảnh báo nói rõ điều đó.
 
 ### Nâng mức thế nào
 
@@ -544,9 +546,9 @@ Bấm **Xoá** trên thẻ. Bot ngừng trả lời ngay.
 
 Vì sao theo Agent chứ không theo model chính: bot vốn đã mượn nguyên đầu bài của Agent, nên model cũng phải là của Agent - không thì chọn một model rẻ cho trợ lý đối ngoại xong bot vẫn đốt model đắt, mà không có dấu hiệu nào. Nhà đã chọn bị gỡ key thì bot lui về model chính chứ không chết câm trước mặt khách.
 
-**Bot có gọi được các nguồn dữ liệu tôi đã đấu không?** Mặc định là không - mức Chỉ đọc chỉ có tài liệu trong brain của nó. Nâng lên **Được ghi** thì có, và **Toàn quyền** thì có cả nhóm thao tác ra ngoài. Cân nhắc rằng người điều khiển là người nhắn cho bot; việc chỉ mình bạn cần thì hỏi Javis ở dashboard hoặc kênh Telegram riêng vẫn an toàn hơn.
+**Bot có gọi được các nguồn dữ liệu tôi đã đấu không?** Mặc định là không - mức Chỉ đọc chỉ có tài liệu trong brain của nó. Nâng lên **Được ghi** thì có, và **Toàn quyền** thì có y như kênh admin, kể cả các kết nối của tài khoản Claude/ChatGPT và nhóm thao tác ra ngoài. Cân nhắc rằng người điều khiển là người nhắn cho bot; việc chỉ mình bạn cần thì hỏi Javis ở dashboard hoặc kênh Telegram riêng vẫn an toàn hơn.
 
-**Bot ở mức Toàn quyền có nguy hiểm không?** Có, và đó là lý do Javis bắt tick đồng ý rồi hỏi lại thêm lần nữa. Nguy hiểm không nằm ở việc model làm bậy, mà ở chỗ **ai cũng nhắn cho bot được**: một câu dụ khéo là bot gọi công cụ thật, không hoàn tác được và không hỏi lại bạn. Chỉ dùng khi bạn kiểm soát được danh sách người nhắn vào.
+**Bot ở mức Toàn quyền có nguy hiểm không?** Có, và đó là lý do Javis bắt tick đồng ý rồi hỏi lại thêm lần nữa. Mức này trao cho bot đúng quyền của kênh admin. Nguy hiểm không nằm ở việc model làm bậy, mà ở chỗ **người khác nhắn cho bot được**: một câu dụ khéo là bot chạy lệnh máy hay gọi công cụ thật, không hoàn tác được và không hỏi lại bạn. Chỉ dùng cho bot chỉ bạn hoặc người bạn tin tuyệt đối nhắn được.
 
 **Đang chạy Toàn quyền mà thấy bất ổn thì làm gì ngay?** Bấm **Tắt** trên thẻ - có tác dụng trong vài giây, không cần khởi động lại Javis. Rồi bấm Sửa hạ mức xuống Chỉ đọc; hạ mức không hỏi lại gì cả. Xem bot đã làm gì ở **Nhật ký**, tab Hội thoại gần đây.
 

@@ -1083,7 +1083,7 @@
   "cb.intro_5": ": không ghi, không gọi nguồn dữ liệu, không có lệnh quản trị. Cần bot",
   "cb.intro_lam_that": "làm việc thật",
   "cb.intro_6": "thì nâng mức quyền khi tạo hoặc sửa - đọc kỹ phần rủi ro ở đó, vì người điều khiển bot là người nhắn cho nó chứ không phải bạn.",
-  "cb.intro_7": "Hai rào giữ nguyên ở MỌI mức: bot không thấy brain khác, và không chạy được lệnh máy.",
+  "cb.intro_7": "Dưới mức Toàn quyền, bot không thấy brain khác và không chạy được lệnh máy. Mức Toàn quyền chạy y như kênh admin, nên chỉ bật cho bot mà chỉ bạn hoặc người bạn tin tuyệt đối nhắn được.",
   "cb.intro_8": "Đổi brain ở đầu trang là thấy bot của brain đó.",
   "cb.loi_tai_ds": "Không tải được danh sách bot:",
   "cb.rong_tieu_de": "Chưa có bot nào",

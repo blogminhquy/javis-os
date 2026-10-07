@@ -1083,7 +1083,7 @@
   "cb.intro_5": ": no writing, no data sources, no admin commands. If you need the bot to",
   "cb.intro_lam_that": "do real work",
   "cb.intro_6": "then raise its permission level when you create or edit it - read the risk notes there carefully, because the one driving the bot is whoever messages it, not you.",
-  "cb.intro_7": "Two guardrails hold at EVERY level: the bot never sees another brain, and it cannot run machine commands.",
+  "cb.intro_7": "Below Full power, the bot never sees another brain and cannot run machine commands. Full power runs exactly like the admin channel, so only turn it on for a bot that only you or people you fully trust can message.",
   "cb.intro_8": "Switch brain at the top of the page to see that brain's bots.",
   "cb.loi_tai_ds": "Could not load the bot list:",
   "cb.rong_tieu_de": "No bots yet",

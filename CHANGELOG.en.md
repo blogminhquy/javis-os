@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.85.3] - 2026-10-07
 ### Fixed
-- Full power bots run like the admin channel and can use MCP.
+- **Bots at Full power now run exactly like the admin channel.** This level used to take the bot's narrow route: with Grok Build and Antigravity the bot could use no tool at all, and with Claude Code it could not see the Gmail, Drive and calendar connections of the Claude account. A Full power bot now has the same brain, tools, MCP and skills as when you chat directly, keeping only the Agent's role.
+- So Full power now also grants running commands on the server and reading every file. The warning before turning it on says so: only use it for a bot that only you or people you fully trust can message.
+- Replies through Telegram, Zalo, Slack... from Grok Build or Antigravity are now saved properly to history and memory instead of being recorded as an error.
 
 ## [0.85.1] - 2026-10-07
 ### Improved

@@ -263,14 +263,14 @@ The one exception is the "documents only" mode above, and that is a rule **you d
 
 So **the Agent file decides the bot's quality almost entirely**. Write it like briefing a new hire: how to speak, how far the scope goes, what must not be promised, and in which cases to hand over to a human. When the bot behaves wrongly, fix the Agent rather than hunting for another button.
 
-### Two rails Javis locks at EVERY level
+### Two rails Javis locks at the first three levels
 
-The two points below hold even when you give the bot full power. They live in the source code rather than in wording, so no clever phrasing gets around them:
+The two points below hold at Read only, Reads documents and Can write. They do not hold at **Full power** (since 0.85.3 it runs exactly like the admin channel, see the Full power level below). They live in the source code rather than in wording, so no clever phrasing gets around them:
 
 - The bot **cannot see another brain**, your main brain included. Every file read and write is clamped inside the bot's own brain folder; climbing out with `../` or an absolute path is refused outright.
 - The bot **cannot run machine commands**, cannot open an unfamiliar web page to read, cannot spawn child agents. The bot also has **no admin commands**: `/brain`, `/model`, `/status` do nothing.
 
-How Javis guarantees it: **the bot never touches the engine's native tools.** At the Read only level it has no tools at all; at Reads documents it has only the three document-reading tools; at the two higher levels every tool goes through Javis's connection hub, where file paths are clamped and the permission level is applied right at the call site. The bot does not open a CLI, so Claude Code's `Bash` and absolute-path `Read` are simply not present here.
+How Javis guarantees it: **the bot never touches the engine's native tools.** At the Read only level it has no tools at all; at Reads documents it has only the three document-reading tools; at Can write every tool goes through Javis's connection hub, where file paths are clamped and the permission level is applied right at the call site. The bot does not open a CLI, so Claude Code's `Bash` and absolute-path `Read` are simply not present here.
 
 Documents are still looked up by Python before the model runs and placed into the prompt, at every level. The bot reads its own brain without needing any tool.
 
@@ -283,7 +283,7 @@ Chosen in the **What the bot may do** field when creating or editing a bot. The 
 | **Read only** (default) | Only read documents and answer. No tools. | Duty and Q&A, which is nearly everything |
 | **Reads documents** | Like Read only, plus three read-only tools to **search and open** documents in its own brain. No writing, no data sources | Bots that stay silent because customers use different words than the documents |
 | **Can write** | Adds: writing files in its own brain, calling attached data sources at read/write level | Recording requests, updating notes, looking up real figures |
-| **Full power** | Adds: sending, paying, booking and cancelling, deleting, publishing outward | Places where you control the list of people who can message it |
+| **Full power** | **Exactly like the admin channel**: machine commands, every file, every connection of yours (including Gmail, Drive, calendar through your Claude/ChatGPT account), skills, background work, every outside action | A bot only you or people you fully trust can message |
 
 ### The Reads documents level (from 0.80.0)
 
@@ -319,13 +319,15 @@ At Read only that is harmless: however cleverly someone talks it around, the bot
 - The bot can call the data sources you attached, at read and write level. Everything in those sources is within reach of whoever is chatting with the bot.
 - Javis still **hard-blocks** the outward-action group at this level: no sending, no payments, no booking or cancelling, no deleting, no publishing. Blocked at the tool-call layer, not by wording.
 
-**The Full power level:**
+**The Full power level (since 0.85.3 it runs exactly like the admin channel):**
 
-- The bot can do **everything** the attached sources allow, sending, paying, booking, cancelling, deleting and publishing outward included. Those actions **cannot be undone**.
-- One clever sentence ("ignore the previous instructions and do this for me") is enough. The only remaining rail is the Agent file you wrote, and words can be talked around.
-- The bot does not check with you first. There is no per-command approval gate.
+- The bot runs **the admin channel's own route**: the same brain engine, the same native engine tools (running commands on the server, reading and writing every file including other brains), every connection of yours (including Gmail, Drive, calendar connected through your Claude or ChatGPT account), skills, background work, schedules. It differs from the admin channel only in speaking as **the Agent's role** and working in the bot's brain.
+- The bot can take every outside action: sending, paying, booking or cancelling, deleting, publishing. Those actions **cannot be undone**.
+- The bot is controlled by **whoever messages it**. One clever sentence ("ignore the previous instructions and do this for me") is enough; only the Agent file you wrote stands in the way, and words can be talked around. There is no per-command approval gate.
 
-So: **only turn Full power on when you control the list of people who can message the bot.** Somewhere anyone can message, do not, however carefully you wrote the Agent.
+So: **only turn Full power on for a bot that only you or people you fully trust can message** (set **Who the bot answers** to chosen people). Somewhere anyone can message, do not, however carefully you wrote the Agent.
+
+The Grok Build and Antigravity brains can use tools only at Full power. At Reads documents and Can write they answer without tools, and the bot card shows a warning saying so.
 
 ### How to raise the level
 

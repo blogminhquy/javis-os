@@ -187,10 +187,12 @@ check("mức chỉ đọc có màu riêng chứ không mượn màu cảnh báo"
 check("bật bot có quyền thao tác thì hỏi lại", /if \(on && mucCua\(mq\)\.can_xac_nhan/.test(CB));
 check("CSS cho nhãn mức quyền và khối cảnh báo",
   /\.cb-quyen\.full/.test(CSS) && /\.cb-canhbao\.full/.test(CSS) && /\.cb-ack/.test(CSS));
-// Hai rào KHÔNG đổi theo mức, và trang phải nói đúng như vậy - hứa thiếu thì chủ ngại nâng
-// mức một cách vô cớ, hứa thừa thì chủ tin vào một rào không tồn tại.
-check("trang nói rõ hai rào giữ nguyên ở mọi mức",
-  noi("cb.intro_7", "không thấy brain khác, và không chạy được lệnh máy"));
+// Hai rào giữ nguyên DƯỚI mức Toàn quyền, còn Toàn quyền chạy y như kênh admin (0.85.3), và trang
+// phải nói đúng như vậy - hứa thiếu thì chủ ngại nâng mức một cách vô cớ, hứa thừa thì chủ tin vào
+// một rào không tồn tại (câu cũ "giữ nguyên ở MỌI mức" thành lời hứa thừa từ 0.85.3).
+check("trang nói rõ hai rào giữ nguyên dưới mức Toàn quyền",
+  noi("cb.intro_7", "không thấy brain khác và không chạy được lệnh máy"));
+check("và nói thẳng Toàn quyền chạy như kênh admin", noi("cb.intro_7", "kênh admin"));
 
 // ============================================================
 // 6. Bot KHÔNG có brain riêng - trang thuộc về brain đang mở
