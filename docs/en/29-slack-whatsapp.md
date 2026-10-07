@@ -4,7 +4,7 @@
 
 Since 0.71.0 Javis talks on Slack and WhatsApp, in the same two ways as Telegram and Zalo:
 
-- **Control channel:** you chat with Javis itself (your brain, your tools, background work). Set it up on the **Channels** page.
+- **Control channel:** you chat with Javis itself (your brain, your tools, background work). Set it up on the **Admin channels** page.
 - **Customer bot:** a dedicated agent answers your customers or team, with every chat in the shared inbox and takeover when a human is needed. Set it up on the **Chatbot** page.
 
 | | Slack | WhatsApp |
@@ -64,7 +64,7 @@ settings:
 
 ### 2a. Control channel (you talk to Javis)
 
-1. **Channels** page → **Slack** card: tick **Enable**, paste the bot token and the app token, **Save**.
+1. **Admin channels** page → **Slack** tab: paste the bot token and the app token, click **Save and turn on**.
 2. Open Slack, find the app under **Apps**, send it any message. You appear on the card with a 4-digit code; check the code and click **Allow**. The list starts empty on purpose: nobody can reach your brain until you allow them.
 3. From then on: DM the bot, or mention `@Javis` in a channel it was invited to (`/invite @Javis`); it answers in the thread.
 
@@ -97,7 +97,7 @@ WhatsApp only works through Meta's official **WhatsApp Business Cloud API**. Jav
 
 ### 2a. Control channel
 
-1. **Channels** page → **WhatsApp** card: tick **Enable**, fill in Phone number ID, Access token, App secret, **Save**.
+1. **Admin channels** page → **WhatsApp** tab: fill in Phone number ID, Access token, App secret, click **Save and turn on**.
 2. The card shows a **Callback URL** and a **Verify token**. In Meta: **WhatsApp → Configuration → Webhook → Edit**, paste both, **Verify and save**, then subscribe to the **messages** field.
 3. Message the business number from your own WhatsApp. You appear on the card with a code; click **Allow**.
 
@@ -105,7 +105,7 @@ WhatsApp only works through Meta's official **WhatsApp Business Cloud API**. Jav
 
 1. Use another number (each number belongs to one bot).
 2. **Chatbot** page → **Accounts** → add an account, channel **WhatsApp**, paste the three values **separated by spaces**: `<phone number id> <access token> <app secret>`.
-3. The webhook is the same Callback URL and Verify token as on the Channels page: one URL serves every number, and Javis routes each message by the number it was sent to.
+3. The webhook is the same Callback URL and Verify token as on the Admin channels page: one URL serves every number, and Javis routes each message by the number it was sent to.
 
 ### The 24-hour window
 

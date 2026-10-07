@@ -15,7 +15,7 @@ If you install through **Hostinger Docker Manager**, you do not need the full ad
 Three configuration places need to be kept apart:
 
 - **The `.env` file**: system-level settings, read once at startup. A change only takes effect after restarting Javis.
-- **The ⚙ Settings panel in the app** (the Account, Models, Channels pages...): settings changed live through the interface, saved into `settings.json`, no file editing. For example: switching model, the OpenRouter API key, the Telegram token, the custom domain, the logo. More in [Models and engines](10-models-and-engines.md), [Security and accounts](14-security-and-accounts.md), [Branding and domains](15-branding-and-domains.md).
+- **The ⚙ Settings panel in the app** (the Account, Models, Admin channels pages...): settings changed live through the interface, saved into `settings.json`, no file editing. For example: switching model, the OpenRouter API key, the Telegram token, the custom domain, the logo. More in [Models and engines](10-models-and-engines.md), [Security and accounts](14-security-and-accounts.md), [Branding and domains](15-branding-and-domains.md).
 - **A few `settings.json` keys with no interface**: currently the `media` block (the rules for clearing images and temporary files). Changing them means opening the file by hand. See the dedicated section below.
 
 In short: `.env` handles "where it runs, who gets in, where the data lives". The in-app Settings panel handles "which model, which key, which voice". `settings.json` is where the two meet, and a few rare keys can only be edited there.
@@ -222,7 +222,7 @@ In the second example, because `JAVIS_HOST=0.0.0.0` (public) Javis turns forced 
 
 **You pointed OBSIDIAN_VAULT_PATH at a real vault and Javis sees no data.** Check that the path is right and that Javis has permission to read the folder. On Docker the volume must be mounted at the path you declared. After fixing, restart and rebuild the graph (see [Knowledge graph](03-knowledge-graph.md)).
 
-**After restoring a backup, every API key is empty.** You copied `settings.json` without `.secret_key` from the same folder. There is no recovery, you have to re-enter the keys on the Models and Channels pages.
+**After restoring a backup, every API key is empty.** You copied `settings.json` without `.secret_key` from the same folder. There is no recovery, you have to re-enter the keys on the Models and Admin channels pages.
 
 If you are still stuck, see [Troubleshooting and FAQ](17-troubleshooting.md).
 

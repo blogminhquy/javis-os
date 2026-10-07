@@ -1,4 +1,4 @@
-"""The owner's control channels on Slack and WhatsApp (0.71.0).
+"""The owner's control channels on Slack, WhatsApp (0.71.0), Discord and Lark/Feishu (0.85.0).
 
 "Control channel" = the owner talks to Javis itself (full brain, tools, background work), the
 way the Telegram and Zalo control bots work. Customer-facing bots live elsewhere
@@ -10,10 +10,15 @@ path are the same rules for every channel. Only the transport and the settings s
 
 Access is FAIL-CLOSED, like Zalo and unlike Telegram: an empty allow-list lets nobody in. A
 stranger who writes gets a 4-digit pairing code and lands in a queue the owner approves with
-one click on the Channels page. Slack allows by USER id (U...), WhatsApp by phone number.
+one click on the Admin channels page. Slack allows by USER id (U...), WhatsApp by phone number,
+Discord by user id, Lark by open_id (ou_...).
+
+Each channel also DESCRIBES its settings (`plain`, `secrets`), so main.py masks, saves and
+restarts every channel with one loop instead of a branch per platform.
 """
 from __future__ import annotations
 
+import re
 import secrets
 import sys
 import time
@@ -30,7 +35,9 @@ QUEUE_REMIND = 10 * 60
 
 class OwnerChannel:
     def __init__(self, key: str, label: str, prefix: str, transport: Callable,
-                 credentials: Callable[[dict], object], required: tuple, id_label: tuple):
+                 credentials: Callable[[dict], object], required: tuple, id_label: tuple,
+                 plain: Optional[Dict[str, Callable]] = None, secret_fields: tuple = (),
+                 trust_turn_ids: bool = False):
         self.key = key                  # settings section and channel name: "slack" | "whatsapp"
         self.label = label
         self.prefix = prefix            # owner_chat prefix: "slack:" | "whatsapp:"
@@ -38,6 +45,13 @@ class OwnerChannel:
         self._credentials = credentials  # settings section -> token argument for the transport
         self.required = required        # settings fields that must be non-empty to start
         self.id_label = id_label        # (vi, en): what the allow-list holds, for messages
+        # Settings fields: plain ones are shown back to the form (each with a normaliser),
+        # secrets are masked on read and only overwritten when a new value is sent.
+        self.plain: Dict[str, Callable] = dict(plain or {})
+        self.secret_fields = tuple(secret_fields)
+        # The allow-list holds PEOPLE, but a turn's chat id may be a channel or DM id (Slack D...,
+        # a Discord channel, a Lark oc_...). Ids the turn itself produced are trusted for replies.
+        self.trust_turn_ids = bool(trust_turn_ids)
         self.bot = None
         self.queue: Dict[str, dict] = {}
         self.deps: Dict[str, Callable] = {}
@@ -81,9 +95,9 @@ class OwnerChannel:
     def _refusal(self, code: str) -> str:
         return localefmt.chu(
             f"Bạn chưa được cấp quyền dùng Javis này.\nMã ghép nối của bạn: {code}\n"
-            "Đưa mã này cho chủ máy để họ cho phép ở trang Kênh.",
+            "Đưa mã này cho chủ máy để họ cho phép ở trang Kênh Admin.",
             f"You are not allowed to use this Javis yet.\nYour pairing code: {code}\n"
-            "Give this code to the owner so they can allow you on the Channels page.")
+            "Give this code to the owner so they can allow you on the Admin channels page.")
 
     def _queue(self, meta) -> str:
         """Put a stranger in the pairing queue. Returns what to reply ("" = stay quiet)."""
@@ -196,7 +210,7 @@ class OwnerChannel:
                                         f"The {self.label} channel is off or not configured")
         ids = self.allowed()
         cid = str(chat_id or "").strip()
-        if self.key == "slack":
+        if self.trust_turn_ids:
             # A Slack DM channel id (D...) is not what the allow-list holds (user ids), so any
             # id the turn itself produced is trusted; empty falls back to the first owner.
             target = cid or (ids[0] if ids else "")
@@ -248,18 +262,62 @@ def _wa_transport():
     return WhatsAppBot
 
 
+def _discord_transport():
+    from discord_bot import DiscordBot
+    return DiscordBot
+
+
+def _lark_transport():
+    from lark_bot import LarkBot
+    return LarkBot
+
+
+def _digits(v) -> str:
+    return re.sub(r"\D", "", str(v or ""))
+
+
+def lark_domain(v) -> str:
+    """"lark" (international, open.larksuite.com) unless the owner picked "feishu" (China). Lark is
+    the default because it is what businesses outside mainland China sign up for."""
+    return "feishu" if str(v or "").strip().lower() == "feishu" else "lark"
+
+
 SLACK = OwnerChannel(
     "slack", "Slack", "slack:", _slack_transport,
     lambda c: f"{c.get('bot_token', '')} {c.get('app_token', '')}",
-    ("bot_token", "app_token"), ("Slack user ID", "Slack user ID"))
+    ("bot_token", "app_token"), ("Slack user ID", "Slack user ID"),
+    secret_fields=("bot_token", "app_token"), trust_turn_ids=True)
 
 WHATSAPP = OwnerChannel(
     "whatsapp", "WhatsApp", "whatsapp:", _wa_transport,
     lambda c: {"phone_number_id": c.get("phone_number_id", ""),
                "access_token": c.get("access_token", ""), "app_secret": c.get("app_secret", "")},
-    ("phone_number_id", "access_token", "app_secret"), ("số điện thoại", "phone number"))
+    ("phone_number_id", "access_token", "app_secret"), ("số điện thoại", "phone number"),
+    plain={"phone_number_id": _digits}, secret_fields=("access_token", "app_secret"))
 
-ALL = (SLACK, WHATSAPP)
+DISCORD = OwnerChannel(
+    "discord", "Discord", "discord:", _discord_transport,
+    lambda c: str(c.get("bot_token", "") or ""),
+    ("bot_token",), ("Discord user ID", "Discord user ID"),
+    secret_fields=("bot_token",), trust_turn_ids=True)
+
+LARK = OwnerChannel(
+    "lark", "Lark", "lark:", _lark_transport,
+    lambda c: {"app_id": str(c.get("app_id", "") or "").strip(),
+               "app_secret": c.get("app_secret", ""), "domain": lark_domain(c.get("domain"))},
+    ("app_id", "app_secret"), ("Lark open_id", "Lark open_id"),
+    plain={"app_id": lambda v: str(v or "").strip(), "domain": lark_domain},
+    secret_fields=("app_secret",), trust_turn_ids=True)
+
+ALL = (SLACK, WHATSAPP, DISCORD, LARK)
+
+
+def get(key: str):
+    """The channel whose settings section is `key`, or None."""
+    for ch in ALL:
+        if ch.key == key:
+            return ch
+    return None
 
 
 def by_prefix(owner_chat: str):

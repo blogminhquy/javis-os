@@ -4531,8 +4531,8 @@ def settings_get():
     tok = cfg["telegram"].get("token", "")
     safe["telegram"]["token"] = ("••••" + tok[-4:]) if tok else ""
     safe["telegram"]["token_set"] = bool(tok)
-    for _sec, _keys in (("slack", ("bot_token", "app_token")),
-                        ("whatsapp", ("access_token", "app_secret"))):
+    for _oc in owner_channels.ALL:
+        _sec, _keys = _oc.key, _oc.secret_fields
         safe.setdefault(_sec, {})
         for _k in _keys:
             _v = str((cfg.get(_sec, {}) or {}).get(_k, "") or "")
@@ -4667,21 +4667,21 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             z["chat_id"] = ",".join(tg_parse_ids(patch["chat_id"]))
         if patch.get("token"):
             z["token"] = patch["token"]
-    elif section in ("slack", "whatsapp"):
-        # Secrets are only overwritten when a new value is sent: the form shows masked values
-        # and an empty field means "keep what is saved", like the Telegram token.
+    elif owner_channels.get(section):
+        # Slack, WhatsApp, Discord, Lark: each channel describes its own fields
+        # (owner_channels.OwnerChannel.plain / secret_fields). Secrets are only overwritten when
+        # a new value is sent: the form shows masked values and an empty field means "keep what
+        # is saved", like the Telegram token.
+        _oc = owner_channels.get(section)
         sec = cfg.setdefault(section, {})
         if "enabled" in patch:
             sec["enabled"] = bool(patch["enabled"])
         if "allow" in patch:
             sec["allow"] = ", ".join(tg_parse_ids(patch["allow"]))
-        plain = ("phone_number_id",) if section == "whatsapp" else ()
-        secret = (("bot_token", "app_token") if section == "slack"
-                  else ("access_token", "app_secret"))
-        for k in plain:
+        for k, norm in _oc.plain.items():
             if k in patch:
-                sec[k] = re.sub(r"\D", "", str(patch[k] or ""))
-        for k in secret:
+                sec[k] = norm(patch[k])
+        for k in _oc.secret_fields:
             v = str(patch.get(k) or "").strip()
             if v and not v.startswith("••••"):
                 sec[k] = v
@@ -4832,9 +4832,9 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             restart_zalo_bot()   # áp cấu hình bot ngay
         except Exception as e:
             print(f"[zalo restart] {e}", file=__import__('sys').stderr)
-    if section in ("slack", "whatsapp"):
+    if owner_channels.get(section):
         try:
-            (owner_channels.SLACK if section == "slack" else owner_channels.WHATSAPP).restart()
+            owner_channels.get(section).restart()
         except Exception as e:
             print(f"[{section} restart] {e}", file=__import__('sys').stderr)
     if section == "voice":

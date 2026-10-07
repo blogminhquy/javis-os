@@ -46,23 +46,22 @@ To let other people (a partner, staff...) share the bot: have each of them do th
 
 ### Step 1: Configure and enable the bot
 
-1. Open **Channels** (the **Connections** group) on the dashboard and find the **Telegram** card.
-2. Tick **Enable Telegram bot**.
-3. Paste the token into **Bot token**. (If a token was set before, the label reads "(set)"; leave the field empty to keep it.)
-4. Paste the Chat ID into **Allowed Chat IDs**. For several people, separate IDs with commas, for example `123456789, 987654321`.
-5. Click **Save & enable**.
+1. Open **Admin channels** (the **Connections** group) on the dashboard and pick the **Telegram** tab.
+2. In step **1. Connect the bot**, paste the token into **Bot token**. (A saved token shows "✓ saved" next to the label; leave the field empty to keep it.)
+3. In step **2. Who can use it**, paste the Chat ID into **Allowed chat IDs**. For several people, separate IDs with commas, for example `123456789, 987654321`.
+4. Click **Save and turn on** at the bottom of the tab.
 
-Javis saves the configuration and restarts the bot right after you click Save (no separate restart button). The status line under the card reads "✅ Saved, starting the bot…" and updates itself after about 2 seconds.
+Javis saves the configuration and starts the bot right away (no separate restart button). The label next to the channel name turns "Starting", then "Running" a few seconds later. To pause the bot later, flip the **switch** at the top of the tab: it takes effect immediately, no Save needed, and the token is kept.
 
 ### Step 2: Check that the bot is receiving
 
-The small line under the 2 buttons is the bot's real state. What each line means:
+The coloured label next to the channel name, and the box right under it, are the bot's real state (the dot on each tab says the same, so you can scan all six channels at a glance). What they mean:
 
 | Status line | Meaning |
 |---|---|
 | 🟢 Bot is receiving | The bot is healthy; message it and Javis answers. This line also shows how many chat IDs are allowed, or warns that "ANYONE can message it (no ID restriction)" |
-| ⚪ Bot NOT enabled | "Enable Telegram bot" was not ticked and saved |
-| ⚪ No bot token | Enabled but no token pasted |
+| ⚪ Not set up | No token yet. Do step 1, then click Save and turn on |
+| ⚪ Off | A token is saved but the switch is off. Flip the switch to turn it on |
 | ⏳ Starting the bot | The bot was just enabled, wait a few seconds |
 | 🔴 409 | The same token is being polled elsewhere, or a webhook is still set. See Common problems below |
 | ⚠ Bot error | Another error, with details on the line |
@@ -260,16 +259,16 @@ Telegram pieces older than **30 days** are archived so the list does not flood. 
 
 Two ways:
 
-1. On the dashboard: open **Channels** (the **Connections** group) and read the status line under the Telegram card (described in Step 2). This is the fastest and clearest way.
+1. On the dashboard: open **Admin channels** (the **Connections** group) and read the status on the Telegram tab (described in Step 2). This is the fastest and clearest way.
 2. In Telegram: type `/status`. The bot reports the provider, model, brain in use, your session, and whether it is busy or idle.
 
-The **System** group at the top of the **Settings** page also shows Telegram as "On" or "Off" at a glance, with a button jumping to the **Channels** page; the detailed configuration stays in **Channels**.
+The **System** group at the top of the **Settings** page also shows Telegram as "On" or "Off" at a glance, with a button jumping to the **Admin channels** page; the detailed configuration stays there.
 
 ## Quick reference: buttons and states
 
 | Button / field | Where | Effect |
 |---|---|---|
-| Enable Telegram bot | Telegram card, Channels page | Turn the bot on or off. It only takes effect after Save & enable |
+| Switch at the top | Telegram tab, Admin channels page | Turns the bot on or off IMMEDIATELY, no Save needed. The token is kept while off |
 | Bot token | Telegram card | The token from BotFather. Once set, leave it empty unless changing it |
 | Allowed Chat IDs | Telegram card | The allow list. Several IDs separated by commas |
 | Save & enable | Telegram card | Save the configuration and restart the bot immediately |
@@ -296,7 +295,7 @@ The **System** group at the top of the **Settings** page also shows Telegram as 
 
 **Messaging the bot returns "You are not allowed to use this Javis bot."** The Chat ID set in Javis does not match the account messaging it. Get the right Chat ID from @userinfobot, paste it into the Chat ID field and Save & enable.
 
-**The "🤔 Javis is working…" message never changes.** That turn has not called a tool yet so there is nothing to report, or the engine is waiting. When done it becomes a trail line (`⚙ ...` or `✓ Answered directly`). If it sticks on "🤔" with no answer following, that turn failed; check the status line on the **Channels** page.
+**The "🤔 Javis is working…" message never changes.** That turn has not called a tool yet so there is nothing to report, or the engine is waiting. When done it becomes a trail line (`⚙ ...` or `✓ Answered directly`). If it sticks on "🤔" with no answer following, that turn failed; check the status on the **Admin channels** page.
 
 **Typing `/skill-name` reports that the Claude CLI engine is needed.** You are on the OpenRouter engine. Type `/cli` to return to Claude, then call the skill again.
 
@@ -310,7 +309,7 @@ The **System** group at the top of the **Settings** page also shows Telegram as 
 
 **An old image in the conversation shows a grey "Image expired" box.** The media cache (`attachments/` and `inbox/`) cleaned files older than 30 days or over the 300MB ceiling. Content already distilled into `.md` notes is untouched.
 
-**You changed the configuration and the bot behaves as before.** Wait a few seconds and reload the **Channels** page so the status line updates. If it still is not 🟢, see [Troubleshooting & FAQ](17-troubleshooting.md).
+**You changed the configuration and the bot behaves as before.** Wait a few seconds and reload the **Admin channels** page so the status updates. If it still is not 🟢, see [Troubleshooting & FAQ](17-troubleshooting.md).
 
 ## Token saving applies to Telegram too
 

@@ -255,7 +255,7 @@ On Docker or Hostinger (since 0.77.1): change `JAVIS_ADMIN_PASSWORD` (and `JAVIS
 On Windows the repo ships a **`reset-auth.bat`** script in the project root: running it clears the account and password in `server/settings.json` and returns the app to setup (it prints an OK line then tells you to restart). If the script is not usable: edit or delete the `auth` section of `settings.json` in the state folder (Docker: `/data/state`) then restart; or set the admin again with `JAVIS_ADMIN_PASSWORD` after deleting the old `auth` section.
 
 **After changing machines or restoring a backup, every API key is empty.**
-You copied `settings.json` without `.secret_key`. There is no recovery: re-enter the keys on the Models page, the Channels page and Settings. Next time bring both files.
+You copied `settings.json` without `.secret_key`. There is no recovery: re-enter the keys on the Models page, the Admin channels page and Settings. Next time bring both files.
 
 **Login is turned off but it still asks for an account.**
 Because the server is still public (or `JAVIS_REQUIRE_LOGIN=1`). In that mode Javis does not allow login to be turned off entirely, it forces the account to be recreated. To run without a password the server must listen purely on localhost.
