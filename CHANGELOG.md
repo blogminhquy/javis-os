@@ -1,3 +1,9 @@
+## 0.85.6
+
+### Chọn model tự động cho từng hội thoại
+
+- Chuẩn bị Auto qua OpenAI OAuth, giữ lựa chọn riêng của mỗi hội thoại.
+
 # Nhật ký cập nhật
 
 ***Tiếng Việt** · [English](CHANGELOG.en.md)*

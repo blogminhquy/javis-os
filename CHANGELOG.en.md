@@ -1,3 +1,9 @@
+## 0.85.6
+
+### Automatic model selection per conversation
+
+- Prepare OpenAI OAuth Auto routing with separate preferences for each conversation.
+
 # Changelog
 
 *[Tiếng Việt](CHANGELOG.md) · **English***
