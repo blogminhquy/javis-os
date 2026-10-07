@@ -1,6 +1,6 @@
 # Pilot đầu-cuối Resonance MVP qua đường chat thật: kịch bản và hạn mức
 
-**Trạng thái: lần chạy 1 (07/10/2026) đã chạy, bộ não chọn `javis_task`, không lập mục tiêu (xem cuối tài liệu). Bộ chạy đã sửa theo review e2e vòng 1 (P1-1, P1-2, P2-1) và vòng 2 (P2-1, P2-2, nguồn cấu hình). Lần chạy 2 CHỜ người dùng duyệt; chưa gọi thêm model nào.**
+**Trạng thái: lần chạy 1 (07/10/2026) đã chạy, bộ não chọn `javis_task`, không lập mục tiêu (xem cuối tài liệu). Bộ chạy đã sửa theo review e2e vòng 1 (P1-1, P1-2, P2-1), vòng 2 (P2-1, P2-2, nguồn cấu hình) và vòng 3 (chấm đủ việc, người, hạn). Lần chạy 2 CHỜ người dùng duyệt; chưa gọi thêm model nào.**
 
 ## Mục đích
 
@@ -40,7 +40,21 @@ Lời người dùng, loại **duy trì** (đúng nhóm `javis_goal` theo luật
 > (Dữ liệu mô phỏng để thử nghiệm.) Từ giờ duy trì giúp mình ghi chú Inbox/viec-dang-do.md: lúc nào cũng liệt kê đủ các việc đang dở bên dưới, mỗi việc ghi người phụ trách và hạn chót. Khi mình báo thêm việc thì cập nhật vào, có bản mới thì báo mình xem. Đừng đụng tới Notes/ghi-chu-cu.md.
 > Việc đang dở: Lan soạn kế hoạch bài viết tháng 11, hạn 09/10. Minh kiểm lại lịch đăng, hạn 10/10. Hà gửi bảng số liệu cho cả nhóm, hạn 12/10.
 
-**Hợp đồng kỳ vọng độc lập** (review e2e vòng 2, P2-2), lấy từ lời người dùng, không từ đề xuất của bộ não và không đưa thêm vào prompt: kiểu `maintain`; file `Inbox/viec-dang-do.md`; đủ ba bộ (Lan, 09/10), (Minh, 10/10), (Hà, 12/10), mỗi bộ trên cùng một dòng (chấp nhận 9/10, có thể kèm năm); ghi chú cũ nguyên vẹn. Bộ chạy chấm trên file thật. Mục tiêu hiểu sai vẫn được lưu làm bằng chứng nhưng pilot FAIL.
+**Hợp đồng kỳ vọng độc lập** (review e2e vòng 2 và 3), lấy từ lời người dùng, không từ đề xuất của bộ não và không đưa thêm vào prompt: kiểu `maintain`; file `Inbox/viec-dang-do.md`; ghi chú cũ nguyên vẹn; và đủ ba bộ:
+
+| Việc | Người | Hạn | Cụm đặc trưng chấp nhận (mọi cụm trong một phương án phải có) |
+|---|---|---|---|
+| Soạn kế hoạch bài viết tháng 11 | Lan | 09/10 | "kế hoạch" + "bài viết"; "kế hoạch" + "tháng 11"; "kế hoạch nội dung" |
+| Kiểm lại lịch đăng | Minh | 10/10 | "lịch đăng"; "lịch" + "đăng bài" |
+| Gửi bảng số liệu cho cả nhóm | Hà | 12/10 | "số liệu" |
+
+Chấm trên file thật theo **đơn vị trình bày** (`_e2e_pilot_guard.content_contract`): một hàng bảng; một mục danh sách cùng các dòng tiếp nối; một đoạn văn; một mục dưới tiêu đề; và từng dòng. Chỉ đơn vị nói về ĐÚNG MỘT người của hợp đồng được tính (đơn vị nhắc nhiều người thì quan hệ không rõ). Ngày chấp nhận 9/10 hay 09/10, có thể kèm năm. Ba kết quả:
+
+- **met:** cả ba bộ đều có một đơn vị chứa đúng người, đúng việc, đúng hạn.
+- **not_met:** thiếu người; đơn vị chỉ có người và hạn mà không có việc; việc của người khác nằm ở đơn vị của người này (gán sai); hạn sai hay hạn của người khác. Pilot FAIL.
+- **unverified:** đơn vị của người có chữ mô tả việc nhưng không khớp cụm đặc trưng nào (cách nói đồng nghĩa chưa hỗ trợ). Pilot KHÔNG đạt, ghi `unverified_format`, giữ sản phẩm cho người review; không kết luận bộ não làm sai.
+
+Mục tiêu hiểu sai vẫn được lưu làm bằng chứng nhưng pilot FAIL.
 
 Mọi điều kiện dưới đây là lỗi CỨNG (một điều không đạt là pilot FAIL, không có nhánh "ghi chú rồi OK").
 
@@ -48,7 +62,7 @@ Mọi điều kiện dưới đây là lỗi CỨNG (một điều không đạt
 |---|---|---|
 | 0 | Server A lên (nhịp tạm dừng); cổng an toàn | Đúng binary, gói thuê bao gốc, settings sạch; WebSocket nhận kết nối |
 | 1 | Gửi MỘT tin qua `/ws`, chờ `turn_done` | Bộ não lập ĐÚNG MỘT mục tiêu qua `javis_goal`, gắn đúng phiên; **kiểu là `maintain`**; **file sản phẩm của mục tiêu đúng file người dùng nêu**; ý định gốc TRÙNG KHỚP toàn bộ lời người dùng; thẻ đặt vào đúng phiên có biên nhận; chưa có lượt việc nền nào. Không lập mục tiêu: ghi kết quả, DỪNG |
-| 2 | Giết A, dựng B (nhịp chạy) | Nhịp lập lịch tự làm lượt việc nền; receipt succeeded, đúng provider, 0 lần gọi công cụ; **file người dùng nêu** tồn tại và bytes khớp hash host ghi khi đăng; **nội dung đủ ba bộ người và hạn**; tin báo về đúng phiên có biên nhận |
+| 2 | Giết A, dựng B (nhịp chạy) | Nhịp lập lịch tự làm lượt việc nền; receipt succeeded, đúng provider, 0 lần gọi công cụ; **file người dùng nêu** tồn tại và bytes khớp hash host ghi khi đăng; **hợp đồng nội dung `met`** (đủ ba bộ việc, người, hạn); tin báo về đúng phiên có biên nhận |
 | 3 | Giết B, dựng C, chờ hơn hai nhịp | Không báo lặp; không gọi thêm |
 | 4 | Nếu mục tiêu có tiêu chí người dùng duyệt | BẮT BUỘC có sản phẩm để duyệt (`artifact_ref`); bấm "Đạt yêu cầu" qua API như nút trên thẻ: 200 |
 | 5 | Khép vòng theo KIỂU KỊCH BẢN (không theo kiểu bộ não chọn) | Đánh giá met, vẫn active, đã báo `goal.maintained` về phiên có biên nhận, lịch xem lại nằm trong **[6 giờ, 24 giờ] sau mốc đánh giá (cả hai đầu)**; rồi người dùng **tạm dừng qua API** để không còn việc nền. Không gọi thêm model ở bước 4, 5 |
@@ -62,7 +76,8 @@ Bằng chứng lưu thêm: khung `tool_call` / `tool_result` (gồm `ToolSearch`
 |---|---|
 | Lượt bộ não chính | **1** (`anthropic-cli` / `claude-opus-5-5`, gói thuê bao đã qua cổng xác thực) |
 | Lượt việc nền | **1 dự kiến, tối đa 2** (`anthropic-cli` / `sonnet`); thử lại khi chưa đạt cách 15 phút nên trong cửa sổ pilot thực tế chỉ có 1 |
-| Trần cứng | **3 lượt engine cấp host**, chặn trước lượt vượt, giữ qua khởi động lại |
+| Trần cứng | **3 lượt engine cấp host** (1 lượt Opus, tối đa 2 lượt Sonnet), chặn trước lượt vượt, giữ qua khởi động lại. Không phải 3 request nội bộ của SDK. Hook, plugin, MCP trong settings người dùng (máy hiện tại: `enabledPlugins`) nằm ngoài trần này và ngoài phạm vi cổng; muốn cam kết rộng hơn thì phải cô lập chúng trong sandbox |
+| Đề xuất duyệt ghi rõ | Commit của bộ chạy, lời giao nguyên văn, hợp đồng chấm ở trên, cấu hình engine cụ thể. Cổng engine và xác thực vẫn chạy ngay trước khi gửi tin |
 | Thời gian | Khoảng 8 đến 15 phút |
 | Số lần chạy | **Một lần.** Không thử lại, không sửa lời, không nâng trần; mọi quyết định khác do người dùng |
 
@@ -98,6 +113,14 @@ JAVIS_RESONANCE_E2E=real JAVIS_RESONANCE_PILOT_SETTINGS=D:/Project/Javis-OS/serv
 4. **Biến pilot thừa kế** bị xoá trước khi dựng mỗi server; trạng thái hiệu lực ghi vào báo cáo.
 
 Script kỳ vọng `PR-579-e2e-round3-expected-checks.py` (dựng từ script vòng 2 của người review: cùng mục tiêu hiểu sai bằng `form_goal` + `advance` thật, chạy chính các biểu thức kiểm của bộ chạy): 17 PASS, exit 0. Trên `2a8db1aa` script dừng ngay vì bộ chạy cũ không có hợp đồng kỳ vọng.
+
+### Vòng 3 (diff `2a8db1aa..d5cff3d2` được review)
+
+**P2, đủ tên và ngày vẫn chấm đạt dù thiếu hay gán sai việc.** Hợp đồng nay lưu ba bộ VIỆC, NGƯỜI, HẠN; chấm theo đơn vị trình bày, chỉ đơn vị nói về đúng một người, với ba kết quả `met`, `not_met`, `unverified` như mô tả ở trên. Câu hỏi "cùng dòng có quá chặt" được trả lời bằng việc đọc thêm mục danh sách nhiều dòng, đoạn văn và mục dưới tiêu đề; bố cục ngoài khả năng đọc thì `unverified`, không phải `not_met`.
+
+Test fixture (`test_resonance_e2e_guard.py`, tổng 49 kiểm): bảng đúng, danh sách một dòng, danh sách nhiều dòng (ca của reviewer), gom theo người dưới tiêu đề, văn xuôi hai dòng, bảng kèm dòng tóm tắt nhắc cả ba người: `met`. Chỉ người và hạn (ca của reviewer), bảng chỉ cột người và hạn, thiếu một việc, gán nhầm người (ca của reviewer), sai hạn, hạn của người khác, sản phẩm rỗng: `not_met`. Cách nói chưa hỗ trợ: `unverified`.
+
+Script kỳ vọng `PR-579-e2e-round4-expected-checks.py` (dựng từ script vòng 3 của reviewer: mục tiêu duy trì thật đạt theo tiêu chí host, đúng file, hash, lịch; chạy chính biểu thức kiểm nội dung của bộ chạy): thiếu việc và gán nhầm FAIL, đúng và nhiều dòng qua; exit 0. Trên `d5cff3d2` script dừng ở kiểm đầu vì hợp đồng cũ không có việc.
 
 Trả lời ba câu hỏi của review vòng 1: **giữ luật định tuyến hiện tại** và đổi kịch bản sang loại duy trì, nghiệm thu theo kiểu mục tiêu (maintain: met, `goal.maintained`, lịch xem lại, rồi tạm dừng); trần nay đủ cho mọi đường Resonance gọi engine trên cùng kho với cùng biến ở mỗi tiến trình, nhưng không phải trần request nội bộ SDK; lọc môi trường không tự đủ, nên có cổng xác thực và soát settings.
 

@@ -199,3 +199,120 @@ def content_has_triples(text: str, triples) -> list:
 def review_wake_ok(due_at: float, t_ref: float, min_s: float, max_s: float, tol: float = 300) -> bool:
     """Lịch xem lại có giới hạn ở CẢ HAI đầu so với mốc đánh giá: [t_ref + min_s - tol, t_ref + max_s + tol]."""
     return (t_ref + min_s - tol) <= float(due_at) <= (t_ref + max_s + tol)
+
+
+# ───────────── Review e2e vòng 3: chấm đủ bộ VIỆC, NGƯỜI, HẠN trong cùng một đơn vị trình bày ─────────────
+
+def _units(text: str) -> list:
+    """Tách sản phẩm thành các đơn vị trình bày để chấm quan hệ việc/người/hạn: mỗi hàng bảng; mỗi mục danh sách
+    cùng các dòng tiếp nối (thụt vào, hoặc không mở mục mới) tới dòng trống; mỗi đoạn văn; và mỗi mục dưới một tiêu
+    đề (tiêu đề cùng mọi dòng tới tiêu đề kế tiếp, cho bố cục gom theo người hay theo hạn). Không tìm trên toàn văn
+    để khỏi ghép nhầm việc của người này với hạn của người khác."""
+    import re
+    lines = str(text or "").splitlines()
+    units, cur = [], []
+    bullet = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+
+    def flush():
+        if cur:
+            units.append("\n".join(cur))
+            cur.clear()
+
+    for ln in lines:
+        st = ln.strip()
+        if not st:
+            flush()
+            continue
+        if st.startswith("|"):
+            flush()
+            if not re.fullmatch(r"\|?[\s:|-]+\|?", st):
+                units.append(st)
+            continue
+        if st.startswith("#"):
+            flush()
+            cur.append(ln)
+            flush()
+            continue
+        if bullet.match(ln) and not ln.startswith((" ", "\t")):
+            flush()
+            cur.append(ln)
+            continue
+        if bullet.match(ln) and cur and not bullet.match(cur[0]):
+            flush()
+        cur.append(ln)
+    flush()
+    # Mục dưới tiêu đề: tiêu đề cùng các dòng sau nó tới tiêu đề kế tiếp.
+    sec, sections = [], []
+    for ln in lines:
+        if ln.strip().startswith("#"):
+            if sec:
+                sections.append("\n".join(sec))
+            sec = [ln]
+        elif sec:
+            sec.append(ln)
+    if sec:
+        sections.append("\n".join(sec))
+    # Mỗi dòng cũng là một đơn vị: các dòng không gạch đầu dòng liền nhau (một "đoạn") có thể là ba việc của ba người.
+    return units + [x for x in sections if "\n" in x] + [ln.strip() for ln in lines if ln.strip()]
+
+
+def _norm(s: str) -> str:
+    import unicodedata
+    return unicodedata.normalize("NFC", str(s or "")).casefold()
+
+
+def _has_person(unit: str, who: str) -> bool:
+    import re
+    return re.search(r"(?<!\w)" + re.escape(_norm(who)) + r"(?!\w)", _norm(unit)) is not None
+
+
+def _has_task(unit: str, item: dict) -> bool:
+    u = _norm(unit)
+    return any(all(_norm(k) in u for k in alt) for alt in item["task_keys"])
+
+
+def content_contract(text: str, items) -> dict:
+    """Chấm sản phẩm theo hợp đồng ba bộ việc/người/hạn. items: [{"who", "when", "task", "task_keys": [[cụm,...],
+    ...]}]; một phương án cụm khớp khi MỌI cụm của nó có trong đơn vị. Trả {"verdict": met | not_met | unverified,
+    "items": [{"who", "verdict", "why"}]}.
+
+    - met: có một đơn vị chứa người, đúng hạn và đúng việc của người đó.
+    - not_met: không thấy người; đơn vị của người chỉ có người và hạn, không có chữ việc; việc của NGƯỜI KHÁC nằm ở đơn
+      vị của người này (gán sai); hay hạn của người khác thay cho hạn của người này.
+    - unverified: đơn vị của người có chữ mô tả việc nhưng không khớp cụm đặc trưng nào (có thể là cách nói đồng
+      nghĩa chưa hỗ trợ). KHÔNG tính là đạt; giữ sản phẩm cho người review, không kết luận bộ não làm sai."""
+    import re
+    units = _units(text)
+    out, verdicts = [], []
+    for it in items:
+        own_date = _date_re(it["when"])
+        others = [o for o in items if o is not it]
+        # Chỉ đơn vị nói về ĐÚNG MỘT người của hợp đồng: đơn vị có nhiều người thì quan hệ việc/người/hạn không rõ.
+        mine = [u for u in units if _has_person(u, it["who"]) and not any(_has_person(u, o["who"]) for o in others)]
+        v, why = "not_met", "không thấy người này trong sản phẩm"
+        if any(own_date.search(_norm(u)) and _has_task(u, it) for u in mine):
+            v, why = "met", "đủ việc, người, hạn trong cùng một đơn vị"
+        elif mine:
+            v, why = "not_met", "không đơn vị nào có đủ việc, người và đúng hạn"
+            for u in mine:
+                nu = _norm(u)
+                wrong_task = [o["who"] for o in others if _has_task(u, o) and not _has_person(u, o["who"])]
+                wrong_date = (not own_date.search(nu)) and any(_date_re(o["when"]).search(nu) for o in others)
+                if wrong_task:
+                    v, why = "not_met", "việc của người khác nằm ở đơn vị của người này: " + ", ".join(wrong_task)
+                    break
+                if wrong_date:
+                    v, why = "not_met", "hạn của người khác thay cho hạn của người này"
+                    break
+                rest = re.sub(r"(?<!\w)" + re.escape(_norm(it["who"])) + r"(?!\w)", " ", nu)
+                for o in items:
+                    rest = _date_re(o["when"]).sub(" ", rest)
+                rest = re.sub(r"[\W_\d]+", " ", rest).split()
+                filler = {"hạn", "chót", "người", "phụ", "trách", "việc", "ngày", "deadline", "là", "và"}
+                if own_date.search(nu) and [w for w in rest if w not in filler] and not _has_task(u, it):
+                    v, why = "unverified", "có mô tả việc nhưng không khớp cụm đặc trưng nào (cách nói chưa hỗ trợ)"
+        out.append({"who": it["who"], "verdict": v, "why": why})
+        verdicts.append(v)
+    overall = "met" if verdicts and all(x == "met" for x in verdicts) else (
+        "not_met" if "not_met" in verdicts else "unverified")
+    return {"verdict": overall, "items": out}

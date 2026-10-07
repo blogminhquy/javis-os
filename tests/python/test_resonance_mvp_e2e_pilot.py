@@ -103,7 +103,15 @@ USER_MSG = ("(Dữ liệu mô phỏng để thử nghiệm.) Từ giờ duy trì
 # Hợp đồng kỳ vọng ĐỘC LẬP của kịch bản cố định (review e2e vòng 2, P2-2): chấm trên file thật theo lời người dùng,
 # không lấy tiêu chí hay kiểu mục tiêu do bộ não đề xuất làm đáp án. Không đưa thêm gì vào prompt.
 SCENARIO = {"mode": "maintain", "path": "Inbox/viec-dang-do.md",
-            "triples": [("Lan", "09/10"), ("Minh", "10/10"), ("Hà", "12/10")]}
+            "triples": [("Lan", "09/10"), ("Minh", "10/10"), ("Hà", "12/10")],
+            # Ba bộ VIỆC, NGƯỜI, HẠN (review e2e vòng 3): chấm trong cùng một đơn vị trình bày; cụm đặc trưng của từng
+            # việc kèm vài cách nói đồng nghĩa. Không khớp cụm nào thì "chưa xác minh", không tính là đạt.
+            "items": [{"who": "Lan", "when": "09/10", "task": "soạn kế hoạch bài viết tháng 11",
+                       "task_keys": [["kế hoạch", "bài viết"], ["kế hoạch", "tháng 11"], ["kế hoạch nội dung"]]},
+                      {"who": "Minh", "when": "10/10", "task": "kiểm lại lịch đăng",
+                       "task_keys": [["lịch đăng"], ["lịch", "đăng bài"]]},
+                      {"who": "Hà", "when": "12/10", "task": "gửi bảng số liệu cho cả nhóm",
+                       "task_keys": [["số liệu"]]}]}
 # Cấu hình engine người dùng đã duyệt cho lần chạy (review e2e vòng 2, P2-1). Ghi đè được bằng JSON trong
 # JAVIS_RESONANCE_E2E_APPROVED; dry cố ý chọn provider việc nền bị chặn và không chạy bộ não.
 APPROVED = (json.loads(os.environ["JAVIS_RESONANCE_E2E_APPROVED"]) if os.environ.get("JAVIS_RESONANCE_E2E_APPROVED")
@@ -486,12 +494,16 @@ try:
         pub = goal_store().published(P, g.id, deliv) or {}
         f = BRAIN / deliv
         text = f.read_text(encoding="utf-8") if f.is_file() else ""
-        miss = G.content_has_triples(text, SCENARIO["triples"])
+        contract = G.content_contract(text, SCENARIO["items"])
         rep["deliverable"] = {"path": deliv, "agent_path": R._deliverable_rel(cur), "sha256": _sha_file(f),
-                              "published_sha256": pub.get("sha256"), "missing_triples": miss, "text": _cut(text, 4000)}
+                              "published_sha256": pub.get("sha256"), "content_contract": contract,
+                              "text": _cut(text, 4000)}
         check("sản phẩm có ở đúng file người dùng nêu, bytes trên đĩa khớp hash host đã ghi khi đăng",
               f.is_file() and bool(pub) and _sha_file(f) == pub.get("sha256"))
-        check("nội dung đủ ba bộ người và hạn người dùng đưa (chấm độc lập trên file thật)", f.is_file() and not miss)
+        check(f"nội dung đủ ba bộ việc, người, hạn trong cùng đơn vị (chấm độc lập trên file thật: "
+              f"{contract['verdict']})", f.is_file() and contract["verdict"] == "met")
+        if contract["verdict"] == "unverified":
+            rep["unverified_format"] = "sản phẩm có bố cục hay cách nói chưa hỗ trợ: chưa nghiệm thu, giữ cho người review"
     else:
         check("dry: engine việc nền bị chặn trước khi gọi model, mục tiêu blocked có lý do",
               rs.get("run_state") == "blocked" and background_calls() == 0)

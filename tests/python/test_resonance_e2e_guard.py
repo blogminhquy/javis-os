@@ -117,6 +117,51 @@ check("lịch xem lại MỘT NĂM sau (ca của người review): KHÔNG đạt
       G.review_wake_ok(t0 + 365 * 86400, t0, 6 * 3600, 24 * 3600) is False)
 check("lịch xem lại quá sớm (1 giờ): KHÔNG đạt", G.review_wake_ok(t0 + 3600, t0, 6 * 3600, 24 * 3600) is False)
 
+# ───────────── Review e2e vòng 3: đủ bộ việc, người, hạn trong cùng đơn vị ─────────────
+ITEMS = [{"who": "Lan", "when": "09/10", "task": "soạn kế hoạch bài viết tháng 11",
+          "task_keys": [["kế hoạch", "bài viết"], ["kế hoạch", "tháng 11"]]},
+         {"who": "Minh", "when": "10/10", "task": "kiểm lại lịch đăng", "task_keys": [["lịch đăng"], ["lịch", "đăng bài"]]},
+         {"who": "Hà", "when": "12/10", "task": "gửi bảng số liệu cho cả nhóm", "task_keys": [["số liệu"]]}]
+V = lambda txt: G.content_contract(txt, ITEMS)["verdict"]  # noqa: E731
+TABLE = ("| Việc | Người | Hạn |\n|---|---|---|\n| Soạn kế hoạch bài viết tháng 11 | Lan | 09/10 |\n"
+         "| Kiểm lại lịch đăng | Minh | 10/10 |\n| Gửi bảng số liệu cho cả nhóm | Hà | 12/10/2026 |\n")
+check("bảng đúng đủ việc, người, hạn: met", V(TABLE) == "met")
+check("danh sách một dòng mỗi việc: met",
+      V("- Lan: soạn kế hoạch bài viết tháng 11, hạn 9/10\n- Minh: kiểm lại lịch đăng, hạn 10/10\n"
+        "- Hà: gửi bảng số liệu cho cả nhóm, hạn 12/10\n") == "met")
+check("danh sách nhiều dòng (tên và việc ở dòng đầu, hạn ở dòng thụt kế tiếp, ca của reviewer): met",
+      V("- Lan: soạn kế hoạch bài viết tháng 11\n  Hạn: 09/10\n- Minh: kiểm lại lịch đăng\n  Hạn: 10/10\n"
+        "- Hà: gửi bảng số liệu cho cả nhóm\n  Hạn: 12/10\n") == "met")
+check("gom theo người dưới tiêu đề: met",
+      V("## Lan\nSoạn kế hoạch bài viết tháng 11\nHạn 09/10\n\n## Minh\nKiểm lại lịch đăng\nHạn 10/10\n\n"
+        "## Hà\nGửi bảng số liệu cho cả nhóm\nHạn 12/10\n") == "met")
+check("chỉ có người và hạn, không có việc nào (ca của reviewer): not_met",
+      V("Lan | 09/10\nMinh | 10/10\nHà | 12/10\n") == "not_met")
+check("bảng chỉ có cột người và hạn: not_met", V("| Người | Hạn |\n|---|---|\n| Lan | 09/10 |\n| Minh | 10/10 |\n"
+                                                 "| Hà | 12/10 |\n") == "not_met")
+check("thiếu một việc (Hà): not_met",
+      V("- Lan: soạn kế hoạch bài viết tháng 11, hạn 09/10\n- Minh: kiểm lại lịch đăng, hạn 10/10\n") == "not_met")
+r_sw = G.content_contract("Lan: gửi bảng số liệu cho cả nhóm, hạn 09/10\nMinh: soạn kế hoạch bài viết tháng 11, "
+                          "hạn 10/10\nHà: kiểm lại lịch đăng, hạn 12/10\n", ITEMS)
+check("gán việc cho nhầm người (ca của reviewer): not_met, nêu rõ gán sai",
+      r_sw["verdict"] == "not_met" and "người khác" in r_sw["items"][0]["why"])
+check("sai hạn của một việc (Minh 11/10): not_met",
+      V("- Lan: soạn kế hoạch bài viết tháng 11, hạn 09/10\n- Minh: kiểm lại lịch đăng, hạn 11/10\n"
+        "- Hà: gửi bảng số liệu cho cả nhóm, hạn 12/10\n") == "not_met")
+check("hạn của người khác thay cho hạn của người này: not_met",
+      V("- Lan: soạn kế hoạch bài viết tháng 11, hạn 12/10\n- Minh: kiểm lại lịch đăng, hạn 10/10\n"
+        "- Hà: gửi bảng số liệu cho cả nhóm, hạn 12/10\n") == "not_met")
+r_un = G.content_contract("- Lan: chuẩn bị đề cương nội dung, hạn 09/10\n- Minh: kiểm lại lịch đăng, hạn 10/10\n"
+                          "- Hà: gửi bảng số liệu cho cả nhóm, hạn 12/10\n", ITEMS)
+check("mô tả việc bằng cách nói chưa hỗ trợ: unverified (không tính là đạt, không kết luận làm sai)",
+      r_un["verdict"] == "unverified" and r_un["items"][0]["verdict"] == "unverified")
+check("sản phẩm rỗng: not_met", V("") == "not_met")
+check("văn xuôi hai dòng cho mỗi người (đoạn chỉ nói về một người): met",
+      V("Lan sẽ soạn kế hoạch bài viết tháng 11.\nHạn chót 09/10.\n\nMinh kiểm lại lịch đăng.\nHạn chót 10/10.\n\n"
+        "Hà gửi bảng số liệu cho cả nhóm.\nHạn chót 12/10.\n") == "met")
+check("bảng đúng kèm dòng tóm tắt nhắc cả ba người: dòng tóm tắt bị bỏ qua, met",
+      V("Người phụ trách: Lan, Minh, Hà.\n\n" + TABLE) == "met")
+
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)
     sys.exit(1)
