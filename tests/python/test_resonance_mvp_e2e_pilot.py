@@ -100,6 +100,21 @@ USER_MSG = ("(Dữ liệu mô phỏng để thử nghiệm.) Từ giờ duy trì
             "Việc đang dở: Lan soạn kế hoạch bài viết tháng 11, hạn 09/10. Minh kiểm lại lịch đăng, hạn 10/10. "
             "Hà gửi bảng số liệu cho cả nhóm, hạn 12/10.")
 
+# Hợp đồng kỳ vọng ĐỘC LẬP của kịch bản cố định (review e2e vòng 2, P2-2): chấm trên file thật theo lời người dùng,
+# không lấy tiêu chí hay kiểu mục tiêu do bộ não đề xuất làm đáp án. Không đưa thêm gì vào prompt.
+SCENARIO = {"mode": "maintain", "path": "Inbox/viec-dang-do.md",
+            "triples": [("Lan", "09/10"), ("Minh", "10/10"), ("Hà", "12/10")]}
+# Cấu hình engine người dùng đã duyệt cho lần chạy (review e2e vòng 2, P2-1). Ghi đè được bằng JSON trong
+# JAVIS_RESONANCE_E2E_APPROVED; dry cố ý chọn provider việc nền bị chặn và không chạy bộ não.
+APPROVED = (json.loads(os.environ["JAVIS_RESONANCE_E2E_APPROVED"]) if os.environ.get("JAVIS_RESONANCE_E2E_APPROVED")
+            else {"main": {"provider": "anthropic-cli", "model": "claude-opus-5-5"},
+                  "aux": {"provider": "anthropic-cli", "model": "sonnet"}, "claude_model": "claude-opus-5-5"}
+            if MODE == "real" else {"aux": {"provider": "grok-cli"}})
+BG_CWD = STATE / "resonance_cwd"     # cwd của lượt việc nền (main._reply_policy_sandbox_engine, cwd_name)
+BG_CWD.mkdir(parents=True, exist_ok=True)
+PILOT_VARS = ("JAVIS_RESONANCE_TICK_PAUSED", "JAVIS_RESONANCE_CALL_CEILING", "JAVIS_CLAUDE_CLI", "JAVIS_CLAUDE_BIN",
+              "JAVIS_STATE_DIR", "BRAINS_DIR", "JAVIS_PORT")
+
 _fails, _log = [], []
 
 
@@ -111,7 +126,23 @@ def check(name, cond):
     return bool(cond)
 
 
-ENV0 = G.clean_env(dict(os.environ))
+# Bỏ cả các biến của chính pilot có thể thừa kế từ shell cha: mỗi tiến trình server chỉ có đúng giá trị bộ chạy đặt.
+ENV0 = {k: v for k, v in G.clean_env(dict(os.environ)).items() if k not in PILOT_VARS}
+
+
+def resolve_engines() -> dict:
+    """Engine runtime SẼ chạy, resolve bằng chính luật runtime (aux_engine.main_spec, read_spec) trên settings sandbox,
+    trong môi trường đã lọc. Không gọi engine."""
+    code = ("import json, sys; sys.path.insert(0, 'server'); import aux_engine, config; "
+            "m = (config.read_settings().get('model') or {}); "
+            "print(json.dumps({'main': aux_engine.main_spec(), 'aux': aux_engine.read_spec(), "
+            "'claude_model': m.get('claude_model')}))")
+    cp = subprocess.run([sys.executable, "-c", code], cwd=str(ROOT), env={**ENV0, "JAVIS_STATE_DIR": str(STATE)},
+                        capture_output=True, text=True, timeout=120)
+    try:
+        return json.loads((cp.stdout or "").strip().splitlines()[-1])
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def _resolve_cli() -> str:
@@ -122,28 +153,58 @@ def _resolve_cli() -> str:
     return (cp.stdout or "").strip().splitlines()[-1] if (cp.stdout or "").strip() else ""
 
 
+def _auth_at(cli: str, cwd: Path) -> tuple:
+    st = subprocess.run([cli, "auth", "status", "--json"], cwd=str(cwd), env=ENV0, capture_output=True, text=True,
+                        timeout=60)
+    return json.loads(st.stdout or "{}")
+
+
 def auth_gate(cli: str) -> dict:
-    """Cổng xác thực, không gọi model: binary, cwd (brain) và môi trường đúng như engine chat."""
+    """Cổng an toàn, không gọi model (review e2e P1-2 và vòng 2):
+    1. engine runtime sẽ chạy (bộ não chính, việc nền) đúng cấu hình người dùng đã duyệt;
+    2. `claude auth status` bằng ĐÚNG binary engine dùng, ở CẢ HAI cwd (lượt chat: brain; lượt việc nền:
+       resonance_cwd), môi trường đã lọc: gói thuê bao Anthropic gốc;
+    3. nguồn settings người dùng/dự án của cả hai cwd không có apiKeyHelper hay env chọn khoá/nhà cung cấp;
+    4. không có nguồn settings do quản trị đặt (managed, managed-settings.d, registry policy, cache): có thì môi trường
+       CHƯA hỗ trợ, dừng.
+    Hook, plugin, MCP trong settings được GHI TÊN là ngoài phạm vi bảo đảm (cổng chứng minh xác thực của Claude, không
+    chứng minh mọi tiến trình con không tiêu tiền)."""
     out = {"cli_found": bool(cli), "ok": False, "why": ""}
+    eng = resolve_engines()
+    out["engines"] = eng
+    out["approved"] = APPROVED
+    ok_e, why_e = G.check_engines(eng, APPROVED)
+    if not ok_e:
+        out["why"] = "engine sẽ chạy khác cấu hình đã duyệt: " + why_e
+        return out
     if not cli:
         out["why"] = "không tìm thấy binary claude"
         return out
     try:
         ver = subprocess.run([cli, "--version"], cwd=str(BRAIN), env=ENV0, capture_output=True, text=True, timeout=60)
         out["cli_version"] = (ver.stdout or "").strip()[:60]
-        st = subprocess.run([cli, "auth", "status", "--json"], cwd=str(BRAIN), env=ENV0, capture_output=True,
-                            text=True, timeout=60)
-        d = json.loads(st.stdout or "{}")
+        st = {"chat": _auth_at(cli, BRAIN), "background": _auth_at(cli, BG_CWD)}
     except Exception as e:  # noqa: BLE001
         out["why"] = f"không chạy được auth status: {type(e).__name__}"
         return out
-    out["auth"] = G.auth_metadata(d)
-    ok, why = G.check_auth_status(d)
-    cfg_dir = Path(d.get("configDirectory") or (Path.home() / ".claude"))
-    out["settings"] = G.scan_settings(G.settings_paths(cfg_dir, BRAIN))
-    if ok and out["settings"]["risky"]:
-        ok, why = False, "nguồn settings có apiKeyHelper hay env chọn nhà cung cấp/khoá"
-    out["ok"], out["why"] = ok, why
+    out["auth"] = {k: G.auth_metadata(v) for k, v in st.items()}
+    for k, v in st.items():
+        ok, why = G.check_auth_status(v)
+        if not ok:
+            out["why"] = f"{k}: {why}"
+            return out
+    cfg_dir = Path(st["chat"].get("configDirectory") or (Path.home() / ".claude"))
+    paths = G.settings_paths(cfg_dir, BRAIN) + G.settings_paths(cfg_dir, BG_CWD)[2:4]
+    out["settings"] = G.scan_settings(paths)
+    out["managed_sources"] = G.managed_sources(cfg_dir)
+    out["not_assessed"] = G.ancillary_sources(paths)
+    if out["settings"]["risky"]:
+        out["why"] = "nguồn settings có apiKeyHelper hay env chọn nhà cung cấp/khoá"
+        return out
+    if out["managed_sources"]:
+        out["why"] = "có nguồn settings do quản trị đặt; môi trường này pilot chưa hỗ trợ"
+        return out
+    out["ok"] = True
     return out
 
 
@@ -151,7 +212,7 @@ class Server:
     """Server Javis thật của checkout này. kill() giết CẢ CÂY tiến trình (mô phỏng sập máy, không tắt êm)."""
 
     def __init__(self, cli: str):
-        self.n, self.proc, self.cli = 0, None, cli
+        self.n, self.proc, self.cli, self.started = 0, None, cli, []
 
     def start(self, tick_paused=False, wait_s=120):
         self.n += 1
@@ -161,6 +222,10 @@ class Server:
             env["JAVIS_CLAUDE_CLI"] = self.cli
         if tick_paused:
             env["JAVIS_RESONANCE_TICK_PAUSED"] = "1"
+        # Trạng thái hiệu lực của từng tiến trình, để không nhầm "nhịp hỏng" với "nhịp đang tạm dừng".
+        self.started.append({"n": self.n, "tick_paused": env.get("JAVIS_RESONANCE_TICK_PAUSED") == "1",
+                             "call_ceiling": env.get("JAVIS_RESONANCE_CALL_CEILING"),
+                             "cli_pinned": bool(env.get("JAVIS_CLAUDE_CLI"))})
         log = open(BASE / f"server-{self.n}.log", "w", encoding="utf-8")
         flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         self.proc = subprocess.Popen([sys.executable, "server/main.py"], cwd=str(ROOT), env=env, stdout=log,
@@ -374,6 +439,11 @@ try:
                    "criteria": [{k: c.get(k) for k in ("id", "evaluator", "description", "params")} for c in g.criteria],
                    "guards": [x.get("description") for x in g.guards], "constraints": list(g.constraints),
                    "budget_calls": g.budget_calls}
+    if MODE == "real":
+        check(f"mục tiêu đúng KIỂU người dùng giao ({SCENARIO['mode']}), không phải kiểu bộ não tự chọn khác",
+              g.mode == SCENARIO["mode"])
+        check(f"sản phẩm của mục tiêu đúng file người dùng nêu ({SCENARIO['path']})",
+              R._deliverable_rel(g) == SCENARIO["path"])
     it = goal_store().get_intent(P, g.intent_id) or {}
     check("ý định gốc TRÙNG KHỚP toàn bộ lời người dùng của tin vừa gửi",
           str(it.get("text") or "").strip() == USER_MSG.strip())
@@ -412,12 +482,16 @@ try:
         check("lượt việc nền: receipt succeeded, đúng provider đã chọn, không gọi công cụ",
               w.get("status") == "succeeded" and w.get("engine", {}).get("provider") ==
               w.get("engine", {}).get("requested_provider") and w.get("tool_calls_observed") == 0)
-        deliv = R._deliverable_rel(cur)
-        pub = (goal_store().published(P, g.id, deliv) or {}) if deliv else {}
-        f = (BRAIN / deliv) if deliv else None
-        rep["deliverable"] = {"path": deliv, "sha256": _sha_file(f), "published_sha256": pub.get("sha256")}
-        check("sản phẩm được đăng vào brain đúng chỗ tiêu chí khai, bytes trên đĩa khớp hash host đã ghi khi đăng",
-              bool(deliv) and f.is_file() and bool(pub) and _sha_file(f) == pub.get("sha256"))
+        deliv = SCENARIO["path"]          # đúng file NGƯỜI DÙNG nêu, không phải file bộ não khai
+        pub = goal_store().published(P, g.id, deliv) or {}
+        f = BRAIN / deliv
+        text = f.read_text(encoding="utf-8") if f.is_file() else ""
+        miss = G.content_has_triples(text, SCENARIO["triples"])
+        rep["deliverable"] = {"path": deliv, "agent_path": R._deliverable_rel(cur), "sha256": _sha_file(f),
+                              "published_sha256": pub.get("sha256"), "missing_triples": miss, "text": _cut(text, 4000)}
+        check("sản phẩm có ở đúng file người dùng nêu, bytes trên đĩa khớp hash host đã ghi khi đăng",
+              f.is_file() and bool(pub) and _sha_file(f) == pub.get("sha256"))
+        check("nội dung đủ ba bộ người và hạn người dùng đưa (chấm độc lập trên file thật)", f.is_file() and not miss)
     else:
         check("dry: engine việc nền bị chặn trước khi gọi model, mục tiêu blocked có lý do",
               rs.get("run_state") == "blocked" and background_calls() == 0)
@@ -449,26 +523,23 @@ try:
                                   "idempotency_key": f"pilot-accept-{g.id}"})
             check("bấm Đạt yêu cầu qua API (kiểm Origin, đúng revision, đúng bản sản phẩm): 200", code == 200)
         cur = goal_store().get(P, g.id)
-        if cur.mode == "maintain":
-            ok_m = wait_until(lambda: (goal_store().get(P, g.id).status == "active"
-                                       and (goal_store().assessments(P, g.id) or [{}])[-1].get("verdict") == "met"
-                                       and any(n["kind"] == "goal.maintained" and n["delivered"]
-                                               for n in notices(g.id))), 120)
-            check("maintain: đánh giá met, vẫn active, đã báo goal.maintained về phiên", bool(ok_m))
-            wk = [w for w in goal_store().wakes(P, g.id) if w["kind"] == "work"]
-            check("maintain: có lịch xem lại có giới hạn (không lặp ngay)",
-                  bool(wk) and wk[0]["due_at"] - time.time() >= R.REVIEW_MIN_S - 600)
-            code, _b = http("POST", f"/goals/{g.id}/commands", json={"command": "pause",
-                                                                     "expected_revision": cur.revision})
-            check("kết thúc pilot: người dùng tạm dừng qua API, không còn việc nền", code == 200
-                  and goal_store().get(P, g.id).paused)
-        else:
-            ok_a = wait_until(lambda: goal_store().get(P, g.id).status == "succeeded"
-                              and not [n for n in notices(g.id) if not n["delivered"]], 120)
-            check("achieve: mục tiêu thành công", bool(ok_a))
-            check("achieve: có tin báo thành công về đúng phiên, có biên nhận",
-                  any(n["kind"] == "goal.succeeded" and n["delivered"] for n in notices(g.id))
-                  and all(r["receipt"] for r in reports(sid) if r["report"]))
+        # Khép vòng theo KIỂU KỊCH BẢN (hợp đồng ngoài), không theo cur.mode bộ não chọn.
+        ok_m = wait_until(lambda: (goal_store().get(P, g.id).status == "active"
+                                   and (goal_store().assessments(P, g.id) or [{}])[-1].get("verdict") == "met"
+                                   and any(n["kind"] == "goal.maintained" and n["delivered"]
+                                           for n in notices(g.id))), 120)
+        check("maintain: đánh giá met, vẫn active, đã báo goal.maintained về phiên có biên nhận",
+              bool(ok_m) and all(r["receipt"] for r in reports(sid) if r["report"]))
+        met_at = max([float((a.get("payload") or a).get("evaluated_at") or 0) for a in goal_store().assessments(P, g.id)
+                      if a.get("verdict") == "met"] or [0.0])
+        wk = [w for w in goal_store().wakes(P, g.id) if w["kind"] == "work"]
+        rep["review_wake"] = {"met_at": met_at, "due_at": wk[0]["due_at"] if wk else None}
+        check("maintain: lịch xem lại nằm trong [6 giờ, 24 giờ] sau mốc đánh giá (cả hai đầu)",
+              bool(wk) and met_at > 0 and G.review_wake_ok(wk[0]["due_at"], met_at, R.REVIEW_MIN_S, R.REVIEW_DEFAULT_S))
+        code, _b = http("POST", f"/goals/{g.id}/commands", json={"command": "pause",
+                                                                 "expected_revision": cur.revision})
+        check("kết thúc pilot: người dùng tạm dừng qua API, không còn việc nền", code == 200
+              and goal_store().get(P, g.id).paused)
         check("bước duyệt và khép vòng không gọi thêm model", background_calls() == calls_before)
         rep["final_notices"] = notices(g.id)
         rep["reports_in_session"] = len([r for r in reports(sid) if r["report"]])
@@ -488,6 +559,7 @@ finally:
     rep["host_engine_turns"] = {"brain": brain_turns, "background": background_calls(),
                                 "total": brain_turns + background_calls()}
     check(f"tổng lượt engine cấp host trong trần {MAX_CALLS}", brain_turns + background_calls() <= MAX_CALLS)
+    rep["servers"] = SRV.started
     rep["seconds_total"] = round(time.time() - t_start, 1)
     rep["checks"] = _log
     try:
