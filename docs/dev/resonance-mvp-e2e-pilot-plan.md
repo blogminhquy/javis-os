@@ -278,3 +278,41 @@ Danh sách tool trong tin `init` của Claude Code không đọc được từ n
   - Tin báo: chỉ có tin cũ, chỉ có thẻ reframe, phiên rỗng, không gửi, nhầm phiên, thiếu biên nhận, khác mục tiêu, chưa giao, S6 chỉ có cờ delivered.
   - Soát nguồn: script không còn đường dựng server, gửi chat hay bấm xác nhận vòng qua cổng.
 - **`dry` trên commit sạch `64ad9eba`:** 23/23 kiểm, `dry_ok`, 0 lượt engine.
+
+## Lần chạy 3 (07/10/2026): bộ não tự lập mục tiêu, dừng ở S2 vì xung đột đăng file
+
+**Kết luận: `technical_failed` ở S2. Không thử lại, không chạy tiếp.** Người dùng duyệt đúng một lần chạy trên `1c76ce6f` (cây sạch), tối đa 2 Opus và 2 Sonnet.
+
+| Mục | Giá trị |
+|---|---|
+| Cổng | Đạt: engine `anthropic-cli` / `claude-opus-5-5` (chat) và `sonnet` (việc nền), gói Max ở cả hai cwd |
+| Lượt đã dùng | 2 trên 4: một lượt chat Opus (S1), một lượt việc nền Sonnet (S2). Server 2 dừng thì cổng chi phí chặn server thứ ba |
+| Thời gian | 122,6 giây |
+| Bằng chứng | [`resonance-mvp-e2e-pilot-3.json`](resonance-mvp-e2e-pilot-3.json), bản bộ não viết [`resonance-mvp-e2e-pilot-3-s1-chat.md`](resonance-mvp-e2e-pilot-3-s1-chat.md) (`draft1` và `final` là cùng file đó, cùng hash `c30c9443...`) |
+
+**S1 đạt: lần đầu bộ não tự định tuyến sang mục tiêu.**
+- Thứ tự công cụ: `Write` (viết luôn bản đầu vào `Docs/huong-dan-nhan-hang.md`), `ToolSearch` với `select:mcp__javis-plugins__javis_goal`, rồi hai lần gọi `javis_goal`. Trace chỉ ghi khung gọi, không ghi kết quả, nên không biết lần đầu bị từ chối hay không.
+- Mục tiêu khớp hợp đồng:
+  - `achieve`, đúng file;
+  - tiêu chí `c1` tự kiểm (có "Lỗi hay gặp", "1.", "anh Tùng", tối thiểu 800 ký tự), tiêu chí `c2` người dùng xác nhận;
+  - bốn ràng buộc đúng lời dặn; hạn xem lại nội bộ một tuần, ghi rõ người dùng không nêu hạn.
+- Thẻ mục tiêu về đúng phiên có biên nhận. Không giao Kanban.
+- Câu trả lời nói rõ đã ghi việc để theo tới khi anh xác nhận.
+
+**S2 hỏng: bộ não đã viết bản đầu, host không có đường nhận bản đó.**
+- Việc nền vẫn chạy một lượt Sonnet: receipt succeeded, đầu ra hash `bebd0547...`.
+- Khi đăng, host thấy file đã có mà không phải do mục tiêu ghi, nên không ghi đè. Host ghi `goal.publish_conflict` và giữ bản Sonnet trong vùng làm việc (vùng này mất khi dọn sandbox).
+- Đánh giá sau đó chấm `c1` trên file của bộ não (đạt), rồi chờ người dùng xác nhận. Thẻ hỏi xác nhận vì thế trỏ vào bản bộ não viết, không phải bản host vừa làm.
+- Tin `goal.waiting_human` về đúng phiên có biên nhận. Không có bản đăng nào, nên kiểm "bytes khớp hash host đã ghi khi đăng" hỏng đúng. Cổng chi phí chặn mọi bước sau.
+
+**Đánh giá (chờ review):**
+1. **Định tuyến đi được trên engine Claude Code** sau khi dòng gợi ý chỉ đúng ToolSearch: bộ não gọi đúng `select:mcp__javis-plugins__javis_goal`. Một mẫu, chưa chứng minh ổn định.
+2. **Lộ một chỗ hở thật của sản phẩm**, đúng ca review đã lường ("làm phần hữu ích ngay và vẫn lưu trách nhiệm vào mục tiêu"). Khi bộ não viết bản đầu trong lượt rồi lập mục tiêu:
+   - host vẫn tiêu một lượt việc nền làm lại bản đầu;
+   - bản đó không đăng được vì xung đột;
+   - tin báo nói sai nguồn gốc ("file đã được sửa sau lần Javis ghi trước", trong khi Javis chưa từng ghi).
+   Hướng sửa cần review trước khi làm, ví dụ: lúc lập mục tiêu, host nhận file bộ não vừa ghi trong chính lượt đó làm bản đầu (có hash, đúng phiên, đúng file của tiêu chí) và không xếp lượt việc nền cho tới khi có góp ý.
+3. **Bản Sonnet bị mất** vì vùng làm việc nằm trong sandbox. Bộ chạy nên lưu cả đầu ra việc nền khi không đăng được.
+4. **Trace thiếu kết quả của khung công cụ** (chỉ có khung gọi), nên không biết vì sao `javis_goal` được gọi hai lần.
+
+Điều kiện MVP thứ nhất (tự định tuyến từ chat, đi hết vòng) vẫn **chưa đạt**: mới qua bước lập mục tiêu, chưa qua vòng bản đầu, góp ý, bản sửa.
