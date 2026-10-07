@@ -756,7 +756,8 @@ def revise_goal(store, p, goal_id: str, expected_revision: int, proposal: dict, 
                               constraints=constraints, prev_intent_id=prior.intent_id or None, relation=relation)
     goal = store.revise(p, goal_id, expected_revision, frame,
                         reason=str(context.get("reason") or "người dùng bổ sung")[:500],
-                        message_ref=mref, relation=relation, intent=intent, work_due_at=context.get("hold_until"))
+                        message_ref=mref, relation=relation, intent=intent, work_due_at=context.get("hold_until"),
+                        handoff_owner=BOOT_ID if context.get("hold_until") else None)
     return goal, relation, notes
 
 
@@ -879,7 +880,7 @@ async def form_goal(message_ref: str, context: dict, deps: "GoalDeps") -> GoalRe
         p, intent["id"], frame, idempotency_key=message_ref, session_id=context.get("session_id") or "",
         output_base=str(Path(str(context.get("brain_root") or "")) / "Javis" / "resonance" / "outputs"),
         budget_calls=int(context.get("budget_calls") or GOAL_DEFAULT_CALLS), message_ref=message_ref,
-        work_due_at=context.get("hold_until"))
+        work_due_at=context.get("hold_until"), handoff_owner=BOOT_ID if context.get("hold_until") else None)
     return goal
 
 
@@ -918,6 +919,11 @@ PUBLISH_MAX_BYTES = 1_000_000
 # Mục tiêu lập hay cập nhật trong một lượt chat: lịch việc nền được GIỮ tới khi bàn giao cuối lượt (review pilot lần 3).
 # Lượt bị cắt mà không bàn giao thì lịch tự tới hạn sau chừng này giây và chạy như trước, chỉ chậm hơn.
 HANDOFF_HOLD_S = 900
+# Bàn giao không dựa vào thời gian (review mã bàn giao, P1-2): một dòng trạng thái trong kho giữ quyền cho lượt chat.
+# Việc nền chỉ được làm khi bàn giao xong, hoặc lượt chat không còn chạy, hoặc tiến trình sở hữu đã chết (BOOT_ID khác).
+# Lúc còn chờ, lịch được đánh thức lại sau HANDOFF_POLL_S. HANDOFF_HOLD_S chỉ là mốc đối soát cho lịch đầu tiên.
+HANDOFF_POLL_S = 30
+BOOT_ID = secrets.token_hex(8)
 PREV_OUTPUT_CHARS = 3000
 INTENT_CHAIN_MAX = 5
 NOTIFY_KINDS = ("goal.succeeded", "goal.maintained", "goal.discovery_done", "goal.failed", "goal.blocked",
@@ -1005,18 +1011,27 @@ def _sha(data: bytes) -> str:
 
 
 # ═══════════════════ Bàn giao bản bộ não viết trong lượt chat (review pilot lần 3) ═══════════════════
-# Biên nhận ghi do HOST lập từ sự kiện công cụ có TOÀN VĂN nội dung (Write của Claude Code, javis_write_file của hub).
-# Lời model nói "em vừa ghi", đường dẫn hay mtime không phải biên nhận. Thuần bộ nhớ, theo tin nhắn: server khởi động
-# lại thì mất, và mục tiêu khi đó chạy như chưa có bản (an toàn, chỉ tốn lượt). Thiết kế:
-# docs/dev/resonance-inline-artifact-handoff.md.
+# Biên nhận ghi do HOST lập, không tin lời model, đường dẫn hay mtime. Thiết kế: docs/dev/resonance-inline-artifact-
+# handoff.md. Review mã bàn giao (P1-1): lời gọi Write chỉ là ỨNG VIÊN; chỉ kết quả THÀNH CÔNG gắn đúng id lời gọi mới
+# xác nhận. Gọi lỗi, thiếu kết quả hay kết quả của lời gọi khác: không tiếp nhận. Mọi công cụ không chắc là chỉ đọc
+# gọi SAU một Write (Edit, shell, Task, MCP lạ...) làm Write đó mất hiệu lực, kể cả khi nội dung cuối trùng lại (sửa
+# rồi hoàn lại không phát hiện được bằng hash). Shell hay Task chạy NỀN làm cả lượt mất hiệu lực. Chỉ engine Claude Code
+# có đủ id và cờ lỗi; javis_write_file của engine API chưa có kết quả ghi gắn đúng lời gọi nên không lập biên nhận.
+# Thuần bộ nhớ, theo tin nhắn: server khởi động lại thì mất, mục tiêu khi đó chạy như chưa có bản.
 _TURN_WRITES: dict = {}
 TURN_WRITES_TTL_S = 3 * 3600
-_WRITE_TOOLS = ("Write", "javis_write_file")
+_WRITE_TOOLS = ("Write",)
+# Công cụ chắc chắn không sửa file trong brain: gọi sau Write không làm Write đó mất hiệu lực.
+_READ_ONLY_TOOLS = frozenset({
+    "Read", "Glob", "Grep", "LS", "ToolSearch", "WebFetch", "WebSearch", "TodoWrite",
+    "javis_goal", "javis_search_tools", "javis_read_file", "javis_list_dir", "javis_connections", "javis_now",
+    "javis_date_add", "javis_use_skill",
+})
 
 
 def _sha_lf(data: bytes) -> str:
-    """Hash nội dung sau khi đổi CRLF thành LF: bản engine ghi xuống đĩa có thể đổi kiểu xuống dòng so với nội dung
-    trong lời gọi công cụ. Bằng chứng vẫn lưu bytes thật, mốc đăng vẫn là hash bytes thật."""
+    """Hash nội dung sau khi đổi CRLF thành LF, CHỈ để so nội dung một Write đã thành công với file trên đĩa (engine
+    có thể đổi kiểu xuống dòng). Bằng chứng, mốc thay file và artifact_ref vẫn là hash bytes thật."""
     return _sha(bytes(data).replace(b"\r\n", b"\n"))
 
 
@@ -1034,24 +1049,77 @@ def _write_key(brain_root: str, path: Any) -> str:
     return os.path.normcase(str(f))
 
 
-def note_turn_write(message_ref: str, brain_root: str, event: dict, now: Optional[float] = None) -> bool:
-    """Ghi biên nhận cho MỘT sự kiện công cụ ghi file có toàn văn. Công cụ khác (Edit, shell...) không lập biên nhận;
-    nếu chúng sửa file sau Write thì hash cuối lượt sẽ khác và biên nhận vô hiệu. Trả True khi đã ghi."""
-    now = time.time() if now is None else now
+def _turn_state(message_ref: str, now: float) -> dict:
     for k in [k for k, v in _TURN_WRITES.items() if now - v.get("at", now) > TURN_WRITES_TTL_S]:
         _TURN_WRITES.pop(k, None)
-    name = str((event or {}).get("name") or "").rsplit("__", 1)[-1]
-    if not message_ref or name not in _WRITE_TOOLS:
-        return False
-    inp = (event or {}).get("input") or {}
-    content = inp.get("content")
-    key = _write_key(brain_root, inp.get("file_path") or inp.get("path"))
-    if not key or not isinstance(content, str):
-        return False
-    ent = _TURN_WRITES.setdefault(str(message_ref), {"at": now, "writes": {}})
+    ent = _TURN_WRITES.setdefault(str(message_ref), {"at": now, "seq": 0, "calls": {}, "tainted": ""})
     ent["at"] = now
-    ent["writes"][key] = {"sha_lf": _sha_lf(content.encode("utf-8")), "at": now}
-    return True
+    ent["seq"] += 1
+    return ent
+
+
+def note_turn_event(message_ref: str, brain_root: str, event: dict, now: Optional[float] = None) -> str:
+    """Đưa MỘT sự kiện công cụ của lượt chat vào sổ. Trả việc đã làm (để test và ghi vết):
+    - `candidate`: lời gọi Write có id, đường dẫn trong brain, toàn văn: ghi ứng viên, CHƯA là biên nhận;
+    - `confirmed` / `failed`: kết quả gắn đúng id một ứng viên, thành công hay lỗi;
+    - `invalidated`: công cụ không chắc là chỉ đọc gọi sau các Write trước đó: các Write đó mất hiệu lực;
+    - `tainted`: shell hay Task chạy nền: cả lượt không tiếp nhận;
+    - `ignored`: không liên quan."""
+    if not message_ref or not isinstance(event, dict):
+        return "ignored"
+    now = time.time() if now is None else now
+    et = event.get("type")
+    if et == "tool_result":
+        ent = _TURN_WRITES.get(str(message_ref))
+        cid = str(event.get("tool_use_id") or "")
+        c = (ent or {}).get("calls", {}).get(cid) if cid else None
+        if c is None:
+            return "ignored"
+        if event.get("is_error"):
+            ent["calls"].pop(cid, None)      # lần ghi lỗi không đổi file: không tính, không xoá Write thành công trước
+            return "failed"
+        c["confirmed"] = True
+        return "confirmed"
+    if et != "tool_call":
+        return "ignored"
+    name = str(event.get("name") or "").rsplit("__", 1)[-1]
+    inp = event.get("input") or {}
+    ent = _turn_state(message_ref, now)
+    if name in _WRITE_TOOLS:
+        cid = str(event.get("id") or "")
+        content = inp.get("content")
+        key = _write_key(brain_root, inp.get("file_path") or inp.get("path"))
+        if cid and key and isinstance(content, str):
+            ent["calls"][cid] = {"key": key, "sha_lf": _sha_lf(content.encode("utf-8")), "seq": ent["seq"],
+                                 "confirmed": False, "invalid": False}
+            return "candidate"
+        raw = str(inp.get("file_path") or inp.get("path") or "").strip()
+        if cid and raw and isinstance(content, str) and not key:
+            return "ignored"                # ghi ra NGOÀI brain: không đụng tới file nào trong brain
+        for c in ent["calls"].values():     # Write không đủ dữ kiện: không biết nó ghi gì, các Write trước mất hiệu lực
+            c["invalid"] = True
+        return "invalidated"
+    if name in _READ_ONLY_TOOLS:
+        return "ignored"
+    if inp.get("run_in_background") or name in ("Task", "Agent"):
+        ent["tainted"] = name
+        return "tainted"
+    for c in ent["calls"].values():
+        c["invalid"] = True
+    return "invalidated" if ent["calls"] else "ignored"
+
+
+def _turn_receipts(message_ref: str) -> dict:
+    """{khoá đường dẫn: sha_lf} của các biên nhận còn hiệu lực trong lượt: với mỗi đường dẫn, lời gọi Write MỚI NHẤT
+    (theo thứ tự gọi, bỏ các lần lỗi) phải đã có kết quả thành công và không bị vô hiệu."""
+    ent = _TURN_WRITES.get(str(message_ref)) or {}
+    if ent.get("tainted"):
+        return {}
+    latest = {}
+    for c in ent.get("calls", {}).values():
+        if c["key"] not in latest or c["seq"] > latest[c["key"]]["seq"]:
+            latest[c["key"]] = c
+    return {k: c["sha_lf"] for k, c in latest.items() if c["confirmed"] and not c["invalid"]}
 
 
 def drop_turn_writes(message_ref: str) -> None:
@@ -1065,60 +1133,79 @@ def _turn_revision(store, p, goal_id: str, message_ref: str) -> Optional[int]:
     return max(revs) if revs else None
 
 
+def _turn_active(message_ref: str) -> bool:
+    """Lượt chat của tin nhắn này còn đang chạy trên tiến trình này không (sổ luot_dang_chay)."""
+    try:
+        import luot_dang_chay
+        body = str(message_ref or "")
+        if not body.startswith("msg:"):
+            return False
+        sid, mid = body[4:].rsplit(":", 1)
+        return luot_dang_chay.dang_chay(f"web:{sid}", int(mid))
+    except Exception:  # noqa: BLE001 - không chắc thì coi như không còn chạy: quyền về việc nền, an toàn
+        return False
+
+
+def _handoff_gate(goal: "GoalRecord", deps: "GoalDeps") -> str:
+    h = deps.store.handoff(deps.principal, goal.id, goal.revision)
+    if not h or h.get("status") != "pending":
+        return "clear"
+    return deps.store.handoff_gate(deps.principal, goal.id, goal.revision, BOOT_ID, _turn_active(h["message_ref"]))
+
+
 def handoff_after_turn(goal_id: str, message_ref: str, deps: "GoalDeps") -> str:
     """Bàn giao cuối lượt chat cho một mục tiêu lượt này vừa lập hay cập nhật. KHÔNG gọi model.
 
-    Có biên nhận ghi hợp lệ cho đúng file sản phẩm của revision lượt này tạo (bytes trên đĩa khớp lần Write cuối) thì
-    tiếp nhận: lưu bản chụp vào kho bằng chứng rồi `adopt_artifact` trong một giao dịch. Sau đó, có hay không tiếp
-    nhận, nhả lịch giữ chỗ để advance đánh giá ngay: chỉ còn chờ người dùng thì chờ, chưa đạt thì việc nền sửa từ
-    đúng bản này. Trả trạng thái để ghi vết. Biên nhận của tin này bị xoá sau khi dùng."""
+    Chỉ dùng biên nhận ĐÃ XÁC NHẬN (Write có kết quả thành công đúng id, không bị công cụ nào sau đó làm mất hiệu lực)
+    cho đúng file sản phẩm của revision lượt này tạo, và bytes trên đĩa phải khớp nội dung lần Write đó. Có thì lưu bản
+    chụp vào kho bằng chứng rồi `finish_handoff` tiếp nhận trong một giao dịch; không thì `finish_handoff` chỉ nhả lịch.
+    Việc nền đã nhận quyền trước (bàn giao hết hiệu lực) thì không tiếp nhận gì. Trả trạng thái để ghi vết."""
     store, p = deps.store, deps.principal
-    writes = (_TURN_WRITES.pop(str(message_ref), None) or {}).get("writes") or {}
+    receipts = _turn_receipts(message_ref)
+    drop_turn_writes(message_ref)
     g = store.get(p, goal_id)
-    if g is None or g.status != "active":
+    if g is None:
         return "no_goal"
     rev = _turn_revision(store, p, goal_id, message_ref)
     if rev is None or rev != g.revision:
-        return "not_this_turn"         # revision hiện tại thuộc tin khác: không đụng lịch của nó
+        return "not_this_turn"         # revision hiện tại thuộc tin khác: không đụng bàn giao của nó
     rel = _deliverable_rel(g)
     f = _brain_file(deps.brain_root, rel) if rel else None
-    rec = writes.get(_write_key(deps.brain_root, str(f))) if f is not None else None
+    rec = receipts.get(_write_key(deps.brain_root, str(f))) if f is not None else None
+    adopt, why = None, ""
     if not rel:
-        status = "no_deliverable"
+        why = "no_deliverable"
     elif f is None or f.suffix.lower() not in PUBLISH_SUFFIXES or not _publish_allowed(deps.brain_root, f):
-        status = "path_rejected"
+        why = "path_rejected"
     elif rec is None:
-        status = "no_receipt"
-    elif (not enabled_for(deps.brain_root) or g.paused
+        why = "no_receipt"
+    elif (not enabled_for(deps.brain_root) or g.status != "active" or g.paused
           or (store.run_state(p, g.id) or {}).get("block_reason") == "guard"):
-        status = "gate_closed"
+        why = "gate_closed"
     else:
         try:
             data = f.read_bytes()
         except OSError:
             data = None
         if data is None:
-            status = "no_file"
+            why = "no_file"
         elif len(data) > PUBLISH_MAX_BYTES:
-            status = "too_large"
-        elif _sha_lf(data) != rec["sha_lf"]:
-            status = "changed_after_write"      # Edit, shell hay người khác đã sửa sau lần Write cuối
+            why = "too_large"
+        elif _sha_lf(data) != rec:
+            why = "changed_after_write"
         else:
             try:
-                text = data.decode("utf-8")
-                eid = (deps.evidence.put(g, f"chat:{message_ref}", text,
+                eid = (deps.evidence.put(g, f"chat:{message_ref}", data.decode("utf-8"),
                                          {"goal_id": g.id, "revision": g.revision, "kind": "chat_output"})
                        if deps.evidence is not None else None)
             except Exception:  # noqa: BLE001
                 eid = None
             if not eid:
-                status = "evidence_failed"      # không công bố đã tiếp nhận khi không lưu được bằng chứng
+                why = "evidence_failed"      # không công bố đã tiếp nhận khi không lưu được bằng chứng
             else:
-                status = store.adopt_artifact(p, g.id, g.revision, rel, _sha(data), str(message_ref), eid)
-    cur = store.get(p, goal_id)
-    if cur is not None and cur.status == "active" and cur.revision == g.revision:
-        store.set_wake(p, goal_id, "work", deps.clock(), f"bàn giao lượt chat: {status}")
-    return status
+                adopt = {"path": rel, "sha256": _sha(data), "evidence_id": eid}
+    res = store.finish_handoff(p, g.id, g.revision, str(message_ref), adopt)
+    return res if (adopt or res not in ("released",)) else why
 
 
 def _output_refs(store, p, goal_id: str, revision: int) -> tuple:
@@ -1639,6 +1726,12 @@ def _publish_latest(goal: GoalRecord, deps: GoalDeps, now: float) -> dict:
     aid, path = _latest_output(goal, deps)
     if aid is None or not _deliverable_rel(goal):
         return {"status": "none"}
+    # Bản tiếp nhận từ chat mới hơn lượt việc nền này là bản đang có hiệu lực: không đăng đè bản cũ lên (review mã bàn
+    # giao, P1-2). Lượt việc nền SAU bản tiếp nhận (sửa từ bản đó) vẫn đăng bình thường.
+    act = deps.store.get_action(deps.principal, aid) or {}
+    if any(float(e.get("created_at") or 0) > float(act.get("created_at") or 0)
+           for e in deps.store.evidence_for(deps.principal, goal.id, goal.revision, kind="chat_output")):
+        return {"status": "superseded"}
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
@@ -1856,6 +1949,10 @@ async def advance(goal_id: str, event: dict, deps: GoalDeps) -> Assessment:
             a = Assessment(g.id, g.revision, "unknown", guards=guards, rationale="quan sát guard", evaluated_at=now)
             store.add_assessment(p, a.to_dict())
             return a
+        # Cổng bàn giao (review mã bàn giao, P1-2): lượt chat còn giữ quyền thì chưa đăng, chưa làm.
+        if _handoff_gate(g, deps) == "pending":
+            store.set_wake(p, g.id, "work", now + HANDOFF_POLL_S, "chờ bàn giao lượt chat")
+            return quiet("chờ lượt chat bàn giao")
         # Đầu ra đã có của revision này (giữ lại vì pause, gián đoạn) được đăng mà không gọi model lại.
         pub = _publish_latest(g, deps, now)
         refs = _output_refs(store, p, g.id, g.revision)

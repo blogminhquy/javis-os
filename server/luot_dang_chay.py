@@ -76,3 +76,14 @@ def doan_luot(vault, now: float = 0.0):
         return None
     x = ung[0]
     return {"chat_id": x["chat_id"], "msg_id": int(x.get("msg_id") or 0), "user_text": x.get("user_text") or ""}
+
+
+def dang_chay(chat_id: str, msg_id: int, now: float = 0.0) -> bool:
+    """Lượt của ĐÚNG tin nhắn này (khung chat + id tin) còn đang chạy trên tiến trình này không. Resonance dùng để biết
+    lượt chat còn giữ quyền bàn giao hay đã xong (review mã bàn giao, P1-2). Sổ thuần bộ nhớ: server khởi động lại thì
+    rỗng, tức không lượt nào của tiến trình cũ còn chạy."""
+    now = now or time.time()
+    for k in [k for k, x in _DANG.items() if now - x["at"] > TUOI_TOI_DA]:
+        _DANG.pop(k, None)
+    cid, mid = str(chat_id or "").strip(), int(msg_id or 0)
+    return bool(cid and mid) and any(x["chat_id"] == cid and int(x.get("msg_id") or 0) == mid for x in _DANG.values())

@@ -2068,14 +2068,14 @@ def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
 
 
 def _resonance_note_write(conv_sid, user_mid, brain, ev) -> None:
-    """Ghi biên nhận cho một sự kiện công cụ ghi file có toàn văn trong lượt chat (Write, javis_write_file), để bàn
-    giao cuối lượt tiếp nhận được bản bộ não viết. Chỉ brain bật Resonance; lỗi không được làm hỏng lượt chat."""
+    """Đưa một sự kiện công cụ của lượt chat (engine Claude Code: lời gọi và kết quả, có id) vào sổ biên nhận ghi, để
+    bàn giao cuối lượt tiếp nhận được bản bộ não viết. Chỉ brain bật Resonance; lỗi không làm hỏng lượt chat."""
     try:
-        if not user_mid or str((ev or {}).get("name") or "").rsplit("__", 1)[-1] not in resonance._WRITE_TOOLS:
+        if not user_mid:
             return
         root = _brain_root(brain)
         if resonance.enabled_for(root):
-            resonance.note_turn_write(resonance.message_ref(conv_sid, user_mid), root, ev)
+            resonance.note_turn_event(resonance.message_ref(conv_sid, user_mid), root, ev)
     except Exception as e:  # noqa: BLE001
         print(f"[resonance write receipt] {type(e).__name__}: {e}", file=sys.stderr)
 
@@ -14597,7 +14597,6 @@ async def websocket_endpoint(ws: WebSocket):
                                 elif ev["type"] == "limit_exceeded":
                                     _limit_hit = ev
                                 elif ev["type"] == "tool_call":
-                                    _resonance_note_write(conv_sid, user_mid, brain, ev)
                                     await ws.send_text(json.dumps({
                                         "type": "tool_call", "tool": ev.get("name", ""),
                                         "detail": tool_label.chi_tiet(ev),
@@ -14742,8 +14741,9 @@ async def websocket_endpoint(ws: WebSocket):
                     resume_failed = False
                     async for event in cli.query(prompt):
                         etype = event["type"]
-                        if etype == "tool_call":
+                        if etype in ("tool_call", "tool_result"):
                             _resonance_note_write(conv_sid, user_mid, brain, event)
+                        if etype == "tool_call":
                             await ws.send_text(json.dumps({"type": "tool_call", "tool": event["name"], "detail": tool_label.chi_tiet(event),
                                                            "content": localefmt.chu(f"⚙ Đang gọi: {event['name']}",
                                                                                     f"⚙ Calling: {event['name']}")}))

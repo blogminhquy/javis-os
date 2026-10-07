@@ -170,5 +170,130 @@ check("chuẩn hoá dòng outbox đọc revision từ payload và cờ đã giao
       == [{"id": 5, "goal_id": "g1", "kind": "goal.succeeded", "revision": 3, "delivered": True},
           {"id": 6, "goal_id": "g1", "kind": "x", "revision": None, "delivered": False}])
 
+# ═══════════ Review mã bàn giao: P2-1 (giữ đầu ra chưa có receipt) và P2-2 (sửa hợp lệ sau tiếp nhận) ═══════════
+import asyncio  # noqa: E402
+import os  # noqa: E402
+
+os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="ach-h-state-"))
+import resonance as R  # noqa: E402
+import resonance_store as RS  # noqa: E402
+
+_B = Path(tempfile.mkdtemp(prefix="ach-h-brain-")).resolve()
+(_B / "Javis").mkdir()
+(_B / "Javis" / "resonance.json").write_text('{"enabled": true}', encoding="utf-8")
+_ST = RS.GoalStore(Path(tempfile.mkdtemp(prefix="ach-h-db-")) / "r.sqlite3")
+_P = RS.Principal("agent", "javis", str(_B))
+_DL = "Docs/hd.md"
+
+
+def _goal(mid, hold=False):
+    return asyncio.run(R.form_goal(R.message_ref("s", mid), {
+        "principal": _P, "brain_root": str(_B), "session_id": "s", "message_id": mid,
+        "user_text": "Em lo giúp anh bản hướng dẫn tới khi anh thấy dùng được. Lưu ở Docs/hd.md.",
+        "constraints": [], "budget_calls": 4, "hold_until": (1_800_000_000.0 + 900) if hold else None,
+        "proposal": {"understanding": "Bản hướng dẫn", "relevant_quote": "Em lo giúp anh bản hướng dẫn",
+                     "mode": "achieve", "stage": "delivery",
+                     "horizon": {"kind": "review", "at_iso": "2027-01-20T09:00:00+07:00"},
+                     "criteria": [{"description": "Có mục Lỗi hay gặp", "evaluator": "artifact_contract",
+                                   "params": {"path": _DL, "must_contain": ["Lỗi hay gặp"]}},
+                                  {"description": "Anh xác nhận", "evaluator": "human_confirmation"}]}},
+        R.GoalDeps(engine_factory=lambda s, t: (None, {}), budget=R.CallBudget(0), store=_ST)))
+
+
+_saved = []
+
+
+def _pres(ok=True):
+    def _f(src, label):
+        _saved.append(label)
+        return {"ok": ok, "sha256": "x", "saved": label}
+    return _f
+
+
+g = _goal(1)
+act = _ST.begin_action(_P, g.id, g.revision, "work", lease_until=9e18, now=1.0, intent={})
+Path(g.output_root).mkdir(parents=True, exist_ok=True)
+(Path(g.output_root) / f"{act['id']}.md").write_text("bản việc nền đã ghi, chưa có receipt", encoding="utf-8")
+_saved.clear()
+res, ok = H.preserve_work_outputs(_ST, _P, g.id, _DL, "out.json", _pres())
+it = res["items"][0]
+check("P2-1 action đang chạy, chưa receipt, file đã ghi: VẪN được lưu, nhãn unverified, không nâng thành succeeded",
+      ok and it["verified"] is False and it["status"] == "running" and _saved and _saved[0].endswith("-unverified"))
+check("P2-1 lưu bản chưa receipt thất bại: không cho dọn sandbox",
+      H.preserve_work_outputs(_ST, _P, g.id, _DL, "out.json", _pres(ok=False))[1] is False)
+check("P2-1 thiếu nơi lưu báo cáo: không cho dọn sandbox", H.preserve_work_outputs(_ST, _P, g.id, _DL, "", _pres())[1]
+      is False)
+(Path(g.output_root) / "le-loi.md").write_text("đầu ra không gắn action nào", encoding="utf-8")
+_saved.clear()
+res, ok = H.preserve_work_outputs(_ST, _P, g.id, _DL, "out.json", _pres())
+check("P2-1 file .md lạc trong vùng làm việc cũng được lưu (orphan, unverified)",
+      ok and any(x.get("status") == "orphan" for x in res["items"]) and any("orphan" in x for x in _saved))
+g2 = _goal(2)
+a2 = _ST.begin_action(_P, g2.id, g2.revision, "work", lease_until=9e18, now=1.0, intent={})
+_ST.finish_action(_P, a2["id"], "succeeded", {"output_ref": str(Path(g2.output_root) / "khong-co.md"),
+                                              "status": "succeeded"})
+check("P2-1 đối chứng: action succeeded mà không thấy file thì không cho dọn",
+      H.preserve_work_outputs(_ST, _P, g2.id, _DL, "out.json", _pres())[1] is False)
+
+# P2-2: hợp đồng giai đoạn có bản tiếp nhận (lý do sửa đọc từ intent.last_verdict của từng lượt việc nền).
+def _a(why, status="succeeded"):
+    return {"intent": {"last_verdict": why}, "receipt": {"status": status}}
+
+
+C = H.adoption_contract
+check("P2-2 bản đạt, 0 lượt việc nền: đạt", C([], 1)[0])
+check("P2-2 việc nền chạy khi bản đã đạt (lý do unknown): bác, làm lại vô ích", not C([_a("unknown")], 1)[0])
+check("P2-2 bản chưa đạt, việc nền sửa một lượt (lý do not_met) thành công trong trần: ĐẠT", C([_a("not_met")], 1)[0])
+check("P2-2 số lượt sửa vượt phần trần còn lại: bác", not C([_a("not_met"), _a("not_met")], 1)[0])
+check("P2-2 lượt sửa không có receipt succeeded: bác", not C([_a("not_met", "failed")], 1)[0])
+check("P2-2 một lượt có lý do, một lượt không: bác", not C([_a("not_met"), _a("met")], 2)[0])
+
+
+# Đúng đường sản phẩm (ca review tái hiện): bản chat BAD được tiếp nhận, việc nền sửa một lượt rồi chờ người dùng.
+class _Eng:
+    max_wall_s = None
+    queries = 0
+
+    def is_available(self):
+        return True
+
+    async def query(self, prompt):
+        _Eng.queries += 1
+        yield {"type": "final", "content": "# HD\n\n1. Đếm.\n\n## Lỗi hay gặp\n\n- Ký sớm.\n"}
+
+
+class _Ev:
+    items = {}
+
+    def put(self, goal, aid, text, meta):
+        k = f"ev{len(self.items) + 1}"
+        self.items[k] = {"text": text, "content_hash": R._sha(text.encode("utf-8"))}
+        return k
+
+    def valid(self, k):
+        return self.items.get(k)
+
+
+async def _nt(goal, kind, text, card=""):
+    return True
+
+
+g3 = _goal(3, hold=True)
+_mref = R.message_ref("s", 3)
+(_B / "Docs").mkdir(exist_ok=True)
+(_B / _DL).write_text("# HD\n\n1. Đếm.\n", encoding="utf-8")
+R.note_turn_event(_mref, str(_B), {"type": "tool_call", "name": "Write", "id": "w1",
+                                   "input": {"file_path": str(_B / _DL), "content": "# HD\n\n1. Đếm.\n"}})
+R.note_turn_event(_mref, str(_B), {"type": "tool_result", "tool_use_id": "w1", "is_error": False})
+_d = R.GoalDeps(engine_factory=lambda s, t: (_Eng(), {"provider": "fake", "text_only": True}), budget=R.CallBudget(0),
+                clock=lambda: 1_800_000_000.0, store=_ST, principal=_P, brain_root=str(_B), evidence=_Ev(), notify=_nt)
+check("P2-2 sản phẩm: bản chat chưa đạt được tiếp nhận", R.handoff_after_turn(g3.id, _mref, _d) == "adopted")
+asyncio.run(R.advance(g3.id, {"kind": "wake"}, _d))
+_acts = [x for x in _ST.actions(_P, g3.id) if x["kind"] == "work" and x["revision"] == g3.revision]
+_ass = [x for x in _ST.assessments(_P, g3.id) if int(x.get("revision") or 0) == g3.revision]
+check("P2-2 sản phẩm: việc nền sửa đúng một lượt rồi chờ người dùng",
+      _Eng.queries == 1 and len(_acts) == 1 and (_ST.run_state(_P, g3.id) or {}).get("block_reason") == "human_confirmation")
+check("P2-2 hợp đồng bộ chạy CHẤP NHẬN đường sửa hợp lệ này (trước đây bị bác nhầm)", C(_acts, 1)[0])
+
 print(f"\n{'FAIL' if _fails else 'OK'}: {len(_fails)} lỗi")
 raise SystemExit(1 if _fails else 0)

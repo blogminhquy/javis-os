@@ -134,9 +134,12 @@ check("bàn giao lượt 301: không có Write nên không tiếp nhận, mục 
 _USER4 = "Viết giúp anh ghi chú Inbox/ban-chat.md liệt kê hai việc: gọi thợ máy lạnh, nộp báo cáo quý."
 _TXT4 = "# Việc\n\n- Gọi thợ máy lạnh\n- Nộp báo cáo quý\n"
 _k4 = luot_dang_chay.bat_dau(f"{main.WEB_CHAT_PREFIX}{SID}", BRAIN, msg_id=302, user_text=_USER4)
-main._resonance_note_write(SID, 302, BRAIN, {"type": "tool_call", "name": "Write",
+main._resonance_note_write(SID, 302, BRAIN, {"type": "tool_call", "name": "Write", "id": "toolu_302",
                                              "input": {"file_path": str(Path(BRAIN) / "Inbox" / "ban-chat.md"),
                                                        "content": _TXT4}})
+# Biên nhận chỉ thành khi có kết quả THÀNH CÔNG gắn đúng id lời gọi (review mã bàn giao, P1-1).
+main._resonance_note_write(SID, 302, BRAIN, {"type": "tool_result", "tool_use_id": "toolu_302", "is_error": False,
+                                             "content": "File created"})
 (Path(BRAIN) / "Inbox").mkdir(parents=True, exist_ok=True)
 (Path(BRAIN) / "Inbox" / "ban-chat.md").write_text(_TXT4, encoding="utf-8")
 asyncio.run(route["javis_goal"]["call"]({

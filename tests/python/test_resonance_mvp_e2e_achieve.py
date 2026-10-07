@@ -367,27 +367,9 @@ def preserve(tag):
 
 
 def preserve_work_outputs(gid):
-    """Lưu NGUYÊN VẸN mọi đầu ra việc nền (kể cả bản không đăng được vì xung đột) ra cạnh báo cáo, kèm receipt, hash,
-    trạng thái đăng và sự kiện đăng (review pilot lần 3: bản Sonnet từng mất cùng sandbox). Trả (danh sách, ok)."""
-    out, ok = [], True
-    pub = goal_store().published(P, gid, DELIV) or {}
-    events = [{"kind": e.get("kind"), "revision": e.get("revision"), "payload": e.get("payload")}
-              for e in goal_store().events(P, gid) if str(e.get("kind") or "").startswith("publish")]
-    for a in work_actions(gid):
-        r = a.get("receipt") or {}
-        ref = r.get("output_ref")
-        item = {"action": a["id"], "revision": a["revision"], "status": a["status"],
-                "receipt_output_sha256": r.get("output_sha256"),
-                "published": bool(pub) and pub.get("sha256") == r.get("output_sha256")}
-        if ref and Path(ref).is_file() and OUT:
-            item["saved"] = G.preserve_artifact(Path(ref), Path(OUT).with_name(
-                Path(OUT).stem + f"-work-r{a['revision']}-{a['id'][-8:]}.md"))
-            ok = ok and item["saved"].get("ok") is True
-        elif a["status"] == "succeeded":
-            item["saved"] = {"ok": False, "why": "không thấy file đầu ra hoặc thiếu JAVIS_RESONANCE_E2E_OUT"}
-            ok = False
-        out.append(item)
-    return {"items": out, "publish_events": events, "published_sha256": pub.get("sha256")}, ok
+    """Xem H.preserve_work_outputs (review mã bàn giao, P2-1): lưu cả bản chưa có receipt, nhãn unverified."""
+    return H.preserve_work_outputs(goal_store(), P, gid, DELIV, OUT, lambda src, label: G.preserve_artifact(
+        src, Path(OUT).with_name(Path(OUT).stem + f"-{label}.md")))
 
 
 def goal_view(g):
@@ -423,6 +405,15 @@ def settle_work(gid, revision, timeout=420):
             return None
         return "done" if not [n for n in rows if not n["delivered"]] else None
     return wait_until(_done, timeout)
+
+
+def adoption_check(stage, gid, revision, acts, ceiling_left):
+    """Xem H.adoption_contract (review mã bàn giao, P2-2): làm lại vô ích bị bác, sửa vì chưa đạt được phép."""
+    ass = [x for x in goal_store().assessments(P, gid) if int(x.get("revision") or 0) == int(revision)]
+    rep["stages"][stage]["assessments"] = [{k: x.get(k) for k in ("verdict", "rationale")} for x in ass]
+    rep["stages"][stage]["work_reasons"] = [(a.get("intent") or {}).get("last_verdict") for a in acts]
+    ok, name = H.adoption_contract(acts, ceiling_left)
+    return check(f"{stage} {name}", ok)
 
 
 def adoption(gid, revision):
@@ -519,9 +510,9 @@ try:
         ad1 = adoption(g.id, g.revision)
         rep["stages"]["S2"]["adopted"] = [e.get("payload") for e in ad1]
         if ad1:
-            # Bộ não viết bản đầu trong lượt chat và host đã tiếp nhận: không cần lượt việc nền (trần là trần).
-            check("S2 bản đầu tiếp nhận từ chat: đúng một lần, không có lượt việc nền viết lại",
-                  len(ad1) == 1 and not acts)
+            # Bộ não viết bản đầu trong lượt chat và host đã tiếp nhận. Trần là trần, không phải chỉ tiêu.
+            check("S2 bản đầu tiếp nhận từ chat đúng một lần", len(ad1) == 1)
+            adoption_check("S2", g.id, g.revision, acts, PHASE_CEILING[1])
         else:
             w = acts[-1]["receipt"] if acts else {}
             check("S2 lượt việc nền: receipt succeeded, đúng provider đã chọn, không gọi công cụ",
@@ -618,8 +609,8 @@ try:
         ad2 = adoption(g.id, g4.revision)
         rep["stages"]["S5"]["adopted"] = [e.get("payload") for e in ad2]
         if ad2:
-            check("S5 bản sửa tiếp nhận từ chat (lượt góp ý tự Write): không có lượt việc nền viết lại",
-                  len(ad2) == 1 and not acts5)
+            check("S5 bản sửa tiếp nhận từ chat (lượt góp ý tự Write) đúng một lần", len(ad2) == 1)
+            adoption_check("S5", g.id, g4.revision, acts5, PHASE_CEILING[2] - calls_s2)
         else:
             w = acts5[-1]["receipt"] if acts5 else {}
             check("S5 đúng một lượt bản sửa cho revision mới, receipt succeeded",

@@ -292,7 +292,8 @@ def map_message(msg):
                 if (b.text or "").strip():
                     events.append({"type": "text", "content": b.text})
             elif isinstance(b, ToolUseBlock):
-                events.append({"type": "tool_call", "name": b.name or "", "input": b.input or {}})
+                events.append({"type": "tool_call", "name": b.name or "", "input": b.input or {},
+                               "id": getattr(b, "id", "") or ""})
         return events, None
     if isinstance(msg, UserMessage):
         content = msg.content
@@ -302,7 +303,9 @@ def map_message(msg):
                     c = b.content
                     if isinstance(c, list):
                         c = " ".join(x.get("text", "") for x in c if isinstance(x, dict))
-                    events.append({"type": "tool_result", "content": str(c or "")[:500]})
+                    events.append({"type": "tool_result", "content": str(c or "")[:500],
+                                   "tool_use_id": getattr(b, "tool_use_id", "") or "",
+                                   "is_error": bool(getattr(b, "is_error", False))})
         return events, None
     if isinstance(msg, ResultMessage):
         u = msg.usage or {}

@@ -148,3 +148,50 @@ Chốt hai câu hỏi trên theo đề xuất, review có thể đổi:
 - `dry` của bộ chạy lập mục tiêu bằng `form_goal` trực tiếp, nên không đi qua bàn giao. Bàn giao chỉ được kiểm ở hai test trên.
 - Engine Grok, Antigravity và Codex chưa ghi biên nhận (không có toàn văn ở sự kiện), nên vẫn chạy như cũ.
 
+
+## Sửa theo review mã bàn giao (`67007b7d`, 2 P1, 2 P2)
+
+Review trả lời ba câu hỏi:
+- **CRLF/LF:** chấp nhận cho việc SO nội dung một Write đã thành công. Hash bằng chứng, mốc thay file và `artifact_ref` vẫn là hash bytes thật.
+- **900 giây:** chỉ là mốc đối soát, cần trạng thái bàn giao. Đã làm, xem P1-2.
+- **Trước pilot 4:** sửa bốn điểm dưới, chưa tiêu thêm lượt model.
+
+**P1-1, Write thất bại vẫn được tiếp nhận.** Mapper SDK (`claude_sdk_engine.map_message`) giờ giữ `id` của lời gọi, `tool_use_id` và `is_error` của kết quả. `note_turn_event` coi lời gọi `Write` chỉ là **ứng viên**. Chỉ kết quả thành công gắn đúng id mới xác nhận.
+- Kết quả lỗi, thiếu kết quả, hay kết quả của lời gọi khác: không có biên nhận.
+- Mọi công cụ không nằm trong danh sách chắc chắn chỉ đọc (Edit, Bash, MCP lạ...), nếu gọi SAU một Write, đều làm Write đó mất hiệu lực, kể cả khi nội dung cuối trùng lại.
+- Shell hay Task chạy nền làm cả lượt mất hiệu lực.
+- Bash gọi TRƯỚC Write (vd `ls`) không ảnh hưởng.
+- `javis_write_file` của engine API chưa có kết quả ghi do host xác nhận gắn đúng lời gọi, nên đã bỏ khỏi danh sách lập biên nhận. Engine API chạy như cũ.
+
+**P1-2, việc nền chạy trước bàn giao, đầu ra cũ đè bản tiếp nhận.** Bàn giao giờ là **trạng thái trong kho** (bảng `handoffs`), không phải giờ hẹn.
+- Một dòng cho mỗi revision lập hay sửa trong lượt chat, ghi tin nhắn và tiến trình sở hữu (`BOOT_ID`). Dòng được mở trong cùng giao dịch với `create` / `revise`.
+- `advance` gọi `handoff_gate` trước khi đăng hay làm:
+  - lượt chat của chính tiến trình này còn chạy (`luot_dang_chay.dang_chay`): chờ, đánh thức lại sau `HANDOFF_POLL_S` = 30 giây;
+  - lượt không còn chạy, hoặc `BOOT_ID` khác (server đã khởi động lại): chuyển quyền cho việc nền (`expired`) ngay trong giao dịch.
+- `finish_handoff` chỉ tiếp nhận khi dòng còn `pending`. Bàn giao đến muộn sau khi việc nền đã nhận quyền trả `handoff_expired`, không tiếp nhận, không đặt mốc.
+- Phòng thủ thêm: `_publish_latest` không đăng một đầu ra việc nền CŨ hơn bản tiếp nhận của cùng revision (`superseded`).
+- `HANDOFF_HOLD_S` chỉ còn là giờ của lịch đầu tiên.
+
+**P2-1, bỏ sót đầu ra chưa có receipt.** `_e2e_achieve_harness.preserve_work_outputs` tìm theo cả receipt lẫn đường dẫn host quy định (`output_root/<action id>.md`, đúng chỗ `_reconcile` đối soát), và mọi file .md lạc trong vùng làm việc.
+- Bản không có receipt thành công được lưu với nhãn `unverified`, không nâng thành succeeded.
+- Lưu lỗi, thiếu nơi lưu, hay action succeeded mà không thấy file: không dọn sandbox.
+
+**P2-2, bộ chạy bác nhầm đường sửa hợp lệ.** `adoption_contract` đọc lý do của **từng** lượt việc nền (`intent.last_verdict`, host ghi trước khi gọi model).
+- 0 lượt: đạt.
+- Có lượt: mọi lượt phải vì `not_met`, có receipt succeeded, và không vượt phần trần còn lại.
+- Lượt chạy khi bản đã đạt là làm lại vô ích: bác.
+- Không dùng đánh giá đầu tiên, vì đánh giá chưa đạt ngay trước lượt làm không được lưu thành dòng riêng.
+
+**Test:**
+- `test_resonance_inline_handoff.py` viết lại theo mapper SDK thật, có các ca review tái hiện:
+  - Write lỗi, thiếu kết quả, kết quả của lời gọi khác;
+  - Bash sau Write, Edit rồi hoàn lại, shell chạy nền;
+  - Bash trước Write, Write rồi ToolSearch và javis_goal (đường pilot lần 3);
+  - quá 900 giây mà chat còn chạy;
+  - lượt kết thúc không bàn giao, bàn giao muộn, khởi động lại;
+  - đầu ra cũ không đè.
+- Đột biến kiểm lại:
+  - coi lời gọi là đã xác nhận: đỏ 2 kiểm;
+  - bỏ cổng bàn giao: đỏ 5 kiểm.
+- `test_resonance_e2e_achieve_harness.py` thêm ca P2-1, P2-2, và đúng đường sản phẩm: bản chat BAD được tiếp nhận, việc nền sửa một lượt, hợp đồng chấp nhận.
+- `test_sdk_engine.py` và `test_resonance_mvp_main.py` cập nhật theo dạng sự kiện mới.

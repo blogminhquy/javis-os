@@ -162,3 +162,76 @@ def stage_notice(rows, session_reports, goal_id, kind, revision) -> tuple:
         if not all(x.get("receipt") for x in hits):
             return False, f"tin {key} trong phiên không có biên nhận của host"
     return True, f"{len(want)} tin {kind} của revision {revision} có trong phiên, có biên nhận"
+
+
+def preserve_work_outputs(store, principal, goal_id, deliv, out_path, preserve):
+    """Lưu NGUYÊN VẸN mọi đầu ra việc nền của một mục tiêu (review mã bàn giao, P2-1). `preserve(src, label)` chép file
+    ra cạnh báo cáo, trả {"ok", "sha256", ...}.
+
+    Đầu ra có thể đã nằm trên đĩa mà action chưa có receipt (khe giữa lúc ghi và finish_action, hay tiến trình chết).
+    Nên tìm cả theo đường dẫn host quy định (`output_root/<action id>.md`, đúng chỗ `_reconcile` đối soát) và mọi file
+    .md còn lại trong vùng làm việc. Bản không có receipt thành công được lưu với nhãn `unverified`, KHÔNG nâng thành
+    succeeded. Không lưu được bản nào, hay action succeeded mà không thấy file: ok=False để bộ chạy GIỮ sandbox."""
+    import os as _os
+    from pathlib import Path as _P
+    out, ok = [], True
+    g0 = store.get(principal, goal_id)
+    root = _P(g0.output_root) if g0 is not None and getattr(g0, "output_root", "") else None
+    pub = store.published(principal, goal_id, deliv) or {}
+    events = [{"kind": e.get("kind"), "revision": e.get("revision"), "payload": e.get("payload")}
+              for e in store.events(principal, goal_id) if str(e.get("kind") or "").startswith(("publish", "artifact_"))]
+    seen = set()
+
+    def _save(src, label, item):
+        nonlocal ok
+        if not out_path:
+            item["saved"] = {"ok": False, "why": "thiếu nơi lưu báo cáo"}
+            ok = False
+            return
+        item["saved"] = preserve(src, label)
+        ok = ok and item["saved"].get("ok") is True
+
+    for a in [x for x in store.actions(principal, goal_id) if x["kind"] == "work"]:
+        r = a.get("receipt") or {}
+        cands = [_P(r["output_ref"])] if r.get("output_ref") else []
+        if root is not None:
+            cands.append(root / f"{a['id']}.md")
+        f = next((c for c in cands if c.is_file()), None)
+        verified = a["status"] == "succeeded" and bool(r.get("output_ref"))
+        item = {"action": a["id"], "revision": a["revision"], "status": a["status"], "verified": verified,
+                "receipt_output_sha256": r.get("output_sha256"),
+                "published": bool(pub) and pub.get("sha256") == r.get("output_sha256")}
+        if f is not None:
+            seen.add(_os.path.normcase(str(f.resolve())))
+            _save(f, f"work-r{a['revision']}-{a['id'][-8:]}" + ("" if verified else "-unverified"), item)
+        elif a["status"] == "succeeded":
+            item["saved"] = {"ok": False, "why": "action succeeded mà không thấy file đầu ra"}
+            ok = False
+        out.append(item)
+    if root is not None and root.is_dir():
+        for f in sorted(root.glob("*.md")):
+            if _os.path.normcase(str(f.resolve())) in seen:
+                continue
+            item = {"action": None, "file": f.name, "status": "orphan", "verified": False}
+            _save(f, f"work-orphan-{f.stem[-8:]}-unverified", item)
+            out.append(item)
+    return {"items": out, "publish_events": events, "published_sha256": pub.get("sha256")}, ok
+
+
+def adoption_contract(acts, ceiling_left) -> tuple:
+    """Hợp đồng của một giai đoạn có bản tiếp nhận từ chat (review mã bàn giao, P2-2): phân biệt làm lại vô ích với sửa
+    vì chưa đạt. Lý do của TỪNG lượt việc nền nằm trên chính lượt đó (`intent.last_verdict`, host ghi trước khi gọi
+    model): đánh giá chưa đạt ngay trước lượt làm không được lưu thành dòng riêng khi việc nền chạy luôn trong cùng bước.
+
+    - 0 lượt: bản tiếp nhận đã đủ phần khách quan, đúng đường không viết lại.
+    - Có lượt: mọi lượt phải có lý do `not_met` (bản đang có chưa đạt tiêu chí khách quan), receipt succeeded, và số lượt
+      không vượt phần trần còn lại. Lượt nào chạy khi bản đã đạt (lý do khác) là làm lại vô ích: bác.
+    Trả (đạt, tên kiểm)."""
+    if not acts:
+        return True, "bản tiếp nhận đủ phần khách quan: không có lượt việc nền viết lại"
+    why = [str((a.get("intent") or {}).get("last_verdict") or "") for a in acts]
+    ok = (len(acts) <= int(ceiling_left) and all(w == "not_met" for w in why)
+          and all((a.get("receipt") or {}).get("status") == "succeeded" for a in acts))
+    return ok, (f"bản tiếp nhận chưa đạt: việc nền sửa vì not_met ({len(acts)}/{ceiling_left} lượt, lý do {why}), "
+                "receipt succeeded")
+

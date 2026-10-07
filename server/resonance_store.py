@@ -102,6 +102,9 @@ CREATE TABLE IF NOT EXISTS wakeups(
   goal_id TEXT NOT NULL, brain_id TEXT NOT NULL, kind TEXT NOT NULL, due_at REAL NOT NULL,
   reason TEXT NOT NULL DEFAULT '', updated_at REAL NOT NULL, PRIMARY KEY(goal_id, kind));
 CREATE INDEX IF NOT EXISTS wakeups_due ON wakeups(due_at);
+CREATE TABLE IF NOT EXISTS handoffs(
+  goal_id TEXT NOT NULL, revision INTEGER NOT NULL, message_ref TEXT NOT NULL, owner TEXT NOT NULL,
+  status TEXT NOT NULL, created_at REAL NOT NULL, updated_at REAL NOT NULL, PRIMARY KEY(goal_id, revision));
 CREATE TABLE IF NOT EXISTS published(
   goal_id TEXT NOT NULL, path TEXT NOT NULL, sha256 TEXT NOT NULL, action_id TEXT NOT NULL,
   created_at REAL NOT NULL, PRIMARY KEY(goal_id, path));
@@ -279,7 +282,8 @@ class GoalStore:
 
     def create(self, p: Principal, intent_id: str, frame: dict, idempotency_key: str, session_id: str = "",
                output_root: Optional[str] = None, output_base: Optional[str] = None, budget_calls: int = 0,
-               message_ref: Optional[str] = None, work_due_at: Optional[float] = None) -> tuple:
+               message_ref: Optional[str] = None, work_due_at: Optional[float] = None,
+               handoff_owner: Optional[str] = None) -> tuple:
         """Trả (GoalRecord, đã_tạo_mới). Cùng khoá chống trùng thì trả mục tiêu cũ, không ghi gì thêm."""
         now = time.time()
         msg = message_ref or idempotency_key
@@ -310,6 +314,8 @@ class GoalStore:
             # lượt chat thì lịch được GIỮ tới khi bàn giao cuối lượt (work_due_at), để việc nền không chen vào giữa lượt.
             self._wake(c, gid, p.brain_id, "work", float(work_due_at) if work_due_at else now,
                        "chờ bàn giao lượt chat" if work_due_at else "tạo mục tiêu")
+            if handoff_owner:
+                self._open_handoff(c, gid, 1, msg, handoff_owner, now)
             if frame.get("guards"):
                 self._wake(c, gid, p.brain_id, "observe", now + R.GUARD_OBSERVE_S, "quan sát guard")
             row = c.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
@@ -340,7 +346,8 @@ class GoalStore:
 
     def revise(self, p: Principal, goal_id: str, expected_revision: int, frame: dict, reason: str,
                intent_id: Optional[str] = None, message_ref: str = "", relation: str = "",
-               intent: Optional[dict] = None, work_due_at: Optional[float] = None) -> R.GoalRecord:
+               intent: Optional[dict] = None, work_due_at: Optional[float] = None,
+               handoff_owner: Optional[str] = None) -> R.GoalRecord:
         now = time.time()
         with self._Tx(self) as c:
             row = self._goal_row(c, p, goal_id)
@@ -380,6 +387,8 @@ class GoalStore:
             if row["status"] == "active":
                 self._wake(c, goal_id, row["brain_id"], "work", float(work_due_at) if work_due_at else now,
                            "chờ bàn giao lượt chat" if work_due_at else "sửa cách hiểu")
+                if handoff_owner:
+                    self._open_handoff(c, goal_id, rev, str(message_ref or ""), handoff_owner, now)
                 if frame.get("guards"):
                     self._wake(c, goal_id, row["brain_id"], "observe", now + R.GUARD_OBSERVE_S, "quan sát guard",
                                keep_earlier=True)
@@ -890,37 +899,81 @@ class GoalStore:
             r = c.execute("SELECT * FROM published WHERE goal_id=? AND path=?", (goal_id, path)).fetchone()
             return dict(r) if r else None
 
-    def adopt_artifact(self, p: Principal, goal_id: str, revision: int, path: str, sha256: str, message_ref: str,
-                       evidence_id: str) -> str:
-        """Tiếp nhận bản bộ não viết trong lượt chat làm sản phẩm của revision (review pilot lần 3). Người gọi đã đối
-        chiếu biên nhận ghi do host lập với bytes trên đĩa và đã lưu bản chụp vào kho bằng chứng (evidence_id).
+    # ═══════════════════ Bàn giao lượt chat (review mã bàn giao, P1-2) ═══════════════════
+    # Một revision lập hay sửa trong lượt chat có MỘT dòng bàn giao: pending tới khi lượt đó bàn giao (done), hay quyền
+    # thực thi chuyển cho việc nền (expired: lượt chat không còn chạy, hoặc tiến trình sở hữu đã chết). Chuyển trạng
+    # thái trong giao dịch, nên bàn giao đến muộn sau khi việc nền đã nhận quyền thì bị từ chối, và ngược lại.
 
-        MỘT giao dịch: kiểm mục tiêu còn active, không pause, đúng revision; gắn bằng chứng `chat_output`; ghi sự kiện
-        `artifact_adopted`; đặt mốc `published` nguồn chat (mốc này cho lần sửa sau thay được file vì bytes đúng là
-        bytes lượt đó ghi). Không tạo receipt việc nền, không tính lượt model. Trả "adopted", "already" hoặc lý do
-        không tiếp nhận."""
-        key = f"adopt:{int(revision)}:{str(sha256)[:16]}"
+    @staticmethod
+    def _open_handoff(c, goal_id: str, revision: int, message_ref: str, owner: str, now: float) -> None:
+        c.execute("INSERT OR REPLACE INTO handoffs VALUES(?,?,?,?,?,?,?)",
+                  (goal_id, int(revision), str(message_ref or ""), str(owner), "pending", now, now))
+
+    def handoff(self, p: Principal, goal_id: str, revision: int) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return None
+            r = c.execute("SELECT * FROM handoffs WHERE goal_id=? AND revision=?", (goal_id, int(revision))).fetchone()
+            return dict(r) if r else None
+
+    def handoff_gate(self, p: Principal, goal_id: str, revision: int, owner: str, turn_active: bool) -> str:
+        """Cổng của việc nền và bước đăng. "clear": không có bàn giao đang chờ. "pending": lượt chat của CHÍNH tiến
+        trình này vẫn đang chạy, chưa được làm. "expired": lượt đó không còn chạy, hoặc tiến trình sở hữu đã chết; quyền
+        chuyển cho việc nền, NGAY trong giao dịch này, để bàn giao đến muộn không được nhận nữa."""
+        with self._Tx(self) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            r = c.execute("SELECT * FROM handoffs WHERE goal_id=? AND revision=?", (goal_id, int(revision))).fetchone()
+            if r is None or r["status"] != "pending":
+                return "clear"
+            if r["owner"] == str(owner) and turn_active:
+                return "pending"
+            c.execute("UPDATE handoffs SET status='expired', updated_at=? WHERE goal_id=? AND revision=?",
+                      (time.time(), goal_id, int(revision)))
+            return "expired"
+
+    def finish_handoff(self, p: Principal, goal_id: str, revision: int, message_ref: str,
+                       adopt: Optional[dict] = None) -> str:
+        """Bàn giao cuối lượt, MỘT giao dịch. Chỉ khi dòng bàn giao của đúng revision và đúng tin nhắn còn pending;
+        không thì "handoff_expired" (việc nền đã nhận quyền) hay "no_handoff", và không làm gì.
+
+        `adopt` = {path, sha256, evidence_id}: tiếp nhận bản bộ não viết trong lượt (người gọi đã đối chiếu biên nhận
+        ghi thành công với bytes trên đĩa và đã lưu bản chụp): gắn bằng chứng `chat_output`, ghi sự kiện
+        `artifact_adopted`, đặt mốc `published` nguồn chat (cho lần sửa sau thay được file). Mục tiêu không còn active,
+        đang pause hay đã sang revision khác thì không tiếp nhận. Không tạo receipt việc nền, không tính lượt model.
+        Sau đó nhả lịch việc nền về ngay để đánh giá. Trả "adopted", "released" hay lý do."""
+        now = time.time()
         with self._Tx(self) as c:
             row = self._goal_row(c, p, goal_id)
             if row is None:
                 raise ScopeError("mục tiêu không tồn tại trong brain này")
-            if row["status"] != "active" or int(row["paused"] or 0):
-                return "not_active"
-            if int(row["revision"]) != int(revision):
-                return "revision_changed"
-            if c.execute("SELECT 1 FROM goal_events WHERE goal_id=? AND idempotency_key=?", (goal_id, key)).fetchone():
-                return "already"
-            now = time.time()
-            c.execute("INSERT OR IGNORE INTO evidence_links VALUES(?,?,?,?,?,?,?)",
-                      (goal_id, int(revision), f"chat:{message_ref}", evidence_id, "chat_output", str(sha256), now))
-            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,message_ref,payload_json,by,"
-                      "idempotency_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-                      (goal_id, int(revision), "artifact_adopted", "host", str(message_ref or ""),
-                       _j({"path": path, "sha256": sha256, "evidence_id": evidence_id}), p.by, key, now))
-            c.execute("INSERT INTO published VALUES(?,?,?,?,?) ON CONFLICT(goal_id,path) DO UPDATE SET "
-                      "sha256=excluded.sha256, action_id=excluded.action_id, created_at=excluded.created_at",
-                      (goal_id, path, sha256, f"chat:{message_ref}", now))
-            return "adopted"
+            h = c.execute("SELECT * FROM handoffs WHERE goal_id=? AND revision=?", (goal_id, int(revision))).fetchone()
+            if h is None or h["message_ref"] != str(message_ref):
+                return "no_handoff"
+            if h["status"] != "pending":
+                return "handoff_expired" if h["status"] == "expired" else "already_done"
+            result = "released"
+            active = row["status"] == "active" and not int(row["paused"] or 0) and int(row["revision"]) == int(revision)
+            if adopt and not active:
+                result = "not_active"
+            elif adopt:
+                c.execute("INSERT OR IGNORE INTO evidence_links VALUES(?,?,?,?,?,?,?)",
+                          (goal_id, int(revision), f"chat:{message_ref}", adopt["evidence_id"], "chat_output",
+                           str(adopt["sha256"]), now))
+                c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,message_ref,payload_json,by,"
+                          "idempotency_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                          (goal_id, int(revision), "artifact_adopted", "host", str(message_ref),
+                           _j({"path": adopt["path"], "sha256": adopt["sha256"], "evidence_id": adopt["evidence_id"]}),
+                           p.by, f"adopt:{int(revision)}", now))
+                c.execute("INSERT INTO published VALUES(?,?,?,?,?) ON CONFLICT(goal_id,path) DO UPDATE SET "
+                          "sha256=excluded.sha256, action_id=excluded.action_id, created_at=excluded.created_at",
+                          (goal_id, adopt["path"], adopt["sha256"], f"chat:{message_ref}", now))
+                result = "adopted"
+            c.execute("UPDATE handoffs SET status='done', updated_at=? WHERE goal_id=? AND revision=?",
+                      (now, goal_id, int(revision)))
+            if active:
+                self._wake(c, goal_id, row["brain_id"], "work", now, f"bàn giao lượt chat: {result}")
+            return result
 
     def set_published(self, p: Principal, goal_id: str, path: str, sha256: str, action_id: str) -> None:
         with self._Tx(self) as c:
