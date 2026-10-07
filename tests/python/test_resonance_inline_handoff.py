@@ -268,6 +268,18 @@ check("P1-1 Write thành công, Write sau cùng file bị lỗi: bản thành c�
 check("P1-1 Write thành công nhưng file bị sửa ngoài công cụ: không tiếp nhận",
       scenario("p11j", lambda b: write_msgs(b, DELIV, A), A.replace("Đếm kiện", "Đếm kiện kỹ"))[0]
       == "changed_after_write")
+check("vòng 2 P1-1 MCP mang đuôi Write (mcp__remote__Write) báo thành công, không có lần ghi local: KHÔNG tiếp nhận",
+      scenario("r2a", lambda b: [AssistantMessage(content=[ToolUseBlock(
+          id="remote-write", name="mcp__remote__Write",
+          input={"file_path": str(Path(b) / DELIV), "content": A})], model="fake"),
+          UserMessage(content=[ToolResultBlock(tool_use_id="remote-write", content="Remote record accepted",
+                                               is_error=False)])], A)[0] == "no_receipt")
+check("vòng 2 P1-1 Write gốc rồi MCP lạ mang đuôi Read (mcp__untrusted__Read): Write mất hiệu lực",
+      scenario("r2b", lambda b: write_msgs(b, DELIV, A)
+               + tool_msgs("mcp__untrusted__Read", {"file_path": str(Path(b) / DELIV)}), A)[0] == "no_receipt")
+check("vòng 2 P1-1 đối chứng: Write gốc rồi đúng tool Javis đã biết (mcp__javis__javis_read_file): vẫn tiếp nhận",
+      scenario("r2c", lambda b: write_msgs(b, DELIV, A)
+               + tool_msgs("mcp__javis__javis_read_file", {"path": DELIV}), A)[0] == "adopted")
 check("P1-1 javis_write_file (chưa có kết quả ghi gắn đúng lời gọi): không lập biên nhận",
       R.note_turn_event("msg:x:1", b, {"type": "tool_call", "name": "javis_write_file", "id": "c",
                                        "input": {"path": DELIV, "content": A}}) != "candidate")
@@ -298,6 +310,27 @@ clk.t += 60
 asyncio.run(R.tick(st, clk(), lambda bid: deps))
 check("P1-2 sau bàn giao: chờ người dùng, 0 lượt việc nền", eng.queries == 0
       and rs(st, P, g.id).get("block_reason") == "human_confirmation")
+# Vòng 2 P2-1: lượt chat còn sống quá ba giờ (mục đoán người giao việc bị dọn theo tuổi) vẫn giữ quyền.
+b, st, P = world("p12l")
+clk = Clock()
+mid, ref = mref()
+k = luot_dang_chay.bat_dau("web:s-hand", b, msg_id=mid, user_text=USER)
+feed(ref, b, sdk_events(write_msgs(b, DELIV, A)))
+put_file(b, DELIV, A)
+g = create(b, st, P, clk, mid, ref)
+luot_dang_chay._DANG[k]["at"] -= 4 * 3600
+luot_dang_chay.doan_chat_id(b)               # dọn mục đoán quá tuổi, như mọi lần tool hỏi người giao việc
+eng = FakeEngine()
+deps = deps_for(b, st, eng, clk)
+clk.t += R.HANDOFF_HOLD_S + 1
+asyncio.run(R.tick(st, clk(), lambda bid: deps))
+check("vòng 2 P2-1 lượt chat còn sống sau ba giờ: KHÔNG mất quyền, việc nền không chạy",
+      k not in luot_dang_chay._DANG and eng.queries == 0
+      and (st.handoff(P, g.id, g.revision) or {}).get("status") == "pending")
+check("vòng 2 P2-1 bàn giao của lượt vẫn sống được nhận", R.handoff_after_turn(g.id, ref, deps) == "adopted")
+luot_dang_chay.ket_thuc(k)
+check("vòng 2 P2-1 lượt kết thúc thật: sổ sống gỡ đúng lượt", not luot_dang_chay.dang_chay("web:s-hand", mid))
+
 # Lượt chat kết thúc mà KHÔNG bàn giao (lỗi giữa lượt): quyền chuyển cho việc nền; bàn giao muộn bị từ chối.
 b, st, P = world("p12b")
 clk = Clock()

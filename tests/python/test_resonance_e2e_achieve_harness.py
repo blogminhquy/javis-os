@@ -236,17 +236,43 @@ check("P2-1 đối chứng: action succeeded mà không thấy file thì không 
       H.preserve_work_outputs(_ST, _P, g2.id, _DL, "out.json", _pres())[1] is False)
 
 # P2-2: hợp đồng giai đoạn có bản tiếp nhận (lý do sửa đọc từ intent.last_verdict của từng lượt việc nền).
-def _a(why, status="succeeded"):
-    return {"intent": {"last_verdict": why}, "receipt": {"status": status}}
+EXP = {"provider": "anthropic-cli", "model": "sonnet"}
 
 
-C = H.adoption_contract
+def _rc(status="succeeded", prov="anthropic-cli", req_prov="anthropic-cli", model="sonnet", req_model="sonnet",
+        tools=0):
+    return {"status": status, "tool_calls_observed": tools,
+            "engine": {"provider": prov, "requested_provider": req_prov, "model": model, "requested_model": req_model}}
+
+
+def _a(why, **kw):
+    return {"intent": {"last_verdict": why}, "receipt": _rc(**kw)}
+
+
+C = lambda acts, left: H.adoption_contract(acts, left, EXP)  # noqa: E731
 check("P2-2 bản đạt, 0 lượt việc nền: đạt", C([], 1)[0])
 check("P2-2 việc nền chạy khi bản đã đạt (lý do unknown): bác, làm lại vô ích", not C([_a("unknown")], 1)[0])
-check("P2-2 bản chưa đạt, việc nền sửa một lượt (lý do not_met) thành công trong trần: ĐẠT", C([_a("not_met")], 1)[0])
+check("P2-2 bản chưa đạt, việc nền sửa một lượt (lý do not_met) đúng hợp đồng receipt: ĐẠT", C([_a("not_met")], 1)[0])
 check("P2-2 số lượt sửa vượt phần trần còn lại: bác", not C([_a("not_met"), _a("not_met")], 1)[0])
-check("P2-2 lượt sửa không có receipt succeeded: bác", not C([_a("not_met", "failed")], 1)[0])
+check("P2-2 lượt sửa không có receipt succeeded: bác", not C([_a("not_met", status="failed")], 1)[0])
 check("P2-2 một lượt có lý do, một lượt không: bác", not C([_a("not_met"), _a("met")], 2)[0])
+# Vòng 2: nhánh tiếp nhận rồi sửa phải dùng ĐỦ hợp đồng receipt như nhánh không tiếp nhận.
+check("vòng 2 P2-2 lượt sửa sai provider: bác", not C([_a("not_met", prov="unexpected")], 1)[0])
+check("vòng 2 P2-2 provider thật khớp nhau nhưng khác bản đã duyệt: bác",
+      not C([_a("not_met", prov="grok-cli", req_prov="grok-cli")], 1)[0])
+check("vòng 2 P2-2 lượt sửa sai model: bác", not C([_a("not_met", model="opus")], 1)[0])
+check("vòng 2 P2-2 lượt sửa có gọi công cụ: bác", not C([_a("not_met", tools=1)], 1)[0])
+check("vòng 2 P2-2 receipt thiếu tool_calls_observed: bác",
+      not C([{"intent": {"last_verdict": "not_met"}, "receipt": {**_rc(), "tool_calls_observed": None}}], 1)[0])
+check("vòng 2 P2-2 receipt thiếu engine: bác",
+      not C([{"intent": {"last_verdict": "not_met"}, "receipt": {"status": "succeeded", "tool_calls_observed": 0}}], 1)[0])
+W = H.work_receipt_ok
+check("vòng 2 hàm receipt chung: đối chứng đúng hợp đồng thì đạt", W(_rc(), EXP)[0])
+check("vòng 2 hàm receipt chung: không có engine đã duyệt để đối chiếu thì không đạt", not W(_rc(), {})[0])
+_src = (Path(__file__).parent / "test_resonance_mvp_e2e_achieve.py").read_text(encoding="utf-8")
+check("vòng 2 bộ chạy: S2 và S5 ở nhánh không tiếp nhận cũng dùng H.work_receipt_ok, nhánh tiếp nhận qua adoption_contract",
+      _src.count("H.work_receipt_ok(") == 2 and "H.adoption_contract(acts, ceiling_left, APPROVED.get(\"aux\") or {})" in _src
+      and "tool_calls_observed\") == 0" not in _src)
 
 
 # Đúng đường sản phẩm (ca review tái hiện): bản chat BAD được tiếp nhận, việc nền sửa một lượt rồi chờ người dùng.
@@ -285,7 +311,9 @@ _mref = R.message_ref("s", 3)
 R.note_turn_event(_mref, str(_B), {"type": "tool_call", "name": "Write", "id": "w1",
                                    "input": {"file_path": str(_B / _DL), "content": "# HD\n\n1. Đếm.\n"}})
 R.note_turn_event(_mref, str(_B), {"type": "tool_result", "tool_use_id": "w1", "is_error": False})
-_d = R.GoalDeps(engine_factory=lambda s, t: (_Eng(), {"provider": "fake", "text_only": True}), budget=R.CallBudget(0),
+_META = {"requested_provider": "fake", "requested_model": "fake-1", "provider": "fake", "model": "fake-1",
+         "text_only": True}
+_d = R.GoalDeps(engine_factory=lambda s, t: (_Eng(), dict(_META)), budget=R.CallBudget(0),
                 clock=lambda: 1_800_000_000.0, store=_ST, principal=_P, brain_root=str(_B), evidence=_Ev(), notify=_nt)
 check("P2-2 sản phẩm: bản chat chưa đạt được tiếp nhận", R.handoff_after_turn(g3.id, _mref, _d) == "adopted")
 asyncio.run(R.advance(g3.id, {"kind": "wake"}, _d))
@@ -293,7 +321,12 @@ _acts = [x for x in _ST.actions(_P, g3.id) if x["kind"] == "work" and x["revisio
 _ass = [x for x in _ST.assessments(_P, g3.id) if int(x.get("revision") or 0) == g3.revision]
 check("P2-2 sản phẩm: việc nền sửa đúng một lượt rồi chờ người dùng",
       _Eng.queries == 1 and len(_acts) == 1 and (_ST.run_state(_P, g3.id) or {}).get("block_reason") == "human_confirmation")
-check("P2-2 hợp đồng bộ chạy CHẤP NHẬN đường sửa hợp lệ này (trước đây bị bác nhầm)", C(_acts, 1)[0])
+check("P2-2 hợp đồng bộ chạy CHẤP NHẬN đường sửa hợp lệ này (trước đây bị bác nhầm)",
+      H.adoption_contract(_acts, 1, {"provider": "fake", "model": "fake-1"})[0])
+_bad = [{**a, "receipt": {**a["receipt"], "tool_calls_observed": 1,
+                          "engine": {**a["receipt"]["engine"], "provider": "unexpected"}}} for a in _acts]
+check("vòng 2 P2-2 cùng đường sản phẩm, receipt sai provider và có công cụ: bộ chạy bác",
+      not H.adoption_contract(_bad, 1, {"provider": "fake", "model": "fake-1"})[0])
 
 print(f"\n{'FAIL' if _fails else 'OK'}: {len(_fails)} lỗi")
 raise SystemExit(1 if _fails else 0)

@@ -218,7 +218,30 @@ def preserve_work_outputs(store, principal, goal_id, deliv, out_path, preserve):
     return {"items": out, "publish_events": events, "published_sha256": pub.get("sha256")}, ok
 
 
-def adoption_contract(acts, ceiling_left) -> tuple:
+def work_receipt_ok(receipt, expected: dict) -> tuple:
+    """Hợp đồng receipt của MỌI lượt việc nền trong pilot, dùng chung cho đường có và không có bản tiếp nhận (review mã
+    bàn giao vòng 2, P2-2). `expected` = {"provider", "model"} của engine việc nền người dùng đã duyệt.
+
+    Đạt khi: status succeeded; engine.provider == engine.requested_provider == provider đã duyệt; engine.model ==
+    engine.requested_model == model đã duyệt; tool_calls_observed là số 0. Thiếu trường nào cần nghiệm thu thì KHÔNG đạt
+    (không coi thiếu là đúng). Trả (đạt, lý do)."""
+    r = receipt or {}
+    eng = r.get("engine") or {}
+    want_p, want_m = str((expected or {}).get("provider") or ""), str((expected or {}).get("model") or "")
+    if r.get("status") != "succeeded":
+        return False, f"status {r.get('status')!r}"
+    if not want_p or not want_m:
+        return False, "thiếu engine đã duyệt để đối chiếu"
+    if not (eng.get("provider") == eng.get("requested_provider") == want_p):
+        return False, f"provider {eng.get('provider')!r}/{eng.get('requested_provider')!r}, duyệt {want_p!r}"
+    if not (eng.get("model") == eng.get("requested_model") == want_m):
+        return False, f"model {eng.get('model')!r}/{eng.get('requested_model')!r}, duyệt {want_m!r}"
+    if not isinstance(r.get("tool_calls_observed"), int) or r.get("tool_calls_observed") != 0:
+        return False, f"tool_calls_observed {r.get('tool_calls_observed')!r}"
+    return True, "đúng engine đã duyệt, không gọi công cụ"
+
+
+def adoption_contract(acts, ceiling_left, expected: dict) -> tuple:
     """Hợp đồng của một giai đoạn có bản tiếp nhận từ chat (review mã bàn giao, P2-2): phân biệt làm lại vô ích với sửa
     vì chưa đạt. Lý do của TỪNG lượt việc nền nằm trên chính lượt đó (`intent.last_verdict`, host ghi trước khi gọi
     model): đánh giá chưa đạt ngay trước lượt làm không được lưu thành dòng riêng khi việc nền chạy luôn trong cùng bước.
@@ -230,8 +253,8 @@ def adoption_contract(acts, ceiling_left) -> tuple:
     if not acts:
         return True, "bản tiếp nhận đủ phần khách quan: không có lượt việc nền viết lại"
     why = [str((a.get("intent") or {}).get("last_verdict") or "") for a in acts]
-    ok = (len(acts) <= int(ceiling_left) and all(w == "not_met" for w in why)
-          and all((a.get("receipt") or {}).get("status") == "succeeded" for a in acts))
+    rec = [work_receipt_ok(a.get("receipt"), expected) for a in acts]
+    ok = len(acts) <= int(ceiling_left) and all(w == "not_met" for w in why) and all(x[0] for x in rec)
     return ok, (f"bản tiếp nhận chưa đạt: việc nền sửa vì not_met ({len(acts)}/{ceiling_left} lượt, lý do {why}), "
-                "receipt succeeded")
+                f"receipt: {[x[1] for x in rec]}")
 

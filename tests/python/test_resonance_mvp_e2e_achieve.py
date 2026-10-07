@@ -412,7 +412,7 @@ def adoption_check(stage, gid, revision, acts, ceiling_left):
     ass = [x for x in goal_store().assessments(P, gid) if int(x.get("revision") or 0) == int(revision)]
     rep["stages"][stage]["assessments"] = [{k: x.get(k) for k in ("verdict", "rationale")} for x in ass]
     rep["stages"][stage]["work_reasons"] = [(a.get("intent") or {}).get("last_verdict") for a in acts]
-    ok, name = H.adoption_contract(acts, ceiling_left)
+    ok, name = H.adoption_contract(acts, ceiling_left, APPROVED.get("aux") or {})
     return check(f"{stage} {name}", ok)
 
 
@@ -514,10 +514,8 @@ try:
             check("S2 bản đầu tiếp nhận từ chat đúng một lần", len(ad1) == 1)
             adoption_check("S2", g.id, g.revision, acts, PHASE_CEILING[1])
         else:
-            w = acts[-1]["receipt"] if acts else {}
-            check("S2 lượt việc nền: receipt succeeded, đúng provider đã chọn, không gọi công cụ",
-                  w.get("status") == "succeeded" and w.get("engine", {}).get("provider") ==
-                  w.get("engine", {}).get("requested_provider") and w.get("tool_calls_observed") == 0)
+            ok_r, why_r = H.work_receipt_ok(acts[-1]["receipt"] if acts else {}, APPROVED.get("aux") or {})
+            check(f"S2 đúng một lượt việc nền làm bản đầu, receipt đúng hợp đồng ({why_r})", len(acts) == 1 and ok_r)
         pub = goal_store().published(P, g.id, DELIV) or {}
         rep["artifacts"]["draft1"] = {**preserve("draft1"), "revision": g.revision,
                                       "published_sha256": pub.get("sha256")}
@@ -612,9 +610,9 @@ try:
             check("S5 bản sửa tiếp nhận từ chat (lượt góp ý tự Write) đúng một lần", len(ad2) == 1)
             adoption_check("S5", g.id, g4.revision, acts5, PHASE_CEILING[2] - calls_s2)
         else:
-            w = acts5[-1]["receipt"] if acts5 else {}
-            check("S5 đúng một lượt bản sửa cho revision mới, receipt succeeded",
-                  len(acts5) == 1 and w.get("status") == "succeeded")
+            ok_r, why_r = H.work_receipt_ok(acts5[-1]["receipt"] if acts5 else {}, APPROVED.get("aux") or {})
+            check(f"S5 đúng một lượt bản sửa cho revision mới, receipt đúng hợp đồng ({why_r})",
+                  len(acts5) == 1 and ok_r)
         pub = goal_store().published(P, g.id, DELIV) or {}
         rep["artifacts"]["draft2"] = {**preserve("draft2"), "revision": g4.revision,
                                       "published_sha256": pub.get("sha256"), "feedback_sha256": _sha_text(FEEDBACK_MSG)}

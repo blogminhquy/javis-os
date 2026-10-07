@@ -1020,12 +1020,17 @@ def _sha(data: bytes) -> str:
 # Thuần bộ nhớ, theo tin nhắn: server khởi động lại thì mất, mục tiêu khi đó chạy như chưa có bản.
 _TURN_WRITES: dict = {}
 TURN_WRITES_TTL_S = 3 * 3600
+# Danh tính công cụ là TÊN ĐẦY ĐỦ, không suy từ đuôi tên (review mã bàn giao vòng 2, P1-1): `mcp__remote__Write` là
+# một MCP báo thành công, không phải công cụ Write gốc của Claude Code đã ghi file local.
 _WRITE_TOOLS = ("Write",)
-# Công cụ chắc chắn không sửa file trong brain: gọi sau Write không làm Write đó mất hiệu lực.
+# Công cụ chắc chắn không sửa file trong brain, theo tên đầy đủ: công cụ gốc của Claude Code, và đúng các tool Javis
+# qua hai server Javis biết rõ (hub `javis`, plugin in-process `javis-plugins`). MCP khác, kể cả tên đuôi trùng, đi
+# nhánh bảo thủ: gọi sau Write thì làm Write đó mất hiệu lực.
 _READ_ONLY_TOOLS = frozenset({
     "Read", "Glob", "Grep", "LS", "ToolSearch", "WebFetch", "WebSearch", "TodoWrite",
-    "javis_goal", "javis_search_tools", "javis_read_file", "javis_list_dir", "javis_connections", "javis_now",
-    "javis_date_add", "javis_use_skill",
+    "mcp__javis-plugins__javis_goal", "mcp__javis-plugins__javis_now", "mcp__javis-plugins__javis_date_add",
+    "mcp__javis__javis_search_tools", "mcp__javis__javis_read_file", "mcp__javis__javis_list_dir",
+    "mcp__javis__javis_connections", "mcp__javis__javis_use_skill",
 })
 
 
@@ -1082,7 +1087,7 @@ def note_turn_event(message_ref: str, brain_root: str, event: dict, now: Optiona
         return "confirmed"
     if et != "tool_call":
         return "ignored"
-    name = str(event.get("name") or "").rsplit("__", 1)[-1]
+    name = str(event.get("name") or "")
     inp = event.get("input") or {}
     ent = _turn_state(message_ref, now)
     if name in _WRITE_TOOLS:

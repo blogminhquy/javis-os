@@ -195,3 +195,34 @@ Review trả lời ba câu hỏi:
   - bỏ cổng bàn giao: đỏ 5 kiểm.
 - `test_resonance_e2e_achieve_harness.py` thêm ca P2-1, P2-2, và đúng đường sản phẩm: bản chat BAD được tiếp nhận, việc nền sửa một lượt, hợp đồng chấp nhận.
 - `test_sdk_engine.py` và `test_resonance_mvp_main.py` cập nhật theo dạng sự kiện mới.
+
+## Sửa theo review mã bàn giao vòng 2 (`15cbf200`, 1 P1, 2 P2)
+
+**P1-1, công cụ MCP mang đuôi `Write` được coi là Write gốc.** Danh tính công cụ giờ là TÊN ĐẦY ĐỦ, không cắt đuôi.
+- Chỉ đúng `Write` của Claude Code mới tạo ứng viên. `mcp__remote__Write` là một MCP báo thành công, không phải lần ghi local.
+- Danh sách chỉ đọc gồm công cụ gốc của Claude Code và đúng các tool Javis qua hai server Javis biết rõ (`mcp__javis__...`, `mcp__javis-plugins__...`).
+- MCP khác, kể cả `mcp__untrusted__Read`, đi nhánh bảo thủ: làm mất hiệu lực các Write trước nó.
+
+**P2-1, lượt còn sống mất quyền sau ba giờ.** `luot_dang_chay` có thêm sổ SỐNG `_SONG`.
+- Chỉ `ket_thuc` (gọi trong `finally` của lượt) mới gỡ, không dọn theo tuổi.
+- `dang_chay` chỉ đọc sổ này.
+- `_DANG` vẫn dọn theo tuổi, vì nó chỉ dùng để đoán người giao việc.
+- Lượt kết thúc thật hay server khởi động lại vẫn nhả quyền.
+- Giả định: một tiến trình server sở hữu kho.
+
+**P2-2, nhánh tiếp nhận rồi sửa bỏ mất kiểm receipt.** `_e2e_achieve_harness.work_receipt_ok` là hợp đồng receipt chung cho mọi lượt việc nền, ở cả hai nhánh S2 và S5:
+- status succeeded;
+- provider thật = provider yêu cầu = provider đã duyệt;
+- model thật = model yêu cầu = model đã duyệt;
+- `tool_calls_observed` là số 0;
+- thiếu trường thì không đạt.
+
+`adoption_contract` thêm điều kiện riêng của đường tiếp nhận (lý do `not_met`, trong trần) trên nền hợp đồng chung.
+
+**Test:**
+- `test_resonance_inline_handoff.py`: thêm MCP mang đuôi Write, MCP lạ mang đuôi Read, đối chứng tool Javis đã biết, lượt sống quá ba giờ, và lượt kết thúc thật thì gỡ khỏi sổ.
+- `test_resonance_e2e_achieve_harness.py`: thêm ca sai provider, provider khớp nhau nhưng khác bản duyệt, sai model, có công cụ, thiếu trường; đường sản phẩm với receipt bị sửa sai thì bị bác; soát nguồn bộ chạy.
+- Đột biến kiểm lại:
+  - cắt đuôi tên lại: đỏ 4 kiểm;
+  - `dang_chay` đọc sổ dọn theo tuổi: đỏ 2 kiểm.
+- Script `PR-579-handoff-round2-checks.py --expect-fixed` dừng ở dòng 101, vì `adoption_contract` nay cần tham số engine đã duyệt (thay đổi chủ ý của P2-2). Cần cập nhật lời gọi trong script.

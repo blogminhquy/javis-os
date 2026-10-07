@@ -22,6 +22,10 @@ import uuid
 from typing import Dict
 
 _DANG: Dict[str, dict] = {}
+# Sổ SỐNG riêng cho vòng đời lượt (review mã bàn giao vòng 2, P2-1): chỉ `ket_thuc` (gọi trong finally của lượt) mới gỡ,
+# KHÔNG dọn theo tuổi. _DANG ở trên dọn theo tuổi vì chỉ dùng để ĐOÁN người giao việc; tuổi bản ghi không chứng minh
+# lượt đã dừng, nên không được dùng để quyết định quyền thực thi.
+_SONG: Dict[str, dict] = {}
 TUOI_TOI_DA = 3 * 3600      # lượt kẹt quá lâu (không ai gạch) thì coi như đã chết
 
 
@@ -45,11 +49,13 @@ def bat_dau(chat_id: str, vault, msg_id: int = 0, user_text: str = "") -> str:
     if str(chat_id or "").strip():
         _DANG[khoa] = {"chat_id": str(chat_id).strip(), "vault": _chuan(vault), "at": time.time(),
                        "msg_id": int(msg_id or 0), "user_text": str(user_text or "")}
+        _SONG[khoa] = {"chat_id": str(chat_id).strip(), "msg_id": int(msg_id or 0)}
     return khoa
 
 
 def ket_thuc(khoa: str) -> None:
     _DANG.pop(str(khoa or ""), None)
+    _SONG.pop(str(khoa or ""), None)
 
 
 def doan_chat_id(vault, now: float = 0.0) -> str:
@@ -78,12 +84,10 @@ def doan_luot(vault, now: float = 0.0):
     return {"chat_id": x["chat_id"], "msg_id": int(x.get("msg_id") or 0), "user_text": x.get("user_text") or ""}
 
 
-def dang_chay(chat_id: str, msg_id: int, now: float = 0.0) -> bool:
+def dang_chay(chat_id: str, msg_id: int) -> bool:
     """Lượt của ĐÚNG tin nhắn này (khung chat + id tin) còn đang chạy trên tiến trình này không. Resonance dùng để biết
-    lượt chat còn giữ quyền bàn giao hay đã xong (review mã bàn giao, P1-2). Sổ thuần bộ nhớ: server khởi động lại thì
-    rỗng, tức không lượt nào của tiến trình cũ còn chạy."""
-    now = now or time.time()
-    for k in [k for k, x in _DANG.items() if now - x["at"] > TUOI_TOI_DA]:
-        _DANG.pop(k, None)
+    lượt chat còn giữ quyền bàn giao (review mã bàn giao, P1-2 và vòng 2 P2-1). Đọc sổ SỐNG: chỉ gỡ khi lượt kết thúc
+    thật (`ket_thuc` trong finally), không theo tuổi. Server khởi động lại thì sổ rỗng: không lượt nào của tiến trình
+    cũ còn chạy."""
     cid, mid = str(chat_id or "").strip(), int(msg_id or 0)
-    return bool(cid and mid) and any(x["chat_id"] == cid and int(x.get("msg_id") or 0) == mid for x in _DANG.values())
+    return bool(cid and mid) and any(x["chat_id"] == cid and x["msg_id"] == mid for x in _SONG.values())
