@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.85.1] - 2026-10-07
 ### Cải thiện
-- Bản Docker tự cài Antigravity CLI và Grok Build.
+- **Bản Docker tự cài Antigravity CLI và Grok Build.** Trước đây hai thẻ này ở trang Models báo "CLI chưa cài" kèm một lệnh phải tự gõ, mà cài qua Hostinger thì không có chỗ gõ. Giờ Javis tự cài lúc khởi động, cài một lần là giữ qua mọi lần cập nhật.
+- Trong lúc đang cài, thẻ báo "Javis đang tự cài" thay vì đưa lệnh. Cài hỏng (máy chủ không ra được mạng) thì thẻ nói thật và chỉ cách thử lại. Ai không muốn thì tắt bằng `JAVIS_AUTO_INSTALL_CLIS=0`.
 
 ## [0.85.0] - 2026-10-07
 ### Thêm mới

@@ -417,6 +417,8 @@
   "models.grok_note": "Dùng gói SuperGrok hoặc X Premium+ của bạn, không cần mua API key. Đăng nhập được ngay tại đây kể cả khi Javis chạy trên VPS.",
   "models.agy_note": "Dùng gói Google của bạn, không cần mua API key. Đây là bản Google chỉ định thay cho Gemini CLI, và cho chọn đúng dàn model của Antigravity IDE - gồm cả model không phải của Google.",
   "models.cli_install": "Chưa thấy CLI trên máy. Cài một lần trên máy chạy Javis:",
+  "models.cli_auto_installing": "Javis đang tự cài {ten} trên máy chủ, mất khoảng một phút. Xong bấm Kiểm tra lại.",
+  "models.cli_auto_failed": "Javis đã thử tự cài {ten} nhưng không được (máy chủ không tải được). Khởi động lại Javis để thử lại, hoặc chạy lệnh này ở trang Code > Terminal:",
   "models.agy_login": "Đăng nhập trong terminal của máy chạy Javis:",
   "models.agy_done": "Xong rồi bấm Kiểm tra lại ở dưới.",
   "models.auth_title": "Chạy bằng",

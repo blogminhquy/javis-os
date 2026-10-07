@@ -417,6 +417,8 @@
   "models.grok_note": "Uses your SuperGrok or X Premium+ plan, no API key to buy. You can sign in right here, even when Javis runs on a VPS.",
   "models.agy_note": "Uses your Google plan, no API key to buy. This is Google's designated replacement for Gemini CLI, and it offers the exact model lineup of the Antigravity IDE - including non-Google models.",
   "models.cli_install": "CLI not found on this machine. Install once on the machine running Javis:",
+  "models.cli_auto_installing": "Javis is installing {ten} on the server, about a minute. Then click Check again.",
+  "models.cli_auto_failed": "Javis tried to install {ten} by itself but could not download it. Restart Javis to retry, or run this in Code > Terminal:",
   "models.agy_login": "Sign in from the terminal of the machine running Javis:",
   "models.agy_done": "Then hit Check again below.",
   "models.auth_title": "Runs on",

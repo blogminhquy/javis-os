@@ -10,7 +10,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.85.1] - 2026-10-07
 ### Improved
-- The Docker edition installs Antigravity CLI and Grok Build by itself.
+- **The Docker edition installs Antigravity CLI and Grok Build by itself.** These two cards on the Models page used to say "CLI not installed" with a command to type, and a Hostinger install has nowhere to type it. Javis now installs them at startup, once, and keeps them across updates.
+- While installing, the card says "Javis is installing" instead of showing a command. If the install fails (no Internet on the server), the card says so and how to retry. Turn it off with `JAVIS_AUTO_INSTALL_CLIS=0`.
 
 ## [0.85.0] - 2026-10-07
 ### Added

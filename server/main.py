@@ -133,6 +133,7 @@ import tien_trinh_nen     # lệnh chạy ngầm engine bỏ lại: nhận theo 
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
 import agent_avatar
+import cli_autoinstall   # trạng thái agy/grok do container Docker tự cài (0.85.1)
 import agent_assets      # tài liệu & link gắn vào MỘT trợ lý (lưu trong frontmatter agent)
 import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
 import chatbot_cuoc_chat  # danh sách cuộc chat cho ô chọn người/nhóm của form bot
@@ -1796,6 +1797,7 @@ def _providers_view(cfg):
             item["plan"] = _k.get("plan", "")
             item["auth_error"] = _k.get("error", "")
             item["cai_lenh"] = grok_cli.lenh_cai()
+            item["tu_cai"] = cli_autoinstall.state("grok")   # Docker tự cài lúc khởi động (0.85.1)
             item["dang_nhap"] = grok_cli.login_huong_dan()
             # Phiên nằm trong `~/.grok/auth.json` do chính CLI giữ, Javis không sở hữu nó -
             # nhưng `grok logout` thì gọi được, nên thẻ CÓ nút Ngắt (khác `agy`).
@@ -1806,6 +1808,7 @@ def _providers_view(cfg):
             item["auth_method"] = _a.get("method", "")
             item["auth_error"] = _a.get("error", "")
             item["cai_lenh"] = antigravity_cli.lenh_cai()
+            item["tu_cai"] = cli_autoinstall.state("agy")    # Docker tự cài lúc khởi động (0.85.1)
             # Không có nút Ngắt: token nằm trong keyring của hệ điều hành, Javis không giữ nên
             # cũng không gỡ hộ được. Dựng nút rồi bên dưới không làm gì mới là dối.
             item["auth_by_javis"] = False
@@ -3757,6 +3760,7 @@ def antigravity_status():
     d = antigravity_cli.auth_status()
     d["cli_path"] = antigravity_cli.find_antigravity_cli() or ""
     d["cai_lenh"] = antigravity_cli.lenh_cai()
+    d["tu_cai"] = cli_autoinstall.state("agy")
     d["huong_dan"] = antigravity_cli.login_huong_dan()
     return d
 
@@ -3798,6 +3802,7 @@ def grok_status():
     d = grok_cli.auth_status()
     d["cli_path"] = grok_cli.find_grok_cli() or ""
     d["cai_lenh"] = grok_cli.lenh_cai()
+    d["tu_cai"] = cli_autoinstall.state("grok")
     d["huong_dan"] = grok_cli.login_huong_dan()
     try:
         d["chan_doan"] = grok_cli.chan_doan()
