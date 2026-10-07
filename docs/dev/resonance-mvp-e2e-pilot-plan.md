@@ -266,3 +266,15 @@ Danh sách tool trong tin `init` của Claude Code không đọc được từ n
 - Bộ não có thể làm bản đầu ngay trong lượt mà không lập mục tiêu: `stopped`, không mặc định là lỗi.
 - `op=update` thiếu trích dẫn hay không đổi trường nào: S4 dừng và ghi rõ; bộ chạy không tự thêm trường để giả sửa.
 - Dòng gợi ý định nghĩa loại 3 khá gần lời giao, nên một lần đạt chỉ chứng minh đường này đi được khi ranh giới nêu rõ, chưa chứng minh định tuyến ổn định.
+
+**Sửa theo review bộ chạy achieve (diff `9c62b9a0..ff9f97bf`):**
+- **P2-1, kiểm hỏng vẫn cấp lượt tiếp:** cổng chi phí nay nằm TRONG ba thao tác có thể dẫn tới lượt gọi model: dựng server, gửi tin chat, bấm xác nhận (`tests/python/_e2e_achieve_harness.py`). Có bất kỳ kiểm nào hỏng, kỹ thuật hay hợp đồng, thì cả ba từ chối. Script bộ chạy đi qua harness cho cả ba.
+- **P2-2, tin báo cũ được tính cho bản sửa:** tin của S2, S5, S6 phải khớp một dòng outbox đúng mục tiêu, đúng loại (`goal.waiting_human`, `goal.succeeded`) và đúng revision. Tin `outbox:<id>` kèm biên nhận của host phải nằm trong phiên người giao việc. Cờ `delivered` không còn đủ.
+- **Ca âm** (`test_resonance_e2e_achieve_harness.py`, 31 kiểm):
+  - S4 sai nguồn góp ý, mất ràng buộc, thiếu lịch: không dựng giai đoạn 2.
+  - Kiểm hỏng trước S4: không gửi tin, không giữ chỗ.
+  - Lượt chat lỗi: tính vào sổ, không thử lại.
+  - S5 hỏng: không bấm xác nhận.
+  - Tin báo: chỉ có tin cũ, chỉ có thẻ reframe, phiên rỗng, không gửi, nhầm phiên, thiếu biên nhận, khác mục tiêu, chưa giao, S6 chỉ có cờ delivered.
+  - Soát nguồn: script không còn đường dựng server, gửi chat hay bấm xác nhận vòng qua cổng.
+- **`dry` trên commit sạch `64ad9eba`:** 23/23 kiểm, `dry_ok`, 0 lượt engine.
