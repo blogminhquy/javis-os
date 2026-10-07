@@ -1,0 +1,50 @@
+{
+  "mode": "real",
+  "max_calls": 3,
+  "brain_turns_planned": 1,
+  "background_ceiling": 2,
+  "env_dropped": [
+    "ANTHROPIC",
+    "CLAUDE",
+    "CLAUDECODE"
+  ],
+  "steps": {
+    "start_1_s": 5.3,
+    "chat_turn_s": 29.9
+  },
+  "frames": {
+    "response": 1,
+    "status": 1,
+    "stream": 1,
+    "tool_call": 2,
+    "tool_result": 2,
+    "turn_done": 1
+  },
+  "tools_called": [
+    "ToolSearch",
+    "mcp__javis-plugins__javis_task"
+  ],
+  "session_id_hash": "2a240feb0268",
+  "goal_created": false,
+  "model_calls": 1,
+  "seconds_total": 38.1,
+  "checks": [
+    {
+      "check": "server th\u1eadt l\u00ean \u0111\u01b0\u1ee3c, WebSocket /ws nh\u1eadn k\u1ebft n\u1ed1i qua ki\u1ec3m Origin",
+      "ok": true,
+      "hard": true
+    },
+    {
+      "check": "l\u01b0\u1ee3t chat k\u1ebft th\u00fac (turn_done) v\u00e0 c\u00f3 session_id",
+      "ok": true,
+      "hard": true
+    },
+    {
+      "check": "b\u1ed9 n\u00e3o t\u1ef1 l\u1eadp \u0110\u00daNG M\u1ed8T m\u1ee5c ti\u00eau qua javis_goal, g\u1eafn \u0111\u00fang phi\u00ean chat",
+      "ok": false,
+      "hard": true
+    }
+  ],
+  "commit": "c0ab3d6609201243ece7572d0b6ff31decd8c93d",
+  "server_dirty": false
+}

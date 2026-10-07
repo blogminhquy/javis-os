@@ -1,6 +1,6 @@
 # Pilot đầu-cuối Resonance MVP qua đường chat thật: kịch bản và hạn mức đề xuất
 
-**Trạng thái: CHỜ DUYỆT. Chưa gọi model nào cho pilot này.** Bộ chạy đã có và đã chạy ở chế độ `dry` (không gọi model) để kiểm hạ tầng; chế độ `real` chỉ chạy khi người dùng duyệt hạn mức dưới đây.
+**Trạng thái: ĐÃ CHẠY MỘT LẦN (07/10/2026) theo hạn mức người dùng duyệt. Kết quả: bộ não KHÔNG tự lập mục tiêu (chọn `javis_task`), pilot dừng, dùng 1/3 lượt. Xem mục "Kết quả lần chạy duy nhất" ở cuối.**
 
 ## Mục đích
 
@@ -41,7 +41,7 @@ Nếu bộ não tự làm luôn trong lượt (tự ghi file bằng công cụ c
 |---|---|
 | Lượt bộ não chính | **1** (engine chính đang chọn: `anthropic-cli` / `claude-opus-5-5`, gói thuê bao) |
 | Lượt việc nền | **1 dự kiến, tối đa 2** (engine việc nền: `anthropic-cli` / `sonnet`). Trong cửa sổ pilot không có lượt thứ hai: thử lại khi chưa đạt cách 15 phút |
-| Trần cứng của bộ chạy | **3 lượt gọi** (`JAVIS_RESONANCE_E2E_MAX_CALLS=3`); vượt là giết server |
+| Trần cứng | **3 lượt gọi** (`JAVIS_RESONANCE_E2E_MAX_CALLS=3`). Lượt bộ não tính TRƯỚC khi gửi tin; phần còn lại dành cho việc nền được server chặn TRƯỚC lượt gọi vượt trần (`JAVIS_RESONANCE_CALL_CEILING`, kiểm trong giao dịch giữ chỗ, số đã dùng trong SQLite nên giữ qua khởi động lại). Bộ chạy còn kiểm sau và giết server nếu vượt |
 | Token ước tính | Lượt bộ não: vài chục nghìn token vào (prompt hệ thống của Javis và công cụ); lượt việc nền: khoảng 18 nghìn vào, dưới 1 nghìn ra (đo ở pilot M3, M5) |
 | Thời gian | Khoảng 8 đến 15 phút (ba lần dựng server, một lượt chat, hơn hai nhịp chờ) |
 | Số lần chạy | **Một lần.** Không chạy lại nếu kết quả không như ý; báo cáo nguyên trạng |
@@ -74,3 +74,29 @@ Lần chạy `dry` đầu làm lộ một điều của chính bộ chạy: tham
 ```bash
 JAVIS_RESONANCE_E2E=real JAVIS_RESONANCE_PILOT_SETTINGS=D:/Project/Javis-OS/server/settings.json JAVIS_RESONANCE_E2E_MAX_CALLS=3 JAVIS_RESONANCE_E2E_OUT=docs/dev/resonance-mvp-e2e-pilot.json D:/Project/Javis-OS/.venv/Scripts/python.exe tests/python/test_resonance_mvp_e2e_pilot.py
 ```
+
+## Kết quả lần chạy duy nhất (07/10/2026)
+
+**Bộ não KHÔNG tự lập mục tiêu. Pilot dừng đúng điều kiện đã duyệt, không thử lại, không sửa lời giao việc.**
+
+| Mục | Giá trị |
+|---|---|
+| Commit | `c0ab3d66`, cây `server/` và `system/` sạch |
+| Người duyệt | Người dùng duyệt một lần chạy, tối đa 3 lượt gọi, engine và gói thuê bao hiện có |
+| Engine chính | `anthropic-cli` / `claude-opus-5-5` qua đăng nhập gói thuê bao; môi trường server đã lọc bỏ biến `CLAUDE*`, `ANTHROPIC*` của phiên chạy bộ chạy và mọi khoá nhà cung cấp |
+| Trần | 3 tổng; 1 lượt bộ não tính trước khi gửi; việc nền chặn trước lượt gọi ở server bằng `JAVIS_RESONANCE_CALL_CEILING=2`, truyền cho mọi tiến trình server |
+| Lượt gọi model đã dùng | **1** (lượt bộ não), 0 lượt việc nền |
+| Thời gian | Lượt chat 29,9 giây; tổng 38,1 giây |
+| Bằng chứng | [`resonance-mvp-e2e-pilot.json`](resonance-mvp-e2e-pilot.json) (không đường dẫn cá nhân, id phiên chỉ lưu dạng hash) |
+
+**Bộ não đã làm gì:** gọi `ToolSearch` rồi `javis_task`, tạo một việc Kanban (trạng thái `triage`) "Lập ghi chú việc từ biên bản họp 03/10 vào Inbox/viec-tu-bien-ban.md", với ý định chi tiết: chỉ tạo đúng file đó, không đụng `Notes/ghi-chu-cu.md`, không ghi đè. Câu trả lời trong khung chat nói đúng sự thật: việc đã vào hàng đợi nhưng CHƯA chạy vì chế độ điều phối việc nền của brain đang tắt, muốn chạy thì bật "AI tự vận hành" trên trang Việc. Bộ não còn tự tính ngày cho hai hạn chỉ ghi thứ, đánh dấu cần xác nhận. Không có mục tiêu nào trong kho Resonance; không file nào được ghi vào brain; việc Kanban không chạy (điều phối tắt) nên không phát sinh lượt gọi nào khác.
+
+**Đánh giá:** lựa chọn của bộ não ĐÚNG theo luật hiện hành. CLAUDE.md xếp "việc một lần người dùng giao, chạy nền hoặc cần duyệt" vào Kanban (`javis_task`), và mô tả tool `javis_goal` ghi rõ "Việc nền một lần: javis_task", dành `javis_goal` cho việc "duy trì, theo dõi, chờ sự kiện, làm tới khi đạt". Lời giao việc của kịch bản ("lo giúp mình một ghi chú... cứ làm ở nền, xong thì báo để mình xem lại rồi xác nhận") là một việc nền một lần có duyệt, tức thuộc nhóm Kanban. Nghĩa là **kịch bản chọn sai loại yêu cầu** để đo đường Resonance; lần chạy này không chứng minh được mà cũng không bác được việc bộ não dùng `javis_goal` đúng lúc.
+
+**Điều lộ ra cho sản phẩm (cần người dùng quyết, không tự sửa):**
+1. Ranh giới Kanban và Resonance chồng nhau ở loại "làm một sản phẩm cụ thể rồi chờ người dùng duyệt". Resonance M3, M4 xây đúng vòng đó (làm, kiểm, chờ duyệt, báo), nhưng luật định tuyến hiện gửi loại này sang Kanban. Chưa rõ loại yêu cầu nào người dùng muốn đi đường Resonance.
+2. Khi Kanban tắt điều phối (mặc định ở brain mới), việc người dùng giao ở nền chỉ nằm chờ; bộ não nói đúng điều này, nhưng người dùng không có kết quả nếu không bật.
+
+**Giới hạn của chính bộ chạy:** không lưu nội dung kết quả của `ToolSearch`, nên không biết bộ não có thấy `javis_goal` trong danh sách công cụ khi chọn hay không (trace `runtime.db` cũng không có). Nên bổ sung trước lần chạy sau.
+
+**Điều kiện MVP thứ nhất vẫn CHƯA đạt.** Không chạy thêm. Lần chạy sau (nếu người dùng duyệt) cần: chọn lời giao việc thuộc đúng nhóm `javis_goal` theo luật hiện hành (ví dụ duy trì hay theo dõi có tiêu chí kiểm được), hoặc người dùng quyết định lại ranh giới Kanban và Resonance trước; và lưu kết quả `ToolSearch`.
