@@ -103,6 +103,7 @@ import usage_index   # dashboard token: index log thô Claude+Codex + query summ
 import usage_parsers as up_parsers   # bảng giá + khớp model, dùng chung với indexer
 import usage_saving   # tiết kiệm đối chứng ngược, mốc sự kiện, dự báo, ngân sách
 import context_runtime   # Phase 0-8: trace + Registry/Resolver/Compiler + canary paths
+import turn_context      # who is talking in this turn, for tool hooks (`turn` in pre/post_tool_call)
 import capability_registry   # Phase 2: registry dẫn xuất, không phải nguồn sự thật
 import capability_resolver   # Phase 3: resolver deterministic chỉ chạy shadow
 import context_compiler      # Phase 4: capsule + quota preflight + quality gate shadow
@@ -3584,6 +3585,8 @@ def _apply_codex_hub(cli, vault_root=None):
         # THAY override brain cũ chứ không nối thêm: engine Telegram giữ một CodexCLI qua nhiều
         # lượt, và nối thêm thì đổi brain qua lại để Codex dùng giá trị brain đứng sau.
         mcp_hub.dat_codex_vault(cli.extra_config, vault_root)
+    # Profile is the hub entry only when the hub is on: then each query adds the turn's key.
+    cli.hub_turn = _hub_enabled()
     return cli
 
 
@@ -14687,6 +14690,8 @@ async def websocket_endpoint(ws: WebSocket):
         async def run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
                            has_attachments=False, resume_attempt=0, goc_chat=""):
             _trace_token = context_runtime.bind_trace(runtime_trace)
+            # Dashboard = the owner's own surface (signed-in session): no platform sender id.
+            _luot_token = turn_context.bind(turn_context.make("dashboard", chat_id=conv_sid, la_chu=True))
             # Ghi vào sổ lượt đang chạy để tool giao việc biết kết quả phải về khung chat này
             # khi model quên truyền chat_id (luot_dang_chay.py, 0.64.49).
             _khoa_luot = luot_dang_chay.bat_dau(f"{WEB_CHAT_PREFIX}{conv_sid}", _brain_root(brain))
@@ -14725,6 +14730,7 @@ async def websocket_endpoint(ws: WebSocket):
             finally:
                 luot_dang_chay.ket_thuc(_khoa_luot)
                 tien_trinh_nen.bo_tag(turn_tag)   # lượt lỗi/bị dừng không tới bước nhận nuôi
+                turn_context.reset(_luot_token)
                 context_runtime.reset_trace(_trace_token)
                 await send_raw({"type": "turn_done", "session_id": conv_sid,
                                 **context_runtime.event_fields(runtime_trace)})
@@ -14737,6 +14743,7 @@ async def websocket_endpoint(ws: WebSocket):
             trang Cộng sự là chạy quy trình không bao giờ kết thúc trong im lặng."""
             ws = _SendProxy(conv_sid, runtime_trace)
             _trace_token = context_runtime.bind_trace(runtime_trace)
+            _luot_token = turn_context.bind(turn_context.make("dashboard", chat_id=conv_sid, la_chu=True))
 
             async def emit(frame):
                 await ws.send_text(json.dumps(frame, ensure_ascii=False))
@@ -14782,6 +14789,7 @@ async def websocket_endpoint(ws: WebSocket):
                 await send_raw({"type": "error", "content": _cau, "session_id": conv_sid,
                                 **context_runtime.event_fields(runtime_trace)})
             finally:
+                turn_context.reset(_luot_token)
                 context_runtime.reset_trace(_trace_token)
                 await send_raw({"type": "turn_done", "session_id": conv_sid,
                                 **context_runtime.event_fields(runtime_trace)})
@@ -18099,6 +18107,11 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     # giấu lệnh vào đó, model đọc được còn chủ thì không thấy. Gỡ TRƯỚC khi ghi kho vì vòng tự học đọc lại kho (0.83.2).
     if isinstance(text, str):
         text = chatbot_reply_policy.strip_hidden(text)
+    # Who is talking, for tool hooks. Taken BEFORE `channel` is renamed to bot:<slug> below: a
+    # hook needs the real channel ("zalo_personal"...), and `user_id` is the sender even in a
+    # group. A dedicated bot is never the owner, whatever its permission level; every other
+    # caller of this shell is an owner surface (admin channels, CLI, voice).
+    _luot = turn_context.from_meta(channel, meta, la_chu=not bot)
     # ĐA PHIÊN: định tuyến theo chat_id → ngữ cảnh của mỗi tài khoản tách biệt.
     chat_id = str((meta or {}).get("chat_id") or "default")
     if bot:
@@ -18155,6 +18168,7 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     _CONTEXT_RUNTIME.set_route(runtime_trace, engine_label,
                                api_model or mcfg.get("claude_model") or "mặc định")
     _trace_token = context_runtime.bind_trace(runtime_trace)
+    _luot_token = turn_context.bind(_luot)
     try:
         out = await _tg_answer_engine(
             text, meta, progress, chat_id=chat_id, sess=sess, brain=brain, mcfg=mcfg,
@@ -18228,6 +18242,7 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         _CONTEXT_RUNTIME.finish(runtime_trace, "FAILED", type(e).__name__)
         raise
     finally:
+        turn_context.reset(_luot_token)
         context_runtime.reset_trace(_trace_token)
 
 

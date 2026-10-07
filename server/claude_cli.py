@@ -1511,6 +1511,11 @@ class CodexCLI:
         self.vault_root = None
         # 'http' / 'ws' ép đường truyền; None = codex_transport() tự chọn mỗi lượt.
         self.transport = None
+        # True only when the profile's `javis` entry is the hub (main._apply_codex_hub): then each
+        # query carries the current turn's key so hub hooks know who is talking (turn_context).
+        # Off otherwise, because an override under mcp_servers.javis with no hub entry would
+        # create a broken half-entry.
+        self.hub_turn = False
 
     def is_available(self) -> bool:
         return self.cli_path is not None
@@ -1534,6 +1539,17 @@ class CodexCLI:
             args += ["-p", self.profile]
         for c in (self.extra_config or []):
             args += ["-c", c]
+        if self.hub_turn:
+            # Built per query, inside the turn: the same CodexCLI serves many turns (and several
+            # people in one group chat), so the key can never live in extra_config.
+            try:
+                import turn_context
+                luot = turn_context.codex_override()
+            except Exception as e:   # noqa: BLE001 - no key means "nobody", never a broken turn
+                print(f"[codex] khoá lượt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+                luot = None
+            if luot:
+                args += ["-c", luot]
         if (self.transport or codex_transport()) == "http":
             for c in codex_http_config():
                 args += ["-c", c]
