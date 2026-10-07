@@ -32,7 +32,6 @@ import sys
 
 import lang_registry
 import time
-from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -77,8 +76,6 @@ def _poller_dau(bot_id: str):
     for tb in (run.get("pollers") or {}).values():
         return tb
     return None
-# (bot_id, chat_id) -> deque[timestamp] cho giới hạn tần suất theo GIỜ
-_HITS: Dict[tuple, deque] = {}
 # (bot_id, chat_id) -> số lượt BÍ LIÊN TIẾP. Trả lời được một câu là về 0.
 _BI_LIEN_TIEP: Dict[tuple, int] = {}
 # bot_id đã báo lỗi kỹ thuật cho nhân viên và chưa chạy lại được lượt nào. Chống báo mỗi lượt
@@ -446,27 +443,6 @@ def ngu_canh_nhom(meta: dict, kenh: str, tai_khoan: str) -> str:
 # ============================================================
 # Rào
 # ============================================================
-def _qua_han_muc(bot_id: str, chat_id: str, tran: int, user_id: str = "") -> bool:
-    """Giới hạn tần suất theo GIỜ trượt, tính riêng từng người trong từng bot.
-
-    Vì sao cần: một người rảnh trong nhóm đủ đốt hết quota model của chủ trong một buổi chiều,
-    và chủ chỉ biết khi nhìn hoá đơn.
-
-    Trong NHÓM phải truyền `user_id` (0.84.6). Trước đó khoá chỉ là cuộc chat, nên cả nhóm dùng CHUNG
-    một hạn mức: nhóm 140 người gọi bot 20 lần trong một giờ là người thứ 21, dù mới hỏi lần đầu, nhận
-    câu "nhắn hơi nhanh" kèm tag tên mình trước cả nhóm. Chat riêng thì cuộc chat đã là một người.
-    """
-    key = (bot_id, str(chat_id), str(user_id or ""))
-    now = time.time()
-    dq = _HITS.setdefault(key, deque())
-    while dq and now - dq[0] > 3600:
-        dq.popleft()
-    if len(dq) >= max(1, int(tran or 20)):
-        return True
-    dq.append(now)
-    return False
-
-
 def _dang_khac(chat_id: str) -> str:
     """Dạng CÒN LẠI của cùng một nhóm Telegram, hoặc "" nếu không có dạng nào khác.
 
@@ -1327,18 +1303,9 @@ def _make_answer_fn(bot_id: str):
             if ma:
                 _ghi_bo_qua(bot_id, cfg, meta, text, ma, tl)
                 return {"text": "", "files": [], "im_lang": True}
-        if _qua_han_muc(bot_id, chat_id, cfg.get("rate_limit"), user_id if _rp_is_group(meta) else ""):
-            if (meta or {}).get("member_join"):
-                # Many people joining at once must not make the bot say "you are typing too fast" to them.
-                return {"text": "", "files": [], "im_lang": True}
-            if tu_dong:
-                # Tin tự trả lời mà quá hạn mức thì im, KHÔNG nói "nhắn hơi nhanh" trước cả nhóm:
-                # người ta đâu có gọi bot.
-                _ghi_bo_qua(bot_id, cfg, meta, text, "het_han_muc", tl)
-                _rp_retract(rp_dec, "rate_limited")
-                return {"text": "", "files": [], "im_lang": True}
-            return {"text": "Anh chị nhắn hơi nhanh, em xin phép trả lời lại sau ít phút ạ.",
-                    "files": []}
+        # Không còn trần số câu trả lời mỗi người mỗi giờ (0.85.4, chủ gỡ 2026-10-07). Người gọi tên hay
+        # nhắn riêng cho bot luôn được trả lời. Trần khi bot TỰ lên tiếng trong nhóm thì vẫn giữ, ở
+        # `chatbot_tu_dong.duoc_tra_loi` ngay trên: đó là rào chống bot nói tràn lan khi không ai gọi.
         # Hộp thư hội thoại: ghi tin khách TRƯỚC khi gọi engine, để lượt gãy vẫn còn tin khách.
         ghi_tin_khach(cfg, meta or {}, text)
         # Người thật đã TIẾP QUẢN cuộc chat này ở trang Hội thoại thì bot im: tin khách vẫn vào
@@ -1986,7 +1953,7 @@ def quen_bot(bot_id: str) -> None:
     _DA_BAO_LOI.discard(bot_id)
     for k in [x for x in _DA_BAO_NHOM if x and x[0] == bot_id]:
         _DA_BAO_NHOM.discard(k)
-    for kho in (_HITS, _BI_LIEN_TIEP):
+    for kho in (_BI_LIEN_TIEP,):
         for k in [x for x in kho if x and x[0] == bot_id]:
             kho.pop(k, None)
 

@@ -10,7 +10,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.85.4] - 2026-10-07
 ### Improved
-- Removed the bot's 20 answers per person per hour limit.
+- **Bots no longer cap answers at 20 per person per hour.** Anyone who messages the bot directly or calls it by name gets an answer; the "you are typing too fast" reply is gone.
+- The limit on the bot speaking up on its own in a group nobody called it in (auto mode) stays, so it does not flood groups. With no cap, one person messaging non-stop keeps spending model usage; if something looks off, take over that chat.
 
 ## [0.85.3] - 2026-10-07
 ### Fixed

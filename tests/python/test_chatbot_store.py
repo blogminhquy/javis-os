@@ -107,7 +107,8 @@ check("brain riêng của bot khác brain của Agent", b["brain"] == "shop-cskh
 check("@ trong username bị cắt", b.get("bot_username") == "ShopCSKHBot")
 check("id nhóm ÂM được giữ (nhóm Telegram là số âm)", "-1001234567890" in b["groups"])
 check("chuỗi không phải số bị loại khỏi danh sách nhóm", "khong-phai-so" not in b["groups"])
-check("rate_limit bị kẹp về trần", b["rate_limit"] == chatbot_store.RATE_MAX)
+# 0.85.4: trần câu trả lời mỗi người mỗi giờ đã gỡ, nên bản ghi bot mới không còn khoá này.
+check("bot mới không còn lưu rate_limit (trần mỗi giờ đã gỡ)", "rate_limit" not in b)
 check("reply_when mặc định là mention", b["reply_when"] == "mention")
 # Mặc định phải là "agent": người dùng vừa CHỌN một Agent thì mong bot nói giống Agent đó. Ép
 # cứng chế độ chỉ-tài-liệu như 0.20.0 làm một Agent coach viết rất kỹ vẫn trả lời "em chưa có
@@ -145,7 +146,7 @@ ok, _ = chatbot_store.update_bot(bid, {
 })
 b = chatbot_store.get_bot(bid)
 check("sửa được trường trong danh sách trắng", ok and b["name"] == "Bot CSKH")
-check("rate_limit mới có hiệu lực", b["rate_limit"] == 30)
+check("patch gửi rate_limit tới thì bị bỏ qua như khoá lạ", "rate_limit" not in b)
 check("reply_when mới có hiệu lực", b["reply_when"] == "always")
 check("danh sách nhóm được lọc lại khi sửa", b["groups"] == ["-100999"])
 check("id KHÔNG sửa được qua bản vá", b["id"] == bid)
@@ -329,27 +330,32 @@ chatbot_store.update_bot(bid, {"groups": []})
 
 
 # ============================================================
-# 8. Rào: giới hạn tần suất theo giờ, riêng từng người
+# 8. Không còn trần câu trả lời mỗi người mỗi giờ (0.85.4)
 # ============================================================
-chatbot_runtime._HITS.clear()
-qua = [chatbot_runtime._qua_han_muc("b1", "kh1", 3) for _ in range(5)]
-check("trong hạn mức thì cho qua", qua[:3] == [False, False, False])
-check("quá hạn mức thì chặn", qua[3:] == [True, True])
-check("người KHÁC không bị vạ lây",
-      chatbot_runtime._qua_han_muc("b1", "kh2", 3) is False)
-check("bot KHÁC đếm riêng",
-      chatbot_runtime._qua_han_muc("b2", "kh1", 3) is False)
-# 0.84.6: trong NHÓM khoá theo người. Trước đó cả nhóm chung một hạn mức, nên người mới hỏi lần đầu cũng
-# nhận "nhắn hơi nhanh" chỉ vì người khác trong nhóm đã gọi bot đủ số lần.
-chatbot_runtime._HITS.clear()
-for _ in range(3):
-    chatbot_runtime._qua_han_muc("b1", "-nhom1", 3, "nguoiA")
-check("trong nhóm: người A hết hạn mức thì A bị chặn",
-      chatbot_runtime._qua_han_muc("b1", "-nhom1", 3, "nguoiA") is True)
-check("CANARY: nhưng người B cùng nhóm, mới hỏi lần đầu, KHÔNG bị chặn",
-      chatbot_runtime._qua_han_muc("b1", "-nhom1", 3, "nguoiB") is False)
-check("cùng người A ở nhóm khác thì đếm riêng",
-      chatbot_runtime._qua_han_muc("b1", "-nhom2", 3, "nguoiA") is False)
+# Chủ gỡ 2026-10-07. Trước đó người thứ 21 trong giờ nhận "Anh chị nhắn hơi nhanh" thay vì câu trả lời.
+# Phép thử thật: một người nhắn 25 câu liền, cả 25 câu phải tới bộ não. Trần khi bot TỰ lên tiếng trong
+# nhóm (chatbot_tu_dong) là rào khác và vẫn giữ.
+import asyncio  # noqa: E402
+
+_toi_nao = []
+
+
+async def _nao_gia(text, meta=None, progress=None, channel=None, bot=None):
+    _toi_nao.append(text)
+    return {"text": "dạ", "files": []}
+
+chatbot_runtime.wire(answer=_nao_gia, brain_root=lambda b: "/tmp/khong-dung",
+                     read_agent=lambda b, s: ({"name": "Hoa"}, ""))
+_bid_nhanh, _ = chatbot_store.create_bot({"name": "Bot nhanh", "agent_slug": "cskh", "brain": "b",
+                                          "token": "1:y"})
+_fn_nhanh = chatbot_runtime._make_answer_fn(_bid_nhanh)
+_ra_nhanh = [asyncio.run(_fn_nhanh(f"câu {i}", {"chat_id": "kh1", "chat_type": "private", "user_id": "kh1"}))
+             for i in range(25)]
+check("CANARY: 25 câu liền của một người đều tới bộ não", len(_toi_nao) == 25, )
+check("không câu nào nhận 'nhắn hơi nhanh'",
+      not any("nhắn hơi nhanh" in str((r or {}).get("text")) for r in _ra_nhanh))
+_SRC_RT = (SERVER / "chatbot_runtime.py").read_text(encoding="utf-8")
+check("mã chặn theo giờ đã gỡ hẳn", "_qua_han_muc" not in _SRC_RT and "nhắn hơi nhanh" not in _SRC_RT)
 
 
 # ============================================================

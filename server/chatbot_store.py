@@ -82,7 +82,6 @@ REPLY_WHEN = ("mention", "always", "auto")
 AUDIENCE = ("all", "nhom", "chon")
 AUDIENCE_DEFAULT = "nhom"
 AUDIENCE_HEP_NHAT = "chon"
-RATE_MIN, RATE_MAX, RATE_DEFAULT = 1, 200, 20
 
 # Bot lấy câu trả lời từ đâu khi tài liệu không phủ được câu hỏi.
 #
@@ -332,14 +331,6 @@ def _clean_ngon_ngu(v: Any) -> str:
     if s_ in ("", "auto"):
         return "auto"
     return lang_registry.chuan_hoa(s_) or "auto"
-
-
-def _clean_rate(v: Any) -> int:
-    try:
-        n = int(v)
-    except (TypeError, ValueError):
-        return RATE_DEFAULT
-    return max(RATE_MIN, min(n, RATE_MAX))
 
 
 def _co_token(b: dict) -> bool:
@@ -612,7 +603,6 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "muc_quyen": _clean_muc(data.get("muc_quyen")) or MUC_QUYEN_DEFAULT,
             "ngon_ngu": _clean_ngon_ngu(data.get("ngon_ngu")),
             "handoff_to": str(data.get("handoff_to") or "").strip(),
-            "rate_limit": _clean_rate(data.get("rate_limit")),
             "created_at": _now(),
             "updated_at": _now(),
         }
@@ -641,7 +631,9 @@ def _nhan_brain_cho_tk(bot: dict) -> None:
 
 # Trường giao diện được phép sửa. Danh sách TRẮNG chứ không phải "nhận hết trừ vài cái":
 # thêm trường mới vào bản ghi mà quên loại khỏi danh sách đen là mở một đường ghi không ai ngờ.
-_PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to", "rate_limit",
+# `rate_limit` (trần câu trả lời mỗi người mỗi giờ) bị gỡ ở 0.85.4: bản ghi cũ còn khoá đó thì cứ để nguyên,
+# không ai đọc nó nữa, và patch gửi khoá đó tới thì bị bỏ qua như mọi khoá lạ.
+_PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
@@ -719,8 +711,6 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                     b["ngon_ngu"] = _clean_ngon_ngu(v)
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()
-                elif k == "rate_limit":
-                    b["rate_limit"] = _clean_rate(v)
                 elif k == "agent_slug":
                     # Đã kiểm ở đầu hàm, tới đây chắc chắn hợp lệ.
                     b.setdefault("agent", {})["slug"] = str(v).strip()

@@ -526,9 +526,11 @@ Một chỗ vẫn cố ý nói thẳng: khi có người gọi bot trong **nhóm
 
 ## Giới hạn tần suất
 
-Mỗi người được bot trả lời tối đa **20 câu trong một giờ**. Trong nhóm, hạn mức này tính riêng từng người (từ 0.84.6), nên người mới hỏi không bị vạ lây vì người khác trong nhóm đã hỏi nhiều. Vượt thì bot lịch sự xin trả lời lại sau; lượt bot tự nói (chế độ Tự đánh giá) và sự kiện người mới vào nhóm thì bot im thay vì nói câu đó.
+Từ 0.85.4 **không còn giới hạn số câu bot trả lời mỗi người**. Ai nhắn riêng hay gọi tên bot đều được trả lời, bao nhiêu câu cũng được. (Trước đó mỗi người tối đa 20 câu một giờ, quá thì bot xin trả lời lại sau.)
 
-Con số này hiện cố định, trang Chatbot không có ô chỉnh.
+Giới hạn duy nhất còn lại là lúc bot **tự lên tiếng** trong nhóm khi không ai gọi (chế độ Tự đánh giá, xem mục ở trên): tối đa 8 lần mỗi nhóm và 3 lần mỗi người mỗi giờ, để bot không thành máy phát thanh. Lượt được gọi tên không bị giới hạn này chặn.
+
+Không còn giới hạn nghĩa là một người nhắn liên tục sẽ tốn lượt dùng model của bạn liên tục. Thấy bất thường thì bấm **Tiếp quản** cuộc chat đó ở trang Hội thoại, hoặc thu hẹp mục **Bot trả lời ai**.
 
 Cần thiết vì một người rảnh trong nhóm đủ đốt hết quota model của bạn trong một buổi chiều, và bạn chỉ biết khi nhìn hoá đơn.
 

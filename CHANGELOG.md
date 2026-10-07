@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.85.4] - 2026-10-07
 ### Cải thiện
-- Bỏ giới hạn 20 câu mỗi người mỗi giờ của bot.
+- **Bot không còn giới hạn 20 câu mỗi người mỗi giờ.** Ai nhắn riêng hay gọi tên bot đều được trả lời, không còn câu "Anh chị nhắn hơi nhanh".
+- Giới hạn lúc bot tự lên tiếng trong nhóm khi không ai gọi (chế độ Tự đánh giá) vẫn giữ, để bot không nói tràn lan. Không còn trần thì một người nhắn liên tục sẽ tốn lượt dùng model liên tục; thấy bất thường thì bấm Tiếp quản cuộc chat đó.
 
 ## [0.85.3] - 2026-10-07
 ### Sửa lỗi

@@ -437,9 +437,11 @@ One place still deliberately speaks plainly: when someone calls the bot in **a g
 
 ## Rate limiting
 
-The bot answers each person at most **20 times per hour**. In a group the limit counts per person (since 0.84.6), so someone asking for the first time is not blocked because others in the group asked a lot. Over the limit the bot politely asks to answer later; for turns the bot starts on its own (auto mode) and for new-member events it stays silent instead.
+Since 0.85.4 there is **no limit on how many times the bot answers each person**. Anyone who messages the bot directly or calls it by name gets an answer, however many times. (Before, each person got at most 20 answers per hour, after which the bot asked to answer later.)
 
-The number is fixed for now; the Chatbots page has no field to change it.
+The only limit left is when the bot **speaks up on its own** in a group nobody called it in (auto mode, see above): at most 8 times per group and 3 times per person per hour, so the bot does not become a broadcaster. Turns where it is called by name are not held back by this.
+
+No limit means one person messaging non-stop keeps spending your model usage. If something looks off, click **Take over** for that chat on the Conversations page, or narrow **Who the bot answers**.
 
 This is necessary because one bored person in a group can burn your whole model quota in an afternoon, and you only find out from the bill.
 
