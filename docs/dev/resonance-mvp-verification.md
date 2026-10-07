@@ -575,17 +575,36 @@ Vì sao không chỉ phân tích khối `JAVIS_RESONANCE` trong các tin ứng v
 5. **Không lặp tác động ngoài.** Đầu ra phép thử chỉ ghi trong vùng làm việc (`outputs/<mục tiêu>/trials/<phép thử>/`), không đăng vào brain. Bằng chứng gắn loại `trial_output`, nên không bao giờ được tính là sản phẩm của mục tiêu (evaluator của mục tiêu chỉ đọc `action_output`).
 6. **Host chấm bằng code** (`_grade`): mọi tiêu chí artifact_contract đã ghim cộng đáp án của tình huống; lời tự khai "đã đạt" của đầu ra không có giá trị. Tình huống chỉ người dùng chấm được (`expect.evaluator = human_confirmation`) không chạy, ghi unknown.
 7. **Kết luận hẹp, có lợi cho cách làm hiện tại** (`_trial_verdict`): ứng viên tụt ở bất kỳ tình huống nào so được thì `rejected / regression`; còn tình huống unknown thì `inconclusive / unknown` (unknown không bao giờ là thắng); hơn ở ít nhất một tình huống tập thử và không kém ở đâu thì `eligible`; còn lại `rejected / no_improvement`. Chi phí CHƯA là tiêu chí thắng (xem Giới hạn).
-8. **Can thiệp và đổi cách hiểu có hiệu lực giữa chừng.** Phép thử giữ khoá mục tiêu suốt lúc chạy (không chạy chồng với `advance`); trước mỗi lượt kiểm lại: revision đổi thì dừng, `inconclusive / goal_reframed`; người dùng tạm dừng, huỷ hay tắt Resonance thì dừng, `inconclusive / stopped`. Kết quả cũ giữ nguyên phạm vi.
-9. **Áp dụng trong quyền đã có.** Chỉ `eligible` mới áp dụng, qua `GoalStore.apply_method`: kho đòi phép thử eligible chưa áp dụng của đúng revision, đúng cặp cách làm, và cách làm hiện tại vẫn là baseline (CAS). Agent không có đường nào khác để đổi cách làm. Ref cũ được giữ; người dùng quay lại bằng lệnh `revert_method` (chỉ owner, qua `POST /goals/{id}/commands`).
-10. **Phạm vi áp dụng theo revision** (`effective_method`): cách làm đã thắng chỉ dùng cho revision đã được kiểm; mục tiêu sang revision mới thì quay về cách làm trước đó cho tới khi được so lại trên revision mới (spec 11.1).
+8. **Can thiệp và đổi cách hiểu có hiệu lực giữa chừng.** Phép thử giữ khoá mục tiêu suốt lúc chạy (không chạy chồng với `advance`). Cổng `_trial_gate` dùng CÙNG điều kiện cho phép thực thi với `advance` (chốt guard cũ, rồi `_gate`: active, công tắc, pause, "Chưa đúng ý", guard nhảy hay chưa xác định, rồi revision) và được kiểm trước khi giữ hạn mức, trước mỗi lượt, và sau lượt cuối trước khi kết luận. Revision đổi thì `inconclusive / goal_reframed`; mọi chặn khác thì `inconclusive / stopped`. Kết quả cũ giữ nguyên phạm vi.
+9. **Áp dụng trong quyền đã có, trong cùng giao dịch chốt.** Chỉ `eligible` mới áp dụng, và việc đổi cách làm diễn ra TRONG giao dịch `finish_experiment`, sau khi kho kiểm lại: còn active, đúng revision, không tạm dừng, không có chốt chặn (guard, guard chưa xác định, Chưa đúng ý, công tắc tắt), phản hồi cách hiểu mới nhất của revision không phải "Chưa đúng ý", cách làm hiện tại vẫn là baseline. Bị chặn thì phép thử chốt `inconclusive / stopped`, không để lại phép thử eligible chưa áp dụng. `GoalStore.apply_method` dùng cùng phần kiểm. Agent không có đường nào khác để đổi cách làm. Người dùng quay lại bằng `revert_method` (chỉ owner, qua `POST /goals/{id}/commands`).
+10. **Phạm vi áp dụng theo revision** (`effective_method`): cách làm đã học chỉ chạy trên ĐÚNG revision nó được kiểm; revision chưa kiểm thì dùng cách làm MẶC ĐỊNH, không rơi về ref trước đó (ref trước có thể cũng chỉ thắng ở revision cũ). Ref quay lại (`method_prev_ref`) là đích của lệnh quay lại, không phải quyền chạy; nó mang theo đúng revision đã kiểm của nó (`method_prev_revision`), và quay lại không gán revision hiện tại cho ref cũ.
 11. **Mọi kết quả được lưu**, kể cả thua: bảng `experiments` giữ revision, cặp cách làm, kết luận, lý do, từng tình huống hai bên, usage theo bên, bằng chứng và phạm vi; sự kiện `experiment_started`, `experiment_finished`, `method_changed`, `method_reverted`. Thẻ mục tiêu (`goal_view`) có `method` và ba phép thử gần nhất.
 12. **Không thử chỉ vì đến giờ.** Không đường nào trong scheduler gọi `compare_methods`. Gián đoạn giữa phép thử được `_reconcile` chốt: lượt dở thành failed (không chấm, không chạy lại), phép thử thành `inconclusive / interrupted`, trả lại lượt chưa bắt đầu.
 
 ### Kết quả với engine giả
 
-`tests/python/test_resonance_mvp_trial.py`, 44 kiểm, đủ năm test Task M5 đặt tên: `test_same_goal_and_rubric`, `test_holdout_not_visible`, `test_unknown_not_win`, `test_failed_candidate_not_applied`, `test_one_change_within_budget`. Thêm: cách làm lạ, ứng viên trùng baseline, thiếu tập giữ riêng, Resonance tắt; đầu ra tự khai đạt; đổi cách hiểu giữa chừng; tình huống chỉ người chấm; ngang nhau; phần khám phá cộng dồn; scheduler không tạo phép thử; khoá mục tiêu; engine bị chặn; áp dụng, phạm vi theo revision, quay lại chỉ owner; gián đoạn và đối soát. Bộ tình huống ở `tests/fixtures/resonance/mvp_cases.json` (biên bản họp thành danh sách việc, lĩnh vực trung lập).
+`tests/python/test_resonance_mvp_trial.py`, 44 kiểm lúc giao review lần đầu (58 sau vòng sửa), đủ năm test Task M5 đặt tên: `test_same_goal_and_rubric`, `test_holdout_not_visible`, `test_unknown_not_win`, `test_failed_candidate_not_applied`, `test_one_change_within_budget`. Thêm: cách làm lạ, ứng viên trùng baseline, thiếu tập giữ riêng, Resonance tắt; đầu ra tự khai đạt; đổi cách hiểu giữa chừng; tình huống chỉ người chấm; ngang nhau; phần khám phá cộng dồn; scheduler không tạo phép thử; khoá mục tiêu; engine bị chặn; áp dụng, phạm vi theo revision, quay lại chỉ owner; gián đoạn và đối soát. Bộ tình huống ở `tests/fixtures/resonance/mvp_cases.json` (biên bản họp thành danh sách việc, lĩnh vực trung lập).
 
 Phép thử đột biến (12): bỏ luật tụt hạng, cho unknown thắng, lộ đáp án vào prompt, không dừng khi đổi revision, bỏ trần khám phá, áp dụng không cần phép thử, cách làm không giới hạn theo revision, không chốt phép thử bị ngắt, không giữ khoá mục tiêu, không trả lượt khi engine bị chặn, chạy cả tình huống chỉ người chấm, công nhận lời tự khai: tất cả làm test đỏ. Lần đầu, đột biến "không dừng khi đổi revision" lọt vì kiểm cuối phép thử cũng bắt được; đã thêm kiểm riêng cho tác dụng của kiểm giữa chừng (dừng sau lượt đang chạy, trả lại lượt chưa chạy).
+
+### Sửa theo review PR #579 vòng 1
+
+Review chưa đạt với 3 lỗi P1, tái hiện được bằng engine giả và SQLite thật. Đồng ý cả ba.
+
+1. **P1-1, phép thử bỏ qua "Chưa đúng ý" và guard đã nhảy.** Đầu hàm chỉ kiểm active, pause, công tắc và revision. Nay dùng `_trial_gate` (mục 8 ở trên) trước khi giữ hạn mức và trước mỗi lượt; chặn thì không gọi thêm engine, trả lại lượt chưa bắt đầu. Chốt guard cũ được giữ: guard đã nhảy chặn phép thử kể cả khi file bảo vệ đã có lại.
+2. **P1-2, dừng trong lượt cuối vẫn áp dụng.** Lần kiểm cuối nằm trước lượt cuối; sau lượt cuối chỉ kiểm revision rồi áp dụng, và lớp kho không kiểm pause. Nay cổng chạy lại sau lượt cuối, và việc đổi cách làm diễn ra trong giao dịch chốt với phần kiểm SQLite (mục 9). Công tắc brain là file nên được kiểm ở cổng ngay trước giao dịch; khe giữa hai bước đó còn lại (xem Giới hạn).
+3. **P1-3, chuỗi cách làm vượt phạm vi revision.** Sau hai lần đổi ở revision 1, revision 2 rơi về ref trước (cũng chỉ thắng ở revision 1). Nay revision chưa kiểm dùng cách làm mặc định; ref quay lại giữ revision đã kiểm của riêng nó (mục 10).
+
+**Test hồi quy** (`test_resonance_mvp_trial.py`, mục "Review M5 vòng 1", 14 kiểm mới, tổng 58): Chưa đúng ý trước phép thử; guard đã chốt; Chưa đúng ý trong lượt đầu (dừng sau 1 lượt, trả 3); guard nhảy giữa phép thử; tạm dừng, tắt công tắc và Chưa đúng ý ngay TRONG lượt cuối (đủ 4 lượt đã chạy nhưng không áp dụng, phép thử lưu inconclusive); tầng kho: chốt kèm áp dụng khi đang tạm dừng, `apply_method` khi cách hiểu bị từ chối, và khi cờ chặn bị gỡ bằng đường khác thì sự kiện "Chưa đúng ý" vẫn chặn; chuỗi hai lần đổi cách làm rồi sang revision 2 (dùng mặc định, prompt thật không có đoạn chữ của cách làm nào); quay lại ở revision 2 và ở revision 1.
+
+**Script của người review:**
+- Chạy nguyên văn: 3 ca PASS đầu qua, dừng ở ca REPRO đầu tiên (phép thử nay bị từ chối). Không lấy việc assertion REPRO hỏng làm bằng chứng.
+- `exports/reviews/PR-579-M5-round2-expected-checks.py`: script đó với các ca PASS giữ nguyên văn và mỗi REPRO đổi thành kỳ vọng đúng, kiểm trạng thái cuối (số lượt gọi, hạn mức, cách làm, phép thử đã lưu). Kết quả: 10/10 PASS. Chạy cùng bản này trên `abc4f3fe` thì đỏ ở ca REPRO đầu tiên.
+- File test mới chạy trên mã `abc4f3fe` cũng đỏ ở mọi ca P1-1 và P1-2 (phần P1-3 không chạy tới vì hàm kho cũ thiếu tham số).
+
+**Đột biến** (8, trên phần sửa): rơi về ref trước khi revision chưa kiểm, quay lại gán revision hiện tại cho ref cũ, bỏ chốt guard cũ trong cổng, không kiểm lại trước khi áp dụng, kho không kiểm pause, kho không kiểm "Chưa đúng ý", không kiểm cổng trước mỗi lượt, không kiểm cổng lúc bắt đầu: cả 8 làm test đỏ. Lần đầu, đột biến "kho không kiểm Chưa đúng ý" lọt vì M4 đặt cờ `fit_rejected` cùng giao dịch nên kiểm theo cờ đã bắt trước; đã thêm ca gỡ cờ bằng `clear_block` để giữ lớp kiểm theo sự kiện.
+
+Không chạy lại pilot model (đúng yêu cầu): phần sửa nằm ở cổng, giao dịch và phạm vi cách làm, kiểm được tất định. Pilot `6d54e859` không áp dụng cách làm nào nên kết luận của nó không đổi theo luật mới.
 
 ### Pilot thật
 
@@ -610,8 +629,10 @@ Phép thử đột biến (12): bỏ luật tụt hạng, cho unknown thắng, l
 4. **Ba cách làm cố định.** Không có kho biến thể, không tạo biến thể mới; thêm cách làm là sửa code có review.
 5. **Thẻ mục tiêu chưa hiện cách làm và phép thử**: dữ liệu có trong `GET /goals/{id}` (`method`, `experiments`), giao diện chưa vẽ; lệnh `revert_method` có ở API, chưa có nút.
 6. **Một phép thử một mục tiêu một lúc** (khoá mục tiêu); phép thử lớn giữ khoá lâu, lượt làm việc của mục tiêu đó chờ.
-7. **Chưa có tự sửa code, nhóm, supervisor, metric chuỗi thời gian, undo tổng quát**: ngoài MVP, đúng kế hoạch.
-8. Các giới hạn từ M2 đến M4 vẫn còn.
+7. **Công tắc brain là file, ngoài giao dịch SQLite.** Cổng kiểm công tắc ngay trước giao dịch đổi cách làm; người dùng tắt đúng trong khe giữa hai bước đó thì cách làm vẫn đổi. Khe này ngắn (không có lượt gọi model nào ở giữa) và giống khe giữa kiểm hash và thay file đã ghi ở M3.
+8. **Cách làm đã học không theo sang revision mới.** Mỗi lần người dùng nói rõ thêm (revision mới), mục tiêu quay về cách làm mặc định cho tới khi được so lại; chưa có gì tự so lại.
+9. **Chưa có tự sửa code, nhóm, supervisor, metric chuỗi thời gian, undo tổng quát**: ngoài MVP, đúng kế hoạch.
+10. Các giới hạn từ M2 đến M4 vẫn còn.
 
 ### Đối chiếu điều kiện hoàn thành MVP
 
@@ -625,11 +646,11 @@ Phép thử đột biến (12): bỏ luật tụt hạng, cho unknown thắng, l
 
 ### Toàn bộ test
 
-| | Main sạch (`7d264236`) | Nhánh M5 (`1cc0395c`) |
-|---|---|---|
-| Python xanh | 387/403 | 399/414 |
-| File Python đỏ | 16 | 15 |
-| Đỏ mới so với main | | không có |
-| JS (`tests/run.py --js`) | | 177/177 |
+| | Main sạch (`7d264236`) | Nhánh M5 (`1cc0395c`) | Sau review vòng 1 (`3c214c65`) |
+|---|---|---|---|
+| Python xanh | 387/403 | 399/414 | 399/414 |
+| File Python đỏ | 16 | 15 | 15 |
+| Đỏ mới so với main | | không có | không có |
+| JS (`tests/run.py --js`) | | 177/177 | 177/177 |
 
 15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1. Hai file mới của M5 (`test_resonance_mvp_trial.py`, `test_resonance_mvp_trial_pilot.py` ở chế độ bỏ qua khi không đặt `JAVIS_RESONANCE_PILOT=1`) đều xanh.
