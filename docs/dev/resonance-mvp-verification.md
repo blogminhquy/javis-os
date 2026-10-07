@@ -532,6 +532,8 @@ Vì sao không chỉ phân tích khối `JAVIS_RESONANCE` trong các tin ứng v
 
 **Đột biến:** quay về dò chuỗi, bỏ ghi biên nhận, bỏ lọc `goal_id` khi tra biên nhận: cả ba làm test đỏ. Bỏ bước đối chiếu khối thẻ sau khi có biên nhận thì test không đỏ: đó là lớp phòng thủ thừa, vì biên nhận chỉ ghi được cùng tin mang đúng khối đó.
 
+**Canary:** lượt JS đầy đủ đầu tiên sau `e34390c2` đỏ `test_mic_khong_tu_gui.js` (176/177): test ràng nguyên văn lời gọi `append_message(sid, "assistant", clean)` trong 1400 ký tự đầu của `push_to_chat`, mà nhánh biên nhận đã đổi lời gọi và đẩy nó quá xa. Sửa ở `114f19a6`: phần đọc thẻ dời ra `_resonance_card`, giữ nguyên văn lời gọi thường; ý của canary (push_to_chat chỉ ghi vai assistant) không đổi.
+
 **Giới hạn:** biên nhận chỉ có cho tin lưu từ bản này trở đi; M4 chưa phát hành nên không có dữ liệu cũ cần chuyển. Người dùng xoá tin báo cáo thì biên nhận xoá theo (khoá ngoại `ON DELETE CASCADE`); chỉ ảnh hưởng dòng outbox còn treo trong khe crash, khi đó báo cáo được gửi lại một lần.
 
 ### Giới hạn và những gì chưa kiểm
@@ -547,11 +549,11 @@ Vì sao không chỉ phân tích khối `JAVIS_RESONANCE` trong các tin ứng v
 
 ### Toàn bộ test
 
-| | Main sạch (`7d264236`) | Nhánh M4 (`4ae62efa`) | Sau review vòng 1 (`39fda1be`) |
-|---|---|---|---|
-| Python xanh | 387/403 | 397/412 | 396/412 |
-| File Python đỏ | 16 | 15 | 16 |
-| Đỏ mới so với main | | không có | không có |
-| JS (`tests/run.py --js`) | | 177/177 (tại `7c9776c6`) | 177/177 |
+| | Main sạch (`7d264236`) | Nhánh M4 (`4ae62efa`) | Sau review vòng 1 (`39fda1be`) | Sau review vòng 2 (`114f19a6`) |
+|---|---|---|---|---|
+| Python xanh | 387/403 | 397/412 | 396/412 | 397/412 |
+| File Python đỏ | 16 | 15 | 16 | 15 |
+| Đỏ mới so với main | | không có | không có | không có |
+| JS (`tests/run.py --js`) | | 177/177 (tại `7c9776c6`) | 177/177 | 177/177 |
 
 15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1. Lượt sau review đỏ thêm `test_write_path_phase9.py` (ca `test_restart_marks_running_writes_unknown_without_rerunning`, đường ghi của write invocation, không chạm Resonance): chạy riêng 3 lần trên nhánh thì xanh 1, đỏ 2; chạy 3 lần trên main sạch `7d264236` cũng xanh 1, đỏ 2. Là test chập chờn có sẵn.
