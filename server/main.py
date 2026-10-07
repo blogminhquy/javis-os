@@ -902,12 +902,18 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
     )
     # Resonance (M2): chỉ brain đã bật mới có dòng này và mới thấy tool javis_goal. CLAUDE.md đã hết ngân sách
     # ký tự, và brain chưa bật thì không được dài thêm chữ nào.
+    # Đường tìm tool khác nhau theo engine: Claude Code nhận plugin qua MCP in-process "javis-plugins"
+    # (hub bị báo bỏ nhóm plugin, X-Javis-No-Plugins), nên javis_search_tools của hub KHÔNG BAO GIỜ trả
+    # về javis_goal ở đó; tool nằm sau ToolSearch của chính Claude Code. Dòng cũ chỉ nêu javis_search_tools,
+    # tức chỉ sai đúng engine dùng nhiều nhất (pilot lần 2, 07/10/2026).
     if resonance.enabled_for(root):
         base += (
-            "\n- MỤC TIÊU (Hệ thống cộng hưởng đang bật): người dùng giao việc cần theo đuổi SAU lượt chat "
-            "(duy trì, theo dõi, chờ sự kiện, làm tới khi đạt) thì gọi tool javis_goal op=create; người dùng "
-            "bổ sung ý cho mục tiêu đang mở thì op=update. Chưa thấy tool thì tìm bằng javis_search_tools. "
-            "Câu hỏi, tư vấn, việc xong ngay trong lượt: KHÔNG lập mục tiêu."
+            "\n- MỤC TIÊU (Hệ thống cộng hưởng đang bật): việc xong ngay trong lượt thì làm luôn; việc nền một "
+            "lần, xong là hết trách nhiệm thì javis_task; nhắc giờ cố định thì javis_schedule. Người dùng giao "
+            "trách nhiệm theo đuổi kết quả SAU lượt chat (làm, tự kiểm, sửa theo phản hồi, duy trì, chờ sự kiện, "
+            "giữ việc mở tới khi đạt) thì gọi tool javis_goal op=create; bổ sung ý cho mục tiêu đang mở thì "
+            "op=update. Tool chưa nạp thì tìm: Claude Code dùng ToolSearch (mcp__javis-plugins__javis_goal), "
+            "engine khác dùng javis_search_tools. Câu hỏi, tư vấn: KHÔNG lập mục tiêu."
         )
     # Quét cây skill MỘT lần cho cả hai khối dưới. Trước đây _javis_capability_summary
     # gọi list_skills còn _skill_router_block gọi list_enabled_meta (vốn chỉ là list_skills

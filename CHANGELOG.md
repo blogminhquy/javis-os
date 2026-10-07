@@ -9,6 +9,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.85.2] - 2026-10-07
 ### Cải thiện
 - **Hệ thống cộng hưởng: thử một cách làm mới trước khi đổi.** Javis so cách làm hiện tại với một cách làm khác trên cùng bộ tình huống và cùng thước đo, chỉ đổi khi cách mới thắng rõ ràng, chưa đủ bằng chứng thì giữ cách cũ. Tính năng tắt sẵn, chưa bật cho ai.
+- **Giao việc chạy nền nói rõ ranh giới hơn.** Việc chạy một lần rồi xong thì vào trang Việc; việc cần làm, kiểm và sửa theo góp ý của anh qua nhiều lượt thì Javis giữ thành mục tiêu (khi Hệ thống cộng hưởng bật). Javis trên Claude Code cũng được chỉ đúng chỗ tìm công cụ mục tiêu.
 
 ## [0.84.9] - 2026-10-07
 ### Cải thiện

@@ -155,10 +155,11 @@ async def javis_goal(args, ctx):
 
 
 _DESC = (
-    "Lập hoặc cập nhật MỤC TIÊU bền (Hệ thống cộng hưởng). op=create CHỈ khi người dùng giao một việc cần "
-    "theo đuổi SAU lượt chat này (duy trì, theo dõi, chờ sự kiện, làm tới khi đạt) và nói được cách nhận biết "
-    "xong (criteria) cùng chân trời (horizon). KHÔNG gọi cho: câu hỏi, tư vấn, lập kế hoạch, việc làm xong ngay "
-    "trong lượt, hay kế hoạch do chính bạn đề xuất. Việc nền một lần: javis_task. Nhắc giờ cố định: "
+    "Lập hoặc cập nhật MỤC TIÊU bền (Hệ thống cộng hưởng). op=create CHỈ khi người dùng giao trách nhiệm theo "
+    "đuổi kết quả SAU lượt chat này (làm, tự kiểm, sửa theo phản hồi, duy trì, theo dõi, chờ sự kiện, giữ việc "
+    "mở tới khi đạt) và nói được cách nhận biết xong (criteria) cùng chân trời (horizon). KHÔNG gọi cho: câu "
+    "hỏi, tư vấn, lập kế hoạch, việc làm xong ngay trong lượt, hay kế hoạch do chính bạn đề xuất. Việc nền một "
+    "lần, xong là hết trách nhiệm: javis_task. Nhắc giờ cố định: "
     "javis_schedule. relevant_quote phải trích NGUYÊN VĂN lời người dùng. Không bịa hạn chót hay chỉ tiêu: "
     "người dùng không nêu hạn thì horizon.kind=review (mốc xem lại nội bộ). Người dùng nói chưa biết muốn gì "
     "thì user_unsure=true, stage=discovery. Người dùng bổ sung ý cho mục tiêu đang mở: op=update với goal_id "

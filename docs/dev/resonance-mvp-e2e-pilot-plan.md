@@ -172,3 +172,68 @@ Trả lời ba câu hỏi của review vòng 1: **giữ luật định tuyến h
 3. Hai lần cho thấy một khó khăn thiết kế, không chỉ của kịch bản: với bộ thực thi việc nền chỉ chữ, không đọc được dữ liệu, rất khó dựng một yêu cầu tự nhiên vừa cần làm sau lượt, vừa làm được bằng Resonance MVP, mà lại không thuộc Kanban (việc nền một lần) hay `javis_schedule` (giờ cố định).
 
 **Điều kiện MVP thứ nhất vẫn CHƯA đạt. Không chạy thêm.** Hướng tiếp theo cần người dùng quyết (xem báo cáo gửi người dùng).
+
+## Sau lần chạy 2: chốt ranh giới và kiểm đường công cụ (không gọi model)
+
+Làm theo đánh giá `PR-579-pilot-2-assessment.md`: chưa chạy thêm, chưa đổi lời giao để ép bộ não lập mục tiêu. Mọi kiểm ở phần này chạy bằng mã và brain giả.
+
+### Ranh giới định tuyến (đề xuất, chờ review)
+
+| Loại | Khi nào | Đường | Ví dụ |
+|---|---|---|---|
+| Làm ngay | Làm xong và trả kết quả trong lượt | Trả lời, có thể ghi file | "Tóm tắt ghi chú này thành ba ý"; "Lập bảng việc từ tin dưới, lưu vào Inbox" |
+| Việc nền một lần | Chạy một lần ở nền, xong là hết trách nhiệm | `javis_task` (Kanban) | "Tối nay dịch hết 40 file trong thư mục này, xong báo anh" |
+| Theo đuổi kết quả | Giữ trách nhiệm qua nhiều vòng làm, tự kiểm, sửa theo phản hồi; giữ việc mở tới khi đạt. Lúc chờ phản hồi không gọi model | `javis_goal` (Resonance) | "Lo giúp anh bản hướng dẫn này tới khi anh thấy dùng được, anh góp ý dần" |
+| Nhắc giờ cố định | Đúng một việc vào một thời điểm | `javis_schedule` | "8 giờ sáng mai nhắc anh gọi nhà cung cấp" |
+
+Thêm hai ca không lập gì mới: **nối mục tiêu đang mở** (người dùng góp ý cho việc đang theo đuổi: `javis_goal op=update` trên đúng mục tiêu) và **chat thường** (câu hỏi, tư vấn, lập kế hoạch: chỉ trả lời).
+
+Không phải yêu cầu nào có chữ "duy trì" hay "nhớ lần sau" cũng là loại 3. Lời giao lần 2 ("khi mình báo thêm việc thì cập nhật vào") nằm ở vùng giao: mỗi lần cập nhật là phản ứng với một tin mới, làm ngay trong lượt đó vẫn hợp lý.
+
+### Kết quả kiểm đường công cụ trên engine Claude Code
+
+Script `exports/reviews/PR-579-tool-path-probe.py` (ngoài repo), sau đó thành test `tests/python/test_resonance_tool_path.py`:
+
+1. **Đăng ký đúng brain: đạt.** `javis_goal` chỉ có trong `plugins_host.plugin_tools` khi brain bật Resonance; brain tắt hoặc không rõ brain thì không có. `javis_task` luôn có.
+2. **Danh sách tới engine: đạt.** Engine Claude nhận plugin qua MCP in-process `javis-plugins` (32 tool, có `javis_goal`). Đường chat đặt `javis_vault` trong `main._apply_mcp`; thiếu nó thì `javis_goal` không có mặt.
+3. **Đường tìm: SAI trên Claude Code.** Engine Claude báo hub bỏ nhóm plugin (`X-Javis-No-Plugins: 1`) để khỏi trùng tool. Vì vậy `javis_search_tools` của hub **không bao giờ** trả về `javis_goal` trên Claude Code. Với engine API hay Codex, hub có nhóm plugin nên `javis_search_tools` tìm ra. Dòng gợi ý cũ trong prompt chỉ nêu `javis_search_tools`, tức chỉ sai đúng engine đang dùng.
+4. **Nguồn tin người dùng: đạt.** `luot_dang_chay` trả đúng phiên, id tin và lời người dùng của lượt đang chạy; hết lượt thì không còn.
+
+**Chưa kiểm được khi không gọi model:** Claude Code có hoãn nạp tool `mcp__javis-plugins__*` sau ToolSearch của nó không. Bằng chứng gián tiếp duy nhất là lần chạy 1, khi bộ não tìm thấy `mcp__javis-plugins__javis_task` qua ToolSearch. Lần chạy 2 không tìm gì, nên không biết bộ não có thấy tên `javis_goal` trong danh sách hoãn hay không. Chỗ sai ở mục 3 có thật, nhưng **chưa chứng minh nó là nguyên nhân** của lần chạy 2.
+
+### Sửa tối thiểu
+
+- `server/main.py` (dòng gợi ý, chỉ khi brain bật Resonance): nêu đủ bốn loại theo bảng trên và chỉ đúng đường tìm cho từng engine: Claude Code dùng ToolSearch (`mcp__javis-plugins__javis_goal`), engine khác dùng `javis_search_tools`. Trần độ dài dòng gợi ý trong test nâng từ 450 lên 650 ký tự.
+- `system/plugins/javis-goal/plugin.py`: thêm "tự kiểm, sửa theo phản hồi, giữ việc mở tới khi đạt" vào điều kiện lập mục tiêu; ghi rõ "việc nền một lần, xong là hết trách nhiệm: javis_task".
+- `system/plugins/javis-task/plugin.py`: một câu ranh giới: việc Kanban chạy một lần; việc phải giữ mở qua nhiều vòng tới khi đạt thì dùng `javis_goal` nếu có. Câu này hiện ở **mọi brain**, kể cả brain chưa bật Resonance.
+
+Không thêm từ khoá nào nhắm vào lời giao của pilot. Test mới đỏ 4 kiểm trên mã cũ (prompt, ranh giới, hai mô tả), xanh trên mã mới. Không có bằng chứng sửa này đủ để bộ não lập mục tiêu: việc đó chỉ lần chạy thật trả lời được.
+
+### Đề xuất lần chạy 3 (CHƯA chạy, chờ review rồi chờ người dùng duyệt)
+
+**Kịch bản: hoàn thiện một bản hướng dẫn qua phản hồi** (mục tiêu kiểu `achieve`, sản phẩm chữ). Mọi dữ liệu nằm trong tin; không có tên tool, API hay schema trong lời người dùng. Lời giao tự nhiên, cố ý không chép nguyên văn cụm từ của dòng gợi ý:
+
+> Anh cần một bản hướng dẫn nhận hàng ở kho cho nhân viên mới, viết từ mấy ghi chú dưới đây. Em lo việc này giúp anh tới khi anh thấy dùng được thì thôi: làm bản đầu, tự rà xem đủ những gì anh dặn chưa rồi báo anh; anh sẽ góp ý dần, em sửa tiếp theo góp ý. Lưu ở `Docs/huong-dan-nhan-hang.md`. Anh dặn: viết cho người chưa làm bao giờ, các bước đánh số, có mục "Lỗi hay gặp".
+> Ghi chú: (5 đến 6 dòng cố định về kiểm số lượng, đối chiếu phiếu giao, hàng hỏng, ký nhận, nhập vào sổ)
+
+Tin góp ý (lượt 2, sau khi dựng lại server): "Bước đối chiếu phiếu giao khó hiểu quá, em thêm một ví dụ cụ thể, và thêm bước chụp ảnh hàng hỏng trước khi ký."
+
+**Hợp đồng nghiệm thu:**
+
+| Bước | Lượt model | Đạt khi | Dừng khi |
+|---|---|---|---|
+| S1 lượt chat 1 | 1 Opus | Đúng **một** mục tiêu mới, `mode=achieve`, có tiêu chí xác nhận của người dùng; trace ghi tool được gọi và mọi lần tìm tool | Không lập mục tiêu (ghi trace, lưu file nếu bộ não đã viết, rồi dừng); lập hai mục tiêu; giao Kanban |
+| S2 việc nền: bản đầu | tối đa 1 Sonnet | File đúng đường dẫn, hash khớp bản đăng, thẻ báo về đúng phiên có biên nhận; sau đó mục tiêu chờ người dùng, **không gọi thêm model** trong lúc chờ | Lỗi kỹ thuật, vượt trần |
+| S3 dựng lại server | 0 | Mục tiêu, revision, bản đăng và thẻ còn nguyên | Mất trạng thái |
+| S4 lượt chat 2 (góp ý) | 1 Opus | `op=update` trên **cùng** mục tiêu, revision tăng 1, góp ý vào chuỗi ý định | Tạo mục tiêu mới; sửa ngay trong lượt mà không nối mục tiêu (ghi nhận, dừng); host trả "không có thay đổi nào được áp dụng" |
+| S5 việc nền: bản sửa | tối đa 1 Sonnet | Bản mới có hash khác, sửa trên bản trước, báo về đúng phiên | Lỗi kỹ thuật, vượt trần |
+| S6 xác nhận | 0 | Bấm "Đạt yêu cầu" qua API (thao tác **mô phỏng** trong sandbox, ghi rõ như vậy) thì mục tiêu đạt | |
+
+**Hạn mức: tối đa 4 lượt engine cấp host** (2 Opus cho lượt chat, 2 Sonnet cho việc nền), chặn riêng từng bước: bộ chạy chỉ gửi đúng 2 tin chat; `JAVIS_RESONANCE_CALL_CEILING=2` chặn lượt việc nền thứ ba trước khi gọi, giữ qua lần dựng lại. Không thử lại, không nâng trần, không chuyển API trả phí. Tool javis_goal lập mục tiêu không gọi model (framer `CallBudget(0)`); bộ thử cách làm M5 không có đường gọi trong sản phẩm nên không chạy.
+
+**Rủi ro biết trước, ghi để review:**
+- Viết bản đầu ngay trong lượt rồi chờ góp ý ở tin sau cũng là một cách làm hợp lý. Nếu bộ não chọn vậy thì đó là kết quả "không định tuyến", không mặc định là lỗi.
+- Góp ý chỉ nối được vào mục tiêu khi `op=update` đổi ít nhất một trường (ràng buộc, tiêu chí, cách hiểu). Gọi update mà không đổi gì thì host không ghi ý định mới và việc nền không chạy lại. Bước S4 dừng ở ca này và ghi nhận.
+- Dòng gợi ý mới có định nghĩa loại 3 gần với lời giao, nên một lần đạt chỉ chứng minh đường này đi được khi ranh giới được nêu rõ, chưa chứng minh định tuyến ổn định.
+
+**Bộ chạy cần đổi trước khi chạy** (làm sau khi kịch bản được review): hợp đồng `achieve` thay cho `maintain`; lưu file và hash cả khi dừng sớm; ghi mọi lần gọi ToolSearch hoặc `javis_search_tools` cùng kết quả của chúng; ghi danh sách tool mà Claude Code báo trong tin `init`, nếu SDK cho đọc mà không phải đổi mã sản phẩm.

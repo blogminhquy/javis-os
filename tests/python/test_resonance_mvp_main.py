@@ -45,7 +45,8 @@ check("tắt: system prompt không nhắc javis_goal", "javis_goal" not in p_off
 (Path(BRAIN) / "Javis" / "resonance.json").write_text('{"enabled": true}', encoding="utf-8")
 p_on = main.build_system_prompt(BRAIN)
 check("bật: system prompt có dòng gợi ý javis_goal", "javis_goal op=create" in p_on)
-check("bật: dòng gợi ý ngắn (dưới 450 ký tự)", 0 < len(p_on) - len(p_off) < 450)
+# Trần nâng từ 450 lên 650 khi dòng gợi ý thêm ranh giới bốn loại việc và đường tìm tool theo engine.
+check("bật: dòng gợi ý ngắn (dưới 650 ký tự)", 0 < len(p_on) - len(p_off) < 650)
 
 t0 = time.time() - 1
 d = main._resonance_after_turn(SID, BRAIN, MID, t0, None)
