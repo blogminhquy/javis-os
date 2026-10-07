@@ -514,9 +514,25 @@ Review chưa đạt với 3 lỗi P1 và 2 lỗi P2. Đồng ý cả năm; mỗi
 2. **P1-2, khoá chống bấm trùng nuốt lần bấm mới.** Khoá cũ cố định theo mục tiêu, revision, nút, tiêu chí và bản sản phẩm, nên "Chưa đúng ý" lần hai sau "Đúng ý" bị server coi là trùng. Nay `requestFor` nhận `nonce` của lần bấm (`send()` sinh mới mỗi lần; không truyền thì tự sinh). Server giữ nguyên luật: cùng khoá là trùng, nên gửi lại đúng một request vẫn ghi một lần. Test cả hai thứ tự (Chưa đúng ý, Đúng ý, Chưa đúng ý và ngược lại).
 3. **P1-3, id guard trùng.** Id từng cấp theo `len(guards) + 1`, nên bỏ `gd1` rồi thêm guard mới sinh `gd2` thứ hai và nút Bỏ xoá cả hai. Nay khung lưu bộ đếm tăng dần `guard_seq` (trường mới của `GoalRecord`, đọc ở `_record`, mang qua `_prior_view`), id kế tiếp lớn hơn mọi id đã cấp; khung có id trùng thì không lưu. `drop_directive` gặp dữ liệu cũ có hai guard cùng id thì từ chối (400), không đoán và không xoá cả hai.
 4. **P2-1, tắt Resonance chặn lệnh dừng.** Nay xem thẻ, danh sách và các lệnh tạm dừng, huỷ, tiếp tục, bỏ chỉ dẫn chỉ đòi brain tồn tại (`_manage` trong `resonance_api.py`); phản hồi và `POST /goal-requests` vẫn đòi công tắc bật. Việc chạy tiếp vẫn bị công tắc chặn ở `_gate`, nên "Tiếp tục" lúc tắt chỉ bỏ tạm dừng, không gọi model.
-5. **P2-2, đối soát báo cáo chỉ nhìn 300 tin cuối.** `SessionStore.find_message_containing` tìm khoá báo cáo trên toàn bộ phiên bằng một truy vấn SQL (`instr`), không giới hạn độ sâu; `main._resonance_reported` dùng nó. Báo cáo đã lưu rồi có thêm 350 tin vẫn được nhận ra, nhịp đối soát không gửi lại.
+5. **P2-2, đối soát báo cáo chỉ nhìn 300 tin cuối.** Bản vòng 1 tìm chuỗi khoá trên toàn bộ phiên bằng SQL (`instr`); bản này bị review vòng 2 bác (xem dưới) và đã thay bằng biên nhận.
 
 Script của người review (`PR-575-M4-checks.py`) chạy từng ca độc lập trên bản sửa: 6/6 REPRO không còn tái hiện, 2/2 PASS vẫn qua. Phép thử đột biến: hoàn nguyên từng chỗ sửa (hash receipt, bỏ đòi lượt làm của revision, id theo độ dài, xoá mọi id trùng, công tắc chặn lệnh, không tìm thấy báo cáo) đều làm test đỏ.
+
+### Sửa theo review PR #575 vòng 2
+
+Review vòng 2 xác nhận năm lỗi vòng 1 đã sửa, và tìm ra một lỗi P2 mới do chính bản sửa P2-2 gây ra: chuỗi `"report": "outbox:<id>"` xuất hiện trong một tin assistant bất kỳ (lời giải thích trích JSON, nhật ký) bị coi là báo cáo đã gửi, nên `drain_outbox` đánh dấu dòng outbox đã giao mà không gửi gì.
+
+**Sửa:** bằng chứng "đã gửi" là biên nhận do host ghi, không phải nội dung tin. `push_to_chat` gặp thẻ mang khoá báo cáo thì ghi một dòng `report_receipts(session_id, report_key, goal_id, message_id)` trong CÙNG giao dịch SQLite với tin báo cáo (`SessionStore.append_message(..., report=...)`), nên không có trạng thái tin đã lưu mà thiếu biên nhận. `main._resonance_reported` chỉ nhận biên nhận đúng phiên, đúng khoá, đúng mục tiêu (`SessionStore.report_receipt`), rồi đối chiếu lại khối thẻ trong tin. Tra theo khoá chính nên vẫn không giới hạn độ sâu. Bỏ `find_message_containing`.
+
+Vì sao không chỉ phân tích khối `JAVIS_RESONANCE` trong các tin ứng viên như gợi ý tối thiểu của review: tin assistant do model sinh được lưu thô ở nhiều chỗ (`main.py` lượt chat thường, kết quả việc nền), nên một khối hợp lệ do model tự viết ra (ví dụ chép lại tin cũ khi người dùng hỏi) cũng sẽ nuốt mất báo cáo thật. Chỉ host mới ghi được biên nhận.
+
+**Hệ quả cho script vòng 2 của người review:** hai ca PASS "recent persisted report is recognized" và "not replayed after 300 later messages" dựng tin "đã gửi" bằng `SessionStore.append_message` thô, tức đúng hình dạng một khối model tự viết; sau bản sửa, tin như thế cố ý KHÔNG còn được tính là đã gửi, nên script vòng 2 chạy nguyên văn dừng ở dòng 255. Không dùng chuyện assertion cũ hỏng làm bằng chứng. Thay vào đó dựng `exports/reviews/PR-575-M4-round3-expected-checks.py` từ script vòng 2 với đúng ba chỗ đổi: tin "đã gửi" đi qua `push_to_chat` thật; REPRO thành kỳ vọng (không tính là đã gửi, notify gọi một lần, báo cáo thật lưu một lần, outbox được đánh dấu); thêm ca âm (khối hợp lệ do model viết, khối hỏng, khoá khác, báo cáo thật của mục tiêu khác cùng khoá) và ca chuỗi trùng đứng trước tin thật cộng 320 tin sau. Kết quả: 15/15 PASS trên bản sửa; trên head cũ `ae1afff3` đỏ đúng ở ca lời chat trích JSON.
+
+**Test hồi quy** (`test_resonance_mvp_feedback.py`, mục "Review M4 vòng 2"), đủ bốn điều nghiệm thu: JSON trích dẫn không tính là đã gửi và drain gửi báo cáo thật; khối hỏng, khoá khác, khối của mục tiêu khác, khối model tự viết không cái nào tính; chuỗi trùng đứng trước tin thật vẫn nhận ra tin thật, không phát lại; giữ ca hơn 300 tin (nay lưu qua `push_to_chat`) và ca crash giữa lưu tin và đánh dấu outbox.
+
+**Đột biến:** quay về dò chuỗi, bỏ ghi biên nhận, bỏ lọc `goal_id` khi tra biên nhận: cả ba làm test đỏ. Bỏ bước đối chiếu khối thẻ sau khi có biên nhận thì test không đỏ: đó là lớp phòng thủ thừa, vì biên nhận chỉ ghi được cùng tin mang đúng khối đó.
+
+**Giới hạn:** biên nhận chỉ có cho tin lưu từ bản này trở đi; M4 chưa phát hành nên không có dữ liệu cũ cần chuyển. Người dùng xoá tin báo cáo thì biên nhận xoá theo (khoá ngoại `ON DELETE CASCADE`); chỉ ảnh hưởng dòng outbox còn treo trong khe crash, khi đó báo cáo được gửi lại một lần.
 
 ### Giới hạn và những gì chưa kiểm
 

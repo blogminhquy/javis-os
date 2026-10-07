@@ -9723,6 +9723,21 @@ def khoi_viec(viec) -> str:
     return "<!-- JAVIS_VIEC: " + json.dumps(gon, ensure_ascii=False).replace("-->", "- ->") + " -->"
 
 
+def _resonance_card(card) -> tuple:
+    """Khối JAVIS_RESONANCE gắn vào tin của push_to_chat (Resonance M4), cùng biên nhận báo cáo nếu khối mang khoá.
+
+    Chỉ nhận đúng khuôn khối đó, không cho chuỗi tuỳ ý lọt vào kho phiên. Khối mang khoá báo cáo thì trả
+    {"key", "goal_id"} để kho phiên ghi biên nhận CÙNG giao dịch với tin: đối soát outbox chỉ tin biên nhận này,
+    không tin chuỗi khoá xuất hiện trong nội dung (review M4 vòng 2)."""
+    c = str(card or "").strip()
+    if not c or not resonance.GOAL_BLOCK_RE.fullmatch(c):
+        return "", None
+    blk = (resonance.parse_goal_blocks(c) or [{}])[0]
+    if blk.get("report") and blk.get("goal_id"):
+        return c, {"key": str(blk["report"]), "goal_id": str(blk["goal_id"])}
+    return c, None
+
+
 async def push_to_chat(session_id, text, viec=None, card="") -> bool:
     """Đẩy MỘT tin của Javis vào đúng phiên chat web, ngoài luồng hỏi-đáp thường.
 
@@ -9741,17 +9756,15 @@ async def push_to_chat(session_id, text, viec=None, card="") -> bool:
     _k = khoi_viec(viec)
     if _k:
         clean = _k + "\n" + clean
-    # `card` (Resonance M4): khối JAVIS_RESONANCE để khung chat vẽ thẻ "Em đang hướng tới". Gắn SAU khi bóc như
-    # thẻ việc, và chỉ nhận đúng khuôn khối đó (không cho chuỗi tuỳ ý lọt vào kho phiên).
-    report = None
-    if card and resonance.GOAL_BLOCK_RE.fullmatch(str(card).strip()):
-        clean = clean + "\n" + str(card).strip()
-        # Thẻ mang khoá báo cáo: ghi biên nhận cùng giao dịch với tin để đối soát outbox (review M4 vòng 2).
-        blk = (resonance.parse_goal_blocks(str(card)) or [{}])[0]
-        if blk.get("report") and blk.get("goal_id"):
-            report = {"key": str(blk["report"]), "goal_id": str(blk["goal_id"])}
+    # `card` (Resonance M4): thẻ mục tiêu, gắn SAU khi bóc như thẻ việc. Xem _resonance_card.
+    card, report = _resonance_card(card)
+    if card:
+        clean = clean + "\n" + card
     try:
-        get_store().append_message(sid, "assistant", clean, **({"report": report} if report else {}))
+        if not report:
+            get_store().append_message(sid, "assistant", clean)
+        else:
+            get_store().append_message(sid, "assistant", clean, report=report)
     except Exception as e:
         print(f"[push_to_chat] lưu phiên lỗi: {type(e).__name__}: {e}", file=sys.stderr)
     try:
