@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.85.0] - 2026-10-07
+### Added
+- Admin channels page in tabs, with new Lark/Feishu, Discord and WebSocket channels.
+
 ## [0.84.10] - 2026-10-07
 ### Fixed
 - **Dedicated bots now read the Google Docs and Google Sheets links attached to their Agent.** Bots used to search only brain files, so an Agent told to "answer only from the documents" with its price list on Google Sheets said "no information" about every product.
