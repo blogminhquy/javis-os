@@ -1,10 +1,5 @@
-// model-picker.js: đổi model (đa nhà cung cấp) + effort ngay trên khung chat.
-// Thuần frontend: đọc/ghi qua /settings + /provider/models (đã có sẵn ở backend).
-//
-// MODEL THEO PHIÊN (16/08): đổi model NGAY TRONG một phiên chat = ghim model đó cho
-// riêng phiên (POST /sessions/{id}/model) + vẫn cập nhật mặc định chung như cũ. Mở lại
-// phiên cũ là thấy đúng model đã chọn trong nó; đổi model ở phiên/tab khác không kéo
-// phiên đã ghim đổi theo. Phiên chưa từng đổi tay vẫn bám mặc định chung.
+// Per-chat Auto, explicit model pins and the shared default.
+// Model selection never changes the global model settings.
 (function () {
   "use strict";
 
@@ -26,7 +21,14 @@
   const curSid = () => { try { return (window.JavisSessions && window.JavisSessions.current()) || null; } catch (e) { return null; } };
   const curBrain = () => { try { return (window.JavisSessions && window.JavisSessions.brain()) || ""; } catch (e) { return ""; } };
   // Model ĐANG HIỆU LỰC cho khung chat trước mặt: ghim của phiên thắng mặc định chung.
-  const effective = () => sessionPin || state.main;
+  const effective = () => sessionPin || pendingPin || state.main;
+  let routingMode = "default";
+  let pendingSave = null;
+  const pendingKey = () => "javis-chat-model-pending:" + curBrain();
+  function rememberPending(value) {
+    pendingPin = value;
+    try { if (value) localStorage.setItem(pendingKey(), JSON.stringify(value)); else localStorage.removeItem(pendingKey()); } catch (e) {}
+  }
 
   async function saveModel(patch) {
     const fd = new FormData();
@@ -35,12 +37,15 @@
     try { await fetch("/settings", { method: "POST", body: fd }); } catch (e) {}
   }
 
-  async function pinToSession(sid, prov, model) {
+  async function pinToSession(sid, prov, model, mode = "pinned") {
     const fd = new FormData();
-    fd.append("provider", prov);
+    fd.append("provider", prov || "");
+    fd.append("routing_mode", mode);
     fd.append("model", model || "");
     fd.append("brain", curBrain());   // phiên chưa có hàng trong DB thì server tự tạo
-    try { await fetch(`/sessions/${encodeURIComponent(sid)}/model`, { method: "POST", body: fd }); } catch (e) {}
+    const r = await fetch(`/sessions/${encodeURIComponent(sid)}/model`, { method: "POST", body: fd });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error || window.t("mpick.save_failed")); }
+    return r.json();
   }
 
   async function loadState() {
@@ -58,7 +63,12 @@
   async function loadSessionPin() {
     const sid = curSid();
     pinSid = sid;
-    if (!sid) { sessionPin = null; pinBroken = false; pendingPin = null; return; }
+    if (!sid) {
+      sessionPin = null; pinBroken = false; routingMode = "default";
+      try { pendingPin = JSON.parse(localStorage.getItem(pendingKey()) || "null"); } catch (e) { pendingPin = null; }
+      if (pendingPin) routingMode = pendingPin.routing_mode || "pinned";
+      return;
+    }
     pendingPin = null;
     try {
       const r = await fetch(`/sessions/${encodeURIComponent(sid)}/meta`);
@@ -66,6 +76,7 @@
       if (pinSid !== sid) return;   // user đã nhảy sang phiên khác trong lúc chờ
       // pin_ok=false: ghim còn trong DB nhưng không chạy được (provider mất key) -
       // server đang rơi về mặc định chung, nên hiển thị cũng phải theo mặc định chung.
+      routingMode = (d && d.routing_mode) || (d && d.pinned_provider ? "pinned" : "default");
       pinBroken = !!(d && d.pinned_provider && d.pin_ok === false);
       sessionPin = (d && d.pinned_provider && !pinBroken)
         ? { provider: d.pinned_provider, model: d.pinned_model || "" } : null;
@@ -76,6 +87,11 @@
     const eff = effective();
     const p = state.providers.find((x) => x.id === eff.provider);
     const mt = $("mbModelTxt"), et = $("mbEffortTxt");
+    if (routingMode === "auto") {
+      if (mt) { mt.textContent = window.t("mpick.auto"); mt.title = window.t("mpick.auto_title"); }
+      if (et) et.textContent = window.t("mpick.effort_auto");
+      return;
+    }
     if (mt) {
       mt.textContent = (p ? provShort(p.label) : "Model") + " · " + short(eff.model)
         + (sessionPin ? " · " + window.t("mpick.pin") : pinBroken ? " · " + window.t("mpick.pin_broken") : "");
@@ -111,7 +127,8 @@
       mark: (p) => (p.is_main ? " " + ic("check", { cls: "ic-ok" }) : ""),
       noWait: true,
     };
-    let html = await window.JavisModelList.render(o);
+    let html = `<div class="mb-eff-row"><button class="mb-eff-btn ${routingMode === "auto" ? "cur" : ""}" data-routing="auto">${window.t("mpick.auto")}</button><button class="mb-eff-btn ${routingMode === "default" ? "cur" : ""}" data-routing="default">${window.t("mpick.follow_default")}</button></div>`;
+    html += await window.JavisModelList.render(o);
     if (luot !== luotVe || pop.hidden) return;
     html += `<div class="mb-eff-row"><span class="lbl">Effort</span>` +
       EFFORT.map(([v, l]) => `<button class="mb-eff-btn ${state.reasoning === v ? "cur" : ""}" data-eff="${v}">${window.t(l)}</button>`).join("") +
@@ -145,21 +162,20 @@
   function close() { const pop = $("mbPop"); if (pop) pop.hidden = true; }
   function isOpen() { const pop = $("mbPop"); return pop && !pop.hidden; }
 
-  // Chọn một model: ghi mặc định chung (chat mới sau này theo cái vừa chọn) + GHIM cho phiên
-  // đang mở (phiên này giữ đúng model kể cả khi mặc định chung bị đổi ở chỗ khác). Dùng chung
-  // cho cú bấm trong bảng chọn và lệnh `/model <tên>` của khung chat.
+  // Explicit model selection pins only this conversation.
   async function chonModel(prov, model) {
-    await saveModel({ main: { provider: prov, model: model } });
     const sid = curSid();
+    if (sid) await pinToSession(sid, prov, model);
+    routingMode = "pinned";
     if (sid) {
       sessionPin = { provider: prov, model: model };
       pinBroken = false;   // ghim mới đè ghim hỏng cũ
       pinSid = sid;
-      await pinToSession(sid, prov, model);
+      rememberPending(null);
     } else {
       // Chat trống chưa mint id: nhớ lựa chọn, app.js gọi claimPending(sid) lúc gửi
       // tin đầu để phiên mới sinh ra đã mang đúng ghim.
-      pendingPin = { provider: prov, model: model };
+      rememberPending({ provider: prov, model: model, routing_mode: "pinned" });
       sessionPin = null;
     }
     await loadState(); renderBar();
@@ -200,9 +216,21 @@
       try { if (window.Alpine) Alpine.store("nav").go(goto.dataset.goto); } catch (er) {}
       return;
     }
+    const route = e.target.closest("[data-routing]");
+    if (route) {
+      const mode = route.dataset.routing;
+      const sid = curSid();
+      try {
+        if (sid) await pinToSession(sid, "", "", mode);
+        routingMode = mode; sessionPin = null; pinBroken = false; pinSid = sid;
+        rememberPending(sid ? null : { routing_mode: mode });
+        renderBar(); close();
+      } catch (error) { alert(error.message); }
+      return;
+    }
     const item = e.target.closest(".mb-item");
     if (item) {
-      await chonModel(item.dataset.prov, item.dataset.model);
+      try { await chonModel(item.dataset.prov, item.dataset.model); } catch (error) { alert(error.message); return; }
       close();
       return;
     }
@@ -233,11 +261,15 @@
   // Phiên mới mint id xong (app.js gọi ngay lúc gửi tin đầu): model đã chọn khi khung
   // còn trống đi theo phiên vừa sinh, không bị phiên khác đổi mặc định chung đè mất.
   window.JavisModelBar = {
-    claimPending: function (sid) {
+    claimPending: async function (sid) {
+      if (pendingSave) return pendingSave;
       if (!pendingPin || !sid) return;
       sessionPin = pendingPin; pinSid = sid;
-      pinToSession(sid, pendingPin.provider, pendingPin.model);
-      pendingPin = null;
+      pendingSave = pinToSession(sid, pendingPin.provider, pendingPin.model, pendingPin.routing_mode || "pinned");
+      try { await pendingSave; } finally { pendingSave = null; }
+      routingMode = pendingPin.routing_mode || "pinned";
+      if (routingMode !== "pinned") sessionPin = null;
+      rememberPending(null);
       renderBar();
     },
     // Lệnh `/model` của khung chat (chat-lenh.js): mở bảng chọn, đổi theo tên, hoặc cho biết model hiện tại.
@@ -257,7 +289,7 @@
     // đầu, nên bar phải chuyển sang "ghim" tại chỗ - không chờ tới lần đổi phiên mới
     // vẽ lại, kẻo trong lúc đó đổi mặc định chung ở trang Models là bar nói sai.
     noteStamped: function (sid) {
-      if (!sid || (sessionPin && pinSid === sid)) return;
+      if (!sid || routingMode !== "pinned" || (sessionPin && pinSid === sid)) return;
       sessionPin = { provider: state.main.provider, model: state.main.model };
       pinBroken = false; pinSid = sid;
       renderBar();

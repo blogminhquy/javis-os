@@ -1169,7 +1169,7 @@ function handleMessage(data) {
         if (window.JavisViec) window.JavisViec.ve(msgEl, _v);
         _ghi = finalText + "\n\n<!-- JAVIS_VIEC: " + JSON.stringify(_v) + " -->";
       }
-      if (finalText.trim()) recordTurn("javis", _ghi, null, ask, t && t.buoc);
+      if (finalText.trim()) recordTurn("javis", _ghi, null, ask, t && t.buoc, data.routing);
       // Có câu trả lời thật thì linh vật vui một nhịp. Đang đọc thành tiếng thì nó tự đợi đọc
       // xong mới nhảy (pet.js giữ cờ choXong), nên gọi ngay ở đây là đủ.
       if (finalText.trim()) petReact("xong");
@@ -1396,7 +1396,7 @@ const _gocCongSu = {};
 // `opts.wfRun`: tin này đến từ nút CHẠY của trang Cộng sự. Server dùng cờ đó để không
 // đoán lại ý người dùng (xem workflow_chat.quyet_dinh_luot): bấm đúng nút Chạy thì chạy,
 // dù câu trong ô nhập có nghe như đang nói về chính quy trình.
-function sendMessage(text, opts) {
+async function sendMessage(text, opts) {
   if (window.JavisWorkspace && !window.JavisWorkspace.canSend()) return;
   const msg = (text || chatInput.value).trim();
   // Lệnh / : session-command chạy tại chỗ; skill-command bung thành lời gọi skill.
@@ -1470,8 +1470,9 @@ function sendMessage(text, opts) {
     // gắn tay. Gắn NGAY tại đây vì đây là chỗ duy nhất biết "id này vừa được sinh ra".
     try { if (window.JavisProjects) window.JavisProjects.claim(savedSessionId); } catch (e) {}
     // Model đã chọn khi khung chat còn trống -> ghim luôn cho phiên vừa sinh (model-picker.js).
-    try { if (window.JavisModelBar) window.JavisModelBar.claimPending(savedSessionId); } catch (e) {}
   }
+  try { if (window.JavisModelBar) await window.JavisModelBar.claimPending(savedSessionId); }
+  catch (e) { alert(e.message); return; }
   const sid = savedSessionId;
   // Phiên đang trả lời thì không gửi chồng lượt. NHƯNG tin từ MIC (hay gõ trong lúc rảnh tay)
   // là người dùng CHEN NGANG: họ vừa cắt lời Javis rồi nói câu mới, nên câu mới phải thắng -
@@ -1705,8 +1706,8 @@ function ghiChuThoang(text) {
   scrollBottom();
   setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, GHI_CHU_MS);
 }
-function recordTurn(role, text, atts, ask, buoc) {
-  convo.push({ role, text: text || "", atts: atts || [], ask: ask || null, ts: Date.now(),
+function recordTurn(role, text, atts, ask, buoc, routing) {
+  convo.push({ role, text: text || "", atts: atts || [], ask: ask || null, ts: Date.now(), routing:routing || null,
                // Mach buoc chi ghi khi luot that su co goi cong cu - luot tra loi thang
                // khong co truong nay, nen tin cu luu truoc ban nay cung khong sao.
                buoc: (buoc && window.JavisSteps && window.JavisSteps.tomTat(buoc).hien)
@@ -1734,6 +1735,7 @@ function restoreSession() {
     if (t.buoc && window.JavisSteps && window.JavisSteps.tomTat(t.buoc).hien)
       chatAppend(window.JavisSteps.ve(null, t.buoc, false));
     const el = appendJavisMessage(t.text, t.ts || 0, t.brain || s.brain);
+    if (t.routing) _renderCtxLine(el, {engine:"codex",routing:t.routing});
     // Chip chỉ sống lại ở tin CUỐI: có tin sau nó nghĩa là câu hỏi đã được trả lời rồi.
     if (t.ask) window.JavisAsk.render(el, t.ask, i === convo.length - 1);
   });
@@ -1778,8 +1780,11 @@ function veTinDaLuu(m, brainCua) {
   // vứt đi nên ảnh trong hội thoại cũ luôn ghép với brain đang chọn - mở hội thoại của
   // brain khác là ảnh hỏng hết. Giữ luôn vào convo để lần khôi phục sau còn dùng.
   if (m.role === "assistant") {
-    appendJavisMessage(m.content || "", ts, brainCua);
-    return { role: "javis", text: m.content || "", atts: [], ts, brain: brainCua };
+    const el = appendJavisMessage(m.content || "", ts, brainCua);
+    let route = null;
+    try { route = (m.tool_calls || {}).routing; } catch (e) {}
+    if (route) _renderCtxLine(el, {engine:"codex", routing:route});
+    return { role: "javis", text: m.content || "", atts: [], ts, brain: brainCua, routing:route };
   }
   return null;
 }
@@ -3864,6 +3869,25 @@ function _renderCtxLine(msgEl, data) {
   }
   if (data.ctx_path) phan.push(CTX_PATH_LABEL[data.ctx_path] ? window.t(CTX_PATH_LABEL[data.ctx_path]) : data.ctx_path);
   if (tok) phan.push(_fmtTok(tok) + " token");
+  if (data.routing) {
+    const route = data.routing;
+    const usage = route.usage;
+    phan.length = 0;
+    phan.push(window.t("mpick.auto"), route.executed_model || window.t("mpick.unknown_model"), window.t(({low:"mpick.tier_low",medium:"mpick.tier_medium",high:"mpick.tier_high"})[route.tier]));
+    phan.push(usage && usage.input_tokens != null && usage.output_tokens != null
+      ? String(usage.input_tokens + usage.output_tokens) + " token" : window.t("mpick.unknown_usage"));
+    el.textContent = phan.join(" · ");
+    el.title = window.t("mpick.route_details", {requested: route.requested_model || window.t("mpick.auto"),
+      selected: route.selected_model, executed: route.executed_model || window.t("mpick.unknown_model"),
+      reason: window.t(({continuation_of_previous_task:"mpick.reason_continuation_of_previous_task",complex_or_high_impact_task:"mpick.reason_complex_or_high_impact_task",multiple_constraints:"mpick.reason_multiple_constraints",reasoning_or_content_task:"mpick.reason_reasoning_or_content_task",simple_explicit_task:"mpick.reason_simple_explicit_task",conservative_default:"mpick.reason_conservative_default",quality_profile:"mpick.reason_quality_profile",model_unavailable_before_activity:"mpick.reason_model_unavailable_before_activity"})[route.reason]), escalations: route.escalations});
+    el.tabIndex = 0;
+    delete el.dataset.usageGoto;
+    el.setAttribute("role", "button");
+    el.onclick = (event) => { event.stopPropagation(); alert(el.title); };
+    el.onkeydown = (event) => { if (event.key === "Enter") el.click(); };
+    msgEl.appendChild(el);
+    return;
+  }
   el.textContent = phan.join(" · ");
   const chuThich = [];
   if (data.engine) {

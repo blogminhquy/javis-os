@@ -2082,6 +2082,30 @@ def _agent_model_provider(model: str, provider: str = "") -> str:
     return "openai-oauth" if _is_codex_model(model) else "anthropic-cli"
 
 
+import chat_auto_router
+
+
+_CHAT_AUTO_CATALOG = {"expires": 0, "data": None}
+
+
+_CHAT_AUTO_VERIFY_LOCK = asyncio.Lock()
+
+
+async def _chat_auto_candidates(mcfg, verify=False):
+    if time.time() >= _CHAT_AUTO_CATALOG["expires"]:
+        data = await asyncio.to_thread(codex_models.list_models)
+        _CHAT_AUTO_CATALOG.update(data=data, expires=time.time() + (300 if data else 10))
+    candidates = chat_auto_router.verified_candidates(mcfg, _CHAT_AUTO_CATALOG["data"])
+    if verify and len(candidates) < len(chat_auto_router.TIERS):
+        async with _CHAT_AUTO_VERIFY_LOCK:
+            candidates = chat_auto_router.verified_candidates(mcfg, _CHAT_AUTO_CATALOG["data"])
+            if len(candidates) < len(chat_auto_router.TIERS):
+                creds = await asyncio.to_thread(openai_oauth.valid_creds)
+                await chat_auto_router.verify_access(mcfg, _CHAT_AUTO_CATALOG["data"], creds or {})
+                candidates = chat_auto_router.verified_candidates(mcfg, _CHAT_AUTO_CATALOG["data"])
+    return candidates
+
+
 def _chat_provider_for_session(mcfg, row):
     """Provider cho MỘT phiên chat: phiên đã GHIM model riêng (user đổi model ngay trong
     phiên) thì theo ghim; chưa ghim thì rơi về _chat_provider (mặc định chung).
@@ -2090,6 +2114,9 @@ def _chat_provider_for_session(mcfg, row):
     theo, vì tất cả đọc chung settings.json. Chủ muốn phiên nhớ model cuối user đã chọn
     TRONG phiên đó. Ghim hỏng (provider không còn cấu hình) thì rơi về mặc định chung
     thay vì chết lượt chat."""
+    if (row or {}).get("routing_mode") == "auto":
+        # No sentinel model is ever sent to an engine. The turn resolves it below.
+        return "openai-oauth", "oauth", "", None
     pprov = ((row or {}).get("pinned_provider") or "").strip()
     if not pprov:
         return _chat_provider(mcfg)
@@ -13423,7 +13450,7 @@ async def _luot_quy_trinh(store, conv_sid, user_message, brain, slug, emit, resu
 # ============================================
 # Lưu MỘT lượt hội thoại - đường DUY NHẤT, dùng chung cho mọi kênh (dashboard, Telegram)
 # ============================================
-async def _persist_turn(store, conv_sid, brain, user_message, final_text):
+async def _persist_turn(store, conv_sid, brain, user_message, final_text, routing=None):
     """Lưu lượt vừa xong: kho phiên + tiêu đề + nhật ký Memory + hàng đợi tự học.
 
     Bóc khối điều khiển (`<!-- JAVIS_ASK ... -->`) TRƯỚC khi lưu. Dashboard vẽ nút từ sự kiện
@@ -13439,7 +13466,7 @@ async def _persist_turn(store, conv_sid, brain, user_message, final_text):
     clean = channel_context.strip_control_blocks(final_text or "")
     if not clean:
         return None
-    _answer_mid = store.append_message(conv_sid, "assistant", clean)
+    _answer_mid = store.append_message(conv_sid, "assistant", clean, tool_calls={"routing": routing} if routing else None)
     if voice_turn_protocol.response_id.get():
         voice_turn_protocol.note_answer(store, _answer_mid, final_text)
     store.auto_title(conv_sid, user_message)
@@ -13607,6 +13634,32 @@ async def websocket_endpoint(ws: WebSocket):
                 return ""
             prov, kind, api_key, api_model = _chat_provider_for_session(mcfg, _row0)
             reasoning = _reasoning_level(mcfg)
+            _auto_route, _auto_candidates = None, {}
+            if _row0.get("routing_mode") == "auto" and not _persona:
+                _auto_candidates = await _chat_auto_candidates(mcfg)
+                try:
+                    _previous_route = json.loads(_row0.get("routing_state") or "null")
+                    if _previous_route is None:
+                        _history = store.get_messages(conv_sid)[:-1]
+                        for _message in reversed(_history):
+                            if _message.get("role") == "user":
+                                _tier, _reason = chat_auto_router.classify(_message.get("content") or "")
+                                if _reason != "conservative_default":
+                                    _previous_route = {"tier": _tier}
+                                    break
+                    _auto_route = chat_auto_router.resolve(
+                        user_message, _auto_candidates, _previous_route,
+                        bool(has_attachments), _row0.get("routing_profile") or "balanced")
+                except (chat_auto_router.RoutingUnavailable, ValueError):
+                    await ws.send_text(json.dumps({"type": "error", "content": localefmt.chu(
+                        "Auto chưa có model OAuth đã kiểm chứng phù hợp. Chọn ghim model hoặc kiểm lại quyền truy cập.",
+                        "Auto has no suitable verified OAuth model. Pin a model or recheck account access.")}))
+                    return ""
+                api_model = _auto_route["selected_model"]
+                reasoning = _auto_route["effort"] or "off"
+                _auto_route["task_id"] = runtime_trace.task_id
+                store.save_routing_state(conv_sid, _auto_route)
+                _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "chat.routing_selected", _auto_route)
             _CONTEXT_RUNTIME.set_route(
                 runtime_trace,
                 "codex" if prov == "openai-oauth" else prov,
@@ -13951,9 +14004,9 @@ async def websocket_endpoint(ws: WebSocket):
                         **_ctx_frame(runtime_trace, _ctx_in)}))
             elif prov == "openai-oauth":
                 # ===== ChatGPT subscription qua CODEX CLI - MCP/tool NATIVE (như Hermes, dùng codex của máy) =====
-                actual_model = _codex_safe_model(api_model)   # gpt-5-mini/gpt-4o... → coerce về model Codex hợp lệ
+                actual_model = api_model if (_auto_route or _row0.get("pinned_provider")) else _codex_safe_model(api_model)   # gpt-5-mini/gpt-4o... → coerce về model Codex hợp lệ
                 sysprompt, _sub_plan = await _subscription_system_prompt("codex", actual_model, kind)
-                if api_model and actual_model != api_model:
+                if api_model and actual_model != api_model and not _row0.get("pinned_provider") and not _auto_route:
                     # Tự chữa: model đã lưu không hợp lệ cho Codex → ghi lại model đúng (converge sau 1 lượt)
                     try:
                         _fix = cfgmod.read_settings(); _set_main_model(_fix, "openai-oauth", actual_model); cfgmod.write_settings(_fix)
@@ -14009,6 +14062,11 @@ async def websocket_endpoint(ws: WebSocket):
                         "use Claude Code or OpenRouter for stability (change it on the Models page).")}))
                 else:
                     _codex_current = _codex_do_sau(ccli, reasoning, user_message)
+                    _auto_usage = chat_auto_router.InvocationUsage()
+                    _auto_activity = False
+                    _auto_error = ""
+                    _auto_invocation = 0
+                    _auto_executed = None
                     _codex_raw = [{"role": _m["role"], "content": _m["content"]}
                                   for _m in store.get_messages(conv_sid)[:-1]
                                   if _m["role"] in ("user", "assistant") and _m.get("content")]
@@ -14026,8 +14084,10 @@ async def websocket_endpoint(ws: WebSocket):
                         # được lưu, người dùng chỉ thấy "Lỗi xử lý". Đây là hàm con DUY NHẤT
                         # đụng vào _ctx_in; hai nhánh engine kia cộng thẳng trong _do_turn nên
                         # không dính.
-                        nonlocal final_text, _ctx_in
+                        nonlocal final_text, _ctx_in, _auto_activity, _auto_error, _auto_invocation, _auto_executed
+                        _auto_invocation += 1
                         resume_failed = False
+                        _last_final = None
                         # Đo theo từng invocation thật: nhánh khôi phục thread có thể gọi lần hai.
                         _CONTEXT_RUNTIME.observe_payload(
                             runtime_trace,
@@ -14037,6 +14097,8 @@ async def websocket_endpoint(ws: WebSocket):
                         )
                         async for ev in ccli.query(prompt):
                             et = ev["type"]
+                            if et in ("activity", "tool_call", "item", "text", "final"):
+                                _auto_activity = True
                             if et == "session":
                                 if ev.get("session_id"):
                                     store.set_codex_thread_id(conv_sid, ev["session_id"])
@@ -14049,10 +14111,9 @@ async def websocket_endpoint(ws: WebSocket):
                                 final_text = ev.get("content") or final_text
                                 if ev.get("session_id"):
                                     store.set_codex_thread_id(conv_sid, ev["session_id"])
-                                _ctx_in += int(ev.get("tokens_in", 0) or 0)
-                                usage_store.record("codex", actual_model, ev.get("tokens_in", 0), ev.get("tokens_out", 0))
-                                _CONTEXT_RUNTIME.record_usage(
-                                    runtime_trace, ev.get("tokens_in", 0), ev.get("tokens_out", 0))
+                                _last_final = ev
+                                _auto_usage.observe(_auto_invocation, ev)
+                                _auto_executed = ev.get("executed_model")
                             elif et == "retry":
                                 # Codex tự thử lại: dòng trạng thái tạm, không phải bong bóng lỗi.
                                 await ws.send_text(json.dumps({
@@ -14063,13 +14124,40 @@ async def websocket_endpoint(ws: WebSocket):
                                     resume_failed = True
                                     if suppress_resume_error:
                                         continue
-                                await ws.send_text(_limit_frame(
-                                    ev.get("content") or "", "codex", actual_model))
+                                _auto_error = ev.get("content") or ""
+                                if not (_auto_route and chat_auto_router.safe_fallback(
+                                        _auto_route, _auto_candidates, _auto_error, _auto_activity)):
+                                    await ws.send_text(_limit_frame(_auto_error, "codex", actual_model))
+                        _raw_usage = (_last_final or {}).get("usage") or {}
+                        _known_usage = all(isinstance(_raw_usage.get(k), int)
+                                           for k in ("input_tokens", "output_tokens"))
+                        if _last_final is not None and (not _auto_route or _known_usage):
+                            _ctx_in += int(_last_final.get("tokens_in") or 0)
+                            usage_store.record("codex", _auto_executed or actual_model,
+                                               _last_final.get("tokens_in", 0), _last_final.get("tokens_out", 0))
+                            _CONTEXT_RUNTIME.record_usage(runtime_trace, _last_final.get("tokens_in", 0),
+                                                          _last_final.get("tokens_out", 0))
+                        if _auto_route:
+                            _auto_route["attempts"].append({"model": actual_model, "error": _auto_error or None,
+                                "activity": _auto_activity, "executed_model": _auto_executed})
                         return resume_failed
 
                     _resume_failed = await _consume_codex(
                         _codex_prompt, suppress_resume_error=bool(stored_codex_thread))
-                    if stored_codex_thread and _resume_failed and not final_text:
+                    while _auto_route and _auto_error:
+                        _next = chat_auto_router.safe_fallback(_auto_route, _auto_candidates, _auto_error, _auto_activity)
+                        if _next is None:
+                            break
+                        _next["attempts"] = _auto_route["attempts"]
+                        _next["task_id"] = runtime_trace.task_id
+                        _auto_route = _next
+                        actual_model = ccli.model = _next["selected_model"]
+                        ccli.extra_config = [c for c in ccli.extra_config if not c.startswith("model_reasoning_effort=")]
+                        _codex_do_sau(ccli, _next["effort"] or "off", user_message)
+                        ccli.session_id = stored_codex_thread or None
+                        _auto_error = ""
+                        await _consume_codex(_codex_prompt)
+                    if stored_codex_thread and _resume_failed and not final_text and not (_auto_route and _auto_activity):
                         # Rollout local có thể bị dọn/mất sau nâng cấp máy. Không bỏ luôn context:
                         # tạo thread mới từ transcript SQLite, lưu ID mới, rồi các lượt sau resume nó.
                         await ws.send_text(json.dumps({
@@ -14090,8 +14178,15 @@ async def websocket_endpoint(ws: WebSocket):
                             and _subscription_limit_event(final_text, "codex")[0]:
                         await ws.send_text(_limit_frame(final_text, "codex", actual_model or ""))
                         final_text = ""
+                    if _auto_route:
+                        _auto_route.update(executed_model=_auto_executed,
+                            execution_evidence="native_turn_context" if _auto_executed else None,
+                            usage=_auto_usage.total())
+                        store.save_routing_state(conv_sid, _auto_route)
+                        _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "chat.routing_completed", _auto_route)
                     final_text = _chuan_hoa_link_file(_brain_root(brain), final_text)
                     await ws.send_text(json.dumps({
+                        "routing": _auto_route,
                         "type": "response", "content": final_text, "engine": "codex",
                         "model": actual_model, "session_id": conv_sid,
                         **_ctx_frame(runtime_trace, _ctx_in)}))
@@ -14642,7 +14737,7 @@ async def websocket_endpoint(ws: WebSocket):
             # Lưu lượt assistant: kho phiên + title + log Memory + hàng đợi tự học.
             # Đường lưu DÙNG CHUNG với Telegram (_persist_turn) - nó tự bóc khối điều khiển.
             if final_text:
-                await _persist_turn(store, conv_sid, brain, user_message, final_text)
+                await _persist_turn(store, conv_sid, brain, user_message, final_text, routing=_auto_route)
                 # Engine bỏ lại lệnh chạy ngầm (render, build...) → Javis nhận theo dõi và nói ra
                 # ngay. PHẢI chạy trước cảnh báo hứa suông: có việc được theo dõi thì lời hứa
                 # "xong em gửi" đã có cơ chế thật đứng sau, không còn là hứa suông.
@@ -15363,7 +15458,8 @@ async def websocket_endpoint(ws: WebSocket):
             #   - ghim hỏng (provider mất key, đã rơi về mặc định chung) → thay bằng
             #     model đang chạy thật, thanh model thôi khoe ghim chết;
             #   - ghim lành → resolved == ghim, không có gì để ghi (no-op).
-            if ((_prow.get("pinned_provider") or "").strip() != prov
+            if not _prow.get("routing_mode") and (
+                    (_prow.get("pinned_provider") or "").strip() != prov
                     or (_prow.get("pinned_model") or "") != (api_model or "")):
                 try:
                     store.set_pinned_model(conv_sid, prov, api_model or "")
@@ -16110,7 +16206,8 @@ async def sessions_meta(session_id: str):
 
 @app.post("/sessions/{session_id}/model")
 async def sessions_set_model(session_id: str, provider: str = Form(""),
-                             model: str = Form(""), brain: str = Form("")):
+                             model: str = Form(""), brain: str = Form(""),
+                             routing_mode: str = Form(""), routing_profile: str = Form("balanced")):
     """Ghim model riêng cho phiên (provider rỗng = gỡ ghim, quay về mặc định chung).
 
     Có `brain` thì tạo hàng nếu phiên chưa tồn tại - dashboard mint id phía client nên
@@ -16118,6 +16215,22 @@ async def sessions_set_model(session_id: str, provider: str = Form(""),
     CHỦ Ý không đi qua _set_main_model: hàm đó ghi mốc nhật ký usage cho việc đổi bộ não
     TOÀN CỤC, ghim theo phiên mà đi qua đó là rác hoá biểu đồ token."""
     prov = (provider or "").strip()
+    mode = routing_mode or ("pinned" if prov else "default")
+    if mode not in ("auto", "pinned", "default") or routing_profile not in ("balanced", "economy", "quality") or model == "auto":
+        return JSONResponse({"error": localefmt.chu("Lựa chọn model không hợp lệ", "Invalid model selection")}, status_code=400)
+    if _CHAT_RUNTIME.get_job(session_id):
+        return JSONResponse({"error": localefmt.chu("Phiên đang trả lời, đổi model sau khi xong", "Session is answering; change model after it finishes")}, status_code=409)
+    row = get_store().get_session(session_id) or {}
+    if mode == "auto" and row.get("channel", "web") != "web":
+        return JSONResponse({"error": localefmt.chu("Auto chỉ áp dụng cho hội thoại web", "Auto applies only to web conversations")}, status_code=400)
+    if mode == "auto" and not await _chat_auto_candidates(cfgmod.read_settings().get("model", {}), verify=True):
+        return JSONResponse({"error": localefmt.chu("Chưa kiểm chứng quyền truy cập OAuth cho Auto", "OAuth access for Auto has not been verified")}, status_code=409)
+    if mode != "pinned":
+        ok = get_store().set_routing(session_id, mode, routing_profile, brain=(brain or "").strip() or None)
+        if not ok:
+            return JSONResponse({"error": localefmt.chu("Phiên không tồn tại", "Session does not exist")}, status_code=404)
+        return {"ok": True, "routing_mode": mode, "routing_profile": routing_profile,
+                "pinned_provider": None, "pinned_model": None}
     if prov and not _provider_def(prov):
         return JSONResponse({"error": localefmt.chu(f"provider không tồn tại: {prov}",
                                                     f"provider does not exist: {prov}")}, status_code=400)

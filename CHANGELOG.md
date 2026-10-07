@@ -1,4 +1,4 @@
-## 0.85.6
+# 0.85.6
 
 ### Chọn model tự động cho từng hội thoại
 
@@ -11,6 +11,18 @@
 Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay trong app tại **Cài đặt → Cập nhật**.
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
+
+## [0.85.6] - 2026-10-07
+
+### Thêm mới
+
+- **Auto trong từng hội thoại:** chọn Luna, GPT-6.1 Sol hoặc Astra qua OpenAI OAuth theo độ khó. Chỉ dùng model có trong danh mục và đã gọi thành công trên tài khoản đang kết nối.
+- Thanh model có Auto, ghim model và theo mặc định. Lựa chọn riêng từng hội thoại giữ sau tải lại hoặc khởi động lại, dùng được trên điện thoại và không đổi model của trợ lý khác.
+
+### Cải thiện
+
+- Mỗi lượt Auto hiện model thực thi, lý do chọn và token có bằng chứng. Token tích lũy của Codex được đối chiếu theo từng lần gọi; dữ liệu thiếu ghi chưa biết.
+- Câu tiếp ngắn giữ độ khó trước đó. Chỉ đổi lên model đã kiểm chứng khi model không khả dụng trước hoạt động đầu tiên; dừng khi đã có hoạt động để tránh chạy lại hành động.
 
 ## [0.85.5] - 2026-10-07
 ### Cải thiện

@@ -1709,6 +1709,10 @@ class CodexCLI:
                     self.session_id = thread_id
                     # Phát ngay để caller lưu trước cả khi lượt bị ngắt giữa chừng.
                     yield {"type": "session", "session_id": thread_id}
+            elif t == "item.started":
+                it = ev.get("item") or {}
+                if it.get("type") not in ("agent_message", "reasoning"):
+                    yield {"type": "activity", "item_type": it.get("type")}
             elif t == "item.completed":
                 it = ev.get("item") or {}
                 itype = it.get("type")
@@ -1762,7 +1766,13 @@ class CodexCLI:
                         self.vault_root or self.cwd)
                 except Exception as e:
                     print(f"[anh codex] {type(e).__name__}: {e}", file=sys.stderr)
+                from chat_auto_router import executed_model, invocation_usage
+                _turn_usage = invocation_usage(self.session_id, t_bat_dau)
+                u = _turn_usage or {}
                 yield {"type": "final", "content": final_text, "session_id": self.session_id,
+                       "executed_model": executed_model(self.session_id, t_bat_dau),
+                       "usage": _turn_usage,
+                       "cumulative_usage": ev.get("usage"),
                        # Codex đã tính cached_input_tokens trong input_tokens.
                        "tokens_in": u.get("input_tokens") or 0,
                        "tokens_out": u.get("output_tokens") or 0}

@@ -1,4 +1,4 @@
-## 0.85.6
+# 0.85.6
 
 ### Automatic model selection per conversation
 
@@ -13,6 +13,18 @@ Javis OS release history, newest first. You can also read it inside the app unde
 English entries start at 0.66.0. Every earlier release is described in the Vietnamese [CHANGELOG.md](CHANGELOG.md), which remains the maintainer's original; the in-app Updates page shows those older entries in Vietnamese.
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
+
+## [0.85.6] - 2026-10-07
+
+### Added
+
+- **Auto per conversation:** route through OpenAI OAuth to Luna, GPT-6.1 Sol or Astra according to task difficulty. Candidates must appear in the catalog and succeed on the connected account.
+- Choose Auto, a pinned model or the shared default. Conversation preferences survive reloads and restarts, work on mobile and leave other assistants unchanged.
+
+### Improved
+
+- Auto replies show the confirmed execution model, selection reason and measured tokens. Thread-cumulative Codex usage is reconciled per invocation; missing measurements remain unknown.
+- Short continuation prompts retain the previous difficulty. Escalate only to a verified model after an unavailable-model error before any activity; stop after activity to avoid replaying actions.
 
 ## [0.85.5] - 2026-10-07
 ### Improved

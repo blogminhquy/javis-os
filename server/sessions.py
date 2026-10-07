@@ -432,7 +432,10 @@ class SessionStore:
                               # lượt. NULL/rỗng = phiên chưa có lượt dashboard nào (hoặc phiên
                               # Telegram) → theo mặc định chung ở settings.json.
                               ("pinned_provider", "TEXT"),
-                              ("pinned_model", "TEXT")):
+                              ("pinned_model", "TEXT"),
+                              ("routing_mode", "TEXT"),
+                              ("routing_profile", "TEXT"),
+                              ("routing_state", "TEXT")):
                 if name not in cols:
                     self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {name} {ddl}")
             # Index cho cột vừa thêm phải chạy SAU vòng ALTER: DB cũ chưa có cột thì CREATE
@@ -775,6 +778,27 @@ class SessionStore:
             "UPDATE sessions SET project_id = ? WHERE id = ?", (pid, session_id)))
         return True
 
+    def set_routing(self, session_id, mode, profile="balanced", *, brain=None):
+        if mode not in ("auto", "default", "pinned") or profile not in ("balanced", "economy", "quality"):
+            raise ValueError("Invalid chat routing selection")
+        if brain and not self.get_session(session_id):
+            self.create_session(brain=brain, session_id=session_id)
+        if not self.get_session(session_id):
+            return False
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET routing_mode=?, routing_profile=?, "
+            "pinned_provider=CASE WHEN ?='pinned' THEN pinned_provider ELSE NULL END, "
+            "pinned_model=CASE WHEN ?='pinned' THEN pinned_model ELSE NULL END WHERE id=?",
+            (mode, profile, mode, mode, session_id)))
+        return True
+
+    def save_routing_state(self, session_id, decision):
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET routing_state=?, model=COALESCE(?,model), "
+            "engine=CASE WHEN ? IS NOT NULL THEN 'codex' ELSE engine END WHERE id=?",
+            (json.dumps(decision, ensure_ascii=False), decision.get("executed_model"),
+             decision.get("executed_model"), session_id)))
+
     def set_pinned_model(self, session_id: str, provider: Optional[str],
                          model: Optional[str], *, brain: Optional[str] = None) -> bool:
         """Ghim model riêng cho MỘT phiên (provider rỗng = gỡ ghim, phiên quay về mặc
@@ -790,7 +814,7 @@ class SessionStore:
         if not self.get_session(session_id):
             return False
         self._write(lambda c: c.execute(
-            "UPDATE sessions SET pinned_provider = ?, pinned_model = ? WHERE id = ?",
+            "UPDATE sessions SET pinned_provider = ?, pinned_model = ?, routing_mode = 'pinned' WHERE id = ?",
             (prov, mdl, session_id)))
         return True
 
