@@ -576,7 +576,7 @@ Vì sao không chỉ phân tích khối `JAVIS_RESONANCE` trong các tin ứng v
 6. **Host chấm bằng code** (`_grade`): mọi tiêu chí artifact_contract đã ghim cộng đáp án của tình huống; lời tự khai "đã đạt" của đầu ra không có giá trị. Tình huống chỉ người dùng chấm được (`expect.evaluator = human_confirmation`) không chạy, ghi unknown.
 7. **Kết luận hẹp, có lợi cho cách làm hiện tại** (`_trial_verdict`): ứng viên tụt ở bất kỳ tình huống nào so được thì `rejected / regression`; còn tình huống unknown thì `inconclusive / unknown` (unknown không bao giờ là thắng); hơn ở ít nhất một tình huống tập thử và không kém ở đâu thì `eligible`; còn lại `rejected / no_improvement`. Chi phí CHƯA là tiêu chí thắng (xem Giới hạn).
 8. **Can thiệp và đổi cách hiểu có hiệu lực giữa chừng.** Phép thử giữ khoá mục tiêu suốt lúc chạy (không chạy chồng với `advance`). Cổng `_trial_gate` dùng CÙNG điều kiện cho phép thực thi với `advance` (chốt guard cũ, rồi `_gate`: active, công tắc, pause, "Chưa đúng ý", guard nhảy hay chưa xác định, rồi revision) và được kiểm trước khi giữ hạn mức, trước mỗi lượt, và sau lượt cuối trước khi kết luận. Revision đổi thì `inconclusive / goal_reframed`; mọi chặn khác thì `inconclusive / stopped`. Kết quả cũ giữ nguyên phạm vi.
-9. **Áp dụng trong quyền đã có, trong cùng giao dịch chốt.** Chỉ `eligible` mới áp dụng, và việc đổi cách làm diễn ra TRONG giao dịch `finish_experiment`, sau khi kho kiểm lại: còn active, đúng revision, không tạm dừng, không có chốt chặn (guard, guard chưa xác định, Chưa đúng ý, công tắc tắt), phản hồi cách hiểu mới nhất của revision không phải "Chưa đúng ý", cách làm hiện tại vẫn là baseline. Bị chặn thì phép thử chốt `inconclusive / stopped`, không để lại phép thử eligible chưa áp dụng. `GoalStore.apply_method` dùng cùng phần kiểm. Agent không có đường nào khác để đổi cách làm. Người dùng quay lại bằng `revert_method` (chỉ owner, qua `POST /goals/{id}/commands`).
+9. **Áp dụng trong quyền đã có, trong cùng giao dịch chốt.** Chỉ `eligible` mới áp dụng, và việc đổi cách làm diễn ra TRONG giao dịch `finish_experiment`, sau khi kho kiểm lại TRẠNG THÁI HIỆN TẠI: còn active, đúng revision, không tạm dừng, không có chốt guard, phản hồi cách hiểu mới nhất của revision không phải "Chưa đúng ý", cách làm hiện tại vẫn là baseline. Các cờ `feature_off`, `fit_rejected`, `guard_unknown` chỉ là kết quả quan sát lần trước nên không chặn ở đây; điều kiện thật của chúng (công tắc, guard) được cổng kiểm ngay trước giao dịch, và cổng gỡ các cờ đó khi điều kiện đã hồi phục. Bị chặn thì phép thử chốt `inconclusive / stopped`, không để lại phép thử eligible chưa áp dụng. `GoalStore.apply_method` dùng cùng phần kiểm. Agent không có đường nào khác để đổi cách làm. Người dùng quay lại bằng `revert_method` (chỉ owner, qua `POST /goals/{id}/commands`).
 10. **Phạm vi áp dụng theo revision** (`effective_method`): cách làm đã học chỉ chạy trên ĐÚNG revision nó được kiểm; revision chưa kiểm thì dùng cách làm MẶC ĐỊNH, không rơi về ref trước đó (ref trước có thể cũng chỉ thắng ở revision cũ). Ref quay lại (`method_prev_ref`) là đích của lệnh quay lại, không phải quyền chạy; nó mang theo đúng revision đã kiểm của nó (`method_prev_revision`), và quay lại không gán revision hiện tại cho ref cũ.
 11. **Mọi kết quả được lưu**, kể cả thua: bảng `experiments` giữ revision, cặp cách làm, kết luận, lý do, từng tình huống hai bên, usage theo bên, bằng chứng và phạm vi; sự kiện `experiment_started`, `experiment_finished`, `method_changed`, `method_reverted`. Thẻ mục tiêu (`goal_view`) có `method` và ba phép thử gần nhất.
 12. **Không thử chỉ vì đến giờ.** Không đường nào trong scheduler gọi `compare_methods`. Gián đoạn giữa phép thử được `_reconcile` chốt: lượt dở thành failed (không chấm, không chạy lại), phép thử thành `inconclusive / interrupted`, trả lại lượt chưa bắt đầu.
@@ -605,6 +605,23 @@ Review chưa đạt với 3 lỗi P1, tái hiện được bằng engine giả v
 **Đột biến** (8, trên phần sửa): rơi về ref trước khi revision chưa kiểm, quay lại gán revision hiện tại cho ref cũ, bỏ chốt guard cũ trong cổng, không kiểm lại trước khi áp dụng, kho không kiểm pause, kho không kiểm "Chưa đúng ý", không kiểm cổng trước mỗi lượt, không kiểm cổng lúc bắt đầu: cả 8 làm test đỏ. Lần đầu, đột biến "kho không kiểm Chưa đúng ý" lọt vì M4 đặt cờ `fit_rejected` cùng giao dịch nên kiểm theo cờ đã bắt trước; đã thêm ca gỡ cờ bằng `clear_block` để giữ lớp kiểm theo sự kiện.
 
 Không chạy lại pilot model (đúng yêu cầu): phần sửa nằm ở cổng, giao dịch và phạm vi cách làm, kiểm được tất định. Pilot `6d54e859` không áp dụng cách làm nào nên kết luận của nó không đổi theo luật mới.
+
+### Sửa theo review PR #579 vòng 2
+
+Review vòng 2 xác nhận ba lỗi P1 đã sửa, và tìm ra một lỗi P2 do chính phần sửa P1-2 gây ra: giao dịch áp dụng coi mọi `block_reason` trong `feature_off`, `fit_rejected`, `guard_unknown`, `guard` là chốt còn hiệu lực. Nhưng `_gate` chỉ GHI các cờ đó khi quan sát thấy, không gỡ khi điều kiện hồi phục (bật lại công tắc, đổi sang "Đúng ý"). Cổng đầu cho chạy, phép thử tiêu đủ 4 lượt và thắng, rồi giao dịch cuối bác vì cờ cũ.
+
+**Sửa (`ca8e1674`):**
+- Trong giao dịch, chỉ chốt guard (người dùng phải mở lại) là chặn cứng. "Chưa đúng ý" đọc từ phản hồi MỚI NHẤT, không đọc cờ; pause, huỷ, revision và baseline vẫn kiểm trong giao dịch như trước.
+- Khi `_trial_gate` cho qua, `GoalStore.clear_transient_block` đồng bộ lại: gỡ đúng các cờ quan sát cũ bằng CAS theo đúng cờ đang ghi; không đụng chốt guard, pause, trạng thái chờ người dùng duyệt hay hết hạn mức.
+
+**Test hồi quy** (mục "Review M5 vòng 2", 8 kiểm mới, tổng 66): hai ca hồi phục của người review (tắt rồi bật lại sau khi `advance` ghi `feature_off`; "Chưa đúng ý" rồi "Đúng ý") áp dụng được và cờ cũ được gỡ; ca âm "Chưa đúng ý, Đúng ý, rồi lại Chưa đúng ý" bị từ chối trước khi chi lượt; tầng kho: ba cờ quan sát cũ không bác việc áp dụng, chốt guard chen vào trước giao dịch vẫn chặn, hàm gỡ cờ không đụng chốt guard hay chờ duyệt. Các ca chặn của vòng 1 (guard đã chốt sau khi file có lại, dừng trong lượt cuối, can thiệp chen vào trước giao dịch) giữ nguyên và vẫn xanh.
+
+**Script của người review:**
+- `PR-579-M5-round2-checks.py` chạy nguyên văn trên bản sửa: 16 ca PASS vẫn qua, rồi dừng ở ca REPRO.
+- `exports/reviews/PR-579-M5-round3-expected-checks.py`: script đó với 16 ca PASS nguyên văn, ca REPRO đổi thành kỳ vọng đúng (áp dụng được, đủ 4 lượt, phép thử lưu eligible, cờ đã gỡ) và thêm ca âm phản hồi cuối vẫn là từ chối. Kết quả 19/19 PASS; chạy trên `6c1e3bdd` thì đỏ ở ca hồi phục.
+- File test mới chạy trên mã `6c1e3bdd` cũng đỏ ở cả hai ca hồi phục và ba ca cờ cũ.
+
+**Đột biến** (4): đưa cờ tạm trở lại thành chốt, cổng không đồng bộ cờ, hàm gỡ cờ đụng cả chốt guard và chờ duyệt, bỏ chốt guard trong giao dịch: cả 4 làm test đỏ.
 
 ### Pilot thật
 
@@ -646,11 +663,11 @@ Không chạy lại pilot model (đúng yêu cầu): phần sửa nằm ở cổ
 
 ### Toàn bộ test
 
-| | Main sạch (`7d264236`) | Nhánh M5 (`1cc0395c`) | Sau review vòng 1 (`3c214c65`) |
-|---|---|---|---|
-| Python xanh | 387/403 | 399/414 | 399/414 |
-| File Python đỏ | 16 | 15 | 15 |
-| Đỏ mới so với main | | không có | không có |
-| JS (`tests/run.py --js`) | | 177/177 | 177/177 |
+| | Main sạch (`7d264236`) | Nhánh M5 (`1cc0395c`) | Sau review vòng 1 (`3c214c65`) | Sau review vòng 2 (`ca8e1674`) |
+|---|---|---|---|---|
+| Python xanh | 387/403 | 399/414 | 399/414 | 399/414 |
+| File Python đỏ | 16 | 15 | 15 | 15 |
+| Đỏ mới so với main | | không có | không có | không có |
+| JS (`tests/run.py --js`) | | 177/177 | 177/177 | 177/177 |
 
 15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1. Hai file mới của M5 (`test_resonance_mvp_trial.py`, `test_resonance_mvp_trial_pilot.py` ở chế độ bỏ qua khi không đặt `JAVIS_RESONANCE_PILOT=1`) đều xanh.
