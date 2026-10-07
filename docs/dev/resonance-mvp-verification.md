@@ -557,3 +557,79 @@ Vì sao không chỉ phân tích khối `JAVIS_RESONANCE` trong các tin ứng v
 | JS (`tests/run.py --js`) | | 177/177 (tại `7c9776c6`) | 177/177 | 177/177 |
 
 15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1. Lượt sau review đỏ thêm `test_write_path_phase9.py` (ca `test_restart_marks_running_writes_unknown_without_rerunning`, đường ghi của write invocation, không chạm Resonance): chạy riêng 3 lần trên nhánh thì xanh 1, đỏ 2; chạy 3 lần trên main sạch `7d264236` cũng xanh 1, đỏ 2. Là test chập chờn có sẵn.
+
+## M5: một phép thử cải thiện nhỏ (07/10/2026)
+
+### Nền và nhánh
+
+- Nhánh `claude/resonance-mvp-m5` tách từ head M4 đã qua review vòng 3 (`79cfdfb4`), PR nháp #579 xếp chồng trên #575. Phiên bản 0.85.2: `origin/main` đã lên 0.85.0 và PR #578 giữ 0.85.1.
+- `origin/main` đi thêm nhiều commit so với nền `7d264236`; chưa đồng bộ vào chuỗi, cùng lý do ở M3 và M4, chỉnh một lần lúc merge.
+- CI của #575 trên `79cfdfb4` đã xanh 4/4 trước khi bắt đầu M5.
+
+### Quyết định thiết kế cần người review soát
+
+1. **Cách làm là cấu hình khai báo** (`METHODS` trong `resonance.py`): mỗi mục chỉ là một đoạn chữ cố định nối vào prompt làm việc (`work.v1` mặc định, `work.checklist.v1` rà đủ ý, `work.brief.v1` viết gọn). Model không thêm hay sửa được mục nào; không mục nào chạm tiêu chí, evaluator hay bộ tình huống.
+2. **`compare_methods(goal_id, baseline_ref, candidate_ref, cases, deps)`** (async, như `advance`). Trước khi chạy, host ghim thước đo: tiêu chí kiểm tự động của ĐÚNG revision hiện tại (bỏ `path`, vì phép thử không đăng file) cùng đáp án host giữ của từng tình huống, thành `rubric_hash`. Baseline phải là cách làm mục tiêu đang dùng; ứng viên phải khác baseline (đúng một thay đổi). Bộ tình huống 1 đến 6, phải có cả tập thử (tuning) lẫn tập giữ riêng (holdout).
+3. **Cách làm không thấy đáp án.** Prompt của mỗi lượt dựng bằng chính hàm `_work_prompt` của lượt làm việc thật, với lời người dùng là đầu vào của đúng một tình huống; không có đánh giá trước, không có bản cũ, không có đáp án. Hai bên của một tình huống có prompt giống hệt nhau trừ đoạn chữ của cách làm.
+4. **Cùng nguồn lực, giữ chỗ trước.** `begin_experiment` giữ chỗ TOÀN BỘ lượt phép thử cần (2 x số tình huống chạy được) trong cùng giao dịch, vừa trong hạn mức chung của mục tiêu, vừa trong phần khám phá (`EXPLORE_SHARE` = nửa hạn mức, cộng dồn qua các phép thử, spec 11.2). Không đủ thì không tạo phép thử, không gọi model (`created: false`, `reason: explore_budget`). Engine bị chặn trước khi gọi thì trả lại đúng lượt đó; lượt chưa bắt đầu (dừng giữa chừng) được trả lại lúc chốt.
+5. **Không lặp tác động ngoài.** Đầu ra phép thử chỉ ghi trong vùng làm việc (`outputs/<mục tiêu>/trials/<phép thử>/`), không đăng vào brain. Bằng chứng gắn loại `trial_output`, nên không bao giờ được tính là sản phẩm của mục tiêu (evaluator của mục tiêu chỉ đọc `action_output`).
+6. **Host chấm bằng code** (`_grade`): mọi tiêu chí artifact_contract đã ghim cộng đáp án của tình huống; lời tự khai "đã đạt" của đầu ra không có giá trị. Tình huống chỉ người dùng chấm được (`expect.evaluator = human_confirmation`) không chạy, ghi unknown.
+7. **Kết luận hẹp, có lợi cho cách làm hiện tại** (`_trial_verdict`): ứng viên tụt ở bất kỳ tình huống nào so được thì `rejected / regression`; còn tình huống unknown thì `inconclusive / unknown` (unknown không bao giờ là thắng); hơn ở ít nhất một tình huống tập thử và không kém ở đâu thì `eligible`; còn lại `rejected / no_improvement`. Chi phí CHƯA là tiêu chí thắng (xem Giới hạn).
+8. **Can thiệp và đổi cách hiểu có hiệu lực giữa chừng.** Phép thử giữ khoá mục tiêu suốt lúc chạy (không chạy chồng với `advance`); trước mỗi lượt kiểm lại: revision đổi thì dừng, `inconclusive / goal_reframed`; người dùng tạm dừng, huỷ hay tắt Resonance thì dừng, `inconclusive / stopped`. Kết quả cũ giữ nguyên phạm vi.
+9. **Áp dụng trong quyền đã có.** Chỉ `eligible` mới áp dụng, qua `GoalStore.apply_method`: kho đòi phép thử eligible chưa áp dụng của đúng revision, đúng cặp cách làm, và cách làm hiện tại vẫn là baseline (CAS). Agent không có đường nào khác để đổi cách làm. Ref cũ được giữ; người dùng quay lại bằng lệnh `revert_method` (chỉ owner, qua `POST /goals/{id}/commands`).
+10. **Phạm vi áp dụng theo revision** (`effective_method`): cách làm đã thắng chỉ dùng cho revision đã được kiểm; mục tiêu sang revision mới thì quay về cách làm trước đó cho tới khi được so lại trên revision mới (spec 11.1).
+11. **Mọi kết quả được lưu**, kể cả thua: bảng `experiments` giữ revision, cặp cách làm, kết luận, lý do, từng tình huống hai bên, usage theo bên, bằng chứng và phạm vi; sự kiện `experiment_started`, `experiment_finished`, `method_changed`, `method_reverted`. Thẻ mục tiêu (`goal_view`) có `method` và ba phép thử gần nhất.
+12. **Không thử chỉ vì đến giờ.** Không đường nào trong scheduler gọi `compare_methods`. Gián đoạn giữa phép thử được `_reconcile` chốt: lượt dở thành failed (không chấm, không chạy lại), phép thử thành `inconclusive / interrupted`, trả lại lượt chưa bắt đầu.
+
+### Kết quả với engine giả
+
+`tests/python/test_resonance_mvp_trial.py`, 44 kiểm, đủ năm test Task M5 đặt tên: `test_same_goal_and_rubric`, `test_holdout_not_visible`, `test_unknown_not_win`, `test_failed_candidate_not_applied`, `test_one_change_within_budget`. Thêm: cách làm lạ, ứng viên trùng baseline, thiếu tập giữ riêng, Resonance tắt; đầu ra tự khai đạt; đổi cách hiểu giữa chừng; tình huống chỉ người chấm; ngang nhau; phần khám phá cộng dồn; scheduler không tạo phép thử; khoá mục tiêu; engine bị chặn; áp dụng, phạm vi theo revision, quay lại chỉ owner; gián đoạn và đối soát. Bộ tình huống ở `tests/fixtures/resonance/mvp_cases.json` (biên bản họp thành danh sách việc, lĩnh vực trung lập).
+
+Phép thử đột biến (12): bỏ luật tụt hạng, cho unknown thắng, lộ đáp án vào prompt, không dừng khi đổi revision, bỏ trần khám phá, áp dụng không cần phép thử, cách làm không giới hạn theo revision, không chốt phép thử bị ngắt, không giữ khoá mục tiêu, không trả lượt khi engine bị chặn, chạy cả tình huống chỉ người chấm, công nhận lời tự khai: tất cả làm test đỏ. Lần đầu, đột biến "không dừng khi đổi revision" lọt vì kiểm cuối phép thử cũng bắt được; đã thêm kiểm riêng cho tác dụng của kiểm giữa chừng (dừng sau lượt đang chạy, trả lại lượt chưa chạy).
+
+### Pilot thật
+
+`tests/python/test_resonance_mvp_trial_pilot.py`, chỉ chạy khi `JAVIS_RESONANCE_PILOT=1`. Bằng chứng: [`resonance-mvp-m5-pilot.json`](resonance-mvp-m5-pilot.json) (JSON thoát ký tự, không có đường dẫn cá nhân).
+
+- **Commit:** `6d54e859`, cây `server/` sạch. **Môi trường:** `JAVIS_STATE_DIR` tạm, chỉ chép các ô chọn engine, brain tạm, dữ liệu mô phỏng; engine việc nền đang chọn `anthropic-cli` / `sonnet` qua `main._resonance_engine` (chỉ chữ, không chuỗi dự phòng), bằng chứng qua `main._RESONANCE_EVIDENCE`.
+- **Kịch bản:** mục tiêu "biên bản họp thành danh sách việc", hạn mức 8 (phần khám phá 4). Phép thử `work.v1` so với `work.brief.v1` trên t1 (tập thử), h1 và h2 (giữ riêng; h2 chỉ người chấm được).
+- **Kết quả host:** 4 lượt gọi model thật, 24,4 giây tổng; cả 4 receipt succeeded, đúng provider đã chọn, 0 lần gọi công cụ, hash khớp file trên đĩa; bằng chứng đọc lại được từ EvidenceStore thật; không đăng gì vào brain; dùng đúng 4/8 lượt, 4/4 phần khám phá.
+- **Kết quả chấm:**
+  - **Tình huống đạt:** t1 và h1 đạt ở CẢ hai bên.
+  - **Tình huống unknown:** h2, không chạy, unknown ở cả hai bên.
+  - **Ứng viên thua: KHÔNG quan sát được.** Dự đoán ban đầu là bản gọn sẽ thua vì quá ngắn; thực tế model viết gọn ba dòng mà vẫn đủ người và hạn. Kết luận `inconclusive / unknown` (do h2), không áp dụng. Áp luật chấm lên đúng kết quả thật của t1 và h1 (bỏ h2, không gọi thêm model) thì ra `rejected / no_improvement`: ứng viên không thắng nên không được áp dụng, nhưng đó không phải ca tụt hạng. Ca ứng viên tụt hạng (`regression`) hiện CHỈ được kiểm bằng engine giả.
+- **Usage engine báo:** baseline khoảng 36,3 nghìn token vào, 876 token ra cho 2 lượt; ứng viên khoảng 36,4 nghìn vào, 203 ra. Phần lớn token vào là phần nền của Claude CLI, không phải prompt của phép thử.
+- **Pilot làm lộ một điều:** ứng viên gọn ngang chất lượng mà rẻ hơn hẳn ở token ra, nhưng luật kết luận hiện không coi giảm chi phí là thắng, nên ứng viên đó không bao giờ được áp dụng. Spec 11.1 cho phép acceptance "đạt chất lượng tối thiểu và giảm chi phí"; MVP chưa làm (xem Giới hạn).
+- Không chạy thêm lượt nào để cố tái hiện ca thua: đã dùng 4 trong tối đa 5 lượt cho phép, một lượt còn lại không đủ cho một cặp so sánh.
+
+### Giới hạn và những gì chưa kiểm
+
+1. **Ca ứng viên tụt hạng chưa có trên model thật**, chỉ có với engine giả.
+2. **Chi phí chưa là tiêu chí thắng.** Kết luận chỉ dựa trên chất lượng theo thước đo đã ghim; ngang chất lượng mà rẻ hơn vẫn là `no_improvement`.
+3. **Chưa có ai tự đề xuất phép thử.** Không có đường tự động hay nút giao diện gọi `compare_methods`; bộ tình huống và cặp cách làm do người gọi đưa vào (test, pilot). Đúng phạm vi plan (một phép so sánh hẹp, không ExperimentService); agent tự chọn phép thử đáng làm (spec 11.2) để sau.
+4. **Ba cách làm cố định.** Không có kho biến thể, không tạo biến thể mới; thêm cách làm là sửa code có review.
+5. **Thẻ mục tiêu chưa hiện cách làm và phép thử**: dữ liệu có trong `GET /goals/{id}` (`method`, `experiments`), giao diện chưa vẽ; lệnh `revert_method` có ở API, chưa có nút.
+6. **Một phép thử một mục tiêu một lúc** (khoá mục tiêu); phép thử lớn giữ khoá lâu, lượt làm việc của mục tiêu đó chờ.
+7. **Chưa có tự sửa code, nhóm, supervisor, metric chuỗi thời gian, undo tổng quát**: ngoài MVP, đúng kế hoạch.
+8. Các giới hạn từ M2 đến M4 vẫn còn.
+
+### Đối chiếu điều kiện hoàn thành MVP
+
+| Điều kiện (cuối plan 00-mvp) | Tình trạng | Căn cứ |
+|---|---|---|
+| Một yêu cầu cần theo đuổi đi hết vòng trên host thật: tự hình thành mục tiêu, hành động có receipt, kiểm chứng, tiếp tục sau gián đoạn, trả kết quả đúng phiên | Đạt một phần | Pilot M3 trên host thật: receipt, kiểm chứng, tiếp tục sau khởi động lại, qua `main._resonance_tick`. Mục tiêu trong pilot được dựng bằng `form_goal` với đề xuất soạn sẵn, CHƯA đo bộ não thật tự gọi `javis_goal` trong lượt chat (M2 ghi là chưa đo). Trả kết quả đúng phiên kiểm bằng API thật và engine giả (M4); trong pilot, kênh báo được thay bằng bộ ghi lại. |
+| Chat thường không tạo việc nền; không bắt điền SMART hay xác nhận mọi mục tiêu | Đạt với engine giả | M2: phân luồng sau lượt, không gọi thêm model; chưa đo trên bộ não thật. |
+| Goal-fit và outcome tách; biết nói chưa đủ bằng chứng; xác nhận con người không bị bỏ phí hay dùng sai phạm vi | Đạt | M3, M4 và ba vòng review M4. |
+| Một thay đổi phương pháp được thử trên cùng thước đo, chỉ áp dụng khi đủ căn cứ trong quyền; usage và hạn mức được ghi, dừng được | Đạt, có giới hạn | M5: engine giả đủ các nhánh; pilot thật cho nhánh không áp dụng. Chưa có lần áp dụng (eligible) nào trên model thật. |
+| Báo cáo chỉ khẳng định phạm vi đã chạy | Theo dõi | Mỗi mục trên ghi rõ engine giả hay model thật. |
+
+### Toàn bộ test
+
+| | Main sạch (`7d264236`) | Nhánh M5 (`1cc0395c`) |
+|---|---|---|
+| Python xanh | 387/403 | 399/414 |
+| File Python đỏ | 16 | 15 |
+| Đỏ mới so với main | | không có |
+| JS (`tests/run.py --js`) | | 177/177 |
+
+15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1. Hai file mới của M5 (`test_resonance_mvp_trial.py`, `test_resonance_mvp_trial_pilot.py` ở chế độ bỏ qua khi không đặt `JAVIS_RESONANCE_PILOT=1`) đều xanh.
