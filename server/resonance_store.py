@@ -74,6 +74,13 @@ CREATE INDEX IF NOT EXISTS wakeups_due ON wakeups(due_at);
 CREATE TABLE IF NOT EXISTS published(
   goal_id TEXT NOT NULL, path TEXT NOT NULL, sha256 TEXT NOT NULL, action_id TEXT NOT NULL,
   created_at REAL NOT NULL, PRIMARY KEY(goal_id, path));
+CREATE TABLE IF NOT EXISTS experiments(
+  id TEXT PRIMARY KEY, goal_id TEXT NOT NULL, revision INTEGER NOT NULL,
+  baseline_ref TEXT NOT NULL, candidate_ref TEXT NOT NULL, status TEXT NOT NULL,
+  verdict TEXT NOT NULL DEFAULT '', reason TEXT NOT NULL DEFAULT '', calls_reserved INTEGER NOT NULL DEFAULT 0,
+  payload_json TEXT NOT NULL DEFAULT '{}', applied INTEGER NOT NULL DEFAULT 0,
+  created_at REAL NOT NULL, updated_at REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS experiments_goal ON experiments(goal_id, created_at);
 """
 
 # Cột thêm từ M3 vào bảng đã có ở M2. Kho tạo bởi bản M2 không tự có cột mới qua CREATE IF NOT EXISTS,
@@ -84,6 +91,12 @@ _ADDED_COLUMNS = (
     ("goals", "lease_owner", "TEXT"),
     ("goals", "lease_until", "REAL"),
     ("outbox", "idem", "TEXT"),
+    # M5: cách làm (method ref) của mục tiêu. method_revision là revision cách làm đã được kiểm chứng; revision
+    # khác thì quay về method_prev_ref (R.effective_method). explore_used: lượt đã dùng cho phép thử.
+    ("goals", "method_ref", "TEXT NOT NULL DEFAULT 'work.v1'"),
+    ("goals", "method_prev_ref", "TEXT NOT NULL DEFAULT ''"),
+    ("goals", "method_revision", "INTEGER NOT NULL DEFAULT 0"),
+    ("goals", "explore_used", "INTEGER NOT NULL DEFAULT 0"),
 )
 _POST_MIGRATION = "CREATE UNIQUE INDEX IF NOT EXISTS outbox_idem ON outbox(goal_id, idem) WHERE idem IS NOT NULL;"
 
@@ -210,7 +223,9 @@ class GoalStore:
             horizon=dict(fr.get("horizon") or {}), relevant_quote=fr.get("relevant_quote", ""),
             guards=tuple(fr.get("guards") or ()), guard_seq=int(fr.get("guard_seq") or 0),
             stage=fr.get("stage", "discovery"), mode=fr.get("mode", "achieve"), status=row["status"],
-            budget_calls=row["budget_calls"], calls_used=row["calls_used"], paused=bool(row["paused"]))
+            budget_calls=row["budget_calls"], calls_used=row["calls_used"], paused=bool(row["paused"]),
+            method_ref=row["method_ref"] or R.DEFAULT_METHOD, method_prev_ref=row["method_prev_ref"] or "",
+            method_revision=int(row["method_revision"] or 0), explore_used=int(row["explore_used"] or 0))
 
     def _goal_row(self, c, p: Principal, goal_id: str):
         r = c.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone()
@@ -502,7 +517,7 @@ class GoalStore:
     # ───────────── sổ hành động ─────────────
 
     def begin_action(self, p: Principal, goal_id: str, revision: int, kind: str, lease_until: float,
-                     now: Optional[float] = None, intent: Optional[dict] = None) -> Optional[dict]:
+                     now: Optional[float] = None, intent: Optional[dict] = None, wake: bool = True) -> Optional[dict]:
         """Ghi Ý ĐỊNH hành động TRƯỚC khi tác động. Hành động `work` giữ một lượt gọi model trong cùng giao dịch;
         hết hạn mức thì trả None và không ghi gì. Kèm lịch phục hồi lúc hết khoá: tiến trình chết giữa chừng thì
         tick sau đối soát được, không bỏ quên mục tiêu."""
@@ -523,9 +538,135 @@ class GoalStore:
                       "created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                       (aid, goal_id, int(revision), kind, seq, "running", float(lease_until), _j(intent or {}), "{}",
                        now, now))
-            self._wake(c, goal_id, p.brain_id, "work", float(lease_until) + 1, "phục hồi nếu lượt bị ngắt",
-                       keep_earlier=True)
+            if wake:
+                self._wake(c, goal_id, p.brain_id, "work", float(lease_until) + 1, "phục hồi nếu lượt bị ngắt",
+                           keep_earlier=True)
             return {"id": aid, "goal_id": goal_id, "revision": int(revision), "kind": kind, "seq": seq}
+
+    # ───────────── phép thử cải thiện (M5) ─────────────
+
+    def begin_experiment(self, p: Principal, goal_id: str, revision: int, baseline_ref: str, candidate_ref: str,
+                         calls: int, explore_cap: int, payload: dict, now: Optional[float] = None) -> Optional[str]:
+        """Ghi phép thử và giữ chỗ TOÀN BỘ lượt gọi nó cần trong CÙNG giao dịch: trong hạn mức chung của mục tiêu và
+        trong phần dành cho khám phá. Không đủ thì trả None, không ghi gì (không tạo phép thử)."""
+        now = time.time() if now is None else float(now)
+        calls = int(calls)
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            if row["status"] != "active" or int(row["revision"]) != int(revision):
+                return None
+            cur = c.execute("UPDATE goals SET calls_used=calls_used+?, explore_used=explore_used+?, updated_at=? "
+                            "WHERE id=? AND calls_used+?<=budget_calls AND explore_used+?<=?",
+                            (calls, calls, now, goal_id, calls, calls, int(explore_cap)))
+            if cur.rowcount != 1:
+                return None
+            eid = _nid("exp")
+            c.execute("INSERT INTO experiments(id,goal_id,revision,baseline_ref,candidate_ref,status,calls_reserved,"
+                      "payload_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                      (eid, goal_id, int(revision), baseline_ref, candidate_ref, "running", calls, _j(payload or {}),
+                       now, now))
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                      "VALUES(?,?,?,?,?,?,?)", (goal_id, int(revision), "experiment_started", "host",
+                                                _j({"experiment_id": eid, "baseline_ref": baseline_ref,
+                                                    "candidate_ref": candidate_ref, "calls": calls}), p.by, now))
+            return eid
+
+    def release_trial_call(self, p: Principal, goal_id: str, n: int = 1) -> None:
+        """Trả lại lượt phép thử đã giữ mà model KHÔNG được gọi (engine bị chặn, lượt chưa bắt đầu)."""
+        n = max(0, int(n))
+        if not n:
+            return
+        with self._Tx(self) as c:
+            c.execute("UPDATE goals SET calls_used=MAX(0,calls_used-?), explore_used=MAX(0,explore_used-?) "
+                      "WHERE id=? AND brain_id=?", (n, n, goal_id, p.brain_id))
+
+    def finish_experiment(self, p: Principal, experiment_id: str, verdict: str, reason: str, payload: dict,
+                          refund: int = 0) -> bool:
+        """Chốt kết quả, kể cả khi ứng viên thua. Chỉ chốt phép thử còn đang chạy (chốt một lần). `refund`: lượt đã
+        giữ cho các lượt chưa bắt đầu, trả lại hạn mức trong cùng giao dịch."""
+        now = time.time()
+        with self._Tx(self) as c:
+            r = c.execute("SELECT e.* FROM experiments e JOIN goals g ON g.id=e.goal_id WHERE e.id=? AND g.brain_id=?",
+                          (experiment_id, p.brain_id)).fetchone()
+            if r is None:
+                raise ScopeError("phép thử không tồn tại trong brain này")
+            if r["status"] != "running":
+                return False
+            old = json.loads(r["payload_json"] or "{}")
+            c.execute("UPDATE experiments SET status='finished', verdict=?, reason=?, payload_json=?, updated_at=? "
+                      "WHERE id=?", (verdict, reason, _j({**old, **(payload or {})}), now, experiment_id))
+            n = max(0, int(refund))
+            if n:
+                c.execute("UPDATE goals SET calls_used=MAX(0,calls_used-?), explore_used=MAX(0,explore_used-?) "
+                          "WHERE id=?", (n, n, r["goal_id"]))
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                      "VALUES(?,?,?,?,?,?,?)", (r["goal_id"], r["revision"], "experiment_finished", "host",
+                                                _j({"experiment_id": experiment_id, "verdict": verdict,
+                                                    "reason": reason}), p.by, now))
+            return True
+
+    @staticmethod
+    def _experiment(r) -> dict:
+        return {"id": r["id"], "goal_id": r["goal_id"], "revision": r["revision"], "baseline_ref": r["baseline_ref"],
+                "candidate_ref": r["candidate_ref"], "status": r["status"], "verdict": r["verdict"],
+                "reason": r["reason"], "calls_reserved": r["calls_reserved"], "applied": bool(r["applied"]),
+                "payload": json.loads(r["payload_json"] or "{}"), "created_at": r["created_at"]}
+
+    def experiments(self, p: Principal, goal_id: str) -> list:
+        """Các phép thử của mục tiêu, mới nhất trước."""
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return []
+            return [self._experiment(r) for r in c.execute(
+                "SELECT * FROM experiments WHERE goal_id=? ORDER BY created_at DESC, rowid DESC", (goal_id,)).fetchall()]
+
+    def apply_method(self, p: Principal, goal_id: str, expected_revision: int, from_ref: str, to_ref: str,
+                     experiment_id: str) -> None:
+        """Đổi cách làm của mục tiêu. Agent CHỈ đổi được khi có phép thử eligible của đúng revision, đúng cặp cách
+        làm, chưa áp dụng; và cách làm hiện tại vẫn là baseline của phép thử đó (CAS). Giữ ref cũ để quay lại."""
+        now = time.time()
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            e = c.execute("SELECT * FROM experiments WHERE id=? AND goal_id=?", (experiment_id, goal_id)).fetchone()
+            if (e is None or e["verdict"] != "eligible" or e["status"] != "finished" or e["applied"]
+                    or int(e["revision"]) != int(expected_revision) or e["baseline_ref"] != from_ref
+                    or e["candidate_ref"] != to_ref):
+                raise R.GoalRejected("không có phép thử eligible khớp để đổi cách làm")
+            if row["status"] != "active" or int(row["revision"]) != int(expected_revision):
+                raise ConflictError("mục tiêu đã đổi so với lúc thử")
+            if R.effective_method(self._record(c, row)) != from_ref:
+                raise ConflictError("cách làm hiện tại không còn là baseline của phép thử")
+            c.execute("UPDATE goals SET method_ref=?, method_prev_ref=?, method_revision=?, updated_at=? WHERE id=?",
+                      (to_ref, from_ref, int(expected_revision), now, goal_id))
+            c.execute("UPDATE experiments SET applied=1, updated_at=? WHERE id=?", (now, experiment_id))
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                      "VALUES(?,?,?,?,?,?,?)", (goal_id, int(expected_revision), "method_changed", "host",
+                                                _j({"from": from_ref, "to": to_ref, "experiment_id": experiment_id}),
+                                                p.by, now))
+
+    def revert_method(self, p: Principal, goal_id: str, seen_revision: Optional[int] = None) -> str:
+        """Người dùng quay về cách làm trước đó. CHỈ owner. Trả ref đang dùng sau khi quay lại."""
+        if p.kind != "owner":
+            raise PermissionError("chỉ người dùng mới quay lại cách làm cũ")
+        now = time.time()
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            prev = row["method_prev_ref"] or ""
+            if not prev:
+                raise R.GoalRejected("mục tiêu chưa đổi cách làm nào để quay lại")
+            c.execute("UPDATE goals SET method_ref=?, method_prev_ref='', method_revision=?, updated_at=? WHERE id=?",
+                      (prev, int(row["revision"]), now, goal_id))
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                      "VALUES(?,?,?,?,?,?,?)", (goal_id, row["revision"], "method_reverted", "owner",
+                                                _j({"from": row["method_ref"], "to": prev,
+                                                    "seen_revision": seen_revision}), p.by, now))
+            return prev
 
     def release_call(self, p: Principal, goal_id: str) -> None:
         """Trả lại lượt đã giữ mà model KHÔNG được gọi (engine bị chặn, chưa sẵn sàng)."""

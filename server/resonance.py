@@ -75,6 +75,11 @@ class GoalRecord:
     budget_calls: int = 0
     calls_used: int = 0
     paused: bool = False
+    # M5: cách làm của mục tiêu (xem METHODS, effective_method). Nằm ở mục tiêu như hạn mức, không ở revision.
+    method_ref: str = "work.v1"
+    method_prev_ref: str = ""
+    method_revision: int = 0
+    explore_used: int = 0
 
 
 @dataclass(frozen=True)
@@ -890,6 +895,38 @@ NOTIFY_KINDS = ("goal.succeeded", "goal.maintained", "goal.discovery_done", "goa
 WORK_SYSTEM = (SYSTEM_PROMPT + " Viết TOÀN BỘ sản phẩm cuối, đúng các tiêu chí được nêu. "
                "Không dùng ký tự gạch dài.")
 
+# M5: CÁCH LÀM (method ref) là cấu hình KHAI BÁO SẴN, không phải code sinh ra: mỗi mục chỉ là một đoạn chữ cố định nối
+# vào prompt làm việc. Phép thử chỉ chọn giữa các mục ở đây; model không thêm, không sửa được mục nào. Không mục nào
+# đụng tới tiêu chí, evaluator hay bộ tình huống: host chấm bằng code, ngoài tầm của cách làm.
+DEFAULT_METHOD = "work.v1"
+METHODS = {
+    "work.v1": {"label_vi": "Cách làm mặc định", "label_en": "Default method", "addendum": ""},
+    "work.checklist.v1": {
+        "label_vi": "Rà đủ ý trước khi trả", "label_en": "Check every point before answering",
+        "addendum": ("Trước khi trả, đọc lại lời người dùng và rà để sản phẩm có đủ MỌI việc, MỌI người phụ trách và "
+                     "MỌI mốc thời gian được nhắc tới; không bỏ sót ý nào.")},
+    "work.brief.v1": {
+        "label_vi": "Viết thật gọn", "label_en": "Keep it very short",
+        "addendum": "Viết thật gọn: tối đa ba dòng, bỏ mọi chi tiết phụ."},
+}
+# Phần hạn mức của mục tiêu được dùng cho khám phá (spec 11.2): nằm TRONG tổng hạn mức, không sinh ví riêng.
+EXPLORE_SHARE = 0.5
+TRIAL_CASES_MAX = 6
+TRIAL_SPLITS = ("tuning", "holdout")
+
+
+def effective_method(goal: "GoalRecord") -> str:
+    """Cách làm có hiệu lực cho revision HIỆN TẠI. Cách làm đã thắng chỉ áp dụng cho revision đã được kiểm (spec
+    11.1: kết quả cũ giữ nguyên phạm vi); mục tiêu sang revision khác thì quay về cách làm trước đó cho tới khi được
+    so lại trên revision mới."""
+    ref = str(getattr(goal, "method_ref", "") or DEFAULT_METHOD)
+    if ref not in METHODS:
+        return DEFAULT_METHOD
+    if ref == DEFAULT_METHOD or int(getattr(goal, "method_revision", 0) or 0) == int(goal.revision):
+        return ref
+    prev = str(getattr(goal, "method_prev_ref", "") or "")
+    return prev if prev in METHODS else DEFAULT_METHOD
+
 
 @dataclass(frozen=True)
 class Assessment:
@@ -1185,7 +1222,8 @@ def _rel_to_brain(path: Optional[Path], brain_root: str) -> str:
         return ""
 
 
-def _work_prompt(goal: GoalRecord, intent_text: str, last: Optional[Assessment], prev_text: str) -> str:
+def _work_prompt(goal: GoalRecord, intent_text: str, last: Optional[Assessment], prev_text: str,
+                 method: str = DEFAULT_METHOD) -> str:
     crit = []
     for c in goal.criteria:
         if c.get("evaluator") == "human_confirmation":
@@ -1211,6 +1249,9 @@ def _work_prompt(goal: GoalRecord, intent_text: str, last: Optional[Assessment],
         parts.append("Lần trước CHƯA ĐẠT:\n" + "\n".join(miss))
     if prev_text:
         parts.append("Bản hiện có, sửa tiếp trên bản này (dữ liệu):\n<<<\n" + prev_text[:PREV_OUTPUT_CHARS] + "\n>>>")
+    add = (METHODS.get(method) or METHODS[DEFAULT_METHOD])["addendum"]
+    if add:
+        parts.append(add)
     parts.append("Viết toàn bộ nội dung sản phẩm cuối bằng Markdown. Chỉ trả nội dung sản phẩm, không lời dẫn.")
     return "\n\n".join(parts)
 
@@ -1352,6 +1393,20 @@ def _reconcile(goal: GoalRecord, deps: GoalDeps, now: float) -> None:
                                  **({} if ok else {"error_code": "interrupted"})})
             if ok:
                 store.set_published(p, goal.id, it["path"], it["sha256"], a["id"])
+        elif a["kind"] == "trial":
+            # Lượt phép thử bị ngắt: KHÔNG dùng đầu ra dở để chấm, không chạy lại (model có thể đã được gọi).
+            store.finish_action(p, a["id"], "failed", {
+                "action_id": a["id"], "status": "failed", "reconciled": True, "error_code": "interrupted",
+                "error_detail": "lượt thử bị ngắt; không chấm, không chạy lại"})
+    # Phép thử còn "running" khi advance đã giữ được khoá mục tiêu nghĩa là tiến trình chạy nó đã chết (phép thử giữ
+    # khoá suốt lúc chạy). Chốt inconclusive, trả lại lượt đã giữ cho các lượt chưa bắt đầu; không áp dụng gì.
+    for e in store.experiments(p, goal.id):
+        if e["status"] != "running":
+            continue
+        started = sum(1 for x in store.actions(p, goal.id)
+                      if x["kind"] == "trial" and (x.get("intent") or {}).get("experiment_id") == e["id"])
+        store.finish_experiment(p, e["id"], "inconclusive", "interrupted", {"interrupted_after_runs": started},
+                                refund=max(0, int(e["calls_reserved"]) - started))
 
 
 def _with_guards(a: Assessment, guards: tuple) -> Assessment:
@@ -1488,7 +1543,8 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
     lease_until = now + float(deps.max_wall_s) + float(deps.wall_grace_s) + LEASE_EXTRA_S
     try:
         act = store.begin_action(p, goal.id, goal.revision, "work", lease_until=lease_until, now=now,
-                                 intent={"prompt_kind": "work", "last_verdict": last.verdict})
+                                 intent={"prompt_kind": "work", "last_verdict": last.verdict,
+                                         "method": effective_method(goal)})
     except Exception as e:  # noqa: BLE001
         # Không ghi được ý định hành động thì KHÔNG tác động (spec mục 12).
         return Assessment(goal.id, goal.revision, "unknown", rationale=f"không ghi được ý định hành động: {_short(e)}",
@@ -1520,7 +1576,8 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
         except OSError:
             prev_text = ""
     sub = dataclasses_replace(deps, budget=_ReservedCall(store, p, goal.id))
-    receipt = await sub.run_once(goal, _work_prompt(goal, intent_text, last, prev_text), act["id"])
+    receipt = await sub.run_once(goal, _work_prompt(goal, intent_text, last, prev_text, effective_method(goal)),
+                                 act["id"])
     rd = receipt.to_dict()
     text = ""
     if receipt.status == "succeeded":
@@ -1863,6 +1920,9 @@ def apply_command(store, owner, goal_id: str, command: str, payload: dict, brain
         return {"ok": True, "status": "paused"}
     if command == "cancel":
         return {"ok": store.cancel(owner, goal_id, seen), "status": "cancelled"}
+    if command == "revert_method":
+        ref = store.revert_method(owner, goal_id, seen)
+        return {"ok": True, "status": "method_reverted", "method": ref}
     if command == "drop_directive":
         try:
             exp = int(seen)
@@ -1944,7 +2004,252 @@ def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]
         "artifact_ref": _artifact_ref_of(store, principal, g, brain_root),
         "deliverable": _deliverable_rel(g) or _rel_to_brain(Path(out_path) if out_path else None, brain_root),
         "calls_used": g.calls_used, "budget_calls": g.budget_calls,
+        "method": {"ref": effective_method(g), "label": _t(METHODS[effective_method(g)]["label_vi"],
+                                                         METHODS[effective_method(g)]["label_en"]),
+                   "prev_ref": g.method_prev_ref, "checked_revision": g.method_revision or None},
+        "experiments": [{"id": e["id"], "revision": e["revision"], "baseline_ref": e["baseline_ref"],
+                         "candidate_ref": e["candidate_ref"], "status": e["status"], "verdict": e["verdict"],
+                         "reason": e["reason"], "applied": e["applied"], "at": e["created_at"]}
+                        for e in store.experiments(principal, goal_id)[:3]],
         "next_wake": {"at": nxt["due_at"], "reason": nxt["reason"]} if nxt else None,
         "timeline": [{"kind": x["kind"], "status": x["status"], "revision": x["revision"], "at": x["created_at"],
                       "error_code": (x.get("receipt") or {}).get("error_code") or ""} for x in actions[-8:]],
     }
+
+
+# ═════════════════════════════════ M5: một phép thử cải thiện nhỏ ═════════════════════════════════
+#
+# So cách làm hiện tại (baseline) với MỘT cách làm khác (candidate) trên cùng bộ tình huống, cùng thước đo đã ghim,
+# cùng nguồn lực. Host giữ tiêu chí và đáp án của tình huống, chấm bằng code; cách làm không nhìn thấy đáp án và
+# không chạm được phép chấm. Mỗi lượt là một bản dựng mới chỉ từ tình huống của nó, ghi trong vùng làm việc, không
+# đăng vào brain (không lặp tác động ngoài để so sánh). Không có ExperimentService hay kho biến thể tổng quát.
+# Không ai gọi hàm này theo lịch: scheduler chỉ chạy lượt làm việc (spec: không thử chỉ vì đến giờ).
+
+
+class _TrialCall:
+    """Một lượt gọi đã giữ sẵn trong begin_experiment. run_once lấy đúng một lần; model không được gọi (engine bị
+    chặn, chưa sẵn sàng) thì trả lại kho."""
+
+    def __init__(self, store, principal, goal_id: str):
+        self.store, self.principal, self.goal_id = store, principal, goal_id
+        self.max_calls = 1
+        self.taken = False
+
+    @property
+    def remaining(self) -> int:
+        return 0 if self.taken else 1
+
+    def try_reserve(self) -> bool:
+        if self.taken:
+            return False
+        self.taken = True
+        return True
+
+    def release(self) -> None:
+        if self.taken:
+            self.taken = False
+            self.store.release_trial_call(self.principal, self.goal_id)
+
+
+def _trial_cases(cases: Any) -> list:
+    """Kiểm bộ tình huống: 1 đến TRIAL_CASES_MAX tình huống, id duy nhất, có cả tập thử (tuning) lẫn tập giữ riêng
+    (holdout). expect là phần host giữ: must_contain/min_chars để host tự chấm, hoặc evaluator=human_confirmation khi
+    chỉ người dùng chấm được."""
+    items = (cases or {}).get("cases") if isinstance(cases, dict) else None
+    if not isinstance(items, list) or not 1 <= len(items) <= TRIAL_CASES_MAX:
+        raise GoalRejected(f"cần 1 đến {TRIAL_CASES_MAX} tình huống")
+    out, seen = [], set()
+    for c in items:
+        if not isinstance(c, dict):
+            raise GoalRejected("tình huống phải là object")
+        cid, split = str(c.get("id") or "").strip(), str(c.get("split") or "")
+        if not cid or cid in seen or split not in TRIAL_SPLITS or not str(c.get("input") or "").strip():
+            raise GoalRejected("tình huống cần id duy nhất, split tuning/holdout và input")
+        exp = dict(c.get("expect") or {})
+        if exp.get("evaluator") == "human_confirmation":
+            exp = {"evaluator": "human_confirmation", "description": str(exp.get("description") or "")[:300]}
+        else:
+            exp = {k: exp[k] for k in ("must_contain", "min_chars") if k in exp}
+            if not exp:
+                raise GoalRejected(f"tình huống {cid} chưa có cách chấm")
+        seen.add(cid)
+        out.append({"id": cid, "split": split, "input": str(c["input"])[:4000], "expect": exp})
+    if not any(c["split"] == "tuning" for c in out) or not any(c["split"] == "holdout" for c in out):
+        raise GoalRejected("cần ít nhất một tình huống tập thử và một tình huống giữ riêng")
+    return out
+
+
+def _canon(v: Any) -> str:
+    import json as _json
+    return _json.dumps(v, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _grade(text: str, rubric: list, expect: dict) -> tuple:
+    """Host chấm MỘT đầu ra: mọi tiêu chí artifact_contract của mục tiêu (bỏ path: phép thử không đăng file) cùng
+    đáp án của tình huống. Không đọc lời tự khai của đầu ra."""
+    checks = [_check_text(text, r["params"]) for r in rubric] + [_check_text(text, expect)]
+    verdicts = [v for v, _ in checks]
+    why = "; ".join(w for v, w in checks if v != "met")[:300] or "đạt"
+    if all(v == "met" for v in verdicts):
+        return "met", why
+    if "not_met" in verdicts:
+        return "not_met", why
+    return "unknown", why
+
+
+async def _trial_run(goal: GoalRecord, exp_id: str, case: dict, arm: str, ref: str, rubric: list, rubric_hash: str,
+                     deps: GoalDeps, usage: dict) -> dict:
+    store, p = deps.store, deps.principal
+    now = deps.clock()
+    act = store.begin_action(p, goal.id, goal.revision, "trial",
+                             lease_until=now + float(deps.max_wall_s) + float(deps.wall_grace_s) + LEASE_EXTRA_S,
+                             now=now, wake=False,
+                             intent={"experiment_id": exp_id, "case_id": case["id"], "arm": arm, "method": ref})
+    call = _TrialCall(store, p, goal.id)
+    sub = dataclasses_replace(deps, budget=call)
+    # Bản dựng mới cho từng lượt: chỉ tình huống này làm lời người dùng, không đánh giá trước, không bản cũ.
+    receipt = await sub.run_once(goal, _work_prompt(goal, case["input"], None, "", ref), act["id"])
+    u = usage[arm]
+    if call.taken:
+        u["calls"] += 1
+        if receipt.usage:
+            for k in ("tokens_in", "tokens_out"):
+                if receipt.usage.get(k) is not None:
+                    u[k] = (u.get(k) or 0) + int(receipt.usage[k])
+        else:
+            u["usage_unknown"] = True
+    rd = receipt.to_dict()
+    row = {"action_id": act["id"], "method": ref, "rubric_hash": rubric_hash}
+    if receipt.status != "succeeded":
+        store.finish_action(p, act["id"], receipt.status, rd)
+        return {**row, "verdict": "unknown", "reason": f"lượt lỗi: {receipt.error_code or receipt.status}",
+                "error_code": receipt.error_code}
+    try:
+        text = Path(receipt.output_ref).read_text(encoding="utf-8")
+    except OSError:
+        text = None
+    eid = _put_evidence(goal, act["id"], text, "trial_output", deps) if text is not None else None
+    rd["evidence_ids"] = [eid] if eid else []
+    store.finish_action(p, act["id"], receipt.status, rd)
+    if eid is None:
+        return {**row, "verdict": "unknown", "reason": "không lưu được bằng chứng"}
+    verdict, why = _grade(text, rubric, case["expect"])
+    return {**row, "verdict": verdict, "reason": why, "evidence_id": eid, "output_sha256": receipt.output_sha256}
+
+
+def _trial_verdict(results: list) -> tuple:
+    """Kết luận hẹp, có lợi cho cách làm hiện tại:
+    - ứng viên TỤT ở bất kỳ tình huống nào so được (baseline met, ứng viên not_met): rejected / regression;
+    - còn tình huống unknown ở một bên: inconclusive / unknown (unknown không bao giờ là thắng);
+    - hơn ở ít nhất một tình huống tập thử và không kém ở đâu: eligible;
+    - còn lại: rejected / no_improvement (ngang nhau không đáng đổi)."""
+    ok = ("met", "not_met")
+    comparable = [r for r in results if r["baseline"]["verdict"] in ok and r["candidate"]["verdict"] in ok]
+    if any(r["baseline"]["verdict"] == "met" and r["candidate"]["verdict"] == "not_met" for r in comparable):
+        return "rejected", "regression"
+    if len(comparable) < len(results):
+        return "inconclusive", "unknown"
+    if any(r["split"] == "tuning" and r["baseline"]["verdict"] == "not_met" and r["candidate"]["verdict"] == "met"
+           for r in comparable):
+        return "eligible", "improved"
+    return "rejected", "no_improvement"
+
+
+async def compare_methods(goal_id: str, baseline_ref: str, candidate_ref: str, cases: dict, deps: GoalDeps) -> dict:
+    """So cách làm hiện tại với MỘT cách làm khác trên bộ tình huống, rồi áp dụng nếu đủ căn cứ (M5, spec 11.1).
+
+    Trả dict: experiment_id, created, verdict (inconclusive/rejected/eligible), reason, goal_id, revision,
+    baseline_ref, candidate_ref, rubric_hash, cases_hash, results (từng tình huống, hai bên), evidence_refs, usage
+    (theo bên), scope (phạm vi áp dụng), applied. Không đủ phần hạn mức khám phá thì KHÔNG tạo phép thử
+    (created=False, reason=explore_budget) và không gọi model. Đầu vào sai luật thì ném GoalRejected."""
+    store, p = deps.store, deps.principal
+    if store is None or p is None:
+        raise GoalRejected("thiếu kho hoặc principal")
+    if not enabled_for(deps.brain_root):
+        raise GoalRejected("Resonance chưa bật ở brain này")
+    g = store.get(p, goal_id)
+    if g is None:
+        raise GoalRejected("không có mục tiêu này trong brain")
+    if g.status != "active" or g.paused:
+        raise GoalRejected("mục tiêu không ở trạng thái chạy được (đã xong, huỷ hay đang tạm dừng)")
+    if baseline_ref not in METHODS or candidate_ref not in METHODS:
+        raise GoalRejected("cách làm phải là một mục khai báo sẵn trong METHODS")
+    if baseline_ref == candidate_ref:
+        raise GoalRejected("ứng viên phải khác cách làm hiện tại (đúng một thay đổi)")
+    if baseline_ref != effective_method(g):
+        raise GoalRejected("baseline phải là cách làm mục tiêu đang dùng ở revision này")
+    items = _trial_cases(cases)
+    # Ghim thước đo TRƯỚC khi chạy: tiêu chí kiểm tự động của đúng revision này cùng đáp án của tình huống.
+    rubric = [{"id": c.get("id"), "params": {k: v for k, v in dict(c.get("params") or {}).items()
+                                             if k in ("min_chars", "must_contain")}}
+              for c in g.criteria if c.get("evaluator") == "artifact_contract"]
+    rubric_hash = _sha(_canon({"goal_id": g.id, "revision": g.revision, "rubric": rubric,
+                               "expect": [[c["id"], c["split"], c["expect"]] for c in items]}).encode("utf-8"))
+    cases_hash = _sha(_canon(items).encode("utf-8"))
+    runnable = [c for c in items if c["expect"].get("evaluator") != "human_confirmation"]
+    if not runnable:
+        raise GoalRejected("không tình huống nào host tự chấm được")
+    need = 2 * len(runnable)
+    out = {"experiment_id": "", "created": False, "verdict": "inconclusive", "reason": "", "goal_id": g.id,
+           "revision": g.revision, "baseline_ref": baseline_ref, "candidate_ref": candidate_ref,
+           "rubric_hash": rubric_hash, "cases_hash": cases_hash, "results": [], "evidence_refs": [],
+           "usage": {"baseline": {"calls": 0}, "candidate": {"calls": 0}},
+           "scope": {"goal_id": g.id, "revision": g.revision, "applies_to": "this_goal"}, "applied": False}
+    now = deps.clock()
+    owner = secrets.token_hex(6)
+    until = now + need * (float(deps.max_wall_s) + float(deps.wall_grace_s)) + LEASE_EXTRA_S
+    if not store.claim_lease(p, g.id, owner, until, now):
+        return {**out, "reason": "busy"}
+    try:
+        exp = store.begin_experiment(p, g.id, g.revision, baseline_ref, candidate_ref, need,
+                                     int(g.budget_calls * EXPLORE_SHARE),
+                                     {"rubric_hash": rubric_hash, "cases_hash": cases_hash,
+                                      "case_ids": [c["id"] for c in items]}, now=now)
+        if exp is None:
+            return {**out, "reason": "explore_budget"}
+        out.update(experiment_id=exp, created=True)
+        tg = dataclasses_replace(g, output_root=str(Path(g.output_root) / "trials" / exp))
+        Path(tg.output_root).mkdir(parents=True, exist_ok=True)
+        results, started, stop = [], 0, ""
+        for c in items:
+            row = {"case_id": c["id"], "split": c["split"]}
+            if c["expect"].get("evaluator") == "human_confirmation":
+                skip = {"verdict": "unknown", "reason": "chỉ người dùng chấm được; phép thử không tự chấm",
+                        "skipped": True, "rubric_hash": rubric_hash}
+                results.append({**row, "baseline": dict(skip), "candidate": dict(skip)})
+                continue
+            for arm, ref in (("baseline", baseline_ref), ("candidate", candidate_ref)):
+                # Can thiệp của người dùng và đổi cách hiểu có hiệu lực giữa chừng (spec 2.3, 11.1).
+                cur = store.get(p, g.id)
+                if cur is None or cur.revision != g.revision:
+                    stop = "goal_reframed"
+                elif cur.status != "active" or cur.paused or not enabled_for(deps.brain_root):
+                    stop = "stopped"
+                if stop:
+                    break
+                started += 1
+                row[arm] = await _trial_run(tg, exp, c, arm, ref, rubric, rubric_hash, deps, out["usage"])
+            if stop:
+                break
+            results.append(row)
+        if stop:
+            verdict, reason = "inconclusive", stop
+        else:
+            verdict, reason = _trial_verdict(results)
+            cur = store.get(p, g.id)
+            if cur is None or cur.revision != g.revision:
+                verdict, reason = "inconclusive", "goal_reframed"
+        refs = [r[a]["evidence_id"] for r in results for a in ("baseline", "candidate") if r[a].get("evidence_id")]
+        out.update(verdict=verdict, reason=reason, results=results, evidence_refs=refs)
+        store.finish_experiment(p, exp, verdict, reason,
+                                {"results": results, "usage": out["usage"], "evidence_refs": refs,
+                                 "scope": out["scope"]}, refund=need - started)
+        if verdict == "eligible":
+            try:
+                store.apply_method(p, g.id, g.revision, baseline_ref, candidate_ref, exp)
+                out["applied"] = True
+            except Exception as e:  # noqa: BLE001 - mục tiêu đổi đúng lúc áp dụng: giữ kết quả, không áp dụng
+                out["apply_error"] = _short(e)
+        return out
+    finally:
+        store.release_lease(p, g.id, owner)
