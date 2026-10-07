@@ -45,6 +45,7 @@ if MODE not in ("dry", "real"):
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _e2e_pilot_guard as G  # noqa: E402
+import _e2e_achieve_harness as H  # noqa: E402
 
 PORT = int(os.environ.get("JAVIS_RESONANCE_E2E_PORT", "7792"))
 CHAT_LIMIT = 2 if MODE == "real" else 0
@@ -118,21 +119,15 @@ PILOT_VARS = ("JAVIS_RESONANCE_TICK_PAUSED", "JAVIS_RESONANCE_CALL_CEILING", "JA
               "JAVIS_STATE_DIR", "BRAINS_DIR", "JAVIS_PORT")
 TURNS = G.TurnLedger(STATE / "pilot-chat-turns.json", CHAT_LIMIT)
 
-_fails, _contract, _log = [], [], []
-
-
-def check(name, cond, kind="technical"):
-    """kind=technical: lỗi của host hay bộ chạy. kind=contract: bộ não đã đi đường mục tiêu nhưng lệch hợp đồng của
-    kịch bản (kiểu mục tiêu, file, tiêu chí). Hai loại tách nhau trong kết luận."""
-    print(("ok   " if cond else "FAIL ") + name)
-    _log.append({"check": name, "ok": bool(cond), "kind": kind})
-    if not cond:
-        (_contract if kind == "contract" else _fails).append(name)
-    return bool(cond)
+# Kiểm và CỔNG CHI PHÍ (review bộ chạy achieve, P2-1): mọi kiểm hỏng, kỹ thuật hay hợp đồng, đóng cổng; dựng server,
+# gửi tin chat và bấm xác nhận đều đi qua cổng nên không cấp thêm lượt sau khi tiền điều kiện đã hỏng.
+CHECKS = H.Checks()
+check = CHECKS.check
+_fails, _contract, _log = CHECKS.fails, CHECKS.contract, CHECKS.log
 
 
 class Stop(Exception):
-    """Dừng theo hợp đồng (bộ não không đi đường mục tiêu, hay một bước không đạt): ghi nhận, không thử lại."""
+    """Dừng theo hợp đồng (bộ não không đi đường mục tiêu): ghi nhận, không thử lại."""
 
 
 ENV0 = {k: v for k, v in G.clean_env(dict(os.environ)).items() if k not in PILOT_VARS}
@@ -204,50 +199,8 @@ def auth_gate(cli: str) -> dict:
     return out
 
 
-class Server:
-    """Server Javis thật của checkout này. kill() giết CẢ CÂY tiến trình (mô phỏng sập máy, không tắt êm)."""
-
-    def __init__(self, cli: str):
-        self.n, self.proc, self.cli, self.started = 0, None, cli, []
-
-    def start(self, phase: int, tick_paused: bool, wait_s=120):
-        self.n += 1
-        env = {**ENV0, "JAVIS_PORT": str(PORT), "JAVIS_STATE_DIR": str(STATE), "BRAINS_DIR": str(BRAINS),
-               "JAVIS_REQUIRE_LOGIN": "0", "PYTHONUTF8": "1",
-               "JAVIS_RESONANCE_CALL_CEILING": str(PHASE_CEILING[phase])}
-        if self.cli:
-            env["JAVIS_CLAUDE_CLI"] = self.cli
-        if tick_paused:
-            env["JAVIS_RESONANCE_TICK_PAUSED"] = "1"
-        self.started.append({"n": self.n, "phase": phase, "tick_paused": tick_paused,
-                             "call_ceiling": env["JAVIS_RESONANCE_CALL_CEILING"], "cli_pinned": bool(self.cli)})
-        log = open(BASE / f"server-{self.n}.log", "w", encoding="utf-8")
-        flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-        self.proc = subprocess.Popen([sys.executable, "server/main.py"], cwd=str(ROOT), env=env, stdout=log,
-                                     stderr=subprocess.STDOUT, creationflags=flags)
-        import httpx
-        t0 = time.time()
-        while time.time() - t0 < wait_s:
-            if self.proc.poll() is not None:
-                raise RuntimeError(f"server thoát sớm, xem server-{self.n}.log")
-            try:
-                if httpx.get(f"{ORIGIN}/health", timeout=2).status_code == 200:
-                    return round(time.time() - t0, 1)
-            except Exception:  # noqa: BLE001
-                pass
-            time.sleep(1)
-        raise RuntimeError("server không lên kịp")
-
-    def kill(self):
-        if self.proc is None:
-            return
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/PID", str(self.proc.pid), "/T", "/F"], capture_output=True)
-        else:
-            self.proc.kill()
-        self.proc.wait(timeout=30)
-        self.proc = None
-        time.sleep(2)
+def start_server(phase: int, tick_paused: bool):
+    return SRV.start(phase, tick_paused, {"JAVIS_STATE_DIR": str(STATE), "BRAINS_DIR": str(BRAINS)})
 
 
 def goal_store():
@@ -289,8 +242,13 @@ def work_actions(gid, revision=None):
 
 
 def notices(gid):
-    return [{"id": r[0], "kind": r[1], "delivered": r[2] is not None}
-            for r in _sql("SELECT id, kind, delivered_at FROM outbox WHERE goal_id=? ORDER BY id", (gid,))]
+    return H.outbox_rows(_sql("SELECT id, goal_id, kind, payload_json, delivered_at FROM outbox WHERE goal_id=? "
+                              "ORDER BY id", (gid,)))
+
+
+def notice_in_session(sid_, gid, kind, revision):
+    """Tin MỚI của đúng giai đoạn (loại, revision) có trong đúng phiên, kèm biên nhận (review bộ chạy, P2-2)."""
+    return H.stage_notice(notices(gid), reports(sid_), gid, kind, revision)
 
 
 def reports(sid):
@@ -364,26 +322,20 @@ async def _ws_chat(message, session_id=None, timeout=900):
 
 
 def chat_turn(label, message, session_id=None):
-    """MỘT lượt chat có giữ chỗ: giữ trước khi gửi, lỗi hay hết giờ vẫn tính, không thử lại."""
-    if not TURNS.reserve(label):
-        raise Stop(f"{label}: hết lượt chat đã duyệt ({TURNS.used()}/{CHAT_LIMIT}), không gửi")
+    """MỘT lượt chat qua cổng chi phí và sổ lượt (H.chat_turn): giữ chỗ trước khi gửi, lỗi hay hết giờ vẫn tính."""
     before = G.snapshot_files(BRAIN)
     t0 = time.time()
-    try:
-        sid, frames, tools, answer = asyncio.run(_ws_chat(message, session_id))
-    except Exception as e:  # noqa: BLE001
-        TURNS.settle(label, f"error:{type(e).__name__}")
-        raise Stop(f"{label}: lượt chat lỗi ({type(e).__name__}); đã tính vào hạn mức, không thử lại")
-    TURNS.settle(label, "done" if frames and frames[-1] == "turn_done" else "incomplete")
+    (sid_, frames, tools, answer), status = H.chat_turn(CHECKS, TURNS, label,
+                                                         lambda: asyncio.run(_ws_chat(message, session_id)))
     after = G.snapshot_files(BRAIN)
-    return sid, {"seconds": round(time.time() - t0, 1),
-                 "frames": {k: frames.count(k) for k in sorted(set(f for f in frames if f))},
-                 "completed": bool(frames) and frames[-1] == "turn_done",
-                 "tool_frames": tools, "search_calls": G.search_calls(tools),
-                 "goal_or_task_calls": G.goal_tool_calls(tools),
-                 "files_written": G.snapshot_diff(before, after), "final_answer": answer,
-                 # Danh sách tool trong tin `init` của Claude Code không đọc được từ ngoài mà không đổi mã sản phẩm.
-                 "init_tool_list": "not_observable"}
+    return sid_, {"seconds": round(time.time() - t0, 1), "ledger_status": status,
+                  "frames": {k: frames.count(k) for k in sorted(set(f for f in frames if f))},
+                  "completed": status == "done",
+                  "tool_frames": tools, "search_calls": G.search_calls(tools),
+                  "goal_or_task_calls": G.goal_tool_calls(tools),
+                  "files_written": G.snapshot_diff(before, after), "final_answer": answer,
+                  # Danh sách tool trong tin `init` của Claude Code không đọc được từ ngoài mà không đổi mã sản phẩm.
+                  "init_tool_list": "not_observable"}
 
 
 def http(method, path, **kw):
@@ -456,12 +408,13 @@ rep = {"mode": MODE, "scenario": "achieve_feedback_v1", "chat_limit": CHAT_LIMIT
        "review_checklist": REVIEW_CHECKLIST, "stages": {}, "artifacts": {}, "simulated_acceptance": False}
 t_start = time.time()
 CLI = _resolve_cli() if MODE == "real" else ""
-SRV = Server(CLI)
+SRV = H.Server(root=ROOT, port=PORT, base=BASE, env0=ENV0, phase_ceiling=PHASE_CEILING, checks=CHECKS,
+               cli=CLI)
 g = None
 sid = None
 try:
     # ───────────── S0: server A (giai đoạn 1, nhịp dừng), cổng xác thực trước mọi tin chat ─────────────
-    rep["stages"]["S0"] = {"start_s": SRV.start(1, tick_paused=True)}
+    rep["stages"]["S0"] = {"start_s": start_server(1, tick_paused=True)}
     rep["routing_versions"] = _routing_versions()
     if MODE == "real":
         gate = auth_gate(CLI)
@@ -520,7 +473,7 @@ try:
 
     # ───────────── S2: giết A, dựng B (giai đoạn 1, nhịp chạy): bản đầu ─────────────
     SRV.kill()
-    rep["stages"]["S2"] = {"start_s": SRV.start(1, tick_paused=False)}
+    rep["stages"]["S2"] = {"start_s": start_server(1, tick_paused=False)}
     t0 = time.time()
     settle_work(g.id, g.revision)
     rep["stages"]["S2"]["work_s"] = round(time.time() - t0, 1)
@@ -542,10 +495,9 @@ try:
               rep["artifacts"]["draft1"].get("ok") is True)
         check("S2 sau bản đầu: chờ người dùng xác nhận", rs.get("run_state") == "waiting"
               and rs.get("block_reason") == "human_confirmation")
-        check("S2 tin báo về đúng phiên, có biên nhận", any(r["report"].startswith("outbox:") for r in reports(sid))
-              and all(r["receipt"] for r in reports(sid) if r["report"]))
-        if _fails:
-            raise Stop("S2: bản đầu không qua kiểm kỹ thuật")
+        ok_n, why_n = notice_in_session(sid, g.id, "goal.waiting_human", g.revision)
+        rep["stages"]["S2"]["notice"] = why_n
+        check(f"S2 tin báo BẢN ĐẦU (chờ xác nhận, revision {g.revision}) về đúng phiên, có biên nhận: {why_n}", ok_n)
     else:
         check("S2 dry: engine việc nền bị chặn trước khi gọi model", rs.get("run_state") == "blocked"
               and background_calls() == 0)
@@ -554,7 +506,7 @@ try:
 
     # ───────────── S3: giết B, dựng C (giai đoạn 1, nhịp chạy): trạng thái giữ, không báo lặp, không gọi thêm ──────
     SRV.kill()
-    rep["stages"]["S3"] = {"start_s": SRV.start(1, tick_paused=False)}
+    rep["stages"]["S3"] = {"start_s": start_server(1, tick_paused=False)}
     time.sleep(75)   # hơn hai nhịp lập lịch (30 giây)
     g3 = goal_store().get(P, g.id)
     keys = [r["report"] for r in reports(sid) if r["report"]]
@@ -567,7 +519,7 @@ try:
     code, body = http("GET", f"/goals/{g.id}")
     check("S3 API thẻ trả trạng thái sống của mục tiêu", code == 200 and (body.get("goal") or {}).get("goal_id") == g.id)
     SRV.kill()
-    rep["stages"]["S3"]["restart_D_s"] = SRV.start(1, tick_paused=True)
+    rep["stages"]["S3"]["restart_D_s"] = start_server(1, tick_paused=True)
 
     # ───────────── S4: lượt chat 2 (góp ý) trên D, nhịp dừng ─────────────
     g_before = goal_store().get(P, g.id)
@@ -613,7 +565,7 @@ try:
 
     # ───────────── S5: giết D, dựng E (giai đoạn 2, nhịp chạy, trần tích luỹ 2): bản sửa ─────────────
     SRV.kill()
-    rep["stages"]["S5"] = {"start_s": SRV.start(2, tick_paused=False)}
+    rep["stages"]["S5"] = {"start_s": start_server(2, tick_paused=False)}
     t0 = time.time()
     settle_work(g.id, g4.revision)
     rep["stages"]["S5"]["work_s"] = round(time.time() - t0, 1)
@@ -633,10 +585,12 @@ try:
               and _sha_file(BRAIN / DELIV) != rep["artifacts"]["draft1"]["sha256"])
         check("S5 bản sửa được lưu nguyên vẹn (hash khớp)", rep["artifacts"]["draft2"].get("ok") is True)
         check("S5 sau bản sửa: chờ người dùng xác nhận", rs5.get("block_reason") == "human_confirmation")
-        check("S5 tin báo về đúng phiên, có biên nhận, không lặp",
-              all(r["receipt"] for r in reports(sid) if r["report"])
-              and len([r["report"] for r in reports(sid) if r["report"]])
-              == len({r["report"] for r in reports(sid) if r["report"]}))
+        # Tin của BẢN SỬA: đúng loại và đúng revision mới; tin bản đầu (revision cũ) hay thẻ reframe không tính.
+        ok_n, why_n = notice_in_session(sid, g.id, "goal.waiting_human", g4.revision)
+        rep["stages"]["S5"]["notice"] = why_n
+        check(f"S5 tin báo BẢN SỬA (revision {g4.revision}) về đúng phiên, có biên nhận: {why_n}", ok_n)
+        keys = [r["report"] for r in reports(sid) if r["report"]]
+        check("S5 không có tin báo lặp trong phiên", bool(keys) and len(keys) == len(set(keys)))
     else:
         check("S5 dry: engine việc nền vẫn bị chặn, không gọi model", background_calls() == 0)
     check("S5 tổng lượt việc nền không vượt trần giai đoạn 2", background_calls() <= PHASE_CEILING[2])
@@ -654,15 +608,16 @@ try:
         rep["simulated_acceptance"] = True
         check("S6 có sản phẩm của revision hiện hành để xác nhận", bool(v.get("artifact_ref"))
               and v.get("revision") == g4.revision)
+        check("S6 có ít nhất một tiêu chí người dùng xác nhận", bool(human))
         for c in human:
-            code, _b = http("POST", f"/goals/{g.id}/feedback",
-                            json={"kind": "outcome_accepted", "expected_revision": v["revision"],
-                                  "criterion_id": c["id"], "artifact_ref": v.get("artifact_ref"),
-                                  "idempotency_key": f"pilot3-accept-{g.id}-{c['id']}"})
+            code, _b = H.accept(CHECKS, http, g.id, v, c)     # qua cổng: kiểm nào hỏng trước đó thì không bấm
             check(f"S6 bấm Đạt yêu cầu cho tiêu chí {c['id']} qua API (mô phỏng): 200", code == 200)
         ok_s = wait_until(lambda: goal_store().get(P, g.id).status == "succeeded"
-                          and any(n["kind"] == "goal.succeeded" and n["delivered"] for n in notices(g.id)), 120)
-        check("S6 mục tiêu đạt và đã báo về phiên (đường API; KHÔNG phải nghiệm thu nội dung)", bool(ok_s))
+                          and notice_in_session(sid, g.id, "goal.succeeded", v["revision"])[0], 120)
+        why_s = notice_in_session(sid, g.id, "goal.succeeded", v["revision"])[1]
+        rep["stages"]["S6"]["notice"] = why_s
+        check(f"S6 mục tiêu đạt và tin THÀNH CÔNG về đúng phiên, có biên nhận ({why_s}); đường API, KHÔNG phải "
+              "nghiệm thu nội dung", bool(ok_s))
     else:
         code, _b = http("POST", f"/goals/{g.id}/feedback",
                         json={"kind": "goal_fit_confirmed", "expected_revision": v.get("revision", 1)})
@@ -674,6 +629,12 @@ try:
 except Stop as e:
     print(f"DỪNG: {e}")
     rep["stopped"] = str(e)
+except H.GateClosed as e:
+    # Cổng chi phí đóng: hoặc đã có kiểm hỏng (kết luận theo kiểm đó), hoặc hết lượt/lượt chat lỗi (lỗi kỹ thuật).
+    print(f"DỪNG (cổng chi phí): {e}")
+    rep["stopped"] = str(e)
+    if not CHECKS.failures():
+        check(f"lượt chat hoàn tất trong hạn mức ({e})", False)
 except Exception as e:  # noqa: BLE001
     check(f"bộ chạy không lỗi ({type(e).__name__}: {e})", False)
 finally:
