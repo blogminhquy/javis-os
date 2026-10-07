@@ -2109,15 +2109,18 @@ async def _resonance_notify(goal, kind, text, card="") -> bool:
 
 
 def _resonance_reported(goal, report_key) -> bool:
-    """Đối soát báo lặp (M4): tin mang đúng khoá báo cáo này đã nằm trong kho phiên chưa. Tiến trình chết giữa lúc
-    lưu tin và lúc đánh dấu outbox thì nhịp sau thấy tin đã có, chỉ đánh dấu, không gửi lần hai."""
+    """Đối soát báo lặp (M4): host đã LƯU tin báo cáo mang đúng khoá này cho đúng mục tiêu chưa. Tiến trình chết giữa
+    lúc lưu tin và lúc đánh dấu outbox thì nhịp sau thấy đã lưu, chỉ đánh dấu, không gửi lần hai.
+
+    Bằng chứng là biên nhận `report_receipts` do push_to_chat ghi cùng giao dịch với tin (review M4 vòng 2), không
+    phải chuỗi khoá xuất hiện đâu đó trong hội thoại: lời chat trích JSON, hay cả một khối JAVIS_RESONANCE do model
+    tự viết ra, đều không có biên nhận nên không làm mất báo cáo thật. Tra theo khoá chính nên không giới hạn độ sâu
+    (review M4, P2-2). Có biên nhận vẫn đối chiếu lại khối thẻ trong tin: đúng khoá, đúng mục tiêu."""
     try:
-        # Tìm trên TOÀN BỘ phiên bằng SQL (review M4, P2-2): hội thoại thêm hàng trăm tin trước lần đối soát kế tiếp
-        # vẫn nhận ra tin đã lưu. Chuỗi tìm đúng khuôn json.dumps của goal_block.
-        needle = '"report": ' + json.dumps(str(report_key), ensure_ascii=False)
-        mid = get_store().find_message_containing(goal.session_id, needle)
-        if mid is not None:
-            return True
+        row = get_store().report_receipt(goal.session_id, str(report_key), goal.id)
+        if row and row.get("role") == "assistant":
+            return any(b.get("report") == str(report_key) and b.get("goal_id") == goal.id
+                       for b in resonance.parse_goal_blocks(row.get("content") or ""))
     except Exception as e:  # noqa: BLE001
         print(f"[resonance reported] {type(e).__name__}: {e}", file=sys.stderr)
     return False
@@ -9740,10 +9743,15 @@ async def push_to_chat(session_id, text, viec=None, card="") -> bool:
         clean = _k + "\n" + clean
     # `card` (Resonance M4): khối JAVIS_RESONANCE để khung chat vẽ thẻ "Em đang hướng tới". Gắn SAU khi bóc như
     # thẻ việc, và chỉ nhận đúng khuôn khối đó (không cho chuỗi tuỳ ý lọt vào kho phiên).
+    report = None
     if card and resonance.GOAL_BLOCK_RE.fullmatch(str(card).strip()):
         clean = clean + "\n" + str(card).strip()
+        # Thẻ mang khoá báo cáo: ghi biên nhận cùng giao dịch với tin để đối soát outbox (review M4 vòng 2).
+        blk = (resonance.parse_goal_blocks(str(card)) or [{}])[0]
+        if blk.get("report") and blk.get("goal_id"):
+            report = {"key": str(blk["report"]), "goal_id": str(blk["goal_id"])}
     try:
-        get_store().append_message(sid, "assistant", clean)
+        get_store().append_message(sid, "assistant", clean, **({"report": report} if report else {}))
     except Exception as e:
         print(f"[push_to_chat] lưu phiên lỗi: {type(e).__name__}: {e}", file=sys.stderr)
     try:

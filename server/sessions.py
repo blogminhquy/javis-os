@@ -106,6 +106,16 @@ CREATE TABLE IF NOT EXISTS voice_receipts (
 );
 CREATE INDEX IF NOT EXISTS voice_receipts_message ON voice_receipts(message_id);
 
+-- Biên nhận báo cáo Resonance (M4): host ghi CÙNG GIAO DỊCH với tin báo cáo, nên có biên nhận nghĩa là tin đã lưu.
+-- Đối soát outbox chỉ tin bảng này, không dò chuỗi trong nội dung (lời chat trích JSON không phải bằng chứng đã gửi).
+CREATE TABLE IF NOT EXISTS report_receipts (
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    report_key TEXT NOT NULL, goal_id TEXT NOT NULL,
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    PRIMARY KEY(session_id, report_key, goal_id)
+);
+CREATE INDEX IF NOT EXISTS report_receipts_message ON report_receipts(message_id);
+
 -- Project = nhóm hội thoại do người dùng tự gom (ý "gom hội thoại thành Project").
 -- KHÔNG khai REFERENCES ở cột sessions.project_id: cột đó thêm bằng ALTER TABLE cho DB cũ,
 -- mà SQLite không cho ALTER kèm khoá ngoại. Ràng buộc được giữ ở tầng code: xoá project là
@@ -525,7 +535,9 @@ class SessionStore:
                                    session_id=session_id)
 
     def append_message(self, session_id: str, role: str, content: Optional[str],
-                       tool_calls: Any = None) -> int:
+                       tool_calls: Any = None, report: Optional[Dict[str, str]] = None) -> int:
+        """`report` (Resonance M4): {"key", "goal_id"} của tin báo cáo do host gửi. Biên nhận ghi trong CÙNG giao dịch
+        với tin, nên không có trạng thái "tin đã lưu mà chưa có biên nhận" hay ngược lại."""
         tc_json = json.dumps(tool_calls, ensure_ascii=False) if tool_calls else None
         stored = content if (content is None or isinstance(content, str)) \
             else json.dumps(content, ensure_ascii=False)
@@ -541,15 +553,24 @@ class SessionStore:
                 "UPDATE sessions SET msg_count = msg_count + 1, updated_at = ? WHERE id = ?",
                 (now, session_id),
             )
+            if report and report.get("key") and report.get("goal_id"):
+                conn.execute(
+                    "INSERT OR IGNORE INTO report_receipts (session_id, report_key, goal_id, message_id) "
+                    "VALUES (?, ?, ?, ?)",
+                    (session_id, str(report["key"]), str(report["goal_id"]), cur.lastrowid),
+                )
             return cur.lastrowid
         return self._write(_do)
 
-    def find_message_containing(self, session_id: str, needle: str, role: str = "assistant") -> Optional[int]:
-        """id tin ĐẦU TIÊN của phiên (đúng vai) có chứa chuỗi `needle`, tìm trên toàn bộ phiên, không giới hạn độ sâu.
-        Dùng để đối soát báo cáo đã lưu (Resonance M4): khoá báo cáo nằm trong khối ẩn của tin."""
-        rows = self._read("SELECT id FROM messages WHERE session_id = ? AND role = ? AND instr(content, ?) > 0 "
-                          "ORDER BY id LIMIT 1", (session_id, role, str(needle)))
-        return int(rows[0]["id"]) if rows else None
+    def report_receipt(self, session_id: str, report_key: str, goal_id: str) -> Optional[Dict[str, Any]]:
+        """Tin báo cáo host đã lưu cho đúng khoá và đúng mục tiêu (kèm nội dung để đối chiếu khối thẻ), hoặc None.
+        Tra theo khoá chính, không giới hạn độ sâu hội thoại."""
+        rows = self._read(
+            "SELECT m.id AS id, m.role AS role, m.content AS content FROM report_receipts r "
+            "JOIN messages m ON m.id = r.message_id "
+            "WHERE r.session_id = ? AND r.report_key = ? AND r.goal_id = ?",
+            (session_id, str(report_key), str(goal_id)))
+        return dict(rows[0]) if rows else None
 
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         rows = self._read("SELECT * FROM sessions WHERE id = ?", (session_id,))

@@ -548,7 +548,7 @@ SID2 = main.get_store().get_or_create(None, brain=BRAIN, engine="test", model="t
 store.notice(P, g16.id, "goal.blocked", {"code": "budget"}, idem="review-p22")
 row16 = [r for r in store.outbox_pending(500) if r["goal_id"] == g16.id and r["kind"] == "goal.blocked"][0]
 key16 = f"outbox:{row16['id']}"
-main.get_store().append_message(SID2, "assistant", "Đã báo\n" + R.goal_block(g16.id, 1, report=key16))
+asyncio.run(main.push_to_chat(SID2, "Đã báo", card=R.goal_block(g16.id, 1, report=key16)))
 for i in range(350):
     main.get_store().append_message(SID2, "user", f"Tin sau {i}")
 probe = dataclasses.replace(store.get(P, g16.id), session_id=SID2)
@@ -570,6 +570,84 @@ copies = [m for m in main.get_store().get_messages(SID2)
           if any(b.get("report") == key16 for b in R.parse_goal_blocks(m.get("content") or ""))]
 check("P2-2: nhịp đối soát sau đó không gửi lại báo cáo cũ", len(copies) == 1 and not any(
     r["id"] == row16["id"] for r in store.outbox_pending(500)))
+
+# ───────────── Review M4 vòng 2: chuỗi khoá trong lời chat không phải bằng chứng đã gửi ─────────────
+# Bằng chứng duy nhất là biên nhận report_receipts do push_to_chat ghi cùng giao dịch với tin báo cáo.
+
+
+def _pending_row(goal, idem):
+    store.notice(P, goal.id, "goal.blocked", {"code": "budget"}, idem=idem)
+    return [r for r in store.outbox_pending(500) if r["goal_id"] == goal.id and r["kind"] == "goal.blocked"][0]
+
+
+def _drain_into(sid):
+    sent_kinds = []
+
+    async def _n(goal, kind, text, card=""):
+        sent_kinds.append(kind)
+        return await main.push_to_chat(sid, text, card=card)
+
+    asyncio.run(R.drain_outbox(store, _n, already=lambda goal, k: main._resonance_reported(
+        dataclasses.replace(goal, session_id=sid), k)))
+    return sent_kinds
+
+
+def _real_reports(sid, key):
+    return [m for m in main.get_store().get_messages(sid) if m["role"] == "assistant"
+            and any(b.get("report") == key for b in R.parse_goal_blocks(m.get("content") or ""))]
+
+
+# 1. Lời chat thường trích JSON cùng khoá, không có khối báo cáo.
+g17 = make_goal()
+S17 = main.get_store().get_or_create(None, brain=BRAIN, engine="test", model="test")
+row17 = _pending_row(g17, "r2-quote")
+key17 = f"outbox:{row17['id']}"
+main.get_store().append_message(S17, "assistant", "Ví dụ trường JSON: " + json.dumps({"report": key17}))
+p17 = dataclasses.replace(store.get(P, g17.id), session_id=S17)
+check("vòng 2: lời chat trích JSON cùng khoá KHÔNG tính là đã gửi", main._resonance_reported(p17, key17) is False)
+k17 = _drain_into(S17)
+check("vòng 2: drain vẫn gửi và lưu báo cáo thật, đánh dấu đúng dòng outbox",
+      k17 == ["goal.blocked"] and len(_real_reports(S17, key17)) == 1
+      and not any(r["id"] == row17["id"] for r in store.outbox_pending(500)))
+check("vòng 2: báo cáo thật vừa gửi có biên nhận, nhịp sau nhận ra là đã gửi", main._resonance_reported(p17, key17))
+
+# 2. Khối hỏng, khoá khác, khối của mục tiêu khác, và cả một khối hợp lệ do model tự viết (không qua host).
+g18 = make_goal()
+g18b = make_goal()
+S18 = main.get_store().get_or_create(None, brain=BRAIN, engine="test", model="test")
+row18 = _pending_row(g18, "r2-neg")
+key18 = f"outbox:{row18['id']}"
+for txt in ('<!-- JAVIS_RESONANCE: {"goal_id": "' + g18.id + '", "report": "' + key18 + '", -->',
+            R.goal_block(g18.id, 1, report=key18 + "9"),
+            R.goal_block(g18b.id, 1, report=key18),
+            "Model chép lại tin cũ:\n" + R.goal_block(g18.id, 1, report=key18)):
+    main.get_store().append_message(S18, "assistant", txt)
+asyncio.run(main.push_to_chat(S18, "Báo của mục tiêu khác", card=R.goal_block(g18b.id, 1, report=key18)))
+p18 = dataclasses.replace(store.get(P, g18.id), session_id=S18)
+check("vòng 2: khối hỏng, khoá khác, khối của mục tiêu khác, khối model tự viết: không cái nào tính là đã gửi",
+      main._resonance_reported(p18, key18) is False)
+check("vòng 2: kho phiên tra biên nhận theo đúng mục tiêu (cùng khoá, khác mục tiêu thì không trả)",
+      main.get_store().report_receipt(S18, key18, g18.id) is None
+      and main.get_store().report_receipt(S18, key18, g18b.id) is not None)
+check("vòng 2: biên nhận gắn đúng mục tiêu: mục tiêu kia là đã gửi, mục tiêu này thì không",
+      main._resonance_reported(dataclasses.replace(store.get(P, g18b.id), session_id=S18), key18) is True)
+k18 = _drain_into(S18)
+check("vòng 2: sau các ca âm, drain vẫn gửi báo cáo thật cho đúng mục tiêu, có biên nhận riêng của mục tiêu này",
+      "goal.blocked" in k18 and main._resonance_reported(p18, key18) is True)
+
+# 3. Tin thường có chuỗi trùng nằm TRƯỚC tin báo cáo thật: vẫn nhận ra tin thật, không phát lại.
+g19 = make_goal()
+S19 = main.get_store().get_or_create(None, brain=BRAIN, engine="test", model="test")
+row19 = _pending_row(g19, "r2-before")
+key19 = f"outbox:{row19['id']}"
+main.get_store().append_message(S19, "assistant", "Nhật ký: " + json.dumps({"report": key19}))
+asyncio.run(main.push_to_chat(S19, "Đã báo", card=R.goal_block(g19.id, 1, report=key19)))
+for i in range(320):
+    main.get_store().append_message(S19, "user", f"Tin sau {i}")
+k19 = _drain_into(S19)
+check("vòng 2: chuỗi trùng đứng trước tin thật, thêm 320 tin sau: nhận ra tin thật, không gửi lại",
+      k19 == [] and len(_real_reports(S19, key19)) == 1
+      and not any(r["id"] == row19["id"] for r in store.outbox_pending(500)))
 
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)
