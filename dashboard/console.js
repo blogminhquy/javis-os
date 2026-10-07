@@ -5974,6 +5974,9 @@
   const docGuideUrl = (k) => "https://github.com/blogminhquy/javis-os/blob/main/docs/"
     + ((window.JavisI18n && window.JavisI18n.lang() === "vi") ? "" : "en/") + DOC_GUIDE[k];
   const ACH_TAB_KEY = "javis.adminChannelTab";
+  // Khoá viết rõ từng cái (không ghép chuỗi) để bộ soát i18n thấy được khoá nào đang dùng.
+  const ACH_PILL = { setup: "ach.pill_setup", off: "ach.pill_off", run: "ach.pill_run",
+                     start: "ach.pill_start", err: "ach.pill_err", stop: "ach.pill_stop" };
 
   // Trạng thái chung từ bốn hình dạng endpoint khác nhau (Telegram, Zalo, kênh OwnerChannel).
   function achState(def, d) {
@@ -6111,7 +6114,7 @@
       <div class="ach-card">
         <div class="ach-head">
           <div class="ach-name">${Icons.kenh(def.key, { size: "26px" })}<b>${esc(def.title)}</b>
-            <span class="ach-pill st-${st.state}" id="${id("pill")}">${tr("ach.pill_" + st.state)}</span></div>
+            <span class="ach-pill st-${st.state}" id="${id("pill")}">${esc(window.t(ACH_PILL[st.state]))}</span></div>
           <label class="ach-switch" title="${tr("ach.switch_title")}">
             <input type="checkbox" role="switch" id="${id("on")}" ${st.on ? "checked" : ""}>
             <span class="ach-track" aria-hidden="true"></span>
@@ -6152,7 +6155,7 @@
       const pill = $id("pill");
       if (!pill) return;                       // đã sang tab khác
       pill.className = "ach-pill st-" + stNew.state;
-      pill.textContent = window.t("ach.pill_" + stNew.state);
+      pill.textContent = window.t(ACH_PILL[stNew.state]);
       $id("status").innerHTML = achLine(def, stNew);
       sw.checked = stNew.on;
       $id("save").textContent = window.t(stNew.on ? "ach.save_on" : "ach.save_off");
