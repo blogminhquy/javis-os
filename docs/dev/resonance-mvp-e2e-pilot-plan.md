@@ -1,6 +1,6 @@
 # Pilot đầu-cuối Resonance MVP qua đường chat thật: kịch bản và hạn mức
 
-**Trạng thái: lần chạy 1 (07/10/2026) đã chạy, bộ não chọn `javis_task`, không lập mục tiêu (xem cuối tài liệu). Bộ chạy đã sửa theo review e2e vòng 1 (P1-1, P1-2, P2-1), vòng 2 (P2-1, P2-2, nguồn cấu hình) vòng 3 (chấm đủ việc, người, hạn) và vòng 4 (nội dung do người review chốt). Lần chạy 2 CHỜ người dùng duyệt; chưa gọi thêm model nào.**
+**Trạng thái: đã chạy HAI lần theo hạn mức người dùng duyệt (07/10/2026). Cả hai lần bộ não KHÔNG lập mục tiêu (lần 1 chọn `javis_task`, lần 2 tự làm luôn trong lượt). Điều kiện MVP thứ nhất CHƯA đạt. Không chạy thêm khi người dùng chưa quyết hướng tiếp theo.**
 
 ## Mục đích
 
@@ -149,3 +149,26 @@ Trả lời ba câu hỏi của review vòng 1: **giữ luật định tuyến h
 **Đánh giá:** lựa chọn đó khớp luật hiện hành (CLAUDE.md và mô tả `javis_goal` đều đưa việc nền một lần có duyệt sang Kanban); kịch bản lần 1 chọn sai loại yêu cầu. Lần chạy không chứng minh, cũng không bác, việc bộ não gọi `javis_goal` đúng lúc. Không biết bộ não có thấy `javis_goal` trong `ToolSearch` không (lần đó chưa lưu kết quả công cụ).
 
 **Điều kiện MVP thứ nhất vẫn CHƯA đạt.**
+
+## Lần chạy 2 (07/10/2026): bộ não tự làm luôn trong lượt, không lập mục tiêu
+
+**Pilot dừng đúng điều kiện đã duyệt, không thử lại, không sửa lời giao.** Kết luận của lần chạy: `acceptance: stopped`.
+
+| Mục | Giá trị |
+|---|---|
+| Commit | `9e4f842a` (đã qua review e2e vòng 5), cây `server/` và `system/` sạch |
+| Người duyệt | Người dùng duyệt một lần chạy theo đề xuất: 1 lượt Opus + tối đa 2 lượt Sonnet, lời giao, hợp đồng và cấu hình engine như trên |
+| Cổng an toàn | Đạt: engine resolve `anthropic-cli` / `claude-opus-5-5` và `anthropic-cli` / `sonnet` đúng cấu hình duyệt; `auth status` ở cả hai cwd là `claude.ai` / `firstParty` / `max`; không nguồn managed; `enabledPlugins` ghi là ngoài phạm vi |
+| Server | Một server (A, nhịp tạm dừng, trần việc nền 2, binary ghim); dừng trước khi tới bước giết và dựng lại |
+| Lượt đã dùng | **1 lượt engine cấp host** (lượt bộ não), 0 lượt việc nền |
+| Thời gian | Tổng 41,1 giây |
+| Bằng chứng | [`resonance-mvp-e2e-pilot-2.json`](resonance-mvp-e2e-pilot-2.json): cổng, khung công cụ, câu trả lời cuối, việc Kanban (không có), trạng thái server |
+
+**Bộ não đã làm gì** (khung công cụ trong báo cáo): `Bash` xem thư mục `Inbox` và `Notes`; `Write` tạo `Inbox/viec-dang-do.md`; `Bash` đọc chỉ mục bộ nhớ; `Write` một ký ức `memory/facts/duy-tri-viec-dang-do.md`; `Edit` `memory/MEMORY.md`. **Không gọi `ToolSearch` hay `javis_search_tools`**, nên không lúc nào thấy `javis_goal`. Câu trả lời cuối có bảng đủ ba việc, người, hạn (Lan 09/10, Minh 10/10, Hà 12/10, kèm năm 2026), nói không đụng `Notes/ghi-chu-cu.md`, và nói rõ: file chỉ được cập nhật khi người dùng nhắn, "không tự theo dõi ở nền".
+
+**Đánh giá:**
+1. Prompt của brain đã bật Resonance CÓ dòng định tuyến (main.py: "duy trì, theo dõi, chờ sự kiện, làm tới khi đạt thì gọi tool javis_goal op=create ... Chưa thấy tool thì tìm bằng javis_search_tools"). Bộ não không làm theo dòng đó; `javis_goal` là tool phải tìm mới thấy, và bộ não không tìm.
+2. Nhưng đọc kỹ, lời giao lần 2 cũng KHÔNG thật sự cần làm gì sau lượt: "khi mình báo thêm việc thì cập nhật vào" là phản ứng theo tin nhắn mới, không có trạng thái nào đổi ở nền giữa hai tin. Bộ não làm xong ngay trong lượt và nói đúng giới hạn của mình. Như lần 1, lần chạy này không chứng minh, cũng không bác, việc bộ não dùng `javis_goal` khi một việc THẬT SỰ cần theo đuổi sau lượt.
+3. Hai lần cho thấy một khó khăn thiết kế, không chỉ của kịch bản: với bộ thực thi việc nền chỉ chữ, không đọc được dữ liệu, rất khó dựng một yêu cầu tự nhiên vừa cần làm sau lượt, vừa làm được bằng Resonance MVP, mà lại không thuộc Kanban (việc nền một lần) hay `javis_schedule` (giờ cố định).
+
+**Điều kiện MVP thứ nhất vẫn CHƯA đạt. Không chạy thêm.** Hướng tiếp theo cần người dùng quyết (xem báo cáo gửi người dùng).
