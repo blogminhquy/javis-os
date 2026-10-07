@@ -661,6 +661,8 @@ Review vòng 2 xác nhận ba lỗi P1 đã sửa, và tìm ra một lỗi P2 do
 | Một thay đổi phương pháp được thử trên cùng thước đo, chỉ áp dụng khi đủ căn cứ trong quyền; usage và hạn mức được ghi, dừng được | Đạt, có giới hạn | M5: engine giả đủ các nhánh; pilot thật cho nhánh không áp dụng. Chưa có lần áp dụng (eligible) nào trên model thật. |
 | Báo cáo chỉ khẳng định phạm vi đã chạy | Theo dõi | Mỗi mục trên ghi rõ engine giả hay model thật. |
 
+Review mã M5 đạt ở vòng 3 (`d38d033a`); MVP CHƯA hoàn tất. Kịch bản pilot đầu-cuối qua đường chat thật cho điều kiện thứ nhất và hạn mức đề xuất ở [`resonance-mvp-e2e-pilot-plan.md`](resonance-mvp-e2e-pilot-plan.md); bộ chạy `tests/python/test_resonance_mvp_e2e_pilot.py` đã qua chế độ `dry` (13/13, 0 lượt gọi model), chế độ `real` chờ người dùng duyệt.
+
 ### Toàn bộ test
 
 | | Main sạch (`7d264236`) | Nhánh M5 (`1cc0395c`) | Sau review vòng 1 (`3c214c65`) | Sau review vòng 2 (`ca8e1674`) |
