@@ -121,7 +121,7 @@
     // thanh chat.
       providers: state.providers,
       expanded, filter,
-      selected: effective(),
+      selected: routingMode === "auto" ? {} : effective(),
       searchId: "mbSearch",
       short,
       mark: (p) => (p.is_main ? " " + ic("check", { cls: "ic-ok" }) : ""),
