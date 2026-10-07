@@ -597,6 +597,45 @@ _k2 = store.clear_transient_block(P, g_kx.id)
 check("vòng 2 (kho): gỡ cờ tạm KHÔNG đụng chốt guard hay trạng thái chờ người dùng duyệt",
       _k1 is False and _k2 is False and store.run_state(P, g_kx.id)["block_reason"] == "human_confirmation")
 
+# ═══════════════════════ Trần tổng lượt gọi cho pilot (JAVIS_RESONANCE_CALL_CEILING) ═══════════════════════
+import sqlite3 as _sq  # noqa: E402
+
+
+def _total_calls():
+    c = _sq.connect(str(store.path))
+    v = int(c.execute("SELECT COALESCE(SUM(calls_used),0) FROM goals").fetchone()[0])
+    c.close()
+    return v
+
+
+check("không đặt JAVIS_RESONANCE_CALL_CEILING: không có trần chung (mặc định, hành vi cũ)", RS.call_ceiling() is None)
+os.environ["JAVIS_RESONANCE_CALL_CEILING"] = str(_total_calls() + 1)
+g_c1, g_c2 = make_goal(), make_goal()
+(Path(BRAIN) / "Inbox" / "viec-tu-bien-ban.md").unlink(missing_ok=True)
+e_c1 = Engine({})
+asyncio.run(R.advance(g_c1.id, {"kind": "start"}, deps_for(e_c1)))
+(Path(BRAIN) / "Inbox" / "viec-tu-bien-ban.md").unlink(missing_ok=True)
+e_c2 = Engine({})
+asyncio.run(R.advance(g_c2.id, {"kind": "start"}, deps_for(e_c2)))
+check("trần: lượt trong trần được gọi; lượt vượt trần bị chặn TRƯỚC khi gọi model (engine không được gọi)",
+      len(e_c1.prompts) == 1 and not e_c2.prompts and calls_of(g_c2) == 0
+      and store.run_state(P, g_c2.id)["block_reason"] == "budget")
+store2 = RS.GoalStore()       # mô phỏng khởi động lại: kho mở mới, cùng file
+e_c3 = Engine({})
+asyncio.run(R.advance(g_c2.id, {"kind": "wake"}, R.GoalDeps(
+    engine_factory=lambda s, t: (e_c3, {"provider": "fake", "text_only": True}), budget=R.CallBudget(0),
+    store=store2, principal=P, brain_root=BRAIN, evidence=Evidence(), clock=lambda: 1_800_000_000.0)))
+check("trần giữ qua khởi động lại: kho mở mới vẫn chặn trước khi gọi", not e_c3.prompts and calls_of(g_c2) == 0)
+g_c5 = make_goal()
+e_c4 = Engine(WIN2)
+res_c4 = asyncio.run(R.compare_methods(g_c5.id, "work.v1", "work.checklist.v1", cases(*TWO), deps_for(e_c4)))
+check("trần chặn cả phép thử trước khi gọi (không tạo phép thử, không gọi model)",
+      store.get(P, g_c5.id).status == "active" and res_c4["created"] is False and not e_c4.prompts
+      and store.experiments(P, g_c5.id) == [] and calls_of(g_c5) == 0)
+os.environ["JAVIS_RESONANCE_CALL_CEILING"] = "không-phải-số"
+check("giá trị trần hỏng thì chặn hết (0), không phải bỏ trần", RS.call_ceiling() == 0)
+del os.environ["JAVIS_RESONANCE_CALL_CEILING"]
+
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)
     sys.exit(1)

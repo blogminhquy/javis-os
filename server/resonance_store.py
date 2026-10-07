@@ -14,6 +14,7 @@ Quy tắc chính:
 from __future__ import annotations
 
 import json
+import os
 import secrets
 import sqlite3
 import time
@@ -24,6 +25,30 @@ from typing import Optional
 
 from config import STATE_DIR
 import resonance as R
+
+def call_ceiling() -> Optional[int]:
+    """Trần TỔNG lượt gọi model của Resonance trên cả kho (mọi mục tiêu), đặt bằng biến môi trường
+    JAVIS_RESONANCE_CALL_CEILING. Không đặt (mặc định) thì không có trần chung, chỉ có hạn mức từng mục tiêu.
+
+    Dùng cho pilot có hạn mức do người dùng duyệt: kiểm TRƯỚC lượt gọi, trong cùng giao dịch giữ chỗ, nên lượt
+    vượt trần không bao giờ được gọi; số đã dùng nằm trong SQLite nên trần giữ qua mọi lần khởi động lại (người
+    chạy truyền lại biến cho mỗi tiến trình). Giá trị hỏng thì coi là 0 (chặn hết), không phải bỏ trần."""
+    raw = os.environ.get("JAVIS_RESONANCE_CALL_CEILING", "").strip()
+    if not raw:
+        return None
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 0
+
+
+def _under_ceiling(c, n: int) -> bool:
+    cap = call_ceiling()
+    if cap is None:
+        return True
+    used = int(c.execute("SELECT COALESCE(SUM(calls_used),0) FROM goals").fetchone()[0])
+    return used + int(n) <= cap
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS intents(
@@ -531,6 +556,8 @@ class GoalStore:
             if row is None:
                 raise ScopeError("mục tiêu không tồn tại trong brain này")
             if kind == "work":
+                if not _under_ceiling(c, 1):
+                    return None
                 cur = c.execute("UPDATE goals SET calls_used=calls_used+1, updated_at=? WHERE id=? "
                                 "AND calls_used<budget_calls", (now, goal_id))
                 if cur.rowcount != 1:
@@ -560,6 +587,8 @@ class GoalStore:
             if row is None:
                 raise ScopeError("mục tiêu không tồn tại trong brain này")
             if row["status"] != "active" or int(row["revision"]) != int(revision):
+                return None
+            if not _under_ceiling(c, calls):
                 return None
             cur = c.execute("UPDATE goals SET calls_used=calls_used+?, explore_used=explore_used+?, updated_at=? "
                             "WHERE id=? AND calls_used+?<=budget_calls AND explore_used+?<=?",

@@ -43,6 +43,24 @@ if MODE not in ("dry", "real"):
 
 PORT = int(os.environ.get("JAVIS_RESONANCE_E2E_PORT", "7791"))
 MAX_CALLS = int(os.environ.get("JAVIS_RESONANCE_E2E_MAX_CALLS", "3"))
+# Lượt bộ não: bộ chạy gửi ĐÚNG một tin chat ở chế độ real (một lượt bộ não, kể cả các vòng công cụ trong lượt đó).
+BRAIN_TURNS_PLANNED = 1 if MODE == "real" else 0
+# Phần còn lại của trần dành cho việc nền, server chặn TRƯỚC lượt gọi vượt trần (resonance_store.call_ceiling), số
+# đã dùng nằm trong SQLite nên trần giữ qua mọi lần khởi động lại; bộ chạy truyền biến này cho MỖI tiến trình server.
+CEILING = MAX_CALLS - BRAIN_TURNS_PLANNED
+if CEILING < 0:
+    print("FAIL pilot: trần nhỏ hơn số lượt bộ não đã định")
+    sys.exit(1)
+
+
+def _clean_env() -> dict:
+    """Môi trường cho server sandbox: như một Javis bình thường của người dùng. Bỏ mọi biến của phiên Claude Code
+    đang chạy bộ chạy này (CLAUDE*, ANTHROPIC*) và mọi khoá nhà cung cấp, để tiến trình `claude` của Javis tự dùng
+    đăng nhập gói thuê bao của người dùng và không có đường nào sang API trả phí."""
+    drop = ("CLAUDE", "ANTHROPIC", "OPENAI", "OPENROUTER", "GEMINI", "GOOGLE_API", "GROQ", "XAI", "OLLAMA", "CODEX",
+            "AWS_BEARER")
+    return {k: v for k, v in os.environ.items()
+            if not k.upper().startswith(drop) and not k.upper().endswith(("_API_KEY", "_AUTH_TOKEN"))}
 # Đường dẫn NGẮN: đường dẫn sâu làm ghi đầu ra lỗi write_failed trên Windows (MAX_PATH, ghi nhận ở M4).
 BASE = Path(tempfile.mkdtemp(prefix="rse2e-", dir=os.environ.get("TEMP") or None)).resolve()
 STATE, BRAINS = BASE / "state", BASE / "brains"
@@ -99,8 +117,8 @@ class Server:
 
     def start(self, wait_s=120):
         self.n += 1
-        env = {**os.environ, "JAVIS_PORT": str(PORT), "JAVIS_STATE_DIR": str(STATE), "BRAINS_DIR": str(BRAINS),
-               "JAVIS_REQUIRE_LOGIN": "0", "PYTHONUTF8": "1"}
+        env = {**_clean_env(), "JAVIS_PORT": str(PORT), "JAVIS_STATE_DIR": str(STATE), "BRAINS_DIR": str(BRAINS),
+               "JAVIS_REQUIRE_LOGIN": "0", "PYTHONUTF8": "1", "JAVIS_RESONANCE_CALL_CEILING": str(CEILING)}
         log = open(BASE / f"server-{self.n}.log", "w", encoding="utf-8")
         flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         self.proc = subprocess.Popen([sys.executable, "server/main.py"], cwd=str(ROOT), env=env, stdout=log,
@@ -216,7 +234,9 @@ def http(method, path, **kw):
         return r.status_code, {}
 
 
-rep = {"mode": MODE, "max_calls": MAX_CALLS, "steps": {}}
+rep = {"mode": MODE, "max_calls": MAX_CALLS, "brain_turns_planned": BRAIN_TURNS_PLANNED,
+       "background_ceiling": CEILING, "env_dropped": sorted({k.split("_")[0] for k in os.environ} - {
+           k.split("_")[0] for k in _clean_env()}), "steps": {}}
 brain_turns = 0
 t_start = time.time()
 try:
@@ -226,8 +246,10 @@ try:
     # ───────────── Bước 1: tin chat (real) hoặc lập mục tiêu bằng đúng hàm của tool (dry) ─────────────
     if MODE == "real":
         t0 = time.time()
+        if BRAIN_TURNS_PLANNED + CEILING > MAX_CALLS:
+            raise SystemExit("dừng: lượt bộ não cộng trần việc nền vượt trần đã duyệt")
+        brain_turns = 1          # tính TRƯỚC khi gửi: lượt bộ não được giữ chỗ trong trần
         sid, frames, tools = asyncio.run(ws_chat(USER_MSG))
-        brain_turns = 1
         rep["steps"]["chat_turn_s"] = round(time.time() - t0, 1)
         rep["frames"] = {k: frames.count(k) for k in sorted(set(f for f in frames if f))}
         rep["tools_called"] = tools
@@ -345,6 +367,8 @@ try:
     check("ghi chú cũ (Notes/ghi-chu-cu.md) còn nguyên",
           KEEP.is_file() and hashlib.sha256(KEEP.read_bytes()).hexdigest() == _keep_sha)
     check(f"tổng lượt gọi model trong trần {MAX_CALLS}", model_calls(brain_turns) <= MAX_CALLS)
+    check(f"lượt việc nền trong trần server {CEILING} (chặn trước lượt gọi)",
+          model_calls(brain_turns) - brain_turns <= CEILING)
 except SystemExit as e:
     print(f"DỪNG: {e}")
 except Exception as e:  # noqa: BLE001
