@@ -1,5 +1,6 @@
 """Routing, persistence, account isolation and replay safety checks."""
 from _paths import ROOT, SERVER
+import os
 import json
 import tempfile
 import time
@@ -65,6 +66,35 @@ class ChatAutoTests(unittest.TestCase):
         usage.observe(2, {"usage": {"input_tokens": 5, "output_tokens": 1}})
         self.assertEqual(usage.total()["input_tokens"], 17)
         self.assertIsNone(usage.total()["reasoning_tokens"])
+
+    def test_explicit_access_probe_has_no_tools_and_requires_confirmed_model(self):
+        import asyncio
+        import httpx
+        from unittest.mock import patch
+        cfg = {"openai_oauth": {"account_id": "test-account"}}
+        catalog = {"items": [{"id": model, "supported_reasoning_efforts": ["low"]}
+                             for model in router.MODELS.values()]}
+        calls = []
+        def handle(request):
+            payload = json.loads(request.content)
+            calls.append(payload)
+            self.assertNotIn("tools", payload)
+            model = payload["model"]
+            if model == "gpt-6-astra":
+                return httpx.Response(404, json={"error": "model_not_found"})
+            # A transport accepting a model name is insufficient: require completion confirmation.
+            result = {"model": model if model == "gpt-6-luna" else "another-model"}
+            return httpx.Response(200, text="data: " + json.dumps({"type": "response.completed", "response": result}) + "\n\n")
+        factory = lambda **kw: httpx.AsyncClient(transport=httpx.MockTransport(handle), **kw)
+        with tempfile.TemporaryDirectory() as td, patch.dict(os.environ, {"JAVIS_STATE_DIR": td}):
+            proof = asyncio.run(router.verify_access(cfg, catalog,
+                {"access_token": "test-secret", "account_id": "test-account"}, client_factory=factory))
+            self.assertEqual(set(router.verified_candidates(cfg, catalog, evidence=proof)), {"low"})
+            self.assertNotIn("test-secret", router.access_path().read_text())
+            calls.clear()
+            asyncio.run(router.verify_access(cfg, catalog,
+                {"access_token": "test-secret", "account_id": "other-account"}, client_factory=factory))
+            self.assertEqual(calls, [])
 
     def test_continuation_with_dashboard_context(self):
         wrapped = "[FILE ĐANG MỞ trong trình sửa của Javis: plan.md]\n\n[NGỮ CẢNH GIAO DIỆN: Chat]\n\ntiếp tục đi"
