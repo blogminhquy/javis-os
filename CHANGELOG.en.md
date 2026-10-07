@@ -11,7 +11,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ## [0.85.2] - 2026-10-07
 ### Improved
 - **Resonance: try a new method before switching.** Javis compares the current way of working with one alternative on the same set of cases and the same yardstick, and switches only when the new one clearly wins; without enough evidence it keeps the current method. The feature ships turned off.
-- **Resonance: a clearer line for handing off work.** With the feature on, a job that runs once and is done still goes to the Work page, while a job that needs doing, checking and revising on your feedback across several turns is kept as a goal. Javis on Claude Code is pointed to the right place to find the goal tool. Brains without the feature see no change.
+- **Resonance: a clearer line for handing off work.** With the feature on, a job that runs once and is done still goes to the Work page, while a job that needs doing, checking and revising on your feedback across several turns is kept as a goal. Javis on Claude Code is pointed to the right place to find the goal tool. A draft Javis writes during the chat turn is kept as the goal's first version instead of being rewritten. Brains without the feature see no change.
 
 ## [0.84.9] - 2026-10-07
 ### Improved

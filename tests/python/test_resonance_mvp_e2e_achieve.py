@@ -408,16 +408,26 @@ def _routing_versions():
     return out
 
 
+SETTLED_KINDS = ("goal.waiting_human", "goal.succeeded", "goal.blocked", "goal.guard", "goal.publish_conflict")
+
+
 def settle_work(gid, revision, timeout=420):
-    """Chờ lượt làm việc của đúng revision xong VÀ mọi tin báo đã giao."""
+    """Chờ revision này có kết cục (tin báo chờ người dùng, xong, bị chặn, xung đột CỦA ĐÚNG revision; hoặc một lượt việc
+    nền của revision đã xong) VÀ mọi tin báo đã giao. Không dựa vào run_state: trạng thái chờ của revision trước còn
+    nguyên tới khi revision mới được đánh giá. Bản tiếp nhận từ chat không có lượt việc nền nào."""
     def _done():
+        rows = notices(gid)
         acts = [a for a in work_actions(gid, revision) if a["status"] != "running"]
-        rs = goal_store().run_state(P, gid) or {}
-        blocked = rs.get("run_state") == "blocked"
-        if not acts and not blocked:
+        ended = any(r["kind"] in SETTLED_KINDS and r["revision"] == revision for r in rows)
+        if not acts and not ended:
             return None
-        return "done" if not [n for n in notices(gid) if not n["delivered"]] else None
+        return "done" if not [n for n in rows if not n["delivered"]] else None
     return wait_until(_done, timeout)
+
+
+def adoption(gid, revision):
+    """Sự kiện tiếp nhận bản chat của đúng revision (host đã đối chiếu biên nhận Write với bytes trên đĩa)."""
+    return [e for e in goal_store().events(P, gid) if e.get("kind") == "artifact_adopted" and e.get("revision") == revision]
 
 
 def receipt_brief(a):
@@ -506,14 +516,21 @@ try:
     rep["stages"]["S2"].update({"receipts": [receipt_brief(a) for a in acts], "run_state": rs,
                                 "notices": notices(g.id), "calls": background_calls()})
     if MODE == "real":
-        w = acts[-1]["receipt"] if acts else {}
-        check("S2 lượt việc nền: receipt succeeded, đúng provider đã chọn, không gọi công cụ",
-              w.get("status") == "succeeded" and w.get("engine", {}).get("provider") ==
-              w.get("engine", {}).get("requested_provider") and w.get("tool_calls_observed") == 0)
+        ad1 = adoption(g.id, g.revision)
+        rep["stages"]["S2"]["adopted"] = [e.get("payload") for e in ad1]
+        if ad1:
+            # Bộ não viết bản đầu trong lượt chat và host đã tiếp nhận: không cần lượt việc nền (trần là trần).
+            check("S2 bản đầu tiếp nhận từ chat: đúng một lần, không có lượt việc nền viết lại",
+                  len(ad1) == 1 and not acts)
+        else:
+            w = acts[-1]["receipt"] if acts else {}
+            check("S2 lượt việc nền: receipt succeeded, đúng provider đã chọn, không gọi công cụ",
+                  w.get("status") == "succeeded" and w.get("engine", {}).get("provider") ==
+                  w.get("engine", {}).get("requested_provider") and w.get("tool_calls_observed") == 0)
         pub = goal_store().published(P, g.id, DELIV) or {}
         rep["artifacts"]["draft1"] = {**preserve("draft1"), "revision": g.revision,
                                       "published_sha256": pub.get("sha256")}
-        check("S2 bản đầu ở đúng file, bytes khớp hash host đã ghi khi đăng",
+        check("S2 bản đầu ở đúng file, bytes khớp hash host đã ghi khi đăng hay khi tiếp nhận",
               (BRAIN / DELIV).is_file() and bool(pub) and _sha_file(BRAIN / DELIV) == pub.get("sha256"))
         check("S2 bản đầu được lưu nguyên vẹn ra ngoài thư mục tạm (hash khớp)",
               rep["artifacts"]["draft1"].get("ok") is True)
@@ -598,9 +615,15 @@ try:
     rep["stages"]["S5"].update({"receipts": [receipt_brief(a) for a in acts5], "run_state": rs5,
                                 "notices": notices(g.id), "calls": background_calls()})
     if MODE == "real":
-        w = acts5[-1]["receipt"] if acts5 else {}
-        check("S5 đúng một lượt bản sửa cho revision mới, receipt succeeded",
-              len(acts5) == 1 and w.get("status") == "succeeded")
+        ad2 = adoption(g.id, g4.revision)
+        rep["stages"]["S5"]["adopted"] = [e.get("payload") for e in ad2]
+        if ad2:
+            check("S5 bản sửa tiếp nhận từ chat (lượt góp ý tự Write): không có lượt việc nền viết lại",
+                  len(ad2) == 1 and not acts5)
+        else:
+            w = acts5[-1]["receipt"] if acts5 else {}
+            check("S5 đúng một lượt bản sửa cho revision mới, receipt succeeded",
+                  len(acts5) == 1 and w.get("status") == "succeeded")
         pub = goal_store().published(P, g.id, DELIV) or {}
         rep["artifacts"]["draft2"] = {**preserve("draft2"), "revision": g4.revision,
                                       "published_sha256": pub.get("sha256"), "feedback_sha256": _sha_text(FEEDBACK_MSG)}

@@ -80,6 +80,14 @@ def _summary(g, head: str) -> str:
     return "\n".join(lines)
 
 
+def _hold_until() -> float:
+    """Lập hay cập nhật trong lượt chat: lịch việc nền giữ tới khi host bàn giao cuối lượt (review pilot lần 3), để
+    việc nền không chen vào khi bộ não còn đang viết. Lượt bị cắt thì lịch tự tới hạn sau HANDOFF_HOLD_S."""
+    import time
+    import resonance as R
+    return time.time() + R.HANDOFF_HOLD_S
+
+
 def _turn(vault_root):
     """(session_id, msg_id, user_text) của lượt đang chạy, hoặc chuỗi lỗi."""
     import luot_dang_chay
@@ -124,7 +132,8 @@ async def javis_goal(args, ctx):
         try:
             g = await R.form_goal(mref, {"principal": p, "brain_root": vault, "session_id": sid, "message_id": mid,
                                          "user_text": user_text, "constraints": constraints,
-                                         "proposal": _proposal(args), "user_unsure": unsure}, deps)
+                                         "proposal": _proposal(args), "user_unsure": unsure,
+                                         "hold_until": _hold_until()}, deps)
         except R.GoalRejected as e:
             return f"ERROR: Chưa lập được mục tiêu: {e}. Sửa đề xuất rồi gọi lại, hoặc trả lời bình thường nếu việc này không cần theo đuổi sau lượt chat."
         return _summary(g, "Đã lập mục tiêu")
@@ -137,7 +146,8 @@ async def javis_goal(args, ctx):
         # Đọc revision hiện tại trước khi kiểm: hạn và chỉ tiêu người dùng nêu ở tin trước được giữ nguyên.
         g, relation, kept = R.revise_goal(store, p, gid, exp, _proposal(args), {
             "message_ref": mref, "session_id": sid, "message_id": mid, "user_text": user_text,
-            "constraints": constraints, "user_unsure": unsure, "reason": args.get("reason")})
+            "constraints": constraints, "user_unsure": unsure, "reason": args.get("reason"),
+            "hold_until": _hold_until()})
     except RS.ConflictError as e:
         return f"ERROR: Mục tiêu đã đổi trước đó ({e}). Gọi op=list để xem revision hiện tại."
     except RS.ScopeError as e:

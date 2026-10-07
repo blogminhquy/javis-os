@@ -1,6 +1,6 @@
-# Resonance: tiếp nhận bản bộ não viết trong lượt chat (thiết kế, chờ review)
+# Resonance: tiếp nhận bản bộ não viết trong lượt chat
 
-Trạng thái: **thiết kế, CHƯA code phần lõi.** Nguồn: pilot lần 3 (`docs/dev/resonance-mvp-e2e-pilot-plan.md`, mục "Lần chạy 3") và review `PR-579-pilot3-review.md`.
+Trạng thái: **đã làm theo thiết kế này, chờ review mã.** Chưa chạy model. Nguồn: pilot lần 3 (`docs/dev/resonance-mvp-e2e-pilot-plan.md`, mục "Lần chạy 3") và review `PR-579-pilot3-review.md`.
 
 ## Vấn đề
 
@@ -107,3 +107,44 @@ Theo tám ca review nêu:
    - `javis-goal`: đặt lịch giữ chỗ;
    - bộ chạy pilot: hợp đồng S2 và S5.
    Tính năng vẫn tắt mặc định. Brain chưa bật Resonance không đi qua đường nào ở trên.
+
+## Đã làm (chờ review mã)
+
+Chốt hai câu hỏi trên theo đề xuất, review có thể đổi:
+- so khớp sau khi đổi CRLF thành LF;
+- `HANDOFF_HOLD_S` = 900 giây.
+
+**Mã:**
+- `resonance.py`:
+  - `note_turn_write`, `drop_turn_writes`, `handoff_after_turn`;
+  - `_output_refs`: `advance` tính cả `chat_output`;
+  - `_effective_text`: bản trước của `_work_step` là bản đang có hiệu lực;
+  - `_artifact_file` nhận bản tiếp nhận;
+  - `form_goal` và `revise_goal` nhận `hold_until`.
+- `resonance_store.py`: `adopt_artifact` (một giao dịch); `create` và `revise` nhận `work_due_at`.
+- `javis-goal/plugin.py`: lập và cập nhật trong lượt chat thì giữ lịch.
+- `main.py`:
+  - `_resonance_note_write` ở nhánh engine Claude (`_consume_claude`) và nhánh engine API;
+  - `_resonance_after_turn` gọi bàn giao và ghi vết `resonance.handoff`.
+- Bộ chạy pilot achieve:
+  - S2 và S5 nhận "tiếp nhận hoặc đăng";
+  - điều kiện chờ gắn với tin báo của đúng revision, không đọc `run_state` của revision trước.
+
+**Test:**
+- `test_resonance_inline_handoff.py` (40 kiểm, engine giả, kho thật), theo tám ca review:
+  - Write rồi lập, lập rồi Write;
+  - file có sẵn, biên nhận của lượt khác, Edit sau Write, ngoài brain, công cụ không có toàn văn;
+  - lỗi bằng chứng;
+  - bản chat chưa đạt thì việc nền sửa từ bản đó;
+  - tạm dừng, tắt tính năng;
+  - góp ý cả hai đường;
+  - revision đổi giữa chừng, restart, xác nhận cũ.
+- `test_resonance_mvp_main.py`: đường nối thật trong main.
+  - Bàn giao nhả lịch.
+  - Write trong lượt qua đúng helper các nhánh engine gọi thì được tiếp nhận.
+  - Mục tiêu đạt mà không có lượt việc nền.
+
+**Giới hạn còn lại:**
+- `dry` của bộ chạy lập mục tiêu bằng `form_goal` trực tiếp, nên không đi qua bàn giao. Bàn giao chỉ được kiểm ở hai test trên.
+- Engine Grok, Antigravity và Codex chưa ghi biên nhận (không có toàn văn ở sự kiện), nên vẫn chạy như cũ.
+

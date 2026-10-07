@@ -279,7 +279,7 @@ class GoalStore:
 
     def create(self, p: Principal, intent_id: str, frame: dict, idempotency_key: str, session_id: str = "",
                output_root: Optional[str] = None, output_base: Optional[str] = None, budget_calls: int = 0,
-               message_ref: Optional[str] = None) -> tuple:
+               message_ref: Optional[str] = None, work_due_at: Optional[float] = None) -> tuple:
         """Trả (GoalRecord, đã_tạo_mới). Cùng khoá chống trùng thì trả mục tiêu cũ, không ghi gì thêm."""
         now = time.time()
         msg = message_ref or idempotency_key
@@ -306,8 +306,10 @@ class GoalStore:
                       (gid, 1, "created", "host", msg, _j({"intent_id": intent_id}), p.by, "created", now))
             c.execute("INSERT INTO outbox(goal_id,kind,payload_json,created_at) VALUES(?,?,?,?)",
                       (gid, "goal.created", _j({"revision": 1}), now))
-            # M3: mục tiêu mới được làm ngay ở lượt tick kế tiếp; có guard thì có lịch quan sát riêng.
-            self._wake(c, gid, p.brain_id, "work", now, "tạo mục tiêu")
+            # M3: mục tiêu mới được làm ngay ở lượt tick kế tiếp; có guard thì có lịch quan sát riêng. Lập trong một
+            # lượt chat thì lịch được GIỮ tới khi bàn giao cuối lượt (work_due_at), để việc nền không chen vào giữa lượt.
+            self._wake(c, gid, p.brain_id, "work", float(work_due_at) if work_due_at else now,
+                       "chờ bàn giao lượt chat" if work_due_at else "tạo mục tiêu")
             if frame.get("guards"):
                 self._wake(c, gid, p.brain_id, "observe", now + R.GUARD_OBSERVE_S, "quan sát guard")
             row = c.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
@@ -338,7 +340,7 @@ class GoalStore:
 
     def revise(self, p: Principal, goal_id: str, expected_revision: int, frame: dict, reason: str,
                intent_id: Optional[str] = None, message_ref: str = "", relation: str = "",
-               intent: Optional[dict] = None) -> R.GoalRecord:
+               intent: Optional[dict] = None, work_due_at: Optional[float] = None) -> R.GoalRecord:
         now = time.time()
         with self._Tx(self) as c:
             row = self._goal_row(c, p, goal_id)
@@ -376,7 +378,8 @@ class GoalStore:
                       (goal_id, "goal.revised", _j({"revision": rev}), now))
             # Cách hiểu mới cần được làm lại; trạng thái chờ người dùng xác nhận revision cũ không còn đúng.
             if row["status"] == "active":
-                self._wake(c, goal_id, row["brain_id"], "work", now, "sửa cách hiểu")
+                self._wake(c, goal_id, row["brain_id"], "work", float(work_due_at) if work_due_at else now,
+                           "chờ bàn giao lượt chat" if work_due_at else "sửa cách hiểu")
                 if frame.get("guards"):
                     self._wake(c, goal_id, row["brain_id"], "observe", now + R.GUARD_OBSERVE_S, "quan sát guard",
                                keep_earlier=True)
@@ -886,6 +889,38 @@ class GoalStore:
                 return None
             r = c.execute("SELECT * FROM published WHERE goal_id=? AND path=?", (goal_id, path)).fetchone()
             return dict(r) if r else None
+
+    def adopt_artifact(self, p: Principal, goal_id: str, revision: int, path: str, sha256: str, message_ref: str,
+                       evidence_id: str) -> str:
+        """Tiếp nhận bản bộ não viết trong lượt chat làm sản phẩm của revision (review pilot lần 3). Người gọi đã đối
+        chiếu biên nhận ghi do host lập với bytes trên đĩa và đã lưu bản chụp vào kho bằng chứng (evidence_id).
+
+        MỘT giao dịch: kiểm mục tiêu còn active, không pause, đúng revision; gắn bằng chứng `chat_output`; ghi sự kiện
+        `artifact_adopted`; đặt mốc `published` nguồn chat (mốc này cho lần sửa sau thay được file vì bytes đúng là
+        bytes lượt đó ghi). Không tạo receipt việc nền, không tính lượt model. Trả "adopted", "already" hoặc lý do
+        không tiếp nhận."""
+        key = f"adopt:{int(revision)}:{str(sha256)[:16]}"
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            if row["status"] != "active" or int(row["paused"] or 0):
+                return "not_active"
+            if int(row["revision"]) != int(revision):
+                return "revision_changed"
+            if c.execute("SELECT 1 FROM goal_events WHERE goal_id=? AND idempotency_key=?", (goal_id, key)).fetchone():
+                return "already"
+            now = time.time()
+            c.execute("INSERT OR IGNORE INTO evidence_links VALUES(?,?,?,?,?,?,?)",
+                      (goal_id, int(revision), f"chat:{message_ref}", evidence_id, "chat_output", str(sha256), now))
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,message_ref,payload_json,by,"
+                      "idempotency_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                      (goal_id, int(revision), "artifact_adopted", "host", str(message_ref or ""),
+                       _j({"path": path, "sha256": sha256, "evidence_id": evidence_id}), p.by, key, now))
+            c.execute("INSERT INTO published VALUES(?,?,?,?,?) ON CONFLICT(goal_id,path) DO UPDATE SET "
+                      "sha256=excluded.sha256, action_id=excluded.action_id, created_at=excluded.created_at",
+                      (goal_id, path, sha256, f"chat:{message_ref}", now))
+            return "adopted"
 
     def set_published(self, p: Principal, goal_id: str, path: str, sha256: str, action_id: str) -> None:
         with self._Tx(self) as c:

@@ -66,6 +66,10 @@ luot_dang_chay.ket_thuc(k)
 check("tool trong lượt: lập được mục tiêu", "Đã lập mục tiêu" in out)
 d = main._resonance_after_turn(SID, BRAIN, MID, t0, None)
 check("sau lượt có lập mục tiêu: create_goal", d is not None and d.kind == "create_goal" and d.goal_id)
+_wk = [w for w in main._resonance_store().wakes(RS.Principal("agent", "javis", main._brain_key(BRAIN)), d.goal_id)
+       if w["kind"] == "work"]
+check("bàn giao cuối lượt: nhả lịch việc nền đã giữ khi lập trong lượt chat (đánh giá ngay)",
+      bool(_wk) and _wk[0]["due_at"] <= time.time() + 1)
 g = main._resonance_store().get(RS.Principal("owner", "owner", main._brain_key(BRAIN)), d.goal_id)
 check("mục tiêu thuộc đúng brain theo _brain_key", g is not None and g.request_ref == R.message_ref(SID, MID))
 check("vùng đầu ra nằm trong brain", Path(g.output_root).resolve().is_relative_to(Path(BRAIN)))
@@ -118,6 +122,36 @@ luot_dang_chay.ket_thuc(_k3)
 check("M3 lời dặn của tool: nói rõ làm tiếp ở nền và kết quả tự về khung chat", "làm tiếp ở NỀN" in _out3)
 _g3 = main._resonance_store().find_by_key(RS.Principal("agent", "javis", main._brain_key(BRAIN)),
                                          R.message_ref(SID, 301))
+# Như run_turn: hết lượt thì bàn giao (lịch việc nền được giữ từ lúc tool lập mục tiêu tới đây).
+_d3 = main._resonance_after_turn(SID, BRAIN, 301, time.time() - 1, None)
+check("bàn giao lượt 301: không có Write nên không tiếp nhận, mục tiêu vẫn chờ việc nền làm",
+      _d3 is not None and _d3.kind == "create_goal"
+      and not [e for e in main._resonance_store().events(RS.Principal("agent", "javis", main._brain_key(BRAIN)),
+                                                         _g3.id) if e["kind"] == "artifact_adopted"])
+
+# Bộ não Write bản đạt ngay trong lượt rồi lập mục tiêu (pilot lần 3): sự kiện Write đi qua đúng helper các nhánh
+# engine trong main gọi, bàn giao tiếp nhận, nhịp nền KHÔNG gọi engine cho mục tiêu này.
+_USER4 = "Viết giúp anh ghi chú Inbox/ban-chat.md liệt kê hai việc: gọi thợ máy lạnh, nộp báo cáo quý."
+_TXT4 = "# Việc\n\n- Gọi thợ máy lạnh\n- Nộp báo cáo quý\n"
+_k4 = luot_dang_chay.bat_dau(f"{main.WEB_CHAT_PREFIX}{SID}", BRAIN, msg_id=302, user_text=_USER4)
+main._resonance_note_write(SID, 302, BRAIN, {"type": "tool_call", "name": "Write",
+                                             "input": {"file_path": str(Path(BRAIN) / "Inbox" / "ban-chat.md"),
+                                                       "content": _TXT4}})
+(Path(BRAIN) / "Inbox").mkdir(parents=True, exist_ok=True)
+(Path(BRAIN) / "Inbox" / "ban-chat.md").write_text(_TXT4, encoding="utf-8")
+asyncio.run(route["javis_goal"]["call"]({
+    "op": "create", "understanding": "Ghi chú hai việc trong Inbox",
+    "criteria": [{"description": "Ghi chú có đủ hai việc", "evaluator": "artifact_contract",
+                  "params": {"path": "Inbox/ban-chat.md", "must_contain": ["máy lạnh", "báo cáo quý"]}}],
+    "relevant_quote": "Viết giúp anh ghi chú Inbox/ban-chat.md",
+    "horizon": {"kind": "review", "at_iso": "2027-01-01T09:00:00+07:00"}, "mode": "achieve"}))
+luot_dang_chay.ket_thuc(_k4)
+_P4 = RS.Principal("agent", "javis", main._brain_key(BRAIN))
+_g4 = main._resonance_store().find_by_key(_P4, R.message_ref(SID, 302))
+main._resonance_after_turn(SID, BRAIN, 302, time.time() - 1, None)
+check("bàn giao lượt 302: bản Write trong lượt được tiếp nhận (sự kiện, bằng chứng chat_output)",
+      _g4 is not None and [e["kind"] for e in main._resonance_store().events(_P4, _g4.id)].count("artifact_adopted") == 1
+      and [x["kind"] for x in main._resonance_store().evidence_for(_P4, _g4.id, _g4.revision)] == ["chat_output"])
 _calls, _sent = {"n": 0}, []
 
 
@@ -149,6 +183,9 @@ check("M3 trọn vòng: mục tiêu này được làm đúng một lượt engi
       len([x for x in main._resonance_store().actions(_P3, _g3.id) if x["kind"] == "work"]) == 1)
 check("M3 trọn vòng: sản phẩm nằm đúng chỗ trong brain", (Path(BRAIN) / "Inbox" / "tom-tat.md").is_file())
 check("M3 trọn vòng: mục tiêu thành công sau khi host kiểm bằng chứng", _g3b.status == "succeeded")
+check("bản chat đã tiếp nhận: mục tiêu 302 đạt mà KHÔNG có lượt việc nền nào",
+      main._resonance_store().get(_P4, _g4.id).status == "succeeded"
+      and not [x for x in main._resonance_store().actions(_P4, _g4.id) if x["kind"] == "work"])
 check("M3 trọn vòng: báo về ĐÚNG khung chat web của phiên đã giao, có link sản phẩm",
       any(c == f"{main.WEB_CHAT_PREFIX}{SID}" and "Inbox/tom-tat.md" in t for c, t in _sent))
 _calls["n"] = 0

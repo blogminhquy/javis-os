@@ -2046,6 +2046,16 @@ def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
                                        f"{WEB_CHAT_PREFIX}{conv_sid}", t0)
         _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "resonance.route", {
             "route": d.kind, "reason": d.reason, "goal_id": d.goal_id or "", "message_ref": mref})
+        # Bàn giao cuối lượt (review pilot lần 3): bản bộ não Write trong lượt này được tiếp nhận nếu host có biên
+        # nhận ghi khớp bytes trên đĩa, rồi nhả lịch việc nền đã giữ khi lập hay cập nhật mục tiêu.
+        if d.kind in ("create_goal", "continue_goal") and d.goal_id:
+            _deps = _resonance_deps(_brain_key(brain))
+            if _deps is not None:
+                _ho = resonance.handoff_after_turn(d.goal_id, mref, _deps)
+                _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "resonance.handoff", {
+                    "goal_id": d.goal_id, "status": _ho, "message_ref": mref})
+        else:
+            resonance.drop_turn_writes(mref)
         if d.kind in ("create_goal", "continue_goal") and d.goal_id:
             try:
                 asyncio.get_running_loop().create_task(_resonance_push_card(conv_sid, root, d))
@@ -2055,6 +2065,19 @@ def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
     except Exception as e:  # noqa: BLE001
         print(f"[resonance route] {type(e).__name__}: {e}", file=sys.stderr)
         return None
+
+
+def _resonance_note_write(conv_sid, user_mid, brain, ev) -> None:
+    """Ghi biên nhận cho một sự kiện công cụ ghi file có toàn văn trong lượt chat (Write, javis_write_file), để bàn
+    giao cuối lượt tiếp nhận được bản bộ não viết. Chỉ brain bật Resonance; lỗi không được làm hỏng lượt chat."""
+    try:
+        if not user_mid or str((ev or {}).get("name") or "").rsplit("__", 1)[-1] not in resonance._WRITE_TOOLS:
+            return
+        root = _brain_root(brain)
+        if resonance.enabled_for(root):
+            resonance.note_turn_write(resonance.message_ref(conv_sid, user_mid), root, ev)
+    except Exception as e:  # noqa: BLE001
+        print(f"[resonance write receipt] {type(e).__name__}: {e}", file=sys.stderr)
 
 
 async def _resonance_push_card(conv_sid, brain_root, decision) -> bool:
@@ -14574,6 +14597,7 @@ async def websocket_endpoint(ws: WebSocket):
                                 elif ev["type"] == "limit_exceeded":
                                     _limit_hit = ev
                                 elif ev["type"] == "tool_call":
+                                    _resonance_note_write(conv_sid, user_mid, brain, ev)
                                     await ws.send_text(json.dumps({
                                         "type": "tool_call", "tool": ev.get("name", ""),
                                         "detail": tool_label.chi_tiet(ev),
@@ -14719,6 +14743,7 @@ async def websocket_endpoint(ws: WebSocket):
                     async for event in cli.query(prompt):
                         etype = event["type"]
                         if etype == "tool_call":
+                            _resonance_note_write(conv_sid, user_mid, brain, event)
                             await ws.send_text(json.dumps({"type": "tool_call", "tool": event["name"], "detail": tool_label.chi_tiet(event),
                                                            "content": localefmt.chu(f"⚙ Đang gọi: {event['name']}",
                                                                                     f"⚙ Calling: {event['name']}")}))
