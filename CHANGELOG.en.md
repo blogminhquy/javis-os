@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.85.2] - 2026-10-07
+### Improved
+- **Resonance: try a new method before switching.** Javis compares the current way of working with one alternative on the same set of cases and the same yardstick, and switches only when the new one clearly wins; without enough evidence it keeps the current method. The feature ships turned off.
+
 ## [0.84.9] - 2026-10-07
 ### Improved
 - **Resonance: the "What I'm working toward" card and confirm buttons.** Every goal Javis is pursuing gets a card in the chat: how Javis understood your request, how far it has got, and what comes next. You mark the understanding as right or not right, and the output as meeting the bar, as two separate things. There are pause and resume buttons. Off by default, not enabled for anyone yet.

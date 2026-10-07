@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.85.2] - 2026-10-07
+### Cải thiện
+- **Hệ thống cộng hưởng: thử một cách làm mới trước khi đổi.** Javis so cách làm hiện tại với một cách làm khác trên cùng bộ tình huống và cùng thước đo, chỉ đổi khi cách mới thắng rõ ràng, chưa đủ bằng chứng thì giữ cách cũ. Tính năng tắt sẵn, chưa bật cho ai.
+
 ## [0.84.9] - 2026-10-07
 ### Cải thiện
 - **Hệ thống cộng hưởng: thẻ "Em đang hướng tới" và nút xác nhận.** Mỗi mục tiêu Javis đang theo đuổi có một thẻ trong khung chat: Javis hiểu việc anh nhờ là gì, đang tiến tới đâu, việc tiếp theo là gì. Anh bấm Đúng ý hay Chưa đúng ý cho cách hiểu, và Đạt yêu cầu cho sản phẩm, tách riêng hai việc. Có nút tạm dừng và tiếp tục. Tính năng tắt sẵn, chưa bật cho ai.
