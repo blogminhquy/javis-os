@@ -531,11 +531,11 @@ Script của người review (`PR-575-M4-checks.py`) chạy từng ca độc l�
 
 ### Toàn bộ test
 
-| | Main sạch (`7d264236`) | Nhánh M4 (`4ae62efa`) |
-|---|---|---|
-| Python xanh | 387/403 | 397/412 |
-| File Python đỏ | 16 | 15 |
-| Đỏ mới so với main | | không có |
-| JS (`tests/run.py --js`) | | 177/177 (tại `7c9776c6`; commit sau chỉ sửa `server/main.py` và ảnh chụp route) |
+| | Main sạch (`7d264236`) | Nhánh M4 (`4ae62efa`) | Sau review vòng 1 (`39fda1be`) |
+|---|---|---|---|
+| Python xanh | 387/403 | 397/412 | 396/412 |
+| File Python đỏ | 16 | 15 | 16 |
+| Đỏ mới so với main | | không có | không có |
+| JS (`tests/run.py --js`) | | 177/177 (tại `7c9776c6`) | 177/177 |
 
-15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1.
+15 file đỏ trùng đúng danh sách đỏ sẵn ở mục M1. Lượt sau review đỏ thêm `test_write_path_phase9.py` (ca `test_restart_marks_running_writes_unknown_without_rerunning`, đường ghi của write invocation, không chạm Resonance): chạy riêng 3 lần trên nhánh thì xanh 1, đỏ 2; chạy 3 lần trên main sạch `7d264236` cũng xanh 1, đỏ 2. Là test chập chờn có sẵn.
