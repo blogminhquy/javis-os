@@ -66,6 +66,11 @@ class ChatAutoTests(unittest.TestCase):
         self.assertEqual(usage.total()["input_tokens"], 17)
         self.assertIsNone(usage.total()["reasoning_tokens"])
 
+    def test_continuation_with_dashboard_context(self):
+        wrapped = "[FILE ĐANG MỞ trong trình sửa của Javis: plan.md]\n\n[NGỮ CẢNH GIAO DIỆN: Chat]\n\ntiếp tục đi"
+        self.assertEqual(router.classify(wrapped, {"tier": "high"}), ("high", "continuation_of_previous_task"))
+        self.assertEqual(router.classify("[gấp] Thiết kế kiến trúc")[0], "high")
+
     def test_native_usage_across_resume(self):
         from datetime import datetime
         with tempfile.TemporaryDirectory() as td:

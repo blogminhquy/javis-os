@@ -56,7 +56,16 @@ def normalized(text):
 
 def classify(text, previous=None, has_attachments=False):
     # Classify the user task, without making a model call.
-    t = normalized(text).strip()
+    raw = str(text or "").strip()
+    has_attachments = has_attachments or raw.startswith("[File đính kèm")
+    # Only known dashboard wrappers; never strip arbitrary user bracketed content.
+    wrapper = r"^\s*\[(?:FILE ĐANG MỞ|File đính kèm|NGỮ CẢNH GIAO DIỆN:)[^\]]*\]\s*"
+    for _ in range(4):
+        rest = re.sub(wrapper, "", raw, count=1)
+        if rest == raw:
+            break
+        raw = rest
+    t = normalized(raw).strip()
     continuation = re.fullmatch(r"(?:tiep tuc(?: di)?|lam tiep(?: di)?|continue|go on|ok(?: lam di)?|duyet(?: di)?)[.!?\s]*", t)
     if continuation and previous and previous.get("tier") in TIERS:
         return previous["tier"], "continuation_of_previous_task"
