@@ -61,7 +61,7 @@ _real = claude_agent_sdk.create_sdk_mcp_server
 
 
 def _spy(name, tools=None, **kw):
-    _seen[name] = [getattr(t, "name", None) for t in (tools or [])]
+    _seen[name] = {getattr(t, "name", None): getattr(t, "description", "") for t in (tools or [])}
     return _real(name, tools=tools, **kw)
 
 
@@ -73,19 +73,27 @@ _cfg.write_text(json.dumps({"mcpServers": {"javis": {"type": "http", "url": "htt
 
 def _servers(vault):
     _seen.clear()
+    _desc_seen.clear()
     e = claude_sdk_engine.ClaudeSDK(cwd=vault or ON)
     e.mcp_config = str(_cfg)
     e.javis_vault = vault
-    return e._mcp_servers()[0] or {}
+    out = e._mcp_servers()[0] or {}
+    _desc_seen.update(_seen.get("javis-plugins") or {})
+    return out
+
+
+_desc_seen = {}
 
 
 try:
     s_on = _servers(ON)
+    desc_on = dict(_desc_seen)
     check("Claude: có server javis-plugins", "javis-plugins" in s_on)
     check("Claude: javis-plugins mang javis_goal", "javis_goal" in _seen.get("javis-plugins", []))
     check("Claude: hub nhận X-Javis-No-Plugins=1",
           (s_on.get("javis", {}).get("headers") or {}).get("X-Javis-No-Plugins") == "1")
     _servers(OFF)
+    desc_off = dict(_desc_seen)
     check("Claude, brain tắt: javis-plugins không mang javis_goal", "javis_goal" not in _seen.get("javis-plugins", []))
     _servers(None)
     check("Claude, chưa đặt javis_vault: không mang javis_goal (main._apply_mcp phải đặt)",
@@ -117,12 +125,16 @@ check("prompt nêu đủ ranh giới: làm luôn, javis_task, javis_schedule, ja
 check("brain tắt: prompt không nhắc javis_goal hay ToolSearch",
       "javis_goal" not in p_off and _full not in p_off)
 
-# 5. Mô tả hai tool nói cùng một ranh giới
-_desc = {t["fn"]: t["description"] for t in plugins_host.plugin_tools("full", ON, scope_vault=False)[0]}
-check("javis_task: một lần, xong là hết trách nhiệm; nhiều vòng thì javis_goal",
-      "xong là hết trách nhiệm" in _desc.get("javis_task", "") and "javis_goal" in _desc.get("javis_task", ""))
-check("javis_goal: nhắc sửa theo phản hồi và chỉ việc một lần sang javis_task",
-      "sửa theo phản hồi" in _desc.get("javis_goal", "") and "javis_task" in _desc.get("javis_goal", ""))
+# 5. Mô tả tool THẬT SỰ tới engine Claude (metadata của server in-process), brain bật và tắt.
+# Brain tắt Resonance không được nhận chỉ dẫn mới nào: mô tả javis_task giữ nguyên, không nhắc javis_goal
+# (review PR #579, P2). Ranh giới chỉ nằm ở mô tả javis_goal và dòng gợi ý, hai thứ chỉ có khi bật.
+check("javis_task: mô tả tới engine giống hệt nhau khi bật và khi tắt",
+      bool(desc_on.get("javis_task")) and desc_on.get("javis_task") == desc_off.get("javis_task"))
+check("javis_task: mô tả không nhắc javis_goal hay ranh giới Resonance",
+      "javis_goal" not in desc_off.get("javis_task", "") and "hết trách nhiệm" not in desc_off.get("javis_task", ""))
+check("brain tắt: engine không nhận javis_goal", "javis_goal" not in desc_off)
+check("javis_goal (brain bật): nhắc sửa theo phản hồi và chỉ việc một lần sang javis_task",
+      "sửa theo phản hồi" in desc_on.get("javis_goal", "") and "javis_task" in desc_on.get("javis_goal", ""))
 
 # 6. Nguồn tin người dùng: tool đọc đúng lượt đang chạy của brain
 k = luot_dang_chay.bat_dau("web:sess-tp", ON, msg_id=11, user_text="lời thật của người dùng")

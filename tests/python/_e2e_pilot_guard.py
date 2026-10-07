@@ -330,3 +330,83 @@ def preserve_artifact(src: Path, dest: Path) -> dict:
     a = hashlib.sha256(src.read_bytes()).hexdigest()
     b = hashlib.sha256(dest.read_bytes()).hexdigest()
     return {"saved": dest.name, "sha256": b, "bytes": dest.stat().st_size, "ok": a == b}
+
+
+# ───────────── Pilot lần 3 (achieve qua phản hồi): giữ chỗ lượt chat, ảnh chụp brain, lần tìm tool ─────────────
+
+class TurnLedger:
+    """Sổ lượt CHAT của pilot (review đường công cụ, điểm 1): giữ chỗ TRƯỚC mỗi lần gửi và ghi xuống đĩa ngay, nên
+    lượt bị timeout hay lỗi vẫn được tính. Không có đường thử lại: hết chỗ thì reserve trả False. Đọc lại từ file ở mỗi
+    lần gọi, nên một đối tượng mới (bộ chạy dựng lại) vẫn thấy các lượt đã giữ."""
+
+    def __init__(self, path: Path, limit: int):
+        self.path, self.limit = Path(path), int(limit)
+
+    def entries(self) -> list:
+        try:
+            return list(json.loads(self.path.read_text(encoding="utf-8")))
+        except Exception:  # noqa: BLE001 - chưa có file: chưa giữ lượt nào
+            return []
+
+    def _write(self, rows: list) -> None:
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8", newline="\n")
+        os.replace(tmp, self.path)
+
+    def reserve(self, label: str) -> bool:
+        rows = self.entries()
+        if len(rows) >= self.limit or any(r.get("label") == label for r in rows):
+            return False
+        rows.append({"label": label, "status": "reserved"})
+        self._write(rows)
+        return True
+
+    def settle(self, label: str, status: str) -> None:
+        rows = self.entries()
+        for r in rows:
+            if r.get("label") == label:
+                r["status"] = status
+        self._write(rows)
+
+    def used(self) -> int:
+        return len(self.entries())
+
+
+def snapshot_files(root: Path, skip=("Javis",)) -> dict:
+    """{đường dẫn tương đối: sha256} của mọi file trong brain (bỏ thư mục hệ thống trong `skip`). Dùng để biết bộ não
+    đã ghi gì trong lượt chat, kể cả khi pilot dừng sớm (review pilot lần 2)."""
+    import hashlib
+    root = Path(root)
+    out = {}
+    for p in sorted(root.rglob("*")):
+        rel = p.relative_to(root).as_posix()
+        if not p.is_file() or rel.split("/", 1)[0] in skip:
+            continue
+        out[rel] = hashlib.sha256(p.read_bytes()).hexdigest()
+    return out
+
+
+def snapshot_diff(before: dict, after: dict) -> dict:
+    return {"added": sorted(k for k in after if k not in before),
+            "changed": sorted(k for k in after if k in before and after[k] != before[k]),
+            "removed": sorted(k for k in before if k not in after)}
+
+
+SEARCH_TOOLS = ("ToolSearch", "javis_search_tools")
+
+
+def search_calls(tool_frames) -> list:
+    """Các khung công cụ có dính tới việc TÌM tool (ToolSearch của Claude Code, javis_search_tools của hub), giữ cả
+    đầu vào và kết quả như khung đã ghi. Không suy ra gì thêm: không thấy khung nào thì chỉ nghĩa là trace không ghi."""
+    out = []
+    for f in tool_frames or []:
+        blob = json.dumps(f, ensure_ascii=False)
+        if any(n in blob for n in SEARCH_TOOLS):
+            out.append(f)
+    return out
+
+
+def goal_tool_calls(tool_frames) -> list:
+    """Các khung công cụ có nhắc javis_goal hay javis_task (gọi, hay kết quả trả về)."""
+    return [f for f in tool_frames or [] if any(n in json.dumps(f, ensure_ascii=False)
+                                                for n in ("javis_goal", "javis_task"))]

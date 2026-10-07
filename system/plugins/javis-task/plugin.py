@@ -225,8 +225,6 @@ def register(ctx):
         "KHÔNG giao việc cho kế hoạch hay 'bước tiếp theo' do chính bạn vừa nghĩ ra và user chưa "
         "gật (vd 'áp dụng kế hoạch vừa trình bày', 'cập nhật timeline', 'theo dõi rồi nhắc lại'): "
         "mỗi việc đều bắn thông báo về chuông và về khung chat khi nó xong hoặc kẹt. "
-        "Một việc Kanban chạy một lần, xong là hết trách nhiệm. Việc phải giữ mở qua nhiều vòng làm, "
-        "kiểm, sửa theo phản hồi tới khi đạt thì không phải việc Kanban: dùng javis_goal nếu có tool đó. "
         "op=add: cần title; nên kèm chat_id (lấy từ khối KÊNH HỘI THOẠI HIỆN TẠI) để kết quả về "
         "đúng người, và intent nếu cần mô tả kỹ hơn tiêu đề. mode=full (mặc định: toàn quyền, "
         "tự thao tác ra ngoài như lúc chat), auto (chỉ ghi file nháp trong brain) hoặc suggest "

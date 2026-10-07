@@ -186,6 +186,30 @@ check("văn xuôi hai dòng cho mỗi người (đoạn chỉ nói về một ng
 check("bảng đúng kèm dòng tóm tắt nhắc cả ba người: dòng tóm tắt bị bỏ qua, met",
       V("Người phụ trách: Lan, Minh, Hà.\n\n" + TABLE) == "met")
 
+# ───────────── Pilot lần 3: ảnh chụp brain, khung tìm tool (sổ lượt chat kiểm ở test_resonance_achieve_stages) ─────
+br = tmp / "brain3"
+(br / "Javis").mkdir(parents=True)
+(br / "Javis" / "resonance.json").write_text("{}", encoding="utf-8")
+(br / "Notes").mkdir()
+(br / "Notes" / "a.md").write_text("a", encoding="utf-8")
+s0 = G.snapshot_files(br)
+check("ảnh chụp brain bỏ thư mục hệ thống Javis/", "Javis/resonance.json" not in s0 and "Notes/a.md" in s0)
+(br / "Notes" / "a.md").write_text("a2", encoding="utf-8")
+(br / "Docs").mkdir()
+(br / "Docs" / "b.md").write_text("b", encoding="utf-8")
+d = G.snapshot_diff(s0, G.snapshot_files(br))
+check("so ảnh chụp: biết file mới và file đổi do bộ não ghi trong lượt",
+      d == {"added": ["Docs/b.md"], "changed": ["Notes/a.md"], "removed": []})
+frames = [{"type": "tool", "name": "ToolSearch", "input": "{\"query\": \"select:mcp__javis-plugins__javis_goal\"}"},
+          {"type": "tool", "name": "Bash", "input": "ls"},
+          {"type": "tool_result", "content": "[javis_search_tools] không tìm thấy"},
+          {"type": "tool", "name": "mcp__javis-plugins__javis_goal", "input": "{\"op\": \"create\"}"}]
+check("khung tìm tool: giữ ToolSearch và javis_search_tools, bỏ khung khác",
+      G.search_calls(frames) == [frames[0], frames[2]])
+check("khung gọi javis_goal/javis_task: nhận cả lần nạp qua ToolSearch và lần gọi",
+      G.goal_tool_calls(frames) == [frames[0], frames[3]])
+check("không có khung nào: danh sách rỗng, không suy ra gì", G.search_calls([]) == [] and G.search_calls(None) == [])
+
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)
     sys.exit(1)

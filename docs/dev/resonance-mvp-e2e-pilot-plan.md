@@ -177,18 +177,18 @@ Trả lời ba câu hỏi của review vòng 1: **giữ luật định tuyến h
 
 Làm theo đánh giá `PR-579-pilot-2-assessment.md`: chưa chạy thêm, chưa đổi lời giao để ép bộ não lập mục tiêu. Mọi kiểm ở phần này chạy bằng mã và brain giả.
 
-### Ranh giới định tuyến (đề xuất, chờ review)
+### Ranh giới định tuyến (review đồng ý về nguyên tắc)
 
 | Loại | Khi nào | Đường | Ví dụ |
 |---|---|---|---|
 | Làm ngay | Làm xong và trả kết quả trong lượt | Trả lời, có thể ghi file | "Tóm tắt ghi chú này thành ba ý"; "Lập bảng việc từ tin dưới, lưu vào Inbox" |
-| Việc nền một lần | Chạy một lần ở nền, xong là hết trách nhiệm | `javis_task` (Kanban) | "Tối nay dịch hết 40 file trong thư mục này, xong báo anh" |
+| Việc nền một lần | Chạy một lần ở nền, xong là hết trách nhiệm | `javis_task` (Kanban) | "Dịch hết 40 file trong thư mục này, xong báo anh" |
 | Theo đuổi kết quả | Giữ trách nhiệm qua nhiều vòng làm, tự kiểm, sửa theo phản hồi; giữ việc mở tới khi đạt. Lúc chờ phản hồi không gọi model | `javis_goal` (Resonance) | "Lo giúp anh bản hướng dẫn này tới khi anh thấy dùng được, anh góp ý dần" |
-| Nhắc giờ cố định | Đúng một việc vào một thời điểm | `javis_schedule` | "8 giờ sáng mai nhắc anh gọi nhà cung cấp" |
+| Nhắc giờ cố định | Một thông báo nhắc đơn thuần vào một thời điểm (không phải mọi việc có hạn chót) | `javis_schedule` | "8 giờ sáng mai nhắc anh gọi nhà cung cấp" |
 
-Thêm hai ca không lập gì mới: **nối mục tiêu đang mở** (người dùng góp ý cho việc đang theo đuổi: `javis_goal op=update` trên đúng mục tiêu) và **chat thường** (câu hỏi, tư vấn, lập kế hoạch: chỉ trả lời).
+Thêm hai ca không lập gì mới: **nối mục tiêu đang mở** (chỉ góp ý làm thay đổi mục tiêu đang mở mới nối vào nó bằng `javis_goal op=update`; "cảm ơn" hay câu hỏi bên lề thì không) và **chat thường** (câu hỏi, tư vấn, lập kế hoạch: chỉ trả lời).
 
-Không phải yêu cầu nào có chữ "duy trì" hay "nhớ lần sau" cũng là loại 3. Lời giao lần 2 ("khi mình báo thêm việc thì cập nhật vào") nằm ở vùng giao: mỗi lần cập nhật là phản ứng với một tin mới, làm ngay trong lượt đó vẫn hợp lý.
+Điểm phân biệt là trách nhiệm tiếp tục theo đuổi kết quả, không phải số lần gọi model hay chữ "duy trì". Lời giao lần 2 ("khi mình báo thêm việc thì cập nhật vào") nằm ở vùng giao: mỗi lần cập nhật là phản ứng với một tin mới, làm ngay trong lượt đó vẫn hợp lý. Ngược lại, viết bản đầu ngay trong lượt KHÔNG phủ định Resonance: bộ não có thể làm phần hữu ích ngay và vẫn lưu trách nhiệm vào mục tiêu.
 
 ### Kết quả kiểm đường công cụ trên engine Claude Code
 
@@ -196,44 +196,73 @@ Script `exports/reviews/PR-579-tool-path-probe.py` (ngoài repo), sau đó thàn
 
 1. **Đăng ký đúng brain: đạt.** `javis_goal` chỉ có trong `plugins_host.plugin_tools` khi brain bật Resonance; brain tắt hoặc không rõ brain thì không có. `javis_task` luôn có.
 2. **Danh sách tới engine: đạt.** Engine Claude nhận plugin qua MCP in-process `javis-plugins` (32 tool, có `javis_goal`). Đường chat đặt `javis_vault` trong `main._apply_mcp`; thiếu nó thì `javis_goal` không có mặt.
-3. **Đường tìm: SAI trên Claude Code.** Engine Claude báo hub bỏ nhóm plugin (`X-Javis-No-Plugins: 1`) để khỏi trùng tool. Vì vậy `javis_search_tools` của hub **không bao giờ** trả về `javis_goal` trên Claude Code. Với engine API hay Codex, hub có nhóm plugin nên `javis_search_tools` tìm ra. Dòng gợi ý cũ trong prompt chỉ nêu `javis_search_tools`, tức chỉ sai đúng engine đang dùng.
+3. **Đường tìm: sai trên Claude Code.** Khi engine Claude dựng được server plugin in-process, nó báo hub bỏ nhóm plugin (`X-Javis-No-Plugins: 1`) để khỏi trùng tool, nên `javis_search_tools` của hub không trả về `javis_goal`. Kết luận chỉ áp cho đường đó; nhánh lùi khi server in-process lỗi (hub giữ nhóm plugin) không được kiểm ở đây. Với engine API hay Codex, hub có nhóm plugin nên `javis_search_tools` tìm ra. Dòng gợi ý cũ chỉ nêu `javis_search_tools`.
 4. **Nguồn tin người dùng: đạt.** `luot_dang_chay` trả đúng phiên, id tin và lời người dùng của lượt đang chạy; hết lượt thì không còn.
 
-**Chưa kiểm được khi không gọi model:** Claude Code có hoãn nạp tool `mcp__javis-plugins__*` sau ToolSearch của nó không. Bằng chứng gián tiếp duy nhất là lần chạy 1, khi bộ não tìm thấy `mcp__javis-plugins__javis_task` qua ToolSearch. Lần chạy 2 không tìm gì, nên không biết bộ não có thấy tên `javis_goal` trong danh sách hoãn hay không. Chỗ sai ở mục 3 có thật, nhưng **chưa chứng minh nó là nguyên nhân** của lần chạy 2.
+**Chưa kiểm được khi không gọi model:** ToolSearch của SDK có luôn sẵn không, và Claude Code có hoãn nạp tool `mcp__javis-plugins__*` không. Bằng chứng gián tiếp duy nhất là lần chạy 1 (bộ não tìm thấy `mcp__javis-plugins__javis_task` qua ToolSearch). Chỗ sai ở mục 3 có thật, nhưng **chưa chứng minh nó là nguyên nhân** của lần chạy 2.
 
 ### Sửa tối thiểu
 
-- `server/main.py` (dòng gợi ý, chỉ khi brain bật Resonance): nêu đủ bốn loại theo bảng trên và chỉ đúng đường tìm cho từng engine: Claude Code dùng ToolSearch (`mcp__javis-plugins__javis_goal`), engine khác dùng `javis_search_tools`. Trần độ dài dòng gợi ý trong test nâng từ 450 lên 650 ký tự.
-- `system/plugins/javis-goal/plugin.py`: thêm "tự kiểm, sửa theo phản hồi, giữ việc mở tới khi đạt" vào điều kiện lập mục tiêu; ghi rõ "việc nền một lần, xong là hết trách nhiệm: javis_task".
-- `system/plugins/javis-task/plugin.py`: một câu ranh giới: việc Kanban chạy một lần; việc phải giữ mở qua nhiều vòng tới khi đạt thì dùng `javis_goal` nếu có. Câu này hiện ở **mọi brain**, kể cả brain chưa bật Resonance.
+- `server/main.py` (dòng gợi ý, chỉ khi brain bật Resonance): nêu đủ bốn loại theo bảng trên và chỉ đường tìm cho từng engine: Claude Code dùng ToolSearch (`mcp__javis-plugins__javis_goal`), engine khác dùng `javis_search_tools`. Comment ghi đúng mức bằng chứng (việc hoãn nạp chưa xác minh). Trần độ dài dòng gợi ý trong test nâng từ 450 lên 650 ký tự.
+- `system/plugins/javis-goal/plugin.py`: thêm "tự kiểm, sửa theo phản hồi, giữ việc mở tới khi đạt" vào điều kiện lập mục tiêu; ghi rõ "việc nền một lần, xong là hết trách nhiệm: javis_task". Mô tả này chỉ tới engine khi brain bật.
+- **Mô tả `javis_task` giữ nguyên** (review đường công cụ, P2). Bản `9c62b9a0` từng thêm câu ranh giới vào đó, và câu này tới cả brain chưa bật Resonance; đã gỡ. Ranh giới nay chỉ nằm ở hai chỗ chỉ có khi bật.
 
-Không thêm từ khoá nào nhắm vào lời giao của pilot. Test mới đỏ 4 kiểm trên mã cũ (prompt, ranh giới, hai mô tả), xanh trên mã mới. Không có bằng chứng sửa này đủ để bộ não lập mục tiêu: việc đó chỉ lần chạy thật trả lời được.
+`test_resonance_tool_path.py` (20 kiểm) đọc mô tả tool **thật sự tới engine Claude** (metadata của server in-process) ở brain bật và tắt. Mô tả `javis_task` phải giống hệt nhau và không nhắc `javis_goal`; đặt lại câu cũ thì đỏ. Không thêm từ khoá nào nhắm vào lời giao của pilot. Không có bằng chứng sửa này đủ để bộ não lập mục tiêu.
 
-### Đề xuất lần chạy 3 (CHƯA chạy, chờ review rồi chờ người dùng duyệt)
+**Hai điều kiện thật của `op=update`** (tìm ra khi viết test engine giả): đề xuất phải có `relevant_quote` trích nguyên văn lời GÓP Ý, và phải đổi ít nhất một trường (ràng buộc, tiêu chí, cách hiểu). Thiếu trích dẫn thì host từ chối; không đổi gì thì host trả "không có thay đổi nào được áp dụng", không ghi ý định mới, việc nền không chạy lại.
 
-**Kịch bản: hoàn thiện một bản hướng dẫn qua phản hồi** (mục tiêu kiểu `achieve`, sản phẩm chữ). Mọi dữ liệu nằm trong tin; không có tên tool, API hay schema trong lời người dùng. Lời giao tự nhiên, cố ý không chép nguyên văn cụm từ của dòng gợi ý:
+### Lần chạy 3 (CHƯA chạy, chờ review bộ chạy rồi chờ người dùng duyệt)
 
-> Anh cần một bản hướng dẫn nhận hàng ở kho cho nhân viên mới, viết từ mấy ghi chú dưới đây. Em lo việc này giúp anh tới khi anh thấy dùng được thì thôi: làm bản đầu, tự rà xem đủ những gì anh dặn chưa rồi báo anh; anh sẽ góp ý dần, em sửa tiếp theo góp ý. Lưu ở `Docs/huong-dan-nhan-hang.md`. Anh dặn: viết cho người chưa làm bao giờ, các bước đánh số, có mục "Lỗi hay gặp".
-> Ghi chú: (5 đến 6 dòng cố định về kiểm số lượng, đối chiếu phiếu giao, hàng hỏng, ký nhận, nhập vào sổ)
+**Kịch bản: hoàn thiện một bản hướng dẫn qua phản hồi** (mục tiêu `achieve`, sản phẩm chữ). Bộ chạy riêng: `tests/python/test_resonance_mvp_e2e_achieve.py` (biến `JAVIS_RESONANCE_E2E_ACHIEVE=dry|real`, cổng 7792). Bộ chạy maintain cũ giữ nguyên làm hồ sơ lần 1 và lần 2.
 
-Tin góp ý (lượt 2, sau khi dựng lại server): "Bước đối chiếu phiếu giao khó hiểu quá, em thêm một ví dụ cụ thể, và thêm bước chụp ảnh hàng hỏng trước khi ký."
+**Đầu vào đóng băng** (nguyên văn trong bộ chạy, báo cáo ghi kèm sha256): lời giao gồm yêu cầu, đường dẫn `Docs/huong-dan-nhan-hang.md`, ba điều dặn (cho người chưa làm, bước đánh số, mục "Lỗi hay gặp") và sáu dòng ghi chú (đếm kiện trước khi cho tài xế đi; đối chiếu từng dòng phiếu giao về mã hàng và số lượng; thùng móp, ướt, rách để riêng và ghi hàng hỏng; chỉ ký sau khi đếm và đối chiếu, thiếu hay hỏng ghi cạnh chữ ký; nhập sổ kho trong ngày; không chắc thì gọi anh Tùng). Tin góp ý: "Anh xem bản đầu rồi. Bước đối chiếu phiếu giao khó hiểu quá, em thêm một ví dụ cụ thể, và thêm bước chụp ảnh hàng hỏng trước khi ký." Không có tên tool, API hay schema trong lời người dùng.
 
-**Hợp đồng nghiệm thu:**
+**Các bước và hạn mức chia theo giai đoạn** (tối đa 4 lượt engine cấp host):
 
-| Bước | Lượt model | Đạt khi | Dừng khi |
-|---|---|---|---|
-| S1 lượt chat 1 | 1 Opus | Đúng **một** mục tiêu mới, `mode=achieve`, có tiêu chí xác nhận của người dùng; trace ghi tool được gọi và mọi lần tìm tool | Không lập mục tiêu (ghi trace, lưu file nếu bộ não đã viết, rồi dừng); lập hai mục tiêu; giao Kanban |
-| S2 việc nền: bản đầu | tối đa 1 Sonnet | File đúng đường dẫn, hash khớp bản đăng, thẻ báo về đúng phiên có biên nhận; sau đó mục tiêu chờ người dùng, **không gọi thêm model** trong lúc chờ | Lỗi kỹ thuật, vượt trần |
-| S3 dựng lại server | 0 | Mục tiêu, revision, bản đăng và thẻ còn nguyên | Mất trạng thái |
-| S4 lượt chat 2 (góp ý) | 1 Opus | `op=update` trên **cùng** mục tiêu, revision tăng 1, góp ý vào chuỗi ý định | Tạo mục tiêu mới; sửa ngay trong lượt mà không nối mục tiêu (ghi nhận, dừng); host trả "không có thay đổi nào được áp dụng" |
-| S5 việc nền: bản sửa | tối đa 1 Sonnet | Bản mới có hash khác, sửa trên bản trước, báo về đúng phiên | Lỗi kỹ thuật, vượt trần |
-| S6 xác nhận | 0 | Bấm "Đạt yêu cầu" qua API (thao tác **mô phỏng** trong sandbox, ghi rõ như vậy) thì mục tiêu đạt | |
+| Bước | Server | Lượt | Đạt khi | Dừng khi |
+|---|---|---|---|---|
+| S0 | A: giai đoạn 1, nhịp dừng | 0 | Cổng xác thực đạt | Cổng không đạt |
+| S1 lượt chat 1 | A | chat 1/2 | Đúng một mục tiêu `achieve`, file `Docs/huong-dan-nhan-hang.md`, có tiêu chí người dùng xác nhận; ý định gốc trùng lời giao | Không lập hay lập hai mục tiêu, giao Kanban: `stopped`. Lệch kiểu, file hay tiêu chí: `contract_failed` |
+| S2 bản đầu | B: giai đoạn 1, nhịp chạy | nền 1/1 | Receipt đúng provider; file khớp hash bản đăng; lưu nguyên vẹn; chờ người dùng; báo về phiên có biên nhận | Lỗi kỹ thuật |
+| S3 dựng lại | C: giai đoạn 1, nhịp chạy, rồi D: nhịp dừng | 0 | Mục tiêu và revision giữ nguyên; không báo lặp; 75 giây không gọi thêm | Mất trạng thái |
+| S4 lượt chat 2 | D | chat 2/2 | Cùng phiên; cùng mục tiêu, revision +1; ý định mới đúng lời góp ý, nối về ý định trước; giữ ràng buộc cũ, file, tiêu chí xác nhận; lịch làm lại chưa ai nhận | Mục tiêu mới, Kanban, hay revision không đổi: `stopped` |
+| S5 bản sửa | E: giai đoạn 2, nhịp chạy | nền 2/2 | Đúng một lượt cho revision mới; hash khác bản đầu, khớp bản đăng; lưu nguyên vẹn; chờ người dùng; 75 giây không gọi thêm | Lỗi kỹ thuật |
+| S6 xác nhận | E | 0 | Bấm "Đạt yêu cầu" cho **từng** tiêu chí người dùng của revision hiện hành, trên đúng `artifact_ref`; mục tiêu `succeeded` và đã báo | |
 
-**Hạn mức: tối đa 4 lượt engine cấp host** (2 Opus cho lượt chat, 2 Sonnet cho việc nền), chặn riêng từng bước: bộ chạy chỉ gửi đúng 2 tin chat; `JAVIS_RESONANCE_CALL_CEILING=2` chặn lượt việc nền thứ ba trước khi gọi, giữ qua lần dựng lại. Không thử lại, không nâng trần, không chuyển API trả phí. Tool javis_goal lập mục tiêu không gọi model (framer `CallBudget(0)`); bộ thử cách làm M5 không có đường gọi trong sản phẩm nên không chạy.
+- **Lượt chat:** sổ `TurnLedger` giữ chỗ TRƯỚC mỗi lần gửi và ghi xuống đĩa ngay. Lượt hết giờ hay lỗi vẫn được tính, không có đường thử lại, tối đa 2.
+- **Việc nền:** trần TÍCH LUỸ 1 cho mọi server tới hết S4, 2 cho server E. Sổ trong SQLite không bao giờ đặt lại. Lượt chat góp ý chạy trên server nhịp dừng, nên lịch làm lại chỉ được nhận khi E lên. Nếu nhịp chạy với trần 1 sau góp ý, lịch đó bị chặn vì hạn mức và bộ chạy không được sửa kho để gỡ.
+- Không thử lại, không nâng trần, không chuyển API trả phí. Tool javis_goal lập mục tiêu không gọi model (framer `CallBudget(0)`); bộ thử cách làm M5 không có đường gọi trong sản phẩm.
 
-**Rủi ro biết trước, ghi để review:**
-- Viết bản đầu ngay trong lượt rồi chờ góp ý ở tin sau cũng là một cách làm hợp lý. Nếu bộ não chọn vậy thì đó là kết quả "không định tuyến", không mặc định là lỗi.
-- Góp ý chỉ nối được vào mục tiêu khi `op=update` đổi ít nhất một trường (ràng buộc, tiêu chí, cách hiểu). Gọi update mà không đổi gì thì host không ghi ý định mới và việc nền không chạy lại. Bước S4 dừng ở ca này và ghi nhận.
-- Dòng gợi ý mới có định nghĩa loại 3 gần với lời giao, nên một lần đạt chỉ chứng minh đường này đi được khi ranh giới được nêu rõ, chưa chứng minh định tuyến ổn định.
+**Kết luận của lần chạy** tách bốn loại: `technical_failed` (host hay bộ chạy), `contract_failed` (đã đi đường mục tiêu nhưng lệch kịch bản), `stopped` (bộ não không đi đường mục tiêu ở S1 hay S4), `pending_content_review` (kỹ thuật đạt).
 
-**Bộ chạy cần đổi trước khi chạy** (làm sau khi kịch bản được review): hợp đồng `achieve` thay cho `maintain`; lưu file và hash cả khi dừng sớm; ghi mọi lần gọi ToolSearch hoặc `javis_search_tools` cùng kết quả của chúng; ghi danh sách tool mà Claude Code báo trong tin `init`, nếu SDK cho đọc mà không phải đổi mã sản phẩm.
+**Nghiệm thu nội dung vẫn do người review** (giữ quy trình vòng 5). Hash khác chỉ chứng minh bytes khác. Bộ chạy lưu nguyên vẹn bản đầu và bản sửa cùng hash, revision, sha của lời góp ý, kèm danh sách điều cần kiểm:
+- **bản đầu:** viết cho người chưa làm bao giờ, các bước đánh số, có mục "Lỗi hay gặp", đủ sáu ý của ghi chú;
+- **bản sửa:** bước đối chiếu có ví dụ cụ thể, có bước chụp ảnh hàng hỏng đặt trước bước ký, và vẫn giữ mọi yêu cầu của bản đầu.
+
+Nút "Đạt yêu cầu" ở S6 là thao tác **mô phỏng** (`simulated_acceptance: true`), chỉ kiểm đường API, không phải con người đã duyệt.
+
+**Bằng chứng ghi thêm:**
+- mọi khung công cụ, riêng các khung dính ToolSearch hay `javis_search_tools` (`search_calls`) và các khung dính `javis_goal` hay `javis_task`;
+- file bộ não ghi trong từng lượt chat (ảnh chụp trước và sau);
+- file sản phẩm lưu sau S1 và S4, kể cả khi dừng sớm.
+
+Danh sách tool trong tin `init` của Claude Code không đọc được từ ngoài nếu không đổi mã sản phẩm; báo cáo ghi `not_observable`.
+
+**Đã kiểm không gọi model:**
+- `dry` của bộ chạy: 24/24 kiểm, `dry_ok`.
+  - Lập mục tiêu bằng đúng hàm của tool.
+  - Năm server: bốn server trần 1, server cuối trần 2.
+  - Góp ý nối bằng `revise_goal` như `op=update`, revision 1 lên 2, ý định nối chuỗi.
+  - Bản sửa của revision 2 bị chặn trước lượt gọi model (provider chỉ chữ không chạy được).
+  - Lệnh tạm dừng qua API vẫn có hiệu lực. 0 lượt engine.
+- `test_resonance_achieve_stages.py` (20 kiểm, engine giả):
+  - Trần 1: bản đầu chưa đạt thì lần làm lại bị chặn trước lượt gọi, kể cả sau khi dựng lại kho.
+  - Đang chờ người dùng thì đánh thức lại không gọi model.
+  - Góp ý hợp lệ rồi trần 2: đúng thêm một lượt, prompt có lời góp ý và bản trước; lượt thứ ba không giữ được chỗ.
+  - Sổ lượt chat tính cả lượt hết giờ, không giữ lại cùng lượt, đọc lại được sau khi dựng lại.
+- `test_resonance_e2e_guard.py`: thêm ảnh chụp brain và lọc khung tìm tool.
+
+**Rủi ro biết trước:**
+- Bộ não có thể làm bản đầu ngay trong lượt mà không lập mục tiêu: `stopped`, không mặc định là lỗi.
+- `op=update` thiếu trích dẫn hay không đổi trường nào: S4 dừng và ghi rõ; bộ chạy không tự thêm trường để giả sửa.
+- Dòng gợi ý định nghĩa loại 3 khá gần lời giao, nên một lần đạt chỉ chứng minh đường này đi được khi ranh giới nêu rõ, chưa chứng minh định tuyến ổn định.

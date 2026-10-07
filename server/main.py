@@ -902,10 +902,13 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
     )
     # Resonance (M2): chỉ brain đã bật mới có dòng này và mới thấy tool javis_goal. CLAUDE.md đã hết ngân sách
     # ký tự, và brain chưa bật thì không được dài thêm chữ nào.
-    # Đường tìm tool khác nhau theo engine: Claude Code nhận plugin qua MCP in-process "javis-plugins"
-    # (hub bị báo bỏ nhóm plugin, X-Javis-No-Plugins), nên javis_search_tools của hub KHÔNG BAO GIỜ trả
-    # về javis_goal ở đó; tool nằm sau ToolSearch của chính Claude Code. Dòng cũ chỉ nêu javis_search_tools,
-    # tức chỉ sai đúng engine dùng nhiều nhất (pilot lần 2, 07/10/2026).
+    # Đường tìm tool khác nhau theo engine. Khi engine Claude dựng được server plugin in-process
+    # "javis-plugins", hub bị báo bỏ nhóm plugin (X-Javis-No-Plugins), nên javis_search_tools của hub không
+    # trả về javis_goal; tool đến model qua namespace mcp__javis-plugins__. Claude Code có hoãn nạp nó sau
+    # ToolSearch hay không thì chưa xác minh (lần chạy 1 cho thấy javis_task từng bị hoãn như vậy), nên dòng
+    # dưới chỉ nói "chưa nạp thì tìm". Dòng cũ chỉ nêu javis_search_tools (pilot lần 2, 07/10/2026).
+    # Ranh giới bốn loại việc chỉ nằm ở dòng này và mô tả javis_goal: cả hai chỉ có khi brain bật Resonance.
+    # Mô tả javis_task giữ nguyên để brain tắt tính năng không nhận chỉ dẫn mới (review PR #579, P2).
     if resonance.enabled_for(root):
         base += (
             "\n- MỤC TIÊU (Hệ thống cộng hưởng đang bật): việc xong ngay trong lượt thì làm luôn; việc nền một "
