@@ -2038,6 +2038,9 @@ def _trial_gate(g: GoalRecord, deps: GoalDeps, now: float) -> tuple:
         return cur, why
     if cur.revision != g.revision:
         return cur, "goal_reframed"
+    # Điều kiện hiện tại đã qua: cờ quan sát cũ (tắt công tắc, "Chưa đúng ý" đã đổi ý, guard chưa xác định) không còn
+    # đúng nữa, đồng bộ lại để thẻ và giao dịch áp dụng không đọc nhầm (review M5 vòng 2, P2). Chốt guard giữ nguyên.
+    store.clear_transient_block(p, g.id)
     return cur, ""
 
 

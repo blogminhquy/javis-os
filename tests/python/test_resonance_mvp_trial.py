@@ -542,6 +542,61 @@ r_rev1 = R.apply_command(store, OWNER, g_ch1.id, "revert_method", {"expected_rev
 check("P1-3: quay lại ngay ở revision 1 (nơi checklist đã được kiểm): checklist có hiệu lực",
       r_rev1["method"] == "work.checklist.v1" and R.effective_method(store.get(P, g_ch1.id)) == "work.checklist.v1")
 
+# ═══════════════════════ Review M5 vòng 2: cờ quan sát cũ không bác kết quả khi điều kiện đã hồi phục ═══════════════════════
+# A. Tắt rồi bật lại Resonance: advance đã ghi feature_off lúc tắt.
+g_ra = make_goal()
+SWITCH.write_text('{"enabled": false}', encoding="utf-8")
+_e0 = Engine(WIN2)
+asyncio.run(R.advance(g_ra.id, {"kind": "wake"}, deps_for(_e0)))
+SWITCH.write_text('{"enabled": true}', encoding="utf-8")
+_had = store.run_state(P, g_ra.id)["block_reason"]
+res_ra, eng_ra = trial(g_ra, WIN2, ids=TWO)
+check("vòng 2 (A): bật lại Resonance sau khi advance ghi feature_off: phép thử thắng được áp dụng, cờ cũ được gỡ",
+      _had == "feature_off" and not _e0.prompts and len(eng_ra.prompts) == 4 and res_ra["verdict"] == "eligible"
+      and res_ra["applied"] is True and R.effective_method(store.get(P, g_ra.id)) == "work.checklist.v1"
+      and store.run_state(P, g_ra.id)["block_reason"] == "")
+# B. "Chưa đúng ý" rồi đổi sang "Đúng ý" cho cùng revision.
+g_rb = make_goal()
+fit_no(g_rb)
+R.apply_feedback(store, OWNER, g_rb.id, "goal_fit_confirmed", {"expected_revision": 1}, BRAIN)
+_had_b = store.run_state(P, g_rb.id)["block_reason"]
+res_rb, eng_rb = trial(g_rb, WIN2, ids=TWO)
+check("vòng 2 (B): Chưa đúng ý rồi Đúng ý: phép thử thắng được áp dụng, cờ fit_rejected cũ được gỡ",
+      _had_b == "fit_rejected" and store.fit_status(OWNER, g_rb.id, 1) == "confirmed" and len(eng_rb.prompts) == 4
+      and res_rb["applied"] is True and R.effective_method(store.get(P, g_rb.id)) == "work.checklist.v1"
+      and store.run_state(P, g_rb.id)["block_reason"] == "")
+# Ca âm: phản hồi CUỐI vẫn là Chưa đúng ý thì vẫn chặn từ đầu, trước khi chi lượt.
+g_rn = make_goal()
+fit_no(g_rn)
+R.apply_feedback(store, OWNER, g_rn.id, "goal_fit_confirmed", {"expected_revision": 1}, BRAIN)
+fit_no(g_rn)
+eng_rn = Engine(WIN2)
+check("vòng 2 (âm): Chưa đúng ý, Đúng ý, rồi lại Chưa đúng ý: từ chối ngay, không chi lượt, cờ giữ nguyên",
+      rejected(lambda: R.compare_methods(g_rn.id, "work.v1", "work.checklist.v1", cases(*TWO), deps_for(eng_rn)))
+      and not eng_rn.prompts and calls_of(g_rn) == 0 and store.run_state(P, g_rn.id)["block_reason"] == "fit_rejected")
+# Tầng kho: cờ quan sát cũ không chặn; chốt guard chen vào trước giao dịch thì chặn.
+for stale in ("feature_off", "fit_rejected", "guard_unknown"):
+    g_sx = make_goal()
+    ex_id = store.begin_experiment(P, g_sx.id, 1, "work.v1", "work.checklist.v1", 2, 6, {})
+    store.set_run_state(P, g_sx.id, "blocked", stale)
+    fin_sx = store.finish_experiment(P, ex_id, "eligible", "improved", {}, apply=True)
+    check(f"vòng 2 (kho): cờ quan sát cũ {stale} không bác việc áp dụng (điều kiện thật đã được cổng kiểm)",
+          fin_sx["applied"] is True and R.effective_method(store.get(P, g_sx.id)) == "work.checklist.v1")
+g_lx = make_goal()
+ex_l = store.begin_experiment(P, g_lx.id, 1, "work.v1", "work.checklist.v1", 2, 6, {})
+store.set_run_state(P, g_lx.id, "blocked", "guard")
+fin_lx = store.finish_experiment(P, ex_l, "eligible", "improved", {}, apply=True)
+check("vòng 2 (kho): chốt guard chen vào trước giao dịch vẫn chặn, phép thử lưu inconclusive",
+      fin_lx["applied"] is False and fin_lx["verdict"] == "inconclusive"
+      and R.effective_method(store.get(P, g_lx.id)) == "work.v1")
+g_kx = make_goal()
+store.set_run_state(P, g_kx.id, "blocked", "guard")
+_k1 = store.clear_transient_block(P, g_kx.id)
+store.set_run_state(P, g_kx.id, "waiting", "human_confirmation")
+_k2 = store.clear_transient_block(P, g_kx.id)
+check("vòng 2 (kho): gỡ cờ tạm KHÔNG đụng chốt guard hay trạng thái chờ người dùng duyệt",
+      _k1 is False and _k2 is False and store.run_state(P, g_kx.id)["block_reason"] == "human_confirmation")
+
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)
     sys.exit(1)

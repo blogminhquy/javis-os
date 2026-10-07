@@ -629,20 +629,38 @@ class GoalStore:
                                                     "reason": reason, "applied": applied}), p.by, now))
             return {"finished": True, "verdict": verdict, "reason": reason, "applied": applied, "detail": detail}
 
-    # Chốt chặn ở mục tiêu mà một thay đổi cách làm không được vượt (cùng nghĩa với _gate của advance).
-    _METHOD_BLOCKS = ("guard", "guard_unknown", "fit_rejected", "feature_off")
+    # Chốt THẬT mà một thay đổi cách làm không được vượt: guard đã nhảy, chỉ người dùng mở lại (resume khi guard đã
+    # clear, hay bỏ guard). Các cờ còn lại do _gate ghi (feature_off, fit_rejected, guard_unknown) chỉ là KẾT QUẢ QUAN
+    # SÁT lần trước, có thể đã hết hiệu lực khi công tắc bật lại hay người dùng đổi sang "Đúng ý" (review M5 vòng 2,
+    # P2): điều kiện thật của chúng được kiểm lại tại chỗ, công tắc và guard bằng cổng ngay trước giao dịch, cách hiểu
+    # bằng phản hồi mới nhất ngay trong giao dịch.
+    _METHOD_LATCHES = ("guard",)
+    TRANSIENT_BLOCKS = ("feature_off", "fit_rejected", "guard_unknown")
+
+    def clear_transient_block(self, p: Principal, goal_id: str, reasons: tuple = TRANSIENT_BLOCKS) -> bool:
+        """Đồng bộ trạng thái sau khi cổng vừa kiểm điều kiện hiện tại và cho qua: gỡ cờ quan sát cũ (CAS theo đúng
+        cờ đang ghi), không đụng chốt guard, pause, chờ người dùng duyệt hay hết hạn mức."""
+        reasons = tuple(r for r in reasons if r in self.TRANSIENT_BLOCKS)
+        if not reasons:
+            return False
+        marks = ",".join("?" for _ in reasons)
+        with self._Tx(self) as c:
+            cur = c.execute(f"UPDATE goals SET run_state='ready', block_reason='', updated_at=? WHERE id=? AND "
+                            f"brain_id=? AND block_reason IN ({marks})", (time.time(), goal_id, p.brain_id, *reasons))
+            return cur.rowcount == 1
 
     def _method_change_blocked(self, c, row, revision: int, baseline_ref: str) -> Optional[tuple]:
         """Lý do KHÔNG được đổi cách làm lúc này, kiểm trong giao dịch đang mở: (mã, chi tiết) hoặc None. Công tắc
-        brain là file, người gọi kiểm ngay trước; ở đây là phần SQLite: trạng thái, pause, revision, chốt chặn, cách
-        hiểu bị từ chối, và cách làm hiện tại vẫn là baseline."""
+        brain và guard là file, người gọi kiểm bằng cổng ngay trước; ở đây là phần SQLite, đọc TRẠNG THÁI HIỆN TẠI chứ
+        không đọc cờ quan sát cũ: còn active, đúng revision, không tạm dừng, không có chốt guard, phản hồi cách hiểu
+        MỚI NHẤT của revision không phải "Chưa đúng ý", và cách làm hiện tại vẫn là baseline."""
         if row is None or row["status"] != "active":
             return "stopped", "mục tiêu không còn active"
         if int(row["revision"]) != int(revision):
             return "goal_reframed", "mục tiêu đã sang revision khác"
         if row["paused"]:
             return "stopped", "người dùng đang tạm dừng mục tiêu"
-        if row["block_reason"] in self._METHOD_BLOCKS:
+        if row["block_reason"] in self._METHOD_LATCHES:
             return "stopped", f"mục tiêu đang bị chặn: {row['block_reason']}"
         fit = c.execute("SELECT kind FROM goal_events WHERE goal_id=? AND revision=? AND kind IN "
                         "('feedback.goal_fit_confirmed','feedback.goal_fit_rejected') ORDER BY id DESC LIMIT 1",
