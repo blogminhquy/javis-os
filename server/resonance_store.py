@@ -96,6 +96,9 @@ _ADDED_COLUMNS = (
     ("goals", "method_ref", "TEXT NOT NULL DEFAULT 'work.v1'"),
     ("goals", "method_prev_ref", "TEXT NOT NULL DEFAULT ''"),
     ("goals", "method_revision", "INTEGER NOT NULL DEFAULT 0"),
+    # Revision mà ref quay-lại thật sự được kiểm (0 với cách làm mặc định). Quay lại KHÔNG gán revision hiện tại cho
+    # ref cũ (review M5, P1-3): phạm vi của mỗi ref là phạm vi nó đã được kiểm, không hơn.
+    ("goals", "method_prev_revision", "INTEGER NOT NULL DEFAULT 0"),
     ("goals", "explore_used", "INTEGER NOT NULL DEFAULT 0"),
 )
 _POST_MIGRATION = "CREATE UNIQUE INDEX IF NOT EXISTS outbox_idem ON outbox(goal_id, idem) WHERE idem IS NOT NULL;"
@@ -225,7 +228,8 @@ class GoalStore:
             stage=fr.get("stage", "discovery"), mode=fr.get("mode", "achieve"), status=row["status"],
             budget_calls=row["budget_calls"], calls_used=row["calls_used"], paused=bool(row["paused"]),
             method_ref=row["method_ref"] or R.DEFAULT_METHOD, method_prev_ref=row["method_prev_ref"] or "",
-            method_revision=int(row["method_revision"] or 0), explore_used=int(row["explore_used"] or 0))
+            method_revision=int(row["method_revision"] or 0), explore_used=int(row["explore_used"] or 0),
+            method_prev_revision=int(row["method_prev_revision"] or 0))
 
     def _goal_row(self, c, p: Principal, goal_id: str):
         r = c.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone()
@@ -583,9 +587,14 @@ class GoalStore:
                       "WHERE id=? AND brain_id=?", (n, n, goal_id, p.brain_id))
 
     def finish_experiment(self, p: Principal, experiment_id: str, verdict: str, reason: str, payload: dict,
-                          refund: int = 0) -> bool:
+                          refund: int = 0, apply: bool = False) -> dict:
         """Chốt kết quả, kể cả khi ứng viên thua. Chỉ chốt phép thử còn đang chạy (chốt một lần). `refund`: lượt đã
-        giữ cho các lượt chưa bắt đầu, trả lại hạn mức trong cùng giao dịch."""
+        giữ cho các lượt chưa bắt đầu, trả lại hạn mức trong cùng giao dịch.
+
+        `apply` (chỉ với verdict eligible): đổi cách làm TRONG CÙNG giao dịch, sau khi kiểm lại mọi điều kiện chạy
+        kiểm được bằng SQLite (_method_change_blocked). Bị chặn thì phép thử chốt `inconclusive` (lý do stopped hoặc
+        goal_reframed) chứ không để lại một phép thử eligible chưa áp dụng (review M5, P1-2). Trả {finished, verdict,
+        reason, applied, detail}."""
         now = time.time()
         with self._Tx(self) as c:
             r = c.execute("SELECT e.* FROM experiments e JOIN goals g ON g.id=e.goal_id WHERE e.id=? AND g.brain_id=?",
@@ -593,10 +602,23 @@ class GoalStore:
             if r is None:
                 raise ScopeError("phép thử không tồn tại trong brain này")
             if r["status"] != "running":
-                return False
+                return {"finished": False, "verdict": r["verdict"], "reason": r["reason"], "applied": False}
+            applied, detail = False, ""
+            if apply and verdict == "eligible":
+                row = c.execute("SELECT * FROM goals WHERE id=?", (r["goal_id"],)).fetchone()
+                why = self._method_change_blocked(c, row, int(r["revision"]), r["baseline_ref"])
+                if why:
+                    detail = why[1]
+                    verdict, reason = "inconclusive", why[0]
+                else:
+                    self._set_method(c, p, row, r["baseline_ref"], r["candidate_ref"], int(r["revision"]),
+                                     experiment_id, now)
+                    applied = True
             old = json.loads(r["payload_json"] or "{}")
-            c.execute("UPDATE experiments SET status='finished', verdict=?, reason=?, payload_json=?, updated_at=? "
-                      "WHERE id=?", (verdict, reason, _j({**old, **(payload or {})}), now, experiment_id))
+            extra = {"stop_detail": detail} if detail else {}
+            c.execute("UPDATE experiments SET status='finished', verdict=?, reason=?, payload_json=?, applied=?, "
+                      "updated_at=? WHERE id=?",
+                      (verdict, reason, _j({**old, **(payload or {}), **extra}), int(applied), now, experiment_id))
             n = max(0, int(refund))
             if n:
                 c.execute("UPDATE goals SET calls_used=MAX(0,calls_used-?), explore_used=MAX(0,explore_used-?) "
@@ -604,8 +626,44 @@ class GoalStore:
             c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
                       "VALUES(?,?,?,?,?,?,?)", (r["goal_id"], r["revision"], "experiment_finished", "host",
                                                 _j({"experiment_id": experiment_id, "verdict": verdict,
-                                                    "reason": reason}), p.by, now))
-            return True
+                                                    "reason": reason, "applied": applied}), p.by, now))
+            return {"finished": True, "verdict": verdict, "reason": reason, "applied": applied, "detail": detail}
+
+    # Chốt chặn ở mục tiêu mà một thay đổi cách làm không được vượt (cùng nghĩa với _gate của advance).
+    _METHOD_BLOCKS = ("guard", "guard_unknown", "fit_rejected", "feature_off")
+
+    def _method_change_blocked(self, c, row, revision: int, baseline_ref: str) -> Optional[tuple]:
+        """Lý do KHÔNG được đổi cách làm lúc này, kiểm trong giao dịch đang mở: (mã, chi tiết) hoặc None. Công tắc
+        brain là file, người gọi kiểm ngay trước; ở đây là phần SQLite: trạng thái, pause, revision, chốt chặn, cách
+        hiểu bị từ chối, và cách làm hiện tại vẫn là baseline."""
+        if row is None or row["status"] != "active":
+            return "stopped", "mục tiêu không còn active"
+        if int(row["revision"]) != int(revision):
+            return "goal_reframed", "mục tiêu đã sang revision khác"
+        if row["paused"]:
+            return "stopped", "người dùng đang tạm dừng mục tiêu"
+        if row["block_reason"] in self._METHOD_BLOCKS:
+            return "stopped", f"mục tiêu đang bị chặn: {row['block_reason']}"
+        fit = c.execute("SELECT kind FROM goal_events WHERE goal_id=? AND revision=? AND kind IN "
+                        "('feedback.goal_fit_confirmed','feedback.goal_fit_rejected') ORDER BY id DESC LIMIT 1",
+                        (row["id"], int(revision))).fetchone()
+        if fit is not None and fit["kind"] == "feedback.goal_fit_rejected":
+            return "stopped", "người dùng nói cách hiểu chưa đúng"
+        if R.effective_method(self._record(c, row)) != baseline_ref:
+            return "stopped", "cách làm hiện tại không còn là baseline của phép thử"
+        return None
+
+    def _set_method(self, c, p: Principal, row, from_ref: str, to_ref: str, revision: int, experiment_id: str,
+                    now: float) -> None:
+        # Ref quay-lại mang theo đúng phạm vi nó đã được kiểm: mặc định thì 0 (luôn được phép), ref đã học thì
+        # revision của nó. Không suy phạm vi của ref cũ từ revision hiện tại (review M5, P1-3).
+        prev_rev = 0 if from_ref == R.DEFAULT_METHOD else int(row["method_revision"] or 0)
+        c.execute("UPDATE goals SET method_ref=?, method_prev_ref=?, method_revision=?, method_prev_revision=?, "
+                  "updated_at=? WHERE id=?", (to_ref, from_ref, int(revision), prev_rev, now, row["id"]))
+        c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                  "VALUES(?,?,?,?,?,?,?)", (row["id"], int(revision), "method_changed", "host",
+                                            _j({"from": from_ref, "to": to_ref, "experiment_id": experiment_id}),
+                                            p.by, now))
 
     @staticmethod
     def _experiment(r) -> dict:
@@ -636,20 +694,16 @@ class GoalStore:
                     or int(e["revision"]) != int(expected_revision) or e["baseline_ref"] != from_ref
                     or e["candidate_ref"] != to_ref):
                 raise R.GoalRejected("không có phép thử eligible khớp để đổi cách làm")
-            if row["status"] != "active" or int(row["revision"]) != int(expected_revision):
-                raise ConflictError("mục tiêu đã đổi so với lúc thử")
-            if R.effective_method(self._record(c, row)) != from_ref:
-                raise ConflictError("cách làm hiện tại không còn là baseline của phép thử")
-            c.execute("UPDATE goals SET method_ref=?, method_prev_ref=?, method_revision=?, updated_at=? WHERE id=?",
-                      (to_ref, from_ref, int(expected_revision), now, goal_id))
+            why = self._method_change_blocked(c, row, int(expected_revision), from_ref)
+            if why:
+                raise ConflictError(why[1])
+            self._set_method(c, p, row, from_ref, to_ref, int(expected_revision), experiment_id, now)
             c.execute("UPDATE experiments SET applied=1, updated_at=? WHERE id=?", (now, experiment_id))
-            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
-                      "VALUES(?,?,?,?,?,?,?)", (goal_id, int(expected_revision), "method_changed", "host",
-                                                _j({"from": from_ref, "to": to_ref, "experiment_id": experiment_id}),
-                                                p.by, now))
 
     def revert_method(self, p: Principal, goal_id: str, seen_revision: Optional[int] = None) -> str:
-        """Người dùng quay về cách làm trước đó. CHỈ owner. Trả ref đang dùng sau khi quay lại."""
+        """Người dùng quay về cách làm trước đó. CHỈ owner. Ref quay lại giữ ĐÚNG phạm vi nó đã được kiểm (không gán
+        revision hiện tại cho nó, review M5, P1-3): nếu phạm vi đó không phải revision hiện tại thì cách làm có hiệu
+        lực là mặc định. Trả cách làm có hiệu lực sau khi quay lại."""
         if p.kind != "owner":
             raise PermissionError("chỉ người dùng mới quay lại cách làm cũ")
         now = time.time()
@@ -660,13 +714,14 @@ class GoalStore:
             prev = row["method_prev_ref"] or ""
             if not prev:
                 raise R.GoalRejected("mục tiêu chưa đổi cách làm nào để quay lại")
-            c.execute("UPDATE goals SET method_ref=?, method_prev_ref='', method_revision=?, updated_at=? WHERE id=?",
-                      (prev, int(row["revision"]), now, goal_id))
+            c.execute("UPDATE goals SET method_ref=?, method_prev_ref='', method_revision=?, method_prev_revision=0, "
+                      "updated_at=? WHERE id=?", (prev, int(row["method_prev_revision"] or 0), now, goal_id))
             c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
                       "VALUES(?,?,?,?,?,?,?)", (goal_id, row["revision"], "method_reverted", "owner",
                                                 _j({"from": row["method_ref"], "to": prev,
                                                     "seen_revision": seen_revision}), p.by, now))
-            return prev
+            row2 = c.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone()
+            return R.effective_method(self._record(c, row2))
 
     def release_call(self, p: Principal, goal_id: str) -> None:
         """Trả lại lượt đã giữ mà model KHÔNG được gọi (engine bị chặn, chưa sẵn sàng)."""

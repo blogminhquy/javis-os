@@ -109,13 +109,16 @@ def deps_for(engine):
 _n = {"mid": 0}
 
 
-def make_goal(budget=12):
+def make_goal(budget=12, guards=None):
     _n["mid"] += 1
     d0 = R.GoalDeps(engine_factory=lambda s, t: (None, {"blocked": "không gọi"}), budget=R.CallBudget(0), store=store)
+    prop = dict(FIX["goal"]["proposal"])
+    if guards:
+        prop["guards"] = guards
     return asyncio.run(R.form_goal(R.message_ref("s5", _n["mid"]), {
         "principal": P, "brain_root": BRAIN, "session_id": "s5", "message_id": _n["mid"],
         "user_text": FIX["goal"]["user_text"], "constraints": [], "budget_calls": budget,
-        "proposal": dict(FIX["goal"]["proposal"])}, d0))
+        "proposal": prop}, d0))
 
 
 def cases(*ids):
@@ -385,6 +388,159 @@ check("đối soát sau gián đoạn: lượt dở chốt failed, phép thử i
       and R.effective_method(store.get(P, g_c.id)) == "work.v1")
 check("không chạy lại mù sau gián đoạn: đối soát không gọi lại lượt thử nào",
       sum(1 for a in store.actions(P, g_c.id) if a["kind"] == "trial") == _kill["n"])
+
+# ═══════════════════════ Review M5 vòng 1: ba lỗi P1, nay là hành vi mong đợi ═══════════════════════
+TWO = ("t1", "h1")
+WIN2 = {("work.v1", "t1"): MISS["t1"], ("work.v1", "h1"): FULL["h1"],
+        ("work.checklist.v1", "t1"): FULL["t1"], ("work.checklist.v1", "h1"): FULL["h1"],
+        ("work.brief.v1", "t1"): FULL["t1"], ("work.brief.v1", "h1"): FULL["h1"]}
+
+
+def fit_no(goal):
+    R.apply_feedback(store, OWNER, goal.id, "goal_fit_rejected",
+                     {"expected_revision": store.get(P, goal.id).revision}, BRAIN)
+
+
+def calls_of(goal):
+    return store.get(P, goal.id).calls_used
+
+
+# P1-1: "Chưa đúng ý" và guard đã nhảy chặn phép thử như chặn advance.
+g_fit = make_goal()
+fit_no(g_fit)
+eng_fit = Engine(WIN2)
+check("P1-1: cách hiểu bị từ chối trước phép thử: từ chối chạy, không gọi model, không đổi cách làm",
+      rejected(lambda: R.compare_methods(g_fit.id, "work.v1", "work.checklist.v1", cases(*TWO), deps_for(eng_fit)))
+      and not eng_fit.prompts and calls_of(g_fit) == 0 and store.experiments(P, g_fit.id) == []
+      and R.effective_method(store.get(P, g_fit.id)) == "work.v1")
+GUARD = [{"description": "Ghi chú bảo vệ còn", "evaluator": "artifact_contract", "params": {"path": "Notes/bao-ve.md"}}]
+(Path(BRAIN) / "Notes" / "bao-ve.md").unlink(missing_ok=True)
+g_gd = make_goal(guards=GUARD)
+eng_gd = Engine(WIN2)
+asyncio.run(R.advance(g_gd.id, {"kind": "wake"}, deps_for(eng_gd)))
+latched = store.run_state(P, g_gd.id)["block_reason"] == "guard"
+(Path(BRAIN) / "Notes").mkdir(exist_ok=True)
+(Path(BRAIN) / "Notes" / "bao-ve.md").write_text("bảo vệ\n", encoding="utf-8")
+check("P1-1: guard đã nhảy (chốt cũ) chặn phép thử, kể cả khi file đã có lại: không gọi model, không đổi cách làm",
+      latched and rejected(lambda: R.compare_methods(g_gd.id, "work.v1", "work.checklist.v1", cases(*TWO),
+                                                     deps_for(eng_gd)))
+      and not eng_gd.prompts and calls_of(g_gd) == 0 and R.effective_method(store.get(P, g_gd.id)) == "work.v1")
+g_mid = make_goal()
+_fm = {"n": 0}
+
+
+def _fit_first(prompt):
+    _fm["n"] += 1
+    if _fm["n"] == 1:
+        fit_no(g_mid)
+
+
+res_mid, eng_mid = trial(g_mid, WIN2, ids=TWO, on_query=_fit_first)
+check("P1-1: người dùng bấm Chưa đúng ý trong lượt đầu: dừng sau lượt đó, trả 3 lượt chưa chạy, không áp dụng",
+      res_mid["verdict"] == "inconclusive" and res_mid["reason"] == "stopped" and res_mid["applied"] is False
+      and len(eng_mid.prompts) == 1 and calls_of(g_mid) == 1 and store.get(P, g_mid.id).explore_used == 1
+      and R.effective_method(store.get(P, g_mid.id)) == "work.v1")
+g_gmid = make_goal(guards=GUARD)
+_gm = {"n": 0}
+
+
+def _guard_breaks(prompt):
+    _gm["n"] += 1
+    if _gm["n"] == 2:
+        (Path(BRAIN) / "Notes" / "bao-ve.md").unlink(missing_ok=True)
+
+
+res_gm, eng_gm = trial(g_gmid, WIN2, ids=TWO, on_query=_guard_breaks)
+check("P1-1: guard nhảy giữa phép thử: dừng trước lượt kế, chốt guard, không áp dụng",
+      res_gm["reason"] == "stopped" and res_gm["applied"] is False and len(eng_gm.prompts) == 2
+      and store.run_state(P, g_gmid.id)["block_reason"] == "guard"
+      and R.effective_method(store.get(P, g_gmid.id)) == "work.v1")
+(Path(BRAIN) / "Notes" / "bao-ve.md").write_text("bảo vệ\n", encoding="utf-8")
+
+# P1-2: dừng trong LƯỢT CUỐI (sau lần kiểm trước lượt) vẫn chặn việc áp dụng.
+for kind in ("pause", "off", "fit"):
+    g_last = make_goal()
+    _lc = {"n": 0}
+
+    def _stop_last(prompt, kind=kind, gl=g_last):
+        _lc["n"] += 1
+        if _lc["n"] == 4:
+            if kind == "pause":
+                store.set_paused(OWNER, gl.id, True)
+            elif kind == "off":
+                SWITCH.write_text('{"enabled": false}', encoding="utf-8")
+            else:
+                fit_no(gl)
+
+    res_l, eng_l = trial(g_last, WIN2, ids=TWO, on_query=_stop_last)
+    SWITCH.write_text('{"enabled": true}', encoding="utf-8")
+    exl = store.experiments(P, g_last.id)[0]
+    check(f"P1-2: {kind} trong lượt cuối: đủ 4 lượt đã chạy nhưng KHÔNG áp dụng, phép thử chốt inconclusive/stopped",
+          len(eng_l.prompts) == 4 and res_l["applied"] is False and res_l["verdict"] == "inconclusive"
+          and res_l["reason"] == "stopped" and exl["verdict"] == "inconclusive" and exl["applied"] is False
+          and R.effective_method(store.get(P, g_last.id)) == "work.v1")
+
+# P1-2, tầng kho: đổi cách làm kiểm pause/chốt chặn/Chưa đúng ý trong CHÍNH giao dịch.
+g_st = make_goal()
+gs = store.get(P, g_st.id)
+eid = store.begin_experiment(P, g_st.id, gs.revision, "work.v1", "work.checklist.v1", 2, 6, {})
+store.set_paused(OWNER, g_st.id, True)
+fin = store.finish_experiment(P, eid, "eligible", "improved", {}, apply=True)
+check("P1-2 (kho): chốt eligible kèm áp dụng khi mục tiêu đang tạm dừng: không đổi cách làm, chốt inconclusive",
+      fin["applied"] is False and fin["verdict"] == "inconclusive" and fin["reason"] == "stopped"
+      and R.effective_method(store.get(P, g_st.id)) == "work.v1")
+store.set_paused(OWNER, g_st.id, False)
+eid2 = store.begin_experiment(P, g_st.id, gs.revision, "work.v1", "work.checklist.v1", 2, 6, {})
+store.finish_experiment(P, eid2, "eligible", "improved", {}, apply=False)
+fit_no(g_st)
+try:
+    store.apply_method(P, g_st.id, gs.revision, "work.v1", "work.checklist.v1", eid2)
+    _st_ok = False
+except RS.ConflictError:
+    _st_ok = True
+check("P1-2 (kho): apply_method với phép thử eligible khi cách hiểu đã bị từ chối: ConflictError, không đổi",
+      _st_ok and R.effective_method(store.get(P, g_st.id)) == "work.v1")
+store.clear_block(OWNER, g_st.id, "fit_rejected")
+try:
+    store.apply_method(P, g_st.id, gs.revision, "work.v1", "work.checklist.v1", eid2)
+    _st_ok2 = False
+except RS.ConflictError:
+    _st_ok2 = True
+check("P1-2 (kho): cờ chặn fit_rejected bị gỡ bằng đường khác, sự kiện Chưa đúng ý của revision vẫn chặn đổi cách làm",
+      store.run_state(P, g_st.id)["block_reason"] == "" and _st_ok2
+      and R.effective_method(store.get(P, g_st.id)) == "work.v1")
+
+# P1-3: chuỗi hai lần đổi cách làm; revision mới không dùng lại cách làm chưa được kiểm.
+g_ch = make_goal(budget=16)
+a1 = trial(g_ch, WIN2, ids=TWO)[0]
+LOSE_CHECK = {**WIN2, ("work.checklist.v1", "t1"): MISS["t1"]}
+a2 = asyncio.run(R.compare_methods(g_ch.id, "work.checklist.v1", "work.brief.v1", cases(*TWO),
+                                   deps_for(Engine(LOSE_CHECK))))
+gc = store.get(P, g_ch.id)
+check("P1-3 chuẩn bị: hai lần áp dụng ở revision 1 (work.v1 -> checklist -> brief), ref quay lại là checklist",
+      a1["applied"] and a2["applied"] and gc.method_ref == "work.brief.v1" and gc.method_prev_ref == "work.checklist.v1"
+      and gc.method_prev_revision == 1)
+R.revise_goal(store, P, g_ch.id, gc.revision,
+              {"relevant_quote": "lập giúp mình danh sách việc cần làm", "understanding": "Danh sách việc theo người"},
+              {"message_ref": R.message_ref("s5", 9300), "session_id": "s5", "message_id": 9300,
+               "user_text": FIX["goal"]["user_text"]})
+gc2 = store.get(P, g_ch.id)
+pr_ch = _lam_mot_luot(g_ch.id)
+check("P1-3: revision 2 chưa được kiểm: dùng cách làm mặc định, không rơi về checklist (chỉ thắng ở revision 1)",
+      gc2.revision == 2 and R.effective_method(gc2) == "work.v1"
+      and all(e["revision"] == 1 for e in store.experiments(P, g_ch.id))
+      and pr_ch and not any(m["addendum"] and m["addendum"] in pr_ch for m in R.METHODS.values()))
+r_rev = R.apply_command(store, OWNER, g_ch.id, "revert_method", {"expected_revision": 2}, BRAIN)
+gc3 = store.get(P, g_ch.id)
+check("P1-3: quay lại ở revision 2: ref checklist giữ đúng phạm vi revision 1, không được coi là đã kiểm cho revision 2",
+      r_rev["method"] == "work.v1" and gc3.method_ref == "work.checklist.v1" and gc3.method_revision == 1
+      and R.effective_method(gc3) == "work.v1")
+g_ch1 = make_goal(budget=16)
+trial(g_ch1, WIN2, ids=TWO)
+asyncio.run(R.compare_methods(g_ch1.id, "work.checklist.v1", "work.brief.v1", cases(*TWO), deps_for(Engine(LOSE_CHECK))))
+r_rev1 = R.apply_command(store, OWNER, g_ch1.id, "revert_method", {"expected_revision": 1}, BRAIN)
+check("P1-3: quay lại ngay ở revision 1 (nơi checklist đã được kiểm): checklist có hiệu lực",
+      r_rev1["method"] == "work.checklist.v1" and R.effective_method(store.get(P, g_ch1.id)) == "work.checklist.v1")
 
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)

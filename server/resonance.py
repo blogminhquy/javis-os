@@ -80,6 +80,7 @@ class GoalRecord:
     method_prev_ref: str = ""
     method_revision: int = 0
     explore_used: int = 0
+    method_prev_revision: int = 0
 
 
 @dataclass(frozen=True)
@@ -916,16 +917,14 @@ TRIAL_SPLITS = ("tuning", "holdout")
 
 
 def effective_method(goal: "GoalRecord") -> str:
-    """Cách làm có hiệu lực cho revision HIỆN TẠI. Cách làm đã thắng chỉ áp dụng cho revision đã được kiểm (spec
-    11.1: kết quả cũ giữ nguyên phạm vi); mục tiêu sang revision khác thì quay về cách làm trước đó cho tới khi được
-    so lại trên revision mới."""
+    """Cách làm có hiệu lực cho revision HIỆN TẠI. Cách làm đã học chỉ chạy trên ĐÚNG revision nó được kiểm (spec
+    11.1: kết quả cũ giữ nguyên phạm vi). Revision chưa được kiểm thì dùng cách làm mặc định, KHÔNG rơi về ref trước
+    đó: ref trước có thể cũng là một ứng viên chỉ thắng ở revision cũ (review M5, P1-3). Ref quay-lại
+    (method_prev_ref) chỉ là đích cho lệnh revert_method, không phải quyền chạy."""
     ref = str(getattr(goal, "method_ref", "") or DEFAULT_METHOD)
-    if ref not in METHODS:
+    if ref not in METHODS or ref == DEFAULT_METHOD:
         return DEFAULT_METHOD
-    if ref == DEFAULT_METHOD or int(getattr(goal, "method_revision", 0) or 0) == int(goal.revision):
-        return ref
-    prev = str(getattr(goal, "method_prev_ref", "") or "")
-    return prev if prev in METHODS else DEFAULT_METHOD
+    return ref if int(getattr(goal, "method_revision", 0) or 0) == int(goal.revision) else DEFAULT_METHOD
 
 
 @dataclass(frozen=True)
@@ -2026,6 +2025,22 @@ def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]
 # Không ai gọi hàm này theo lịch: scheduler chỉ chạy lượt làm việc (spec: không thử chỉ vì đến giờ).
 
 
+def _trial_gate(g: GoalRecord, deps: GoalDeps, now: float) -> tuple:
+    """Cổng của phép thử, CÙNG điều kiện cho phép thực thi với advance: chốt guard cũ không tự mở lại, rồi _gate
+    (active, công tắc brain, pause, "Chưa đúng ý", guard nhảy hay chưa xác định), rồi revision chưa đổi. Kiểm trước
+    khi giữ hạn mức, trước mỗi lượt và trước khi áp dụng (review M5, P1-1, P1-2). Trả (goal hiện hành, lý do chặn);
+    lý do "goal_reframed" khi revision đã đổi."""
+    store, p = deps.store, deps.principal
+    if (store.run_state(p, g.id) or {}).get("block_reason") == "guard":
+        return store.get(p, g.id), "guard đã nhảy; không tự mở lại"
+    cur, _guards, why = _gate(g.id, deps, now)
+    if why:
+        return cur, why
+    if cur.revision != g.revision:
+        return cur, "goal_reframed"
+    return cur, ""
+
+
 class _TrialCall:
     """Một lượt gọi đã giữ sẵn trong begin_experiment. run_once lấy đúng một lần; model không được gọi (engine bị
     chặn, chưa sẵn sàng) thì trả lại kho."""
@@ -2170,8 +2185,9 @@ async def compare_methods(goal_id: str, baseline_ref: str, candidate_ref: str, c
     g = store.get(p, goal_id)
     if g is None:
         raise GoalRejected("không có mục tiêu này trong brain")
-    if g.status != "active" or g.paused:
-        raise GoalRejected("mục tiêu không ở trạng thái chạy được (đã xong, huỷ hay đang tạm dừng)")
+    _, why = _trial_gate(g, deps, deps.clock())
+    if why:
+        raise GoalRejected(f"mục tiêu không chạy được lúc này: {why}")
     if baseline_ref not in METHODS or candidate_ref not in METHODS:
         raise GoalRejected("cách làm phải là một mục khai báo sẵn trong METHODS")
     if baseline_ref == candidate_ref:
@@ -2219,37 +2235,38 @@ async def compare_methods(goal_id: str, baseline_ref: str, candidate_ref: str, c
                 results.append({**row, "baseline": dict(skip), "candidate": dict(skip)})
                 continue
             for arm, ref in (("baseline", baseline_ref), ("candidate", candidate_ref)):
-                # Can thiệp của người dùng và đổi cách hiểu có hiệu lực giữa chừng (spec 2.3, 11.1).
-                cur = store.get(p, g.id)
-                if cur is None or cur.revision != g.revision:
-                    stop = "goal_reframed"
-                elif cur.status != "active" or cur.paused or not enabled_for(deps.brain_root):
-                    stop = "stopped"
+                # Cùng cổng với advance TRƯỚC MỖI lượt: can thiệp của người dùng, "Chưa đúng ý", guard và đổi cách
+                # hiểu có hiệu lực giữa chừng (spec 2.3, 11.1; review M5, P1-1).
+                _, stop = _trial_gate(g, deps, deps.clock())
                 if stop:
                     break
                 started += 1
                 row[arm] = await _trial_run(tg, exp, c, arm, ref, rubric, rubric_hash, deps, out["usage"])
             if stop:
+                if "baseline" in row:
+                    row.setdefault("candidate", {"verdict": "unknown", "reason": "không chạy: phép thử đã dừng",
+                                                 "rubric_hash": rubric_hash})
+                    results.append(row)
                 break
             results.append(row)
+        if not stop:
+            # Lượt cuối có thể vừa xong SAU một lệnh dừng: kiểm lại toàn bộ điều kiện chạy ngay trước khi kết luận
+            # và áp dụng (review M5, P1-2). Phần SQLite được kiểm lại lần nữa trong giao dịch đổi cách làm.
+            _, stop = _trial_gate(g, deps, deps.clock())
         if stop:
-            verdict, reason = "inconclusive", stop
+            verdict, reason = "inconclusive", ("goal_reframed" if stop == "goal_reframed" else "stopped")
+            out["stop_detail"] = stop
         else:
             verdict, reason = _trial_verdict(results)
-            cur = store.get(p, g.id)
-            if cur is None or cur.revision != g.revision:
-                verdict, reason = "inconclusive", "goal_reframed"
         refs = [r[a]["evidence_id"] for r in results for a in ("baseline", "candidate") if r[a].get("evidence_id")]
-        out.update(verdict=verdict, reason=reason, results=results, evidence_refs=refs)
-        store.finish_experiment(p, exp, verdict, reason,
-                                {"results": results, "usage": out["usage"], "evidence_refs": refs,
-                                 "scope": out["scope"]}, refund=need - started)
-        if verdict == "eligible":
-            try:
-                store.apply_method(p, g.id, g.revision, baseline_ref, candidate_ref, exp)
-                out["applied"] = True
-            except Exception as e:  # noqa: BLE001 - mục tiêu đổi đúng lúc áp dụng: giữ kết quả, không áp dụng
-                out["apply_error"] = _short(e)
+        fin = store.finish_experiment(p, exp, verdict, reason,
+                                      {"results": results, "usage": out["usage"], "evidence_refs": refs,
+                                       "scope": out["scope"], **({"stop_detail": stop} if stop else {})},
+                                      refund=need - started, apply=(verdict == "eligible"))
+        out.update(verdict=fin["verdict"], reason=fin["reason"], results=results, evidence_refs=refs,
+                   applied=bool(fin["applied"]))
+        if fin.get("detail"):
+            out["stop_detail"] = fin["detail"]
         return out
     finally:
         store.release_lease(p, g.id, owner)
