@@ -12,7 +12,7 @@ File này canh bốn thứ:
      lời tag đúng người mới.
   3. Javis không tự chào: Agent không có chỉ dẫn thì trả [IM_LANG] và không gì được gửi.
   4. Không bao giờ thành câu lộ máy trước cả nhóm: nhóm chưa cho phép thì im và không tính là
-     một lần gọi bot; quá hạn mức hay engine lỗi cũng im, không "nhắn hơi nhanh", không "trục trặc".
+     một lần gọi bot; engine lỗi cũng im, không "trục trặc". (Hạn mức câu trả lời mỗi giờ đã gỡ ở 0.85.4.)
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -190,14 +190,6 @@ async def chay():
     check("CANARY: người vào nhóm lạ KHÔNG tính là một lần có người gọi bot",
           all(int(x.get("lan") or 0) == 0 for x in cho), cho)
 
-    real = chatbot_runtime._qua_han_muc
-    chatbot_runtime._qua_han_muc = lambda *a, **k: True
-    KHO_TIN.append(join_msg("7104", "Đông", "a4"))
-    await doc()
-    chatbot_runtime._qua_han_muc = real
-    check("quá hạn mức (nhiều người vào cùng lúc): im, không nói 'nhắn hơi nhanh' với người mới",
-          not CLI and not GUI, (CLI, GUI))
-
     TRA_LOI["v"] = RuntimeError("engine hỏng")
     KHO_TIN.append(join_msg("7105", "Tây", "a5"))
     await doc()
@@ -209,10 +201,8 @@ async def chay():
     await doc()
     check("sự kiện vào nhóm quá cũ (bộ đệm lúc mới bật) thì bỏ qua", not LUOT, LUOT)
 
-    # 0.84.6: hạn mức trong nhóm tính THEO NGƯỜI. Trước đó cả nhóm chung một hạn mức, nên ai tag bot sau khi
-    # người khác đã gọi đủ số lần đều nhận "Anh chị nhắn hơi nhanh..." kèm tag tên mình trước cả nhóm.
-    chatbot_store.update_bot(bid, {"rate_limit": 1})
-    chatbot_runtime._HITS.clear()
+    # 0.85.4: không còn hạn mức câu trả lời mỗi giờ (chủ gỡ 2026-10-07). Trước đó (0.84.6 tính theo người,
+    # trước nữa chung cả nhóm) ai vượt hạn mức đều nhận "Anh chị nhắn hơi nhanh..." kèm tag tên mình.
     CLI.clear()
     LUOT.clear()
     TRA_LOI["v"] = "Dạ em trả lời đây ạ"
@@ -221,12 +211,13 @@ async def chay():
                         "text": "@Javis Vũ cho hỏi lịch học", "id": f"r{i}", "ts": _ms(1), "threadType": "group"})
         await doc()
     gui_ra = [c["pos"][1] for c in CLI]
-    check("CANARY: hạn mức 1 câu/giờ, hai người KHÁC nhau cùng tag bot thì cả hai đều được trả lời",
+    check("hai người khác nhau cùng tag bot thì cả hai đều được trả lời",
           len(LUOT) == 2 and not any("nhắn hơi nhanh" in x for x in gui_ra), gui_ra)
     KHO_TIN.append({"threadId": NHOM, "from": "7202", "senderName": "Vũ Hồng Sơn", "type": "text",
                     "text": "@Javis Vũ hỏi thêm câu nữa", "id": "r9", "ts": _ms(1), "threadType": "group"})
     await doc()
-    check("chính người đã hết hạn mức thì mới bị chặn", len(LUOT) == 2, len(LUOT))
+    check("CANARY: cùng một người tag bot thêm lần nữa vẫn được trả lời (không còn trần mỗi giờ)",
+          len(LUOT) == 3 and not any("nhắn hơi nhanh" in c["pos"][1] for c in CLI), len(LUOT))
 
     with conversations._conn() as cx:
         rows = [r[0] for r in cx.execute("SELECT text FROM messages").fetchall()]
