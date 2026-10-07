@@ -3854,6 +3854,8 @@ function _renderCtxLine(msgEl, data) {
   const tok = Number(data.ctx_in) || 0;
   const old = msgEl.querySelector(".msg-ctx");
   if (old) old.remove();
+  const oldDetail = msgEl.querySelector(".msg-route-details");
+  if (oldDetail) oldDetail.remove();
   const el = document.createElement("div");
   // Lớp "saved" (tô khác) chỉ có nghĩa khi BIẾT lượt này đi đường tiết kiệm. Không có ctx_path
   // thì đừng đoán - gắn bừa là nói dối bằng màu sắc.
@@ -3871,6 +3873,8 @@ function _renderCtxLine(msgEl, data) {
   if (tok) phan.push(_fmtTok(tok) + " token");
   if (data.routing) {
     const route = data.routing;
+    msgEl._autoRoutingFrame = data;
+    el.dataset.autoRoute = "1";
     const usage = route.usage;
     phan.length = 0;
     phan.push(window.t("mpick.auto"), route.executed_model || window.t("mpick.unknown_model"), window.t(({low:"mpick.tier_low",medium:"mpick.tier_medium",high:"mpick.tier_high"})[route.tier]));
@@ -3883,9 +3887,20 @@ function _renderCtxLine(msgEl, data) {
     el.tabIndex = 0;
     delete el.dataset.usageGoto;
     el.setAttribute("role", "button");
-    el.onclick = (event) => { event.stopPropagation(); alert(el.title); };
-    el.onkeydown = (event) => { if (event.key === "Enter") el.click(); };
+    const detail = document.createElement("div");
+    detail.className = "msg-ctx msg-route-details";
+    detail.style.whiteSpace = "pre-line";
+    detail.textContent = el.title;
+    detail.hidden = true;
+    el.setAttribute("aria-expanded", "false");
+    el.onclick = (event) => {
+      event.stopPropagation();
+      detail.hidden = !detail.hidden;
+      el.setAttribute("aria-expanded", String(!detail.hidden));
+    };
+    el.onkeydown = (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); el.click(); } };
     msgEl.appendChild(el);
+    msgEl.appendChild(detail);
     return;
   }
   el.textContent = phan.join(" · ");
@@ -3900,6 +3915,13 @@ function _renderCtxLine(msgEl, data) {
   el.title = chuThich.join("\n");
   msgEl.appendChild(el);
 }
+
+window.addEventListener("javis:i18n", () => {
+  document.querySelectorAll("[data-auto-route]").forEach((label) => {
+    const msg = label.parentElement;
+    if (msg && msg._autoRoutingFrame) _renderCtxLine(msg, msg._autoRoutingFrame);
+  });
+});
 
 async function refreshTgStatus() {
   const el = document.getElementById("setTgStatus");
