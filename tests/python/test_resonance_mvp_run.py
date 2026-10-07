@@ -285,6 +285,16 @@ adv(g_pub2.id, {"kind": "start"}, deps_pub2)
 check("không ghi đè file người dùng đã sửa (xung đột thì giữ nguyên, ghi sự kiện)",
       target(g_pub).read_text(encoding="utf-8") == "# Bản anh tự sửa\n"
       and any(e["kind"] == "publish_conflict" for e in store.events(P, g_pub2.id)))
+# Câu báo nói đúng nguyên nhân (review pilot lần 3): g_pub2 chưa từng ghi file này nên không được nói "đã sửa sau
+# lần Javis ghi trước".
+_conf = [r for r in store.outbox_pending(200) if r["goal_id"] == g_pub2.id and r["kind"] == "goal.publish_conflict"]
+_t_new = R.notice_text(g_pub2, "goal.publish_conflict", _conf[0]["payload"]) if _conf else ""
+check("xung đột với file có sẵn (chưa từng ghi): báo file có sẵn, chưa tiếp nhận, bản mới chưa đăng",
+      bool(_conf) and _conf[0]["payload"].get("had_baseline") is False
+      and ("đã có sẵn" in _t_new or "already existed" in _t_new) and "lần Javis ghi trước" not in _t_new)
+_t_old = R.notice_text(g_pub2, "goal.publish_conflict", {"path": "Inbox/viec-dang-do.md", "had_baseline": True})
+check("xung đột sau lần đã ghi: mới nói file đã đổi sau lần Javis ghi trước",
+      "lần Javis ghi trước" in _t_old or "last wrote" in _t_old)
 target(g_pub).unlink(missing_ok=True)
 
 # Sản phẩm không được tạo file ở chỗ Javis tự chạy hay tự nạp (loop, agent, skill, plugin, bộ nhớ, CLAUDE.md...).

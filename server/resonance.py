@@ -1367,7 +1367,10 @@ def _publish(goal: GoalRecord, text: str, deps: GoalDeps, now: float) -> dict:
         if prev is None or prev["sha256"] != cur:
             store.append_event(p, goal.id, "publish_conflict", {"path": rel, "found_sha256": cur},
                                idempotency_key=f"publish_conflict:{rel}:{cur[:16]}", revision=goal.revision)
-            store.notice(p, goal.id, "goal.publish_conflict", {"path": rel}, idem=f"publish_conflict:{rel}:{cur[:16]}")
+            # Hai nguyên nhân khác nhau, câu báo phải nói đúng cái nào (review pilot lần 3): file có sẵn mà mục tiêu
+            # chưa từng ghi hay tiếp nhận, hay file đã đổi sau lần mục tiêu ghi.
+            store.notice(p, goal.id, "goal.publish_conflict", {"path": rel, "had_baseline": prev is not None},
+                         idem=f"publish_conflict:{rel}:{cur[:16]}")
             return {"status": "conflict"}
         before = cur
     act = store.begin_action(p, goal.id, goal.revision, "publish", lease_until=now + LEASE_EXTRA_S, now=now,
@@ -1774,10 +1777,15 @@ def notice_text(goal: GoalRecord, kind: str, payload: dict) -> str:
                   "Javis will not restart it by itself.")
     if kind == "goal.publish_conflict":
         path = str((payload or {}).get("path") or "")
-        return _t(f"Javis không ghi đè {path} vì file đã được sửa sau lần Javis ghi trước. "
-                  "Bản mới vẫn nằm trong vùng làm việc của mục tiêu.",
-                  f"Javis did not overwrite {path} because the file changed after Javis last wrote it. "
-                  "The new version stays in the goal's work area.")
+        if not (payload or {}).get("had_baseline"):
+            return _t(f"File {path} đã có sẵn và chưa được mục tiêu này tiếp nhận, nên Javis giữ nguyên file đó. "
+                      "Bản Javis vừa làm chưa được đăng, vẫn nằm trong vùng làm việc của mục tiêu.",
+                      f"{path} already existed and this goal has not taken it over, so Javis left it as is. "
+                      "The version Javis just made was not published; it stays in the goal's work area.")
+        return _t(f"Javis không ghi đè {path} vì file đã được sửa sau lần Javis ghi trước, nên giữ nguyên file đó. "
+                  "Bản Javis vừa làm chưa được đăng, vẫn nằm trong vùng làm việc của mục tiêu.",
+                  f"Javis did not overwrite {path} because the file changed after Javis last wrote it, so it was "
+                  "left as is. The version Javis just made was not published; it stays in the goal's work area.")
     if kind == "goal.blocked":
         code = str((payload or {}).get("code") or (payload or {}).get("reason") or "")
         detail = _short((payload or {}).get("detail") or "")

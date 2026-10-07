@@ -366,6 +366,30 @@ def preserve(tag):
     return out
 
 
+def preserve_work_outputs(gid):
+    """Lưu NGUYÊN VẸN mọi đầu ra việc nền (kể cả bản không đăng được vì xung đột) ra cạnh báo cáo, kèm receipt, hash,
+    trạng thái đăng và sự kiện đăng (review pilot lần 3: bản Sonnet từng mất cùng sandbox). Trả (danh sách, ok)."""
+    out, ok = [], True
+    pub = goal_store().published(P, gid, DELIV) or {}
+    events = [{"kind": e.get("kind"), "revision": e.get("revision"), "payload": e.get("payload")}
+              for e in goal_store().events(P, gid) if str(e.get("kind") or "").startswith("publish")]
+    for a in work_actions(gid):
+        r = a.get("receipt") or {}
+        ref = r.get("output_ref")
+        item = {"action": a["id"], "revision": a["revision"], "status": a["status"],
+                "receipt_output_sha256": r.get("output_sha256"),
+                "published": bool(pub) and pub.get("sha256") == r.get("output_sha256")}
+        if ref and Path(ref).is_file() and OUT:
+            item["saved"] = G.preserve_artifact(Path(ref), Path(OUT).with_name(
+                Path(OUT).stem + f"-work-r{a['revision']}-{a['id'][-8:]}.md"))
+            ok = ok and item["saved"].get("ok") is True
+        elif a["status"] == "succeeded":
+            item["saved"] = {"ok": False, "why": "không thấy file đầu ra hoặc thiếu JAVIS_RESONANCE_E2E_OUT"}
+            ok = False
+        out.append(item)
+    return {"items": out, "publish_events": events, "published_sha256": pub.get("sha256")}, ok
+
+
 def goal_view(g):
     it = goal_store().get_intent(P, g.intent_id) or {}
     return {"id": g.id, "revision": g.revision, "status": g.status, "mode": g.mode, "stage": g.stage,
@@ -647,6 +671,14 @@ finally:
             rep["notices_final"] = notices(g.id)
         except Exception:  # noqa: BLE001
             pass
+        try:
+            rep["work_outputs"], _work_saved = preserve_work_outputs(g.id)
+        except Exception as e:  # noqa: BLE001
+            rep["work_outputs"], _work_saved = {"error": f"{type(e).__name__}: {e}"}, False
+        if not _work_saved:
+            # Không lưu được bản duy nhất của một lượt việc nền thì KHÔNG dọn sandbox: báo rõ chỗ còn giữ.
+            os.environ["JAVIS_RESONANCE_E2E_KEEP"] = "1"
+            print("CẢNH BÁO: chưa lưu được đầu ra việc nền; giữ nguyên sandbox để lấy lại bằng tay.")
     rep["host_engine_turns"] = {"chat": TURNS.used(), "chat_ledger": TURNS.entries(), "background": background_calls(),
                                 "total": TURNS.used() + background_calls()}
     check(f"tổng lượt engine cấp host trong trần {MAX_CALLS} (chat {CHAT_LIMIT}, việc nền {PHASE_CEILING[2]})",

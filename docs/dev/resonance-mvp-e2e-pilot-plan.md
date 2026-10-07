@@ -291,7 +291,7 @@ Danh sách tool trong tin `init` của Claude Code không đọc được từ n
 | Bằng chứng | [`resonance-mvp-e2e-pilot-3.json`](resonance-mvp-e2e-pilot-3.json), bản bộ não viết [`resonance-mvp-e2e-pilot-3-s1-chat.md`](resonance-mvp-e2e-pilot-3-s1-chat.md) (`draft1` và `final` là cùng file đó, cùng hash `c30c9443...`) |
 
 **S1 đạt: lần đầu bộ não tự định tuyến sang mục tiêu.**
-- Thứ tự công cụ: `Write` (viết luôn bản đầu vào `Docs/huong-dan-nhan-hang.md`), `ToolSearch` với `select:mcp__javis-plugins__javis_goal`, rồi hai lần gọi `javis_goal`. Trace chỉ ghi khung gọi, không ghi kết quả, nên không biết lần đầu bị từ chối hay không.
+- Thứ tự công cụ: `Write` (viết luôn bản đầu vào `Docs/huong-dan-nhan-hang.md`), `ToolSearch` với `select:mcp__javis-plugins__javis_goal`, rồi hai lần gọi `javis_goal` trong CÙNG lượt chat: lần đầu host từ chối vì chân trời review thiếu `at_iso` đọc được, bộ não sửa đề xuất và lần sau lập được mục tiêu (kết quả có trong `tool_frames` của JSON; bản ghi trước đây nói trace không có kết quả là SAI, review pilot lần 3 đã chỉ ra). Kết quả của ToolSearch thì trace không có nội dung.
 - Mục tiêu khớp hợp đồng:
   - `achieve`, đúng file;
   - tiêu chí `c1` tự kiểm (có "Lỗi hay gặp", "1.", "anh Tùng", tối thiểu 800 ký tự), tiêu chí `c2` người dùng xác nhận;
@@ -313,6 +313,6 @@ Danh sách tool trong tin `init` của Claude Code không đọc được từ n
    - tin báo nói sai nguồn gốc ("file đã được sửa sau lần Javis ghi trước", trong khi Javis chưa từng ghi).
    Hướng sửa cần review trước khi làm, ví dụ: lúc lập mục tiêu, host nhận file bộ não vừa ghi trong chính lượt đó làm bản đầu (có hash, đúng phiên, đúng file của tiêu chí) và không xếp lượt việc nền cho tới khi có góp ý.
 3. **Bản Sonnet bị mất** vì vùng làm việc nằm trong sandbox. Bộ chạy nên lưu cả đầu ra việc nền khi không đăng được.
-4. **Trace thiếu kết quả của khung công cụ** (chỉ có khung gọi), nên không biết vì sao `javis_goal` được gọi hai lần.
+4. ~~Trace thiếu kết quả của khung công cụ~~ (sai, xem trên): `javis_goal` gọi hai lần vì lần đầu thiếu `at_iso`.
 
-Điều kiện MVP thứ nhất (tự định tuyến từ chat, đi hết vòng) vẫn **chưa đạt**: mới qua bước lập mục tiêu, chưa qua vòng bản đầu, góp ý, bản sửa.
+Tách hai kết luận (review pilot lần 3): **tự định tuyến từ chat ĐẠT cho một mẫu** (S1: tự tìm và gọi công cụ mục tiêu, đúng một mục tiêu achieve, không Kanban). **Vòng đầu-cuối CHƯA đạt** (dừng ở S2), nên điều kiện MVP thứ nhất trọn vẹn vẫn chưa đạt.
