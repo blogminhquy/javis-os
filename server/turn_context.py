@@ -52,11 +52,15 @@ _GROUP_TYPES = frozenset({"group", "supergroup", "channel"})
 
 
 class _Binding:
-    __slots__ = ("turn", "keys")
+    # `alive` goes False in `reset`. Tasks spawned during a turn copy the context, so they still
+    # hold this binding after the turn ends; a dead binding must read as "no turn" there, and
+    # must not mint a fresh key for a turn that is over.
+    __slots__ = ("turn", "keys", "alive")
 
     def __init__(self, turn: dict):
         self.turn = turn
         self.keys: list = []
+        self.alive = True
 
 
 class Token:
@@ -86,9 +90,15 @@ def make(kenh, sender_id="", chat_type="", chat_id="", la_chu=False) -> dict:
 
 def from_meta(kenh, meta, la_chu: bool) -> dict:
     """Turn from a channel message `meta` (the dict every poller builds: user_id, chat_id,
-    chat_type). `user_id` is the sender, so a group message names the person, not the group."""
+    chat_type). `user_id` is the sender, so a group message names the person, not the group.
+
+    A `member_join` event is not a message: its "sender" is the newcomer, who wrote nothing, and
+    the turn runs on group history anyone in the group could have written. Acting as the
+    newcomer would let a member plant a request and then add a manager to run it with the
+    manager's rights, so a join turn names nobody (`sender_id` "")."""
     m = meta or {}
-    return make(kenh, m.get("user_id"), m.get("chat_type"), m.get("chat_id"), la_chu)
+    sender = "" if m.get("member_join") else m.get("user_id")
+    return make(kenh, sender, m.get("chat_type"), m.get("chat_id"), la_chu)
 
 
 def bind(turn: Optional[dict]) -> Token:
@@ -102,16 +112,18 @@ def reset(token: Token) -> None:
     """Undo `bind` and kill every key this binding issued, so a CLI child process still running
     after the turn (a background command) can no longer act as that person."""
     b = token._binding
-    if b is not None and b.keys:
-        with _LOCK:
-            for k in b.keys:
-                _KEYS.pop(k, None)
+    if b is not None:
+        b.alive = False
+        if b.keys:
+            with _LOCK:
+                for k in b.keys:
+                    _KEYS.pop(k, None)
     _CURRENT.reset(token._cv)
 
 
 def current() -> Optional[dict]:
     b = _CURRENT.get()
-    return dict(b.turn) if b is not None else None
+    return dict(b.turn) if b is not None and b.alive else None
 
 
 def issue_key() -> Optional[str]:
@@ -119,7 +131,7 @@ def issue_key() -> Optional[str]:
     turn (reused if the engine queries twice, e.g. a resume retry). None when there is no turn,
     and then the engine sends no header at all."""
     b = _CURRENT.get()
-    if b is None:
+    if b is None or not b.alive:
         return None
     if b.keys:
         return b.keys[0]

@@ -98,6 +98,29 @@ async def part_shape():
     check("1 current() returns a copy", turn_context.current()["sender_id"] == "U-an")
     turn_context.reset(tok)
     check("1 reset -> None again", turn_context.current() is None)
+    mj = dict(m_group, member_join=True)
+    tj = turn_context.from_meta("zalo_personal", mj, la_chu=False)
+    check("1 member_join names nobody (the newcomer sent nothing)", tj["sender_id"] == "", tj)
+    check("1 member_join keeps the group", tj["chat_id"] == "G-shop" and tj["chat_type"] == "group", tj)
+
+    # A task spawned during the turn copies the context; after the turn ends it must not still
+    # see the turn, nor mint a new live key for it.
+    tok = turn_context.bind(t)
+    late = asyncio.Event()
+    seen_late = {}
+
+    async def child():
+        await late.wait()
+        seen_late["cur"] = turn_context.current()
+        seen_late["key"] = turn_context.issue_key()
+
+    task = asyncio.create_task(child())
+    await asyncio.sleep(0)
+    turn_context.reset(tok)
+    late.set()
+    await task
+    check("1 child task after reset: current() None", seen_late["cur"] is None, seen_late)
+    check("1 child task after reset: no new key", seen_late["key"] is None, seen_late)
 
 
 async def _bot_turn(sender, chat):
