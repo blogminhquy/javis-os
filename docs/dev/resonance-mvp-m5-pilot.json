@@ -1,0 +1,145 @@
+{
+  "commit": "6d54e85960d50abd94ced65fd9195e99fca7bd2b",
+  "server_dirty": false,
+  "seconds": 24.4,
+  "engine": {
+    "requested_provider": "anthropic-cli",
+    "requested_model": "sonnet",
+    "provider": "anthropic-cli",
+    "model": "sonnet",
+    "kind": "ClaudeSDK",
+    "fallback_links_dropped": 0,
+    "text_only": true
+  },
+  "baseline": "work.v1",
+  "candidate": "work.brief.v1",
+  "verdict": "inconclusive",
+  "reason": "unknown",
+  "applied": false,
+  "rubric_hash": "c016c59a7c82404c38bdd1444a560d341ad196f827444d77a75ad3b244b91272",
+  "usage": {
+    "baseline": {
+      "calls": 2,
+      "tokens_in": 36341,
+      "tokens_out": 876
+    },
+    "candidate": {
+      "calls": 2,
+      "tokens_in": 36413,
+      "tokens_out": 203
+    }
+  },
+  "calls_used": 4,
+  "budget_calls": 8,
+  "explore_used": 4,
+  "results": [
+    {
+      "case_id": "t1",
+      "split": "tuning",
+      "baseline": {
+        "verdict": "met",
+        "reason": "\u0111\u1ea1t",
+        "skipped": null,
+        "output_sha256": "77c0cbe58c7411b666711b8887f2ea0d2aaad4827fa0b1561f88a46642536f4c",
+        "error_code": null
+      },
+      "candidate": {
+        "verdict": "met",
+        "reason": "\u0111\u1ea1t",
+        "skipped": null,
+        "output_sha256": "89e1b374e264b6afb1a569b53c7983feb19c0f55328cbfe246c08da2882400bf",
+        "error_code": null
+      }
+    },
+    {
+      "case_id": "h1",
+      "split": "holdout",
+      "baseline": {
+        "verdict": "met",
+        "reason": "\u0111\u1ea1t",
+        "skipped": null,
+        "output_sha256": "7134beb9f01f741b3286b53dd35f4e95e01f13657663accb57b845a6c89843cc",
+        "error_code": null
+      },
+      "candidate": {
+        "verdict": "met",
+        "reason": "\u0111\u1ea1t",
+        "skipped": null,
+        "output_sha256": "bf6d9d9618c3a473f2860beb54ab42684ad76dd7319c88175351a18827fcb429",
+        "error_code": null
+      }
+    },
+    {
+      "case_id": "h2",
+      "split": "holdout",
+      "baseline": {
+        "verdict": "unknown",
+        "reason": "ch\u1ec9 ng\u01b0\u1eddi d\u00f9ng ch\u1ea5m \u0111\u01b0\u1ee3c; ph\u00e9p th\u1eed kh\u00f4ng t\u1ef1 ch\u1ea5m",
+        "skipped": true,
+        "output_sha256": null,
+        "error_code": null
+      },
+      "candidate": {
+        "verdict": "unknown",
+        "reason": "ch\u1ec9 ng\u01b0\u1eddi d\u00f9ng ch\u1ea5m \u0111\u01b0\u1ee3c; ph\u00e9p th\u1eed kh\u00f4ng t\u1ef1 ch\u1ea5m",
+        "skipped": true,
+        "output_sha256": null,
+        "error_code": null
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "case_id": "t1",
+      "arm": "baseline",
+      "method": "work.v1",
+      "status": "succeeded",
+      "usage": {
+        "tokens_in": 18174,
+        "tokens_out": 456,
+        "cost_usd": 0.023995,
+        "engine_ms": 4389
+      },
+      "text": "# Danh s\u00e1ch vi\u1ec7c c\u1ea7n l\u00e0m \u2013 H\u1ecdp nh\u00f3m n\u1ed9i dung ng\u00e0y 03/10\n\n| # | Vi\u1ec7c c\u1ea7n l\u00e0m | Ng\u01b0\u1eddi ph\u1ee5 tr\u00e1ch | H\u1ea1n ch\u00f3t |\n|---|--------------|-----------------|----------|\n| 1 | So\u1ea1n k\u1ebf ho\u1ea1ch b\u00e0i vi\u1ebft th\u00e1ng 11 | Lan | Th\u1ee9 S\u00e1u (theo bi\u00ean b\u1ea3n, t\u00ednh t\u1eeb ng\u00e0y h\u1ecdp 03/10) |\n| 2 | Ki\u1ec3m l\u1ea1i l\u1ecbch \u0111\u0103ng | Minh | 10/10 |\n| 3 | G\u1eedi b\u1ea3ng s\u1ed1 li\u1ec7u cho c\u1ea3 nh\u00f3m | H\u00e0 | Tr\u01b0\u1edbc th\u1ee9 Hai (theo bi\u00ean b\u1ea3n, t\u00ednh t\u1eeb ng\u00e0y h\u1ecdp 03/10) |\n\n## Ghi ch\u00fa\n\n- Bi\u00ean b\u1ea3n ch\u1ec9 ghi \"th\u1ee9 S\u00e1u\" v\u00e0 \"th\u1ee9 Hai\" m\u00e0 kh\u00f4ng n\u00eau ng\u00e0y c\u1ee5 th\u1ec3. N\u00ean x\u00e1c nh\u1eadn l\u1ea1i v\u1edbi Lan v\u00e0 H\u00e0 \u0111\u1ec3 ghi r\u00f5 ng\u00e0y th\u00e1ng, tr\u00e1nh hi\u1ec3u nh\u1ea7m.\n- Vi\u1ec7c c\u1ee7a Minh \u0111\u00e3 c\u00f3 ng\u00e0y c\u1ee5 th\u1ec3 (10/10), c\u00f2n 3 ng\u00e0y k\u1ec3 t\u1eeb h\u00f4m nay (07/10).\n- N\u1ebfu \"th\u1ee9 Hai\" \u0111\u01b0\u1ee3c hi\u1ec3u l\u00e0 th\u1ee9 Hai ngay sau cu\u1ed9c h\u1ecdp, h\u1ea1n c\u1ee7a H\u00e0 c\u00f3 th\u1ec3 \u0111\u00e3 qua. N\u00ean h\u1ecfi H\u00e0 v\u1ec1 t\u00ecnh tr\u1ea1ng g\u1eedi b\u1ea3ng s\u1ed1 li\u1ec7u.\n"
+    },
+    {
+      "case_id": "t1",
+      "arm": "candidate",
+      "method": "work.brief.v1",
+      "status": "succeeded",
+      "usage": {
+        "tokens_in": 18210,
+        "tokens_out": 107,
+        "cost_usd": 0.014018000000000001,
+        "engine_ms": 3643
+      },
+      "text": "- **Lan**: so\u1ea1n k\u1ebf ho\u1ea1ch b\u00e0i vi\u1ebft th\u00e1ng 11, h\u1ea1n th\u1ee9 S\u00e1u.\n- **Minh**: ki\u1ec3m l\u1ea1i l\u1ecbch \u0111\u0103ng, h\u1ea1n 10/10.\n- **H\u00e0**: g\u1eedi b\u1ea3ng s\u1ed1 li\u1ec7u cho c\u1ea3 nh\u00f3m, h\u1ea1n tr\u01b0\u1edbc th\u1ee9 Hai.\n"
+    },
+    {
+      "case_id": "h1",
+      "arm": "baseline",
+      "method": "work.v1",
+      "status": "succeeded",
+      "usage": {
+        "tokens_in": 18167,
+        "tokens_out": 420,
+        "cost_usd": 0.016976,
+        "engine_ms": 4047
+      },
+      "text": "# Vi\u1ec7c c\u1ea7n l\u00e0m sau bu\u1ed5i h\u1ecdp l\u1edbp h\u1ecdc th\u00eam (06/10)\n\n| # | Vi\u1ec7c c\u1ea7n l\u00e0m | Ng\u01b0\u1eddi ph\u1ee5 tr\u00e1ch | H\u1ea1n ch\u00f3t |\n|---|--------------|-----------------|----------|\n| 1 | In t\u00e0i li\u1ec7u \u00f4n t\u1eadp | B\u00ecnh | 14/10 |\n| 2 | Nh\u1eafn l\u1ecbch thi cho ph\u1ee5 huynh | Ph\u01b0\u01a1ng | 16/10 |\n| 3 | So\u1ea1n \u0111\u1ec1 ki\u1ec3m tra gi\u1eefa k\u1ef3 | C\u00f4 Th\u1ea3o | 18/10 |\n\n## Th\u1ee9 t\u1ef1 theo h\u1ea1n ch\u00f3t\n1. **14/10** \u2013 B\u00ecnh: in t\u00e0i li\u1ec7u \u00f4n t\u1eadp\n2. **16/10** \u2013 Ph\u01b0\u01a1ng: nh\u1eafn l\u1ecbch thi cho ph\u1ee5 huynh\n3. **18/10** \u2013 C\u00f4 Th\u1ea3o: so\u1ea1n \u0111\u1ec1 ki\u1ec3m tra gi\u1eefa k\u1ef3\n\n## Ghi ch\u00fa\n- L\u1ecbch thi n\u00ean \u0111\u01b0\u1ee3c ch\u1ed1t tr\u01b0\u1edbc ng\u00e0y 16/10 \u0111\u1ec3 Ph\u01b0\u01a1ng k\u1ecbp nh\u1eafn cho ph\u1ee5 huynh.\n- \u0110\u1ec1 ki\u1ec3m tra gi\u1eefa k\u1ef3 c\u00f3 h\u1ea1n cu\u1ed1i c\u00f9ng (18/10), n\u00ean c\u00f4 Th\u1ea3o c\u1ea7n ho\u00e0n th\u00e0nh sau khi t\u00e0i li\u1ec7u \u00f4n t\u1eadp \u0111\u00e3 s\u1eb5n s\u00e0ng \u0111\u1ec3 n\u1ed9i dung \u0111\u1ec1 kh\u1edbp v\u1edbi ph\u1ea7n \u00f4n.\n"
+    },
+    {
+      "case_id": "h1",
+      "arm": "candidate",
+      "method": "work.brief.v1",
+      "status": "succeeded",
+      "usage": {
+        "tokens_in": 18203,
+        "tokens_out": 96,
+        "cost_usd": 0.01388,
+        "engine_ms": 1827
+      },
+      "text": "- B\u00ecnh: in t\u00e0i li\u1ec7u \u00f4n t\u1eadp, h\u1ea1n 14/10.\n- Ph\u01b0\u01a1ng: nh\u1eafn l\u1ecbch thi cho ph\u1ee5 huynh, h\u1ea1n 16/10.\n- C\u00f4 Th\u1ea3o: so\u1ea1n \u0111\u1ec1 ki\u1ec3m tra gi\u1eefa k\u1ef3, h\u1ea1n 18/10.\n"
+    }
+  ]
+}

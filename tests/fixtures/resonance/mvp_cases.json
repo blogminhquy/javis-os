@@ -29,7 +29,7 @@
      "expect": {"evaluator": "human_confirmation", "description": "Cách viết hợp với nhóm chat gia đình"}}
   ],
   "pilot": {
-    "_doc": "Pilot thật M5: một phép thử, tối đa 4 lượt gọi model (2 tình huống chạy được x 2 cách làm). Kỳ vọng ghi rõ: một tình huống đạt (cách làm hiện tại), một tình huống unknown (h2, chỉ người dùng chấm được) và ứng viên thua (work.brief.v1 viết quá ngắn).",
+    "_doc": "Pilot thật M5: một phép thử, tối đa 4 lượt gọi model (2 tình huống chạy được x 2 cách làm). Ghi lại: tình huống đạt, tình huống unknown (h2, chỉ người dùng chấm được) và ứng viên có được áp dụng hay không. Dự đoán ban đầu là work.brief.v1 sẽ thua vì quá ngắn; pilot thật 07/10/2026 cho thấy nó vẫn đạt đủ ý (xem docs/dev/resonance-mvp-verification.md, mục M5), nên kết quả của model chỉ được ghi, không bị ép.",
     "baseline": "work.v1",
     "candidate": "work.brief.v1",
     "case_ids": ["t1", "h1", "h2"]
