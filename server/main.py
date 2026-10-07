@@ -16225,6 +16225,10 @@ async def sessions_set_model(session_id: str, provider: str = Form(""),
         return JSONResponse({"error": localefmt.chu("Auto chỉ áp dụng cho hội thoại web", "Auto applies only to web conversations")}, status_code=400)
     if mode == "auto" and not await _chat_auto_candidates(cfgmod.read_settings().get("model", {}), verify=True):
         return JSONResponse({"error": localefmt.chu("Chưa kiểm chứng quyền truy cập OAuth cho Auto", "OAuth access for Auto has not been verified")}, status_code=409)
+    # OAuth probes await network I/O. A chat can start while access is being checked.
+    # Recheck immediately before the synchronous session write.
+    if _CHAT_RUNTIME.get_job(session_id):
+        return JSONResponse({"error": localefmt.chu("Phiên đang trả lời, đổi model sau khi xong", "Session is answering; change model after it finishes")}, status_code=409)
     if mode != "pinned":
         ok = get_store().set_routing(session_id, mode, routing_profile, brain=(brain or "").strip() or None)
         if not ok:

@@ -35,6 +35,12 @@ with patch.object(main, "_chat_auto_candidates", AsyncMock(return_value={"low": 
 with patch.object(main, "_chat_auto_candidates", AsyncMock(return_value={})):
     assert client.post("/sessions/one/model", data={"routing_mode": "auto"}).status_code == 409
     assert store.get_session("one")["routing_mode"] == "pinned"
+with patch.object(main, "_chat_auto_candidates", AsyncMock(return_value={"low": {"id": "gpt-6-luna"}})):
+    # The session was idle on entry but started a turn during the OAuth await.
+    with patch.object(main._CHAT_RUNTIME, "get_job", side_effect=[None, object()]):
+        assert client.post("/sessions/one/model", data={"routing_mode": "auto"}).status_code == 409
+        assert store.get_session("one")["routing_mode"] == "pinned"
+        assert store.get_session("one")["pinned_model"] == "gpt-6.1-sol"
 assert client.post("/sessions/one/model", data={"routing_mode": "default"}).status_code == 200
 assert store.get_session("one")["pinned_provider"] is None
 assert store.get_session("other") == before
