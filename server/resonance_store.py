@@ -27,12 +27,17 @@ from config import STATE_DIR
 import resonance as R
 
 def call_ceiling() -> Optional[int]:
-    """Trần TỔNG lượt gọi model của Resonance trên cả kho (mọi mục tiêu), đặt bằng biến môi trường
+    """Trần TỔNG lượt engine cấp host của Resonance trên cả kho, đặt bằng biến môi trường
     JAVIS_RESONANCE_CALL_CEILING. Không đặt (mặc định) thì không có trần chung, chỉ có hạn mức từng mục tiêu.
 
+    Tính MỌI đường Resonance gọi engine: lượt việc nền và phép thử (goals.calls_used) cùng bộ lập mục tiêu chưa có
+    mục tiêu nào (call_ledger, review e2e P1-1). Đơn vị là lượt engine ở cấp host: một lượt có thể gồm nhiều request
+    nội bộ của SDK; đây không phải trần số request gửi nhà cung cấp hay token.
+
     Dùng cho pilot có hạn mức do người dùng duyệt: kiểm TRƯỚC lượt gọi, trong cùng giao dịch giữ chỗ, nên lượt
-    vượt trần không bao giờ được gọi; số đã dùng nằm trong SQLite nên trần giữ qua mọi lần khởi động lại (người
-    chạy truyền lại biến cho mỗi tiến trình). Giá trị hỏng thì coi là 0 (chặn hết), không phải bỏ trần."""
+    vượt trần không bao giờ được gọi; số đã dùng nằm trong SQLite nên trần giữ qua mọi lần khởi động lại, MIỄN là
+    mỗi tiến trình được truyền biến này (tiến trình không có biến thì không có trần chung). Giá trị hỏng thì coi là 0
+    (chặn hết), không phải bỏ trần."""
     raw = os.environ.get("JAVIS_RESONANCE_CALL_CEILING", "").strip()
     if not raw:
         return None
@@ -47,6 +52,7 @@ def _under_ceiling(c, n: int) -> bool:
     if cap is None:
         return True
     used = int(c.execute("SELECT COALESCE(SUM(calls_used),0) FROM goals").fetchone()[0])
+    used += int(c.execute("SELECT COUNT(*) FROM call_ledger WHERE status='used'").fetchone()[0])
     return used + int(n) <= cap
 
 
@@ -106,6 +112,9 @@ CREATE TABLE IF NOT EXISTS experiments(
   payload_json TEXT NOT NULL DEFAULT '{}', applied INTEGER NOT NULL DEFAULT 0,
   created_at REAL NOT NULL, updated_at REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS experiments_goal ON experiments(goal_id, created_at);
+CREATE TABLE IF NOT EXISTS call_ledger(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, brain_id TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL, created_at REAL NOT NULL, updated_at REAL NOT NULL);
 """
 
 # Cột thêm từ M3 vào bảng đã có ở M2. Kho tạo bởi bản M2 không tự có cột mới qua CREATE IF NOT EXISTS,
@@ -769,6 +778,30 @@ class GoalStore:
                                                     "seen_revision": seen_revision}), p.by, now))
             row2 = c.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone()
             return R.effective_method(self._record(c, row2))
+
+    # ───────────── sổ lượt gọi chưa gắn mục tiêu (bộ lập mục tiêu) ─────────────
+
+    def reserve_ledger_call(self, p: Principal, kind: str, ref: str = "") -> Optional[int]:
+        """Giữ chỗ MỘT lượt engine chưa gắn mục tiêu nào (bộ lập mục tiêu) TRƯỚC khi gọi, trong trần chung. Trả id
+        dòng sổ, hoặc None nếu chạm trần (không ghi gì). Dòng giữ chỗ được tính ngay; chỉ hoàn khi engine không được
+        gọi (release_ledger_call). Gọi rồi mà lỗi hay không ra mục tiêu vẫn tính."""
+        now = time.time()
+        with self._Tx(self) as c:
+            if not _under_ceiling(c, 1):
+                return None
+            cur = c.execute("INSERT INTO call_ledger(brain_id,kind,ref,status,created_at,updated_at) "
+                            "VALUES(?,?,?,?,?,?)", (p.brain_id, str(kind), str(ref or "")[:200], "used", now, now))
+            return int(cur.lastrowid)
+
+    def release_ledger_call(self, p: Principal, ledger_id: int) -> None:
+        with self._Tx(self) as c:
+            c.execute("UPDATE call_ledger SET status='released', updated_at=? WHERE id=? AND brain_id=? "
+                      "AND status='used'", (time.time(), int(ledger_id), p.brain_id))
+
+    def ledger_calls(self, p: Principal) -> list:
+        with closing(self._conn()) as c:
+            return [dict(r) for r in c.execute("SELECT * FROM call_ledger WHERE brain_id=? ORDER BY id",
+                                               (p.brain_id,)).fetchall()]
 
     def release_call(self, p: Principal, goal_id: str) -> None:
         """Trả lại lượt đã giữ mà model KHÔNG được gọi (engine bị chặn, chưa sẵn sàng)."""

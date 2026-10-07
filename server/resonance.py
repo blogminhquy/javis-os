@@ -820,6 +820,22 @@ def _parse_json_obj(text: str) -> Optional[dict]:
     return v if isinstance(v, dict) else None
 
 
+class _LedgerCall:
+    """Hạn mức của một lượt bộ lập mục tiêu: chỗ trong CallBudget của request cộng dòng sổ bền của kho. Engine không
+    được gọi (bị chặn, chưa sẵn sàng) thì trả cả hai; đã gọi thì giữ nguyên, kể cả khi lỗi."""
+
+    def __init__(self, inner, store, principal, ledger_id: int):
+        self.inner, self.store, self.principal, self.ledger_id = inner, store, principal, ledger_id
+        self.max_calls = getattr(inner, "max_calls", 1)
+
+    def try_reserve(self) -> bool:
+        return True
+
+    def release(self) -> None:
+        self.inner.release()
+        self.store.release_ledger_call(self.principal, self.ledger_id)
+
+
 async def form_goal(message_ref: str, context: dict, deps: "GoalDeps") -> GoalRecord:
     """Từ một tin nhắn cần theo đuổi, lập (hoặc trả lại) đúng một mục tiêu.
 
@@ -840,7 +856,16 @@ async def form_goal(message_ref: str, context: dict, deps: "GoalDeps") -> GoalRe
     if proposal is None:
         if not deps.budget.try_reserve():
             raise GoalRejected(f"hết hạn mức gọi model ({deps.budget.max_calls} lượt)")
-        turn = await deps._ask(FRAMER_SYSTEM, framer_prompt(user_text, str(context.get("extra") or "")))
+        # Lượt bộ lập mục tiêu chưa có mục tiêu nào để tính vào: giữ chỗ trong sổ bền của kho, trong trần chung,
+        # TRƯỚC khi gọi engine (review e2e P1-1). Chạm trần thì không gọi.
+        ask_deps = deps
+        if hasattr(store, "reserve_ledger_call"):
+            lid = store.reserve_ledger_call(p, "framer", message_ref)
+            if lid is None:
+                deps.budget.release()
+                raise GoalRejected("đã chạm trần tổng lượt gọi của Resonance; không gọi bộ lập mục tiêu")
+            ask_deps = dataclasses_replace(deps, budget=_LedgerCall(deps.budget, store, p, lid))
+        turn = await ask_deps._ask(FRAMER_SYSTEM, framer_prompt(user_text, str(context.get("extra") or "")))
         if turn.error_code:
             raise GoalRejected(f"bộ lập mục tiêu lỗi: {turn.error_code}: {turn.error_detail}")
         proposal = _parse_json_obj(turn.text)

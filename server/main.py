@@ -2139,6 +2139,10 @@ def _resonance_deps(brain_id):
 async def _resonance_tick():
     """Một nhịp Resonance trong scheduler (M3). Chưa từng có kho thì thoát ngay, không tạo file nào. Chạy NỀN
     (create_task) vì một bước có thể gọi model tới max_wall_s; cờ bận giữ cho hai nhịp không chồng nhau."""
+    # JAVIS_RESONANCE_TICK_PAUSED=1: tạm dừng nhịp Resonance của tiến trình này (sandbox, pilot): lượt chat vẫn lập
+    # được mục tiêu nhưng không lượt việc nền nào chạy cho tới khi tiến trình khác (không đặt biến) nhận lịch.
+    if os.environ.get("JAVIS_RESONANCE_TICK_PAUSED") == "1":
+        return
     if _RESONANCE_TICK_BUSY[0] or not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").exists():
         return
     _RESONANCE_TICK_BUSY[0] = True

@@ -1,6 +1,6 @@
-# Pilot đầu-cuối Resonance MVP qua đường chat thật: kịch bản và hạn mức đề xuất
+# Pilot đầu-cuối Resonance MVP qua đường chat thật: kịch bản và hạn mức
 
-**Trạng thái: ĐÃ CHẠY MỘT LẦN (07/10/2026) theo hạn mức người dùng duyệt. Kết quả: bộ não KHÔNG tự lập mục tiêu (chọn `javis_task`), pilot dừng, dùng 1/3 lượt. Xem mục "Kết quả lần chạy duy nhất" ở cuối.**
+**Trạng thái: lần chạy 1 (07/10/2026) đã chạy, bộ não chọn `javis_task`, không lập mục tiêu (xem cuối tài liệu). Bộ chạy đã sửa theo review e2e (P1-1, P1-2, P2-1). Lần chạy 2 CHỜ người dùng duyệt; chưa gọi thêm model nào.**
 
 ## Mục đích
 
@@ -8,59 +8,61 @@ Nghiệm thu điều kiện MVP còn thiếu (plan 00-mvp, "Điều kiện hoàn
 
 ## Bộ chạy
 
-`tests/python/test_resonance_mvp_e2e_pilot.py`, opt-in bằng `JAVIS_RESONANCE_E2E`:
+`tests/python/test_resonance_mvp_e2e_pilot.py`, opt-in bằng `JAVIS_RESONANCE_E2E` (`dry` hoặc `real`); cổng an toàn ở `tests/python/_e2e_pilot_guard.py` (test riêng `test_resonance_e2e_guard.py`, luôn chạy, không gọi CLI hay model).
 
 - **Server thật** của checkout đang review, tiến trình riêng, cổng 7791; `JAVIS_STATE_DIR` và `BRAINS_DIR` tạm ở đường dẫn ngắn; brain mặc định (`Brain Default`, dashboard gọi tắt là `"brain"`) bật Resonance.
-- **Chỉ chép các ô chọn engine** từ settings.json thật (`auxiliary`, `main`, `engine`, `claude_model`). Không chép khoá, kênh hay tài khoản nào: không Telegram, không Zalo, nên không gửi gì ra ngoài.
-- **Đường thật:** tin gửi qua WebSocket `/ws` đúng khuôn của dashboard; thẻ và phản hồi đi qua HTTP thật (kiểm Origin); việc nền chạy qua nhịp lập lịch thật của server (30 giây một nhịp).
-- **Gián đoạn thật:** giết CẢ CÂY tiến trình server (trên Windows, `python.exe` của `.venv` là launcher có tiến trình con), không tắt êm.
-- Báo cáo JSON thoát ký tự, không có đường dẫn cá nhân; thư mục tạm bị xoá sau khi chạy.
+- **Chỉ chép các ô chọn engine** (`auxiliary`, `main`, `engine`, `claude_model`); settings sandbox bị kiểm là không có `claude_auth` hay `anthropic_api_key`. Không kênh, không tài khoản: không gửi gì ra ngoài.
+- **Đường thật:** tin gửi qua WebSocket `/ws` đúng khuôn dashboard; thẻ và phản hồi đi qua HTTP thật (kiểm Origin); việc nền chạy qua nhịp lập lịch thật (30 giây).
+- **Gián đoạn thật và tất định:** server A chạy với `JAVIS_RESONANCE_TICK_PAUSED=1` (nhịp Resonance tạm dừng, lượt chat vẫn lập được mục tiêu), nên chắc chắn chưa có lượt việc nền nào trước khi bị giết; giết CẢ CÂY tiến trình, không tắt êm.
 
-## Kịch bản (chế độ `real`)
+### Cổng an toàn chi phí (kiểm TRƯỚC khi gửi tin, không gọi model)
 
-Lời người dùng (dữ liệu mô phỏng, lĩnh vực trung lập):
+1. **Môi trường:** bỏ mọi biến của phiên Claude Code chạy bộ chạy (`CLAUDE*`, `ANTHROPIC*`), khoá (`*_API_KEY`, `*_AUTH_TOKEN`, `*_ACCESS_TOKEN`) và bộ chọn nhà cung cấp (`AWS_*`, `GOOGLE_*`, `AZURE_*`, Vertex, Bedrock, gcloud). GIỮ `CLAUDE_CONFIG_DIR` nếu người dùng có đặt (bỏ nó thì tiến trình quay về thư mục mặc định, không phải hồ sơ sạch).
+2. **Binary:** tìm `claude` đúng cách engine tìm (`claude_cli.tim_binary`) trong môi trường đã lọc, rồi ghim cho server bằng `JAVIS_CLAUDE_CLI`, nên cổng và engine dùng CÙNG một binary.
+3. **Xác thực:** `claude auth status --json` chạy bằng binary đó, cwd là brain (đúng cwd của lượt chat), môi trường đã lọc. Chỉ nhận `loggedIn`, `authMethod` = `claude.ai`, `apiProvider` = `firstParty`, có `subscriptionType`. Báo cáo chỉ lưu bốn trường đó và phiên bản binary, không lưu email, id hay token.
+4. **Nguồn settings engine nạp:** engine chat bật `setting_sources = user, project, local`, nên cổng soát `settings.json` và `settings.local.json` ở thư mục cấu hình mà chính `auth status` báo, `.claude/settings*.json` của brain, và các `managed-settings.json`. Có `apiKeyHelper`, lệnh làm mới credential đám mây, hay `env` chọn khoá/nhà cung cấp/đường gọi thì DỪNG. File không đọc được tính là rủi ro. Chỉ ghi TÊN khoá, không ghi giá trị.
 
-> (Dữ liệu mô phỏng để thử nghiệm.) Từ biên bản họp dưới đây, lo giúp mình một ghi chú Inbox/viec-tu-bien-ban.md liệt kê từng việc kèm người phụ trách và hạn chót. Không cần làm ngay trong lượt này, cứ làm ở nền, xong thì báo để mình xem lại rồi xác nhận. Đừng đụng tới Notes/ghi-chu-cu.md.
-> Biên bản họp nhóm nội dung ngày 03/10: Lan soạn kế hoạch bài viết tháng 11, hạn thứ Sáu. Minh kiểm lại lịch đăng, hạn 10/10. Hà gửi bảng số liệu cho cả nhóm trước thứ Hai.
+Không chứng minh được bốn điều trên thì dừng, không gửi tin. Cổng chỉ chứng minh trạng thái lúc chạy; không suy ngược cho các lần chạy trước.
+
+### Trần lượt gọi
+
+- **Đơn vị:** lượt engine ở cấp host. Một lượt bộ não có thể gồm nhiều request nội bộ của SDK (vòng công cụ); trần này KHÔNG phải số request gửi nhà cung cấp, không phải token hay chi phí, và không có dữ liệu để đếm số request đó.
+- **Tổng 3** (`JAVIS_RESONANCE_E2E_MAX_CALLS`). Lượt bộ não tính trước khi gửi (bộ chạy gửi đúng một tin). Phần còn lại server chặn TRƯỚC lượt gọi vượt trần bằng `JAVIS_RESONANCE_CALL_CEILING`: kiểm trong cùng giao dịch giữ chỗ, đếm MỌI đường Resonance gọi engine (lượt việc nền, phép thử, bộ lập mục tiêu qua sổ `call_ledger`), số đã dùng trong SQLite nên giữ qua khởi động lại; bộ chạy truyền biến cho MỌI tiến trình server (tiến trình không có biến thì không có trần chung).
+
+## Kịch bản (chế độ `real`), lần chạy 2
+
+Lời người dùng, loại **duy trì** (đúng nhóm `javis_goal` theo luật định tuyến hiện hành), dữ liệu mô phỏng, không nêu tên công cụ:
+
+> (Dữ liệu mô phỏng để thử nghiệm.) Từ giờ duy trì giúp mình ghi chú Inbox/viec-dang-do.md: lúc nào cũng liệt kê đủ các việc đang dở bên dưới, mỗi việc ghi người phụ trách và hạn chót. Khi mình báo thêm việc thì cập nhật vào, có bản mới thì báo mình xem. Đừng đụng tới Notes/ghi-chu-cu.md.
+> Việc đang dở: Lan soạn kế hoạch bài viết tháng 11, hạn 09/10. Minh kiểm lại lịch đăng, hạn 10/10. Hà gửi bảng số liệu cho cả nhóm, hạn 12/10.
+
+Mọi điều kiện dưới đây là lỗi CỨNG (một điều không đạt là pilot FAIL, không có nhánh "ghi chú rồi OK").
 
 | Bước | Việc | Kiểm |
 |---|---|---|
-| 1 | Server A lên; gửi tin qua `/ws`; chờ `turn_done` | Lượt kết thúc có `session_id`; bộ não lập ĐÚNG MỘT mục tiêu qua `javis_goal`, gắn đúng phiên; ý định gốc là nguyên lời người dùng; thẻ mục tiêu được đặt vào đúng phiên, có biên nhận |
-| 2 | GIẾT server A ngay sau lượt (trước nhịp lập lịch đầu), dựng server B | Nhịp lập lịch tự nhận lịch và làm lượt việc nền; receipt succeeded, đúng provider đã chọn, 0 lần gọi công cụ; sản phẩm đăng đúng chỗ; tin báo (chờ duyệt) về đúng phiên, có biên nhận |
-| 3 | GIẾT server B, dựng server C, chờ hơn hai nhịp | Không báo lặp, không gọi thêm model |
-| 4 | Bấm "Đạt yêu cầu" qua `POST /goals/{id}/feedback` như nút trên thẻ (đúng revision, đúng `artifact_ref` lấy từ `GET /goals/{id}`) | Host đánh giá lại, mục tiêu thành công, không gọi model thêm; tin báo thành công về đúng phiên, có biên nhận |
-| Cuối | | Ghi chú cũ còn nguyên (hash); tổng lượt gọi model trong trần |
+| 0 | Server A lên (nhịp tạm dừng); cổng an toàn | Đúng binary, gói thuê bao gốc, settings sạch; WebSocket nhận kết nối |
+| 1 | Gửi MỘT tin qua `/ws`, chờ `turn_done` | Bộ não lập ĐÚNG MỘT mục tiêu qua `javis_goal`, gắn đúng phiên; ý định gốc TRÙNG KHỚP toàn bộ lời người dùng; thẻ đặt vào đúng phiên có biên nhận; chưa có lượt việc nền nào. Không lập mục tiêu: ghi kết quả, DỪNG |
+| 2 | Giết A, dựng B (nhịp chạy) | Nhịp lập lịch tự làm lượt việc nền; receipt succeeded, đúng provider, 0 lần gọi công cụ; sản phẩm đăng đúng chỗ tiêu chí khai và **bytes trên đĩa khớp hash host ghi khi đăng**; tin báo về đúng phiên có biên nhận |
+| 3 | Giết B, dựng C, chờ hơn hai nhịp | Không báo lặp; không gọi thêm |
+| 4 | Nếu mục tiêu có tiêu chí người dùng duyệt | BẮT BUỘC có sản phẩm để duyệt (`artifact_ref`); bấm "Đạt yêu cầu" qua API như nút trên thẻ: 200 |
+| 5 | Khép vòng theo kiểu mục tiêu | **maintain:** đánh giá met, vẫn active, đã báo `goal.maintained` về phiên, có lịch xem lại có giới hạn; rồi người dùng **tạm dừng qua API** để không còn việc nền. **achieve:** succeeded và có tin báo thành công có biên nhận. Không gọi thêm model ở bước 4, 5 |
+| Cuối | | Ghi chú cũ còn nguyên (hash); tổng lượt trong trần |
 
-**Điều kiện dừng:** bộ não không lập mục tiêu thì dừng và ghi đó là kết quả pilot, KHÔNG thử lại, không sửa lời cho tới khi người dùng quyết. Lượt gọi model vượt trần thì giết server ngay và ghi FAIL. Lỗi bộ chạy thì dừng.
+Bằng chứng lưu thêm: khung `tool_call` / `tool_result` (gồm `ToolSearch`; engine chỉ chuyển kết quả công cụ đã cắt còn 500 ký tự), câu trả lời cuối, việc Kanban nếu có, hash phiên bản `CLAUDE.md` của repo và của brain cùng plugin `javis_goal` (luật định tuyến đang dùng).
 
-Nếu bộ não tự làm luôn trong lượt (tự ghi file bằng công cụ của nó) thay vì lập mục tiêu, đó cũng là một kết quả cần ghi: tool `javis_goal` mô tả rõ không gọi cho "việc làm xong ngay trong lượt", và lời người dùng ở trên nói rõ là làm ở nền.
-
-## Hạn mức đề xuất
+## Hạn mức đề xuất cho lần chạy 2
 
 | Mục | Đề xuất |
 |---|---|
-| Lượt bộ não chính | **1** (engine chính đang chọn: `anthropic-cli` / `claude-opus-5-5`, gói thuê bao) |
-| Lượt việc nền | **1 dự kiến, tối đa 2** (engine việc nền: `anthropic-cli` / `sonnet`). Trong cửa sổ pilot không có lượt thứ hai: thử lại khi chưa đạt cách 15 phút |
-| Trần cứng | **3 lượt gọi** (`JAVIS_RESONANCE_E2E_MAX_CALLS=3`). Lượt bộ não tính TRƯỚC khi gửi tin; phần còn lại dành cho việc nền được server chặn TRƯỚC lượt gọi vượt trần (`JAVIS_RESONANCE_CALL_CEILING`, kiểm trong giao dịch giữ chỗ, số đã dùng trong SQLite nên giữ qua khởi động lại). Bộ chạy còn kiểm sau và giết server nếu vượt |
-| Token ước tính | Lượt bộ não: vài chục nghìn token vào (prompt hệ thống của Javis và công cụ); lượt việc nền: khoảng 18 nghìn vào, dưới 1 nghìn ra (đo ở pilot M3, M5) |
-| Thời gian | Khoảng 8 đến 15 phút (ba lần dựng server, một lượt chat, hơn hai nhịp chờ) |
-| Số lần chạy | **Một lần.** Không chạy lại nếu kết quả không như ý; báo cáo nguyên trạng |
-
-**Tuỳ chọn mở rộng (chưa đề xuất chạy ngay):** thêm tin bổ sung thứ hai ("Thêm việc: ...") để đo bộ não gọi `javis_goal op=update`, cộng 1 lượt bộ não và 1 lượt việc nền, trần 5.
-
-Gói thuê bao: một lần chạy cục bộ trên máy người dùng, không chạy nền 24/7, không VPS, không dùng chung tài khoản.
+| Lượt bộ não chính | **1** (`anthropic-cli` / `claude-opus-5-5`, gói thuê bao đã qua cổng xác thực) |
+| Lượt việc nền | **1 dự kiến, tối đa 2** (`anthropic-cli` / `sonnet`); thử lại khi chưa đạt cách 15 phút nên trong cửa sổ pilot thực tế chỉ có 1 |
+| Trần cứng | **3 lượt engine cấp host**, chặn trước lượt vượt, giữ qua khởi động lại |
+| Thời gian | Khoảng 8 đến 15 phút |
+| Số lần chạy | **Một lần.** Không thử lại, không sửa lời, không nâng trần; mọi quyết định khác do người dùng |
 
 ## Đã kiểm ở chế độ `dry` (không gọi model)
 
-`JAVIS_RESONANCE_E2E=dry`: không gửi tin chat, engine việc nền đặt là một provider bộ chọn chỉ chữ chặn sẵn, mục tiêu được lập bằng đúng hàm tool `javis_goal` dùng (`form_goal`) vào kho của server thật. Kết quả 13/13 kiểm xanh, **0 lượt gọi model**, khoảng 2 phút:
-
-- server thật lên, `/ws` nhận kết nối qua kiểm Origin;
-- giết server rồi dựng lại: nhịp lập lịch tự nhận lịch và chạy lượt việc nền (bị chặn trước khi gọi model, như dự định);
-- tin báo về đúng phiên, có biên nhận của host; dựng lại lần nữa không báo lặp, không gọi thêm;
-- API thẻ `GET /goals/{id}` và `POST /goals/{id}/feedback` qua kiểm Origin của server thật;
-- ghi chú cũ còn nguyên.
-
-Lần chạy `dry` đầu làm lộ một điều của chính bộ chạy: tham số brain `"pilot"` không được ánh xạ thành thư mục brain (dashboard gửi `"brain"` cho brain mặc định, kênh khác gửi đường dẫn tuyệt đối). Đã đổi bộ chạy sang brain mặc định và `"brain"`, đúng như dashboard.
+Bộ chạy sau sửa: **14/14 kiểm xanh, 0 lượt engine**, khoảng 2 phút: cổng an toàn chạy THẬT (binary 2.1.292; `auth status` báo `claude.ai` / `firstParty` / gói `max`; tám nguồn settings, chỉ `settings.json` người dùng có tồn tại, không khoá rủi ro nào), server lên, WebSocket, nhịp tạm dừng ở A, giết và dựng lại, nhịp lập lịch tự nhận lịch (engine việc nền bị chặn trước khi gọi, như dự định), tin báo về đúng phiên có biên nhận, không báo lặp, API thẻ qua kiểm Origin, ghi chú cũ còn nguyên.
 
 ## Pilot này KHÔNG chứng minh
 
@@ -68,35 +70,38 @@ Lần chạy `dry` đầu làm lộ một điều của chính bộ chạy: tham
 - Dữ liệu thật hay mục tiêu dài ngày; guard nhảy trên dữ liệu thật.
 - Ca ứng viên tụt hạng trên model thật (M5; không đổi `no_improvement` thành `regression`).
 - Độ ổn định của quyết định lập mục tiêu: một lần chạy chỉ là một mẫu.
+- Số request hay chi phí thật gửi nhà cung cấp.
 
 ## Lệnh chạy khi được duyệt
 
 ```bash
-JAVIS_RESONANCE_E2E=real JAVIS_RESONANCE_PILOT_SETTINGS=D:/Project/Javis-OS/server/settings.json JAVIS_RESONANCE_E2E_MAX_CALLS=3 JAVIS_RESONANCE_E2E_OUT=docs/dev/resonance-mvp-e2e-pilot.json D:/Project/Javis-OS/.venv/Scripts/python.exe tests/python/test_resonance_mvp_e2e_pilot.py
+JAVIS_RESONANCE_E2E=real JAVIS_RESONANCE_PILOT_SETTINGS=D:/Project/Javis-OS/server/settings.json JAVIS_RESONANCE_E2E_MAX_CALLS=3 JAVIS_RESONANCE_E2E_OUT=docs/dev/resonance-mvp-e2e-pilot-2.json D:/Project/Javis-OS/.venv/Scripts/python.exe tests/python/test_resonance_mvp_e2e_pilot.py
 ```
 
-## Kết quả lần chạy duy nhất (07/10/2026)
+## Sửa theo review e2e (PR #579, diff `d38d033a..2ba6f74b`)
 
-**Bộ não KHÔNG tự lập mục tiêu. Pilot dừng đúng điều kiện đã duyệt, không thử lại, không sửa lời giao việc.**
+1. **P1-1, trần bỏ lọt bộ lập mục tiêu.** `POST /goal-requests` gọi framer bằng `CallBudget` riêng, không ghi vào kho. Nay framer giữ chỗ một dòng trong sổ bền `call_ledger` TRƯỚC khi gọi, trong trần chung (`reserve_ledger_call`, cùng giao dịch kiểm trần); chỉ hoàn khi engine không được gọi, gọi rồi mà lỗi vẫn tính. Trần đếm `SUM(goals.calls_used)` cộng sổ. Docstring trần nói rõ đơn vị là lượt engine cấp host. Test: trần 0 chặn trước khi gọi; trong trần gọi đúng một lần rồi chặn lượt kế; mở lại kho vẫn chặn; framer lỗi vẫn tính; engine bị chặn thì hoàn chỗ; sáu yêu cầu giữ chỗ đồng thời với trần còn một thì đúng một qua. Bốn đột biến (bỏ giữ chỗ, trần không đếm sổ, hoàn chỗ cả khi đã gọi, không hoàn chỗ khi bị chặn) đều làm test đỏ.
+2. **P1-2, lọc môi trường chưa đủ chứng minh chỉ dùng gói thuê bao.** Thêm cổng an toàn bốn lớp ở trên (môi trường, binary ghim, `auth status`, soát nguồn settings), dừng nếu không chứng minh được; test bằng fixture giả cho `apiKeyHelper`, `env` chọn Bedrock và khoá, file hỏng, phương thức xác thực khác. Sửa khẳng định cũ: lần chạy 1 KHÔNG được xác minh độc lập phương thức xác thực (xem dưới).
+3. **P2-1, điều kiện bắt buộc là ghi chú.** Bỏ hết nhánh `hard=False`; thiếu sản phẩm, thiếu sản phẩm để duyệt khi có tiêu chí duyệt, hash file khác hash khi đăng, không khép vòng theo kiểu mục tiêu đều là lỗi cứng, và pilot thoát mã 1. Gián đoạn tất định bằng nhịp tạm dừng ở A. Ý định gốc so TRÙNG KHỚP toàn bộ. Lưu khung công cụ, câu trả lời cuối, việc Kanban, phiên bản luật định tuyến.
+
+Trả lời ba câu hỏi của review: **giữ luật định tuyến hiện tại** và đổi kịch bản sang loại duy trì, nghiệm thu theo kiểu mục tiêu (maintain: met, `goal.maintained`, lịch xem lại, rồi tạm dừng); trần nay đủ cho mọi đường Resonance gọi engine trên cùng kho với cùng biến ở mỗi tiến trình, nhưng không phải trần request nội bộ SDK; lọc môi trường không tự đủ, nên có cổng xác thực và soát settings.
+
+## Lần chạy 1 (07/10/2026): bộ não không lập mục tiêu
+
+**Pilot dừng đúng điều kiện đã duyệt, không thử lại, không sửa lời giao việc.** Đây là một lần thử dừng ở bước định tuyến, không phải một vòng đầu-cuối thành công.
 
 | Mục | Giá trị |
 |---|---|
 | Commit | `c0ab3d66`, cây `server/` và `system/` sạch |
-| Người duyệt | Người dùng duyệt một lần chạy, tối đa 3 lượt gọi, engine và gói thuê bao hiện có |
-| Engine chính | `anthropic-cli` / `claude-opus-5-5` qua đăng nhập gói thuê bao; môi trường server đã lọc bỏ biến `CLAUDE*`, `ANTHROPIC*` của phiên chạy bộ chạy và mọi khoá nhà cung cấp |
-| Trần | 3 tổng; 1 lượt bộ não tính trước khi gửi; việc nền chặn trước lượt gọi ở server bằng `JAVIS_RESONANCE_CALL_CEILING=2`, truyền cho mọi tiến trình server |
-| Lượt gọi model đã dùng | **1** (lượt bộ não), 0 lượt việc nền |
+| Người duyệt | Người dùng duyệt một lần chạy, tối đa 3 lượt, engine và gói thuê bao hiện có |
+| Engine chính | `anthropic-cli` / `claude-opus-5-5`. **Phương thức xác thực thực dùng KHÔNG được xác minh độc lập ở lần này** (chưa có cổng `auth status` và soát settings). Môi trường server đã lọc biến `CLAUDE*`, `ANTHROPIC*` và khoá nhà cung cấp, nhưng như review chỉ ra, điều đó tự nó không chứng minh chỉ dùng gói thuê bao |
+| Trần | 3 tổng; 1 lượt bộ não tính trước khi gửi; việc nền chặn trước lượt gọi bằng `JAVIS_RESONANCE_CALL_CEILING=2` |
+| Lượt đã dùng | **1 lượt engine cấp host** (lượt bộ não; số request nội bộ không đo được), 0 lượt việc nền |
 | Thời gian | Lượt chat 29,9 giây; tổng 38,1 giây |
-| Bằng chứng | [`resonance-mvp-e2e-pilot.json`](resonance-mvp-e2e-pilot.json) (không đường dẫn cá nhân, id phiên chỉ lưu dạng hash) |
+| Bằng chứng | [`resonance-mvp-e2e-pilot.json`](resonance-mvp-e2e-pilot.json): tên công cụ và loại khung; không có nội dung việc Kanban hay câu trả lời (bộ chạy lúc đó chưa lưu, nay đã lưu). Nội dung nêu dưới đây đọc từ sandbox trước khi xoá, chưa được lưu thành bằng chứng kiểm độc lập được |
 
-**Bộ não đã làm gì:** gọi `ToolSearch` rồi `javis_task`, tạo một việc Kanban (trạng thái `triage`) "Lập ghi chú việc từ biên bản họp 03/10 vào Inbox/viec-tu-bien-ban.md", với ý định chi tiết: chỉ tạo đúng file đó, không đụng `Notes/ghi-chu-cu.md`, không ghi đè. Câu trả lời trong khung chat nói đúng sự thật: việc đã vào hàng đợi nhưng CHƯA chạy vì chế độ điều phối việc nền của brain đang tắt, muốn chạy thì bật "AI tự vận hành" trên trang Việc. Bộ não còn tự tính ngày cho hai hạn chỉ ghi thứ, đánh dấu cần xác nhận. Không có mục tiêu nào trong kho Resonance; không file nào được ghi vào brain; việc Kanban không chạy (điều phối tắt) nên không phát sinh lượt gọi nào khác.
+**Bộ não đã làm gì:** gọi `ToolSearch` rồi `javis_task`, tạo một việc Kanban (trạng thái `triage`) lập ghi chú `Inbox/viec-tu-bien-ban.md`, không đụng `Notes/ghi-chu-cu.md`, không ghi đè. Câu trả lời nói đúng: việc đã vào hàng đợi nhưng chưa chạy vì chế độ điều phối việc nền đang tắt. Không có mục tiêu, không file nào vào brain, không lượt gọi nào khác.
 
-**Đánh giá:** lựa chọn của bộ não ĐÚNG theo luật hiện hành. CLAUDE.md xếp "việc một lần người dùng giao, chạy nền hoặc cần duyệt" vào Kanban (`javis_task`), và mô tả tool `javis_goal` ghi rõ "Việc nền một lần: javis_task", dành `javis_goal` cho việc "duy trì, theo dõi, chờ sự kiện, làm tới khi đạt". Lời giao việc của kịch bản ("lo giúp mình một ghi chú... cứ làm ở nền, xong thì báo để mình xem lại rồi xác nhận") là một việc nền một lần có duyệt, tức thuộc nhóm Kanban. Nghĩa là **kịch bản chọn sai loại yêu cầu** để đo đường Resonance; lần chạy này không chứng minh được mà cũng không bác được việc bộ não dùng `javis_goal` đúng lúc.
+**Đánh giá:** lựa chọn đó khớp luật hiện hành (CLAUDE.md và mô tả `javis_goal` đều đưa việc nền một lần có duyệt sang Kanban); kịch bản lần 1 chọn sai loại yêu cầu. Lần chạy không chứng minh, cũng không bác, việc bộ não gọi `javis_goal` đúng lúc. Không biết bộ não có thấy `javis_goal` trong `ToolSearch` không (lần đó chưa lưu kết quả công cụ).
 
-**Điều lộ ra cho sản phẩm (cần người dùng quyết, không tự sửa):**
-1. Ranh giới Kanban và Resonance chồng nhau ở loại "làm một sản phẩm cụ thể rồi chờ người dùng duyệt". Resonance M3, M4 xây đúng vòng đó (làm, kiểm, chờ duyệt, báo), nhưng luật định tuyến hiện gửi loại này sang Kanban. Chưa rõ loại yêu cầu nào người dùng muốn đi đường Resonance.
-2. Khi Kanban tắt điều phối (mặc định ở brain mới), việc người dùng giao ở nền chỉ nằm chờ; bộ não nói đúng điều này, nhưng người dùng không có kết quả nếu không bật.
-
-**Giới hạn của chính bộ chạy:** không lưu nội dung kết quả của `ToolSearch`, nên không biết bộ não có thấy `javis_goal` trong danh sách công cụ khi chọn hay không (trace `runtime.db` cũng không có). Nên bổ sung trước lần chạy sau.
-
-**Điều kiện MVP thứ nhất vẫn CHƯA đạt.** Không chạy thêm. Lần chạy sau (nếu người dùng duyệt) cần: chọn lời giao việc thuộc đúng nhóm `javis_goal` theo luật hiện hành (ví dụ duy trì hay theo dõi có tiêu chí kiểm được), hoặc người dùng quyết định lại ranh giới Kanban và Resonance trước; và lưu kết quả `ToolSearch`.
+**Điều kiện MVP thứ nhất vẫn CHƯA đạt.**

@@ -649,6 +649,80 @@ check("vòng 2: chuỗi trùng đứng trước tin thật, thêm 320 tin sau: n
       k19 == [] and len(_real_reports(S19, key19)) == 1
       and not any(r["id"] == row19["id"] for r in store.outbox_pending(500)))
 
+# ───────────── Review e2e P1-1: trần chung tính cả bộ lập mục tiêu (POST /goal-requests) ─────────────
+import sqlite3 as _sq  # noqa: E402
+import threading  # noqa: E402
+
+
+def _total_calls():
+    c = _sq.connect(str(main._resonance_store().path))
+    v = int(c.execute("SELECT COALESCE(SUM(calls_used),0) FROM goals").fetchone()[0])
+    v += int(c.execute("SELECT COUNT(*) FROM call_ledger WHERE status='used'").fetchone()[0])
+    c.close()
+    return v
+
+
+class CountFramer(Framer):
+    def __init__(self, fail=False):
+        self.queries, self.fail = 0, fail
+
+    async def query(self, prompt):
+        self.queries += 1
+        if self.fail:
+            yield {"type": "error", "content": "framer lỗi mô phỏng"}
+            return
+        async for ev in Framer.query(self, prompt):
+            yield ev
+
+
+def _req(text, framer=None, blocked=False):
+    mid_x = main.get_store().append_message(SID, "user", text)
+    old = main._resonance_engine
+    main._resonance_engine = (lambda s_, t="resonance": (None, {"blocked": "chặn"})) if blocked else \
+        (lambda s_, t="resonance": (framer, {"provider": "fake", "text_only": True}))
+    try:
+        return api("post", "/goal-requests", json={"message_ref": R.message_ref(SID, mid_x)})
+    finally:
+        main._resonance_engine = old
+
+
+os.environ["JAVIS_RESONANCE_CALL_CEILING"] = "0"
+f0 = CountFramer()
+c0, _ = _req("Theo dõi giúp anh thư mục Inbox, gom ghi chú mới mỗi tuần (trần 0).", f0)
+check("e2e P1-1: trần 0 chặn bộ lập mục tiêu TRƯỚC khi gọi engine", c0 == 400 and f0.queries == 0)
+os.environ["JAVIS_RESONANCE_CALL_CEILING"] = str(_total_calls() + 1)
+f1, f2 = CountFramer(), CountFramer()
+c1, _ = _req("Theo dõi giúp anh thư mục Inbox, gom ghi chú mới mỗi tuần (lượt 1).", f1)
+c2, _ = _req("Theo dõi giúp anh thư mục Inbox, gom ghi chú mới mỗi tuần (lượt 2).", f2)
+check("e2e P1-1: trong trần gọi đúng một lần và được ghi vào sổ bền; lượt kế bị chặn trước khi gọi",
+      c1 == 200 and f1.queries == 1 and c2 == 400 and f2.queries == 0)
+main._RESONANCE_STORE = None          # mô phỏng khởi động lại: kho mở mới
+f3 = CountFramer()
+c3, _ = _req("Theo dõi giúp anh thư mục Inbox, gom ghi chú mới mỗi tuần (sau khởi động lại).", f3)
+check("e2e P1-1: mở lại kho vẫn chặn bộ lập mục tiêu", c3 == 400 and f3.queries == 0)
+os.environ["JAVIS_RESONANCE_CALL_CEILING"] = str(_total_calls() + 1)
+before = _total_calls()
+ff = CountFramer(fail=True)
+cf, _ = _req("Theo dõi giúp anh thư mục Inbox, gom ghi chú mới mỗi tuần (framer lỗi).", ff)
+check("e2e P1-1: framer đã gọi mà lỗi vẫn bị tính vào trần", cf == 400 and ff.queries == 1
+      and _total_calls() == before + 1)
+os.environ["JAVIS_RESONANCE_CALL_CEILING"] = str(_total_calls() + 1)
+before = _total_calls()
+cb, _ = _req("Theo dõi giúp anh thư mục Inbox, gom ghi chú mới mỗi tuần (engine bị chặn).", blocked=True)
+check("e2e P1-1: engine bị chặn trước khi gọi thì hoàn chỗ trong sổ", cb == 400 and _total_calls() == before)
+os.environ["JAVIS_RESONANCE_CALL_CEILING"] = str(_total_calls() + 1)
+_st = main._resonance_store()
+_got = []
+_ths = [threading.Thread(target=lambda: _got.append(_st.reserve_ledger_call(P, "framer", "dong-thoi")))
+        for _ in range(6)]
+for t_ in _ths:
+    t_.start()
+for t_ in _ths:
+    t_.join()
+check("e2e P1-1: sáu yêu cầu giữ chỗ đồng thời với trần còn một: đúng một qua",
+      len([x for x in _got if x is not None]) == 1)
+del os.environ["JAVIS_RESONANCE_CALL_CEILING"]
+
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)
     sys.exit(1)
