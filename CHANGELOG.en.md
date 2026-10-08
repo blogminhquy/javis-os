@@ -8,9 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.88.0] - 2026-10-08
+## [0.88.0] - 2026-10-09
 ### Improved
-- **Assistants wake only for a reason.** While waiting on you they sleep and make no model calls; every wake records why. (In progress.)
+- **Resonance assistants call the model only for a reason.** A new task, new feedback from you, or a retry still within its limit. While waiting on you they sleep; periodic reviews are code-only checks that back off to once a week.
+- **No pointless retries.** Two attempts in a row without progress pause retries until you give feedback; errors are retried at most 3 times; the last call is always kept for your feedback.
+- **Files you edit by hand are not overwritten or redone.** Javis tells you once and re-checks on its own; a paused goal still watches its protective conditions, and turning an assistant off says clearly that watching stopped.
+- **The goal card shows why the assistant woke up** and its recent wake-ups, with or without a model call.
 
 ## [0.87.0] - 2026-10-08
 ### Added

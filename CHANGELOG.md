@@ -6,9 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.88.0] - 2026-10-08
+## [0.88.0] - 2026-10-09
 ### Cải thiện
-- **Trợ lý chỉ thức khi có lý do.** Đang chờ anh thì ngủ, không gọi model vô ích; mỗi lần thức ghi rõ vì sao. (Đang làm.)
+- **Trợ lý Cộng hưởng chỉ gọi model khi có lý do.** Việc mới, góp ý mới của bạn, hay một lần thử lại còn trong giới hạn. Đang chờ bạn thì ngủ; lần xem lại định kỳ chỉ kiểm bằng code và giãn dần tới 7 ngày.
+- **Không thử lại vô ích.** Hai lượt liên tiếp không tiến thêm thì dừng và chờ góp ý; lỗi chỉ thử tối đa 3 lượt; lượt cuối luôn để dành cho lúc bạn góp ý.
+- **File bạn sửa tay không bị ghi đè hay làm lại.** Javis báo một lần rồi tự kiểm lại; tạm dừng mục tiêu vẫn theo dõi điều kiện bảo vệ, tắt trợ lý thì báo rõ đã ngừng theo dõi.
+- **Thẻ mục tiêu hiện vì sao trợ lý thức** và các lần thức gần đây, có gọi model hay không.
 
 ## [0.87.0] - 2026-10-08
 ### Thêm mới

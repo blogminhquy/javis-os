@@ -60,11 +60,22 @@
     var known = ["human_confirmation", "fit_rejected", "guard", "guard_unknown", "budget", "discovery_done",
                  "healthy", "scheduled", "feature_off", "engine_blocked",
                  // A1: cổng theo trợ lý
-                 "unassigned", "agent_off", "agent_missing", "agent_retired", "agent_changed", "agent_unknown"];
+                 "unassigned", "agent_off", "agent_missing", "agent_retired", "agent_changed", "agent_unknown",
+                 // A2: nhịp tim thích nghi
+                 "stalled", "source_drift", "handoff"];
     if (known.indexOf(r) >= 0) return "resonance.st_" + r;
     if (g.run_state === "running") return "resonance.st_running";
     if (g.run_state === "blocked") return "resonance.st_blocked";
     return "resonance.st_working";
+  }
+
+  /* Nhãn dịch được cho mã lý do thức (A2). Mã lạ hiện như lần xem lại định kỳ, không lộ mã thô. */
+  var WAKE_CODES = ["created", "revised", "assigned", "feedback", "user_schedule", "retry_not_met", "error_retry",
+                    "recovery", "handoff_wait", "handoff_done", "resumed", "agent_enabled", "agent_recheck",
+                    "agent_changed", "guard_recheck", "review", "deadline", "drift_recheck", "guard_observe"];
+
+  function wakeLabel(code) {
+    return tw("resonance.wake." + (WAKE_CODES.indexOf(code) >= 0 ? code : "review"));
   }
 
   function verdictKey(v) {
@@ -121,7 +132,18 @@
     }
     if (g.next_wake && active && !g.paused) {
       h += '<div class="rs-line rs-muted">' + esc(tw("resonance.next_wake", { at: fmtTime(g.next_wake.at) })) +
-        (g.next_wake.reason ? " (" + esc(g.next_wake.reason) + ")" : "") + "</div>";
+        " (" + esc(wakeLabel(g.next_wake.code)) + ")</div>";
+    }
+    // A2: file bị sửa ngoài Javis, và trạng thái theo dõi điều kiện bảo vệ (không hiện như đang an toàn khi đã ngừng).
+    if (active && g.source_drift) {
+      h += '<div class="rs-warn">' + esc(tw("resonance.drift", { path: g.source_drift.path || "",
+        at: g.next_wake ? fmtTime(g.next_wake.at) : "" })) + "</div>";
+    }
+    if (active && g.observe && g.observe.state === "lost") {
+      h += '<div class="rs-warn">' + esc(tw("resonance.observe_lost")) + "</div>";
+    } else if (active && g.observe && g.observe.state === "on" && g.observe.next_at) {
+      h += '<div class="rs-line rs-muted">' + esc(tw("resonance.observe_on", { at: fmtTime(g.observe.next_at) })) +
+        "</div>";
     }
     h += '<div class="rs-line rs-muted">' + esc(tw("resonance.budget", { used: g.calls_used || 0,
       total: g.budget_calls || 0 })) + "</div>";
@@ -145,8 +167,15 @@
       return "<li>" + esc(fmtTime(x.at)) + " " + esc(x.kind === "publish" ? tw("resonance.kind_publish") : tw("resonance.kind_work")) +
         ": " + esc(x.status) + (x.error_code ? " (" + esc(x.error_code) + ")" : "") + "</li>";
     }).join("");
+    var wk = (g.wakes_recent || []).slice().reverse().map(function (x) {
+      var codes = (x.codes || []).length ? x.codes : [x.kind === "observe" ? "guard_observe" : "review"];
+      return "<li>" + esc(fmtTime(x.at)) + " · " + esc(wakeLabel(codes[0])) + " · " +
+        esc(tw(x.model_calls ? "resonance.wake_model" : "resonance.wake_no_model")) + "</li>";
+    }).join("");
     h += '<details class="rs-details"><summary>' + esc(tw("resonance.details", { rev: g.revision || 0 })) +
-      "</summary>" + (tl ? '<ul class="rs-list rs-timeline">' + tl + "</ul>" : "") + "</details>";
+      "</summary>" + (tl ? '<ul class="rs-list rs-timeline">' + tl + "</ul>" : "") +
+      (wk ? '<div class="rs-label">' + esc(tw("resonance.wakes_recent")) + '</div><ul class="rs-list rs-wakes">' +
+        wk + "</ul>" : "") + "</details>";
     if (note) h += '<div class="rs-note">' + esc(note) + "</div>";
     return h;
   }
@@ -276,7 +305,7 @@
 
   /* Công tắc theo BRAIN cũ đã bỏ (A1): công tắc nay theo từng trợ lý, ở resonance-agent.js. */
 
-  var api = { tach: tach, viewHtml: viewHtml, compactHtml: compactHtml, requestFor: requestFor, stateKey: stateKey,
+  var api = { tach: tach, viewHtml: viewHtml, compactHtml: compactHtml, requestFor: requestFor, stateKey: stateKey, wakeLabel: wakeLabel,
     ve: ve, render: render };
   if (typeof window !== "undefined") window.JavisResonance = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
