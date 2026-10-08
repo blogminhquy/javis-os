@@ -1,6 +1,6 @@
 # Pilot đầu-cuối Resonance MVP qua đường chat thật: kịch bản và hạn mức
 
-**Trạng thái: đã chạy HAI lần theo hạn mức người dùng duyệt (07/10/2026). Cả hai lần bộ não KHÔNG lập mục tiêu (lần 1 chọn `javis_task`, lần 2 tự làm luôn trong lượt). Điều kiện MVP thứ nhất CHƯA đạt. Không chạy thêm khi người dùng chưa quyết hướng tiếp theo.**
+**Trạng thái (08/10/2026): pilot lần 5 đạt kỹ thuật và nội dung trong phạm vi kịch bản; chờ kiểm tích hợp trên `main` trước khi phát hành.** Lần 1 và 2 bộ não không lập mục tiêu; lần 3 dừng ở S2 (xung đột đăng file, đã sửa bằng bàn giao); lần 4 hỏng vì làm mới token đăng nhập (đã sửa phân loại); lần 5 đi hết vòng. Chi tiết từng lần ở dưới.
 
 ## Mục đích
 
@@ -453,4 +453,27 @@ Kết quả:
 - Lần này bộ não tự viết cả hai bản nên đường việc nền sửa bản bằng model thật KHÔNG được dùng; đường đó đã có bằng chứng riêng ở pilot M3 và ở test engine giả.
 - Xác nhận cuối là mô phỏng.
 - Điều kiện MVP thứ nhất chỉ chốt sau khi người review duyệt nội dung hai bản.
+
+## Nghiệm thu nội dung lần 5 (hậu kiểm, 08/10/2026)
+
+Biên bản review: `exports/reviews/PR-579-pilot5-content-review.md` (ngoài git). JSON gốc `resonance-mvp-e2e-pilot-5.json` giữ nguyên `acceptance: pending_content_review` đúng như lúc chạy; mục này là kết luận hậu kiểm, không ghi đè lịch sử.
+
+**Kết luận: đạt nội dung.** Người review đọc hai bản, đối chiếu lời giao và góp ý, tính lại hash:
+
+| Bản | File | SHA-256 | Revision | Kết quả |
+|---|---|---|---|---|
+| Bản đầu | `resonance-mvp-e2e-pilot-5-draft1.md` | `8045014ba3c29514a387b1deb36f4b4c100aa9dd53a509545f1b1554fedfd23d` | 1 | Đạt 4/4 mục checklist |
+| Bản sửa | `resonance-mvp-e2e-pilot-5-draft2.md` | `b160e8ffe7d25a39e1cca1c115cb088ea9f8d662bfe7abd292c0851e2e53d762` | 2 | Đạt 3/3 mục checklist |
+
+- 29/29 kiểm tính nhất quán của bằng chứng đạt; 43 kiểm đã ghi trong báo cáo pilot đều đúng.
+- Người review không gọi model.
+- Số học của ví dụ đúng: 10 + 5 + 8 = 23 trên phiếu, đếm được 22, dòng 3 đủ số nhưng sai mã. Ví dụ ghi rõ là số liệu minh hoạ.
+
+**Phạm vi:**
+- Một mẫu thực tế đi hết vòng, chưa phải thống kê độ ổn định định tuyến.
+- Cả hai bản do Opus viết trong lượt chat và được host tiếp nhận. 0 lượt Sonnet nghĩa là không viết lại vô ích trong ca này, không phải bằng chứng đường việc nền sửa bản đã chạy ở lần 5.
+- Xác nhận cuối là mô phỏng qua API.
+- Nội dung đạt cho dữ liệu mô phỏng và checklist đã duyệt, chưa phải nghiệm thu một quy trình kho đang vận hành.
+
+**Góp ý chất lượng ngoài checklist (không chặn, không sửa bằng chứng):** vài câu tuyệt đối quá ("Đã ký là coi như mình đồng ý đủ hàng", "không ghi coi như không có", "Ảnh là bằng chứng ... không phải do kho làm hỏng"). Khi dùng làm tài liệu vận hành nên viết theo tác dụng thực tế: ký trước khi kiểm làm khó đối chiếu thiếu hay hỏng; ảnh giúp ghi nhận tình trạng lúc giao. Hai file đã hash giữ nguyên.
 
