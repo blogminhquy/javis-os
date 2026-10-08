@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.88.0] - 2026-10-08
+### Cải thiện
+- **Trợ lý chỉ thức khi có lý do.** Đang chờ anh thì ngủ, không gọi model vô ích; mỗi lần thức ghi rõ vì sao. (Đang làm.)
+
 ## [0.87.0] - 2026-10-08
 ### Thêm mới
 - **Cộng hưởng theo từng trợ lý.** Mỗi trợ lý có công tắc riêng ở trang Cộng sự. Chỉ trợ lý đã bật mới tự lập và theo đuổi mục tiêu; trò chuyện thường không tự sinh mục tiêu. Cột phải của trợ lý hiện các mục tiêu nó đang theo đuổi.

@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.88.0] - 2026-10-08
+### Improved
+- **Assistants wake only for a reason.** While waiting on you they sleep and make no model calls; every wake records why. (In progress.)
+
 ## [0.87.0] - 2026-10-08
 ### Added
 - **Resonance per assistant.** Each assistant has its own switch on the Team page. Only an assistant with it on sets and pursues goals; regular chat no longer creates goals. The assistant's right panel lists the goals it is pursuing.
