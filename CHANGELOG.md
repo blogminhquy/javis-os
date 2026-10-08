@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.85.9] - 2026-10-08
+### Sửa lỗi
+- **Nút Cập nhật ngay trên bản Docker chờ đến khi bản mới lên rồi tự tải lại trang.** Đang giữ chỗ số phiên bản.
+
 ## [0.85.8] - 2026-10-08
 ### Thêm mới
 - **Plugin biết ai đang nói trong lượt gọi công cụ.** Hook `pre_tool_call` và `post_tool_call` nhận thêm khoá `turn` (kênh, người gửi, nhóm hay chat riêng, có phải chủ không), nên một plugin bọc ứng dụng có phân quyền theo từng nhân viên có thể chạy công cụ đúng quyền của người đang nhắn cho bot. Danh tính lấy từ tin nhắn thật chứ không từ chữ model viết, và bot không bao giờ được coi là chủ. (Đóng góp của @nnbaonam96.)
