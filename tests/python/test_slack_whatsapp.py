@@ -128,13 +128,13 @@ def read_settings():
     return json.loads(json.dumps(settings))
 
 
-def write_settings(patch):
+def update_settings(patch):
     for k, v in patch.items():
         settings.setdefault(k, {}).update(v)
 
 
 for ch in owner_channels.ALL:
-    ch.wire(read_settings=read_settings, write_settings=write_settings)
+    ch.wire(read_settings=read_settings, update_settings=update_settings)
 
 S = owner_channels.SLACK
 r = S.precheck("hello", {"user_id": "U0STRANGER", "chat_id": "D1", "user_name": "Kim"})
@@ -204,9 +204,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 client = TestClient(main.app, base_url="http://localhost")
 orig_rs = main.cfgmod.read_settings
-orig_ws = main.cfgmod.write_settings
+orig_us = main.cfgmod.update_settings
 main.cfgmod.read_settings = read_settings
-main.cfgmod.write_settings = write_settings
+main.cfgmod.update_settings = update_settings
 settings["whatsapp"]["verify_token"] = "vt-123"
 try:
     r = client.get("/whatsapp/webhook", params={"hub.mode": "subscribe", "hub.verify_token": "vt-123",
@@ -228,7 +228,7 @@ try:
           d.get("webhook_url", "").endswith("/whatsapp/webhook") and d.get("verify_token") == "vt-123", d)
 finally:
     main.cfgmod.read_settings = orig_rs
-    main.cfgmod.write_settings = orig_ws
+    main.cfgmod.update_settings = orig_us
 
 
 # ============================================================
@@ -367,8 +367,8 @@ import config as cfgmod  # noqa: E402
 # Back to the real (temp-dir) settings: saving restarts the channel, and with the fake settings
 # above it would be "enabled" and try to reach Slack. The real ones stay disabled.
 for ch in owner_channels.ALL:
-    ch.wire(read_settings=cfgmod.read_settings, write_settings=cfgmod.write_settings)
-cfgmod.write_settings({"slack": {"bot_token": "xoxb-real-1234", "app_token": "xapp-real-5678"}})
+    ch.wire(read_settings=cfgmod.read_settings, update_settings=cfgmod.update_settings)
+cfgmod.update_settings({"slack": {"bot_token": "xoxb-real-1234", "app_token": "xapp-real-5678"}})
 r = client.post("/settings", data={"section": "slack", "data": json.dumps(
     {"enabled": False, "allow": "U1, U2", "bot_token": "", "app_token": "••••5678"})})
 c = cfgmod.read_settings().get("slack", {})

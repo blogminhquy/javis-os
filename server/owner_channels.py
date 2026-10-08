@@ -58,7 +58,7 @@ class OwnerChannel:
 
     # ---- wiring -----------------------------------------------------------------------
     def wire(self, **deps):
-        """answer, command, stt, brain_root_for, read_settings, write_settings."""
+        """answer, command, stt, brain_root_for, read_settings, update_settings."""
         self.deps.update(deps)
 
     def idl(self) -> str:
@@ -186,11 +186,13 @@ class OwnerChannel:
             ids = self.allowed()
             if who not in ids:
                 ids.append(who)
-            ws = self.deps.get("write_settings")
-            if ws is None:
+            # Cập nhật TỪNG PHẦN. Trước 0.86.2 chỗ này đưa đúng mảnh này cho write_settings, mà hàm
+            # đó thay cả file: cho phép một người là mất sạch tên miền, mật khẩu, khoá API.
+            up = self.deps.get("update_settings")
+            if up is None:
                 import config
-                ws = config.write_settings
-            ws({self.key: {"allow": ", ".join(ids)}})
+                up = config.update_settings
+            up({self.key: {"allow": ", ".join(ids)}})
         self.queue.pop(who, None)
         return self.allowed()
 

@@ -11635,7 +11635,7 @@ async def _start_scheduler():
         try:
             _oc.wire(answer=_tg_answer, command=_tg_command, stt=_stt_nghe,
                      brain_root_for=lambda key: _brain_root(_tg_brain(key)),
-                     read_settings=cfgmod.read_settings, write_settings=cfgmod.write_settings)
+                     read_settings=cfgmod.read_settings, update_settings=cfgmod.update_settings)
             _oc.restart()   # Slack / WhatsApp control channel, if configured
         except Exception as e:
             print(f"[{_oc.key} start] {type(e).__name__}: {e}", file=__import__('sys').stderr)
@@ -20388,7 +20388,7 @@ async def zalo_bot_allow(chat_id: str = Form(...), on: str = Form("1")):
         ids = tg_parse_ids(z.get("chat_id"))
         if cid not in ids:
             ids.append(cid)
-        cfgmod.write_settings({"zalo_bot": {"chat_id": ", ".join(ids)}})
+        cfgmod.update_settings({"zalo_bot": {"chat_id": ", ".join(ids)}})
     # Ra khỏi hàng chờ dù chủ chọn gì: cho phép rồi thì hết chờ, mà bấm bỏ qua cũng là đã quyết.
     _ZALO_CHO.pop(cid, None)
     z = cfgmod.read_settings().get("zalo_bot", {})
@@ -20435,7 +20435,7 @@ def _wa_verify_token() -> str:
     tok = str(w.get("verify_token") or "").strip()
     if not tok:
         tok = secrets.token_urlsafe(24)
-        cfgmod.write_settings({"whatsapp": {"verify_token": tok}})
+        cfgmod.update_settings({"whatsapp": {"verify_token": tok}})
     return tok
 
 
