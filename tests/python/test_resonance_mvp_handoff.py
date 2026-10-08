@@ -102,6 +102,9 @@ namespace = dict(asyncio=asyncio, sys=sys, time=time, uuid=uuid, voice_brain=pro
                                                         start_turn=lambda *a: None),
                  luot_dang_chay=luot_dang_chay, WEB_CHAT_PREFIX="web:", _brain_root=lambda b: b,
                  _do_turn=fake_do_turn, _resonance_after_turn=lambda *a: None,
+                 # Kết cục engine gửi kèm turn_done (pilot lần 4): test riêng ở test_turn_engine_status.
+                 _engine_outcome_reset=lambda *a: None, _engine_outcome_exception=lambda *a: None,
+                 _engine_outcome_pop=lambda *a: {},
                  _record_quality_shadow=lambda *a: None, tien_trinh_nen=types.SimpleNamespace(bo_tag=lambda *a: None))
 _tree = ast.parse((SERVER / "main.py").read_text(encoding="utf-8"))
 _nodes = [next(n for n in ast.walk(_tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == name)

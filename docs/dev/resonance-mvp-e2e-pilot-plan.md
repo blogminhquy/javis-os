@@ -343,3 +343,40 @@ Tách hai kết luận (review pilot lần 3): **tự định tuyến từ chat 
   - lượt đó không được tính là "bộ não không lập mục tiêu".
 
 **Không thử lại** theo luật duyệt. Một lần chạy mới cần người dùng duyệt riêng.
+
+### Sửa sau lần chạy 4 (theo `PR-579-pilot4-next-steps.md`, chưa gọi model)
+
+**Trạng thái engine có cấu trúc, đi kèm `turn_done`.** `turn_done` chỉ nói lượt đã kết thúc. Lần 4 không có khung `error`: câu lỗi đi ra như câu trả lời thường. Vì vậy không dựa vào khung `error` hay quét chữ.
+- **Mapper SDK** (`claude_sdk_engine.map_message`): `final` mang `is_error`, `subtype`, và cờ `auth_refresh_race`. Cờ này lấy từ bộ nhận dạng hẹp `claude_token_gate.la_loi_tranh_lam_moi`, nay nhận thêm ĐÚNG cụm đầu câu "Failed to refresh OAuth token: another Claude Code process is refreshing". Câu có chữ OAuth hay refresh trơn không bị nhận.
+- **`main.py`:** `_engine_outcome_*` ghi kết cục engine theo phiên.
+  - `final` lỗi hoặc có cờ đua token: `error`.
+  - Có khung `error` (trừ mất mạch đã mồi lại): `error`.
+  - Ngoại lệ: `error`.
+  - Không có `final` (hết giờ, bị huỷ, nhánh engine chưa báo): `unknown`.
+  - `run_turn` gửi kèm `turn_done` thành `engine_status` và `engine_error`.
+  - Dashboard bỏ qua trường lạ, nên không đổi giao diện.
+- **Thay đổi người dùng thấy:** câu đua token mới giờ được thay bằng câu "phiên không mất, gửi lại là chạy tiếp", như với câu cũ, thay vì hiện nguyên tiếng Anh.
+
+**Bộ chạy:**
+- `H.chat_turn` chỉ tính lượt là đã chạy khi `engine_status == "ok"`.
+  - Lỗi, không rõ kết cục, hay thiếu trường: ghi lỗi KỸ THUẬT, đóng cổng, không gửi lại, không đánh giá định tuyến.
+  - Lượt vẫn tính vào sổ với nhãn `engine_*`.
+  - Trace của lượt hỏng vẫn vào báo cáo.
+- Chỉ lượt engine thành công mà không lập mục tiêu mới ra `stopped`.
+- Ngay trước mỗi lần gửi tin, `token_ready` kiểm token còn ít nhất 600 giây. Hàm chỉ đọc `expiresAt` qua `claude_token_gate.han_token`. Không đủ hạn hay không đọc được thì dừng ở cổng, không giữ chỗ. Đây là giảm rủi ro, không bảo đảm hết xung đột.
+
+**Test:**
+- `test_turn_engine_status.py` (18 kiểm):
+  - bộ nhận dạng hẹp;
+  - mapper SDK thật với `ResultMessage` lỗi đăng nhập, có và không có `is_error`;
+  - kết cục engine: lỗi có chữ, khung `error`, mất mạch đã mồi lại, ngoại lệ, không có `final`, đối chứng thành công;
+  - đường nối trong `run_turn` và nhánh Claude.
+- `test_resonance_e2e_achieve_harness.py`:
+  - ba ca lỗi của lần 4: lỗi có chữ rồi `turn_done`, không rõ kết cục, thiếu trường. Mỗi ca dừng ở cổng, ghi lỗi kỹ thuật, tính lượt, giữ trace, không mở giai đoạn sau;
+  - đối chứng `ok`;
+  - soát nguồn: kiểm token nằm trước `H.chat_turn`.
+
+**Chạy pilot sau:**
+- Dừng các phiên Claude Code dùng chung đăng nhập để chúng không gọi model trong cửa sổ pilot, và chạy bộ chạy từ terminal độc lập.
+- Sổ lần 4 giữ nguyên 1 lượt chat đã gửi. Lần mới xin trần mới tối đa 4 lượt bổ sung (2 Opus và 2 Sonnet).
+- Nếu lỗi đăng nhập lặp lại dù đã chạy riêng: dừng để điều tra đường xác thực, không chạy tiếp.

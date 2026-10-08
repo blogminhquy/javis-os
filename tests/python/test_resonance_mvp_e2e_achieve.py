@@ -298,7 +298,7 @@ async def ws_hello():
 
 async def _ws_chat(message, session_id=None, timeout=900):
     import websockets
-    frames, tools, answer, sid = [], [], [], session_id
+    frames, tools, answer, sid, done = [], [], [], session_id, {}
     async with websockets.connect(f"ws://127.0.0.1:{PORT}/ws", origin=ORIGIN, max_size=None) as ws:
         await asyncio.wait_for(ws.recv(), 20)
         payload = {"message": message, "brain": "brain"}
@@ -317,18 +317,49 @@ async def _ws_chat(message, session_id=None, timeout=900):
             if t in ("response", "stream", "text") and o.get("content"):
                 answer.append(str(o.get("content")))
             if t == "turn_done":
+                done = {"engine_status": o.get("engine_status"), "engine_error": o.get("engine_error")}
                 break
-    return sid, frames, tools, "".join(answer)[-6000:]
+    return sid, frames, tools, "".join(answer)[-6000:], done
+
+
+TOKEN_MIN_S = 600
+
+
+def token_ready(label):
+    """Kiểm NGAY TRƯỚC khi gửi (pilot lần 4): token đăng nhập Claude còn đủ hạn cho lượt này, để lượt không phải làm
+    mới token giữa chừng (lúc đó dễ đụng một tiến trình Claude Code khác cũng đang làm mới). Chỉ đọc trường expiresAt qua
+    claude_token_gate.han_token, không đọc hay ghi token. Còn dưới TOKEN_MIN_S hay không đọc được hạn: ghi lỗi kỹ thuật,
+    cổng chi phí đóng, lượt KHÔNG được gửi và không giữ chỗ trong sổ. Đây là giảm rủi ro, không bảo đảm hết xung đột."""
+    if MODE != "real":
+        return True
+    sys.path.insert(0, str(Path(ROOT) / "server"))
+    import claude_token_gate
+    exp = claude_token_gate.han_token()
+    left = round(exp - time.time()) if exp else None
+    rep["stages"].setdefault("token_check", {})[label] = left
+    return check(f"{label} token đăng nhập còn ít nhất {TOKEN_MIN_S} giây trước khi gửi (còn {left})",
+                 left is not None and left >= TOKEN_MIN_S)
 
 
 def chat_turn(label, message, session_id=None):
     """MỘT lượt chat qua cổng chi phí và sổ lượt (H.chat_turn): giữ chỗ trước khi gửi, lỗi hay hết giờ vẫn tính."""
+    token_ready(label)              # hỏng thì H.chat_turn dừng ở cổng, trước khi giữ chỗ hay gửi
     before = G.snapshot_files(BRAIN)
     t0 = time.time()
-    (sid_, frames, tools, answer), status = H.chat_turn(CHECKS, TURNS, label,
-                                                         lambda: asyncio.run(_ws_chat(message, session_id)))
+    try:
+        (sid_, frames, tools, answer, done), status = H.chat_turn(CHECKS, TURNS, label,
+                                                             lambda: asyncio.run(_ws_chat(message, session_id)))
+    except H.GateClosed as e:
+        # Lượt hỏng vẫn để lại trace trong báo cáo (khung, công cụ, câu trả lời, trạng thái engine) trước khi dừng.
+        res = getattr(e, "result", None)
+        if res is not None:
+            rep["stages"][label] = {"seconds": round(time.time() - t0, 1), "turn_done": res[4],
+                                    "frames": {k: res[1].count(k) for k in sorted(set(f for f in res[1] if f))},
+                                    "tool_frames": res[2], "final_answer": res[3],
+                                    "files_written": G.snapshot_diff(before, G.snapshot_files(BRAIN))}
+        raise
     after = G.snapshot_files(BRAIN)
-    return sid_, {"seconds": round(time.time() - t0, 1), "ledger_status": status,
+    return sid_, {"seconds": round(time.time() - t0, 1), "ledger_status": status, "turn_done": done,
                   "frames": {k: frames.count(k) for k in sorted(set(f for f in frames if f))},
                   "completed": status == "done",
                   "tool_frames": tools, "search_calls": G.search_calls(tools),

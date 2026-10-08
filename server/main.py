@@ -2067,6 +2067,53 @@ def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
         return None
 
 
+# Kết cục ENGINE của từng lượt chat, theo phiên (pilot Resonance lần 4): `turn_done` chỉ nói lượt đã kết thúc, không nói
+# engine chạy thành công. Lỗi đăng nhập của Claude Code từng đi ra như một câu trả lời thường rồi `turn_done`, nên bộ chạy
+# pilot tưởng bộ não đã chạy mà không lập mục tiêu. Nay engine báo trạng thái có cấu trúc, gửi kèm `turn_done` thành
+# `engine_status`: "ok" | "error" | "unknown" (không có kết thúc nào của engine: hết giờ, bị huỷ, nhánh engine chưa báo).
+_TURN_ENGINE: dict = {}
+
+
+def _engine_outcome_reset(conv_sid) -> None:
+    _TURN_ENGINE[str(conv_sid)] = {"final": None, "errors": [], "exception": ""}
+
+
+def _engine_outcome_note(conv_sid, event) -> None:
+    """Ghi một sự kiện của engine. `final` mang is_error/subtype/cờ đua token; `error` (trừ lỗi mất mạch đã được mồi lại
+    ngay trong lượt) là lỗi. `final` sau cùng quyết định kết cục; lỗi không phải mất mạch thì giữ là lỗi."""
+    st = _TURN_ENGINE.get(str(conv_sid))
+    if st is None or not isinstance(event, dict):
+        return
+    et = event.get("type")
+    if et == "final":
+        st["final"] = {"is_error": bool(event.get("is_error")), "subtype": str(event.get("subtype") or ""),
+                       "auth_refresh_race": bool(event.get("auth_refresh_race") or event.get("dua_token"))}
+    elif et == "error" and not event.get("resume_failed"):
+        st["errors"].append(str(event.get("content") or "")[:200])
+
+
+def _engine_outcome_exception(conv_sid, e) -> None:
+    st = _TURN_ENGINE.get(str(conv_sid))
+    if st is not None:
+        st["exception"] = type(e).__name__
+
+
+def _engine_outcome_pop(conv_sid) -> dict:
+    """{"engine_status", "engine_error"} cho khung turn_done, rồi xoá trạng thái của lượt."""
+    st = _TURN_ENGINE.pop(str(conv_sid), None) or {"final": None, "errors": [], "exception": ""}
+    f = st.get("final")
+    if st.get("exception"):
+        return {"engine_status": "error", "engine_error": {"source": "exception", "kind": st["exception"]}}
+    if st.get("errors"):
+        return {"engine_status": "error", "engine_error": {"source": "error_event", "detail": st["errors"][-1]}}
+    if f is None:
+        return {"engine_status": "unknown", "engine_error": {"source": "no_final"}}
+    if f["is_error"] or f["auth_refresh_race"]:
+        return {"engine_status": "error", "engine_error": {"source": "final", "subtype": f["subtype"],
+                                                          "auth_refresh_race": f["auth_refresh_race"]}}
+    return {"engine_status": "ok", "engine_error": None}
+
+
 def _resonance_note_write(conv_sid, user_mid, brain, ev) -> None:
     """Đưa một sự kiện công cụ của lượt chat (engine Claude Code: lời gọi và kết quả, có id) vào sổ biên nhận ghi, để
     bàn giao cuối lượt tiếp nhận được bản bộ não viết. Chỉ brain bật Resonance; lỗi không làm hỏng lượt chat."""
@@ -14743,6 +14790,8 @@ async def websocket_endpoint(ws: WebSocket):
                         etype = event["type"]
                         if etype in ("tool_call", "tool_result"):
                             _resonance_note_write(conv_sid, user_mid, brain, event)
+                        elif etype in ("final", "error"):
+                            _engine_outcome_note(conv_sid, event)
                         if etype == "tool_call":
                             await ws.send_text(json.dumps({"type": "tool_call", "tool": event["name"], "detail": tool_label.chi_tiet(event),
                                                            "content": localefmt.chu(f"⚙ Đang gọi: {event['name']}",
@@ -14943,6 +14992,7 @@ async def websocket_endpoint(ws: WebSocket):
             _t0_luot = time.time()
             _khoa_luot = luot_dang_chay.bat_dau(f"{WEB_CHAT_PREFIX}{conv_sid}", _brain_root(brain),
                                                 msg_id=user_mid, user_text=user_text)
+            _engine_outcome_reset(conv_sid)
             try:
                 final_text = await _do_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
@@ -14971,6 +15021,7 @@ async def websocket_endpoint(ws: WebSocket):
                                 "session_id": conv_sid,
                                 **context_runtime.event_fields(runtime_trace)})
             except Exception as e:
+                _engine_outcome_exception(conv_sid, e)
                 _CONTEXT_RUNTIME.note_error(runtime_trace, type(e).__name__)
                 _CONTEXT_RUNTIME.finish(runtime_trace, "FAILED", type(e).__name__)
                 await send_raw({"type": "error", "content": localefmt.chu(f"Lỗi xử lý: {type(e).__name__}: {e}",
@@ -14981,7 +15032,7 @@ async def websocket_endpoint(ws: WebSocket):
                 tien_trinh_nen.bo_tag(turn_tag)   # lượt lỗi/bị dừng không tới bước nhận nuôi
                 context_runtime.reset_trace(_trace_token)
                 await send_raw({"type": "turn_done", "session_id": conv_sid,
-                                **context_runtime.event_fields(runtime_trace)})
+                                **context_runtime.event_fields(runtime_trace), **_engine_outcome_pop(conv_sid)})
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
 
         async def run_workflow_turn(conv_sid, user_message, brain, turn_tag, runtime_trace, slug,

@@ -278,6 +278,14 @@ def la_loi_mat_mach(msg) -> bool:
         return False
 
 
+def _la_dua_token(text: str) -> bool:
+    try:
+        import claude_token_gate
+        return bool(claude_token_gate.la_loi_tranh_lam_moi(text))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def map_message(msg):
     """Map 1 message SDK → (list event dict 'hợp đồng ClaudeCLI', session_id|None).
     PURE - test offline được, không cần CLI/auth."""
@@ -379,6 +387,9 @@ def map_message(msg):
             # Thêm khoá, không đổi hành vi của nơi gọi cũ.
             "is_error": bool(msg.is_error),
             "subtype": msg.subtype,
+            # Lượt kết thúc vì cuộc đua làm mới token (nhận dạng hẹp, xem claude_token_gate.la_loi_tranh_lam_moi):
+            # không phải câu trả lời của model, kể cả khi CLI không cắm is_error (pilot Resonance lần 4).
+            "auth_refresh_race": _la_dua_token(msg.result or ""),
             "session_id": None if resume_failed else msg.session_id,
             "cost_usd": msg.total_cost_usd,
             "duration_ms": msg.duration_ms,

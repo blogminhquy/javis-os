@@ -105,7 +105,11 @@ class Server:
 
 def chat_turn(checks, ledger, label, send):
     """MỘT lượt chat: qua cổng chi phí, rồi giữ chỗ trong sổ TRƯỚC khi gửi. Lỗi hay hết giờ vẫn tính, không thử lại.
-    `send()` trả (session_id, frames, tools, answer). Trả (kết quả của send, trạng thái đã ghi vào sổ)."""
+    `send()` trả (session_id, frames, tools, answer, turn_done) với turn_done là khung kết thúc lượt (có `engine_status`).
+
+    `turn_done` chỉ nói lượt đã KẾT THÚC (pilot lần 4: lỗi đăng nhập đi ra như câu trả lời thường rồi turn_done). Engine
+    phải báo `engine_status == "ok"` thì lượt mới được tính là bộ não đã chạy và mới được đánh giá định tuyến. Lỗi engine,
+    không rõ kết cục, hay thiếu trường: ghi lỗi KỸ THUẬT, đóng cổng, không gửi lại. Trả (kết quả của send, trạng thái sổ)."""
     checks.require(f"gửi tin chat {label}")
     if not ledger.reserve(label):
         raise GateClosed(f"{label}: hết lượt chat đã duyệt ({ledger.used()}/{ledger.limit}), không gửi")
@@ -115,8 +119,19 @@ def chat_turn(checks, ledger, label, send):
         ledger.settle(label, f"error:{type(e).__name__}")
         raise GateClosed(f"{label}: lượt chat lỗi ({type(e).__name__}); đã tính vào hạn mức, không thử lại")
     frames = res[1] or []
+    done = (res[4] if len(res) > 4 else None) or {}
     status = "done" if frames and frames[-1] == "turn_done" else "incomplete"
+    eng = done.get("engine_status")
+    if status == "done" and eng != "ok":
+        status = f"engine_{eng or 'missing'}"
     ledger.settle(label, status)
+    if status != "done":
+        checks.check(f"{label} engine chạy thành công (engine_status={eng!r}, {done.get('engine_error')!r}); "
+                     "turn_done một mình không chứng minh bộ não đã chạy", False)
+        exc = GateClosed(f"{label}: lượt chat kết thúc mà engine không chạy thành công ({status}); lỗi kỹ thuật, "
+                         "không đánh giá định tuyến, không gửi lại")
+        exc.result = res          # bộ chạy vẫn ghi trace của lượt hỏng vào báo cáo
+        raise exc
     return res, status
 
 

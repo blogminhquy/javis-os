@@ -84,7 +84,11 @@ def la_loi_tranh_lam_moi(text: str) -> bool:
     câu đó cũng là câu của phiên hết hạn THẬT (vụ Claude 27/07), mà bắt nhầm ca đó thành
     "chạy lại là được" là giấu mất một lỗi người dùng buộc phải xử lý.
     """
-    return "already used" in (text or "").lower()
+    low = (text or "").lower()
+    # Claude Code bản mới báo cuộc đua bằng câu khác (pilot Resonance lần 4, 08/10/2026): "Failed to refresh OAuth token:
+    # another Claude Code process is refreshing it or exited mid-refresh". Nhận ĐÚNG cụm đầu câu đó, không nhận chữ
+    # "OAuth" hay "refresh" trơn.
+    return "already used" in low or "failed to refresh oauth token: another claude code process is refreshing" in low
 
 
 def con_dang_nhap() -> bool:

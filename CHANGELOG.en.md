@@ -12,6 +12,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ### Improved
 - **Resonance: try a new method before switching.** Javis compares the current way of working with one alternative on the same set of cases and the same yardstick, and switches only when the new one clearly wins; without enough evidence it keeps the current method. The feature ships turned off.
 - **Resonance: a clearer line for handing off work.** With the feature on, a job that runs once and is done still goes to the Work page, while a job that needs doing, checking and revising on your feedback across several turns is kept as a goal. Javis on Claude Code is pointed to the right place to find the goal tool. A draft Javis writes during the chat turn is kept as the goal's first version instead of being rewritten. Brains without the feature see no change.
+- **A chat turn that lands while Claude Code is refreshing its sign-in now says it can simply be resent.** Newer Claude Code reports this with a different message that Javis used to show raw in English; it now gets the same "the session is not lost, send again" note as the old wording.
 
 ## [0.84.9] - 2026-10-07
 ### Improved

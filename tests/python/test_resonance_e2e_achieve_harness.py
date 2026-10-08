@@ -82,7 +82,8 @@ check("đối chứng: S4 đạt thì dựng được giai đoạn 2 với trầ
 checks, _, _ = harness()
 ledger = G.TurnLedger(Path(tempfile.mkdtemp(prefix="ach-l-")) / "t.json", 2)
 sent = []
-H.chat_turn(checks, ledger, "S1", lambda: sent.append("S1") or ("sid", ["turn_done"], [], "ok"))
+H.chat_turn(checks, ledger, "S1", lambda: sent.append("S1") or ("sid", ["turn_done"], [], "ok",
+                                                                  {"engine_status": "ok"}))
 checks.check("S3 trạng thái giữ sau dựng lại", False)
 check("kiểm hỏng trước S4: không gửi tin góp ý",
       raises_gate(lambda: H.chat_turn(checks, ledger, "S4", lambda: sent.append("S4"))) and sent == ["S1"])
@@ -100,6 +101,37 @@ def _boom():
 check("lượt chat lỗi: dừng bằng cổng", raises_gate(lambda: H.chat_turn(checks, ledger2, "S1", _boom)))
 check("lượt chat lỗi: vẫn tính vào sổ, không giữ lại cùng lượt",
       ledger2.used() == 1 and ledger2.entries()[0]["status"].startswith("error") and not ledger2.reserve("S1"))
+
+# Pilot lần 4: turn_done một mình không chứng minh bộ não đã chạy. engine_status phải là "ok".
+OAUTH = ("Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh. "
+         "This is usually transient; retry in a minute")
+for case, done in (("engine báo lỗi (câu lỗi đi ra như trả lời thường rồi turn_done)",
+                    {"engine_status": "error", "engine_error": {"source": "final", "auth_refresh_race": True}}),
+                   ("không rõ kết cục (hết giờ, bị huỷ, không có final)", {"engine_status": "unknown"}),
+                   ("turn_done thiếu engine_status", {})):
+    checks, srv, spawned = harness()
+    lg = G.TurnLedger(Path(tempfile.mkdtemp(prefix="ach-l4-")) / "t.json", 2)
+    caught = {}
+
+    def _go(done=done):
+        try:
+            H.chat_turn(checks, lg, "S1", lambda: ("sid", ["response", "stream", "turn_done"], [], OAUTH, done))
+        except H.GateClosed as e:
+            caught["e"] = e
+            return True
+        return False
+    check(f"lần 4: {case}: dừng bằng cổng, không đánh giá định tuyến", _go())
+    check(f"lần 4: {case}: ghi lỗi KỸ THUẬT (không phải kết quả định tuyến)",
+          len(checks.fails) == 1 and not checks.contract and "engine chạy thành công" in checks.fails[0])
+    check(f"lần 4: {case}: lượt vẫn tính vào sổ, nhãn lỗi engine, không gửi lại",
+          lg.used() == 1 and lg.entries()[0]["status"].startswith("engine_") and not lg.reserve("S1"))
+    check(f"lần 4: {case}: trace của lượt hỏng đi kèm để ghi báo cáo",
+          getattr(caught.get("e"), "result", (None,) * 4)[3] == OAUTH)
+    check(f"lần 4: {case}: sau đó không dựng server giai đoạn sau", raises_gate(lambda: srv.start(1, False, {})))
+checks, _, _ = harness()
+lg = G.TurnLedger(Path(tempfile.mkdtemp(prefix="ach-l4ok-")) / "t.json", 2)
+(_r, _st) = H.chat_turn(checks, lg, "S1", lambda: ("sid", ["response", "turn_done"], [], "trả lời", {"engine_status": "ok"}))
+check("lần 4 đối chứng: engine_status ok thì lượt được tính là chạy xong, không lỗi", _st == "done" and not checks.fails)
 
 # Bấm xác nhận: S5 hỏng thì S6 không bấm.
 posts = []
@@ -131,6 +163,11 @@ ws_calls = [n for n in calls if isinstance(n.func, ast.Name) and n.func.id == "_
 check("bộ chạy: _ws_chat chỉ gọi bên trong H.chat_turn (một chỗ)", len(ws_calls) == 1
       and "H.chat_turn(CHECKS, TURNS" in src)
 check("bộ chạy: check của script là Checks của harness (kiểm hỏng đóng cổng)", "check = CHECKS.check" in src)
+check("lần 4 bộ chạy: kiểm hạn token NGAY TRƯỚC H.chat_turn (hỏng thì dừng ở cổng, không giữ chỗ)",
+      0 < src.index("token_ready(label)") < src.index("H.chat_turn(CHECKS, TURNS")
+      and "claude_token_gate.han_token()" in src)
+check("lần 4 bộ chạy: khung turn_done (engine_status) được đọc và đưa vào H.chat_turn",
+      'done = {"engine_status": o.get("engine_status")' in src)
 check("bộ chạy: S2, S5, S6 đối chiếu tin báo theo giai đoạn (notice_in_session)",
       src.count("notice_in_session(sid, g.id, \"goal.waiting_human\", g.revision)") == 1
       and src.count("notice_in_session(sid, g.id, \"goal.waiting_human\", g4.revision)") == 1
