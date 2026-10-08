@@ -153,7 +153,8 @@ def _make_do_turn(mode):
     return _do_turn
 
 
-_ns = dict(asyncio=asyncio, sys=sys, time=time, uuid=uuid, nghe_sua=nghe_sua, localefmt=localefmt,
+import turn_context  # noqa: E402  - run_turn gắn danh tính lượt cho hook tool (0.85.8)
+_ns = dict(asyncio=asyncio, sys=sys, time=time, uuid=uuid, nghe_sua=nghe_sua, localefmt=localefmt, turn_context=turn_context,
            store=types.SimpleNamespace(), send_raw=_send_raw, _persist_turn=_noop,
            _CHAT_RUNTIME=types.SimpleNamespace(finish_job=lambda *a: None),
            context_runtime=types.SimpleNamespace(bind_trace=lambda *a: None, reset_trace=lambda *a: None,

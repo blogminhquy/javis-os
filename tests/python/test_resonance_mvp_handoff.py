@@ -93,7 +93,8 @@ proxy.xoa_loi_lan_nhanh = lambda *a: None
 proxy.ghi_loi_lan_nhanh = lambda *a: None
 runtime = types.SimpleNamespace(finish_job=lambda *a: None, get_job=lambda *a: None,
                                 register_job=lambda sid, task, *a, **kw: jobs.append(task))
-namespace = dict(asyncio=asyncio, sys=sys, time=time, uuid=uuid, voice_brain=proxy, nghe_sua=nghe_sua,
+import turn_context  # noqa: E402  - run_turn gắn danh tính lượt cho hook tool (0.85.8)
+namespace = dict(asyncio=asyncio, sys=sys, time=time, uuid=uuid, voice_brain=proxy, nghe_sua=nghe_sua, turn_context=turn_context,
                  localefmt=localefmt, store=session_store, send_raw=_noop, _persist_turn=_noop,
                  _CHAT_RUNTIME=runtime,
                  context_runtime=types.SimpleNamespace(bind_trace=lambda *a: None, reset_trace=lambda *a: None,
