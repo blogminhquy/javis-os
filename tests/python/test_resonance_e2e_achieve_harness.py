@@ -83,7 +83,7 @@ checks, _, _ = harness()
 ledger = G.TurnLedger(Path(tempfile.mkdtemp(prefix="ach-l-")) / "t.json", 2)
 sent = []
 H.chat_turn(checks, ledger, "S1", lambda: sent.append("S1") or ("sid", ["turn_done"], [], "ok",
-                                                                  {"engine_status": "ok"}))
+                                                                  {"engine_status": "ok", "turn_status": "completed"}))
 checks.check("S3 trạng thái giữ sau dựng lại", False)
 check("kiểm hỏng trước S4: không gửi tin góp ý",
       raises_gate(lambda: H.chat_turn(checks, ledger, "S4", lambda: sent.append("S4"))) and sent == ["S1"])
@@ -108,7 +108,10 @@ OAUTH = ("Failed to refresh OAuth token: another Claude Code process is refreshi
 for case, done in (("engine báo lỗi (câu lỗi đi ra như trả lời thường rồi turn_done)",
                     {"engine_status": "error", "engine_error": {"source": "final", "auth_refresh_race": True}}),
                    ("không rõ kết cục (hết giờ, bị huỷ, không có final)", {"engine_status": "unknown"}),
-                   ("turn_done thiếu engine_status", {})):
+                   ("turn_done thiếu engine_status", {}),
+                   ("engine ok nhưng lượt bị huỷ sau final (review sửa pilot 4, P2-2)",
+                    {"engine_status": "ok", "turn_status": "cancelled"}),
+                   ("engine ok nhưng thiếu turn_status", {"engine_status": "ok"})):
     checks, srv, spawned = harness()
     lg = G.TurnLedger(Path(tempfile.mkdtemp(prefix="ach-l4-")) / "t.json", 2)
     caught = {}
@@ -123,14 +126,14 @@ for case, done in (("engine báo lỗi (câu lỗi đi ra như trả lời thư�
     check(f"lần 4: {case}: dừng bằng cổng, không đánh giá định tuyến", _go())
     check(f"lần 4: {case}: ghi lỗi KỸ THUẬT (không phải kết quả định tuyến)",
           len(checks.fails) == 1 and not checks.contract and "engine chạy thành công" in checks.fails[0])
-    check(f"lần 4: {case}: lượt vẫn tính vào sổ, nhãn lỗi engine, không gửi lại",
-          lg.used() == 1 and lg.entries()[0]["status"].startswith("engine_") and not lg.reserve("S1"))
+    check(f"lần 4: {case}: lượt vẫn tính vào sổ, nhãn lỗi engine hay lượt, không gửi lại",
+          lg.used() == 1 and lg.entries()[0]["status"].startswith(("engine_", "turn_")) and not lg.reserve("S1"))
     check(f"lần 4: {case}: trace của lượt hỏng đi kèm để ghi báo cáo",
           getattr(caught.get("e"), "result", (None,) * 4)[3] == OAUTH)
     check(f"lần 4: {case}: sau đó không dựng server giai đoạn sau", raises_gate(lambda: srv.start(1, False, {})))
 checks, _, _ = harness()
 lg = G.TurnLedger(Path(tempfile.mkdtemp(prefix="ach-l4ok-")) / "t.json", 2)
-(_r, _st) = H.chat_turn(checks, lg, "S1", lambda: ("sid", ["response", "turn_done"], [], "trả lời", {"engine_status": "ok"}))
+(_r, _st) = H.chat_turn(checks, lg, "S1", lambda: ("sid", ["response", "turn_done"], [], "trả lời", {"engine_status": "ok", "turn_status": "completed"}))
 check("lần 4 đối chứng: engine_status ok thì lượt được tính là chạy xong, không lỗi", _st == "done" and not checks.fails)
 
 # Bấm xác nhận: S5 hỏng thì S6 không bấm.

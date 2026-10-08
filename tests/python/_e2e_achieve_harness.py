@@ -122,12 +122,16 @@ def chat_turn(checks, ledger, label, send):
     done = (res[4] if len(res) > 4 else None) or {}
     status = "done" if frames and frames[-1] == "turn_done" else "incomplete"
     eng = done.get("engine_status")
+    turn = done.get("turn_status")
     if status == "done" and eng != "ok":
         status = f"engine_{eng or 'missing'}"
+    elif status == "done" and turn != "completed":
+        # Engine đã trả final nhưng LƯỢT bị huỷ hay lỗi sau đó (review sửa pilot 4, P2-2): không phải lượt hợp lệ.
+        status = f"turn_{turn or 'missing'}"
     ledger.settle(label, status)
     if status != "done":
-        checks.check(f"{label} engine chạy thành công (engine_status={eng!r}, {done.get('engine_error')!r}); "
-                     "turn_done một mình không chứng minh bộ não đã chạy", False)
+        checks.check(f"{label} engine chạy thành công và lượt hoàn tất (engine_status={eng!r}, turn_status={turn!r}, "
+                     f"{done.get('engine_error')!r}); turn_done một mình không chứng minh bộ não đã chạy", False)
         exc = GateClosed(f"{label}: lượt chat kết thúc mà engine không chạy thành công ({status}); lỗi kỹ thuật, "
                          "không đánh giá định tuyến, không gửi lại")
         exc.result = res          # bộ chạy vẫn ghi trace của lượt hỏng vào báo cáo

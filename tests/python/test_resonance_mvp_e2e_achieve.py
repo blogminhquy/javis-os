@@ -317,7 +317,8 @@ async def _ws_chat(message, session_id=None, timeout=900):
             if t in ("response", "stream", "text") and o.get("content"):
                 answer.append(str(o.get("content")))
             if t == "turn_done":
-                done = {"engine_status": o.get("engine_status"), "engine_error": o.get("engine_error")}
+                done = {"engine_status": o.get("engine_status"), "engine_error": o.get("engine_error"),
+                        "turn_status": o.get("turn_status")}
                 break
     return sid, frames, tools, "".join(answer)[-6000:], done
 

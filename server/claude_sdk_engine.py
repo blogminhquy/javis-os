@@ -278,10 +278,14 @@ def la_loi_mat_mach(msg) -> bool:
         return False
 
 
-def _la_dua_token(text: str) -> bool:
+def _la_dua_token(text: str, is_error: bool) -> bool:
+    """Lượt kết thúc vì cuộc đua làm mới token (review sửa pilot 4, P2-1). Tín hiệu chính là is_error có cấu trúc của
+    CLI kèm câu lỗi đua token; khi CLI không cắm is_error thì CHỈ nhận khi toàn bộ kết quả là thông báo lỗi thô (neo ở
+    đầu). Câu trả lời thành công có chữ "already used", hay câu đang giải thích/trích lỗi OAuth, không bị nhận."""
     try:
         import claude_token_gate
-        return bool(claude_token_gate.la_loi_tranh_lam_moi(text))
+        return bool((is_error and claude_token_gate.la_loi_tranh_lam_moi(text))
+                    or claude_token_gate.la_loi_tho_tranh_lam_moi(text))
     except Exception:  # noqa: BLE001
         return False
 
@@ -325,10 +329,12 @@ def map_message(msg):
         # chỉ sai đường - mà bấm Ngắt còn xoá luôn bản sao lưu của vệ sĩ credentials, tức
         # đẩy người ta từ một lượt hỏng sang mất đăng nhập thật.
         dua_token = False
+        # Cùng nhận dạng hẹp với cờ auth_refresh_race (review sửa pilot 4, P2-1): trước đây mọi kết quả có chữ
+        # "already used" đều bị coi là cuộc đua và câu trả lời thành công bị thay bằng câu báo lỗi.
+        auth_race = _la_dua_token(msg.result or "", bool(msg.is_error))
         try:
             import claude_token_gate
-            dua_token = (claude_token_gate.la_loi_tranh_lam_moi(msg.result or "")
-                         and claude_token_gate.con_dang_nhap())
+            dua_token = auth_race and claude_token_gate.con_dang_nhap()
         except Exception:
             dua_token = False
         try:
@@ -389,7 +395,7 @@ def map_message(msg):
             "subtype": msg.subtype,
             # Lượt kết thúc vì cuộc đua làm mới token (nhận dạng hẹp, xem claude_token_gate.la_loi_tranh_lam_moi):
             # không phải câu trả lời của model, kể cả khi CLI không cắm is_error (pilot Resonance lần 4).
-            "auth_refresh_race": _la_dua_token(msg.result or ""),
+            "auth_refresh_race": auth_race,
             "session_id": None if resume_failed else msg.session_id,
             "cost_usd": msg.total_cost_usd,
             "duration_ms": msg.duration_ms,

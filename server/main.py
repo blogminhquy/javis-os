@@ -2071,11 +2071,20 @@ def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
 # engine chạy thành công. Lỗi đăng nhập của Claude Code từng đi ra như một câu trả lời thường rồi `turn_done`, nên bộ chạy
 # pilot tưởng bộ não đã chạy mà không lập mục tiêu. Nay engine báo trạng thái có cấu trúc, gửi kèm `turn_done` thành
 # `engine_status`: "ok" | "error" | "unknown" (không có kết thúc nào của engine: hết giờ, bị huỷ, nhánh engine chưa báo).
+# Kèm `turn_status` của LƯỢT HOST (review sửa pilot 4, P2-2): "completed" | "cancelled" | "failed". Engine đã trả final
+# không có nghĩa cả lượt đã xong: lượt có thể bị huỷ ở bước lưu sau đó. Huỷ hay lỗi thắng final trước đó.
 _TURN_ENGINE: dict = {}
 
 
 def _engine_outcome_reset(conv_sid) -> None:
-    _TURN_ENGINE[str(conv_sid)] = {"final": None, "errors": [], "exception": ""}
+    _TURN_ENGINE[str(conv_sid)] = {"final": None, "errors": [], "exception": "", "turn": ""}
+
+
+def _engine_outcome_turn(conv_sid, status: str) -> None:
+    """Ghi lượt host kết thúc bất thường: "cancelled" (người dùng dừng, huỷ) hay "failed" (ngoại lệ)."""
+    st = _TURN_ENGINE.get(str(conv_sid))
+    if st is not None and not st.get("turn"):
+        st["turn"] = str(status)
 
 
 def _engine_outcome_note(conv_sid, event) -> None:
@@ -2087,7 +2096,7 @@ def _engine_outcome_note(conv_sid, event) -> None:
     et = event.get("type")
     if et == "final":
         st["final"] = {"is_error": bool(event.get("is_error")), "subtype": str(event.get("subtype") or ""),
-                       "auth_refresh_race": bool(event.get("auth_refresh_race") or event.get("dua_token"))}
+                       "auth_refresh_race": bool(event.get("auth_refresh_race"))}
     elif et == "error" and not event.get("resume_failed"):
         st["errors"].append(str(event.get("content") or "")[:200])
 
@@ -2096,22 +2105,25 @@ def _engine_outcome_exception(conv_sid, e) -> None:
     st = _TURN_ENGINE.get(str(conv_sid))
     if st is not None:
         st["exception"] = type(e).__name__
+    _engine_outcome_turn(conv_sid, "failed")
 
 
 def _engine_outcome_pop(conv_sid) -> dict:
-    """{"engine_status", "engine_error"} cho khung turn_done, rồi xoá trạng thái của lượt."""
-    st = _TURN_ENGINE.pop(str(conv_sid), None) or {"final": None, "errors": [], "exception": ""}
+    """{"engine_status", "engine_error", "turn_status"} cho khung turn_done, rồi xoá trạng thái của lượt."""
+    st = _TURN_ENGINE.pop(str(conv_sid), None) or {"final": None, "errors": [], "exception": "", "turn": ""}
+    turn = {"turn_status": st.get("turn") or "completed"}
     f = st.get("final")
     if st.get("exception"):
-        return {"engine_status": "error", "engine_error": {"source": "exception", "kind": st["exception"]}}
+        return {"engine_status": "error", "engine_error": {"source": "exception", "kind": st["exception"]}, **turn}
     if st.get("errors"):
-        return {"engine_status": "error", "engine_error": {"source": "error_event", "detail": st["errors"][-1]}}
+        return {"engine_status": "error", "engine_error": {"source": "error_event", "detail": st["errors"][-1]},
+                **turn}
     if f is None:
-        return {"engine_status": "unknown", "engine_error": {"source": "no_final"}}
+        return {"engine_status": "unknown", "engine_error": {"source": "no_final"}, **turn}
     if f["is_error"] or f["auth_refresh_race"]:
         return {"engine_status": "error", "engine_error": {"source": "final", "subtype": f["subtype"],
-                                                          "auth_refresh_race": f["auth_refresh_race"]}}
-    return {"engine_status": "ok", "engine_error": None}
+                                                          "auth_refresh_race": f["auth_refresh_race"]}, **turn}
+    return {"engine_status": "ok", "engine_error": None, **turn}
 
 
 def _resonance_note_write(conv_sid, user_mid, brain, ev) -> None:
@@ -15016,6 +15028,7 @@ async def websocket_endpoint(ws: WebSocket):
                     "COMPLETED_WITH_ERROR" if runtime_trace and runtime_trace.had_error else "COMPLETED",
                 )
             except asyncio.CancelledError:
+                _engine_outcome_turn(conv_sid, "cancelled")
                 _CONTEXT_RUNTIME.finish(runtime_trace, "CANCELLED", "cancelled")
                 await send_raw({"type": "system", "content": localefmt.chu("Đã dừng lượt này.", "Stopped this turn."),
                                 "session_id": conv_sid,

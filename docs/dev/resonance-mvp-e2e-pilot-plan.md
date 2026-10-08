@@ -380,3 +380,31 @@ Tách hai kết luận (review pilot lần 3): **tự định tuyến từ chat 
 - Dừng các phiên Claude Code dùng chung đăng nhập để chúng không gọi model trong cửa sổ pilot, và chạy bộ chạy từ terminal độc lập.
 - Sổ lần 4 giữ nguyên 1 lượt chat đã gửi. Lần mới xin trần mới tối đa 4 lượt bổ sung (2 Opus và 2 Sonnet).
 - Nếu lỗi đăng nhập lặp lại dù đã chạy riêng: dừng để điều tra đường xác thực, không chạy tiếp.
+
+### Sửa theo review phần sửa sau lần 4 (`e099b81a`, 2 P2)
+
+**P2-1, câu trả lời thành công bị báo là lỗi đăng nhập.** Cờ `auth_refresh_race` trước đây tìm chuỗi con trong mọi kết quả. Nay cờ chỉ bật trong hai trường hợp:
+- CLI cắm `is_error` VÀ câu là lỗi đua token (`la_loi_tranh_lam_moi`);
+- toàn bộ kết quả MỞ ĐẦU bằng thông báo lỗi thô của Claude Code (`la_loi_tho_tranh_lam_moi`, neo ở đầu).
+
+Kết quả:
+- Câu thường có chữ "already used", hay câu đang giải thích hoặc trích lỗi OAuth, ra `ok`.
+- Lỗi thô của lần 4 vẫn bị chặn khi thiếu `is_error`.
+- Đường thay câu cho người dùng (`dua_token`) dùng chung cờ hẹp này. Trước đây một câu trả lời thành công có chữ "already used", khi máy còn đăng nhập, bị thay bằng câu báo lỗi; ca đó nay giữ nguyên.
+- Siết khuôn không phải bằng chứng hoàn hảo về nguồn văn bản; tín hiệu chính vẫn là `is_error`.
+
+**P2-2, lượt bị huỷ sau `final` vẫn được cho qua.** `turn_done` có thêm `turn_status` của lượt host: `completed`, `cancelled` hay `failed`.
+- Nhánh `CancelledError` của `run_turn` ghi `cancelled`. Ngoại lệ ghi `failed`.
+- Hai trạng thái này thắng `final` trước đó.
+- `engine_status` vẫn nói thật về engine: huỷ sau `final` thì engine `ok` nhưng lượt `cancelled`.
+- Bộ chạy đòi cả `engine_status == "ok"` VÀ `turn_status == "completed"`.
+
+**Test:**
+- `test_turn_engine_status.py`:
+  - P2-1 trên mapper SDK thật, kể cả khi máy còn đăng nhập (`con_dang_nhap` giả là True): câu thường có "already used", câu giải thích trích lỗi OAuth, câu mở đầu bằng tiêu đề, lỗi thô của lần 4, lỗi cũ có `is_error`, câu cũ mà CLI báo thành công;
+  - P2-2 chạy THÂN THẬT của `run_turn` (trích từ main.py) với dịch vụ giả: huỷ sau `final`, huỷ trước `final`, ngoại lệ sau `final`, đối chứng hoàn tất; từng kết quả đi qua `H.chat_turn` thật.
+- `test_resonance_e2e_achieve_harness.py`: thêm ca `ok` nhưng `cancelled`, và `ok` nhưng thiếu `turn_status`.
+- Đột biến:
+  - bỏ ghi huỷ trong `run_turn`: đỏ 4 kiểm;
+  - bỏ điều kiện `is_error` của nhánh "already used": đỏ 2 kiểm.
+- Script `PR-579-pilot4-fix-checks.py` dừng ở REPRO đầu tiên ("ordinary healthy SDK result misclassified as auth failure"), vì lỗi đã hết.
