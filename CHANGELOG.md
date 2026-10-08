@@ -10,6 +10,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Thêm mới
 - **Plugin biết ai đang nói trong lượt gọi công cụ.** Hook `pre_tool_call` và `post_tool_call` nhận thêm khoá `turn` (kênh, người gửi, nhóm hay chat riêng, có phải chủ không), nên một plugin bọc ứng dụng có phân quyền theo từng nhân viên có thể chạy công cụ đúng quyền của người đang nhắn cho bot. Danh tính lấy từ tin nhắn thật chứ không từ chữ model viết, và bot không bao giờ được coi là chủ. (Đóng góp của @nnbaonam96.)
 
+## [0.85.7] - 2026-10-08
+### Sửa lỗi
+- **Đồng bộ brain với GitHub không còn hỏng ở lần đẩy đầu tiên trên máy đặt tiếng Việt.** Khi repo trên GitHub còn trống, Javis đọc thông báo của git theo ngôn ngữ hệ điều hành nên không nhận ra trường hợp này và báo lỗi. Giờ Javis hỏi git bằng ngôn ngữ trung lập, máy đặt ngôn ngữ nào cũng khởi tạo được ngay. (Đóng góp của @dev23072005.)
+
 ## [0.85.5] - 2026-10-07
 ### Cải thiện
 - **Bỏ hạn mức lúc bot tự lên tiếng trong nhóm.** Trước đây ở chế độ Tự đánh giá, bot chỉ tự trả lời tối đa 8 lần mỗi nhóm, 3 lần mỗi người mỗi giờ, và nghỉ giữa hai lần. Giờ nói hay im do bộ phán xử và mô hình tự quyết theo vai của Agent và tài liệu; bạn chỉnh bằng nút Đúng/Sai ở Bộ phán xử.
