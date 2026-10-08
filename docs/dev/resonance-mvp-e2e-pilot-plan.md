@@ -316,3 +316,30 @@ Danh sách tool trong tin `init` của Claude Code không đọc được từ n
 4. ~~Trace thiếu kết quả của khung công cụ~~ (sai, xem trên): `javis_goal` gọi hai lần vì lần đầu thiếu `at_iso`.
 
 Tách hai kết luận (review pilot lần 3): **tự định tuyến từ chat ĐẠT cho một mẫu** (S1: tự tìm và gọi công cụ mục tiêu, đúng một mục tiêu achieve, không Kanban). **Vòng đầu-cuối CHƯA đạt** (dừng ở S2), nên điều kiện MVP thứ nhất trọn vẹn vẫn chưa đạt.
+
+## Lần chạy 4 (08/10/2026): lượt chat hỏng vì làm mới token đăng nhập, không đo được định tuyến
+
+**Kết luận: lần chạy KHÔNG hợp lệ để đánh giá.** Bộ chạy ghi `stopped` (bộ não lập 0 mục tiêu), nhưng đó là phân loại SAI: bộ não chưa hề chạy.
+
+| Mục | Giá trị |
+|---|---|
+| Commit | `1aa20e5b` (đã qua review vòng 3), cây sạch |
+| Cổng | Đạt: engine đúng cấu hình duyệt, `auth status` là `claude.ai` / `firstParty` / `max` ở cả hai cwd |
+| Lượt đã tính | 1 lượt chat (theo sổ, tính trước khi gửi), 0 lượt việc nền. Lượt chat lỗi ở bước làm mới token, nhiều khả năng chưa có request nào tới model |
+| Thời gian | Tổng 21,5 giây; lượt chat 10,1 giây |
+| Bằng chứng | [`resonance-mvp-e2e-pilot-4.json`](resonance-mvp-e2e-pilot-4.json) |
+
+**Đã xảy ra gì:**
+- Câu trả lời của lượt chat chỉ là thông báo lỗi của Claude Code, lặp hai lần: "Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh. This is usually transient; retry in a minute...".
+- Trace không có công cụ nào. Khung WebSocket: `response`, `status`, `stream`, `turn_done`, không có khung `error`.
+- Bộ não không ghi file sản phẩm (chỉ có nhật ký hội thoại).
+- Cổng `auth status` lúc đầu đạt, vì nó chỉ đọc trạng thái đăng nhập. Token truy cập hết hạn và phải làm mới đúng lúc gửi tin; khi đó một tiến trình Claude Code khác trên máy (phiên đang điều khiển pilot cũng là Claude Code) đang giữ lượt làm mới.
+
+**Lỗ của bộ chạy:**
+- Kiểm "S1 lượt chat kết thúc (turn_done)" đạt dù câu trả lời là lỗi engine.
+- Nhánh dừng S1 quy kết là kết quả định tuyến (`stopped`) thay vì lỗi kỹ thuật.
+- Cần sửa trước lần chạy sau:
+  - lượt chat mà câu trả lời là lỗi engine hay xác thực (không có nội dung của model, không có công cụ nào) phải ra `technical_failed` với lý do rõ;
+  - lượt đó không được tính là "bộ não không lập mục tiêu".
+
+**Không thử lại** theo luật duyệt. Một lần chạy mới cần người dùng duyệt riêng.
