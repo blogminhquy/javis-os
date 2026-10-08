@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.87.0] - 2026-10-08
+### Thêm mới
+- **Cộng hưởng theo từng trợ lý.** Mỗi trợ lý có công tắc Cộng hưởng riêng; chỉ trợ lý đã bật mới tự lập và theo đuổi mục tiêu, trò chuyện thường không tự sinh mục tiêu. Trang trợ lý hiện tiến độ của từng mục tiêu.
+
 ## [0.86.1] - 2026-10-08
 ### Cải thiện
 - **Dùng ChatGPT làm bộ não, khung chat hiện ngay bước Javis đang làm, không im hẳn tới lúc xong.** Trước đây khi Codex chạy một lệnh dài (cài thư viện, quét file, chạy script), khung chat chỉ có chữ "Javis đang suy nghĩ..." đếm giờ cho tới khi lệnh chạy xong, trông như bị treo. Giờ bước hiện ra ngay lúc bắt đầu, kiểu "Chạy lệnh: npm install", rồi được đánh dấu xong khi chạy xong, giống như khi dùng Claude.

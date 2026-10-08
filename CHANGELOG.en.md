@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.87.0] - 2026-10-08
+### Added
+- **Resonance per assistant.** Each assistant has its own Resonance switch; only an assistant with it on sets and follows goals, and ordinary chat no longer creates goals. The assistant page shows each goal's progress.
+
 ## [0.86.1] - 2026-10-08
 ### Improved
 - **With ChatGPT as the brain, the chat shows the step Javis is working on right away instead of going quiet until it finishes.** When Codex ran a long command (installing packages, scanning files, running a script), the chat used to show only "Javis is thinking..." counting up until the command finished, which looked like a hang. The step now appears the moment it starts, like "Running command: npm install", and is marked done when it finishes, just as with Claude.
