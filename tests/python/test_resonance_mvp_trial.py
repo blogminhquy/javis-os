@@ -775,6 +775,56 @@ check("7d08 f: lượt có receipt chưa ghi được được đối soát thà
 check("7d08 f: phép thử đã chốt (không còn running), lượt chưa bắt đầu đã được hoàn đúng một lần",
       all(e["status"] != "running" for e in _st2.experiments(P, g_rb2.id)))
 
+# g) Chốt phép thử (finish_experiment) cũng hỏng: ngoại lệ thoát ra, hạn mức giữ BẢO THỦ đủ phần đã giữ; mở lại kho
+# rồi đối soát hai lần thì tính ĐÚNG số lượt engine đã chạy, không áp dụng, không còn gì running. Ca lấy từ script
+# phục hồi của reviewer tại cc79deb2 (PR-590-A1-cc79deb2-recovery-checks.py), đưa vào test hồi quy.
+
+
+def _fail_once(method):
+    orig = getattr(store, method)
+    hit = []
+
+    def wrapper(*a, **kw):
+        if not hit:
+            hit.append(1)
+            raise _sq.OperationalError("một lỗi lưu trữ ở " + method)
+        return orig(*a, **kw)
+    setattr(store, method, wrapper)
+    return lambda: setattr(store, method, orig)
+
+
+for _label, _fault, _expect in (("lỗi trước gọi", "begin_action", 0), ("lỗi ghi receipt", "finish_action", 1),
+                                ("lỗi gắn bằng chứng", "link_evidence", 1), ("đủ 4 lượt", None, 4)):
+    _g = make_goal()
+    _e = Engine(WIN)
+    _u1 = _fail_once(_fault) if _fault else (lambda: None)
+    _u2 = _fail_once("finish_experiment")
+    _escaped = False
+    try:
+        asyncio.run(R.compare_methods(_g.id, "work.v1", "work.checklist.v1", cases("t1", "h1"), deps_for(_e)))
+    except _sq.OperationalError:
+        _escaped = True
+    finally:
+        _u1()
+        _u2()
+    _held = store.get(P, _g.id).calls_used
+    _st = RS.GoalStore(store.path)
+    _dp = R.dataclasses_replace(deps_for(_e), store=_st)
+    _ok = True
+    for _ in range(2):
+        R._reconcile(_st.get(P, _g.id), _dp, _dp.clock() + 100000)
+        _f = _st.get(P, _g.id)
+        _ok = _ok and _f.calls_used == _expect and _f.explore_used == _expect and R.effective_method(_f) == "work.v1" \
+            and all(x["status"] != "running" for x in _st.experiments(P, _g.id)) \
+            and all(x["status"] != "running" for x in _st.actions(P, _g.id))
+    check(f"cc79 g ({_label}, chốt phép thử cũng hỏng): {_expect} lượt engine, giữ bảo thủ 4 tới khi đối soát, "
+          f"đối soát hai lần tính đúng {_expect}, không áp dụng, không còn running",
+          _escaped and len(_e.prompts) == _expect and _held == 4 and _ok)
+_g = make_goal()
+_r, _e = trial(_g, WIN, ids=("t1", "h1"))
+check("cc79 g đối chứng không lỗi: eligible, áp dụng, tính 4 lượt",
+      _r["applied"] and _r["verdict"] == "eligible" and store.get(P, _g.id).calls_used == 4 and len(_e.prompts) == 4)
+
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)
     sys.exit(1)
