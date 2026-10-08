@@ -1,0 +1,12 @@
+name: Mục tiêu (Hệ thống cộng hưởng)
+name_en: "Goals (Resonance)"
+slug: javis-goal
+version: 1.0.0
+description: Cho bộ não tự lập một mục tiêu bền khi người dùng giao việc cần theo đuổi sau lượt chat, hoặc cập nhật mục tiêu đang mở khi người dùng bổ sung ý. Host kiểm đề xuất theo SMART và lưu có revision. Chỉ hiện ở brain đã bật Hệ thống cộng hưởng.
+description_en: "Lets the brain set up a lasting goal when the user hands over work that needs following up after the chat turn, or update an open goal when the user adds to it. The host checks the proposal against SMART and stores it with revisions. Only shown in brains with Resonance switched on."
+author: Javis (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - javis_goal
+hooks: []

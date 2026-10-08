@@ -373,10 +373,13 @@ class PluginContext:
     def register_tool(self, name: str, description: str, handler: Callable,
                       schema: Optional[dict] = None, parameters: Optional[dict] = None,
                       min_mode: str = "readonly", check_fn: Optional[Callable] = None,
-                      emoji: str = "") -> None:
+                      emoji: str = "", visible_fn: Optional[Callable] = None) -> None:
         """Thêm 1 tool cho MỌI engine. handler(args: dict, ctx: PluginContext) -> str (sync|async).
         min_mode: readonly(mặc định, luôn chạy) | safe(chặn ở chế độ suggest) | full(chỉ chế độ full).
-        check_fn(): None nếu sẵn sàng, hoặc str lý do để chặn (vd chưa đăng nhập)."""
+        check_fn(): None nếu sẵn sàng, hoặc str lý do để chặn (vd chưa đăng nhập).
+        visible_fn(vault_root) -> bool: tool chỉ có mặt trong danh sách khi hàm trả True cho brain đó.
+        Khác check_fn: check_fn chặn lúc GỌI nhưng tool vẫn hiện, visible_fn giấu hẳn tool khỏi brain
+        chưa bật tính năng, nên brain đó không thấy, không tốn chỗ trong prompt và không gọi nhầm."""
         if not _TOOL_RE.match(str(name or "")):
             raise ValueError(f"tên tool không hợp lệ (a-z0-9_): {name!r}")
         if min_mode not in VALID_MIN_MODE:
@@ -384,7 +387,7 @@ class PluginContext:
         self._tools.append({
             "name": name, "description": description or name, "handler": handler,
             "schema": schema or parameters or {"type": "object", "properties": {}},
-            "min_mode": min_mode, "check_fn": check_fn, "emoji": emoji,
+            "min_mode": min_mode, "check_fn": check_fn, "emoji": emoji, "visible_fn": visible_fn,
         })
 
     def on_unload(self, fn: Callable) -> None:
@@ -893,6 +896,14 @@ def plugin_tools(mode: str = "full", vault_root: Optional[str] = None, *,
             if fn in _RESERVED_TOOLS or fn in seen:
                 print(f"[plugins] tool '{fn}' ({lp.slug}) trùng tên - bỏ qua", file=sys.stderr)
                 continue
+            vis = t.get("visible_fn")
+            if vis is not None:
+                try:
+                    if not vis(vault_root):
+                        continue
+                except Exception as e:  # noqa: BLE001 - không chắc thì giấu, đừng lộ tool chưa bật
+                    print(f"[plugins] visible_fn của '{fn}' lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+                    continue
             seen.add(fn)
             desc = t["description"]
             if lp.source == "vault":

@@ -57,13 +57,13 @@ evs, sid = map_message(AssistantMessage(content=[
     ToolUseBlock(id="t1", name="Read", input={"file_path": "a.md"})], model="claude"))
 check("map: assistant → text + tool_call, bỏ text rỗng",
       evs == [{"type": "text", "content": "xin chào"},
-              {"type": "tool_call", "name": "Read", "input": {"file_path": "a.md"}}])
+              {"type": "tool_call", "name": "Read", "input": {"file_path": "a.md"}, "id": "t1"}])
 
 evs, _ = map_message(UserMessage(content=[
     ToolResultBlock(tool_use_id="t1", content=[{"type": "text", "text": "nội dung file"}]),
     ToolResultBlock(tool_use_id="t2", content="chuỗi thẳng " + "x" * 600)]))
 check("map: tool_result list + str, clip 500",
-      evs[0] == {"type": "tool_result", "content": "nội dung file"}
+      evs[0] == {"type": "tool_result", "content": "nội dung file", "tool_use_id": "t1", "is_error": False}
       and evs[1]["content"].startswith("chuỗi thẳng") and len(evs[1]["content"]) == 500)
 
 evs, sid = map_message(ResultMessage(

@@ -1101,6 +1101,8 @@ function handleMessage(data) {
       scrollBottom();
       // Đọc tin nền chỉ khi người dùng KHÔNG đang nói hay đang nghe Javis nói dở (Voice V1):
       // chen một bản tin vào giữa câu người dùng là cắt ngang họ. Hoãn tới lúc rảnh.
+      // Khối thẻ mục tiêu (Resonance M4, chat-resonance.js) đã vẽ ở bong bóng trên: bóc khỏi bản dùng để ĐỌC.
+      if (window.JavisResonance) data.content = window.JavisResonance.tach(data.content || "").clean;
       if (voice.ttsEnabled) {
         // Đọc phần chữ, không đọc khối ẩn JAVIS_VIEC.
         const _doc = window.JavisViec ? window.JavisViec.tach(data.content || "").clean : (data.content || "");
@@ -2148,6 +2150,9 @@ function appendJavisMessage(text, ts, brain) {
   // Tin do việc nền đẩy về mang khối ẩn JAVIS_VIEC (chat-viec.js): bóc ra để vẽ thành THẺ việc
   // (icon trạng thái, tên việc, nút mở trang Việc) thay cho bong bóng chữ trơn (0.64.48).
   const tv = window.JavisViec ? window.JavisViec.tach(text) : { clean: text, viec: null };
+  // Thẻ mục tiêu (Resonance M4, chat-resonance.js): bóc khối JAVIS_RESONANCE rồi vẽ thẻ sống dưới bong bóng.
+  const tr = window.JavisResonance ? window.JavisResonance.tach(tv.clean) : { clean: tv.clean, cards: [] };
+  tv.clean = tr.clean;
   const div = document.createElement("div");
   div.className = "msg msg-javis";
   // Phiên bản ẢNH của tin này (0.65.33, xem markdownToHtml): tin cũ dựng lại dùng đúng mốc giờ của
@@ -2156,6 +2161,7 @@ function appendJavisMessage(text, ts, brain) {
   div.innerHTML = `<div class="bubble">${markdownToHtml(tv.clean, brain, div.dataset.anhV)}</div>` +
     actsHtml("javis", ts === undefined ? Date.now() : ts, !!lastUserText().trim());
   if (tv.viec) window.JavisViec.ve(div, tv.viec);
+  for (const c of tr.cards) window.JavisResonance.ve(div, c);
   div.dataset.md = tv.clean || "";   // copy nội dung markdown, không chép marker việc nền
   chatAppend(div); scrollBottom();
   return div;

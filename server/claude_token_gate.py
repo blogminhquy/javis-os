@@ -84,7 +84,19 @@ def la_loi_tranh_lam_moi(text: str) -> bool:
     câu đó cũng là câu của phiên hết hạn THẬT (vụ Claude 27/07), mà bắt nhầm ca đó thành
     "chạy lại là được" là giấu mất một lỗi người dùng buộc phải xử lý.
     """
-    return "already used" in (text or "").lower()
+    return "already used" in (text or "").lower() or la_loi_tho_tranh_lam_moi(text)
+
+
+_DUA_TOKEN_THO = "failed to refresh oauth token: another claude code process is refreshing"
+
+
+def la_loi_tho_tranh_lam_moi(text: str) -> bool:
+    """Câu này có phải CHÍNH thông báo lỗi thô của Claude Code bản mới về cuộc đua làm mới token không (pilot Resonance
+    lần 4, 08/10/2026): toàn bộ kết quả MỞ ĐẦU bằng "Failed to refresh OAuth token: another Claude Code process is
+    refreshing". Neo ở đầu chứ không tìm chuỗi con: một câu trả lời đang GIẢI THÍCH hay trích lỗi đó, hay câu thường có
+    chữ OAuth/refresh, không bị nhận (review sửa pilot 4, P2-1). Siết khuôn không phải bằng chứng hoàn hảo về nguồn văn
+    bản; tín hiệu chính vẫn là is_error có cấu trúc của CLI."""
+    return (text or "").lstrip().lower().startswith(_DUA_TOKEN_THO)
 
 
 def con_dang_nhap() -> bool:

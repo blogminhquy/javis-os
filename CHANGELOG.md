@@ -9,6 +9,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.86.1] - 2026-10-08
 ### Cải thiện
 - **Dùng ChatGPT làm bộ não, khung chat hiện ngay bước Javis đang làm, không im hẳn tới lúc xong.** Trước đây khi Codex chạy một lệnh dài (cài thư viện, quét file, chạy script), khung chat chỉ có chữ "Javis đang suy nghĩ..." đếm giờ cho tới khi lệnh chạy xong, trông như bị treo. Giờ bước hiện ra ngay lúc bắt đầu, kiểu "Chạy lệnh: npm install", rồi được đánh dấu xong khi chạy xong, giống như khi dùng Claude.
+## [0.86.0] - 2026-10-08
+### Thêm mới
+- **Hệ thống cộng hưởng: Javis theo đuổi việc anh giao tới khi đạt.** Khi anh giao một việc cần làm tiếp sau lượt chat, Javis tự lập mục tiêu có cách nhận biết xong, làm ở nền trong hạn mức, chỉ báo xong khi có bằng chứng và giữ việc qua cả lúc khởi động lại. Tính năng tắt sẵn, bật riêng cho từng brain.
+- **Thẻ "Em đang hướng tới" trong khung chat.** Anh bấm Đúng ý hay Chưa đúng ý cho cách hiểu, Đạt yêu cầu cho sản phẩm, hoặc tạm dừng. Góp ý thêm trong chat được nối vào đúng mục tiêu, và Javis sửa từ đúng bản anh đã xem; bản Javis viết ngay trong lượt chat được giữ làm bản đầu, không tốn lượt viết lại.
+- **Thử cách làm mới trước khi đổi.** Javis so cách làm hiện tại với một cách khác trên cùng bộ tình huống, chỉ đổi khi cách mới thắng rõ, chưa đủ căn cứ thì giữ cách cũ.
+### Sửa lỗi
+- **Lượt chat trùng lúc Claude Code đang làm mới đăng nhập nói rõ là gửi lại được.** Claude Code bản mới báo lỗi này bằng một câu khác mà Javis từng hiện nguyên tiếng Anh; câu trả lời bình thường có chữ "already used" cũng không còn bị thay nhầm bằng câu báo lỗi.
 
 ## [0.85.11] - 2026-10-08
 ### Sửa lỗi
