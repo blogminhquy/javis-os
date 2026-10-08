@@ -206,16 +206,41 @@
     });
   }
 
-  function load(el) {
+  /* Tải trạng thái MỘT mục tiêu cho các thẻ của nó (audit tốc độ 08/10/2026). Mở lại hội thoại có nhiều tin báo của
+     cùng mục tiêu từng phát mỗi thẻ một GET và mỗi kết quả vẽ lại MỌI thẻ: 50 thẻ ra 50 request và 2.500 lần vẽ.
+     Nay các thẻ cùng (brain, mục tiêu) trong lúc một request đang chạy dùng chung request đó, và kết quả vẽ mọi thẻ
+     ĐÚNG MỘT LẦN. Kết quả về khi đã đổi brain thì bỏ. `fresh`: sau một thao tác (bấm nút) luôn đọc lại trạng thái MỚI,
+     không ghép vào request cũ đang chạy, để revision và artifact_ref là của bản hiện hành. */
+  var INFLIGHT = {};
+
+  function load(el, fresh) {
     var id = el.getAttribute("data-goal");
-    return fetch("/goals/" + encodeURIComponent(id) + "?brain=" + encodeURIComponent(brain()),
-                 { credentials: "same-origin" })
+    var b = brain();
+    var key = b + "\n" + id;
+    var cur = INFLIGHT[key];
+    if (cur && !fresh) {
+      if (cur.els.indexOf(el) < 0) cur.els.push(el);
+      return cur.promise;
+    }
+    var entry = { els: [el], brain: b };
+    function fail(msg) {
+      entry.els.forEach(function (x) { x.innerHTML = '<div class="rs-note">' + esc(msg) + "</div>"; });
+    }
+    entry.promise = fetch("/goals/" + encodeURIComponent(id) + "?brain=" + encodeURIComponent(b),
+                          { credentials: "same-origin" })
       .then(function (r) { return r.json().then(function (j) { return { code: r.status, j: j }; }); })
       .then(function (res) {
-        if (res.code === 200 && res.j.goal) render(el, res.j.goal);
-        else el.innerHTML = '<div class="rs-note">' + esc(res.j.error || tw("resonance.unavailable")) + "</div>";
+        if (INFLIGHT[key] === entry) delete INFLIGHT[key];
+        if (brain() !== entry.brain) return;            // đã đổi brain: kết quả thuộc brain cũ, không vẽ
+        if (res.code === 200 && res.j.goal) render(entry.els[entry.els.length - 1], res.j.goal);
+        else fail(res.j.error || tw("resonance.unavailable"));
       })
-      .catch(function () { el.innerHTML = '<div class="rs-note">' + esc(tw("resonance.unavailable")) + "</div>"; });
+      .catch(function () {
+        if (INFLIGHT[key] === entry) delete INFLIGHT[key];
+        fail(tw("resonance.unavailable"));
+      });
+    if (!fresh) INFLIGHT[key] = entry;
+    return entry.promise;
   }
 
   /* Gắn thẻ vào một tin nhắn đã vẽ. Gọi lại với cùng goal_id trên cùng tin thì không gắn thêm. */
@@ -255,7 +280,7 @@
         else if (act === "out_no") note = tw("resonance.out_no_hint");
         else if (act === "out_ok") note = tw("resonance.out_ok_hint");
         if (res.j.goal) render(el, res.j.goal, note);
-        else load(el).then(function () { if (note) el.insertAdjacentHTML("beforeend", '<div class="rs-note">' + esc(note) + "</div>"); });
+        else load(el, true).then(function () { if (note) el.insertAdjacentHTML("beforeend", '<div class="rs-note">' + esc(note) + "</div>"); });
       })
       .catch(function () { render(el, g, tw("resonance.failed")); });
   }

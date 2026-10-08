@@ -118,6 +118,8 @@ CREATE INDEX IF NOT EXISTS experiments_goal ON experiments(goal_id, created_at);
 CREATE TABLE IF NOT EXISTS call_ledger(
   id INTEGER PRIMARY KEY AUTOINCREMENT, brain_id TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL, created_at REAL NOT NULL, updated_at REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS assessments_goal_rev ON assessments(goal_id, revision, id);
+CREATE INDEX IF NOT EXISTS actions_goal_kind ON actions(goal_id, kind, revision, created_at);
 """
 
 # Cột thêm từ M3 vào bảng đã có ở M2. Kho tạo bởi bản M2 không tự có cột mới qua CREATE IF NOT EXISTS,
@@ -740,13 +742,17 @@ class GoalStore:
                 "reason": r["reason"], "calls_reserved": r["calls_reserved"], "applied": bool(r["applied"]),
                 "payload": json.loads(r["payload_json"] or "{}"), "created_at": r["created_at"]}
 
-    def experiments(self, p: Principal, goal_id: str) -> list:
-        """Các phép thử của mục tiêu, mới nhất trước."""
+    def experiments(self, p: Principal, goal_id: str, limit: Optional[int] = None) -> list:
+        """Các phép thử của mục tiêu, mới nhất trước. `limit`: chỉ lấy chừng ấy phép thử mới nhất (thẻ chỉ hiện 3)."""
         with closing(self._conn()) as c:
             if self._goal_row(c, p, goal_id) is None:
                 return []
-            return [self._experiment(r) for r in c.execute(
-                "SELECT * FROM experiments WHERE goal_id=? ORDER BY created_at DESC, rowid DESC", (goal_id,)).fetchall()]
+            q = "SELECT * FROM experiments WHERE goal_id=? ORDER BY created_at DESC, rowid DESC"
+            args = [goal_id]
+            if limit is not None:
+                q += " LIMIT ?"
+                args.append(int(limit))
+            return [self._experiment(r) for r in c.execute(q, args).fetchall()]
 
     def apply_method(self, p: Principal, goal_id: str, expected_revision: int, from_ref: str, to_ref: str,
                      experiment_id: str) -> None:
@@ -848,6 +854,33 @@ class GoalStore:
             return [self._action(r) for r in
                     c.execute("SELECT * FROM actions WHERE goal_id=? ORDER BY created_at, seq", (goal_id,)).fetchall()]
 
+    # Đọc CÓ GIỚI HẠN cho thẻ mục tiêu (audit tốc độ 08/10/2026): thẻ chỉ cần hành động mới nhất của một loại và vài dòng
+    # thời gian cuối, nên không đọc cả lịch sử rồi mới cắt. Thứ tự giống hệt actions() (created_at, seq).
+
+    def latest_action(self, p: Principal, goal_id: str, kind: str, status: Optional[str] = None,
+                      revision: Optional[int] = None) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return None
+            q, args = "SELECT * FROM actions WHERE goal_id=? AND kind=?", [goal_id, kind]
+            if status is not None:
+                q += " AND status=?"
+                args.append(status)
+            if revision is not None:
+                q += " AND revision=?"
+                args.append(int(revision))
+            r = c.execute(q + " ORDER BY created_at DESC, seq DESC LIMIT 1", args).fetchone()
+            return self._action(r) if r else None
+
+    def recent_actions(self, p: Principal, goal_id: str, limit: int) -> list:
+        """`limit` hành động cuối, theo thứ tự thời gian tăng dần (như actions()[-limit:])."""
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return []
+            rows = c.execute("SELECT * FROM actions WHERE goal_id=? ORDER BY created_at DESC, seq DESC LIMIT ?",
+                             (goal_id, int(limit))).fetchall()
+            return [self._action(r) for r in reversed(rows)]
+
     def stale_actions(self, p: Principal, goal_id: str, now: float) -> list:
         with closing(self._conn()) as c:
             if self._goal_row(c, p, goal_id) is None:
@@ -891,6 +924,20 @@ class GoalStore:
                 return []
             return [json.loads(r["payload_json"]) for r in
                     c.execute("SELECT payload_json FROM assessments WHERE goal_id=? ORDER BY id", (goal_id,)).fetchall()]
+
+    def last_assessment_with_results(self, p: Principal, goal_id: str, revision: int) -> Optional[dict]:
+        """Đánh giá MỚI NHẤT của đúng revision có kết quả từng tiêu chí, hoặc None. Cùng kết quả với duyệt ngược
+        assessments(), nhưng đọc từ cuối và dừng ở dòng đầu tiên khớp (chỉ mục assessments_goal_rev)."""
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return None
+            cur = c.execute("SELECT payload_json FROM assessments WHERE goal_id=? AND revision=? ORDER BY id DESC",
+                            (goal_id, int(revision)))
+            for r in cur:
+                a = json.loads(r["payload_json"])
+                if a.get("revision") == revision and a.get("criterion_results"):
+                    return a
+            return None
 
     def published(self, p: Principal, goal_id: str, path: str) -> Optional[dict]:
         with closing(self._conn()) as c:

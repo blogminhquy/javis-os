@@ -403,6 +403,21 @@ async def _ngon_ngu_thiet_bi(request: Request, call_next):
     finally:
         localefmt.bo_ngon_ngu_yeu_cau(tok)
 
+
+@app.middleware("http")
+async def _server_timing(request: Request, call_next):
+    """Header `Server-Timing: app;dur=<ms>`: thời gian Javis xử lý một request, đo NGOÀI CÙNG (đặt sau mọi middleware
+    khác). Trình duyệt hiện nó trong tab Network (Timing), kể cả khi đi qua Cloudflare, nên tách được "Javis chậm"
+    với "đường proxy chậm" mà không cần vào máy chủ (audit tốc độ 08/10/2026: qua Cloudflare 5 giây, thẳng VPS 0,4
+    giây). Chỉ là một con số thời gian, không lộ dữ liệu gì; không đụng WebSocket."""
+    t0 = time.perf_counter()
+    response = await call_next(request)
+    try:
+        response.headers.append("Server-Timing", f"app;dur={(time.perf_counter() - t0) * 1000:.1f}")
+    except Exception:  # noqa: BLE001 - header là đồ thêm, không được làm hỏng response
+        pass
+    return response
+
 CLAUDE_MD_PATH = Path(__file__).parent.parent / "CLAUDE.md"
 SYSTEM_PROMPT = CLAUDE_MD_PATH.read_text(encoding="utf-8") if CLAUDE_MD_PATH.exists() else None
 
