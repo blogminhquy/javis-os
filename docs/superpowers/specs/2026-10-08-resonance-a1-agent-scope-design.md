@@ -314,3 +314,23 @@ Review vòng 1 đồng ý cả năm quyết định. Bổ sung theo review:
 - P2 mới (phiên mở trước lần bật đầu của agent tạo lại cùng tên) xử lý ở API và giao diện bằng `needs_new_session` (mục 1). Resolver không nới.
 - Chốt cách dùng lại đầu ra sau tắt/bật (mục 4).
 - Kế hoạch nối phần còn lại: `docs/superpowers/plans/2026-10-08-resonance-a1-integration-plan.md`.
+
+## 14. Sửa sau review tích hợp (head trước `52d841d1`)
+
+1. **P1-1 prompt thật của phiên trợ lý.** Dòng gợi ý (`_RESONANCE_GOAL_HINT`, một bản) nối vào `_agent_chat_prompt`, đường dựng prompt mà MỌI engine của phiên trợ lý dùng.
+   - Khi trợ lý đang bật, câu "chỉ hai lối" trong khối công cụ của trợ lý đổi thành ba lối.
+   - Trợ lý tắt và chat thường giữ nguyên.
+2. **P1-2 file trợ lý mất.** `agent_gate` đối soát file ngay tại cổng (cùng luật tìm thư mục với `_agents_dir`).
+   - File mất thì chốt `missing` dù không có lượt chat nào. Áp dụng cho scheduler, `/goal-requests`, bàn giao, đăng, phép thử.
+   - `GET /resonance/agents` cũng chốt `missing` cho mã mất file.
+   - File có lại vẫn cần chủ dự án xác nhận.
+3. **P1-3 phép thử.** Phép thử ghim mã và version ở bảng mới `experiment_agents`; kho kiểm trong giao dịch giữ hạn mức, mỗi lượt thử và bước áp dụng.
+   - Tắt hay đổi version thì phép thử dừng, hoàn phần hạn mức chưa chạy, không áp dụng.
+   - Mục tiêu đã thuộc trợ lý thì mọi `begin_action` và `begin_experiment` phải mang mã; thiếu thì từ chối, không ngầm bỏ kiểm.
+   - Không có đường tái cấp quyền cho kết quả phép thử sau bật lại: phải chạy phép thử mới.
+4. **P2 trạng thái phiên sau tải lại.** `GET /resonance/agents?slug=&session_id=` trả trạng thái phiên theo đúng luật của `run_turn`, chỉ đọc, không ghi liên kết. Khối giao diện hỏi lại host mỗi lần mở, tải lại hay đổi phiên.
+5. **Pilot** chạy trong phiên trợ lý; có chặng kiểm ba cửa không gọi model (`docs/dev/resonance-mvp-e2e-pilot-plan.md`, mục A1).
+
+**Giới hạn còn lại:**
+- Danh sách tool của hub được đệm theo brain, nên `javis_search_tools` có thể vẫn trả `javis_goal` trong lượt của trợ lý đã tắt.
+- Lời gọi khi đó bị hàm xử lý từ chối (`agent_off`), không ghi gì. Danh sách tool chỉ là gợi ý (mục 4).

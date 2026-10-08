@@ -477,3 +477,23 @@ Biên bản review: `exports/reviews/PR-579-pilot5-content-review.md` (ngoài gi
 
 **Góp ý chất lượng ngoài checklist (không chặn, không sửa bằng chứng):** vài câu tuyệt đối quá ("Đã ký là coi như mình đồng ý đủ hàng", "không ghi coi như không có", "Ảnh là bằng chứng ... không phải do kho làm hỏng"). Khi dùng làm tài liệu vận hành nên viết theo tác dụng thực tế: ký trước khi kiểm làm khó đối chiếu thiếu hay hỏng; ảnh giúp ghi nhận tình trạng lúc giao. Hai file đã hash giữ nguyên.
 
+
+## A1: pilot chuyển sang phiên trợ lý (08/10/2026, PR #590)
+
+Từ A1, Cộng hưởng chỉ bật theo từng trợ lý; công tắc brain cũ không còn cấp quyền. Bộ chạy achieve (`tests/python/test_resonance_mvp_e2e_achieve.py`) đổi theo:
+- Brain tạm có một **trợ lý tạm** `tro-ly-tai-lieu` (vai trung lập, không chọn model riêng, nên chạy bằng bộ não chính đã duyệt). Không bật công tắc brain cũ.
+- **Chặng S0b mới, không gọi model:**
+  - chat thường: `/goal-requests` 403;
+  - trợ lý chưa bật: 403;
+  - chủ dự án bật qua `POST /resonance/agents/toggle`: cấp mã, phiên trợ lý `ready`; đọc lại `GET /resonance/agents` khớp kho.
+  - Ở real, kiểm thêm engine của trợ lý lập được mục tiêu và nhận bản chat.
+  - Ở dry, `/goal-requests` trên phiên trợ lý đã bật qua được cổng, tới bộ lập mục tiêu và dừng ở engine bị chặn (400), không gọi model. Real KHÔNG gọi đường này, vì bộ lập mục tiêu sẽ gọi model.
+- **Các lượt chat S1, S4** gửi vào đúng phiên `agent:<slug>`. S1 kiểm thêm mục tiêu gắn đúng trợ lý của phiên.
+
+**Khác pilot 5, cần nhớ khi đọc kết quả:**
+- Prompt phiên trợ lý là `_agent_chat_prompt`: vai trợ lý, bộ nhớ trợ lý, khối công cụ và dòng gợi ý Cộng hưởng. Nó KHÔNG có CLAUDE.md như chat thường của pilot 5.
+- Định tuyến của bộ não có thể khác. Kết quả pilot không suy ngược cho chat thường.
+
+**Dry (không gọi model):** `exports/reviews/A1-pilot-dry-report.json`, kết quả `dry_ok`, 0 lượt engine.
+
+**Lần chạy thật:** chưa chạy. Cần chủ dự án duyệt riêng phạm vi và hạn mức. Không dùng lại hạn mức pilot cũ.

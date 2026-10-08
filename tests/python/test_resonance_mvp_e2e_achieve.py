@@ -24,6 +24,12 @@ S5 giết D, dựng E (nhịp chạy, trần 2): đúng một lượt bản sử
 S6 bấm "Đạt yêu cầu" qua API cho TỪNG tiêu chí người dùng xác nhận của revision hiện hành (thao tác MÔ PHỎNG, chỉ kiểm
    đường API; không phải con người đã nghiệm thu nội dung).
 Kết luận: kỹ thuật đạt thì `pending_content_review`: người review đọc hai bản đã lưu nguyên vẹn (hash) và tự chốt.
+
+A1 (Cộng hưởng theo từng trợ lý, review tích hợp PR #590): pilot chạy trong PHIÊN TRỢ LÝ đã bật, không còn công tắc
+brain. Brain tạm có một trợ lý tạm (AGENT_SLUG, không chọn model riêng nên chạy bằng bộ não chính đã duyệt). Chặng S0b
+(không gọi model) kiểm ba cửa: chat thường bị chặn, trợ lý tắt bị chặn, bật qua API của chủ dự án thì phiên trợ lý
+dùng được. Prompt phiên trợ lý KHÁC prompt chat thường của pilot 5 (không có CLAUDE.md): kết quả pilot không suy ngược
+cho chat thường.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -54,9 +60,13 @@ MAX_CALLS = CHAT_LIMIT + PHASE_CEILING[2]
 BASE = Path(tempfile.mkdtemp(prefix="rsach-", dir=os.environ.get("TEMP") or None)).resolve()
 STATE, BRAINS = BASE / "state", BASE / "brains"
 BRAIN = BRAINS / "Brain Default"
-for d in (STATE, BRAIN / "Javis"):
+for d in (STATE, BRAIN / "Javis", BRAIN / "agents"):
     d.mkdir(parents=True, exist_ok=True)
-(BRAIN / "Javis" / "resonance.json").write_text('{"enabled": true}', encoding="utf-8")
+# A1: không bật công tắc brain cũ (nó không còn cấp quyền). Trợ lý tạm: vai trung lập, không chọn model riêng.
+AGENT_SLUG = "tro-ly-tai-lieu"
+AGENT_MD = ("---\nname: Trợ lý tài liệu\nrole: Soạn và sửa tài liệu hướng dẫn nội bộ\n---\n"
+            "Bạn soạn và sửa tài liệu hướng dẫn nội bộ theo lời chủ dặn.\n")
+(BRAIN / "agents" / f"{AGENT_SLUG}.md").write_text(AGENT_MD, encoding="utf-8", newline="\n")
 
 OUT = os.environ.get("JAVIS_RESONANCE_E2E_OUT", "")
 if MODE == "real" and not OUT:
@@ -370,10 +380,10 @@ def chat_turn(label, message, session_id=None):
                   "init_tool_list": "not_observable"}
 
 
-def http(method, path, **kw):
+def http(method, path, params_extra=None, **kw):
     import httpx
-    r = httpx.request(method, f"{ORIGIN}{path}", params={"brain": "brain"}, headers={"Origin": ORIGIN}, timeout=30,
-                      **kw)
+    r = httpx.request(method, f"{ORIGIN}{path}", params={"brain": "brain", **(params_extra or {})},
+                      headers={"Origin": ORIGIN}, timeout=30, **kw)
     try:
         return r.status_code, r.json()
     except Exception:  # noqa: BLE001
@@ -415,6 +425,7 @@ def goal_view(g):
 
 def _routing_versions():
     out = {}
+    out["agent_file"] = _sha_file(BRAIN / "agents" / f"{AGENT_SLUG}.md")[:16]
     for name, p in (("repo_CLAUDE.md", Path(ROOT) / "CLAUDE.md"), ("main.py", Path(ROOT) / "server" / "main.py"),
                     ("javis_goal_plugin", Path(ROOT) / "system" / "plugins" / "javis-goal" / "plugin.py"),
                     ("javis_task_plugin", Path(ROOT) / "system" / "plugins" / "javis-task" / "plugin.py")):
@@ -481,16 +492,55 @@ try:
             raise Stop("S0: không chứng minh được chỉ dùng gói thuê bao, không gửi tin")
     check("S0 server thật lên được, WebSocket /ws nhận kết nối qua kiểm Origin", asyncio.run(ws_hello()) == "hello")
 
+    # ───────────── S0b (A1): ba cửa của cổng trợ lý, KHÔNG gọi model ─────────────
+    rep["stages"]["S0b"] = s0b = {}
+    code, j = http("POST", "/sessions/new", data={"brain": "brain", "channel": f"agent:{AGENT_SLUG}"})
+    sid = (j or {}).get("id")
+    _ss = sess_store()
+    # Phiên chat thường: trình duyệt tự cấp id, kho phiên tạo với kênh web (không qua /sessions/new).
+    sid_plain = _ss.create_session(brain=KEY, engine="cli")
+    check("S0b tạo được phiên trợ lý qua host (kênh agent:<slug>) và một phiên chat thường", bool(sid) and bool(sid_plain))
+    m_plain = _ss.append_message(sid_plain, "user", USER_MSG)
+    m_agent = _ss.append_message(sid, "user", USER_MSG)
+    code, _b = http("POST", "/goal-requests", json={"message_ref": R.message_ref(sid_plain, m_plain)})
+    s0b["plain_goal_request"] = code
+    check("S0b chat thường: /goal-requests bị chặn (403), không gọi model", code == 403 and background_calls() == 0)
+    code, _b = http("POST", "/goal-requests", json={"message_ref": R.message_ref(sid, m_agent)})
+    s0b["agent_off_goal_request"] = code
+    check("S0b trợ lý CHƯA bật: /goal-requests bị chặn (403), không gọi model", code == 403 and background_calls() == 0)
+    code, j = http("POST", "/resonance/agents/toggle", json={"slug": AGENT_SLUG, "enabled": True, "session_id": sid})
+    AG = (j or {}).get("agent") or {}
+    s0b["toggle"] = {"code": code, "session": (j or {}).get("session"), "config_version": AG.get("config_version"),
+                     "agent_key_hash": hashlib.sha256(str(AG.get("agent_key")).encode()).hexdigest()[:12]}
+    check("S0b chủ dự án bật Cộng hưởng cho trợ lý qua API: cấp mã, phiên trợ lý dùng được (ready)",
+          code == 200 and AG.get("enabled") is True and (j or {}).get("session") == "ready")
+    code, j = http("GET", "/resonance/agents", params_extra={"slug": AGENT_SLUG, "session_id": sid})
+    row = next((a for a in (j or {}).get("agents", []) if a.get("slug") == AGENT_SLUG), {})
+    s0b["agents_row"] = {k: row.get(k) for k in ("enabled", "status", "support")}
+    check("S0b danh sách trợ lý khớp kho: bật, active, và đọc lại trạng thái phiên vẫn ready",
+          row.get("enabled") is True and row.get("status") == "active" and (j or {}).get("session") == "ready")
+    if MODE == "real":
+        sup = row.get("support") or {}
+        check("S0b engine của trợ lý (bộ não chính đã duyệt) lập được mục tiêu và nhận bản chat",
+              sup.get("goal") is True and sup.get("chat_output") is True, "contract")
+    if MODE == "dry":
+        # Dry: /goal-requests trên phiên trợ lý ĐÃ bật qua được cổng, tới bộ lập mục tiêu; engine bị chặn nên không
+        # gọi model, không tạo mục tiêu (400). Real KHÔNG gọi đường này (bộ lập mục tiêu sẽ gọi model).
+        code, _b = http("POST", "/goal-requests", json={"message_ref": R.message_ref(sid, m_agent)})
+        s0b["agent_on_goal_request"] = code
+        check("S0b dry: trợ lý đã bật: qua cổng, tới bộ lập mục tiêu, engine bị chặn nên 400, không gọi model",
+              code == 400 and background_calls() == 0 and not all_goals())
+
     # ───────────── S1: lượt chat 1, bộ não tự quyết ─────────────
     kanban0 = kanban_tasks()
     if MODE == "real":
-        sid, turn = chat_turn("S1", USER_MSG)
+        sid1, turn = chat_turn("S1", USER_MSG, session_id=sid)
         rep["stages"]["S1"] = turn
-        check("S1 lượt chat kết thúc (turn_done) và có session_id", bool(sid) and turn["completed"])
+        check("S1 lượt chat kết thúc (turn_done) trong ĐÚNG phiên trợ lý", sid1 == sid and turn["completed"])
     else:
         ss = sess_store()
-        sid = ss.get_or_create(None, brain=KEY, engine="dry", model="dry")
         mid = ss.append_message(sid, "user", USER_MSG)
+        _ag = goal_store().agent(KEY, AGENT_SLUG)
         prop = {"understanding": "Bản hướng dẫn nhận hàng cho nhân viên mới, sửa theo góp ý tới khi anh dùng được",
                 "relevant_quote": "Em lo việc này giúp anh tới khi anh thấy dùng được thì thôi", "mode": "achieve",
                 "stage": "delivery", "horizon": {"kind": "review", "at_iso": "2027-01-20T09:00:00+07:00"},
@@ -500,9 +550,10 @@ try:
                               "evaluator": "human_confirmation"}]}
         asyncio.run(R.form_goal(R.message_ref(sid, mid), {
             "principal": P, "brain_root": KEY, "session_id": sid, "message_id": mid, "user_text": USER_MSG,
-            "constraints": [], "budget_calls": 4, "proposal": prop},
+            "constraints": [], "budget_calls": 4, "proposal": prop,
+            "agent_key": _ag["agent_key"], "agent_version": _ag["config_version"]},
             R.GoalDeps(engine_factory=lambda s, t: (None, {}), budget=R.CallBudget(0), store=goal_store())))
-        rep["stages"]["S1"] = {"dry": "mục tiêu lập bằng form_goal như tool javis_goal"}
+        rep["stages"]["S1"] = {"dry": "mục tiêu lập bằng form_goal như tool javis_goal, gắn trợ lý của phiên"}
     rep["session_id_hash"] = hashlib.sha256(str(sid).encode()).hexdigest()[:12]
     rep["artifacts"]["after_S1"] = preserve("s1-chat")
     gs = [x for x in all_goals() if x.session_id == sid]
@@ -513,6 +564,8 @@ try:
                    "mục tiêu và không giao Kanban (ghi nhận như kết quả pilot, không thử lại)")
     g = gs[0]
     rep["goal_S1"] = goal_view(g)
+    check("S1 mục tiêu gắn đúng trợ lý của phiên (A1)",
+          g.agent_key == (goal_store().agent(KEY, AGENT_SLUG) or {}).get("agent_key"), "contract")
     it = goal_store().get_intent(P, g.intent_id) or {}
     check("S1 ý định gốc trùng khớp toàn bộ lời người dùng của tin vừa gửi",
           str(it.get("text") or "").strip() == USER_MSG.strip())
@@ -600,7 +653,8 @@ try:
                            "relevant_quote": "em thêm một ví dụ cụ thể"},
                           {"message_ref": R.message_ref(sid, mid2), "session_id": sid, "message_id": mid2,
                            "user_text": FEEDBACK_MSG, "constraints": [], "user_unsure": False,
-                           "reason": "góp ý của người dùng"})
+                           "reason": "góp ý của người dùng", "agent_key": g.agent_key,
+                           "agent_version": (goal_store().agent(KEY, AGENT_SLUG) or {}).get("config_version")})
         except Exception as e:  # noqa: BLE001
             check(f"S4 dry: revise_goal nhận góp ý ({type(e).__name__}: {e})", False)
         rep["stages"]["S4"] = {"dry": "góp ý nối bằng revise_goal như javis_goal op=update"}
