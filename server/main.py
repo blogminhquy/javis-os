@@ -14056,11 +14056,23 @@ async def websocket_endpoint(ws: WebSocket):
                              {"role": "user", "content": prompt}],
                             provider="codex", model=actual_model,
                         )
+                        dang_chay = set()   # id các bước Codex đã báo bắt đầu, chưa báo xong
                         async for ev in ccli.query(prompt):
                             et = ev["type"]
                             if et == "session":
                                 if ev.get("session_id"):
                                     store.set_codex_thread_id(conv_sid, ev["session_id"])
+                            elif et == "progress":
+                                # Bước BẮT ĐẦU: hiện ngay thành bước đang chạy, như Claude. Trước
+                                # 0.86.1 bước chỉ hiện lúc đã xong, lệnh dài trông như treo.
+                                if ev.get("id"):
+                                    dang_chay.add(ev["id"])
+                                await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "detail": tool_label.chi_tiet(ev), "content": f"⚙ {ev.get('name', '')}"}))
+                            elif et == "tool_call" and ev.get("id") and ev["id"] in dang_chay:
+                                # Bước đã hiện lúc bắt đầu: giờ chỉ đánh dấu xong, không thêm bước đôi.
+                                dang_chay.discard(ev["id"])
+                                out = str((ev.get("item") or {}).get("aggregated_output") or "")
+                                await ws.send_text(json.dumps({"type": "tool_result", "content": out[:200]}))
                             elif et == "tool_call":
                                 await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "detail": tool_label.chi_tiet(ev), "content": f"⚙ {ev.get('name', '')}"}))
                             elif et == "text":

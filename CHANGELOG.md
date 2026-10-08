@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.86.1] - 2026-10-08
+### Cải thiện
+- **Dùng ChatGPT làm bộ não, khung chat hiện ngay bước Javis đang làm, không im hẳn tới lúc xong.** Trước đây khi Codex chạy một lệnh dài (cài thư viện, quét file, chạy script), khung chat chỉ có chữ "Javis đang suy nghĩ..." đếm giờ cho tới khi lệnh chạy xong, trông như bị treo. Giờ bước hiện ra ngay lúc bắt đầu, kiểu "Chạy lệnh: npm install", rồi được đánh dấu xong khi chạy xong, giống như khi dùng Claude.
+
 ## [0.85.11] - 2026-10-08
 ### Sửa lỗi
 - **Khung chat không còn đứng im ở "Javis đang suy nghĩ..." khi kết nối bị đứt ngầm.** Máy ngủ, đổi Wi-Fi hay mạng chập chờn có thể làm kết nối giữa trang và Javis chết mà trình duyệt không hay biết. Javis vẫn làm xong việc, nhưng câu trả lời không về được trang, nên chữ "đang suy nghĩ" đếm mãi và bạn phải gửi lại câu lệnh. Giờ trang tự hỏi thăm Javis sau mỗi quãng im lặng. Không thấy trả lời thì trang tự nối lại và kéo về câu trả lời đã xong. Nút Dừng cũng luôn tới được Javis, kể cả khi kết nối đã chết.

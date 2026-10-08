@@ -1491,6 +1491,18 @@ def cau_ket_noi_lai(msg: str) -> str:
                          f"The connection to ChatGPT dropped, Codex is reconnecting{lan_en}…")
 
 
+# Loại item của Codex là một BƯỚC LÀM VIỆC (lệnh máy, gọi tool, tìm web), hiện thành bước trong chat.
+_CODEX_TOOL_ITEMS = ("mcp_tool_call", "command_execution", "function_call",
+                     "tool_call", "local_shell_call", "web_search_call")
+
+
+def _codex_tool_name(it: dict) -> str:
+    """Tên bước: LOẠI việc, không phải nguyên câu lệnh. Trước 0.64.77 lệnh shell lấy `command` làm
+    tên, nên Telegram in nguyên `/bin/sh -lc "sed -n ..."` lên dòng vết. mcp_tool_call của Codex
+    có `server` + `tool`: tên tool mới nói việc gì."""
+    return str(it.get("tool") or it.get("name") or it.get("server") or it.get("type") or "")[:80]
+
+
 class CodexCLI:
     def __init__(self, cwd: Optional[str] = None, tag: str = "chat", model: Optional[str] = None,
                  instructions: Optional[str] = None):
@@ -1725,6 +1737,17 @@ class CodexCLI:
                     self.session_id = thread_id
                     # Phát ngay để caller lưu trước cả khi lượt bị ngắt giữa chừng.
                     yield {"type": "session", "session_id": thread_id}
+            elif t == "item.started":
+                # Codex báo lúc một bước BẮT ĐẦU (đo 08/10, Codex 0.160: lệnh `ping` 5 giây có
+                # item.started ở giây 8,8, item.completed ở giây 14). Trước 0.86.1 Javis chỉ nghe
+                # item.completed, nên suốt lúc một lệnh dài chạy, khung chat im hẳn và người dùng
+                # tưởng treo (khách báo 08/10). Phát `progress` để trang hiện ngay bước đang chạy;
+                # nơi nào không biết loại này thì bỏ qua, `tool_call` lúc xong vẫn y như cũ.
+                it = ev.get("item") or {}
+                itype = it.get("type")
+                if itype in _CODEX_TOOL_ITEMS:
+                    yield {"type": "progress", "name": _codex_tool_name(it), "item": it,
+                           "id": str(it.get("id") or "")}
             elif t == "item.completed":
                 it = ev.get("item") or {}
                 itype = it.get("type")
@@ -1737,18 +1760,14 @@ class CodexCLI:
                     if txt.strip():
                         final_text += (("\n" if final_text else "") + txt)
                         yield {"type": "text", "content": txt}
-                elif itype in ("mcp_tool_call", "command_execution", "function_call",
-                               "tool_call", "local_shell_call", "web_search_call"):
-                    # Tên = LOẠI việc, không phải nguyên câu lệnh. Trước 0.64.77 lệnh shell lấy
-                    # `command` làm tên, nên Telegram in nguyên `/bin/sh -lc "sed -n ..."` lên dòng
-                    # vết. Câu lệnh vẫn đi kèm trong `item` để tool_label.chi_tiet rút ra khi cần.
-                    # mcp_tool_call của Codex có `server` + `tool`: tên tool mới nói việc gì.
-                    name = it.get("tool") or it.get("name") or it.get("server") or itype
+                elif itype in _CODEX_TOOL_ITEMS:
+                    # Câu lệnh đi kèm trong `item` để tool_label.chi_tiet rút ra khi cần.
+                    name = _codex_tool_name(it)
                     # Kèm `item` THÔ. Codex không có trường file_path chuẩn hoá như Claude:
                     # đường dẫn nằm rải trong changes[]/arguments/command tuỳ loại item, và
                     # khuôn còn đổi theo bản CLI. Caller tự moi (channel_context
                     # .candidate_paths_from_tool) thay vì tầng này đoán một khuôn cố định.
-                    yield {"type": "tool_call", "name": str(name)[:80], "item": it}
+                    yield {"type": "tool_call", "name": name, "item": it, "id": str(it.get("id") or "")}
                 elif itype == "error" and la_thong_bao_ket_noi_lai(it.get("message")):
                     # Cùng loại tin với nhánh `error` ở dưới, chỉ khác khuôn (bản CLI in cảnh báo
                     # dạng item). Không đẩy lên thành bước tool.
