@@ -5,6 +5,8 @@ Auth CHỈ bật khi đã đặt mật khẩu → bản local chưa đặt vẫn
 """
 import json
 import os
+import threading
+import time
 import hashlib
 import secrets
 from pathlib import Path
@@ -554,6 +556,90 @@ def _transform_secret_fields(cfg, fn):
 # ghi đè) thì mtime/size đổi -> tự đọc lại. Trả deep copy để caller sửa thoải mái không bẩn cache.
 _SETTINGS_CACHE = {"sig": None, "cfg": None}
 
+# Một khoá cho mọi lần đọc-sửa-ghi settings.json (update_settings, write_settings). RLock vì
+# update_settings gọi write_settings bên trong. Chặn hai luồng (endpoint chạy trong threadpool,
+# asyncio.to_thread) cùng đọc bản cũ rồi ghi đè lên thay đổi của nhau.
+_SETTINGS_LOCK = threading.RLock()
+
+
+def _bak_path() -> Path:
+    """Bản tốt gần nhất trước lần ghi cuối. Tính lại mỗi lần gọi vì test đổi SETTINGS_PATH."""
+    return SETTINGS_PATH.with_name(SETTINGS_PATH.name + ".bak")
+
+
+def _doc_file_settings() -> dict:
+    """Nội dung settings.json trên đĩa (CHƯA trộn mặc định, chưa giải mã). {} khi chưa có file.
+
+    File có mà đọc hỏng (JSON cụt, byte rác) thì KHÔNG coi như rỗng. Trước 0.86.2 nhánh này nuốt
+    lỗi rồi trả mặc định, và lần ghi kế tiếp lấy chính bản mặc định đó đè lên file: mất sạch tên
+    miền, mật khẩu, khoá API (báo lỗi của khách 08/10). Giờ: giữ lại bản hỏng để cứu tay, đọc bản
+    dự phòng `.bak` (bản tốt trước lần ghi cuối), và báo to trong log."""
+    if not SETTINGS_PATH.exists():
+        return {}
+    try:
+        data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return data
+        raise ValueError(f"settings.json không phải object JSON ({type(data).__name__})")
+    except Exception as e:
+        hong = SETTINGS_PATH.with_name(SETTINGS_PATH.name + ".bad")
+        try:
+            raw = SETTINGS_PATH.read_bytes()
+            hong = SETTINGS_PATH.with_name(f"{SETTINGS_PATH.name}.bad-{hashlib.sha1(raw).hexdigest()[:8]}")
+            if not hong.exists():   # cùng một bản hỏng thì chỉ giữ một lần
+                hong.write_bytes(raw)
+        except Exception:
+            pass
+        print(f"[config] settings.json ĐỌC HỎNG ({type(e).__name__}: {e}). Đã giữ bản hỏng ở {hong.name}; "
+              f"đang dùng bản dự phòng {_bak_path().name} nếu có.", file=__import__("sys").stderr)
+        try:
+            data = json.loads(_bak_path().read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+        return {}
+
+
+def _ghi_nguyen_tu(text: str) -> None:
+    """Ghi settings.json NGUYÊN TỬ: ghi file tạm cạnh nó, fsync, rồi os.replace.
+
+    Ghi thẳng (write_text) mà tiến trình chết giữa chừng (container bị dừng lúc cập nhật, máy mất
+    điện) là để lại file JSON cụt, và đọc cụt thì trước đây ra cấu hình mặc định. Trước khi thay,
+    chép bản đang tốt sang `.bak` để còn đường lùi nếu bản mới có vấn đề."""
+    tmp = SETTINGS_PATH.with_name(f".{SETTINGS_PATH.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                pass
+        if SETTINGS_PATH.exists():
+            try:
+                cu = SETTINGS_PATH.read_bytes()
+                if isinstance(json.loads(cu.decode("utf-8")), dict):   # chỉ lưu bản TỐT làm dự phòng
+                    _bak_path().write_bytes(cu)
+                os.chmod(tmp, SETTINGS_PATH.stat().st_mode & 0o777)
+            except Exception:
+                pass
+        # Windows: file đang bị một tiến trình khác mở đọc thì replace có thể bị từ chối thoáng qua.
+        for lan in range(5):
+            try:
+                os.replace(tmp, SETTINGS_PATH)
+                break
+            except PermissionError:
+                if lan == 4:
+                    raise
+                time.sleep(0.05 * (lan + 1))
+    finally:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except Exception:
+            pass
+
 
 def _deep_merge(base: dict, patch: dict) -> dict:
     """Gộp `patch` lên `base` ĐỆ QUY, sửa tại chỗ, trả lại `base`.
@@ -789,13 +875,8 @@ def read_settings():
     if sig is not None and sig == _SETTINGS_CACHE["sig"] and _SETTINGS_CACHE["cfg"] is not None:
         return json.loads(_SETTINGS_CACHE["cfg"])
     cfg = json.loads(json.dumps(_DEFAULT))   # deep copy
-    data = {}
-    try:
-        if SETTINGS_PATH.exists():
-            data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8")) or {}
-            _deep_merge(cfg, data)
-    except Exception:
-        pass
+    data = _doc_file_settings()
+    _deep_merge(cfg, data)
     _ui_lang_ban_cu(cfg, data)
     _nan_provider_da_go(cfg)
     _no_rong_pham_vi_bo_nao(cfg)
@@ -811,7 +892,44 @@ def read_settings():
     return cfg
 
 
+def update_settings(patch: dict) -> dict:
+    """Cập nhật TỪNG PHẦN: gộp `patch` (đệ quy) lên cấu hình hiện tại rồi ghi, trong một khoá.
+
+    Dùng cho mọi chỗ chỉ muốn đổi vài trường (`{"whatsapp": {"verify_token": ...}}`). Đừng đưa
+    mảnh như thế vào `write_settings`: hàm đó THAY TOÀN BỘ file bằng thứ được đưa vào. Trả về cấu
+    hình đầy đủ sau khi ghi."""
+    with _SETTINGS_LOCK:
+        cfg = read_settings()
+        _deep_merge(cfg, json.loads(json.dumps(patch)))
+        write_settings(cfg)
+        return cfg
+
+
 def write_settings(cfg):
+    """THAY TOÀN BỘ settings.json bằng `cfg` - một cấu hình ĐẦY ĐỦ lấy từ read_settings() rồi sửa.
+
+    Lưới an toàn (0.86.2): `cfg` thiếu khoá gốc mà mọi cấu hình đầy đủ đều có (read_settings luôn
+    trộn đủ mặc định) thì chắc chắn là một MẢNH truyền nhầm. Ba chỗ từng làm vậy từ 0.71.0
+    (`{"whatsapp": {"verify_token": ...}}` ngay trong GET /whatsapp/status, cho phép chat Zalo,
+    cho phép người dùng Slack/WhatsApp) và mỗi lần chạy là xoá sạch tên miền, mật khẩu, khoá API
+    (khách báo 08/10). Mảnh như thế giờ được gộp như update_settings, kèm một dòng log chỉ chỗ gọi."""
+    if not isinstance(cfg, dict):
+        raise TypeError("write_settings cần một dict cấu hình đầy đủ")
+    with _SETTINGS_LOCK:
+        thieu = [k for k in _DEFAULT if k not in cfg]
+        if thieu:
+            import traceback
+            noi = "".join(traceback.format_stack(limit=3)[:-1]).strip().replace("\n", " | ")
+            print(f"[config] write_settings nhận một MẢNH (thiếu {', '.join(thieu[:4])}...) - gộp thay vì "
+                  f"ghi đè cả file. Hãy dùng update_settings. Gọi từ: {noi[-300:]}",
+                  file=__import__("sys").stderr)
+            day_du = read_settings()
+            _deep_merge(day_du, json.loads(json.dumps(cfg)))
+            cfg = day_du
+        _write_settings_full(cfg)
+
+
+def _write_settings_full(cfg):
     # Deep-copy rồi mã hoá BẢN SAO: caller vẫn giữ cfg plaintext để dùng tiếp (không bị hỏng).
     out = json.loads(json.dumps(cfg))
     try:
@@ -827,7 +945,7 @@ def write_settings(cfg):
     try:
         t = (out.get("auth") or {}).get("totp")
         if isinstance(t, dict) and t.get("enabled") and not str(t.get("secret") or ""):
-            raw_cu = json.loads(SETTINGS_PATH.read_text(encoding="utf-8")) if SETTINGS_PATH.exists() else {}
+            raw_cu = _doc_file_settings()
             cu = str((((raw_cu.get("auth") or {}).get("totp") or {}).get("secret")) or "")
             if cu:
                 t["secret"] = cu
@@ -837,7 +955,7 @@ def write_settings(cfg):
         _giu_secret_khong_giai_duoc(out)
     except Exception as e:      # noqa: BLE001 - tấm che hỏng thì vẫn ghi như cũ, không chặn việc lưu
         print(f"[config] giữ secret khi khoá lệch lỗi: {e}", file=__import__('sys').stderr)
-    SETTINGS_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    _ghi_nguyen_tu(json.dumps(out, ensure_ascii=False, indent=2))
 
 
 def _giu_secret_khong_giai_duoc(out):
@@ -853,7 +971,7 @@ def _giu_secret_khong_giai_duoc(out):
     if not SETTINGS_PATH.exists():
         return
     import secrets_store
-    raw_cu = json.loads(SETTINGS_PATH.read_text(encoding="utf-8")) or {}
+    raw_cu = _doc_file_settings()
     for path in _SECRET_PATHS:
         if path == "auth.totp.secret":
             # 2FA có tấm che RIÊNG ngay trên (giữ khi còn bật): tắt 2FA lúc khoá lệch (đăng nhập bằng mã khôi phục rồi

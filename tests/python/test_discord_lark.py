@@ -277,7 +277,7 @@ settings = {"discord": {"enabled": True, "bot_token": "t", "allow": ""},
             "lark": {"enabled": True, "app_id": "cli", "app_secret": "s", "allow": "ou_owner"}}
 for ch in owner_channels.ALL:
     ch.wire(read_settings=lambda: json.loads(json.dumps(settings)),
-            write_settings=lambda patch: [settings.setdefault(k, {}).update(v) for k, v in patch.items()])
+            update_settings=lambda patch: [settings.setdefault(k, {}).update(v) for k, v in patch.items()])
 D, L = owner_channels.DISCORD, owner_channels.LARK
 r = D.precheck("hi", {"user_id": "42", "chat_id": "dm1", "user_name": "Quy"})
 check("Discord control: empty allow-list blocks everyone, gives a pairing code",
@@ -306,7 +306,7 @@ import main  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 for ch in owner_channels.ALL:
-    ch.wire(read_settings=cfgmod.read_settings, write_settings=cfgmod.write_settings)
+    ch.wire(read_settings=cfgmod.read_settings, update_settings=cfgmod.update_settings)
 client = TestClient(main.app, base_url="http://localhost")
 check("new secrets are encrypted at rest", {"discord.bot_token", "lark.app_secret"} <= set(cfgmod._SECRET_PATHS))
 check("Lark settings default to the international cloud", cfgmod.read_settings().get("lark", {}).get("domain") == "lark")

@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.86.2] - 2026-10-08
+### Sửa lỗi
+- **Cài đặt không còn bị xoá sạch khi mở tab WhatsApp hay cho phép một người nhắn bot.** Từ 0.71.0 có ba chỗ chỉ định lưu một mảnh nhỏ nhưng lại ghi đè cả file cài đặt: mở tab WhatsApp ở trang Kênh Admin lần đầu, cho phép một chat Zalo, cho phép một người dùng Slack, WhatsApp, Discord hay Lark. Mỗi lần như vậy là mất tên miền HTTPS, khoá API, kết nối Telegram cùng mọi thiết lập khác. Bản Docker dùng tên miền riêng còn có thể mất HTTPS sau lần khởi động lại reverse proxy kế tiếp. Giờ cả ba chỉ cập nhật đúng phần của mình. Cảm ơn đội DaoVix đã rà mã và gửi báo lỗi chi tiết.
+- **File cài đặt được ghi an toàn hơn.**
+  - Ghi nguyên tử: máy tắt giữa lúc lưu không còn để lại file hỏng.
+  - Giữ bản dự phòng `settings.json.bak` của lần lưu tốt gần nhất. File hỏng thì Javis đọc bản dự phòng thay vì lặng lẽ quay về mặc định rồi ghi đè lên, và giữ lại bản hỏng để cứu tay.
+  - Nhiều thao tác lưu cùng lúc không còn đè mất thay đổi của nhau.
+
 ## [0.86.1] - 2026-10-08
 ### Cải thiện
 - **Dùng ChatGPT làm bộ não, khung chat hiện ngay bước Javis đang làm, không im hẳn tới lúc xong.** Trước đây khi Codex chạy một lệnh dài (cài thư viện, quét file, chạy script), khung chat chỉ có chữ "Javis đang suy nghĩ..." đếm giờ cho tới khi lệnh chạy xong, trông như bị treo. Giờ bước hiện ra ngay lúc bắt đầu, kiểu "Chạy lệnh: npm install", rồi được đánh dấu xong khi chạy xong, giống như khi dùng Claude.
