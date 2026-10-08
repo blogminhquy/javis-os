@@ -212,6 +212,11 @@ _DEFAULT = {
     "slack": {"enabled": False, "bot_token": "", "app_token": "", "allow": ""},
     "whatsapp": {"enabled": False, "phone_number_id": "", "access_token": "", "app_secret": "",
                  "allow": "", "verify_token": ""},
+    # Discord (Gateway, bot token) and Lark/Feishu (long connection, app id + secret), 0.85.0.
+    # Same rules as Slack: `allow` holds people (Discord user ids / Lark open_ids), empty = nobody.
+    # `domain` picks the Lark cloud: "lark" (open.larksuite.com) or "feishu" (open.feishu.cn).
+    "discord": {"enabled": False, "bot_token": "", "allow": ""},
+    "lark": {"enabled": False, "app_id": "", "app_secret": "", "domain": "lark", "allow": ""},
     # Backup brain lên GitHub (repo RIÊNG TƯ). token = GitHub PAT (fine-grained, quyền Contents).
     # Lưu trong settings.json (đã gitignored) - KHÔNG bao giờ đẩy lên brain repo.
     # sync_images: đồng bộ CẢ ẢNH (jpg/png/gif/webp, mỗi ảnh <= trần ~10MB) lên repo backup.
@@ -509,6 +514,7 @@ _SECRET_PATHS = (
     # Code Assist của tài khoản Google, nên nó ngang hàng mọi secret khác trong danh sách.
     "telegram.token", "zalo_bot.token", "backup.token", "voice.elevenlabs_key",
     "slack.bot_token", "slack.app_token", "whatsapp.access_token", "whatsapp.app_secret",
+    "discord.bot_token", "lark.app_secret",
     # Secret TOTP là thứ SINH RA mã đăng nhập, nên nó ngang hàng mật khẩu chứ không phải một
     # tuỳ chọn. Ai đọc được nó thì tự sinh mã 2FA mãi mãi, và chủ máy không hề hay biết.
     "auth.totp.secret",

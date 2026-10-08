@@ -2358,3 +2358,94 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Thẻ Giọng nói ẩn/hiện từng hàng bằng thuộc tính hidden theo đường gọi (renderVoiceCard), nhưng
    .qs-field và .gcard-btn tự đặt display nên đè mất hidden; luật này trả lại nghĩa cho hidden. */
 #voiceCard [hidden] { display: none !important; }
+
+/* ---- Trang Kênh Admin (0.85.0): mỗi kênh một tab ----
+   Một cột, rộng tối đa 620px: đây là trang cài đặt, phải đọc được trên điện thoại. Thanh tab cuộn
+   ngang chứ không xuống dòng, mỗi tab có chấm trạng thái để biết kênh nào đang chạy mà không phải
+   mở từng tab. */
+.ach { max-width: 760px; min-width: 0; }
+.ach-intro { margin: 0 0 12px; color: var(--text2); font-size: 13.5px; line-height: 1.5; }
+.ach-intro a { color: var(--accent-ink); font-weight: 600; text-decoration: none; }
+.ach-intro a:hover { text-decoration: underline; }
+.ach-tabs {
+  display: flex; gap: 4px; overflow-x: auto; scrollbar-width: thin;
+  position: sticky; top: 0; z-index: 3; padding: 6px 0; margin-bottom: 14px;
+  background: var(--bg); border-bottom: 1px solid var(--glass-brd);
+}
+/* Màn rộng: sáu tab xuống dòng nếu cần, không bắt cuộn ngang để tìm tab cuối. Điện thoại thì cuộn. */
+@media (min-width: 701px) { .ach-tabs { flex-wrap: wrap; overflow-x: visible; } }
+.ach-tabs [role="tab"] {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid transparent; border-radius: 9px; padding: 8px 12px;
+  background: transparent; color: var(--text2); font: inherit; font-size: 14px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.ach-tabs [role="tab"]:hover { background: var(--glass); color: var(--text); }
+.ach-tabs [aria-selected="true"] { color: var(--accent-ink); background: var(--accent-wash-2); border-color: var(--accent-line); }
+.ach-tabs [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ach-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); opacity: .45; flex: none; }
+.ach-dot.st-run { background: var(--green); opacity: 1; }
+.ach-dot.st-err { background: var(--red); opacity: 1; }
+.ach-dot.st-start { background: var(--warn-ink); opacity: 1; }
+.ach-panel { min-width: 0; }
+.ach-panel:focus-visible { outline: none; }
+.ach-card {
+  border: 1px solid var(--glass-brd); border-radius: 14px; background: var(--surface-1);
+  padding: 18px; display: flex; flex-direction: column; gap: 0;
+}
+.ach-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ach-name { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 17px; }
+.ach-pill {
+  font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid var(--glass-brd); color: var(--text2); background: var(--surface-2);
+}
+.ach-pill.st-run { color: var(--green); background: var(--ok-wash); border-color: var(--ok-line); }
+.ach-pill.st-err { color: var(--red); background: var(--danger-wash); border-color: var(--danger-line); }
+.ach-pill.st-start { color: var(--warn-ink); background: var(--warn-wash); border-color: var(--warn-line); }
+/* Công tắc thật (role=switch), thay ô checkbox cũ: gạt là có tác dụng ngay, chữ bên cạnh nói
+   TRẠNG THÁI hiện tại chứ không phải một mệnh lệnh. */
+.ach-switch { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; }
+.ach-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.ach-track {
+  position: relative; width: 42px; height: 24px; border-radius: 999px; flex: none;
+  background: var(--surface-3, var(--surface-2)); border: 1px solid var(--glass-brd); transition: background .15s;
+}
+.ach-track::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: transform .15s;
+}
+.ach-switch input:checked + .ach-track { background: var(--green); border-color: var(--green); }
+.ach-switch input:checked + .ach-track::after { transform: translateX(18px); }
+.ach-switch input:focus-visible + .ach-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ach-switch input:disabled + .ach-track { opacity: .6; }
+.ach-sw-lbl { font-size: 13.5px; font-weight: 600; color: var(--text2); min-width: 4.5em; }
+.ach-status {
+  margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2);
+  font-size: 13.5px; line-height: 1.5; color: var(--text);
+}
+.ach-what { margin: 12px 0 0; color: var(--text2); font-size: 13.5px; line-height: 1.55; }
+.ach-step { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--hairline, var(--glass-brd)); }
+.ach-step h4 { display: flex; align-items: center; gap: 9px; margin: 0 0 6px; font-size: 15px; }
+.ach-num {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent-wash-2); color: var(--accent-ink); font-size: 12px; font-weight: 700;
+}
+.ach-hint { margin: 0 0 4px; color: var(--text2); font-size: 13px; line-height: 1.55; }
+.ach-hint a { color: var(--accent-ink); white-space: nowrap; }
+.ach-saved { color: var(--green); font-weight: 600; font-size: 12px; }
+.ach-saved svg { width: 12px; height: 12px; vertical-align: -1px; }
+.ach-hook { margin-top: 10px; font-size: 13px; line-height: 1.6; color: var(--text2); overflow-wrap: anywhere; }
+.ach-queue { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; }
+.ach-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 20px; }
+.ach-actions .gcard-btn { width: auto; margin-top: 0; padding: 9px 18px; }
+/* Nút Lưu là việc CHÍNH của tab nên đặc màu nhấn; Gửi tin thử là nút viền đứng trước nó. */
+.ach-actions .ach-primary { background: var(--accent-solid); border-color: var(--accent-solid); color: var(--on-accent); font-weight: 600; }
+.ach-actions .ach-primary:hover { filter: brightness(1.06); }
+.ach-actions .gcard-btn:disabled { opacity: .5; }
+.ach-msg { margin-top: 8px; min-height: 1.4em; font-size: 13.5px; color: var(--text2); }
+@media (max-width: 700px) {
+  .ach-card { padding: 14px; border-radius: 12px; }
+  .ach-tabs [role="tab"] { padding: 8px 10px; font-size: 13px; }
+  .ach-actions .gcard-btn { flex: 1 1 auto; }
+  .ach-actions { justify-content: stretch; }
+}

@@ -6,9 +6,56 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.84.5] - 2026-10-06
+## [0.85.7] - 2026-10-08
 ### Sửa lỗi
-- **Đồng bộ brain với GitHub không còn hỏng ở lần đẩy đầu tiên trên máy đặt tiếng Việt.** Khi repo trên GitHub còn trống, Javis đọc thông báo của git theo ngôn ngữ hệ điều hành nên không nhận ra trường hợp này và báo lỗi. Giờ Javis hỏi git bằng ngôn ngữ trung lập, máy đặt ngôn ngữ nào cũng khởi tạo được ngay.
+- **Đồng bộ brain với GitHub không còn hỏng ở lần đẩy đầu tiên trên máy đặt tiếng Việt.** Khi repo trên GitHub còn trống, Javis đọc thông báo của git theo ngôn ngữ hệ điều hành nên không nhận ra trường hợp này và báo lỗi. Giờ Javis hỏi git bằng ngôn ngữ trung lập, máy đặt ngôn ngữ nào cũng khởi tạo được ngay. (Đóng góp của @dev23072005.)
+
+## [0.85.5] - 2026-10-07
+### Cải thiện
+- **Bỏ hạn mức lúc bot tự lên tiếng trong nhóm.** Trước đây ở chế độ Tự đánh giá, bot chỉ tự trả lời tối đa 8 lần mỗi nhóm, 3 lần mỗi người mỗi giờ, và nghỉ giữa hai lần. Giờ nói hay im do bộ phán xử và mô hình tự quyết theo vai của Agent và tài liệu; bạn chỉnh bằng nút Đúng/Sai ở Bộ phán xử.
+- Bot vẫn chờ một nhịp và nhường khi bạn đang gõ tay bằng chính nick đó. Nhóm đông hỏi nhiều sẽ tốn lượt dùng model nhiều hơn; muốn bớt thì đổi nhóm đó về chế độ Được gọi tên.
+
+## [0.85.4] - 2026-10-07
+### Cải thiện
+- **Bot không còn giới hạn 20 câu mỗi người mỗi giờ.** Ai nhắn riêng hay gọi tên bot đều được trả lời, không còn câu "Anh chị nhắn hơi nhanh".
+- Giới hạn lúc bot tự lên tiếng trong nhóm khi không ai gọi (chế độ Tự đánh giá) vẫn giữ, để bot không nói tràn lan. Không còn trần thì một người nhắn liên tục sẽ tốn lượt dùng model liên tục; thấy bất thường thì bấm Tiếp quản cuộc chat đó.
+
+## [0.85.3] - 2026-10-07
+### Sửa lỗi
+- **Bot ở mức Toàn quyền giờ chạy y như kênh admin.** Trước đây mức này vẫn đi đường hẹp của bot: với Grok Build và Antigravity bot không dùng được công cụ nào, với Claude Code thì không thấy các kết nối Gmail, Drive, lịch của tài khoản Claude. Giờ bot Toàn quyền có đúng bộ não, công cụ, MCP và kỹ năng như khi bạn chat trực tiếp, chỉ giữ vai của Agent.
+- Vì vậy mức Toàn quyền trao cả quyền chạy lệnh trên máy chủ và đọc mọi file. Cảnh báo trước khi bật đã nói rõ điều này: chỉ bật cho bot mà chỉ bạn hoặc người bạn tin tuyệt đối nhắn được.
+- Câu trả lời qua Telegram, Zalo, Slack... bằng Grok Build hoặc Antigravity nay được lưu đúng vào lịch sử và bộ nhớ, không còn bị ghi như một câu lỗi.
+
+## [0.85.1] - 2026-10-07
+### Cải thiện
+- **Bản Docker tự cài Antigravity CLI và Grok Build.** Trước đây hai thẻ này ở trang Models báo "CLI chưa cài" kèm một lệnh phải tự gõ, mà cài qua Hostinger thì không có chỗ gõ. Giờ Javis tự cài lúc khởi động, cài một lần là giữ qua mọi lần cập nhật.
+- Trong lúc đang cài, thẻ báo "Javis đang tự cài" thay vì đưa lệnh. Cài hỏng (máy chủ không ra được mạng) thì thẻ nói thật và chỉ cách thử lại. Ai không muốn thì tắt bằng `JAVIS_AUTO_INSTALL_CLIS=0`.
+
+## [0.85.0] - 2026-10-07
+### Thêm mới
+- **Chat với Javis từ Lark/Feishu và Discord.** Hai kênh mới tự nối ra ngoài nên chạy được cả trên laptop, không cần tên miền. Người lạ nhắn bot nhận mã ghép nối, bạn bấm Cho phép là xong.
+### Cải thiện
+- **Trang "Kênh" đổi tên thành "Kênh Admin"** cho khỏi lẫn với bot trả lời khách ở trang Chatbot, và chia mỗi kênh một tab, chấm màu trên tab cho biết kênh nào đang chạy.
+- **Bỏ ô tích "Bật bot" khó hiểu.** Giờ đầu mỗi tab có công tắc Bật/Tắt có tác dụng ngay, nút cuối tab ghi đúng việc nó làm ("Lưu và bật kênh" hay "Lưu thay đổi"), và thiếu thông tin gì thì trang nói tên ô đó.
+
+## [0.84.10] - 2026-10-07
+### Sửa lỗi
+- **Bot chuyên trách đọc được link Google Docs và Google Sheets gắn vào Agent.** Trước đây bot chỉ tra file trong brain, nên Agent dặn "chỉ trả lời theo tài liệu" mà bảng giá nằm trên Google Sheets thì bot báo "chưa có thông tin" với mọi sản phẩm.
+- Bảng tính được đọc đủ mọi tab, từng dòng kèm tên cột. Sửa file trên Google thì vài phút sau bot dùng bản mới. Chạy ở mọi mức quyền, không cần nâng bot lên Được ghi.
+- File phải chia sẻ "Bất kỳ ai có đường liên kết". File chưa chia sẻ thì thẻ bot hiện cảnh báo vàng nói rõ link nào. Link khách dán vào tin nhắn không bao giờ được mở.
+
+## [0.84.8] - 2026-10-07
+### Cải thiện
+- Tài liệu Chatbot nói đúng giới hạn hiện tại: bot trả lời mỗi người tối đa 20 câu một giờ, trong nhóm tính riêng từng người, và con số này chưa chỉnh được trên trang Chatbot.
+
+## [0.84.7] - 2026-10-06
+### Thêm mới
+- **Duyệt người xin vào nhóm Zalo ngay trong Javis.** Có người xin vào nhóm phải duyệt là Javis báo bạn qua chuông và Telegram. Hỏi "ai đang xin vào nhóm X" để xem danh sách, bảo "duyệt hết" hay "duyệt Lan, từ chối Minh" là Javis làm và báo lại từng người.
+- Bot chuyên trách không bao giờ tự duyệt. Tài khoản Zalo phải là trưởng hoặc phó nhóm, và kết nối Zalo ở mức Toàn quyền.
+
+## [0.84.6] - 2026-10-06
+### Sửa lỗi
+- **Bot trong nhóm không còn báo "Anh chị nhắn hơi nhanh" với người mới hỏi lần đầu.** Giới hạn số câu trả lời mỗi giờ trước đây tính chung cho cả nhóm, nên nhóm đông gọi bot đủ 20 lần là ai tag bot sau đó cũng bị từ chối kèm tag tên mình. Giờ hạn mức tính riêng từng người, đúng như ô cài đặt ghi.
 
 ## [0.84.3] - 2026-10-06
 ### Thêm mới

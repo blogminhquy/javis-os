@@ -31,7 +31,7 @@ một tiến trình MCP: đăng nhập QR, đọc hoặc tìm hội thoại và 
 - Điện thoại đã đăng nhập tài khoản Zalo cần kết nối.
 - Javis đã được khởi động và bạn đăng nhập được dashboard.
 
-Javis ghim `javis-zalo` theo tag phát hành (hiện là `v1.1.0`) và cài thẳng từ tarball của tag
+Javis ghim `javis-zalo` theo tag phát hành (hiện là `v1.2.0`) và cài thẳng từ tarball của tag
 đó trên GitHub, không cần tài khoản npm hay Git. Chỉ thư viện `zca-js` bên dưới đi theo bản chính
 thức trên npm. Từ 0.83.0 Javis thay `zalo-agent-cli` 1.6.2 của tác giả ngoài bằng bản riêng này;
 kết nối đã đăng nhập từ trước tự chuyển sang mà không phải quét QR lại.
@@ -57,6 +57,8 @@ Nút **Hướng dẫn trên GitHub** trong thẻ Zalo luôn mở trang tài li�
 | `zalo_get_history` | Lấy lịch sử một cuộc chat (kể cả nhóm), có phân trang, kèm `replyTo` và `mentions` | Đọc |
 | `zalo_search_history` | Tìm trong lịch sử mọi cuộc chat theo người gửi hoặc khoảng ngày | Đọc |
 | `zalo_get_group_joins` | Ai đã vào nhóm và vào lúc nào, lọc theo nhóm, người hoặc khoảng ngày | Đọc |
+| `zalo_list_join_requests` | Ai đang xin vào một nhóm phải duyệt | Đọc |
+| `zalo_review_join_requests` | Duyệt hoặc từ chối người xin vào nhóm | Nguy hiểm |
 | `zalo_list_threads` | Liệt kê các cuộc chat đang có trong bộ đệm | Đọc |
 | `zalo_search_threads` | Tìm nhóm hoặc người theo tên | Đọc |
 | `zalo_view_media` | Tải/mở ảnh, âm thanh hoặc video trên máy chủ (bộ não không thấy ảnh, xem `zalo_read_images` bên dưới) | Đọc |
@@ -67,6 +69,18 @@ Danh sách trên theo mã nguồn `javis-zalo` 1.1.0. Tên tham số lấy từ 
 `zalo_send_message` là `threadType` (0 = chat riêng, 1 = nhóm), và `zalo_get_messages` đọc bằng
 `since` chứ không có `cursor`. Lịch sử chỉ có từ lúc MCP kết nối, cộng phần Zalo gửi lại lúc kết
 nối (khoảng hai tuần gần nhất); tin cũ hơn thì không API nào lấy được.
+
+## Duyệt người xin vào nhóm
+
+Từ Javis 0.84.7 (javis-zalo 1.2.0), với nhóm bật "duyệt thành viên":
+
+- **Javis báo bạn khi có người xin vào**, qua chuông hòm thư và Telegram của bạn: một tin cho mỗi nhóm, có tên người
+  xin và tên nhóm.
+- **Bạn ra lệnh, Javis làm.** Hỏi "ai đang xin vào nhóm Zoom | Javis OS?" thì Javis liệt kê; bảo "duyệt hết" hay
+  "duyệt Lan, từ chối Minh" thì Javis làm và nói lại kết quả từng người.
+- **Bot chuyên trách không bao giờ tự duyệt.** Sự kiện xin vào nhóm không tới bot.
+- Tài khoản Zalo đã quét QR phải là **trưởng hoặc phó nhóm**, không thì Zalo từ chối. Duyệt là thao tác nguy hiểm
+  (đổi thành viên nhóm), nên kết nối Zalo phải ở mức Toàn quyền.
 
 ## Người mới vào nhóm
 

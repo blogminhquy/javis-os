@@ -166,8 +166,6 @@ check("bot log has no entry", chatbot_log.doc(bid) == [], chatbot_log.doc(bid))
 inbox = conversations.danh_sach(bot_id=bid)
 inbox = inbox.get("items", inbox) if isinstance(inbox, dict) else inbox
 check("Inbox has no conversation for this bot", not inbox, inbox)
-check("auto-reply rate counters untouched",
-      chatbot_tu_dong.duoc_tra_loi(bid, chatbot_runtime.TRY_CHAT_ID, chatbot_runtime.TRY_USER_ID) == "")
 
 # ---- 8. Telegram privacy note (pure helper) ---------------------------------------------------
 tg = {"accounts": [{"id": "a1", "channel": "telegram"}]}

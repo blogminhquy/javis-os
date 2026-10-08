@@ -39,7 +39,11 @@ check("_git truyền env riêng cho subprocess", isinstance(env, dict))
 check("_git ép LC_ALL=C", bool(env) and env.get("LC_ALL") == "C")
 check("_git ép LANG=C", bool(env) and env.get("LANG") == "C")
 check("_git ép LANGUAGE=C", bool(env) and env.get("LANGUAGE") == "C")
-check("app KHÔNG bị đổi locale (chỉ subprocess)", os.environ.get("LC_ALL") != "C" or True)
+# Đo THẬT: env tiến trình app trước và sau lời gọi phải y hệt (bản cũ ghi `... or True`, luôn đúng).
+_truoc = {k: os.environ.get(k) for k in ("LC_ALL", "LANG", "LANGUAGE")}
+gb._git(tempfile.gettempdir(), "version")
+check("app KHÔNG bị đổi locale (chỉ subprocess)",
+      {k: os.environ.get(k) for k in ("LC_ALL", "LANG", "LANGUAGE")} == _truoc)
 
 # ── 2. E2E: bootstrap vào bare repo RỖNG dưới env locale tiếng Việt ──
 TMP = Path(tempfile.mkdtemp(prefix="jv-bootloc-")).resolve()

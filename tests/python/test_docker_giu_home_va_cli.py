@@ -41,7 +41,9 @@ check("entrypoint có quyền thực thi (git giữ bit +x)", os.access(EP, os.X
 
 
 def chay_ep(home, persist, cmd=("sh", "-c", "echo DA_CHAY")):
-    env = dict(os.environ, HOME=str(home), JAVIS_HOME_PERSIST=str(persist))
+    # Tự cài agy/grok (0.85.1) TẮT ở đây: test này canh việc giữ HOME, không được ra mạng thật.
+    # Phần tự cài có test riêng với curl giả: test_docker_tu_cai_cli.py.
+    env = dict(os.environ, HOME=str(home), JAVIS_HOME_PERSIST=str(persist), JAVIS_AUTO_INSTALL_CLIS="0")
     return subprocess.run(["sh", str(EP), *cmd], env=env, capture_output=True,
                           text=True, timeout=30)
 

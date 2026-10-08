@@ -278,6 +278,52 @@ def _su_kien_vao_nhom(msg: dict) -> Optional[dict]:
     return {"time": t, "added_by": str(ev.get("addedBy") or ""), "added_by_me": bool(ev.get("addedByMe"))}
 
 
+def _su_kien_xin_vao(msg: dict) -> Optional[dict]:
+    """Someone asked to join a group that requires approval (javis-zalo >= 1.2.0): `{time, total_pending}`, else None.
+
+    javis-zalo puts each request in the live feed as a message of type `group.join_request` sent BY the applicant."""
+    ev = msg.get("event") if isinstance(msg.get("event"), dict) else {}
+    if str(msg.get("type") or "").lower() != "group.join_request" and ev.get("kind") != "join_request":
+        return None
+    return {"time": _ts(ev.get("time") or _lay(msg, "ts", "timestamp", "time", mac_dinh=0)),
+            "total_pending": ev.get("totalPending")}
+
+
+# Báo chủ khi có người xin vào nhóm (0.84.7). `main` gắn `_notify_owner` vào đây lúc khởi động: hòm thư (chuông) và
+# Telegram của chủ. Để trống (test, chạy rời) thì không báo, sự kiện vẫn vào Hộp thư hội thoại như thường.
+NOTIFY_OWNER = None
+XIN_VAO_TOI_DA_TEN = 10
+
+
+def cau_bao_xin_vao(conn: dict, chat_title: str, names: List[str]) -> str:
+    """Câu báo chủ: ai đang xin vào nhóm nào, và cách xử lý. Một câu cho cả lô của một nhóm."""
+    ds = [n for n in names if n][:XIN_VAO_TOI_DA_TEN]
+    them = len([n for n in names if n]) - len(ds)
+    ai = ", ".join(ds) + (localefmt.chu(f" và {them} người khác", f" and {them} more") if them > 0 else "")
+    nhom = chat_title or localefmt.chu("một nhóm", "a group")
+    tk = conn.get("label") or "Zalo"
+    return localefmt.chu(
+        f"Zalo ({tk}): {ai} đang xin vào nhóm \"{nhom}\". Nhắn Javis \"duyệt\" hoặc \"từ chối\" để xử lý "
+        f"(tài khoản này phải là trưởng hoặc phó nhóm).",
+        f"Zalo ({tk}): {ai} asked to join the group \"{nhom}\". Tell Javis \"approve\" or \"reject\" to handle it "
+        f"(this account must be the group's owner or a deputy).")
+
+
+def _bao_xin_vao(conn: dict, theo_nhom: Dict[str, dict]) -> None:
+    """Một thông báo cho mỗi nhóm có người mới xin vào trong lô vừa đọc. Không có vòng lặp sự kiện thì thôi."""
+    if not theo_nhom or NOTIFY_OWNER is None:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    for nhom in theo_nhom.values():
+        cau = cau_bao_xin_vao(conn, nhom["ten"], nhom["nguoi"])
+        t = loop.create_task(NOTIFY_OWNER("", cau, kind="system", label="Zalo", source="zalo"))
+        _VIEC.add(t)
+        t.add_done_callback(_VIEC.discard)
+
+
 def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]:
     """Một tin của `zalo_get_messages` -> sự kiện chung của kho. None nếu không biết thread."""
     if not isinstance(msg, dict):
@@ -302,6 +348,10 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
     if vao_nhom is not None:
         ten_moi = sender_name or sender_id
         text = localefmt.chu(f"[{ten_moi} vừa vào nhóm]", f"[{ten_moi} joined the group]")
+    xin_vao = _su_kien_xin_vao(msg) if nhom else None
+    if xin_vao is not None:
+        ten_moi = sender_name or sender_id
+        text = localefmt.chu(f"[{ten_moi} xin vào nhóm]", f"[{ten_moi} asked to join the group]")
     cua_minh = _la_cua_minh(msg)
     return {
         "channel": KENH,
@@ -323,6 +373,7 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
                           if msg.get(k) not in (None, "")},
                          **({"chua_ro_loai": True} if _chua_ro_loai(msg, ten) else {}),
                          **({"member_join": vao_nhom} if vao_nhom is not None else {}),
+                         **({"join_request": xin_vao} if xin_vao is not None else {}),
                          **({"image_url": _link_anh(msg)} if loai == "image" and _link_anh(msg) else {})),
     }
 
@@ -408,6 +459,7 @@ async def _lam_moi_ten_neu_thieu(conn: dict, tt: dict, tin: list, ten: dict) -> 
 def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
     """Ghi một lô tin vào kho và giao tin khách mới cho bot. Trả (số tin mới, số tin trùng)."""
     moi = trung = 0
+    xin_vao: Dict[str, dict] = {}
     for m in tin:
         ev = chuan_hoa_tin(conn, m, ten)
         if not ev:
@@ -434,7 +486,13 @@ def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
                 trung += 1
             else:
                 moi += 1
+                if (ev.get("metadata") or {}).get("join_request"):
+                    # Xin vào nhóm là việc CHỦ quyết (0.84.7): báo chủ, không giao cho bot.
+                    nhom = xin_vao.setdefault(ev["external_chat_id"], {"ten": ev.get("chat_title") or "", "nguoi": []})
+                    nhom["nguoi"].append(ev.get("sender_name") or ev.get("sender_id") or "")
+                    continue
                 _giao_cho_bot(conn, ev)
+    _bao_xin_vao(conn, xin_vao)
     return moi, trung
 
 

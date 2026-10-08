@@ -3828,6 +3828,17 @@
           </div>
           ${p.is_main ? '<span class="prov-badge">MAIN</span>' : ""}
         </div>`;
+    // CLI chưa có trên máy (thẻ agy và grok). Bản Docker tự cài hai CLI này lúc khởi động (0.85.1),
+    // nên trong lúc nó đang cài thì nói đúng như vậy, đừng đưa một dòng lệnh cho người cài qua
+    // Hostinger không có chỗ nào để gõ. `tu_cai` rỗng = máy không tự cài (bản cài tay): giữ lệnh như cũ.
+    const cliSetup = (p, ten) => {
+      if (p.cli_found) return "";
+      if (p.tu_cai === "installing") {
+        return `<div class="prov-steps"><div>${ic("loader", { cls: "ic-spin" })} ${esc(t("models.cli_auto_installing", { ten }))}</div></div>`;
+      }
+      const head = p.tu_cai === "failed" ? t("models.cli_auto_failed", { ten }) : t("models.cli_install");
+      return `<div class="prov-steps"><div>${esc(head)}<br><code>${esc(p.cai_lenh || "")}</code></div></div>`;
+    };
     const provCard = (p) => {
       const on = p.configured;
       // Máy thiếu binary CLI thì nói TẠI ĐÂY, đừng để user đăng nhập xanh rồi vào chat mới
@@ -3868,9 +3879,7 @@
           ${provHead(p, on, "MCP/skill", st)}
           <div class="prov-note">${esc(t("models.grok_note"))}</div>
           ${cliWarn("grok")}
-          ${p.cli_found ? "" : `<div class="prov-steps">
-            <div>${esc(t("models.cli_install"))}<br><code>${esc(p.cai_lenh || "")}</code></div>
-          </div>`}
+          ${cliSetup(p, "Grok Build")}
           <div id="grokBox" class="prov-steps" style="display:none"></div>
           <div class="prov-action" style="flex-wrap:wrap">
             ${on
@@ -3897,9 +3906,7 @@
         return `<div class="prov-card ${p.is_main ? "main" : ""}">
           ${provHead(p, on, "MCP/skill", st)}
           <div class="prov-note">${esc(t("models.agy_note"))}</div>
-          ${p.cli_found ? "" : `<div class="prov-steps">
-            <div>${esc(t("models.cli_install"))}<br><code>${esc(p.cai_lenh || "")}</code></div>
-          </div>`}
+          ${cliSetup(p, "Antigravity CLI")}
           ${on ? "" : `<div class="prov-steps">
             <div><b>${esc(t("models.agy_login"))}</b> <code>${esc(dn.dang_nhap || "agy")}</code></div>
             <div>${esc(dn.ghi_chu || "")}</div>
@@ -5939,256 +5946,346 @@
     setTimeout(() => { const f = $("#mfDan") || $("#mfTen"); if (f) f.focus(); }, 50);
   }
 
-  // ---- Trang Kênh (Telegram) - form đầy đủ ----
+  // ---- Trang Kênh Admin (0.85.0): mỗi kênh một tab ----
+  // Kênh ADMIN là đường CHỦ nói chuyện với Javis qua app chat, đủ quyền như dashboard. Bot trả lời
+  // KHÁCH nằm ở trang Chatbot, và tên trang nói rõ điều đó vì hai thứ từng bị nhầm.
+  //
+  // Mỗi tab cùng một khuôn, và khuôn đó sửa đúng chỗ người dùng vấp ở bản cũ:
+  //   - Đầu tab là CÔNG TẮC Bật/Tắt có tác dụng ngay. Bản cũ là một ô checkbox phải nhớ bấm Lưu
+  //     mới ăn, trong khi nút bên dưới lại ghi "Lưu & bật": bỏ tích rồi bấm "Lưu & bật" thì kênh
+  //     TẮT. Hai điều khiển nói hai ý ngược nhau.
+  //   - Trạng thái (nhãn màu + một câu nói việc cần làm tiếp) đứng ngay dưới tên kênh, không nằm
+  //     lọt thỏm dưới hai nút như trước.
+  //   - Hai bước đánh số: 1. Kết nối, 2. Ai được dùng. Nút Lưu ở CUỐI, ghi đúng việc nó làm
+  //     ("Lưu và bật kênh" khi đang tắt, "Lưu thay đổi" khi đang chạy).
+  // Một cột, nút xuống cuối: trang cài đặt phải đọc được trên điện thoại.
+  const ADMIN_CH = [
+    { key: "telegram", set: "telegram", api: "/telegram", title: "Telegram",
+      fields: [["token", true, "123456:ABC..."]], allowKey: "chat_id", openAllow: true },
+    { key: "zalo", set: "zalo_bot", api: "/zalo-bot", title: "Zalo",
+      fields: [["token", true, "123456789:abc-xyz"]], allowKey: "chat_id", queue: true },
+    { key: "lark", set: "lark", api: "/lark", title: "Lark / Feishu", tab: "Lark", guide: "lark",
+      fields: [["domain", "select", ["lark", "feishu"]], ["app_id", false, "cli_a1b2c3..."], ["app_secret", true, ""]],
+      allowKey: "allow", queue: true },
+    { key: "discord", set: "discord", api: "/discord", title: "Discord", guide: "discord",
+      fields: [["bot_token", true, "MTIz..."]], allowKey: "allow", queue: true },
+    { key: "slack", set: "slack", api: "/slack", title: "Slack", guide: "slack",
+      fields: [["bot_token", true, "xoxb-..."], ["app_token", true, "xapp-..."]], allowKey: "allow", queue: true },
+    { key: "whatsapp", set: "whatsapp", api: "/whatsapp", title: "WhatsApp", guide: "whatsapp",
+      fields: [["phone_number_id", false, "123456789012345"], ["access_token", true, "EAA..."], ["app_secret", true, ""]],
+      allowKey: "allow", queue: true, webhook: true },
+  ];
+  // Hướng dẫn mở đúng bản theo ngôn ngữ giao diện: tiếng Việt ở docs/, mọi thứ tiếng khác ở docs/en/.
+  const DOC_GUIDE = { slack: "29-slack-whatsapp.md", whatsapp: "29-slack-whatsapp.md",
+                      discord: "30-discord-lark.md", lark: "30-discord-lark.md" };
+  const docGuideUrl = (k) => "https://github.com/blogminhquy/javis-os/blob/main/docs/"
+    + ((window.JavisI18n && window.JavisI18n.lang() === "vi") ? "" : "en/") + DOC_GUIDE[k];
+  const ACH_TAB_KEY = "javis.adminChannelTab";
+  // Khoá viết rõ từng cái (không ghép chuỗi) để bộ soát i18n thấy được khoá nào đang dùng.
+  const ACH_PILL = { setup: "ach.pill_setup", off: "ach.pill_off", run: "ach.pill_run",
+                     start: "ach.pill_start", err: "ach.pill_err", stop: "ach.pill_stop" };
+
+  // Trạng thái chung từ bốn hình dạng endpoint khác nhau (Telegram, Zalo, kênh OwnerChannel).
+  function achState(def, d) {
+    d = d || {};
+    const configured = (def.key === "telegram" || def.key === "zalo") ? !!d.token_set : !!d.configured;
+    let state = "stop";
+    if (!configured) state = "setup";
+    else if (!d.enabled) state = "off";
+    else if (d.status === "polling") state = "run";
+    else if (d.status === "starting") state = "start";
+    else if (d.status === "error" || d.status === "conflict") state = "err";
+    return { state, configured, on: !!d.enabled, ids: d.chat_ids || d.allow_ids || [], d };
+  }
+
+  // Một câu nói việc cần làm tiếp, theo trạng thái. Trả HTML (có icon).
+  function achLine(def, st) {
+    const d = st.d;
+    const tr = (k, p) => esc(window.t(k, p));
+    let line;
+    if (st.state === "setup") line = ic("circle", { cls: "ic-dim" }) + " " + tr("ach.st_setup_line");
+    else if (st.state === "off") line = ic("circle", { cls: "ic-dim" }) + " " + tr("ach.st_off_line");
+    else if (st.state === "start") line = ic("loader", { cls: "ic-spin" }) + " " + tr("cs.ch_st_starting");
+    else if (st.state === "err") {
+      line = WARN_ICON + " " + (d.status === "conflict"
+        ? "409: " + esc(d.last_error || window.t("cs.ch_tg_st_conflict")) + " " + tr("cs.ch_tg_st_conflict2")
+        : tr("cs.ch_st_boterr") + " " + esc(d.last_error || ""));
+    } else if (st.state === "run") {
+      const n = st.ids.length;
+      const who = n ? tr("cs.ch_n_ids", { count: n })
+        : (def.openAllow ? "<b>" + tr("cs.ch_st_everyone") + "</b>" : tr("cs.ch_zl_st_noallow"));
+      line = ic("circle", { cls: "ic-fill ic-ok" }) + " " + tr("ach.st_run_line")
+        + (d.bot_name ? " (" + esc(d.bot_name) + ")" : "") + " - " + who + ".";
+    } else line = ic("circle", { cls: "ic-dim" }) + " " + tr("cs.ch_st_stopped");
+    // Lỗi danh tính thường CHÍNH LÀ lỗi bot (token sai): chỉ thêm dòng khi nó nói điều khác.
+    if (d.loi_danh_tinh && d.loi_danh_tinh !== d.last_error) line += "<br>" + WARN_ICON + " " + esc(d.loi_danh_tinh);
+    else if (st.state !== "err" && d.last_error && st.on) line += "<br>" + WARN_ICON + " " + esc(d.last_error);
+    return line;
+  }
+
+  async function achFetch(def) {
+    try { return await (await fetch(def.api + "/status")).json(); } catch (e) { return null; }
+  }
+
   async function renderChannels(el) {
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
-    const s = await freshSettings();
-    const tg = s.telegram || {};
-    const zl = s.zalo_bot || {};
+    const [s, ...stats] = await Promise.all([freshSettings(), ...ADMIN_CH.map(achFetch)]);
+    const state = {};
+    ADMIN_CH.forEach((def, i) => { state[def.key] = achState(def, stats[i]); });
+    let cur = "";
+    try { cur = localStorage.getItem(ACH_TAB_KEY) || ""; } catch (e) {}
+    if (!ADMIN_CH.some(c => c.key === cur)) {
+      // Lần đầu: mở kênh đang chạy (hoặc đang lỗi) đầu tiên, không thì Telegram.
+      const live = ADMIN_CH.find(c => ["run", "err", "start"].includes(state[c.key].state));
+      cur = live ? live.key : "telegram";
+    }
     el.innerHTML = `
-      <div class="cview-section">
-        <h3>Telegram</h3>
-        <div class="gcard" style="max-width:560px">
-          <label class="js-row"><span>${esc(window.t("cs.ch_tg_enable"))}</span><input type="checkbox" id="tgEnabled" ${tg.enabled ? "checked" : ""}></label>
-          <label class="js-lbl">Bot token ${tg.token_set ? '<span class="dim">' + esc(window.t("cs.ch_token_set")) + '</span>' : ""}</label>
-          <input class="js-input" id="tgToken" type="password" placeholder="${esc(window.t(tg.token_set ? "cs.ch_token_keep" : "cs.ch_tg_token_ph"))}">
-          <label class="js-lbl">${esc(window.t("cs.ch_allowed_ids"))} <span class="dim">${esc(window.t("cs.ch_tg_ids_hint"))}</span></label>
-          <input class="js-input" id="tgChat" value="${esc(tg.chat_id || "")}" placeholder="${esc(window.t("cs.ch_tg_ids_ph"))}">
-          <div class="js-actions"><button class="gcard-btn" id="tgSave">${esc(window.t("cs.ch_save_enable"))}</button><button class="gcard-btn ghost" id="tgTest">${esc(window.t("cs.ch_send_test"))}</button></div>
-          <div class="gcard-meta" id="tgStatus"></div>
+      <div class="ach">
+        <p class="ach-intro">${esc(window.t("ach.intro"))} <a href="#" data-ach-go="chatbots">${esc(window.t("ach.intro_link"))} →</a></p>
+        <div class="ach-tabs" role="tablist" aria-label="${esc(t("page.channels.title"))}">
+          ${ADMIN_CH.map(c => `<button type="button" role="tab" id="ach-tab-${c.key}" data-ach-tab="${c.key}"
+            aria-controls="ach-panel" aria-selected="${c.key === cur}" tabindex="${c.key === cur ? 0 : -1}">
+            ${Icons.kenh(c.key, { size: "18px" })}<span>${esc(c.tab || c.title)}</span><i class="ach-dot st-${state[c.key].state}" aria-hidden="true"></i></button>`).join("")}
         </div>
-      </div>
-      <div class="cview-section">
-        <h3>${Icons.kenh("zalo", { size: "18px" })} Zalo</h3>
-        <div class="gcard" style="max-width:560px">
-          <div class="gcard-meta" style="margin-bottom:8px">${esc(window.t("cs.ch_zl_intro_a"))} <b>${esc(window.t("cs.ch_zl_intro_b"))}</b> ${esc(window.t("cs.ch_zl_intro_c"))} <b>Zalo Agent MCP</b> ${esc(window.t("cs.ch_zl_intro_d"))}</div>
-          <label class="js-row"><span>${esc(window.t("cs.ch_zl_enable"))}</span><input type="checkbox" id="zlEnabled" ${zl.enabled ? "checked" : ""}></label>
-          <label class="js-lbl">Bot token ${zl.token_set ? '<span class="dim">' + esc(window.t("cs.ch_token_set")) + '</span>' : ""}</label>
-          <input class="js-input" id="zlToken" type="password" placeholder="${esc(window.t(zl.token_set ? "cs.ch_token_keep" : "cs.ch_zl_token_ph"))}">
-          <div class="gcard-meta">${esc(window.t("cs.ch_zl_guide_a"))} <b>Zalo Bot Manager</b>, ${esc(window.t("cs.ch_zl_guide_b"))} <b>${esc(window.t("cs.ch_zl_guide_btn"))}</b>. ${esc(window.t("cs.ch_zl_guide_c"))}</div>
-          <label class="js-lbl">${esc(window.t("cs.ch_allowed_ids"))} <span class="dim">${esc(window.t("cs.ch_zl_ids_hint"))}</span></label>
-          <input class="js-input" id="zlChat" value="${esc(zl.chat_id || "")}" placeholder="${esc(window.t("cs.ch_zl_ids_ph"))}">
-          <div class="js-actions"><button class="gcard-btn" id="zlSave">${esc(window.t("cs.ch_save_enable"))}</button><button class="gcard-btn ghost" id="zlTest">${esc(window.t("cs.ch_send_test"))}</button></div>
-          <div class="gcard-meta" id="zlStatus"></div>
-          <div id="zlCho"></div>
-        </div>
-      </div>
-      ${ownerChannelHtml("slack", s.slack || {})}
-      ${ownerChannelHtml("whatsapp", s.whatsapp || {})}
-      ${placeholder("channels", window.t("cs.ch_soon"))}`;
-    wireOwnerChannel("slack");
-    wireOwnerChannel("whatsapp");
-    const st = document.getElementById("tgStatus");
-    async function refreshTgStatus() {
-      let d; try { d = await (await fetch("/telegram/status")).json(); } catch (e) { return; }
-      let line;
-      if (!d.enabled) line = ic("circle", { cls: "ic-dim" }) + " " + esc(window.t("cs.ch_tg_st_off"));
-      else if (!d.token_set) line = ic("circle", { cls: "ic-dim" }) + " " + esc(window.t("cs.ch_st_notoken"));
-      else if (d.status === "polling") {
-        const n = (d.chat_ids || []).length;
-        line = `${ic("circle", { cls: "ic-fill ic-ok" })} ${esc(window.t("cs.ch_st_polling"))} - ${esc(n ? window.t("cs.ch_n_ids", { count: n }) : window.t("cs.ch_st_everyone"))} - ${esc(window.t("cs.ch_tg_st_reply"))}`;
-      }
-      else if (d.status === "conflict") line = ic("circle", { cls: "ic-fill ic-err" }) + " 409: " + esc(d.last_error || window.t("cs.ch_tg_st_conflict")) + " " + esc(window.t("cs.ch_tg_st_conflict2"));
-      else if (d.status === "error") line = WARN_ICON + " " + esc(window.t("cs.ch_st_boterr")) + " " + esc(d.last_error || "");
-      else if (d.status === "starting") line = ic("loader", { cls: "ic-spin" }) + " " + esc(window.t("cs.ch_st_starting"));
-      else line = ic("circle", { cls: "ic-dim" }) + " " + esc(window.t("cs.ch_st_stopped"));
-      st.innerHTML = line;  // line chứa thẻ <svg> của icon - textContent sẽ in nguyên mã ra chữ
-    }
-    refreshTgStatus();
-    document.getElementById("tgSave").onclick = async () => {
-      const data = { enabled: document.getElementById("tgEnabled").checked, chat_id: document.getElementById("tgChat").value.trim() };
-      const tok = document.getElementById("tgToken").value.trim();
-      if (tok) data.token = tok;
-      st.textContent = window.t("settings.saving");
-      const r = await saveSetting("telegram", data);
-      st.innerHTML = r.ok ? OK_ICON + " " + esc(window.t("cs.ch_saved_starting")) : WARN_ICON + " " + esc(window.t("cs.ch_save_err"));
-      if (r.ok) setTimeout(refreshTgStatus, 1800);
-    };
-    document.getElementById("tgTest").onclick = async () => {
-      st.textContent = window.t("cs.ch_sending_test");
-      try {
-        const r = await (await fetch("/telegram/test", { method: "POST" })).json();
-        st.innerHTML = r.ok
-          ? (r.total > 1 ? `${OK_ICON} ${esc(window.t("cs.ch_test_sent_n", { sent: Number(r.sent) || 0, tong: Number(r.total) || 0 }))}` + (r.error ? " " + esc(window.t("app.err_cap")) + ": " + esc(r.error) : "") : OK_ICON + " " + esc(window.t("cs.ch_test_sent")))
-          : Icons.warn(r.error || window.t("cs.ch_no_bot_cfg"));
-      }
-      catch (e) { st.innerHTML = WARN_ICON + " " + esc(window.t("cs.ch_net_err")); }
-    };
-
-    // ---- Thẻ Zalo ----
-    const zst = document.getElementById("zlStatus");
-    const zcho = document.getElementById("zlCho");
-    async function refreshZalo() {
-      let d; try { d = await (await fetch("/zalo-bot/status")).json(); } catch (e) { return; }
-      let line;
-      if (!d.enabled) line = ic("circle", { cls: "ic-dim" }) + " " + esc(window.t("cs.ch_zl_st_off"));
-      else if (!d.token_set) line = ic("circle", { cls: "ic-dim" }) + " " + esc(window.t("cs.ch_st_notoken"));
-      else if (d.status === "polling") {
-        const n = (d.chat_ids || []).length;
-        line = `${ic("circle", { cls: "ic-fill ic-ok" })} ${esc(window.t("cs.ch_st_polling"))}${d.bot_name ? " (" + esc(d.bot_name) + ")" : ""} - ${esc(n ? window.t("cs.ch_n_ids", { count: n }) : window.t("cs.ch_zl_st_noallow"))}.`;
-      }
-      else if (d.status === "error") line = WARN_ICON + " " + esc(window.t("cs.ch_st_boterr")) + " " + esc(d.last_error || "");
-      else if (d.status === "starting") line = ic("loader", { cls: "ic-spin" }) + " " + esc(window.t("cs.ch_st_starting"));
-      else line = ic("circle", { cls: "ic-dim" }) + " " + esc(window.t("cs.ch_st_stopped"));
-      if (d.loi_danh_tinh) line += "<br>" + WARN_ICON + " " + esc(d.loi_danh_tinh);
-      zst.innerHTML = line;
-      // Hàng chờ ghép nối: thay cho việc bắt user đi tra một chuỗi hex không ai đọc nổi.
-      // Zalo không có công cụ kiểu @userinfobot của Telegram, nên phải đảo chiều - người lạ
-      // nhắn cho bot thì họ hiện ra ở đây kèm TÊN THẬT và một mã để chủ đối chiếu đúng người.
-      const cho = d.cho || [];
-      zcho.innerHTML = cho.length
-        ? '<div class="gcard-meta" style="margin-top:10px"><b>' + esc(window.t("cs.ch_zl_wait_head")) + '</b></div>' +
-          cho.map(g => `<div class="zl-cho" data-cid="${esc(g.chat_id)}">
-              <div><b>${esc(g.ten || window.t("cs.ch_zl_user"))}</b> <span class="dim">${esc(window.t("cs.ch_zl_code"))} ${esc(g.ma)}</span></div>
-              <div class="dim">${esc(window.t("cs.ch_zl_sent_n", { count: Number(g.lan) || 1 }))} ${esc(window.t("cs.ch_zl_verify"))}</div>
-              <div class="js-actions"><button class="gcard-btn zl-ok">${esc(window.t("cs.ch_zl_allow"))}</button><button class="gcard-btn ghost zl-bo">${esc(window.t("cs.ch_zl_skip"))}</button></div>
-            </div>`).join("")
-        : "";
-      zcho.querySelectorAll(".zl-cho").forEach(n => {
-        const cid = n.dataset.cid;
-        const gui = async (on) => {
-          const f = new FormData(); f.append("chat_id", cid); f.append("on", on ? "1" : "0");
-          try { await fetch("/zalo-bot/allow", { method: "POST", body: f }); } catch (e) {}
-          const inp = document.getElementById("zlChat");
-          if (on && inp) inp.value = inp.value ? inp.value + ", " + cid : cid;
-          refreshZalo();
-        };
-        n.querySelector(".zl-ok").onclick = () => gui(true);
-        n.querySelector(".zl-bo").onclick = () => gui(false);
+        <section id="ach-panel" class="ach-panel" role="tabpanel" tabindex="0"></section>
+      </div>`;
+    const go = el.querySelector("[data-ach-go]");
+    if (go) go.onclick = (e) => { e.preventDefault(); navigateTo("chatbots"); };
+    const keys = ADMIN_CH.map(c => c.key);
+    const panel = el.querySelector("#ach-panel");
+    const select = (key, focus) => {
+      cur = key;
+      try { localStorage.setItem(ACH_TAB_KEY, key); } catch (e) {}
+      el.querySelectorAll("[data-ach-tab]").forEach(b => {
+        const on = b.dataset.achTab === key;
+        b.setAttribute("aria-selected", String(on));
+        b.tabIndex = on ? 0 : -1;
+        if (on && focus) { b.focus({ preventScroll: true }); b.scrollIntoView({ block: "nearest", inline: "nearest" }); }
+        // Lần vẽ đầu trên điện thoại: tab đã nhớ có thể nằm khuất bên phải. Cuộn RIÊNG thanh tab,
+        // không cuộn cả trang.
+        // Lúc này trang còn nằm trong hiệu ứng chuyển trang, chưa hiện ra, nên thanh tab rộng 0 và
+        // mọi phép đo đều bằng 0. Chờ đúng lúc nó có kích thước thật rồi mới cuộn, một lần.
+        if (on && !focus) {
+          const bar = b.parentElement;
+          const reveal = () => {
+            if (!bar.clientWidth) return false;
+            const off = b.getBoundingClientRect().left - bar.getBoundingClientRect().left;
+            if (off < 0 || off + b.offsetWidth > bar.clientWidth) bar.scrollLeft += off - 12;
+            return true;
+          };
+          if (!reveal() && window.ResizeObserver) {
+            const ro = new ResizeObserver(() => { if (reveal()) ro.disconnect(); });
+            ro.observe(bar);
+          }
+        }
       });
-    }
-    refreshZalo();
-    document.getElementById("zlSave").onclick = async () => {
-      const data = { enabled: document.getElementById("zlEnabled").checked, chat_id: document.getElementById("zlChat").value.trim() };
-      const tok = document.getElementById("zlToken").value.trim();
-      if (tok) data.token = tok;
-      zst.textContent = window.t("settings.saving");
-      const r = await saveSetting("zalo_bot", data);
-      zst.innerHTML = r.ok ? OK_ICON + " " + esc(window.t("cs.ch_saved_starting")) : WARN_ICON + " " + esc(window.t("cs.ch_save_err"));
-      if (r.ok) setTimeout(refreshZalo, 1800);
+      panel.setAttribute("aria-labelledby", "ach-tab-" + key);
+      achPanel(panel, ADMIN_CH.find(c => c.key === key), s, state, el);
     };
-    document.getElementById("zlTest").onclick = async () => {
-      zst.textContent = window.t("cs.ch_sending_test");
-      try {
-        const r = await (await fetch("/zalo-bot/test", { method: "POST" })).json();
-        zst.innerHTML = r.ok
-          ? (r.total > 1 ? `${OK_ICON} ${esc(window.t("cs.ch_test_sent_n", { sent: Number(r.sent) || 0, tong: Number(r.total) || 0 }))}` + (r.error ? " " + esc(window.t("app.err_cap")) + ": " + esc(r.error) : "") : OK_ICON + " " + esc(window.t("cs.ch_test_sent")))
-          : Icons.warn(r.error || window.t("cs.ch_no_bot_cfg"));
-      }
-      catch (e) { zst.innerHTML = WARN_ICON + " " + esc(window.t("cs.ch_net_err")); }
-    };
+    el.querySelectorAll("[data-ach-tab]").forEach(btn => {
+      btn.onclick = () => select(btn.dataset.achTab, true);
+      btn.onkeydown = e => {
+        const i = keys.indexOf(btn.dataset.achTab);
+        const next = e.key === "ArrowRight" ? (i + 1) % keys.length
+          : e.key === "ArrowLeft" ? (i + keys.length - 1) % keys.length
+          : e.key === "Home" ? 0 : e.key === "End" ? keys.length - 1 : -1;
+        if (next >= 0) { e.preventDefault(); select(keys[next], true); }
+      };
+    });
+    select(cur, false);
   }
 
-  // ---- Slack and WhatsApp control channels (0.71.0) ----
-  // One renderer for both: same card shape as Zalo (enable, credentials, allow-list, pairing
-  // queue), only the credential fields differ. Secrets are never echoed back: an empty field
-  // means "keep what is saved", exactly like the Telegram token.
-  const OWNER_CH = {
-    slack: { title: "Slack", fields: [["bot_token", true, "xoxb-..."], ["app_token", true, "xapp-..."]] },
-    whatsapp: { title: "WhatsApp", fields: [["phone_number_id", false, "123456789012345"], ["access_token", true, "EAA..."], ["app_secret", true, ""]] },
-  };
-  const DOC_CH = "https://github.com/blogminhquy/javis-os/blob/main/docs/en/29-slack-whatsapp.md";
-
-  function ownerChannelHtml(key, c) {
-    const def = OWNER_CH[key];
-    const id = (f) => `oc_${key}_${f}`;
-    const fields = def.fields.map(([f, secret, ph]) => {
-      const isSet = secret && c[f + "_set"];
-      const label = esc(window.t(`cs.oc_${key}_${f}`)) + (isSet ? ' <span class="dim">' + esc(window.t("cs.ch_token_set")) + "</span>" : "");
+  function achPanel(panel, def, s, stateMap, root) {
+    const c = s[def.set] || {};
+    const st = stateMap[def.key];
+    const id = (f) => `ach_${def.key}_${f}`;
+    const tr = (k, p) => esc(window.t(k, p));
+    const lbl = (f) => window.t(`ach.${def.key}_${f}`);
+    const fields = def.fields.map(([f, kind, ph]) => {
+      if (kind === "select") {
+        const v = c[f] || ph[0];
+        return `<label class="js-lbl" for="${id(f)}">${esc(lbl(f))}</label>
+          <select class="js-input" id="${id(f)}">${ph.map(o => `<option value="${o}" ${o === v ? "selected" : ""}>${esc(window.t(`ach.${def.key}_${f}_${o}`))}</option>`).join("")}</select>`;
+      }
+      const secret = kind === true;
+      const isSet = secret && !!(c[f + "_set"] || (f === "token" && c.token_set));
       const val = secret ? "" : esc(c[f] || "");
-      const pholder = esc(isSet ? window.t("cs.ch_token_keep") : ph);
-      return `<label class="js-lbl">${label}</label><input class="js-input" id="${id(f)}" type="${secret ? "password" : "text"}" value="${val}" placeholder="${pholder}" autocomplete="off">`;
+      const pholder = esc(isSet ? window.t("ach.secret_keep") : ph);
+      return `<label class="js-lbl" for="${id(f)}">${esc(lbl(f))}${isSet ? ' <span class="ach-saved">' + ic("check") + " " + tr("ach.saved_badge") + "</span>" : ""}</label>
+        <input class="js-input" id="${id(f)}" type="${secret ? "password" : "text"}" value="${val}" placeholder="${pholder}" autocomplete="off" spellcheck="false">`;
     }).join("");
-    const webhook = key === "whatsapp"
-      ? `<div class="gcard-meta oc-hook" id="${id("hook")}"></div>`
-      : "";
-    return `
-      <div class="cview-section">
-        <h3>${Icons.kenh(key, { size: "18px" })} ${esc(def.title)}</h3>
-        <div class="gcard" style="max-width:560px">
-          <div class="gcard-meta" style="margin-bottom:8px">${esc(window.t(`cs.oc_${key}_intro`))}</div>
-          <label class="js-row"><span>${esc(window.t(`cs.oc_${key}_enable`))}</span><input type="checkbox" id="${id("enabled")}" ${c.enabled ? "checked" : ""}></label>
+    const guideLink = DOC_GUIDE[def.guide]
+      ? ` <a href="${docGuideUrl(def.guide)}" target="_blank" rel="noopener">${tr("cs.oc_guide_link")} ↗</a>` : "";
+    const allowVal = def.allowKey === "chat_id" ? (c.chat_id || "") : (c.allow || "");
+    panel.innerHTML = `
+      <div class="ach-card">
+        <div class="ach-head">
+          <div class="ach-name">${Icons.kenh(def.key, { size: "26px" })}<b>${esc(def.title)}</b>
+            <span class="ach-pill st-${st.state}" id="${id("pill")}">${esc(window.t(ACH_PILL[st.state]))}</span></div>
+          <label class="ach-switch" title="${tr("ach.switch_title")}">
+            <input type="checkbox" role="switch" id="${id("on")}" ${st.on ? "checked" : ""}>
+            <span class="ach-track" aria-hidden="true"></span>
+            <span class="ach-sw-lbl">${tr("ach.switch_label")}</span>
+          </label>
+        </div>
+        <div class="ach-status" id="${id("status")}" role="status">${achLine(def, st)}</div>
+        <p class="ach-what">${tr(`ach.${def.key}_intro`)}</p>
+
+        <div class="ach-step">
+          <h4><span class="ach-num">1</span>${tr("ach.step_connect")}</h4>
+          <p class="ach-hint">${tr(`ach.${def.key}_guide`)}${guideLink}</p>
           ${fields}
-          <div class="gcard-meta">${esc(window.t(`cs.oc_${key}_guide`))} <a href="${DOC_CH}" target="_blank" rel="noopener">${esc(window.t("cs.oc_guide_link"))} ↗</a></div>
-          ${webhook}
-          <label class="js-lbl">${esc(window.t(`cs.oc_${key}_allow`))} <span class="dim">${esc(window.t("cs.oc_allow_hint"))}</span></label>
-          <input class="js-input" id="${id("allow")}" value="${esc(c.allow || "")}" placeholder="${esc(window.t(`cs.oc_${key}_allow_ph`))}">
-          <div class="js-actions"><button class="gcard-btn" id="${id("save")}">${esc(window.t("cs.ch_save_enable"))}</button><button class="gcard-btn ghost" id="${id("test")}">${esc(window.t("cs.ch_send_test"))}</button></div>
-          <div class="gcard-meta" id="${id("status")}"></div>
+          ${def.webhook ? `<div class="ach-hook" id="${id("hook")}"></div>` : ""}
+        </div>
+
+        <div class="ach-step">
+          <h4><span class="ach-num">2</span>${tr("ach.step_who")}</h4>
+          <p class="ach-hint">${tr(`ach.${def.key}_who`)}</p>
+          <label class="js-lbl" for="${id("allow")}">${esc(lbl("allow"))}</label>
+          <input class="js-input" id="${id("allow")}" value="${esc(allowVal)}" placeholder="${esc(window.t(`ach.${def.key}_allow_ph`))}" autocomplete="off" spellcheck="false">
           <div id="${id("cho")}"></div>
         </div>
-      </div>`;
-  }
 
-  function wireOwnerChannel(key) {
-    const def = OWNER_CH[key];
-    const el = (f) => document.getElementById(`oc_${key}_${f}`);
-    const st = el("status");
-    const cho = el("cho");
-    if (!st) return;
-    async function refresh() {
-      let d; try { d = await (await fetch(`/${key}/status`)).json(); } catch (e) { return; }
-      let line;
-      if (!d.enabled) line = ic("circle", { cls: "ic-dim" }) + " " + esc(window.t("cs.oc_st_off"));
-      else if (!d.configured) line = ic("circle", { cls: "ic-dim" }) + " " + esc(window.t("cs.oc_st_missing"));
-      else if (d.status === "polling") {
-        const n = (d.allow_ids || []).length;
-        line = `${ic("circle", { cls: "ic-fill ic-ok" })} ${esc(window.t("cs.oc_st_running"))}${d.bot_name ? " (" + esc(d.bot_name) + ")" : ""} - ${esc(n ? window.t("cs.ch_n_ids", { count: n }) : window.t("cs.ch_zl_st_noallow"))}.`;
-      }
-      else if (d.status === "error") line = WARN_ICON + " " + esc(window.t("cs.ch_st_boterr")) + " " + esc(d.last_error || "");
-      else if (d.status === "starting") line = ic("loader", { cls: "ic-spin" }) + " " + esc(window.t("cs.ch_st_starting"));
-      else line = ic("circle", { cls: "ic-dim" }) + " " + esc(window.t("cs.ch_st_stopped"));
-      if (d.status !== "error" && d.last_error) line += "<br>" + WARN_ICON + " " + esc(d.last_error);
-      st.innerHTML = line;
-      const hook = el("hook");
-      if (hook && d.webhook_url) {
-        hook.innerHTML = `<b>${esc(window.t("cs.oc_wa_hook_url"))}</b> <code>${esc(d.webhook_url)}</code><br>`
-          + `<b>${esc(window.t("cs.oc_wa_hook_token"))}</b> <code>${esc(d.verify_token || "")}</code><br>`
-          + esc(window.t("cs.oc_wa_hook_field"))
-          + (d.https ? "" : "<br>" + WARN_ICON + " " + esc(window.t("cs.oc_wa_need_https")));
-      }
-      const q = d.cho || [];
+        <div class="ach-actions">
+          <button class="gcard-btn ghost" id="${id("test")}">${tr("cs.ch_send_test")}</button>
+          <button class="gcard-btn ach-primary" id="${id("save")}">${tr(st.on ? "ach.save_on" : "ach.save_off")}</button>
+        </div>
+        <div class="ach-msg" id="${id("msg")}" role="status"></div>
+      </div>`;
+
+    const $id = (f) => document.getElementById(id(f));
+    const msg = $id("msg");
+    const sw = $id("on");
+
+    function paint(stNew) {
+      stateMap[def.key] = stNew;
+      const pill = $id("pill");
+      if (!pill) return;                       // đã sang tab khác
+      pill.className = "ach-pill st-" + stNew.state;
+      pill.textContent = window.t(ACH_PILL[stNew.state]);
+      $id("status").innerHTML = achLine(def, stNew);
+      sw.checked = stNew.on;
+      $id("save").textContent = window.t(stNew.on ? "ach.save_on" : "ach.save_off");
+      // Gửi tin thử chỉ có nghĩa khi kênh đang chạy: bấm lúc khác thì chỉ nhận về một câu lỗi.
+      const test = $id("test");
+      test.disabled = stNew.state !== "run";
+      test.title = test.disabled ? window.t("ach.test_need_run") : "";
+      const dot = root.querySelector(`#ach-tab-${def.key} .ach-dot`);
+      if (dot) dot.className = "ach-dot st-" + stNew.state;
+      // Hàng chờ ghép nối: người lạ nhắn cho bot thì hiện ở đây kèm TÊN và MÃ để chủ đối chiếu.
+      const cho = $id("cho");
+      const q = (def.queue && stNew.d.cho) || [];
       cho.innerHTML = q.length
-        ? '<div class="gcard-meta" style="margin-top:10px"><b>' + esc(window.t("cs.ch_zl_wait_head")) + "</b></div>" +
+        ? '<div class="ach-queue"><b>' + tr("cs.ch_zl_wait_head") + "</b>" +
           q.map(g => `<div class="zl-cho" data-cid="${esc(g.chat_id)}">
-              <div><b>${esc(g.ten || g.chat_id)}</b> <span class="dim">${esc(window.t("cs.ch_zl_code"))} ${esc(g.ma)}</span></div>
-              <div class="dim">${esc(window.t("cs.ch_zl_sent_n", { count: Number(g.lan) || 1 }))} ${esc(window.t("cs.ch_zl_verify"))}</div>
-              <div class="js-actions"><button class="gcard-btn zl-ok">${esc(window.t("cs.ch_zl_allow"))}</button><button class="gcard-btn ghost zl-bo">${esc(window.t("cs.ch_zl_skip"))}</button></div>
-            </div>`).join("")
+              <div><b>${esc(g.ten || g.chat_id)}</b> <span class="dim">${tr("cs.ch_zl_code")} ${esc(g.ma)}</span></div>
+              <div class="dim">${tr("cs.ch_zl_sent_n", { count: Number(g.lan) || 1 })} ${tr("cs.ch_zl_verify")}</div>
+              <div class="js-actions"><button class="gcard-btn zl-ok">${tr("cs.ch_zl_allow")}</button><button class="gcard-btn ghost zl-bo">${tr("cs.ch_zl_skip")}</button></div>
+            </div>`).join("") + "</div>"
         : "";
       cho.querySelectorAll(".zl-cho").forEach(n => {
         const cid = n.dataset.cid;
         const send = async (on) => {
           const f = new FormData(); f.append("chat_id", cid); f.append("on", on ? "1" : "0");
-          try { await fetch(`/${key}/allow`, { method: "POST", body: f }); } catch (e) {}
-          const inp = el("allow");
+          try { await fetch(def.api + "/allow", { method: "POST", body: f }); } catch (e) {}
+          const inp = $id("allow");
           if (on && inp) inp.value = inp.value ? inp.value + ", " + cid : cid;
           refresh();
         };
         n.querySelector(".zl-ok").onclick = () => send(true);
         n.querySelector(".zl-bo").onclick = () => send(false);
       });
+      const hook = $id("hook");
+      const d = stNew.d;
+      if (hook && d.webhook_url) {
+        hook.innerHTML = `<b>${tr("cs.oc_wa_hook_url")}</b> <code>${esc(d.webhook_url)}</code><br>`
+          + `<b>${tr("cs.oc_wa_hook_token")}</b> <code>${esc(d.verify_token || "")}</code><br>`
+          + tr("cs.oc_wa_hook_field")
+          + (d.https ? "" : "<br>" + WARN_ICON + " " + tr("cs.oc_wa_need_https"));
+      }
     }
-    refresh();
-    el("save").onclick = async () => {
-      const data = { enabled: el("enabled").checked, allow: el("allow").value.trim() };
-      def.fields.forEach(([f, secret]) => {
-        const v = el(f).value.trim();
-        if (v || !secret) data[f] = v;
+
+    async function refresh() {
+      const d = await achFetch(def);
+      if (!d) return;
+      const stNew = achState(def, d);
+      paint(stNew);
+      // "Đã lưu, đang khởi động…" chỉ đúng trong lúc chờ. Kênh đã chạy hoặc đã lỗi thì dòng trạng
+      // thái phía trên nói rồi, để câu cũ nằm lại là hai câu mâu thuẫn nhau.
+      if (msg.dataset.cho === "1" && stNew.state !== "start") { msg.textContent = ""; msg.dataset.cho = ""; }
+    }
+    paint(st);
+
+    // Gom dữ liệu form. Ô bí mật để trống = giữ cái đã lưu (server cũng hiểu như vậy).
+    function collect() {
+      const data = {};
+      def.fields.forEach(([f, kind]) => {
+        const v = $id(f).value.trim();
+        if (v || kind !== true) data[f] = v;
       });
-      st.textContent = window.t("settings.saving");
-      const r = await saveSetting(key, data);
-      st.innerHTML = r.ok ? OK_ICON + " " + esc(window.t("cs.ch_saved_starting")) : WARN_ICON + " " + esc(window.t("cs.ch_save_err"));
-      if (r.ok) setTimeout(refresh, 1800);
+      data[def.allowKey] = $id("allow").value.trim();
+      return data;
+    }
+    // Trường bắt buộc còn trống mà chưa từng lưu: nói tên trường thay vì để server báo chung chung.
+    function missingField(data) {
+      for (const [f, kind] of def.fields) {
+        if (kind === "select") continue;
+        const saved = kind === true && !!(c[f + "_set"] || (f === "token" && c.token_set));
+        if (!data[f] && !saved && !(kind === false && c[f])) return f;
+      }
+      return "";
+    }
+
+    $id("save").onclick = async () => {
+      const data = collect();
+      const miss = missingField(data);
+      if (miss) {
+        msg.innerHTML = WARN_ICON + " " + tr("ach.need_field", { field: lbl(miss) });
+        $id(miss).focus();
+        return;
+      }
+      data.enabled = true;
+      msg.textContent = window.t("settings.saving");
+      const r = await saveSetting(def.set, data);
+      if (!r.ok) { msg.innerHTML = WARN_ICON + " " + tr("cs.ch_save_err"); return; }
+      // Bí mật vừa lưu: dọn ô nhập để giá trị không nằm lại trên màn hình, đánh dấu "đã lưu".
+      def.fields.forEach(([f, kind]) => { if (kind === true && data[f]) { c[f + "_set"] = true; if (f === "token") c.token_set = true; $id(f).value = ""; $id(f).placeholder = window.t("ach.secret_keep"); } });
+      msg.innerHTML = OK_ICON + " " + tr("cs.ch_saved_starting");
+      msg.dataset.cho = "1";
+      paint(achState(def, Object.assign({}, stateMap[def.key].d, { enabled: true, status: "starting",
+        token_set: true, configured: true })));
+      setTimeout(refresh, 1800);
+      setTimeout(refresh, 5000);
     };
-    el("test").onclick = async () => {
-      st.textContent = window.t("cs.ch_sending_test");
+
+    sw.onchange = async () => {
+      const want = sw.checked;
+      if (want && !stateMap[def.key].configured) {
+        sw.checked = false;
+        msg.innerHTML = WARN_ICON + " " + tr("ach.need_connect_first");
+        const first = def.fields.find(([, k]) => k !== "select");
+        if (first) $id(first[0]).focus();
+        return;
+      }
+      sw.disabled = true;
+      msg.textContent = window.t("settings.saving");
+      const r = await saveSetting(def.set, { enabled: want });
+      sw.disabled = false;
+      if (!r.ok) { sw.checked = !want; msg.innerHTML = WARN_ICON + " " + tr("cs.ch_save_err"); return; }
+      msg.innerHTML = OK_ICON + " " + tr(want ? "ach.turned_on" : "ach.turned_off");
+      msg.dataset.cho = want ? "1" : "";
+      paint(achState(def, Object.assign({}, stateMap[def.key].d, { enabled: want, status: want ? "starting" : "stopped" })));
+      setTimeout(refresh, 1800);
+    };
+
+    $id("test").onclick = async () => {
+      msg.textContent = window.t("cs.ch_sending_test");
       try {
-        const r = await (await fetch(`/${key}/test`, { method: "POST" })).json();
-        st.innerHTML = r.ok
-          ? `${OK_ICON} ${esc(window.t("cs.ch_test_sent_n", { sent: Number(r.sent) || 0, tong: Number(r.total) || 0 }))}` + (r.error ? " " + esc(window.t("app.err_cap")) + ": " + esc(r.error) : "")
+        const r = await (await fetch(def.api + "/test", { method: "POST" })).json();
+        msg.innerHTML = r.ok
+          ? (r.total > 1 ? `${OK_ICON} ${tr("cs.ch_test_sent_n", { sent: Number(r.sent) || 0, tong: Number(r.total) || 0 })}` + (r.error ? " " + tr("app.err_cap") + ": " + esc(r.error) : "") : OK_ICON + " " + tr("cs.ch_test_sent"))
           : Icons.warn(r.error || window.t("cs.ch_no_bot_cfg"));
-      } catch (e) { st.innerHTML = WARN_ICON + " " + esc(window.t("cs.ch_net_err")); }
+      } catch (e) { msg.innerHTML = WARN_ICON + " " + tr("cs.ch_net_err"); }
     };
   }
 
