@@ -408,3 +408,49 @@ Kết quả:
   - bỏ ghi huỷ trong `run_turn`: đỏ 4 kiểm;
   - bỏ điều kiện `is_error` của nhánh "already used": đỏ 2 kiểm.
 - Script `PR-579-pilot4-fix-checks.py` dừng ở REPRO đầu tiên ("ordinary healthy SDK result misclassified as auth failure"), vì lỗi đã hết.
+
+## Lần chạy 5 (08/10/2026): đi hết vòng, kỹ thuật đạt, chờ duyệt nội dung
+
+**Kết luận: `pending_content_review`.** Mọi kiểm kỹ thuật đạt. Đây CHƯA phải nghiệm thu pilot: nội dung hai bản chờ người review chốt. Bước bấm "Đạt yêu cầu" ở S6 là mô phỏng qua API.
+
+| Mục | Giá trị |
+|---|---|
+| Commit | `0b6a4542` (đã qua review), cây sạch, CI 4/4 xanh trước khi chạy |
+| Cổng | Đạt: engine `claude-opus-5-5` / `sonnet` đúng duyệt, gói Max ở cả hai cwd; token còn 25456 giây (S1) và 25286 giây (S4) |
+| Lượt đã dùng | **2 lượt Opus** (S1, S4; cả hai `engine_status=ok`, `turn_status=completed`), **0 lượt Sonnet**. Trần lần này: 2 Opus + 2 Sonnet bổ sung (lần 4 giữ nguyên 1 lượt chat đã tính) |
+| Thời gian | 356,4 giây |
+| Bằng chứng | [`resonance-mvp-e2e-pilot-5.json`](resonance-mvp-e2e-pilot-5.json), [bản đầu](resonance-mvp-e2e-pilot-5-draft1.md) (`8045014b...`, revision 1), [bản sửa](resonance-mvp-e2e-pilot-5-draft2.md) (`b160e8ff...`, revision 2). Hai file `-s1-chat` và `-s4-chat` là cùng bytes với hai bản trên |
+
+**Diễn biến:**
+- **S1:**
+  - Công cụ theo thứ tự: `Glob`, `ToolSearch` (`select:mcp__javis-plugins__javis_goal`), `Write` bản đầu vào `Docs/huong-dan-nhan-hang.md`, rồi `javis_goal` (lập được ngay lần đầu).
+  - Mục tiêu `achieve` với hai tiêu chí: `c1` tự kiểm (Lỗi hay gặp, "1.", anh Tùng, phiếu giao, sổ kho, tối thiểu 1500 ký tự) và `c2` người dùng xác nhận.
+  - Bốn ràng buộc đúng lời dặn. Mốc xem lại nội bộ 15/10, ghi rõ không phải hạn chót.
+- **S2:** host tiếp nhận bản chat bằng biên nhận ghi (Write thành công, bytes khớp). Bản đạt phần khách quan nên KHÔNG gọi việc nền; mục tiêu chờ người dùng; tin báo về đúng phiên.
+- **S3:** dựng lại server; mục tiêu, revision, bản trên đĩa giữ nguyên; không báo lặp, không gọi thêm.
+- **S4:**
+  - Lượt góp ý: `Write` bản sửa, rồi `javis_goal op=update` trên cùng mục tiêu.
+  - Revision lên 2. Ý định mới là đúng lời góp ý, nối về ý định trước.
+  - Thêm hai ràng buộc: ví dụ cụ thể cho bước đối chiếu, chụp ảnh hàng hỏng trước khi ký.
+- **S5:** host tiếp nhận bản sửa cho revision 2; không gọi việc nền; hash khác bản đầu; tin báo bản sửa về đúng phiên.
+- **S6:** bấm "Đạt yêu cầu" cho `c2` qua API (mô phỏng); mục tiêu `succeeded`; tin thành công về đúng phiên có biên nhận.
+
+**Soát sơ bộ nội dung của người triển khai (KHÔNG thay người review):**
+- **Bản đầu:**
+  - viết cho người chưa làm, có giải nghĩa từ khoá;
+  - 7 bước đánh số;
+  - mục "Lỗi hay gặp" 8 lỗi;
+  - đủ sáu ý của ghi chú.
+- **Bản sửa:**
+  - bước đối chiếu có ví dụ bảng 3 dòng (khớp, thiếu 1 thùng, sai mã) và câu ghi cạnh chữ ký;
+  - có bước chụp ảnh hàng hỏng (bước 3), đặt trước bước ký (bước 6);
+  - giữ mọi yêu cầu của bản đầu, cập nhật "Lỗi hay gặp" và tóm tắt.
+- Bộ não tự nêu trong câu trả lời những chỗ nó tự quyết (đặt bước kiểm thùng hỏng lên trước bước đối chiếu; thêm "không chép số trên phiếu") và hai điều còn chưa biết (ảnh gửi đi đâu; sai mã thì xử lý thế nào).
+- Không có ký tự em dash.
+
+**Giới hạn:**
+- Một mẫu: chưa chứng minh định tuyến ổn định.
+- Lần này bộ não tự viết cả hai bản nên đường việc nền sửa bản bằng model thật KHÔNG được dùng; đường đó đã có bằng chứng riêng ở pilot M3 và ở test engine giả.
+- Xác nhận cuối là mô phỏng.
+- Điều kiện MVP thứ nhất chỉ chốt sau khi người review duyệt nội dung hai bản.
+
