@@ -433,6 +433,18 @@ def resolve(*, turn_text: str = "", reply_pref: str = "auto", chatbot_pin: str =
 
 # ---------------------------------------------------------------- chữ cho prompt
 
+def call_language(said: str, recognition_lang: str = "") -> str:
+    """Ngôn ngữ ghim cho bộ não chính khi việc tới từ CUỘC GỌI giọng nói, "" = để model tự bám.
+
+    Lấy theo câu người dùng VỪA NÓI, không theo câu giao việc mà model giọng nói viết lại (có
+    lúc là tiếng Anh dù người dùng nói tiếng Việt). Không dò ra thì theo ngôn ngữ nhận dạng của
+    mic ("vi-VN"); mic để "auto" thì không ghim gì."""
+    code, _ = detect(said)
+    if lang_registry.duoc_ho_tro(code):
+        return lang_registry.chuan_hoa(code)
+    return lang_registry.chuan_hoa(recognition_lang)
+
+
 def khoi_ngon_ngu(quyet_dinh: LangDecision) -> str:
     """Khối "# === NGÔN NGỮ ===" nối vào system prompt.
 

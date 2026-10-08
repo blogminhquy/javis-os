@@ -335,7 +335,7 @@ async def main():
     # ---- 5. dây nối main.py ----
     src5 = (SERVER / "main.py").read_text(encoding="utf-8")
     check("main: gặp JAVIS_ASK_MAIN thì kết thúc lượt giọng ngay và giao việc nền, không await run_turn",
-          "asyncio.create_task(_voice_bg_task(ask, conv_sid, brain))" in src5
+          "asyncio.create_task(_voice_bg_task(ask, conv_sid, brain, call_lang=_call_lang))" in src5
           and '"background": ask' in src5
           and "await run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace)\n\n        async def _voice_bg_task" not in src5)
     # Khoá dùng một lần là khoá của MẠCH ENGINE (để hai việc chạy song song không xếp hàng
@@ -343,9 +343,9 @@ async def main():
     # nói qua `phien_kho` (xem test_viec_nen_giong_dung_khung_chat).
     check("main: việc nền có khoá phiên riêng để chạy song song, xong thì push_to_chat",
           'f"voice:{conv_sid}:{uuid.uuid4().hex[:8]}"' in src5
-          and "_voice_ask_javis(request, conv_sid, brain, key=khoa_mach)" in src5
+          and "_voice_ask_javis(request, conv_sid, brain, key=khoa_mach, call_lang=call_lang)" in src5
           and "await push_to_chat(conv_sid, out" in src5
-          and 'meta={"chat_id": key}' in src5)
+          and 'meta={"chat_id": key, "call_lang": call_lang}' in src5)
     check("main: câu gửi bộ não giọng ghép pending_note", "voice_brain.pending_note(conv_sid)" in src5)
     check("main: /voice/options báo sẵn/chưa sẵn cho codex, claude, grok",
           'elif pid == "codex":' in src5 and 'elif pid == "claude":' in src5 and 'elif pid == "grok":' in src5)

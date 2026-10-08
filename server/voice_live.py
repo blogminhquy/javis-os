@@ -745,7 +745,8 @@ CHATGPT_LIVE_PROMPT = (
     "xưng với bạn (phần bộ nhớ bên dưới cho biết nếu có), không tự đổi. Chuyện trò, hỏi thăm, giải "
     "thích kiến thức chung thì trả lời thẳng. Mọi câu cần dữ liệu thật hay hành động (doanh thu, đơn "
     "hàng, lịch, email, file, ghi chú, ký ức, mở trang trên màn hình, gửi tin, nhắc hẹn, tạo việc) thì "
-    "KHÔNG đoán: nói một câu đệm rất ngắn kiểu 'Để em xem nhé' rồi giao việc cho hệ thống. Trong lúc "
+    "KHÔNG đoán: nói một câu đệm rất ngắn kiểu 'Để em xem nhé' rồi giao việc cho hệ thống, viết yêu cầu "
+    "giao việc bằng đúng thứ tiếng người dùng đang nói. Trong lúc "
     "đang chờ kết quả mà người dùng chỉ nói kiểu 'ok', 'xong thì báo anh nhé', 'cảm ơn' thì KHÔNG giao "
     "việc lần nữa, chỉ đáp một câu ngắn là đang làm. Khi hệ thống trả kết quả, đọc lại tự nhiên, ngắn "
     "gọn, không thêm số liệu (bản đầy đủ đã hiện trên màn hình). Bị chen ngang thì dừng ngay và nghe."
@@ -1044,11 +1045,14 @@ class ChatGPTLive(LiveProvider):
         self._user_last, self._user_last_at = text, time.monotonic()
         return [{"type": "transcript", "role": "user", "text": text, "final": True}]
 
+    def _recent_speech(self) -> str:
+        # Câu đang nghe dở (handoff hay tới trước done) đầy đủ hơn câu đã chốt lần trước.
+        return self._user_buf.strip() or (
+            self._user_last if time.monotonic() - self._user_last_at <= HANDOFF_MERGE_S else "")
+
     def _handoff_request(self, req: str) -> str:
         req = str(req or "").strip()
-        # Câu đang nghe dở (handoff hay tới trước done) đầy đủ hơn câu đã chốt lần trước.
-        recent = self._user_buf.strip() or (
-            self._user_last if time.monotonic() - self._user_last_at <= HANDOFF_MERGE_S else "")
+        recent = self._recent_speech()
         # Yêu cầu là MẢNH của câu người dùng đang nói ("là bao nhiêu em" trong "Doanh thu hôm nay ...
         # là bao nhiêu em", đo 01/10) thì dùng cả câu cho đủ ý.
         if recent and req and req.lower() in recent.lower():
@@ -1110,7 +1114,8 @@ class ChatGPTLive(LiveProvider):
             if item.get("type") != "handoff_request":
                 return []
             return [{"type": "tool_call", "id": str(item.get("handoff_id") or ""), "name": "ask_javis",
-                     "args": {"request": self._handoff_request(item.get("input_transcript"))}}]
+                     "args": {"request": self._handoff_request(item.get("input_transcript"))},
+                     "said": self._recent_speech()}]
         if method == "turn/started":
             # Mỗi lần giao việc Codex TỰ mở một lượt agent: chặn ngay, việc thật do bộ não Javis làm.
             tid = str(((p.get("turn") or {}).get("id")) or p.get("turnId") or "")

@@ -14,6 +14,7 @@ real SessionStore in a temp directory.
   until(cond, what)   wait for a condition or fail the test
   release(n)          let the n-th brain call return its answer
   asks, keys          request text and engine key of each brain call, in call order
+  langs               the reply language pinned for each brain call (what the person spoke)
   progress            n -> the `progress` callback the route gave the n-th brain call
   frames, inbox       frames sent to the browser / frames the browser sends up
 """
@@ -26,6 +27,7 @@ import tempfile
 import types
 from pathlib import Path
 
+import lang
 import sessions
 import voice_live
 
@@ -98,7 +100,7 @@ class LiveRouteMixin:
 
     async def _run_in(self, store, directory, script, answers, status_supported, live_overrides):
         sid = store.get_or_create(None, brain="brain", engine="test", model="test")
-        frames, asks, keys, progress = [], [], [], {}
+        frames, asks, keys, langs, progress = [], [], [], [], {}
         inbox = asyncio.Queue()
         prov = FakeProvider(status_supported)
 
@@ -115,10 +117,11 @@ class LiveRouteMixin:
 
         gates = {}
 
-        async def ask(req, conv_sid, brain, key="", progress=None):
+        async def ask(req, conv_sid, brain, key="", progress=None, call_lang=""):
             n = len(asks)
             asks.append(req)
             keys.append(key)
+            langs.append(call_lang)
             progress_cbs[n] = progress
             gate = gates.setdefault(n, asyncio.Event())
             await gate.wait()
@@ -128,7 +131,7 @@ class LiveRouteMixin:
         names = {n: getattr(voice_live, n, None) for n in _ROUTE_NAMES}
         names.update(live_overrides)
         namespace = dict(
-            asyncio=asyncio, json=json, sys=sys, WebSocket=Socket, Query=lambda x: x,
+            asyncio=asyncio, json=json, sys=sys, WebSocket=Socket, Query=lambda x: x, lang_mod=lang,
             cfgmod=types.SimpleNamespace(gate_active=lambda: False,
                                          read_settings=lambda: {"voice": {"live_provider": "chatgpt"}}),
             voice_live=types.SimpleNamespace(
@@ -152,7 +155,7 @@ class LiveRouteMixin:
             gates.setdefault(n, asyncio.Event()).set()
 
         try:
-            await script(prov, types.SimpleNamespace(until=until, release=release, asks=asks, keys=keys,
+            await script(prov, types.SimpleNamespace(until=until, release=release, asks=asks, keys=keys, langs=langs,
                                                      progress=progress, frames=frames, inbox=inbox))
         finally:
             await inbox.put({"type": "stop"})

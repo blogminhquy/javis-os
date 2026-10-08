@@ -14,6 +14,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Sửa lỗi
 - **Lượt chat trùng lúc Claude Code đang làm mới đăng nhập nói rõ là gửi lại được.** Claude Code bản mới báo lỗi này bằng một câu khác mà Javis từng hiện nguyên tiếng Anh; câu trả lời bình thường có chữ "already used" cũng không còn bị thay nhầm bằng câu báo lỗi.
 
+## [0.85.10] - 2026-10-08
+### Sửa lỗi
+- **Gọi ChatGPT Live bằng tiếng Việt thì câu trả lời cũng là tiếng Việt, không còn tự nhảy sang tiếng Anh.** Khi cần tra dữ liệu, ChatGPT Live tự viết lại yêu cầu rồi giao cho bộ não chính, và có lúc viết bằng tiếng Anh. Bộ não chính trả lời theo câu đó nên ra tiếng Anh, rồi Live đọc to câu tiếng Anh, nghe như đổi giọng giữa cuộc gọi. Giờ bộ não chính trả lời theo thứ tiếng bạn thật sự nói. Bạn nói tiếng Anh thì vẫn trả lời tiếng Anh, và ngôn ngữ đã ghim ở Cài đặt vẫn được ưu tiên. Sửa luôn cho chế độ nói chuyện thường khi việc được giao chạy nền.
+
 ## [0.85.9] - 2026-10-08
 ### Sửa lỗi
 - **Bấm Cập nhật ngay trên bản Docker thì trang xoay chờ đến khi bản mới lên rồi tự tải lại, không còn báo lỗi oan.** Trước đây trang chỉ chờ khoảng 36 giây rồi báo "Bản mới chưa lên sau một lúc - có thể lỗi", trong khi Watchtower vẫn đang kéo bản mới về và một lúc sau trang tự lên bản mới. Giờ trang chờ tới 10 phút. Quá 45 giây thì nói rõ là vẫn đang kéo bản mới, máy chậm có thể mất vài phút. Lỗi thật (Watchtower báo lỗi, chưa có image mới) vẫn hiện ngay như cũ. Thanh "Tải lại / Để sau" cũng không hiện thừa giữa lúc đang cập nhật nữa.

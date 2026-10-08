@@ -13227,7 +13227,19 @@ async def voice_options(brains: int = 1):
     }
 
 
-async def _voice_ask_javis(request: str, conv_sid: str, brain: str, key: str = "", progress=None) -> str:
+def _ngon_ngu_cuoc_goi(meta) -> str:
+    """Ngôn ngữ người dùng THẬT SỰ nói trong cuộc gọi, do `_voice_ask_javis` gửi kèm. "" nếu không có.
+
+    Câu giao việc cho bộ não chính không phải lời người dùng: ChatGPT Live tự diễn đạt lại và có
+    lúc viết bằng tiếng Anh ("Check the Drive link the user sent..."). Bộ não chính bám theo thứ
+    tiếng của câu đó nên trả lời tiếng Anh, rồi Live đọc to câu tiếng Anh, nghe như đổi giọng giữa
+    cuộc gọi (khách báo 08/10). Nên lượt từ cuộc gọi ghim ngôn ngữ ở bậc "mặc định của kênh": lệnh
+    thẳng trong câu và ngôn ngữ ghim ở Cài đặt vẫn thắng."""
+    return lang_registry.chuan_hoa(str((meta or {}).get("call_lang") or ""))
+
+
+async def _voice_ask_javis(request: str, conv_sid: str, brain: str, key: str = "", progress=None,
+                           call_lang: str = "") -> str:
     """Tool `ask_javis` của phiên Live, và việc nền của làn nhanh (V3): chạy MỘT lượt bộ não
     chính rồi trả chữ.
 
@@ -13257,7 +13269,8 @@ async def _voice_ask_javis(request: str, conv_sid: str, brain: str, key: str = "
     except Exception:
         pass
     try:
-        out = await _tg_answer(request, meta={"chat_id": key}, progress=progress, channel="cli",
+        out = await _tg_answer(request, meta={"chat_id": key, "call_lang": call_lang},
+                               progress=progress, channel="cli",
                                phien_kho=str(conv_sid or ""), ghi_kho=False)
     except Exception as e:
         return f"Bộ não chính lỗi: {type(e).__name__}: {e}"
@@ -13338,6 +13351,7 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
               "transport": getattr(prov, "transport", "pcm")})
     asst_buf = {"text": ""}
     ui_ctx = {"text": ""}          # khối [NGỮ CẢNH GIAO DIỆN: ...] mới nhất từ trình duyệt
+    spoken = {"text": ""}          # câu người dùng vừa NÓI (không phải câu model diễn đạt lại)
     tool_tasks: set = set()
     # Không lặp câu trả lời (0.65.21, chủ dự án báo 01/10). Lần giao việc tới khi bộ não chính còn đang
     # làm có thể là LỜI NÓI THÊM ("Ok, xong thì báo anh nhé": bỏ), CÂU HỎI TIẾN ĐỘ ("xong chưa": trả lời
@@ -13501,7 +13515,8 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                 # Đang có việc khác chạy thì việc này cần MẠCH ENGINE riêng: dùng chung khoá phiên là nó
                 # xếp hàng trong engine sau việc kia, đúng cái chờ mà 0.71.2 bỏ khoá chung để tránh.
                 key = f"voice:{conv_sid}:p{job_id}" if running else ""
-                result = await _voice_ask_javis(sent, conv_sid, brain, key=key, progress=_note_step)
+                result = await _voice_ask_javis(sent, conv_sid, brain, key=key, progress=_note_step,
+                                                call_lang=lang_mod.call_language(spoken["text"], lang))
             else:
                 result = f"Tool {name} không có."
         except Exception as e:
@@ -13563,6 +13578,8 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                 except Exception:
                     return False
             elif t == "tool_call":
+                if ev.get("said"):
+                    spoken["text"] = str(ev["said"])
                 task = asyncio.create_task(_run_tool(ev))
                 tool_tasks.add(task)
                 task.add_done_callback(tool_tasks.discard)
@@ -13577,6 +13594,7 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                     asst_buf["text"] += str(ev.get("text") or "")
                 elif ev.get("final") and ev.get("text"):
                     readback["pending"] = 0   # người dùng nói tiếp: lời sau đó là lời đáp mới
+                    spoken["text"] = str(ev["text"])
                     try:
                         store.append_message(conv_sid, "user", str(ev["text"]))
                     except Exception:
@@ -15417,9 +15435,11 @@ async def websocket_endpoint(ws: WebSocket):
             # Đúng cảnh chủ dự án gặp 15/09 ("có chạy nền nhưng không thấy nó trả về kết quả",
             # hai việc treo mãi). Repo đã biết bẫy này ở _UPDATE_TASKS / _PUSH_TASKS, riêng chỗ
             # này bỏ sót.
-            _nho_viec_nen_giong(conv_sid, asyncio.create_task(_voice_bg_task(ask, conv_sid, brain)))
+            # Bộ não giọng cũng tự viết lại yêu cầu: ghim ngôn ngữ theo câu người dùng đã nói.
+            _call_lang = lang_mod.call_language(user_message)
+            _nho_viec_nen_giong(conv_sid, asyncio.create_task(_voice_bg_task(ask, conv_sid, brain, call_lang=_call_lang)))
 
-        async def _voice_bg_task(request, conv_sid, brain):
+        async def _voice_bg_task(request, conv_sid, brain, call_lang=""):
             """Một việc nền do bộ não giọng giao: chạy bộ não chính rồi đẩy kết quả vào khung chat.
 
             Khoá phiên RIÊNG cho mỗi việc (`voice:<sid>:<id>`) để hai việc giao liên tiếp chạy
@@ -15473,7 +15493,7 @@ async def websocket_endpoint(ws: WebSocket):
             viec = {"kind": "voice", "status": "done", "title": str(request)[:160], "id": tid}
             try:
                 out = await asyncio.wait_for(
-                    _voice_ask_javis(request, conv_sid, brain, key=khoa_mach),
+                    _voice_ask_javis(request, conv_sid, brain, key=khoa_mach, call_lang=call_lang),
                     timeout=VOICE_BG_TIMEOUT,
                 )
             except asyncio.TimeoutError:
@@ -19020,7 +19040,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         turn_text=text,
         chatbot_pin=(bot or {}).get("ngon_ngu") or "",
         reply_pref=("" if bot else (_lc_kenh.get("reply_lang") or "auto")),
-        channel_default=("vi" if channel == "zalo" and not bot else ""),
+        channel_default=(_ngon_ngu_cuoc_goi(meta) or ("vi" if channel == "zalo" and not bot else "")),
         ui_lang=("" if bot else (_lc_kenh.get("ui_lang") or "")),
     )
     try:
