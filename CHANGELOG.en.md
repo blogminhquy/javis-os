@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.85.11] - 2026-10-08
+### Fixed
+- **The chat no longer sits on "Javis is thinking..." when the connection dies silently.** A sleeping laptop, a Wi-Fi switch or a flaky network can kill the link between the page and Javis without the browser noticing. Javis still finished the work, but the answer never reached the page, so "thinking" kept counting and you had to resend the command. The page now checks in with Javis after a stretch of silence. If nothing answers, it reconnects by itself and pulls in the answer that is already done. The Stop button also always reaches Javis, even when the connection is dead.
+
 ## [0.85.10] - 2026-10-08
 ### Fixed
 - **A ChatGPT Live call in Vietnamese gets its answers in Vietnamese, no more sudden switch to English.** To look something up, ChatGPT Live rewrites the request and hands it to the main brain, sometimes in English. The main brain answered in the language of that rewrite, and Live then read the English answer aloud, which sounded like the voice changing mid-call. The main brain now answers in the language you actually spoke. Speak English and it still answers in English, and a language pinned in Settings still comes first. The same fix covers background jobs handed off from the regular talk mode.
