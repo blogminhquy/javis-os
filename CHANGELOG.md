@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.85.9] - 2026-10-08
 ### Sửa lỗi
-- **Nút Cập nhật ngay trên bản Docker chờ đến khi bản mới lên rồi tự tải lại trang.** Đang giữ chỗ số phiên bản.
+- **Bấm Cập nhật ngay trên bản Docker thì trang xoay chờ đến khi bản mới lên rồi tự tải lại, không còn báo lỗi oan.** Trước đây trang chỉ chờ khoảng 36 giây rồi báo "Bản mới chưa lên sau một lúc - có thể lỗi", trong khi Watchtower vẫn đang kéo bản mới về và một lúc sau trang tự lên bản mới. Giờ trang chờ tới 10 phút. Quá 45 giây thì nói rõ là vẫn đang kéo bản mới, máy chậm có thể mất vài phút. Lỗi thật (Watchtower báo lỗi, chưa có image mới) vẫn hiện ngay như cũ. Thanh "Tải lại / Để sau" cũng không hiện thừa giữa lúc đang cập nhật nữa.
 
 ## [0.85.8] - 2026-10-08
 ### Thêm mới

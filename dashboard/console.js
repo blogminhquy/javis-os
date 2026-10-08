@@ -84,6 +84,13 @@
   // hoặc Icons.ok(text) để chữ được escape. Ghép tay chỉ dành cho chữ tĩnh
   // hoặc chữ đã qua esc() rồi.
   const WARN_ICON = ic("triangle-alert", { cls: "ic-warn" });
+  // Nút Cập nhật ngay CHỜ đến khi bản mới lên rồi tự tải lại. Docker qua Watchtower phải kéo cả
+  // image mới, máy yếu hay mạng chậm mất vài phút; trước 0.85.9 trang bỏ cuộc sau 36 giây và báo
+  // "có thể lỗi" dù việc cập nhật vẫn đang chạy, rồi tự tải lại lên bản mới ngay sau đó. Lỗi THẬT
+  // thì server tự ghi vào /update/status (Watchtower báo lỗi, không có image mới, rollback) và
+  // trang dừng ngay theo đó, nên chỉ hết 10 phút mà vẫn im mới coi là kẹt.
+  const UPD_WAIT_MS = 10 * 60 * 1000;
+  const UPD_LONG_MS = 45 * 1000;   // quá mốc này thì nói rõ là vẫn đang kéo, chưa phải lỗi
   const OK_ICON = ic("circle-check", { cls: "ic-ok" });
   const CHECK_ICON = ic("check", { cls: "ic-ok" });
   const SAVE_ICON = ic("save");
@@ -1121,18 +1128,24 @@
         return;
       }
       status.innerHTML = ic("loader", { cls: "ic-spin" }) + " " + window.t("cs.upd_running_now");
-      let tries = 0;
+      window.__javisUpdating = true;
+      const t0 = Date.now();
+      let longNote = false;
       const poll = setInterval(async () => {
-        tries++;
+        const waited = Date.now() - t0;
+        if (waited >= UPD_LONG_MS && !longNote) {
+          longNote = true;
+          status.innerHTML = ic("loader", { cls: "ic-spin" }) + " " + window.t("cs.upd_pulling_long");
+        }
         let state = null; try { state = await (await fetch("/update/status", { cache: "no-store" })).json(); } catch (e) {}
         if (state && state.state && state.state.phase) {
           const phase = state.state.phase, result = state.state.result;
           const stash = state.state.stashed ? ic("package") + " " + window.t("cs.upd_stashed") : "";
           progress(phase, stash);
           if (result === "success") { clearInterval(poll); status.innerHTML = OK_ICON + " " + window.t("cs.upd_done_reload"); setTimeout(() => location.reload(), 1500); return; }
-          if (result === "rolled_back") { clearInterval(poll); status.innerHTML = "↩ " + window.t("cs.upd_rb_a") + " <b>" + window.t("cs.upd_rb_b") + "</b>."; update.disabled = false; return; }
+          if (result === "rolled_back") { clearInterval(poll); window.__javisUpdating = false; status.innerHTML = "↩ " + window.t("cs.upd_rb_a") + " <b>" + window.t("cs.upd_rb_b") + "</b>."; update.disabled = false; return; }
           if (["pull_failed", "rollback_failed", "error"].includes(result)) {
-            clearInterval(poll); q("updVerProgress").style.display = "none";
+            clearInterval(poll); window.__javisUpdating = false; q("updVerProgress").style.display = "none";
             status.innerHTML = WARN_ICON + " " + esc(state.state.error || window.t("cs.upd_err")) + " " + window.t("cs.upd_see") + " <code>update.log</code>."; update.disabled = false; return;
           }
         }
@@ -1142,17 +1155,17 @@
           if ((docker || !(state && state.state && state.state.phase)) && v.update_available === false && v.current && v.current !== oldCur) {
             clearInterval(poll); status.innerHTML = OK_ICON + " " + window.t("cs.upd_done_reload"); setTimeout(() => location.reload(), 1500); return;
           }
-          if (docker && tries >= 12 && v.current === oldCur) {
-            clearInterval(poll); status.innerHTML = WARN_ICON + " " + window.t("cs.upd_slow");
-            if (rollback) {
-              const prev = root.dataset.previousVersion || v.previous_version || "";
-              rollback.style.display = "";
-              rollback.innerHTML = "<b>" + window.t("cs.upd_rb_docker") + "</b><br><code>docker compose pull && docker compose up -d</code>" + (prev ? `<br>${window.t("cs.upd_pin_a")} <code>ghcr.io/blogminhquy/javis-os:${esc(prev)}</code> ${window.t("cs.upd_pin_b")}` : "");
-            }
-            update.disabled = false; return;
-          }
         } catch (e) {}
-        if (tries > 60) { clearInterval(poll); status.textContent = window.t("cs.upd_timeout"); update.disabled = false; }
+        if (waited >= UPD_WAIT_MS) {
+          clearInterval(poll); window.__javisUpdating = false;
+          status.innerHTML = WARN_ICON + " " + window.t("cs.upd_timeout");
+          if (rollback && root.dataset.updateMode === "docker") {
+            const prev = root.dataset.previousVersion || "";
+            rollback.style.display = "";
+            rollback.innerHTML = "<b>" + window.t("cs.upd_rb_docker") + "</b><br><code>docker compose pull && docker compose up -d</code>" + (prev ? `<br>${window.t("cs.upd_pin_a")} <code>ghcr.io/blogminhquy/javis-os:${esc(prev)}</code> ${window.t("cs.upd_pin_b")}` : "");
+          }
+          update.disabled = false;
+        }
       }, 3000);
     };
     loadVersion();
@@ -3238,9 +3251,15 @@
         return;
       }
       st.innerHTML = ic("loader", { cls: "ic-spin" }) + " " + esc(window.t("cs.upd_running_now"));
-      let tries = 0;
+      window.__javisUpdating = true;
+      const t0 = Date.now();
+      let longNote = false;
       const poll = setInterval(async () => {
-        tries++;
+        const waited = Date.now() - t0;
+        if (waited >= UPD_LONG_MS && !longNote) {
+          longNote = true;
+          st.innerHTML = ic("loader", { cls: "ic-spin" }) + " " + esc(window.t("cs.upd_pulling_long"));
+        }
         // 1) ưu tiên trạng thái chi tiết từ updater (bản git)
         let s = null;
         try { s = await (await fetch("/update/status", { cache: "no-store" })).json(); } catch (e) { s = null; }
@@ -3249,9 +3268,9 @@
           const stashNote = s.state.stashed ? ic("package") + " " + window.t("cs.ov_stashed") : "";
           renderProgress(ph, stashNote);
           if (res === "success") { clearInterval(poll); st.innerHTML = OK_ICON + " " + esc(window.t("cs.upd_done_reload")); setTimeout(() => location.reload(), 1500); return; }
-          if (res === "rolled_back") { clearInterval(poll); renderProgress("done", stashNote); st.innerHTML = "↩ " + esc(window.t("cs.upd_rb_a")) + " <b>" + esc(window.t("cs.upd_rb_b")) + "</b>. " + esc(window.t("cs.upd_see")) + " <code>update.log</code>."; verUpd.disabled = false; return; }
+          if (res === "rolled_back") { clearInterval(poll); window.__javisUpdating = false; renderProgress("done", stashNote); st.innerHTML = "↩ " + esc(window.t("cs.upd_rb_a")) + " <b>" + esc(window.t("cs.upd_rb_b")) + "</b>. " + esc(window.t("cs.upd_see")) + " <code>update.log</code>."; verUpd.disabled = false; return; }
           if (res === "pull_failed" || res === "rollback_failed" || res === "error") {
-            clearInterval(poll);
+            clearInterval(poll); window.__javisUpdating = false;
             const pb = document.getElementById("ovVerProgress"); if (pb) pb.style.display = "none";
             st.innerHTML = WARN_ICON + " " + esc(s.state.error || window.t("cs.upd_err")) + " " + esc(window.t("cs.upd_see")) + " <code>update.log</code>.";
             verUpd.disabled = false; return;
@@ -3264,21 +3283,19 @@
           if (flipOk && v && v.update_available === false && v.current && v.current !== oldCur) {
             clearInterval(poll); st.innerHTML = OK_ICON + " " + esc(window.t("cs.upd_done_reload")); setTimeout(() => location.reload(), 1500); return;
           }
-          // docker bản mới có thể lỗi: server vẫn còn bản cũ sau khá lâu → hiện cách lùi
-          if ((window._ovVerMode === "docker") && tries >= 12 && v && v.current === oldCur) {
-            clearInterval(poll);
-            const prev = window._ovVerPrev || (v.previous_version || "");
-            st.innerHTML = WARN_ICON + " " + esc(window.t("cs.upd_slow"));
-            if (rb) {
-              rb.style.display = "";
-              rb.innerHTML = "<b>" + esc(window.t("cs.ov_rb_head")) + "</b><br>" + esc(window.t("cs.ov_rb_pin"))
-                + "<br><code>docker compose pull && docker compose up -d</code>"
-                + (prev ? "<br>" + esc(window.t("cs.ov_rb_img")) + " <code>ghcr.io/blogminhquy/javis-os:" + esc(prev) + "</code> " + esc(window.t("cs.upd_pin_b")) : "");
-            }
-            verUpd.disabled = false; return;
-          }
         } catch (e) { /* server đang restart - chờ tiếp */ }
-        if (tries > 60) { clearInterval(poll); st.innerHTML = esc(window.t("cs.upd_timeout")); verUpd.disabled = false; }
+        if (waited >= UPD_WAIT_MS) {
+          clearInterval(poll); window.__javisUpdating = false;
+          st.innerHTML = WARN_ICON + " " + esc(window.t("cs.upd_timeout"));
+          if (rb && window._ovVerMode === "docker") {
+            const prev = window._ovVerPrev || "";
+            rb.style.display = "";
+            rb.innerHTML = "<b>" + esc(window.t("cs.ov_rb_head")) + "</b><br>" + esc(window.t("cs.ov_rb_pin"))
+              + "<br><code>docker compose pull && docker compose up -d</code>"
+              + (prev ? "<br>" + esc(window.t("cs.ov_rb_img")) + " <code>ghcr.io/blogminhquy/javis-os:" + esc(prev) + "</code> " + esc(window.t("cs.upd_pin_b")) : "");
+          }
+          verUpd.disabled = false;
+        }
       }, 3000);
     };
     ovLoadVersion();

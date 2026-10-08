@@ -187,6 +187,9 @@
       .then(function (d) {
         if (!d || !d.version || d.version === m.version) return;
         daBao = true;
+        // Đang chờ ở nút Cập nhật ngay: bản mới đã lên đúng như người dùng vừa bấm, tải lại luôn
+        // chứ đừng hỏi thêm một lần nữa.
+        if (window.__javisUpdating) { location.reload(); return; }
         baoCoBanMoi(d.version);
       })
       .catch(function () { /* mất mạng một nhịp không phải chuyện để làm phiền người dùng */ });
