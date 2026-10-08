@@ -2033,6 +2033,37 @@ def _resonance_store():
     return _RESONANCE_STORE
 
 
+def _resonance_turn_agent(conv_sid, brain, get_session):
+    """A1: agent của phiên `conv_sid` (dòng phiên đọc bằng `get_session`), để gắn vào ngữ cảnh lượt
+    (`turn_context`, khoá `agent`).
+
+    Host tự phân giải từ dòng phiên đã lưu (kênh `agent:<slug>` ghi lúc tạo phiên) và sổ đăng ký agent, không
+    lấy gì từ lời model. Trả `{"key", "slug", "config_version"}` khi phiên đúng của brain này, file agent còn đó và
+    sổ có dòng `active`; ngược lại None. Công tắc bật hay tắt KHÔNG xét ở đây mà ở cổng lúc gọi tool, để tool nói
+    được đúng lý do. Chưa có kho resonance.sqlite3 thì không tạo kho chỉ để đọc. File agent mất mà sổ còn `active`
+    thì host đánh dấu `missing` (cổng của mã đó đóng tới khi chủ dự án xác nhận). Lỗi thì None, không làm hỏng lượt."""
+    try:
+        session_row = get_session(conv_sid) or {}
+        persona = workflow_chat.persona_cua_phien(session_row)
+        if not persona or persona[0] != "agent":
+            return None
+        if _brain_key(session_row.get("brain")) != _brain_key(brain):
+            return None
+        if _RESONANCE_STORE is None and not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+            return None
+        slug = persona[1]
+        reg = _resonance_store().agent(_brain_key(brain), slug)
+        if reg is None or reg["status"] != "active":
+            return None
+        if not (_agents_dir(brain) / f"{slug}.md").is_file():
+            _resonance_store().agent_mark_missing(_brain_key(brain), reg["agent_key"])
+            return None
+        return {"key": reg["agent_key"], "slug": slug, "config_version": reg["config_version"]}
+    except Exception as e:  # noqa: BLE001
+        print(f"[resonance agent] {type(e).__name__}: {e}", file=sys.stderr)
+        return None
+
+
 def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
     """Sau một lượt chat web: lượt đó thuộc nhánh nào của Resonance (M2).
 
@@ -15035,7 +15066,10 @@ async def websocket_endpoint(ws: WebSocket):
                            user_text=None):
             _trace_token = context_runtime.bind_trace(runtime_trace)
             # Dashboard = the owner's own surface (signed-in session): no platform sender id.
-            _luot_token = turn_context.bind(turn_context.make("dashboard", chat_id=conv_sid, la_chu=True))
+            # A1: kèm phiên, id tin và agent của phiên (host phân giải) để tool javis_goal biết ĐÚNG lượt nào gọi.
+            _luot_token = turn_context.bind(turn_context.make(
+                "dashboard", chat_id=conv_sid, la_chu=True, session_id=conv_sid, message_id=user_mid,
+                agent=_resonance_turn_agent(conv_sid, brain, store.get_session)))
             # Ghi vào sổ lượt đang chạy để tool giao việc biết kết quả phải về khung chat này
             # khi model quên truyền chat_id (luot_dang_chay.py, 0.64.49). Kèm id tin và lời người
             # dùng để tool javis_goal (Resonance) biết đúng tin nhắn nào; 0 thì tool từ chối lập mục tiêu.

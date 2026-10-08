@@ -103,6 +103,7 @@ namespace = dict(asyncio=asyncio, sys=sys, time=time, uuid=uuid, voice_brain=pro
                                                         start_turn=lambda *a: None),
                  luot_dang_chay=luot_dang_chay, WEB_CHAT_PREFIX="web:", _brain_root=lambda b: b,
                  _do_turn=fake_do_turn, _resonance_after_turn=lambda *a: None,
+                 _resonance_turn_agent=lambda *a: None,  # A1: test riêng ở test_resonance_a1_turn_agent
                  # Kết cục engine gửi kèm turn_done (pilot lần 4): test riêng ở test_turn_engine_status.
                  _engine_outcome_reset=lambda *a: None, _engine_outcome_exception=lambda *a: None,
                  _engine_outcome_pop=lambda *a: {}, _engine_outcome_turn=lambda *a: None,

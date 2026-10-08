@@ -155,7 +155,8 @@ def _make_do_turn(mode):
 
 import turn_context  # noqa: E402  - run_turn gắn danh tính lượt cho hook tool (0.85.8)
 _ns = dict(asyncio=asyncio, sys=sys, time=time, uuid=uuid, nghe_sua=nghe_sua, localefmt=localefmt, turn_context=turn_context,
-           store=types.SimpleNamespace(), send_raw=_send_raw, _persist_turn=_noop,
+           store=types.SimpleNamespace(get_session=lambda sid: None), send_raw=_send_raw, _persist_turn=_noop,
+           _resonance_turn_agent=lambda *a: None,  # A1: agent của phiên, test riêng ở test_resonance_a1_turn_agent
            _CHAT_RUNTIME=types.SimpleNamespace(finish_job=lambda *a: None),
            context_runtime=types.SimpleNamespace(bind_trace=lambda *a: None, reset_trace=lambda *a: None,
                                                  event_fields=lambda *a: {}),

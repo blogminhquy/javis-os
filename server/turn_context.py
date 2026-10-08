@@ -18,6 +18,14 @@ The `turn` dict (a fresh copy per read, so one hook cannot edit what the next on
     la_chu     True on the owner's own surfaces (dashboard, admin channels). Always False for a
                dedicated bot, whatever its permission level: a bot answers other people.
 
+Resonance A1 adds three keys, filled by the host only for a dashboard chat turn:
+
+    session_id  the stored chat session of the turn, "" elsewhere
+    message_id  id of the user's message in that session, 0 when unknown
+    agent       {"key", "slug", "config_version"} when the session is a chat with an assistant
+                registered in the Resonance registry, else None. Resolved by the host from the
+                stored session row and the registry, never from anything the model says.
+
 No turn at all (background jobs, loops, engines that cannot carry the key yet) -> `turn` is
 None. A hook that needs an identity must read None as "nobody", never as "the owner".
 
@@ -78,14 +86,41 @@ _KEYS: dict = {}          # key -> (turn dict, expires_at)
 _LOCK = threading.Lock()  # CLI engines build argv from worker threads too
 
 
-def make(kenh, sender_id="", chat_type="", chat_id="", la_chu=False) -> dict:
+def make(kenh, sender_id="", chat_type="", chat_id="", la_chu=False, *, session_id="", message_id=0,
+         agent=None) -> dict:
     return {
         "kenh": str(kenh or "").strip(),
         "sender_id": str(sender_id or "").strip(),
         "chat_type": "group" if str(chat_type or "").strip().lower() in _GROUP_TYPES else "private",
         "chat_id": str(chat_id or "").strip(),
         "la_chu": bool(la_chu),
+        "session_id": str(session_id or "").strip(),
+        "message_id": _int(message_id),
+        "agent": _agent(agent),
     }
+
+
+def _int(v) -> int:
+    try:
+        return max(0, int(v or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _agent(a) -> Optional[dict]:
+    if not isinstance(a, dict) or not str(a.get("key") or "").strip():
+        return None
+    return {"key": str(a["key"]).strip(), "slug": str(a.get("slug") or "").strip(),
+            "config_version": _int(a.get("config_version"))}
+
+
+def _copy(turn: dict) -> dict:
+    """Copy one level deeper than dict(): `agent` is a nested dict, and a hook must not be able to
+    edit what the next reader (the goal tool, another hook) sees."""
+    out = dict(turn)
+    if isinstance(out.get("agent"), dict):
+        out["agent"] = dict(out["agent"])
+    return out
 
 
 def from_meta(kenh, meta, la_chu: bool) -> dict:
@@ -104,7 +139,7 @@ def from_meta(kenh, meta, la_chu: bool) -> dict:
 def bind(turn: Optional[dict]) -> Token:
     """Make `turn` the current turn until `reset`. `None` binds "no turn" on purpose: the hub
     does that for a request without a valid key, so it never inherits an ambient turn."""
-    b = _Binding(dict(turn)) if turn else None
+    b = _Binding(_copy(turn)) if turn else None
     return Token(_CURRENT.set(b), b)
 
 
@@ -123,7 +158,7 @@ def reset(token: Token) -> None:
 
 def current() -> Optional[dict]:
     b = _CURRENT.get()
-    return dict(b.turn) if b is not None and b.alive else None
+    return _copy(b.turn) if b is not None and b.alive else None
 
 
 def issue_key() -> Optional[str]:
@@ -140,7 +175,7 @@ def issue_key() -> Optional[str]:
     with _LOCK:
         for k in [k for k, (_, exp) in _KEYS.items() if exp < now]:
             _KEYS.pop(k, None)
-        _KEYS[key] = (dict(b.turn), now + _KEY_TTL_S)
+        _KEYS[key] = (_copy(b.turn), now + _KEY_TTL_S)
     b.keys.append(key)
     return key
 
@@ -155,7 +190,7 @@ def resolve_key(key) -> Optional[dict]:
         ent = _KEYS.get(k)
     if ent is None or ent[1] < time.time():
         return None
-    return dict(ent[0])
+    return _copy(ent[0])
 
 
 def codex_override() -> Optional[str]:
