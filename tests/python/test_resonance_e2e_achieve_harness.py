@@ -220,8 +220,9 @@ import resonance_store as RS  # noqa: E402
 
 _B = Path(tempfile.mkdtemp(prefix="ach-h-brain-")).resolve()
 (_B / "Javis").mkdir()
-(_B / "Javis" / "resonance.json").write_text('{"enabled": true}', encoding="utf-8")
 _ST = RS.GoalStore(Path(tempfile.mkdtemp(prefix="ach-h-db-")) / "r.sqlite3")
+import _resonance_agent as RA  # noqa: E402  - A1: Cộng hưởng bật theo trợ lý
+RA.enable(_ST, _B)
 _P = RS.Principal("agent", "javis", str(_B))
 _DL = "Docs/hd.md"
 
@@ -236,7 +237,8 @@ def _goal(mid, hold=False):
                      "horizon": {"kind": "review", "at_iso": "2027-01-20T09:00:00+07:00"},
                      "criteria": [{"description": "Có mục Lỗi hay gặp", "evaluator": "artifact_contract",
                                    "params": {"path": _DL, "must_contain": ["Lỗi hay gặp"]}},
-                                  {"description": "Anh xác nhận", "evaluator": "human_confirmation"}]}},
+                                  {"description": "Anh xác nhận", "evaluator": "human_confirmation"}]},
+        **RA.ctx(_ST.agent(str(_B), RA.SLUG))},
         R.GoalDeps(engine_factory=lambda s, t: (None, {}), budget=R.CallBudget(0), store=_ST)))
 
 

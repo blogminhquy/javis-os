@@ -35,10 +35,18 @@ OTHER = str(Path(tempfile.mkdtemp(prefix="brain-w2-")).resolve())
 USER = "Mỗi sáng gom giúp anh việc đang dở vào một ghi chú, làm tới hết tuần này."
 
 
+import turn_context  # noqa: E402
+import _resonance_agent as RA  # noqa: E402  - A1: bật theo agent, danh tính lượt từ turn_context
+
+AG = {}
+
+
 def enable(brain, on=True):
-    (Path(brain) / "Javis").mkdir(parents=True, exist_ok=True)
-    (Path(brain) / "Javis" / "resonance.json").write_text('{"enabled": %s}' % ("true" if on else "false"),
-                                                          encoding="utf-8")
+    store0 = RS.GoalStore()
+    if on:
+        AG.update(RA.enable(store0, brain))
+    else:
+        AG.update(RA.disable(store0, brain))
 
 
 def tools_for(brain):
@@ -73,10 +81,13 @@ check("bật: brain thấy tool javis_goal", "javis_goal" in names)
 names_o, _ = tools_for(OTHER)
 check("bật ở brain này không làm brain khác thấy tool", "javis_goal" not in names_o)
 call = route["javis_goal"]["call"]
+TURN = {"sid": "s1", "mid": 41, "text": USER}
 
 
 def tool(args):
-    return asyncio.run(call(args))
+    """Gọi tool như bộ não gọi trong lượt của agent: ngữ cảnh lượt có agent, phiên, id tin (A1)."""
+    with RA.turn(AG, TURN["sid"], TURN["mid"], TURN["text"], BRAIN):
+        return asyncio.run(call(args))
 
 
 PROPOSAL = {
@@ -102,7 +113,7 @@ out2 = tool({"op": "create", **PROPOSAL})
 check("create lặp trong cùng tin nhắn: không tạo mục tiêu thứ hai", len(store.list_open(P)) == 1 and goals[0].id in out2)
 # Đề xuất sai luật phải thử trên một TIN MỚI: cùng tin 41 đã có mục tiêu thì tool trả lại mục tiêu đó (chống trùng).
 luot_dang_chay.ket_thuc(k1)
-k_bad = luot_dang_chay.bat_dau("web:s1", BRAIN, msg_id=44, user_text=USER)
+TURN["mid"] = 44
 out3 = tool({"op": "create", **{**PROPOSAL, "relevant_quote": "em đề xuất dọn wiki"}})
 check("create với căn cứ không có trong lời người dùng: ERROR, nói rõ vì sao",
       out3.startswith("ERROR") and "lời người dùng" in out3)
@@ -110,8 +121,6 @@ out4 = tool({"op": "create", **{**PROPOSAL, "criteria": []}})
 check("create thiếu tiêu chí: ERROR nhắc M", out4.startswith("ERROR") and "tiêu chí" in out4)
 check("đề xuất sai luật không để lại mục tiêu nào", store.find_by_key(P, R.message_ref("s1", 44)) is None
       and len(store.list_open(P)) == 1)
-luot_dang_chay.ket_thuc(k_bad)
-k1 = luot_dang_chay.bat_dau("web:s1", BRAIN, msg_id=41, user_text=USER)
 
 # ───────────── route sau lượt ─────────────
 t0 = time.time() - 5
@@ -130,8 +139,7 @@ d = R.route_after_turn(store, P, R.message_ref("s1", 79), tasks=[{"chat_id": "we
 check("việc Kanban cũ từ trước lượt không tính", d.kind == "answer_now")
 
 # ───────────── bổ sung ý cho mục tiêu đang mở: update ─────────────
-luot_dang_chay.ket_thuc(k1)
-k5 = luot_dang_chay.bat_dau("web:s1", BRAIN, msg_id=43, user_text="Ý anh là có cả lịch tuần trong ghi chú đó.")
+TURN.update(mid=43, text="Ý anh là có cả lịch tuần trong ghi chú đó.")
 gid = goals[0].id
 upd = {"op": "update", "goal_id": gid, "expected_revision": 1, "reason": "anh thêm lịch tuần",
        **{**PROPOSAL, "understanding": "Ghi chú việc đang dở kèm lịch tuần",
@@ -148,25 +156,39 @@ out7 = tool({**upd, "goal_id": "g_khong_co", "expected_revision": 2})
 check("update mục tiêu không tồn tại: ERROR", out7.startswith("ERROR"))
 out8 = tool({"op": "list"})
 check("list: thấy mục tiêu đang mở", gid in out8 and "lịch tuần" in out8)
-luot_dang_chay.ket_thuc(k5)
 
-# ───────────── không chắc tin nào thì không tạo ─────────────
+# ───────────── không có danh tính lượt thì không tạo (A1: không còn đoán lượt duy nhất) ─────────────
 kA = luot_dang_chay.bat_dau("web:a", BRAIN, msg_id=50, user_text=USER)
-kB = luot_dang_chay.bat_dau("web:b", BRAIN, msg_id=51, user_text=USER)
-out9 = tool({"op": "create", **PROPOSAL})
-check("hai khung chat cùng chạy: ERROR, không tạo", out9.startswith("ERROR") and len(store.list_open(P)) == 1)
+out9 = asyncio.run(call({"op": "create", **PROPOSAL}))
+check("gọi ngoài lượt (không có ngữ cảnh lượt), dù sổ có đúng một lượt: ERROR, không tạo",
+      out9.startswith("ERROR") and len(store.list_open(P)) == 1)
 luot_dang_chay.ket_thuc(kA)
-luot_dang_chay.ket_thuc(kB)
-kC = luot_dang_chay.bat_dau("telegram:123", BRAIN)
-outC = tool({"op": "create", **PROPOSAL})
-check("lượt không có id tin nhắn (kênh chưa hỗ trợ): ERROR, không tạo",
+_tok = turn_context.bind(turn_context.make("dashboard", chat_id="plain", la_chu=True, session_id="plain",
+                                           message_id=60))
+kP = luot_dang_chay.bat_dau("web:plain", BRAIN, msg_id=60, user_text=USER)
+outP = asyncio.run(call({"op": "create", **PROPOSAL}))
+luot_dang_chay.ket_thuc(kP)
+turn_context.reset(_tok)
+check("lượt chat thường (không thuộc agent): ERROR, không tạo", outP.startswith("ERROR")
+      and "trợ lý" in outP and len(store.list_open(P)) == 1)
+_tok = turn_context.bind(turn_context.make("telegram", sender_id="123", chat_id="123"))
+outC = asyncio.run(call({"op": "create", **PROPOSAL}))
+turn_context.reset(_tok)
+check("lượt kênh khác, không phiên, không id tin: ERROR, không tạo",
       outC.startswith("ERROR") and len(store.list_open(P)) == 1)
-luot_dang_chay.ket_thuc(kC)
+TURN.update(mid=61, text=USER)
+with RA.turn(AG, "s1", 61, USER, BRAIN):
+    luot_dang_chay.ket_thuc(next(k for k, x in luot_dang_chay._DANG.items() if x["msg_id"] == 61))
+    outG = asyncio.run(call({"op": "create", **PROPOSAL}))
+check("lượt có ngữ cảnh nhưng sổ lượt không còn lời của đúng tin: ERROR, không tạo",
+      outG.startswith("ERROR") and len(store.list_open(P)) == 1)
 
 # ───────────── tắt lại giữa chừng ─────────────
+_old_ag = dict(AG)
 enable(BRAIN, on=False)
 check("tắt lại: tool biến mất khỏi danh sách", "javis_goal" not in tools_for(BRAIN)[0])
-outD = asyncio.run(call({"op": "list"}))
+with RA.turn(_old_ag, "s1", 62, USER, BRAIN):
+    outD = asyncio.run(call({"op": "list"}))
 check("tắt lại: gọi tool cũ còn giữ trong tay cũng bị từ chối", outD.startswith("ERROR"))
 
 if _fails:

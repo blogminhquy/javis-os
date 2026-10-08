@@ -68,6 +68,11 @@ Mọi lần đổi đều có dòng trong bảng sự kiện mới `resonance_ag
   - phiên được tạo từ lúc mã đó được cấp trở đi.
 - **Phiên tạo dưới thời một mã cũ mà chưa có lượt nào** thì không nhận mã mới.
 - A1 chưa có thao tác nối lại phiên cũ sang agent khác. Muốn dùng agent mới thì mở phiên mới.
+- **Bật trong một phiên chưa dùng được mã mới** (review vòng 2, P2). Ca hay gặp: agent tạo lại cùng tên, người dùng mở trò chuyện rồi mới bật. Phiên mở trước lúc cấp mã nên bị luật trên chặn.
+  - Resolver giữ bảo thủ, không nới thành "cùng slug thì nhận".
+  - API bật nhận `session_id` của phiên đang mở và trả `needs_new_session` khi phiên đó không dùng được mã hiện tại.
+  - Giao diện nói rõ và có nút mở phiên mới của đúng agent qua host (`POST /sessions/new`, kênh `agent:<slug>`). Lịch sử cũ giữ nguyên.
+  - Không báo "đã bật và dùng được trong phiên này" khi phiên đang bị chặn.
 - Mỗi lần ghim có sự kiện `session_pinned`. Liên kết nằm trong kho nên giữ qua restart.
 
 ## 2. Ràng buộc lời gọi tool với lượt và agent
@@ -144,7 +149,13 @@ Cổng là một hàm của host, `agent_gate(goal hay ngữ cảnh lượt)`, g
   - Không giữ thêm lượt mới; mọi tác động tiếp theo bị chặn.
   - Lượt model đang chạy vẫn chạy hết và vẫn tính vào hạn mức. Không hứa dừng tức thì hay hoàn chi phí. Kết quả của nó giữ trong vùng làm việc để đối soát khi bật lại.
   - Dữ liệu giữ nguyên.
-- **Bật lại:** đối soát phần dở theo cơ chế M3 sẵn có. Đầu ra hợp lệ của đúng revision được đăng qua `_publish_latest` khi cổng mở, không gọi model lại.
+- **Bật lại:** đối soát phần dở theo cơ chế M3 sẵn có.
+- **Dùng lại đầu ra sau tắt/bật** (chốt theo review vòng 2):
+  - Intent của lượt việc gốc giữ nguyên làm lịch sử, KHÔNG sửa version để biến thành đã duyệt từ trước.
+  - Khi cổng mở lại, `_publish_latest` kiểm đủ: mã của lượt việc bằng mã đang gắn của mục tiêu; agent `active` và bật; revision; guard; baseline của file đích.
+  - Qua hết thì host ghi một hành động `publish` MỚI. Intent của nó mang `agent_key` cùng version HIỆN TẠI và `source_action` trỏ về lượt việc cũ, rồi mới ghi file. Kiểm quyền lần cuối tại tác động như mọi lần đăng.
+  - Không gọi model lại: số lượt engine không tăng.
+  - Đầu ra của mã khác (trước lúc gán, hay agent khác) không bao giờ được dùng lại theo đường này.
 
 ## 5. Kho và migration
 
@@ -295,3 +306,10 @@ Review vòng 1 đồng ý cả năm quyết định. Bổ sung theo review:
    - Hướng dẫn quay về và khôi phục ghi đúng giới hạn của bản sao.
 3. **P2-1 bật agent `missing` báo thành công.** Kiểm trạng thái trước nhánh "giá trị không đổi".
 4. **Chốt phạm vi gán:** A1 chỉ gán mục tiêu chưa gán. Chuyển giữa hai agent để sau A1 (mục 5).
+
+## 13. Sau review vòng 2 (head `241fbb5d`)
+
+- Ba lỗi vòng 1 được xác nhận đã sửa.
+- P2 mới (phiên mở trước lần bật đầu của agent tạo lại cùng tên) xử lý ở API và giao diện bằng `needs_new_session` (mục 1). Resolver không nới.
+- Chốt cách dùng lại đầu ra sau tắt/bật (mục 4).
+- Kế hoạch nối phần còn lại: `docs/superpowers/plans/2026-10-08-resonance-a1-integration-plan.md`.

@@ -35,24 +35,46 @@ def check(name, cond):
         _fails.append(name)
 
 
-def _brain(enabled):
+import resonance_store as RS  # noqa: E402
+import turn_context  # noqa: E402
+import _resonance_agent as RA  # noqa: E402
+
+
+def _brain():
     d = Path(tempfile.mkdtemp(prefix="brain-toolpath-")).resolve()
     (d / "Javis").mkdir()
-    if enabled:
-        (d / "Javis" / "resonance.json").write_text('{"enabled": true}', encoding="utf-8")
     return str(d)
 
 
-ON, OFF = _brain(True), _brain(False)
+# A1: "bật" là lượt của một agent đã bật Cộng hưởng (ngữ cảnh lượt), không còn là công tắc brain.
+ON, OFF = _brain(), _brain()
+AG = RA.enable(RS.GoalStore(), ON)
 
 
 def _names(vault):
     return {t["fn"] for t in plugins_host.plugin_tools("full", vault, scope_vault=False)[0]}
 
 
-# 1. Đăng ký theo đúng brain
-check("brain bật: plugin_tools có javis_goal", "javis_goal" in _names(ON))
-check("brain tắt: plugin_tools không có javis_goal", "javis_goal" not in _names(OFF))
+def _in_agent_turn(fn):
+    with RA.turn(AG, "sess-tp", 1, "x", ON):
+        return fn()
+
+
+def _in_plain_turn(fn):
+    tok = turn_context.bind(turn_context.make("dashboard", chat_id="sess-plain", la_chu=True,
+                                              session_id="sess-plain", message_id=1))
+    try:
+        return fn()
+    finally:
+        turn_context.reset(tok)
+
+
+# 1. Đăng ký theo đúng lượt và brain
+check("lượt của agent đã bật: plugin_tools có javis_goal", "javis_goal" in _in_agent_turn(lambda: _names(ON)))
+check("lượt chat thường cùng brain: plugin_tools không có javis_goal",
+      "javis_goal" not in _in_plain_turn(lambda: _names(ON)))
+check("ngoài lượt (danh sách hub dùng chung), brain có agent bật: có javis_goal (chỉ gợi ý)", "javis_goal" in _names(ON))
+check("brain không có agent nào bật: không có javis_goal", "javis_goal" not in _names(OFF))
 check("không biết brain: không có javis_goal", "javis_goal" not in _names(None))
 
 # 2. Danh sách tới engine Claude: server in-process "javis-plugins", hub được báo bỏ plugin
@@ -86,7 +108,7 @@ _desc_seen = {}
 
 
 try:
-    s_on = _servers(ON)
+    s_on = _in_agent_turn(lambda: _servers(ON))
     desc_on = dict(_desc_seen)
     check("Claude: có server javis-plugins", "javis-plugins" in s_on)
     check("Claude: javis-plugins mang javis_goal", "javis_goal" in _seen.get("javis-plugins", []))
@@ -113,9 +135,11 @@ async def _search(include_plugins):
 check("hub có plugin (engine API/Codex): javis_search_tools tìm ra javis_goal", asyncio.run(_search(True)))
 check("hub đường Claude (No-Plugins): javis_search_tools KHÔNG tìm ra javis_goal", not asyncio.run(_search(False)))
 
-# 4. Prompt chỉ đúng đường cho từng engine
-p_on = main.build_system_prompt(ON)
+# 4. Prompt chỉ đúng đường cho từng engine (dòng gợi ý chỉ có trong lượt của agent đã bật)
+p_on = _in_agent_turn(lambda: main.build_system_prompt(ON))
 p_off = main.build_system_prompt(OFF)
+check("lượt chat thường cùng brain: prompt không nhắc javis_goal",
+      "javis_goal" not in _in_plain_turn(lambda: main.build_system_prompt(ON)))
 _full = "mcp__javis-plugins__javis_goal"
 check("prompt nêu ToolSearch kèm tên đầy đủ đúng server in-process",
       "ToolSearch" in p_on and _full in p_on and _full == "mcp__" + "javis-plugins" + "__javis_goal")
@@ -142,8 +166,13 @@ lu = luot_dang_chay.doan_luot(ON) or {}
 check("lượt đang chạy: đúng phiên, id tin, lời người dùng",
       lu.get("chat_id") == "web:sess-tp" and int(lu.get("msg_id") or 0) == 11
       and lu.get("user_text") == "lời thật của người dùng")
+check("A1: đọc lời theo ĐÚNG khoá (phiên, id tin) của ngữ cảnh lượt",
+      luot_dang_chay.loi_cua_luot("web:sess-tp", 11, ON) == "lời thật của người dùng"
+      and luot_dang_chay.loi_cua_luot("web:sess-tp", 12, ON) is None
+      and luot_dang_chay.loi_cua_luot("web:khac", 11, ON) is None)
 luot_dang_chay.ket_thuc(k)
 check("hết lượt: không còn lượt để đoán", not luot_dang_chay.doan_luot(ON))
+check("hết lượt: khoá chính xác cũng không còn", luot_dang_chay.loi_cua_luot("web:sess-tp", 11, ON) is None)
 
 print(f"\n{'FAIL' if _fails else 'OK'}: {len(_fails)} lỗi")
 raise SystemExit(1 if _fails else 0)

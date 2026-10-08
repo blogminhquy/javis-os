@@ -84,6 +84,13 @@ check("mở bằng A1: có bản sao .pre-a1.bak", bak.is_file())
 ow = RS.Principal("owner", "owner", BRAIN)
 ag = a1.agent_set_enabled(ow, "viet-bai", True)
 a1.session_agent(BRAIN, "s-agent", "viet-bai", time.time())
+# Một mục tiêu A1 THẬT (review vòng 2): gắn trợ lý (goal_agents) và mở bàn giao có version (handoff_agents).
+_ap = RS.Principal("agent", ag["agent_key"], BRAIN)
+_it = a1.add_intent(_ap, "s-agent", 7, "Việc của trợ lý")
+g_a1, _ = a1.create(_ap, _it["id"], FRAME, "k-a1", session_id="s-agent", handoff_owner="boot-a1", budget_calls=3,
+                    agent_key=ag["agent_key"], agent_version=ag["config_version"])
+check("A1 tạo mục tiêu gắn trợ lý, có handoff_agents", g_a1.agent_key == ag["agent_key"]
+      and a1.handoff_agent(_ap, g_a1.id, 1) is not None)
 
 # 3. Quay về: mã 0.86.1 thật chạy lại mọi đường ghi trên kho đã nâng.
 legacy = OLD.GoalStore(DB)
@@ -93,8 +100,17 @@ try:
 except Exception as e:  # noqa: BLE001
     g_after, err = None, f"{type(e).__name__}: {e}"
 check("quay về 0.86.1: tạo mục tiêu có bàn giao, sửa, sổ hành động, đăng, huỷ đều chạy", bool(g_after), err)
-check("quay về 0.86.1: đọc được mục tiêu tạo dưới A1 lẫn trước đó",
+check("quay về 0.86.1: đọc được mục tiêu tạo trước lúc nâng và lúc quay về",
       legacy.get(oo, g_before) is not None and (g_after is None or legacy.get(oo, g_after) is not None))
+try:
+    _g = legacy.get(oo, g_a1.id)
+    _r = legacy.revise(op, g_a1.id, 1, dict(FRAME, understanding="Sửa dưới 0.86.1"), "sửa", handoff_owner="boot-old")
+    _a = legacy.begin_action(op, g_a1.id, 2, "work", time.time() + 60)
+    legacy.finish_action(op, _a["id"], "done", {"ok": True})
+    err_a1 = "" if _g is not None and _r.revision == 2 else "không đọc hay sửa được"
+except Exception as e:  # noqa: BLE001
+    err_a1 = f"{type(e).__name__}: {e}"
+check("quay về 0.86.1: mã cũ đọc, sửa có bàn giao, giữ lượt được trên mục tiêu do A1 tạo", not err_a1, err_a1)
 
 # 4. Nâng lại lên A1: dữ liệu A1 còn, mục tiêu tạo lúc quay về chưa gán agent nào, bản sao không bị ghi đè.
 mt = bak.stat().st_mtime_ns
@@ -105,6 +121,9 @@ check("nâng lại: sổ đăng ký và liên kết phiên còn nguyên",
 with sqlite3.connect(str(DB)) as con:
     bound = {r[0] for r in con.execute("SELECT goal_id FROM goal_agents")}
 check("nâng lại: mục tiêu tạo bằng 0.86.1 không tự gán agent", g_before not in bound and g_after not in bound)
+check("nâng lại: mục tiêu A1 vẫn gắn đúng trợ lý; bàn giao mở dưới 0.86.1 không có version A1",
+      a1.get(ow, g_a1.id).agent_key == ag["agent_key"] and a1.handoff_agent(ow, g_a1.id, 1) is not None
+      and a1.handoff_agent(ow, g_a1.id, 2) is None)
 check("nâng lại: không chép đè bản sao pre-a1", bak.stat().st_mtime_ns == mt)
 with sqlite3.connect(str(bak)) as con:
     ids = {r[0] for r in con.execute("SELECT id FROM goals")}

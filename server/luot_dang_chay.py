@@ -91,3 +91,16 @@ def dang_chay(chat_id: str, msg_id: int) -> bool:
     cũ còn chạy."""
     cid, mid = str(chat_id or "").strip(), int(msg_id or 0)
     return bool(cid and mid) and any(x["chat_id"] == cid and x["msg_id"] == mid for x in _SONG.values())
+
+
+def loi_cua_luot(chat_id: str, msg_id: int, vault) -> "str | None":
+    """Lời người dùng của ĐÚNG lượt (khung chat + id tin + brain), đọc theo khoá mà ngữ cảnh lượt (`turn_context`) mang
+    tới; None khi lượt đó không còn trong sổ. Khác `doan_luot`: không đoán "lượt duy nhất của brain", nên hai lượt chạy
+    song song không đọc nhầm lời của nhau (Resonance A1, tool javis_goal)."""
+    cid, mid, v = str(chat_id or "").strip(), int(msg_id or 0), _chuan(vault)
+    if not cid or not mid:
+        return None
+    for x in _DANG.values():
+        if x["chat_id"] == cid and int(x.get("msg_id") or 0) == mid and (not v or not x["vault"] or x["vault"] == v):
+            return str(x.get("user_text") or "")
+    return None

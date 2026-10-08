@@ -34,11 +34,18 @@ FIX = json.loads((Path(ROOT) / "tests" / "fixtures" / "resonance" / "mvp_cases.j
 CASES = {c["id"]: c for c in FIX["cases"]}
 BRAIN = str(Path(tempfile.mkdtemp(prefix="brain-m5-")).resolve())
 (Path(BRAIN) / "Javis").mkdir(parents=True)
-SWITCH = Path(BRAIN) / "Javis" / "resonance.json"
-SWITCH.write_text('{"enabled": true}', encoding="utf-8")
 P = RS.Principal("agent", "javis", BRAIN)
 OWNER = RS.Principal("owner", "owner", BRAIN)
 store = RS.GoalStore()
+import _resonance_agent as RA  # noqa: E402  - A1: Cộng hưởng bật theo agent, không theo brain
+
+
+def switch(on: bool):
+    """Công tắc Cộng hưởng của agent sở hữu các mục tiêu trong test (trước A1 là công tắc brain)."""
+    RA.enable(store, BRAIN) if on else RA.disable(store, BRAIN)
+
+
+switch(True)
 
 # Đầu ra mẫu theo tình huống. FULL đạt expect; MISS thiếu một người và một hạn; BRIEF quá ngắn.
 FULL = {
@@ -118,7 +125,7 @@ def make_goal(budget=12, guards=None):
     return asyncio.run(R.form_goal(R.message_ref("s5", _n["mid"]), {
         "principal": P, "brain_root": BRAIN, "session_id": "s5", "message_id": _n["mid"],
         "user_text": FIX["goal"]["user_text"], "constraints": [], "budget_calls": budget,
-        "proposal": prop}, d0))
+        "proposal": prop, **RA.ctx(store.agent(BRAIN, RA.SLUG))}, d0))
 
 
 def cases(*ids):
@@ -167,11 +174,11 @@ check("baseline phải là cách làm mục tiêu đang dùng",
 check("bộ tình huống thiếu tập giữ riêng bị từ chối",
       rejected(lambda: R.compare_methods(g0.id, "work.v1", "work.checklist.v1", cases("t1", "t2"),
                                          deps_for(Engine({})))))
-SWITCH.write_text('{"enabled": false}', encoding="utf-8")
-check("Resonance tắt ở brain: không chạy phép thử",
+switch(False)
+check("Cộng hưởng của trợ lý tắt: không chạy phép thử",
       rejected(lambda: R.compare_methods(g0.id, "work.v1", "work.checklist.v1", cases("t1", "h1"),
                                          deps_for(Engine({})))))
-SWITCH.write_text('{"enabled": true}', encoding="utf-8")
+switch(True)
 
 # ═══════════════════════ test_same_goal_and_rubric ═══════════════════════
 g = make_goal()
@@ -468,12 +475,12 @@ for kind in ("pause", "off", "fit"):
             if kind == "pause":
                 store.set_paused(OWNER, gl.id, True)
             elif kind == "off":
-                SWITCH.write_text('{"enabled": false}', encoding="utf-8")
+                switch(False)
             else:
                 fit_no(gl)
 
     res_l, eng_l = trial(g_last, WIN2, ids=TWO, on_query=_stop_last)
-    SWITCH.write_text('{"enabled": true}', encoding="utf-8")
+    switch(True)
     exl = store.experiments(P, g_last.id)[0]
     check(f"P1-2: {kind} trong lượt cuối: đủ 4 lượt đã chạy nhưng KHÔNG áp dụng, phép thử chốt inconclusive/stopped",
           len(eng_l.prompts) == 4 and res_l["applied"] is False and res_l["verdict"] == "inconclusive"
@@ -543,16 +550,16 @@ check("P1-3: quay lại ngay ở revision 1 (nơi checklist đã được kiểm
       r_rev1["method"] == "work.checklist.v1" and R.effective_method(store.get(P, g_ch1.id)) == "work.checklist.v1")
 
 # ═══════════════════════ Review M5 vòng 2: cờ quan sát cũ không bác kết quả khi điều kiện đã hồi phục ═══════════════════════
-# A. Tắt rồi bật lại Resonance: advance đã ghi feature_off lúc tắt.
+# A. Tắt rồi bật lại Cộng hưởng của trợ lý: advance đã ghi agent_off lúc tắt.
 g_ra = make_goal()
-SWITCH.write_text('{"enabled": false}', encoding="utf-8")
+switch(False)
 _e0 = Engine(WIN2)
 asyncio.run(R.advance(g_ra.id, {"kind": "wake"}, deps_for(_e0)))
-SWITCH.write_text('{"enabled": true}', encoding="utf-8")
+switch(True)
 _had = store.run_state(P, g_ra.id)["block_reason"]
 res_ra, eng_ra = trial(g_ra, WIN2, ids=TWO)
-check("vòng 2 (A): bật lại Resonance sau khi advance ghi feature_off: phép thử thắng được áp dụng, cờ cũ được gỡ",
-      _had == "feature_off" and not _e0.prompts and len(eng_ra.prompts) == 4 and res_ra["verdict"] == "eligible"
+check("vòng 2 (A): bật lại Cộng hưởng sau khi advance ghi agent_off: phép thử thắng được áp dụng, cờ cũ được gỡ",
+      _had == "agent_off" and not _e0.prompts and len(eng_ra.prompts) == 4 and res_ra["verdict"] == "eligible"
       and res_ra["applied"] is True and R.effective_method(store.get(P, g_ra.id)) == "work.checklist.v1"
       and store.run_state(P, g_ra.id)["block_reason"] == "")
 # B. "Chưa đúng ý" rồi đổi sang "Đúng ý" cho cùng revision.
@@ -575,7 +582,7 @@ check("vòng 2 (âm): Chưa đúng ý, Đúng ý, rồi lại Chưa đúng ý: t
       rejected(lambda: R.compare_methods(g_rn.id, "work.v1", "work.checklist.v1", cases(*TWO), deps_for(eng_rn)))
       and not eng_rn.prompts and calls_of(g_rn) == 0 and store.run_state(P, g_rn.id)["block_reason"] == "fit_rejected")
 # Tầng kho: cờ quan sát cũ không chặn; chốt guard chen vào trước giao dịch thì chặn.
-for stale in ("feature_off", "fit_rejected", "guard_unknown"):
+for stale in ("feature_off", "agent_off", "fit_rejected", "guard_unknown"):
     g_sx = make_goal()
     ex_id = store.begin_experiment(P, g_sx.id, 1, "work.v1", "work.checklist.v1", 2, 6, {})
     store.set_run_state(P, g_sx.id, "blocked", stale)

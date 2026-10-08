@@ -909,9 +909,10 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
     # trả về javis_goal; tool đến model qua namespace mcp__javis-plugins__. Claude Code có hoãn nạp nó sau
     # ToolSearch hay không thì chưa xác minh (lần chạy 1 cho thấy javis_task từng bị hoãn như vậy), nên dòng
     # dưới chỉ nói "chưa nạp thì tìm". Dòng cũ chỉ nêu javis_search_tools (pilot lần 2, 07/10/2026).
-    # Ranh giới bốn loại việc chỉ nằm ở dòng này và mô tả javis_goal: cả hai chỉ có khi brain bật Resonance.
+    # Ranh giới bốn loại việc chỉ nằm ở dòng này và mô tả javis_goal: cả hai chỉ có trong lượt của agent đã bật.
     # Mô tả javis_task giữ nguyên để brain tắt tính năng không nhận chỉ dẫn mới (review PR #579, P2).
-    if resonance.enabled_for(root):
+    # A1: theo agent của LƯỢT (ngữ cảnh lượt do host gắn), không theo công tắc brain cũ; chat thường không có dòng này.
+    if _resonance_turn_enabled(root):
         base += (
             "\n- MỤC TIÊU (Hệ thống cộng hưởng đang bật): việc xong ngay trong lượt thì làm luôn; việc nền một "
             "lần, xong là hết trách nhiệm thì javis_task; nhắc giờ cố định thì javis_schedule. Người dùng giao "
@@ -2069,6 +2070,26 @@ def _resonance_turn_agent(conv_sid, brain, get_session):
         return None
 
 
+def _resonance_turn_key():
+    """Mã agent của lượt đang chạy (ngữ cảnh lượt do host gắn), hoặc "" khi lượt không thuộc agent nào."""
+    t = turn_context.current() or {}
+    return str((t.get("agent") or {}).get("key") or "")
+
+
+def _resonance_turn_enabled(root) -> bool:
+    """Lượt đang chạy thuộc một agent đang bật Cộng hưởng, đúng version lúc gắn lượt. Không tạo kho chỉ để hỏi."""
+    try:
+        t = turn_context.current() or {}
+        ag = t.get("agent") or {}
+        if not ag.get("key") or (_RESONANCE_STORE is None
+                                 and not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file()):
+            return False
+        return not resonance.agent_gate(_resonance_store(), _brain_key(root), ag["key"], ag.get("config_version"))[1]
+    except Exception as e:  # noqa: BLE001
+        print(f"[resonance turn] {type(e).__name__}: {e}", file=sys.stderr)
+        return False
+
+
 def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
     """Sau một lượt chat web: lượt đó thuộc nhánh nào của Resonance (M2).
 
@@ -2078,7 +2099,9 @@ def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
     """
     try:
         root = _brain_root(brain)
-        if not user_mid or not resonance.enabled_for(root):
+        # A1: chỉ lượt của một agent (ngữ cảnh lượt). Agent vừa tắt giữa lượt vẫn chạy bước này để nhả lịch đã giữ;
+        # cổng tiếp nhận bản chat nằm ở kho (finish_handoff) nên không tiếp nhận gì trái quyền.
+        if not user_mid or not _resonance_turn_key():
             return None
         p = resonance_store.Principal("agent", "javis", _brain_key(brain))
         mref = resonance.message_ref(conv_sid, user_mid)
@@ -2173,7 +2196,7 @@ def _resonance_note_write(conv_sid, user_mid, brain, ev) -> None:
         if not user_mid:
             return
         root = _brain_root(brain)
-        if resonance.enabled_for(root):
+        if _resonance_turn_key():
             resonance.note_turn_event(resonance.message_ref(conv_sid, user_mid), root, ev)
     except Exception as e:  # noqa: BLE001
         print(f"[resonance write receipt] {type(e).__name__}: {e}", file=sys.stderr)
@@ -2224,9 +2247,25 @@ class _ResonanceEvidence:
 
 
 _RESONANCE_EVIDENCE = _ResonanceEvidence()
-resonance_api.register(app, resonance_api.ResonanceApiDeps(
+def _resonance_agents_meta(root):
+    """A1: trợ lý của brain cho trang Cộng hưởng: slug, tên và engine thật sự chạy phiên của nó (model riêng của trợ
+    lý, hay bộ não chính khi trợ lý không chọn model) để giao diện báo đúng khả năng theo engine."""
+    try:
+        main_prov = _chat_provider(cfgmod.read_settings().get("model", {}) or {})[0]
+    except Exception:  # noqa: BLE001
+        main_prov = ""
+    out = []
+    for a in agents_index(root, kem_prompt=False):
+        prov = _agent_model_provider(a.get("model") or "", a.get("model_provider") or "") if a.get("model") else main_prov
+        out.append({"slug": a["slug"], "name": a.get("name") or a["slug"], "provider": prov})
+    return out
+
+
+_RESONANCE_API_DEPS = resonance_api.ResonanceApiDeps(
     store=lambda: _resonance_store(), brain_key=lambda b: _brain_key(b),
-    engine_factory=lambda s, t="resonance": _resonance_engine(s, t), session_store=lambda: get_store()))
+    engine_factory=lambda s, t="resonance": _resonance_engine(s, t), session_store=lambda: get_store(),
+    agents_meta=_resonance_agents_meta, agent_file=lambda root, slug: _agent_md_path(root, slug))
+resonance_api.register(app, _RESONANCE_API_DEPS)
 _RESONANCE_TICK_BUSY = [False]
 
 
@@ -6584,9 +6623,19 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
 
 @app.post("/agents/delete")
 async def delete_agent(slug: str = Form(...), brain: str = Form("brain")):
+    # slug ghép thẳng vào tên file: phải hợp lệ, không thì `../x` xoá được file ngoài thư mục agents.
+    if not skill_router.valid_slug(slug):
+        return JSONResponse({"ok": False, "error": "slug không hợp lệ"}, status_code=400)
     f = _agents_dir(brain) / f"{slug}.md"
     if f.exists():
         f.unlink()
+    # A1: xoá qua host thì mã Cộng hưởng của agent này nghỉ hẳn. Tạo lại cùng tên là agent MỚI, phải bật lại; mục
+    # tiêu và phiên cũ giữ mã cũ. Chưa có kho thì không tạo kho chỉ để ghi việc này.
+    try:
+        if _RESONANCE_STORE is not None or (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+            _resonance_store().agent_retire(resonance_store.Principal("owner", "owner", _brain_key(brain)), slug)
+    except Exception as e:  # noqa: BLE001
+        print(f"[resonance agent retire] {type(e).__name__}: {e}", file=sys.stderr)
     return {"ok": True}
 
 
@@ -21379,6 +21428,10 @@ async def _shutdown_mcp_pool():
         terminal.KHO.dong_het()
     except Exception:
         pass
+
+
+# Route Cộng hưởng theo trợ lý (A1): đăng ký SAU route cuối để bảng route cũ giữ nguyên thứ tự.
+resonance_api.register_agents(app, _RESONANCE_API_DEPS)
 
 
 if __name__ == "__main__":

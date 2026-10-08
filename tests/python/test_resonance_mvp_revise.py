@@ -243,18 +243,15 @@ check("danh sách pha trộn: chỉ giữ tiêu chí có nội dung, id đánh l
       [(c["id"], c["description"]) for c in fr_mix["criteria"]] == [("c1", "Báo cáo có đủ 10 hồ sơ")])
 
 # Qua tool thật: đề xuất delivery với tiêu chí rỗng không để lại mục tiêu nào.
-(Path(BRAIN) / "Javis").mkdir(parents=True, exist_ok=True)
-(Path(BRAIN) / "Javis" / "resonance.json").write_text('{"enabled": true}', encoding="utf-8")
+import _resonance_agent as RA  # noqa: E402  - A1: tool chỉ chạy trong lượt của agent đã bật
+AG = RA.enable(store, BRAIN)
 _, route = plugins_host.plugin_tools("full", BRAIN, scope_vault=False)
 call = route["javis_goal"]["call"]
 
 
 def tool(mid, text, args):
-    k = luot_dang_chay.bat_dau("web:tool", BRAIN, msg_id=mid, user_text=text)
-    try:
+    with RA.turn(AG, "tool", mid, text, BRAIN):
         return asyncio.run(call(args))
-    finally:
-        luot_dang_chay.ket_thuc(k)
 
 
 out = tool(7, MSG1, {"op": "create", **proposal(criteria=[{"description": "", "evaluator": "human_confirmation"}])})
