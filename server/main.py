@@ -15585,6 +15585,11 @@ async def websocket_endpoint(ws: WebSocket):
             action = payload.get("action")
             if action == "reset":
                 continue                        # client tự quản phiên; reset KHÔNG còn giết lượt nào
+            if action == "ping":
+                # Trang hỏi "còn sống không" sau một quãng im (0.85.11): socket chết mà không đóng thì
+                # không có pong, trang bỏ socket đó và nối lại. Xem _checkSocket trong app.js.
+                await send_client({"type": "pong"})
+                continue
             if action == "ui_result":
                 # Dashboard vừa làm xong (hoặc từ chối) một `ui_action` do tool javis_ui bắn
                 # ra. Giải future đang đợi trong ui_bridge để tool trả lời model ngay trong lượt.
