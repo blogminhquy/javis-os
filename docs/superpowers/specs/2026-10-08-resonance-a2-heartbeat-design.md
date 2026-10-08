@@ -1,10 +1,10 @@
 # Resonance A2: nhịp tim thích nghi theo lý do
 
-**Trạng thái:** thiết kế vòng 3, chưa có mã A2. Nhánh `claude/resonance-a2-heartbeat`, đặt số 0.88.0.
+**Trạng thái:** thiết kế vòng 4, chưa có mã A2. Nhánh `claude/resonance-a2-heartbeat`, đặt số 0.88.0.
 
 - **Nền:** nhánh A1 `claude/resonance-a1-agent-scope` tại `077bcf73` (0.87.0, chưa merge). A2 dùng `agent_gate` và sổ trợ lý của A1, nên nhánh chồng lên A1. A1 merge thì nhánh này rebase lên `main`.
 - **Lộ trình:** [agent scope roadmap](2026-10-08-resonance-agent-scope-roadmap.md), mục 5.
-- **Vòng 1** (`7504bf6a`) được review: 2 P1, 2 P2, 5 chỗ cần làm rõ. **Vòng 2** (`e95a3260`): 4 P2 và 2 lưu ý. Mục 15 liệt kê từng điểm và chỗ sửa.
+- **Vòng 1** (`7504bf6a`) được review: 2 P1, 2 P2, 5 chỗ cần làm rõ. **Vòng 2** (`e95a3260`): 4 P2 và 2 lưu ý. **Vòng 3** (`fe92e753`): 1 P2. Mục 15 liệt kê từng điểm và chỗ sửa.
 - Không gọi model để làm thiết kế này. Chưa có pilot A2.
 
 ## 1. Mục tiêu và ngoài phạm vi
@@ -99,9 +99,13 @@ Mọi lý do có hai mốc:
 1. **Ảnh chụp:** `advance` giữ khoá lượt rồi đọc các lý do `pending` có `due_at <= now`, với cả sự kiện lẫn hẹn giờ.
    - Chỉ id trong ảnh chụp được xét và được phục vụ.
    - Lý do đến trong lúc lượt đang chạy vẫn `pending` cho lần sau.
-2. **Bị cổng chặn** (trợ lý tắt, tạm dừng, cách hiểu bị bác, guard `unknown`, đang chờ bàn giao): **không phục vụ gì**.
+2. **Bị cổng chặn** (trợ lý tắt, tạm dừng, cách hiểu bị bác, guard `unknown`, đang chờ bàn giao): **không phục vụ lý do nào mở được lượt model** (bước đầu, tin mới, thử lại).
    - Ghi `wake_log` kèm id đã thấy.
-   - Lý do còn nguyên. Khi gỡ chặn (`resumed`, `agent_enabled`, `guard_recheck` thấy guard đọc lại được), lần thức sau thấy lại chúng.
+   - Các lý do đó còn nguyên, kể cả giờ đủ điều kiện ban đầu. Khi gỡ chặn (`resumed`, `agent_enabled`, `guard_recheck` thấy guard đọc lại được), lần thức sau thấy lại chúng.
+   - Hẹn `check` đã tới hạn (xem lại, hạn chót) thì đã xét xong:
+     - cổng có hẹn kiểm lại thì hẹn đó thay hẹn cũ, cùng nghĩa vụ `check`;
+     - cổng không có hẹn kiểm lại (tạm dừng, hết hạn mức, guard đã chạm) thì chốt `served`.
+     - Không mất gì: lần thức đầu tiên sau khi gỡ chặn tính lại hẹn `check` từ trạng thái mục tiêu (lịch xem lại, hạn chót).
 3. **Quyết định `work`:** `begin_action` đánh dấu `served` cho mọi id trong ảnh chụp, cùng giao dịch ghi ý định hành động. Ý định ghi kèm danh sách id.
    - Lượt model lỗi thì đi theo luật lỗi.
    - Nội dung góp ý không mất: prompt đọc chuỗi ý định và phản hồi từ kho, không đọc từ lý do.
@@ -113,14 +117,21 @@ Mọi lý do có hai mốc:
 
 ### Lịch vật lý
 
-Sau mỗi lần thức, `wakeups.due_at` của `work` là mốc sớm nhất trong:
-- `due_at` của các hẹn giờ đang chờ, ở mọi nghĩa vụ `retry` và `check`;
-- `due_at` của các sự kiện đang chờ **không bị gác**.
+Một nguyên tắc chung cho sự kiện và hẹn giờ: **nghĩa vụ còn lưu chưa chắc đã được đưa vào lịch có thể chạy.**
+
+Sau mỗi lần thức, `wakeups.due_at` của `work` tính theo trạng thái lúc lần thức kết thúc:
+
+- **Không bị gác:** mốc sớm nhất trong
+  - `due_at` của các hẹn giờ đang chờ, ở cả nghĩa vụ `retry` lẫn `check`;
+  - `due_at` của các sự kiện đang chờ.
+- **Bị gác:** chỉ `due_at` của **hẹn gỡ gác** vừa đặt ở nghĩa vụ `check` (`agent_recheck`, `guard_recheck`, `drift_recheck`, `handoff_wait`).
+  - Sự kiện và hẹn `retry` đang chờ không được tính, dù đã quá giờ.
+  - Không có hẹn gỡ gác thì xoá dòng `work`. Mục tiêu chờ sự kiện chủ động.
 
 Không còn mốc nào thì xoá dòng `work`.
 
-**Sự kiện bị gác:** còn nghĩa vụ nhưng không thể phục vụ ngay, nên không kéo lịch về `now`.
-- Gác khi lần thức kết thúc ở trạng thái không phục vụ được sự kiện:
+**Bị gác:** còn nghĩa vụ nhưng không thể phục vụ ngay, nên không kéo lịch, kể cả khi giờ đủ điều kiện đã qua.
+- Gác khi lần thức kết thúc ở trạng thái không phục vụ được lý do mở lượt:
   - `blocked` (bị cổng chặn, hết hạn mức, lỗi cố định);
   - đang chờ lượt chat bàn giao (lịch là hẹn `handoff_wait` 30 giây, như MVP);
   - `waiting`/`source_drift`.
@@ -129,12 +140,19 @@ Không còn mốc nào thì xoá dòng `work`.
   - thao tác gỡ chặn (`resumed`, `agent_enabled`);
   - một sự kiện mới. Sự kiện mới đặt lịch về `due_at` của nó lúc ghi, nên thức **đúng một lần** để kiểm, rồi lại gác nếu vẫn chưa phục vụ được.
 - Hết hạn mức và lỗi cố định không có hẹn kiểm lại. Chỉ sự kiện mới gỡ được, như MVP.
+- **Hẹn `retry` bị gác** giữ nguyên bản ghi, giờ đủ điều kiện, revision và chuỗi lỗi hay bế tắc. Khi gỡ gác, lần thức đầu tiên xét lại nó theo quyền, revision, guard và hạn mức lúc đó:
+  - đã quá giờ thì xét ngay, đúng một lần, trong trần ở mục 4;
+  - chưa tới giờ thì vẫn chờ đúng mốc backoff;
+  - bật lại trợ lý hay hồi phục guard không đặt lại chuỗi lỗi hay bế tắc;
+  - không dùng `served` để giả là lượt chưa gọi đã chạy.
+- **Gác là trạng thái lưu trong kho** (`goals.run_state`, cùng các hẹn đang chờ). Khởi động lại không bật lại vòng thức dày.
+- Mục tiêu bị gác không giữ mốc trong quá khứ, nên không chiếm suất `TICK_LIMIT` của mục tiêu khác.
 
 **Hệ quả:**
 - Sự kiện đến trong lúc lượt chạy, không bị gác, kéo lịch về `now` sau lượt.
 - Hẹn tương lai (`user_schedule`, thử lại) không kéo lịch sớm.
 - Lần kiểm vì hạn chót xảy ra trước mốc thử lại thì không thấy lượt thử lại trong ảnh chụp (chưa đủ điều kiện). Lượt thử lại vẫn chờ, và lịch sau lần kiểm về lại đúng mốc thử lại. Kiểm sớm không làm thử lại chạy trước mốc backoff.
-- Đang chờ thì không có vòng thức 30 giây.
+- Đang chờ hay đang bị chặn thì không có vòng thức 30 giây, trừ chờ bàn giao (hẹn `handoff_wait` 30 giây, như MVP, chỉ trong lúc lượt chat chạy).
 
 **Cùng thời điểm:** cả hẹn `check` lẫn `retry` đều đã tới hạn thì cùng vào một ảnh chụp, và chỉ có một quyết định.
 - Thứ tự quyết định (mục 4) xét thử lại.
@@ -467,6 +485,15 @@ Mỗi ca đếm số lần dựng engine (`engine_factory`) và đọc `wake_log
 | Giao lại cùng góp ý (trước và sau khi phục vụ) | Một dòng, xử lý một lần |
 | Người dùng hẹn xem lại sau 1 giờ, có lần thức chỉ kiểm ở giây 30 | Lần thức đó không thấy lịch hẹn, không gọi model, không phục vụ nó. Lịch vật lý vẫn ở mốc 1 giờ |
 | Như trên, khởi động lại giữa chừng | Giờ hẹn giữ nguyên |
+| Thử lại tới hạn khi guard `unknown` | 0 lượt model, thử lại còn chờ. Lịch là mốc `guard_recheck`; các nhịp ở giữa không nhận lại mục tiêu |
+| Thử lại tới hạn khi trợ lý tắt | Như trên, lịch là mốc `agent_recheck` |
+| Thử lại tới hạn khi tạm dừng hay hết hạn mức | Không có lịch `work`; thử lại còn chờ |
+| Khởi động lại khi đang bị gác | Lịch giữ mốc gỡ gác, không thức dày |
+| Gỡ gác, thử lại đã quá giờ | Xét đúng một lần trong trần; chuỗi lỗi, bế tắc không đặt lại |
+| Gỡ gác, thử lại chưa tới giờ | Chờ đúng mốc backoff |
+| Hẹn `check` tới hạn khi bị chặn | Được thay bằng hẹn kiểm lại, hay chốt; không giữ lịch ở quá khứ |
+| Chờ bàn giao, `source_drift` có thử lại cũ đã quá giờ | Lịch là hẹn chờ đã chọn, thử lại không thắng |
+| 5 mục tiêu bị gác có thử lại cũ, cùng 3 mục tiêu sẵn sàng | Nhịp kế tiếp nhận cả 3 mục tiêu sẵn sàng; mục tiêu bị gác không chiếm suất |
 | Tới giờ hẹn | Mở lượt nếu trạng thái và hạn mức cho phép |
 | Gửi lại cùng lịch hẹn | Không nhân đôi |
 | Phản hồi và hẹn giờ của revision cũ, sau khi có revision mới | Chốt `stale_revision`, không mở lượt, không đặt lại trần của revision mới |
@@ -558,6 +585,14 @@ Review: `exports/reviews/PR-593-A2-design-r2-e95a3260-review.md` (ngoài git), t
 | P2-4: hash đệm theo metadata | Bỏ hash đệm khỏi A2. Mọi điểm quyết định đọc bytes thật (mục 11) |
 | Lưu ý revision | Lý do ghi `revision` nguồn; lý do revision cũ chốt `stale_revision` (mục 3). Đối soát khi nâng chỉ chốt sự kiện có trước lúc lượt cũ **bắt đầu** |
 | Lưu ý độ trễ | Nhận theo `due_at`, không bỏ đói; trễ tối đa `ceil(N / TICK_LIMIT)` nhịp; mốc một nhịp chỉ đúng khi không quá tải; 50 ms là phép đo môi trường test (mục 11) |
+
+### Sau review vòng 3
+
+Review: `exports/reviews/PR-593-A2-design-r3-fe92e753-review.md` (ngoài git), tại `fe92e753`.
+
+| Điểm | Sửa |
+|---|---|
+| P2: hẹn thử lại đã tới hạn kéo lịch về quá khứ khi bị chặn | Một nguyên tắc cho sự kiện và hẹn giờ: bị gác thì lịch vật lý chỉ lấy hẹn gỡ gác. Hẹn thử lại giữ nguyên bản ghi, giờ, chuỗi; gỡ gác thì xét lại theo trần hiện tại. Hẹn `check` tới hạn khi bị chặn được thay hay chốt (mục 3) |
 
 ## 16. Kế hoạch code (sau khi thiết kế đạt review)
 
