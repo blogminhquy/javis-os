@@ -2500,17 +2500,25 @@ def _grade(text: str, rubric: list, expect: dict) -> tuple:
     return "unknown", why
 
 
-async def _trial_run(goal: GoalRecord, exp_id: str, case: dict, arm: str, ref: str, rubric: list, rubric_hash: str,
-                     deps: GoalDeps, usage: dict, pin: Optional[dict] = None) -> dict:
-    """Một lượt của phép thử. `pin`: mã và version trợ lý GHIM lúc bắt đầu phép thử; kho kiểm lại trong giao dịch tạo
-    hành động (AgentStateError nếu đã tắt hay đổi), nên lượt không được gọi model khi quyền đã khác."""
+def _trial_begin(goal: GoalRecord, exp_id: str, case: dict, arm: str, ref: str, deps: GoalDeps,
+                 pin: Optional[dict] = None) -> dict:
+    """Ghi ý định của MỘT lượt thử, TRƯỚC khi gọi model. `pin`: mã và version trợ lý GHIM lúc bắt đầu phép thử; kho kiểm
+    lại trong giao dịch này (AgentStateError nếu đã tắt hay đổi). Hàm này ném lỗi thì CHẮC CHẮN model chưa được gọi cho
+    lượt đó: đây là ranh giới duy nhất được coi là "chưa chạy" để hoàn hạn mức (review A1 tại 7d084394, P1)."""
     store, p = deps.store, deps.principal
     now = deps.clock()
-    act = store.begin_action(p, goal.id, goal.revision, "trial",
-                             lease_until=now + float(deps.max_wall_s) + float(deps.wall_grace_s) + LEASE_EXTRA_S,
-                             now=now, wake=False,
-                             intent={"experiment_id": exp_id, "case_id": case["id"], "arm": arm, "method": ref,
-                                     **(pin or {})})
+    return store.begin_action(p, goal.id, goal.revision, "trial",
+                              lease_until=now + float(deps.max_wall_s) + float(deps.wall_grace_s) + LEASE_EXTRA_S,
+                              now=now, wake=False,
+                              intent={"experiment_id": exp_id, "case_id": case["id"], "arm": arm, "method": ref,
+                                      **(pin or {})})
+
+
+async def _trial_run(goal: GoalRecord, exp_id: str, case: dict, arm: str, ref: str, rubric: list, rubric_hash: str,
+                     deps: GoalDeps, usage: dict, act: dict) -> dict:
+    """Một lượt của phép thử, sau khi `_trial_begin` đã ghi ý định `act`. Từ đây model có thể đã được gọi: lỗi ở các
+    bước sau (lưu bằng chứng, ghi receipt, chấm) KHÔNG được coi là chưa chạy."""
+    store, p = deps.store, deps.principal
     call = _TrialCall(store, p, goal.id)
     sub = dataclasses_replace(deps, budget=call)
     # Bản dựng mới cho từng lượt: chỉ tình huống này làm lời người dùng, không đánh giá trước, không bản cũ.
@@ -2639,12 +2647,23 @@ async def compare_methods(goal_id: str, baseline_ref: str, candidate_ref: str, c
                     stop = agent_gate(store, p.brain_id, pin["agent_key"], pin["agent_config_version"])[1]
                 if stop:
                     break
-                started += 1
                 try:
-                    row[arm] = await _trial_run(tg, exp, c, arm, ref, rubric, rubric_hash, deps, out["usage"], pin)
-                except Exception as e:  # noqa: BLE001 - kho từ chối giữ lượt (AgentStateError): chưa gọi model
-                    started -= 1
-                    stop = f"agent_gate: {_short(e)}"
+                    act = _trial_begin(tg, exp, c, arm, ref, deps, pin)
+                except Exception as e:  # noqa: BLE001
+                    # Kho từ chối GHI Ý ĐỊNH (quyền trợ lý đổi, hay lỗi lưu trữ): giao dịch đã huỷ, model CHƯA được
+                    # gọi cho lượt này, nên lượt không tính vào `started` và được hoàn ở finish_experiment.
+                    stop = (f"agent_gate: {_short(e)}" if type(e).__name__ == "AgentStateError"
+                            else f"storage_error_before_call: {type(e).__name__}: {_short(e)}")
+                    break
+                started += 1          # từ đây lượt đã tính: model có thể đã được gọi
+                try:
+                    row[arm] = await _trial_run(tg, exp, c, arm, ref, rubric, rubric_hash, deps, out["usage"], act)
+                except Exception as e:  # noqa: BLE001
+                    # Lỗi SAU khi có thể đã gọi model (lưu bằng chứng, ghi receipt, chấm): GIỮ lượt đã tính, không hoàn;
+                    # phép thử dừng, không kết luận. Hành động dở (nếu receipt chưa ghi được) để _reconcile chốt sau.
+                    row[arm] = {"action_id": act["id"], "verdict": "unknown", "rubric_hash": rubric_hash,
+                                "reason": f"lỗi sau lượt gọi: {type(e).__name__}"}
+                    stop = f"storage_error_after_call: {type(e).__name__}: {_short(e)}"
                     break
             if stop:
                 if "baseline" in row:

@@ -710,6 +710,71 @@ except RS.AgentStateError:
     _no_pin = True
 check("P1-3 c: mục tiêu của trợ lý mà phép thử không mang quyền: kho từ chối giữ hạn mức", _no_pin)
 
+# ═══════════════════════ A1, review tại 7d084394: chỉ hoàn lượt khi CHẮC model chưa được gọi ═══════════════════════
+import sqlite3 as _sq  # noqa: E402
+
+
+def _one_shot(method_name, kind, exc):
+    """Chèn đúng MỘT lỗi lưu trữ vào một hàm kho thật, chỉ với hành động `kind`; mọi thứ khác chạy nguyên."""
+    orig = getattr(store, method_name)
+    hit = []
+
+    def wrapper(*a, **kw):
+        k = (a[3] if len(a) > 3 else kw.get("kind")) if method_name == "begin_action" else "trial"
+        if k == kind and not hit:
+            hit.append(1)
+            raise exc
+        return orig(*a, **kw)
+    setattr(store, method_name, wrapper)
+    return lambda: setattr(store, method_name, orig)
+
+
+# d) Lỗi lưu trữ TRƯỚC khi gọi model (ghi ý định lượt thử hỏng): 0 lượt, hoàn đủ.
+g_rb1 = make_goal()
+_undo = _one_shot("begin_action", "trial", _sq.OperationalError("database is locked"))
+try:
+    res_rb1, eng_rb1 = trial(g_rb1, WIN2, ids=TWO)
+finally:
+    _undo()
+check("7d08 d: lỗi ghi ý định TRƯỚC khi gọi: 0 lượt model, hoàn đủ hạn mức, không áp dụng, báo đúng là lỗi lưu trữ",
+      not eng_rb1.prompts and calls_of(g_rb1) == 0 and res_rb1["applied"] is False
+      and str(res_rb1.get("stop_detail", "")).startswith("storage_error_before_call"))
+
+# e) Model ĐÃ chạy, ghi receipt hỏng: lượt đã dùng vẫn tính, không hoàn, không áp dụng.
+g_rb2 = make_goal()
+_orig_finish = store.finish_action
+_fhit = []
+
+
+def _finish_fail_once(*a, **kw):
+    if not _fhit:
+        _fhit.append(1)
+        raise _sq.OperationalError("database is locked")
+    return _orig_finish(*a, **kw)
+
+
+store.finish_action = _finish_fail_once
+try:
+    res_rb2, eng_rb2 = trial(g_rb2, WIN2, ids=TWO)
+finally:
+    store.finish_action = _orig_finish
+_g_rb2 = store.get(P, g_rb2.id)
+check("7d08 e: model đã chạy 1 lượt rồi ghi receipt hỏng: lượt VẪN tính (calls_used và explore_used = 1)",
+      len(eng_rb2.prompts) == 1 and _g_rb2.calls_used == 1 and _g_rb2.explore_used == 1)
+check("7d08 e: phép thử dừng, không áp dụng, báo đúng là lỗi sau lượt gọi (không phải lỗi quyền trợ lý)",
+      res_rb2["applied"] is False and str(res_rb2.get("stop_detail", "")).startswith("storage_error_after_call")
+      and R.effective_method(_g_rb2) == "work.v1")
+# f) Mở lại kho rồi đối soát: không hoàn lần hai; hành động dở được chốt failed.
+_st2 = RS.GoalStore(store.path)
+_dp2 = R.dataclasses_replace(deps_for(Engine({})), store=_st2)
+R._reconcile(_st2.get(P, g_rb2.id), _dp2, 1_800_000_000.0 + 10_000_000)
+_trial_rb2 = [x for x in _st2.actions(P, g_rb2.id) if x["kind"] == "trial"]
+check("7d08 f: mở lại kho và đối soát: vẫn 1 lượt đã dùng (không hoàn lần hai)", _st2.get(P, g_rb2.id).calls_used == 1)
+check("7d08 f: lượt có receipt chưa ghi được được đối soát thành failed, không chạy lại",
+      len(_trial_rb2) == 1 and _trial_rb2[0]["status"] == "failed")
+check("7d08 f: phép thử đã chốt (không còn running), lượt chưa bắt đầu đã được hoàn đúng một lần",
+      all(e["status"] != "running" for e in _st2.experiments(P, g_rb2.id)))
+
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)
     sys.exit(1)
