@@ -388,6 +388,16 @@ check("10 danh sách trợ lý khớp kho: mã, bật, trạng thái, khả năn
       row.get("agent_key") == r.json()["agent"]["agent_key"] and row.get("enabled") is True
       and row.get("status") == "active" and isinstance(row.get("support"), dict))
 check("10 danh sách có mục chờ gán là số đếm (không tự gán)", isinstance(lst.get("unassigned"), int))
+# P2 review tích hợp: giao diện ĐỌC trạng thái phiên khi mở trang, tải lại, đổi phiên; đọc không ghi liên kết phiên.
+_get = lambda sid: client.get("/resonance/agents", params={"brain": BRAIN, "slug": "ban-moi", "session_id": sid}).json()
+check("10 tải lại ở phiên mở trước lúc cấp mã: GET vẫn nói needs_new_session", _get(pre_sid).get("session")
+      == "needs_new_session")
+fresh_sid = ss.create_session(brain=BRAIN, engine="test", model="test", channel="agent:ban-moi")
+check("10 GET phiên mới chưa có lượt: ready, và KHÔNG ghi liên kết phiên khi chỉ đọc",
+      _get(fresh_sid).get("session") == "ready" and store.session_pin(fresh_sid) is None)
+check("10 GET phiên của trợ lý cũ: needs_new_session", _get(old_sid).get("session") == "needs_new_session")
+check("10 GET không truyền phiên: không có trạng thái phiên",
+      client.get("/resonance/agents", params={"brain": BRAIN}).json().get("session") is None)
 
 # ═══════════ 11. đường agent trọn vòng qua thân THẬT của run_turn (engine giả) ═══════════
 import ast  # noqa: E402

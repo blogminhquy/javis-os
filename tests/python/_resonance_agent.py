@@ -57,3 +57,10 @@ def turn(agent: dict, session_id: str, message_id: int, user_text: str, brain, s
     finally:
         luot_dang_chay.ket_thuc(k)
         turn_context.reset(tok)
+
+
+def pin(store, brain, slug: str = SLUG) -> dict:
+    """Mã và version HIỆN TẠI của trợ lý, như host ghim vào ý định hành động hay phép thử (A1, review tích hợp P1-3).
+    Mục tiêu thuộc trợ lý thì mọi begin_action/begin_experiment phải mang nó."""
+    a = store.agent(str(Path(brain).resolve()), slug) or store.agent(str(brain), slug)
+    return {"agent_key": a["agent_key"], "agent_config_version": a["config_version"]}

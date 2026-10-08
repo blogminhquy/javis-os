@@ -454,6 +454,19 @@ def enabled_for(brain_root) -> bool:
         return False
 
 
+def agent_file_exists(brain_root: str, slug: str) -> bool:
+    """File của trợ lý còn trong brain không. Cùng luật tìm thư mục với main._agents_dir (_brain_sub): thư mục phẳng
+    `<brain>/agents` nếu có, không thì cấu trúc cũ `<brain>/Javis/agents`. Slug lạ (có dấu tách thư mục) coi như không có."""
+    s = str(slug or "")
+    if not s or "/" in s or "\\" in s or ".." in s:
+        return False
+    root = Path(str(brain_root or ""))
+    d = root / "agents"
+    if not d.is_dir():
+        d = root / "Javis" / "agents"
+    return (d / f"{s}.md").is_file()
+
+
 AGENT_BLOCKS = ("unassigned", "agent_unknown", "agent_missing", "agent_retired", "agent_off", "agent_changed")
 
 
@@ -469,6 +482,10 @@ def agent_gate(store, brain_id: str, agent_key: str, version: Optional[int] = No
     a = store.agent_by_key(brain_id, agent_key) if store is not None else None
     if a is None:
         return None, "agent_unknown"
+    if a["status"] == "active" and not agent_file_exists(brain_id, a["slug"]):
+        # Đối soát file NGAY tại cổng (review A1 tích hợp, P1-2): file trợ lý mất (xoá tay, đổi tên tay) thì chốt
+        # `missing` dù không có lượt chat nào quan sát. File có lại không tự mở: chủ dự án phải xác nhận.
+        a = store.agent_mark_missing(brain_id, agent_key) or dict(a, status="missing")
     if a["status"] != "active":
         return a, "agent_" + str(a["status"])
     if not a["enabled"]:
@@ -2484,13 +2501,16 @@ def _grade(text: str, rubric: list, expect: dict) -> tuple:
 
 
 async def _trial_run(goal: GoalRecord, exp_id: str, case: dict, arm: str, ref: str, rubric: list, rubric_hash: str,
-                     deps: GoalDeps, usage: dict) -> dict:
+                     deps: GoalDeps, usage: dict, pin: Optional[dict] = None) -> dict:
+    """Một lượt của phép thử. `pin`: mã và version trợ lý GHIM lúc bắt đầu phép thử; kho kiểm lại trong giao dịch tạo
+    hành động (AgentStateError nếu đã tắt hay đổi), nên lượt không được gọi model khi quyền đã khác."""
     store, p = deps.store, deps.principal
     now = deps.clock()
     act = store.begin_action(p, goal.id, goal.revision, "trial",
                              lease_until=now + float(deps.max_wall_s) + float(deps.wall_grace_s) + LEASE_EXTRA_S,
                              now=now, wake=False,
-                             intent={"experiment_id": exp_id, "case_id": case["id"], "arm": arm, "method": ref})
+                             intent={"experiment_id": exp_id, "case_id": case["id"], "arm": arm, "method": ref,
+                                     **(pin or {})})
     call = _TrialCall(store, p, goal.id)
     sub = dataclasses_replace(deps, budget=call)
     # Bản dựng mới cho từng lượt: chỉ tình huống này làm lời người dùng, không đánh giá trước, không bản cũ.
@@ -2587,11 +2607,17 @@ async def compare_methods(goal_id: str, baseline_ref: str, candidate_ref: str, c
     until = now + need * (float(deps.max_wall_s) + float(deps.wall_grace_s)) + LEASE_EXTRA_S
     if not store.claim_lease(p, g.id, owner, until, now):
         return {**out, "reason": "busy"}
+    # A1 (review tích hợp, P1-3): GHIM mã và version trợ lý cho cả phép thử. Mọi lượt, và bước áp dụng, phải còn đúng
+    # bản ghim này; tắt rồi bật giữa chừng là version mới, phép thử dừng và hoàn phần hạn mức chưa chạy.
+    pin = _agent_intent(g, deps)
     try:
-        exp = store.begin_experiment(p, g.id, g.revision, baseline_ref, candidate_ref, need,
-                                     int(g.budget_calls * EXPLORE_SHARE),
-                                     {"rubric_hash": rubric_hash, "cases_hash": cases_hash,
-                                      "case_ids": [c["id"] for c in items]}, now=now)
+        try:
+            exp = store.begin_experiment(p, g.id, g.revision, baseline_ref, candidate_ref, need,
+                                         int(g.budget_calls * EXPLORE_SHARE),
+                                         {"rubric_hash": rubric_hash, "cases_hash": cases_hash,
+                                          "case_ids": [c["id"] for c in items]}, now=now, agent=pin)
+        except Exception as e:  # noqa: BLE001 - AgentStateError: công tắc đổi ngay trước giao dịch giữ hạn mức
+            return {**out, "reason": "agent_gate", "stop_detail": _short(e)}
         if exp is None:
             return {**out, "reason": "explore_budget"}
         out.update(experiment_id=exp, created=True)
@@ -2609,10 +2635,17 @@ async def compare_methods(goal_id: str, baseline_ref: str, candidate_ref: str, c
                 # Cùng cổng với advance TRƯỚC MỖI lượt: can thiệp của người dùng, "Chưa đúng ý", guard và đổi cách
                 # hiểu có hiệu lực giữa chừng (spec 2.3, 11.1; review M5, P1-1).
                 _, stop = _trial_gate(g, deps, deps.clock())
+                if not stop:
+                    stop = agent_gate(store, p.brain_id, pin["agent_key"], pin["agent_config_version"])[1]
                 if stop:
                     break
                 started += 1
-                row[arm] = await _trial_run(tg, exp, c, arm, ref, rubric, rubric_hash, deps, out["usage"])
+                try:
+                    row[arm] = await _trial_run(tg, exp, c, arm, ref, rubric, rubric_hash, deps, out["usage"], pin)
+                except Exception as e:  # noqa: BLE001 - kho từ chối giữ lượt (AgentStateError): chưa gọi model
+                    started -= 1
+                    stop = f"agent_gate: {_short(e)}"
+                    break
             if stop:
                 if "baseline" in row:
                     row.setdefault("candidate", {"verdict": "unknown", "reason": "không chạy: phép thử đã dừng",
@@ -2624,6 +2657,8 @@ async def compare_methods(goal_id: str, baseline_ref: str, candidate_ref: str, c
             # Lượt cuối có thể vừa xong SAU một lệnh dừng: kiểm lại toàn bộ điều kiện chạy ngay trước khi kết luận
             # và áp dụng (review M5, P1-2). Phần SQLite được kiểm lại lần nữa trong giao dịch đổi cách làm.
             _, stop = _trial_gate(g, deps, deps.clock())
+            if not stop:
+                stop = agent_gate(store, p.brain_id, pin["agent_key"], pin["agent_config_version"])[1]
         if stop:
             verdict, reason = "inconclusive", ("goal_reframed" if stop == "goal_reframed" else "stopped")
             out["stop_detail"] = stop

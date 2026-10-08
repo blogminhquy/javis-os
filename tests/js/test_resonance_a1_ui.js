@@ -87,7 +87,7 @@ check("brain chưa có trợ lý: chỉ đường tạo ở trang Cộng sự", 
 
 // ───────────── dây nối ─────────────
 check("API công tắc đi đúng route chủ dự án, kèm phiên đang mở",
-      SRC.includes("/resonance/agents/toggle") && /session_id: sid/.test(SRC) && SRC.includes("/goals/\" + q("));
+      SRC.includes("/resonance/agents/toggle") && /session_id: currentSession()/.test(SRC) && SRC.includes("/goals/\" + q("));
 check("không còn đọc hay ghi công tắc brain cũ ở giao diện", !CR.includes("/resonance/settings") && !SRC.includes("/resonance/settings")
       && !HTML.includes('id="resonanceEnabled"'));
 check("trang Cài đặt có chỗ cho danh sách trợ lý, nạp resonance-agent.js sau chat-resonance.js",
@@ -108,8 +108,43 @@ check("mọi khoá A1 có cả tiếng Anh", keys.every(function (k) { return ty
 const used = (SRC.match(/resonance\.[a-z0-9_]+/g) || []).filter(function (k) { return !/\.js$/.test(k); });
 check("mọi khoá resonance-agent.js dùng đều có trong vi.json", used.every(function (k) { return k in vi; }),
       used.filter(function (k) { return !(k in vi); }).join(","));
-check("không có em dash trong chuỗi mới", keys.every(function (k) { return !/—/.test(vi[k] + en[k]); })
-      && !/—/.test(SRC));
+check("không có em dash trong chuỗi mới", keys.every(function (k) { return !/\u2014/.test(vi[k] + en[k]); })
+      && !/\u2014/.test(SRC));
 
-if (fails) { console.log("\n" + fails + " FAIL"); process.exit(1); }
-console.log("\nOK");
+// ───────────── P2 review tích hợp: trạng thái phiên đọc từ host mỗi lần mở, tải lại, đổi phiên ─────────────
+// fetch giả trả lời như host: phiên "cu" (mở trước lúc cấp mã) là needs_new_session, phiên "moi" là ready.
+const calls = [];
+let current = "cu";
+global.window = { JavisSessions: { brain: function () { return "brain"; }, current: function () { return current; } } };
+global.fetch = function (url) {
+  calls.push(url);
+  const m = /session_id=([^&]+)/.exec(url);
+  const body = url.indexOf("/resonance/agents") === 0
+    ? { agents: [{ slug: "viet-bai", agent_key: "ag_moi", enabled: true, status: "active", support: { goal: true } }],
+        session: m ? (m[1] === "moi" ? "ready" : "needs_new_session") : null }
+    : { goals: [] };
+  return Promise.resolve({ status: 200, json: function () { return Promise.resolve(body); } });
+};
+const host = { innerHTML: "", isConnected: true, querySelector: function () { return null; },
+  querySelectorAll: function () { return []; } };
+
+(async function () {
+  await RA.mount(host, { slug: "viet-bai", sessionId: "cu" });
+  check("P2 mở trang ở phiên cũ: hỏi host kèm đúng trợ lý và phiên", calls.some(function (u) {
+    return u.indexOf("/resonance/agents?") === 0 && u.indexOf("slug=viet-bai") > 0 && u.indexOf("session_id=cu") > 0; }));
+  check("P2 phiên cũ: có câu giải thích và nút mở cuộc mới", host.innerHTML.includes("rsa-new-session")
+        && host.innerHTML.includes(vi["resonance.a1_needs_new_session"]));
+  await RA.mount(host, { slug: "viet-bai", sessionId: "cu" });              // F5 / gắn lại khối
+  check("P2 tải lại trang: vẫn còn nút (không mất theo biến tạm)", host.innerHTML.includes("rsa-new-session"));
+  current = "moi";
+  await RA.refresh();                                                       // người dùng mở cuộc mới
+  check("P2 đổi sang phiên mới: host nói dùng được, hết nút, hiện trạng thái bật",
+        !host.innerHTML.includes("rsa-new-session") && host.innerHTML.includes(vi["resonance.a1_on_note"]));
+  current = "cu";
+  await RA.mount(host, { slug: "viet-bai", sessionId: "cu" });              // bật ở Cài đặt rồi quay lại phiên cũ
+  check("P2 quay lại phiên cũ: nút trở lại", host.innerHTML.includes("rsa-new-session"));
+  check("P2 không tự gán ready ở phía trình duyệt", !/refresh\("ready"\)/.test(SRC) && !/S\.session\b/.test(SRC));
+
+  if (fails) { console.log("\n" + fails + " FAIL"); process.exit(1); }
+  console.log("\nOK");
+})();

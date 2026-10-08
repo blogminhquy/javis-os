@@ -266,8 +266,12 @@ def register_agents(app, deps: ResonanceApiDeps):
                 if reg else 0}
 
     @app.get("/resonance/agents")
-    async def resonance_agents(brain: str = "brain"):
-        """Trợ lý của brain kèm trạng thái Cộng hưởng. Đọc không tạo kho: chưa có kho thì mọi trợ lý đều chưa đăng ký."""
+    async def resonance_agents(brain: str = "brain", slug: str = "", session_id: str = ""):
+        """Trợ lý của brain kèm trạng thái Cộng hưởng. Đọc không tạo kho: chưa có kho thì mọi trợ lý đều chưa đăng ký.
+
+        Có `slug` và `session_id` (phiên đang mở ở trang Cộng sự) thì trả thêm `session`: ready, needs_new_session
+        hay not_this_agent, hỏi host theo đúng luật của run_turn mà KHÔNG ghi liên kết (review A1 tích hợp, P2). Giao
+        diện đọc trạng thái này mỗi lần mở trang, mở phiên hay tải lại, không dựa vào phản hồi của lần bật."""
         root, owner = _ctx(brain)
         if root is None:
             return _err(404, "Không tìm thấy brain", "Brain not found")
@@ -277,18 +281,24 @@ def register_agents(app, deps: ResonanceApiDeps):
                                             "support": R.engine_support(m.get("provider") or ""), "registered": False,
                                             "agent_key": None, "enabled": False, "status": "unregistered",
                                             "config_version": None, "goals_open": 0} for m in metas],
-                    "orphans": [], "unassigned": 0, "legacy_brain_switch": R.enabled_for(root)}
+                    "orphans": [], "unassigned": 0, "legacy_brain_switch": R.enabled_for(root),
+                    "session": "needs_new_session" if slug and session_id else None}
         store = deps.store()
-        rows = [_agent_row(store, root, m) for m in metas]
         have = {m["slug"] for m in metas}
+        # Mã còn `active` mà file đã mất: chốt `missing` ngay khi host thấy (review A1 tích hợp, P1-2), như cổng chung.
+        for a in store.agents(root):
+            if a["status"] == "active" and a["slug"] not in have:
+                store.agent_mark_missing(root, a["agent_key"])
+        rows = [_agent_row(store, root, m) for m in metas]
         # Mã còn sống mà file không còn (xoá tay, đổi tên tay): hiện riêng để chủ dự án thấy, kèm mục tiêu đang kẹt.
         orphans = [{"slug": a["slug"], "agent_key": a["agent_key"], "status": a["status"], "enabled": a["enabled"],
                     "goals_open": len(store.list_open(owner, agent_key=a["agent_key"]))}
                    for a in store.agents(root) if a["slug"] not in have]
         return {"ok": True, "agents": rows, "orphans": orphans,
-                "unassigned": len(store.list_open(owner, unassigned=True)), "legacy_brain_switch": R.enabled_for(root)}
+                "unassigned": len(store.list_open(owner, unassigned=True)), "legacy_brain_switch": R.enabled_for(root),
+                "session": _session_state(store, root, slug, session_id, pin=False) if slug and session_id else None}
 
-    def _session_state(store, root: str, slug: str, session_id: str) -> Optional[str]:
+    def _session_state(store, root: str, slug: str, session_id: str, pin: bool = True) -> Optional[str]:
         """Phiên đang mở dùng được mã hiện tại của trợ lý không (review A1 vòng 2, P2). Cùng hàm phân giải với
         run_turn (`session_agent`), nên câu trả lời đúng với lượt kế tiếp. Không tự chuyển phiên cũ sang mã mới."""
         if not session_id:
@@ -298,7 +308,7 @@ def register_agents(app, deps: ResonanceApiDeps):
         if not row or deps.brain_key(row.get("brain") or "") != root or row.get("channel") != f"agent:{slug}":
             return "not_this_agent"
         live = store.agent(root, slug)
-        got = store.session_agent(root, session_id, slug, row.get("created_at") or 0)
+        got = store.session_agent(root, session_id, slug, row.get("created_at") or 0, pin=pin)
         return "ready" if got is not None and live is not None and got["agent_key"] == live["agent_key"] \
             else "needs_new_session"
 

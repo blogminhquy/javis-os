@@ -134,7 +134,16 @@
 
   function q(s) { return encodeURIComponent(s); }
 
-  var S = { host: null, slug: "", sessionId: "", onNewSession: null, ticket: 0, session: null };
+  var S = { host: null, slug: "", sessionId: "", onNewSession: null, ticket: 0 };
+
+  /* Phiên đang mở của trang (đổi khi người dùng mở cuộc khác), rơi về phiên lúc gắn khối. */
+  function currentSession() {
+    try {
+      var cur = window.JavisSessions && window.JavisSessions.current && window.JavisSessions.current();
+      if (cur) return String(cur);
+    } catch (e) {}
+    return S.sessionId;
+  }
 
   /* Vẽ khối của trợ lý `opts.slug` vào `host`. Gọi lại (đổi trợ lý, mở phiên khác) thì vẽ lại từ đầu; lần tải cũ
      chưa về thì bị bỏ qua nhờ `ticket`. */
@@ -142,17 +151,22 @@
     if (!host) return Promise.resolve();
     var o = opts || {};
     S.host = host; S.slug = String(o.slug || ""); S.onNewSession = o.onNewSession || null;
-    S.sessionId = String(o.sessionId || ""); S.session = null;
+    S.sessionId = String(o.sessionId || "");
     return refresh();
   }
 
-  function refresh(sessionState) {
+  /* Vẽ lại theo trạng thái HOST trả về, kể cả trạng thái của phiên đang mở (review A1 tích hợp, P2): tải lại trang,
+     đổi phiên hay bật ở trang Cài đặt rồi quay lại đều hỏi lại host, không giữ kết quả của lần bật trong bộ nhớ. */
+  function refresh() {
     var host = S.host;
     if (!host || !S.slug) return Promise.resolve();
     var t = ++S.ticket;
-    if (sessionState !== undefined) S.session = sessionState;
-    return getJson("/resonance/agents?brain=" + q(brain())).then(function (res) {
+    var sid = currentSession();
+    S.lastSid = sid;
+    return getJson("/resonance/agents?brain=" + q(brain()) + "&slug=" + q(S.slug) +
+                   (sid ? "&session_id=" + q(sid) : "")).then(function (res) {
       if (t !== S.ticket) return;
+      var session = (res.j && res.j.session) || null;
       var row = ((res.j && res.j.agents) || []).filter(function (a) { return a.slug === S.slug; })[0] || null;
       var key = row && row.agent_key;
       var goalsP = key ? getJson("/resonance/goals?brain=" + q(brain()) + "&agent_key=" + q(key))
@@ -160,7 +174,7 @@
       return goalsP.then(function (gr) {
         if (t !== S.ticket) return;
         var goals = (gr.j && gr.j.goals) || [];
-        host.innerHTML = panelHtml(row, S.session, goals);
+        host.innerHTML = panelHtml(row, session, goals);
         wire(host, row);
         if (window.JavisResonance) {
           goals.forEach(function (g) {
@@ -178,21 +192,22 @@
     var box = host.querySelector(".rsa-toggle");
     if (box) box.addEventListener("change", function () {
       box.disabled = true;
-      var sid = (window.JavisSessions && window.JavisSessions.current && window.JavisSessions.current()) || S.sessionId;
-      postJson("/resonance/agents/toggle?brain=" + q(brain()), { slug: S.slug, enabled: box.checked, session_id: sid })
+      postJson("/resonance/agents/toggle?brain=" + q(brain()), { slug: S.slug, enabled: box.checked,
+        session_id: currentSession() })
         .then(function (res) {
           if (res.code !== 200) {
             host.insertAdjacentHTML("beforeend", '<div class="rsa-warn">' + esc((res.j && res.j.error) || tw("resonance.failed")) + "</div>");
             box.checked = !box.checked; box.disabled = false;
             return;
           }
-          refresh(res.j.session || null);
+          refresh();
         })
         .catch(function () { box.checked = !box.checked; box.disabled = false; });
     });
     var nb = host.querySelector(".rsa-new-session");
     if (nb) nb.addEventListener("click", function () {
-      if (S.onNewSession) Promise.resolve(S.onNewSession()).then(function () { refresh("ready"); });
+      // Mở phiên mới đi đúng đường của trang; trang gắn lại khối với phiên mới và host nói nó có dùng được không.
+      if (S.onNewSession) Promise.resolve(S.onNewSession()).then(function () { refresh(); });
     });
     host.querySelectorAll(".rsa-confirm").forEach(function (b) {
       b.addEventListener("click", function () {
@@ -200,7 +215,7 @@
         var same = b.getAttribute("data-same") === "1";
         if (!same && !window.confirm(tw("resonance.a1_confirm_new_q"))) return;
         postJson("/resonance/agents/confirm?brain=" + q(brain()), { agent_key: row.agent_key, same: same })
-          .then(function () { refresh(null); });
+          .then(function () { refresh(); });
       });
     });
   }
@@ -250,6 +265,12 @@
   if (typeof document !== "undefined" && document.addEventListener) {
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", settingsInit);
     else settingsInit();
+  }
+  // Người dùng mở một cuộc khác của cùng trợ lý (tab Lịch sử): hỏi lại host phiên MỚI có dùng được Cộng hưởng không.
+  if (typeof window !== "undefined" && window.addEventListener) {
+    window.addEventListener("javis:sessions-changed", function () {
+      if (S.host && S.host.isConnected && currentSession() !== S.lastSid) refresh();
+    });
   }
 
   var api = { mount: mount, refresh: refresh, panelHtml: panelHtml, settingsHtml: settingsHtml, toggleNote: toggleNote };

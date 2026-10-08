@@ -210,7 +210,8 @@ clk2.t += 3600
 adv(g2.id, deps_for(b2, db2, e2, clk2))
 check("giai đoạn 2: đánh thức lại không gọi thêm (tổng 2)", e2.queries == 2 and ledger_used(db2) == 2)
 check("giai đoạn 2: lượt thứ ba không giữ được chỗ trước lượt gọi", RS.GoalStore(db2).begin_action(
-    p2, g2.id, st.get(p2, g2.id).revision, "work", lease_until=clk2() + 60, now=clk2()) is None)
+    p2, g2.id, st.get(p2, g2.id).revision, "work", lease_until=clk2() + 60, now=clk2(),
+    intent=RA.pin(st, b2)) is None)
 
 # ═══════════ Sổ lượt chat của bộ chạy ═══════════
 import sys  # noqa: E402

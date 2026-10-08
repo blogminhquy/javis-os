@@ -253,7 +253,7 @@ def _pres(ok=True):
 
 
 g = _goal(1)
-act = _ST.begin_action(_P, g.id, g.revision, "work", lease_until=9e18, now=1.0, intent={})
+act = _ST.begin_action(_P, g.id, g.revision, "work", lease_until=9e18, now=1.0, intent=RA.pin(_ST, _B))
 Path(g.output_root).mkdir(parents=True, exist_ok=True)
 (Path(g.output_root) / f"{act['id']}.md").write_text("bản việc nền đã ghi, chưa có receipt", encoding="utf-8")
 _saved.clear()
@@ -271,7 +271,7 @@ res, ok = H.preserve_work_outputs(_ST, _P, g.id, _DL, "out.json", _pres())
 check("P2-1 file .md lạc trong vùng làm việc cũng được lưu (orphan, unverified)",
       ok and any(x.get("status") == "orphan" for x in res["items"]) and any("orphan" in x for x in _saved))
 g2 = _goal(2)
-a2 = _ST.begin_action(_P, g2.id, g2.revision, "work", lease_until=9e18, now=1.0, intent={})
+a2 = _ST.begin_action(_P, g2.id, g2.revision, "work", lease_until=9e18, now=1.0, intent=RA.pin(_ST, _B))
 _ST.finish_action(_P, a2["id"], "succeeded", {"output_ref": str(Path(g2.output_root) / "khong-co.md"),
                                               "status": "succeeded"})
 check("P2-1 đối chứng: action succeeded mà không thấy file thì không cho dọn",

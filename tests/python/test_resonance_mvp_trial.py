@@ -490,14 +490,14 @@ for kind in ("pause", "off", "fit"):
 # P1-2, tầng kho: đổi cách làm kiểm pause/chốt chặn/Chưa đúng ý trong CHÍNH giao dịch.
 g_st = make_goal()
 gs = store.get(P, g_st.id)
-eid = store.begin_experiment(P, g_st.id, gs.revision, "work.v1", "work.checklist.v1", 2, 6, {})
+eid = store.begin_experiment(P, g_st.id, gs.revision, "work.v1", "work.checklist.v1", 2, 6, {}, agent=RA.pin(store, BRAIN))
 store.set_paused(OWNER, g_st.id, True)
 fin = store.finish_experiment(P, eid, "eligible", "improved", {}, apply=True)
 check("P1-2 (kho): chốt eligible kèm áp dụng khi mục tiêu đang tạm dừng: không đổi cách làm, chốt inconclusive",
       fin["applied"] is False and fin["verdict"] == "inconclusive" and fin["reason"] == "stopped"
       and R.effective_method(store.get(P, g_st.id)) == "work.v1")
 store.set_paused(OWNER, g_st.id, False)
-eid2 = store.begin_experiment(P, g_st.id, gs.revision, "work.v1", "work.checklist.v1", 2, 6, {})
+eid2 = store.begin_experiment(P, g_st.id, gs.revision, "work.v1", "work.checklist.v1", 2, 6, {}, agent=RA.pin(store, BRAIN))
 store.finish_experiment(P, eid2, "eligible", "improved", {}, apply=False)
 fit_no(g_st)
 try:
@@ -584,13 +584,13 @@ check("vòng 2 (âm): Chưa đúng ý, Đúng ý, rồi lại Chưa đúng ý: t
 # Tầng kho: cờ quan sát cũ không chặn; chốt guard chen vào trước giao dịch thì chặn.
 for stale in ("feature_off", "agent_off", "fit_rejected", "guard_unknown"):
     g_sx = make_goal()
-    ex_id = store.begin_experiment(P, g_sx.id, 1, "work.v1", "work.checklist.v1", 2, 6, {})
+    ex_id = store.begin_experiment(P, g_sx.id, 1, "work.v1", "work.checklist.v1", 2, 6, {}, agent=RA.pin(store, BRAIN))
     store.set_run_state(P, g_sx.id, "blocked", stale)
     fin_sx = store.finish_experiment(P, ex_id, "eligible", "improved", {}, apply=True)
     check(f"vòng 2 (kho): cờ quan sát cũ {stale} không bác việc áp dụng (điều kiện thật đã được cổng kiểm)",
           fin_sx["applied"] is True and R.effective_method(store.get(P, g_sx.id)) == "work.checklist.v1")
 g_lx = make_goal()
-ex_l = store.begin_experiment(P, g_lx.id, 1, "work.v1", "work.checklist.v1", 2, 6, {})
+ex_l = store.begin_experiment(P, g_lx.id, 1, "work.v1", "work.checklist.v1", 2, 6, {}, agent=RA.pin(store, BRAIN))
 store.set_run_state(P, g_lx.id, "blocked", "guard")
 fin_lx = store.finish_experiment(P, ex_l, "eligible", "improved", {}, apply=True)
 check("vòng 2 (kho): chốt guard chen vào trước giao dịch vẫn chặn, phép thử lưu inconclusive",
@@ -642,6 +642,73 @@ check("trần chặn cả phép thử trước khi gọi (không tạo phép th�
 os.environ["JAVIS_RESONANCE_CALL_CEILING"] = "không-phải-số"
 check("giá trị trần hỏng thì chặn hết (0), không phải bỏ trần", RS.call_ceiling() == 0)
 del os.environ["JAVIS_RESONANCE_CALL_CEILING"]
+
+# ═══════════════════════ A1, review tích hợp P1-3: phép thử ghim quyền trợ lý ═══════════════════════
+# a) Tắt ngay TRƯỚC giao dịch giữ lượt thử, sau khi cổng ngoài đã qua (chen giữa bằng wrapper quanh hàm kho thật).
+g_ra1 = make_goal()
+_orig_begin = store.begin_action
+_hit = []
+
+
+def _off_at_tx(*a, **kw):
+    if (a[3] if len(a) > 3 else kw.get("kind")) == "trial" and not _hit:
+        switch(False)
+        _hit.append(1)
+    return _orig_begin(*a, **kw)
+
+
+store.begin_action = _off_at_tx
+try:
+    res_ra1, eng_ra1 = trial(g_ra1, WIN2, ids=TWO)
+finally:
+    store.begin_action = _orig_begin
+check("P1-3 a: tắt ngay trước giao dịch lượt thử: KHÔNG gọi model, phép thử dừng, không áp dụng",
+      not eng_ra1.prompts and res_ra1["applied"] is False and res_ra1["verdict"] == "inconclusive"
+      and "agent" in str(res_ra1.get("stop_detail")))
+check("P1-3 a: hoàn đủ hạn mức đã giữ cho các lượt chưa chạy", calls_of(g_ra1) == 0)
+switch(True)
+
+# b) Tắt rồi bật trong lượt đầu: version mới, các lượt còn lại không chạy, kết quả không được áp dụng theo quyền cũ.
+g_ra2 = make_goal()
+_v0 = store.agent(BRAIN, RA.SLUG)["config_version"]
+_flip = []
+
+
+def _flip_once(prompt):
+    if not _flip:
+        switch(False)
+        switch(True)
+        _flip.append(1)
+
+
+res_ra2, eng_ra2 = trial(g_ra2, WIN2, ids=TWO, on_query=_flip_once)
+check("P1-3 b: tắt rồi bật giữa phép thử: dừng sau lượt đang chạy, không chạy đủ 4 lượt",
+      len(eng_ra2.prompts) == 1 and store.agent(BRAIN, RA.SLUG)["config_version"] == _v0 + 2)
+check("P1-3 b: không áp dụng cách làm mới theo quyền cũ", res_ra2["applied"] is False
+      and R.effective_method(store.get(P, g_ra2.id)) == "work.v1" and res_ra2.get("stop_detail") == "agent_changed")
+check("P1-3 b: chỉ tính lượt đã thật sự chạy (1), hoàn phần còn lại", calls_of(g_ra2) == 1)
+_ex2 = store.experiments(P, g_ra2.id)[0]
+check("P1-3 b: phép thử ghim mã và version lúc bắt đầu (không sửa để hợp thức hoá)",
+      store.experiment_agent(P, _ex2["id"]) == {"agent_key": store.agent(BRAIN, RA.SLUG)["agent_key"],
+                                                "agent_config_version": _v0})
+_trial_acts = [x for x in store.actions(P, g_ra2.id) if x["kind"] == "trial"]
+check("P1-3 b: mọi lượt thử mang mã và version ghim trong ý định",
+      _trial_acts and all(x["intent"].get("agent_config_version") == _v0 for x in _trial_acts))
+# c) Kho: áp dụng một phép thử eligible khi version đã đổi so với lúc ghim thì bị chặn ngay trong giao dịch.
+g_ra3 = make_goal()
+_ex3 = store.begin_experiment(P, g_ra3.id, 1, "work.v1", "work.checklist.v1", 2, 6, {}, agent=RA.pin(store, BRAIN))
+switch(False)
+switch(True)
+_fin3 = store.finish_experiment(P, _ex3, "eligible", "improved", {}, apply=True)
+check("P1-3 c: kho từ chối áp dụng khi version khác bản ghim (chốt inconclusive, không đổi cách làm)",
+      _fin3["applied"] is False and _fin3["verdict"] == "inconclusive"
+      and R.effective_method(store.get(P, g_ra3.id)) == "work.v1")
+try:
+    store.begin_experiment(P, g_ra3.id, 1, "work.v1", "work.checklist.v1", 2, 6, {})
+    _no_pin = False
+except RS.AgentStateError:
+    _no_pin = True
+check("P1-3 c: mục tiêu của trợ lý mà phép thử không mang quyền: kho từ chối giữ hạn mức", _no_pin)
 
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)

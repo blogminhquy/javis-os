@@ -913,14 +913,7 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
     # Mô tả javis_task giữ nguyên để brain tắt tính năng không nhận chỉ dẫn mới (review PR #579, P2).
     # A1: theo agent của LƯỢT (ngữ cảnh lượt do host gắn), không theo công tắc brain cũ; chat thường không có dòng này.
     if _resonance_turn_enabled(root):
-        base += (
-            "\n- MỤC TIÊU (Hệ thống cộng hưởng đang bật): việc xong ngay trong lượt thì làm luôn; việc nền một "
-            "lần, xong là hết trách nhiệm thì javis_task; nhắc giờ cố định thì javis_schedule. Người dùng giao "
-            "trách nhiệm theo đuổi kết quả SAU lượt chat (làm, tự kiểm, sửa theo phản hồi, duy trì, chờ sự kiện, "
-            "giữ việc mở tới khi đạt) thì gọi tool javis_goal op=create; bổ sung ý cho mục tiêu đang mở thì "
-            "op=update. Tool chưa nạp thì tìm: Claude Code dùng ToolSearch (mcp__javis-plugins__javis_goal), "
-            "engine khác dùng javis_search_tools. Câu hỏi, tư vấn: KHÔNG lập mục tiêu."
-        )
+        base += "\n- " + _RESONANCE_GOAL_HINT
     # Quét cây skill MỘT lần cho cả hai khối dưới. Trước đây _javis_capability_summary
     # gọi list_skills còn _skill_router_block gọi list_enabled_meta (vốn chỉ là list_skills
     # lọc lại), nên cả cây skill bị đi và parse YAML HAI lần mỗi lượt chat - đo được 18ms
@@ -2068,6 +2061,19 @@ def _resonance_turn_agent(conv_sid, brain, get_session):
     except Exception as e:  # noqa: BLE001
         print(f"[resonance agent] {type(e).__name__}: {e}", file=sys.stderr)
         return None
+
+
+# Dòng gợi ý lập mục tiêu (Resonance). MỘT bản cho cả hai đường dựng prompt: build_system_prompt và prompt của phiên
+# trợ lý (_agent_chat_prompt). Chỉ nối khi lượt thuộc một trợ lý đang bật (_resonance_turn_enabled); review A1 tích
+# hợp P1-1: trước đó chỉ build_system_prompt có dòng này, mà phiên trợ lý lại không dùng hàm đó.
+_RESONANCE_GOAL_HINT = (
+    "MỤC TIÊU (Hệ thống cộng hưởng đang bật): việc xong ngay trong lượt thì làm luôn; việc nền một "
+    "lần, xong là hết trách nhiệm thì javis_task; nhắc giờ cố định thì javis_schedule. Người dùng giao "
+    "trách nhiệm theo đuổi kết quả SAU lượt chat (làm, tự kiểm, sửa theo phản hồi, duy trì, chờ sự kiện, "
+    "giữ việc mở tới khi đạt) thì gọi tool javis_goal op=create; bổ sung ý cho mục tiêu đang mở thì "
+    "op=update. Tool chưa nạp thì tìm: Claude Code dùng ToolSearch (mcp__javis-plugins__javis_goal), "
+    "engine khác dùng javis_search_tools. Câu hỏi, tư vấn: KHÔNG lập mục tiêu."
+)
 
 
 def _resonance_turn_key():
@@ -9225,10 +9231,18 @@ _AGENT_TOOLKIT_BLOCK = (
     "hồi\". Thiếu kết nối (ví dụ chưa nối Drive) thì kiểm tra bằng `javis_connections` trước, "
     "rồi nói đúng cái đang thiếu.\n"
     "- Lượt trả lời của bạn KẾT THÚC khi bạn nói xong, không ai đánh thức bạn làm nốt. Không hẹn "
-    "\"có kết quả em báo lại\", \"sếp chờ em chút\". Chỉ hai lối đúng: làm xong ngay trong lượt và "
+    "\"có kết quả em báo lại\", \"sếp chờ em chút\". " + "Chỉ hai lối đúng: làm xong ngay trong lượt và "
     "trả kết quả thật, hoặc giao việc nền / nhắc hẹn rồi nói rõ đã giao gì, kết quả về đâu. "
     "Không làm được cả hai thì nói thẳng là chưa làm.\n"
 )
+# Câu "chỉ hai lối" ở trên ĐÚNG khi trợ lý chưa bật Cộng hưởng. Bật rồi thì có lối thứ ba (javis_goal); để nguyên câu
+# cũ là bảo model rằng lối đó không tồn tại (review A1 tích hợp, P1-1). Thay đúng câu đó, chỉ trong phiên trò chuyện.
+_AGENT_HAI_LOI = ("Chỉ hai lối đúng: làm xong ngay trong lượt và trả kết quả thật, hoặc giao việc nền / nhắc hẹn rồi "
+                  "nói rõ đã giao gì, kết quả về đâu. Không làm được cả hai thì nói thẳng là chưa làm.")
+_AGENT_BA_LOI = ("Ba lối đúng: làm xong ngay trong lượt và trả kết quả thật; giao việc nền / nhắc hẹn rồi nói rõ đã "
+                 "giao gì, kết quả về đâu; hoặc, khi chủ giao trách nhiệm theo đuổi tới khi đạt, lập mục tiêu bằng "
+                 "javis_goal rồi nói rõ Javis làm tiếp ở nền trong hạn mức và kết quả tự về khung chat này. Không "
+                 "làm được lối nào thì nói thẳng là chưa làm.")
 
 
 def _agent_chat_prompt(brain, slug) -> str:
@@ -9243,6 +9257,11 @@ def _agent_chat_prompt(brain, slug) -> str:
         raise FileNotFoundError(slug)
     _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
     _name, sysprompt, _model, _prov = _agent_sysprompt(slug)
+    # Cộng hưởng theo quyền của LƯỢT (ngữ cảnh lượt do host gắn): trợ lý đang bật thì có dòng gợi ý và câu ba lối;
+    # tắt, hay không có lượt, thì prompt y như trước A1.
+    if _resonance_turn_enabled(brain):
+        sysprompt = (sysprompt.replace(_AGENT_HAI_LOI, _AGENT_BA_LOI)
+                     + "\n# Cộng hưởng (đang bật cho bạn)\n- " + _RESONANCE_GOAL_HINT + "\n")
     return (sysprompt + "\n\n# Kênh: bạn đang trò chuyện trực tiếp với chủ trên dashboard Javis "
             "(trang Cộng sự). Trả lời như đang nói chuyện, theo ngôn ngữ chủ đang dùng; "
             "không cần báo cáo dạng nhiệm vụ trừ khi được giao việc cụ thể.")

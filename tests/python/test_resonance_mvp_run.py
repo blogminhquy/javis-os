@@ -269,7 +269,8 @@ check("restart: hạn mức của lượt dở không bị tính hai lần", sto
 check("restart: đánh giá dùng đầu ra đã đối soát", a_r.verdict == "met")
 g_r2 = make_goal()
 target(g_r2).unlink(missing_ok=True)
-act2 = store.begin_action(P, g_r2.id, g_r2.revision, "work", lease_until=clock_r() - 5, now=clock_r() - 600)
+act2 = store.begin_action(P, g_r2.id, g_r2.revision, "work", lease_until=clock_r() - 5, now=clock_r() - 600,
+                          intent=RA.pin(store, BRAIN))
 deps_r2, _, eng_r2 = make_deps(clock=clock_r)
 adv(g_r2.id, {"kind": "wake"}, deps_r2)
 rec2 = store.get_action(P, act2["id"])
@@ -515,7 +516,8 @@ check("P1-2a guard mất trong lúc worker chạy: không đăng, không thành 
 keep2.write_text("giữ\n", encoding="utf-8")
 g_gr = make_goal(guards=GUARD_KEEP)
 target(g_gr).unlink(missing_ok=True)
-act_gr = store.begin_action(P, g_gr.id, g_gr.revision, "work", lease_until=Clock()() - 5, now=Clock()() - 600)
+act_gr = store.begin_action(P, g_gr.id, g_gr.revision, "work", lease_until=Clock()() - 5, now=Clock()() - 600,
+                            intent=RA.pin(store, BRAIN))
 Path(g_gr.output_root).mkdir(parents=True, exist_ok=True)
 (Path(g_gr.output_root) / f"{act_gr['id']}.md").write_text(GOOD.replace("—", "-"), encoding="utf-8", newline="\n")
 keep2.unlink()
