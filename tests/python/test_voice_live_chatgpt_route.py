@@ -18,6 +18,7 @@ import types
 import unittest
 from pathlib import Path
 
+import lang
 import sessions
 import voice_live
 
@@ -86,14 +87,15 @@ class ChatGPTLiveRouteTests(unittest.IsolatedAsyncioTestCase):
 
                 async def close(self): pass
 
-            async def ask(req, conv_sid, brain, key="", progress=None):
+            async def ask(req, conv_sid, brain, key="", progress=None, call_lang=""):
+                calls["lang"] = call_lang
                 return "## Doanh thu hôm nay\n\n| Kênh | Tiền |\n|---|---|\n| POS | 12.500.000 |"
 
             def write_auth():
                 calls["auth"] += 1
 
             namespace = dict(
-                asyncio=asyncio, json=json, sys=sys, WebSocket=Socket, Query=lambda x: x,
+                asyncio=asyncio, json=json, sys=sys, WebSocket=Socket, Query=lambda x: x, lang_mod=lang,
                 cfgmod=types.SimpleNamespace(gate_active=lambda: False,
                                              read_settings=lambda: {"voice": {"live_provider": "chatgpt"}}),
                 voice_live=types.SimpleNamespace(
@@ -123,6 +125,7 @@ class ChatGPTLiveRouteTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(types_in_order, ["tool:running", "tool_result:", "tool:done"])
                 full = next(f for f in frames if f["type"] == "tool_result")
                 self.assertIn("12.500.000", full["text"])
+                self.assertEqual(calls["lang"], "vi", "bộ não chính trả lời đúng thứ tiếng của cuộc gọi")
                 self.assertIn("| POS |", full["text"], "bong bóng giữ bảng đầy đủ")
                 self.assertEqual(len(calls["results"]), 1)
                 saved = [m["content"] for m in store.get_messages(sid) if m["role"] == "assistant"]
