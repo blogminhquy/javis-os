@@ -5,8 +5,9 @@
 - **Nguồn:** [phạm vi và lộ trình 08/10](2026-10-08-resonance-agent-scope-roadmap.md); review đề xuất A1 của ChatGPT (`exports/reviews/Resonance-A1-review-and-Claude-instructions-2026-10-08.md`, ngoài git).
 - **Trạng thái:**
   - Thiết kế đã qua vòng review 1. Review đồng ý hướng và năm quyết định ở mục 11; có 2 P1 và 1 P2, đã sửa ở vòng 2 (mục 12).
-  - Đã code: sổ đăng ký agent, liên kết phiên, bảng phụ, sao lưu, gắn agent vào ngữ cảnh lượt.
-  - Chưa nối: tool, cổng, API, worker, giao diện.
+  - Review vòng 2 cho tiếp tục, kèm một P2 về luồng bật (mục 1, 13).
+  - Đã nối đủ: sổ đăng ký, liên kết phiên, bảng phụ, sao lưu, ngữ cảnh lượt, tool, cổng (scheduler, bàn giao, đăng, phép thử), API của chủ dự án, giao diện tối thiểu. Chờ review tích hợp A1.
+  - Hướng dẫn dùng, nâng cấp, quay về, khôi phục: `docs/dev/resonance-a1-migration.md`.
   - Chưa gọi model, chưa merge.
 
 ## 0. Phạm vi

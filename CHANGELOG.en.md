@@ -10,7 +10,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.87.0] - 2026-10-08
 ### Added
-- **Resonance per assistant.** Each assistant has its own Resonance switch; only an assistant with it on sets and follows goals, and ordinary chat no longer creates goals. The assistant page shows each goal's progress.
+- **Resonance per assistant.** Each assistant has its own switch on the Team page. Only an assistant with it on sets and pursues goals; regular chat no longer creates goals. The assistant's right panel lists the goals it is pursuing.
+### Changed
+- **The per-brain Resonance switch is no longer used.** Goals set before this version wait under "Waiting for assignment" in Settings and do not run until you assign them to an assistant.
+- **Deleting and recreating an assistant with the same name makes a new assistant.** It must be turned on again; old goals and conversations stay with the old one. Turning it on in a conversation opened before that prompts you to open a new conversation.
 
 ## [0.86.1] - 2026-10-08
 ### Improved
