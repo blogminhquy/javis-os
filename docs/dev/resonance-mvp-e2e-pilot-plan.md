@@ -498,7 +498,9 @@ Từ A1, Cộng hưởng chỉ bật theo từng trợ lý; công tắc brain c�
 
 **Lần chạy thật:** chưa chạy. Cần chủ dự án duyệt riêng phạm vi và hạn mức. Không dùng lại hạn mức pilot cũ.
 
-## Lần chạy A1-1 (08/10/2026): phiên trợ lý, kỹ thuật đạt, chờ duyệt nội dung
+## Lần chạy A1-1 (08/10/2026): phiên trợ lý, kỹ thuật đạt
+
+Mục này ghi trạng thái LÚC CHẠY (`pending_content_review`). Kết luận nội dung ở mục hậu kiểm ngay sau.
 
 - **Duyệt:** chủ dự án duyệt trực tiếp đúng một lần, theo gói `exports/reviews/A1-pilot-approval-request.md` (review gói: `PR-590-A1-e01eb3c2-pilot-review.md`).
 - **Commit:** `e01eb3c2`, `server_dirty: false`.
@@ -532,3 +534,30 @@ Từ A1, Cộng hưởng chỉ bật theo từng trợ lý; công tắc brain c�
 - Bộ não tự viết cả hai bản nên đường việc nền sửa bản bằng model thật không được dùng ở lần này. Đường đó có bằng chứng ở pilot M3 và test engine giả.
 - Xác nhận cuối là mô phỏng.
 - Chưa nghiệm thu nội dung: người review đọc hai bản theo checklist (bản đầu 4 mục, bản sửa 3 mục) rồi chốt.
+
+## Nghiệm thu nội dung A1-1 (hậu kiểm, 08/10/2026)
+
+- **Biên bản review:** `exports/reviews/PR-590-A1-pilot1-e0a60352-content-review.md` (ngoài git).
+- JSON gốc `resonance-a1-pilot-1.json` giữ nguyên `acceptance: pending_content_review` đúng như lúc chạy. Mục này là kết luận hậu kiểm, không ghi đè lịch sử. Hai file sản phẩm giữ nguyên bytes.
+
+**Kết luận: đạt nội dung.** Bản đầu 4/4, bản sửa 3/3 mục checklist. Không có lỗi chặn.
+
+| Bản | File | SHA-256 | Revision | Kết quả |
+|---|---|---|---|---|
+| Bản đầu | `resonance-a1-pilot-1-draft1.md` | `629afff4280d2549b96eb0da046c054f189ed2777ffed30f6f95aefe5570641d` | 1 | 4/4 |
+| Bản sửa | `resonance-a1-pilot-1-draft2.md` | `38ab1df2e718c62a14945f9682c394992e30379c1e55736643f78a54766d84ee` | 2 | 3/3 |
+
+- Người review tự tính hash từ bytes và so với git blob; hash lời giao và góp ý khớp JSON. 17/17 kiểm tính nhất quán của hồ sơ đạt.
+- Runtime `e01eb3c2`, hồ sơ `e0a60352`; giữa hai commit chỉ có file tài liệu và bằng chứng.
+
+**Phạm vi:**
+- Một kịch bản định tuyến thành công trong phiên trợ lý đã bật. Chưa phải tỷ lệ ổn định trên mọi yêu cầu hay engine.
+- 2 lượt chat Opus, 0 lượt việc nền Sonnet. Cả hai bản do lượt chat viết và host tiếp nhận. Lần này không đo đường việc nền sửa bản bằng model thật.
+- Xác nhận cuối S6 là mô phỏng qua API.
+- Prompt phiên trợ lý không được host chèn CLAUDE.md. Hồ sơ không kiểm việc Claude Code có tự tìm và nạp file đó hay không.
+
+**Hai góp ý câu chữ, không chặn, không vá file bằng chứng:**
+1. Vài câu khẳng định hậu quả quá tuyệt đối ("không khiếu nại được", "Coi như đã nhận đủ"). Nên viết theo tác dụng thực tế: khó chứng minh tình trạng lúc giao, dễ phát sinh tranh chấp.
+2. Ví dụ nối tiếp ở bản sửa thêm "Hỏng 1 thùng mã A123 (ướt)" mà bảng bước 4 chưa nhắc. Nên ghi "giả sử có thêm một thùng A123 bị ướt".
+
+Cần bản hướng dẫn dùng thật thì tạo bản biên tập riêng, không sửa file đã đóng băng.

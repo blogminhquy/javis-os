@@ -2,6 +2,12 @@
 
 Ngày kiểm: 08/10/2026, Asia/Saigon. Snapshot mã: `09f254d0e4d009451dc58cb2e97788631c5acc1a` (main 0.86.1). Phạm vi: Resonance, agent/workflow/loop/học có liên quan và bộ tài liệu tiến độ. Không kiểm toán toàn bộ tính năng Javis.
 
+## Cập nhật sau A1 (08/10/2026, tối)
+
+Phần còn lại của tài liệu là ảnh chụp lúc rà (sáng 08/10), giữ làm lịch sử. Từ đó:
+- A1 đạt review mã và pilot A1-1 (một kịch bản), chưa merge. Xem [biên bản A1](resonance-a1-verification.md).
+- Con số "0/5 mốc" bên dưới là của lúc rà. A1 chỉ tính là mốc hoàn tất khi đã merge và phát hành.
+
 ## Bổ sung sau báo cáo kiểm cục bộ
 
 Theo báo cáo Claude được chủ dự án chuyển lại: server thử localhost 0.86.0 đã đạt 13 kiểm không model và một chat thật (1 Opus, engine ok, turn completed). ChatGPT chưa chạy lại; cần gắn báo cáo/log và commit vào hồ sơ triển khai. Không suy ra server thật cổng 7777 hoặc VPS đã được kiểm. VPS vẫn chưa kiểm vì kết nối Hostinger ngắt.

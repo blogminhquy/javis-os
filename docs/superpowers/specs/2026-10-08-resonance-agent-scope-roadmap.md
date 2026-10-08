@@ -2,7 +2,7 @@
 
 Ngày chốt hướng: 08/10/2026. Mã đối chiếu: main `09f254d0e4d009451dc58cb2e97788631c5acc1a` (0.86.1). MVP Resonance đã phát hành trong 0.86.0, commit `438f8309`, PR #587.
 
-**Trạng thái tài liệu:** hướng sản phẩm theo yêu cầu mới của chủ dự án, kèm lộ trình và điều kiện nghiệm thu. Chưa triển khai các thay đổi A1–A5 dưới đây. Đây không phải lệnh chạy model, bật tính năng hoặc sửa hệ thống đang vận hành. Kế hoạch code chi tiết của từng PR được viết từ tài liệu này và mã mới nhất khi bắt đầu.
+**Trạng thái tài liệu:** hướng sản phẩm theo yêu cầu mới của chủ dự án, kèm lộ trình và điều kiện nghiệm thu. Tiến độ cập nhật 08/10/2026: A1 đạt review mã và pilot một kịch bản (mục 12), chờ chủ dự án quyết merge; A2–A5 chưa triển khai. Đây không phải lệnh chạy model, bật tính năng hoặc sửa hệ thống đang vận hành. Kế hoạch code chi tiết của từng PR được viết từ tài liệu này và mã mới nhất khi bắt đầu.
 
 ## 1. Điều anh muốn và điều giữ lại
 
@@ -125,7 +125,7 @@ Vòng đích: **ghi phản hồi có nguồn → đề xuất thay đổi nhỏ 
 | Mốc | Kết quả nhìn thấy được | Trạng thái 08/10 |
 |---|---|---|
 | D0 | Xác minh vận hành trên máy triển khai | Localhost thử ghim `438f8309` (0.86.0) đạt 13 kiểm không model và 1 chat thật; commit, cách chạy và kết quả ở [biên bản D0](../../dev/resonance-d0-local-check-2026-10-08.md). VPS chưa kiểm, không chặn thiết kế A1 |
-| A1 | Trang agent có công tắc Cộng hưởng, mục tiêu đúng chủ thể và tiến độ tối thiểu | Chưa triển khai; ưu tiên đầu |
+| A1 | Trang agent có công tắc Cộng hưởng, mục tiêu đúng chủ thể và tiến độ tối thiểu | Đạt review mã (`cc79deb2`), pilot A1-1 đạt kỹ thuật và nội dung trong một kịch bản. PR #590, chưa merge. Biên bản: [resonance-a1-verification](../../dev/resonance-a1-verification.md) |
 | A2 | Agent thức vì lý do cụ thể, ngủ khi chờ, không gọi model vô ích | Có nền MVP; chưa tích hợp nhịp thích nghi theo agent |
 | A3 | Phản hồi dẫn tới điều chỉnh có kiểm chứng; không chạy theo emoji | Có feedback M4 và so phương pháp M5; chưa có vòng học reaction |
 | A4 | Các engine nộp sản phẩm theo cùng hợp đồng host | Có bàn giao Claude Code; adapter khác chưa có |
@@ -160,5 +160,11 @@ Nguồn audit và các khoảng trống bằng chứng: [Báo cáo tiến độ 
 
 - **Phạm vi A1 thu hẹp:** chỉ lập mục tiêu trong phiên của agent đã bật Cộng hưởng. Đường giao việc từ chat thường sang agent là hạng mục riêng sau A1, không gộp vào A2. Chat thường vẫn xem thẻ hợp lệ theo quyền chủ dự án; lệnh dừng và huỷ không mất hiệu lực.
 - **D0:** biên bản [resonance-d0-local-check-2026-10-08.md](../../dev/resonance-d0-local-check-2026-10-08.md). Bằng chứng vận hành cục bộ, không phải VPS hay server cổng 7777.
-- **Thiết kế A1:** [2026-10-08-resonance-a1-agent-scope-design.md](2026-10-08-resonance-a1-agent-scope-design.md). Chờ review.
+- **Thiết kế A1:** [2026-10-08-resonance-a1-agent-scope-design.md](2026-10-08-resonance-a1-agent-scope-design.md). Đã qua các vòng review, xem mục 12 dưới.
 
+## 12. Tiến độ A1 (08/10/2026)
+
+- **Mã:** PR #590. Review mã đạt ở `cc79deb2`; `e01eb3c2` thêm test hồi quy phục hồi, `e0a60352` thêm hồ sơ pilot.
+- **Pilot A1-1** (phiên trợ lý, 2 lượt chat Opus, 0 việc nền Sonnet, xác nhận cuối mô phỏng): đạt kỹ thuật và nội dung, trong một kịch bản.
+- **Biên bản nghiệm thu:** [resonance-a1-verification](../../dev/resonance-a1-verification.md).
+- **Chưa làm:** chưa merge (chờ chủ dự án). A2–A5 chưa bắt đầu code. Hiệu năng VPS đi PR riêng (#592).

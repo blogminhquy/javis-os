@@ -6,7 +6,8 @@
 - **Trạng thái:**
   - Thiết kế đã qua vòng review 1. Review đồng ý hướng và năm quyết định ở mục 11; có 2 P1 và 1 P2, đã sửa ở vòng 2 (mục 12).
   - Review vòng 2 cho tiếp tục, kèm một P2 về luồng bật (mục 1, 13).
-  - Đã nối đủ: sổ đăng ký, liên kết phiên, bảng phụ, sao lưu, ngữ cảnh lượt, tool, cổng (scheduler, bàn giao, đăng, phép thử), API của chủ dự án, giao diện tối thiểu. Chờ review tích hợp A1.
+  - Đã nối đủ: sổ đăng ký, liên kết phiên, bảng phụ, sao lưu, ngữ cảnh lượt, tool, cổng (scheduler, bàn giao, đăng, phép thử), API của chủ dự án, giao diện tối thiểu.
+  - Review mã đạt ở `cc79deb2` (sau các vòng ở mục 12 đến 14). Pilot A1-1 đạt kỹ thuật và nội dung trong một kịch bản. Biên bản: `docs/dev/resonance-a1-verification.md`.
   - Hướng dẫn dùng, nâng cấp, quay về, khôi phục: `docs/dev/resonance-a1-migration.md`.
   - Chưa gọi model, chưa merge.
 
