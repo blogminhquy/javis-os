@@ -74,10 +74,11 @@ DB = Path(_STATE) / "resonance.sqlite3"
 
 
 def row(channel, brain=BRAIN):
-    return lambda sid: {"id": sid, "channel": channel, "brain": brain}
+    # Mỗi ca dùng id phiên riêng: phiên được ghim vào mã agent ở lần phân giải đầu (review PR #590, P1-1).
+    return lambda sid: {"id": sid, "channel": channel, "brain": brain, "created_at": time.time()}
 
 
-check("chưa có kho: agent None", main._resonance_turn_agent("s", BRAIN, row("agent:viet-bai")) is None)
+check("chưa có kho: agent None", main._resonance_turn_agent("s1", BRAIN, row("agent:viet-bai")) is None)
 check("chưa có kho: không tạo resonance.sqlite3 chỉ để đọc", not DB.exists())
 
 OWNER = RS.Principal("owner", "owner", main._brain_key(BRAIN))
@@ -85,37 +86,37 @@ gs = main._resonance_store()
 A = gs.agent_set_enabled(OWNER, "viet-bai", True)
 B = gs.agent_set_enabled(OWNER, "kiem-tra", True)
 
-got = main._resonance_turn_agent("s", BRAIN, row("agent:viet-bai"))
+got = main._resonance_turn_agent("s2", BRAIN, row("agent:viet-bai"))
 check("phiên agent đã đăng ký: đúng mã, slug, version",
       got == {"key": A["agent_key"], "slug": "viet-bai", "config_version": A["config_version"]}, got)
-check("chat thường: None", main._resonance_turn_agent("s", BRAIN, row("web")) is None)
-check("phiên không có dòng: None", main._resonance_turn_agent("s", BRAIN, lambda sid: None) is None)
-check("phiên quy trình cùng slug: None", main._resonance_turn_agent("s", BRAIN, row("workflow:viet-bai")) is None)
-check("agent có file nhưng chưa đăng ký: None", main._resonance_turn_agent("s", BRAIN, row("agent:chua-dk")) is None)
+check("chat thường: None", main._resonance_turn_agent("s3", BRAIN, row("web")) is None)
+check("phiên không có dòng: None", main._resonance_turn_agent("s4", BRAIN, lambda sid: None) is None)
+check("phiên quy trình cùng slug: None", main._resonance_turn_agent("s5", BRAIN, row("workflow:viet-bai")) is None)
+check("agent có file nhưng chưa đăng ký: None", main._resonance_turn_agent("s6", BRAIN, row("agent:chua-dk")) is None)
 check("phiên lưu ở brain khác: None",
-      main._resonance_turn_agent("s", BRAIN, row("agent:viet-bai", brain=OTHER)) is None)
+      main._resonance_turn_agent("s7", BRAIN, row("agent:viet-bai", brain=OTHER)) is None)
 check("lượt ở brain khác với phiên: None",
-      main._resonance_turn_agent("s", OTHER, row("agent:viet-bai")) is None)
+      main._resonance_turn_agent("s8", OTHER, row("agent:viet-bai")) is None)
 
 
 def _boom(sid):
     raise RuntimeError("kho phiên hỏng")
 
 
-check("đọc phiên lỗi: None, không làm hỏng lượt", main._resonance_turn_agent("s", BRAIN, _boom) is None)
+check("đọc phiên lỗi: None, không làm hỏng lượt", main._resonance_turn_agent("s9", BRAIN, _boom) is None)
 gs.agent_set_enabled(OWNER, "viet-bai", False)
-off = main._resonance_turn_agent("s", BRAIN, row("agent:viet-bai"))
+off = main._resonance_turn_agent("s10", BRAIN, row("agent:viet-bai"))
 check("agent đang tắt vẫn có danh tính (cổng ở tool nói lý do), version mới",
       off is not None and off["config_version"] == A["config_version"] + 1, off)
 gs.agent_set_enabled(OWNER, "viet-bai", True)
 (Path(BRAIN) / "agents" / "kiem-tra.md").unlink()
-check("file agent mất: None", main._resonance_turn_agent("s", BRAIN, row("agent:kiem-tra")) is None)
+check("file agent mất: None", main._resonance_turn_agent("s11", BRAIN, row("agent:kiem-tra")) is None)
 check("file agent mất: sổ chuyển missing", gs.agent(main._brain_key(BRAIN), "kiem-tra")["status"] == "missing")
 (Path(BRAIN) / "agents" / "kiem-tra.md").write_text("---\nname: kiem-tra\n---\nkhác\n", encoding="utf-8")
 check("file xuất hiện lại: vẫn None tới khi chủ dự án xác nhận",
-      main._resonance_turn_agent("s", BRAIN, row("agent:kiem-tra")) is None)
+      main._resonance_turn_agent("s12", BRAIN, row("agent:kiem-tra")) is None)
 gs.agent_confirm(OWNER, B["agent_key"], True)
-B2 = main._resonance_turn_agent("s", BRAIN, row("agent:kiem-tra"))
+B2 = main._resonance_turn_agent("s13", BRAIN, row("agent:kiem-tra"))
 check("xác nhận đúng trợ lý cũ: giữ mã", B2 is not None and B2["key"] == B["agent_key"], B2)
 
 # ───────────────────────────── 3. thân thật của run_turn ─────────────────────────────
@@ -178,6 +179,40 @@ check("lượt chat thường chạy xen: agent None, vẫn có phiên và id ti
       all(x and x["agent"] is None and x["session_id"] == SID_N and x["message_id"] == MID_N for x in rn), rn[0])
 check("lượt dashboard vẫn là của chủ dự án", all(x and x["la_chu"] and x["kenh"] == "dashboard" for x in ra + rn))
 check("hết lượt: không còn ngữ cảnh", turn_context.current() is None)
+
+
+# ───────────── vòng đời xoá, tạo lại, restart, đổi tên tay trên PHIÊN ĐÃ LƯU (review PR #590, P1-1) ─────────────
+def turn_agent(sid, mid):
+    seen.pop(sid, None)
+    asyncio.run(_ns["run_turn"](sid, "tin", BRAIN, "tx", None, user_mid=mid))
+    return (seen.get(sid) or [None])[0]["agent"]
+
+
+AF = Path(BRAIN) / "agents" / "viet-bai.md"
+gs.agent_retire(OWNER, "viet-bai")                       # xoá qua host
+AF.unlink()
+time.sleep(0.01)
+AF.write_text("---\nname: viet-bai\n---\nTrợ lý khác, cùng tên file\n", encoding="utf-8")
+A2 = gs.agent_set_enabled(OWNER, "viet-bai", True)
+check("tạo lại cùng slug: mã mới", A2["agent_key"] != A["agent_key"])
+check("phiên cũ của A (đã lưu, đã có lượt) KHÔNG nhận mã mới qua run_turn", turn_agent(SID_A, MID_A) is None)
+SID_A2 = session_store.create_session(brain=BRAIN, engine="test", model="test", channel="agent:viet-bai")
+MID_A2 = session_store.append_message(SID_A2, "user", "Chào trợ lý mới")
+ag = turn_agent(SID_A2, MID_A2)
+check("phiên mới của trợ lý mới: nhận đúng mã mới", ag and ag["key"] == A2["agent_key"], ag)
+main._RESONANCE_STORE = None                             # như khởi động lại: mở kho mới từ đĩa
+check("restart: phiên cũ vẫn không nhận mã mới", turn_agent(SID_A, MID_A) is None)
+ag = turn_agent(SID_A2, MID_A2)
+check("restart: phiên mới vẫn đúng mã mới", ag and ag["key"] == A2["agent_key"], ag)
+AF.rename(AF.with_name("viet-bai-moi.md"))               # đổi tên tay
+check("đổi tên tay: phiên mất danh tính", turn_agent(SID_A2, MID_A2) is None)
+check("đổi tên tay: mã chuyển missing", main._resonance_store().agent_by_key(
+    main._brain_key(BRAIN), A2["agent_key"])["status"] == "missing")
+AF.with_name("viet-bai-moi.md").rename(AF)
+check("đổi tên lại như cũ: vẫn không tự lấy lại quyền", turn_agent(SID_A2, MID_A2) is None)
+main._resonance_store().agent_confirm(OWNER, A2["agent_key"], True)
+ag = turn_agent(SID_A2, MID_A2)
+check("chủ dự án xác nhận đúng trợ lý: phiên có lại danh tính", ag and ag["key"] == A2["agent_key"], ag)
 
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)

@@ -3,7 +3,11 @@
 - **Ngày:** 08/10/2026.
 - **Nền mã:** `main` `09f254d0e4d009451dc58cb2e97788631c5acc1a` (0.86.1). Nhánh `claude/resonance-a1-agent-scope`.
 - **Nguồn:** [phạm vi và lộ trình 08/10](2026-10-08-resonance-agent-scope-roadmap.md); review đề xuất A1 của ChatGPT (`exports/reviews/Resonance-A1-review-and-Claude-instructions-2026-10-08.md`, ngoài git).
-- **Trạng thái:** thiết kế chờ review. Chưa code A1, chưa gọi model, chưa merge.
+- **Trạng thái:**
+  - Thiết kế đã qua vòng review 1. Review đồng ý hướng và năm quyết định ở mục 11; có 2 P1 và 1 P2, đã sửa ở vòng 2 (mục 12).
+  - Đã code: sổ đăng ký agent, liên kết phiên, bảng phụ, sao lưu, gắn agent vào ngữ cảnh lượt.
+  - Chưa nối: tool, cổng, API, worker, giao diện.
+  - Chưa gọi model, chưa merge.
 
 ## 0. Phạm vi
 
@@ -51,8 +55,20 @@ Mọi lần đổi đều có dòng trong bảng sự kiện mới `resonance_ag
 - **File biến mất ngoài host** (xoá tay, đổi tên tay): khi cổng thấy thiếu file, dòng chuyển `missing`, mọi mục tiêu của mã đó bị chặn.
   - File cùng slug xuất hiện lại không tự mở khoá. Chủ dự án chọn "xác nhận đúng trợ lý này" (giữ mã) hoặc "đây là trợ lý mới" (mã mới).
   - Giới hạn ghi rõ: nếu file bị xoá rồi tạo lại khi host không quan sát (ví dụ lúc server tắt), host không phân biệt được.
-- **Đổi tên:** chưa có thao tác có quản lý. Đổi tên tay xem như file cũ biến mất (`missing`) cộng một agent chưa đăng ký. Chủ dự án chuyển mục tiêu bằng thao tác gán lại (mục 6), có dấu vết.
+- **Đổi tên:** chưa có thao tác có quản lý. Đổi tên tay xem như file cũ biến mất (`missing`) cộng một agent chưa đăng ký. Mục tiêu và phiên của mã cũ KHÔNG chuyển sang agent mới trong A1 (mục 5).
 - **Hai brain cùng slug:** khác `brain_id` nên khác dòng, khác mã. Mọi truy vấn đều lọc theo cả hai.
+
+**Ghim phiên vào mã agent** (sửa review vòng 1, P1-1). Slug chỉ là tên file, nên tra "agent hiện tại của slug" sẽ để phiên cũ nhận nhầm agent tạo lại cùng tên. Host giữ bảng `session_agents(session_id, brain_id, agent_key)`:
+- **Phiên đã ghim** vào mã A thì mãi là của A.
+  - A còn `active`: lượt có danh tính A.
+  - A `missing` hay `retired`: lượt không có danh tính. Không tự chuyển sang mã mới của cùng slug.
+  - Lịch sử vẫn đọc được.
+- **Phiên chưa ghim** được ghim ở lượt đầu vào dòng `active` hiện tại của slug, khi và chỉ khi chắc nó thuộc dòng đó:
+  - đây là mã duy nhất từng có của `(brain, slug)`, gồm cả phiên mở trước lần bật đầu tiên; hoặc
+  - phiên được tạo từ lúc mã đó được cấp trở đi.
+- **Phiên tạo dưới thời một mã cũ mà chưa có lượt nào** thì không nhận mã mới.
+- A1 chưa có thao tác nối lại phiên cũ sang agent khác. Muốn dùng agent mới thì mở phiên mới.
+- Mỗi lần ghim có sự kiện `session_pinned`. Liên kết nằm trong kho nên giữ qua restart.
 
 ## 2. Ràng buộc lời gọi tool với lượt và agent
 
@@ -66,7 +82,7 @@ Review chỉ ra: sổ `luot_dang_chay.doan_luot(vault)` đoán "lượt duy nh�
 **Thay đổi:**
 - `run_turn` (dashboard) gắn thêm vào ngữ cảnh lượt:
   - `session_id` và `message_id` của tin người dùng;
-  - khối `agent = {"key", "slug", "config_version"}`, chỉ khi phiên có kênh `agent:<slug>` và sổ đăng ký có dòng `active` của đúng `(brain_id, slug)`. Ngược lại `agent = None`.
+  - khối `agent = {"key", "slug", "config_version"}`, chỉ khi phiên có kênh `agent:<slug>` của đúng brain, file agent còn đó, và mã GHIM của phiên (mục 1) còn `active`. Ngược lại `agent = None`.
 - Host phân giải các giá trị này từ dòng phiên đã lưu và sổ đăng ký, không lấy gì từ lời model.
 - Tool `javis_goal` lấy danh tính từ `turn_context.current()` ngay lúc gọi, không nhận `agent_id` trong tham số.
   - Thiếu ngữ cảnh, `agent = None`, agent không còn `active` hay đang tắt, hay `config_version` lệch: từ chối TRƯỚC mọi lần ghi kho, không gọi model.
@@ -113,10 +129,10 @@ Cổng là một hàm của host, `agent_gate(goal hay ngữ cảnh lượt)`, g
 | Đường | Hiện nay | A1 |
 |---|---|---|
 | Tool `javis_goal` create, update, list | công tắc brain + `doan_luot` | ngữ cảnh lượt có agent `active`, `enabled`, version khớp; list chỉ trả mục tiêu của đúng agent |
-| `POST /goal-requests` | chủ dự án, brain bật | chủ dự án; tin phải thuộc phiên `agent:<slug>` của agent đang bật; mục tiêu thuộc agent đó |
-| Scheduler (`tick` → `advance` → `_gate`) | công tắc brain | `goals.agent_key` của mục tiêu: rỗng thì `blocked/unassigned`; agent không `active` hay tắt thì `blocked/agent_off`. Kiểm lại bằng code, không gọi model. Không cần lượt chat nào đang sống |
+| `POST /goal-requests` | chủ dự án, brain bật | chủ dự án; tin phải thuộc một phiên mà mã GHIM (mục 1, cùng hàm với `run_turn`) là agent đang bật; mục tiêu thuộc mã đó. Không phân giải tin cũ theo slug hiện tại |
+| Scheduler (`tick` → `advance` → `_gate`) | công tắc brain | mã ở `goal_agents` của mục tiêu: không có thì `blocked/unassigned`; agent không `active` hay tắt thì `blocked/agent_off`. Kiểm lại bằng code, không gọi model. Không cần lượt chat nào đang sống |
 | Bàn giao bản viết trong lượt (`finish_handoff`) | công tắc brain, pause, guard | thêm: agent của mục tiêu còn bật và version bằng version ghi lúc lập hay sửa trong lượt |
-| Đăng sản phẩm (`_publish`), kết luận thành công | `_gate` | `_gate` gồm cổng agent; lệch version so với lúc giữ lượt (`begin_action` ghi version vào intent) thì giữ đầu ra trong vùng làm việc, không đăng |
+| Đăng sản phẩm (`_publish`), kết luận thành công | `_gate` | `_gate` gồm cổng agent; intent của hành động (`begin_action` ghi `agent_key` và version) lệch mã hay version hiện tại của mục tiêu thì giữ đầu ra trong vùng làm việc, không đăng |
 | Phép thử và áp dụng cách làm (M5) | `_trial_gate` gọi `_gate` | như trên; `apply_method` kiểm lại cổng agent trong cùng giao dịch |
 | Xem, tạm dừng, huỷ, bỏ chỉ dẫn, xác nhận | không đòi công tắc | giữ nguyên: chủ dự án luôn xem, dừng, huỷ được, kể cả khi agent tắt hay `missing` |
 | Dòng gợi ý trong system prompt | brain bật | chỉ có trong phiên của agent đang bật |
@@ -132,25 +148,42 @@ Cổng là một hàm của host, `agent_gate(goal hay ngữ cảnh lượt)`, g
 
 ## 5. Kho và migration
 
-**Thay đổi schema** (chỉ thêm, không xoá hay đổi cột cũ):
-- `goals.agent_key TEXT` (cho phép rỗng).
-- Bảng `resonance_agents`, `resonance_agent_events`.
-- `actions.intent_json` ghi thêm `agent_config_version`.
-- `handoffs` ghi thêm `agent_key` và `agent_config_version`.
+**Thay đổi schema** (sửa review vòng 1, P1-2). A1 KHÔNG thêm, xoá hay đổi cột của bảng nào có từ 0.86.x. Lý do: mã 0.86.1 ghi một số bảng theo vị trí cột (`INSERT INTO handoffs VALUES(?,...)`), nên thêm cột là bản cũ hết ghi được khi quay về. Mọi dữ liệu A1 nằm ở bảng riêng:
+- `resonance_agents`, `resonance_agent_events`: sổ đăng ký và dấu vết.
+- `session_agents(session_id, brain_id, agent_key)`: phiên ghim vào mã (mục 1).
+- `goal_agents(goal_id, brain_id, agent_key)`: mục tiêu thuộc mã nào. Không có dòng nghĩa là chưa gán.
+- `handoff_agents(goal_id, revision, agent_key, agent_config_version)`: agent và version lúc mở bàn giao trong lượt.
+- `actions.intent_json` là JSON có sẵn, ghi thêm `agent_key` và `agent_config_version`. Không đổi cột.
 
-**Mục tiêu cũ** (đã có trước A1, `agent_key` rỗng):
+Test khoá danh sách cột và thứ tự của 13 bảng 0.86.1, nên sau này ai thêm cột vào bảng cũ thì test đỏ.
+
+**Mục tiêu cũ** (không có dòng `goal_agents`):
 - Lịch sử, bằng chứng, revision giữ nguyên.
 - Trạng thái chạy thành `blocked/unassigned` ở lần cổng kế tiếp. Không tự chạy, không tự gán theo tên gần giống hay phiên gần nhất.
 - Chủ dự án gán một lần bằng `POST /goals/{id}/assign {agent_key, expected_revision}`.
-  - Chỉ gán cho agent `active` cùng brain.
-  - Ghi sự kiện `agent_assigned` (ai gán, từ đâu sang đâu).
-  - Gán xong thì cổng mở theo công tắc của agent mới.
+  - Chỉ gán mục tiêu CHƯA gán, cho agent `active` cùng brain. CAS bằng `expected_revision` và bằng "chưa có dòng `goal_agents`" trong cùng giao dịch.
+  - Ghi sự kiện `agent_assigned` (ai gán, cho mã nào).
+  - Gán xong, lần thức đầu là kiểm bằng code; cổng mở theo công tắc của agent đó.
+  - **Đầu ra và khoá lượt cũ mất hiệu lực:** hành động ghi trước lúc gán không có `agent_key` (hay mang mã khác) trong intent. Cổng đăng đòi intent mang đúng mã và version hiện tại của mục tiêu, nên đầu ra cũ chỉ nằm trong vùng làm việc, không được đăng. Khoá lượt (lease) cũ hết hạn theo luật M3; lượt sau giữ lại với intent mới.
 
-**Sao lưu và khôi phục:**
-- Lần đầu mở kho bằng mã A1, host chép `resonance.sqlite3` thành `resonance.sqlite3.pre-a1.bak` cạnh file gốc (chỉ một lần, không ghi đè bản sao đã có).
-- Rollback về 0.86.x: mã cũ bỏ qua cột và bảng mới (SQLite chấp nhận), dữ liệu còn nguyên. Mục tiêu tạo sau A1 vẫn đọc được. Khi đó công tắc brain cũ lại có hiệu lực theo luật cũ: tài liệu migration ghi rõ hệ quả này.
-- Khôi phục tay bằng bản `.pre-a1.bak` được mô tả trong hướng dẫn migration.
-- Kiểm bằng bản sao kho có dữ liệu thật trước khi phát hành, không chạy trên kho thật.
+**Chuyển mục tiêu giữa hai agent: chưa hỗ trợ trong A1.** Mục tiêu của mã đã `retired` hay `missing` nằm yên, bị chặn. Chủ dự án vẫn xem, tạm dừng, huỷ được. Thao tác chuyển (rename có quản lý, gán lại từ mã này sang mã khác) để sau A1, khi có thiết kế đủ cho lượt đang chạy và quyền trên đầu ra cũ.
+
+**Đối soát trước tác động** (quyết định 4, chi tiết theo review): trước mỗi lần đăng, tiếp nhận bản chat hay áp dụng cách làm, host kiểm trong cùng giao dịch:
+- `agent_key` ở intent của hành động bằng mã đang gắn của mục tiêu;
+- `config_version` ở intent bằng version hiện tại của mã đó;
+- mã còn `active` và bật;
+- revision, guard, baseline như M3 đến M5.
+
+Chỉ so số version là không đủ, vì hai agent khác nhau có thể trùng số.
+
+**Sao lưu, quay về và khôi phục:**
+- Lần đầu mã A1 mở kho có từ trước, host chép `resonance.sqlite3` thành `resonance.sqlite3.pre-a1.bak` bằng API backup của SQLite. Chỉ một lần, không ghi đè bản đã có.
+- **Quay về 0.86.x mà giữ kho đã nâng:** mã 0.86.1 bỏ qua các bảng mới và ghi được như cũ.
+  - Đã kiểm bằng mã 0.86.1 thật: tạo mục tiêu có bàn giao, sửa, sổ hành động, đăng, huỷ (`test_resonance_a1_rollback.py`).
+  - Hệ quả: 0.86.x không biết công tắc theo agent, công tắc brain cũ lại có hiệu lực. Vì vậy TRƯỚC khi quay về, chủ dự án tắt `Javis/resonance.json` của mọi brain (hay giữ tắt), để không có mục tiêu nào tự chạy trong lúc chuyển. Chỉ bật lại theo quyết định của chủ dự án.
+  - Nâng lại lên A1 sau đó: sổ đăng ký và liên kết phiên còn nguyên. Mục tiêu tạo trong lúc chạy 0.86.x không có dòng `goal_agents` nên chờ gán, không tự chạy.
+- **Khôi phục bằng `.pre-a1.bak`:** bản này chỉ có dữ liệu tới lúc nâng. Mọi mục tiêu, sự kiện, bằng chứng phát sinh sau đó KHÔNG có trong bản sao. Trước khi khôi phục, dừng server và chép riêng kho hiện tại để giữ trạng thái mới.
+- Kiểm migration bằng bản sao kho có dữ liệu thật trước khi phát hành, không chạy trên kho thật.
 
 ## 6. Giao diện tối thiểu
 
@@ -201,14 +234,17 @@ Kiểm bằng engine giả, SQLite thật, mapper SDK thật khi cần, chạy t
 | 10 | Giao diện và API | Trạng thái khớp kho; chủ dự án vẫn xem, dừng, huỷ khi agent tắt; xác nhận cũ không áp cho bản hay revision mới |
 | 11 | Đường agent đi hết vòng với engine giả: prompt có dòng gợi ý, tool có trong danh sách, ngữ cảnh lượt tới tool, bàn giao bản viết | Lập mục tiêu đúng agent, tiếp nhận bản, chờ người dùng |
 | 12 | Engine chưa hỗ trợ (Grok, Antigravity, lượt không có ngữ cảnh) | Tool từ chối rõ; giao diện báo chưa hỗ trợ |
+| 13 | Phiên cũ của agent đã xoá, agent mới cùng slug; restart; đổi tên tay rồi đổi lại | Phiên cũ không nhận mã mới; phiên mới nhận mã mới; đổi tên tay mất danh tính tới khi chủ dự án xác nhận. Đi qua phần gắn ngữ cảnh của `run_turn` với kho phiên thật |
+| 14 | Quay về 0.86.1 trên kho đã nâng, rồi nâng lại | Mã 0.86.1 thật ghi được mọi đường chính; nâng lại giữ dữ liệu A1; mục tiêu tạo lúc quay về chờ gán; bản `.pre-a1.bak` không bị ghi đè |
+| 15 | Bật agent `missing` khi cờ còn bật | Từ chối, không báo thành công, không tăng version |
 
 **Test cũ M1 đến M5:** các test hiện bật Resonance bằng `resonance.json` sẽ chuyển sang bật agent qua sổ đăng ký bằng một helper chung. Nội dung kiểm của chúng giữ nguyên.
 
 ## 9. File, API, schema dự kiến đổi
 
 - `server/resonance_store.py`:
-  - bảng `resonance_agents`, `resonance_agent_events`; cột `goals.agent_key`;
-  - hàm đăng ký, bật, tắt, xác nhận, gán;
+  - bảng `resonance_agents`, `resonance_agent_events`, `session_agents`, `goal_agents`, `handoff_agents`; không đổi cột bảng cũ;
+  - hàm đăng ký, bật, tắt, xác nhận, ghim phiên, gán;
   - lọc theo agent; sao lưu `.pre-a1.bak`.
 - `server/resonance.py`:
   - `agent_gate`;
@@ -244,3 +280,18 @@ Kiểm bằng engine giả, SQLite thật, mapper SDK thật khi cần, chạy t
 3. File biến mất rồi xuất hiện lại cần chủ dự án xác nhận. Không tự nhận lại quyền.
 4. Lệch `config_version` giữa lúc giữ lượt và lúc tác động thì giữ đầu ra, không đăng. Lần thức sau xét lại theo quyền hiện tại.
 5. Grok và Antigravity chưa hỗ trợ trong A1 vì chưa mang khoá lượt.
+
+Review vòng 1 đồng ý cả năm quyết định. Bổ sung theo review:
+- Quyết định 2 có thêm liên kết phiên bền vững (mục 1).
+- Quyết định 4 đối soát đủ mã, version, revision, guard, baseline (mục 5).
+- Quyết định 5: giao diện phân biệt ba khả năng (lập mục tiêu, nhận bản chat, engine việc nền). Bảng hỗ trợ engine chỉ được nghiệm thu khi có bằng chứng qua transport thật với dịch vụ giả, không chỉ đọc ngữ cảnh lượt trong `_do_turn` giả.
+
+## 12. Sửa sau review vòng 1 (PR #590, head trước `5ed5a9e3`)
+
+1. **P1-1 phiên cũ nhận nhầm agent mới.** Phiên được ghim vào mã agent ở bảng `session_agents` (mục 1). `run_turn` phân giải qua liên kết đó, không tra theo slug.
+2. **P1-2 quay về 0.86.x hỏng đường ghi.** Bỏ hết cột thêm vào bảng cũ; dữ liệu A1 chuyển sang bảng riêng (mục 5).
+   - Kiểm bằng mã 0.86.1 thật lấy qua `git show 09f254d0`.
+   - CI lấy riêng commit đó để test không bị bỏ qua.
+   - Hướng dẫn quay về và khôi phục ghi đúng giới hạn của bản sao.
+3. **P2-1 bật agent `missing` báo thành công.** Kiểm trạng thái trước nhánh "giá trị không đổi".
+4. **Chốt phạm vi gán:** A1 chỉ gán mục tiêu chưa gán. Chuyển giữa hai agent để sau A1 (mục 5).

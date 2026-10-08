@@ -129,7 +129,21 @@ CREATE TABLE IF NOT EXISTS resonance_agent_events(
   by TEXT NOT NULL DEFAULT '', version_before INTEGER, version_after INTEGER,
   payload_json TEXT NOT NULL DEFAULT '{}', created_at REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS resonance_agent_events_key ON resonance_agent_events(agent_key, id);
+CREATE TABLE IF NOT EXISTS session_agents(
+  session_id TEXT PRIMARY KEY, brain_id TEXT NOT NULL, agent_key TEXT NOT NULL, by TEXT NOT NULL DEFAULT '',
+  created_at REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS goal_agents(
+  goal_id TEXT PRIMARY KEY, brain_id TEXT NOT NULL, agent_key TEXT NOT NULL, by TEXT NOT NULL DEFAULT '',
+  created_at REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS goal_agents_key ON goal_agents(agent_key);
+CREATE TABLE IF NOT EXISTS handoff_agents(
+  goal_id TEXT NOT NULL, revision INTEGER NOT NULL, agent_key TEXT NOT NULL, agent_config_version INTEGER NOT NULL,
+  created_at REAL NOT NULL, PRIMARY KEY(goal_id, revision));
 """
+
+# Bảng và cột có từ trước A1 (0.86.x), đúng thứ tự. A1 không được đổi (review PR #590, P1-2); test so với đây.
+PRE_A1_TABLES = ("intents", "goals", "goal_revisions", "goal_events", "outbox", "actions", "assessments",
+                 "evidence_links", "wakeups", "handoffs", "published", "experiments", "call_ledger")
 
 # Cột thêm từ M3 vào bảng đã có ở M2. Kho tạo bởi bản M2 không tự có cột mới qua CREATE IF NOT EXISTS,
 # nên nâng cấp bằng ALTER TABLE: chỉ thêm, không xoá dữ liệu.
@@ -148,10 +162,9 @@ _ADDED_COLUMNS = (
     # ref cũ (review M5, P1-3): phạm vi của mỗi ref là phạm vi nó đã được kiểm, không hơn.
     ("goals", "method_prev_revision", "INTEGER NOT NULL DEFAULT 0"),
     ("goals", "explore_used", "INTEGER NOT NULL DEFAULT 0"),
-    # A1: mục tiêu thuộc đúng một agent trong sổ đăng ký. Rỗng = mục tiêu có trước A1, chờ chủ dự án gán.
-    ("goals", "agent_key", "TEXT"),
-    ("handoffs", "agent_key", "TEXT"),
-    ("handoffs", "agent_config_version", "INTEGER"),
+    # A1 KHÔNG thêm cột vào bảng nào có từ trước (review PR #590, P1-2): bản 0.86.x ghi một số bảng theo vị trí cột
+    # (`INSERT ... VALUES(?,?,...)`), nên thêm cột là bản cũ hết ghi được khi quay về. Mọi dữ liệu A1 nằm ở bảng
+    # riêng (`resonance_agents`, `session_agents`, `goal_agents`, `handoff_agents`...). Test khoá danh sách cột cũ.
 )
 _POST_MIGRATION = "CREATE UNIQUE INDEX IF NOT EXISTS outbox_idem ON outbox(goal_id, idem) WHERE idem IS NOT NULL;"
 
@@ -338,10 +351,12 @@ class GoalStore:
                 if not enabled:
                     return None
                 return self._agent(self._insert_agent(c, p.brain_id, slug, True, p.by, now))
-            if bool(r["enabled"]) == bool(enabled):
-                return self._agent(r)
+            # Kiểm trạng thái TRƯỚC nhánh "không đổi" (review PR #590, P2-1): agent missing vẫn giữ cờ bật cũ, nên
+            # đặt cờ bật lần nữa không được báo thành công.
             if enabled and r["status"] != "active":
                 raise AgentStateError(f"agent đang {r['status']}, cần chủ dự án xác nhận trước khi bật")
+            if bool(r["enabled"]) == bool(enabled):
+                return self._agent(r)
             return self._bump_agent(c, r, "enabled" if enabled else "disabled", p.by, now, enabled=1 if enabled else 0)
 
     def agent_mark_missing(self, brain_id: str, agent_key: str, by: str = "host") -> Optional[dict]:
@@ -387,6 +402,52 @@ class GoalStore:
             self._bump_agent(c, r, "retired", p.by, now, {"reason": "replaced"}, status="retired", enabled=0)
             new = self._insert_agent(c, p.brain_id, r["slug"], False, p.by, now, {"replaces": r["agent_key"]})
             return self._agent(new)
+
+    def session_agent(self, brain_id: str, session_id: str, slug: str, session_created_at: float) -> Optional[dict]:
+        """Agent của một phiên trò chuyện `agent:<slug>`, GHIM theo phiên (review PR #590, P1-1).
+
+        Slug chỉ là tên file: xoá rồi tạo lại cùng slug là agent khác với mã khác. Nên phiên đã ghim vào mã A thì
+        mãi là của A: A còn `active` thì trả A, A đã `missing` hay `retired` thì trả None, KHÔNG tự chuyển sang mã
+        mới của cùng slug. A1 chưa có thao tác chủ dự án nối lại phiên cũ; muốn dùng agent mới thì mở phiên mới.
+
+        Phiên chưa ghim được ghim vào dòng `active` hiện tại của slug khi và chỉ khi chắc nó thuộc dòng đó:
+        - đây là mã DUY NHẤT từng có của `(brain, slug)` (gồm phiên mở trước lần bật đầu tiên), hoặc
+        - phiên được tạo từ lúc mã đó được cấp trở đi (`session_created_at` >= `created_at` của mã).
+        Phiên tạo dưới thời một mã cũ mà chưa ghim (chưa có lượt nào) thì không được nhận mã mới: trả None.
+        Ghim một lần, ghi sự kiện `session_pinned`; ghim trùng thì bản đã có thắng."""
+        sid = str(session_id or "").strip()
+        if not sid:
+            return None
+        now = time.time()
+        with self._Tx(self) as c:
+            pin = c.execute("SELECT * FROM session_agents WHERE session_id=?", (sid,)).fetchone()
+            if pin is not None:
+                if pin["brain_id"] != brain_id:
+                    return None
+                r = c.execute("SELECT * FROM resonance_agents WHERE agent_key=? AND brain_id=?",
+                              (pin["agent_key"], brain_id)).fetchone()
+                return self._agent(r) if r is not None and r["status"] == "active" and r["slug"] == slug else None
+            r = self._live_agent_row(c, brain_id, slug)
+            if r is None or r["status"] != "active":
+                return None
+            n = int(c.execute("SELECT COUNT(*) FROM resonance_agents WHERE brain_id=? AND slug=?",
+                              (brain_id, str(slug))).fetchone()[0])
+            if n > 1 and float(session_created_at or 0) < float(r["created_at"]):
+                return None
+            c.execute("INSERT INTO session_agents(session_id,brain_id,agent_key,by,created_at) VALUES(?,?,?,?,?)",
+                      (sid, brain_id, r["agent_key"], "host", now))
+            c.execute("INSERT INTO resonance_agent_events(agent_key,brain_id,kind,by,version_before,version_after,"
+                      "payload_json,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                      (r["agent_key"], brain_id, "session_pinned", "host", int(r["config_version"]),
+                       int(r["config_version"]), _j({"session_id": sid}), now))
+            return self._agent(r)
+
+    def session_pin(self, session_id: str) -> Optional[dict]:
+        """Đọc liên kết phiên → mã agent đã ghim (để xem và kiểm), None khi chưa ghim."""
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT * FROM session_agents WHERE session_id=?", (str(session_id or ""),)).fetchone()
+            return {"session_id": r["session_id"], "brain_id": r["brain_id"], "agent_key": r["agent_key"],
+                    "created_at": r["created_at"]} if r else None
 
     # ───────────── bản ghi ý định ─────────────
 

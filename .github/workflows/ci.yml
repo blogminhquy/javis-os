@@ -23,6 +23,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # test_resonance_a1_rollback chạy MÃ 0.86.1 THẬT trên kho đã nâng lên A1 (review PR #590). Checkout mặc định
+      # chỉ có một commit, nên lấy riêng commit phát hành đó; thiếu nó thì test đỏ trên CI chứ không tự bỏ qua.
+      - name: Lấy commit 0.86.1 cho test quay về
+        run: git fetch --no-tags --depth=1 origin 09f254d0e4d009451dc58cb2e97788631c5acc1a
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

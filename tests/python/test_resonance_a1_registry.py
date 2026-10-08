@@ -4,7 +4,8 @@
 
 Chỉ kiểm tầng kho (SQLite thật, không gọi model): cấp mã độc lập slug, công tắc chỉ của chủ dự án,
 config_version, xoá rồi tạo lại cùng slug, file biến mất rồi xuất hiện lại, hai brain cùng slug,
-dấu vết sự kiện, và bản `.pre-a1.bak` khi mã A1 mở một kho có từ trước.
+dấu vết sự kiện, ghim phiên vào mã agent, bảng cũ giữ nguyên cột (để quay về 0.86.x), và bản
+`.pre-a1.bak` khi mã A1 mở một kho có từ trước. Chạy mã 0.86.1 thật trên kho đã nâng: test_resonance_a1_rollback.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import os
@@ -21,8 +22,8 @@ import resonance_store as RS  # noqa: E402
 _fails = []
 
 
-def check(name, cond):
-    print(("ok   " if cond else "FAIL ") + name)
+def check(name, cond, info=None):
+    print(("ok   " if cond else "FAIL ") + name + ("" if cond or info is None else f"  ({info})"))
     if not cond:
         _fails.append(name)
 
@@ -125,12 +126,83 @@ check("mã mới ghi nó thay mã nào", store.agent_events(BRAIN, c2["agent_key
       == a2["agent_key"])
 check("đọc sự kiện theo brain khác: rỗng", store.agent_events(OTHER, a2["agent_key"]) == [])
 
-# ───────────────────────────── schema thêm cột, không xoá ─────────────────────────────
+# ───────────────────────────── bật agent missing khi cờ còn bật (review PR #590, P2-1) ─────────────────────────────
+x = store.agent_set_enabled(OWNER, "con-co", True)
+store.agent_mark_missing(BRAIN, x["agent_key"])
+check("missing nhưng cờ còn bật: lệnh bật vẫn bị từ chối, không báo thành công",
+      raises(RS.AgentStateError, lambda: store.agent_set_enabled(OWNER, "con-co", True)))
+check("từ chối không đổi version", store.agent(BRAIN, "con-co")["config_version"] == 2)
+store.agent_set_enabled(OWNER, "con-co", False)
+check("tắt agent missing được, version tăng", store.agent(BRAIN, "con-co")["config_version"] == 3)
+store.agent_set_enabled(OWNER, "con-co", False)
+check("tắt lặp lại không tăng version", store.agent(BRAIN, "con-co")["config_version"] == 3)
+
+# ───────────────────────────── ghim phiên vào mã agent (review PR #590, P1-1) ─────────────────────────────
+import time  # noqa: E402
+
+t_before = time.time() - 100           # phiên mở trước lần bật đầu tiên
+w1 = store.agent_set_enabled(OWNER, "writer", True)
+got = store.session_agent(BRAIN, "s-old", "writer", t_before)
+check("phiên mở trước lần bật đầu tiên: ghim vào mã đầu tiên", got and got["agent_key"] == w1["agent_key"])
+check("liên kết phiên được lưu", store.session_pin("s-old")["agent_key"] == w1["agent_key"])
+t_mid = time.time()
+time.sleep(0.01)
+store.agent_retire(OWNER, "writer")
+w2 = store.agent_set_enabled(OWNER, "writer", True)
+check("phiên đã ghim A, A đã nghỉ, B cùng slug: KHÔNG nhận B",
+      store.session_agent(BRAIN, "s-old", "writer", t_before) is None)
+check("liên kết phiên cũ vẫn trỏ A", store.session_pin("s-old")["agent_key"] == w1["agent_key"])
+check("phiên tạo dưới thời A mà chưa ghim: không nhận B",
+      store.session_agent(BRAIN, "s-mid", "writer", t_mid) is None and store.session_pin("s-mid") is None)
+got = store.session_agent(BRAIN, "s-new", "writer", time.time())
+check("phiên mới của B: ghim vào B", got and got["agent_key"] == w2["agent_key"])
+check("phiên của brain khác không đọc được liên kết", store.session_agent(OTHER, "s-new", "writer", time.time()) is None)
+check("phiên khác slug với mã đã ghim: None", store.session_agent(BRAIN, "s-new", "khac", time.time()) is None)
+check("phiên rỗng: None", store.session_agent(BRAIN, "", "writer", time.time()) is None)
+store.agent_set_enabled(OWNER, "writer", False)
+check("B tắt: phiên vẫn có danh tính B (cổng ở tool)", store.session_agent(BRAIN, "s-new", "writer", 0)["agent_key"]
+      == w2["agent_key"])
+store.agent_mark_missing(BRAIN, w2["agent_key"])
+check("B missing: phiên của B không có danh tính", store.session_agent(BRAIN, "s-new", "writer", 0) is None)
+store.agent_confirm(OWNER, w2["agent_key"], False)
+check("chọn trợ lý mới: phiên đã ghim B không nhận mã mới", store.session_agent(BRAIN, "s-new", "writer", 0) is None)
+store2 = RS.GoalStore(store.path)
+check("mở lại kho (restart): liên kết còn nguyên", store2.session_pin("s-new")["agent_key"] == w2["agent_key"])
+check("sự kiện ghim phiên có dấu vết", any(e["kind"] == "session_pinned" and e["payload"].get("session_id") == "s-new"
+                                          for e in store.agent_events(BRAIN, w2["agent_key"])))
+
+# ───────────────────────────── bảng cũ giữ nguyên hợp đồng (review PR #590, P1-2) ─────────────────────────────
+# Đúng thứ tự cột của 0.86.1 (`09f254d0`): mã cũ ghi một số bảng theo vị trí, nên A1 không được thêm cột vào đây.
+PRE_A1 = {
+    "actions": ('id', 'goal_id', 'revision', 'kind', 'seq', 'status', 'lease_until', 'intent_json', 'receipt_json',
+                'created_at', 'updated_at'),
+    "assessments": ('id', 'goal_id', 'revision', 'verdict', 'payload_json', 'created_at'),
+    "call_ledger": ('id', 'brain_id', 'kind', 'ref', 'status', 'created_at', 'updated_at'),
+    "evidence_links": ('goal_id', 'revision', 'action_id', 'evidence_id', 'kind', 'content_hash', 'created_at'),
+    "experiments": ('id', 'goal_id', 'revision', 'baseline_ref', 'candidate_ref', 'status', 'verdict', 'reason',
+                    'calls_reserved', 'payload_json', 'applied', 'created_at', 'updated_at'),
+    "goal_events": ('id', 'goal_id', 'revision', 'kind', 'source', 'message_ref', 'payload_json', 'by',
+                    'idempotency_key', 'created_at'),
+    "goal_revisions": ('goal_id', 'revision', 'intent_id', 'frame_json', 'reason', 'by', 'created_at'),
+    "goals": ('id', 'brain_id', 'owner', 'revision', 'status', 'session_id', 'request_ref', 'idempotency_key',
+              'output_root', 'user_constraints_json', 'budget_calls', 'calls_used', 'paused', 'created_at',
+              'updated_at', 'run_state', 'block_reason', 'lease_owner', 'lease_until', 'method_ref',
+              'method_prev_ref', 'method_revision', 'method_prev_revision', 'explore_used'),
+    "handoffs": ('goal_id', 'revision', 'message_ref', 'owner', 'status', 'created_at', 'updated_at'),
+    "intents": ('id', 'brain_id', 'session_id', 'message_id', 'text', 'constraints_json', 'prev_intent_id',
+                'relation', 'created_at'),
+    "outbox": ('id', 'goal_id', 'kind', 'payload_json', 'created_at', 'delivered_at', 'idem'),
+    "published": ('goal_id', 'path', 'sha256', 'action_id', 'created_at'),
+    "wakeups": ('goal_id', 'brain_id', 'kind', 'due_at', 'reason', 'updated_at'),
+}
 with sqlite3.connect(str(store.path)) as con:
-    gcols = {r[1] for r in con.execute("PRAGMA table_info(goals)")}
-    hcols = {r[1] for r in con.execute("PRAGMA table_info(handoffs)")}
-check("goals có cột agent_key", "agent_key" in gcols and "calls_used" in gcols)
-check("handoffs có agent_key và agent_config_version", {"agent_key", "agent_config_version"} <= hcols)
+    now_cols = {t: tuple(r[1] for r in con.execute(f"PRAGMA table_info({t})")) for t in PRE_A1}
+    names = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+diff = {t: now_cols[t] for t in PRE_A1 if now_cols[t] != PRE_A1[t]}
+check("mọi bảng có từ 0.86.1: cột và thứ tự y nguyên", not diff, diff)
+check("danh sách bảng cũ trong mã khớp test", set(RS.PRE_A1_TABLES) == set(PRE_A1))
+check("dữ liệu A1 ở bảng riêng", {"resonance_agents", "resonance_agent_events", "session_agents", "goal_agents",
+                                  "handoff_agents"} <= names)
 check("kho mới tinh không sinh bản sao pre-a1", not (Path(_STATE) / "resonance.sqlite3.pre-a1.bak").exists())
 
 # ───────────────────────────── bản sao lưu trước A1 ─────────────────────────────
@@ -152,8 +224,9 @@ with sqlite3.connect(str(bak)) as con:
 check("bản sao giữ nguyên dữ liệu cũ, chưa có schema A1", rows == [("g_old", 1)] and "resonance_agents" not in names
       and "agent_key" not in bcols)
 with sqlite3.connect(str(old)) as con:
-    live = con.execute("SELECT id, agent_key FROM goals").fetchall()
-check("kho gốc sau nâng cấp: mục tiêu cũ còn, agent_key rỗng", live == [("g_old", None)])
+    live = con.execute("SELECT id, calls_used FROM goals").fetchall()
+    bound = con.execute("SELECT COUNT(*) FROM goal_agents").fetchone()[0]
+check("kho gốc sau nâng cấp: mục tiêu cũ còn nguyên, chưa gán agent nào", live == [("g_old", 1)] and bound == 0)
 mtime = bak.stat().st_mtime_ns
 RS.GoalStore(old)
 check("mở lại không chép đè bản sao", bak.stat().st_mtime_ns == mtime)

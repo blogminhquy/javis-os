@@ -2038,10 +2038,12 @@ def _resonance_turn_agent(conv_sid, brain, get_session):
     (`turn_context`, khoá `agent`).
 
     Host tự phân giải từ dòng phiên đã lưu (kênh `agent:<slug>` ghi lúc tạo phiên) và sổ đăng ký agent, không
-    lấy gì từ lời model. Trả `{"key", "slug", "config_version"}` khi phiên đúng của brain này, file agent còn đó và
-    sổ có dòng `active`; ngược lại None. Công tắc bật hay tắt KHÔNG xét ở đây mà ở cổng lúc gọi tool, để tool nói
-    được đúng lý do. Chưa có kho resonance.sqlite3 thì không tạo kho chỉ để đọc. File agent mất mà sổ còn `active`
-    thì host đánh dấu `missing` (cổng của mã đó đóng tới khi chủ dự án xác nhận). Lỗi thì None, không làm hỏng lượt."""
+    lấy gì từ lời model. Phiên được GHIM vào một mã agent (`GoalStore.session_agent`), nên xoá rồi tạo lại cùng
+    slug không làm phiên cũ nhận mã mới. Trả `{"key", "slug", "config_version"}` khi phiên đúng của brain này,
+    file agent còn đó và mã đã ghim còn `active`; ngược lại None. Công tắc bật hay tắt KHÔNG xét ở đây mà ở cổng
+    lúc gọi tool, để tool nói được đúng lý do. Chưa có kho resonance.sqlite3 thì không tạo kho chỉ để đọc. File
+    agent mất mà sổ còn `active` thì host đánh dấu `missing` (cổng của mã đó đóng tới khi chủ dự án xác nhận).
+    Lỗi thì None, không làm hỏng lượt."""
     try:
         session_row = get_session(conv_sid) or {}
         persona = workflow_chat.persona_cua_phien(session_row)
@@ -2051,12 +2053,15 @@ def _resonance_turn_agent(conv_sid, brain, get_session):
             return None
         if _RESONANCE_STORE is None and not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
             return None
-        slug = persona[1]
-        reg = _resonance_store().agent(_brain_key(brain), slug)
-        if reg is None or reg["status"] != "active":
-            return None
+        slug, bkey = persona[1], _brain_key(brain)
         if not (_agents_dir(brain) / f"{slug}.md").is_file():
-            _resonance_store().agent_mark_missing(_brain_key(brain), reg["agent_key"])
+            live = _resonance_store().agent(bkey, slug)
+            if live is not None and live["status"] == "active":
+                _resonance_store().agent_mark_missing(bkey, live["agent_key"])
+            return None
+        # Ghim theo phiên, không tra theo slug (review PR #590, P1-1): phiên cũ của agent đã xoá không nhận mã mới.
+        reg = _resonance_store().session_agent(bkey, conv_sid, slug, session_row.get("created_at") or 0)
+        if reg is None:
             return None
         return {"key": reg["agent_key"], "slug": slug, "config_version": reg["config_version"]}
     except Exception as e:  # noqa: BLE001
