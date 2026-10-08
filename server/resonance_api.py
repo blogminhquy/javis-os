@@ -14,6 +14,7 @@ dưới đây. Công tắc brain cũ (`/resonance/settings`, `Javis/resonance.js
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -78,6 +79,12 @@ def _store_exists() -> bool:
     return (Path(STATE_DIR) / "resonance.sqlite3").is_file()
 
 
+async def _view(store, principal, goal_id, root):
+    """goal_view chạy SQLite và băm file đồng bộ: đưa ra luồng phụ để không giữ event loop (audit tốc độ 08/10/2026,
+    20 GET đồng thời làm trễ cả timer 5 ms tới ~0,7 giây). Ngữ cảnh request (ngôn ngữ) được chép theo to_thread."""
+    return await asyncio.to_thread(R.goal_view, store, principal, goal_id, root)
+
+
 def register(app, deps: ResonanceApiDeps):
     def _ctx(brain: str):
         root = deps.brain_key(brain or "")
@@ -115,8 +122,12 @@ def register(app, deps: ResonanceApiDeps):
         if err:
             return err
         store = deps.store()
-        goals = store.list_open(owner, session_id=session_id, agent_key=agent_key or None, unassigned=bool(unassigned))
-        return {"ok": True, "goals": [R.goal_view(store, owner, g.id, root) for g in goals[:20]]}
+
+        def _views():
+            goals = store.list_open(owner, session_id=session_id, agent_key=agent_key or None,
+                                    unassigned=bool(unassigned))
+            return [R.goal_view(store, owner, g.id, root) for g in goals[:20]]
+        return {"ok": True, "goals": await asyncio.to_thread(_views)}
 
     def _manage(brain: str):
         """Xem và can thiệp (tạm dừng, huỷ, tiếp tục, bỏ chỉ dẫn) KHÔNG đòi công tắc bật (review M4, P2-1): tắt
@@ -132,7 +143,7 @@ def register(app, deps: ResonanceApiDeps):
         root, owner, err = _manage(brain)
         if err:
             return err
-        view = R.goal_view(deps.store(), owner, goal_id, root)
+        view = await _view(deps.store(), owner, goal_id, root)
         if view is None:
             return _err(404, "Không có mục tiêu này trong brain", "No such goal in this brain")
         return {"ok": True, "goal": view}
@@ -154,17 +165,18 @@ def register(app, deps: ResonanceApiDeps):
         if why:
             return _off(why)
         try:
-            res = R.apply_feedback(store, owner, goal_id, str(body.get("kind") or ""), body, root)
+            res = await asyncio.to_thread(R.apply_feedback, store, owner, goal_id, str(body.get("kind") or ""), body,
+                                          root)
         except RS.ScopeError:
             return _err(404, "Không có mục tiêu này trong brain", "No such goal in this brain")
         except RS.ConflictError as e:
             return _err(409, f"Mục tiêu đã đổi, xem lại thẻ: {e}", f"The goal changed, please review the card: {e}",
-                        goal=R.goal_view(store, owner, goal_id, root))
+                        goal=await _view(store, owner, goal_id, root))
         except R.GoalRejected as e:
             return _err(400, f"Chưa ghi được: {e}", f"Not recorded: {e}")
         except PermissionError as e:
             return _err(403, str(e), str(e))
-        return {"ok": True, **res, "goal": R.goal_view(store, owner, goal_id, root)}
+        return {"ok": True, **res, "goal": await _view(store, owner, goal_id, root)}
 
     @app.post("/goals/{goal_id}/commands")
     async def goal_command(goal_id: str, request: Request, brain: str = "brain"):
@@ -174,17 +186,18 @@ def register(app, deps: ResonanceApiDeps):
         body = await _body(request)
         store = deps.store()
         try:
-            res = R.apply_command(store, owner, goal_id, str(body.get("command") or ""), body, root)
+            res = await asyncio.to_thread(R.apply_command, store, owner, goal_id, str(body.get("command") or ""), body,
+                                          root)
         except RS.ScopeError:
             return _err(404, "Không có mục tiêu này trong brain", "No such goal in this brain")
         except RS.ConflictError as e:
             return _err(409, f"Mục tiêu đã đổi, xem lại thẻ: {e}", f"The goal changed, please review the card: {e}",
-                        goal=R.goal_view(store, owner, goal_id, root))
+                        goal=await _view(store, owner, goal_id, root))
         except R.GoalRejected as e:
             return _err(400, f"Chưa làm được: {e}", f"Not done: {e}")
         except PermissionError as e:
             return _err(403, str(e), str(e))
-        return {**res, "goal": R.goal_view(store, owner, goal_id, root)}
+        return {**res, "goal": await _view(store, owner, goal_id, root)}
 
     @app.post("/goal-requests")
     async def goal_request(request: Request, brain: str = "brain"):
@@ -235,7 +248,7 @@ def register(app, deps: ResonanceApiDeps):
             return _off(str(e))
         if g.agent_key != ag["agent_key"]:
             return _err(409, "Tin này đã gắn với mục tiêu của trợ lý khác", "This message already belongs to another goal")
-        return {"ok": True, "goal": R.goal_view(store, RS.Principal("owner", "owner", root), g.id, root)}
+        return {"ok": True, "goal": await _view(store, RS.Principal("owner", "owner", root), g.id, root)}
 
 
 def register_agents(app, deps: ResonanceApiDeps):
@@ -387,7 +400,7 @@ def register_agents(app, deps: ResonanceApiDeps):
             return _err(404, "Không có mục tiêu này trong brain", "No such goal in this brain")
         except RS.ConflictError as e:
             return _err(409, f"Mục tiêu đã đổi: {e}", f"The goal changed: {e}",
-                        goal=R.goal_view(store, owner, goal_id, root))
+                        goal=await _view(store, owner, goal_id, root))
         except RS.AgentStateError as e:
             return _err(400, str(e), str(e))
-        return {"ok": True, "goal": R.goal_view(store, owner, goal_id, root)}
+        return {"ok": True, "goal": await _view(store, owner, goal_id, root)}

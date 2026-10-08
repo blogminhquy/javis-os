@@ -1399,7 +1399,7 @@ def current_artifact_ref(goal: GoalRecord, deps: GoalDeps) -> str:
     return _artifact_ref_of(deps.store, deps.principal, goal, deps.brain_root)
 
 
-def _human_verdict(goal: GoalRecord, criterion: dict, deps: GoalDeps) -> dict:
+def _human_verdict(goal: GoalRecord, criterion: dict, deps: GoalDeps, artifact_ref: Optional[str] = None) -> dict:
     """Tiêu chí human_confirmation: met/not_met CHỈ khi người dùng (owner) đã xác nhận đúng tiêu chí này, đúng
     revision, đúng bản sản phẩm đang có. Im lặng, xác nhận cho bản cũ hay revision cũ đều là unknown."""
     if deps.store is None or deps.principal is None:
@@ -1407,7 +1407,9 @@ def _human_verdict(goal: GoalRecord, criterion: dict, deps: GoalDeps) -> dict:
     conf = deps.store.confirmation(deps.principal, goal.id, goal.revision, criterion.get("id"))
     if not conf:
         return {"verdict": "unknown", "reason": "chờ người dùng xác nhận"}
-    if conf.get("artifact_ref") != current_artifact_ref(goal, deps):
+    # `artifact_ref`: hash đã tính MỘT lần cho cả request (thẻ có nhiều tiêu chí người dùng duyệt). Vẫn là hash bytes
+    # hiện tại của file, chỉ không băm lại cùng file nhiều lần trong một lần đọc.
+    if conf.get("artifact_ref") != (artifact_ref if artifact_ref is not None else current_artifact_ref(goal, deps)):
         return {"verdict": "unknown", "reason": "xác nhận trước đó là cho bản sản phẩm cũ; chờ xác nhận bản mới"}
     if conf.get("verdict") == "met":
         return {"verdict": "met", "reason": "người dùng xác nhận đạt", "confirmed_by": conf.get("by")}
@@ -2751,8 +2753,7 @@ def _artifact_file(store, principal, goal: GoalRecord, brain_root: str) -> Optio
     """File thẻ cho người dùng xem: file sản phẩm khai trong tiêu chí (trong brain), hoặc đầu ra mới nhất của
     revision trong vùng làm việc. None khi revision hiện tại chưa có lượt làm thành công nào: bản trên đĩa khi đó
     là của cách hiểu cũ, không được duyệt thay cho cách hiểu mới."""
-    work = next((x for x in reversed(store.actions(principal, goal.id))
-                 if x["kind"] == "work" and x["status"] == "succeeded" and x["revision"] == goal.revision), None)
+    work = store.latest_action(principal, goal.id, "work", status="succeeded", revision=goal.revision)
     adopted = bool(store.evidence_for(principal, goal.id, goal.revision, kind="chat_output"))
     if work is None and not adopted:
         return None
@@ -2882,14 +2883,14 @@ def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]
     if g is None:
         return None
     st = store.run_state(principal, goal_id) or {}
-    assessments = store.assessments(principal, goal_id)
-    last = next((a for a in reversed(assessments) if a.get("revision") == g.revision and a.get("criterion_results")),
-                None)
+    # Đọc CÓ GIỚI HẠN (audit tốc độ 08/10/2026): đánh giá mới nhất có kết quả, lượt làm mới nhất của revision, 8 dòng thời
+    # gian cuối, 3 phép thử. Kết quả giống hệt bản đọc cả lịch sử rồi cắt; chi phí không tăng theo độ dài lịch sử.
+    last = store.last_assessment_with_results(principal, goal_id, g.revision)
     results = {r.get("id"): r for r in ((last or {}).get("criterion_results") or [])}
-    actions = store.actions(principal, goal_id)
-    latest_out = next((x for x in reversed(actions) if x["kind"] == "work" and x["status"] == "succeeded"
-                       and x["revision"] == g.revision), None)
+    latest_out = store.latest_action(principal, goal_id, "work", status="succeeded", revision=g.revision)
     out_path = (latest_out or {}).get("receipt", {}).get("output_ref")
+    # Hash bytes hiện tại của bản sản phẩm: tính MỘT lần cho cả thẻ rồi dùng lại (vẫn là hash thật, không dùng mtime).
+    artifact_ref = _artifact_ref_of(store, principal, g, brain_root)
     criteria = []
     probe = GoalDeps(engine_factory=lambda s, t: (None, {}), budget=CallBudget(0), store=store, principal=principal,
                      brain_root=brain_root)
@@ -2898,7 +2899,7 @@ def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]
         if c.get("evaluator") == "human_confirmation" and g.status == "active":
             # Xác nhận của người dùng đọc SỐNG từ kho theo đúng luật đánh giá (đúng revision, đúng bản sản phẩm):
             # vừa bấm Đạt yêu cầu thì thẻ hiện ngay, không đợi nhịp đánh giá kế tiếp.
-            r = _human_verdict(g, c, probe)
+            r = _human_verdict(g, c, probe, artifact_ref)
         criteria.append({"id": c.get("id"), "description": c.get("description"), "evaluator": c.get("evaluator"),
                          "verdict": r.get("verdict") or "unknown", "reason": r.get("reason") or ""})
     wakes = store.wakes(principal, goal_id)
@@ -2935,7 +2936,7 @@ def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]
                                                    for x in g.guards],
         "directives": _directives(g),
         "criteria": criteria, "fit": store.fit_status(principal, goal_id, g.revision),
-        "artifact_ref": _artifact_ref_of(store, principal, g, brain_root),
+        "artifact_ref": artifact_ref,
         "deliverable": _deliverable_rel(g) or _rel_to_brain(Path(out_path) if out_path else None, brain_root),
         "calls_used": g.calls_used, "budget_calls": g.budget_calls,
         "method": {"ref": effective_method(g), "label": _t(METHODS[effective_method(g)]["label_vi"],
@@ -2944,11 +2945,12 @@ def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]
         "experiments": [{"id": e["id"], "revision": e["revision"], "baseline_ref": e["baseline_ref"],
                          "candidate_ref": e["candidate_ref"], "status": e["status"], "verdict": e["verdict"],
                          "reason": e["reason"], "applied": e["applied"], "at": e["created_at"]}
-                        for e in store.experiments(principal, goal_id)[:3]],
+                        for e in store.experiments(principal, goal_id, limit=3)],
         "next_wake": {"at": nxt["due_at"], "reason": nxt["reason"], "code": nxt_code} if nxt else None,
         "observe": observe, "wakes_recent": recent, "source_drift": drift,
         "timeline": [{"kind": x["kind"], "status": x["status"], "revision": x["revision"], "at": x["created_at"],
-                      "error_code": (x.get("receipt") or {}).get("error_code") or ""} for x in actions[-8:]],
+                      "error_code": (x.get("receipt") or {}).get("error_code") or ""}
+                     for x in store.recent_actions(principal, goal_id, 8)],
     }
 
 
