@@ -15,7 +15,7 @@ If you install through **Hostinger Docker Manager**, you do not need the full ad
 Three configuration places need to be kept apart:
 
 - **The `.env` file**: system-level settings, read once at startup. A change only takes effect after restarting Javis.
-- **The ⚙ Settings panel in the app** (the Account, Models, Channels pages...): settings changed live through the interface, saved into `settings.json`, no file editing. For example: switching model, the OpenRouter API key, the Telegram token, the custom domain, the logo. More in [Models and engines](10-models-and-engines.md), [Security and accounts](14-security-and-accounts.md), [Branding and domains](15-branding-and-domains.md).
+- **The ⚙ Settings panel in the app** (the Account, Models, Admin channels pages...): settings changed live through the interface, saved into `settings.json`, no file editing. For example: switching model, the OpenRouter API key, the Telegram token, the custom domain, the logo. More in [Models and engines](10-models-and-engines.md), [Security and accounts](14-security-and-accounts.md), [Branding and domains](15-branding-and-domains.md).
 - **A few `settings.json` keys with no interface**: currently the `media` block (the rules for clearing images and temporary files). Changing them means opening the file by hand. See the dedicated section below.
 
 In short: `.env` handles "where it runs, who gets in, where the data lives". The in-app Settings panel handles "which model, which key, which voice". `settings.json` is where the two meet, and a few rare keys can only be edited there.
@@ -73,6 +73,7 @@ An important detail about `JAVIS_HOST`: Javis uses a "safe by default" rule. If 
 | `JAVIS_TERMINAL` | The switch that removes the Terminal in the Code group entirely. `0`/`off`/`false`/`no` = off | On | You do not want any command line openable from a browser. The Terminal is already only open to a SIGNED-IN browser (API tokens cannot reach it), but many people still want it hard-locked at the server layer. See [The Code group: Terminal](27-code-terminal.md). |
 | `JAVIS_TERMINAL_SHELL` | The shell the Terminal runs | `$SHELL`, falling back to `bash`/`sh`. Windows: `powershell.exe` then `cmd.exe` | You want to force another shell (`zsh`, `fish`, `cmd.exe`). |
 | `JAVIS_TERMINAL_CWD` | The folder the terminal opens in | The HOME of the user running Javis | You want the shell to open at the brain root or another project folder. |
+| `JAVIS_AUTO_INSTALL_CLIS` | The Docker edition installs Antigravity CLI (`agy`) and Grok Build (`grok`) at startup when missing | `1` (on) | Set `0` when the server has no Internet access or you do not want these two CLIs. Installed once, kept across updates; the install log is `/data/home/.cli-auto-install/install.log`. |
 | `JAVIS_TERMINAL_REMOTE` | Tell the CLIs in the Terminal that the user sits at ANOTHER machine (sets `SSH_CONNECTION`) | Auto: on when the server has no screen (VPS, Docker), off on native Windows/macOS and Linux with a display | Signing into `agy`, `claude`, `codex`... prints a link then sits there because they assume the browser is on this machine. Turn it on (`1`) so they ask where to paste the code. Turn it off (`0`) if the server really can open a browser for you (X11 forwarding, say). See [The Code group: Terminal](27-code-terminal.md). |
 
 About the first admin account: when running public with no admin, opening the app the first time only asks for a username and password, so **whoever opens the link first can create the admin**. That is why you should preset `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` (`install.sh` already asks for them) so the server boots with an admin, or create the account right after deploying. Once signed in, turn on two-factor authentication (2FA). More in [Security and accounts](14-security-and-accounts.md).
@@ -222,7 +223,7 @@ In the second example, because `JAVIS_HOST=0.0.0.0` (public) Javis turns forced 
 
 **You pointed OBSIDIAN_VAULT_PATH at a real vault and Javis sees no data.** Check that the path is right and that Javis has permission to read the folder. On Docker the volume must be mounted at the path you declared. After fixing, restart and rebuild the graph (see [Knowledge graph](03-knowledge-graph.md)).
 
-**After restoring a backup, every API key is empty.** You copied `settings.json` without `.secret_key` from the same folder. There is no recovery, you have to re-enter the keys on the Models and Channels pages.
+**After restoring a backup, every API key is empty.** You copied `settings.json` without `.secret_key` from the same folder. There is no recovery, you have to re-enter the keys on the Models and Admin channels pages.
 
 If you are still stuck, see [Troubleshooting and FAQ](17-troubleshooting.md).
 

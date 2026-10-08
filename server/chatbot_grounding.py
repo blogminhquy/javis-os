@@ -20,13 +20,14 @@ Xem docs/dev/2026-08-bot-chuyen-trach-spec.md, giai đoạn 2.
 """
 from __future__ import annotations
 
+import hashlib
 import math
 import re
 import sys
 import threading
 import unicodedata
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 DUOI = (".md", ".txt", ".markdown")
 
@@ -202,8 +203,17 @@ def _cat_manh(text: str, tieu_de: str) -> List[dict]:
     return [p for p in phan if p["text"]]
 
 
-def _dung_chi_muc(root: Path) -> dict:
+def _dung_chi_muc(root: Path, extra: Optional[List[dict]] = None) -> dict:
     manh: List[dict] = []
+    # Documents that are not files of the brain (Google Docs/Sheets linked from the bot's Agent, see
+    # bot_linked_docs). Indexed together with the files so IDF weighs a word against everything the
+    # bot knows, not against two separate piles.
+    for d in extra or []:
+        ten = str(d.get("title") or d.get("path") or "")
+        for m in _cat_manh(str(d.get("text") or "")[:MAX_BYTES], ten):
+            m["path"] = str(d.get("path") or ten)
+            m["cap"] = _tach_cap(m["ten"] + " " + ten + " " + m["text"])
+            manh.append(m)
     for p in _duyet(root):
         try:
             raw = p.read_text(encoding="utf-8", errors="replace")[:MAX_BYTES]
@@ -234,12 +244,25 @@ def _dung_chi_muc(root: Path) -> dict:
     return {"manh": manh, "idf": idf}
 
 
-def chi_muc(root: Any) -> dict:
-    """Chỉ mục của một brain, dựng lười và dùng lại cho tới khi file đổi."""
+def _van_extra(extra: Optional[List[dict]]) -> tuple:
+    """Fingerprint of the extra documents: which ones, and their exact text."""
+    return tuple((str(d.get("path") or ""), hashlib.sha1(str(d.get("text") or "").encode(
+        "utf-8", "replace")).hexdigest()) for d in (extra or []))
+
+
+def chi_muc(root: Any, extra: Optional[List[dict]] = None) -> dict:
+    """Chỉ mục của một brain, dựng lười và dùng lại cho tới khi file đổi.
+
+    `extra`: documents that are not files (see `_dung_chi_muc`). A brain with extras gets its own
+    cache slot per SET of extras, so two bots on one brain with different Agents never see each
+    other's linked documents."""
     r = Path(str(root))
     key = str(r.resolve()) if r.exists() else str(r)
+    ve = _van_extra(extra)
+    if ve:
+        key += "|extra:" + "|".join(sorted(p for p, _ in ve))
     try:
-        van = _dau_van(r)
+        van = (_dau_van(r), ve)
     except Exception as e:
         print(f"[chatbot grounding] quét {r} lỗi: {e}", file=sys.stderr)
         return {"manh": [], "idf": {}}
@@ -247,7 +270,7 @@ def chi_muc(root: Any) -> dict:
         c = _CACHE.get(key)
         if c and c.get("van") == van:
             return c["ix"]
-    ix = _dung_chi_muc(r)
+    ix = _dung_chi_muc(r, extra)
     with _lock:
         _CACHE[key] = {"van": van, "ix": ix}
     return ix
@@ -261,12 +284,12 @@ def xoa_cache() -> None:
 # ============================================================
 # Tìm
 # ============================================================
-def tim(root: Any, cau_hoi: str, k: int = 4) -> List[dict]:
+def tim(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = None) -> List[dict]:
     """Các mảnh tài liệu khớp nhất với câu hỏi, sắp theo điểm giảm dần."""
     cap = _tach_cap(cau_hoi)
     if not cap:
         return []
-    ix = chi_muc(root)
+    ix = chi_muc(root, extra)
     idf = ix["idf"]
     # Một từ bỏ dấu có thể ứng với nhiều dạng có dấu trong CÙNG câu hỏi; giữ tất cả để chỉ cần
     # tài liệu khớp một dạng là tính khớp thật.
@@ -313,7 +336,7 @@ def tim(root: Any, cau_hoi: str, k: int = 4) -> List[dict]:
             for d, p, n, m in ra[:k]]
 
 
-def thu_thap(root: Any, cau_hoi: str, k: int = 4) -> dict:
+def thu_thap(root: Any, cau_hoi: str, k: int = 4, extra: Optional[List[dict]] = None) -> dict:
     """Khối tài liệu nhét vào prompt cho MỘT câu hỏi.
 
     Trả `{"co": bool, "khoi": str, "nguon": [path...]}`. `co=False` nghĩa là brain không có gì
@@ -321,7 +344,7 @@ def thu_thap(root: Any, cau_hoi: str, k: int = 4) -> dict:
     lặng thì model tự lấp bằng trí nhớ chung của nó.
     """
     try:
-        hit = tim(root, cau_hoi, k)
+        hit = tim(root, cau_hoi, k, extra)
     except Exception as e:
         print(f"[chatbot grounding] tìm lỗi: {e}", file=sys.stderr)
         return {"co": False, "khoi": "", "nguon": []}

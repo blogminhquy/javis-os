@@ -6,27 +6,83 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.85.2] - 2026-10-07
-### Cải thiện
-- **Hệ thống cộng hưởng: thử một cách làm mới trước khi đổi.** Javis so cách làm hiện tại với một cách làm khác trên cùng bộ tình huống và cùng thước đo, chỉ đổi khi cách mới thắng rõ ràng, chưa đủ bằng chứng thì giữ cách cũ. Tính năng tắt sẵn, chưa bật cho ai.
-- **Hệ thống cộng hưởng: ranh giới giao việc rõ hơn.** Khi tính năng bật, việc chạy một lần rồi xong vẫn vào trang Việc, còn việc cần làm, kiểm và sửa theo góp ý của anh qua nhiều lượt thì Javis giữ thành mục tiêu. Javis trên Claude Code được chỉ đúng chỗ tìm công cụ mục tiêu. Bản Javis viết ngay trong lượt chat được giữ làm bản đầu của mục tiêu, không tốn thêm lượt viết lại. Brain chưa bật thì không đổi gì.
-- **Lượt chat trùng lúc Claude Code đang làm mới đăng nhập nói rõ là gửi lại được.** Claude Code bản mới báo lỗi này bằng một câu khác, Javis trước đây hiện nguyên câu tiếng Anh; nay hiện câu "phiên không mất, gửi lại là chạy tiếp" như với câu cũ.
+## [0.86.0] - 2026-10-08
+### Thêm mới
+- **Hệ thống cộng hưởng: Javis theo đuổi việc anh giao tới khi đạt.** Khi anh giao một việc cần làm tiếp sau lượt chat, Javis tự lập mục tiêu có cách nhận biết xong, làm ở nền trong hạn mức, chỉ báo xong khi có bằng chứng và giữ việc qua cả lúc khởi động lại. Tính năng tắt sẵn, bật riêng cho từng brain.
+- **Thẻ "Em đang hướng tới" trong khung chat.** Anh bấm Đúng ý hay Chưa đúng ý cho cách hiểu, Đạt yêu cầu cho sản phẩm, hoặc tạm dừng. Góp ý thêm trong chat được nối vào đúng mục tiêu, và Javis sửa từ đúng bản anh đã xem; bản Javis viết ngay trong lượt chat được giữ làm bản đầu, không tốn lượt viết lại.
+- **Thử cách làm mới trước khi đổi.** Javis so cách làm hiện tại với một cách khác trên cùng bộ tình huống, chỉ đổi khi cách mới thắng rõ, chưa đủ căn cứ thì giữ cách cũ.
+### Sửa lỗi
+- **Lượt chat trùng lúc Claude Code đang làm mới đăng nhập nói rõ là gửi lại được.** Claude Code bản mới báo lỗi này bằng một câu khác mà Javis từng hiện nguyên tiếng Anh; câu trả lời bình thường có chữ "already used" cũng không còn bị thay nhầm bằng câu báo lỗi.
 
-## [0.84.9] - 2026-10-07
-### Cải thiện
-- **Hệ thống cộng hưởng: thẻ "Em đang hướng tới" và nút xác nhận.** Mỗi mục tiêu Javis đang theo đuổi có một thẻ trong khung chat: Javis hiểu việc anh nhờ là gì, đang tiến tới đâu, việc tiếp theo là gì. Anh bấm Đúng ý hay Chưa đúng ý cho cách hiểu, và Đạt yêu cầu cho sản phẩm, tách riêng hai việc. Có nút tạm dừng và tiếp tục. Tính năng tắt sẵn, chưa bật cho ai.
+## [0.85.9] - 2026-10-08
+### Sửa lỗi
+- **Bấm Cập nhật ngay trên bản Docker thì trang xoay chờ đến khi bản mới lên rồi tự tải lại, không còn báo lỗi oan.** Trước đây trang chỉ chờ khoảng 36 giây rồi báo "Bản mới chưa lên sau một lúc - có thể lỗi", trong khi Watchtower vẫn đang kéo bản mới về và một lúc sau trang tự lên bản mới. Giờ trang chờ tới 10 phút. Quá 45 giây thì nói rõ là vẫn đang kéo bản mới, máy chậm có thể mất vài phút. Lỗi thật (Watchtower báo lỗi, chưa có image mới) vẫn hiện ngay như cũ. Thanh "Tải lại / Để sau" cũng không hiện thừa giữa lúc đang cập nhật nữa.
 
-## [0.84.4] - 2026-10-06
-### Cải thiện
-- **Hệ thống cộng hưởng: mục tiêu được làm tiếp và kiểm bằng chứng.** Mục tiêu Javis đã lập giờ được thực hiện từng bước trong hạn mức, chỉ báo xong khi có bằng chứng theo đúng tiêu chí, và tự hẹn lần làm tiếp thay vì hỏi lại theo giờ. Tính năng tắt sẵn, chưa bật cho ai.
+## [0.85.8] - 2026-10-08
+### Thêm mới
+- **Plugin biết ai đang nói trong lượt gọi công cụ.** Hook `pre_tool_call` và `post_tool_call` nhận thêm khoá `turn` (kênh, người gửi, nhóm hay chat riêng, có phải chủ không), nên một plugin bọc ứng dụng có phân quyền theo từng nhân viên có thể chạy công cụ đúng quyền của người đang nhắn cho bot. Danh tính lấy từ tin nhắn thật chứ không từ chữ model viết, và bot không bao giờ được coi là chủ. (Đóng góp của @nnbaonam96.)
 
-## [0.84.1] - 2026-10-06
-### Cải thiện
-- **Hệ thống cộng hưởng: Javis tự lập mục tiêu từ việc anh nhờ.** Khi anh giao một việc cần theo đuổi sau lượt chat, Javis tự hiểu thành một mục tiêu có cách nhận biết xong, không bắt anh điền gì. Hỏi đáp thường vẫn chỉ là hỏi đáp. Tính năng tắt sẵn, chưa bật cho ai.
+## [0.85.7] - 2026-10-08
+### Sửa lỗi
+- **Đồng bộ brain với GitHub không còn hỏng ở lần đẩy đầu tiên trên máy đặt tiếng Việt.** Khi repo trên GitHub còn trống, Javis đọc thông báo của git theo ngôn ngữ hệ điều hành nên không nhận ra trường hợp này và báo lỗi. Giờ Javis hỏi git bằng ngôn ngữ trung lập, máy đặt ngôn ngữ nào cũng khởi tạo được ngay. (Đóng góp của @dev23072005.)
 
-## [0.84.0] - 2026-10-06
+## [0.85.5] - 2026-10-07
 ### Cải thiện
-- **Chuẩn bị nền cho Hệ thống cộng hưởng.** Javis bắt đầu có lớp giúp một việc anh nhờ được theo đuổi tới khi có bằng chứng xong. Bản này chỉ kiểm đường chạy bên trong, chưa bật gì cho người dùng và không đổi cách Javis đang làm việc.
+- **Bỏ hạn mức lúc bot tự lên tiếng trong nhóm.** Trước đây ở chế độ Tự đánh giá, bot chỉ tự trả lời tối đa 8 lần mỗi nhóm, 3 lần mỗi người mỗi giờ, và nghỉ giữa hai lần. Giờ nói hay im do bộ phán xử và mô hình tự quyết theo vai của Agent và tài liệu; bạn chỉnh bằng nút Đúng/Sai ở Bộ phán xử.
+- Bot vẫn chờ một nhịp và nhường khi bạn đang gõ tay bằng chính nick đó. Nhóm đông hỏi nhiều sẽ tốn lượt dùng model nhiều hơn; muốn bớt thì đổi nhóm đó về chế độ Được gọi tên.
+
+## [0.85.4] - 2026-10-07
+### Cải thiện
+- **Bot không còn giới hạn 20 câu mỗi người mỗi giờ.** Ai nhắn riêng hay gọi tên bot đều được trả lời, không còn câu "Anh chị nhắn hơi nhanh".
+- Giới hạn lúc bot tự lên tiếng trong nhóm khi không ai gọi (chế độ Tự đánh giá) vẫn giữ, để bot không nói tràn lan. Không còn trần thì một người nhắn liên tục sẽ tốn lượt dùng model liên tục; thấy bất thường thì bấm Tiếp quản cuộc chat đó.
+
+## [0.85.3] - 2026-10-07
+### Sửa lỗi
+- **Bot ở mức Toàn quyền giờ chạy y như kênh admin.** Trước đây mức này vẫn đi đường hẹp của bot: với Grok Build và Antigravity bot không dùng được công cụ nào, với Claude Code thì không thấy các kết nối Gmail, Drive, lịch của tài khoản Claude. Giờ bot Toàn quyền có đúng bộ não, công cụ, MCP và kỹ năng như khi bạn chat trực tiếp, chỉ giữ vai của Agent.
+- Vì vậy mức Toàn quyền trao cả quyền chạy lệnh trên máy chủ và đọc mọi file. Cảnh báo trước khi bật đã nói rõ điều này: chỉ bật cho bot mà chỉ bạn hoặc người bạn tin tuyệt đối nhắn được.
+- Câu trả lời qua Telegram, Zalo, Slack... bằng Grok Build hoặc Antigravity nay được lưu đúng vào lịch sử và bộ nhớ, không còn bị ghi như một câu lỗi.
+
+## [0.85.1] - 2026-10-07
+### Cải thiện
+- **Bản Docker tự cài Antigravity CLI và Grok Build.** Trước đây hai thẻ này ở trang Models báo "CLI chưa cài" kèm một lệnh phải tự gõ, mà cài qua Hostinger thì không có chỗ gõ. Giờ Javis tự cài lúc khởi động, cài một lần là giữ qua mọi lần cập nhật.
+- Trong lúc đang cài, thẻ báo "Javis đang tự cài" thay vì đưa lệnh. Cài hỏng (máy chủ không ra được mạng) thì thẻ nói thật và chỉ cách thử lại. Ai không muốn thì tắt bằng `JAVIS_AUTO_INSTALL_CLIS=0`.
+
+## [0.85.0] - 2026-10-07
+### Thêm mới
+- **Chat với Javis từ Lark/Feishu và Discord.** Hai kênh mới tự nối ra ngoài nên chạy được cả trên laptop, không cần tên miền. Người lạ nhắn bot nhận mã ghép nối, bạn bấm Cho phép là xong.
+### Cải thiện
+- **Trang "Kênh" đổi tên thành "Kênh Admin"** cho khỏi lẫn với bot trả lời khách ở trang Chatbot, và chia mỗi kênh một tab, chấm màu trên tab cho biết kênh nào đang chạy.
+- **Bỏ ô tích "Bật bot" khó hiểu.** Giờ đầu mỗi tab có công tắc Bật/Tắt có tác dụng ngay, nút cuối tab ghi đúng việc nó làm ("Lưu và bật kênh" hay "Lưu thay đổi"), và thiếu thông tin gì thì trang nói tên ô đó.
+
+## [0.84.10] - 2026-10-07
+### Sửa lỗi
+- **Bot chuyên trách đọc được link Google Docs và Google Sheets gắn vào Agent.** Trước đây bot chỉ tra file trong brain, nên Agent dặn "chỉ trả lời theo tài liệu" mà bảng giá nằm trên Google Sheets thì bot báo "chưa có thông tin" với mọi sản phẩm.
+- Bảng tính được đọc đủ mọi tab, từng dòng kèm tên cột. Sửa file trên Google thì vài phút sau bot dùng bản mới. Chạy ở mọi mức quyền, không cần nâng bot lên Được ghi.
+- File phải chia sẻ "Bất kỳ ai có đường liên kết". File chưa chia sẻ thì thẻ bot hiện cảnh báo vàng nói rõ link nào. Link khách dán vào tin nhắn không bao giờ được mở.
+
+## [0.84.8] - 2026-10-07
+### Cải thiện
+- Tài liệu Chatbot nói đúng giới hạn hiện tại: bot trả lời mỗi người tối đa 20 câu một giờ, trong nhóm tính riêng từng người, và con số này chưa chỉnh được trên trang Chatbot.
+
+## [0.84.7] - 2026-10-06
+### Thêm mới
+- **Duyệt người xin vào nhóm Zalo ngay trong Javis.** Có người xin vào nhóm phải duyệt là Javis báo bạn qua chuông và Telegram. Hỏi "ai đang xin vào nhóm X" để xem danh sách, bảo "duyệt hết" hay "duyệt Lan, từ chối Minh" là Javis làm và báo lại từng người.
+- Bot chuyên trách không bao giờ tự duyệt. Tài khoản Zalo phải là trưởng hoặc phó nhóm, và kết nối Zalo ở mức Toàn quyền.
+
+## [0.84.6] - 2026-10-06
+### Sửa lỗi
+- **Bot trong nhóm không còn báo "Anh chị nhắn hơi nhanh" với người mới hỏi lần đầu.** Giới hạn số câu trả lời mỗi giờ trước đây tính chung cho cả nhóm, nên nhóm đông gọi bot đủ 20 lần là ai tag bot sau đó cũng bị từ chối kèm tag tên mình. Giờ hạn mức tính riêng từng người, đúng như ô cài đặt ghi.
+
+## [0.84.3] - 2026-10-06
+### Thêm mới
+- **Bot chuyên trách gửi được ảnh cho khách.** Dặn trong Agent khi nào gửi ảnh nào (vd "khách hỏi mẫu áo thì gửi `![Mẫu áo](attachments/mau-ao.jpg)`"), bot gửi ảnh thật ngay sau câu trả lời. Chạy trên Zalo cá nhân, Telegram, Slack và WhatsApp, ở mọi mức quyền.
+- Chỉ ảnh có thật trong brain của chính bot mới được gửi, tối đa 4 ảnh mỗi lần, không quá 10 MB. File tài liệu như PDF không gửi, và bot không tự đính kèm file nào ngoài ảnh Agent đã chỉ đích danh.
+
+## [0.84.2] - 2026-10-06
+### Thêm mới
+- **Biết ai vừa vào nhóm Zalo và vào lúc nào.** Hỏi "tuần này ai mới vào nhóm X" là Javis trả tên kèm giờ vào, kể cả người do chính tài khoản của bạn thêm vào. Nhật ký giữ lại sau khi khởi động lại.
+- **Bot nhận được sự kiện người mới vào nhóm.** Ở nhóm đã cho phép, Agent của bot làm theo chỉ dẫn bạn viết (chào, hỏi thăm) và câu nó gửi tự tag đúng người mới. Javis không có lời chào mặc định: Agent không được dặn gì về người mới thì bot im.
+- Zalo chỉ báo lúc đang kết nối, và danh sách thành viên không có ngày vào nhóm, nên người vào trước khi có tính năng này hay trong lúc máy tắt thì không có giờ vào.
 
 ## [0.83.2] - 2026-10-06
 ### Bảo mật

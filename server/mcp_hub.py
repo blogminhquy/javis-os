@@ -33,6 +33,7 @@ import mcp_client
 import mcp_store
 import skill_router
 import skill_usage
+import turn_context
 from config import STATE_DIR
 
 _TOKEN_PATH = STATE_DIR / ".hub_token"
@@ -1407,9 +1408,17 @@ async def handle_http(request):
     # A dedicated bot's Claude Code config carries X-Javis-Bot: 1 (see `claude_config_path(bot=True)`), so the hub
     # hides OWNER_ONLY_TOOLS from it. The header can only take tools AWAY; leaving it out grants nothing new.
     for_bot = (request.headers.get("x-javis-bot") or "").strip() == "1"
-    return await tra_loi_jsonrpc(request, mode, include_plugins=include_plugins,
-                                 include_ambient=include_ambient,
-                                 raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot)
+    # Who is talking (`turn` for tool hooks). The CLI engine of a chat turn sends the opaque key
+    # that turn issued; the header names nobody by itself, so a forged or stale key is just None.
+    # ALWAYS bind, even to None: this request must never inherit a turn from whatever context
+    # the server happens to run it in.
+    tok = turn_context.bind(turn_context.resolve_key(request.headers.get(turn_context.HEADER.lower())))
+    try:
+        return await tra_loi_jsonrpc(request, mode, include_plugins=include_plugins,
+                                     include_ambient=include_ambient,
+                                     raw_vault=request.headers.get("x-javis-vault"), for_bot=for_bot)
+    finally:
+        turn_context.reset(tok)
 
 
 async def _handle_one_traced(msg, *args, **kwargs):

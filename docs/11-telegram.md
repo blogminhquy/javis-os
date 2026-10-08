@@ -46,23 +46,22 @@ Muốn cho người khác (vợ/chồng, nhân viên...) dùng chung bot: nhờ 
 
 ### Bước 1: Cấu hình và bật bot
 
-1. Vào **Kênh** (nhóm **Kết nối**) trên dashboard, tới thẻ **Telegram**.
-2. Tích ô **Bật bot Telegram**.
-3. Dán chuỗi token vào ô **Bot token**. (Nếu trước đó đã đặt token, cạnh nhãn hiện chữ "(đã đặt)"; để trống ô này nếu không muốn đổi token.)
-4. Dán Chat ID vào ô **Chat ID được phép dùng**. Nhiều người dùng chung thì dán nhiều ID cách nhau dấu phẩy, ví dụ `123456789, 987654321`.
-5. Bấm **Lưu & bật**.
+1. Vào **Kênh Admin** (nhóm **Kết nối**) trên dashboard, chọn tab **Telegram**.
+2. Ở bước **1. Kết nối bot**, dán chuỗi token vào ô **Bot token**. (Token đã lưu thì cạnh nhãn hiện "✓ đã lưu"; để trống ô này nếu không muốn đổi.)
+3. Ở bước **2. Ai được dùng**, dán Chat ID vào ô **Chat ID được phép**. Nhiều người dùng chung thì dán nhiều ID cách nhau dấu phẩy, ví dụ `123456789, 987654321`.
+4. Bấm **Lưu và bật kênh** ở cuối tab.
 
-Javis lưu cấu hình và tự khởi động lại bot ngay sau khi bấm Lưu (bạn không cần bấm nút riêng để restart). Dòng trạng thái dưới thẻ sẽ báo "✅ Đã lưu, đang khởi động bot…" rồi tự cập nhật sau gần 2 giây.
+Javis lưu cấu hình và tự khởi động bot ngay (không cần nút restart riêng). Nhãn cạnh tên kênh chuyển sang "Đang khởi động" rồi "Đang chạy" sau vài giây. Về sau muốn tạm tắt bot thì gạt **công tắc** ở đầu tab: công tắc có tác dụng ngay, không cần bấm Lưu, và token vẫn được giữ.
 
 ### Bước 2: Kiểm tra bot đã nhận tin
 
-Dòng chữ nhỏ ngay dưới 2 nút là trạng thái thật của bot. Ý nghĩa từng dòng:
+Nhãn màu cạnh tên kênh và khung ngay dưới nó là trạng thái thật của bot (chấm màu trên tab cũng vậy, để nhìn lướt cả sáu kênh). Ý nghĩa:
 
 | Dòng trạng thái | Nghĩa |
 |---|---|
 | 🟢 Bot đang nhận tin | Bot chạy tốt, nhắn cho bot là Javis trả lời. Dòng này kèm số chat ID được phép, hoặc cảnh báo "MỌI NGƯỜI nhắn được (chưa giới hạn ID)" |
-| ⚪ Bot CHƯA bật | Chưa tích "Bật bot Telegram" rồi Lưu |
-| ⚪ Chưa có bot token | Đã bật nhưng chưa dán token |
+| ⚪ Chưa cài đặt | Chưa có token. Làm bước 1 rồi bấm Lưu và bật kênh |
+| ⚪ Đang tắt | Đã có token nhưng công tắc đang tắt. Gạt công tắc để bật |
 | ⏳ Đang khởi động bot | Bot vừa được bật, chờ vài giây |
 | 🔴 409 | Cùng token này đang bị chạy (poll) ở nơi khác, hoặc còn webhook. Xem mục Sự cố bên dưới |
 | ⚠ Lỗi bot | Có lỗi khác, dòng sẽ kèm mô tả chi tiết |
@@ -263,13 +262,13 @@ Có 2 cách:
 1. Trên dashboard: vào **Kênh** (nhóm **Kết nối**), đọc dòng trạng thái dưới thẻ Telegram (mô tả ở Bước 2). Đây là cách nhanh nhất và dễ đọc nhất.
 2. Trong Telegram: gõ `/status`. Bot trả về provider, model, brain đang dùng, phiên của bạn, và cho biết đang xử lý hay đang rảnh.
 
-Nhóm **Hệ thống** ở đầu trang **Cài đặt** cũng hiện nhanh Telegram "Đang bật" hay "Đang tắt", kèm nút tắt sang thẳng trang **Kênh**; cấu hình chi tiết vẫn nằm ở **Kênh**.
+Nhóm **Hệ thống** ở đầu trang **Cài đặt** cũng hiện nhanh Telegram "Đang bật" hay "Đang tắt", kèm nút tắt sang thẳng trang **Kênh Admin**; cấu hình chi tiết vẫn nằm ở **Kênh Admin**.
 
 ## Bảng tra nhanh nút và trạng thái
 
 | Nút / ô | Ở đâu | Tác dụng |
 |---|---|---|
-| Bật bot Telegram | Thẻ Telegram, trang Kênh | Bật/tắt bot. Phải bấm Lưu & bật mới có hiệu lực |
+| Công tắc Bật kênh | Đầu tab Telegram, trang Kênh Admin | Bật/tắt bot NGAY, không cần bấm Lưu. Token vẫn được giữ khi tắt |
 | Bot token | Thẻ Telegram | Token BotFather cấp. Đã đặt rồi thì để trống nếu không muốn đổi |
 | Chat ID được phép dùng | Thẻ Telegram | Whitelist. Nhiều ID cách nhau dấu phẩy |
 | Lưu & bật | Thẻ Telegram | Lưu cấu hình rồi tự khởi động lại bot ngay |
@@ -296,7 +295,7 @@ Nhóm **Hệ thống** ở đầu trang **Cài đặt** cũng hiện nhanh Teleg
 
 **Nhắn cho bot bị trả lời "Bạn không có quyền dùng bot Javis này."** Chat ID bạn đặt trong Javis không khớp tài khoản đang nhắn. Lấy lại Chat ID đúng bằng @userinfobot, dán vào ô Chat ID rồi Lưu & bật.
 
-**Tin "🤔 Javis đang xử lý…" đứng yên không đổi chữ.** Lượt đó chưa gọi công cụ nào nên chưa có gì để báo, hoặc engine đang chờ. Xong việc nó sẽ đổi thành dòng vết (`⚙ ...` hoặc `✓ Trả lời trực tiếp`). Nếu nó kẹt mãi ở "🤔" mà không có câu trả lời nào theo sau thì lượt đó đã hỏng, xem dòng trạng thái ở trang **Kênh**.
+**Tin "🤔 Javis đang xử lý…" đứng yên không đổi chữ.** Lượt đó chưa gọi công cụ nào nên chưa có gì để báo, hoặc engine đang chờ. Xong việc nó sẽ đổi thành dòng vết (`⚙ ...` hoặc `✓ Trả lời trực tiếp`). Nếu nó kẹt mãi ở "🤔" mà không có câu trả lời nào theo sau thì lượt đó đã hỏng, xem dòng trạng thái ở trang **Kênh Admin**.
 
 **Gõ `/tên-skill` bị báo cần engine Claude CLI.** Bạn đang ở engine OpenRouter. Gõ `/cli` để chuyển về Claude rồi gọi lại skill.
 
@@ -310,7 +309,7 @@ Nhóm **Hệ thống** ở đầu trang **Cài đặt** cũng hiện nhanh Teleg
 
 **Ảnh cũ trong hội thoại hiện ô xám "Ảnh đã hết hạn".** Vùng cache media (`attachments/` và `inbox/`) đã dọn file quá 30 ngày hoặc vượt trần 300MB. Nội dung đã rút thành ghi chú `.md` vẫn còn nguyên.
 
-**Đổi cấu hình xong bot vẫn như cũ.** Chờ vài giây rồi tải lại trang **Kênh** để dòng trạng thái cập nhật. Nếu vẫn không lên 🟢, xem thêm [Khắc phục sự cố & FAQ](17-khac-phuc-su-co.md).
+**Đổi cấu hình xong bot vẫn như cũ.** Chờ vài giây rồi tải lại trang **Kênh Admin** để dòng trạng thái cập nhật. Nếu vẫn không lên 🟢, xem thêm [Khắc phục sự cố & FAQ](17-khac-phuc-su-co.md).
 
 ## Mức tiết kiệm token áp dụng luôn cho Telegram
 

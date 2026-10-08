@@ -15,26 +15,18 @@ trả lời được, rồi mới lên tiếng. Còn khách trò chuyện với 
   3. Một lượt model, kèm chỉ dẫn "không ai gọi tên bạn": Agent vẫn được quyền viết `[IM_LANG]`
      nếu đọc xong thấy không nên chen vào.
 
-Và hai thứ để bot không thành máy phát thanh: hạn mức tự trả lời (mỗi nhóm, mỗi người, và một
-khoảng nghỉ giữa hai lần) ở đây, còn việc NHƯỜNG khi có người đang nhắn tay nằm ở lớp vận
-chuyển vì chỉ nó biết ai đang nói trong cuộc chat.
+Không còn hạn mức số lần tự trả lời (mỗi nhóm, mỗi người, khoảng nghỉ giữa hai lần): chủ gỡ ngày
+2026-10-07 (0.85.5) để bộ phán xử và mô hình tự quyết nói hay im. Việc NHƯỜNG khi có người đang nhắn
+tay bằng nick này vẫn giữ, ở lớp vận chuyển vì chỉ nó biết ai đang nói trong cuộc chat.
 
 Tag/reply thì KHÔNG qua bộ đánh giá: gọi tên là một lời nhờ rõ ràng, bot trả lời như chat riêng.
 """
 from __future__ import annotations
 
 import re
-import time
-from collections import deque
-from typing import Dict, Tuple
+from typing import Tuple
 
 import chatbot_grounding
-
-# Hạn mức TỰ trả lời (không tính lượt được gọi tên). Số nhỏ có chủ ý: nick Zalo này là người
-# thật, gửi dồn trong nhóm vừa phiền vừa dễ bị Zalo khoá.
-TRAN_NHOM_GIO = 8          # số lần tự trả lời tối đa mỗi nhóm mỗi giờ
-TRAN_NGUOI_GIO = 3         # số lần tối đa cho MỘT người trong một nhóm mỗi giờ
-KHOANG_CACH_GIAY = 20      # nghỉ giữa hai lần tự trả lời trong cùng một nhóm
 
 MIN_CHU = 8
 MIN_TU = 3
@@ -47,6 +39,8 @@ _HOI = re.compile(
     r"ai biet|ai co|chi giup|nho)\b"
     r"|\bco\b.*\bkhong\b\s*$")
 
+# Ba mã hạn mức (het_han_muc, het_han_nguoi, vua_tra_loi) không còn phát ra từ 0.85.5, nhưng giữ câu
+# chữ để nhật ký cũ của bot vẫn đọc được thay vì hiện mã thô.
 _LY_DO = {
     "khong_co_tai_lieu": "Có vẻ là câu hỏi nhưng tài liệu của bot không có phần nào khớp, nên bot im.",
     "het_han_muc": "Bot đã tự trả lời đủ số lần cho nhóm này trong giờ vừa qua.",
@@ -77,7 +71,9 @@ def can_danh_gia(cfg: dict, meta: dict) -> bool:
     meta = meta or {}
     return (str(meta.get("chat_type") or "private") != "private"
             and (cfg or {}).get("reply_when") == "auto"
-            and not meta.get("mentioned") and not meta.get("reply_to_bot"))
+            and not meta.get("mentioned") and not meta.get("reply_to_bot")
+            # A member joining is an event for the Agent's own rules, not a question to score (0.84.2).
+            and not meta.get("member_join"))
 
 
 def nhin_nhu_cau_hoi(text: str) -> Tuple[bool, str]:
@@ -98,59 +94,3 @@ def nhin_nhu_cau_hoi(text: str) -> Tuple[bool, str]:
     if "?" in khong_link or "？" in khong_link or _HOI.search(chuan):
         return True, ""
     return False, "khong_phai_cau_hoi"
-
-
-# ============================================================
-# Hạn mức tự trả lời
-# ============================================================
-_NHOM: Dict[tuple, deque] = {}       # (bot, nhóm) -> giờ các lần tự trả lời
-_NGUOI: Dict[tuple, deque] = {}      # (bot, nhóm, người) -> giờ các lần
-_CUOI: Dict[tuple, float] = {}       # (bot, nhóm) -> giờ lần cuối
-_TRAN_BO_NHO = 5000                  # trần thô: quên hạn mức còn hơn phình mãi
-
-
-def _don(dq: deque, now: float) -> None:
-    while dq and now - dq[0] > 3600:
-        dq.popleft()
-
-
-def duoc_tra_loi(bot_id: str, chat_id: str, user_id: str = "", now: float = None, follow_up: bool = False) -> str:
-    """"" nếu bot được tự trả lời lúc này, không thì mã lý do (xem `ly_do_de_doc`).
-
-    `follow_up` (0.65.0): tin này là người bot VỪA trả lời hỏi tiếp. Đó là một cuộc trò chuyện đang diễn ra
-    chứ không phải bot chen vào, nên KHÔNG bị chặn bởi khoảng nghỉ giữa hai lần nói và trần theo người;
-    trần theo nhóm mỗi giờ vẫn áp (nick này là người thật, không được thành máy phát thanh)."""
-    now = time.time() if now is None else now
-    kn = (str(bot_id), str(chat_id))
-    dq = _NHOM.get(kn)
-    if dq is not None:
-        _don(dq, now)
-        if len(dq) >= max(1, int(TRAN_NHOM_GIO)):
-            return "het_han_muc"
-    if not follow_up and KHOANG_CACH_GIAY and now - _CUOI.get(kn, 0.0) < KHOANG_CACH_GIAY:
-        return "vua_tra_loi"
-    if user_id and not follow_up:
-        dq = _NGUOI.get(kn + (str(user_id),))
-        if dq is not None:
-            _don(dq, now)
-            if len(dq) >= max(1, int(TRAN_NGUOI_GIO)):
-                return "het_han_nguoi"
-    return ""
-
-
-def ghi_da_tra_loi(bot_id: str, chat_id: str, user_id: str = "", now: float = None) -> None:
-    """Bot VỪA tự trả lời thật (không tính lượt bot chọn im). Chỉ gọi sau khi đã có câu trả lời."""
-    now = time.time() if now is None else now
-    if len(_NGUOI) > _TRAN_BO_NHO:
-        _NGUOI.clear()
-    kn = (str(bot_id), str(chat_id))
-    _NHOM.setdefault(kn, deque()).append(now)
-    _CUOI[kn] = now
-    if user_id:
-        _NGUOI.setdefault(kn + (str(user_id),), deque()).append(now)
-
-
-def reset_cho_test() -> None:
-    _NHOM.clear()
-    _NGUOI.clear()
-    _CUOI.clear()

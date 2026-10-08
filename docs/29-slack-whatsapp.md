@@ -4,7 +4,7 @@
 
 Từ 0.71.0 Javis nói chuyện được trên Slack và WhatsApp, theo đúng hai cách như Telegram và Zalo:
 
-- **Kênh điều khiển:** bạn chat với chính Javis (brain, công cụ, việc nền của bạn). Cài ở trang **Kênh**.
+- **Kênh điều khiển:** bạn chat với chính Javis (brain, công cụ, việc nền của bạn). Cài ở trang **Kênh Admin**.
 - **Bot khách hàng:** một agent chuyên trách trả lời khách hoặc đội nhóm, mọi cuộc chat vào hộp thư chung, tiếp quản được khi cần người thật. Cài ở trang **Chatbot**.
 
 | | Slack | WhatsApp |
@@ -64,7 +64,7 @@ settings:
 
 ### 2a. Kênh điều khiển (bạn chat với Javis)
 
-1. Trang **Kênh** → thẻ **Slack**: tích **Bật**, dán bot token và app token, bấm **Lưu**.
+1. Trang **Kênh Admin** → tab **Slack**: dán bot token và app token, bấm **Lưu và bật kênh**.
 2. Mở Slack, tìm app trong mục **Apps**, nhắn một câu bất kỳ. Bạn sẽ hiện trên thẻ kèm mã 4 số; đối chiếu mã rồi bấm **Cho phép**. Danh sách để trống là cố ý: chưa ai chạm được vào brain của bạn cho tới khi bạn cho phép.
 3. Từ đó: nhắn riêng cho bot, hoặc gọi `@Javis` trong kênh đã mời bot vào (`/invite @Javis`); bot trả lời trong thread.
 
@@ -97,7 +97,7 @@ WhatsApp chỉ chạy qua **WhatsApp Business Cloud API** chính thức của Me
 
 ### 2a. Kênh điều khiển
 
-1. Trang **Kênh** → thẻ **WhatsApp**: tích **Bật**, điền Phone number ID, Access token, App secret, bấm **Lưu**.
+1. Trang **Kênh Admin** → tab **WhatsApp**: điền Phone number ID, Access token, App secret, bấm **Lưu và bật kênh**.
 2. Thẻ hiện **Callback URL** và **Verify token**. Bên Meta: **WhatsApp → Configuration → Webhook → Edit**, dán cả hai, **Verify and save**, rồi đăng ký trường **messages**.
 3. Nhắn cho số doanh nghiệp từ WhatsApp của bạn. Bạn hiện trên thẻ kèm mã; bấm **Cho phép**.
 
@@ -105,7 +105,7 @@ WhatsApp chỉ chạy qua **WhatsApp Business Cloud API** chính thức của Me
 
 1. Dùng một số khác (mỗi số thuộc về một bot).
 2. Trang **Chatbot** → **Tài khoản** → thêm tài khoản, kênh **WhatsApp**, dán ba giá trị **cách nhau dấu cách**: `<phone number id> <access token> <app secret>`.
-3. Webhook dùng chung Callback URL và Verify token ở trang Kênh: một địa chỉ phục vụ mọi số, Javis tự chia tin theo số mà khách nhắn tới.
+3. Webhook dùng chung Callback URL và Verify token ở trang Kênh Admin: một địa chỉ phục vụ mọi số, Javis tự chia tin theo số mà khách nhắn tới.
 
 ### Cửa sổ 24 giờ
 

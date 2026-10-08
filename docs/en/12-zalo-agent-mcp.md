@@ -31,7 +31,7 @@ MCP process: sign in by QR, read or search conversations and send messages throu
 - A phone already signed in to the Zalo account you want to connect.
 - Javis started and you able to sign in to the dashboard.
 
-Javis pins `javis-zalo` to a release tag (currently `v1.0.0`) and installs it straight from that
+Javis pins `javis-zalo` to a release tag (currently `v1.2.0`) and installs it straight from that
 tag's tarball on GitHub, with no npm account or Git needed. Only the `zca-js` library underneath
 follows its official npm releases. Since 0.83.0 Javis runs this build instead of the third-party
 `zalo-agent-cli` 1.6.2; connections signed in earlier switch over without a new QR scan.
@@ -56,15 +56,49 @@ The **Guide on GitHub** button in the Zalo card always opens this documentation 
 | `zalo_get_messages` | Read new messages in the buffer, supports a cursor | Read |
 | `zalo_get_history` | Fetch the history of one chat (groups too), paginated, with `replyTo` and `mentions` | Read |
 | `zalo_search_history` | Search history across every chat by sender or date range | Read |
+| `zalo_get_group_joins` | Who joined a group and when, filtered by group, person or date range | Read |
+| `zalo_list_join_requests` | Who is waiting to join a group that requires approval | Read |
+| `zalo_review_join_requests` | Approve or reject people waiting to join | Dangerous |
 | `zalo_list_threads` | List the chats currently in the buffer | Read |
 | `zalo_search_threads` | Find a group or person by name | Read |
 | `zalo_view_media` | Download/open an image, audio or video on the server (the brain does not see it, see `zalo_read_images` below) | Read |
 | `zalo_mark_read` | Mark as handled up to a cursor | Write |
 | `zalo_send_message` | Send a message to a person or group | Dangerous |
 
-The list follows the `javis-zalo` 1.0.0 source. History only covers what arrived since the MCP
+The list follows the `javis-zalo` 1.1.0 source. History only covers what arrived since the MCP
 connected, plus what Zalo replays on connect (roughly the last two weeks); nothing older is
 available through any API.
+
+## Approving join requests
+
+Since Javis 0.84.7 (javis-zalo 1.2.0), for groups that require approval:
+
+- **Javis tells you when someone asks to join**, through the inbox bell and your Telegram: one message per group,
+  with the applicants' names and the group name.
+- **You decide, Javis acts.** Ask "who is waiting to join Zoom | Javis OS?" and Javis lists them; say "approve
+  everyone" or "approve Lan, reject Minh" and Javis does it and reports the outcome for each person.
+- **A dedicated bot never approves on its own.** Join requests do not reach bots.
+- The Zalo account you scanned must be the group's **owner or a deputy**, or Zalo refuses. Approving is a dangerous
+  action (it changes who is in the group), so the Zalo connection must be at Full access.
+
+## New members joining a group
+
+Since Javis 0.84.2 (javis-zalo 1.1.0), Javis knows who just joined a group and **when**,
+including people your own account added:
+
+- **You can ask.** "Who joined Zoom | Javis OS this week?" makes the brain call
+  `zalo_get_group_joins` and answer with names and join times. The log lives in
+  `~/.zalo-agent-cli/group-joins.jsonl` inside the connection's session folder, keeps the latest
+  5000 joins, and survives restarts.
+- **A dedicated bot receives the event.** In a group the bot is allowed in, each newcomer is an
+  event sent to the bot's Agent, whatever the "reply when" setting says. The Agent follows its own
+  instructions (for example a welcome and a question), and what it sends tags the newcomer.
+  Javis has **no greeting of its own**: if the Agent's instructions say nothing about newcomers,
+  the bot stays silent. When many people join at once and the bot has hit its rate limit, it also
+  stays silent instead of saying "you are typing too fast".
+- **Limits.** Zalo only reports this while connected, and the member list carries no join date.
+  People who joined before this feature, or while the machine running Javis was off, are not in
+  the log.
 
 ## The Zalo extras pack (Javis Store)
 

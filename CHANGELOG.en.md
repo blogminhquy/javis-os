@@ -8,27 +8,83 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.85.2] - 2026-10-07
-### Improved
-- **Resonance: try a new method before switching.** Javis compares the current way of working with one alternative on the same set of cases and the same yardstick, and switches only when the new one clearly wins; without enough evidence it keeps the current method. The feature ships turned off.
-- **Resonance: a clearer line for handing off work.** With the feature on, a job that runs once and is done still goes to the Work page, while a job that needs doing, checking and revising on your feedback across several turns is kept as a goal. Javis on Claude Code is pointed to the right place to find the goal tool. A draft Javis writes during the chat turn is kept as the goal's first version instead of being rewritten. Brains without the feature see no change.
-- **A chat turn that lands while Claude Code is refreshing its sign-in now says it can simply be resent.** Newer Claude Code reports this with a different message that Javis used to show raw in English; it now gets the same "the session is not lost, send again" note as the old wording.
+## [0.86.0] - 2026-10-08
+### Added
+- **Resonance: Javis follows a task through until it is done.** When you hand over work that continues after the chat turn, Javis sets a goal with a clear finish line, works on it in the background within its budget, reports done only with evidence, and keeps the goal across restarts. The feature ships off and is turned on per brain.
+- **A "What I'm working toward" card in the chat.** Tap Right or Not quite for how Javis understood you, Accepted for the result, or pause it. Feedback you add in chat attaches to the same goal and Javis revises the version you actually saw; a draft Javis writes during the chat turn is kept as the first version instead of being rewritten.
+- **Try a new method before switching.** Javis compares its current way of working with one alternative on the same set of cases and switches only when the new one clearly wins; without enough evidence it keeps the current method.
+### Fixed
+- **A chat turn that lands while Claude Code is refreshing its sign-in now says it can simply be resent.** Newer Claude Code reports this with a different message that Javis used to show raw in English; normal answers that happen to contain "already used" are no longer replaced by that error note.
 
-## [0.84.9] - 2026-10-07
-### Improved
-- **Resonance: the "What I'm working toward" card and confirm buttons.** Every goal Javis is pursuing gets a card in the chat: how Javis understood your request, how far it has got, and what comes next. You mark the understanding as right or not right, and the output as meeting the bar, as two separate things. There are pause and resume buttons. Off by default, not enabled for anyone yet.
+## [0.85.9] - 2026-10-08
+### Fixed
+- **Update now on Docker keeps spinning until the new version is up, then reloads the page, with no false error.** The page used to wait only about 36 seconds and then say "The new version has not come up after a while - it may have failed", while Watchtower was still pulling the new version; a little later the page reloaded onto it anyway. The page now waits up to 10 minutes. Past 45 seconds it says plainly that the new version is still being pulled, which can take a few minutes on a slow machine. Real errors (Watchtower reports a failure, no new image yet) still show right away. The "Reload / Later" bar no longer pops up in the middle of an update either.
 
-## [0.84.4] - 2026-10-06
-### Improved
-- **Resonance: goals are carried forward and checked against evidence.** A goal Javis has framed is now worked step by step within its budget, reported done only when there is evidence against its criteria, and scheduled for its next step instead of checking in on a timer. Off by default, not enabled for anyone yet.
+## [0.85.8] - 2026-10-08
+### Added
+- **Plugins know who is talking in a tool call.** The `pre_tool_call` and `post_tool_call` hooks get a new `turn` key (channel, sender, group or private, whether it is the owner), so a plugin wrapping an app with per-staff permissions can run tools with the rights of the person messaging the bot. The identity comes from the real message, never from what the model writes, and a bot is never treated as the owner. (Contributed by @nnbaonam96.)
 
-## [0.84.1] - 2026-10-06
-### Improved
-- **Resonance: Javis turns a request into a goal by itself.** When you hand Javis something that needs following up after the chat turn, it frames it as a goal with a way to tell when it is done, without asking you to fill anything in. Ordinary questions stay ordinary questions. Off by default, not enabled for anyone yet.
+## [0.85.7] - 2026-10-08
+### Fixed
+- **Brain sync with GitHub no longer fails on its very first push from a machine whose system language is not English.** When the GitHub repo was still empty, Javis read git's messages in the OS language and missed that case. It now talks to git in a neutral locale, so bootstrapping works regardless of the machine's language. (Contributed by @dev23072005.)
 
-## [0.84.0] - 2026-10-06
+## [0.85.5] - 2026-10-07
 ### Improved
-- **Groundwork for Resonance.** Javis starts gaining a layer that lets a request you hand it be pursued until there is evidence it is done. This release only checks the internal execution path; nothing is switched on for users and nothing about how Javis works today changes.
+- **No more caps on the bot speaking up on its own in groups.** In auto mode the bot used to auto-reply at most 8 times per group and 3 times per person per hour, with a pause between turns. Speaking or staying quiet is now decided by the reply judge and the model, following the Agent's role and the documents; tune it with Right/Wrong in the reply judge.
+- The bot still waits a beat and yields when you are typing by hand from that same account. A busy group will use more model usage; to cut it, switch that group back to answering only when called by name.
+
+## [0.85.4] - 2026-10-07
+### Improved
+- **Bots no longer cap answers at 20 per person per hour.** Anyone who messages the bot directly or calls it by name gets an answer; the "you are typing too fast" reply is gone.
+- The limit on the bot speaking up on its own in a group nobody called it in (auto mode) stays, so it does not flood groups. With no cap, one person messaging non-stop keeps spending model usage; if something looks off, take over that chat.
+
+## [0.85.3] - 2026-10-07
+### Fixed
+- **Bots at Full power now run exactly like the admin channel.** This level used to take the bot's narrow route: with Grok Build and Antigravity the bot could use no tool at all, and with Claude Code it could not see the Gmail, Drive and calendar connections of the Claude account. A Full power bot now has the same brain, tools, MCP and skills as when you chat directly, keeping only the Agent's role.
+- So Full power now also grants running commands on the server and reading every file. The warning before turning it on says so: only use it for a bot that only you or people you fully trust can message.
+- Replies through Telegram, Zalo, Slack... from Grok Build or Antigravity are now saved properly to history and memory instead of being recorded as an error.
+
+## [0.85.1] - 2026-10-07
+### Improved
+- **The Docker edition installs Antigravity CLI and Grok Build by itself.** These two cards on the Models page used to say "CLI not installed" with a command to type, and a Hostinger install has nowhere to type it. Javis now installs them at startup, once, and keeps them across updates.
+- While installing, the card says "Javis is installing" instead of showing a command. If the install fails (no Internet on the server), the card says so and how to retry. Turn it off with `JAVIS_AUTO_INSTALL_CLIS=0`.
+
+## [0.85.0] - 2026-10-07
+### Added
+- **Chat with Javis from Lark/Feishu and Discord.** Both new channels connect outwards, so they run on a laptop too, no domain needed. A stranger who messages the bot gets a pairing code; click Allow and you are done.
+### Improved
+- **The "Channels" page is now "Admin channels"**, so it is not mixed up with the customer bots on the Chatbot page, and each channel has its own tab with a dot showing which ones are running.
+- **The confusing "Enable bot" checkbox is gone.** Each tab now starts with an On/Off switch that works immediately, the button at the bottom says what it does ("Save and turn on" or "Save changes"), and a missing field is named.
+
+## [0.84.10] - 2026-10-07
+### Fixed
+- **Dedicated bots now read the Google Docs and Google Sheets links attached to their Agent.** Bots used to search only brain files, so an Agent told to "answer only from the documents" with its price list on Google Sheets said "no information" about every product.
+- Spreadsheets are read tab by tab, every row with its column names. Edits on Google reach the bot within a few minutes. Works at every permission level, no need to raise the bot to Can write.
+- The file must be shared with "Anyone with the link". An unshared file shows a yellow warning on the bot card naming the link. A link a customer pastes into a message is never opened.
+
+## [0.84.8] - 2026-10-07
+### Improved
+- The Chatbots guide now states the actual limit: the bot answers each person at most 20 times an hour, counted per person in groups, and the number cannot be changed on the Chatbots page yet.
+
+## [0.84.7] - 2026-10-06
+### Added
+- **Approve people asking to join a Zalo group from Javis.** When someone asks to join a group that requires approval, Javis tells you through the bell and Telegram. Ask "who is waiting to join group X" to see the list, then say "approve everyone" or "approve Lan, reject Minh" and Javis does it and reports back per person.
+- A dedicated bot never approves on its own. The Zalo account must be the group's owner or a deputy, with the Zalo connection at Full access.
+
+## [0.84.6] - 2026-10-06
+### Fixed
+- **A group bot no longer tells someone asking for the first time that they are "typing too fast".** The hourly reply limit used to be shared by the whole group, so once a busy group had called the bot 20 times, anyone who tagged it next was turned away with their name tagged. The limit now counts per person, as the setting says.
+
+## [0.84.3] - 2026-10-06
+### Added
+- **Dedicated bots can send images to customers.** Tell the Agent when to send which image (e.g. "when asked about shirts, send `![Shirt](attachments/shirt.jpg)`") and the bot sends the real image right after its reply. Works on personal Zalo, Telegram, Slack and WhatsApp, at every permission level.
+- Only real images inside the bot's own brain are sent, at most 4 per reply and 10 MB each. Documents such as PDFs are not sent, and the bot never attaches anything other than images the Agent named on purpose.
+
+## [0.84.2] - 2026-10-06
+### Added
+- **See who joined a Zalo group and when.** Ask "who joined group X this week" and Javis answers with names and join times, including people your own account added. The log survives restarts.
+- **Bots receive a "new member joined" event.** In a group the bot is allowed in, its Agent follows the instructions you wrote (welcome, a question) and what it sends tags the newcomer. Javis has no greeting of its own: if the Agent was told nothing about newcomers, the bot stays silent.
+- Zalo only reports joins while connected, and the member list has no join date, so people who joined before this feature or while the machine was off have no join time.
 
 ## [0.83.2] - 2026-10-06
 ### Security

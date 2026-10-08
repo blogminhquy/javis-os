@@ -619,6 +619,27 @@ class ClaudeSDK:
                                       t.get("schema") or {"type": "object", "properties": {}})(_handler))
         return create_sdk_mcp_server("javis-plugins", tools=sdk_tools)
 
+    @staticmethod
+    def _gan_khoa_luot(servers):
+        """Add the current turn's key (X-Javis-Turn) to the hub entry, so pre/post_tool_call hooks
+        on the hub know who is talking (see turn_context). Done here, per query, because this
+        runs inside the turn and every query builds a NEW client: the config file itself is
+        shared by all turns of the same brain and must never carry a turn."""
+        hub = servers.get("javis")
+        if not isinstance(hub, dict) or not isinstance(hub.get("headers"), dict):
+            return servers
+        try:
+            import turn_context
+            key = turn_context.issue_key()
+        except Exception as e:   # noqa: BLE001 - no key means "nobody", never a broken turn
+            print(f"[sdk engine] khoá lượt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+            key = None
+        if not key:
+            return servers
+        hub = dict(hub)
+        hub["headers"] = {**hub["headers"], turn_context.HEADER: key}
+        return {**servers, "javis": hub}
+
     def _mcp_servers(self):
         """(mcp_servers cho options, strict) - đọc file config (đường _apply_mcp) thành dict,
         đấu thêm plugin in-process khi KHÔNG gated. Gated fork (allowed_tools) giữ nguyên
@@ -631,6 +652,7 @@ class ClaudeSDK:
             except Exception as e:
                 print(f"[sdk engine] đọc mcp_config lỗi ({e}) - truyền path thô", file=sys.stderr)
                 return str(self.mcp_config), self.mcp_strict
+            servers = self._gan_khoa_luot(servers)
         if self.allowed_tools:
             return servers, self.mcp_strict
         try:

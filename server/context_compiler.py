@@ -404,7 +404,7 @@ class ContextCompiler:
         if channel == "telegram":
             return ("Kênh Telegram: trả lời gọn, không dùng bảng Markdown; liệt kê từ 3 ý trở lên "
                     "thì gạch đầu dòng, in đậm số liệu; file phải đi qua gateway.")
-        if channel in ("slack", "whatsapp"):
+        if channel in ("slack", "whatsapp", "discord", "lark"):
             return (f"Kênh {channel.capitalize()}: trả lời gọn kiểu tin nhắn, không dùng bảng "
                     "Markdown; liệt kê từ 3 ý trở lên thì gạch đầu dòng; file phải đi qua gateway.")
         if channel == "cli":

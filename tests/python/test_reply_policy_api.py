@@ -198,8 +198,11 @@ codes |= {"judge_silent", "below_threshold"}
 codes -= {"silent", "reply", "called"}
 labels = set(re.findall(r"(\w+):\s*\"rp\.code_", js))
 check("mọi mã im bộ máy phát ra đều có nhãn ở giao diện", codes <= labels, sorted(codes - labels))
-runtime_codes = set(main.chatbot_runtime._RP_RATE.values()) | set(main.chatbot_runtime._RP_RETRACT_CODES)
-check("mã hạn mức của runtime cũng có nhãn", runtime_codes <= labels, sorted(runtime_codes - labels))
+runtime_codes = set(main.chatbot_runtime._RP_RETRACT_CODES)
+check("mã rút lại của runtime cũng có nhãn", runtime_codes <= labels, sorted(runtime_codes - labels))
+# Hạn mức tự nói gỡ ở 0.85.5 nên runtime không phát ba mã này nữa, nhưng nhật ký quyết định cũ còn chúng.
+_ma_cu = {"rate_limited", "rate_limited_user", "just_spoke"}
+check("mã hạn mức cũ vẫn có nhãn để nhật ký cũ đọc được", _ma_cu <= labels, sorted(_ma_cu - labels))
 
 check("không dùng em dash trong file test này", chr(0x2014) not in open(__file__, encoding="utf-8").read())
 # Góp ý sửa mã của vòng tự soát nối vào file trong brain CỦA BOT, không ghi đè lần trước.

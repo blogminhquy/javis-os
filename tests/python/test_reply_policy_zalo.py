@@ -74,9 +74,6 @@ zc._goi = _goi_gia
 zc.NHUONG_GIAY = 0.02
 zc.THU_LAI_TEN_GIAY = 0
 import chatbot_tu_dong  # noqa: E402
-chatbot_tu_dong.KHOANG_CACH_GIAY = 0      # test không chờ 20 giây giữa hai lần bot tự nói
-chatbot_tu_dong.TRAN_NGUOI_GIO = 99
-chatbot_tu_dong.TRAN_NHOM_GIO = 99
 
 
 async def _engine(text, meta, progress, *, channel="", bot=None):

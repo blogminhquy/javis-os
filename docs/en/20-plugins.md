@@ -258,8 +258,10 @@ Besides tools, a plugin can register hooks. The current build has two events:
 
 | Event | When it fires | What it receives |
 |---|---|---|
-| `pre_tool_call` | Just before any tool runs | `tool_name`, `args`, `mode`, `vault_root` |
+| `pre_tool_call` | Just before any tool runs | `tool_name`, `args`, `mode`, `vault_root`, `turn` |
 | `post_tool_call` | Just after a tool finishes | plus `result` |
+
+`turn` tells a hook **who is talking** in that tool call: `kenh` (the channel), `sender_id` (the id of whoever sent this message; in a group it is still the sender, not the group), `chat_type` (`private` or `group`), `chat_id` (the conversation) and `la_chu` (`true` on the dashboard and the owner's admin channels, always `false` for a dedicated bot). When it cannot be known (background work, an engine that cannot carry the turn key yet) `turn` is `None`: a hook that needs an identity must read `None` as "nobody", never as the owner.
 
 A hook wraps **every** tool call, MCP tools and core tools included, not only that plugin's tools. Use it for logging, counting, alerting. When no plugin registers a hook, Javis wraps nothing, so there is no performance cost. The `tool-audit` plugin is a working example: enable it and every tool call is counted into a file private to the plugin.
 

@@ -386,7 +386,6 @@ async def chay():
 
     # ---------- 3. chế độ TỰ ĐÁNH GIÁ ----------------------------------------------------------
     chatbot_store.update_bot(bid, {"reply_when": "auto"})
-    td.reset_cho_test()
     GUI.clear()
     truoc_log = len(chatbot_log.doc(bid, 500))
 
@@ -444,17 +443,13 @@ async def chay():
     # bot tự chọn im (IM_LANG) trong lượt tự đánh giá
     GUI.clear()
     TRA_LOI["v"] = "[IM_LANG]"
-    td.reset_cho_test()
     KHO_TIN.append(nhom_msg("Đổi bộ não của Javis ở đâu vậy mọi người?", "c5", uid="7770105"))
     await doc(0.4)
     check("bot viết [IM_LANG] thì không gửi gì", not GUI, GUI)
-    check("và lượt im không tốn hạn mức tự trả lời của nhóm",
-          td.duoc_tra_loi(bid, NHOM, "7770105") == "")
     TRA_LOI["v"] = "Dạ để em hướng dẫn nhé"
 
     # ---------- 4. nhường người đang nhắn tay ------------------------------------------------
     GUI.clear()
-    td.reset_cho_test()
     zc.NHUONG_GIAY = 0.4
     KHO_TIN.append(nhom_msg("Javis báo lỗi cổng 7777 đang bị dùng thì làm sao ạ?", "d1", uid="7770106"))
     await zc.doc_mot_lan(dict(CONN))
@@ -470,7 +465,6 @@ async def chay():
 
     # tắt bot đúng lúc nó đang chờ: nút Tắt phải có tác dụng NGAY, kể cả với lượt đang ngủ
     GUI.clear()
-    td.reset_cho_test()
     zc.NHUONG_GIAY = 0.4
     KHO_TIN.append(nhom_msg("Đổi bộ não của Javis ở đâu vậy mọi người?", "s1", uid="7770902"))
     await zc.doc_mot_lan(dict(CONN))
@@ -485,10 +479,8 @@ async def chay():
 
     # ---------- 4b. tiếng vọng trong chế độ Tự đánh giá -----------------------------------------
     # Câu bot có dấu hỏi và nói đúng chủ đề tài liệu, nên nếu nó quay về như tin khách thì bộ đánh
-    # giá sẽ cho qua và bot tự trả lời chính nó. Tắt khoảng nghỉ để canary này không dựa vào nó.
+    # giá sẽ cho qua và bot tự trả lời chính nó. (Từ 0.85.5 không còn khoảng nghỉ nào để dựa vào.)
     GUI.clear()
-    td.reset_cho_test()
-    td.TRAN_NHOM_GIO, td.TRAN_NGUOI_GIO, td.KHOANG_CACH_GIAY = 50, 50, 0
     zc._TAY.clear()
     TRA_LOI["v"] = ("Bạn thử đổi bộ não ở trang Models của Javis nhé, còn lỗi cổng 7777 thì bạn "
                     "đã tắt tiến trình cũ chưa?")
@@ -502,27 +494,22 @@ async def chay():
           "chính nó", len(GUI) == 1 and len(LUOT_ENGINE) == n0, (GUI, len(LUOT_ENGINE) - n0))
     TRA_LOI["v"] = "Dạ để em hướng dẫn nhé"
 
-    # ---------- 5. hạn mức: không thành máy phát thanh --------------------------------------
+    # ---------- 5. không còn hạn mức tự trả lời (0.85.5) ------------------------------------
+    # Chủ gỡ 2026-10-07: "gỡ luôn để mô hình tự quyết định". Trước đó tối đa 8 lần mỗi nhóm, 3 lần mỗi
+    # người mỗi giờ và 20 giây nghỉ giữa hai lần. Giờ câu hỏi nào qua bộ đánh giá cũng được trả lời.
     GUI.clear()
-    td.reset_cho_test()
-    td.TRAN_NHOM_GIO, td.TRAN_NGUOI_GIO, td.KHOANG_CACH_GIAY = 2, 5, 0
     for i, uid in enumerate(("7770201", "7770202", "7770203")):
         KHO_TIN.append(nhom_msg("Đổi bộ não của Javis ở đâu vậy mọi người?", f"cap{i}", uid=uid))
         await doc(0.4)
-    check("mỗi nhóm chỉ tự trả lời tối đa TRAN_NHOM_GIO lần mỗi giờ", len(GUI) == 2, GUI)
-    bo = [r for r in chatbot_log.doc(bid, 500) if r.get("bo_qua") == "het_han_muc"]
-    check("lượt bị chặn vì hạn mức có ghi lý do", bool(bo), chatbot_log.doc(bid, 3))
-
+    check("CANARY: ba người hỏi liên tiếp đều được bot tự trả lời", len(GUI) == 3, GUI)
     GUI.clear()
-    td.reset_cho_test()
-    td.TRAN_NHOM_GIO, td.TRAN_NGUOI_GIO = 50, 1
-    for i in range(2):
+    for i in range(3):
         KHO_TIN.append(nhom_msg("Đổi bộ não của Javis ở đâu vậy mọi người?", f"f{i}", uid="7770301"))
         await doc(0.4)
-    check("một người chỉ được bot tự trả lời TRAN_NGUOI_GIO lần mỗi giờ", len(GUI) == 1, GUI)
-    check("người khác trong cùng nhóm vẫn được",
-          (KHO_TIN.append(nhom_msg("Đổi bộ não của Javis ở đâu vậy mọi người?", "f9", uid="7770302")) or True)
-          and (await doc(0.4) or True) and len(GUI) == 2, GUI)
+    check("một người hỏi ba lần liền cũng được trả lời cả ba", len(GUI) == 3, GUI)
+    check("không lượt nào bị bỏ qua vì hạn mức",
+          not any(r.get("bo_qua") in ("het_han_muc", "het_han_nguoi", "vua_tra_loi")
+                  for r in chatbot_log.doc(bid, 500)))
 
     # ---------- 6. thống kê không bị tin bỏ qua làm lệch ----------------------------------
     tt = chatbot_log.tom_tat(bid)

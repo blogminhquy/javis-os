@@ -125,15 +125,15 @@ check("cảnh báo Toàn quyền kể ra loại thao tác mất được",
 check("cảnh báo Toàn quyền nói rõ ai là người điều khiển", "người nhắn cho nó" in _full)
 check("cảnh báo Toàn quyền nói rõ không hoàn tác được", "hoàn tác" in _full)
 
-# 0.64.83: cảnh báo Toàn quyền từng ghi "rào duy nhất còn lại là file Agent", sai: mức quyền của TỪNG
-# kết nối (trang Kết nối) vẫn là rào cứng ở mọi mức của bot (`mcp_catalog.effective_perm` lấy mức
-# thấp hơn của hai bên). Nói thiếu thì chủ vừa hoảng vừa không biết cách giảm rủi ro rẻ nhất.
-check("cảnh báo Toàn quyền KHÔNG còn nói file Agent là rào duy nhất",
-      "rào duy nhất" not in _full)
-check("và nêu mức quyền của từng kết nối là rào cứng còn lại",
-      "từng kết nối" in _full and "chỉ đọc" in _full)
-check("nói thật rào đó không kín tuyệt đối với nguồn chưa có khuôn phân loại",
-      "không kín tuyệt đối" in _full)
+# 0.85.3: Toàn quyền = kênh admin (chủ chốt 2026-10-07). Cảnh báo phải nói ĐÚNG cái trao đi: lệnh
+# máy, mọi file kể cả brain khác, mọi kết nối của chủ. Câu cũ "không chạy lệnh máy, không thấy brain
+# khác" giờ là lời nói dối, và chủ đọc nó TRƯỚC khi bấm đồng ý.
+check("cảnh báo Toàn quyền nói thẳng là quyền của kênh admin", "kênh admin" in _full)
+check("và kể ra lệnh máy, mọi file kể cả brain khác, mọi kết nối",
+      "chạy lệnh" in _full and "brain khác" in _full and "kết nối" in _full)
+check("KHÔNG còn hứa rào lệnh máy hay brain khác ở mức Toàn quyền",
+      "không chạy lệnh máy" not in _full and "không thấy brain khác" not in _full)
+check("chỉ cách giảm rủi ro: chỉ cho người tin cậy nhắn", "bot trả lời ai" in _full)
 _auto = " ".join(chatbot_store.canh_bao_muc("auto")).lower()
 check("cảnh báo Được ghi nói rõ vẫn CHẶN nhóm thao tác ra ngoài",
       "không gửi đi" in _auto and "không thanh toán" in _auto)
@@ -149,9 +149,9 @@ for nganh in ("đơn hàng", "tạo đơn", "quảng cáo", "khách hàng", "c�
     check(f"CANARY: cảnh báo KHÔNG kể tên việc của một ngành - '{nganh}'",
           all(nganh.lower() not in " ".join(chatbot_store.canh_bao_muc(m)).lower()
               for m in chatbot_store.MUC_QUYEN))
-# Hai rào không đổi theo mức. Không nói ra thì chủ ngại nâng mức một cách vô cớ; nói sai thì
-# chủ tin vào một rào không tồn tại. Cả hai mức đều phải nhắc.
-for m in ("auto", "full"):
+# Hai rào giữ nguyên ở mức Được ghi. Không nói ra thì chủ ngại nâng mức một cách vô cớ; nói sai thì
+# chủ tin vào một rào không tồn tại. (Toàn quyền thì KHÔNG còn hai rào này, xem ngay trên.)
+for m in ("auto",):
     t = " ".join(chatbot_store.canh_bao_muc(m)).lower()
     check(f"mức '{m}' nhắc hai rào giữ nguyên (brain khác + lệnh máy)",
           "brain khác" in t and "lệnh máy" in t)
@@ -221,10 +221,50 @@ main.openai_oauth.valid_creds = lambda: {"access_token": "tok", "account_id": "a
 main._claude_sub_stream_tools = _lam_stream_co_tool("_claude_sub_stream_tools")
 
 
+# Mức Toàn quyền đi ĐƯỜNG CỦA KÊNH ADMIN (0.85.3). Giả đúng các tầng của đường đó: engine API qua
+# `_api_stream_mcp`, bốn engine CLI/gói thuê bao qua object engine của chúng. Mỗi lượt ghi lại prompt
+# để kiểm vai Agent có mặt.
+async def _api_mcp_admin(prov, key, model, messages, reasoning="off", brain=None, **kw):
+    _goi.append({"prov": prov, "co_tool": True, "duong": "admin", "brain": brain,
+                 "prompt": messages[0]["content"], "hoi": messages[-1]["content"]})
+
+    async def _g():
+        yield {"type": "text", "content": "Em làm xong rồi ạ."}
+    return _g()
+
+
+class _EngineAdminGia:
+    def __init__(self, *a, **kw):
+        self.session_id = None
+        self.cwd = kw.get("cwd")
+        self.model = kw.get("model")
+        self.instructions = kw.get("instructions", "")
+        self.system_prompt = kw.get("system_prompt", "")
+        self.tag = kw.get("tag", "")
+
+    def is_available(self):
+        return True
+
+    async def query(self, prompt):
+        _goi.append({"prov": "cli", "co_tool": True, "duong": "admin", "brain": self.cwd,
+                     "prompt": self.instructions or self.system_prompt, "hoi": prompt})
+        yield {"type": "final", "content": "Em làm xong rồi ạ."}
+
+
+main._api_stream_mcp = _api_mcp_admin
+main.grok_cli.GrokCLI = _EngineAdminGia
+main.antigravity_cli.AntigravityCLI = _EngineAdminGia
+main.CodexCLI = _EngineAdminGia
+main.claude_engine = lambda **kw: _EngineAdminGia(**kw)
+for _f in ("_apply_grok_hub", "_apply_antigravity_hub", "_apply_codex_hub", "_apply_mcp"):
+    setattr(main, _f, lambda *a, **kw: None)
+main.openai_oauth.write_codex_auth = lambda *a, **kw: None
+
+
 def chay(prov, kind, bot, sess=None, hoi="giá bao nhiêu"):
     return asyncio.run(main._tg_answer_engine(
         hoi, {"chat_id": "1", "chat_type": "private"}, None,
-        chat_id="1", sess=sess if sess is not None else {"last": None, "sent": set()},
+        chat_id="1", sess=sess if sess is not None else {"last": None, "sent": set(), "or": None, "cli": None},
         brain="brain-bot", mcfg={}, prov=prov, kind=kind, api_key="k", api_model="m", bot=bot))
 
 
@@ -254,7 +294,7 @@ check("bản ghi THIẾU HẲN khoá muc_quyen -> không tool", _goi[-1]["co_too
 # ============================================================
 # 4. Mức đi thẳng xuống hub, cắm vào ĐÚNG brain của bot
 # ============================================================
-for m in ("auto", "full"):
+for m in ("auto",):
     _goi.clear()
     _da_goi.clear()
     r = chay("openrouter", "api", {**BOT, "muc_quyen": m})
@@ -265,22 +305,63 @@ for m in ("auto", "full"):
 
 
 # ============================================================
-# 5. Cả tám bộ não đều được cấp tool - không con nào bị bỏ lại
+# 4b. Toàn quyền = kênh admin (0.85.3)
+# ============================================================
+# Chủ báo 2026-10-07: "bật toàn quyền trong bot đang không sử dụng được mcp... tôi muốn bot nếu có
+# toàn quyền sẽ giống như kênh admin". Trước đó Toàn quyền vẫn đi đường hẹp của bot: Grok Build và
+# Antigravity không có nhánh (gọi Anthropic API sai khoá), Claude Code tắt kết nối claude.ai, ChatGPT
+# đi vòng tool tự dựng. Giờ mọi bộ não chạy ĐÚNG nhánh engine của kênh admin, giữ vai Agent.
+_le = []
+for prov, kind in [(d["id"], d["kind"]) for d in main.PROVIDER_DEFS]:
+    _goi.clear()
+    r = chay(prov, kind, {**BOT, "muc_quyen": "full"})
+    g = _goi[-1] if _goi else {}
+    if not (g.get("duong") == "admin" and isinstance(r, dict) and r.get("text")):
+        _le.append(prov)
+    elif "VAI CỦA BẠN TRONG CUỘC CHAT NÀY" not in (g.get("prompt") or ""):
+        _le.append(prov + " (thiếu vai Agent)")
+    elif str(g.get("brain") or "") not in ("brain-bot", str(main._brain_root("brain-bot"))):
+        _le.append(prov + f" (sai brain: {g.get('brain')})")
+check(f"cả {len(main.PROVIDER_DEFS)} bộ não ở mức Toàn quyền chạy đường kênh admin, giữ vai Agent, brain của bot",
+      _le == [])
+if _le:
+    print("     lệch: " + ", ".join(_le))
+_goi.clear()
+r = chay("openrouter", "api", {**BOT, "muc_quyen": "full", "_anh": ["/tmp/anh-khach.jpg"]})
+check("Toàn quyền: ảnh khách gửi tới engine dưới dạng đường dẫn để mở bằng công cụ",
+      "/tmp/anh-khach.jpg" in str((_goi[-1] if _goi else {}).get("hoi")))
+
+# ============================================================
+# 5. Mức Được ghi: mọi bộ não có đường công cụ hẹp đều dùng được, hai CLI còn lại nói thật
 # ============================================================
 # Đây là lời hứa gốc của Javis, và là chỗ dễ hụt nhất: `_api_stream_mcp` chỉ phục vụ sáu engine
 # API, nên copy nguyên nó sang là hai gói thuê bao lặng lẽ chạy không tool. Chủ đặt Toàn quyền,
 # bot vẫn lễ phép trả lời, và không làm gì cả.
+# Grok Build và Antigravity không có đường hẹp an toàn (CLI có lệnh máy riêng). Trước 0.85.3 chúng rơi
+# vào `anthropic_chat_with_mcp` với khoá sai, và section này vẫn XANH vì hàm đó bị giả thành công ở trên
+# - đúng cách lỗi chủ báo đã lọt qua. Giờ chúng được tách riêng và phải nói thật với chủ.
+_CLI_KHONG_HEP = ("grok-cli", "antigravity-cli")
 _thieu = []
-for prov, kind in [(d["id"], d["kind"]) for d in main.PROVIDER_DEFS]:
+for prov, kind in [(d["id"], d["kind"]) for d in main.PROVIDER_DEFS if d["id"] not in _CLI_KHONG_HEP]:
     _goi.clear()
-    r = chay(prov, kind, {**BOT, "muc_quyen": "full"},
-             sess={"last": None, "sent": set()})
+    r = chay(prov, kind, {**BOT, "muc_quyen": "auto"})
     if not (_goi and _goi[-1]["co_tool"] and isinstance(r, dict) and r.get("text")):
         _thieu.append(prov)
-check(f"cả {len(main.PROVIDER_DEFS)} bộ não đều gọi được tool ở mức Toàn quyền",
-      _thieu == [])
+check(f"mọi bộ não có đường hẹp đều gọi được tool ở mức Được ghi", _thieu == [])
 if _thieu:
     print("     bị bỏ lại: " + ", ".join(_thieu))
+_ao = {"anthropic_chat_with_mcp": main.engine.anthropic_chat_with_mcp}
+main.engine.anthropic_chat_with_mcp = lambda *a, **kw: (_ for _ in ()).throw(AssertionError("gọi sai engine"))
+main._grok_sub_stream = main._antigravity_sub_stream = lambda *a, **kw: _stream_khong_tool("cli", "", "", [])
+for prov in _CLI_KHONG_HEP:
+    _goi.clear()
+    r = chay(prov, "cli", {**BOT, "muc_quyen": "auto"})
+    cb = (r or {}).get("canh_bao") if isinstance(r, dict) else ""
+    check(f"{prov} ở mức Được ghi: vẫn trả lời, KHÔNG gọi nhầm Anthropic API",
+          isinstance(r, dict) and r.get("text") and not any(g.get("co_tool") for g in _goi))
+    check(f"{prov} ở mức Được ghi: nói thật với chủ và chỉ đường ra (Toàn quyền)",
+          bool(cb) and "Toàn quyền" in cb)
+main.engine.anthropic_chat_with_mcp = _ao["anthropic_chat_with_mcp"]
 
 # ============================================================
 # 5b. Engine không chạy nổi vòng tool -> bot vẫn phải TRẢ LỜI
@@ -359,7 +440,7 @@ async def _discover_rong(mode="full", vault_root=None, **kw):
 
 mcp_hub.discover_all = _discover_rong
 _goi.clear()
-r = chay("openrouter", "api", {**BOT, "muc_quyen": "full"})
+r = chay("openrouter", "api", {**BOT, "muc_quyen": "auto"})
 check("hub không có tool nào -> bot vẫn trả lời được",
       isinstance(r, dict) and r.get("text"))
 check("và lượt đó rơi về stream không tool", _goi[-1]["co_tool"] is False)

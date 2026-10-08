@@ -258,8 +258,10 @@ Ngoài tool, plugin còn đăng ký được hook. Bản hiện tại có hai s�
 
 | Sự kiện | Bắn khi nào | Nhận được gì |
 |---|---|---|
-| `pre_tool_call` | Ngay trước khi một tool bất kỳ chạy | `tool_name`, `args`, `mode`, `vault_root` |
+| `pre_tool_call` | Ngay trước khi một tool bất kỳ chạy | `tool_name`, `args`, `mode`, `vault_root`, `turn` |
 | `post_tool_call` | Ngay sau khi tool chạy xong | thêm `result` |
+
+`turn` cho hook biết **ai đang nói** trong lượt gọi tool đó: `kenh` (kênh), `sender_id` (mã người gửi tin này, trong nhóm vẫn là người gửi chứ không phải nhóm), `chat_type` (`private` hoặc `group`), `chat_id` (cuộc trò chuyện) và `la_chu` (`true` ở dashboard và kênh quản trị của chủ, luôn `false` với bot chuyên trách). Không xác định được (việc nền, engine chưa mang được khoá lượt) thì `turn` là `None`: hook cần danh tính phải coi `None` là "không ai", đừng coi là chủ máy.
 
 Hook bọc **mọi** tool call, kể cả tool của MCP và tool lõi, chứ không riêng tool của plugin đó. Dùng để ghi nhật ký, đếm, cảnh báo. Khi không plugin nào đăng ký hook, Javis không bọc gì nên không mất thêm hiệu năng. Plugin `tool-audit` là ví dụ chạy được: bật nó lên là mỗi lượt gọi tool được đếm vào một file riêng của plugin.
 

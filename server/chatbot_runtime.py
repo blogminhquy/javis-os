@@ -32,13 +32,14 @@ import sys
 
 import lang_registry
 import time
-from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 import channel_accounts
 import channels
 import chatbot_doc_tools
+import bot_images
+import bot_linked_docs
 import chatbot_grounding
 import chatbot_log
 import chatbot_reply_policy
@@ -75,8 +76,6 @@ def _poller_dau(bot_id: str):
     for tb in (run.get("pollers") or {}).values():
         return tb
     return None
-# (bot_id, chat_id) -> deque[timestamp] cho giới hạn tần suất theo GIỜ
-_HITS: Dict[tuple, deque] = {}
 # (bot_id, chat_id) -> số lượt BÍ LIÊN TIẾP. Trả lời được một câu là về 0.
 _BI_LIEN_TIEP: Dict[tuple, int] = {}
 # bot_id đã báo lỗi kỹ thuật cho nhân viên và chưa chạy lại được lượt nào. Chống báo mỗi lượt
@@ -272,6 +271,9 @@ def build_bot_prompt(bot: dict) -> str:
     # Kênh của LƯỢT này, do _make_answer_fn gắn vào. Chỉ Zalo cá nhân mới có thêm đoạn này.
     if (bot or {}).get("_kenh_luot") == "zalo_personal":
         phan.append(_CAU_ZALO_CA_NHAN)
+    # The channel of THIS turn sends files (0.84.3): tell the Agent how to send an image, or it never knows it can.
+    if bot_images.channel_sends_files((bot or {}).get("_kenh_luot")):
+        phan.append(bot_images.PROMPT_HINT)
     # Lượt Tự đánh giá do _make_answer_fn gắn. Cờ chứ không suy từ meta: prompt được dựng ở đây,
     # nơi không có meta của lượt.
     if (bot or {}).get("_tu_dong"):
@@ -441,23 +443,6 @@ def ngu_canh_nhom(meta: dict, kenh: str, tai_khoan: str) -> str:
 # ============================================================
 # Rào
 # ============================================================
-def _qua_han_muc(bot_id: str, chat_id: str, tran: int) -> bool:
-    """Giới hạn tần suất theo GIỜ trượt, tính riêng từng người trong từng bot.
-
-    Vì sao cần: một người rảnh trong nhóm đủ đốt hết quota model của chủ trong một buổi chiều,
-    và chủ chỉ biết khi nhìn hoá đơn.
-    """
-    key = (bot_id, str(chat_id))
-    now = time.time()
-    dq = _HITS.setdefault(key, deque())
-    while dq and now - dq[0] > 3600:
-        dq.popleft()
-    if len(dq) >= max(1, int(tran or 20)):
-        return True
-    dq.append(now)
-    return False
-
-
 def _dang_khac(chat_id: str) -> str:
     """Dạng CÒN LẠI của cùng một nhóm Telegram, hoặc "" nếu không có dạng nào khác.
 
@@ -532,6 +517,10 @@ def _ly_do_im(bot_cfg: dict, meta: dict) -> str:
     # Với `all` mọi nhóm bot có mặt đều đã được phép: chỉ còn `reply_when` quyết khi nào lên tiếng.
     if not _nhom_duoc_phep(bot_cfg, (meta or {}).get("chat_id")):
         return "nhom_chua_bat"
+    # Someone joined the group (0.84.2, Zalo personal): an event, not chat, so "reply when" does not
+    # apply. The Agent's own instructions decide, and it answers [IM_LANG] when they say nothing.
+    if (meta or {}).get("member_join"):
+        return ""
     if bot_cfg.get("reply_when") == "always":
         return ""
     if (meta or {}).get("mentioned") or (meta or {}).get("reply_to_bot"):
@@ -616,7 +605,6 @@ def bo_nhom_cho(bot_id: str, chat_id: str = "") -> None:
 # `chatbot_reply_policy`; file này chỉ dựng Event/BotProfile từ bản ghi bot và meta của kênh, rồi
 # cắm vào ba chỗ: nhận diện gọi tên trơn (mọi bot), móc cho lớp vận chuyển đọc được cả nhóm (Zalo
 # cá nhân), và nhánh `on` trong `_answer`.
-_RP_RATE = {"het_han_muc": "rate_limited", "het_han_nguoi": "rate_limited_user", "vua_tra_loi": "just_spoke"}
 _RP_CHECK_EVERY_S = 300
 _RP_CHECKED: Dict[str, float] = {}
 
@@ -729,11 +717,6 @@ def _rp_retract(dec, code: str) -> None:
         pass
 
 
-def _rp_rate(bot_id: str, chat_id: str, user_id: str, follow_up: bool = False) -> str:
-    code = chatbot_tu_dong.duoc_tra_loi(bot_id, chat_id, user_id, follow_up=follow_up)
-    return _RP_RATE.get(code, code)
-
-
 def _rp_add_alias(bot_id: str, alias: str) -> None:
     cfg = chatbot_store.get_bot(bot_id) or {}
     cur = list((cfg.get("reply_policy") or {}).get("aliases") or [])
@@ -765,11 +748,16 @@ def _rp_collect(cfg: dict) -> tuple:
     """(nguyên văn Agent, mục lục tài liệu) của bot. Đọc đĩa nên chạy trong thread, không trên vòng sự kiện.
     Tiện thể nhớ brain của bot có tài liệu để tra không: bot không có tài liệu nào thì lời tự nói dựa vào vai."""
     root = _deps["brain_root"](cfg["brain"])
+    linked = []
     try:
-        _RP_HAS_DOCS[str(cfg.get("id") or "")] = bool(chatbot_grounding.chi_muc(root).get("manh"))
+        linked = _linked_docs(cfg)["docs"]
+    except Exception as e:      # noqa: BLE001
+        print(f"[reply_policy] đọc link Google của Agent lỗi: {type(e).__name__}", file=sys.stderr)
+    try:
+        _RP_HAS_DOCS[str(cfg.get("id") or "")] = bool(linked) or bool(chatbot_grounding.chi_muc(root).get("manh"))
     except Exception as e:      # noqa: BLE001 - chưa biết thì giữ luật chặt (phải có căn cứ)
         print(f"[reply_policy] đếm tài liệu lỗi: {type(e).__name__}", file=sys.stderr)
-    return _rp_agent_text(cfg), chatbot_reply_policy.list_doc_titles(root)
+    return _rp_agent_text(cfg), [d["title"] for d in linked] + chatbot_reply_policy.list_doc_titles(root)
 
 
 async def _rp_profile_job(cfg: dict, ask) -> None:
@@ -898,6 +886,9 @@ def _make_precheck_fn(bot_id: str):
         ly_do = _ly_do_im(cfg, meta or {})
         if not ly_do:
             return None
+        if (meta or {}).get("member_join"):
+            # A join in a group the bot may not speak in: silent, and not a "call" for the approval queue.
+            return {}
         if ly_do == "nguoi_chua_chon":
             # Người ngoài danh sách (audience `chon`): im TUYỆT ĐỐI, nhưng nổi lên hàng chờ duyệt
             # kèm nút Cho phép. Im mà không để lại dấu thì chủ chỉ thấy "bot hỏng" (cùng bài học
@@ -1184,10 +1175,32 @@ async def _tra_tai_lieu(bot_id: str, cfg: dict, text: str) -> dict:
     tl = {"co": False, "khoi": "", "nguon": []}
     try:
         root = _deps["brain_root"](cfg["brain"])
-        tl = await asyncio.to_thread(chatbot_grounding.thu_thap, root, text)
+        linked = await asyncio.to_thread(_linked_docs, cfg)
+        tl = await asyncio.to_thread(chatbot_grounding.thu_thap, root, text, 4, linked["docs"])
+        if linked["warnings"]:
+            # The answer still goes out; the owner sees why a linked file was left out on the bot card.
+            tl = dict(tl, canh_bao_link=" · ".join(linked["warnings"])[:500])
     except Exception as e:
         print(f"[chatbot {bot_id}] tra tài liệu lỗi: {e}", file=sys.stderr)
     return tl
+
+
+def _linked_docs(cfg: dict) -> dict:
+    """Google Docs/Sheets the owner linked from this bot's Agent, as extra documents for the keyword
+    search (see bot_linked_docs). Blocking (reads the Agent file, may fetch from Google): thread only."""
+    a = cfg.get("agent") or {}
+    reader = _deps.get("read_agent")
+    if not reader or not a.get("slug"):
+        return {"docs": [], "warnings": []}
+    try:
+        meta, body = reader(a.get("brain") or cfg.get("brain") or "brain", a.get("slug"))
+    except Exception as e:      # noqa: BLE001 - a missing Agent is reported elsewhere (prompt, bot card)
+        print(f"[chatbot linked docs] đọc Agent lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+        return {"docs": [], "warnings": []}
+    links = bot_linked_docs.links_of_agent(meta, body)
+    if not links:
+        return {"docs": [], "warnings": []}
+    return bot_linked_docs.collect(links)
 
 
 async def _tra_cho_phan_xu(bot_id: str, cfg: dict, text: str) -> dict:
@@ -1266,8 +1279,7 @@ def _make_answer_fn(bot_id: str):
                     return {"text": "", "files": [], "im_lang": True}
                 dec = await chatbot_reply_policy.decide(
                     ev, profile, store=chatbot_reply_policy_store, ask=chatbot_reply_policy.ask_fn(),
-                    doc_search=lambda t: _tra_cho_phan_xu(bot_id, cfg, t),
-                    rate_check=lambda fu: _rp_rate(bot_id, chat_id, user_id, fu))
+                    doc_search=lambda t: _tra_cho_phan_xu(bot_id, cfg, t))
             except Exception as e:      # noqa: BLE001 - hỏng thì IM, không tự mở miệng
                 print(f"[reply_policy {bot_id}] {type(e).__name__}: {e}", file=sys.stderr)
                 return {"text": "", "files": [], "im_lang": True}
@@ -1280,19 +1292,11 @@ def _make_answer_fn(bot_id: str):
                 return {"text": "", "files": [], "im_lang": True}
             tl = await _tra_tai_lieu(bot_id, cfg, text)
             ma = "" if tl.get("co") else "khong_co_tai_lieu"
-            ma = ma or chatbot_tu_dong.duoc_tra_loi(bot_id, chat_id, user_id)
             if ma:
                 _ghi_bo_qua(bot_id, cfg, meta, text, ma, tl)
                 return {"text": "", "files": [], "im_lang": True}
-        if _qua_han_muc(bot_id, chat_id, cfg.get("rate_limit")):
-            if tu_dong:
-                # Tin tự trả lời mà quá hạn mức thì im, KHÔNG nói "nhắn hơi nhanh" trước cả nhóm:
-                # người ta đâu có gọi bot.
-                _ghi_bo_qua(bot_id, cfg, meta, text, "het_han_muc", tl)
-                _rp_retract(rp_dec, "rate_limited")
-                return {"text": "", "files": [], "im_lang": True}
-            return {"text": "Anh chị nhắn hơi nhanh, em xin phép trả lời lại sau ít phút ạ.",
-                    "files": []}
+        # Không còn trần số câu trả lời nào (chủ gỡ 2026-10-07): mỗi người mỗi giờ ở 0.85.4, lúc bot TỰ lên
+        # tiếng trong nhóm ở 0.85.5. Nói hay im là việc của bộ phán xử và mô hình.
         # Hộp thư hội thoại: ghi tin khách TRƯỚC khi gọi engine, để lượt gãy vẫn còn tin khách.
         ghi_tin_khach(cfg, meta or {}, text)
         # Người thật đã TIẾP QUẢN cuộc chat này ở trang Hội thoại thì bot im: tin khách vẫn vào
@@ -1326,6 +1330,9 @@ def _make_answer_fn(bot_id: str):
             out = await _deps["answer"](text_engine, meta, progress, channel=kenh_luot, bot=cfg)
         except Exception as e:
             print(f"[chatbot {bot_id}] {type(e).__name__}: {e}", file=sys.stderr)
+            if (meta or {}).get("member_join"):
+                # Nobody asked anything: an apology tagged to a newcomer would only confuse them.
+                return {"text": "", "files": [], "im_lang": True}
             xin_loi = "Em đang gặp trục trặc, anh chị nhắn lại giúp em sau ít phút ạ."
             ghi_tin_bot(cfg, meta or {}, xin_loi, loi=f"{type(e).__name__}: {e}")
             return {"text": xin_loi, "files": []}
@@ -1362,10 +1369,18 @@ def _make_answer_fn(bot_id: str):
                 "muc_quyen": cfg.get("muc_quyen") or "suggest",
             })
             return {"text": "", "files": [], "im_lang": True}
-        # Chỉ lượt bot THẬT SỰ nói mới tốn hạn mức tự trả lời: lượt viết [IM_LANG] ở trên đã
-        # return, và lượt gãy không phải một câu trả lời.
-        if tu_dong and not loi_ky_thuat and dap.strip():
-            chatbot_tu_dong.ghi_da_tra_loi(bot_id, chat_id, user_id)
+        # Images the Agent asked to send (0.84.3): `![...](path)` inside the bot's own brain becomes a file the
+        # channel sends after the text. Only on channels that send files; see bot_images for the gates.
+        if not loi_ky_thuat and dap and bot_images.channel_sends_files(kenh_luot):
+            try:
+                dap, anh = bot_images.pick(dap, _deps["brain_root"](cfg["brain"]))
+            except Exception as e:      # noqa: BLE001 - a broken image pick must not cost the customer the reply
+                anh = []
+                print(f"[chatbot {bot_id}] tách ảnh lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+            if anh:
+                out = dict(out or {})
+                out["text"] = dap
+                out["files"] = list(out.get("files") or []) + anh
         # "Bí" đo bằng chính CÂU BOT VỪA NÓI, không bằng việc có tìm ra tài liệu hay không.
         #
         # Ở chế độ theo Agent thì không có tài liệu là chuyện thường - bot vẫn trả lời tốt bằng
@@ -1411,7 +1426,7 @@ def _make_answer_fn(bot_id: str):
             # nổi công cụ). Cố ý KHÔNG nhét vào `loi`: `loi` kéo theo `bi`, kéo theo gọi người
             # trực, và làm bẩn tab "Bot bí" - trong khi đây là lượt trả lời bình thường. Chủ
             # cần biết, người đang hỏi thì không cần.
-            "canh_bao": (out or {}).get("canh_bao") or "",
+            "canh_bao": " · ".join(x for x in ((out or {}).get("canh_bao"), tl.get("canh_bao_link")) if x),
         })
         # Câu bot nói (kể cả câu xin lỗi khi gãy) vào Hộp thư hội thoại, cạnh tin khách.
         ghi_tin_bot(cfg, meta or {}, dap, loi=loi_ky_thuat, files=(out or {}).get("files"))
@@ -1925,7 +1940,7 @@ def quen_bot(bot_id: str) -> None:
     _DA_BAO_LOI.discard(bot_id)
     for k in [x for x in _DA_BAO_NHOM if x and x[0] == bot_id]:
         _DA_BAO_NHOM.discard(k)
-    for kho in (_HITS, _BI_LIEN_TIEP):
+    for kho in (_BI_LIEN_TIEP,):
         for k in [x for x in kho if x and x[0] == bot_id]:
             kho.pop(k, None)
 

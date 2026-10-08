@@ -31,7 +31,7 @@ một tiến trình MCP: đăng nhập QR, đọc hoặc tìm hội thoại và 
 - Điện thoại đã đăng nhập tài khoản Zalo cần kết nối.
 - Javis đã được khởi động và bạn đăng nhập được dashboard.
 
-Javis ghim `javis-zalo` theo tag phát hành (hiện là `v1.0.0`) và cài thẳng từ tarball của tag
+Javis ghim `javis-zalo` theo tag phát hành (hiện là `v1.2.0`) và cài thẳng từ tarball của tag
 đó trên GitHub, không cần tài khoản npm hay Git. Chỉ thư viện `zca-js` bên dưới đi theo bản chính
 thức trên npm. Từ 0.83.0 Javis thay `zalo-agent-cli` 1.6.2 của tác giả ngoài bằng bản riêng này;
 kết nối đã đăng nhập từ trước tự chuyển sang mà không phải quét QR lại.
@@ -56,16 +56,49 @@ Nút **Hướng dẫn trên GitHub** trong thẻ Zalo luôn mở trang tài li�
 | `zalo_get_messages` | Đọc tin mới trong bộ đệm, đọc tiếp bằng `since` (số thứ tự) | Đọc |
 | `zalo_get_history` | Lấy lịch sử một cuộc chat (kể cả nhóm), có phân trang, kèm `replyTo` và `mentions` | Đọc |
 | `zalo_search_history` | Tìm trong lịch sử mọi cuộc chat theo người gửi hoặc khoảng ngày | Đọc |
+| `zalo_get_group_joins` | Ai đã vào nhóm và vào lúc nào, lọc theo nhóm, người hoặc khoảng ngày | Đọc |
+| `zalo_list_join_requests` | Ai đang xin vào một nhóm phải duyệt | Đọc |
+| `zalo_review_join_requests` | Duyệt hoặc từ chối người xin vào nhóm | Nguy hiểm |
 | `zalo_list_threads` | Liệt kê các cuộc chat đang có trong bộ đệm | Đọc |
 | `zalo_search_threads` | Tìm nhóm hoặc người theo tên | Đọc |
 | `zalo_view_media` | Tải/mở ảnh, âm thanh hoặc video trên máy chủ (bộ não không thấy ảnh, xem `zalo_read_images` bên dưới) | Đọc |
 | `zalo_mark_read` | Đánh dấu đã xử lý đến một cursor | Ghi |
 | `zalo_send_message` | Gửi tin cho cá nhân hoặc nhóm | Nguy hiểm |
 
-Danh sách trên theo mã nguồn `javis-zalo` 1.0.0. Tên tham số lấy từ mã nguồn: kiểu cuộc chat của
+Danh sách trên theo mã nguồn `javis-zalo` 1.1.0. Tên tham số lấy từ mã nguồn: kiểu cuộc chat của
 `zalo_send_message` là `threadType` (0 = chat riêng, 1 = nhóm), và `zalo_get_messages` đọc bằng
 `since` chứ không có `cursor`. Lịch sử chỉ có từ lúc MCP kết nối, cộng phần Zalo gửi lại lúc kết
 nối (khoảng hai tuần gần nhất); tin cũ hơn thì không API nào lấy được.
+
+## Duyệt người xin vào nhóm
+
+Từ Javis 0.84.7 (javis-zalo 1.2.0), với nhóm bật "duyệt thành viên":
+
+- **Javis báo bạn khi có người xin vào**, qua chuông hòm thư và Telegram của bạn: một tin cho mỗi nhóm, có tên người
+  xin và tên nhóm.
+- **Bạn ra lệnh, Javis làm.** Hỏi "ai đang xin vào nhóm Zoom | Javis OS?" thì Javis liệt kê; bảo "duyệt hết" hay
+  "duyệt Lan, từ chối Minh" thì Javis làm và nói lại kết quả từng người.
+- **Bot chuyên trách không bao giờ tự duyệt.** Sự kiện xin vào nhóm không tới bot.
+- Tài khoản Zalo đã quét QR phải là **trưởng hoặc phó nhóm**, không thì Zalo từ chối. Duyệt là thao tác nguy hiểm
+  (đổi thành viên nhóm), nên kết nối Zalo phải ở mức Toàn quyền.
+
+## Người mới vào nhóm
+
+Từ Javis 0.84.2 (javis-zalo 1.1.0), Javis biết ai vừa vào nhóm và vào **lúc nào**, kể cả người
+được thêm vào bởi chính tài khoản của bạn:
+
+- **Hỏi lại được.** "Tuần này ai mới vào nhóm Zoom | Javis OS?" thì bộ não gọi
+  `zalo_get_group_joins` và trả tên kèm giờ vào. Nhật ký nằm ở
+  `~/.zalo-agent-cli/group-joins.jsonl` trong thư mục phiên của kết nối, giữ 5000 lượt gần nhất,
+  còn nguyên sau khi khởi động lại.
+- **Bot chuyên trách nhận được sự kiện.** Ở nhóm đã cho phép bot, mỗi người mới vào là một sự
+  kiện gửi tới Agent của bot, bất kể chế độ "trả lời khi nào". Agent làm theo chỉ dẫn của nó (ví dụ
+  chào và hỏi thăm), và câu nó gửi tự tag đúng người mới. Javis **không có lời chào mặc định**:
+  chỉ dẫn của Agent không nói gì về người mới thì bot im. Nhiều người vào cùng lúc mà bot đã hết
+  hạn mức thì bot cũng im chứ không nói "nhắn hơi nhanh".
+- **Giới hạn.** Zalo chỉ báo sự kiện này lúc đang kết nối, và danh sách thành viên không có ngày
+  vào nhóm. Người vào trước khi có tính năng này, hoặc trong lúc máy chạy Javis tắt, thì không có
+  trong nhật ký.
 
 ## Gói Zalo mở rộng (Javis Store)
 

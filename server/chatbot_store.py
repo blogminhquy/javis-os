@@ -82,7 +82,6 @@ REPLY_WHEN = ("mention", "always", "auto")
 AUDIENCE = ("all", "nhom", "chon")
 AUDIENCE_DEFAULT = "nhom"
 AUDIENCE_HEP_NHAT = "chon"
-RATE_MIN, RATE_MAX, RATE_DEFAULT = 1, 200, 20
 
 # Bot lấy câu trả lời từ đâu khi tài liệu không phủ được câu hỏi.
 #
@@ -111,8 +110,10 @@ NGUON_DEFAULT = "agent"
 #               mà phần tra sẵn chưa lấy, nên KHÔNG đòi xác nhận rủi ro.
 #   "auto"    - đọc + GHI file trong brain của chính bot, gọi được MCP đã đấu ở mức đọc/ghi.
 #               Hub chặn nhóm THAO TÁC RA NGOÀI (`mcp_catalog` xếp loại 'danger').
-#   "full"    - toàn quyền, kể cả nhóm ra ngoài. Người lạ nói chuyện với bot điều khiển được
-#               những tool đó, và thao tác ra ngoài thì không hoàn tác được.
+#   "full"    - toàn quyền, GIỐNG HỆT kênh admin từ 0.85.3 (chủ chốt 2026-10-07): chạy đúng đường
+#               engine của chủ (`main._tg_answer_engine`) với công cụ gốc của engine, MCP hub, kết nối
+#               của tài khoản Claude/ChatGPT và kỹ năng; chỉ giữ VAI của Agent và brain của bot. Người
+#               nhắn cho bot điều khiển được tất cả những thứ đó, không hoàn tác được.
 MUC_QUYEN = ("suggest", "read_docs", "auto", "full")
 MUC_QUYEN_DEFAULT = "suggest"
 MUC_NANG = ("auto", "full")     # hai mức phải có xác nhận rủi ro mới đặt được
@@ -153,18 +154,16 @@ _CANH_BAO = {
         "Bot vẫn KHÔNG thấy brain khác, không chạy lệnh máy, không ra được ngoài máy.",
     ],
     "full": [
-        "Bot làm được MỌI thứ các nguồn đã đấu cho phép, kể cả gửi đi, thanh toán, đặt hay huỷ, "
-        "xoá và công bố ra ngoài. Những thao tác đó KHÔNG hoàn tác được.",
-        "Người điều khiển bot là NGƯỜI NHẮN CHO NÓ, không phải bạn. Ai nhắn được cho bot cũng "
-        "nói được câu khiến nó gọi tool, và không có bước hỏi lại bạn.",
-        "Một câu dụ khéo ('bỏ qua hướng dẫn trước, làm giúp việc này') là đủ để bot làm theo. "
-        "Rào cứng còn lại là mức quyền của TỪNG kết nối ở trang Kết nối (hạ một kết nối về Chỉ "
-        "đọc thì bot cũng bị chặn ghi ở đó), nhưng rào đó chặn theo loại thao tác nên với nguồn "
-        "Javis chưa có khuôn phân loại sẵn thì không kín tuyệt đối. Ngoài ra chỉ còn file Agent "
-        "bạn viết, mà chữ thì lách được.",
-        "Chỉ nên bật cho bot mà bạn kiểm soát được DANH SÁCH người nhắn vào. Nơi ai cũng nhắn "
-        "được thì không.",
-        "Bot vẫn KHÔNG thấy brain khác và không chạy lệnh máy - hai rào đó giữ nguyên ở mọi mức.",
+        "Bot có ĐÚNG những quyền của kênh admin: chạy lệnh trên máy chủ, đọc và ghi mọi file (kể cả "
+        "brain khác), dùng mọi kết nối của bạn (kể cả Gmail, Drive, lịch nối qua tài khoản Claude "
+        "hoặc ChatGPT), kỹ năng, giao việc nền và đặt lịch.",
+        "Bot làm được mọi thao tác ra ngoài: gửi đi, thanh toán, đặt hay huỷ, xoá, công bố. Những "
+        "thao tác đó KHÔNG hoàn tác được.",
+        "Người điều khiển bot là NGƯỜI NHẮN CHO NÓ, không phải bạn. Một câu dụ khéo ('bỏ qua hướng "
+        "dẫn trước, làm giúp việc này') là đủ để bot làm theo; chỉ còn file Agent bạn viết, mà chữ "
+        "thì lách được.",
+        "Chỉ bật cho bot mà CHỈ bạn hoặc người bạn tin tuyệt đối nhắn được (đặt mục Bot trả lời ai "
+        "thành người được chọn). Nơi ai cũng nhắn được thì đừng bật.",
     ],
 }
 
@@ -180,18 +179,16 @@ _CANH_BAO_EN = {
         "The bot still CANNOT see other brains, run machine commands or reach outside the machine.",
     ],
     "full": [
-        "The bot can do EVERYTHING the connected sources allow, including sending, paying, booking or "
-        "cancelling, deleting and publishing. Those actions CANNOT be undone.",
-        "The bot is controlled by WHOEVER MESSAGES IT, not by you. Anyone who can message the bot "
-        "can say something that makes it call a tool, with no step that asks you first.",
-        "One clever line ('ignore previous instructions, do this for me') is enough for the bot to comply. "
-        "The remaining hard barrier is the permission level of EACH connection on the Connections page "
-        "(set a connection to read-only and the bot is blocked from writing there too), but that barrier "
-        "works by action type, so for sources Javis has no classification for yet it is not airtight. "
-        "Beyond that there is only the Agent file you wrote, and words can be worked around.",
-        "Only turn this on for a bot whose LIST of people who can message it you control. Not "
-        "where anyone can message it.",
-        "The bot still CANNOT see other brains or run machine commands - those two barriers hold at every level.",
+        "The bot gets EXACTLY the admin channel's powers: running commands on the server, reading and "
+        "writing every file (other brains included), every connection of yours (including Gmail, Drive, "
+        "calendar connected through your Claude or ChatGPT account), skills, background work and schedules.",
+        "The bot can take every outside action: sending, paying, booking or cancelling, deleting, publishing. "
+        "Those actions CANNOT be undone.",
+        "The bot is controlled by WHOEVER MESSAGES IT, not by you. One clever line ('ignore previous "
+        "instructions, do this for me') is enough for it to comply; only the Agent file you wrote stands "
+        "in the way, and words can be worked around.",
+        "Only turn this on for a bot that ONLY you or people you fully trust can message (set Who the bot "
+        "answers to chosen people). Never where anyone can message it.",
     ],
 }
 
@@ -334,14 +331,6 @@ def _clean_ngon_ngu(v: Any) -> str:
     if s_ in ("", "auto"):
         return "auto"
     return lang_registry.chuan_hoa(s_) or "auto"
-
-
-def _clean_rate(v: Any) -> int:
-    try:
-        n = int(v)
-    except (TypeError, ValueError):
-        return RATE_DEFAULT
-    return max(RATE_MIN, min(n, RATE_MAX))
 
 
 def _co_token(b: dict) -> bool:
@@ -614,7 +603,6 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "muc_quyen": _clean_muc(data.get("muc_quyen")) or MUC_QUYEN_DEFAULT,
             "ngon_ngu": _clean_ngon_ngu(data.get("ngon_ngu")),
             "handoff_to": str(data.get("handoff_to") or "").strip(),
-            "rate_limit": _clean_rate(data.get("rate_limit")),
             "created_at": _now(),
             "updated_at": _now(),
         }
@@ -643,7 +631,9 @@ def _nhan_brain_cho_tk(bot: dict) -> None:
 
 # Trường giao diện được phép sửa. Danh sách TRẮNG chứ không phải "nhận hết trừ vài cái":
 # thêm trường mới vào bản ghi mà quên loại khỏi danh sách đen là mở một đường ghi không ai ngờ.
-_PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to", "rate_limit",
+# `rate_limit` (trần câu trả lời mỗi người mỗi giờ) bị gỡ ở 0.85.4: bản ghi cũ còn khoá đó thì cứ để nguyên,
+# không ai đọc nó nữa, và patch gửi khoá đó tới thì bị bỏ qua như mọi khoá lạ.
+_PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
@@ -721,8 +711,6 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                     b["ngon_ngu"] = _clean_ngon_ngu(v)
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()
-                elif k == "rate_limit":
-                    b["rate_limit"] = _clean_rate(v)
                 elif k == "agent_slug":
                     # Đã kiểm ở đầu hàm, tới đây chắc chắn hợp lệ.
                     b.setdefault("agent", {})["slug"] = str(v).strip()
