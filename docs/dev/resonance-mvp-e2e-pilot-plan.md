@@ -497,3 +497,38 @@ Từ A1, Cộng hưởng chỉ bật theo từng trợ lý; công tắc brain c�
 **Dry (không gọi model):** `exports/reviews/A1-pilot-dry-report.json`, kết quả `dry_ok`, 0 lượt engine.
 
 **Lần chạy thật:** chưa chạy. Cần chủ dự án duyệt riêng phạm vi và hạn mức. Không dùng lại hạn mức pilot cũ.
+
+## Lần chạy A1-1 (08/10/2026): phiên trợ lý, kỹ thuật đạt, chờ duyệt nội dung
+
+- **Duyệt:** chủ dự án duyệt trực tiếp đúng một lần, theo gói `exports/reviews/A1-pilot-approval-request.md` (review gói: `PR-590-A1-e01eb3c2-pilot-review.md`).
+- **Commit:** `e01eb3c2`, `server_dirty: false`.
+- **Engine:** chat bằng Claude Code 2.1.294 `claude-opus-5-5`; việc nền bằng Claude Code `sonnet`; gói thuê bao.
+- **Cổng S0:** đạt. Nguồn chưa đánh giá: `.claude/settings.json:enabledPlugins` (hook, plugin, MCP ngoài phạm vi cổng và ngoài trần).
+- **Hồ sơ:** `docs/dev/resonance-a1-pilot-1.json`, hai bản sản phẩm `resonance-a1-pilot-1-draft1.md` và `-draft2.md`, bản chụp sau lượt chat `-s1-chat.md` và `-s4-chat.md` (trùng bytes với hai bản tương ứng).
+
+**Kết quả: `pending_content_review`, 0 kiểm hỏng, 379 giây. Lượt engine cấp host: 2 chat Opus, 0 việc nền, tổng 2 trên trần 4.**
+
+- **S0b:**
+  - chat thường `/goal-requests` 403; trợ lý chưa bật 403;
+  - bật qua API: `ready`, version 1;
+  - engine của trợ lý lập được mục tiêu và nhận bản chat.
+- **S1** (phiên `agent:tro-ly-tai-lieu`, 60 giây, `engine_status ok`, `turn_status completed`):
+  - bộ não liệt kê thư mục bằng `Bash` (chỉ đọc), `Write` bản đầu;
+  - rồi `ToolSearch select:mcp__javis-plugins__javis_goal` và gọi `javis_goal`.
+  - Đúng một mục tiêu, gắn đúng trợ lý của phiên, không giao Kanban.
+- **S2:** bản đầu tiếp nhận từ chat đúng một lần, không có lượt việc nền viết lại. Chờ người dùng. Tin báo về đúng phiên, có biên nhận.
+- **S3:** dựng lại server: trạng thái còn, không báo lặp, không gọi thêm.
+- **S4** (48 giây): `Write` bản sửa rồi `javis_goal` (update), lần này không cần `ToolSearch`. Nối vào cùng mục tiêu, revision 1 lên 2; ý định mới là đúng lời góp ý; giữ ràng buộc cũ.
+- **S5:** bản sửa tiếp nhận từ chat, không có lượt việc nền viết lại. Đã đăng, khác bản đầu, tin báo đúng phiên.
+- **S6:** bấm "Đạt yêu cầu" qua API (mô phỏng). Mục tiêu `succeeded`, tin thành công về đúng phiên.
+
+| Bản | File | SHA-256 | Revision |
+|---|---|---|---|
+| Bản đầu | `resonance-a1-pilot-1-draft1.md` | `629afff4280d2549b96eb0da046c054f189ed2777ffed30f6f95aefe5570641d` | 1 |
+| Bản sửa | `resonance-a1-pilot-1-draft2.md` | `38ab1df2e718c62a14945f9682c394992e30379c1e55736643f78a54766d84ee` | 2 |
+
+**Giới hạn:**
+- Một mẫu, chưa phải thống kê độ ổn định định tuyến.
+- Bộ não tự viết cả hai bản nên đường việc nền sửa bản bằng model thật không được dùng ở lần này. Đường đó có bằng chứng ở pilot M3 và test engine giả.
+- Xác nhận cuối là mô phỏng.
+- Chưa nghiệm thu nội dung: người review đọc hai bản theo checklist (bản đầu 4 mục, bản sửa 3 mục) rồi chốt.
