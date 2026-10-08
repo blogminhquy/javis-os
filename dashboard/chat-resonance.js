@@ -70,12 +70,30 @@
   }
 
   /* Nhãn dịch được cho mã lý do thức (A2). Mã lạ hiện như lần xem lại định kỳ, không lộ mã thô. */
-  var WAKE_CODES = ["created", "revised", "assigned", "feedback", "user_schedule", "retry_not_met", "error_retry",
-                    "recovery", "handoff_wait", "handoff_done", "resumed", "agent_enabled", "agent_recheck",
-                    "agent_changed", "guard_recheck", "review", "deadline", "drift_recheck", "guard_observe"];
+  var WAKE_KEYS = {
+    created: "resonance.wake.created",
+    revised: "resonance.wake.revised",
+    assigned: "resonance.wake.assigned",
+    feedback: "resonance.wake.feedback",
+    user_schedule: "resonance.wake.user_schedule",
+    retry_not_met: "resonance.wake.retry_not_met",
+    error_retry: "resonance.wake.error_retry",
+    recovery: "resonance.wake.recovery",
+    handoff_wait: "resonance.wake.handoff_wait",
+    handoff_done: "resonance.wake.handoff_done",
+    resumed: "resonance.wake.resumed",
+    agent_enabled: "resonance.wake.agent_enabled",
+    agent_recheck: "resonance.wake.agent_recheck",
+    agent_changed: "resonance.wake.agent_changed",
+    guard_recheck: "resonance.wake.guard_recheck",
+    review: "resonance.wake.review",
+    deadline: "resonance.wake.deadline",
+    drift_recheck: "resonance.wake.drift_recheck",
+    guard_observe: "resonance.wake.guard_observe"
+  };
 
   function wakeLabel(code) {
-    return tw("resonance.wake." + (WAKE_CODES.indexOf(code) >= 0 ? code : "review"));
+    return tw(Object.prototype.hasOwnProperty.call(WAKE_KEYS, code) ? WAKE_KEYS[code] : WAKE_KEYS.review);
   }
 
   function verdictKey(v) {
