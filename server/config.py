@@ -916,8 +916,10 @@ def write_settings(cfg):
     if not isinstance(cfg, dict):
         raise TypeError("write_settings cần một dict cấu hình đầy đủ")
     with _SETTINGS_LOCK:
+        # MẢNH = thiếu quá nửa khoá gốc. Mảnh thật chỉ có một, hai khoá; còn cấu hình đầy đủ mà bỏ
+        # hẳn một mục có chủ đích (đặt lại tài khoản: `pop("auth")` rồi ghi) vẫn phải xoá được.
         thieu = [k for k in _DEFAULT if k not in cfg]
-        if thieu:
+        if len(thieu) * 2 > len(_DEFAULT):
             import traceback
             noi = "".join(traceback.format_stack(limit=3)[:-1]).strip().replace("\n", " | ")
             print(f"[config] write_settings nhận một MẢNH (thiếu {', '.join(thieu[:4])}...) - gộp thay vì "

@@ -121,6 +121,14 @@ c = cfgmod.read_settings()
 check("ghi cấu hình đầy đủ vẫn xoá được trường có chủ đích",
       c["domain"].get("custom") == "" and c["telegram"].get("chat_id") == "")
 
+seed()
+c = cfgmod.read_settings()
+c.pop("telegram")
+cfgmod.write_settings(c)
+c = cfgmod.read_settings()
+check("bỏ hẳn một mục gốc có chủ đích (như đặt lại tài khoản) vẫn được",
+      c["telegram"].get("chat_id") != "111" and not con_nguyen(c, tru=("telegram",)), c["telegram"].get("chat_id"))
+
 # ---- 5. File hỏng: không rơi về mặc định rồi đè lên ----
 seed()
 cfgmod.update_settings({"workspace_name": "Cửa hàng A"})   # tạo .bak là bản tốt
