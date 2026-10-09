@@ -28,10 +28,9 @@ jobs:
       - name: Lấy commit 0.86.1 cho test quay về
         run: git fetch --no-tags --depth=1 origin 09f254d0e4d009451dc58cb2e97788631c5acc1a
 
-      # test_resonance_a2_rollback chạy MÃ 0.87.0 (A1) THẬT trên kho đã nâng lên A2. Khi A1 merge vào main bằng
-      # squash, đổi SHA này (và OLD_SHA trong test) sang commit 0.87.0 trên main.
+      # test_resonance_a2_rollback chạy MÃ 0.87.0 (A1) THẬT trên kho đã nâng lên A2: commit squash của PR #590 trên main.
       - name: Lấy commit 0.87.0 cho test quay về A2
-        run: git fetch --no-tags --depth=1 origin 077bcf73a5c02f90b38bb663698d98f8236dbc86
+        run: git fetch --no-tags --depth=1 origin fdfec7c5c84c2663276d088194844e058d9a22aa
 
       - uses: actions/setup-python@v5
         with:

@@ -6,7 +6,7 @@ Mốc A2 của lộ trình [agent scope](../superpowers/specs/2026-10-08-resonan
 
 ## Mã và commit
 
-- **PR:** #593, nhánh `claude/resonance-a2-heartbeat`, VERSION 0.88.0, chồng lên A1 (#590, `077bcf73`). `main` (`71f9c5b9`, 0.86.2) nằm trong lịch sử nhánh.
+- **PR:** #593, nhánh `claude/resonance-a2-heartbeat`, VERSION 0.88.0. Từ 09/10/2026 nằm trên `main` sau khi A1 (#590) squash thành `fdfec7c5` (0.87.0); trước đó chồng lên head A1 `077bcf73`.
 - **Thiết kế:** đạt review ở vòng 4, `cb11fc23`.
 - **Mã:**
   - `c2b0874f` mã A2, `50c355f1` bản vá nhãn i18n.
@@ -90,6 +90,12 @@ Mốc A2 của lộ trình [agent scope](../superpowers/specs/2026-10-08-resonan
 - Áp 10 commit A2 lên trên: không xung đột, cây kết quả trùng với `b80ae0ea`.
 - Vì `main` chưa đổi từ lúc tách nhánh, sau khi A1 squash thật thì chỉ còn phải đổi SHA ghim. Nếu `main` có thêm commit trước đó thì phải kiểm lại.
 
+**Đã chuyển nền (09/10/2026):**
+- Chủ dự án cho phép; PR #590 squash vào `main` thành `fdfec7c5`, khoá head `077bcf73`. Cây của commit squash trùng với head A1.
+- Nhánh A2 rebase `--onto main` từ `077bcf73`: 11 commit, không xung đột, cây không đổi so với `72075ead`.
+- SHA ghim của test quay về và bước fetch trong `ci.yml` đổi sang `fdfec7c5`. Base PR #593 đổi sang `main`.
+- VERSION 0.88.0 trên 0.87.0 của `main`, CHANGELOG hai thứ tiếng đúng thứ tự.
+
 ## Giới hạn còn lại
 
 - **Hiệu năng VPS chưa đo.** Số đo event loop là môi trường test cục bộ, không suy ra tab trên VPS đã hết chậm. Đo tốc độ tab trên VPS là bằng chứng triển khai riêng (cùng việc Cloudflare và PR #592).
@@ -97,7 +103,6 @@ Mốc A2 của lộ trình [agent scope](../superpowers/specs/2026-10-08-resonan
 - **Bản chat chưa đạt** được việc nền sửa sau 15 phút (chính sách đã chốt); thẻ hiện giờ làm tiếp.
 - **`user_schedule`** có trong lõi nhưng chưa có nút hay tool để người dùng hẹn.
 - **Liên kết `javis_schedule` với mục tiêu** để sau (thiết kế mục 9).
-- **Khi A1 merge bằng squash:** đổi `OLD_SHA` trong `test_resonance_a2_rollback.py` và SHA trong `.github/workflows/ci.yml` sang commit 0.87.0 trên `main`, rồi rebase A2 lên `main`.
 
 ## Tài liệu cho người dùng
 

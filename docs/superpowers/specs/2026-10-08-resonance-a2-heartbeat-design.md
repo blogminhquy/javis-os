@@ -2,7 +2,7 @@
 
 **Trạng thái:** thiết kế đạt review ở vòng 4 (`cb11fc23`); mã A2 đạt review ở `b5975b7e`, kiểm tích hợp đạt (biên bản: `docs/dev/resonance-a2-verification.md`); chưa merge. Hướng dẫn dùng và quay về: `docs/dev/resonance-a2-heartbeat.md`. Nhánh `claude/resonance-a2-heartbeat`, đặt số 0.88.0.
 
-- **Nền:** nhánh A1 `claude/resonance-a1-agent-scope` tại `077bcf73` (0.87.0, chưa merge). A2 dùng `agent_gate` và sổ trợ lý của A1, nên nhánh chồng lên A1. A1 merge thì nhánh này rebase lên `main`.
+- **Nền:** lúc thiết kế, nhánh A1 tại `077bcf73` (0.87.0). A1 đã squash vào `main` thành `fdfec7c5` ngày 09/10/2026; nhánh A2 đã chuyển sang `main`.
 - **Lộ trình:** [agent scope roadmap](2026-10-08-resonance-agent-scope-roadmap.md), mục 5.
 - **Vòng 1** (`7504bf6a`) được review: 2 P1, 2 P2, 5 chỗ cần làm rõ. **Vòng 2** (`e95a3260`): 4 P2 và 2 lưu ý. **Vòng 3** (`fe92e753`): 1 P2. Mục 15 liệt kê từng điểm và chỗ sửa.
 - Không gọi model để làm thiết kế này. Chưa có pilot A2.

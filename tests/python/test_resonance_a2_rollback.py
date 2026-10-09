@@ -2,13 +2,13 @@
 
     python tests/run.py resonance_a2_rollback -v
 
-Nạp `server/resonance.py` và `server/resonance_store.py` của commit 0.87.0 (A1, `077bcf73`) qua `git show`, rồi đi
+Nạp `server/resonance.py` và `server/resonance_store.py` của commit phát hành 0.87.0 (A1, `fdfec7c5` trên main) qua `git show`, rồi đi
 vòng: kho mở bằng A2 (sao lưu pre-a2, ghi lý do, sổ thức) → mã 0.87.0 thật tạo mục tiêu và chạy một nhịp có lượt việc
 (engine giả) → mở lại bằng A2: bảng A2 còn nguyên, sự kiện mà lượt của 0.87 đã có thể thấy được đối soát, không gọi
 model thừa. Không gọi model thật.
 
 Máy không có lịch sử git của commit đó thì in SKIP; trên CI (biến CI) thì ĐỎ, vì CI phải lấy commit đó trước.
-Khi A1 merge vào main bằng squash, đổi OLD_SHA sang commit 0.87.0 trên main.
+OLD_SHA là commit squash của PR #590 trên main (cây trùng với head A1 `077bcf73` đã review).
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -28,7 +28,7 @@ import resonance as R  # noqa: E402
 import resonance_store as RS  # noqa: E402
 import _resonance_agent as RA  # noqa: E402
 
-OLD_SHA = "077bcf73a5c02f90b38bb663698d98f8236dbc86"
+OLD_SHA = "fdfec7c5c84c2663276d088194844e058d9a22aa"
 _fails = []
 
 
