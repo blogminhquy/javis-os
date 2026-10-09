@@ -90,8 +90,144 @@
     review: "resonance.wake.review",
     deadline: "resonance.wake.deadline",
     drift_recheck: "resonance.wake.drift_recheck",
-    guard_observe: "resonance.wake.guard_observe"
+    guard_observe: "resonance.wake.guard_observe",
+    // A3: phép thử cách làm khi bế tắc, và lượt làm sản phẩm bằng cách làm vừa học
+    method_trial: "resonance.wake.method_trial",
+    method_followup: "resonance.wake.method_followup"
   };
+
+  /* A3: dòng "cách làm đã học" trên thẻ, theo trạng thái bài học làn M của revision hiện tại. Khoá nguyên văn. */
+  var LEARN_KEYS = {
+    trial_pending: "resonance.a3_learn_pending",
+    trialing: "resonance.a3_learn_trialing",
+    active: "resonance.a3_learn_active",
+    rejected: "resonance.a3_learn_kept",
+    unknown: "resonance.a3_learn_kept",
+    skipped: "resonance.a3_learn_skipped",
+    dismissed: "resonance.a3_learn_dismissed",
+    revoked: "resonance.a3_learn_revoked"
+  };
+  var SKIP_KEYS = {
+    budget: "resonance.a3_skip_budget",
+    no_holdout: "resonance.a3_skip_no_holdout",
+    untestable: "resonance.a3_skip_untestable",
+    new_feedback: "resonance.a3_skip_new_feedback"
+  };
+
+  function learnHtml(g) {
+    var l = g.learning;
+    if (!l || !Object.prototype.hasOwnProperty.call(LEARN_KEYS, l.status)) return "";
+    var h = '<div class="rs-line rs-learn">' + esc(tw(LEARN_KEYS[l.status], { to: l.to_label || l.to || "" }));
+    if (l.status === "skipped") {
+      h += " " + esc(tw(Object.prototype.hasOwnProperty.call(SKIP_KEYS, l.reason) ? SKIP_KEYS[l.reason]
+        : "resonance.a3_skip_other"));
+    }
+    if (g.status === "active" && l.status === "active") {
+      h += ' <button type="button" class="rs-act" data-act="revert_method">' + esc(tw("resonance.btn_revert_method")) +
+        "</button>";
+    }
+    if (g.status === "active" && (l.status === "trial_pending" || l.status === "trialing")) {
+      h += ' <button type="button" class="rs-act" data-act="lesson_dismiss" data-lesson="' + esc(l.lesson_id) + '">' +
+        esc(tw("resonance.btn_lesson_dismiss")) + "</button>";
+    }
+    return h + "</div>";
+  }
+
+  /* A3 làn P: hàng phản hồi dưới tin báo do host ghi (khối thẻ có khoá báo cáo `outbox:`). Thuần để test. */
+  var REASONS = ["too_long", "too_often", "unclear"];
+  var REASON_KEYS = { too_long: "resonance.react_too_long", too_often: "resonance.react_too_often",
+                      unclear: "resonance.react_unclear" };
+
+  function reactHtml(st, open, note) {
+    st = st || {};
+    var v = st.value || "none";
+    function b(act, on, label, title, reason) {
+      return '<button type="button" class="rs-react-b' + (on ? " rs-on" : "") + '" data-ract="' + act + '"' +
+        (reason ? ' data-reason="' + reason + '"' : "") + ' aria-pressed="' + (on ? "true" : "false") +
+        '" title="' + esc(title) + '">' + esc(label) + "</button>";
+    }
+    var h = '<span class="rs-react-q">' + esc(tw("resonance.react_q")) + "</span>" +
+      b("up", v === "up", "👍", tw("resonance.react_up")) +
+      b("down", v === "down", "👎", tw("resonance.react_down"));
+    if (open || v === "down") {
+      h += '<span class="rs-react-why">' + REASONS.map(function (r) {
+        return b("reason", v === "down" && st.reason === r, tw(REASON_KEYS[r]), tw(REASON_KEYS[r]), r);
+      }).join("") + "</span>";
+    }
+    if (note) h += '<div class="rs-note">' + esc(note) + "</div>";
+    return h;
+  }
+
+  /* Request của một lần bấm. API ĐẶT giá trị theo request (không tự đảo); luật "bấm lại đúng nút đang sáng là thu
+     hồi" là của giao diện, nên trang tự gửi `none`. Mỗi lần bấm một nonce mới; gửi lại chính request đó giữ nonce. */
+  function reactBody(cur, act, reason, ctx, nonce) {
+    cur = cur || {};
+    var value, why = "";
+    if (act === "up") {
+      value = cur.value === "up" ? "none" : "up";
+    } else if (act === "reason") {
+      value = (cur.value === "down" && cur.reason === reason) ? "none" : "down";
+      why = value === "down" ? String(reason || "") : "";
+    } else {
+      value = (cur.value === "down" && !cur.reason) ? "none" : "down";
+    }
+    return { session_id: String((ctx || {}).session_id || ""), report: String((ctx || {}).report || ""),
+             goal_id: String((ctx || {}).goal_id || ""), value: value, reason: why, nonce: nonce || newNonce() };
+  }
+
+  function sessionNow() {
+    try { return (window.JavisSessions && window.JavisSessions.current && window.JavisSessions.current()) || ""; }
+    catch (e) { return ""; }
+  }
+
+  /* Chỉ tin báo do host ghi (khối thẻ mang khoá báo cáo `outbox:`) mới có hàng phản hồi; server vẫn kiểm biên nhận. */
+  function isNotice(card) {
+    return /^outbox:[0-9]+$/.test(String((card || {}).report || ""));
+  }
+
+  function veReact(msgEl, card) {
+    if (!isNotice(card)) return null;
+    if (msgEl.querySelector('.rs-react[data-report="' + card.report + '"]')) return null;
+    var row = document.createElement("div");
+    row.className = "rs-react";
+    row.setAttribute("data-report", card.report);
+    row.setAttribute("data-goal", card.goal_id);
+    row._ctx = { session_id: sessionNow(), report: card.report, goal_id: card.goal_id };
+    row._st = {};
+    var bubble = msgEl.querySelector(".bubble");
+    (bubble || msgEl).appendChild(row);
+    var c = row._ctx;
+    fetch("/resonance/reactions?brain=" + encodeURIComponent(brain()) + "&session_id=" + encodeURIComponent(c.session_id) +
+          "&report=" + encodeURIComponent(c.report) + "&goal_id=" + encodeURIComponent(c.goal_id),
+          { credentials: "same-origin" })
+      .then(function (r) { return r.json().then(function (j) { return { code: r.status, j: j }; }); })
+      .then(function (res) {
+        if (res.code !== 200) { row.remove(); return; }
+        row._st = res.j.reaction || {};
+        row.innerHTML = reactHtml(row._st, false);
+      })
+      .catch(function () { row.remove(); });
+    return row;
+  }
+
+  function sendReact(row, act, reason) {
+    var body = reactBody(row._st, act, reason, row._ctx);
+    if (act === "down" && body.value === "down") row._open = true;
+    var btns = row.querySelectorAll("button");
+    for (var i = 0; i < btns.length; i++) btns[i].disabled = true;
+    fetch("/resonance/reactions?brain=" + encodeURIComponent(brain()), {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    })
+      .then(function (r) { return r.json().then(function (j) { return { code: r.status, j: j }; }); })
+      .then(function (res) {
+        if (res.code !== 200) { row.innerHTML = reactHtml(row._st, row._open, res.j.error || tw("resonance.failed")); return; }
+        row._st = res.j.reaction || {};
+        row.innerHTML = reactHtml(row._st, row._open && row._st.value !== "none",
+          res.j.proposal ? tw("resonance.react_proposal") : "");
+      })
+      .catch(function () { row.innerHTML = reactHtml(row._st, row._open, tw("resonance.failed")); });
+  }
 
   function wakeLabel(code) {
     return tw(Object.prototype.hasOwnProperty.call(WAKE_KEYS, code) ? WAKE_KEYS[code] : WAKE_KEYS.review);
@@ -164,6 +300,7 @@
       h += '<div class="rs-line rs-muted">' + esc(tw("resonance.observe_on", { at: fmtTime(g.observe.next_at) })) +
         "</div>";
     }
+    h += learnHtml(g);
     h += '<div class="rs-line rs-muted">' + esc(tw("resonance.budget", { used: g.calls_used || 0,
       total: g.budget_calls || 0 })) + "</div>";
     if (active) {
@@ -221,6 +358,10 @@
       return { url: "/goals/" + id + "/feedback", body: { kind: act === "out_ok" ? "outcome_accepted" : "outcome_rejected",
         expected_revision: rev, criterion_id: String(critId || ""), artifact_ref: String(g.artifact_ref || ""),
         idempotency_key: key } };
+    }
+    if (act === "lesson_dismiss") {
+      return { url: "/resonance/lessons/" + encodeURIComponent(String((dir || {}).lesson || "")) + "/decision",
+        body: { action: "dismiss" } };
     }
     if (act === "drop") {
       return { url: "/goals/" + id + "/commands", body: { command: "drop_directive", expected_revision: rev,
@@ -280,6 +421,7 @@
     var bubble = msgEl.querySelector(".bubble");
     (bubble || msgEl).appendChild(el);
     load(el);
+    veReact(msgEl, card);
     return el;
   }
 
@@ -318,14 +460,23 @@
       if (!el) return;
       ev.preventDefault();
       send(el, b.getAttribute("data-act"), b.getAttribute("data-crit"),
-           { field: b.getAttribute("data-field"), key: b.getAttribute("data-key") });
+           { field: b.getAttribute("data-field"), key: b.getAttribute("data-key"),
+             lesson: b.getAttribute("data-lesson") });
+    });
+    document.addEventListener("click", function (ev) {
+      var b = ev.target && ev.target.closest && ev.target.closest("button.rs-react-b");
+      if (!b) return;
+      var row = b.closest(".rs-react");
+      if (!row) return;
+      ev.preventDefault();
+      sendReact(row, b.getAttribute("data-ract"), b.getAttribute("data-reason"));
     });
   }
 
   /* Công tắc theo BRAIN cũ đã bỏ (A1): công tắc nay theo từng trợ lý, ở resonance-agent.js. */
 
   var api = { tach: tach, viewHtml: viewHtml, compactHtml: compactHtml, requestFor: requestFor, stateKey: stateKey, wakeLabel: wakeLabel,
-    ve: ve, render: render };
+    ve: ve, render: render, reactHtml: reactHtml, reactBody: reactBody, learnHtml: learnHtml, isNotice: isNotice };
   if (typeof window !== "undefined") window.JavisResonance = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

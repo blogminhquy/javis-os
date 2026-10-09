@@ -82,6 +82,81 @@
     return html;
   }
 
+  /* A3: mục "Bài học" của trợ lý (GET /resonance/lessons). Một cột (luật trang cài đặt xếp một cột): đề xuất kèm câu cũ
+     và câu mới xếp dọc, bài học đang dùng có nút Thu hồi, lịch sử ngắn. Khoá từ điển nguyên văn qua bảng tra. */
+  var LESSON_KEYS = {
+    "notice_detail:brief": "resonance.a3_p_brief",
+    "notice_detail:full": "resonance.a3_p_full",
+    "notice_ping:quiet": "resonance.a3_p_quiet",
+    "notice_ping:ping": "resonance.a3_p_ping"
+  };
+  var STATUS_KEYS = {
+    proposed: "resonance.a3_st_proposed", active: "resonance.a3_st_active", superseded: "resonance.a3_st_superseded",
+    revoked: "resonance.a3_st_revoked", dismissed: "resonance.a3_st_dismissed", expired: "resonance.a3_st_expired",
+    stale: "resonance.a3_st_stale", skipped: "resonance.a3_st_skipped", rejected: "resonance.a3_st_rejected",
+    unknown: "resonance.a3_st_unknown", out_of_scope: "resonance.a3_st_out_of_scope",
+    trial_pending: "resonance.a3_st_trial_pending", trialing: "resonance.a3_st_trialing"
+  };
+
+  function lessonLabel(l) {
+    if (l.lane === "method") return tw("resonance.a3_m_method", { to: l.to_value || "" });
+    var k = String(l.key || "") + ":" + String(l.to_value || "");
+    return tw(Object.prototype.hasOwnProperty.call(LESSON_KEYS, k) ? LESSON_KEYS[k] : "resonance.a3_p_other");
+  }
+
+  function statusLabel(st) {
+    return tw(Object.prototype.hasOwnProperty.call(STATUS_KEYS, st) ? STATUS_KEYS[st] : "resonance.a3_st_unknown");
+  }
+
+  function lessonsHtml(data) {
+    var d = data || {};
+    var all = d.lessons || [];
+    var html = '<div class="rsa-goals-title">' + esc(tw("resonance.a3_lessons_title")) + "</div>";
+    var props = all.filter(function (l) { return l.status === "proposed" && l.lane === "presentation"; });
+    var act = all.filter(function (l) { return l.status === "active"; });
+    var hist = all.filter(function (l) { return l.status !== "proposed" && l.status !== "active"; }).slice(0, 5);
+    if (!all.length) html += '<div class="rsa-sub">' + esc(tw("resonance.a3_lessons_empty")) + "</div>";
+    props.forEach(function (l) {
+      var n = ((l.evidence || {}).reactions || []).length;
+      html += '<div class="rsa-lesson rsa-proposed" data-lid="' + esc(l.id) + '">' +
+        '<div class="rsa-lesson-text">' + esc(lessonLabel(l)) + "</div>" +
+        '<div class="rsa-sub">' + esc(tw("resonance.a3_evidence", { n: n })) + "</div>";
+      var pv = l.preview || {};
+      if (pv.kind === "detail") {
+        html += '<div class="rsa-pv"><div class="rsa-pv-label">' + esc(tw("resonance.a3_preview_old")) + "</div>" +
+          '<div class="rsa-pv-text">' + esc(pv.old) + "</div>" +
+          '<div class="rsa-pv-label">' + esc(tw("resonance.a3_preview_new")) + "</div>" +
+          '<div class="rsa-pv-text">' + esc(pv.new) + "</div></div>";
+      } else if (pv.kind === "ping") {
+        html += '<div class="rsa-sub">' + esc(tw("resonance.a3_preview_ping")) + "</div>";
+      }
+      html += '<div class="rsa-sub">' + esc(tw("resonance.a3_mandatory_note")) + "</div>" +
+        '<div class="rsa-acts"><button type="button" class="ws-btn rsa-lesson-act" data-act="apply" data-lid="' +
+        esc(l.id) + '" data-upd="' + esc(l.updated_at) + '">' + esc(tw("resonance.a3_apply")) + "</button>" +
+        '<button type="button" class="ws-btn rsa-lesson-act" data-act="dismiss" data-lid="' + esc(l.id) + '">' +
+        esc(tw("resonance.a3_dismiss")) + "</button></div></div>";
+    });
+    act.forEach(function (l) {
+      html += '<div class="rsa-lesson rsa-active" data-lid="' + esc(l.id) + '">' +
+        '<div class="rsa-lesson-text">' + esc(lessonLabel(l)) + " · " + esc(statusLabel(l.status)) + "</div>" +
+        '<div class="rsa-sub">' + esc(tw(l.lane === "method" ? "resonance.a3_scope_goal" : "resonance.a3_scope_agent")) +
+        "</div>" +
+        (l.evidence_missing ? '<div class="rsa-sub">' + esc(tw("resonance.a3_evidence_missing")) + "</div>" : "") +
+        '<div class="rsa-acts"><button type="button" class="ws-btn rsa-lesson-act" data-act="revoke" data-lid="' +
+        esc(l.id) + '">' + esc(tw("resonance.a3_revoke")) + "</button></div></div>";
+    });
+    if (hist.length) {
+      html += '<div class="rsa-sub">' + esc(tw("resonance.a3_history")) + "</div>" + hist.map(function (l) {
+        return '<div class="rsa-sub rsa-hist">' + esc(lessonLabel(l)) + " · " + esc(statusLabel(l.status)) + "</div>";
+      }).join("");
+    }
+    var st = d.stats || {};
+    if (st.up || st.down) {
+      html += '<div class="rsa-sub">' + esc(tw("resonance.a3_stats", { up: st.up || 0, down: st.down || 0 })) + "</div>";
+    }
+    return html;
+  }
+
   /* Khối trên trang Cài đặt: mỗi trợ lý một công tắc; mã đã mất file; mục tiêu chờ gán kèm ô chọn trợ lý. */
   function settingsHtml(data, unassigned) {
     var d = data || {};
@@ -176,6 +251,16 @@
         var goals = (gr.j && gr.j.goals) || [];
         host.innerHTML = panelHtml(row, session, goals);
         wire(host, row);
+        if (key) {
+          // A3: mục Bài học của trợ lý (đọc ghi bù hết hạn đề xuất ở server). Lỗi tải thì bỏ qua mục này.
+          getJson("/resonance/lessons?brain=" + q(brain()) + "&agent_key=" + q(key)).then(function (lr) {
+            if (t !== S.ticket || lr.code !== 200) return;
+            var box = document.createElement("div");
+            box.className = "rsa-lessons";
+            box.innerHTML = lessonsHtml(lr.j);
+            host.appendChild(box);
+          }).catch(function () {});
+        }
         if (window.JavisResonance) {
           goals.forEach(function (g) {
             var el = host.querySelector('.rsa-card[data-goal="' + g.goal_id + '"]');
@@ -209,6 +294,26 @@
       // Mở phiên mới đi đúng đường của trang; trang gắn lại khối với phiên mới và host nói nó có dùng được không.
       if (S.onNewSession) Promise.resolve(S.onNewSession()).then(function () { refresh(); });
     });
+    // `host` sống qua nhiều lần vẽ lại: chỉ gắn trình nghe MỘT lần, không thì một lần bấm gửi nhiều request.
+    if (!host._a3Wired && host.addEventListener) {
+      host._a3Wired = true;
+      host.addEventListener("click", function (ev) {
+        var b = ev.target && ev.target.closest && ev.target.closest(".rsa-lesson-act");
+        if (!b) return;
+        var act = b.getAttribute("data-act");
+        if (act === "revoke" && !window.confirm(tw("resonance.a3_revoke_q"))) return;
+        b.disabled = true;
+        var upd = b.getAttribute("data-upd");
+        postJson("/resonance/lessons/" + q(b.getAttribute("data-lid")) + "/decision?brain=" + q(brain()),
+          { action: act, expected_status: act === "apply" ? "proposed" : "", expected_updated_at: upd || "" })
+          .then(function (res) {
+            if (res.code !== 200) {
+              b.insertAdjacentHTML("afterend", '<div class="rsa-warn">' + esc(tw("resonance.a3_changed")) + "</div>");
+            }
+            refresh();
+          }).catch(function () { b.disabled = false; });
+      });
+    }
     host.querySelectorAll(".rsa-confirm").forEach(function (b) {
       b.addEventListener("click", function () {
         if (!row || !row.agent_key) return;
@@ -273,7 +378,8 @@
     });
   }
 
-  var api = { mount: mount, refresh: refresh, panelHtml: panelHtml, settingsHtml: settingsHtml, toggleNote: toggleNote };
+  var api = { mount: mount, refresh: refresh, panelHtml: panelHtml, settingsHtml: settingsHtml, toggleNote: toggleNote,
+    lessonsHtml: lessonsHtml };
   if (typeof window !== "undefined") window.JavisResonanceAgent = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

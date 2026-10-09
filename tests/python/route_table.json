@@ -4068,5 +4068,45 @@
    "POST"
   ],
   "trong": null
+ },
+ {
+  "order": 409,
+  "type": "APIRoute",
+  "path": "/resonance/reactions",
+  "name": "resonance_reaction_get",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 410,
+  "type": "APIRoute",
+  "path": "/resonance/reactions",
+  "name": "resonance_reaction",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 411,
+  "type": "APIRoute",
+  "path": "/resonance/lessons",
+  "name": "resonance_lessons",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 412,
+  "type": "APIRoute",
+  "path": "/resonance/lessons/{lesson_id}/decision",
+  "name": "resonance_lesson_decision",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
  }
 ]

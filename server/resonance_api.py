@@ -418,6 +418,18 @@ def register_learning(app, deps: ResonanceApiDeps):
     def _not_notice() -> JSONResponse:
         return _err(400, "Chỉ phản hồi được trên tin báo của trợ lý", "Feedback is only for assistant notices")
 
+    def _mref(args: dict) -> str:
+        """`message_ref` (msg:<phiên>:<id>), hay bộ ba có sẵn trong khối thẻ của tin: phiên đang mở, khoá báo cáo và
+        mục tiêu. Bộ ba được tra qua biên nhận của host (không có biên nhận thì không có tin báo)."""
+        mref = str(args.get("message_ref") or "")
+        if mref:
+            return mref
+        sid, rep, gid = (str(args.get(k) or "") for k in ("session_id", "report", "goal_id"))
+        if not (sid and rep and gid):
+            return ""
+        rec = deps.session_store().report_receipt(sid, rep, gid)
+        return f"msg:{sid}:{rec['id']}" if rec else f"msg:{sid}:0"
+
     def _source(store, root: str, mref: str):
         """Dựng nguồn của reaction từ biên nhận báo cáo của host. Trả (src, None) hay (None, JSONResponse lỗi)."""
         parts = str(mref or "").split(":")
@@ -448,7 +460,8 @@ def register_learning(app, deps: ResonanceApiDeps):
                 "content_sha": _sha(rec.get("content"))}, None
 
     @app.get("/resonance/reactions")
-    async def resonance_reaction_get(brain: str = "brain", message_ref: str = ""):
+    async def resonance_reaction_get(brain: str = "brain", message_ref: str = "", session_id: str = "",
+                                     report: str = "", goal_id: str = ""):
         """Reaction hiện tại của owner trên một tin báo (để hàng nút hiện đúng trạng thái)."""
         root, owner = _ctx(brain)
         if root is None:
@@ -456,7 +469,8 @@ def register_learning(app, deps: ResonanceApiDeps):
         if not _store_exists():
             return {"ok": True, "reaction": None}
         store = deps.store()
-        src, err = _source(store, root, message_ref)
+        src, err = _source(store, root, _mref({"message_ref": message_ref, "session_id": session_id, "report": report,
+                                               "goal_id": goal_id}))
         if err:
             return err
         return {"ok": True, "reaction": store.reaction_of(owner, src["session_id"], src["message_id"]),
@@ -473,7 +487,7 @@ def register_learning(app, deps: ResonanceApiDeps):
             return _err(404, "Chưa có trợ lý nào đăng ký", "No registered assistant")
         body = await _body(request)
         store = deps.store()
-        src, err = _source(store, root, str(body.get("message_ref") or ""))
+        src, err = _source(store, root, _mref(body))
         if err:
             return err
         try:
