@@ -46,14 +46,14 @@ Không có ô cài đặt mới. Các khoảng thời gian là hằng có phiên
 ## Nâng cấp từ 0.87.x
 
 - **Không phải làm gì tay.** Lần đầu mở kho, Javis chép `resonance.sqlite3` thành `resonance.sqlite3.pre-a2.bak` cạnh file gốc, chỉ một lần.
-- **Kho chỉ có thêm bảng mới:** `wake_reasons`, `wake_log`, `source_observations`. Không bảng cũ nào đổi cột.
+- **Kho chỉ có thêm bốn bảng mới:** `wake_reasons` (lý do thức), `wake_log` (sổ thức, chỉ để xem), `source_observations` (bản file bị sửa ngoài Javis), `heartbeat_state` (chuỗi lỗi và tiến bộ dùng để quyết định thử lại). Không bảng cũ nào đổi cột.
 - **Mục tiêu đang mở được dựng lại lý do từ lịch sử sự kiện:**
   - chưa làm lượt nào thì có lý do "việc mới";
   - góp ý chưa xử lý thì vẫn được xử lý một lần.
 
 ## Quay về 0.87.x
 
-- **Bản 0.87.0 chạy được trên kho đã nâng:** nó bỏ qua ba bảng mới. Đã kiểm bằng mã 0.87.0 thật trong `tests/python/test_resonance_a2_rollback.py`.
+- **Bản 0.87.0 chạy được trên kho đã nâng:** nó bỏ qua bốn bảng mới. Đã kiểm bằng mã 0.87.0 thật trong `tests/python/test_resonance_a2_rollback.py`.
 - **Trong lúc chạy 0.87:** nhịp cũ của MVP hoạt động lại, nên lần xem lại có thể gọi model như trước A2.
 - **Nâng lại lên A2:** góp ý hay việc mới mà bản 0.87 đã làm (lượt bắt đầu sau khi tin đó tới) được tính là đã xử lý, không gọi model lần nữa.
 

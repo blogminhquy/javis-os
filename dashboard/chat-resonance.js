@@ -79,6 +79,7 @@
     retry_not_met: "resonance.wake.retry_not_met",
     error_retry: "resonance.wake.error_retry",
     recovery: "resonance.wake.recovery",
+    action_recovery: "resonance.wake.recovery",
     handoff_wait: "resonance.wake.handoff_wait",
     handoff_done: "resonance.wake.handoff_done",
     resumed: "resonance.wake.resumed",

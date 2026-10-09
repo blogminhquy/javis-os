@@ -126,7 +126,7 @@ Vòng đích: **ghi phản hồi có nguồn → đề xuất thay đổi nhỏ 
 |---|---|---|
 | D0 | Xác minh vận hành trên máy triển khai | Localhost thử ghim `438f8309` (0.86.0) đạt 13 kiểm không model và 1 chat thật; commit, cách chạy và kết quả ở [biên bản D0](../../dev/resonance-d0-local-check-2026-10-08.md). VPS chưa kiểm, không chặn thiết kế A1 |
 | A1 | Trang agent có công tắc Cộng hưởng, mục tiêu đúng chủ thể và tiến độ tối thiểu | Đạt review mã (`cc79deb2`), pilot A1-1 đạt kỹ thuật và nội dung trong một kịch bản. PR #590, chưa merge. Biên bản: [resonance-a1-verification](../../dev/resonance-a1-verification.md) |
-| A2 | Agent thức vì lý do cụ thể, ngủ khi chờ, không gọi model vô ích | Có nền MVP; chưa tích hợp nhịp thích nghi theo agent |
+| A2 | Agent thức vì lý do cụ thể, ngủ khi chờ, không gọi model vô ích | Thiết kế đạt (`cb11fc23`), mã đạt review (`b5975b7e`), kiểm tích hợp đạt. PR #593, chưa merge, chưa đo VPS. Biên bản: [resonance-a2-verification](../../dev/resonance-a2-verification.md) |
 | A3 | Phản hồi dẫn tới điều chỉnh có kiểm chứng; không chạy theo emoji | Có feedback M4 và so phương pháp M5; chưa có vòng học reaction |
 | A4 | Các engine nộp sản phẩm theo cùng hợp đồng host | Có bàn giao Claude Code; adapter khác chưa có |
 | A5 | Một agent làm, một agent review; báo rõ ai đang chờ ai | Có hạ tầng workflow/reviewer; chưa thành đội Resonance |
@@ -167,4 +167,11 @@ Nguồn audit và các khoảng trống bằng chứng: [Báo cáo tiến độ 
 - **Mã:** PR #590. Review mã đạt ở `cc79deb2`; `e01eb3c2` thêm test hồi quy phục hồi, `e0a60352` thêm hồ sơ pilot.
 - **Pilot A1-1** (phiên trợ lý, 2 lượt chat Opus, 0 việc nền Sonnet, xác nhận cuối mô phỏng): đạt kỹ thuật và nội dung, trong một kịch bản.
 - **Biên bản nghiệm thu:** [resonance-a1-verification](../../dev/resonance-a1-verification.md).
-- **Chưa làm:** chưa merge (chờ chủ dự án). A2–A5 chưa bắt đầu code. Hiệu năng VPS đi PR riêng (#592).
+- **Chưa làm:** chưa merge (chờ chủ dự án). Hiệu năng VPS đi PR riêng (#592).
+
+## 13. Tiến độ A2 (09/10/2026)
+
+- **PR #593** (0.88.0), chồng lên A1. Thiết kế đạt review ở vòng 4 (`cb11fc23`); mã đạt review ở `b5975b7e` sau ba vòng sửa.
+- **Kiểm tích hợp:** smoke dry trên server thật (0 lượt engine), soi giao diện heartbeat trên sandbox.
+- **Biên bản:** [resonance-a2-verification](../../dev/resonance-a2-verification.md).
+- **Chưa làm:** chưa merge, chưa phát hành, chưa đo VPS. A3 tới A5 chưa bắt đầu.

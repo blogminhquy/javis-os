@@ -1553,6 +1553,27 @@ for cancel in (True, False):
               and any(r["code"] == "error_retry" for r in w.reasons(g1.id))
               and len(a2x) == 1 and a2x[0]["status"] == "succeeded")
 
+# ═══════════════════ Kiểm tích hợp (sau review đạt ở b5975b7e) ═══════════════════
+# Soi dữ liệu thẻ trên sandbox thấy hẹn `recovery` của hành động ĐĂNG còn chờ ở nghĩa vụ thử lại. Hẹn phục hồi của hành
+# động không phải lượt việc chỉ được đối soát bằng code, không bao giờ là một lần thử lại tự động.
+w = World("int-publish-recovery", Engine([GOOD]))
+g = w.goal(mode="maintain", horizon={"kind": "maintain"})
+w.tick()
+check("sau khi đăng: không còn lý do thử lại tự động nào đang chờ (hẹn phục hồi của hành động đăng là chỉ kiểm)",
+      not any(HB.classify(r["code"]) == HB.AUTO for r in w.reasons(g.id))
+      and any(r["code"] == "action_recovery" and r["state"] != "pending" for r in w.reasons(g.id, None)))
+w = World("int-publish-blocked", Engine(["Báo cáo quý, máy lạnh, mất tiêu đề.\n", GOOD]))
+_flag_g = [{"description": "Tiêu đề Sample còn giữ", "evaluator": "artifact_contract",
+            "params": {"path": DELIV, "must_contain": ["Sample"]}}]
+g = w.goal(budget=8, guards=_flag_g)
+write(DELIV, "# Sample\n\nBản cũ.\n")
+w.tick()
+q1 = w.built
+for k in range(1, 25):
+    w.clock.t = T0 + 30 * k
+    w.tick()
+check("bản mới làm guard sai (không đăng): không gọi model lại trước mốc thử lại 15 phút", q1 == 1 and w.built == 1)
+
 # ═══════════════════ Sao lưu và nâng cấp ═══════════════════
 old = Path(_STATE) / "pre-a2.sqlite3"
 with sqlite3.connect(str(old)) as c:

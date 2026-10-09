@@ -62,7 +62,7 @@ const keys = Object.keys(vi).filter((k) => k.startsWith("resonance.wake") || ["r
   "resonance.observe_on"].includes(k));
 check(`chuỗi A2 có đủ hai thứ tiếng (${keys.length} khoá)`, keys.length >= 28 && keys.every((k) => en[k] && vi[k]));
 const wakeKeys = SRC.match(/var WAKE_KEYS = \{([\s\S]*?)\};/)[1].match(/"(resonance\.wake\.\w+)"/g) || [];
-check("mọi mã lý do trong thẻ có nhãn (" + wakeKeys.length + ")", wakeKeys.length === 19 &&
+check("mọi mã lý do trong thẻ có nhãn (" + wakeKeys.length + ")", wakeKeys.length === 20 &&
   wakeKeys.map((s) => s.replace(/"/g, "")).every((k) => vi[k] && en[k]));
 check("không có ký tự gạch dài trong chuỗi A2", keys.every((k) => !/\u2014/.test(vi[k] + en[k])));
 

@@ -2110,11 +2110,19 @@ async def _cleanup(fn, *args) -> None:
     thay thế lời huỷ hay lỗi đang đi ra."""
     try:
         await _thread_done(fn, *args)
-    except asyncio.CancelledError:
-        pass
+    except asyncio.CancelledError as c:
+        _log_carried(fn, c)
     except Exception as e:  # noqa: BLE001
         import sys
         print(f"[resonance cleanup] {getattr(fn, '__name__', fn)}: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def _log_carried(fn, c: BaseException) -> None:
+    """Lời huỷ có mang lỗi của pha (`_CancelledWith.error`): ghi lỗi đó để chẩn đoán, lời huỷ vẫn đi tiếp."""
+    err = getattr(c, "error", None)
+    if err is not None:
+        import sys
+        print(f"[resonance cleanup] {getattr(fn, '__name__', fn)}: {type(err).__name__}: {err}", file=sys.stderr)
 
 
 async def _off_loop(fn, *args):
@@ -2283,8 +2291,11 @@ def _work_post(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: float, c
     if why:
         store.add_assessment(p, a.to_dict())
         return a
-    return _settle(goal, a, deps, now, worked=True, has_output=bool(refs), chain=after,
-                   sig=_signature(a, (ctx.sig if ctx else "")))
+    # Dấu vết đánh giá ghi cả ở dòng sổ của lượt việc, để lần xem lại sau đó biết có gì đổi không mà giãn nhịp.
+    # Hash là của bản ĐANG nằm trên đĩa sau khi đăng (cùng thước đo với lần xem lại đọc file).
+    sig = _signature(a, str(pub.get("sha256") or (ctx.sig if ctx else "")))
+    log.update(signature=sig)
+    return _settle(goal, a, deps, now, worked=True, has_output=bool(refs), chain=after, sig=sig)
 
 
 async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: float,
@@ -2548,7 +2559,8 @@ async def advance(goal_id: str, event: dict, deps: GoalDeps) -> Assessment:
     cut = False
     try:
         _r, cut = await _thread_done(_finish_wake, res, deps)
-    except asyncio.CancelledError:
+    except asyncio.CancelledError as c:
+        _log_carried(_finish_wake, c)
         cut = True
     except Exception as e:  # noqa: BLE001
         import sys

@@ -224,7 +224,7 @@ _WAKE_TEXT = {
     "agent_enabled": "trợ lý được bật", "agent_recheck": "kiểm lại công tắc trợ lý",
     "agent_changed": "xét lại đầu ra theo quyền hiện tại", "guard_recheck": "kiểm lại guard chưa xác định",
     "review": "xem lại định kỳ", "deadline": "kiểm hạn chót", "drift_recheck": "kiểm lại file bị sửa ngoài Javis",
-    "guard_observe": "quan sát guard",
+    "guard_observe": "quan sát guard", "action_recovery": "đối soát hành động dở",
 }
 
 
@@ -1344,7 +1344,10 @@ class GoalStore:
                 # thử lại vừa mở lượt này (nó phải mang dấu `settled_by` của lượt để huỷ lượt trả lại được).
                 served = self._serve(c, goal_id, it["wake_reasons"], aid, now)
             if wake:
-                self._reason_timer(c, goal_id, p.brain_id, "recovery", float(lease_until) + 1, int(revision), now)
+                # Lượt việc: `recovery` (thử lại tự động, theo trần). Hành động khác (đăng sản phẩm): `action_recovery`,
+                # chỉ để đối soát bằng code, KHÔNG bao giờ mở lượt model và không chiếm nghĩa vụ thử lại.
+                self._reason_timer(c, goal_id, p.brain_id, "recovery" if kind == "work" else "action_recovery",
+                                   float(lease_until) + 1, int(revision), now)
             if kind == "work":
                 # A2 (review mã P1-1): mở lượt trong chuỗi bền CÙNG giao dịch giữ lượt. Lượt mở trước chưa kết sổ thì
                 # gấp bảo thủ trước; lượt mở bởi bước đầu hay tin mới bắt đầu chuỗi mới.
