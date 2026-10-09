@@ -1,6 +1,6 @@
 # Resonance A3: vòng phản hồi và học có kiểm chứng
 
-**Trạng thái:** bản thiết kế vòng 3, chờ review để chốt trước khi code. Vòng 1 (`a6418e45`): 1 P1, 2 P2, D4 chưa đạt (mục 17). Vòng 2 (`ef56b61f`): 2 P2 về sổ giữ lượt (mục 18). Chưa có mã hành vi A3. Nhánh `claude/resonance-a3-feedback-learning`, đặt số 0.89.0.
+**Trạng thái:** thiết kế ĐẠT review vòng 3 (`d6239d54`, báo cáo `exports/reviews/PR-598-A3-r3-d6239d54-review.md`, ngoài git). Đã triển khai trên cùng nhánh, chờ review mã; ghi chú triển khai ở mục 19. Vòng 1 (`a6418e45`): 1 P1, 2 P2, D4 chưa đạt (mục 17). Vòng 2 (`ef56b61f`): 2 P2 về sổ giữ lượt (mục 18). Nhánh `claude/resonance-a3-feedback-learning`, đặt số 0.89.0.
 
 - **Nền:** `main` tại `83bff6bc` (0.88.1). A1 đã phát hành 0.87.0 (`fdfec7c5`), A2 đã phát hành 0.88.0 (`c101d108`).
 - **Lộ trình:** [agent scope roadmap](2026-10-08-resonance-agent-scope-roadmap.md), mục 6.
@@ -634,3 +634,17 @@ Review: `exports/reviews/PR-598-A3-r2-ef56b61f-review.md` (ngoài git). Ba đi�
 | Lưu ý: R3i gộp hai tình huống sửa tay | Ca R3i1, R3i2 | Phát hiện trước khi mở lượt: gác, 0 lượt model. Sửa trong lúc chạy: giữ đầu ra chưa đăng |
 
 Không mở thêm tính năng: hai làn, D1 tới D7 và các sửa vòng 1 giữ nguyên.
+
+## 19. Ghi chú triển khai (sau khi thiết kế đạt tại `d6239d54`)
+
+Hành vi, quyền, ngân sách và chuẩn bằng chứng giữ đúng thiết kế đã chốt. Các chỗ dưới đây là cách hiện thực hoá hay một chỗ thêm mà test trên mã thật buộc phải có; reviewer mã xét lại từng chỗ.
+
+| # | Chỗ | Thiết kế ghi | Mã làm | Lý do |
+|---|---|---|---|---|
+| I1 | Danh tính bài học trong giao dịch chốt | `finish_experiment(..., lesson_id)` | `begin_experiment(..., lesson_id)` như thiết kế; `finish_experiment` tìm bài học theo `experiment_id` ngay trong giao dịch chốt | Cùng một danh tính (bài học ghi `experiment_id` ở bước giữ chỗ). Nhờ vậy đường đối soát A2 (`_reconcile`, chốt phép thử bị ngắt) không phải truyền thêm tham số mà vẫn chạy CAS bài học. Phép thử không có bài học (`compare_methods` công khai) giữ hành vi M5 |
+| I2 | Lần thức sau khi phép thử bị ngắt | Mục 6.8 nói đối soát chốt phép thử dở | Thêm một hẹn `action_recovery` (lớp kiểm, không gọi model) ở lúc khoá của phép thử hết hạn; phép thử xong bình thường thì hẹn đó được bỏ | Test R5e trên mã thật cho thấy phép thử bị ngắt không để lại lịch nào (lý do đã phục vụ, lượt thử không có hẹn phục hồi), nên không lần thức nào đối soát, lượt giữ kẹt `held`. Đây là lỗi thật của hợp đồng, không phải chỉ của test |
+| I3 | Nguồn của reaction | `message_ref` | Nhận `message_ref`, hoặc bộ ba (phiên, khoá báo cáo, mục tiêu) có sẵn trong khối thẻ; server tra bộ ba qua biên nhận `report_receipts` rồi kiểm như `message_ref` | Phần tử tin trong khung chat không mang id tin của kho phiên. Mọi kiểm (biên nhận, vai `assistant`, khối thẻ khớp khoá, brain, mục tiêu) giữ nguyên |
+| I4 | Nút Bỏ qua lần thử trên thẻ | Mục 11 nêu nút Quay lại cách cũ | Thẻ có thêm nút Bỏ qua lần thử khi bài học đang `trial_pending`/`trialing`, gọi đúng route quyết định của mục 10 | Mục 9 và 10 đã có hành động Bỏ qua cho hai trạng thái này; thẻ là chỗ người dùng thấy phép thử đang chờ |
+| I5 | Ca R5e | Ví dụ "sau 2 trên 4 lượt" | Test ngắt ở lượt thử thứ 3 và kiểm theo công thức `calls_used = 3 + số lượt thử đã ghi ý định` | Lượt đã ghi ý định thì model có thể đã chạy nên vẫn tính; công thức là bất biến cần khoá, con số chỉ là ví dụ |
+| I6 | Test giao diện A2 | Không nói | `tests/js/test_resonance_a2_ui.js` đổi số mã lý do có nhãn từ 20 thành 22 | A3 thêm đúng hai mã `method_trial`, `method_followup` (mục 6.3); test vẫn kiểm mọi mã có nhãn ở hai thứ tiếng |
+| I7 | Đề xuất làn P hết hạn | Ghi bù lúc có reaction mới hay khi mở danh sách | Như thiết kế; thêm hết hạn khi số tin làm căn cứ còn sống tụt dưới ngưỡng (`evidence_gone`) | Mục 3.4 nói đề xuất mất đủ số tin thì tự hết hạn |

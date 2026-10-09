@@ -10,7 +10,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.89.0] - 2026-10-09
 ### Added
-- **Resonance assistants learn from feedback, with checks (in progress).** React to an assistant's notice to suggest shorter or less disruptive updates; you preview the change and decide whether to apply it.
+- **Resonance assistants learn from feedback, with checks.** React to an assistant's notice to suggest shorter or less disruptive updates; you preview the change and decide whether to apply it.
 - **When stuck, the assistant tries one other method, only if the goal's budget covers both the trial and one more pass on the deliverable,** compared with the old method on the same criteria; a losing or unclear result keeps the old method.
 - **Every lesson has a source, a scope and a revoke button.** Feedback never marks a goal done by itself and never grants more permissions or budget.
 
