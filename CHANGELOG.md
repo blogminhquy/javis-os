@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.88.3] - 2026-10-09
+### Sửa lỗi
+- **Bot trong nhóm Zalo thấy ảnh khi khách gửi ảnh trơn rồi mới gọi bot.** Trước đây ảnh không kèm chú thích bị bỏ ngay khi tới, nên cách gửi hay gặp nhất là gửi ảnh rồi nhắn "@bot xem giúp" thì bot nói chưa thấy ảnh. Còn ảnh có ghi vài chữ chú thích thì bot lại thấy, nên trông như lúc thấy lúc không. Giờ bot nhớ ảnh trơn trong 3 phút, và lần người đó gọi bot thì bot xem được ảnh.
+  - Ở chế độ Tự đánh giá, câu như "xem giúp ảnh trên" không tag bot mà bot quyết định trả lời thì cũng kèm theo ảnh.
+  - Tải ảnh từ Zalo lỗi thoáng qua (mạng chập, ảnh vừa gửi chưa sẵn) thì bot thử lại một lần thay vì báo không thấy ngay.
+
 ## [0.88.2] - 2026-10-09
 ### Sửa lỗi
 - **Chat cũ dùng ChatGPT tự khôi phục sau khi chuyển máy hay VPS.** Phiên làm việc của Codex nằm trên máy cũ không đi theo, nên chat cũ báo lỗi "no rollout found" mãi trong khi chat mới chạy bình thường. Javis đã có sẵn bước dựng lại ngữ cảnh từ lịch sử chat, nhưng không nhận ra câu lỗi này, nhất là khi Codex chỉ báo lỗi rồi thoát ngay. Giờ Javis nhận ra và tự dựng lại đúng một lần. Lỗi đăng nhập, hết hạn mức hay mất mạng vẫn báo như cũ. (Báo lỗi của @dev23072005, issue #595.)
