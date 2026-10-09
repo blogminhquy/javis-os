@@ -3295,14 +3295,17 @@ def _trial_stop(g: GoalRecord, deps: GoalDeps, pin: dict, lesson_id: Optional[st
 
 def _trial_open(g: GoalRecord, baseline_ref: str, candidate_ref: str, need: int, payload: dict, deps: GoalDeps,
                 now: float, pin: dict, lesson_id: Optional[str], wake_reasons: Optional[list]) -> Optional[str]:
-    """Giao dịch giữ chỗ của phép thử và thư mục làm việc của nó, ở luồng phụ."""
+    """Giao dịch giữ chỗ của phép thử, ở luồng phụ. CHỈ giao dịch: lỗi ở đây nghĩa là chưa có gì được commit. Thư mục
+    làm việc tạo ở bước riêng SAU commit (`_trial_dir`), để lỗi file hệ thống không bị đọc nhầm thành "chưa tạo phép
+    thử" (review mã A3 vòng 2, P2-1)."""
     store, p = deps.store, deps.principal
-    exp = store.begin_experiment(p, g.id, g.revision, baseline_ref, candidate_ref, need,
-                                 int(g.budget_calls * EXPLORE_SHARE), payload, now=now, agent=pin,
-                                 lesson_id=lesson_id, wake_reasons=wake_reasons)
-    if exp is not None:
-        (Path(g.output_root) / "trials" / exp).mkdir(parents=True, exist_ok=True)
-    return exp
+    return store.begin_experiment(p, g.id, g.revision, baseline_ref, candidate_ref, need,
+                                  int(g.budget_calls * EXPLORE_SHARE), payload, now=now, agent=pin,
+                                  lesson_id=lesson_id, wake_reasons=wake_reasons)
+
+
+def _trial_dir(g: GoalRecord, exp: str) -> None:
+    (Path(g.output_root) / "trials" / exp).mkdir(parents=True, exist_ok=True)
 
 
 def _trial_not_run(deps: GoalDeps, act: dict) -> None:
@@ -3338,7 +3341,9 @@ async def _compare_run(g: GoalRecord, baseline_ref: str, candidate_ref: str, ite
     out = {**_compare_out(g, baseline_ref, candidate_ref), "rubric_hash": rubric_hash, "cases_hash": cases_hash}
     # A1 (review tích hợp, P1-3): GHIM mã và version trợ lý cho cả phép thử. Mọi lượt, và bước áp dụng, phải còn đúng
     # bản ghim này; tắt rồi bật giữa chừng là version mới, phép thử dừng và hoàn phần hạn mức chưa chạy.
-    pin = _agent_intent(g, deps)
+    # Đọc sổ đăng ký agent cũng là I/O: chạy ở luồng phụ như mọi bước kho khác (review mã A3 vòng 2, P2-2). Version
+    # ghim vẫn được kiểm lại trong giao dịch giữ chỗ và ở cổng mỗi lượt.
+    pin = await _off_loop(_agent_intent, g, deps)
     payload = {"rubric_hash": rubric_hash, "cases_hash": cases_hash, "case_ids": [c["id"] for c in items],
                **({"cases_meta": case_meta} if case_meta else {})}
     try:
@@ -3348,15 +3353,27 @@ async def _compare_run(g: GoalRecord, baseline_ref: str, candidate_ref: str, ite
         # Phép thử có thể đã được giữ chỗ (giao dịch đã commit): để nó `running`; hẹn đối soát của lần thức chốt nó
         # (interrupted, hoàn các lượt chưa ghi ý định) khi khoá đã nhả.
         raise
-    except Exception as e:  # noqa: BLE001 - AgentStateError: công tắc đổi ngay trước giao dịch giữ hạn mức
-        return {**out, "reason": "agent_gate", "stop_detail": _short(e)}
+    except Exception as e:  # noqa: BLE001
+        # Giao dịch giữ chỗ ném lỗi thì đã rollback: CHƯA có phép thử, chưa giữ lượt nào. Phân biệt quyền trợ lý đổi
+        # ngay trước giao dịch với lỗi lưu trữ, để hồ sơ ghi đúng nguyên nhân.
+        why = "agent_gate" if type(e).__name__ == "AgentStateError" else "storage_error"
+        return {**out, "reason": why, "stop_detail": f"{type(e).__name__}: {_short(e)}"}
     if exp is None:
         return {**out, "reason": "budget" if lesson_id else "explore_budget"}
     out.update(experiment_id=exp, created=True)
     tg = dataclasses_replace(g, output_root=str(Path(g.output_root) / "trials" / exp))
     results, started, stop = [], 0, ""
+    try:
+        await _off_loop(_trial_dir, g, exp)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        # Lỗi file hệ thống SAU khi giữ chỗ đã commit: phép thử ĐÃ tồn tại. Không chạy lượt nào, chốt `inconclusive`
+        # ngay dưới đây và hoàn toàn bộ lượt đã giữ (chưa lượt nào gọi engine). Chốt cũng lỗi thì phép thử còn
+        # `running` và hẹn đối soát của lần thức vẫn còn để tự chốt sau.
+        stop = f"storage_error_after_commit: {type(e).__name__}: {_short(e)}"
 
-    for c in items:
+    for c in ([] if stop else items):
         row = {"case_id": c["id"], "split": c["split"]}
         if c["expect"].get("evaluator") == "human_confirmation":
             skip = {"verdict": "unknown", "reason": "chỉ người dùng chấm được; phép thử không tự chấm",
@@ -3543,6 +3560,11 @@ def _trial_ready(g: GoalRecord, row: dict, deps: GoalDeps) -> tuple:
                       "ids": [int(row["id"])]}
 
 
+def _trial_open_running(store, p, goal_id: str) -> bool:
+    """Còn phép thử `running` của mục tiêu không. Còn thì hẹn đối soát phải giữ để tự chốt sau (review mã A3 vòng 2)."""
+    return any(e["status"] == "running" for e in store.experiments(p, goal_id))
+
+
 async def _trial_step(ctx: _WakeCtx, deps: GoalDeps, now: float) -> Assessment:
     """Lần thức quyết định `trial` (A3 mục 6.4): chạy thân phép thử M5 với khoá lượt của lần thức (đã nới hạn cho đủ
     số lượt). Lý do `method_trial` được phục vụ trong giao dịch giữ chỗ của phép thử; không tạo được phép thử thì chốt
@@ -3568,7 +3590,7 @@ async def _trial_step(ctx: _WakeCtx, deps: GoalDeps, now: float) -> Assessment:
         await _off_loop(store.serve_reasons, p, g.id, t["ids"], "trial_" + str(out.get("reason") or "budget"), now)
     # Phép thử đã chốt: chỉ hẹn đối soát CỦA NÓ hết nghĩa (chốt theo id). Hẹn gỡ chặn mà cổng vừa ghi trong lúc thử
     # được giữ nguyên. Lịch vật lý theo lý do còn chờ (lý do làm sản phẩm vừa được dựng khi phép thử thắng).
-    if rec_id:
+    if rec_id and not await _off_loop(_trial_open_running, store, p, g.id):
         await _off_loop(store.serve_reasons, p, g.id, [rec_id], "trial_done", now)
     await _off_loop(store.recompute_wake, p, g.id)
     return Assessment(g.id, g.revision, "unknown", rationale=f"phép thử cách làm {t['to']}: {out.get('verdict')} "

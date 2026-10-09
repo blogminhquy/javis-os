@@ -1231,6 +1231,106 @@ check("RV3 sau lỗi lưu trữ: đối soát chốt interrupted, 4 lượt đã
       w.exps(g.id)[0]["reason"] == "interrupted" and w.g(g.id).calls_used == 7 and w.hold(g.id)["status"] == "released",
       (w.exps(g.id)[0]["reason"], w.g(g.id).calls_used))
 
+# ═══════════════════ Hồi quy review mã vòng 2 (61d0d8ca): RV4, RV5 ═══════════════════
+
+# RV4: lỗi file hệ thống SAU khi giữ chỗ đã commit (P2-1). Một file thường tên `trials` trong vùng làm việc làm mkdir
+# thư mục con của phép thử thất bại thật (không giả lập lỗi kho).
+def blocked_trial_root(w, gid):
+    root = Path(w.g(gid).output_root)
+    root.mkdir(parents=True, exist_ok=True)
+    blocker = root / "trials"
+    if blocker.is_dir():
+        import shutil
+        shutil.rmtree(blocker)
+    blocker.write_text("cản", encoding="utf-8")
+    return blocker
+
+
+def rv4_state(w, gid):
+    return {"exp": [(e["status"], e["reason"]) for e in w.exps(gid)], "calls": w.g(gid).calls_used,
+            "hold": (w.hold(gid) or {}).get("status"), "lesson": (w.lesson(gid) or {}).get("status"),
+            "pending": [r["code"] for r in w.pending(gid)], "q": w.engine.queries}
+
+
+w = World("rv4")
+g = w.held_goal(budget=9)
+to_trial_pending(w, g.id)
+blocker = blocked_trial_root(w, g.id)
+w.tick()
+st = rv4_state(w, g.id)
+e = w.exps(g.id)[0]
+check("RV4 mkdir lỗi sau khi giữ chỗ: phép thử được chốt (không báo nhầm là chưa tạo), lý do lỗi lưu trữ sau commit",
+      st["exp"] == [("finished", "stopped")] and "storage_error_after_commit" in str(e["payload"].get("stop_detail")), st)
+check("RV4 hoàn đủ lượt đã giữ (calls 3), trả lượt giữ, bài học unknown, 0 lượt engine thêm, không lý do treo",
+      st["calls"] == 3 and st["hold"] == "released" and st["lesson"] == "unknown" and st["q"] == 3
+      and "trial_recovery" not in st["pending"] and "method_trial" not in st["pending"], st)
+blocker.unlink()
+w.run_days(g.id, 2)
+w.reopen()
+w.run_days(g.id, 2)
+check("RV4 khôi phục file hệ thống, khởi động lại, đối soát lặp: không đổi gì, không gọi thêm model",
+      rv4_state(w, g.id) == st, rv4_state(w, g.id))
+
+w = World("rv4-finish-fails")
+g = w.held_goal(budget=9)
+to_trial_pending(w, g.id)
+blocker = blocked_trial_root(w, g.id)
+seen = []
+slow(w.store, "finish_experiment", 0.0, seen, fail=[1])
+w.tick()
+st = rv4_state(w, g.id)
+check("RV4 mkdir lỗi rồi chốt cũng lỗi: phép thử còn running, lượt giữ còn, hẹn trial_recovery CÒN để tự chốt sau",
+      st["exp"] == [("running", "")] and st["hold"] == "held" and "trial_recovery" in st["pending"] and st["q"] == 3, st)
+blocker.unlink()
+w.clock.t += 3600 * 4
+w.reopen()
+w.run_days(g.id, 1)
+st = rv4_state(w, g.id)
+check("RV4 lần thức đối soát sau đó: interrupted, hoàn đủ (calls 3), lượt giữ released, 0 lượt engine thêm",
+      st["exp"] == [("finished", "interrupted")] and st["calls"] == 3 and st["hold"] == "released" and st["q"] == 3, st)
+w.reopen()
+w.run_days(g.id, 2)
+check("RV4 đối soát lặp và mở lại: không trả hai lần", rv4_state(w, g.id) == st)
+
+w = World("rv4-before-commit")
+g = w.held_goal(budget=9)
+to_trial_pending(w, g.id)
+slow(w.store, "begin_experiment", 0.0, [], fail=[1])
+w.tick()
+check("RV4 lỗi lưu trữ TRƯỚC commit: không có phép thử, không giữ lượt, ghi đúng lỗi lưu trữ (không phải quyền)",
+      not w.exps(g.id) and w.g(g.id).calls_used == 3 and w.lesson(g.id)["status"] == "skipped"
+      and w.lesson(g.id)["status_reason"] == "storage_error" and w.engine.queries == 3,
+      (w.lesson(g.id)["status"], w.lesson(g.id)["status_reason"]))
+
+# RV5: đọc sổ đăng ký agent (ghim quyền) cũng chạy ngoài event loop (P2-2); đo cả hàm đọc, không chỉ hàm ghi.
+w = World("rv5")
+g = w.held_goal(budget=9)
+to_trial_pending(w, g.id)
+loop_tid, reads = [], []
+_orig_abk = w.store.agent_by_key
+
+
+def _abk(*a, **k):
+    tid = threading.get_ident()
+    reads.append(tid)
+    if loop_tid and tid == loop_tid[0]:
+        _time.sleep(0.25)
+    return _orig_abk(*a, **k)
+
+
+w.store.agent_by_key = _abk
+
+
+async def _rv5():
+    loop_tid.append(threading.get_ident())
+    w.clock.t = max(w.clock(), min(x["due_at"] for x in w.store.wakes(P, g.id)))
+    await R.tick(w.store, w.clock(), lambda b: w.deps, limit=1)
+
+gap = asyncio.run(_watch(_rv5()))
+check(f"RV5 mọi lần đọc agent khi chạy phép thử nằm ngoài event loop ({len(reads)} lần), loop không khựng ({gap:.3f}s)",
+      reads and not [t for t in reads if t == loop_tid[0]] and gap < 0.1, (len(reads), gap))
+check("RV5 phép thử vẫn thắng và áp dụng như trước", w.exps(g.id)[0]["applied"] is True and w.engine.queries == 7)
+
 # ═══════════════════ A13: di chuyển ═══════════════════
 
 old_db = Path(_STATE) / "pre-a3.sqlite3"
