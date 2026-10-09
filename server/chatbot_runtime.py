@@ -346,6 +346,11 @@ async def anh_cho_bot(text_engine: str, meta: dict, cfg: dict) -> tuple:
             msg = image_vision.SAFE_PART.sub("_", str(msg_id or ""))[:40] or str(int(time.time()))
             attach = image_vision.image_gen._attachments_dir(root)
             saved, why = await asyncio.wait_for(image_vision.fetch_image(url, attach / "zalo" / chat, msg), ANH_TOI_DA_GIAY)
+            if not saved and _tai_lai_duoc(why):
+                # Ảnh vừa gửi đôi khi chưa sẵn trên máy chủ ảnh của Zalo, hoặc mạng chập một nhịp: thử lại một lần.
+                await asyncio.sleep(2)
+                saved, why = await asyncio.wait_for(image_vision.fetch_image(url, attach / "zalo" / chat, msg),
+                                                    ANH_TOI_DA_GIAY)
             if saved:
                 paths.append(str(Path(saved).resolve()))
             else:
@@ -355,6 +360,12 @@ async def anh_cho_bot(text_engine: str, meta: dict, cfg: dict) -> tuple:
     if not paths:
         return (gan_nhan_anh(text, meta) if meta.get("co_anh") else text), []
     return (text if text.strip() else CHI_CO_ANH), paths[:vision_input.MAX_IMAGES]
+
+
+def _tai_lai_duoc(why: str) -> bool:
+    """Lỗi tải ảnh đáng thử lại: hết giờ, lỗi mạng, máy chủ ảnh lỗi tạm. Ảnh quá to hay không phải ảnh thì thôi."""
+    s = str(why or "").lower()
+    return not any(x in s for x in ("mb ", "mb nên", "quá nhiều", "không phải ảnh", "không phải https", "an toàn"))
 
 
 def nho_anh_khong_goi(bot_id: str, meta: dict, text: str, root) -> None:
@@ -384,9 +395,13 @@ def lay_anh_cho(bot_id: str, meta: dict) -> dict:
 
 
 def gan_anh_cho(bot_id: str, meta: dict, text: str) -> dict:
-    """`meta` with the remembered photo attached when this message CALLS the bot and carries no photo of its own."""
+    """`meta` with the remembered photo attached to a turn the bot ANSWERS that carries no photo of its own.
+
+    Runs only on the answer path, so the bot has already decided to reply to this person. Until 0.88.3 it also required a tag or
+    a reply to the bot, which left out the Auto-evaluate case: "xem giúp ảnh trên" with no @ is answered by the judge, but the
+    photo just above it was never shown."""
     m = dict(meta or {})
-    if not (m.get("mentioned") or m.get("reply_to_bot")) or m.get("co_anh") or m.get("image_path"):
+    if m.get("co_anh") or m.get("image_path"):
         return m
     if vision_input.take_image_markers(text)[1]:
         return m
@@ -790,6 +805,12 @@ class PolicyHooks:
     def __init__(self, bot_id: str):
         self.bot_id = bot_id
         self._shadow_inflight = 0
+
+    def nho_anh(self, meta: dict) -> None:
+        """Nhớ một ảnh trơn của nhóm (không chú thích, không gọi bot) cho lần người đó gọi bot ngay sau."""
+        cfg = chatbot_store.get_bot(self.bot_id)
+        if cfg and _nhom_duoc_phep(cfg, (meta or {}).get("chat_id")):
+            _nho_neu_khong_goi(self.bot_id, cfg, meta, "")
 
     def prepare(self, text: str, meta: dict, owner_typing: bool = False):
         cfg = chatbot_store.get_bot(self.bot_id)
