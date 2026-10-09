@@ -1467,6 +1467,92 @@ check("huỷ lặp trong lúc dọn: không kết thúc trước khi dọn xong,
       got == "cancelled" and not early and order == ["lease_released", "cleanup_done"]
       and w.store.get(P, g.id).status == "succeeded" and w.store.claim_lease(P, g.id, "x", w.clock() + 5, w.clock()))
 
+# ═══════════════════ Review mã vòng 3 (f7cbab4c): lỗi của pha không che lời huỷ ═══════════════════
+
+# Bộ chạy luồng phụ: thành công hay lỗi, không huỷ, huỷ một lần, huỷ lặp.
+async def _helper_case(fail: bool, cancels: int):
+    entered, allow = threading.Event(), threading.Event()
+
+    def work():
+        entered.set()
+        assert allow.wait(10)
+        if fail:
+            raise OSError("ghi hỏng")
+        return "xong"
+
+    task = asyncio.create_task(R._thread_done(work))
+    await _wait_ev(entered)
+    for _ in range(cancels):
+        task.cancel()
+        await asyncio.sleep(0)
+    early = await _settles_early(task, [], window=0.2)
+    allow.set()
+    try:
+        return early, ("ok", await task)
+    except R._CancelledWith as c:
+        return early, ("cancelled_with", c.value, type(c.error).__name__ if c.error else None)
+    except asyncio.CancelledError:
+        return early, ("cancelled",)
+    except OSError as e:
+        return early, ("error", str(e))
+
+
+for fail in (False, True):
+    for cancels in (0, 1, 3):
+        early, got = asyncio.run(_helper_case(fail, cancels))
+        want = (("error", "ghi hỏng") if fail else ("ok", ("xong", False))) if cancels == 0 else \
+            (("cancelled_with", None, "OSError") if fail else ("ok", ("xong", True)))
+        check(f"bộ chạy luồng phụ: {'lỗi' if fail else 'thành công'}, huỷ {cancels} lần: chờ pha xong, "
+              f"{'giữ cả lời huỷ lẫn lỗi' if fail and cancels else 'đúng kết quả'}", not early and got == want)
+
+# Tái hiện: huỷ tick khi mục tiêu đầu đang ghi đầu ra, và việc ghi đó lỗi.
+for cancel in (True, False):
+    w = World(f"rv3-tick-{cancel}", Engine([GOOD]))
+    g1 = w.goal(path="Inbox/rv3-a.md")
+    g2 = w.goal(path="Inbox/rv3-b.md")
+    entered, allow = threading.Event(), threading.Event()
+    order = []
+    _real_replace = R.os.replace
+
+    def _broken_replace(src, dst, g1=g1):
+        if Path(dst).parent == Path(g1.output_root) and str(dst).endswith(".md"):
+            entered.set()
+            assert allow.wait(10)
+            raise OSError("ổ đĩa lỗi khi ghi đầu ra")
+        return _real_replace(src, dst)
+
+    _trace_release(w, order)
+
+    async def _run_tick(cancel=cancel, w=w):
+        task = asyncio.create_task(R.tick(w.store, w.clock(), lambda b: w.deps, limit=5))
+        await _wait_ev(entered)
+        if cancel:
+            task.cancel()
+        allow.set()
+        try:
+            return ("returned", await task)
+        except asyncio.CancelledError:
+            return ("cancelled",)
+
+    with patch.object(R.os, "replace", _broken_replace):
+        got = asyncio.run(_run_tick())
+    a1 = [x for x in w.store.actions(P, g1.id) if x["kind"] == "work"]
+    a2x = [x for x in w.store.actions(P, g2.id) if x["kind"] == "work"]
+    if cancel:
+        check("huỷ tick khi ghi đầu ra lỗi: tick báo huỷ, không xử lý mục tiêu thứ hai, một lượt engine tổng cộng",
+              got == ("cancelled",) and w.built == 1 and not a2x
+              and any(r["code"] == "created" for r in w.reasons(g2.id)))
+        check("huỷ tick khi ghi đầu ra lỗi: lỗi write_failed được lưu, lượt đã dùng vẫn là 1, khoá mục tiêu đầu đã nhả",
+              len(a1) == 1 and a1[0]["status"] == "failed" and a1[0]["receipt"].get("error_code") == "write_failed"
+              and w.store.get(P, g1.id).calls_used == 1 and order.count("lease_released") == 1
+              and w.store.claim_lease(P, g1.id, "sau", w.clock() + 5, w.clock()))
+    else:
+        check("đối chứng, cùng lỗi ghi mà không huỷ: lỗi ghi thông thường, tick làm tiếp mục tiêu thứ hai",
+              got[0] == "returned" and got[1] == 2 and w.built == 2 and len(a1) == 1
+              and a1[0]["receipt"].get("error_code") == "write_failed"
+              and any(r["code"] == "error_retry" for r in w.reasons(g1.id))
+              and len(a2x) == 1 and a2x[0]["status"] == "succeeded")
+
 # ═══════════════════ Sao lưu và nâng cấp ═══════════════════
 old = Path(_STATE) / "pre-a2.sqlite3"
 with sqlite3.connect(str(old)) as c:

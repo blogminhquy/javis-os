@@ -409,8 +409,16 @@ class GoalDeps:
                 if cut:
                     raise _CancelledWith(rc)
                 return rc
-        except _CancelledWith:
-            raise
+        except _CancelledWith as c:
+            if c.error is None:
+                raise
+            # Ghi lỗi mà lời huỷ đã tới: receipt write_failed (model đã chạy, lượt vẫn tính), lời huỷ vẫn đi tiếp.
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+            raise _CancelledWith(done("failed", code="write_failed", detail=f"{type(c.error).__name__}: {c.error}",
+                                      usage=usage), error=c.error) from c.error
         except Exception as e:  # noqa: BLE001
             try:
                 tmp.unlink()
@@ -2059,27 +2067,54 @@ class _WakeCtx:
 
 
 class _CancelledWith(asyncio.CancelledError):
-    """Huỷ đến trong lúc một pha ở luồng phụ đang chạy: pha đó đã CHẠY XONG, kết quả mang theo trong `value` để người
-    gọi dọn đúng (nhả khoá, trả lượt chưa dùng, lưu receipt) trước khi báo huỷ tiếp."""
+    """Huỷ đến trong lúc một pha ở luồng phụ đang chạy: pha đó đã CHẠY XONG. `value` là kết quả của pha, `error` là
+    ngoại lệ nếu pha lỗi (khi đó `value` là None). Người gọi dọn đúng (nhả khoá, trả lượt chưa dùng, lưu receipt hay
+    lỗi) rồi báo huỷ tiếp: lỗi của pha KHÔNG được che mất lời huỷ (review mã vòng 3)."""
 
-    def __init__(self, value):
+    def __init__(self, value, error: Optional[BaseException] = None):
         super().__init__()
         self.value = value
+        self.error = error
 
 
 async def _thread_done(fn, *args) -> tuple:
     """Chạy một pha đồng bộ (SQLite, đọc ghi file) trong luồng phụ, giữ ngữ cảnh (asyncio.to_thread chép contextvars),
-    và LUÔN chờ nó xong. Trả (kết quả, đã_bị_huỷ). Luồng phụ không dừng được giữa giao dịch, nên bị huỷ (kể cả huỷ
-    lặp) thì vẫn chờ tới khi pha xong và trả kết quả về, để người gọi còn dọn được (A2, review mã vòng 2)."""
+    và LUÔN chờ nó xong. Luồng phụ không dừng được giữa giao dịch, nên bị huỷ (kể cả huỷ lặp) thì vẫn chờ tới khi pha
+    xong, để người gọi còn dọn được (A2, review mã vòng 2).
+
+    - Không bị huỷ: trả (kết quả, False); pha lỗi thì ném đúng ngoại lệ của pha.
+    - Bị huỷ: pha thành công thì trả (kết quả, True); pha lỗi thì ném `_CancelledWith(None, error=lỗi)`, tức là lời huỷ
+      vẫn đi tiếp và lỗi đi kèm để ghi lại (review mã vòng 3)."""
     fut = asyncio.ensure_future(asyncio.to_thread(fn, *args))
     cancelled = False
-    while True:
+    while not fut.done():
         try:
-            return await asyncio.shield(fut), cancelled
+            await asyncio.shield(fut)
         except asyncio.CancelledError:
-            if fut.done():
-                return fut.result(), True
+            if not fut.done():
+                cancelled = True
+                continue
             cancelled = True
+        except BaseException:  # noqa: BLE001 - lỗi của pha: đọc lại từ fut dưới đây
+            pass
+    err = fut.exception()
+    if err is not None:
+        if cancelled:
+            raise _CancelledWith(None, error=err) from err
+        raise err
+    return fut.result(), cancelled
+
+
+async def _cleanup(fn, *args) -> None:
+    """Một pha DỌN chạy khi đã có lời huỷ hay lỗi khác đang đi ra: chờ xong; lỗi của chính pha dọn chỉ ghi log, không
+    thay thế lời huỷ hay lỗi đang đi ra."""
+    try:
+        await _thread_done(fn, *args)
+    except asyncio.CancelledError:
+        pass
+    except Exception as e:  # noqa: BLE001
+        import sys
+        print(f"[resonance cleanup] {getattr(fn, '__name__', fn)}: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 async def _off_loop(fn, *args):
@@ -2268,7 +2303,7 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
     except _CancelledWith as c:
         if isinstance(c.value, tuple):
             (ctx.log if ctx else {}).update(decision="blocked", model_calls=0, why="lần thức bị huỷ trước khi gọi model")
-            await _thread_done(_abort_work, goal, deps, c.value[0], now)
+            await _cleanup(_abort_work, goal, deps, c.value[0], now)
         raise
     if isinstance(pre, Assessment):
         return pre
@@ -2276,14 +2311,14 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
     sub = dataclasses_replace(deps, budget=_ReservedCall(deps.store, deps.principal, goal.id))
     try:
         receipt = await sub.run_once(goal, prompt, act["id"])
-    except _CancelledWith as c:
-        await _thread_done(_work_post, goal, last, deps, now, ctx, act, held, c.value)
-        raise
-    except asyncio.CancelledError:
-        cut = ActionReceipt(action_id=act["id"], goal_id=goal.id, revision=goal.revision, status="failed",
-                            started_at=now, finished_at=deps.clock(), engine={}, error_code="cancelled",
-                            error_detail="lượt bị huỷ trong lúc gọi engine; model có thể đã chạy nên lượt vẫn tính")
-        await _thread_done(_work_post, goal, last, deps, now, ctx, act, held, cut)
+    except asyncio.CancelledError as c:
+        # Model có thể đã chạy: KHÔNG trả lượt. Có receipt thật (đã ghi xong, hay ghi lỗi) thì lưu đúng receipt đó;
+        # không có thì kết sổ như một lượt lỗi `cancelled`. Xong mới báo huỷ tiếp.
+        rc = c.value if isinstance(c, _CancelledWith) and isinstance(c.value, ActionReceipt) else ActionReceipt(
+            action_id=act["id"], goal_id=goal.id, revision=goal.revision, status="failed", started_at=now,
+            finished_at=deps.clock(), engine={}, error_code="cancelled",
+            error_detail="lượt bị huỷ trong lúc gọi engine; model có thể đã chạy nên lượt vẫn tính")
+        await _cleanup(_work_post, goal, last, deps, now, ctx, act, held, rc)
         raise
     return await _off_loop(_work_post, goal, last, deps, now, ctx, act, held, receipt)
 
@@ -2508,8 +2543,16 @@ async def advance(goal_id: str, event: dict, deps: GoalDeps) -> Assessment:
         res.log["why"] = f"lỗi host: {type(e).__name__}"
         out = Assessment(res.goal.id, res.goal.revision, "unknown", rationale=f"lỗi host: {type(e).__name__}: {_short(e)}",
                          evaluated_at=now)
-    # Nhả khoá SAU CÙNG, sau mọi pha đã ghi xong; huỷ lặp trong lúc dọn cũng không bỏ dở việc dọn.
-    _r, cut = await _thread_done(_finish_wake, res, deps)
+    # Nhả khoá SAU CÙNG, sau mọi pha đã ghi xong; huỷ lặp trong lúc dọn cũng không bỏ dở việc dọn, và lỗi của việc dọn
+    # không che lời huỷ.
+    cut = False
+    try:
+        _r, cut = await _thread_done(_finish_wake, res, deps)
+    except asyncio.CancelledError:
+        cut = True
+    except Exception as e:  # noqa: BLE001
+        import sys
+        print(f"[resonance finish_wake] {type(e).__name__}: {e}", file=sys.stderr)
     if err is not None:
         raise err
     if cut:
