@@ -507,6 +507,14 @@ class _FallbackChain:
                     t = (ev or {}).get("type")
                     if t == "error":
                         got_error = ev.get("content") or f"{self._name(e)} trả error"
+                        # Hub bắt buộc không lên: mọi mắt sau lấy tool qua đúng hub đó, chạy tiếp
+                        # là chạy mù rồi báo xong giả. Dừng cả chuỗi, trả nguyên lỗi
+                        # (claude_cli.codex_error_text đã đặt lý do lên đầu).
+                        if _hub_bat_buoc_hong(got_error):
+                            print(f"[aux router] {self._name(e)}: hub bắt buộc không lên - dừng chuỗi, "
+                                  "không thử mắt kế tiếp.", file=sys.stderr)
+                            yield {"type": "error", "content": got_error}
+                            return
                         break
                     # Engine CLI chưa đăng nhập trả một FINAL ngắn kiểu "Not logged in ·
                     # Please run /login" chứ không phải error - nuốt nó lại và coi là mắt
@@ -573,7 +581,38 @@ def _build_codex(spec, claude_cli_obj, mode, tag, codex_profile=None):
         mcp_hub.dat_codex_vault(cc.extra_config, getattr(claude_cli_obj, "javis_vault", None))
     except Exception as e:
         print(f"[aux codex vault] {e}", file=sys.stderr)
+    # Việc nền theo lịch: hub bắt buộc, không app ChatGPT - xem mcp_hub.CODEX_REQUIRED_KEY. Chat
+    # không đi qua hàm này, còn workflow Codex dựng engine riêng (main._workflow_agent_helpers),
+    # nên chỉ các làn trong la_viec_nen_theo_lich đổi hành vi.
+    try:
+        if (cc.profile and la_viec_nen_theo_lich(cc.tag)
+                and bool(cfgmod.read_settings().get("mcp", {}).get("hub", True))):
+            import mcp_hub
+            mcp_hub.dat_codex_hub_bat_buoc(cc.extra_config)
+            mcp_hub.dat_codex_tat_app(cc.extra_config)
+    except Exception as e:
+        print(f"[aux codex hub] {e}", file=sys.stderr)
     return cc
+
+
+# Nhãn lượt của việc nền THEO LỊCH: nhắc hẹn, loop, Kanban ("dispatch:<id>:<hậu tố>"). Mắt dự
+# phòng dựng từ bộ não chính mang thêm hậu tố "-main" (_main_fallback_engine).
+_TAG_VIEC_NEN_THEO_LICH = ("reminder", "loop")
+
+
+def la_viec_nen_theo_lich(tag) -> bool:
+    t = str(tag or "").strip()
+    if t.endswith("-main"):
+        t = t[:-len("-main")]
+    return t in _TAG_VIEC_NEN_THEO_LICH or t.startswith("dispatch:")
+
+
+def _hub_bat_buoc_hong(text) -> bool:
+    try:
+        from claude_cli import codex_loi_hub_bat_buoc
+        return codex_loi_hub_bat_buoc(text)
+    except Exception:
+        return False
 
 
 def _build_grok(spec, claude_cli_obj, mode, tag):

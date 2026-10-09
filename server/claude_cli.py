@@ -1406,10 +1406,31 @@ def codex_env() -> dict:
     return env
 
 
+# Câu Codex in khi một server MCP `required` không lên (codex-mcp/src/connection_manager/required.rs).
+# Việc nền theo lịch đặt hub là server bắt buộc (mcp_hub.CODEX_REQUIRED_KEY).
+CODEX_REQUIRED_FAIL = "required MCP servers failed to initialize"
+
+
+def codex_loi_hub_bat_buoc(text) -> bool:
+    """Lỗi engine này có phải "hub bắt buộc không lên" của Codex không."""
+    return CODEX_REQUIRED_FAIL in str(text or "")
+
+
 def codex_error_text(returncode, stderr_lines) -> str:
     """Câu lỗi khi Codex thoát giữa chừng. Lỗi không tìm thấy home thì nói bằng lời người
     dùng hiểu và chỉ cách xử lý, dòng gốc của Codex vẫn giữ ở dưới để chẩn đoán."""
     raw = "\n".join(stderr_lines[-5:])
+    # Hub bắt buộc không lên: lý do đứng ĐẦU. stderr của Codex mở đầu bằng vài dòng log rmcp dài
+    # (thử với codex-cli 0.161.0), mà thẻ chat chỉ giữ 300 ký tự và reminders.json 400, nên để
+    # nguyên thì đúng dòng nói lý do bị cắt mất.
+    hub = next((str(l).strip() for l in stderr_lines if CODEX_REQUIRED_FAIL in str(l)), "")
+    if hub:
+        return localefmt.chu(
+            "Cổng công cụ của Javis (hub) không lên kịp nên Codex không mở phiên, việc chưa chạy. "
+            "Chi tiết từ Codex (exit {code}): {ly_do}",
+            "The Javis tool hub did not come up in time, so Codex did not open a session and the job "
+            "did not run. Details from Codex (exit {code}): {ly_do}",
+            code=returncode, ly_do=hub[hub.find(CODEX_REQUIRED_FAIL):][:240])
     if any("could not find home directory" in str(l).lower() for l in stderr_lines):
         return localefmt.chu(
             "Codex không tìm thấy thư mục người dùng trên máy này nên không đọc được đăng nhập "
