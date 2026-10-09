@@ -21,7 +21,7 @@ Bản chat trợ lý viết ngay trong cuộc trò chuyện được tính là l
 
 - **Bế tắc:** hai lượt liên tiếp không tiến thêm theo tiêu chí thì trợ lý dừng thử và chờ. Mục tiêu vẫn mở; góp ý hay nói rõ hơn là làm tiếp.
 - **Lỗi:** tối đa 3 lượt lỗi, rồi dừng. Lỗi cố định (bộ não việc nền không chạy được) không thử lại.
-- **Lượt cuối** của hạn mức luôn để dành cho lúc bạn góp ý; thử lại tự động không dùng nó.
+- **Thử lại tự động chừa một lượt:** không dùng lượt cuối của hạn mức. Việc mới hay góp ý của bạn thì dùng được lượt đó.
 - **Hạn chót:** gần hạn thì kiểm dày hơn. Qua hạn mà chưa đạt thì báo một lần; Javis không tự gia hạn hay tự kết luận.
 
 ## File bạn sửa tay

@@ -959,6 +959,274 @@ def _sql_count(n_goals):
 c5, c30 = _sql_count(5), _sql_count(30)
 check(f"số câu SQLite mỗi lần thức không tăng theo số mục tiêu ({c5} so với {c30})", c30 <= c5 + 2)
 
+# ═══════════════════ Review mã vòng 1 (50c355f1) ═══════════════════
+# Ca tái hiện của reviewer (`PR-593-A2-code-50c355f1-checks.py`) chuyển thành kỳ vọng đúng.
+
+# P1-1: trần thử lại không phụ thuộc sổ thức.
+w = World("rv-logfail", Engine(events=ERR))
+g = w.goal(budget=10)
+_orig_log, _inj = w.store.log_wake, {"n": 0}
+
+
+def _fail_once(*a, **k):
+    if _inj["n"] == 0:
+        _inj["n"] += 1
+        raise sqlite3.OperationalError("lỗi ghi sổ thức chèn một lần")
+    return _orig_log(*a, **k)
+
+
+w.store.log_wake = _fail_once
+w.run_until(g.id, T0 + 3 * 86400)
+check("ghi sổ thức lỗi một lần: vẫn đúng 3 lượt lỗi", _inj["n"] == 1 and w.built == 3
+      and len([x for x in w.store.actions(P, g.id) if x["kind"] == "work" and x["status"] == "failed"]) == 3)
+
+w = World("rv-gap", Engine(events=ERR))
+g = w.goal(budget=10)
+w.tick()
+held = R._agent_intent(w.store.get(P, g.id), w.deps)
+a2 = w.store.begin_action(P, g.id, 1, "work", lease_until=T0 + 5, now=T0, intent={"prompt_kind": "work", **held})
+w.store.finish_action(P, a2["id"], "failed", {"error_code": "upstream", "status": "failed"})
+check("chết giữa receipt và kết sổ: lượt lỗi vẫn được tính (gấp bảo thủ)",
+      R._chain(w.store, P, w.store.get(P, g.id)).fails == 2)
+w.reopen()
+w.clock.t = T0 + 10
+w.run_until(g.id, T0 + 3 * 86400)
+check("chết giữa receipt và kết sổ, khởi động lại: tổng không quá 3 lượt lỗi",
+      len([x for x in w.store.actions(P, g.id) if x["kind"] == "work" and x["status"] == "failed"]) == 3)
+
+w = World("rv-trim", Engine(events=ERR))
+g = w.goal(budget=10)
+w.tick()
+f0 = R._chain(w.store, P, w.store.get(P, g.id)).fails
+for i in range(250):
+    w.store.log_wake(P, g.id, {"revision": 1, "wake_kind": "observe", "decision": "observe", "at": T0 + i + 1})
+w.reopen()
+check("hơn 200 lần quan sát và mở lại kho: số lỗi giữ nguyên",
+      f0 == 1 and R._chain(w.store, P, w.store.get(P, g.id)).fails == 1 and len(w.log(g.id)) == 200)
+
+w = World("rv-progress", Engine([HALF, HALF, GOOD]))
+g = w.goal(budget=10)
+w.tick()
+w.clock.t = T0 + 900
+w.tick()
+c1 = R._chain(w.store, P, w.store.get(P, g.id))
+RA.disable(w.store, BRAIN)
+w.agent = RA.enable(w.store, BRAIN)
+w.store.wake_agent_goals(BRAIN, w.agent["agent_key"])
+w.tick()
+w.reopen()
+c2 = R._chain(w.store, P, w.store.get(P, g.id))
+check("bật lại trợ lý và mở lại kho: mốc tiến bộ và chuỗi bế tắc không đặt lại",
+      c1.best == 1 and c1.stall == 1 and (c2.best, c2.stall) == (c1.best, c1.stall))
+
+# P1-2: tạm dừng, tắt, mất theo dõi, bật lại: quan sát được dựng lại, kể cả qua khởi động lại.
+for restart in (False, True):
+    w = World(f"rv-pause-observe-{restart}")
+    write("Inbox/protect.md", "Sample")
+    gd = [{"description": "Giữ Sample", "evaluator": "artifact_contract",
+           "params": {"path": "Inbox/protect.md", "must_contain": ["Sample"]}}]
+    g = w.goal(mode="maintain", horizon={"kind": "maintain"}, guards=gd)
+    w.tick()
+    b0 = w.built
+    w.store.set_paused(OWNER, g.id, True)
+    RA.disable(w.store, BRAIN)
+    w.clock.t = w.due(g.id, "observe")
+    w.tick()
+    lost_ok = w.due(g.id, "observe") is None and R.goal_view(w.store, P, g.id, BRAIN)["observe"]["state"] == "lost"
+    if restart:
+        w.reopen()
+    w.agent = RA.enable(w.store, BRAIN)
+    n_woke = w.store.wake_agent_goals(BRAIN, w.agent["agent_key"])
+    if restart:
+        w.reopen()
+    write("Inbox/protect.md", "BROKEN")
+    w.run_until(g.id, w.clock.t + 2 * 86400)
+    check(f"tạm dừng rồi tắt, bật lại{' (có khởi động lại)' if restart else ''}: dựng lại quan sát, báo guard, "
+          "không gọi model, vẫn tạm dừng",
+          lost_ok and n_woke == 1 and w.outbox(g.id, "goal.guard") == 1 and w.built == b0
+          and w.store.get(P, g.id).paused and w.state(g.id).get("block_reason") == "guard")
+
+w = World("rv-latched")
+write("Inbox/protect2.md", "Sample")
+gd = [{"description": "Giữ Sample", "evaluator": "artifact_contract",
+       "params": {"path": "Inbox/protect2.md", "must_contain": ["Sample"]}}]
+g = w.goal(mode="maintain", horizon={"kind": "maintain"}, guards=gd)
+w.tick()
+write("Inbox/protect2.md", "BROKEN")
+w.clock.t = w.due(g.id, "observe")
+w.tick()
+RA.disable(w.store, BRAIN)
+w.agent = RA.enable(w.store, BRAIN)
+w.store.wake_agent_goals(BRAIN, w.agent["agent_key"])
+check("đối chứng: guard đã chốt không tự mở khi bật lại trợ lý",
+      w.state(g.id).get("block_reason") == "guard" and w.due(g.id, "observe") is None
+      and R.goal_view(w.store, P, g.id, BRAIN)["observe"]["state"] == "stopped")
+v = R.goal_view(w.store, P, g.id, BRAIN)
+w2 = World("rv-view-sched")
+g2 = w2.goal(mode="maintain", horizon={"kind": "maintain"}, guards=gd)
+w2.store.supersede_timers(P, g2.id, ("observe",))
+w2.store.recompute_wake(P, g2.id)
+check("thẻ: bật mà không có lịch quan sát thì không hiện như đang theo dõi",
+      R.goal_view(w2.store, P, g2.id, BRAIN)["observe"] == {"state": "lost", "next_at": None,
+                                                           "lost_reason": "not_scheduled"})
+
+# P2-1: lỗi của revision cũ không chặn revision mới.
+FIXED = [{"type": "final", "content": "x", "is_error": True, "subtype": "error"}]
+for label, events, at_query in (("lỗi cuối của trần", ERR, 3), ("lỗi đầu", ERR, 1)):
+    w = World(f"rv-rev-{at_query}-{label}", Engine(events=events))
+    g = w.goal(budget=10)
+
+    def _rev(w=w, g=g, at_query=at_query):
+        if w.engine.queries != at_query:
+            return
+        R.revise_goal(w.store, P, g.id, 1, {"understanding": "Ghi chú tổng hợp hai việc, bản sửa",
+                                            "relevant_quote": "Viết giúp anh một ghi chú tổng hợp trong Inbox"},
+                      {"message_ref": R.message_ref("s-a2", 99_100 + at_query), "session_id": "s-a2",
+                       "message_id": 99_100 + at_query, "user_text": USER, **RA.ctx(w.agent)})
+    w.engine.on_query = _rev
+    w.run_until(g.id, T0 + 600 if at_query == 1 else T0 + 3 * 86400, max_wakes=at_query + 2)
+    cur = w.store.get(P, g.id)
+    acts2 = [x for x in w.store.actions(P, g.id) if x["kind"] == "work" and x["revision"] == 2]
+    check(f"đổi revision trong {label}: revision mới vẫn được làm, không bị chặn bởi lỗi cũ",
+          cur.revision == 2 and len(acts2) >= 1 and not any(r["code"] == "revised" for r in w.reasons(g.id))
+          and R._chain(w.store, P, cur).fails <= len([a for a in acts2 if a["status"] == "failed"]))
+
+# Lỗi cố định (engine không dựng được) đúng lúc revision đổi: dựng engine là lúc lượt đang chạy.
+w = World("rv-rev-fixed", Engine([GOOD]))
+g = w.goal(budget=10)
+_fx = {"n": 0}
+
+
+def _fixed_factory(system_prompt, tag, w=w, g=g):
+    _fx["n"] += 1
+    if _fx["n"] == 1:
+        R.revise_goal(w.store, P, g.id, 1, {"understanding": "Ghi chú tổng hợp hai việc, bản sửa",
+                                            "relevant_quote": "Viết giúp anh một ghi chú tổng hợp trong Inbox"},
+                      {"message_ref": R.message_ref("s-a2", 99_150), "session_id": "s-a2", "message_id": 99_150,
+                       "user_text": USER, **RA.ctx(w.agent)})
+        return None, {"blocked": "engine_build"}
+    w.built += 1
+    return w.engine, {"provider": "fake", "model": "fake-1", "text_only": True}
+
+
+w.deps = R.GoalDeps(**{**w.deps.__dict__, "engine_factory": _fixed_factory})
+w.tick()
+st_fx = w.state(g.id)
+w.tick()
+check("đổi revision trong lượt lỗi cố định: revision mới không bị gác bởi lỗi cũ, được làm và đạt",
+      st_fx.get("run_state") != "blocked" and w.built == 1 and w.store.get(P, g.id).revision == 2
+      and w.store.get(P, g.id).status == "succeeded")
+
+w = World("rv-rev-cleanup", Engine([HALF, HALF, GOOD]))
+g = w.goal(budget=10)
+w.tick()
+
+
+def _rev_cleanup():
+    if w.engine.queries == 2:
+        R.revise_goal(w.store, P, g.id, 1, {"understanding": "Ghi chú tổng hợp hai việc, bản sửa",
+                                            "relevant_quote": "Viết giúp anh một ghi chú tổng hợp trong Inbox"},
+                      {"message_ref": R.message_ref("s-a2", 99_200), "session_id": "s-a2", "message_id": 99_200,
+                       "user_text": USER, **RA.ctx(w.agent)})
+        w.store.add_timer(P, g.id, "retry_not_met", w.clock() + 50, w.clock())   # nghĩa vụ của revision mới
+
+
+w.engine.on_query = _rev_cleanup
+w.clock.t = T0 + 900
+w.tick()
+check("dọn hẹn thử lại của lượt cũ không đụng nghĩa vụ của revision mới; không đăng đầu ra cũ",
+      any(r["code"] == "retry_not_met" and r["revision"] == 2 for r in w.reasons(g.id))
+      and any(r["code"] == "revised" for r in w.reasons(g.id))
+      and w.store.published(P, g.id, DELIV)["sha256"] == hashlib.sha256(HALF.encode()).hexdigest())
+
+# P2-2: pha trước và sau lời gọi engine chạy ngoài event loop.
+import threading  # noqa: E402
+
+for slow in ("finish_action", "evidence"):
+    w = World(f"rv-loop-{slow}", Engine([GOOD]))
+    g = w.goal()
+    threads = []
+    if slow == "finish_action":
+        _orig_fa = w.store.finish_action
+
+        def _slow_fa(*a, _o=_orig_fa, **k):
+            threads.append(threading.current_thread().name)
+            time.sleep(0.16)
+            return _o(*a, **k)
+        w.store.finish_action = _slow_fa
+    else:
+        _ev = w.deps.evidence
+        _orig_put = _ev.put
+
+        def _slow_put(*a, _o=_orig_put, **k):
+            threads.append(threading.current_thread().name)
+            time.sleep(0.16)
+            return _o(*a, **k)
+        _ev.put = _slow_put
+
+    async def _gap(w=w, g=g):
+        gaps, done = [], [False]
+
+        async def timer():
+            last = time.perf_counter()
+            while not done[0]:
+                await asyncio.sleep(0.005)
+                t = time.perf_counter()
+                gaps.append(t - last)
+                last = t
+        tk = asyncio.create_task(timer())
+        await R.advance(g.id, {"kind": "wake"}, w.deps)
+        done[0] = True
+        await tk
+        return max(gaps)
+    gap = asyncio.run(_gap())
+    check(f"ghi {slow} chậm 160 ms: không chạy trên luồng chính, timer giãn dưới 60 ms ({gap * 1000:.0f} ms)",
+          threads and "MainThread" not in threads and gap < 0.06 and w.store.get(P, g.id).status == "succeeded")
+
+# Huỷ lần thức trong pha sau: khoá lượt chỉ nhả khi pha sau đã ghi xong, không ghi trùng.
+w = World("rv-cancel", Engine([GOOD]))
+g = w.goal()
+_orig_fa = w.store.finish_action
+_events = []
+
+
+def _slow_fa2(*a, **k):
+    _events.append("post_start")
+    time.sleep(0.3)
+    r = _orig_fa(*a, **k)
+    _events.append("post_end")
+    return r
+
+
+w.store.finish_action = _slow_fa2
+_orig_rel = w.store.release_lease
+
+
+def _rel(*a, **k):
+    _events.append("release")
+    return _orig_rel(*a, **k)
+
+
+w.store.release_lease = _rel
+
+
+async def _cancel_mid():
+    t = asyncio.create_task(R.advance(g.id, {"kind": "wake"}, w.deps))
+    while "post_start" not in _events:
+        await asyncio.sleep(0.01)
+    t.cancel()
+    try:
+        await t
+    except asyncio.CancelledError:
+        pass
+
+
+asyncio.run(_cancel_mid())
+acts = [x for x in w.store.actions(P, g.id) if x["kind"] == "work"]
+check("huỷ giữa pha sau: nhả khoá sau khi pha sau ghi xong, không ghi trùng, không mất lượt",
+      _events.index("post_end") < _events.index("release") and len(acts) == 1 and acts[0]["status"] == "succeeded"
+      and w.built == 1)
+
 # ═══════════════════ Sao lưu và nâng cấp ═══════════════════
 old = Path(_STATE) / "pre-a2.sqlite3"
 with sqlite3.connect(str(old)) as c:

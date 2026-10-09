@@ -3569,7 +3569,7 @@
   "resonance.st_source_drift": "File bị sửa ngoài Javis, đang chờ",
   "resonance.st_handoff": "Chờ lượt trò chuyện bàn giao",
   "resonance.drift": "File {path} đã được sửa ngoài Javis nên Javis không ghi đè và không làm lại. Javis tự kiểm lại lúc {at}; góp ý để kiểm ngay.",
-  "resonance.observe_lost": "Không còn theo dõi điều kiện bảo vệ: trợ lý đang tắt hay chưa được phép chạy.",
+  "resonance.observe_lost": "Hiện không theo dõi điều kiện bảo vệ: trợ lý đang tắt, chưa được phép chạy, hay chưa có lịch kiểm.",
   "resonance.observe_on": "Theo dõi điều kiện bảo vệ, lần kiểm tới: {at}",
   "resonance.wakes_recent": "Các lần thức gần đây",
   "resonance.wake_model": "làm một lượt",

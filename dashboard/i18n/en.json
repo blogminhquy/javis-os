@@ -3569,7 +3569,7 @@
   "resonance.st_source_drift": "The file was edited outside Javis, waiting",
   "resonance.st_handoff": "Waiting for the chat turn to hand over",
   "resonance.drift": "{path} was edited outside Javis, so Javis will not overwrite it or redo the work. Javis re-checks it at {at}; give feedback to check now.",
-  "resonance.observe_lost": "No longer watching the protective conditions: the assistant is off or not allowed to run.",
+  "resonance.observe_lost": "Not watching the protective conditions right now: the assistant is off, not allowed to run, or has no check scheduled.",
   "resonance.observe_on": "Watching the protective conditions, next check: {at}",
   "resonance.wakes_recent": "Recent wake-ups",
   "resonance.wake_model": "ran one step",

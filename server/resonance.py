@@ -390,17 +390,23 @@ class GoalDeps:
         if not text.endswith("\n"):
             text += "\n"
 
-        # Host ghi, rồi host tự đọc lại để lấy hash. Ghi tạm rồi đổi tên: không để lại file dở.
+        # Host ghi, rồi host tự đọc lại để lấy hash. Ghi tạm rồi đổi tên: không để lại file dở. Ghi trong luồng phụ để
+        # không giữ event loop (A2, review mã P2-2).
         tmp = out.with_name(f".{action_id}.{secrets.token_hex(4)}.tmp")
-        try:
+
+        def _write():
             with open(tmp, "x", encoding="utf-8", newline="\n") as f:
                 f.write(text)
             if out.exists():
                 tmp.unlink()
+                return None
+            os.replace(tmp, out)
+            return out.read_bytes()
+        try:
+            data = await asyncio.to_thread(_write)
+            if data is None:
                 return done("cancelled", code="action_exists", detail="có lượt khác vừa ghi cùng action_id",
                             usage=usage)
-            os.replace(tmp, out)
-            data = out.read_bytes()
         except Exception as e:  # noqa: BLE001
             try:
                 tmp.unlink()
@@ -1515,11 +1521,12 @@ def _chat_only_attempt(goal: "GoalRecord", deps: "GoalDeps") -> bool:
 
 
 def _chain(store, p, goal: "GoalRecord") -> "HB.Chain":
-    """Chuỗi lượt việc của revision hiện tại tính từ tin mới gần nhất, đọc từ sổ thức (A2 mục 4). Bản chat tiếp nhận
-    (`adopt`) là lượt đầu của chuỗi."""
-    rows = [r for r in store.wake_log(p, goal.id, revision=goal.revision) if r["decision"] in ("work", "adopt")]
-    start = max((i for i, r in enumerate(rows) if r.get("chain_start")), default=0)
-    return HB.chain_from({"met_count": r.get("met_count"), "error": r.get("error_code")} for r in rows[start:])
+    """Chuỗi lượt việc của revision hiện tại tính từ tin mới gần nhất (A2 mục 4). Đọc từ trạng thái chính sách BỀN
+    (`heartbeat_state`), không từ sổ thức: sổ ghi kiểu cố gắng và bị cắt, không được quyết định có gọi model tiếp hay
+    không (review mã P1-1)."""
+    st = store.chain_state(p, goal.id, goal.revision)
+    return HB.Chain(int(st.get("best", -1)), int(st.get("stall", 0)), int(st.get("fails", 0)),
+                    str(st.get("last_error") or ""))
 
 
 def _prev_interval(store, p, goal_id: str, codes: tuple) -> tuple:
@@ -1606,7 +1613,7 @@ def _schedule_check(goal: "GoalRecord", a: "Assessment", deps: "GoalDeps", now: 
     if a.verdict != "met" and HB.deadline_passed(now, goal.horizon):
         store.notice(p, goal.id, "goal.deadline_passed", {"at": (goal.horizon or {}).get("at")},
                      idem=f"deadline_passed:{goal.revision}")
-    store.add_timer(p, goal.id, code, due, now)
+    store.add_timer(p, goal.id, code, due, now, expect_revision=goal.revision)
 
 
 def _deliverable_rel(goal: GoalRecord) -> str:
@@ -1968,15 +1975,17 @@ def _settle(goal: GoalRecord, a: Assessment, deps: GoalDeps, now: float, worked:
     `worked`: lần thức này vừa có một lượt việc thành công; `chain` là chuỗi ĐÃ GỒM lượt đó. Thử lại `retry_not_met` và
     hẹn kiểm (`check`) là hai nghĩa vụ độc lập."""
     store, p = deps.store, deps.principal
+    rev = goal.revision
     store.add_assessment(p, a.to_dict())
     guards_clear = all(x.get("verdict") == "clear" for x in a.guards)
+    # Mọi ghi trạng thái và lịch dưới đây kèm CAS revision: revision đổi trong lúc đánh giá thì không đụng revision mới.
     if a.verdict == "met" and goal.mode != "maintain" and goal.stage == "discovery":
         # Đạt tiêu chí KHÁM PHÁ không đóng nhu cầu gốc (spec 4.3): chờ xem lại cách hiểu, không phát succeeded.
         store.set_run_state(p, goal.id, "waiting", "discovery_done", notify="goal.discovery_done",
                             payload={"deliverable": _deliverable_rel(goal)
                                      or _rel_to_brain(_latest_output(goal, deps)[1], deps.brain_root)},
-                            idem=f"discovery_done:{goal.revision}")
-        store.supersede_timers(p, goal.id, ("retry", "check"), now)
+                            idem=f"discovery_done:{rev}", expect_revision=rev)
+        store.supersede_timers(p, goal.id, ("retry", "check"), now, revision=rev)
         return a
     if a.verdict == "met" and goal.mode != "maintain" and guards_clear:
         store.finish(p, goal.id, goal.revision, "succeeded",
@@ -1989,8 +1998,8 @@ def _settle(goal: GoalRecord, a: Assessment, deps: GoalDeps, now: float, worked:
                                                   if r.get("evaluator") == "human_confirmation"],
                                      "deliverable": _deliverable_rel(goal)
                                      or _rel_to_brain(_latest_output(goal, deps)[1], deps.brain_root)},
-                            idem=f"waiting_human:{goal.revision}")
-        store.supersede_timers(p, goal.id, ("retry", "check"), now)
+                            idem=f"waiting_human:{rev}", expect_revision=rev)
+        store.supersede_timers(p, goal.id, ("retry", "check"), now, revision=rev)
         return a
     if a.verdict == "met" and goal.mode == "maintain":
         # Mục tiêu duy trì không "hoàn thành", nhưng lần đầu một revision đạt là mốc có ý nghĩa với người đã giao
@@ -2002,23 +2011,24 @@ def _settle(goal: GoalRecord, a: Assessment, deps: GoalDeps, now: float, worked:
         left = HB.budget_left(cur.budget_calls, cur.calls_used)
         ok, why = HB.auto_allowed("retry_not_met", chain or HB.Chain(), left)
         if ok:
-            store.add_timer(p, goal.id, "retry_not_met", HB.retry_due(chain or HB.Chain(), now), now)
+            store.add_timer(p, goal.id, "retry_not_met", HB.retry_due(chain or HB.Chain(), now), now,
+                            expect_revision=rev)
         elif left <= 0:
             # Hết sạch hạn mức: gác như MVP; chỉ người dùng (sửa cách hiểu) mở lại.
-            store.supersede_timers(p, goal.id, ("retry", "check"), now)
+            store.supersede_timers(p, goal.id, ("retry", "check"), now, revision=rev)
             store.set_run_state(p, goal.id, "blocked", "budget", notify="goal.blocked", payload={"code": "budget"},
-                                idem=f"blocked:budget:{goal.revision}")
+                                idem=f"blocked:budget:{rev}", expect_revision=rev)
             return a
         else:
             # Bế tắc (hay chỉ còn lượt dự phòng): DỪNG thử tự động và chờ, không kết luận thất bại. Góp ý hay revision
             # mới mở lại theo luật (A2 mục 4).
-            store.supersede_timers(p, goal.id, ("retry", "check"), now)
+            store.supersede_timers(p, goal.id, ("retry", "check"), now, revision=rev)
             store.set_run_state(p, goal.id, "waiting", "stalled", notify="goal.stalled",
                                 payload={"why": why, "calls_used": cur.calls_used, "budget_calls": cur.budget_calls},
-                                idem=f"stalled:{goal.revision}")
+                                idem=f"stalled:{rev}", expect_revision=rev)
             return a
     _schedule_check(cur, a, deps, now, sig)
-    store.set_run_state(p, goal.id, "waiting", "healthy" if a.verdict == "met" else "scheduled")
+    store.set_run_state(p, goal.id, "waiting", "healthy" if a.verdict == "met" else "scheduled", expect_revision=rev)
     return a
 
 
@@ -2035,18 +2045,36 @@ class _WakeCtx:
     sig: str = ""
 
 
-async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: float,
-                     ctx: Optional[_WakeCtx] = None) -> Assessment:
+async def _off_loop(fn, *args):
+    """Chạy một pha đồng bộ (SQLite, đọc ghi file) trong luồng phụ, giữ ngữ cảnh (asyncio.to_thread chép contextvars).
+    Bị huỷ giữa chừng thì CHỜ pha đó chạy xong rồi mới báo huỷ: luồng phụ không dừng được giữa giao dịch, và người gọi
+    chỉ được nhả khoá lượt khi không còn ai ghi thay mình (A2, review mã P2-2)."""
+    fut = asyncio.ensure_future(asyncio.to_thread(fn, *args))
+    try:
+        return await asyncio.shield(fut)
+    except asyncio.CancelledError:
+        while not fut.done():
+            try:
+                await asyncio.shield(fut)
+            except asyncio.CancelledError:
+                continue
+        raise
+
+
+def _work_pre(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: float, ctx: Optional[_WakeCtx]):
+    """Pha TRƯỚC lời gọi engine (luồng phụ): ghi ý định và giữ lượt, mở lượt trong chuỗi bền, dựng prompt.
+    Trả (action, held, prompt) hay Assessment khi không được làm."""
     store, p = deps.store, deps.principal
     lease_until = now + float(deps.max_wall_s) + float(deps.wall_grace_s) + LEASE_EXTRA_S
     snap_ids = [int(r["id"]) for r in (ctx.snapshot if ctx else [])]
     log = ctx.log if ctx else {}
-    chain = ctx.chain if ctx else _chain(store, p, goal)
+    chain_start = HB.classify(ctx.trigger if ctx else "") in (HB.START, HB.NEW)
     try:
         held = _agent_intent(goal, deps)
         act = store.begin_action(p, goal.id, goal.revision, "work", lease_until=lease_until, now=now,
                                  intent={"prompt_kind": "work", "last_verdict": last.verdict,
-                                         "method": effective_method(goal), "wake_reasons": snap_ids, **held})
+                                         "method": effective_method(goal), "wake_reasons": snap_ids,
+                                         "chain_start": chain_start, **held})
     except Exception as e:  # noqa: BLE001
         # Không ghi được ý định hành động thì KHÔNG tác động (spec mục 12). Lý do trong ảnh chụp vẫn chờ.
         log.update(decision="blocked", why=f"không ghi được ý định hành động: {_short(e)}")
@@ -2055,13 +2083,13 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
     if act is None:
         # Hết hạn mức (hay chạm trần chung): bị gác, lý do bước đầu và tin mới vẫn chờ (A2 mục 3, bước 4).
         store.set_run_state(p, goal.id, "blocked", "budget", notify="goal.blocked", payload={"code": "budget"},
-                            idem=f"blocked:budget:{goal.revision}")
+                            idem=f"blocked:budget:{goal.revision}", expect_revision=goal.revision)
         store.add_assessment(p, last.to_dict())
         log.update(decision="blocked", why="hết hạn mức lượt gọi")
         return last
     log.update(decision="work", action_id=act["id"], model_calls=1, served=act.get("served") or [],
-               chain_start=HB.classify(ctx.trigger if ctx else "") in (HB.START, HB.NEW))
-    store.set_run_state(p, goal.id, "running", "")
+               chain_start=chain_start)
+    store.set_run_state(p, goal.id, "running", "", expect_revision=goal.revision)
     Path(goal.output_root).mkdir(parents=True, exist_ok=True)
     # Lời người dùng là CẢ CHUỖI ý định (tin gốc và các tin bổ sung nối qua prev_intent_id), không chỉ tin mới
     # nhất: tin "thêm việc X" một mình không đủ để làm lại sản phẩm.
@@ -2081,9 +2109,23 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
             prev_text = Path(prev[-1]["receipt"]["output_ref"]).read_text(encoding="utf-8")
         except OSError:
             prev_text = ""
-    sub = dataclasses_replace(deps, budget=_ReservedCall(store, p, goal.id))
-    receipt = await sub.run_once(goal, _work_prompt(goal, intent_text, last, prev_text, effective_method(goal)),
-                                 act["id"])
+    return act, held, _work_prompt(goal, intent_text, last, prev_text, effective_method(goal))
+
+
+def _chain_of(st: dict) -> "HB.Chain":
+    return HB.Chain(int(st.get("best", -1)), int(st.get("stall", 0)), int(st.get("fails", 0)),
+                    str(st.get("last_error") or ""))
+
+
+def _work_post(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: float, ctx: Optional[_WakeCtx], act: dict,
+               held: dict, receipt: "ActionReceipt") -> Assessment:
+    """Pha SAU lời gọi engine (luồng phụ): receipt, bằng chứng, kết sổ chuỗi bền, cổng kiểm, đăng, đánh giá, hẹn tiếp.
+
+    Receipt và kết sổ luôn ghi cho ĐÚNG action và revision gốc. Trạng thái chạy và lịch chỉ đổi khi mục tiêu còn ở
+    revision đó (CAS): lượt của revision cũ không được chặn, xoá hay dựng lại lịch của revision mới (review mã P2-1)."""
+    store, p = deps.store, deps.principal
+    log = ctx.log if ctx else {}
+    rev = goal.revision
     rd = receipt.to_dict()
     text = ""
     if receipt.status == "succeeded":
@@ -2094,8 +2136,10 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
         eid = _put_evidence(goal, act["id"], text, "action_output", deps)
         rd["evidence_ids"] = [eid] if eid else []
     store.finish_action(p, act["id"], receipt.status, rd)
-    # Lượt đã xong: hẹn phục hồi của nó không còn nghĩa. Nghĩa vụ `retry` hẹn lại dưới đây nếu còn được phép.
-    store.supersede_timers(p, goal.id, ("retry",), now)
+    # Lượt đã xong: hẹn phục hồi của nó không còn nghĩa. Chỉ bỏ hẹn thử lại của ĐÚNG revision này.
+    store.supersede_timers(p, goal.id, ("retry",), now, revision=rev)
+    cur = store.get(p, goal.id)
+    same = cur is not None and cur.status == "active" and cur.revision == rev
     if receipt.status != "succeeded":
         code = receipt.error_code or "failed"
         reason = {"engine_build": "engine_blocked"}.get(code, code)
@@ -2106,40 +2150,40 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
             reset = float(getattr(lim, "reset_epoch", 0) or 0) if lim else 0.0
         except Exception:  # noqa: BLE001
             reset = 0.0
-        # Lượt mở bởi tin mới hay bước đầu bắt đầu chuỗi mới: số lỗi tính lại từ lượt này.
-        base = HB.Chain() if log.get("chain_start") else chain
-        after = HB.Chain(base.best, base.stall, base.fails + 1, code)
-        cur = store.get(p, goal.id) or goal
-        ok, _why = HB.auto_allowed("error_retry", after, HB.budget_left(cur.budget_calls, cur.calls_used))
+        after = _chain_of(store.settle_attempt(p, goal.id, rev, act["id"], None, code, now))
         log.update(met_count=None, error_code=code)
+        a = Assessment(goal.id, rev, "unknown", last.criterion_results, last.evidence_ids,
+                       rationale=f"lượt làm việc lỗi: {code}", evaluated_at=now)
+        store.add_assessment(p, a.to_dict())
+        if not same:
+            log.update(why=f"lượt của revision {rev} lỗi sau khi mục tiêu đã sang revision khác; không đổi lịch")
+            return a
+        ok, _why = HB.auto_allowed("error_retry", after, HB.budget_left(cur.budget_calls, cur.calls_used))
         if ok:
             # Lỗi tạm thời còn trong trần: chờ (không gác) tới mốc thử lại.
             store.set_run_state(p, goal.id, "waiting", reason, notify="goal.blocked",
                                 payload={"code": code, "detail": receipt.error_detail},
-                                idem=f"blocked:{reason}:{goal.revision}")
-            store.add_timer(p, goal.id, "error_retry", HB.error_due(after.fails, now, reset), now)
+                                idem=f"blocked:{reason}:{rev}", expect_revision=rev)
+            store.add_timer(p, goal.id, "error_retry", HB.error_due(after.fails, now, reset), now, expect_revision=rev)
         else:
             # Lỗi cố định hay hết trần: gác, không hẹn thử lại. Tin mới mở lại (A2 mục 4).
             store.set_run_state(p, goal.id, "blocked", reason, notify="goal.blocked",
                                 payload={"code": code, "detail": receipt.error_detail, "final": True},
-                                idem=f"blocked:{reason}:{goal.revision}")
-        a = Assessment(goal.id, goal.revision, "unknown", last.criterion_results, last.evidence_ids,
-                       rationale=f"lượt làm việc lỗi: {code}", evaluated_at=now)
-        store.add_assessment(p, a.to_dict())
+                                idem=f"blocked:{reason}:{rev}", expect_revision=rev)
         return a
-    cur = store.get(p, goal.id)
-    if cur is None or cur.revision != goal.revision or cur.status != "active":
-        # Revision đổi giữa lượt: kết quả thuộc revision cũ, ghi lại nhưng không kết thúc và không đăng. Revision mới
-        # đã có lý do `revised`, nên lần thức sau làm theo nó.
-        refs = tuple(e["evidence_id"] for e in store.evidence_for(p, goal.id, goal.revision, kind="action_output"))
+    if not same:
+        # Revision đổi giữa lượt: kết quả thuộc revision cũ, ghi lại nhưng không kết thúc, không đăng, không đổi lịch.
+        # Revision mới đã có lý do `revised`, nên lần thức sau làm theo nó.
+        refs = tuple(e["evidence_id"] for e in store.evidence_for(p, goal.id, rev, kind="action_output"))
         a = evaluate_artifact(goal, refs, deps)
         a = Assessment(**{**a.to_dict(), "criterion_results": tuple(a.criterion_results),
                           "evidence_ids": tuple(a.evidence_ids), "guards": (),
                           "rationale": "revision đã đổi giữa lượt; kết quả thuộc revision cũ: " + a.rationale})
         store.add_assessment(p, a.to_dict())
-        log.update(met_count=_met_count(a))
-        if cur is not None and cur.status == "active":
-            store.set_run_state(p, goal.id, "ready", "")
+        store.settle_attempt(p, goal.id, rev, act["id"], _met_count(a), "", now)
+        log.update(met_count=_met_count(a), why="revision đã đổi giữa lượt")
+        if cur is not None and cur.status == "active" and (store.run_state(p, goal.id) or {}).get("run_state") == "running":
+            store.set_run_state(p, goal.id, "ready", "", expect_revision=cur.revision)
         return a
     # Kiểm lại NGAY TRƯỚC tác động: công tắc, pause của người dùng, guard có thể đã đổi trong lúc model chạy
     # (review M3, P1-1 và P1-2). Bị chặn thì đầu ra GIỮ trong vùng làm việc; lượt sau đăng nó mà không gọi model.
@@ -2150,31 +2194,41 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
         _a, changed = agent_gate(store, p.brain_id, held["agent_key"], held["agent_config_version"])
         if changed:
             why = f"công tắc trợ lý đã đổi trong lúc chạy ({changed})"
-            store.add_timer(p, goal.id, "agent_changed", now, now)
+            store.add_timer(p, goal.id, "agent_changed", now, now, expect_revision=rev)
     if why:
-        a = Assessment(goal.id, goal.revision, "unknown", guards=guards,
+        a = Assessment(goal.id, rev, "unknown", guards=guards,
                        rationale="đầu ra giữ trong vùng làm việc, chưa đăng: " + why, evaluated_at=now)
         store.add_assessment(p, a.to_dict())
         # A2: chưa biết đầu ra giữ lại có đạt không. Giữ một nghĩa vụ thử lại đủ điều kiện ngay: lúc bị chặn nó bị gác,
         # khi gỡ chặn lần thức đầu đăng đầu ra đã giữ, và chỉ khi chưa đạt mới xét thử lại theo trần (mục 3).
+        store.settle_attempt(p, goal.id, rev, act["id"], None, "held", now)
         log.update(met_count=None, error_code="held")
-        store.add_timer(p, goal.id, "retry_not_met", now, now)
+        store.add_timer(p, goal.id, "retry_not_met", now, now, expect_revision=rev)
         return a
     pub = _publish(goal, text, deps, now, source_action=act["id"])
-    refs = tuple(e["evidence_id"] for e in store.evidence_for(p, goal.id, goal.revision, kind="action_output"))
+    refs = tuple(e["evidence_id"] for e in store.evidence_for(p, goal.id, rev, kind="action_output"))
     a, why = _after_publish(goal, pub, refs, deps, now)
-    log.update(met_count=_met_count(a))
+    mc = _met_count(a)
+    log.update(met_count=mc)
+    after = _chain_of(store.settle_attempt(p, goal.id, rev, act["id"], mc, "", now))
     if why:
         store.add_assessment(p, a.to_dict())
         return a
-    attempt = {"met_count": _met_count(a), "error": ""}
-    prior = [r for r in store.wake_log(p, goal.id, revision=goal.revision) if r["decision"] in ("work", "adopt")]
-    start = max((i for i, r in enumerate(prior) if r.get("chain_start")), default=0)
-    rows = [] if log.get("chain_start") else [{"met_count": r.get("met_count"), "error": r.get("error_code")}
-                                              for r in prior[start:]]
-    after = HB.chain_from([*rows, attempt])
     return _settle(goal, a, deps, now, worked=True, has_output=bool(refs), chain=after,
                    sig=_signature(a, (ctx.sig if ctx else "")))
+
+
+async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: float,
+                     ctx: Optional[_WakeCtx] = None) -> Assessment:
+    """Một lượt việc: pha trước và pha sau chạy NGOÀI event loop (SQLite, đọc ghi file, bằng chứng, đăng, đánh giá);
+    chỉ lời gọi engine chạy trên loop (A2, review mã P2-2)."""
+    pre = await _off_loop(_work_pre, goal, last, deps, now, ctx)
+    if isinstance(pre, Assessment):
+        return pre
+    act, held, prompt = pre
+    sub = dataclasses_replace(deps, budget=_ReservedCall(deps.store, deps.principal, goal.id))
+    receipt = await sub.run_once(goal, prompt, act["id"])
+    return await _off_loop(_work_post, goal, last, deps, now, ctx, act, held, receipt)
 
 
 def _observe_step(goal: GoalRecord, deps: GoalDeps, now: float) -> Assessment:
@@ -2277,7 +2331,8 @@ def _wake_work(g: GoalRecord, deps: GoalDeps, now: float, owner: str):
         # theo trần chung (lượt việc nền đầu tiên sửa TỪ bản chat), không gọi model ngay trong lần thức này.
         mc = _met_count(a)
         served = store.serve_reasons(p, g.id, [int(r["id"]) for r in snap], "adopt", now)
-        res = _settle(g, a, deps, now, worked=True, has_output=bool(refs), chain=HB.chain_from([{"met_count": mc}]),
+        store.chain_adopt(p, g.id, g.revision, mc, now)
+        res = _settle(g, a, deps, now, worked=True, has_output=bool(refs), chain=HB.Chain(mc, 0, 0, ""),
                       sig=sig)
         return done(res, "adopt", "bản chat chưa đạt; hẹn thử lại theo trần", served, met_count=mc,
                     chain_start=True, signature=sig)
@@ -2728,8 +2783,15 @@ def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]
     _agent, ablock = agent_gate(store, principal.brain_id, g.agent_key)
     observe = {"state": "none", "next_at": None, "lost_reason": ""}
     if g.guards and g.status == "active":
-        observe = ({"state": "lost", "next_at": None, "lost_reason": ablock} if ablock
-                   else {"state": "on", "next_at": obs["due_at"] if obs else None, "lost_reason": ""})
+        # Dựa vào lịch quan sát THẬT, không chỉ vào công tắc (review mã P1-2): bật mà không có lịch là chưa theo dõi.
+        if ablock:
+            observe = {"state": "lost", "next_at": None, "lost_reason": ablock}
+        elif st.get("block_reason") == "guard":
+            observe = {"state": "stopped", "next_at": None, "lost_reason": "guard"}
+        elif obs is None:
+            observe = {"state": "lost", "next_at": None, "lost_reason": "not_scheduled"}
+        else:
+            observe = {"state": "on", "next_at": obs["due_at"], "lost_reason": ""}
     recent = [{"at": r["created_at"], "codes": r.get("codes") or [], "decision": r["decision"],
                "kind": r["wake_kind"], "model_calls": int(r.get("model_calls") or 0)}
               for r in store.wake_log(principal, goal_id, limit=5)]
