@@ -2560,9 +2560,11 @@ class GoalStore:
                                               "lane='presentation' AND status='active'", (brain_id, agent_key))}
         pend = [r["key"] for r in c.execute("SELECT key FROM lessons WHERE brain_id=? AND agent_key=? AND "
                                             "lane='presentation' AND status='proposed'", (brain_id, agent_key))]
-        dism = [{"key": r["key"], "to_value": r["to_value"], "decided_at": r["decided_at"] or r["updated_at"]}
+        # Bỏ qua và Thu hồi của chủ đều chặn đề xuất lại cùng (khoá, giá trị) trong thời gian chờ (learning.v2).
+        dism = [{"key": r["key"], "to_value": r["to_value"], "decided_at": r["decided_at"] or r["updated_at"],
+                 "status": r["status"]}
                 for r in c.execute("SELECT * FROM lessons WHERE brain_id=? AND agent_key=? AND lane='presentation' AND "
-                                   "status='dismissed'", (brain_id, agent_key))]
+                                   "status IN ('dismissed','revoked')", (brain_id, agent_key))]
         prop = L.propose(rows, {k: r["to_value"] for k, r in act.items()}, pend, dism, now)
         if prop is None:
             return None

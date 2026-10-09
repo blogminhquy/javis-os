@@ -147,16 +147,16 @@ proposed ──(owner Áp dụng)──▶ active ──(owner Thu hồi)──�
 
   Điều kiện 2 không đạt (owner đã thu hồi nền, hay đã áp dụng giá trị khác) thì đề xuất thành `stale`, trả 409 kèm cấu hình hiện tại; không áp dụng mù. Áp dụng đề xuất có `to_value` là giá trị mặc định (ví dụ quay lại `full`) vẫn tạo một bài học `active` mang giá trị đó: đây là lựa chọn rõ của owner, có nguồn và có thể thu hồi như mọi bài học khác.
 - **Bỏ qua:** đề xuất thành `dismissed`; cấu hình đang dùng không đổi.
-- **Thu hồi:** bài học `active` thành `revoked`; khoá về mặc định. Đề xuất đang chờ dựa trên nền này sẽ thành `stale` khi owner bấm Áp dụng.
+- **Thu hồi:** bài học `active` thành `revoked`; khoá về mặc định. Đề xuất đang chờ dựa trên nền này sẽ thành `stale` khi owner bấm Áp dụng. Từ `learning.v2` (sau pilot), Thu hồi chặn đề xuất lại cùng (trợ lý, khoá, giá trị) 14 ngày như Bỏ qua.
 - **Bài học có hiệu lực** của một trợ lý = bài học `active` của mỗi khoá (nhiều nhất một). Không có thì dùng mặc định.
 
-### 5.3 Bộ học làn P (`learning.v1`, hàm thuần)
+### 5.3 Bộ học làn P (`learning.v2`, hàm thuần)
 
 Đầu vào: các reaction không mồ côi của một trợ lý trong 30 ngày, giá trị hiện tại; các bài học làn P hiện có. Đầu ra: không hay một đề xuất.
 
 | Đề xuất | Điều kiện |
 |---|---|
-| `notice_detail: full → brief` | Ít nhất **2 tin khác nhau** thuộc loại áp được, có giá trị hiện tại `down` + `too_long`; khoá đang ở `full`; không có đề xuất mở hay bài học `dismissed` trong 14 ngày cho cùng khoá và giá trị |
+| `notice_detail: full → brief` | Ít nhất **2 tin khác nhau** thuộc loại áp được, có giá trị hiện tại `down` + `too_long`; khoá đang ở `full`; không có đề xuất mở, bài học `dismissed` hay `revoked` trong 14 ngày cho cùng khoá và giá trị của trợ lý này |
 | `notice_ping: ping → quiet` | Ít nhất 2 tin `goal.maintained` khác nhau có `down` + `too_often`; cùng các điều kiện còn lại |
 | Đề xuất quay lại (`brief → full`) | Ít nhất 1 tin đã được dựng theo `brief` có `down` + `unclear` |
 
@@ -392,9 +392,9 @@ Chỉ thêm bảng; không thêm cột vào bảng cũ (test `PRE_A1` vẫn kho�
 - Nâng lại 0.89: `reconcile_holds` chạy khi mở kho (mục 6.8). Lượt giữ còn hợp lệ được dựng lại đúng một lý do `method_followup`; lượt không còn hợp lệ được trả đúng một lần; bài học được ghi lại theo sự thật M5.
 - **Nâng lại 0.89 sau khi quay về:** bảng A3 còn nguyên; bài học làn M có thể lệch cột M5 (người dùng quay lại cách cũ bằng bản cũ) và được hiện theo M5 như mục 7.2.
 
-## 8. Chính sách `learning.v1`
+## 8. Chính sách `learning.v2`
 
-Hằng có phiên bản, không phải ô cài đặt. Đổi mặc định thì tăng phiên bản; mỗi bài học ghi `policy_version`.
+Hằng có phiên bản, không phải ô cài đặt. Đổi mặc định thì tăng phiên bản; mỗi bài học ghi `policy_version`. `learning.v1` là bản đã qua review mã và pilot; `learning.v2` chỉ thêm `P_REVOKE_COOLDOWN_S` (chủ dự án chốt sau pilot, 10/10/2026).
 
 | Tham số | Giá trị | Ý nghĩa |
 |---|---|---|
@@ -403,6 +403,7 @@ Hằng có phiên bản, không phải ô cài đặt. Đổi mặc định thì
 | `P_REVERT_MIN_MESSAGES` | 1 | Số tin `brief` bị "Khó hiểu" để đề xuất quay lại |
 | `P_PROPOSAL_TTL_S` | 14 ngày | Đề xuất không ai quyết thì hết hạn, giữ cách cũ |
 | `P_DISMISS_COOLDOWN_S` | 14 ngày | Bỏ qua thì không đề xuất lại cùng thay đổi trong khoảng này |
+| `P_REVOKE_COOLDOWN_S` | 14 ngày | `learning.v2`: Thu hồi cũng không đề xuất lại cùng (trợ lý, khoá, giá trị) trong khoảng này. Không chặn thay đổi khác, trợ lý khác hay làn cách làm; không đổi mục tiêu, lịch, quyền hay hạn mức. Hết thời gian chờ chỉ đề xuất lại khi vẫn đủ phản hồi còn sống trong cửa sổ 30 ngày, và không tự áp dụng |
 | `M_CANDIDATES` | `work.v1 → work.checklist.v1` | Ứng viên duy nhất khi bế tắc |
 | `M_TRIALS_PER_REVISION` | 1 mỗi cặp baseline, ứng viên | Không thử lại cùng cặp trong cùng revision |
 | `M_HOLDOUT_MAX` | 1 | Một tình huống giữ riêng: revision trước gần nhất có cùng bộ tiêu chí host chấm và đầu vào prompt khác thật |
@@ -655,4 +656,5 @@ Hành vi, quyền, ngân sách và chuẩn bằng chứng giữ đúng thiết k
 | I12 | Phiên của hàng phản hồi | I3: bộ ba (phiên, khoá báo cáo, mục tiêu) | Trang gửi phiên TRỐNG; server tra biên nhận theo khoá báo cáo và mục tiêu, chỉ dùng khi có đúng một biên nhận. Phiên ghi rõ thì vẫn kiểm chặt như cũ (sai phiên 400) | Soi giao diện trên sandbox: lúc vẽ tin, phiên "đang mở" ở trang Cộng sự có thể chưa có hay còn là phiên của trợ lý trước, server từ chối và hàng phản hồi biến mất. Khoá `outbox:<id>` chỉ thuộc một tin, nên bỏ phiên không nới quyền: brain, vai, khối thẻ vẫn kiểm |
 | I13 | Mục Bài học sau khi phản hồi | Mục 11: dòng "xem ở trang trợ lý" | Phản hồi ghi xong thì trang chat phát sự kiện `javis:resonance-lessons`; ngăn trợ lý đang mở tải lại mục Bài học | Soi giao diện: không tải lại thì ngăn trợ lý vẫn ghi "Chưa có bài học" tới khi F5 |
 | I14 | Hiển thị mục Bài học | Mục 11 | Câu xem trước bỏ cú pháp liên kết markdown; bài học cách làm hiện nhãn dịch (`to_label`) và cách hiểu của mục tiêu (`goal_label`); phép thử đang chờ có khối riêng kèm nút Bỏ qua; ghi chú xung đột 409 giữ qua lần tải lại | Soi giao diện: trước đó hiện `[Inbox/p.md](Inbox/p.md)`, mã `work.checklist.v1`, và ghi chú 409 mất ngay khi danh sách vẽ lại |
+| I15 | Thời gian chờ sau Thu hồi | Mục 5.3: chỉ Bỏ qua chặn đề xuất lại | `learning.v2`: kho đưa cả bài học `revoked` của làn trình bày vào danh sách chặn; `P_REVOKE_COOLDOWN_S` 14 ngày | Soi giao diện (ảnh d06) thấy phản hồi cũ đề xuất lại đúng thay đổi vừa thu hồi; review khuyến nghị dùng chung quy tắc 14 ngày, chủ dự án chốt |
 

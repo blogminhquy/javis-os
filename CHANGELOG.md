@@ -10,7 +10,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Thêm mới
 - **Trợ lý Cộng hưởng học từ phản hồi có kiểm chứng.** Bấm phản hồi trên tin báo của trợ lý để gợi ý cách báo gọn hơn hay ít làm phiền hơn; bạn xem trước và tự quyết có áp dụng.
 - **Bế tắc thì thử một cách làm khác, chỉ khi hạn mức của mục tiêu đủ cho cả phép thử lẫn một lượt làm lại sản phẩm,** so với cách cũ trên cùng tiêu chí; thua hoặc chưa rõ thì giữ nguyên cách cũ.
-- **Mỗi bài học có nguồn, phạm vi và nút thu hồi.** Phản hồi không bao giờ tự làm mục tiêu đạt, không mở thêm quyền hay hạn mức.
+- **Mỗi bài học có nguồn, phạm vi và nút thu hồi.** Thu hồi hay bỏ qua một gợi ý thì 14 ngày sau Javis mới gợi ý lại đúng thay đổi đó. Phản hồi không bao giờ tự làm mục tiêu đạt, không mở thêm quyền hay hạn mức.
 
 ## [0.88.1] - 2026-10-09
 ### Sửa lỗi

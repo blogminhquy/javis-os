@@ -964,6 +964,62 @@ asyncio.run(R.drain_outbox(w.store, w.notes))
 check("G5a thu hồi làn P: tin kế tiếp đầy đủ như mặc định",
       not w.notes.sent[-1]["text"].startswith(("Đã cập nhật:", "Updated:")) and len(w.notes.sent[-1]["text"]) > 60)
 
+# TV (learning.v2, sau pilot A3): Thu hồi chờ 14 ngày cho cùng (trợ lý, khoá, giá trị), như Bỏ qua.
+_rv = [{"key": "notice_detail", "to_value": "brief", "decided_at": T0, "status": "revoked"}]
+check("TV chính sách: vừa Thu hồi trong 14 ngày thì không đề xuất lại cùng thay đổi",
+      L.propose([rx("a", at=T0 + 86400), rx("b", at=T0 + 86400)], {}, [], _rv, T0 + 86400) is None)
+check("TV chính sách: đủ 14 ngày và phản hồi còn trong cửa sổ thì được đề xuất lại (vẫn chỉ là đề xuất)",
+      (L.propose([rx("a", at=T0 + 14 * 86400), rx("b", at=T0 + 14 * 86400)], {}, [], _rv, T0 + 14 * 86400 + 1)
+       or {}).get("to_value") == "brief")
+check("TV chính sách: Thu hồi một thay đổi không chặn khoá khác",
+      (L.propose([rx("a", reason="too_often", kind="goal.maintained"),
+                  rx("b", reason="too_often", kind="goal.maintained")], {}, [], _rv, T0) or {}).get("key")
+      == "notice_ping")
+check("TV chính sách: thời gian chờ Thu hồi là tham số riêng có phiên bản",
+      L.POLICY["P_REVOKE_COOLDOWN_S"] == 14 * 86400 and L.POLICY_VERSION == "learning.v2")
+
+w = World("tv")
+g = w.goal()
+react(w, src(w, g))
+pr = react(w, src(w, g))["proposal"]
+w.store.lesson_decide(OWNER, pr["id"], "apply", now=w.clock())
+w.clock.t += 3600
+w.store.lesson_decide(OWNER, pr["id"], "revoke", now=w.clock())
+w.clock.t += 86400
+r = react(w, src(w, g))
+check("TV kho: phản hồi mới một ngày sau Thu hồi không đề xuất lại rút gọn (phản hồi cũ vẫn đủ số)",
+      r["proposal"] is None and w.store.presentation(BRAIN, w.agent["agent_key"]) == {}, r["proposal"])
+sa, sb = src(w, g, "goal.maintained"), src(w, g, "goal.maintained")
+react(w, sa, reason="too_often")
+pp = react(w, sb, reason="too_often")["proposal"]
+check("TV kho: khoá khác vẫn đề xuất được trong thời gian chờ", pp and pp["key"] == "notice_ping")
+w.store.lesson_decide(OWNER, pp["id"], "dismiss", now=w.clock())
+first = w.agent
+other = RA.enable(w.store, BRAIN, "tro-ly-khac")
+w.agent = other
+g2 = w.goal()
+w.agent = first
+react(w, src(w, g2))
+po = react(w, src(w, g2))["proposal"]
+check("TV kho: trợ lý khác không bị chặn bởi Thu hồi của trợ lý này",
+      po and po["to_value"] == "brief" and po["agent_key"] == other["agent_key"], po)
+w.clock.t += 14 * 86400
+r = react(w, src(w, g))
+check("TV kho: hết 14 ngày, phản hồi còn trong cửa sổ 30 ngày thì đề xuất lại rút gọn (không tự áp dụng)",
+      r["proposal"] and r["proposal"]["to_value"] == "brief" and r["proposal"]["status"] == "proposed"
+      and w.store.presentation(BRAIN, w.agent["agent_key"]) == {}, r["proposal"])
+
+w = World("tv-old")
+g = w.goal()
+react(w, src(w, g))
+pr = react(w, src(w, g))["proposal"]
+w.store.lesson_decide(OWNER, pr["id"], "apply", now=w.clock())
+w.store.lesson_decide(OWNER, pr["id"], "revoke", now=w.clock())
+w.clock.t += 31 * 86400
+r = react(w, src(w, g))
+check("TV kho: hết thời gian chờ nhưng phản hồi cũ đã ra ngoài cửa sổ 30 ngày thì một phản hồi mới chưa đủ",
+      r["proposal"] is None)
+
 w = World("a9")
 g = w.goal()
 sa, sb = src(w, g), src(w, g)
@@ -1358,7 +1414,7 @@ check("A13 nâng lên A3: sao lưu pre-a3 một lần, bảng cũ không đổi 
 
 # ═══════════════════ A16: không ký tự gạch dài ═══════════════════
 
-_dash = "—"
+_dash = "\u2014"
 files = [ROOT / "server" / f for f in ("resonance_learning.py", "resonance.py", "resonance_store.py",
                                        "resonance_api.py", "resonance_heartbeat.py")]
 files += [ROOT / "dashboard" / f for f in ("chat-resonance.js", "resonance-agent.js")]

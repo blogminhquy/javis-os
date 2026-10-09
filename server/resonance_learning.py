@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Iterable, Optional
 
-POLICY_VERSION = "learning.v1"
+POLICY_VERSION = "learning.v2"
 
 DAY = 86400
 POLICY = {
@@ -22,6 +22,9 @@ POLICY = {
     "P_REVERT_MIN_MESSAGES": 1,
     "P_PROPOSAL_TTL_S": 14 * DAY,
     "P_DISMISS_COOLDOWN_S": 14 * DAY,
+    # learning.v2 (sau pilot A3): Thu hồi cũng chờ như Bỏ qua, để phản hồi cũ không đề xuất lại ngay đúng thay đổi
+    # chủ vừa thu hồi. Chỉ chặn cùng (trợ lý, khoá, giá trị); thay đổi khác, trợ lý khác và làn cách làm không đổi.
+    "P_REVOKE_COOLDOWN_S": 14 * DAY,
     "M_HOLDOUT_MAX": 1,
     "M_HOLDOUT_SCAN": 5,
 }
@@ -87,14 +90,19 @@ def propose(reactions: Iterable[dict], active: dict, pending_keys: Iterable[str]
       value, reason, alive, updated_at, ref}. `alive` False là mồ côi (tin bị xoá hay nội dung đổi): không đếm.
     - `active`: {khoá: giá trị} đang có hiệu lực (thiếu khoá là mặc định).
     - `pending_keys`: các khoá đang có đề xuất chờ.
-    - `dismissed`: bài học bị Bỏ qua gần đây {key, to_value, decided_at}.
+    - `dismissed`: bài học chủ đã Bỏ qua hay Thu hồi {key, to_value, decided_at, status}. `status='revoked'` chờ
+      `P_REVOKE_COOLDOWN_S`, còn lại chờ `P_DISMISS_COOLDOWN_S`; hết thời gian chờ chỉ đề xuất lại khi vẫn đủ phản hồi
+      còn sống trong cửa sổ, và vẫn chỉ là đề xuất.
     Trả đề xuất {key, from_value, to_value, evidence} hay None. Không bao giờ tự áp dụng. Im lặng không phải tín hiệu."""
     rows = _live(reactions, now, policy)
     eff = {**default_presentation(), **dict(active or {})}
     pend = set(pending_keys or ())
-    cool = float(now) - float(policy["P_DISMISS_COOLDOWN_S"])
+    def _cool(d) -> float:
+        k = "P_REVOKE_COOLDOWN_S" if d.get("status") == "revoked" else "P_DISMISS_COOLDOWN_S"
+        return float(policy.get(k, policy["P_DISMISS_COOLDOWN_S"]))
+
     blocked = {(d.get("key"), d.get("to_value")) for d in (dismissed or ())
-               if float(d.get("decided_at") or 0) >= cool}
+               if float(d.get("decided_at") or 0) >= float(now) - _cool(d)}
 
     def make(key, to, hits):
         if key in pend or (key, to) in blocked or eff[key] == to:
