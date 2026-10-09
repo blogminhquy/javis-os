@@ -421,6 +421,12 @@ check("3e không lưu được bằng chứng: không tiếp nhận, không mố
 r = scenario("c4", lambda b: write_msgs(b, DELIV, BAD), BAD)
 check("4 tiếp nhận bản chat chưa đạt", r[0] == "adopted")
 adv(r[5].id, r[7])
+# A2 (thiết kế mục 3): bản chat là lượt đầu của revision. Lần thức sau bàn giao chỉ kết sổ lượt đó và hẹn thử lại theo
+# trần chung, không gọi model ngay; tới mốc thử lại thì việc nền sửa TỪ bản chat.
+check("4 A2: lần thức sau bàn giao không gọi model, hẹn thử lại",
+      r[6].queries == 0 and any(x["code"] == "retry_not_met" for x in r[2].reasons(r[3], r[5].id)))
+r[7].clock.t += R.HB.POLICY["RETRY_BASE_S"]
+adv(r[5].id, r[7])
 check("4 chưa đạt: việc nền chạy một lượt, prompt có bản chat, thay được file, chờ người dùng",
       r[6].queries == 1 and BAD in r[6].prompts[0] and (Path(r[1]) / DELIV).read_text(encoding="utf-8") == WORKER
       and rs(r[2], r[3], r[5].id).get("block_reason") == "human_confirmation")

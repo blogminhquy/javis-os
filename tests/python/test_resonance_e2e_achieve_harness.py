@@ -355,9 +355,14 @@ R.note_turn_event(_mref, str(_B), {"type": "tool_call", "name": "Write", "id": "
 R.note_turn_event(_mref, str(_B), {"type": "tool_result", "tool_use_id": "w1", "is_error": False})
 _META = {"requested_provider": "fake", "requested_model": "fake-1", "provider": "fake", "model": "fake-1",
          "text_only": True}
+_clk = {"t": 1_800_000_000.0}
 _d = R.GoalDeps(engine_factory=lambda s, t: (_Eng(), dict(_META)), budget=R.CallBudget(0),
-                clock=lambda: 1_800_000_000.0, store=_ST, principal=_P, brain_root=str(_B), evidence=_Ev(), notify=_nt)
+                clock=lambda: _clk["t"], store=_ST, principal=_P, brain_root=str(_B), evidence=_Ev(), notify=_nt)
 check("P2-2 sản phẩm: bản chat chưa đạt được tiếp nhận", R.handoff_after_turn(g3.id, _mref, _d) == "adopted")
+asyncio.run(R.advance(g3.id, {"kind": "wake"}, _d))
+# A2 (thiết kế mục 3): bản chat là lượt đầu; lần thức sau bàn giao chỉ hẹn thử lại, tới mốc mới sửa bằng việc nền.
+check("P2-2 A2: lần thức sau bàn giao chưa gọi model", _Eng.queries == 0)
+_clk["t"] += R.HB.POLICY["RETRY_BASE_S"]
 asyncio.run(R.advance(g3.id, {"kind": "wake"}, _d))
 _acts = [x for x in _ST.actions(_P, g3.id) if x["kind"] == "work" and x["revision"] == g3.revision]
 _ass = [x for x in _ST.assessments(_P, g3.id) if int(x.get("revision") or 0) == g3.revision]
