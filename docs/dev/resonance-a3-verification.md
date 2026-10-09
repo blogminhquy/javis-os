@@ -117,3 +117,16 @@ python tests/run.py route_table version_khop_changelog
   - `test_project_khung`: chạy riêng trên nhánh A3 thì xanh, chỉ đỏ thoáng qua lúc chạy cả bộ.
   - `test_image_vision`: đỏ do thư mục `__pycache__` sót lại trong worktree (`system/plugins/zalo-image`), không do mã A3.
 - Làn M sẽ thường bị bỏ qua trong dùng thật (cần hạn mức từ 9 và một cách hiểu trước cùng tiêu chí); đây là giới hạn đã chốt ở D4, không phải lỗi.
+
+## Sau review mã vòng 1 (`5b4f48a6`)
+
+Báo cáo: `exports/reviews/PR-598-A3-code-5b4f48a6-review.md` (ngoài git), 3 P2. Sửa ở `efdfb8a8`.
+
+| Điểm | Sửa | Hồi quy |
+|---|---|---|
+| P2-1: dọn phép thử xoá cả nghĩa vụ `check`, mất `guard_recheck` vừa ghi | Hẹn đối soát của phép thử là mã riêng `trial_recovery` (nghĩa vụ `trial`), chỉ chốt đúng hẹn đó theo id | RV1: guard chưa xác định giữa phép thử, sửa nguồn, mục tiêu hết kẹt; đối chứng guard nhảy thật vẫn giữ chốt |
+| P2-2: Áp dụng đề xuất đã hết hạn | `lesson_decide(apply)` kiểm `expires_at` và căn cứ còn sống trong giao dịch | RV2 ở kho (hết hạn, mất căn cứ, đối chứng còn hạn) và qua route thật (409 `expired`) |
+| P2-3: kho và file của phép thử chạy trên event loop | Mọi bước kho, file, bằng chứng ở luồng phụ, chờ xong khi bị huỷ; lượt thử bị huỷ trước engine thành `not_run` và được hoàn; route A3 chạy kho ở luồng phụ | RV3: lưu trữ chậm 150 ms ở ba bước, loop không bị chặn; huỷ và huỷ lặp lúc giữ chỗ, lúc ghi ý định, lúc chốt (khoá nhả sau worker); lỗi lưu trữ lúc chốt |
+
+Script kiểm độc lập của reviewer chạy với `--expect-fixed` trên `efdfb8a8`: kết quả ở `exports/reviews/A3-code-r2-review-script-output.txt`.
+
