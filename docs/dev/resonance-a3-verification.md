@@ -146,3 +146,17 @@ Giới hạn còn ghi rõ:
 - `_TrialCall.release` khi engine không dựng được vẫn gọi kho đồng bộ, như `_ReservedCall` của A2.
 - Đây là đường đã có từ A2, không đổi trong A3.
 
+## Soi giao diện trên sandbox (sau `b33f3e3b`)
+
+Server sandbox port 7788, state và brain riêng trong `exports/sandbox-a3` (ngoài git), tick nền tắt, engine giả theo prompt (`exports/sandbox-a3/seed.py`). Trình duyệt trong app, desktop 1366x860 và khổ hẹp 375x812, tiếng Việt. 0 lượt model thật. Biên bản đầy đủ và ảnh: `exports/reviews/A3-ui-sandbox-record.md`, `exports/reviews/a3-ui/`.
+
+Năm lỗi giao diện tìm ra và đã sửa, gộp thành bốn dòng (I12 tới I14 ở thiết kế mục 19):
+
+| Lỗi | Sửa | Hồi quy |
+|---|---|---|
+| Hàng phản hồi không hiện ở trang Cộng sự (GET 400 vì phiên trống, rồi vì phiên của trợ lý trước) | Trang gửi phiên trống; server tra biên nhận theo khoá báo cáo và mục tiêu | UI1 (API): GET và POST theo bộ ba phiên trống; vẫn chặt với phiên sai, brain khác, khoá không có biên nhận. UI4 (JS) |
+| Xem trước hiện markdown thô, bài học cách làm hiện mã `work.checklist.v1` | `plainMd`, `to_label`, `goal_label`; phép thử đang chờ có khối riêng với nút Bỏ qua | UI2 (API và JS) |
+| Ghi chú xung đột 409 mất ngay khi danh sách vẽ lại | Giữ ghi chú qua một lần vẽ | UI3 (JS) |
+| Mục Bài học không tải lại sau phản hồi | Sự kiện `javis:resonance-lessons` | UI5 (JS) |
+
+Mười kiểm mới (4 Python, 6 JS) đều đỏ trên mã `b33f3e3b` và xanh trên mã đã sửa.
