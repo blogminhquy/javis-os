@@ -572,6 +572,15 @@ class SessionStore:
             (session_id, str(report_key), str(goal_id)))
         return dict(rows[0]) if rows else None
 
+    def report_receipt_by_message(self, session_id: str, message_id: int) -> Optional[Dict[str, Any]]:
+        """Biên nhận báo cáo Resonance của MỘT tin (A3: reaction chỉ nhận trên tin báo do host ghi). Tin bị xoá thì
+        biên nhận mất theo (ON DELETE CASCADE) và trả None."""
+        rows = self._read(
+            "SELECT m.id AS id, m.role AS role, m.content AS content, r.report_key AS report_key, "
+            "r.goal_id AS goal_id FROM report_receipts r JOIN messages m ON m.id = r.message_id "
+            "WHERE r.session_id = ? AND r.message_id = ?", (session_id, int(message_id)))
+        return dict(rows[0]) if rows else None
+
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         rows = self._read("SELECT * FROM sessions WHERE id = ?", (session_id,))
         return dict(rows[0]) if rows else None
