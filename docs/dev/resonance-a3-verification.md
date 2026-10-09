@@ -111,5 +111,9 @@ python tests/run.py route_table version_khop_changelog
 
 - Chưa có pilot model thật. Đề xuất pilot ở thiết kế mục 13.5: tối đa 8 lượt, hạn mức 9, cần anh duyệt riêng.
 - Chưa soi giao diện trên trình duyệt thật; giao diện chỉ được kiểm bằng hàm thuần dưới node.
-- Toàn bộ bộ test của dự án: kết quả ghi trong bàn giao review mã.
+- Toàn bộ bộ test của dự án (`python tests/run.py`, 626 file): 608 xanh, 18 đỏ trước khi sửa lỗi emoji. Phân định bằng cách chạy đúng 18 file đó trên bản sạch của `main` (`83bff6bc`, git archive):
+  - 15 file cũng đỏ trên `main`: agy_prompt_dai, antigravity_cli, ba_loi_mac_va_telegram, cai_windows, grok_cli, ignore_files, install_admin, khoi_dong_nhe, link_file_uri, machine_translations, memory_hoa_thuong, model_theo_phien, ollama_local, terminal, windows_no_console.
+  - `test_icons`: lỗi thật của A3 (emoji trên hàng phản hồi), đã sửa thành nhãn chữ, chạy lại xanh.
+  - `test_project_khung`: chạy riêng trên nhánh A3 thì xanh, chỉ đỏ thoáng qua lúc chạy cả bộ.
+  - `test_image_vision`: đỏ do thư mục `__pycache__` sót lại trong worktree (`system/plugins/zalo-image`), không do mã A3.
 - Làn M sẽ thường bị bỏ qua trong dùng thật (cần hạn mức từ 9 và một cách hiểu trước cùng tiêu chí); đây là giới hạn đã chốt ở D4, không phải lỗi.

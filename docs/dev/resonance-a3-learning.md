@@ -5,8 +5,8 @@ Thiết kế: [2026-10-09-resonance-a3-feedback-learning-design.md](../superpowe
 ## Hai làn học
 
 **Làn trình bày (P):**
-- Dưới mỗi tin báo của trợ lý (tin do Javis gửi về khung chat, có thẻ mục tiêu) có hàng **Tin này thế nào?** gồm hai nút 👍 Hữu ích và 👎 Chưa ổn.
-- Bấm 👎 thì hiện ba lý do: Dài quá, Báo nhiều quá, Khó hiểu. Bấm lại đúng nút đang sáng là rút phản hồi.
+- Dưới mỗi tin báo của trợ lý (tin do Javis gửi về khung chat, có thẻ mục tiêu) có hàng **Tin này thế nào?** gồm hai nút Hữu ích và Chưa ổn.
+- Bấm Chưa ổn thì hiện ba lý do: Dài quá, Báo nhiều quá, Khó hiểu. Bấm lại đúng nút đang sáng là rút phản hồi.
 - Đủ hai tin khác nhau cùng lý do thì Javis **đề xuất**: báo gọn tin "đã đạt" và tin cập nhật định kỳ, hoặc không rung chuông cho tin cập nhật định kỳ.
 - Đề xuất nằm ở mục **Bài học** trên trang trợ lý (trang Cộng sự, cột phải), kèm câu cũ và câu mới của cùng một tin. Bạn bấm Áp dụng hay Bỏ qua. Không ai quyết thì đề xuất hết hạn sau 14 ngày và giữ cách cũ.
 - Làn này không bao giờ gọi model.

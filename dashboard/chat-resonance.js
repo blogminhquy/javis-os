@@ -147,8 +147,8 @@
         '" title="' + esc(title) + '">' + esc(label) + "</button>";
     }
     var h = '<span class="rs-react-q">' + esc(tw("resonance.react_q")) + "</span>" +
-      b("up", v === "up", "👍", tw("resonance.react_up")) +
-      b("down", v === "down", "👎", tw("resonance.react_down"));
+      b("up", v === "up", tw("resonance.react_up"), tw("resonance.react_up")) +
+      b("down", v === "down", tw("resonance.react_down"), tw("resonance.react_down"));
     if (open || v === "down") {
       h += '<span class="rs-react-why">' + REASONS.map(function (r) {
         return b("reason", v === "down" && st.reason === r, tw(REASON_KEYS[r]), tw(REASON_KEYS[r]), r);
