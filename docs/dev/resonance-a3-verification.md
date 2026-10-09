@@ -130,3 +130,19 @@ Báo cáo: `exports/reviews/PR-598-A3-code-5b4f48a6-review.md` (ngoài git), 3 P
 
 Script kiểm độc lập của reviewer chạy với `--expect-fixed` trên `efdfb8a8`: kết quả ở `exports/reviews/A3-code-r2-review-script-output.txt`.
 
+## Sau review mã vòng 2 (`61d0d8ca`)
+
+Báo cáo: `exports/reviews/PR-598-A3-r2-61d0d8ca-review.md` (ngoài git), 2 P2. Sửa ở `52cf70e4`.
+
+| Điểm | Sửa | Hồi quy |
+|---|---|---|
+| P2-1: mkdir lỗi sau khi giữ chỗ đã commit bị đọc thành "chưa tạo", hẹn đối soát bị chốt, 5 lượt kẹt | Tách giao dịch giữ chỗ khỏi tạo thư mục; lỗi sau commit chốt phép thử và hoàn đủ; chốt lỗi thì giữ phép thử `running` và hẹn đối soát; lỗi trước commit ghi `storage_error` | RV4: chặn bằng file thật, khôi phục, khởi động lại, đối soát lặp; chốt cũng lỗi rồi tự chốt sau; lỗi trước commit |
+| P2-2: `_agent_intent` đọc SQLite trên event loop | Chạy qua `_off_loop` | RV5: mọi lần `agent_by_key` trong phép thử nằm ngoài loop, đồng hồ canh không khựng |
+
+Hai script kiểm độc lập của reviewer chạy với `--expect-fixed` trên `52cf70e4`: `exports/reviews/A3-code-r3-script-r1-output.txt` và `exports/reviews/A3-code-r3-script-r2-output.txt`.
+
+Giới hạn còn ghi rõ:
+- `run_once` (dùng chung với lượt việc A2) vẫn có vài thao tác siêu dữ liệu file nhỏ (`resolve`, `is_dir`, `exists`) và việc dựng engine trên event loop.
+- `_TrialCall.release` khi engine không dựng được vẫn gọi kho đồng bộ, như `_ReservedCall` của A2.
+- Đây là đường đã có từ A2, không đổi trong A3.
+
