@@ -824,8 +824,7 @@ def selftests(root: Path, report: dict) -> dict:
             with contextlib.redirect_stdout(buf):
                 rep = main_real(run=fake_run, auth=lambda *a, _ok=auth_ok: {"ok": _ok, "why": "giả lập"})
             (root / "selftest-real" / name / "stdout.txt").write_text(buf.getvalue(), encoding="utf-8",
-                                                                       newline="
-")
+                                                                       newline="\n")
             failed = _fails[n0:]
             del _fails[n0:]
             disk = json.loads((root / "selftest-real" / name / "report.json").read_text(encoding="utf-8"))
