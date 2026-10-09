@@ -170,3 +170,10 @@ Mười kiểm mới (4 Python, 6 JS) đều đỏ trên mã `b33f3e3b` và xanh
 - **Luật M5 giữ nguyên.** Nhánh áp dụng chỉ khi `eligible` (hơn ở tập thử, không kém ở đâu, không unknown). Nhãn nhánh giữ nguyên nguyên nhân: `rejected/no_improvement`, `rejected/regression`, `inconclusive/unknown`, `technical_failed (...)`.
 
 Dry chạy 13 kịch bản bằng hai tiến trình mỗi kịch bản (dựng và chạy, rồi mở lại kho với cổng đóng hẳn và đối soát hai lượt): thắng, no_improvement, regression, unknown, lỗi engine ở lượt đầu, lượt cuối phép thử và lượt sản phẩm, hết giờ, token sắp hết hạn, tiến trình chết giữa lời gọi, lỗi lưu trữ khi chốt, trần cổng giữa phép thử, trần kho thiếu. Kết quả và câu duyệt: `exports/reviews/A3-pilot-run-request.md` (ngoài git).
+
+Review bộ chạy `ffcbc940` (ngoài git: `PR-598-A3-pilot-ffcbc940-review.md`), hai P2, sửa trong bộ chạy, không đổi `server/` hay kịch bản:
+
+| Điểm | Sửa | Hồi quy (trong dry, qua mã thật) |
+|---|---|---|
+| P2-1: nhánh lỗi kỹ thuật vẫn ra `pending_content_review` | Một hàm tổng kết `finalize` cho lần chạy thật: tiền điều kiện, mã thoát hai tiến trình, cấu trúc báo cáo, cổng không đóng, sổ hợp lệ, giai đoạn 2 không gọi engine, số lượt khớp đúng nhánh nội dung. Còn lại là `technical_failed`, ghi FAIL nên thoát khác 0; nhánh gốc giữ nguyên | `finalize` trên 12 kịch bản; `main_real` thật với `run`/`auth` giả trên 8 ca (no_improvement, lỗi lượt đầu, token, chết giữa lượt, sai số lượt, giai đoạn 2 thoát 1, thiếu báo cáo, cổng xác thực hỏng) |
+| P2-2: sổ lượt hỏng bị coi là sổ mới | Sổ rỗng chỉ tạo bằng `RealCallGate.create` lúc bắt đầu lần chạy, kèm file dấu `.started`. Đọc lỗi, JSON hỏng, sai cấu trúc, sai số thứ tự, trạng thái lạ, đổi trần, mất file sau khi bắt đầu, hay sổ ít lượt hơn biên nhận trong kho: cổng đóng, không giữ chỗ, không ghi đè, ghi nhật ký lỗi | 13 ca sổ, gồm đối chứng tạo mới và mở lại sau dòng `reserved` |

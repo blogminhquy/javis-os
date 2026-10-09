@@ -90,34 +90,102 @@ def _sha(s) -> str:
 
 class RealCallGate:
     """Sổ lời gọi engine thật, ghi xuống đĩa (os.replace + fsync) TRƯỚC khi gọi. Đọc lại từ file ở mỗi lần hỏi, nên
-    tiến trình mới (khởi động lại) thấy đúng các lời gọi cũ, kể cả dòng `reserved` của tiến trình đã chết."""
+    tiến trình mới (khởi động lại) thấy đúng các lời gọi cũ, kể cả dòng `reserved` của tiến trình đã chết.
 
-    def __init__(self, path: Path, limit: int, token_check=None, closed: str = ""):
+    Sổ rỗng CHỈ được tạo bằng `create()` ở lúc bắt đầu một lần chạy mới (review `ffcbc940`, P2-2). Sau đó mọi lỗi đọc
+    hay sai cấu trúc đều ĐÓNG cổng: không coi là sổ mới, không ghi đè file hỏng, chỉ ghi lỗi vào file nhật ký bên
+    cạnh. File dấu `<sổ>.started` tạo cùng lúc với sổ là bằng chứng bền rằng lần chạy đã bắt đầu; `durable` (nếu có)
+    trả số lượt có thể đã gọi engine theo biên nhận trong kho, sổ ít hơn số đó thì cũng đóng cổng."""
+
+    STATUSES = ("reserved", "ok", "engine_error", "tool_call", "engine_result_error", "empty_output",
+                "output_too_large", "engine_auth", "incomplete")
+
+    def __init__(self, path: Path, limit: int, token_check=None, closed: str = "", durable=None):
         self.path, self.limit, self.token_check, self.closed = Path(path), int(limit), token_check, closed
+        self.durable = durable
+        self.marker = self.path.with_name(self.path.name + ".started")
+        self.errlog = self.path.with_name(self.path.name + ".errors.log")
         self.refusals, self.last_check = [], ""
 
-    def state(self) -> dict:
-        try:
-            return json.loads(self.path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001 - chưa có file: chưa gọi lần nào
-            return {"limit": self.limit, "calls": [], "halted": ""}
+    @classmethod
+    def create(cls, path: Path, limit: int, run_id: str) -> "RealCallGate":
+        """Bắt đầu một lần chạy mới có chủ đích. Sổ hay file dấu đã có thì từ chối (không bao giờ đặt lại về 0)."""
+        g = cls(path, limit)
+        if g.path.exists() or g.marker.exists():
+            raise FileExistsError(f"sổ lượt thật đã có: {g.path}")
+        g._atomic(g.marker, {"run_id": run_id, "limit": int(limit), "created_at": time.time()})
+        g._atomic(g.path, {"run_id": run_id, "limit": int(limit), "calls": [], "halted": ""})
+        return g
 
-    def _write(self, st: dict) -> None:
-        tmp = self.path.with_suffix(".tmp")
+    @staticmethod
+    def _atomic(path: Path, data: dict) -> None:
+        tmp = path.with_suffix(path.suffix + ".tmp")
         with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-            f.write(json.dumps(st, ensure_ascii=False, indent=1))
+            f.write(json.dumps(data, ensure_ascii=False, indent=1))
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, self.path)
+        os.replace(tmp, path)
+
+    def _load(self) -> tuple:
+        """(sổ, lỗi). Lỗi khác rỗng thì sổ là None và cổng đóng."""
+        try:
+            mk = json.loads(self.marker.read_text(encoding="utf-8")) if self.marker.exists() else None
+        except (OSError, ValueError) as e:
+            return None, f"marker_unreadable: {type(e).__name__}"
+        if not self.path.exists():
+            return None, "ledger_missing_after_start" if mk is not None else "ledger_missing"
+        if mk is None:
+            return None, "marker_missing"
+        try:
+            st = json.loads(self.path.read_text(encoding="utf-8"))
+        except OSError as e:
+            return None, f"ledger_unreadable: {type(e).__name__}"
+        except ValueError:
+            return None, "ledger_corrupt_json"
+        if not isinstance(st, dict) or not isinstance(mk, dict):
+            return None, "ledger_bad_shape"
+        if st.get("run_id") != mk.get("run_id") or not st.get("run_id"):
+            return None, "ledger_run_id_mismatch"
+        if st.get("limit") != self.limit or mk.get("limit") != self.limit:
+            return None, "ledger_limit_mismatch"
+        calls = st.get("calls")
+        if not isinstance(calls, list) or not isinstance(st.get("halted"), str):
+            return None, "ledger_bad_shape"
+        for i, c in enumerate(calls, 1):
+            if not isinstance(c, dict) or c.get("n") != i or c.get("status") not in self.STATUSES:
+                return None, f"ledger_bad_call_{i}"
+        if len(calls) > self.limit:
+            return None, "ledger_over_limit"
+        if self.durable is not None:
+            try:
+                seen = int(self.durable())
+            except Exception as e:  # noqa: BLE001
+                return None, f"durable_unreadable: {type(e).__name__}"
+            if seen > len(calls):
+                return None, f"ledger_behind_store ({len(calls)} < {seen})"
+        return st, ""
+
+    def error(self) -> str:
+        return self._load()[1]
+
+    def _log(self, what: str) -> None:
+        with open(self.errlog, "a", encoding="utf-8", newline="\n") as f:
+            f.write(f"{time.time():.3f} {what}\n")
+
+    def _write(self, st: dict) -> None:
+        self._atomic(self.path, st)
 
     def calls(self) -> list:
-        return list(self.state().get("calls") or [])
+        st, _ = self._load()
+        return list(st["calls"]) if st else []
 
     def halted(self) -> str:
-        st = self.state()
+        st, err = self._load()
+        if err:
+            return f"ledger_invalid: {err}"
         if st.get("halted"):
             return st["halted"]
-        if any(c.get("status") == "reserved" for c in st.get("calls") or []):
+        if any(c.get("status") == "reserved" for c in st["calls"]):
             # Dòng giữ chỗ chưa chốt mà tiến trình hiện tại không gọi: tiến trình trước đã chết giữa lời gọi.
             return "reserved_without_outcome"
         return ""
@@ -142,23 +210,33 @@ class RealCallGate:
         self.refusals.append(why)
 
     def reserve(self, label: str, prompt: str) -> int:
-        st = self.state()
-        st.setdefault("calls", []).append({"n": len(st["calls"]) + 1, "label": label, "status": "reserved",
-                                           "prompt_sha256": _sha(prompt), "started_at": time.time(),
-                                           "preflight": self.last_check})
-        st["limit"] = self.limit
+        st, err = self._load()
+        if err:
+            self._log(f"reserve refused: {err}")
+            raise RuntimeError(f"sổ lượt thật không hợp lệ: {err}")
+        if len(st["calls"]) >= self.limit:
+            raise RuntimeError("sổ lượt thật đã đủ trần")
+        st["calls"].append({"n": len(st["calls"]) + 1, "label": label, "status": "reserved",
+                            "prompt_sha256": _sha(prompt), "started_at": time.time(), "preflight": self.last_check})
         self._write(st)
         return len(st["calls"])
 
     def settle(self, n: int, status: str, **kw) -> None:
-        st = self.state()
-        for c in st.get("calls") or []:
+        st, err = self._load()
+        if err:
+            # Không ghi đè sổ hỏng; kết quả của lượt vẫn để lại dấu ở nhật ký lỗi.
+            self._log(f"settle {n} {status} skipped: {err}")
+            return
+        for c in st["calls"]:
             if c["n"] == n:
                 c.update(status=status, finished_at=time.time(), **kw)
         self._write(st)
 
     def halt(self, why: str) -> None:
-        st = self.state()
+        st, err = self._load()
+        if err:
+            self._log(f"halt {why} skipped: {err}")
+            return
         if not st.get("halted"):
             st["halted"] = why
             self._write(st)
@@ -354,7 +432,8 @@ def child(scenario: str, phase: int, base: Path, mode: str) -> dict:
 
     limit = 3 if scenario == "gate_limit_mid" else REAL_LIMIT
     gate = RealCallGate(base / "real-calls.json", limit, token_check=token_check,
-                        closed="" if phase == 1 else "phase2_closed")
+                        closed="" if phase == 1 else "phase2_closed",
+                        durable=lambda: store_gated_calls(store, P, st.get("goal_id")))
     counter = [0]
     inner_calls = []
 
@@ -479,6 +558,21 @@ def child(scenario: str, phase: int, base: Path, mode: str) -> dict:
     return out
 
 
+def store_gated_calls(store, P, gid) -> int:
+    """Bằng chứng bền trong kho: số lượt qua cổng có thể đã gọi engine (biên nhận có engine không phải fake-seed và
+    không phải lỗi dừng TRƯỚC lời gọi). Là cận dưới: lượt bị chết giữa chừng có thể chưa có biên nhận."""
+    if not gid:
+        return 0
+    before_call = ("engine_unavailable", "engine_blocked", "engine_build", "interrupted", "not_run")
+    n = 0
+    for a in store.actions(P, gid):
+        rc = a.get("receipt") or {}
+        eng = rc.get("engine") or {}
+        if eng.get("pilot_gate") and rc.get("error_code", "") not in before_call:
+            n += 1
+    return n
+
+
 def _settled(store, P, gid) -> bool:
     ls = store.method_lessons(P, gid)
     holds = store.holds(P, gid)
@@ -515,7 +609,7 @@ def snapshot(store, P, gid, gate) -> dict:
             "pending": sorted(r["code"] for r in store.reasons(P, gid)),
             "real_calls": [{k: c.get(k) for k in ("n", "label", "status", "detail", "output_sha256", "output_chars")}
                            for c in gate.calls()],
-            "gate_halted": gate.halted(), "branch": branch(exps, gate.halted(), store.holds(P, gid),
+            "ledger_error": gate.error(), "store_gated_calls": store_gated_calls(store, P, gid), "gate_halted": gate.halted(), "branch": branch(exps, gate.halted(), store.holds(P, gid),
                                                            store.method_lessons(P, gid))}
 
 
@@ -554,11 +648,14 @@ def run_child(scenario: str, phase: int, base: Path, mode: str, env_extra=None) 
     return cp.returncode, res
 
 
-def prepare(base: Path, model: dict) -> None:
+def prepare(base: Path, model: dict, limit=None) -> None:
+    """Dựng thư mục tạm. `limit` khác None: bắt đầu MỘT lần chạy mới, tạo sổ lượt thật rỗng (một lần duy nhất)."""
     (base / "state").mkdir(parents=True, exist_ok=True)
     (base / "brains" / "Brain Default" / "Inbox").mkdir(parents=True, exist_ok=True)
     (base / "state" / "settings.json").write_text(json.dumps({"model": model}, ensure_ascii=False), encoding="utf-8",
                                                   newline="\n")
+    if limit is not None:
+        RealCallGate.create(base / "real-calls.json", limit, run_id=base.name)
 
 
 _fails = []
@@ -615,7 +712,7 @@ def main_dry() -> None:
     only = [s for s in os.environ.get("JAVIS_RESONANCE_A3_ONLY", "").split(",") if s]
     for sc in [s for s in list(EXPECT) + ["store_ceiling"] if not only or s in only]:
         base = root / sc
-        prepare(base, dry_model)
+        prepare(base, dry_model, limit=3 if sc == "gate_limit_mid" else REAL_LIMIT)
         extra = {"JAVIS_RESONANCE_CALL_CEILING": "7"} if sc == "store_ceiling" else None
         rc1, p1 = run_child(sc, 1, base, "dry", extra)
         rc2, p2 = run_child(sc, 2, base, "dry", extra)
@@ -659,6 +756,8 @@ def main_dry() -> None:
             check("win: lời gọi thứ sáu bị cổng từ chối trước engine, sổ giữ 5",
                   s6.get("available") is False and s6.get("ledger_before") == s6.get("ledger_after") == 5
                   and s6.get("inner_before") == s6.get("inner_after"), s6)
+    if not only:
+        report["selftests"] = selftests(root, report)
     report["seconds"] = round(time.time() - t0)
     (root / "dry-report.json").write_text(json.dumps(report, ensure_ascii=False, indent=1, default=str),
                                           encoding="utf-8", newline="\n")
@@ -667,6 +766,154 @@ def main_dry() -> None:
         Path(out).mkdir(parents=True, exist_ok=True)
         shutil.copy(root / "dry-report.json", Path(out) / "dry-report.json")
     print(f"\nDry xong trong {report['seconds']} giây, 0 lượt model thật. Báo cáo: {root / 'dry-report.json'}")
+
+
+CONTENT = ("win", "no_improvement", "regression")
+
+
+def selftests(root: Path, report: dict) -> dict:
+    """Ca âm của review `ffcbc940` chạy qua ĐÚNG mã thật: lớp RealCallGate và thân `main_real` + `finalize` với ảnh
+    chụp dry của chính lần chạy này. Không tiến trình con, không model."""
+    out = {}
+    sc = report["scenarios"]
+    # P2-1: mọi kịch bản qua finalize; ba nhánh nội dung tới duyệt nội dung, còn lại technical_failed.
+    for name, v in sc.items():
+        if name == "store_ceiling":
+            continue
+        fin = finalize(v["rc"][0], v["phase1"], v["rc"][1], v["phase2"],
+                       limit=3 if name == "gate_limit_mid" else REAL_LIMIT)
+        want = "pending_content_review" if name in CONTENT else "technical_failed"
+        out[f"finalize:{name}"] = fin
+        check(f"tổng kết {name}: {want} (nhánh {fin['branch']})", fin["conclusion"] == want, fin["problems"])
+    # P2-1 qua chính main_real: run và auth giả trả ảnh chụp dry; kiểm report.json và FAIL được ghi hay không.
+    settings = root / "selftest-settings.json"
+    settings.write_text(json.dumps({"model": {"auxiliary": APPROVED["aux"]}}), encoding="utf-8", newline="\n")
+    env_keep = {k: os.environ.get(k) for k in ("JAVIS_RESONANCE_PILOT_SETTINGS", "JAVIS_RESONANCE_A3_OUT")}
+    tampered = json.loads(json.dumps(sc["win"]))
+    tampered["phase2"]["after"]["real_calls"] = tampered["phase2"]["after"]["real_calls"][:4]
+    tampered["phase2"]["before"]["real_calls"] = tampered["phase2"]["before"]["real_calls"][:4]
+    cases = {
+        "no_improvement": (sc["no_improvement"], True, "pending_content_review"),
+        "err_first": (sc["err_first"], True, "technical_failed"),
+        "token_low": (sc["token_low"], True, "technical_failed"),
+        "crash": (sc["crash"], True, "technical_failed"),
+        "win_sai_so_luot": (tampered, True, "technical_failed"),
+        "giai_doan_2_thoat_1": ({"rc": [0, 1], "phase1": sc["win"]["phase1"], "phase2": sc["win"]["phase2"]}, True,
+                                "technical_failed"),
+        "thieu_bao_cao_2": ({"rc": [0, 0], "phase1": sc["win"]["phase1"], "phase2": {"inner_calls": 0}}, True,
+                            "technical_failed"),
+        "cong_xac_thuc_hong": (sc["win"], False, "technical_failed"),
+    }
+    real_tree = subprocess.run
+    try:
+        subprocess.run = lambda argv, **kw: type("R", (), {"stdout": "selftest" if "rev-parse" in argv else "",
+                                                           "returncode": 0})()
+        for name, (data, auth_ok, want) in cases.items():
+            os.environ["JAVIS_RESONANCE_PILOT_SETTINGS"] = str(settings)
+            os.environ["JAVIS_RESONANCE_A3_OUT"] = str(root / "selftest-real" / name)
+            n0 = len(_fails)
+            calls = []
+
+            def fake_run(scn, ph, base, mode, _d=data):
+                calls.append(ph)
+                return _d["rc"][ph - 1], _d[f"phase{ph}"]
+            # Đầu ra của main_real (có dòng FAIL cố ý ở ca âm) ghi vào file của ca, không lẫn vào log dry.
+            import contextlib
+            import io
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rep = main_real(run=fake_run, auth=lambda *a, _ok=auth_ok: {"ok": _ok, "why": "giả lập"})
+            (root / "selftest-real" / name / "stdout.txt").write_text(buf.getvalue(), encoding="utf-8",
+                                                                       newline="
+")
+            failed = _fails[n0:]
+            del _fails[n0:]
+            disk = json.loads((root / "selftest-real" / name / "report.json").read_text(encoding="utf-8"))
+            ok = (disk["conclusion"] == rep["conclusion"] == want and bool(failed) == (want != "pending_content_review")
+                  and (calls == [1, 2] if auth_ok else calls == []))
+            out[f"main_real:{name}"] = {"conclusion": disk["conclusion"], "branch": disk.get("branch"),
+                                        "fail_recorded": bool(failed), "children": calls}
+            check(f"main_real {name}: {want}, {'có' if want != 'pending_content_review' else 'không'} FAIL (exit khác "
+                  f"0), report.json khớp", ok, out[f"main_real:{name}"])
+    finally:
+        subprocess.run = real_tree
+        for k, v in env_keep.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+    # P2-2: sổ lượt thật.
+    d = root / "selftest-gate"
+    d.mkdir(parents=True, exist_ok=True)
+
+    def fresh(name, limit=REAL_LIMIT):
+        return RealCallGate.create(d / f"{name}.json", limit, run_id=name)
+
+    def fill(g, n, status="ok"):
+        for _ in range(n):
+            g.settle(g.reserve("t", "t"), status)
+
+    g = fresh("control")
+    check("sổ: tạo mới có chủ đích thì cho gọi", g.allow()[0] is True)
+    fill(g, 5)
+    check("sổ: đủ 5 lượt thì lượt thứ sáu bị từ chối (limit)", g.allow() == (False, "limit"))
+    try:
+        RealCallGate.create(d / "control.json", REAL_LIMIT, run_id="lai")
+        again = True
+    except FileExistsError:
+        again = False
+    check("sổ: tạo lại trên sổ đã có bị từ chối (không đặt về 0)", not again)
+    check("sổ: không tạo ngầm khi chưa có sổ nào", RealCallGate(d / "chua-co.json", REAL_LIMIT).allow()[0] is False
+          and not (d / "chua-co.json").exists())
+
+    def corrupt(name, writer, want_err):
+        gg = fresh(name)
+        fill(gg, 5)
+        writer(d / f"{name}.json")
+        raw = (d / f"{name}.json").read_bytes() if (d / f"{name}.json").is_file() else None
+        g2 = RealCallGate(d / f"{name}.json", REAL_LIMIT)
+        allowed = g2.allow()
+        try:
+            g2.reserve("x", "x")
+            reserved = True
+        except RuntimeError:
+            reserved = False
+        g2.halt("thu")
+        g2.settle(1, "ok")
+        same = ((d / f"{name}.json").read_bytes() if (d / f"{name}.json").is_file() else None) == raw
+        logged = (d / f"{name}.json.errors.log").exists()
+        ok = allowed[0] is False and want_err in str(allowed[1]) and not reserved and same and logged
+        check(f"sổ: {name} thì cổng đóng ({allowed[1]}), không giữ chỗ, không ghi đè file, có nhật ký lỗi", ok,
+              {"allow": allowed, "reserved": reserved, "same": same, "logged": logged})
+
+    corrupt("json_hong", lambda f: f.write_text('{"calls":', encoding="utf-8"), "ledger_corrupt_json")
+    corrupt("cau_truc_rong", lambda f: f.write_text("{}", encoding="utf-8"), "ledger_run_id_mismatch")
+    corrupt("calls_sai_kieu", lambda f: f.write_text(json.dumps(
+        {"run_id": "calls_sai_kieu", "limit": 5, "calls": "x", "halted": ""}), encoding="utf-8"), "ledger_bad_shape")
+    corrupt("so_thu_tu_sai", lambda f: f.write_text(json.dumps(
+        {"run_id": "so_thu_tu_sai", "limit": 5, "calls": [{"n": 2, "status": "ok"}], "halted": ""}),
+        encoding="utf-8"), "ledger_bad_call_1")
+    corrupt("trang_thai_la", lambda f: f.write_text(json.dumps(
+        {"run_id": "trang_thai_la", "limit": 5, "calls": [{"n": 1, "status": "xong"}], "halted": ""}),
+        encoding="utf-8"), "ledger_bad_call_1")
+    corrupt("doi_tran", lambda f: f.write_text(json.dumps(
+        {"run_id": "doi_tran", "limit": 9, "calls": [], "halted": ""}), encoding="utf-8"), "ledger_limit_mismatch")
+
+    def unreadable(f):
+        f.unlink()
+        f.mkdir()
+    corrupt("loi_doc", unreadable, "ledger_unreadable")
+    corrupt("mat_file_sau_khi_bat_dau", lambda f: f.unlink(), "ledger_missing_after_start")
+    gb = fresh("sau_kho")
+    fill(gb, 1)
+    gb2 = RealCallGate(d / "sau_kho.json", REAL_LIMIT, durable=lambda: 2)
+    check("sổ: ít lượt hơn bằng chứng trong kho (1 < 2) thì cổng đóng", gb2.allow()[0] is False
+          and "ledger_behind_store" in gb2.allow()[1], gb2.allow())
+    gr = fresh("reserved")
+    gr.reserve("t", "t")
+    check("sổ: mở lại sau dòng reserved vẫn chặn", RealCallGate(d / "reserved.json", REAL_LIMIT).allow()
+          == (False, "halted: reserved_without_outcome"))
+    return out
 
 
 def resolve_engines(state: Path, env0: dict) -> dict:
@@ -743,7 +990,67 @@ def main_preflight() -> None:
     check("cổng xác thực trên settings thật (không gọi model)", gate["ok"], gate.get("why"))
 
 
-def main_real() -> None:
+SNAP_KEYS = ("goal", "lessons", "holds", "experiments", "actions", "real_calls", "ledger_error", "gate_halted", "branch")
+
+
+def finalize(rc1, p1, rc2, p2, limit: int = REAL_LIMIT) -> dict:
+    """Hợp đồng tổng kết DUY NHẤT của lần chạy thật (review `ffcbc940`, P2-1). `pending_content_review` chỉ khi:
+    tiền điều kiện có thật, hai tiến trình thoát 0 với báo cáo đủ cấu trúc, cổng không đóng vì lỗi, sổ hợp lệ, giai
+    đoạn 2 không gọi engine, không còn phép thử hay lượt giữ dở, và số lượt khớp đúng nhánh nội dung (eligible: 5
+    lượt, calls 8, lượt giữ used, bài học active; rejected: 4 lượt, calls 7, released, rejected). Mọi trường hợp
+    khác là `technical_failed`, nhánh gốc vẫn giữ nguyên trong báo cáo."""
+    probs = []
+    if rc1 != 0:
+        probs.append(f"giai đoạn 1 thoát mã {rc1}")
+    pre = (p1 or {}).get("pre") if isinstance(p1, dict) else None
+    if not isinstance(pre, dict):
+        probs.append("giai đoạn 1 không có báo cáo tiền điều kiện")
+    elif pre.get("ready") is not True or pre.get("real_calls") != 0:
+        probs.append(f"tiền điều kiện chưa đạt: {pre}")
+    if rc2 != 0:
+        probs.append(f"giai đoạn 2 thoát mã {rc2}")
+    after = (p2 or {}).get("after") if isinstance(p2, dict) else None
+    before = (p2 or {}).get("before") if isinstance(p2, dict) else None
+    if not (isinstance(after, dict) and isinstance(before, dict) and all(k in after for k in SNAP_KEYS)):
+        probs.append("giai đoạn 2 thiếu báo cáo hay báo cáo sai cấu trúc")
+        return {"conclusion": "technical_failed", "branch": (after or {}).get("branch") if isinstance(after, dict)
+                else None, "problems": probs}
+    br = str(after.get("branch") or "")
+    real = len(after.get("real_calls") or [])
+    g = after.get("goal") or {}
+    if after.get("ledger_error"):
+        probs.append(f"sổ lượt thật không hợp lệ: {after['ledger_error']}")
+    if after.get("gate_halted"):
+        probs.append(f"cổng đóng: {after['gate_halted']}")
+    if p2.get("inner_calls") != 0 or real != len(before.get("real_calls") or []):
+        probs.append("giai đoạn 2 đã gọi engine")
+    if real > limit:
+        probs.append(f"{real} lượt thật vượt trần {limit}")
+    if len([x for x in after.get("actions") or [] if x.get("provider") == "fake-seed"]) != 3:
+        probs.append("không đúng ba lượt fake-seed")
+    if any(e.get("status") == "running" for e in after.get("experiments") or []) or \
+            "held" in (after.get("holds") or []):
+        probs.append("còn phép thử running hay lượt giữ held")
+    hold = (after.get("holds") or [None])[-1]
+    lesson = ((after.get("lessons") or [[None]])[-1])[0]
+    if br.startswith("eligible/"):
+        want = (5, 8, "used", "active")
+    elif br.startswith("rejected/"):
+        want = (4, 7, "released", "rejected")
+    else:
+        want = None
+        probs.append(f"nhánh không phải kết quả nội dung: {br or 'trống'}")
+    if want and (real, g.get("calls_used"), hold, lesson) != want:
+        probs.append(f"số lượt không khớp nhánh {br}: {(real, g.get('calls_used'), hold, lesson)} khác {want}")
+    return {"conclusion": "technical_failed" if probs else "pending_content_review", "branch": br,
+            "problems": probs}
+
+
+def main_real(run=None, auth=None) -> dict:
+    """Lần chạy thật. `run`, `auth` để mặc định (tra tên toàn cục lúc gọi); test truyền bản giả để chạy ĐÚNG thân hàm
+    này với ảnh chụp dry. Kết luận lấy từ `finalize`; lỗi kỹ thuật thì ghi FAIL nên tiến trình thoát khác 0."""
+    run = run or globals()["run_child"]
+    auth = auth or globals()["auth_gate"]
     src = os.environ.get("JAVIS_RESONANCE_PILOT_SETTINGS", "")
     outd = os.environ.get("JAVIS_RESONANCE_A3_OUT", "")
     if not src or not Path(src).is_file() or not outd:
@@ -752,41 +1059,38 @@ def main_real() -> None:
     m = json.loads(Path(src).read_text(encoding="utf-8")).get("model") or {}
     model = {k: m[k] for k in ("auxiliary", "main", "engine", "claude_model") if k in m}
     base = Path(tempfile.mkdtemp(prefix="rsa3p-real-", dir=os.environ.get("TEMP") or None)).resolve()
-    prepare(base, model)
+    prepare(base, model, limit=REAL_LIMIT)
     env0 = G.clean_env(dict(os.environ))
     commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     dirty = subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain", "--", "server", "system", "tests"],
                            capture_output=True, text=True).stdout.strip()
     rep = {"mode": "real", "commit": commit, "tree_dirty": bool(dirty), "frozen": frozen_hashes(), "base": str(base),
            "limit_real_calls": REAL_LIMIT, "store_ceiling": STORE_CEILING}
-    gate = auth_gate(base, env0)
+    gate = auth(base, env0)
     rep["auth_gate"] = gate
+    pre_ok = not dirty and bool(gate.get("ok"))
     check("cây mã server/system/tests sạch ở commit chạy", not dirty, dirty[:200])
-    check("cổng xác thực (không gọi model)", gate["ok"], gate.get("why"))
-    p1 = p2 = None
-    if not _fails:
-        rc1, p1 = run_child("real", 1, base, "real")
-        rc2, p2 = run_child("real", 2, base, "real")
+    check("cổng xác thực (không gọi model)", bool(gate.get("ok")), gate.get("why"))
+    if pre_ok:
+        rc1, p1 = run("real", 1, base, "real")
+        rc2, p2 = run("real", 2, base, "real")
         rep.update(rc=[rc1, rc2], phase1=p1, phase2=p2)
-        a = (p2 or {}).get("after") or {}
-        n = len(a.get("real_calls") or [])
-        check(f"lượt thật {n} <= {REAL_LIMIT}", n <= REAL_LIMIT, n)
-        check("giai đoạn 2 không gọi engine", (p2 or {}).get("inner_calls") == 0)
-        check("ba lượt giả ghi rõ fake-seed",
-              len([x for x in a.get("actions") or [] if x.get("provider") == "fake-seed"]) == 3)
-        check("không phép thử nào còn running, không lượt giữ nào còn held",
-              all(e["status"] != "running" for e in a.get("experiments") or []) and "held" not in a.get("holds", []))
-    rep["branch"] = ((p2 or {}).get("after") or {}).get("branch")
-    rep["conclusion"] = "technical_failed" if _fails else "pending_content_review"
+        fin = finalize(rc1, p1, rc2, p2)
+    else:
+        fin = {"conclusion": "technical_failed", "branch": None, "problems": ["kiểm trước lần chạy không đạt"]}
+    rep["branch"], rep["conclusion"], rep["problems"] = fin["branch"], fin["conclusion"], fin["problems"]
+    check(f"tổng kết: {fin['conclusion']} (nhánh {fin['branch']})", fin["conclusion"] == "pending_content_review",
+          fin["problems"])
     Path(outd).mkdir(parents=True, exist_ok=True)
     if (base / "calls").exists():
         shutil.copytree(base / "calls", Path(outd) / "calls", dirs_exist_ok=True)
-    for f in ("real-calls.json", "phase1.log", "phase2.log"):
+    for f in ("real-calls.json", "real-calls.json.started", "real-calls.json.errors.log", "phase1.log", "phase2.log"):
         if (base / f).exists():
             shutil.copy(base / f, Path(outd) / f)
     (Path(outd) / "report.json").write_text(json.dumps(rep, ensure_ascii=False, indent=1, default=str),
                                             encoding="utf-8", newline="\n")
     print(f"\nKết luận: {rep['conclusion']}. Báo cáo: {Path(outd) / 'report.json'}")
+    return rep
 
 
 if CHILD:
