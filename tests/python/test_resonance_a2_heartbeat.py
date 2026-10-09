@@ -1227,6 +1227,246 @@ check("huỷ giữa pha sau: nhả khoá sau khi pha sau ghi xong, không ghi tr
       _events.index("post_end") < _events.index("release") and len(acts) == 1 and acts[0]["status"] == "succeeded"
       and w.built == 1)
 
+# ═══════════════════ Review mã vòng 2 (d1f64b46): huỷ lần thức ═══════════════════
+# Ca tái hiện của reviewer (`PR-593-A2-d1f64b46-checks.py`) chuyển thành kỳ vọng đúng. Đồng bộ giữa event loop và
+# luồng phụ bằng threading.Event, không dựa vào thời gian may rủi.
+from unittest.mock import patch  # noqa: E402
+
+
+async def _settles_early(task, order, window=0.5):
+    """Trong lúc luồng phụ còn bị giữ, tác vụ có kết thúc hay nhả khoá không. Mã đúng thì KHÔNG (cả cửa sổ trôi qua);
+    mã sai thì xảy ra ngay khi lời huỷ tới, nên cửa sổ có giới hạn đủ bắt."""
+    until = time.monotonic() + window
+    while time.monotonic() < until:
+        if task.done() or "lease_released" in order:
+            return True
+        await asyncio.sleep(0.01)
+    return False
+
+
+async def _wait_ev(ev, timeout=10.0):
+    until = time.monotonic() + timeout
+    while not ev.is_set():
+        assert time.monotonic() < until, "hết giờ chờ luồng phụ"
+        await asyncio.sleep(0.005)
+
+
+def _trace_release(w, order):
+    real = w.store.release_lease
+
+    def rel(*a, **k):
+        order.append("lease_released")
+        return real(*a, **k)
+    w.store.release_lease = rel
+
+
+# Huỷ trong lúc ghi đầu ra sau model: chờ ghi xong, lưu receipt, rồi mới nhả khoá.
+w = World("rv2-cancel-write", Engine([GOOD]))
+g = w.goal()
+entered, allow, finished = threading.Event(), threading.Event(), threading.Event()
+order = []
+_real_replace = R.os.replace
+
+
+def _slow_replace(src, dst):
+    if Path(dst).parent == Path(g.output_root) and str(dst).endswith(".md"):
+        order.append("write_started")
+        entered.set()
+        assert allow.wait(10)
+        r = _real_replace(src, dst)
+        order.append("write_finished")
+        finished.set()
+        return r
+    return _real_replace(src, dst)
+
+
+_trace_release(w, order)
+
+
+async def _run_cancel_write():
+    task = asyncio.create_task(R.advance(g.id, {"kind": "wake"}, w.deps))
+    await _wait_ev(entered)
+    task.cancel()
+    early = await _settles_early(task, order)
+    allow.set()
+    try:
+        await task
+        got = "returned"
+    except asyncio.CancelledError:
+        got = "cancelled"
+    return early, got
+
+
+with patch.object(R.os, "replace", _slow_replace):
+    early, got = asyncio.run(_run_cancel_write())
+acts = [x for x in w.store.actions(P, g.id) if x["kind"] == "work"]
+check("huỷ khi đang ghi đầu ra: chưa nhả khoá trước khi ghi xong; báo huỷ cho người gọi",
+      not early and got == "cancelled" and order.index("write_finished") < order.index("lease_released"))
+check("huỷ khi đang ghi đầu ra: receipt đã lưu (action succeeded, không còn running), một lượt model, không trả lượt",
+      len(acts) == 1 and acts[0]["status"] == "succeeded" and w.built == 1 and w.store.get(P, g.id).calls_used == 1
+      and w.store.get(P, g.id).status == "succeeded")
+
+# Huỷ trong lúc chuẩn bị (pha chỉ-code đã giữ khoá): nhận lại kết quả, nhả khoá, không gọi model.
+w = World("rv2-cancel-prepare", Engine([GOOD]))
+g = w.goal()
+entered, allow, finished = threading.Event(), threading.Event(), threading.Event()
+order = []
+_orig_ww = R._wake_work
+
+
+def _slow_wake(*a):
+    entered.set()
+    assert allow.wait(10)
+    try:
+        return _orig_ww(*a)
+    finally:
+        finished.set()
+
+
+_trace_release(w, order)
+
+
+async def _run_cancel_prepare():
+    task = asyncio.create_task(R.advance(g.id, {"kind": "wake"}, w.deps))
+    await _wait_ev(entered)
+    task.cancel()
+    await asyncio.sleep(0)
+    task.cancel()                      # huỷ lặp trong lúc pha chuẩn bị còn chạy
+    allow.set()
+    try:
+        await task
+        got = "returned"
+    except asyncio.CancelledError:
+        got = "cancelled"
+    return got
+
+
+with patch.object(R, "_wake_work", _slow_wake):
+    got = asyncio.run(_run_cancel_prepare())
+can_claim = w.store.claim_lease(P, g.id, "lan-sau", w.clock() + 30, w.clock())
+check("huỷ khi đang chuẩn bị (kể cả huỷ lặp): nhả khoá đúng một lần, lần sau nhận được, không gọi model",
+      got == "cancelled" and order.count("lease_released") == 1 and can_claim and w.built == 0)
+w.store.release_lease(P, g.id, "lan-sau")
+check("huỷ khi đang chuẩn bị: lý do created vẫn chờ, không mất việc",
+      any(r["code"] == "created" for r in w.reasons(g.id)) and w.store.get(P, g.id).calls_used == 0)
+w.tick()
+check("huỷ khi đang chuẩn bị: lần thức sau làm đúng một lượt", w.built == 1 and w.store.get(P, g.id).status == "succeeded")
+
+# Huỷ ngay sau pha trước (đã ghi ý định, chưa gọi model): huỷ lượt, trả lượt, trả lý do.
+w = World("rv2-cancel-pre", Engine([GOOD]))
+g = w.goal()
+entered, allow = threading.Event(), threading.Event()
+_orig_pre = R._work_pre
+
+
+def _slow_pre(*a):
+    r = _orig_pre(*a)
+    entered.set()
+    assert allow.wait(10)
+    return r
+
+
+async def _run_cancel_pre():
+    task = asyncio.create_task(R.advance(g.id, {"kind": "wake"}, w.deps))
+    await _wait_ev(entered)
+    task.cancel()
+    allow.set()
+    try:
+        await task
+    except asyncio.CancelledError:
+        return "cancelled"
+    return "returned"
+
+
+with patch.object(R, "_work_pre", _slow_pre):
+    got = asyncio.run(_run_cancel_pre())
+acts = [x for x in w.store.actions(P, g.id) if x["kind"] == "work"]
+check("huỷ sau pha trước, trước lời gọi engine: action not_run, trả lượt, lý do về chờ, không gọi model",
+      got == "cancelled" and w.built == 0 and len(acts) == 1 and acts[0]["status"] == "cancelled"
+      and acts[0]["receipt"].get("error_code") == "not_run" and w.store.get(P, g.id).calls_used == 0
+      and any(r["code"] == "created" for r in w.reasons(g.id))
+      and R._chain(w.store, P, w.store.get(P, g.id)).fails == 0)
+w.tick()
+check("huỷ sau pha trước: lần thức sau làm đúng một lượt", w.built == 1 and w.store.get(P, g.id).status == "succeeded")
+
+# Huỷ trong lúc gọi engine: model có thể đã chạy, không trả lượt; kết sổ như một lượt lỗi, còn đường thử lại.
+w = World("rv2-cancel-engine", Engine([GOOD]))
+g = w.goal(budget=6)
+started = asyncio.Event
+
+
+class _SlowEngine(Engine):
+    async def query(self, prompt):
+        self.queries += 1
+        await asyncio.sleep(30)
+        yield {"type": "final", "content": GOOD}
+
+
+w.engine = _SlowEngine()
+order = []
+_trace_release(w, order)
+
+
+async def _run_cancel_engine():
+    task = asyncio.create_task(R.advance(g.id, {"kind": "wake"}, w.deps))
+    while w.engine.queries == 0:
+        await asyncio.sleep(0.005)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        return "cancelled"
+    return "returned"
+
+
+got = asyncio.run(_run_cancel_engine())
+acts = [x for x in w.store.actions(P, g.id) if x["kind"] == "work"]
+check("huỷ trong lúc gọi engine: receipt lỗi `cancelled`, không trả lượt, tính một lượt lỗi, có hẹn thử lại, nhả khoá",
+      got == "cancelled" and len(acts) == 1 and acts[0]["status"] == "failed"
+      and acts[0]["receipt"].get("error_code") == "cancelled" and w.store.get(P, g.id).calls_used == 1
+      and R._chain(w.store, P, w.store.get(P, g.id)).fails == 1
+      and any(r["code"] == "error_retry" for r in w.reasons(g.id)) and order.count("lease_released") == 1)
+
+# Huỷ lặp trong lúc đang dọn (nhả khoá chạy ở luồng phụ): việc dọn vẫn chạy xong, khoá nhả đúng một lần.
+w = World("rv2-cancel-cleanup", Engine([GOOD]))
+g = w.goal()
+entered, allow = threading.Event(), threading.Event()
+order = []
+_orig_fw = R._finish_wake
+
+
+def _slow_finish(*a):
+    entered.set()
+    assert allow.wait(10)
+    r = _orig_fw(*a)
+    order.append("cleanup_done")
+    return r
+
+
+_trace_release(w, order)
+
+
+async def _run_cancel_cleanup():
+    task = asyncio.create_task(R.advance(g.id, {"kind": "wake"}, w.deps))
+    await _wait_ev(entered)
+    for _ in range(3):
+        task.cancel()
+        await asyncio.sleep(0)
+    early = await _settles_early(task, [])
+    allow.set()
+    try:
+        await task
+    except asyncio.CancelledError:
+        return "cancelled", early
+    return "returned", early
+
+
+with patch.object(R, "_finish_wake", _slow_finish):
+    got, early = asyncio.run(_run_cancel_cleanup())
+check("huỷ lặp trong lúc dọn: không kết thúc trước khi dọn xong, khoá nhả đúng một lần, kết quả lượt giữ nguyên",
+      got == "cancelled" and not early and order == ["lease_released", "cleanup_done"]
+      and w.store.get(P, g.id).status == "succeeded" and w.store.claim_lease(P, g.id, "x", w.clock() + 5, w.clock()))
+
 # ═══════════════════ Sao lưu và nâng cấp ═══════════════════
 old = Path(_STATE) / "pre-a2.sqlite3"
 with sqlite3.connect(str(old)) as c:

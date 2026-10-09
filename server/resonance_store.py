@@ -969,6 +969,11 @@ class GoalStore:
         if a is None or a["status"] == "running":
             return st
         st = dict(st)
+        code = str(json.loads(a["receipt_json"] or "{}").get("error_code") or "")
+        if code == "not_run":
+            # Huỷ trước lời gọi engine (abort_action): không tính lỗi, không tính tiến bộ.
+            st["open_action"] = ""
+            return st
         if a["status"] in ("failed", "cancelled", "uncertain"):
             st["fails"] = int(st["fails"]) + 1
             st["last_error"] = str(json.loads(a["receipt_json"] or "{}").get("error_code") or a["status"])
@@ -1015,6 +1020,34 @@ class GoalStore:
                     st["stall"] = int(st["stall"]) + 1
             self._hb_save(c, st, now)
             return st
+
+    def abort_action(self, p: Principal, action_id: str, now: Optional[float] = None) -> bool:
+        """Huỷ một lượt việc đã ghi ý định mà CHƯA gọi model (lần thức bị huỷ ngay sau pha chuẩn bị). Một giao dịch:
+        action thành `cancelled`/`not_run`, trả lượt đã giữ, lý do lượt đó đã phục vụ trở lại `pending`, bỏ hẹn phục hồi
+        của nó, đóng lượt trong chuỗi bền mà không tính lỗi hay tiến bộ, đưa trạng thái `running` về `ready`.
+        Chỉ áp dụng cho action còn `running`; trả False nếu không phải."""
+        now = time.time() if now is None else float(now)
+        with self._Tx(self) as c:
+            a = c.execute("SELECT a.* FROM actions a JOIN goals g ON g.id=a.goal_id WHERE a.id=? AND g.brain_id=?",
+                          (action_id, p.brain_id)).fetchone()
+            if a is None or a["status"] != "running" or a["kind"] != "work":
+                return False
+            gid, rev = a["goal_id"], int(a["revision"])
+            c.execute("UPDATE actions SET status='cancelled', receipt_json=?, lease_until=NULL, updated_at=? WHERE id=?",
+                      (_j({"action_id": action_id, "status": "cancelled", "error_code": "not_run",
+                           "error_detail": "lần thức bị huỷ trước khi gọi model; lượt được trả lại"}), now, action_id))
+            c.execute("UPDATE goals SET calls_used=MAX(0,calls_used-1), updated_at=? WHERE id=?", (now, gid))
+            c.execute("UPDATE wake_reasons SET state='pending', settled_at=NULL, settled_by='' WHERE goal_id=? AND "
+                      "state='served' AND settled_by=?", (gid, action_id))
+            c.execute("UPDATE wake_reasons SET state='superseded', settled_at=? WHERE goal_id=? AND origin='timer' AND "
+                      "state='pending' AND code='recovery' AND revision=?", (now, gid, rev))
+            st = self._hb_row(c, gid, rev)
+            if st.get("open_action") == action_id:
+                self._hb_save(c, dict(st, open_action=""), now)
+            c.execute("UPDATE goals SET run_state='ready', block_reason='', updated_at=? WHERE id=? AND "
+                      "run_state='running'", (now, gid))
+            self._recompute_wake(c, gid)
+            return True
 
     def chain_adopt(self, p: Principal, goal_id: str, revision: int, met_count: int,
                     now: Optional[float] = None) -> dict:
@@ -1304,12 +1337,14 @@ class GoalStore:
                       "created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                       (aid, goal_id, int(revision), kind, seq, "running", float(lease_until), _j(intent or {}), "{}",
                        now, now))
-            if wake:
-                self._reason_timer(c, goal_id, p.brain_id, "recovery", float(lease_until) + 1, int(revision), now)
             served = []
             if kind == "work" and it.get("wake_reasons"):
                 # A2: lý do trong ảnh chụp được PHỤC VỤ cùng giao dịch ghi ý định hành động (thiết kế mục 3, bước 3).
+                # Phục vụ TRƯỚC khi hẹn phục hồi: hẹn mới cùng nghĩa vụ thay hẹn đang chờ, không được thay luôn hẹn
+                # thử lại vừa mở lượt này (nó phải mang dấu `settled_by` của lượt để huỷ lượt trả lại được).
                 served = self._serve(c, goal_id, it["wake_reasons"], aid, now)
+            if wake:
+                self._reason_timer(c, goal_id, p.brain_id, "recovery", float(lease_until) + 1, int(revision), now)
             if kind == "work":
                 # A2 (review mã P1-1): mở lượt trong chuỗi bền CÙNG giao dịch giữ lượt. Lượt mở trước chưa kết sổ thì
                 # gấp bảo thủ trước; lượt mở bởi bước đầu hay tin mới bắt đầu chuỗi mới.
