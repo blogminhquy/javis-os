@@ -62,6 +62,9 @@ def slot_of(code: str) -> str:
         return "retry"
     if code == "guard_observe":
         return "observe"
+    if code == "trial_recovery":
+        # A3: hẹn đối soát của phép thử có nghĩa vụ riêng, không thay hay bị thay bởi các hẹn kiểm khác.
+        return "trial"
     return "check"
 
 

@@ -397,6 +397,7 @@ def register_learning(app, deps: ResonanceApiDeps):
     """Route A3 (học từ phản hồi): reaction trên tin báo do host ghi và bài học của trợ lý. Đăng ký SAU route cuối của
     main.py như A1. Chỉ owner qua lớp auth/CSRF của dashboard; không tool nào gọi được. Reaction không gọi `advance`,
     không đổi lịch, không gọi model (thiết kế A3 mục 4)."""
+    import asyncio
     import hashlib
     import resonance_learning as L
 
@@ -466,15 +467,18 @@ def register_learning(app, deps: ResonanceApiDeps):
         root, owner = _ctx(brain)
         if root is None:
             return _err(404, "Không tìm thấy brain", "Brain not found")
-        if not _store_exists():
-            return {"ok": True, "reaction": None}
-        store = deps.store()
-        src, err = _source(store, root, _mref({"message_ref": message_ref, "session_id": session_id, "report": report,
-                                               "goal_id": goal_id}))
-        if err:
-            return err
-        return {"ok": True, "reaction": store.reaction_of(owner, src["session_id"], src["message_id"]),
-                "notice_kind": src["notice_kind"]}
+
+        def work():
+            if not _store_exists():
+                return {"ok": True, "reaction": None}
+            store = deps.store()
+            src, err = _source(store, root, _mref({"message_ref": message_ref, "session_id": session_id,
+                                                   "report": report, "goal_id": goal_id}))
+            if err:
+                return err
+            return {"ok": True, "reaction": store.reaction_of(owner, src["session_id"], src["message_id"]),
+                    "notice_kind": src["notice_kind"]}
+        return await asyncio.to_thread(work)
 
     @app.post("/resonance/reactions")
     async def resonance_reaction(request: Request, brain: str = "brain"):
@@ -486,22 +490,25 @@ def register_learning(app, deps: ResonanceApiDeps):
         if not _store_exists():
             return _err(404, "Chưa có trợ lý nào đăng ký", "No registered assistant")
         body = await _body(request)
-        store = deps.store()
-        src, err = _source(store, root, _mref(body))
-        if err:
-            return err
-        try:
-            res = store.record_reaction(owner, src, str(body.get("value") or ""), str(body.get("reason") or ""),
-                                        str(body.get("nonce") or ""), alive=_alive(deps.session_store()))
-        except RS.ScopeError:
-            return _err(404, "Không có mục tiêu này trong brain", "No such goal in this brain")
-        except RS.AgentStateError as e:
-            return _err(409, f"Trợ lý của tin này không còn: {e}", f"The assistant of this notice is gone: {e}")
-        except R.GoalRejected as e:
-            return _err(400, f"Chưa ghi được: {e}", f"Not recorded: {e}")
-        except PermissionError as e:
-            return _err(403, str(e), str(e))
-        return {"ok": True, **res}
+
+        def work():
+            store = deps.store()
+            src, err = _source(store, root, _mref(body))
+            if err:
+                return err
+            try:
+                res = store.record_reaction(owner, src, str(body.get("value") or ""), str(body.get("reason") or ""),
+                                            str(body.get("nonce") or ""), alive=_alive(deps.session_store()))
+            except RS.ScopeError:
+                return _err(404, "Không có mục tiêu này trong brain", "No such goal in this brain")
+            except RS.AgentStateError as e:
+                return _err(409, f"Trợ lý của tin này không còn: {e}", f"The assistant of this notice is gone: {e}")
+            except R.GoalRejected as e:
+                return _err(400, f"Chưa ghi được: {e}", f"Not recorded: {e}")
+            except PermissionError as e:
+                return _err(403, str(e), str(e))
+            return {"ok": True, **res}
+        return await asyncio.to_thread(work)
 
     def _preview(store, owner, ls: dict) -> Optional[dict]:
         """Bản xem trước của đề xuất làn P: câu cũ và câu mới của CÙNG một tin, dựng bằng mẫu cố định (0 model)."""
@@ -532,17 +539,20 @@ def register_learning(app, deps: ResonanceApiDeps):
         root, owner = _ctx(brain)
         if root is None:
             return _err(404, "Không tìm thấy brain", "Brain not found")
-        if not _store_exists() or not agent_key:
-            return {"ok": True, "lessons": [], "stats": {}, "presentation": L.default_presentation()}
-        store = deps.store()
-        if store.agent_by_key(root, agent_key) is None:
-            return _err(404, "Không có trợ lý này trong brain", "No such assistant in this brain")
-        data = store.agent_lessons(owner, agent_key, alive=_alive(deps.session_store()))
-        for ls in data["lessons"]:
-            if ls["status"] == "proposed":
-                ls["preview"] = _preview(store, owner, ls)
-        return {"ok": True, **data,
-                "presentation": {**L.default_presentation(), **store.presentation(root, agent_key)}}
+
+        def work():
+            if not _store_exists() or not agent_key:
+                return {"ok": True, "lessons": [], "stats": {}, "presentation": L.default_presentation()}
+            store = deps.store()
+            if store.agent_by_key(root, agent_key) is None:
+                return _err(404, "Không có trợ lý này trong brain", "No such assistant in this brain")
+            data = store.agent_lessons(owner, agent_key, alive=_alive(deps.session_store()))
+            for ls in data["lessons"]:
+                if ls["status"] == "proposed":
+                    ls["preview"] = _preview(store, owner, ls)
+            return {"ok": True, **data,
+                    "presentation": {**L.default_presentation(), **store.presentation(root, agent_key)}}
+        return await asyncio.to_thread(work)
 
     @app.post("/resonance/lessons/{lesson_id}/decision")
     async def resonance_lesson_decision(lesson_id: str, request: Request, brain: str = "brain"):
@@ -554,23 +564,28 @@ def register_learning(app, deps: ResonanceApiDeps):
         if not _store_exists():
             return _err(404, "Không có bài học này", "No such lesson")
         body = await _body(request)
-        store = deps.store()
-        exp_at = body.get("expected_updated_at")
-        try:
-            res = store.lesson_decide(owner, lesson_id, str(body.get("action") or ""),
-                                      str(body.get("expected_status") or "") or None,
-                                      float(exp_at) if exp_at not in (None, "") else None)
-        except RS.ScopeError:
-            return _err(404, "Không có bài học này trong brain", "No such lesson in this brain")
-        except R.GoalRejected as e:
-            return _err(400, str(e), str(e))
-        except PermissionError as e:
-            return _err(403, str(e), str(e))
-        except (TypeError, ValueError):
-            return _err(400, "expected_updated_at không hợp lệ", "Invalid expected_updated_at")
-        if not res.get("ok"):
-            return _err(409, "Bài học đã đổi, xem lại", "The lesson changed, please review", lesson=res.get("lesson"),
-                        conflict=res.get("conflict"))
-        ls = res["lesson"]
-        return {"ok": True, "lesson": ls,
-                "presentation": {**L.default_presentation(), **store.presentation(root, ls["agent_key"])}}
+
+        def work():
+            store = deps.store()
+            exp_at = body.get("expected_updated_at")
+            try:
+                # Áp dụng kiểm lại hạn và số tin căn cứ còn sống NGAY trong giao dịch (review mã A3, P2-2).
+                res = store.lesson_decide(owner, lesson_id, str(body.get("action") or ""),
+                                          str(body.get("expected_status") or "") or None,
+                                          float(exp_at) if exp_at not in (None, "") else None,
+                                          alive=_alive(deps.session_store()))
+            except RS.ScopeError:
+                return _err(404, "Không có bài học này trong brain", "No such lesson in this brain")
+            except R.GoalRejected as e:
+                return _err(400, str(e), str(e))
+            except PermissionError as e:
+                return _err(403, str(e), str(e))
+            except (TypeError, ValueError):
+                return _err(400, "expected_updated_at không hợp lệ", "Invalid expected_updated_at")
+            if not res.get("ok"):
+                return _err(409, "Bài học đã đổi, xem lại", "The lesson changed, please review",
+                            lesson=res.get("lesson"), conflict=res.get("conflict"))
+            ls = res["lesson"]
+            return {"ok": True, "lesson": ls,
+                    "presentation": {**L.default_presentation(), **store.presentation(root, ls["agent_key"])}}
+        return await asyncio.to_thread(work)

@@ -262,6 +262,7 @@ _WAKE_TEXT = {
     "review": "xem lại định kỳ", "deadline": "kiểm hạn chót", "drift_recheck": "kiểm lại file bị sửa ngoài Javis",
     "guard_observe": "quan sát guard", "action_recovery": "đối soát hành động dở",
     "method_trial": "thử một cách làm khác khi bế tắc", "method_followup": "làm sản phẩm bằng cách làm vừa học",
+    "trial_recovery": "đối soát phép thử dở",
 }
 
 
@@ -2670,7 +2671,8 @@ class GoalStore:
         return prev
 
     def lesson_decide(self, p: Principal, lesson_id: str, action: str, expected_status: Optional[str] = None,
-                      expected_updated_at: Optional[float] = None, now: Optional[float] = None) -> dict:
+                      expected_updated_at: Optional[float] = None, now: Optional[float] = None,
+                      alive=None) -> dict:
         """Owner quyết một bài học (mục 5.2, 6.4, 6.7). Trả {ok, lesson} hay {ok: False, conflict, lesson}.
 
         - apply (làn P, `proposed`): CAS đề xuất và kiểm cấu hình nền trong cùng giao dịch; nền đổi thì `stale`.
@@ -2696,6 +2698,15 @@ class GoalStore:
                     return conflict("status")
                 if expected_updated_at is not None and abs(float(expected_updated_at) - float(ls["updated_at"])) > 1e-6:
                     return conflict("status")
+                # Review mã A3, P2-2: hạn và căn cứ kiểm NGAY trong giao dịch Áp dụng theo đồng hồ host, không dựa vào
+                # việc ai đó đã đọc lại danh sách. Hết hạn hay mất đủ số tin căn cứ thì `expired`, giữ cấu hình cũ.
+                if ls["expires_at"] is not None and float(ls["expires_at"]) <= float(now):
+                    self._lesson_move(c, lesson_id, ("proposed",), "expired", "ttl", "host", now)
+                    return conflict("expired")
+                if not L.still_supported(dict(ls), self._reaction_rows(c, p.brain_id, ls["agent_key"], alive, now),
+                                         now):
+                    self._lesson_move(c, lesson_id, ("proposed",), "expired", "evidence_gone", "host", now)
+                    return conflict("evidence_gone")
                 base = c.execute("SELECT * FROM lessons WHERE brain_id=? AND agent_key=? AND lane='presentation' AND "
                                  "key=? AND status='active'", (p.brain_id, ls["agent_key"], ls["key"])).fetchone()
                 ok = (base is None and not ls["base_lesson_id"]) or (

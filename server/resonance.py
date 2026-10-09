@@ -1902,7 +1902,8 @@ def _reconcile(goal: GoalRecord, deps: GoalDeps, now: float) -> None:
         if e["status"] != "running":
             continue
         started = sum(1 for x in store.actions(p, goal.id)
-                      if x["kind"] == "trial" and (x.get("intent") or {}).get("experiment_id") == e["id"])
+                      if x["kind"] == "trial" and (x.get("intent") or {}).get("experiment_id") == e["id"]
+                      and (x.get("receipt") or {}).get("error_code") != "not_run")
         store.finish_experiment(p, e["id"], "inconclusive", "interrupted", {"interrupted_after_runs": started},
                                 refund=max(0, int(e["calls_reserved"]) - started))
 
@@ -3155,26 +3156,11 @@ def _trial_begin(goal: GoalRecord, exp_id: str, case: dict, arm: str, ref: str, 
                                       **(pin or {})})
 
 
-async def _trial_run(goal: GoalRecord, exp_id: str, case: dict, arm: str, ref: str, rubric: list, rubric_hash: str,
-                     deps: GoalDeps, usage: dict, act: dict, pgoal: Optional[GoalRecord] = None) -> dict:
-    """Một lượt của phép thử, sau khi `_trial_begin` đã ghi ý định `act`. Từ đây model có thể đã được gọi: lỗi ở các
-    bước sau (lưu bằng chứng, ghi receipt, chấm) KHÔNG được coi là chưa chạy."""
+def _trial_post(goal: GoalRecord, case: dict, ref: str, rubric: list, rubric_hash: str, deps: GoalDeps, act: dict,
+                receipt: "ActionReceipt") -> dict:
+    """Phần SAU lời gọi engine của một lượt thử, chạy ở luồng phụ (A3 review mã P2-3): đọc đầu ra, lưu bằng chứng,
+    chốt action, chấm. Lỗi ở đây xảy ra khi model có thể đã chạy nên lượt vẫn tính."""
     store, p = deps.store, deps.principal
-    call = _TrialCall(store, p, goal.id)
-    sub = dataclasses_replace(deps, budget=call)
-    # Bản dựng mới cho từng lượt: chỉ tình huống này làm lời người dùng, không đánh giá trước, không bản cũ.
-    # A3: tình huống giữ riêng lấy từ revision trước dựng prompt bằng bản ghi của CHÍNH revision đó (`pgoal`); action,
-    # hạn mức và cổng vẫn thuộc phép thử ở revision hiện tại (`goal`).
-    receipt = await sub.run_once(goal, _work_prompt(pgoal or goal, case["input"], None, "", ref), act["id"])
-    u = usage[arm]
-    if call.taken:
-        u["calls"] += 1
-        if receipt.usage:
-            for k in ("tokens_in", "tokens_out"):
-                if receipt.usage.get(k) is not None:
-                    u[k] = (u.get(k) or 0) + int(receipt.usage[k])
-        else:
-            u["usage_unknown"] = True
     rd = receipt.to_dict()
     row = {"action_id": act["id"], "method": ref, "rubric_hash": rubric_hash}
     if receipt.status != "succeeded":
@@ -3192,6 +3178,30 @@ async def _trial_run(goal: GoalRecord, exp_id: str, case: dict, arm: str, ref: s
         return {**row, "verdict": "unknown", "reason": "không lưu được bằng chứng"}
     verdict, why = _grade(text, rubric, case["expect"])
     return {**row, "verdict": verdict, "reason": why, "evidence_id": eid, "output_sha256": receipt.output_sha256}
+
+
+async def _trial_run(goal: GoalRecord, exp_id: str, case: dict, arm: str, ref: str, rubric: list, rubric_hash: str,
+                     deps: GoalDeps, usage: dict, act: dict, pgoal: Optional[GoalRecord] = None) -> dict:
+    """Một lượt của phép thử, sau khi `_trial_begin` đã ghi ý định `act`. Từ đây model có thể đã được gọi: lỗi ở các
+    bước sau (lưu bằng chứng, ghi receipt, chấm) KHÔNG được coi là chưa chạy. Chỉ lời gọi engine chạy trên event loop;
+    phần sau chạy ở luồng phụ và luôn được chờ xong, kể cả khi lần thức bị huỷ (`_off_loop`)."""
+    store, p = deps.store, deps.principal
+    call = _TrialCall(store, p, goal.id)
+    sub = dataclasses_replace(deps, budget=call)
+    # Bản dựng mới cho từng lượt: chỉ tình huống này làm lời người dùng, không đánh giá trước, không bản cũ.
+    # A3: tình huống giữ riêng lấy từ revision trước dựng prompt bằng bản ghi của CHÍNH revision đó (`pgoal`); action,
+    # hạn mức và cổng vẫn thuộc phép thử ở revision hiện tại (`goal`).
+    receipt = await sub.run_once(goal, _work_prompt(pgoal or goal, case["input"], None, "", ref), act["id"])
+    u = usage[arm]
+    if call.taken:
+        u["calls"] += 1
+        if receipt.usage:
+            for k in ("tokens_in", "tokens_out"):
+                if receipt.usage.get(k) is not None:
+                    u[k] = (u.get(k) or 0) + int(receipt.usage[k])
+        else:
+            u["usage_unknown"] = True
+    return await _off_loop(_trial_post, goal, case, ref, rubric, rubric_hash, deps, act, receipt)
 
 
 def _trial_verdict(results: list) -> tuple:
@@ -3236,12 +3246,13 @@ async def compare_methods(goal_id: str, baseline_ref: str, candidate_ref: str, c
     now = deps.clock()
     owner = secrets.token_hex(6)
     until = now + 2 * len(runnable) * (float(deps.max_wall_s) + float(deps.wall_grace_s)) + LEASE_EXTRA_S
-    if not store.claim_lease(p, g.id, owner, until, now):
+    if not await _off_loop(store.claim_lease, p, g.id, owner, until, now):
         return {**_compare_out(g, baseline_ref, candidate_ref), "reason": "busy"}
     try:
         return await _compare_run(g, baseline_ref, candidate_ref, items, deps, now=now)
     finally:
-        store.release_lease(p, g.id, owner)
+        # Nhả khoá SAU CÙNG, khi mọi pha ở luồng phụ của phép thử đã xong (kể cả lúc đang bị huỷ).
+        await _cleanup(store.release_lease, p, g.id, owner)
 
 
 def _compare_check(g: GoalRecord, baseline_ref: str, candidate_ref: str, deps: GoalDeps) -> None:
@@ -3267,12 +3278,51 @@ def _compare_out(g: GoalRecord, baseline_ref: str, candidate_ref: str) -> dict:
             "scope": {"goal_id": g.id, "revision": g.revision, "applies_to": "this_goal"}, "applied": False}
 
 
+def _trial_stop(g: GoalRecord, deps: GoalDeps, pin: dict, lesson_id: Optional[str]) -> str:
+    """Cổng của MỘT lượt thử, chạy ở luồng phụ (đọc kho, đọc file guard): cùng điều kiện với advance (can thiệp của
+    người dùng, "Chưa đúng ý", guard, đổi cách hiểu), quyền trợ lý đã ghim, và bài học A3 còn đang thử (owner Bỏ qua
+    giữa chừng thì dừng; CAS trong giao dịch chốt là chốt cuối cùng). Rỗng là được chạy tiếp."""
+    store, p = deps.store, deps.principal
+    _, stop = _trial_gate(g, deps, deps.clock())
+    if not stop:
+        stop = agent_gate(store, p.brain_id, pin["agent_key"], pin["agent_config_version"])[1]
+    if not stop and lesson_id:
+        ls = store.lesson(p, lesson_id)
+        if ls is None or ls["status"] != "trialing":
+            stop = f"lesson_{(ls or {}).get('status') or 'gone'}"
+    return stop
+
+
+def _trial_open(g: GoalRecord, baseline_ref: str, candidate_ref: str, need: int, payload: dict, deps: GoalDeps,
+                now: float, pin: dict, lesson_id: Optional[str], wake_reasons: Optional[list]) -> Optional[str]:
+    """Giao dịch giữ chỗ của phép thử và thư mục làm việc của nó, ở luồng phụ."""
+    store, p = deps.store, deps.principal
+    exp = store.begin_experiment(p, g.id, g.revision, baseline_ref, candidate_ref, need,
+                                 int(g.budget_calls * EXPLORE_SHARE), payload, now=now, agent=pin,
+                                 lesson_id=lesson_id, wake_reasons=wake_reasons)
+    if exp is not None:
+        (Path(g.output_root) / "trials" / exp).mkdir(parents=True, exist_ok=True)
+    return exp
+
+
+def _trial_not_run(deps: GoalDeps, act: dict) -> None:
+    """Lần thức bị huỷ SAU khi ghi ý định một lượt thử mà TRƯỚC lời gọi engine: action chốt `cancelled/not_run` để
+    đối soát hoàn đúng lượt đó (ranh giới chưa gọi engine giữ như A2)."""
+    deps.store.finish_action(deps.principal, act["id"], "cancelled", {
+        "action_id": act["id"], "status": "cancelled", "error_code": "not_run",
+        "error_detail": "lần thức bị huỷ trước khi gọi model; lượt được hoàn khi đối soát phép thử"})
+
+
 async def _compare_run(g: GoalRecord, baseline_ref: str, candidate_ref: str, items: list, deps: GoalDeps, *,
                        now: float, lesson_id: Optional[str] = None, wake_reasons: Optional[list] = None,
                        case_goals: Optional[dict] = None, case_meta: Optional[dict] = None) -> dict:
     """Thân phép thử M5, chạy khi người gọi ĐÃ giữ khoá lượt của mục tiêu. A3: `lesson_id` gắn bài học (CAS trong hai
     giao dịch giữ chỗ và chốt, giữ một lượt làm sản phẩm), `case_goals` là bản ghi revision dùng để dựng prompt của từng
-    tình huống lịch sử, `case_meta` là hash đầu vào và bản ghi được ghim vào payload."""
+    tình huống lịch sử, `case_meta` là hash đầu vào và bản ghi được ghim vào payload.
+
+    A3 review mã P2-3: mọi bước chạm kho hay file (giữ chỗ, cổng mỗi lượt, ghi ý định, phần sau lời gọi engine, chốt
+    kết quả) chạy ở luồng phụ qua `_off_loop`, luôn được chờ xong kể cả khi bị huỷ; chỉ lời gọi engine chạy trên event
+    loop. Người gọi nhả khoá lượt sau khi hàm này trả hay ném, tức là sau khi mọi pha ở luồng phụ đã xong."""
     store, p = deps.store, deps.principal
     # Ghim thước đo TRƯỚC khi chạy: tiêu chí kiểm tự động của đúng revision này cùng đáp án của tình huống.
     rubric = [{"id": c.get("id"), "params": {k: v for k, v in dict(c.get("params") or {}).items()
@@ -3289,28 +3339,22 @@ async def _compare_run(g: GoalRecord, baseline_ref: str, candidate_ref: str, ite
     # A1 (review tích hợp, P1-3): GHIM mã và version trợ lý cho cả phép thử. Mọi lượt, và bước áp dụng, phải còn đúng
     # bản ghim này; tắt rồi bật giữa chừng là version mới, phép thử dừng và hoàn phần hạn mức chưa chạy.
     pin = _agent_intent(g, deps)
+    payload = {"rubric_hash": rubric_hash, "cases_hash": cases_hash, "case_ids": [c["id"] for c in items],
+               **({"cases_meta": case_meta} if case_meta else {})}
     try:
-        exp = store.begin_experiment(p, g.id, g.revision, baseline_ref, candidate_ref, need,
-                                     int(g.budget_calls * EXPLORE_SHARE),
-                                     {"rubric_hash": rubric_hash, "cases_hash": cases_hash,
-                                      "case_ids": [c["id"] for c in items],
-                                      **({"cases_meta": case_meta} if case_meta else {})},
-                                     now=now, agent=pin, lesson_id=lesson_id, wake_reasons=wake_reasons)
+        exp = await _off_loop(_trial_open, g, baseline_ref, candidate_ref, need, payload, deps, now, pin, lesson_id,
+                              wake_reasons)
+    except asyncio.CancelledError:
+        # Phép thử có thể đã được giữ chỗ (giao dịch đã commit): để nó `running`; hẹn đối soát của lần thức chốt nó
+        # (interrupted, hoàn các lượt chưa ghi ý định) khi khoá đã nhả.
+        raise
     except Exception as e:  # noqa: BLE001 - AgentStateError: công tắc đổi ngay trước giao dịch giữ hạn mức
         return {**out, "reason": "agent_gate", "stop_detail": _short(e)}
     if exp is None:
         return {**out, "reason": "budget" if lesson_id else "explore_budget"}
     out.update(experiment_id=exp, created=True)
     tg = dataclasses_replace(g, output_root=str(Path(g.output_root) / "trials" / exp))
-    Path(tg.output_root).mkdir(parents=True, exist_ok=True)
     results, started, stop = [], 0, ""
-
-    def lesson_stop() -> str:
-        # A3: owner Bỏ qua giữa chừng thì dừng ở cổng lượt kế tiếp (CAS trong giao dịch chốt là chốt cuối cùng).
-        if not lesson_id:
-            return ""
-        ls = store.lesson(p, lesson_id)
-        return "" if ls is not None and ls["status"] == "trialing" else f"lesson_{(ls or {}).get('status') or 'gone'}"
 
     for c in items:
         row = {"case_id": c["id"], "split": c["split"]}
@@ -3322,15 +3366,17 @@ async def _compare_run(g: GoalRecord, baseline_ref: str, candidate_ref: str, ite
         for arm, ref in (("baseline", baseline_ref), ("candidate", candidate_ref)):
             # Cùng cổng với advance TRƯỚC MỖI lượt: can thiệp của người dùng, "Chưa đúng ý", guard và đổi cách
             # hiểu có hiệu lực giữa chừng (spec 2.3, 11.1; review M5, P1-1).
-            _, stop = _trial_gate(g, deps, deps.clock())
-            if not stop:
-                stop = agent_gate(store, p.brain_id, pin["agent_key"], pin["agent_config_version"])[1]
-            if not stop:
-                stop = lesson_stop()
+            stop = await _off_loop(_trial_stop, g, deps, pin, lesson_id)
             if stop:
                 break
             try:
-                act = _trial_begin(tg, exp, c, arm, ref, deps, pin)
+                act = await _off_loop(_trial_begin, tg, exp, c, arm, ref, deps, pin)
+            except _CancelledWith as cw:
+                if isinstance(cw.value, dict):
+                    await _cleanup(_trial_not_run, deps, cw.value)
+                raise
+            except asyncio.CancelledError:
+                raise
             except Exception as e:  # noqa: BLE001
                 # Kho từ chối GHI Ý ĐỊNH (quyền trợ lý đổi, hay lỗi lưu trữ): giao dịch đã huỷ, model CHƯA được
                 # gọi cho lượt này, nên lượt không tính vào `started` và được hoàn ở finish_experiment.
@@ -3341,6 +3387,8 @@ async def _compare_run(g: GoalRecord, baseline_ref: str, candidate_ref: str, ite
             try:
                 row[arm] = await _trial_run(tg, exp, c, arm, ref, rubric, rubric_hash, deps, out["usage"], act,
                                             pgoal=(case_goals or {}).get(c["id"]))
+            except asyncio.CancelledError:
+                raise
             except Exception as e:  # noqa: BLE001
                 # Lỗi SAU khi có thể đã gọi model (lưu bằng chứng, ghi receipt, chấm): GIỮ lượt đã tính, không hoàn;
                 # phép thử dừng, không kết luận. Hành động dở (nếu receipt chưa ghi được) để _reconcile chốt sau.
@@ -3359,11 +3407,7 @@ async def _compare_run(g: GoalRecord, baseline_ref: str, candidate_ref: str, ite
         # Lượt cuối có thể vừa xong SAU một lệnh dừng: kiểm lại toàn bộ điều kiện chạy ngay trước khi kết luận
         # và áp dụng (review M5, P1-2). Phần SQLite (gồm trạng thái bài học A3) được kiểm lại lần nữa trong giao dịch
         # đổi cách làm.
-        _, stop = _trial_gate(g, deps, deps.clock())
-        if not stop:
-            stop = agent_gate(store, p.brain_id, pin["agent_key"], pin["agent_config_version"])[1]
-        if not stop:
-            stop = lesson_stop()
+        stop = await _off_loop(_trial_stop, g, deps, pin, lesson_id)
     if stop:
         verdict, reason = "inconclusive", ("goal_reframed" if stop == "goal_reframed" else
                                            "lesson_dismissed" if stop.startswith("lesson_") else "stopped")
@@ -3371,10 +3415,10 @@ async def _compare_run(g: GoalRecord, baseline_ref: str, candidate_ref: str, ite
     else:
         verdict, reason = _trial_verdict(results)
     refs = [r[a]["evidence_id"] for r in results for a in ("baseline", "candidate") if r[a].get("evidence_id")]
-    fin = store.finish_experiment(p, exp, verdict, reason,
-                                  {"results": results, "usage": out["usage"], "evidence_refs": refs,
-                                   "scope": out["scope"], **({"stop_detail": stop} if stop else {})},
-                                  refund=need - started, apply=(verdict == "eligible"))
+    fin = await _off_loop(store.finish_experiment, p, exp, verdict, reason,
+                          {"results": results, "usage": out["usage"], "evidence_refs": refs,
+                           "scope": out["scope"], **({"stop_detail": stop} if stop else {})},
+                          need - started, verdict == "eligible")
     out.update(verdict=fin["verdict"], reason=fin["reason"], results=results, evidence_refs=refs,
                applied=bool(fin["applied"]))
     if fin.get("detail"):
@@ -3510,8 +3554,10 @@ async def _trial_step(ctx: _WakeCtx, deps: GoalDeps, now: float) -> Assessment:
     until = now + need * (float(deps.max_wall_s) + float(deps.wall_grace_s)) + LEASE_EXTRA_S
     await _off_loop(store.extend_lease, p, g.id, ctx.owner, until)
     # Tiến trình chết giữa phép thử thì phải có một lần thức (chỉ kiểm, không gọi model) sau khi khoá hết hạn, để đối
-    # soát chốt phép thử dở và trả lượt giữ (mục 6.8). Lượt thử không tự có hẹn phục hồi như lượt việc.
-    await _off_loop(store.add_timer, p, g.id, "action_recovery", until + 1, now, g.revision)
+    # soát chốt phép thử dở và trả lượt giữ (mục 6.8). Mã `trial_recovery` có nghĩa vụ RIÊNG (`trial`), nên không thay
+    # hẹn kiểm đang có (guard_recheck, agent_recheck...), và chỉ đúng hẹn này được chốt khi phép thử xong (review mã A3,
+    # P2-1).
+    rec_id = await _off_loop(store.add_timer, p, g.id, "trial_recovery", until + 1, now, g.revision)
     out = await _compare_run(g, t["from"], t["to"], items, deps, now=now, lesson_id=t["lesson_id"],
                              wake_reasons=t["ids"], case_goals=t["cases"]["case_goals"], case_meta=t["cases"]["meta"])
     calls = sum(int(((out.get("usage") or {}).get(a) or {}).get("calls") or 0) for a in ("baseline", "candidate"))
@@ -3520,9 +3566,10 @@ async def _trial_step(ctx: _WakeCtx, deps: GoalDeps, now: float) -> Assessment:
                    why=f"phép thử cách làm: {out.get('verdict')}/{out.get('reason')}")
     if not out.get("created"):
         await _off_loop(store.serve_reasons, p, g.id, t["ids"], "trial_" + str(out.get("reason") or "budget"), now)
-    # Phép thử đã chốt: hẹn đối soát của nó không còn nghĩa. Lịch vật lý theo lý do còn chờ (lý do làm sản phẩm vừa được
-    # dựng khi phép thử thắng).
-    await _off_loop(store.supersede_timers, p, g.id, ("check",), now, g.revision)
+    # Phép thử đã chốt: chỉ hẹn đối soát CỦA NÓ hết nghĩa (chốt theo id). Hẹn gỡ chặn mà cổng vừa ghi trong lúc thử
+    # được giữ nguyên. Lịch vật lý theo lý do còn chờ (lý do làm sản phẩm vừa được dựng khi phép thử thắng).
+    if rec_id:
+        await _off_loop(store.serve_reasons, p, g.id, [rec_id], "trial_done", now)
     await _off_loop(store.recompute_wake, p, g.id)
     return Assessment(g.id, g.revision, "unknown", rationale=f"phép thử cách làm {t['to']}: {out.get('verdict')} "
                       f"({out.get('reason')}), áp dụng: {bool(out.get('applied'))}", evaluated_at=now)

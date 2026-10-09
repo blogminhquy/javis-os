@@ -150,6 +150,7 @@ check("A1 tin bắt buộc vẫn đầy đủ", len(SENT[-1]["text"]) > 80 and n
 code, body = react(m3, reason="unclear")
 check("R2a qua route: đề xuất quay lại đầy đủ trong khi brief vẫn dùng",
       code == 200 and (body.get("proposal") or {}).get("to_value") == "full")
+P_FULL = body.get("proposal") or {}
 
 # A2 qua route: tắt chuông cho goal.maintained.
 ma1, ma2 = deliver(g, "goal.maintained"), deliver(g, "goal.maintained")
@@ -174,6 +175,15 @@ check("A9 xoá tin: reaction thành mồ côi, bài học đã dùng hiện thi�
       and any(x["status"] == "active" and x["key"] == "notice_ping" and x["evidence_missing"] >= 1
               for x in body["lessons"]), body.get("stats"))
 check("reaction trên tin đã xoá: 400 (không còn biên nhận)", react(ma2)[0] == 400)
+
+# RV2 qua route (review mã A3, P2-2): thẻ cũ bấm Áp dụng sau khi hết hạn, KHÔNG có GET danh sách ở giữa.
+from unittest.mock import patch  # noqa: E402
+with patch.object(RS.time, "time", return_value=float(P_FULL["expires_at"]) + 1):
+    code, body = api("post", f"/resonance/lessons/{P_FULL['id']}/decision",
+                     json={"action": "apply", "expected_status": "proposed", "expected_updated_at": P_FULL["updated_at"]})
+check("RV2 qua route: đề xuất hết hạn trả 409 expired, cấu hình brief giữ nguyên",
+      code == 409 and body.get("conflict") == "expired" and (body.get("lesson") or {}).get("status") == "expired"
+      and store.presentation(KEY, AGENT["agent_key"]).get("notice_detail") == "brief", (code, body.get("conflict")))
 
 # A8 qua route: học không ghi quyền.
 code, body = api("get", "/resonance/agents")

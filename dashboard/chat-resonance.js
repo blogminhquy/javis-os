@@ -93,7 +93,8 @@
     guard_observe: "resonance.wake.guard_observe",
     // A3: phép thử cách làm khi bế tắc, và lượt làm sản phẩm bằng cách làm vừa học
     method_trial: "resonance.wake.method_trial",
-    method_followup: "resonance.wake.method_followup"
+    method_followup: "resonance.wake.method_followup",
+    trial_recovery: "resonance.wake.recovery"
   };
 
   /* A3: dòng "cách làm đã học" trên thẻ, theo trạng thái bài học làn M của revision hiện tại. Khoá nguyên văn. */

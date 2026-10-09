@@ -1028,6 +1028,209 @@ except RS.ConflictError:
     ok = True
 check("G2c phản hồi M4 sai revision: ConflictError (không đổi)", ok)
 
+# ═══════════════════ Hồi quy review mã vòng 1 (5b4f48a6): RV1 tới RV3 ═══════════════════
+
+import time as _time  # noqa: E402
+
+# RV1: dọn phép thử không được xoá hẹn gỡ chặn mà cổng vừa ghi trong lúc thử (P2-1).
+_GF = "Inbox/a3-guard-src.txt"
+_GUARD_SRC = [{"description": "Nguồn được bảo vệ", "evaluator": "artifact_contract",
+               "params": {"path": _GF, "must_contain": ["safe"]}}]
+
+
+def guard_trial(name, breaker):
+    write(_GF, "safe")
+    holder = {}
+    w = World(name, Engine(on_query=lambda n, pr: breaker() if n == 4 else None))
+    g = w.held_goal(budget=9, guards=_GUARD_SRC)
+    holder["g"] = g.id
+    to_trial_pending(w, g.id)
+    w.until(g.id, lambda: bool(w.exps(g.id)) and w.exps(g.id)[0]["status"] == "finished")
+    return w, g
+
+
+w, g = guard_trial("rv1", lambda: (Path(BRAIN) / _GF).write_bytes(b"\xff\xfe"))
+pend = [r["code"] for r in w.pending(g.id)]
+check("RV1 guard chưa xác định giữa phép thử: phép thử dừng, hẹn guard_recheck CÒN sau khi dọn phép thử",
+      w.exps(g.id)[0]["verdict"] == "inconclusive" and "guard_recheck" in pend
+      and (w.store.run_state(P, g.id) or {}).get("block_reason") == "guard_unknown", pend)
+rec = [r for r in w.store.reasons(P, g.id, state=None) if r["code"] == "trial_recovery"]
+check("RV1 hẹn đối soát của phép thử có nghĩa vụ riêng và chỉ nó được chốt theo id (trial_done)",
+      len(rec) == 1 and rec[0]["slot"] == "trial" and rec[0]["state"] == "served" and rec[0]["settled_by"] == "trial_done")
+write(_GF, "safe")
+w.run_days(g.id, 2)
+check("RV1 nguồn hồi phục: lần kiểm lại gỡ chặn, mục tiêu không còn kẹt guard_unknown",
+      (w.store.run_state(P, g.id) or {}).get("block_reason") not in ("guard_unknown", "guard"),
+      w.store.run_state(P, g.id))
+w, g = guard_trial("rv1-control", lambda: write(_GF, "đã mất chữ khoá"))
+write(_GF, "đã mất chữ khoá")
+w.run_days(g.id, 2)
+check("RV1 đối chứng: guard thật sự nhảy thì chốt guard giữ, không tự mở lại",
+      (w.store.run_state(P, g.id) or {}).get("block_reason") == "guard" and R.effective_method(w.g(g.id)) == "work.v1")
+
+# RV2: Áp dụng kiểm hạn và căn cứ trong giao dịch, không cần đọc lại danh sách (P2-2).
+w = World("rv2")
+g = w.goal()
+react(w, src(w, g))
+pr = react(w, src(w, g))["proposal"]
+res = w.store.lesson_decide(OWNER, pr["id"], "apply", expected_status="proposed",
+                            expected_updated_at=pr["updated_at"], now=pr["expires_at"] + 1, alive=alive)
+check("RV2 thẻ cũ bấm Áp dụng sau khi hết hạn (không GET trung gian): xung đột expired, cấu hình cũ giữ",
+      res["ok"] is False and res["conflict"] == "expired" and res["lesson"]["status"] == "expired"
+      and w.store.presentation(BRAIN, w.agent["agent_key"]) == {})
+w = World("rv2-evidence")
+g = w.goal()
+sa, sb = src(w, g), src(w, g)
+react(w, sa)
+pr = react(w, sb)["proposal"]
+DEAD.add(sb["message_id"])
+res = w.store.lesson_decide(OWNER, pr["id"], "apply", expected_status="proposed",
+                            expected_updated_at=pr["updated_at"], now=w.clock(), alive=alive)
+check("RV2 căn cứ đã mất (tin bị xoá) lúc Áp dụng: xung đột evidence_gone, không áp dụng",
+      res["ok"] is False and res["conflict"] == "evidence_gone" and w.store.presentation(BRAIN, w.agent["agent_key"]) == {})
+w = World("rv2-control")
+g = w.goal()
+react(w, src(w, g))
+pr = react(w, src(w, g))["proposal"]
+res = w.store.lesson_decide(OWNER, pr["id"], "apply", expected_status="proposed",
+                            expected_updated_at=pr["updated_at"], now=w.clock() + 86400, alive=alive)
+check("RV2 đối chứng: còn hạn, đúng CAS, đủ căn cứ thì áp dụng được", res["ok"] and res["lesson"]["status"] == "active")
+
+
+# RV3: phần kho và file của phép thử chạy ngoài event loop; khoá chỉ nhả khi worker xong (P2-3).
+def slow(store, name, delay, seen, gate=None, fail=None):
+    orig = getattr(store, name)
+
+    def wrapped(*a, **k):
+        seen.append((name, threading.get_ident()))
+        if gate is not None:
+            gate.set()
+        _time.sleep(delay)
+        if fail is not None and fail[0]:
+            fail[0] -= 1
+            raise RuntimeError("kho chậm rồi hỏng")
+        return orig(*a, **k)
+    setattr(store, name, wrapped)
+
+
+async def _watch(coro):
+    gaps, run = [], [True]
+
+    async def dog():
+        prev = _time.perf_counter()
+        while run[0]:
+            await asyncio.sleep(0.005)
+            cur = _time.perf_counter()
+            gaps.append(cur - prev)
+            prev = cur
+    t = asyncio.create_task(dog())
+    await asyncio.sleep(0.01)
+    try:
+        await coro
+    finally:
+        run[0] = False
+        await t
+    return max(gaps) if gaps else 0.0
+
+
+w = World("rv3")
+g = w.held_goal(budget=9)
+to_trial_pending(w, g.id)
+seen = []
+for nm in ("begin_experiment", "finish_experiment", "finish_action"):
+    slow(w.store, nm, 0.15, seen)
+loop_ids = []
+
+
+async def _rv3():
+    loop_ids.append(threading.get_ident())
+    w.clock.t = max(w.clock(), min(x["due_at"] for x in w.store.wakes(P, g.id)))
+    await R.tick(w.store, w.clock(), lambda b: w.deps, limit=1)
+
+gap = asyncio.run(_watch(_rv3()))
+names = {n for n, _ in seen}
+check("RV3 lưu trữ chậm 150 ms ở giữ chỗ, ghi kết quả lượt thử và chốt phép thử: không bước nào chạy trên event loop",
+      {"begin_experiment", "finish_experiment", "finish_action"} <= names and all(t != loop_ids[0] for _, t in seen),
+      seen[:4])
+check(f"RV3 event loop không bị chặn (khoảng lớn nhất {gap:.3f}s < 0.1s)", gap < 0.1)
+check("RV3 phép thử vẫn đi hết và áp dụng như trước", w.exps(g.id)[0]["applied"] is True and w.engine.queries == 7)
+
+
+def cancel_trial_during(name, delay=0.3):
+    """Huỷ lần thức phép thử ĐÚNG lúc bước `name` của kho đang chạy ở luồng phụ. Trả (World, g, lease_seen)."""
+    w = World(f"rv3-cancel-{name}")
+    g = w.held_goal(budget=9)
+    to_trial_pending(w, g.id)
+    gate, info = threading.Event(), {}
+    orig = getattr(w.store, name)
+
+    def wrapped(*a, **k):
+        gate.set()
+        _time.sleep(delay)
+        res = orig(*a, **k)
+        with sqlite3.connect(str(w.path)) as c:
+            info["lease_after_worker"] = c.execute("SELECT lease_owner FROM goals WHERE id=?", (g.id,)).fetchone()[0]
+        return res
+    setattr(w.store, name, wrapped)
+
+    async def run():
+        w.clock.t = max(w.clock(), min(x["due_at"] for x in w.store.wakes(P, g.id)))
+        t = asyncio.create_task(R.advance(g.id, {"kind": "wake"}, w.deps))
+        await asyncio.to_thread(gate.wait, 5)
+        t.cancel()
+        await asyncio.sleep(0)
+        t.cancel()          # huỷ lặp
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
+    asyncio.run(run())
+    setattr(w.store, name, orig)
+    return w, g, info
+
+
+w, g, info = cancel_trial_during("finish_experiment")
+with sqlite3.connect(str(w.path)) as c:
+    lease_now = c.execute("SELECT lease_owner FROM goals WHERE id=?", (g.id,)).fetchone()[0]
+check("RV3 huỷ (cả huỷ lặp) lúc đang chốt phép thử: worker chạy xong khi khoá VẪN giữ, khoá nhả sau đó, phép thử đã chốt",
+      info.get("lease_after_worker") is not None and lease_now is None and w.exps(g.id)[0]["status"] == "finished"
+      and w.exps(g.id)[0]["applied"] is True, (info, lease_now))
+w, g, info = cancel_trial_during("begin_experiment")
+check("RV3 huỷ lúc đang giữ chỗ phép thử: khoá giữ tới khi worker xong, phép thử còn running chờ đối soát",
+      info.get("lease_after_worker") is not None and w.exps(g.id)[0]["status"] == "running" and w.engine.queries == 3)
+w.clock.t += 3600
+w.run_days(g.id, 1)
+check("RV3 sau khoá hết hạn: hẹn đối soát chốt phép thử interrupted, hoàn hết 4 lượt, trả lượt giữ (calls 3), 0 lượt engine",
+      w.exps(g.id)[0]["reason"] == "interrupted" and w.g(g.id).calls_used == 3 and w.hold(g.id)["status"] == "released"
+      and w.engine.queries == 3, (w.exps(g.id)[0]["reason"], w.g(g.id).calls_used))
+w, g, info = cancel_trial_during("begin_action")
+acts = [x for x in w.store.actions(P, g.id) if x["kind"] == "trial"]
+check("RV3 huỷ sau khi ghi ý định lượt thử, trước engine: action not_run, engine 0 lượt thêm",
+      len(acts) == 1 and acts[0]["status"] == "cancelled" and acts[0]["receipt"].get("error_code") == "not_run"
+      and w.engine.queries == 3, [(a["status"], a["receipt"].get("error_code")) for a in acts])
+w.clock.t += 3600
+w.run_days(g.id, 1)
+check("RV3 đối soát hoàn cả lượt not_run: calls 3, lượt giữ released",
+      w.exps(g.id)[0]["reason"] == "interrupted" and w.g(g.id).calls_used == 3 and w.hold(g.id)["status"] == "released",
+      w.g(g.id).calls_used)
+
+w = World("rv3-storage-error")
+g = w.held_goal(budget=9)
+to_trial_pending(w, g.id)
+seen = []
+slow(w.store, "finish_experiment", 0.0, seen, fail=[1])
+w.tick()
+with sqlite3.connect(str(w.path)) as c:
+    lease_now = c.execute("SELECT lease_owner FROM goals WHERE id=?", (g.id,)).fetchone()[0]
+check("RV3 lỗi lưu trữ lúc chốt phép thử: lần thức kết thúc có ghi lỗi, khoá được nhả, phép thử còn running",
+      lease_now is None and w.exps(g.id)[0]["status"] == "running" and w.engine.queries == 7
+      and w.pending(g.id, "trial_recovery"))
+w.clock.t += 3600 * 4
+w.run_days(g.id, 1)
+check("RV3 sau lỗi lưu trữ: đối soát chốt interrupted, 4 lượt đã gọi vẫn tính, lượt giữ released (calls 7)",
+      w.exps(g.id)[0]["reason"] == "interrupted" and w.g(g.id).calls_used == 7 and w.hold(g.id)["status"] == "released",
+      (w.exps(g.id)[0]["reason"], w.g(g.id).calls_used))
+
 # ═══════════════════ A13: di chuyển ═══════════════════
 
 old_db = Path(_STATE) / "pre-a3.sqlite3"
