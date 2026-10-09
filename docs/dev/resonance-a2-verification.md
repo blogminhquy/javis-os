@@ -2,7 +2,7 @@
 
 Mốc A2 của lộ trình [agent scope](../superpowers/specs/2026-10-08-resonance-agent-scope-roadmap.md): trợ lý thức vì lý do cụ thể, ngủ khi chờ, không gọi model vô ích.
 
-**Trạng thái: thiết kế và mã đạt review; kiểm tích hợp đạt. Chưa merge, chưa phát hành, chưa đo VPS.** A2 chỉ tính là mốc hoàn tất khi A1 và A2 được merge, và bản 0.88.0 được phát hành.
+**Trạng thái: thiết kế và mã đạt review; review cuối đạt ở `b80ae0ea`. Chưa merge, chưa phát hành, chưa đo VPS.** A2 chỉ tính là mốc hoàn tất khi A1 và A2 được merge, và bản 0.88.0 được phát hành.
 
 ## Mã và commit
 
@@ -13,6 +13,10 @@ Mốc A2 của lộ trình [agent scope](../superpowers/specs/2026-10-08-resonan
   - Ba vòng sửa theo review mã: `d1f64b46`, `f7cbab4c`, `b5975b7e`.
   - **Review mã đạt ở `b5975b7e`.**
 - **Sau review (kiểm tích hợp):** một sửa nhỏ và hai mục không chặn của review, ghi ở mục "Sau review mã" bên dưới.
+- **Review cuối đạt ở `b80ae0ea`** (`exports/reviews/PR-593-A2-b80ae0ea-final-review.md`, ngoài git).
+  - Reviewer kiểm độc lập 12/12 kịch bản: phục hồi hành động đăng không gọi model, lịch thử lại phút 15 giữ nguyên qua khởi động lại, nhịp xem lại 6 tới 168 giờ.
+  - 25/25 file test Resonance, test UI xanh; CI 4/4. Không có lỗi chặn mới.
+  - Review không thay lời cho phép merge.
 
 ## Bảng nghiệm thu (thiết kế mục 13)
 
@@ -74,6 +78,17 @@ Mốc A2 của lộ trình [agent scope](../superpowers/specs/2026-10-08-resonan
 - Nhóm hồi quy `tests/run.py resonance turn_ route_table plugin hub chat_disconnect workflow agent settings i18n`: **70/70 xanh** trên mã tích hợp; toàn bộ test JS xanh.
 - Toàn bộ 621 file đã chạy một lần ở `c2b0874f`: 605/621. 16 file đỏ đều do môi trường máy, không file nào thuộc Resonance. Chưa chạy lại toàn bộ sau các vòng sửa.
 - CI: xem PR cho head cuối.
+
+## Đường tích hợp
+
+1. Merge A1 (#590) trước, khi chủ dự án cho phép.
+2. Sau khi A1 squash: chuyển riêng các commit A2 (`077bcf73..`) sang `main` mới, không kéo lặp lịch sử A1. Đổi base PR #593 sang `main`, đổi SHA ghim quay về trong test và `ci.yml` sang commit 0.87.0 thật, kiểm VERSION và CHANGELOG theo `main` lúc đó.
+3. Chạy lại nhóm hồi quy, test quay về, smoke dry và chờ CI ở head mới. Xung đột mã chạy (nếu có) gửi review bổ sung.
+
+**Diễn tập (09/10/2026, worktree tạm, không đẩy lên):**
+- Squash A1 lên `main` hiện tại (`71f9c5b9`) cho đúng cây của A1.
+- Áp 10 commit A2 lên trên: không xung đột, cây kết quả trùng với `b80ae0ea`.
+- Vì `main` chưa đổi từ lúc tách nhánh, sau khi A1 squash thật thì chỉ còn phải đổi SHA ghim. Nếu `main` có thêm commit trước đó thì phải kiểm lại.
 
 ## Giới hạn còn lại
 
