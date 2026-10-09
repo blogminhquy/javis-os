@@ -477,3 +477,87 @@ Biên bản review: `exports/reviews/PR-579-pilot5-content-review.md` (ngoài gi
 
 **Góp ý chất lượng ngoài checklist (không chặn, không sửa bằng chứng):** vài câu tuyệt đối quá ("Đã ký là coi như mình đồng ý đủ hàng", "không ghi coi như không có", "Ảnh là bằng chứng ... không phải do kho làm hỏng"). Khi dùng làm tài liệu vận hành nên viết theo tác dụng thực tế: ký trước khi kiểm làm khó đối chiếu thiếu hay hỏng; ảnh giúp ghi nhận tình trạng lúc giao. Hai file đã hash giữ nguyên.
 
+
+## A1: pilot chuyển sang phiên trợ lý (08/10/2026, PR #590)
+
+Từ A1, Cộng hưởng chỉ bật theo từng trợ lý; công tắc brain cũ không còn cấp quyền. Bộ chạy achieve (`tests/python/test_resonance_mvp_e2e_achieve.py`) đổi theo:
+- Brain tạm có một **trợ lý tạm** `tro-ly-tai-lieu` (vai trung lập, không chọn model riêng, nên chạy bằng bộ não chính đã duyệt). Không bật công tắc brain cũ.
+- **Chặng S0b mới, không gọi model:**
+  - chat thường: `/goal-requests` 403;
+  - trợ lý chưa bật: 403;
+  - chủ dự án bật qua `POST /resonance/agents/toggle`: cấp mã, phiên trợ lý `ready`; đọc lại `GET /resonance/agents` khớp kho.
+  - Ở real, kiểm thêm engine của trợ lý lập được mục tiêu và nhận bản chat.
+  - Ở dry, `/goal-requests` trên phiên trợ lý đã bật qua được cổng, tới bộ lập mục tiêu và dừng ở engine bị chặn (400), không gọi model. Real KHÔNG gọi đường này, vì bộ lập mục tiêu sẽ gọi model.
+- **Các lượt chat S1, S4** gửi vào đúng phiên `agent:<slug>`. S1 kiểm thêm mục tiêu gắn đúng trợ lý của phiên.
+
+**Khác pilot 5, cần nhớ khi đọc kết quả:**
+- Prompt phiên trợ lý là `_agent_chat_prompt`: vai trợ lý, bộ nhớ trợ lý, khối công cụ và dòng gợi ý Cộng hưởng. Nó KHÔNG có CLAUDE.md như chat thường của pilot 5.
+- Định tuyến của bộ não có thể khác. Kết quả pilot không suy ngược cho chat thường.
+
+**Dry (không gọi model):** `exports/reviews/A1-pilot-dry-report.json`, kết quả `dry_ok`, 0 lượt engine.
+
+**Lần chạy thật:** chưa chạy. Cần chủ dự án duyệt riêng phạm vi và hạn mức. Không dùng lại hạn mức pilot cũ.
+
+## Lần chạy A1-1 (08/10/2026): phiên trợ lý, kỹ thuật đạt
+
+Mục này ghi trạng thái LÚC CHẠY (`pending_content_review`). Kết luận nội dung ở mục hậu kiểm ngay sau.
+
+- **Duyệt:** chủ dự án duyệt trực tiếp đúng một lần, theo gói `exports/reviews/A1-pilot-approval-request.md` (review gói: `PR-590-A1-e01eb3c2-pilot-review.md`).
+- **Commit:** `e01eb3c2`, `server_dirty: false`.
+- **Engine:** chat bằng Claude Code 2.1.294 `claude-opus-5-5`; việc nền bằng Claude Code `sonnet`; gói thuê bao.
+- **Cổng S0:** đạt. Nguồn chưa đánh giá: `.claude/settings.json:enabledPlugins` (hook, plugin, MCP ngoài phạm vi cổng và ngoài trần).
+- **Hồ sơ:** `docs/dev/resonance-a1-pilot-1.json`, hai bản sản phẩm `resonance-a1-pilot-1-draft1.md` và `-draft2.md`, bản chụp sau lượt chat `-s1-chat.md` và `-s4-chat.md` (trùng bytes với hai bản tương ứng).
+
+**Kết quả: `pending_content_review`, 0 kiểm hỏng, 379 giây. Lượt engine cấp host: 2 chat Opus, 0 việc nền, tổng 2 trên trần 4.**
+
+- **S0b:**
+  - chat thường `/goal-requests` 403; trợ lý chưa bật 403;
+  - bật qua API: `ready`, version 1;
+  - engine của trợ lý lập được mục tiêu và nhận bản chat.
+- **S1** (phiên `agent:tro-ly-tai-lieu`, 60 giây, `engine_status ok`, `turn_status completed`):
+  - bộ não liệt kê thư mục bằng `Bash` (chỉ đọc), `Write` bản đầu;
+  - rồi `ToolSearch select:mcp__javis-plugins__javis_goal` và gọi `javis_goal`.
+  - Đúng một mục tiêu, gắn đúng trợ lý của phiên, không giao Kanban.
+- **S2:** bản đầu tiếp nhận từ chat đúng một lần, không có lượt việc nền viết lại. Chờ người dùng. Tin báo về đúng phiên, có biên nhận.
+- **S3:** dựng lại server: trạng thái còn, không báo lặp, không gọi thêm.
+- **S4** (48 giây): `Write` bản sửa rồi `javis_goal` (update), lần này không cần `ToolSearch`. Nối vào cùng mục tiêu, revision 1 lên 2; ý định mới là đúng lời góp ý; giữ ràng buộc cũ.
+- **S5:** bản sửa tiếp nhận từ chat, không có lượt việc nền viết lại. Đã đăng, khác bản đầu, tin báo đúng phiên.
+- **S6:** bấm "Đạt yêu cầu" qua API (mô phỏng). Mục tiêu `succeeded`, tin thành công về đúng phiên.
+
+| Bản | File | SHA-256 | Revision |
+|---|---|---|---|
+| Bản đầu | `resonance-a1-pilot-1-draft1.md` | `629afff4280d2549b96eb0da046c054f189ed2777ffed30f6f95aefe5570641d` | 1 |
+| Bản sửa | `resonance-a1-pilot-1-draft2.md` | `38ab1df2e718c62a14945f9682c394992e30379c1e55736643f78a54766d84ee` | 2 |
+
+**Giới hạn:**
+- Một mẫu, chưa phải thống kê độ ổn định định tuyến.
+- Bộ não tự viết cả hai bản nên đường việc nền sửa bản bằng model thật không được dùng ở lần này. Đường đó có bằng chứng ở pilot M3 và test engine giả.
+- Xác nhận cuối là mô phỏng.
+- Chưa nghiệm thu nội dung: người review đọc hai bản theo checklist (bản đầu 4 mục, bản sửa 3 mục) rồi chốt.
+
+## Nghiệm thu nội dung A1-1 (hậu kiểm, 08/10/2026)
+
+- **Biên bản review:** `exports/reviews/PR-590-A1-pilot1-e0a60352-content-review.md` (ngoài git).
+- JSON gốc `resonance-a1-pilot-1.json` giữ nguyên `acceptance: pending_content_review` đúng như lúc chạy. Mục này là kết luận hậu kiểm, không ghi đè lịch sử. Hai file sản phẩm giữ nguyên bytes.
+
+**Kết luận: đạt nội dung.** Bản đầu 4/4, bản sửa 3/3 mục checklist. Không có lỗi chặn.
+
+| Bản | File | SHA-256 | Revision | Kết quả |
+|---|---|---|---|---|
+| Bản đầu | `resonance-a1-pilot-1-draft1.md` | `629afff4280d2549b96eb0da046c054f189ed2777ffed30f6f95aefe5570641d` | 1 | 4/4 |
+| Bản sửa | `resonance-a1-pilot-1-draft2.md` | `38ab1df2e718c62a14945f9682c394992e30379c1e55736643f78a54766d84ee` | 2 | 3/3 |
+
+- Người review tự tính hash từ bytes và so với git blob; hash lời giao và góp ý khớp JSON. 17/17 kiểm tính nhất quán của hồ sơ đạt.
+- Runtime `e01eb3c2`, hồ sơ `e0a60352`; giữa hai commit chỉ có file tài liệu và bằng chứng.
+
+**Phạm vi:**
+- Một kịch bản định tuyến thành công trong phiên trợ lý đã bật. Chưa phải tỷ lệ ổn định trên mọi yêu cầu hay engine.
+- 2 lượt chat Opus, 0 lượt việc nền Sonnet. Cả hai bản do lượt chat viết và host tiếp nhận. Lần này không đo đường việc nền sửa bản bằng model thật.
+- Xác nhận cuối S6 là mô phỏng qua API.
+- Prompt phiên trợ lý không được host chèn CLAUDE.md. Hồ sơ không kiểm việc Claude Code có tự tìm và nạp file đó hay không.
+
+**Hai góp ý câu chữ, không chặn, không vá file bằng chứng:**
+1. Vài câu khẳng định hậu quả quá tuyệt đối ("không khiếu nại được", "Coi như đã nhận đủ"). Nên viết theo tác dụng thực tế: khó chứng minh tình trạng lúc giao, dễ phát sinh tranh chấp.
+2. Ví dụ nối tiếp ở bản sửa thêm "Hỏng 1 thùng mã A123 (ướt)" mà bảng bước 4 chưa nhắc. Nên ghi "giả sử có thêm một thùng A123 bị ướt".
+
+Cần bản hướng dẫn dùng thật thì tạo bản biên tập riêng, không sửa file đã đóng băng.

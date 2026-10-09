@@ -909,17 +909,11 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
     # trả về javis_goal; tool đến model qua namespace mcp__javis-plugins__. Claude Code có hoãn nạp nó sau
     # ToolSearch hay không thì chưa xác minh (lần chạy 1 cho thấy javis_task từng bị hoãn như vậy), nên dòng
     # dưới chỉ nói "chưa nạp thì tìm". Dòng cũ chỉ nêu javis_search_tools (pilot lần 2, 07/10/2026).
-    # Ranh giới bốn loại việc chỉ nằm ở dòng này và mô tả javis_goal: cả hai chỉ có khi brain bật Resonance.
+    # Ranh giới bốn loại việc chỉ nằm ở dòng này và mô tả javis_goal: cả hai chỉ có trong lượt của agent đã bật.
     # Mô tả javis_task giữ nguyên để brain tắt tính năng không nhận chỉ dẫn mới (review PR #579, P2).
-    if resonance.enabled_for(root):
-        base += (
-            "\n- MỤC TIÊU (Hệ thống cộng hưởng đang bật): việc xong ngay trong lượt thì làm luôn; việc nền một "
-            "lần, xong là hết trách nhiệm thì javis_task; nhắc giờ cố định thì javis_schedule. Người dùng giao "
-            "trách nhiệm theo đuổi kết quả SAU lượt chat (làm, tự kiểm, sửa theo phản hồi, duy trì, chờ sự kiện, "
-            "giữ việc mở tới khi đạt) thì gọi tool javis_goal op=create; bổ sung ý cho mục tiêu đang mở thì "
-            "op=update. Tool chưa nạp thì tìm: Claude Code dùng ToolSearch (mcp__javis-plugins__javis_goal), "
-            "engine khác dùng javis_search_tools. Câu hỏi, tư vấn: KHÔNG lập mục tiêu."
-        )
+    # A1: theo agent của LƯỢT (ngữ cảnh lượt do host gắn), không theo công tắc brain cũ; chat thường không có dòng này.
+    if _resonance_turn_enabled(root):
+        base += "\n- " + _RESONANCE_GOAL_HINT
     # Quét cây skill MỘT lần cho cả hai khối dưới. Trước đây _javis_capability_summary
     # gọi list_skills còn _skill_router_block gọi list_enabled_meta (vốn chỉ là list_skills
     # lọc lại), nên cả cây skill bị đi và parse YAML HAI lần mỗi lượt chat - đo được 18ms
@@ -2033,6 +2027,75 @@ def _resonance_store():
     return _RESONANCE_STORE
 
 
+def _resonance_turn_agent(conv_sid, brain, get_session):
+    """A1: agent của phiên `conv_sid` (dòng phiên đọc bằng `get_session`), để gắn vào ngữ cảnh lượt
+    (`turn_context`, khoá `agent`).
+
+    Host tự phân giải từ dòng phiên đã lưu (kênh `agent:<slug>` ghi lúc tạo phiên) và sổ đăng ký agent, không
+    lấy gì từ lời model. Phiên được GHIM vào một mã agent (`GoalStore.session_agent`), nên xoá rồi tạo lại cùng
+    slug không làm phiên cũ nhận mã mới. Trả `{"key", "slug", "config_version"}` khi phiên đúng của brain này,
+    file agent còn đó và mã đã ghim còn `active`; ngược lại None. Công tắc bật hay tắt KHÔNG xét ở đây mà ở cổng
+    lúc gọi tool, để tool nói được đúng lý do. Chưa có kho resonance.sqlite3 thì không tạo kho chỉ để đọc. File
+    agent mất mà sổ còn `active` thì host đánh dấu `missing` (cổng của mã đó đóng tới khi chủ dự án xác nhận).
+    Lỗi thì None, không làm hỏng lượt."""
+    try:
+        session_row = get_session(conv_sid) or {}
+        persona = workflow_chat.persona_cua_phien(session_row)
+        if not persona or persona[0] != "agent":
+            return None
+        if _brain_key(session_row.get("brain")) != _brain_key(brain):
+            return None
+        if _RESONANCE_STORE is None and not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+            return None
+        slug, bkey = persona[1], _brain_key(brain)
+        if not (_agents_dir(brain) / f"{slug}.md").is_file():
+            live = _resonance_store().agent(bkey, slug)
+            if live is not None and live["status"] == "active":
+                _resonance_store().agent_mark_missing(bkey, live["agent_key"])
+            return None
+        # Ghim theo phiên, không tra theo slug (review PR #590, P1-1): phiên cũ của agent đã xoá không nhận mã mới.
+        reg = _resonance_store().session_agent(bkey, conv_sid, slug, session_row.get("created_at") or 0)
+        if reg is None:
+            return None
+        return {"key": reg["agent_key"], "slug": slug, "config_version": reg["config_version"]}
+    except Exception as e:  # noqa: BLE001
+        print(f"[resonance agent] {type(e).__name__}: {e}", file=sys.stderr)
+        return None
+
+
+# Dòng gợi ý lập mục tiêu (Resonance). MỘT bản cho cả hai đường dựng prompt: build_system_prompt và prompt của phiên
+# trợ lý (_agent_chat_prompt). Chỉ nối khi lượt thuộc một trợ lý đang bật (_resonance_turn_enabled); review A1 tích
+# hợp P1-1: trước đó chỉ build_system_prompt có dòng này, mà phiên trợ lý lại không dùng hàm đó.
+_RESONANCE_GOAL_HINT = (
+    "MỤC TIÊU (Hệ thống cộng hưởng đang bật): việc xong ngay trong lượt thì làm luôn; việc nền một "
+    "lần, xong là hết trách nhiệm thì javis_task; nhắc giờ cố định thì javis_schedule. Người dùng giao "
+    "trách nhiệm theo đuổi kết quả SAU lượt chat (làm, tự kiểm, sửa theo phản hồi, duy trì, chờ sự kiện, "
+    "giữ việc mở tới khi đạt) thì gọi tool javis_goal op=create; bổ sung ý cho mục tiêu đang mở thì "
+    "op=update. Tool chưa nạp thì tìm: Claude Code dùng ToolSearch (mcp__javis-plugins__javis_goal), "
+    "engine khác dùng javis_search_tools. Câu hỏi, tư vấn: KHÔNG lập mục tiêu."
+)
+
+
+def _resonance_turn_key():
+    """Mã agent của lượt đang chạy (ngữ cảnh lượt do host gắn), hoặc "" khi lượt không thuộc agent nào."""
+    t = turn_context.current() or {}
+    return str((t.get("agent") or {}).get("key") or "")
+
+
+def _resonance_turn_enabled(root) -> bool:
+    """Lượt đang chạy thuộc một agent đang bật Cộng hưởng, đúng version lúc gắn lượt. Không tạo kho chỉ để hỏi."""
+    try:
+        t = turn_context.current() or {}
+        ag = t.get("agent") or {}
+        if not ag.get("key") or (_RESONANCE_STORE is None
+                                 and not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file()):
+            return False
+        return not resonance.agent_gate(_resonance_store(), _brain_key(root), ag["key"], ag.get("config_version"))[1]
+    except Exception as e:  # noqa: BLE001
+        print(f"[resonance turn] {type(e).__name__}: {e}", file=sys.stderr)
+        return False
+
+
 def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
     """Sau một lượt chat web: lượt đó thuộc nhánh nào của Resonance (M2).
 
@@ -2042,7 +2105,9 @@ def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
     """
     try:
         root = _brain_root(brain)
-        if not user_mid or not resonance.enabled_for(root):
+        # A1: chỉ lượt của một agent (ngữ cảnh lượt). Agent vừa tắt giữa lượt vẫn chạy bước này để nhả lịch đã giữ;
+        # cổng tiếp nhận bản chat nằm ở kho (finish_handoff) nên không tiếp nhận gì trái quyền.
+        if not user_mid or not _resonance_turn_key():
             return None
         p = resonance_store.Principal("agent", "javis", _brain_key(brain))
         mref = resonance.message_ref(conv_sid, user_mid)
@@ -2137,7 +2202,7 @@ def _resonance_note_write(conv_sid, user_mid, brain, ev) -> None:
         if not user_mid:
             return
         root = _brain_root(brain)
-        if resonance.enabled_for(root):
+        if _resonance_turn_key():
             resonance.note_turn_event(resonance.message_ref(conv_sid, user_mid), root, ev)
     except Exception as e:  # noqa: BLE001
         print(f"[resonance write receipt] {type(e).__name__}: {e}", file=sys.stderr)
@@ -2188,9 +2253,25 @@ class _ResonanceEvidence:
 
 
 _RESONANCE_EVIDENCE = _ResonanceEvidence()
-resonance_api.register(app, resonance_api.ResonanceApiDeps(
+def _resonance_agents_meta(root):
+    """A1: trợ lý của brain cho trang Cộng hưởng: slug, tên và engine thật sự chạy phiên của nó (model riêng của trợ
+    lý, hay bộ não chính khi trợ lý không chọn model) để giao diện báo đúng khả năng theo engine."""
+    try:
+        main_prov = _chat_provider(cfgmod.read_settings().get("model", {}) or {})[0]
+    except Exception:  # noqa: BLE001
+        main_prov = ""
+    out = []
+    for a in agents_index(root, kem_prompt=False):
+        prov = _agent_model_provider(a.get("model") or "", a.get("model_provider") or "") if a.get("model") else main_prov
+        out.append({"slug": a["slug"], "name": a.get("name") or a["slug"], "provider": prov})
+    return out
+
+
+_RESONANCE_API_DEPS = resonance_api.ResonanceApiDeps(
     store=lambda: _resonance_store(), brain_key=lambda b: _brain_key(b),
-    engine_factory=lambda s, t="resonance": _resonance_engine(s, t), session_store=lambda: get_store()))
+    engine_factory=lambda s, t="resonance": _resonance_engine(s, t), session_store=lambda: get_store(),
+    agents_meta=_resonance_agents_meta, agent_file=lambda root, slug: _agent_md_path(root, slug))
+resonance_api.register(app, _RESONANCE_API_DEPS)
 _RESONANCE_TICK_BUSY = [False]
 
 
@@ -6548,9 +6629,19 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
 
 @app.post("/agents/delete")
 async def delete_agent(slug: str = Form(...), brain: str = Form("brain")):
+    # slug ghép thẳng vào tên file: phải hợp lệ, không thì `../x` xoá được file ngoài thư mục agents.
+    if not skill_router.valid_slug(slug):
+        return JSONResponse({"ok": False, "error": "slug không hợp lệ"}, status_code=400)
     f = _agents_dir(brain) / f"{slug}.md"
     if f.exists():
         f.unlink()
+    # A1: xoá qua host thì mã Cộng hưởng của agent này nghỉ hẳn. Tạo lại cùng tên là agent MỚI, phải bật lại; mục
+    # tiêu và phiên cũ giữ mã cũ. Chưa có kho thì không tạo kho chỉ để ghi việc này.
+    try:
+        if _RESONANCE_STORE is not None or (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+            _resonance_store().agent_retire(resonance_store.Principal("owner", "owner", _brain_key(brain)), slug)
+    except Exception as e:  # noqa: BLE001
+        print(f"[resonance agent retire] {type(e).__name__}: {e}", file=sys.stderr)
     return {"ok": True}
 
 
@@ -9140,10 +9231,18 @@ _AGENT_TOOLKIT_BLOCK = (
     "hồi\". Thiếu kết nối (ví dụ chưa nối Drive) thì kiểm tra bằng `javis_connections` trước, "
     "rồi nói đúng cái đang thiếu.\n"
     "- Lượt trả lời của bạn KẾT THÚC khi bạn nói xong, không ai đánh thức bạn làm nốt. Không hẹn "
-    "\"có kết quả em báo lại\", \"sếp chờ em chút\". Chỉ hai lối đúng: làm xong ngay trong lượt và "
+    "\"có kết quả em báo lại\", \"sếp chờ em chút\". " + "Chỉ hai lối đúng: làm xong ngay trong lượt và "
     "trả kết quả thật, hoặc giao việc nền / nhắc hẹn rồi nói rõ đã giao gì, kết quả về đâu. "
     "Không làm được cả hai thì nói thẳng là chưa làm.\n"
 )
+# Câu "chỉ hai lối" ở trên ĐÚNG khi trợ lý chưa bật Cộng hưởng. Bật rồi thì có lối thứ ba (javis_goal); để nguyên câu
+# cũ là bảo model rằng lối đó không tồn tại (review A1 tích hợp, P1-1). Thay đúng câu đó, chỉ trong phiên trò chuyện.
+_AGENT_HAI_LOI = ("Chỉ hai lối đúng: làm xong ngay trong lượt và trả kết quả thật, hoặc giao việc nền / nhắc hẹn rồi "
+                  "nói rõ đã giao gì, kết quả về đâu. Không làm được cả hai thì nói thẳng là chưa làm.")
+_AGENT_BA_LOI = ("Ba lối đúng: làm xong ngay trong lượt và trả kết quả thật; giao việc nền / nhắc hẹn rồi nói rõ đã "
+                 "giao gì, kết quả về đâu; hoặc, khi chủ giao trách nhiệm theo đuổi tới khi đạt, lập mục tiêu bằng "
+                 "javis_goal rồi nói rõ Javis làm tiếp ở nền trong hạn mức và kết quả tự về khung chat này. Không "
+                 "làm được lối nào thì nói thẳng là chưa làm.")
 
 
 def _agent_chat_prompt(brain, slug) -> str:
@@ -9158,6 +9257,11 @@ def _agent_chat_prompt(brain, slug) -> str:
         raise FileNotFoundError(slug)
     _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
     _name, sysprompt, _model, _prov = _agent_sysprompt(slug)
+    # Cộng hưởng theo quyền của LƯỢT (ngữ cảnh lượt do host gắn): trợ lý đang bật thì có dòng gợi ý và câu ba lối;
+    # tắt, hay không có lượt, thì prompt y như trước A1.
+    if _resonance_turn_enabled(brain):
+        sysprompt = (sysprompt.replace(_AGENT_HAI_LOI, _AGENT_BA_LOI)
+                     + "\n# Cộng hưởng (đang bật cho bạn)\n- " + _RESONANCE_GOAL_HINT + "\n")
     return (sysprompt + "\n\n# Kênh: bạn đang trò chuyện trực tiếp với chủ trên dashboard Javis "
             "(trang Cộng sự). Trả lời như đang nói chuyện, theo ngôn ngữ chủ đang dùng; "
             "không cần báo cáo dạng nhiệm vụ trừ khi được giao việc cụ thể.")
@@ -15035,7 +15139,10 @@ async def websocket_endpoint(ws: WebSocket):
                            user_text=None):
             _trace_token = context_runtime.bind_trace(runtime_trace)
             # Dashboard = the owner's own surface (signed-in session): no platform sender id.
-            _luot_token = turn_context.bind(turn_context.make("dashboard", chat_id=conv_sid, la_chu=True))
+            # A1: kèm phiên, id tin và agent của phiên (host phân giải) để tool javis_goal biết ĐÚNG lượt nào gọi.
+            _luot_token = turn_context.bind(turn_context.make(
+                "dashboard", chat_id=conv_sid, la_chu=True, session_id=conv_sid, message_id=user_mid,
+                agent=_resonance_turn_agent(conv_sid, brain, store.get_session)))
             # Ghi vào sổ lượt đang chạy để tool giao việc biết kết quả phải về khung chat này
             # khi model quên truyền chat_id (luot_dang_chay.py, 0.64.49). Kèm id tin và lời người
             # dùng để tool javis_goal (Resonance) biết đúng tin nhắn nào; 0 thì tool từ chối lập mục tiêu.
@@ -21340,6 +21447,10 @@ async def _shutdown_mcp_pool():
         terminal.KHO.dong_het()
     except Exception:
         pass
+
+
+# Route Cộng hưởng theo trợ lý (A1): đăng ký SAU route cuối để bảng route cũ giữ nguyên thứ tự.
+resonance_api.register_agents(app, _RESONANCE_API_DEPS)
 
 
 if __name__ == "__main__":

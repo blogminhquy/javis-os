@@ -40,31 +40,46 @@ check("tắt: không tạo kho resonance.sqlite3", not (Path(_STATE) / "resonanc
 p_off = main.build_system_prompt(BRAIN)
 check("tắt: system prompt không nhắc javis_goal", "javis_goal" not in p_off)
 
-# ───────────── bật ─────────────
+# ───────────── bật (A1: theo agent, trong lượt của agent đó) ─────────────
+import _resonance_agent as RA  # noqa: E402
 (Path(BRAIN) / "Javis").mkdir(parents=True, exist_ok=True)
 (Path(BRAIN) / "Javis" / "resonance.json").write_text('{"enabled": true}', encoding="utf-8")
-p_on = main.build_system_prompt(BRAIN)
+check("công tắc brain cũ bật mà chưa có agent nào: prompt vẫn không nhắc javis_goal (không còn cấp quyền)",
+      "javis_goal" not in main.build_system_prompt(BRAIN))
+AG = RA.enable(main._resonance_store(), BRAIN)
+
+
+def in_turn(mid, text, fn):
+    """Như run_turn: phần sau lượt chạy TRONG ngữ cảnh lượt của agent (bỏ ngữ cảnh ở finally)."""
+    with RA.turn(AG, SID, mid, text, BRAIN):
+        return fn()
+
+
+p_on = in_turn(MID, USER, lambda: main.build_system_prompt(BRAIN))
 check("bật: system prompt có dòng gợi ý javis_goal", "javis_goal op=create" in p_on)
 # Trần nâng từ 450 lên 650 khi dòng gợi ý thêm ranh giới bốn loại việc và đường tìm tool theo engine.
 check("bật: dòng gợi ý ngắn (dưới 650 ký tự)", 0 < len(p_on) - len(p_off) < 650)
+check("ngoài lượt của agent: prompt không có dòng gợi ý lập mục tiêu",
+      "javis_goal op=create" not in main.build_system_prompt(BRAIN))
 
 t0 = time.time() - 1
-d = main._resonance_after_turn(SID, BRAIN, MID, t0, None)
+d = in_turn(MID, USER, lambda: main._resonance_after_turn(SID, BRAIN, MID, t0, None))
 check("bật, lượt không gọi tool: answer_now", d is not None and d.kind == "answer_now")
-check("không có id tin nhắn thì không phân nhánh", main._resonance_after_turn(SID, BRAIN, 0, t0, None) is None)
+check("không có id tin nhắn thì không phân nhánh",
+      in_turn(MID, USER, lambda: main._resonance_after_turn(SID, BRAIN, 0, t0, None)) is None)
+check("lượt không thuộc agent (chat thường): không phân nhánh",
+      main._resonance_after_turn(SID, BRAIN, MID, t0, None) is None)
 
 # Bộ não gọi javis_goal trong lượt (như engine sẽ gọi qua hub), rồi main phân nhánh sau lượt
-k = luot_dang_chay.bat_dau(f"{main.WEB_CHAT_PREFIX}{SID}", BRAIN, msg_id=MID, user_text=USER)
 tools, route = plugins_host.plugin_tools("full", BRAIN, scope_vault=False)
-out = asyncio.run(route["javis_goal"]["call"]({
+out = in_turn(MID, USER, lambda: asyncio.run(route["javis_goal"]["call"]({
     "op": "create", "understanding": "Bản tổng hợp ghi chú mới trong Inbox",
     "criteria": [{"description": "Bản tổng hợp có mặt", "evaluator": "artifact_contract",
                   "params": {"path": "Inbox/tong-hop.md"}}],
     "relevant_quote": "mỗi khi có ghi chú mới thì gom vào bản tổng hợp",
-    "horizon": {"kind": "event", "event": "có ghi chú mới trong Inbox"}, "mode": "maintain"}))
-luot_dang_chay.ket_thuc(k)
+    "horizon": {"kind": "event", "event": "có ghi chú mới trong Inbox"}, "mode": "maintain"})))
 check("tool trong lượt: lập được mục tiêu", "Đã lập mục tiêu" in out)
-d = main._resonance_after_turn(SID, BRAIN, MID, t0, None)
+d = in_turn(MID, USER, lambda: main._resonance_after_turn(SID, BRAIN, MID, t0, None))
 check("sau lượt có lập mục tiêu: create_goal", d is not None and d.kind == "create_goal" and d.goal_id)
 _wk = [w for w in main._resonance_store().wakes(RS.Principal("agent", "javis", main._brain_key(BRAIN)), d.goal_id)
        if w["kind"] == "work"]
@@ -72,21 +87,23 @@ check("bàn giao cuối lượt: nhả lịch việc nền đã giữ khi lập 
       bool(_wk) and _wk[0]["due_at"] <= time.time() + 1)
 g = main._resonance_store().get(RS.Principal("owner", "owner", main._brain_key(BRAIN)), d.goal_id)
 check("mục tiêu thuộc đúng brain theo _brain_key", g is not None and g.request_ref == R.message_ref(SID, MID))
+check("A1: mục tiêu gắn đúng agent của lượt", g is not None and g.agent_key == AG["agent_key"])
 check("vùng đầu ra nằm trong brain", Path(g.output_root).resolve().is_relative_to(Path(BRAIN)))
 
 # Việc Kanban giao trong lượt cho đúng khung chat
 tid = main.tasks_feature.store.enqueue(BRAIN, "Gom ghi chú", "gom", chat_id=f"{main.WEB_CHAT_PREFIX}{SID}")
 check("tạo được việc Kanban thử", bool(tid))
-d2 = main._resonance_after_turn(SID, BRAIN, MID + 1, t0, None)
+d2 = in_turn(MID + 1, "x", lambda: main._resonance_after_turn(SID, BRAIN, MID + 1, t0, None))
 check("lượt giao việc Kanban cho đúng khung chat: task_now", d2 is not None and d2.kind == "task_now")
-d3 = main._resonance_after_turn(SID, BRAIN, MID + 2, time.time() + 5, None)
+d3 = in_turn(MID + 2, "x", lambda: main._resonance_after_turn(SID, BRAIN, MID + 2, time.time() + 5, None))
 check("việc Kanban tạo trước lượt không tính", d3 is not None and d3.kind == "answer_now")
 
 # Lỗi trong khâu phân nhánh không được làm hỏng lượt chat
 _old = main._resonance_store
 main._resonance_store = lambda: (_ for _ in ()).throw(RuntimeError("kho hỏng"))
 try:
-    check("kho lỗi: _resonance_after_turn nuốt lỗi, trả None", main._resonance_after_turn(SID, BRAIN, 99, t0, None) is None)
+    check("kho lỗi: _resonance_after_turn nuốt lỗi, trả None",
+          in_turn(99, "x", lambda: main._resonance_after_turn(SID, BRAIN, 99, t0, None)) is None)
 finally:
     main._resonance_store = _old
 
@@ -111,19 +128,17 @@ check("M3 _resonance_deps: brain không tồn tại thì không dựng", main._r
 
 # Một mục tiêu đi trọn vòng trên host: tool tạo -> tick nền làm -> sản phẩm vào brain -> báo đúng khung chat.
 _USER3 = "Viết giúp anh ghi chú Inbox/tom-tat.md tóm tắt ba việc: gọi thợ máy lạnh, nộp báo cáo quý, mua quà cho mẹ."
-_k3 = luot_dang_chay.bat_dau(f"{main.WEB_CHAT_PREFIX}{SID}", BRAIN, msg_id=301, user_text=_USER3)
-_out3 = asyncio.run(route["javis_goal"]["call"]({
+_out3 = in_turn(301, _USER3, lambda: asyncio.run(route["javis_goal"]["call"]({
     "op": "create", "understanding": "Ghi chú tóm tắt ba việc trong Inbox",
     "criteria": [{"description": "Ghi chú có đủ ba việc", "evaluator": "artifact_contract",
                   "params": {"path": "Inbox/tom-tat.md", "must_contain": ["máy lạnh", "báo cáo quý", "quà"]}}],
     "relevant_quote": "Viết giúp anh ghi chú Inbox/tom-tat.md",
-    "horizon": {"kind": "review", "at_iso": "2027-01-01T09:00:00+07:00"}, "mode": "achieve"}))
-luot_dang_chay.ket_thuc(_k3)
+    "horizon": {"kind": "review", "at_iso": "2027-01-01T09:00:00+07:00"}, "mode": "achieve"})))
 check("M3 lời dặn của tool: nói rõ làm tiếp ở nền và kết quả tự về khung chat", "làm tiếp ở NỀN" in _out3)
 _g3 = main._resonance_store().find_by_key(RS.Principal("agent", "javis", main._brain_key(BRAIN)),
                                          R.message_ref(SID, 301))
 # Như run_turn: hết lượt thì bàn giao (lịch việc nền được giữ từ lúc tool lập mục tiêu tới đây).
-_d3 = main._resonance_after_turn(SID, BRAIN, 301, time.time() - 1, None)
+_d3 = in_turn(301, _USER3, lambda: main._resonance_after_turn(SID, BRAIN, 301, time.time() - 1, None))
 check("bàn giao lượt 301: không có Write nên không tiếp nhận, mục tiêu vẫn chờ việc nền làm",
       _d3 is not None and _d3.kind == "create_goal"
       and not [e for e in main._resonance_store().events(RS.Principal("agent", "javis", main._brain_key(BRAIN)),
@@ -133,7 +148,8 @@ check("bàn giao lượt 301: không có Write nên không tiếp nhận, mục 
 # engine trong main gọi, bàn giao tiếp nhận, nhịp nền KHÔNG gọi engine cho mục tiêu này.
 _USER4 = "Viết giúp anh ghi chú Inbox/ban-chat.md liệt kê hai việc: gọi thợ máy lạnh, nộp báo cáo quý."
 _TXT4 = "# Việc\n\n- Gọi thợ máy lạnh\n- Nộp báo cáo quý\n"
-_k4 = luot_dang_chay.bat_dau(f"{main.WEB_CHAT_PREFIX}{SID}", BRAIN, msg_id=302, user_text=_USER4)
+_t4 = RA.turn(AG, SID, 302, _USER4, BRAIN)
+_t4.__enter__()
 main._resonance_note_write(SID, 302, BRAIN, {"type": "tool_call", "name": "Write", "id": "toolu_302",
                                              "input": {"file_path": str(Path(BRAIN) / "Inbox" / "ban-chat.md"),
                                                        "content": _TXT4}})
@@ -148,10 +164,10 @@ asyncio.run(route["javis_goal"]["call"]({
                   "params": {"path": "Inbox/ban-chat.md", "must_contain": ["máy lạnh", "báo cáo quý"]}}],
     "relevant_quote": "Viết giúp anh ghi chú Inbox/ban-chat.md",
     "horizon": {"kind": "review", "at_iso": "2027-01-01T09:00:00+07:00"}, "mode": "achieve"}))
-luot_dang_chay.ket_thuc(_k4)
 _P4 = RS.Principal("agent", "javis", main._brain_key(BRAIN))
 _g4 = main._resonance_store().find_by_key(_P4, R.message_ref(SID, 302))
 main._resonance_after_turn(SID, BRAIN, 302, time.time() - 1, None)
+_t4.__exit__(None, None, None)
 check("bàn giao lượt 302: bản Write trong lượt được tiếp nhận (sự kiện, bằng chứng chat_output)",
       _g4 is not None and [e["kind"] for e in main._resonance_store().events(_P4, _g4.id)].count("artifact_adopted") == 1
       and [x["kind"] for x in main._resonance_store().evidence_for(_P4, _g4.id, _g4.revision)] == ["chat_output"])

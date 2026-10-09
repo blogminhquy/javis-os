@@ -58,7 +58,9 @@
     if (g.paused) return "resonance.st_paused";
     var r = String(g.block_reason || "");
     var known = ["human_confirmation", "fit_rejected", "guard", "guard_unknown", "budget", "discovery_done",
-                 "healthy", "scheduled", "feature_off", "engine_blocked"];
+                 "healthy", "scheduled", "feature_off", "engine_blocked",
+                 // A1: cổng theo trợ lý
+                 "unassigned", "agent_off", "agent_missing", "agent_retired", "agent_changed", "agent_unknown"];
     if (known.indexOf(r) >= 0) return "resonance.st_" + r;
     if (g.run_state === "running") return "resonance.st_running";
     if (g.run_state === "blocked") return "resonance.st_blocked";
@@ -272,33 +274,7 @@
     });
   }
 
-  /* Công tắc theo brain trên trang Cài đặt (#resonanceEnabled). Nạp lại mỗi lần khối được mở hay rê chuột tới,
-     vì brain đang chọn có thể đã đổi. */
-  function settingsInit() {
-    var box = document.getElementById("resonanceEnabled");
-    if (!box) return;
-    var block = document.getElementById("resonanceBlock") || box;
-    function sync() {
-      fetch("/resonance/settings?brain=" + encodeURIComponent(brain()), { credentials: "same-origin" })
-        .then(function (r) { return r.json(); })
-        .then(function (j) { box.checked = !!(j && j.enabled); })
-        .catch(function () {});
-    }
-    box.addEventListener("change", function () {
-      fetch("/resonance/settings?brain=" + encodeURIComponent(brain()), {
-        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: box.checked })
-      }).then(function (r) { return r.json(); }).then(function (j) { box.checked = !!(j && j.enabled); })
-        .catch(sync);
-    });
-    block.addEventListener("mouseenter", sync);
-    block.addEventListener("focusin", sync);
-    sync();
-  }
-  if (typeof document !== "undefined" && document.addEventListener) {
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", settingsInit);
-    else settingsInit();
-  }
+  /* Công tắc theo BRAIN cũ đã bỏ (A1): công tắc nay theo từng trợ lý, ở resonance-agent.js. */
 
   var api = { tach: tach, viewHtml: viewHtml, compactHtml: compactHtml, requestFor: requestFor, stateKey: stateKey,
     ve: ve, render: render };

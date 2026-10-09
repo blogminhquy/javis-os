@@ -34,11 +34,18 @@ FIX = json.loads((Path(ROOT) / "tests" / "fixtures" / "resonance" / "mvp_cases.j
 CASES = {c["id"]: c for c in FIX["cases"]}
 BRAIN = str(Path(tempfile.mkdtemp(prefix="brain-m5-")).resolve())
 (Path(BRAIN) / "Javis").mkdir(parents=True)
-SWITCH = Path(BRAIN) / "Javis" / "resonance.json"
-SWITCH.write_text('{"enabled": true}', encoding="utf-8")
 P = RS.Principal("agent", "javis", BRAIN)
 OWNER = RS.Principal("owner", "owner", BRAIN)
 store = RS.GoalStore()
+import _resonance_agent as RA  # noqa: E402  - A1: Cộng hưởng bật theo agent, không theo brain
+
+
+def switch(on: bool):
+    """Công tắc Cộng hưởng của agent sở hữu các mục tiêu trong test (trước A1 là công tắc brain)."""
+    RA.enable(store, BRAIN) if on else RA.disable(store, BRAIN)
+
+
+switch(True)
 
 # Đầu ra mẫu theo tình huống. FULL đạt expect; MISS thiếu một người và một hạn; BRIEF quá ngắn.
 FULL = {
@@ -118,7 +125,7 @@ def make_goal(budget=12, guards=None):
     return asyncio.run(R.form_goal(R.message_ref("s5", _n["mid"]), {
         "principal": P, "brain_root": BRAIN, "session_id": "s5", "message_id": _n["mid"],
         "user_text": FIX["goal"]["user_text"], "constraints": [], "budget_calls": budget,
-        "proposal": prop}, d0))
+        "proposal": prop, **RA.ctx(store.agent(BRAIN, RA.SLUG))}, d0))
 
 
 def cases(*ids):
@@ -167,11 +174,11 @@ check("baseline phải là cách làm mục tiêu đang dùng",
 check("bộ tình huống thiếu tập giữ riêng bị từ chối",
       rejected(lambda: R.compare_methods(g0.id, "work.v1", "work.checklist.v1", cases("t1", "t2"),
                                          deps_for(Engine({})))))
-SWITCH.write_text('{"enabled": false}', encoding="utf-8")
-check("Resonance tắt ở brain: không chạy phép thử",
+switch(False)
+check("Cộng hưởng của trợ lý tắt: không chạy phép thử",
       rejected(lambda: R.compare_methods(g0.id, "work.v1", "work.checklist.v1", cases("t1", "h1"),
                                          deps_for(Engine({})))))
-SWITCH.write_text('{"enabled": true}', encoding="utf-8")
+switch(True)
 
 # ═══════════════════════ test_same_goal_and_rubric ═══════════════════════
 g = make_goal()
@@ -468,12 +475,12 @@ for kind in ("pause", "off", "fit"):
             if kind == "pause":
                 store.set_paused(OWNER, gl.id, True)
             elif kind == "off":
-                SWITCH.write_text('{"enabled": false}', encoding="utf-8")
+                switch(False)
             else:
                 fit_no(gl)
 
     res_l, eng_l = trial(g_last, WIN2, ids=TWO, on_query=_stop_last)
-    SWITCH.write_text('{"enabled": true}', encoding="utf-8")
+    switch(True)
     exl = store.experiments(P, g_last.id)[0]
     check(f"P1-2: {kind} trong lượt cuối: đủ 4 lượt đã chạy nhưng KHÔNG áp dụng, phép thử chốt inconclusive/stopped",
           len(eng_l.prompts) == 4 and res_l["applied"] is False and res_l["verdict"] == "inconclusive"
@@ -483,14 +490,14 @@ for kind in ("pause", "off", "fit"):
 # P1-2, tầng kho: đổi cách làm kiểm pause/chốt chặn/Chưa đúng ý trong CHÍNH giao dịch.
 g_st = make_goal()
 gs = store.get(P, g_st.id)
-eid = store.begin_experiment(P, g_st.id, gs.revision, "work.v1", "work.checklist.v1", 2, 6, {})
+eid = store.begin_experiment(P, g_st.id, gs.revision, "work.v1", "work.checklist.v1", 2, 6, {}, agent=RA.pin(store, BRAIN))
 store.set_paused(OWNER, g_st.id, True)
 fin = store.finish_experiment(P, eid, "eligible", "improved", {}, apply=True)
 check("P1-2 (kho): chốt eligible kèm áp dụng khi mục tiêu đang tạm dừng: không đổi cách làm, chốt inconclusive",
       fin["applied"] is False and fin["verdict"] == "inconclusive" and fin["reason"] == "stopped"
       and R.effective_method(store.get(P, g_st.id)) == "work.v1")
 store.set_paused(OWNER, g_st.id, False)
-eid2 = store.begin_experiment(P, g_st.id, gs.revision, "work.v1", "work.checklist.v1", 2, 6, {})
+eid2 = store.begin_experiment(P, g_st.id, gs.revision, "work.v1", "work.checklist.v1", 2, 6, {}, agent=RA.pin(store, BRAIN))
 store.finish_experiment(P, eid2, "eligible", "improved", {}, apply=False)
 fit_no(g_st)
 try:
@@ -543,16 +550,16 @@ check("P1-3: quay lại ngay ở revision 1 (nơi checklist đã được kiểm
       r_rev1["method"] == "work.checklist.v1" and R.effective_method(store.get(P, g_ch1.id)) == "work.checklist.v1")
 
 # ═══════════════════════ Review M5 vòng 2: cờ quan sát cũ không bác kết quả khi điều kiện đã hồi phục ═══════════════════════
-# A. Tắt rồi bật lại Resonance: advance đã ghi feature_off lúc tắt.
+# A. Tắt rồi bật lại Cộng hưởng của trợ lý: advance đã ghi agent_off lúc tắt.
 g_ra = make_goal()
-SWITCH.write_text('{"enabled": false}', encoding="utf-8")
+switch(False)
 _e0 = Engine(WIN2)
 asyncio.run(R.advance(g_ra.id, {"kind": "wake"}, deps_for(_e0)))
-SWITCH.write_text('{"enabled": true}', encoding="utf-8")
+switch(True)
 _had = store.run_state(P, g_ra.id)["block_reason"]
 res_ra, eng_ra = trial(g_ra, WIN2, ids=TWO)
-check("vòng 2 (A): bật lại Resonance sau khi advance ghi feature_off: phép thử thắng được áp dụng, cờ cũ được gỡ",
-      _had == "feature_off" and not _e0.prompts and len(eng_ra.prompts) == 4 and res_ra["verdict"] == "eligible"
+check("vòng 2 (A): bật lại Cộng hưởng sau khi advance ghi agent_off: phép thử thắng được áp dụng, cờ cũ được gỡ",
+      _had == "agent_off" and not _e0.prompts and len(eng_ra.prompts) == 4 and res_ra["verdict"] == "eligible"
       and res_ra["applied"] is True and R.effective_method(store.get(P, g_ra.id)) == "work.checklist.v1"
       and store.run_state(P, g_ra.id)["block_reason"] == "")
 # B. "Chưa đúng ý" rồi đổi sang "Đúng ý" cho cùng revision.
@@ -575,15 +582,15 @@ check("vòng 2 (âm): Chưa đúng ý, Đúng ý, rồi lại Chưa đúng ý: t
       rejected(lambda: R.compare_methods(g_rn.id, "work.v1", "work.checklist.v1", cases(*TWO), deps_for(eng_rn)))
       and not eng_rn.prompts and calls_of(g_rn) == 0 and store.run_state(P, g_rn.id)["block_reason"] == "fit_rejected")
 # Tầng kho: cờ quan sát cũ không chặn; chốt guard chen vào trước giao dịch thì chặn.
-for stale in ("feature_off", "fit_rejected", "guard_unknown"):
+for stale in ("feature_off", "agent_off", "fit_rejected", "guard_unknown"):
     g_sx = make_goal()
-    ex_id = store.begin_experiment(P, g_sx.id, 1, "work.v1", "work.checklist.v1", 2, 6, {})
+    ex_id = store.begin_experiment(P, g_sx.id, 1, "work.v1", "work.checklist.v1", 2, 6, {}, agent=RA.pin(store, BRAIN))
     store.set_run_state(P, g_sx.id, "blocked", stale)
     fin_sx = store.finish_experiment(P, ex_id, "eligible", "improved", {}, apply=True)
     check(f"vòng 2 (kho): cờ quan sát cũ {stale} không bác việc áp dụng (điều kiện thật đã được cổng kiểm)",
           fin_sx["applied"] is True and R.effective_method(store.get(P, g_sx.id)) == "work.checklist.v1")
 g_lx = make_goal()
-ex_l = store.begin_experiment(P, g_lx.id, 1, "work.v1", "work.checklist.v1", 2, 6, {})
+ex_l = store.begin_experiment(P, g_lx.id, 1, "work.v1", "work.checklist.v1", 2, 6, {}, agent=RA.pin(store, BRAIN))
 store.set_run_state(P, g_lx.id, "blocked", "guard")
 fin_lx = store.finish_experiment(P, ex_l, "eligible", "improved", {}, apply=True)
 check("vòng 2 (kho): chốt guard chen vào trước giao dịch vẫn chặn, phép thử lưu inconclusive",
@@ -635,6 +642,188 @@ check("trần chặn cả phép thử trước khi gọi (không tạo phép th�
 os.environ["JAVIS_RESONANCE_CALL_CEILING"] = "không-phải-số"
 check("giá trị trần hỏng thì chặn hết (0), không phải bỏ trần", RS.call_ceiling() == 0)
 del os.environ["JAVIS_RESONANCE_CALL_CEILING"]
+
+# ═══════════════════════ A1, review tích hợp P1-3: phép thử ghim quyền trợ lý ═══════════════════════
+# a) Tắt ngay TRƯỚC giao dịch giữ lượt thử, sau khi cổng ngoài đã qua (chen giữa bằng wrapper quanh hàm kho thật).
+g_ra1 = make_goal()
+_orig_begin = store.begin_action
+_hit = []
+
+
+def _off_at_tx(*a, **kw):
+    if (a[3] if len(a) > 3 else kw.get("kind")) == "trial" and not _hit:
+        switch(False)
+        _hit.append(1)
+    return _orig_begin(*a, **kw)
+
+
+store.begin_action = _off_at_tx
+try:
+    res_ra1, eng_ra1 = trial(g_ra1, WIN2, ids=TWO)
+finally:
+    store.begin_action = _orig_begin
+check("P1-3 a: tắt ngay trước giao dịch lượt thử: KHÔNG gọi model, phép thử dừng, không áp dụng",
+      not eng_ra1.prompts and res_ra1["applied"] is False and res_ra1["verdict"] == "inconclusive"
+      and "agent" in str(res_ra1.get("stop_detail")))
+check("P1-3 a: hoàn đủ hạn mức đã giữ cho các lượt chưa chạy", calls_of(g_ra1) == 0)
+switch(True)
+
+# b) Tắt rồi bật trong lượt đầu: version mới, các lượt còn lại không chạy, kết quả không được áp dụng theo quyền cũ.
+g_ra2 = make_goal()
+_v0 = store.agent(BRAIN, RA.SLUG)["config_version"]
+_flip = []
+
+
+def _flip_once(prompt):
+    if not _flip:
+        switch(False)
+        switch(True)
+        _flip.append(1)
+
+
+res_ra2, eng_ra2 = trial(g_ra2, WIN2, ids=TWO, on_query=_flip_once)
+check("P1-3 b: tắt rồi bật giữa phép thử: dừng sau lượt đang chạy, không chạy đủ 4 lượt",
+      len(eng_ra2.prompts) == 1 and store.agent(BRAIN, RA.SLUG)["config_version"] == _v0 + 2)
+check("P1-3 b: không áp dụng cách làm mới theo quyền cũ", res_ra2["applied"] is False
+      and R.effective_method(store.get(P, g_ra2.id)) == "work.v1" and res_ra2.get("stop_detail") == "agent_changed")
+check("P1-3 b: chỉ tính lượt đã thật sự chạy (1), hoàn phần còn lại", calls_of(g_ra2) == 1)
+_ex2 = store.experiments(P, g_ra2.id)[0]
+check("P1-3 b: phép thử ghim mã và version lúc bắt đầu (không sửa để hợp thức hoá)",
+      store.experiment_agent(P, _ex2["id"]) == {"agent_key": store.agent(BRAIN, RA.SLUG)["agent_key"],
+                                                "agent_config_version": _v0})
+_trial_acts = [x for x in store.actions(P, g_ra2.id) if x["kind"] == "trial"]
+check("P1-3 b: mọi lượt thử mang mã và version ghim trong ý định",
+      _trial_acts and all(x["intent"].get("agent_config_version") == _v0 for x in _trial_acts))
+# c) Kho: áp dụng một phép thử eligible khi version đã đổi so với lúc ghim thì bị chặn ngay trong giao dịch.
+g_ra3 = make_goal()
+_ex3 = store.begin_experiment(P, g_ra3.id, 1, "work.v1", "work.checklist.v1", 2, 6, {}, agent=RA.pin(store, BRAIN))
+switch(False)
+switch(True)
+_fin3 = store.finish_experiment(P, _ex3, "eligible", "improved", {}, apply=True)
+check("P1-3 c: kho từ chối áp dụng khi version khác bản ghim (chốt inconclusive, không đổi cách làm)",
+      _fin3["applied"] is False and _fin3["verdict"] == "inconclusive"
+      and R.effective_method(store.get(P, g_ra3.id)) == "work.v1")
+try:
+    store.begin_experiment(P, g_ra3.id, 1, "work.v1", "work.checklist.v1", 2, 6, {})
+    _no_pin = False
+except RS.AgentStateError:
+    _no_pin = True
+check("P1-3 c: mục tiêu của trợ lý mà phép thử không mang quyền: kho từ chối giữ hạn mức", _no_pin)
+
+# ═══════════════════════ A1, review tại 7d084394: chỉ hoàn lượt khi CHẮC model chưa được gọi ═══════════════════════
+import sqlite3 as _sq  # noqa: E402
+
+
+def _one_shot(method_name, kind, exc):
+    """Chèn đúng MỘT lỗi lưu trữ vào một hàm kho thật, chỉ với hành động `kind`; mọi thứ khác chạy nguyên."""
+    orig = getattr(store, method_name)
+    hit = []
+
+    def wrapper(*a, **kw):
+        k = (a[3] if len(a) > 3 else kw.get("kind")) if method_name == "begin_action" else "trial"
+        if k == kind and not hit:
+            hit.append(1)
+            raise exc
+        return orig(*a, **kw)
+    setattr(store, method_name, wrapper)
+    return lambda: setattr(store, method_name, orig)
+
+
+# d) Lỗi lưu trữ TRƯỚC khi gọi model (ghi ý định lượt thử hỏng): 0 lượt, hoàn đủ.
+g_rb1 = make_goal()
+_undo = _one_shot("begin_action", "trial", _sq.OperationalError("database is locked"))
+try:
+    res_rb1, eng_rb1 = trial(g_rb1, WIN2, ids=TWO)
+finally:
+    _undo()
+check("7d08 d: lỗi ghi ý định TRƯỚC khi gọi: 0 lượt model, hoàn đủ hạn mức, không áp dụng, báo đúng là lỗi lưu trữ",
+      not eng_rb1.prompts and calls_of(g_rb1) == 0 and res_rb1["applied"] is False
+      and str(res_rb1.get("stop_detail", "")).startswith("storage_error_before_call"))
+
+# e) Model ĐÃ chạy, ghi receipt hỏng: lượt đã dùng vẫn tính, không hoàn, không áp dụng.
+g_rb2 = make_goal()
+_orig_finish = store.finish_action
+_fhit = []
+
+
+def _finish_fail_once(*a, **kw):
+    if not _fhit:
+        _fhit.append(1)
+        raise _sq.OperationalError("database is locked")
+    return _orig_finish(*a, **kw)
+
+
+store.finish_action = _finish_fail_once
+try:
+    res_rb2, eng_rb2 = trial(g_rb2, WIN2, ids=TWO)
+finally:
+    store.finish_action = _orig_finish
+_g_rb2 = store.get(P, g_rb2.id)
+check("7d08 e: model đã chạy 1 lượt rồi ghi receipt hỏng: lượt VẪN tính (calls_used và explore_used = 1)",
+      len(eng_rb2.prompts) == 1 and _g_rb2.calls_used == 1 and _g_rb2.explore_used == 1)
+check("7d08 e: phép thử dừng, không áp dụng, báo đúng là lỗi sau lượt gọi (không phải lỗi quyền trợ lý)",
+      res_rb2["applied"] is False and str(res_rb2.get("stop_detail", "")).startswith("storage_error_after_call")
+      and R.effective_method(_g_rb2) == "work.v1")
+# f) Mở lại kho rồi đối soát: không hoàn lần hai; hành động dở được chốt failed.
+_st2 = RS.GoalStore(store.path)
+_dp2 = R.dataclasses_replace(deps_for(Engine({})), store=_st2)
+R._reconcile(_st2.get(P, g_rb2.id), _dp2, 1_800_000_000.0 + 10_000_000)
+_trial_rb2 = [x for x in _st2.actions(P, g_rb2.id) if x["kind"] == "trial"]
+check("7d08 f: mở lại kho và đối soát: vẫn 1 lượt đã dùng (không hoàn lần hai)", _st2.get(P, g_rb2.id).calls_used == 1)
+check("7d08 f: lượt có receipt chưa ghi được được đối soát thành failed, không chạy lại",
+      len(_trial_rb2) == 1 and _trial_rb2[0]["status"] == "failed")
+check("7d08 f: phép thử đã chốt (không còn running), lượt chưa bắt đầu đã được hoàn đúng một lần",
+      all(e["status"] != "running" for e in _st2.experiments(P, g_rb2.id)))
+
+# g) Chốt phép thử (finish_experiment) cũng hỏng: ngoại lệ thoát ra, hạn mức giữ BẢO THỦ đủ phần đã giữ; mở lại kho
+# rồi đối soát hai lần thì tính ĐÚNG số lượt engine đã chạy, không áp dụng, không còn gì running. Ca lấy từ script
+# phục hồi của reviewer tại cc79deb2 (PR-590-A1-cc79deb2-recovery-checks.py), đưa vào test hồi quy.
+
+
+def _fail_once(method):
+    orig = getattr(store, method)
+    hit = []
+
+    def wrapper(*a, **kw):
+        if not hit:
+            hit.append(1)
+            raise _sq.OperationalError("một lỗi lưu trữ ở " + method)
+        return orig(*a, **kw)
+    setattr(store, method, wrapper)
+    return lambda: setattr(store, method, orig)
+
+
+for _label, _fault, _expect in (("lỗi trước gọi", "begin_action", 0), ("lỗi ghi receipt", "finish_action", 1),
+                                ("lỗi gắn bằng chứng", "link_evidence", 1), ("đủ 4 lượt", None, 4)):
+    _g = make_goal()
+    _e = Engine(WIN)
+    _u1 = _fail_once(_fault) if _fault else (lambda: None)
+    _u2 = _fail_once("finish_experiment")
+    _escaped = False
+    try:
+        asyncio.run(R.compare_methods(_g.id, "work.v1", "work.checklist.v1", cases("t1", "h1"), deps_for(_e)))
+    except _sq.OperationalError:
+        _escaped = True
+    finally:
+        _u1()
+        _u2()
+    _held = store.get(P, _g.id).calls_used
+    _st = RS.GoalStore(store.path)
+    _dp = R.dataclasses_replace(deps_for(_e), store=_st)
+    _ok = True
+    for _ in range(2):
+        R._reconcile(_st.get(P, _g.id), _dp, _dp.clock() + 100000)
+        _f = _st.get(P, _g.id)
+        _ok = _ok and _f.calls_used == _expect and _f.explore_used == _expect and R.effective_method(_f) == "work.v1" \
+            and all(x["status"] != "running" for x in _st.experiments(P, _g.id)) \
+            and all(x["status"] != "running" for x in _st.actions(P, _g.id))
+    check(f"cc79 g ({_label}, chốt phép thử cũng hỏng): {_expect} lượt engine, giữ bảo thủ 4 tới khi đối soát, "
+          f"đối soát hai lần tính đúng {_expect}, không áp dụng, không còn running",
+          _escaped and len(_e.prompts) == _expect and _held == 4 and _ok)
+_g = make_goal()
+_r, _e = trial(_g, WIN, ids=("t1", "h1"))
+check("cc79 g đối chứng không lỗi: eligible, áp dụng, tính 4 lượt",
+      _r["applied"] and _r["verdict"] == "eligible" and store.get(P, _g.id).calls_used == 4 and len(_e.prompts) == 4)
 
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)

@@ -32,17 +32,18 @@ def check(name, cond):
 
 BRAIN = str(Path(tempfile.mkdtemp(prefix="brain-m3-")).resolve())
 (Path(BRAIN) / "Javis").mkdir(parents=True)
-SWITCH = Path(BRAIN) / "Javis" / "resonance.json"
-
-
-def switch(on: bool):
-    SWITCH.write_text('{"enabled": %s}' % ("true" if on else "false"), encoding="utf-8")
-
-
-switch(True)
 P = RS.Principal("agent", "javis", BRAIN)
 OWNER = RS.Principal("owner", "owner", BRAIN)
 store = RS.GoalStore()
+import _resonance_agent as RA  # noqa: E402  - A1: Cộng hưởng bật theo agent, không theo brain
+
+
+def switch(on: bool):
+    """Công tắc Cộng hưởng của agent sở hữu các mục tiêu trong test (trước A1 là công tắc brain)."""
+    RA.enable(store, BRAIN) if on else RA.disable(store, BRAIN)
+
+
+switch(True)
 
 USER = ("Từ danh sách việc sau, viết giúp anh một ghi chú tổng hợp trong Inbox: gọi thợ sửa máy lạnh, "
         "nộp báo cáo quý, mua quà sinh nhật mẹ. Việc nào gấp thì đưa lên đầu.")
@@ -128,7 +129,8 @@ def make_goal(budget=4, **kw):
                        store=store)
     return asyncio.run(R.form_goal(R.message_ref("s3", mid), {
         "principal": P, "brain_root": BRAIN, "session_id": "s3", "message_id": mid, "user_text": USER,
-        "constraints": [], "budget_calls": budget, "proposal": proposal(**kw)}, deps0))
+        "constraints": [], "budget_calls": budget, "proposal": proposal(**kw),
+        **RA.ctx(store.agent(BRAIN, RA.SLUG))}, deps0))
 
 
 def make_deps(engine=None, clock=None, factory=None, evidence=None, notes=None):
@@ -252,7 +254,10 @@ check("không lưu được bằng chứng: không xác nhận thành công", a_
 g_r = make_goal()
 target(g_r).unlink(missing_ok=True)
 clock_r = Clock()
-act = store.begin_action(P, g_r.id, g_r.revision, "work", lease_until=clock_r() - 5, now=clock_r() - 600)
+# Lượt việc thật ghi mã và version của agent vào ý định (A1); đầu ra của lượt không mang mã thì không được dùng lại.
+act = store.begin_action(P, g_r.id, g_r.revision, "work", lease_until=clock_r() - 5, now=clock_r() - 600,
+                         intent={"agent_key": g_r.agent_key,
+                                 "agent_config_version": store.agent(BRAIN, RA.SLUG)["config_version"]})
 Path(g_r.output_root).mkdir(parents=True, exist_ok=True)
 (Path(g_r.output_root) / f"{act['id']}.md").write_text(GOOD.replace("—", "-"), encoding="utf-8", newline="\n")
 deps_r, built_r, eng_r = make_deps(clock=clock_r)
@@ -264,7 +269,8 @@ check("restart: hạn mức của lượt dở không bị tính hai lần", sto
 check("restart: đánh giá dùng đầu ra đã đối soát", a_r.verdict == "met")
 g_r2 = make_goal()
 target(g_r2).unlink(missing_ok=True)
-act2 = store.begin_action(P, g_r2.id, g_r2.revision, "work", lease_until=clock_r() - 5, now=clock_r() - 600)
+act2 = store.begin_action(P, g_r2.id, g_r2.revision, "work", lease_until=clock_r() - 5, now=clock_r() - 600,
+                          intent=RA.pin(store, BRAIN))
 deps_r2, _, eng_r2 = make_deps(clock=clock_r)
 adv(g_r2.id, {"kind": "wake"}, deps_r2)
 rec2 = store.get_action(P, act2["id"])
@@ -335,15 +341,15 @@ check("pause: mục tiêu người dùng tạm dừng thì không dựng engine,
 store.set_paused(OWNER, g_pz.id, False)
 switch(False)
 adv(g_pz.id, {"kind": "wake"}, deps_pz)
-check("thu hồi (tắt Resonance ở brain): không gọi model, ghi rõ lý do",
-      built_pz["n"] == 0 and store.run_state(P, g_pz.id)["block_reason"] == "feature_off")
+check("thu hồi (tắt Cộng hưởng của trợ lý): không gọi model, ghi rõ lý do",
+      built_pz["n"] == 0 and store.run_state(P, g_pz.id)["block_reason"] == "agent_off")
 switch(True)
 g_rv = make_goal()
 target(g_rv).unlink(missing_ok=True)
 deps_rv, _, eng_rv = make_deps(engine=FakeEngine(on_query=lambda: switch(False)))
 adv(g_rv.id, {"kind": "start"}, deps_rv)
 check("thu hồi giữa lượt: kiểm lại NGAY TRƯỚC tác động, không đăng sản phẩm vào brain",
-      not target(g_rv).exists() and store.run_state(P, g_rv.id)["block_reason"] == "feature_off")
+      not target(g_rv).exists() and store.run_state(P, g_rv.id)["block_reason"] == "agent_off")
 switch(True)
 
 # ═══════════════════════ test_audit_failure_before_effect ═══════════════════════
@@ -510,7 +516,8 @@ check("P1-2a guard mất trong lúc worker chạy: không đăng, không thành 
 keep2.write_text("giữ\n", encoding="utf-8")
 g_gr = make_goal(guards=GUARD_KEEP)
 target(g_gr).unlink(missing_ok=True)
-act_gr = store.begin_action(P, g_gr.id, g_gr.revision, "work", lease_until=Clock()() - 5, now=Clock()() - 600)
+act_gr = store.begin_action(P, g_gr.id, g_gr.revision, "work", lease_until=Clock()() - 5, now=Clock()() - 600,
+                            intent=RA.pin(store, BRAIN))
 Path(g_gr.output_root).mkdir(parents=True, exist_ok=True)
 (Path(g_gr.output_root) / f"{act_gr['id']}.md").write_text(GOOD.replace("—", "-"), encoding="utf-8", newline="\n")
 keep2.unlink()

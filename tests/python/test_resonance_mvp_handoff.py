@@ -41,12 +41,12 @@ def check(name, cond):
 
 
 BRAIN = str(Path(tempfile.mkdtemp(prefix="brain-h-")).resolve())
-(Path(BRAIN) / "Javis").mkdir(parents=True)
-(Path(BRAIN) / "Javis" / "resonance.json").write_text('{"enabled": true}', encoding="utf-8")
-_, routes = plugins_host.plugin_tools("full", BRAIN, scope_vault=False)
-call = routes["javis_goal"]["call"]
 P = RS.Principal("agent", "javis", BRAIN)
 goals = RS.GoalStore()
+import _resonance_agent as RA  # noqa: E402  - A1: tool chỉ chạy trong lượt của agent đã bật
+AG = RA.enable(goals, BRAIN)
+_, routes = plugins_host.plugin_tools("full", BRAIN, scope_vault=False)
+call = routes["javis_goal"]["call"]
 
 ORIGINAL = "Theo dõi hồ sơ đến ngày 11/10/2026, cần đủ 10 hồ sơ."
 PROPOSAL = {"understanding": "Theo dõi hồ sơ", "stage": "delivery", "relevant_quote": "Theo dõi hồ sơ",
@@ -103,6 +103,9 @@ namespace = dict(asyncio=asyncio, sys=sys, time=time, uuid=uuid, voice_brain=pro
                                                         start_turn=lambda *a: None),
                  luot_dang_chay=luot_dang_chay, WEB_CHAT_PREFIX="web:", _brain_root=lambda b: b,
                  _do_turn=fake_do_turn, _resonance_after_turn=lambda *a: None,
+                 # A1: phân giải agent của phiên có test riêng (test_resonance_a1_turn_agent); ở đây phiên là của AG.
+                 _resonance_turn_agent=lambda *a: {"key": AG["agent_key"], "slug": RA.SLUG,
+                                                   "config_version": AG["config_version"]},
                  # Kết cục engine gửi kèm turn_done (pilot lần 4): test riêng ở test_turn_engine_status.
                  _engine_outcome_reset=lambda *a: None, _engine_outcome_exception=lambda *a: None,
                  _engine_outcome_pop=lambda *a: {}, _engine_outcome_turn=lambda *a: None,

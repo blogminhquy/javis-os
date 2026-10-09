@@ -957,6 +957,7 @@
       chatReady(true);
       luuViTri(id);
       if (S.loai === "workflow") veBuoc(item, tienDoHienTai(item));
+      else ganCongHuong(item, id);
       return true;
     } catch (e) {
       if (still()) { veLoi(t("ws.err_session")); if (window.JavisSessions) window.JavisSessions.new(); }
@@ -1055,7 +1056,9 @@
     traCayThuMuc();
     if (!item) { host.innerHTML = ""; veLichSu(null); chonTabPhai(tabTheoLoai()); return; }
     if (S.loai === "agent") {
-      host.innerHTML = '<div class="ws-rtitle">' + esc(t("ws.agent_settings")) + '</div><div class="ws-form" id="wsAgentForm"></div>' +
+      // Khối Cộng hưởng (A1) đứng ĐẦU cột phải: công tắc của trợ lý này và các mục tiêu nó đang theo đuổi.
+      host.innerHTML = '<div class="rsa-panel" id="wsResonance"></div>' +
+        '<div class="ws-rtitle">' + esc(t("ws.agent_settings")) + '</div><div class="ws-form" id="wsAgentForm"></div>' +
         '<div class="ws-acts"><button type="button" class="ws-btn" id="wsExport">' + esc(t("studio.export")) + '</button>' +
         '<button type="button" class="ws-btn danger" id="wsDel">' + esc(t("common.delete")) + '</button></div>';
       // MƯỢN chính trình sửa agent của Studio (studio.js), không dựng bản thứ hai: chọn model,
@@ -1064,6 +1067,7 @@
         window.JavisStudio.editAgent(item, { host: host.querySelector("#wsAgentForm"),
           onSaved: async function () { await sauLuu(item, "agent"); } });
       }
+      ganCongHuong(item);
       host.querySelector("#wsExport").onclick = function () { window.JavisStudio && window.JavisStudio.exportItem("agent", item.slug); };
       host.querySelector("#wsDel").onclick = async function () {
         if (!confirm(t("studio.del_ag", { ten: item.name }))) return;
@@ -1092,6 +1096,15 @@
     }
     veLichSu(item);
     chonTabPhai(tabTheoLoai());
+  }
+  // Khối Cộng hưởng của trợ lý (resonance-agent.js). Biết phiên đang mở để server nói được phiên này dùng được mã
+  // hiện tại không; "Mở cuộc trò chuyện mới" đi đúng đường mở phiên của trang (moPhien), không tự chuyển phiên cũ.
+  function ganCongHuong(item, sid) {
+    var host = S.el && S.el.querySelector("#wsResonance");
+    if (!host || !window.JavisResonanceAgent || !item) return;
+    window.JavisResonanceAgent.mount(host, { slug: item.slug,
+      sessionId: sid || (window.JavisSessions && window.JavisSessions.current && window.JavisSessions.current()) || "",
+      onNewSession: function () { var x = dangChon(); return x ? moPhien(x, true) : false; } });
   }
   function tenAgent(slug) { var a = S.agents.find(function (x) { return x.slug === slug; }); return a ? a.name : (slug || ""); }
   // Tiến độ ĐANG XEM: lần chạy sống của phiên đang mở nếu có, không thì khung rỗng dựng từ

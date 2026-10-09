@@ -220,8 +220,9 @@ import resonance_store as RS  # noqa: E402
 
 _B = Path(tempfile.mkdtemp(prefix="ach-h-brain-")).resolve()
 (_B / "Javis").mkdir()
-(_B / "Javis" / "resonance.json").write_text('{"enabled": true}', encoding="utf-8")
 _ST = RS.GoalStore(Path(tempfile.mkdtemp(prefix="ach-h-db-")) / "r.sqlite3")
+import _resonance_agent as RA  # noqa: E402  - A1: Cộng hưởng bật theo trợ lý
+RA.enable(_ST, _B)
 _P = RS.Principal("agent", "javis", str(_B))
 _DL = "Docs/hd.md"
 
@@ -236,7 +237,8 @@ def _goal(mid, hold=False):
                      "horizon": {"kind": "review", "at_iso": "2027-01-20T09:00:00+07:00"},
                      "criteria": [{"description": "Có mục Lỗi hay gặp", "evaluator": "artifact_contract",
                                    "params": {"path": _DL, "must_contain": ["Lỗi hay gặp"]}},
-                                  {"description": "Anh xác nhận", "evaluator": "human_confirmation"}]}},
+                                  {"description": "Anh xác nhận", "evaluator": "human_confirmation"}]},
+        **RA.ctx(_ST.agent(str(_B), RA.SLUG))},
         R.GoalDeps(engine_factory=lambda s, t: (None, {}), budget=R.CallBudget(0), store=_ST)))
 
 
@@ -251,7 +253,7 @@ def _pres(ok=True):
 
 
 g = _goal(1)
-act = _ST.begin_action(_P, g.id, g.revision, "work", lease_until=9e18, now=1.0, intent={})
+act = _ST.begin_action(_P, g.id, g.revision, "work", lease_until=9e18, now=1.0, intent=RA.pin(_ST, _B))
 Path(g.output_root).mkdir(parents=True, exist_ok=True)
 (Path(g.output_root) / f"{act['id']}.md").write_text("bản việc nền đã ghi, chưa có receipt", encoding="utf-8")
 _saved.clear()
@@ -269,7 +271,7 @@ res, ok = H.preserve_work_outputs(_ST, _P, g.id, _DL, "out.json", _pres())
 check("P2-1 file .md lạc trong vùng làm việc cũng được lưu (orphan, unverified)",
       ok and any(x.get("status") == "orphan" for x in res["items"]) and any("orphan" in x for x in _saved))
 g2 = _goal(2)
-a2 = _ST.begin_action(_P, g2.id, g2.revision, "work", lease_until=9e18, now=1.0, intent={})
+a2 = _ST.begin_action(_P, g2.id, g2.revision, "work", lease_until=9e18, now=1.0, intent=RA.pin(_ST, _B))
 _ST.finish_action(_P, a2["id"], "succeeded", {"output_ref": str(Path(g2.output_root) / "khong-co.md"),
                                               "status": "succeeded"})
 check("P2-1 đối chứng: action succeeded mà không thấy file thì không cho dọn",

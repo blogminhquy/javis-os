@@ -442,13 +442,11 @@
               <div class="opt-sub" id="brandLogoStatus"></div>
             </div>
 
-            <!-- Hệ thống cộng hưởng (Resonance M4): công tắc theo BRAIN đang chọn, mặc định tắt. chat-resonance.js đọc
-                 và ghi qua /resonance/settings; đổi brain thì nạp lại khi khối này được mở. -->
+            <!-- Cộng hưởng (Resonance A1): công tắc theo TỪNG TRỢ LÝ của brain đang chọn, mặc định tắt, cùng mục
+                 "Chờ gán" cho mục tiêu có trước A1. resonance-agent.js vẽ vào #resonanceAgents qua /resonance/agents. -->
             <div class="qs-block" data-settings-section="general" id="resonanceBlock">
               <div class="popover-label" data-i18n="resonance.settings_title">Hệ thống cộng hưởng (thử nghiệm)</div>
-              <div class="opt-sub" data-i18n="resonance.settings_desc">Cho Javis tự lập mục tiêu từ việc bạn nhờ, làm tiếp ở nền trong hạn mức và chỉ báo xong khi có bằng chứng. Chỉ áp dụng cho brain đang chọn.</div>
-              <label class="loop-row" style="padding:0"><span data-i18n="resonance.settings_on">Bật cho brain này</span>
-                <label class="toggle"><input type="checkbox" id="resonanceEnabled"><span></span></label></label>
+              <div id="resonanceAgents"></div>
             </div>
 
             <div class="qs-block" data-settings-section="general">
@@ -864,7 +862,8 @@
        window.JavisSteps ngay khi khung tool_call đầu tiên về. -->
   <script src="/static/chat-steps.js?v=2"></script>
   <script src="/static/chat-viec.js?v=2"></script>
-  <script src="/static/chat-resonance.js?v=1"></script>
+  <script src="/static/chat-resonance.js?v=2"></script>
+  <script src="/static/resonance-agent.js?v=1"></script>
   <!-- Voice V1: khối ngữ cảnh giao diện + bộ nhận lệnh ui_action, nạp TRƯỚC app.js. -->
   <script src="/static/ui-context.js?v=1"></script>
   <script src="/static/ui-actions.js?v=1"></script>
@@ -887,7 +886,7 @@
   <script src="/static/studio.js?v=43"></script>
   <!-- Trang Cộng sự: nạp SAU studio.js (mượn trình sửa agent/workflow của Studio) và TRƯỚC
        console.js (renderWorkspace ủy quyền cho window.JavisWorkspace). -->
-  <script src="/static/workspace.js?v=16"></script>
+  <script src="/static/workspace.js?v=17"></script>
   <script src="/static/packs.js?v=1"></script>
   <script src="/static/chatbots-reply-policy.js?v=1"></script>
   <script src="/static/chatbots-try.js?v=1"></script>

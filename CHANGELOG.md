@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.87.0] - 2026-10-08
+### Thêm mới
+- **Cộng hưởng theo từng trợ lý.** Mỗi trợ lý có công tắc riêng ở trang Cộng sự. Chỉ trợ lý đã bật mới tự lập và theo đuổi mục tiêu; trò chuyện thường không tự sinh mục tiêu. Cột phải của trợ lý hiện các mục tiêu nó đang theo đuổi.
+### Thay đổi
+- **Công tắc Cộng hưởng theo brain không còn dùng.** Mục tiêu lập trước bản này nằm ở mục "Chờ gán" trong Cài đặt và không tự chạy cho tới khi anh gán cho một trợ lý.
+- **Xoá rồi tạo lại trợ lý cùng tên là trợ lý mới.** Trợ lý mới phải bật lại; mục tiêu và cuộc trò chuyện cũ ở lại với trợ lý cũ. Bật trong cuộc trò chuyện mở trước đó thì Javis nhắc mở cuộc trò chuyện mới.
+
 ## [0.86.2] - 2026-10-08
 ### Sửa lỗi
 - **Cài đặt không còn bị xoá sạch khi mở tab WhatsApp hay cho phép một người nhắn bot.** Từ 0.71.0 có ba chỗ chỉ định lưu một mảnh nhỏ nhưng lại ghi đè cả file cài đặt: mở tab WhatsApp ở trang Kênh Admin lần đầu, cho phép một chat Zalo, cho phép một người dùng Slack, WhatsApp, Discord hay Lark. Mỗi lần như vậy là mất tên miền HTTPS, khoá API, kết nối Telegram cùng mọi thiết lập khác. Bản Docker dùng tên miền riêng còn có thể mất HTTPS sau lần khởi động lại reverse proxy kế tiếp. Giờ cả ba chỉ cập nhật đúng phần của mình. Cảm ơn đội DaoVix đã rà mã và gửi báo lỗi chi tiết.

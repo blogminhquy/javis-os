@@ -81,6 +81,8 @@ class GoalRecord:
     method_revision: int = 0
     explore_used: int = 0
     method_prev_revision: int = 0
+    # A1: mã agent sở hữu mục tiêu (bảng goal_agents). Rỗng = chưa gán (mục tiêu có trước A1): không chạy.
+    agent_key: str = ""
 
 
 @dataclass(frozen=True)
@@ -440,8 +442,8 @@ class RouteDecision:
 
 
 def enabled_for(brain_root) -> bool:
-    """Resonance bật cho đúng brain này chưa. Mặc định TẮT; bật bằng `<brain>/Javis/resonance.json`
-    có `{"enabled": true}`. File hỏng hoặc thiếu thì coi như tắt."""
+    """Công tắc theo BRAIN cũ (`<brain>/Javis/resonance.json`, M4). Từ A1 nó KHÔNG cấp quyền gì nữa: mọi cổng dùng
+    `agent_gate`. Chỉ còn dùng cho nhãn giao diện cũ và để bản 0.86.x đọc khi quay về (thiết kế A1 mục 5)."""
     try:
         import json as _json
         f = Path(str(brain_root or "")) / "Javis" / "resonance.json"
@@ -450,6 +452,74 @@ def enabled_for(brain_root) -> bool:
         return _json.loads(f.read_text(encoding="utf-8")).get("enabled") is True
     except Exception:  # noqa: BLE001
         return False
+
+
+def agent_file_exists(brain_root: str, slug: str) -> bool:
+    """File của trợ lý còn trong brain không. Cùng luật tìm thư mục với main._agents_dir (_brain_sub): thư mục phẳng
+    `<brain>/agents` nếu có, không thì cấu trúc cũ `<brain>/Javis/agents`. Slug lạ (có dấu tách thư mục) coi như không có."""
+    s = str(slug or "")
+    if not s or "/" in s or "\\" in s or ".." in s:
+        return False
+    root = Path(str(brain_root or ""))
+    d = root / "agents"
+    if not d.is_dir():
+        d = root / "Javis" / "agents"
+    return (d / f"{s}.md").is_file()
+
+
+AGENT_BLOCKS = ("unassigned", "agent_unknown", "agent_missing", "agent_retired", "agent_off", "agent_changed")
+
+
+def agent_gate(store, brain_id: str, agent_key: str, version: Optional[int] = None) -> tuple:
+    """Cổng agent của A1, MỘT chính sách cho mọi đường: tool, /goal-requests, scheduler, bàn giao, đăng, phép thử.
+
+    Trả (agent | None, lý do). Lý do rỗng là được tác động. `unassigned`: mục tiêu chưa gán agent; `agent_unknown`,
+    `agent_missing`, `agent_retired`: mã không còn sống; `agent_off`: công tắc tắt; `agent_changed`: `config_version`
+    khác bản người gọi đang giữ (tắt rồi bật, hay đổi trạng thái giữa chừng). Chỉ đọc; kho kiểm lại cùng điều kiện
+    trong giao dịch ghi (`GoalStore._agent_block`)."""
+    if not agent_key:
+        return None, "unassigned"
+    a = store.agent_by_key(brain_id, agent_key) if store is not None else None
+    if a is None:
+        return None, "agent_unknown"
+    if a["status"] == "active" and not agent_file_exists(brain_id, a["slug"]):
+        # Đối soát file NGAY tại cổng (review A1 tích hợp, P1-2): file trợ lý mất (xoá tay, đổi tên tay) thì chốt
+        # `missing` dù không có lượt chat nào quan sát. File có lại không tự mở: chủ dự án phải xác nhận.
+        a = store.agent_mark_missing(brain_id, agent_key) or dict(a, status="missing")
+    if a["status"] != "active":
+        return a, "agent_" + str(a["status"])
+    if not a["enabled"]:
+        return a, "agent_off"
+    if version is not None and int(version) != int(a["config_version"]):
+        return a, "agent_changed"
+    return a, ""
+
+
+# Khả năng theo engine của phiên agent (thiết kế A1 mục 2). `goal`: lập và cập nhật mục tiêu (engine mang được ngữ
+# cảnh lượt tới tool); `chat_output`: tiếp nhận bản bộ não viết trong lượt (biên nhận Write có id, hiện chỉ Claude
+# Code; engine khác là A4). Việc nền KHÔNG phụ thuộc engine của agent: nó chạy bằng engine chỉ chữ riêng của Resonance.
+_ENGINE_SUPPORT = {
+    "anthropic-cli": {"goal": True, "chat_output": True},
+    "openai-oauth": {"goal": True, "chat_output": False},
+    "grok-cli": {"goal": False, "chat_output": False},
+    "antigravity-cli": {"goal": False, "chat_output": False},
+}
+
+
+def engine_support(provider: str) -> dict:
+    """Khả năng Cộng hưởng của một engine. Engine API (OpenRouter, OpenAI, Anthropic API, Gemini, Groq, Ollama...) gọi
+    tool trong tiến trình nên lập được mục tiêu; chưa có bàn giao bản viết trong lượt. Engine lạ: coi như chưa hỗ trợ."""
+    p = str(provider or "").strip()
+    if p in _ENGINE_SUPPORT:
+        return {"provider": p, **_ENGINE_SUPPORT[p], "background": True}
+    api = p in ("openrouter", "anthropic-api", "openai", "gemini", "groq", "ollama", "ollama-local", "openai-compat")
+    return {"provider": p, "goal": api, "chat_output": False, "background": True}
+
+
+def _agent_intent(goal: "GoalRecord", deps: "GoalDeps") -> dict:
+    """Mã và version của agent sở hữu, ghi vào ý định hành động lúc giữ lượt hay trước tác động (A1)."""
+    a = deps.store.agent_by_key(deps.principal.brain_id, goal.agent_key) if goal.agent_key else None
+    return {"agent_key": goal.agent_key, "agent_config_version": int(a["config_version"]) if a else 0}
 
 
 def _norm(text: Any) -> str:
@@ -757,7 +827,8 @@ def revise_goal(store, p, goal_id: str, expected_revision: int, proposal: dict, 
     goal = store.revise(p, goal_id, expected_revision, frame,
                         reason=str(context.get("reason") or "người dùng bổ sung")[:500],
                         message_ref=mref, relation=relation, intent=intent, work_due_at=context.get("hold_until"),
-                        handoff_owner=BOOT_ID if context.get("hold_until") else None)
+                        handoff_owner=BOOT_ID if context.get("hold_until") else None,
+                        agent_key=context.get("agent_key"), agent_version=context.get("agent_version"))
     return goal, relation, notes
 
 
@@ -841,7 +912,8 @@ async def form_goal(message_ref: str, context: dict, deps: "GoalDeps") -> GoalRe
     """Từ một tin nhắn cần theo đuổi, lập (hoặc trả lại) đúng một mục tiêu.
 
     context: principal, brain_root, session_id, message_id, user_text, constraints, budget_calls, và tuỳ chọn
-    `proposal` (khung bộ não đã đề xuất qua tool javis_goal), `user_unsure`.
+    `proposal` (khung bộ não đã đề xuất qua tool javis_goal), `user_unsure`. A1: `agent_key` và `agent_version` gắn
+    mục tiêu vào agent của lượt; kho kiểm lại agent còn bật, đúng version, trong giao dịch tạo.
     Có `proposal`: không gọi model, host chỉ kiểm và lưu. Không có: gọi bộ lập mục tiêu MỘT lượt chỉ chữ,
     tính vào hạn mức. Cùng `message_ref` gọi lại thì trả mục tiêu đã có, không gọi model, không ghi gì.
     """
@@ -880,7 +952,8 @@ async def form_goal(message_ref: str, context: dict, deps: "GoalDeps") -> GoalRe
         p, intent["id"], frame, idempotency_key=message_ref, session_id=context.get("session_id") or "",
         output_base=str(Path(str(context.get("brain_root") or "")) / "Javis" / "resonance" / "outputs"),
         budget_calls=int(context.get("budget_calls") or GOAL_DEFAULT_CALLS), message_ref=message_ref,
-        work_due_at=context.get("hold_until"), handoff_owner=BOOT_ID if context.get("hold_until") else None)
+        work_due_at=context.get("hold_until"), handoff_owner=BOOT_ID if context.get("hold_until") else None,
+        agent_key=context.get("agent_key"), agent_version=context.get("agent_version"))
     return goal
 
 
@@ -1184,7 +1257,7 @@ def handoff_after_turn(goal_id: str, message_ref: str, deps: "GoalDeps") -> str:
         why = "path_rejected"
     elif rec is None:
         why = "no_receipt"
-    elif (not enabled_for(deps.brain_root) or g.status != "active" or g.paused
+    elif (agent_gate(store, p.brain_id, g.agent_key)[1] or g.status != "active" or g.paused
           or (store.run_state(p, g.id) or {}).get("block_reason") == "guard"):
         why = "gate_closed"
     else:
@@ -1562,9 +1635,12 @@ def _publish_allowed(brain_root: str, f: Path) -> bool:
     return low[0] not in _PUBLISH_DENY_TOP and low[-1] not in _PUBLISH_DENY_NAMES
 
 
-def _publish(goal: GoalRecord, text: str, deps: GoalDeps, now: float) -> dict:
+def _publish(goal: GoalRecord, text: str, deps: GoalDeps, now: float, source_action: str = "") -> dict:
     """Đặt sản phẩm vào đường dẫn tiêu chí khai trong brain. KHÔNG ghi đè file người dùng hay tác vụ khác đã sửa:
-    file đã có mà hash khác lần mục tiêu này ghi trước thì là xung đột, giữ nguyên file, báo người dùng."""
+    file đã có mà hash khác lần mục tiêu này ghi trước thì là xung đột, giữ nguyên file, báo người dùng.
+
+    A1: ý định đăng mang mã agent và version HIỆN TẠI cùng `source_action` (lượt việc đã sinh bản này). Kho kiểm lại
+    cổng agent trong chính giao dịch ghi ý định; không đạt thì không ghi file ("agent_gate")."""
     store, p = deps.store, deps.principal
     rel = _deliverable_rel(goal)
     if not rel:
@@ -1612,8 +1688,12 @@ def _publish(goal: GoalRecord, text: str, deps: GoalDeps, now: float) -> dict:
                          idem=f"publish_conflict:{rel}:{cur[:16]}")
             return {"status": "conflict"}
         before = cur
-    act = store.begin_action(p, goal.id, goal.revision, "publish", lease_until=now + LEASE_EXTRA_S, now=now,
-                             intent={"path": rel, "sha256": sha, "before": before})
+    try:
+        act = store.begin_action(p, goal.id, goal.revision, "publish", lease_until=now + LEASE_EXTRA_S, now=now,
+                                 intent={"path": rel, "sha256": sha, "before": before,
+                                         "source_action": str(source_action or ""), **_agent_intent(goal, deps)})
+    except Exception as e:  # noqa: BLE001 - AgentStateError: công tắc đổi ngay trước tác động
+        return {"status": "agent_gate", "reason": _short(e)}
     try:
         f.parent.mkdir(parents=True, exist_ok=True)
         tmp = f.with_name(f".{f.name}.{secrets.token_hex(4)}.tmp")
@@ -1693,10 +1773,17 @@ def _gate(goal_id: str, deps: GoalDeps, now: float) -> tuple:
     cur = store.get(p, goal_id)
     if cur is None or cur.status != "active":
         return cur, (), f"mục tiêu đã {cur.status if cur else 'không còn'}"
-    if not enabled_for(deps.brain_root):
-        store.set_run_state(p, cur.id, "blocked", "feature_off")
-        store.set_wake(p, cur.id, "work", now + REVIEW_MIN_S, "kiểm lại công tắc Resonance")
-        return cur, (), "Resonance đã tắt ở brain này"
+    _agent, ablock = agent_gate(store, p.brain_id, cur.agent_key)
+    if ablock == "unassigned":
+        # Mục tiêu chưa gán (có trước A1): không chạy, không hẹn lịch. Chủ dự án gán thì kho tự hẹn lại.
+        store.set_run_state(p, cur.id, "blocked", "unassigned")
+        store.clear_wake(p, cur.id, "work")
+        return cur, (), "mục tiêu chưa gán cho trợ lý nào"
+    if ablock:
+        # Agent tắt, mất file hay đã nghỉ: chặn, kiểm lại định kỳ bằng code. Bật lại thì kho hẹn thức ngay.
+        store.set_run_state(p, cur.id, "blocked", "agent_off" if ablock == "agent_off" else ablock)
+        store.set_wake(p, cur.id, "work", now + REVIEW_MIN_S, "kiểm lại công tắc trợ lý")
+        return cur, (), f"trợ lý của mục tiêu chưa cho phép ({ablock})"
     if cur.paused:
         store.set_run_state(p, cur.id, "paused", "")
         return cur, (), "người dùng tạm dừng mục tiêu"
@@ -1737,11 +1824,16 @@ def _publish_latest(goal: GoalRecord, deps: GoalDeps, now: float) -> dict:
     if any(float(e.get("created_at") or 0) > float(act.get("created_at") or 0)
            for e in deps.store.evidence_for(deps.principal, goal.id, goal.revision, kind="chat_output")):
         return {"status": "superseded"}
+    # A1: chỉ dùng lại đầu ra do CHÍNH agent đang sở hữu mục tiêu sinh ra. Lượt việc trước lúc gán (không mang mã) hay
+    # của mã khác không được đăng. Đầu ra giữ lại sau tắt/bật thì được: cổng đã kiểm quyền HIỆN TẠI, và _publish ghi
+    # một ý định đăng MỚI theo version hiện tại, trỏ về lượt việc gốc; ý định gốc giữ nguyên (thiết kế mục 4).
+    if not goal.agent_key or (act.get("intent") or {}).get("agent_key") != goal.agent_key:
+        return {"status": "foreign_output"}
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return {"status": "none"}
-    return _publish(goal, text, deps, now)
+    return _publish(goal, text, deps, now, source_action=aid)
 
 
 def _after_publish(goal: GoalRecord, pub: dict, refs: tuple, deps: GoalDeps, now: float) -> tuple:
@@ -1814,9 +1906,10 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
     store, p = deps.store, deps.principal
     lease_until = now + float(deps.max_wall_s) + float(deps.wall_grace_s) + LEASE_EXTRA_S
     try:
+        held = _agent_intent(goal, deps)
         act = store.begin_action(p, goal.id, goal.revision, "work", lease_until=lease_until, now=now,
                                  intent={"prompt_kind": "work", "last_verdict": last.verdict,
-                                         "method": effective_method(goal)})
+                                         "method": effective_method(goal), **held})
     except Exception as e:  # noqa: BLE001
         # Không ghi được ý định hành động thì KHÔNG tác động (spec mục 12).
         return Assessment(goal.id, goal.revision, "unknown", rationale=f"không ghi được ý định hành động: {_short(e)}",
@@ -1896,12 +1989,19 @@ async def _work_step(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: fl
     # Kiểm lại NGAY TRƯỚC tác động: công tắc, pause của người dùng, guard có thể đã đổi trong lúc model chạy
     # (review M3, P1-1 và P1-2). Bị chặn thì đầu ra GIỮ trong vùng làm việc; lượt sau đăng nó mà không gọi model.
     cur, guards, why = _gate(goal.id, deps, now)
+    if not why:
+        # A1, quyết định 4: công tắc trợ lý đổi trong lúc model chạy (tắt rồi bật) thì version lệch. Giữ đầu ra, KHÔNG
+        # đăng trong lượt này; hẹn thức ngay để lần sau xét lại theo quyền hiện tại (_publish_latest, không gọi model).
+        _a, changed = agent_gate(store, p.brain_id, held["agent_key"], held["agent_config_version"])
+        if changed:
+            why = f"công tắc trợ lý đã đổi trong lúc chạy ({changed})"
+            store.set_wake(p, goal.id, "work", now, "xét lại đầu ra theo quyền hiện tại")
     if why:
         a = Assessment(goal.id, goal.revision, "unknown", guards=guards,
                        rationale="đầu ra giữ trong vùng làm việc, chưa đăng: " + why, evaluated_at=now)
         store.add_assessment(p, a.to_dict())
         return a
-    pub = _publish(goal, text, deps, now)
+    pub = _publish(goal, text, deps, now, source_action=act["id"])
     refs = tuple(e["evidence_id"] for e in store.evidence_for(p, goal.id, goal.revision, kind="action_output"))
     a, why = _after_publish(goal, pub, refs, deps, now)
     if why:
@@ -2400,14 +2500,25 @@ def _grade(text: str, rubric: list, expect: dict) -> tuple:
     return "unknown", why
 
 
-async def _trial_run(goal: GoalRecord, exp_id: str, case: dict, arm: str, ref: str, rubric: list, rubric_hash: str,
-                     deps: GoalDeps, usage: dict) -> dict:
+def _trial_begin(goal: GoalRecord, exp_id: str, case: dict, arm: str, ref: str, deps: GoalDeps,
+                 pin: Optional[dict] = None) -> dict:
+    """Ghi ý định của MỘT lượt thử, TRƯỚC khi gọi model. `pin`: mã và version trợ lý GHIM lúc bắt đầu phép thử; kho kiểm
+    lại trong giao dịch này (AgentStateError nếu đã tắt hay đổi). Hàm này ném lỗi thì CHẮC CHẮN model chưa được gọi cho
+    lượt đó: đây là ranh giới duy nhất được coi là "chưa chạy" để hoàn hạn mức (review A1 tại 7d084394, P1)."""
     store, p = deps.store, deps.principal
     now = deps.clock()
-    act = store.begin_action(p, goal.id, goal.revision, "trial",
-                             lease_until=now + float(deps.max_wall_s) + float(deps.wall_grace_s) + LEASE_EXTRA_S,
-                             now=now, wake=False,
-                             intent={"experiment_id": exp_id, "case_id": case["id"], "arm": arm, "method": ref})
+    return store.begin_action(p, goal.id, goal.revision, "trial",
+                              lease_until=now + float(deps.max_wall_s) + float(deps.wall_grace_s) + LEASE_EXTRA_S,
+                              now=now, wake=False,
+                              intent={"experiment_id": exp_id, "case_id": case["id"], "arm": arm, "method": ref,
+                                      **(pin or {})})
+
+
+async def _trial_run(goal: GoalRecord, exp_id: str, case: dict, arm: str, ref: str, rubric: list, rubric_hash: str,
+                     deps: GoalDeps, usage: dict, act: dict) -> dict:
+    """Một lượt của phép thử, sau khi `_trial_begin` đã ghi ý định `act`. Từ đây model có thể đã được gọi: lỗi ở các
+    bước sau (lưu bằng chứng, ghi receipt, chấm) KHÔNG được coi là chưa chạy."""
+    store, p = deps.store, deps.principal
     call = _TrialCall(store, p, goal.id)
     sub = dataclasses_replace(deps, budget=call)
     # Bản dựng mới cho từng lượt: chỉ tình huống này làm lời người dùng, không đánh giá trước, không bản cũ.
@@ -2468,11 +2579,11 @@ async def compare_methods(goal_id: str, baseline_ref: str, candidate_ref: str, c
     store, p = deps.store, deps.principal
     if store is None or p is None:
         raise GoalRejected("thiếu kho hoặc principal")
-    if not enabled_for(deps.brain_root):
-        raise GoalRejected("Resonance chưa bật ở brain này")
     g = store.get(p, goal_id)
     if g is None:
         raise GoalRejected("không có mục tiêu này trong brain")
+    if agent_gate(store, p.brain_id, g.agent_key)[1]:
+        raise GoalRejected("trợ lý của mục tiêu chưa bật Cộng hưởng")
     _, why = _trial_gate(g, deps, deps.clock())
     if why:
         raise GoalRejected(f"mục tiêu không chạy được lúc này: {why}")
@@ -2504,11 +2615,17 @@ async def compare_methods(goal_id: str, baseline_ref: str, candidate_ref: str, c
     until = now + need * (float(deps.max_wall_s) + float(deps.wall_grace_s)) + LEASE_EXTRA_S
     if not store.claim_lease(p, g.id, owner, until, now):
         return {**out, "reason": "busy"}
+    # A1 (review tích hợp, P1-3): GHIM mã và version trợ lý cho cả phép thử. Mọi lượt, và bước áp dụng, phải còn đúng
+    # bản ghim này; tắt rồi bật giữa chừng là version mới, phép thử dừng và hoàn phần hạn mức chưa chạy.
+    pin = _agent_intent(g, deps)
     try:
-        exp = store.begin_experiment(p, g.id, g.revision, baseline_ref, candidate_ref, need,
-                                     int(g.budget_calls * EXPLORE_SHARE),
-                                     {"rubric_hash": rubric_hash, "cases_hash": cases_hash,
-                                      "case_ids": [c["id"] for c in items]}, now=now)
+        try:
+            exp = store.begin_experiment(p, g.id, g.revision, baseline_ref, candidate_ref, need,
+                                         int(g.budget_calls * EXPLORE_SHARE),
+                                         {"rubric_hash": rubric_hash, "cases_hash": cases_hash,
+                                          "case_ids": [c["id"] for c in items]}, now=now, agent=pin)
+        except Exception as e:  # noqa: BLE001 - AgentStateError: công tắc đổi ngay trước giao dịch giữ hạn mức
+            return {**out, "reason": "agent_gate", "stop_detail": _short(e)}
         if exp is None:
             return {**out, "reason": "explore_budget"}
         out.update(experiment_id=exp, created=True)
@@ -2526,10 +2643,28 @@ async def compare_methods(goal_id: str, baseline_ref: str, candidate_ref: str, c
                 # Cùng cổng với advance TRƯỚC MỖI lượt: can thiệp của người dùng, "Chưa đúng ý", guard và đổi cách
                 # hiểu có hiệu lực giữa chừng (spec 2.3, 11.1; review M5, P1-1).
                 _, stop = _trial_gate(g, deps, deps.clock())
+                if not stop:
+                    stop = agent_gate(store, p.brain_id, pin["agent_key"], pin["agent_config_version"])[1]
                 if stop:
                     break
-                started += 1
-                row[arm] = await _trial_run(tg, exp, c, arm, ref, rubric, rubric_hash, deps, out["usage"])
+                try:
+                    act = _trial_begin(tg, exp, c, arm, ref, deps, pin)
+                except Exception as e:  # noqa: BLE001
+                    # Kho từ chối GHI Ý ĐỊNH (quyền trợ lý đổi, hay lỗi lưu trữ): giao dịch đã huỷ, model CHƯA được
+                    # gọi cho lượt này, nên lượt không tính vào `started` và được hoàn ở finish_experiment.
+                    stop = (f"agent_gate: {_short(e)}" if type(e).__name__ == "AgentStateError"
+                            else f"storage_error_before_call: {type(e).__name__}: {_short(e)}")
+                    break
+                started += 1          # từ đây lượt đã tính: model có thể đã được gọi
+                try:
+                    row[arm] = await _trial_run(tg, exp, c, arm, ref, rubric, rubric_hash, deps, out["usage"], act)
+                except Exception as e:  # noqa: BLE001
+                    # Lỗi SAU khi có thể đã gọi model (lưu bằng chứng, ghi receipt, chấm): GIỮ lượt đã tính, không hoàn;
+                    # phép thử dừng, không kết luận. Hành động dở (nếu receipt chưa ghi được) để _reconcile chốt sau.
+                    row[arm] = {"action_id": act["id"], "verdict": "unknown", "rubric_hash": rubric_hash,
+                                "reason": f"lỗi sau lượt gọi: {type(e).__name__}"}
+                    stop = f"storage_error_after_call: {type(e).__name__}: {_short(e)}"
+                    break
             if stop:
                 if "baseline" in row:
                     row.setdefault("candidate", {"verdict": "unknown", "reason": "không chạy: phép thử đã dừng",
@@ -2541,6 +2676,8 @@ async def compare_methods(goal_id: str, baseline_ref: str, candidate_ref: str, c
             # Lượt cuối có thể vừa xong SAU một lệnh dừng: kiểm lại toàn bộ điều kiện chạy ngay trước khi kết luận
             # và áp dụng (review M5, P1-2). Phần SQLite được kiểm lại lần nữa trong giao dịch đổi cách làm.
             _, stop = _trial_gate(g, deps, deps.clock())
+            if not stop:
+                stop = agent_gate(store, p.brain_id, pin["agent_key"], pin["agent_config_version"])[1]
         if stop:
             verdict, reason = "inconclusive", ("goal_reframed" if stop == "goal_reframed" else "stopped")
             out["stop_detail"] = stop

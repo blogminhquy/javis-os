@@ -118,7 +118,35 @@ CREATE INDEX IF NOT EXISTS experiments_goal ON experiments(goal_id, created_at);
 CREATE TABLE IF NOT EXISTS call_ledger(
   id INTEGER PRIMARY KEY AUTOINCREMENT, brain_id TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL, created_at REAL NOT NULL, updated_at REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS resonance_agents(
+  agent_key TEXT PRIMARY KEY, brain_id TEXT NOT NULL, slug TEXT NOT NULL, status TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 0, config_version INTEGER NOT NULL DEFAULT 1,
+  created_at REAL NOT NULL, updated_at REAL NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS resonance_agents_live ON resonance_agents(brain_id, slug)
+  WHERE status IN ('active', 'missing');
+CREATE TABLE IF NOT EXISTS resonance_agent_events(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, agent_key TEXT NOT NULL, brain_id TEXT NOT NULL, kind TEXT NOT NULL,
+  by TEXT NOT NULL DEFAULT '', version_before INTEGER, version_after INTEGER,
+  payload_json TEXT NOT NULL DEFAULT '{}', created_at REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS resonance_agent_events_key ON resonance_agent_events(agent_key, id);
+CREATE TABLE IF NOT EXISTS session_agents(
+  session_id TEXT PRIMARY KEY, brain_id TEXT NOT NULL, agent_key TEXT NOT NULL, by TEXT NOT NULL DEFAULT '',
+  created_at REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS goal_agents(
+  goal_id TEXT PRIMARY KEY, brain_id TEXT NOT NULL, agent_key TEXT NOT NULL, by TEXT NOT NULL DEFAULT '',
+  created_at REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS goal_agents_key ON goal_agents(agent_key);
+CREATE TABLE IF NOT EXISTS experiment_agents(
+  experiment_id TEXT PRIMARY KEY, goal_id TEXT NOT NULL, agent_key TEXT NOT NULL,
+  agent_config_version INTEGER NOT NULL, created_at REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS handoff_agents(
+  goal_id TEXT NOT NULL, revision INTEGER NOT NULL, agent_key TEXT NOT NULL, agent_config_version INTEGER NOT NULL,
+  created_at REAL NOT NULL, PRIMARY KEY(goal_id, revision));
 """
+
+# Bảng và cột có từ trước A1 (0.86.x), đúng thứ tự. A1 không được đổi (review PR #590, P1-2); test so với đây.
+PRE_A1_TABLES = ("intents", "goals", "goal_revisions", "goal_events", "outbox", "actions", "assessments",
+                 "evidence_links", "wakeups", "handoffs", "published", "experiments", "call_ledger")
 
 # Cột thêm từ M3 vào bảng đã có ở M2. Kho tạo bởi bản M2 không tự có cột mới qua CREATE IF NOT EXISTS,
 # nên nâng cấp bằng ALTER TABLE: chỉ thêm, không xoá dữ liệu.
@@ -137,6 +165,9 @@ _ADDED_COLUMNS = (
     # ref cũ (review M5, P1-3): phạm vi của mỗi ref là phạm vi nó đã được kiểm, không hơn.
     ("goals", "method_prev_revision", "INTEGER NOT NULL DEFAULT 0"),
     ("goals", "explore_used", "INTEGER NOT NULL DEFAULT 0"),
+    # A1 KHÔNG thêm cột vào bảng nào có từ trước (review PR #590, P1-2): bản 0.86.x ghi một số bảng theo vị trí cột
+    # (`INSERT ... VALUES(?,?,...)`), nên thêm cột là bản cũ hết ghi được khi quay về. Mọi dữ liệu A1 nằm ở bảng
+    # riêng (`resonance_agents`, `session_agents`, `goal_agents`, `handoff_agents`...). Test khoá danh sách cột cũ.
 )
 _POST_MIGRATION = "CREATE UNIQUE INDEX IF NOT EXISTS outbox_idem ON outbox(goal_id, idem) WHERE idem IS NOT NULL;"
 
@@ -147,6 +178,14 @@ class ScopeError(Exception):
 
 class ConflictError(Exception):
     """`expected_revision` không còn khớp: có người đã sửa mục tiêu trước."""
+
+
+class AgentStateError(Exception):
+    """Thao tác trên sổ đăng ký agent không hợp với trạng thái hiện tại (ví dụ bật agent đang `missing`)."""
+
+
+AGENT_STATUSES = ("active", "missing", "retired")
+_A1_BACKUP_SUFFIX = ".pre-a1.bak"
 
 
 @dataclass(frozen=True)
@@ -173,6 +212,7 @@ class GoalStore:
     def __init__(self, path: Optional[Path] = None):
         self.path = Path(path) if path else Path(STATE_DIR) / "resonance.sqlite3"
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._backup_before_a1()
         with closing(self._conn()) as c:
             c.executescript(_SCHEMA)
             for table, col, decl in _ADDED_COLUMNS:
@@ -180,6 +220,22 @@ class GoalStore:
                 if col not in have:
                     c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
             c.executescript(_POST_MIGRATION)
+
+    def _backup_before_a1(self) -> None:
+        """Lần đầu mã A1 mở một kho có từ trước (chưa có bảng `resonance_agents`), chép nguyên kho thành
+        `resonance.sqlite3.pre-a1.bak` cạnh file gốc để khôi phục tay. Dùng API backup của SQLite nên lấy được cả
+        phần còn nằm trong WAL. Chỉ chép một lần: bản sao đã có thì không ghi đè. Kho mới tinh thì không chép."""
+        bak = self.path.with_name(self.path.name + _A1_BACKUP_SUFFIX)
+        if bak.exists() or not self.path.is_file() or self.path.stat().st_size == 0:
+            return
+        with closing(sqlite3.connect(str(self.path), timeout=10)) as src:
+            names = {r[0] for r in src.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+            if "goals" not in names or "resonance_agents" in names:
+                return
+            tmp = bak.with_name(bak.name + ".tmp")
+            with closing(sqlite3.connect(str(tmp))) as dst:
+                src.backup(dst)
+            os.replace(tmp, bak)
 
     def _conn(self) -> sqlite3.Connection:
         c = sqlite3.connect(str(self.path), timeout=10, isolation_level=None)
@@ -204,6 +260,201 @@ class GoalStore:
             finally:
                 self.c.close()
             return False
+
+    # ───────────── sổ đăng ký agent (A1) ─────────────
+    # Mã agent do host cấp, độc lập với slug: trùng tên file không đủ để kế thừa quyền hay mục tiêu. Mọi thao tác ĐỔI
+    # chỉ dành cho owner (qua API của host); không có tool nào gọi tới đây. Mỗi lần đổi công tắc hay trạng thái tăng
+    # `config_version` và ghi một dòng `resonance_agent_events`.
+
+    @staticmethod
+    def _agent(r) -> dict:
+        return {"agent_key": r["agent_key"], "brain_id": r["brain_id"], "slug": r["slug"], "status": r["status"],
+                "enabled": bool(r["enabled"]), "config_version": int(r["config_version"]),
+                "created_at": r["created_at"], "updated_at": r["updated_at"]}
+
+    @staticmethod
+    def _owner_only(p: Principal) -> None:
+        if p.kind != "owner":
+            raise PermissionError("chỉ chủ dự án mới đổi được sổ đăng ký agent")
+
+    @staticmethod
+    def _agent_event(c, r, kind: str, by: str, after: Optional[int], payload: Optional[dict] = None,
+                     now: Optional[float] = None) -> None:
+        c.execute("INSERT INTO resonance_agent_events(agent_key,brain_id,kind,by,version_before,version_after,"
+                  "payload_json,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                  (r["agent_key"], r["brain_id"], kind, by, int(r["config_version"]), after,
+                   _j(payload or {}), now or time.time()))
+
+    @staticmethod
+    def _live_agent_row(c, brain_id: str, slug: str):
+        return c.execute("SELECT * FROM resonance_agents WHERE brain_id=? AND slug=? AND status IN ('active','missing')",
+                         (brain_id, str(slug or ""))).fetchone()
+
+    def _insert_agent(self, c, brain_id: str, slug: str, enabled: bool, by: str, now: float, payload=None):
+        key = "ag_" + secrets.token_hex(8)
+        c.execute("INSERT INTO resonance_agents(agent_key,brain_id,slug,status,enabled,config_version,created_at,"
+                  "updated_at) VALUES(?,?,?,?,?,?,?,?)",
+                  (key, brain_id, str(slug), "active", 1 if enabled else 0, 1, now, now))
+        r = c.execute("SELECT * FROM resonance_agents WHERE agent_key=?", (key,)).fetchone()
+        c.execute("INSERT INTO resonance_agent_events(agent_key,brain_id,kind,by,version_before,version_after,"
+                  "payload_json,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                  (key, brain_id, "registered", by, None, 1, _j({"slug": slug, "enabled": bool(enabled),
+                                                                  **(payload or {})}), now))
+        return r
+
+    def _bump_agent(self, c, r, kind: str, by: str, now: float, payload=None, **cols) -> dict:
+        after = int(r["config_version"]) + 1
+        sets = "".join(f", {k}=?" for k in cols)
+        c.execute(f"UPDATE resonance_agents SET config_version=?, updated_at=?{sets} WHERE agent_key=?",
+                  (after, now, *cols.values(), r["agent_key"]))
+        self._agent_event(c, r, kind, by, after, payload, now)
+        return self._agent(c.execute("SELECT * FROM resonance_agents WHERE agent_key=?", (r["agent_key"],)).fetchone())
+
+    def agent(self, brain_id: str, slug: str) -> Optional[dict]:
+        """Dòng còn sống (`active` hay `missing`) của `(brain, slug)`, hoặc None khi chưa đăng ký hay đã nghỉ."""
+        with closing(self._conn()) as c:
+            r = self._live_agent_row(c, brain_id, slug)
+            return self._agent(r) if r else None
+
+    def agent_by_key(self, brain_id: str, agent_key: str) -> Optional[dict]:
+        """Đọc theo mã, chỉ trong đúng brain. Mã của brain khác coi như không có."""
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT * FROM resonance_agents WHERE agent_key=? AND brain_id=?",
+                          (str(agent_key or ""), brain_id)).fetchone()
+            return self._agent(r) if r else None
+
+    def agents(self, brain_id: str, include_retired: bool = False) -> list:
+        with closing(self._conn()) as c:
+            q = "SELECT * FROM resonance_agents WHERE brain_id=?"
+            if not include_retired:
+                q += " AND status != 'retired'"
+            return [self._agent(r) for r in c.execute(q + " ORDER BY slug, created_at", (brain_id,)).fetchall()]
+
+    def agent_events(self, brain_id: str, agent_key: str, limit: int = 200) -> list:
+        with closing(self._conn()) as c:
+            rows = c.execute("SELECT * FROM resonance_agent_events WHERE agent_key=? AND brain_id=? ORDER BY id LIMIT ?",
+                             (str(agent_key or ""), brain_id, int(limit))).fetchall()
+            return [{"kind": r["kind"], "by": r["by"], "version_before": r["version_before"],
+                     "version_after": r["version_after"], "payload": json.loads(r["payload_json"] or "{}"),
+                     "created_at": r["created_at"]} for r in rows]
+
+    def agent_set_enabled(self, p: Principal, slug: str, enabled: bool) -> Optional[dict]:
+        """Chủ dự án bật hay tắt Cộng hưởng cho agent `slug` của brain. Lần bật đầu cấp mã mới.
+        Tắt một agent chưa đăng ký thì không có gì để làm (trả None). Agent `missing` không bật được tới khi
+        chủ dự án xác nhận (`agent_confirm`), nhưng tắt thì luôn được. Đặt lại đúng giá trị đang có không tăng version.
+        Kiểm file agent còn tồn tại là việc của người gọi (host biết cấu trúc brain), không phải của kho."""
+        self._owner_only(p)
+        slug = str(slug or "").strip()
+        if not slug:
+            raise AgentStateError("thiếu slug agent")
+        now = time.time()
+        with self._Tx(self) as c:
+            r = self._live_agent_row(c, p.brain_id, slug)
+            if r is None:
+                if not enabled:
+                    return None
+                return self._agent(self._insert_agent(c, p.brain_id, slug, True, p.by, now))
+            # Kiểm trạng thái TRƯỚC nhánh "không đổi" (review PR #590, P2-1): agent missing vẫn giữ cờ bật cũ, nên
+            # đặt cờ bật lần nữa không được báo thành công.
+            if enabled and r["status"] != "active":
+                raise AgentStateError(f"agent đang {r['status']}, cần chủ dự án xác nhận trước khi bật")
+            if bool(r["enabled"]) == bool(enabled):
+                return self._agent(r)
+            return self._bump_agent(c, r, "enabled" if enabled else "disabled", p.by, now, enabled=1 if enabled else 0)
+
+    def agent_mark_missing(self, brain_id: str, agent_key: str, by: str = "host") -> Optional[dict]:
+        """Host thấy file agent biến mất: dòng `active` chuyển `missing`, version tăng, mọi cổng của mã này đóng.
+        Không đụng tới `enabled`: xác nhận lại thì công tắc như cũ. Gọi lặp lại không tăng version."""
+        now = time.time()
+        with self._Tx(self) as c:
+            r = c.execute("SELECT * FROM resonance_agents WHERE agent_key=? AND brain_id=?",
+                          (str(agent_key or ""), brain_id)).fetchone()
+            if r is None:
+                return None
+            if r["status"] != "active":
+                return self._agent(r)
+            return self._bump_agent(c, r, "missing", by, now, status="missing")
+
+    def agent_retire(self, p: Principal, slug: str, reason: str = "deleted") -> Optional[dict]:
+        """Xoá agent qua host (hay chủ dự án cho nghỉ): dòng còn sống chuyển `retired` và tắt. Tạo lại cùng slug sau
+        đó là agent MỚI, phải bật lại và nhận mã mới; mục tiêu cũ vẫn giữ mã cũ."""
+        self._owner_only(p)
+        now = time.time()
+        with self._Tx(self) as c:
+            r = self._live_agent_row(c, p.brain_id, slug)
+            if r is None:
+                return None
+            return self._bump_agent(c, r, "retired", p.by, now, {"reason": str(reason or "")},
+                                    status="retired", enabled=0)
+
+    def agent_confirm(self, p: Principal, agent_key: str, same: bool) -> dict:
+        """Chủ dự án xử lý agent `missing` khi file cùng slug xuất hiện lại. `same=True`: đúng trợ lý cũ, giữ mã và
+        công tắc. `same=False`: trợ lý mới, mã cũ nghỉ (mục tiêu cũ ở lại với mã cũ), mã mới đăng ký ở trạng thái
+        tắt. Người gọi phải kiểm file đang có thật trước khi gọi."""
+        self._owner_only(p)
+        now = time.time()
+        with self._Tx(self) as c:
+            r = c.execute("SELECT * FROM resonance_agents WHERE agent_key=? AND brain_id=?",
+                          (str(agent_key or ""), p.brain_id)).fetchone()
+            if r is None:
+                raise ScopeError("agent không tồn tại trong brain này")
+            if r["status"] != "missing":
+                raise AgentStateError(f"agent đang {r['status']}, không cần xác nhận")
+            if same:
+                return self._bump_agent(c, r, "confirmed_same", p.by, now, status="active")
+            self._bump_agent(c, r, "retired", p.by, now, {"reason": "replaced"}, status="retired", enabled=0)
+            new = self._insert_agent(c, p.brain_id, r["slug"], False, p.by, now, {"replaces": r["agent_key"]})
+            return self._agent(new)
+
+    def session_agent(self, brain_id: str, session_id: str, slug: str, session_created_at: float,
+                      pin: bool = True) -> Optional[dict]:
+        """Agent của một phiên trò chuyện `agent:<slug>`, GHIM theo phiên (review PR #590, P1-1).
+
+        Slug chỉ là tên file: xoá rồi tạo lại cùng slug là agent khác với mã khác. Nên phiên đã ghim vào mã A thì
+        mãi là của A: A còn `active` thì trả A, A đã `missing` hay `retired` thì trả None, KHÔNG tự chuyển sang mã
+        mới của cùng slug. A1 chưa có thao tác chủ dự án nối lại phiên cũ; muốn dùng agent mới thì mở phiên mới.
+
+        Phiên chưa ghim được ghim vào dòng `active` hiện tại của slug khi và chỉ khi chắc nó thuộc dòng đó:
+        - đây là mã DUY NHẤT từng có của `(brain, slug)` (gồm phiên mở trước lần bật đầu tiên), hoặc
+        - phiên được tạo từ lúc mã đó được cấp trở đi (`session_created_at` >= `created_at` của mã).
+        Phiên tạo dưới thời một mã cũ mà chưa ghim (chưa có lượt nào) thì không được nhận mã mới: trả None.
+        Ghim một lần, ghi sự kiện `session_pinned`; ghim trùng thì bản đã có thắng."""
+        sid = str(session_id or "").strip()
+        if not sid:
+            return None
+        now = time.time()
+        with self._Tx(self) as c:
+            link = c.execute("SELECT * FROM session_agents WHERE session_id=?", (sid,)).fetchone()
+            if link is not None:
+                if link["brain_id"] != brain_id:
+                    return None
+                r = c.execute("SELECT * FROM resonance_agents WHERE agent_key=? AND brain_id=?",
+                              (link["agent_key"], brain_id)).fetchone()
+                return self._agent(r) if r is not None and r["status"] == "active" and r["slug"] == slug else None
+            r = self._live_agent_row(c, brain_id, slug)
+            if r is None or r["status"] != "active":
+                return None
+            n = int(c.execute("SELECT COUNT(*) FROM resonance_agents WHERE brain_id=? AND slug=?",
+                              (brain_id, str(slug))).fetchone()[0])
+            if n > 1 and float(session_created_at or 0) < float(r["created_at"]):
+                return None
+            if not pin:
+                # Chỉ hỏi (giao diện xem trạng thái phiên): cùng luật, không ghi liên kết.
+                return self._agent(r)
+            c.execute("INSERT INTO session_agents(session_id,brain_id,agent_key,by,created_at) VALUES(?,?,?,?,?)",
+                      (sid, brain_id, r["agent_key"], "host", now))
+            c.execute("INSERT INTO resonance_agent_events(agent_key,brain_id,kind,by,version_before,version_after,"
+                      "payload_json,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                      (r["agent_key"], brain_id, "session_pinned", "host", int(r["config_version"]),
+                       int(r["config_version"]), _j({"session_id": sid}), now))
+            return self._agent(r)
+
+    def session_pin(self, session_id: str) -> Optional[dict]:
+        """Đọc liên kết phiên → mã agent đã ghim (để xem và kiểm), None khi chưa ghim."""
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT * FROM session_agents WHERE session_id=?", (str(session_id or ""),)).fetchone()
+            return {"session_id": r["session_id"], "brain_id": r["brain_id"], "agent_key": r["agent_key"],
+                    "created_at": r["created_at"]} if r else None
 
     # ───────────── bản ghi ý định ─────────────
 
@@ -266,7 +517,30 @@ class GoalStore:
             budget_calls=row["budget_calls"], calls_used=row["calls_used"], paused=bool(row["paused"]),
             method_ref=row["method_ref"] or R.DEFAULT_METHOD, method_prev_ref=row["method_prev_ref"] or "",
             method_revision=int(row["method_revision"] or 0), explore_used=int(row["explore_used"] or 0),
-            method_prev_revision=int(row["method_prev_revision"] or 0))
+            method_prev_revision=int(row["method_prev_revision"] or 0),
+            agent_key=self._goal_agent(c, row["id"]))
+
+    @staticmethod
+    def _goal_agent(c, goal_id: str) -> str:
+        r = c.execute("SELECT agent_key FROM goal_agents WHERE goal_id=?", (goal_id,)).fetchone()
+        return r["agent_key"] if r else ""
+
+    @staticmethod
+    def _agent_block(c, brain_id: str, agent_key: str, version=None) -> str:
+        """Lý do mã agent KHÔNG được tác động lúc này, đọc trong giao dịch của người gọi; rỗng là được. Cùng nghĩa với
+        `resonance.agent_gate`, để kiểm lại ngay trong giao dịch ghi (không chỉ ở bước kiểm trước đó)."""
+        if not agent_key:
+            return "unassigned"
+        r = c.execute("SELECT * FROM resonance_agents WHERE agent_key=? AND brain_id=?", (agent_key, brain_id)).fetchone()
+        if r is None:
+            return "agent_unknown"
+        if r["status"] != "active":
+            return "agent_" + str(r["status"])
+        if not r["enabled"]:
+            return "agent_off"
+        if version is not None and int(version) != int(r["config_version"]):
+            return "agent_changed"
+        return ""
 
     def _goal_row(self, c, p: Principal, goal_id: str):
         r = c.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone()
@@ -283,8 +557,12 @@ class GoalStore:
     def create(self, p: Principal, intent_id: str, frame: dict, idempotency_key: str, session_id: str = "",
                output_root: Optional[str] = None, output_base: Optional[str] = None, budget_calls: int = 0,
                message_ref: Optional[str] = None, work_due_at: Optional[float] = None,
-               handoff_owner: Optional[str] = None) -> tuple:
-        """Trả (GoalRecord, đã_tạo_mới). Cùng khoá chống trùng thì trả mục tiêu cũ, không ghi gì thêm."""
+               handoff_owner: Optional[str] = None, agent_key: Optional[str] = None,
+               agent_version: Optional[int] = None) -> tuple:
+        """Trả (GoalRecord, đã_tạo_mới). Cùng khoá chống trùng thì trả mục tiêu cũ, không ghi gì thêm.
+
+        A1: `agent_key` gắn mục tiêu vào một agent (bảng goal_agents) trong CÙNG giao dịch, sau khi kiểm lại ngay tại
+        đây agent còn `active`, bật và đúng `agent_version`; không đạt thì AgentStateError, không ghi gì."""
         now = time.time()
         msg = message_ref or idempotency_key
         with self._Tx(self) as c:
@@ -292,6 +570,10 @@ class GoalStore:
                             (p.brain_id, idempotency_key)).fetchone()
             if old is not None:
                 return self._record(c, old), False
+            if agent_key is not None:
+                why = self._agent_block(c, p.brain_id, agent_key, agent_version)
+                if why:
+                    raise AgentStateError(why)
             intent = self._intent(c, p, intent_id)
             missing = [x for x in intent["constraints"] if x not in (frame.get("constraints") or [])]
             if missing:
@@ -314,8 +596,11 @@ class GoalStore:
             # lượt chat thì lịch được GIỮ tới khi bàn giao cuối lượt (work_due_at), để việc nền không chen vào giữa lượt.
             self._wake(c, gid, p.brain_id, "work", float(work_due_at) if work_due_at else now,
                        "chờ bàn giao lượt chat" if work_due_at else "tạo mục tiêu")
+            if agent_key:
+                c.execute("INSERT INTO goal_agents(goal_id,brain_id,agent_key,by,created_at) VALUES(?,?,?,?,?)",
+                          (gid, p.brain_id, agent_key, p.by, now))
             if handoff_owner:
-                self._open_handoff(c, gid, 1, msg, handoff_owner, now)
+                self._open_handoff(c, gid, 1, msg, handoff_owner, now, agent_key, agent_version)
             if frame.get("guards"):
                 self._wake(c, gid, p.brain_id, "observe", now + R.GUARD_OBSERVE_S, "quan sát guard")
             row = c.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
@@ -334,25 +619,41 @@ class GoalStore:
                           (goal_id, int(revision))).fetchone()
             return json.loads(r["frame_json"]) if r else None
 
-    def list_open(self, p: Principal, session_id: Optional[str] = None) -> list:
+    def list_open(self, p: Principal, session_id: Optional[str] = None, agent_key: Optional[str] = None,
+                  unassigned: bool = False) -> list:
+        """Mục tiêu đang mở của brain. `agent_key`: chỉ của đúng agent đó. `unassigned`: chỉ mục tiêu chưa gán."""
         with closing(self._conn()) as c:
             q = "SELECT * FROM goals WHERE brain_id=? AND status='active'"
             args = [p.brain_id]
             if session_id is not None:
                 q += " AND session_id=?"
                 args.append(str(session_id))
+            if agent_key is not None:
+                q += " AND id IN (SELECT goal_id FROM goal_agents WHERE agent_key=?)"
+                args.append(str(agent_key))
+            if unassigned:
+                q += " AND id NOT IN (SELECT goal_id FROM goal_agents)"
             q += " ORDER BY updated_at DESC"
             return [self._record(c, r) for r in c.execute(q, args).fetchall()]
 
     def revise(self, p: Principal, goal_id: str, expected_revision: int, frame: dict, reason: str,
                intent_id: Optional[str] = None, message_ref: str = "", relation: str = "",
                intent: Optional[dict] = None, work_due_at: Optional[float] = None,
-               handoff_owner: Optional[str] = None) -> R.GoalRecord:
+               handoff_owner: Optional[str] = None, agent_key: Optional[str] = None,
+               agent_version: Optional[int] = None) -> R.GoalRecord:
+        """A1: có `agent_key` thì mục tiêu phải thuộc đúng agent đó (ScopeError nếu không) và agent còn `active`, bật,
+        đúng `agent_version`, kiểm trong cùng giao dịch (AgentStateError)."""
         now = time.time()
         with self._Tx(self) as c:
             row = self._goal_row(c, p, goal_id)
             if row is None:
                 raise ScopeError("mục tiêu không tồn tại trong brain này")
+            if agent_key is not None:
+                if self._goal_agent(c, goal_id) != agent_key:
+                    raise ScopeError("mục tiêu không thuộc trợ lý này")
+                why = self._agent_block(c, p.brain_id, agent_key, agent_version)
+                if why:
+                    raise AgentStateError(why)
             if int(row["revision"]) != int(expected_revision):
                 raise ConflictError(f"mục tiêu đang ở revision {row['revision']}, không phải {expected_revision}")
             user_cons = json.loads(row["user_constraints_json"] or "[]")
@@ -388,7 +689,8 @@ class GoalStore:
                 self._wake(c, goal_id, row["brain_id"], "work", float(work_due_at) if work_due_at else now,
                            "chờ bàn giao lượt chat" if work_due_at else "sửa cách hiểu")
                 if handoff_owner:
-                    self._open_handoff(c, goal_id, rev, str(message_ref or ""), handoff_owner, now)
+                    self._open_handoff(c, goal_id, rev, str(message_ref or ""), handoff_owner, now, agent_key,
+                                       agent_version)
                 if frame.get("guards"):
                     self._wake(c, goal_id, row["brain_id"], "observe", now + R.GUARD_OBSERVE_S, "quan sát guard",
                                keep_earlier=True)
@@ -576,6 +878,19 @@ class GoalStore:
             row = self._goal_row(c, p, goal_id)
             if row is None:
                 raise ScopeError("mục tiêu không tồn tại trong brain này")
+            it = intent or {}
+            if "agent_key" not in it and self._goal_agent(c, goal_id):
+                # Mục tiêu đã thuộc một trợ lý thì MỌI hành động phải mang mã và version (review A1 tích hợp, P1-3):
+                # thiếu thông tin không được ngầm bỏ kiểm.
+                raise AgentStateError("agent_intent_missing")
+            if "agent_key" in it:
+                # A1: kiểm lại cổng agent NGAY trong giao dịch giữ lượt hay ghi ý định tác động: mục tiêu vẫn thuộc mã đó,
+                # mã còn active, bật, đúng version. Không đạt thì không giữ lượt, không ghi gì.
+                if self._goal_agent(c, goal_id) != it.get("agent_key"):
+                    raise AgentStateError("goal_agent_changed")
+                why = self._agent_block(c, p.brain_id, it.get("agent_key"), it.get("agent_config_version"))
+                if why:
+                    raise AgentStateError(why)
             if kind == "work":
                 if not _under_ceiling(c, 1):
                     return None
@@ -598,15 +913,28 @@ class GoalStore:
     # ───────────── phép thử cải thiện (M5) ─────────────
 
     def begin_experiment(self, p: Principal, goal_id: str, revision: int, baseline_ref: str, candidate_ref: str,
-                         calls: int, explore_cap: int, payload: dict, now: Optional[float] = None) -> Optional[str]:
+                         calls: int, explore_cap: int, payload: dict, now: Optional[float] = None,
+                         agent: Optional[dict] = None) -> Optional[str]:
         """Ghi phép thử và giữ chỗ TOÀN BỘ lượt gọi nó cần trong CÙNG giao dịch: trong hạn mức chung của mục tiêu và
-        trong phần dành cho khám phá. Không đủ thì trả None, không ghi gì (không tạo phép thử)."""
+        trong phần dành cho khám phá. Không đủ thì trả None, không ghi gì (không tạo phép thử).
+
+        A1: `agent` = {agent_key, agent_config_version} GHIM quyền của cả phép thử (bảng experiment_agents). Kiểm trong
+        giao dịch giữ hạn mức: mục tiêu thuộc đúng mã, mã còn active, bật, đúng version; không thì AgentStateError.
+        Mục tiêu đã thuộc một trợ lý mà không truyền `agent` thì cũng từ chối."""
         now = time.time() if now is None else float(now)
         calls = int(calls)
         with self._Tx(self) as c:
             row = self._goal_row(c, p, goal_id)
             if row is None:
                 raise ScopeError("mục tiêu không tồn tại trong brain này")
+            gkey = self._goal_agent(c, goal_id)
+            if gkey or agent:
+                ag = agent or {}
+                if ag.get("agent_key") != gkey:
+                    raise AgentStateError("agent_intent_missing" if not ag else "goal_agent_changed")
+                why = self._agent_block(c, p.brain_id, gkey, ag.get("agent_config_version"))
+                if why:
+                    raise AgentStateError(why)
             if row["status"] != "active" or int(row["revision"]) != int(revision):
                 return None
             if not _under_ceiling(c, calls):
@@ -621,6 +949,9 @@ class GoalStore:
                       "payload_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
                       (eid, goal_id, int(revision), baseline_ref, candidate_ref, "running", calls, _j(payload or {}),
                        now, now))
+            if gkey:
+                c.execute("INSERT INTO experiment_agents(experiment_id,goal_id,agent_key,agent_config_version,created_at) "
+                          "VALUES(?,?,?,?,?)", (eid, goal_id, gkey, int(agent["agent_config_version"]), now))
             c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
                       "VALUES(?,?,?,?,?,?,?)", (goal_id, int(revision), "experiment_started", "host",
                                                 _j({"experiment_id": eid, "baseline_ref": baseline_ref,
@@ -656,7 +987,7 @@ class GoalStore:
             applied, detail = False, ""
             if apply and verdict == "eligible":
                 row = c.execute("SELECT * FROM goals WHERE id=?", (r["goal_id"],)).fetchone()
-                why = self._method_change_blocked(c, row, int(r["revision"]), r["baseline_ref"])
+                why = self._method_change_blocked(c, row, int(r["revision"]), r["baseline_ref"], experiment_id)
                 if why:
                     detail = why[1]
                     verdict, reason = "inconclusive", why[0]
@@ -685,7 +1016,7 @@ class GoalStore:
     # P2): điều kiện thật của chúng được kiểm lại tại chỗ, công tắc và guard bằng cổng ngay trước giao dịch, cách hiểu
     # bằng phản hồi mới nhất ngay trong giao dịch.
     _METHOD_LATCHES = ("guard",)
-    TRANSIENT_BLOCKS = ("feature_off", "fit_rejected", "guard_unknown")
+    TRANSIENT_BLOCKS = ("feature_off", "fit_rejected", "guard_unknown", "agent_off", "agent_changed")
 
     def clear_transient_block(self, p: Principal, goal_id: str, reasons: tuple = TRANSIENT_BLOCKS) -> bool:
         """Đồng bộ trạng thái sau khi cổng vừa kiểm điều kiện hiện tại và cho qua: gỡ cờ quan sát cũ (CAS theo đúng
@@ -699,7 +1030,14 @@ class GoalStore:
                             f"brain_id=? AND block_reason IN ({marks})", (time.time(), goal_id, p.brain_id, *reasons))
             return cur.rowcount == 1
 
-    def _method_change_blocked(self, c, row, revision: int, baseline_ref: str) -> Optional[tuple]:
+    def experiment_agent(self, p: Principal, experiment_id: str) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT x.* FROM experiment_agents x JOIN goals g ON g.id=x.goal_id WHERE x.experiment_id=? "
+                          "AND g.brain_id=?", (experiment_id, p.brain_id)).fetchone()
+            return {"agent_key": r["agent_key"], "agent_config_version": int(r["agent_config_version"])} if r else None
+
+    def _method_change_blocked(self, c, row, revision: int, baseline_ref: str,
+                               experiment_id: Optional[str] = None) -> Optional[tuple]:
         """Lý do KHÔNG được đổi cách làm lúc này, kiểm trong giao dịch đang mở: (mã, chi tiết) hoặc None. Công tắc
         brain và guard là file, người gọi kiểm bằng cổng ngay trước; ở đây là phần SQLite, đọc TRẠNG THÁI HIỆN TẠI chứ
         không đọc cờ quan sát cũ: còn active, đúng revision, không tạm dừng, không có chốt guard, phản hồi cách hiểu
@@ -710,6 +1048,17 @@ class GoalStore:
             return "goal_reframed", "mục tiêu đã sang revision khác"
         if row["paused"]:
             return "stopped", "người dùng đang tạm dừng mục tiêu"
+        gkey = self._goal_agent(c, row["id"])
+        pin = c.execute("SELECT * FROM experiment_agents WHERE experiment_id=?",
+                        (str(experiment_id or ""),)).fetchone() if experiment_id else None
+        if gkey and (pin is None or pin["agent_key"] != gkey):
+            # Phép thử không ghim quyền (hay ghim mã khác) thì không được áp dụng cho mục tiêu của trợ lý.
+            return "stopped", "phép thử không mang quyền của trợ lý sở hữu"
+        ablock = self._agent_block(c, row["brain_id"], gkey, pin["agent_config_version"] if pin else None)
+        if ablock:
+            # A1: agent sở hữu phải còn active, bật và CÙNG version lúc bắt đầu phép thử, NGAY trong giao dịch đổi cách
+            # làm. Tắt rồi bật giữa phép thử là version mới: kết quả theo quyền cũ không được áp dụng.
+            return "stopped", f"trợ lý của mục tiêu chưa cho phép ({ablock})"
         if row["block_reason"] in self._METHOD_LATCHES:
             return "stopped", f"mục tiêu đang bị chặn: {row['block_reason']}"
         fit = c.execute("SELECT kind FROM goal_events WHERE goal_id=? AND revision=? AND kind IN "
@@ -757,12 +1106,16 @@ class GoalStore:
             row = self._goal_row(c, p, goal_id)
             if row is None:
                 raise ScopeError("mục tiêu không tồn tại trong brain này")
+            # A1: áp dụng cách làm là tác động lên mục tiêu: agent sở hữu phải còn active và bật, kiểm trong giao dịch này.
+            why = self._agent_block(c, p.brain_id, self._goal_agent(c, goal_id))
+            if why:
+                raise AgentStateError(why)
             e = c.execute("SELECT * FROM experiments WHERE id=? AND goal_id=?", (experiment_id, goal_id)).fetchone()
             if (e is None or e["verdict"] != "eligible" or e["status"] != "finished" or e["applied"]
                     or int(e["revision"]) != int(expected_revision) or e["baseline_ref"] != from_ref
                     or e["candidate_ref"] != to_ref):
                 raise R.GoalRejected("không có phép thử eligible khớp để đổi cách làm")
-            why = self._method_change_blocked(c, row, int(expected_revision), from_ref)
+            why = self._method_change_blocked(c, row, int(expected_revision), from_ref, experiment_id)
             if why:
                 raise ConflictError(why[1])
             self._set_method(c, p, row, from_ref, to_ref, int(expected_revision), experiment_id, now)
@@ -905,8 +1258,14 @@ class GoalStore:
     # thái trong giao dịch, nên bàn giao đến muộn sau khi việc nền đã nhận quyền thì bị từ chối, và ngược lại.
 
     @staticmethod
-    def _open_handoff(c, goal_id: str, revision: int, message_ref: str, owner: str, now: float) -> None:
-        c.execute("INSERT OR REPLACE INTO handoffs VALUES(?,?,?,?,?,?,?)",
+    def _open_handoff(c, goal_id: str, revision: int, message_ref: str, owner: str, now: float,
+                      agent_key: Optional[str] = None, agent_version: Optional[int] = None) -> None:
+        if agent_key:
+            # A1: agent và version lúc mở bàn giao ở bảng riêng; bảng handoffs giữ nguyên cột để 0.86.x còn ghi được.
+            c.execute("INSERT OR REPLACE INTO handoff_agents(goal_id,revision,agent_key,agent_config_version,created_at) "
+                      "VALUES(?,?,?,?,?)", (goal_id, int(revision), agent_key, int(agent_version or 0), now))
+        c.execute("INSERT OR REPLACE INTO handoffs(goal_id,revision,message_ref,owner,status,created_at,updated_at) "
+                  "VALUES(?,?,?,?,?,?,?)",
                   (goal_id, int(revision), str(message_ref or ""), str(owner), "pending", now, now))
 
     def handoff(self, p: Principal, goal_id: str, revision: int) -> Optional[dict]:
@@ -954,8 +1313,17 @@ class GoalStore:
                 return "handoff_expired" if h["status"] == "expired" else "already_done"
             result = "released"
             active = row["status"] == "active" and not int(row["paused"] or 0) and int(row["revision"]) == int(revision)
+            # A1: chỉ tiếp nhận khi agent của mục tiêu là agent mở bàn giao này, còn active, bật và CÙNG version lúc mở.
+            # Kiểm ngay trong giao dịch tiếp nhận; tắt hay đổi công tắc giữa lượt thì bản chat không được tiếp nhận.
+            ha = c.execute("SELECT * FROM handoff_agents WHERE goal_id=? AND revision=?",
+                           (goal_id, int(revision))).fetchone()
+            gkey = self._goal_agent(c, goal_id)
+            agent_why = ("handoff_agent_mismatch" if ha is None or ha["agent_key"] != gkey
+                         else self._agent_block(c, p.brain_id, gkey, ha["agent_config_version"]))
             if adopt and not active:
                 result = "not_active"
+            elif adopt and agent_why:
+                result = agent_why
             elif adopt:
                 c.execute("INSERT OR IGNORE INTO evidence_links VALUES(?,?,?,?,?,?,?)",
                           (goal_id, int(revision), f"chat:{message_ref}", adopt["evidence_id"], "chat_output",
@@ -974,6 +1342,63 @@ class GoalStore:
             if active:
                 self._wake(c, goal_id, row["brain_id"], "work", now, f"bàn giao lượt chat: {result}")
             return result
+
+    def handoff_agent(self, p: Principal, goal_id: str, revision: int) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return None
+            r = c.execute("SELECT * FROM handoff_agents WHERE goal_id=? AND revision=?", (goal_id, int(revision))).fetchone()
+            return {"agent_key": r["agent_key"], "agent_config_version": int(r["agent_config_version"])} if r else None
+
+    def assign_goal(self, p: Principal, goal_id: str, agent_key: str, expected_revision: int) -> "R.GoalRecord":
+        """Chủ dự án gán MỘT LẦN một mục tiêu CHƯA gán (có trước A1, hay tạo lúc chạy bản cũ) cho một agent `active`
+        cùng brain. CAS trong một giao dịch: revision đúng `expected_revision` và chưa có dòng goal_agents. Chuyển mục
+        tiêu giữa hai agent chưa hỗ trợ trong A1 (thiết kế mục 5).
+
+        Đầu ra và khoá lượt cũ mất hiệu lực tự nhiên: ý định của các hành động trước lúc gán không mang mã này, nên cổng
+        đăng không dùng lại chúng. Gán xong hẹn thức ngay (lần đầu là kiểm bằng code) nếu mục tiêu còn chạy được."""
+        self._owner_only(p)
+        now = time.time()
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            if int(row["revision"]) != int(expected_revision):
+                raise ConflictError(f"mục tiêu đang ở revision {row['revision']}, không phải {expected_revision}")
+            if self._goal_agent(c, goal_id):
+                raise ConflictError("mục tiêu đã thuộc một trợ lý; A1 chưa hỗ trợ chuyển giữa hai trợ lý")
+            a = c.execute("SELECT * FROM resonance_agents WHERE agent_key=? AND brain_id=?",
+                          (str(agent_key or ""), p.brain_id)).fetchone()
+            if a is None or a["status"] != "active":
+                raise AgentStateError("chỉ gán cho trợ lý đang hoạt động trong brain này")
+            c.execute("INSERT INTO goal_agents(goal_id,brain_id,agent_key,by,created_at) VALUES(?,?,?,?,?)",
+                      (goal_id, p.brain_id, a["agent_key"], p.by, now))
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,idempotency_key,created_at) "
+                      "VALUES(?,?,?,?,?,?,?,?)",
+                      (goal_id, int(row["revision"]), "agent_assigned", "owner",
+                       _j({"agent_key": a["agent_key"], "slug": a["slug"]}), p.by, "agent_assigned", now))
+            if row["status"] == "active" and row["block_reason"] in ("unassigned", "feature_off", "agent_off",
+                                                                      "agent_missing", "agent_retired"):
+                c.execute("UPDATE goals SET run_state='ready', block_reason='', updated_at=? WHERE id=?", (now, goal_id))
+            if row["status"] == "active":
+                self._wake(c, goal_id, p.brain_id, "work", now, "chủ dự án gán trợ lý")
+            return self._record(c, c.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone())
+
+    def wake_agent_goals(self, brain_id: str, agent_key: str, reason: str = "trợ lý được bật") -> int:
+        """Bật (lại) một agent: hẹn thức NGAY các mục tiêu active, không tạm dừng, của mã đó, để lần thức đầu kiểm bằng
+        code và đăng đầu ra hợp lệ đang giữ. Không mở lại pause, guard, mục tiêu đã huỷ hay kết thúc."""
+        now = time.time()
+        n = 0
+        with self._Tx(self) as c:
+            rows = c.execute("SELECT g.id, g.block_reason FROM goals g JOIN goal_agents a ON a.goal_id=g.id "
+                             "WHERE a.agent_key=? AND g.brain_id=? AND g.status='active' AND g.paused=0",
+                             (str(agent_key or ""), brain_id)).fetchall()
+            for r in rows:
+                if r["block_reason"] in ("guard",):
+                    continue
+                self._wake(c, r["id"], brain_id, "work", now, reason)
+                n += 1
+        return n
 
     def set_published(self, p: Principal, goal_id: str, path: str, sha256: str, action_id: str) -> None:
         with self._Tx(self) as c:

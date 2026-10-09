@@ -36,7 +36,9 @@ KEY = main._brain_key(BRAIN)
 P = RS.Principal("agent", "javis", KEY)
 OWNER = RS.Principal("owner", "owner", KEY)
 store = main._resonance_store()
-SID = main.get_store().get_or_create(None, brain=BRAIN, engine="test", model="test")
+import _resonance_agent as RA  # noqa: E402  - A1: Cộng hưởng bật theo trợ lý qua API của chủ dự án
+# Phiên của một trợ lý (kênh agent:<slug>), như trang Cộng sự mở: /goal-requests chỉ nhận tin của phiên trợ lý đang bật.
+SID = main.get_store().create_session(brain=BRAIN, engine="test", model="test", channel=f"agent:{RA.SLUG}")
 USER = "Viết giúp anh ghi chú Inbox/ke-hoach.md liệt kê ba việc: gọi thợ, nộp báo cáo, mua quà. Anh sẽ duyệt."
 GOOD = "# Kế hoạch\n\n- Gọi thợ\n- Nộp báo cáo\n- Mua quà\n"
 
@@ -93,7 +95,8 @@ def make_goal(criteria=None, guards=None, budget=4):
         prop["guards"] = guards
     g = asyncio.run(R.form_goal(R.message_ref(SID, mid), {
         "principal": P, "brain_root": KEY, "session_id": SID, "message_id": mid, "user_text": USER,
-        "constraints": [], "budget_calls": budget, "proposal": prop}, d0))
+        "constraints": [], "budget_calls": budget, "proposal": prop,
+        **RA.ctx(store.agent(KEY, RA.SLUG))}, d0))
     (Path(KEY) / "Inbox" / "ke-hoach.md").unlink(missing_ok=True)
     return g
 
@@ -107,17 +110,32 @@ def api(method, path, **kw):
 
 
 # ───────────── công tắc theo brain ─────────────
+# A1: không còn công tắc brain; phản hồi và lập mục tiêu đòi TRỢ LÝ sở hữu đang bật. Không có thì 404 (không có gì).
 code, body = api("post", "/goals/g_khong_co/feedback", json={"kind": "goal_fit_confirmed", "expected_revision": 1})
-check("brain chưa bật Resonance: phản hồi trả 403", code == 403)
-code, body = api("post", "/goal-requests", json={"message_ref": "msg:x:1"})
-check("brain chưa bật Resonance: lập mục tiêu mới trả 403", code == 403)
+check("chưa có trợ lý bật: phản hồi cho mục tiêu không có trả 404, không ghi gì", code == 404)
+_mid0 = main.get_store().append_message(SID, "user", USER)
+code, body = api("post", "/goal-requests", json={"message_ref": R.message_ref(SID, _mid0)})
+check("trợ lý của phiên chưa bật: lập mục tiêu mới trả 403", code == 403)
 code, body = api("get", "/goals/g_khong_co")
 check("brain chưa bật Resonance: xem mục tiêu không có trả 404, không lộ gì", code == 404)
 code, body = api("post", "/resonance/settings", json={"enabled": True})
-check("bật Resonance qua API: ghi đúng Javis/resonance.json của brain", code == 200 and body.get("enabled") is True
-      and R.enabled_for(KEY))
-code, body = api("get", "/resonance/settings")
-check("đọc công tắc trả đúng trạng thái", body.get("enabled") is True)
+check("A1: công tắc brain cũ còn ghi được nhưng báo rõ là cũ (legacy)", code == 200 and body.get("enabled") is True)
+code, body = api("post", "/goal-requests", json={"message_ref": R.message_ref(SID, _mid0)})
+check("A1: công tắc brain cũ bật mà chưa có trợ lý nào: lập mục tiêu vẫn 403", code == 403)
+(Path(BRAIN) / "agents").mkdir(parents=True, exist_ok=True)
+(Path(BRAIN) / "agents" / f"{RA.SLUG}.md").write_text(f"---\nname: {RA.SLUG}\n---\nTrợ lý thử\n", encoding="utf-8")
+
+
+def switch(on):
+    return api("post", "/resonance/agents/toggle", json={"slug": RA.SLUG, "enabled": on})
+
+
+code, body = switch(True)
+check("bật Cộng hưởng cho trợ lý qua API: cấp mã, bật", code == 200 and (body.get("agent") or {}).get("enabled") is True
+      and (body.get("agent") or {}).get("agent_key", "").startswith("ag_"))
+code, body = api("get", "/resonance/agents")
+check("đọc danh sách trợ lý trả đúng trạng thái", code == 200 and [a["enabled"] for a in body.get("agents", [])
+                                                                   if a["slug"] == RA.SLUG] == [True])
 
 # ───────────── test_silence_is_unknown ─────────────
 g = make_goal()
@@ -290,7 +308,8 @@ gd = asyncio.run(R.form_goal(R.message_ref(SID, mid_d), {
                     "quote": "đến ngày 20/10/2026"},
         "targets": [{"text": "5 việc", "quote": "cần đủ 5 việc"}], "constraints": ["không xoá ghi chú cũ"],
         "guards": [{"description": "Ghi chú giữ còn", "evaluator": "artifact_contract", "params": {"path": "Notes/giu.md"}}],
-        "stage": "delivery"}}, R.GoalDeps(engine_factory=lambda s, t: (None, {}), budget=R.CallBudget(0), store=store)))
+        "stage": "delivery"}, **RA.ctx(store.agent(KEY, RA.SLUG))},
+    R.GoalDeps(engine_factory=lambda s, t: (None, {}), budget=R.CallBudget(0), store=store)))
 vd = api("get", f"/goals/{gd.id}")[1]["goal"]
 check("thẻ liệt kê chỉ dẫn người dùng bỏ được: hạn, chỉ tiêu, ràng buộc, guard",
       sorted(d["field"] for d in vd["directives"]) == ["constraint", "deadline", "guard", "target"])
@@ -524,7 +543,7 @@ check("P1-3: dữ liệu cũ có hai guard cùng id: lệnh bỏ bị từ chố
 # P2-1: tắt Resonance không chặn người dùng xem, tạm dừng, huỷ.
 g14 = make_goal()
 g15 = make_goal()
-api("post", "/resonance/settings", json={"enabled": False})
+switch(False)
 code_get, _ = api("get", f"/goals/{g14.id}")
 code_list, _ = api("get", "/resonance/goals")
 code_p, body_p = api("post", f"/goals/{g14.id}/commands", json={"command": "pause", "expected_revision": 1})
@@ -536,7 +555,7 @@ check("P2-1: Resonance tắt: xem thẻ và danh sách vẫn được (200)", co
 check("P2-1: Resonance tắt: Tạm dừng và Huỷ vẫn có hiệu lực",
       code_p == 200 and store.get(P, g14.id).paused and code_c == 200 and store.get(P, g15.id).status == "cancelled")
 check("P2-1: Resonance tắt: phản hồi vẫn 403, và mục tiêu không chạy", code_f == 403 and e14.queries == 0)
-api("post", "/resonance/settings", json={"enabled": True})
+switch(True)
 asyncio.run(R.advance(g14.id, {"kind": "wake"}, deps(e14)))
 check("P2-1: bật lại: mục tiêu đã tạm dừng vẫn đứng yên, mục tiêu đã huỷ vẫn huỷ",
       e14.queries == 0 and store.get(P, g14.id).paused and store.get(P, g15.id).status == "cancelled")

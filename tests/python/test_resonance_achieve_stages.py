@@ -26,6 +26,7 @@ os.environ["JAVIS_STATE_DIR"] = str(_STATE)
 
 import resonance as R  # noqa: E402
 import resonance_store as RS  # noqa: E402
+import _resonance_agent as RA  # noqa: E402  - A1: Cộng hưởng bật theo trợ lý
 
 _fails = []
 
@@ -93,8 +94,9 @@ def world(name):
     """Một kho và một brain riêng: trần là trần TỔNG trên cả kho, hai ca không được tiêu chung."""
     brain = Path(tempfile.mkdtemp(prefix=f"brain-{name}-")).resolve()
     (brain / "Javis").mkdir(parents=True)
-    (brain / "Javis" / "resonance.json").write_text('{"enabled": true}', encoding="utf-8")
-    return str(brain), _STATE / f"{name}.sqlite3"
+    db = _STATE / f"{name}.sqlite3"
+    RA.enable(RS.GoalStore(db), brain)       # A1: mục tiêu thuộc một trợ lý đang bật trong kho này
+    return str(brain), db
 
 
 def make_goal(brain, db, mid=1):
@@ -111,7 +113,7 @@ def make_goal(brain, db, mid=1):
             "mode": "achieve"}
     g = asyncio.run(R.form_goal(R.message_ref("s-stages", mid), {
         "principal": p, "brain_root": brain, "session_id": "s-stages", "message_id": mid, "user_text": USER,
-        "constraints": [], "budget_calls": 4, "proposal": prop}, deps0))
+        "constraints": [], "budget_calls": 4, "proposal": prop, **RA.ctx(store.agent(brain, RA.SLUG))}, deps0))
     return g, p
 
 
@@ -208,7 +210,8 @@ clk2.t += 3600
 adv(g2.id, deps_for(b2, db2, e2, clk2))
 check("giai đoạn 2: đánh thức lại không gọi thêm (tổng 2)", e2.queries == 2 and ledger_used(db2) == 2)
 check("giai đoạn 2: lượt thứ ba không giữ được chỗ trước lượt gọi", RS.GoalStore(db2).begin_action(
-    p2, g2.id, st.get(p2, g2.id).revision, "work", lease_until=clk2() + 60, now=clk2()) is None)
+    p2, g2.id, st.get(p2, g2.id).revision, "work", lease_until=clk2() + 60, now=clk2(),
+    intent=RA.pin(st, b2)) is None)
 
 # ═══════════ Sổ lượt chat của bộ chạy ═══════════
 import sys  # noqa: E402

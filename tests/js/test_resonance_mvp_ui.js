@@ -124,8 +124,9 @@ check("app.js: giọng đọc bỏ khối thẻ (bóc trước dòng _doc, giữ
 const html = fs.readFileSync(path.join(ROOT, "dashboard", "index.html"), "utf8");
 check("index.html nạp chat-resonance.js sau chat-viec.js",
       html.indexOf("/static/chat-resonance.js") > html.indexOf("/static/chat-viec.js") && html.includes("/static/chat-resonance.js"));
-check("index.html có công tắc bật theo brain, nhãn qua data-i18n", html.includes('id="resonanceEnabled"')
-      && html.includes('data-i18n="resonance.settings_on"'));
+// A1: công tắc theo brain đã thay bằng danh sách trợ lý (test riêng ở test_resonance_a1_ui.js).
+check("index.html có khối Cộng hưởng theo trợ lý, tiêu đề qua data-i18n", html.includes('id="resonanceAgents"')
+      && !html.includes('id="resonanceEnabled"') && html.includes('data-i18n="resonance.settings_title"'));
 const css = fs.readFileSync(path.join(ROOT, "dashboard", "style.css"), "utf8");
 check("style.css có kiểu cho thẻ và dùng biến màu có thật", css.includes(".rs-card {") && !/var\(--surface\)/.test(css));
 
