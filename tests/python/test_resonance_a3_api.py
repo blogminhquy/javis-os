@@ -185,6 +185,44 @@ check("RV2 qua route: đề xuất hết hạn trả 409 expired, cấu hình br
       code == 409 and body.get("conflict") == "expired" and (body.get("lesson") or {}).get("status") == "expired"
       and store.presentation(KEY, AGENT["agent_key"]).get("notice_detail") == "brief", (code, body.get("conflict")))
 
+# UI1 (soi giao diện trên sandbox): trang vẽ tin không biết chắc phiên đang mở (trang Cộng sự vừa đổi trợ lý thì
+# phiên "hiện tại" còn là phiên cũ), nên chỉ gửi khoá báo cáo và mục tiêu của khối thẻ, phiên trống.
+rec3 = SS.report_receipt_by_message(SID, int(m3.split(":")[2]))
+trio = {"session_id": "", "report": rec3["report_key"], "goal_id": rec3["goal_id"]}
+code, body = api("get", "/resonance/reactions", params=trio)
+check("UI1 GET theo khoá báo cáo và mục tiêu, phiên trống: tra đúng tin qua biên nhận",
+      code == 200 and (body.get("reaction") or {}).get("reason") == "unclear", (code, body))
+code, body = api("post", "/resonance/reactions",
+                 json={**trio, "value": "down", "reason": "too_long", "nonce": os.urandom(4).hex()})
+check("UI1 POST theo bộ ba phiên trống: ghi vào đúng tin đó",
+      code == 200 and body["reaction"]["reason"] == "too_long"
+      and api("get", "/resonance/reactions", params={"message_ref": m3})[1]["reaction"]["reason"] == "too_long",
+      (code, body))
+SID_C = SS.create_session(brain=BRAIN, engine="test", model="test", channel=f"agent:{RA.SLUG}")
+codes = [api("get", "/resonance/reactions", params={**trio, "session_id": SID_C})[0],
+         api("get", "/resonance/reactions", brain=OTHER, params=trio)[0],
+         api("get", "/resonance/reactions", params={**trio, "report": "outbox:999999"})[0]]
+check("UI1 vẫn chặt: phiên ghi rõ mà sai 400, brain khác 404, khoá báo cáo không có biên nhận 400",
+      codes == [400, 404, 400], codes)
+
+# UI2: mục Bài học hiện nhãn dịch được của cách làm và cách hiểu của mục tiêu, không hiện mã thô `work.checklist.v1`.
+_orig_lessons = type(store).agent_lessons
+
+
+def _with_method(self, *a, **k):
+    data = _orig_lessons(self, *a, **k)
+    data["lessons"].append({"id": "ls_ui2", "lane": "method", "status": "trial_pending", "goal_id": g.id,
+                            "to_value": "work.checklist.v1", "key": "", "updated_at": 0})
+    return data
+
+
+with patch.object(type(store), "agent_lessons", _with_method):
+    code, body = api("get", "/resonance/lessons", params={"agent_key": AGENT["agent_key"]})
+ml = next((x for x in body.get("lessons", []) if x["id"] == "ls_ui2"), {})
+check("UI2 bài học cách làm có to_label dịch được và goal_label là cách hiểu của mục tiêu",
+      code == 200 and ml.get("to_label") == R._t(*R._method_label("work.checklist.v1"))
+      and "work.checklist" not in ml.get("to_label", "work.checklist") and ml.get("goal_label") == g.understanding, ml)
+
 # A8 qua route: học không ghi quyền.
 code, body = api("get", "/resonance/agents")
 row = next((a for a in body.get("agents", []) if a["slug"] == RA.SLUG), {})

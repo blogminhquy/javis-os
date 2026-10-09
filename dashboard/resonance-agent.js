@@ -98,8 +98,13 @@
     trial_pending: "resonance.a3_st_trial_pending", trialing: "resonance.a3_st_trialing"
   };
 
+  /* Câu xem trước dựng từ mẫu tin báo (markdown): bỏ cú pháp liên kết, giữ chữ. */
+  function plainMd(s) {
+    return String(s == null ? "" : s).replace(/\[([^\]]*)\]\(([^)]*)\)/g, "$1");
+  }
+
   function lessonLabel(l) {
-    if (l.lane === "method") return tw("resonance.a3_m_method", { to: l.to_value || "" });
+    if (l.lane === "method") return tw("resonance.a3_m_method", { to: l.to_label || l.to_value || "" });
     var k = String(l.key || "") + ":" + String(l.to_value || "");
     return tw(Object.prototype.hasOwnProperty.call(LESSON_KEYS, k) ? LESSON_KEYS[k] : "resonance.a3_p_other");
   }
@@ -114,7 +119,13 @@
     var html = '<div class="rsa-goals-title">' + esc(tw("resonance.a3_lessons_title")) + "</div>";
     var props = all.filter(function (l) { return l.status === "proposed" && l.lane === "presentation"; });
     var act = all.filter(function (l) { return l.status === "active"; });
-    var hist = all.filter(function (l) { return l.status !== "proposed" && l.status !== "active"; }).slice(0, 5);
+    // Phép thử cách làm đang chờ hay đang chạy: hiện riêng kèm nút Bỏ qua, không lẫn vào lịch sử.
+    var trying = all.filter(function (l) {
+      return l.lane === "method" && (l.status === "trial_pending" || l.status === "trialing");
+    });
+    var hist = all.filter(function (l) {
+      return l.status !== "proposed" && l.status !== "active" && trying.indexOf(l) < 0;
+    }).slice(0, 5);
     if (!all.length) html += '<div class="rsa-sub">' + esc(tw("resonance.a3_lessons_empty")) + "</div>";
     props.forEach(function (l) {
       var n = ((l.evidence || {}).reactions || []).length;
@@ -124,9 +135,9 @@
       var pv = l.preview || {};
       if (pv.kind === "detail") {
         html += '<div class="rsa-pv"><div class="rsa-pv-label">' + esc(tw("resonance.a3_preview_old")) + "</div>" +
-          '<div class="rsa-pv-text">' + esc(pv.old) + "</div>" +
+          '<div class="rsa-pv-text">' + esc(plainMd(pv.old)) + "</div>" +
           '<div class="rsa-pv-label">' + esc(tw("resonance.a3_preview_new")) + "</div>" +
-          '<div class="rsa-pv-text">' + esc(pv.new) + "</div></div>";
+          '<div class="rsa-pv-text">' + esc(plainMd(pv.new)) + "</div></div>";
       } else if (pv.kind === "ping") {
         html += '<div class="rsa-sub">' + esc(tw("resonance.a3_preview_ping")) + "</div>";
       }
@@ -136,9 +147,17 @@
         '<button type="button" class="ws-btn rsa-lesson-act" data-act="dismiss" data-lid="' + esc(l.id) + '">' +
         esc(tw("resonance.a3_dismiss")) + "</button></div></div>";
     });
+    trying.forEach(function (l) {
+      html += '<div class="rsa-lesson rsa-trying" data-lid="' + esc(l.id) + '">' +
+        '<div class="rsa-lesson-text">' + esc(lessonLabel(l)) + " · " + esc(statusLabel(l.status)) + "</div>" +
+        (l.goal_label ? '<div class="rsa-sub">' + esc(l.goal_label) + "</div>" : "") +
+        '<div class="rsa-acts"><button type="button" class="ws-btn rsa-lesson-act" data-act="dismiss" data-lid="' +
+        esc(l.id) + '">' + esc(tw("resonance.a3_dismiss")) + "</button></div></div>";
+    });
     act.forEach(function (l) {
       html += '<div class="rsa-lesson rsa-active" data-lid="' + esc(l.id) + '">' +
         '<div class="rsa-lesson-text">' + esc(lessonLabel(l)) + " · " + esc(statusLabel(l.status)) + "</div>" +
+        (l.goal_label ? '<div class="rsa-sub">' + esc(l.goal_label) + "</div>" : "") +
         '<div class="rsa-sub">' + esc(tw(l.lane === "method" ? "resonance.a3_scope_goal" : "resonance.a3_scope_agent")) +
         "</div>" +
         (l.evidence_missing ? '<div class="rsa-sub">' + esc(tw("resonance.a3_evidence_missing")) + "</div>" : "") +
@@ -257,7 +276,10 @@
             if (t !== S.ticket || lr.code !== 200) return;
             var box = document.createElement("div");
             box.className = "rsa-lessons";
-            box.innerHTML = lessonsHtml(lr.j);
+            // Câu báo xung đột của lần bấm trước được giữ qua lần vẽ lại (không thì vừa hiện đã mất).
+            box.innerHTML = (S.lessonNote ? '<div class="rsa-warn">' + esc(S.lessonNote) + "</div>" : "") +
+              lessonsHtml(lr.j);
+            S.lessonNote = "";
             host.appendChild(box);
           }).catch(function () {});
         }
@@ -308,7 +330,7 @@
           { action: act, expected_status: act === "apply" ? "proposed" : "", expected_updated_at: upd || "" })
           .then(function (res) {
             if (res.code !== 200) {
-              b.insertAdjacentHTML("afterend", '<div class="rsa-warn">' + esc(tw("resonance.a3_changed")) + "</div>");
+              S.lessonNote = tw("resonance.a3_changed");
             }
             refresh();
           }).catch(function () { b.disabled = false; });
@@ -375,6 +397,10 @@
   if (typeof window !== "undefined" && window.addEventListener) {
     window.addEventListener("javis:sessions-changed", function () {
       if (S.host && S.host.isConnected && currentSession() !== S.lastSid) refresh();
+    });
+    // A3: một phản hồi trên tin báo vừa ghi (chat-resonance.js); không tải lại thì mục Bài học vẫn hiện "chưa có".
+    window.addEventListener("javis:resonance-lessons", function () {
+      if (S.host && S.host.isConnected) refresh();
     });
   }
 

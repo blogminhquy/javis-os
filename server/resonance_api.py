@@ -421,14 +421,21 @@ def register_learning(app, deps: ResonanceApiDeps):
 
     def _mref(args: dict) -> str:
         """`message_ref` (msg:<phiên>:<id>), hay bộ ba có sẵn trong khối thẻ của tin: phiên đang mở, khoá báo cáo và
-        mục tiêu. Bộ ba được tra qua biên nhận của host (không có biên nhận thì không có tin báo)."""
+        mục tiêu. Bộ ba được tra qua biên nhận của host (không có biên nhận thì không có tin báo). Trang chat gửi phiên
+        trống (thiết kế mục 19, I12): server tra theo khoá báo cáo và mục tiêu."""
         mref = str(args.get("message_ref") or "")
         if mref:
             return mref
         sid, rep, gid = (str(args.get(k) or "") for k in ("session_id", "report", "goal_id"))
-        if not (sid and rep and gid):
+        if not (rep and gid):
             return ""
-        rec = deps.session_store().report_receipt(sid, rep, gid)
+        ss = deps.session_store()
+        if not sid:
+            # Trang vẽ tin (nhất là ở trang Cộng sự) có thể chưa biết phiên đang mở. Khoá báo cáo chỉ thuộc một tin, nên
+            # tra theo khoá và mục tiêu; có đúng một biên nhận mới dùng. Mọi kiểm brain, vai, khối thẻ vẫn chạy sau đó.
+            rows = ss.report_receipts_for(rep, gid)
+            return f"msg:{rows[0]['session_id']}:{rows[0]['message_id']}" if len(rows) == 1 else ""
+        rec = ss.report_receipt(sid, rep, gid)
         return f"msg:{sid}:{rec['id']}" if rec else f"msg:{sid}:0"
 
     def _source(store, root: str, mref: str):
@@ -550,6 +557,11 @@ def register_learning(app, deps: ResonanceApiDeps):
             for ls in data["lessons"]:
                 if ls["status"] == "proposed":
                     ls["preview"] = _preview(store, owner, ls)
+                if ls["lane"] == "method":
+                    # Nhãn dịch được của cách làm và cách hiểu của mục tiêu, để mục Bài học không hiện mã thô.
+                    g = store.get(owner, ls["goal_id"])
+                    ls["to_label"] = R._t(*R._method_label(ls["to_value"]))
+                    ls["goal_label"] = (g.understanding if g else "") or ""
             return {"ok": True, **data,
                     "presentation": {**L.default_presentation(), **store.presentation(root, agent_key)}}
         return await asyncio.to_thread(work)

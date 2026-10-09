@@ -86,6 +86,35 @@ check("lịch sử ngắn có bài học làn M đã thử thua", lh.includes(vi
 check("tin bắt buộc luôn đầy đủ được nói rõ trên đề xuất", lh.includes(vi["resonance.a3_mandatory_note"]));
 check("chưa có bài học: câu giải thích", RA.lessonsHtml({ lessons: [] }).includes(vi["resonance.a3_lessons_empty"]));
 
+// ── soi giao diện trên sandbox (UI1 tới UI5) ──
+const md = RA.lessonsHtml({ lessons: [{ id: "ls_md", lane: "presentation", key: "notice_detail", to_value: "brief",
+  status: "proposed", updated_at: 2, evidence: { reactions: ["r:1", "r:2"] },
+  preview: { kind: "detail", old: "Sản phẩm: [Inbox/p.md](Inbox/p.md).", new: "Đã đạt. Sản phẩm: [Inbox/p.md](Inbox/p.md)." } }] });
+check("UI2 xem trước bỏ cú pháp liên kết markdown, giữ chữ",
+  md.includes("Sản phẩm: Inbox/p.md.") && !md.includes("](") && !md.includes("[Inbox"));
+const trying = RA.lessonsHtml({ lessons: [
+  { id: "ls_t", lane: "method", key: "method", to_value: "work.checklist.v1", to_label: "Rà đủ ý trước khi trả",
+    goal_label: "Ghi chú tuần sau", status: "trial_pending" },
+  { id: "ls_on", lane: "method", key: "method", to_value: "work.checklist.v1", to_label: "Rà đủ ý trước khi trả",
+    goal_label: "Ghi chú tháng", status: "active" }] });
+const tryBlock = (trying.match(/<div class="rsa-lesson rsa-trying"[\s\S]*?<\/div><\/div>/) || [""])[0];
+check("UI2 phép thử đang chờ: khối riêng có nút Bỏ qua mang mã bài học, ghi mục tiêu, không lẫn vào lịch sử",
+  tryBlock.includes('data-act="dismiss" data-lid="ls_t"') && tryBlock.includes("Ghi chú tuần sau")
+  && !trying.includes(vi["resonance.a3_history"]));
+check("UI2 bài học cách làm hiện nhãn dịch, không hiện mã thô; bài học đang dùng ghi mục tiêu",
+  trying.includes("Rà đủ ý trước khi trả") && !trying.includes("work.checklist.v1") && trying.includes("Ghi chú tháng"));
+const RASRC = fs.readFileSync(path.join(ROOT, "dashboard", "resonance-agent.js"), "utf8");
+const RSSRC = fs.readFileSync(path.join(ROOT, "dashboard", "chat-resonance.js"), "utf8");
+check("UI3 xung đột 409: ghi chú giữ qua lần tải lại danh sách rồi mới xoá",
+  /S\.lessonNote = tw\("resonance\.a3_changed"\)/.test(RASRC)
+  && /S\.lessonNote \? '<div class="rsa-warn">'[\s\S]{0,120}lessonsHtml\(/.test(RASRC) && /S\.lessonNote = "";/.test(RASRC));
+check("UI4 hàng phản hồi không đoán phiên đang mở: gửi phiên trống, server tra biên nhận theo khoá báo cáo",
+  /row\._ctx = \{ session_id: "", report: card\.report, goal_id: card\.goal_id \}/.test(RSSRC)
+  && !/JavisSessions/.test(RSSRC));
+check("UI5 phản hồi ghi xong thì báo mục Bài học tải lại (không cần F5)",
+  /dispatchEvent\(new CustomEvent\("javis:resonance-lessons"\)\)/.test(RSSRC)
+  && /addEventListener\("javis:resonance-lessons"[\s\S]{0,120}refresh\(\)/.test(RASRC));
+
 // ── khoá từ điển ──
 const used = new Set();
 const re = /tw\(\s*"([^"]+)"/g;
@@ -98,7 +127,7 @@ const a3 = [...used].filter((k) => k.startsWith("resonance.a3_") || k.startsWith
 const miss = a3.filter((k) => !(k in vi) || !(k in en));
 check(`mọi khoá A3 có ở cả vi và en (${a3.length} khoá)`, a3.length >= 40 && !miss.length, miss.join(", "));
 check("không ghép khoá tw() bằng nối chuỗi", !/tw\(\s*"resonance\.[a-z0-9_.]*"\s*\+/.test(SRC));
-check("không ký tự gạch dài", !SRC.includes("—"));
+check("không ký tự gạch dài", !SRC.includes("\u2014"));
 const enVals = a3.map((k) => en[k] || "").join(" ");
 check("bản tiếng Anh không lẫn chữ Việt có dấu", !/[ạảãàáâậầấẩẫăặằắẳẵđẹẻẽèéêệềếểễịỉĩìíọỏõòóôộồốổỗơợờớởỡụủũùúưựừứửữỵỷỹỳý]/i.test(enVals));
 

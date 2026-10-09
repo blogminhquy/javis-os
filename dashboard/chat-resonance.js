@@ -176,11 +176,6 @@
              goal_id: String((ctx || {}).goal_id || ""), value: value, reason: why, nonce: nonce || newNonce() };
   }
 
-  function sessionNow() {
-    try { return (window.JavisSessions && window.JavisSessions.current && window.JavisSessions.current()) || ""; }
-    catch (e) { return ""; }
-  }
-
   /* Chỉ tin báo do host ghi (khối thẻ mang khoá báo cáo `outbox:`) mới có hàng phản hồi; server vẫn kiểm biên nhận. */
   function isNotice(card) {
     return /^outbox:[0-9]+$/.test(String((card || {}).report || ""));
@@ -193,7 +188,9 @@
     row.className = "rs-react";
     row.setAttribute("data-report", card.report);
     row.setAttribute("data-goal", card.goal_id);
-    row._ctx = { session_id: sessionNow(), report: card.report, goal_id: card.goal_id };
+    // Không gửi phiên: lúc vẽ tin, phiên "đang mở" có thể còn là phiên cũ (trang Cộng sự vừa đổi trợ lý), và một
+    // phiên sai làm server từ chối. Khoá `outbox:` chỉ thuộc một tin, server tự tra biên nhận theo khoá và mục tiêu.
+    row._ctx = { session_id: "", report: card.report, goal_id: card.goal_id };
     row._st = {};
     var bubble = msgEl.querySelector(".bubble");
     (bubble || msgEl).appendChild(row);
@@ -226,6 +223,8 @@
         row._st = res.j.reaction || {};
         row.innerHTML = reactHtml(row._st, row._open && row._st.value !== "none",
           res.j.proposal ? tw("resonance.react_proposal") : "");
+        // Mục Bài học ở ngăn trợ lý (resonance-agent.js) đang mở thì tải lại: đề xuất mới và số đếm 30 ngày vừa đổi.
+        try { window.dispatchEvent(new CustomEvent("javis:resonance-lessons")); } catch (e) {}
       })
       .catch(function () { row.innerHTML = reactHtml(row._st, row._open, tw("resonance.failed")); });
   }

@@ -581,6 +581,14 @@ class SessionStore:
             "WHERE r.session_id = ? AND r.message_id = ?", (session_id, int(message_id)))
         return dict(rows[0]) if rows else None
 
+    def report_receipts_for(self, report_key: str, goal_id: str) -> List[Dict[str, Any]]:
+        """Mọi biên nhận của một khoá báo cáo và mục tiêu (A3: trang vẽ tin không phải lúc nào cũng biết phiên). Khoá
+        `outbox:<id>` chỉ gửi vào một phiên, nên bình thường có đúng một dòng."""
+        rows = self._read(
+            "SELECT r.session_id AS session_id, r.message_id AS message_id FROM report_receipts r "
+            "WHERE r.report_key = ? AND r.goal_id = ?", (str(report_key), str(goal_id)))
+        return [dict(r) for r in rows]
+
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         rows = self._read("SELECT * FROM sessions WHERE id = ?", (session_id,))
         return dict(rows[0]) if rows else None
