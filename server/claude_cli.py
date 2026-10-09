@@ -30,12 +30,21 @@ _PROC_LOCK = threading.Lock()
 
 
 def _looks_like_codex_resume_error(message: str) -> bool:
-    """Nhận diện lỗi rollout/thread không còn để caller bootstrap từ SQLite đúng một lần."""
+    """Nhận diện lỗi rollout/thread không còn để caller bootstrap từ SQLite đúng một lần.
+
+    Codex 0.161 báo `thread/resume failed: no rollout found for thread id ... (code -32600)` khi
+    chuyển máy hay VPS mà rollout cục bộ không đi theo (issue #595). Câu đó không có "not found"
+    hay "failed to resume", nên trước 0.88.2 chat cũ cứ báo lỗi mãi thay vì dựng lại ngữ cảnh.
+    Lỗi đăng nhập, hạn mức, mạng thì KHÔNG tính, kẻo bootstrap lại một lượt chắc chắn hỏng tiếp."""
     s = (message or "").lower()
+    if any(x in s for x in ("unauthorized", "401", "403", "log in", "login", "sign in", "usage limit",
+                            "rate limit", "quota", "network", "timed out", "connection")):
+        return False
     subject = any(x in s for x in ("resume", "session", "thread", "rollout"))
     failure = any(x in s for x in (
         "not found", "does not exist", "could not find", "failed to load",
         "failed to resume", "unable to resume", "invalid session", "no session",
+        "resume failed", "no rollout", "no thread",
     ))
     return subject and failure
 
@@ -1717,7 +1726,10 @@ class CodexCLI:
             if item is SENTINEL:
                 break
             if isinstance(item, dict) and "__error__" in item:
-                yield {"type": "error", "content": item["__error__"]}
+                # Lỗi chỉ có trên stderr (Codex thoát trước khi phát sự kiện JSON nào) vẫn có thể là mất
+                # rollout: gắn cờ để caller dựng lại ngữ cảnh từ lịch sử, như nhánh sự kiện JSON ở dưới.
+                yield {"type": "error", "content": item["__error__"],
+                       "resume_failed": resume_requested and _looks_like_codex_resume_error(item["__error__"])}
                 continue
             # Soi trên DÒNG THÔ: output của lệnh nằm rải trong nhiều khuôn item khác nhau tuỳ
             # bản CLI, còn dấu vết của bwrap thì luôn đi qua đây nguyên văn.

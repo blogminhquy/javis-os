@@ -6,11 +6,25 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.89.0] - 2026-10-09
+## [0.89.0] - 2026-10-10
 ### Thêm mới
 - **Trợ lý Cộng hưởng học từ phản hồi có kiểm chứng.** Bấm phản hồi trên tin báo của trợ lý để gợi ý cách báo gọn hơn hay ít làm phiền hơn; bạn xem trước và tự quyết có áp dụng.
 - **Bế tắc thì thử một cách làm khác, chỉ khi hạn mức của mục tiêu đủ cho cả phép thử lẫn một lượt làm lại sản phẩm,** so với cách cũ trên cùng tiêu chí; thua hoặc chưa rõ thì giữ nguyên cách cũ.
 - **Mỗi bài học có nguồn, phạm vi và nút thu hồi.** Thu hồi hay bỏ qua một gợi ý thì 14 ngày sau Javis mới gợi ý lại đúng thay đổi đó. Phản hồi không bao giờ tự làm mục tiêu đạt, không mở thêm quyền hay hạn mức.
+
+## [0.88.4] - 2026-10-09
+### Sửa lỗi
+- **Trang Cộng sự không còn thỉnh thoảng trống trơn dù brain có trợ lý.** Mở app thẳng vào trang này thì lúc đầu Javis chưa biết đang ở brain nào, nên tải danh sách của brain mặc định (rỗng), rồi tải lại khi biết brain thật. Nếu lượt tải đầu về muộn hơn, nó ghi đè danh sách đúng và trang báo "Chưa có cộng sự nào". Giờ kết quả của lượt cũ bị bỏ. Server báo lỗi khi tải danh sách thì trang hiện lỗi kèm nút Thử lại, không giả làm danh sách rỗng nữa.
+
+## [0.88.3] - 2026-10-09
+### Sửa lỗi
+- **Bot trong nhóm Zalo thấy ảnh khi khách gửi ảnh trơn rồi mới gọi bot.** Trước đây ảnh không kèm chú thích bị bỏ ngay khi tới, nên cách gửi hay gặp nhất là gửi ảnh rồi nhắn "@bot xem giúp" thì bot nói chưa thấy ảnh. Còn ảnh có ghi vài chữ chú thích thì bot lại thấy, nên trông như lúc thấy lúc không. Giờ bot nhớ ảnh trơn trong 3 phút, và lần người đó gọi bot thì bot xem được ảnh.
+  - Ở chế độ Tự đánh giá, câu như "xem giúp ảnh trên" không tag bot mà bot quyết định trả lời thì cũng kèm theo ảnh.
+  - Tải ảnh từ Zalo lỗi thoáng qua (mạng chập, ảnh vừa gửi chưa sẵn) thì bot thử lại một lần thay vì báo không thấy ngay.
+
+## [0.88.2] - 2026-10-09
+### Sửa lỗi
+- **Chat cũ dùng ChatGPT tự khôi phục sau khi chuyển máy hay VPS.** Phiên làm việc của Codex nằm trên máy cũ không đi theo, nên chat cũ báo lỗi "no rollout found" mãi trong khi chat mới chạy bình thường. Javis đã có sẵn bước dựng lại ngữ cảnh từ lịch sử chat, nhưng không nhận ra câu lỗi này, nhất là khi Codex chỉ báo lỗi rồi thoát ngay. Giờ Javis nhận ra và tự dựng lại đúng một lần. Lỗi đăng nhập, hết hạn mức hay mất mạng vẫn báo như cũ. (Báo lỗi của @dev23072005, issue #595.)
 
 ## [0.88.1] - 2026-10-09
 ### Sửa lỗi

@@ -287,12 +287,28 @@ class Transport:
         except Exception as e:
             print(f"[zalo-personal bot {self.conn_id}] báo nhóm lỗi: {e}", file=sys.stderr)
 
+    def _nho_anh_tron(self, ev: dict, thread: str):
+        import zalo_personal_channel as zc
+        minh = (zc._ID_MINH.get(self.conn_id) or {}).get("uid")
+        nguoi = str(ev.get("sender_id") or "")
+        url = str((ev.get("metadata") or {}).get("image_url") or "")
+        if not nguoi or not url or (minh and nguoi == minh):
+            return
+        if time.time() - float(ev.get("created_at") or 0) > zc.TUOI_TOI_DA:
+            return
+        try:
+            self.policy.nho_anh({"chat_id": thread, "chat_type": "group", "user_id": nguoi, "co_anh": True,
+                                 "image_url": url, "message_id": str(ev.get("external_message_id") or ""),
+                                 "account_id": self.conn_id})
+        except Exception as e:      # noqa: BLE001 - nhớ ảnh hỏng không được làm sập vòng đọc tin
+            print(f"[zalo-personal bot {self.conn_id}] nhớ ảnh trơn lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+
     async def xu_ly(self, ev: dict):
         """Quyết định có trả lời một tin khách không, và trả lời nếu có.
 
         Các rào, theo thứ tự rẻ tới đắt (cái nào chặn thì KHÔNG tốn một lượt model):
           - chỉ tin dạng CHỮ, hoặc tin ẢNH có CHÚ THÍCH (0.65.13: chú thích coi như nội dung tin, nên "@bot ..." viết trong chú thích ảnh là một cái tag thật),
-            ở chat riêng hoặc nhóm (ảnh trơn, tiếng, file bỏ qua: chủ chưa giao việc đó, và bot không xem được ảnh);
+            ở chat riêng hoặc nhóm (tiếng, file bỏ qua; ảnh trơn trong nhóm không trả lời nhưng được NHỚ cho lần người đó gọi bot ngay sau);
           - tin cũ quá `TUOI_TOI_DA` bỏ qua (bộ đệm MCP lúc mới bật);
           - chủ vừa TỰ TAY nhắn cuộc chat này thì nhường;
           - nhóm: phải được chủ cho phép (chưa thì im TUYỆT ĐỐI và hiện lên hàng chờ duyệt);
@@ -316,7 +332,7 @@ class Transport:
             return
         nhom = loai == "group"
         # Tin ảnh có CHÚ THÍCH (0.65.13) xử lý như tin chữ với chú thích làm nội dung: "@Javis Vũ ..." viết trong phần chú thích của ảnh
-        # là một cái tag thật. Trước đây mọi tin không phải chữ bị bỏ, nên tag kèm ảnh không bao giờ tới bot. Ảnh trơn (không chú thích) vẫn bỏ.
+        # là một cái tag thật. Trước đây mọi tin không phải chữ bị bỏ, nên tag kèm ảnh không bao giờ tới bot. Ảnh trơn: xem `_nho_anh_tron`.
         co_anh = kieu == "image"
         if vao_nhom:
             # 0.84.2: someone joined the group. The newcomer is the "sender", so a reply tags them (`_gui`).
@@ -326,7 +342,16 @@ class Transport:
         else:
             text = (conversations.chu_thich_anh(ev.get("text")) if co_anh else str(ev.get("text") or "").strip())
         thread = str(ev.get("external_chat_id") or "")
-        if not text or not thread:
+        if not thread:
+            return
+        if not text:
+            # Ảnh TRƠN trong nhóm (không chú thích) không gọi bot, nhưng phải được NHỚ: cách gửi hay gặp nhất là
+            # gửi ảnh rồi nhắn "@bot xem giúp". Trước 0.88.3 ảnh trơn bị bỏ ngay ở đây, trước cả bước nhớ ảnh
+            # (nằm trong precheck), nên bot báo "chưa thấy ảnh"; ảnh có vài chữ chú thích thì lại thấy - đúng
+            # cảnh "lúc thấy lúc không" chủ repo báo 09/10. Chạy TRƯỚC mọi await: ảnh và câu tag về cùng một
+            # nhịp đọc thì ảnh đã được nhớ trước khi lượt của câu tag cần tới nó.
+            if co_anh and loai == "group" and self.policy is not None:
+                self._nho_anh_tron(ev, thread)
             return
         # Không biết cuộc chat là nhóm hay chat riêng (đã hỏi lại bảng mà vẫn không thấy): KHÔNG trả
         # lời. Đoán là chat riêng nghĩa là trả lời từng tin của một nhóm, dưới tên người thật.
