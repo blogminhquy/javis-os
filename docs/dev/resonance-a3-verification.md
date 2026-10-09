@@ -160,3 +160,13 @@ Năm lỗi giao diện tìm ra và đã sửa, gộp thành bốn dòng (I12 t�
 | Mục Bài học không tải lại sau phản hồi | Sự kiện `javis:resonance-lessons` | UI5 (JS) |
 
 Mười kiểm mới (4 Python, 6 JS) đều đỏ trên mã `b33f3e3b` và xanh trên mã đã sửa.
+
+## Bộ chạy pilot A3 (chưa chạy thật)
+
+`tests/python/test_resonance_a3_pilot.py`, sửa gói pilot theo review `224a109a` (ba P2). Không đặt biến thì bỏ qua.
+
+- **Hai lớp trần.** Trần kho `JAVIS_RESONANCE_CALL_CEILING=8` đếm cả 3 lượt giả gieo bế tắc. Cổng lượt thật riêng ở biên gọi engine: tối đa 5, ghi sổ xuống đĩa trước mỗi lời gọi, không đặt lại, không hoàn.
+- **Dừng ngay khi lỗi.** Lượt lỗi, hết giờ, bị huỷ, đầu ra hỏng hay token sắp hết hạn thì cổng đóng; mọi lời gọi sau bị từ chối trước engine (host thấy engine chưa sẵn sàng, không tính lượt). Tiến trình chết giữa lời gọi thì dòng `reserved` vẫn tính.
+- **Luật M5 giữ nguyên.** Nhánh áp dụng chỉ khi `eligible` (hơn ở tập thử, không kém ở đâu, không unknown). Nhãn nhánh giữ nguyên nguyên nhân: `rejected/no_improvement`, `rejected/regression`, `inconclusive/unknown`, `technical_failed (...)`.
+
+Dry chạy 13 kịch bản bằng hai tiến trình mỗi kịch bản (dựng và chạy, rồi mở lại kho với cổng đóng hẳn và đối soát hai lượt): thắng, no_improvement, regression, unknown, lỗi engine ở lượt đầu, lượt cuối phép thử và lượt sản phẩm, hết giờ, token sắp hết hạn, tiến trình chết giữa lời gọi, lỗi lưu trữ khi chốt, trần cổng giữa phép thử, trần kho thiếu. Kết quả và câu duyệt: `exports/reviews/A3-pilot-run-request.md` (ngoài git).
