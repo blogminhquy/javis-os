@@ -387,8 +387,9 @@ deps_l, _, eng_l = make_deps(clock=clock_l, engine=FakeEngine(events=[
     {"type": "final", "content": "You've hit your limit · resets 9pm", "is_error": True, "subtype": "error"}]))
 adv(g_l.id, {"kind": "start"}, deps_l)
 st_l = store.run_state(P, g_l.id)
-check("limit: hết lượt gói thì blocked có mã lý do, không retry ngay",
-      st_l["run_state"] == "blocked" and st_l["block_reason"] == "engine_result_error"
+# A2: lỗi tạm thời còn trong trần là CHỜ (không gác) tới mốc thử lại; gác chỉ khi lỗi cố định hay hết trần.
+check("limit: hết lượt gói thì chờ có mã lý do, không retry ngay",
+      st_l["run_state"] == "waiting" and st_l["block_reason"] == "engine_result_error"
       and not any(w["goal_id"] == g_l.id for w in store.due_wakeups(clock_l())) and eng_l.queries == 1)
 check("limit: lượt đã gọi model vẫn tính vào hạn mức (không giả là miễn phí)", store.get(P, g_l.id).calls_used == 1)
 check("limit: có lịch thử lại trong tương lai, có giới hạn",
@@ -641,7 +642,8 @@ def _guard_now(g):
 
 
 g_sv = _sample_goal()
-deps_sv, _, eng_sv = make_deps(engine=FakeEngine(text="REVISION TWO, quên mất tiêu đề.\n"), notes=Notes())
+clock_sv = Clock()
+deps_sv, _, eng_sv = make_deps(engine=FakeEngine(text="REVISION TWO, quên mất tiêu đề.\n"), notes=Notes(), clock=clock_sv)
 a_sv = adv(g_sv.id, {"kind": "wake"}, deps_sv)
 asyncio.run(R.drain_outbox(store, deps_sv.notify))
 check("vòng 2: bản mới làm guard sai thì KHÔNG ghi đè bản đang hợp lệ, guard vẫn clear",
@@ -656,6 +658,10 @@ check("vòng 2: không kết luận đạt, không báo maintained cho revision 
 check("vòng 2: guard trong assessment là kết quả SAU khi đăng",
       all(x["verdict"] == "clear" for x in a_sv.guards) and a_sv.guards)
 eng_sv.text = "# Sample\n\nREVISION TWO đã thêm.\n"
+q_sv = eng_sv.queries
+adv(g_sv.id, {"kind": "wake"}, deps_sv)
+check("vòng 2 A2: thức lại trước mốc thử lại thì không gọi model", eng_sv.queries == q_sv)
+clock_sv.t += R.HB.POLICY["RETRY_BASE_S"]
 a_sv2 = adv(g_sv.id, {"kind": "wake"}, deps_sv)
 check("vòng 2: lượt sau có phản hồi về guard, bản giữ đúng điều kiện thì đăng và đạt",
       "Tiêu đề Sample còn giữ" in eng_sv.last_prompt and a_sv2.verdict == "met"
@@ -687,19 +693,27 @@ a_ok = adv(g_ok.id, {"kind": "wake"}, deps_ok)
 check("vòng 2 (resume, bản hợp lệ): đăng và đạt mà không gọi thêm model",
       eng_ok.queries == q_ok and a_ok.verdict == "met")
 
-# ═══════════════════════ test_no_source_uses_bounded_review ═══════════════════════
+# ═══════════════════════ test_no_source_uses_bounded_review (A2: heartbeat.v1) ═══════════════════════
+# MVP dùng next_wake; A2 thay bằng chính sách có phiên bản. Giữ nguyên ý của ca cũ: không nguồn sự kiện thì chỉ xem
+# lại có giới hạn, không thăm dò dày; reaction không đổi tần suất; nguồn sự kiện chưa có adapter cũng chỉ xem lại.
 now = 1_800_000_000.0
-gm = store.get(P, make_goal(mode="maintain", horizon={"kind": "maintain"}).id)
-w = R.next_wake(gm, {"kind": "assessed", "verdict": "met"}, now)
+HB = R.HB
+due, code = HB.check_due(now, HB.next_interval(0, False, HB.POLICY["REVIEW_MIN_S"], HB.POLICY["REVIEW_MAX_S"]), {})
 check("no_source_uses_bounded_review: không có nguồn sự kiện thì lần xem lại có giới hạn, không thăm dò dày",
-      w and w["kind"] == "work" and now + R.REVIEW_MIN_S <= w["earliest_at"] <= now + R.REVIEW_DEFAULT_S)
-w2 = R.next_wake(gm, {"kind": "user_schedule", "at": now + 3 * 86400}, now)
-check("chỉ dẫn hẹn lần xem lại sửa lịch trực tiếp", w2 and w2["earliest_at"] == now + 3 * 86400)
-check("reaction không sửa tần suất", R.next_wake(gm, {"kind": "reaction", "value": "like"}, now) is None)
-ge = store.get(P, make_goal(horizon={"kind": "event", "event": "có ghi chú mới trong Inbox"}).id)
-w3 = R.next_wake(ge, {"kind": "assessed", "verdict": "not_met"}, now)
-check("có nguồn sự kiện nhưng chưa có adapter: vẫn chỉ xem lại có giới hạn, không thăm dò",
-      w3 and w3["earliest_at"] >= now + R.REVIEW_MIN_S and "event" in w3["reason"])
+      code == "review" and due == now + R.REVIEW_MIN_S)
+check("xem lại không đổi thì giãn dần, có trần",
+      HB.next_interval(R.REVIEW_MIN_S, False, HB.POLICY["REVIEW_MIN_S"], HB.POLICY["REVIEW_MAX_S"]) == 2 * R.REVIEW_MIN_S
+      and HB.next_interval(HB.POLICY["REVIEW_MAX_S"], False, HB.POLICY["REVIEW_MIN_S"],
+                           HB.POLICY["REVIEW_MAX_S"]) == HB.POLICY["REVIEW_MAX_S"])
+g_us = make_goal(mode="maintain", horizon={"kind": "maintain"})
+clock_us = Clock()
+deps_us, built_us, _ = make_deps(clock=clock_us)
+asyncio.run(R.advance(g_us.id, {"kind": "user_schedule", "at": clock_us() + 3 * 86400}, deps_us))
+check("chỉ dẫn hẹn lần xem lại là sự kiện có giờ đủ điều kiện riêng",
+      any(r["code"] == "user_schedule" and r["due_at"] == clock_us() + 3 * 86400 for r in store.reasons(P, g_us.id)))
+asyncio.run(R.advance(g_us.id, {"kind": "reaction", "value": "like"}, deps_us))
+check("reaction không sửa tần suất, không ghi lý do", not any(r["code"] == "reaction" for r in store.reasons(P, g_us.id)))
+check("lý do lạ thuộc lớp chỉ kiểm", HB.classify("event_adapter_x") == HB.CHECK)
 
 if _fails:
     print(f"\n{len(_fails)} FAIL:", _fails)
