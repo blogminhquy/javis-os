@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.88.2] - 2026-10-09
+### Improved
+- **Resonance records point at the real releases.** The A1 and A2 acceptance records, roadmap and README now cite the release commits of 0.87.0 and 0.88.0. Docs only; Javis behaves the same.
+
 ## [0.88.0] - 2026-10-09
 ### Improved
 - **Resonance assistants call the model only for a reason.** A new task, new feedback from you, or a retry still within its limit. While waiting on you they sleep; periodic reviews are code-only checks that back off to once a week.

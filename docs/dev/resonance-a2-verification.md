@@ -2,7 +2,7 @@
 
 Mốc A2 của lộ trình [agent scope](../superpowers/specs/2026-10-08-resonance-agent-scope-roadmap.md): trợ lý thức vì lý do cụ thể, ngủ khi chờ, không gọi model vô ích.
 
-**Trạng thái: thiết kế và mã đạt review; review cuối đạt ở `b80ae0ea`. Chưa merge, chưa phát hành, chưa đo VPS.** A2 chỉ tính là mốc hoàn tất khi A1 và A2 được merge, và bản 0.88.0 được phát hành.
+**Trạng thái: đã phát hành 0.88.0 (09/10/2026). Hiệu năng VPS CHƯA ĐO.** PR #593 squash vào `main` thành `c101d108e398121315423fb73bff412c6e178392` (cây trùng head đã kiểm `12d349f4`). CI và build Docker xanh; image `ghcr.io/blogminhquy/javis-os:0.88.0` (`sha256:50eb0a2208d6...`). Không kết luận VPS hết chậm khi chưa đo trên máy thật.
 
 ## Mã và commit
 
@@ -43,7 +43,7 @@ Mốc A2 của lộ trình [agent scope](../superpowers/specs/2026-10-08-resonan
 
 ## Kiểm tích hợp (09/10/2026)
 
-- **Nền:** A1 (#590) chưa merge, `main` vẫn `71f9c5b9`. SHA ghim của test quay về (`077bcf73`) và bước fetch trên CI vẫn đúng, không phải đổi.
+- **Nền lúc kiểm:** A1 (#590) chưa merge, `main` ở `71f9c5b9`. Sau đó A1 vào `main` (`fdfec7c5`), A2 chuyển nền và ghim test quay về vào `fdfec7c5` (mục "Đường tích hợp").
 - **Smoke dry trên bản tích hợp:**
   - chạy `JAVIS_RESONANCE_E2E_ACHIEVE=dry tests/python/test_resonance_mvp_e2e_achieve.py`;
   - dựng server thật, đi đủ S0 tới S6 trong phiên trợ lý;
