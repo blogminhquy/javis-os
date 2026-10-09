@@ -1,6 +1,6 @@
 # Resonance A3: vòng phản hồi và học có kiểm chứng
 
-**Trạng thái:** bản thiết kế vòng 2, chờ review. Vòng 1 (`a6418e45`) được review: 1 P1, 2 P2, D4 chưa đạt; mục 17 liệt kê từng điểm và chỗ sửa. Chưa có mã hành vi A3. Nhánh `claude/resonance-a3-feedback-learning`, đặt số 0.89.0.
+**Trạng thái:** bản thiết kế vòng 3, chờ review để chốt trước khi code. Vòng 1 (`a6418e45`): 1 P1, 2 P2, D4 chưa đạt (mục 17). Vòng 2 (`ef56b61f`): 2 P2 về sổ giữ lượt (mục 18). Chưa có mã hành vi A3. Nhánh `claude/resonance-a3-feedback-learning`, đặt số 0.89.0.
 
 - **Nền:** `main` tại `83bff6bc` (0.88.1). A1 đã phát hành 0.87.0 (`fdfec7c5`), A2 đã phát hành 0.88.0 (`c101d108`).
 - **Lộ trình:** [agent scope roadmap](2026-10-08-resonance-agent-scope-roadmap.md), mục 6.
@@ -78,7 +78,7 @@ Mỗi tín hiệu A3 ghi: tin nhắn nguồn, người phản hồi đã đượ
 
 ### 3.3 Thay thế, thu hồi, gửi lại, khởi động lại
 
-- **Một người, một tin, một giá trị hiện tại.** Khoá duy nhất `(brain_id, session_id, message_id, responder)`. Bấm lại hay đổi ý ghi đè giá trị hiện tại và tăng `seq`; bấm đúng giá trị đang có lần nữa là thu hồi (`value='none'`). Lịch sử đầy đủ nằm ở `reaction_log`.
+- **Một người, một tin, một giá trị hiện tại.** Khoá duy nhất `(brain_id, session_id, message_id, responder)`. API theo nghĩa **đặt giá trị**: mỗi request mang `value` rõ ràng; request mới (nonce mới) ghi đè giá trị hiện tại và tăng `seq`, kể cả khi giá trị không đổi. Thu hồi là gửi `value='none'`. Luật "bấm lại đúng nút đang sáng là thu hồi" là luật **giao diện**: trang tự gửi `none`, API không tự đảo. Lịch sử đầy đủ nằm ở `reaction_log`.
 - **Gửi lại idempotent.** Mỗi lần bấm mang `nonce` (như M4). `reaction_log` có khoá duy nhất `(reaction_id, nonce)`: gửi lại cùng request không đổi gì và trả lại trạng thái hiện tại.
 - **Không nhân điểm.** Bộ học chỉ đếm số TIN khác nhau có giá trị hiện tại khớp điều kiện (mục 5.3). Bấm mười lần trên một tin vẫn là một tin. Không có cột điểm cộng dồn nào.
 - **Khởi động lại** không đổi gì: mọi trạng thái nằm trong SQLite; bộ học là hàm thuần của trạng thái đó; đề xuất có khoá duy nhất cho trạng thái mở (mục 7), nên chạy lại không sinh đề xuất trùng.
@@ -193,7 +193,10 @@ Host dựng bộ từ hồ sơ của chính mục tiêu, không ai phải nhập
 - **Tập thử:** revision hiện tại. `input` = lời người dùng của revision; `expect` = tham số của tiêu chí `artifact_contract` đầu tiên có tham số.
 - **Giữ riêng:** revision **trước** gần nhất của cùng mục tiêu mà bộ tiêu chí host chấm (danh sách `artifact_contract` cùng tham số, đã chuẩn hoá) **giống hệt** revision hiện tại. `input` = lời người dùng của revision đó. Tối đa một tình huống giữ riêng trong A3.
 - Mỗi tình huống mang `revision` nguồn của nó; lời gọi model của tình huống dựng prompt từ bản ghi revision đó (cách hiểu, ràng buộc), còn thước đo là bộ tiêu chí chung đã ghim bằng `rubric_hash` như M5. Đây là thay đổi duy nhất A3 cần trong M5 (`_trial_run` nhận bản ghi revision theo tình huống); luật kết luận `_trial_verdict` giữ nguyên.
-- Không có revision trước nào cùng bộ tiêu chí thì bài học `skipped/no_holdout`, 0 lượt model.
+- **Đầu vào phải khác thật.** Khác số revision chưa đủ. Host tính `prompt_input_hash` của mỗi tình huống từ đúng phần dựng prompt ngoài tiêu chí (cách hiểu, lời người dùng, ràng buộc, giả định; chuẩn hoá khoảng trắng; không tính id, nhãn, lý do sửa hay thời điểm). Revision trước có `prompt_input_hash` trùng với tập thử thì không được chọn làm giữ riêng; host xét tiếp revision cũ hơn trong giới hạn `M_HOLDOUT_SCAN`.
+- **Ghim:** payload phép thử ghi `prompt_input_hash` và hash bản ghi revision của từng tình huống, cùng `rubric_hash`.
+- **Revision lịch sử chỉ dùng để dựng prompt.** Quyền thực thi, ngân sách, action, cổng lượt và giao dịch áp dụng đều thuộc phép thử ở revision hiện tại; revision lịch sử không được truyền vào các cổng đó. Lời người dùng cũ chỉ là dữ liệu, không phải lệnh tác động lên brain: phép thử vẫn chỉ sinh chữ trong vùng làm việc của phép thử, không đăng file.
+- Không có revision trước nào hợp lệ thì bài học `skipped/no_holdout`, 0 lượt model.
 
 **Mức bằng chứng:** `eligible` nghĩa là ở đúng lần thử này, ứng viên đạt tình huống tập thử mà cách cũ chưa đạt, và không tụt ở tình huống giữ riêng. Mỗi bên chỉ có một lần sinh mỗi tình huống, nên kết luận không loại hẳn được dao động giữa hai lần sinh. Vì vậy phạm vi áp dụng chỉ là goal + revision hiện tại (như M5), có đường quay lại, và lượt làm sản phẩm sau đó vẫn được host chấm như mọi lượt việc. Phạm vi goal + revision là phạm vi M5 vốn có, không phải bảo vệ mới bù cho bằng chứng.
 
@@ -222,7 +225,7 @@ Ví dụ: bế tắc sau 3 lượt việc thì cần hạn mức ít nhất 9 (v
 - `waiting/stalled` **không** phải trạng thái bị gác trong A2 (gác chỉ gồm pause, `blocked`, "Hiểu chưa đúng", `source_drift`, chờ bàn giao, trợ lý tắt). Nên lý do sự kiện của mục tiêu đang bế tắc được phục vụ bình thường, và `FOLLOWUP` mở đúng một lượt việc.
 - Mục tiêu ở trạng thái bị gác thì cả hai lý do bị gác như mọi lý do khác (chỉ `UNPARK_CODES` được tính), không chạy; lượt giữ vẫn giữ tới khi gỡ gác hay tới khi bị trả (mục 6.6).
 - Có tin mới từ người dùng trước khi **phép thử** chạy: lượt sửa chạy bằng cách cũ; chuỗi A2 đặt lại nên điều kiện bế tắc không còn; lý do `method_trial` chốt `superseded`, bài học `skipped/new_feedback`.
-- Có tin mới từ người dùng **sau khi áp dụng**, trước lượt `FOLLOWUP`: lượt sửa đó đã chạy bằng cách mới (cùng revision), tức đã là lượt làm sản phẩm bằng cách mới. Lý do `method_followup` chốt `superseded`, lượt giữ được trả lại trong cùng giao dịch `begin_action` của lượt sửa.
+- Có tin mới từ người dùng **sau khi áp dụng**, trước lượt `FOLLOWUP`: lượt sửa **tiếp quản** lượt đã giữ (mục 6.8), chạy bằng cách mới (cùng revision), tức chính là lượt làm sản phẩm đã hoạch định, nay có thêm góp ý. Không giữ thêm lượt, nên không bị trần chặn; lý do `method_followup` chốt `superseded`.
 - Lịch xem lại và hạn chót vẫn là `CHECK`: không mở lượt model, kể cả sau khi áp dụng.
 
 ### 6.4 Chạy phép thử và chốt trạng thái bài học trong giao dịch
@@ -260,11 +263,11 @@ Bỏ qua không đòi `expected_updated_at` khớp (bài học đổi `trial_pen
 
 **Lượt làm sản phẩm (`FOLLOWUP`):** một lượt việc thường của A2, chạy đúng một lần:
 
-- `begin_action` của lượt này **dùng lượt giữ** (`held` → `used` bằng CAS trong cùng giao dịch ghi ý định, không cộng thêm `calls_used`) thay cho giữ lượt mới. Lượt giữ đã `used` thì lý do được chốt và không chạy lần hai, kể cả sau khi khởi động lại.
+- `begin_action` của lượt này **dùng lượt giữ** (`held` → `attached` bằng CAS trong cùng giao dịch ghi ý định, không cộng `calls_used`, mức tăng ròng 0 khi kiểm trần) thay cho giữ lượt mới. Lượt giữ thành `used` khi action chốt kết quả mà model có thể đã chạy; huỷ trước engine thì trở về `held` để chạy lại (mục 6.8). Lượt giữ đã `used` thì lý do được chốt và không chạy lần hai, kể cả sau khi khởi động lại.
 - Prompt dùng cách làm có hiệu lực (ứng viên), bản sản phẩm hiện có và các tiêu chí chưa đạt, như mọi lượt sửa.
 - Đăng sản phẩm qua đúng cổng bàn giao hiện có: không ghi đè bản người dùng sửa tay (A2 mục 5), guard, quyền trợ lý và xác nhận đúng `artifact_ref` (M4) giữ nguyên.
 - Kết quả được host chấm như mọi lượt (`evaluate_artifact`). Lượt này tính vào chuỗi A2 hiện có, không đặt lại chuỗi: vượt mốc cũ là tiến bộ; không vượt thì mục tiêu lại `waiting/stalled` và chờ góp ý.
-- Tiến trình chết sau khi ghi ý định: đối soát của A2 xử lý lượt dở như mọi lượt việc. Thử lại tự động của A2 vẫn chịu luật chừa lượt dự phòng, nên không tự tiêu thêm.
+- Tiến trình chết sau khi ghi ý định: đối soát của A2 chốt lượt dở như mọi lượt việc, rồi đối soát lượt giữ đổi nó sang `used` (mục 6.8). Không cấp lại lượt. Thử lại tự động của A2 vẫn chịu luật chừa lượt dự phòng, nên không tự tiêu thêm.
 
 **Tổng chi phí trọn vòng** với ví dụ hạn mức 9, bế tắc sau 3 lượt: 3 + 4 (phép thử) + 1 (sản phẩm) = 8; còn đúng 1 lượt dự phòng cho góp ý của người dùng.
 
@@ -288,10 +291,60 @@ Khoá chống báo lặp `method_changed:<experiment_id>`. Tin này không đổ
 | Owner "Quay lại cách cũ" | `revoked` | `revert_method` (M5, không đổi) | Trả lượt giữ nếu còn `held`; chốt lý do. Một giao dịch |
 | Sửa cách hiểu (revision mới) | `out_of_scope`, ghi trong giao dịch `revise` | `effective_method` tự về mặc định (M5) | Trả lượt giữ; lý do thuộc revision cũ bị bỏ. Cách vừa học **không** dùng cho revision mới |
 | Huỷ mục tiêu | giữ nguyên trạng thái để xem lại | không liên quan | Lượt giữ ghi `released` để sổ khớp; lý do bị xoá cùng mục tiêu (A2) |
-| Tin mới từ người dùng trước lượt `FOLLOWUP` | giữ `active` | cách mới | Trả lượt giữ; chốt lý do `superseded` (mục 6.3) |
+| Tin mới từ người dùng cùng revision trước lượt `FOLLOWUP` | giữ `active` | cách mới | Lượt sửa tiếp quản lượt giữ (`attached`), không giữ thêm; chốt lý do `superseded` (mục 6.8) |
+| Huỷ lần thức trước engine | giữ | giữ | Lượt giữ về `held`, lý do trở lại chờ; chạy lại một lần (mục 6.8) |
 | Pause, tắt trợ lý, guard | giữ `active` | giữ | Lý do bị gác, lượt vẫn giữ; gỡ gác thì chạy. Guard đã chốt hay hết hạn mức thì không chạy |
 
 Bấm thu hồi lần nữa khi đã thu hồi thì trả trạng thái hiện tại, không lỗi.
+
+### 6.8 Sổ giữ lượt (`call_holds`): trạng thái, tiếp quản, huỷ, đối soát
+
+**Trạng thái** (tách hai thời điểm mà vòng 2 còn gộp):
+
+| Trạng thái | Nghĩa | `calls_used` |
+|---|---|---|
+| `held` | Đã giữ chỗ, chưa gắn lượt nào | Đã gồm lượt này |
+| `attached` | Đã gắn cho một action (ý định đã ghi), action chưa chốt kết quả | Không đổi |
+| `used` | Action gắn với nó đã chốt với bất kỳ kết quả nào khác `not_run`, tức model **có thể** đã được gọi | Không đổi (lượt đã tiêu) |
+| `released` | Đã trả lại, đúng một lần | Trừ 1, trong cùng giao dịch đổi trạng thái |
+
+Mọi chuyển trạng thái là CAS trên `(id, status, action_id)` trong một giao dịch, nên lặp lại hay chạy song song không trả hoặc giữ hai lần. Cột `gen` tăng mỗi lần lượt giữ quay về `held` sau khi đã gắn, hay được dựng lại lý do; lý do `method_followup` mang `source_ref = hold:<id>:<gen>`, nên dựng lại lý do không đụng chỉ mục duy nhất của lý do sự kiện cũ (A2).
+
+**Ai được dùng lượt giữ.** Chỉ một lượt việc **cùng goal và cùng revision** của lượt giữ, khi lượt giữ đang `held` và còn hợp lệ: phép thử đã áp dụng, bài học `active`, cách làm có hiệu lực đúng là ứng viên. Hai đường:
+
+- **`FOLLOWUP`:** lượt làm sản phẩm như mục 6.5.
+- **`NEW` tiếp quản** (góp ý cùng revision tới trước `FOLLOWUP`): lượt sửa của người dùng **nhận thẳng** lượt giữ, không giữ lượt mới. Trong cùng giao dịch `begin_action`: ghi action, lượt giữ `held` → `attached` với `action_id` của lượt sửa, lý do `method_followup` chốt `superseded` với `settled_by` = action đó. Không cộng `calls_used`. Bước kiểm trần chung (`_under_ceiling`) và trần mục tiêu tính **mức tăng ròng** = 0 cho lượt dùng lượt giữ, nên mục tiêu đang chạm trần vẫn nhận được góp ý. Cổng quyền trợ lý, guard, revision và nội dung góp ý kiểm như mọi lượt `NEW`.
+- Các cổng **ngoài** giao dịch (quyết định `decide` của A2: `left > 0`) coi lượt `held` hợp lệ của đúng revision là còn dùng được cho `NEW` và `FOLLOWUP`, không từ chối như một lượt mới.
+- Lượt giữ của revision cũ, hay đã `used`/`released`, không bao giờ được mượn lại. Lượt `NEW` khi đó giữ lượt mới như thường, chịu trần như thường.
+
+**Huỷ trước engine** (`abort_action`, bằng chứng chắc chắn `not_run`): mở rộng giao dịch có sẵn của A2. Action dùng lượt giữ thì:
+- không trừ `calls_used` (lượt vẫn đang được giữ);
+- lượt giữ `attached` → `held`, xoá `action_id`, tăng `gen`;
+- lý do mà action đã phục vụ trở lại `pending` như A2 hiện làm (gồm lý do `NEW` và lý do `method_followup` đã chốt với `settled_by` = action đó).
+
+Lượt sau chạy lại đúng một lần. Huỷ lặp thấy action không còn `running` nên không làm gì. Action không dùng lượt giữ giữ nguyên hành vi A2.
+
+**Model có thể đã chạy** (action chốt `succeeded`, `failed`, `unknown`, hay `_reconcile` của A2 chốt lượt dở): lượt giữ `attached` → `used` trong cùng giao dịch chốt action. Không cấp lại lượt một cách suy đoán. Thử lại tự động sau đó vẫn theo luật A2 (chừa lượt dự phòng).
+
+**Đối soát lượt giữ** (`reconcile_holds`): không có vòng quét nền mới. Chạy ở hai chỗ:
+1. một lần khi mở kho, sau di chuyển (bắt cả trường hợp vừa nâng lại từ 0.88), trên các dòng `held`/`attached` (rất ít);
+2. trong pha chuẩn bị của mỗi lần thức một mục tiêu, trước khi phục vụ lý do (chỉ các dòng của mục tiêu đó).
+
+Luật, theo thứ tự, mỗi luật một giao dịch CAS:
+
+| Tình trạng | Xử lý |
+|---|---|
+| `attached`, action `cancelled/not_run` | Như huỷ trước engine: về `held`, tăng `gen` |
+| `attached`, action đã chốt kết quả khác | `used` |
+| `attached`, action còn `running`, lease còn hạn | Để nguyên |
+| `attached`, action `running`, lease hết hạn | `_reconcile` của A2 chốt action trước, rồi áp hai luật trên |
+| `held`, phép thử còn `running`, có lease sống | Để nguyên |
+| `held`, phép thử còn `running` mà không có lease sống (tiến trình chết giữa phép thử) | Chốt phép thử `inconclusive/interrupted` qua `finish_experiment` (hoàn các lượt thử chưa ghi ý định, như M5), bài học `trialing` → `unknown`, rồi lượt giữ `released` |
+| `held`, không còn hợp lệ: mục tiêu không active, revision đã đổi, bài học không `active`, cách làm có hiệu lực khác ứng viên (ví dụ bản cũ đã `revert_method`), hay phép thử không áp dụng | `released` đúng một lần; chốt mọi lý do `method_followup` còn chờ của nó; bài học được ghi lại theo sự thật M5 (`revoked` lý do `reverted_outside`, hay `out_of_scope`) |
+| `held`, còn hợp lệ, không có lý do `method_followup` nào đang chờ | Dựng lại **đúng một** lý do: tăng `gen`, `source_ref = hold:<id>:<gen>` |
+| `held`, còn hợp lệ, đã có lý do chờ | Để nguyên |
+
+Nhờ đó chu trình A3 → 0.88 → A3 khép kín: bản 0.88 coi `method_followup` là `CHECK`, chốt lý do mà không gọi model và không đụng lượt giữ; lần mở kho bằng A3 sau đó dựng lại lý do (hay trả lượt nếu bản cũ đã huỷ, sửa cách hiểu, hoặc quay lại cách cũ trong lúc chạy).
 
 ## 7. Kho
 
@@ -314,7 +367,7 @@ Chỉ thêm bảng; không thêm cột vào bảng cũ (test `PRE_A1` vẫn kho�
 
   Hai chỉ mục là chốt chống trùng khi chạy lại hay khởi động lại, và cho phép cấu hình đang dùng cùng đề xuất thay thế nó tồn tại song song (mục 5.2).
 
-**`call_holds`**: lượt làm sản phẩm đã giữ cho làn M. Cột `id`, `goal_id`, `revision`, `experiment_id`, `lesson_id`, `purpose` (`method_followup`), `status` (`held`/`used`/`released`), `action_id` (lượt đã dùng nó), `created_at`, `updated_at`. Khoá duy nhất `(experiment_id, purpose)`. Lượt giữ được cộng vào `goals.calls_used` lúc giữ và trừ lại lúc `released`; `used` thì giữ nguyên (lượt đã gọi).
+**`call_holds`**: lượt làm sản phẩm đã giữ cho làn M. Cột `id`, `goal_id`, `revision`, `experiment_id`, `lesson_id`, `purpose` (`method_followup`), `status` (`held`/`attached`/`used`/`released`), `action_id` (lượt đang gắn hay đã dùng nó), `gen`, `created_at`, `updated_at`. Khoá duy nhất `(experiment_id, purpose)`; chỉ mục `(goal_id, status)`. Lượt giữ được cộng vào `goals.calls_used` lúc giữ và trừ lại đúng một lần lúc `released`; `attached` và `used` không đổi bộ đếm. Vòng đời đầy đủ ở mục 6.8.
 
 **`lesson_events`**: nhật ký thay đổi trạng thái. Cột `id`, `lesson_id`, `brain_id`, `kind`, `by`, `payload_json`, `created_at`.
 
@@ -335,7 +388,8 @@ Chỉ thêm bảng; không thêm cột vào bảng cũ (test `PRE_A1` vẫn kho�
 
 - Lần đầu bản 0.89 mở một kho chưa có bảng A3: sao lưu `resonance.sqlite3` thành `.pre-a3.bak` (cùng hàm `_backup_before` của A2), rồi tạo bảng. Không di chuyển dữ liệu cũ nào.
 - **Quay về 0.88.x:** bản cũ bỏ qua bảng lạ. Làn P mất hiệu lực (tin trở lại đầy đủ, rung chuông). Cách làm đã áp dụng ở làn M vẫn nằm ở cột M5 mà 0.88 đã hiểu, vẫn đúng phạm vi goal + revision. Bản cũ không biết lý do `method_trial`: mã lạ thuộc lớp `CHECK` của `heartbeat.v1`, chỉ kiểm, không gọi model; test quay về khoá điều này.
-- Lượt giữ còn `held` lúc quay về: bản cũ không biết bảng `call_holds`, nên lượt đó vẫn nằm trong `calls_used` (tính dư một lượt, phía an toàn); bản cũ không chạy `method_followup` (mã lạ thuộc `CHECK`). Nâng lại 0.89 thì lượt giữ được xử lý tiếp theo mục 6.7.
+- Lượt giữ còn `held` lúc quay về: bản cũ không biết bảng `call_holds`, nên lượt đó vẫn nằm trong `calls_used` (tính dư một lượt, phía an toàn). Bản cũ coi `method_followup` là mã lạ lớp `CHECK`: **chốt lý do mà không gọi model và không đụng lượt giữ**. Bản cũ cũng có thể huỷ mục tiêu, sửa cách hiểu hay quay lại cách cũ trong lúc chạy.
+- Nâng lại 0.89: `reconcile_holds` chạy khi mở kho (mục 6.8). Lượt giữ còn hợp lệ được dựng lại đúng một lý do `method_followup`; lượt không còn hợp lệ được trả đúng một lần; bài học được ghi lại theo sự thật M5.
 - **Nâng lại 0.89 sau khi quay về:** bảng A3 còn nguyên; bài học làn M có thể lệch cột M5 (người dùng quay lại cách cũ bằng bản cũ) và được hiện theo M5 như mục 7.2.
 
 ## 8. Chính sách `learning.v1`
@@ -351,7 +405,8 @@ Hằng có phiên bản, không phải ô cài đặt. Đổi mặc định thì
 | `P_DISMISS_COOLDOWN_S` | 14 ngày | Bỏ qua thì không đề xuất lại cùng thay đổi trong khoảng này |
 | `M_CANDIDATES` | `work.v1 → work.checklist.v1` | Ứng viên duy nhất khi bế tắc |
 | `M_TRIALS_PER_REVISION` | 1 mỗi cặp baseline, ứng viên | Không thử lại cùng cặp trong cùng revision |
-| `M_HOLDOUT_MAX` | 1 | Một tình huống giữ riêng: revision trước gần nhất có cùng bộ tiêu chí host chấm |
+| `M_HOLDOUT_MAX` | 1 | Một tình huống giữ riêng: revision trước gần nhất có cùng bộ tiêu chí host chấm và đầu vào prompt khác thật |
+| `M_HOLDOUT_SCAN` | 5 | Số revision trước tối đa được xét khi tìm tình huống giữ riêng |
 | Chi phí phép thử | 2 × số tình huống (A3: 4 lượt) | Phải nằm trong phần khám phá còn lại |
 | Ngân sách trọn vòng | `calls_used + trial_cost + 1 + AUTO_RESERVE_CALLS <= budget_calls` | Thêm 1 lượt làm sản phẩm được giữ sẵn và lượt dự phòng; thiếu thì `skipped/budget` |
 
@@ -366,6 +421,7 @@ Hằng có phiên bản, không phải ô cài đặt. Đổi mặc định thì
 | Hết hạn mức | Không ảnh hưởng | Không đủ ngân sách trọn vòng: không chạy, bài học `skipped/budget` |
 | Owner bấm Bỏ qua bài học đang thử | Không áp dụng (làn P không có thử) | Dừng ở cổng lượt kế tiếp; nếu đã tới bước chốt thì CAS bài học trong `finish_experiment` chặn việc đổi cách làm (mục 6.4). Lượt đã bắt đầu vẫn tính; lượt giữ làm sản phẩm được trả |
 | Owner thu hồi | Lần dựng tin kế tiếp dùng mặc định | `revert_method` và trả lượt giữ cùng giao dịch |
+| Lần thức bị huỷ trước engine | Không liên quan | Lượt giữ về `held`, lý do trở lại chờ, không trả bộ đếm hai lần (mục 6.8) |
 | Sửa cách hiểu | Không ảnh hưởng | Bài học `out_of_scope`, trả lượt giữ, cách làm về mặc định (mục 6.7) |
 | Trần chung `JAVIS_RESONANCE_CALL_CEILING` | Không liên quan | Kiểm trong giao dịch giữ chỗ (M5, không đổi) |
 
@@ -395,7 +451,7 @@ Mọi route mới đi qua `_ctx(brain)` và principal owner như M4; agent khôn
 ## 12. Hiệu năng
 
 - Ghi reaction: một giao dịch SQLite gồm kiểm biên nhận (khoá chính), upsert, ghi log, chạy bộ học trên reaction của một trợ lý trong 30 ngày (chỉ mục `(brain_id, agent_key, updated_at)`). Chạy trong luồng phụ như A2 mục 11. Không đọc file brain.
-- `drain_outbox`: thêm một truy vấn bài học `active` của một trợ lý mỗi tin, theo chỉ mục `lessons_open`.
+- `drain_outbox`: thêm một truy vấn bài học `active` của một trợ lý mỗi tin, theo chỉ mục `lessons_active_one`.
 - `GET /goals/{id}`: thêm một truy vấn bài học làn M theo goal + revision.
 - Không có vòng quét nền mới. Hết hạn đề xuất được tính lúc đọc và ghi bù lúc có reaction mới hay khi mở danh sách bài học.
 
@@ -413,7 +469,8 @@ Mọi ca chạy trong khung thế giới giả của A2 (`World`, `reopen()` đ�
 | G2c | Sai revision: phản hồi M4 với `expected_revision` cũ | 409; không ghi (khoá lại hành vi M4) |
 | G2d | Sai hash: "Đạt yêu cầu" với `artifact_ref` cũ | 409; không ghi |
 | G2e | Không phải tin báo: reaction trên câu trả lời chat thường, và trên tin có khối `JAVIS_RESONANCE` do model tự viết (không biên nhận) | 400; bộ học không thấy |
-| G3a | Bấm lại: 10 lần `down/too_long` trên cùng một tin | Một dòng `reactions`, `seq` 10, 10 dòng log; bộ học đếm 1 tin; không đề xuất |
+| G3a | Gửi 10 request `down/too_long` trên cùng một tin, mỗi request một nonce mới (API đặt giá trị, không tự đảo) | Một dòng `reactions`, `seq` 10, 10 dòng log, giá trị cuối `down/too_long`; bộ học đếm 1 tin; không đề xuất |
+| G3d | Luật bấm lại của giao diện: bấm 👎 Dài quá, bấm lại đúng nút đó, bấm lần ba | Test JS: request lần hai mang `value='none'`, lần ba mang lại `down/too_long`; phía kho: giá trị cuối `down/too_long`, `seq` 3 |
 | G3b | Gửi lại cùng `nonce` | Không dòng log mới; trả cùng `seq` |
 | G3c | Thu hồi rồi khởi động lại: 2 tin `too_long` tạo đề xuất; thu hồi một reaction; `reopen()`; bấm reaction khác | Không có đề xuất thứ hai (chỉ mục duy nhất); đề xuất cũ hết hạn khi chỉ còn 1 tin hợp lệ |
 | G4a | Ứng viên thua: phép thử trả `rejected/regression` | `method_ref` không đổi; bài học `rejected`; lượt giữ làm sản phẩm được trả trong cùng giao dịch (`calls_used` = trước + 4); không lý do `method_followup`; không tin `method_changed` |
@@ -421,7 +478,7 @@ Mọi ca chạy trong khung thế giới giả của A2 (`World`, `reopen()` đ�
 | G4c | Đề xuất làn P hết hạn (đồng hồ giả qua 14 ngày) | Trạng thái `expired`; tin vẫn dựng `full` |
 | G5a | Thu hồi làn P: bài học `brief` active, thu hồi, gửi tin `goal.succeeded` kế tiếp | Câu đầy đủ như mặc định; biên nhận ghi `presentation=full` |
 | G5b | Thu hồi làn M (trước và sau lượt làm sản phẩm) | `effective_method` = cách cũ trong cùng giao dịch; bài học `revoked`; lượt giữ còn `held` thì được trả và lý do `method_followup` được chốt; lượt việc kế tiếp dùng prompt không có phần thêm của ứng viên |
-| G6a | Pause giữa phép thử: engine giả đặt pause sau lượt baseline | Bên ứng viên không chạy; `inconclusive/stopped`; hoàn 1 lượt |
+| G6a | Pause giữa phép thử: engine giả đặt pause ngay sau lượt baseline đầu tiên (phép thử 4 lượt cộng 1 lượt giữ) | Các lượt còn lại không chạy; `inconclusive/stopped`; 1 lượt đã tính, hoàn 3 lượt thử chưa ghi ý định, trả 1 lượt giữ: `calls_used` = trước + 1 |
 | G6b | Tắt trợ lý giữa phép thử | Như G6a; áp dụng bị chặn kể cả khi tắt ngay trước giao dịch áp dụng |
 | G6c | Guard nhảy giữa phép thử | Như G6a; chốt guard giữ nguyên |
 | G6d | Hạn mức không đủ trọn vòng lúc lý do tới hạn (hạn mức bị owner hạ, hay trần chung) | 0 lượt model; bài học `skipped/budget`; `calls_used` không đổi; không tạo phép thử |
@@ -447,7 +504,7 @@ Mọi ca chạy trong khung thế giới giả của A2 (`World`, `reopen()` đ�
 | A11 | Trợ lý tắt | Reaction ghi được, không đề xuất; bật lại rồi bấm thêm thì đề xuất xuất hiện |
 | A12 | Quay về 0.88.1 | Mở kho A3 bằng mã `83bff6bc` (git archive): không lỗi; lý do `method_trial` và `method_followup` không gọi model; cách làm làn M vẫn đúng phạm vi; lượt giữ `held` vẫn tính trong `calls_used` |
 | A13 | Di chuyển | Kho 0.88 lên 0.89: có `.pre-a3.bak`; bảng cũ không đổi cột; mở lần hai không sao lưu lại |
-| A14 | Chạy lại sau khi chết giữa phép thử | `reopen()` giữa hai bên: `_reconcile` chốt lượt dở; không phép thử thứ hai cho cùng cặp và revision |
+| A14 | Chạy lại sau khi chết giữa phép thử | Xem R5e |
 | A15 | Giao diện | Test JS: hàng reaction chỉ vẽ trên tin có biên nhận; request mang `nonce`; bấm lại đúng giá trị gửi `none`; khoá `tw()` nguyên văn; `test_i18n.mjs` xanh |
 | A16 | Không ký tự gạch dài | Mọi chuỗi mới trong code, i18n, tài liệu |
 
@@ -473,12 +530,37 @@ Các ca này viết thành test hành vi trên mã A3 thật sau khi thiết k�
 | R3c | Đủ hạn mức nhưng không có revision trước cùng bộ tiêu chí | `skipped/no_holdout`; 0 lượt model |
 | R3d | Sửa cách hiểu sau khi áp dụng, trước lượt sản phẩm | Revision mới: `effective_method` mặc định; bài học `out_of_scope`; lượt giữ `released` (`calls_used` trừ 1); lý do `method_followup` của revision cũ không chạy; lượt việc của revision mới dùng cách mặc định |
 | R3e | Lịch xem lại và hạn chót sau khi áp dụng (lượt sản phẩm đã xong) | Lần thức `CHECK`: 0 lượt model |
-| R3f | Tin mới từ người dùng tới trước lượt sản phẩm | Lượt sửa dùng cách mới; lượt giữ `released` trong giao dịch `begin_action` của lượt sửa; lý do `method_followup` chốt `superseded`; tổng `calls_used` = 3 + 4 + 1 |
-| R3g | Khởi động lại giữa áp dụng và lượt sản phẩm; và khởi động lại sau khi lượt sản phẩm đã ghi ý định | Lượt sản phẩm chạy đúng một lần; lần hai thấy lượt giữ `used` nên chốt lý do, không gọi model |
+| R3f | Tin mới từ người dùng cùng revision tới trước lượt sản phẩm | Lượt sửa tiếp quản lượt giữ (`attached`, rồi `used`), dùng cách mới; không giữ thêm lượt; lý do `method_followup` chốt `superseded`; `FOLLOWUP` không chạy; `calls_used` = 8 (3 + 4 + 1); engine giả: đúng 1 lượt sau phép thử |
+| R3g | Khởi động lại giữa áp dụng và lượt sản phẩm | Lượt sản phẩm chạy đúng một lần; lượt giữ `used`; mở lại lần nữa không dựng lý do mới, không gọi model |
 | R3h | Pause trước lượt sản phẩm, rồi resume | Lúc pause: lý do bị gác, 0 lượt, lượt giữ còn `held`; resume: lượt sản phẩm chạy một lần |
-| R3i | Lượt sản phẩm gặp bản người dùng sửa tay | Không ghi đè (A2 mục 5); kết quả giữ ở vùng làm việc; tin `method_changed` nói rõ chưa đăng được |
+| R3i1 | Bản người dùng sửa tay đã được phát hiện **trước** khi `FOLLOWUP` mở lượt | A2 gác mục tiêu (`source_drift`): 0 lượt model; lượt giữ vẫn `held`; lý do chờ gỡ gác |
+| R3i2 | Người dùng sửa tay **trong lúc** lượt sản phẩm đang chạy | Không ghi đè (A2 mục 5); đầu ra giữ ở vùng làm việc, chưa đăng; lượt giữ `used`; tin `method_changed` nói rõ chưa đăng được |
 
-### 13.4 Không có trong nghiệm thu A3
+### 13.4 Ca theo review vòng 2
+
+Mỗi ca R4 tới R6 kiểm đủ năm thứ: trạng thái và `gen` của lượt giữ, trạng thái action, `calls_used`, lý do đang chờ, số lượt engine giả. Bối cảnh chung: hạn mức 9, bế tắc sau 3 lượt việc, phép thử eligible 4 lượt, áp dụng, lượt giữ `held`, `calls_used` = 8.
+
+| ID | Kịch bản | Kiểm |
+|---|---|---|
+| R4a | Trần chung đúng 8 (`JAVIS_RESONANCE_CALL_CEILING=8`); góp ý cùng revision tới trước `FOLLOWUP` | Lượt sửa nhận lượt giữ trong một giao dịch (mức tăng ròng 0, không bị trần chặn); `calls_used` = 8; engine 1 lượt; lượt giữ `used`; lý do `method_followup` `superseded`; `FOLLOWUP` không chạy thêm |
+| R4b | Cùng trần 8; sửa cách hiểu (revision mới) rồi góp ý trên revision mới | Lượt giữ đã `released` khi `revise` (`calls_used` = 7); lượt của revision mới giữ lượt mới như thường (7 → 8, vừa trần); không mượn lượt giữ của revision cũ |
+| R4c | Lượt giữ đã `used`; góp ý tiếp theo khi trần 8 và `calls_used` 8 | Lượt mới bị trần chặn như A2 hiện nay (0 lượt model); không mượn lại lượt giữ đã dùng |
+| R4d | Cổng ngoài giao dịch: sau áp dụng `left` = 1, đúng bằng lượt dự phòng | `decide` không đòi phần dư trên lượt dự phòng cho `FOLLOWUP` (lượt đã giữ sẵn): chạy đúng 1 lượt bằng lượt giữ; sau đó `left` vẫn 1, lượt dự phòng còn nguyên |
+| R5a | Huỷ lần thức `FOLLOWUP` sau pha chuẩn bị, trước engine (`abort_action`) | Action `cancelled/not_run`; lượt giữ về `held`, `gen` +1; `calls_used` vẫn 8 (không thành 7); lý do `method_followup` lại chờ; engine 0. Tick sau: chạy đúng 1 lượt, lượt giữ `used`, `calls_used` 8 |
+| R5b | Gọi `abort_action` lần hai cho cùng action | Trả False; lượt giữ, bộ đếm, lý do không đổi |
+| R5c | Huỷ trước engine một lượt góp ý đã tiếp quản lượt giữ | Lượt giữ `held`; lý do góp ý và lý do `method_followup` cùng trở lại chờ; `calls_used` 8. Tick sau: góp ý thắng và tiếp quản lại; `FOLLOWUP` không chạy; engine tổng 1 |
+| R5d | Tiến trình chết sau khi lượt sản phẩm có thể đã gọi engine | Mở lại: `_reconcile` A2 chốt action; lượt giữ `used`; lý do chốt; không chạy lại; `calls_used` 8 |
+| R5e | Tiến trình chết sau 2 trên 4 lượt của phép thử | Mở lại: phép thử `inconclusive/interrupted`, hoàn 2 lượt chưa ghi ý định; bài học `unknown`; lượt giữ `released`; `calls_used` = 3 + 2 = 5; không lý do `method_followup`; không phép thử thứ hai cho cùng cặp và revision |
+| R6a | Chu trình A3 → 0.88 → A3: lượt giữ `held` và lý do chờ; chạy `tick` bằng mã `83bff6bc` thật (git archive) | Mã cũ: 0 lượt engine, lý do bị chốt, lượt giữ vẫn `held`, `calls_used` 8. Mở lại bằng A3: dựng đúng một lý do (`gen` +1, `source_ref` mới); tick: 1 lượt sản phẩm, lượt giữ `used`. Mở lại lần ba: không lý do mới |
+| R6b | Như R6a, nhưng mã cũ đã huỷ mục tiêu | Mở lại bằng A3: lượt giữ `released` một lần (`calls_used` 7); không lý do chờ; engine 0; mở lại lần nữa không trả lần hai |
+| R6c | Như R6a, nhưng mã cũ đã sửa cách hiểu (revision mới) | Lượt giữ `released`; bài học `out_of_scope`; cách làm mặc định; engine 0 cho lượt sản phẩm cũ |
+| R6d | Như R6a, nhưng mã cũ đã `revert_method` | Cách làm có hiệu lực khác ứng viên: lượt giữ `released`; bài học `revoked`, lý do `reverted_outside`; engine 0 |
+| R7a | Revision trước chỉ khác metadata (số revision, lý do sửa, thời điểm), cùng cách hiểu, lời người dùng, ràng buộc, giả định | `prompt_input_hash` trùng: không chọn làm giữ riêng; không còn ứng viên thì `skipped/no_holdout`, 0 lượt |
+| R7b | Revision trước có cách hiểu và lời người dùng khác thật, cùng bộ tiêu chí host chấm | Được chọn; payload ghim hai `prompt_input_hash`, hash bản ghi revision và `rubric_hash`; prompt tình huống giữ riêng dựng từ revision cũ; action, cổng lượt, giao dịch áp dụng đều mang revision hiện tại; không file nào được đăng |
+| R7c | Revision trước gần nhất chỉ khác metadata, revision cũ hơn nữa khác thật (trong `M_HOLDOUT_SCAN`) | Chọn revision cũ hơn |
+| R7d | Revision trước khác thật nhưng bộ tiêu chí host chấm khác | Không chọn |
+
+### 13.5 Không có trong nghiệm thu A3
 
 - Pilot model thật: chỉ chạy khi chủ dự án duyệt hạn mức riêng. Đề xuất pilot sau khi mã đạt review: tối đa 8 lượt gọi model (3 lượt việc tới bế tắc, 4 lượt phép thử, 1 lượt làm sản phẩm), mục tiêu đặt hạn mức 9 để giữ lượt dự phòng, dùng engine hay gói thuê bao hiện có, một mục tiêu có revision trước cùng bộ tiêu chí để có tình huống giữ riêng. Không tự chuyển sang API trả phí, không tự thử lại hoặc nâng trần.
 - Đo hiệu năng VPS: không thuộc A3.
@@ -508,12 +590,13 @@ Mỗi bước một commit có test; chạy test cũ của M4, M5, A1, A2 sau m�
    - `heartbeat.v2` (`TRIAL`, `FOLLOWUP`, `method_trial`, `method_followup`);
    - tách thân `compare_methods`; `_trial_run` dựng prompt theo revision của từng tình huống;
    - CAS bài học trong `begin_experiment` và `finish_experiment`;
-   - bảng `call_holds`: giữ, dùng trong `begin_action`, trả lại;
+   - bảng `call_holds` và vòng đời mục 6.8: giữ, gắn (`FOLLOWUP` hay góp ý tiếp quản, mức tăng ròng 0 khi kiểm trần), dùng, trả; mở rộng `abort_action`; `reconcile_holds` khi mở kho và trong pha chuẩn bị;
+   - chọn tình huống giữ riêng theo `prompt_input_hash`;
    - lượt làm sản phẩm qua khung lần thức A2 và cổng bàn giao hiện có;
    - `goal.method_changed` gửi sau lượt sản phẩm;
    - thu hồi kèm `revert_method`; `out_of_scope` và trả lượt giữ khi `revise`.
 6. **Giao diện:** hàng reaction (`chat-resonance.js`), mục Bài học (`resonance-agent.js`), khối `learning` trên thẻ, i18n.
-7. **Test:** `tests/python/test_resonance_a3_learning.py` (ma trận 13.1, 13.2, 13.3; móc kiểm thử chèn quyết định ngay trước giao dịch chốt), `tests/python/test_resonance_a3_rollback.py` (`OLD_SHA` = `83bff6bc`), `tests/js/test_resonance_a3_ui.js`; CI lấy thêm commit `83bff6bc` cho test quay về.
+7. **Test:** `tests/python/test_resonance_a3_learning.py` (ma trận 13.1 tới 13.4; móc kiểm thử chèn quyết định ngay trước giao dịch chốt; R6 chạy `tick` bằng mã `83bff6bc` lấy qua git archive), `tests/python/test_resonance_a3_rollback.py` (`OLD_SHA` = `83bff6bc`), `tests/js/test_resonance_a3_ui.js`; CI lấy thêm commit `83bff6bc` cho test quay về.
 8. **Tài liệu:** hướng dẫn `docs/dev/resonance-a3-learning.md`, biên bản `docs/dev/resonance-a3-verification.md`, lộ trình mục 6 và mục 8.
 
 ## 16. Phần chuyển sang A4, A5
@@ -534,3 +617,20 @@ Review: `exports/reviews/PR-598-A3-design-a6418e45-review.md` (ngoài git), kèm
 | D3, D5 đồng ý có điều kiện | Mục 14 | D3 gắn với ngân sách trọn vòng; D5 giữ, kèm lượt làm sản phẩm được giữ sẵn |
 
 Các phần review đồng ý giữ nguyên: ranh giới reaction và M4, D1, D2, D6, D7, làn P không tốn model, phạm vi goal + revision kèm đường quay lại.
+
+## 18. Thay đổi sau review vòng 2 (`ef56b61f`)
+
+Review: `exports/reviews/PR-598-A3-r2-ef56b61f-review.md` (ngoài git). Ba điểm vòng 1 được chấp nhận ở cấp thiết kế; còn 2 P2 trên cơ chế giữ lượt.
+
+| Điểm review | Sửa ở đâu | Cách sửa |
+|---|---|---|
+| **P2-1:** góp ý thay `FOLLOWUP` giữ lượt mới trước rồi mới trả lượt cũ, nên bị trần chung chặn ở 8/8 | Mục 6.3, 6.5, 6.7, 6.8; ca R3f, R4a tới R4d | Góp ý cùng revision **tiếp quản** lượt `held` hợp lệ trong một giao dịch `begin_action`: ghi action, chuyển lượt giữ sang `attached`, chốt lý do `method_followup`. Mức tăng ròng 0 khi kiểm trần chung và trần mục tiêu. Cổng ngoài giao dịch coi lượt giữ là dùng được. Lượt giữ của revision cũ hay đã dùng không bao giờ được mượn lại |
+| **P2-2a:** huỷ trước engine trả bộ đếm nhưng lượt giữ kẹt `used` | Mục 6.8, 9; ca R5a tới R5c | Tách `attached` (đã gắn action) khỏi `used` (model có thể đã chạy). `abort_action` với action dùng lượt giữ: không trừ bộ đếm, lượt giữ về `held`, `gen` +1, lý do trở lại chờ. Huỷ lặp không làm gì |
+| **P2-2b:** bản 0.88 chốt lý do `method_followup` mà không đụng lượt giữ; nâng lại không có gì dựng lại lịch | Mục 6.8, 7.3; ca R5d, R5e, R6a tới R6d | `reconcile_holds` chạy khi mở kho và trong pha chuẩn bị mỗi lần thức: dựng lại đúng một lý do (`source_ref = hold:<id>:<gen>`) cho lượt giữ còn hợp lệ; trả đúng một lần lượt không còn hợp lệ (huỷ, sửa cách hiểu, quay lại cách cũ, phép thử bị ngắt); không cấp lại lượt khi model có thể đã chạy |
+| Holdout lịch sử: phải kiểm đầu vào khác thật | Mục 6.2, 8; ca R7a tới R7d | `prompt_input_hash` từ phần dựng prompt ngoài tiêu chí; trùng với tập thử thì bỏ qua và xét revision cũ hơn trong `M_HOLDOUT_SCAN`. Ghim hash hai bản ghi và `rubric_hash`. Revision lịch sử chỉ dùng dựng prompt, không đi vào cổng giữ lượt hay áp dụng |
+| Lưu ý: G6a mang số của thiết kế một tình huống | Ca G6a | Kỳ vọng theo số lượt đã bắt đầu: 1 tính, hoàn 3, trả 1 lượt giữ |
+| Lưu ý: G3a mâu thuẫn luật bấm lại | Mục 3.3; ca G3a, G3d | API đặt giá trị theo request; luật bấm lại là của giao diện (gửi `none`). Tách test gửi lặp khỏi test bấm lại |
+| Lưu ý: §12 còn tên chỉ mục cũ | Mục 12 | `lessons_active_one` |
+| Lưu ý: R3i gộp hai tình huống sửa tay | Ca R3i1, R3i2 | Phát hiện trước khi mở lượt: gác, 0 lượt model. Sửa trong lúc chạy: giữ đầu ra chưa đăng |
+
+Không mở thêm tính năng: hai làn, D1 tới D7 và các sửa vòng 1 giữ nguyên.
