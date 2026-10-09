@@ -6596,7 +6596,9 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
                      avatar_palette: str = Form(None), avatar_color: str = Form(None),
                      avatar_eye: str = Form(None), avatar_eye_color: str = Form(None),
                      avatar_eye_size: str = Form(None)):
-    slug = slug or _slugify(name)
+    # Trợ lý MỚI đặt tên file không dấu ("Bống Work" -> bong-work.md), đúng quy ước slug của Javis. Trước
+    # 0.88.1 tên giữ nguyên dấu; các file đó vẫn đọc, sửa, xoá được nhờ skill_router.valid_file_slug.
+    slug = slug or _ascii_slug(name)
     skills_list = [s.strip() for s in re.split(r"[,\n]", skills) if s.strip()]
     # `model_provider` nói RÕ model thuộc nhà nào - cùng một tên model có thể có ở hai nhà
     # (gemini-2.5-pro: Gemini CLI lẫn Gemini API; claude-*: Claude Code lẫn Anthropic API).
@@ -6630,10 +6632,10 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
 @app.post("/agents/delete")
 async def delete_agent(slug: str = Form(...), brain: str = Form("brain")):
     # slug ghép thẳng vào tên file: phải hợp lệ, không thì `../x` xoá được file ngoài thư mục agents.
-    if not skill_router.valid_slug(slug):
+    if not skill_router.valid_file_slug(slug):
         return JSONResponse({"ok": False, "error": "slug không hợp lệ"}, status_code=400)
-    f = _agents_dir(brain) / f"{slug}.md"
-    if f.exists():
+    f = _agent_file(brain, slug)
+    if f:
         f.unlink()
     # A1: xoá qua host thì mã Cộng hưởng của agent này nghỉ hẳn. Tạo lại cùng tên là agent MỚI, phải bật lại; mục
     # tiêu và phiên cũ giữ mã cũ. Chưa có kho thì không tạo kho chỉ để ghi việc này.
@@ -6661,10 +6663,22 @@ def _agent_md_path(brain: str, slug: str):
     `valid_slug` là bắt buộc chứ không phải cho đẹp: slug ở đây đến từ URL, mà đường đi tiếp
     là ghép thẳng vào tên file - một slug kiểu `../../x` là ghi đè file ngoài thư mục agents.
     """
-    if not skill_router.valid_slug(slug):
+    if not skill_router.valid_file_slug(slug):
         return None
-    f = _agents_dir(brain) / f"{slug}.md"
-    return f if f.is_file() else None
+    return _agent_file(brain, slug)
+
+
+def _agent_file(brain: str, slug: str):
+    """File `<slug>.md` của trợ lý, hoặc None. Thử cả hai dạng Unicode của tên có dấu: macOS lưu tên file
+    dạng tách dấu (NFD), còn slug tới từ trình duyệt là dạng dựng sẵn (NFC), hai chuỗi trông y hệt mà
+    so khác nhau."""
+    import unicodedata
+    d = _agents_dir(brain)
+    for dang in dict.fromkeys((slug, unicodedata.normalize("NFC", slug), unicodedata.normalize("NFD", slug))):
+        f = d / f"{dang}.md"
+        if f.is_file():
+            return f
+    return None
 
 
 def _agent_assets_sua(brain: str, slug: str, doi):
@@ -8275,7 +8289,7 @@ async def list_workflows(brain: str = Query("brain")):
 async def save_workflow(name: str = Form(...), description: str = Form(""), steps: str = Form("[]"),
                         status: str = Form("active"), slug: str = Form(""), brain: str = Form("brain"),
                         group: str = Form(NHOM_MAC_DINH)):
-    slug = slug or _slugify(name)
+    slug = slug or _ascii_slug(name)
     try:
         steps_list = json.loads(steps)
     except Exception:
@@ -8373,7 +8387,8 @@ async def export_capability(kind: str = Query(...), slug: str = Query(...),
     slugs = [s.strip() for s in str(slug or "").split(",") if s.strip()]
     if not slugs or len(slugs) > 200:
         return JSONResponse({"error": localefmt.chu("slug rỗng hoặc quá nhiều (tối đa 200)", "slug is empty or there are too many (max 200)")}, status_code=400)
-    xau = [s for s in slugs if not skill_router.valid_slug(s)]
+    hop_le = skill_router.valid_slug if kind == "skill" else skill_router.valid_file_slug
+    xau = [s for s in slugs if not hop_le(s)]
     if xau:
         return JSONResponse({"error": localefmt.chu(f"slug không hợp lệ: {', '.join(xau[:5])}", f"invalid slug: {', '.join(xau[:5])}")}, status_code=400)
     data, fname = share_bundle.build_bundle(
@@ -9827,7 +9842,7 @@ async def studio_seed(brain: str = Form("brain")):
                                  "Khắt khe nhưng công bằng."},
     ]
     for ex in examples:
-        slug = _slugify(ex["name"])
+        slug = _ascii_slug(ex["name"])
         meta = {"type": "agent", "name": ex["name"], "slug": slug, "role": ex["role"],
                 "group": "Nội dung", "skills": ex["skills"], "model": "sonnet", "updated": _today()}
         _write_md(a / f"{slug}.md", meta, ex["prompt"])

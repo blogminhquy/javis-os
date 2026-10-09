@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.88.1] - 2026-10-09
+### Sửa lỗi
+- **Trợ lý đặt tên tiếng Việt có dấu mở được tab Cài đặt ở trang Cộng sự.** Trước đây trợ lý tên như "Bống Work" luôn báo "Không tải được trợ lý này", và cũng không xoá hay xuất được, vì tên file lưu có dấu mà bước đọc lại chỉ nhận chữ không dấu. Trợ lý cũ giờ dùng bình thường, còn trợ lý tạo mới được đặt tên file không dấu. Bộ mẫu Studio cũng hết lỗi bước kiểm chứng không tìm thấy trợ lý "Kiểm chứng viên".
+
 ## [0.88.0] - 2026-10-09
 ### Cải thiện
 - **Trợ lý Cộng hưởng chỉ gọi model khi có lý do.** Việc mới, góp ý mới của bạn, hay một lần thử lại còn trong giới hạn. Đang chờ bạn thì ngủ; lần xem lại định kỳ chỉ kiểm bằng code và giãn dần tới 7 ngày.
