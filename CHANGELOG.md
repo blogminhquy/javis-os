@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.88.2] - 2026-10-09
+### Sửa lỗi
+- **Chat cũ dùng ChatGPT tự khôi phục sau khi chuyển máy hay VPS.** Phiên làm việc của Codex nằm trên máy cũ không đi theo, nên chat cũ báo lỗi "no rollout found" mãi trong khi chat mới chạy bình thường. Javis đã có sẵn bước dựng lại ngữ cảnh từ lịch sử chat, nhưng không nhận ra câu lỗi này, nhất là khi Codex chỉ báo lỗi rồi thoát ngay. Giờ Javis nhận ra và tự dựng lại đúng một lần. Lỗi đăng nhập, hết hạn mức hay mất mạng vẫn báo như cũ. (Báo lỗi của @dev23072005, issue #595.)
+
 ## [0.88.1] - 2026-10-09
 ### Sửa lỗi
 - **Trợ lý đặt tên tiếng Việt có dấu mở được tab Cài đặt ở trang Cộng sự.** Trước đây trợ lý tên như "Bống Work" luôn báo "Không tải được trợ lý này", và cũng không xoá hay xuất được, vì tên file lưu có dấu mà bước đọc lại chỉ nhận chữ không dấu. Trợ lý cũ giờ dùng bình thường, còn trợ lý tạo mới được đặt tên file không dấu. Bộ mẫu Studio cũng hết lỗi bước kiểm chứng không tìm thấy trợ lý "Kiểm chứng viên".
