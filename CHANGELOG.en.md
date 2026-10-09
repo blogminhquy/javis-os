@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.88.4] - 2026-10-09
+### Fixed
+- **The Partners page no longer shows up empty now and then even though the brain has assistants.** Opening the app straight on this page, Javis does not know the brain yet, so it loads the default brain's list (empty), then loads again once the real brain is known. If the first load came back later, it overwrote the right list and the page said there were no partners yet. Results from an outdated load are now dropped. If the server reports an error while loading the list, the page shows the error with a Retry button instead of pretending the list is empty.
+
 ## [0.88.3] - 2026-10-09
 ### Fixed
 - **A bot in a Zalo group sees the photo when a customer sends a plain photo and then calls the bot.** A photo without a caption used to be dropped on arrival, so the most common way to ask, a photo followed by "@bot take a look", made the bot say it had not seen any photo. A photo with a few words of caption worked, which made it look random. The bot now remembers a plain photo for 3 minutes and sees it when that person calls the bot.

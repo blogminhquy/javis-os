@@ -25,6 +25,9 @@
   // nào" với "gọi /agents hỏng nên không biết có gì": cả hai đều để lại mảng rỗng, nhưng cái
   // sau mà bày màn khởi đầu "Chưa có cộng sự nào" là nói dối người dùng về một lỗi mạng.
   var opening = 0, ready = false, active = false, pendingCommand = null, daTai = false;
+  // Số lần DỰNG trang. Lượt tải danh sách nào bắt đầu ở lần dựng trước (hoặc với brain khác) thì kết
+  // quả về muộn bị bỏ, xem taiDanhSach.
+  var lanDung = 0;
   // Khung được dựng khi từ điển i18n CHƯA về: mọi t() trong khung khi đó trả về chính cái khoá
   // (`ws.tab_agent`...). Trang này không có data-i18n nên applyDom không cứu được, và nó cũng không
   // tự nghe "javis:i18n"; console.js hỏi cờ này rồi dựng lại trang đúng một lần khi từ điển về.
@@ -235,16 +238,30 @@
   // cộng sự đang mở, rồi âm thầm bỏ không vẽ.
   function conDangXem(item) { var x = dangChon(); return !!(item && x && x.slug === item.slug); }
 
+  // Trả `false` khi kết quả đã CŨ (trang đã dựng lại hoặc đổi brain trong lúc chờ mạng): người gọi bỏ
+  // qua, không vẽ gì. Ném lỗi khi server không trả danh sách thật, để trang báo lỗi kèm nút Thử lại.
+  //
+  // Vì sao phải có (chủ repo báo 09/10: "thi thoảng ở phần cộng sự ko thấy gì cả"). Mở app thẳng vào
+  // trang Cộng sự: danh sách brain từ server chưa về nên ô chọn brain tạm là brain mặc định, trang tải
+  // danh sách của brain đó (rỗng). Brain thật về thì trang dựng lại và tải đúng. Nhưng lượt tải cũ vẫn
+  // đang bay, và nếu nó về SAU lượt mới thì nó đè danh sách đúng bằng danh sách rỗng: màn "Chưa có
+  // cộng sự nào" dù brain có cả chục trợ lý. Trả lỗi kiểu {"error"} cũng từng bị coi là danh sách rỗng.
   async function taiDanhSach() {
-    var b = encodeURIComponent(brain());
+    var lan = lanDung, b0 = brain();
+    var b = encodeURIComponent(b0);
     // `prompt=0` = danh sách NHẸ. Đo trên brain 14 trợ lý: kèm system prompt là 366 KB, bỏ ra
     // còn 2.9 KB - 99% số byte là thứ cột trái không bao giờ hiện. Qua mạng nhà, 366 KB là cả
     // giây cột trái trống trơn mỗi lần mở trang (chủ dự án 22/09: mở trang Cộng sự từ linh vật
     // vẫn lag). Prompt của ĐÚNG trợ lý đang sửa do studio.js lấy riêng qua /agents/get.
     var r = await Promise.all([api("/agents?brain=" + b + "&prompt=0"), api("/workflows?brain=" + b)]);
-    S.agents = sapXep(r[0].agents || [], "last_chat_at");
-    S.workflows = sapXep((r[1].workflows || []).filter(function (w) { return w.status === "active"; }), "last_run_at");
+    if (lan !== lanDung || b0 !== brain()) return false;
+    if (!r[0] || !Array.isArray(r[0].agents) || !r[1] || !Array.isArray(r[1].workflows)) {
+      throw new Error((r[0] && r[0].error) || (r[1] && r[1].error) || "list");
+    }
+    S.agents = sapXep(r[0].agents, "last_chat_at");
+    S.workflows = sapXep(r[1].workflows.filter(function (w) { return w.status === "active"; }), "last_run_at");
     daTai = true;
+    return true;
   }
 
   // ---------- dựng khung ----------
@@ -260,7 +277,7 @@
     //     (chủ dự án 22/09: "khung chat hiển thị dữ liệu của hội thoại cũ") -> opening++ cắt nó;
     //   - _phienTruoc trỏ vào cuộc chính của brain cũ, rời trang là mở nhầm nó ra;
     //   - danh sách cũ mà `daTai` vẫn true thì brain mới chưa tải xong đã bày nhầm màn khởi đầu.
-    opening++;
+    opening++; lanDung++;
     dongMenu();            // menu nổi của lần dựng trước neo vào <body>, không chết theo DOM cũ
     _phienTruoc = null;
     S.sessionCuaPhien = {}; S.tienDo = {}; S.lanChay = {};
@@ -369,7 +386,8 @@
     S.tabPhai = S.tabCua[S.loai] || S.tabPhai;
     chonTabPhai(S.tabPhai);
     nhoPhienTruoc();
-    taiDanhSach().then(function () { if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { veTrai(); chonMacDinh(); } }).catch(function () { if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_list")); });
+    var lanNay = lanDung;
+    taiDanhSach().then(function (moi) { if (moi === false || lanNay !== lanDung) return; if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { veTrai(); chonMacDinh(); } }).catch(function () { if (lanNay !== lanDung) return; if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_list")); });
   }
   async function selectCommand(cmd) {
     S.loai = cmd.kind; S.chon[cmd.kind] = cmd.slug; S.q = ""; S.nhom = "";
