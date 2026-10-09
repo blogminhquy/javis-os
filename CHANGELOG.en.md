@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.89.0] - 2026-10-09
+### Added
+- **Resonance assistants learn from feedback, with checks (in progress).** React to an assistant's notice to suggest shorter or less disruptive updates; you preview the change and decide whether to apply it.
+- **When stuck, the assistant tries one other method within the budget it already has,** compared with the old method on the same criteria; a losing or unclear result keeps the old method.
+- **Every lesson has a source, a scope and a revoke button.** Feedback never marks a goal done by itself and never grants more permissions or budget.
+
 ## [0.88.1] - 2026-10-09
 ### Fixed
 - **Assistants with accented Vietnamese names open their Settings tab on the Partners page.** An assistant whose name had Vietnamese accents always showed "Could not load this assistant", and could not be deleted or exported either, because its file name kept the accents while the read step only accepted plain letters. Existing assistants now work normally, and new ones get a file name without accents. The Studio starter set also no longer fails to find its reviewer assistant in the verify step.
