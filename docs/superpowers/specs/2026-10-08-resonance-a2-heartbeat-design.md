@@ -1,6 +1,6 @@
 # Resonance A2: nhịp tim thích nghi theo lý do
 
-**Trạng thái:** thiết kế đạt review ở vòng 4 (`cb11fc23`); mã A2 đạt review ở `b5975b7e`, kiểm tích hợp đạt (biên bản: `docs/dev/resonance-a2-verification.md`); chưa merge. Hướng dẫn dùng và quay về: `docs/dev/resonance-a2-heartbeat.md`. Nhánh `claude/resonance-a2-heartbeat`, đặt số 0.88.0.
+**Trạng thái:** thiết kế đạt review ở vòng 4 (`cb11fc23`); mã A2 đạt review ở `b5975b7e`, kiểm tích hợp đạt (biên bản: `docs/dev/resonance-a2-verification.md`); đã phát hành 0.88.0 (`c101d108`). Hướng dẫn dùng và quay về: `docs/dev/resonance-a2-heartbeat.md`. Nhánh `claude/resonance-a2-heartbeat`, đặt số 0.88.0.
 
 - **Nền:** lúc thiết kế, nhánh A1 tại `077bcf73` (0.87.0). A1 đã squash vào `main` thành `fdfec7c5` ngày 09/10/2026; nhánh A2 đã chuyển sang `main`.
 - **Lộ trình:** [agent scope roadmap](2026-10-08-resonance-agent-scope-roadmap.md), mục 5.

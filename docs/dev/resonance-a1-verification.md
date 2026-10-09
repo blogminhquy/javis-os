@@ -2,7 +2,7 @@
 
 Mốc A1 của lộ trình [agent scope](../superpowers/specs/2026-10-08-resonance-agent-scope-roadmap.md): Cộng hưởng bật theo từng trợ lý, mục tiêu gắn đúng trợ lý, tiến độ tối thiểu trên trang Cộng sự.
 
-**Trạng thái: đạt review mã và pilot một kịch bản. Chưa merge, chưa phát hành.** A1 chỉ tính là mốc hoàn tất khi chủ dự án cho merge và bản 0.87.0 được phát hành.
+**Trạng thái: đã phát hành 0.87.0 (09/10/2026).** PR #590 squash vào `main` thành `fdfec7c5c84c2663276d088194844e058d9a22aa` (cây trùng head đã review `077bcf73`). CI và build Docker xanh; image `ghcr.io/blogminhquy/javis-os:0.87.0` (`sha256:bb437e0d0bfb...`).
 
 ## Mã và commit
 
