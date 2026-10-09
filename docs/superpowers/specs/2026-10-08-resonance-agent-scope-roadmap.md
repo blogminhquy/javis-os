@@ -2,7 +2,7 @@
 
 Ngày chốt hướng: 08/10/2026. Mã đối chiếu: main `09f254d0e4d009451dc58cb2e97788631c5acc1a` (0.86.1). MVP Resonance đã phát hành trong 0.86.0, commit `438f8309`, PR #587.
 
-**Trạng thái tài liệu:** hướng sản phẩm theo yêu cầu mới của chủ dự án, kèm lộ trình và điều kiện nghiệm thu. Tiến độ cập nhật 09/10/2026: A1 đã phát hành 0.87.0 (mục 12), A2 đã phát hành 0.88.0 (mục 13); A3 đang ở bước thiết kế chờ review ([thiết kế A3](2026-10-09-resonance-a3-feedback-learning-design.md), nhánh `claude/resonance-a3-feedback-learning`, đặt số 0.89.0), chưa có mã hành vi; A4, A5 chưa bắt đầu. Đây không phải lệnh chạy model, bật tính năng hoặc sửa hệ thống đang vận hành. Kế hoạch code chi tiết của từng PR được viết từ tài liệu này và mã mới nhất khi bắt đầu.
+**Trạng thái tài liệu:** hướng sản phẩm theo yêu cầu mới của chủ dự án, kèm lộ trình và điều kiện nghiệm thu. Tiến độ cập nhật 09/10/2026: A1 đã phát hành 0.87.0 (mục 12), A2 đã phát hành 0.88.0 (mục 13); A3 đang ở bước thiết kế, vòng 2 chờ review ([thiết kế A3](2026-10-09-resonance-a3-feedback-learning-design.md), nhánh `claude/resonance-a3-feedback-learning`, đặt số 0.89.0), chưa có mã hành vi; A4, A5 chưa bắt đầu. Đây không phải lệnh chạy model, bật tính năng hoặc sửa hệ thống đang vận hành. Kế hoạch code chi tiết của từng PR được viết từ tài liệu này và mã mới nhất khi bắt đầu.
 
 ## 1. Điều anh muốn và điều giữ lại
 
@@ -127,7 +127,7 @@ Vòng đích: **ghi phản hồi có nguồn → đề xuất thay đổi nhỏ 
 | D0 | Xác minh vận hành trên máy triển khai | Localhost thử ghim `438f8309` (0.86.0) đạt 13 kiểm không model và 1 chat thật; commit, cách chạy và kết quả ở [biên bản D0](../../dev/resonance-d0-local-check-2026-10-08.md). VPS chưa kiểm, không chặn thiết kế A1 |
 | A1 | Trang agent có công tắc Cộng hưởng, mục tiêu đúng chủ thể và tiến độ tối thiểu | Đạt review mã (`cc79deb2`), pilot A1-1 đạt kỹ thuật và nội dung trong một kịch bản. Đã phát hành 0.87.0 (`fdfec7c5`, PR #590). Biên bản: [resonance-a1-verification](../../dev/resonance-a1-verification.md) |
 | A2 | Agent thức vì lý do cụ thể, ngủ khi chờ, không gọi model vô ích | Thiết kế đạt (`cb11fc23`), mã đạt review (`b5975b7e`), review cuối đạt (`b80ae0ea`). Đã phát hành 0.88.0 (`c101d108`, PR #593); hiệu năng VPS chưa đo. Biên bản: [resonance-a2-verification](../../dev/resonance-a2-verification.md) |
-| A3 | Phản hồi dẫn tới điều chỉnh có kiểm chứng; không chạy theo emoji | Có feedback M4 và so phương pháp M5. Thiết kế vòng 1 chờ review (09/10): [thiết kế A3](2026-10-09-resonance-a3-feedback-learning-design.md); chưa có mã |
+| A3 | Phản hồi dẫn tới điều chỉnh có kiểm chứng; không chạy theo emoji | Có feedback M4 và so phương pháp M5. Thiết kế vòng 2 chờ review (09/10; vòng 1 có 1 P1, 2 P2, đã sửa): [thiết kế A3](2026-10-09-resonance-a3-feedback-learning-design.md); chưa có mã |
 | A4 | Các engine nộp sản phẩm theo cùng hợp đồng host | Có bàn giao Claude Code; adapter khác chưa có |
 | A5 | Một agent làm, một agent review; báo rõ ai đang chờ ai | Có hạ tầng workflow/reviewer; chưa thành đội Resonance |
 
@@ -175,4 +175,4 @@ Nguồn audit và các khoảng trống bằng chứng: [Báo cáo tiến độ 
 - **Kiểm tích hợp:** smoke dry trên server thật (0 lượt engine), soi giao diện heartbeat trên sandbox.
 - **Biên bản:** [resonance-a2-verification](../../dev/resonance-a2-verification.md).
 - **Phát hành:** 0.88.0, PR #593 squash thành `c101d108` (09/10/2026), image GHCR 0.88.0.
-- **Chưa làm:** chưa đo hiệu năng VPS. A3 đã có thiết kế vòng 1 chờ review, chưa có mã; A4, A5 chưa bắt đầu.
+- **Chưa làm:** chưa đo hiệu năng VPS. A3 đã có thiết kế vòng 2 chờ review, chưa có mã; A4, A5 chưa bắt đầu.
