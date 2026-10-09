@@ -23,6 +23,7 @@ biết mình bị chấm theo thước nào.
 from __future__ import annotations
 
 import re
+import unicodedata
 from pathlib import Path
 from typing import Optional
 import hashlib
@@ -158,6 +159,19 @@ def mirror_base(root) -> Path:
 def valid_slug(slug: str) -> bool:
     slug = str(slug or "").strip()
     return bool(slug) and ".." not in slug and bool(_SLUG_RE.match(slug))
+
+
+# Slug của năng lực là MỘT FILE .md phẳng (trợ lý, quy trình). Khác thư mục skill (luôn ASCII), các file
+# này từng được đặt tên có dấu: `_slugify("Bống Work")` giữ nguyên chữ Việt, và các trợ lý mẫu cũng
+# vậy ("người-giải-thích.md"). `valid_slug` chỉ nhận A-Z0-9 nên mở Cài đặt của mọi trợ lý tên có dấu
+# đều báo "Không tải được trợ lý này" (chủ repo báo 09/10). Ở đây nhận chữ cái mọi thứ tiếng (\w
+# Unicode) nhưng vẫn đúng MỘT đoạn tên: không `/`, `\`, `:`, không `..`, nên không thoát khỏi thư mục.
+_FILE_SLUG_RE = re.compile(r"^[^\W_][\w.-]{0,99}$")
+
+
+def valid_file_slug(slug: str) -> bool:
+    slug = unicodedata.normalize("NFC", str(slug or "").strip())
+    return bool(slug) and ".." not in slug and bool(_FILE_SLUG_RE.match(slug))
 
 
 def resolve_skill_file(root, slug: str) -> Optional[Path]:

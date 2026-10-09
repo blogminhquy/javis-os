@@ -72,6 +72,12 @@ def _valid_slug(s: str) -> bool:
     return bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", s or "")) and ".." not in (s or "")
 
 
+def _valid_file_slug(s: str) -> bool:
+    """Trợ lý / quy trình là một file .md phẳng, tên có thể có dấu ("bống-work"). Xem skill_router."""
+    import skill_router
+    return skill_router.valid_file_slug(s)
+
+
 # ────────────────────────── XUẤT ──────────────────────────
 
 def build_bundle(kind, slug, *, agents_dir, workflows_dir, skills_root,
@@ -109,7 +115,7 @@ def build_bundle(kind, slug, *, agents_dir, workflows_dir, skills_root,
 
     def add_agent(aslug):
         aslug = str(aslug or "")
-        if not _valid_slug(aslug) or aslug in seen["agent"]:
+        if not _valid_file_slug(aslug) or aslug in seen["agent"]:
             return
         p = agents_dir / f"{aslug}.md"
         if not p.is_file():
@@ -125,7 +131,7 @@ def build_bundle(kind, slug, *, agents_dir, workflows_dir, skills_root,
 
     def add_workflow(wslug):
         wslug = str(wslug or "")
-        if not _valid_slug(wslug) or wslug in seen["workflow"]:
+        if not _valid_file_slug(wslug) or wslug in seen["workflow"]:
             return
         p = workflows_dir / f"{wslug}.md"
         if not p.is_file():
@@ -179,11 +185,11 @@ def _dst_for(arc, agents_dir, workflows_dir, skills_root):
     if not rel or rel.endswith("/"):
         return None
     if top == "agents/":
-        if "/" in rel or not rel.endswith(".md"):
+        if "/" in rel or not rel.endswith(".md") or not _valid_file_slug(rel[:-3]):
             return None
         return Path(agents_dir) / rel, "agent", rel[:-3]
     if top == "workflows/":
-        if "/" in rel or not rel.endswith(".md"):
+        if "/" in rel or not rel.endswith(".md") or not _valid_file_slug(rel[:-3]):
             return None
         return Path(workflows_dir) / rel, "workflow", rel[:-3]
     # skills/<slug>/...
@@ -225,7 +231,7 @@ def import_bundle(data: bytes, filename, *, agents_dir, workflows_dir, skills_ro
         typ = str(meta.get("type") or "").lower()
         if typ in ("agent", "workflow"):
             slug = slugify(meta.get("slug") or meta.get("name") or Path(name).stem)
-            if not _valid_slug(slug):
+            if not _valid_file_slug(slug):
                 res["errors"].append(localefmt.chu("Không xác định được slug hợp lệ từ file.",
                                                    "Could not work out a valid slug from the file."))
                 return res
