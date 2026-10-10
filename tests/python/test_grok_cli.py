@@ -854,7 +854,7 @@ grok_cli.find_grok_cli = _that_find
 _CLAUDEMD = Path(ROOT, "CLAUDE.md").read_text(encoding="utf-8")
 check("CANARY: CLAUDE.md đã kể tên bộ não mới "
       "(câu này vào system prompt MỖI LƯỢT CHAT, sai là Javis nói sai với mọi người dùng)",
-      "Grok Build" in _CLAUDEMD and "Ten brains" in _CLAUDEMD)
+      "Grok Build" in _CLAUDEMD and "Eleven brains" in _CLAUDEMD)
 check("và đã đếm lại số engine CLI", "three CLI engines" in _CLAUDEMD)
 check("CANARY: Gemini CLI đã gỡ khỏi system prompt (đường đó đã chết)",
       "Gemini CLI was removed" in _CLAUDEMD)

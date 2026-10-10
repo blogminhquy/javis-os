@@ -77,6 +77,11 @@ check("image input allowed (fallback drops images for text-only models)",
       vision_input.supported("deepseek"))
 check("Resonance can set goals on deepseek", resonance.engine_support("deepseek")["goal"] is True)
 
+_CLAUDEMD = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+check("CLAUDE.md names DeepSeek among the brains (it is the system prompt of every chat turn)",
+      "Eleven brains" in _CLAUDEMD and "Groq, DeepSeek, Ollama" in _CLAUDEMD)
+check("CLAUDE.md counts seven API engines", "The seven API engines" in _CLAUDEMD)
+
 check("_api_label is human-readable", main._api_label("deepseek") == "DeepSeek")
 _cfg = {"model": {}}
 main._set_main_model(_cfg, "deepseek", "deepseek-flash")
