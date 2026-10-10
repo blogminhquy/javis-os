@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.90.0] - 2026-10-10
+### Added
+- **(In design) Resonance assistants hand in their work through one shared check**, whatever engine they run on: Javis reads and verifies the submission itself before accepting or publishing it, instead of trusting what the engine reports.
+- **(In design) Work is assigned with a clear scope:** what the assistant may do, on which documents, with how many calls at most; the assistant cannot widen its own permissions, and revoking stops it right away.
+
 ## [0.89.0] - 2026-10-10
 ### Added
 - **Resonance assistants learn from feedback, with checks.** React to an assistant's notice to suggest shorter or less disruptive updates; you preview the change and decide whether to apply it.

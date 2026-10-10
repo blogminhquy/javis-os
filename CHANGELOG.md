@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.90.0] - 2026-10-10
+### Thêm mới
+- **(Đang thiết kế) Trợ lý Cộng hưởng nộp sản phẩm qua một cửa kiểm chung**, dù chạy bằng engine nào: Javis tự đọc và kiểm bản nộp trước khi nhận hay đăng, không tin lời engine tự khai.
+- **(Đang thiết kế) Giao việc kèm phạm vi rõ:** bạn cho trợ lý làm gì, trên tài liệu nào, tối đa bao nhiêu lượt; trợ lý không tự mở rộng quyền, thu hồi là dừng ngay.
+
 ## [0.89.0] - 2026-10-10
 ### Thêm mới
 - **Trợ lý Cộng hưởng học từ phản hồi có kiểm chứng.** Bấm phản hồi trên tin báo của trợ lý để gợi ý cách báo gọn hơn hay ít làm phiền hơn; bạn xem trước và tự quyết có áp dụng.
