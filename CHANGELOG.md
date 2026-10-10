@@ -12,6 +12,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Bế tắc thì thử một cách làm khác, chỉ khi hạn mức của mục tiêu đủ cho cả phép thử lẫn một lượt làm lại sản phẩm,** so với cách cũ trên cùng tiêu chí; thua hoặc chưa rõ thì giữ nguyên cách cũ.
 - **Mỗi bài học có nguồn, phạm vi và nút thu hồi.** Thu hồi hay bỏ qua một gợi ý thì 14 ngày sau Javis mới gợi ý lại đúng thay đổi đó. Phản hồi không bao giờ tự làm mục tiêu đạt, không mở thêm quyền hay hạn mức.
 
+## [0.88.5] - 2026-10-10
+### Cải thiện
+- **Hội thoại có nhiều thẻ mục tiêu mở nhanh hơn.** Các thẻ của cùng một mục tiêu dùng chung một lần tải thay vì mỗi thẻ một lần, và chỉ vẽ lại một lượt.
+- **Mở thẻ mục tiêu không còn làm các trang khác chờ.** Javis đọc trạng thái mục tiêu ở luồng riêng và chỉ đọc phần thẻ cần hiện, nên mục tiêu có lịch sử dài vẫn mở nhanh.
+- **Đo được Javis xử lý mỗi yêu cầu mất bao lâu.** Mỗi phản hồi có thêm header `Server-Timing`, giúp tách chậm do Javis với chậm do đường mạng hay proxy (Cloudflare).
+
 ## [0.88.4] - 2026-10-09
 ### Sửa lỗi
 - **Trang Cộng sự không còn thỉnh thoảng trống trơn dù brain có trợ lý.** Mở app thẳng vào trang này thì lúc đầu Javis chưa biết đang ở brain nào, nên tải danh sách của brain mặc định (rỗng), rồi tải lại khi biết brain thật. Nếu lượt tải đầu về muộn hơn, nó ghi đè danh sách đúng và trang báo "Chưa có cộng sự nào". Giờ kết quả của lượt cũ bị bỏ. Server báo lỗi khi tải danh sách thì trang hiện lỗi kèm nút Thử lại, không giả làm danh sách rỗng nữa.
