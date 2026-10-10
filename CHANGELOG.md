@@ -6,12 +6,25 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.90.0] - 2026-10-10
+## [0.92.0] - 2026-10-11
 ### Thêm mới
 - **Trợ lý Cộng hưởng chỉ ghi vào file bạn đã cho phép.** Mục tiêu mới hay đổi sang file khác thì thẻ hỏi "Trợ lý muốn ghi vào ... Cho phép?" kèm đúng đường file. Đã cho phép thì trợ lý làm tiếp, không hỏi lại từng lần sửa.
 - **Bản trợ lý soạn trước khi bạn cho phép được giữ làm nháp.** Bấm Xem trước để đọc, bấm Cho phép là Javis đăng đúng bản đó, không gọi model viết lại.
 - **Codex và các bộ não dùng API key cũng giao được sản phẩm ngay trong cuộc trò chuyện**, qua cùng một cửa kiểm như Claude: Javis tự đọc, kiểm và đăng bản nộp, không ghi đè file bạn đã sửa.
-- **Nút Thu hồi quyền trên thẻ mục tiêu** dừng mục tiêu ngay; bấm Tiếp tục để cấp lại. Muốn quay về 0.89.0 thì tắt Javis và chạy `tools/resonance_restore_pre_a4.py`.
+- **Nút Thu hồi quyền trên thẻ mục tiêu** dừng mục tiêu ngay; bấm Tiếp tục để cấp lại. Muốn quay về 0.91.0 thì tắt Javis và chạy `tools/resonance_restore_pre_a4.py`.
+
+## [0.91.0] - 2026-10-10
+### Thêm mới
+- **DeepSeek thành một bộ não mới.** Dán API key DeepSeek ở trang Models là chọn được `deepseek-flash` hoặc `deepseek-v4-pro` làm não chính, cho trợ lý hay việc nền, đủ công cụ như các engine API khác.
+- **Độ sâu suy nghĩ dùng được với DeepSeek.** Để Tắt thì DeepSeek trả lời thẳng, rẻ và nhanh hơn; bật lên thì nó suy nghĩ trước. Cuộc trò chuyện cũ không hợp chế độ suy nghĩ thì Javis tự trả lời ở chế độ thường, kèm một dòng báo.
+
+## [0.89.2] - 2026-10-10
+### Cải thiện
+- **Bot nói không xem được ảnh thì thẻ bot ghi rõ vì sao.** Trước đây lý do chỉ nằm trong log của server, nên bot chạy trên VPS báo "không xem được ảnh kèm tin này" mà chủ không biết sửa ở đâu. Giờ dòng cảnh báo trên thẻ bot nói đúng một trong bốn lý do: tin ảnh không kèm link, tải ảnh từ Zalo hỏng (kèm lỗi cụ thể), bộ não của bot không nhận ảnh (Antigravity, Grok Build: đổi model của bot sang loại nhìn được ảnh), hoặc model từ chối ảnh.
+
+## [0.89.1] - 2026-10-10
+### Sửa lỗi
+- **Bot chăm khách không còn lặng lẽ bỏ nhóm thứ 51 trở đi.** Trước đây một bot chỉ nhớ 50 nhóm đầu tiên, nhóm khách mới được duyệt thêm vào vẫn báo thành công nhưng không vào danh sách, nên bot không trả lời nhóm đó. Giờ danh sách nhóm không bị cắt. (Đóng góp của @nhuy288-8.)
 
 ## [0.89.0] - 2026-10-10
 ### Thêm mới

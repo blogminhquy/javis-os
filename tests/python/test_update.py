@@ -268,7 +268,7 @@ import re as _re2  # noqa: E402
 _khoa = dict(_re2.findall(r'/static/(\S+?\.(?:js|css))\?v=([\w.]+)', _html))
 check("mọi file .js/.css đều được gắn khoá cache, không sót cái nào",
       len(_khoa) > 30 and all(v for v in _khoa.values()))
-# So NGUYÊN khoá, không so chuỗi con: vân tay crc32 hợp lệ có thể bắt đầu bằng "72" (0.90.0: style.css?v=72de33ed).
+# So NGUYÊN khoá, không so chuỗi con: vân tay crc32 hợp lệ có thể bắt đầu bằng "72" (nhánh A4: style.css?v=72de33ed).
 check("KHÔNG còn khoá cache gõ tay ?v=72 (đã thay bằng khoá server tính)",
       not _re2.search(r"\?v=72(?![\w.])", _html))
 _fps = main._asset_fps(_html)

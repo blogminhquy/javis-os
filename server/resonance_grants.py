@@ -125,7 +125,8 @@ ENGINE_CAPS = {
     "grok-cli": {"turn_key": False, "submit_tool": False, "observed_write": False},
     "antigravity-cli": {"turn_key": False, "submit_tool": False, "observed_write": False},
 }
-API_PROVIDERS = ("openrouter", "anthropic-api", "openai", "gemini", "groq", "ollama", "ollama-local", "openai-compat")
+API_PROVIDERS = ("openrouter", "anthropic-api", "openai", "gemini", "groq", "deepseek", "ollama", "ollama-local",
+                 "openai-compat")
 
 
 def engine_caps(provider: str) -> dict:

@@ -2,7 +2,7 @@
 
 Ngày chốt hướng: 08/10/2026. Mã đối chiếu: main `09f254d0e4d009451dc58cb2e97788631c5acc1a` (0.86.1). MVP Resonance đã phát hành trong 0.86.0, commit `438f8309`, PR #587.
 
-**Trạng thái tài liệu:** hướng sản phẩm theo yêu cầu mới của chủ dự án, kèm lộ trình và điều kiện nghiệm thu. Tiến độ cập nhật 09/10/2026: A1 đã phát hành 0.87.0 (mục 12), A2 đã phát hành 0.88.0 (mục 13); A3 đã phát hành 0.89.0 (`33a3c1aa`, PR #598, [thiết kế A3](2026-10-09-resonance-a3-feedback-learning-design.md), biên bản [resonance-a3-verification](../../dev/resonance-a3-verification.md)); A4 thiết kế chốt và mã chờ review ([thiết kế A4](2026-10-10-resonance-a4-handoff-grants-design.md), PR #604, đặt số 0.90.0); A5 chưa bắt đầu. Đây không phải lệnh chạy model, bật tính năng hoặc sửa hệ thống đang vận hành. Kế hoạch code chi tiết của từng PR được viết từ tài liệu này và mã mới nhất khi bắt đầu.
+**Trạng thái tài liệu:** hướng sản phẩm theo yêu cầu mới của chủ dự án, kèm lộ trình và điều kiện nghiệm thu. Tiến độ cập nhật 09/10/2026: A1 đã phát hành 0.87.0 (mục 12), A2 đã phát hành 0.88.0 (mục 13); A3 đã phát hành 0.89.0 (`33a3c1aa`, PR #598, [thiết kế A3](2026-10-09-resonance-a3-feedback-learning-design.md), biên bản [resonance-a3-verification](../../dev/resonance-a3-verification.md)); A4 thiết kế chốt và mã chờ review ([thiết kế A4](2026-10-10-resonance-a4-handoff-grants-design.md), PR #604, số 0.92.0); A5 chưa bắt đầu. Đây không phải lệnh chạy model, bật tính năng hoặc sửa hệ thống đang vận hành. Kế hoạch code chi tiết của từng PR được viết từ tài liệu này và mã mới nhất khi bắt đầu.
 
 ## 1. Điều anh muốn và điều giữ lại
 
@@ -175,4 +175,4 @@ Nguồn audit và các khoảng trống bằng chứng: [Báo cáo tiến độ 
 - **Kiểm tích hợp:** smoke dry trên server thật (0 lượt engine), soi giao diện heartbeat trên sandbox.
 - **Biên bản:** [resonance-a2-verification](../../dev/resonance-a2-verification.md).
 - **Phát hành:** 0.88.0, PR #593 squash thành `c101d108` (09/10/2026), image GHCR 0.88.0.
-- **Chưa làm:** chưa đo hiệu năng VPS. A3 đã phát hành 0.89.0; A4 đang thiết kế; A5 chưa bắt đầu.
+- **Chưa làm:** chưa đo hiệu năng VPS. A3 đã phát hành 0.89.0; A4 mã chờ review (0.92.0); A5 chưa bắt đầu.

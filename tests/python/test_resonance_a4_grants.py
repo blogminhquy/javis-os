@@ -706,12 +706,12 @@ check("G7 thu hồi khi lượt nền đang gọi engine: lượt vẫn tính, b
       e7.queries == 1 and w.store.get(w.owner, g.id).calls_used == 1 and bg and bg[0]["status"] == "stale"
       and not w.target().exists(), bg)
 
-# ═══════════ G47, G28, G49: nâng kho từ 0.89.0; đóng băng legacy ═══════════
+# ═══════════ G47, G28, G49: nâng kho từ 0.91.0; đóng băng legacy ═══════════
 legacy_db = _STATE / "legacy.sqlite3"
 wl = World("legacy-src")
 mid, ref = wl.next()
 gl = wl.create(mid, ref, hold=False)
-# Dựng kho "0.89.0": xoá bảng A4 khỏi bản sao của kho này, giữ mục tiêu đang mở có trợ lý và đường sản phẩm.
+# Dựng kho "0.91.0": xoá bảng A4 khỏi bản sao của kho này, giữ mục tiêu đang mở có trợ lý và đường sản phẩm.
 src = sqlite3.connect(str(wl.store.path))
 dst = sqlite3.connect(str(legacy_db))
 src.backup(dst)
@@ -726,7 +726,7 @@ bk = sqlite3.connect(str(bak))
 bk_tables = {r[0] for r in bk.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
 bk.close()
 st_l = s_legacy.scope_state(RA.owner(wl.brain), gl.id)
-check("G47 nâng lên: có resonance.sqlite3.pre-0.90.0 đúng một bản, không có bảng A4",
+check("G47 nâng lên: có resonance.sqlite3.pre-0.92.0 đúng một bản, không có bảng A4",
       bak.is_file() and "grants" not in bk_tables and "goals" in bk_tables)
 check("G28 legacy_frozen đúng _deliverable_rel lúc nâng, có quyền revision",
       st_l["state"] == "granted" and st_l["root"]["source"] == "legacy_frozen"
@@ -736,7 +736,7 @@ _cg = sqlite3.connect(str(legacy_db))
 _n_grants = _cg.execute("SELECT COUNT(*) FROM grants WHERE goal_id=?", (gl.id,)).fetchone()[0]
 _cg.close()
 check("G47 mở lại kho đã nâng: không chép snapshot lần hai, không đóng băng lại",
-      _n_grants == 2 and len(list(_STATE.glob("legacy.sqlite3.pre-0.90.0*"))) == 1, _n_grants)
+      _n_grants == 2 and len(list(_STATE.glob("legacy.sqlite3.pre-0.92.0*"))) == 1, _n_grants)
 # G49: revision do mã cũ tạo (không có quyền revision) sau khi nâng lại: không tự cấp.
 cc = sqlite3.connect(str(legacy_db))
 fr = cc.execute("SELECT frame_json FROM goal_revisions WHERE goal_id=? ORDER BY revision DESC LIMIT 1",

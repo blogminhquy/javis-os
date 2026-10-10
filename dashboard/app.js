@@ -3865,7 +3865,7 @@ document.addEventListener("keydown", resumeAudio, { once: true });
 const ENGINE_LABEL = {
   "anthropic-cli": "Claude Code", "openai-oauth": "ChatGPT", "openrouter": "OpenRouter",
   "openai": "OpenAI", "anthropic-api": "Anthropic", "gemini": "Gemini", "groq": "Groq",
-  "ollama": "Ollama",
+  "deepseek": "DeepSeek", "ollama": "Ollama",
   // Hai engine CLI gói thuê bao. Nhãn phải TÁCH khỏi nhà cung cấp API cùng tên: khác đường
   // và khác hoá đơn (gói đã trả, so với API key trả theo lượt gọi).
   "grok-cli": "Grok Build", "antigravity-cli": "Antigravity",
@@ -3945,7 +3945,7 @@ async function refreshTgStatus() {
 // ============================================
 // Mức dùng (token Javis tự đo, đa nhà cung cấp) - panel sidebar
 // ============================================
-const _PROV_LABEL = { cli: "Claude Code", codex: "ChatGPT", openrouter: "OpenRouter", openai: "OpenAI", "anthropic-api": "Anthropic", gemini: "Gemini", groq: "Groq" };
+const _PROV_LABEL = { cli: "Claude Code", codex: "ChatGPT", openrouter: "OpenRouter", openai: "OpenAI", "anthropic-api": "Anthropic", gemini: "Gemini", groq: "Groq", deepseek: "DeepSeek" };
 function _fmtTok(n) {
   n = +n || 0;
   if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M";

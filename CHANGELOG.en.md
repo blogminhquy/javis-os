@@ -8,12 +8,25 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.90.0] - 2026-10-10
+## [0.92.0] - 2026-10-11
 ### Added
 - **Resonance assistants only write to files you have allowed.** A new goal, or a switch to another file, makes the card ask "The assistant wants to write to ... Allow?" with the exact path. Once allowed, the assistant keeps working without asking again for each revision.
 - **What the assistant drafts before you allow it is kept as a draft.** Preview it, then Allow publishes exactly that version, with no new model call.
 - **Codex and API-key brains can also hand in their work during the chat**, through the same check as Claude: Javis reads, verifies and publishes the submission itself, and never overwrites a file you edited.
-- **A Revoke permission button on the goal card** stops the goal right away; press Resume to grant it again. To go back to 0.89.0, stop Javis and run `tools/resonance_restore_pre_a4.py`.
+- **A Revoke permission button on the goal card** stops the goal right away; press Resume to grant it again. To go back to 0.91.0, stop Javis and run `tools/resonance_restore_pre_a4.py`.
+
+## [0.91.0] - 2026-10-10
+### Added
+- **DeepSeek is a new brain.** Paste a DeepSeek API key on the Models page to pick `deepseek-flash` or `deepseek-v4-pro` as the main brain, for agents or for background work, with the same tools as the other API engines.
+- **Thinking depth works with DeepSeek.** Set to Off, DeepSeek answers directly, cheaper and faster; turned on, it thinks first. If an older conversation does not fit thinking mode, Javis answers in normal mode with a one-line notice.
+
+## [0.89.2] - 2026-10-10
+### Improved
+- **When a bot says it cannot see a photo, the bot card says why.** The reason used to stay in the server log, so a bot running on a VPS said it could not see the photo and the owner had no way to know what to fix. The warning line on the bot card now gives one of four reasons: the photo message carried no link, downloading the photo from Zalo failed (with the exact error), the bot's brain does not take images (Antigravity, Grok Build: switch the bot to a model that can see images), or the model refused the image.
+
+## [0.89.1] - 2026-10-10
+### Fixed
+- **A customer-care bot no longer silently drops groups past the 50th.** A bot used to remember only its first 50 groups, so newly approved customer groups reported success but never made it into the list and the bot stayed silent there. The group list is no longer cut. (Contributed by @nhuy288-8.)
 
 ## [0.89.0] - 2026-10-10
 ### Added
