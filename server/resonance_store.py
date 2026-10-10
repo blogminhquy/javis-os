@@ -1006,7 +1006,8 @@ class GoalStore:
             return True
         if int(row["paused"] or 0) or row["run_state"] == "blocked":
             return True
-        return row["run_state"] == "waiting" and row["block_reason"] in ("source_drift", "handoff", "fit_rejected")
+        return row["run_state"] == "waiting" and row["block_reason"] in ("source_drift", "handoff", "fit_rejected",
+                                                                         "publish_settling")
 
     @classmethod
     def _recompute_wake(cls, c, goal_id: str) -> None:
@@ -3539,6 +3540,10 @@ class GoalStore:
                 self._set_published_c(c, s["goal_id"], rel, s["sha256"], aid, now)
                 self._sub_set(c, s["id"], "published", "same", now, publish_action_id=aid,
                               **({"adopted_at": now} if s["source"] in HOST_SOURCES else {}))
+                if s["source"] not in HOST_SOURCES:
+                    # Còn bước tiếp nhận riêng: có lịch hoàn tất phòng khi bước đó lỗi (review mã A4 vòng 2, P2-2).
+                    self._wake(c, s["goal_id"], row["brain_id"], "settle", now + R.LEASE_EXTRA_S,
+                               "tiếp nhận lần đăng đã chốt", keep_earlier=True)
                 return {"status": "same", "action_id": aid, "sha256": cur_sha}
             if cur_sha is not None and (pub is None or pub["sha256"] != cur_sha):
                 self._sub_set(c, s["id"], "conflict", "target_changed" if pub else "no_baseline", now)
@@ -3662,13 +3667,62 @@ class GoalStore:
         return ""
 
     @staticmethod
-    def _settle_done(c, goal_id: str) -> None:
-        """Không còn lần đăng nào đã commit mà chưa xong: bỏ lịch `settle`."""
-        left = [r for r in c.execute("SELECT receipt_json FROM actions WHERE goal_id=? AND kind='publish' AND "
-                                     "status='running'", (goal_id,)).fetchall()
-                if json.loads(r["receipt_json"] or "{}").get("commit_at")]
-        if not left:
-            c.execute("DELETE FROM wakeups WHERE goal_id=? AND kind='settle'", (goal_id,))
+    def _settle_left(c, goal_id: str) -> int:
+        """Số nghĩa vụ hoàn tất còn mở của một mục tiêu: lần đăng đã commit chưa xong, và bản nộp đã đăng mà chưa tiếp
+        nhận (nguồn cần bước tiếp nhận riêng). Lịch `settle` sống tới khi số này về 0 (review mã A4 vòng 2, P2-2)."""
+        running = [r for r in c.execute("SELECT receipt_json FROM actions WHERE goal_id=? AND kind='publish' AND "
+                                        "status='running'", (goal_id,)).fetchall()
+                   if json.loads(r["receipt_json"] or "{}").get("commit_at")]
+        unadopted = c.execute("SELECT COUNT(*) FROM submissions WHERE goal_id=? AND status='published' AND "
+                              "adopted_at IS NULL AND source IN ('submit_tool','approved_draft')",
+                              (goal_id,)).fetchone()[0]
+        return len(running) + int(unadopted)
+
+    @classmethod
+    def _settle_done(cls, c, goal_id: str) -> None:
+        """Không còn nghĩa vụ hoàn tất nào: bỏ lịch `settle`, và gỡ gác `publish_settling` để lịch làm việc xét tiếp các
+        lý do đang chờ (review mã A4 vòng 2, P2-3)."""
+        if cls._settle_left(c, goal_id):
+            return
+        c.execute("DELETE FROM wakeups WHERE goal_id=? AND kind='settle'", (goal_id,))
+        cur = c.execute("UPDATE goals SET run_state='ready', block_reason='', updated_at=? WHERE id=? AND "
+                        "block_reason='publish_settling'", (time.time(), goal_id))
+        if cur.rowcount:
+            cls._recompute_wake(c, goal_id)
+
+    def settle_pending(self, p: Principal, goal_id: str) -> int:
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return 0
+            return self._settle_left(c, goal_id)
+
+    def ensure_settle(self, p: Principal, goal_id: str, due_at: float) -> None:
+        """Bảo đảm có lịch `settle` khi còn nghĩa vụ hoàn tất (giữ mốc sớm hơn nếu đã có)."""
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is not None and self._settle_left(c, goal_id):
+                self._wake(c, goal_id, row["brain_id"], "settle", float(due_at), "hoàn tất lần đăng đã chốt",
+                           keep_earlier=True)
+
+    def reject_submission(self, p: Principal, sub_id: str, reason: str) -> None:
+        """Bản nháp mất hay sai hash: không bao giờ đăng bytes khác sha đã nhận. Bản nộp `rejected` với lý do RIÊNG
+        (không phải xung đột file đích); hành động đăng đang chạy của nó (nếu có) chốt `failed` (review A4 vòng 2, P2-1)."""
+        now = time.time()
+        with self._Tx(self) as c:
+            s = c.execute("SELECT * FROM submissions WHERE id=? AND brain_id=?", (str(sub_id), p.brain_id)).fetchone()
+            if s is None or s["status"] not in ("candidate", "publishing"):
+                return
+            if s["publish_action_id"]:
+                a = c.execute("SELECT * FROM actions WHERE id=?", (s["publish_action_id"],)).fetchone()
+                if a is not None and a["status"] == "running":
+                    rc = json.loads(a["receipt_json"] or "{}")
+                    c.execute("UPDATE actions SET status='failed', lease_until=NULL, receipt_json=?, updated_at=? "
+                              "WHERE id=?", (_j({**rc, "error_code": reason}), now, a["id"]))
+            self._sub_set(c, s["id"], "rejected", reason, now)
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                      "VALUES(?,?,?,?,?,?,?)", (s["goal_id"], int(s["revision"]), "submission_draft_lost", "host",
+                                                _j({"submission_id": s["id"], "reason": reason}), p.by, now))
+            self._settle_done(c, s["goal_id"])
 
     def publish_retry(self, p: Principal, action_id: str, now: float) -> dict:
         """Lần đăng ĐÃ commit chưa hoàn tất được vì lỗi đọc hay ghi tạm thời (file đang mở, khoá chia sẻ): KHÔNG chốt
@@ -3752,6 +3806,7 @@ class GoalStore:
                 c.execute("UPDATE handoffs SET status='done', updated_at=? WHERE goal_id=? AND revision=? AND "
                           "message_ref=? AND status IN ('pending','expired')", (now, s["goal_id"], rev, b["origin_ref"]))
             c.execute("UPDATE submissions SET adopted_at=?, updated_at=? WHERE id=?", (now, now, s["id"]))
+            self._settle_done(c, s["goal_id"])
             live = row is not None and row["status"] == "active" and not int(row["paused"] or 0) \
                 and int(row["revision"]) == rev and not self._binding_block(c, b, finishing=True)
             if live:

@@ -64,7 +64,8 @@
                  // A2: nhịp tim thích nghi
                  "stalled", "source_drift", "handoff",
                  // A4: phạm vi ghi do chủ dự án cho phép
-                 "scope_pending", "scope_denied", "grant_revoked", "grant_missing", "path_rejected"];
+                 "scope_pending", "scope_denied", "grant_revoked", "grant_missing", "path_rejected",
+                 "publish_settling"];
     if (known.indexOf(r) >= 0) return "resonance.st_" + r;
     if (g.run_state === "running") return "resonance.st_running";
     if (g.run_state === "blocked") return "resonance.st_blocked";

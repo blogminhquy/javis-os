@@ -3654,6 +3654,7 @@
   "resonance.btn_deny_scope": "Không",
   "resonance.btn_preview": "Xem trước",
   "resonance.btn_revoke_grant": "Thu hồi quyền",
+  "resonance.st_publish_settling": "Đang hoàn tất lần đăng đã chốt",
   "resonance.a4_approved_draft_pending": "Đã cho phép, nhưng bản nháp CHƯA được đăng lúc này; Javis giữ bản này và đăng khi điều kiện cho phép.",
   "resonance.a4_approved_draft_conflict": "Đã cho phép, nhưng bản nháp CHƯA được đăng: file đích đã có nội dung khác, Javis giữ nguyên file đó.",
   "resonance.st_path_rejected": "Đường file sản phẩm không hợp lệ",

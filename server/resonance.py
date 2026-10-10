@@ -1956,14 +1956,29 @@ def _file_sha(f: Optional[Path]) -> Optional[str]:
         return "unreadable"
 
 
-def _sub_bytes(sub: dict) -> Optional[bytes]:
-    """Bytes sẽ đăng của một bản nộp, đọc lại từ file nháp và CHUẨN HOÁ như lúc nộp; None khi file nháp không còn
-    hay đã đổi (sha khác dòng sổ). Không bao giờ đăng bytes khác với sha host đã ghi lúc nhận."""
+def _sub_read(sub: dict) -> tuple:
+    """(bytes | None, lý do) của một bản nộp, đọc lại từ file nháp và CHUẨN HOÁ như lúc nộp. Lý do: "" (đúng sha),
+    "draft_unreadable" (lỗi I/O tạm thời: file đang mở, khoá chia sẻ, quyền), "draft_missing" (file nháp không còn),
+    "draft_hash_mismatch" (nội dung khác sha đã nhận hay không giải mã được). Không bao giờ trả bytes khác sha host đã
+    ghi lúc nhận (review mã A4 vòng 2, P2-1)."""
+    ref = str((sub or {}).get("draft_ref") or "")
+    if not ref:
+        return None, "draft_missing"
     try:
-        data, _n = _norm_bytes(Path(sub["draft_ref"]).read_bytes().decode("utf-8"))
-    except (OSError, UnicodeDecodeError, KeyError):
-        return None
-    return data if _sha(data) == sub.get("sha256") else None
+        raw = Path(ref).read_bytes()
+    except FileNotFoundError:
+        return None, "draft_missing"
+    except OSError:
+        return None, "draft_unreadable"
+    try:
+        data, _n = _norm_bytes(raw.decode("utf-8"))
+    except UnicodeDecodeError:
+        return None, "draft_hash_mismatch"
+    return (data, "") if _sha(data) == sub.get("sha256") else (None, "draft_hash_mismatch")
+
+
+def _sub_bytes(sub: dict) -> Optional[bytes]:
+    return _sub_read(sub)[0]
 
 
 def _tmp_of(f: Path, action_id: str) -> Path:
@@ -1972,9 +1987,16 @@ def _tmp_of(f: Path, action_id: str) -> Path:
 
 def _adopt_if_needed(sub: dict, deps: GoalDeps) -> str:
     """Bản nộp của lượt chat hay bản nháp được chủ dự án chọn: tiếp nhận sau khi đăng (mục 4.4). Bản việc nền không cần
-    (kho đã ghi `adopted_at` lúc đăng)."""
+    (kho đã ghi `adopted_at` lúc đăng). Lỗi ở bước này không làm mất nghĩa vụ: lịch `settle` còn tới khi tiếp nhận xong
+    (review mã A4 vòng 2, P2-2)."""
     if sub.get("source") in ("submit_tool", "approved_draft"):
-        return deps.store.adopt_submission(deps.principal, sub["id"])
+        try:
+            return deps.store.adopt_submission(deps.principal, sub["id"])
+        except Exception as e:  # noqa: BLE001
+            import sys
+            print(f"[resonance adopt] {type(e).__name__}: {e}", file=sys.stderr)
+            deps.store.ensure_settle(deps.principal, sub["goal_id"], deps.clock() + LEASE_EXTRA_S)
+            return "adopt_failed"
     return ""
 
 
@@ -2001,9 +2023,12 @@ def host_publish(goal: GoalRecord, sub: dict, deps: GoalDeps, now: float, source
         return _bad_deliverable(goal, deps, rel)
     if key != sub.get("path"):
         return {"status": "rejected"}
-    data = _sub_bytes(sub)
+    data, dwhy = _sub_read(sub)
+    if dwhy == "draft_unreadable":
+        return {"status": "held", "reason": dwhy}
     if data is None or len(data) > PUBLISH_MAX_BYTES:
-        return {"status": "rejected"}
+        store.reject_submission(p, sub["id"], dwhy or "too_large")
+        return {"status": "rejected", "reason": dwhy or "too_large"}
     sha = sub["sha256"]
     # Guard đọc ĐÚNG file sắp thay: kiểm bản ứng viên trước khi ghi (review M3 vòng 2). Bản mới làm guard sai thì giữ
     # bản đang hợp lệ; bản nộp ở lại `candidate` để lần sau xét lại theo guard hiện hành.
@@ -2091,7 +2116,14 @@ def _reconcile_publish(goal: GoalRecord, a: dict, deps: GoalDeps, now: Optional[
         store.publish_retry(p, a["id"], now)
         return "retry"
     if cur != it.get("sha256") and cur == it.get("before"):
-        data = _sub_bytes(sub) if sub else None
+        data, dwhy = _sub_read(sub) if sub else (None, "draft_missing")
+        if dwhy == "draft_unreadable":
+            store.publish_retry(p, a["id"], now)
+            return "retry"
+        if data is None:
+            # Bản nháp thật sự mất hay sai hash: không đăng bytes sai, không báo nhầm file đích đã đổi.
+            store.reject_submission(p, str(it.get("submission_id") or ""), dwhy)
+            return dwhy
         if data is not None:
             try:
                 f.parent.mkdir(parents=True, exist_ok=True)
@@ -2123,6 +2155,11 @@ def _settle_committed(g: GoalRecord, deps: GoalDeps, now: float) -> int:
     for a in store.committed_publishes(p, g.id):
         if float(a.get("lease_until") or 0) < now:
             _reconcile_publish(g, a, deps, now)
+            n += 1
+    # Bản đã đăng mà bước tiếp nhận lỗi hay tiến trình chết giữa chừng: tiếp nhận đúng một lần, kể cả khi mục tiêu đã
+    # thu hồi, tạm dừng hay huỷ (review mã A4 vòng 2, P2-2). Không đăng gì mới.
+    for s in store.unadopted_published(p, g.id):
+        if _adopt_if_needed(s, deps) == "adopted":
             n += 1
     store.settle_cleanup(p, g.id)
     return n
@@ -2781,6 +2818,14 @@ def _wake_work(g: GoalRecord, deps: GoalDeps, now: float, owner: str):
         store.add_timer(p, g.id, "handoff_wait", now + HANDOFF_POLL_S, now)
         return done(Assessment(g.id, g.revision, "unknown", rationale="chờ lượt chat bàn giao", evaluated_at=now),
                     "blocked", "chờ lượt chat bàn giao")
+    if store.settle_pending(p, g.id):
+        # A4: một lần đăng đã chốt còn chờ thay file hay chờ tiếp nhận (lỗi I/O tạm thời): bản hợp lệ ĐÃ có, chỉ chưa
+        # vào đích. Gác, giữ mọi lý do làm việc, không gọi model; lịch `settle` hoàn tất rồi gỡ gác (review mã A4 vòng 2,
+        # P2-3).
+        store.set_run_state(p, g.id, "waiting", "publish_settling")
+        store.ensure_settle(p, g.id, now + LEASE_EXTRA_S)
+        return done(Assessment(g.id, g.revision, "unknown", rationale="chờ hoàn tất lần đăng đã chốt", evaluated_at=now),
+                    "blocked", "chờ hoàn tất lần đăng đã chốt")
     # Đầu ra đã có của revision này (giữ lại vì pause, gián đoạn) được đăng mà không gọi model lại.
     pub = _publish_latest(g, deps, now)
     refs = _output_refs(store, p, g.id, g.revision)

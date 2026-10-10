@@ -1070,6 +1070,149 @@ asyncio.run(R.tick(w.store, w.clock(), lambda bid: w.deps()))
 check("V1-P2-2 đối chứng: thu hồi TRƯỚC mốc commit vẫn chặn, tick không đăng",
       not w.target().exists() and w.store.submission(w.owner, rb["submission_id"])["status"] == "stale")
 
+# ═══════════ Hồi quy review mã A4 vòng 2 (phục hồi đăng; tick thật có cả lịch thường và settle) ═══════════
+def _ticks(w, n=2, step=3700):
+    out = []
+    for _ in range(n):
+        w.clock.t += step
+        out.append(asyncio.run(R.tick(w.store, w.clock(), lambda bid: w.deps())))
+    return out
+
+
+def _deny_read(path_str):
+    """Chặn đọc ĐÚNG một file (file nháp) bằng PermissionError; trả hàm gỡ."""
+    real = Path.read_bytes
+
+    def fake(self):
+        if str(self) == path_str:
+            raise PermissionError("file nháp đang bị khoá")
+        return real(self)
+    Path.read_bytes = fake
+    return lambda: setattr(Path, "read_bytes", real)
+
+
+def _deny_replace_target(w):
+    real = R.os.replace
+
+    def fake(src, dst):
+        if Path(dst) == w.target():
+            raise PermissionError("file đích đang mở")
+        return real(src, dst)
+    R.os.replace = fake
+    return lambda: setattr(R.os, "replace", real)
+
+
+def _handoff_with_failing_replace(name):
+    """Bàn giao thật một bản nộp hợp lệ, thay file đích lỗi sau mốc commit: bản nộp ở `publishing`."""
+    w, g = granted_world(name)
+    mid, ref = w.next()
+    with w.turn(mid):
+        g2 = w.revise(g, mid, ref)
+        rb = w.submit()
+    undo = _deny_replace_target(w)
+    try:
+        h = R.handoff_after_turn(g2.id, ref, w.deps())
+    finally:
+        undo()
+    return w, g2, rb, h
+
+
+# V2-P2-1: file nháp không đọc được tạm thời không phải xung đột; mất hay sai hash có lý do riêng.
+w, g2, rb, h = _handoff_with_failing_replace("v2n1")
+draft = w.store.submission(w.owner, rb["submission_id"])["draft_ref"]
+undo_r = _deny_read(draft)
+undo_t = _deny_replace_target(w)
+try:
+    _ticks(w, 1)
+    undo_t()
+    _ticks(w, 2)
+finally:
+    undo_r()
+    undo_t()
+mid_s = w.store.submission(w.owner, rb["submission_id"])
+w.store = RS.GoalStore(w.store.path)
+_ticks(w, 2)
+fin = w.store.submission(w.owner, rb["submission_id"])
+check("V2-P2-1 file nháp bị khoá (một và nhiều lần): vẫn publishing, không ghi lý do target_changed",
+      h == "submission_uncertain" and mid_s["status"] == "publishing" and mid_s["status_reason"] != "target_changed",
+      (h, mid_s["status"], mid_s["status_reason"]))
+check("V2-P2-1 hết khoá (sau mở lại kho): đăng đúng bản gốc, tiếp nhận một lần, 0 lượt engine",
+      _has(w, GOOD) and fin["status"] == "published" and fin["adopted_at"]
+      and len(w.events(g2, "artifact_adopted")) == 1 and w.eng.queries == 0, (fin["status"], w.eng.queries))
+
+w, g2, rb, h = _handoff_with_failing_replace("v2n1h")
+Path(w.store.submission(w.owner, rb["submission_id"])["draft_ref"]).write_bytes(b"# bi sua sau khi nop\n")
+_ticks(w, 1)
+s_h = w.store.submission(w.owner, rb["submission_id"])
+# Bản nháp đã mất thì việc nền được làm lại một bản mới (mục tiêu gỡ gác); điều cần giữ là bytes SAI không bao giờ lên đích.
+check("V2-P2-1 bản nháp sai hash: không đăng bytes sai, rejected với lý do riêng (không phải xung đột đích)",
+      not (w.target().is_file() and b"bi sua sau khi nop" in w.target().read_bytes()) and s_h["status"] == "rejected"
+      and s_h["status_reason"] == "draft_hash_mismatch" and not w.events(g2, "publish_conflict"),
+      (s_h["status"], s_h["status_reason"]))
+
+w, g2, rb, h = _handoff_with_failing_replace("v2n1c")
+w.target().parent.mkdir(parents=True, exist_ok=True)
+w.target().write_bytes("anh sửa tay\n".encode("utf-8"))
+_ticks(w, 1)
+check("V2-P2-1 đối chứng: file đích thật sự bị sửa vẫn conflict, file người dùng giữ nguyên",
+      _has(w, "anh sửa tay\n") and w.store.submission(w.owner, rb["submission_id"])["status"] == "conflict")
+
+# V2-P2-2: bước tiếp nhận lỗi sau khi đã đăng: nghĩa vụ còn, settle tiếp nhận đúng một lần ở mọi trạng thái.
+for state in ("active", "revoked", "cancelled", "paused"):
+    w, g = granted_world("v2n2" + state[:3])
+    mid, ref = w.next()
+    with w.turn(mid):
+        g2 = w.revise(g, mid, ref)
+        rb = w.submit()
+    real_adopt = RS.GoalStore.adopt_submission
+    _once = {"n": 0}
+
+    def _fail_once(self, p, sid, _real=real_adopt):
+        if _once["n"] == 0:
+            _once["n"] += 1
+            raise sqlite3.OperationalError("database is locked")
+        return _real(self, p, sid)
+    RS.GoalStore.adopt_submission = _fail_once
+    try:
+        h2 = R.handoff_after_turn(g2.id, ref, w.deps())
+    finally:
+        RS.GoalStore.adopt_submission = real_adopt
+    if state == "revoked":
+        R.apply_command(w.store, w.owner, g2.id, "revoke_grant", {"expected_revision": g2.revision}, w.brain)
+    elif state == "cancelled":
+        w.store.cancel(w.owner, g2.id, g2.revision)
+    elif state == "paused":
+        w.store.set_paused(w.owner, g2.id, True)
+    w.store = RS.GoalStore(w.store.path)
+    t2 = _ticks(w, 3)
+    s2 = w.store.submission(w.owner, rb["submission_id"])
+    check(f"V2-P2-2 tiếp nhận lỗi sau đăng ({state}): settle tiếp nhận đúng một lần, không đăng mới, 0 lượt engine",
+          _has(w, GOOD) and s2["adopted_at"] and len(w.events(g2, "artifact_adopted")) == 1
+          and len([x for x in w.store.actions(w.owner, g2.id) if x["kind"] == "publish"]) == 1
+          and not [x for x in w.store.wakes(w.owner, g2.id) if x["kind"] == "settle"] and w.eng.queries == 0,
+          (h2, t2, s2["adopted_at"], w.eng.queries))
+
+# V2-P2-3: lần đăng đã chốt còn chờ thay file thì lịch làm việc KHÔNG gọi model; xong rồi mới xét tiếp.
+w, g2, rb, h = _handoff_with_failing_replace("v2n3")
+undo_t = _deny_replace_target(w)
+try:
+    _ticks(w, 3)
+    calls_mid = w.eng.queries
+    works_mid = len([x for x in w.store.actions(w.owner, g2.id) if x["kind"] == "work"])
+    state_mid = (w.store.run_state(w.owner, g2.id) or {}).get("block_reason")
+    w.store = RS.GoalStore(w.store.path)
+    _ticks(w, 2)
+finally:
+    undo_t()
+_ticks(w, 3)
+pubs = [x for x in w.store.actions(w.owner, g2.id) if x["kind"] == "publish" and x["status"] == "succeeded"]
+check("V2-P2-3 chờ thay file (lặp, có mở lại kho): không lượt engine, không action work, mục tiêu gác publish_settling",
+      calls_mid == 0 and works_mid == 0 and state_mid == "publish_settling", (calls_mid, works_mid, state_mid))
+check("V2-P2-3 mở khoá: bản gốc đăng đúng một lần, tiếp nhận, gỡ gác, vẫn 0 lượt engine",
+      _has(w, GOOD) and len(pubs) == 1 and w.store.submission(w.owner, rb["submission_id"])["adopted_at"]
+      and (w.store.run_state(w.owner, g2.id) or {}).get("block_reason") != "publish_settling" and w.eng.queries == 0,
+      (len(pubs), w.eng.queries, (w.store.run_state(w.owner, g2.id) or {}).get("block_reason")))
+
 # ═══════════ G18: không quét gì khi chưa tới hạn ═══════════
 w = World("g18")
 t0 = time.perf_counter()
