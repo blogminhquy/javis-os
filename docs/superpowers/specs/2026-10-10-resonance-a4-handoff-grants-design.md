@@ -1,6 +1,6 @@
 # Resonance A4: nộp sản phẩm đa engine qua một hợp đồng host, kèm quyền có phạm vi
 
-**Trạng thái:** thiết kế **chốt** (vòng 5, phương án dự phòng D1), reviewer chấp thuận để code. **Mã A4 sửa theo review mã vòng 1, chờ review lại** (mục 17: I1, I2 đã được chấp nhận; I10, I11 mới). Đổi cơ chế cấp quyền ngoài bản này thì gửi diff thiết kế review trước.
+**Trạng thái:** thiết kế **chốt** (vòng 5, phương án dự phòng D1), reviewer chấp thuận để code. **Mã A4 sửa theo review mã vòng 2, chờ review lại** (mục 17: I1, I2 đã được chấp nhận; I10 tới I15). Đổi cơ chế cấp quyền ngoài bản này thì gửi diff thiết kế review trước.
 
 - **Nhánh:** `claude/resonance-a4-handoff-grants`, PR nháp #604, số **0.92.0** (đặt 0.90.0; `main` đi qua 0.91.0 nên đánh số lại).
 - **Vòng 1** (`5edfc9b6`) chưa đạt: 3 P1, 2 P2 (`exports/reviews/PR-604-A4-design-r1-review.md`, ngoài git).
@@ -388,6 +388,9 @@ Thẻ mục tiêu và hướng dẫn ghi rõ luật này.
 | Đã commit, lỗi đọc hay ghi TẠM THỜI khi thay file hay khi đối soát (file đang mở) | Hành động có `commit_at`, `running` | Không phải bằng chứng đích đã đổi: giữ `running`, nới hạn có giãn cách (60 giây nhân đôi, tối đa 1 giờ), hẹn lịch `settle`. Chỉ chốt `conflict` khi đọc được đích và nó khác cả baseline lẫn bản nộp (I11) |
 | Đã commit, rồi mục tiêu bị thu hồi, tạm dừng, huỷ hay kết thúc | Hành động có `commit_at` | Lịch `settle` riêng vẫn tới hạn: chỉ hoàn tất hay xác minh xung đột đúng hành động đó, không mở lượt việc, không cấp lại quyền, không đăng bản khác (I10) |
 | File đích bị xoá sau khi đã đăng | Bản nộp `published` | Đăng lại bản đó qua nguồn `republish` khi quyền hiện tại còn hiệu lực, 0 lượt model (I2) |
+| File NHÁP không đọc được tạm thời (khi đăng hay khi đối soát) | `candidate` hay hành động đã commit | Không phải xung đột đích: giữ nghĩa vụ, thử lại có giãn cách. File nháp mất hay sai hash: bản nộp `rejected` lý do `draft_missing`/`draft_hash_mismatch`, hành động `failed`, không đăng bytes sai (I13) |
+| Đã đăng, bước tiếp nhận lỗi (khoá SQLite, chết giữa chừng), kể cả rồi thu hồi, tạm dừng, huỷ | `published`, `adopted_at` rỗng | Lịch `settle` còn tới khi tiếp nhận xong; lần thức `settle` tiếp nhận đúng một lần mọi trạng thái mục tiêu (I14) |
+| Lần đăng đã chốt còn chờ thay file hay chờ tiếp nhận, trong lúc lịch làm việc tới hạn | Hành động đã commit hay bản chưa tiếp nhận | Lịch làm việc gác `publish_settling`, giữ mọi lý do, không mở lượt việc hay phép thử; xong thì gỡ gác và xét tiếp (I15) |
 
 Liên kết `sealed` chuyển `closed` trong cùng giao dịch đưa bản nộp cuối cùng của nó về trạng thái cuối.
 
@@ -913,3 +916,6 @@ Các điểm dưới đây là chỗ mã phải chọn mà thiết kế chưa n�
 | I10 | Đường tới đối soát của tác động đã commit (review mã vòng 1, P2-2) | Lịch vật lý riêng `kind=settle`, đặt trong giao dịch mốc commit (hạn khoá + 1), không bị gác bởi tạm dừng, thu hồi, huỷ, kết thúc; `due_wakeups` nhận nó mọi trạng thái; lần thức `settle` chỉ chạy `_reconcile_publish` cho hành động đã commit rồi dọn lịch khi không còn | Thu hồi tạm dừng mục tiêu và `_recompute_wake` gác mọi lịch làm việc, nên trước đó tác động đã chốt mất đường hoàn tất |
 | I11 | Lỗi I/O tạm thời sau mốc commit (review mã vòng 1, P2-1) | `publish_retry`: giữ `running`, nới hạn giãn cách, hẹn `settle`; `conflict` chỉ khi đọc được đích và nó khác cả baseline lẫn bản nộp | Không đọc hay không ghi được không phải bằng chứng xung đột |
 | I12 | Phản hồi "Chưa đúng ý" trước mốc commit (review mã vòng 1, P1-1) | `_publish_held` đọc phản hồi cách hiểu mới nhất của đúng revision TRONG giao dịch ý định (kể cả nhánh `same`) và giao dịch mốc commit; bị chặn thì bản nộp về `candidate`, đổi lại "Đúng ý" thì lần sau đăng | Can thiệp của người dùng ghi trước mốc commit phải thắng, như thu hồi |
+| I13 | Lỗi đọc FILE NHÁP (review mã vòng 2, P2-1) | `_sub_read` tách `draft_unreadable` (I/O tạm thời: giữ nghĩa vụ, `publish_retry` hay giữ `candidate`) khỏi `draft_missing` và `draft_hash_mismatch` (`reject_submission`: lý do riêng, không phải `target_changed`, không đăng bytes sai) | Không đọc được bản nháp không phải bằng chứng file đích đổi |
+| I14 | Nghĩa vụ tiếp nhận sau đăng (review mã vòng 2, P2-2) | Lịch `settle` chỉ bỏ khi không còn hành động đã commit đang chạy VÀ không còn bản `submit_tool`/`approved_draft` đã đăng chưa tiếp nhận; nhánh `same` đặt lịch ngay; lỗi ở bước tiếp nhận không văng ra ngoài; lần thức `settle` tiếp nhận các bản này | Đăng và tiếp nhận là hai giao dịch; khe giữa chúng phải có đường phục hồi kể cả khi lịch làm việc đã gác |
+| I15 | Lịch làm việc khi còn nghĩa vụ hoàn tất (review mã vòng 2, P2-3) | `_wake_work` gác `waiting/publish_settling` (thuộc `_parked`) trước khi xét đăng lại hay mở lượt; `_settle_done` gỡ gác và tính lại lịch khi nghĩa vụ về 0 | Bản hợp lệ đã có, chỉ chưa vào đích; gọi model lúc này là tiêu hạn mức vô ích |

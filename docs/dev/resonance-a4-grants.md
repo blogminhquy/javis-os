@@ -43,6 +43,8 @@ Mọi engine nộp sản phẩm qua cùng một cửa: host xác định lượt
 
 **Đối soát** (`_reconcile`, `_reconcile_publish`): đăng chưa commit thì huỷ, bản nộp về `candidate` hay `stale`; đã commit thì hoàn tất từ bản nháp; bản đã đăng chưa tiếp nhận thì tiếp nhận đúng một lần (khoá sự kiện `adopt:<submission_id>`). Lỗi đọc hay ghi tạm thời sau commit không chốt xung đột: `publish_retry` giữ hành động chạy và hẹn lại có giãn cách. Mốc commit đặt lịch vật lý riêng `settle`, tới hạn cả khi mục tiêu tạm dừng, thu hồi, huỷ hay kết thúc; lần thức `settle` chỉ hoàn tất lần đăng đã chốt.
 
+**Nghĩa vụ hoàn tất** (I13 tới I15): file nháp không đọc được tạm thời thì giữ nghĩa vụ, mất hay sai hash thì loại với lý do riêng (`draft_missing`, `draft_hash_mismatch`); lịch `settle` chỉ bỏ khi không còn lần đăng đã commit dở VÀ không còn bản đã đăng chưa tiếp nhận; trong lúc còn nghĩa vụ, lịch làm việc gác `publish_settling`, không gọi model.
+
 **Can thiệp trước mốc commit** (`_publish_held`): tạm dừng, chốt guard, và phản hồi cách hiểu mới nhất là "Chưa đúng ý" đều chặn lần đăng chưa commit, kiểm ngay trong giao dịch ý định và giao dịch mốc commit.
 
 **Lệnh chủ dự án** (`POST /goals/{id}/commands`): `approve_scope` (CAS yêu cầu, revision, đường, trợ lý, bản nháp mới nhất đúng sha), `deny_scope`, `revoke_grant`, `resume` (đang thu hồi thì cấp lại gốc mới).

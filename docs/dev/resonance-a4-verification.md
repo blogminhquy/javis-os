@@ -1,6 +1,6 @@
 # Resonance A4: biên bản kiểm mã (10/10/2026)
 
-**Trạng thái:** mã A4 trên nhánh `claude/resonance-a4-handoff-grants` (PR #604, số 0.92.0; đánh số lại vì `main` đi qua 0.91.0) đã sửa theo **review mã vòng 1** (`a3356165`: 1 P1, 3 P2), **chờ review lại**. Thiết kế chốt vòng 5 tại `6d774bd5` (D1: không cấp quyền ghi từ lời chat), reviewer chấp thuận để code. Chưa pilot model thật, chưa merge, chưa phát hành, không đụng VPS.
+**Trạng thái:** mã A4 trên nhánh `claude/resonance-a4-handoff-grants` (PR #604, số 0.92.0; đánh số lại vì `main` đi qua 0.91.0) đã sửa theo **review mã vòng 1** (`a3356165`: 1 P1, 3 P2) và **vòng 2** (`7b47e246`: 3 P2), **chờ review lại**. Thiết kế chốt vòng 5 tại `6d774bd5` (D1: không cấp quyền ghi từ lời chat), reviewer chấp thuận để code. Chưa pilot model thật, chưa merge, chưa phát hành, không đụng VPS.
 
 Thiết kế: [2026-10-10-resonance-a4-handoff-grants-design.md](../superpowers/specs/2026-10-10-resonance-a4-handoff-grants-design.md) (mục 12 là ma trận; mục 17 là ghi chú triển khai cần reviewer xác nhận). Hướng dẫn: [resonance-a4-grants.md](resonance-a4-grants.md).
 
@@ -8,7 +8,7 @@ Thiết kế: [2026-10-10-resonance-a4-handoff-grants-design.md](../superpowers/
 
 | File | Kết quả |
 |---|---|
-| `tests/python/test_resonance_a4_grants.py` (kho thật, engine giả, đồng hồ giả) | 101 kiểm đạt |
+| `tests/python/test_resonance_a4_grants.py` (kho thật, engine giả, đồng hồ giả) | 111 kiểm đạt |
 | `tests/python/test_resonance_a4_transport.py` (plugin thật, hub HTTP thật với `X-Javis-Turn`, server MCP plugin của Claude SDK thật, `main.app`) | 14 kiểm đạt |
 | `tests/python/test_resonance_a4_rollback.py` (mã 0.91.0 thật, `1d0b515c`, bản cuối trước A4, qua `git show`) | 11 kiểm đạt |
 | `tests/js/test_resonance_a4_ui.js` (gồm hành vi `send()` thật với phản hồi server giả) | 25 kiểm đạt |
@@ -50,6 +50,22 @@ python tests/run.py resonance_a4 -v
 | G3, G4, G6, G8, G9, G11, G12, G14, G35, G42 | test cũ và a4_grants một phần | G3: A4 không có đường giao tiếp nào (không có công cụ); G4, G11: danh tính chỉ từ ngữ cảnh lượt (A1); G12: prompt không chứa bản nháp; G14: Write native không biên nhận thành bytes lạ (G39) |
 
 **Chưa có ca riêng (nêu thật):** G40 đầy đủ (tiêm lỗi ở MỌI điểm của mục 4.7; mới có chết giữa ý định và mốc commit, G62 tới G66 và G86), G71 (khe giữa mốc commit và `os.replace`, giới hạn đã công bố).
+
+## Review mã vòng 2 (`7b47e246`) và cách sửa
+
+| Điểm | Sửa | Hồi quy (đi qua `handoff_after_turn`, `tick` thật có cả lịch thường và `settle`, mở lại kho) |
+|---|---|---|
+| P2-1: file nháp không đọc được tạm thời bị chốt `conflict/target_changed` | `_sub_read` tách lỗi I/O tạm thời (giữ nghĩa vụ, giãn cách) khỏi mất hay sai hash (`reject_submission`, lý do riêng) (I13) | V2-P2-1: khoá file nháp một và nhiều lần, mở lại kho, hết khoá thì đăng đúng bản gốc, 0 lượt engine; bản nháp sai hash không lên đích, `draft_hash_mismatch`, không có sự kiện xung đột; đối chứng đích thật sự bị sửa vẫn `conflict` |
+| P2-2: lịch phục hồi bị xoá trước khi tiếp nhận | Lịch `settle` sống tới khi tiếp nhận xong; lần thức `settle` tiếp nhận bản đã đăng; lỗi tiếp nhận không văng ra ngoài (I14) | V2-P2-2: lỗi khoá SQLite một lần ở bước tiếp nhận, rồi active, thu hồi, huỷ, tạm dừng, mở lại kho, ba tick: tiếp nhận đúng một lần, một hành động đăng, không còn lịch thừa, 0 lượt engine |
+| P2-3: lịch làm việc gọi model khi lần đăng đã chốt còn chờ I/O | `_wake_work` gác `publish_settling` khi còn nghĩa vụ hoàn tất; `_settle_done` gỡ gác (I15) | V2-P2-3: thay file lỗi lặp qua nhiều tick có cả lịch thường, mở lại kho: 0 lượt engine, 0 action work, trạng thái gác; mở khoá: bản gốc đăng đúng một lần, tiếp nhận, gỡ gác |
+
+**Script của reviewer** (`PR-604-A4-code-r2-checks.py`): `--expect-fixed` 14/14, exit 0. Chế độ tái hiện mặc định giờ báo 4 hỏng, nghĩa là bốn ca N1, N2 thu hồi, N2 huỷ, N3 không còn tái hiện. Output hai chế độ: `exports/reviews/A4-code-r3-reviewer-checks.txt`.
+
+**Đối chứng trên head cũ:** bản test mới chạy trên `37a86fe9` (bằng `7b47e246` cộng merge `main` 0.91.0):
+- ba ca V2-P2-1 đỏ;
+- ca V2-P2-2 văng `sqlite3.OperationalError` ra ngoài, tức chính lỗi bước tiếp nhận làm hỏng luồng.
+
+Output: `exports/reviews/A4-code-r3-control-on-37a86fe9.txt`.
 
 ## Review mã vòng 1 (`a3356165`) và cách sửa
 
