@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.89.1] - 2026-10-10
+### Sửa lỗi
+- **Bot chăm khách không còn lặng lẽ bỏ nhóm thứ 51 trở đi.** Trước đây một bot chỉ nhớ 50 nhóm đầu tiên, nhóm khách mới được duyệt thêm vào vẫn báo thành công nhưng không vào danh sách, nên bot không trả lời nhóm đó. Giờ danh sách nhóm không bị cắt. (Đóng góp của @nhuy288-8.)
+
 ## [0.89.0] - 2026-10-10
 ### Thêm mới
 - **Trợ lý Cộng hưởng học từ phản hồi có kiểm chứng.** Bấm phản hồi trên tin báo của trợ lý để gợi ý cách báo gọn hơn hay ít làm phiền hơn; bạn xem trước và tự quyết có áp dụng.

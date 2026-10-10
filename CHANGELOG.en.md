@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.89.1] - 2026-10-10
+### Fixed
+- **A customer-care bot no longer silently drops groups past the 50th.** A bot used to remember only its first 50 groups, so newly approved customer groups reported success but never made it into the list and the bot stayed silent there. The group list is no longer cut. (Contributed by @nhuy288-8.)
+
 ## [0.89.0] - 2026-10-10
 ### Added
 - **Resonance assistants learn from feedback, with checks.** React to an assistant's notice to suggest shorter or less disruptive updates; you preview the change and decide whether to apply it.

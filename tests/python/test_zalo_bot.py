@@ -230,6 +230,8 @@ check("id cuộc chat Zalo (chuỗi hex) được nhận là id nhóm hợp lệ
       chatbot_store._clean_groups("6ede9afa66b88fe6d6a9") == ["6ede9afa66b88fe6d6a9"])
 check("id nhóm Telegram (số âm) vẫn nhận như cũ",
       chatbot_store._clean_groups("-1001234567890") == ["-1001234567890"])
+check("danh sách nhóm không bị cắt ở 50 (spa có hàng trăm nhóm khách)",
+      len(chatbot_store._clean_groups([str(1000 + i) for i in range(120)])) == 120)
 
 
 # ---- 9. Bộ giám sát biết chọn lớp vận chuyển theo kênh ----
