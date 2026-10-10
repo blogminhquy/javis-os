@@ -1,4 +1,4 @@
-"""Học có kiểm chứng của Resonance (A3): chính sách thuần `learning.v1`.
+"""Học có kiểm chứng của Resonance (A3): chính sách thuần `learning.v2` (v2 thêm thời gian chờ sau Thu hồi).
 
 Không I/O: nhận dữ kiện, trả quyết định. Kho (`resonance_store`) giữ reaction, bài học và sổ giữ lượt; `resonance` dựng
 tin báo và chạy phép thử. Thiết kế: `docs/superpowers/specs/2026-10-09-resonance-a3-feedback-learning-design.md`.
