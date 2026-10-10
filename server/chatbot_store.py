@@ -306,7 +306,7 @@ def _clean_groups(v: Any) -> List[str]:
         x = str(x).strip()
         if _CHAT_ID_RE.match(x) and x not in out:
             out.append(x)
-    return out[:50]
+    return out
 
 
 def _clean_kenh(v: Any) -> str:
