@@ -557,6 +557,39 @@ async def doc_mot_lan(conn: dict) -> dict:
     return {"moi": moi, "trung": trung}
 
 
+# Lỗi chết của tiến trình javis-zalo (src/commands/mcp.js) mà người dùng tự xử được, dịch ra lời thường.
+_LOI_ZALO = (
+    (re.compile(r"duplicate zalo web session", re.I),
+     "Zalo đã ngắt phiên của Javis vì tài khoản này vừa được mở ở nơi khác: Zalo Web trên trình duyệt "
+     "(chat.zalo.me) hoặc một máy Javis khác cũng đăng nhập tài khoản này. Mỗi tài khoản chỉ giữ được một "
+     "phiên như vậy. Đóng nơi kia đi; Javis tự nối lại sau khoảng 2 phút.",
+     "Zalo closed Javis's session because this account was just opened somewhere else: Zalo Web in a "
+     "browser (chat.zalo.me) or another Javis machine signed in to the same account. An account keeps only "
+     "one such session. Close the other one; Javis reconnects by itself in about 2 minutes."),
+    (re.compile(r"auto-login failed|re-login retry failed|re-login failed", re.I),
+     "Phiên đăng nhập Zalo của tài khoản này đã hết hạn hoặc bị đăng xuất. Vào trang Kết nối, đăng nhập "
+     "lại Zalo bằng mã QR.",
+     "This account's Zalo sign-in has expired or was signed out. Go to the Connections page and sign in "
+     "to Zalo again with the QR code."),
+)
+_DONG_CAU_HINH = re.compile(r"\[mcp\] Config loaded: \{.*?\}\s*(\|\s*)?")
+
+
+def mo_ta_loi(raw: str, cap: int = 300) -> str:
+    """Câu lỗi cho thẻ bot và trang Kết nối khi đọc tin Zalo hỏng.
+
+    Trước 0.88.6 thẻ chỉ giữ 300 ký tự ĐẦU của lỗi thô, mà dòng "[mcp] Config loaded: {...}" in lúc khởi
+    động đã chiếm gần hết chỗ, nên lý do thật nằm SAU nó (Zalo đá phiên, mất đăng nhập) bị cắt mất; chủ
+    repo chỉ thấy một dòng cấu hình vô nghĩa (báo 10/10). Lỗi người dùng tự xử được thì nói bằng lời
+    thường; còn lại bỏ dòng cấu hình và giữ phần ĐUÔI, nơi tiến trình in lý do nó thoát."""
+    s = str(raw or "")
+    for mau, vi, en in _LOI_ZALO:
+        if mau.search(s):
+            return localefmt.chu(vi, en)
+    s = _DONG_CAU_HINH.sub("", s).strip()
+    return s if len(s) <= cap else "..." + s[-(cap - 3):]
+
+
 async def _vong() -> None:
     print("[zalo-personal] vòng đọc bắt đầu", file=sys.stderr)
     while not _stop:
@@ -576,7 +609,7 @@ async def _vong() -> None:
                     except asyncio.CancelledError:
                         raise
                     except Exception as e:
-                        tt["loi"] = f"{type(e).__name__}: {e}"[:300]
+                        tt["loi"] = mo_ta_loi(f"{type(e).__name__}: {e}")
                         tt["nghi_toi"] = time.time() + NHIP_LOI
                         print(f"[zalo-personal {conn.get('label')}] {tt['loi']}", file=sys.stderr)
         except asyncio.CancelledError:
