@@ -34,7 +34,7 @@ import _resonance_agent as RA  # noqa: E402
 sys.path.insert(0, str(ROOT / "tools"))
 import resonance_restore_pre_a4 as RESTORE  # noqa: E402
 
-OLD_SHA = "33a3c1aa"
+OLD_SHA = "33a3c1aae3376e53f4bcd51201bc935c2b33989c"
 _fails = []
 
 
@@ -54,9 +54,9 @@ try:
                                                   "resonance_store")}
 except (subprocess.CalledProcessError, OSError):
     if os.environ.get("CI"):
-        print(f"FAIL không đọc được mã của {OLD_SHA}: CI phải fetch commit này trước")
+        print(f"FAIL không đọc được mã của {OLD_SHA[:8]}: CI phải fetch commit này trước")
         sys.exit(1)
-    print(f"SKIP máy này không có lịch sử git của {OLD_SHA}")
+    print(f"SKIP máy này không có lịch sử git của {OLD_SHA[:8]}")
     sys.exit(0)
 
 _dir = Path(tempfile.mkdtemp(prefix="old-0890-"))
