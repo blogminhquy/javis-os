@@ -507,6 +507,26 @@
     return el;
   }
 
+  /* Câu ghi chú sau một lần bấm, từ phản hồi THẬT của server (thuần để test). A4: Cho phép chỉ nói "đã đăng" khi
+     server xác nhận `publish` là succeeded hay same; cấp quyền thành công không có nghĩa là file đã được ghi. */
+  function noteFor(act, res) {
+    var j = (res && res.j) || {};
+    if (res.code === 409) return tw("resonance.changed");
+    if (res.code !== 200) return j.error || tw("resonance.failed");
+    if (j.ok === false && j.reason) return j.reason;
+    if (act === "fit_no") return tw("resonance.fit_no_hint");
+    if (act === "out_no") return tw("resonance.out_no_hint");
+    if (act === "out_ok") return tw("resonance.out_ok_hint");
+    if (act === "approve_scope") {
+      if (!j.submission_id) return tw("resonance.a4_approved");
+      if (j.publish === "succeeded" || j.publish === "same") return tw("resonance.a4_approved_draft");
+      if (j.publish === "conflict") return tw("resonance.a4_approved_draft_conflict");
+      return tw("resonance.a4_approved_draft_pending");
+    }
+    if (act === "revoke_grant") return tw("resonance.a4_revoked");
+    return "";
+  }
+
   /* A4: xem trước bản nháp đang chờ cho phép (chỉ đọc, đúng bản có mã và sha trên thẻ). */
   function preview(el, g) {
     var d = ((g.scope || {}).draft) || {};
@@ -540,16 +560,7 @@
     })
       .then(function (r) { return r.json().then(function (j) { return { code: r.status, j: j }; }); })
       .then(function (res) {
-        var note = "";
-        if (res.code === 409) note = tw("resonance.changed");
-        else if (res.code !== 200) note = res.j.error || tw("resonance.failed");
-        else if (res.j.ok === false && res.j.reason) note = res.j.reason;
-        else if (act === "fit_no") note = tw("resonance.fit_no_hint");
-        else if (act === "out_no") note = tw("resonance.out_no_hint");
-        else if (act === "out_ok") note = tw("resonance.out_ok_hint");
-        else if (act === "approve_scope") note = tw(res.j.submission_id ? "resonance.a4_approved_draft"
-          : "resonance.a4_approved");
-        else if (act === "revoke_grant") note = tw("resonance.a4_revoked");
+        var note = noteFor(act, res);
         if (res.j.goal) render(el, res.j.goal, note);
         else load(el, true).then(function () { if (note) el.insertAdjacentHTML("beforeend", '<div class="rs-note">' + esc(note) + "</div>"); });
       })
@@ -581,7 +592,7 @@
 
   var api = { tach: tach, viewHtml: viewHtml, compactHtml: compactHtml, requestFor: requestFor, stateKey: stateKey, wakeLabel: wakeLabel,
     ve: ve, render: render, reactHtml: reactHtml, reactBody: reactBody, learnHtml: learnHtml, isNotice: isNotice,
-    scopeHtml: scopeHtml };
+    scopeHtml: scopeHtml, noteFor: noteFor, _send: send };
   if (typeof window !== "undefined") window.JavisResonance = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

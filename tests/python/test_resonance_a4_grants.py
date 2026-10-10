@@ -909,6 +909,167 @@ R.apply_command(w.store, w.owner, g2.id, "resume", {}, w.brain)
 check("R5 Tiếp tục: cấp lại gốc mới cho revision hiện tại", w.scope(g2)["state"] == "granted"
       and w.scope(g2)["root"]["source_ref"].get("regrant_of"))
 
+# ═══════════ Hồi quy review mã A4 vòng 1 (đi qua handoff_after_turn, tick thật, mở lại kho) ═══════════
+def _has(w, text):
+    """File đích có đúng nội dung (thiếu file là False, không ném lỗi: ca đối chứng trên head cũ chạy hết)."""
+    return w.target().is_file() and w.target().read_text(encoding="utf-8") == text
+
+
+def _fit(w, g, kind):
+    cur = w.store.get(w.owner, g.id)
+    return R.apply_feedback(w.store, w.owner, g.id, kind, {"expected_revision": cur.revision}, w.brain)
+
+
+def _with_before_commit(w, fn):
+    """Chạy `fn` NGAY TRƯỚC giao dịch mốc commit (đúng chỗ can thiệp của người dùng có thể đến)."""
+    orig = w.store.publish_commit
+
+    def wrapped(*a, **kw):
+        fn()
+        return orig(*a, **kw)
+    w.store.publish_commit = wrapped
+    return lambda: setattr(w.store, "publish_commit", orig)
+
+
+# P1-1: "Chưa đúng ý" ghi xong trước mốc commit thì không đăng; đổi lại "Đúng ý" thì đăng, không gọi model.
+w, g = granted_world("c1p1")
+mid, ref = w.next()
+with w.turn(mid):
+    g2 = w.revise(g, mid, ref)
+    rb = w.submit()
+undo = _with_before_commit(w, lambda: _fit(w, g2, "goal_fit_rejected"))
+h1 = R.handoff_after_turn(g2.id, ref, w.deps())
+undo()
+check("V1-P1 'Chưa đúng ý' trước mốc commit: không đăng, bản nộp giữ candidate, không báo đã đăng",
+      not w.target().exists() and w.store.submission(w.owner, rb["submission_id"])["status"] == "candidate"
+      and h1 != "submission_published", h1)
+_fit(w, g2, "goal_fit_confirmed")
+w.clock.t += 60
+w.adv()
+check("V1-P1 đổi lại 'Đúng ý': lần thức sau đăng đúng bản đó, 0 lượt model",
+      _has(w, GOOD) and w.eng.queries == 0
+      and w.store.submission(w.owner, rb["submission_id"])["status"] == "published")
+
+w, g = granted_world("c1p1same")
+mid, ref = w.next()
+with w.turn(mid):
+    g2 = w.revise(g, mid, ref)
+    rb = w.submit()
+w.target().parent.mkdir(parents=True, exist_ok=True)
+w.target().write_text(GOOD, encoding="utf-8")
+_fit(w, g2, "goal_fit_rejected")
+it = w.store.publish_intent(w.p, rb["submission_id"], DELIV, R._sha(GOOD.encode("utf-8")), {})
+check("V1-P1 'Chưa đúng ý' trước nhánh same: không ghi mốc, bản nộp giữ candidate",
+      it["status"] == "held" and it.get("reason") == "fit_rejected"
+      and w.store.published(w.owner, g2.id, DELIV) is None
+      and w.store.submission(w.owner, rb["submission_id"])["status"] == "candidate", it)
+
+w, g = granted_world("c1p1ok")
+mid, ref = w.next()
+with w.turn(mid):
+    g2 = w.revise(g, mid, ref)
+    w.submit()
+_fit(w, g2, "goal_fit_confirmed")
+check("V1-P1 đối chứng 'Đúng ý': bàn giao đăng bình thường",
+      R.handoff_after_turn(g2.id, ref, w.deps()) == "submission_published" and w.target().is_file())
+
+
+def _committed_with_replace_failure(name):
+    w, g = granted_world(name)
+    mid, ref = w.next()
+    with w.turn(mid):
+        g2 = w.revise(g, mid, ref)
+        rb = w.submit()
+    real = R.os.replace
+    R.os.replace = lambda s, d: (_ for _ in ()).throw(PermissionError("file đang mở"))
+    try:
+        pub = R.host_publish(w.store.get(w.owner, g2.id), w.store.submission(w.owner, rb["submission_id"]), w.deps(),
+                             w.clock())
+    finally:
+        R.os.replace = real
+    return w, g2, rb, pub
+
+
+def settle(w, g):
+    """Một lần thức của lịch `settle` (đúng đường scheduler gọi cho lịch này): chỉ đối soát lần đăng đã chốt."""
+    return asyncio.run(R.advance(g.id, {"kind": "settle"}, w.deps()))
+
+
+# P2-1: lỗi I/O tạm thời ở MỘT hay NHIỀU lần đối soát vẫn phục hồi được, đúng một lần; có khởi động lại xen giữa.
+w, g2, rb, pub = _committed_with_replace_failure("c1p21")
+real = R.os.replace
+R.os.replace = lambda s, d: (_ for _ in ()).throw(PermissionError("vẫn đang mở"))
+try:
+    for _ in range(3):
+        w.clock.t += 3700
+        settle(w, g2)
+finally:
+    R.os.replace = real
+mid_state = w.store.submission(w.owner, rb["submission_id"])["status"]
+act = w.store.get_action(w.owner, pub["action_id"])
+check("V1-P2-1 lỗi khoá file lặp ở đối soát: không chốt conflict, hành động vẫn chạy, có giãn cách",
+      pub["status"] == "uncertain" and mid_state == "publishing" and act["status"] == "running"
+      and int(act["receipt"].get("recovery_attempts") or 0) >= 2, (mid_state, act))
+w.store = RS.GoalStore(w.store.path)          # khởi động lại xen giữa
+w.clock.t += 3700
+settle(w, g2)
+w.clock.t += 3700
+settle(w, g2)
+s_fin = w.store.submission(w.owner, rb["submission_id"])
+check("V1-P2-1 hết khoá (sau khởi động lại): hoàn tất đúng một lần, published, tiếp nhận, 0 lượt model",
+      _has(w, GOOD) and s_fin["status"] == "published" and s_fin["adopted_at"]
+      and len([e for e in w.events(g2, "artifact_adopted")]) == 1 and w.eng.queries == 0,
+      (s_fin["status"], s_fin["adopted_at"], len(w.events(g2, "artifact_adopted")), w.eng.queries, w.target().exists()))
+
+w, g2, rb, pub = _committed_with_replace_failure("c1p21x")
+w.target().parent.mkdir(parents=True, exist_ok=True)
+w.target().write_text("anh sửa tay\n", encoding="utf-8")
+w.clock.t += 3700
+settle(w, g2)
+check("V1-P2-1 đối chứng: đích thật sự bị sửa thì giữ file người dùng và chốt conflict",
+      w.target().read_text(encoding="utf-8") == "anh sửa tay\n"
+      and w.store.submission(w.owner, rb["submission_id"])["status"] == "conflict")
+
+# P2-2: thu hồi (tạm dừng) sau commit: scheduler thật vẫn hoàn tất qua lịch settle, kể cả sau khi mở lại kho.
+for variant in ("not_replaced", "replaced_unrecorded"):
+    w, g2, rb, pub = _committed_with_replace_failure("c1p22" + variant[:3])
+    if variant == "replaced_unrecorded":
+        w.target().parent.mkdir(parents=True, exist_ok=True)
+        w.target().write_bytes(GOOD.encode("utf-8"))      # đúng bytes host sẽ ghi (không đổi xuống dòng)
+    R.apply_command(w.store, w.owner, g2.id, "revoke_grant", {"expected_revision": g2.revision}, w.brain)
+    w.store = RS.GoalStore(w.store.path)
+    w.clock.t += 3700
+    n1 = asyncio.run(R.tick(w.store, w.clock(), lambda bid: w.deps()))
+    w.clock.t += 3700
+    n2 = asyncio.run(R.tick(w.store, w.clock(), lambda bid: w.deps()))
+    acts = [x for x in w.store.actions(w.owner, g2.id) if x["kind"] == "publish"]
+    check(f"V1-P2-2 thu hồi sau commit ({variant}): tick thật hoàn tất đúng một lần, không lịch thừa, 0 lượt model",
+          n1 == 1 and n2 == 0 and _has(w, GOOD) and len(acts) == 1
+          and acts[0]["status"] == "succeeded" and not [x for x in w.store.wakes(w.owner, g2.id) if x["kind"] == "settle"]
+          and w.eng.queries == 0 and w.store.get(w.owner, g2.id).paused, (n1, n2, acts))
+
+w, g2, rb, pub = _committed_with_replace_failure("c1p22cancel")
+w.store.cancel(w.owner, g2.id, g2.revision)
+w.clock.t += 3700
+nc = asyncio.run(R.tick(w.store, w.clock(), lambda bid: w.deps()))
+check("V1-P2-2 mục tiêu đã huỷ sau commit: lịch settle vẫn hoàn tất lần đăng đã chốt",
+      nc == 1 and _has(w, GOOD)
+      and w.store.get(w.owner, g2.id).status == "cancelled")
+
+w, g = granted_world("c1p22pre")
+mid, ref = w.next()
+with w.turn(mid):
+    g2 = w.revise(g, mid, ref)
+    rb = w.submit()
+undo = _with_before_commit(w, lambda: R.apply_command(w.store, w.owner, g2.id, "revoke_grant",
+                                                      {"expected_revision": g2.revision}, w.brain))
+R.handoff_after_turn(g2.id, ref, w.deps())
+undo()
+w.clock.t += 3700
+asyncio.run(R.tick(w.store, w.clock(), lambda bid: w.deps()))
+check("V1-P2-2 đối chứng: thu hồi TRƯỚC mốc commit vẫn chặn, tick không đăng",
+      not w.target().exists() and w.store.submission(w.owner, rb["submission_id"])["status"] == "stale")
+
 # ═══════════ G18: không quét gì khi chưa tới hạn ═══════════
 w = World("g18")
 t0 = time.perf_counter()

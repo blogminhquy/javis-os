@@ -3654,6 +3654,8 @@
   "resonance.btn_deny_scope": "No",
   "resonance.btn_preview": "Preview",
   "resonance.btn_revoke_grant": "Revoke permission",
+  "resonance.a4_approved_draft_pending": "Allowed, but the draft was NOT published yet; Javis keeps it and publishes it when conditions allow.",
+  "resonance.a4_approved_draft_conflict": "Allowed, but the draft was NOT published: the target file already has other content, which Javis left as is.",
   "resonance.st_path_rejected": "The output file path is not valid",
   "resonance.a4_engine_submit": "This brain submits its output through a Javis tool; Javis publishes it to the file once you have allowed that file.",
   "resonance.revoke_confirm": "Revoke write permission for this goal? The goal will pause; press Resume to grant it again.",

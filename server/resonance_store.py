@@ -1015,7 +1015,8 @@ class GoalStore:
         nhưng không kéo lịch, kể cả đã quá giờ. Không còn mốc thì xoá dòng."""
         row = c.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone()
         if row is None or row["status"] != "active":
-            c.execute("DELETE FROM wakeups WHERE goal_id=?", (goal_id,))
+            # A4: lịch `settle` (hoàn tất lần đăng đã chốt) sống độc lập với trạng thái mục tiêu.
+            c.execute("DELETE FROM wakeups WHERE goal_id=? AND kind!='settle'", (goal_id,))
             return
         pend = c.execute("SELECT code, origin, slot, due_at FROM wake_reasons WHERE goal_id=? AND state='pending' "
                          "ORDER BY due_at", (goal_id,)).fetchall()
@@ -1327,9 +1328,11 @@ class GoalStore:
         """Lịch tới hạn của mục tiêu còn active, xếp theo `due_at` (cũ nhất trước, không bỏ đói). Chỉ host (tick) gọi.
         Lịch `work` của mục tiêu tạm dừng bỏ qua; lịch `observe` thì không: tạm dừng vẫn quan sát guard (A2 mục 7)."""
         with closing(self._conn()) as c:
+            # A4: lịch `settle` (chỉ hoàn tất lần đăng ĐÃ qua mốc commit) tới hạn cả khi mục tiêu tạm dừng, đã thu hồi,
+            # đã huỷ hay kết thúc: tác động đã được phép phải có đường hoàn tất hay xác minh xung đột (mục 4.5, 4.7).
             rows = c.execute("SELECT w.goal_id, w.brain_id, w.kind, w.due_at FROM wakeups w JOIN goals g "
-                             "ON g.id=w.goal_id WHERE w.due_at<=? AND g.status='active' AND "
-                             "(g.paused=0 OR w.kind='observe') ORDER BY w.due_at LIMIT ?",
+                             "ON g.id=w.goal_id WHERE w.due_at<=? AND (w.kind='settle' OR (g.status='active' AND "
+                             "(g.paused=0 OR w.kind='observe'))) ORDER BY w.due_at LIMIT ?",
                              (float(now), int(limit))).fetchall()
             return [dict(r) for r in rows]
 
@@ -2197,7 +2200,7 @@ class GoalStore:
             if cur.rowcount != 1:
                 return False
             self._close_goal_holds(c, goal_id, "goal_closed", now)
-            c.execute("DELETE FROM wakeups WHERE goal_id=?", (goal_id,))
+            c.execute("DELETE FROM wakeups WHERE goal_id=? AND kind!='settle'", (goal_id,))
             # Mục tiêu kết thúc không nhận sự kiện nữa: bỏ lý do thức (A2 mục 6). Sổ thức giữ để xem lại.
             c.execute("DELETE FROM wake_reasons WHERE goal_id=?", (goal_id,))
             c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
@@ -2297,7 +2300,7 @@ class GoalStore:
             c.execute("UPDATE goals SET status='cancelled', run_state='dormant', block_reason='', updated_at=? "
                       "WHERE id=?", (now, goal_id))
             self._close_goal_holds(c, goal_id, "goal_closed", now)
-            c.execute("DELETE FROM wakeups WHERE goal_id=?", (goal_id,))
+            c.execute("DELETE FROM wakeups WHERE goal_id=? AND kind!='settle'", (goal_id,))
             c.execute("DELETE FROM wake_reasons WHERE goal_id=?", (goal_id,))
             c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
                       "VALUES(?,?,?,?,?,?,?)", (goal_id, row["revision"], "cancelled", "owner",
@@ -3519,8 +3522,9 @@ class GoalStore:
                 self._sub_set(c, s["id"], "superseded" if why == "revision_changed" else "stale", why, now)
                 return {"status": "stale", "reason": why}
             row = c.execute("SELECT * FROM goals WHERE id=?", (s["goal_id"],)).fetchone()
-            if int(row["paused"] or 0) or row["block_reason"] == "guard":
-                return {"status": "held", "reason": "paused" if int(row["paused"] or 0) else "guard"}
+            held = self._publish_held(c, row, int(s["revision"]))
+            if held:
+                return {"status": "held", "reason": held}
             pub = c.execute("SELECT * FROM published WHERE goal_id=? AND path=?", (s["goal_id"], rel)).fetchone()
             base = {"path": rel, "key": s["path"], "sha256": s["sha256"], "binding_id": s["binding_id"],
                     "submission_id": s["id"], **(extra_intent or {})}
@@ -3595,8 +3599,7 @@ class GoalStore:
             b = c.execute("SELECT * FROM bindings WHERE id=?", (s["binding_id"],)).fetchone()
             why = self._binding_block(c, b, finishing=True)
             row = c.execute("SELECT * FROM goals WHERE id=?", (a["goal_id"],)).fetchone()
-            held = "" if why else ("paused" if int(row["paused"] or 0) else
-                                   ("guard" if row["block_reason"] == "guard" else ""))
+            held = "" if why else self._publish_held(c, row, int(s["revision"]))
             moved = ""
             if not why and not held:
                 cur = read_sha()
@@ -3611,6 +3614,10 @@ class GoalStore:
                 return {"status": "aborted", "reason": why or held or moved}
             c.execute("UPDATE actions SET receipt_json=?, updated_at=? WHERE id=?",
                       (_j({"commit_at": now}), now, action_id))
+            # Tác động đã được phép: từ đây nó có lịch hoàn tất RIÊNG, không phụ thuộc lịch làm việc (tạm dừng, thu hồi,
+            # huỷ không làm mất đường hoàn tất; review mã A4 vòng 1, P2-2).
+            self._wake(c, a["goal_id"], row["brain_id"], "settle", float(a["lease_until"] or now) + 1,
+                       "hoàn tất lần đăng đã chốt")
             return {"status": "committed", "commit_at": now}
 
     def publish_finish(self, p: Principal, action_id: str, got_sha: Optional[str]) -> dict:
@@ -3629,12 +3636,74 @@ class GoalStore:
                 self._set_published_c(c, a["goal_id"], it["path"], got_sha, action_id, now)
                 self._sub_set(c, s["id"], "published", "", now,
                               **({"adopted_at": now} if s["source"] in HOST_SOURCES else {}))
+                self._settle_done(c, a["goal_id"])
                 return {"status": "published", "sha256": got_sha}
             c.execute("UPDATE actions SET status='uncertain', lease_until=NULL, receipt_json=?, updated_at=? WHERE id=?",
                       (_j({**rc, "path": it.get("path"), "sha256": got_sha, "error_code": "target_changed"}), now,
                        action_id))
             self._sub_set(c, s["id"], "conflict", "target_changed_after_commit", now)
+            self._settle_done(c, a["goal_id"])
             return {"status": "conflict"}
+
+    @staticmethod
+    def _publish_held(c, row, revision: int) -> str:
+        """Can thiệp của người dùng chặn một lần đăng CHƯA qua mốc commit, đọc trong giao dịch của người gọi: tạm dừng,
+        chốt guard, và phản hồi cách hiểu mới nhất của đúng revision là "Chưa đúng ý" (review mã A4 vòng 1, P1-1).
+        Đổi lại "Đúng ý" sau đó thì phản hồi mới nhất không còn là từ chối, lần đăng sau đi tiếp."""
+        if int(row["paused"] or 0):
+            return "paused"
+        if row["block_reason"] == "guard":
+            return "guard"
+        fb = c.execute("SELECT kind FROM goal_events WHERE goal_id=? AND revision=? AND kind IN "
+                       "('feedback.goal_fit_confirmed','feedback.goal_fit_rejected') ORDER BY id DESC LIMIT 1",
+                       (row["id"], int(revision))).fetchone()
+        if fb is not None and fb["kind"] == "feedback.goal_fit_rejected":
+            return "fit_rejected"
+        return ""
+
+    @staticmethod
+    def _settle_done(c, goal_id: str) -> None:
+        """Không còn lần đăng nào đã commit mà chưa xong: bỏ lịch `settle`."""
+        left = [r for r in c.execute("SELECT receipt_json FROM actions WHERE goal_id=? AND kind='publish' AND "
+                                     "status='running'", (goal_id,)).fetchall()
+                if json.loads(r["receipt_json"] or "{}").get("commit_at")]
+        if not left:
+            c.execute("DELETE FROM wakeups WHERE goal_id=? AND kind='settle'", (goal_id,))
+
+    def publish_retry(self, p: Principal, action_id: str, now: float) -> dict:
+        """Lần đăng ĐÃ commit chưa hoàn tất được vì lỗi đọc hay ghi tạm thời (file đang mở, khoá chia sẻ): KHÔNG chốt
+        xung đột. Giữ hành động `running`, nới hạn với giãn cách tăng dần, hẹn lịch `settle` để đối soát lại (review mã
+        A4 vòng 1, P2-1). Chỉ chốt xung đột khi đọc được đích và nó khác cả baseline lẫn bản nộp."""
+        with self._Tx(self) as c:
+            a, _it, _s = self._publish_rows(c, p, action_id)
+            rc = json.loads(a["receipt_json"] or "{}")
+            if a["status"] != "running" or not rc.get("commit_at"):
+                return {"status": "skip"}
+            n = int(rc.get("recovery_attempts") or 0) + 1
+            delay = min(3600.0, 60.0 * (2 ** min(n - 1, 6)))
+            until = float(now) + delay
+            c.execute("UPDATE actions SET lease_until=?, receipt_json=?, updated_at=? WHERE id=?",
+                      (until, _j({**rc, "recovery_attempts": n, "last_error": "io_transient"}), time.time(), action_id))
+            row = c.execute("SELECT brain_id FROM goals WHERE id=?", (a["goal_id"],)).fetchone()
+            c.execute("INSERT INTO wakeups(goal_id,brain_id,kind,due_at,reason,updated_at) VALUES(?,?,?,?,?,?) "
+                      "ON CONFLICT(goal_id,kind) DO UPDATE SET due_at=excluded.due_at, reason=excluded.reason, "
+                      "updated_at=excluded.updated_at",
+                      (a["goal_id"], row["brain_id"], "settle", until + 1, "thử lại hoàn tất lần đăng đã chốt",
+                       time.time()))
+            return {"status": "retry", "attempts": n, "next_at": until + 1}
+
+    def committed_publishes(self, p: Principal, goal_id: str) -> list:
+        """Lần đăng đã qua mốc commit mà chưa xong, của một mục tiêu (mọi trạng thái mục tiêu)."""
+        with closing(self._conn()) as c:
+            rows = c.execute("SELECT a.* FROM actions a JOIN goals g ON g.id=a.goal_id WHERE a.goal_id=? AND "
+                             "g.brain_id=? AND a.kind='publish' AND a.status='running' ORDER BY a.created_at",
+                             (goal_id, p.brain_id)).fetchall()
+            return [self._action(r) for r in rows if json.loads(r["receipt_json"] or "{}").get("commit_at")]
+
+    def settle_cleanup(self, p: Principal, goal_id: str) -> None:
+        with self._Tx(self) as c:
+            if self._goal_row(c, p, goal_id) is not None:
+                self._settle_done(c, goal_id)
 
     def publish_abort(self, p: Principal, action_id: str, reason: str) -> dict:
         """Hành động đăng CHƯA qua mốc commit bị bỏ (đối soát, lỗi ghi file trước mốc): huỷ, bản nộp về `candidate` nếu

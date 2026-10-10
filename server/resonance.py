@@ -2063,38 +2063,69 @@ def host_publish(goal: GoalRecord, sub: dict, deps: GoalDeps, now: float, source
             "action_id": aid}
 
 
-def _reconcile_publish(goal: GoalRecord, a: dict, deps: GoalDeps) -> None:
+def _reconcile_publish(goal: GoalRecord, a: dict, deps: GoalDeps, now: Optional[float] = None) -> str:
     """Đối soát một hành động đăng A4 dở (mục 4.7). Chưa qua mốc commit: huỷ, bản nộp về `candidate` hay `stale` theo
     quyền đã ghim. Đã commit (luật tác động đã commit, không kiểm lại quyền): đích bằng sha bản nộp thì ghi mốc; đích
-    vẫn bằng baseline thì thay file từ bản nháp rồi ghi mốc; khác cả hai thì `conflict`."""
+    vẫn bằng baseline thì thay file từ bản nháp rồi ghi mốc; đọc được đích và nó khác cả hai thì `conflict`.
+
+    Lỗi đọc hay ghi TẠM THỜI (file đang mở, khoá chia sẻ) không phải bằng chứng đích đã đổi: giữ hành động `running`
+    và hẹn thử lại có giãn cách (`publish_retry`), không chốt xung đột (review mã A4 vòng 1, P2-1). Trả kết quả để ghi."""
     store, p = deps.store, deps.principal
+    now = deps.clock() if now is None else now
     it, rc = a.get("intent") or {}, a.get("receipt") or {}
     f = _brain_file(deps.brain_root, it.get("path"))
-    if f is not None:
+    tmp = _tmp_of(f, a["id"]) if f is not None else None
+    if tmp is not None:
         try:
-            _tmp_of(f, a["id"]).unlink()
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
         except OSError:
             pass
     if not rc.get("commit_at") or f is None:
         store.publish_abort(p, a["id"], "interrupted")
-        return
+        return "aborted"
     sub = store.submission(p, str(it.get("submission_id") or "")) or {}
     cur = _file_sha(f)
+    if cur == "unreadable":
+        store.publish_retry(p, a["id"], now)
+        return "retry"
     if cur != it.get("sha256") and cur == it.get("before"):
         data = _sub_bytes(sub) if sub else None
         if data is not None:
-            tmp = _tmp_of(f, a["id"])
             try:
                 f.parent.mkdir(parents=True, exist_ok=True)
                 with open(tmp, "wb") as fh:
                     fh.write(data)
                 os.replace(tmp, f)
             except OSError:
-                pass
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+                store.publish_retry(p, a["id"], now)
+                return "retry"
             cur = _file_sha(f)
+            if cur == "unreadable":
+                store.publish_retry(p, a["id"], now)
+                return "retry"
     fin = store.publish_finish(p, a["id"], cur)
     if fin["status"] == "published" and sub:
         _adopt_if_needed(sub, deps)
+    return fin["status"]
+
+
+def _settle_committed(g: GoalRecord, deps: GoalDeps, now: float) -> int:
+    """Lịch `settle` (A4): CHỈ hoàn tất hay xác minh xung đột các lần đăng đã qua mốc commit, bất kể mục tiêu đang tạm
+    dừng, đã thu hồi, huỷ hay kết thúc. Không mở lượt việc, không cấp lại quyền, không đăng bản candidate nào khác."""
+    store, p = deps.store, deps.principal
+    n = 0
+    for a in store.committed_publishes(p, g.id):
+        if float(a.get("lease_until") or 0) < now:
+            _reconcile_publish(g, a, deps, now)
+            n += 1
+    store.settle_cleanup(p, g.id)
+    return n
 
 
 def _bad_deliverable(goal: GoalRecord, deps: GoalDeps, rel: str) -> dict:
@@ -2153,7 +2184,7 @@ def _reconcile(goal: GoalRecord, deps: GoalDeps, now: float) -> None:
                     "codes": [r["code"] for r in served], "why": "lượt bị ngắt, đối soát sau khi khởi động lại",
                     "chain_start": any(HB.classify(r["code"]) in (HB.START, HB.NEW) for r in served), "at": now})
         elif a["kind"] == "publish" and (a.get("intent") or {}).get("submission_id"):
-            _reconcile_publish(goal, a, deps)
+            _reconcile_publish(goal, a, deps, now)
         elif a["kind"] == "publish":
             it = a.get("intent") or {}
             f = _brain_file(deps.brain_root, it.get("path"))
@@ -2834,6 +2865,16 @@ def _advance_prepare(goal_id: str, kind: str, ev: dict, deps: GoalDeps, now: flo
     def quiet(why: str, guards: tuple = ()) -> Assessment:
         return Assessment(g.id, g.revision, "unknown", guards=guards, rationale=why, evaluated_at=now)
 
+    if kind == "settle":
+        # A4: chỉ hoàn tất lần đăng đã commit, dưới khoá lượt, mọi trạng thái mục tiêu (review mã A4 vòng 1, P2-2).
+        owner_s = secrets.token_hex(6)
+        if not store.claim_lease(p, g.id, owner_s, now + LEASE_EXTRA_S, now):
+            return quiet("mục tiêu đang có lượt khác chạy")
+        try:
+            n = _settle_committed(g, deps, now)
+        finally:
+            store.release_lease(p, g.id, owner_s)
+        return quiet(f"đối soát {n} lần đăng đã chốt")
     if g.status != "active":
         return quiet(f"mục tiêu đã {g.status}")
     if kind == "reaction":
@@ -2955,7 +2996,7 @@ async def tick(store, now: float, deps_for: Callable[[str], Optional[GoalDeps]],
         until = now + float(deps.max_wall_s) + float(deps.wall_grace_s) + LEASE_EXTRA_S + 60
         if not await asyncio.to_thread(store.claim_wake, deps.principal, w["goal_id"], w["kind"], w["due_at"], until):
             continue
-        await advance(w["goal_id"], {"kind": "observe" if w["kind"] == "observe" else "wake"}, deps)
+        await advance(w["goal_id"], {"kind": {"observe": "observe", "settle": "settle"}.get(w["kind"], "wake")}, deps)
         n += 1
     return n
 

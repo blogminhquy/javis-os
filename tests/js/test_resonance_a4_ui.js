@@ -77,8 +77,52 @@ check("không có gạch dài trong chuỗi A4", keys.every((k) => !/\u2014/.tes
 check("bản tiếng Anh không lẫn chữ tiếng Việt có dấu", keys.every((k) =>
   !/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(en[k])));
 
-if (fails) {
-  console.log("\n" + fails + " FAIL");
-  process.exit(1);
+// Hành vi của nút Cho phép đi qua send() THẬT (review mã A4 vòng 1, P2-3): câu ghi chú lấy từ phản hồi server.
+check("noteFor: chỉ nói đã đăng khi publish succeeded hay same",
+  RS.noteFor("approve_scope", { code: 200, j: { submission_id: "s", publish: "succeeded" } }) === vi["resonance.a4_approved_draft"]
+  && RS.noteFor("approve_scope", { code: 200, j: { submission_id: "s", publish: "same" } }) === vi["resonance.a4_approved_draft"]
+  && RS.noteFor("approve_scope", { code: 200, j: { submission_id: "s", publish: "conflict" } })
+    === vi["resonance.a4_approved_draft_conflict"]
+  && ["held", "aborted", "uncertain", "stale", ""].every((p) => RS.noteFor("approve_scope",
+    { code: 200, j: { submission_id: "s", publish: p } }) === vi["resonance.a4_approved_draft_pending"])
+  && RS.noteFor("approve_scope", { code: 200, j: { submission_id: "" } }) === vi["resonance.a4_approved"]);
+
+function fakeEl(goal) {
+  return { _goal: goal, innerHTML: "", querySelectorAll: () => [], classList: { toggle() {} },
+    insertAdjacentHTML(_p, h) { this.innerHTML += h; } };
 }
-console.log("\nOK");
+const sent = [];
+function serverSays(body) {
+  global.fetch = (url, opts) => {
+    sent.push({ url, body: JSON.parse(opts.body) });
+    return Promise.resolve({ status: 200, json: () => Promise.resolve(body) });
+  };
+}
+global.window = { confirm: () => true };
+const afterGoal = Object.assign({}, pending, { scope: Object.assign({}, pending.scope, { state: "granted", request: null,
+  draft: null, conflict: true }), block_reason: "" });
+const elC = fakeEl(pending);
+serverSays({ ok: true, status: "scope_approved", submission_id: "sub_x", publish: "conflict", goal: afterGoal });
+RS._send(elC, "approve_scope");
+const elOk = fakeEl(pending);
+setTimeout(() => {
+  check("send() thật, server báo publish=conflict: thẻ nói CHƯA đăng, không nói đã đăng",
+    elC.innerHTML.includes(vi["resonance.a4_approved_draft_conflict"])
+    && !elC.innerHTML.includes(vi["resonance.a4_approved_draft"]), elC.innerHTML.slice(-300));
+  check("send() gửi đúng request Cho phép (yêu cầu, bản nháp, sha)", sent[0].body.request_id === "sr_1"
+    && sent[0].body.submission_id === "sub_9" && sent[0].body.sha256 === "abc");
+  serverSays({ ok: true, status: "scope_approved", submission_id: "sub_x", publish: "succeeded", goal: afterGoal });
+  RS._send(elOk, "approve_scope");
+  setTimeout(() => {
+    check("send() thật, server báo publish=succeeded: thẻ nói đã đăng đúng bản nháp",
+      elOk.innerHTML.includes(vi["resonance.a4_approved_draft"]));
+    check("chuỗi ghi chú mới đủ hai thứ tiếng, không gạch dài", ["resonance.a4_approved_draft_conflict",
+      "resonance.a4_approved_draft_pending"].every((k) => vi[k] && en[k]
+      && !(vi[k] + en[k]).includes(String.fromCharCode(0x2014))));
+    if (fails) {
+      console.log("\n" + fails + " FAIL");
+      process.exit(1);
+    }
+    console.log("\nOK");
+  }, 20);
+}, 20);
