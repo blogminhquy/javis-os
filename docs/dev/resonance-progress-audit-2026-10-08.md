@@ -5,7 +5,8 @@ Ngày kiểm: 08/10/2026, Asia/Saigon. Snapshot mã: `09f254d0e4d009451dc58cb2e9
 ## Cập nhật sau A1 (08/10/2026, tối)
 
 Phần còn lại của tài liệu là ảnh chụp lúc rà (sáng 08/10), giữ làm lịch sử. Từ đó:
-- A1 đạt review mã và pilot A1-1 (một kịch bản), chưa merge. Xem [biên bản A1](resonance-a1-verification.md).
+- A1 đạt review mã và pilot A1-1 (một kịch bản), phát hành 0.87.0 ngày 09/10/2026 (`fdfec7c5`). Xem [biên bản A1](resonance-a1-verification.md).
+- A2 phát hành 0.88.0 ngày 09/10/2026 (`c101d108`), hiệu năng VPS chưa đo. Xem [biên bản A2](resonance-a2-verification.md).
 - Con số "0/5 mốc" bên dưới là của lúc rà. A1 chỉ tính là mốc hoàn tất khi đã merge và phát hành.
 
 ## Bổ sung sau báo cáo kiểm cục bộ

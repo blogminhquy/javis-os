@@ -32,6 +32,10 @@ jobs:
       - name: Lấy commit 0.87.0 cho test quay về A2
         run: git fetch --no-tags --depth=1 origin fdfec7c5c84c2663276d088194844e058d9a22aa
 
+      # test_resonance_a3_rollback chạy MÃ 0.88.1 (A2) THẬT trên kho đã nâng lên A3 (`83bff6bc`, PR #596 trên main).
+      - name: Lấy commit 0.88.1 cho test quay về A3
+        run: git fetch --no-tags --depth=1 origin 83bff6bcf5927c4f6ba83bff576a674f2269c0e5
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.89.0] - 2026-10-10
+### Thêm mới
+- **Trợ lý Cộng hưởng học từ phản hồi có kiểm chứng.** Bấm phản hồi trên tin báo của trợ lý để gợi ý cách báo gọn hơn hay ít làm phiền hơn; bạn xem trước và tự quyết có áp dụng.
+- **Bế tắc thì thử một cách làm khác, chỉ khi hạn mức của mục tiêu đủ cho cả phép thử lẫn một lượt làm lại sản phẩm,** so với cách cũ trên cùng tiêu chí; thua hoặc chưa rõ thì giữ nguyên cách cũ.
+- **Mỗi bài học có nguồn, phạm vi và nút thu hồi.** Thu hồi hay bỏ qua một gợi ý thì 14 ngày sau Javis mới gợi ý lại đúng thay đổi đó. Phản hồi không bao giờ tự làm mục tiêu đạt, không mở thêm quyền hay hạn mức.
+
 ## [0.88.6] - 2026-10-10
 ### Sửa lỗi
 - **Thẻ bot Zalo nói đúng lý do khi kết nối Zalo bị ngắt.** Trước đây thẻ chỉ hiện một dòng cấu hình kỹ thuật kiểu `process đóng stdout ([mcp] Config loaded: ...)`, còn lý do thật bị cắt mất. Giờ thẻ nói bằng lời thường. Nếu Zalo ngắt phiên vì tài khoản vừa được mở ở nơi khác (Zalo Web trên trình duyệt, hoặc một máy Javis khác cùng đăng nhập tài khoản này), thẻ bảo đóng nơi kia, Javis tự nối lại sau khoảng 2 phút. Nếu phiên đăng nhập Zalo đã hết hạn, thẻ bảo vào trang Kết nối đăng nhập lại bằng mã QR. Lỗi khác thì hiện phần cuối của thông báo, nơi có lý do thật.

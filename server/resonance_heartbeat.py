@@ -15,7 +15,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Optional
 
-POLICY_VERSION = "heartbeat.v1"
+# heartbeat.v2 (A3): thêm hai lớp sự kiện của làn học cách làm, `FOLLOWUP` (lượt làm sản phẩm bằng cách mới, dùng
+# lượt đã giữ sẵn) và `TRIAL` (phép thử M5). Các tham số còn lại giữ nguyên như v1.
+POLICY_VERSION = "heartbeat.v2"
 
 POLICY = {
     "RETRY_BASE_S": 15 * 60,
@@ -34,11 +36,13 @@ POLICY = {
 
 # Lớp của từng mã lý do (mục 3). Mã không có ở đây là "check": chỉ kiểm, không gọi model.
 START, NEW, AUTO, CHECK, OBSERVE = "start", "new", "auto", "check", "observe"
+FOLLOWUP, TRIAL = "followup", "trial"
 CLASSES = {
     "created": START, "revised": START, "assigned": START,
     "feedback": NEW, "user_schedule": NEW,
     "retry_not_met": AUTO, "error_retry": AUTO, "recovery": AUTO,
     "guard_observe": OBSERVE,
+    "method_followup": FOLLOWUP, "method_trial": TRIAL,
 }
 # Nghĩa vụ (slot) của hẹn giờ: hẹn mới chỉ thay hẹn cũ cùng nghĩa vụ.
 RETRY_CODES = ("retry_not_met", "error_retry", "recovery")
@@ -58,6 +62,9 @@ def slot_of(code: str) -> str:
         return "retry"
     if code == "guard_observe":
         return "observe"
+    if code == "trial_recovery":
+        # A3: hẹn đối soát của phép thử có nghĩa vụ riêng, không thay hay bị thay bởi các hẹn kiểm khác.
+        return "trial"
     return "check"
 
 
@@ -115,27 +122,37 @@ def auto_allowed(code: str, chain: Chain, left: int, policy: dict = POLICY) -> t
 
 @dataclass(frozen=True)
 class Decision:
-    action: str          # work | evaluate | budget
+    action: str          # work | trial | evaluate | budget
     why: str
     trigger: str = ""    # mã lý do đã mở lượt
 
 
 def decide(snapshot: Iterable[dict], *, attempted: bool, outcome: str, left: int, chain: Chain,
-           policy: dict = POLICY) -> Decision:
+           policy: dict = POLICY, hold_ok: bool = False, trial_ok: bool = False) -> Decision:
     """Thứ tự quyết định (mục 4, bước 4 tới 9), SAU khi cổng đã cho qua và không bị chờ do sửa ngoài luồng.
 
     `snapshot`: lý do đã tới hạn, mỗi lý do có "code". `attempted`: revision hiện tại đã có lượt việc hay bản tiếp
-    nhận từ chat. `outcome`: met | human_only | not_met | unknown (đánh giá bằng code ngay lúc thức)."""
+    nhận từ chat. `outcome`: met | human_only | not_met | unknown (đánh giá bằng code ngay lúc thức).
+
+    A3: `hold_ok` là có một lượt đã giữ sẵn còn hợp lệ cho đúng revision (tin mới tiếp quản nó, lượt `FOLLOWUP` dùng
+    nó, không cần phần dư trên lượt dự phòng); `trial_ok` là phép thử đủ ngân sách trọn vòng. Thứ tự: tin mới, bước đầu,
+    lượt làm sản phẩm bằng cách mới, phép thử, thử lại tự động."""
     codes = [str(r.get("code") or "") for r in snapshot]
     classes = {c: classify(c) for c in codes}
     if outcome in ("met", "human_only"):
         return Decision("evaluate", "đã đạt hay chỉ còn chờ người dùng")
     new = next((c for c in codes if classes[c] == NEW), "")
     if new:
-        return Decision("work" if left > 0 else "budget", "có tin mới từ người dùng", new)
+        return Decision("work" if (left > 0 or hold_ok) else "budget", "có tin mới từ người dùng", new)
     start = next((c for c in codes if classes[c] == START), "")
     if start and not attempted:
         return Decision("work" if left > 0 else "budget", "bước đầu của revision", start)
+    follow = next((c for c in codes if classes[c] == FOLLOWUP), "")
+    if follow and hold_ok:
+        return Decision("work", "làm sản phẩm bằng cách làm vừa học, dùng lượt đã giữ", follow)
+    trial = next((c for c in codes if classes[c] == TRIAL), "")
+    if trial and trial_ok:
+        return Decision("trial", "thử một cách làm khác khi bế tắc, đủ ngân sách trọn vòng", trial)
     for c in codes:
         if classes[c] == AUTO:
             ok, why = auto_allowed(c, chain, left, policy)

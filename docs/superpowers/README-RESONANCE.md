@@ -14,7 +14,7 @@ Cập nhật 08/10/2026. MVP M1–M5 đã phát hành trong 0.86.0 qua PR #587; 
 
 A1: phạm vi agent + công tắc + tiến độ tối thiểu. A2: heartbeat thích nghi. A3: vòng học từ phản hồi. A4: bàn giao sản phẩm đa engine. A5: đội một agent làm, một agent review. Kiểm một VPS đại diện (D0) có thể làm song song thiết kế A1.
 
-Tiến độ 08/10/2026: A1 đạt review mã và pilot một kịch bản, chờ quyết merge (PR #590, [biên bản](../dev/resonance-a1-verification.md)). Tiến độ 09/10/2026: A2 đạt review mã và kiểm tích hợp, chờ quyết merge (PR #593, [biên bản](../dev/resonance-a2-verification.md)); A3–A5 chưa triển khai. Không tự bật tính năng hoặc dùng lại hạn mức của các pilot cũ. Trước khi code, viết thiết kế và kế hoạch PR theo main mới nhất; người dùng không phải điền hoặc chọn mục tiêu nghiệp vụ.
+Tiến độ 09/10/2026: A1 đã phát hành 0.87.0 (`fdfec7c5`, [biên bản](../dev/resonance-a1-verification.md)); A2 đã phát hành 0.88.0 (`c101d108`, [biên bản](../dev/resonance-a2-verification.md)), hiệu năng VPS chưa đo; A3 thiết kế đạt review, mã chờ review ([thiết kế A3](specs/2026-10-09-resonance-a3-feedback-learning-design.md), [hướng dẫn](../dev/resonance-a3-learning.md)); A4, A5 chưa bắt đầu. Không tự bật tính năng hoặc dùng lại hạn mức của các pilot cũ. Trước khi code, viết thiết kế và kế hoạch PR theo main mới nhất; người dùng không phải điền hoặc chọn mục tiêu nghiệp vụ.
 
 ## MVP đã hoàn thành, giữ làm lịch sử
 

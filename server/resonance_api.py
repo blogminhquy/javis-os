@@ -404,3 +404,213 @@ def register_agents(app, deps: ResonanceApiDeps):
         except RS.AgentStateError as e:
             return _err(400, str(e), str(e))
         return {"ok": True, "goal": await _view(store, owner, goal_id, root)}
+
+
+def register_learning(app, deps: ResonanceApiDeps):
+    """Route A3 (học từ phản hồi): reaction trên tin báo do host ghi và bài học của trợ lý. Đăng ký SAU route cuối của
+    main.py như A1. Chỉ owner qua lớp auth/CSRF của dashboard; không tool nào gọi được. Reaction không gọi `advance`,
+    không đổi lịch, không gọi model (thiết kế A3 mục 4)."""
+    import asyncio
+    import hashlib
+    import resonance_learning as L
+
+    def _ctx(brain: str):
+        root = deps.brain_key(brain or "")
+        if not root or not Path(root).is_dir():
+            return None, None
+        return root, RS.Principal("owner", "owner", root)
+
+    def _sha(text: str) -> str:
+        return hashlib.sha256(str(text or "").encode("utf-8")).hexdigest()
+
+    def _alive(ss):
+        def alive(session_id: str, message_id: int, content_sha: str) -> bool:
+            rec = ss.report_receipt_by_message(session_id, int(message_id))
+            return rec is not None and _sha(rec.get("content")) == content_sha
+        return alive
+
+    def _not_notice() -> JSONResponse:
+        return _err(400, "Chỉ phản hồi được trên tin báo của trợ lý", "Feedback is only for assistant notices")
+
+    def _mref(args: dict) -> str:
+        """`message_ref` (msg:<phiên>:<id>), hay bộ ba có sẵn trong khối thẻ của tin: phiên đang mở, khoá báo cáo và
+        mục tiêu. Bộ ba được tra qua biên nhận của host (không có biên nhận thì không có tin báo). Trang chat gửi phiên
+        trống (thiết kế mục 19, I12): server tra theo khoá báo cáo và mục tiêu."""
+        mref = str(args.get("message_ref") or "")
+        if mref:
+            return mref
+        sid, rep, gid = (str(args.get(k) or "") for k in ("session_id", "report", "goal_id"))
+        if not (rep and gid):
+            return ""
+        ss = deps.session_store()
+        if not sid:
+            # Trang vẽ tin (nhất là ở trang Cộng sự) có thể chưa biết phiên đang mở. Khoá báo cáo chỉ thuộc một tin, nên
+            # tra theo khoá và mục tiêu; có đúng một biên nhận mới dùng. Mọi kiểm brain, vai, khối thẻ vẫn chạy sau đó.
+            rows = ss.report_receipts_for(rep, gid)
+            return f"msg:{rows[0]['session_id']}:{rows[0]['message_id']}" if len(rows) == 1 else ""
+        rec = ss.report_receipt(sid, rep, gid)
+        return f"msg:{sid}:{rec['id']}" if rec else f"msg:{sid}:0"
+
+    def _source(store, root: str, mref: str):
+        """Dựng nguồn của reaction từ biên nhận báo cáo của host. Trả (src, None) hay (None, JSONResponse lỗi)."""
+        parts = str(mref or "").split(":")
+        if len(parts) != 3 or parts[0] != "msg" or not parts[2].isdigit():
+            return None, _err(400, "message_ref phải có dạng msg:<phiên>:<id>", "message_ref must be msg:<session>:<id>")
+        sid, mid = parts[1], int(parts[2])
+        ss = deps.session_store()
+        sess = ss.get_session(sid) or {}
+        if not sess or deps.brain_key(sess.get("brain") or "") != root:
+            return None, _err(404, "Không có phiên này trong brain", "No such session in this brain")
+        rec = ss.report_receipt_by_message(sid, mid)
+        key = str((rec or {}).get("report_key") or "")
+        if rec is None or rec.get("role") != "assistant" or not key.startswith("outbox:") or \
+                not key.split(":", 1)[1].isdigit():
+            return None, _not_notice()
+        blocks = R.parse_goal_blocks(rec.get("content") or "")
+        if not any(b.get("report") == key and b.get("goal_id") == rec.get("goal_id") for b in blocks):
+            return None, _not_notice()
+        ob = store.outbox_row(int(key.split(":", 1)[1]))
+        if ob is None or ob["goal_id"] != rec.get("goal_id"):
+            return None, _not_notice()
+        if ob["brain_id"] != root:
+            return None, _err(404, "Không có tin này trong brain", "No such message in this brain")
+        pay = ob.get("payload") or {}
+        return {"session_id": sid, "message_id": mid, "report_key": key, "goal_id": ob["goal_id"],
+                "revision": int(pay.get("revision") or 0), "notice_kind": ob["kind"],
+                "presentation": str((pay.get("presentation") or {}).get("detail") or "full"),
+                "content_sha": _sha(rec.get("content"))}, None
+
+    @app.get("/resonance/reactions")
+    async def resonance_reaction_get(brain: str = "brain", message_ref: str = "", session_id: str = "",
+                                     report: str = "", goal_id: str = ""):
+        """Reaction hiện tại của owner trên một tin báo (để hàng nút hiện đúng trạng thái)."""
+        root, owner = _ctx(brain)
+        if root is None:
+            return _err(404, "Không tìm thấy brain", "Brain not found")
+
+        def work():
+            if not _store_exists():
+                return {"ok": True, "reaction": None}
+            store = deps.store()
+            src, err = _source(store, root, _mref({"message_ref": message_ref, "session_id": session_id,
+                                                   "report": report, "goal_id": goal_id}))
+            if err:
+                return err
+            return {"ok": True, "reaction": store.reaction_of(owner, src["session_id"], src["message_id"]),
+                    "notice_kind": src["notice_kind"]}
+        return await asyncio.to_thread(work)
+
+    @app.post("/resonance/reactions")
+    async def resonance_reaction(request: Request, brain: str = "brain"):
+        """Owner bấm thích hay không thích (kèm lý do) trên MỘT tin báo do host ghi. Đặt giá trị theo request; `nonce`
+        chống ghi trùng khi gửi lại."""
+        root, owner = _ctx(brain)
+        if root is None:
+            return _err(404, "Không tìm thấy brain", "Brain not found")
+        if not _store_exists():
+            return _err(404, "Chưa có trợ lý nào đăng ký", "No registered assistant")
+        body = await _body(request)
+
+        def work():
+            store = deps.store()
+            src, err = _source(store, root, _mref(body))
+            if err:
+                return err
+            try:
+                res = store.record_reaction(owner, src, str(body.get("value") or ""), str(body.get("reason") or ""),
+                                            str(body.get("nonce") or ""), alive=_alive(deps.session_store()))
+            except RS.ScopeError:
+                return _err(404, "Không có mục tiêu này trong brain", "No such goal in this brain")
+            except RS.AgentStateError as e:
+                return _err(409, f"Trợ lý của tin này không còn: {e}", f"The assistant of this notice is gone: {e}")
+            except R.GoalRejected as e:
+                return _err(400, f"Chưa ghi được: {e}", f"Not recorded: {e}")
+            except PermissionError as e:
+                return _err(403, str(e), str(e))
+            return {"ok": True, **res}
+        return await asyncio.to_thread(work)
+
+    def _preview(store, owner, ls: dict) -> Optional[dict]:
+        """Bản xem trước của đề xuất làn P: câu cũ và câu mới của CÙNG một tin, dựng bằng mẫu cố định (0 model)."""
+        if ls.get("lane") != "presentation":
+            return None
+        if ls.get("key") != "notice_detail":
+            return {"kind": "ping", "from": ls.get("from_value"), "to": ls.get("to_value")}
+        for ref in (ls.get("evidence") or {}).get("reactions") or []:
+            try:
+                rid = int(str(ref).split(":", 1)[1].split("@", 1)[0])
+            except (IndexError, ValueError):
+                continue
+            rr = store.reaction_row(owner, rid)
+            if not rr:
+                continue
+            ob = store.outbox_row(int(str(rr["report_key"]).split(":", 1)[1]))
+            g = store.get(owner, rr["goal_id"])
+            if ob is None or g is None:
+                continue
+            return {"kind": "detail", "notice_kind": ob["kind"],
+                    "old": R.notice_text(g, ob["kind"], ob["payload"], {"detail": ls.get("from_value") or "full"}),
+                    "new": R.notice_text(g, ob["kind"], ob["payload"], {"detail": ls.get("to_value") or "full"})}
+        return None
+
+    @app.get("/resonance/lessons")
+    async def resonance_lessons(brain: str = "brain", agent_key: str = ""):
+        """Bài học của một trợ lý: đề xuất (kèm xem trước), đang dùng, lịch sử ngắn, thống kê phản hồi 30 ngày."""
+        root, owner = _ctx(brain)
+        if root is None:
+            return _err(404, "Không tìm thấy brain", "Brain not found")
+
+        def work():
+            if not _store_exists() or not agent_key:
+                return {"ok": True, "lessons": [], "stats": {}, "presentation": L.default_presentation()}
+            store = deps.store()
+            if store.agent_by_key(root, agent_key) is None:
+                return _err(404, "Không có trợ lý này trong brain", "No such assistant in this brain")
+            data = store.agent_lessons(owner, agent_key, alive=_alive(deps.session_store()))
+            for ls in data["lessons"]:
+                if ls["status"] == "proposed":
+                    ls["preview"] = _preview(store, owner, ls)
+                if ls["lane"] == "method":
+                    # Nhãn dịch được của cách làm và cách hiểu của mục tiêu, để mục Bài học không hiện mã thô.
+                    g = store.get(owner, ls["goal_id"])
+                    ls["to_label"] = R._t(*R._method_label(ls["to_value"]))
+                    ls["goal_label"] = (g.understanding if g else "") or ""
+            return {"ok": True, **data,
+                    "presentation": {**L.default_presentation(), **store.presentation(root, agent_key)}}
+        return await asyncio.to_thread(work)
+
+    @app.post("/resonance/lessons/{lesson_id}/decision")
+    async def resonance_lesson_decision(lesson_id: str, request: Request, brain: str = "brain"):
+        """Owner Áp dụng (làn P), Bỏ qua, hay Thu hồi một bài học. Xung đột trạng thái hay cấu hình nền đã đổi trả 409
+        kèm bài học hiện tại để giao diện vẽ lại (ví dụ đổi nút Bỏ qua thành Thu hồi khi phép thử đã áp dụng)."""
+        root, owner = _ctx(brain)
+        if root is None:
+            return _err(404, "Không tìm thấy brain", "Brain not found")
+        if not _store_exists():
+            return _err(404, "Không có bài học này", "No such lesson")
+        body = await _body(request)
+
+        def work():
+            store = deps.store()
+            exp_at = body.get("expected_updated_at")
+            try:
+                # Áp dụng kiểm lại hạn và số tin căn cứ còn sống NGAY trong giao dịch (review mã A3, P2-2).
+                res = store.lesson_decide(owner, lesson_id, str(body.get("action") or ""),
+                                          str(body.get("expected_status") or "") or None,
+                                          float(exp_at) if exp_at not in (None, "") else None,
+                                          alive=_alive(deps.session_store()))
+            except RS.ScopeError:
+                return _err(404, "Không có bài học này trong brain", "No such lesson in this brain")
+            except R.GoalRejected as e:
+                return _err(400, str(e), str(e))
+            except PermissionError as e:
+                return _err(403, str(e), str(e))
+            except (TypeError, ValueError):
+                return _err(400, "expected_updated_at không hợp lệ", "Invalid expected_updated_at")
+            if not res.get("ok"):
+                return _err(409, "Bài học đã đổi, xem lại", "The lesson changed, please review",
+                            lesson=res.get("lesson"), conflict=res.get("conflict"))
+            ls = res["lesson"]
+            return {"ok": True, "lesson": ls,
+                    "presentation": {**L.default_presentation(), **store.presentation(root, ls["agent_key"])}}
+        return await asyncio.to_thread(work)

@@ -9,7 +9,7 @@
   - Đã nối đủ: sổ đăng ký, liên kết phiên, bảng phụ, sao lưu, ngữ cảnh lượt, tool, cổng (scheduler, bàn giao, đăng, phép thử), API của chủ dự án, giao diện tối thiểu.
   - Review mã đạt ở `cc79deb2` (sau các vòng ở mục 12 đến 14). Pilot A1-1 đạt kỹ thuật và nội dung trong một kịch bản. Biên bản: `docs/dev/resonance-a1-verification.md`.
   - Hướng dẫn dùng, nâng cấp, quay về, khôi phục: `docs/dev/resonance-a1-migration.md`.
-  - Chưa gọi model, chưa merge.
+  - Chưa gọi model ở thời điểm đó. Đã phát hành 0.87.0 ngày 09/10/2026 (`fdfec7c5`).
 
 ## 0. Phạm vi
 

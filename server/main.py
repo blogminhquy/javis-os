@@ -2290,12 +2290,14 @@ resonance_api.register(app, _RESONANCE_API_DEPS)
 _RESONANCE_TICK_BUSY = [False]
 
 
-async def _resonance_notify(goal, kind, text, card="") -> bool:
-    """Báo kết quả của mục tiêu về ĐÚNG khung chat web đã giao nó, kèm một mục trong hộp thư và thẻ mục tiêu."""
+async def _resonance_notify(goal, kind, text, card="", quiet=False) -> bool:
+    """Báo kết quả của mục tiêu về ĐÚNG khung chat web đã giao nó, kèm một mục trong hộp thư và thẻ mục tiêu.
+    `quiet` (A3 làn P, chỉ cho tin không bắt buộc): tin vẫn vào khung chat và hộp thư, chỉ không rung chuông."""
     if not goal.session_id:
         return False
     ok, _err = await _notify_owner(f"{WEB_CHAT_PREFIX}{goal.session_id}", text, kind="answer",
-                                   label=localefmt.chu("Mục tiêu", "Goal"), source="resonance", card=card)
+                                   label=localefmt.chu("Mục tiêu", "Goal"), source="resonance", card=card,
+                                   quiet=bool(quiet))
     return bool(ok)
 
 
@@ -21481,6 +21483,8 @@ async def _shutdown_mcp_pool():
 
 # Route Cộng hưởng theo trợ lý (A1): đăng ký SAU route cuối để bảng route cũ giữ nguyên thứ tự.
 resonance_api.register_agents(app, _RESONANCE_API_DEPS)
+# Route học từ phản hồi (A3): reaction trên tin báo, bài học của trợ lý. Đăng ký SAU route cuối như A1.
+resonance_api.register_learning(app, _RESONANCE_API_DEPS)
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ from typing import Optional
 from config import STATE_DIR
 import resonance as R
 import resonance_heartbeat as HB
+import resonance_learning as L
 
 def call_ceiling() -> Optional[int]:
     """Trần TỔNG lượt engine cấp host của Resonance trên cả kho, đặt bằng biến môi trường
@@ -166,6 +167,38 @@ CREATE TABLE IF NOT EXISTS heartbeat_state(
   goal_id TEXT NOT NULL, revision INTEGER NOT NULL, best INTEGER NOT NULL DEFAULT -1,
   stall INTEGER NOT NULL DEFAULT 0, fails INTEGER NOT NULL DEFAULT 0, last_error TEXT NOT NULL DEFAULT '',
   open_action TEXT NOT NULL DEFAULT '', updated_at REAL NOT NULL, PRIMARY KEY(goal_id, revision));
+CREATE TABLE IF NOT EXISTS reactions(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, brain_id TEXT NOT NULL, agent_key TEXT NOT NULL,
+  agent_config_version INTEGER NOT NULL DEFAULT 0, goal_id TEXT NOT NULL, revision INTEGER NOT NULL,
+  session_id TEXT NOT NULL, message_id INTEGER NOT NULL, report_key TEXT NOT NULL, notice_kind TEXT NOT NULL,
+  presentation TEXT NOT NULL DEFAULT 'full', content_sha TEXT NOT NULL, responder TEXT NOT NULL, value TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT '', seq INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL, updated_at REAL NOT NULL,
+  UNIQUE(brain_id, session_id, message_id, responder));
+CREATE INDEX IF NOT EXISTS reactions_agent ON reactions(brain_id, agent_key, updated_at);
+CREATE TABLE IF NOT EXISTS reaction_log(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, reaction_id INTEGER NOT NULL, value TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT '', nonce TEXT NOT NULL, created_at REAL NOT NULL, UNIQUE(reaction_id, nonce));
+CREATE TABLE IF NOT EXISTS lessons(
+  id TEXT PRIMARY KEY, brain_id TEXT NOT NULL, agent_key TEXT NOT NULL, lane TEXT NOT NULL, key TEXT NOT NULL,
+  from_value TEXT NOT NULL DEFAULT '', to_value TEXT NOT NULL, base_lesson_id TEXT NOT NULL DEFAULT '',
+  scope TEXT NOT NULL, goal_id TEXT NOT NULL DEFAULT '', revision INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL,
+  status_reason TEXT NOT NULL DEFAULT '', policy_version TEXT NOT NULL, evidence_json TEXT NOT NULL DEFAULT '{}',
+  experiment_id TEXT NOT NULL DEFAULT '', expires_at REAL, decided_by TEXT NOT NULL DEFAULT '', decided_at REAL,
+  created_at REAL NOT NULL, updated_at REAL NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS lessons_active_one ON lessons(brain_id, agent_key, lane, key, goal_id, revision)
+  WHERE status='active';
+CREATE UNIQUE INDEX IF NOT EXISTS lessons_pending_one ON lessons(brain_id, agent_key, lane, key, goal_id, revision)
+  WHERE status IN ('proposed','trial_pending','trialing');
+CREATE INDEX IF NOT EXISTS lessons_experiment ON lessons(experiment_id);
+CREATE INDEX IF NOT EXISTS lessons_goal ON lessons(goal_id, lane);
+CREATE TABLE IF NOT EXISTS lesson_events(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, lesson_id TEXT NOT NULL, brain_id TEXT NOT NULL, kind TEXT NOT NULL,
+  by TEXT NOT NULL DEFAULT '', payload_json TEXT NOT NULL DEFAULT '{}', created_at REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS call_holds(
+  id TEXT PRIMARY KEY, goal_id TEXT NOT NULL, revision INTEGER NOT NULL, experiment_id TEXT NOT NULL,
+  lesson_id TEXT NOT NULL, purpose TEXT NOT NULL, status TEXT NOT NULL, action_id TEXT NOT NULL DEFAULT '',
+  gen INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL, updated_at REAL NOT NULL, UNIQUE(experiment_id, purpose));
+CREATE INDEX IF NOT EXISTS call_holds_goal ON call_holds(goal_id, status);
 CREATE INDEX IF NOT EXISTS assessments_goal_rev ON assessments(goal_id, revision, id);
 CREATE INDEX IF NOT EXISTS actions_goal_kind ON actions(goal_id, kind, revision, created_at);
 """
@@ -213,6 +246,9 @@ class AgentStateError(Exception):
 AGENT_STATUSES = ("active", "missing", "retired")
 _A1_BACKUP_SUFFIX = ".pre-a1.bak"
 _A2_BACKUP_SUFFIX = ".pre-a2.bak"
+_A3_BACKUP_SUFFIX = ".pre-a3.bak"
+# Bảng có từ A3 (0.89.0). Bản 0.88.x bỏ qua chúng; test rollback chạy mã 0.88.1 thật trên kho đã nâng.
+A3_TABLES = ("reactions", "reaction_log", "lessons", "lesson_events", "call_holds")
 # Bảng có từ A2 (0.88.0). Bản 0.87.x bỏ qua chúng; test rollback chạy mã 0.87 thật trên kho đã nâng.
 A2_TABLES = ("wake_reasons", "wake_log", "source_observations", "heartbeat_state")
 WAKE_LOG_KEEP = 200
@@ -227,6 +263,8 @@ _WAKE_TEXT = {
     "agent_changed": "xét lại đầu ra theo quyền hiện tại", "guard_recheck": "kiểm lại guard chưa xác định",
     "review": "xem lại định kỳ", "deadline": "kiểm hạn chót", "drift_recheck": "kiểm lại file bị sửa ngoài Javis",
     "guard_observe": "quan sát guard", "action_recovery": "đối soát hành động dở",
+    "method_trial": "thử một cách làm khác khi bế tắc", "method_followup": "làm sản phẩm bằng cách làm vừa học",
+    "trial_recovery": "đối soát phép thử dở",
 }
 
 
@@ -256,6 +294,7 @@ class GoalStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._backup_before("resonance_agents", _A1_BACKUP_SUFFIX)
         self._backup_before("wake_reasons", _A2_BACKUP_SUFFIX)
+        self._backup_before("lessons", _A3_BACKUP_SUFFIX)
         with closing(self._conn()) as c:
             had_goals = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='goals'").fetchone()
             had_a2 = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='wake_reasons'").fetchone()
@@ -268,6 +307,8 @@ class GoalStore:
         if had_goals and not had_a2:
             self._a2_migrate()
         self._a2_reconcile()
+        # A3: đối soát lượt giữ khi mở kho, gồm lúc nâng lại sau khi bản 0.88 đã chạy (mục 6.8).
+        self.reconcile_holds()
 
     def _backup_before(self, marker_table: str, suffix: str) -> None:
         """Lần đầu mã mới mở một kho có từ trước (chưa có bảng `marker_table`), chép nguyên kho thành
@@ -727,6 +768,8 @@ class GoalStore:
                       (goal_id, rev, intent_id or (prev["intent_id"] if prev else ""), _j(frame), reason[:500], p.by, now))
             c.execute("UPDATE goals SET revision=?, user_constraints_json=?, updated_at=? WHERE id=?",
                       (rev, _j(user_cons), now, goal_id))
+            # A3: cách làm vừa học chỉ thuộc revision cũ; lượt giữ còn `held` được trả, bài học hết phạm vi.
+            self._close_goal_holds(c, goal_id, "reframed", now, revision=int(row["revision"]))
             c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,message_ref,payload_json,by,"
                       "idempotency_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
                       (goal_id, rev, "reframe", "host", str(message_ref or ""),
@@ -1038,7 +1081,12 @@ class GoalStore:
             c.execute("UPDATE actions SET status='cancelled', receipt_json=?, lease_until=NULL, updated_at=? WHERE id=?",
                       (_j({"action_id": action_id, "status": "cancelled", "error_code": "not_run",
                            "error_detail": "lần thức bị huỷ trước khi gọi model; lượt được trả lại"}), now, action_id))
-            c.execute("UPDATE goals SET calls_used=MAX(0,calls_used-1), updated_at=? WHERE id=?", (now, gid))
+            hid = str(json.loads(a["intent_json"] or "{}").get("hold_id") or "")
+            back = c.execute("UPDATE call_holds SET status='held', action_id='', gen=gen+1, updated_at=? WHERE id=? AND "
+                             "status='attached' AND action_id=?", (now, hid, action_id)).rowcount if hid else 0
+            if not back:
+                # Lượt dùng lượt giữ (A3) thì lượt đó trở lại `held`, bộ đếm không đổi; lượt thường thì trả như A2.
+                c.execute("UPDATE goals SET calls_used=MAX(0,calls_used-1), updated_at=? WHERE id=?", (now, gid))
             c.execute("UPDATE wake_reasons SET state='pending', settled_at=NULL, settled_by='' WHERE goal_id=? AND "
                       "state='served' AND settled_by=?", (gid, action_id))
             c.execute("UPDATE wake_reasons SET state='superseded', settled_at=? WHERE goal_id=? AND origin='timer' AND "
@@ -1089,7 +1137,9 @@ class GoalStore:
         with self._Tx(self) as c:
             if self._goal_row(c, p, goal_id) is None:
                 return []
-            return self._serve(c, goal_id, ids, by, now)
+            done = self._serve(c, goal_id, ids, by, now)
+            self._settle_learning_reasons(c, goal_id, done, by, now)
+            return done
 
     @staticmethod
     def _serve(c, goal_id: str, ids, by: str, now: float) -> list:
@@ -1262,7 +1312,7 @@ class GoalStore:
 
     def set_run_state(self, p: Principal, goal_id: str, run_state: str, reason: str = "",
                       notify: Optional[str] = None, payload: Optional[dict] = None, idem: Optional[str] = None,
-                      expect_revision: Optional[int] = None) -> bool:
+                      expect_revision: Optional[int] = None, lesson: Optional[dict] = None) -> bool:
         """Đổi trạng thái chạy; `notify` là loại tin outbox ghi CÙNG giao dịch (idem chống báo lặp).
         `expect_revision` (A2): chỉ đổi khi mục tiêu còn active ở đúng revision đó (CAS); không thì không ghi gì và trả
         False, để kết quả của một lượt thuộc revision cũ không ghi đè trạng thái của revision mới."""
@@ -1285,6 +1335,9 @@ class GoalStore:
                 c.execute("INSERT OR IGNORE INTO outbox(goal_id,kind,payload_json,created_at,idem) VALUES(?,?,?,?,?)",
                           (goal_id, notify, _j({"revision": row["revision"], "reason": reason, **(payload or {})}),
                            now, idem))
+            if lesson:
+                # A3 làn M: đề xuất ghi CÙNG giao dịch với trạng thái bế tắc (thiết kế mục 6.1).
+                self._propose_method(c, row, lesson, now)
             return True
 
     def claim_lease(self, p: Principal, goal_id: str, owner: str, until: float, now: float) -> bool:
@@ -1325,7 +1378,14 @@ class GoalStore:
                 why = self._agent_block(c, p.brain_id, it.get("agent_key"), it.get("agent_config_version"))
                 if why:
                     raise AgentStateError(why)
-            if kind == "work":
+            hold = None
+            if kind == "work" and (it.get("use_hold") or it.get("require_hold")):
+                # A3 (mục 6.8): lượt làm sản phẩm, hay tin mới cùng revision TIẾP QUẢN, dùng lượt đã giữ còn hợp lệ.
+                # Mức tăng ròng 0: không giữ lượt mới nên không kiểm trần lại; lượt giữ đã tính trong calls_used.
+                hold = self._valid_hold(c, goal_id, int(revision))
+                if hold is None and it.get("require_hold"):
+                    raise ConflictError("lượt đã giữ cho lượt làm sản phẩm không còn dùng được")
+            if kind == "work" and hold is None:
                 if not _under_ceiling(c, 1):
                     return None
                 cur = c.execute("UPDATE goals SET calls_used=calls_used+1, updated_at=? WHERE id=? "
@@ -1335,9 +1395,18 @@ class GoalStore:
             seq = int(c.execute("SELECT COALESCE(MAX(seq),0) FROM actions WHERE goal_id=? AND revision=? AND kind=?",
                                 (goal_id, int(revision), kind)).fetchone()[0]) + 1
             aid = f"act_{secrets.token_hex(8)}"
+            stored = dict(intent or {})
+            stored.pop("use_hold", None)
+            stored.pop("require_hold", None)
+            if hold is not None:
+                stored["hold_id"] = hold["id"]
+                cur = c.execute("UPDATE call_holds SET status='attached', action_id=?, updated_at=? WHERE id=? AND "
+                                "status='held'", (aid, now, hold["id"]))
+                if cur.rowcount != 1:
+                    raise ConflictError("lượt đã giữ vừa bị dùng hay trả")
             c.execute("INSERT INTO actions(id,goal_id,revision,kind,seq,status,lease_until,intent_json,receipt_json,"
                       "created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                      (aid, goal_id, int(revision), kind, seq, "running", float(lease_until), _j(intent or {}), "{}",
+                      (aid, goal_id, int(revision), kind, seq, "running", float(lease_until), _j(stored), "{}",
                        now, now))
             served = []
             if kind == "work" and it.get("wake_reasons"):
@@ -1345,6 +1414,16 @@ class GoalStore:
                 # Phục vụ TRƯỚC khi hẹn phục hồi: hẹn mới cùng nghĩa vụ thay hẹn đang chờ, không được thay luôn hẹn
                 # thử lại vừa mở lượt này (nó phải mang dấu `settled_by` của lượt để huỷ lượt trả lại được).
                 served = self._serve(c, goal_id, it["wake_reasons"], aid, now)
+            if hold is not None:
+                # Lý do làm sản phẩm của lượt giữ này (ngoài ảnh chụp) được phục vụ BỞI lượt đã nhận nó, nên huỷ lượt
+                # trước engine trả cả lý do đó về chờ (abort_action theo `settled_by`).
+                extra = [int(r["id"]) for r in c.execute(
+                    "SELECT id FROM wake_reasons WHERE goal_id=? AND code='method_followup' AND state='pending' AND "
+                    "source_ref LIKE ?", (goal_id, f"hold:{hold['id']}:%")).fetchall()]
+                served = list(served) + self._serve(c, goal_id, extra, aid, now)
+            if served:
+                self._settle_learning_reasons(c, goal_id, served, aid, now,
+                                              attached_hold=hold["id"] if hold is not None else "")
             if wake:
                 # Lượt việc: `recovery` (thử lại tự động, theo trần). Hành động khác (đăng sản phẩm): `action_recovery`,
                 # chỉ để đối soát bằng code, KHÔNG bao giờ mở lượt model và không chiếm nghĩa vụ thử lại.
@@ -1358,13 +1437,14 @@ class GoalStore:
                     st = dict(st, best=-1, stall=0, fails=0, last_error="")
                 self._hb_save(c, dict(st, open_action=aid), now)
             return {"id": aid, "goal_id": goal_id, "revision": int(revision), "kind": kind, "seq": seq,
-                    "served": served}
+                    "served": served, "hold_id": hold["id"] if hold is not None else ""}
 
     # ───────────── phép thử cải thiện (M5) ─────────────
 
     def begin_experiment(self, p: Principal, goal_id: str, revision: int, baseline_ref: str, candidate_ref: str,
                          calls: int, explore_cap: int, payload: dict, now: Optional[float] = None,
-                         agent: Optional[dict] = None) -> Optional[str]:
+                         agent: Optional[dict] = None, lesson_id: Optional[str] = None,
+                         wake_reasons: Optional[list] = None) -> Optional[str]:
         """Ghi phép thử và giữ chỗ TOÀN BỘ lượt gọi nó cần trong CÙNG giao dịch: trong hạn mức chung của mục tiêu và
         trong phần dành cho khám phá. Không đủ thì trả None, không ghi gì (không tạo phép thử).
 
@@ -1387,14 +1467,32 @@ class GoalStore:
                     raise AgentStateError(why)
             if row["status"] != "active" or int(row["revision"]) != int(revision):
                 return None
-            if not _under_ceiling(c, calls):
+            # A3 (mục 6.3, 6.4): phép thử của một bài học giữ thêm MỘT lượt làm sản phẩm và đòi ngân sách trọn vòng
+            # (phép thử, lượt sản phẩm, lượt dự phòng), kiểm trong cùng giao dịch giữ chỗ.
+            hold = L.FOLLOWUP_CALLS if lesson_id else 0
+            reserve = int(HB.POLICY["AUTO_RESERVE_CALLS"]) if lesson_id else 0
+            if lesson_id:
+                ls = c.execute("SELECT * FROM lessons WHERE id=? AND brain_id=?", (lesson_id, p.brain_id)).fetchone()
+                if ls is None or ls["status"] != "trial_pending" or ls["goal_id"] != goal_id or \
+                        int(ls["revision"]) != int(revision):
+                    return None
+            if not _under_ceiling(c, calls + hold):
                 return None
             cur = c.execute("UPDATE goals SET calls_used=calls_used+?, explore_used=explore_used+?, updated_at=? "
                             "WHERE id=? AND calls_used+?<=budget_calls AND explore_used+?<=?",
-                            (calls, calls, now, goal_id, calls, calls, int(explore_cap)))
+                            (calls + hold, calls, now, goal_id, calls + hold + reserve, calls, int(explore_cap)))
             if cur.rowcount != 1:
                 return None
             eid = _nid("exp")
+            if lesson_id:
+                if not self._lesson_move(c, lesson_id, ("trial_pending",), "trialing", "trial_started", "host", now,
+                                         experiment_id=eid):
+                    raise ConflictError("bài học không còn chờ thử")
+                c.execute("INSERT INTO call_holds(id,goal_id,revision,experiment_id,lesson_id,purpose,status,created_at,"
+                          "updated_at) VALUES(?,?,?,?,?,?,?,?,?)", (_nid("hold"), goal_id, int(revision), eid, lesson_id,
+                                                                  "method_followup", "held", now, now))
+                if wake_reasons:
+                    self._serve(c, goal_id, wake_reasons, f"trial:{eid}", now)
             c.execute("INSERT INTO experiments(id,goal_id,revision,baseline_ref,candidate_ref,status,calls_reserved,"
                       "payload_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
                       (eid, goal_id, int(revision), baseline_ref, candidate_ref, "running", calls, _j(payload or {}),
@@ -1435,16 +1533,27 @@ class GoalStore:
             if r["status"] != "running":
                 return {"finished": False, "verdict": r["verdict"], "reason": r["reason"], "applied": False}
             applied, detail = False, ""
+            # A3 (mục 6.4): bài học gắn phép thử này (nếu có). Trạng thái của nó được kiểm NGAY TRONG giao dịch chốt,
+            # trước khi đổi cách làm: owner Bỏ qua commit trước thì áp dụng thua.
+            ls = c.execute("SELECT * FROM lessons WHERE experiment_id=? AND lane='method'", (experiment_id,)).fetchone()
             if apply and verdict == "eligible":
                 row = c.execute("SELECT * FROM goals WHERE id=?", (r["goal_id"],)).fetchone()
                 why = self._method_change_blocked(c, row, int(r["revision"]), r["baseline_ref"], experiment_id)
                 if why:
                     detail = why[1]
                     verdict, reason = "inconclusive", why[0]
+                elif ls is not None and not self._lesson_move(c, ls["id"], ("trialing",), "active", "trial_eligible",
+                                                              "host", now):
+                    now_status = c.execute("SELECT status FROM lessons WHERE id=?", (ls["id"],)).fetchone()[0]
+                    detail = f"bài học đã {now_status}"
+                    verdict, reason = "inconclusive", "lesson_dismissed"
                 else:
                     self._set_method(c, p, row, r["baseline_ref"], r["candidate_ref"], int(r["revision"]),
                                      experiment_id, now)
                     applied = True
+            if ls is not None and not applied:
+                self._lesson_move(c, ls["id"], ("trialing",), "rejected" if verdict == "rejected" else "unknown",
+                                  reason, "host", now)
             old = json.loads(r["payload_json"] or "{}")
             extra = {"stop_detail": detail} if detail else {}
             c.execute("UPDATE experiments SET status='finished', verdict=?, reason=?, payload_json=?, applied=?, "
@@ -1454,6 +1563,13 @@ class GoalStore:
             if n:
                 c.execute("UPDATE goals SET calls_used=MAX(0,calls_used-?), explore_used=MAX(0,explore_used-?) "
                           "WHERE id=?", (n, n, r["goal_id"]))
+            for h in c.execute("SELECT * FROM call_holds WHERE experiment_id=? AND status='held'",
+                               (experiment_id,)).fetchall():
+                if applied:
+                    # Lượt làm sản phẩm bằng cách mới: một lý do sự kiện, chạy đúng một lần (mục 6.5).
+                    self._rearm_hold(c, h, now)
+                else:
+                    self._release_hold(c, h, f"trial_{reason}"[:40], now)
             c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
                       "VALUES(?,?,?,?,?,?,?)", (r["goal_id"], r["revision"], "experiment_finished", "host",
                                                 _j({"experiment_id": experiment_id, "verdict": verdict,
@@ -1595,6 +1711,13 @@ class GoalStore:
                       "VALUES(?,?,?,?,?,?,?)", (goal_id, row["revision"], "method_reverted", "owner",
                                                 _j({"from": row["method_ref"], "to": prev,
                                                     "seen_revision": seen_revision}), p.by, now))
+            # A3: bài học đang dùng cho cách làm vừa bỏ thành `revoked`; lượt giữ còn `held` được trả (mục 6.7).
+            for ls in c.execute("SELECT id FROM lessons WHERE goal_id=? AND lane='method' AND status='active' AND "
+                                "to_value=?", (goal_id, row["method_ref"])).fetchall():
+                for h in c.execute("SELECT * FROM call_holds WHERE lesson_id=? AND status='held'",
+                                   (ls["id"],)).fetchall():
+                    self._release_hold(c, h, "owner_revert", now)
+                self._lesson_move(c, ls["id"], ("active",), "revoked", "owner_revert", p.by, now)
             row2 = c.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone()
             return R.effective_method(self._record(c, row2))
 
@@ -1635,6 +1758,11 @@ class GoalStore:
                 raise ScopeError("hành động không tồn tại trong brain này")
             c.execute("UPDATE actions SET status=?, receipt_json=?, lease_until=NULL, updated_at=? WHERE id=?",
                       (status, _j(receipt or {}), time.time(), action_id))
+            if not (status == "cancelled" and str((receipt or {}).get("error_code") or "") == "not_run"):
+                # A3: action dùng lượt giữ đã chốt với kết quả mà model có thể đã chạy: lượt giữ thành `used`, không
+                # bao giờ được cấp lại (mục 6.8).
+                c.execute("UPDATE call_holds SET status='used', updated_at=? WHERE action_id=? AND status='attached'",
+                          (time.time(), action_id))
 
     @staticmethod
     def _action(r) -> dict:
@@ -1934,6 +2062,7 @@ class GoalStore:
                             (status, now, goal_id, p.brain_id, int(expected_revision)))
             if cur.rowcount != 1:
                 return False
+            self._close_goal_holds(c, goal_id, "goal_closed", now)
             c.execute("DELETE FROM wakeups WHERE goal_id=?", (goal_id,))
             # Mục tiêu kết thúc không nhận sự kiện nữa: bỏ lý do thức (A2 mục 6). Sổ thức giữ để xem lại.
             c.execute("DELETE FROM wake_reasons WHERE goal_id=?", (goal_id,))
@@ -2033,6 +2162,7 @@ class GoalStore:
                 return False
             c.execute("UPDATE goals SET status='cancelled', run_state='dormant', block_reason='', updated_at=? "
                       "WHERE id=?", (now, goal_id))
+            self._close_goal_holds(c, goal_id, "goal_closed", now)
             c.execute("DELETE FROM wakeups WHERE goal_id=?", (goal_id,))
             c.execute("DELETE FROM wake_reasons WHERE goal_id=?", (goal_id,))
             c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
@@ -2117,6 +2247,7 @@ class GoalStore:
             c.execute("INSERT INTO goal_revisions VALUES(?,?,?,?,?,?,?)",
                       (goal_id, rev, prev["intent_id"] if prev else "", _j(fr), f"người dùng bỏ {field}", p.by, now))
             unblock = field == "guard" and row["block_reason"] in ("guard", "guard_unknown")
+            self._close_goal_holds(c, goal_id, "reframed", now, revision=int(row["revision"]))
             c.execute("UPDATE goals SET revision=?, user_constraints_json=?, updated_at=?"
                       + (", run_state='ready', block_reason=''" if unblock else "") + " WHERE id=?",
                       (rev, _j(user_cons), now, goal_id))
@@ -2134,3 +2265,565 @@ class GoalStore:
             elif unblock:
                 self._reason_timer(c, goal_id, p.brain_id, "guard_observe", now + R.GUARD_OBSERVE_S, rev, now)
             return self._record(c, c.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone())
+
+    # ═══════════════════ A3: phản hồi, bài học, sổ giữ lượt ═══════════════════
+    #
+    # Thiết kế: docs/superpowers/specs/2026-10-09-resonance-a3-feedback-learning-design.md (mục 5 tới 7). Reaction không
+    # mở lượt model và không đổi lịch; bài học có nguồn, phạm vi, trạng thái và đường thu hồi; lượt giữ cho lượt làm
+    # sản phẩm có vòng đời held -> attached -> used, hay -> released đúng một lần (mục 6.8).
+
+    @staticmethod
+    def _lesson(r) -> dict:
+        d = dict(r)
+        d["evidence"] = json.loads(d.pop("evidence_json", None) or "{}")
+        return d
+
+    @staticmethod
+    def _lesson_event(c, lesson_id: str, brain_id: str, kind: str, by: str, payload: dict, now: float) -> None:
+        c.execute("INSERT INTO lesson_events(lesson_id,brain_id,kind,by,payload_json,created_at) VALUES(?,?,?,?,?,?)",
+                  (lesson_id, brain_id, kind, str(by or ""), _j(payload or {}), float(now)))
+
+    @classmethod
+    def _lesson_move(cls, c, lesson_id: str, from_statuses: tuple, to: str, reason: str, by: str, now: float,
+                     **cols) -> bool:
+        """Đổi trạng thái bài học bằng CAS trên tập trạng thái nguồn. Trả True khi đổi được đúng một dòng."""
+        marks = ",".join("?" for _ in from_statuses)
+        sets = "".join(f", {k}=?" for k in cols)
+        cur = c.execute(f"UPDATE lessons SET status=?, status_reason=?, updated_at=?{sets} WHERE id=? AND "
+                        f"status IN ({marks})", (to, str(reason or "")[:80], float(now), *cols.values(), lesson_id,
+                                                 *from_statuses))
+        if cur.rowcount != 1:
+            return False
+        r = c.execute("SELECT brain_id FROM lessons WHERE id=?", (lesson_id,)).fetchone()
+        cls._lesson_event(c, lesson_id, r["brain_id"], to, by, {"reason": reason, "from": list(from_statuses)}, now)
+        return True
+
+    def _insert_lesson(self, c, brain_id: str, agent_key: str, lane: str, key: str, from_value: str, to_value: str,
+                       status: str, now: float, *, reason: str = "", scope: str = "agent", goal_id: str = "",
+                       revision: int = 0, evidence: Optional[dict] = None, base_lesson_id: str = "",
+                       expires_at: Optional[float] = None) -> Optional[str]:
+        """Ghi một đề xuất hay bài học. Chỉ mục `lessons_pending_one` giữ tối đa một đề xuất chờ mỗi khoá và phạm vi:
+        đã có thì không ghi (trả None), kể cả khi chạy lại sau khởi động lại."""
+        lid = _nid("ls")
+        try:
+            c.execute("INSERT INTO lessons(id,brain_id,agent_key,lane,key,from_value,to_value,base_lesson_id,scope,"
+                      "goal_id,revision,status,status_reason,policy_version,evidence_json,expires_at,created_at,"
+                      "updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      (lid, brain_id, agent_key, lane, key, from_value, to_value, base_lesson_id, scope, goal_id,
+                       int(revision), status, str(reason or "")[:80], L.POLICY_VERSION, _j(evidence or {}),
+                       expires_at, now, now))
+        except sqlite3.IntegrityError:
+            return None
+        self._lesson_event(c, lid, brain_id, status, "host", {"reason": reason, "key": key, "to": to_value}, now)
+        return lid
+
+    # ───────────── sổ giữ lượt ─────────────
+
+    def _hold_valid(self, c, h) -> str:
+        """Rỗng khi lượt giữ còn dùng được cho lượt làm sản phẩm; không thì lý do (mục 6.8)."""
+        g = c.execute("SELECT * FROM goals WHERE id=?", (h["goal_id"],)).fetchone()
+        if g is None or g["status"] != "active":
+            return "goal_closed"
+        if int(g["revision"]) != int(h["revision"]):
+            return "reframed"
+        e = c.execute("SELECT status, applied FROM experiments WHERE id=?", (h["experiment_id"],)).fetchone()
+        if e is None or e["status"] != "finished" or not e["applied"]:
+            return "not_applied"
+        ls = c.execute("SELECT status, to_value FROM lessons WHERE id=?", (h["lesson_id"],)).fetchone()
+        if ls is None or ls["status"] != "active":
+            return "lesson_" + (ls["status"] if ls else "missing")
+        if R.effective_method(self._record(c, g)) != ls["to_value"]:
+            return "reverted_outside"
+        return ""
+
+    def _valid_hold(self, c, goal_id: str, revision: int):
+        for h in c.execute("SELECT * FROM call_holds WHERE goal_id=? AND revision=? AND status='held' ORDER BY "
+                           "created_at", (goal_id, int(revision))).fetchall():
+            if not self._hold_valid(c, h):
+                return h
+        return None
+
+    def _method_notice(self, c, experiment_id: str, extra: dict, now: float) -> None:
+        """Tin `goal.method_changed` (bắt buộc), một lần mỗi phép thử: sau lượt làm sản phẩm, hay khi lượt giữ bị trả
+        trước khi chạy. Chỉ cho phép thử đã áp dụng."""
+        e = c.execute("SELECT * FROM experiments WHERE id=?", (experiment_id,)).fetchone()
+        if e is None or not e["applied"]:
+            return
+        g = c.execute("SELECT revision FROM goals WHERE id=?", (e["goal_id"],)).fetchone()
+        pay = json.loads(e["payload_json"] or "{}")
+        cases = [{"case_id": r.get("case_id"), "split": r.get("split"),
+                  "baseline": (r.get("baseline") or {}).get("verdict"),
+                  "candidate": (r.get("candidate") or {}).get("verdict")} for r in pay.get("results") or []]
+        c.execute("INSERT OR IGNORE INTO outbox(goal_id,kind,payload_json,created_at,idem) VALUES(?,?,?,?,?)",
+                  (e["goal_id"], "goal.method_changed",
+                   _j({"revision": int(g["revision"]) if g else int(e["revision"]), "experiment_id": experiment_id,
+                       "from": e["baseline_ref"], "to": e["candidate_ref"], "cases": cases,
+                       "trial_calls": int(e["calls_reserved"]), **(extra or {})}), now,
+                   f"method_changed:{experiment_id}"))
+
+    def _release_hold(self, c, h, why: str, now: float) -> bool:
+        """Trả lượt giữ ĐÚNG một lần (CAS held -> released) và trừ bộ đếm; chốt lý do làm sản phẩm còn chờ của nó."""
+        cur = c.execute("UPDATE call_holds SET status='released', updated_at=? WHERE id=? AND status='held'",
+                        (float(now), h["id"]))
+        if cur.rowcount != 1:
+            return False
+        c.execute("UPDATE goals SET calls_used=MAX(0,calls_used-1), updated_at=? WHERE id=?", (float(now), h["goal_id"]))
+        c.execute("UPDATE wake_reasons SET state='superseded', settled_at=?, settled_by=? WHERE goal_id=? AND "
+                  "code='method_followup' AND state='pending' AND source_ref LIKE ?",
+                  (float(now), f"hold_released:{why}"[:80], h["goal_id"], f"hold:{h['id']}:%"))
+        self._method_notice(c, h["experiment_id"], {"result": "not_run", "reason": why}, now)
+        self._recompute_wake(c, h["goal_id"])
+        return True
+
+    def _rearm_hold(self, c, h, now: float) -> None:
+        gen = int(h["gen"]) + 1
+        cur = c.execute("UPDATE call_holds SET gen=?, updated_at=? WHERE id=? AND status='held' AND gen=?",
+                        (gen, float(now), h["id"], int(h["gen"])))
+        if cur.rowcount != 1:
+            return
+        g = c.execute("SELECT brain_id FROM goals WHERE id=?", (h["goal_id"],)).fetchone()
+        self._reason_event(c, h["goal_id"], g["brain_id"], "method_followup", f"hold:{h['id']}:{gen}",
+                           int(h["revision"]), due_at=float(now))
+
+    def _relabel_lesson(self, c, h, why: str, now: float) -> None:
+        """Bài học làn M được ghi lại theo sự thật M5 khi lượt giữ không còn hợp lệ (ví dụ bản cũ đã quay lại cách cũ
+        hay sửa cách hiểu trong lúc chạy)."""
+        if why == "reframed":
+            self._lesson_move(c, h["lesson_id"], ("active",), "out_of_scope", "reframed", "host", now)
+        elif why == "reverted_outside":
+            self._lesson_move(c, h["lesson_id"], ("active",), "revoked", "reverted_outside", "host", now)
+
+    def _close_goal_holds(self, c, goal_id: str, why: str, now: float, revision: Optional[int] = None) -> None:
+        """Mục tiêu kết thúc, bị huỷ, hay sang revision mới: trả mọi lượt giữ còn `held` (lượt đang gắn action thì để
+        đối soát sau khi action chốt), bỏ đề xuất làn M đang chờ, ghi bài học đang dùng là hết phạm vi."""
+        extra, args = ("", ()) if revision is None else (" AND revision=?", (int(revision),))
+        for h in c.execute(f"SELECT * FROM call_holds WHERE goal_id=? AND status='held'{extra}",
+                           (goal_id, *args)).fetchall():
+            self._release_hold(c, h, why, now)
+        for ls in c.execute(f"SELECT id, status FROM lessons WHERE goal_id=? AND lane='method' AND status IN "
+                            f"('trial_pending','active'){extra}", (goal_id, *args)).fetchall():
+            if ls["status"] == "trial_pending":
+                self._lesson_move(c, ls["id"], ("trial_pending",), "skipped", why, "host", now)
+            elif why == "reframed":
+                self._lesson_move(c, ls["id"], ("active",), "out_of_scope", why, "host", now)
+
+    def _settle_learning_reasons(self, c, goal_id: str, ids, by: str, now: float, attached_hold: str = "") -> None:
+        """Lý do `method_followup` hay `method_trial` vừa được phục vụ bởi một đường KHÔNG dùng nó: trả lượt giữ (lượt
+        sản phẩm không còn cần) hay bỏ đề xuất phép thử, trong cùng giao dịch phục vụ. Nhờ vậy lượt giữ `held` luôn đi
+        kèm một lý do đang chờ, trừ khi bản cũ đã phục vụ lý do đó (đối soát dựng lại, mục 6.8)."""
+        ids = [int(i) for i in (ids or ())]
+        if not ids:
+            return
+        marks = ",".join("?" for _ in ids)
+        for r in c.execute(f"SELECT code, source_ref FROM wake_reasons WHERE goal_id=? AND id IN ({marks}) AND code IN "
+                           "('method_followup','method_trial')", (goal_id, *ids)).fetchall():
+            ref = str(r["source_ref"] or "")
+            if r["code"] == "method_followup" and ref.startswith("hold:"):
+                hid = ref.split(":")[1]
+                if hid != attached_hold:
+                    h = c.execute("SELECT * FROM call_holds WHERE id=?", (hid,)).fetchone()
+                    if h is not None and h["status"] == "held":
+                        self._release_hold(c, h, f"served:{by}"[:60], now)
+            elif r["code"] == "method_trial" and ref.startswith("lesson:") and not str(by).startswith("trial:"):
+                why = ("new_feedback" if str(by).startswith("act_") else
+                       str(by)[len("trial_"):][:40] if str(by).startswith("trial_") else str(by)[:40])
+                self._lesson_move(c, ref.split(":", 1)[1], ("trial_pending",), "skipped", why, "host", now)
+
+    def _reconcile_hold(self, c, h, now: float) -> int:
+        """Một dòng của bảng đối soát mục 6.8. Tôn trọng việc đang chạy: action còn `running` và phép thử còn `running`
+        được để nguyên (đối soát A2 chốt chúng khi khoá lượt đã hết). Mỗi bước là CAS nên chạy lặp không trả hai lần."""
+        if h["status"] == "attached":
+            a = c.execute("SELECT status, receipt_json FROM actions WHERE id=?", (h["action_id"],)).fetchone()
+            if a is not None and a["status"] == "running":
+                return 0
+            code = str(json.loads(a["receipt_json"] or "{}").get("error_code") or "") if a is not None else "not_run"
+            if a is None or (a["status"] == "cancelled" and code == "not_run"):
+                c.execute("UPDATE call_holds SET status='held', action_id='', gen=gen+1, updated_at=? WHERE id=? AND "
+                          "status='attached' AND action_id=?", (float(now), h["id"], h["action_id"]))
+                h = c.execute("SELECT * FROM call_holds WHERE id=?", (h["id"],)).fetchone()
+            else:
+                c.execute("UPDATE call_holds SET status='used', updated_at=? WHERE id=? AND status='attached' AND "
+                          "action_id=?", (float(now), h["id"], h["action_id"]))
+                return 1
+        if h["status"] != "held":
+            return 0
+        e = c.execute("SELECT status FROM experiments WHERE id=?", (h["experiment_id"],)).fetchone()
+        if e is not None and e["status"] == "running":
+            return 0
+        why = self._hold_valid(c, h)
+        if why:
+            self._relabel_lesson(c, h, why, now)
+            return int(self._release_hold(c, h, why, now))
+        if c.execute("SELECT 1 FROM wake_reasons WHERE goal_id=? AND code='method_followup' AND state='pending' AND "
+                     "source_ref LIKE ?", (h["goal_id"], f"hold:{h['id']}:%")).fetchone():
+            return 0
+        self._rearm_hold(c, h, now)
+        return 1
+
+    def reconcile_holds(self, p: Optional[Principal] = None, goal_id: Optional[str] = None,
+                        now: Optional[float] = None) -> int:
+        """Đối soát lượt giữ (mục 6.8): khi mở kho (mọi dòng `held`/`attached`, gồm lúc nâng lại từ 0.88) và trong pha
+        chuẩn bị của mỗi lần thức (chỉ mục tiêu đó). Không có vòng quét nền. Trả số dòng đã đổi."""
+        now = time.time() if now is None else float(now)
+        n = 0
+        with self._Tx(self) as c:
+            q = ("SELECT h.* FROM call_holds h JOIN goals g ON g.id=h.goal_id WHERE h.status IN ('held','attached')")
+            args: list = []
+            if goal_id is not None:
+                q += " AND h.goal_id=?"
+                args.append(goal_id)
+            if p is not None:
+                q += " AND g.brain_id=?"
+                args.append(p.brain_id)
+            for h in c.execute(q + " ORDER BY h.created_at", args).fetchall():
+                n += self._reconcile_hold(c, h, now)
+            # Lý do làm sản phẩm còn chờ mà lượt giữ của nó đã dùng hay đã trả: chốt, không chạy.
+            q2 = "SELECT r.id, r.goal_id, r.source_ref FROM wake_reasons r JOIN goals g ON g.id=r.goal_id WHERE " \
+                 "r.code='method_followup' AND r.state='pending'"
+            args2: list = []
+            if goal_id is not None:
+                q2 += " AND r.goal_id=?"
+                args2.append(goal_id)
+            if p is not None:
+                q2 += " AND g.brain_id=?"
+                args2.append(p.brain_id)
+            for r in c.execute(q2, args2).fetchall():
+                parts = str(r["source_ref"] or "").split(":")
+                h = c.execute("SELECT status FROM call_holds WHERE id=?", (parts[1] if len(parts) > 1 else "",)).fetchone()
+                if h is None or h["status"] in ("used", "released"):
+                    c.execute("UPDATE wake_reasons SET state='superseded', settled_at=?, settled_by='hold_closed' "
+                              "WHERE id=? AND state='pending'", (now, r["id"]))
+                    self._recompute_wake(c, r["goal_id"])
+                    n += 1
+        return n
+
+    def holds(self, p: Principal, goal_id: str) -> list:
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return []
+            return [dict(r) for r in c.execute("SELECT * FROM call_holds WHERE goal_id=? ORDER BY created_at",
+                                               (goal_id,)).fetchall()]
+
+    # ───────────── làn M: đề xuất khi bế tắc ─────────────
+
+    def _propose_method(self, c, row, lesson: dict, now: float) -> Optional[str]:
+        """Ghi đề xuất làn M trong giao dịch ghi `waiting/stalled` (mục 6.1). `trial_pending` kèm lý do thức
+        `method_trial`; `skipped` chỉ để người dùng thấy vì sao không thử."""
+        gkey = self._goal_agent(c, row["id"])
+        if not gkey:
+            return None
+        lid = self._insert_lesson(c, row["brain_id"], gkey, "method", "method", str(lesson.get("from_value") or ""),
+                                  str(lesson.get("to_value") or ""), str(lesson.get("status") or "skipped"), now,
+                                  reason=str(lesson.get("status_reason") or ""), scope="goal_revision",
+                                  goal_id=row["id"], revision=int(row["revision"]),
+                                  evidence=dict(lesson.get("evidence") or {}))
+        if lid and lesson.get("status") == "trial_pending":
+            self._reason_event(c, row["id"], row["brain_id"], "method_trial", f"lesson:{lid}", int(row["revision"]),
+                               due_at=now)
+        return lid
+
+    def method_lessons(self, p: Principal, goal_id: str, revision: Optional[int] = None) -> list:
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return []
+            q, args = "SELECT * FROM lessons WHERE goal_id=? AND lane='method'", [goal_id]
+            if revision is not None:
+                q += " AND revision=?"
+                args.append(int(revision))
+            return [self._lesson(r) for r in c.execute(q + " ORDER BY created_at", args).fetchall()]
+
+    def lesson(self, p: Principal, lesson_id: str) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT * FROM lessons WHERE id=? AND brain_id=?", (lesson_id, p.brain_id)).fetchone()
+            return self._lesson(r) if r else None
+
+    # ───────────── làn P: reaction và bài học trình bày ─────────────
+
+    def presentation(self, brain_id: str, agent_key: str) -> dict:
+        """Cách trình bày có hiệu lực của một trợ lý: {khoá: giá trị} của bài học `active` (thiếu khoá là mặc định)."""
+        if not agent_key:
+            return {}
+        with closing(self._conn()) as c:
+            return {r["key"]: r["to_value"] for r in c.execute(
+                "SELECT key, to_value FROM lessons WHERE brain_id=? AND agent_key=? AND lane='presentation' AND "
+                "status='active'", (brain_id, agent_key)).fetchall()}
+
+    def outbox_row(self, outbox_id: int) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT o.*, g.brain_id FROM outbox o JOIN goals g ON g.id=o.goal_id WHERE o.id=?",
+                          (int(outbox_id),)).fetchone()
+            if r is None:
+                return None
+            d = dict(r)
+            d["payload"] = json.loads(d.pop("payload_json") or "{}")
+            return d
+
+    def outbox_note_presentation(self, outbox_id: int, presentation: dict) -> None:
+        """Ghi cách dựng tin đã dùng vào payload outbox (cột cũ, chỉ đổi nội dung JSON), để đề xuất quay lại biết tin
+        nào là bản rút gọn."""
+        with self._Tx(self) as c:
+            r = c.execute("SELECT payload_json FROM outbox WHERE id=?", (int(outbox_id),)).fetchone()
+            if r is None:
+                return
+            pay = json.loads(r["payload_json"] or "{}")
+            pay["presentation"] = dict(presentation or {})
+            c.execute("UPDATE outbox SET payload_json=? WHERE id=?", (_j(pay), int(outbox_id)))
+
+    def _reaction_rows(self, c, brain_id: str, agent_key: str, alive, now: float) -> list:
+        lo = float(now) - float(L.POLICY["P_WINDOW_S"])
+        out = []
+        for r in c.execute("SELECT * FROM reactions WHERE brain_id=? AND agent_key=? AND updated_at>=?",
+                           (brain_id, agent_key, lo)).fetchall():
+            ok = True
+            if alive is not None:
+                try:
+                    ok = bool(alive(r["session_id"], int(r["message_id"]), r["content_sha"]))
+                except Exception:  # noqa: BLE001 - không đọc được kho tin thì không đếm (mồ côi), không đoán
+                    ok = False
+            out.append({"message": f"{r['session_id']}:{r['message_id']}", "notice_kind": r["notice_kind"],
+                        "presentation": r["presentation"], "value": r["value"], "reason": r["reason"], "alive": ok,
+                        "updated_at": r["updated_at"], "ref": f"reaction:{r['id']}@{r['seq']}",
+                        "content_sha": r["content_sha"]})
+        return out
+
+    def _expire_proposals(self, c, brain_id: str, agent_key: str, rows: list, now: float) -> None:
+        for ls in c.execute("SELECT * FROM lessons WHERE brain_id=? AND agent_key=? AND lane='presentation' AND "
+                            "status='proposed'", (brain_id, agent_key)).fetchall():
+            if ls["expires_at"] is not None and float(ls["expires_at"]) <= float(now):
+                self._lesson_move(c, ls["id"], ("proposed",), "expired", "ttl", "host", now)
+            elif not L.still_supported(dict(ls), rows, now):
+                self._lesson_move(c, ls["id"], ("proposed",), "expired", "evidence_gone", "host", now)
+
+    def _learn_presentation(self, c, brain_id: str, agent_key: str, alive, now: float) -> Optional[str]:
+        """Bộ học làn P chạy bằng code trong giao dịch ghi reaction. Chỉ ĐỀ XUẤT; không áp dụng, không gọi model,
+        không đụng lịch. Trợ lý không active hay đang tắt thì không đề xuất."""
+        rows = self._reaction_rows(c, brain_id, agent_key, alive, now)
+        self._expire_proposals(c, brain_id, agent_key, rows, now)
+        ag = c.execute("SELECT status, enabled FROM resonance_agents WHERE agent_key=? AND brain_id=?",
+                       (agent_key, brain_id)).fetchone()
+        if ag is None or ag["status"] != "active" or not ag["enabled"]:
+            return None
+        act = {r["key"]: r for r in c.execute("SELECT * FROM lessons WHERE brain_id=? AND agent_key=? AND "
+                                              "lane='presentation' AND status='active'", (brain_id, agent_key))}
+        pend = [r["key"] for r in c.execute("SELECT key FROM lessons WHERE brain_id=? AND agent_key=? AND "
+                                            "lane='presentation' AND status='proposed'", (brain_id, agent_key))]
+        # Bỏ qua và Thu hồi của chủ đều chặn đề xuất lại cùng (khoá, giá trị) trong thời gian chờ (learning.v2).
+        dism = [{"key": r["key"], "to_value": r["to_value"], "decided_at": r["decided_at"] or r["updated_at"],
+                 "status": r["status"]}
+                for r in c.execute("SELECT * FROM lessons WHERE brain_id=? AND agent_key=? AND lane='presentation' AND "
+                                   "status IN ('dismissed','revoked')", (brain_id, agent_key))]
+        prop = L.propose(rows, {k: r["to_value"] for k, r in act.items()}, pend, dism, now)
+        if prop is None:
+            return None
+        base = act.get(prop["key"])
+        return self._insert_lesson(c, brain_id, agent_key, "presentation", prop["key"], prop["from_value"],
+                                   prop["to_value"], "proposed", now, reason="reactions",
+                                   evidence={"reactions": prop["evidence"]},
+                                   base_lesson_id=base["id"] if base is not None else "",
+                                   expires_at=float(now) + float(L.POLICY["P_PROPOSAL_TTL_S"]))
+
+    def record_reaction(self, p: Principal, src: dict, value: str, reason: str, nonce: str, alive=None,
+                        now: Optional[float] = None) -> dict:
+        """Ghi reaction của owner trên MỘT tin báo do host ghi (mục 3.2, 3.3). API đặt giá trị theo từng request (không
+        tự đảo); cùng `nonce` gửi lại thì không ghi gì. Không gọi `advance`, không ghi lý do thức, không đụng lịch.
+
+        `src` do host dựng từ biên nhận báo cáo: session_id, message_id, report_key, goal_id, revision, notice_kind,
+        presentation, content_sha. `alive(session_id, message_id, content_sha)` cho biết tin còn nguyên không."""
+        if p.kind != "owner":
+            raise PermissionError("chỉ người dùng mới phản hồi được")
+        value = str(value or "")
+        reason = str(reason or "") if value == "down" else ""
+        if value not in L.REACTION_VALUES:
+            raise R.GoalRejected(f"giá trị phản hồi không hỗ trợ: {value}")
+        if reason and reason not in L.REACTION_REASONS:
+            raise R.GoalRejected(f"lý do không hỗ trợ: {reason}")
+        nonce = str(nonce or "").strip()[:120]
+        if not nonce:
+            raise R.GoalRejected("thiếu nonce của lần bấm")
+        now = time.time() if now is None else float(now)
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, src["goal_id"])
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            gkey = self._goal_agent(c, row["id"])
+            ag = c.execute("SELECT * FROM resonance_agents WHERE agent_key=? AND brain_id=?",
+                           (gkey, p.brain_id)).fetchone() if gkey else None
+            if ag is None or ag["status"] == "retired":
+                raise AgentStateError("agent_retired" if ag is not None else "unassigned")
+            cur = c.execute("SELECT * FROM reactions WHERE brain_id=? AND session_id=? AND message_id=? AND "
+                            "responder=?", (p.brain_id, str(src["session_id"]), int(src["message_id"]), p.by)).fetchone()
+            if cur is not None and c.execute("SELECT 1 FROM reaction_log WHERE reaction_id=? AND nonce=?",
+                                             (cur["id"], nonce)).fetchone():
+                return {"reaction": {"value": cur["value"], "reason": cur["reason"], "seq": int(cur["seq"])},
+                        "proposal": None, "duplicate": True}
+            if cur is None:
+                rid = c.execute("INSERT INTO reactions(brain_id,agent_key,agent_config_version,goal_id,revision,"
+                                "session_id,message_id,report_key,notice_kind,presentation,content_sha,responder,value,"
+                                "reason,seq,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                                (p.brain_id, gkey, int(ag["config_version"]), row["id"], int(src["revision"]),
+                                 str(src["session_id"]), int(src["message_id"]), str(src["report_key"]),
+                                 str(src["notice_kind"]), str(src.get("presentation") or "full"),
+                                 str(src["content_sha"]), p.by, value, reason, 1, now, now)).lastrowid
+                seq = 1
+            else:
+                rid, seq = int(cur["id"]), int(cur["seq"]) + 1
+                c.execute("UPDATE reactions SET value=?, reason=?, seq=?, content_sha=?, updated_at=? WHERE id=?",
+                          (value, reason, seq, str(src["content_sha"]), now, rid))
+            c.execute("INSERT INTO reaction_log(reaction_id,value,reason,nonce,created_at) VALUES(?,?,?,?,?)",
+                      (rid, value, reason, nonce, now))
+            lid = self._learn_presentation(c, p.brain_id, gkey, alive, now)
+            prop = c.execute("SELECT * FROM lessons WHERE id=?", (lid,)).fetchone() if lid else None
+            return {"reaction": {"value": value, "reason": reason, "seq": seq},
+                    "proposal": self._lesson(prop) if prop is not None else None, "duplicate": False}
+
+    def reaction_of(self, p: Principal, session_id: str, message_id: int) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT value, reason, seq FROM reactions WHERE brain_id=? AND session_id=? AND message_id=? "
+                          "AND responder=?", (p.brain_id, str(session_id), int(message_id), p.by)).fetchone()
+            return dict(r) if r else None
+
+    def agent_lessons(self, p: Principal, agent_key: str, alive=None, now: Optional[float] = None) -> dict:
+        """Bài học của một trợ lý cho trang trợ lý: đề xuất (đã ghi bù hết hạn), đang dùng, lịch sử ngắn, bằng chứng có
+        đánh dấu mồ côi, thống kê reaction 30 ngày."""
+        now = time.time() if now is None else float(now)
+        with self._Tx(self) as c:
+            rows = self._reaction_rows(c, p.brain_id, agent_key, alive, now)
+            self._expire_proposals(c, p.brain_id, agent_key, rows, now)
+            alive_refs = {r["ref"].split("@")[0]: r["alive"] for r in rows}
+            out = []
+            for ls in c.execute("SELECT * FROM lessons WHERE brain_id=? AND agent_key=? ORDER BY updated_at DESC "
+                                "LIMIT 60", (p.brain_id, agent_key)).fetchall():
+                d = self._lesson(ls)
+                refs = (d["evidence"] or {}).get("reactions") or []
+                d["evidence_missing"] = sum(1 for x in refs if not alive_refs.get(str(x).split("@")[0], False))
+                out.append(d)
+            stats = {"up": 0, "down": 0, "too_long": 0, "too_often": 0, "unclear": 0, "orphaned": 0}
+            for r in rows:
+                if not r["alive"]:
+                    stats["orphaned"] += 1
+                    continue
+                if r["value"] in ("up", "down"):
+                    stats[r["value"]] += 1
+                if r["reason"]:
+                    stats[r["reason"]] += 1
+            return {"lessons": out, "stats": stats}
+
+    def _revert_in_tx(self, c, p: Principal, row, now: float) -> str:
+        prev = row["method_prev_ref"] or ""
+        if not prev:
+            return ""
+        c.execute("UPDATE goals SET method_ref=?, method_prev_ref='', method_revision=?, method_prev_revision=0, "
+                  "updated_at=? WHERE id=?", (prev, int(row["method_prev_revision"] or 0), now, row["id"]))
+        c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                  "VALUES(?,?,?,?,?,?,?)", (row["id"], row["revision"], "method_reverted", "owner",
+                                            _j({"from": row["method_ref"], "to": prev}), p.by, now))
+        return prev
+
+    def lesson_decide(self, p: Principal, lesson_id: str, action: str, expected_status: Optional[str] = None,
+                      expected_updated_at: Optional[float] = None, now: Optional[float] = None,
+                      alive=None) -> dict:
+        """Owner quyết một bài học (mục 5.2, 6.4, 6.7). Trả {ok, lesson} hay {ok: False, conflict, lesson}.
+
+        - apply (làn P, `proposed`): CAS đề xuất và kiểm cấu hình nền trong cùng giao dịch; nền đổi thì `stale`.
+        - dismiss (`proposed`, `trial_pending`, `trialing`): CAS theo tập trạng thái; đã `active` thì xung đột để giao
+          diện đổi sang Thu hồi.
+        - revoke (`active`): làn P về mặc định; làn M quay lại cách cũ và trả lượt giữ, cùng giao dịch."""
+        if p.kind != "owner":
+            raise PermissionError("chỉ người dùng mới quyết bài học")
+        now = time.time() if now is None else float(now)
+        with self._Tx(self) as c:
+            ls = c.execute("SELECT * FROM lessons WHERE id=? AND brain_id=?", (lesson_id, p.brain_id)).fetchone()
+            if ls is None:
+                raise ScopeError("bài học không tồn tại trong brain này")
+
+            def conflict(code: str) -> dict:
+                cur = c.execute("SELECT * FROM lessons WHERE id=?", (lesson_id,)).fetchone()
+                return {"ok": False, "conflict": code, "lesson": self._lesson(cur)}
+
+            if action == "apply":
+                if ls["lane"] != "presentation":
+                    raise R.GoalRejected("chỉ đề xuất trình bày mới áp dụng tay; cách làm chỉ áp dụng qua phép thử")
+                if ls["status"] != "proposed" or (expected_status and expected_status != ls["status"]):
+                    return conflict("status")
+                if expected_updated_at is not None and abs(float(expected_updated_at) - float(ls["updated_at"])) > 1e-6:
+                    return conflict("status")
+                # Review mã A3, P2-2: hạn và căn cứ kiểm NGAY trong giao dịch Áp dụng theo đồng hồ host, không dựa vào
+                # việc ai đó đã đọc lại danh sách. Hết hạn hay mất đủ số tin căn cứ thì `expired`, giữ cấu hình cũ.
+                if ls["expires_at"] is not None and float(ls["expires_at"]) <= float(now):
+                    self._lesson_move(c, lesson_id, ("proposed",), "expired", "ttl", "host", now)
+                    return conflict("expired")
+                if not L.still_supported(dict(ls), self._reaction_rows(c, p.brain_id, ls["agent_key"], alive, now),
+                                         now):
+                    self._lesson_move(c, lesson_id, ("proposed",), "expired", "evidence_gone", "host", now)
+                    return conflict("evidence_gone")
+                base = c.execute("SELECT * FROM lessons WHERE brain_id=? AND agent_key=? AND lane='presentation' AND "
+                                 "key=? AND status='active'", (p.brain_id, ls["agent_key"], ls["key"])).fetchone()
+                ok = (base is None and not ls["base_lesson_id"]) or (
+                    base is not None and base["id"] == ls["base_lesson_id"] and base["to_value"] == ls["from_value"])
+                if not ok:
+                    self._lesson_move(c, lesson_id, ("proposed",), "stale", "base_changed", p.by, now)
+                    return conflict("base_changed")
+                if base is not None:
+                    self._lesson_move(c, base["id"], ("active",), "superseded", f"by:{lesson_id}", p.by, now)
+                self._lesson_move(c, lesson_id, ("proposed",), "active", "owner_apply", p.by, now, decided_by=p.by,
+                                  decided_at=now)
+            elif action == "dismiss":
+                allowed = ("proposed", "trial_pending", "trialing")
+                if ls["status"] not in allowed:
+                    return conflict("status")
+                if not self._lesson_move(c, lesson_id, allowed, "dismissed", "owner_dismiss", p.by, now,
+                                         decided_by=p.by, decided_at=now):
+                    return conflict("status")
+            elif action == "revoke":
+                if ls["status"] != "active":
+                    return conflict("status")
+                if ls["lane"] == "method":
+                    row = c.execute("SELECT * FROM goals WHERE id=? AND brain_id=?", (ls["goal_id"], p.brain_id)).fetchone()
+                    if row is not None and row["method_ref"] == ls["to_value"] and \
+                            int(row["method_revision"] or 0) == int(ls["revision"]):
+                        self._revert_in_tx(c, p, row, now)
+                    for h in c.execute("SELECT * FROM call_holds WHERE lesson_id=? AND status='held'",
+                                       (lesson_id,)).fetchall():
+                        self._release_hold(c, h, "owner_revert", now)
+                self._lesson_move(c, lesson_id, ("active",), "revoked", "owner_revoke", p.by, now, decided_by=p.by,
+                                  decided_at=now)
+            else:
+                raise R.GoalRejected(f"hành động không hỗ trợ: {action}")
+            cur = c.execute("SELECT * FROM lessons WHERE id=?", (lesson_id,)).fetchone()
+            return {"ok": True, "lesson": self._lesson(cur)}
+
+    def revision_record(self, p: Principal, goal_id: str, revision: int) -> Optional[dict]:
+        """Bản ghi một revision: khung và ý định gốc (A3: dựng prompt của tình huống giữ riêng)."""
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return None
+            r = c.execute("SELECT frame_json, intent_id FROM goal_revisions WHERE goal_id=? AND revision=?",
+                          (goal_id, int(revision))).fetchone()
+            return {"frame": json.loads(r["frame_json"] or "{}"), "intent_id": r["intent_id"]} if r else None
+
+    def hold_ready(self, p: Principal, goal_id: str, revision: int) -> bool:
+        """Có lượt đã giữ còn hợp lệ cho đúng revision không (cổng ngoài giao dịch của `decide`, mục 6.8)."""
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return False
+            return self._valid_hold(c, goal_id, int(revision)) is not None
+
+    def extend_lease(self, p: Principal, goal_id: str, owner: str, until: float) -> bool:
+        """Nới hạn khoá lượt mà CHÍNH người gọi đang giữ (phép thử nhiều lượt chạy trong một lần thức)."""
+        with self._Tx(self) as c:
+            cur = c.execute("UPDATE goals SET lease_until=? WHERE id=? AND brain_id=? AND lease_owner=? AND "
+                            "lease_until<?", (float(until), goal_id, p.brain_id, owner, float(until)))
+            return cur.rowcount == 1
+
+    def method_result(self, p: Principal, hold_id: str, extra: dict) -> None:
+        """Lượt dùng lượt giữ đã xong: tin `goal.method_changed` kèm kết quả lượt làm sản phẩm (một lần mỗi phép thử)."""
+        with self._Tx(self) as c:
+            h = c.execute("SELECT h.* FROM call_holds h JOIN goals g ON g.id=h.goal_id WHERE h.id=? AND g.brain_id=?",
+                          (hold_id, p.brain_id)).fetchone()
+            if h is not None:
+                self._method_notice(c, h["experiment_id"], extra, time.time())
+
+    def reaction_row(self, p: Principal, reaction_id: int) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT * FROM reactions WHERE id=? AND brain_id=?", (int(reaction_id), p.brain_id)).fetchone()
+            return dict(r) if r else None

@@ -3600,3 +3600,22 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .rsa-wait { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-top: 1px solid var(--hairline); }
 .rsa-wait-text { font-size: 14px; color: var(--text); }
 .rsa-wait-title { margin-top: 12px; }
+
+/* Resonance A3: hàng phản hồi dưới tin báo của trợ lý (chat-resonance.js) và mục Bài học (resonance-agent.js).
+   Một cột; câu cũ và câu mới xếp dọc để đọc được trên điện thoại. */
+.rs-react { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; }
+.rs-react-q { color: var(--text3); }
+.rs-react-b {
+  font: inherit; font-size: 13px; padding: 3px 9px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--hairline); background: var(--surface-2); color: var(--text);
+}
+.rs-react-b.rs-on { border-color: var(--accent); color: var(--accent); }
+.rs-react-b:disabled { opacity: .5; cursor: default; }
+.rs-react-why { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.rs-learn { font-size: 13px; color: var(--text2); }
+.rsa-lesson { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: 1px solid var(--hairline); }
+.rsa-lesson-text { font-size: 14px; color: var(--text); }
+.rsa-pv { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.rsa-pv-label { font-size: 12px; color: var(--text3); }
+.rsa-pv-text { font-size: 13px; color: var(--text); padding: 6px 8px; border-radius: 8px; background: var(--surface-2);
+  overflow-wrap: anywhere; }
