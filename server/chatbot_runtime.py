@@ -355,11 +355,24 @@ async def anh_cho_bot(text_engine: str, meta: dict, cfg: dict) -> tuple:
                 paths.append(str(Path(saved).resolve()))
             else:
                 print(f"[chatbot] không tải được ảnh khách gửi: {why}", file=sys.stderr)
+                _ghi_ly_do_anh(cfg, f"không tải được ảnh: {why}")
         except Exception as e:      # noqa: BLE001 - a photo we cannot get must never cost the customer the reply
             print(f"[chatbot] tải ảnh lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+            _ghi_ly_do_anh(cfg, f"tải ảnh lỗi: {type(e).__name__}: {e}")
+    elif meta.get("co_anh") and not url and not paths:
+        _ghi_ly_do_anh(cfg, "tin ảnh tới mà không kèm link ảnh nào (bản Zalo đang chạy không gửi link)")
     if not paths:
         return (gan_nhan_anh(text, meta) if meta.get("co_anh") else text), []
     return (text if text.strip() else CHI_CO_ANH), paths[:vision_input.MAX_IMAGES]
+
+
+def _ghi_ly_do_anh(cfg: dict, ly_do: str) -> None:
+    """Vì sao lượt này bot không xem được ảnh khách gửi, để nhật ký bot nói ra (0.89.2). Trước đó lý do chỉ in ra stderr của
+    server: chủ thấy bot trả lời "không xem được ảnh" mà không có cách nào biết tại sao, nhất là khi bot chạy trên VPS."""
+    try:
+        cfg["_anh_loi"] = ("Bot không xem được ảnh khách gửi: " + str(ly_do))[:300]
+    except Exception:      # noqa: BLE001 - ghi lý do hỏng không được làm mất lượt
+        pass
 
 
 def _tai_lai_duoc(why: str) -> bool:
@@ -1343,6 +1356,7 @@ def _make_answer_fn(bot_id: str):
             ten_nguoi = str((meta or {}).get("user_name") or "").strip()
             if ten_nguoi:
                 text_engine = f"[{ten_nguoi}] {text}"
+        cfg.pop("_anh_loi", None)
         text_engine, cfg["_anh"] = await anh_cho_bot(text_engine, gan_anh_cho(bot_id, meta, text), cfg)
 
         # Bản ghi truyền xuống lõi phải có brain và slug - lõi dựa vào đó để đổi brain, đổi
@@ -1447,7 +1461,7 @@ def _make_answer_fn(bot_id: str):
             # nổi công cụ). Cố ý KHÔNG nhét vào `loi`: `loi` kéo theo `bi`, kéo theo gọi người
             # trực, và làm bẩn tab "Bot bí" - trong khi đây là lượt trả lời bình thường. Chủ
             # cần biết, người đang hỏi thì không cần.
-            "canh_bao": " · ".join(x for x in ((out or {}).get("canh_bao"), tl.get("canh_bao_link")) if x),
+            "canh_bao": " · ".join(x for x in ((out or {}).get("canh_bao"), tl.get("canh_bao_link"), cfg.get("_anh_loi")) if x),
         })
         # Câu bot nói (kể cả câu xin lỗi khi gãy) vào Hộp thư hội thoại, cạnh tin khách.
         ghi_tin_bot(cfg, meta or {}, dap, loi=loi_ky_thuat, files=(out or {}).get("files"))

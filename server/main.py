@@ -18873,6 +18873,12 @@ def _bot_ket(out, lich_su):
 # `claude` ngay từ `_api_stream`, nên một đường lui cũng dẫn tới đúng engine ấy là vô nghĩa.
 
 
+def _anh_khong_gui_duoc(prov) -> str:
+    """Cảnh báo cho nhật ký bot khi bộ não của bot không có đường gửi ảnh (Antigravity, Grok Build)."""
+    return (f"Bot không xem được ảnh khách gửi: bộ não {prov} của bot không nhận ảnh. Đổi model của bot sang "
+            f"Claude, ChatGPT hoặc một model API nhìn được ảnh.")
+
+
 def _bot_gan_anh(messages, prov, text, images):
     """Gắn ẢNH khách gửi vào tin user CUỐI của lượt (0.81.0). Trả (messages để gửi, True nếu đã gắn ảnh thật).
 
@@ -18941,11 +18947,13 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
     messages = [{"role": "system", "content": sysprompt}] + lich_su
     _bot_ghim_duong(runtime_trace, prov, api_model, messages)
     gui, co_anh = _bot_gan_anh(messages, prov, text, images)
+    canh_bao_anh = _anh_khong_gui_duoc(prov) if images and not co_anh else ""
 
     out, loi = await _bot_doc_stream(
         _api_stream(prov, api_key, api_model, gui, reasoning),
         progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
     if not out and co_anh:
+        canh_bao_anh = f"Bot không xem được ảnh khách gửi: model {api_model or prov} từ chối ảnh, đã trả lời chỉ bằng chữ."
         # Model không nhận ảnh (model chữ thuần): trả lời lại bằng chữ, nói thật là không xem được ảnh.
         print(f"[bot {prov} chat {chat_id}] model từ chối ảnh ({loi[0] if loi else '?'}), gửi lại chỉ chữ",
               file=__import__('sys').stderr)
@@ -18963,7 +18971,10 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
         return "⚠ " + (loi[0] if loi else "Không nhận được nội dung nào.")
     # Không gửi kèm file: bot ở mức này không tạo được file (không có tool), và quét thư mục
     # brain để tìm file "mới" thì lại là một đường rò tài liệu ra ngoài.
-    return _bot_ket(out, lich_su)
+    ket = _bot_ket(out, lich_su)
+    if canh_bao_anh:
+        ket["canh_bao"] = canh_bao_anh
+    return ket
 
 
 # ============================================================
@@ -19077,6 +19088,7 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
     _bot_cat_lich_su(lich_su)
     messages = [{"role": "system", "content": sysprompt}] + lich_su
     gui, co_anh = _bot_gan_anh(messages, prov, text, images)
+    canh_bao_anh = _anh_khong_gui_duoc(prov) if images and not co_anh else ""
 
     # vault_root = brain CỦA BOT. Đây là một tham số, không phải một quy ước - truyền nhầm brain
     # của chủ vào đây là mở toang đúng thứ cả tính năng này đang giữ.
@@ -19101,6 +19113,7 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
         progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
     if not out and co_anh:
         # Model không nhận ảnh: thử lại CÙNG vòng tool, chỉ chữ + nhãn thật thà (mất ảnh, không mất công cụ).
+        canh_bao_anh = f"Bot không xem được ảnh khách gửi: model {api_model or prov} từ chối ảnh, đã trả lời chỉ bằng chữ."
         print(f"[bot {prov} chat {chat_id}] model từ chối ảnh ({loi[0] if loi else '?'}), gửi lại chỉ chữ",
               file=__import__('sys').stderr)
         gui = _bot_bo_anh(messages, text)
@@ -19168,6 +19181,7 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
         print(f"[bot {prov} chat {chat_id}] mức '{muc_quyen}' nhưng hub không trả tool nào - "
               f"lượt này chỉ chat", file=__import__('sys').stderr)
     ket = _bot_ket(out, lich_su)
+    canh_bao = " · ".join(x for x in (canh_bao, canh_bao_anh) if x)
     if canh_bao:
         ket["canh_bao"] = canh_bao
     return ket
