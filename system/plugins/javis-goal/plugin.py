@@ -117,6 +117,33 @@ def _hold_until() -> float:
 _PLAIN = " Không lập mục tiêu; trả lời người dùng bình thường."
 
 
+def _scope_note(store, p, g, mref: str) -> str:
+    """A4: phạm vi ghi của revision này và mã bàn giao (`handoff`) của lượt, để bộ não nộp sản phẩm qua
+    javis_submit_deliverable và nói ĐÚNG với người dùng. Javis không cấp quyền ghi từ lời chat: đích mới luôn chờ
+    chủ dự án bấm Cho phép trên thẻ."""
+    try:
+        import resonance as R
+        sc = store.scope_state(p, g.id)
+        b = store.turn_binding(p, g.id, g.revision, mref)
+    except Exception:  # noqa: BLE001
+        return ""
+    path = R._deliverable_rel(g)
+    st = sc.get("state")
+    lines = []
+    if st == "granted":
+        lines.append(f"Phạm vi ghi: đã được cho phép với {path}.")
+    elif st == "pending":
+        lines.append(f"Phạm vi ghi: CHƯA được cho phép. Thẻ mục tiêu sẽ hỏi chủ dự án có cho ghi vào {path} không. "
+                     "Nói đúng như vậy; đừng nói đã ghi hay sẽ tự ghi. Bản bạn nộp bây giờ chỉ được giữ làm nháp; "
+                     "chủ dự án bấm Cho phép thì Javis đăng đúng bản đó.")
+    elif st in ("revoked", "denied", "missing"):
+        lines.append("Phạm vi ghi: không có quyền ghi lúc này (chủ dự án đã thu hồi hay chưa cho phép).")
+    if b is not None and b.get("status") == "live" and path:
+        lines.append(f"Mã bàn giao của lượt này: handoff={b['id']}. Muốn nộp sản phẩm thì gọi javis_submit_deliverable "
+                     f"với path={path}, content là TOÀN VĂN, và handoff này. Không Write thẳng vào file đích.")
+    return ("\n" + "\n".join(lines)) if lines else ""
+
+
 def _turn(vault_root):
     """Danh tính của lời gọi, CHỈ từ ngữ cảnh lượt do host gắn: (store, agent, session_id, msg_id, user_text), hoặc
     chuỗi lỗi. Không nhận agent hay phiên từ tham số của model. Lời người dùng đọc từ sổ lượt theo ĐÚNG khoá
@@ -146,7 +173,7 @@ def _turn(vault_root):
     text = luot_dang_chay.loi_cua_luot(f"web:{sid}", mid, vault_root)
     if text is None:
         return "ERROR: Lượt chat của tin này không còn chạy." + _PLAIN
-    return store, ag, sid, mid, text
+    return store, ag, sid, mid, text, t.get("authority_seq")
 
 
 async def javis_goal(args, ctx):
@@ -162,7 +189,7 @@ async def javis_goal(args, ctx):
     turn = _turn(vault)
     if isinstance(turn, str):
         return turn
-    store, ag, sid, mid, user_text = turn
+    store, ag, sid, mid, user_text, aseq = turn
     p = RS.Principal("agent", ag["key"], _brain_id(vault))
     if op == "list":
         goals = store.list_open(p, agent_key=ag["key"])
@@ -180,7 +207,7 @@ async def javis_goal(args, ctx):
                                          "user_text": user_text, "constraints": constraints,
                                          "proposal": _proposal(args), "user_unsure": unsure,
                                          "hold_until": _hold_until(), "agent_key": ag["key"],
-                                         "agent_version": ag.get("config_version")}, deps)
+                                         "agent_version": ag.get("config_version"), "authority_seq": aseq}, deps)
         except R.GoalRejected as e:
             return f"ERROR: Chưa lập được mục tiêu: {e}. Sửa đề xuất rồi gọi lại, hoặc trả lời bình thường nếu việc này không cần theo đuổi sau lượt chat."
         except RS.AgentStateError as e:
@@ -188,7 +215,7 @@ async def javis_goal(args, ctx):
         if g.agent_key != ag["key"]:
             # Tin này đã có mục tiêu từ trước mà không thuộc trợ lý của lượt: không trả nó ra, không ghi gì thêm.
             return "ERROR: Tin này đã gắn với một mục tiêu không thuộc trợ lý này." + _PLAIN
-        return _summary(g, "Đã lập mục tiêu")
+        return _summary(g, "Đã lập mục tiêu") + _scope_note(store, p, g, mref)
     gid = str(args.get("goal_id") or "")
     try:
         exp = int(args.get("expected_revision"))
@@ -203,7 +230,8 @@ async def javis_goal(args, ctx):
         g, relation, kept = R.revise_goal(store, p, gid, exp, _proposal(args), {
             "message_ref": mref, "session_id": sid, "message_id": mid, "user_text": user_text,
             "constraints": constraints, "user_unsure": unsure, "reason": args.get("reason"),
-            "hold_until": _hold_until(), "agent_key": ag["key"], "agent_version": ag.get("config_version")})
+            "hold_until": _hold_until(), "agent_key": ag["key"], "agent_version": ag.get("config_version"),
+            "authority_seq": aseq})
     except RS.ConflictError as e:
         return f"ERROR: Mục tiêu đã đổi trước đó ({e}). Gọi op=list để xem revision hiện tại."
     except RS.ScopeError as e:
@@ -216,6 +244,7 @@ async def javis_goal(args, ctx):
         out = _summary(g, "KHÔNG có thay đổi nào được áp dụng, mục tiêu giữ nguyên")
     else:
         out = _summary(g, "Đã cập nhật mục tiêu")
+    out += _scope_note(store, p, g, mref)
     if kept:
         out += ("\nHost giữ nguyên chỉ dẫn cũ, phần sau CHƯA áp dụng (bản này chưa hỗ trợ). Nói rõ với người dùng là chưa đổi được, "
                 "đừng báo là đã đổi:\n" + "\n".join("- " + k for k in kept))
@@ -281,6 +310,80 @@ _SCHEMA = {
 }
 
 
+_SUBMIT_MSG = {
+    "no_turn": "Không xác định được lượt chat đang gọi (engine này chưa mang được ngữ cảnh lượt tới Javis).",
+    "not_agent_turn": "Chỉ nộp được trong cuộc trò chuyện với một trợ lý đã bật Cộng hưởng.",
+    "invalid_content": "content phải là toàn văn sản phẩm, không rỗng.",
+    "path_rejected": "Đường đích không nhận (ngoài brain, có . hay .., đuôi không phải .md/.txt, hay thư mục cấm).",
+    "too_large": "Sản phẩm quá 1MB.",
+    "no_open_handoff": "Lượt này không có mục tiêu nào đang chờ bàn giao (lập hay cập nhật mục tiêu bằng javis_goal trước).",
+    "path_not_in_scope": "Đường này không phải sản phẩm của mục tiêu trong lượt này.",
+    "ambiguous_handoff": "Có nhiều mục tiêu cùng đích trong lượt này; gửi kèm handoff do javis_goal trả.",
+    "submission_conflict": "Khoá nộp này đã dùng cho một nội dung khác.",
+    "turn_closed": "Lượt bàn giao đã đóng; không nhận lời nộp mới.",
+    "grant_revoked": "Chủ dự án đã thu hồi quyền của mục tiêu này.",
+    "scope_decided": "Chủ dự án đã quyết phạm vi; lượt này không nộp thêm được.",
+    "revision_changed": "Mục tiêu đã sang revision khác; nộp theo handoff mới.",
+    "agent_changed": "Công tắc trợ lý vừa đổi; không nhận lời nộp.",
+    "storage_error": "Javis chưa lưu được bản nộp; thử lại sau.",
+}
+
+
+async def javis_submit_deliverable(args, ctx):
+    """A4 (mục 4.3): nộp TOÀN VĂN sản phẩm cho mục tiêu lượt này vừa lập hay cập nhật. Host tự đọc, băm, lưu bản nộp có
+    biên nhận và tự đăng vào đích cuối lượt khi có quyền; chưa có quyền thì giữ làm nháp chờ chủ dự án. Model không
+    truyền được mục tiêu, trợ lý hay quyền."""
+    import resonance as R
+    import resonance_store as RS
+    import turn_context
+    vault = getattr(ctx, "vault_root", None)
+    if not vault or not _store_exists():
+        return "ERROR: Chưa có trợ lý nào bật Cộng hưởng."
+    deps = R.deps_for(_brain_id(vault))
+    if deps is None:
+        deps = R.GoalDeps(engine_factory=lambda s, t: (None, {}), budget=R.CallBudget(0), store=RS.GoalStore(),
+                          principal=RS.Principal("agent", "javis", _brain_id(vault)), brain_root=_brain_id(vault))
+    # Ghi file nháp, bằng chứng và SQLite chạy ở luồng phụ (thiết kế A4 mục 11), không giữ event loop. Danh tính lượt
+    # đọc NGAY ở đây rồi truyền vào, không dựa vào việc chép ngữ cảnh.
+    import asyncio
+    res = await asyncio.to_thread(R.submit_deliverable, turn_context.current(), dict(args or {}), deps)
+    if not res.get("ok"):
+        code = res.get("code") or "storage_error"
+        extra = ""
+        if res.get("handoffs"):
+            extra = " Các handoff: " + ", ".join(f"{h['handoff']} (mục tiêu {h['goal_id']})" for h in res["handoffs"])
+        return f"ERROR {code}: {_SUBMIT_MSG.get(code, code)}{extra}"
+    st = res["status"]
+    what = {"candidate": "chờ host đăng vào file đích cuối lượt",
+            "awaiting_scope": "giữ làm NHÁP; file đích chưa được cho phép, chủ dự án bấm Cho phép thì Javis đăng đúng "
+                              "bản này",
+            "published": "đã đăng"}.get(st, st)
+    return (f"Đã nhận bản nộp {res['submission_id']} (sha256 {res['sha256'][:12]}, {res['size']} byte): {what}."
+            + (" Đây là biên nhận cũ của cùng nội dung." if res.get("replay") else "")
+            + " Không nói với người dùng là file đã được ghi cho tới khi host đăng xong.")
+
+
+_SUBMIT_DESC = (
+    "Nộp TOÀN VĂN sản phẩm của mục tiêu mà lượt này vừa lập hay cập nhật bằng javis_goal. Dùng thay cho ghi thẳng "
+    "vào file đích: host tự lưu bản nộp có biên nhận, tự đăng vào file đích khi chủ dự án đã cho phép phạm vi, và "
+    "không ghi đè file người dùng. path là đường sản phẩm của mục tiêu (tương đối trong brain), content là toàn bộ "
+    "nội dung, handoff là mã javis_goal trả (bắt buộc khi lượt có nhiều mục tiêu cùng đích). Nộp lại cùng nội dung trả "
+    "biên nhận cũ.")
+
+_SUBMIT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "path": {"type": "string", "description": "Đường sản phẩm của mục tiêu, tương đối trong brain."},
+        "content": {"type": "string", "description": "Toàn văn sản phẩm."},
+        "handoff": {"type": "string", "description": "Mã bàn giao do javis_goal trả."},
+        "submission_key": {"type": "string", "description": "Khoá chống nộp trùng, không bắt buộc."},
+    },
+    "required": ["path", "content"],
+}
+
+
 def register(ctx):
     ctx.register_tool(name="javis_goal", description=_DESC, handler=javis_goal, min_mode="safe",
                       schema=_SCHEMA, visible_fn=_visible)
+    ctx.register_tool(name="javis_submit_deliverable", description=_SUBMIT_DESC, handler=javis_submit_deliverable,
+                      min_mode="safe", schema=_SUBMIT_SCHEMA, visible_fn=_visible)

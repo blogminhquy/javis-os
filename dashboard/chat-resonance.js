@@ -62,7 +62,9 @@
                  // A1: cổng theo trợ lý
                  "unassigned", "agent_off", "agent_missing", "agent_retired", "agent_changed", "agent_unknown",
                  // A2: nhịp tim thích nghi
-                 "stalled", "source_drift", "handoff"];
+                 "stalled", "source_drift", "handoff",
+                 // A4: phạm vi ghi do chủ dự án cho phép
+                 "scope_pending", "scope_denied", "grant_revoked", "grant_missing", "path_rejected"];
     if (known.indexOf(r) >= 0) return "resonance.st_" + r;
     if (g.run_state === "running") return "resonance.st_running";
     if (g.run_state === "blocked") return "resonance.st_blocked";
@@ -94,7 +96,9 @@
     // A3: phép thử cách làm khi bế tắc, và lượt làm sản phẩm bằng cách làm vừa học
     method_trial: "resonance.wake.method_trial",
     method_followup: "resonance.wake.method_followup",
-    trial_recovery: "resonance.wake.recovery"
+    trial_recovery: "resonance.wake.recovery",
+    // A4: chủ dự án vừa cho phép phạm vi ghi
+    scope_granted: "resonance.wake.scope_granted"
   };
 
   /* A3: dòng "cách làm đã học" trên thẻ, theo trạng thái bài học làn M của revision hiện tại. Khoá nguyên văn. */
@@ -132,6 +136,46 @@
         esc(tw("resonance.btn_lesson_dismiss")) + "</button>";
     }
     return h + "</div>";
+  }
+
+  /* A4: dòng quyền của thẻ (thiết kế A4 mục 8). Chỉ hiển thị; kho mới là căn cứ. Cho phép gửi đúng yêu cầu, đường,
+     bản nháp và sha đang hiện; thẻ cũ thì server trả 409 và thẻ vẽ lại. Javis không cấp quyền ghi từ lời chat. */
+  function kb(n) {
+    var v = Number(n) || 0;
+    return (Math.round(v / 102.4) / 10).toLocaleString();
+  }
+
+  function scopeHtml(g) {
+    var s = g.scope;
+    if (!s || g.status !== "active" || !s.state || s.state === "none" || s.state === "unknown") return "";
+    var path = '<code class="rs-path">' + esc(s.path || "") + "</code>";
+    var h = "";
+    if (s.state === "granted") {
+      h += '<div class="rs-line rs-scope">' + tw("resonance.a4_scope_granted", { path: path,
+        budget: g.budget_calls || 0 }) + ' <button type="button" class="rs-act" data-act="revoke_grant">' +
+        esc(tw("resonance.btn_revoke_grant")) + "</button></div>";
+    } else if (s.state === "pending" && s.request) {
+      h += '<div class="rs-warn rs-scope">' + tw("resonance.a4_scope_ask", { path: path });
+      if (s.draft) {
+        h += " " + esc(tw("resonance.a4_scope_draft", { kb: kb(s.draft.size) }));
+      }
+      h += '<span class="rs-btns"><button type="button" class="rs-act" data-act="approve_scope">' +
+        esc(tw("resonance.btn_approve_scope")) + "</button>" +
+        '<button type="button" class="rs-act" data-act="deny_scope">' + esc(tw("resonance.btn_deny_scope")) + "</button>" +
+        (s.draft ? '<button type="button" class="rs-act" data-act="draft_preview">' + esc(tw("resonance.btn_preview")) +
+          "</button>" : "") + "</span></div>";
+    } else if (s.state === "revoked") {
+      h += '<div class="rs-warn rs-scope">' + tw("resonance.a4_scope_revoked", { path: path }) + "</div>";
+    } else if (s.state === "denied") {
+      h += '<div class="rs-warn rs-scope">' + tw("resonance.a4_scope_denied", { path: path }) + "</div>";
+    } else {
+      h += '<div class="rs-warn rs-scope">' + tw("resonance.a4_scope_missing", { path: path }) + "</div>";
+    }
+    if (s.pending_publish) {
+      h += '<div class="rs-line rs-muted">' + esc(tw("resonance.a4_drafts_waiting", { n: s.pending_publish })) + "</div>";
+    }
+    if (s.conflict) h += '<div class="rs-warn">' + esc(tw("resonance.a4_draft_conflict")) + "</div>";
+    return h;
   }
 
   /* A3 làn P: hàng phản hồi dưới tin báo do host ghi (khối thẻ có khoá báo cáo `outbox:`). Thuần để test. */
@@ -300,6 +344,7 @@
       h += '<div class="rs-line rs-muted">' + esc(tw("resonance.observe_on", { at: fmtTime(g.observe.next_at) })) +
         "</div>";
     }
+    h += scopeHtml(g);
     h += learnHtml(g);
     h += '<div class="rs-line rs-muted">' + esc(tw("resonance.budget", { used: g.calls_used || 0,
       total: g.budget_calls || 0 })) + "</div>";
@@ -366,6 +411,18 @@
     if (act === "drop") {
       return { url: "/goals/" + id + "/commands", body: { command: "drop_directive", expected_revision: rev,
         field: String((dir || {}).field || ""), key: String((dir || {}).key || "") } };
+    }
+    // A4: Cho phép / Không gửi ĐÚNG yêu cầu, đường và bản nháp (mã, sha) đang hiện trên thẻ; thẻ cũ nhận 409.
+    var sc = g.scope || {};
+    if (act === "approve_scope") {
+      var d = sc.draft || {};
+      return { url: "/goals/" + id + "/commands", body: { command: "approve_scope", expected_revision: rev,
+        request_id: String((sc.request || {}).id || ""), path: String(sc.path || ""),
+        submission_id: String(d.submission_id || ""), sha256: String(d.sha256 || "") } };
+    }
+    if (act === "deny_scope") {
+      return { url: "/goals/" + id + "/commands", body: { command: "deny_scope", expected_revision: rev,
+        request_id: String((sc.request || {}).id || "") } };
     }
     return { url: "/goals/" + id + "/commands", body: { command: act, expected_revision: rev } };
   }
@@ -450,11 +507,30 @@
     return el;
   }
 
+  /* A4: xem trước bản nháp đang chờ cho phép (chỉ đọc, đúng bản có mã và sha trên thẻ). */
+  function preview(el, g) {
+    var d = ((g.scope || {}).draft) || {};
+    if (!d.submission_id) return;
+    var box = el.querySelector(".rs-preview");
+    if (box) { box.remove(); return; }
+    fetch("/goals/" + encodeURIComponent(g.goal_id) + "/drafts/" + encodeURIComponent(d.submission_id) + "?brain=" +
+          encodeURIComponent(brain()), { credentials: "same-origin" })
+      .then(function (r) { return r.json().then(function (j) { return { code: r.status, j: j }; }); })
+      .then(function (res) {
+        var txt = res.code === 200 ? String(res.j.content || "") : (res.j.error || tw("resonance.failed"));
+        el.insertAdjacentHTML("beforeend", '<pre class="rs-preview">' + esc(txt) + "</pre>");
+      })
+      .catch(function () { el.insertAdjacentHTML("beforeend", '<div class="rs-note">' + esc(tw("resonance.failed")) +
+        "</div>"); });
+  }
+
   function send(el, act, critId, dir) {
     var g = el._goal;
     if (!g) return;
     if (act === "cancel" && !window.confirm(tw("resonance.cancel_confirm"))) return;
     if (act === "drop" && !window.confirm(tw("resonance.drop_confirm"))) return;
+    if (act === "revoke_grant" && !window.confirm(tw("resonance.revoke_confirm"))) return;
+    if (act === "draft_preview") { preview(el, g); return; }
     var req = requestFor(act, g, critId, dir, newNonce());
     var btns = el.querySelectorAll("button.rs-act");
     for (var i = 0; i < btns.length; i++) btns[i].disabled = true;
@@ -471,6 +547,9 @@
         else if (act === "fit_no") note = tw("resonance.fit_no_hint");
         else if (act === "out_no") note = tw("resonance.out_no_hint");
         else if (act === "out_ok") note = tw("resonance.out_ok_hint");
+        else if (act === "approve_scope") note = tw(res.j.submission_id ? "resonance.a4_approved_draft"
+          : "resonance.a4_approved");
+        else if (act === "revoke_grant") note = tw("resonance.a4_revoked");
         if (res.j.goal) render(el, res.j.goal, note);
         else load(el, true).then(function () { if (note) el.insertAdjacentHTML("beforeend", '<div class="rs-note">' + esc(note) + "</div>"); });
       })
@@ -501,7 +580,8 @@
   /* Công tắc theo BRAIN cũ đã bỏ (A1): công tắc nay theo từng trợ lý, ở resonance-agent.js. */
 
   var api = { tach: tach, viewHtml: viewHtml, compactHtml: compactHtml, requestFor: requestFor, stateKey: stateKey, wakeLabel: wakeLabel,
-    ve: ve, render: render, reactHtml: reactHtml, reactBody: reactBody, learnHtml: learnHtml, isNotice: isNotice };
+    ve: ve, render: render, reactHtml: reactHtml, reactBody: reactBody, learnHtml: learnHtml, isNotice: isNotice,
+    scopeHtml: scopeHtml };
   if (typeof window !== "undefined") window.JavisResonance = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

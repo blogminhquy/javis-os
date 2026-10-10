@@ -36,6 +36,7 @@ P = RS.Principal("agent", "javis", BRAIN)
 OWNER = RS.Principal("owner", "owner", BRAIN)
 store = RS.GoalStore()
 import _resonance_agent as RA  # noqa: E402  - A1: Cộng hưởng bật theo agent, không theo brain
+RA.preapprove()  # A4: chủ dự án cho phép phạm vi ngay sau khi lập (D1); xem _resonance_agent.preapprove
 
 
 def switch(on: bool):

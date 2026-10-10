@@ -8,8 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.90.0] - 2026-10-10
 ### Thêm mới
-- **(Đang thiết kế) Trợ lý Cộng hưởng nộp sản phẩm qua một cửa kiểm chung**, dù chạy bằng engine nào: Javis tự đọc và kiểm bản nộp trước khi nhận hay đăng, không tin lời engine tự khai.
-- **(Đang thiết kế) Giao việc kèm phạm vi rõ:** bạn cho trợ lý làm gì, trên tài liệu nào, tối đa bao nhiêu lượt; trợ lý không tự mở rộng quyền, thu hồi là dừng ngay.
+- **Trợ lý Cộng hưởng chỉ ghi vào file bạn đã cho phép.** Mục tiêu mới hay đổi sang file khác thì thẻ hỏi "Trợ lý muốn ghi vào ... Cho phép?" kèm đúng đường file. Đã cho phép thì trợ lý làm tiếp, không hỏi lại từng lần sửa.
+- **Bản trợ lý soạn trước khi bạn cho phép được giữ làm nháp.** Bấm Xem trước để đọc, bấm Cho phép là Javis đăng đúng bản đó, không gọi model viết lại.
+- **Codex và các bộ não dùng API key cũng giao được sản phẩm ngay trong cuộc trò chuyện**, qua cùng một cửa kiểm như Claude: Javis tự đọc, kiểm và đăng bản nộp, không ghi đè file bạn đã sửa.
+- **Nút Thu hồi quyền trên thẻ mục tiêu** dừng mục tiêu ngay; bấm Tiếp tục để cấp lại. Muốn quay về 0.89.0 thì tắt Javis và chạy `tools/resonance_restore_pre_a4.py`.
 
 ## [0.89.0] - 2026-10-10
 ### Thêm mới

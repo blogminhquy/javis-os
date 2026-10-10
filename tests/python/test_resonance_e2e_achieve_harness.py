@@ -222,6 +222,7 @@ _B = Path(tempfile.mkdtemp(prefix="ach-h-brain-")).resolve()
 (_B / "Javis").mkdir()
 _ST = RS.GoalStore(Path(tempfile.mkdtemp(prefix="ach-h-db-")) / "r.sqlite3")
 import _resonance_agent as RA  # noqa: E402  - A1: Cộng hưởng bật theo trợ lý
+RA.preapprove()  # A4: chủ dự án cho phép phạm vi ngay sau khi lập (D1); xem _resonance_agent.preapprove
 RA.enable(_ST, _B)
 _P = RS.Principal("agent", "javis", str(_B))
 _DL = "Docs/hd.md"
@@ -346,8 +347,16 @@ async def _nt(goal, kind, text, card=""):
     return True
 
 
-g3 = _goal(3, hold=True)
-_mref = R.message_ref("s", 3)
+# A4 (D1): lượt LẬP mục tiêu không nhận quyền ghi (đích chờ chủ dự án cho phép SAU ảnh chụp đầu lượt). Bản chat được
+# tiếp nhận ở lượt SỬA kế tiếp, khi phạm vi đã được cho phép trước lúc lượt đó bắt đầu.
+g3c = _goal(3)
+g3, _rel3, _kept3 = R.revise_goal(_ST, _P, g3c.id, g3c.revision, {"understanding": "Bản hướng dẫn nhận hàng",
+                                                                         "relevant_quote": "Em lo giúp anh bản hướng dẫn"}, {
+    "message_ref": R.message_ref("s", 4), "session_id": "s", "message_id": 4,
+    "user_text": "Em lo giúp anh bản hướng dẫn tới khi anh thấy dùng được. Lưu ở Docs/hd.md.",
+    "constraints": [], "hold_until": 1_800_000_000.0 + 900, "authority_seq": _ST.authority_seq(),
+    **RA.ctx(_ST.agent(str(_B), RA.SLUG))})
+_mref = R.message_ref("s", 4)
 (_B / "Docs").mkdir(exist_ok=True)
 (_B / _DL).write_text("# HD\n\n1. Đếm.\n", encoding="utf-8")
 R.note_turn_event(_mref, str(_B), {"type": "tool_call", "name": "Write", "id": "w1",

@@ -10,8 +10,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.90.0] - 2026-10-10
 ### Added
-- **(In design) Resonance assistants hand in their work through one shared check**, whatever engine they run on: Javis reads and verifies the submission itself before accepting or publishing it, instead of trusting what the engine reports.
-- **(In design) Work is assigned with a clear scope:** what the assistant may do, on which documents, with how many calls at most; the assistant cannot widen its own permissions, and revoking stops it right away.
+- **Resonance assistants only write to files you have allowed.** A new goal, or a switch to another file, makes the card ask "The assistant wants to write to ... Allow?" with the exact path. Once allowed, the assistant keeps working without asking again for each revision.
+- **What the assistant drafts before you allow it is kept as a draft.** Preview it, then Allow publishes exactly that version, with no new model call.
+- **Codex and API-key brains can also hand in their work during the chat**, through the same check as Claude: Javis reads, verifies and publishes the submission itself, and never overwrites a file you edited.
+- **A Revoke permission button on the goal card** stops the goal right away; press Resume to grant it again. To go back to 0.89.0, stop Javis and run `tools/resonance_restore_pre_a4.py`.
 
 ## [0.89.0] - 2026-10-10
 ### Added

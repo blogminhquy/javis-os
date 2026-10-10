@@ -51,6 +51,8 @@
     var s = support || {};
     if (s.goal === false) return '<div class="rsa-warn">' + esc(tw("resonance.a1_engine_no_goal")) + "</div>";
     if (s.chat_output === false) return '<div class="rsa-sub">' + esc(tw("resonance.a1_engine_no_chat_output")) + "</div>";
+    // A4 (mục 6.1): engine nộp được qua công cụ hub thì nói rõ Javis đăng, và chỉ khi bạn đã cho phép file đích.
+    if (s.submit_tool) return '<div class="rsa-sub">' + esc(tw("resonance.a4_engine_submit")) + "</div>";
     return "";
   }
 
@@ -405,7 +407,7 @@
   }
 
   var api = { mount: mount, refresh: refresh, panelHtml: panelHtml, settingsHtml: settingsHtml, toggleNote: toggleNote,
-    lessonsHtml: lessonsHtml };
+    lessonsHtml: lessonsHtml, supportHtml: supportHtml };
   if (typeof window !== "undefined") window.JavisResonanceAgent = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

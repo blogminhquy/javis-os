@@ -34,6 +34,7 @@ import resonance as R  # noqa: E402
 import resonance_store as RS  # noqa: E402
 import turn_context  # noqa: E402
 import _resonance_agent as RA  # noqa: E402
+RA.preapprove()  # A4: chủ dự án cho phép phạm vi ngay sau khi lập (D1); xem _resonance_agent.preapprove
 from fastapi.testclient import TestClient  # noqa: E402
 
 _fails = []
@@ -241,15 +242,21 @@ check("6 ý định lượt việc gốc ghi mã và version lúc giữ lượt"
       and w6[0]["intent"].get("agent_config_version") == A["config_version"])
 check("6 hẹn xét lại ngay theo quyền hiện tại",
       any(w["kind"] == "work" and w["due_at"] <= time.time() + 1 for w in store.wakes(OWNER, g6.id)))
+# A4 (thiết kế mục 4.2 điều 3, mục 9): liên kết của lượt ghim mã VÀ version trợ lý. Tắt rồi bật là version mới, nên
+# bản nộp của lượt cũ thành `stale` và KHÔNG được đăng lại dưới version mới (host không ghim lại liên kết sang quyền
+# mới). Thay cho quyết định 4 của A1 (đăng lại đầu ra giữ bằng ý định mới): lần thức sau làm lại bằng một lượt mới.
+subs6 = store.submissions(OWNER, g6.id, limit=5)
+check("7 A4: bản nộp của lượt trước khi đổi version là stale (agent_changed), không phải candidate",
+      len(subs6) == 1 and subs6[0]["status"] == "stale" and subs6[0]["status_reason"] == "agent_changed", subs6)
 e6b = Eng()
 adv(g6.id, e6b)
 pubs = [x for x in store.actions(OWNER, g6.id) if x["kind"] == "publish"]
 A_now = agent_now("viet-bai")
-check("7 lần thức sau: đăng đầu ra đang giữ, KHÔNG gọi model lại", e6b.queries == 0 and target.is_file()
-      and target.read_text(encoding="utf-8").startswith("# Hướng dẫn nhận hàng"))
-check("7 ý định đăng MỚI mang version hiện tại và trỏ về lượt việc gốc; ý định gốc giữ nguyên",
+check("7 A4 lần thức sau: KHÔNG đăng đầu ra của liên kết cũ; làm lại một lượt dưới version hiện tại rồi đăng",
+      e6b.queries == 1 and target.is_file() and target.read_text(encoding="utf-8").startswith("# Hướng dẫn nhận hàng"))
+check("7 ý định đăng mang version hiện tại, trỏ về lượt việc MỚI; ý định của lượt gốc giữ nguyên",
       len(pubs) == 1 and pubs[0]["intent"].get("agent_config_version") == A_now["config_version"]
-      and pubs[0]["intent"].get("source_action") == w6[0]["id"]
+      and pubs[0]["intent"].get("source_action") != w6[0]["id"]
       and store.get_action(OWNER, w6[0]["id"])["intent"].get("agent_config_version") == A["config_version"])
 check("7 mục tiêu đạt sau khi đăng (bằng chứng của host)", store.get(OWNER, g6.id).status == "succeeded")
 
@@ -273,8 +280,8 @@ check("7 bật lại không mở pause: mục tiêu đang tạm dừng vẫn đ�
       on.status_code == 200 and store.get(OWNER, g6c.id).paused and e6d.queries == 0 and not target.exists())
 store.set_paused(OWNER, g6c.id, False)
 adv(g6c.id, e6d)
-check("7 bỏ tạm dừng: đầu ra giữ từ trước được đăng, 0 lượt model mới",
-      e6d.queries == 0 and target.is_file() and store.get(OWNER, g6c.id).calls_used == 1)
+check("7 A4 bỏ tạm dừng: đầu ra của liên kết cũ (version trước khi tắt) không đăng; một lượt mới rồi đăng",
+      e6d.queries == 1 and target.is_file() and store.get(OWNER, g6c.id).calls_used == 2)
 check("7 mục tiêu đã huỷ vẫn huỷ", store.get(OWNER, g_cx.id).status == "cancelled")
 
 # bàn giao trong lượt: tắt giữa lượt thì bản chat không được tiếp nhận
@@ -461,17 +468,21 @@ check("11 phiên agent: prompt có dòng gợi ý, tool có trong danh sách c�
 check("11 tool trong lượt lập mục tiêu gắn đúng mã của phiên",
       g11 is not None and g11.agent_key == V["agent_key"] and not str(seen11.get("tool", "")).startswith("ERROR"),
       str(seen11.get("tool", ""))[:120])
-check("11 cuối lượt: bản Write trong lượt được tiếp nhận (bàn giao theo cổng agent)",
-      g11 is not None and [e["kind"] for e in store.events(OWNER, g11.id)].count("artifact_adopted") == 1)
+# A4 (D1): mục tiêu lập trong lượt chat chưa có phạm vi; chủ dự án cho phép SAU ảnh chụp đầu lượt, nên chính lượt đó
+# không nhận quyền mới và Write trong lượt không được tiếp nhận (bytes lạ ở đích, như A2).
+check("11 A4: Write trong lượt LẬP mục tiêu không được tiếp nhận (phạm vi chưa có lúc lượt bắt đầu)",
+      g11 is not None and [e["kind"] for e in store.events(OWNER, g11.id)].count("artifact_adopted") == 0)
 
 # ═══════════ 12. engine chưa mang khoá lượt; bảng khả năng ═══════════
 check("12 Grok, Antigravity: chưa lập được mục tiêu", not R.engine_support("grok-cli")["goal"]
       and not R.engine_support("antigravity-cli")["goal"])
 check("12 Claude Code: lập mục tiêu và nhận bản chat", R.engine_support("anthropic-cli")["goal"]
       and R.engine_support("anthropic-cli")["chat_output"])
-check("12 Codex và engine API: lập được, chưa nhận bản chat (A4)",
-      R.engine_support("openai-oauth")["goal"] and not R.engine_support("openai-oauth")["chat_output"]
-      and R.engine_support("openrouter")["goal"] and not R.engine_support("openrouter")["chat_output"])
+check("12 A4: Codex và engine API lập được và nộp bản chat qua javis_submit_deliverable (không có biên nhận Write)",
+      R.engine_support("openai-oauth")["goal"] and R.engine_support("openai-oauth")["chat_output"]
+      and R.engine_support("openai-oauth")["submit_tool"] and not R.engine_support("openai-oauth")["observed_write"]
+      and R.engine_support("openrouter")["goal"] and R.engine_support("openrouter")["chat_output"]
+      and not R.engine_support("grok-cli")["submit_tool"] and not R.engine_support("antigravity-cli")["submit_tool"])
 check("12 engine lạ: coi như chưa hỗ trợ", not R.engine_support("la-hoat")["goal"])
 
 if _fails:

@@ -44,6 +44,7 @@ BRAIN = str(Path(tempfile.mkdtemp(prefix="brain-h-")).resolve())
 P = RS.Principal("agent", "javis", BRAIN)
 goals = RS.GoalStore()
 import _resonance_agent as RA  # noqa: E402  - A1: tool chỉ chạy trong lượt của agent đã bật
+RA.preapprove()  # A4: chủ dự án cho phép phạm vi ngay sau khi lập (D1); xem _resonance_agent.preapprove
 AG = RA.enable(goals, BRAIN)
 _, routes = plugins_host.plugin_tools("full", BRAIN, scope_vault=False)
 call = routes["javis_goal"]["call"]

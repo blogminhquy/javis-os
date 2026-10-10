@@ -37,6 +37,7 @@ P = RS.Principal("agent", "javis", KEY)
 OWNER = RS.Principal("owner", "owner", KEY)
 store = main._resonance_store()
 import _resonance_agent as RA  # noqa: E402  - A1: Cộng hưởng bật theo trợ lý qua API của chủ dự án
+RA.preapprove()  # A4: chủ dự án cho phép phạm vi ngay sau khi lập (D1); xem _resonance_agent.preapprove
 # Phiên của một trợ lý (kênh agent:<slug>), như trang Cộng sự mở: /goal-requests chỉ nhận tin của phiên trợ lý đang bật.
 SID = main.get_store().create_session(brain=BRAIN, engine="test", model="test", channel=f"agent:{RA.SLUG}")
 USER = "Viết giúp anh ghi chú Inbox/ke-hoach.md liệt kê ba việc: gọi thợ, nộp báo cáo, mua quà. Anh sẽ duyệt."

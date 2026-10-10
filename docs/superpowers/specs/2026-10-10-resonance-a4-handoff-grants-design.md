@@ -1,6 +1,6 @@
 # Resonance A4: nộp sản phẩm đa engine qua một hợp đồng host, kèm quyền có phạm vi
 
-**Trạng thái:** thiết kế **chốt** (vòng 5, phương án dự phòng D1), reviewer chấp thuận để code. Mã A4 đi theo bản này; đổi cơ chế cấp quyền ngoài bản này thì gửi diff thiết kế review trước.
+**Trạng thái:** thiết kế **chốt** (vòng 5, phương án dự phòng D1), reviewer chấp thuận để code. **Mã A4 đã viết, chờ review mã** (mục 17 ghi các điểm triển khai cần reviewer xác nhận). Đổi cơ chế cấp quyền ngoài bản này thì gửi diff thiết kế review trước.
 
 - **Nhánh:** `claude/resonance-a4-handoff-grants`, PR nháp #604, số 0.90.0.
 - **Vòng 1** (`5edfc9b6`) chưa đạt: 3 P1, 2 P2 (`exports/reviews/PR-604-A4-design-r1-review.md`, ngoài git).
@@ -607,7 +607,7 @@ Review vòng 1 chỉ ra `apply_command(..., "resume")` của 0.89.0 gỡ tạm d
   1. `GoalStore._backup_before("grants", ".pre-0.90.0")`: dùng lại helper có sẵn, SQLite backup API (lấy cả phần trong WAL), chỉ khi kho chưa có bảng `grants`, không ghi đè bản đã có.
   2. Tạo bảng mới.
   3. Đóng băng legacy (mục 5.2) trong cùng giao dịch tạo bảng, trước khi server nhận lời gọi.
-- **Hạ đúng cách,** bằng script đi kèm `scripts/resonance_restore_pre_a4.py`, chạy khi Javis đã tắt:
+- **Hạ đúng cách,** bằng script đi kèm `tools/resonance_restore_pre_a4.py`, chạy khi Javis đã tắt:
   1. Chép kho **hiện tại** sang `resonance.sqlite3.post-0.90.0-<thời điểm>` bằng SQLite backup API, để giữ hồ sơ sau nâng.
   2. Khôi phục snapshot vào đường kho bằng backup API, rồi dọn `-wal`/`-shm` cũ.
   3. Chạy 0.89.0.
@@ -830,7 +830,7 @@ Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của 
 5. **Công cụ hub** `javis_submit_deliverable` (plugin `javis-goal`). Công cụ lập và sửa mục tiêu trả `handoff` và `scope`.
 6. **API** theo mục 10.
 7. **Giao diện** theo mục 8.
-8. **Script** `scripts/resonance_restore_pre_a4.py`.
+8. **Script** `tools/resonance_restore_pre_a4.py` (repo không có thư mục `scripts/`).
 9. **Test:**
    - `test_resonance_a4_grants.py`: ma trận 12.1 tới 12.3;
    - `test_resonance_a4_rollback.py`: G47 tới G50 với `33a3c1aa`;
@@ -890,3 +890,19 @@ Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của 
 | P1: bộ nhận chỉ thị vẫn nhận câu nhắc tới lệnh (dịch, ví dụ, đuôi tự do) thành quyền ghi | Bỏ nguồn `owner_message` và bộ nhận khỏi A4. Mọi đích mới hay đổi phạm vi qua thẻ; phạm vi đã cấp và legacy giữ nguyên; bản nháp duyệt rồi đăng 0 lượt model | 1, 4.2, 5.2, 5.2.1, 5.3, 6.3, 11, 12, 13 (D1, D12), 14 |
 | Ngoại lệ thứ tự cho gốc do chính tin tạo | Bỏ, vì không còn nguồn đó | 4.2 |
 | Kỳ vọng ca cũ dựa trên `owner_message` | G27, G51 tới G55, G73 tới G79, G82 đổi sang chờ thẻ hay gốc có trước lượt | 12 |
+
+## 17. Ghi chú triển khai (mã chờ review)
+
+Các điểm dưới đây là chỗ mã phải chọn mà thiết kế chưa nói hết, hay chỗ hành vi cũ đổi theo thiết kế. Hai điểm đầu chạm cơ chế quyền nên **cần reviewer xác nhận** trước khi chốt mã; mã hiện chọn phương án được ghi.
+
+| # | Điểm | Mã chọn | Vì sao |
+|---|---|---|---|
+| I1 | §5.3 ghi "Thu hồi (nút Thu hồi quyền, hay tắt Cộng hưởng của trợ lý)" | **Tắt Cộng hưởng KHÔNG thu hồi gốc.** Liên kết vẫn chết ngay vì ghim version trợ lý (§4.2 điều 3); bật lại thì lượt mới làm tiếp dưới gốc cũ | Giữ hành vi A1 "bật lại thì chạy tiếp". Thu hồi gốc khi tắt buộc chủ dự án cấp lại từng mục tiêu sau mỗi lần tắt bật. Đổi sang thu hồi chỉ cần một dòng trong `agent_set_enabled`. **Cần xác nhận** |
+| I2 | §4.5 liệt kê "đăng lại" nhưng §4.2 không có nguồn cho nó | File đích bị xoá thì `_publish_latest` tạo bản nộp `republish` chép bản đã đăng, dưới liên kết **mới** `republish` ghim quyền revision ĐANG hiệu lực (không dùng lại liên kết cũ). Không có quyền hiệu lực thì không đăng lại | Giữ hành vi A2 "xoá file thì đăng lại bản hiệu lực, 0 lượt model". **Cần xác nhận** |
+| I3 | Mục tiêu không có đường sản phẩm (chỉ có tiêu chí người dùng xác nhận) | `scope_state=none`: không cần phạm vi, việc nền chạy như 0.89.0, không có gì để đăng | Không có đích để cho phép; chặn chúng thì mục tiêu kẹt vĩnh viễn |
+| I4 | Hệ quả của D1 với Claude | Write trong lượt LẬP mục tiêu không được tiếp nhận (bytes lạ ở đích). Chỉ bản nộp qua `javis_submit_deliverable` được giữ làm nháp. Gợi ý trong prompt và kết quả `javis_goal` dặn bộ não nộp qua công cụ, không Write thẳng | Đúng §4.4 ("liên kết draft không bao giờ tiếp nhận Write tại chỗ"). Câu hỏi mở cho A5: có nên chuyển một Write có biên nhận thành bản nháp không; mã chưa làm |
+| I5 | A1 quyết định 4 (đăng lại đầu ra giữ sau khi tắt bật, ý định mới theo version hiện tại) | Thay bằng §4.2 điều 3: bản nộp `stale`, lần thức sau làm lại một lượt | "Host không bao giờ sửa liên kết đang dở sang quyền mới". Test A1 sửa kỳ vọng, có chú thích |
+| I6 | Revision do mã cũ tạo, hay mục tiêu vừa gán, cần phạm vi mà chưa có yêu cầu | `_gate` gọi `ensure_scope_request`: chỉ ghi yêu cầu chờ, không cấp | Để thẻ có nút Cho phép; §7.4 |
+| I7 | `origin_ref` của liên kết `handoff` | Dùng `message_ref` (`msg:<phiên>:<tin>`), cùng khoá với bảng `handoffs` | Tương đương `<session_id>:<message_id>` của §4.2 |
+| I8 | Báo chờ cho phép | Không có tin outbox riêng; thẻ đẩy sau lượt chat đã hiện câu hỏi, thẻ và trang Cộng sự cũng hiện | Tránh hai tin cho cùng một việc |
+| I9 | Bàn giao cuối lượt | `main` bàn giao MỌI mục tiêu tin đó lập hay sửa (trước chỉ mục tiêu đầu tiên), biên nhận Write lấy một lần | Mỗi mục tiêu có liên kết riêng phải được niêm |

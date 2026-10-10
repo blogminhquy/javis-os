@@ -27,6 +27,7 @@ os.environ["JAVIS_STATE_DIR"] = str(_STATE)
 import resonance as R  # noqa: E402
 import resonance_store as RS  # noqa: E402
 import _resonance_agent as RA  # noqa: E402  - A1: Cộng hưởng bật theo trợ lý
+RA.preapprove()  # A4: chủ dự án cho phép phạm vi ngay sau khi lập (D1); xem _resonance_agent.preapprove
 
 _fails = []
 
