@@ -538,7 +538,7 @@ def engine_support(provider: str) -> dict:
     p = str(provider or "").strip()
     if p in _ENGINE_SUPPORT:
         return {"provider": p, **_ENGINE_SUPPORT[p], "background": True}
-    api = p in ("openrouter", "anthropic-api", "openai", "gemini", "groq", "ollama", "ollama-local", "openai-compat")
+    api = p in ("openrouter", "anthropic-api", "openai", "gemini", "groq", "deepseek", "ollama", "ollama-local", "openai-compat")
     return {"provider": p, "goal": api, "chat_output": False, "background": True}
 
 

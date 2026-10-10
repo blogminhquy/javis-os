@@ -6,7 +6,7 @@
 
 ### Your self-hosted AI agent with a swappable brain, and a Second Brain that gets smarter every day.
 
-Run it on your laptop or a small VPS. Talk to it by voice. Plug in Claude, ChatGPT, Grok, Gemini or any of 12 providers, keep every tool when you switch, and let it work in the background while you sleep.
+Run it on your laptop or a small VPS. Talk to it by voice. Plug in Claude, ChatGPT, Grok, Gemini or any of 13 providers, keep every tool when you switch, and let it work in the background while you sleep.
 
 [![GitHub stars](https://img.shields.io/github/stars/blogminhquy/javis-os?style=flat&logo=github&label=stars)](https://github.com/blogminhquy/javis-os/stargazers)
 [![License: MIT](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
@@ -108,7 +108,7 @@ What that buys you:
 
 | | An ordinary chatbot | **Javis OS** |
 |---|---|---|
-| **Brain** | Locked to one model, one stateless API call per message | **Swappable**: 12 providers, each with the full set of tools, MCP, skills and sessions, including models running on your own machine through Ollama |
+| **Brain** | Locked to one model, one stateless API call per message | **Swappable**: 13 providers, each with the full set of tools, MCP, skills and sessions, including models running on your own machine through Ollama |
 | **Memory** | Forgets after every session | **A living Second Brain** that remembers you and thickens with every conversation |
 | **Data** | Made up, or absent | **Real numbers** from the connections you wire in (sales, ads, calendar, email, messaging) |
 | **Work** | Answers, then waits | **Background loops, reminders and an AI-run task queue** that report back to you |
@@ -124,12 +124,12 @@ What that buys you:
 
 ---
 
-## 🧠 12 brains, one toolkit
+## 🧠 13 brains, one toolkit
 
-Pick the brain on the **Models** page and change it whenever you like. Javis supports **12 providers** today.
+Pick the brain on the **Models** page and change it whenever you like. Javis supports **13 providers** today.
 
 <p align="center">
-<img src="docs/assets/diagrams/swappable-brain.svg" width="100%" alt="Animated diagram: the Javis core in the middle with its toolkit (MCP Hub, Skills, Second Brain, Tasks, Schedules, Plugins) around it, while the 12 brains take turns plugging in and every tool stays lit">
+<img src="docs/assets/diagrams/swappable-brain.svg" width="100%" alt="Animated diagram: the Javis core in the middle with its toolkit (MCP Hub, Skills, Second Brain, Tasks, Schedules, Plugins) around it, while the brains take turns plugging in and every tool stays lit">
 </p>
 
 | Brain | How you pay | Shell, web, sub-agents |
@@ -139,7 +139,7 @@ Pick the brain on the **Models** page and change it whenever you like. Javis sup
 | **Grok Build** | Your SuperGrok or X Premium+ plan | ✅ |
 | **Antigravity CLI** | Your Google plan (same lineup as the Antigravity IDE, Claude included) | Shell ✅ |
 | **OpenRouter** | API key (hundreds of models behind one key) | via Javis tools |
-| **OpenAI API** · **Anthropic API** · **Google Gemini** · **Groq** | API key | via Javis tools |
+| **OpenAI API** · **Anthropic API** · **Google Gemini** · **Groq** · **DeepSeek** | API key | via Javis tools |
 | **Ollama Cloud** · **Ollama on this machine** | API key, or free on your own hardware | via Javis tools |
 | **Any OpenAI-compatible endpoint** | Whatever that endpoint needs | via Javis tools |
 
@@ -220,7 +220,7 @@ flowchart LR
     end
     subgraph Brains
         S[Subscription CLIs<br>Claude Code, Codex, Grok, Antigravity]
-        A[API engines<br>OpenRouter, OpenAI, Anthropic, Gemini, Groq, Ollama]
+        A[API engines<br>OpenRouter, OpenAI, Anthropic, Gemini, Groq, DeepSeek, Ollama]
     end
     W & T & C & Z --> R
     R --> S & A

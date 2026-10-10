@@ -1723,6 +1723,10 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
      "default_models": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"]},
     {"id": "groq",          "label": "Groq (API)",              "kind": "api", "key_field": "groq_api_key",      "catalog_key": "groq",
      "default_models": ["llama-3.3-70b-versatile", "qwen3-32b", "openai/gpt-oss-120b"]},
+    # DeepSeek: endpoint OpenAI-compatible. The list here is only the offline fallback,
+    # /provider/models asks DeepSeek's /models live.
+    {"id": "deepseek",      "label": "DeepSeek (API)",          "kind": "api", "key_field": "deepseek_api_key",  "catalog_key": "deepseek",
+     "default_models": ["deepseek-flash", "deepseek-v4-pro"]},
     # Ollama Cloud. CỐ Ý không đấu bản chạy trên máy nhà: bản đó đòi một ô địa chỉ riêng, tức
     # một ca đặc biệt duy nhất xuyên suốt lớp này, trong khi phần đông người dùng Javis chạy
     # nó trên VPS - nơi "localhost" là chính cái container chứ không phải máy họ.
@@ -1904,6 +1908,8 @@ def _set_main_model(cfg, provider, model):
         m["engine"] = "grok-cli"
     elif provider == "groq":
         m["engine"] = "groq"
+    elif provider == "deepseek":
+        m["engine"] = "deepseek"
     elif provider == "ollama":
         m["engine"] = "ollama"
     elif provider == "openai-compat":
@@ -2427,7 +2433,7 @@ def _chat_provider(mcfg):
 # chạy bằng Claude mà không ai biết. Trang Studio đọc chính danh sách này để vẽ ô chọn, nên
 # thêm provider mới ở aux_engine thì thêm tên vào đây là giao diện có ngay.
 AGENT_PROVIDERS = ("anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli",
-                   "openrouter", "anthropic-api", "openai", "gemini", "groq", "ollama",
+                   "openrouter", "anthropic-api", "openai", "gemini", "groq", "deepseek", "ollama",
                    # Model chạy máy nhà cũng giao được việc nền cho agent. Bỏ nó ra khỏi đây
                    # là tính năng nửa vời: cài model về rồi mà chỉ chat tay được, không giao
                    # cho agent hay workflow nào chạy.
@@ -2788,6 +2794,8 @@ def _api_stream_goc(prov, key, model, messages, reasoning="off"):
         return engine.gemini_stream(key, model, messages, reasoning)
     if prov == "groq":
         return engine.groq_stream(key, model, messages, reasoning)
+    if prov == "deepseek":
+        return engine.deepseek_stream(key, model, messages, reasoning)
     if prov == "ollama":
         return engine.ollama_stream(key, model, messages, reasoning)
     if prov == "ollama-local":
@@ -2828,7 +2836,7 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
     ChatGPT OAuth ở các kênh tương tác đi qua Codex CLI native MCP, không dùng fallback này."""
     tools, route = [], {}
     inventory_tools, inventory_route = [], {}
-    if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "ollama", "openai-compat"):
+    if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "ollama", "openai-compat"):
         try:
             if _hub_enabled():
                 vault_root = _brain_root(brain) if brain else None
@@ -2876,13 +2884,15 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
                 return engine.gemini_chat_with_mcp(key, model, messages, reasoning, tools, route)
             if prov == "groq":
                 return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
+            if prov == "deepseek":
+                return engine.deepseek_chat_with_mcp(key, model, messages, reasoning, tools, route)
             if prov == "openai-compat":
                 return engine.openai_compat_chat_with_mcp(key, model, messages, reasoning, tools, route)
             return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "ollama-local":
             return engine.ollama_local_chat_with_mcp(key, model, messages, reasoning, tools, route)
 
-        if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "ollama", "openai-compat"):
+        if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "ollama", "openai-compat"):
             return engine.thu_lai_khi_tam_thoi(_vong_tool, nhan=f"{prov}/{model or 'mặc định'}+tool")
     return _api_stream(prov, key, model, messages, reasoning)
 
@@ -3698,7 +3708,8 @@ def _schedule_cancel_reply(action: dict) -> str:
 def _api_label(prov):
     return {"openrouter": "OpenRouter", "openai": "OpenAI", "anthropic-api": "Anthropic API",
             "openai-oauth": "ChatGPT (OAuth)", "gemini": "Google Gemini",
-            "groq": "Groq", "ollama": "Ollama", "openai-compat": "OpenAI Compatible"}.get(prov, prov)
+            "groq": "Groq", "deepseek": "DeepSeek", "ollama": "Ollama",
+            "openai-compat": "OpenAI Compatible"}.get(prov, prov)
 
 def _reasoning_level(mcfg):
     r = (mcfg or {}).get("reasoning", "off")
@@ -5435,6 +5446,15 @@ async def _fetch_provider_models(provider, m):
         ids = [x.get("id") for x in data if x.get("id")
                and not any(s in x["id"].lower() for s in ("whisper", "tts", "guard", "embed"))]
         return sorted(ids) or None
+    if provider == "deepseek":
+        key = m.get("deepseek_api_key")
+        if not key:
+            return None
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(engine.DEEPSEEK_MODELS_URL, headers={"Authorization": f"Bearer {key}"})
+            r.raise_for_status()
+            data = r.json().get("data") or []
+        return sorted(x.get("id") for x in data if isinstance(x, dict) and x.get("id")) or None
     if provider == "openai-compat":
         base = engine.openai_compat_base()
         if not base:
@@ -15158,7 +15178,7 @@ async def websocket_endpoint(ws: WebSocket):
                 # Nén NỀN phần lịch sử cũ sắp rơi khỏi cửa sổ (chỉ engine API - CLI tự quản
                 # context). Lỗi nén không ảnh hưởng lượt chat; lượt sau vẫn còn fallback trim.
                 if (not used_fast_path and kind == "api" and api_key and
-                        prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq")):
+                        prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek")):
                     try:
                         asyncio.create_task(compaction.maybe_compact(
                             store, conv_sid, prov, api_key, api_model, _api_stream))
@@ -19007,6 +19027,8 @@ def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route,
             return engine.gemini_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "groq":
             return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
+        if prov == "deepseek":
+            return engine.deepseek_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "ollama":
             return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "ollama-local":
@@ -19824,6 +19846,7 @@ _TG_NHAN_NGAN = {
     "openai": "OpenAI API",
     "gemini": "Gemini API",
     "groq": "Groq",
+    "deepseek": "DeepSeek",
     "ollama": "Ollama",
     "openai-compat": "OpenAI Compat",
 }

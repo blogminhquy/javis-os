@@ -59,7 +59,7 @@ _DIMS = {"provider", "source", "activity", "model", "project", "day"}
 # khong co else), va o "tien mat thang nay" bao 0 trong khi vi van voi di. 'groq' va 'gemini'
 # tung thieu dung nhu vay.
 _API_PROVIDERS = {"openrouter", "openai", "anthropic", "anthropic-api", "oauth", "ollama",
-                  "groq", "gemini"}
+                  "groq", "gemini", "deepseek"}
 
 
 def _claude_dir() -> str:

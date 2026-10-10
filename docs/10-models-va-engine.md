@@ -25,6 +25,7 @@ Javis có thể chạy trên nhiều "engine" (nhà cung cấp AI) khác nhau. B
 | **Gọi API thẳng** | Anthropic (API) | Có - như trên | Không |
 | **Gọi API thẳng** | Google Gemini (API) | Có - như trên (từ 0.9.270 trang Kết nối cũng hết báo nhầm) | Không |
 | **Gọi API thẳng** | Groq (API) | Có - như trên | Không |
+| **Gọi API thẳng** | DeepSeek (API) | Có - như trên | Không |
 | **Gọi API thẳng** | Ollama Cloud | Có - như trên | Không |
 
 ### Bốn thứ engine API không có
@@ -67,6 +68,7 @@ Khối **Providers** liệt kê 10 nhà cung cấp. **Cái nào đã kết nối
 | **OpenAI (ChatGPT API)** | Dán API key | MCP + tool file + skill qua hub |
 | **Google Gemini (API)** | Dán API key | MCP + tool file + skill qua hub |
 | **Groq (API)** | Dán API key | MCP + tool file + skill qua hub. Suy luận rất nhanh, hợp làm model việc nền. Key này còn là thứ cho phép **ra lệnh bằng ghi âm trên Telegram và Zalo** (Whisper nghe giọng thành chữ) - xem [Telegram](11-telegram.md) và [Kênh Zalo Bot](26-kenh-zalo-bot.md); đấu key là đủ, không bắt buộc đổi model chính sang Groq |
+| **DeepSeek (API)** | Dán API key lấy ở platform.deepseek.com | MCP + tool file + skill qua hub. Model `deepseek-flash` (rẻ, nhận ảnh) và `deepseek-v4-pro`. Độ sâu suy nghĩ để **Tắt** thì DeepSeek trả lời thẳng; bật lên thì nó suy nghĩ trước, và nếu cuộc trò chuyện cũ không hợp chế độ đó Javis tự trả lời ở chế độ thường kèm một dòng báo |
 | **Ollama Cloud** | Dán API key lấy ở ollama.com | MCP + tool file + skill qua hub. Model mã nguồn mở cỡ lớn (gpt-oss, qwen3-coder, deepseek) chạy trên máy chủ của Ollama |
 
 Mỗi card provider hiển thị trạng thái **● Đã kết nối** hoặc **○ Chưa kết nối**, kèm số model khả dụng, và một nhãn kiểu bên cạnh tên: **MCP/skill** (Claude Code), **Device code** (ChatGPT), **MCP Javis** (các provider API). Card nào đang là Main Model sẽ có nhãn **MAIN**.
@@ -184,7 +186,7 @@ Vài chỗ đáng biết, nói trước cho khỏi hiểu nhầm:
 
 **Nếu vẫn gặp lỗi trên Windows**, đặt biến môi trường `JAVIS_AGY_PROMPT_DAI=file` để ép đi thẳng đường file, rồi báo lại giúp kèm câu lỗi `agy` in ra.
 
-### C. Kết nối provider bằng API key (OpenRouter / Anthropic API / OpenAI API / Gemini / Groq)
+### C. Kết nối provider bằng API key (OpenRouter / Anthropic API / OpenAI API / Gemini / Groq / DeepSeek)
 
 1. Vào **Models**, tìm card provider tương ứng.
 2. Dán API key vào ô nhập (ô ghi "dán API key để kết nối").

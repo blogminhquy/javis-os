@@ -37,7 +37,7 @@ Open http://localhost:7777. For HTTPS through Caddy, add `-f docker-compose.http
 
 ## Once it is running
 
-- **Pick an engine/model**: the **Models** page (Claude Code, ChatGPT/Codex, Antigravity CLI, OpenRouter, OpenAI, Google Gemini, Anthropic API, Groq, Ollama).
+- **Pick an engine/model**: the **Models** page (Claude Code, ChatGPT/Codex, Antigravity CLI, OpenRouter, OpenAI, Google Gemini, Anthropic API, Groq, DeepSeek, Ollama).
 - **Wire up connections** (POS, ads, calendar, Zalo...) so reports run on real numbers: the **Connections** page - see [docs/09](docs/en/09-connections-and-business-data.md).
 - **Back the brain up to GitHub** so you do not lose data: the **Self-learning** page - see [docs/18](docs/en/18-github-backup.md).
 - **Watch token spend**: the **Usage** page - see [docs/23](docs/en/23-usage-and-cost.md).
