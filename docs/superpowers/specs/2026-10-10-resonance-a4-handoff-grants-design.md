@@ -1,10 +1,11 @@
 # Resonance A4: nộp sản phẩm đa engine qua một hợp đồng host, kèm quyền có phạm vi
 
-**Trạng thái:** thiết kế **vòng 3**, chờ review. **Chưa có mã A4.**
+**Trạng thái:** thiết kế **vòng 4**, chờ review. **Chưa có mã A4.**
 
 - **Nhánh:** `claude/resonance-a4-handoff-grants`, PR nháp #604, số 0.90.0.
 - **Vòng 1** (`5edfc9b6`) chưa đạt: 3 P1, 2 P2 (`exports/reviews/PR-604-A4-design-r1-review.md`, ngoài git).
 - **Vòng 2** (`99c88447`) chưa đạt: 1 P1, 3 P2, 6 lưu ý nhỏ (`exports/reviews/PR-604-A4-design-r2-review.md`, ngoài git).
+- **Vòng 3** (`efa1fce3`) chưa đạt: 1 P1, 1 P2, 3 lưu ý nhỏ (`exports/reviews/PR-604-A4-design-r3-review.md`, ngoài git). Phần bản nháp, chấp thuận, `sealed`, tiếp nhận, khoá theo revision và legacy đã đạt ở mức thiết kế.
 - Bảng đối chiếu từng điểm review ở mục 16. Kiến trúc và phạm vi giữ nguyên qua cả hai vòng.
 
 **Nền và đầu vào:**
@@ -161,9 +162,18 @@ Trường `origin_kind` nhận năm giá trị:
 **Ghim phạm vi gốc theo lượt chat** (chỉ `origin_kind=handoff`). Liên kết `grant` mới của một tin chỉ được mở khi đủ hai điều:
 
 1. Mọi liên kết trước đó của cùng `(goal_id, origin_ref)` ghim **cùng** `root_id` và `root_generation` với phạm vi gốc đang `active`. Có một liên kết đã `dead`, hay gốc hiện hành khác gốc đã ghim, thì từ chối (`turn_authority_changed`).
-2. Với liên kết đầu tiên của tin cho mục tiêu đó: gốc phải có trước lúc lượt bắt đầu (`root.created_at <= turn.started_at`), hoặc chính tin này tạo ra gốc đó (`source=owner_message`, cùng `origin_ref`).
+2. Với liên kết đầu tiên của tin cho mục tiêu đó (lượt chưa từng chạm mục tiêu): gốc phải có `root.seq <= turn.authority_seq`, hoặc chính tin này tạo ra gốc đó (`source=owner_message` và `source_ref.message_ref` bằng `origin_ref`).
 
-`turn.started_at` là trường mới, do host ghi trong `turn_context.make`. Đồng hồ máy lùi chỉ làm từ chối nhầm, không cấp nhầm. Hệ quả: thu hồi rồi cấp lại, hay chủ dự án Cho phép trong khi lượt cũ còn chạy, đều không cho lượt đó lấy liên kết dưới gốc mới bằng cách sửa mục tiêu thêm một lần. Lời sửa mục tiêu vẫn được ghi; lượt đó chỉ không có quyền nộp, và việc nền làm tiếp dưới liên kết của nó.
+**Thứ tự quyền do kho quản lý, không dùng giờ máy.**
+
+- Bảng một dòng `authority_clock(seq)`. Mọi giao dịch tạo gốc, thu hồi, chấp thuận, cấp lại (đều `BEGIN IMMEDIATE`) tăng `seq` thêm một trong chính giao dịch đó. Gốc mới mang `grants.seq` bằng giá trị vừa tăng.
+- Lượt có trợ lý: `main.run_turn` đọc `authority_clock.seq` (một lần đọc theo khoá chính) **trước khi engine chạy**, ghi vào `turn.authority_seq`. Trường này do host đặt; model không thấy, không sửa được.
+- Vì các giao dịch ghi được SQLite tuần tự hoá, lần đọc ở đầu lượt thấy kho **hoặc trước hoặc sau** một lần cấp lại. Gốc cấp lại sau lần đọc luôn có `seq` lớn hơn, nên lượt đó không nhận được, kể cả lần đầu chạm mục tiêu. Đồng hồ lùi hay hai thời điểm trùng nhau không ảnh hưởng.
+- `seq` lưu trong kho, nên khởi động lại không làm nó lùi. Lượt của tiến trình cũ chết theo tiến trình.
+- Không đọc được `seq` lúc dựng lượt: `authority_seq = -1`. Lượt vẫn chat bình thường, nhưng không mở được liên kết `grant` dưới gốc có sẵn (đóng khi lỗi); việc nền làm tiếp như thường.
+- `created_at` của gốc chỉ để hiển thị và kiểm toán, không làm căn cứ quyền.
+
+Hệ quả: thu hồi rồi cấp lại, hay chủ dự án Cho phép trong khi lượt cũ còn chạy, đều không cho lượt đó lấy liên kết dưới gốc mới, dù lượt đã có liên kết hay mới chạm mục tiêu lần đầu, qua lời sửa hay lời gọi đến muộn. Lời sửa mục tiêu vẫn được ghi; lượt đó chỉ không có quyền nộp, và việc nền làm tiếp dưới liên kết của nó.
 
 **Vòng đời liên kết:**
 
@@ -221,7 +231,7 @@ Model không truyền được mục tiêu, trợ lý hay quyền. `handoff` ch�
    - Lấy mọi liên kết `origin_kind=handoff`, `origin_ref = <session_id>:<message_id>` **của đúng lượt đang gọi**, đúng `agent_key` và `config_version` của lượt, **ở mọi trạng thái**.
    - Có `handoff` thì phải là một trong số đó.
    - Lọc theo khoá đường của đích mà liên kết trỏ tới (quyền revision với `grant`, yêu cầu phạm vi với `draft`).
-   - Hơn 1 dòng sau lọc: `ambiguous_handoff`, không đoán.
+   - Hơn 1 dòng sau lọc: `ambiguous_handoff`, không đoán. Ví dụ: cùng tin sửa mục tiêu hai lần cùng đích thì có hai liên kết (một `closed`, một `live`); lời nộp không kèm `handoff` ra `ambiguous_handoff`. Công cụ lập và sửa mục tiêu luôn trả `handoff` **mới** của revision vừa tạo, và mô tả công cụ nộp dặn model gửi kèm mã đó. A4 không tự chọn dòng đầu hay dòng cuối.
 4. **Nội dung.**
    - Đổi gạch dài thành "-", có đếm số lần đổi.
    - sha256 tính trên bytes sẽ ghi.
@@ -336,7 +346,7 @@ Bốn bước, không giữ khoá trong lúc gọi model hay ghi file:
 **Thông báo khi thu hồi chen giữa:**
 
 - Có `commit_at`, chưa có bằng chứng ở đích: "Lần đăng đã được chốt trước khi thu hồi; Javis đang hoàn tất." Chưa nói file đã đăng.
-- Bước 4 khớp hash: "Đã đăng trước khi thu hồi" kèm sha.
+- Bước 4 khớp hash: "Đã hoàn tất lần đăng được chốt trước khi thu hồi" kèm sha. Không nói "đã đăng trước khi thu hồi", vì file có thể được thay sau lúc thu hồi.
 - Bước 4 không khớp: báo xung đột như mọi lần đăng khác.
 
 Thẻ mục tiêu và hướng dẫn ghi rõ luật này.
@@ -414,25 +424,49 @@ Cả hai tầng nằm trong bảng `grants` (mục 7.1):
 
 #### 5.2.1 Bộ nhận chỉ thị ghi (thuần, không gọi model)
 
-Mục đích hẹp: nhận vài cấu trúc chắc chắn là lệnh ghi. Bỏ sót thì đi qua thẻ (một lần bấm); **nhận nhầm là lỗi**. Module `resonance_grants.write_directive(text, lang) -> {path, span} | None`, có `parser_version`.
+Mục đích hẹp: nhận **mệnh lệnh trực tiếp** khớp trọn một khuôn cố định. Không tìm động từ ở vị trí bất kỳ rồi bỏ qua phần còn lại. Bỏ sót thì đi qua thẻ (một lần bấm); **nhận nhầm là lỗi**. Module `resonance_grants.write_directive(text) -> {path, span} | None`, có `parser_version`. Hai bộ từ tiếng Việt và tiếng Anh luôn chạy cùng lúc, vì một tin có thể trộn hai thứ tiếng.
 
 1. **Đầu vào là tin gốc do host giữ** của lượt (lời chủ dự án theo `message_ref`), không phải câu trích model đưa.
 2. **Bỏ phần không phải lời chủ dự án:**
    - dòng trích dẫn markdown (`>`), khối mã rào;
    - khối dán, tin chuyển tiếp, nội dung tệp đính kèm, theo đánh dấu kênh có sẵn;
    - đoạn trong ngoặc kép có khoảng trắng (câu trích). Ngoặc chỉ bao một đường thì giữ.
-3. **Tách mệnh đề** theo xuống dòng và `.`, `!`, `?`, `;`, `,`.
-4. **Một mệnh đề là chỉ thị ghi cho đường P** khi đủ cả bốn:
-   - P là đường duy nhất trong mệnh đề, đuôi `.md`/`.txt`, qua khoá đường của mục 4.3;
-   - có cấu trúc ghi trong danh sách cố định, đứng trước P trong cùng mệnh đề:
-     - động từ "ghi", "lưu", "viết", "soạn" rồi giới từ "vào", "ra", "thành" (được có chữ chen giữa, ví dụ "ghi bản mới vào");
-     - hay "tạo file", "tạo tệp", "cập nhật" đứng ngay trước P;
-     - tiếng Anh: "write", "save", "put" rồi "to", "into", "as"; hay "create", "update" ngay trước P;
-   - không có dấu phủ định: "đừng", "không", "chớ", "khỏi", "cấm", "trừ", "ngoại trừ"; "don't", "do not", "not", "never", "except", "avoid";
-   - không có động từ đọc hay tham chiếu: "đọc", "tham khảo", "xem", "dựa theo", "dựa vào", "theo mẫu"; "read", "see", "refer", "based on".
-5. **Kết luận:** cả tin có **đúng một** đường P đạt bước 4, P bằng khoá đường của `_deliverable_rel`, và không mệnh đề nào khác nhắc P kèm phủ định. Khác đi thì `None` và mục tiêu chờ chấp thuận.
+3. **Nhận token đường trước mọi bước tách.**
+   - Tìm chuỗi không khoảng trắng kết thúc bằng `.md` hay `.txt` (có hay không có dấu `` ` `` bao quanh), dừng trước dấu câu đứng cuối: `Inbox/x.md.` cho đường `Inbox/x.md`.
+   - Thay mỗi đường bằng một ký hiệu giữ chỗ, giữ bảng ký hiệu sang khoá đường (mục 4.3). Đường không qua khoá đường thì thành ký hiệu "đường hỏng", không bao giờ khớp.
+   - Nhờ vậy dấu chấm trong tên file không làm vỡ đường ở bước tách câu.
+4. **Cổng ngữ cảnh của cả tin**, chạy trên toàn bộ phần còn lại **trước khi tách câu**. Có bất kỳ dấu hiệu nào dưới đây ở bất kỳ đâu trong tin thì trả `None`:
+   - dấu `?`;
+   - điều kiện, thời điểm: "nếu", "giả sử", "trường hợp", "khi", "lúc", "sau khi", "trước khi", "một khi", "miễn là", "trừ khi"; "if", "when", "unless", "once", "after", "before", "in case", "provided";
+   - hỏi, cân nhắc: "có nên", "nên", "liệu", "hay là", "chăng", "nhỉ"; "should", "could", "would", "shall", "whether", "maybe", "perhaps";
+   - dự định, khả năng: "định", "dự định", "sẽ", "muốn", "có thể", "chắc", "tính"; "will", "going to", "plan", "intend", "want", "might", "may";
+   - phủ định: "đừng", "không", "chớ", "khỏi", "cấm", "trừ", "ngoại trừ"; "don't", "do not", "not", "never", "except", "avoid".
 
-"Được không?" cuối câu cũng chứa "không", nên câu hỏi kiểu "ghi vào `x.md` được không" đi qua thẻ. Chấp nhận bỏ sót như vậy.
+   So theo nguyên từ, không phân biệt hoa thường, giữ dấu tiếng Việt. Điều kiện hay phủ định đặt ở câu khác, kể cả không lặp lại đường, vẫn chặn cả tin. Đây là chủ ý: thà hỏi thừa một lần.
+5. **Tách câu** theo xuống dòng, `.`, `!`, `;`. Không tách theo dấu phẩy.
+6. **Một câu là chỉ thị ghi cho đường P** khi **toàn bộ** câu (bỏ dấu câu cuối) khớp một khuôn:
+   - `[mở đầu] (ghi|lưu|viết|soạn) [tân ngữ] (vào|ra|thành) P [đuôi]`;
+   - `[mở đầu] (tạo|cập nhật) [file|tệp] P [đuôi]`;
+   - `[opener] (write|save|put) [object] (to|into|as) P [tail]`;
+   - `[opener] (create|update) [the] [file] P [tail]`.
+
+   Trong đó:
+   - **mở đầu** chỉ là rỗng hay một cụm trong danh sách đóng: "em", "javis", "hãy", "em hãy", "giúp anh", "giúp chị", "giúp tôi", "giúp mình", "nhờ em"; "please". Được theo sau bởi một dấu phẩy. Không có chữ nào khác đứng trước động từ, nên một vế điều kiện không thể đứng đầu câu;
+   - **tân ngữ** và **đuôi** mỗi phần tối đa 8 từ, không chứa đường nào khác, không chứa động từ đọc hay tham chiếu ("đọc", "tham khảo", "xem", "dựa theo", "dựa vào", "theo mẫu"; "read", "see", "refer", "based on").
+7. **Kết luận:** cả tin có **đúng một** câu đạt bước 6, P bằng khoá đường của `_deliverable_rel`, và không câu nào khác nhắc P. Khác đi thì `None` và mục tiêu chờ chấp thuận. Bằng chứng ghi kèm gốc: vị trí câu, sha của câu, `parser_version`.
+
+**Ví dụ:**
+
+| Tin | Kết quả | Vì sao |
+|---|---|---|
+| "Ghi vào `Inbox/x.md` bản tóm tắt." | Chỉ thị | Khớp khuôn 1, không dấu hiệu chặn |
+| "Em lưu bản nháp thành Inbox/x.md nhé" | Chỉ thị | "em" là mở đầu, "nhé" là đuôi |
+| "Nếu anh duyệt sau, ghi vào Inbox/x.md." | Chờ | "nếu" chặn cả tin trước khi tách |
+| "Có nên ghi vào Inbox/x.md?" | Chờ | Dấu `?` và "nên" |
+| "Anh định ghi vào Inbox/x.md." | Chờ | "định"; và "anh định" không phải mở đầu cho phép |
+| "If I approve later, write to Inbox/x.md" | Chờ | "if" |
+| "Anh muốn em ghi vào Inbox/x.md" | Chờ | "muốn". Bỏ sót chấp nhận được |
+| "Đọc A.md để tham khảo, ghi bản mới vào B.md" | Chờ | Câu bắt đầu bằng "Đọc", không khớp khuôn. Bỏ sót chấp nhận được |
 
 **Giữ mục tiêu "giao một lần":** chỉ thị chỉ cần ở tin xác lập phạm vi. Revision sau cùng đích tự có quyền (mục 5.3), không hỏi lại.
 
@@ -547,8 +581,10 @@ CREATE TABLE IF NOT EXISTS grants(
   granted_by TEXT NOT NULL, source TEXT NOT NULL, source_ref_json TEXT NOT NULL DEFAULT '{}',
   actions_json TEXT NOT NULL, write_paths_json TEXT NOT NULL, read_paths_json TEXT NOT NULL,
   recipients_json TEXT NOT NULL DEFAULT '[]',
-  status TEXT NOT NULL, generation INTEGER NOT NULL,
+  status TEXT NOT NULL, generation INTEGER NOT NULL, seq INTEGER NOT NULL DEFAULT 0,
   created_at REAL NOT NULL, updated_at REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS authority_clock(id INTEGER PRIMARY KEY CHECK(id=1), seq INTEGER NOT NULL);
+INSERT OR IGNORE INTO authority_clock(id, seq) VALUES(1, 0);
 CREATE UNIQUE INDEX IF NOT EXISTS grants_root_active ON grants(goal_id) WHERE kind='root' AND status='active';
 CREATE UNIQUE INDEX IF NOT EXISTS grants_rev_active ON grants(goal_id, revision, parent_id)
   WHERE kind='revision' AND status='active';
@@ -633,7 +669,7 @@ Review vòng 1 chỉ ra `apply_command(..., "resume")` của 0.89.0 gỡ tạm d
   - Có bản nháp: thêm "Trợ lý đã soạn sẵn một bản (3,2 KB). Cho phép sẽ đăng đúng bản này" và nút Xem trước.
   - Thẻ gửi `request_id`, `path`, `submission_id`, `sha256` đã hiển thị. Thẻ cũ nhận lời "Thẻ đã cũ, tải lại để xem yêu cầu hiện tại".
 - **Bản nháp:** "1 bản nháp chờ đăng", hay "Bản nháp bị xung đột với file hiện có; xem trong lịch sử".
-- **Thu hồi chen giữa lần đăng:** "Lần đăng đã được chốt trước khi thu hồi; Javis đang hoàn tất", rồi "Đã đăng trước khi thu hồi" khi có bằng chứng ở đích.
+- **Thu hồi chen giữa lần đăng:** "Lần đăng đã được chốt trước khi thu hồi; Javis đang hoàn tất", rồi "Đã hoàn tất lần đăng được chốt trước khi thu hồi" khi có bằng chứng ở đích.
 - **Trang Cộng sự:** bảng khả năng engine (mục 6.1).
 - Chữ qua `vi.json` và `en.json`. Không có ô cấu hình quyền kỹ thuật.
 
@@ -672,6 +708,7 @@ Review vòng 1 chỉ ra `apply_command(..., "resume")` của 0.89.0 gỡ tạm d
 - Đọc quyền, liên kết và bản nộp theo chỉ mục; một truy vấn mỗi điểm kiểm. Không quét file hay trợ lý mỗi nhịp.
 - I/O của công cụ nộp và của đăng chạy ở luồng phụ. Giao dịch `BEGIN IMMEDIATE` chỉ bọc đọc và ghi kho, không bọc lời gọi model.
 - Bộ nhận chỉ thị chạy một lần mỗi lời lập hay sửa mục tiêu, trên chữ của một tin; không đọc file.
+- Mỗi lượt có trợ lý đọc thêm một dòng `authority_clock` theo khoá chính lúc dựng lượt. Lượt chat thường không đọc.
 - Đóng băng legacy chạy một lần lúc nâng, trên số mục tiêu đang có.
 - Thẻ đọc quyền trong `goal_view` đã giới hạn (0.88.5).
 
@@ -716,7 +753,7 @@ Mỗi ca có đối chứng hợp lệ đi qua. Ca race chèn thay đổi ngay t
 | G29 | Thu hồi rồi cấp lại khi cùng lượt chat còn sống | Lượt đó không nộp được nữa | r1 P1-2 |
 | G30 | Lời nộp cùng phiên nhưng khoá lượt là tin khác (đan xen hai tin) | Chỉ thấy liên kết của tin mình | r1 P1-2, P2-1 |
 | G31 | Thu hồi sau bước 1 (ý định), trước bước 3 (mốc commit) | Đăng bị huỷ, file đích không đổi, bản nộp `stale` | r1 P1-2 |
-| G32 | Mốc commit commit trước, thu hồi ngay sau, trước `os.replace` | Tác động hoàn tất. Lúc chưa thay file báo "đã được chốt trước khi thu hồi"; sau khi khớp hash mới báo "đã đăng trước khi thu hồi". Lần đăng sau bị chặn | r1 P1-2, r2 lưu ý 2 |
+| G32 | Mốc commit commit trước, thu hồi ngay sau, trước `os.replace` | Tác động hoàn tất. Lúc chưa thay file báo "đã được chốt trước khi thu hồi"; sau khi khớp hash mới báo "đã hoàn tất lần đăng được chốt trước khi thu hồi". Lần đăng sau bị chặn | r1 P1-2, r2 lưu ý 2 |
 | G33 | Nhánh `same` sau thu hồi | Không tạo baseline | r1 P1-2 |
 | G34 | Phép thử A3 khi quyền bị thu hồi giữa lượt thử | Dừng `inconclusive`, lý do quyền; lượt làm sản phẩm không chạy | r1 P1-2 |
 | G35 | Đối soát hành động mang liên kết `generation` cũ | Không đăng, không ghim lại | r1 P1-2 |
@@ -741,7 +778,7 @@ Mỗi ca có đối chứng hợp lệ đi qua. Ca race chèn thay đổi ngay t
 | Ca | Tình huống | Kỳ vọng | Điểm review |
 |---|---|---|---|
 | G51 | "Soạn ghi chú mới, đừng ghi vào `Private/giu-nguyen.md`", model chọn đúng đường đó làm đích | Không `owner_message`; yêu cầu chờ chấp thuận; ca âm ba mặt | r2 P1-1 |
-| G52 | "Đọc `Private/giu-nguyen.md` để tham khảo, ghi bản mới vào `Inbox/ban-moi.md`" | Model chọn đường đọc: không `owner_message`, chờ chấp thuận. Đối chứng: model chọn `Inbox/ban-moi.md` thì `owner_message` | r2 P1-1 |
+| G52 | "Đọc `Private/giu-nguyen.md` để tham khảo, ghi bản mới vào `Inbox/ban-moi.md`" | Model chọn đường nào cũng chờ chấp thuận: câu bắt đầu bằng "Đọc" nên không khớp khuôn (bỏ sót chấp nhận được, mục 5.2.1). Đối chứng dương ở G54 | r2 P1-1, r3 P1-1 |
 | G53 | Tin dán đoạn của người khác có "ghi vào `Private/giu-nguyen.md`" (trích dẫn `>`, khối dán, ngoặc kép có câu) | Không `owner_message` | r2 P1-1 |
 | G54 | Đối chứng: "Ghi vào `Inbox/x.md` bản tóm tắt" | `owner_message`, làm ngay, bằng chứng mệnh đề đúng | r2 P1-1 |
 | G55 | Hai đường cùng có động từ ghi; hay "ghi vào `x.md` được không?" | Chờ chấp thuận | r2 P1-1 |
@@ -763,9 +800,28 @@ Mỗi ca có đối chứng hợp lệ đi qua. Ca race chèn thay đổi ngay t
 | G71 | Người dùng sửa file giữa bước 3 và `os.replace` | Ca ghi nhận giới hạn: bản sửa mất, không báo xung đột. Hai ca đối chứng (sửa trước bước 3, sửa sau `os.replace`) đều phát hiện | r2 lưu ý 1 |
 | G72 | `host_publish` khi mục tiêu tạm dừng, guard chặn, hay baseline lệch, dù liên kết hợp lệ | Không đăng; cổng `_gate` vẫn chạy | r2 lưu ý 6 |
 
+### 12.4 Ca theo review vòng 3
+
+| Ca | Tình huống | Kỳ vọng | Điểm review |
+|---|---|---|---|
+| G73 | "Nếu anh duyệt sau, ghi vào Inbox/x.md." | Chờ chấp thuận; ca âm ba mặt (không gốc, không đọc đích vào prompt, không đăng, không giữ lượt nền) | r3 P1-1 |
+| G74 | "Có nên ghi vào Inbox/x.md?" | Chờ chấp thuận, ca âm ba mặt | r3 P1-1 |
+| G75 | "Anh định ghi vào Inbox/x.md." | Chờ chấp thuận, ca âm ba mặt | r3 P1-1 |
+| G76 | "If I approve later, write to Inbox/x.md" | Chờ chấp thuận, ca âm ba mặt | r3 P1-1 |
+| G77 | Điều kiện hay phủ định ở câu khác, không lặp đường: "Chưa chắc lắm, đừng vội. Ghi vào Inbox/x.md." | Chờ chấp thuận (cổng ngữ cảnh cả tin) | r3 P1-1 |
+| G78 | Đối chứng dương: "Ghi vào Inbox/x.md." có dấu chấm cuối; "Em lưu bản nháp thành `Notes/a.b.md` nhé" (tên có dấu chấm) | `owner_message`; đường nhận nguyên vẹn, không vỡ ở dấu chấm | r3 P1-1 |
+| G79 | Bảng câu của `test_resonance_a4_directive.py`: các câu trong ví dụ mục 5.2.1, cả tiếng Việt, tiếng Anh, tin trộn hai thứ tiếng | Đúng cột "Kết quả" của bảng | r3 P1-1 |
+| G80 | Lượt T chưa chạm mục tiêu G; trong lượt, thu hồi rồi cấp lại G; đồng hồ bị lùi trước lần cấp lại; T gọi sửa G lần đầu | Không có liên kết `grant` (`turn_authority_changed`), vì `root.seq > turn.authority_seq` | r3 P2-1 |
+| G81 | Như G80 với đồng hồ bình thường, và với `created_at` của gốc mới bằng đúng thời điểm bắt đầu lượt | Cùng kết quả G80; giờ máy không tham gia quyết định | r3 P2-1 |
+| G82 | Đối chứng: gốc có thật trước lượt; gốc do chính tin này tạo bằng chỉ thị ghi | Mở được liên kết `grant` | r3 P2-1 |
+| G83 | Lời sửa mục tiêu hay lời nộp **đến muộn** của lượt cũ sau cấp lại (cả khi lượt chưa từng có liên kết) | Lời sửa vẫn ghi; không liên kết, không nộp; G60, G70 giữ nguyên | r3 P2-1 |
+| G84 | Không đọc được `authority_clock` lúc dựng lượt | `authority_seq = -1`; chat chạy, không mở liên kết `grant` dưới gốc có sẵn; việc nền không đổi | r3 P2-1 |
+| G85 | Cùng tin sửa hai lần cùng đích, nộp không kèm `handoff`; rồi nộp kèm `handoff` mới | `ambiguous_handoff`; kèm mã thì đúng liên kết `live`. G67, G68 dùng mã do công cụ trả | r3 lưu ý 2 |
+| G86 | Đối soát hoàn tất một lần đăng đã commit dưới quyền đã thu hồi | Chỉ hoàn tất đúng hành động đã commit; không mở hành động đăng mới, không chèn bản nộp mới, không đăng bản `candidate` khác dưới quyền cũ | r3 lưu ý 3 |
+
 Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của danh sách động từ, kể cả các câu bỏ sót (ví dụ "viết bản mới ở `x.md`" không có động từ trong danh sách nên đi qua thẻ). Bỏ sót được chấp nhận, nhận nhầm thì không.
 
-### 12.4 Chuyển sang A5
+### 12.5 Chuyển sang A5
 
 | Ca | Lý do |
 |---|---|
@@ -779,7 +835,7 @@ Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của 
 
 | # | Quyết định | Trạng thái |
 |---|---|---|
-| D1 | Phạm vi gốc độc lập với tiêu chí. Chỉ chỉ thị ghi rõ ràng (bộ nhận thuần, danh sách cố định) mới cấp ngay; còn lại hỏi một lần | Sửa theo r1 P1-1, r2 P1-1 |
+| D1 | Phạm vi gốc độc lập với tiêu chí. Chỉ mệnh lệnh trực tiếp khớp trọn khuôn, qua cổng ngữ cảnh cả tin, mới cấp ngay; còn lại hỏi một lần. Nếu review vẫn thấy bộ nhận rủi ro, phương án dự phòng là bỏ hẳn cấp tự động bằng lời: mọi đích đi qua thẻ, bản nháp vẫn giữ nên không tốn thêm lượt model | Sửa theo r1 P1-1, r2 P1-1, r3 P1-1 |
 | D2 | Đăng chỉ qua `host_publish`, giữ đủ `_gate` | Giữ, thêm r2 lưu ý 6 |
 | D3 | Giữ quan sát Write; quy tắc Write A + nộp B ở mục 4.4 | Sửa theo r1 P1-3 |
 | D4 | Grok và Antigravity không nhận bàn giao chat | Giữ; kiểm đường truyền thật khi code |
@@ -792,19 +848,19 @@ Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của 
 | D11 | Hạ phiên bản chỉ hỗ trợ khôi phục snapshot, có script giữ bản kho hiện tại | Sửa theo r2 lưu ý 3 |
 | D12 | **Giữ bản nháp trước duyệt** (liên kết `draft`, không đọc, không đăng), Cho phép thì đăng đúng bản đó qua liên kết `approval`, 0 lượt model. Không chọn cách từ chối nộp trước duyệt, vì bộ nhận chỉ thị hẹp sẽ đưa nhiều mục tiêu qua thẻ và cách đó tốn thêm một lượt model mỗi lần | Mới, r2 P2-1 |
 | D13 | Liên kết có `sealed`: hết nhận lời nộp, còn hoàn tất bản đã nhận dưới quyền đã ghim | Mới, r2 P2-2 |
-| D14 | Khoá liên kết theo revision; ghim gốc theo lượt bằng `turn.started_at` | Mới, r2 P2-3 |
+| D14 | Khoá liên kết theo revision; ghim gốc theo lượt bằng thứ tự `authority_clock.seq` do kho cấp, chụp lúc dựng lượt. Không dùng giờ máy | Mới ở r2 P2-3; sửa theo r3 P2-1 |
 | D15 | Khoá đường từ chối `.` và `..`, không mở alias | Mới, r2 lưu ý 4 |
 
 ## 14. Kế hoạch code (sau khi thiết kế đạt review)
 
 1. **Kho:**
-   - bảng ở mục 7.1; snapshot qua `_backup_before`; đóng băng legacy trong giao dịch nâng;
+   - bảng ở mục 7.1, gồm `authority_clock`; snapshot qua `_backup_before`; đóng băng legacy trong giao dịch nâng (gốc legacy nhận `seq` trong cùng giao dịch);
    - `scope_*` (gốc, yêu cầu, chấp thuận, từ chối, thu hồi, cấp lại), `grant_rev_*`;
    - `binding_open/seal/close`, `binding_accepts`, `binding_may_finish`, gắn vào `_open_handoff`, `begin_action`, `begin_experiment`;
    - `submission_*`, `adopt_submission` (khoá `adopt:<submission_id>`);
    - giao dịch `BEGIN IMMEDIATE` cho mốc commit, thu hồi, chấp thuận.
 2. **Chính sách thuần** (`resonance_grants.py`): `path_key`, `write_directive`, `narrow`, `allows`, dấu vân tay, `ENGINE_CAPS`.
-3. **Danh tính lượt:** `turn_context.make` thêm `started_at`.
+3. **Danh tính lượt:** `turn_context.make` thêm `authority_seq`; `main.run_turn` đọc `authority_clock` cho lượt có trợ lý trước khi engine chạy.
 4. **Hợp đồng** (`resonance.py`):
    - `host_publish` bốn bước, thay mọi chỗ gọi `set_published` và `_publish`;
    - sắp lại `_work_post_core`;
@@ -827,8 +883,8 @@ Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của 
 ## 15. Ranh giới bằng chứng
 
 - **17 ca Paperclip** là bằng chứng về Paperclip.
-- **10 kiểm của reviewer vòng 1** và **13 kiểm của reviewer vòng 2** chứng minh giả định về mã nền và mâu thuẫn trong văn bản thiết kế. Đó không phải test A4.
-- **Mục 2:** đọc mã tại `9716cecf`. Dòng `_brain_file` nhận `a/../a/x.md` đã chạy thử trên mã đó.
+- **10 kiểm của reviewer vòng 1**, **13 kiểm vòng 2** và **16 kiểm vòng 3** chứng minh giả định về mã nền và mâu thuẫn trong văn bản thiết kế. Đó không phải test A4.
+- **Mục 2:** đọc mã tại `9716cecf`. Dòng `_brain_file` nhận `a/../a/x.md` đã chạy thử trên mã đó; reviewer vòng 3 đã kiểm lại và đính chính nhận xét vòng 2. D15 là luật mới của `path_key`, không sửa helper dùng chung.
 - **Phần còn lại** là đề xuất.
 
 ## 16. Thay đổi theo review
@@ -850,10 +906,21 @@ Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của 
 | P1-1: đường có mặt trong lời chủ dự án chưa chứng minh quyền ghi; legacy lấy revision hiện hành lúc thức | `owner_message` chỉ khi bộ nhận chỉ thị thuần tìm thấy đúng một chỉ thị ghi rõ ràng, bỏ phần trích và dán, chặn phủ định và động từ đọc; ghi bằng chứng mệnh đề. Không chắc thì chờ chấp thuận. Đóng băng legacy trong giao dịch nâng, đọc revision lưu lúc nâng | 1, 3, 5.2, 5.2.1, 5.3, 12.3 (G51 tới G56), D1 |
 | P2-1: chờ chấp thuận không có root nhưng submit đòi root; chưa có đường dùng bản nháp sau duyệt; thẻ cũ | Chọn giữ bản nháp: liên kết `draft` ghim yêu cầu đang chờ, chỉ nộp vào vùng nháp (`awaiting_scope`), không đọc, không đăng. `approve_scope` CAS yêu cầu, revision, đường, trợ lý, bản nháp trong một giao dịch, tạo gốc mới, liên kết `approval` và bản `approved_draft`; 0 lượt model. Lượt chat cũ không hưởng quyền mới. Thẻ cũ không bao giờ cấp gốc | 4.1, 4.2, 4.4, 5.2, 5.3, 8, 10, 12.3 (G57 tới G61), D7, D12 |
 | P2-2: đóng liên kết khi khởi động lại làm mất bản đã nhận; thiếu dòng đã đăng chưa tiếp nhận | Tách `live` (nhận lời nộp) với `sealed` (chỉ hoàn tất bản đã nhận dưới quyền đã ghim). Hai phép kiểm `binding_accepts` và `binding_may_finish`. Luật tác động đã commit riêng. Thêm dòng đã đăng chưa tiếp nhận, khoá `adopt:<submission_id>`, `adopted_at` giữ nhả lịch đúng một lần | 3, 4.2, 4.4, 4.5, 4.7, 9, 12.3 (G62 tới G66), D13 |
-| P2-3: `UNIQUE(goal_id, origin_kind, origin_ref)` chặn hai revision trong một tin | Khoá `UNIQUE(goal_id, revision, origin_kind, origin_ref)`; mở lại cùng khoá trả dòng có sẵn, không `REPLACE`; revision mới làm bản cũ `superseded`. Ghim gốc theo lượt (`turn.started_at`) để lượt cũ không lấy gốc mới bằng cách sửa thêm | 4.2, 7.1, 12.3 (G67 tới G70), D14 |
+| P2-3: `UNIQUE(goal_id, origin_kind, origin_ref)` chặn hai revision trong một tin | Khoá `UNIQUE(goal_id, revision, origin_kind, origin_ref)`; mở lại cùng khoá trả dòng có sẵn, không `REPLACE`; revision mới làm bản cũ `superseded`. Ghim gốc theo lượt (vòng 3 dùng `turn.started_at`; vòng 4 thay bằng `authority_clock.seq`, mục 16.3) để lượt cũ không lấy gốc mới bằng cách sửa thêm | 4.2, 7.1, 12.3 (G67 tới G70), D14 |
 | Lưu ý 1: đọc lại hash sau `os.replace` không phát hiện bản sửa bị ghi đè | Viết lại mục giới hạn theo ba khe thời gian; nói rõ khe không phát hiện được | 4.5, G71 |
 | Lưu ý 2: "đã đăng" khi mới commit | Hai thông báo: "đã được chốt trước khi thu hồi" và "đã đăng trước khi thu hồi" khi có bằng chứng ở đích | 4.5, 8, G32 |
 | Lưu ý 3: snapshot chép thô với WAL; giữ kho hiện tại trước khôi phục | Dùng `_backup_before`; script khôi phục chép kho hiện tại bằng backup API trước | 7.4, G47, G50, D11 |
 | Lưu ý 4: luật `..` không thống nhất | Chạy thử: `_brain_file` thật ra nhận `a/../a/x.md`. Chốt khoá đường từ chối `.` và `..` | 2, 4.3, G13, G45, D15 |
 | Lưu ý 5: thứ tự tra biên nhận và lọc liên kết sống | Danh tính và liên kết của lượt trước, tra biên nhận cũ, rồi mới cổng `binding_accepts` cho lời nộp mới | 4.3, G46 |
 | Lưu ý 6: `binding_valid` không thay `_gate` | `host_publish` bước 1 và 3 chạy đủ `_gate`; ghi rõ ở mục 1, 4.2, 5.5 | 1, 4.2, 4.5, 5.5, G72 |
+
+### 16.3 Sau review vòng 3 (`efa1fce3`)
+
+| Điểm | Sửa | Mục |
+|---|---|---|
+| P1-1: bộ nhận chỉ thị cấp quyền từ câu điều kiện, câu hỏi, lời dự định; tách dấu chấm làm vỡ đường | Nhận token đường trước mọi bước tách. Cổng ngữ cảnh cả tin chạy trước khi tách câu: `?`, điều kiện, hỏi, dự định, phủ định ở bất kỳ đâu thì chờ. Không tách theo dấu phẩy. Câu phải khớp **trọn** một khuôn mệnh lệnh, phần mở đầu chỉ từ danh sách đóng. Bảng ví dụ dương và âm. Ghi phương án dự phòng bỏ cấp tự động trong D1 | 5.2.1, 12.4 (G73 tới G79), D1 |
+| P2-1: so `created_at` với `started_at` cấp nhầm khi đồng hồ lùi hay trùng thời điểm, nhất là lần đầu lượt chạm mục tiêu | Thứ tự do kho cấp: `authority_clock.seq` tăng trong mọi giao dịch tạo gốc, thu hồi, chấp thuận, cấp lại; lượt có trợ lý chụp `seq` trước khi engine chạy; liên kết đầu tiên chỉ nhận gốc có `seq` không vượt ảnh chụp, trừ gốc do chính tin tạo. Đọc lỗi thì đóng. `created_at` chỉ để hiển thị | 4.2, 7.1, 11, 14, 12.4 (G80 tới G84), D14 |
+| Lưu ý 1: "Đã đăng trước khi thu hồi" sai thời điểm | Đổi thành "Đã hoàn tất lần đăng được chốt trước khi thu hồi" | 4.5, 8, G32 |
+| Lưu ý 2: không kèm `handoff` thì hai revision cùng tin ra `ambiguous_handoff` | Giữ hành vi đó, nói rõ; công cụ lập và sửa trả mã mới, mô tả công cụ nộp dặn gửi kèm; G67, G68 dùng mã | 4.3, G85 |
+| Lưu ý 3: hoàn tất tác động đã commit khác mở tác động mới | Ca kiểm quyền cũ chỉ hoàn tất đúng hành động đã commit | G86 |
+| Đính chính của reviewer về `_brain_file` | Ghi nhận ở mục 15; D15 giữ là luật mới của `path_key` | 15, D15 |
