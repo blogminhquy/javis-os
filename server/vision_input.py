@@ -29,7 +29,7 @@ MAX_INPUT_BYTES = 25_000_000 # never read a file bigger than this into memory
 
 # Providers whose bot path can carry image input today. The two remaining CLI brains (Antigravity, Grok Build) take one prompt
 # string with no image channel, so they get the honest label instead.
-SUPPORTED = ("openai", "openrouter", "gemini", "groq", "ollama", "ollama-local", "openai-compat",
+SUPPORTED = ("openai", "openrouter", "gemini", "groq", "deepseek", "ollama", "ollama-local", "openai-compat",
              "anthropic-api", "anthropic", "openai-oauth", "anthropic-cli")
 
 _MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}

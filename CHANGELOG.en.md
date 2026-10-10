@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.91.0] - 2026-10-10
+### Added
+- **DeepSeek is a new brain.** Paste a DeepSeek API key on the Models page to pick `deepseek-flash` or `deepseek-v4-pro` as the main brain, for agents or for background work, with the same tools as the other API engines.
+- **Thinking depth works with DeepSeek.** Set to Off, DeepSeek answers directly, cheaper and faster; turned on, it thinks first. If an older conversation does not fit thinking mode, Javis answers in normal mode with a one-line notice.
+
 ## [0.89.2] - 2026-10-10
 ### Improved
 - **When a bot says it cannot see a photo, the bot card says why.** The reason used to stay in the server log, so a bot running on a VPS said it could not see the photo and the owner had no way to know what to fix. The warning line on the bot card now gives one of four reasons: the photo message carried no link, downloading the photo from Zalo failed (with the exact error), the bot's brain does not take images (Antigravity, Grok Build: switch the bot to a model that can see images), or the model refused the image.

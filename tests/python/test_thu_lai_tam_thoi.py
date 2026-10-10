@@ -211,7 +211,7 @@ def _lam_engine(ten):
     return _fn
 
 
-for _ten in ("openrouter_stream", "openai_stream", "gemini_stream", "groq_stream",
+for _ten in ("openrouter_stream", "openai_stream", "gemini_stream", "groq_stream", "deepseek_stream",
              "ollama_stream", "ollama_local_stream", "openai_compat_stream", "openai_responses_stream",
              "anthropic_stream"):
     setattr(main.engine, _ten, _lam_engine(_ten))

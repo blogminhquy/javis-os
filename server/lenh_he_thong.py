@@ -39,7 +39,7 @@ GIU_NGUYEN = 4
 # Nhà API mà bộ nén nền của Javis đã chạy được (cùng danh sách với móc nén nền sau mỗi lượt
 # trong main.py). Nhà khác (Ollama, OpenAI-compat) chưa được kiểm chứng đường tóm tắt nên
 # không đoán mò: báo thẳng là chưa hỗ trợ thay vì nén hỏng.
-NHA_API_NEN_DUOC = ("openrouter", "openai", "anthropic-api", "gemini", "groq")
+NHA_API_NEN_DUOC = ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek")
 
 
 def khoi_ke_hoach() -> str:

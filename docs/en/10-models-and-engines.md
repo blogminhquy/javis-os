@@ -25,6 +25,7 @@ The most important thing to understand: **changing model does NOT cost Javis any
 | **Direct API** | Anthropic (API) | Yes, as above | No |
 | **Direct API** | Google Gemini (API) | Yes, as above (since 0.9.270 the Connections page no longer misreports it) | No |
 | **Direct API** | Groq (API) | Yes, as above | No |
+| **Direct API** | DeepSeek (API) | Yes, as above | No |
 | **Direct API** | Ollama Cloud | Yes, as above | No |
 
 ### The four things API engines lack
@@ -67,6 +68,7 @@ The **Providers** block lists 10 providers. **Connected ones are sorted first**,
 | **OpenAI (ChatGPT API)** | Paste an API key | MCP + file tools + skills through the hub |
 | **Google Gemini (API)** | Paste an API key | MCP + file tools + skills through the hub |
 | **Groq (API)** | Paste an API key | MCP + file tools + skills through the hub. Very fast inference, well suited as the background model. This key is also what enables **voice commands on Telegram and Zalo** (Whisper turning speech into text), see [Telegram](11-telegram.md) and [Zalo Bot channel](26-zalo-bot-channel.md); wiring the key is enough, you need not switch the main model to Groq |
+| **DeepSeek (API)** | Paste an API key from platform.deepseek.com | MCP + file tools + skills through the hub. Models `deepseek-flash` (cheap, takes images) and `deepseek-v4-pro`. With thinking depth set to **Off** DeepSeek answers directly; turned on, it thinks first, and if an older conversation does not fit that mode Javis answers in normal mode with a one-line notice |
 | **Ollama Cloud** | Paste an API key from ollama.com | MCP + file tools + skills through the hub. Large open-source models (gpt-oss, qwen3-coder, deepseek) running on Ollama's servers |
 
 Each provider card shows **● Connected** or **○ Not connected**, the number of available models, and a type label next to the name: **MCP/skills** (Claude Code), **Device code** (ChatGPT), **Javis MCP** (API providers). The card currently serving as Main Model carries a **MAIN** label.
@@ -184,7 +186,7 @@ A few things worth knowing up front, to avoid confusion:
 
 **If you still hit errors on Windows**, set the environment variable `JAVIS_AGY_PROMPT_DAI=file` to force the file route, and please report back with the error `agy` printed.
 
-### C. Connecting a provider with an API key (OpenRouter / Anthropic API / OpenAI API / Gemini / Groq)
+### C. Connecting a provider with an API key (OpenRouter / Anthropic API / OpenAI API / Gemini / Groq / DeepSeek)
 
 1. Open **Models** and find the provider card.
 2. Paste the API key into the field (labelled "paste an API key to connect").
