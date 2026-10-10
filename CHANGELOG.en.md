@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.89.2] - 2026-10-10
+### Improved
+- **When a bot says it cannot see a photo, the bot card says why.** The reason used to stay in the server log, so a bot running on a VPS said it could not see the photo and the owner had no way to know what to fix. The warning line on the bot card now gives one of four reasons: the photo message carried no link, downloading the photo from Zalo failed (with the exact error), the bot's brain does not take images (Antigravity, Grok Build: switch the bot to a model that can see images), or the model refused the image.
+
 ## [0.89.1] - 2026-10-10
 ### Fixed
 - **A customer-care bot no longer silently drops groups past the 50th.** A bot used to remember only its first 50 groups, so newly approved customer groups reported success but never made it into the list and the bot stayed silent there. The group list is no longer cut. (Contributed by @nhuy288-8.)
