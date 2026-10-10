@@ -1,11 +1,12 @@
 # Resonance A4: nộp sản phẩm đa engine qua một hợp đồng host, kèm quyền có phạm vi
 
-**Trạng thái:** thiết kế **vòng 4**, chờ review. **Chưa có mã A4.**
+**Trạng thái:** thiết kế **chốt** (vòng 5, phương án dự phòng D1), reviewer chấp thuận để code. Mã A4 đi theo bản này; đổi cơ chế cấp quyền ngoài bản này thì gửi diff thiết kế review trước.
 
 - **Nhánh:** `claude/resonance-a4-handoff-grants`, PR nháp #604, số 0.90.0.
 - **Vòng 1** (`5edfc9b6`) chưa đạt: 3 P1, 2 P2 (`exports/reviews/PR-604-A4-design-r1-review.md`, ngoài git).
 - **Vòng 2** (`99c88447`) chưa đạt: 1 P1, 3 P2, 6 lưu ý nhỏ (`exports/reviews/PR-604-A4-design-r2-review.md`, ngoài git).
 - **Vòng 3** (`efa1fce3`) chưa đạt: 1 P1, 1 P2, 3 lưu ý nhỏ (`exports/reviews/PR-604-A4-design-r3-review.md`, ngoài git). Phần bản nháp, chấp thuận, `sealed`, tiếp nhận, khoá theo revision và legacy đã đạt ở mức thiết kế.
+- **Vòng 4** (`bd6ad1d1`): thứ tự quyền và ba lưu ý đạt; bộ nhận chỉ thị còn nhận nhầm (`exports/reviews/PR-604-A4-design-r4-review.md`, ngoài git). Chốt phương án dự phòng D1: **A4 không cấp quyền từ lời chat**.
 - Bảng đối chiếu từng điểm review ở mục 16. Kiến trúc và phạm vi giữ nguyên qua cả hai vòng.
 
 **Nền và đầu vào:**
@@ -41,10 +42,9 @@ A5 dùng lại đúng hợp đồng này cho cặp làm/review.
 **Người dùng thấy:**
 
 - Anh giao kết quả một lần.
-- Anh **ra lệnh ghi rõ ràng** vào một file trong lời giao (ví dụ "ghi vào `Inbox/x.md`") thì đích đó được dùng ngay.
-- Mọi trường hợp khác (trợ lý tự chọn đích, đổi đích, câu có chữ phủ định, chỉ nhắc file để tham khảo, đoạn trích của người khác), Javis hỏi anh **một lần** trên thẻ, kèm đúng đường file.
-- Bản trợ lý soạn sẵn trước khi anh cho phép được giữ làm nháp. Anh bấm Cho phép thì Javis đăng đúng bản đó, không gọi model viết lại.
-- Trong phạm vi đã cho, trợ lý tự làm, không hỏi lại từng bước hay từng lần sửa.
+- **Đích mới hay đổi phạm vi:** anh bấm Cho phép trên thẻ, kèm đúng đường file. Kể cả khi lời giao đã nêu đích, Javis vẫn hỏi một lần; A4 không suy quyền ghi từ lời chat.
+- **Phạm vi đã cấp:** trợ lý tự làm tiếp, không hỏi lại từng bước hay từng lần sửa.
+- **Bản nháp được giữ:** bản trợ lý soạn trước khi anh cho phép được giữ làm nháp. Anh bấm Cho phép thì Javis đăng đúng bản đó, bước này không gọi model. Mục tiêu chưa có bản nháp thì sau khi cho phép, việc nền chạy theo ngân sách lượt như thường.
 - Thẻ mục tiêu hiện: được làm gì, trên file nào, tối đa bao nhiêu lượt, có được giao tiếp không, nút Thu hồi.
 
 **Giữ nguyên:**
@@ -66,7 +66,7 @@ A5 dùng lại đúng hợp đồng này cho cặp làm/review.
 - **Mở việc nền cho Codex, Grok, Antigravity.**
 - **Mô hình công ty, vai trò, trust rule, policy engine của Paperclip.**
 - **Nhiều sản phẩm mỗi mục tiêu.**
-- **Hiểu ngôn ngữ tự do để cấp quyền.** Bộ nhận chỉ thị ghi (mục 5.2.1) chỉ nhận vài cấu trúc rõ ràng; câu khác đi qua thẻ.
+- **Cấp quyền từ lời chat.** A4 không có bộ nhận chỉ thị và không có nguồn quyền `owner_message` (mục 5.2.1, D1).
 - **Hạn dùng quyền (`expires_at`).** Không có trong A4 (D10).
 - **Chạy tiếp mục tiêu có quyền A4 bằng mã 0.89.0 sau khi hạ phiên bản.** Không hỗ trợ (mục 7.4).
 
@@ -162,7 +162,7 @@ Trường `origin_kind` nhận năm giá trị:
 **Ghim phạm vi gốc theo lượt chat** (chỉ `origin_kind=handoff`). Liên kết `grant` mới của một tin chỉ được mở khi đủ hai điều:
 
 1. Mọi liên kết trước đó của cùng `(goal_id, origin_ref)` ghim **cùng** `root_id` và `root_generation` với phạm vi gốc đang `active`. Có một liên kết đã `dead`, hay gốc hiện hành khác gốc đã ghim, thì từ chối (`turn_authority_changed`).
-2. Với liên kết đầu tiên của tin cho mục tiêu đó (lượt chưa từng chạm mục tiêu): gốc phải có `root.seq <= turn.authority_seq`, hoặc chính tin này tạo ra gốc đó (`source=owner_message` và `source_ref.message_ref` bằng `origin_ref`).
+2. Với liên kết đầu tiên của tin cho mục tiêu đó (lượt chưa từng chạm mục tiêu): gốc phải có `root.seq <= turn.authority_seq`. Không có ngoại lệ: A4 không có gốc nào do chính lượt chat tạo ra.
 
 **Thứ tự quyền do kho quản lý, không dùng giờ máy.**
 
@@ -409,11 +409,10 @@ Cả hai tầng nằm trong bảng `grants` (mục 7.1):
 
 | `source` | Khi nào | Đích | Bằng chứng ghi kèm |
 |---|---|---|---|
-| `owner_message` | Lập hay sửa mục tiêu trong phiên trợ lý, và bộ nhận chỉ thị (mục 5.2.1) tìm thấy **đúng một chỉ thị ghi rõ ràng** trong chính lời chủ dự án của tin đó, trỏ đúng đường đích | Đường đó | `message_ref`, vị trí mệnh đề, sha của mệnh đề, `parser_version` |
 | `owner_approved` | Chủ dự án bấm "Cho phép" trên thẻ cho **một yêu cầu cụ thể** host đưa ra (mục 5.3) | Đường của yêu cầu | `scope_request_id`, người bấm |
 | `legacy_frozen` | Giao dịch nâng kho lên 0.90.0, cho mục tiêu lập trước đó | `_deliverable_rel` của revision **tại lúc nâng** | Revision và sha khung lúc nâng. **Tương thích legacy**, không khẳng định chủ dự án đã duyệt |
 
-**Không có phạm vi gốc** trong mọi trường hợp khác: trợ lý tự chọn đích, câu không rõ, có hai đường, có phủ định, chỉ nhắc để đọc, đoạn trích. Khi đó mục tiêu ở trạng thái **chờ chấp thuận phạm vi**:
+**Mục tiêu mới lập trong lượt chat luôn chưa có phạm vi gốc**, dù lời giao có nêu đích hay không. Mục tiêu ở trạng thái **chờ chấp thuận phạm vi**:
 
 - Host ghi `scope_requests` (kind `create` hay `expand`) mang đường, revision, trợ lý, version, tin gốc.
 - Thẻ hiện "Trợ lý muốn ghi vào `Inbox/x.md`. Cho phép / Không".
@@ -422,53 +421,16 @@ Cả hai tầng nằm trong bảng `grants` (mục 7.1):
 
 **Đóng băng legacy ngay lúc nâng.** Giao dịch nâng kho (sau snapshot ở mục 7.4, trước khi bất kỳ mã A4 nào nhận lời gọi) tạo gốc `legacy_frozen` cho mỗi mục tiêu có trợ lý và có `_deliverable_rel`, đọc từ revision đang lưu. Không còn cấp lười ở "lần thức đầu", nên không có khe cho model sửa đích trước khi đóng băng. Mục tiêu chưa gán trợ lý hay không có đường sản phẩm không có gốc.
 
-#### 5.2.1 Bộ nhận chỉ thị ghi (thuần, không gọi model)
+#### 5.2.1 Không cấp quyền từ lời chat (D1)
 
-Mục đích hẹp: nhận **mệnh lệnh trực tiếp** khớp trọn một khuôn cố định. Không tìm động từ ở vị trí bất kỳ rồi bỏ qua phần còn lại. Bỏ sót thì đi qua thẻ (một lần bấm); **nhận nhầm là lỗi**. Module `resonance_grants.write_directive(text) -> {path, span} | None`, có `parser_version`. Hai bộ từ tiếng Việt và tiếng Anh luôn chạy cùng lúc, vì một tin có thể trộn hai thứ tiếng.
+Vòng 2 tới vòng 4 thử một bộ nhận chỉ thị ghi thuần (khuôn mệnh lệnh, danh sách từ chặn). Mỗi vòng review vẫn tìm được câu thường bị nhận nhầm thành quyền ghi, như "Đây là ví dụ minh họa. Ghi vào `Inbox/x.md`." hay "Ghi vào `Inbox/x.md` là câu cần dịch.". Nguyên nhân là danh sách hữu hạn không phân biệt được **nhắc tới** một lệnh với **yêu cầu thực hiện** lệnh đó.
 
-1. **Đầu vào là tin gốc do host giữ** của lượt (lời chủ dự án theo `message_ref`), không phải câu trích model đưa.
-2. **Bỏ phần không phải lời chủ dự án:**
-   - dòng trích dẫn markdown (`>`), khối mã rào;
-   - khối dán, tin chuyển tiếp, nội dung tệp đính kèm, theo đánh dấu kênh có sẵn;
-   - đoạn trong ngoặc kép có khoảng trắng (câu trích). Ngoặc chỉ bao một đường thì giữ.
-3. **Nhận token đường trước mọi bước tách.**
-   - Tìm chuỗi không khoảng trắng kết thúc bằng `.md` hay `.txt` (có hay không có dấu `` ` `` bao quanh), dừng trước dấu câu đứng cuối: `Inbox/x.md.` cho đường `Inbox/x.md`.
-   - Thay mỗi đường bằng một ký hiệu giữ chỗ, giữ bảng ký hiệu sang khoá đường (mục 4.3). Đường không qua khoá đường thì thành ký hiệu "đường hỏng", không bao giờ khớp.
-   - Nhờ vậy dấu chấm trong tên file không làm vỡ đường ở bước tách câu.
-4. **Cổng ngữ cảnh của cả tin**, chạy trên toàn bộ phần còn lại **trước khi tách câu**. Có bất kỳ dấu hiệu nào dưới đây ở bất kỳ đâu trong tin thì trả `None`:
-   - dấu `?`;
-   - điều kiện, thời điểm: "nếu", "giả sử", "trường hợp", "khi", "lúc", "sau khi", "trước khi", "một khi", "miễn là", "trừ khi"; "if", "when", "unless", "once", "after", "before", "in case", "provided";
-   - hỏi, cân nhắc: "có nên", "nên", "liệu", "hay là", "chăng", "nhỉ"; "should", "could", "would", "shall", "whether", "maybe", "perhaps";
-   - dự định, khả năng: "định", "dự định", "sẽ", "muốn", "có thể", "chắc", "tính"; "will", "going to", "plan", "intend", "want", "might", "may";
-   - phủ định: "đừng", "không", "chớ", "khỏi", "cấm", "trừ", "ngoại trừ"; "don't", "do not", "not", "never", "except", "avoid".
+A4 chốt:
 
-   So theo nguyên từ, không phân biệt hoa thường, giữ dấu tiếng Việt. Điều kiện hay phủ định đặt ở câu khác, kể cả không lặp lại đường, vẫn chặn cả tin. Đây là chủ ý: thà hỏi thừa một lần.
-5. **Tách câu** theo xuống dòng, `.`, `!`, `;`. Không tách theo dấu phẩy.
-6. **Một câu là chỉ thị ghi cho đường P** khi **toàn bộ** câu (bỏ dấu câu cuối) khớp một khuôn:
-   - `[mở đầu] (ghi|lưu|viết|soạn) [tân ngữ] (vào|ra|thành) P [đuôi]`;
-   - `[mở đầu] (tạo|cập nhật) [file|tệp] P [đuôi]`;
-   - `[opener] (write|save|put) [object] (to|into|as) P [tail]`;
-   - `[opener] (create|update) [the] [file] P [tail]`.
-
-   Trong đó:
-   - **mở đầu** chỉ là rỗng hay một cụm trong danh sách đóng: "em", "javis", "hãy", "em hãy", "giúp anh", "giúp chị", "giúp tôi", "giúp mình", "nhờ em"; "please". Được theo sau bởi một dấu phẩy. Không có chữ nào khác đứng trước động từ, nên một vế điều kiện không thể đứng đầu câu;
-   - **tân ngữ** và **đuôi** mỗi phần tối đa 8 từ, không chứa đường nào khác, không chứa động từ đọc hay tham chiếu ("đọc", "tham khảo", "xem", "dựa theo", "dựa vào", "theo mẫu"; "read", "see", "refer", "based on").
-7. **Kết luận:** cả tin có **đúng một** câu đạt bước 6, P bằng khoá đường của `_deliverable_rel`, và không câu nào khác nhắc P. Khác đi thì `None` và mục tiêu chờ chấp thuận. Bằng chứng ghi kèm gốc: vị trí câu, sha của câu, `parser_version`.
-
-**Ví dụ:**
-
-| Tin | Kết quả | Vì sao |
-|---|---|---|
-| "Ghi vào `Inbox/x.md` bản tóm tắt." | Chỉ thị | Khớp khuôn 1, không dấu hiệu chặn |
-| "Em lưu bản nháp thành Inbox/x.md nhé" | Chỉ thị | "em" là mở đầu, "nhé" là đuôi |
-| "Nếu anh duyệt sau, ghi vào Inbox/x.md." | Chờ | "nếu" chặn cả tin trước khi tách |
-| "Có nên ghi vào Inbox/x.md?" | Chờ | Dấu `?` và "nên" |
-| "Anh định ghi vào Inbox/x.md." | Chờ | "định"; và "anh định" không phải mở đầu cho phép |
-| "If I approve later, write to Inbox/x.md" | Chờ | "if" |
-| "Anh muốn em ghi vào Inbox/x.md" | Chờ | "muốn". Bỏ sót chấp nhận được |
-| "Đọc A.md để tham khảo, ghi bản mới vào B.md" | Chờ | Câu bắt đầu bằng "Đọc", không khớp khuôn. Bỏ sót chấp nhận được |
-
-**Giữ mục tiêu "giao một lần":** chỉ thị chỉ cần ở tin xác lập phạm vi. Revision sau cùng đích tự có quyền (mục 5.3), không hỏi lại.
+- **Không có nguồn `owner_message`.** Model vẫn hiểu lời giao và đề xuất đích trong khung mục tiêu; hiểu mục tiêu không phải cấp quyền ghi.
+- Đích chỉ có quyền qua thẻ (`owner_approved`) hay đóng băng legacy (`legacy_frozen`).
+- Không có module phân tích lời để cấp quyền. Nếu sau này cần gợi ý đường trên thẻ, phần gợi ý chỉ là đề xuất, không tạo gốc, không nâng quyền.
+- "Giao một lần" giữ ở chỗ: đã cho phép một đích thì các revision sau cùng đích tự có quyền (mục 5.3), không hỏi lại.
 
 ### 5.3 Sửa mục tiêu, chấp thuận, thu hồi, cấp lại
 
@@ -477,8 +439,7 @@ Mục đích hẹp: nhận **mệnh lệnh trực tiếp** khớp trọn một k
 - Quyền revision cũ thành `superseded`; bản nộp và liên kết của revision cũ theo mục 4.2.
 
 **Revision mới khác đích:**
-- Tin sửa có chỉ thị ghi rõ ràng (mục 5.2.1) trỏ đúng đích mới: gốc mới `owner_message`, gốc cũ `superseded`.
-- Không có: `narrow` cho phần giao rỗng ở thao tác ghi. Host ghi yêu cầu `expand`, mục tiêu chờ, thẻ hỏi một lần kèm đường cụ thể. Không giữ lượt nào. Lượt chat đang chạy nhận liên kết `draft` cho revision mới.
+- `narrow` cho phần giao rỗng ở thao tác ghi, dù lời sửa có nêu đích mới. Host ghi yêu cầu `expand`, mục tiêu chờ, thẻ hỏi một lần kèm đường cụ thể. Không giữ lượt nào. Lượt chat đang chạy nhận liên kết `draft` cho revision mới.
 
 **Câu trích và nút "Đúng ý"** chỉ xác nhận cách hiểu, **không** mở phạm vi.
 
@@ -566,7 +527,6 @@ Codex và Grok còn công cụ native. Với Antigravity, `strip_tools` làm chu
 - **Biên nhận chỉ chứng minh điều đã nộp.** A4 bảo đảm host chỉ tiếp nhận và đăng bản đi qua hợp đồng.
 - **`communicate` tắt chỉ trong hợp đồng Resonance.** Không tuyên bố mọi công cụ workflow, task hay native ngoài hợp đồng đã bị chặn (D8).
 - **`read_paths` chỉ là phạm vi prompt của việc nền A4.** Đây không phải hạn chế toàn bộ việc đọc của chat hay engine native (D9).
-- **Bộ nhận chỉ thị không hiểu ngôn ngữ.** Nó chỉ chắc ở chiều không cấp nhầm cho các cấu trúc trong mục 5.2.1; còn lại đi qua thẻ.
 
 ## 7. Kho
 
@@ -707,7 +667,6 @@ Review vòng 1 chỉ ra `apply_command(..., "resume")` của 0.89.0 gỡ tạm d
 
 - Đọc quyền, liên kết và bản nộp theo chỉ mục; một truy vấn mỗi điểm kiểm. Không quét file hay trợ lý mỗi nhịp.
 - I/O của công cụ nộp và của đăng chạy ở luồng phụ. Giao dịch `BEGIN IMMEDIATE` chỉ bọc đọc và ghi kho, không bọc lời gọi model.
-- Bộ nhận chỉ thị chạy một lần mỗi lời lập hay sửa mục tiêu, trên chữ của một tin; không đọc file.
 - Mỗi lượt có trợ lý đọc thêm một dòng `authority_clock` theo khoá chính lúc dựng lượt. Lượt chat thường không đọc.
 - Đóng băng legacy chạy một lần lúc nâng, trên số mục tiêu đang có.
 - Thẻ đọc quyền trong `goal_view` đã giới hạn (0.88.5).
@@ -748,7 +707,7 @@ Mỗi ca có đối chứng hợp lệ đi qua. Ca race chèn thay đổi ngay t
 | G24 | Revision mới cùng đích | Quyền revision mới tự cấp trong phạm vi, không hỏi | r1 P1-1 |
 | G25 | Chủ dự án Cho phép đúng đường của yêu cầu; gửi đường khác với yêu cầu | Khớp: gốc mới `owner_approved`, làm tiếp. Lệch: `scope_request_stale`, không gốc | r1 P1-1 |
 | G26 | Mục tiêu có hai đường tiêu chí | Quyền và đích chỉ là đường đầu (`_deliverable_rel`); đường hai chỉ được evaluator đọc | r1 P1-1 |
-| G27 | Lập mục tiêu: lời chủ dự án có chỉ thị ghi rõ ràng vào đích; đích do trợ lý tự chọn | Có chỉ thị: `owner_message` kèm bằng chứng mệnh đề, làm ngay. Tự chọn: chờ chấp thuận, chưa giữ lượt | r1 P1-1, r2 P1-1 |
+| G27 | Lập mục tiêu: lời chủ dự án nêu đích bằng lệnh trực tiếp; đích do trợ lý tự chọn | Cả hai chờ chấp thuận, chưa giữ lượt, không đọc đích vào prompt. Sau khi Cho phép thì chạy bình thường | r1 P1-1, r2 P1-1, r4 D1 |
 | G28 | Mục tiêu cũ trước 0.90.0 | Gốc `legacy_frozen` đúng `_deliverable_rel` lúc nâng. Mục tiêu chờ gán không có quyền | r1 P1-1 |
 | G29 | Thu hồi rồi cấp lại khi cùng lượt chat còn sống | Lượt đó không nộp được nữa | r1 P1-2 |
 | G30 | Lời nộp cùng phiên nhưng khoá lượt là tin khác (đan xen hai tin) | Chỉ thấy liên kết của tin mình | r1 P1-2, P2-1 |
@@ -777,11 +736,11 @@ Mỗi ca có đối chứng hợp lệ đi qua. Ca race chèn thay đổi ngay t
 
 | Ca | Tình huống | Kỳ vọng | Điểm review |
 |---|---|---|---|
-| G51 | "Soạn ghi chú mới, đừng ghi vào `Private/giu-nguyen.md`", model chọn đúng đường đó làm đích | Không `owner_message`; yêu cầu chờ chấp thuận; ca âm ba mặt | r2 P1-1 |
-| G52 | "Đọc `Private/giu-nguyen.md` để tham khảo, ghi bản mới vào `Inbox/ban-moi.md`" | Model chọn đường nào cũng chờ chấp thuận: câu bắt đầu bằng "Đọc" nên không khớp khuôn (bỏ sót chấp nhận được, mục 5.2.1). Đối chứng dương ở G54 | r2 P1-1, r3 P1-1 |
-| G53 | Tin dán đoạn của người khác có "ghi vào `Private/giu-nguyen.md`" (trích dẫn `>`, khối dán, ngoặc kép có câu) | Không `owner_message` | r2 P1-1 |
-| G54 | Đối chứng: "Ghi vào `Inbox/x.md` bản tóm tắt" | `owner_message`, làm ngay, bằng chứng mệnh đề đúng | r2 P1-1 |
-| G55 | Hai đường cùng có động từ ghi; hay "ghi vào `x.md` được không?" | Chờ chấp thuận | r2 P1-1 |
+| G51 | "Soạn ghi chú mới, đừng ghi vào `Private/giu-nguyen.md`", model chọn đúng đường đó làm đích | Chờ chấp thuận; ca âm ba mặt (không gốc, không đọc đích vào prompt, không đăng, không giữ lượt nền) | r2 P1-1, r4 D1 |
+| G52 | "Đọc `Private/giu-nguyen.md` để tham khảo, ghi bản mới vào `Inbox/ban-moi.md`" | Đường nào cũng chờ chấp thuận, ca âm ba mặt | r2 P1-1, r4 D1 |
+| G53 | Tin dán đoạn của người khác có "ghi vào `Private/giu-nguyen.md`" | Chờ chấp thuận, ca âm ba mặt | r2 P1-1, r4 D1 |
+| G54 | Lệnh trực tiếp "Ghi vào `Inbox/x.md` bản tóm tắt" | Vẫn chờ chấp thuận. Cho phép đúng đường thì gốc `owner_approved`, chạy bình thường | r2 P1-1, r4 D1 |
+| G55 | "ghi vào `x.md` được không?"; hai đường trong một tin | Chờ chấp thuận | r2 P1-1, r4 D1 |
 | G56 | Mục tiêu legacy được model sửa sang đích mới bởi mã 0.89.0 ngay trước khi nâng, rồi sửa tiếp sau khi nâng | Gốc đóng băng theo revision lưu lúc nâng. Sửa sau nâng sang đích khác thì chờ `expand`; không đọc đích mới vào prompt | r2 P1-1 |
 | G57 | Lập mục tiêu đích model chọn, nộp, kết thúc chat, chủ dự án Cho phép | 1 lượt model (của chat), 0 lượt sau duyệt. Bản nháp `promoted`, bản `approved_draft` `published`, gốc `owner_approved`, liên kết `approval`, tiếp nhận đúng một lần | r2 P2-1 |
 | G58 | Như G57 nhưng chủ dự án bấm Không | Bản nháp `rejected`, không gốc, không đăng, không giữ lượt | r2 P2-1 |
@@ -804,16 +763,16 @@ Mỗi ca có đối chứng hợp lệ đi qua. Ca race chèn thay đổi ngay t
 
 | Ca | Tình huống | Kỳ vọng | Điểm review |
 |---|---|---|---|
-| G73 | "Nếu anh duyệt sau, ghi vào Inbox/x.md." | Chờ chấp thuận; ca âm ba mặt (không gốc, không đọc đích vào prompt, không đăng, không giữ lượt nền) | r3 P1-1 |
-| G74 | "Có nên ghi vào Inbox/x.md?" | Chờ chấp thuận, ca âm ba mặt | r3 P1-1 |
-| G75 | "Anh định ghi vào Inbox/x.md." | Chờ chấp thuận, ca âm ba mặt | r3 P1-1 |
-| G76 | "If I approve later, write to Inbox/x.md" | Chờ chấp thuận, ca âm ba mặt | r3 P1-1 |
-| G77 | Điều kiện hay phủ định ở câu khác, không lặp đường: "Chưa chắc lắm, đừng vội. Ghi vào Inbox/x.md." | Chờ chấp thuận (cổng ngữ cảnh cả tin) | r3 P1-1 |
-| G78 | Đối chứng dương: "Ghi vào Inbox/x.md." có dấu chấm cuối; "Em lưu bản nháp thành `Notes/a.b.md` nhé" (tên có dấu chấm) | `owner_message`; đường nhận nguyên vẹn, không vỡ ở dấu chấm | r3 P1-1 |
-| G79 | Bảng câu của `test_resonance_a4_directive.py`: các câu trong ví dụ mục 5.2.1, cả tiếng Việt, tiếng Anh, tin trộn hai thứ tiếng | Đúng cột "Kết quả" của bảng | r3 P1-1 |
+| G73 | "Nếu anh duyệt sau, ghi vào Inbox/x.md." | Chờ chấp thuận, ca âm ba mặt (không phụ thuộc bộ nhận nào) | r3 P1-1, r4 D1 |
+| G74 | "Có nên ghi vào Inbox/x.md?" | Chờ chấp thuận, ca âm ba mặt (không phụ thuộc bộ nhận nào) | r3 P1-1, r4 D1 |
+| G75 | "Anh định ghi vào Inbox/x.md." | Chờ chấp thuận, ca âm ba mặt (không phụ thuộc bộ nhận nào) | r3 P1-1, r4 D1 |
+| G76 | "If I approve later, write to Inbox/x.md" | Chờ chấp thuận, ca âm ba mặt (không phụ thuộc bộ nhận nào) | r3 P1-1, r4 D1 |
+| G77 | Điều kiện hay phủ định ở câu khác, không lặp đường: "Chưa chắc lắm, đừng vội. Ghi vào Inbox/x.md." | Chờ chấp thuận, ca âm ba mặt (không phụ thuộc bộ nhận nào) | r3 P1-1, r4 D1 |
+| G78 | Lệnh trực tiếp có dấu chấm cuối, đường có dấu chấm trong tên (`Notes/a.b.md`) | Chờ chấp thuận; thẻ hiện đúng đường nguyên vẹn; Cho phép thì gốc mang đúng khoá đường | r3 P1-1, r4 D1 |
+| G79 | Ba câu phản ví dụ vòng 4 (yêu cầu dịch, ví dụ minh họa, đuôi "là câu cần dịch") | Chờ chấp thuận; không có mã nào đọc lời chat để cấp quyền | r4 P1 |
 | G80 | Lượt T chưa chạm mục tiêu G; trong lượt, thu hồi rồi cấp lại G; đồng hồ bị lùi trước lần cấp lại; T gọi sửa G lần đầu | Không có liên kết `grant` (`turn_authority_changed`), vì `root.seq > turn.authority_seq` | r3 P2-1 |
 | G81 | Như G80 với đồng hồ bình thường, và với `created_at` của gốc mới bằng đúng thời điểm bắt đầu lượt | Cùng kết quả G80; giờ máy không tham gia quyết định | r3 P2-1 |
-| G82 | Đối chứng: gốc có thật trước lượt; gốc do chính tin này tạo bằng chỉ thị ghi | Mở được liên kết `grant` | r3 P2-1 |
+| G82 | Đối chứng: gốc có thật trước lượt (`owner_approved` hay `legacy_frozen`) | Mở được liên kết `grant` | r3 P2-1, r4 D1 |
 | G83 | Lời sửa mục tiêu hay lời nộp **đến muộn** của lượt cũ sau cấp lại (cả khi lượt chưa từng có liên kết) | Lời sửa vẫn ghi; không liên kết, không nộp; G60, G70 giữ nguyên | r3 P2-1 |
 | G84 | Không đọc được `authority_clock` lúc dựng lượt | `authority_seq = -1`; chat chạy, không mở liên kết `grant` dưới gốc có sẵn; việc nền không đổi | r3 P2-1 |
 | G85 | Cùng tin sửa hai lần cùng đích, nộp không kèm `handoff`; rồi nộp kèm `handoff` mới | `ambiguous_handoff`; kèm mã thì đúng liên kết `live`. G67, G68 dùng mã do công cụ trả | r3 lưu ý 2 |
@@ -835,7 +794,7 @@ Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của 
 
 | # | Quyết định | Trạng thái |
 |---|---|---|
-| D1 | Phạm vi gốc độc lập với tiêu chí. Chỉ mệnh lệnh trực tiếp khớp trọn khuôn, qua cổng ngữ cảnh cả tin, mới cấp ngay; còn lại hỏi một lần. Nếu review vẫn thấy bộ nhận rủi ro, phương án dự phòng là bỏ hẳn cấp tự động bằng lời: mọi đích đi qua thẻ, bản nháp vẫn giữ nên không tốn thêm lượt model | Sửa theo r1 P1-1, r2 P1-1, r3 P1-1 |
+| D1 | Phạm vi gốc độc lập với tiêu chí và **không cấp từ lời chat**. Đích mới hay đổi phạm vi đi qua thẻ; phạm vi đã cấp dùng tiếp tự động; bản nháp giữ, duyệt rồi đăng không gọi model | **Chốt** theo r4 (phương án dự phòng) |
 | D2 | Đăng chỉ qua `host_publish`, giữ đủ `_gate` | Giữ, thêm r2 lưu ý 6 |
 | D3 | Giữ quan sát Write; quy tắc Write A + nộp B ở mục 4.4 | Sửa theo r1 P1-3 |
 | D4 | Grok và Antigravity không nhận bàn giao chat | Giữ; kiểm đường truyền thật khi code |
@@ -846,7 +805,7 @@ Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của 
 | D9 | `read_paths` là phạm vi prompt việc nền | Giữ, phạm vi ghi đúng ở mục 6.3 |
 | D10 | Không có hạn dùng quyền trong A4 | Giữ |
 | D11 | Hạ phiên bản chỉ hỗ trợ khôi phục snapshot, có script giữ bản kho hiện tại | Sửa theo r2 lưu ý 3 |
-| D12 | **Giữ bản nháp trước duyệt** (liên kết `draft`, không đọc, không đăng), Cho phép thì đăng đúng bản đó qua liên kết `approval`, 0 lượt model. Không chọn cách từ chối nộp trước duyệt, vì bộ nhận chỉ thị hẹp sẽ đưa nhiều mục tiêu qua thẻ và cách đó tốn thêm một lượt model mỗi lần | Mới, r2 P2-1 |
+| D12 | **Giữ bản nháp trước duyệt** (liên kết `draft`, không đọc, không đăng), Cho phép thì đăng đúng bản đó qua liên kết `approval`, 0 lượt model. Không chọn cách từ chối nộp trước duyệt, vì theo D1 mọi mục tiêu mới đều qua thẻ và cách đó tốn thêm một lượt model mỗi lần | Mới, r2 P2-1 |
 | D13 | Liên kết có `sealed`: hết nhận lời nộp, còn hoàn tất bản đã nhận dưới quyền đã ghim | Mới, r2 P2-2 |
 | D14 | Khoá liên kết theo revision; ghim gốc theo lượt bằng thứ tự `authority_clock.seq` do kho cấp, chụp lúc dựng lượt. Không dùng giờ máy | Mới ở r2 P2-3; sửa theo r3 P2-1 |
 | D15 | Khoá đường từ chối `.` và `..`, không mở alias | Mới, r2 lưu ý 4 |
@@ -859,7 +818,7 @@ Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của 
    - `binding_open/seal/close`, `binding_accepts`, `binding_may_finish`, gắn vào `_open_handoff`, `begin_action`, `begin_experiment`;
    - `submission_*`, `adopt_submission` (khoá `adopt:<submission_id>`);
    - giao dịch `BEGIN IMMEDIATE` cho mốc commit, thu hồi, chấp thuận.
-2. **Chính sách thuần** (`resonance_grants.py`): `path_key`, `write_directive`, `narrow`, `allows`, dấu vân tay, `ENGINE_CAPS`.
+2. **Chính sách thuần** (`resonance_grants.py`): `path_key`, `narrow`, `allows`, dấu vân tay, `ENGINE_CAPS`. Không có bộ phân tích lời.
 3. **Danh tính lượt:** `turn_context.make` thêm `authority_seq`; `main.run_turn` đọc `authority_clock` cho lượt có trợ lý trước khi engine chạy.
 4. **Hợp đồng** (`resonance.py`):
    - `host_publish` bốn bước, thay mọi chỗ gọi `set_published` và `_publish`;
@@ -874,7 +833,6 @@ Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của 
 8. **Script** `scripts/resonance_restore_pre_a4.py`.
 9. **Test:**
    - `test_resonance_a4_grants.py`: ma trận 12.1 tới 12.3;
-   - `test_resonance_a4_directive.py`: bộ nhận chỉ thị, gồm bảng câu âm và dương tiếng Việt, tiếng Anh;
    - `test_resonance_a4_rollback.py`: G47 tới G50 với `33a3c1aa`;
    - `test_resonance_a4_ui.js`;
    - một test đường truyền khoá lượt thật cho Claude, Codex và engine API.
@@ -924,3 +882,11 @@ Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của 
 | Lưu ý 2: không kèm `handoff` thì hai revision cùng tin ra `ambiguous_handoff` | Giữ hành vi đó, nói rõ; công cụ lập và sửa trả mã mới, mô tả công cụ nộp dặn gửi kèm; G67, G68 dùng mã | 4.3, G85 |
 | Lưu ý 3: hoàn tất tác động đã commit khác mở tác động mới | Ca kiểm quyền cũ chỉ hoàn tất đúng hành động đã commit | G86 |
 | Đính chính của reviewer về `_brain_file` | Ghi nhận ở mục 15; D15 giữ là luật mới của `path_key` | 15, D15 |
+
+### 16.4 Sau review vòng 4 (`bd6ad1d1`): chốt D1
+
+| Điểm | Sửa | Mục |
+|---|---|---|
+| P1: bộ nhận chỉ thị vẫn nhận câu nhắc tới lệnh (dịch, ví dụ, đuôi tự do) thành quyền ghi | Bỏ nguồn `owner_message` và bộ nhận khỏi A4. Mọi đích mới hay đổi phạm vi qua thẻ; phạm vi đã cấp và legacy giữ nguyên; bản nháp duyệt rồi đăng 0 lượt model | 1, 4.2, 5.2, 5.2.1, 5.3, 6.3, 11, 12, 13 (D1, D12), 14 |
+| Ngoại lệ thứ tự cho gốc do chính tin tạo | Bỏ, vì không còn nguồn đó | 4.2 |
+| Kỳ vọng ca cũ dựa trên `owner_message` | G27, G51 tới G55, G73 tới G79, G82 đổi sang chờ thẻ hay gốc có trước lượt | 12 |
