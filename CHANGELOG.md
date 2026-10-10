@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.91.0] - 2026-10-10
 ### Thêm mới
-- **DeepSeek thành bộ não thứ mười một.** Dán API key DeepSeek ở trang Models là chọn được DeepSeek làm não chính, đủ đồ nghề như các engine API khác.
+- **DeepSeek thành một bộ não mới.** Dán API key DeepSeek ở trang Models là chọn được `deepseek-flash` hoặc `deepseek-v4-pro` làm não chính, cho trợ lý hay việc nền, đủ công cụ như các engine API khác.
+- **Độ sâu suy nghĩ dùng được với DeepSeek.** Để Tắt thì DeepSeek trả lời thẳng, rẻ và nhanh hơn; bật lên thì nó suy nghĩ trước. Cuộc trò chuyện cũ không hợp chế độ suy nghĩ thì Javis tự trả lời ở chế độ thường, kèm một dòng báo.
+
 ## [0.89.2] - 2026-10-10
 ### Cải thiện
 - **Bot nói không xem được ảnh thì thẻ bot ghi rõ vì sao.** Trước đây lý do chỉ nằm trong log của server, nên bot chạy trên VPS báo "không xem được ảnh kèm tin này" mà chủ không biết sửa ở đâu. Giờ dòng cảnh báo trên thẻ bot nói đúng một trong bốn lý do: tin ảnh không kèm link, tải ảnh từ Zalo hỏng (kèm lỗi cụ thể), bộ não của bot không nhận ảnh (Antigravity, Grok Build: đổi model của bot sang loại nhìn được ảnh), hoặc model từ chối ảnh.
