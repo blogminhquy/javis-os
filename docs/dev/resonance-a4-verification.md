@@ -1,6 +1,6 @@
 # Resonance A4: biên bản kiểm mã (10/10/2026)
 
-**Trạng thái:** mã A4 viết xong trên nhánh `claude/resonance-a4-handoff-grants` (PR #604, đặt số 0.90.0), **chờ review mã**. Thiết kế chốt vòng 5 tại `6d774bd5` (D1: không cấp quyền ghi từ lời chat), reviewer chấp thuận để code. Chưa pilot model thật, chưa merge, chưa phát hành, không đụng VPS.
+**Trạng thái:** mã A4 trên nhánh `claude/resonance-a4-handoff-grants` (PR #604, đặt số 0.90.0) đã sửa theo **review mã vòng 1** (`a3356165`: 1 P1, 3 P2), **chờ review lại**. Thiết kế chốt vòng 5 tại `6d774bd5` (D1: không cấp quyền ghi từ lời chat), reviewer chấp thuận để code. Chưa pilot model thật, chưa merge, chưa phát hành, không đụng VPS.
 
 Thiết kế: [2026-10-10-resonance-a4-handoff-grants-design.md](../superpowers/specs/2026-10-10-resonance-a4-handoff-grants-design.md) (mục 12 là ma trận; mục 17 là ghi chú triển khai cần reviewer xác nhận). Hướng dẫn: [resonance-a4-grants.md](resonance-a4-grants.md).
 
@@ -8,10 +8,10 @@ Thiết kế: [2026-10-10-resonance-a4-handoff-grants-design.md](../superpowers/
 
 | File | Kết quả |
 |---|---|
-| `tests/python/test_resonance_a4_grants.py` (kho thật, engine giả, đồng hồ giả) | 90 kiểm đạt |
+| `tests/python/test_resonance_a4_grants.py` (kho thật, engine giả, đồng hồ giả) | 101 kiểm đạt |
 | `tests/python/test_resonance_a4_transport.py` (plugin thật, hub HTTP thật với `X-Javis-Turn`, server MCP plugin của Claude SDK thật, `main.app`) | 14 kiểm đạt |
 | `tests/python/test_resonance_a4_rollback.py` (mã 0.89.0 thật, `33a3c1aa`, qua `git show`) | 11 kiểm đạt |
-| `tests/js/test_resonance_a4_ui.js` | 20 kiểm đạt |
+| `tests/js/test_resonance_a4_ui.js` (gồm hành vi `send()` thật với phản hồi server giả) | 25 kiểm đạt |
 | 31 file test Resonance cũ (M1 tới M5, A1 tới A3) và 5 test giao diện Resonance cũ | đều đạt (14 file sửa kỳ vọng hay thêm `RA.preapprove()`, xem dưới) |
 | Toàn repo `tests/run.py` (637 file) | 619 xanh; 18 đỏ, phân định ở mục "Toàn repo" |
 
@@ -50,6 +50,25 @@ python tests/run.py resonance_a4 -v
 | G3, G4, G6, G8, G9, G11, G12, G14, G35, G42 | test cũ và a4_grants một phần | G3: A4 không có đường giao tiếp nào (không có công cụ); G4, G11: danh tính chỉ từ ngữ cảnh lượt (A1); G12: prompt không chứa bản nháp; G14: Write native không biên nhận thành bytes lạ (G39) |
 
 **Chưa có ca riêng (nêu thật):** G40 đầy đủ (tiêm lỗi ở MỌI điểm của mục 4.7; mới có chết giữa ý định và mốc commit, G62 tới G66 và G86), G71 (khe giữa mốc commit và `os.replace`, giới hạn đã công bố).
+
+## Review mã vòng 1 (`a3356165`) và cách sửa
+
+| Điểm | Sửa | Hồi quy |
+|---|---|---|
+| P1-1: "Chưa đúng ý" ghi trước mốc commit vẫn đăng | `_publish_held` kiểm phản hồi cách hiểu mới nhất của đúng revision trong giao dịch ý định (gồm nhánh `same`) và mốc commit | V1-P1: từ chối trước commit (qua `handoff_after_turn`), trước nhánh `same`, đối chứng "Đúng ý", đổi lại "Đúng ý" rồi đăng, 0 lượt model |
+| P2-1: lỗi I/O tạm thời ở đối soát chốt `conflict` vĩnh viễn | `_reconcile_publish` phân biệt không đọc hay ghi được với bằng chứng đích đổi; `publish_retry` giữ `running`, giãn cách, hẹn `settle` | V1-P2-1: lỗi ở lần đăng đầu và ba lần đối soát, mở lại kho xen giữa, rồi hoàn tất đúng một lần; đối chứng file thật bị sửa giữ nguyên và `conflict` |
+| P2-2: thu hồi làm mất đường scheduler tới tác động đã commit | Lịch vật lý `settle` (I10) | V1-P2-2: `tick` thật sau thu hồi và mở lại kho, cho "chưa thay file" và "đã thay file chưa ghi mốc", nhịp thứ hai không làm gì; mục tiêu đã huỷ; đối chứng thu hồi trước commit vẫn chặn |
+| P2-3: thẻ nói "đã đăng bản nháp" khi server báo xung đột | `noteFor` chọn câu theo `publish`; hai câu mới (xung đột, chưa đăng) | `send()` thật với phản hồi `conflict` và `succeeded` |
+| I1, I2 | Chấp nhận; §5.3, §4.2, §4.7 đồng bộ | |
+
+**Đối chứng trên head cũ:** chép hai file test mới vào worktree tạm tại `a3356165`. Kết quả:
+- 7 ca hồi quy phía server đỏ;
+- test thẻ hỏng vì `RS.noteFor` chưa tồn tại;
+- các ca đối chứng vẫn xanh.
+
+Output ở `exports/reviews/A4-code-r2-control-on-a3356165.txt` (ngoài git).
+
+**Script kiểm độc lập của reviewer:** `--expect-fixed` xanh cả 9 ca (5 đối chứng, 4 lỗi). Ca R4 của script tách riêng thân `send()`, nên câu ghi chú nó thấy là câu lỗi chung, vì `noteFor` nằm ngoài phạm vi tách. Câu đúng được kiểm bởi test hành vi `send()` thật ở trên.
 
 ## Soát nội bộ trước review
 

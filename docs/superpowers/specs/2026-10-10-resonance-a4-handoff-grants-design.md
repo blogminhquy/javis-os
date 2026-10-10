@@ -1,6 +1,6 @@
 # Resonance A4: nộp sản phẩm đa engine qua một hợp đồng host, kèm quyền có phạm vi
 
-**Trạng thái:** thiết kế **chốt** (vòng 5, phương án dự phòng D1), reviewer chấp thuận để code. **Mã A4 đã viết, chờ review mã** (mục 17 ghi các điểm triển khai cần reviewer xác nhận). Đổi cơ chế cấp quyền ngoài bản này thì gửi diff thiết kế review trước.
+**Trạng thái:** thiết kế **chốt** (vòng 5, phương án dự phòng D1), reviewer chấp thuận để code. **Mã A4 sửa theo review mã vòng 1, chờ review lại** (mục 17: I1, I2 đã được chấp nhận; I10, I11 mới). Đổi cơ chế cấp quyền ngoài bản này thì gửi diff thiết kế review trước.
 
 - **Nhánh:** `claude/resonance-a4-handoff-grants`, PR nháp #604, số 0.90.0.
 - **Vòng 1** (`5edfc9b6`) chưa đạt: 3 P1, 2 P2 (`exports/reviews/PR-604-A4-design-r1-review.md`, ngoài git).
@@ -152,6 +152,7 @@ Trường `origin_kind` nhận năm giá trị:
 | `experiment` | `<experiment_id>` | Host, trong cùng giao dịch với `begin_experiment` (phép thử A3) |
 | `followup` | `<action_id>` | Host, khi lượt làm sản phẩm A3 dùng lượt giữ (`begin_action` với `use_hold`) |
 | `approval` | `<scope_request_id>` | Host, trong giao dịch `approve_scope` khi chủ dự án chọn một bản nháp (mục 5.3) |
+| `republish` | mã mới mỗi lần | Host, khi file đích bị xoá mà revision hiện tại có bản ĐÃ đăng (I2): chép đúng bản đã đăng (cùng mục tiêu, revision, đích, sha) dưới liên kết mới ghim quyền revision ĐANG hiệu lực. Không bao giờ hợp thức hoá bản `candidate` hay `stale` chưa từng đăng |
 
 **Khoá và lần mở.** `UNIQUE(goal_id, revision, origin_kind, origin_ref)`:
 
@@ -384,6 +385,9 @@ Thẻ mục tiêu và hướng dẫn ghi rõ luật này.
 | **Đã đăng và ghi mốc, chưa tiếp nhận** | `published`, `adopted_at` rỗng | Gọi lại `adopt_submission`: nối bằng chứng `INSERT OR IGNORE`, sự kiện theo khoá `adopt:<submission_id>` (bảng sự kiện đã có `UNIQUE(goal_id, idempotency_key)`), đóng bàn giao nếu còn mở, ghi `adopted_at`. Nhả lịch chỉ khi `adopted_at` đang rỗng và cổng hiện có cho phép, trong cùng giao dịch, nên đúng một lần. Bằng chứng và sự kiện vẫn ghi khi đã thu hồi sau commit, vì tác động là thật; khi đó không nhả lịch |
 | Bản nháp được chọn, chết trước khi đăng | `approved_draft` ở `candidate`, liên kết `approval` `sealed` | Như dòng lượt nền đã chèn `candidate` |
 | Lượt chat chết, Claude Write không còn biên nhận | Bàn giao hết hạn | Như hôm nay: đích lạ không có baseline thành drift hay `conflict` (A2). Không nhận làm sản phẩm |
+| Đã commit, lỗi đọc hay ghi TẠM THỜI khi thay file hay khi đối soát (file đang mở) | Hành động có `commit_at`, `running` | Không phải bằng chứng đích đã đổi: giữ `running`, nới hạn có giãn cách (60 giây nhân đôi, tối đa 1 giờ), hẹn lịch `settle`. Chỉ chốt `conflict` khi đọc được đích và nó khác cả baseline lẫn bản nộp (I11) |
+| Đã commit, rồi mục tiêu bị thu hồi, tạm dừng, huỷ hay kết thúc | Hành động có `commit_at` | Lịch `settle` riêng vẫn tới hạn: chỉ hoàn tất hay xác minh xung đột đúng hành động đó, không mở lượt việc, không cấp lại quyền, không đăng bản khác (I10) |
+| File đích bị xoá sau khi đã đăng | Bản nộp `published` | Đăng lại bản đó qua nguồn `republish` khi quyền hiện tại còn hiệu lực, 0 lượt model (I2) |
 
 Liên kết `sealed` chuyển `closed` trong cùng giao dịch đưa bản nộp cuối cùng của nó về trạng thái cuối.
 
@@ -465,7 +469,7 @@ Lượt chat cũ không hưởng gì: liên kết `draft` của nó đã `closed
 
 **Thẻ cũ.** Revision mới thay yêu cầu cũ bằng `superseded`; thu hồi không đụng yêu cầu đã quyết. Bấm Cho phép trên thẻ của yêu cầu đã `superseded`, `denied` hay `approved` luôn ra `scope_request_stale`. Bấm thẻ cũ không bao giờ là cấp lại.
 
-**Thu hồi** (nút Thu hồi quyền trên thẻ, hay tắt Cộng hưởng của trợ lý). Một giao dịch `BEGIN IMMEDIATE`:
+**Thu hồi** (nút Thu hồi quyền trên thẻ). Tắt Cộng hưởng của trợ lý KHÔNG phải thu hồi (I1): gốc giữ nguyên, nhưng mọi liên kết đang dở chết ngay vì ghim version trợ lý (§4.2 điều 3) và không bao giờ hồi sinh; bật lại thì lượt MỚI làm tiếp dưới gốc cũ. Lần đăng đã qua mốc commit trước khi tắt vẫn hoàn tất theo luật tác động đã commit. Thu hồi là một giao dịch `BEGIN IMMEDIATE`:
 - gốc thành `revoked` và `generation += 1`;
 - bản nộp `candidate`, `awaiting_scope`, và `publishing` **chưa có** `commit_at` của mục tiêu thành `stale`. Bản có `commit_at` đi tiếp theo luật tác động đã commit;
 - mục tiêu tạm dừng bằng lệnh `pause` có sẵn;
@@ -891,14 +895,14 @@ Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của 
 | Ngoại lệ thứ tự cho gốc do chính tin tạo | Bỏ, vì không còn nguồn đó | 4.2 |
 | Kỳ vọng ca cũ dựa trên `owner_message` | G27, G51 tới G55, G73 tới G79, G82 đổi sang chờ thẻ hay gốc có trước lượt | 12 |
 
-## 17. Ghi chú triển khai (mã chờ review)
+## 17. Ghi chú triển khai
 
 Các điểm dưới đây là chỗ mã phải chọn mà thiết kế chưa nói hết, hay chỗ hành vi cũ đổi theo thiết kế. Hai điểm đầu chạm cơ chế quyền nên **cần reviewer xác nhận** trước khi chốt mã; mã hiện chọn phương án được ghi.
 
 | # | Điểm | Mã chọn | Vì sao |
 |---|---|---|---|
-| I1 | §5.3 ghi "Thu hồi (nút Thu hồi quyền, hay tắt Cộng hưởng của trợ lý)" | **Tắt Cộng hưởng KHÔNG thu hồi gốc.** Liên kết vẫn chết ngay vì ghim version trợ lý (§4.2 điều 3); bật lại thì lượt mới làm tiếp dưới gốc cũ | Giữ hành vi A1 "bật lại thì chạy tiếp". Thu hồi gốc khi tắt buộc chủ dự án cấp lại từng mục tiêu sau mỗi lần tắt bật. Đổi sang thu hồi chỉ cần một dòng trong `agent_set_enabled`. **Cần xác nhận** |
-| I2 | §4.5 liệt kê "đăng lại" nhưng §4.2 không có nguồn cho nó | File đích bị xoá thì `_publish_latest` tạo bản nộp `republish` chép bản đã đăng, dưới liên kết **mới** `republish` ghim quyền revision ĐANG hiệu lực (không dùng lại liên kết cũ). Không có quyền hiệu lực thì không đăng lại | Giữ hành vi A2 "xoá file thì đăng lại bản hiệu lực, 0 lượt model". **Cần xác nhận** |
+| I1 | §5.3 ghi "Thu hồi (nút Thu hồi quyền, hay tắt Cộng hưởng của trợ lý)" | **Tắt Cộng hưởng KHÔNG thu hồi gốc.** Liên kết vẫn chết ngay vì ghim version trợ lý (§4.2 điều 3); bật lại thì lượt mới làm tiếp dưới gốc cũ | Giữ hành vi A1 "bật lại thì chạy tiếp". **Reviewer chấp nhận ở review mã vòng 1**; §5.3 đã sửa theo |
+| I2 | §4.5 liệt kê "đăng lại" nhưng §4.2 không có nguồn cho nó | File đích bị xoá thì `_publish_latest` tạo bản nộp `republish` chép bản đã đăng, dưới liên kết **mới** `republish` ghim quyền revision ĐANG hiệu lực (không dùng lại liên kết cũ). Không có quyền hiệu lực thì không đăng lại | Giữ hành vi A2 "xoá file thì đăng lại bản hiệu lực, 0 lượt model". **Reviewer chấp nhận ở review mã vòng 1**; đã ghi vào §4.2 và §4.7 |
 | I3 | Mục tiêu không có đường sản phẩm (chỉ có tiêu chí người dùng xác nhận) | `scope_state=none`: không cần phạm vi, việc nền chạy như 0.89.0, không có gì để đăng | Không có đích để cho phép; chặn chúng thì mục tiêu kẹt vĩnh viễn |
 | I4 | Hệ quả của D1 với Claude | Write trong lượt LẬP mục tiêu không được tiếp nhận (bytes lạ ở đích). Chỉ bản nộp qua `javis_submit_deliverable` được giữ làm nháp. Gợi ý trong prompt và kết quả `javis_goal` dặn bộ não nộp qua công cụ, không Write thẳng | Đúng §4.4 ("liên kết draft không bao giờ tiếp nhận Write tại chỗ"). Câu hỏi mở cho A5: có nên chuyển một Write có biên nhận thành bản nháp không; mã chưa làm |
 | I5 | A1 quyết định 4 (đăng lại đầu ra giữ sau khi tắt bật, ý định mới theo version hiện tại) | Thay bằng §4.2 điều 3: bản nộp `stale`, lần thức sau làm lại một lượt | "Host không bao giờ sửa liên kết đang dở sang quyền mới". Test A1 sửa kỳ vọng, có chú thích |
@@ -906,3 +910,6 @@ Các điểm dưới đây là chỗ mã phải chọn mà thiết kế chưa n�
 | I7 | `origin_ref` của liên kết `handoff` | Dùng `message_ref` (`msg:<phiên>:<tin>`), cùng khoá với bảng `handoffs` | Tương đương `<session_id>:<message_id>` của §4.2 |
 | I8 | Báo chờ cho phép | Không có tin outbox riêng; thẻ đẩy sau lượt chat đã hiện câu hỏi, thẻ và trang Cộng sự cũng hiện | Tránh hai tin cho cùng một việc |
 | I9 | Bàn giao cuối lượt | `main` bàn giao MỌI mục tiêu tin đó lập hay sửa (trước chỉ mục tiêu đầu tiên), biên nhận Write lấy một lần | Mỗi mục tiêu có liên kết riêng phải được niêm |
+| I10 | Đường tới đối soát của tác động đã commit (review mã vòng 1, P2-2) | Lịch vật lý riêng `kind=settle`, đặt trong giao dịch mốc commit (hạn khoá + 1), không bị gác bởi tạm dừng, thu hồi, huỷ, kết thúc; `due_wakeups` nhận nó mọi trạng thái; lần thức `settle` chỉ chạy `_reconcile_publish` cho hành động đã commit rồi dọn lịch khi không còn | Thu hồi tạm dừng mục tiêu và `_recompute_wake` gác mọi lịch làm việc, nên trước đó tác động đã chốt mất đường hoàn tất |
+| I11 | Lỗi I/O tạm thời sau mốc commit (review mã vòng 1, P2-1) | `publish_retry`: giữ `running`, nới hạn giãn cách, hẹn `settle`; `conflict` chỉ khi đọc được đích và nó khác cả baseline lẫn bản nộp | Không đọc hay không ghi được không phải bằng chứng xung đột |
+| I12 | Phản hồi "Chưa đúng ý" trước mốc commit (review mã vòng 1, P1-1) | `_publish_held` đọc phản hồi cách hiểu mới nhất của đúng revision TRONG giao dịch ý định (kể cả nhánh `same`) và giao dịch mốc commit; bị chặn thì bản nộp về `candidate`, đổi lại "Đúng ý" thì lần sau đăng | Can thiệp của người dùng ghi trước mốc commit phải thắng, như thu hồi |

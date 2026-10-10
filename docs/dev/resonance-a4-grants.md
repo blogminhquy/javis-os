@@ -41,14 +41,16 @@ Mọi engine nộp sản phẩm qua cùng một cửa: host xác định lượt
 3. `publish_commit` (`BEGIN IMMEDIATE`, kiểm lại, đọc lại hash đích trong giao dịch, ghi `commit_at`);
 4. `os.replace`, `publish_finish` (không kiểm lại quyền), rồi `adopt_submission` cho nguồn chat và bản nháp được duyệt.
 
-**Đối soát** (`_reconcile`, `_reconcile_publish`): đăng chưa commit thì huỷ, bản nộp về `candidate` hay `stale`; đã commit thì hoàn tất từ bản nháp; bản đã đăng chưa tiếp nhận thì tiếp nhận đúng một lần (khoá sự kiện `adopt:<submission_id>`).
+**Đối soát** (`_reconcile`, `_reconcile_publish`): đăng chưa commit thì huỷ, bản nộp về `candidate` hay `stale`; đã commit thì hoàn tất từ bản nháp; bản đã đăng chưa tiếp nhận thì tiếp nhận đúng một lần (khoá sự kiện `adopt:<submission_id>`). Lỗi đọc hay ghi tạm thời sau commit không chốt xung đột: `publish_retry` giữ hành động chạy và hẹn lại có giãn cách. Mốc commit đặt lịch vật lý riêng `settle`, tới hạn cả khi mục tiêu tạm dừng, thu hồi, huỷ hay kết thúc; lần thức `settle` chỉ hoàn tất lần đăng đã chốt.
+
+**Can thiệp trước mốc commit** (`_publish_held`): tạm dừng, chốt guard, và phản hồi cách hiểu mới nhất là "Chưa đúng ý" đều chặn lần đăng chưa commit, kiểm ngay trong giao dịch ý định và giao dịch mốc commit.
 
 **Lệnh chủ dự án** (`POST /goals/{id}/commands`): `approve_scope` (CAS yêu cầu, revision, đường, trợ lý, bản nháp mới nhất đúng sha), `deny_scope`, `revoke_grant`, `resume` (đang thu hồi thì cấp lại gốc mới).
 
 ## Hành vi đổi so với 0.89.0
 
 - Mục tiêu mới có đường sản phẩm luôn chờ chủ dự án cho phép, kể cả khi lời giao nêu đích. Write của bộ não trong lượt LẬP mục tiêu không được tiếp nhận (lượt đó chưa có phạm vi lúc bắt đầu); bản nộp qua công cụ được giữ làm nháp và Cho phép đăng nó.
-- Tắt rồi bật trợ lý giữa lượt: bản nộp của lượt đó `stale`, không đăng lại dưới version mới (trước đây A1 đăng lại đầu ra giữ bằng ý định mới). Lần thức sau làm lại một lượt.
+- Tắt Cộng hưởng của trợ lý không thu hồi phạm vi (I1): bật lại thì làm tiếp dưới gốc cũ. Nhưng tắt rồi bật giữa lượt làm bản nộp của lượt đó `stale`, không đăng lại dưới version mới (trước đây A1 đăng lại đầu ra giữ bằng ý định mới). Lần thức sau làm lại một lượt.
 - `_publish_latest` chỉ đăng bản `candidate`; không còn đăng đầu ra hành động trần. File đích bị xoá thì đăng lại bản đã đăng dưới liên kết `republish` mới (quyền hiện hành).
 - Codex và engine API nhận bàn giao chat qua `javis_submit_deliverable` (`engine_support` có thêm `submit_tool`, `observed_write`).
 
