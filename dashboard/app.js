@@ -4081,8 +4081,19 @@ async function initAuthGate() {
     const wz = document.getElementById("setupWizard");
     if (!wz) { authOverlay.classList.add("open"); return; }
     if (_wizardMandatory) {
-      const pass = document.getElementById("wzPass"); if (pass) pass.required = true;
-      const note = document.getElementById("wzErr"); if (note) note.textContent = window.t("app.wz_mandatory");
+      // A public server REQUIRES the admin account. Say so where the fields are, in normal ink,
+      // instead of "(recommended) ... leave blank" at the top and a red line below the button
+      // that reads like an error and is only seen after scrolling. Swapping the i18n key, not
+      // just the text, keeps the right wording when the language changes.
+      const swap = (el, attr, key) => {
+        if (!el) return;
+        el.setAttribute(attr, key);
+        if (attr === "data-i18n-ph") el.placeholder = window.t(key); else el.textContent = window.t(key);
+      };
+      swap(wz.querySelector('[data-i18n="wz.s2_rec"]'), "data-i18n", "wz.s2_req");
+      swap(wz.querySelector('[data-i18n="wz.pass_note"]'), "data-i18n", "app.wz_mandatory");
+      const pass = document.getElementById("wzPass");
+      if (pass) { pass.required = true; swap(pass, "data-i18n-ph", "wz.pass_ph_req"); }
     }
     wz.classList.add("open");
   } else {
@@ -4100,7 +4111,14 @@ document.getElementById("authSubmit").addEventListener("click", async () => {
   try {
     const r = await fetch("/auth/login", { method: "POST", body: fd });
     const d = await r.json();
-    if (d.ok) { location.reload(); return; }
+    if (d.ok) {
+      // The server accepted the password. If the browser did not keep the session cookie, a
+      // reload shows this same empty form again with no error, which reads as "the right
+      // password does not work" (customer report 2026-10-11). Check before reloading.
+      const s = await _fetchAuthStatus(2, 300);
+      if (s && s.authed === false) { err.textContent = window.t("app.login_cookie_lost"); return; }
+      location.reload(); return;
+    }
     // needs_2fa = mật khẩu ĐÚNG rồi, chỉ còn thiếu mã. Hiện ô mã và đưa con trỏ vào đó luôn,
     // đừng bắt người ta tự nhận ra là có thêm một ô mới xuất hiện bên dưới.
     if (d.needs_2fa && codeWrap) {

@@ -1059,13 +1059,38 @@ def gate_active():
     return auth_enabled() or require_login()
 
 
+def clean_password(password) -> str:
+    """The password as it should be STORED: without surrounding whitespace.
+
+    Phone keyboards add a trailing space after an autocompleted word, and a value pasted into
+    the Hostinger Environment box can carry one too. The owner never sees that space, so it
+    must not decide whether they can sign in (customer report 2026-10-11). Every place that
+    stores a password goes through here; `verify_password` accepts both forms when reading.
+    """
+    return str(password or "").strip()
+
+
 def verify_password(password, cfg=None):
+    """Exact match first (an older hash may have been stored WITH a space), then the cleaned
+    form, so a space the keyboard slipped in never locks the owner out. A password that is
+    only whitespace never matches."""
     cfg = cfg or read_settings()
     a = cfg.get("auth", {})
-    if not a.get("password_hash"):
+    if not a.get("password_hash") or not clean_password(password):
         return False
-    h, _ = hash_password(password, a.get("salt"))
-    return secrets.compare_digest(h, a["password_hash"])
+    for cand in dict.fromkeys((str(password), clean_password(password))):
+        h, _ = hash_password(cand, a.get("salt"))
+        if secrets.compare_digest(h, a["password_hash"]):
+            return True
+    return False
+
+
+def username_matches(typed, cfg=None) -> bool:
+    """Usernames are not secrets: ignore case and surrounding spaces. A phone capitalises the
+    first letter on its own, and "Phong" vs "phong" must not read as "wrong password"."""
+    cfg = cfg or read_settings()
+    want = str((cfg.get("auth", {}) or {}).get("username") or "").strip().casefold()
+    return bool(want) and str(typed or "").strip().casefold() == want
 
 
 # ---- Xác thực 2 lớp (TOTP). Toán nằm ở totp.py, đây chỉ là chỗ CẤT ----
@@ -1425,7 +1450,7 @@ def provision_admin_from_env():
     `auth.env_applied` keeps only a salted hash of the last applied env value, never the value.
     Returns "created", "reset" or "" (nothing done).
     """
-    pw = os.getenv("JAVIS_ADMIN_PASSWORD", "")
+    pw = clean_password(os.getenv("JAVIS_ADMIN_PASSWORD", ""))
     if not pw:
         return ""
     user = (os.getenv("JAVIS_ADMIN_USER", "admin").strip() or "admin")

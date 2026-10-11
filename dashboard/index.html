@@ -644,13 +644,17 @@
       <div class="settings-body">
         <style>
         .wz-prov{display:flex;flex-direction:column;gap:8px;margin-top:6px}
-        .wz-card{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid rgba(255,255,255,.14);border-radius:10px;cursor:pointer;transition:.15s}
-        .wz-card:hover{border-color:rgba(255,138,60,.5)} .wz-card.sel{border-color:#ff8a3c;background:rgba(255,138,60,.12)}
-        .wz-card input{margin-top:3px;accent-color:#ff8a3c} .wz-card b{font-size:15px;color:#e7eefc}
-        .wz-rec{font-size:12px;background:#ff8a3c;color:#1a1a1a;border-radius:6px;padding:1px 6px;margin-left:6px;font-weight:700}
-        .wz-pdesc{font-size:15px;color:#9fb0cf;margin-top:3px;line-height:1.45}
-        #wzProvHint code{background:rgba(0,0,0,.35);padding:1px 5px;border-radius:4px;font-size:13px}
-        #wzProvHint{margin-top:8px;font-size:15px;color:#8aa}
+        /* Theme tokens only: these colours used to be hard-coded for the dark theme, so on the
+           light theme the provider names were near-white on cream and the login command in
+           the hint was dark-on-dark (customer report 2026-10-11). */
+        .wz-card{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);background:var(--bg2);border-radius:10px;cursor:pointer;transition:.15s}
+        .wz-card:hover{border-color:var(--accent-line)} .wz-card.sel{border-color:var(--accent);background:var(--accent-wash-2)}
+        /* The global form-input rule stretches inputs to full width; a radio must stay its own size. */
+        .wz-card input{width:auto;flex:none;margin:3px 0 0;accent-color:var(--accent)} .wz-card b{font-size:15px;color:var(--text)}
+        .wz-rec{font-size:12px;background:var(--accent-solid);color:var(--bg);border-radius:6px;padding:1px 6px;margin-left:6px;font-weight:700}
+        .wz-pdesc{font-size:15px;color:var(--text2);margin-top:3px;line-height:1.45}
+        #wzProvHint code{background:var(--surface-3);color:var(--text);padding:1px 5px;border-radius:4px;font-size:13px;word-break:break-all}
+        #wzProvHint{margin-top:8px;font-size:15px;color:var(--text2);line-height:1.5}
         </style>
         <div class="set-note"><span data-i18n="wz.intro">Vài bước nhanh để bắt đầu. Mọi thứ đổi lại được sau trong</span> <i data-ic="settings"></i> <span data-i18n="page.settings.label">Cài đặt</span>.</div>
         <div class="set-sec">
