@@ -1,6 +1,6 @@
 # Resonance A4: nộp sản phẩm đa engine qua một hợp đồng host, kèm quyền có phạm vi
 
-**Trạng thái:** thiết kế **chốt** (vòng 5, phương án dự phòng D1), reviewer chấp thuận để code. **Mã A4 sửa theo review mã vòng 2, chờ review lại** (mục 17: I1, I2 đã được chấp nhận; I10 tới I15). Đổi cơ chế cấp quyền ngoài bản này thì gửi diff thiết kế review trước.
+**Trạng thái:** thiết kế **chốt** (vòng 5, phương án dự phòng D1), reviewer chấp thuận để code. **Mã A4 sửa theo review mã vòng 3, chờ review lại** (mục 17: I1, I2 đã được chấp nhận; I10 tới I16). Đổi cơ chế cấp quyền ngoài bản này thì gửi diff thiết kế review trước.
 
 - **Nhánh:** `claude/resonance-a4-handoff-grants`, PR nháp #604, số **0.92.0** (đặt 0.90.0; `main` đi qua 0.91.0 nên đánh số lại).
 - **Vòng 1** (`5edfc9b6`) chưa đạt: 3 P1, 2 P2 (`exports/reviews/PR-604-A4-design-r1-review.md`, ngoài git).
@@ -391,6 +391,7 @@ Thẻ mục tiêu và hướng dẫn ghi rõ luật này.
 | File NHÁP không đọc được tạm thời (khi đăng hay khi đối soát) | `candidate` hay hành động đã commit | Không phải xung đột đích: giữ nghĩa vụ, thử lại có giãn cách. File nháp mất hay sai hash: bản nộp `rejected` lý do `draft_missing`/`draft_hash_mismatch`, hành động `failed`, không đăng bytes sai (I13) |
 | Đã đăng, bước tiếp nhận lỗi (khoá SQLite, chết giữa chừng), kể cả rồi thu hồi, tạm dừng, huỷ | `published`, `adopted_at` rỗng | Lịch `settle` còn tới khi tiếp nhận xong; lần thức `settle` tiếp nhận đúng một lần mọi trạng thái mục tiêu (I14) |
 | Lần đăng đã chốt còn chờ thay file hay chờ tiếp nhận, trong lúc lịch làm việc tới hạn | Hành động đã commit hay bản chưa tiếp nhận | Lịch làm việc gác `publish_settling`, giữ mọi lý do, không mở lượt việc hay phép thử; xong thì gỡ gác và xét tiếp (I15) |
+| Lỗi I/O phát sinh NGAY trong lần thức làm việc đang tự đăng bản `candidate` đã giữ (thay file sau mốc commit, đọc file nháp trước mốc commit, tiếp nhận) | Hành động đã commit, bản nộp được giữ, hay bản chưa tiếp nhận | Xét lại nghĩa vụ ngay sau khi đăng, gác `publish_settling` trước quyết định làm việc. File nháp chưa đọc được trước mốc commit: bản nộp giữ `candidate` kèm `hold_until`, lịch `settle` đọc lại giãn cách 60 giây, gấp đôi, trần 1 giờ; đọc được thì bỏ giữ để lịch làm việc đăng đúng bản đó rồi mới đánh giá (I16) |
 
 Liên kết `sealed` chuyển `closed` trong cùng giao dịch đưa bản nộp cuối cùng của nó về trạng thái cuối.
 
@@ -919,3 +920,4 @@ Các điểm dưới đây là chỗ mã phải chọn mà thiết kế chưa n�
 | I13 | Lỗi đọc FILE NHÁP (review mã vòng 2, P2-1) | `_sub_read` tách `draft_unreadable` (I/O tạm thời: giữ nghĩa vụ, `publish_retry` hay giữ `candidate`) khỏi `draft_missing` và `draft_hash_mismatch` (`reject_submission`: lý do riêng, không phải `target_changed`, không đăng bytes sai) | Không đọc được bản nháp không phải bằng chứng file đích đổi |
 | I14 | Nghĩa vụ tiếp nhận sau đăng (review mã vòng 2, P2-2) | Lịch `settle` chỉ bỏ khi không còn hành động đã commit đang chạy VÀ không còn bản `submit_tool`/`approved_draft` đã đăng chưa tiếp nhận; nhánh `same` đặt lịch ngay; lỗi ở bước tiếp nhận không văng ra ngoài; lần thức `settle` tiếp nhận các bản này | Đăng và tiếp nhận là hai giao dịch; khe giữa chúng phải có đường phục hồi kể cả khi lịch làm việc đã gác |
 | I15 | Lịch làm việc khi còn nghĩa vụ hoàn tất (review mã vòng 2, P2-3) | `_wake_work` gác `waiting/publish_settling` (thuộc `_parked`) trước khi xét đăng lại hay mở lượt; `_settle_done` gỡ gác và tính lại lịch khi nghĩa vụ về 0 | Bản hợp lệ đã có, chỉ chưa vào đích; gọi model lúc này là tiêu hạn mức vô ích |
+| I16 | Lỗi đăng phát sinh trong chính lần thức làm việc (review mã vòng 3) | `_wake_work` gọi lại `settle_pending` SAU `_publish_latest`; `host_publish` gặp `draft_unreadable` thì `hold_submission` (cột `hold_attempts`, `hold_until`; `_settle_left` đếm bản đang giữ); lần thức `settle` đọc lại file nháp, đọc được thì `release_hold`, mất hay sai hash thì `reject_submission`, bản không còn là bản sẽ đăng thì bỏ giữ; `settle_cleanup` đặt lịch đúng giờ nghĩa vụ sớm nhất | Cổng đầu lần thức chỉ thấy nghĩa vụ có TỪ TRƯỚC; nghĩa vụ vừa sinh trong nhịp cũng phải chặn lượt model, và nhánh chưa commit cần đường thử lại bằng code riêng |

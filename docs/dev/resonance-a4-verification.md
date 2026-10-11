@@ -1,6 +1,6 @@
 # Resonance A4: biên bản kiểm mã (10/10/2026)
 
-**Trạng thái:** mã A4 trên nhánh `claude/resonance-a4-handoff-grants` (PR #604, số 0.92.0; đánh số lại vì `main` đi qua 0.91.0) đã sửa theo **review mã vòng 1** (`a3356165`: 1 P1, 3 P2) và **vòng 2** (`7b47e246`: 3 P2), **chờ review lại**. Thiết kế chốt vòng 5 tại `6d774bd5` (D1: không cấp quyền ghi từ lời chat), reviewer chấp thuận để code. Chưa pilot model thật, chưa merge, chưa phát hành, không đụng VPS.
+**Trạng thái:** mã A4 trên nhánh `claude/resonance-a4-handoff-grants` (PR #604, số 0.92.0; đánh số lại vì `main` đi qua 0.91.0) đã sửa theo **review mã vòng 1** (`a3356165`: 1 P1, 3 P2) **vòng 2** (`7b47e246`: 3 P2) và **vòng 3** (`d26c0f09`: 1 P2), **chờ review lại**. Thiết kế chốt vòng 5 tại `6d774bd5` (D1: không cấp quyền ghi từ lời chat), reviewer chấp thuận để code. Chưa pilot model thật, chưa merge, chưa phát hành, không đụng VPS.
 
 Thiết kế: [2026-10-10-resonance-a4-handoff-grants-design.md](../superpowers/specs/2026-10-10-resonance-a4-handoff-grants-design.md) (mục 12 là ma trận; mục 17 là ghi chú triển khai cần reviewer xác nhận). Hướng dẫn: [resonance-a4-grants.md](resonance-a4-grants.md).
 
@@ -8,7 +8,7 @@ Thiết kế: [2026-10-10-resonance-a4-handoff-grants-design.md](../superpowers/
 
 | File | Kết quả |
 |---|---|
-| `tests/python/test_resonance_a4_grants.py` (kho thật, engine giả, đồng hồ giả) | 111 kiểm đạt |
+| `tests/python/test_resonance_a4_grants.py` (kho thật, engine giả, đồng hồ giả) | 119 kiểm đạt |
 | `tests/python/test_resonance_a4_transport.py` (plugin thật, hub HTTP thật với `X-Javis-Turn`, server MCP plugin của Claude SDK thật, `main.app`) | 14 kiểm đạt |
 | `tests/python/test_resonance_a4_rollback.py` (mã 0.91.0 thật, `1d0b515c`, bản cuối trước A4, qua `git show`) | 11 kiểm đạt |
 | `tests/js/test_resonance_a4_ui.js` (gồm hành vi `send()` thật với phản hồi server giả) | 25 kiểm đạt |
@@ -50,6 +50,16 @@ python tests/run.py resonance_a4 -v
 | G3, G4, G6, G8, G9, G11, G12, G14, G35, G42 | test cũ và a4_grants một phần | G3: A4 không có đường giao tiếp nào (không có công cụ); G4, G11: danh tính chỉ từ ngữ cảnh lượt (A1); G12: prompt không chứa bản nháp; G14: Write native không biên nhận thành bytes lạ (G39) |
 
 **Chưa có ca riêng (nêu thật):** G40 đầy đủ (tiêm lỗi ở MỌI điểm của mục 4.7; mới có chết giữa ý định và mốc commit, G62 tới G66 và G86), G71 (khe giữa mốc commit và `os.replace`, giới hạn đã công bố).
+
+## Review mã vòng 3 (`d26c0f09`) và cách sửa
+
+| Điểm | Sửa | Hồi quy (bản nộp `candidate` còn lại sau khi tiến trình bị ngắt, mở lại kho, `tick` thật) |
+|---|---|---|
+| P2: lỗi đăng phát sinh ngay trong lần thức làm việc vẫn mở lượt model (thay file sau mốc commit; đọc file nháp trước mốc commit) | Xét lại nghĩa vụ sau `_publish_latest` rồi gác `publish_settling`; file nháp chưa đọc được thì giữ bản nộp, lịch `settle` thử lại bằng code có giãn cách (I16) | V3, cho cả hai vị trí lỗi: lần thức đầu 0 lượt engine, `calls_used` 0, không action work, lý do làm việc còn chờ; lỗi kéo dài 20 nhịp 30 giây có mở lại kho: thức thưa dần, không mở model; hết lỗi: đăng đúng bản đã giữ một lần, tiếp nhận một lần, gỡ gác, không còn lịch `settle`; đối chứng không lỗi đăng ngay |
+
+**Script của reviewer:** `PR-604-A4-code-r2-checks.py --expect-fixed` 14/14 và `PR-604-A4-code-r3-checks.py --expect-fixed` 4/4, cả hai exit 0. Output: `exports/reviews/A4-code-r4-reviewer-checks.txt`.
+
+**Đối chứng trên head cũ:** bản test mới chạy trên `d26c0f09`: cả 7 kiểm V3 đỏ (1 lượt engine, action work, bản nộp không được đăng đúng), ca đối chứng không lỗi vẫn xanh. Output: `exports/reviews/A4-code-r4-control-on-d26c0f09.txt`.
 
 ## Review mã vòng 2 (`7b47e246`) và cách sửa
 
