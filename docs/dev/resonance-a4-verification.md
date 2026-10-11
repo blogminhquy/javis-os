@@ -1,6 +1,6 @@
 # Resonance A4: biên bản kiểm mã (10/10/2026)
 
-**Trạng thái:** mã A4 trên nhánh `claude/resonance-a4-handoff-grants` (PR #604, số 0.92.0; đánh số lại vì `main` đi qua 0.91.0) đã sửa theo **review mã vòng 1** (`a3356165`: 1 P1, 3 P2) **vòng 2** (`7b47e246`: 3 P2) và **vòng 3** (`d26c0f09`: 1 P2), **chờ review lại**. Thiết kế chốt vòng 5 tại `6d774bd5` (D1: không cấp quyền ghi từ lời chat), reviewer chấp thuận để code. Chưa pilot model thật, chưa merge, chưa phát hành, không đụng VPS.
+**Trạng thái:** mã A4 trên nhánh `claude/resonance-a4-handoff-grants` (PR #604, số 0.92.0; đánh số lại vì `main` đi qua 0.91.0) đã sửa theo **review mã vòng 1** (`a3356165`: 1 P1, 3 P2) **vòng 2** (`7b47e246`: 3 P2) và **vòng 3** (`d26c0f09`: 1 P2); **review mã vòng 5 đạt tại `5b5e3ef0`** (không còn P1, P2 chặn). Sau đó: smoke giao diện trên sandbox bằng engine giả (một lỗi thẻ đã sửa ở `f6aeb6d1`) và bộ chạy pilot (`01b7a7bc`, dry 10/10). **Chờ duyệt pilot.** Thiết kế chốt vòng 5 tại `6d774bd5` (D1: không cấp quyền ghi từ lời chat), reviewer chấp thuận để code. Chưa pilot model thật, chưa merge, chưa phát hành, không đụng VPS.
 
 Thiết kế: [2026-10-10-resonance-a4-handoff-grants-design.md](../superpowers/specs/2026-10-10-resonance-a4-handoff-grants-design.md) (mục 12 là ma trận; mục 17 là ghi chú triển khai cần reviewer xác nhận). Hướng dẫn: [resonance-a4-grants.md](resonance-a4-grants.md).
 
@@ -11,7 +11,8 @@ Thiết kế: [2026-10-10-resonance-a4-handoff-grants-design.md](../superpowers/
 | `tests/python/test_resonance_a4_grants.py` (kho thật, engine giả, đồng hồ giả) | 124 kiểm đạt |
 | `tests/python/test_resonance_a4_transport.py` (plugin thật, hub HTTP thật với `X-Javis-Turn`, server MCP plugin của Claude SDK thật, `main.app`) | 14 kiểm đạt |
 | `tests/python/test_resonance_a4_rollback.py` (mã 0.91.0 thật, `1d0b515c`, bản cuối trước A4, qua `git show`) | 11 kiểm đạt |
-| `tests/js/test_resonance_a4_ui.js` (gồm hành vi `send()` thật với phản hồi server giả) | 25 kiểm đạt |
+| `tests/js/test_resonance_a4_ui.js` (gồm hành vi `send()` thật với phản hồi server giả) | 27 kiểm đạt |
+| `tests/python/test_resonance_a4_pilot.py` (`JAVIS_RESONANCE_A4_PILOT=dry`, server thật, lượt chat mô phỏng) | 10/10 ca, 0 lượt thật; không đặt biến thì bỏ qua |
 | 31 file test Resonance cũ (M1 tới M5, A1 tới A3) và 5 test giao diện Resonance cũ | đều đạt (14 file sửa kỳ vọng hay thêm `RA.preapprove()`, xem dưới) |
 | Toàn repo `tests/run.py` (637 file) | 619 xanh; 18 đỏ, phân định ở mục "Toàn repo" |
 
@@ -50,6 +51,24 @@ python tests/run.py resonance_a4 -v
 | G3, G4, G6, G8, G9, G11, G12, G14, G35, G42 | test cũ và a4_grants một phần | G3: A4 không có đường giao tiếp nào (không có công cụ); G4, G11: danh tính chỉ từ ngữ cảnh lượt (A1); G12: prompt không chứa bản nháp; G14: Write native không biên nhận thành bytes lạ (G39) |
 
 **Chưa có ca riêng (nêu thật):** G40 đầy đủ (tiêm lỗi ở MỌI điểm của mục 4.7; mới có chết giữa ý định và mốc commit, G62 tới G66 và G86), G71 (khe giữa mốc commit và `os.replace`, giới hạn đã công bố).
+
+## Smoke giao diện trên sandbox (sau review vòng 5)
+
+Server sandbox cổng 7788, state và brain riêng (`exports/sandbox-a4`, ngoài git), nhịp tắt, engine giả có bộ đếm, khoá file THẬT trên Windows (một tiến trình giữ file: chặn `os.replace`, hay chặn cả đọc). Chromium qua Playwright, desktop 1366x860 và khổ hẹp 375x812, tiếng Việt; hộp xác nhận gốc trả lời thật, tab thứ hai thật. Biên bản và 16 ảnh: `exports/reviews/A4-ui-sandbox-record.md`, `exports/reviews/a4-ui/` (ngoài git).
+
+Đạt, đối chiếu kho và hash file:
+- xin quyền đích mới, xem trước đúng bản nháp, Cho phép đăng đúng bytes, 0 lượt engine;
+- Không cho phép; thẻ cũ trả 409 sau khi tab khác đã bấm; tạm dừng giữ bản 2; thu hồi (Huỷ không gửi gì, Đồng ý thì bản 2 `stale`); cấp lại không làm sống lại bản 2;
+- file đích có sẵn: báo chưa đăng, giữ file; file nháp khoá: giữ bản, thử lại thưa dần, mở khoá đăng đúng bản; file đích khoá: gác `publish_settling`, khởi động lại và F5 thẻ "Đang hoàn tất lần đăng đã chốt", mở khoá đăng đúng bản 2; file đã đăng bị sửa tay: `source_drift`, không ghi đè;
+- khổ hẹp không cuộn ngang.
+
+**Lỗi tìm ra, đã sửa (`f6aeb6d1`):** ở trang Cộng sự, thẻ chat bị thu gọn và câu báo "Đã cho phép và đăng…" rơi vào thẻ ngăn trợ lý đang ẩn (thẻ cuối trong DOM). Có từ 0.87.0; nay thẻ ngăn trợ lý luôn đầy đủ và luật "thẻ mới nhất" chỉ xét thẻ chat. Hai kiểm mới trong `test_resonance_a4_ui.js`, đỏ trên mã cũ.
+
+**Câu hỏi thiết kế, chưa đổi:** Cho phép gặp file đích có sẵn của chủ dự án (không baseline) thì lịch làm việc vẫn chạy lượt việc nền (sandbox: 3 trên hạn mức 4, mỗi bản đều xung đột) rồi dừng `stalled`. Đây là hành vi MVP đã review (kiểm "3a"); thử đổi làm đỏ 5 file test cũ nên trả lại. Cần chủ dự án quyết.
+
+## Bộ chạy pilot A4 (chưa chạy thật)
+
+`tests/python/test_resonance_a4_pilot.py`. Real chạy Claude Code (gói thuê bao) ở lượt chat của trợ lý, tối đa 2 lượt (sổ giữ chỗ fsync trước mỗi lần gửi, đóng khi có lỗi, không đặt lại), trần kho 0 cho mọi tiến trình server. Dry 10 ca: chính, cổng chi phí, cổng xác thực, thẻ cũ 409, biên nhận đăng không thành, lỗi engine, không nộp, tự ghi file đích, thiếu bằng chứng, sổ còn giữ chỗ. Đơn xin chạy: `exports/reviews/A4-pilot-run-request.md` (ngoài git). Engine khác Claude Code chỉ kiểm bằng engine giả.
 
 ## Review mã vòng 3 (`d26c0f09`) và cách sửa
 
