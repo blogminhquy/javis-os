@@ -2,7 +2,7 @@
 
 **Trạng thái:** thiết kế **chốt** (vòng 5, phương án dự phòng D1), reviewer chấp thuận để code. **Mã A4 đạt review mã vòng 5** (`5b5e3ef0`; mục 17: I1, I2 đã được chấp nhận; I10 tới I16). Smoke giao diện và bộ chạy pilot: [biên bản](../../dev/resonance-a4-verification.md). Chưa pilot model thật. Đổi cơ chế cấp quyền ngoài bản này thì gửi diff thiết kế review trước.
 
-- **Nhánh:** `claude/resonance-a4-handoff-grants`, PR nháp #604, số **0.92.0** (đặt 0.90.0; `main` đi qua 0.91.0 nên đánh số lại).
+- **Nhánh:** `claude/resonance-a4-handoff-grants`, PR nháp #604, số **0.93.0** (đặt 0.90.0; `main` đi qua 0.91.0 rồi 0.92.1 nên đánh số lại hai lần).
 - **Vòng 1** (`5edfc9b6`) chưa đạt: 3 P1, 2 P2 (`exports/reviews/PR-604-A4-design-r1-review.md`, ngoài git).
 - **Vòng 2** (`99c88447`) chưa đạt: 1 P1, 3 P2, 6 lưu ý nhỏ (`exports/reviews/PR-604-A4-design-r2-review.md`, ngoài git).
 - **Vòng 3** (`efa1fce3`) chưa đạt: 1 P1, 1 P2, 3 lưu ý nhỏ (`exports/reviews/PR-604-A4-design-r3-review.md`, ngoài git). Phần bản nháp, chấp thuận, `sealed`, tiếp nhận, khoá theo revision và legacy đã đạt ở mức thiết kế.
@@ -11,7 +11,7 @@
 
 **Nền và đầu vào:**
 
-- **Nền:** thiết kế viết trên `main` `33a3c1aa` (0.89.0); mã đã merge `main` `1d0b515c` (0.91.0: 0.89.1, 0.89.2, DeepSeek). A1 0.87.0, A2 0.88.0, A3 0.89.0, bản hiệu năng 0.88.5 (#602) đã vào `main`.
+- **Nền:** thiết kế viết trên `main` `33a3c1aa` (0.89.0); mã đã merge `main` `1d0b515c` (0.91.0: 0.89.1, 0.89.2, DeepSeek) rồi `709e3db9` (0.92.1: đăng nhập, màn cài đặt đầu). A1 0.87.0, A2 0.88.0, A3 0.89.0, bản hiệu năng 0.88.5 (#602) đã vào `main`.
 - **Lộ trình:** [agent scope roadmap](2026-10-08-resonance-agent-scope-roadmap.md), mục 7 (A4, A5).
 - **Đầu vào giao quyền** (ngoài git):
   - báo cáo Paperclip 08/10: `exports/reviews/paperclip-javis-assessment-2026-10-08.md`;
@@ -68,7 +68,7 @@ A5 dùng lại đúng hợp đồng này cho cặp làm/review.
 - **Nhiều sản phẩm mỗi mục tiêu.**
 - **Cấp quyền từ lời chat.** A4 không có bộ nhận chỉ thị và không có nguồn quyền `owner_message` (mục 5.2.1, D1).
 - **Hạn dùng quyền (`expires_at`).** Không có trong A4 (D10).
-- **Chạy tiếp mục tiêu có quyền A4 bằng mã 0.91.0 sau khi hạ phiên bản.** Không hỗ trợ (mục 7.4).
+- **Chạy tiếp mục tiêu có quyền A4 bằng mã 0.92.1 sau khi hạ phiên bản.** Không hỗ trợ (mục 7.4).
 
 ## 2. Hiện trạng: dùng lại và khoảng trống (mã tại `9716cecf`)
 
@@ -85,9 +85,9 @@ A5 dùng lại đúng hợp đồng này cho cặp làm/review.
 | Bàn giao hết hạn sau khởi động lại | `handoff_gate` (chủ sở hữu theo tiến trình) | Chưa phân biệt "lượt hết nhận lời gọi" với "bản host đã nhận còn được hoàn tất" |
 | Đối soát lượt nền dở | `resonance._reconcile` (chỉ chốt receipt), `_publish_latest` (đăng đầu ra trần) | Chưa có bản nộp, chưa có liên kết |
 | Mô hình được sửa tiêu chí, đường đích khi có câu trích trong tin | `resonance.validate_proposal`, `revise_goal` | **Câu trích không phải chấp thuận mở quyền vào đường mới** |
-| `resume` gỡ tạm dừng | `resonance.apply_command(..., "resume")` | Mã 0.91.0 không biết quyền: hạ phiên bản rồi bấm Tiếp tục là chạy lại |
+| `resume` gỡ tạm dừng | `resonance.apply_command(..., "resume")` | Mã 0.92.1 không biết quyền: hạ phiên bản rồi bấm Tiếp tục là chạy lại |
 | Helper đường dẫn: chặn đường tuyệt đối, đường resolve ra ngoài brain, symlink trỏ ra ngoài | `resonance._brain_file` | **Nhận `a/../a/x.md` và `./a/x.md`** vì chúng resolve vẫn trong brain (đã chạy thử). Chưa so khớp theo chữ hoa thường trên Windows |
-| Snapshot khi nâng kho: SQLite backup API, lấy cả phần trong WAL, một lần, không ghi đè | `GoalStore._backup_before(marker_table, suffix)` | Dùng lại cho 0.92.0 (mục 7.4) |
+| Snapshot khi nâng kho: SQLite backup API, lấy cả phần trong WAL, một lần, không ghi đè | `GoalStore._backup_before(marker_table, suffix)` | Dùng lại cho 0.93.0 (mục 7.4) |
 
 - **Không có công cụ "nộp sản phẩm".**
 - **Ý tưởng cũ chưa thành mã:** tài liệu 06/10 có `GoalGrant`, `AuthorityService`, `X-Javis-Run`, nhưng chưa có dòng mã nào.
@@ -418,7 +418,7 @@ Cả hai tầng nằm trong bảng `grants` (mục 7.1):
 | `source` | Khi nào | Đích | Bằng chứng ghi kèm |
 |---|---|---|---|
 | `owner_approved` | Chủ dự án bấm "Cho phép" trên thẻ cho **một yêu cầu cụ thể** host đưa ra (mục 5.3) | Đường của yêu cầu | `scope_request_id`, người bấm |
-| `legacy_frozen` | Giao dịch nâng kho lên 0.92.0, cho mục tiêu lập trước đó | `_deliverable_rel` của revision **tại lúc nâng** | Revision và sha khung lúc nâng. **Tương thích legacy**, không khẳng định chủ dự án đã duyệt |
+| `legacy_frozen` | Giao dịch nâng kho lên 0.93.0, cho mục tiêu lập trước đó | `_deliverable_rel` của revision **tại lúc nâng** | Revision và sha khung lúc nâng. **Tương thích legacy**, không khẳng định chủ dự án đã duyệt |
 
 **Mục tiêu mới lập trong lượt chat luôn chưa có phạm vi gốc**, dù lời giao có nêu đích hay không. Mục tiêu ở trạng thái **chờ chấp thuận phạm vi**:
 
@@ -607,20 +607,20 @@ Theo mục 4.5. Không hứa nguyên tử với hệ thống file.
 
 ### 7.4 Nâng cấp, hạ phiên bản, nâng lại (chọn chính sách giới hạn)
 
-Review vòng 1 chỉ ra `apply_command(..., "resume")` của 0.91.0 gỡ tạm dừng mà không biết quyền. Vì vậy tạm dừng **không** bảo toàn được việc thu hồi khi chạy bằng mã cũ. A4 chọn chính sách giới hạn:
+Review vòng 1 chỉ ra `apply_command(..., "resume")` của 0.92.1 gỡ tạm dừng mà không biết quyền. Vì vậy tạm dừng **không** bảo toàn được việc thu hồi khi chạy bằng mã cũ. A4 chọn chính sách giới hạn:
 
-**Hạ về 0.91.0 chỉ hỗ trợ khôi phục snapshot hay đọc hồ sơ.** Không hỗ trợ chạy tiếp mục tiêu có quyền A4 bằng mã cũ.
+**Hạ về 0.92.1 chỉ hỗ trợ khôi phục snapshot hay đọc hồ sơ.** Không hỗ trợ chạy tiếp mục tiêu có quyền A4 bằng mã cũ.
 
 - **Lúc nâng lên:**
-  1. `GoalStore._backup_before("grants", ".pre-0.92.0")`: dùng lại helper có sẵn, SQLite backup API (lấy cả phần trong WAL), chỉ khi kho chưa có bảng `grants`, không ghi đè bản đã có.
+  1. `GoalStore._backup_before("grants", ".pre-0.93.0")`: dùng lại helper có sẵn, SQLite backup API (lấy cả phần trong WAL), chỉ khi kho chưa có bảng `grants`, không ghi đè bản đã có.
   2. Tạo bảng mới.
   3. Đóng băng legacy (mục 5.2) trong cùng giao dịch tạo bảng, trước khi server nhận lời gọi.
 - **Hạ đúng cách,** bằng script đi kèm `tools/resonance_restore_pre_a4.py`, chạy khi Javis đã tắt:
-  1. Chép kho **hiện tại** sang `resonance.sqlite3.post-0.92.0-<thời điểm>` bằng SQLite backup API, để giữ hồ sơ sau nâng.
+  1. Chép kho **hiện tại** sang `resonance.sqlite3.post-0.93.0-<thời điểm>` bằng SQLite backup API, để giữ hồ sơ sau nâng.
   2. Khôi phục snapshot vào đường kho bằng backup API, rồi dọn `-wal`/`-shm` cũ.
-  3. Chạy 0.91.0.
+  3. Chạy 0.92.1.
   - Mọi thay đổi của mục tiêu sau lúc nâng bị mất khỏi kho chạy: lượt đã chạy, bản đã đăng ghi trong kho, phản hồi. Bản sao ở bước 1 vẫn đọc được.
-  - File đã đăng trong brain vẫn còn, và 0.91.0 có thể thấy chúng là drift so với mốc cũ (A2).
+  - File đã đăng trong brain vẫn còn, và 0.92.1 có thể thấy chúng là drift so với mốc cũ (A2).
   - Biên bản phát hành ghi rõ hậu quả này.
 - **Hạ không khôi phục snapshot (không hỗ trợ):**
   - mã cũ không đọc `grants`, nên bấm Tiếp tục là chạy lại mục tiêu đã thu hồi;
@@ -716,7 +716,7 @@ Mỗi ca có đối chứng hợp lệ đi qua. Ca race chèn thay đổi ngay t
 | G25 | Chủ dự án Cho phép đúng đường của yêu cầu; gửi đường khác với yêu cầu | Khớp: gốc mới `owner_approved`, làm tiếp. Lệch: `scope_request_stale`, không gốc | r1 P1-1 |
 | G26 | Mục tiêu có hai đường tiêu chí | Quyền và đích chỉ là đường đầu (`_deliverable_rel`); đường hai chỉ được evaluator đọc | r1 P1-1 |
 | G27 | Lập mục tiêu: lời chủ dự án nêu đích bằng lệnh trực tiếp; đích do trợ lý tự chọn | Cả hai chờ chấp thuận, chưa giữ lượt, không đọc đích vào prompt. Sau khi Cho phép thì chạy bình thường | r1 P1-1, r2 P1-1, r4 D1 |
-| G28 | Mục tiêu cũ trước 0.92.0 | Gốc `legacy_frozen` đúng `_deliverable_rel` lúc nâng. Mục tiêu chờ gán không có quyền | r1 P1-1 |
+| G28 | Mục tiêu cũ trước 0.93.0 | Gốc `legacy_frozen` đúng `_deliverable_rel` lúc nâng. Mục tiêu chờ gán không có quyền | r1 P1-1 |
 | G29 | Thu hồi rồi cấp lại khi cùng lượt chat còn sống | Lượt đó không nộp được nữa | r1 P1-2 |
 | G30 | Lời nộp cùng phiên nhưng khoá lượt là tin khác (đan xen hai tin) | Chỉ thấy liên kết của tin mình | r1 P1-2, P2-1 |
 | G31 | Thu hồi sau bước 1 (ý định), trước bước 3 (mốc commit) | Đăng bị huỷ, file đích không đổi, bản nộp `stale` | r1 P1-2 |
@@ -735,10 +735,10 @@ Mỗi ca có đối chứng hợp lệ đi qua. Ca race chèn thay đổi ngay t
 | G44 | Cùng khoá tuỳ chọn, cùng bytes, khác đích | `submission_conflict` | r1 P2-1 |
 | G45 | Đường alias: chữ hoa thường trên Windows; `./a/x.md`, `a/../a/x.md` | Chữ hoa thường về cùng khoá. `.` và `..` bị từ chối ở khoá đường, dù `_brain_file` nhận; symlink ra ngoài bị chặn | r1 P2-1, r2 lưu ý 4 |
 | G46 | Phát lại sau khi thu hồi và cấp lại, trong cùng lượt còn sống | Trả biên nhận cũ với trạng thái `stale` (tra biên nhận trước cổng `binding_accepts`); không tác động mới. Lượt khác hay tiến trình mới: `no_turn` hay không thấy liên kết | r1 P2-1, r2 lưu ý 5 |
-| G47 | Nâng lên A4 | Có `resonance.sqlite3.pre-0.92.0` đúng một bản, tạo bằng backup API, có cả dữ liệu còn trong WAL | r1 P2-2, r2 lưu ý 3 |
-| G48 | A4 thu hồi, rồi chạy `resume` của mã 0.91.0 (lấy qua `git archive`) | Ghi nhận đúng là không hỗ trợ: mã cũ chạy lại. Test chứng minh giới hạn được ghi trong tài liệu là đúng sự thật, không chứng minh là được chặn | r1 P2-2 |
+| G47 | Nâng lên A4 | Có `resonance.sqlite3.pre-0.93.0` đúng một bản, tạo bằng backup API, có cả dữ liệu còn trong WAL | r1 P2-2, r2 lưu ý 3 |
+| G48 | A4 thu hồi, rồi chạy `resume` của mã 0.92.1 (lấy qua `git archive`) | Ghi nhận đúng là không hỗ trợ: mã cũ chạy lại. Test chứng minh giới hạn được ghi trong tài liệu là đúng sự thật, không chứng minh là được chặn | r1 P2-2 |
 | G49 | Nâng lại sau khi mã cũ tạo revision mới và lập mục tiêu mới | Không tự cấp quyền cho revision hay mục tiêu đó; gốc `revoked` vẫn `revoked` | r1 P2-2 |
-| G50 | Chạy script khôi phục rồi chạy 0.91.0 | Có bản `post-0.92.0-*` bằng kho trước khôi phục; kho mở được, mục tiêu ở trạng thái lúc nâng lên | r1 P2-2, r2 lưu ý 3 |
+| G50 | Chạy script khôi phục rồi chạy 0.92.1 | Có bản `post-0.93.0-*` bằng kho trước khôi phục; kho mở được, mục tiêu ở trạng thái lúc nâng lên | r1 P2-2, r2 lưu ý 3 |
 
 ### 12.3 Ca theo review vòng 2
 
@@ -749,7 +749,7 @@ Mỗi ca có đối chứng hợp lệ đi qua. Ca race chèn thay đổi ngay t
 | G53 | Tin dán đoạn của người khác có "ghi vào `Private/giu-nguyen.md`" | Chờ chấp thuận, ca âm ba mặt | r2 P1-1, r4 D1 |
 | G54 | Lệnh trực tiếp "Ghi vào `Inbox/x.md` bản tóm tắt" | Vẫn chờ chấp thuận. Cho phép đúng đường thì gốc `owner_approved`, chạy bình thường | r2 P1-1, r4 D1 |
 | G55 | "ghi vào `x.md` được không?"; hai đường trong một tin | Chờ chấp thuận | r2 P1-1, r4 D1 |
-| G56 | Mục tiêu legacy được model sửa sang đích mới bởi mã 0.91.0 ngay trước khi nâng, rồi sửa tiếp sau khi nâng | Gốc đóng băng theo revision lưu lúc nâng. Sửa sau nâng sang đích khác thì chờ `expand`; không đọc đích mới vào prompt | r2 P1-1 |
+| G56 | Mục tiêu legacy được model sửa sang đích mới bởi mã 0.92.1 ngay trước khi nâng, rồi sửa tiếp sau khi nâng | Gốc đóng băng theo revision lưu lúc nâng. Sửa sau nâng sang đích khác thì chờ `expand`; không đọc đích mới vào prompt | r2 P1-1 |
 | G57 | Lập mục tiêu đích model chọn, nộp, kết thúc chat, chủ dự án Cho phép | 1 lượt model (của chat), 0 lượt sau duyệt. Bản nháp `promoted`, bản `approved_draft` `published`, gốc `owner_approved`, liên kết `approval`, tiếp nhận đúng một lần | r2 P2-1 |
 | G58 | Như G57 nhưng chủ dự án bấm Không | Bản nháp `rejected`, không gốc, không đăng, không giữ lượt | r2 P2-1 |
 | G59 | Bấm Cho phép trên thẻ cũ: sau revision mới; sau Không; sau khi có bản nháp mới hơn; sau thu hồi rồi cấp lại | `scope_request_stale`, không tạo gốc | r2 P2-1 |
@@ -863,7 +863,7 @@ Bảng câu của `test_resonance_a4_directive.py` ghi kết quả thật của 
 | P1-2: chưa ghim quyền vào lượt; nhánh `same` đi vòng; chưa có thứ tự với thu hồi | Bảng `bindings` ghim quyền revision, gốc, `generation`, trợ lý, nguồn lượt. `host_publish` bốn bước có mốc commit `BEGIN IMMEDIATE` tuần tự với thu hồi. Mọi đường thay mốc qua đó | 4.2, 4.5, 5.5, 9, 12.2 (G29 tới G35) |
 | P1-3: dùng `finish_handoff` như thể bản nháp đã ở đích; bản nộp nền chèn sau bước đăng | Bảng chuyển trạng thái theo nguồn. Đăng bytes từ bản nháp qua `host_publish`. `adopt_submission` tách khỏi ghi mốc. Sắp lại `_work_post_core`. Quy tắc Write A + nộp B. Bảng ai đọc gì. Bảng đối soát | 4.4, 4.6, 4.7, 12.2 (G36 tới G42) |
 | P2-1: chọn mục tiêu theo phiên + đường; chống trùng chỉ theo sha | Chọn theo liên kết của đúng tin đang gọi; nhiều kết quả thì `ambiguous_handoff`. Dấu vân tay toàn thao tác. Khoá đường chuẩn hoá | 4.3, 12.2 (G43 tới G46) |
-| P2-2: tạm dừng không bảo toàn thu hồi khi chạy mã 0.91.0 | Hạ phiên bản chỉ khôi phục snapshot. Nâng lại không tự cấp quyền cho revision mã cũ tạo. Bỏ `expires_at` | 7.4, D10, D11, 12.2 (G47 tới G50) |
+| P2-2: tạm dừng không bảo toàn thu hồi khi chạy mã 0.92.1 | Hạ phiên bản chỉ khôi phục snapshot. Nâng lại không tự cấp quyền cho revision mã cũ tạo. Bỏ `expires_at` | 7.4, D10, D11, 12.2 (G47 tới G50) |
 
 ### 16.2 Sau review vòng 2 (`99c88447`)
 
@@ -907,7 +907,7 @@ Các điểm dưới đây là chỗ mã phải chọn mà thiết kế chưa n�
 |---|---|---|---|
 | I1 | §5.3 ghi "Thu hồi (nút Thu hồi quyền, hay tắt Cộng hưởng của trợ lý)" | **Tắt Cộng hưởng KHÔNG thu hồi gốc.** Liên kết vẫn chết ngay vì ghim version trợ lý (§4.2 điều 3); bật lại thì lượt mới làm tiếp dưới gốc cũ | Giữ hành vi A1 "bật lại thì chạy tiếp". **Reviewer chấp nhận ở review mã vòng 1**; §5.3 đã sửa theo |
 | I2 | §4.5 liệt kê "đăng lại" nhưng §4.2 không có nguồn cho nó | File đích bị xoá thì `_publish_latest` tạo bản nộp `republish` chép bản đã đăng, dưới liên kết **mới** `republish` ghim quyền revision ĐANG hiệu lực (không dùng lại liên kết cũ). Không có quyền hiệu lực thì không đăng lại | Giữ hành vi A2 "xoá file thì đăng lại bản hiệu lực, 0 lượt model". **Reviewer chấp nhận ở review mã vòng 1**; đã ghi vào §4.2 và §4.7 |
-| I3 | Mục tiêu không có đường sản phẩm (chỉ có tiêu chí người dùng xác nhận) | `scope_state=none`: không cần phạm vi, việc nền chạy như 0.91.0, không có gì để đăng | Không có đích để cho phép; chặn chúng thì mục tiêu kẹt vĩnh viễn |
+| I3 | Mục tiêu không có đường sản phẩm (chỉ có tiêu chí người dùng xác nhận) | `scope_state=none`: không cần phạm vi, việc nền chạy như 0.92.1, không có gì để đăng | Không có đích để cho phép; chặn chúng thì mục tiêu kẹt vĩnh viễn |
 | I4 | Hệ quả của D1 với Claude | Write trong lượt LẬP mục tiêu không được tiếp nhận (bytes lạ ở đích). Chỉ bản nộp qua `javis_submit_deliverable` được giữ làm nháp. Gợi ý trong prompt và kết quả `javis_goal` dặn bộ não nộp qua công cụ, không Write thẳng | Đúng §4.4 ("liên kết draft không bao giờ tiếp nhận Write tại chỗ"). Câu hỏi mở cho A5: có nên chuyển một Write có biên nhận thành bản nháp không; mã chưa làm |
 | I5 | A1 quyết định 4 (đăng lại đầu ra giữ sau khi tắt bật, ý định mới theo version hiện tại) | Thay bằng §4.2 điều 3: bản nộp `stale`, lần thức sau làm lại một lượt | "Host không bao giờ sửa liên kết đang dở sang quyền mới". Test A1 sửa kỳ vọng, có chú thích |
 | I6 | Revision do mã cũ tạo, hay mục tiêu vừa gán, cần phạm vi mà chưa có yêu cầu | `_gate` gọi `ensure_scope_request`: chỉ ghi yêu cầu chờ, không cấp | Để thẻ có nút Cho phép; §7.4 |

@@ -11,14 +11,14 @@ Mọi engine nộp sản phẩm qua cùng một cửa: host xác định lượt
 | Phần | File |
 |---|---|
 | Luật thuần: khoá đường, `narrow`, `allows`, dấu vân tay, bảng khả năng engine | `server/resonance_grants.py` (mới) |
-| Kho: sáu bảng A4, snapshot `.pre-0.92.0`, đóng băng legacy, phạm vi theo revision, liên kết, bản nộp, bốn bước đăng, Cho phép, Không, Thu hồi, Cấp lại, đăng lại | `server/resonance_store.py` (mục "A4" cuối class) |
+| Kho: sáu bảng A4, snapshot `.pre-0.93.0`, đóng băng legacy, phạm vi theo revision, liên kết, bản nộp, bốn bước đăng, Cho phép, Không, Thu hồi, Cấp lại, đăng lại | `server/resonance_store.py` (mục "A4" cuối class) |
 | `host_publish`, đối soát đăng, `_publish_latest` theo bản nộp, `_work_post_core` chèn bản nộp trước đăng, bàn giao cuối lượt, `submit_deliverable`, cổng phạm vi trong `_gate`, lệnh chủ dự án, khối `scope` của thẻ | `server/resonance.py` |
 | Công cụ hub `javis_submit_deliverable`, ghi chú phạm vi và mã `handoff` trong kết quả `javis_goal` | `system/plugins/javis-goal/plugin.py`, `plugin.yaml` |
 | Ảnh chụp thứ tự quyền đầu lượt, provider của lượt | `server/turn_context.py`, `server/main.py` (`_resonance_turn_agent`) |
 | Bàn giao mọi mục tiêu của một tin; đăng ký phụ thuộc cho công cụ trong tiến trình | `server/main.py` (`_resonance_after_turn`, `resonance.set_deps_provider`) |
 | Xem trước bản nháp | `server/resonance_api.py` (`GET /goals/{id}/drafts/{submission_id}`) |
 | Thẻ: dòng quyền, Cho phép / Không / Xem trước / Thu hồi quyền | `dashboard/chat-resonance.js`, `dashboard/resonance-agent.js`, `dashboard/style.css`, `dashboard/i18n/*.json` |
-| Hạ về 0.91.0 | `tools/resonance_restore_pre_a4.py` |
+| Hạ về 0.92.1 | `tools/resonance_restore_pre_a4.py` |
 
 ## Vòng đời
 
@@ -49,7 +49,7 @@ Mọi engine nộp sản phẩm qua cùng một cửa: host xác định lượt
 
 **Lệnh chủ dự án** (`POST /goals/{id}/commands`): `approve_scope` (CAS yêu cầu, revision, đường, trợ lý, bản nháp mới nhất đúng sha), `deny_scope`, `revoke_grant`, `resume` (đang thu hồi thì cấp lại gốc mới).
 
-## Hành vi đổi so với 0.91.0
+## Hành vi đổi so với 0.92.1
 
 - Mục tiêu mới có đường sản phẩm luôn chờ chủ dự án cho phép, kể cả khi lời giao nêu đích. Write của bộ não trong lượt LẬP mục tiêu không được tiếp nhận (lượt đó chưa có phạm vi lúc bắt đầu); bản nộp qua công cụ được giữ làm nháp và Cho phép đăng nó.
 - Tắt Cộng hưởng của trợ lý không thu hồi phạm vi (I1): bật lại thì làm tiếp dưới gốc cũ. Nhưng tắt rồi bật giữa lượt làm bản nộp của lượt đó `stale`, không đăng lại dưới version mới (trước đây A1 đăng lại đầu ra giữ bằng ý định mới). Lần thức sau làm lại một lượt.
@@ -58,4 +58,4 @@ Mọi engine nộp sản phẩm qua cùng một cửa: host xác định lượt
 
 ## Hạ phiên bản
 
-Lần đầu mã A4 mở một kho có từ trước, `_backup_before("grants", ".pre-0.92.0")` chép kho bằng SQLite backup API, rồi một giao dịch tạo bảng và đóng băng legacy. Hạ về 0.91.0 chỉ hỗ trợ bằng `tools/resonance_restore_pre_a4.py --yes` khi Javis đã tắt: chép kho hiện tại sang `resonance.sqlite3.post-0.92.0-<thời điểm>`, rồi ghi snapshot vào. Chạy 0.91.0 trên kho A4 mà không khôi phục là không hỗ trợ (mã cũ gỡ tạm dừng của mục tiêu đã thu hồi; test G48 ghi nhận đúng giới hạn này).
+Lần đầu mã A4 mở một kho có từ trước, `_backup_before("grants", ".pre-0.93.0")` chép kho bằng SQLite backup API, rồi một giao dịch tạo bảng và đóng băng legacy. Hạ về 0.92.1 chỉ hỗ trợ bằng `tools/resonance_restore_pre_a4.py --yes` khi Javis đã tắt: chép kho hiện tại sang `resonance.sqlite3.post-0.93.0-<thời điểm>`, rồi ghi snapshot vào. Chạy 0.92.1 trên kho A4 mà không khôi phục là không hỗ trợ (mã cũ gỡ tạm dừng của mục tiêu đã thu hồi; test G48 ghi nhận đúng giới hạn này).

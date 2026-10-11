@@ -1,6 +1,6 @@
 # Resonance A4: biên bản kiểm mã (10/10/2026)
 
-**Trạng thái:** mã A4 trên nhánh `claude/resonance-a4-handoff-grants` (PR #604, số 0.92.0; đánh số lại vì `main` đi qua 0.91.0) đã sửa theo **review mã vòng 1** (`a3356165`: 1 P1, 3 P2) **vòng 2** (`7b47e246`: 3 P2) và **vòng 3** (`d26c0f09`: 1 P2); **review mã vòng 5 đạt tại `5b5e3ef0`** (không còn P1, P2 chặn). Sau đó: smoke giao diện trên sandbox bằng engine giả (một lỗi thẻ đã sửa ở `f6aeb6d1`) và bộ chạy pilot (`01b7a7bc`, dry 10/10). **Chờ duyệt pilot.** Thiết kế chốt vòng 5 tại `6d774bd5` (D1: không cấp quyền ghi từ lời chat), reviewer chấp thuận để code. Chưa pilot model thật, chưa merge, chưa phát hành, không đụng VPS.
+**Trạng thái:** mã A4 trên nhánh `claude/resonance-a4-handoff-grants` (PR #604, số 0.93.0; đánh số lại hai lần vì `main` đi qua 0.91.0 rồi 0.92.1) đã sửa theo **review mã vòng 1** (`a3356165`: 1 P1, 3 P2) **vòng 2** (`7b47e246`: 3 P2) và **vòng 3** (`d26c0f09`: 1 P2); **review mã vòng 5 đạt tại `5b5e3ef0`** (không còn P1, P2 chặn). Sau đó: smoke giao diện trên sandbox bằng engine giả (một lỗi thẻ đã sửa ở `f6aeb6d1`) và bộ chạy pilot (`01b7a7bc`, dry 10/10). **Chờ duyệt pilot.** Thiết kế chốt vòng 5 tại `6d774bd5` (D1: không cấp quyền ghi từ lời chat), reviewer chấp thuận để code. Chưa pilot model thật, chưa merge, chưa phát hành, không đụng VPS.
 
 Thiết kế: [2026-10-10-resonance-a4-handoff-grants-design.md](../superpowers/specs/2026-10-10-resonance-a4-handoff-grants-design.md) (mục 12 là ma trận; mục 17 là ghi chú triển khai cần reviewer xác nhận). Hướng dẫn: [resonance-a4-grants.md](resonance-a4-grants.md).
 
@@ -10,7 +10,7 @@ Thiết kế: [2026-10-10-resonance-a4-handoff-grants-design.md](../superpowers/
 |---|---|
 | `tests/python/test_resonance_a4_grants.py` (kho thật, engine giả, đồng hồ giả) | 124 kiểm đạt |
 | `tests/python/test_resonance_a4_transport.py` (plugin thật, hub HTTP thật với `X-Javis-Turn`, server MCP plugin của Claude SDK thật, `main.app`) | 14 kiểm đạt |
-| `tests/python/test_resonance_a4_rollback.py` (mã 0.91.0 thật, `1d0b515c`, bản cuối trước A4, qua `git show`) | 11 kiểm đạt |
+| `tests/python/test_resonance_a4_rollback.py` (mã 0.92.1 thật, `709e3db9`, bản cuối trước A4, qua `git show`) | 11 kiểm đạt |
 | `tests/js/test_resonance_a4_ui.js` (gồm hành vi `send()` thật với phản hồi server giả) | 27 kiểm đạt |
 | `tests/python/test_resonance_a4_pilot.py` (`JAVIS_RESONANCE_A4_PILOT=dry`, server thật, lượt chat mô phỏng) | 10/10 ca, 0 lượt thật; không đặt biến thì bỏ qua |
 | 31 file test Resonance cũ (M1 tới M5, A1 tới A3) và 5 test giao diện Resonance cũ | đều đạt (14 file sửa kỳ vọng hay thêm `RA.preapprove()`, xem dưới) |

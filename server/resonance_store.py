@@ -257,10 +257,10 @@ _A3_BACKUP_SUFFIX = ".pre-a3.bak"
 A3_TABLES = ("reactions", "reaction_log", "lessons", "lesson_events", "call_holds")
 # Bảng có từ A2 (0.88.0). Bản 0.87.x bỏ qua chúng; test rollback chạy mã 0.87 thật trên kho đã nâng.
 A2_TABLES = ("wake_reasons", "wake_log", "source_observations", "heartbeat_state")
-# A4 (0.92.0): phạm vi gốc, quyền revision, yêu cầu phạm vi, liên kết lượt, bản nộp, thứ tự quyền. Tạo cùng giao dịch
-# với bước đóng băng legacy (thiết kế mục 7.4), sau snapshot `.pre-0.92.0`. Hạ về 0.91.0 chỉ hỗ trợ bằng khôi phục
+# A4 (0.93.0): phạm vi gốc, quyền revision, yêu cầu phạm vi, liên kết lượt, bản nộp, thứ tự quyền. Tạo cùng giao dịch
+# với bước đóng băng legacy (thiết kế mục 7.4), sau snapshot `.pre-0.93.0`. Hạ về 0.92.1 chỉ hỗ trợ bằng khôi phục
 # snapshot (D11); bản cũ không đọc các bảng này.
-A4_BACKUP_SUFFIX = ".pre-0.92.0"
+A4_BACKUP_SUFFIX = ".pre-0.93.0"
 A4_TABLES = ("grants", "grant_events", "scope_requests", "bindings", "submissions", "authority_clock")
 _A4_SCHEMA = (
     "CREATE TABLE IF NOT EXISTS grants(id TEXT PRIMARY KEY, kind TEXT NOT NULL, parent_id TEXT NOT NULL DEFAULT '', "
