@@ -87,7 +87,9 @@ _LOCK = threading.Lock()  # CLI engines build argv from worker threads too
 
 
 def make(kenh, sender_id="", chat_type="", chat_id="", la_chu=False, *, session_id="", message_id=0,
-         agent=None) -> dict:
+         agent=None, authority_seq=None, provider="") -> dict:
+    """`authority_seq` (Resonance A4): ảnh chụp thứ tự quyền do HOST đọc trước khi engine chạy; None khi lượt không
+    thuộc trợ lý nào. `provider`: engine của lượt, để hồ sơ bản nộp ghi đúng khả năng engine."""
     return {
         "kenh": str(kenh or "").strip(),
         "sender_id": str(sender_id or "").strip(),
@@ -97,6 +99,8 @@ def make(kenh, sender_id="", chat_type="", chat_id="", la_chu=False, *, session_
         "session_id": str(session_id or "").strip(),
         "message_id": _int(message_id),
         "agent": _agent(agent),
+        "authority_seq": None if authority_seq is None else int(authority_seq),
+        "provider": str(provider or "").strip(),
     }
 
 

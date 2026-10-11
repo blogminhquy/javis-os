@@ -494,6 +494,9 @@ def agent_file_exists(brain_root: str, slug: str) -> bool:
 
 
 AGENT_BLOCKS = ("unassigned", "agent_unknown", "agent_missing", "agent_retired", "agent_off", "agent_changed")
+# A4: lý do gác khi revision hiện tại chưa có quyền hiệu lực, theo `GoalStore.scope_state`.
+SCOPE_BLOCKS = {"pending": "scope_pending", "denied": "scope_denied", "revoked": "grant_revoked",
+                "missing": "grant_missing", "invalid": "path_rejected"}
 
 
 def agent_gate(store, brain_id: str, agent_key: str, version: Optional[int] = None) -> tuple:
@@ -536,10 +539,16 @@ def engine_support(provider: str) -> dict:
     """Khả năng Cộng hưởng của một engine. Engine API (OpenRouter, OpenAI, Anthropic API, Gemini, Groq, Ollama...) gọi
     tool trong tiến trình nên lập được mục tiêu; chưa có bàn giao bản viết trong lượt. Engine lạ: coi như chưa hỗ trợ."""
     p = str(provider or "").strip()
+    import resonance_grants as G
+    caps = G.engine_caps(p)
+    # A4 (mục 6.1): bàn giao chat có khi engine nộp được qua công cụ hub hay có biên nhận Write; việc nền không đổi.
+    extra = {"submit_tool": caps["submit_tool"], "observed_write": caps["observed_write"]}
     if p in _ENGINE_SUPPORT:
-        return {"provider": p, **_ENGINE_SUPPORT[p], "background": True}
-    api = p in ("openrouter", "anthropic-api", "openai", "gemini", "groq", "deepseek", "ollama", "ollama-local", "openai-compat")
-    return {"provider": p, "goal": api, "chat_output": False, "background": True}
+        base = _ENGINE_SUPPORT[p]
+        return {"provider": p, **base, "chat_output": bool(base["chat_output"] or caps["submit_tool"]), **extra,
+                "background": True}
+    api = p in G.API_PROVIDERS
+    return {"provider": p, "goal": api, "chat_output": caps["submit_tool"], **extra, "background": True}
 
 
 def _agent_intent(goal: "GoalRecord", deps: "GoalDeps") -> dict:
@@ -600,8 +609,8 @@ def _artifact_params(raw: Any, need_path: bool = False) -> tuple:
     if raw.get("path") not in (None, ""):
         path = str(raw["path"]).strip().replace("\\", "/")
         if (not isinstance(raw["path"], str) or len(path) > 260 or path.startswith("/") or ":" in path
-                or ".." in path.split("/")):
-            return {}, "path phải là đường dẫn tương đối trong brain, không có .. hay ổ đĩa"
+                or any(s in ("..", ".", "") for s in path.split("/"))):
+            return {}, "path phải là đường dẫn tương đối trong brain, không có ., .., // hay ổ đĩa"
         out["path"] = path
     elif need_path:
         return {}, "guard artifact_contract cần path"
@@ -854,7 +863,8 @@ def revise_goal(store, p, goal_id: str, expected_revision: int, proposal: dict, 
                         reason=str(context.get("reason") or "người dùng bổ sung")[:500],
                         message_ref=mref, relation=relation, intent=intent, work_due_at=context.get("hold_until"),
                         handoff_owner=BOOT_ID if context.get("hold_until") else None,
-                        agent_key=context.get("agent_key"), agent_version=context.get("agent_version"))
+                        agent_key=context.get("agent_key"), agent_version=context.get("agent_version"),
+                        turn_seq=context.get("authority_seq"))
     return goal, relation, notes
 
 
@@ -979,7 +989,8 @@ async def form_goal(message_ref: str, context: dict, deps: "GoalDeps") -> GoalRe
         output_base=str(Path(str(context.get("brain_root") or "")) / "Javis" / "resonance" / "outputs"),
         budget_calls=int(context.get("budget_calls") or GOAL_DEFAULT_CALLS), message_ref=message_ref,
         work_due_at=context.get("hold_until"), handoff_owner=BOOT_ID if context.get("hold_until") else None,
-        agent_key=context.get("agent_key"), agent_version=context.get("agent_version"))
+        agent_key=context.get("agent_key"), agent_version=context.get("agent_version"),
+        turn_seq=context.get("authority_seq"))
     return goal
 
 
@@ -1256,22 +1267,168 @@ def _handoff_gate(goal: "GoalRecord", deps: "GoalDeps") -> str:
     return deps.store.handoff_gate(deps.principal, goal.id, goal.revision, BOOT_ID, _turn_active(h["message_ref"]))
 
 
-def handoff_after_turn(goal_id: str, message_ref: str, deps: "GoalDeps") -> str:
+def take_turn_receipts(message_ref: str) -> dict:
+    """Lấy và xoá sổ biên nhận Write của một lượt, MỘT lần cho mọi mục tiêu lượt đó chạm."""
+    rec = _turn_receipts(message_ref)
+    drop_turn_writes(message_ref)
+    return rec
+
+
+def handoff_after_turn(goal_id: str, message_ref: str, deps: "GoalDeps", receipts: Optional[dict] = None) -> str:
     """Bàn giao cuối lượt chat cho một mục tiêu lượt này vừa lập hay cập nhật. KHÔNG gọi model.
 
-    Chỉ dùng biên nhận ĐÃ XÁC NHẬN (Write có kết quả thành công đúng id, không bị công cụ nào sau đó làm mất hiệu lực)
-    cho đúng file sản phẩm của revision lượt này tạo, và bytes trên đĩa phải khớp nội dung lần Write đó. Có thì lưu bản
-    chụp vào kho bằng chứng rồi `finish_handoff` tiếp nhận trong một giao dịch; không thì `finish_handoff` chỉ nhả lịch.
-    Việc nền đã nhận quyền trước (bàn giao hết hiệu lực) thì không tiếp nhận gì. Trả trạng thái để ghi vết."""
+    A4 (mục 4.4): liên kết `handoff` của tin chuyển `sealed` (hết nhận lời nộp). Có bản nộp `submit_tool` thì host đăng
+    bản MỚI NHẤT của liên kết qua `host_publish` (bản cũ hơn `superseded`), rồi tiếp nhận. Cùng lượt có Write A hợp lệ ở
+    đích và nộp B (D3): tiếp nhận A tại chỗ trước, A thành baseline, rồi đăng B đè lên A qua CAS và guard; A không có
+    biên nhận thì đích mang bytes lạ và B gặp `conflict`. Không bao giờ ghi baseline của B lên file A.
+
+    Write A chỉ dùng biên nhận ĐÃ XÁC NHẬN (Write có kết quả thành công đúng id, không bị công cụ nào sau đó làm mất
+    hiệu lực) cho đúng file sản phẩm của revision lượt này tạo, bytes trên đĩa khớp lần Write đó, và liên kết có quyền
+    `publish` đúng đích. Việc nền đã nhận quyền trước (bàn giao hết hiệu lực) thì không tiếp nhận gì."""
     store, p = deps.store, deps.principal
-    receipts = _turn_receipts(message_ref)
-    drop_turn_writes(message_ref)
+    if receipts is None:
+        receipts = take_turn_receipts(message_ref)
     g = store.get(p, goal_id)
     if g is None:
         return "no_goal"
+    store.seal_turn(p, goal_id, str(message_ref))
     rev = _turn_revision(store, p, goal_id, message_ref)
     if rev is None or rev != g.revision:
         return "not_this_turn"         # revision hiện tại thuộc tin khác: không đụng bàn giao của nó
+    b = store.turn_binding(p, g.id, rev, str(message_ref))
+    sub = (store.latest_candidate(p, g.id, rev, binding_id=b["id"], supersede_older=True)
+           if b is not None and b.get("authority") == "grant" else None)
+    adopt, why = _observed_adopt(g, receipts, message_ref, deps)
+    if sub is None:
+        res = store.finish_handoff(p, g.id, g.revision, str(message_ref), adopt)
+        return res if (adopt or res not in ("released",)) else why
+    if adopt is not None:
+        store.finish_handoff(p, g.id, g.revision, str(message_ref), adopt, release=False)
+    cur, _guards, gwhy = _gate(g.id, deps, deps.clock())
+    pub = {"status": "held", "reason": gwhy} if gwhy or cur is None else host_publish(cur, sub, deps, deps.clock())
+    if pub["status"] not in ("succeeded", "same"):
+        store.finish_handoff(p, g.id, g.revision, str(message_ref), None)
+        return "submission_" + str(pub["status"])
+    return "submission_published"
+
+
+# Host đặt hàm dựng phụ thuộc theo brain lúc khởi động (main), để công cụ hub trong tiến trình dùng ĐÚNG kho bằng chứng
+# và kho mục tiêu của server, không tự dựng bản riêng.
+_DEPS_PROVIDER: Optional[Callable] = None
+
+
+def set_deps_provider(fn: Optional[Callable]) -> None:
+    global _DEPS_PROVIDER
+    _DEPS_PROVIDER = fn
+
+
+def deps_for(brain_id: str) -> Optional["GoalDeps"]:
+    try:
+        return _DEPS_PROVIDER(brain_id) if _DEPS_PROVIDER is not None else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+SUBMIT_CODES = ("no_turn", "not_agent_turn", "invalid_content", "path_rejected", "too_large", "no_open_handoff",
+                "path_not_in_scope", "ambiguous_handoff", "submission_conflict", "turn_closed", "grant_revoked",
+                "scope_decided", "revision_changed", "agent_changed", "storage_error")
+
+
+def submit_deliverable(turn: Optional[dict], args: dict, deps: "GoalDeps") -> dict:
+    """Công cụ `javis_submit_deliverable` (thiết kế A4 mục 4.3). Model chỉ đưa đường, toàn văn, khoá tuỳ chọn và mã
+    liên kết `handoff` host đã trả; mục tiêu, trợ lý và quyền do HOST xác định từ danh tính lượt.
+
+    Thứ tự cố định: danh tính lượt, khoá đường, liên kết của CHÍNH lượt (mọi trạng thái), nội dung, rồi tra biên nhận
+    cũ (phát lại trả biên nhận với trạng thái hiện tại, kể cả `stale`), rồi mới cổng `binding_accepts` cho lời nộp mới.
+    Ghi file nháp và bằng chứng ngoài giao dịch, rồi MỘT giao dịch kiểm lại quyền và chèn bản nộp. Trả biên nhận không
+    kèm nội dung: {ok, code?, submission_id, sha256, size, status, goal_id, replay}."""
+    import resonance_grants as G
+    store, p = deps.store, deps.principal
+    t = turn or {}
+    ag = t.get("agent") or {}
+    sid, mid = str(t.get("session_id") or ""), int(t.get("message_id") or 0)
+    if not t:
+        return {"ok": False, "code": "no_turn"}
+    if not ag.get("key"):
+        return {"ok": False, "code": "not_agent_turn"}
+    if not sid or mid <= 0:
+        return {"ok": False, "code": "no_turn"}
+    content = (args or {}).get("content")
+    if not isinstance(content, str) or not content.strip():
+        return {"ok": False, "code": "invalid_content"}
+    key = G.path_key(deps.brain_root, (args or {}).get("path"))
+    if not key:
+        return {"ok": False, "code": "path_rejected"}
+    mref = message_ref(sid, mid)
+    rows = store.turn_bindings(p, mref, ag["key"], int(ag.get("config_version") or 0))
+    handle = str((args or {}).get("handoff") or "").strip()
+    if handle:
+        rows = [r for r in rows if r["id"] == handle]
+    if not rows:
+        return {"ok": False, "code": "no_open_handoff"}
+    match = [r for r in rows if r["target"] == key]
+    if not match:
+        return {"ok": False, "code": "path_not_in_scope"}
+    if len(match) > 1:
+        return {"ok": False, "code": "ambiguous_handoff",
+                "handoffs": [{"handoff": r["id"], "goal_id": r["goal_id"], "revision": r["revision"]} for r in match]}
+    b = match[0]
+    data, n_dash = _norm_bytes(content)
+    if len(data) > PUBLISH_MAX_BYTES:
+        return {"ok": False, "code": "too_large"}
+    sha = _sha(data)
+    skey = str((args or {}).get("submission_key") or "").strip()[:120]
+    idem = f"{b['id']}:{skey or key}"
+    fp = G.fingerprint(b["id"], key, sha, "submit_tool")
+
+    def receipt(s: dict, replay: bool) -> dict:
+        return {"ok": True, "submission_id": s["id"], "sha256": s["sha256"], "size": s["size"], "status": s["status"],
+                "goal_id": s["goal_id"], "revision": s["revision"], "replay": replay}
+
+    old = store.submission_by_idem(p, b["goal_id"], idem)
+    if old is not None:
+        return receipt(old, True) if old["fingerprint"] == fp else {"ok": False, "code": "submission_conflict"}
+    if b["status"] != "live":
+        # Liên kết `draft` đóng vì chủ dự án đã quyết phạm vi: nói đúng lý do, không phải "lượt đã đóng".
+        code = "grant_revoked" if b["status"] == "dead" else (
+            "scope_decided" if b.get("authority") == "draft" and b["status"] == "closed" else "turn_closed")
+        return {"ok": False, "code": code}
+    goal = store.get(p, b["goal_id"])
+    if goal is None:
+        return {"ok": False, "code": "no_open_handoff"}
+    sub_id = f"sub_{secrets.token_hex(8)}"
+    draft = Path(goal.output_root) / "submissions" / f"{sub_id}.md"
+    try:
+        draft.parent.mkdir(parents=True, exist_ok=True)
+        tmp = draft.with_name(f".{draft.name}.tmp")
+        with open(tmp, "wb") as fh:
+            fh.write(data)
+        os.replace(tmp, draft)
+        if _sha(draft.read_bytes()) != sha:
+            return {"ok": False, "code": "storage_error"}
+        eid = deps.evidence.put(goal, f"submission:{sub_id}", data.decode("utf-8"),
+                                {"goal_id": goal.id, "revision": int(b["revision"]), "kind": "submission"}) \
+            if deps.evidence is not None else ""
+    except Exception:  # noqa: BLE001
+        return {"ok": False, "code": "storage_error"}
+    caps = G.engine_caps(str(t.get("provider") or ""))
+    res = store.insert_submission(p, b["id"], sub_id=sub_id, key=key, sha256=sha, size=len(data),
+                                  draft_ref=str(draft), evidence_id=str(eid or ""), idem=idem, fingerprint=fp,
+                                  source="submit_tool", engine={"provider": str(t.get("provider") or ""), **caps},
+                                  em_dash=n_dash)
+    if res["status"] == "accepted":
+        return receipt(res["submission"], False)
+    if res["status"] == "replay":
+        return receipt(res["submission"], True)
+    if res["status"] == "conflict":
+        return {"ok": False, "code": "submission_conflict"}
+    return {"ok": False, "code": res.get("reason") or "no_open_handoff"}
+
+
+def _observed_adopt(g: "GoalRecord", receipts: dict, message_ref: str, deps: "GoalDeps") -> tuple:
+    """(adopt | None, lý do) cho Write A của lượt: biên nhận đã xác nhận, bytes khớp, bằng chứng đã lưu. Kho kiểm thêm
+    liên kết và quyền A4 trong giao dịch `finish_handoff`."""
+    store, p = deps.store, deps.principal
     rel = _deliverable_rel(g)
     f = _brain_file(deps.brain_root, rel) if rel else None
     rec = receipts.get(_write_key(deps.brain_root, str(f))) if f is not None else None
@@ -1307,8 +1464,7 @@ def handoff_after_turn(goal_id: str, message_ref: str, deps: "GoalDeps") -> str:
                 why = "evidence_failed"      # không công bố đã tiếp nhận khi không lưu được bằng chứng
             else:
                 adopt = {"path": rel, "sha256": _sha(data), "evidence_id": eid}
-    res = store.finish_handoff(p, g.id, g.revision, str(message_ref), adopt)
-    return res if (adopt or res not in ("released",)) else why
+    return adopt, why
 
 
 def _output_refs(store, p, goal_id: str, revision: int) -> tuple:
@@ -1781,27 +1937,104 @@ def _publish_allowed(brain_root: str, f: Path) -> bool:
     return low[0] not in _PUBLISH_DENY_TOP and low[-1] not in _PUBLISH_DENY_NAMES
 
 
-def _publish(goal: GoalRecord, text: str, deps: GoalDeps, now: float, source_action: str = "") -> dict:
-    """Đặt sản phẩm vào đường dẫn tiêu chí khai trong brain. KHÔNG ghi đè file người dùng hay tác vụ khác đã sửa:
-    file đã có mà hash khác lần mục tiêu này ghi trước thì là xung đột, giữ nguyên file, báo người dùng.
+_EM_DASH = chr(0x2014)
 
-    A1: ý định đăng mang mã agent và version HIỆN TẠI cùng `source_action` (lượt việc đã sinh bản này). Kho kiểm lại
-    cổng agent trong chính giao dịch ghi ý định; không đạt thì không ghi file ("agent_gate")."""
+
+def _norm_bytes(text: str) -> tuple:
+    """Bytes sẽ đăng của một nội dung chữ: gạch dài đổi thành "-" (có đếm số lần đổi), mã hoá UTF-8."""
+    s = str(text or "")
+    return s.replace(_EM_DASH, "-").encode("utf-8"), s.count(_EM_DASH)
+
+
+def _file_sha(f: Optional[Path]) -> Optional[str]:
+    """Hash bytes hiện tại của file đích; None khi chưa có file; "unreadable" khi không đọc được."""
+    if f is None or not f.exists():
+        return None
+    try:
+        return _sha(f.read_bytes())
+    except OSError:
+        return "unreadable"
+
+
+def _sub_read(sub: dict) -> tuple:
+    """(bytes | None, lý do) của một bản nộp, đọc lại từ file nháp và CHUẨN HOÁ như lúc nộp. Lý do: "" (đúng sha),
+    "draft_unreadable" (lỗi I/O tạm thời: file đang mở, khoá chia sẻ, quyền), "draft_missing" (file nháp không còn),
+    "draft_hash_mismatch" (nội dung khác sha đã nhận hay không giải mã được). Không bao giờ trả bytes khác sha host đã
+    ghi lúc nhận (review mã A4 vòng 2, P2-1)."""
+    ref = str((sub or {}).get("draft_ref") or "")
+    if not ref:
+        return None, "draft_missing"
+    try:
+        raw = Path(ref).read_bytes()
+    except FileNotFoundError:
+        return None, "draft_missing"
+    except OSError:
+        return None, "draft_unreadable"
+    try:
+        data, _n = _norm_bytes(raw.decode("utf-8"))
+    except UnicodeDecodeError:
+        return None, "draft_hash_mismatch"
+    return (data, "") if _sha(data) == sub.get("sha256") else (None, "draft_hash_mismatch")
+
+
+def _sub_bytes(sub: dict) -> Optional[bytes]:
+    return _sub_read(sub)[0]
+
+
+def _tmp_of(f: Path, action_id: str) -> Path:
+    return f.with_name(f".{f.name}.{action_id}.tmp")
+
+
+def _adopt_if_needed(sub: dict, deps: GoalDeps) -> str:
+    """Bản nộp của lượt chat hay bản nháp được chủ dự án chọn: tiếp nhận sau khi đăng (mục 4.4). Bản việc nền không cần
+    (kho đã ghi `adopted_at` lúc đăng). Lỗi ở bước này không làm mất nghĩa vụ: lịch `settle` còn tới khi tiếp nhận xong
+    (review mã A4 vòng 2, P2-2)."""
+    if sub.get("source") in ("submit_tool", "approved_draft"):
+        try:
+            return deps.store.adopt_submission(deps.principal, sub["id"])
+        except Exception as e:  # noqa: BLE001
+            import sys
+            print(f"[resonance adopt] {type(e).__name__}: {e}", file=sys.stderr)
+            deps.store.ensure_settle(deps.principal, sub["goal_id"], deps.clock() + LEASE_EXTRA_S)
+            return "adopt_failed"
+    return ""
+
+
+def host_publish(goal: GoalRecord, sub: dict, deps: GoalDeps, now: float, source_action: str = "") -> dict:
+    """Đường DUY NHẤT thay mốc sản phẩm (thiết kế A4 mục 4.5): đăng thường, nhánh cùng nội dung, đăng lại, đối soát,
+    lượt làm sản phẩm A3, bản nháp được chủ dự án chọn. Bốn bước, không giữ khoá trong lúc ghi file:
+
+    1. Ý định (giao dịch): `binding_may_finish`, quyền `publish` đúng đích, tạm dừng, chốt guard, baseline. Guard kiểm
+       trên bytes bản nộp TRƯỚC giao dịch. Đích đã cùng hash: ghi mốc ngay trong giao dịch đó.
+    2. Ghi file tạm cạnh đích.
+    3. Mốc commit (`BEGIN IMMEDIATE`, tuần tự với thu hồi): kiểm lại quyền và đọc lại hash đích so với baseline.
+    4. `os.replace`, đọc lại hash, ghi mốc (luật tác động đã commit: không kiểm lại quyền).
+
+    Trả dict cùng dạng `_publish` cũ: status none | rejected | guard_blocked | same | conflict | stale | held |
+    aborted | failed | succeeded | uncertain."""
     store, p = deps.store, deps.principal
     rel = _deliverable_rel(goal)
-    if not rel:
+    if not rel or sub is None:
         return {"status": "none"}
     f = _brain_file(deps.brain_root, rel)
-    if f is None or f.suffix.lower() not in PUBLISH_SUFFIXES or not _publish_allowed(deps.brain_root, f):
-        store.append_event(p, goal.id, "publish_rejected", {"path": rel, "reason": "đường dẫn hoặc loại file không nhận"},
-                           idempotency_key=f"publish_rejected:{goal.revision}:{rel}", revision=goal.revision)
+    import resonance_grants as G
+    key = G.path_key(deps.brain_root, rel)
+    if f is None or not key:
+        return _bad_deliverable(goal, deps, rel)
+    if key != sub.get("path"):
         return {"status": "rejected"}
-    data = str(text).replace("\u2014", "-").encode("utf-8")
-    if len(data) > PUBLISH_MAX_BYTES:
-        return {"status": "rejected"}
-    sha = _sha(data)
-    # Guard đọc ĐÚNG file sắp thay: kiểm bản ứng viên trước khi ghi (review M3 vòng 2). Bản mới làm guard sai thì
-    # giữ bản đang hợp lệ, bản mới ở lại vùng làm việc kèm lý do; không để chính lần đăng phá điều kiện bảo vệ.
+    data, dwhy = _sub_read(sub)
+    if dwhy == "draft_unreadable":
+        # Chưa qua mốc commit nhưng bản nộp hợp lệ: giữ và hẹn code thử lại có giãn cách; lịch làm việc gác trong lúc
+        # đó, không gọi model (review mã A4 vòng 3).
+        store.hold_submission(p, sub["id"], dwhy, now)
+        return {"status": "held", "reason": dwhy}
+    if data is None or len(data) > PUBLISH_MAX_BYTES:
+        store.reject_submission(p, sub["id"], dwhy or "too_large")
+        return {"status": "rejected", "reason": dwhy or "too_large"}
+    sha = sub["sha256"]
+    # Guard đọc ĐÚNG file sắp thay: kiểm bản ứng viên trước khi ghi (review M3 vòng 2). Bản mới làm guard sai thì giữ
+    # bản đang hợp lệ; bản nộp ở lại `candidate` để lần sau xét lại theo guard hiện hành.
     for gd in goal.guards:
         if gd.get("evaluator") != "artifact_contract":
             continue
@@ -1815,46 +2048,166 @@ def _publish(goal: GoalRecord, text: str, deps: GoalDeps, now: float, source_act
                                idempotency_key=f"publish_guard:{goal.revision}:{sha[:16]}", revision=goal.revision)
             return {"status": "guard_blocked", "guard_id": gd.get("id"), "guard": gd.get("description"),
                     "reason": why}
-    before = None
-    if f.exists():
-        try:
-            cur = _sha(f.read_bytes())
-        except OSError:
-            cur = "unreadable"
-        if cur == sha:
-            store.set_published(p, goal.id, rel, sha, "")
-            return {"status": "same", "sha256": sha}
-        prev = store.published(p, goal.id, rel)
-        if prev is None or prev["sha256"] != cur:
-            store.append_event(p, goal.id, "publish_conflict", {"path": rel, "found_sha256": cur},
-                               idempotency_key=f"publish_conflict:{rel}:{cur[:16]}", revision=goal.revision)
-            # Hai nguyên nhân khác nhau, câu báo phải nói đúng cái nào (review pilot lần 3): file có sẵn mà mục tiêu
-            # chưa từng ghi hay tiếp nhận, hay file đã đổi sau lần mục tiêu ghi.
-            store.notice(p, goal.id, "goal.publish_conflict", {"path": rel, "had_baseline": prev is not None},
-                         idem=f"publish_conflict:{rel}:{cur[:16]}")
-            return {"status": "conflict"}
-        before = cur
-    try:
-        act = store.begin_action(p, goal.id, goal.revision, "publish", lease_until=now + LEASE_EXTRA_S, now=now,
-                                 intent={"path": rel, "sha256": sha, "before": before,
-                                         "source_action": str(source_action or ""), **_agent_intent(goal, deps)})
-    except Exception as e:  # noqa: BLE001 - AgentStateError: công tắc đổi ngay trước tác động
-        return {"status": "agent_gate", "reason": _short(e)}
+    it = store.publish_intent(p, sub["id"], rel, _file_sha(f),
+                              {"source_action": str(source_action or ""), **_agent_intent(goal, deps)}, now=now)
+    if it["status"] == "same":
+        _adopt_if_needed(sub, deps)
+        return {"status": "same", "sha256": sha}
+    if it["status"] != "intent":
+        return {"status": it["status"], **{k: v for k, v in it.items() if k != "status"}}
+    aid = it["action_id"]
+    tmp = _tmp_of(f, aid)
     try:
         f.parent.mkdir(parents=True, exist_ok=True)
-        tmp = f.with_name(f".{f.name}.{secrets.token_hex(4)}.tmp")
         with open(tmp, "wb") as fh:
             fh.write(data)
-        os.replace(tmp, f)
-        got = _sha(f.read_bytes())
     except Exception as e:  # noqa: BLE001
-        store.finish_action(p, act["id"], "failed", {"path": rel, "error_code": "write_failed", "error_detail": _short(e)})
-        return {"status": "failed"}
-    status = "succeeded" if got == sha else "uncertain"
-    store.finish_action(p, act["id"], status, {"path": rel, "sha256": got, "before": before})
-    if status == "succeeded":
-        store.set_published(p, goal.id, rel, sha, act["id"])
-    return {"status": status, "sha256": got}
+        store.publish_abort(p, aid, "write_failed")
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        return {"status": "failed", "reason": _short(e)}
+    cm = store.publish_commit(p, aid, lambda: _file_sha(f))
+    if cm["status"] != "committed":
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        return {"status": "aborted", "reason": cm.get("reason") or cm["status"]}
+    try:
+        os.replace(tmp, f)
+    except OSError as e:
+        # Đã qua mốc commit mà chưa thay được file (ví dụ file đang mở ở Windows): KHÔNG chốt xung đột. Hành động để
+        # `running`; đối soát theo luật tác động đã commit thay file từ bản nháp khi đích vẫn bằng baseline (mục 4.7;
+        # review mã nội bộ, lỗi 3).
+        return {"status": "uncertain", "reason": f"replace_failed: {_short(e)}", "action_id": aid}
+    got = _file_sha(f)
+    fin = store.publish_finish(p, aid, got)
+    if fin["status"] == "published":
+        _adopt_if_needed(sub, deps)
+        return {"status": "succeeded", "sha256": got, "action_id": aid}
+    return {"status": "uncertain" if fin["status"] == "conflict" else fin["status"], "sha256": got,
+            "action_id": aid}
+
+
+def _reconcile_publish(goal: GoalRecord, a: dict, deps: GoalDeps, now: Optional[float] = None) -> str:
+    """Đối soát một hành động đăng A4 dở (mục 4.7). Chưa qua mốc commit: huỷ, bản nộp về `candidate` hay `stale` theo
+    quyền đã ghim. Đã commit (luật tác động đã commit, không kiểm lại quyền): đích bằng sha bản nộp thì ghi mốc; đích
+    vẫn bằng baseline thì thay file từ bản nháp rồi ghi mốc; đọc được đích và nó khác cả hai thì `conflict`.
+
+    Lỗi đọc hay ghi TẠM THỜI (file đang mở, khoá chia sẻ) không phải bằng chứng đích đã đổi: giữ hành động `running`
+    và hẹn thử lại có giãn cách (`publish_retry`), không chốt xung đột (review mã A4 vòng 1, P2-1). Trả kết quả để ghi."""
+    store, p = deps.store, deps.principal
+    now = deps.clock() if now is None else now
+    it, rc = a.get("intent") or {}, a.get("receipt") or {}
+    f = _brain_file(deps.brain_root, it.get("path"))
+    tmp = _tmp_of(f, a["id"]) if f is not None else None
+    if tmp is not None:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            pass
+    if not rc.get("commit_at") or f is None:
+        store.publish_abort(p, a["id"], "interrupted")
+        return "aborted"
+    sub = store.submission(p, str(it.get("submission_id") or "")) or {}
+    cur = _file_sha(f)
+    if cur == "unreadable":
+        store.publish_retry(p, a["id"], now)
+        return "retry"
+    if cur != it.get("sha256") and cur == it.get("before"):
+        data, dwhy = _sub_read(sub) if sub else (None, "draft_missing")
+        if dwhy == "draft_unreadable":
+            store.publish_retry(p, a["id"], now)
+            return "retry"
+        if data is None:
+            # Bản nháp thật sự mất hay sai hash: không đăng bytes sai, không báo nhầm file đích đã đổi.
+            store.reject_submission(p, str(it.get("submission_id") or ""), dwhy)
+            return dwhy
+        if data is not None:
+            try:
+                f.parent.mkdir(parents=True, exist_ok=True)
+                with open(tmp, "wb") as fh:
+                    fh.write(data)
+                os.replace(tmp, f)
+            except OSError:
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+                store.publish_retry(p, a["id"], now)
+                return "retry"
+            cur = _file_sha(f)
+            if cur == "unreadable":
+                store.publish_retry(p, a["id"], now)
+                return "retry"
+    fin = store.publish_finish(p, a["id"], cur)
+    if fin["status"] == "published" and sub:
+        _adopt_if_needed(sub, deps)
+    return fin["status"]
+
+
+def _settle_committed(g: GoalRecord, deps: GoalDeps, now: float) -> int:
+    """Lịch `settle` (A4): CHỈ hoàn tất hay xác minh xung đột các lần đăng đã qua mốc commit, bất kể mục tiêu đang tạm
+    dừng, đã thu hồi, huỷ hay kết thúc. Không mở lượt việc, không cấp lại quyền, không đăng bản candidate nào khác."""
+    store, p = deps.store, deps.principal
+    n = 0
+    for a in store.committed_publishes(p, g.id):
+        if float(a.get("lease_until") or 0) < now:
+            _reconcile_publish(g, a, deps, now)
+            n += 1
+    # Bản đã đăng mà bước tiếp nhận lỗi hay tiến trình chết giữa chừng: tiếp nhận đúng một lần, kể cả khi mục tiêu đã
+    # thu hồi, tạm dừng hay huỷ (review mã A4 vòng 2, P2-2). Không đăng gì mới.
+    for s in store.unadopted_published(p, g.id):
+        if _adopt_if_needed(s, deps) == "adopted":
+            n += 1
+    # Bản `candidate` đã giữ vì file nháp tạm thời không đọc được (review mã A4 vòng 3): lịch này CHỈ đọc lại file nháp.
+    # Đọc được thì bỏ giữ để lịch làm việc đăng đúng bản đó rồi mới đánh giá; vẫn lỗi thì giữ tiếp, giãn cách gấp đôi.
+    # Bản không còn là bản sẽ đăng (mục tiêu dừng, tạm dừng, đổi revision, có bản mới hơn) thì bỏ giữ: lịch làm việc
+    # quyết định khi nó chạy lại.
+    latest = store.latest_candidate(p, g.id, g.revision) if g.status == "active" and not g.paused else None
+    for s in store.held_submissions(p, g.id):
+        if latest is None or s["id"] != latest["id"]:
+            store.release_hold(p, s["id"])
+            continue
+        if float(s.get("hold_until") or 0) >= now:
+            continue
+        _data, dwhy = _sub_read(s)
+        if dwhy == "draft_unreadable":
+            store.hold_submission(p, s["id"], dwhy, now)
+        elif dwhy:
+            store.reject_submission(p, s["id"], dwhy)
+        else:
+            store.release_hold(p, s["id"])
+        n += 1
+    store.settle_cleanup(p, g.id, now)
+    return n
+
+
+def _bad_deliverable(goal: GoalRecord, deps: GoalDeps, rel: str) -> dict:
+    deps.store.append_event(deps.principal, goal.id, "publish_rejected",
+                            {"path": rel, "reason": "đường dẫn hoặc loại file không nhận"},
+                            idempotency_key=f"publish_rejected:{goal.revision}:{rel}", revision=goal.revision)
+    return {"status": "rejected"}
+
+
+def _output_submission(goal: GoalRecord, deps: GoalDeps, action_id: str, text: str, output_ref: str,
+                       evidence_id: str) -> Optional[dict]:
+    """Đầu ra việc nền thành bản nộp `background_text` TRƯỚC bước đăng (mục 4.4). Không có đường sản phẩm hay lượt
+    không có liên kết (mục tiêu không cần phạm vi, lượt có trước A4): None."""
+    rel = _deliverable_rel(goal)
+    if not rel:
+        return None
+    import resonance_grants as G
+    key = G.path_key(deps.brain_root, rel)
+    if not key:
+        return None
+    data, _n = _norm_bytes(text)
+    return deps.store.submission_from_output(deps.principal, action_id, key=key, sha256=_sha(data), size=len(data),
+                                             draft_ref=str(output_ref), evidence_id=str(evidence_id or ""))
 
 
 def _reconcile(goal: GoalRecord, deps: GoalDeps, now: float) -> None:
@@ -1872,6 +2225,11 @@ def _reconcile(goal: GoalRecord, deps: GoalDeps, now: float) -> None:
                 store.finish_action(p, a["id"], "succeeded", {
                     "action_id": a["id"], "status": "succeeded", "reconciled": True, "output_ref": str(out),
                     "output_sha256": _sha(data), "evidence_ids": [eid] if eid else []})
+                # A4 (mục 4.7): đầu ra của HOST thành bản nộp dưới quyền đã ghim của lượt; đăng đi qua cổng như thường.
+                rg = store.revision_record(p, goal.id, int(a["revision"]))
+                gr = dataclasses_replace(goal, revision=int(a["revision"]),
+                                         criteria=tuple((rg or {}).get("frame", {}).get("criteria") or goal.criteria))
+                _output_submission(gr, deps, a["id"], text, str(out), eid or "")
             else:
                 store.finish_action(p, a["id"], "failed", {
                     "action_id": a["id"], "status": "failed", "reconciled": True, "error_code": "interrupted",
@@ -1884,6 +2242,8 @@ def _reconcile(goal: GoalRecord, deps: GoalDeps, now: float) -> None:
                     "model_calls": 1, "met_count": None, "error_code": "interrupted", "served": [r["id"] for r in served],
                     "codes": [r["code"] for r in served], "why": "lượt bị ngắt, đối soát sau khi khởi động lại",
                     "chain_start": any(HB.classify(r["code"]) in (HB.START, HB.NEW) for r in served), "at": now})
+        elif a["kind"] == "publish" and (a.get("intent") or {}).get("submission_id"):
+            _reconcile_publish(goal, a, deps, now)
         elif a["kind"] == "publish":
             it = a.get("intent") or {}
             f = _brain_file(deps.brain_root, it.get("path"))
@@ -1898,6 +2258,9 @@ def _reconcile(goal: GoalRecord, deps: GoalDeps, now: float) -> None:
             store.finish_action(p, a["id"], "failed", {
                 "action_id": a["id"], "status": "failed", "reconciled": True, "error_code": "interrupted",
                 "error_detail": "lượt thử bị ngắt; không chấm, không chạy lại"})
+    # A4 (mục 4.7): bản nộp đã đăng mà tiến trình chết trước bước tiếp nhận: tiếp nhận một lần, không gọi model.
+    for s in store.unadopted_published(p, goal.id):
+        _adopt_if_needed(s, deps)
     # Phép thử còn "running" khi advance đã giữ được khoá mục tiêu nghĩa là tiến trình chạy nó đã chết (phép thử giữ
     # khoá suốt lúc chạy). Chốt inconclusive, trả lại lượt đã giữ cho các lượt chưa bắt đầu; không áp dụng gì.
     for e in store.experiments(p, goal.id):
@@ -1930,6 +2293,10 @@ def _gate(goal_id: str, deps: GoalDeps, now: float) -> tuple:
     cur = store.get(p, goal_id)
     if cur is None or cur.status != "active":
         return cur, (), f"mục tiêu đã {cur.status if cur else 'không còn'}"
+    if (store.run_state(p, cur.id) or {}).get("block_reason") == "guard":
+        # Chốt guard chỉ mở bằng hành động có thẩm quyền của người dùng; cổng không ghi đè nó bằng trạng thái khác
+        # (A4: bàn giao cuối lượt và Cho phép cũng gọi cổng này; review mã nội bộ, lỗi 4).
+        return cur, (), "guard đã nhảy; không tự mở lại"
     agent, ablock = agent_gate(store, p.brain_id, cur.agent_key)
     if ablock == "unassigned":
         # Mục tiêu chưa gán (có trước A1): không chạy, không hẹn lịch. Chủ dự án gán thì kho tự hẹn lại.
@@ -1950,6 +2317,21 @@ def _gate(goal_id: str, deps: GoalDeps, now: float) -> tuple:
         # lệnh dừng toàn bộ: revision mới (người dùng nói rõ hơn, bộ não cập nhật) mở lại bình thường.
         store.set_run_state(p, cur.id, "waiting", "fit_rejected")
         return cur, (), "người dùng nói cách hiểu chưa đúng; chờ nói rõ hơn"
+    # A4 (mục 5.5): mục tiêu có đường sản phẩm chỉ làm việc khi revision hiện tại có quyền hiệu lực. Chưa có thì gác
+    # (không hẹn gì, không gọi model): chủ dự án Cho phép trên thẻ, hay cấp lại sau thu hồi, là đường mở duy nhất.
+    sc = store.scope_state(p, cur.id)
+    if sc.get("state") == "missing":
+        sc = store.ensure_scope_request(p, cur.id)
+    if sc.get("state") not in ("none", "granted"):
+        code = SCOPE_BLOCKS.get(sc.get("state"), "grant_missing")
+        if code == "path_rejected":
+            # Đường sản phẩm không được nhận (thư mục cấm, đuôi lạ, `.`/`..`): ghi sự kiện từ chối như bước đăng trước A4,
+            # để hồ sơ nói đúng vì sao mục tiêu đứng yên; chặn TRƯỚC mọi lượt model.
+            _bad_deliverable(cur, deps, _deliverable_rel(cur))
+        store.set_run_state(p, cur.id, "blocked", code)
+        return cur, (), f"chưa có phạm vi ghi đã cho phép ({code})"
+    if (store.run_state(p, cur.id) or {}).get("block_reason") in SCOPE_BLOCKS.values():
+        store.set_run_state(p, cur.id, "ready", "")
     guards = observe_guards(cur, deps)
     hit = [x["description"] for x in guards if x["verdict"] == "triggered"]
     if hit:
@@ -1977,27 +2359,22 @@ def _latch_guard(goal: "GoalRecord", guards: tuple, hit: list, deps: "GoalDeps",
 
 
 def _publish_latest(goal: GoalRecord, deps: GoalDeps, now: float) -> dict:
-    """Đăng đầu ra đã lưu của revision hiện tại (sau pause, sau gián đoạn) mà KHÔNG gọi model lại. Người gọi đã
-    qua _gate. _publish tự bỏ qua khi file đích đã đúng nội dung, và tự chặn bản làm guard sai."""
-    aid, path = _latest_output(goal, deps)
-    if aid is None or not _deliverable_rel(goal):
+    """Đăng lại bản nộp `candidate` mới nhất của revision hiện tại (sau tạm dừng, gián đoạn, cổng chặn) mà KHÔNG gọi
+    model (A4 mục 4.4). Chỉ lấy bản nộp có liên kết còn hoàn tất được (kho kiểm trong `publish_intent`); không lấy đầu
+    ra hành động trần như trước A4. Người gọi đã qua _gate."""
+    if not _deliverable_rel(goal):
         return {"status": "none"}
-    # Bản tiếp nhận từ chat mới hơn lượt việc nền này là bản đang có hiệu lực: không đăng đè bản cũ lên (review mã bàn
-    # giao, P1-2). Lượt việc nền SAU bản tiếp nhận (sửa từ bản đó) vẫn đăng bình thường.
-    act = deps.store.get_action(deps.principal, aid) or {}
-    if any(float(e.get("created_at") or 0) > float(act.get("created_at") or 0)
-           for e in deps.store.evidence_for(deps.principal, goal.id, goal.revision, kind="chat_output")):
-        return {"status": "superseded"}
-    # A1: chỉ dùng lại đầu ra do CHÍNH agent đang sở hữu mục tiêu sinh ra. Lượt việc trước lúc gán (không mang mã) hay
-    # của mã khác không được đăng. Đầu ra giữ lại sau tắt/bật thì được: cổng đã kiểm quyền HIỆN TẠI, và _publish ghi
-    # một ý định đăng MỚI theo version hiện tại, trỏ về lượt việc gốc; ý định gốc giữ nguyên (thiết kế mục 4).
-    if not goal.agent_key or (act.get("intent") or {}).get("agent_key") != goal.agent_key:
-        return {"status": "foreign_output"}
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
-        return {"status": "none"}
-    return _publish(goal, text, deps, now, source_action=aid)
+    sub = deps.store.latest_candidate(deps.principal, goal.id, goal.revision)
+    if sub is None:
+        # Đăng lại khi file đích đã bị xoá (A2: bản hiệu lực đăng lại, 0 lượt model): bản sao của bản đã đăng, dưới
+        # liên kết mới ghim quyền ĐANG hiệu lực. File bị sửa (không phải xoá) là sửa ngoài luồng, không đăng đè.
+        f = _brain_file(deps.brain_root, _deliverable_rel(goal))
+        if f is None or f.exists():
+            return {"status": "none"}
+        sub = deps.store.republish_latest(deps.principal, goal.id)
+        if sub is None:
+            return {"status": "none"}
+    return host_publish(goal, sub, deps, now, source_action=sub.get("id") or "")
 
 
 def _after_publish(goal: GoalRecord, pub: dict, refs: tuple, deps: GoalDeps, now: float) -> tuple:
@@ -2262,6 +2639,9 @@ def _work_post_core(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: flo
         eid = _put_evidence(goal, act["id"], text, "action_output", deps)
         rd["evidence_ids"] = [eid] if eid else []
     store.finish_action(p, act["id"], receipt.status, rd)
+    # A4 (mục 4.4): đầu ra thành bản nộp `background_text` TRƯỚC bước đăng, dưới liên kết `action` đã ghim của lượt.
+    sub = (_output_submission(goal, deps, act["id"], text, receipt.output_ref, (rd.get("evidence_ids") or [""])[0])
+           if receipt.status == "succeeded" else None)
     # Lượt đã xong: hẹn phục hồi của nó không còn nghĩa. Chỉ bỏ hẹn thử lại của ĐÚNG revision này.
     store.supersede_timers(p, goal.id, ("retry",), now, revision=rev)
     cur = store.get(p, goal.id)
@@ -2331,7 +2711,14 @@ def _work_post_core(goal: GoalRecord, last: Assessment, deps: GoalDeps, now: flo
         log.update(met_count=None, error_code="held")
         store.add_timer(p, goal.id, "retry_not_met", now, now, expect_revision=rev)
         return a
-    pub = _publish(goal, text, deps, now, source_action=act["id"])
+    if sub is not None and sub.get("status") == "candidate":
+        pub = host_publish(goal, sub, deps, now, source_action=act["id"])
+    elif _deliverable_rel(goal) and sub is None:
+        import resonance_grants as G
+        rel = _deliverable_rel(goal)
+        pub = {"status": "none"} if G.path_key(deps.brain_root, rel) else _bad_deliverable(goal, deps, rel)
+    else:
+        pub = {"status": (sub or {}).get("status") or "none", "reason": (sub or {}).get("status_reason") or ""}
     refs = tuple(e["evidence_id"] for e in store.evidence_for(p, goal.id, rev, kind="action_output"))
     a, why = _after_publish(goal, pub, refs, deps, now)
     mc = _met_count(a)
@@ -2453,8 +2840,23 @@ def _wake_work(g: GoalRecord, deps: GoalDeps, now: float, owner: str):
         store.add_timer(p, g.id, "handoff_wait", now + HANDOFF_POLL_S, now)
         return done(Assessment(g.id, g.revision, "unknown", rationale="chờ lượt chat bàn giao", evaluated_at=now),
                     "blocked", "chờ lượt chat bàn giao")
+    def settling():
+        # A4: một lần đăng đã chốt còn chờ thay file hay chờ tiếp nhận, hay một bản nộp đang được giữ vì file nháp tạm
+        # thời không đọc được: bản hợp lệ ĐÃ có, chỉ chưa vào đích. Gác, giữ mọi lý do làm việc, không gọi model; lịch
+        # `settle` hoàn tất rồi gỡ gác (review mã A4 vòng 2, P2-3).
+        store.set_run_state(p, g.id, "waiting", "publish_settling")
+        store.ensure_settle(p, g.id, now + LEASE_EXTRA_S)
+        return done(Assessment(g.id, g.revision, "unknown", rationale="chờ hoàn tất lần đăng đã chốt", evaluated_at=now),
+                    "blocked", "chờ hoàn tất lần đăng đã chốt")
+
+    if store.settle_pending(p, g.id):
+        return settling()
     # Đầu ra đã có của revision này (giữ lại vì pause, gián đoạn) được đăng mà không gọi model lại.
     pub = _publish_latest(g, deps, now)
+    if store.settle_pending(p, g.id):
+        # Nghĩa vụ VỪA phát sinh trong chính lần đăng này (thay file lỗi sau mốc commit, file nháp không đọc được, bước
+        # tiếp nhận lỗi): không đi tiếp tới quyết định làm việc (review mã A4 vòng 3).
+        return settling()
     refs = _output_refs(store, p, g.id, g.revision)
     a, why = _after_publish(g, pub, refs, deps, now)
     if why:
@@ -2537,6 +2939,16 @@ def _advance_prepare(goal_id: str, kind: str, ev: dict, deps: GoalDeps, now: flo
     def quiet(why: str, guards: tuple = ()) -> Assessment:
         return Assessment(g.id, g.revision, "unknown", guards=guards, rationale=why, evaluated_at=now)
 
+    if kind == "settle":
+        # A4: chỉ hoàn tất lần đăng đã commit, dưới khoá lượt, mọi trạng thái mục tiêu (review mã A4 vòng 1, P2-2).
+        owner_s = secrets.token_hex(6)
+        if not store.claim_lease(p, g.id, owner_s, now + LEASE_EXTRA_S, now):
+            return quiet("mục tiêu đang có lượt khác chạy")
+        try:
+            n = _settle_committed(g, deps, now)
+        finally:
+            store.release_lease(p, g.id, owner_s)
+        return quiet(f"đối soát {n} lần đăng đã chốt")
     if g.status != "active":
         return quiet(f"mục tiêu đã {g.status}")
     if kind == "reaction":
@@ -2658,7 +3070,7 @@ async def tick(store, now: float, deps_for: Callable[[str], Optional[GoalDeps]],
         until = now + float(deps.max_wall_s) + float(deps.wall_grace_s) + LEASE_EXTRA_S + 60
         if not await asyncio.to_thread(store.claim_wake, deps.principal, w["goal_id"], w["kind"], w["due_at"], until):
             continue
-        await advance(w["goal_id"], {"kind": "observe" if w["kind"] == "observe" else "wake"}, deps)
+        await advance(w["goal_id"], {"kind": {"observe": "observe", "settle": "settle"}.get(w["kind"], "wake")}, deps)
         n += 1
     return n
 
@@ -2932,8 +3344,34 @@ def apply_command(store, owner, goal_id: str, command: str, payload: dict, brain
             raise GoalRejected("cần expected_revision (revision đang hiện trên thẻ)")
         g2 = store.drop_directive(owner, goal_id, exp, str(payload.get("field") or ""), str(payload.get("key") or ""))
         return {"ok": True, "status": "revised", "revision": g2.revision}
+    if command == "approve_scope":
+        # A4 (mục 5.3): Cho phép MỘT yêu cầu cụ thể; CAS trong kho. Có bản nháp thì đăng đúng bản đó, không gọi model.
+        out = store.approve_scope(owner, goal_id, str(payload.get("request_id") or ""), str(payload.get("path") or ""),
+                                  str(payload.get("submission_id") or ""), str(payload.get("sha256") or ""))
+        pub = {}
+        if out.get("submission_id"):
+            deps = GoalDeps(engine_factory=lambda s, t: (None, {}), budget=CallBudget(0), store=store,
+                            principal=owner, brain_root=brain_root)
+            sub = store.submission(owner, out["submission_id"])
+            cur, _guards, why = _gate(goal_id, deps, time.time())
+            pub = {"status": "held", "reason": why} if why or cur is None else host_publish(cur, sub, deps, time.time())
+            if pub.get("status") not in ("succeeded", "same"):
+                # Chưa đăng được (xung đột, guard, tạm dừng): bản nộp ở lại `candidate`; lần thức sau đăng lại, không gọi model.
+                store.add_reason_event(owner, goal_id, "scope_granted", f"scope:{payload.get('request_id')}")
+        return {"ok": True, "status": "scope_approved", **out, "publish": pub.get("status") or ""}
+    if command == "deny_scope":
+        store.deny_scope(owner, goal_id, str(payload.get("request_id") or ""))
+        return {"ok": True, "status": "scope_denied"}
+    if command == "revoke_grant":
+        res = store.revoke_scope(owner, goal_id, int(seen) if seen not in (None, "") else None)
+        if not res.get("ok"):
+            return {"ok": False, "status": "no_scope", "reason": "mục tiêu chưa có phạm vi nào để thu hồi"}
+        return {"ok": True, "status": "revoked", "generation": res.get("generation")}
     if command != "resume":
         raise GoalRejected(f"lệnh không hỗ trợ: {command}")
+    if store.scope_state(owner, goal_id).get("state") == "revoked":
+        # A4: Tiếp tục khi đang thu hồi là CẤP LẠI (gốc mới), hành động owner riêng; không đảo dòng cũ.
+        store.regrant_scope(owner, goal_id)
     if g.paused:
         store.set_paused(owner, goal_id, False)
     reason = (store.run_state(owner, goal_id) or {}).get("block_reason")
@@ -2964,6 +3402,31 @@ def _directives(g: GoalRecord) -> list:
     out += [{"field": "constraint", "key": str(x), "text": str(x)} for x in g.constraints]
     out += [{"field": "guard", "key": str(x.get("id")), "text": str(x.get("description"))} for x in g.guards]
     return out
+
+
+def _scope_view(store, principal, g: GoalRecord) -> dict:
+    """Dòng quyền của thẻ (A4 mục 8): đích, nguồn phạm vi, trạng thái; yêu cầu đang chờ kèm bản nháp mới nhất (mã, sha,
+    kích thước, KHÔNG có nội dung); số bản chờ đăng và xung đột. Chỉ để hiển thị; kho mới là căn cứ."""
+    try:
+        sc = store.scope_state(principal, g.id)
+    except Exception:  # noqa: BLE001
+        return {"state": "unknown"}
+    req = sc.get("request") or {}
+    root = sc.get("root") or sc.get("last_root") or {}
+    rel = _deliverable_rel(g)
+    draft = None
+    if req and sc.get("state") == "pending":
+        d = store.submissions(principal, g.id, limit=1, statuses=("awaiting_scope",), revision=g.revision)
+        if d:
+            draft = {"submission_id": d[0]["id"], "sha256": d[0]["sha256"], "size": d[0]["size"]}
+    waiting = store.submissions(principal, g.id, limit=20, statuses=("candidate", "publishing"), revision=g.revision)
+    conflict = store.submissions(principal, g.id, limit=1, statuses=("conflict",), revision=g.revision)
+    return {"state": sc.get("state") or "none", "path": rel, "source": root.get("source") or "",
+            "root_status": root.get("status") or "",
+            "actions": list((sc.get("grant") or {}).get("actions") or []), "communicate": False,
+            "request": ({"id": req.get("id"), "kind": req.get("kind"), "path": rel, "revision": req.get("revision")}
+                        if req and sc.get("state") == "pending" else None),
+            "draft": draft, "pending_publish": len(waiting), "conflict": bool(conflict)}
 
 
 def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]:
@@ -3033,6 +3496,7 @@ def goal_view(store, principal, goal_id: str, brain_root: str) -> Optional[dict]
                                                          METHODS[effective_method(g)]["label_en"]),
                    "prev_ref": g.method_prev_ref, "checked_revision": g.method_revision or None},
         "learning": _learning_view(store, principal, g),
+        "scope": _scope_view(store, principal, g),
         "experiments": [{"id": e["id"], "revision": e["revision"], "baseline_ref": e["baseline_ref"],
                          "candidate_ref": e["candidate_ref"], "status": e["status"], "verdict": e["verdict"],
                          "reason": e["reason"], "applied": e["applied"], "at": e["created_at"]}
@@ -3280,7 +3744,7 @@ def _compare_out(g: GoalRecord, baseline_ref: str, candidate_ref: str) -> dict:
             "scope": {"goal_id": g.id, "revision": g.revision, "applies_to": "this_goal"}, "applied": False}
 
 
-def _trial_stop(g: GoalRecord, deps: GoalDeps, pin: dict, lesson_id: Optional[str]) -> str:
+def _trial_stop(g: GoalRecord, deps: GoalDeps, pin: dict, lesson_id: Optional[str], exp: str = "") -> str:
     """Cổng của MỘT lượt thử, chạy ở luồng phụ (đọc kho, đọc file guard): cùng điều kiện với advance (can thiệp của
     người dùng, "Chưa đúng ý", guard, đổi cách hiểu), quyền trợ lý đã ghim, và bài học A3 còn đang thử (owner Bỏ qua
     giữa chừng thì dừng; CAS trong giao dịch chốt là chốt cuối cùng). Rỗng là được chạy tiếp."""
@@ -3288,6 +3752,10 @@ def _trial_stop(g: GoalRecord, deps: GoalDeps, pin: dict, lesson_id: Optional[st
     _, stop = _trial_gate(g, deps, deps.clock())
     if not stop:
         stop = agent_gate(store, p.brain_id, pin["agent_key"], pin["agent_config_version"])[1]
+    if not stop and exp:
+        # A4 (mục 5.5): mỗi lượt thử kiểm lại liên kết `experiment` đã ghim (thu hồi giữa phép thử thì dừng).
+        why = store.binding_block(p, "experiment", exp)
+        stop = f"grant_gate: {why}" if why else ""
     if not stop and lesson_id:
         ls = store.lesson(p, lesson_id)
         if ls is None or ls["status"] != "trialing":
@@ -3358,7 +3826,7 @@ async def _compare_run(g: GoalRecord, baseline_ref: str, candidate_ref: str, ite
     except Exception as e:  # noqa: BLE001
         # Giao dịch giữ chỗ ném lỗi thì đã rollback: CHƯA có phép thử, chưa giữ lượt nào. Phân biệt quyền trợ lý đổi
         # ngay trước giao dịch với lỗi lưu trữ, để hồ sơ ghi đúng nguyên nhân.
-        why = "agent_gate" if type(e).__name__ == "AgentStateError" else "storage_error"
+        why = {"AgentStateError": "agent_gate", "GrantError": "grant_gate"}.get(type(e).__name__, "storage_error")
         return {**out, "reason": why, "stop_detail": f"{type(e).__name__}: {_short(e)}"}
     if exp is None:
         return {**out, "reason": "budget" if lesson_id else "explore_budget"}
@@ -3385,7 +3853,7 @@ async def _compare_run(g: GoalRecord, baseline_ref: str, candidate_ref: str, ite
         for arm, ref in (("baseline", baseline_ref), ("candidate", candidate_ref)):
             # Cùng cổng với advance TRƯỚC MỖI lượt: can thiệp của người dùng, "Chưa đúng ý", guard và đổi cách
             # hiểu có hiệu lực giữa chừng (spec 2.3, 11.1; review M5, P1-1).
-            stop = await _off_loop(_trial_stop, g, deps, pin, lesson_id)
+            stop = await _off_loop(_trial_stop, g, deps, pin, lesson_id, exp)
             if stop:
                 break
             try:
@@ -3399,7 +3867,7 @@ async def _compare_run(g: GoalRecord, baseline_ref: str, candidate_ref: str, ite
             except Exception as e:  # noqa: BLE001
                 # Kho từ chối GHI Ý ĐỊNH (quyền trợ lý đổi, hay lỗi lưu trữ): giao dịch đã huỷ, model CHƯA được
                 # gọi cho lượt này, nên lượt không tính vào `started` và được hoàn ở finish_experiment.
-                stop = (f"agent_gate: {_short(e)}" if type(e).__name__ == "AgentStateError"
+                stop = (f"agent_gate: {_short(e)}" if type(e).__name__ in ("AgentStateError", "GrantError")
                         else f"storage_error_before_call: {type(e).__name__}: {_short(e)}")
                 break
             started += 1          # từ đây lượt đã tính: model có thể đã được gọi
@@ -3426,7 +3894,7 @@ async def _compare_run(g: GoalRecord, baseline_ref: str, candidate_ref: str, ite
         # Lượt cuối có thể vừa xong SAU một lệnh dừng: kiểm lại toàn bộ điều kiện chạy ngay trước khi kết luận
         # và áp dụng (review M5, P1-2). Phần SQLite (gồm trạng thái bài học A3) được kiểm lại lần nữa trong giao dịch
         # đổi cách làm.
-        stop = await _off_loop(_trial_stop, g, deps, pin, lesson_id)
+        stop = await _off_loop(_trial_stop, g, deps, pin, lesson_id, exp)
     if stop:
         verdict, reason = "inconclusive", ("goal_reframed" if stop == "goal_reframed" else
                                            "lesson_dismissed" if stop.startswith("lesson_") else "stopped")

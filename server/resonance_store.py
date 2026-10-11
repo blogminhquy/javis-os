@@ -25,6 +25,7 @@ from typing import Optional
 
 from config import STATE_DIR
 import resonance as R
+import resonance_grants as G
 import resonance_heartbeat as HB
 import resonance_learning as L
 
@@ -243,6 +244,11 @@ class AgentStateError(Exception):
     """Thao tác trên sổ đăng ký agent không hợp với trạng thái hiện tại (ví dụ bật agent đang `missing`)."""
 
 
+class GrantError(AgentStateError):
+    """A4: mục tiêu cần phạm vi mà không có quyền hiệu lực (chờ chủ dự án cho phép, đã thu hồi, thiếu quyền revision).
+    Là một loại chặn quyền như AgentStateError, nên mọi chỗ đang bắt lỗi cổng trợ lý cũng không giữ lượt khi gặp nó."""
+
+
 AGENT_STATUSES = ("active", "missing", "retired")
 _A1_BACKUP_SUFFIX = ".pre-a1.bak"
 _A2_BACKUP_SUFFIX = ".pre-a2.bak"
@@ -251,6 +257,57 @@ _A3_BACKUP_SUFFIX = ".pre-a3.bak"
 A3_TABLES = ("reactions", "reaction_log", "lessons", "lesson_events", "call_holds")
 # Bảng có từ A2 (0.88.0). Bản 0.87.x bỏ qua chúng; test rollback chạy mã 0.87 thật trên kho đã nâng.
 A2_TABLES = ("wake_reasons", "wake_log", "source_observations", "heartbeat_state")
+# A4 (0.93.0): phạm vi gốc, quyền revision, yêu cầu phạm vi, liên kết lượt, bản nộp, thứ tự quyền. Tạo cùng giao dịch
+# với bước đóng băng legacy (thiết kế mục 7.4), sau snapshot `.pre-0.93.0`. Hạ về 0.92.1 chỉ hỗ trợ bằng khôi phục
+# snapshot (D11); bản cũ không đọc các bảng này.
+A4_BACKUP_SUFFIX = ".pre-0.93.0"
+A4_TABLES = ("grants", "grant_events", "scope_requests", "bindings", "submissions", "authority_clock")
+_A4_SCHEMA = (
+    "CREATE TABLE IF NOT EXISTS grants(id TEXT PRIMARY KEY, kind TEXT NOT NULL, parent_id TEXT NOT NULL DEFAULT '', "
+    "parent_generation INTEGER NOT NULL DEFAULT 0, brain_id TEXT NOT NULL, goal_id TEXT NOT NULL, "
+    "revision INTEGER NOT NULL DEFAULT 0, agent_key TEXT NOT NULL, agent_config_version INTEGER NOT NULL, "
+    "granted_by TEXT NOT NULL, source TEXT NOT NULL, source_ref_json TEXT NOT NULL DEFAULT '{}', "
+    "actions_json TEXT NOT NULL, write_paths_json TEXT NOT NULL, read_paths_json TEXT NOT NULL, "
+    "recipients_json TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL, generation INTEGER NOT NULL, "
+    "seq INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL, updated_at REAL NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS authority_clock(id INTEGER PRIMARY KEY CHECK(id=1), seq INTEGER NOT NULL)",
+    "INSERT OR IGNORE INTO authority_clock(id, seq) VALUES(1, 0)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS grants_root_active ON grants(goal_id) WHERE kind='root' AND status='active'",
+    "CREATE UNIQUE INDEX IF NOT EXISTS grants_rev_active ON grants(goal_id, revision, parent_id) "
+    "WHERE kind='revision' AND status='active'",
+    "CREATE INDEX IF NOT EXISTS grants_goal ON grants(goal_id, kind, status)",
+    "CREATE TABLE IF NOT EXISTS grant_events(id INTEGER PRIMARY KEY AUTOINCREMENT, grant_id TEXT NOT NULL, "
+    "kind TEXT NOT NULL, by TEXT NOT NULL, generation INTEGER NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', "
+    "created_at REAL NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS scope_requests(id TEXT PRIMARY KEY, goal_id TEXT NOT NULL, revision INTEGER NOT NULL, "
+    "kind TEXT NOT NULL, path TEXT NOT NULL, agent_key TEXT NOT NULL, agent_config_version INTEGER NOT NULL, "
+    "origin_ref TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL, decided_by TEXT NOT NULL DEFAULT '', "
+    "decided_submission_id TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL, decided_at REAL)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS scope_requests_pending ON scope_requests(goal_id) WHERE status='pending'",
+    "CREATE INDEX IF NOT EXISTS scope_requests_goal ON scope_requests(goal_id, revision)",
+    "CREATE TABLE IF NOT EXISTS bindings(id TEXT PRIMARY KEY, goal_id TEXT NOT NULL, revision INTEGER NOT NULL, "
+    "authority TEXT NOT NULL, grant_id TEXT NOT NULL DEFAULT '', grant_generation INTEGER NOT NULL DEFAULT 0, "
+    "root_id TEXT NOT NULL DEFAULT '', root_generation INTEGER NOT NULL DEFAULT 0, "
+    "scope_request_id TEXT NOT NULL DEFAULT '', agent_key TEXT NOT NULL, agent_config_version INTEGER NOT NULL, "
+    "origin_kind TEXT NOT NULL, origin_ref TEXT NOT NULL, status TEXT NOT NULL, created_at REAL NOT NULL, "
+    "closed_at REAL, UNIQUE(goal_id, revision, origin_kind, origin_ref))",
+    "CREATE INDEX IF NOT EXISTS bindings_origin ON bindings(origin_kind, origin_ref, status)",
+    "CREATE INDEX IF NOT EXISTS bindings_goal ON bindings(goal_id, status)",
+    "CREATE TABLE IF NOT EXISTS submissions(id TEXT PRIMARY KEY, brain_id TEXT NOT NULL, goal_id TEXT NOT NULL, "
+    "revision INTEGER NOT NULL, binding_id TEXT NOT NULL, source TEXT NOT NULL, engine_json TEXT NOT NULL, "
+    "path TEXT NOT NULL, draft_ref TEXT NOT NULL, sha256 TEXT NOT NULL, size INTEGER NOT NULL, "
+    "normalized_em_dash INTEGER NOT NULL DEFAULT 0, evidence_id TEXT NOT NULL DEFAULT '', idem_key TEXT NOT NULL, "
+    "fingerprint TEXT NOT NULL, derived_from TEXT NOT NULL DEFAULT '', publish_action_id TEXT NOT NULL DEFAULT '', "
+    "adopted_at REAL, status TEXT NOT NULL, status_reason TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL, "
+    "updated_at REAL NOT NULL, hold_attempts INTEGER NOT NULL DEFAULT 0, hold_until REAL, "
+    "UNIQUE(goal_id, idem_key))",
+    "CREATE INDEX IF NOT EXISTS submissions_goal ON submissions(goal_id, revision, status)",
+    "CREATE INDEX IF NOT EXISTS submissions_binding ON submissions(binding_id, status)",
+)
+# Nguồn do host tự tạo (không có bước tiếp nhận riêng): đăng xong là xong, `adopted_at` ghi ngay lúc đăng.
+HOST_SOURCES = ("background_text", "republish")
+# Trạng thái chưa cuối của bản nộp: liên kết `sealed` chỉ đóng hẳn khi không còn bản nào ở đây (mục 4.7).
+SUB_OPEN = ("awaiting_scope", "candidate", "publishing")
 WAKE_LOG_KEEP = 200
 SERVED_TIMER_KEEP_S = 30 * 86400
 # Câu ghi vào `wakeups.reason` để bản 0.87 (đọc câu chữ) vẫn hiểu lịch.
@@ -265,6 +322,7 @@ _WAKE_TEXT = {
     "guard_observe": "quan sát guard", "action_recovery": "đối soát hành động dở",
     "method_trial": "thử một cách làm khác khi bế tắc", "method_followup": "làm sản phẩm bằng cách làm vừa học",
     "trial_recovery": "đối soát phép thử dở",
+    "scope_granted": "chủ dự án cho phép phạm vi",
 }
 
 
@@ -295,9 +353,11 @@ class GoalStore:
         self._backup_before("resonance_agents", _A1_BACKUP_SUFFIX)
         self._backup_before("wake_reasons", _A2_BACKUP_SUFFIX)
         self._backup_before("lessons", _A3_BACKUP_SUFFIX)
+        self._backup_before("grants", A4_BACKUP_SUFFIX)
         with closing(self._conn()) as c:
             had_goals = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='goals'").fetchone()
             had_a2 = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='wake_reasons'").fetchone()
+            had_a4 = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='grants'").fetchone()
             c.executescript(_SCHEMA)
             for table, col, decl in _ADDED_COLUMNS:
                 have = {r["name"] for r in c.execute(f"PRAGMA table_info({table})").fetchall()}
@@ -306,6 +366,7 @@ class GoalStore:
             c.executescript(_POST_MIGRATION)
         if had_goals and not had_a2:
             self._a2_migrate()
+        self._a4_migrate(freeze=bool(had_goals) and not had_a4)
         self._a2_reconcile()
         # A3: đối soát lượt giữ khi mở kho, gồm lúc nâng lại sau khi bản 0.88 đã chạy (mục 6.8).
         self.reconcile_holds()
@@ -648,11 +709,15 @@ class GoalStore:
                output_root: Optional[str] = None, output_base: Optional[str] = None, budget_calls: int = 0,
                message_ref: Optional[str] = None, work_due_at: Optional[float] = None,
                handoff_owner: Optional[str] = None, agent_key: Optional[str] = None,
-               agent_version: Optional[int] = None) -> tuple:
+               agent_version: Optional[int] = None, turn_seq: Optional[int] = None) -> tuple:
         """Trả (GoalRecord, đã_tạo_mới). Cùng khoá chống trùng thì trả mục tiêu cũ, không ghi gì thêm.
 
         A1: `agent_key` gắn mục tiêu vào một agent (bảng goal_agents) trong CÙNG giao dịch, sau khi kiểm lại ngay tại
-        đây agent còn `active`, bật và đúng `agent_version`; không đạt thì AgentStateError, không ghi gì."""
+        đây agent còn `active`, bật và đúng `agent_version`; không đạt thì AgentStateError, không ghi gì.
+
+        A4: mục tiêu mới có đường sản phẩm LUÔN chờ chủ dự án cho phép phạm vi (D1, không cấp từ lời chat): ghi yêu cầu
+        phạm vi trong cùng giao dịch; lập trong lượt chat thì lượt đó nhận liên kết `draft` (`turn_seq`: ảnh chụp thứ
+        tự quyền đầu lượt)."""
         now = time.time()
         msg = message_ref or idempotency_key
         with self._Tx(self) as c:
@@ -690,11 +755,15 @@ class GoalStore:
             if agent_key:
                 c.execute("INSERT INTO goal_agents(goal_id,brain_id,agent_key,by,created_at) VALUES(?,?,?,?,?)",
                           (gid, p.brain_id, agent_key, p.by, now))
+            row = c.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
+            self._scope_sync(c, row, 1, frame, now, p.by, origin_ref=msg)
             if handoff_owner:
                 self._open_handoff(c, gid, 1, msg, handoff_owner, now, agent_key, agent_version)
+                if agent_key:
+                    self._open_binding(c, row, 1, "handoff", msg, agent_key, int(agent_version or 0), now,
+                                       turn_seq=turn_seq)
             if frame.get("guards"):
                 self._reason_timer(c, gid, p.brain_id, "guard_observe", now + R.GUARD_OBSERVE_S, 1, now)
-            row = c.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
             return self._record(c, row), True
 
     def get(self, p: Principal, goal_id: str) -> Optional[R.GoalRecord]:
@@ -731,9 +800,12 @@ class GoalStore:
                intent_id: Optional[str] = None, message_ref: str = "", relation: str = "",
                intent: Optional[dict] = None, work_due_at: Optional[float] = None,
                handoff_owner: Optional[str] = None, agent_key: Optional[str] = None,
-               agent_version: Optional[int] = None) -> R.GoalRecord:
+               agent_version: Optional[int] = None, turn_seq: Optional[int] = None) -> R.GoalRecord:
         """A1: có `agent_key` thì mục tiêu phải thuộc đúng agent đó (ScopeError nếu không) và agent còn `active`, bật,
-        đúng `agent_version`, kiểm trong cùng giao dịch (AgentStateError)."""
+        đúng `agent_version`, kiểm trong cùng giao dịch (AgentStateError).
+
+        A4: revision mới cùng đích tự có quyền revision từ gốc đang active; khác đích thì chờ chủ dự án (mục 5.3). Bản
+        nộp và liên kết của revision cũ được thay chỗ; lượt chat nhận liên kết cho revision mới theo luật ghim gốc."""
         now = time.time()
         with self._Tx(self) as c:
             row = self._goal_row(c, p, goal_id)
@@ -777,6 +849,8 @@ class GoalStore:
                        f"reframe:{rev}", now))
             c.execute("INSERT INTO outbox(goal_id,kind,payload_json,created_at) VALUES(?,?,?,?)",
                       (goal_id, "goal.revised", _j({"revision": rev}), now))
+            self._retire_old_revision(c, goal_id, rev, now)
+            self._scope_sync(c, row, rev, frame, now, p.by, origin_ref=str(message_ref or ""))
             # Cách hiểu mới cần được làm lại; trạng thái chờ người dùng xác nhận revision cũ không còn đúng.
             if row["status"] == "active":
                 self._reason_event(c, goal_id, row["brain_id"], "revised", f"rev:{rev}", rev, due_at=now,
@@ -784,6 +858,9 @@ class GoalStore:
                 if handoff_owner:
                     self._open_handoff(c, goal_id, rev, str(message_ref or ""), handoff_owner, now, agent_key,
                                        agent_version)
+                    if agent_key:
+                        self._open_binding(c, row, rev, "handoff", str(message_ref or ""), agent_key,
+                                           int(agent_version or 0), now, turn_seq=turn_seq)
                 if frame.get("guards") and not c.execute(
                         "SELECT 1 FROM wake_reasons WHERE goal_id=? AND slot='observe' AND state='pending'",
                         (goal_id,)).fetchone():
@@ -930,7 +1007,8 @@ class GoalStore:
             return True
         if int(row["paused"] or 0) or row["run_state"] == "blocked":
             return True
-        return row["run_state"] == "waiting" and row["block_reason"] in ("source_drift", "handoff", "fit_rejected")
+        return row["run_state"] == "waiting" and row["block_reason"] in ("source_drift", "handoff", "fit_rejected",
+                                                                         "publish_settling")
 
     @classmethod
     def _recompute_wake(cls, c, goal_id: str) -> None:
@@ -939,7 +1017,8 @@ class GoalStore:
         nhưng không kéo lịch, kể cả đã quá giờ. Không còn mốc thì xoá dòng."""
         row = c.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone()
         if row is None or row["status"] != "active":
-            c.execute("DELETE FROM wakeups WHERE goal_id=?", (goal_id,))
+            # A4: lịch `settle` (hoàn tất lần đăng đã chốt) sống độc lập với trạng thái mục tiêu.
+            c.execute("DELETE FROM wakeups WHERE goal_id=? AND kind!='settle'", (goal_id,))
             return
         pend = c.execute("SELECT code, origin, slot, due_at FROM wake_reasons WHERE goal_id=? AND state='pending' "
                          "ORDER BY due_at", (goal_id,)).fetchall()
@@ -1251,9 +1330,11 @@ class GoalStore:
         """Lịch tới hạn của mục tiêu còn active, xếp theo `due_at` (cũ nhất trước, không bỏ đói). Chỉ host (tick) gọi.
         Lịch `work` của mục tiêu tạm dừng bỏ qua; lịch `observe` thì không: tạm dừng vẫn quan sát guard (A2 mục 7)."""
         with closing(self._conn()) as c:
+            # A4: lịch `settle` (chỉ hoàn tất lần đăng ĐÃ qua mốc commit) tới hạn cả khi mục tiêu tạm dừng, đã thu hồi,
+            # đã huỷ hay kết thúc: tác động đã được phép phải có đường hoàn tất hay xác minh xung đột (mục 4.5, 4.7).
             rows = c.execute("SELECT w.goal_id, w.brain_id, w.kind, w.due_at FROM wakeups w JOIN goals g "
-                             "ON g.id=w.goal_id WHERE w.due_at<=? AND g.status='active' AND "
-                             "(g.paused=0 OR w.kind='observe') ORDER BY w.due_at LIMIT ?",
+                             "ON g.id=w.goal_id WHERE w.due_at<=? AND (w.kind='settle' OR (g.status='active' AND "
+                             "(g.paused=0 OR w.kind='observe'))) ORDER BY w.due_at LIMIT ?",
                              (float(now), int(limit))).fetchall()
             return [dict(r) for r in rows]
 
@@ -1408,6 +1489,21 @@ class GoalStore:
                       "created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                       (aid, goal_id, int(revision), kind, seq, "running", float(lease_until), _j(stored), "{}",
                        now, now))
+            if kind == "work":
+                # A4 (mục 5.5): lượt việc của mục tiêu cần phạm vi chỉ giữ lượt khi quyền revision còn hiệu lực, và ghim
+                # quyền đó vào liên kết `action` (hay `followup` khi dùng lượt giữ A3) CÙNG giao dịch. Không có quyền:
+                # GrantError, cả giao dịch huỷ, không giữ lượt nào.
+                st = self._scope_state(c, row)
+                if st["state"] != "none":
+                    if st["state"] != "granted" or int(revision) != int(row["revision"]):
+                        raise GrantError({"pending": "scope_pending", "revoked": "grant_revoked",
+                                          "denied": "scope_denied", "invalid": "path_rejected"}
+                                         .get(st["state"], "grant_missing"))
+                    _b, why = self._open_binding(c, row, int(revision), "followup" if hold is not None else "action",
+                                                 aid, it.get("agent_key") or "", int(it.get("agent_config_version") or 0),
+                                                 now)
+                    if _b is None:
+                        raise GrantError(why)
             served = []
             if kind == "work" and it.get("wake_reasons"):
                 # A2: lý do trong ảnh chụp được PHỤC VỤ cùng giao dịch ghi ý định hành động (thiết kế mục 3, bước 3).
@@ -1500,6 +1596,18 @@ class GoalStore:
             if gkey:
                 c.execute("INSERT INTO experiment_agents(experiment_id,goal_id,agent_key,agent_config_version,created_at) "
                           "VALUES(?,?,?,?,?)", (eid, goal_id, gkey, int(agent["agent_config_version"]), now))
+            # A4 (mục 5.5): phép thử của mục tiêu cần phạm vi ghim quyền revision vào liên kết `experiment`; mỗi lượt thử
+            # kiểm lại liên kết đó ở cổng lượt (`_trial_gate`). Không có quyền: không giữ chỗ, không tạo phép thử.
+            st = self._scope_state(c, row)
+            if st["state"] != "none":
+                if st["state"] != "granted":
+                    raise GrantError({"pending": "scope_pending", "revoked": "grant_revoked",
+                                      "denied": "scope_denied", "invalid": "path_rejected"}
+                                     .get(st["state"], "grant_missing"))
+                _b, why = self._open_binding(c, row, int(revision), "experiment", eid, gkey,
+                                             int((agent or {}).get("agent_config_version") or 0), now)
+                if _b is None:
+                    raise GrantError(why)
             c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
                       "VALUES(?,?,?,?,?,?,?)", (goal_id, int(revision), "experiment_started", "host",
                                                 _j({"experiment_id": eid, "baseline_ref": baseline_ref,
@@ -1912,10 +2020,13 @@ class GoalStore:
                 return "pending"
             c.execute("UPDATE handoffs SET status='expired', updated_at=? WHERE goal_id=? AND revision=?",
                       (time.time(), goal_id, int(revision)))
+            # A4 (mục 4.2): lượt hết hạn chỉ thôi NHẬN lời nộp mới; bản host đã nhận vẫn được hoàn tất dưới quyền đã ghim.
+            c.execute("UPDATE bindings SET status='sealed' WHERE goal_id=? AND origin_kind='handoff' AND origin_ref=? "
+                      "AND status='live'", (goal_id, r["message_ref"]))
             return "expired"
 
     def finish_handoff(self, p: Principal, goal_id: str, revision: int, message_ref: str,
-                       adopt: Optional[dict] = None) -> str:
+                       adopt: Optional[dict] = None, release: bool = True) -> str:
         """Bàn giao cuối lượt, MỘT giao dịch. Chỉ khi dòng bàn giao của đúng revision và đúng tin nhắn còn pending;
         không thì "handoff_expired" (việc nền đã nhận quyền) hay "no_handoff", và không làm gì.
 
@@ -1947,6 +2058,10 @@ class GoalStore:
                 result = "not_active"
             elif adopt and agent_why:
                 result = agent_why
+            elif adopt and (obs_why := self._observed_block(c, row, int(revision), str(message_ref), adopt)):
+                # A4 (mục 4.4): tiếp nhận Write tại chỗ đòi liên kết `handoff` thẩm quyền `grant` còn hoàn tất được và
+                # quyền `publish` đúng đích. Liên kết `draft` (chưa có phạm vi) không bao giờ tiếp nhận tại chỗ.
+                result = obs_why
             elif adopt:
                 c.execute("INSERT OR IGNORE INTO evidence_links VALUES(?,?,?,?,?,?,?)",
                           (goal_id, int(revision), f"chat:{message_ref}", adopt["evidence_id"], "chat_output",
@@ -1959,13 +2074,35 @@ class GoalStore:
                 c.execute("INSERT INTO published VALUES(?,?,?,?,?) ON CONFLICT(goal_id,path) DO UPDATE SET "
                           "sha256=excluded.sha256, action_id=excluded.action_id, created_at=excluded.created_at",
                           (goal_id, adopt["path"], adopt["sha256"], f"chat:{message_ref}", now))
+                b = c.execute("SELECT * FROM bindings WHERE goal_id=? AND revision=? AND origin_kind='handoff' AND "
+                              "origin_ref=?", (goal_id, int(revision), str(message_ref))).fetchone()
+                if b is not None:
+                    self.record_observed_write(c, b, G.path_key(row["brain_id"], adopt["path"]) or "", adopt["sha256"],
+                                               str(adopt["path"]), adopt["evidence_id"], now)
                 result = "adopted"
+            if not release:
+                # A4 (D3): tiếp nhận Write A làm baseline nhưng CHƯA nhả lịch: bản nộp B còn phải đăng trước, để việc nền
+                # không chen vào giữa (review mã nội bộ, lỗi 6). Bước đăng B (hay lần gọi sau) đóng bàn giao.
+                return result
             c.execute("UPDATE handoffs SET status='done', updated_at=? WHERE goal_id=? AND revision=?",
                       (now, goal_id, int(revision)))
             if active:
                 self._reason_event(c, goal_id, row["brain_id"], "handoff_done", f"handoff:{int(revision)}",
                                    int(revision))
             return result
+
+    def _observed_block(self, c, row, revision: int, message_ref: str, adopt: dict) -> str:
+        """Lý do KHÔNG tiếp nhận Write tại chỗ theo quyền A4; rỗng là được. Mục tiêu không cần phạm vi: rỗng."""
+        if self._scope_state(c, row)["state"] == "none":
+            return ""
+        b = c.execute("SELECT * FROM bindings WHERE goal_id=? AND revision=? AND origin_kind='handoff' AND origin_ref=?",
+                      (row["id"], int(revision), str(message_ref))).fetchone()
+        why = self._binding_block(c, b, finishing=True)
+        if why:
+            return "binding_" + why
+        if not G.allows(self._binding_grant(c, b), "publish", G.path_key(row["brain_id"], adopt.get("path")) or ""):
+            return "binding_path_not_in_scope"
+        return ""
 
     def handoff_agent(self, p: Principal, goal_id: str, revision: int) -> Optional[dict]:
         with closing(self._conn()) as c:
@@ -2004,6 +2141,8 @@ class GoalStore:
             if row["status"] == "active" and row["block_reason"] in ("unassigned", "feature_off", "agent_off",
                                                                       "agent_missing", "agent_retired"):
                 c.execute("UPDATE goals SET run_state='ready', block_reason='', updated_at=? WHERE id=?", (now, goal_id))
+            # A4: gán trợ lý KHÔNG cấp phạm vi ghi. Mục tiêu có đường sản phẩm chờ chủ dự án cho phép đích (D1).
+            self._scope_sync(c, row, int(row["revision"]), self._frame(c, goal_id, int(row["revision"])), now, p.by)
             if row["status"] == "active":
                 # Mục tiêu có trước A1 không có lý do `created`: `assigned` là bước đầu của nó (A2 mục 3).
                 self._reason_event(c, goal_id, p.brain_id, "assigned", f"ev:{ev.lastrowid}", int(row["revision"]))
@@ -2063,7 +2202,7 @@ class GoalStore:
             if cur.rowcount != 1:
                 return False
             self._close_goal_holds(c, goal_id, "goal_closed", now)
-            c.execute("DELETE FROM wakeups WHERE goal_id=?", (goal_id,))
+            c.execute("DELETE FROM wakeups WHERE goal_id=? AND kind!='settle'", (goal_id,))
             # Mục tiêu kết thúc không nhận sự kiện nữa: bỏ lý do thức (A2 mục 6). Sổ thức giữ để xem lại.
             c.execute("DELETE FROM wake_reasons WHERE goal_id=?", (goal_id,))
             c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
@@ -2163,7 +2302,7 @@ class GoalStore:
             c.execute("UPDATE goals SET status='cancelled', run_state='dormant', block_reason='', updated_at=? "
                       "WHERE id=?", (now, goal_id))
             self._close_goal_holds(c, goal_id, "goal_closed", now)
-            c.execute("DELETE FROM wakeups WHERE goal_id=?", (goal_id,))
+            c.execute("DELETE FROM wakeups WHERE goal_id=? AND kind!='settle'", (goal_id,))
             c.execute("DELETE FROM wake_reasons WHERE goal_id=?", (goal_id,))
             c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
                       "VALUES(?,?,?,?,?,?,?)", (goal_id, row["revision"], "cancelled", "owner",
@@ -2257,6 +2396,8 @@ class GoalStore:
                                                             "field": field, "key": key}), p.by, f"reframe:{rev}", now))
             c.execute("INSERT INTO outbox(goal_id,kind,payload_json,created_at) VALUES(?,?,?,?)",
                       (goal_id, "goal.revised", _j({"revision": rev}), now))
+            self._retire_old_revision(c, goal_id, rev, now)
+            self._scope_sync(c, row, rev, fr, now, p.by)
             self._reason_event(c, goal_id, p.brain_id, "revised", f"rev:{rev}", rev)
             if not fr.get("guards"):
                 c.execute("UPDATE wake_reasons SET state='superseded', settled_at=? WHERE goal_id=? AND "
@@ -2827,3 +2968,1128 @@ class GoalStore:
         with closing(self._conn()) as c:
             r = c.execute("SELECT * FROM reactions WHERE id=? AND brain_id=?", (int(reaction_id), p.brain_id)).fetchone()
             return dict(r) if r else None
+
+    # ═══════════════════ A4: phạm vi gốc, quyền revision, liên kết lượt, bản nộp ═══════════════════
+    #
+    # Thiết kế chốt: docs/superpowers/specs/2026-10-10-resonance-a4-handoff-grants-design.md. D1: A4 KHÔNG cấp quyền từ
+    # lời chat. Phạm vi gốc chỉ đến từ chủ dự án bấm Cho phép trên thẻ (`owner_approved`) hay đóng băng lúc nâng kho
+    # (`legacy_frozen`). Quyền revision là phần giao của gốc và đích DUY NHẤT revision cần. Liên kết ghim quyền vào
+    # từng lượt; mọi bản nộp đi qua một liên kết; host đăng theo bốn bước có mốc commit tuần tự với thu hồi (mục 4.5).
+    # Mục tiêu không có đường sản phẩm (hay chưa gán trợ lý) không cần phạm vi: không có gì để ghi hay đọc.
+
+    def _a4_migrate(self, freeze: bool) -> None:
+        """Tạo bảng A4 và, khi đây là lần đầu mã A4 mở một kho có từ trước, đóng băng phạm vi legacy TRONG CÙNG giao dịch,
+        trước khi server nhận lời gọi nào (mục 5.2, 7.4). Gốc legacy lấy đích của revision ĐANG LƯU lúc nâng, không lấy
+        revision nào model sửa sau đó. Hỏng giữa chừng thì không có bảng nào, lần mở sau làm lại từ đầu."""
+        now = time.time()
+        with self._Tx(self) as c:
+            for stmt in _A4_SCHEMA:
+                c.execute(stmt)
+            # Kho tạo bởi bản A4 chưa phát hành (trước review mã vòng 3) thiếu hai cột giữ bản nộp: thêm tại chỗ.
+            have = {r["name"] for r in c.execute("PRAGMA table_info(submissions)").fetchall()}
+            for col, decl in (("hold_attempts", "INTEGER NOT NULL DEFAULT 0"), ("hold_until", "REAL")):
+                if col not in have:
+                    c.execute(f"ALTER TABLE submissions ADD COLUMN {col} {decl}")
+            if not freeze:
+                return
+            for row in c.execute("SELECT * FROM goals WHERE status='active' ORDER BY created_at").fetchall():
+                agent = self._goal_agent(c, row["id"])
+                fr = self._frame(c, row["id"], int(row["revision"]))
+                key = G.deliverable_key(row["brain_id"], fr.get("criteria"))
+                if not agent or not key:
+                    continue
+                seq = self._seq_bump(c)
+                ver = self._agent_version(c, agent)
+                frame_sha = R._sha(_j(fr).encode("utf-8"))
+                root = self._insert_grant(c, kind="root", row=row, revision=0, agent_key=agent, agent_version=ver,
+                                          by="host:upgrade", source="legacy_frozen", key=key, now=now, seq=seq,
+                                          source_ref={"revision": int(row["revision"]), "frame_sha256": frame_sha})
+                self._insert_grant(c, kind="revision", row=row, revision=int(row["revision"]), agent_key=agent,
+                                   agent_version=ver, by="host:upgrade", source="legacy_frozen", key=key, now=now,
+                                   parent=root)
+
+    # ───────────── đọc quyền ─────────────
+
+    @staticmethod
+    def _seq_bump(c) -> int:
+        """Thứ tự quyền do kho cấp (mục 4.2): tăng trong chính giao dịch tạo gốc, thu hồi, chấp thuận, cấp lại."""
+        c.execute("UPDATE authority_clock SET seq=seq+1 WHERE id=1")
+        return int(c.execute("SELECT seq FROM authority_clock WHERE id=1").fetchone()[0])
+
+    def authority_seq(self) -> int:
+        """Ảnh chụp thứ tự quyền cho một lượt có trợ lý, đọc TRƯỚC khi engine chạy. Lỗi thì -1 (đóng khi lỗi)."""
+        try:
+            with closing(self._conn()) as c:
+                r = c.execute("SELECT seq FROM authority_clock WHERE id=1").fetchone()
+                return int(r[0]) if r else -1
+        except Exception:  # noqa: BLE001
+            return -1
+
+    @staticmethod
+    def _frame(c, goal_id: str, revision: int) -> dict:
+        r = c.execute("SELECT frame_json FROM goal_revisions WHERE goal_id=? AND revision=?",
+                      (goal_id, int(revision))).fetchone()
+        return json.loads(r["frame_json"] or "{}") if r else {}
+
+    @staticmethod
+    def _agent_version(c, agent_key: str) -> int:
+        r = c.execute("SELECT config_version FROM resonance_agents WHERE agent_key=?", (str(agent_key or ""),)).fetchone()
+        return int(r["config_version"]) if r else 0
+
+    @staticmethod
+    def _grant(r) -> Optional[dict]:
+        if r is None:
+            return None
+        d = dict(r)
+        for k in ("actions", "write_paths", "read_paths", "recipients"):
+            d[k] = json.loads(d.pop(k + "_json") or "[]")
+        d["source_ref"] = json.loads(d.pop("source_ref_json") or "{}")
+        return d
+
+    def _active_root(self, c, goal_id: str) -> Optional[dict]:
+        return self._grant(c.execute("SELECT * FROM grants WHERE goal_id=? AND kind='root' AND status='active'",
+                                     (goal_id,)).fetchone())
+
+    def _active_rev_grant(self, c, goal_id: str, revision: int) -> Optional[dict]:
+        return self._grant(c.execute("SELECT * FROM grants WHERE goal_id=? AND kind='revision' AND revision=? AND "
+                                     "status='active' ORDER BY created_at DESC LIMIT 1",
+                                     (goal_id, int(revision))).fetchone())
+
+    def _insert_grant(self, c, *, kind: str, row, revision: int, agent_key: str, agent_version: int, by: str,
+                      source: str, key: str, now: float, parent: Optional[dict] = None, seq: int = 0,
+                      source_ref: Optional[dict] = None) -> dict:
+        acts, write, read = list(G.ROOT_ACTIONS), [key], [key]
+        if parent is not None:
+            got, why = G.narrow(parent, {"goal_id": row["id"], "brain_id": row["brain_id"], "actions": acts,
+                                         "write_paths": [key], "read_paths": [key], "recipients": []})
+            if got is None:
+                raise GrantError(why)
+            acts, write, read = got["actions"], got["write_paths"], got["read_paths"]
+        gid = _nid("gr")
+        c.execute("INSERT INTO grants(id,kind,parent_id,parent_generation,brain_id,goal_id,revision,agent_key,"
+                  "agent_config_version,granted_by,source,source_ref_json,actions_json,write_paths_json,read_paths_json,"
+                  "recipients_json,status,generation,seq,created_at,updated_at) "
+                  "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                  (gid, kind, parent["id"] if parent else "", int(parent["generation"]) if parent else 0,
+                   row["brain_id"], row["id"], int(revision), agent_key, int(agent_version), by, source,
+                   _j(source_ref or {}), _j(acts), _j(write), _j(read), "[]", "active", 1, int(seq), now, now))
+        c.execute("INSERT INTO grant_events(grant_id,kind,by,generation,payload_json,created_at) VALUES(?,?,?,?,?,?)",
+                  (gid, "granted", by, 1, _j({"kind": kind, "source": source, "path": key, "revision": int(revision)}),
+                   now))
+        return self._grant(c.execute("SELECT * FROM grants WHERE id=?", (gid,)).fetchone())
+
+    def _scope_sync(self, c, row, revision: int, frame: dict, now: float, by: str, origin_ref: str = "") -> dict:
+        """Phạm vi của revision vừa tạo, TRONG giao dịch tạo revision (mục 5.3). Cùng đích với gốc đang active: cấp quyền
+        revision mới bằng `narrow`, không hỏi. Khác đích hay chưa có gốc: ghi yêu cầu phạm vi chờ chủ dự án; KHÔNG cấp gì
+        từ lời chat (D1). Quyền revision và yêu cầu của revision cũ thành `superseded`."""
+        goal_id = row["id"]
+        c.execute("UPDATE grants SET status='superseded', updated_at=? WHERE goal_id=? AND kind='revision' AND "
+                  "status='active' AND revision<>?", (now, goal_id, int(revision)))
+        agent = self._goal_agent(c, goal_id)
+        key = G.deliverable_key(row["brain_id"], frame.get("criteria"))
+        raw = G.deliverable_raw(frame.get("criteria"))
+        root = self._active_root(c, goal_id)
+        req = c.execute("SELECT * FROM scope_requests WHERE goal_id=? AND status='pending'", (goal_id,)).fetchone()
+        if req is not None and (int(req["revision"]) != int(revision) or req["path"] != key):
+            c.execute("UPDATE scope_requests SET status='superseded', decided_at=? WHERE id=?", (now, req["id"]))
+            req = None
+        if not agent or not raw:
+            return {"scope": "none"}
+        if not key:
+            return {"scope": "invalid"}
+        if root is None:
+            last = c.execute("SELECT status FROM grants WHERE goal_id=? AND kind='root' ORDER BY created_at DESC LIMIT 1",
+                             (goal_id,)).fetchone()
+            if last is not None and last["status"] == "revoked":
+                # Đang thu hồi: lời sửa của model không được dựng lại thẻ Cho phép. Cấp lại là hành động owner riêng
+                # (Tiếp tục), không phải hệ quả của một thẻ (mục 5.3; review mã nội bộ, lỗi 5).
+                return {"scope": "revoked"}
+        if root is not None and root["write_paths"] == [key] and root["agent_key"] == agent:
+            g = self._active_rev_grant(c, goal_id, revision)
+            if g is None:
+                g = self._insert_grant(c, kind="revision", row=row, revision=revision, agent_key=agent,
+                                       agent_version=self._agent_version(c, agent), by=by, source=root["source"],
+                                       key=key, now=now, parent=root)
+            if req is not None:
+                c.execute("UPDATE scope_requests SET status='superseded', decided_at=? WHERE id=?", (now, req["id"]))
+            return {"scope": "granted", "grant_id": g["id"]}
+        if req is not None:
+            return {"scope": "pending", "request_id": req["id"]}
+        if c.execute("SELECT 1 FROM scope_requests WHERE goal_id=? AND revision=? AND path=? AND status='denied'",
+                     (goal_id, int(revision), key)).fetchone():
+            return {"scope": "denied"}
+        rid = _nid("sr")
+        c.execute("INSERT INTO scope_requests(id,goal_id,revision,kind,path,agent_key,agent_config_version,origin_ref,"
+                  "reason,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                  (rid, goal_id, int(revision), "expand" if root is not None else "create", key, agent,
+                   self._agent_version(c, agent), str(origin_ref or ""),
+                   "đích khác phạm vi đã cho" if root is not None else "đích chưa được cho phép", "pending", now))
+        return {"scope": "pending", "request_id": rid}
+
+    def _retire_old_revision(self, c, goal_id: str, new_revision: int, now: float) -> None:
+        """Revision mới thay chỗ (mục 4.2): bản nộp chưa đăng của revision cũ thành `superseded`, liên kết của revision cũ
+        `closed`. Bản đang `publishing` để mốc commit tự huỷ vì revision không còn khớp; bản đã commit đi tiếp."""
+        c.execute("UPDATE submissions SET status='superseded', status_reason='revision_changed', hold_until=NULL, "
+                  "updated_at=? WHERE goal_id=? AND revision<? AND status IN ('candidate','awaiting_scope')",
+                  (now, goal_id, int(new_revision)))
+        c.execute("UPDATE bindings SET status='closed', closed_at=? WHERE goal_id=? AND revision<? AND "
+                  "status IN ('live','sealed')", (now, goal_id, int(new_revision)))
+
+    def _open_binding(self, c, row, revision: int, origin_kind: str, origin_ref: str, agent_key: str,
+                      agent_version: int, now: float, turn_seq: Optional[int] = None, status: str = "live") -> tuple:
+        """Mở (hay trả lại) liên kết của một lượt cho đúng revision. Trả (liên kết | None, lý do).
+
+        Cùng `(goal, revision, origin)` thì trả dòng có sẵn khi còn `live`; không bao giờ REPLACE (mục 4.2). Lượt chat
+        (`handoff`) có luật ghim gốc theo lượt: mọi liên kết trước của tin phải ghim cùng gốc đang active, và liên kết
+        `grant` đầu tiên chỉ nhận gốc có `seq` không vượt ảnh chụp đầu lượt. Chưa có quyền revision mà có yêu cầu phạm
+        vi đang chờ: lượt chat nhận liên kết `draft` (chỉ nộp nháp); lượt khác không có liên kết."""
+        goal_id = row["id"]
+        old = c.execute("SELECT * FROM bindings WHERE goal_id=? AND revision=? AND origin_kind=? AND origin_ref=?",
+                        (goal_id, int(revision), origin_kind, str(origin_ref))).fetchone()
+        if old is not None:
+            return (dict(old), "") if old["status"] == "live" else (None, "turn_closed")
+        grant = self._active_rev_grant(c, goal_id, revision)
+        fields = None
+        if grant is not None:
+            root = c.execute("SELECT * FROM grants WHERE id=?", (grant["parent_id"],)).fetchone()
+            if root is None or root["status"] != "active" or int(root["generation"]) != int(grant["parent_generation"]):
+                return None, "grant_revoked"
+            if origin_kind == "handoff":
+                prev = c.execute("SELECT authority, root_id, root_generation, status FROM bindings WHERE goal_id=? AND "
+                                 "origin_kind='handoff' AND origin_ref=?", (goal_id, str(origin_ref))).fetchall()
+                if any(x["status"] == "dead" for x in prev) or any(
+                        x["authority"] == "grant" and (x["root_id"], int(x["root_generation"]))
+                        != (root["id"], int(root["generation"])) for x in prev):
+                    return None, "turn_authority_changed"
+                if not any(x["authority"] == "grant" for x in prev) and (
+                        turn_seq is None or int(root["seq"]) > int(turn_seq)):
+                    return None, "turn_authority_changed"
+            fields = ("grant", grant["id"], int(grant["generation"]), root["id"], int(root["generation"]), "")
+        elif origin_kind == "handoff":
+            req = c.execute("SELECT * FROM scope_requests WHERE goal_id=? AND status='pending' AND revision=?",
+                            (goal_id, int(revision))).fetchone()
+            if req is not None:
+                fields = ("draft", "", 0, "", 0, req["id"])
+        if fields is None:
+            return None, "grant_missing"
+        bid = _nid("bd")
+        c.execute("INSERT INTO bindings(id,goal_id,revision,authority,grant_id,grant_generation,root_id,root_generation,"
+                  "scope_request_id,agent_key,agent_config_version,origin_kind,origin_ref,status,created_at) "
+                  "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                  (bid, goal_id, int(revision), *fields, str(agent_key), int(agent_version or 0), origin_kind,
+                   str(origin_ref), status, now))
+        return dict(c.execute("SELECT * FROM bindings WHERE id=?", (bid,)).fetchone()), ""
+
+    def _binding_block(self, c, b, finishing: bool) -> str:
+        """Lý do liên kết KHÔNG được dùng; rỗng là được (mục 4.2). `finishing=False`: `binding_accepts` (lời nộp mới, chỉ
+        `live`). `finishing=True`: `binding_may_finish` (hoàn tất bản host đã nhận, `live` hay `sealed`, chỉ thẩm quyền
+        `grant`). Hai phép kiểm này chỉ là kiểm quyền; bước đăng vẫn chạy đủ cổng `_gate`."""
+        if b is None:
+            return "no_open_handoff"
+        st = b["status"]
+        if st == "dead":
+            return "grant_revoked"
+        if st == "closed":
+            return "binding_closed"
+        if st == "sealed" and not finishing:
+            return "turn_closed"
+        row = c.execute("SELECT * FROM goals WHERE id=?", (b["goal_id"],)).fetchone()
+        if row is None or row["status"] != "active":
+            return "goal_closed"
+        if b["authority"] == "grant":
+            r = c.execute("SELECT status, generation FROM grants WHERE id=?", (b["root_id"],)).fetchone()
+            if r is None or r["status"] != "active" or int(r["generation"]) != int(b["root_generation"]):
+                return "grant_revoked"
+            g = c.execute("SELECT status, generation FROM grants WHERE id=?", (b["grant_id"],)).fetchone()
+            if g is None or g["status"] != "active" or int(g["generation"]) != int(b["grant_generation"]):
+                return "revision_changed"
+        elif b["authority"] == "draft":
+            if finishing:
+                return "draft_only"
+            q = c.execute("SELECT * FROM scope_requests WHERE id=?", (b["scope_request_id"],)).fetchone()
+            if q is None or q["status"] != "pending" or int(q["revision"]) != int(b["revision"]) \
+                    or q["agent_key"] != b["agent_key"]:
+                return "scope_decided"
+        else:
+            return "invalid_binding"
+        why = self._agent_block(c, row["brain_id"], b["agent_key"], b["agent_config_version"])
+        if why:
+            return why
+        if int(row["revision"]) != int(b["revision"]):
+            return "revision_changed"
+        return ""
+
+    def _binding_grant(self, c, b) -> Optional[dict]:
+        return self._grant(c.execute("SELECT * FROM grants WHERE id=?", (b["grant_id"],)).fetchone()) \
+            if b is not None and b["authority"] == "grant" else None
+
+    def scope_state(self, p: Principal, goal_id: str) -> dict:
+        """Phạm vi của revision hiện tại cho cổng và thẻ. `state`: none (không cần phạm vi), granted, pending (chờ chủ dự
+        án), denied, revoked, missing (cần phạm vi mà chưa có yêu cầu: revision do mã cũ tạo, hay mục tiêu vừa gán)."""
+        with closing(self._conn()) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                return {"state": "none"}
+            return self._scope_state(c, row)
+
+    def _scope_state(self, c, row) -> dict:
+        goal_id, rev = row["id"], int(row["revision"])
+        agent = self._goal_agent(c, goal_id)
+        crit = self._frame(c, goal_id, rev).get("criteria")
+        key = G.deliverable_key(row["brain_id"], crit)
+        raw = G.deliverable_raw(crit)
+        root = self._active_root(c, goal_id)
+        last = self._grant(c.execute("SELECT * FROM grants WHERE goal_id=? AND kind='root' ORDER BY created_at DESC "
+                                     "LIMIT 1", (goal_id,)).fetchone())
+        grant = self._active_rev_grant(c, goal_id, rev)
+        req = c.execute("SELECT * FROM scope_requests WHERE goal_id=? AND status='pending'", (goal_id,)).fetchone()
+        out = {"key": key, "root": root, "grant": grant, "request": dict(req) if req else None,
+               "last_root": last}
+        if not agent or not raw:
+            return {**out, "state": "none"}
+        if not key:
+            # Có đường sản phẩm mà đường không được nhận (`.`, `..`, đuôi lạ, thư mục cấm): vẫn cần phạm vi, và không
+            # bao giờ có được. Chặn, không coi như mục tiêu không có sản phẩm (review mã nội bộ, lỗi 1).
+            return {**out, "state": "invalid"}
+        if grant is not None and root is not None and grant["parent_id"] == root["id"] \
+                and int(grant["parent_generation"]) == int(root["generation"]):
+            return {**out, "state": "granted"}
+        if req is not None and int(req["revision"]) == rev:
+            return {**out, "state": "pending"}
+        if root is None and last is not None and last["status"] == "revoked":
+            return {**out, "state": "revoked"}
+        if c.execute("SELECT 1 FROM scope_requests WHERE goal_id=? AND revision=? AND path=? AND status='denied'",
+                     (goal_id, rev, key)).fetchone():
+            return {**out, "state": "denied"}
+        return {**out, "state": "missing"}
+
+    def ensure_scope_request(self, p: Principal, goal_id: str) -> dict:
+        """Cần phạm vi mà chưa có yêu cầu (revision do mã cũ tạo sau khi hạ rồi nâng lại, mục tiêu vừa gán): ghi một yêu
+        cầu chờ chủ dự án. Chỉ ghi yêu cầu, KHÔNG cấp gì (mục 7.4)."""
+        now = time.time()
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            st = self._scope_state(c, row)
+            if st["state"] != "missing":
+                return st
+            agent = self._goal_agent(c, goal_id)
+            # Yêu cầu chờ của revision khác (mã cũ đã tạo revision mới) được thay chỗ trước: chỉ một yêu cầu chờ mỗi mục
+            # tiêu (review mã nội bộ, lỗi 2).
+            c.execute("UPDATE scope_requests SET status='superseded', decided_at=? WHERE goal_id=? AND status='pending'",
+                      (now, goal_id))
+            rid = _nid("sr")
+            c.execute("INSERT INTO scope_requests(id,goal_id,revision,kind,path,agent_key,agent_config_version,"
+                      "origin_ref,reason,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                      (rid, goal_id, int(row["revision"]), "expand" if st["root"] else "create", st["key"], agent,
+                       self._agent_version(c, agent), "", "revision chưa có quyền", "pending", now))
+            return self._scope_state(c, row)
+
+    def binding_block(self, p: Principal, origin_kind: str, origin_ref: str, finishing: bool = False) -> str:
+        """Lý do liên kết của một nguồn (phép thử, lượt nền) không còn dùng được; rỗng là được. Không có liên kết (mục
+        tiêu không cần phạm vi) thì rỗng."""
+        with closing(self._conn()) as c:
+            b = c.execute("SELECT b.* FROM bindings b JOIN goals g ON g.id=b.goal_id WHERE b.origin_kind=? AND "
+                          "b.origin_ref=? AND g.brain_id=? ORDER BY b.created_at DESC LIMIT 1",
+                          (origin_kind, str(origin_ref), p.brain_id)).fetchone()
+            return "" if b is None else self._binding_block(c, b, finishing)
+
+    def turn_binding(self, p: Principal, goal_id: str, revision: int, origin_ref: str) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return None
+            r = c.execute("SELECT * FROM bindings WHERE goal_id=? AND revision=? AND origin_kind='handoff' AND "
+                          "origin_ref=?", (goal_id, int(revision), str(origin_ref))).fetchone()
+            return dict(r) if r else None
+
+    def turn_bindings(self, p: Principal, origin_ref: str, agent_key: str, agent_version: int) -> list:
+        """Mọi liên kết `handoff` của ĐÚNG lượt đang gọi (mọi trạng thái), kèm khoá đường của đích mà liên kết trỏ tới."""
+        with closing(self._conn()) as c:
+            rows = c.execute("SELECT b.* FROM bindings b JOIN goals g ON g.id=b.goal_id WHERE b.origin_kind='handoff' "
+                             "AND b.origin_ref=? AND b.agent_key=? AND b.agent_config_version=? AND g.brain_id=? "
+                             "ORDER BY b.created_at", (str(origin_ref), str(agent_key), int(agent_version or 0),
+                                                        p.brain_id)).fetchall()
+            out = []
+            for b in rows:
+                if b["authority"] == "grant":
+                    g = self._binding_grant(c, b)
+                    target = (g or {}).get("write_paths", [""])[0] if g and g.get("write_paths") else ""
+                else:
+                    q = c.execute("SELECT path FROM scope_requests WHERE id=?", (b["scope_request_id"],)).fetchone()
+                    target = q["path"] if q else ""
+                out.append({**dict(b), "target": target})
+            return out
+
+    def seal_turn(self, p: Principal, goal_id: str, origin_ref: str) -> int:
+        """Lượt chat kết thúc hay hết hạn: liên kết `live` của tin thành `sealed` (hết nhận lời nộp, còn hoàn tất)."""
+        with self._Tx(self) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return 0
+            return c.execute("UPDATE bindings SET status='sealed' WHERE goal_id=? AND origin_kind='handoff' AND "
+                             "origin_ref=? AND status='live'", (goal_id, str(origin_ref))).rowcount
+
+    # ───────────── bản nộp ─────────────
+
+    @staticmethod
+    def _sub(r) -> Optional[dict]:
+        if r is None:
+            return None
+        d = dict(r)
+        d["engine"] = json.loads(d.pop("engine_json") or "{}")
+        return d
+
+    def submission(self, p: Principal, sub_id: str) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            return self._sub(c.execute("SELECT * FROM submissions WHERE id=? AND brain_id=?",
+                                       (str(sub_id), p.brain_id)).fetchone())
+
+    def submission_by_idem(self, p: Principal, goal_id: str, idem: str) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            return self._sub(c.execute("SELECT * FROM submissions WHERE goal_id=? AND idem_key=? AND brain_id=?",
+                                       (goal_id, str(idem), p.brain_id)).fetchone())
+
+    def submissions(self, p: Principal, goal_id: str, limit: int = 5, statuses: Optional[tuple] = None,
+                    revision: Optional[int] = None) -> list:
+        with closing(self._conn()) as c:
+            q, args = "SELECT * FROM submissions WHERE goal_id=? AND brain_id=?", [goal_id, p.brain_id]
+            if statuses:
+                q += " AND status IN (" + ",".join("?" for _ in statuses) + ")"
+                args += list(statuses)
+            if revision is not None:
+                q += " AND revision=?"
+                args.append(int(revision))
+            rows = c.execute(q + " ORDER BY created_at DESC, rowid DESC LIMIT ?", (*args, int(limit))).fetchall()
+            return [self._sub(r) for r in rows]
+
+    def _sub_set(self, c, sub_id: str, status: str, reason: str, now: float, **cols) -> None:
+        # Mọi lần đổi trạng thái kết thúc lượt giữ bản nộp (`hold_submission`): nghĩa vụ thử lại chỉ gắn với lúc nó còn
+        # là `candidate` đã giữ.
+        cols.setdefault("hold_until", None)
+        extra = "".join(f", {k}=?" for k in cols)
+        c.execute(f"UPDATE submissions SET status=?, status_reason=?, updated_at=?{extra} WHERE id=?",
+                  (status, str(reason or "")[:80], now, *cols.values(), sub_id))
+        b = c.execute("SELECT binding_id FROM submissions WHERE id=?", (sub_id,)).fetchone()
+        if b is not None:
+            self._maybe_close_binding(c, b["binding_id"], now)
+
+    @staticmethod
+    def _maybe_close_binding(c, binding_id: str, now: float) -> None:
+        """Liên kết `sealed` thành `closed` trong cùng giao dịch đưa bản nộp cuối của nó về trạng thái cuối (mục 4.7)."""
+        b = c.execute("SELECT status FROM bindings WHERE id=?", (binding_id,)).fetchone()
+        if b is None or b["status"] != "sealed":
+            return
+        left = c.execute("SELECT 1 FROM submissions WHERE binding_id=? AND (status IN ('awaiting_scope','candidate',"
+                         "'publishing') OR (status='published' AND adopted_at IS NULL)) LIMIT 1",
+                         (binding_id,)).fetchone()
+        if left is None:
+            c.execute("UPDATE bindings SET status='closed', closed_at=? WHERE id=? AND status='sealed'",
+                      (now, binding_id))
+
+    def insert_submission(self, p: Principal, binding_id: str, *, sub_id: str, key: str, sha256: str, size: int,
+                          draft_ref: str, evidence_id: str, idem: str, fingerprint: str, source: str,
+                          engine: Optional[dict] = None, em_dash: int = 0) -> dict:
+        """Bước 6 của mục 4.3: MỘT giao dịch kiểm lại `binding_accepts` và quyền rồi chèn bản nộp. Liên kết `grant`:
+        quyền revision có `submit` đúng đích, trạng thái `candidate`. Liên kết `draft`: đúng đường của yêu cầu, trạng thái
+        `awaiting_scope`. Cùng khoá: trả biên nhận đã có (cùng dấu vân tay) hay `submission_conflict`."""
+        now = time.time()
+        with self._Tx(self) as c:
+            b = c.execute("SELECT b.* FROM bindings b JOIN goals g ON g.id=b.goal_id WHERE b.id=? AND g.brain_id=?",
+                          (str(binding_id), p.brain_id)).fetchone()
+            if b is None:
+                return {"status": "rejected", "reason": "no_open_handoff"}
+            old = c.execute("SELECT * FROM submissions WHERE goal_id=? AND idem_key=?", (b["goal_id"], idem)).fetchone()
+            if old is not None:
+                return {"status": "replay" if old["fingerprint"] == fingerprint else "conflict",
+                        "submission": self._sub(old)}
+            why = self._binding_block(c, b, finishing=False)
+            if why:
+                return {"status": "rejected", "reason": why}
+            if b["authority"] == "grant":
+                if not G.allows(self._binding_grant(c, b), "submit", key):
+                    return {"status": "rejected", "reason": "path_not_in_scope"}
+                status = "candidate"
+            else:
+                q = c.execute("SELECT path FROM scope_requests WHERE id=?", (b["scope_request_id"],)).fetchone()
+                if q is None or q["path"] != key:
+                    return {"status": "rejected", "reason": "path_not_in_scope"}
+                status = "awaiting_scope"
+            c.execute("INSERT INTO submissions(id,brain_id,goal_id,revision,binding_id,source,engine_json,path,draft_ref,"
+                      "sha256,size,normalized_em_dash,evidence_id,idem_key,fingerprint,status,created_at,updated_at) "
+                      "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      (sub_id, p.brain_id, b["goal_id"], int(b["revision"]), b["id"], source, _j(engine or {}), key,
+                       str(draft_ref), sha256, int(size), int(em_dash), str(evidence_id or ""), idem, fingerprint,
+                       status, now, now))
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                      "VALUES(?,?,?,?,?,?,?)", (b["goal_id"], int(b["revision"]), "submission_received", "host",
+                                                _j({"submission_id": sub_id, "status": status, "sha256": sha256,
+                                                    "source": source}), p.by, now))
+            return {"status": "accepted", "submission": self._sub(c.execute(
+                "SELECT * FROM submissions WHERE id=?", (sub_id,)).fetchone())}
+
+    def submission_from_output(self, p: Principal, action_id: str, *, key: str, sha256: str, size: int,
+                               draft_ref: str, evidence_id: str) -> Optional[dict]:
+        """Lượt nền đã có đầu ra (receipt): liên kết `action`/`followup` của lượt chuyển `sealed`, rồi chèn bản nộp
+        `background_text` TRƯỚC bước đăng (mục 4.4). Quyền đã ghim không còn: bản nộp ghi `stale` hay `superseded`,
+        không đăng. Lượt không có liên kết (mục tiêu không cần phạm vi, hay lượt có trước A4): None."""
+        now = time.time()
+        with self._Tx(self) as c:
+            b = c.execute("SELECT b.* FROM bindings b JOIN goals g ON g.id=b.goal_id WHERE b.origin_kind IN "
+                          "('action','followup') AND b.origin_ref=? AND g.brain_id=?",
+                          (str(action_id), p.brain_id)).fetchone()
+            if b is None:
+                return None
+            if b["status"] == "live":
+                c.execute("UPDATE bindings SET status='sealed' WHERE id=?", (b["id"],))
+                b = c.execute("SELECT * FROM bindings WHERE id=?", (b["id"],)).fetchone()
+            idem = f"{b['id']}:{key}"
+            old = c.execute("SELECT * FROM submissions WHERE goal_id=? AND idem_key=?", (b["goal_id"], idem)).fetchone()
+            if old is not None:
+                return self._sub(old)
+            why = self._binding_block(c, b, finishing=True)
+            if not why and not G.allows(self._binding_grant(c, b), "submit", key):
+                why = "path_not_in_scope"
+            status = "candidate" if not why else ("superseded" if why == "revision_changed" else "stale")
+            sid = _nid("sub")
+            c.execute("INSERT INTO submissions(id,brain_id,goal_id,revision,binding_id,source,engine_json,path,draft_ref,"
+                      "sha256,size,evidence_id,idem_key,fingerprint,status,status_reason,created_at,updated_at) "
+                      "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      (sid, p.brain_id, b["goal_id"], int(b["revision"]), b["id"], "background_text", "{}", key,
+                       str(draft_ref), sha256, int(size), str(evidence_id or ""), idem,
+                       G.fingerprint(b["id"], key, sha256, "background_text"), status, why, now, now))
+            self._maybe_close_binding(c, b["id"], now)
+            return self._sub(c.execute("SELECT * FROM submissions WHERE id=?", (sid,)).fetchone())
+
+    def latest_candidate(self, p: Principal, goal_id: str, revision: int, binding_id: Optional[str] = None,
+                         supersede_older: bool = False) -> Optional[dict]:
+        """Bản `candidate` mới nhất của revision (hay của một liên kết). `supersede_older`: các bản cũ hơn CÙNG liên kết
+        thành `superseded` (bàn giao cuối lượt chỉ đăng bản mới nhất, mục 4.4)."""
+        now = time.time()
+        with self._Tx(self) as c:
+            q, args = ("SELECT * FROM submissions WHERE goal_id=? AND revision=? AND status='candidate' AND brain_id=?",
+                       [goal_id, int(revision), p.brain_id])
+            if binding_id:
+                q += " AND binding_id=?"
+                args.append(binding_id)
+            rows = c.execute(q + " ORDER BY created_at DESC, rowid DESC", args).fetchall()
+            if not rows:
+                return None
+            if supersede_older:
+                for r in rows[1:]:
+                    if r["binding_id"] == rows[0]["binding_id"]:
+                        self._sub_set(c, r["id"], "superseded", "newer_submission", now)
+            return self._sub(rows[0])
+
+    def republish_latest(self, p: Principal, goal_id: str) -> Optional[dict]:
+        """Đăng lại (mục 4.5): file đích đã bị xoá mà revision hiện tại có bản đã đăng. Tạo bản nộp `republish` chép bản
+        đã đăng mới nhất (cùng file nháp, cùng sha), dưới liên kết MỚI ghim quyền revision ĐANG hiệu lực; không dùng lại
+        liên kết cũ. Không có quyền hiệu lực hay không có bản đã đăng: None. Không gọi model."""
+        now = time.time()
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None or self._scope_state(c, row)["state"] != "granted":
+                return None
+            rev = int(row["revision"])
+            s = c.execute("SELECT * FROM submissions WHERE goal_id=? AND revision=? AND status='published' "
+                          "ORDER BY updated_at DESC, rowid DESC LIMIT 1", (goal_id, rev)).fetchone()
+            if s is None:
+                return None
+            agent = self._goal_agent(c, goal_id)
+            ref = _nid("rp")
+            b, _why = self._open_binding(c, row, rev, "republish", ref, agent, self._agent_version(c, agent), now,
+                                         status="sealed")
+            if b is None:
+                return None
+            sid = _nid("sub")
+            c.execute("INSERT INTO submissions(id,brain_id,goal_id,revision,binding_id,source,engine_json,path,draft_ref,"
+                      "sha256,size,normalized_em_dash,evidence_id,idem_key,fingerprint,derived_from,status,created_at,"
+                      "updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      (sid, p.brain_id, goal_id, rev, b["id"], "republish", "{}", s["path"], s["draft_ref"],
+                       s["sha256"], s["size"], s["normalized_em_dash"], s["evidence_id"], f"republish:{ref}",
+                       G.fingerprint(b["id"], s["path"], s["sha256"], "republish"), s["id"], "candidate", now, now))
+            return self._sub(c.execute("SELECT * FROM submissions WHERE id=?", (sid,)).fetchone())
+
+    # ───────────── đăng của host: bốn bước (mục 4.5) ─────────────
+
+    def publish_intent(self, p: Principal, sub_id: str, rel: str, cur_sha: Optional[str], extra_intent: dict,
+                       now: Optional[float] = None) -> dict:
+        """Bước 1: kiểm `binding_may_finish`, quyền `publish` đúng đích, tạm dừng và chốt guard; đọc baseline. `cur_sha`
+        là hash đích người gọi vừa đọc (None: chưa có file). Đích đã cùng hash (nhánh `same`): ghi mốc NGAY trong giao
+        dịch này, sau khi đã kiểm quyền. Đích có bytes lạ không khớp baseline: `conflict`. Đạt: ghi hành động `publish`
+        mang liên kết và bản nộp, bản nộp sang `publishing`. `now`: đồng hồ của vòng thức (cùng đồng hồ với lượt việc
+        và hạn khoá, như begin_action)."""
+        now = time.time() if now is None else float(now)
+        with self._Tx(self) as c:
+            s = c.execute("SELECT * FROM submissions WHERE id=? AND brain_id=?", (str(sub_id), p.brain_id)).fetchone()
+            if s is None:
+                return {"status": "none"}
+            if s["status"] != "candidate":
+                return {"status": "not_candidate", "submission_status": s["status"]}
+            b = c.execute("SELECT * FROM bindings WHERE id=?", (s["binding_id"],)).fetchone()
+            why = self._binding_block(c, b, finishing=True)
+            if not why and not G.allows(self._binding_grant(c, b), "publish", s["path"]):
+                why = "path_not_in_scope"
+            if why:
+                self._sub_set(c, s["id"], "superseded" if why == "revision_changed" else "stale", why, now)
+                return {"status": "stale", "reason": why}
+            row = c.execute("SELECT * FROM goals WHERE id=?", (s["goal_id"],)).fetchone()
+            held = self._publish_held(c, row, int(s["revision"]))
+            if held:
+                return {"status": "held", "reason": held}
+            pub = c.execute("SELECT * FROM published WHERE goal_id=? AND path=?", (s["goal_id"], rel)).fetchone()
+            base = {"path": rel, "key": s["path"], "sha256": s["sha256"], "binding_id": s["binding_id"],
+                    "submission_id": s["id"], **(extra_intent or {})}
+            if cur_sha == s["sha256"]:
+                aid = f"act_{secrets.token_hex(8)}"
+                seq = self._next_seq(c, s["goal_id"], int(s["revision"]), "publish")
+                c.execute("INSERT INTO actions(id,goal_id,revision,kind,seq,status,lease_until,intent_json,receipt_json,"
+                          "created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                          (aid, s["goal_id"], int(s["revision"]), "publish", seq, "succeeded", None,
+                           _j({**base, "before": cur_sha}), _j({"same": True, "commit_at": now, "sha256": cur_sha}),
+                           now, now))
+                self._set_published_c(c, s["goal_id"], rel, s["sha256"], aid, now)
+                self._sub_set(c, s["id"], "published", "same", now, publish_action_id=aid,
+                              **({"adopted_at": now} if s["source"] in HOST_SOURCES else {}))
+                if s["source"] not in HOST_SOURCES:
+                    # Còn bước tiếp nhận riêng: có lịch hoàn tất phòng khi bước đó lỗi (review mã A4 vòng 2, P2-2).
+                    self._wake(c, s["goal_id"], row["brain_id"], "settle", now + R.LEASE_EXTRA_S,
+                               "tiếp nhận lần đăng đã chốt", keep_earlier=True)
+                return {"status": "same", "action_id": aid, "sha256": cur_sha}
+            if cur_sha is not None and (pub is None or pub["sha256"] != cur_sha):
+                self._sub_set(c, s["id"], "conflict", "target_changed" if pub else "no_baseline", now)
+                c.execute("INSERT OR IGNORE INTO goal_events(goal_id,revision,kind,source,payload_json,by,"
+                          "idempotency_key,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                          (s["goal_id"], int(s["revision"]), "publish_conflict", "host",
+                           _j({"path": rel, "found_sha256": cur_sha, "submission_id": s["id"]}), p.by,
+                           f"publish_conflict:{rel}:{cur_sha[:16]}", now))
+                c.execute("INSERT OR IGNORE INTO outbox(goal_id,kind,payload_json,created_at,idem) VALUES(?,?,?,?,?)",
+                          (s["goal_id"], "goal.publish_conflict",
+                           _j({"revision": int(row["revision"]), "path": rel, "had_baseline": pub is not None}),
+                           now, f"publish_conflict:{rel}:{cur_sha[:16]}"))
+                return {"status": "conflict", "had_baseline": pub is not None}
+            aid = f"act_{secrets.token_hex(8)}"
+            seq = self._next_seq(c, s["goal_id"], int(s["revision"]), "publish")
+            lease = now + R.LEASE_EXTRA_S
+            c.execute("INSERT INTO actions(id,goal_id,revision,kind,seq,status,lease_until,intent_json,receipt_json,"
+                      "created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                      (aid, s["goal_id"], int(s["revision"]), "publish", seq, "running", lease,
+                       _j({**base, "before": cur_sha}), "{}", now, now))
+            self._reason_timer(c, s["goal_id"], row["brain_id"], "action_recovery", lease + 1, int(s["revision"]), now)
+            self._sub_set(c, s["id"], "publishing", "", now, publish_action_id=aid)
+            return {"status": "intent", "action_id": aid, "before": cur_sha}
+
+    @staticmethod
+    def _next_seq(c, goal_id: str, revision: int, kind: str) -> int:
+        return int(c.execute("SELECT COALESCE(MAX(seq),0) FROM actions WHERE goal_id=? AND revision=? AND kind=?",
+                             (goal_id, int(revision), kind)).fetchone()[0]) + 1
+
+    @staticmethod
+    def _set_published_c(c, goal_id: str, rel: str, sha: str, action_id: str, now: float) -> None:
+        c.execute("INSERT INTO published VALUES(?,?,?,?,?) ON CONFLICT(goal_id,path) DO UPDATE SET "
+                  "sha256=excluded.sha256, action_id=excluded.action_id, created_at=excluded.created_at",
+                  (goal_id, rel, sha, action_id, now))
+
+    def _publish_rows(self, c, p: Principal, action_id: str) -> tuple:
+        a = c.execute("SELECT a.* FROM actions a JOIN goals g ON g.id=a.goal_id WHERE a.id=? AND g.brain_id=?",
+                      (str(action_id), p.brain_id)).fetchone()
+        if a is None:
+            raise ScopeError("hành động không tồn tại trong brain này")
+        it = json.loads(a["intent_json"] or "{}")
+        s = c.execute("SELECT * FROM submissions WHERE id=?", (str(it.get("submission_id") or ""),)).fetchone()
+        return a, it, s
+
+    def publish_commit(self, p: Principal, action_id: str, read_sha) -> dict:
+        """Bước 3, mốc commit, `BEGIN IMMEDIATE` tuần tự với thu hồi: kiểm lại `binding_may_finish`, tạm dừng, chốt
+        guard, rồi đọc lại hash đích (`read_sha()`, None khi chưa có file) so với baseline của bước 1. Đạt: ghi
+        `commit_at`. Không đạt: hành động huỷ (`aborted`), bản nộp về `candidate` nếu quyền đã ghim còn, không thì
+        `stale`; đích đổi giữa chừng thì về `candidate` để lần đăng sau báo xung đột đúng luật."""
+        now = time.time()
+        with self._Tx(self) as c:
+            a, it, s = self._publish_rows(c, p, action_id)
+            if a["status"] != "running" or s is None:
+                return {"status": "gone"}
+            rc = json.loads(a["receipt_json"] or "{}")
+            if rc.get("commit_at"):
+                return {"status": "committed", "commit_at": rc["commit_at"]}
+            b = c.execute("SELECT * FROM bindings WHERE id=?", (s["binding_id"],)).fetchone()
+            why = self._binding_block(c, b, finishing=True)
+            row = c.execute("SELECT * FROM goals WHERE id=?", (a["goal_id"],)).fetchone()
+            held = "" if why else self._publish_held(c, row, int(s["revision"]))
+            moved = ""
+            if not why and not held:
+                cur = read_sha()
+                if cur != it.get("before"):
+                    moved = "target_changed"
+            if why or held or moved:
+                c.execute("UPDATE actions SET status='cancelled', lease_until=NULL, receipt_json=?, updated_at=? WHERE id=?",
+                          (_j({"error_code": "aborted", "reason": why or held or moved}), now, action_id))
+                if s["status"] == "publishing":
+                    nxt = "candidate" if not why else ("superseded" if why == "revision_changed" else "stale")
+                    self._sub_set(c, s["id"], nxt, why or held or moved, now)
+                return {"status": "aborted", "reason": why or held or moved}
+            c.execute("UPDATE actions SET receipt_json=?, updated_at=? WHERE id=?",
+                      (_j({"commit_at": now}), now, action_id))
+            # Tác động đã được phép: từ đây nó có lịch hoàn tất RIÊNG, không phụ thuộc lịch làm việc (tạm dừng, thu hồi,
+            # huỷ không làm mất đường hoàn tất; review mã A4 vòng 1, P2-2).
+            self._wake(c, a["goal_id"], row["brain_id"], "settle", float(a["lease_until"] or now) + 1,
+                       "hoàn tất lần đăng đã chốt")
+            return {"status": "committed", "commit_at": now}
+
+    def publish_finish(self, p: Principal, action_id: str, got_sha: Optional[str]) -> dict:
+        """Bước 4 (luật tác động đã commit): đích bằng sha bản nộp thì ghi mốc, bản nộp `published`; khác thì
+        `conflict`. Không kiểm lại liên kết hay quyền: tác động đã được phép ở mốc commit."""
+        now = time.time()
+        with self._Tx(self) as c:
+            a, it, s = self._publish_rows(c, p, action_id)
+            rc = json.loads(a["receipt_json"] or "{}")
+            if a["status"] != "running" or s is None:
+                return {"status": "gone"}
+            if got_sha is not None and got_sha == it.get("sha256"):
+                c.execute("UPDATE actions SET status='succeeded', lease_until=NULL, receipt_json=?, updated_at=? WHERE id=?",
+                          (_j({**rc, "path": it.get("path"), "sha256": got_sha, "before": it.get("before")}), now,
+                           action_id))
+                self._set_published_c(c, a["goal_id"], it["path"], got_sha, action_id, now)
+                self._sub_set(c, s["id"], "published", "", now,
+                              **({"adopted_at": now} if s["source"] in HOST_SOURCES else {}))
+                self._settle_done(c, a["goal_id"])
+                return {"status": "published", "sha256": got_sha}
+            c.execute("UPDATE actions SET status='uncertain', lease_until=NULL, receipt_json=?, updated_at=? WHERE id=?",
+                      (_j({**rc, "path": it.get("path"), "sha256": got_sha, "error_code": "target_changed"}), now,
+                       action_id))
+            self._sub_set(c, s["id"], "conflict", "target_changed_after_commit", now)
+            self._settle_done(c, a["goal_id"])
+            return {"status": "conflict"}
+
+    @staticmethod
+    def _publish_held(c, row, revision: int) -> str:
+        """Can thiệp của người dùng chặn một lần đăng CHƯA qua mốc commit, đọc trong giao dịch của người gọi: tạm dừng,
+        chốt guard, và phản hồi cách hiểu mới nhất của đúng revision là "Chưa đúng ý" (review mã A4 vòng 1, P1-1).
+        Đổi lại "Đúng ý" sau đó thì phản hồi mới nhất không còn là từ chối, lần đăng sau đi tiếp."""
+        if int(row["paused"] or 0):
+            return "paused"
+        if row["block_reason"] == "guard":
+            return "guard"
+        fb = c.execute("SELECT kind FROM goal_events WHERE goal_id=? AND revision=? AND kind IN "
+                       "('feedback.goal_fit_confirmed','feedback.goal_fit_rejected') ORDER BY id DESC LIMIT 1",
+                       (row["id"], int(revision))).fetchone()
+        if fb is not None and fb["kind"] == "feedback.goal_fit_rejected":
+            return "fit_rejected"
+        return ""
+
+    @staticmethod
+    def _settle_left(c, goal_id: str) -> int:
+        """Số nghĩa vụ hoàn tất còn mở của một mục tiêu: lần đăng đã commit chưa xong, và bản nộp đã đăng mà chưa tiếp
+        nhận (nguồn cần bước tiếp nhận riêng). Lịch `settle` sống tới khi số này về 0 (review mã A4 vòng 2, P2-2)."""
+        running = [r for r in c.execute("SELECT receipt_json FROM actions WHERE goal_id=? AND kind='publish' AND "
+                                        "status='running'", (goal_id,)).fetchall()
+                   if json.loads(r["receipt_json"] or "{}").get("commit_at")]
+        unadopted = c.execute("SELECT COUNT(*) FROM submissions WHERE goal_id=? AND status='published' AND "
+                              "adopted_at IS NULL AND source IN ('submit_tool','approved_draft')",
+                              (goal_id,)).fetchone()[0]
+        # Bản `candidate` được giữ vì file nháp tạm thời không đọc được (review mã A4 vòng 3): chưa qua mốc commit nhưng
+        # đã là bản hợp lệ chờ đăng lại bằng code.
+        held = c.execute("SELECT COUNT(*) FROM submissions WHERE goal_id=? AND status='candidate' AND "
+                         "hold_until IS NOT NULL", (goal_id,)).fetchone()[0]
+        return len(running) + int(unadopted) + int(held)
+
+    @classmethod
+    def _settle_next(cls, c, goal_id: str, now: float) -> Optional[float]:
+        """Giờ sớm nhất một nghĩa vụ hoàn tất còn mở tới lượt xét lại: hạn của lần đăng đã commit, hạn giữ bản nộp, hay
+        ngay sau một khoảng ngắn cho bản chưa tiếp nhận. None khi không còn nghĩa vụ."""
+        due = []
+        for r in c.execute("SELECT lease_until, receipt_json FROM actions WHERE goal_id=? AND kind='publish' AND "
+                           "status='running'", (goal_id,)).fetchall():
+            if json.loads(r["receipt_json"] or "{}").get("commit_at"):
+                due.append(float(r["lease_until"] or now) + 1)
+        for r in c.execute("SELECT hold_until FROM submissions WHERE goal_id=? AND status='candidate' AND "
+                           "hold_until IS NOT NULL", (goal_id,)).fetchall():
+            due.append(float(r["hold_until"]) + 1)
+        if c.execute("SELECT 1 FROM submissions WHERE goal_id=? AND status='published' AND adopted_at IS NULL AND "
+                     "source IN ('submit_tool','approved_draft') LIMIT 1", (goal_id,)).fetchone():
+            due.append(float(now) + R.LEASE_EXTRA_S)
+        return min(due) if due else None
+
+    @classmethod
+    def _settle_done(cls, c, goal_id: str) -> None:
+        """Không còn nghĩa vụ hoàn tất nào: bỏ lịch `settle`, và gỡ gác `publish_settling` để lịch làm việc xét tiếp các
+        lý do đang chờ (review mã A4 vòng 2, P2-3)."""
+        if cls._settle_left(c, goal_id):
+            return
+        c.execute("DELETE FROM wakeups WHERE goal_id=? AND kind='settle'", (goal_id,))
+        cur = c.execute("UPDATE goals SET run_state='ready', block_reason='', updated_at=? WHERE id=? AND "
+                        "block_reason='publish_settling'", (time.time(), goal_id))
+        if cur.rowcount:
+            cls._recompute_wake(c, goal_id)
+
+    def settle_pending(self, p: Principal, goal_id: str) -> int:
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return 0
+            return self._settle_left(c, goal_id)
+
+    def ensure_settle(self, p: Principal, goal_id: str, due_at: float) -> None:
+        """Bảo đảm có lịch `settle` khi còn nghĩa vụ hoàn tất (giữ mốc sớm hơn nếu đã có)."""
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is not None and self._settle_left(c, goal_id):
+                self._wake(c, goal_id, row["brain_id"], "settle", float(due_at), "hoàn tất lần đăng đã chốt",
+                           keep_earlier=True)
+
+    def reject_submission(self, p: Principal, sub_id: str, reason: str) -> None:
+        """Bản nháp mất hay sai hash: không bao giờ đăng bytes khác sha đã nhận. Bản nộp `rejected` với lý do RIÊNG
+        (không phải xung đột file đích); hành động đăng đang chạy của nó (nếu có) chốt `failed` (review A4 vòng 2, P2-1)."""
+        now = time.time()
+        with self._Tx(self) as c:
+            s = c.execute("SELECT * FROM submissions WHERE id=? AND brain_id=?", (str(sub_id), p.brain_id)).fetchone()
+            if s is None or s["status"] not in ("candidate", "publishing"):
+                return
+            if s["publish_action_id"]:
+                a = c.execute("SELECT * FROM actions WHERE id=?", (s["publish_action_id"],)).fetchone()
+                if a is not None and a["status"] == "running":
+                    rc = json.loads(a["receipt_json"] or "{}")
+                    c.execute("UPDATE actions SET status='failed', lease_until=NULL, receipt_json=?, updated_at=? "
+                              "WHERE id=?", (_j({**rc, "error_code": reason}), now, a["id"]))
+            self._sub_set(c, s["id"], "rejected", reason, now)
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                      "VALUES(?,?,?,?,?,?,?)", (s["goal_id"], int(s["revision"]), "submission_draft_lost", "host",
+                                                _j({"submission_id": s["id"], "reason": reason}), p.by, now))
+            self._settle_done(c, s["goal_id"])
+
+    def publish_retry(self, p: Principal, action_id: str, now: float) -> dict:
+        """Lần đăng ĐÃ commit chưa hoàn tất được vì lỗi đọc hay ghi tạm thời (file đang mở, khoá chia sẻ): KHÔNG chốt
+        xung đột. Giữ hành động `running`, nới hạn với giãn cách tăng dần, hẹn lịch `settle` để đối soát lại (review mã
+        A4 vòng 1, P2-1). Chỉ chốt xung đột khi đọc được đích và nó khác cả baseline lẫn bản nộp."""
+        with self._Tx(self) as c:
+            a, _it, _s = self._publish_rows(c, p, action_id)
+            rc = json.loads(a["receipt_json"] or "{}")
+            if a["status"] != "running" or not rc.get("commit_at"):
+                return {"status": "skip"}
+            n = int(rc.get("recovery_attempts") or 0) + 1
+            delay = min(3600.0, 60.0 * (2 ** min(n - 1, 6)))
+            until = float(now) + delay
+            c.execute("UPDATE actions SET lease_until=?, receipt_json=?, updated_at=? WHERE id=?",
+                      (until, _j({**rc, "recovery_attempts": n, "last_error": "io_transient"}), time.time(), action_id))
+            row = c.execute("SELECT brain_id FROM goals WHERE id=?", (a["goal_id"],)).fetchone()
+            c.execute("INSERT INTO wakeups(goal_id,brain_id,kind,due_at,reason,updated_at) VALUES(?,?,?,?,?,?) "
+                      "ON CONFLICT(goal_id,kind) DO UPDATE SET due_at=excluded.due_at, reason=excluded.reason, "
+                      "updated_at=excluded.updated_at",
+                      (a["goal_id"], row["brain_id"], "settle", until + 1, "thử lại hoàn tất lần đăng đã chốt",
+                       time.time()))
+            return {"status": "retry", "attempts": n, "next_at": until + 1}
+
+    def committed_publishes(self, p: Principal, goal_id: str) -> list:
+        """Lần đăng đã qua mốc commit mà chưa xong, của một mục tiêu (mọi trạng thái mục tiêu)."""
+        with closing(self._conn()) as c:
+            rows = c.execute("SELECT a.* FROM actions a JOIN goals g ON g.id=a.goal_id WHERE a.goal_id=? AND "
+                             "g.brain_id=? AND a.kind='publish' AND a.status='running' ORDER BY a.created_at",
+                             (goal_id, p.brain_id)).fetchall()
+            return [self._action(r) for r in rows if json.loads(r["receipt_json"] or "{}").get("commit_at")]
+
+    def settle_cleanup(self, p: Principal, goal_id: str, now: Optional[float] = None) -> None:
+        """Cuối lần thức `settle`: hết nghĩa vụ thì bỏ lịch và gỡ gác; còn thì đặt lịch đúng giờ nghĩa vụ sớm nhất (thay
+        mốc nhận lịch của tick), không thức dày khi lỗi còn kéo dài."""
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                return
+            self._settle_done(c, goal_id)
+            nxt = self._settle_next(c, goal_id, time.time() if now is None else float(now))
+            if nxt is not None:
+                self._wake(c, goal_id, row["brain_id"], "settle", nxt, "hoàn tất lần đăng đã chốt")
+
+    def hold_submission(self, p: Principal, sub_id: str, reason: str, now: float) -> dict:
+        """Bản `candidate` chưa đăng được vì file nháp tạm thời không đọc được (lỗi I/O, chưa qua mốc commit): giữ bản
+        nộp, hẹn lịch `settle` thử lại với giãn cách tăng dần (60 giây, gấp đôi, trần 1 giờ). Trong lúc giữ, lịch làm việc
+        gác `publish_settling`, không gọi model (review mã A4 vòng 3)."""
+        with self._Tx(self) as c:
+            s = c.execute("SELECT * FROM submissions WHERE id=? AND brain_id=?", (str(sub_id), p.brain_id)).fetchone()
+            if s is None or s["status"] != "candidate":
+                return {"status": "skip"}
+            n = int(s["hold_attempts"] or 0) + 1
+            until = float(now) + min(3600.0, 60.0 * (2 ** min(n - 1, 6)))
+            c.execute("UPDATE submissions SET hold_attempts=?, hold_until=?, status_reason=?, updated_at=? WHERE id=?",
+                      (n, until, str(reason or "")[:80], time.time(), s["id"]))
+            row = c.execute("SELECT brain_id FROM goals WHERE id=?", (s["goal_id"],)).fetchone()
+            self._wake(c, s["goal_id"], row["brain_id"], "settle", until + 1, "thử đăng lại bản nộp đã giữ",
+                       keep_earlier=True)
+            return {"status": "held", "attempts": n, "next_at": until + 1}
+
+    def held_submissions(self, p: Principal, goal_id: str) -> list:
+        with closing(self._conn()) as c:
+            return [self._sub(r) for r in c.execute(
+                "SELECT * FROM submissions WHERE goal_id=? AND brain_id=? AND status='candidate' AND hold_until IS NOT "
+                "NULL ORDER BY created_at", (goal_id, p.brain_id)).fetchall()]
+
+    def release_hold(self, p: Principal, sub_id: str) -> None:
+        """Hết lý do giữ (file nháp đọc lại được, hay bản này không còn là bản sẽ đăng): bỏ nghĩa vụ thử lại, bản nộp vẫn
+        `candidate`; nghĩa vụ về 0 thì gỡ gác để lịch làm việc đăng bản đã giữ rồi mới đánh giá."""
+        with self._Tx(self) as c:
+            s = c.execute("SELECT * FROM submissions WHERE id=? AND brain_id=?", (str(sub_id), p.brain_id)).fetchone()
+            if s is None or s["hold_until"] is None:
+                return
+            c.execute("UPDATE submissions SET hold_until=NULL, status_reason='', updated_at=? WHERE id=?",
+                      (time.time(), s["id"]))
+            self._settle_done(c, s["goal_id"])
+
+    def publish_abort(self, p: Principal, action_id: str, reason: str) -> dict:
+        """Hành động đăng CHƯA qua mốc commit bị bỏ (đối soát, lỗi ghi file trước mốc): huỷ, bản nộp về `candidate` nếu
+        quyền đã ghim còn, không thì `stale`. Hành động đã commit thì không đụng (luật tác động đã commit)."""
+        now = time.time()
+        with self._Tx(self) as c:
+            a, it, s = self._publish_rows(c, p, action_id)
+            rc = json.loads(a["receipt_json"] or "{}")
+            if a["status"] != "running" or rc.get("commit_at"):
+                return {"status": "skip"}
+            c.execute("UPDATE actions SET status='cancelled', lease_until=NULL, receipt_json=?, updated_at=? WHERE id=?",
+                      (_j({"error_code": "aborted", "reason": reason, "reconciled": True}), now, action_id))
+            if s is not None and s["status"] == "publishing":
+                b = c.execute("SELECT * FROM bindings WHERE id=?", (s["binding_id"],)).fetchone()
+                why = self._binding_block(c, b, finishing=True)
+                self._sub_set(c, s["id"], "candidate" if not why else
+                              ("superseded" if why == "revision_changed" else "stale"), why or reason, now)
+            return {"status": "aborted"}
+
+    def adopt_submission(self, p: Principal, sub_id: str) -> str:
+        """Tiếp nhận một bản nộp đã đăng (bản tách của `finish_handoff`, mục 4.4): nối bằng chứng `chat_output`, sự kiện
+        `artifact_adopted` khoá `adopt:<submission_id>`, đóng bàn giao, nhả lịch, ghi `adopted_at`. MỘT giao dịch, chạy lại
+        không nhân đôi. Không ghi `published` lần nữa. Đã thu hồi sau commit: vẫn ghi bằng chứng và sự kiện (tác động là
+        thật) nhưng không nhả lịch."""
+        now = time.time()
+        with self._Tx(self) as c:
+            s = c.execute("SELECT * FROM submissions WHERE id=? AND brain_id=?", (str(sub_id), p.brain_id)).fetchone()
+            if s is None or s["status"] != "published":
+                return "not_published"
+            if s["adopted_at"] is not None:
+                return "already"
+            row = c.execute("SELECT * FROM goals WHERE id=?", (s["goal_id"],)).fetchone()
+            b = c.execute("SELECT * FROM bindings WHERE id=?", (s["binding_id"],)).fetchone()
+            rev = int(s["revision"])
+            if s["evidence_id"]:
+                c.execute("INSERT OR IGNORE INTO evidence_links VALUES(?,?,?,?,?,?,?)",
+                          (s["goal_id"], rev, f"sub:{s['id']}", s["evidence_id"], "chat_output", s["sha256"], now))
+            src = "owner_approval" if s["source"] == "approved_draft" else "host"
+            ref = (b["origin_ref"] if b is not None and b["origin_kind"] == "handoff" else "")
+            c.execute("INSERT OR IGNORE INTO goal_events(goal_id,revision,kind,source,message_ref,payload_json,by,"
+                      "idempotency_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                      (s["goal_id"], rev, "artifact_adopted", src, ref,
+                       _j({"path": s["path"], "sha256": s["sha256"], "evidence_id": s["evidence_id"],
+                           "submission_id": s["id"], "source": s["source"]}), p.by, f"adopt:{s['id']}", now))
+            if b is not None and b["origin_kind"] == "handoff":
+                c.execute("UPDATE handoffs SET status='done', updated_at=? WHERE goal_id=? AND revision=? AND "
+                          "message_ref=? AND status IN ('pending','expired')", (now, s["goal_id"], rev, b["origin_ref"]))
+            c.execute("UPDATE submissions SET adopted_at=?, updated_at=? WHERE id=?", (now, now, s["id"]))
+            self._settle_done(c, s["goal_id"])
+            live = row is not None and row["status"] == "active" and not int(row["paused"] or 0) \
+                and int(row["revision"]) == rev and not self._binding_block(c, b, finishing=True)
+            if live:
+                ref_key = (f"handoff:{rev}" if b is not None and b["origin_kind"] == "handoff"
+                           else f"approval:{b['origin_ref'] if b is not None else s['id']}")
+                self._reason_event(c, s["goal_id"], row["brain_id"], "handoff_done", ref_key, rev)
+            if b is not None:
+                self._maybe_close_binding(c, b["id"], now)
+            return "adopted"
+
+    def unadopted_published(self, p: Principal, goal_id: str) -> list:
+        """Bản nộp đã đăng mà chưa tiếp nhận xong (tiến trình chết giữa bước đăng và bước tiếp nhận, mục 4.7)."""
+        with closing(self._conn()) as c:
+            return [self._sub(r) for r in c.execute(
+                "SELECT * FROM submissions WHERE goal_id=? AND brain_id=? AND status='published' AND adopted_at IS NULL "
+                "ORDER BY created_at", (goal_id, p.brain_id)).fetchall()]
+
+    def record_observed_write(self, c, b, key: str, sha256: str, draft_ref: str, evidence_id: str, now: float) -> None:
+        """Ghi dòng sổ `observed_write` đã tiếp nhận tại chỗ (gọi trong giao dịch `finish_handoff`)."""
+        sid = _nid("sub")
+        idem = f"{b['id']}:observed:{sha256[:16]}"
+        if c.execute("SELECT 1 FROM submissions WHERE goal_id=? AND idem_key=?", (b["goal_id"], idem)).fetchone():
+            return
+        c.execute("INSERT INTO submissions(id,brain_id,goal_id,revision,binding_id,source,engine_json,path,draft_ref,"
+                  "sha256,size,evidence_id,idem_key,fingerprint,status,adopted_at,created_at,updated_at) "
+                  "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                  (sid, (c.execute("SELECT brain_id FROM goals WHERE id=?", (b["goal_id"],)).fetchone() or {"brain_id": ""})
+                   ["brain_id"], b["goal_id"], int(b["revision"]), b["id"], "observed_write", "{}", key, draft_ref,
+                   sha256, 0, str(evidence_id or ""), idem, G.fingerprint(b["id"], key, sha256, "observed_write"),
+                   "adopted_in_place", now, now, now))
+
+    # ───────────── lệnh của chủ dự án: cho phép, không, thu hồi, cấp lại ─────────────
+
+    def approve_scope(self, p: Principal, goal_id: str, request_id: str, path: str,
+                      submission_id: str = "", sha256: str = "") -> dict:
+        """Chủ dự án Cho phép MỘT yêu cầu cụ thể (mục 5.3). Một giao dịch `BEGIN IMMEDIATE`, kiểm hết rồi mới ghi: yêu cầu
+        còn `pending`, đúng revision hiện hành, đường gửi lên bằng đường của yêu cầu, trợ lý không đổi, và đúng bản nháp
+        thẻ đã hiện (mới nhất, đúng sha). Sai điều nào: ConflictError `scope_request_stale`, không tạo gốc nào.
+
+        Đạt: gốc `owner_approved` mới (gốc cũ của yêu cầu `expand` thành `superseded`), quyền revision, yêu cầu
+        `approved`, liên kết `draft` `closed`. Có bản nháp: bản đó `promoted`, liên kết `approval` (`sealed`, ghim gốc
+        mới) và bản nộp `approved_draft` ở `candidate`; người gọi đăng nó, không gọi model."""
+        self._owner_only(p)
+        now = time.time()
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            req = c.execute("SELECT * FROM scope_requests WHERE id=? AND goal_id=?", (str(request_id), goal_id)).fetchone()
+            stale = None
+            if req is None or req["status"] != "pending" or row["status"] != "active":
+                stale = "yêu cầu không còn chờ"
+            elif int(req["revision"]) != int(row["revision"]):
+                stale = "mục tiêu đã sang revision khác"
+            elif G.path_key(row["brain_id"], path) != req["path"]:
+                stale = "đường không khớp yêu cầu"
+            elif self._goal_agent(c, goal_id) != req["agent_key"] or self._agent_block(
+                    c, row["brain_id"], req["agent_key"], req["agent_config_version"]):
+                stale = "trợ lý đã đổi"
+            drafts = [] if stale else c.execute(
+                "SELECT s.* FROM submissions s JOIN bindings b ON b.id=s.binding_id WHERE b.scope_request_id=? AND "
+                "s.status='awaiting_scope' ORDER BY s.created_at DESC, s.rowid DESC", (req["id"],)).fetchall()
+            latest = drafts[0] if drafts else None
+            if not stale and submission_id and (latest is None or latest["id"] != submission_id
+                                                or latest["sha256"] != str(sha256 or "")):
+                stale = "bản nháp đã đổi"
+            elif not stale and not submission_id and latest is not None:
+                stale = "đã có bản nháp mới"
+            if stale:
+                raise ConflictError(f"scope_request_stale: {stale}")
+            seq = self._seq_bump(c)
+            agent, ver = req["agent_key"], self._agent_version(c, req["agent_key"])
+            old_root = self._active_root(c, goal_id)
+            if old_root is not None:
+                c.execute("UPDATE grants SET status='superseded', updated_at=? WHERE id=?", (now, old_root["id"]))
+                c.execute("UPDATE grants SET status='superseded', updated_at=? WHERE parent_id=? AND status='active'",
+                          (now, old_root["id"]))
+            root = self._insert_grant(c, kind="root", row=row, revision=0, agent_key=agent, agent_version=ver, by=p.by,
+                                      source="owner_approved", key=req["path"], now=now, seq=seq,
+                                      source_ref={"scope_request_id": req["id"], "by": p.by})
+            grant = self._insert_grant(c, kind="revision", row=row, revision=int(row["revision"]), agent_key=agent,
+                                       agent_version=ver, by=p.by, source="owner_approved", key=req["path"], now=now,
+                                       parent=root)
+            c.execute("UPDATE scope_requests SET status='approved', decided_by=?, decided_at=?, decided_submission_id=? "
+                      "WHERE id=?", (p.by, now, latest["id"] if latest is not None else "", req["id"]))
+            for d in drafts[1:]:
+                self._sub_set(c, d["id"], "superseded", "newer_submission", now)
+            out = {"root_id": root["id"], "grant_id": grant["id"], "submission_id": ""}
+            if latest is not None:
+                self._sub_set(c, latest["id"], "promoted", "owner_approved", now)
+                ab, why = self._open_binding(c, row, int(row["revision"]), "approval", req["id"], agent, ver, now,
+                                             status="sealed")
+                if ab is None:
+                    raise GrantError(why)
+                sid = _nid("sub")
+                c.execute("INSERT INTO submissions(id,brain_id,goal_id,revision,binding_id,source,engine_json,path,"
+                          "draft_ref,sha256,size,normalized_em_dash,evidence_id,idem_key,fingerprint,derived_from,status,"
+                          "created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                          (sid, p.brain_id, goal_id, int(row["revision"]), ab["id"], "approved_draft",
+                           latest["engine_json"], latest["path"], latest["draft_ref"], latest["sha256"], latest["size"],
+                           latest["normalized_em_dash"], latest["evidence_id"], f"approval:{req['id']}",
+                           G.fingerprint(ab["id"], latest["path"], latest["sha256"], "approved_draft"), latest["id"],
+                           "candidate", now, now))
+                out["submission_id"] = sid
+            c.execute("UPDATE bindings SET status='closed', closed_at=? WHERE scope_request_id=? AND authority='draft' "
+                      "AND status IN ('live','sealed')", (now, req["id"]))
+            if row["block_reason"] in ("scope_pending", "grant_missing", "scope_denied"):
+                c.execute("UPDATE goals SET run_state='ready', block_reason='', updated_at=? WHERE id=?", (now, goal_id))
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                      "VALUES(?,?,?,?,?,?,?)", (goal_id, int(row["revision"]), "scope_approved", "owner",
+                                                _j({"request_id": req["id"], "path": req["path"], **out}), p.by, now))
+            if latest is None:
+                self._reason_event(c, goal_id, p.brain_id, "scope_granted", f"scope:{req['id']}", int(row["revision"]))
+            else:
+                self._recompute_wake(c, goal_id)
+            return out
+
+    def deny_scope(self, p: Principal, goal_id: str, request_id: str) -> dict:
+        """Chủ dự án bấm Không: yêu cầu `denied`, bản nháp `rejected`, liên kết `draft` `closed`. Mục tiêu vẫn chờ; host
+        không tự tạo lại yêu cầu cho cùng revision và đường (mục 5.3)."""
+        self._owner_only(p)
+        now = time.time()
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            req = c.execute("SELECT * FROM scope_requests WHERE id=? AND goal_id=?", (str(request_id), goal_id)).fetchone()
+            if req is None or req["status"] != "pending" or int(req["revision"]) != int(row["revision"]):
+                raise ConflictError("scope_request_stale: yêu cầu không còn chờ")
+            c.execute("UPDATE scope_requests SET status='denied', decided_by=?, decided_at=? WHERE id=?",
+                      (p.by, now, req["id"]))
+            for d in c.execute("SELECT s.id FROM submissions s JOIN bindings b ON b.id=s.binding_id WHERE "
+                               "b.scope_request_id=? AND s.status='awaiting_scope'", (req["id"],)).fetchall():
+                self._sub_set(c, d["id"], "rejected", "owner_denied", now)
+            c.execute("UPDATE bindings SET status='closed', closed_at=? WHERE scope_request_id=? AND status IN "
+                      "('live','sealed')", (now, req["id"]))
+            c.execute("UPDATE goals SET run_state='blocked', block_reason='scope_denied', updated_at=? WHERE id=?",
+                      (now, goal_id))
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                      "VALUES(?,?,?,?,?,?,?)", (goal_id, int(row["revision"]), "scope_denied", "owner",
+                                                _j({"request_id": req["id"], "path": req["path"]}), p.by, now))
+            self._recompute_wake(c, goal_id)
+            return {"ok": True}
+
+    def revoke_scope(self, p: Principal, goal_id: str, expected_revision: Optional[int] = None) -> dict:
+        """Thu hồi (mục 5.3), một giao dịch `BEGIN IMMEDIATE`: gốc `revoked` và `generation` + 1; quyền revision
+        `revoked`; bản nộp `candidate`, `awaiting_scope` và `publishing` CHƯA commit thành `stale` (bản đã commit đi tiếp
+        theo luật tác động đã commit); liên kết `live`/`sealed` thành `dead`; yêu cầu đang chờ `withdrawn`; tạm dừng."""
+        self._owner_only(p)
+        now = time.time()
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            if expected_revision is not None and int(row["revision"]) != int(expected_revision):
+                raise ConflictError(f"mục tiêu đang ở revision {row['revision']}, không phải {expected_revision}")
+            root = self._active_root(c, goal_id)
+            if root is None:
+                return {"ok": False, "reason": "no_scope"}
+            self._seq_bump(c)
+            gen = int(root["generation"]) + 1
+            c.execute("UPDATE grants SET status='revoked', generation=?, updated_at=? WHERE id=?", (gen, now, root["id"]))
+            c.execute("UPDATE grants SET status='revoked', generation=generation+1, updated_at=? WHERE parent_id=? AND "
+                      "status='active'", (now, root["id"]))
+            c.execute("INSERT INTO grant_events(grant_id,kind,by,generation,payload_json,created_at) VALUES(?,?,?,?,?,?)",
+                      (root["id"], "revoked", p.by, gen, "{}", now))
+            for s in c.execute("SELECT * FROM submissions WHERE goal_id=? AND status IN ('candidate','awaiting_scope',"
+                               "'publishing')", (goal_id,)).fetchall():
+                if s["status"] == "publishing" and s["publish_action_id"]:
+                    a = c.execute("SELECT receipt_json FROM actions WHERE id=?", (s["publish_action_id"],)).fetchone()
+                    if a is not None and json.loads(a["receipt_json"] or "{}").get("commit_at"):
+                        continue
+                c.execute("UPDATE submissions SET status='stale', status_reason='grant_revoked', hold_until=NULL, "
+                          "updated_at=? WHERE id=?",
+                          (now, s["id"]))
+            c.execute("UPDATE bindings SET status='dead', closed_at=? WHERE goal_id=? AND status IN ('live','sealed')",
+                      (now, goal_id))
+            c.execute("UPDATE scope_requests SET status='withdrawn', decided_at=? WHERE goal_id=? AND status='pending'",
+                      (now, goal_id))
+            c.execute("UPDATE goals SET paused=1, updated_at=? WHERE id=?", (now, goal_id))
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                      "VALUES(?,?,?,?,?,?,?)", (goal_id, int(row["revision"]), "scope_revoked", "owner",
+                                                _j({"root_id": root["id"], "generation": gen}), p.by, now))
+            c.execute("INSERT INTO goal_events(goal_id,kind,source,payload_json,by,created_at) VALUES(?,?,?,?,?,?)",
+                      (goal_id, "paused", "owner", "{}", p.by, now))
+            self._recompute_wake(c, goal_id)
+            return {"ok": True, "root_id": root["id"], "generation": gen}
+
+    def regrant_scope(self, p: Principal, goal_id: str) -> dict:
+        """Cấp lại, hành động owner riêng (Tiếp tục khi đang thu hồi): gốc MỚI `owner_approved`, đích như gốc cũ; quyền
+        revision mới nếu revision hiện tại vẫn cùng đích, không thì yêu cầu phạm vi. Không đảo dòng cũ, không đổi liên kết
+        cũ; bản nộp `stale` không được đăng (mục 5.3)."""
+        self._owner_only(p)
+        now = time.time()
+        with self._Tx(self) as c:
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                raise ScopeError("mục tiêu không tồn tại trong brain này")
+            st = self._scope_state(c, row)
+            if st["state"] != "revoked":
+                return {"ok": False, "state": st["state"]}
+            last = st["last_root"]
+            seq = self._seq_bump(c)
+            agent = self._goal_agent(c, goal_id)
+            root = self._insert_grant(c, kind="root", row=row, revision=0, agent_key=agent,
+                                      agent_version=self._agent_version(c, agent), by=p.by, source="owner_approved",
+                                      key=last["write_paths"][0], now=now, seq=seq,
+                                      source_ref={"regrant_of": last["id"], "by": p.by})
+            res = self._scope_sync(c, row, int(row["revision"]), self._frame(c, goal_id, int(row["revision"])), now,
+                                   p.by)
+            c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                      "VALUES(?,?,?,?,?,?,?)", (goal_id, int(row["revision"]), "scope_regranted", "owner",
+                                                _j({"root_id": root["id"], **res}), p.by, now))
+            return {"ok": True, "root_id": root["id"], **res}

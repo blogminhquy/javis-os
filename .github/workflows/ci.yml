@@ -36,6 +36,11 @@ jobs:
       - name: Lấy commit 0.88.1 cho test quay về A3
         run: git fetch --no-tags --depth=1 origin 83bff6bcf5927c4f6ba83bff576a674f2269c0e5
 
+      # test_resonance_a4_rollback chạy MÃ 0.92.1 THẬT (bản cuối trước A4, `709e3db9`, PR #609 trên main): lập kho cũ,
+      # nâng lên A4, rồi khôi phục snapshot.
+      - name: Lấy commit 0.92.1 cho test quay về A4
+        run: git fetch --no-tags --depth=1 origin 709e3db9a627228d58f120baf2b40ee967ba0367
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

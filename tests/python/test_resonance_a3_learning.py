@@ -29,6 +29,7 @@ import resonance_heartbeat as HB  # noqa: E402
 import resonance_learning as L  # noqa: E402
 import resonance_store as RS  # noqa: E402
 import _resonance_agent as RA  # noqa: E402
+RA.preapprove()  # A4: chủ dự án cho phép phạm vi ngay sau khi lập (D1); xem _resonance_agent.preapprove
 
 _fails = []
 

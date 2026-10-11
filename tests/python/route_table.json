@@ -4108,5 +4108,15 @@
    "POST"
   ],
   "trong": null
+ },
+ {
+  "order": 413,
+  "type": "APIRoute",
+  "path": "/goals/{goal_id}/drafts/{submission_id}",
+  "name": "goal_draft",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
  }
 ]

@@ -614,3 +614,41 @@ def register_learning(app, deps: ResonanceApiDeps):
             return {"ok": True, "lesson": ls,
                     "presentation": {**L.default_presentation(), **store.presentation(root, ls["agent_key"])}}
         return await asyncio.to_thread(work)
+
+
+def register_a4(app, deps: ResonanceApiDeps):
+    """Route của A4, đăng ký SAU mọi route có sẵn (bảng route chỉ thêm ở cuối, không đổi thứ tự route cũ)."""
+    def _manage(brain: str):
+        root = deps.brain_key(brain or "")
+        if not root or not Path(root).is_dir():
+            return None, None, _err(404, "Không tìm thấy brain", "Brain not found")
+        return root, RS.Principal("owner", "owner", root), None
+
+    @app.get("/goals/{goal_id}/drafts/{submission_id}")
+    async def goal_draft(goal_id: str, submission_id: str, brain: str = "brain"):
+        """A4: xem trước MỘT bản nộp của mục tiêu (bản nháp chờ chủ dự án cho phép), chỉ đọc. Bytes đọc lại từ file nháp
+        host đã ghi trong vùng làm việc của mục tiêu và phải khớp sha trong sổ; không đọc file nào khác."""
+        root, owner, err = _manage(brain)
+        if err:
+            return err
+        store = deps.store()
+
+        def _read():
+            g = store.get(owner, goal_id)
+            s = store.submission(owner, submission_id)
+            if g is None or s is None or s["goal_id"] != goal_id:
+                return None
+            f = Path(str(s.get("draft_ref") or ""))
+            try:
+                f.resolve().relative_to(Path(g.output_root).resolve())
+                data = f.read_bytes()
+            except Exception:  # noqa: BLE001
+                return None
+            if R._sha(data) != s["sha256"]:
+                return None
+            return {"submission_id": s["id"], "sha256": s["sha256"], "status": s["status"],
+                    "content": data.decode("utf-8", errors="replace")}
+        got = await asyncio.to_thread(_read)
+        if got is None:
+            return _err(404, "Không có bản nháp này", "No such draft")
+        return {"ok": True, **got}

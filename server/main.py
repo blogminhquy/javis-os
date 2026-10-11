@@ -2061,6 +2061,14 @@ def _resonance_store():
     return _RESONANCE_STORE
 
 
+def _resonance_turn_provider(brain) -> str:
+    """Provider của bộ não chính cho lượt này (chỉ để ghi hồ sơ bản nộp A4). Lỗi thì rỗng."""
+    try:
+        return str(_effective_main(cfgmod.read_settings() or {}).get("provider") or "")
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _resonance_turn_agent(conv_sid, brain, get_session):
     """A1: agent của phiên `conv_sid` (dòng phiên đọc bằng `get_session`), để gắn vào ngữ cảnh lượt
     (`turn_context`, khoá `agent`).
@@ -2091,7 +2099,10 @@ def _resonance_turn_agent(conv_sid, brain, get_session):
         reg = _resonance_store().session_agent(bkey, conv_sid, slug, session_row.get("created_at") or 0)
         if reg is None:
             return None
-        return {"key": reg["agent_key"], "slug": slug, "config_version": reg["config_version"]}
+        # A4: ảnh chụp thứ tự quyền của kho, đọc TRƯỚC khi engine chạy (lỗi thì -1, đóng khi lỗi), và provider của bộ
+        # não chính để hồ sơ bản nộp ghi đúng khả năng engine.
+        return {"key": reg["agent_key"], "slug": slug, "config_version": reg["config_version"],
+                "authority_seq": _resonance_store().authority_seq(), "provider": _resonance_turn_provider(brain)}
     except Exception as e:  # noqa: BLE001
         print(f"[resonance agent] {type(e).__name__}: {e}", file=sys.stderr)
         return None
@@ -2106,7 +2117,8 @@ _RESONANCE_GOAL_HINT = (
     "trách nhiệm theo đuổi kết quả SAU lượt chat (làm, tự kiểm, sửa theo phản hồi, duy trì, chờ sự kiện, "
     "giữ việc mở tới khi đạt) thì gọi tool javis_goal op=create; bổ sung ý cho mục tiêu đang mở thì "
     "op=update. Tool chưa nạp thì tìm: Claude Code dùng ToolSearch (mcp__javis-plugins__javis_goal), "
-    "engine khác dùng javis_search_tools. Câu hỏi, tư vấn: KHÔNG lập mục tiêu."
+    "engine khác dùng javis_search_tools. Câu hỏi, tư vấn: KHÔNG lập mục tiêu. Sản phẩm: nộp toàn văn qua "
+    "javis_submit_deliverable."
 )
 
 
@@ -2154,9 +2166,15 @@ def _resonance_after_turn(conv_sid, brain, user_mid, t0, runtime_trace):
         if d.kind in ("create_goal", "continue_goal") and d.goal_id:
             _deps = _resonance_deps(_brain_key(brain))
             if _deps is not None:
-                _ho = resonance.handoff_after_turn(d.goal_id, mref, _deps)
-                _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "resonance.handoff", {
-                    "goal_id": d.goal_id, "status": _ho, "message_ref": mref})
+                # A4: mọi mục tiêu tin này lập hay sửa đều được bàn giao (niêm liên kết, đăng bản nộp), không chỉ mục
+                # tiêu đầu tiên; biên nhận Write của lượt lấy MỘT lần cho tất cả.
+                _rec = resonance.take_turn_receipts(mref)
+                _gids = list(dict.fromkeys([d.goal_id] + [e["goal_id"] for e in
+                                                          _resonance_store().events_for_message(p, mref)]))
+                for _gid in _gids:
+                    _ho = resonance.handoff_after_turn(_gid, mref, _deps, receipts=_rec)
+                    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "resonance.handoff", {
+                        "goal_id": _gid, "status": _ho, "message_ref": mref})
         else:
             resonance.drop_turn_writes(mref)
         if d.kind in ("create_goal", "continue_goal") and d.goal_id:
@@ -2346,6 +2364,10 @@ def _resonance_deps(brain_id):
     return resonance.GoalDeps(engine_factory=_resonance_engine, budget=resonance.CallBudget(0),
                               store=_resonance_store(), principal=resonance_store.Principal("agent", "javis", root),
                               brain_root=root, evidence=_RESONANCE_EVIDENCE, notify=_resonance_notify)
+
+
+# A4: công cụ hub `javis_submit_deliverable` (plugin trong tiến trình) dùng đúng phụ thuộc của server.
+resonance.set_deps_provider(_resonance_deps)
 
 
 async def _resonance_tick():
@@ -15205,9 +15227,13 @@ async def websocket_endpoint(ws: WebSocket):
             _trace_token = context_runtime.bind_trace(runtime_trace)
             # Dashboard = the owner's own surface (signed-in session): no platform sender id.
             # A1: kèm phiên, id tin và agent của phiên (host phân giải) để tool javis_goal biết ĐÚNG lượt nào gọi.
+            # A4: lượt có trợ lý chụp thứ tự quyền của kho TRƯỚC khi engine chạy (gốc cấp lại sau ảnh chụp này
+            # không vào được lượt này, kể cả lần đầu lượt chạm mục tiêu). Đọc lỗi thì -1: đóng khi lỗi.
+            _ag_luot = _resonance_turn_agent(conv_sid, brain, store.get_session)
             _luot_token = turn_context.bind(turn_context.make(
                 "dashboard", chat_id=conv_sid, la_chu=True, session_id=conv_sid, message_id=user_mid,
-                agent=_resonance_turn_agent(conv_sid, brain, store.get_session)))
+                agent=_ag_luot, authority_seq=(_ag_luot or {}).get("authority_seq"),
+                provider=(_ag_luot or {}).get("provider") or ""))
             # Ghi vào sổ lượt đang chạy để tool giao việc biết kết quả phải về khung chat này
             # khi model quên truyền chat_id (luot_dang_chay.py, 0.64.49). Kèm id tin và lời người
             # dùng để tool javis_goal (Resonance) biết đúng tin nhắn nào; 0 thì tool từ chối lập mục tiêu.
@@ -21535,6 +21561,8 @@ async def _shutdown_mcp_pool():
 resonance_api.register_agents(app, _RESONANCE_API_DEPS)
 # Route học từ phản hồi (A3): reaction trên tin báo, bài học của trợ lý. Đăng ký SAU route cuối như A1.
 resonance_api.register_learning(app, _RESONANCE_API_DEPS)
+# A4: xem trước bản nháp chờ chủ dự án cho phép (đăng ký cuối, bảng route chỉ thêm ở cuối).
+resonance_api.register_a4(app, _RESONANCE_API_DEPS)
 
 
 if __name__ == "__main__":

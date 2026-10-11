@@ -29,6 +29,7 @@ import luot_dang_chay  # noqa: E402
 import resonance as R  # noqa: E402
 import resonance_store as RS  # noqa: E402
 import _resonance_agent as RA  # noqa: E402  - A1: Cộng hưởng bật theo trợ lý
+RA.preapprove()  # A4: chủ dự án cho phép phạm vi ngay sau khi lập (D1); xem _resonance_agent.preapprove
 from claude_agent_sdk import AssistantMessage, ToolResultBlock, ToolUseBlock, UserMessage  # noqa: E402
 
 _fails = []
@@ -128,19 +129,32 @@ def proposal(**kw):
 
 
 def create(brain, store, p, clock, mid, ref):
+    """Mục tiêu có lượt chat ĐANG MỞ bàn giao ở tin `ref`, đã có phạm vi được cho phép.
+
+    A4 (D1): lượt LẬP mục tiêu không bao giờ có quyền ghi (đích mới chờ chủ dự án cho phép, sau ảnh chụp đầu lượt).
+    Các ca của file này kiểm bàn giao bản chat, nên mục tiêu được lập ở một tin trước (chủ dự án cho phép ngay, xem
+    RA.preapprove), rồi tin `ref` là lượt CẬP NHẬT cùng đích: phạm vi đã có trước lúc lượt bắt đầu, nên lượt nhận
+    liên kết `grant` và bản chat của nó được bàn giao như trước A4."""
     deps0 = R.GoalDeps(engine_factory=lambda s, t: (None, {"blocked": "không gọi"}), budget=R.CallBudget(0),
                        store=store)
-    return asyncio.run(R.form_goal(ref, {
-        "principal": p, "brain_root": brain, "session_id": "s-hand", "message_id": mid, "user_text": USER,
+    seed = asyncio.run(R.form_goal(R.message_ref("s-hand", 100000 + mid), {
+        "principal": p, "brain_root": brain, "session_id": "s-hand", "message_id": 100000 + mid, "user_text": USER,
         "constraints": [], "budget_calls": 4, "proposal": proposal(),
-        "hold_until": clock() + R.HANDOFF_HOLD_S, **RA.ctx(store.agent(brain, RA.SLUG))}, deps0))
+        **RA.ctx(store.agent(brain, RA.SLUG))}, deps0))
+    return R.revise_goal(store, p, seed.id, seed.revision,
+                         {"understanding": "Bản hướng dẫn nhận hàng, sửa theo góp ý tới khi anh thấy dùng được",
+                          "relevant_quote": "Em lo giúp anh bản hướng dẫn nhận hàng"},
+                         {"message_ref": ref, "session_id": "s-hand", "message_id": mid, "user_text": USER,
+                          "constraints": [], "user_unsure": False, "reason": "lượt chat",
+                          "hold_until": clock() + R.HANDOFF_HOLD_S, "authority_seq": store.authority_seq(),
+                          **RA.ctx(store.agent(brain, RA.SLUG))})[0]
 
 
 def revise(store, p, gid, rev, clock, mid, ref, text=FEEDBACK):
     return R.revise_goal(store, p, gid, rev, {"constraints": ["Có ví dụ"], "relevant_quote": "em thêm một ví dụ"},
                          {"message_ref": ref, "session_id": "s-hand", "message_id": mid, "user_text": text,
                           "constraints": [], "user_unsure": False, "reason": "góp ý",
-                          "hold_until": clock() + R.HANDOFF_HOLD_S,
+                          "hold_until": clock() + R.HANDOFF_HOLD_S, "authority_seq": store.authority_seq(),
                           **RA.ctx(store.agent(p.brain_id, RA.SLUG))})[0]
 
 
@@ -389,8 +403,11 @@ _c.execute("UPDATE evidence_links SET created_at=? WHERE kind='chat_output'", (9
 _c.execute("INSERT OR REPLACE INTO published VALUES(?,?,?,?,?)", (g.id, DELIV, R._sha(A.encode()), "chat:x", 0))
 _c.commit()
 _c.close()
+# A4: bản nộp của lượt việc nền gặp xung đột đã ở trạng thái cuối `conflict`; _publish_latest chỉ lấy bản `candidate`,
+# nên không còn gì để đăng đè (trước A4 nhánh này trả "superseded" khi so thời điểm với bản tiếp nhận).
 check("P1-2 đầu ra việc nền cũ hơn bản tiếp nhận: _publish_latest không đăng đè",
-      R._publish_latest(st.get(P, g.id), deps, clk())["status"] == "superseded"
+      R._publish_latest(st.get(P, g.id), deps, clk())["status"] == "none"
+      and [s["status"] for s in st.submissions(P, g.id)] == ["conflict"]
       and (Path(b) / DELIV).read_text(encoding="utf-8") == A)
 
 # ═══════════ 3. Không tự cấp quyền thay file ═══════════

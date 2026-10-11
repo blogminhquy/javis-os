@@ -42,6 +42,7 @@ check("tắt: system prompt không nhắc javis_goal", "javis_goal" not in p_off
 
 # ───────────── bật (A1: theo agent, trong lượt của agent đó) ─────────────
 import _resonance_agent as RA  # noqa: E402
+RA.preapprove()  # A4: chủ dự án cho phép phạm vi ngay sau khi lập (D1); xem _resonance_agent.preapprove
 (Path(BRAIN) / "Javis").mkdir(parents=True, exist_ok=True)
 (Path(BRAIN) / "Javis" / "resonance.json").write_text('{"enabled": true}', encoding="utf-8")
 check("công tắc brain cũ bật mà chưa có agent nào: prompt vẫn không nhắc javis_goal (không còn cấp quyền)",
@@ -168,9 +169,12 @@ _P4 = RS.Principal("agent", "javis", main._brain_key(BRAIN))
 _g4 = main._resonance_store().find_by_key(_P4, R.message_ref(SID, 302))
 main._resonance_after_turn(SID, BRAIN, 302, time.time() - 1, None)
 _t4.__exit__(None, None, None)
-check("bàn giao lượt 302: bản Write trong lượt được tiếp nhận (sự kiện, bằng chứng chat_output)",
-      _g4 is not None and [e["kind"] for e in main._resonance_store().events(_P4, _g4.id)].count("artifact_adopted") == 1
-      and [x["kind"] for x in main._resonance_store().evidence_for(_P4, _g4.id, _g4.revision)] == ["chat_output"])
+# A4 (D1): lượt 302 LẬP mục tiêu nên chưa có phạm vi lúc lượt bắt đầu; Write trong lượt không được tiếp nhận (bytes lạ
+# ở đích, như A2), không có bằng chứng chat_output. Bàn giao vẫn chạy (niêm liên kết, nhả lịch).
+check("bàn giao lượt 302 (lượt lập, A4): Write trong lượt KHÔNG được tiếp nhận, không có bằng chứng chat_output",
+      _g4 is not None and [e["kind"] for e in main._resonance_store().events(_P4, _g4.id)].count("artifact_adopted") == 0
+      and [x["kind"] for x in main._resonance_store().evidence_for(_P4, _g4.id, _g4.revision)] == []
+      and (main._resonance_store().handoff(_P4, _g4.id, _g4.revision) or {}).get("status") == "done")
 _calls, _sent = {"n": 0}, []
 
 

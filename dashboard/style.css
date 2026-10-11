@@ -3613,6 +3613,13 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .rs-react-b:disabled { opacity: .5; cursor: default; }
 .rs-react-why { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .rs-learn { font-size: 13px; color: var(--text2); }
+/* A4: dòng quyền của thẻ mục tiêu và bản nháp xem trước */
+.rs-scope { font-size: 13px; }
+.rs-scope .rs-btns { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 6px; }
+.rs-card .rs-warn.rs-scope { color: var(--text); }
+.rs-preview { max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 12px;
+  background: var(--bg2, transparent); border: 1px solid var(--hairline); border-radius: 6px; padding: 8px;
+  margin-top: 6px; }
 .rsa-lesson { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: 1px solid var(--hairline); }
 .rsa-lesson-text { font-size: 14px; color: var(--text); }
 .rsa-pv { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }

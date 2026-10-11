@@ -9,4 +9,5 @@ enabled: true
 min_mode: safe
 tools:
   - javis_goal
+  - javis_submit_deliverable
 hooks: []

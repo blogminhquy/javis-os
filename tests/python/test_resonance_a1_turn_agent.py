@@ -88,7 +88,11 @@ B = gs.agent_set_enabled(OWNER, "kiem-tra", True)
 
 got = main._resonance_turn_agent("s2", BRAIN, row("agent:viet-bai"))
 check("phiên agent đã đăng ký: đúng mã, slug, version",
-      got == {"key": A["agent_key"], "slug": "viet-bai", "config_version": A["config_version"]}, got)
+      {k: (got or {}).get(k) for k in ("key", "slug", "config_version")}
+      == {"key": A["agent_key"], "slug": "viet-bai", "config_version": A["config_version"]}, got)
+# A4: lượt của trợ lý mang thêm ảnh chụp thứ tự quyền (đọc trước khi engine chạy) và provider của bộ não chính.
+check("A4: ảnh chụp thứ tự quyền là số nguyên không âm", isinstance((got or {}).get("authority_seq"), int)
+      and got["authority_seq"] >= 0, got)
 check("chat thường: None", main._resonance_turn_agent("s3", BRAIN, row("web")) is None)
 check("phiên không có dòng: None", main._resonance_turn_agent("s4", BRAIN, lambda sid: None) is None)
 check("phiên quy trình cùng slug: None", main._resonance_turn_agent("s5", BRAIN, row("workflow:viet-bai")) is None)
