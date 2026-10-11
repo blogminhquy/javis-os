@@ -98,7 +98,8 @@ for _fn in (main._api_stream_mcp, main._bot_stream_co_tool):
     check(f"{_fn.__name__} has its own deepseek branch calling deepseek_chat_with_mcp",
           _at >= 0 and _src[_at:_at + 200].find("engine.deepseek_chat_with_mcp(") > 0)
 check("_api_stream_mcp discovers hub tools for deepseek",
-      '"groq", "deepseek", "ollama", "openai-compat"):\n        try:' in inspect.getsource(main._api_stream_mcp))
+      "deepseek" in main._API_TOOL_PROVIDERS
+      and "if prov in _API_TOOL_PROVIDERS:" in inspect.getsource(main._api_stream_mcp))
 _gen = main._api_stream_goc("deepseek", "k", "m", [{"role": "user", "content": "x"}], "off")
 check("_api_stream picks the DeepSeek generator", _gen.__qualname__.startswith("deepseek_stream"))
 

@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.92.2] - 2026-10-11
 ### Sửa lỗi
-- **Ollama (Local) dùng được công cụ.** Chọn model Ollama chạy trên máy mình thì model không đọc được file, không gọi được kết nối nào và tự báo "không có quyền tool", vì Javis quên nạp công cụ cho đúng loại model này. Giờ model local nhận đủ công cụ như các model API khác.
+- **Ollama (Local) dùng được công cụ.** Chọn model Ollama chạy trên máy mình thì model không đọc được file, không gọi được kết nối nào và tự báo "không có quyền tool", vì Javis quên nạp công cụ cho đúng loại model này. Giờ model local nhận đủ công cụ như các model API khác, và trang Kết nối hết báo nhầm là nó không gọi được công cụ.
 - **Trang Local Model trên Mac chip Apple ghi đúng là chạy bằng GPU.** Trước đây trang ghi "Chạy bằng CPU và RAM" trong khi Ollama chạy trọn trên GPU của chip. Javis giờ nhận ra chip Apple kể cả khi Python chạy qua Rosetta, tính RAM dùng chung là bộ nhớ của GPU, và không làm mất GPU khi bạn khai tay dung lượng RAM.
 
 ### Cải thiện

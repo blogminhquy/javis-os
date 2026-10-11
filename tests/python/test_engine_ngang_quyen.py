@@ -138,7 +138,8 @@ _ui_set = set(re.findall(r'"([^"]+)"', _ui.group(1))) if _ui else set()
 # Đọc danh sách THẬT ở server thay vì chép lại tay lần thứ ba. Bản trước ghim cứng đúng năm
 # tên, nên thêm một provider là test đỏ dù mọi thứ đều đúng - hàng rào quay ra chặn việc sửa.
 # Bất biến cần canh không phải "có đúng năm cái", mà là "UI khớp server".
-_srv = re.search(r'if prov in \(([^)]*)\):\n\s+try:\n\s+if _hub_enabled\(\)', MAIN_PY)
+# Từ 0.92.2 danh sách nằm ở hằng `_API_TOOL_PROVIDERS` (bản đó vá chỗ thiếu `ollama-local` ở cả server lẫn UI).
+_srv = re.search(r'_API_TOOL_PROVIDERS = \(([^)]*)\)', MAIN_PY)
 check("đọc được danh sách provider có MCP ở server", _srv is not None)
 _srv_set = set(re.findall(r'"([^"]+)"', _srv.group(1))) if _srv else set()
 check(f"server cấp MCP cho mọi provider API (đang có: {sorted(_srv_set)})",
