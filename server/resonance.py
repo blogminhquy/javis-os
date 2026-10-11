@@ -2025,6 +2025,9 @@ def host_publish(goal: GoalRecord, sub: dict, deps: GoalDeps, now: float, source
         return {"status": "rejected"}
     data, dwhy = _sub_read(sub)
     if dwhy == "draft_unreadable":
+        # Chưa qua mốc commit nhưng bản nộp hợp lệ: giữ và hẹn code thử lại có giãn cách; lịch làm việc gác trong lúc
+        # đó, không gọi model (review mã A4 vòng 3).
+        store.hold_submission(p, sub["id"], dwhy, now)
         return {"status": "held", "reason": dwhy}
     if data is None or len(data) > PUBLISH_MAX_BYTES:
         store.reject_submission(p, sub["id"], dwhy or "too_large")
@@ -2161,7 +2164,26 @@ def _settle_committed(g: GoalRecord, deps: GoalDeps, now: float) -> int:
     for s in store.unadopted_published(p, g.id):
         if _adopt_if_needed(s, deps) == "adopted":
             n += 1
-    store.settle_cleanup(p, g.id)
+    # Bản `candidate` đã giữ vì file nháp tạm thời không đọc được (review mã A4 vòng 3): lịch này CHỈ đọc lại file nháp.
+    # Đọc được thì bỏ giữ để lịch làm việc đăng đúng bản đó rồi mới đánh giá; vẫn lỗi thì giữ tiếp, giãn cách gấp đôi.
+    # Bản không còn là bản sẽ đăng (mục tiêu dừng, tạm dừng, đổi revision, có bản mới hơn) thì bỏ giữ: lịch làm việc
+    # quyết định khi nó chạy lại.
+    latest = store.latest_candidate(p, g.id, g.revision) if g.status == "active" and not g.paused else None
+    for s in store.held_submissions(p, g.id):
+        if latest is None or s["id"] != latest["id"]:
+            store.release_hold(p, s["id"])
+            continue
+        if float(s.get("hold_until") or 0) >= now:
+            continue
+        _data, dwhy = _sub_read(s)
+        if dwhy == "draft_unreadable":
+            store.hold_submission(p, s["id"], dwhy, now)
+        elif dwhy:
+            store.reject_submission(p, s["id"], dwhy)
+        else:
+            store.release_hold(p, s["id"])
+        n += 1
+    store.settle_cleanup(p, g.id, now)
     return n
 
 
@@ -2818,16 +2840,23 @@ def _wake_work(g: GoalRecord, deps: GoalDeps, now: float, owner: str):
         store.add_timer(p, g.id, "handoff_wait", now + HANDOFF_POLL_S, now)
         return done(Assessment(g.id, g.revision, "unknown", rationale="chờ lượt chat bàn giao", evaluated_at=now),
                     "blocked", "chờ lượt chat bàn giao")
-    if store.settle_pending(p, g.id):
-        # A4: một lần đăng đã chốt còn chờ thay file hay chờ tiếp nhận (lỗi I/O tạm thời): bản hợp lệ ĐÃ có, chỉ chưa
-        # vào đích. Gác, giữ mọi lý do làm việc, không gọi model; lịch `settle` hoàn tất rồi gỡ gác (review mã A4 vòng 2,
-        # P2-3).
+    def settling():
+        # A4: một lần đăng đã chốt còn chờ thay file hay chờ tiếp nhận, hay một bản nộp đang được giữ vì file nháp tạm
+        # thời không đọc được: bản hợp lệ ĐÃ có, chỉ chưa vào đích. Gác, giữ mọi lý do làm việc, không gọi model; lịch
+        # `settle` hoàn tất rồi gỡ gác (review mã A4 vòng 2, P2-3).
         store.set_run_state(p, g.id, "waiting", "publish_settling")
         store.ensure_settle(p, g.id, now + LEASE_EXTRA_S)
         return done(Assessment(g.id, g.revision, "unknown", rationale="chờ hoàn tất lần đăng đã chốt", evaluated_at=now),
                     "blocked", "chờ hoàn tất lần đăng đã chốt")
+
+    if store.settle_pending(p, g.id):
+        return settling()
     # Đầu ra đã có của revision này (giữ lại vì pause, gián đoạn) được đăng mà không gọi model lại.
     pub = _publish_latest(g, deps, now)
+    if store.settle_pending(p, g.id):
+        # Nghĩa vụ VỪA phát sinh trong chính lần đăng này (thay file lỗi sau mốc commit, file nháp không đọc được, bước
+        # tiếp nhận lỗi): không đi tiếp tới quyết định làm việc (review mã A4 vòng 3).
+        return settling()
     refs = _output_refs(store, p, g.id, g.revision)
     a, why = _after_publish(g, pub, refs, deps, now)
     if why:

@@ -299,7 +299,8 @@ _A4_SCHEMA = (
     "normalized_em_dash INTEGER NOT NULL DEFAULT 0, evidence_id TEXT NOT NULL DEFAULT '', idem_key TEXT NOT NULL, "
     "fingerprint TEXT NOT NULL, derived_from TEXT NOT NULL DEFAULT '', publish_action_id TEXT NOT NULL DEFAULT '', "
     "adopted_at REAL, status TEXT NOT NULL, status_reason TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL, "
-    "updated_at REAL NOT NULL, UNIQUE(goal_id, idem_key))",
+    "updated_at REAL NOT NULL, hold_attempts INTEGER NOT NULL DEFAULT 0, hold_until REAL, "
+    "UNIQUE(goal_id, idem_key))",
     "CREATE INDEX IF NOT EXISTS submissions_goal ON submissions(goal_id, revision, status)",
     "CREATE INDEX IF NOT EXISTS submissions_binding ON submissions(binding_id, status)",
 )
@@ -2984,6 +2985,11 @@ class GoalStore:
         with self._Tx(self) as c:
             for stmt in _A4_SCHEMA:
                 c.execute(stmt)
+            # Kho tạo bởi bản A4 chưa phát hành (trước review mã vòng 3) thiếu hai cột giữ bản nộp: thêm tại chỗ.
+            have = {r["name"] for r in c.execute("PRAGMA table_info(submissions)").fetchall()}
+            for col, decl in (("hold_attempts", "INTEGER NOT NULL DEFAULT 0"), ("hold_until", "REAL")):
+                if col not in have:
+                    c.execute(f"ALTER TABLE submissions ADD COLUMN {col} {decl}")
             if not freeze:
                 return
             for row in c.execute("SELECT * FROM goals WHERE status='active' ORDER BY created_at").fetchall():
@@ -3356,6 +3362,9 @@ class GoalStore:
             return [self._sub(r) for r in rows]
 
     def _sub_set(self, c, sub_id: str, status: str, reason: str, now: float, **cols) -> None:
+        # Mọi lần đổi trạng thái kết thúc lượt giữ bản nộp (`hold_submission`): nghĩa vụ thử lại chỉ gắn với lúc nó còn
+        # là `candidate` đã giữ.
+        cols.setdefault("hold_until", None)
         extra = "".join(f", {k}=?" for k in cols)
         c.execute(f"UPDATE submissions SET status=?, status_reason=?, updated_at=?{extra} WHERE id=?",
                   (status, str(reason or "")[:80], now, *cols.values(), sub_id))
@@ -3676,7 +3685,28 @@ class GoalStore:
         unadopted = c.execute("SELECT COUNT(*) FROM submissions WHERE goal_id=? AND status='published' AND "
                               "adopted_at IS NULL AND source IN ('submit_tool','approved_draft')",
                               (goal_id,)).fetchone()[0]
-        return len(running) + int(unadopted)
+        # Bản `candidate` được giữ vì file nháp tạm thời không đọc được (review mã A4 vòng 3): chưa qua mốc commit nhưng
+        # đã là bản hợp lệ chờ đăng lại bằng code.
+        held = c.execute("SELECT COUNT(*) FROM submissions WHERE goal_id=? AND status='candidate' AND "
+                         "hold_until IS NOT NULL", (goal_id,)).fetchone()[0]
+        return len(running) + int(unadopted) + int(held)
+
+    @classmethod
+    def _settle_next(cls, c, goal_id: str, now: float) -> Optional[float]:
+        """Giờ sớm nhất một nghĩa vụ hoàn tất còn mở tới lượt xét lại: hạn của lần đăng đã commit, hạn giữ bản nộp, hay
+        ngay sau một khoảng ngắn cho bản chưa tiếp nhận. None khi không còn nghĩa vụ."""
+        due = []
+        for r in c.execute("SELECT lease_until, receipt_json FROM actions WHERE goal_id=? AND kind='publish' AND "
+                           "status='running'", (goal_id,)).fetchall():
+            if json.loads(r["receipt_json"] or "{}").get("commit_at"):
+                due.append(float(r["lease_until"] or now) + 1)
+        for r in c.execute("SELECT hold_until FROM submissions WHERE goal_id=? AND status='candidate' AND "
+                           "hold_until IS NOT NULL", (goal_id,)).fetchall():
+            due.append(float(r["hold_until"]) + 1)
+        if c.execute("SELECT 1 FROM submissions WHERE goal_id=? AND status='published' AND adopted_at IS NULL AND "
+                     "source IN ('submit_tool','approved_draft') LIMIT 1", (goal_id,)).fetchone():
+            due.append(float(now) + R.LEASE_EXTRA_S)
+        return min(due) if due else None
 
     @classmethod
     def _settle_done(cls, c, goal_id: str) -> None:
@@ -3754,10 +3784,51 @@ class GoalStore:
                              (goal_id, p.brain_id)).fetchall()
             return [self._action(r) for r in rows if json.loads(r["receipt_json"] or "{}").get("commit_at")]
 
-    def settle_cleanup(self, p: Principal, goal_id: str) -> None:
+    def settle_cleanup(self, p: Principal, goal_id: str, now: Optional[float] = None) -> None:
+        """Cuối lần thức `settle`: hết nghĩa vụ thì bỏ lịch và gỡ gác; còn thì đặt lịch đúng giờ nghĩa vụ sớm nhất (thay
+        mốc nhận lịch của tick), không thức dày khi lỗi còn kéo dài."""
         with self._Tx(self) as c:
-            if self._goal_row(c, p, goal_id) is not None:
-                self._settle_done(c, goal_id)
+            row = self._goal_row(c, p, goal_id)
+            if row is None:
+                return
+            self._settle_done(c, goal_id)
+            nxt = self._settle_next(c, goal_id, time.time() if now is None else float(now))
+            if nxt is not None:
+                self._wake(c, goal_id, row["brain_id"], "settle", nxt, "hoàn tất lần đăng đã chốt")
+
+    def hold_submission(self, p: Principal, sub_id: str, reason: str, now: float) -> dict:
+        """Bản `candidate` chưa đăng được vì file nháp tạm thời không đọc được (lỗi I/O, chưa qua mốc commit): giữ bản
+        nộp, hẹn lịch `settle` thử lại với giãn cách tăng dần (60 giây, gấp đôi, trần 1 giờ). Trong lúc giữ, lịch làm việc
+        gác `publish_settling`, không gọi model (review mã A4 vòng 3)."""
+        with self._Tx(self) as c:
+            s = c.execute("SELECT * FROM submissions WHERE id=? AND brain_id=?", (str(sub_id), p.brain_id)).fetchone()
+            if s is None or s["status"] != "candidate":
+                return {"status": "skip"}
+            n = int(s["hold_attempts"] or 0) + 1
+            until = float(now) + min(3600.0, 60.0 * (2 ** min(n - 1, 6)))
+            c.execute("UPDATE submissions SET hold_attempts=?, hold_until=?, status_reason=?, updated_at=? WHERE id=?",
+                      (n, until, str(reason or "")[:80], time.time(), s["id"]))
+            row = c.execute("SELECT brain_id FROM goals WHERE id=?", (s["goal_id"],)).fetchone()
+            self._wake(c, s["goal_id"], row["brain_id"], "settle", until + 1, "thử đăng lại bản nộp đã giữ",
+                       keep_earlier=True)
+            return {"status": "held", "attempts": n, "next_at": until + 1}
+
+    def held_submissions(self, p: Principal, goal_id: str) -> list:
+        with closing(self._conn()) as c:
+            return [self._sub(r) for r in c.execute(
+                "SELECT * FROM submissions WHERE goal_id=? AND brain_id=? AND status='candidate' AND hold_until IS NOT "
+                "NULL ORDER BY created_at", (goal_id, p.brain_id)).fetchall()]
+
+    def release_hold(self, p: Principal, sub_id: str) -> None:
+        """Hết lý do giữ (file nháp đọc lại được, hay bản này không còn là bản sẽ đăng): bỏ nghĩa vụ thử lại, bản nộp vẫn
+        `candidate`; nghĩa vụ về 0 thì gỡ gác để lịch làm việc đăng bản đã giữ rồi mới đánh giá."""
+        with self._Tx(self) as c:
+            s = c.execute("SELECT * FROM submissions WHERE id=? AND brain_id=?", (str(sub_id), p.brain_id)).fetchone()
+            if s is None or s["hold_until"] is None:
+                return
+            c.execute("UPDATE submissions SET hold_until=NULL, status_reason='', updated_at=? WHERE id=?",
+                      (time.time(), s["id"]))
+            self._settle_done(c, s["goal_id"])
 
     def publish_abort(self, p: Principal, action_id: str, reason: str) -> dict:
         """Hành động đăng CHƯA qua mốc commit bị bỏ (đối soát, lỗi ghi file trước mốc): huỷ, bản nộp về `candidate` nếu

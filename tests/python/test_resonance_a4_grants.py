@@ -1213,6 +1213,76 @@ check("V2-P2-3 mở khoá: bản gốc đăng đúng một lần, tiếp nhận,
       and (w.store.run_state(w.owner, g2.id) or {}).get("block_reason") != "publish_settling" and w.eng.queries == 0,
       (len(pubs), w.eng.queries, (w.store.run_state(w.owner, g2.id) or {}).get("block_reason")))
 
+# ═══════════ Hồi quy review mã A4 vòng 3: lỗi đăng phát sinh NGAY trong lần thức của scheduler ═══════════
+# Bản nộp còn `candidate` (tiến trình bị ngắt trước bàn giao), scheduler thức và tự đăng; lỗi I/O xảy ra ngay lúc đó:
+# thay file đích sau mốc commit, hay đọc file nháp trước mốc commit. Không được mở lượt model.
+def _deny_draft_read(w, sid):
+    return _deny_read(str(Path(w.store.submission(w.owner, sid)["draft_ref"])))
+
+
+for fault in ("replace", "draft_read"):
+    w, g = granted_world("v3" + fault[:3])
+    mid, ref = w.next()
+    with w.turn(mid):
+        g2 = w.revise(g, mid, ref)
+        rb = w.submit()
+    sid = rb["submission_id"]
+    pre = (w.store.submission(w.owner, sid)["status"], w.store.settle_pending(w.owner, g2.id))
+    w.store = RS.GoalStore(w.store.path)
+    undo = _deny_replace_target(w) if fault == "replace" else _deny_draft_read(w, sid)
+    try:
+        _ticks(w, 1)
+        s1 = w.store.submission(w.owner, sid)
+        st1 = (w.store.run_state(w.owner, g2.id) or {}).get("block_reason")
+        pending1 = [r["code"] for r in w.store.reasons(w.owner, g2.id)]
+        # Lỗi kéo dài: nhịp 30 giây trong 10 phút, có mở lại kho giữa chừng.
+        busy = []
+        for i in range(20):
+            if i == 10:
+                w.store = RS.GoalStore(w.store.path)
+            busy += _ticks(w, 1, step=30)
+        s2 = w.store.submission(w.owner, sid)
+    finally:
+        undo()
+    works = len([x for x in w.store.actions(w.owner, g2.id) if x["kind"] == "work"])
+    used = w.store.get(w.owner, g2.id).calls_used
+    check(f"V3 lỗi {fault} ngay trong lần thức: 0 lượt engine, calls_used 0, không action work, gác publish_settling, "
+          "lý do làm việc còn chờ",
+          pre == ("candidate", 0) and w.eng.queries == 0 and used == 0 and works == 0 and st1 == "publish_settling"
+          and pending1 and s1["status"] == ("publishing" if fault == "replace" else "candidate")
+          and s2["status"] == s1["status"],
+          (pre, w.eng.queries, used, works, st1, pending1, s1["status"], s2["status"]))
+    check(f"V3 lỗi {fault} kéo dài: thức thưa dần (không mỗi nhịp 30 giây), không mở model",
+          sum(1 for x in busy if x) <= 6 and w.eng.queries == 0, (busy, w.eng.queries))
+    if fault == "draft_read":
+        check("V3 file nháp bị khoá trước mốc commit: không chốt xung đột, không loại bản nộp, chưa có hành động đăng",
+              not w.events(g2, "publish_conflict") and not w.events(g2, "submission_draft_lost")
+              and not [x for x in w.store.actions(w.owner, g2.id) if x["kind"] == "publish"])
+    for _ in range(40):
+        _ticks(w, 1, step=60)
+    pubs = [x for x in w.store.actions(w.owner, g2.id) if x["kind"] == "publish" and x["status"] == "succeeded"]
+    fin = w.store.submission(w.owner, sid)
+    check(f"V3 hết lỗi {fault}: đăng đúng bản đã giữ một lần, tiếp nhận một lần, gỡ gác, không còn lịch settle, "
+          "0 lượt engine",
+          _has(w, GOOD) and len(pubs) == 1 and fin["status"] == "published" and fin["adopted_at"]
+          and len(w.events(g2, "artifact_adopted")) == 1
+          and (w.store.run_state(w.owner, g2.id) or {}).get("block_reason") != "publish_settling"
+          and not [x for x in w.store.wakes(w.owner, g2.id) if x["kind"] == "settle"] and w.eng.queries == 0,
+          (len(pubs), fin["status"], w.eng.queries, (w.store.run_state(w.owner, g2.id) or {}).get("block_reason")))
+
+# Đối chứng: không lỗi thì cùng lần thức đăng ngay, không gác, 0 lượt engine.
+w, g = granted_world("v3ctl")
+mid, ref = w.next()
+with w.turn(mid):
+    g2 = w.revise(g, mid, ref)
+    rb = w.submit()
+w.store = RS.GoalStore(w.store.path)
+_ticks(w, 1)
+fin = w.store.submission(w.owner, rb["submission_id"])
+check("V3 đối chứng không lỗi: lần thức đăng và tiếp nhận ngay, không gác, 0 lượt engine",
+      fin["status"] == "published" and fin["adopted_at"] and w.eng.queries == 0
+      and (w.store.run_state(w.owner, g2.id) or {}).get("block_reason") != "publish_settling")
+
 # ═══════════ G18: không quét gì khi chưa tới hạn ═══════════
 w = World("g18")
 t0 = time.perf_counter()
