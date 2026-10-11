@@ -8,7 +8,7 @@ Thiết kế: [2026-10-10-resonance-a4-handoff-grants-design.md](../superpowers/
 
 | File | Kết quả |
 |---|---|
-| `tests/python/test_resonance_a4_grants.py` (kho thật, engine giả, đồng hồ giả) | 119 kiểm đạt |
+| `tests/python/test_resonance_a4_grants.py` (kho thật, engine giả, đồng hồ giả) | 124 kiểm đạt |
 | `tests/python/test_resonance_a4_transport.py` (plugin thật, hub HTTP thật với `X-Javis-Turn`, server MCP plugin của Claude SDK thật, `main.app`) | 14 kiểm đạt |
 | `tests/python/test_resonance_a4_rollback.py` (mã 0.91.0 thật, `1d0b515c`, bản cuối trước A4, qua `git show`) | 11 kiểm đạt |
 | `tests/js/test_resonance_a4_ui.js` (gồm hành vi `send()` thật với phản hồi server giả) | 25 kiểm đạt |
@@ -57,7 +57,9 @@ python tests/run.py resonance_a4 -v
 |---|---|---|
 | P2: lỗi đăng phát sinh ngay trong lần thức làm việc vẫn mở lượt model (thay file sau mốc commit; đọc file nháp trước mốc commit) | Xét lại nghĩa vụ sau `_publish_latest` rồi gác `publish_settling`; file nháp chưa đọc được thì giữ bản nộp, lịch `settle` thử lại bằng code có giãn cách (I16) | V3, cho cả hai vị trí lỗi: lần thức đầu 0 lượt engine, `calls_used` 0, không action work, lý do làm việc còn chờ; lỗi kéo dài 20 nhịp 30 giây có mở lại kho: thức thưa dần, không mở model; hết lỗi: đăng đúng bản đã giữ một lần, tiếp nhận một lần, gỡ gác, không còn lịch `settle`; đối chứng không lỗi đăng ngay |
 
-**Script của reviewer:** `PR-604-A4-code-r2-checks.py --expect-fixed` 14/14 và `PR-604-A4-code-r3-checks.py --expect-fixed` 4/4, cả hai exit 0. Output: `exports/reviews/A4-code-r4-reviewer-checks.txt`.
+**Bản nộp đang giữ khi mục tiêu đổi trạng thái** (bổ sung lúc chốt vòng 3): tạm dừng, thu hồi, huỷ, đổi revision trong lúc giữ thì hết khoá vẫn không tự đăng bản cũ, nghĩa vụ giữ được bỏ, không còn lịch `settle`; đổi revision thì bản mới hơn được đăng. Trong cùng revision, bản khác nội dung bị từ chối `submission_conflict`, bản đang giữ được đăng đúng một lần khi hết khoá. Thu hồi và đổi revision ghi trạng thái bằng câu SQL riêng nên trước đây còn sót `hold_until` trên dòng không còn `candidate` (không ảnh hưởng lịch vì chỉ dòng `candidate` được đếm); nay xoá cùng lúc.
+
+**Script của reviewer:** `PR-604-A4-code-r2-checks.py --expect-fixed` 14/14 và `PR-604-A4-code-r3-checks.py --expect-fixed` 4/4, cả hai exit 0. Output: `exports/reviews/A4-code-r5-reviewer-checks.txt`.
 
 **Đối chứng trên head cũ:** bản test mới chạy trên `d26c0f09`: cả 7 kiểm V3 đỏ (1 lượt engine, action work, bản nộp không được đăng đúng), ca đối chứng không lỗi vẫn xanh. Output: `exports/reviews/A4-code-r4-control-on-d26c0f09.txt`.
 

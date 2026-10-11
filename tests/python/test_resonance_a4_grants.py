@@ -1270,6 +1270,69 @@ for fault in ("replace", "draft_read"):
           and not [x for x in w.store.wakes(w.owner, g2.id) if x["kind"] == "settle"] and w.eng.queries == 0,
           (len(pubs), fin["status"], w.eng.queries, (w.store.run_state(w.owner, g2.id) or {}).get("block_reason")))
 
+# Bản nộp đang được giữ KHÔNG được tự đăng trái quyền khi mục tiêu đổi trạng thái trong lúc giữ: tạm dừng, thu hồi,
+# huỷ, đổi revision (bản mới hơn ở revision mới). Hết khoá file nháp rồi vẫn không đăng bản cũ; nghĩa vụ giữ được bỏ,
+# không còn lịch `settle` treo. Trong CÙNG revision, liên kết của lượt chỉ nhận một bản nộp: bản khác nội dung bị từ
+# chối `submission_conflict`, nên bản đang giữ vẫn là bản hợp lệ duy nhất và được đăng đúng một lần khi hết khoá.
+A_TEXT = GOOD + "\nDấu riêng của bản A.\n"
+B_TEXT = GOOD + "\nDấu riêng của bản B.\n"
+
+
+def _held_world(name):
+    w, g = granted_world(name)
+    mid, ref = w.next()
+    with w.turn(mid):
+        g2 = w.revise(g, mid, ref)
+        rb = w.submit(content=A_TEXT)
+    w.store = RS.GoalStore(w.store.path)
+    undo = _deny_draft_read(w, rb["submission_id"])
+    _ticks(w, 1)
+    return w, g2, rb["submission_id"], undo, (mid, ref)
+
+
+for change in ("paused", "revoked", "cancelled", "revision", "newer"):
+    w, g2, sid, undo, (mid0, ref0) = _held_world("v3h" + change[:3])
+    held0 = w.store.submission(w.owner, sid)
+    try:
+        if change == "paused":
+            w.store.set_paused(w.owner, g2.id, True)
+        elif change == "revoked":
+            R.apply_command(w.store, w.owner, g2.id, "revoke_grant", {"expected_revision": g2.revision}, w.brain)
+        elif change == "cancelled":
+            w.store.cancel(w.owner, g2.id, g2.revision)
+        elif change == "revision":
+            mid, ref = w.next()
+            with w.turn(mid):
+                g3 = w.revise(g2, mid, ref, understanding="Bản tóm tắt cuộc họp, bản sửa lần hai")
+                w.submit(content=B_TEXT)
+            R.handoff_after_turn(g3.id, ref, w.deps())
+        else:
+            with w.turn(mid0):
+                rn = w.submit(content=B_TEXT)
+    finally:
+        undo()
+    for _ in range(40):
+        _ticks(w, 1, step=60)
+    sa = w.store.submission(w.owner, sid)
+    text = w.target().read_text(encoding="utf-8") if w.target().is_file() else ""
+    if change == "newer":
+        pubs = [x for x in w.store.actions(w.owner, g2.id) if x["kind"] == "publish" and x["status"] == "succeeded"]
+        check("V3 bản nộp đang giữ, lượt cùng revision nộp bản khác: bị từ chối submission_conflict, hết khoá đăng đúng "
+              "bản đang giữ một lần, 0 lượt engine",
+              rn.get("code") == "submission_conflict" and "bản A" in text and "bản B" not in text
+              and sa["status"] == "published" and sa["adopted_at"] and len(pubs) == 1 and w.eng.queries == 0,
+              (rn, sa["status"], len(pubs), w.eng.queries))
+        continue
+    b_expected = change == "revision"
+    check(f"V3 bản nộp đang giữ rồi {change}: hết khoá không tự đăng bản cũ, bỏ giữ, không còn lịch settle"
+          + (", đăng bản mới hơn" if b_expected else ", 0 lượt engine"),
+          held0["status"] == "candidate" and held0["hold_until"] is not None
+          and "bản A" not in text and sa["status"] != "published" and sa["hold_until"] is None
+          and not [x for x in w.store.wakes(w.owner, g2.id) if x["kind"] == "settle"]
+          and (("bản B" in text) if b_expected else w.eng.queries == 0),
+          (held0["status"], held0["hold_until"], sa["status"], sa["hold_until"], "bản A" in text, "bản B" in text,
+           w.eng.queries))
+
 # Đối chứng: không lỗi thì cùng lần thức đăng ngay, không gác, 0 lượt engine.
 w, g = granted_world("v3ctl")
 mid, ref = w.next()

@@ -3129,8 +3129,9 @@ class GoalStore:
     def _retire_old_revision(self, c, goal_id: str, new_revision: int, now: float) -> None:
         """Revision mới thay chỗ (mục 4.2): bản nộp chưa đăng của revision cũ thành `superseded`, liên kết của revision cũ
         `closed`. Bản đang `publishing` để mốc commit tự huỷ vì revision không còn khớp; bản đã commit đi tiếp."""
-        c.execute("UPDATE submissions SET status='superseded', status_reason='revision_changed', updated_at=? WHERE "
-                  "goal_id=? AND revision<? AND status IN ('candidate','awaiting_scope')", (now, goal_id, int(new_revision)))
+        c.execute("UPDATE submissions SET status='superseded', status_reason='revision_changed', hold_until=NULL, "
+                  "updated_at=? WHERE goal_id=? AND revision<? AND status IN ('candidate','awaiting_scope')",
+                  (now, goal_id, int(new_revision)))
         c.execute("UPDATE bindings SET status='closed', closed_at=? WHERE goal_id=? AND revision<? AND "
                   "status IN ('live','sealed')", (now, goal_id, int(new_revision)))
 
@@ -4050,7 +4051,8 @@ class GoalStore:
                     a = c.execute("SELECT receipt_json FROM actions WHERE id=?", (s["publish_action_id"],)).fetchone()
                     if a is not None and json.loads(a["receipt_json"] or "{}").get("commit_at"):
                         continue
-                c.execute("UPDATE submissions SET status='stale', status_reason='grant_revoked', updated_at=? WHERE id=?",
+                c.execute("UPDATE submissions SET status='stale', status_reason='grant_revoked', hold_until=NULL, "
+                          "updated_at=? WHERE id=?",
                           (now, s["id"]))
             c.execute("UPDATE bindings SET status='dead', closed_at=? WHERE goal_id=? AND status IN ('live','sealed')",
                       (now, goal_id))
