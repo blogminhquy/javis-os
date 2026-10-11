@@ -119,6 +119,28 @@ setTimeout(() => {
     check("chuỗi ghi chú mới đủ hai thứ tiếng, không gạch dài", ["resonance.a4_approved_draft_conflict",
       "resonance.a4_approved_draft_pending"].every((k) => vi[k] && en[k]
       && !(vi[k] + en[k]).includes(String.fromCharCode(0x2014))));
+
+    // Soi giao diện A4 (trang Cộng sự): thẻ chat đang nhìn thấy và thẻ ngăn trợ lý (`rsa-card`, có thể đang ẩn, đứng
+    // SAU trong DOM) cùng một mục tiêu. Cho phép trên thẻ chat: thẻ chat phải đầy đủ và mang câu báo kết quả, không bị
+    // thu gọn "xem thẻ mới nhất bên dưới" trong khi câu báo rơi vào thẻ ẩn.
+    function domEl(cls) {
+      const cl = new Set(cls.split(" "));
+      return { className: cls, innerHTML: "", _goal: pending,
+        classList: { toggle(k, on) { if (on) cl.add(k); else cl.delete(k); }, contains: (k) => cl.has(k) },
+        has: (k) => cl.has(k) };
+    }
+    const oldChat = domEl("rs-card"), chatEl = domEl("rs-card"), panelEl = domEl("rs-card rsa-card");
+    const savedDoc = global.document;
+    global.document = { querySelectorAll: () => [oldChat, chatEl, panelEl] };
+    RS.render(chatEl, afterGoal, vi["resonance.a4_approved_draft"]);
+    global.document = savedDoc;
+    const see = vi["resonance.see_latest"];
+    check("Cộng sự: Cho phép trên thẻ chat, thẻ chat cuối vẫn đầy đủ và mang câu báo đã đăng",
+      chatEl.innerHTML.includes(vi["resonance.a4_approved_draft"]) && !chatEl.innerHTML.includes(see)
+      && !chatEl.has("rs-old"), chatEl.innerHTML.slice(0, 200));
+    check("Cộng sự: thẻ ngăn trợ lý luôn đầy đủ; thẻ chat cũ hơn vẫn gọn",
+      !panelEl.innerHTML.includes(see) && !panelEl.has("rs-old") && oldChat.innerHTML.includes(see)
+      && oldChat.has("rs-old"));
     if (fails) {
       console.log("\n" + fails + " FAIL");
       process.exit(1);

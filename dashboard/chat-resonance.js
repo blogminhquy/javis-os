@@ -441,17 +441,26 @@
       '<div class="rs-muted">' + esc(g.understanding || "") + " · " + esc(tw("resonance.see_latest")) + "</div>";
   }
 
-  /* Vẽ MỌI thẻ của cùng mục tiêu theo cùng một trạng thái: thẻ cuối đầy đủ, thẻ trước gọn. */
+  /* Thẻ trong ngăn trợ lý (trang Cộng sự, `rsa-card`) là một chỗ xem riêng, không thuộc dòng tin. */
+  function panelCard(x) {
+    return /(^|\s)rsa-card(\s|$)/.test(String((x && x.className) || ""));
+  }
+
+  /* Vẽ MỌI thẻ của cùng mục tiêu theo cùng một trạng thái: trong dòng tin, thẻ cuối đầy đủ, thẻ trước gọn; thẻ ngăn trợ
+     lý luôn đầy đủ. Thẻ ngăn trợ lý có thể đang ẩn (tab khác), nên KHÔNG được tính là "thẻ cuối": nếu tính, thẻ chat
+     đang nhìn thấy bị thu gọn và câu báo kết quả (ví dụ "Đã cho phép và đăng") rơi vào thẻ ẩn (soi giao diện A4). */
   function render(el, g, note) {
     var all = (typeof document !== "undefined" && document.querySelectorAll)
       ? Array.prototype.slice.call(document.querySelectorAll('.rs-card[data-goal="' + g.goal_id + '"]')) : [el];
     if (all.indexOf(el) < 0) all.push(el);
-    var last = all[all.length - 1];
+    var chat = all.filter(function (x) { return !panelCard(x); });
+    var last = chat[chat.length - 1];
     all.forEach(function (x) {
+      var full = x === last || panelCard(x);
       x._goal = g;
       x.classList.toggle("rs-done", g.status !== "active");
-      x.classList.toggle("rs-old", x !== last);
-      x.innerHTML = x === last ? viewHtml(g, note) : compactHtml(g);
+      x.classList.toggle("rs-old", !full);
+      x.innerHTML = full ? viewHtml(g, note) : compactHtml(g);
     });
   }
 
