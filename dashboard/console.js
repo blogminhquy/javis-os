@@ -3567,7 +3567,7 @@
     } else {
       than = '<div class="ol-chips">' +
         chip("cpu", t("ol.ram") + ": " + olGb(sp.ram_gb)) +
-        (sp.has_gpu ? chip("zap", "GPU" + (sp.vram_gb ? " " + olGb(sp.vram_gb) : "")) 
+        (sp.has_gpu ? chip("zap", sp.vram_gb ? "GPU " + olGb(sp.vram_gb) : (sp.gpu_name || "GPU"))
                     : chip("circle", t("ol.no_gpu"))) +
         chip(tu ? "circle-check" : "pencil", tu ? t("ol.specs_auto") : t("ol.specs_manual")) +
         "</div>";

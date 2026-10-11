@@ -2842,6 +2842,14 @@ def _hub_enabled():
     return bool(cfgmod.read_settings().get("mcp", {}).get("hub", True))
 
 
+# Provider engine API được nạp công cụ của hub ở `_api_stream_mcp`. Mọi provider có nhánh `*_chat_with_mcp` trong `_vong_tool`
+# PHẢI có tên ở đây: thiếu là danh sách tool rỗng, nhánh có tool không bao giờ chạy và model chỉ chat chay. Ollama máy nhà
+# (`ollama-local`) từng bị sót đúng như vậy từ lúc có nhánh của nó tới 0.92.2 (người dùng Mac báo 11/10: "model báo không có
+# quyền tool", không đọc được file, không gọi được MCP).
+_API_TOOL_PROVIDERS = ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "ollama",
+                       "ollama-local", "openai-compat")
+
+
 async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=None,
                           force_lazy=False, mode="full"):
     """Model API/OAuth dùng MCP của Javis qua HUB: đa tài khoản + quyền + audit + builtin tools
@@ -2849,7 +2857,7 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
     ChatGPT OAuth ở các kênh tương tác đi qua Codex CLI native MCP, không dùng fallback này."""
     tools, route = [], {}
     inventory_tools, inventory_route = [], {}
-    if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "deepseek", "ollama", "openai-compat"):
+    if prov in _API_TOOL_PROVIDERS:
         try:
             if _hub_enabled():
                 vault_root = _brain_root(brain) if brain else None
@@ -17027,6 +17035,13 @@ async def ollama_local_set_specs(ram_gb: float = Form(0), has_gpu: str = Form("0
     d = {"source": "manual", "ram_gb": max(0.0, float(ram_gb or 0)),
          "has_gpu": str(has_gpu).strip() in ("1", "true", "True", "on"),
          "vram_gb": max(0.0, float(vram_gb or 0))}
+    # Mac chip Apple không có VRAM rời: ô VRAM để 0 nên trang gửi has_gpu=0, khai tay RAM xong là MẤT luôn GPU. Ollama chạy
+    # ngay trên máy này và chip là Apple thì giữ GPU dùng chung.
+    ep, _ = _ol_cfg()
+    if not d["vram_gb"] and ollama_local.same_host(ep):
+        tu_doc = await asyncio.to_thread(ollama_local.detect_specs)
+        if tu_doc.get("gpu_name") == ollama_local.APPLE_GPU:
+            d["has_gpu"], d["gpu_name"] = True, tu_doc["gpu_name"]
     _ol_luu({"ollama_local_specs": d})
     return {"ok": True, "specs": d}
 

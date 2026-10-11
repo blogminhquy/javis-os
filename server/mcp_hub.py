@@ -26,6 +26,7 @@ from fastapi.responses import JSONResponse, Response
 
 import chatbot_doc_tools
 import config
+import doc_text
 import hub_trace
 import localefmt
 import mcp_catalog
@@ -594,7 +595,11 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
             return (f"'{rel}' là file ẢNH ({p.stat().st_size // 1024} KB), tool này chỉ đọc chữ nên không cho bạn thấy ảnh. "
                     f"Muốn biết trong ảnh có gì, gọi tool javis_describe_image với images=['{rel}'] (ChatGPT nhìn ảnh thật "
                     f"rồi tả lại). Muốn người dùng xem ảnh thì nhúng ![]({rel}) vào câu trả lời.")
-        text = p.read_text(encoding="utf-8", errors="replace")
+        if p.suffix.lower() in doc_text.SUFFIXES:
+            # PDF/Word đọc thô ra toàn mã nhị phân: bóc chữ trước để engine API và Ollama máy nhà đọc được file đính kèm (0.92.2).
+            text = await asyncio.to_thread(doc_text.extract, p)
+        else:
+            text = p.read_text(encoding="utf-8", errors="replace")
         return text[:100_000] + (f"\n… [cắt, file dài {len(text):,} ký tự]" if len(text) > 100_000 else "")
 
     async def _ls(args):

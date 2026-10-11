@@ -368,9 +368,23 @@ def _gpu() -> tuple:
     # Apple Silicon: GPU dùng CHUNG bộ nhớ với CPU, nên không có "VRAM" tách riêng. Báo đúng
     # như vậy thay vì bịa một con số - phần gợi ý model đọc has_gpu để biết còn vram_gb=0
     # nghĩa là "cứ tính theo RAM".
-    if deploy_info.host_platform() == "mac" and "arm" in (_chay(["uname", "-m"]) or "").lower():
-        return "Apple Silicon (bộ nhớ dùng chung)", 0.0
+    if deploy_info.host_platform() == "mac" and la_apple_silicon():
+        return APPLE_GPU, 0.0
     return "", 0.0
+
+
+APPLE_GPU = "Apple Silicon (bộ nhớ dùng chung)"
+
+
+def la_apple_silicon() -> bool:
+    """Máy Mac này có chip Apple không. Hỏi PHẦN CỨNG chứ không hỏi `uname -m`: Python bản Intel chạy qua Rosetta thấy
+    `uname -m` là x86_64, nên trước 0.92.2 Mac M-series báo "không có GPU" và gợi ý model ghi "Chạy bằng CPU và RAM" trong khi
+    `ollama ps` báo 100% GPU (người dùng Mac mini báo 11/10). `hw.optional.arm64` trả 1 cả khi chạy qua Rosetta."""
+    if (_chay(["sysctl", "-n", "hw.optional.arm64"]) or "").strip() == "1":
+        return True
+    if "apple" in (_chay(["sysctl", "-n", "machdep.cpu.brand_string"]) or "").lower():
+        return True
+    return "arm" in (_chay(["uname", "-m"]) or "").lower()
 
 
 def detect_specs() -> dict:

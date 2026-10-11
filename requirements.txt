@@ -79,3 +79,8 @@ tzdata>=2026.1
 # `tv_embedded` - cái tên đã bị xoá. Cài bản cũ thì quân dự bị coi như không có. Máy nào cập
 # nhật Javis từ trước 0.41.1 nên chạy thẳng: pip install -U yt-dlp
 yt-dlp>=2026.8.19
+
+# pypdf: bóc chữ PDF cho tool javis_read_file (server/doc_text.py, 0.92.2), để engine API và Ollama máy nhà đọc được PDF
+# đính kèm thay vì một đống mã nhị phân. Thuần Python, giấy phép BSD, không kéo dependency nào. Thiếu nó app VẪN chạy: đọc PDF
+# trả một câu báo thiếu thư viện thay cho chữ.
+pypdf==6.18.1

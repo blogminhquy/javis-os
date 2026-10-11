@@ -173,6 +173,9 @@ def goi_y(specs: dict) -> list:
     ram = float(specs.get("ram_gb") or 0) or RAM_KHI_CHUA_BIET
     vram = float(specs.get("vram_gb") or 0)
     co_gpu = bool(specs.get("has_gpu"))
+    # Chip Apple: GPU dùng CHUNG RAM (Metal), không có VRAM rời. Trước 0.92.2 vram = 0 nên mọi model rơi vào nhánh "Chạy bằng
+    # CPU và RAM" dù Ollama chạy trọn trên GPU. Model vừa trần RAM là chạy được bằng GPU của chip.
+    apple = co_gpu and vram <= 0 and "apple" in str(specs.get("gpu_name") or "").lower()
     tran = ram * CHUA_LAI
 
     nhanh, lon = [], []
@@ -191,6 +194,12 @@ def goi_y(specs: dict) -> list:
         if co_gpu and vram > 0 and cd <= vram:
             d["note"] = localefmt.chu("Chạy trọn trong GPU, nhanh nhất", "Runs fully on the GPU, fastest")
             d["chay_gpu"] = True
+            nhanh.append(d)
+        elif apple:
+            d["note"] = localefmt.chu("Chạy bằng GPU của chip Apple, dùng chung RAM",
+                                      "Runs on the Apple chip's GPU, sharing RAM")
+            d["chay_gpu"] = True
+            d["cham_vi_nghi"] = False
             nhanh.append(d)
         else:
             d["note"] = (localefmt.chu("Vượt VRAM, phải bù bằng RAM nên chậm hơn",
