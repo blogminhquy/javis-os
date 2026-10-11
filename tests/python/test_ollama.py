@@ -17,6 +17,7 @@ trong im lặng. Hai, phần máy nhà đã đi sạch, không để lại mẩu
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
 import os
+import re
 import sys
 import tempfile
 import types
@@ -206,7 +207,8 @@ check("CANARY: giao diện không còn nhánh theo địa chỉ", "needs_host" n
 check("CANARY: không còn nút Kiểm tra địa chỉ", "data-ph=" not in _console)
 # Thiếu dòng này thì thẻ Ollama hiện "Đổi key (•••)" với bốn ký tự cuối của... không gì cả.
 check("bảng key của giao diện biết ollama", '"ollama": "ollama_key"' in _console)
-check("ollama vẫn nằm trong danh sách provider có MCP", '"deepseek", "ollama", "openai-compat"]' in _console)
+_mcp_ui = re.search(r"const MCP_PROVIDERS = \[([^\]]*)\]", _console)
+check("ollama vẫn nằm trong danh sách provider có MCP", bool(_mcp_ui) and '"ollama"' in _mcp_ui.group(1))
 
 print()
 if _fails:
