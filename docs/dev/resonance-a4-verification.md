@@ -14,7 +14,7 @@ Thiết kế: [2026-10-10-resonance-a4-handoff-grants-design.md](../superpowers/
 | `tests/js/test_resonance_a4_ui.js` (gồm hành vi `send()` thật với phản hồi server giả) | 27 kiểm đạt |
 | `tests/python/test_resonance_a4_pilot.py` (`JAVIS_RESONANCE_A4_PILOT=dry`, server thật, lượt chat mô phỏng) | 10/10 ca, 0 lượt thật; không đặt biến thì bỏ qua |
 | 31 file test Resonance cũ (M1 tới M5, A1 tới A3) và 5 test giao diện Resonance cũ | đều đạt (14 file sửa kỳ vọng hay thêm `RA.preapprove()`, xem dưới) |
-| Toàn repo `tests/run.py` (637 file) | 619 xanh; 18 đỏ, phân định ở mục "Toàn repo" |
+| Toàn repo `tests/run.py` (639 file, lần chạy cuối tại `f6aeb6d1`) | 625 xanh; 14 đỏ, đều do môi trường, phân định ở mục "Toàn repo" |
 
 Lệnh chạy lại:
 
@@ -145,6 +145,10 @@ Một lượt soát độc lập (agent chỉ đọc, có chạy thử trên kho
 - Các điểm I1, I2 ở mục 17 của thiết kế chạm cơ chế quyền và **cần reviewer xác nhận**.
 
 ## Toàn repo
+
+**Lần chạy cuối (11/10/2026, `f6aeb6d1`, mã sản phẩm bằng head của gói pilot):** 639 file, 625 xanh, 14 đỏ. Chạy lại từng file đỏ trên worktree sạch `main` `1d0b515c`: 13 file đỏ y như vậy (môi trường máy này); `test_ignore_files` xanh trên `main` và đỏ trên worktree PR chỉ vì thư mục `exports/` (hồ sơ review, không track). Không có file đỏ mới do A4. Log và phân định: `exports/reviews/A4-full-suite-f6aeb6d1.*` (ngoài git).
+
+**Lần chạy đầu (trước review mã vòng 1):**
 
 `tests/run.py` chạy đủ 637 file trên máy Windows này: 619 xanh. 18 file đỏ, phân định:
 
