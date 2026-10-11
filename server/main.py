@@ -1370,6 +1370,7 @@ async def auth_setup(request: Request, username: str = Form(...), password: str 
     # MÃ THIẾT LẬP đã bỏ (0.64.47, chủ dự án chốt 24/09): lần đầu chỉ cần tên + mật khẩu, bảo
     # vệ tiếp theo là 2FA. `setup_token` vẫn nhận nhưng bỏ qua, để client cũ còn gửi không lỗi.
     # Máy cài bằng install.sh có admin sẵn từ .env nên màn này không bao giờ hiện ra ở đó.
+    password = cfgmod.clean_password(password)
     if len(password) < 8:
         return JSONResponse({"ok": False, "error": localefmt.chu("Mật khẩu tối thiểu 8 ký tự", "Password must be at least 8 characters")}, status_code=400)
     h, salt = cfgmod.hash_password(password)
@@ -1412,10 +1413,21 @@ async def auth_login(request: Request, username: str = Form(...), password: str 
     cfg = cfgmod.read_settings()
     if not cfgmod.auth_enabled(cfg):
         return {"ok": True, "note": localefmt.chu("auth chưa bật", "auth is not enabled")}
-    if username.strip() != cfg["auth"].get("username") or not cfgmod.verify_password(password, cfg):
+    if not cfgmod.username_matches(username, cfg) or not cfgmod.verify_password(password, cfg):
         _login_fail(ip)
         await asyncio.sleep(0.5)   # làm chậm brute-force online
-        return JSONResponse({"ok": False, "error": localefmt.chu("Sai tài khoản hoặc mật khẩu", "Wrong username or password")}, status_code=401)
+        loi = localefmt.chu("Sai tài khoản hoặc mật khẩu.", "Wrong username or password.")
+        # Account set from the server environment (Docker, Hostinger): a reset there also sets
+        # the USERNAME to JAVIS_ADMIN_USER (default "admin"), which is easy to miss when the
+        # account was first created under another name. Say so. The default name is public in
+        # the docs, so this tells an attacker nothing new.
+        if isinstance((cfg.get("auth") or {}).get("env_applied"), dict):
+            loi += " " + localefmt.chu(
+                "Máy chủ này đặt tài khoản qua biến môi trường: tên đăng nhập là JAVIS_ADMIN_USER "
+                "(mặc định admin), mật khẩu là JAVIS_ADMIN_PASSWORD của lần Redeploy gần nhất.",
+                "This server sets the account from its environment: the username is JAVIS_ADMIN_USER "
+                "(default admin) and the password is JAVIS_ADMIN_PASSWORD from the last redeploy.")
+        return JSONResponse({"ok": False, "error": loi}, status_code=401)
     # totp_hong: 2FA bật trong file nhưng secret không giải mã được (mất .secret_key).
     # Vẫn PHẢI hỏi mã (fail-closed) - chỉ mã khôi phục qua được vì nó băm, không mã hoá.
     # Trước 0.35.6 nhánh này fail-open: totp_enabled trả False nên cổng thôi hỏi mã luôn,
@@ -1599,6 +1611,7 @@ async def auth_password(request: Request, current_password: str = Form(""),
         await asyncio.sleep(0.5)   # cùng nhịp làm chậm với /auth/login
         return JSONResponse({"ok": False, "error": localefmt.chu("Sai mật khẩu hiện tại.", "Wrong current password.")}, status_code=401)
     ten = (username or "").strip()
+    password = cfgmod.clean_password(password)
     if password and len(password) < 8:
         return JSONResponse({"ok": False, "error": localefmt.chu("Mật khẩu tối thiểu 8 ký tự", "Password must be at least 8 characters")}, status_code=400)
     if not password and not ten:
