@@ -1660,6 +1660,39 @@ def dat_codex_vault(extra_config, vault_root):
     return extra_config
 
 
+# Việc nền theo lịch chạy trên Codex: hub là server BẮT BUỘC.
+#
+# Codex 0.161.0 chụp danh sách tool của lượt và chỉ chờ một server MCP không `required` tới
+# `mcp_optional_startup_grace_ms`, mặc định 1 giây; quá hạn là cả server bị bỏ khỏi lượt đó
+# (codex-mcp/src/connection_manager/tool_catalog.rs). Hub trả `tools/list` qua `discover_all`,
+# cache 60 giây hết hạn là dò lại mọi connector, mất khoảng 2 giây. Hai con số đua nhau nên việc
+# nền lúc có tool hub lúc không (canary 08-09/10/2026: 4 trên 12 lượt nhắc hẹn không thấy
+# `mcp__javis__*`), model đi vòng qua app ChatGPT hoặc báo không làm được mà nhắc hẹn vẫn ghi xong.
+# `required = true` bắt Codex chờ hub tới `startup_timeout_sec` của profile; hub không lên thì
+# phiên không mở và `codex exec` thoát lỗi TRƯỚC khi gọi model (core/src/session/session.rs); câu
+# lỗi đó do claude_cli.codex_error_text đọc. Chỉ gắn khi profile hub có mặt: override vào
+# `mcp_servers.javis` mà thiếu entry đó thì Codex từ chối khởi động ("invalid transport").
+CODEX_REQUIRED_KEY = "mcp_servers.javis.required"
+# `features.apps = false` gỡ hẳn server `codex_apps` (app ChatGPT gắn với tài khoản,
+# codex-mcp/src/mcp/mod.rs). Tool của nó không đi qua hub nên không chịu mức quyền của việc, và
+# là đường vòng model từng chọn cả khi hub có mặt (canary 08/10/2026).
+CODEX_APPS_KEY = "features.apps"
+
+
+def dat_codex_hub_bat_buoc(extra_config):
+    """Gắn `required = true` cho entry hub vào `-c` của MỘT CodexCLI, THAY bản cũ nếu có."""
+    extra_config[:] = [x for x in extra_config if not str(x).startswith(CODEX_REQUIRED_KEY + "=")]
+    extra_config.append(f"{CODEX_REQUIRED_KEY}=true")
+    return extra_config
+
+
+def dat_codex_tat_app(extra_config):
+    """Tắt app ChatGPT (`codex_apps`) cho MỘT CodexCLI, THAY bản cũ nếu có."""
+    extra_config[:] = [x for x in extra_config if not str(x).startswith(CODEX_APPS_KEY + "=")]
+    extra_config.append(f"{CODEX_APPS_KEY}=false")
+    return extra_config
+
+
 # ============================================================
 # Validate connection (thêm tài khoản / nút Test)
 # ============================================================
