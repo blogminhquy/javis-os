@@ -127,6 +127,13 @@ check("allowed group, bot tagged, at night -> ngoai_gio_truc",
 check("_nen_tra_loi follows the hours (second layer in the answer path)",
       chatbot_runtime._nen_tra_loi(cfg, rieng) == chatbot_store.trong_gio_truc(DEM))
 
+# The engine must never be reached at night; wiring one that fails loudly proves it.
+async def _engine_cam(*a, **k):
+    raise AssertionError("engine called outside active hours")
+
+
+chatbot_runtime.wire(answer=_engine_cam, brain_root=lambda b: _STATE, read_agent=lambda br, slug: ({}, ""))
+
 # ============================================================
 # 5. Precheck at night: silent, but the message is in the inbox. Try panel reports the code.
 # ============================================================
@@ -145,6 +152,18 @@ try:
     chan("Cô ơi lịch học tuần này thế nào ạ?", dict(meta))
     check("the same message seen twice is written once",
           len(conversations.tin_gan_day(kenh, aid, "khach-dem")) == len(tin))
+
+    ok, err = chatbot_store.update_bot(bid, {"groups": "5551234", "reply_when": "auto"})
+    assert ok, err
+    nhom = {"chat_type": "group", "chat_id": "5551234", "user_id": "u9", "user_name": "Phụ huynh B"}
+    akey = chatbot_runtime._tai_khoan_cua(chatbot_store.get_bot(bid), nhom)
+    r = chan("cả nhà ngủ ngon", dict(nhom, message_id="g-1"))
+    check("night, auto mode, group chatter: silent", r == {}, r)
+    check("... and chatter does NOT flood the inbox", not conversations.tin_gan_day(akey[1], akey[0], "5551234"))
+    r = chan("@bot cho em hỏi lịch thi", dict(nhom, message_id="g-2", mentioned=True))
+    check("night, group, bot tagged: silent", r == {}, r)
+    check("... but the tagged question is in the inbox",
+          any("lịch thi" in (t.get("text") or "") for t in conversations.tin_gan_day(akey[1], akey[0], "5551234")))
 
     r = asyncio.run(chatbot_runtime.try_message(bid, "Cô ơi cho em hỏi học phí"))
     check("try panel at 03:00 says the gate code ngoai_gio_truc",

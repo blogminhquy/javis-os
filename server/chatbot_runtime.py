@@ -968,7 +968,9 @@ def _make_precheck_fn(bot_id: str):
             # inbox so whoever is on duty reads it in the morning; group chatter in "Tự đánh giá" mode does not,
             # since by day it would not have reached the inbox either.
             m = meta or {}
-            if (m.get("chat_type") or "private") == "private" or m.get("mentioned") or m.get("reply_to_bot")                     or cfg.get("reply_when") == "always":
+            goi_bot = ((m.get("chat_type") or "private") == "private" or m.get("mentioned")
+                       or m.get("reply_to_bot") or cfg.get("reply_when") == "always")
+            if goi_bot:
                 ghi_tin_khach(cfg, m, text)
             return {}
         if ly_do == "nguoi_chua_chon":
