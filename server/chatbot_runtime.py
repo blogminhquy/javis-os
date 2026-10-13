@@ -540,8 +540,23 @@ def _nhom_duoc_phep(bot_cfg: dict, chat_id) -> bool:
     return _khop_nhom(bot_cfg.get("groups") or [], chat_id)
 
 
-def _ly_do_im(bot_cfg: dict, meta: dict) -> str:
+def _ly_do_im(bot_cfg: dict, meta: dict, luc=None) -> str:
     """Vì sao bot KHÔNG mở miệng ở lượt này. "" nghĩa là cứ trả lời.
+
+    Active hours (0.110.0) are checked LAST, only for a message the bot would otherwise answer: outside them
+    the code is "ngoai_gio_truc". Last on purpose, so an unknown group or person still reaches the approval
+    queue at night with its own code. `luc` is the moment to judge (tests); default now in `localefmt.tz()`.
+    """
+    ly_do = _ly_do_im_co_ban(bot_cfg, meta)
+    if ly_do:
+        return ly_do
+    if not chatbot_store.trong_gio_truc((bot_cfg or {}).get("gio_truc"), luc):
+        return "ngoai_gio_truc"
+    return ""
+
+
+def _ly_do_im_co_ban(bot_cfg: dict, meta: dict) -> str:
+    """`_ly_do_im` without active hours: who may talk to the bot, and when it speaks in a group.
 
     Tin nhắn riêng: luôn trả lời. Trong NHÓM: chỉ nhóm đã khai, và theo `reply_when`.
 
@@ -948,6 +963,14 @@ def _make_precheck_fn(bot_id: str):
         if (meta or {}).get("member_join"):
             # A join in a group the bot may not speak in: silent, and not a "call" for the approval queue.
             return {}
+        if ly_do == "ngoai_gio_truc":
+            # Outside active hours: silent, nothing sent. A message the bot WOULD have answered still goes to the
+            # inbox so whoever is on duty reads it in the morning; group chatter in "Tự đánh giá" mode does not,
+            # since by day it would not have reached the inbox either.
+            m = meta or {}
+            if (m.get("chat_type") or "private") == "private" or m.get("mentioned") or m.get("reply_to_bot")                     or cfg.get("reply_when") == "always":
+                ghi_tin_khach(cfg, m, text)
+            return {}
         if ly_do == "nguoi_chua_chon":
             # Người ngoài danh sách (audience `chon`): im TUYỆT ĐỐI, nhưng nổi lên hàng chờ duyệt
             # kèm nút Cho phép. Im mà không để lại dấu thì chủ chỉ thấy "bot hỏng" (cùng bài học
@@ -966,7 +989,7 @@ def _make_precheck_fn(bot_id: str):
         # gọi: đếm nó là "có người gọi bot" thì hàng chờ duyệt nhóm đầy số lần gọi ma.
         if gia_dinh.get("reply_when") == "auto":
             gia_dinh["reply_when"] = "mention"
-        if _ly_do_im(gia_dinh, meta or {}):
+        if _ly_do_im_co_ban(gia_dinh, meta or {}):
             return {}
         _ghi_nhom_cho(bot_id, meta or {}, text)
         khoa = (bot_id, str((meta or {}).get("chat_id") or ""))
@@ -1837,6 +1860,8 @@ def _try_reason(code: str) -> str:
                           "In groups the bot only replies when named or tagged, and this message does not."),
         "nhom_chua_bat": ("Nhóm này chưa được cho phép.", "This group is not allowed yet."),
         "nguoi_chua_chon": ("Người này chưa được chọn.", "This person is not selected yet."),
+        "ngoai_gio_truc": ("Đang ngoài giờ trực của bot. Tin thật lúc này không được trả lời, chỉ vào Hộp thư.",
+                           "Outside the bot's active hours. A real message now gets no reply and only goes to the inbox."),
         "khong_giong_cau_hoi": ("Tin này không giống một câu hỏi hay lời nhờ giúp, nên bot không tự chen vào.",
                                 "This does not look like a question or a request for help, so the bot does not step in."),
     }

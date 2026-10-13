@@ -662,6 +662,11 @@
 
   // Một dòng "bot trả lời ai" cho thẻ: đọc là biết ngay bot đang nói chuyện với ai, không phải mở form.
   function tomTatDoiTuong(b) {
+    var s = tomTatAi(b), g = b.gio_truc || {};
+    return g.tu && g.den ? s + " · " + window.t("cb.tt_gio_truc", { tu: g.tu, den: g.den }) : s;
+  }
+
+  function tomTatAi(b) {
     var aud = b.audience || "nhom";
     var nhom = (b.groups || []).length, nguoi = (b.people || []).length;
     var cn = coNhom(b);
@@ -880,6 +885,18 @@
           '<div class="cb-sec">' + secH("shield", "cb2.s_quyen") +
             htmlMuc(muc0) +
             '<div class="cb-muc-note">' + veCanhBao(muc0) + '</div>' +
+          '</div>' +
+
+          // 5. Active hours (0.110.0). Both empty = all day. Outside them the bot stays silent and the message
+          // still lands in the inbox; an end earlier than the start runs past midnight (08:00 to 02:00).
+          '<div class="cb-sec">' + secH("clock", "cb.s_gio_truc") +
+            '<div class="cb-gio-truc">' +
+              '<label>' + esc(window.t("cb.gio_tu")) +
+                ' <input type="time" id="cbGioTu" value="' + esc(((b && b.gio_truc) || {}).tu || "") + '"></label>' +
+              '<label>' + esc(window.t("cb.gio_den")) +
+                ' <input type="time" id="cbGioDen" value="' + esc(((b && b.gio_truc) || {}).den || "") + '"></label>' +
+            '</div>' +
+            '<div class="cb-hint">' + esc(window.t("cb.hint_gio_truc")) + '</div>' +
           '</div>' +
 
           // Nâng cao: chỉ ngôn ngữ trả lời. Ngôn ngữ của bot ĐỘC LẬP với ngôn ngữ của chủ: bot nói
@@ -1205,6 +1222,9 @@
       function ds(loai) {
         return Object.keys(chon[loai]).filter(function (k) { return chon[loai][k]; });
       }
+      var gioTu = ((box.querySelector("#cbGioTu") || {}).value || "").trim();
+      var gioDen = ((box.querySelector("#cbGioDen") || {}).value || "").trim();
+      if (!gioTu !== !gioDen) return alert(window.t("cb.gio_thieu"));
       // Không tài khoản nào đứng được trong nhóm thì gửi danh sách nhóm rỗng: bản ghi mang một danh
       // sách nhóm không bao giờ dùng tới là một lời hứa suông nằm lại trong dữ liệu.
       var chung = { name: ten, agent_slug: ag, agent_brain: br, brain: br,
@@ -1213,7 +1233,8 @@
                     audience: aud, people: ds("private").join("\n"),
                     groups: co ? ds("group").join("\n") : "",
                     reply_when: co ? (the === "auto" ? "auto" : (giaTri("cbRw") || "mention")) : "mention",
-                    account_ids: ids.join(",") };
+                    account_ids: ids.join(","),
+                    gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "" };
       try {
         if (sua) {
           await api("/chatbots/" + encodeURIComponent(b.id) + "/update", { method: "POST", body: fd(chung) });

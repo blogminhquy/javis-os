@@ -333,6 +333,74 @@ def _clean_ngon_ngu(v: Any) -> str:
     return lang_registry.chuan_hoa(s_) or "auto"
 
 
+# Active hours (0.110.0): {"tu": "HH:MM", "den": "HH:MM"} in the configured timezone (`localefmt.tz()`).
+# Empty or missing = all day, which is the behaviour of every bot saved before this field existed. "den" may
+# be earlier than "tu": 08:00-02:00 runs past midnight. "den" is exclusive, so at 02:00 the bot is already off.
+_HHMM_RE = re.compile(r"^\s*(\d{1,2})\s*[:hH]\s*(\d{2})?\s*$")
+_RANGE_SPLIT = re.compile(r"\s*(?:-|–|to|den|đến)\s*", re.IGNORECASE)
+
+
+def _hhmm(v: Any) -> Optional[str]:
+    """"8:00", "08:00", "8h", "8h30" -> "08:00"/"08:30"; anything else -> None."""
+    m = _HHMM_RE.match(str(v or ""))
+    if not m:
+        return None
+    h, mi = int(m.group(1)), int(m.group(2) or 0)
+    if h > 23 or mi > 59:
+        return None
+    return f"{h:02d}:{mi:02d}"
+
+
+def parse_gio_truc(v: Any) -> tuple[Optional[dict], str]:
+    """Validate an active-hours value. Returns ({} for all day | {"tu", "den"}, "") or (None, error).
+
+    Accepts a dict, a JSON string (what the dashboard form sends) or "08:00-02:00"."""
+    if isinstance(v, str):
+        s = v.strip()
+        if s.startswith("{"):
+            try:
+                v = json.loads(s)
+            except ValueError:
+                return None, localefmt.chu("Giờ trực không đọc được", "Active hours could not be read")
+        elif not s or s.lower() in ("null", "none", "all", "ca_ngay"):
+            return {}, ""
+        else:
+            parts = _RANGE_SPLIT.split(s)
+            v = {"tu": parts[0], "den": parts[1]} if len(parts) == 2 else {"tu": s, "den": ""}
+    if v is None:
+        return {}, ""
+    if not isinstance(v, dict):
+        return None, localefmt.chu("Giờ trực không đọc được", "Active hours could not be read")
+    tu_raw, den_raw = str(v.get("tu") or "").strip(), str(v.get("den") or "").strip()
+    if not tu_raw and not den_raw:
+        return {}, ""
+    tu, den = _hhmm(tu_raw), _hhmm(den_raw)
+    if not tu or not den:
+        return None, localefmt.chu("Giờ trực cần đủ giờ bắt đầu và giờ kết thúc dạng HH:MM, vd 08:00 và 02:00",
+                                   "Active hours need a start and an end time as HH:MM, e.g. 08:00 and 02:00")
+    if tu == den:
+        return None, localefmt.chu("Giờ bắt đầu và giờ kết thúc trùng nhau. Để trống cả hai nếu bot trực cả ngày",
+                                   "Start and end are the same. Leave both empty for a bot that answers all day")
+    return {"tu": tu, "den": den}, ""
+
+
+def trong_gio_truc(gio: Any, luc=None) -> bool:
+    """Is `luc` (a datetime, default now in the configured timezone) inside the active hours `gio`?
+
+    No hours, or a stored value that no longer parses, means all day: that is how every bot behaved before
+    this field existed, and a broken record must not silence a bot the owner believes is running."""
+    g, loi = parse_gio_truc(gio)
+    if loi or not g:
+        return True
+    luc = luc or localefmt.now()
+    phut = luc.hour * 60 + luc.minute
+    tu = int(g["tu"][:2]) * 60 + int(g["tu"][3:])
+    den = int(g["den"][:2]) * 60 + int(g["den"][3:])
+    if tu < den:
+        return tu <= phut < den
+    return phut >= tu or phut < den      # past midnight, e.g. 08:00-02:00
+
+
 def _co_token(b: dict) -> bool:
     """Bot có ít nhất một tài khoản kênh còn token không (bản ghi thô)."""
     return any((channel_accounts.get_account(a) or {}).get("token_set")
@@ -373,6 +441,8 @@ def _public(b: dict) -> dict:
     elif out["audience"] not in AUDIENCE:
         out["audience"] = AUDIENCE_HEP_NHAT
     out["people"] = _clean_groups(out.get("people"))
+    # Giờ trực (0.110.0). Thiếu khoá = bản ghi cũ = cả ngày; giá trị hỏng cũng đọc là cả ngày (xem `trong_gio_truc`).
+    out["gio_truc"] = parse_gio_truc(out.get("gio_truc"))[0] or {}
     # Bộ phán xử hội thoại nhóm (0.65.0). Thiếu khoá = bản ghi cũ = tắt; có khoá mà hỏng = phía hẹp nhất.
     import chatbot_reply_policy
     out["reply_policy"] = chatbot_reply_policy.normalize_config(out.get("reply_policy"))
@@ -562,6 +632,9 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
         return None, _loi(LOI_CHUA_XAC_NHAN)
     if can_xac_nhan_doi_tuong(data.get("audience"), data.get("xac_nhan_rui_ro")):
         return None, _loi(LOI_CHUA_XAC_NHAN_DOI_TUONG)
+    gio_truc, loi = parse_gio_truc(data.get("gio_truc"))
+    if loi:
+        return None, loi
     # Tài khoản kênh: hoặc CHỌN tài khoản có sẵn (account_ids), hoặc dán token mới (token +
     # channel) thì tạo tài khoản ngay tại đây. Cả hai cùng lúc cũng được.
     acc, loi = _clean_account_ids(data.get("account_ids"))
@@ -602,6 +675,7 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
                               else NGUON_DEFAULT),
             "muc_quyen": _clean_muc(data.get("muc_quyen")) or MUC_QUYEN_DEFAULT,
             "ngon_ngu": _clean_ngon_ngu(data.get("ngon_ngu")),
+            "gio_truc": gio_truc,
             "handoff_to": str(data.get("handoff_to") or "").strip(),
             "created_at": _now(),
             "updated_at": _now(),
@@ -635,7 +709,7 @@ def _nhan_brain_cho_tk(bot: dict) -> None:
 # không ai đọc nó nữa, và patch gửi khoá đó tới thì bị bỏ qua như mọi khoá lạ.
 _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
-              "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy")
+              "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -660,6 +734,13 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
             return False, _loi(LOI_THIEU_AGENT)
         if not _agent_slug_ok(s):
             return False, _loi(LOI_SLUG_AGENT)
+    # Giờ trực hỏng thì TỪ CHỐI cả bản vá (cùng lý do với slug Agent): bỏ qua lặng lẽ là form báo "đã lưu"
+    # trong khi bot vẫn trả lời lúc nửa đêm.
+    gio_moi = None
+    if "gio_truc" in patch:
+        gio_moi, loi = parse_gio_truc(patch.get("gio_truc"))
+        if loi:
+            return False, loi
     acc_moi = None
     if "account_ids" in patch:
         acc_moi, loi = _clean_account_ids(patch.get("account_ids"), exclude_bot=bot_id)
@@ -709,6 +790,9 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                         b["muc_quyen"] = nv
                 elif k == "ngon_ngu":
                     b["ngon_ngu"] = _clean_ngon_ngu(v)
+                elif k == "gio_truc":
+                    b["gio_truc"] = gio_moi      # đã kiểm ở đầu hàm
+
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()
                 elif k == "agent_slug":
