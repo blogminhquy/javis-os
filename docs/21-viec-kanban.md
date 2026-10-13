@@ -11,11 +11,12 @@ Trang **Việc** là chỗ bạn giao một mục tiêu ("goal") rồi để Jav
 Javis coi hàng đợi việc như một runtime cho AI. Một việc đi qua vòng đời sau:
 
 1. **Bạn giao goal** (từ trang Việc, hoặc nói trong chat, hoặc do trang Tự học đề xuất).
-2. **AI đặc tả (triage)**: một lượt chạy ngắn của model nền đọc goal thô rồi trả về JSON gồm intent rõ ràng, một **capability** (`files`, `research`, `mcp-read`, `code`, `external-write`), một **execution_mode** (`suggest`, `auto`, `full`) và danh sách **điều kiện hoàn thành**. Bước này không thực thi gì cả.
+2. **AI đặc tả (triage)**: một lượt chạy ngắn của model nền đọc goal thô rồi trả về JSON gồm intent rõ ràng, một **capability** (`files`, `research`, `mcp-read`, `code`, `external-write`, `image`), một **execution_mode** (`suggest`, `auto`, `full`) và danh sách **điều kiện hoàn thành**. Bước này không thực thi gì cả.
 3. **Vào hàng đợi**: task chuyển sang trạng thái sẵn sàng, chờ tới lượt.
 4. **Dispatcher claim task**: mỗi task được đúng một worker giữ (khoá bằng transaction trong SQLite), có thời hạn giữ 90 giây và nhịp báo sống 20 giây một lần.
 5. **Worker chạy**: một tiến trình AI headless làm việc trong brain, tự kiểm tra kết quả rồi báo cáo ngắn.
-6. **Kết thúc**: hoàn thành, hoặc dừng lại chờ bạn (thiếu thông tin, thiếu quyền, hoặc bạn đã tick "Yêu cầu duyệt kết quả").
+6. **Nghiệm thu** (từ 0.107.0): một lượt AI riêng, chỉ được đọc, đối chiếu báo cáo của worker với từng điều kiện hoàn thành và mở đúng file, ảnh mà điều kiện nhắc tới. Chưa đạt thì việc dừng chờ bạn với lý do "Chưa đạt điều kiện hoàn thành: ...", không sang Hoàn thành. Việc không có điều kiện nào thì chỉ bị chặn khi chính worker mở đầu báo cáo bằng câu kiểu "chưa xong", "không chạy được". Lượt nghiệm thu không chạy được (engine lỗi) thì việc vẫn hoàn thành, nhưng ghi rõ là chưa được nghiệm thu, vì chạy lại cả việc (có khi đã gửi, đã đăng) chỉ vì bước kiểm rẻ hỏng còn tệ hơn.
+7. **Kết thúc**: hoàn thành, hoặc dừng lại chờ bạn (thiếu thông tin, thiếu quyền, chưa đạt nghiệm thu, hoặc bạn đã tick "Yêu cầu duyệt kết quả").
 
 Worker dùng chung **engine nền** với các tính năng chạy ngầm khác, nên Claude Code, ChatGPT/Codex và các provider API (OpenRouter, OpenAI, Anthropic, Google Gemini) đều chạy được hàng đợi này. Xem [Models & engine](10-models-va-engine.md).
 
@@ -164,12 +165,23 @@ Worker là một phiên AI **headless**: không có màn hình, không hỏi l�
 | `mcp-read` | Công cụ file cộng đọc dữ liệu thật qua các kết nối MCP | Bash, tìm kiếm web |
 | `code` | Công cụ file cộng Bash (sửa và kiểm thử code) | Đọc web, tìm kiếm web |
 | `external-write` | Công cụ file cộng MCP, nhưng xem luật ngay bên dưới | Bash, tìm kiếm web |
+| `image` (0.107.0) | Công cụ file cộng ĐÚNG hai tool ảnh: tạo ảnh (`javis_generate_image`) và xem ảnh (`javis_describe_image`) | Bash, web, mọi kết nối khác |
+
+`image` có để việc cần làm ảnh chạy được mà không phải mở Toàn quyền (Toàn quyền mở luôn cả đăng bài, gửi tin). Hai tool ảnh ở mức ghi nháp, nên việc mức `suggest` vẫn không tạo được ảnh.
 
 Luật quan trọng nhất: việc thuộc `external-write` (gửi tin, đăng bài, tạo đơn, tạo lịch, đổi thứ gì đó bên ngoài) **chỉ chạy khi execution_mode là `full`**. Không đủ quyền thì việc bị chặn ngay với lý do "Task cần hành động ra ngoài. Chỉ worker mode=full mới được thực thi." Bước đặc tả cũng không tự cho quyền `full`: nó chỉ giữ `full` khi chính lời bạn viết trong goal nói rõ đã cho phép tự hành động (những cụm như "toàn quyền", "tự gửi", "tự đăng", "không cần hỏi"). Không thấy câu cho phép thì nó hạ xuống `auto` để kernel chặn lại.
 
 Nói cách khác: mặc định Javis **không** tự tiêu tiền, không tự gửi tin, không tự đăng bài từ hàng đợi việc. Muốn thế thì phải nói thẳng trong goal.
 
 Ngoài ra worker cũng không thấy repo mã nguồn nằm ngoài brain, và không làm được những việc cần chính chủ đăng nhập (cookie, OTP, quét mã QR, đổi mật khẩu).
+
+## Chạy một quy trình qua hàng đợi
+
+Giao việc với `route` là `wf:<slug>` thì việc chạy ĐÚNG quy trình đó, từng bước do agent của quy trình làm. Từ khung chat, Javis đặt route này bằng tool `javis_task` (có từ 0.107.0); slug không có thật thì tool từ chối và liệt kê các quy trình đang có. Chỉ chép tên quy trình vào mô tả việc thì KHÔNG chạy quy trình: một worker chung sẽ làm hết, và tool cảnh báo ngay khi thấy chuyện đó.
+
+Quy trình đang tắt (`status: off`) không chạy nền: việc dừng chờ bạn với lý do quy trình đang tắt. Bước nào vẫn trượt kiểm chứng sau số lần sửa cho phép thì quy trình dừng ở bước đó và việc chờ bạn, không chạy tiếp các bước sau.
+
+Việc bị chặn mà có việc khác đang chờ nó (giao kèm `deps`) thì tin báo kể tên các việc đang chờ, vì chúng nằm ở cột chờ cho tới khi việc này xong.
 
 ## Nhận kết quả: về đúng nơi bạn đã giao việc
 
@@ -284,7 +296,7 @@ Trang web không phủ hết những gì server làm được. Các endpoint dư
 | `GET /kanban` | Toàn bộ dữ liệu bảng |
 | `GET /kanban/health` | Chế độ, tình trạng dispatcher, số đếm theo trạng thái |
 | `GET /kanban/task/show?id=...` | Một việc kèm lần chạy và nhật ký sự kiện |
-| `POST /kanban/task` | Tạo việc. Ngoài các trường có trên form còn nhận `chat_id`, `capability`, `execution_mode`, `deps` (danh sách id cách nhau bằng dấu phẩy) và `idempotency_key` |
+| `POST /kanban/task` | Tạo việc. Ngoài các trường có trên form còn nhận `chat_id`, `capability`, `execution_mode`, `deps` (danh sách id cách nhau bằng dấu phẩy) và `idempotency_key`. Cần đăng nhập; từ trong khung chat thì dùng tool `javis_task` |
 | `POST /kanban/run` | Chạy đúng một việc theo id |
 | `POST /kanban/task/move` | Chuyển việc sang một trạng thái khác |
 | `POST /kanban/purge` | Xoá hẳn việc đã kết thúc. Mặc định chỉ đụng việc đã lưu trữ và đã huỷ; thêm `include_done=1` mới đụng việc hoàn thành |

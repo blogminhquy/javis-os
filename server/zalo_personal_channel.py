@@ -343,7 +343,9 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
         text = _lay(text, "text", "title", "description", "href", mac_dinh="")
     text = str(text or "")
     if loai != "text" and not text.strip():
-        text = f"[{conversations.KENH_NHAN[KENH]}: khách gửi {loai}]"
+        # The account's own photo (isSelf, from the owner's phone) is not "the customer sent".
+        text = (f"[{conversations.KENH_NHAN[KENH]}: gửi {loai}]" if _la_cua_minh(msg)
+                else f"[{conversations.KENH_NHAN[KENH]}: khách gửi {loai}]")
     vao_nhom = _su_kien_vao_nhom(msg) if nhom else None
     if vao_nhom is not None:
         ten_moi = sender_name or sender_id
@@ -469,7 +471,9 @@ def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
             # Tin chủ gửi đi. Tiếng vọng của câu BOT vừa gửi thì bỏ (bot đã tự ghi câu đó vào
             # Hộp thư, ghi thêm lần nữa là hiện hai lần, lần hai mang nhãn "người thật"). Còn
             # lại là chủ tự tay nhắn: nhớ giờ để bot nhường cuộc chat đó.
-            if _la_tieng_vong(conn["id"], ev["external_chat_id"], ev["text"]):
+            if _la_tieng_vong(conn["id"], ev["external_chat_id"], ev["text"]) or (
+                    ev.get("message_type") == "image"
+                    and _la_vong_anh(conn["id"], ev["external_chat_id"])):
                 trung += 1
                 continue
             _TAY[(conn["id"], ev["external_chat_id"])] = float(ev.get("created_at") or time.time())
@@ -668,6 +672,7 @@ NHUONG_GIAY = 20        # giây bot chờ trước khi tự trả lời tin nhó
 
 _BOTS: Dict[str, Any] = {}          # conn_id -> Transport đang trực
 _DA_GUI: Dict[tuple, list] = {}     # (conn_id, thread) -> [(ts, chữ đã chuẩn hoá)]
+_DA_GUI_ANH: Dict[tuple, list] = {}  # (conn_id, thread) -> [ts mỗi ảnh bot vừa gửi] (xem ghi_da_gui_anh)
 _TAY: Dict[tuple, float] = {}       # (conn_id, thread) -> giờ tin chủ tự nhắn gần nhất
 _VIEC: set = set()                  # giữ tham chiếu task đang chạy, kẻo bị thu gom giữa chừng
 _ID_MINH: Dict[str, dict] = {}      # conn_id -> {"uid", "ten"} của CHÍNH nick này, học từ tin của nó
@@ -769,6 +774,34 @@ def ghi_da_gui(conn_id: str, thread: str, text: str) -> None:
     if len(_DA_GUI) > 500:      # trần thô: thà quên một tiếng vọng còn hơn phình mãi
         for k in list(_DA_GUI)[:250]:
             _DA_GUI.pop(k, None)
+
+
+def ghi_da_gui_anh(conn_id: str, thread: str, so: int = 1) -> None:
+    """Bot is about to send `so` images: remember them so their echoes are not taken for the owner's hand.
+
+    Since javis-zalo keeps the account's own messages in the live feed (flag `isSelf`), an image the bot sends comes
+    back as an image "from the owner". It has no text to match, so without this the inbox shows it twice and the bot
+    believes the owner just stepped in and goes quiet in that chat for TAY_IM seconds."""
+    khoa = (str(conn_id), str(thread))
+    now = time.time()
+    ds = [x for x in _DA_GUI_ANH.get(khoa, []) if now - x < ECHO_TTL]
+    ds.extend([now] * max(0, int(so or 0)))
+    _DA_GUI_ANH[khoa] = ds[-20:]
+    if len(_DA_GUI_ANH) > 500:
+        for k in list(_DA_GUI_ANH)[:250]:
+            _DA_GUI_ANH.pop(k, None)
+
+
+def _la_vong_anh(conn_id: str, thread: str) -> bool:
+    """One remembered image echo for this chat, used up. False when the bot sent none lately."""
+    khoa = (str(conn_id), str(thread))
+    now = time.time()
+    ds = [x for x in _DA_GUI_ANH.get(khoa, []) if now - x < ECHO_TTL]
+    if not ds:
+        _DA_GUI_ANH.pop(khoa, None)
+        return False
+    _DA_GUI_ANH[khoa] = ds[1:]
+    return True
 
 
 def _la_tieng_vong(conn_id: str, thread: str, text: str, toi_thieu: int = 0) -> bool:

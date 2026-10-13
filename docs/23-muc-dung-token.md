@@ -149,10 +149,12 @@ Cách so của "Tuần này" và "Tháng này" là cố ý: kỳ đang chạy d�
 
 | Nhãn | Nghĩa là gì |
 |---|---|
-| **Chat** | Lượt gắn với một phiên hội thoại có thật trong lịch sử của bạn |
+| **Chat** | Lượt gắn với một phiên hội thoại có thật trong lịch sử của bạn, kể cả các mạch cũ của nó trước khi Javis nén hội thoại dài sang mạch mới |
 | **Nền (loop/lịch)** | Lượt do Javis tự chạy mà không gắn phiên hội thoại nào: việc định kỳ, nhắc hẹn, việc Kanban, tiêu hoá nguồn, tự học |
 | **Subagent** | Lượt do một agent con được engine gọi ra để làm việc phụ |
 | **Thủ công** | Lượt của phiên bạn gõ tay ngoài Javis |
+
+Trước 0.107.0 mỗi lần hội thoại dài được nén sang mạch mới thì mạch cũ bị tính thành Nền, nên Nền phình to giả (đo 07-13/10/2026: 514,6 triệu trong 722,9 triệu token "nền" thật ra là chat). Bản 0.107.0 nhớ mọi mạch của một hội thoại và quét lại chỉ số một lần để chia lại cho đúng.
 
 Cột **Nền (loop/lịch)** phình to là dấu hiệu rõ nhất rằng bạn đang có loop chạy quá dày. Xem lại chúng ở trang **Việc định kỳ** ([Việc định kỳ & Nhắc hẹn](08-viec-dinh-ky.md)) hoặc trang **Việc** ([Việc / Kanban](21-viec-kanban.md)).
 

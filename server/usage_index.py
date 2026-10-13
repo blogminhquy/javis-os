@@ -115,9 +115,17 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
+# First words of the prompt compaction.py sends when it moves a long chat onto a fresh Claude
+# thread. A thread that opens with them IS a user chat, even when conversations.db no longer
+# names it (it only keeps the CURRENT thread of each conversation). Kept in sync with
+# compaction.py by tests/python/test_usage_index.py.
+CHAT_RESUME_MARKER = "[KHÔI PHỤC NGỮ CẢNH HỘI THOẠI]"
+
+
 def _chat_sessions() -> set:
-    """Tap cli_session_id trong conversations.db = cac phien do NGUOI DUNG mo (chat).
-    Thieu file / loi -> set() (khong chan)."""
+    """Tap cli_session_id cua cac phien do NGUOI DUNG mo (chat): mach hien tai cua moi hoi
+    thoai (sessions.cli_session_id) CONG moi mach cu da tung gan (cli_session_history, tu
+    0.107.0). Thieu bang lich su thi chi la mach hien tai nhu cu. Thieu file / loi -> set()."""
     p = _conversations_db()
     out = set()
     try:
@@ -128,11 +136,28 @@ def _chat_sessions() -> set:
                         "SELECT cli_session_id FROM sessions WHERE cli_session_id IS NOT NULL AND cli_session_id<>''"):
                     if sid:
                         out.add(sid)
+                try:
+                    for (sid,) in c.execute("SELECT cli_session_id FROM cli_session_history"):
+                        if sid:
+                            out.add(sid)
+                except sqlite3.OperationalError:
+                    pass   # DB older than 0.107.0: no history table yet
             finally:
                 c.close()
     except Exception:
         pass
     return out
+
+
+def _mo_dau_khoi_phuc(obj) -> bool:
+    """A user line whose prompt opens with CHAT_RESUME_MARKER (see above)."""
+    if not isinstance(obj, dict) or obj.get("type") != "user":
+        return False
+    content = (obj.get("message") or {}).get("content")
+    if isinstance(content, list):
+        content = next((x.get("text") for x in content
+                        if isinstance(x, dict) and x.get("type") == "text"), "")
+    return isinstance(content, str) and content.lstrip().startswith(CHAT_RESUME_MARKER)
 
 
 def _unchanged(conn, path, size, mtime) -> bool:
@@ -257,6 +282,8 @@ def _scan_claude(conn, chat, brains) -> int:
                         obj = json.loads(line)
                     except Exception:
                         continue
+                    if _mo_dau_khoi_phuc(obj) and obj.get("sessionId"):
+                        chat.add(obj["sessionId"])
                     ev = up.parse_claude_line(obj, chat, brains)
                     if ev:
                         events.append(ev)
@@ -419,7 +446,9 @@ def _migrate_events_once(conn) -> None:
 # cho toan bo lich su, va trang bao "0 luot" trong khi 560 trieu token nam so so ra do. Nen
 # doi schema thi phai QUET LAI: xoa sach dau vet da-quet mot lan duy nhat, refresh ke tiep tu
 # dung lai het. Ton mot lan (vai giay toi vai chuc giay tuy so file), sau do lai tang dan.
-_SCHEMA_MARK = "__schema_v3_turns__"
+# v4 (0.107.0): rotated chat threads were counted as background. Rescan once so the history the
+# disk still holds is reclassified (see _chat_sessions and CHAT_RESUME_MARKER).
+_SCHEMA_MARK = "__schema_v4_chat_threads__"
 
 
 def _migrate_schema_once(conn) -> bool:

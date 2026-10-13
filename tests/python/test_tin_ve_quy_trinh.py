@@ -146,7 +146,7 @@ def _mk_gia(kich_ban):
     hang = list(kich_ban)
     del _da_goi[:]
 
-    def _mk(sysprompt, model=None, provider=""):
+    def _mk(sysprompt, model=None, provider="", extra_tools=()):
         return _EngineGia(hang.pop(0) if hang else [{"type": "final", "content": ""}])
     return _mk
 

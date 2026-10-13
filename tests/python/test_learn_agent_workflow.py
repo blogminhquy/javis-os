@@ -331,31 +331,102 @@ prompt cũ
 """)
     rep = feature._promote_sync("brain", {"agents": [_agent(
         op="update", reason="Chủ than agent viết dài dòng, siết lại 5 câu",
-        role="vai mới", skills=[], body="Bạn là chuyên viên email.\n1. Viết tối đa 5 câu.")]},
+        role="vai mới", skills=[], body="", add_rules=["Viết tối đa 5 câu."])]},
         cfg, CAPS, allow_write=True)
     assert rep["agents_updated"] == ["viet-email"] and rep["agents"] == [], rep
     fm, body = _fm(tmp_path / "agents" / "viet-email.md")
     assert fm["name"] == "Vai chủ tự đặt tên", "tên chủ đặt phải giữ"
     assert fm["model"] == "opus", "model chủ chọn cho agent phải giữ"
-    assert fm["role"] == "vai mới" and "tối đa 5 câu" in body
+    assert fm["role"] == "vai cũ", "vai trò chủ đã viết cũng là của chủ"
+    assert "prompt cũ" in body and "- Viết tối đa 5 câu." in body
     assert fm["skills"] == ["ky-nang-cu"], "skills để trống khi sửa = không đụng, không phải gỡ hết"
     assert "## Lịch sử (tự học)" in body and "dài dòng" in body
 
 
 def test_sua_agent_hai_lan_van_giu_dau_vet_lan_truoc(tmp_path):
-    """Sửa agent = viết lại cả system prompt, nên lịch sử cũ phải được mang sang thân mới.
-    Không thì mục Lịch sử vĩnh viễn chỉ có một dòng và chủ mất dấu vết các lần sửa trước."""
+    """Lịch sử các lần sửa phải dồn lại, và luật thêm lần trước không bị lần sau xoá."""
     feature = _feature(tmp_path)
     cfg = feature.read_config()
     _write(tmp_path / "agents" / "viet-email.md",
            "---\ntype: agent\nname: V\nslug: viet-email\n---\nprompt cũ")
     for i, ly_do in enumerate(["Lần sửa thứ nhất", "Lần sửa thứ hai"]):
         feature._promote_sync("brain", {"agents": [_agent(
-            op="update", reason=ly_do, body=f"Bạn là chuyên viên email. Bản {i}.")]},
+            op="update", reason=ly_do, add_rules=[f"Luật bổ sung {i}."])]},
             cfg, CAPS, allow_write=True)
     _, body = _fm(tmp_path / "agents" / "viet-email.md")
     assert "Lần sửa thứ nhất" in body and "Lần sửa thứ hai" in body, body
-    assert "Bản 1." in body and "Bản 0." not in body, "thân mới thay hẳn thân cũ"
+    assert "Luật bổ sung 0." in body and "Luật bổ sung 1." in body and "prompt cũ" in body
+
+
+# ---- Sự cố 13/10: luật chủ dặn ("nhắn Zalo không dùng markdown") biến mất sau vài vòng ----
+
+_AGENT_ZALO = """---
+type: agent
+name: Chăm khách Zalo
+slug: viet-email
+role: Trả lời khách trên Zalo
+---
+Bạn là nhân viên chăm khách.
+
+## Điều cấm
+- Nhắn tin Zalo thì KHÔNG dùng markdown (Zalo hiện nguyên dấu sao).
+"""
+
+
+def test_update_agent_body_moi_bi_chan_luat_zalo_con_nguyen(tmp_path):
+    """Tái hiện đúng sự cố: fork chỉ thấy slug + vai trò, gửi cả thân mới không có luật Zalo.
+    Trước 0.105.0 bản này thay thẳng thân cũ."""
+    feature = _feature(tmp_path)
+    cfg = feature.read_config()
+    _write(tmp_path / "agents" / "viet-email.md", _AGENT_ZALO)
+    rep = feature._promote_sync("brain", {"agents": [_agent(
+        op="update", reason="Chủ muốn trả lời ngắn hơn",
+        body="Bạn là nhân viên chăm khách.\n1. Trả lời ngắn gọn, có **in đậm** giá.")]},
+        cfg, CAPS, allow_write=True)
+    assert rep["agents_updated"] == [], rep
+    assert any("chỉ được THÊM" in b for b in rep["blocked"]), rep["blocked"]
+    _, body = _fm(tmp_path / "agents" / "viet-email.md")
+    assert "KHÔNG dùng markdown" in body, "luật Zalo của chủ phải còn nguyên"
+
+
+def test_nhieu_vong_tu_hoc_luat_zalo_van_con(tmp_path):
+    feature = _feature(tmp_path)
+    cfg = feature.read_config()
+    _write(tmp_path / "agents" / "viet-email.md", _AGENT_ZALO)
+    for i in range(25):
+        rep = feature._promote_sync("brain", {"agents": [_agent(
+            op="update", reason=f"vòng {i}", add_rules=[f"Mẹo trả lời số {i}."])]},
+            cfg, CAPS, allow_write=True)
+        assert rep["agents_updated"] == ["viet-email"], rep
+    _, body = _fm(tmp_path / "agents" / "viet-email.md")
+    assert "KHÔNG dùng markdown" in body and "## Điều cấm" in body
+    assert "Mẹo trả lời số 24." in body and "Mẹo trả lời số 0." not in body, \
+        "mục Bổ sung (tự học) có trần, phần chủ viết thì không"
+
+
+def test_owner_rules_vao_muc_luat_chu_dan_cua_bo_nho(tmp_path):
+    feature = _feature(tmp_path)
+    cfg = feature.read_config()
+    _write(tmp_path / "agents" / "viet-email.md", _AGENT_ZALO)
+    mem = tmp_path / "Memory" / "agents" / "viet-email" / "MEMORY.md"
+    _write(mem, "# Ghi chú tay\n- Khách quen tên Ba.\n\n## Bài học (tự học)\n- bài cũ\n")
+    rep = feature._promote_sync("brain", {"agents": [_agent(
+        op="update", reason="Chủ dặn khi nhắn Zalo không gửi link rút gọn",
+        owner_rules=["Nhắn Zalo không gửi link rút gọn."])]},
+        cfg, CAPS, allow_write=True)
+    assert rep["agents_updated"] == ["viet-email"], rep
+    text = mem.read_text(encoding="utf-8")
+    assert "## Luật chủ dặn" in text and "- Nhắn Zalo không gửi link rút gọn." in text
+    assert "- Khách quen tên Ba." in text and "- bài cũ" in text
+    _, body = _fm(tmp_path / "agents" / "viet-email.md")
+    assert "KHÔNG dùng markdown" in body
+
+
+def test_prompt_cam_viet_lai_ca_than_agent(tmp_path):
+    feature = _feature(tmp_path)
+    p = feature._build_prompt(CAPS, "brain", "hội thoại dài đủ bốn mươi ký tự trở lên nhé")
+    assert "add_rules" in p and "owner_rules" in p
+    assert "KHÔNG gửi body khi update" in p
 
 
 def test_dry_run_tach_tao_va_sua(tmp_path):

@@ -575,7 +575,7 @@ def test_failure_after_events_does_not_run_the_workflow_twice(tmp_path, monkeypa
         {"allocation_basis_points": 10_000, "allowed_slugs": ["demo"]})
     main, brain, calls = _brain_with_workflow(tmp_path, monkeypatch, on)
 
-    async def half_then_boom(brain_, slug, input_="", tools=None, session_id=""):
+    async def half_then_boom(brain_, slug, input_="", tools=None, session_id="", mode=None):
         yield {"type": "start", "workflow": "Demo", "steps": 2}
         yield {"type": "step_done", "node": "s0", "output": "KQ(1)"}
         raise RuntimeError("đứt giữa chừng")
@@ -689,7 +689,7 @@ def test_kanban_marks_a_paused_workflow_as_needing_a_person(tmp_path):
     """
     from tasks import TasksDeps, TasksFeature
 
-    async def paused_workflow(brain_root, slug, intent, tools, source="other"):
+    async def paused_workflow(brain_root, slug, intent, tools, source="other", mode=None):
         # `source` thêm ở Task 2 (Cộng sự): tasks.py giờ gọi kèm source="kanban" để ghi
         # đúng nguồn vào lịch sử; hàm giả này phải nhận kwarg đó dù không dùng tới.
         yield {"type": "start", "workflow": "demo", "steps": 2}
@@ -719,7 +719,7 @@ def test_kanban_marks_a_paused_workflow_as_needing_a_person(tmp_path):
 def test_kanban_surfaces_an_agent_escalation_too(tmp_path):
     from tasks import TasksDeps, TasksFeature
 
-    async def escalating(brain_root, slug, intent, tools, source="other"):
+    async def escalating(brain_root, slug, intent, tools, source="other", mode=None):
         yield {"type": "escalation", "reason": "repeated_failure_signature"}
 
     feature = TasksFeature(TasksDeps(

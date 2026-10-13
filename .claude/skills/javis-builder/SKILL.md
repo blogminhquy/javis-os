@@ -114,14 +114,15 @@ skill cứ thế hỏng âm thầm lúc chạy. Bạn là lớp phòng thủ duy
 type: workflow
 name: <Tên>
 slug: <ascii>
-status: off               # tạo mới để 'off' cho user xem trước rồi bật
+status: 'off'             # tạo mới để 'off' cho user xem trước rồi bật; GIỮ dấu nháy (off trần = boolean). Quy trình tắt không chạy nền
 group: <Marketing|Bán hàng|Nội dung|Vận hành|Tài chính|AI|Năng suất|Cá nhân>
 description: <mô tả ngắn>
 steps:
   - agent: <agent-slug>
     task: "<việc; {{input}}=đầu vào user, {{prev}}=kết quả bước trước>"
-    verify_agent: <agent-slug>   # tùy chọn: agent soi lỗi
+    verify_agent: <agent-slug>   # tùy chọn: agent soi lỗi, PHẢI trả JSON {"pass":true|false,...}; vẫn trượt sau max_retries thì quy trình DỪNG
     max_retries: 1               # tùy chọn
+    tools: [javis_generate_image] # tùy chọn: tool plugin riêng bước này cần khi chạy nền dưới Toàn quyền (vd tạo/xem ảnh); WebFetch, WebSearch cũng nhận
 updated: <YYYY-MM-DD>
 ---
 <mô tả>

@@ -438,6 +438,24 @@ class TaskStore:
                 self._db.rollback()
                 raise
 
+    def waiting_on(self, task_id: str) -> list[dict]:
+        """Tasks still in `todo` because they depend on `task_id`.
+
+        A blocked parent never reaches `done`, so its dependents sit in Todo forever with no
+        event of their own. The blocked-task report lists them so the owner knows that fixing
+        this one task also unblocks those."""
+        with self._lock:
+            rows = self._db.execute(
+                """
+                SELECT t.id, t.title FROM task_dependencies d
+                JOIN tasks t ON t.id=d.task_id
+                WHERE d.depends_on_id=? AND t.status='todo'
+                ORDER BY t.created_at
+                """,
+                (task_id,),
+            ).fetchall()
+        return [{"id": str(r["id"]), "title": str(r["title"])} for r in rows]
+
     def reclaim_stale(self, brain_root: str, active_worker_ids: set[str]) -> int:
         ts = now()
         with self._lock:

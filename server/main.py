@@ -95,6 +95,7 @@ voice_privacy.install()
 import zalo_login
 import oauth_mcp
 import system_sync   # tầng năng lực HỆ THỐNG (skill/loop mặc định) - update theo phiên bản app
+import agent_rules   # mục Luật chủ dặn / Bổ sung (tự học) + chốt chặn giữ dòng của chủ
 import skill_router   # nguồn chân lý khám phá skill (canonical <brain>/skills) dùng chung mọi engine
 import skill_usage     # telemetry: đếm skill nào THẬT SỰ được dùng qua javis_use_skill (tín hiệu DƯƠNG một chiều)
 import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chia sẻ giữa brain/người dùng
@@ -6616,44 +6617,41 @@ def _boc_bai_hoc(out):
     sach = re.sub(r"\n{3,}", "\n\n", _BAI_HOC_RE.sub("", out)).strip()
     return [l for l in lessons if l], sach
 
-def _ghi_bai_hoc(brain, slug, lessons):
-    """Ghi bài học vào mục tự học của MEMORY.md. Vùng NGOÀI mục là của chủ - giữ nguyên
-    từng ký tự. Trong mục: loại trùng (chuẩn hoá bỏ dấu câu/hoa thường) rồi cắt về
-    _BAI_HOC_TRAN dòng mới nhất."""
-    if not lessons:
+def _ghi_muc_bo_nho_agent(brain, slug, header, items, cap):
+    """Ghi bullet vào MỘT mục của memory/agents/<slug>/MEMORY.md (agent_rules.merge_bullets).
+
+    Chốt chặn chung cho mọi lần ghi (sự cố 13/10, luật Zalo không markdown biến mất): mọi dòng
+    nằm ngoài mục Bài học phải còn nguyên sau khi ghi, gồm phần chủ viết tay và mục Luật chủ
+    dặn. Thiếu dù một dòng là KHÔNG ghi, thà mất một bài học còn hơn mất một luật của chủ."""
+    if not items:
         return
     try:
         f = _brain_memory_dir(brain) / "agents" / slug / "MEMORY.md"
         f.parent.mkdir(parents=True, exist_ok=True)
         text = f.read_text(encoding="utf-8") if f.exists() else ""
-        lines = text.splitlines()
-        i0 = next((i for i, l in enumerate(lines) if l.strip() == _BAI_HOC_HEADER), None)
-        if i0 is None:
-            truoc, bullets, sau = lines, [], []
-        else:
-            i1 = next((i for i in range(i0 + 1, len(lines)) if lines[i].startswith("## ")),
-                      len(lines))
-            truoc = lines[:i0]
-            bullets = [l.rstrip() for l in lines[i0 + 1:i1] if l.strip().startswith("- ")]
-            sau = lines[i1:]
-        def _chuan(s):
-            return re.sub(r"\W+", "", s).casefold()
-        seen = {_chuan(b) for b in bullets}
-        for l in lessons:
-            b = "- " + l
-            if _chuan(b) in seen:
-                continue
-            bullets.append(b)
-            seen.add(_chuan(b))
-        bullets = bullets[-_BAI_HOC_TRAN:]
-        while truoc and not truoc[-1].strip():
-            truoc.pop()
-        moi = truoc + ([""] if truoc else []) + [_BAI_HOC_HEADER] + bullets
-        if sau:
-            moi += [""] + sau
-        _atomic_write_text(f, "\n".join(moi).rstrip() + "\n")
+        moi = agent_rules.merge_bullets(text, header, items, cap=cap)
+        mat = agent_rules.missing_owner_lines(text, moi, [_BAI_HOC_HEADER])
+        if mat:
+            print(f"[agent-memory] chặn ghi {header} ({slug}): làm rơi {len(mat)} dòng của chủ",
+                  file=sys.stderr)
+            return
+        _atomic_write_text(f, moi.rstrip() + "\n")
     except Exception as e:
-        print(f"[agent-memory] ghi bài học lỗi ({slug}): {e}", file=sys.stderr)
+        print(f"[agent-memory] ghi bộ nhớ lỗi ({slug}): {e}", file=sys.stderr)
+
+
+def _ghi_bai_hoc(brain, slug, lessons):
+    """Ghi bài học vào mục tự học của MEMORY.md. Vùng NGOÀI mục là của chủ - giữ nguyên
+    từng ký tự. Trong mục: loại trùng (chuẩn hoá bỏ dấu câu/hoa thường) rồi cắt về
+    _BAI_HOC_TRAN dòng mới nhất."""
+    _ghi_muc_bo_nho_agent(brain, slug, _BAI_HOC_HEADER, lessons, _BAI_HOC_TRAN)
+
+
+def _ghi_luat_chu(brain, slug, rules):
+    """Ghi luật CHỦ dặn vào mục "## Luật chủ dặn": chống trùng, KHÔNG có trần, không bao giờ
+    bị đẩy ra. Trước 0.105.0 luật của chủ chỉ có đường JAVIS_LESSON, nên trôi khỏi cửa sổ 15
+    dòng sau 15 bài học khác."""
+    _ghi_muc_bo_nho_agent(brain, slug, agent_rules.OWNER_RULES_HEADER, rules, None)
 
 def _log_agent_run(brain, slug, task, out):
     try:
@@ -8405,7 +8403,7 @@ def workflows_index(brain: str) -> list:
     for f in sorted(_workflows_dir(brain).glob("*.md")):
         meta, _ = _read_md(f)
         out.append({"slug": f.stem, "name": meta.get("name", f.stem),
-                    "status": meta.get("status", "off"),
+                    "status": workflow_graph.workflow_status(meta),
                     "description": meta.get("description", ""),
                     "group": _nhom_cua(meta),
                     "pinned": bool(meta.get("pinned")),
@@ -8491,7 +8489,8 @@ async def toggle_workflow(slug: str = Form(...), brain: str = Form("brain")):
     if not f.exists():
         return {"ok": False, "error": "not found"}
     meta, body = _read_md(f)
-    meta["status"] = "off" if meta.get("status") == "active" else "active"
+    # Normalised first: a hand-written `status: off` reaches here as the boolean False.
+    meta["status"] = "off" if workflow_graph.workflow_status(meta) == "active" else "active"
     _write_md(f, meta, body)
     return {"ok": True, "status": meta["status"]}
 
@@ -9326,6 +9325,47 @@ def _route_step_model(router, prompt, agent_model, session_id):
     return decision.model, decision.reason
 
 
+# Verdict of a workflow verify agent. FAIL-CLOSED since 0.107.0: before, an engine error became
+# '{"pass":true,"reason":"verify lỗi, tạm chấp nhận"}' and an unreadable answer defaulted to
+# pass, so a verifier told to answer "ĐẠT / CHƯA ĐẠT" in words may well have been read as a
+# pass every time (field report 2026-10-13, workflow_runs 6901e404f7d64f...).
+_VERDICT_NO_RE = re.compile(r"(CHƯA\s+ĐẠT|KHÔNG\s+ĐẠT|KHÔNG\s+QUA|\bFAIL(ED)?\b|\bNOT\s+PASS)", re.IGNORECASE)
+_VERDICT_YES_RE = re.compile(r"(\bĐẠT\b|\bPASS(ED)?\b)", re.IGNORECASE)
+
+
+def _workflow_verdict(v_out: str, v_error: str = "") -> tuple[bool, str, str]:
+    """(passed, reason, fixes) from a verify agent's answer. Anything unclear is a FAIL."""
+    if v_error and not (v_out or "").strip():
+        return False, f"Agent kiểm chứng lỗi, không kết luận được: {v_error[:200]}", ""
+    text = v_out or ""
+    vm = re.search(r"\{.*\}", text, re.DOTALL)
+    verdict = {}
+    if vm:
+        try:
+            verdict = json.loads(vm.group(0))
+        except json.JSONDecodeError:
+            verdict = {}
+    if isinstance(verdict, dict) and "pass" in verdict:
+        raw = verdict.get("pass")
+        if isinstance(raw, bool):
+            passed = raw
+        else:
+            passed = str(raw).strip().lower() in ("true", "pass", "yes", "đạt", "1")
+        return passed, str(verdict.get("reason") or ""), str(verdict.get("fixes") or "")
+    # No JSON: accept only an unambiguous word verdict, negatives first ("CHƯA ĐẠT" contains "ĐẠT").
+    if _VERDICT_NO_RE.search(text):
+        return False, text.strip()[:300], ""
+    if _VERDICT_YES_RE.search(text):
+        return True, text.strip()[:300], ""
+    return False, "Agent kiểm chứng không trả kết luận đọc được (cần JSON có trường pass).", ""
+
+
+def _verify_failed_message(step_no, agent_name, attempts, reason) -> str:
+    return (f"Bước {step_no} ({agent_name}) chưa qua kiểm chứng sau {attempts} lượt"
+            + (f": {str(reason).strip()[:300]}" if str(reason or "").strip() else "")
+            + ". Quy trình dừng ở đây, không chạy tiếp các bước sau.")
+
+
 async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=None,
                              session_id="", log_run=None, learn=None):
     """Chạy ĐÚNG một bước theo đúng ngữ nghĩa runner cũ: agent, kiểm chứng, retry.
@@ -9353,8 +9393,10 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
     out = ""
     verified = None
     attempt = 0
+    reason = ""
+    step_extra = tuple((node.metadata or {}).get("tools") or ())
     while True:
-        gcli = mk(sysprompt, agent_model, agent_prov)
+        gcli = mk(sysprompt, agent_model, agent_prov, step_extra)
         out = ""
         loi_engine = ""
         async for ev in gcli.query(cur_prompt):
@@ -9399,21 +9441,13 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
         )
         vcli = mk(v_sys, v_model, v_prov)
         v_out = ""
+        v_err = ""
         async for ev in vcli.query(v_prompt):
             if ev["type"] == "final":
                 v_out = ev.get("content") or v_out
             elif ev["type"] == "error":
-                v_out = '{"pass":true,"reason":"verify lỗi, tạm chấp nhận"}'
-        vm = re.search(r"\{.*\}", v_out, re.DOTALL)
-        verdict = {}
-        if vm:
-            try:
-                verdict = json.loads(vm.group(0))
-            except json.JSONDecodeError:
-                verdict = {}
-        passed = bool(verdict.get("pass", True))
-        reason = verdict.get("reason", "")
-        fixes = verdict.get("fixes", "")
+                v_err = ev.get("content") or v_err or "engine error"
+        passed, reason, fixes = _workflow_verdict(v_out, v_err)
         await sink({"type": "step_verify_result", "i": index, "node": node.id, "passed": passed,
                     "reason": reason, "attempt": attempt})
         if log_run:
@@ -9434,19 +9468,51 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
         out = learn(node.agent, out)   # bóc JAVIS_LESSON + ghi bộ nhớ TRƯỚC khi out chảy tiếp
     if log_run:
         log_run(node.agent, prompt, out)
+    if verified is False:
+        # Still failing after the last retry: the node FAILS instead of passing its output on.
+        msg = _verify_failed_message(index + 1, agent_name, attempt + 1, reason)
+        await sink({"type": "step_error", "i": index, "node": node.id, "content": msg})
+        return {"output": "", "error": msg, "verified": False, "attempts": attempt + 1,
+                "agent_name": agent_name}
     return {"output": out, "verified": verified, "attempts": attempt + 1,
             "agent_name": agent_name}
 
 
-def _workflow_agent_helpers(brain, tools):
+# Native tools a workflow step may add to a gated background run with `tools:`. Read-only web
+# lookups only; Bash and Task are never granted this way.
+_STEP_NATIVE_TOOLS = ("WebFetch", "WebSearch")
+
+
+def _step_grant(extra_tools):
+    """(allowlist additions, natives) for the `tools:` one step declares.
+
+    Lower-case names are plugin tools (javis_generate_image...), granted one by one through
+    plugins_host.grant_patterns; the tool's own min_mode is still checked against the run's
+    mode at call time, so a step can never lift the level. Upper-case names are native Claude
+    tools, of which only _STEP_NATIVE_TOOLS are accepted."""
+    natives, plugin = [], []
+    for name in extra_tools or ():
+        name = str(name or "").strip()
+        if name in _STEP_NATIVE_TOOLS:
+            natives.append(name)
+        elif name[:1].islower():
+            plugin.append(name)
+    return plugins_host.grant_patterns(plugin) + natives, natives
+
+
+def _workflow_agent_helpers(brain, tools, mode=None):
     """Trả (_mk, _agent_sysprompt) dùng CHUNG cho runner cũ và đường graph Phase 10.
 
     Tương đương giữa hai đường phải đến từ việc dùng chung code, không phải từ việc
     chép cho giống. Mọi thay đổi ở đây tự động áp cho cả hai.
+
+    `mode`: permission level of a GATED run (tools is not None), e.g. the Kanban job's
+    execution_mode. Plugin tools a step declares are checked against it; None = "auto".
     """
     vault_root = str(_brain_root(brain))
+    gated_mode = str(mode or "auto") if str(mode or "auto") in ("suggest", "auto") else "auto"
 
-    def _mk(sysprompt, model=None, provider=""):
+    def _mk(sysprompt, model=None, provider="", extra_tools=()):
         prov = _agent_model_provider(model, provider)
         if prov == "openai-oauth" and model and tools is None and find_codex_cli():
             openai_oauth.write_codex_auth()
@@ -9454,8 +9520,10 @@ def _workflow_agent_helpers(brain, tools):
                           instructions=sysprompt)
             _apply_codex_hub(cc, vault_root)
             return cc
+        allowed, natives = (_step_grant(extra_tools) if tools is not None else ([], []))
+        gated_tools = (list(tools) + allowed) if tools is not None else None
         c = claude_engine(system_prompt=sysprompt, cwd=vault_root, tag="workflow",
-                          allowed_tools=tools)
+                          allowed_tools=gated_tools)
         # Chỉ gán `model` vào engine Claude khi model ĐÚNG LÀ của Claude Code. Model của nhà
         # khác mà nhét vào đây là Claude nhận một tên nó không hiểu (bug tới 0.47.8: agent
         # chọn Gemini/OpenRouter vẫn chạy Claude, im lặng, không ai biết).
@@ -9465,7 +9533,14 @@ def _workflow_agent_helpers(brain, tools):
             if _mcpf:
                 c.mcp_config = _mcpf
                 c.mcp_strict = True
-            c.disallowed_tools = ["Bash", "WebFetch", "WebSearch", "Task"]
+            c.disallowed_tools = [x for x in ["Bash", "WebFetch", "WebSearch", "Task"]
+                                  if x not in natives]
+            if plugins_host.granted_plugin_tools(gated_tools):
+                # A plugin tool is granted (the step's `tools:`, or a Kanban "image" job's own
+                # list): the plugin needs the brain (images land in its attachments/) and the
+                # level to check min_mode.
+                c.javis_vault = vault_root
+                c.javis_mode = gated_mode
             # Trần chung cho fork nền (mặc định 1 giờ, env JAVIS_BG_MAX_WALL_S): một bước
             # workflow quét dữ liệu thật cũng có thể chạy quá 300s như việc lịch/Kanban.
             c.max_wall_s = aux_engine.bg_max_wall_s()
@@ -9509,6 +9584,12 @@ def _workflow_agent_helpers(brain, tools):
               f"{_BAI_HOC_TRAN} dòng mới nhất). KHÔNG tự sửa file bộ nhớ trực tiếp - phần ngoài mục "
               "đó là của chủ. Lượt chạy không có gì đáng nhớ thì ĐỪNG phát JAVIS_LESSON, và đừng "
               "lặp lại bài học đã có trong bộ nhớ.\n"
+            + "\n# Luật chủ dặn: khi CHỦ nói rõ một luật lâu dài cho vai này (\"từ giờ\", \"luôn\", "
+              "\"đừng bao giờ\", vd \"nhắn Zalo thì không dùng markdown\"), làm theo ngay VÀ kết thúc "
+              "câu trả lời bằng một dòng riêng `JAVIS_RULE: <luật một câu, giữ nguyên ý chủ>`. Javis ghi "
+              f"vào mục `{agent_rules.OWNER_RULES_HEADER}` của file bộ nhớ trên, mục này không bao giờ "
+              "bị tự xoá. CHỈ dùng cho lời chủ dặn; bài học bạn tự rút ra thì vẫn là JAVIS_LESSON. "
+              "Luật đã có trong mục đó thì đừng phát lại.\n"
             + _AGENT_TOOLKIT_BLOCK
             + "\nLàm việc trong vault. Tập trung hoàn thành nhiệm vụ, trả kết quả rõ ràng, ngắn gọn."
         )
@@ -9522,7 +9603,12 @@ def _workflow_agent_helpers(brain, tools):
     def _learn(aslug, out):
         """Bóc JAVIS_LESSON khỏi output, ghi vào bộ nhớ agent, trả output ĐÃ SẠCH
         (marker không được chảy vào {{prev}} của bước sau hay lên UI)."""
+        # JAVIS_RULE ở đây (bước workflow, việc nền) KHÔNG có chủ đang nói chuyện trực tiếp nên
+        # không đủ căn cứ là luật chủ dặn: bóc khỏi output và hạ xuống thành bài học. Đường chat
+        # với chủ (_ket_luot_agent) bóc JAVIS_RULE TRƯỚC khi gọi tới đây.
+        rules, out = agent_rules.extract_rules(out or "")
         lessons, sach = _boc_bai_hoc(out or "")
+        lessons = lessons + rules
         if not lessons:
             return out
         _ghi_bai_hoc(brain, aslug, lessons)
@@ -9595,12 +9681,17 @@ def _ket_luot_agent(brain, slug, user_message, final_text) -> str:
     """Cuối một lượt chat với trợ lý: bóc JAVIS_LESSON vào bộ nhớ trợ lý, ghi nhật ký chạy của
     trợ lý (memory/agents/<slug>/runs), trả về text SẠCH để lưu phiên và hiện lên chat."""
     _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
-    sach = _learn(slug, final_text or "")
+    rules, text = agent_rules.extract_rules(final_text or "")
+    if rules and (user_message or "").strip():
+        _ghi_luat_chu(brain, slug, rules)
+        rules = []
+    # Không có câu của chủ trong lượt thì JAVIS_RULE không có căn cứ: hạ xuống bài học.
+    sach = _learn(slug, text + "".join(f"\nJAVIS_LESSON: {r}" for r in rules))
     _log(slug, user_message or "", sach or "")
     return sach
 
 
-async def execute_workflow_graph(brain, slug, input="", tools=None, session_id=""):
+async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="", mode=None):
     """Đường Phase 10: cùng engine, cùng prompt, khác ở chỗ CÓ trạng thái.
 
     Yield đúng bộ event mà dashboard đang nghe, cộng thêm `node` để trace theo đồ thị.
@@ -9615,7 +9706,7 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
     if admission.action != "execute":
         _CONTEXT_RUNTIME.finish(trace, "COMPLETED", admission.reason)
         return
-    mk, agent_sysprompt, log_run, learn = _workflow_agent_helpers(brain, tools)
+    mk, agent_sysprompt, log_run, learn = _workflow_agent_helpers(brain, tools, mode)
     agent_policy = agent_runtime.AgentPolicy.from_settings(cfgmod.read_settings() or {})
     agent_admitted = graph.allows_replan and agent_policy.admits(
         graph.slug, session_id or f"wf:{slug}")[0]
@@ -9761,7 +9852,7 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
                "task_id": result.task_id, "reason": result.stop_reason}
 
 
-async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""):
+async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id="", mode=None):
     """Chạy workflow nhiều agent tuần tự, YIELD event dict (KHÔNG bọc SSE). Dùng CHUNG cho:
       - /workflows/run  : user bấm ở Studio (full quyền, stream SSE).
       - dispatcher Kanban: chạy nền không người xem → truyền tools=SAFE_FILE_TOOLS để agent
@@ -9776,7 +9867,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
     # Lỗi ở đường mới không được cướp lượt chạy - rơi về runner cũ.
     emitted = False
     try:
-        async for event in execute_workflow_graph(brain, slug, input, tools, session_id):
+        async for event in execute_workflow_graph(brain, slug, input, tools, session_id, mode):
             emitted = True
             yield event
         if emitted:
@@ -9804,7 +9895,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
     except Exception:
         pass
 
-    _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, tools)
+    _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, tools, mode)
 
     yield {"type": "start", "workflow": meta.get("name", slug), "steps": len(steps)}
     prev = ""
@@ -9813,6 +9904,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
         task = step.get("task", "")
         verify_slug = (step.get("verify_agent") or "").strip()
         max_retries = int(step.get("max_retries", 1) or 0)
+        step_extra = workflow_graph.step_tools(step)
         agent_name, sysprompt, agent_model, agent_prov = _agent_sysprompt(agent_slug)
         task_f = task.replace("{{input}}", input or "").replace("{{prev}}", prev or "")
         yield {"type": "step_start", "i": i, "agent": agent_name, "task": task_f}
@@ -9821,9 +9913,10 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
         out = ""
         verified = None
         attempt = 0
+        reason = ""
         loi_buoc = ""      # bước này HỎNG vì sao. "" = bước chạy được.
         while True:
-            gcli = _mk(sysprompt, agent_model, agent_prov)   # áp model agent đã chọn
+            gcli = _mk(sysprompt, agent_model, agent_prov, step_extra)   # áp model agent đã chọn
             out = ""
             loi_engine = ""
             async for ev in gcli.query(cur_prompt):
@@ -9865,21 +9958,13 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
             )
             vcli = _mk(v_sys, v_model, v_prov)   # agent kiểm chứng cũng dùng model của nó
             v_out = ""
+            v_err = ""
             async for ev in vcli.query(v_prompt):
                 if ev["type"] == "final":
                     v_out = ev.get("content") or v_out
                 elif ev["type"] == "error":
-                    v_out = '{"pass":true,"reason":"verify lỗi, tạm chấp nhận"}'
-            vm = re.search(r"\{.*\}", v_out, re.DOTALL)
-            verdict = {}
-            if vm:
-                try:
-                    verdict = json.loads(vm.group(0))
-                except json.JSONDecodeError:
-                    verdict = {}
-            passed = bool(verdict.get("pass", True))
-            reason = verdict.get("reason", "")
-            fixes = verdict.get("fixes", "")
+                    v_err = ev.get("content") or v_err or "engine error"
+            passed, reason, fixes = _workflow_verdict(v_out, v_err)
             yield {"type": "step_verify_result", "i": i, "passed": passed, "reason": reason, "attempt": attempt}
             _log(verify_slug, f"[kiểm chứng bước của {agent_name}] {task_f}", v_out)
             verified = passed
@@ -9909,6 +9994,18 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
             if loi_buoc != loi_engine:
                 yield {"type": "step_error", "i": i, "content": loi_buoc}
             yield {"type": "error", "i": i, "agent": agent_name, "content": loi_buoc}
+            return
+        if verified is False:
+            # Still failing its check after the last retry. Before 0.107.0 the step was marked
+            # done and its output flowed on as {{prev}}, and the run ended "done" (workflow_runs
+            # 6901e404f7d64f..., 11/10: Biên tập viên verified=False, run done). The verdict did
+            # not even reach the next step. Stop here and hand the run to a person.
+            out = _learn(agent_slug, out)
+            _log(agent_slug, task_f, out)
+            msg = _verify_failed_message(i + 1, agent_name, attempt + 1, reason)
+            yield {"type": "step_error", "i": i, "content": msg}
+            yield {"type": "error", "i": i, "agent": agent_name, "content": msg,
+                   "needs_input": True}
             return
         out = _learn(agent_slug, out)   # bóc JAVIS_LESSON + ghi bộ nhớ trước khi out thành {{prev}}
         prev = out
@@ -9962,8 +10059,14 @@ async def _ghi_lich_su(gen, *, brain, slug, name, input, source, session_id, run
                 pass
 
 
+# Sources that run a workflow with nobody pressing a button. A workflow switched off is not run
+# from these; Studio and the workflow chat (source "web") still run it, since there the owner
+# asked for this one run in person, typically to try it out before switching it on.
+_WORKFLOW_UNATTENDED_SOURCES = ("kanban", "reminder", "loop")
+
+
 async def execute_workflow(brain, slug, input="", tools=None, session_id="", source="other",
-                           input_luu=None):
+                           input_luu=None, mode=None):
     """Chạy workflow và GHI LỊCH SỬ. Mọi chỗ gọi (trang Cộng sự, Kanban, nhắc hẹn) đi qua đây.
     `source`: web | kanban | reminder | loop | other, chỉ để lọc khi đọc lại.
 
@@ -9976,8 +10079,18 @@ async def execute_workflow(brain, slug, input="", tools=None, session_id="", sou
         yield {"type": "error", "content": "workflow not found"}
         return
     meta, _ = _read_md(wf_file)
+    if source in _WORKFLOW_UNATTENDED_SOURCES and workflow_graph.workflow_status(meta) != "active":
+        # Before 0.107.0 the status label was never read here, so a workflow the owner had
+        # switched off still ran from Kanban or a reminder.
+        yield {"type": "error", "needs_input": True,
+               "content": localefmt.chu(
+                   f"Quy trình '{meta.get('name', slug)}' đang tắt nên không chạy nền. "
+                   "Bật nó ở trang Cộng sự rồi chạy lại việc này.",
+                   f"The workflow '{meta.get('name', slug)}' is switched off, so it does not "
+                   "run in the background. Switch it on in Studio, then rerun this job.")}
+        return
     async for ev in _ghi_lich_su(
-            _execute_workflow_raw(brain, slug, input, tools, session_id),
+            _execute_workflow_raw(brain, slug, input, tools, session_id, mode),
             brain=_brain_key(brain), slug=slug, name=meta.get("name", slug),
             input=input if input_luu is None else input_luu,
             source=source, session_id=session_id):
@@ -11418,7 +11531,7 @@ def _gather_capabilities(brain: str, skills=None) -> dict:
             m, _ = _read_md(f)
             steps = m.get("steps", []) or []
             caps["workflows"].append({"slug": f.stem, "name": m.get("name", f.stem),
-                                      "status": m.get("status", "active"), "description": m.get("description", ""),
+                                      "status": workflow_graph.workflow_status(m), "description": m.get("description", ""),
                                       "group": _nhom_cua(m),
                                       "agents": [s.get("agent") for s in steps if isinstance(s, dict)],
                                       "n_steps": len(steps)})

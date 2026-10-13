@@ -584,10 +584,12 @@ class ClaudeSDK:
             message=f"Tool '{tool_name}' bị chặn bởi rào quyền phiên nền an toàn: phiên này chỉ "
                     f"được dùng {', '.join(allowed)}.{extra}")
 
-    def _plugins_server(self):
+    def _plugins_server(self, only=None):
         """Phase 3: dựng MCP server IN-PROCESS từ tool plugin (plugins_host) - engine SDK gọi
         thẳng handler Python, không qua hub HTTP. Trả McpSdkServerConfig hoặc None (không plugin).
-        min_mode enforce sẵn trong route của plugin_tools(mode); hook pre/post bọc như hub."""
+        min_mode enforce sẵn trong route của plugin_tools(mode); hook pre/post bọc như hub.
+        `only`: set of tool names a gated session was granted (plugins_host.grant_patterns);
+        every other plugin tool stays out of the server."""
         import plugins_host
         from claude_agent_sdk import tool as sdk_tool, create_sdk_mcp_server
         mode = (self.javis_mode or "full").strip().lower()
@@ -598,6 +600,8 @@ class ClaudeSDK:
         # đúng ở MỌI chỗ dựng engine, không phụ thuộc ai nhớ đặt cwd.
         # Vẫn KHÔNG nạp plugin riêng-của-vault (giữ nguyên hành vi cũ): scope_vault=False.
         p_tools, p_route = plugins_host.plugin_tools(mode, self.javis_vault, scope_vault=False)
+        if only is not None:
+            p_tools = [t for t in p_tools if t["fn"] in only]
         if not p_tools:
             return None
         # has_tool_hooks/wrap_with_hooks chưa biết scope_vault (ngoài phạm vi task này) - giữ
@@ -653,10 +657,17 @@ class ClaudeSDK:
                 print(f"[sdk engine] đọc mcp_config lỗi ({e}) - truyền path thô", file=sys.stderr)
                 return str(self.mcp_config), self.mcp_strict
             servers = self._gan_khoa_luot(servers)
+        only = None
         if self.allowed_tools:
-            return servers, self.mcp_strict
+            # Gated fork: no plugin server, EXCEPT the tools the allowlist names one by one
+            # (a Kanban "image" job, a workflow step with `tools:`). The allowlist and the
+            # permission gate still stop everything else.
+            import plugins_host
+            only = plugins_host.granted_plugin_tools(self.allowed_tools)
+            if not only:
+                return servers, self.mcp_strict
         try:
-            plug = self._plugins_server()
+            plug = self._plugins_server(only)
         except Exception as e:
             print(f"[sdk engine] plugin in-process lỗi: {type(e).__name__}: {e}", file=sys.stderr)
             plug = None

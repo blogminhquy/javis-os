@@ -68,6 +68,34 @@ _HTTP_NGUON = frozenset({"bundled", "pack", "user"})
 _RESERVED_TOOLS = {"javis_connections", "javis_read_file", "javis_list_dir",
                    "javis_write_file", "javis_use_skill"}
 
+# Name of the in-process plugin MCP server the Claude Agent SDK engine mounts (claude_sdk_engine).
+PLUGIN_SERVER = "javis-plugins"
+
+
+def grant_patterns(names) -> List[str]:
+    """Allowlist entries that grant a gated background session exactly these plugin tools.
+
+    Background lanes below Full run with an allowlist (Read/Write/Edit...) and no MCP, which used
+    to mean no plugin tool at all: a Kanban job or a workflow step that had to make an image could
+    never reach `javis_generate_image` without opening Full access, which also opens posting and
+    messaging. Naming the tool here grants that one tool and nothing else. Both server names are
+    listed: the SDK engine serves plugins in-process as `javis-plugins`, and when the hub is
+    attached the same tool is also reachable as `mcp__javis__<name>`. The tool's own `min_mode`
+    is still checked at call time against the session mode, so this never lifts a level."""
+    out: List[str] = []
+    for n in names or ():
+        n = str(n or "").strip()
+        if _TOOL_RE.match(n):
+            out += [f"mcp__{PLUGIN_SERVER}__{n}", f"mcp__javis__{n}"]
+    return list(dict.fromkeys(out))
+
+
+def granted_plugin_tools(allowed) -> set:
+    """Plugin tool names an allowlist grants through the in-process server (see grant_patterns)."""
+    pre = f"mcp__{PLUGIN_SERVER}__"
+    return {str(p)[len(pre):] for p in (allowed or ()) if str(p).startswith(pre) and "*" not in str(p)}
+
+
 _lock = threading.Lock()
 # cache theo vault_root: {sig, plugins:[LoadedPlugin], hooks:{event:[cb]}, errors:{slug:msg}}
 _cache: Dict[str, dict] = {}

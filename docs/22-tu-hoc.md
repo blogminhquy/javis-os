@@ -171,7 +171,9 @@ Ngoài ra Javis tự đặt ba cái trần cứng, tính theo ngày và độc l
 | --- | --- | --- |
 | Khoảng cách tối thiểu giữa hai mẻ | 90 giây | Mẻ đó không được ghi file |
 | Số mẻ học mỗi ngày | 40 | Hạ về chạy thử |
-| Token ước tính mỗi ngày | 300.000 | Hạ về chạy thử |
+| Token mỗi ngày | 15.000.000 | Hạ về chạy thử |
+
+Từ 0.107.0 trần token đếm token THẬT engine báo về (gồm cả phần đọc cache) của mọi lượt học, kể cả lượt phản biện và curator. Bản cũ ước tính bằng độ dài chữ chia bốn nên lệch khoảng 30 lần (ghi 395 nghìn cho một ngày thật ra dùng 12,5 triệu), và trần 300.000 cũ không bao giờ có nghĩa. Vì đơn vị đã đổi, lần cập nhật lên 0.107.0 đặt lại trần này về mặc định mới một lần.
 
 Khi bị hạ, Javis vẫn phân tích và vẫn ghi nhật ký "sẽ học gì", chỉ là không ghi file. Trạng thái trong nhật ký ghi rõ lý do, ví dụ "dry-run (đã chạm trần fork/ngày → hạ dry-run (backpressure))".
 

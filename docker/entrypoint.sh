@@ -28,7 +28,10 @@ PERSIST_ROOT="${JAVIS_HOME_PERSIST:-/data/home}"
 # một bậc: binary `grok` nằm ở ~/.local/bin nên ĐƯỢC giữ, thẻ Models vẫn báo "Đã cài CLI",
 # chỉ mỗi phiên đăng nhập là bay. Người dùng báo 29/08: "mỗi lần nâng cấp bản mới là grok
 # lại bị logout". Thêm một chữ vào danh sách này là xong, không phải sửa docker-compose.
-for d in .local .antigravity .config .gemini .grok; do
+#
+# ~/.google_workspace_mcp: phiên đăng nhập Google Workspace của MCP cùng tên. Thiếu thì mỗi lần
+# dựng lại container là phải đăng nhập Google lại (báo cáo 13/10/2026).
+for d in .local .antigravity .config .gemini .grok .google_workspace_mcp; do
     src="$HOME/$d"
     dst="$PERSIST_ROOT/$d"
     # Đã là symlink (boot thứ hai trở đi) → xong từ lâu.
@@ -42,6 +45,29 @@ for d in .local .antigravity .config .gemini .grok; do
     fi
     ln -sfn "$dst" "$src" 2>/dev/null || true
 done
+
+# ~/.claude.json: cấu hình toàn cục của Claude Code (MCP cấp người dùng, trạng thái đã giới thiệu,
+# lựa chọn đã chốt). Là một FILE nằm cạnh volume ~/.claude chứ không ở trong nó, nên trước bản
+# này nó bay theo mỗi lần dựng lại container (báo cáo 13/10/2026). Link file sang /data/home.
+# Claude Code ghi xuyên qua symlink; nếu có lần nó thay link bằng file thật thì boot sau dọn
+# file đó sang volume rồi link lại, nên mất nhiều nhất phần đổi giữa hai lần boot.
+f="$HOME/.claude.json"
+pf="$PERSIST_ROOT/.claude.json"
+if [ ! -L "$f" ] && mkdir -p "$PERSIST_ROOT" 2>/dev/null; then
+    if [ -f "$f" ]; then
+        # Bản trên volume là bản sống qua update, nên nó THẮNG; chỉ khi file trong HOME mới hơn
+        # (Claude Code vừa ghi thay link trong chính container này) mới chép đè sang volume.
+        if [ ! -f "$pf" ] || [ "$f" -nt "$pf" ]; then
+            cp -p "$f" "$pf" 2>/dev/null || true
+        fi
+        [ -f "$pf" ] && rm -f "$f" 2>/dev/null
+    fi
+    # Máy mới tinh: tạo sẵn một cấu hình rỗng hợp lệ trên volume để link ngay từ boot đầu.
+    [ -e "$f" ] || [ -f "$pf" ] || printf '{}\n' > "$pf" 2>/dev/null || true
+    if [ ! -e "$f" ] && [ -f "$pf" ]; then
+        ln -sfn "$pf" "$f" 2>/dev/null || cp -p "$pf" "$f" 2>/dev/null || true
+    fi
+fi
 
 # Tự cài Antigravity CLI (`agy`) và Grok Build (`grok`) nếu máy chưa có (0.85.1).
 #

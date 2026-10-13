@@ -95,7 +95,7 @@ sid2 = store.create_session(brain=main._brain_key(str(brain_that)), engine="cli"
 tho = {}
 
 
-async def gia_raw(brain, slug, input="", tools=None, session_id=""):
+async def gia_raw(brain, slug, input="", tools=None, session_id="", mode=None):
     tho["input"] = input
     yield {"type": "start", "workflow": "Viết bài", "steps": 1}
     yield {"type": "done", "result": "XONG"}
@@ -180,7 +180,7 @@ wf_loi = Path(_TMP) / "brain-loi"
     "---\nmô tả\n", encoding="utf-8")
 
 
-async def _khong_graph(brain, slug, input="", tools=None, session_id=""):
+async def _khong_graph(brain, slug, input="", tools=None, session_id="", mode=None):
     """Đường Phase 10 không nhận lần chạy này (allocation 0) - rơi về runner cũ như thật."""
     if False:
         yield {}
@@ -204,8 +204,8 @@ def _gan_engine(kich_ban, prov="anthropic-cli"):
     hang = list(kich_ban)
     del da_hoi[:]
 
-    def _helpers(brain, tools):
-        def _mk(sysprompt, model=None, provider=""):
+    def _helpers(brain, tools, mode=None):
+        def _mk(sysprompt, model=None, provider="", extra_tools=()):
             return _EngineGia(hang.pop(0) if hang else [{"type": "final", "content": ""}])
 
         def _agent_sysprompt(aslug):

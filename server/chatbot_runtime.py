@@ -28,6 +28,7 @@ Xem docs/dev/2026-08-bot-chuyen-trach-spec.md.
 from __future__ import annotations
 
 import asyncio
+import re
 import sys
 
 import lang_registry
@@ -47,6 +48,7 @@ import chatbot_reply_policy_store
 import chatbot_store
 import chatbot_tu_dong
 import conversations
+import limit_learner
 import localefmt
 import vision_input
 
@@ -177,6 +179,28 @@ cần thông tin cụ thể mà phần tra sẵn không có thì PHẢI tự tì
 sách tài liệu), rồi mới trả lời theo tài liệu đã mở.{chat}
 """
 _TU_MO_CHAT = " Đã tìm kỹ mà vẫn không có thì nói bạn chưa có thông tin, không trả lời bằng kiến thức chung."
+
+
+# Engine notices that come back as an ordinary ANSWER rather than as an error, so the "turn failed" branch never
+# saw them. Field report 2026-10-13: a Zalo group got "@Minh Quý You've hit your session limit · resets 4:40am (UTC)"
+# from the bot, tagged to the person who asked. Matched only when the notice IS the whole short reply
+# (limit_learner.subscription_dominates), never when a real answer quotes it.
+_CAU_ENGINE_RE = re.compile(
+    r"^\s*(API Error\b|Credit balance is too low|Invalid API key|Please run /login|Not logged in"
+    r"|Prompt is too long|Execution error\b)", re.IGNORECASE)
+
+
+def engine_notice(text: str) -> str:
+    """The reply itself, when it is an engine/plan notice that must never reach a customer; "" otherwise."""
+    t = str(text or "").strip()
+    if not t or len(t) > limit_learner.DOMINATES_MAX_CHARS:
+        return ""
+    try:
+        if limit_learner.subscription_dominates(t):
+            return t
+    except Exception:      # noqa: BLE001 - the detector must never cost the customer a reply
+        pass
+    return t if _CAU_ENGINE_RE.search(t) else ""
 
 
 # Zalo CÁ NHÂN của chủ (0.64.80). Khác Telegram/Zalo Bot ở chỗ người nhắn tới không chỉ là khách:
@@ -1413,6 +1437,9 @@ def _make_answer_fn(bot_id: str):
         # sao. Chủ repo dính đúng ca đó: bot im vì một lý do có thật và ghi rõ, mà câu ghi rõ ấy
         # bị nuốt mất trước khi tới nơi nào đọc được.
         loi_ky_thuat = ""
+        if isinstance(out, dict) and engine_notice(out.get("text")):
+            # A plan-limit or engine notice dressed as the answer: a failed turn, never a reply to send.
+            out = engine_notice(out.get("text"))
         if isinstance(out, str):
             loi_ky_thuat = out.strip()
             print(f"[chatbot {bot_id}] lượt hỏng: {loi_ky_thuat[:300]}", file=sys.stderr)
@@ -1601,6 +1628,8 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
                 undo(key, keep)
             except Exception as e:      # noqa: BLE001
                 print(f"[chatbot {bot_id}] gỡ dấu vết bản nháp lỗi: {type(e).__name__}", file=sys.stderr)
+    if isinstance(out, dict) and engine_notice(out.get("text")):
+        out = engine_notice(out.get("text"))      # plan-limit notice as the "answer": same as a failed turn
     if isinstance(out, str):      # lõi trả CHUỖI khi lượt hỏng: giữ nguyên lý do cho chủ, không gửi cho khách
         return {"ok": False, "code": "engine",
                 "error": out.strip()[:300] or localefmt.chu("Bot không soạn được câu trả lời",

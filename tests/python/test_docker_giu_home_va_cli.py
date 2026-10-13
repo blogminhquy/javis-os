@@ -63,6 +63,10 @@ else:
         (home / ".local" / "bin" / "grok").write_text("#!/bin/sh\necho grok\n")
         (home / ".grok").mkdir()
         (home / ".grok" / "auth.json").write_text('{"oauth": {"accessToken": "xai-cu"}}')
+        # ...và có cấu hình Claude Code + phiên Google Workspace MCP (báo cáo 13/10/2026).
+        (home / ".claude.json").write_text('{"mcpServers": {"x": {}}}')
+        (home / ".google_workspace_mcp").mkdir()
+        (home / ".google_workspace_mcp" / "token.json").write_text("gws-cu")
 
         r = chay_ep(home, persist)
         check("entrypoint exec lệnh chính (server vẫn lên)", r.returncode == 0
@@ -74,7 +78,7 @@ else:
         # là grok lại bị logout". Đúng hạng lỗi của `agy` hồi 16/08, chỉ khó thấy hơn một
         # bậc - binary `grok` nằm ở ~/.local/bin nên VẪN CÒN sau update, thẻ Models vẫn báo
         # "Đã cài CLI", nên trông như một lỗi đăng nhập chứ không phải lỗi ổ đĩa.
-        for d in (".local", ".antigravity", ".config", ".gemini", ".grok"):
+        for d in (".local", ".antigravity", ".config", ".gemini", ".grok", ".google_workspace_mcp"):
             check(f"CANARY: ~/{d} thành symlink vào volume",
                   (home / d).is_symlink()
                   and str((home / d).resolve()).startswith(str(persist.resolve())))
@@ -98,6 +102,11 @@ else:
               == '{"oauth": {"accessToken": "xai-cu"}}')
         check("binary grok cũng còn (nó vốn đã còn - đó là lý do lỗi này khó thấy)",
               (home2 / ".local" / "bin" / "grok").is_file())
+        check("~/.claude.json sống qua update (link sang volume)",
+              (home2 / ".claude.json").is_symlink()
+              and (home2 / ".claude.json").read_text() == '{"mcpServers": {"x": {}}}')
+        check("phiên Google Workspace MCP sống qua update",
+              (home2 / ".google_workspace_mcp" / "token.json").read_text() == "gws-cu")
 
         # Bản trên volume là bản SỐNG QUA UPDATE - nội dung mới tinh trong HOME không đè nó.
         home3 = Path(td) / "home3"

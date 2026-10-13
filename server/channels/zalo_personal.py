@@ -468,6 +468,9 @@ class Transport:
             self._ghi_loi_gui(thread, cau, loi, chat_type)
 
     async def _gui_anh(self, thread: str, anh: list, chat_type: str = "private"):
+        import zalo_personal_channel as zc
+        # Remember BEFORE sending, like _gui: each image comes back in the read loop as the account's own message.
+        zc.ghi_da_gui_anh(self.conn_id, thread, len(anh))
         ok, loi = await gui_anh({"id": self.conn_id}, thread, anh, chat_type)
         if not ok:
             self.last_error = localefmt.chu(f"Gửi ảnh Zalo lỗi: {loi}", f"Zalo image send failed: {loi}")[:300]

@@ -40,11 +40,27 @@ người:
 
 Phạm vi v1: `add` và `list`. Chuyển cột, huỷ, duyệt việc chờ phê duyệt vẫn làm ở trang Việc -
 đó là những thao tác cần nhìn thấy bảng, và mô tả tool nói thẳng như vậy thay vì để model đoán.
+
+`route` (0.107.0): `auto` hoặc `wf:<slug>` của một quy trình CÓ THẬT. Trước bản này tool không
+có tham số này, trong khi mô tả của `javis_workflow` lại bảo "dùng javis_task với route
+wf:<slug>" - nên chat không có cách nào giao một lần chạy quy trình thật. Ngày 13/10 việc S07
+được giao với route auto, tên quy trình chỉ nằm trong mô tả, và sáu agent của quy trình chưa
+từng được gọi lần nào. Giờ route sai slug bị từ chối rõ, còn route auto mà tên việc nhắc đúng
+một quy trình có thật thì kết quả trả về cảnh báo để model giao lại cho đúng.
 """
 from __future__ import annotations
 
+import re
 import time
+from pathlib import Path
+
 import tasks as tasks_mod
+import workflow_graph
+
+try:
+    from skill_router import read_frontmatter_only
+except Exception:          # chạy lẻ ngoài máy chủ
+    read_frontmatter_only = None
 
 try:
     import luot_dang_chay
@@ -83,6 +99,43 @@ def _dieu_phoi_chay(muc) -> bool:
     return str(muc or "").strip().lower() == "auto"
 
 
+def _workflows(f, vault_root) -> dict:
+    """{slug: (name, status)} of the brain's workflows. Empty when unreadable."""
+    try:
+        d = Path(f.deps.workflows_dir(vault_root))
+    except Exception:
+        return {}
+    out = {}
+    try:
+        files = sorted(d.glob("*.md")) if d.is_dir() else []
+    except OSError:
+        files = []
+    for fp in files:
+        meta = {}
+        if read_frontmatter_only is not None:
+            try:
+                meta = read_frontmatter_only(fp)[0] or {}
+            except Exception:
+                meta = {}
+        out[fp.stem] = (str(meta.get("name") or fp.stem), workflow_graph.workflow_status(meta))
+    return out
+
+
+def _norm(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "").lower()).strip()
+
+
+def _workflow_nhac_toi(wfs: dict, title: str, intent: str) -> list:
+    """Slugs of workflows the job text names (by slug or by display name)."""
+    text = _norm(title + " " + intent)
+    hits = []
+    for slug, (name, _status) in wfs.items():
+        if ((len(slug) >= 6 and slug.lower() in text)
+                or (len(_norm(name)) >= 6 and _norm(name) in text)):
+            hits.append(slug)
+    return hits
+
+
 def _feature():
     f = tasks_mod.current()
     if f is None:
@@ -108,6 +161,32 @@ def _them(args, ctx) -> str:
     if loi:
         return loi
 
+    route = str((args or {}).get("route") or "auto").strip() or "auto"
+    wfs = _workflows(f, ctx.vault_root)
+    canh_bao_route = ""
+    if route != "auto":
+        slug = route[3:].strip() if route.startswith("wf:") else ""
+        if not slug:
+            return ("ERROR: route chỉ nhận 'auto' hoặc 'wf:<slug>' của một quy trình có thật. "
+                    "Quy trình đang có: " + (", ".join(sorted(wfs)) or "(chưa có quy trình nào)") + ".")
+        if slug not in wfs:
+            return (f"ERROR: không có quy trình '{slug}' trong brain này nên chưa giao việc. "
+                    "Quy trình đang có: " + (", ".join(sorted(wfs)) or "(chưa có quy trình nào)")
+                    + ". Hỏi lại người dùng nếu không chắc quy trình nào.")
+        route = f"wf:{slug}"
+        if wfs[slug][1] != "active":
+            canh_bao_route = (f"LƯU Ý: quy trình '{wfs[slug][0]}' đang TẮT, nên việc này sẽ dừng "
+                              "chờ ngay khi tới lượt chạy. Bảo người dùng bật quy trình ở trang Cộng "
+                              "sự, rồi chạy lại việc ở trang Việc.")
+    else:
+        nhac = _workflow_nhac_toi(wfs, tieu_de, str((args or {}).get("intent") or ""))
+        if nhac:
+            canh_bao_route = (
+                "CẢNH BÁO: việc này nhắc tới quy trình " + ", ".join(f"wf:{s}" for s in nhac)
+                + " nhưng được giao với route auto, nên MỘT worker chung sẽ làm hết thay vì chạy "
+                "đúng các agent của quy trình. Nếu người dùng muốn chạy quy trình đó thì giao lại "
+                "với route=wf:<slug> (đặt tên việc khác đi, vì tên trùng sẽ bị từ chối).")
+
     chat_id = str((args or {}).get("chat_id") or "").strip()
     # Model quên chat_id thì hỏi sổ lượt đang chạy (0.64.49): đúng một khung chat đang hỏi trên
     # brain này thì đó chính là người giao việc. Không chắc thì để trống như cũ và cảnh báo.
@@ -124,7 +203,7 @@ def _them(args, ctx) -> str:
             ctx.vault_root,
             tieu_de,
             str((args or {}).get("intent") or "").strip() or tieu_de,
-            "auto",
+            route,
             2,
             deps,
             False,
@@ -152,6 +231,11 @@ def _them(args, ctx) -> str:
     ten_mode = {"suggest": "chỉ đọc và đề xuất", "auto": "được ghi file nháp trong brain",
                 "full": "toàn quyền, tự thao tác ra ngoài"}[mode]
     ra = [f"Đã giao việc: {tieu_de}", f"Mã việc: {tid}", f"Mức quyền: {mode} ({ten_mode})"]
+    if route != "auto":
+        ra.append(f"Chạy quy trình: {route} ({wfs.get(route[3:], (route[3:], ''))[0]}), "
+                  "từng bước do đúng agent của quy trình làm.")
+    if canh_bao_route:
+        ra.append(canh_bao_route)
     if deps:
         ra.append("Chờ xong: " + ", ".join(deps))
     if tu_gan:
@@ -230,6 +314,9 @@ def register(ctx):
         "tự thao tác ra ngoài như lúc chat), auto (chỉ ghi file nháp trong brain) hoặc suggest "
         "(chỉ đọc và đề xuất); chỉ hạ mức khi người dùng muốn vậy. deps='id1,id2' để việc này "
         "chờ việc khác xong. "
+        "route: 'auto' (mặc định, một worker chung làm) hoặc 'wf:<slug>' để chạy ĐÚNG một quy trình "
+        "có thật, từng bước do agent của quy trình làm; muốn chạy quy trình thì PHẢI đặt route, "
+        "chép tên quy trình vào intent không làm nó chạy. "
         "op=list: liệt kê việc theo cột. "
         "Chuyển cột, huỷ việc và duyệt việc chờ phê duyệt thì làm ở trang Việc, tool này không có.",
         _chay,
@@ -242,6 +329,8 @@ def register(ctx):
                 "mode": {"type": "string", "enum": ["suggest", "auto", "full"]},
                 "chat_id": {"type": "string", "description": "Người nhận kết quả, vd web:<mã phiên>"},
                 "deps": {"type": "string", "description": "Mã các việc phải xong trước, cách nhau dấu phẩy"},
+                "route": {"type": "string",
+                          "description": "auto, hoặc wf:<slug> để chạy một quy trình có thật"},
             },
             "required": ["op"],
         },

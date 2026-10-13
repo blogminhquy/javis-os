@@ -257,6 +257,12 @@ class RemindersFeature:
     def __init__(self, deps: RemindersDeps):
         self.deps = deps
         self.lock = asyncio.Lock()   # serialize: 1 nhắc mode 'task' chạy engine/lần
+        # Script jobs get their OWN lock. They call no model and finish within SCRIPT_TIMEOUT_S,
+        # but sharing `self.lock` meant every script was skipped while one task-mode reminder
+        # ran (up to an hour): a "follow up after 10 minutes" script with a 10-25 minute window
+        # could miss customers right in business hours (field report 2026-10-13). Scripts still
+        # run one at a time among themselves, since two of them may share state files.
+        self.script_lock = asyncio.Lock()
         self._io = asyncio.Lock()    # serialize ghi file reminders.json
         # Nhắc mode task/script đang chạy NỀN (id) + các task asyncio đang sống, để tick sau
         # không bắn lại cùng một nhắc và để tắt máy chủ đợi được chúng.
@@ -527,7 +533,7 @@ class RemindersFeature:
             if fired >= MAX_FIRE_PER_TICK:
                 break
             if rem.get("mode") in ("task", "script"):
-                if self.lock.locked() or rem.get("id") in self._dang_chay:
+                if self._khoa(rem.get("mode")).locked() or rem.get("id") in self._dang_chay:
                     continue   # đang có 1 job chạy → để nhịp sau, không xếp hàng chờ trong tick
                 # Chạy NỀN chứ không await ngay trong tick: một nhắc mode task có thể chạy tới
                 # 1 giờ, await ở đây là mọi nhắc "notify" đến hạn sau nó (và cả loop, Kanban
@@ -537,6 +543,10 @@ class RemindersFeature:
             else:
                 await self._fire(brain, rem)
             fired += 1
+
+    def _khoa(self, mode) -> asyncio.Lock:
+        """The lock a background reminder of this mode waits on (see `script_lock`)."""
+        return self.script_lock if mode == "script" else self.lock
 
     def _chay_nen(self, brain: str, rem: dict) -> None:
         rid = rem.get("id")
@@ -578,7 +588,7 @@ class RemindersFeature:
             else:
                 msg = localefmt.chu("⚠ Nhắc hẹn đã chạy nhưng không trả về nội dung.", "⚠ The reminder ran but returned nothing.")
         elif mode == "script":
-            async with self.lock:
+            async with self.script_lock:
                 out, serr, code = await self._run_script(brain, rem.get("script", ""))
             body = out
             if code != 0:

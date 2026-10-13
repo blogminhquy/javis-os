@@ -42,6 +42,43 @@ _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
 _NODE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 
+def workflow_status(meta: Any) -> str:
+    """"active" or "off" for a workflow's frontmatter, whatever YAML made of it.
+
+    A hand-written `status: off` (the javis-builder template wrote it unquoted until 0.107.0)
+    is read by YAML 1.1 as the boolean False, and `status: on` as True. The toggle compared
+    with "active" and the UI got False. A missing status is "off", matching the Studio list."""
+    raw = meta.get("status") if isinstance(meta, dict) else None
+    if raw is True:
+        return "active"
+    if raw is False or raw is None:
+        return "off"
+    value = str(raw).strip().lower()
+    return "active" if value in ("active", "on", "true", "yes", "1") else "off"
+
+
+_STEP_TOOL_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
+
+
+def step_tools(step: Any) -> tuple[str, ...]:
+    """Extra tools one workflow step declares (`tools: [javis_generate_image]`).
+
+    Only names; what a name may grant is decided by the runner (main._workflow_agent_helpers),
+    never here. Accepts a list or a comma-separated string, drops anything that is not a
+    plain tool name."""
+    raw = step.get("tools") if isinstance(step, dict) else None
+    if isinstance(raw, str):
+        raw = raw.split(",")
+    if not isinstance(raw, (list, tuple)):
+        return ()
+    out = []
+    for item in raw:
+        name = str(item or "").strip()
+        if _STEP_TOOL_RE.match(name) and name not in out:
+            out.append(name)
+    return tuple(out[:16])
+
+
 class WorkflowContractError(ValueError):
     """Định nghĩa workflow không hợp lệ. Luôn fail-closed, không tự chữa."""
 
@@ -234,7 +271,8 @@ def compile_legacy_workflow(meta: dict, slug: str) -> WorkflowGraph:
             verify_agent=str(step.get("verify_agent") or "").strip(),
             # Giữ nguyên phép quy đổi của runner cũ: thiếu/0/không parse được -> 0.
             max_retries=max(0, _int(step.get("max_retries", 1), 0)),
-            metadata={"legacy_index": index},
+            metadata=({"legacy_index": index, "tools": list(step_tools(step))}
+                      if step_tools(step) else {"legacy_index": index}),
         ))
     _validate_nodes(nodes)
     payload = {

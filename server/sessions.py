@@ -88,6 +88,16 @@ CREATE TABLE IF NOT EXISTS sessions (
     compact_count  INTEGER NOT NULL DEFAULT 0
 );
 
+-- Every Claude Code thread id a conversation was ever bound to. `sessions.cli_session_id` only
+-- holds the CURRENT one, and compaction (compaction.py) rotates a long chat onto a fresh thread,
+-- so the usage page saw the older threads of a chat as "background" work (2026-10-13: 514.6M of
+-- 722.9M "background" tokens were rotated chat threads). Append-only, read by usage_index.
+CREATE TABLE IF NOT EXISTS cli_session_history (
+    cli_session_id TEXT PRIMARY KEY,
+    session_id     TEXT NOT NULL,
+    bound_at       REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS messages (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -1173,10 +1183,19 @@ class SessionStore:
         """
         if not cli_session_id:
             return
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET cli_session_id = ?, updated_at = ? WHERE id = ?",
-            (cli_session_id, time.time(), session_id),
-        ))
+
+        def _ghi(c):
+            ts = time.time()
+            c.execute(
+                "UPDATE sessions SET cli_session_id = ?, updated_at = ? WHERE id = ?",
+                (cli_session_id, ts, session_id),
+            )
+            c.execute(
+                "INSERT OR IGNORE INTO cli_session_history(cli_session_id, session_id, bound_at)"
+                " VALUES(?,?,?)",
+                (cli_session_id, session_id, ts),
+            )
+        self._write(_ghi)
 
     def set_codex_thread_id(self, session_id: str, thread_id: str) -> None:
         """Gắn thread native của Codex vào hội thoại dashboard để lượt sau resume đúng mạch."""
