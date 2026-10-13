@@ -73,6 +73,7 @@ async def _goi_gia(conn, tool, args):
 
 zc._ket_noi = lambda: [dict(CONN)]
 zc._goi = _goi_gia
+zc.CHO_KHACH_IM = 0          # giao từng tin ngay: file này canh các rào khác; cửa sổ chờ ở test_zalo_cho_khach_nhan_xong.py
 
 
 async def _engine(text, meta, progress, *, channel="", bot=None):

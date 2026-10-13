@@ -89,6 +89,7 @@ async def _goi_gia(conn, tool, args):
 
 zc._ket_noi = lambda: [dict(CONN)]
 zc._goi = _goi_gia
+zc.CHO_KHACH_IM = 0          # giao từng tin ngay: file này canh các rào khác; cửa sổ chờ ở test_zalo_cho_khach_nhan_xong.py
 zc.NHUONG_GIAY = 0.05       # test không chờ 20 giây thật
 zc.THU_LAI_TEN_GIAY = 0        # và làm mới bảng cuộc chat được ngay, không chờ 15 giây
 

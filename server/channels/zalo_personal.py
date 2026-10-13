@@ -409,7 +409,9 @@ class Transport:
             # instructions say nothing about newcomers.
             text = cau_vao_nhom(ev)
         else:
-            text = (conversations.chu_thich_anh(ev.get("text")) if co_anh else str(ev.get("text") or "").strip())
+            # Lượt gộp (0.113.0, `zalo_personal_channel.gop_tin`) đã bóc chú thích ảnh từng tin rồi nối lại: lấy nguyên.
+            gop = bool((ev.get("metadata") or {}).get("gop"))
+            text = (conversations.chu_thich_anh(ev.get("text")) if co_anh and not gop else str(ev.get("text") or "").strip())
         thread = str(ev.get("external_chat_id") or "")
         if not thread:
             return

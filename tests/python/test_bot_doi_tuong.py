@@ -219,6 +219,7 @@ async def _engine(text, meta, progress, *, channel="", bot=None):
 
 
 zc._goi = _goi_gia
+zc.CHO_KHACH_IM = 0          # giao từng tin ngay: file này canh các rào khác; cửa sổ chờ ở test_zalo_cho_khach_nhan_xong.py
 zc.THU_LAI_TEN_GIAY = 0
 chatbot_runtime.wire(answer=_engine, brain_root=lambda b: tempfile.mkdtemp(prefix="brain-dt-"),
                      read_agent=lambda br, slug: ({"name": "Lan", "role": "Trợ lý"}, "Trả lời ngắn."))

@@ -30,6 +30,9 @@ có Agent, mức quyền, giới hạn tần suất và Hộp thư). Xem "Bot tr
 tin dạng chữ, bỏ tin cũ, im khi chủ đang tự nhắn. Từ 0.64.82 bot còn trả lời trong nhóm đã cho
 phép (tag/reply, hoặc chế độ Tự đánh giá), xem `channels.zalo_personal.Transport`.
 
+Chờ khách nhắn xong (0.113.0): tin khách ở chat RIÊNG không giao ngay mà gom theo cuộc chat, đợi
+khách im `CHO_KHACH_IM` giây rồi mới giao MỘT lượt gộp, xem "Chờ khách nhắn xong" ở cuối file.
+
 Chưa có: tải media. Tin ảnh/file ghi loại tin kèm mô tả, không tải về, và bot không trả lời chúng.
 """
 from __future__ import annotations
@@ -48,6 +51,8 @@ import conversations
 CONNECTOR_ID = "zalo"
 KENH = "zalo_personal"
 NHIP = 20               # giây giữa hai lần đọc
+NHIP_NHANH = 5          # giây giữa hai lần đọc khi tài khoản có chat riêng vừa có tin khách (xem `_nhip_cua`)
+NONG_GIAY = 60          # tin khách chat riêng mới hơn chừng này giây thì tài khoản còn đọc theo NHIP_NHANH
 NHIP_LOI = 90           # nghỉ dài hơn khi một tài khoản vừa lỗi (MCP chết, chưa đăng nhập)
 LIMIT = 100             # tin mỗi lô đọc (MCP cho phép 1..100)
 MAX_TRANG = 5           # số lô tối đa đọc liên tiếp trong MỘT lượt khi bộ đệm còn tin (hasMore)
@@ -477,6 +482,8 @@ def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
                 trung += 1
                 continue
             _TAY[(conn["id"], ev["external_chat_id"])] = float(ev.get("created_at") or time.time())
+            # Chủ đã vào cuộc: mấy tin khách đang gom chờ là việc của chủ, không phải của bot.
+            _GOM.pop((conn["id"], ev["external_chat_id"]), None)
         elif _la_tieng_vong(conn["id"], ev["external_chat_id"], ev["text"], TIENG_VONG_TOI_THIEU):
             # Ví dụ trong tài liệu của MCP không có cờ "tin của chính mình", nên câu bot vừa gửi
             # có thể quay về như tin của một KHÁCH. Để lọt thì trong nhóm bot sẽ tự trả lời chính
@@ -522,6 +529,7 @@ async def doc_mot_lan(conn: dict) -> dict:
     `since` chỉ giữ trong RAM và chỉ dùng khi phiên MCP còn là phiên đã cấp nó (`_epoch`).
     """
     tt = _TT.setdefault(conn["id"], {})
+    bat_dau = time.time()       # mọi tin tới trước mốc này đã nằm trong lượt đọc này
     moi = trung = 0
     since = 0
     if tt.get("since") and tt.get("ep") and tt["ep"] == _epoch(conn):
@@ -558,6 +566,8 @@ async def doc_mot_lan(conn: dict) -> dict:
     tt["lan_cuoi"] = time.time()
     tt["loi"] = ""
     tt["so_tin"] = int(tt.get("so_tin") or 0) + moi
+    # Chỉ xả sau một lượt đọc THÀNH CÔNG: lượt này vừa xác nhận khách không nhắn thêm gì tới `bat_dau`.
+    xa_hang_cho(conn["id"], bat_dau)
     return {"moi": moi, "trung": trung}
 
 
@@ -606,7 +616,12 @@ async def _vong() -> None:
                     if _stop or conn["id"] not in bat_ids:
                         continue
                     tt = _TT.setdefault(conn["id"], {})
-                    if time.time() < float(tt.get("nghi_toi") or 0):
+                    luc = time.time()
+                    if luc < float(tt.get("nghi_toi") or 0):
+                        continue
+                    # Vòng có thể thức dày hơn NHIP (một tài khoản khác đang nóng): tài khoản chưa tới
+                    # hạn thì để yên, khỏi tăng số lần gọi MCP của mọi tài khoản theo một cuộc chat.
+                    if luc < float(tt.get("doc_toi") or 0):
                         continue
                     try:
                         await doc_mot_lan(conn)
@@ -616,12 +631,14 @@ async def _vong() -> None:
                         tt["loi"] = mo_ta_loi(f"{type(e).__name__}: {e}")
                         tt["nghi_toi"] = time.time() + NHIP_LOI
                         print(f"[zalo-personal {conn.get('label')}] {tt['loi']}", file=sys.stderr)
+                    # Hạn sớm hơn một nhịp chút ít: vòng ngủ đúng một nhịp thì lần thức sau chắc chắn đã tới hạn.
+                    tt["doc_toi"] = luc + _nhip_cua(conn["id"]) * 0.9
         except asyncio.CancelledError:
             raise
         except Exception as e:
             print(f"[zalo-personal vòng] {type(e).__name__}: {e}", file=sys.stderr)
         try:
-            await asyncio.sleep(NHIP)
+            await asyncio.sleep(_nhip_vong())
         except asyncio.CancelledError:
             raise
     print("[zalo-personal] vòng đọc dừng", file=sys.stderr)
@@ -651,8 +668,8 @@ def stop() -> None:
 
 
 def trang_thai() -> dict:
-    return {"dang_chay": bool(_task and not _task.done()), "nhip": NHIP,
-            "tai_khoan": tai_khoan()}
+    return {"dang_chay": bool(_task and not _task.done()), "nhip": NHIP, "nhip_nhanh": NHIP_NHANH,
+            "cho_khach_im": CHO_KHACH_IM, "tai_khoan": tai_khoan()}
 
 
 # ============================================================
@@ -675,6 +692,8 @@ _DA_GUI: Dict[tuple, list] = {}     # (conn_id, thread) -> [(ts, chữ đã chu�
 _DA_GUI_ANH: Dict[tuple, list] = {}  # (conn_id, thread) -> [ts mỗi ảnh bot vừa gửi] (xem ghi_da_gui_anh)
 _TAY: Dict[tuple, float] = {}       # (conn_id, thread) -> giờ tin chủ tự nhắn gần nhất
 _VIEC: set = set()                  # giữ tham chiếu task đang chạy, kẻo bị thu gom giữa chừng
+_GOM: Dict[tuple, dict] = {}        # (conn_id, thread) -> {"evs": [...], "cuoi": ts}: chat riêng đang chờ khách nhắn xong
+_NONG: Dict[str, float] = {}        # conn_id -> giờ thấy tin khách chat riêng gần nhất (đọc dày, xem `_nhip_cua`)
 _ID_MINH: Dict[str, dict] = {}      # conn_id -> {"uid", "ten"} của CHÍNH nick này, học từ tin của nó
 
 
@@ -754,6 +773,10 @@ def huy_dang_ky_bot(conn_id: str, tb: Any = None) -> None:
     cid = str(conn_id)
     if tb is None or _BOTS.get(cid) is tb:
         _BOTS.pop(cid, None)
+        # Bot tắt thì tin đang gom chờ không được giao cho bot nào nữa (kể cả bot bật lại sau đó).
+        for k in [k for k in _GOM if k[0] == cid]:
+            _GOM.pop(k, None)
+        _NONG.pop(cid, None)
 
 
 def co_bot(conn_id: str) -> bool:
@@ -831,9 +854,17 @@ def chu_vua_nhan_tay(conn_id: str, thread: str, now: Optional[float] = None) -> 
 
 
 def _giao_cho_bot(conn: dict, ev: dict) -> None:
-    tb = _BOTS.get(str(conn.get("id") or ""))
+    cid = str(conn.get("id") or "")
+    tb = _BOTS.get(cid)
     if not tb or ev.get("sender_type") != "customer":
         return
+    if CHO_KHACH_IM > 0 and ev.get("chat_type") == "private":
+        _xep_cho(cid, ev)
+        return
+    _chay(tb, ev)
+
+
+def _chay(tb: Any, ev: dict) -> None:
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -841,3 +872,115 @@ def _giao_cho_bot(conn: dict, ev: dict) -> None:
     t = loop.create_task(tb.xu_ly(ev))
     _VIEC.add(t)
     t.add_done_callback(_VIEC.discard)
+
+
+# ============================================================
+# Chờ khách nhắn xong (0.113.0)
+# ============================================================
+# Yêu cầu của chủ nick (14/10/2026): khách hay nhắn một ý thành ba bốn tin liền ("Thầy ơi" / "cho em
+# hỏi" / "lớp 9 còn chỗ không ạ"). Giao từng tin ngay thì bot đáp câu chào trước khi câu hỏi tới,
+# rồi đáp tiếp từng mẩu: lộ ngay là máy. Người thật đọc hết rồi mới trả lời một lần.
+#
+# Cách làm: tin khách ở chat RIÊNG vào `_GOM` theo (tài khoản, cuộc chat). Sau mỗi lượt đọc thành
+# công, cuộc chat nào có tin khách cuối đã cũ hơn `CHO_KHACH_IM` giây thì được giao MỘT lượt gộp
+# (`gop_tin`), nối đúng khuôn hàng đợi của `bot_gateway`. Xả SAU một lượt đọc chứ không hẹn giờ:
+# chỉ lượt đọc mới xác nhận được là khách thật sự chưa nhắn thêm gì.
+#
+# Vòng đọc 20 giây thì khách nhắn cuối nhịp có thể phải chờ tới 30 giây, nên tài khoản có tin khách
+# chat riêng trong `NONG_GIAY` giây qua được đọc mỗi `NHIP_NHANH` giây (`_nhip_cua`). `zalo_get_messages`
+# đọc bộ đệm của tiến trình MCP trên máy, không hỏi máy chủ Zalo, và chỉ tài khoản đang nóng đọc dày.
+#
+# NHÓM không gom: ở nhóm mỗi tin còn đi qua nhận diện tag và bộ phán xử (nhớ ngữ cảnh theo từng tin,
+# đúng thứ tự giữa nhiều người), gộp tin của một người là đổi những thứ đó. Chế độ Tự đánh giá vẫn
+# chờ `NHUONG_GIAY` như cũ.
+CHO_KHACH_IM = 10       # giây khách phải im ở chat riêng trước khi bot trả lời; 0 = giao từng tin ngay như trước 0.113.0
+MAX_GOM_TIN = 50        # trần số tin giữ cho một cuộc chat đang gom (người lạ dán cả trăm dòng thì không phình theo)
+
+
+def _xep_cho(conn_id: str, ev: dict, now: Optional[float] = None) -> None:
+    """Đưa một tin khách chat riêng vào hàng chờ của cuộc chat đó."""
+    now = time.time() if now is None else now
+    # Giờ tin theo Zalo, nhưng không cho vượt giờ máy: đồng hồ máy chậm hơn Zalo thì tin "từ tương
+    # lai" sẽ giữ cuộc chat chờ mãi.
+    ts = min(float(ev.get("created_at") or now), now)
+    if now - ts > TUOI_TOI_DA:
+        return      # tin cũ của bộ đệm: `xu_ly` cũng bỏ, đừng để nó giữ tài khoản ở nhịp đọc dày
+    o = _GOM.setdefault((str(conn_id), str(ev.get("external_chat_id") or "")), {"evs": [], "cuoi": 0.0})
+    if len(o["evs"]) >= MAX_GOM_TIN:
+        o["evs"][-1] = ev       # giữ mấy tin đầu (câu hỏi thật) và tin CUỐI (mã tin, giờ tin của lượt)
+    else:
+        o["evs"].append(ev)
+    o["cuoi"] = max(float(o["cuoi"]), ts)
+    _NONG[str(conn_id)] = now
+
+
+def gop_tin(evs: List[dict]) -> dict:
+    """Nhiều tin khách liền nhau của MỘT cuộc chat riêng -> một sự kiện cho `Transport.xu_ly`.
+
+    Khung là tin CUỐI (mã tin để Hộp thư nhận ra tin đã có, giờ tin cho rào `TUOI_TOI_DA`). Chữ là
+    các tin chữ và chú thích ảnh theo đúng thứ tự, nối bằng `bot_gateway.noi_tin` (cùng trần, cùng
+    cách nối với tin gom lúc bot bận). Có ảnh thì lượt là tin ảnh, mang link ảnh MỚI NHẤT, nên "gửi
+    ảnh rồi nhắn 'xem giúp em'" tới bot thành một câu hỏi kèm ảnh. Tiếng, file, sticker chỉ tính
+    là khách còn đang nhắn, không góp chữ (bot vốn không trả lời chúng).
+    `metadata.gop` = số tin đã gộp: `xu_ly` lấy chữ nguyên như đã gộp, không bóc chú thích lại."""
+    import bot_gateway
+    cuoi = evs[-1]
+    phan: List[str] = []
+    co_anh, link = False, ""
+    for e in evs:
+        loai = e.get("message_type")
+        if loai == "text":
+            t = str(e.get("text") or "").strip()
+        elif loai == "image":
+            co_anh = True
+            link = str((e.get("metadata") or {}).get("image_url") or "") or link
+            t = conversations.chu_thich_anh(e.get("text"))
+        else:
+            continue
+        if t:
+            phan.append(t)
+    md = {k: v for k, v in (cuoi.get("metadata") or {}).items() if k != "image_url"}
+    if link:
+        md["image_url"] = link
+    md["gop"] = len(evs)
+    return dict(cuoi, message_type="image" if co_anh else "text", text=bot_gateway.noi_tin(phan), metadata=md)
+
+
+def xa_hang_cho(conn_id: str, luc: Optional[float] = None) -> int:
+    """Giao cho bot những cuộc chat của tài khoản này mà khách đã im đủ `CHO_KHACH_IM` giây tính tới
+    `luc` (mốc bắt đầu của lượt đọc vừa xong). Trả số lượt đã giao."""
+    cid = str(conn_id)
+    luc = time.time() if luc is None else luc
+    tb = _BOTS.get(cid)
+    n = 0
+    for khoa in [k for k in _GOM if k[0] == cid]:
+        o = _GOM.get(khoa) or {}
+        if not tb:
+            _GOM.pop(khoa, None)
+            continue
+        if luc - float(o.get("cuoi") or 0) < CHO_KHACH_IM:
+            continue
+        _GOM.pop(khoa, None)
+        evs = [e for e in o.get("evs") or []
+               if luc - min(float(e.get("created_at") or luc), luc) <= TUOI_TOI_DA]
+        if evs:
+            _chay(tb, gop_tin(evs))
+            n += 1
+    return n
+
+
+def _nhip_cua(conn_id: str, now: Optional[float] = None) -> int:
+    """Nhịp đọc kế tiếp của một tài khoản: dày khi có cuộc chat đang chờ khách nhắn xong hoặc vừa có
+    tin khách chat riêng, thường thì `NHIP`. Chỉ khi có bot trực và đang bật chờ."""
+    cid = str(conn_id)
+    if cid not in _BOTS or CHO_KHACH_IM <= 0:
+        return NHIP
+    now = time.time() if now is None else now
+    if any(k[0] == cid for k in _GOM) or now - float(_NONG.get(cid) or 0) < NONG_GIAY:
+        return NHIP_NHANH
+    return NHIP
+
+
+def _nhip_vong() -> int:
+    """Vòng ngủ bao lâu: một nhịp dày nếu có tài khoản nào đang nóng, không thì `NHIP`."""
+    return min([NHIP] + [_nhip_cua(cid) for cid in list(_BOTS)])
