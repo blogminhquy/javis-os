@@ -284,6 +284,7 @@ class Transport:
     def __init__(self, token, whitelist, answer_fn, command_fn=None, download_dir=None,
                  commands=None, precheck_fn=None, event_fn=None, giau_trang_thai=True,
                  cfg_fn=None, policy=None, **_):
+        self.download_dir = download_dir
         self.conn_id = str(token or "")
         self.answer_fn = answer_fn
         self.precheck_fn = precheck_fn
@@ -372,12 +373,56 @@ class Transport:
         except Exception as e:      # noqa: BLE001 - nhớ ảnh hỏng không được làm sập vòng đọc tin
             print(f"[zalo-personal bot {self.conn_id}] nhớ ảnh trơn lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
+    async def _tai_file(self, files: list, text: str, meta: dict, thread: str, chi_file: bool) -> tuple:
+        """Tải các file khách gửi về `inbox/khach` của brain bot, rồi gắn dấu file vào lượt.
+
+        Trả `(text, các file đã tải, đi tiếp không)`. Gọi khi đã cầm khoá cuộc chat, nên rào lại những
+        gì có thể đổi trong lúc chờ khoá (bot tắt, chủ tự nhắn, Tiếp quản). Lưu file là GHI vào brain,
+        nên cần mức quyền Được ghi trở lên: bot Chỉ đọc không tải. Lượt chỉ có file mà không được tải
+        thì dừng cả lượt; lượt có chữ thì báo cho Agent biết khách có gửi file. Lượt bị huỷ sau khi đã
+        tải thì xoá file vừa tải, không để rác trong brain."""
+        import conversations
+        import zalo_attachments
+        import zalo_personal_channel as zc
+        from pathlib import Path
+        cfg = (self.cfg_fn() if self.cfg_fn else {}) or {}
+        if cfg.get("muc_quyen") not in ("auto", "full"):
+            if chi_file:
+                return text, [], False
+            return text + "\n[Khách có gửi kèm file; bot này không có quyền lưu file nên không mở được.]", [], True
+        if (zc._BOTS.get(self.conn_id) is not self or not zc.ket_noi_theo_id(self.conn_id)
+                or zc.chu_vua_nhan_tay(self.conn_id, thread)
+                or conversations.che_do("zalo_personal", self.conn_id, thread) == "human"):
+            return text, [], False
+        r = self.precheck_fn(text, meta)
+        if asyncio.iscoroutine(r):
+            r = await r
+        if r is not None:
+            return text, [], False
+        ddir = self.download_dir(thread) if callable(self.download_dir) else self.download_dir
+        inbox = Path(ddir) if ddir else None
+        if inbox is None or inbox.parts[-2:] != ("inbox", "khach"):
+            raise ValueError("thiếu thư mục inbox/khach của brain bot")
+        da_tai = []
+        for att in files:
+            saved, why = await zalo_attachments.fetch_file(att, inbox)
+            if saved:
+                da_tai.append(saved)
+                text += "\n" + zalo_attachments.turn_text(saved)
+            else:
+                text += "\n[Không tải được file Zalo: " + why + ". Không suy đoán nội dung.]"
+        if zc._BOTS.get(self.conn_id) is not self:
+            for f in da_tai:
+                f.unlink(missing_ok=True)
+            return text, [], False
+        return text, da_tai, True
+
     async def xu_ly(self, ev: dict):
         """Quyết định có trả lời một tin khách không, và trả lời nếu có.
 
         Các rào, theo thứ tự rẻ tới đắt (cái nào chặn thì KHÔNG tốn một lượt model):
-          - chỉ tin dạng CHỮ, hoặc tin ẢNH có CHÚ THÍCH (0.65.13: chú thích coi như nội dung tin, nên "@bot ..." viết trong chú thích ảnh là một cái tag thật),
-            ở chat riêng hoặc nhóm (tiếng, file bỏ qua; ảnh trơn trong nhóm không trả lời nhưng được NHỚ cho lần người đó gọi bot ngay sau);
+          - tin dạng CHỮ, FILE, hoặc tin ẢNH có CHÚ THÍCH (0.65.13: chú thích coi như nội dung tin, nên "@bot ..." viết trong chú thích ảnh là một cái tag thật),
+            ở chat riêng hoặc nhóm (tiếng bỏ qua; file tải sau precheck; ảnh trơn trong nhóm không trả lời nhưng được NHỚ cho lần người đó gọi bot ngay sau);
           - tin cũ quá `TUOI_TOI_DA` bỏ qua (bộ đệm MCP lúc mới bật);
           - chủ vừa TỰ TAY nhắn cuộc chat này thì nhường;
           - nhóm: phải được chủ cho phép (chưa thì im TUYỆT ĐỐI và hiện lên hàng chờ duyệt);
@@ -394,12 +439,30 @@ class Transport:
         import zalo_personal_channel as zc
         loai = ev.get("chat_type")
         kieu = ev.get("message_type")
-        vao_nhom = (ev.get("metadata") or {}).get("member_join")
+        md0 = ev.get("metadata") or {}
+        vao_nhom = md0.get("member_join")
         if vao_nhom and loai != "group":
             return
-        if loai not in ("private", "group") or (kieu not in ("text", "image") and not vao_nhom):
+        if loai not in ("private", "group") or (kieu not in ("text", "image", "file") and not vao_nhom):
             return
         nhom = loai == "group"
+        # File khách gửi (một tin file, hoặc các file đi theo lượt gộp chat riêng của `zc.gop_tin`).
+        # Rào chặt: sai tài khoản, không phải khách, thiếu người gửi, chat riêng mà người gửi không phải
+        # chủ cuộc chat, hoặc không có precheck thì KHÔNG tải. Lượt chỉ có file thì bỏ cả lượt; lượt có
+        # chữ thì vẫn trả lời chữ, chỉ bỏ file.
+        if md0.get("gop"):
+            files = md0.get("attachments") or []
+        else:
+            files = [md0.get("attachment")] if kieu == "file" else []
+        files = [a for a in files if isinstance(a, dict)]
+        if files and (str(ev.get("account_id") or "") != self.conn_id
+                      or ev.get("sender_type") != "customer" or not ev.get("sender_id")
+                      or not self.precheck_fn or not zc.ket_noi_theo_id(self.conn_id)
+                      or (not nhom and str(ev.get("sender_id")) != str(ev.get("external_chat_id")))):
+            files = []
+        chi_file = kieu == "file"
+        if chi_file and not files:
+            return
         # Tin ảnh có CHÚ THÍCH (0.65.13) xử lý như tin chữ với chú thích làm nội dung: "@Javis Vũ ..." viết trong phần chú thích của ảnh
         # là một cái tag thật. Trước đây mọi tin không phải chữ bị bỏ, nên tag kèm ảnh không bao giờ tới bot. Ảnh trơn: xem `_nho_anh_tron`.
         co_anh = kieu == "image"
@@ -410,8 +473,10 @@ class Transport:
             text = cau_vao_nhom(ev)
         else:
             # Lượt gộp (0.128.0, `zalo_personal_channel.gop_tin`) đã bóc chú thích ảnh từng tin rồi nối lại: lấy nguyên.
-            gop = bool((ev.get("metadata") or {}).get("gop"))
+            gop = bool(md0.get("gop"))
             text = (conversations.chu_thich_anh(ev.get("text")) if co_anh and not gop else str(ev.get("text") or "").strip())
+        if chi_file and not text:
+            text = "(người dùng gửi file)"
         thread = str(ev.get("external_chat_id") or "")
         if not thread:
             return
@@ -485,6 +550,8 @@ class Transport:
                     if cau and not nhom:
                         await self._gui(thread, cau, "private")
                     return
+            if chi_file and nhom and not duoc_goi and self._che_do_nhom() != "always":
+                return  # file thả vào nhóm mà không ai gọi bot: không tải, không đưa qua bộ phán xử
             if nhom and not duoc_goi and self._che_do_nhom() == "auto":
                 if pol and pol.get("mode") == "on":
                     # Bộ phán xử thay cửa từ khoá: tin hiển nhiên không đáng đã được ghi vết và bỏ ở `prepare`.
@@ -501,7 +568,17 @@ class Transport:
                     return      # bot bị tắt lúc đang chờ: nút Tắt phải có tác dụng ngay
             khoa = self._khoa.setdefault(thread, asyncio.Lock())
             async with khoa:
-                out = await self.answer_fn(text, meta, None)
+                da_tai = []
+                if files:
+                    text, da_tai, dung = await self._tai_file(files, text, meta, thread, chi_file)
+                    if not dung:
+                        return
+                try:
+                    out = await self.answer_fn(text, meta, None)
+                except BaseException:
+                    for f in da_tai:
+                        f.unlink(missing_ok=True)
+                    raise
                 anh = []
                 if isinstance(out, dict):
                     if out.get("im_lang"):

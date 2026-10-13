@@ -33,7 +33,8 @@ phép (tag/reply, hoặc chế độ Tự đánh giá), xem `channels.zalo_perso
 Chờ khách nhắn xong (0.128.0): tin khách ở chat RIÊNG không giao ngay mà gom theo cuộc chat, đợi
 khách im `CHO_KHACH_IM` giây rồi mới giao MỘT lượt gộp, xem "Chờ khách nhắn xong" ở cuối file.
 
-Chưa có: tải media. Tin ảnh/file ghi loại tin kèm mô tả, không tải về, và bot không trả lời chúng.
+Tin file giữ link tải trong `metadata.attachment`; bot chỉ tải về SAU các rào quyền, xem
+`channels.zalo_personal.Transport.xu_ly`. Tiếng và sticker vẫn không tải.
 """
 from __future__ import annotations
 
@@ -343,6 +344,7 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
     if not sender_name and not nhom:
         sender_name = str(th.get("name") or "")
     loai = _loai_tin(msg)
+    from zalo_attachments import normalize as normalize_attachment
     text = _lay(msg, "text", "content", "msg", "message", mac_dinh="")
     if isinstance(text, dict):
         text = _lay(text, "text", "title", "description", "href", mac_dinh="")
@@ -381,6 +383,7 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
                          **({"chua_ro_loai": True} if _chua_ro_loai(msg, ten) else {}),
                          **({"member_join": vao_nhom} if vao_nhom is not None else {}),
                          **({"join_request": xin_vao} if xin_vao is not None else {}),
+                         **({"attachment": normalize_attachment(msg)} if loai == "file" else {}),
                          **({"image_url": _link_anh(msg)} if loai == "image" and _link_anh(msg) else {})),
     }
 
@@ -896,6 +899,7 @@ def _chay(tb: Any, ev: dict) -> None:
 # chờ `NHUONG_GIAY` như cũ.
 CHO_KHACH_IM = 5        # giây khách phải im ở chat riêng trước khi bot trả lời; 0 = giao từng tin ngay như trước 0.128.0
 MAX_GOM_TIN = 50        # trần số tin giữ cho một cuộc chat đang gom (người lạ dán cả trăm dòng thì không phình theo)
+MAX_FILE_GOP = 5        # trần số file một lượt gộp mang theo để tải (gửi cả chục file thì lấy mấy file cuối)
 
 
 def _xep_cho(conn_id: str, ev: dict, now: Optional[float] = None) -> None:
@@ -921,15 +925,23 @@ def gop_tin(evs: List[dict]) -> dict:
     Khung là tin CUỐI (mã tin để Hộp thư nhận ra tin đã có, giờ tin cho rào `TUOI_TOI_DA`). Chữ là
     các tin chữ và chú thích ảnh theo đúng thứ tự, nối bằng `bot_gateway.noi_tin` (cùng trần, cùng
     cách nối với tin gom lúc bot bận). Có ảnh thì lượt là tin ảnh, mang link ảnh MỚI NHẤT, nên "gửi
-    ảnh rồi nhắn 'xem giúp em'" tới bot thành một câu hỏi kèm ảnh. Tiếng, file, sticker chỉ tính
-    là khách còn đang nhắn, không góp chữ (bot vốn không trả lời chúng).
+    ảnh rồi nhắn 'xem giúp em'" tới bot thành một câu hỏi kèm ảnh. File đi theo lượt trong
+    `metadata.attachments` (tối đa `MAX_FILE_GOP` file mới nhất), nên "gửi file rồi nhắn 'xem giúp
+    em'" cũng thành một câu hỏi kèm file; lượt chỉ có file là tin file. Tiếng, sticker chỉ tính là
+    khách còn đang nhắn, không góp chữ.
     `metadata.gop` = số tin đã gộp: `xu_ly` lấy chữ nguyên như đã gộp, không bóc chú thích lại."""
     import bot_gateway
     cuoi = evs[-1]
     phan: List[str] = []
     co_anh, link = False, ""
+    files: List[dict] = []
     for e in evs:
         loai = e.get("message_type")
+        if loai == "file":
+            att = (e.get("metadata") or {}).get("attachment")
+            if isinstance(att, dict):
+                files.append(att)
+            continue
         if loai == "text":
             t = str(e.get("text") or "").strip()
         elif loai == "image":
@@ -940,11 +952,14 @@ def gop_tin(evs: List[dict]) -> dict:
             continue
         if t:
             phan.append(t)
-    md = {k: v for k, v in (cuoi.get("metadata") or {}).items() if k != "image_url"}
+    md = {k: v for k, v in (cuoi.get("metadata") or {}).items() if k not in ("image_url", "attachment")}
     if link:
         md["image_url"] = link
+    if files:
+        md["attachments"] = files[-MAX_FILE_GOP:]
     md["gop"] = len(evs)
-    return dict(cuoi, message_type="image" if co_anh else "text", text=bot_gateway.noi_tin(phan), metadata=md)
+    kieu = "image" if co_anh else ("text" if phan or not files else "file")
+    return dict(cuoi, message_type=kieu, text=bot_gateway.noi_tin(phan), metadata=md)
 
 
 def xa_hang_cho(conn_id: str, luc: Optional[float] = None) -> int:
