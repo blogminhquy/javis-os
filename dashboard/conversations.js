@@ -1024,6 +1024,7 @@
       '<div class="cb-row"><input id="htToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
         '<button class="s-btn-ghost" id="htCheck" type="button">' + esc(window.t("cb.kiem_tra")) + '</button></div>' +
       '<div class="cb-hint" id="htTokenNote"></div>' +
+      '<div class="cb-hint ht-webhook" id="htWebhook" hidden></div>' +
       '<label>' + esc(window.t("ht.lb_nhan_tk")) + '</label>' +
       '<input id="htLabel" placeholder="' + esc(window.t("ht.ph_nhan_tk")) + '">' +
       '<div class="ht-form-acts">' +
@@ -1043,6 +1044,27 @@
       box.querySelector("#htTokenLabel").textContent = "Token " + k.nhan;
       box.querySelector("#htTokenNote").textContent = (k.lay_token || "") + " " + window.t("cb.token_rieng");
       box.querySelectorAll(".cb-kenh-o").forEach(function (n) { n.classList.toggle("on", n.dataset.k === id); });
+      hienWebhook(k);
+    }
+    // Kênh nhận tin qua webhook (Messenger, 0.112.0): hiện địa chỉ và mã xác minh để dán sang Meta.
+    // Hỏi server chứ không tự ghép từ location: sau proxy, chỉ server biết địa chỉ ngoài thật.
+    async function hienWebhook(k) {
+      var o = box.querySelector("#htWebhook");
+      if (!o) return;
+      o.hidden = true;
+      o.innerHTML = "";
+      if (!k.webhook) return;
+      try {
+        var r = await api("/channels/webhook-info?channel=" + encodeURIComponent(k.id));
+        if (chon !== k.id) return;
+        o.innerHTML = '<b>' + esc(window.t("ht.wh_url")) + '</b> <code>' + esc(r.webhook_url || "") + '</code><br>' +
+          '<b>' + esc(window.t("ht.wh_token")) + '</b> <code>' + esc(r.verify_token || "") + '</code>' +
+          (r.https ? "" : '<br><span class="cb-warn">' + esc(window.t("ht.wh_can_https")) + '</span>');
+        o.hidden = false;
+      } catch (e) {
+        o.innerHTML = '<span class="cb-warn">' + esc(e.message) + '</span>';
+        o.hidden = false;
+      }
     }
     box.querySelectorAll(".cb-kenh-o").forEach(function (n) { n.onclick = function () { apKenh(n.dataset.k); }; });
     if (chon) apKenh(chon);

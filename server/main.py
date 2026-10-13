@@ -133,6 +133,7 @@ from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import zalo_bot   # kênh Zalo Bot của chủ (API chính thức) - cùng khế ước với TelegramBot
 import owner_channels   # owner's control channels on Slack and WhatsApp (0.71.0)
 import whatsapp_bot     # WhatsApp transport + webhook router (0.71.0)
+import messenger_bot    # Messenger transport + webhook router (0.112.0)
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 import lang as lang_mod   # chốt ngôn ngữ trả lời cho một lượt
 import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ nằm đúng một chỗ
@@ -220,7 +221,10 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth
                       # /whatsapp/webhook: Meta calls it with no cookie. GET is the setup
                       # handshake (verify token), POST must carry a valid X-Hub-Signature-256
                       # under a known app secret, checked in the route itself.
-                      "/whatsapp/webhook")
+                      "/whatsapp/webhook",
+                      # /messenger/webhook (0.112.0): same contract as WhatsApp, the signature is
+                      # checked in the route under the app secrets of the Messenger accounts.
+                      "/messenger/webhook")
 # Endpoint CHỈ-LOCALHOST: agent (Claude CLI chạy cùng máy/container) curl được mà không cần
 # cookie đăng nhập; request từ ngoài (qua Traefik/Caddy/LAN) đến từ IP khác loopback → vẫn bị chặn.
 # /reminders/cancel đi cùng nhóm với /reminders (TẠO nhắc): huỷ là thao tác YẾU HƠN tạo, nên
@@ -21170,6 +21174,79 @@ async def whatsapp_webhook(request: Request):
     # Answer 200 right away (Meta retries anything slower); the messages run as tasks.
     n = await whatsapp_bot.handle_webhook(payload)
     return {"ok": True, "messages": n}
+
+
+# ============================================================
+# Messenger (0.112.0): customer bots on a Facebook Page. Meta calls one webhook for every Page;
+# `messenger_bot.handle_webhook` routes by Page id. No owner control channel here.
+# ============================================================
+def _ms_verify_token() -> str:
+    """The handshake string Meta echoes when the Messenger webhook is set up. Generated once."""
+    m = cfgmod.read_settings().get("messenger", {}) or {}
+    tok = str(m.get("verify_token") or "").strip()
+    if not tok:
+        tok = secrets.token_urlsafe(24)
+        cfgmod.update_settings({"messenger": {"verify_token": tok}})
+    return tok
+
+
+def _ms_account_secrets() -> list:
+    """App secrets of the Messenger accounts (one Meta app per account, often one app for all)."""
+    out = []
+    try:
+        for a in channel_accounts.list_accounts(channel="messenger"):
+            cr = messenger_bot.split_credentials(channel_accounts.get_token(a.get("id", "")))
+            if cr.get("app_secret"):
+                out.append(cr["app_secret"])
+    except Exception as e:
+        print(f"[messenger secrets] {type(e).__name__}: {e}", file=sys.stderr)
+    return out
+
+
+@app.get("/channels/webhook-info")
+async def channels_webhook_info(request: Request, channel: str = ""):
+    """Address and verify token to paste into the platform for a channel that receives messages
+    by webhook (Messenger). Shown on the Add account form; the verify token is not a secret."""
+    if str(channel or "").strip().lower() != "messenger":
+        return JSONResponse({"ok": False, "error": localefmt.chu("Kênh này không dùng webhook",
+                                                                 "This channel does not use a webhook")},
+                            status_code=400)
+    base = web_security.external_base(
+        request.url.scheme, request.url.netloc,
+        request.headers.get("x-forwarded-proto", ""), request.headers.get("x-forwarded-host", ""))
+    url = base + "/messenger/webhook"
+    return {"ok": True, "webhook_url": url, "verify_token": _ms_verify_token(),
+            "https": url.startswith("https://")}
+
+
+@app.get("/messenger/webhook")
+async def messenger_webhook_verify(request: Request):
+    """Meta's setup handshake: echo `hub.challenge` only when the verify token matches."""
+    q = request.query_params
+    want = _ms_verify_token()
+    got = str(q.get("hub.verify_token") or "")
+    if q.get("hub.mode") == "subscribe" and got and secrets.compare_digest(got, want):
+        return PlainTextResponse(str(q.get("hub.challenge") or ""))
+    return PlainTextResponse("forbidden", status_code=403)
+
+
+@app.post("/messenger/webhook")
+async def messenger_webhook(request: Request):
+    """Inbound Messenger events. Public URL, so nothing is trusted before the signature check;
+    a request no known app secret signed is dropped with 401 and never parsed further."""
+    raw = await request.body()
+    if len(raw) > 2_000_000:
+        return PlainTextResponse("too large", status_code=413)
+    sig = request.headers.get("x-hub-signature-256", "")
+    if not messenger_bot.verify_signature(raw, sig, _ms_account_secrets()):
+        return PlainTextResponse("bad signature", status_code=401)
+    try:
+        payload = json.loads(raw.decode("utf-8") or "{}")
+    except Exception:
+        return PlainTextResponse("bad json", status_code=400)
+    # Answer 200 right away (Meta wants it within seconds); the events run as tasks.
+    n = await messenger_bot.handle_webhook(payload)
+    return {"ok": True, "events": n}
 
 
 def restart_telegram():

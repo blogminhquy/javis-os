@@ -219,6 +219,9 @@ _DEFAULT = {
     # Discord (Gateway, bot token) and Lark/Feishu (long connection, app id + secret), 0.85.0.
     # Same rules as Slack: `allow` holds people (Discord user ids / Lark open_ids), empty = nobody.
     # `domain` picks the Lark cloud: "lark" (open.larksuite.com) or "feishu" (open.feishu.cn).
+    # Messenger (0.112.0): customer bots only, credentials live in the channel-account store.
+    # This holds just the handshake string Meta echoes when the webhook is set up (generated).
+    "messenger": {"verify_token": ""},
     "discord": {"enabled": False, "bot_token": "", "allow": ""},
     "lark": {"enabled": False, "app_id": "", "app_secret": "", "domain": "lark", "allow": ""},
     # Backup brain lên GitHub (repo RIÊNG TƯ). token = GitHub PAT (fine-grained, quyền Contents).
