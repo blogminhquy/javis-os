@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.125.0] - 2026-10-14
+### Fixed
+- **Background jobs on ChatGPT (Codex) no longer report a fake success when tools are missing.** Reminders, loops and Kanban jobs on Codex now wait for Javis's MCP Hub to come up. If it does not, the job fails with a clear reason instead of running without tools and still being recorded as done.
+- Thanks to @dev23072005 for the contribution.
+
 ## [0.123.0] - 2026-10-14
 ### Fixed
 - **The bot really tags everyone it names in a Zalo group.** Before, only the person the bot was answering got a tag; an extra "@Anna" or "@Ben" in its message was plain text and Zalo notified no one. Now each "@Name" that matches someone who has written in the group becomes a real tag, ignoring case and accents.

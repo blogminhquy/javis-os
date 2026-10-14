@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.125.0] - 2026-10-14
+### Sửa lỗi
+- **Việc nền chạy bằng ChatGPT (Codex) không còn báo xong giả khi mất công cụ.** Nhắc hẹn, việc lặp và việc Kanban chạy bằng Codex giờ chờ MCP Hub của Javis lên hẳn. Hub không lên thì việc báo lỗi rõ ràng, thay vì chạy mà không có công cụ rồi vẫn ghi là đã xong.
+- Cảm ơn @dev23072005 đã đóng góp.
+
 ## [0.123.0] - 2026-10-14
 ### Sửa lỗi
 - **Bot tag thật mọi người nó nhắc tên trong nhóm Zalo.** Trước đây chỉ người bot đang trả lời được tag; bot viết thêm "@Minh Quý" hay "@Phạm Đại" trong câu thì đó chỉ là chữ thường, Zalo không báo cho ai. Giờ mỗi "@Tên" khớp một người đã từng nhắn trong nhóm đều thành tag thật, không phân biệt hoa thường hay dấu.
