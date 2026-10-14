@@ -156,6 +156,21 @@ Nếu bạn cố bấm Bật SSL trên Hostinger (ví dụ qua API), Javis từ 
 
 Sau khi Redeploy, trở lại Cài đặt và bấm **Kiểm tra lại**. Chi tiết và xử lý sự cố xem mục "Tên miền + HTTPS trên Hostinger" trong `DEPLOY.md`; hai link tài liệu cũng nằm ngay dưới card tên miền.
 
+## Theme riêng cho người vận hành (CSS)
+
+Ai triển khai Javis cho khách (white-label) có thể đặt một file `theme.css` vào thư mục
+`branding/` trong thư mục dữ liệu của Javis (cạnh logo đã tải lên; Docker là
+`/data/state/branding/theme.css`). Có file này thì mọi trang dashboard tải nó SAU các file CSS
+gốc, nên nó đè được màu, font, bo góc. File nằm ngoài mã nguồn nên sống qua mọi lần cập nhật.
+Xoá file là về giao diện gốc. Trần 512 KB.
+
+- **Màu ở chế độ sáng:** biến màu của chế độ sáng khai trong `:root[data-theme="light"]`, đặc
+  hơn `:root`. Muốn đổi màu cho cả hai chế độ thì khai cả hai khối, ví dụ
+  `:root{--accent:#e4572e}` và `:root[data-theme="light"]{--accent:#e4572e}`.
+- **Chế độ mặc định:** thêm dòng `/* javis-default-mode: light */` (hoặc `dark`, `auto`) trong
+  4 KB đầu file để chọn sáng/tối cho thiết bị chưa từng tự chọn. Người dùng đã tự chọn thì giữ
+  lựa chọn của họ.
+
 ## Mẹo
 
 - Ảnh logo nên là ảnh vuông (tỉ lệ 1:1) để không bị cắt méo, vì Javis hiển thị logo trong khung vuông bo góc.

@@ -11,7 +11,9 @@ import asyncio
 import os
 import tempfile
 
-os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="javis-themetest-"))
+# Always a fresh temp dir: this test deletes branding/theme.css, and with an inherited
+# JAVIS_STATE_DIR it would delete a real operator theme.
+os.environ["JAVIS_STATE_DIR"] = tempfile.mkdtemp(prefix="javis-themetest-")
 
 import main              # noqa: E402
 import config as cfgmod  # noqa: E402
