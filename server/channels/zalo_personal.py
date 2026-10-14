@@ -297,6 +297,15 @@ class Transport:
         self._task = None
         self._khoa = {}         # thread -> Lock: một cuộc chat một lượt, khỏi trả lời chồng nhau
 
+    def tay_im(self) -> int:
+        """Giây bot nhường sau khi chủ nhắn tay (0.147.0): cài đặt `nhuong_tay_phut` của bot, 0 = không nhường. Không
+        khai thì mặc định của kênh (`zalo_personal_channel.TAY_IM`, 10 phút)."""
+        import zalo_personal_channel as zc
+        v = ((self.cfg_fn() if self.cfg_fn else {}) or {}).get("nhuong_tay_phut")
+        if v is None or v == "":
+            return zc.TAY_IM
+        return max(0, int(v)) * 60
+
     # ---- vòng đời ------------------------------------------------------------------
     def start(self):
         import zalo_personal_channel as zc
@@ -501,10 +510,14 @@ class Transport:
         if nhom:
             await self._bao_nhom(thread, ev)
         # Lượt "chủ chưa trả lời" (0.136.0, `zc.xa_cho_chu`) cũ là có chủ ý: nó đã chờ chủ đủ `CHO_CHU_TRA_LOI` giây.
-        sau_chu_im = not nhom and bool((ev.get("metadata") or {}).get("sau_chu_im"))
+        sau_chu_im = bool((ev.get("metadata") or {}).get("sau_chu_im"))
         if time.time() - float(ev.get("created_at") or 0) > zc.TUOI_TOI_DA and not sau_chu_im:
             return
-        if zc.chu_vua_nhan_tay(self.conn_id, thread):
+        # Chủ vừa nhắn tay thì bot nhường (`nhuong_tay_phut` của bot). Riêng NHÓM, tin TAG thẳng nick hoặc trả lời
+        # tin của nick vẫn được trả lời ngay (0.147.0, chủ nick MTM chốt 14/10/2026): người ta gọi đích danh thì
+        # im 3 phút là bỏ rơi họ. Xét sau khi biết tin có gọi hay không, ở nhánh nhóm bên dưới.
+        chu_nhuong = zc.chu_vua_nhan_tay(self.conn_id, thread)
+        if chu_nhuong and not nhom:
             return
         meta = {
             "chat_id": thread, "chat_type": "group" if nhom else "private",
@@ -531,11 +544,15 @@ class Transport:
             # (see `chatbot_runtime._ly_do_im`), and skips the reply-policy judge, which scores chat.
             meta["member_join"] = True
             duoc_goi = True
+            if chu_nhuong:
+                return
         elif nhom:
             conn = zc.ket_noi_theo_id(self.conn_id) or {}
             tag, rep = zc.nhan_dien_goi(self.conn_id, ev, (conn.get("label") or "",))
             meta["mentioned"], meta["reply_to_bot"] = tag, rep
             duoc_goi = tag or rep
+            if chu_nhuong and not duoc_goi:
+                return      # chủ đang nói chuyện trong nhóm và tin này không gọi ai: nhường như cũ
             if self.policy is not None:
                 # Tên gọi tự suy của nick (nhãn kết nối, tên hiển thị học được) để nhận ra gọi tên trơn
                 # ("nhi mai ơi"); tin nào gọi chắc chắn thì `prepare` đặt `meta["mentioned"]`.

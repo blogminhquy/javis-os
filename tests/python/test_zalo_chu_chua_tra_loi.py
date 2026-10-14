@@ -177,11 +177,31 @@ async def chay():
     check("không có chủ nhắn tay thì không giữ, trả lời như thường", ("zalo-1", "u5") not in zc._CHO_CHU and len(LUOT) == 1,
           (zc._CHO_CHU.keys(), LUOT))
 
-    # ---- 6. nhóm không áp ----------------------------------------------------------------------
+    # ---- 6. nhóm (0.147.0): tag thẳng trả lời ngay, tin khác chờ hết quãng nhường rồi mỗi người một lượt -----
     don()
     await doc(tin("g1", "Cả nhà ơi", 30, nhom=True, cua_minh=True))
-    await doc(tin("g1", "Thầy ơi mai học không ạ", 2, nhom=True, **{"from": "u9"}))
-    check("nhóm: không giữ tin chờ chủ", ("zalo-1", "g1") not in zc._CHO_CHU)
+    await doc(tin("g1", "Thầy ơi mai học không ạ", 3, nhom=True, **{"from": "u9"}),
+              tin("g1", "Con em nghỉ buổi mai ạ", 2, nhom=True, **{"from": "u8"}))
+    check("nhóm: tin không gọi ai được giữ chờ chủ", ("zalo-1", "g1") in zc._CHO_CHU and not LUOT, LUOT)
+    zc._ID_MINH["zalo-1"] = {"uid": "me", "ten": "Toán Thầy Thành"}
+    await doc(tin("g1", "@Toán Thầy Thành lớp mai học mấy giờ ạ", 1, nhom=True, **{"from": "u7"}))
+    check("nhóm: tin TAG thẳng nick trả lời ngay, không chờ", len(LUOT) == 1 and "lớp mai học mấy giờ" in LUOT[0][0], LUOT)
+    LUOT.clear()
+    lui_gio(610)
+    n = await xa()
+    check("nhóm: hết quãng nhường, mỗi người một lượt (hai người, hai lượt)", n == 2 and len(LUOT) == 2, (n, LUOT))
+    check("nhóm: lượt mang ghi chú chủ chưa trả lời", all("chủ nick chưa trả lời" in x[0] for x in LUOT), LUOT)
+
+    # ---- 6b. mốc chờ là TIN NHẮN TAY, không phải tin khách đầu tiên (chủ chốt 14/10) --------------------
+    don()
+    zc._TAY.pop(("zalo-1", "u2"), None)
+    await doc(tin("u2", "Để thầy xem", 500, cua_minh=True))
+    check("tin nhắn tay 500 giây trước: còn trong 10 phút nhường", zc.chu_vua_nhan_tay("zalo-1", "u2"))
+    await doc(tin("u2", "Dạ vâng ạ", 2))
+    lui_gio(110)
+    await xa()
+    check("đủ 10 phút tính từ tin nhắn tay thì trả lời, dù tin khách mới chờ 2 phút",
+          len(LUOT) == 1 and "Dạ vâng ạ" in LUOT[0][0], LUOT)
 
     # ---- 7. rào: tin cũ của bộ đệm, tắt tính năng, tắt bot ----------------------------------------
     don()

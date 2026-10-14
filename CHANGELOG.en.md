@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.147.0] - 2026-10-15
+### Improved
+- **The 10-minute pause of the Zalo bot after you type by hand can be turned off.** The bot form has a new **Step aside after you type (minutes)** box: set 0 and the bot keeps answering in any chat you type into, groups and direct tags included. Existing bots keep 10 minutes.
+- **Other values work too** (e.g. 3): the bot steps aside for exactly that long, and in private chats waits that long before answering customer messages you have not answered.
+- **In groups, a direct tag is answered at once**, even right after you typed. Messages that call no one wait out the step-aside time, then the bot answers them, one turn per person.
+- **The wait counts from your hand-typed message**: if you do not type, the bot answers continuously; if you do, the bot picks up exactly that many minutes after your message, without making the customer wait longer.
+
+
 ## [0.146.0] - 2026-10-14
 ### Fixed
 - **Team chat is no longer silent.** Assistants answer with their own model, or the main model when they have none, ChatGPT (Codex) included. Each message shows who is waiting, answering or could not answer, with the reason and a fix (**Try again**, change the model, pick a coordinator); it survives a dropped connection or a reload.

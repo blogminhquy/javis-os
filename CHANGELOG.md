@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.147.0] - 2026-10-15
+### Cải thiện
+- **Tắt được việc bot Zalo im 10 phút sau khi bạn nhắn tay.** Form bot có ô mới **Nhường khi bạn nhắn tay (phút)**: đặt 0 thì bạn nhắn vào cuộc chat nào bot vẫn trả lời ở đó, kể cả trong nhóm khi được tag. Bot cũ giữ 10 phút như trước.
+- **Đặt số phút khác cũng được** (vd 3): bot nhường đúng chừng ấy, và ở chat riêng chờ đúng chừng ấy rồi trả lời thay tin khách bạn chưa đáp.
+- **Trong nhóm, bị tag thẳng thì bot trả lời ngay**, kể cả khi bạn vừa nhắn tay. Tin không gọi ai thì chờ hết quãng nhường rồi bot trả lời tiếp, mỗi người một lượt.
+- **Mốc chờ tính từ tin bạn nhắn tay**: không nhắn tay thì bot trả lời liên tục; có nhắn tay thì đúng số phút sau tin đó bot chủ động trả lời tiếp, không bắt khách chờ thêm.
+
+
 ## [0.146.0] - 2026-10-14
 ### Sửa lỗi
 - **Chat nhóm hết im lặng.** Trợ lý trả lời bằng model riêng của nó, chưa đặt thì bằng model chính, kể cả ChatGPT (Codex). Mỗi tin hiện rõ ai đang chờ, đang trả lời hay chưa trả lời được, kèm lý do và nút xử lý (**Thử lại**, đổi model, chọn điều phối); mất mạng hay tải lại trang vẫn còn.

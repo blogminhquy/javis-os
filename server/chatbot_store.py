@@ -351,6 +351,22 @@ def _hhmm(v: Any) -> Optional[str]:
     return f"{h:02d}:{mi:02d}"
 
 
+# Nhường khi chủ nhắn tay (0.147.0, chỉ Zalo cá nhân): chủ vừa tự nhắn vào một cuộc chat bằng nick của bot thì bot im
+# chừng này phút ở cuộc chat đó. 0 = không bao giờ nhường. Chủ nick MTM yêu cầu 14/10/2026 ("tôi không muốn chặn tin
+# nhắn trong 10 phút"): một tin nick gửi lúc 22:26 làm bot im cả nhóm 10 phút, kể cả khi được tag thẳng.
+NHUONG_TAY_MAC_DINH = 10
+NHUONG_TAY_TOI_DA = 240
+
+
+def clean_nhuong_tay(v: Any) -> Optional[int]:
+    """Số phút nhường hợp lệ (0 đến `NHUONG_TAY_TOI_DA`), hoặc None nếu giá trị không đọc được."""
+    try:
+        n = int(str(v).strip())
+    except (TypeError, ValueError):
+        return None
+    return n if 0 <= n <= NHUONG_TAY_TOI_DA else None
+
+
 def parse_gio_truc(v: Any) -> tuple[Optional[dict], str]:
     """Validate an active-hours value. Returns ({} for all day | {"tu", "den"}, "") or (None, error).
 
@@ -676,6 +692,8 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "muc_quyen": _clean_muc(data.get("muc_quyen")) or MUC_QUYEN_DEFAULT,
             "ngon_ngu": _clean_ngon_ngu(data.get("ngon_ngu")),
             "gio_truc": gio_truc,
+            "nhuong_tay_phut": (lambda n: NHUONG_TAY_MAC_DINH if n is None else n)(
+                clean_nhuong_tay(data.get("nhuong_tay_phut"))),
             "handoff_to": str(data.get("handoff_to") or "").strip(),
             "created_at": _now(),
             "updated_at": _now(),
@@ -709,7 +727,8 @@ def _nhan_brain_cho_tk(bot: dict) -> None:
 # không ai đọc nó nữa, và patch gửi khoá đó tới thì bị bỏ qua như mọi khoá lạ.
 _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
-              "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc")
+              "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
+              "nhuong_tay_phut")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -792,6 +811,11 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                     b["ngon_ngu"] = _clean_ngon_ngu(v)
                 elif k == "gio_truc":
                     b["gio_truc"] = gio_moi      # đã kiểm ở đầu hàm
+                elif k == "nhuong_tay_phut":
+                    # Giá trị lạ thì GIỮ giá trị cũ, như muc_quyen: rơi về mặc định là bật lại cái nhường chủ đã tắt.
+                    n = clean_nhuong_tay(v)
+                    if n is not None:
+                        b["nhuong_tay_phut"] = n
 
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()
