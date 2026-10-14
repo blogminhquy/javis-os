@@ -163,16 +163,16 @@ Ba điều nên biết:
 
 Cần Node.js 20+ trên máy chạy Javis, giống như phần kết nối Zalo.
 
-### Vì sao file đi đường khác ảnh (từ 0.126.0)
+### Vì sao file đi đường khác ảnh (từ 0.139.0)
 
 Ảnh tải lên Zalo là có link ngay. File (Excel, PDF, Word, zip, video, cả ảnh `.bmp`) thì khác:
-Zalo nhận xong mới báo "đã tải lên" qua **kết nối thời gian thực** của tài khoản. Trước 0.126.0
+Zalo nhận xong mới báo "đã tải lên" qua **kết nối thời gian thực** của tài khoản. Trước 0.139.0
 Javis gửi file bằng một lệnh chạy một lần, không mở kết nối đó, nên lệnh chờ mãi rồi bị cắt ở
 120 giây, file không tới (14/10/2026 gửi bảng Excel 11 KB cho nhân sự treo hai lần, phải đổi
 sang ảnh). Mở thêm kết nối riêng cũng không được: Zalo chỉ giữ một kết nối Web mỗi tài khoản và
 sẽ đá kết nối đang trực Hộp thư.
 
-Từ 0.126.0 file đi qua tool `zalo_send_file` của chính tiến trình MCP đang giữ kết nối:
+Từ 0.139.0 file đi qua tool `zalo_send_file` của chính tiến trình MCP đang giữ kết nối:
 
 - Javis chép file vào hộp gửi của phiên Zalo (`.zalo-agent-cli/outbox/` trong thư mục phiên), gọi
   tool, xong thì xoá bản chép. Tool chỉ nhận file trong hộp gửi đó, nên model gọi thẳng tool cũng

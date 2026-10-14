@@ -166,16 +166,16 @@ Three things worth knowing:
 
 Node.js 20+ is required on the machine running Javis, same as for the Zalo connection itself.
 
-### Why files take a different path from images (since 0.126.0)
+### Why files take a different path from images (since 0.139.0)
 
 An image uploaded to Zalo gets its link right away. A file (Excel, PDF, Word, zip, video, even a
 `.bmp` image) does not: Zalo reports "uploaded" only over the account's **live connection**.
-Before 0.126.0 Javis sent files with a one-shot command that never opens that connection, so the
+Before 0.139.0 Javis sent files with a one-shot command that never opens that connection, so the
 command waited until it was cut at 120 seconds and the file never arrived. Opening an extra
 connection does not work either: Zalo keeps one Web connection per account and would evict the
 one serving the inbox.
 
-Since 0.126.0 files go through the `zalo_send_file` tool of the MCP process that holds the
+Since 0.139.0 files go through the `zalo_send_file` tool of the MCP process that holds the
 connection:
 
 - Javis copies the file into the Zalo session outbox (`.zalo-agent-cli/outbox/` in the session

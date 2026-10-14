@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.139.0] - 2026-10-14
+### Sửa lỗi
+- **Gửi file Excel, PDF, Word qua Zalo không còn treo.** Trước đây Javis gửi file kiểu này phải chờ mãi tới 2 phút rồi báo lỗi, file không tới (ảnh thì vẫn gửi được). Giờ file đi qua đúng kết nối Zalo đang trực Hộp thư nên tới được người nhận.
+- **Zalo không xác nhận trong 1 phút thì Javis báo lỗi rõ và không gửi gì**, gửi lại an toàn. Không còn cảnh chờ mãi không biết file đã đi chưa.
+- Sau khi cập nhật, **bấm "Có bản mới" của gói "Zalo mở rộng"** ở Kho cài đặt để lên bản 1.2.0, và Javis tự chuyển kết nối Zalo sang javis-zalo 1.4.0 (không phải quét QR lại).
+- Cảm ơn @thanhtmfyu-lang đã đóng góp.
+
 ## [0.137.0] - 2026-10-14
 ### Sửa lỗi
 - **Antigravity CLI tự lên bản mới mỗi ngày, nên model mới (như Gemini 4 Argon) tự hiện trong Javis.** Danh sách model của Antigravity lấy thẳng từ `agy`, mà trước đây `agy` không bao giờ được cập nhật: bản Docker cài nó một lần rồi đứng yên ở đó. Giờ Javis tự chạy `agy update` mỗi ngày, cả trong Docker. `agy` đã mới nhất mà vẫn không thấy model thì tài khoản Google của bạn chưa được cấp model đó.
