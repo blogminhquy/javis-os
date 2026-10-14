@@ -867,7 +867,7 @@ def _giao_cho_bot(conn: dict, ev: dict) -> None:
         return
     if (CHO_CHU_TRA_LOI > 0 and ev.get("chat_type") == "private"
             and chu_vua_nhan_tay(cid, str(ev.get("external_chat_id") or ""))):
-        _giu_cho_chu(cid, ev)       # chủ đang nói chuyện: chờ xem chủ có trả lời không (0.132.0)
+        _giu_cho_chu(cid, ev)       # chủ đang nói chuyện: chờ xem chủ có trả lời không (0.136.0)
         return
     if CHO_KHACH_IM > 0 and ev.get("chat_type") == "private":
         _xep_cho(cid, ev)
@@ -993,7 +993,7 @@ def xa_hang_cho(conn_id: str, luc: Optional[float] = None) -> int:
 
 
 # ============================================================
-# Chủ chưa trả lời thì bot trả lời thay (0.132.0)
+# Chủ chưa trả lời thì bot trả lời thay (0.136.0)
 # ============================================================
 # Yêu cầu của chủ nick (14/10/2026): "nếu tôi không rep sau 10 phút thì cứ tự động trả lời sao cho hợp lí nhất".
 # Trước bản này, chủ vừa tự tay nhắn một chat thì bot nhường `TAY_IM` giây, và tin khách tới trong quãng đó bị
@@ -1009,7 +1009,7 @@ def xa_hang_cho(conn_id: str, luc: Optional[float] = None) -> int:
 # NHÓM không áp: ở nhóm chủ nhắn tay là đang nói với cả nhóm, trả lời tin của mười phút trước giữa nhóm là lạc
 # lõng; bộ phán xử của nhóm vẫn chạy như cũ. Hàng chờ chỉ nằm trong RAM: Javis khởi động lại thì mất, tệ nhất
 # là một tin không được trả lời thay, không bao giờ là trả lời hai lần.
-CHO_CHU_TRA_LOI = 600   # giây chờ chủ trả lời tin khách tới lúc chủ đang nhắn tay; 0 = tắt (bỏ tin như trước 0.132.0)
+CHO_CHU_TRA_LOI = 600   # giây chờ chủ trả lời tin khách tới lúc chủ đang nhắn tay; 0 = tắt (bỏ tin như trước 0.136.0)
 _CHO_CHU: Dict[tuple, dict] = {}    # (conn_id, thread) -> {"evs": [...], "dau": giờ tin khách đầu tiên chưa ai trả lời}
 
 

@@ -1,4 +1,4 @@
-"""Zalo cá nhân: chủ vừa nhắn tay thì bot nhường, nhưng chủ chưa trả lời tin khách sau 10 phút thì bot trả lời thay (0.132.0).
+"""Zalo cá nhân: chủ vừa nhắn tay thì bot nhường, nhưng chủ chưa trả lời tin khách sau 10 phút thì bot trả lời thay (0.136.0).
 
     python tests/run.py chu_chua_tra_loi      (KHÔNG mạng, MCP giả)
 
@@ -194,7 +194,7 @@ async def chay():
     zc.CHO_CHU_TRA_LOI = 0
     try:
         await doc(tin("u2", "Thầy ơi", 2))
-        check("CHO_CHU_TRA_LOI = 0: như trước 0.132.0, không giữ", ("zalo-1", "u2") not in zc._CHO_CHU)
+        check("CHO_CHU_TRA_LOI = 0: như trước 0.136.0, không giữ", ("zalo-1", "u2") not in zc._CHO_CHU)
     finally:
         zc.CHO_CHU_TRA_LOI = 600
 

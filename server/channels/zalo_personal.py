@@ -500,7 +500,7 @@ class Transport:
             return
         if nhom:
             await self._bao_nhom(thread, ev)
-        # Lượt "chủ chưa trả lời" (0.132.0, `zc.xa_cho_chu`) cũ là có chủ ý: nó đã chờ chủ đủ `CHO_CHU_TRA_LOI` giây.
+        # Lượt "chủ chưa trả lời" (0.136.0, `zc.xa_cho_chu`) cũ là có chủ ý: nó đã chờ chủ đủ `CHO_CHU_TRA_LOI` giây.
         sau_chu_im = not nhom and bool((ev.get("metadata") or {}).get("sau_chu_im"))
         if time.time() - float(ev.get("created_at") or 0) > zc.TUOI_TOI_DA and not sau_chu_im:
             return

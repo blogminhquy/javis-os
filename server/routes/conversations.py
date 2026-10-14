@@ -88,7 +88,7 @@ def register(app, deps: ConversationsDeps):
         kq = await channels.gui(kenh, tk, str(c.get("external_chat_id") or ""), txt, str(c.get("chat_type") or "private"), **extra)
         if tieng_vong and kenh == "zalo_personal" and kq and kq[0]:
             # Hộp thư vừa trả lời chat này: tiếng vọng của câu này bị lọc ở vòng đọc nên không tính là chủ nhắn tay,
-            # phải tự báo kẻo 10 phút sau bot trả lời lại tin khách đã có người đáp (0.132.0).
+            # phải tự báo kẻo 10 phút sau bot trả lời lại tin khách đã có người đáp (0.136.0).
             try:
                 import zalo_personal_channel as zc
                 zc.bo_cho_chu(raw, str(c.get("external_chat_id") or ""))

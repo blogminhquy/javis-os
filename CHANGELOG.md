@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.136.0] - 2026-10-14
+### Cải thiện
+- **Bot Zalo cá nhân trả lời thay khi bạn chưa trả lời sau 10 phút.** Trước đây bạn vừa tự nhắn vào một cuộc chat thì tin khách tới sau đó bị bỏ hẳn, không ai trả lời. Giờ Javis giữ lại; bạn không trả lời trong 10 phút thì bot trả lời một lần cho tất cả, chỉ ở chat riêng.
+- **Khách chỉ gửi file hay ảnh không chữ cũng được đáp hợp cảnh**: bot được báo khách gửi gì (tên file, ảnh), và bot có quyền Được ghi thì mở luôn file đó. Bạn trả lời trên điện thoại hay từ Hộp thư thì bot không xen vào.
+- Cảm ơn @thanhtmfyu-lang đã đóng góp.
+
 ## [0.135.0] - 2026-10-14
 ### Sửa lỗi
 - **Trang Công cụ báo đúng "Sẵn sàng" cho Trình duyệt (Chromium) cài bằng Playwright mới.** Từ Playwright 1.57, bản trình duyệt chạy ẩn đổi tên file chạy thành `chrome-headless-shell`. Javis không nhận ra tên này nên luôn báo "Có thư mục trình duyệt nhưng thiếu file chạy, bản tải về hỏng dở", dù bản cài đủ và chạy được, gỡ cài lại bao nhiêu lần cũng vậy. Giờ Javis nhận cả tên mới lẫn tên cũ. Không cần tải lại: cập nhật xong mở trang Công cụ là thấy Sẵn sàng.

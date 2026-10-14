@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.136.0] - 2026-10-14
+### Improved
+- **The personal Zalo bot answers when you have not replied within 10 minutes.** Before, once you typed into a chat yourself, customer messages that came after were dropped and nobody answered. Javis now holds them; if you do not answer within 10 minutes the bot answers them all once, in private chats only.
+- **A customer who sends only a file or a photo without text also gets a fitting reply**: the bot is told what arrived (file name, photo), and a bot with Can write opens the file too. If you answer on the phone or from the Inbox, the bot stays out.
+- Thanks to @thanhtmfyu-lang for the contribution.
+
 ## [0.135.0] - 2026-10-14
 ### Fixed
 - **The Tools page now shows the Browser (Chromium) as Ready when it was installed by a recent Playwright.** Since Playwright 1.57 the headless browser's executable is called `chrome-headless-shell`. Javis did not know that name, so it kept saying "There is a browser folder but no executable, the download broke midway" on a complete, working install, however many times it was removed and downloaded again. Javis now recognises both the new and the old names. No new download is needed: after updating, the Tools page shows Ready.
