@@ -9,4 +9,5 @@ enabled: true
 min_mode: readonly
 tools:
   - javis_workflow
+  - javis_ask_agent
 hooks: []

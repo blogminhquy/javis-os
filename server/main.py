@@ -119,6 +119,7 @@ import readonly_path_runtime # Phase 6: exact-schema, two-round read-only canary
 import readonly_orchestrator # Phase 7: checkpointed multi-round read-only DAG
 import adaptive_context_runtime # Phase 8: state + sourced memory + lazy skill canaries
 import agent_runtime           # Phase 11: agent = workflow có quyền replan trong quyền đã cấp
+import agent_delegation        # an agent doing a workflow step may ask a colleague agent (can_ask)
 import resonance               # Javis Resonance MVP: một lượt engine chỉ chữ + receipt do host quan sát
 import resonance_store         # Javis Resonance MVP: kho mục tiêu SQLite có revision (M2)
 import resonance_api           # Javis Resonance MVP: API thẻ mục tiêu và phản hồi (M4)
@@ -9446,108 +9447,111 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
     `log_run(slug, task, out)`: ghi nhật ký lượt chạy vào memory/agents/<slug>/runs/.
     Trước 0.35.3 chỉ runner cũ ghi - bật canary graph là nhật ký lặng lẽ biến mất.
     """
-    agent_name, sysprompt, agent_model, agent_prov = agent_sysprompt(node.agent)
-    # Studio định vị chỗ đổ chữ bằng CHỈ SỐ bước, không phải id node. Thiếu `i` thì
-    # event vẫn phát ra nhưng giao diện lặng lẽ vứt đi - người xem thấy bước chạy và
-    # bước xong mà không thấy chữ nào.
-    index = int((node.metadata or {}).get("legacy_index",
-                (node.metadata or {}).get("declared_index", 0)) or 0)
-    routed_model, route_reason = _route_step_model(router, prompt, agent_model, session_id)
-    if routed_model != agent_model:
-        await sink({"type": "step_model", "i": index, "node": node.id,
-                    "model": routed_model, "reason": route_reason})
-        agent_model = routed_model
-        # Router chỉ chọn trong nhà Claude/Codex (_WORKFLOW_ROUTABLE_PROVIDERS), nên provider
-        # agent lưu sẵn đã hết đúng với model vừa đổi. Bỏ đi để _agent_model_provider suy lại
-        # từ chính model mới, thay vì ép model Claude chạy qua nhà người dùng chọn lúc trước.
-        agent_prov = ""
-    cur_prompt = prompt
-    out = ""
-    verified = None
-    attempt = 0
-    reason = ""
-    step_extra = tuple((node.metadata or {}).get("tools") or ())
-    while True:
-        gcli = mk(sysprompt, agent_model, agent_prov, step_extra)
+    agent_name, sysprompt, agent_model, agent_prov = agent_sysprompt(node.agent, delegate=True)
+    try:
+        # Studio định vị chỗ đổ chữ bằng CHỈ SỐ bước, không phải id node. Thiếu `i` thì
+        # event vẫn phát ra nhưng giao diện lặng lẽ vứt đi - người xem thấy bước chạy và
+        # bước xong mà không thấy chữ nào.
+        index = int((node.metadata or {}).get("legacy_index",
+                    (node.metadata or {}).get("declared_index", 0)) or 0)
+        routed_model, route_reason = _route_step_model(router, prompt, agent_model, session_id)
+        if routed_model != agent_model:
+            await sink({"type": "step_model", "i": index, "node": node.id,
+                        "model": routed_model, "reason": route_reason})
+            agent_model = routed_model
+            # Router chỉ chọn trong nhà Claude/Codex (_WORKFLOW_ROUTABLE_PROVIDERS), nên provider
+            # agent lưu sẵn đã hết đúng với model vừa đổi. Bỏ đi để _agent_model_provider suy lại
+            # từ chính model mới, thay vì ép model Claude chạy qua nhà người dùng chọn lúc trước.
+            agent_prov = ""
+        cur_prompt = prompt
         out = ""
-        loi_engine = ""
-        async for ev in gcli.query(cur_prompt):
-            if ev["type"] == "text":
-                await sink({"type": "step_text", "i": index, "node": node.id,
-                            "content": ev["content"]})
-            elif ev["type"] == "tool_call":
-                await sink({"type": "step_tool", "i": index, "node": node.id,
-                            "tool": ev["name"]})
-            elif ev["type"] == "final":
-                out = ev.get("content") or out
-            elif ev["type"] == "error":
-                loi_engine = ev["content"] or loi_engine
+        verified = None
+        attempt = 0
+        reason = ""
+        step_extra = tuple((node.metadata or {}).get("tools") or ())
+        while True:
+            gcli = mk(sysprompt, agent_model, agent_prov, step_extra)
+            out = ""
+            loi_engine = ""
+            async for ev in gcli.query(cur_prompt):
+                if ev["type"] == "text":
+                    await sink({"type": "step_text", "i": index, "node": node.id,
+                                "content": ev["content"]})
+                elif ev["type"] == "tool_call":
+                    await sink({"type": "step_tool", "i": index, "node": node.id,
+                                "tool": ev["name"]})
+                elif ev["type"] == "final":
+                    out = ev.get("content") or out
+                elif ev["type"] == "error":
+                    loi_engine = ev["content"] or loi_engine
+                    await sink({"type": "step_error", "i": index, "node": node.id,
+                                "content": ev["content"]})
+            # HẾT LƯỢT GÓI THUÊ BAO: nhà cung cấp không báo như một lỗi, nó in nguyên văn câu tiếng
+            # Anh ra đúng chỗ câu trả lời ("You've hit your session limit - resets 12pm (UTC)").
+            # Không soi ở đây thì bước coi như xong, câu tiếng Anh đó thành KẾT QUẢ của quy trình,
+            # và agent kiểm chứng còn bị gọi để đốt thêm một lượt của đúng cái gói vừa hết. Runner
+            # cũ đã chặn từ 0.59.2; đường graph dùng chung hàm chặn ấy để hai đường không lệch
+            # nhau - nguyên tắc ghi ở _workflow_agent_helpers.
+            loi_het_luot = _loi_het_luot_cua_buoc(out, loi_engine, agent_prov, agent_name)
+            if loi_het_luot:
                 await sink({"type": "step_error", "i": index, "node": node.id,
-                            "content": ev["content"]})
-        # HẾT LƯỢT GÓI THUÊ BAO: nhà cung cấp không báo như một lỗi, nó in nguyên văn câu tiếng
-        # Anh ra đúng chỗ câu trả lời ("You've hit your session limit - resets 12pm (UTC)").
-        # Không soi ở đây thì bước coi như xong, câu tiếng Anh đó thành KẾT QUẢ của quy trình,
-        # và agent kiểm chứng còn bị gọi để đốt thêm một lượt của đúng cái gói vừa hết. Runner
-        # cũ đã chặn từ 0.59.2; đường graph dùng chung hàm chặn ấy để hai đường không lệch
-        # nhau - nguyên tắc ghi ở _workflow_agent_helpers.
-        loi_het_luot = _loi_het_luot_cua_buoc(out, loi_engine, agent_prov, agent_name)
-        if loi_het_luot:
-            await sink({"type": "step_error", "i": index, "node": node.id,
-                        "content": loi_het_luot})
-            return {"output": "", "error": loi_het_luot, "agent_name": agent_name}
-        if not node.verify_agent:
-            break
-        v_name, v_body, v_model, v_prov = agent_sysprompt(node.verify_agent)
-        await sink({"type": "step_verify", "i": index, "node": node.id,
-                    "agent": v_name, "attempt": attempt})
-        v_sys = (
-            v_body + "\n\nVAI TRÒ KIỂM CHỨNG: Bạn là người ĐÁNH GIÁ độc lập. "
-            "Mặc định GIẢ ĐỊNH kết quả dưới đây ĐANG SAI và phải tự chứng minh. "
-            "Kiểm tra thực tế (đọc file/chạy thử nếu cần), KHÔNG chỉ đọc lướt. "
-            'CHỈ trả JSON 1 dòng: {"pass":true|false,"reason":"ngắn gọn vì sao","fixes":"cần sửa gì nếu fail"}.'
-        )
-        v_prompt = (
-            f"NHIỆM VỤ GỐC:\n{prompt}\n\n"
-            f"KẾT QUẢ CẦN KIỂM CHỨNG:\n{out}\n\n"
-            "Đánh giá kết quả có ĐẠT nhiệm vụ không. Trả JSON như hướng dẫn."
-        )
-        vcli = mk(v_sys, v_model, v_prov)
-        v_out = ""
-        v_err = ""
-        async for ev in vcli.query(v_prompt):
-            if ev["type"] == "final":
-                v_out = ev.get("content") or v_out
-            elif ev["type"] == "error":
-                v_err = ev.get("content") or v_err or "engine error"
-        passed, reason, fixes = _workflow_verdict(v_out, v_err)
-        await sink({"type": "step_verify_result", "i": index, "node": node.id, "passed": passed,
-                    "reason": reason, "attempt": attempt})
+                            "content": loi_het_luot})
+                return {"output": "", "error": loi_het_luot, "agent_name": agent_name}
+            if not node.verify_agent:
+                break
+            v_name, v_body, v_model, v_prov = agent_sysprompt(node.verify_agent)
+            await sink({"type": "step_verify", "i": index, "node": node.id,
+                        "agent": v_name, "attempt": attempt})
+            v_sys = (
+                v_body + "\n\nVAI TRÒ KIỂM CHỨNG: Bạn là người ĐÁNH GIÁ độc lập. "
+                "Mặc định GIẢ ĐỊNH kết quả dưới đây ĐANG SAI và phải tự chứng minh. "
+                "Kiểm tra thực tế (đọc file/chạy thử nếu cần), KHÔNG chỉ đọc lướt. "
+                'CHỈ trả JSON 1 dòng: {"pass":true|false,"reason":"ngắn gọn vì sao","fixes":"cần sửa gì nếu fail"}.'
+            )
+            v_prompt = (
+                f"NHIỆM VỤ GỐC:\n{prompt}\n\n"
+                f"KẾT QUẢ CẦN KIỂM CHỨNG:\n{out}\n\n"
+                "Đánh giá kết quả có ĐẠT nhiệm vụ không. Trả JSON như hướng dẫn."
+            )
+            vcli = mk(v_sys, v_model, v_prov)
+            v_out = ""
+            v_err = ""
+            async for ev in vcli.query(v_prompt):
+                if ev["type"] == "final":
+                    v_out = ev.get("content") or v_out
+                elif ev["type"] == "error":
+                    v_err = ev.get("content") or v_err or "engine error"
+            passed, reason, fixes = _workflow_verdict(v_out, v_err)
+            await sink({"type": "step_verify_result", "i": index, "node": node.id, "passed": passed,
+                        "reason": reason, "attempt": attempt})
+            if log_run:
+                # Agent kiểm chứng cũng là agent đang LÀM VIỆC - nó nhìn thấy cả nhiệm vụ
+                # lẫn kết quả bị chê, là agent học được nhiều nhất mà trước giờ mất dấu.
+                log_run(node.verify_agent, f"[kiểm chứng bước của {agent_name}] {prompt}", v_out)
+            verified = passed
+            if passed or attempt >= node.max_retries:
+                break
+            attempt += 1
+            await sink({"type": "step_retry", "i": index, "node": node.id, "attempt": attempt})
+            cur_prompt = (
+                f"{prompt}\n\n# KẾT QUẢ LẦN TRƯỚC (bị kiểm chứng đánh giá CHƯA ĐẠT):\n{out[:8000]}\n\n"
+                f"# PHẢN HỒI KIỂM CHỨNG:\n- Vấn đề: {reason}\n- Cần sửa: {fixes}\n"
+                "CẢI THIỆN kết quả lần trước theo phản hồi: giữ phần đã tốt, sửa đúng chỗ bị chê. Làm cho ĐẠT."
+            )
+        if learn:
+            out = learn(node.agent, out)   # bóc JAVIS_LESSON + ghi bộ nhớ TRƯỚC khi out chảy tiếp
         if log_run:
-            # Agent kiểm chứng cũng là agent đang LÀM VIỆC - nó nhìn thấy cả nhiệm vụ
-            # lẫn kết quả bị chê, là agent học được nhiều nhất mà trước giờ mất dấu.
-            log_run(node.verify_agent, f"[kiểm chứng bước của {agent_name}] {prompt}", v_out)
-        verified = passed
-        if passed or attempt >= node.max_retries:
-            break
-        attempt += 1
-        await sink({"type": "step_retry", "i": index, "node": node.id, "attempt": attempt})
-        cur_prompt = (
-            f"{prompt}\n\n# KẾT QUẢ LẦN TRƯỚC (bị kiểm chứng đánh giá CHƯA ĐẠT):\n{out[:8000]}\n\n"
-            f"# PHẢN HỒI KIỂM CHỨNG:\n- Vấn đề: {reason}\n- Cần sửa: {fixes}\n"
-            "CẢI THIỆN kết quả lần trước theo phản hồi: giữ phần đã tốt, sửa đúng chỗ bị chê. Làm cho ĐẠT."
-        )
-    if learn:
-        out = learn(node.agent, out)   # bóc JAVIS_LESSON + ghi bộ nhớ TRƯỚC khi out chảy tiếp
-    if log_run:
-        log_run(node.agent, prompt, out)
-    if verified is False:
-        # Still failing after the last retry: the node FAILS instead of passing its output on.
-        msg = _verify_failed_message(index + 1, agent_name, attempt + 1, reason)
-        await sink({"type": "step_error", "i": index, "node": node.id, "content": msg})
-        return {"output": "", "error": msg, "verified": False, "attempts": attempt + 1,
+            log_run(node.agent, prompt, out)
+        if verified is False:
+            # Still failing after the last retry: the node FAILS instead of passing its output on.
+            msg = _verify_failed_message(index + 1, agent_name, attempt + 1, reason)
+            await sink({"type": "step_error", "i": index, "node": node.id, "content": msg})
+            return {"output": "", "error": msg, "verified": False, "attempts": attempt + 1,
+                    "agent_name": agent_name}
+        return {"output": out, "verified": verified, "attempts": attempt + 1,
                 "agent_name": agent_name}
-    return {"output": out, "verified": verified, "attempts": attempt + 1,
-            "agent_name": agent_name}
+    finally:
+        agent_delegation.revoke_in(sysprompt)   # the step is over: its ask ticket dies with it
 
 
 # Native tools a workflow step may add to a gated background run with `tools:`. Read-only web
@@ -9586,6 +9590,10 @@ def _workflow_agent_helpers(brain, tools, mode=None):
 
     def _mk(sysprompt, model=None, provider="", extra_tools=()):
         prov = _agent_model_provider(model, provider)
+        if agent_delegation.ticket_in(sysprompt):
+            # The step carries a delegation ticket: a gated run must be granted the ask tool or
+            # the ticket in the prompt points at a tool the agent cannot reach.
+            extra_tools = tuple(extra_tools or ()) + (agent_delegation.TOOL_NAME,)
         if prov == "openai-oauth" and model and tools is None and find_codex_cli():
             openai_oauth.write_codex_auth()
             cc = CodexCLI(cwd=vault_root, tag="workflow", model=_codex_safe_model(model),
@@ -9635,7 +9643,10 @@ def _workflow_agent_helpers(brain, tools, mode=None):
                 print(f"[agent engine] {prov}: {type(e).__name__}: {e}", file=__import__('sys').stderr)
         return c
 
-    def _agent_sysprompt(aslug):
+    def _agent_sysprompt(aslug, delegate=False):
+        """`delegate=True` only for an agent DOING a workflow step: if its file lists `can_ask`,
+        the prompt gets a ticket for `javis_ask_agent`. Verifiers, colleagues being asked, direct
+        chat and team chat build without it."""
         ameta, abody = _read_md(_agents_dir(brain) / f"{aslug}.md")
         amem = _agent_memory(brain, aslug)
         # Khối bộ nhớ + luật tự bồi đắp chèn VÔ ĐIỀU KIỆN (kể cả khi amem rỗng): điều
@@ -9663,11 +9674,37 @@ def _workflow_agent_helpers(brain, tools, mode=None):
               "bị tự xoá. CHỈ dùng cho lời chủ dặn; bài học bạn tự rút ra thì vẫn là JAVIS_LESSON. "
               "Luật đã có trong mục đó thì đừng phát lại.\n"
             + _AGENT_TOOLKIT_BLOCK
+            + (_ask_block(aslug, ameta) if delegate else "")
             + "\nLàm việc trong vault. Tập trung hoàn thành nhiệm vụ, trả kết quả rõ ràng, ngắn gọn."
         )
         return (ameta.get("name", aslug), sysprompt,
                 (ameta.get("model") or "").strip() or None,
                 (ameta.get("model_provider") or "").strip())
+
+    def _ask_block(aslug, ameta):
+        targets = {}
+        for t in agent_delegation.declared_targets(ameta):
+            if t != aslug and (_agents_dir(brain) / f"{t}.md").exists():
+                targets[t] = _read_md(_agents_dir(brain) / f"{t}.md")[0].get("name", t)
+        if not targets:
+            return ""
+        caller_name = ameta.get("name", aslug)
+
+        async def _run_colleague(target, prompt):
+            # Built WITHOUT a ticket: the colleague cannot ask onward. Same _mk = same tool
+            # allowlist and permission level as the caller's run.
+            name, sp, model, prov = _agent_sysprompt(target)
+            out, err = "", ""
+            async for ev in _mk(sp, model, prov).query(prompt):
+                if ev["type"] == "final":
+                    out = ev.get("content") or out
+                elif ev["type"] == "error":
+                    err = ev.get("content") or err or "engine error"
+            out = _learn(target, out)
+            _log_run(target, f"[được {caller_name} nhờ] {prompt}", out)
+            return out, err
+
+        return agent_delegation.issue(aslug, caller_name, targets, _run_colleague)
 
     def _log_run(aslug, task, out):
         _log_agent_run(brain, aslug, task, out)
@@ -9977,7 +10014,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
         verify_slug = (step.get("verify_agent") or "").strip()
         max_retries = int(step.get("max_retries", 1) or 0)
         step_extra = workflow_graph.step_tools(step)
-        agent_name, sysprompt, agent_model, agent_prov = _agent_sysprompt(agent_slug)
+        agent_name, sysprompt, agent_model, agent_prov = _agent_sysprompt(agent_slug, delegate=True)
         task_f = task.replace("{{input}}", input or "").replace("{{prev}}", prev or "")
         yield {"type": "step_start", "i": i, "agent": agent_name, "task": task_f}
 
@@ -10052,6 +10089,7 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
                 "CẢI THIỆN kết quả lần trước theo phản hồi: giữ phần đã tốt, sửa đúng chỗ bị chê. Làm cho ĐẠT."
             )
 
+        agent_delegation.revoke_in(sysprompt)   # the step is over: its ask ticket dies with it
         # Bước hỏng thì DỪNG CẢ LẦN CHẠY ở đây: không `step_done` (bước hỏng không phải bước
         # xong), không `done` (kết quả hỏng không phải kết quả), và không đẩy `out` sang
         # {{prev}} cho bước sau nhai lại một câu báo lỗi. Sự kiện `error` mang theo `i` và

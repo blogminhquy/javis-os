@@ -1622,6 +1622,14 @@ def codex_profile_path():
     return Path.home() / ".codex" / f"{codex_profile_name()}.config.toml"
 
 
+def _ask_tool_timeout() -> int:
+    try:
+        import agent_delegation
+        return int(agent_delegation.ASK_TIMEOUT_S) + 120
+    except Exception:
+        return 720
+
+
 def codex_profile(mode="full"):
     """Ghi ~/.codex/<profile>.config.toml 1 entry hub → `codex exec -p <profile>` thấy MỌI MCP của Javis."""
     path = codex_profile_path()
@@ -1631,6 +1639,10 @@ def codex_profile(mode="full"):
         lines = ["[mcp_servers.javis]",
                  f"url = {_toml_str(hub_url())}",
                  "startup_timeout_sec = 20",
+                 # Codex cuts a hub tool call at its own default wait; javis_ask_agent runs a
+                 # whole colleague turn (up to agent_delegation.ASK_TIMEOUT_S), and a cut call
+                 # leaves the colleague running while the caller asks again (double actions).
+                 f"tool_timeout_sec = {_ask_tool_timeout()}",
                  "[mcp_servers.javis.http_headers]",
                  f'{_toml_str("Authorization")} = {_toml_str("Bearer " + hub_token())}',
                  f'{_toml_str("X-Javis-Mode")} = {_toml_str(mode)}', ""]

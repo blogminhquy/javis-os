@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import agent_delegation
 import localefmt
 import workflow_runs
 
@@ -109,6 +110,16 @@ async def _chay(args, ctx) -> str:
     return "ERROR: op phải là 'runs' (liệt kê lần chạy) hoặc 'show' (xem một lần)."
 
 
+
+async def _ask(args, ctx) -> str:
+    """`javis_ask_agent`: an agent doing a workflow step asks a colleague (see agent_delegation).
+
+    Lives in this plugin rather than its own so the chat prompt's plugin index does not grow for
+    a tool only workflow steps can use. readonly is right: the colleague runs through the
+    caller's own engine factory, so it can never act above the caller's level."""
+    args = args or {}
+    return await agent_delegation.ask(args.get("ticket"), args.get("agent"), args.get("task"))
+
 def register(ctx):
     ctx.register_tool(
         "javis_workflow",
@@ -130,4 +141,22 @@ def register(ctx):
         },
         min_mode="readonly",
         emoji="🧾",
+    )
+    ctx.register_tool(
+        agent_delegation.TOOL_NAME,
+        "Nhờ một agent đồng nghiệp làm phần việc ngoài chuyên môn của bạn và nhận kết quả về. "
+        "Chỉ dùng được khi prompt của bạn có mục 'Nhờ đồng nghiệp' kèm ask_ticket; danh sách "
+        "người được nhờ nằm ở mục đó.",
+        _ask,
+        schema={
+            "type": "object",
+            "properties": {
+                "ticket": {"type": "string", "description": "Chuỗi ask_ticket=... trong prompt của bạn"},
+                "agent": {"type": "string", "description": "Slug của đồng nghiệp được nhờ"},
+                "task": {"type": "string", "description": "Việc cần nhờ, viết đủ rõ kèm số liệu"},
+            },
+            "required": ["ticket", "agent", "task"],
+        },
+        min_mode="readonly",
+        emoji="🤝",
     )
