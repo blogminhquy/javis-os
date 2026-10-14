@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.131.0] - 2026-10-14
+### Thêm mới
+- **Theme riêng cho người vận hành.** Đặt file `theme.css` vào thư mục `branding` trong dữ liệu của Javis (cạnh logo) là dashboard đổi màu, font theo thương hiệu của bạn, và giữ nguyên qua mọi lần cập nhật. Xoá file là về giao diện gốc. Hướng dẫn trong tài liệu Thương hiệu và tên miền.
+- Cảm ơn @hodaclong đã đóng góp.
+
 ## [0.130.0] - 2026-10-14
 ### Thêm mới
 - **Chatbot có giờ trực.** Trong form Sửa bot ở trang Chatbot, điền ô **Giờ trực** Từ và Đến, vd 08:00 đến 02:00 (qua nửa đêm cũng được). Để trống cả hai là bot trực cả ngày như trước.
