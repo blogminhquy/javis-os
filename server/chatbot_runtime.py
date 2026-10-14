@@ -318,6 +318,16 @@ def build_bot_prompt(bot: dict) -> str:
     nc = (bot or {}).get("_ngu_canh_nhom")
     if nc:
         phan.append(_NGU_CANH_NHOM.format(khoi=nc))
+    # Per-chat exception (0.144.0). LAST on purpose: the personal Zalo paragraph above says to stay silent on family
+    # matters, and this chat is often exactly that (the owner's mother). Without this line the model refuses or stays
+    # silent on work the owner allowed for this one chat.
+    nl = (bot or {}).get("_ngoai_le")
+    if isinstance(nl, dict):
+        ai = f' ("{nl.get("ten")}")' if nl.get("ten") else ""
+        phan.append(f"\nQUYỀN CỦA CUỘC CHAT NÀY: chủ đã chọn riêng cuộc chat này{ai} cho bạn và cấp mức "
+                    f"\"{chatbot_store.MUC_NHAN.get(nl.get('muc_quyen'), nl.get('muc_quyen'))}\", khác mức chung của bot "
+                    "(các cuộc chat khác vẫn ở mức chung). Đây không phải người lạ: đừng im chỉ vì đó là chuyện riêng hay "
+                    "chuyện gia đình; làm theo hướng dẫn của chủ cho người này.")
     return "\n".join(phan)
 
 
@@ -593,6 +603,9 @@ def _ly_do_im_co_ban(bot_cfg: dict, meta: dict) -> str:
         if aud != "chon":
             return ""
         if _khop_nhom(bot_cfg.get("people") or [], (meta or {}).get("chat_id")):
+            return ""
+        # A chat the owner gave its own exception (0.144.0) is a chosen person by definition.
+        if chatbot_store.ngoai_le_cua(bot_cfg, meta):
             return ""
         return "nguoi_chua_chon"
     # Chưa khai nhóm nào thì bot không tự nhận việc trong nhóm lạ. Cùng một lý do với nhóm đã
@@ -1369,6 +1382,9 @@ def _make_answer_fn(bot_id: str):
         cfg = chatbot_store.get_bot(bot_id)
         if not cfg:
             return {"text": "", "files": [], "im_lang": True}
+        # Per-chat exception (0.144.0): this private chat may run at its own level. Applied FIRST, so every later
+        # read of `muc_quyen` in this turn (the tool route in `main`, the log, the prompt) sees the same level.
+        cfg = chatbot_store.ap_ngoai_le(cfg, meta)
         meta = _rp_named_meta(cfg, text, meta)
         _nho_neu_khong_goi(bot_id, cfg, meta, text)
         # Lớp thứ HAI của cùng một luật (`precheck_fn` đã chặn ở tầng kênh). Giữ cả hai vì hai

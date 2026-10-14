@@ -434,6 +434,18 @@ Hạ mức thì không hỏi gì cả: hạ quyền luôn an toàn, và lúc b�
 
 Thẻ bot nào được nâng quyền đều có một dải màu ghi rõ mức - vàng cho Được ghi, đỏ cho Toàn quyền. Bot Chỉ đọc không dán nhãn gì, vì đó là mặc định. Nhật ký cũng ghi lại mức của **từng lượt**, nên soi lại "hôm đó bot làm gì" vẫn đúng kể cả khi bạn đã hạ mức sau sự cố.
 
+### Ngoại lệ theo cuộc chat (từ 0.144.0)
+
+Một con bot trả lời người lạ ở mức **Chỉ đọc** mà vẫn phải làm việc thật cho một người thân (ví dụ mẹ bạn nhắn vào chính nick Zalo đó, nhờ sửa file Word, Excel) thì đừng nâng cả bot. Thêm một **ngoại lệ** cho đúng cuộc chat riêng của người đó, ở mục **Ngoại lệ theo cuộc chat** trong form bot, mỗi dòng một người:
+
+`mã cuộc chat | tên | mức | giây chờ`, ví dụ `123456789 | Mẹ | full | 10`
+
+- **Chỉ cuộc chat đó** chạy ở mức đã ghi; mọi cuộc chat khác và mọi nhóm vẫn ở mức chung của bot. Cùng một mã nhưng là nhóm thì không tính.
+- Nâng một cuộc chat lên **Được ghi** hay **Toàn quyền** cũng phải xác nhận rủi ro như nâng cả bot. Lưu lại cùng danh sách hay hạ mức thì không hỏi lại.
+- Người trong ngoại lệ luôn được bot trả lời, kể cả khi bot đang ở chế độ chỉ trả lời người đã chọn. Ở Zalo cá nhân, bot được dặn không im chỉ vì đó là chuyện gia đình.
+- **Giây chờ** (0 đến 60) là thời gian bot đợi người đó nhắn xong, riêng cho cuộc chat ấy; để trống là như mọi người. Thẻ bot ghi số ngoại lệ đang có.
+- Mã cuộc chat Zalo cá nhân là mã của người đó (threadId): hỏi Javis "mã Zalo của <tên>" là nó tra bằng công cụ Zalo. Chỉ thêm người bạn tin tuyệt đối: ở mức Toàn quyền, người đó điều khiển được bot như chính bạn.
+
 ### Engine nào chạy được mức nâng quyền
 
 Mức **Chỉ đọc** chạy giống hệt nhau trên cả chín bộ não, không có ngoại lệ.

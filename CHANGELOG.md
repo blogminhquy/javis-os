@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.144.0] - 2026-10-14
 ### Thêm mới
-- **Ngoại lệ theo cuộc chat cho bot** (đang viết).
+- **Cấp quyền riêng cho một cuộc chat.** Bot trả lời phụ huynh ở mức Chỉ đọc mà vẫn làm việc thật được cho một người thân (vd mẹ nhắn vào nick Zalo nhờ sửa file Word, Excel): thêm một dòng ở mục **Ngoại lệ theo cuộc chat** trong form bot, mọi người khác vẫn ở mức cũ.
+- **Mỗi ngoại lệ có thời gian chờ riêng**, vd mẹ nhắn chậm thì bot đợi 10 giây, còn khách khác vẫn đợi 5 giây.
+- Nâng một cuộc chat lên Được ghi hay Toàn quyền cũng phải xác nhận rủi ro như nâng cả bot. Thẻ bot ghi số ngoại lệ đang có.
 
 ## [0.141.0] - 2026-10-14
 ### Cải thiện

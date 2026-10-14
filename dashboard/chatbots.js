@@ -662,8 +662,31 @@
 
   // Một dòng "bot trả lời ai" cho thẻ: đọc là biết ngay bot đang nói chuyện với ai, không phải mở form.
   function tomTatDoiTuong(b) {
-    var s = tomTatAi(b), g = b.gio_truc || {};
-    return g.tu && g.den ? s + " · " + window.t("cb.tt_gio_truc", { tu: g.tu, den: g.den }) : s;
+    var s = tomTatAi(b), g = b.gio_truc || {}, nl = (b.ngoai_le || []).length;
+    if (g.tu && g.den) s += " · " + window.t("cb.tt_gio_truc", { tu: g.tu, den: g.den });
+    // Per-chat exceptions (0.144.0) on the card: a chat running at another level must never be invisible.
+    return nl ? s + " · " + window.t("cb.tt_ngoai_le", { n: nl }) : s;
+  }
+
+  // Per-chat exceptions (0.144.0) as editable text, one per line: "chat id | label | level | wait seconds".
+  function ngoaiLeText(ds) {
+    return (ds || []).map(function (e) {
+      return [e.chat_id, e.ten || "", e.muc_quyen, e.cho_giay == null ? "" : String(e.cho_giay)].join(" | ");
+    }).join("\n");
+  }
+
+  // Back to a list for the server. Returns null on a line that cannot be read; the server checks the rest.
+  function docNgoaiLe(txt) {
+    var out = [];
+    var dong = String(txt || "").split(/\r?\n/);
+    for (var i = 0; i < dong.length; i++) {
+      if (!dong[i].trim()) continue;
+      var p = dong[i].split("|").map(function (x) { return x.trim(); });
+      if (p.length < 3 || !p[0] || ["suggest", "read_docs", "auto", "full"].indexOf(p[2].toLowerCase()) < 0) return null;
+      if (p[3] && !/^\d+$/.test(p[3])) return null;
+      out.push({ chat_id: p[0], ten: p[1], muc_quyen: p[2].toLowerCase(), cho_giay: p[3] ? +p[3] : null });
+    }
+    return out;
   }
 
   function tomTatAi(b) {
@@ -897,6 +920,14 @@
                 ' <input type="time" id="cbGioDen" value="' + esc(((b && b.gio_truc) || {}).den || "") + '"></label>' +
             '</div>' +
             '<div class="cb-hint">' + esc(window.t("cb.hint_gio_truc")) + '</div>' +
+          '</div>' +
+
+          // 6. Per-chat exceptions (0.144.0): one private chat (e.g. a family member on a personal Zalo nick) gets its
+          // own level and wait, without raising the bot that also answers strangers.
+          '<div class="cb-sec">' + secH("user", "cb.s_ngoai_le") +
+            '<textarea id="cbNgoaiLe" rows="3" spellcheck="false" style="width:100%;font-family:monospace" placeholder="' +
+              esc(window.t("cb.ph_ngoai_le")) + '">' + esc(ngoaiLeText(b && b.ngoai_le)) + '</textarea>' +
+            '<div class="cb-hint">' + esc(window.t("cb.hint_ngoai_le")) + '</div>' +
           '</div>' +
 
           // Nâng cao: chỉ ngôn ngữ trả lời. Ngôn ngữ của bot ĐỘC LẬP với ngôn ngữ của chủ: bot nói
@@ -1225,6 +1256,16 @@
       var gioTu = ((box.querySelector("#cbGioTu") || {}).value || "").trim();
       var gioDen = ((box.querySelector("#cbGioDen") || {}).value || "").trim();
       if (!gioTu !== !gioDen) return alert(window.t("cb.gio_thieu"));
+      var ngoaiLe = docNgoaiLe((box.querySelector("#cbNgoaiLe") || {}).value);
+      if (ngoaiLe === null) return alert(window.t("cb.ngoai_le_sai"));
+      // Same rule as the server: an exception that RAISES a chat to Can write or Full power needs a conscious yes.
+      var hang = { suggest: 0, read_docs: 1, auto: 2, full: 3 }, truoc = {};
+      ((sua && b.ngoai_le) || []).forEach(function (e) { truoc[e.chat_id] = e.muc_quyen; });
+      var nang = ngoaiLe.filter(function (e) {
+        return hang[e.muc_quyen] >= 2 && hang[e.muc_quyen] > (truoc[e.chat_id] in hang ? hang[truoc[e.chat_id]] : -1);
+      });
+      if (nang.length && !confirm(window.t("cb.xn_ngoai_le", {
+        ds: nang.map(function (e) { return (e.ten || e.chat_id) + ": " + mucCua(e.muc_quyen).nhan; }).join(", ") }))) return;
       // Không tài khoản nào đứng được trong nhóm thì gửi danh sách nhóm rỗng: bản ghi mang một danh
       // sách nhóm không bao giờ dùng tới là một lời hứa suông nằm lại trong dữ liệu.
       var chung = { name: ten, agent_slug: ag, agent_brain: br, brain: br,
@@ -1234,7 +1275,8 @@
                     groups: co ? ds("group").join("\n") : "",
                     reply_when: co ? (the === "auto" ? "auto" : (giaTri("cbRw") || "mention")) : "mention",
                     account_ids: ids.join(","),
-                    gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "" };
+                    gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "",
+                    ngoai_le: JSON.stringify(ngoaiLe) };
       try {
         if (sua) {
           await api("/chatbots/" + encodeURIComponent(b.id) + "/update", { method: "POST", body: fd(chung) });

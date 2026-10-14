@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.144.0] - 2026-10-14
 ### Added
-- **Per-chat exceptions for a bot** (in progress).
+- **Give one chat its own permission level.** A bot that answers parents at Read only can still do real work for someone close to you (e.g. your mother messaging the Zalo nick to get a Word or Excel file edited): add a line under **Per-chat exceptions** in the bot form, and everyone else stays at the old level.
+- **Each exception has its own wait**, e.g. the bot waits 10 seconds for a slow typist while other customers still get 5 seconds.
+- Raising a chat to Can write or Full power needs the same risk confirmation as raising the bot. The bot card shows how many exceptions it has.
 
 ## [0.141.0] - 2026-10-14
 ### Improved

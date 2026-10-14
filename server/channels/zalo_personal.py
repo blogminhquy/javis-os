@@ -385,7 +385,9 @@ class Transport:
         import zalo_attachments
         import zalo_personal_channel as zc
         from pathlib import Path
-        cfg = (self.cfg_fn() if self.cfg_fn else {}) or {}
+        import chatbot_store
+        # Per-chat exception (0.144.0): a chat raised to "Can write" may send files even when the bot is read only.
+        cfg = chatbot_store.ap_ngoai_le((self.cfg_fn() if self.cfg_fn else {}) or {}, meta)
         if cfg.get("muc_quyen") not in ("auto", "full"):
             if chi_file:
                 return text, [], False
