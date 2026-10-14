@@ -1195,6 +1195,7 @@
   "cb.lb_ngon_ngu": "What language the bot answers in",
   "cb.hint_ngon_ngu": "Automatic = follows the language the customer writes in. Pin one language when everyone messaging in shares the same one.",
   "cb.nhuong_tay": "Step aside after you type (minutes)",
+  "cb.ph_nhuong_tay": "Default 10",
   "cb.hint_nhuong_tay": "Personal Zalo only. When you type into a chat yourself with this account, the bot stays out of that chat for this many minutes, counted from your last hand-typed message; when that time passes without another message from you, the bot answers the customer messages that are waiting. Blank = the default 10 minutes, with groups silent the whole time as before. With a number, a group message that tags the account is answered at once and other group messages are answered when the time is up. Set 0 so the bot never stays out because you typed.",
   "cb.nhuong_tay_sai": "Step-aside minutes must be a whole number from 0 to 240.",
   "cb.s_gio_truc": "Active hours",

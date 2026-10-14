@@ -902,7 +902,7 @@
             // as a placeholder so saving the form does not turn an unset bot into an explicit 10.
             '<div class="cb-gio-truc">' +
               '<label>' + esc(window.t("cb.nhuong_tay")) +
-                ' <input type="number" id="cbNhuongTay" min="0" max="240" step="1" style="width:5em" placeholder="10" value="' +
+                ' <input type="number" id="cbNhuongTay" min="0" max="240" step="1" style="width:8em" placeholder="' + esc(window.t("cb.ph_nhuong_tay")) + '" value="' +
                 esc(b && b.nhuong_tay_phut != null ? String(b.nhuong_tay_phut) : "") + '"></label>' +
             '</div>' +
             '<div class="cb-hint">' + esc(window.t("cb.hint_nhuong_tay")) + '</div>' +
