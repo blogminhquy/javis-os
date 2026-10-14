@@ -144,17 +144,28 @@ async def chay():
     await xa(30)
     check("khách nhắn tiếp trong lúc chủ đang nói chuyện: bot vẫn nhường", not LUOT and not GUI, (LUOT, GUI))
 
-    # ---- 4. tắt bot giữa chừng: không gửi -------------------------------------------------------
+    # ---- 4. tắt bot giữa chừng: không gửi; lưu cài đặt (khởi động lại bot): vẫn trả lời -----------
     don()
     await doc(tin("u4", "Cho em hỏi", 6), tin("u4", "học phí bao nhiêu ạ", 4))
     check("đang chờ", ("zalo-1", "u4") in zc._GOM)
     tb.stop()
-    check("tắt bot: hàng chờ của tài khoản bị xoá", not any(k[0] == "zalo-1" for k in zc._GOM))
     check("không còn bot thì về nhịp đọc thường", zc._nhip_cua("zalo-1") == zc.NHIP)
+    await xa(30)
+    check("tắt bot: tới lượt xả mà không còn bot thì hàng chờ bị bỏ",
+          not any(k[0] == "zalo-1" for k in zc._GOM))
     tb2 = lam_bot()
     tb2.start()
     await xa(30)
-    check("tắt bot giữa chừng thì không gửi gì, kể cả khi bật lại bot", not LUOT and not GUI, (LUOT, GUI))
+    check("tắt bot giữa chừng thì không gửi gì, kể cả khi bật lại bot sau đó", not LUOT and not GUI, (LUOT, GUI))
+    don()
+    await doc(tin("u5", "Cho em hỏi", 6), tin("u5", "lớp 9 còn chỗ không ạ", 4))
+    tb2.stop()          # lưu cài đặt bot = start_bot: dừng rồi đăng ký lại ngay
+    tb3 = lam_bot()
+    tb3.start()
+    await xa(30)
+    check("CANARY: lưu cài đặt bot giữa lúc khách đang nhắn thì khách vẫn được trả lời đúng một lần",
+          len(LUOT) == 1 and "lớp 9 còn chỗ không ạ" in LUOT[0][0], LUOT)
+    tb2 = tb3
 
     # ---- 5. nhóm không gom, ảnh + chữ gộp thành câu hỏi kèm ảnh ---------------------------------
     don()
@@ -167,8 +178,11 @@ async def chay():
     check("tiếng/sticker chỉ tính là còn đang nhắn, không góp chữ",
           zc.gop_tin([{"message_type": "sticker", "text": "[Zalo cá nhân: khách gửi sticker]", "metadata": {}},
                       {"message_type": "text", "text": "ạ", "metadata": {}}])["text"] == "ạ")
-    check("gộp theo đúng trần của hàng chờ bot_gateway",
-          bot_gateway.noi_tin([str(i) for i in range(9)]) == "\n".join(str(i) for i in range(bot_gateway.MAX_CHO_TIN)))
+    check("CANARY: khách mở bằng nhiều câu chào thì câu hỏi thật (tin cuối) vẫn tới bot",
+          bot_gateway.noi_tin(["Thầy ơi"] * 6 + ["lớp 9 còn chỗ không ạ"]).endswith("lớp 9 còn chỗ không ạ"))
+    check("gộp giữ đúng thứ tự và trần ký tự của hàng chờ bot_gateway",
+          bot_gateway.noi_tin([str(i) for i in range(9)]) == "\n".join(str(i) for i in range(9))
+          and len(bot_gateway.noi_tin(["x" * 3000, "y" * 3000])) <= bot_gateway.MAX_CHO_KY_TU)
     zc._ID_MINH.pop("zalo-1", None)
     goc = zc._GOM.copy()
     await doc(tin("g1", "Cả nhà ơi", 2, nhom=True, **{"from": "u9"}))

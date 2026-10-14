@@ -773,9 +773,10 @@ def huy_dang_ky_bot(conn_id: str, tb: Any = None) -> None:
     cid = str(conn_id)
     if tb is None or _BOTS.get(cid) is tb:
         _BOTS.pop(cid, None)
-        # Bot tắt thì tin đang gom chờ không được giao cho bot nào nữa (kể cả bot bật lại sau đó).
-        for k in [k for k in _GOM if k[0] == cid]:
-            _GOM.pop(k, None)
+        # KHÔNG xoá tin đang gom ở đây: lưu cài đặt bot cũng đi qua đây (start_bot -> stop_bot rồi
+        # đăng ký lại ngay), xoá là khách vừa nhắn trong mấy giây đó không được trả lời. Bot tắt hẳn
+        # thì `xa_hang_cho` tự bỏ hàng chờ khi không còn bot trực, và tin quá `TUOI_TOI_DA` cũng bị
+        # bỏ, nên bật lại sau đó không giao tin cũ.
         _NONG.pop(cid, None)
 
 

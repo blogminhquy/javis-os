@@ -100,18 +100,19 @@ MAX_CHO_KY_TU = 4000
 
 
 def noi_tin(texts):
-    """Gộp nhiều tin của một người thành MỘT lượt, đúng khuôn `_xep_hang` + `_xong_luot`: giữ thứ tự,
-    tối đa MAX_CHO_TIN tin đầu, bỏ tin làm vượt MAX_CHO_KY_TU, nối bằng xuống dòng. Dùng cho kênh tự
-    gom ngoài hàng đợi này (Zalo cá nhân chờ khách nhắn xong, 0.113.0)."""
-    giu = []
-    for t in texts or []:
-        if len(giu) >= MAX_CHO_TIN:
-            break
-        t = str(t or "")
-        if sum(len(x) for x in giu) + len(t) > MAX_CHO_KY_TU:
+    """Gộp nhiều tin của một người thành MỘT lượt, giữ thứ tự, nối bằng xuống dòng, trong trần
+    MAX_CHO_KY_TU ký tự. Dùng cho kênh tự gom ngoài hàng đợi này (Zalo cá nhân chờ khách nhắn xong).
+
+    Khác hàng đợi lúc bot bận (giữ MAX_CHO_TIN tin ĐẦU để chống spam làm phình bộ nhớ): ở đây khách
+    hay mở bằng vài câu chào rồi mới hỏi, nên giữ các tin MỚI NHẤT vừa trần ký tự. Giữ tin đầu thì
+    7 tin "Thầy ơi / cho em hỏi / ..." tới bot chỉ còn 5 câu chào, mất đúng câu hỏi."""
+    giu, tong = [], 0
+    for t in reversed([str(x or "") for x in (texts or [])]):
+        if tong + len(t) > MAX_CHO_KY_TU:
             continue
         giu.append(t)
-    return "\n".join(giu)
+        tong += len(t)
+    return "\n".join(reversed(giu))
 
 
 class HangLuot:
