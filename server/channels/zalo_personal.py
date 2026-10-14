@@ -488,7 +488,12 @@ class Transport:
             # nhịp đọc thì ảnh đã được nhớ trước khi lượt của câu tag cần tới nó.
             if co_anh and loai == "group" and self.policy is not None:
                 self._nho_anh_tron(ev, thread)
-            return
+                return
+            # Chat riêng: ảnh không kèm chữ vẫn là người ta đang nhờ xem ảnh (gửi đề, gửi bài làm). Trước đây bị bỏ hẳn
+            # ở đây, nên bot không bao giờ thấy ảnh gửi trơn (15/10/2026). Đưa cho bot kèm ảnh, Agent tự quyết hỏi gì.
+            if not (co_anh and loai == "private" and (ev.get("metadata") or {}).get("image_url")):
+                return
+            text = "[Khách gửi một ảnh, không kèm lời nhắn]"
         # Không biết cuộc chat là nhóm hay chat riêng (đã hỏi lại bảng mà vẫn không thấy): KHÔNG trả
         # lời. Đoán là chat riêng nghĩa là trả lời từng tin của một nhóm, dưới tên người thật.
         if (ev.get("metadata") or {}).get("chua_ro_loai"):
@@ -519,6 +524,15 @@ class Transport:
             meta["co_anh"] = True
             # 0.74.1: the photo's link, so the bot can actually look at it (see `chatbot_runtime.anh_cho_bot`).
             meta["image_url"] = str((ev.get("metadata") or {}).get("image_url") or "")
+            if not nhom:
+                zc.nho_anh_rieng(self.conn_id, thread, meta["image_url"])
+        elif not nhom and zc.anh_rieng_gan_day(self.conn_id, thread):
+            # Lượt chữ ngay sau một ảnh ở chat riêng ("check xem đúng chưa", trả lời câu hỏi danh tính rồi nhờ tiếp):
+            # kèm lại ảnh đó để bot vẫn thấy, kèm một dòng nói rõ ảnh từ tin trước.
+            gio, url = zc.anh_rieng_gan_day(self.conn_id, thread)
+            meta.update(co_anh=True, image_url=url, anh_truoc=True)
+            text = (text + "\n[Kèm ảnh khách gửi lúc " + time.strftime("%H:%M", time.localtime(gio))
+                    + " trong cuộc chat này, có thể liên quan tới tin trên]")
         elif not vao_nhom:
             # 0.141.0: a message that QUOTES a photo ("@bot xem ảnh này" as a reply to it) shows the bot that photo.
             url_quote = zc.anh_duoc_quote(self.conn_id, thread, md0)
