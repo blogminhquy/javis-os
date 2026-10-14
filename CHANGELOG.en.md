@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.130.0] - 2026-10-14
+### Added
+- **Chatbots have active hours.** In the Edit bot form on the Chatbot page, fill in **Active hours** From and Until, e.g. 08:00 to 02:00 (past midnight is fine). Leave both empty and the bot answers all day as before.
+- **Outside active hours the bot stays fully silent** and sends nothing. Messages for the bot still land in the **inbox** so whoever is on duty reads them in the morning. Times follow the timezone in Settings.
+- The bot card shows its active hours, and **Try bot** outside them says so plainly. Replying by hand from the inbox works at any hour.
+- Thanks to @thanhtmfyu-lang for the contribution.
+
 ## [0.128.0] - 2026-10-14
 ### Improved
 - **The personal Zalo bot waits until the customer has finished typing.** When a customer splits one thought over several messages, the bot waits for 5 seconds of quiet and answers once, covering everything, instead of replying piece by piece like a machine.

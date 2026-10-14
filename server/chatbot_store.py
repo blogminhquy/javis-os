@@ -333,7 +333,7 @@ def _clean_ngon_ngu(v: Any) -> str:
     return lang_registry.chuan_hoa(s_) or "auto"
 
 
-# Active hours (0.110.0): {"tu": "HH:MM", "den": "HH:MM"} in the configured timezone (`localefmt.tz()`).
+# Active hours (0.130.0): {"tu": "HH:MM", "den": "HH:MM"} in the configured timezone (`localefmt.tz()`).
 # Empty or missing = all day, which is the behaviour of every bot saved before this field existed. "den" may
 # be earlier than "tu": 08:00-02:00 runs past midnight. "den" is exclusive, so at 02:00 the bot is already off.
 _HHMM_RE = re.compile(r"^\s*(\d{1,2})\s*[:hH]\s*(\d{2})?\s*$")
@@ -441,7 +441,7 @@ def _public(b: dict) -> dict:
     elif out["audience"] not in AUDIENCE:
         out["audience"] = AUDIENCE_HEP_NHAT
     out["people"] = _clean_groups(out.get("people"))
-    # Giờ trực (0.110.0). Thiếu khoá = bản ghi cũ = cả ngày; giá trị hỏng cũng đọc là cả ngày (xem `trong_gio_truc`).
+    # Giờ trực (0.130.0). Thiếu khoá = bản ghi cũ = cả ngày; giá trị hỏng cũng đọc là cả ngày (xem `trong_gio_truc`).
     out["gio_truc"] = parse_gio_truc(out.get("gio_truc"))[0] or {}
     # Bộ phán xử hội thoại nhóm (0.65.0). Thiếu khoá = bản ghi cũ = tắt; có khoá mà hỏng = phía hẹp nhất.
     import chatbot_reply_policy

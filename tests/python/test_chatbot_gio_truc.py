@@ -1,4 +1,4 @@
-"""Chatbot active hours (`gio_truc`), 0.110.0.
+"""Chatbot active hours (`gio_truc`), 0.130.0.
 
     python tests/run.py chatbot_gio_truc      (no network)
 

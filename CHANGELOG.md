@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.130.0] - 2026-10-14
+### Thêm mới
+- **Chatbot có giờ trực.** Trong form Sửa bot ở trang Chatbot, điền ô **Giờ trực** Từ và Đến, vd 08:00 đến 02:00 (qua nửa đêm cũng được). Để trống cả hai là bot trực cả ngày như trước.
+- **Ngoài giờ trực bot im hẳn**, không gửi câu nào. Tin khách hỏi bot lúc đó vẫn vào **Hộp thư** để người trực đọc sáng hôm sau. Giờ tính theo múi giờ trong Cài đặt.
+- Thẻ bot ghi thêm giờ trực, và nút **Thử bot** lúc ngoài giờ báo rõ là đang ngoài giờ trực. Trả lời tay từ Hộp thư vẫn dùng được bất kể giờ nào.
+- Cảm ơn @thanhtmfyu-lang đã đóng góp.
+
 ## [0.128.0] - 2026-10-14
 ### Cải thiện
 - **Bot Zalo cá nhân chờ khách nhắn xong rồi mới trả lời.** Khách nhắn một ý thành mấy tin liền thì bot đợi khách im 5 giây, rồi đáp một lần đủ các ý, thay vì đáp từng mẩu như máy.

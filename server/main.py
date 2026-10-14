@@ -21349,7 +21349,7 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         "ngon_ngu": ngon_ngu,
         # Bộ phán xử hội thoại nhóm (0.65.0): JSON, giá trị lạ rơi về phía hẹp nhất (xem merge_config).
         "reply_policy": reply_policy,
-        # Giờ trực (0.110.0): JSON {"tu","den"} HH:MM theo múi giờ cài đặt; rỗng = cả ngày.
+        # Giờ trực (0.130.0): JSON {"tu","den"} HH:MM theo múi giờ cài đặt; rỗng = cả ngày.
         "gio_truc": gio_truc,
     })
     if err:

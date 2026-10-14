@@ -887,7 +887,7 @@
             '<div class="cb-muc-note">' + veCanhBao(muc0) + '</div>' +
           '</div>' +
 
-          // 5. Active hours (0.110.0). Both empty = all day. Outside them the bot stays silent and the message
+          // 5. Active hours (0.130.0). Both empty = all day. Outside them the bot stays silent and the message
           // still lands in the inbox; an end earlier than the start runs past midnight (08:00 to 02:00).
           '<div class="cb-sec">' + secH("alarm-clock", "cb.s_gio_truc") +
             '<div class="cb-gio-truc">' +

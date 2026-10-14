@@ -543,7 +543,7 @@ def _nhom_duoc_phep(bot_cfg: dict, chat_id) -> bool:
 def _ly_do_im(bot_cfg: dict, meta: dict, luc=None) -> str:
     """Vì sao bot KHÔNG mở miệng ở lượt này. "" nghĩa là cứ trả lời.
 
-    Active hours (0.110.0) are checked LAST, only for a message the bot would otherwise answer: outside them
+    Active hours (0.130.0) are checked LAST, only for a message the bot would otherwise answer: outside them
     the code is "ngoai_gio_truc". Last on purpose, so an unknown group or person still reaches the approval
     queue at night with its own code. `luc` is the moment to judge (tests); default now in `localefmt.tz()`.
     """
