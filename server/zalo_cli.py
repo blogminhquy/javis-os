@@ -154,7 +154,7 @@ async def _install() -> bool:
     except OSError as e:
         print(f"[zalo-cli] không tạo được thư mục cài: {e}", file=sys.stderr)
         return False
-    argv = head + ["install", "--prefix", str(root), "--no-audit", "--no-fund", "--no-package-lock",
+    argv = head + ["install", "--allow-remote=all", "--prefix", str(root), "--no-audit", "--no-fund", "--no-package-lock",
                    "--loglevel=error", CLI_PACKAGE]
     proc = await asyncio.create_subprocess_exec(
         *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,

@@ -52,7 +52,7 @@
       "status": "beta",
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "--prefer-offline", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.3.0", "mcp", "start"],
+      "args": ["-y", "--prefer-offline", "--allow-remote=all", "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.3.0", "mcp", "start"],
       "lenh_cu": [
         { "command": "npx", "args": ["-y", "zalo-agent-cli", "mcp", "start"] },
         { "command": "npx", "args": ["-y", "zalo-agent-cli@1.6.2", "mcp", "start"] },

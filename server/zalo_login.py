@@ -44,7 +44,7 @@ def _npx_argv():
     npx = shutil.which("npx")
     if not npx:
         return None
-    argv = [npx, "-y", "--prefer-offline", _CLI_PACKAGE, "login", "--json"]
+    argv = [npx, "-y", "--allow-remote=all", "--prefer-offline", _CLI_PACKAGE, "login", "--json"]
     if npx.lower().endswith((".cmd", ".bat")):
         argv = ["cmd.exe", "/c"] + argv
     return argv

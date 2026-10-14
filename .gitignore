@@ -177,6 +177,11 @@ server/chatbot_reply_policy.sqlite3*
 server/reply_policy_cwd/
 # Tài khoản kênh của bot (token đã mã hoá) là dữ liệu chạy, không phải mã nguồn.
 server/channel_accounts.json
+# Danh sách tiến trình stdio MCP mồ côi (mcp_orphans.py) sinh ra khi chạy, không phải mã nguồn.
+server/mcp-stdio-pids.json
 
 # Bộ đo tai nghe (tools/stt_bench): clip âm thanh và kết quả, không lên git
 server/stt_bench/
+
+# Nguồn cài đặt các thư viện bổ sung
+source/
