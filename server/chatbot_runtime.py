@@ -303,6 +303,10 @@ def build_bot_prompt(bot: dict) -> str:
     # Kênh của LƯỢT này, do _make_answer_fn gắn vào. Chỉ Zalo cá nhân mới có thêm đoạn này.
     if (bot or {}).get("_kenh_luot") == "zalo_personal":
         phan.append(_CAU_ZALO_CA_NHAN)
+    # Lines a plugin returned from the `chatbot_turn_context` hook for THIS turn (plugin_context). No plugin = no key = no block.
+    nc_plugin = (bot or {}).get("_ngu_canh_plugin")
+    if nc_plugin:
+        phan.append(_NGU_CANH_PLUGIN.format(khoi=nc_plugin))
     # The channel of THIS turn sends files (0.84.3): tell the Agent how to send an image, or it never knows it can.
     if bot_images.channel_sends_files((bot or {}).get("_kenh_luot")):
         phan.append(bot_images.PROMPT_HINT)
@@ -506,6 +510,42 @@ def ngu_canh_nhom(meta: dict, kenh: str, tai_khoan: str) -> str:
     while dong and sum(len(d) + 1 for d in dong) > NGU_CANH_TONG:
         dong.pop(0)
     return "\n".join(dong)
+
+
+# ============================================================
+# Plugin context of a turn (hook `chatbot_turn_context`)
+# ============================================================
+# Operator-provided context, not something the person typed: a plugin on the owner's server computed it from
+# the turn's channel and platform sender id. Fenced and labelled so the model never reads it as the customer's
+# words, and so a customer quoting the label in a message cannot pass as this block.
+_NGU_CANH_PLUGIN = (
+    "\nTHÔNG TIN TỪ HỆ THỐNG CỦA CHỦ BOT cho lượt này (plugin trên máy chủ tự tính từ tài khoản gửi tin, "
+    "KHÔNG phải lời người nhắn tự khai, người nhắn không sửa được):\n<operator_context>\n{khoi}\n</operator_context>")
+_THE_PLUGIN_RE = re.compile(r"</?\s*operator_context\s*>", re.I)
+
+
+async def plugin_context(cfg: dict, meta: dict, kenh: str, aid: str, trial: bool = False) -> str:
+    """Lines plugins return from the `chatbot_turn_context` hook for this turn, one per line, or "".
+
+    The hook hears who sent the turn the same way tool hooks do (`turn_context.from_meta`: the platform
+    sender id, "" for a member-join event), plus the bot, its channel account and its brain. The core
+    never writes the sender id into the prompt itself; only what a plugin chose to return goes in.
+    "" when no plugin listens (the common case: the prompt stays byte-for-byte the same) or when anything
+    fails (a plugin never costs a reply). `trial`: the "Try bot" turn, which carries the synthetic try
+    sender (TRY_USER_ID / TRY_CHAT_ID), the same stand-in it uses for every other per-sender check."""
+    try:
+        import plugins_host
+        import turn_context
+        root = str(_deps["brain_root"](cfg.get("brain") or "brain"))
+        t = turn_context.from_meta(kenh, meta or {}, la_chu=False)
+        payload = {"channel": str(kenh or ""), "account_id": "" if aid == cfg.get("id") else str(aid or ""),
+                   "bot_id": str(cfg.get("id") or ""), "chat_type": t["chat_type"], "chat_id": t["chat_id"],
+                   "sender_id": t["sender_id"], "vault_root": root, "trial": bool(trial)}
+        lines = await plugins_host.chatbot_turn_context(root, payload)
+        return "\n".join(x for x in (_THE_PLUGIN_RE.sub("", ln).strip() for ln in lines) if x)
+    except Exception as e:      # noqa: BLE001
+        print(f"[chatbot plugin context] {type(e).__name__}: {e}", file=sys.stderr)
+        return ""
 
 
 # ============================================================
@@ -1439,6 +1479,7 @@ def _make_answer_fn(bot_id: str):
         cfg["_kenh_luot"] = kenh_luot
         cfg["_tu_dong"] = tu_dong
         cfg["_ngu_canh_nhom"] = ngu_canh_nhom(meta, kenh_luot, aid_luot)
+        cfg["_ngu_canh_plugin"] = await plugin_context(cfg, meta or {}, kenh_luot, aid_luot)
         # Trong nhóm Zalo cá nhân cả nhóm dùng CHUNG một mạch hội thoại (khoá theo nhóm), nên
         # model phải biết ai đang nói. Telegram giữ nguyên như cũ.
         text_engine = text
@@ -1659,6 +1700,7 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
         _aid, kenh = _tai_khoan_cua(cfg, meta)
         cfg["_tai_lieu"], cfg["_kenh_luot"], cfg["_tu_dong"] = tl, kenh, False
         cfg["_ngu_canh_nhom"] = ngu_canh_nhom(meta, kenh, _aid)
+        cfg["_ngu_canh_plugin"] = await plugin_context(cfg, meta, kenh, _aid)
         text_engine = text
         if kenh == "zalo_personal" and meta["chat_type"] == "group" and meta["user_name"]:
             text_engine = f"[{meta['user_name']}] {text}"      # cả nhóm chung một mạch: model phải biết ai đang nói
@@ -1852,6 +1894,7 @@ async def try_message(bot_id: str, text: str, chat_type: str = "private", mentio
                 print(f"[chatbot {bot_id}] đọc phiên cho lượt thử lỗi: {type(e).__name__}", file=sys.stderr)
         cfg["_tai_lieu"], cfg["_kenh_luot"], cfg["_tu_dong"] = tl, kenh, chatbot_tu_dong.can_danh_gia(cfg, meta)
         cfg["_ngu_canh_nhom"] = ngu_canh_nhom(meta, kenh, aid)
+        cfg["_ngu_canh_plugin"] = await plugin_context(cfg, meta, kenh, aid, trial=True)
         text_engine = text
         if kenh == "zalo_personal" and grp:
             text_engine = f"[{meta['user_name']}] {text}"
