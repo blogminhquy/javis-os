@@ -1096,7 +1096,7 @@ CHATBOT_TURN_CONTEXT = "chatbot_turn_context"
 CHATBOT_CONTEXT_LINE_MAX = 300
 CHATBOT_CONTEXT_TOTAL_MAX = 900
 CHATBOT_CONTEXT_TIMEOUT_S = 2.0
-_CTRL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f  ​-‏‪-‮⁦-⁩﻿]+")
+_CTRL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]+")
 
 
 def clean_context_line(value: Any, limit: int = CHATBOT_CONTEXT_LINE_MAX) -> str:

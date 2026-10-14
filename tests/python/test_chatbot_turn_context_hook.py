@@ -220,8 +220,8 @@ plugins_host.CHATBOT_CONTEXT_TIMEOUT_S = 2.0
 
 # ---- 5. one line, capped, cannot close the fence
 check("clean_context_line: newlines and control chars become spaces",
-      plugins_host.clean_context_line("a\nb\r\x00c d‮e") == "a b c d e",
-      plugins_host.clean_context_line("a\nb\r\x00c d‮e"))
+      plugins_host.clean_context_line("a\nb\r\x00c\u2028d\u202ee") == "a b c d e",
+      plugins_host.clean_context_line("a\nb\r\x00c\u2028d\u202ee"))
 check("clean_context_line: non-string is nothing", plugins_host.clean_context_line(None) == ""
       and plugins_host.clean_context_line(42) == "" and plugins_host.clean_context_line("  \n ") == "")
 check("clean_context_line: capped", len(plugins_host.clean_context_line("x" * 1000)) == plugins_host.CHATBOT_CONTEXT_LINE_MAX)
