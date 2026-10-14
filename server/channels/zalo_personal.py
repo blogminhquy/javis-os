@@ -581,7 +581,7 @@ class Transport:
                     if not dung:
                         return
                 try:
-                    out = await self.answer_fn(text, meta, None)
+                    out = await self._tra_loi(text, meta, thread, loai, not nhom or duoc_goi)
                 except BaseException:
                     for f in da_tai:
                         f.unlink(missing_ok=True)
@@ -609,6 +609,38 @@ class Transport:
             self.last_error = f"{type(e).__name__}: {e}"[:300]
             print(f"[zalo-personal bot {self.conn_id}] lượt hỏng: {self.last_error}",
                   file=sys.stderr)
+
+    def _cau_bao_doi(self) -> str:
+        """Câu báo chờ theo ngôn ngữ trả lời của bot (bot nói với KHÁCH, nên theo cài đặt của bot, không theo ui_lang)."""
+        lang = str(((self.cfg_fn() if self.cfg_fn else {}) or {}).get("ngon_ngu") or "vi").lower()
+        if lang.startswith("en"):
+            return "Got it, give me a moment to look into this and I will get back to you."
+        return "Dạ em nhận được rồi, đợi em một xíu để em xem rồi gửi lại ạ."
+
+    async def _tra_loi(self, text: str, meta: dict, thread: str, loai: str, bao_doi: bool):
+        """Gọi `answer_fn`; lượt chưa xong sau `BAO_DOI_GIAY` giây thì gửi trước MỘT câu báo chờ rồi chờ tiếp.
+
+        Chủ nick MTM yêu cầu 15/10/2026: "nếu để người nhận phải chờ lâu thì phải nhắn họ một tin trước, đợi em một xíu
+        để em giải quyết, sau đó em sẽ gửi lại, để người ta hiểu là mình đang hoạt động". Ca thật: giáo viên gửi ảnh
+        nhờ kiểm bài, bot im gần một phút. Agent không làm được việc này (mỗi lượt chỉ ra một câu, sau khi nghĩ xong),
+        nên làm ở đây. `bao_doi` False (tin nhóm không gọi tên bot) thì không báo: bot còn có thể chọn im lặng."""
+        import zalo_personal_channel as zc
+        task = asyncio.ensure_future(self.answer_fn(text, meta, None))
+        giay = float(zc.BAO_DOI_GIAY or 0)
+        if bao_doi and giay > 0:
+            try:
+                return await asyncio.wait_for(asyncio.shield(task), giay)
+            except asyncio.TimeoutError:
+                if zc._BOTS.get(self.conn_id) is self:
+                    try:
+                        await self._gui(thread, self._cau_bao_doi(), loai, meta)
+                    except Exception as e:      # noqa: BLE001 - câu báo chờ hỏng không được làm mất câu trả lời thật
+                        print(f"[zalo-personal bot {self.conn_id}] gửi câu báo chờ lỗi: {type(e).__name__}: {e}",
+                              file=sys.stderr)
+            except asyncio.CancelledError:
+                task.cancel()
+                raise
+        return await task
 
     async def _gui(self, thread: str, cau: str, chat_type: str = "private", meta: Optional[dict] = None):
         import zalo_personal_channel as zc

@@ -688,6 +688,9 @@ def trang_thai() -> dict:
 TUOI_TOI_DA = 180       # giây: tin cũ hơn thế thì KHÔNG trả lời. Lần đầu bật, bộ đệm của MCP
                         # còn cả những tin từ trước; trả lời chúng là dội lại câu hỏi của hôm qua.
 TAY_IM = 600            # giây bot im sau khi chủ TỰ TAY nhắn cuộc chat đó (chủ đang nói chuyện rồi)
+BAO_DOI_GIAY = 20       # lượt trả lời chưa xong sau chừng này giây thì gửi trước một câu báo chờ (xem
+                        # `Transport._tra_loi`); 0 = tắt. 20 giây vì lượt thường mất 8-16 giây (nhật ký bot
+                        # 15/10/2026): thấp hơn thì gần như lượt nào cũng có câu báo chờ thừa ngay trước câu trả lời.
 ECHO_TTL = 900          # giây nhớ câu bot vừa gửi để nhận ra tiếng vọng của nó ở vòng đọc
 TIENG_VONG_TOI_THIEU = 25   # tin của KHÁCH phải dài ít nhất chừng này chữ mới bị coi là tiếng vọng (xem doc_mot_lan)
 NHUONG_GIAY = 20        # giây bot chờ trước khi tự trả lời tin nhóm không ai gọi tên (chế độ Tự
