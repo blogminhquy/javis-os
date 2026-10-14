@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.133.0] - 2026-10-14
+### Thêm mới
+- **Bot Zalo cá nhân đọc được file khách gửi.** Khách gửi file (Excel, PDF, CSV...) ở chat riêng, hoặc gửi file rồi nhắn "xem giúp em", thì bot tải file về thư mục `inbox/khach` trong brain của bot và trả lời kèm file đó. File chữ (txt, md, csv, json...) bot đọc được nội dung luôn; định dạng khác bot nói rõ là chưa đọc, không đoán.
+- Chỉ bot có quyền **Được ghi** trở lên mới tải file. Bot Chỉ đọc vẫn trả lời phần chữ và biết khách có gửi file.
+- Không tải file của người lạ, của cuộc chat đang Tiếp quản, hay file thả vào nhóm mà không ai gọi bot. File quá 20MB hoặc link hết hạn thì bot báo không mở được.
+- Cảm ơn @tuanlong1989florist đã đóng góp.
+
 ## [0.131.0] - 2026-10-14
 ### Thêm mới
 - **Theme riêng cho người vận hành.** Đặt file `theme.css` vào thư mục `branding` trong dữ liệu của Javis (cạnh logo) là dashboard đổi màu, font theo thương hiệu của bạn, và giữ nguyên qua mọi lần cập nhật. Xoá file là về giao diện gốc. Hướng dẫn trong tài liệu Thương hiệu và tên miền.
