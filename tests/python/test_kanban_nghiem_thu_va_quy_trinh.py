@@ -80,6 +80,41 @@ def test_reason_still_falls_back_to_the_last_line():
     assert "Bonus cộng theo gói nào" in TasksFeature._needs_input_reason(raw)
 
 
+def test_marker_counts_only_at_the_start_of_a_line():
+    # Field report 14/10/2026 on 0.108.0 (t_dbe86f05c62f): a finished job was blocked because the
+    # worker mentioned the marker inside a sentence saying it was not needed.
+    from tasks import asks_for_input
+    assert asks_for_input("[[NEEDS_INPUT]] Thiếu ảnh vuông.")
+    assert asks_for_input("Báo cáo\n- **[[NEEDS_INPUT]]** thiếu ảnh")
+    assert asks_for_input("> [[NEEDS_INPUT]] cần chủ chọn mẫu")
+    assert asks_for_input("Bước 3 xong\n[[NEEDS_INPUT]] Workflow dừng chờ duyệt bước 4")
+    assert not asks_for_input("Đủ đầu ra theo điều kiện hoàn thành, không cần ghi [[NEEDS_INPUT]].")
+    assert not asks_for_input("Theo mục 9, chỉ mở đầu bằng [[NEEDS_INPUT]] khi thiếu đầu ra; ở đây đã đủ.")
+    assert not asks_for_input("")
+
+
+def test_reason_ignores_a_marker_mentioned_mid_sentence():
+    raw = ("[[NEEDS_INPUT]] Thiếu ảnh thành phẩm của F10Z.\n"
+           "Ghi chú: theo luật thì [[NEEDS_INPUT]] chỉ dùng khi thiếu đầu ra.")
+    assert TasksFeature._needs_input_reason(raw).startswith("Thiếu ảnh thành phẩm")
+
+
+def test_finished_worker_that_mentions_the_marker_is_done(tmp_path):
+    feature, brain = _feature(tmp_path)
+    feature._base_cli = lambda *a, **k: object()
+
+    async def query(cli, prompt):
+        if "autonomous worker" in prompt:
+            return ("Đã xem kết quả kiểm chứng 2 ảnh F10Z 8.0 lắp máy và quyết định giữ ảnh 1.\n"
+                    "Đạt đủ điều kiện hoàn thành nên không cần ghi [[NEEDS_INPUT]]."), "", []
+        return '{"pass": true, "missing": ""}', "", []
+
+    feature._query = query
+    t = _run(feature, {"brain_root": str(brain), "title": "F10Z", "intent": "Xem kết quả kiểm chứng và quyết định",
+                       "acceptance": ["Có quyết định giữ ảnh nào"]}, feature._execute)
+    assert t["status"] == "done", (t["status"], t.get("block_reason"))
+
+
 # ---------------------------------------------------------------- acceptance
 
 def test_unfinished_admission_is_read_only_from_the_top():

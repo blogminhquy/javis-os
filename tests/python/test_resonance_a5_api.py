@@ -62,18 +62,15 @@ def row(slug):
 
 
 check("chưa chọn: reviewer của trợ lý là None", row(T.MAKER)["reviewer"] is None)
+# 0.142.0: bỏ người review cố định. Route còn để dashboard cũ nhận câu trả lời rõ: chọn người là 410, không lưu gì.
 r = C.post("/resonance/agents/reviewer", params={"brain": "x"}, json={"slug": T.MAKER, "reviewer_slug": T.REVIEWER})
-check("chọn người review theo slug: 200, lưu theo mã bền", r.status_code == 200
-      and r.json()["pair"]["reviewer_agent_key"] == t.reviewer["agent_key"]
-      and row(T.MAKER)["reviewer"]["slug"] == T.REVIEWER, r.text)
-r = C.post("/resonance/agents/reviewer", params={"brain": "x"}, json={"slug": T.MAKER, "reviewer_slug": "tat"})
-check("trợ lý chưa bật Cộng hưởng không làm người review được: 409, cặp không đổi", r.status_code == 409
-      and row(T.MAKER)["reviewer"]["slug"] == T.REVIEWER, r.text)
-r = C.post("/resonance/agents/reviewer", params={"brain": "x"}, json={"slug": T.MAKER, "reviewer_slug": T.MAKER})
-check("không tự review chính mình: 409", r.status_code == 409, r.text)
-r = C.post("/resonance/agents/reviewer", params={"brain": "x"}, json={"slug": "khong-co", "reviewer_slug": T.REVIEWER})
-check("trợ lý làm không tồn tại hay chưa bật: 409", r.status_code == 409, r.text)
+check("0.142.0: chọn người review bị từ chối 410, cặp không được tạo", r.status_code == 410 and r.json().get("removed")
+      and row(T.MAKER)["reviewer"] is None and t.store.team_pair(t.brain, t.maker["agent_key"]) is None, r.text)
+r = C.post("/resonance/agents/reviewer", params={"brain": "x"}, json={"slug": T.MAKER, "reviewer_slug": ""})
+check("0.142.0: bỏ chọn là thành công, không làm gì", r.status_code == 200 and r.json().get("removed"), r.text)
 
+# Mục tiêu CŨ có đội (dựng thẳng qua kho như trước 0.142.0): thẻ vẫn hiện đội, lượt, vòng để lịch sử review không mất.
+t.store.team_pair_set(t.owner, t.maker["agent_key"], t.reviewer["agent_key"])
 g = t.create()
 t.wake(g)
 v = C.get(f"/goals/{g.id}", params={"brain": "x"}).json()["goal"]
@@ -83,10 +80,6 @@ check("goal view có khối team: hai vai theo slug hiện tại, lượt theo v
       and tm.get("calls") == {"maker": {"cap": 4, "used": 1}, "reviewer": {"cap": 4, "used": 0}}
       and tm.get("max_rounds") == 2 and v.get("block_reason") == "review_pending", tm)
 check("goal view không chứa tag", "tags" not in tm and "tag" not in str(tm.get("reviewer")))
-
-r = C.post("/resonance/agents/reviewer", params={"brain": "x"}, json={"slug": T.MAKER, "reviewer_slug": ""})
-check("bỏ chọn: cặp tắt cho mục tiêu MỚI; mục tiêu đã có đội giữ người review", r.status_code == 200
-      and row(T.MAKER)["reviewer"] is None and t.team(g)["reviewer_agent_key"] == t.reviewer["agent_key"], r.text)
 
 r = C.post(f"/goals/{g.id}/commands", params={"brain": "x"}, json={"command": "team_detach"})
 check("lệnh team_detach của chủ dự án: tách đội, goal view nói đã tách", r.status_code == 200

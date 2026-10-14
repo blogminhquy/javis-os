@@ -92,6 +92,9 @@ class Team:
         self.state = state
         self.name = name
         self.store = RS.GoalStore(state / f"{name}.sqlite3")
+        # 0.142.0 bỏ người review cố định cho mục tiêu MỚI. Các test A5 dựng lại mục tiêu kiểu cũ (có đội) để đường review
+        # của mục tiêu cũ còn được kiểm; test riêng của bản 0.142.0 ở test_review_removed_0142.py.
+        self.store.attach_reviewer_teams = True
         self.maker = RA.enable(self.store, self.brain, MAKER)
         self.reviewer = RA.enable(self.store, self.brain, REVIEWER)
         self.owner = RA.owner(self.brain)
@@ -122,6 +125,7 @@ class Team:
     def reopen(self):
         """Mở lại kho (mô phỏng khởi động lại tiến trình)."""
         self.store = RS.GoalStore(self.state / f"{self.name}.sqlite3")
+        self.store.attach_reviewer_teams = True
         return self.store
 
     def ag(self, slug=MAKER):

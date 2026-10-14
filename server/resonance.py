@@ -3757,14 +3757,14 @@ def notice_text(goal: GoalRecord, kind: str, payload: dict, presentation: Option
         why = {
             "budget_maker": ("người làm đã dùng hết phần lượt của mình", "the maker used all of its calls"),
             "budget_reviewer": ("người review đã dùng hết phần lượt của mình", "the reviewer used all of its calls"),
-            "budget": ("đã chạm trần tổng lượt gọi của Cộng hưởng", "the overall Resonance call ceiling was reached"),
+            "budget": ("đã chạm trần tổng lượt gọi của Auto", "the overall Auto call ceiling was reached"),
             "review_unknown": ("lượt review không ra kết luận đọc được sau các lần thử cho phép",
                                "the review gave no readable verdict within the allowed tries"),
             "too_large": ("bản quá dài để review", "the version is too long to review"),
             "snapshot_mismatch": ("ảnh chụp của bản đã tiếp nhận không khớp hash", "the snapshot of the accepted version "
                                                                                   "does not match its hash"),
             "no_accepted": ("chưa có bản được tiếp nhận để review", "there is no accepted version to review"),
-            "reviewer_off": ("người review đang tắt Cộng hưởng", "the reviewer has Resonance turned off"),
+            "reviewer_off": ("người review đang tắt Auto", "the reviewer has Auto turned off"),
             "reviewer_missing": ("file của người review không còn trong brain", "the reviewer file is missing"),
             "reviewer_retired": ("người review đã bị xoá; agent mới cùng tên không thay được",
                                  "the reviewer was deleted; a new agent with the same name cannot replace it"),
@@ -4083,7 +4083,8 @@ def _team_view(store, principal, g: GoalRecord) -> Optional[dict]:
                       "sha8": str(r.get("artifact_sha") or "")[:8], "criteria": r.get("criteria") or [],
                       "fixes": r.get("fixes") or "", "at": r.get("finished_at")}
             break
-    return {"legacy": False, "status": t["status"], "maker": who(t["maker_agent_key"]),
+    return {"legacy": False, "status": t["status"], "detached_by": str(t.get("detached_by") or ""),
+            "maker": who(t["maker_agent_key"]),
             "reviewer": who(t["reviewer_agent_key"]), "calls": t.get("calls") or {},
             "max_rounds": int(t["max_rounds"]), "rounds_used": store.review_rounds(principal, g.id, g.revision),
             "latest": latest}
@@ -4385,7 +4386,7 @@ async def compare_methods(goal_id: str, baseline_ref: str, candidate_ref: str, c
 def _compare_check(g: GoalRecord, baseline_ref: str, candidate_ref: str, deps: GoalDeps) -> None:
     store, p = deps.store, deps.principal
     if agent_gate(store, p.brain_id, g.agent_key)[1]:
-        raise GoalRejected("trợ lý của mục tiêu chưa bật Cộng hưởng")
+        raise GoalRejected("trợ lý của mục tiêu chưa bật Auto")
     _, why = _trial_gate(g, deps, deps.clock())
     if why:
         raise GoalRejected(f"mục tiêu không chạy được lúc này: {why}")

@@ -28,21 +28,24 @@ const all = [
   { slug: "tat", name: "Đang tắt", enabled: false, status: "active" },
   { slug: "mat", name: "Mất file", enabled: true, status: "missing" },
 ];
+// 0.142.0: bỏ ô Người review. Bật Auto chỉ còn một dòng nhắc giao việc kiểm chứng riêng; thẻ của mục tiêu cũ (dòng đội,
+// lượt review, góp ý) vẫn vẽ như trước để lịch sử review không mất.
 let h = RA.panelHtml(me, "ready", [], all);
-check("bật Cộng hưởng: có ô Người review, mặc định Không có", h.includes("rsa-reviewer")
-      && h.includes(vi["resonance.a5_reviewer_none"]) && h.includes(vi["resonance.a5_reviewer_note"]));
-check("ô chỉ liệt kê trợ lý ĐÃ BẬT (không theo tag): có người duyệt; không có trợ lý tắt hay mất file",
-      h.includes('value="duyet"') && !h.includes('value="tat"') && !h.includes('value="mat"'));
-check("tag không xuất hiện trong ô chọn", !h.includes("Review</option>"));
+check("0.142.0: không còn ô Người review, có dòng nhắc kiểm chứng bằng việc riêng", !h.includes("rsa-reviewer")
+      && !h.includes("<select") && h.includes(vi["resonance.verify_note"]));
 h = RA.panelHtml(Object.assign({}, me, { enabled: false }), null, [], all);
-check("trợ lý chưa bật Cộng hưởng: không có ô Người review", !h.includes("rsa-reviewer"));
+check("trợ lý chưa bật: không có dòng nhắc", !h.includes("rsa-verify"));
 h = RA.panelHtml(Object.assign({}, me, { reviewer: { slug: "duyet", status: "active", enabled: true } }), "ready", [], all);
-check("người review đang chọn được đánh dấu selected", /value="duyet" selected/.test(h));
-h = RA.panelHtml(Object.assign({}, me, { reviewer: { slug: "tat", status: "active", enabled: false } }), "ready", [], all);
-check("người review đang chọn mà đã tắt vẫn hiện kèm nhãn để thấy vì sao bị chặn",
-      /value="tat" selected/.test(h) && h.includes(vi["resonance.a5_reviewer_off_tag"]));
+check("cặp cũ còn trong dữ liệu cũng không dựng lại ô chọn", !h.includes("rsa-reviewer"));
 
 // ───────────── dòng đội trên thẻ ─────────────
+{
+  const rb = { goal_id: "g_r", revision: 1, status: "active", understanding: "x", criteria: [], paused: true,
+    team: { legacy: false, status: "detached", detached_by: "host:review_removed", maker: {}, reviewer: {}, calls: {} } };
+  const rh = RS.viewHtml(rb);
+  check("0.142.0: mục tiêu được gỡ người review lúc nâng cấp nói rõ đang dừng chờ chủ", rh.includes(vi["resonance.a5_removed_line"])
+        && !rh.includes(vi["resonance.a5_detached_line"]), rh);
+}
 const base = { goal_id: "g_1", revision: 1, status: "active", understanding: "Bản tóm tắt", criteria: [],
   budget_calls: 8, calls_used: 3 };
 const team = { legacy: false, status: "active", maker: { slug: "lam", agent_key: "ag_l" },

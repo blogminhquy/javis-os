@@ -51,6 +51,8 @@ function dungCtx(loai, tabCua) {
     localStorage: { getItem: (k) => (k in kho ? kho[k] : null), setItem(k, v) { kho[k] = String(v); } },
     window: { JavisVaultPanel: { borrow() { return true; }, giveBack() {} } },
     traCayThuMuc() {},
+    // 0.142.0: rời tab Công việc thì gỡ tab đó (biến của workspace.js, ngoài đoạn được bóc).
+    _congViec: null,
     kho: kho,
   };
   vm.createContext(ctx); vm.runInContext(doan, ctx);

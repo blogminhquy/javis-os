@@ -105,7 +105,7 @@ def register(app, deps: ResonanceApiDeps):
         return root, RS.Principal("owner", "owner", root)
 
     def _off(why: str) -> JSONResponse:
-        return _err(403, f"Trợ lý chưa bật Cộng hưởng ({why})", f"The assistant has Resonance turned off ({why})",
+        return _err(403, f"Trợ lý chưa bật Auto ({why})", f"The assistant has Auto turned off ({why})",
                     reason=why)
 
     @app.get("/resonance/settings")
@@ -692,32 +692,19 @@ def register_a5(app, deps: ResonanceApiDeps):
 
     @app.post("/resonance/agents/reviewer")
     async def resonance_agent_reviewer(request: Request, brain: str = "brain"):
-        """A5: chủ dự án chọn hay bỏ chọn NGƯỜI REVIEW cho một agent làm (theo slug hiện tại, lưu theo mã bền). Chỉ qua
-        lớp auth/CSRF của dashboard; không tool nào gọi được. `reviewer_slug` rỗng là bỏ chế độ đội cho mục tiêu MỚI;
-        mục tiêu đã có đội giữ nguyên người review đã ghim. Tag không tham gia."""
-        root, owner = _ctx(brain)
+        """0.142.0: đã bỏ người review cố định cho mục tiêu mới. Route còn lại để dashboard cũ trong cache trình duyệt
+        nhận một câu trả lời rõ thay vì lỗi lạ: bỏ chọn (rỗng) thì thành công và không làm gì, chọn người thì 410.
+        Cần kiểm chứng thì giao một việc riêng cho trợ lý phù hợp ở tab Công việc."""
+        root, _owner = _ctx(brain)
         if root is None:
             return _err(404, "Không tìm thấy brain", "Brain not found")
-        if not _store_exists():
-            return _err(409, "Trợ lý chưa bật Cộng hưởng", "The assistant has Resonance turned off")
         body = await _body(request)
-        slug = str(body.get("slug") or "").strip()
-        rslug = str(body.get("reviewer_slug") or "").strip()
-        store = deps.store()
-        mk = store.agent(root, slug) if slug else None
-        if mk is None or mk["status"] != "active":
-            return _err(409, "Trợ lý làm chưa bật Cộng hưởng", "The maker assistant has Resonance turned off")
-        rv = None
-        if rslug:
-            rv = store.agent(root, rslug)
-            if rv is None or rv["status"] != "active" or not rv["enabled"]:
-                return _err(409, "Người review phải là trợ lý đã bật Cộng hưởng trong brain này",
-                            "The reviewer must be an assistant with Resonance turned on in this brain")
-        try:
-            pr = await asyncio.to_thread(store.team_pair_set, owner, mk["agent_key"], rv["agent_key"] if rv else None)
-        except RS.AgentStateError as e:
-            return _err(409, f"Chưa chọn được người review: {e}", f"Could not set the reviewer: {e}")
-        return {"ok": True, "pair": pr}
+        if not str(body.get("reviewer_slug") or "").strip():
+            return {"ok": True, "pair": None, "removed": True}
+        return _err(410, "Javis đã bỏ người review cố định. Cần kiểm chứng thì giao một việc riêng cho trợ lý phù hợp "
+                         "ở tab Công việc.",
+                    "Fixed reviewers were removed. To get a check, assign a separate job to a suitable assistant on "
+                    "the Jobs tab.", removed=True)
 
     @app.post("/goals/{goal_id}/reviewer/enable")
     async def goal_reviewer_enable(goal_id: str, request: Request, brain: str = "brain"):

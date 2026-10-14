@@ -79,11 +79,16 @@
         '<span class="ws-rs-text">' + esc(label) + "</span></button>";
     }
     var on = !!row.enabled && row.status === "active";
-    var aria = tw("resonance.t0_toggle_aria", { name: row.name || row.slug });
-    return '<label class="ws-rs" title="' + esc(aria) + '"><span class="ws-rs-text">' + esc(label) + "</span>" +
-      '<span class="toggle"><input type="checkbox" class="ws-rs-toggle" data-rs="' + esc(row.slug) + '"' +
-      ' aria-label="' + esc(aria) + '"' + (on ? " checked" : "") + (o.saving ? " disabled" : "") +
-      "><span></span></span></label>";
+    // Trạng thái bằng chữ ("Auto: Bật") nằm đầu nhãn cho trình đọc màn hình và tooltip; mắt thấy nhãn ngắn "Auto" và
+    // màu của công tắc.
+    var aria = tw(stateKey(row)) + " · " + tw("resonance.t0_toggle_aria", { name: row.name || row.slug });
+    // 0.142.0: nhãn ngắn "Auto" và công tắc nhỏ nằm TRONG thẻ trợ lý (góc dưới phải). Bật màu cam Javis, tắt xám; trạng
+    // thái đọc được bằng chữ qua aria và tooltip, không chỉ bằng màu. Đang lưu thì khoá và nói "Đang lưu".
+    return '<label class="ws-rs ws-auto' + (on ? " is-on" : "") + (o.saving ? " is-saving" : "") + '" title="' + esc(aria) + '">' +
+      '<span class="ws-rs-text">' + esc(o.saving ? label : tw("resonance.auto_label")) + "</span>" +
+      '<span class="toggle toggle-sm"><input type="checkbox" class="ws-rs-toggle" data-rs="' + esc(row.slug) + '"' +
+      ' role="switch" aria-checked="' + (on ? "true" : "false") + '" aria-label="' + esc(aria) + '"' + (on ? " checked" : "") +
+      (o.saving ? " disabled" : "") + "><span></span></span></label>";
   }
 
   /* Hỏi lại trước khi TẮT khi trợ lý còn mục tiêu mở (hợp đồng A1: dừng ở bước kế tiếp). Không có thì không hỏi. */
@@ -95,29 +100,10 @@
 
   /* Khối Cộng hưởng của MỘT trợ lý. `row`: một mục của GET /resonance/agents (hay null khi chưa tải được),
      `session`: ready | needs_new_session | not_this_agent | null, `goals`: GET /resonance/goals?agent_key=. */
-  /* A5: ô chọn Người review (thiết kế A5 mục 4.2). Danh sách là các trợ lý ĐÃ BẬT Cộng hưởng trong brain, trừ chính
-     trợ lý này; lấy theo trạng thái Cộng hưởng, không theo tag. Cặp lưu ở host theo mã bền. Người review đang chọn mà
-     đã tắt vẫn hiện (kèm nhãn) để chủ dự án thấy vì sao mục tiêu bị chặn. */
-  function reviewerHtml(row, all) {
-    var cur = (row && row.reviewer) || null;
-    var curSlug = cur ? String(cur.slug || "") : "";
-    var cands = (all || []).filter(function (a) {
-      return a && a.slug !== S.slug && a.status === "active" && a.enabled;
-    });
-    var opts = '<option value="">' + esc(tw("resonance.a5_reviewer_none")) + "</option>";
-    var seen = false;
-    cands.forEach(function (a) {
-      if (a.slug === curSlug) seen = true;
-      opts += '<option value="' + esc(a.slug) + '"' + (a.slug === curSlug ? " selected" : "") + ">" +
-        esc(a.name || a.slug) + "</option>";
-    });
-    if (curSlug && !seen) {
-      opts += '<option value="' + esc(curSlug) + '" selected>' + esc(curSlug) + " " +
-        esc(tw("resonance.a5_reviewer_off_tag")) + "</option>";
-    }
-    return '<div class="rsa-team"><label class="rsa-sub" for="rsaReviewer">' + esc(tw("resonance.a5_reviewer")) +
-      '</label><select class="js-input rsa-reviewer" id="rsaReviewer">' + opts + "</select>" +
-      '<div class="rsa-sub rsa-note">' + esc(tw("resonance.a5_reviewer_note")) + "</div></div>";
+  /* 0.142.0: bỏ ô Người review (cặp làm/review cố định của A5). Mục tiêu mới không gắn người review; cần kiểm chứng thì
+     giao một việc riêng cho trợ lý phù hợp ở tab Công việc. Tiêu chí hoàn thành, góp ý và lịch sử review cũ vẫn giữ. */
+  function verifyNoteHtml() {
+    return '<div class="rsa-sub rsa-note rsa-verify">' + esc(tw("resonance.verify_note")) + "</div>";
   }
 
   function panelHtml(row, session, goals, all) {
@@ -126,7 +112,9 @@
     // T0: công tắc nằm trên dòng trợ lý ở cột trái (một nơi duy nhất). Ở đây chỉ còn trạng thái bằng chữ.
     var html = '<div class="rsa-head"><span class="rsa-title">' + esc(tw("resonance.a1_title")) + "</span>" +
       '<span class="rsa-state">' + esc(tw(stateKey(r))) + "</span></div>" +
-      '<div class="rsa-sub">' + esc(tw("resonance.t0_where")) + "</div>";
+      '<div class="rsa-sub rsa-desc">' + esc(tw("resonance.auto_desc")) + "</div>" +
+      '<div class="rsa-sub">' + esc(tw("resonance.t0_where")) + "</div>" +
+      '<div class="rsa-sub rsa-note">' + esc(tw("resonance.auto_not_full")) + "</div>";
     html += '<div class="rsa-sub rsa-note">' + esc(toggleNote(r.status === "unregistered" ? { status: "active",
       enabled: false } : r, session)) + "</div>";
     if (on && session === "needs_new_session") {
@@ -138,7 +126,7 @@
         esc(tw("resonance.a1_confirm_new")) + "</button></div>";
     }
     html += supportHtml(r.support);
-    if (on) html += reviewerHtml(r, all);
+    if (on) html += verifyNoteHtml();
     var list = (goals || []).filter(function (g) { return g && g.goal_id; });
     html += '<div class="rsa-goals-title">' + esc(tw("resonance.a1_goals_title")) + "</div>";
     if (!list.length) html += '<div class="rsa-sub">' + esc(tw("resonance.a1_no_goals")) + "</div>";
@@ -379,22 +367,6 @@
   }
 
   function wire(host, row) {
-    var rs = host.querySelector(".rsa-reviewer");
-    if (rs) rs.addEventListener("change", function () {
-      // A5: chỉ chủ dự án đổi được (route qua lớp auth của dashboard); đổi cặp chỉ áp cho mục tiêu MỚI.
-      rs.disabled = true;
-      postJson("/resonance/agents/reviewer?brain=" + q(brain()), { slug: S.slug, reviewer_slug: rs.value })
-        .then(function (res) {
-          if (res.code !== 200) {
-            host.insertAdjacentHTML("beforeend", '<div class="rsa-warn">' + esc((res.j && res.j.error) ||
-              tw("resonance.failed")) + "</div>");
-            rs.disabled = false;
-            return;
-          }
-          refresh();
-        })
-        .catch(function () { rs.disabled = false; });
-    });
     var nb = host.querySelector(".rsa-new-session");
     if (nb) nb.addEventListener("click", function () {
       // Mở phiên mới đi đúng đường của trang; trang gắn lại khối với phiên mới và host nói nó có dùng được không.
@@ -501,7 +473,7 @@
     });
   }
 
-  var api = { mount: mount, refresh: refresh, panelHtml: panelHtml, reviewerHtml: reviewerHtml,
+  var api = { mount: mount, refresh: refresh, panelHtml: panelHtml, verifyNoteHtml: verifyNoteHtml,
     rowToggleHtml: rowToggleHtml, stateKey: stateKey, offConfirmText: offConfirmText, toggleAgent: toggleAgent,
     settingsHtml: settingsHtml, toggleNote: toggleNote,
     lessonsHtml: lessonsHtml, supportHtml: supportHtml };

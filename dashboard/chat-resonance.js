@@ -315,6 +315,10 @@
     if (t.legacy) return '<div class="rs-line rs-muted rs-team">' + esc(tw("resonance.a5_legacy")) + "</div>";
     var mk = (t.maker || {}).slug || "", rv = (t.reviewer || {}).slug || "";
     if (t.status === "detached") {
+      // 0.142.0: Javis gỡ người review cố định lúc nâng cấp. Mục tiêu đang dừng chờ chủ quyết, không tự chốt.
+      if (t.detached_by === "host:review_removed") {
+        return '<div class="rs-line rs-team rs-review-removed">' + esc(tw("resonance.a5_removed_line")) + "</div>";
+      }
       return '<div class="rs-line rs-muted rs-team">' + esc(tw("resonance.a5_detached_line")) + "</div>";
     }
     var h = '<div class="rs-line rs-team">' + esc(tw("resonance.a5_team", { maker: mk, reviewer: rv })) + "</div>";

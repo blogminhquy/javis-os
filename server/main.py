@@ -2332,7 +2332,9 @@ def _resonance_agents_meta(root):
     for a in agents_index(root, kem_prompt=False):
         prov = _agent_model_provider(a.get("model") or "", a.get("model_provider") or "") if a.get("model") else main_prov
         # avatar: trang Nhóm vẽ đúng ảnh trợ lý đang dùng (cùng nhân dạng với trang Cộng sự).
-        out.append({"slug": a["slug"], "name": a.get("name") or a["slug"], "provider": prov, "avatar": a.get("avatar")})
+        # title: vai của trợ lý (dòng "role" ở trang Cộng sự) cho gợi ý @ của trang Nhóm (0.142.0).
+        out.append({"slug": a["slug"], "name": a.get("name") or a["slug"], "provider": prov, "avatar": a.get("avatar"),
+                    "title": str(a.get("role") or "")[:120]})
     return out
 
 
@@ -22277,6 +22279,7 @@ resonance_api.register_a5(app, _RESONANCE_API_DEPS)
 # ── Nhóm chat team (T1, spec docs/superpowers/specs/2026-10-13-team-chat-design.md) ──
 import team_api  # noqa: E402
 import team_runner  # noqa: E402
+import team_engine  # noqa: E402
 
 
 def _team_agent_info(root, agent_key):
@@ -22296,8 +22299,9 @@ def _team_agent_info(root, agent_key):
 
 def _team_engine_for(team, agent_key, role):
     """Engine CHỈ CHỮ cho một lượt nhóm (phán quyết R3 của kế hoạch T1): thư mục trống, không MCP, cổng từ chối mọi công
-    cụ. Agent có model Claude riêng (`model` + provider anthropic-cli) thì chạy model đó; còn lại dùng model việc nền như
-    lượt Cộng hưởng, không tự đổi provider.
+    cụ. Model theo hợp đồng chat tương tác và giao việc (`team_engine`, 0.142.0): model riêng của trợ lý, thiếu hay chưa
+    cấu hình được thì model chính. KHÔNG còn đi qua `_resonance_engine` (model việc nền, hợp đồng Cộng hưởng): máy để
+    Codex làm model việc nền từng làm cả nhóm im lặng.
 
     Review T1:
     - R4: engine được DỰNG xong (và báo sẵn sàng) rồi mới gọi `req["engine_started"]`, mốc tính lượt của bộ chạy; dựng
@@ -22308,30 +22312,43 @@ def _team_engine_for(team, agent_key, role):
       gọi sau khi kiểm đầu ra còn hợp lệ; `commit` kiểm lại danh tính (mã bền còn trỏ đúng slug) ngay trước khi ghi."""
     root = team["brain_id"]
     info = _team_agent_info(root, agent_key) or {}
-    model = info.get("model") or ""
-    own_claude = bool(model) and _agent_model_provider(model, info.get("model_provider") or "") == "anthropic-cli"
+    settings = cfgmod.read_settings() or {}
+    spec = team_engine.choose_spec(
+        info.get("model") or "", info.get("model_provider") or "", _effective_main(settings),
+        _agent_model_provider, lambda sp: aux_engine.availability(sp, settings))
 
     def _build(system, tag):
-        if own_claude:
-            eng = _reply_policy_sandbox_engine(system, tag, cwd_name="team_cwd")
-            eng.model = model
-        else:
-            eng, why = _resonance_engine(system, tag)
-            if eng is None:
-                raise team_runner.EngineUnavailable(
-                    f"model việc nền chưa chạy được lượt chỉ chữ: {(why or {}).get('reason') or why}")
+        base = _reply_policy_sandbox_engine(system, tag, cwd_name="team_cwd")
+        try:
+            eng = team_engine.build(spec, base, tag, settings)
+        except team_engine.TeamEngineUnavailable as ex:
+            raise team_runner.EngineUnavailable(ex.reason)
         avail = getattr(eng, "is_available", None)
         if callable(avail) and not avail():
-            raise team_runner.EngineUnavailable("engine chưa sẵn sàng (kiểm tra trang Models)")
+            raise team_runner.EngineUnavailable(f"engine {spec['provider']} chưa sẵn sàng (kiểm tra trang Models)")
         return eng
 
     async def run(req):
-        tag = f"team-{str(req['team_id'])[-8:]}"
+        # Tag riêng cho TỪNG lượt (0.142.0): lượt bị huỷ hay quá trần thời gian (team_runner.TURN_TIMEOUT_S) thì giết đúng
+        # tiến trình engine của lượt này TRƯỚC khi khoá bận được nhả, để Thử lại không chạy song song với một tiến trình
+        # cũ còn sống (review 0.142.0, #2).
+        tag = f"team-{str(req['team_id'])[-8:]}-{str(req.get('turn_id') or '')[-10:]}"
         eng = await asyncio.to_thread(_build, req["system"], tag)
         await req["engine_started"]()
         outcome = team_runner.TextOnlyOutcome()
-        async for ev in eng.query(req["prompt"]):
-            outcome.note(ev)
+        stream = eng.query(req["prompt"])
+        try:
+            async for ev in stream:
+                outcome.note(ev)
+        except asyncio.CancelledError:
+            try:
+                await asyncio.to_thread(claude_cli.cancel_all, tag)
+            finally:
+                try:
+                    await stream.aclose()
+                except BaseException:  # noqa: BLE001 - generator đang bị huỷ
+                    pass
+            raise
         res = outcome.result()
         slug = info.get("slug") or ""
         # JAVIS_RULE trong lượt nhóm không có chủ nói trực tiếp với agent: hạ thành bài học (như bước workflow).
@@ -22348,10 +22365,10 @@ def _team_engine_for(team, agent_key, role):
             _log_agent_run(root, slug, "", clean)
 
         return {"text": clean, "tokens_in": res["tokens_in"], "tokens_out": res["tokens_out"],
-                "lessons": lessons, "commit": commit}
+                "lessons": lessons, "commit": commit, "engine_note": spec.get("note") or ""}
 
     run.marks_engine = True
-    return ("anthropic-cli" if own_claude else "aux"), model, run
+    return spec["provider"], spec["model"], run
 
 
 class _TeamAdmin:
@@ -22406,7 +22423,245 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     brain_key=lambda b: _brain_key(b), session_store=lambda: get_store(),
     task_store=lambda: tasks_feature.store, resonance_store=lambda: _resonance_store(),
     agents_meta=_resonance_agents_meta, agent_info=_team_agent_info, engine_for=_team_engine_for,
-    broadcast=lambda ev: _CHAT_RUNTIME.publish(ev), notify=_team_notify, admin=_TeamAdmin()))
+    broadcast=lambda ev: _CHAT_RUNTIME.publish(ev), notify=_team_notify, admin=_TeamAdmin(),
+    owner_name=lambda: ((cfgmod.read_settings().get("auth") or {}).get("username") or "")))
+
+
+
+# ── Tab Công việc của trợ lý (0.142.0): gom việc theo agent_key từ nhóm, chat riêng và Auto ──
+import agent_jobs  # noqa: E402
+
+
+def _agent_persona(root, slug, agent_key=None):
+    """Vai của trợ lý cho việc Kanban giao bằng nút Giao việc: đúng lời nhắc trợ lý dùng ở quy trình (vai, thân file, kỹ
+    năng, bộ nhớ riêng). Engine, quyền và trần của Kanban giữ nguyên.
+
+    `agent_key` (đọc từ khoá của việc): slug phải còn thuộc ĐÚNG mã đó. Slug đã được dùng lại cho trợ lý mới (xoá rồi
+    tạo lại) thì việc của trợ lý cũ không mang vai của trợ lý mới: trả rỗng, việc chạy như việc Kanban thường."""
+    if not _agent_md_path(root, slug):
+        return ""
+    if agent_key is not None:
+        try:
+            if _RESONANCE_STORE is None and not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+                return ""
+            reg = _resonance_store().agent_by_key(root, agent_key)
+        except Exception:  # noqa: BLE001
+            return ""
+        if not reg or reg.get("slug") != slug or reg.get("status") != "active":
+            return ""
+    name, sysprompt, _model, _prov = _workflow_agent_helpers(root, None)[1](slug)
+    return (f"# VAI CỦA VIỆC NÀY\nViệc này được giao cho trợ lý \"{name}\". Làm đúng vai dưới đây, báo kết quả bằng "
+            f"giọng của trợ lý đó.\n\n{sysprompt}")
+
+
+tasks_feature.deps.agent_persona = _agent_persona
+
+
+def _agent_jobs_key(root, slug, register=False):
+    """Mã bền của trợ lý (theo slug hiện tại). `register`: chưa có thì cấp (không bật Auto)."""
+    if register:
+        return _TEAM_API.register_agent(root, slug)["agent_key"]
+    if _RESONANCE_STORE is None and not (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+        return None
+    row = _resonance_store().agent(root, slug)
+    return row["agent_key"] if row and row.get("status") == "active" else None
+
+
+def _agent_jobs_keys(root):
+    """{slug: agent_key hay ""} mọi trợ lý của brain (một lần đọc sổ danh tính, không cấp mã mới)."""
+    keys = {}
+    if _RESONANCE_STORE is not None or (Path(cfgmod.STATE_DIR) / "resonance.sqlite3").is_file():
+        for a in _resonance_store().agents(root):
+            if a.get("status") == "active":
+                keys[a["slug"]] = a["agent_key"]
+    return {a["slug"]: keys.get(a["slug"], "") for a in agents_index(root, kem_prompt=False)}
+
+
+def _agent_jobs_teams(key, root):
+    """Nhóm đang hoạt động trong brain mà trợ lý là thành viên đang tham gia: nơi nhận kết quả của Giao việc."""
+    if not key or not _TEAM_API.exists():
+        return []
+    teams = _TEAM_API.teams()
+    return [{"team_id": t["team_id"], "name": t.get("name") or ""} for t in teams.teams_of_agent(key)
+            if t.get("brain_id") == root and t.get("status") == "active" and teams.is_active_member(t["team_id"], key)]
+
+
+def _agent_jobs_sources(root, key):
+    goals = _resonance_store() if key else None
+    teams = _TEAM_API.teams() if (key and _TEAM_API.exists()) else None
+    return goals, teams, resonance_store.Principal("owner", "owner", root)
+
+
+@app.get("/agents/jobs/counts")
+async def agent_jobs_counts(brain: str = "brain"):
+    """Huy hiệu việc trên thẻ trợ lý (trang Cộng sự): {slug: {running, needs_you}}, chỉ trợ lý đang có việc. Đọc nhẹ:
+    bỏ lịch sử, Kanban đọc một lần cho cả brain. Tách khỏi trạng thái Auto: Auto tắt vẫn có thể có việc Đang làm."""
+    root = _brain_key(brain)
+
+    def _do():
+        keys = _agent_jobs_keys(root)
+        goals, teams, principal = _agent_jobs_sources(root, any(keys.values()))
+        counts = agent_jobs.active_counts(keys, root, brain_keys=_brain_keys(brain), teams=teams,
+                                          tasks=tasks_feature.store, sessions=get_store(), goals=goals,
+                                          principal=principal)
+        return {"ok": True, "counts": counts}
+    return await asyncio.to_thread(_do)
+
+
+@app.get("/agents/{slug}/jobs/verify-targets")
+async def agent_jobs_verify_targets(slug: str, brain: str = "brain"):
+    """Việc gần đây của các trợ lý KHÁC trong brain, để chọn mục cần kiểm chứng khi giao việc Kiểm chứng cho `slug`.
+    Chỉ đọc."""
+    root = _brain_key(brain)
+    if not _agent_md_path(root, slug):
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không tìm thấy trợ lý", "Assistant not found")},
+                            status_code=404)
+
+    def _do():
+        keys = _agent_jobs_keys(root)
+        names = {a["slug"]: a.get("name") or a["slug"] for a in agents_index(root, kem_prompt=False)}
+        goals, teams, principal = _agent_jobs_sources(root, any(keys.values()))
+        items = agent_jobs.verify_targets(keys, slug, root, names=names, brain_keys=_brain_keys(brain), teams=teams,
+                                          tasks=tasks_feature.store, sessions=get_store(), goals=goals,
+                                          principal=principal)
+        return {"ok": True, "items": items}
+    return await asyncio.to_thread(_do)
+
+
+@app.get("/agents/{slug}/jobs")
+async def agent_jobs_list(slug: str, brain: str = "brain", source: str = "all", bucket: str = "",
+                          cursor: str = "", limit: int = agent_jobs.PAGE):
+    """Việc của một trợ lý, đọc thẳng bản ghi gốc (không sao chép): việc nhóm (kể cả bước con, hỗ trợ), việc từ chat
+    riêng, mục tiêu Auto. Lọc theo nguồn và ngăn, phân trang bằng `cursor`. Chỉ đọc, không tạo gì."""
+    root = _brain_key(brain)
+    if not _agent_md_path(root, slug):
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không tìm thấy trợ lý", "Assistant not found")},
+                            status_code=404)
+
+    def _do():
+        key = _agent_jobs_key(root, slug)
+        goals, teams, principal = _agent_jobs_sources(root, key)
+        out = agent_jobs.collect(key or "", slug, root, brain_keys=_brain_keys(brain), teams=teams,
+                                 tasks=tasks_feature.store, sessions=get_store(), goals=goals, principal=principal,
+                                 source=source, bucket=bucket, cursor=cursor, limit=limit)
+        out["board"] = tasks_feature.store.board_mode(root)
+        out["max_workers"] = tasks_feature.max_workers
+        out["teams"] = _agent_jobs_teams(key, root)
+        return dict(out, ok=True, agent_key=key)
+    return await asyncio.to_thread(_do)
+
+
+def _agent_jobs_err(status, vi, en):
+    return JSONResponse({"ok": False, "error": localefmt.chu(vi, en)}, status_code=status)
+
+
+@app.post("/agents/{slug}/jobs")
+async def agent_jobs_assign(slug: str, request: Request, brain: str = "brain"):
+    """Nút Giao việc.
+
+    - `target` = "chat" (mặc định): một việc Kanban gắn mã trợ lý, chạy với vai của trợ lý, báo kết quả về cuộc chat
+      riêng với trợ lý (mở mới nếu chưa có). Hàng chờ trung thực: brain tắt "AI tự vận hành" thì việc chỉ nằm chờ, và
+      câu trả lời nói rõ điều đó.
+    - `target` = "team:<team_id>": một việc NHÓM giao cho trợ lý, qua đúng máy của nhóm (tin giao việc có @ trợ lý,
+      `client_msg_id` từ nonce nên gửi lại không nhân đôi). Nhóm phải đang hoạt động, cùng brain, trợ lý đang là
+      thành viên.
+    - `kind` = "verify": việc kiểm chứng, bắt buộc có tiêu chí; `link` (tuỳ chọn) là mục được kiểm của một trợ lý
+      KHÁC (`goal:<id>`, `team:<id>`, `kanban:<id>`). Kiểu việc và mục được kiểm nằm trong khoá idempotency (bền).
+    `nonce` chống gửi trùng. Tiêu chí xong đi vào nội dung việc."""
+    root = _brain_key(brain)
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    body = body if isinstance(body, dict) else {}
+    text = str(body.get("text") or "").strip()
+    criteria = str(body.get("criteria") or "").strip()[:2000]
+    nonce = str(body.get("nonce") or "").strip()
+    kind = "verify" if body.get("kind") == "verify" else "task"
+    target = str(body.get("target") or "chat").strip() or "chat"
+    link_in = str(body.get("link") or "").strip()
+    if not text:
+        return _agent_jobs_err(400, "Chưa nhập việc cần làm", "Describe the job first")
+    if not agent_jobs.clean_nonce(nonce):
+        # Kiểm SAU khi lọc ký tự: nonce chỉ toàn ký tự lạ thành rỗng thì mọi lần giao dùng chung một khoá (review #8).
+        return _agent_jobs_err(400, "Thiếu mã chống gửi trùng, tải lại trang rồi giao lại", "Missing the duplicate-guard code; reload the page and assign again")
+    if kind == "verify" and not criteria:
+        return _agent_jobs_err(400, "Việc kiểm chứng cần tiêu chí xong", "A verification job needs done criteria")
+    link = agent_jobs.clean_link(link_in) if (link_in and kind == "verify") else ""
+    if link_in and kind == "verify" and not link:
+        return _agent_jobs_err(400, "Mục cần kiểm chứng không hợp lệ", "Invalid item to verify")
+    if target != "chat" and not target.startswith("team:"):
+        return _agent_jobs_err(400, "Nơi nhận kết quả không hợp lệ", "Invalid result destination")
+    path = _agent_md_path(root, slug)
+    if not path:
+        return _agent_jobs_err(404, "Không tìm thấy trợ lý", "Assistant not found")
+
+    def _prepare():
+        key = _agent_jobs_key(root, slug, register=True)
+        meta, _body = _read_md(path)
+        name = str((meta or {}).get("name") or slug)
+        linked = None
+        if link:
+            goals, _teams, principal = _agent_jobs_sources(root, key)
+            linked = agent_jobs.resolve_link(link, root, tasks=tasks_feature.store, goals=goals, principal=principal)
+            if linked is None:
+                return None, _agent_jobs_err(404, "Không tìm thấy mục cần kiểm chứng trong brain này",
+                                             "The item to verify was not found in this brain")
+            if linked.get("owner_key") and linked["owner_key"] == key:
+                return None, _agent_jobs_err(400, "Hãy chọn trợ lý khác để kiểm chứng việc của chính nó",
+                                             "Pick a different assistant to verify its own work")
+        return {"key": key, "name": name, "content": agent_jobs.brief(text, criteria, kind, linked)}, None
+
+    if target.startswith("team:"):
+        team_id = target[len("team:"):]
+
+        def _team():
+            prep, err = _prepare()
+            if err:
+                return err
+            key = prep["key"]
+            if not _TEAM_API.exists():
+                return _agent_jobs_err(404, "Không có nhóm này", "Team not found")
+            teams = _TEAM_API.teams()
+            team = teams.get(team_id)
+            if not team or team.get("brain_id") != root:
+                return _agent_jobs_err(404, "Không có nhóm này", "Team not found")
+            if team.get("status") != "active":
+                return _agent_jobs_err(409, "Nhóm đang không hoạt động", "The team is not active")
+            if not teams.is_active_member(team_id, key):
+                return _agent_jobs_err(409, "Trợ lý không còn trong nhóm này", "The assistant is not in this team")
+            runner = _TEAM_API.runner()
+            try:
+                # Đúng đường của tin giao việc trong nhóm (có @ trợ lý): việc nhóm, hàng của nhóm, idempotency theo
+                # client_msg_id. Không tạo đường quyền mới.
+                sub = runner.submit(team_id, prep["content"], mentions=[key], as_job=True,
+                                    client_msg_id="aj-" + agent_jobs.clean_nonce(nonce))
+            except Exception as ex:  # noqa: BLE001  TeamError: lỗi người dùng đọc được
+                return JSONResponse({"ok": False, "error": str(ex)}, status_code=400)
+            if sub.get("task_id") and sub.get("created"):
+                _TEAM_API.kick()
+            return {"ok": True, "task_id": sub.get("task_id"), "team_id": team_id, "kind": kind,
+                    "created": bool(sub.get("created")), "board": tasks_feature.store.board_mode(root)}
+        return await _TEAM_API.io(_team)
+
+    def _do():
+        prep, err = _prepare()
+        if err:
+            return err
+        key, name = prep["key"], prep["name"]
+        ss = get_store()
+        # Phiên chat riêng của ĐÚNG mã này: phiên đã ghim mã của trợ lý cũ cùng slug (xoá rồi tạo lại) không nhận báo cáo
+        # của trợ lý mới (review 0.142.0, #7); chưa có phiên hợp lệ thì mở mới.
+        # Ưu tiên phiên chưa lưu trữ và đã có tin (review trước phát hành 0.142.0).
+        sid = agent_jobs.report_session(key, slug, _brain_keys(brain), ss, _resonance_store())
+        if not sid:
+            sid = ss.create_session(brain=brain, channel=f"agent:{slug}", title=name[:120])
+        tid = tasks_feature.enqueue(brain, agent_jobs.assign_title(name, text), prep["content"], chat_id=f"web:{sid}",
+                                    idempotency_key=agent_jobs.assign_key(key, slug, nonce, kind, link),
+                                    dedupe_title=False)
+        return {"ok": True, "task_id": tid, "session_id": sid, "kind": kind,
+                "board": tasks_feature.store.board_mode(root)}
+    return await asyncio.to_thread(_do)
 
 
 if __name__ == "__main__":

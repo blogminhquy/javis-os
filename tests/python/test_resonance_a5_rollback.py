@@ -148,8 +148,10 @@ RA.approve(old, BRAIN, g_old.id)
 check("0.108.0 lập mục tiêu có trợ lý và đường sản phẩm", g_old.agent_key == maker["agent_key"])
 del old
 
-# 2. Mã A5 mở kho: snapshot một lần; mục tiêu cũ không có đội.
+# 2. Mã A5 mở kho: snapshot một lần; mục tiêu cũ không có đội. (0.142.0 bỏ người review cố định cho mục tiêu mới: bật
+# lại việc gắn đội để dựng đúng kho của thời A5 mà phép thử hạ phiên bản cần.)
 new = RS.GoalStore(db)
+new.attach_reviewer_teams = True
 snap = db.with_name(db.name + RS.A5_BACKUP_SUFFIX)
 with sqlite3.connect(str(snap)) as c:
     snap_tables = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}

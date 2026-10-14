@@ -21,9 +21,13 @@ const on = { slug: "viet-bai", name: "Viết <b>bài</b>", agent_key: "ag_1", en
 const off = Object.assign({}, on, { enabled: false, goals_open: 0 });
 
 let h = RA.rowToggleHtml(on, {});
-check("bật: chữ Bật và ô đã chọn", h.includes(vi["resonance.t0_state_on"]) && /ws-rs-toggle"[^>]*checked/.test(h), h);
+// 0.142.0: nhãn hiện "Auto" + công tắc nhỏ trong thẻ; trạng thái bằng chữ nằm trong aria-label và tooltip.
+check("bật: trạng thái Bật bằng chữ (aria, tooltip), ô đã chọn, màu cam", h.includes(vi["resonance.t0_state_on"])
+      && /ws-rs-toggle"[^>]* checked/.test(h) && /aria-checked="true"/.test(h) && h.includes("ws-auto is-on")
+      && h.includes(">" + vi["resonance.auto_label"] + "<"), h);
 h = RA.rowToggleHtml(off, {});
-check("tắt: chữ Tắt, ô chưa chọn", h.includes(vi["resonance.t0_state_off"]) && !/checked/.test(h), h);
+check("tắt: trạng thái Tắt bằng chữ, ô chưa chọn, không màu cam", h.includes(vi["resonance.t0_state_off"])
+      && !/ws-rs-toggle"[^>]* checked/.test(h) && /aria-checked="false"/.test(h) && !h.includes("is-on"), h);
 h = RA.rowToggleHtml({ slug: "moi", status: "unregistered", enabled: false }, {});
 check("chưa đăng ký coi như Tắt", h.includes(vi["resonance.t0_state_off"]), h);
 h = RA.rowToggleHtml(Object.assign({}, on, { status: "missing" }), {});

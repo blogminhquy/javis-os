@@ -48,6 +48,7 @@ class TeamApiDeps:
     spawn: Callable[[Any], Any] = field(default=asyncio.ensure_future)
     store_path: Optional[Path] = None                  # mặc định STATE_DIR/team.sqlite3
     admin: Any = None                                  # thao tác host cho lệnh quản trị Toàn quyền (T3)
+    owner_name: Optional[Callable[[], str]] = None     # tên đăng nhập của chủ máy (người tạo nhóm, 0.142.0)
 
 
 async def _body(request: Request) -> dict:
@@ -187,7 +188,8 @@ class TeamApi:
         for m in self.teams().members(team["team_id"]):
             reg = rs.agent_by_key(root, m["agent_key"]) or {}
             ident = self._identity(team, m, reg, by_slug)
-            out.append(dict(ident, agent_key=m["agent_key"],
+            out.append(dict(ident, agent_key=m["agent_key"], title=str((by_slug.get(ident.get("slug")) or {}).get("title") or "")
+                            if reg.get("status") == "active" else "",
                             role=m["role"], status=m["status"], agent_status=reg.get("status") or "",
                             resonance_enabled=bool(reg.get("enabled")), joined_at=m["joined_at"],
                             managed=bool(m.get("managed_by_team"))))
@@ -230,11 +232,23 @@ class TeamApi:
         q = self.deps.task_store().team_queue(team["team_id"])
         meta = self.deps.agents_meta(team["brain_id"]) or []
         return dict(team, members=self.member_views(team, meta), authors=self.authors(team, meta),
+                    creator=self.creator(team),
                     counts={"running": len(q["running"]), "waiting": len(q["waiting"]), "blocked": len(q["blocked"])},
                     running=[{"id": t["id"], "title": t["title"]} for t in q["running"]],
                     busy=self.runner().busy_view(team["team_id"]),
                     authority=self.runner().authority_view(team["team_id"]),
                     usage=self.runner().usage(team["team_id"]))
+
+    def creator(self, team: dict) -> dict:
+        """Người tạo, quản lý nhóm (0.142.0): người thật, không phải trợ lý. Javis có một tài khoản chủ máy nên mọi nhóm,
+        kể cả nhóm tạo trước 0.142.0, thuộc chủ đó; tên lấy từ cấu hình đăng nhập của server, không từ client."""
+        name = ""
+        if self.deps.owner_name is not None:
+            try:
+                name = str(self.deps.owner_name() or "")[:80]
+            except Exception:  # noqa: BLE001
+                name = ""
+        return {"kind": str(team.get("created_by") or "owner"), "you": True, "name": name}
 
     def register_agent(self, root: str, slug: str) -> dict:
         return self.deps.resonance_store().agent_register(RS.Principal("owner", "owner", root), slug)
@@ -344,24 +358,44 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             leader = str(body.get("leader_slug") or "").strip()
             if not name:
                 return _err(400, "Thiếu tên nhóm", "Team name is required")
-            have = _slugs(root)
-            missing = [s for s in members + ([leader] if leader else []) if s not in have]
-            if missing:
-                return _err(400, f"Không có trợ lý: {', '.join(missing)}", f"No such assistant: {', '.join(missing)}")
             if leader and leader not in members:
                 members.append(leader)
+            # Nhóm cần ít nhất một trợ lý (0.142.0): người tạo là người thật, không tính là thành viên AI.
+            if not members:
+                return _err(400, "Chọn ít nhất một trợ lý", "Pick at least one assistant")
+            have = _slugs(root)
+            missing = [s for s in members if s not in have]
+            if missing:
+                return _err(400, f"Không có trợ lý: {', '.join(missing)}", f"No such assistant: {', '.join(missing)}")
+            teams = api.teams()
+            # Bấm Tạo hai lần hay mạng chậm gửi lại cùng mã: trả nhóm đã tạo, không tạo phiên hay nhóm thứ hai.
+            req = str(body.get("client_req_id") or "").strip()[:80]
+            old = teams.find_by_request(root, req) if req else None
+            if old is not None:
+                return {"ok": True, "team": api.view(old), "duplicate": True}
+            keys = {slug: api.register_agent(root, slug)["agent_key"] for slug in dict.fromkeys(members)}
             tid = team_store.new_team_id()
             sid = deps.session_store().create_session(brain=brain, channel=f"team:{tid}", title=name[:120])
-            teams = api.teams()
-            teams.create_team(root, name, str(body.get("description") or ""), sid, team_id=tid)
-            keys = {}
-            for slug in dict.fromkeys(members):
-                reg = api.register_agent(root, slug)
-                keys[slug] = reg["agent_key"]
-                teams.add_member(tid, reg["agent_key"], slug)
-            if leader:
-                teams.set_leader(tid, keys[leader])
-            return {"ok": True, "team": api.view(teams.get(tid))}
+            # Người tạo: luôn là chủ máy đã qua cổng đăng nhập của server (Javis có một tài khoản), không đọc từ client.
+            try:
+                team = teams.create_team(root, name, str(body.get("description") or ""), sid, team_id=tid,
+                                         members=[(keys[s], s) for s in keys], leader_key=keys[leader] if leader else None,
+                                         client_req_id=req or None, by="owner")
+            except Exception:
+                # Không tạo được nhóm (kho bận quá lâu...): phiên vừa mở không gắn nhóm nào thì bỏ, không để mồ côi.
+                try:
+                    deps.session_store().delete(sid)
+                except Exception:  # noqa: BLE001
+                    pass
+                raise
+            if team["team_id"] != tid:
+                # Hai yêu cầu cùng mã chạy song song: yêu cầu kia thắng, phiên vừa mở không gắn nhóm nào thì bỏ.
+                try:
+                    deps.session_store().delete(sid)
+                except Exception:  # noqa: BLE001
+                    pass
+                return {"ok": True, "team": api.view(team), "duplicate": True}
+            return {"ok": True, "team": api.view(team)}
         return await api.io(_do)
 
     @app.get("/teams/{team_id}")
@@ -607,9 +641,23 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             before = (before_ts, before_id) if before_ts is not None and before_id is not None else None
             page = deps.session_store().get_team_messages_page(team["session_id"], limit, before)
             # Phản hồi của chủ (T2) đi kèm từng tin, đọc một lần cho cả trang.
-            got = api.teams().reactions_for(team["session_id"], [m["id"] for m in page["messages"]])
+            ids = [m["id"] for m in page["messages"]]
+            got = api.teams().reactions_for(team["session_id"], ids)
+            # Kết cục lượt trả lời (0.142.0) đi kèm tin của chủ nhóm: tải lại trang vẫn thấy chờ, đang trả lời, lỗi.
+            replies = api.teams().replies_for(team_id, ids)
+            # Tên việc của các tin gắn việc (0.142.0): việc đã xong không còn trong hàng đợi, tải lại trang thì nhãn chỉ
+            # còn mã việc. Đọc thẳng bản ghi gốc, chỉ việc thuộc đúng nhóm này.
+            titles = {}
+            for tid in {m.get("task_id") for m in page["messages"] if m.get("task_id")}:
+                tk = deps.task_store().get_task(tid)
+                if tk and tk.get("team_id") == team_id:
+                    titles[tid] = tk.get("title") or ""
             for m in page["messages"]:
+                if m.get("task_id") in titles:
+                    m["task_title"] = titles[m["task_id"]]
                 m["reaction"] = got.get(int(m["id"]))
+                if replies.get(int(m["id"])):
+                    m["replies"] = replies[int(m["id"])]
             return dict(page, ok=True)
         return await api.io(_do)
 
@@ -655,6 +703,24 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             if sub.get("task_id") and sub["created"]:
                 api.kick()
             return dict(sub, ok=True)
+        return await api.io(_do)
+
+    @app.post("/teams/{team_id}/messages/{message_id}/replies/{agent_key}/retry")
+    async def teams_reply_retry(team_id: str, message_id: int, agent_key: str, brain: str = "brain"):
+        """Thử lại một lượt trả lời bị lỗi (0.142.0). Bấm lặp hay bấm khi lượt đã xong thì trả trạng thái hiện tại, không
+        chạy thêm lượt nào."""
+        def _do():
+            team, err = _team(team_id, brain)
+            if err:
+                return err
+            runner = api.runner()
+            try:
+                sub = runner.retry_reply(team_id, message_id, agent_key)
+            except TeamError as ex:
+                return _team_err(ex, 409)
+            if sub is not None:
+                runner._on_loop(lambda: api._spawn(runner.run_replies(sub)))
+            return {"ok": True, "retried": sub is not None, "replies": api.teams().replies_of(team_id, message_id)}
         return await api.io(_do)
 
     @app.post("/teams/{team_id}/messages/{message_id}/accept")

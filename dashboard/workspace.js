@@ -248,7 +248,10 @@
   // thôi - để nó ở tab đầu là bắt người dùng bấm thêm một cú mỗi lần vào trang.
   // Thứ tự nút là chung, còn tab MỞ SẴN thì khác nhau theo loại: quy trình mở ở Cài đặt vì
   // nút Chạy quy trình nằm ở đó (chủ dự án chốt 17/09) - xem S.tabCua.
-  var TAB_PHAI = ["lichsu", "files", "cai"];   // ba tab cột phải, thứ tự đúng như lúc vẽ
+  // 0.142.0: tab Thư mục nhường chỗ cho Công việc ("viec", agent-jobs.js): việc của trợ lý từ nhóm, chat riêng và Auto.
+  // Cây thư mục vẫn ở màn chính và trang Trò chuyện; tài liệu riêng của trợ lý vẫn mở bằng nút Tài liệu đầu khung chat.
+  // Quy trình không có tab Công việc (nó không nhận việc theo agent_key), mở tab đó thì về Cài đặt.
+  var TAB_PHAI = ["lichsu", "viec", "cai"];   // ba tab cột phải, thứ tự đúng như lúc vẽ
   // Danh sách trái chỉ vẽ TRANG mục đầu, bấm "Xem thêm" mở thêm TRANG nữa - đúng cỡ trang của
   // cột lịch sử (sessions-ui.js: PAGE = 20) để cả app cùng một nhịp. Brain của chủ dự án có
   // vài chục trợ lý, vẽ hết một lượt là một cột cuộn dài dằng dặc mà chín phần mười số hàng
@@ -258,6 +261,8 @@
             el: null, tienDo: {}, sessionCuaPhien: {}, tabPhai: "lichsu",
             // T0 nhóm chat team: trạng thái Cộng hưởng theo slug, và các dòng đang chờ server trả lời.
             rs: {}, rsSaving: {},
+            // Huy hiệu việc theo slug (Đang làm, Cần bạn), tách khỏi công tắc Auto: Auto tắt vẫn có thể có việc Đang làm.
+            jc: {},
             // Tab cột phải NHỚ RIÊNG theo loại. Trợ lý mở ở Lịch sử (chốt 16/09, xem TAB_PHAI);
             // quy trình mở ở Cài đặt vì nút Chạy nằm ở đó (chủ dự án chốt 17/09). Dùng chung
             // một ô nhớ thì vừa xem xong hội thoại của một trợ lý, sang quy trình là Lịch sử
@@ -318,6 +323,50 @@
     S.rs = resonanceMap(j, S.rs);
     return true;
   }
+  // Huy hiệu việc trên thẻ trợ lý (0.142.0): GET /agents/jobs/counts, một request cho cả brain. Đọc hỏng thì giữ bản cũ;
+  // bỏ kết quả của brain cũ hay của lần dựng trang cũ (cùng luật với loadResonance).
+  // Một lượt đếm mỗi lúc (review trước phát hành 0.142.0): sự kiện nhóm dồn dập không được mở nhiều request chồng nhau
+  // làm nghẽn luồng phụ của server. Có sự kiện trong lúc đang đếm thì đếm lại đúng một lần sau khi xong.
+  var _demDang = false, _demLai = false;
+  async function loadJobCounts() {
+    var round = lanDung, b0 = brain(), AJ = window.JavisAgentJobs;
+    if (!AJ || !AJ.loadCounts) return false;
+    if (_demDang) { _demLai = true; return false; }
+    _demDang = true;
+    var c;
+    try { c = await AJ.loadCounts(b0); } finally { _demDang = false; }
+    if (_demLai) { _demLai = false; setTimeout(henDemViec, 0); }
+    if (round !== lanDung || b0 !== brain() || !c) return false;
+    S.jc = c;
+    return true;
+  }
+  // Gộp nhịp: gói nhóm, mục tiêu đổi, việc nền báo về, việc vừa tạo hay huỷ ở tab Công việc đều đọc lại huy hiệu sau 800ms.
+  var _henDem = null;
+  function henDemViec() {
+    // Chỉ đọc khi danh sách trợ lý đang hiện và tab trình duyệt đang mở (review 0.142.0, #6): đếm việc tốn một lượt đọc
+    // mỗi trợ lý, không cần chạy cho mọi gói nhóm khi đang xem Quy trình hay tab ẩn. Quay lại thì taiDanhSach đọc lại.
+    if (!active || S.loai !== "agent" || (typeof document !== "undefined" && document.hidden)) return;
+    if (_henDem) clearTimeout(_henDem);
+    _henDem = setTimeout(function () {
+      _henDem = null;
+      if (active && S.loai === "agent") loadJobCounts().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
+    }, 800);
+  }
+  // Bật, tắt Auto của MỘT trợ lý (0.142.0): một hàm cho công tắc trên thẻ và mục Auto trong menu ba chấm, nên hai chỗ
+  // dùng chung trạng thái `S.rs`. Khoá trong lúc chờ server (bấm hai lần không gửi hai lệnh); chỉ server xác nhận mới
+  // đổi; lỗi thì về đúng trạng thái thật và nói lý do (toggleAgent luôn phát sự kiện tải lại).
+  function doiAuto(slug, wantOn) {
+    var row = S.rs[slug], RA = window.JavisResonanceAgent;
+    if (!RA || !row || S.rsSaving[slug]) return false;
+    var question = wantOn ? "" : RA.offConfirmText(row);
+    if (question && !window.confirm(question)) { veDanhSach(); return false; }
+    S.rsSaving[slug] = true; veDanhSach();
+    RA.toggleAgent(slug, wantOn).then(function (result) {
+      afterToggle(slug, result);
+      if (active) veTrai();
+    });
+    return true;
+  }
   // Một lượt bật, tắt vừa có kết quả: gỡ cờ "đang lưu" của ĐÚNG trợ lý đó (lượt khác đang chờ vẫn khoá), kể cả khi
   // người dùng đã rời trang; lỗi thì giữ lý do dưới thanh lọc, thành công thì gỡ câu báo lỗi cũ (review cuối T0).
   function afterToggle(slug, result) {
@@ -340,6 +389,7 @@
     // T0 nhóm chat team: trạng thái Cộng hưởng của MỌI trợ lý trong một request riêng (không gọi theo từng dòng), đọc
     // SAU khi danh sách đã có: tới đâu vẽ lại tới đó. Chưa về hay lỗi thì dòng không có công tắc (không đoán).
     loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
+    loadJobCounts().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
     S.agents = sapXep(r[0].agents, "last_chat_at");
     S.workflows = sapXep(r[1].workflows.filter(function (w) { return w.status === "active"; }), "last_run_at");
     daTai = true;
@@ -389,6 +439,8 @@
             '<input class="ws-search" id="wsSearch" data-esc' + (S.q ? "" : " hidden") + ' value="' + esc(S.q) + '" placeholder="' + esc(t("ws.search_ph")) + '">' +
           '</div>' +
           '<div class="ws-list" id="wsList"></div>' +
+          '<div class="ws-resize ws-resize-left" data-resize="left" role="separator" aria-orientation="vertical" tabindex="0" ' +
+            'aria-label="' + esc(t("ws.resize_list")) + '" title="' + esc(t("ws.resize_hint")) + '"></div>' +
           '<div class="ws-left-foot"><button type="button" class="ws-btn" id="wsNew">' + ic("plus") + ' ' + esc(t("ws.new_item")) + '</button>' +
           '<button type="button" class="ws-btn" id="wsImport">' + ic("upload-cloud") + ' ' + esc(t("ws.upload_agent")) + '</button>' +
           '<button type="button" class="ws-btn" id="wsStore">' + ic("package") + ' Javis Store</button></div>' +
@@ -415,23 +467,25 @@
         '</div>' +
         '<aside class="ws-right" id="wsRight">' +
           '<button type="button" class="ws-ico ws-panel-close" aria-label="' + esc(t("common.close")) + '">' + ic("x") + '</button>' +
+          '<div class="ws-resize ws-resize-right" data-resize="right" role="separator" aria-orientation="vertical" tabindex="0" ' +
+            'aria-label="' + esc(t("ws.resize_panel")) + '" title="' + esc(t("ws.resize_hint")) + '"></div>' +
           // Hai tab của cột phải: Cài đặt | Thư mục. Dùng lại đúng lớp .cside-tabs/.cside-pane
           // của cột trái trang Trò chuyện - cùng một kiểu tab, không đẻ bộ lớp thứ hai.
           '<div class="cside-tabs ws-rtabs">' +
             '<button type="button" class="cside-tab" data-rtab="lichsu">' + ic("history") + ' ' + esc(t("ws.tab_history")) + '</button>' +
-            '<button type="button" class="cside-tab" data-rtab="files">' + ic("folder-tree") + ' ' + esc(t("sess.tab_files")) + '</button>' +
+            '<button type="button" class="cside-tab" data-rtab="viec">' + ic("list-todo") + ' ' + esc(t("ws.tab_jobs")) + '</button>' +
             '<button type="button" class="cside-tab" data-rtab="cai">' + ic("settings") + ' ' + esc(t("ws.tab_settings")) + '</button>' +
           '</div>' +
           '<div class="cside-pane ws-rpane" data-rpane="cai" id="wsRightSet"></div>' +
           '<div class="cside-pane ws-rpane" data-rpane="lichsu" id="wsRightHistory"></div>' +
-          '<div class="cside-pane ws-rpane" data-rpane="files" id="wsRightFiles"></div>' +
+          '<div class="cside-pane ws-rpane" data-rpane="viec" id="wsRightJobs"></div>' +
         '</aside>' +
       '</div>';
     if (opts && opts.borrow) opts.borrow(el.querySelector("#wsSlot"));
     el.querySelectorAll("[data-loai]").forEach(function (b) { b.onclick = function () { S.loai = b.dataset.loai; S.nhom = ""; S.hien = TRANG; luuChon(); veTrai(); chonMacDinh(); }; });
     noiODoTim(el);
     el.querySelectorAll("[data-rtab]").forEach(function (b) { b.onclick = function () { chonTabPhai(b.dataset.rtab); }; });
-    el.querySelector(".ws-panel-close").onclick = function () { el.querySelector("#wsPage").classList.remove("right-open"); };
+    el.querySelector(".ws-panel-close").onclick = function () { datPhai(false); };
     el.querySelector("#wsNew").onclick = function () { taoMoi(S.loai); };
     el.querySelector("#wsImport").onclick = function () {
       if (window.JavisStudio) window.JavisStudio.importItems(async function () {
@@ -451,7 +505,14 @@
     el.querySelector("#wsNewChat").onclick = function () { var x = dangChon(); if (x) moPhien(x, true); };
     var page = el.querySelector("#wsPage");
     el.querySelector("#wsLeftBtn").onclick = function () { page.classList.toggle("left-open"); };
-    el.querySelector("#wsRightBtn").onclick = function () { page.classList.toggle("right-open"); };
+    el.querySelector("#wsRightBtn").onclick = function () { datPhai(!phaiDangHien()); };
+    // Cột phải (Lịch sử, Công việc, Cài đặt) MẶC ĐỊNH ẨN ở màn rộng (0.142.0, chủ repo chốt 14/10/2026): khung chat rộng
+    // ra, bấm nút ở góc phải là hiện; lựa chọn được nhớ. Màn hẹp thì cột phải vốn là ngăn kéo đóng sẵn, không đổi.
+    if (manRong() && !nhoPhaiHien()) page.classList.add("right-open");
+    theoKhoMan();
+    // Bề rộng hai cột kéo được ở đường biên (0.142.0), nhớ qua localStorage.
+    apBeRong(page);
+    noiKeoBien(page);
     // Chạm NỀN MỜ (pseudo-element của chính .wspage nên cú chạm rơi vào page) = đóng ngăn kéo.
     // Màn hẹp: ngăn kéo che gần hết bề ngang nên nếu không có đường này thì mở ra là kẹt.
     page.addEventListener("click", function (e) {
@@ -541,14 +602,40 @@
   function chonTabPhai(tab) {
     var el = S.el; if (!el) return;
     S.tabPhai = TAB_PHAI.indexOf(tab) >= 0 ? tab : "cai";
+    if (S.tabPhai === "viec" && S.loai !== "agent") S.tabPhai = "cai";
     if (S.tabCua) S.tabCua[S.loai] = S.tabPhai;
     // Tab của quy trình chỉ sống trong lần mở trang này (xem S.tabCua), không ghi xuống.
     if (S.loai !== "workflow") { try { localStorage.setItem("javis_ws_rtab", S.tabPhai); } catch (e) {} }
     el.querySelectorAll("[data-rtab]").forEach(function (b) { b.classList.toggle("active", b.dataset.rtab === S.tabPhai); });
     el.querySelectorAll("[data-rpane]").forEach(function (p) { p.classList.toggle("on", p.dataset.rpane === S.tabPhai); });
-    var host = el.querySelector("#wsRightFiles");
-    if (S.tabPhai === "files" && host && window.JavisVaultPanel) window.JavisVaultPanel.borrow(host);
-    else traCayThuMuc();
+    var jb = el.querySelector('[data-rtab="viec"]');
+    if (jb) jb.hidden = S.loai !== "agent";
+    // Bản cũ mượn cây thư mục ở đây; trả lại phòng khi một phiên trước còn giữ nó.
+    traCayThuMuc();
+    if (S.tabPhai === "viec") ganCongViec(dangChon());
+    // Rời tab Công việc (sang Lịch sử, Cài đặt hay Quy trình): gỡ tab đó, kẻo nó vẫn hỏi server mỗi 20 giây và tải lại theo
+    // mọi sự kiện nhóm cho tới khi rời trang (review 0.142.0).
+    else if (_congViec) { _congViec.destroy(); _congViec = null; }
+  }
+
+  // Tab Công việc (agent-jobs.js): gắn lại mỗi khi đổi trợ lý hay mở tab, tải tươi từ server.
+  var _congViec = null;
+  function ganCongViec(item) {
+    var host = S.el && S.el.querySelector("#wsRightJobs");
+    if (_congViec) { _congViec.destroy(); _congViec = null; }
+    if (!host) return;
+    if (!item || S.loai !== "agent" || !window.JavisAgentJobs) { host.innerHTML = ""; return; }
+    _congViec = window.JavisAgentJobs.mount(host, { slug: item.slug, name: item.name || item.slug, brain: brain,
+      // Trợ lý KHÁC trong brain: người nhận việc kiểm chứng khi bấm "Giao kiểm chứng" trên một thẻ.
+      agents: function () {
+        return S.agents.filter(function (a) { return a.slug !== item.slug; })
+          .map(function (a) { return { slug: a.slug, name: a.name || a.slug }; });
+      },
+      openChat: function (sid) { var x = dangChon(); if (x) moPhien(x, false, sid); },
+      openTeam: function (teamId, taskId) {
+        if (window.JavisTeams && window.JavisTeams.open) window.JavisTeams.open(teamId, taskId);
+      },
+      openWork: function () { if (window.JavisNav && window.JavisNav.go) window.JavisNav.go("kanban"); } });
   }
 
   // (0.62.0 đã bỏ hàm dongBoNhomForm ở đây. Nó tồn tại chỉ để vá một xung đột tự gây ra:
@@ -853,6 +940,26 @@
   }
   // HTML của MỘT hàng. Tách khỏi veDanhSach để chỗ kia chỉ còn lo nhóm - phân trang, và để
   // test dựng được một hàng mà không cần cả trang.
+  // Giờ nhắn gần nhất trên thẻ trợ lý (0.142.0, như danh sách chat): hôm nay ghi giờ:phút, hôm qua ghi "Hôm qua",
+  // xa hơn ghi ngày/tháng. Chưa nhắn bao giờ thì không ghi gì. `last_chat_at` do /agents trả (giây).
+  function gioNgan(ts, now) {
+    ts = Number(ts) || 0;
+    if (!ts) return "";
+    var d = new Date(ts * 1000), n = now ? new Date(now) : new Date();
+    var p2 = function (v) { return (v < 10 ? "0" : "") + v; };
+    var cungNgay = function (a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); };
+    if (cungNgay(d, n)) return p2(d.getHours()) + ":" + p2(d.getMinutes());
+    var hqua = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1);
+    if (cungNgay(d, hqua)) return t("ws.yesterday");
+    return p2(d.getDate()) + "/" + p2(d.getMonth() + 1) + (d.getFullYear() !== n.getFullYear() ? "/" + d.getFullYear() : "");
+  }
+  function gioNhanHtml(ts) {
+    var g = gioNgan(ts);
+    if (!g) return "";
+    var full = "";
+    try { full = new Date(Number(ts) * 1000).toLocaleString(); } catch (e) {}
+    return '<span class="ws-item-time" title="' + esc(t("ws.last_chat", { when: full })) + '">' + esc(g) + '</span>';
+  }
   function mucHtml(x, chon) {
     // "Đang chạy" phải đọc được BẰNG CHỮ, không chỉ bằng icon quay: người tắt hiệu ứng
     // (prefers-reduced-motion, xem style.css) và trình đọc màn hình không thấy vòng quay
@@ -867,12 +974,17 @@
       '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '">' +
       '<span class="ws-item-ic">' + (S.loai === "agent" ? avatar(x, 42)
         : (chay ? ic("loader", { cls: "ic-spin", title: t("ws.running") }) : ic("workflow"))) + '</span>' +
-      '<span class="ws-item-text"><strong>' + esc(x.name) + '</strong>' +
+      '<span class="ws-item-text"><span class="ws-item-top"><strong>' + esc(x.name) + '</strong>' +
+      (S.loai === "agent" ? gioNhanHtml(x.last_chat_at) : "") + '</span>' +
       '<small>' + esc(phu) + '</small>' + (S.loai === "agent" ? chipTagHtml(x) : "") + '</span>' +
+      // Huy hiệu việc (Đang làm, Cần bạn): ô riêng ở góc trên, tách hẳn công tắc Auto ở góc dưới (0.142.0).
+      (S.loai === "agent" && S.jc && window.JavisAgentJobs && window.JavisAgentJobs.badgeHtml
+        ? window.JavisAgentJobs.badgeHtml(S.jc[x.slug]) : "") +
       // Dấu ghim đứng NGOÀI khối chữ: trong đó nó bị ellipsis của cái tên cắt mất.
       (x.pinned ? '<span class="ws-item-pin" title="' + esc(t("ws.pinned")) + '">' + ic("pin") + '</span>' : "") +
       '</button>' +
-      // T0 nhóm chat team: công tắc Cộng hưởng của trợ lý, ngang hàng với hai nút (không lồng trong nút chọn mục).
+      // Công tắc Auto của trợ lý (0.142.0, trước là Cộng hưởng): ngang hàng với hai nút (không lồng trong nút chọn mục),
+      // CSS đặt nó BÊN TRONG thẻ, cùng hàng với tag, bên phải (nhìn là biết thuộc trợ lý nào).
       (S.loai === "agent" && window.JavisResonanceAgent
         ? window.JavisResonanceAgent.rowToggleHtml(S.rs[x.slug], { saving: !!S.rsSaving[x.slug] }) : "") +
       '<button type="button" class="ws-item-more" data-more="' + esc(x.slug) + '" title="' +
@@ -912,18 +1024,9 @@
     host.querySelectorAll(".ws-rs-toggle").forEach(function (box) {
       box.onclick = function (e) { e.stopPropagation(); };
       box.onchange = function () {
-        var slug = box.dataset.rs, row = S.rs[slug];
-        var RA = window.JavisResonanceAgent;
-        if (!RA || !row || S.rsSaving[slug]) { box.checked = !box.checked; return; }
         var wantOn = box.checked;
-        var question = wantOn ? "" : RA.offConfirmText(row);
-        if (question && !window.confirm(question)) { box.checked = !wantOn; return; }
-        S.rsSaving[slug] = true; veDanhSach();
-        // toggleAgent luôn phát sự kiện tải lại trạng thái thật; ở đây chỉ gỡ cờ và cập nhật câu báo.
-        RA.toggleAgent(slug, wantOn).then(function (result) {
-          afterToggle(slug, result);
-          if (active) veTrai();
-        });
+        box.checked = !wantOn;   // chỉ server xác nhận mới đổi; vẽ lại theo trạng thái thật
+        doiAuto(box.dataset.rs, wantOn);
       };
     });
     // Trợ lý `missing` hay `retired`: mở bảng bên phải của trợ lý đó, nơi có hai nút xác nhận của A1.
@@ -932,8 +1035,7 @@
         e.stopPropagation();
         S.chon[S.loai] = b.dataset.rsOpen; luuChon(); veDanhSach(); moPhien(dangChon(), false);
         chonTabPhai("cai");
-        var page = S.el && S.el.querySelector("#wsPage");
-        if (page && window.matchMedia("(max-width: 1060px)").matches) page.classList.add("right-open");
+        datPhai(true, true);
       };
     });
   }
@@ -1038,8 +1140,14 @@
   }
   function veMenuGoc(item, m) {
     var ghim = !!item.pinned, laTag = S.loai === "agent";
+    // Mục Auto (0.142.0): cùng trạng thái với công tắc trên thẻ. Chỉ trợ lý đang hoạt động mới bật, tắt được ở đây.
+    var rsRow = laTag ? S.rs[item.slug] : null;
+    var coAuto = !!(rsRow && rsRow.status !== "missing" && rsRow.status !== "retired");
+    var autoOn = !!(rsRow && rsRow.enabled && rsRow.status === "active");
     m.innerHTML =
       '<div class="ws-menu-head">' + esc(item.name) + '</div>' +
+      (coAuto ? nutMenu("zap", t(autoOn ? "resonance.auto_menu_on" : "resonance.auto_menu_off") +
+        (S.rsSaving[item.slug] ? " · " + t("resonance.t0_saving") : ""), "auto") : "") +
       nutMenu("pin", ghim ? t("ws.unpin") : t("ws.pin"), "ghim") +
       (laTag ? nutMenu("tag", t("ws.tag_menu"), "nhom") : nutMenu("folder", t("ws.move_group"), "nhom")) +
       nutMenu("pencil", t("ws.edit"), "sua") +
@@ -1047,6 +1155,13 @@
     m.querySelector('[data-act="ghim"]').onclick = function () {
       dongMenu(); datMeta(item, { pinned: ghim ? "0" : "1" });
     };
+    var ma = m.querySelector('[data-act="auto"]');
+    if (ma) {
+      ma.setAttribute("role", "menuitemcheckbox");
+      ma.setAttribute("aria-checked", autoOn ? "true" : "false");
+      ma.title = t("resonance.auto_desc");
+      ma.onclick = function () { dongMenu(); doiAuto(item.slug, !autoOn); };
+    }
     m.querySelector('[data-act="nhom"]').onclick = function () { if (laTag) veMenuTag(item, m); else veMenuNhom(item, m); };
     m.querySelector('[data-act="sua"]').onclick = function () { dongMenu(); suaMuc(item); };
     m.querySelector('[data-act="xoa"]').onclick = function () { dongMenu(); xoaMuc(item); };
@@ -1343,7 +1458,108 @@
     nut("#wsObStore", function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(S.loai, "workspace", t("page.workspace.label")); });
   }
 
+  // ---------- ẩn/hiện cột bên phải, nhớ lựa chọn (0.142.0) ----------
+  // Lớp `right-open` nghĩa là "ngược với mặc định CSS của khổ màn" (xem console.css): màn rộng là ĐANG ẨN, màn hẹp là
+  // ngăn kéo ĐANG MỞ. Hai hàm dưới đây nói bằng nghĩa "hiện/ẩn" để chỗ gọi khỏi phải nhớ chuyện đảo đó.
+  function manRong() { return !window.matchMedia("(max-width: 1060px)").matches; }
+  // Đổi khổ màn (thu cửa sổ còn nửa màn hình, xoay máy tính bảng): lớp `right-open` đổi nghĩa theo khổ, nên phải đặt lại
+  // cho đúng nghĩa mới (review 0.142.0). Màn hẹp: ngăn kéo đóng. Màn rộng: theo lựa chọn đã nhớ. Gắn một lần cho cả trang.
+  var _khoManGan = false;
+  function theoKhoMan() {
+    if (_khoManGan || !window.matchMedia) return;
+    var mq = window.matchMedia("(max-width: 1060px)");
+    var doi = function () {
+      var page = active && S.el && S.el.querySelector("#wsPage");
+      if (!page) return;
+      page.classList.toggle("right-open", manRong() ? !nhoPhaiHien() : false);
+    };
+    if (mq.addEventListener) mq.addEventListener("change", doi); else if (mq.addListener) mq.addListener(doi);
+    _khoManGan = true;
+  }
+  function nhoPhaiHien() { try { return localStorage.getItem("javis_ws_right") === "1"; } catch (e) { return false; } }
+  function phaiDangHien() {
+    var page = S.el && S.el.querySelector("#wsPage");
+    if (!page) return false;
+    return manRong() ? !page.classList.contains("right-open") : page.classList.contains("right-open");
+  }
+  // `tamThoi`: hiện cột vì một thao tác cần nó (vd. mở Cài đặt để xác nhận trợ lý), không ghi đè lựa chọn đã nhớ.
+  function datPhai(hien, tamThoi) {
+    var page = S.el && S.el.querySelector("#wsPage");
+    if (!page) return;
+    page.classList.toggle("right-open", manRong() ? !hien : !!hien);
+    if (manRong() && !tamThoi) { try { localStorage.setItem("javis_ws_right", hien ? "1" : "0"); } catch (e) {} }
+  }
+
+  // ---------- kéo đường biên để đổi bề rộng cột ----------
+  var BE_RONG = { left: { bien: "--ws-left-w", khoa: "javis_ws_left_w", min: 220, max: 560 },
+    right: { bien: "--ws-right-w", khoa: "javis_ws_right_w", min: 280, max: 640 } };
+  var CHAT_TOI_THIEU = 360;   // khung chat giữa không bao giờ hẹp hơn mức này vì kéo hai cột bên
+  function chanBeRong(ben, w, page) {
+    var c = BE_RONG[ben], tran = c.max;
+    var tong = page && page.clientWidth;
+    if (tong) {
+      tran = Math.min(tran, Math.round(tong * (ben === "left" ? 0.45 : 0.5)));
+      // Trừ cả bề rộng cột bên kia đang hiện (review 0.142.0): kéo cả hai cột tới trần thì khung chat còn chừng 100px.
+      var khac = page.querySelector && page.querySelector(ben === "left" ? "#wsRight" : "#wsLeft");
+      var wk = 0;
+      try { wk = khac && getComputedStyle(khac).display !== "none" && getComputedStyle(khac).position !== "absolute" ? khac.getBoundingClientRect().width : 0; } catch (e) { wk = 0; }
+      tran = Math.min(tran, tong - wk - CHAT_TOI_THIEU);
+    }
+    return Math.max(c.min, Math.min(tran, Math.round(w)));
+  }
+  function apBeRong(page) {
+    Object.keys(BE_RONG).forEach(function (ben) {
+      var v = 0;
+      try { v = parseInt(localStorage.getItem(BE_RONG[ben].khoa) || "0", 10) || 0; } catch (e) {}
+      if (v) page.style.setProperty(BE_RONG[ben].bien, chanBeRong(ben, v, page) + "px");
+    });
+  }
+  function luuBeRong(ben, w, page) {
+    page.style.setProperty(BE_RONG[ben].bien, w + "px");
+    try { localStorage.setItem(BE_RONG[ben].khoa, String(w)); } catch (e) {}
+  }
+  function noiKeoBien(page) {
+    page.querySelectorAll("[data-resize]").forEach(function (h) {
+      var ben = h.dataset.resize;
+      var cot = page.querySelector(ben === "left" ? "#wsLeft" : "#wsRight");
+      var batDau = null;
+      h.addEventListener("pointerdown", function (e) {
+        if (e.button !== 0 || !cot) return;
+        e.preventDefault();
+        batDau = { x: e.clientX, w: cot.getBoundingClientRect().width };
+        try { h.setPointerCapture(e.pointerId); } catch (e2) {}
+        page.classList.add("ws-resizing");
+      });
+      h.addEventListener("pointermove", function (e) {
+        if (!batDau) return;
+        var dx = e.clientX - batDau.x;
+        page.style.setProperty(BE_RONG[ben].bien, chanBeRong(ben, batDau.w + (ben === "left" ? dx : -dx), page) + "px");
+      });
+      var xong = function () {
+        if (!batDau) return;
+        batDau = null;
+        page.classList.remove("ws-resizing");
+        luuBeRong(ben, chanBeRong(ben, cot.getBoundingClientRect().width, page), page);
+      };
+      h.addEventListener("pointerup", xong);
+      h.addEventListener("pointercancel", xong);
+      // Bàn phím: mũi tên trái/phải đổi 16px; nhấp đúp trả về bề rộng mặc định.
+      h.addEventListener("keydown", function (e) {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        e.preventDefault();
+        var buoc = (e.key === "ArrowRight" ? 16 : -16) * (ben === "left" ? 1 : -1);
+        luuBeRong(ben, chanBeRong(ben, cot.getBoundingClientRect().width + buoc, page), page);
+      });
+      h.addEventListener("dblclick", function () {
+        page.style.removeProperty(BE_RONG[ben].bien);
+        try { localStorage.removeItem(BE_RONG[ben].khoa); } catch (e) {}
+      });
+    });
+  }
+
   function thuGonCaiDat() {
+    // Chủ đã chọn hiện cột phải ở màn rộng (0.142.0): lưu xong không tự thu cột về, giữ đúng lựa chọn đã nhớ.
+    if (manRong() && nhoPhaiHien()) return;
     var page = S.el && S.el.querySelector("#wsPage");
     if (page) page.classList.toggle("right-open", !window.matchMedia("(max-width: 1060px)").matches);
   }
@@ -1561,6 +1777,11 @@
   // trình máy chủ khởi động lại). Lượt xong rồi mà tiến độ vẫn "dang" thì chắc chắn nó sẽ không
   // bao giờ nhúc nhích nữa - đóng nó lại ở đây, đừng để icon quay vĩnh viễn.
   function onTurnDone(sid) {
+    // Vừa xong một lượt chat với trợ lý: giờ nhắn gần nhất trên thẻ của trợ lý đó đổi ngay, không chờ tải lại danh sách.
+    if (sid && S.loai === "agent" && S.sessionCuaPhien[sid]) {
+      var ag = S.agents.filter(function (a) { return a.slug === S.sessionCuaPhien[sid]; })[0];
+      if (ag) { ag.last_chat_at = Date.now() / 1000; if (active) veDanhSach(); }
+    }
     if (!sid || !S.tienDo[sid] || S.tienDo[sid].trang_thai !== "dang") return;
     apDung(S.tienDo[sid], { type: "stopped" });
     if (S.loai === "workflow") veDanhSach();
@@ -1601,6 +1822,8 @@
   function roi() {
     active = false; opening++; chatReady(true);
     dongMenu(); traCayThuMuc(); traKhungChat();
+    // Tab Công việc: gỡ trình nghe sự kiện, nhịp hỏi và hẹn tải lại của lần gắn đang sống.
+    if (_congViec) { _congViec.destroy(); _congViec = null; }
     // XOÁ câu đang tìm. S.q sống ở mức module còn ô nhập chết theo DOM của trang, nên giữ lại
     // là lần sau quay vào danh sách đã bị lọc mà ô tìm thì rỗng và đang thu: người dùng thấy
     // cộng sự của mình biến mất, không có gì trên màn hình nói vì sao.
@@ -1609,7 +1832,7 @@
     if (inp) inp.placeholder = t("bar.input_ph");
   }
 
-  window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, openTab: openTab, onTurnDone: onTurnDone, canSend: function () { return !active || ready; }, dungKhiChuaCoTuDien: function () { return dungKhiChuaCoTuDien; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram,
+  window.JavisWorkspace = { gioNgan: gioNgan, render: render, roi: roi, openCommand: openCommand, openTab: openTab, onTurnDone: onTurnDone, canSend: function () { return !active || ready; }, dungKhiChuaCoTuDien: function () { return dungKhiChuaCoTuDien; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram,
     dangChay: dangChay, tabPhai: chonTabPhai, gomNhom: gomNhom, nhomHtml: nhomHtml, chonNhom: chonNhom, state: function () { return S; },
     tagsCua: tagsCua, tagCap: tagCap, laKhoa: laKhoa, demTag: demTag, coTag: coTag, khoaTag: khoaTag,
     dongChonTag: dongChonTag, chipTagHtml: chipTagHtml, TAG_NONE: TAG_NONE,
@@ -1624,5 +1847,10 @@
   window.addEventListener("javis:resonance-agents-changed", function () {
     if (!active) return;
     loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
+    henDemViec();
+  });
+  // Huy hiệu việc trên thẻ trợ lý theo cùng các sự kiện với tab Công việc (gộp nhịp 800ms).
+  ["javis:team-event", "javis:sessions-changed", "javis:agent-jobs-changed"].forEach(function (ev) {
+    window.addEventListener(ev, henDemViec);
   });
 })();

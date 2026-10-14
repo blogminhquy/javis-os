@@ -6,11 +6,29 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.144.0] - 2026-10-14
+## [0.151.0] - 2026-10-15
+### Cải thiện
+- **Kéo đổi bề rộng khung:** ở trang đồ thị (cột thư mục và khung hội thoại) và trang Trò chuyện (cột Hội thoại), rê chuột vào đường biên rồi kéo; nhấp đúp để về mặc định. Bề rộng được nhớ cho lần sau.
+- **Trang Chatbot hiện số tin của từng cuộc hội thoại** (viên xám, vd. "12 tin"), nằm cạnh số đỏ là số tin chưa đọc.
+
+## [0.147.0] - 2026-10-14
+### Cải thiện
+- **Việc chạy ngầm chỉ còn một dòng gọn trên khung chat.** Trước đây khối "việc đang chạy ngầm" chiếm ba dòng, kèm nút và hàng chip, tên việc còn bị cắt giữa chừng. Giờ chỉ còn một viên nhỏ: chấm xanh, tên việc quan trọng nhất (ưu tiên việc bạn vừa giao ở hội thoại này) và "+2" nếu còn việc khác.
+- **Bấm vào viên đó để xem chi tiết:** từng việc với trạng thái, đã chạy bao lâu, việc nào giao từ hội thoại này, và nút mở trang Việc. Bấm ra ngoài hoặc nhấn Esc là đóng.
+- Việc đã giao mà chưa tự chạy (điều phối đang tắt) vẫn hiện màu vàng và nói rõ ngay trên viên, kèm cách bật ở khung chi tiết.
+
+## [0.146.0] - 2026-10-14
+### Sửa lỗi
+- **Chat nhóm hết im lặng.** Trợ lý trả lời bằng model riêng của nó, chưa đặt thì bằng model chính, kể cả ChatGPT (Codex). Mỗi tin hiện rõ ai đang chờ, đang trả lời hay chưa trả lời được, kèm lý do và nút xử lý (**Thử lại**, đổi model, chọn điều phối); mất mạng hay tải lại trang vẫn còn.
 ### Thêm mới
-- **Cấp quyền riêng cho một cuộc chat.** Bot trả lời phụ huynh ở mức Chỉ đọc mà vẫn làm việc thật được cho một người thân (vd mẹ nhắn vào nick Zalo nhờ sửa file Word, Excel): thêm một dòng ở mục **Ngoại lệ theo cuộc chat** trong form bot, mọi người khác vẫn ở mức cũ.
-- **Mỗi ngoại lệ có thời gian chờ riêng**, vd mẹ nhắn chậm thì bot đợi 10 giây, còn khách khác vẫn đợi 5 giây.
-- Nâng một cuộc chat lên Được ghi hay Toàn quyền cũng phải xác nhận rủi ro như nâng cả bot. Thẻ bot ghi số ngoại lệ đang có.
+- **Tạo và thêm thành viên như Zalo:** tìm không cần gõ dấu, lọc tag, ảnh nhóm ghép sẵn, người đã ở nhóm hiện "Đã tham gia", chọn điều phối ngay trên người đã chọn; nhóm ghi "Bạn + N trợ lý". Gõ @ chọn bằng phím, người được gọi hiện thành thẻ riêng, trùng tên vẫn đúng người.
+- **Tab Công việc ở trang Cộng sự** (thay tab Thư mục): mọi việc của một trợ lý từ nhóm, chat riêng và Auto, lọc theo nguồn, có bước tiếp theo. **Giao việc** có tiêu chí xong, chọn nơi nhận kết quả và xem lại trước khi tạo; giao được cả việc **kiểm chứng** cho trợ lý khác.
+### Cải thiện
+- **Trang Cộng sự gọn hơn:** Cộng hưởng đổi tên thành **Auto**, công tắc nằm cùng hàng với tag và trong menu ba chấm; thẻ có giờ nhắn gần nhất; cột phải mặc định ẩn để chữ rộng ra, hai cột kéo được bề rộng ở đường biên. Bỏ người review cố định: mục tiêu cũ đang chờ review được tạm dừng để bạn xem, không tự coi là đạt.
+
+## [0.145.0] - 2026-10-14
+### Sửa lỗi
+- **Việc nền làm xong không còn bị chặn oan vì nhắc tới [[NEEDS_INPUT]].** Trước đây chỉ cần dấu này xuất hiện ở đâu đó trong kết quả, kể cả trong câu "không cần ghi [[NEEDS_INPUT]]", là việc bị chuyển sang chờ bạn dù đã đạt điều kiện hoàn thành. Giờ việc chỉ dừng chờ khi worker mở đầu một dòng bằng dấu đó, đúng như nó được dặn. Lý do chặn hiện trên chuông cũng chỉ lấy từ dòng như vậy.
 
 ## [0.141.0] - 2026-10-14
 ### Cải thiện

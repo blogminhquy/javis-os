@@ -39,6 +39,11 @@ DEFAULT_CAPS = {
 TEAM_STATUS = ("active", "paused", "archived")
 STEP_KINDS = ("plan", "work", "help", "synthesize", "reply")
 TURN_ROLES = ("leader_reply", "member_reply", "plan", "work", "help", "synthesize")
+# Kết cục của một lượt trả lời trò chuyện (0.142.0), lưu bền để tải lại trang hay khởi động lại máy chủ không mất dấu:
+# queued (đang chờ) -> running (đang trả lời) -> done (xong) | error (lỗi, kèm lý do, có Thử lại).
+REPLY_STATUS = ("queued", "running", "done", "error")
+REPLY_OPEN = ("queued", "running")
+STUCK_QUEUED_S = 600.0   # lượt nằm `queued` quá lâu (việc nền không tạo được) thì cho Thử lại
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS teams(
@@ -83,6 +88,13 @@ CREATE TABLE IF NOT EXISTS team_authority(
   grant_json TEXT NOT NULL DEFAULT '{}', granted_by TEXT NOT NULL DEFAULT '', granted_at REAL NOT NULL,
   revoked_at REAL, revoke_reason TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS team_authority_team ON team_authority(team_id, revoked_at);
+CREATE TABLE IF NOT EXISTS team_replies(
+  team_id TEXT NOT NULL, message_id INTEGER NOT NULL, agent_key TEXT NOT NULL, seq INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'queued', reason TEXT NOT NULL DEFAULT '', detail TEXT NOT NULL DEFAULT '',
+  attempt INTEGER NOT NULL DEFAULT 1, turn_id TEXT, result_msg_id INTEGER, engine TEXT NOT NULL DEFAULT '',
+  model TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL, updated_at REAL NOT NULL,
+  PRIMARY KEY(team_id, message_id, agent_key));
+CREATE INDEX IF NOT EXISTS team_replies_open ON team_replies(status);
 CREATE TABLE IF NOT EXISTS team_reaction_log(
   id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, message_id INTEGER NOT NULL, reactor TEXT NOT NULL,
   team_id TEXT NOT NULL, value TEXT, reasons_json TEXT NOT NULL DEFAULT '[]', comment TEXT NOT NULL DEFAULT '',
@@ -134,6 +146,16 @@ class TeamStore:
             if "pinned_at" not in {r[1] for r in c.execute("PRAGMA table_info(teams)").fetchall()}:
                 # Ghim nhóm lên đầu danh sách (T5); NULL là không ghim.
                 c.execute("ALTER TABLE teams ADD COLUMN pinned_at REAL")
+            tcols = {r[1] for r in c.execute("PRAGMA table_info(teams)").fetchall()}
+            if "created_by" not in tcols:
+                # Người tạo nhóm (0.142.0): người thật, lấy từ phiên xác thực của server, không từ client. Javis hiện chỉ
+                # có một tài khoản chủ máy nên nhóm cũ nhận đúng chủ đó ("owner"), không giả lập đa người dùng.
+                c.execute("ALTER TABLE teams ADD COLUMN created_by TEXT NOT NULL DEFAULT 'owner'")
+            if "client_req_id" not in tcols:
+                # Mã yêu cầu tạo nhóm của client (0.142.0): bấm Tạo hai lần hay mạng chậm gửi lại thì trả lại nhóm đã tạo.
+                c.execute("ALTER TABLE teams ADD COLUMN client_req_id TEXT")
+            c.execute("CREATE UNIQUE INDEX IF NOT EXISTS teams_client_req ON teams(brain_id, client_req_id) "
+                      "WHERE client_req_id IS NOT NULL")
 
     def _conn(self) -> sqlite3.Connection:
         c = sqlite3.connect(str(self.path), timeout=10, isolation_level=None)
@@ -167,26 +189,57 @@ class TeamStore:
         return {"team_id": r["team_id"], "brain_id": r["brain_id"], "name": r["name"], "description": r["description"],
                 "session_id": r["session_id"], "leader_key": r["leader_key"], "leader_mode": r["leader_mode"],
                 "status": r["status"], "caps": caps, "created_at": r["created_at"], "updated_at": r["updated_at"],
-                "pinned_at": r["pinned_at"]}
+                "pinned_at": r["pinned_at"], "created_by": r["created_by"] if "created_by" in r.keys() else "owner"}
 
     def _event(self, c, team_id: str, kind: str, by: str, before: Any = None, after: Any = None) -> None:
         c.execute("INSERT INTO team_events(team_id,kind,by,before_json,after_json,created_at) VALUES(?,?,?,?,?,?)",
                   (team_id, kind, by, _j(before or {}), _j(after or {}), time.time()))
 
     def create_team(self, brain_id: str, name: str, description: str, session_id: str, by: str = "owner",
-                    team_id: Optional[str] = None) -> dict:
-        """`team_id` cho trước khi phiên hội thoại đã tạo với kênh `team:<team_id>` (xem `new_team_id`)."""
+                    team_id: Optional[str] = None, members: Optional[list] = None, leader_key: Optional[str] = None,
+                    client_req_id: Optional[str] = None) -> dict:
+        """`team_id` cho trước khi phiên hội thoại đã tạo với kênh `team:<team_id>` (xem `new_team_id`).
+
+        `members` [(agent_key, slug)] và `leader_key` ghi trong CÙNG giao dịch với nhóm (0.142.0): không còn nhóm nửa
+        vời khi lỗi giữa chừng. `client_req_id` trùng (bấm hai lần, mạng chậm gửi lại) thì không tạo gì, trả nhóm cũ."""
         name = str(name or "").strip()
         if not name:
             raise TeamError("thiếu tên nhóm")
         tid = team_id or new_team_id()
+        req = str(client_req_id or "").strip()[:80] or None
         now = time.time()
         with self._Tx(self) as c:
-            c.execute("INSERT INTO teams(team_id,brain_id,name,description,session_id,created_at,updated_at) "
-                      "VALUES(?,?,?,?,?,?,?)", (tid, brain_id, name[:120], str(description or "")[:2000],
-                                                 session_id, now, now))
-            self._event(c, tid, "created", by, None, {"name": name})
+            dup = None
+            if req:
+                dup = c.execute("SELECT team_id FROM teams WHERE brain_id=? AND client_req_id=?", (brain_id, req)).fetchone()
+                if dup is not None:
+                    tid = dup["team_id"]
+            if dup is None:
+                c.execute("INSERT INTO teams(team_id,brain_id,name,description,session_id,created_at,updated_at,"
+                          "created_by,client_req_id) VALUES(?,?,?,?,?,?,?,?,?)",
+                          (tid, brain_id, name[:120], str(description or "")[:2000], session_id, now, now,
+                           str(by or "owner")[:80], req))
+                self._event(c, tid, "created", by, None, {"name": name})
+                for key, slug in dict.fromkeys((str(k), str(s)) for k, s in (members or [])):
+                    c.execute("INSERT OR IGNORE INTO team_members(team_id,agent_key,slug_at_join,role,status,joined_at) "
+                              "VALUES(?,?,?,?,?,?)", (tid, key, slug, "member", "active", now))
+                    self._event(c, tid, "member_added", by, None, {"agent_key": key, "slug": slug})
+                if leader_key:
+                    if c.execute("SELECT 1 FROM team_members WHERE team_id=? AND agent_key=?",
+                                 (tid, leader_key)).fetchone() is None:
+                        raise TeamError("trưởng nhóm phải là thành viên đang hoạt động của nhóm")
+                    c.execute("UPDATE team_members SET role='leader' WHERE team_id=? AND agent_key=?", (tid, leader_key))
+                    c.execute("UPDATE teams SET leader_key=? WHERE team_id=?", (leader_key, tid))
+                    self._event(c, tid, "leader_set", by, {"leader_key": None}, {"leader_key": leader_key})
         return self.get(tid)
+
+    def find_by_request(self, brain_id: str, client_req_id: str) -> Optional[dict]:
+        req = str(client_req_id or "").strip()[:80]
+        if not req:
+            return None
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT * FROM teams WHERE brain_id=? AND client_req_id=?", (brain_id, req)).fetchone()
+            return self._team(r) if r else None
 
     def open_teams(self) -> list:
         """Mọi nhóm chưa lưu trữ, ở mọi brain (đối soát lúc khởi động)."""
@@ -778,3 +831,104 @@ class TeamStore:
         with closing(self._conn()) as c:
             r = c.execute("SELECT * FROM agent_busy WHERE agent_key=? AND lease_until > ?", (agent_key, t)).fetchone()
             return dict(r) if r else None
+
+    # ───────────── kết cục lượt trả lời trò chuyện (0.142.0) ─────────────
+
+    def queue_replies(self, team_id: str, message_id: int, agent_keys: list) -> list:
+        """Ghi các lượt trả lời của một tin là `queued`, theo thứ tự @. Đã có thì giữ nguyên (gửi lại không nhân đôi)."""
+        now = time.time()
+        with self._Tx(self) as c:
+            for i, key in enumerate(agent_keys):
+                c.execute("INSERT OR IGNORE INTO team_replies(team_id,message_id,agent_key,seq,status,created_at,"
+                          "updated_at) VALUES(?,?,?,?,'queued',?,?)", (team_id, int(message_id), key, i, now, now))
+        return self.replies_of(team_id, message_id)
+
+    def replies_of(self, team_id: str, message_id: int) -> list:
+        with closing(self._conn()) as c:
+            rows = c.execute("SELECT * FROM team_replies WHERE team_id=? AND message_id=? ORDER BY seq",
+                             (team_id, int(message_id))).fetchall()
+        return [dict(r) for r in rows]
+
+    def reply(self, team_id: str, message_id: int, agent_key: str) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT * FROM team_replies WHERE team_id=? AND message_id=? AND agent_key=?",
+                          (team_id, int(message_id), agent_key)).fetchone()
+        return dict(r) if r else None
+
+    def replies_for(self, team_id: str, message_ids: list) -> dict:
+        """{message_id: [lượt trả lời theo thứ tự]} cho một trang tin."""
+        ids = [int(i) for i in message_ids or []]
+        out: dict = {}
+        if not ids:
+            return out
+        with closing(self._conn()) as c:
+            q = ",".join("?" * len(ids))
+            for r in c.execute(f"SELECT * FROM team_replies WHERE team_id=? AND message_id IN ({q}) ORDER BY seq",
+                               [team_id] + ids).fetchall():
+                out.setdefault(int(r["message_id"]), []).append(dict(r))
+        return out
+
+    def claim_reply(self, team_id: str, message_id: int, agent_key: str) -> Optional[int]:
+        """CAS queued -> running: mỗi lượt trả lời chạy tối đa một lần cho mỗi lần thử. Trả số lần thử (`attempt`) đã
+        nhận, None khi không nhận được. Người gọi đưa lại số này khi ghi kết cục."""
+        with self._Tx(self) as c:
+            r = c.execute("SELECT attempt FROM team_replies WHERE team_id=? AND message_id=? AND agent_key=? "
+                          "AND status='queued'", (team_id, int(message_id), agent_key)).fetchone()
+            if r is None:
+                return None
+            c.execute("UPDATE team_replies SET status='running', reason='', detail='', updated_at=? "
+                      "WHERE team_id=? AND message_id=? AND agent_key=? AND status='queued'",
+                      (time.time(), team_id, int(message_id), agent_key))
+        return int(r["attempt"])
+
+    def settle_reply(self, team_id: str, message_id: int, agent_key: str, status: str, *, attempt: int,
+                     reason: str = "", detail: str = "", turn_id: Optional[str] = None,
+                     result_msg_id: Optional[int] = None, engine: str = "", model: str = "") -> bool:
+        """Ghi kết cục của ĐÚNG lần thử `attempt` khi lượt còn mở (review 0.142.0, #3): một lượt cũ về muộn (đã bị coi là
+        dở lúc khởi động lại, rồi chủ bấm Thử lại) không ghi đè kết cục của lần thử mới. Trả True khi đã ghi."""
+        if status not in REPLY_STATUS:
+            raise ValueError(status)
+        with self._Tx(self) as c:
+            n = c.execute("UPDATE team_replies SET status=?, reason=?, detail=?, turn_id=COALESCE(?,turn_id), "
+                      "result_msg_id=COALESCE(?,result_msg_id), engine=CASE WHEN ?='' THEN engine ELSE ? END, "
+                      "model=CASE WHEN ?='' THEN model ELSE ? END, updated_at=? "
+                      "WHERE team_id=? AND message_id=? AND agent_key=? AND attempt=? AND status IN ('queued','running')",
+                      (status, str(reason or "")[:60], str(detail or "")[:500], turn_id, result_msg_id, engine,
+                       engine, model, model, time.time(), team_id, int(message_id), agent_key, int(attempt))).rowcount
+        return n == 1
+
+    def retry_reply(self, team_id: str, message_id: int, agent_key: str, stuck_after_s: float = STUCK_QUEUED_S
+                    ) -> Optional[dict]:
+        """Thử lại một lượt lỗi: CAS error -> queued, tăng `attempt`. Bấm hai lần, hay bấm khi lượt đang chạy hoặc đã
+        xong, thì không làm gì (None): không có lượt thứ hai, không có kết quả trùng. Lượt nằm `queued` quá lâu (việc
+        nền không tạo được) cũng thử lại được; lần thử cũ, nếu có lúc chạy, không ghi đè được kết cục mới (attempt)."""
+        now = time.time()
+        with self._Tx(self) as c:
+            n = c.execute("UPDATE team_replies SET status='queued', attempt=attempt+1, reason='', detail='', "
+                          "updated_at=? WHERE team_id=? AND message_id=? AND agent_key=? AND (status='error' OR "
+                          "(status='queued' AND updated_at<?))",
+                          (now, team_id, int(message_id), agent_key, now - float(stuck_after_s))).rowcount
+        return self.reply(team_id, message_id, agent_key) if n == 1 else None
+
+    def interrupt_open_replies(self, before: Optional[float] = None) -> list:
+        """Sau khi khởi động lại: lượt trả lời còn `queued`/`running` không ai chạy nữa. Đánh `error` lý do `restart`
+        (có Thử lại) thay vì để quay mãi hay tự chạy lại ngoài ý chủ. Trả các dòng đã đổi."""
+        with self._Tx(self) as c:
+            # `before`: chỉ lượt của tiến trình TRƯỚC (ghi trước lúc tiến trình này khởi động). Lượt vừa gửi trong tiến
+            # trình này, trước nhịp phục hồi đầu tiên, đang chạy thật, không được đánh lỗi (review 0.142.0, #3).
+            cut = float(before) if before is not None else time.time() + 1
+            rows = [dict(r) for r in c.execute(
+                "SELECT * FROM team_replies WHERE status IN ('queued','running') AND updated_at<?", (cut,)).fetchall()]
+            c.execute("UPDATE team_replies SET status='error', reason='restart', updated_at=? "
+                      "WHERE status IN ('queued','running') AND updated_at<?", (time.time(), cut))
+        return rows
+
+    def teams_of_agent(self, agent_key: str) -> list:
+        """Mọi nhóm (chưa lưu trữ) mà `agent_key` từng là thành viên, kể cả đã rời: việc cũ của họ vẫn hiện ở tab Công
+        việc (0.142.0)."""
+        with closing(self._conn()) as c:
+            rows = c.execute("SELECT t.* FROM teams t JOIN team_members m ON m.team_id=t.team_id "
+                             "WHERE m.agent_key=? AND t.status != 'archived' ORDER BY t.updated_at DESC",
+                             (str(agent_key or ""),)).fetchall()
+        return [self._team(r) for r in rows]
+

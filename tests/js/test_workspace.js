@@ -170,13 +170,13 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     },
     querySelectorAll() { return []; } });
   const nodes = {};
-  ["#wsGroup", "#wsNew", "#wsImport", "#wsList", "#wsSearch", "#wsSearchBtn", "#wsRightFiles",
+  ["#wsGroup", "#wsNew", "#wsImport", "#wsList", "#wsSearch", "#wsSearchBtn", "#wsRightJobs",
    "#wsRightHistory", "#wsPage"]
     .forEach((s) => { nodes[s] = oGia(); });
   const tab = (v) => ({ dataset: { rtab: v }, classList: lop() });
   const pane = (v) => ({ dataset: { rpane: v }, classList: lop() });
-  const tabs = [tab("cai"), tab("lichsu"), tab("files")];
-  const panes = [pane("cai"), pane("lichsu"), pane("files")];
+  const tabs = [tab("cai"), tab("lichsu"), tab("viec")];
+  const panes = [pane("cai"), pane("lichsu"), pane("viec")];
   const el = {
     querySelector: (s) => nodes[s] || null,
     querySelectorAll: (s) => (s === "[data-rtab]" ? tabs : s === "[data-rpane]" ? panes : []),
@@ -200,13 +200,15 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     // Tag của agent (0.100.0) cũng khai ở đầu module: mượn bản thật qua W.
     tagsCua: W.tagsCua, tagCap: W.tagCap, laKhoa: W.laKhoa, demTag: W.demTag, coTag: W.coTag,
     khoaTag: W.khoaTag, dongChonTag: W.dongChonTag, TAG_NONE: W.TAG_NONE,
-    TAB_PHAI: ["cai", "lichsu", "files"],
+    TAB_PHAI: ["cai", "lichsu", "viec"],
     luuChon() {}, moPhien() {}, heptLai: () => false, chatReady() {}, active: true, opening: 0,
     esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: () => "<svg></svg>", avatar: () => "<i></i>",
     localStorage: { getItem: (k) => (k in kho ? kho[k] : null), setItem(k, v) { kho[k] = String(v); } },
     document: { getElementById: () => null },
     window: { JavisVaultPanel: { borrow(h) { goi.push("borrow"); ctx._into = h; return true; },
                                  giveBack() { goi.push("giveBack"); } },
+              // Tab Công việc (0.142.0): ghi lại lần gắn để đo đúng trợ lý.
+              JavisAgentJobs: { mount(h, o) { goi.push("jobs:" + o.slug); ctx._jobsInto = h; return { destroy() {} }; } },
               // Kho phiên giả: ghi lại lời gọi để đo việc trả khung chat lúc rời trang.
               JavisSessions: { _cur: null, _goi: [],
                                current() { return this._cur; },
@@ -329,13 +331,14 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     chan === 1 && o.value === "" && ctx.S.q === "" && o.hidden === true
     && nodes["#wsList"].innerHTML.includes("Người viết"));
 
-  // ---- Tab cột phải: mượn cây khi sang Thư mục, TRẢ khi rời ----
-  check("CANARY: chua bam sang Thu muc thi chua muon cay", goi.indexOf("borrow") < 0);
-  ctx.chonTabPhai("files");
-  check("bam sang Thu muc thi muon cay Vault", goi[goi.length - 1] === "borrow" && ctx._into === nodes["#wsRightFiles"]);
-  check("khung Thu muc bat, khung Cai dat tat",
+  // ---- Tab cột phải: Công việc thay Thư mục (0.142.0); không còn mượn cây Vault ở trang này ----
+  check("CANARY: chua bam sang Cong viec thi chua gan", goi.filter((x) => x.indexOf("jobs:") === 0).length === 0);
+  ctx.chonTabPhai("viec");
+  check("bam sang Cong viec thi gan tab Cong viec cua dung tro ly, khong muon cay Vault",
+    goi[goi.length - 1] === "jobs:a" && ctx._jobsInto === nodes["#wsRightJobs"] && goi.indexOf("borrow") < 0, goi);
+  check("khung Cong viec bat, khung Cai dat tat",
     panes[2].classList.co("on") && !panes[0].classList.co("on") && tabs[2].classList.co("active"));
-  check("nho tab dang dung", kho["javis_ws_rtab"] === "files");
+  check("nho tab dang dung", kho["javis_ws_rtab"] === "viec");
   ctx.chonTabPhai("cai");
   check("CANARY: quay ve tab Cai dat thi TRA cay Vault", goi[goi.length - 1] === "giveBack");
   // Tab LỊCH SỬ (0.59.3): tab thứ ba, và nó cũng KHÔNG được giữ cây Vault.
@@ -346,7 +349,7 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
   check("nho tab Lich su", kho["javis_ws_rtab"] === "lichsu");
   ctx.chonTabPhai("tab-la-hoac");
   check("tab la thi lui ve Cai dat", ctx.S.tabPhai === "cai");
-  ctx.chonTabPhai("files");
+  ctx.chonTabPhai("viec");
   ctx.roi();
   check("CANARY: roi trang cung TRA cay Vault", goi[goi.length - 1] === "giveBack");
 
@@ -684,15 +687,15 @@ check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/
 // thi sua mot lan roi thoi.
 {
   const ws = fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
-  check("TAB_PHAI xep lichsu truoc, cai dat sau cung",
-    /var TAB_PHAI = \["lichsu", "files", "cai"\]/.test(ws));
+  check("TAB_PHAI xep lichsu truoc, cai dat sau cung (0.142.0: Cong viec thay Thu muc)",
+    /var TAB_PHAI = \["lichsu", "viec", "cai"\]/.test(ws));
   check("tab mac dinh la Lich su", /tabPhai: "lichsu"/.test(ws)
     && /TAB_PHAI\.indexOf\(r\) >= 0 \? r : "lichsu"/.test(ws));
   const iTabs = ws.indexOf('class="cside-tabs ws-rtabs"');
   const khoi = ws.slice(iTabs, iTabs + 700);
-  check("thu tu NUT ve ra cung khop (lichsu, files, cai)",
-    khoi.indexOf('data-rtab="lichsu"') < khoi.indexOf('data-rtab="files"')
-    && khoi.indexOf('data-rtab="files"') < khoi.indexOf('data-rtab="cai"'));
+  check("thu tu NUT ve ra cung khop (lichsu, viec, cai)",
+    khoi.indexOf('data-rtab="lichsu"') < khoi.indexOf('data-rtab="viec"')
+    && khoi.indexOf('data-rtab="viec"') < khoi.indexOf('data-rtab="cai"'));
 }
 
 // ============================================================

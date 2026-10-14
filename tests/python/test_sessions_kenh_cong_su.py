@@ -43,6 +43,9 @@ check("loc dung kenh agent", [s["id"] for s in st.list_sessions(brain="/b", chan
 check("loc dung kenh workflow", [s["id"] for s in st.list_sessions(brain="/b", channel="workflow:viet-bai")] == [c])
 moc = st.moc_cap_nhat_theo_kenh(["/b"], "agent:")
 check("moc_cap_nhat_theo_kenh", set(moc) == {"agent:nguoi-viet"} and moc["agent:nguoi-viet"] > 0)
+# 0.142.0: phiên TRỐNG (trang Cộng sự tạo sẵn khi bấm vào trợ lý) không tính là "vừa nhắn" (giờ trên thẻ, thứ tự).
+st.create_session(brain="/b-trong", engine="cli", channel="agent:chua-nhan")
+check("phien trong khong tinh gio nhan gan nhat", st.moc_cap_nhat_theo_kenh(["/b-trong"], "agent:") == {})
 check("channel=* tra ve moi kenh", {s["id"] for s in st.list_sessions(brain="/b", channel="*")} == {a, b, c, d})
 
 # Canary nguồn: learn.py phải gọi list_sessions với channel="*" ở fallback "phiên mới nhất

@@ -4392,6 +4392,16 @@
  {
   "order": 441,
   "type": "APIRoute",
+  "path": "/teams/{team_id}/messages/{message_id}/replies/{agent_key}/retry",
+  "name": "teams_reply_retry",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 442,
+  "type": "APIRoute",
   "path": "/teams/{team_id}/messages/{message_id}/accept",
   "name": "teams_accept",
   "methods": [
@@ -4400,7 +4410,7 @@
   "trong": null
  },
  {
-  "order": 442,
+  "order": 443,
   "type": "APIRoute",
   "path": "/teams/{team_id}/messages/{message_id}/decision",
   "name": "teams_decision",
@@ -4410,7 +4420,7 @@
   "trong": null
  },
  {
-  "order": 443,
+  "order": 444,
   "type": "APIRoute",
   "path": "/teams/{team_id}/turns",
   "name": "teams_turns",
@@ -4420,7 +4430,7 @@
   "trong": null
  },
  {
-  "order": 444,
+  "order": 445,
   "type": "APIRoute",
   "path": "/teams/{team_id}/authority",
   "name": "teams_authority",
@@ -4430,7 +4440,7 @@
   "trong": null
  },
  {
-  "order": 445,
+  "order": 446,
   "type": "APIRoute",
   "path": "/teams/{team_id}/members/{agent_key}/managed",
   "name": "teams_member_managed",
@@ -4440,12 +4450,52 @@
   "trong": null
  },
  {
-  "order": 446,
+  "order": 447,
   "type": "APIRoute",
   "path": "/teams/{team_id}/search",
   "name": "teams_search",
   "methods": [
    "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 448,
+  "type": "APIRoute",
+  "path": "/agents/jobs/counts",
+  "name": "agent_jobs_counts",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 449,
+  "type": "APIRoute",
+  "path": "/agents/{slug}/jobs/verify-targets",
+  "name": "agent_jobs_verify_targets",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 450,
+  "type": "APIRoute",
+  "path": "/agents/{slug}/jobs",
+  "name": "agent_jobs_list",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 451,
+  "type": "APIRoute",
+  "path": "/agents/{slug}/jobs",
+  "name": "agent_jobs_assign",
+  "methods": [
+   "POST"
   ],
   "trong": null
  }

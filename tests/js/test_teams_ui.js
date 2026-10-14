@@ -119,7 +119,8 @@ h = TM.membersHtml(team, [{ slug: "hoa", name: "Hoa", agent_key: null, status: "
 check("thành viên: vai bằng chữ, trạng thái Cộng hưởng bằng chữ", h.includes(vi["teams.leader"]) && h.includes(vi["teams.member"])
       && h.includes(vi["resonance.t0_state_on"]) && h.includes(vi["resonance.t0_state_off"]), h);
 check("thành viên: nút Đặt làm trưởng nhóm, Bỏ khỏi nhóm", /data-leader="ag_minh"/.test(h) && /data-remove="ag_minh"/.test(h), h);
-check("thêm thành viên: chỉ agent chưa trong nhóm", h.includes('value="hoa"') && !h.includes('value="lan"'), h);
+check("thêm thành viên: một nút mở hộp chọn (0.142.0; hộp chọn loại người đã trong nhóm, test ở test_team_chat_0142.js)",
+      h.includes("tm-add-open") && !h.includes("tm-add-pick"), h);
 h = TM.settingsFormHtml(team);
 check("T5 tên, mô tả, trạng thái một cột, nút Lưu ở cuối, không có số giới hạn", h.lastIndexOf("tm-save") > h.lastIndexOf("tm-status")
       && !h.includes("tm-cap") && !h.includes("<table"), h);
@@ -131,9 +132,9 @@ h = TM.turnsHtml([{ agent_key: "ag_lan", role: "plan", status: "ok", created_at:
                   { agent_key: "ag_minh", role: "work", status: "refunded", created_at: Date.now() / 1000 }], team);
 check("lượt: lượt hoàn không tính, theo agent và vai", h.includes(vi["teams.turns_today"].replace("{n}", "1").replace("{cap}", "100"))
       && h.includes("Lan") && h.includes(vi["teams.role.plan"]), h);
-h = TM.createFormHtml([{ slug: "lan", name: "Lan" }, { slug: "minh", name: "M<x>" }]);
-check("tạo nhóm: tên, mô tả, chọn thành viên, trưởng nhóm, nút Tạo ở cuối", h.includes('name="tm-name"') && h.includes("M&lt;x&gt;")
-      && h.includes('name="tm-leader"') && h.lastIndexOf("tm-create-save") > h.lastIndexOf('name="tm-leader"'), h);
+// Tạo nhóm từ 0.142.0 là hộp chọn kiểu Zalo (team-picker.js, test riêng ở test_team_chat_0142.js).
+check("tạo nhóm và thêm người mở hộp chọn kiểu Zalo", teamsJs.includes('openPicker("create"') && teamsJs.includes('openPicker("add"')
+      && !teamsJs.includes("createFormHtml"));
 h = TM.bannersHtml(Object.assign({}, team, { leader_key: null }));
 check("T5 băng nhóm chưa có trưởng nhóm kèm nút Chọn", h.includes(vi["teams.no_leader"]) && /data-open-team="1"/.test(h), h);
 h = TM.bannersHtml(Object.assign({}, team, { status: "paused" }));
@@ -244,7 +245,7 @@ check("hộp cấp quyền đủ dòng của 13.1: phạm vi, agent do nhóm qu�
 const fullTeam = Object.assign({}, team, { members: [Object.assign({}, members[0]), Object.assign({}, members[1], { managed: true })],
   authority: { authority: { leader_key: "ag_lan", granted_at: 1791900000,
     grant: { caps: { task_turns: { unlimited: true } }, ceilings: { task_turns: { unlimited: true }, daily_turns: 150 },
-      providers_unlimited: ["aux"], can_interrupt: true, billing: "api" } },
+      providers_unlimited: ["openai-oauth"], can_interrupt: true, billing: "api" } },
     effective_caps: { task_turns: null, task_steps: 8, help_depth: 2, daily_turns: 100 } } });
 ah = TM.authorityHtml(fullTeam);
 check("Toàn quyền bật: trạng thái nêu trưởng nhóm, có Lưu và Thu hồi", ah.includes("tm-auth-on") && ah.includes("Lan")
@@ -253,7 +254,7 @@ check("Không giới hạn hiện bằng chữ, ô số tắt, ô tích bật (n
       ah.includes(vi["teams.cap.task_turns"] + ": " + vi["teams.auth.unlimited"])
       && /name="tm-auth-cap-task_turns" value="" disabled/.test(ah) && /name="tm-auth-cap-task_turns-unl" checked/.test(ah), ah);
 check("trần trần số hiện đúng, provider và quyền ngắt việc đã chọn được đánh dấu",
-      /name="tm-auth-ceil-daily_turns" value="150"/.test(ah) && /value="aux" checked/.test(ah)
+      /name="tm-auth-ceil-daily_turns" value="150"/.test(ah) && /value="openai-oauth" checked/.test(ah)
       && /name="tm-auth-interrupt" checked/.test(ah) && /value="api" checked/.test(ah), ah);
 check("agent do nhóm quản lý được liệt kê", ah.includes(vi["teams.auth.managed"].replace("{names}", "Minh &lt;b&gt;")), ah);
 check("chưa có trưởng nhóm: chỉ nhắc chọn trưởng nhóm", TM.authorityHtml(Object.assign({}, limitedTeam, { leader_key: null }))
@@ -284,7 +285,9 @@ check("CSS: lớp flex mới của tìm có [hidden], vùng chạm 44px trên đ
 // Review T4
 check("review #1: tải lại trang tin mới nhất (gửi tin, lọc việc) thì thoát chế độ xem tin cũ",
       /function loadMsgs\(older\) \{[\s\S]{0,200}if \(!older\) S\.jumped = null;/.test(teamsJs));
-check("review #5: mở form tạo nhóm thì đóng ô tìm", /tm-new"\)\) \{[\s\S]{0,160}S\.searchOpen = false/.test(teamsJs));
+// review #5 cũ (form tạo nhóm thay khung chat nên phải đóng ô tìm) hết hiệu lực từ 0.142.0: hộp tạo nhóm là lớp phủ,
+// không đụng nhóm đang mở hay ô tìm.
+check("0.142.0: hộp tạo nhóm là lớp phủ, không đổi nhóm đang mở", /function openPicker\(mode, opener\) \{(?:(?!S\.activeId =)[\s\S]){0,1400}\n  \}/.test(teamsJs));
 check("review #6: băng xem tin cũ dính ở đầu khung", /\.tm-jumped \{[^}]*position: sticky; top: 0;/.test(css));
 check("review #7: nút tìm đủ 44px bề ngang trên điện thoại", /\.tm-back, \.tm-close, \.tm-search-btn \{ min-width: 44px;/.test(css));
 check("review #8: kết quả tìm, nhảy tới về muộn sau khi đổi nhóm thì bỏ",
@@ -322,9 +325,11 @@ check("T5 @ tên dài hơn thắng ('@Lan Anh' không gọi nhầm Lan)", TM.men
 check("T5 @ phải hết tên ('@Lanx' không gọi Lan); người đã rời không được gọi; xoá chữ là bỏ gọi",
       TM.mentionsFromText("@Lanx", mem3).length === 0 && TM.mentionsFromText("@Cũ", mem3).length === 0
       && TM.mentionsFromText("không gọi ai", mem3).length === 0);
-check("T5 gửi tin lấy người được gọi từ chữ, không còn hàng chip @ trùng chữ",
-      /var mentions = mentionsFromText\(text, S\.team\.members\);/.test(teamsJs) && !teamsJs.includes("tm-chips")
-      && !teamsJs.includes("data-unmention"));
+// 0.142.0 (đối chiếu goal-claude-v2 mục 3): người được gọi là TOKEN riêng ở hàng "Gọi:" (tm-calls), bấm x là bỏ gọi và
+// xoá token trong chữ. Hàng chip @ cũ của T5 (tm-chips, lặp lại chữ) vẫn không quay lại.
+check("T5 gửi tin lấy người được gọi từ chữ, không còn hàng chip @ trùng chữ; 0.142.0 có hàng token Gọi",
+      /var scan = mentionScan\(text, S\.team\.members, S\.picked\);/.test(teamsJs) && !teamsJs.includes("tm-chips")
+      && teamsJs.includes("data-unmention") && teamsJs.includes("tm-calls"));
 
 // Một nút giải quyết cho việc bị chặn.
 const BA = TM.blockedAction;
@@ -546,7 +551,7 @@ check("hộp thư nhận ra thư của nhóm (kênh team:) và mở nhóm đó �
       /\/\^team:\(\.\+\)\$\/\.exec/.test(notiJs) && /window\.JavisTeams\.open\(nhom\)/.test(notiJs)
       && notiJs.indexOf("JavisTeams.open(") < notiJs.indexOf("window.JavisSessions.open(item.session_id)"));
 check("JavisTeams.open: đang ở trang Nhóm thì mở ngay; chưa thì ghi nhớ, sang trang Nhóm, mở sau khi tải danh sách",
-      typeof TM.open === "function" && /function open\(teamId\) \{[\s\S]{0,600}pendingOpen = /.test(teamsJs)
+      typeof TM.open === "function" && /function open\(teamId, taskId\) \{[\s\S]{0,600}pendingOpen = /.test(teamsJs)
       && /JavisNav\.go\("teams"\)/.test(teamsJs) && /if \(pendingOpen\) \{[\s\S]{0,200}openTeam\(/.test(teamsJs));
 check("console.js không còn nhãn số giữ chỗ 0.111.0", !consoleJs.includes("0.111.0"));
 

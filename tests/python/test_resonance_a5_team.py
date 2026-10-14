@@ -166,10 +166,11 @@ RS.GoalStore.assign_goal = orig_assign
 g = t.store.find_by_key(t.owner, ref)
 tm = t.team(g)
 created = [e for e in t.store.events(t.owner, g.id) if e["kind"] in ("created", "team_attached")]
-check("T31 tool javis_goal: đội active, 4/4, budget 8, gắn trong giao dịch tạo (không qua assign_goal)",
-      "Đã lập mục tiêu" in out and tm and tm["status"] == "active" and tm["reviewer_agent_key"] == t.reviewer["agent_key"]
-      and t.g(g).budget_calls == 8 and [e["kind"] for e in created] == ["created", "team_attached"]
-      and len({e["created_at"] for e in created}) == 1, (out[:200], tm, created))
+# 0.142.0: bỏ người review cố định. Đường thật (tool javis_goal mở kho mặc định của host, không bật cờ của test) KHÔNG
+# gắn đội nữa, kể cả khi trợ lý còn một cặp làm/review cũ trong kho.
+check("T31 (0.142.0) tool javis_goal: mục tiêu mới KHÔNG có đội dù có cặp cũ, không lấy ngân sách đội 8, chỉ một sự kiện tạo",
+      "Đã lập mục tiêu" in out and tm is None and t.g(g).budget_calls != 8
+      and [e["kind"] for e in created] == ["created"], (out[:200], tm, created))
 try:
     t.store.assign_goal(t.owner, g.id, t.maker["agent_key"], g.revision)
     _conf = False

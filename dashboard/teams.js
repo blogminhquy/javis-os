@@ -54,7 +54,10 @@
   var AUTH_CAPS = ["task_turns", "task_steps", "help_depth", "daily_turns"];
   var AUTH_CAP_KEY = { task_turns: "teams.cap.task_turns", task_steps: "teams.cap.task_steps",
     help_depth: "teams.cap.help_depth", daily_turns: "teams.cap.daily_turns" };
-  var PROVIDERS = [{ id: "aux", key: "teams.auth.provider_aux" }, { id: "anthropic-cli", key: "teams.auth.provider_claude" }];
+  // Provider được "Không giới hạn" lượt (D6). Từ 0.142.0 lượt nhóm chạy model của trợ lý hay model chính, không còn model
+  // việc nền, nên nhãn là provider thật của lượt (gói đăng ký). Quyền cũ ghi "aux" không còn khớp lượt nào: trần về mức
+  // của nhóm, tức chặt hơn, không bao giờ rộng hơn.
+  var PROVIDERS = [{ id: "anthropic-cli", key: "teams.auth.provider_claude" }, { id: "openai-oauth", key: "teams.auth.provider_codex" }];
   var FIXED_KEYS = ["teams.auth.fixed_server", "teams.auth.fixed_provider", "teams.auth.fixed_account",
     "teams.auth.fixed_technical"];
   // Ba mức tự quyết của trưởng nhóm (T5), đặt lên Toàn quyền của T3. Mức 2: trần tối đa vừa phải, không ngắt việc.
@@ -245,6 +248,15 @@
     return "";
   }
 
+  // Dòng phụ ở đầu khung chat (0.142.0): "Bạn + N trợ lý · X điều phối". Bạn là người tạo, quản lý (người thật); điều
+  // phối là một trợ lý AI. Chỉ đếm trợ lý đang hoạt động.
+  function headLine(t) {
+    var n = (t.members || []).filter(function (m) { return !m.status || m.status === "active"; }).length;
+    var who = tw("teams.head_people", { n: n });
+    return who + " · " + (t.leader_key ? tw("teams.head_leader", { name: nameOf(t.members, t.leader_key) })
+      : tw("teams.no_leader_short"));
+  }
+
   function previewText(t, members) {
     var last = t.last;
     if (!last || !last.text) return tw("teams.no_messages");
@@ -279,6 +291,78 @@
 
   // ───────────── tin ─────────────
 
+  // Kết cục từng lượt trả lời của một tin chủ nhóm (0.142.0): chờ, đang trả lời, lỗi kèm lý do và Thử lại. "Đã trả lời"
+  // không hiện (câu trả lời đã nằm ngay dưới); chỉ báo khi còn chờ hay khi hỏng, để không có tin nào im lặng.
+  var REPLY_WHY = { engine_unavailable: "teams.reply.why.engine_unavailable", engine: "teams.reply.why.engine",
+    cap: "teams.reply.why.cap", busy: "teams.reply.why.busy", team_paused: "teams.reply.why.team_paused",
+    member_left: "teams.reply.why.member_left", restart: "teams.reply.why.restart",
+    interrupted: "teams.reply.why.interrupted", internal: "teams.reply.why.internal",
+    leader_changed: "teams.reply.why.leader_changed", superseded: "teams.reply.why.superseded",
+    timeout: "teams.reply.why.timeout", auth: "teams.reply.why.auth", no_leader: "teams.reply.why.no_leader" };
+  var STUCK_QUEUED_S = 600;   // khớp team_store.STUCK_QUEUED_S: chờ lâu hơn thì cho Thử lại
+  var LEADER_SLOT = "__leader__";   // khớp team_runner.LEADER_SLOT: tin thường gửi lúc nhóm chưa có điều phối
+
+  // Thao tác xử lý theo từng loại lỗi (0.142.0), ngoài nút Thử lại: lỗi model hay đăng nhập thì mở trợ lý để đổi model
+  // hoặc mở trang Models; hết lượt thì mở giới hạn của nhóm; chưa có hay mất điều phối thì mở danh sách thành viên.
+  function replyActions(x, ctx) {
+    var out = [];
+    var slug = (memberOf(ctx.members, x.agent_key) || {}).slug || "";
+    if (x.reason === "auth") out.push({ act: "models", key: "teams.reply.act.models" });
+    if ((x.reason === "engine" || x.reason === "engine_unavailable" || x.reason === "timeout" || x.reason === "auth") && slug) {
+      out.push({ act: "agent", key: "teams.reply.act.agent", slug: slug });
+    }
+    if (x.reason === "cap") out.push({ act: "limits", key: "teams.reply.act.limits" });
+    if (x.reason === "no_leader" || (x.reason === "member_left" && ctx.leaderKey === x.agent_key) ||
+        x.reason === "leader_changed") {
+      out.push({ act: "leader", key: "teams.reply.act.leader" });
+    }
+    if (x.reason === "team_paused") out.push({ act: "resume", key: "teams.reply.act.resume" });
+    return out.map(function (a) {
+      return '<button type="button" class="ws-btn tm-reply-act" data-reply-act="' + esc(a.act) + '"' +
+        (a.slug ? ' data-slug="' + esc(a.slug) + '"' : "") + ">" + esc(tw(a.key)) + "</button>";
+    }).join("");
+  }
+
+  function replyStatusHtml(m, ctx) {
+    var rows = (m.replies || []).filter(function (x) { return x.status !== "done"; });
+    if (!rows.length) return "";
+    var retrying = (ctx && ctx.retrying) || {};
+    return '<div class="tm-replies">' + rows.map(function (x) {
+      var slot = x.agent_key === LEADER_SLOT;
+      // Người đã rời nhóm không còn trong `members`: tra sổ tác giả (giữ tên theo agent_key) trước khi rơi về mã.
+      var mm = memberOf(ctx.members, x.agent_key) || (ctx.authors || {})[x.agent_key];
+      var who = slot ? tw("teams.reply.leader_slot") : (mm && (mm.name || mm.slug)) || x.agent_key;
+      var face = slot ? "" : agentAva(memberOf(ctx.members, x.agent_key) || (ctx.authors || {})[x.agent_key] || { name: who }, 20);
+      var busy = retrying[m.id + "|" + x.agent_key];
+      var retryBtn = '<button type="button" class="ws-btn tm-reply-retry" data-retry="' + esc(m.id) + '" data-retry-key="' +
+        esc(x.agent_key) + '"' + (busy ? " disabled" : "") + ">" + ic("rotate-cw") +
+        esc(tw(busy ? "teams.reply.retrying" : "teams.reply.retry")) + "</button>";
+      if (x.status === "error") {
+        var why = REPLY_WHY[x.reason] || "teams.reply.why.unknown";
+        var detail = x.detail && x.reason !== "timeout" && x.reason !== "no_leader"
+          ? '<span class="tm-reply-detail">' + esc(String(x.detail).slice(0, 200)) + "</span>" : "";
+        var whyText = x.reason === "timeout" ? tw(why, { n: x.detail || "?" }) : tw(why);
+        // Rời nhóm thì không thử lại được; hết lượt hôm nay thì Thử lại chỉ chạy được sau khi mở thêm giới hạn.
+        var canRetry = x.reason !== "member_left";
+        return '<div class="tm-reply tm-reply-error" role="status">' + face + '<span class="tm-reply-main"><b>' + esc(who) +
+          "</b> " + esc(tw(slot ? "teams.reply.error_slot" : "teams.reply.error")) + ": " + esc(whyText) + detail + "</span>" +
+          '<span class="tm-reply-acts">' + replyActions(x, ctx) + (canRetry ? retryBtn : "") + "</span></div>";
+      }
+      var answering = x.status === "running" && x.reason === "answering";
+      var waiting = x.status === "running" && x.reason === "waiting_busy";
+      var stuck = x.status === "queued" && x.updated_at && (Date.now() / 1000 - Number(x.updated_at)) > STUCK_QUEUED_S;
+      if (stuck) {
+        return '<div class="tm-reply tm-reply-error" role="status">' + face + '<span class="tm-reply-main"><b>' + esc(who) +
+          "</b> " + esc(tw("teams.reply.stuck")) + '</span><span class="tm-reply-acts">' + retryBtn + "</span></div>";
+      }
+      var label = answering ? tw("teams.reply.answering") : waiting ? (x.detail ? tw("teams.reply.waiting_busy_in",
+        { team: x.detail }) : tw("teams.reply.waiting_busy")) : tw("teams.reply.queued");
+      return '<div class="tm-reply tm-reply-' + (answering ? "answering" : "queued") + '" role="status">' + face +
+        '<span class="tm-reply-main"><b>' + esc(who) + "</b> " + esc(label) +
+        '<span class="tm-dots" aria-hidden="true"><i></i><i></i><i></i></span></span></div>';
+    }).join("") + "</div>";
+  }
+
   function messageHtml(m, ctx) {
     ctx = ctx || {};
     var meta = m.meta || {};
@@ -296,7 +380,7 @@
     if (!mine) head.push('<span class="tm-who">' + esc(who) + "</span>");
     if (!mine && meta.role && ROLE_KEY[meta.role]) head.push('<span class="tm-role">' + esc(tw(ROLE_KEY[meta.role])) + "</span>");
     if (m.task_id) {
-      var title = (ctx.taskTitles || {})[m.task_id] || m.task_id;
+      var title = (ctx.taskTitles || {})[m.task_id] || m.task_title || m.task_id;
       head.push('<button type="button" class="tm-tag" data-task="' + esc(m.task_id) + '">' + ic("list-todo") +
         '<span class="tm-tag-text">' + esc(tw("teams.job_tag", { title: title })) + "</span></button>");
     } else if (mine && meta.as_job) {
@@ -337,7 +421,7 @@
       body + lateLine + notes + prop + (foot ? '<div class="tm-foot">' + foot + "</div>" : "") + "</div>";
     var face = mine ? "" : agentAva(author || { name: who }, 28);
     return '<div class="' + cls + '" data-mid="' + esc(m.id) + '">' +
-      (mine ? side + bubble : face + bubble + side) + panel + "</div>";
+      (mine ? side + bubble : face + bubble + side) + panel + "</div>" + (mine ? replyStatusHtml(m, ctx) : "");
   }
 
   // ───────────── việc ─────────────
@@ -423,13 +507,27 @@
 
   // ───────────── khung soạn ─────────────
 
+  // Bỏ dấu, hoa thường, chuẩn NFC để tìm "lan" ra "Lân" và gõ tổ hợp hay dựng sẵn đều khớp. "đ" không phải dấu ghép.
+  function foldName(s) {
+    s = String(s == null ? "" : s);
+    if (s.normalize) s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return s.replace(/\u0111/g, "d").replace(/\u0110/g, "D").toLowerCase();
+  }
+
+  // Gợi ý @ (0.142.0): tìm KHÔNG DẤU theo đầu bất kỳ từ nào trong tên, mã (slug) hay vai; người đã gọi thì bỏ.
   function mentionMatches(members, query, chosen) {
-    var q = String(query || "").toLowerCase();
+    var q = foldName(query).trim();
+    var starts = function (s) {
+      s = foldName(s);
+      if (!q) return true;
+      if (s.indexOf(q) === 0) return true;
+      return s.split(/[^\p{L}\p{N}]+/u).some(function (w) { return w && w.indexOf(q) === 0; }) ||
+        s.indexOf(" " + q) >= 0;
+    };
     return (members || []).filter(function (m) {
       if (m.status && m.status !== "active") return false;
       if ((chosen || []).indexOf(m.agent_key) >= 0) return false;
-      if (!q) return true;
-      return String(m.name || "").toLowerCase().indexOf(q) === 0 || String(m.slug || "").toLowerCase().indexOf(q) === 0;
+      return starts(m.name) || starts(m.slug) || (q && starts(m.title));
     }).slice(0, 8);
   }
 
@@ -437,39 +535,139 @@
   // tự không phải chữ/số (địa chỉ email "ho@lan.vn" không gọi ai); sau tên phải là hết chữ hay ký tự không phải chữ/số/dấu.
   // So trên chữ đã chuẩn hoá NFC (gõ tổ hợp vẫn khớp). Hai tên cùng bắt đầu ở một chỗ ("@Lan Anh" và "@Lan") thì lấy tên
   // dài hơn.
-  function mentionsFromText(text, members) {
+  // Nhân dạng theo agent_key (0.142.0): người CHỌN từ gợi ý được ghi `{key, label}`. Token "@label" còn nguyên trong chữ
+  // thì gọi ĐÚNG mã đó (hai trợ lý trùng tên vẫn đúng người, không suy lại theo tên); sửa hay xoá token thì lựa chọn đó
+  // mất, không gọi ai theo nó nữa. Gõ tay một tên duy nhất vẫn gọi được; gõ tay một tên trùng thì không gọi ai và báo
+  // `ambiguous` để chủ chọn trong gợi ý.
+  function mentionScan(text, members, picked) {
     var norm = function (s) { s = String(s || ""); return (s.normalize ? s.normalize("NFC") : s).toLowerCase(); };
     var low = norm(text);
     var word = /[\p{L}\p{M}\p{N}_]/u;
-    var cands = [];
+    var byPos = {};
+    var active = {};
+    var bounded = function (i, len) {
+      var prev = i ? low.charAt(i - 1) : "";
+      var next = low.charAt(i + 1 + len);
+      return (!prev || !word.test(prev)) && (!next || !word.test(next));
+    };
     (members || []).forEach(function (m) {
       if (m.status && m.status !== "active") return;
+      active[m.agent_key] = true;
       [m.name, m.slug].forEach(function (n) {
+        var label = String(n || "").trim();
         n = norm(n).trim();
         if (!n) return;
         var at = 0, i;
         while ((i = low.indexOf("@" + n, at)) >= 0) {
-          var prev = i ? low.charAt(i - 1) : "";
-          var next = low.charAt(i + 1 + n.length);
-          if ((!prev || !word.test(prev)) && (!next || !word.test(next))) cands.push({ i: i, len: n.length, key: m.agent_key });
+          if (bounded(i, n.length)) {
+            var g = byPos[i];
+            if (!g || n.length > g.len) byPos[i] = { i: i, len: n.length, keys: [m.agent_key], label: label };
+            else if (n.length === g.len && g.keys.indexOf(m.agent_key) < 0) g.keys.push(m.agent_key);
+          }
           at = i + 1;
         }
       });
     });
-    cands.sort(function (a, b) { return a.i - b.i || b.len - a.len; });
-    var taken = {}, out = [];
-    cands.forEach(function (c) {
-      if (taken[c.i]) return;
-      taken[c.i] = true;
-      if (out.indexOf(c.key) < 0) out.push(c.key);
+    // Lựa chọn từ gợi ý thắng mọi cách đọc theo tên, ở đúng chỗ token của nó (mỗi lựa chọn giữ một chỗ).
+    var claimed = {};
+    var legacy = [];
+    // Lựa chọn MỚI NHẤT xét trước (review 0.142.0, #1): chọn "Lan" rồi xoá, chọn lại "Lan Anh" thì "Lan Anh" giữ chỗ token,
+    // lựa chọn cũ không còn token nào của riêng nó nên mất.
+    (picked || []).forEach(function (p) { if (p && typeof p !== "object") legacy.push(p); });
+    (picked || []).slice().reverse().forEach(function (p) {
+      if (!p || typeof p !== "object") return;
+      if (!active[p.key]) return;
+      var n = norm(p.label).trim();
+      if (!n) return;
+      var at = 0, i;
+      while ((i = low.indexOf("@" + n, at)) >= 0) {
+        if (!claimed[i] && bounded(i, n.length)) {
+          claimed[i] = true;
+          byPos[i] = { i: i, len: n.length, keys: [p.key], label: String(p.label), picked: true };
+          // Tên ngắn hơn bắt đầu ở cùng chỗ (vd. gợi ý "@Lan" nằm trong "@Lan Anh") không còn hiệu lực.
+          return;
+        }
+        at = i + 1;
+      }
     });
-    return out;
+    var used = {}, out = [], ambiguous = [];
+    Object.keys(byPos).map(Number).sort(function (a, b) { return a - b; }).forEach(function (i) {
+      var g = byPos[i], key = null;
+      if (g.keys.length === 1) key = g.keys[0];
+      else {
+        legacy.some(function (k) {
+          if (!used[k] && g.keys.indexOf(k) >= 0) { key = k; return true; }
+          return false;
+        });
+        if (!key && ambiguous.indexOf(g.label) < 0) ambiguous.push(g.label);
+      }
+      if (key) {
+        used[key] = true;
+        if (out.indexOf(key) < 0) out.push(key);
+      }
+    });
+    return { keys: out, ambiguous: ambiguous };
+  }
+
+  // Bỏ một người khỏi tin đang soạn: xoá token "@tên" của họ trong chữ (token đã chọn trước, rồi tới tên gõ tay) và bỏ
+  // lựa chọn tương ứng. Trả {text, picked} mới.
+  function removeMention(text, members, picked, key) {
+    var norm = function (s) { s = String(s || ""); return (s.normalize ? s.normalize("NFC") : s); };
+    var t = norm(text);
+    var low = t.toLowerCase();
+    var word = /[\p{L}\p{M}\p{N}_]/u;
+    var mine = [], others = [];
+    (picked || []).forEach(function (p) {
+      if (p && typeof p === "object") (p.key === key ? mine : others).push(norm(p.label).toLowerCase());
+    });
+    (members || []).forEach(function (m) {
+      if (m.status && m.status !== "active") return;
+      [m.name, m.slug].forEach(function (n) { n = norm(n).trim().toLowerCase(); if (n) (m.agent_key === key ? mine : others).push(n); });
+    });
+    var at = function (i, n) {
+      if (low.substr(i + 1, n.length) !== n) return false;
+      var prev = i ? low.charAt(i - 1) : "", next = low.charAt(i + 1 + n.length);
+      return (!prev || !word.test(prev)) && (!next || !word.test(next));
+    };
+    // Xoá từ cuối lên để chỉ số phía trước không lệch. Ở một chỗ mà tên của NGƯỜI KHÁC dài hơn cũng khớp ("@Lan Anh" khi
+    // bỏ "Lan") thì đó là token của người kia, không đụng (review 0.142.0, #4).
+    var cuts = [];
+    for (var i = low.length - 1; i >= 0; i--) {
+      if (low.charAt(i) !== "@") continue;
+      var best = 0;
+      mine.forEach(function (n) { if (n.length > best && at(i, n)) best = n.length; });
+      if (!best) continue;
+      if (others.some(function (n) { return n.length > best && at(i, n); })) continue;
+      cuts.push([i, best]);
+    }
+    cuts.forEach(function (c) {
+      var endAt = c[0] + 1 + c[1];
+      if (t.charAt(endAt) === " ") endAt++;
+      t = t.slice(0, c[0]) + t.slice(endAt);
+    });
+    return { text: t, picked: (picked || []).filter(function (p) { return !(p && typeof p === "object" ? p.key === key : p === key); }) };
+  }
+
+  // Hàng "Gọi:" trên khung soạn: mỗi người sẽ được gọi là một token riêng, bấm x để bỏ gọi.
+  function callsHtml(keys, members) {
+    if (!(keys || []).length) return "";
+    return '<span class="tm-calls-label">' + esc(tw("teams.calls")) + "</span>" + keys.map(function (k) {
+      var m = memberOf(members, k) || { name: k };
+      return '<span class="tm-call">' + agentAva(m, 20) + '<span class="tm-call-name">@' + esc(m.name || m.slug || k) +
+        '</span><button type="button" class="tm-call-x" data-unmention="' + esc(k) + '" aria-label="' +
+        esc(tw("teams.uncall", { name: m.name || m.slug || k })) + '">' + ic("x") + "</button></span>";
+    }).join("");
+  }
+
+  function mentionsFromText(text, members, picked) {
+    return mentionScan(text, members, picked).keys;
   }
 
   // Một dòng gợi ý dưới khung soạn: chỉ khi Giao việc bật (sẽ tạo việc cho ai) hay khi gọi quá số người cho phép.
   function composerHint(st) {
     var cap = Number(st.cap || 3);
     var ments = st.mentions || [];
+    if ((st.ambiguous || []).length) return { ok: false, text: tw("teams.mention_ambiguous", { name: st.ambiguous[0] }) };
     if (ments.length > cap) return { ok: false, text: tw("teams.hint_cap", { cap: cap }) };
     if (!st.asJob) return { ok: true, text: "" };
     if (ments.length) {
@@ -494,8 +692,6 @@
   // Mỗi thành viên một dòng (tên đủ, vai ở dòng dưới); chạm dòng mở các thao tác.
   function membersHtml(team, agents, openKey) {
     var mem = team.members || [];
-    var have = {};
-    mem.forEach(function (m) { have[m.slug] = true; });
     var rows = mem.map(function (m) {
       var lead = m.agent_key === team.leader_key;
       var open = openKey === m.agent_key;
@@ -516,12 +712,19 @@
           : '<button type="button" class="ws-btn" data-leader="' + esc(m.agent_key) + '">' + esc(tw("teams.make_leader")) + "</button>") +
         '<button type="button" class="ws-btn" data-remove="' + esc(m.agent_key) + '">' + esc(tw("teams.remove")) + "</button></span></div></div>";
     }).join("");
-    var free = (agents || []).filter(function (a) { return !have[a.slug] && a.status !== "retired"; });
-    var add = '<div class="tm-add"><select class="tm-add-pick" aria-label="' + esc(tw("teams.pick_agent")) + '"><option value="">' +
-      esc(tw("teams.pick_agent")) + "</option>" + free.map(function (a) {
-        return '<option value="' + esc(a.slug) + '">' + esc(a.name || a.slug) + "</option>";
-      }).join("") + '</select><button type="button" class="ws-btn tm-add-go">' + esc(tw("teams.add_member")) + "</button></div>";
-    return rows + add;
+    // Thêm người: mở hộp chọn kiểu Zalo (tìm không dấu, lọc tag, chọn nhiều người một lần), 0.142.0.
+    var add = '<div class="tm-add"><button type="button" class="ws-btn tm-add-open">' + ic("users") +
+      esc(tw("teams.pick.add_open")) + "</button></div>";
+    // Chủ nhóm luôn đứng đầu, tách khỏi Điều phối (AI): người tạo và quản lý nhóm là bạn, không phải một trợ lý.
+    // Nhân dạng người tạo lấy từ server (`team.creator`, theo phiên đăng nhập của chủ máy), không do trang tự khai.
+    var cr = (team && team.creator) || {};
+    var youName = tw("teams.pick.you") + (cr.name ? " (" + cr.name + ")" : "");
+    var you = '<div class="tm-mrow tm-mrow-you"><div class="tm-mhead tm-mhead-static">' +
+      '<span class="tmp-face tmp-initial tmp-you" aria-hidden="true">' + esc(tw("teams.pick.you").charAt(0)) + "</span>" +
+      '<span class="tm-mtext"><span class="tm-mname">' + esc(youName) + '</span><span class="tm-mrole">' +
+      esc(tw("teams.pick.you_role")) + '</span></span><span class="tmp-badge">' + esc(tw("teams.pick.owner_badge")) +
+      "</span></div></div>";
+    return you + rows + add;
   }
 
   // Mức tự quyết đang áp: 1 (hỏi trước, Quyền giới hạn), 2, 3, hay "custom" (đặt tay trong Nâng cao). Chỉ so trần tối
@@ -728,7 +931,9 @@
   // Tab Nhóm: thành viên, mức tự quyết, số lần đã dùng hôm nay, tên và trạng thái; mọi con số trong Nâng cao (đóng sẵn).
   function teamTabHtml(team, agents, ui) {
     ui = ui || {};
-    return '<section class="tm-sec"><div class="tm-qhead">' + esc(tw("teams.tab_members")) + "</div>" +
+    var nAct = (team.members || []).filter(function (m) { return !m.status || m.status === "active"; }).length;
+    return '<section class="tm-sec"><div class="tm-qhead">' + esc(tw("teams.tab_members")) + " · " +
+      esc(tw("teams.head_people", { n: nAct })) + "</div>" +
       membersHtml(team, agents, ui.openMember) + "</section>" +
       '<section class="tm-sec">' + levelsHtml(team) + usageHtml(team) + "</section>" +
       '<section class="tm-sec"><div class="tm-qhead">' + esc(tw("teams.tab_team")) + "</div>" +
@@ -737,20 +942,6 @@
       '<details class="tm-adv"' + (ui.advOpen ? " open" : "") + '><summary class="tm-adv-sum">' + esc(tw("teams.advanced")) +
       '</summary><div class="tm-sub">' + esc(tw("teams.advanced_note")) + "</div>" + capsFormHtml(team) + authorityHtml(team) +
       turnsHtml(ui.turns || [], team) + "</details>";
-  }
-
-  function createFormHtml(agents) {
-    var live = (agents || []).filter(function (a) { return a.status !== "retired" && a.status !== "missing"; });
-    return '<form class="tm-form tm-create" onsubmit="return false"><div class="tm-qhead">' + esc(tw("teams.create_title")) + "</div>" +
-      '<label class="tm-field"><span>' + esc(tw("teams.name")) + '</span><input name="tm-name" maxlength="120"></label>' +
-      '<label class="tm-field"><span>' + esc(tw("teams.description")) + '</span><textarea name="tm-desc" rows="2"></textarea></label>' +
-      '<div class="tm-field"><span>' + esc(tw("teams.members_pick")) + "</span>" + live.map(function (a) {
-        return '<label class="tm-check"><input type="checkbox" name="tm-member" value="' + esc(a.slug) + '"><span>' + esc(a.name || a.slug) + "</span></label>";
-      }).join("") + "</div>" +
-      '<label class="tm-field"><span>' + esc(tw("teams.leader_pick")) + '</span><select name="tm-leader"><option value="">' + esc(tw("teams.none")) +
-      "</option>" + live.map(function (a) { return '<option value="' + esc(a.slug) + '">' + esc(a.name || a.slug) + "</option>"; }).join("") +
-      "</select></label>" +
-      '<button type="button" class="ws-btn tm-primary tm-create-save">' + esc(tw("teams.create_save")) + "</button></form>";
   }
 
   // Băng báo gọn, kèm nút giải quyết khi có: tạm dừng thì Bật lại, chưa có trưởng nhóm thì Chọn.
@@ -822,9 +1013,10 @@
   function fresh(el) {
     return { el: el, teams: [], next: null, activeId: "", team: null, queue: null, msgs: [], hasMore: false,
       agents: [], asJob: false, pending: null, tab: "jobs", side: false, view: "list", loaded: false,
-      filterTask: "", taskTitles: {}, teamNames: {}, note: "", creating: false, skipped: {}, picker: null, draft: null,
+      filterTask: "", taskTitles: {}, teamNames: {}, note: "", skipped: {}, picker: null, draft: null,
       focusPicker: false, focusBack: null, searchOpen: false, searchResults: null, searchQuery: "", jumped: null,
-      openMember: null, advOpen: false, turns: [], sideOpener: null, rowMenu: null, focusRowMenu: false, swallowClick: false };
+      openMember: null, advOpen: false, turns: [], sideOpener: null, rowMenu: null, focusRowMenu: false, swallowClick: false,
+      picked: [], retrying: {}, pickSt: null, pickOpener: null, pickHost: null, roster: [] };
   }
 
   function teamUrl(path) { return "/teams/" + q(S.activeId) + (path || ""); }
@@ -893,16 +1085,12 @@
     if (!head) return;
     var back = '<button type="button" class="ws-btn tm-back" aria-label="' + esc(tw("teams.back")) + '" title="' +
       esc(tw("teams.back")) + '">' + ic("chevron-left") + "</button>";
-    if (S.creating) {
-      head.innerHTML = back + '<div class="tm-title"><strong>' + esc(tw("teams.create_title")) + "</strong></div>";
-      head.hidden = false;
-    } else if (!S.team) {
+    if (!S.team) {
       head.innerHTML = "";
       head.hidden = true;
     } else {
       var t = S.team;
-      var lead = t.leader_key ? tw("teams.leader_line", { name: nameOf(t.members, t.leader_key), n: (t.members || []).length })
-        : tw("teams.no_leader_short");
+      var lead = headLine(t);
       head.hidden = false;
       head.innerHTML = back + teamAvatarHtml(t, 36) +
         '<div class="tm-title"><strong>' + esc(t.name) + '</strong><span class="tm-sub">' + esc(lead) + "</span></div>" +
@@ -916,7 +1104,7 @@
     }
     drawSearch();
     var b = S.el.querySelector(".tm-banners");
-    if (b) b.innerHTML = S.team && !S.creating ? bannersHtml(S.team, S.teamNames) : "";
+    if (b) b.innerHTML = S.team ? bannersHtml(S.team, S.teamNames) : "";
     drawFilterbar();
   }
 
@@ -924,7 +1112,7 @@
   function drawSearch() {
     var bar = S.el.querySelector(".tm-search");
     if (!bar) return;
-    bar.hidden = !S.searchOpen || !S.team || S.creating;
+    bar.hidden = !S.searchOpen || !S.team;
     if (bar.hidden) { bar.innerHTML = ""; return; }
     if (!bar.querySelector(".tm-search-input")) {
       bar.innerHTML = '<div class="tm-search-row"><input type="search" class="tm-search-input" maxlength="100" placeholder="' +
@@ -940,7 +1128,7 @@
   function drawFilterbar() {
     var bar = S.el.querySelector(".tm-filterbar");
     if (!bar) return;
-    bar.hidden = !S.filterTask || !S.team || S.creating;
+    bar.hidden = !S.filterTask || !S.team;
     bar.innerHTML = bar.hidden ? "" : "<span>" + esc(tw("teams.filter_on", { title: S.taskTitles[S.filterTask] || S.filterTask })) +
       '</span><button type="button" class="ws-btn tm-filter-clear">' + esc(tw("teams.filter_clear")) + "</button>";
   }
@@ -988,7 +1176,7 @@
   function ctx() {
     return { members: S.team ? S.team.members : [], authors: S.team ? S.team.authors : null,
       leaderKey: S.team && S.team.leader_key, taskTitles: S.taskTitles,
-      picker: S.picker, draft: S.draft, jumped: S.jumped };
+      picker: S.picker, draft: S.draft, jumped: S.jumped, retrying: S.retrying };
   }
 
   // Lưu công tắc ghim: khoá trong lúc lưu; lưu được thì gọi `done`; HTTP khác 200 hay lỗi mạng thì trả công tắc về trạng
@@ -1007,10 +1195,6 @@
   function drawMsgs(stick) {
     var box = S.el.querySelector(".tm-msgs");
     if (!box) return;
-    if (S.creating) {
-      box.innerHTML = createFormHtml(S.agents);
-      return;
-    }
     if (!S.team) {
       box.innerHTML = S.teams.length ? '<div class="tm-empty tm-empty-chat">' + esc(tw("teams.pick_team")) + "</div>" : "";
       return;
@@ -1056,7 +1240,7 @@
   function drawJobs() {
     var bar = S.el.querySelector(".tm-jobs");
     if (!bar) return;
-    var h = S.team && !S.creating ? jobStripHtml(S.queue) : "";
+    var h = S.team ? jobStripHtml(S.queue) : "";
     bar.hidden = !h;
     bar.innerHTML = h;
   }
@@ -1064,21 +1248,27 @@
   function drawComposer() {
     var box = S.el.querySelector(".tm-composer");
     if (!box) return;
-    box.hidden = !S.team || S.creating;
+    box.hidden = !S.team;
     if (box.hidden) { box.innerHTML = ""; return; }
     var old = box.querySelector(".tm-input");
     var draft = S.pending ? S.pending.text : old ? old.value : "";
     var off = S.team.status === "archived";
-    box.innerHTML = '<div class="tm-sug" hidden></div><div class="tm-hint" hidden></div>' +
+    box.innerHTML = '<div class="tm-sug" role="listbox" id="tm-sug" aria-label="' + esc(tw("teams.mention_list")) + '" hidden></div>' +
+      '<div class="tm-calls" hidden></div><div class="tm-hint" hidden></div>' +
       '<div class="tm-row"><button type="button" class="tm-mode tm-asjob" aria-pressed="' + (S.asJob ? "true" : "false") +
       '" title="' + esc(tw("teams.as_job_title")) + '"' + (off ? " disabled" : "") + ">" + ic("list-todo") + "<span>" +
       esc(tw("teams.as_job")) + "</span></button>" +
-      '<textarea class="tm-input" rows="1" placeholder="' + esc(tw(S.asJob ? "teams.placeholder_job" : "teams.placeholder")) + '"' +
+      '<textarea class="tm-input" rows="1" aria-autocomplete="list" aria-controls="tm-sug" placeholder="' + esc(tw(S.asJob ? "teams.placeholder_job" : "teams.placeholder")) + '"' +
       (off ? " disabled" : "") + ">" + esc(draft) + "</textarea>" +
       '<button type="button" class="tm-send" aria-label="' + esc(tw("teams.send")) + '" title="' + esc(tw("teams.send")) + '">' +
       ic("send") + "</button></div>";
     grow(box.querySelector(".tm-input"));
     drawHint();
+    if (S.focusComposer && !off) {
+      S.focusComposer = false;
+      var inp = box.querySelector(".tm-input");
+      if (inp) { try { inp.focus(); } catch (e) {} }
+    }
   }
 
   // Khung soạn một dòng, tự cao theo chữ tới khoảng năm dòng rồi cuộn trong.
@@ -1088,18 +1278,27 @@
     input.style.height = Math.min(input.scrollHeight || 0, INPUT_MAX_PX) + "px";
   }
 
-  function currentMentions() {
+  function currentScan() {
     var input = S.el.querySelector(".tm-input");
-    return S.team ? mentionsFromText(input ? input.value : "", S.team.members) : [];
+    return S.team ? mentionScan(input ? input.value : "", S.team.members, S.picked) : { keys: [], ambiguous: [] };
   }
+
+  function currentMentions() { return currentScan().keys; }
 
   function drawHint() {
     var hintEl = S.el.querySelector(".tm-hint");
     if (!hintEl || !S.team) return;
-    var h = composerHint({ mentions: currentMentions(), asJob: S.asJob, cap: (S.team.caps || {}).mentions,
+    var sc = currentScan();
+    var h = composerHint({ mentions: sc.keys, ambiguous: sc.ambiguous, asJob: S.asJob, cap: (S.team.caps || {}).mentions,
       members: S.team.members, leaderKey: S.team.leader_key });
     hintEl.textContent = h.text;
     hintEl.hidden = !h.text;
+    var calls = S.el.querySelector(".tm-calls");
+    if (calls) {
+      var ch = callsHtml(sc.keys, S.team.members);
+      calls.innerHTML = ch;
+      calls.hidden = !ch;
+    }
     hintEl.classList.toggle("tm-hint-bad", !h.ok);
     var send = S.el.querySelector(".tm-send");
     if (send) send.disabled = !h.ok || S.team.status === "archived";
@@ -1118,7 +1317,7 @@
     var side = S.el.querySelector(".tm-side");
     if (!side) return;
     if (!force && S.side && !side.hidden && typingIn(side)) return;
-    side.hidden = !S.side || !S.team || S.creating;
+    side.hidden = !S.side || !S.team;
     var page = S.el.querySelector(".tm-page");
     if (page) page.setAttribute("data-side", side.hidden ? "0" : "1");
     var scrim = S.el.querySelector(".tm-scrim");
@@ -1157,6 +1356,24 @@
     if (first) first.focus();
   }
 
+  // Nút xử lý trên dòng lỗi của lượt trả lời (0.142.0).
+  function replyAct(kind, slug, btn) {
+    if (kind === "models") {
+      if (typeof window !== "undefined" && window.JavisNav && window.JavisNav.go) window.JavisNav.go("models");
+      return;
+    }
+    if (kind === "agent") {
+      if (typeof window !== "undefined" && window.JavisWorkspace && window.JavisWorkspace.openCommand) {
+        window.JavisWorkspace.openCommand("agent", slug);
+      }
+      return;
+    }
+    if (kind === "resume") return call("PATCH", teamUrl(), { status: "active" }).then(function (r) { act(r, drawAll); });
+    // Giới hạn nằm ở Nâng cao của ngăn Nhóm; điều phối chọn trong danh sách thành viên của cùng ngăn.
+    if (kind === "limits") S.advOpen = true;
+    openSide("team", btn);
+  }
+
   function closeSide() {
     S.side = false;
     drawSide(true);
@@ -1181,26 +1398,27 @@
       S.loaded = true;
       S.teams.forEach(function (t) { S.teamNames[t.team_id] = t.name; });
       drawList();
-      if (!S.team && !S.creating) drawMsgs(false);
+      if (!S.team) drawMsgs(false);
       // Có nhóm cần mở từ ngoài trang (bấm thư trong hộp thư): mở khi danh sách đã về.
       if (pendingOpen) {
-        var want = pendingOpen;
-        pendingOpen = null;
-        openTeam(want);
+        var want = pendingOpen, wantTask = pendingTask;
+        pendingOpen = null; pendingTask = "";
+        openTeam(want, wantTask);
       }
     });
   }
 
-  var pendingOpen = null;
+  var pendingOpen = null, pendingTask = "";
   // Mở một nhóm từ ngoài trang (hộp thư, thông báo đẩy về việc nhóm): đang ở trang Nhóm và danh sách đã về thì mở ngay;
   // chưa thì nhớ id, sang trang Nhóm, loadTeams() mở nó khi danh sách về.
-  function open(teamId) {
+  // `taskId` (0.142.0, tab Công việc ở trang Cộng sự): mở nhóm và lọc khung chat theo đúng việc đó.
+  function open(teamId, taskId) {
     teamId = String(teamId || "");
     if (!teamId) return;
-    pendingOpen = teamId;
+    pendingOpen = teamId; pendingTask = String(taskId || "");
     if (S && S.el && S.el.isConnected && S.loaded) {
-      pendingOpen = null;
-      openTeam(teamId);
+      pendingOpen = null; pendingTask = "";
+      openTeam(teamId, taskId);
       return;
     }
     if (typeof window !== "undefined" && window.JavisNav && window.JavisNav.go) window.JavisNav.go("teams");
@@ -1245,6 +1463,13 @@
       if (S.activeId !== forTeam) return;
       if (r.code !== 200) return fail(r);
       var got = r.j.messages || [];
+      // Lọc theo một việc đã xong (mở từ tab Công việc): việc không còn trong hàng đợi, học tên từ chính bản ghi việc để
+      // thanh lọc và nhãn tin hiện tên việc thay vì mã (0.142.0).
+      if (S.filterTask && r.j.task && r.j.task.id) {
+        S.taskTitles[r.j.task.id] = r.j.task.title || S.taskTitles[r.j.task.id] || "";
+        got.forEach(function (m) { if (m.task_id === r.j.task.id && !m.task_title) m.task_title = r.j.task.title || ""; });
+        drawFilterbar();
+      }
       S.msgs = older ? got.concat(S.msgs) : got;
       S.hasMore = !S.filterTask && !!r.j.has_more;
       drawMsgs(!older);
@@ -1260,11 +1485,11 @@
     });
   }
 
-  function openTeam(id) {
+  function openTeam(id, taskId) {
     S.jumped = null; S.searchResults = null; S.searchQuery = ""; S.searchOpen = false;
-    S.activeId = id; S.creating = false; S.view = "chat"; S.asJob = false; S.pending = null; S.filterTask = "";
+    S.activeId = id; S.view = "chat"; S.asJob = false; S.pending = null; S.filterTask = String(taskId || "");
     S.team = null; S.queue = null; S.msgs = []; S.taskTitles = {}; S.side = false; S.openMember = null; S.turns = [];
-    S.picker = null; S.draft = null;
+    S.picker = null; S.draft = null; S.picked = []; S.retrying = {};
     var input = S.el.querySelector(".tm-input");
     if (input) input.value = "";
     setNote("");
@@ -1277,7 +1502,9 @@
     if (!input || !S.team) return;
     var text = input.value.trim();
     if (!text) return;
-    var mentions = mentionsFromText(text, S.team.members);
+    var scan = mentionScan(text, S.team.members, S.picked);
+    if (scan.ambiguous.length) { drawHint(); return; }
+    var mentions = scan.keys;
     // Gửi lại sau rớt mạng: cùng chữ thì giữ ĐÚNG mã cũ để server trả tin cũ, không thêm lượt.
     if (!S.pending || S.pending.text !== text) S.pending = { text: text, id: newClientId() };
     var body = { text: text, mentions: mentions, as_job: S.asJob, client_msg_id: S.pending.id };
@@ -1287,8 +1514,8 @@
     call("POST", teamUrl("/messages"), body).then(function (r) {
       if (S.activeId !== forTeam) return;
       if (r.code !== 200) { fail(r); drawHint(); return; }
-      S.pending = null; S.asJob = false; input.value = "";
-      setNote(r.j.notes && r.j.notes.length ? r.j.notes.filter(function (n) { return n.indexOf("_") < 0; }).join(" · ") : "");
+      S.pending = null; S.asJob = false; S.picked = []; input.value = "";
+      setNote(r.j.notes && r.j.notes.length ? r.j.notes.filter(function (n) { return !/^[a-z_]+$/.test(n); }).join(" · ") : "");
       if ((r.j.notes || []).indexOf("daily_cap") >= 0) setNote(tw("teams.daily_cap"));
       drawComposer();
       var again = S.el.querySelector(".tm-input");
@@ -1300,34 +1527,117 @@
     });
   }
 
+  // "@" đứng sau một chữ/số là địa chỉ email ("ho@lan.vn"), không mở gợi ý và không gọi ai.
+  function emailBefore(before) {
+    var m = String(before || "").match(/(^|[\s\S])@[^\s@]*$/);
+    if (!m) return false;
+    return !!m[1] && /[\p{L}\p{N}_.+-]/u.test(m[1]);
+  }
+
+  function suggestQuery(input) {
+    var before = input.value.slice(0, input.selectionStart || 0);
+    var m = before.match(/@([^\s@]*)$/);
+    if (!m || emailBefore(before)) return null;
+    return m[1];
+  }
+
   function suggest() {
     var input = S.el.querySelector(".tm-input");
     var box = S.el.querySelector(".tm-sug");
     if (!input || !box || !S.team) return;
-    var before = input.value.slice(0, input.selectionStart || 0);
-    var m = before.match(/@([^\s@]*)$/);
-    if (!m) { box.hidden = true; return; }
-    var list = mentionMatches(S.team.members, m[1], mentionsFromText(input.value, S.team.members));
+    var query = suggestQuery(input);
+    if (query === null) { hideSug(); return; }
+    var list = mentionMatches(S.team.members, query, mentionsFromText(input.value, S.team.members, S.picked));
+    var seen = {};
+    (S.team.members || []).forEach(function (a) {
+      if (a.status && a.status !== "active") return;
+      var n = foldName(a.name || a.slug).trim();
+      seen[n] = (seen[n] || 0) + 1;
+    });
+    S.sugKeys = list.map(function (a) { return a.agent_key; });
+    if (S.sugIdx == null || S.sugIdx >= list.length) S.sugIdx = 0;
     box.hidden = !list.length;
-    box.innerHTML = list.map(function (a) {
-      return '<button type="button" class="tm-sug-item" data-mention="' + esc(a.agent_key) + '">' + agentAva(a, 24) +
-        esc(a.name || a.slug) + "</button>";
+    input.setAttribute("aria-expanded", list.length ? "true" : "false");
+    box.innerHTML = list.map(function (a, i) {
+      // Trùng tên: thêm mã ngắn (slug) để chọn đúng người. Vai của trợ lý (dòng "role" ở Cộng sự) nằm dưới tên.
+      var dup = seen[foldName(a.name || a.slug).trim()] > 1;
+      var on = i === S.sugIdx;
+      return '<button type="button" class="tm-sug-item' + (on ? " is-active" : "") + '" role="option" id="tm-sug-' + i +
+        '" aria-selected="' + (on ? "true" : "false") + '" data-mention="' + esc(a.agent_key) + '">' + agentAva(a, 28) +
+        '<span class="tm-sug-text"><span class="tm-sug-name">' + esc(a.name || a.slug) +
+        (dup ? ' <span class="tm-sug-slug">' + esc(a.slug) + "</span>" : "") + "</span>" +
+        (a.title ? '<span class="tm-sug-role">' + esc(a.title) + "</span>" : "") + "</span></button>";
     }).join("");
+    if (list.length) input.setAttribute("aria-activedescendant", "tm-sug-" + S.sugIdx);
+    else input.removeAttribute("aria-activedescendant");
+  }
+
+  function hideSug() {
+    var box = S.el.querySelector(".tm-sug");
+    if (box) box.hidden = true;
+    S.sugKeys = []; S.sugIdx = 0;
+    var input = S.el.querySelector(".tm-input");
+    if (input) { input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); }
+  }
+
+  // Phím khi danh sách gợi ý đang mở: lên/xuống chọn, Enter hay Tab chèn người đang chọn, Escape đóng. Trả true khi đã
+  // xử lý (khung soạn không gửi tin, ngăn bên không đóng). Đang gõ bằng bộ gõ (IME) thì không can thiệp.
+  function sugKey(e) {
+    var box = S.el.querySelector(".tm-sug");
+    if (!box || box.hidden || !(S.sugKeys || []).length || e.isComposing || e.keyCode === 229) return false;
+    var n = S.sugKeys.length;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      S.sugIdx = ((S.sugIdx || 0) + (e.key === "ArrowDown" ? 1 : n - 1)) % n;
+      suggest();
+      return true;
+    }
+    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
+      e.preventDefault();
+      pickMention(S.sugKeys[S.sugIdx || 0]);
+      return true;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      hideSug();
+      return true;
+    }
+    return false;
   }
 
   function pickMention(key) {
     var input = S.el.querySelector(".tm-input");
-    if (input) {
+    if (input && key) {
+      var label = nameOf(S.team.members, key);
       var pos = input.selectionStart || input.value.length;
-      var before = input.value.slice(0, pos).replace(/@([^\s@]*)$/, "@" + nameOf(S.team.members, key) + " ");
+      var before = input.value.slice(0, pos).replace(/@([^\s@]*)$/, "@" + label + " ");
       input.value = before + input.value.slice(pos);
       try { input.setSelectionRange(before.length, before.length); } catch (e) {}
       input.focus();
       grow(input);
+      // Ghi đúng mã đã chọn kèm chữ của token: trùng tên vẫn gọi đúng người, sửa token thì bỏ gọi. Lựa chọn cũ mà token
+      // không còn trong chữ thì bỏ luôn, kẻo nó giành chỗ của token mới.
+      var low = (input.value.normalize ? input.value.normalize("NFC") : input.value).toLowerCase();
+      S.picked = (S.picked || []).filter(function (p) {
+        if (!p || typeof p !== "object") return true;
+        var l = String(p.label || "");
+        return low.indexOf("@" + (l.normalize ? l.normalize("NFC") : l).toLowerCase()) >= 0;
+      }).concat([{ key: key, label: label }]);
     }
     S.pending = null;
-    var box = S.el.querySelector(".tm-sug");
-    if (box) box.hidden = true;
+    hideSug();
+    drawHint();
+  }
+
+  function unMention(key) {
+    var input = S.el.querySelector(".tm-input");
+    if (!input || !S.team) return;
+    var r = removeMention(input.value, S.team.members, S.picked, key);
+    input.value = r.text;
+    S.picked = r.picked;
+    S.pending = null;
+    grow(input);
+    input.focus();
     drawHint();
   }
 
@@ -1401,13 +1711,150 @@
       reload: function () { loadTeams(false); if (id === S.activeId) loadTeam(); } });
   }
 
+  // ───────────── hộp chọn thành viên kiểu Zalo (0.142.0, team-picker.js) ─────────────
+
+  function TP() { return (typeof window !== "undefined" && window.JavisTeamPicker) || null; }
+
+  // Trợ lý của trang Cộng sự (tên, vai, tag, ảnh): cùng nguồn với cột trái trang Cộng sự để chip tag khớp.
+  function loadRoster() {
+    if (S.pickSt) S.pickSt.rosterState = "loading";
+    return call("GET", "/agents?prompt=0").then(function (r) {
+      if (r.code === 200) S.roster = r.j.agents || [];
+      if (S.pickSt) S.pickSt.rosterState = r.code === 200 ? "ok" : "error";
+    }, function () { if (S.pickSt) S.pickSt.rosterState = "error"; });
+  }
+
+  function openPicker(mode, opener) {
+    if (!TP()) return;
+    var exclude = mode === "add" && S.team ? (S.team.members || []).filter(function (m) { return !m.status || m.status === "active"; })
+      .map(function (m) { return m.slug; }) : [];
+    // `reqId`: một mã cho mỗi lần mở hộp Tạo nhóm. Bấm Tạo hai lần hay mạng chậm gửi lại thì server trả lại nhóm đã tạo.
+    S.pickSt = { mode: mode, query: "", tag: "", selected: [], leader: "", leaderTouched: false, leaderDropped: false, name: "",
+      desc: "", descOpen: false, exclude: exclude, saving: false, error: "", rosterState: (S.roster || []).length ? "ok" : "loading",
+      reqId: newClientId() };
+    S.pickOpener = opener || null;
+    document.removeEventListener("keydown", pickEsc, true);
+    document.addEventListener("keydown", pickEsc, true);
+    drawPicker("all");
+    loadRoster().then(function () { if (S.pickSt) drawPicker("all"); });
+  }
+
+  // Escape đóng hộp chọn cả khi focus đã rơi ra ngoài lớp phủ (review 0.142.0).
+  function pickEsc(e) { if (e.key === "Escape" && S && S.pickSt) { e.preventDefault(); closePicker(); } }
+
+  function closePicker() {
+    document.removeEventListener("keydown", pickEsc, true);
+    S.pickSt = null;
+    if (S.pickHost) { S.pickHost.remove(); S.pickHost = null; }
+    var back = S.pickOpener;
+    S.pickOpener = null;
+    if (back && back.isConnected) { try { back.focus(); } catch (e) {} }
+  }
+
+  // Vẽ lại đúng phần cần: gõ tìm hay đổi tag chỉ thay danh sách (giữ con trỏ trong ô tìm); chọn người thay chip, danh
+  // sách, ô Điều phối và footer; "all" dựng lại cả hộp.
+  function drawPicker(part) {
+    var P = TP();
+    var st = S.pickSt;
+    if (!P || !st) return;
+    // Lớp phủ gắn vào <body>, không vào trang: trang nằm trong .cview (một stacking context thấp hơn thanh trên của
+    // app), nên trên điện thoại thanh đó đè lên đầu hộp và che nút đóng. Sự kiện gắn thẳng vào lớp phủ.
+    var host = S.pickHost;
+    if (!host || !host.isConnected) {
+      host = document.createElement("div");
+      host.className = "tmp-host";
+      document.body.appendChild(host);
+      host.addEventListener("click", onClick);
+      host.addEventListener("change", onChange);
+      host.addEventListener("input", onInput);
+      host.addEventListener("keydown", onKey);
+      S.pickHost = host;
+    }
+    var roster = S.roster || [];
+    if (part === "all" || !host.firstChild) {
+      host.innerHTML = P.html(st, roster);
+      var first = host.querySelector(st.mode === "create" ? ".tmp-name-input" : ".tmp-search-input");
+      if (first && !(typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches)) first.focus();
+      return;
+    }
+    var put = function (sel, h) { var box = host.querySelector(sel); if (box) box.innerHTML = h; };
+    put(".tmp-tags-box", P.tagsHtml(roster, st));
+    put(".tmp-list", P.listHtml(roster, st));
+    if (part === "filter") return;
+    put(".tmp-selected-box", P.selectedHtml(roster, st));
+    put(".tmp-preview-box", P.previewHtml(roster, st));
+    put(".tmp-foot-box", P.footerHtml(st));
+    var err = host.querySelector(".tmp-error");
+    if (err && !st.error) err.remove();
+  }
+
+  function pickToggle(slug) {
+    var was = document.activeElement;
+    var fromChip = was && was.classList && was.classList.contains("tmp-sel-x");
+    S.pickSt = TP().toggle(S.pickSt, slug);
+    S.pickSt.error = "";
+    drawPicker("pick");
+    // Vẽ lại thay node đang có focus: đặt focus lại đúng ô vừa bấm (hay ô tìm khi bấm x trên chip), để bàn phím đi tiếp
+    // và Escape vẫn đóng được hộp (review 0.142.0).
+    var host = S.pickHost;
+    var back = host && (fromChip ? host.querySelector(".tmp-search-input")
+      : host.querySelector('.tmp-check[data-pick-slug="' + (window.CSS && CSS.escape ? CSS.escape(slug) : slug) + '"]'));
+    if (back) { try { back.focus(); } catch (e) {} }
+  }
+
+  function pickFail(msg) {
+    if (!S.pickSt) return;
+    S.pickSt.saving = false;
+    S.pickSt.error = msg;
+    drawPicker("all");
+  }
+
+  function submitPicker() {
+    var P = TP(), st = S.pickSt;
+    if (!P || !st || !P.canSubmit(st)) return;
+    st.saving = true; st.error = "";
+    drawPicker("pick");
+    if (st.mode === "create") {
+      var name = String(st.name || "").trim() || P.autoName(st, S.roster || []);
+      call("POST", "/teams", { name: name, description: st.desc || "", members: st.selected.slice(), leader_slug: st.leader || "",
+        client_req_id: st.reqId })
+        .then(function (r) {
+          if (r.code !== 200) return pickFail((r.j && r.j.error) || tw("teams.err", { e: r.code }));
+          // Tạo xong: vào thẳng khung chat của nhóm mới, con trỏ đặt sẵn ở khung soạn.
+          closePicker();
+          S.focusComposer = true;
+          loadTeams(false).then(function () { openTeam(r.j.team.team_id); });
+        }, function () { pickFail(tw("teams.pick.err_network")); });
+      return;
+    }
+    // Thêm nhiều người: lần lượt từng người; ai lỗi thì GIỮ trong lựa chọn để bấm lại, ai xong thì khỏi danh sách.
+    var forTeam = S.activeId, done = [], failed = [], lastErr = "";
+    var nameOfSlug = function (slug) {
+      var a = (S.roster || []).filter(function (x) { return x.slug === slug; })[0];
+      return a ? (a.name || a.slug) : slug;
+    };
+    st.selected.slice().reduce(function (p, slug) {
+      return p.then(function () {
+        return call("POST", "/teams/" + q(forTeam) + "/members", { slug: slug }).then(function (r) {
+          if (r.code === 200) done.push(slug); else { failed.push(slug); lastErr = (r.j && r.j.error) || ""; }
+        }, function () { failed.push(slug); lastErr = tw("teams.err_network"); });
+      });
+    }, Promise.resolve()).then(function () {
+      if (S.activeId === forTeam) { loadTeam(); }
+      if (!failed.length) { closePicker(); return; }
+      S.pickSt = Object.assign({}, st, { selected: failed, exclude: (st.exclude || []).concat(done) });
+      pickFail(tw("teams.pick.add_partial", { done: done.map(nameOfSlug).join(", ") || "0",
+        failed: failed.map(nameOfSlug).join(", ") }) + (lastErr ? " (" + lastErr + ")" : ""));
+    });
+  }
+
   function onClick(e) {
-    var t = e.target.closest ? e.target.closest("button, [data-team], summary, .tm-scrim") : null;
+    var t = e.target.closest ? e.target.closest("button, [data-team], summary, .tm-scrim, .tmp-scrim") : null;
     // Bấm ở bất cứ đâu ngoài menu ghim thì đóng menu.
     if (S.rowMenu && !(e.target.closest && e.target.closest(".tm-row-menu")) && !(t && t.dataset && t.dataset.pinTeam)) {
       if (!(t && t.dataset && t.dataset.team && S.swallowClick)) closeRowMenu();
     }
-    if (!t || !S.el.contains(t)) return;
+    if (!t || !(S.el.contains(t) || (S.pickHost && S.pickHost.contains(t)))) return;
     var d = t.dataset || {};
     // Nhấn giữ vừa mở menu ghim: cú bấm sinh ra lúc nhấc tay không được mở nhóm.
     if (d.team && S.swallowClick) { S.swallowClick = false; return; }
@@ -1431,16 +1878,18 @@
       if (S.advOpen) loadTurns();
       return;
     }
-    if (t.classList.contains("tm-new")) {
-      S.creating = true; S.view = "chat"; S.team = null; S.activeId = ""; S.side = false;
-      S.searchOpen = false; S.searchResults = null; S.searchQuery = ""; S.jumped = null;
-      drawSearch();
-      loadAgents().then(function () { drawAll(true); });
-      return;
-    }
+    if (t.classList.contains("tm-new")) return openPicker("create", t);
+    if (t.classList.contains("tm-add-open")) return openPicker("add", t);
+    if (d.pickTag !== undefined) { S.pickSt.tag = d.pickTag; drawPicker("filter"); return; }
+    if (d.pickToggle) { pickToggle(d.pickToggle); return; }
+    if (d.pickLeader) { S.pickSt = TP().setLeader(S.pickSt, d.pickLeader); drawPicker("pick"); return; }
+    if (t.classList.contains("tmp-reload")) { loadRoster().then(function () { if (S.pickSt) drawPicker("all"); }); drawPicker("filter"); return; }
+    if (t.classList.contains("tmp-desc-sum")) { var dd = t.parentNode; if (S.pickSt) S.pickSt.descOpen = !(dd && dd.open); return; }
+    if (t.classList.contains("tmp-cancel")) return closePicker();
+    if (t.classList.contains("tmp-submit")) return submitPicker();
     if (t.classList.contains("tm-more-teams")) return loadTeams(true);
     if (t.classList.contains("tm-back")) {
-      S.view = "list"; S.creating = false; S.side = false;
+      S.view = "list"; S.side = false;
       if (!S.team) S.activeId = "";
       drawAll(false);
       return;
@@ -1461,7 +1910,6 @@
       return;
     }
     if (d.expand) { S.openMember = S.openMember === d.expand ? null : d.expand; drawSide(true); return; }
-    if (t.classList.contains("tm-create-save")) return createTeam();
     if (t.classList.contains("tm-asjob")) {
       S.asJob = !S.asJob;
       // Đổi loại tin là một tin KHÁC: mã client cũ thuộc tin trước, gửi lại bằng nó sẽ được trả tin cũ khác loại.
@@ -1475,6 +1923,7 @@
     if (t.classList.contains("tm-send")) return send();
     if (t.classList.contains("tm-older")) return loadMsgs(true);
     if (d.mention) return pickMention(d.mention);
+    if (d.unmention) return unMention(d.unmention);
     if (t.classList.contains("tm-search-btn")) {
       S.searchOpen = !S.searchOpen;
       if (!S.searchOpen) { S.searchResults = null; S.searchQuery = ""; }
@@ -1513,6 +1962,23 @@
       if (d.viewTask && window.matchMedia && window.matchMedia("(max-width: 1060px)").matches) S.side = false;
       drawSide(); drawFilterbar(); loadMsgs(false);
       return;
+    }
+    if (d.replyAct) return replyAct(d.replyAct, d.slug || "", t);
+    if (d.retry && d.retryKey) {
+      var rk = d.retry + "|" + d.retryKey;
+      if (S.retrying[rk]) return;
+      S.retrying[rk] = true;
+      drawMsgs(false);
+      return call("POST", teamUrl("/messages/" + q(d.retry) + "/replies/" + q(d.retryKey) + "/retry")).then(function (r) {
+        if (r.code !== 200) { delete S.retrying[rk]; fail(r); drawMsgs(false); return; }
+        if (!r.j.retried) { delete S.retrying[rk]; setNote(tw("teams.reply.retry_none")); }
+        // Server đã nhận Thử lại: trạng thái mới của đúng người này (chờ, đang trả lời, xong) mở khoá nút, không chỉ trông
+        // vào gói WS (lỡ gói đó thì nút kẹt "Đang thử lại").
+        (r.j.replies || []).forEach(function (x) { if (x.agent_key === d.retryKey && x.status !== "error") delete S.retrying[rk]; });
+        var k = S.msgs.findIndex(function (m) { return Number(m.id) === Number(d.retry); });
+        if (k >= 0) S.msgs[k] = Object.assign({}, S.msgs[k], { replies: r.j.replies || [] });
+        drawMsgs(false);
+      }).catch(function () { delete S.retrying[rk]; setNote(tw("teams.err_network")); drawMsgs(false); });
     }
     if (d.accept) return call("POST", teamUrl("/messages/" + q(d.accept) + "/accept")).then(function (r) { act(r); });
     if (d.skip) { S.skipped["p" + d.skip] = true; drawMsgs(false); return; }
@@ -1558,11 +2024,6 @@
       var nm = nameOf(S.team && S.team.members, d.remove);
       if (typeof confirm === "function" && !confirm(tw("teams.remove_confirm", { name: nm }))) return;
       return call("DELETE", teamUrl("/members/" + q(d.remove))).then(function (r) { S.openMember = null; act(r, drawAll); });
-    }
-    if (t.classList.contains("tm-add-go")) {
-      var pick = S.el.querySelector(".tm-add-pick");
-      if (!pick || !pick.value) return;
-      return call("POST", teamUrl("/members"), { slug: pick.value }).then(function (r) { act(r, drawAll); });
     }
     if (t.classList.contains("tm-save")) return saveSettings();
     if (t.classList.contains("tm-caps-save")) return saveCaps();
@@ -1637,18 +2098,15 @@
     });
   }
 
-  function createTeam() {
-    var name = val("tm-name").trim();
-    if (!name) { setNote(tw("teams.err", { e: tw("teams.name") })); return; }
-    var members = Array.prototype.map.call(S.el.querySelectorAll('input[name="tm-member"]:checked'), function (x) { return x.value; });
-    call("POST", "/teams", { name: name, description: val("tm-desc"), members: members, leader_slug: val("tm-leader") }).then(function (r) {
-      if (r.code !== 200) return fail(r);
-      S.creating = false;
-      loadTeams(false).then(function () { openTeam(r.j.team.team_id); });
-    });
-  }
-
   function onChange(e) {
+    if (S.pickSt && e.target.classList && e.target.classList.contains("tmp-check")) {
+      pickToggle(e.target.getAttribute("data-pick-slug"));
+      return;
+    }
+    if (S.pickSt && e.target.classList && e.target.classList.contains("tmp-leader-pick")) {
+      S.pickSt = Object.assign({}, S.pickSt, { leader: e.target.value, leaderTouched: true });
+      return;
+    }
     if (e.target.name === "tm-reason" && S.picker !== null) {
       var pv = panelValues(S.picker, msgById(S.picker));
       S.draft = { mid: S.picker, reasons: pv.reasons, comment: pv.comment };
@@ -1702,12 +2160,41 @@
       runSearch();
       return;
     }
+    if (e.key === "Escape" && S.pickSt) { closePicker(); return; }
+    if (e.target.classList && e.target.classList.contains("tm-input") && sugKey(e)) return;
+    if (e.target.classList && e.target.classList.contains("tmp-name-input") && e.key === "Enter") {
+      e.preventDefault();
+      var srch = S.pickHost && S.pickHost.querySelector(".tmp-search-input");
+      if (srch) srch.focus();
+      return;
+    }
     if (e.key === "Escape" && S.rowMenu) { closeRowMenu(true); return; }
     if (e.key === "Escape" && S.picker !== null) { S.focusBack = S.picker; S.picker = null; S.draft = null; drawMsgs(false); return; }
     if (e.key === "Escape" && S.side) { closeSide(); return; }
-    if (e.target.classList && e.target.classList.contains("tm-input") && e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    if (e.target.classList && e.target.classList.contains("tm-input") && e.key === "Enter" && !e.shiftKey && !e.isComposing &&
+        e.keyCode !== 229) {
       e.preventDefault();
       send();
+    }
+  }
+
+  function onInput(e) {
+    if (S.pickSt && e.target.classList.contains("tmp-search-input")) {
+      S.pickSt.query = e.target.value;
+      drawPicker("filter");
+      return;
+    }
+    if (S.pickSt && e.target.classList.contains("tmp-name-input")) { S.pickSt.name = e.target.value; return; }
+    if (S.pickSt && e.target.classList.contains("tmp-desc-input")) { S.pickSt.desc = e.target.value; return; }
+    if (e.target.classList.contains("tm-react-comment") && S.picker !== null) {
+      S.draft = { mid: S.picker, reasons: panelValues(S.picker, msgById(S.picker)).reasons, comment: e.target.value };
+      return;
+    }
+    if (e.target.classList.contains("tm-input")) {
+      S.pending = S.pending && S.pending.text === e.target.value.trim() ? S.pending : null;
+      grow(e.target);
+      suggest();
+      drawHint();
     }
   }
 
@@ -1715,11 +2202,28 @@
   function onTeamEvent(ev) {
     if (!S || !S.el || !S.el.isConnected) return;
     var d = (ev && ev.detail) || {};
+    if (d.type === "team_resync") {
+      // Socket vừa nối lại (0.142.0): tin và kết cục lượt trả lời trong lúc mất kết nối chưa về, tải lại từ server.
+      loadTeams(false);
+      if (S.activeId) { loadMsgs(false); loadQueue(); loadTeam(); }
+      return;
+    }
+    if (d.type === "team_replies" && d.team_id === S.activeId) {
+      // Kết cục lượt trả lời đổi (0.142.0): chỉ vẽ lại khung tin, không cần hỏi lại danh sách.
+      var k = S.msgs.findIndex(function (m) { return Number(m.id) === Number(d.message_id); });
+      if (k >= 0) {
+        S.msgs[k] = Object.assign({}, S.msgs[k], { replies: d.replies || [] });
+        (d.replies || []).forEach(function (x) { if (x.status !== "error") delete S.retrying[d.message_id + "|" + x.agent_key]; });
+        drawMsgs(false);
+      }
+      return;
+    }
     if (d.type === "team_message" && d.team_id === S.activeId && d.message && !S.filterTask) {
       var i = S.msgs.findIndex(function (m) { return m.id === d.message.id; });
       // Gói không mang phản hồi (tin đổi nhãn, kết quả việc): giữ phản hồi đang có của tin.
       var nm = d.message;
       if (i >= 0 && !("reaction" in nm)) nm = Object.assign({}, nm, { reaction: S.msgs[i].reaction });
+      if (i >= 0 && !("replies" in nm) && S.msgs[i].replies) nm = Object.assign({}, nm, { replies: S.msgs[i].replies });
       if (i >= 0) S.msgs[i] = nm; else if (S.jumped === null || S.jumped === undefined) S.msgs.push(nm);
       drawMsgs(false);
     }
@@ -1733,6 +2237,7 @@
   // Rời trang (console.js gọi qua _pageLeave): đóng ngăn, bỏ hẹn giờ; trang dựng lại từ đầu lần ghé sau.
   function leave() {
     clearTimeout(refreshTimer);
+    if (S && S.pickSt) closePicker();
     if (S) { S.side = false; S.picker = null; }
   }
 
@@ -1741,18 +2246,7 @@
     shell();
     el.addEventListener("click", onClick);
     el.addEventListener("change", onChange);
-    el.addEventListener("input", function (e) {
-      if (e.target.classList.contains("tm-react-comment") && S.picker !== null) {
-        S.draft = { mid: S.picker, reasons: panelValues(S.picker, msgById(S.picker)).reasons, comment: e.target.value };
-        return;
-      }
-      if (e.target.classList.contains("tm-input")) {
-        S.pending = S.pending && S.pending.text === e.target.value.trim() ? S.pending : null;
-        grow(e.target);
-        suggest();
-        drawHint();
-      }
-    });
+    el.addEventListener("input", onInput);
     el.addEventListener("keydown", onKey);
     // Điện thoại: nhấn giữ một tin mở bảng của tin đó (cảm xúc và ghim cho tin trợ lý, ghim cho tin của chủ; spec 14.3).
     var hold = null, hx = 0, hy = 0, held = false;
@@ -1799,16 +2293,23 @@
 
   if (typeof window !== "undefined" && window.addEventListener) {
     window.addEventListener("javis:team-event", onTeamEvent);
+    // Auto bật/tắt ở trang Cộng sự hay tab khác (0.142.0): danh sách thành viên của nhóm đang mở đọc lại trạng thái.
+    window.addEventListener("javis:resonance-agents-changed", function () {
+      if (!S || !S.el || !S.el.isConnected || !S.activeId) return;
+      loadTeam();
+      if (S.side && S.tab === "team") loadAgents().then(function () { if (S.side && S.tab === "team") drawSide(); });
+    });
   }
 
   var api = { render: render, leave: leave, open: open, teamListHtml: teamListHtml, messageHtml: messageHtml, queueHtml: queueHtml,
     jobStripHtml: jobStripHtml, blockedAction: blockedAction, jobsChip: jobsChip, jobsChipHtml: jobsChipHtml, timeShort: timeShort,
-    mentionMatches: mentionMatches, mentionsFromText: mentionsFromText, composerHint: composerHint, newClientId: newClientId,
+    mentionMatches: mentionMatches, mentionsFromText: mentionsFromText, mentionScan: mentionScan, removeMention: removeMention,
+    callsHtml: callsHtml, foldName: foldName, emailBefore: emailBefore, composerHint: composerHint, newClientId: newClientId,
     membersHtml: membersHtml, settingsFormHtml: settingsFormHtml, capsFormHtml: capsFormHtml, teamTabHtml: teamTabHtml,
-    levelOf: levelOf, grantFor: grantFor, teamAvatarHtml: teamAvatarHtml, savePin: savePin, pinTeamWith: pinTeamWith, noteHtml: noteHtml, levelsHtml: levelsHtml, turnsHtml: turnsHtml, createFormHtml: createFormHtml,
+    levelOf: levelOf, grantFor: grantFor, teamAvatarHtml: teamAvatarHtml, savePin: savePin, pinTeamWith: pinTeamWith, noteHtml: noteHtml, levelsHtml: levelsHtml, turnsHtml: turnsHtml,
     bannersHtml: bannersHtml, reactionPickerHtml: reactionPickerHtml, reactionChipHtml: reactionChipHtml,
     nextReaction: nextReaction, REACTIONS: REACTIONS, authorityHtml: authorityHtml, readGrant: readGrant,
-    searchResultsHtml: searchResultsHtml };
+    searchResultsHtml: searchResultsHtml, replyStatusHtml: replyStatusHtml, headLine: headLine };
   if (typeof window !== "undefined") window.JavisTeams = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

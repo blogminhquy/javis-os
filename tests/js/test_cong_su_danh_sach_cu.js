@@ -32,6 +32,8 @@ function dung() {
     // T0 nhóm chat team: taiDanhSach mở lượt đọc trạng thái Cộng hưởng riêng sau khi có danh sách. Test này chỉ soi
     // thứ tự trả về của danh sách nên lượt đó không làm gì.
     loadResonance: () => Promise.resolve(false), active: false, veDanhSach() {},
+    // 0.142.0: taiDanhSach cũng đọc số việc của từng trợ lý (badge riêng, khác công tắc Auto). Không liên quan thứ tự.
+    loadJobCounts: () => Promise.resolve(false),
   };
   vm.createContext(ctx);
   vm.runInContext(fn + "\nglobalThis.taiDanhSach = taiDanhSach;", ctx);

@@ -2,7 +2,7 @@
 
     python tests/run.py team_t1_review -v
 
-Đi qua factory THẬT `main._team_engine_for` (chỉ thay `_resonance_engine` bằng engine giả có `query`) và kho SQLite thật
+Đi qua factory THẬT `main._team_engine_for` (chỉ thay `team_engine.build` bằng engine giả có `query`) và kho SQLite thật
 trong thư mục tạm; không gọi model. R6 (hạ, nâng cả bộ kho) nằm ở test_team_rollback.py vì cần mã 0.139.0 thật.
 Mỗi nhóm có đối chứng hợp lệ: đường đúng vẫn ra "done", bài học hợp lệ vẫn được ghi, v.v.
 """
@@ -92,12 +92,33 @@ def memory_text(d):
     return "\n".join(p.read_text(encoding="utf-8") for p in d.glob("memory/agents/**/*") if p.is_file())
 
 
+
+def patch_build(return_value=None, side_effect=None):
+    """Thay `team_engine.build` (0.142.0: lượt nhóm không còn đi qua `_resonance_engine`). Nhận đúng kiểu trả của hàm cũ,
+    (engine | None, info), để các ca giữ nguyên: engine None thì `build` ném TeamEngineUnavailable như provider không chạy
+    được chỉ chữ."""
+    seq = iter(side_effect) if isinstance(side_effect, list) else None
+
+    def src(system, tag):
+        if seq is not None:
+            return next(seq)
+        if side_effect is not None:
+            return side_effect(system, tag)
+        return return_value
+
+    def build(spec, base, tag, settings=None):
+        eng, why = src(getattr(base, "system_prompt", ""), tag)
+        if eng is None:
+            raise main.team_engine.TeamEngineUnavailable(str((why or {}).get("reason") or why), spec.get("provider", ""))
+        return eng
+    return patch.object(main.team_engine, "build", side_effect=build)
+
 def agent_msgs(ss, team):
     return [m for m in ss.get_team_messages_page(team["session_id"], limit=200)["messages"] if m["author_kind"] == "agent"]
 
 
 def job_via_factory(label, events, *, effect=None, available=True, build=None, mention="agent-one", text="Viết tóm tắt"):
-    """Một việc @ trực tiếp chạy qua factory thật. `build` thay hẳn `_resonance_engine` (vd. trả None hay ném lỗi)."""
+    """Một việc @ trực tiếp chạy qua factory thật. `build` thay hẳn bước dựng engine (`team_engine.build`) (vd. trả None hay ném lỗi)."""
     r, tm, ts, ss, t, d = world(label)
     job = r.submit(t["team_id"], text, mentions=[mention], as_job=True, client_msg_id=label)["task_id"]
     holder = {}
@@ -113,7 +134,7 @@ def job_via_factory(label, events, *, effect=None, available=True, build=None, m
         return eng, {"reason": "fake"}
 
     with patch.object(main, "_team_agent_info", side_effect=ident), \
-            patch.object(main, "_resonance_engine", side_effect=fake_resonance):
+            patch_build(side_effect=fake_resonance):
         run(r.dispatch_once())
     return {"r": r, "tm": tm, "ts": ts, "ss": ss, "t": t, "d": d, "job": job, "task": ts.get_task(job),
             "turns": tm.turns(t["team_id"]), "msgs": agent_msgs(ss, t), "eng": holder.get("eng")}
@@ -166,7 +187,7 @@ def section_r1():
     # Chạy lại sau khi engine trả lời được: việc xong.
     w = job_via_factory("r1-retry", BAD["final_error"])
     with patch.object(main, "_team_agent_info", side_effect=ident), \
-            patch.object(main, "_resonance_engine", return_value=(Engine([{"type": "final", "content": "Lần này ổn"}]),
+            patch_build(return_value=(Engine([{"type": "final", "content": "Lần này ổn"}]),
                                                                    {})):
         w["r"].unblock(w["job"], "retry")
         run(w["r"].dispatch_once())
@@ -177,7 +198,7 @@ def section_r1():
     # Lượt trò chuyện: final lỗi không thành câu trả lời.
     r, tm, ts, ss, t, d = world("r1-reply")
     with patch.object(main, "_team_agent_info", side_effect=ident), \
-            patch.object(main, "_resonance_engine", return_value=(Engine(BAD["final_error"]), {})):
+            patch_build(return_value=(Engine(BAD["final_error"]), {})):
         outs = run(r.run_replies(r.submit(t["team_id"], "Chào", client_msg_id="r1-reply")))
     check("R1 lượt trò chuyện final lỗi: kết cục error, không đăng câu trả lời, lượt tính",
           [o["status"] for o in outs] == ["error"] and agent_msgs(ss, t) == []
@@ -275,7 +296,7 @@ def section_r3():
     eng = Engine(lesson_events("LATE_LEADER_739"), lambda: tm.set_leader(t["team_id"], "agent-two"))
     eng2 = Engine([{"type": "final", "content": "Two tự làm xong"}])
     with patch.object(main, "_team_agent_info", side_effect=ident), \
-            patch.object(main, "_resonance_engine", side_effect=[(eng, {}), (eng2, {})]):
+            patch_build(side_effect=[(eng, {}), (eng2, {})]):
         run(r.dispatch_once())
     check("R3 đổi trưởng nhóm giữa lượt điều phối: kế hoạch cũ không ghi bài học, trưởng nhóm mới làm tiếp",
           "LATE_LEADER_739" not in memory_text(d) and ts.get_task(job)["status"] == "done")
@@ -374,7 +395,7 @@ def section_r4():
 
 
     with patch.object(main, "_team_agent_info", side_effect=ident), \
-            patch.object(main, "_resonance_engine", side_effect=lambda s, tag: slow_build()):
+            patch_build(side_effect=lambda s, tag: slow_build()):
         run(cancel_while_building())
     check("R4 huỷ khi engine đang dựng: lượt hoàn (không interrupted), khoá bận nhả",
           [x["status"] for x in tm.turns(t["team_id"])] == ["refunded"] and tm.busy_of("agent-one") is None,

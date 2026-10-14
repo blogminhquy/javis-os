@@ -307,6 +307,9 @@ _A4_SCHEMA = (
 # A5 (0.109.0): đội một agent làm, một agent review cho mỗi mục tiêu (thiết kế 2026-10-11-resonance-a5-maker-reviewer).
 # Chỉ thêm bảng; bản 0.108.0 bỏ qua chúng (hạ phiên bản chỉ hỗ trợ bằng khôi phục snapshot `.pre-0.109.0`).
 A5_BACKUP_SUFFIX = ".pre-0.109.0"
+# 0.142.0: bỏ người review cố định. Kho có từ trước được chép một bản trước khi gỡ đội của các mục tiêu đang mở.
+REVIEW_REMOVED_BACKUP_SUFFIX = ".pre-0.142.0"
+REVIEW_REMOVED = "review_removed"
 A5_TABLES = ("team_pairs", "goal_team", "team_calls", "reviews")
 TEAM_DEFAULT_CALLS = 8                 # tổng lượt của mục tiêu có đội (mục 6.1)
 TEAM_ROLE_CAPS = (("maker", 4), ("reviewer", 4))
@@ -396,6 +399,7 @@ class GoalStore:
         self._backup_before("lessons", _A3_BACKUP_SUFFIX)
         self._backup_before("grants", A4_BACKUP_SUFFIX)
         self._backup_before("team_pairs", A5_BACKUP_SUFFIX)
+        self._backup_before("review_migrations", REVIEW_REMOVED_BACKUP_SUFFIX)
         with closing(self._conn()) as c:
             had_goals = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='goals'").fetchone()
             had_a2 = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='wake_reasons'").fetchone()
@@ -413,9 +417,68 @@ class GoalStore:
             # A5: chỉ thêm bảng. Mục tiêu có sẵn không có `goal_team`, chạy như A4 (thiết kế mục 13).
             for stmt in _A5_SCHEMA:
                 c.execute(stmt)
+        self._remove_fixed_reviewers()
         self._a2_reconcile()
         # A3: đối soát lượt giữ khi mở kho, gồm lúc nâng lại sau khi bản 0.88 đã chạy (mục 6.8).
         self.reconcile_holds()
+
+    # 0.142.0: mặc định KHÔNG gắn đội làm/review cho mục tiêu mới. Chỉ test của đường A5 cũ bật lên.
+    attach_reviewer_teams = False
+
+    def _remove_fixed_reviewers(self) -> None:
+        """Bỏ người review cố định (0.142.0), chạy ĐÚNG MỘT LẦN mỗi kho (dòng `review_migrations`).
+
+        - Mọi cặp làm/review (`team_pairs`) tắt (`enabled=0`, tăng `config_version`), dòng vẫn giữ làm hồ sơ.
+        - Mỗi mục tiêu còn đội `active`: đội thành `detached` (`detached_by='host:review_removed'`), lý do thức của vai
+          review được chốt `superseded`. Mục tiêu đang mở thì TẠM DỪNG (paused) và gỡ chặn thuộc đội về `ready`: không tự
+          chạy tiếp, không tự kết thúc. Lý do: `team_detach` của chủ hẹn thức ngay, và lần thức đó chốt theo luật A4, có
+          thể kết thúc `succeeded` mà không ai review. Migration không được tự đánh dấu đạt.
+        - KHÔNG xoá gì: `reviews`, `team_calls`, `goal_events`, bản nộp và đích giữ nguyên. Một sự kiện `team_detached`
+          (payload `reason=review_removed`, trạng thái chạy và lý do chặn trước đó) và một sự kiện `paused` ghi lại.
+        Chủ thấy mục tiêu ở ngăn Cần bạn (tab Công việc) và trên thẻ: Tiếp tục, sửa, huỷ, hay giao một việc kiểm chứng."""
+        now = time.time()
+        with self._Tx(self) as c:
+            c.execute("CREATE TABLE IF NOT EXISTS review_migrations(name TEXT PRIMARY KEY, done_at REAL NOT NULL, "
+                      "detail_json TEXT NOT NULL DEFAULT '{}')")
+            if c.execute("SELECT 1 FROM review_migrations WHERE name=?", (REVIEW_REMOVED,)).fetchone():
+                return
+            pairs = c.execute("UPDATE team_pairs SET enabled=0, config_version=config_version+1, updated_at=?, "
+                              "by='host:review_removed' WHERE enabled=1", (now,)).rowcount
+            goals = []
+            for t in c.execute("SELECT * FROM goal_team WHERE status='active'").fetchall():
+                g = c.execute("SELECT * FROM goals WHERE id=?", (t["goal_id"],)).fetchone()
+                c.execute("UPDATE goal_team SET status='detached', detached_at=?, detached_by='host:review_removed' "
+                          "WHERE goal_id=? AND status='active'", (now, t["goal_id"]))
+                if g is None:
+                    continue
+                payload = {"reason": REVIEW_REMOVED, "prev_status": g["status"], "prev_run_state": g["run_state"],
+                           "prev_block": g["block_reason"], "prev_paused": bool(g["paused"]),
+                           "reviewer_agent_key": t["reviewer_agent_key"]}
+                c.execute("INSERT INTO goal_events(goal_id,revision,kind,source,payload_json,by,created_at) "
+                          "VALUES(?,?,?,?,?,?,?)", (g["id"], int(g["revision"]), "team_detached", "host", _j(payload),
+                                                     "host:review_removed", now))
+                if g["status"] == "active":
+                    c.execute("UPDATE wake_reasons SET state='superseded', settled_at=?, settled_by='review_removed' "
+                              "WHERE goal_id=? AND state='pending' AND code IN ('review_due','review_retry',"
+                              "'review_recheck')", (now, g["id"]))
+                    block = "" if g["block_reason"] in TEAM_BLOCKS else g["block_reason"]
+                    state = "ready" if g["block_reason"] in TEAM_BLOCKS else g["run_state"]
+                    c.execute("UPDATE goals SET paused=1, run_state=?, block_reason=?, updated_at=? WHERE id=?",
+                              (state, block, now, g["id"]))
+                    if not g["paused"]:
+                        c.execute("INSERT INTO goal_events(goal_id,kind,source,payload_json,by,created_at) "
+                                  "VALUES(?,?,?,?,?,?)", (g["id"], "paused", "host", _j({"reason": REVIEW_REMOVED}),
+                                                          "host:review_removed", now))
+                    self._recompute_wake(c, g["id"])
+                goals.append(g["id"])
+            c.execute("INSERT INTO review_migrations(name,done_at,detail_json) VALUES(?,?,?)",
+                      (REVIEW_REMOVED, now, _j({"pairs_disabled": pairs, "goals": goals})))
+
+    def review_removed_goals(self) -> list:
+        """Mục tiêu được gỡ người review lúc nâng lên 0.142.0 (để giao diện nói rõ vì sao chúng đang dừng)."""
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT detail_json FROM review_migrations WHERE name=?", (REVIEW_REMOVED,)).fetchone()
+        return list(json.loads(r["detail_json"]).get("goals") or []) if r else []
 
     def _backup_before(self, marker_table: str, suffix: str) -> None:
         """Lần đầu mã mới mở một kho có từ trước (chưa có bảng `marker_table`), chép nguyên kho thành
@@ -669,6 +732,21 @@ class GoalStore:
             return {"session_id": r["session_id"], "brain_id": r["brain_id"], "agent_key": r["agent_key"],
                     "created_at": r["created_at"]} if r else None
 
+    def session_pins(self, session_ids) -> dict:
+        """{session_id: agent_key} cho nhiều phiên trong MỘT lần đọc (0.142.0). Tab Công việc và huy hiệu việc đọc ghim
+        của hàng trăm phiên; mở một kết nối cho mỗi phiên tốn ~4 ms trên Windows, 20 trợ lý x 150 phiên là 15 giây."""
+        ids = [str(x) for x in (session_ids or []) if x]
+        out: dict = {}
+        if not ids:
+            return out
+        with closing(self._conn()) as c:
+            for i in range(0, len(ids), 500):
+                part = ids[i:i + 500]
+                q = ",".join("?" * len(part))
+                for r in c.execute(f"SELECT session_id, agent_key FROM session_agents WHERE session_id IN ({q})", part):
+                    out[r["session_id"]] = r["agent_key"]
+        return out
+
     # ───────────── bản ghi ý định ─────────────
 
     def add_intent(self, p: Principal, session_id: str, message_id, text: str, constraints=(),
@@ -817,9 +895,11 @@ class GoalStore:
             if agent_key:
                 c.execute("INSERT INTO goal_agents(goal_id,brain_id,agent_key,by,created_at) VALUES(?,?,?,?,?)",
                           (gid, p.brain_id, agent_key, p.by, now))
-                # A5 (R1): đội gắn TRONG giao dịch tạo, ngay sau agent làm. Cả tool javis_goal lẫn /goal-requests đi qua
-                # đây, nên không có giao dịch thứ hai và không có khe để mục tiêu chạy trước khi có người review.
-                self._attach_team(c, gid, p.brain_id, agent_key, now)
+                # 0.142.0: mục tiêu MỚI không còn gắn người review cố định. Cần kiểm chứng thì đó là một việc riêng giao
+                # cho trợ lý phù hợp (tab Công việc). `attach_reviewer_teams` chỉ để test dựng lại mục tiêu kiểu cũ (A5),
+                # để đường review của các mục tiêu cũ còn được kiểm.
+                if self.attach_reviewer_teams:
+                    self._attach_team(c, gid, p.brain_id, agent_key, now)
             row = c.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
             self._scope_sync(c, row, 1, frame, now, p.by, origin_ref=msg)
             if handoff_owner:
@@ -860,6 +940,49 @@ class GoalStore:
                 q += " AND id NOT IN (SELECT goal_id FROM goal_agents)"
             q += " ORDER BY updated_at DESC"
             return [self._record(c, r) for r in c.execute(q, args).fetchall()]
+
+    def agent_goal_rows(self, p: Principal, agent_key: str, limit: int = 40) -> list:
+        """Mục tiêu của một trợ lý cho tab Công việc (0.142.0): mục tiêu nó làm (`goal_agents`) và mục tiêu cũ nó đang là
+        người review (đội A5 còn `active`). Đang mở trước, rồi mới nhất. Bản đọc nhẹ, không dựng cả thẻ mục tiêu.
+
+        `limit` chỉ áp cho mục tiêu ĐÃ KẾT THÚC: mục tiêu đang mở luôn trả đủ (không giấu việc đang chạy hay cần chủ sau
+        một trần cố định). `revision` đi kèm để Tiếp tục, Huỷ gửi đúng revision đang hiện."""
+        key = str(agent_key or "")
+        lim = max(0, int(limit))
+        union = ("SELECT g.*, 'owner' AS role FROM goals g JOIN goal_agents a ON a.goal_id=g.id "
+                 "WHERE g.brain_id=? AND a.agent_key=? "
+                 "UNION ALL SELECT g.*, 'reviewer' AS role FROM goals g JOIN goal_team t ON t.goal_id=g.id "
+                 "WHERE g.brain_id=? AND t.reviewer_agent_key=? AND t.status='active' AND g.status='active'")
+        args = (p.brain_id, key, p.brain_id, key)
+        with closing(self._conn()) as c:
+            rows = c.execute(f"SELECT * FROM ({union}) WHERE status='active' ORDER BY updated_at DESC", args).fetchall()
+            if lim:
+                rows += c.execute(f"SELECT * FROM ({union}) WHERE status!='active' ORDER BY updated_at DESC LIMIT ?",
+                                  args + (lim,)).fetchall()
+            removed = set()
+            if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='review_migrations'").fetchone():
+                m = c.execute("SELECT detail_json FROM review_migrations WHERE name=?", (REVIEW_REMOVED,)).fetchone()
+                removed = set(json.loads(m["detail_json"]).get("goals") or []) if m else set()
+            out = []
+            for r in rows:
+                rec = self._record(c, r)
+                code = ""
+                if r["status"] == "active" and r["paused"]:
+                    code = REVIEW_REMOVED if r["id"] in removed else "paused"
+                out.append({"id": r["id"], "status": r["status"], "run_state": r["run_state"], "reason_code": code,
+                            "block_reason": r["block_reason"], "paused": bool(r["paused"]), "role": r["role"],
+                            "session_id": r["session_id"], "request_ref": r["request_ref"],
+                            "revision": int(r["revision"]), "understanding": rec.understanding,
+                            "updated_at": r["updated_at"]})
+            return out
+
+    def goal_agent_key(self, p: Principal, goal_id: str) -> str:
+        """Mã trợ lý làm mục tiêu (chỉ trong đúng brain), rỗng khi không có. Tab Công việc dùng để không giao kiểm
+        chứng một mục tiêu cho chính trợ lý làm nó."""
+        with closing(self._conn()) as c:
+            if self._goal_row(c, p, goal_id) is None:
+                return ""
+            return self._goal_agent(c, goal_id)
 
     def revise(self, p: Principal, goal_id: str, expected_revision: int, frame: dict, reason: str,
                intent_id: Optional[str] = None, message_ref: str = "", relation: str = "",

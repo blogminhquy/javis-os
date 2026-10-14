@@ -114,11 +114,11 @@ check("CANARY: ẩn bằng display:none chứ không gỡ node chat khỏi khung
   && /id="wsSlot"/.test(WS));
 check("trang Trò chuyện vẫn giữ chốt tương ứng",
   /\.chatpage-slot \.transcript\{ flex:1 1 auto; min-height:0;/.test(CON));
-// Cột phải của trang Cộng sự có tab Thư mục mượn CHÍNH cây đó - cùng một node với tab Thư mục
-// của trang Trò chuyện, nên hai bên phải cùng một luật trả.
-check("cột phải trang Cộng sự có hai tab", /data-rtab="cai"/.test(WS) && /data-rtab="files"/.test(WS));
-check("tab Thư mục ở cột phải mượn chính panel Vault",
-  /S\.tabPhai === "files" && host && window\.JavisVaultPanel\) window\.JavisVaultPanel\.borrow\(host\)/.test(WS));
+// 0.142.0: tab Thư mục của trang Cộng sự nhường chỗ cho tab Công việc. Cây thư mục chỉ còn ở màn chính và trang Trò
+// chuyện; trang Cộng sự không mượn nó nữa, nhưng vẫn trả về phòng phiên cũ còn giữ.
+check("cột phải trang Cộng sự có tab Công việc thay Thư mục", /data-rtab="cai"/.test(WS) && /data-rtab="viec"/.test(WS)
+  && !/data-rtab="files"/.test(WS));
+check("trang Cộng sự không còn mượn panel Vault", !/JavisVaultPanel\.borrow\(/.test(WS));
 check("CANARY: rời tab / rời trang Cộng sự đều trả cây Vault về",
   /function traCayThuMuc\(\)[^\n]*JavisVaultPanel\.giveBack\(\)/.test(WS)
   && /function roi\(\)[\s\S]{0,200}traCayThuMuc\(\)/.test(WS));

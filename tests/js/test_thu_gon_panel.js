@@ -63,7 +63,8 @@ check("index.html có nút thu #chatColThu và nút mở lại #chatColMo",
 check("CSS thu cột phải khoá vào con trực tiếp .hud-body (node chat hay bị mượn đi)",
   css.indexOf("body.chatcol-thu .hud-body > .hud-right") !== -1);
 check("thu xong cột phải còn dải 44px",
-  /body\.chatcol-thu \.hud-body \{ grid-template-columns: 260px minmax\(0, 1fr\) 44px; \}/.test(css));
+  // 0.148.0: cột trái kéo được (biến --hud-left-w, mặc định 260px); thu cột phải vẫn còn dải 44px.
+  /body\.chatcol-thu \.hud-body \{ grid-template-columns: var\(--hud-left-w, 260px\) minmax\(0, 1fr\) 44px; \}/.test(css));
 check("thu CẢ HAI panel cùng lúc vẫn đúng lưới (44px hai bên)",
   /body\.vault-thu\.chatcol-thu \.hud-body \{ grid-template-columns: 44px minmax\(0, 1fr\) 44px; \}/.test(css));
 check("mọi luật chatcol-thu nằm trong media min-width (mobile cột này chính là khung chat)",

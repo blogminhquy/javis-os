@@ -445,7 +445,7 @@
             <!-- Cộng hưởng (Resonance A1): công tắc theo TỪNG TRỢ LÝ của brain đang chọn, mặc định tắt, cùng mục
                  "Chờ gán" cho mục tiêu có trước A1. resonance-agent.js vẽ vào #resonanceAgents qua /resonance/agents. -->
             <div class="qs-block" data-settings-section="general" id="resonanceBlock">
-              <div class="popover-label" data-i18n="resonance.settings_title">Hệ thống cộng hưởng (thử nghiệm)</div>
+              <div class="popover-label" data-i18n="resonance.settings_title">Auto (thử nghiệm)</div>
               <div id="resonanceAgents"></div>
             </div>
 
@@ -869,6 +869,8 @@
   <script src="/static/chat-resonance.js?v=2"></script>
   <script src="/static/resonance-agent.js?v=1"></script>
   <!-- Voice V1: khối ngữ cảnh giao diện + bộ nhận lệnh ui_action, nạp TRƯỚC app.js. -->
+  <!-- Kéo đổi bề rộng cột ở trang đồ thị và trang Trò chuyện (0.148.0): nạp TRƯỚC app.js và console.js. -->
+  <script src="/static/col-resize.js?v=1"></script>
   <script src="/static/ui-context.js?v=1"></script>
   <script src="/static/ui-actions.js?v=1"></script>
   <!-- Voice V2: nghe nói thẳng (Live), app.js gọi lười khi bấm mic ở chế độ Live. -->
@@ -890,8 +892,12 @@
   <script src="/static/studio.js?v=43"></script>
   <!-- Trang Cộng sự: nạp SAU studio.js (mượn trình sửa agent/workflow của Studio) và TRƯỚC
        console.js (renderWorkspace ủy quyền cho window.JavisWorkspace). -->
+  <!-- Tab Công việc của trợ lý (0.142.0): nạp TRƯỚC workspace.js, workspace.js gọi window.JavisAgentJobs. -->
+  <script src="/static/agent-jobs.js?v=1"></script>
   <script src="/static/workspace.js?v=17"></script>
   <script src="/static/packs.js?v=1"></script>
+  <!-- Hộp chọn thành viên kiểu Zalo (0.142.0): nạp TRƯỚC teams.js, teams.js gọi window.JavisTeamPicker. -->
+  <script src="/static/team-picker.js?v=1"></script>
   <script src="/static/teams.js?v=1"></script>
   <script src="/static/chatbots-reply-policy.js?v=1"></script>
   <script src="/static/chatbots-try.js?v=1"></script>

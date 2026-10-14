@@ -963,9 +963,10 @@ class SessionStore:
 
     def moc_cap_nhat_theo_kenh(self, brain: Any, tien_to: str) -> Dict[str, float]:
         """{kênh: updated_at mới nhất} cho các kênh bắt đầu bằng `tien_to` (vd "agent:").
-        Trang Cộng sự dùng để xếp trợ lý vừa chat gần nhất lên đầu."""
+        Trang Cộng sự dùng để xếp trợ lý vừa chat gần nhất lên đầu và (0.142.0) hiện GIỜ NHẮN GẦN NHẤT trên thẻ. Chỉ
+        tính phiên đã có tin: bấm vào một trợ lý là trang tạo sẵn một phiên trống, phiên đó không phải "vừa nhắn"."""
         cond, bparams = loc_brain(brain)
-        sql = "SELECT channel, MAX(updated_at) AS m FROM sessions s WHERE s.channel LIKE ?"
+        sql = "SELECT channel, MAX(updated_at) AS m FROM sessions s WHERE s.channel LIKE ? AND s.msg_count > 0"
         params: list = [tien_to + "%"]
         if cond:
             sql += " AND " + cond

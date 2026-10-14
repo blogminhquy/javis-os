@@ -89,6 +89,29 @@ check("máy chủ cũ không gửi stalled: vẫn vẽ được chip", q.hien ==
 q = quyetDinh({ running_count: 0, stalled_count: 0, items: [nhac(1)] });
 check("máy chủ cũ, chỉ có nhắc hẹn: vẫn ẩn", q.hien === false);
 
+// ---- 6. Một dòng (2026-10-15): viên thuốc chỉ mang MỘT việc, phần còn lại vào khung chi tiết ----
+// Chủ repo: khối ba dòng cũ "chiếm cả màn hình"; chỉ cần hiện 1 việc, bấm vào mới ra chi tiết.
+const { tuoi } = require("../../dashboard/background-strip.js");
+q = quyetDinh({ level: "run", running_count: 3, items: [
+  viec(1, "running"), viec(2, "running", { mine: true }), viec(3, "running")] });
+check("viên thuốc mang việc của chính hội thoại này trước", q.chinh && q.chinh.id === "t2");
+check("viên thuốc đếm phần còn lại thành +N", q.con === 2);
+q = quyetDinh({ level: "run", running_count: 1, items: [viec(1, "running")] });
+check("một việc thì không có +N", q.chinh.id === "t1" && q.con === 0);
+q = quyetDinh(NHIEU);
+check("+N tính theo tổng thật, không theo 4 việc đã cắt", q.con === 6);
+const BAY_GIO = 1_800_000_000_000;
+check("đã chạy dưới 1 phút: vừa bắt đầu", tuoi(BAY_GIO / 1000 - 20, BAY_GIO) === "vừa bắt đầu");
+check("đã chạy 7 phút", tuoi(BAY_GIO / 1000 - 420, BAY_GIO) === "đã chạy 7 phút");
+check("đã chạy 1 giờ 7 phút", tuoi(BAY_GIO / 1000 - 4020, BAY_GIO) === "đã chạy 1 giờ 7 phút");
+check("không có mốc thời gian: không bịa số", tuoi(0, BAY_GIO) === "vừa bắt đầu");
+const SRC = require("fs").readFileSync(require("path").join(__dirname, "../../dashboard/background-strip.js"), "utf8");
+check("khung chi tiết đóng sẵn, chỉ mở khi bấm viên thuốc",
+  SRC.indexOf("aria-expanded=\"false\"") !== -1 && /class="bg-pop"[^>]*hidden/.test(SRC));
+check("bấm ra ngoài hay Esc thì đóng khung chi tiết",
+  SRC.indexOf('ev.key === "Escape"') !== -1 && SRC.indexOf("!e.contains(ev.target)") !== -1);
+check("không còn hàng chip dàn ngang trên khung nhập", SRC.indexOf('class="bg-chips"') === -1);
+
 if (fails.length) {
   console.log("\nFAIL - test_dai_viec_nen: " + fails.length + " lỗi");
   process.exit(1);
