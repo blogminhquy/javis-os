@@ -51,7 +51,7 @@ import conversations
 CONNECTOR_ID = "zalo"
 KENH = "zalo_personal"
 NHIP = 20               # giây giữa hai lần đọc
-NHIP_NHANH = 5          # giây giữa hai lần đọc khi tài khoản có chat riêng vừa có tin khách (xem `_nhip_cua`)
+NHIP_NHANH = 2          # giây giữa hai lần đọc khi tài khoản có chat riêng vừa có tin khách (xem `_nhip_cua`)
 NONG_GIAY = 60          # tin khách chat riêng mới hơn chừng này giây thì tài khoản còn đọc theo NHIP_NHANH
 NHIP_LOI = 90           # nghỉ dài hơn khi một tài khoản vừa lỗi (MCP chết, chưa đăng nhập)
 LIMIT = 100             # tin mỗi lô đọc (MCP cho phép 1..100)
@@ -894,7 +894,7 @@ def _chay(tb: Any, ev: dict) -> None:
 # NHÓM không gom: ở nhóm mỗi tin còn đi qua nhận diện tag và bộ phán xử (nhớ ngữ cảnh theo từng tin,
 # đúng thứ tự giữa nhiều người), gộp tin của một người là đổi những thứ đó. Chế độ Tự đánh giá vẫn
 # chờ `NHUONG_GIAY` như cũ.
-CHO_KHACH_IM = 10       # giây khách phải im ở chat riêng trước khi bot trả lời; 0 = giao từng tin ngay như trước 0.128.0
+CHO_KHACH_IM = 5        # giây khách phải im ở chat riêng trước khi bot trả lời; 0 = giao từng tin ngay như trước 0.128.0
 MAX_GOM_TIN = 50        # trần số tin giữ cho một cuộc chat đang gom (người lạ dán cả trăm dòng thì không phình theo)
 
 

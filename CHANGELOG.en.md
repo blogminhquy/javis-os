@@ -10,10 +10,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.128.0] - 2026-10-14
 ### Improved
-- **The personal Zalo bot waits until the customer has finished typing.** When a customer splits one thought over several messages, the bot waits for 10 seconds of quiet and answers once, covering everything, instead of replying piece by piece like a machine.
+- **The personal Zalo bot waits until the customer has finished typing.** When a customer splits one thought over several messages, the bot waits for 5 seconds of quiet and answers once, covering everything, instead of replying piece by piece like a machine.
 - **Sending a photo and then "can you check this"** in a private chat now reaches the bot as one question with the photo.
 - If you type into the chat yourself while it waits, or turn the bot off, nothing is sent. Zalo groups work as before.
-- To keep the wait short, an account that just had a private customer message is read every 5 seconds (instead of 20) for one minute. This only touches the buffer on the machine, with no extra calls to Zalo.
+- To keep the wait short, an account that just had a private customer message is read every 2 seconds (instead of 20) for one minute. This only touches the buffer on the machine, with no extra calls to Zalo.
 - Thanks to @thanhtmfyu-lang for the contribution.
 
 ## [0.127.0] - 2026-10-14

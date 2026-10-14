@@ -104,18 +104,18 @@ def don():
 
 
 async def chay():
-    check("mặc định chờ 10 giây, đọc dày 5 giây khi có khách vừa nhắn",
-          zc.CHO_KHACH_IM == 10 and zc.NHIP_NHANH == 5 and zc.NHIP == 20)
+    check("mặc định chờ 5 giây, đọc dày 2 giây khi có khách vừa nhắn",
+          zc.CHO_KHACH_IM == 5 and zc.NHIP_NHANH == 2 and zc.NHIP == 20)
     tb = lam_bot()
     tb.start()
 
-    # ---- 1. ba tin liền nhau trong 10 giây: MỘT lượt, đủ ba ý, đúng thứ tự ---------------------
-    await doc(tin("u1", "Thầy ơi", 8), tin("u1", "cho em hỏi", 6), tin("u1", "lớp 9 còn chỗ không ạ", 3))
+    # ---- 1. ba tin liền nhau trong 5 giây: MỘT lượt, đủ ba ý, đúng thứ tự ---------------------
+    await doc(tin("u1", "Thầy ơi", 4), tin("u1", "cho em hỏi", 3), tin("u1", "lớp 9 còn chỗ không ạ", 1))
     check("tin vừa tới, khách mới im 3 giây: bot CHƯA trả lời", not LUOT and not GUI, LUOT)
     check("cuộc chat đang chờ làm tài khoản đọc theo nhịp dày", zc._nhip_cua("zalo-1") == zc.NHIP_NHANH)
-    check("nhưng chưa đủ 10 giây im thì vẫn chưa xả", await xa(5) == 0 and not LUOT)
-    n = await xa(8)
-    check("khách im đủ 10 giây: đúng MỘT lượt", n == 1 and len(LUOT) == 1 and len(GUI) == 1, (n, LUOT, GUI))
+    check("nhưng chưa đủ 5 giây im thì vẫn chưa xả", await xa(2) == 0 and not LUOT)
+    n = await xa(5)
+    check("khách im đủ 5 giây: đúng MỘT lượt", n == 1 and len(LUOT) == 1 and len(GUI) == 1, (n, LUOT, GUI))
     check("lượt gộp đủ ba tin theo đúng thứ tự, nối bằng xuống dòng như hàng chờ bot_gateway",
           LUOT and LUOT[0][0] == "Thầy ơi\ncho em hỏi\nlớp 9 còn chỗ không ạ", LUOT[:1])
     check("lượt mang mã tin CUỐI (Hộp thư nhận ra tin đã có, không ghi trùng)",
@@ -123,20 +123,20 @@ async def chay():
     check("trả lời đúng người, chat riêng", GUI and GUI[0]["threadId"] == "u1" and GUI[0]["threadType"] == 0, GUI)
     check("xả rồi thì hàng chờ trống", not any(k[0] == "zalo-1" for k in zc._GOM))
 
-    # ---- 2. hai tin cách nhau 15 giây: HAI lượt -------------------------------------------------
+    # ---- 2. hai tin cách nhau 8 giây: HAI lượt -------------------------------------------------
     don()
-    # Nhịp đọc dày 5 giây nên giữa hai tin có một lượt đọc thấy khách đã im đủ 10 giây.
-    await doc(tin("u2", "Cho em xin lịch học", 25))
-    check("tin đầu đã im 25 giây khi được đọc: xả ngay sau lượt đọc đó", len(LUOT) == 1, LUOT)
-    await doc(tin("u2", "À thêm học phí nữa ạ", 10))
-    check("tin thứ hai, 15 giây sau: lượt thứ hai riêng", len(LUOT) == 2 and len(GUI) == 2, LUOT)
+    # Nhịp đọc dày 2 giây nên giữa hai tin có một lượt đọc thấy khách đã im đủ 5 giây.
+    await doc(tin("u2", "Cho em xin lịch học", 14))
+    check("tin đầu đã im 14 giây khi được đọc: xả ngay sau lượt đọc đó", len(LUOT) == 1, LUOT)
+    await doc(tin("u2", "À thêm học phí nữa ạ", 6))
+    check("tin thứ hai, 8 giây sau: lượt thứ hai riêng", len(LUOT) == 2 and len(GUI) == 2, LUOT)
     check("mỗi lượt đúng một tin", [x[0] for x in LUOT] == ["Cho em xin lịch học", "À thêm học phí nữa ạ"], LUOT)
 
     # ---- 3. chủ nhắn tay trong cửa sổ: bot im ---------------------------------------------------
     don()
-    await doc(tin("u3", "Thầy ơi", 6), tin("u3", "con em học lớp 8", 4))
+    await doc(tin("u3", "Thầy ơi", 3), tin("u3", "con em học lớp 8", 2))
     check("đang chờ khách nhắn xong", ("zalo-1", "u3") in zc._GOM)
-    await doc(tin("u3", "Để thầy gọi lại cho chị nhé", 2, cua_minh=True))
+    await doc(tin("u3", "Để thầy gọi lại cho chị nhé", 1, cua_minh=True))
     check("chủ tự nhắn: bỏ hàng chờ của cuộc chat đó", ("zalo-1", "u3") not in zc._GOM)
     await xa(30)
     check("chủ nhắn tay trong cửa sổ thì bot im, không tốn lượt model", not LUOT and not GUI, (LUOT, GUI))
@@ -146,7 +146,7 @@ async def chay():
 
     # ---- 4. tắt bot giữa chừng: không gửi; lưu cài đặt (khởi động lại bot): vẫn trả lời -----------
     don()
-    await doc(tin("u4", "Cho em hỏi", 6), tin("u4", "học phí bao nhiêu ạ", 4))
+    await doc(tin("u4", "Cho em hỏi", 3), tin("u4", "học phí bao nhiêu ạ", 2))
     check("đang chờ", ("zalo-1", "u4") in zc._GOM)
     tb.stop()
     check("không còn bot thì về nhịp đọc thường", zc._nhip_cua("zalo-1") == zc.NHIP)
@@ -158,7 +158,7 @@ async def chay():
     await xa(30)
     check("tắt bot giữa chừng thì không gửi gì, kể cả khi bật lại bot sau đó", not LUOT and not GUI, (LUOT, GUI))
     don()
-    await doc(tin("u5", "Cho em hỏi", 6), tin("u5", "lớp 9 còn chỗ không ạ", 4))
+    await doc(tin("u5", "Cho em hỏi", 3), tin("u5", "lớp 9 còn chỗ không ạ", 2))
     tb2.stop()          # lưu cài đặt bot = start_bot: dừng rồi đăng ký lại ngay
     tb3 = lam_bot()
     tb3.start()
@@ -196,7 +196,7 @@ async def chay():
         check("CHO_KHACH_IM = 0: trả lời ngay, không gom", len(LUOT) == 1 and not zc._GOM, (LUOT, zc._GOM))
         check("và không đọc dày", zc._nhip_cua("zalo-1") == zc.NHIP)
     finally:
-        zc.CHO_KHACH_IM = 10
+        zc.CHO_KHACH_IM = 5
 
     # ---- 7. nhịp đọc: chỉ tài khoản nóng, hết nóng thì về 20 giây -------------------------------
     zc._NONG["zalo-1"] = time.time() - zc.NONG_GIAY - 1
