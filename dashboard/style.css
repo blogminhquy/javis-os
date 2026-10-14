@@ -471,7 +471,8 @@ button, input, select, textarea { font-family: inherit; }
   display: grid;
   /* minmax(0, 1fr) rất quan trọng: canvas và chuỗi tool dài không được dùng min-content
      để nới cột giữa rồi đẩy khung hội thoại ra ngoài viewport. */
-  grid-template-columns: 260px minmax(0, 1fr) 320px;
+  /* Bề rộng hai cột kéo được ở đường biên (0.148.0, col-resize.js); thiếu biến thì về mặc định cũ. */
+  grid-template-columns: var(--hud-left-w, 260px) minmax(0, 1fr) var(--hud-right-w, 320px);
   min-width: 0;
   overflow: hidden;
 }
@@ -491,7 +492,7 @@ button, input, select, textarea { font-family: inherit; }
    Trò chuyện mượn đúng node này (nằm trong .cside-pane) và ở đó không có gì để thu -
    selector con trực tiếp giữ cho trạng thái thu không đi lạc theo node. */
 .vault-expand { display: none; }
-body.vault-thu .hud-body { grid-template-columns: 44px minmax(0, 1fr) 320px; }
+body.vault-thu .hud-body { grid-template-columns: 44px minmax(0, 1fr) var(--hud-right-w, 320px); }
 body.vault-thu .hud-body > .hud-left { padding: 12px 6px; align-items: center; overflow: hidden; }
 body.vault-thu .hud-body > .hud-left > :not(.vault-expand) { display: none; }
 body.vault-thu .hud-body > .hud-left > .vault-expand {
@@ -513,7 +514,7 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
 .chatcol-thu-btn svg, .chatcol-expand svg { transform: scaleX(-1); }
 @media (max-width: 860px) { .chatcol-thu-btn { display: none; } }
 @media (min-width: 861px) {
-  body.chatcol-thu .hud-body { grid-template-columns: 260px minmax(0, 1fr) 44px; }
+  body.chatcol-thu .hud-body { grid-template-columns: var(--hud-left-w, 260px) minmax(0, 1fr) 44px; }
   body.vault-thu.chatcol-thu .hud-body { grid-template-columns: 44px minmax(0, 1fr) 44px; }
   body.chatcol-thu .hud-body > .hud-right { padding: 12px 6px; align-items: center; overflow: hidden; }
   body.chatcol-thu .hud-body > .hud-right > :not(.chatcol-expand) { display: none; }
@@ -1434,52 +1435,86 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 /* Nút loa trên khung chat ĐÃ BỎ (02/09): loa đi theo mic, mic là công tắc duy nhất. */
 
 /* ===== Dải VIỆC NỀN ngay trên khung nhập (background-strip.js) =====
-   Hai tông, đúng hai trạng thái đáng cắt ngang khung chat:
+   Một viên thuốc MỘT dòng (2026-10-15, chủ repo: khối ba dòng cũ "chiếm cả màn hình"), bấm vào
+   mới bật khung chi tiết lên trên, cùng kiểu khung đổi model ngay bên dưới. Hai tông:
      .bg-run   xanh  - có việc đang chạy THẬT
-     .bg-stall vàng  - vừa giao nhưng điều phối tắt nên nó KHÔNG chạy (đây là ca gây hiểu lầm
-                       nhất, nên nó phải nổi hơn cả ca đang chạy)
-   Mọi trạng thái khác (nhắc hẹn/loop chờ tới giờ) thì phần tử mang [hidden] nên không chiếm
-   một pixel nào - xem mức "idle" trong background_status.active_view để biết vì sao. */
+     .bg-stall vàng  - vừa giao nhưng điều phối tắt nên nó KHÔNG chạy (ca gây hiểu lầm nhất)
+   Không có gì thì phần tử mang [hidden], không chiếm một pixel nào. */
 .bg-strip {
-  margin: 0 20px 8px; padding: 8px 12px; border-radius: 12px;
-  border: 1px solid var(--border); background: var(--bg3);
-  font-size: 16px; color: var(--text2); max-height: 150px; overflow-y: auto;
+  position: relative; display: flex; margin: 0 20px 6px; min-width: 0;
+  font-size: 14px; color: var(--text2);
   /* flex: none vì dải sống trong các cột flex (.chatpage-slot, cột chat mobile): thiếu nó thì
-     khung chat đầy tin là dải bị bóp còn nửa dòng đầu (ảnh chủ repo 2026-08-24). Trần cao đã
-     có max-height ở trên lo, không cần nhờ flex co. */
+     khung chat đầy tin bóp mất dải (ảnh chủ repo 2026-08-24). */
   flex: none;
 }
 .bg-strip[hidden] { display: none; }
-.bg-run { border-color: var(--ok-line); background: var(--ok-wash); }
-.bg-stall { border-color: var(--warn-line); background: var(--warn-wash); }
-.bg-head { display: flex; align-items: center; gap: 8px; }
-.bg-title { font-weight: 600; color: var(--text); flex: 1 1 auto; min-width: 0; }
-.bg-open {
-  flex: none; background: none; border: 1px solid var(--border); color: var(--text2);
-  border-radius: 8px; padding: 5px 10px; font-size: 15px; cursor: pointer; font-family: inherit;
-  min-height: 34px;
+.bg-pill {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: min(560px, 100%);
+  padding: 5px 10px 5px 11px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text); font: inherit; font-size: 14px; cursor: pointer;
+  min-height: 32px; transition: border-color .15s, background .15s;
 }
-.bg-open:hover { color: var(--accent); border-color: var(--accent); }
-.bg-dot {
-  flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text2);
+.bg-run .bg-pill { border-color: var(--ok-line); background: var(--ok-wash); }
+.bg-stall .bg-pill { border-color: var(--warn-line); background: var(--warn-wash); color: var(--warn-ink); }
+.bg-pill:hover, .bg-pill[aria-expanded="true"] { border-color: var(--accent); }
+.bg-pill:focus-visible, .bg-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bg-pill-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bg-pill-more {
+  flex: none; font-size: 14px; font-weight: 600; color: var(--text2);
+  padding: 0 6px; border-radius: 999px; background: var(--bg);
 }
+.bg-caret {
+  flex: none; width: 7px; height: 7px; margin: 0 2px 0 1px; border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor; transform: rotate(-135deg) translate(-1px, -1px); opacity: .55;
+  transition: transform .15s;
+}
+.bg-pill[aria-expanded="true"] .bg-caret { transform: rotate(45deg) translate(-2px, -2px); }
+.bg-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text2); }
 .bg-run .bg-dot { background: var(--green, #3fb27f); animation: bgPulse 1.4s ease-in-out infinite; }
 .bg-stall .bg-dot { background: var(--warn-ink); }
 @keyframes bgPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
-.bg-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
-.bg-chip {
-  display: inline-flex; align-items: baseline; gap: 5px; max-width: 320px;
-  padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border);
-  background: var(--bg); font-size: 15px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+@media (prefers-reduced-motion: reduce) { .bg-run .bg-dot { animation: none; } .bg-caret { transition: none; } }
+
+/* Khung chi tiết: bật lên PHÍA TRÊN viên thuốc, không đẩy khung chat. */
+.bg-pop {
+  position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 60;
+  width: min(400px, calc(100vw - 32px)); max-height: min(55vh, 420px); overflow: auto;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow-3); padding: 10px;
 }
-.bg-chip b { font-weight: 600; color: var(--text2); font-size: 14px; }
-.bg-chip i { font-style: normal; color: var(--text2); opacity: 0.8; font-size: 14px; }
-.bg-chip.mine { border-color: var(--accent); }
-.bg-chip.on b { color: var(--green, #3fb27f); }
-.bg-warn { margin-top: 7px; color: var(--warn-ink); line-height: 1.45; }
+.bg-pop[hidden] { display: none; }
+.bg-pop-head {
+  display: flex; align-items: center; gap: 8px; padding: 2px 4px 8px;
+  font-weight: 600; color: var(--text); font-size: 15px;
+}
+.bg-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.bg-row {
+  padding: 8px 10px; border-radius: 10px; background: var(--bg3); border: 1px solid transparent;
+}
+.bg-row.mine { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.bg-row-meta {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+  font-size: 14px; color: var(--text2);
+}
+.bg-row-meta b { font-weight: 600; }
+.bg-row.on .bg-row-meta b { color: var(--green, #3fb27f); }
+.bg-row-meta em { font-style: normal; color: var(--accent); }
+.bg-age { font-variant-numeric: tabular-nums; }
+.bg-row-title {
+  margin-top: 3px; color: var(--text); font-size: 15px; line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.bg-row-more { background: none; color: var(--text2); font-size: 14px; padding: 2px 10px; }
+.bg-warn { margin: 8px 2px 0; color: var(--warn-ink); line-height: 1.45; font-size: 14px; }
+.bg-open {
+  display: block; width: 100%; margin-top: 10px; background: none; border: 1px solid var(--border);
+  color: var(--text2); border-radius: 8px; padding: 7px 10px; font-size: 14px; cursor: pointer;
+  font-family: inherit; min-height: 36px;
+}
+.bg-open:hover { color: var(--accent); border-color: var(--accent); }
 @media (max-width: 860px) {
-  .bg-strip { margin: 0 12px 6px; max-height: 128px; }
+  .bg-strip { margin: 0 12px 6px; }
+  .bg-pill { max-width: 100%; }
 }
 
 /* 0.64.48: chữ dải việc nền nâng từ 11-13px lên 14-16px cho dễ đọc trên điện thoại. */

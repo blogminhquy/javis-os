@@ -27,8 +27,9 @@ def check(name: str, condition: bool) -> None:
         fails.append(name)
 
 
+# 0.148.0+: hai cột bên kéo được (biến CSS, mặc định 260px / 320px); điều cần giữ là cột giữa minmax(0, 1fr).
 check("cột graph được phép co dưới min-content của canvas",
-      "grid-template-columns: 260px minmax(0, 1fr) 320px;" in STYLE)
+      "grid-template-columns: var(--hud-left-w, 260px) minmax(0, 1fr) var(--hud-right-w, 320px);" in STYLE)
 check("mọi hàng trực tiếp của HUD không ép rộng grid", ".hud > * { min-width: 0; }" in STYLE)
 check("model bar tự chặn tràn ngang",
       ".model-bar {" in STYLE and "width: 100%; max-width: 100%; min-width: 0;" in STYLE

@@ -8,10 +8,16 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.149.0] - 2026-10-15
-### Added
-- **The Zalo bot accepts friend requests and reads their introduction.** Tick the new box in the bot form: Javis accepts pending requests, saves the message sent with each one in the Inbox and hands it to the bot. Someone who already gave their name, child's name and class is not asked again; anyone else is asked for what is missing.
-- Before, that message vanished as soon as the request was accepted, so the bot always had to ask. Off by default, personal Zalo only.
+## [0.151.0] - 2026-10-15
+### Improved
+- **Resizable panels:** on the graph page (folder column and chat panel) and the Chat page (conversation list), hover the edge and drag; double-click to reset. The width is remembered.
+- **The Chatbot inbox shows each conversation's message count** (grey pill, e.g. "12 msgs"), next to the red unread count.
+
+## [0.147.0] - 2026-10-14
+### Improved
+- **Background jobs now take one tidy line above the chat box.** The old "running in the background" block took three lines with a button and a row of chips, and cut job names off mid-word. Now it is one small pill: a green dot, the most relevant job (the one you just assigned in this chat first) and "+2" when more are running.
+- **Click the pill for the details:** each job with its status, how long it has been running, which ones came from this chat, and a button to open the Tasks page. Click outside or press Esc to close it.
+- Jobs that were assigned but will not run on their own (orchestration off) still show in amber and say so on the pill, with how to turn it on in the details.
 
 ## [0.146.0] - 2026-10-14
 ### Fixed
