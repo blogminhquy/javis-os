@@ -2,7 +2,7 @@
 
 *[Tiếng Việt](../31-messenger.md) · **English***
 
-From 0.112.0 a dedicated bot can answer a Facebook Page's inbox, the same way a bot answers on Zalo or Telegram: same Agent, same brain, same active hours, every chat in the inbox, and a human can take over when needed.
+From 0.134.0 a dedicated bot can answer a Facebook Page's inbox, the same way a bot answers on Zalo or Telegram: same Agent, same brain, same active hours, every chat in the inbox, and a human can take over when needed.
 
 | | Messenger |
 |---|---|

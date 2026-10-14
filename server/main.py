@@ -133,7 +133,7 @@ from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import zalo_bot   # kênh Zalo Bot của chủ (API chính thức) - cùng khế ước với TelegramBot
 import owner_channels   # owner's control channels on Slack and WhatsApp (0.71.0)
 import whatsapp_bot     # WhatsApp transport + webhook router (0.71.0)
-import messenger_bot    # Messenger transport + webhook router (0.112.0)
+import messenger_bot    # Messenger transport + webhook router (0.134.0)
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 import lang as lang_mod   # chốt ngôn ngữ trả lời cho một lượt
 import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ nằm đúng một chỗ
@@ -222,7 +222,7 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth
                       # handshake (verify token), POST must carry a valid X-Hub-Signature-256
                       # under a known app secret, checked in the route itself.
                       "/whatsapp/webhook",
-                      # /messenger/webhook (0.112.0): same contract as WhatsApp, the signature is
+                      # /messenger/webhook (0.134.0): same contract as WhatsApp, the signature is
                       # checked in the route under the app secrets of the Messenger accounts.
                       "/messenger/webhook")
 # Endpoint CHỈ-LOCALHOST: agent (Claude CLI chạy cùng máy/container) curl được mà không cần
@@ -21177,7 +21177,7 @@ async def whatsapp_webhook(request: Request):
 
 
 # ============================================================
-# Messenger (0.112.0): customer bots on a Facebook Page. Meta calls one webhook for every Page;
+# Messenger (0.134.0): customer bots on a Facebook Page. Meta calls one webhook for every Page;
 # `messenger_bot.handle_webhook` routes by Page id. No owner control channel here.
 # ============================================================
 def _ms_verify_token() -> str:

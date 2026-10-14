@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.134.0] - 2026-10-14
+### Thêm mới
+- **Bot trả lời hộp thư Fanpage Facebook (Messenger).** Thêm kênh Messenger ở trang Chatbot, gắn vào bot đang có là bot trả lời cả Zalo lẫn Messenger bằng cùng một Agent. Tin khách vào Hộp thư như các kênh khác.
+- **Form thêm kênh hiện sẵn địa chỉ webhook và mã xác minh** để dán sang app Meta. Lúc bật bot, Javis tự đăng ký Fanpage với webhook, khỏi làm tay. Token thiếu quyền tự đăng ký thì bot vẫn chạy và nhắc bạn gắn tay một lần.
+- **App secret sai bị chặn ngay lúc lưu**, thay vì bot trông vẫn chạy mà không nghe được tin nào.
+- **Lỗi của Meta nói bằng lời:** quá 24 giờ kể từ tin cuối của khách, app chưa qua xét duyệt quyền nhắn tin, token hết hạn. Hướng dẫn từng bước ở docs/31-messenger.md.
+- Cảm ơn @thanhtmfyu-lang đã đóng góp.
+
 ## [0.133.0] - 2026-10-14
 ### Thêm mới
 - **Bot Zalo cá nhân đọc được file khách gửi.** Khách gửi file (Excel, PDF, CSV...) ở chat riêng, hoặc gửi file rồi nhắn "xem giúp em", thì bot tải file về thư mục `inbox/khach` trong brain của bot và trả lời kèm file đó. File chữ (txt, md, csv, json...) bot đọc được nội dung luôn; định dạng khác bot nói rõ là chưa đọc, không đoán.

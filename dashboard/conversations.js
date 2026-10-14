@@ -1046,7 +1046,7 @@
       box.querySelectorAll(".cb-kenh-o").forEach(function (n) { n.classList.toggle("on", n.dataset.k === id); });
       hienWebhook(k);
     }
-    // Kênh nhận tin qua webhook (Messenger, 0.112.0): hiện địa chỉ và mã xác minh để dán sang Meta.
+    // Kênh nhận tin qua webhook (Messenger, 0.134.0): hiện địa chỉ và mã xác minh để dán sang Meta.
     // Hỏi server chứ không tự ghép từ location: sau proxy, chỉ server biết địa chỉ ngoài thật.
     async function hienWebhook(k) {
       var o = box.querySelector("#htWebhook");

@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.134.0] - 2026-10-14
+### Added
+- **Bots answer your Facebook Page inbox (Messenger).** Add a Messenger channel on the Chatbot page; attach it to an existing bot and that bot answers on Zalo and Messenger with the same Agent. Customer messages land in the inbox like on every other channel.
+- **The add-channel form shows the webhook address and verify token** to paste into the Meta app. When the bot is switched on, Javis subscribes the Page to the webhook by itself. If the token lacks the permission for that, the bot still runs and reminds you to subscribe the Page once by hand.
+- **A wrong App secret is refused when you save**, instead of a bot that looks healthy but never hears a message.
+- **Meta errors read as words:** more than 24 hours since the customer last wrote, app not yet approved to message the public, expired token. Step-by-step guide in docs/en/31-messenger.md.
+- Thanks to @thanhtmfyu-lang for the contribution.
+
 ## [0.133.0] - 2026-10-14
 ### Added
 - **The personal Zalo bot reads files customers send.** When a customer sends a file (Excel, PDF, CSV...) in a private chat, or sends a file and then asks "can you check this", the bot saves it to `inbox/khach` in its brain and answers with the file in hand. Text files (txt, md, csv, json...) are read directly; other formats are reported as not read, never guessed.

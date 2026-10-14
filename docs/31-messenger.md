@@ -2,7 +2,7 @@
 
 ***Tiếng Việt** · [English](en/31-messenger.md)*
 
-Từ 0.112.0 một Bot chuyên trách trả lời được hộp thư Fanpage Facebook, giống như bot đang trả lời trên Zalo hay Telegram: cùng Agent, cùng brain, cùng giờ trực, mọi cuộc chat vào Hộp thư, tiếp quản được khi cần người thật.
+Từ 0.134.0 một Bot chuyên trách trả lời được hộp thư Fanpage Facebook, giống như bot đang trả lời trên Zalo hay Telegram: cùng Agent, cùng brain, cùng giờ trực, mọi cuộc chat vào Hộp thư, tiếp quản được khi cần người thật.
 
 | | Messenger |
 |---|---|

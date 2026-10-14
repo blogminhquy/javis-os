@@ -211,7 +211,7 @@ def cho_giao_dien() -> List[dict]:
             # `co_nhom` là câu hỏi của form BOT: bot có đứng được trong nhóm không. Từ 0.64.82 gồm
             # cả Zalo cá nhân (bot trả lời trong nhóm đã cho phép); Zalo Bot thì không có `nhom`.
             "co_nhom": s.nl("nhom") and s.nl("bot"), "gui_tai_lieu": s.nl("gui_file"),
-            # Kênh nhận tin qua webhook (Messenger, 0.112.0): form thêm tài khoản hỏi
+            # Kênh nhận tin qua webhook (Messenger, 0.134.0): form thêm tài khoản hỏi
             # GET /channels/webhook-info để hiện địa chỉ và mã xác minh cần dán sang nền tảng.
             "webhook": str(getattr(_MOD.get(s.id), "WEBHOOK_PATH", "") or ""),
         })

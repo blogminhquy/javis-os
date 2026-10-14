@@ -1,4 +1,4 @@
-"""Facebook Messenger channel (0.112.0): a dedicated bot answers a Facebook Page's inbox.
+"""Facebook Messenger channel (0.134.0): a dedicated bot answers a Facebook Page's inbox.
 
     python tests/run.py messenger
 

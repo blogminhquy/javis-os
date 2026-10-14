@@ -1,4 +1,4 @@
-"""Facebook Messenger channel (official Messenger Platform by Meta), 0.112.0: a dedicated bot
+"""Facebook Messenger channel (official Messenger Platform by Meta), 0.134.0: a dedicated bot
 answers a Facebook Page's inbox through `messenger_bot.MessengerBot`, fed by the
 `/messenger/webhook` route.
 

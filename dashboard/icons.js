@@ -192,7 +192,7 @@
         '-1.36-1.62-1.52-1.89-.16-.27-.02-.42.12-.56.12-.12.27-.32.41-.48.14-.16.18-.27.27-.46.09' +
         '-.18.05-.34-.02-.48-.07-.14-.6-1.5-.84-2.04z"/>',
     },
-    // Messenger (0.112.0): blue speech bubble with the lightning zigzag.
+    // Messenger (0.134.0): blue speech bubble with the lightning zigzag.
     messenger: {
       nhan: "Messenger",
       mau: "#0866FF",

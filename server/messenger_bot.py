@@ -1,4 +1,4 @@
-"""Facebook Messenger gateway over the official Messenger Platform (Meta), 0.112.0.
+"""Facebook Messenger gateway over the official Messenger Platform (Meta), 0.134.0.
 
 Same shape as `whatsapp_bot` because the platform works the same way: Javis cannot pull
 messages, Meta POSTs every inbound message to a webhook. Two halves:
