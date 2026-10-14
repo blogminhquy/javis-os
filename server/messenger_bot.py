@@ -28,6 +28,8 @@ Rules of the platform that shape the code:
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -451,24 +453,31 @@ class MessengerBot(HangLuot):
     async def _watch(self):
         """No connection to hold: the webhook pushes. Check the credentials, make sure the Page
         sends its messages to this app, then stay registered until stopped."""
-        if not (self.token and self.page_id):
+        if not (self.token and self.page_id and self.app_secret):
+            # Without the app secret every webhook POST fails the signature check (401) and the
+            # bot would look healthy while hearing nothing: refuse to start instead.
             self.status = "error"
-            self.last_error = localefmt.chu("Thiếu Page id hoặc Page access token.",
-                                            "Missing the Page id or Page access token.")
+            self.last_error = localefmt.chu("Thiếu Page id, Page access token hoặc App secret.",
+                                            "Missing the Page id, Page access token or App secret.")
             return
+        sub = {"ok": True}
         async with httpx.AsyncClient(timeout=httpx.Timeout(20.0)) as c:
-            info = await whoami(c, self.page_id, self.token)
+            info = await whoami(c, self.page_id, self.token, self.app_secret)
             if info.get("ok"):
                 sub = await subscribe_page(c, self.page_id, self.token)
-                if not sub.get("ok"):
-                    info = {"ok": False, "error": localefmt.chu(
-                        "Không đăng ký được webhook cho Page: " + sub.get("error", ""),
-                        "Could not subscribe the Page to the webhook: " + sub.get("error", ""))}
         if not info.get("ok"):
             self.status = "error"
             self.last_error = info.get("error", "")
             self.loi_danh_tinh = self.last_error
             return
+        # Subscribing needs pages_manage_metadata, which many Page tokens lack. A Page subscribed by
+        # hand in the Meta app still delivers, so a failed subscribe is a warning, not a dead bot.
+        self.loi_danh_tinh = "" if sub.get("ok") else localefmt.chu(
+            "Javis chưa tự gắn được Page vào webhook (" + sub.get("error", "") + "). Nếu Page đã được gắn tay "
+            "trong app Meta (Messenger, Webhooks, Add Subscriptions) thì bot vẫn nghe; chưa thì gắn tay ở đó.",
+            "Javis could not subscribe the Page to the webhook (" + sub.get("error", "") + "). If the Page was "
+            "subscribed by hand in the Meta app (Messenger, Webhooks, Add Subscriptions) the bot still hears; "
+            "otherwise subscribe it there.")
         self.bot_username = info.get("username", "")
         old = _REGISTRY.get(self.page_id)
         if old is not None and old is not self:
@@ -511,15 +520,33 @@ class MessengerBot(HangLuot):
                 pass
 
 
-async def whoami(client, page_id, token) -> dict:
-    """Ask Graph which Page this is. {"ok", "username", "bot_name"} or {"ok": False, "error"}."""
+def appsecret_proof(token: str, app_secret: str) -> str:
+    """HMAC-SHA256 of the access token keyed by the app secret, as Graph expects it."""
+    return hmac.new(str(app_secret).encode(), str(token).encode(), hashlib.sha256).hexdigest()
+
+
+async def whoami(client, page_id, token, app_secret: str = "") -> dict:
+    """Ask Graph which Page this is. {"ok", "username", "bot_name"} or {"ok": False, "error"}.
+
+    With `app_secret` the call carries `appsecret_proof`, which Graph validates whenever it is
+    sent: a secret that does not belong to the app the token was made in fails here, at connect
+    time, instead of silently failing every webhook signature later."""
+    params = {"fields": "id,name", "access_token": token}
+    if app_secret:
+        params["appsecret_proof"] = appsecret_proof(token, app_secret)
     try:
-        r = await client.get(f"{GRAPH}/{page_id}", params={"fields": "id,name", "access_token": token})
+        r = await client.get(f"{GRAPH}/{page_id}", params=params)
         d = r.json() or {}
     except Exception as e:
         return {"ok": False, "error": localefmt.chu(f"Không nối được Meta: {e}", f"Could not reach Meta: {e}")}
     if d.get("error") or str(d.get("id") or "") != str(page_id):
         e = d.get("error") or {}
+        if "appsecret_proof" in str(e.get("message") or ""):
+            return {"ok": False, "error": localefmt.chu(
+                "App secret không khớp với app đã tạo Page access token này. Lấy lại App secret ở "
+                "App settings, Basic của ĐÚNG app đó.",
+                "The App secret does not belong to the app this Page access token was made in. Copy the "
+                "App secret again from App settings, Basic of THAT app.")}
         return {"ok": False, "error": _explain_error(e.get("code"), e.get("message") or "invalid credentials",
                                                      e.get("error_subcode"))}
     return {"ok": True, "username": str(d.get("id") or ""), "bot_name": str(d.get("name") or "")}

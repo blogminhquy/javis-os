@@ -32,7 +32,7 @@ From 0.112.0 a dedicated bot can answer a Facebook Page's inbox, the same way a 
 - **Reuse the bot already on Zalo:** open it on the Chatbot page, click **Edit**, tick the new Messenger account, **Save**. The bot answers on Zalo and Messenger with the same Agent and the same active hours.
 - **Or create a new bot** for Messenger only.
 
-Switch the bot on. Javis then subscribes the Page to the app's webhook by itself (no manual step); any error shows on the bot card in words.
+Switch the bot on. Javis then subscribes the Page to the app's webhook by itself (no manual step); any error shows on the bot card in words. If the token lacks the permission to subscribe, the bot still runs and its card reminds you to subscribe the Page once by hand: Meta app, Messenger, Webhooks, **Add Subscriptions** for the Page.
 
 ## 4. Test, then open it to everyone
 
@@ -46,5 +46,6 @@ Switch the bot on. Javis then subscribes the Page to the app's webhook by itself
 | more than 24 hours since this person last wrote | The customer wrote over a day ago | Wait for them to write again, or answer from Meta Business Suite |
 | the app may not message people outside it yet (200) | App Review not passed | Test with an account that has a role on the app, or submit pages_messaging for review |
 | the Page access token expired or is wrong (190) | Temporary or revoked token | Generate a new one (step 1.3) and paste it again on the channel account |
-| Could not subscribe the Page to the webhook | Token lacks pages_manage_metadata | Generate the token again while you are a Page admin |
+| Javis could not subscribe the Page to the webhook | Token lacks pages_manage_metadata | The bot still runs if the Page was subscribed by hand; otherwise click Add Subscriptions for the Page under Messenger, Webhooks, or generate the token again while you are a Page admin |
+| The App secret does not belong to the app this Page access token was made in | App secret copied from another app | Copy the App secret again from App settings, Basic of the app that made the token. With a wrong secret Javis cannot trust the signature on Meta's messages, so it refuses it when you save |
 | Meta cannot verify the webhook | Callback URL is not HTTPS, or wrong token | Open Javis through its HTTPS domain and copy the address from the form again |

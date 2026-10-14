@@ -13,6 +13,9 @@ No network. What is guarded, in order of what would hurt most if it broke:
   4. The channel is in the registry as a bot channel with a webhook, so the Chatbot page, the
      inbox and the bot store pick it up without per-channel code.
   5. Credentials pasted in one field split correctly; Meta errors read as words.
+  6. Start-up: a wrong or missing App secret stops the bot with a reason (otherwise every webhook
+     fails its signature and the bot hears nothing while looking healthy); a failed automatic
+     subscribe only warns, because a Page subscribed by hand in the Meta app still delivers.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
@@ -227,6 +230,70 @@ async def _precheck():
 check("precheck {} (e.g. outside active hours) keeps the bot silent",
       not any(c.get("message") for c in run(_precheck())))
 
+
+# ============================================================
+# 4b. Start-up: App secret checked through appsecret_proof, subscribe failure only warns
+# ============================================================
+import httpx  # noqa: E402
+
+seen_params = []
+
+
+def graph(req):
+    seen_params.append(dict(req.url.params))
+    if req.url.params.get("appsecret_proof") != messenger_bot.appsecret_proof(TOKEN, SECRET):
+        return httpx.Response(400, json={"error": {"message": "Invalid appsecret_proof provided in the API argument",
+                                                   "code": 100}})
+    return httpx.Response(200, json={"id": PAGE, "name": "Trung tâm"})
+
+
+async def ask(secret):
+    async with httpx.AsyncClient(transport=httpx.MockTransport(graph)) as c:
+        return await messenger_bot.whoami(c, PAGE, TOKEN, secret)
+
+
+ok_info = run(ask(SECRET))
+check("whoami sends appsecret_proof and accepts the right App secret",
+      ok_info.get("ok") and ok_info.get("bot_name") == "Trung tâm" and "appsecret_proof" in seen_params[-1], ok_info)
+bad_info = run(ask("c" * 32))
+check("a wrong App secret is refused at connect time with a reason in words",
+      not bad_info.get("ok") and "App secret" in bad_info.get("error", ""), bad_info)
+
+
+async def start_with(creds, who, sub):
+    orig = (messenger_bot.whoami, messenger_bot.subscribe_page)
+
+    async def fake_who(c, page_id, token, app_secret=""):
+        return who
+
+    async def fake_sub(c, page_id, token):
+        return sub
+    messenger_bot.whoami, messenger_bot.subscribe_page = fake_who, fake_sub
+    try:
+        bot = messenger_bot.MessengerBot(creds, "", None)
+        bot.start()
+        for _ in range(50):
+            await asyncio.sleep(0)
+            if bot.status != "starting":
+                break
+        registered = messenger_bot.registered().get(PAGE) is bot
+        bot.stop()
+        return bot, registered
+    finally:
+        messenger_bot.whoami, messenger_bot.subscribe_page = orig
+
+
+full = {"page_id": PAGE, "access_token": TOKEN, "app_secret": SECRET}
+bot, reg = run(start_with(full, {"ok": True, "username": PAGE}, {"ok": True}))
+check("start: healthy Page registers with no warning", reg and not bot.loi_danh_tinh, (reg, bot.loi_danh_tinh))
+bot, reg = run(start_with(full, {"ok": True, "username": PAGE}, {"ok": False, "error": "(200)"}))
+check("start: failed subscribe still registers the Page and warns how to subscribe by hand",
+      reg and "Webhooks" in bot.loi_danh_tinh and not bot.last_error, (reg, bot.loi_danh_tinh, bot.last_error))
+bot, reg = run(start_with(dict(full, app_secret=""), {"ok": True}, {"ok": True}))
+check("start: missing App secret refuses to start (webhook would 401 forever)",
+      not reg and bot.status in ("error", "stopped") and "App secret" in bot.last_error, (reg, bot.last_error))
+bot, reg = run(start_with(full, {"ok": False, "error": "App secret không khớp"}, {"ok": True}))
+check("start: wrong App secret refuses to start", not reg and "App secret" in bot.last_error, bot.last_error)
 
 # ============================================================
 # 5. Webhook endpoints (TestClient)

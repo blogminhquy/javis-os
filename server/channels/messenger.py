@@ -57,7 +57,7 @@ async def verify_token(token: str) -> dict:
         return {"ok": False, "error": localefmt.chu("Còn thiếu: " + ", ".join(thieu),
                                                     "Missing: " + ", ".join(thieu))}
     async with httpx.AsyncClient(timeout=15) as c:
-        info = await whoami(c, cr["page_id"], cr["access_token"])
+        info = await whoami(c, cr["page_id"], cr["access_token"], cr["app_secret"])
     if not info.get("ok"):
         return {"ok": False, "error": info.get("error", "")}
     return {"ok": True, "username": info.get("username", ""), "bot_name": info.get("bot_name", ""),

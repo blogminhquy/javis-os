@@ -32,7 +32,7 @@ Từ 0.112.0 một Bot chuyên trách trả lời được hộp thư Fanpage Fa
 - **Dùng lại bot đang trực Zalo:** mở bot đó ở trang Chatbot, bấm **Sửa**, tick thêm tài khoản Messenger vừa tạo, **Lưu**. Bot trả lời cả Zalo lẫn Messenger bằng cùng một Agent và cùng giờ trực.
 - **Hoặc tạo bot mới** chỉ cho Messenger.
 
-Bật bot. Lúc bật, Javis tự đăng ký Page với webhook của app (bạn không phải làm bước này tay); lỗi gì thì thẻ bot báo bằng lời.
+Bật bot. Lúc bật, Javis tự đăng ký Page với webhook của app (bạn không phải làm bước này tay); lỗi gì thì thẻ bot báo bằng lời. Nếu token thiếu quyền để tự đăng ký, bot vẫn chạy và thẻ bot nhắc bạn gắn tay một lần: app Meta, Messenger, Webhooks, **Add Subscriptions** cho Page.
 
 ## 4. Thử, rồi mở cho mọi người
 
@@ -46,5 +46,6 @@ Bật bot. Lúc bật, Javis tự đăng ký Page với webhook của app (bạn
 | quá 24 giờ kể từ tin cuối | Khách nhắn đã hơn một ngày | Chờ khách nhắn lại, hoặc trả lời từ Meta Business Suite |
 | app chưa có quyền nhắn tin cho người ngoài (200) | Chưa qua App Review | Thử bằng tài khoản có vai trò trong app, hoặc nộp xét duyệt pages_messaging |
 | Page access token hết hạn hoặc sai (190) | Token tạm hoặc đã bị thu hồi | Tạo lại token ở bước 1.3, dán lại vào tài khoản kênh |
-| Không đăng ký được webhook cho Page | Token thiếu quyền pages_manage_metadata | Tạo lại token khi đang là quản trị viên Page |
+| Javis chưa tự gắn được Page vào webhook | Token thiếu quyền pages_manage_metadata | Bot vẫn chạy nếu Page đã gắn tay; chưa thì bấm Add Subscriptions cho Page ở Messenger, Webhooks, hoặc tạo lại token khi đang là quản trị viên Page |
+| App secret không khớp với app đã tạo Page access token | Chép App secret của app khác | Lấy lại App secret ở App settings, Basic của đúng app đã tạo token. Sai secret thì Meta gửi tin tới mà Javis không tin được chữ ký, nên Javis chặn ngay từ lúc lưu |
 | Meta báo không verify được webhook | Callback URL không phải HTTPS, hoặc sai mã | Mở Javis bằng tên miền HTTPS rồi lấy lại địa chỉ ở form |
