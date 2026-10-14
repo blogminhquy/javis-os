@@ -30,7 +30,7 @@ có Agent, mức quyền, giới hạn tần suất và Hộp thư). Xem "Bot tr
 tin dạng chữ, bỏ tin cũ, im khi chủ đang tự nhắn. Từ 0.64.82 bot còn trả lời trong nhóm đã cho
 phép (tag/reply, hoặc chế độ Tự đánh giá), xem `channels.zalo_personal.Transport`.
 
-Chờ khách nhắn xong (0.113.0): tin khách ở chat RIÊNG không giao ngay mà gom theo cuộc chat, đợi
+Chờ khách nhắn xong (0.128.0): tin khách ở chat RIÊNG không giao ngay mà gom theo cuộc chat, đợi
 khách im `CHO_KHACH_IM` giây rồi mới giao MỘT lượt gộp, xem "Chờ khách nhắn xong" ở cuối file.
 
 Chưa có: tải media. Tin ảnh/file ghi loại tin kèm mô tả, không tải về, và bot không trả lời chúng.
@@ -876,7 +876,7 @@ def _chay(tb: Any, ev: dict) -> None:
 
 
 # ============================================================
-# Chờ khách nhắn xong (0.113.0)
+# Chờ khách nhắn xong (0.128.0)
 # ============================================================
 # Yêu cầu của chủ nick (14/10/2026): khách hay nhắn một ý thành ba bốn tin liền ("Thầy ơi" / "cho em
 # hỏi" / "lớp 9 còn chỗ không ạ"). Giao từng tin ngay thì bot đáp câu chào trước khi câu hỏi tới,
@@ -894,7 +894,7 @@ def _chay(tb: Any, ev: dict) -> None:
 # NHÓM không gom: ở nhóm mỗi tin còn đi qua nhận diện tag và bộ phán xử (nhớ ngữ cảnh theo từng tin,
 # đúng thứ tự giữa nhiều người), gộp tin của một người là đổi những thứ đó. Chế độ Tự đánh giá vẫn
 # chờ `NHUONG_GIAY` như cũ.
-CHO_KHACH_IM = 10       # giây khách phải im ở chat riêng trước khi bot trả lời; 0 = giao từng tin ngay như trước 0.113.0
+CHO_KHACH_IM = 10       # giây khách phải im ở chat riêng trước khi bot trả lời; 0 = giao từng tin ngay như trước 0.128.0
 MAX_GOM_TIN = 50        # trần số tin giữ cho một cuộc chat đang gom (người lạ dán cả trăm dòng thì không phình theo)
 
 

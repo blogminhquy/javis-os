@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.128.0] - 2026-10-14
+### Improved
+- **The personal Zalo bot waits until the customer has finished typing.** When a customer splits one thought over several messages, the bot waits for 10 seconds of quiet and answers once, covering everything, instead of replying piece by piece like a machine.
+- **Sending a photo and then "can you check this"** in a private chat now reaches the bot as one question with the photo.
+- If you type into the chat yourself while it waits, or turn the bot off, nothing is sent. Zalo groups work as before.
+- To keep the wait short, an account that just had a private customer message is read every 5 seconds (instead of 20) for one minute. This only touches the buffer on the machine, with no extra calls to Zalo.
+- Thanks to @thanhtmfyu-lang for the contribution.
+
 ## [0.127.0] - 2026-10-14
 ### Fixed
 - **Bots on the ChatGPT plan no longer drop tool calls.** ChatGPT sometimes streams a tool call piece by piece and leaves the final summary empty, so the bot skipped the call and answered with half the work. The bot now collects them all, never runs one twice, and retries a stream that was cut off instead of acting on half of it.

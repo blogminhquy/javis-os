@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.128.0] - 2026-10-14
+### Cải thiện
+- **Bot Zalo cá nhân chờ khách nhắn xong rồi mới trả lời.** Khách nhắn một ý thành mấy tin liền thì bot đợi khách im 10 giây, rồi đáp một lần đủ các ý, thay vì đáp từng mẩu như máy.
+- **Gửi ảnh rồi nhắn "xem giúp em"** ở chat riêng giờ tới bot thành một câu hỏi kèm ảnh.
+- Trong lúc chờ mà bạn nhắn tay vào cuộc chat, hoặc tắt bot, thì bot không gửi gì. Nhóm Zalo giữ nguyên cách cũ.
+- Để khách không chờ lâu, tài khoản vừa có khách nhắn riêng được đọc tin 5 giây một lần (thay vì 20) trong một phút. Việc đọc chỉ chạm bộ đệm trên máy, không gọi thêm lên Zalo.
+- Cảm ơn @thanhtmfyu-lang đã đóng góp.
+
 ## [0.127.0] - 2026-10-14
 ### Sửa lỗi
 - **Bot chạy bằng gói ChatGPT không còn bỏ sót lệnh gọi công cụ.** Có lúc ChatGPT trả lệnh gọi công cụ theo từng mảnh mà phần tổng kết cuối lại rỗng, nên bot bỏ qua lệnh đó và trả lời thiếu. Giờ bot gom đủ, không chạy trùng, và luồng bị đứt giữa chừng thì tự thử lại thay vì chạy dở.

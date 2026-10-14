@@ -1,10 +1,10 @@
-"""Zalo cá nhân: bot chờ khách nhắn xong rồi mới trả lời MỘT lần (0.113.0).
+"""Zalo cá nhân: bot chờ khách nhắn xong rồi mới trả lời MỘT lần (0.128.0).
 
     python tests/run.py cho_khach_nhan_xong      (KHÔNG mạng, MCP giả)
 
 Chủ nick yêu cầu 14/10/2026: khách hay nhắn một ý thành mấy tin liền ("Thầy ơi" / "cho em hỏi" /
 "lớp 9 còn chỗ không ạ"). Giao từng tin ngay thì bot đáp câu chào trước khi câu hỏi tới, lộ ngay
-là máy. Từ 0.113.0 tin khách chat riêng được gom theo cuộc chat và chỉ giao khi khách đã im
+là máy. Từ 0.128.0 tin khách chat riêng được gom theo cuộc chat và chỉ giao khi khách đã im
 `CHO_KHACH_IM` giây, xác nhận bằng một lượt đọc.
 
 Test KHÔNG chờ giờ thật: giờ tin đặt lùi về quá khứ, và mốc xả hàng chờ truyền tay vào `xa_hang_cho`.
@@ -188,7 +188,7 @@ async def chay():
     await doc(tin("g1", "Cả nhà ơi", 2, nhom=True, **{"from": "u9"}))
     check("tin NHÓM không vào hàng chờ (đi thẳng như trước)", zc._GOM == goc)
 
-    # ---- 6. tắt cửa sổ (0) thì giao từng tin ngay như trước 0.113.0 -----------------------------
+    # ---- 6. tắt cửa sổ (0) thì giao từng tin ngay như trước 0.128.0 -----------------------------
     don()
     zc.CHO_KHACH_IM = 0
     try:
