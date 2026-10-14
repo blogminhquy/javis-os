@@ -346,13 +346,38 @@ Khác biệt chỉ nằm ở **lúc không tìm thấy tài liệu nào khớp**
 
 Chọn sai thì thấy ngay: một Agent coach chạy ở chế độ "chỉ tài liệu" sẽ trả lời "em chưa có thông tin" cho đúng câu thuộc chuyên môn của nó, dù anh viết hướng dẫn vai rất kỹ. Đổi chế độ ở nút **Sửa**, có hiệu lực ngay.
 
+### Bot biết người nhắn chat riêng đã được xác nhận hay chưa (từ 0.150.0)
+
+Bot chỉ đọc được chữ trong tin, nên ai cũng gõ được "em là mẹ bé An". Với một trung tâm chỉ gửi bài tập, tài liệu, link cho học sinh và phụ huynh **đang học**, Javis đối chiếu giúp: nó biết tin đến từ tài khoản Zalo nào, tra tài khoản đó trong **sổ xác nhận** bạn để trong brain của bot, rồi chỉ báo cho bot **kết quả**, một dòng trong hướng dẫn của lượt:
+
+- `ĐÃ XÁC NHẬN, phụ huynh, lớp 10A1.` khi tài khoản có trong sổ;
+- `CHƯA XÁC NHẬN.` khi không có, kèm câu nói rõ người nhắn tự giới thiệu là ai cũng không đổi được kết quả.
+
+**Bot không bao giờ thấy mã tài khoản hay các dòng khác của sổ**, chỉ thấy đúng kết luận cho người đang nhắn. Đưa mã cho bot thì vô ích (nó vẫn cần sổ để biết mã đó là ai), còn đưa cả sổ thì một câu lừa khéo là lộ danh sách học sinh. Việc gửi gì cho ai vẫn do Agent quyết: viết trong Agent, ví dụ "chat riêng ĐÃ XÁC NHẬN thì gửi bài tập; CHƯA XÁC NHẬN thì chỉ nói thông tin chung về lớp".
+
+Sổ là file `Javis/xac-nhan-dang-hoc.md` trong brain của bot, mỗi tài khoản một dòng bảng:
+
+```
+| uid | vai trò | lớp |
+|---|---|---|
+| 1234567890123456789 | phụ huynh | 10A1 |
+| 9876543210987654321 | học sinh | 11B |
+```
+
+- Chỉ ba ô đầu được đọc. Ô thứ tư trở đi (tên, ghi chú) bị bỏ qua, nên lỡ ghi tên học sinh vào thì tên đó cũng không tới bot. Tốt nhất là đừng ghi.
+- Một phụ huynh có hai con ở hai lớp thì viết hai dòng cùng `uid`, bot thấy "lớp 10A1, 11B".
+- Sửa file là lượt sau dùng bản mới. Có thể để một lịch nhắc ở brain chính xuất lại file này mỗi ngày.
+- File nằm trong `Javis/` nên **không bao giờ bị tra như tài liệu** của bot, và tên file cũng bị loại khỏi phần tra tài liệu ở mọi thư mục khác. Ở mức Đọc tài liệu bot không mở được nó. Ở mức **Toàn quyền** bot mở được mọi file trong brain của nó, kể cả file này, như trước giờ.
+
+Chỉ áp dụng cho **chat riêng trên Zalo cá nhân**. Nhóm không đổi (cả nhóm dùng chung một cuộc chat). Brain không có file sổ thì không có dòng nào, mọi bot khác chạy y như cũ. Nút **Trả lời giúp tin này** ở Hòm thư cũng dùng kết quả này; khung **Thử bot** luôn ra "CHƯA XÁC NHẬN" vì người thử không phải một tài khoản Zalo thật.
+
 ### Javis KHÔNG viết luật cho bot
 
 Đây là điều quan trọng nhất nên biết về trang này.
 
 Bot chạy bằng **đúng nội dung file Agent** của anh, không hơn. Javis không chèn thêm luật nào lên trên: không dặn nó xưng hô thế nào, không cấm nó nói về chủ đề gì, không ép nó trả lời ngắn. Quy định anh viết trong Agent là quy định duy nhất bot có.
 
-Ngoại lệ duy nhất là chế độ "chỉ tài liệu" ở trên, và đó là luật **anh chủ động bật**, không phải mặc định của Javis.
+Ngoại lệ duy nhất là chế độ "chỉ tài liệu" ở trên, và đó là luật **anh chủ động bật**, không phải mặc định của Javis. Dòng xác nhận người nhắn ở mục trên là một sự thật Javis tra được chứ không phải luật, và chỉ có khi anh đặt file sổ.
 
 Nên **file Agent là thứ quyết định chất lượng bot, gần như hoàn toàn**. Viết như dặn một người mới vào làm: nói năng thế nào, phạm vi tới đâu, cái gì không được hứa, gặp trường hợp nào thì chuyển người thật. Bot cư xử sai thì sửa Agent, đừng tìm nút nào khác.
 

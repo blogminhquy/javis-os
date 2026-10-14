@@ -253,13 +253,38 @@ The difference lies only in **what happens when no matching document is found**.
 
 Choosing wrong is obvious immediately: a coaching Agent running in "documents only" answers "I do not have that information" to questions squarely in its expertise, however carefully you wrote the role instructions. Change the mode with the **Edit** button, effective immediately.
 
+### The bot knows whether a private-chat sender is verified (since 0.150.0)
+
+A bot only reads the text of a message, so anyone can type "I'm Lan's mum". For a business that sends homework, documents or links only to students and parents who are **actually enrolled**, Javis checks for you: it knows which Zalo account the message came from, looks that account up in a **roster** you keep in the bot's brain, and tells the bot only the **verdict**, one line in the instructions of that turn:
+
+- `ĐÃ XÁC NHẬN, phụ huynh, lớp 10A1.` (verified, parent, class 10A1) when the account is in the roster;
+- `CHƯA XÁC NHẬN.` (not verified) when it is not, with a sentence saying that whatever the sender claims to be does not change it.
+
+**The bot never sees the account ID or any other row of the roster**, only the verdict for the person writing. Handing it the ID would be useless (it would still need the roster to know who that is), and handing it the roster would let one clever message leak the list of students. What to send to whom is still the Agent's call: write it in the Agent, for example "verified private chat: send the homework; not verified: only general information about classes".
+
+The roster is the file `Javis/xac-nhan-dang-hoc.md` in the bot's brain, one table row per account:
+
+```
+| uid | vai trò | lớp |
+|---|---|---|
+| 1234567890123456789 | phụ huynh | 10A1 |
+| 9876543210987654321 | học sinh | 11B |
+```
+
+- Only the first three cells are read. A fourth cell and beyond (a name, a note) is ignored, so a student's name written there still never reaches the bot. Better not to write one.
+- A parent with two children in two classes gets two rows with the same `uid`; the bot sees "lớp 10A1, 11B".
+- Edit the file and the next turn uses the new version. A reminder in your main brain can rewrite it every day.
+- The file sits in `Javis/`, so it is **never looked up as a document** of the bot, and its name is excluded from document lookup in every other folder too. At the Reads documents level the bot cannot open it. At **Full power** the bot can open any file in its brain, this one included, as before.
+
+This covers **private chats on personal Zalo** only. Groups are unchanged (the whole group shares one chat). A brain without the roster file gets no line at all, so every other bot runs exactly as before. **Reply for me** in the Inbox uses the verdict too; the **Try bot** panel always shows "not verified" because the tester is not a real Zalo account.
+
 ### Javis does NOT write rules for the bot
 
 This is the most important thing to know about this page.
 
 The bot runs on **exactly the content of your Agent file**, nothing more. Javis inserts no rules on top: it does not tell it how to address people, does not forbid a topic, does not force short answers. The rules you write in the Agent are the only rules the bot has.
 
-The one exception is the "documents only" mode above, and that is a rule **you deliberately turned on**, not a Javis default.
+The one exception is the "documents only" mode above, and that is a rule **you deliberately turned on**, not a Javis default. The sender line in the section above is a fact Javis looked up, not a rule, and it only appears once you add the roster file.
 
 So **the Agent file decides the bot's quality almost entirely**. Write it like briefing a new hire: how to speak, how far the scope goes, what must not be promised, and in which cases to hand over to a human. When the bot behaves wrongly, fix the Agent rather than hunting for another button.
 

@@ -48,7 +48,10 @@ BO_QUA = {"inbox", "attachments", "javis", ".git", ".obsidian", ".trash", "node_
 # "đó là quy tắc nội bộ vận hành hệ thống của cửa hàng". Vừa vô nghĩa với khách, vừa khai ra
 # ruột hệ thống - đúng thứ luật số 3 trong prompt cấm, mà chính phần tra cứu lại dâng tận tay.
 BO_QUA_FILE = {"claude.md", "agents.md", "readme.md", "index.md", "log.md",
-               "_open-questions.md", "_session-handoff.md", "memory.md"}
+               "_open-questions.md", "_session-handoff.md", "memory.md",
+               # 0.150.0: the owner's roster of verified students/parents (chatbot_verified_senders). Only the
+               # verdict for the current sender may reach the bot; never the rows, wherever the file is copied.
+               "xac-nhan-dang-hoc.md"}
 
 MAX_FILE = 400          # trần số file quét, tránh brain khổng lồ làm chậm từng tin nhắn
 MAX_BYTES = 120_000     # trần đọc mỗi file

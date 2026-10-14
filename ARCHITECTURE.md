@@ -221,8 +221,9 @@ workflow on the Collaborators page), `chat_runtime.py`.
 - `channel_accounts.py`: token-based channel accounts, separate from bot assignments.
 - `chatbot_store.py`, `chatbot_runtime.py`, `chatbot_grounding.py`, `chatbot_log.py`,
   `chatbot_tu_dong.py`, `chatbot_cuoc_chat.py`, `chatbot_reply_policy.py`,
-  `chatbot_reply_policy_store.py`: dedicated customer-facing bots, each with its own brain,
-  grounding, logs and a group-chat "speak or stay silent" judge.
+  `chatbot_reply_policy_store.py`, `chatbot_verified_senders.py`: dedicated customer-facing bots,
+  each with its own brain, grounding, logs, a group-chat "speak or stay silent" judge, and a
+  verified/not-verified verdict for private-chat senders checked against a roster in the bot's brain.
 - `conversations.py`: the customer conversation store (account, customer, conversation, message).
 - `zalo_personal_channel.py`, `zalo_login.py`: reading a personal Zalo account into the inbox,
   QR login.

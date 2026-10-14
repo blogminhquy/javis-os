@@ -7,8 +7,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.150.0] - 2026-10-15
-### Cải thiện
-- **Bot Zalo biết người đang nhắn chat riêng đã được xác nhận hay chưa.** (đang viết)
+### Thêm mới
+- **Bot Zalo cá nhân biết người nhắn chat riêng có phải học sinh, phụ huynh đã xác nhận không.** Đặt sổ `Javis/xac-nhan-dang-hoc.md` (uid, vai trò, lớp) trong brain của bot; mỗi lượt Javis tự đối chiếu tài khoản gửi tin và chỉ báo bot "ĐÃ XÁC NHẬN, phụ huynh, lớp 10A1" hoặc "CHƯA XÁC NHẬN".
+- Bot **không thấy mã tài khoản hay danh sách**, chỉ thấy kết luận, nên người lạ tự nhận là phụ huynh cũng không qua được. Gửi gì cho ai vẫn do Agent quyết.
+- Chỉ chat riêng. Nhóm và các bot không có sổ chạy y như cũ.
+
 ## [0.147.0] - 2026-10-14
 ### Cải thiện
 - **Việc chạy ngầm chỉ còn một dòng gọn trên khung chat.** Trước đây khối "việc đang chạy ngầm" chiếm ba dòng, kèm nút và hàng chip, tên việc còn bị cắt giữa chừng. Giờ chỉ còn một viên nhỏ: chấm xanh, tên việc quan trọng nhất (ưu tiên việc bạn vừa giao ở hội thoại này) và "+2" nếu còn việc khác.

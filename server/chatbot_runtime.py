@@ -47,6 +47,7 @@ import chatbot_reply_policy
 import chatbot_reply_policy_store
 import chatbot_store
 import chatbot_tu_dong
+import chatbot_verified_senders
 import conversations
 import limit_learner
 import localefmt
@@ -303,6 +304,10 @@ def build_bot_prompt(bot: dict) -> str:
     # Kênh của LƯỢT này, do _make_answer_fn gắn vào. Chỉ Zalo cá nhân mới có thêm đoạn này.
     if (bot or {}).get("_kenh_luot") == "zalo_personal":
         phan.append(_CAU_ZALO_CA_NHAN)
+    # 0.150.0: who is writing in this private chat, as a verdict only (never the account ID). See chatbot_verified_senders.
+    nguoi = chatbot_verified_senders.prompt_line((bot or {}).get("_nguoi_nhan"))
+    if nguoi:
+        phan.append(nguoi)
     # The channel of THIS turn sends files (0.84.3): tell the Agent how to send an image, or it never knows it can.
     if bot_images.channel_sends_files((bot or {}).get("_kenh_luot")):
         phan.append(bot_images.PROMPT_HINT)
@@ -506,6 +511,17 @@ def ngu_canh_nhom(meta: dict, kenh: str, tai_khoan: str) -> str:
     while dong and sum(len(d) + 1 for d in dong) > NGU_CANH_TONG:
         dong.pop(0)
     return "\n".join(dong)
+
+
+async def nguoi_nhan(cfg: dict, meta: dict, kenh: str) -> Optional[dict]:
+    """Verdict for the sender of a private chat, from the roster in the bot's brain (chatbot_verified_senders).
+    None = say nothing (group, other channel, no roster, or the lookup failed: a broken roster never costs a reply)."""
+    try:
+        root = _deps["brain_root"](cfg.get("brain") or "brain")
+        return await asyncio.to_thread(chatbot_verified_senders.check, root, meta or {}, kenh)
+    except Exception as e:      # noqa: BLE001
+        print(f"[chatbot roster] {type(e).__name__}: {e}", file=sys.stderr)
+        return None
 
 
 # ============================================================
@@ -1439,6 +1455,7 @@ def _make_answer_fn(bot_id: str):
         cfg["_kenh_luot"] = kenh_luot
         cfg["_tu_dong"] = tu_dong
         cfg["_ngu_canh_nhom"] = ngu_canh_nhom(meta, kenh_luot, aid_luot)
+        cfg["_nguoi_nhan"] = await nguoi_nhan(cfg, meta, kenh_luot)
         # Trong nhóm Zalo cá nhân cả nhóm dùng CHUNG một mạch hội thoại (khoá theo nhóm), nên
         # model phải biết ai đang nói. Telegram giữ nguyên như cũ.
         text_engine = text
@@ -1659,6 +1676,7 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
         _aid, kenh = _tai_khoan_cua(cfg, meta)
         cfg["_tai_lieu"], cfg["_kenh_luot"], cfg["_tu_dong"] = tl, kenh, False
         cfg["_ngu_canh_nhom"] = ngu_canh_nhom(meta, kenh, _aid)
+        cfg["_nguoi_nhan"] = await nguoi_nhan(cfg, meta, kenh)
         text_engine = text
         if kenh == "zalo_personal" and meta["chat_type"] == "group" and meta["user_name"]:
             text_engine = f"[{meta['user_name']}] {text}"      # cả nhóm chung một mạch: model phải biết ai đang nói
@@ -1852,6 +1870,7 @@ async def try_message(bot_id: str, text: str, chat_type: str = "private", mentio
                 print(f"[chatbot {bot_id}] đọc phiên cho lượt thử lỗi: {type(e).__name__}", file=sys.stderr)
         cfg["_tai_lieu"], cfg["_kenh_luot"], cfg["_tu_dong"] = tl, kenh, chatbot_tu_dong.can_danh_gia(cfg, meta)
         cfg["_ngu_canh_nhom"] = ngu_canh_nhom(meta, kenh, aid)
+        cfg["_nguoi_nhan"] = await nguoi_nhan(cfg, meta, kenh)
         text_engine = text
         if kenh == "zalo_personal" and grp:
             text_engine = f"[{meta['user_name']}] {text}"
