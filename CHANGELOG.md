@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.149.0] - 2026-10-15
+### Thêm mới
+- **Bot Zalo tự nhận lời mời kết bạn và đọc lời giới thiệu.** (đang viết)
+
 ## [0.146.0] - 2026-10-14
 ### Sửa lỗi
 - **Chat nhóm hết im lặng.** Trợ lý trả lời bằng model riêng của nó, chưa đặt thì bằng model chính, kể cả ChatGPT (Codex). Mỗi tin hiện rõ ai đang chờ, đang trả lời hay chưa trả lời được, kèm lý do và nút xử lý (**Thử lại**, đổi model, chọn điều phối); mất mạng hay tải lại trang vẫn còn.

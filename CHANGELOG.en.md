@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.149.0] - 2026-10-15
+### Added
+- **The Zalo bot accepts friend requests and reads their introduction.** (in progress)
+
 ## [0.146.0] - 2026-10-14
 ### Fixed
 - **Team chat is no longer silent.** Assistants answer with their own model, or the main model when they have none, ChatGPT (Codex) included. Each message shows who is waiting, answering or could not answer, with the reason and a fix (**Try again**, change the model, pick a coordinator); it survives a dropped connection or a reload.
