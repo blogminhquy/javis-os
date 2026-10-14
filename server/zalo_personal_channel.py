@@ -638,7 +638,7 @@ async def _vong() -> None:
                         tt["nghi_toi"] = time.time() + NHIP_LOI
                         print(f"[zalo-personal {conn.get('label')}] {tt['loi']}", file=sys.stderr)
                     else:
-                        await _nhan_loi_moi(conn)
+                        _nhan_loi_moi(conn)
                     # Hạn sớm hơn một nhịp chút ít: vòng ngủ đúng một nhịp thì lần thức sau chắc chắn đã tới hạn.
                     tt["doc_toi"] = luc + _nhip_cua(conn["id"]) * 0.9
         except asyncio.CancelledError:
@@ -652,20 +652,14 @@ async def _vong() -> None:
     print("[zalo-personal] vòng đọc dừng", file=sys.stderr)
 
 
-async def _nhan_loi_moi(conn: dict) -> None:
-    """Nhận lời mời kết bạn và giữ lời giới thiệu (0.149.0, xem `zalo_friend_intake`), chỉ khi bot đang trực bật mục này.
-    Hỏng thì ghi log rồi thôi: việc phụ này không được làm ngừng vòng đọc tin."""
-    import zalo_friend_intake as fi
-    if not (fi.enabled_for(conn["id"]) and fi.due(conn["id"])):
-        return
+def _nhan_loi_moi(conn: dict) -> None:
+    """Friend-request intake (0.149.0, see `zalo_friend_intake`): start a round in its own task when one is due.
+    Never awaited here: a slow Zalo must not pause reading, the customer-wait flush or the owner-silence flush."""
     try:
-        kq = await fi.run_once(conn)
-        if kq.get("error") or kq.get("accepted"):
-            print(f"[zalo-personal {conn.get('label')}] lời mời kết bạn: {kq}", file=sys.stderr)
-    except asyncio.CancelledError:
-        raise
+        import zalo_friend_intake as fi
+        fi.start_round(conn)
     except Exception as e:      # noqa: BLE001
-        print(f"[zalo-personal {conn.get('label')}] lời mời kết bạn lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+        print(f"[zalo-personal {conn.get('label')}] friend intake: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 def start() -> bool:
@@ -689,6 +683,11 @@ def stop() -> None:
     if _task and not _task.done():
         _task.cancel()
     _task = None
+    try:
+        import zalo_friend_intake
+        zalo_friend_intake.cancel_all()
+    except Exception:       # noqa: BLE001
+        pass
 
 
 def trang_thai() -> dict:

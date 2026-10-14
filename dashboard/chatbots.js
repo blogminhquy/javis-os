@@ -897,10 +897,13 @@
                 ' <input type="time" id="cbGioDen" value="' + esc(((b && b.gio_truc) || {}).den || "") + '"></label>' +
             '</div>' +
             '<div class="cb-hint">' + esc(window.t("cb.hint_gio_truc")) + '</div>' +
-            // Friend-request intake (0.149.0, personal Zalo only): accept requests and hand their introduction to the bot.
-            '<label class="cb-gio-truc"><input type="checkbox" id="cbNhanKetBan"' +
-              (b && b.nhan_ket_ban ? " checked" : "") + '> ' + esc(window.t("cb.nhan_ket_ban")) + '</label>' +
-            '<div class="cb-hint">' + esc(window.t("cb.hint_nhan_ket_ban")) + '</div>' +
+            // Friend-request intake (0.149.0): accept requests and hand their introduction to the bot. Shown only
+            // while a personal Zalo account is ticked (`apDoiTuong`): no other channel has friend requests.
+            '<div id="cbKbBox" style="display:none">' +
+              '<label class="cb-gio-truc"><input type="checkbox" id="cbNhanKetBan"' +
+                (b && b.nhan_ket_ban ? " checked" : "") + '> ' + esc(window.t("cb.nhan_ket_ban")) + '</label>' +
+              '<div class="cb-hint">' + esc(window.t("cb.hint_nhan_ket_ban")) + '</div>' +
+            '</div>' +
           '</div>' +
 
           // Nâng cao: chỉ ngôn ngữ trả lời. Ngôn ngữ của bot ĐỘC LẬP với ngôn ngữ của chủ: bot nói
@@ -979,6 +982,10 @@
     // hứa suông: người dùng ngồi chọn nhóm xong chờ mãi một con bot không bao giờ vào được nhóm nào.
     function coNhomForm() {
       return tkDangChon().some(function (a) { return kenhCua(a.channel).co_nhom; });
+    }
+    // Friend-request intake only exists on a personal Zalo account.
+    function coZaloCaNhan() {
+      return tkDangChon().some(function (a) { return a.channel === "zalo_personal"; });
     }
 
     // ---- Ô chọn người và nhóm (lấy từ Hộp thư)
@@ -1111,6 +1118,7 @@
         t.style.display = tabs.indexOf(t.dataset.t) >= 0 ? "" : "none";
       });
       box.querySelector("#cbRwBox").style.display = co ? "" : "none";
+      box.querySelector("#cbKbBox").style.display = coZaloCaNhan() ? "" : "none";
       // Không có nhóm thì nói vì sao, thay vì ẩn im lặng (0.102.1): chủ tưởng phải đưa bot vào nhóm mới hiện.
       var koNhom = box.querySelector("#cbKoNhom");
       var dsTk = tkDangChon();
@@ -1239,7 +1247,7 @@
                     reply_when: co ? (the === "auto" ? "auto" : (giaTri("cbRw") || "mention")) : "mention",
                     account_ids: ids.join(","),
                     gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "",
-                    nhan_ket_ban: (box.querySelector("#cbNhanKetBan") || {}).checked ? "1" : "0" };
+                    nhan_ket_ban: coZaloCaNhan() && (box.querySelector("#cbNhanKetBan") || {}).checked ? "1" : "0" };
       try {
         if (sua) {
           await api("/chatbots/" + encodeURIComponent(b.id) + "/update", { method: "POST", body: fd(chung) });
