@@ -7,7 +7,7 @@ it; someone who already introduced themselves is not asked again, someone who di
 while the request is pending, so before this nobody ever saw it.
 
 The maintainer's review of PR #657 added the rest: a round runs in its own task and never stalls the read loop, a
-refused request backs off instead of blocking newer ones, polling is every 5 to 15 minutes, nothing is accepted outside
+refused request backs off instead of blocking newer ones, polling is once an hour, nothing is accepted outside
 active hours or for a bot that answers only chosen people, intro text is capped, Inbox text is localized, and the form
 shows the switch only for a personal Zalo account.
 """
@@ -267,8 +267,8 @@ async def chay():
 
     # ---- poll interval and back-off (point 3) ----------------------------------------------------------
     nxt = fi._poll["zalo-1"]["next"] - t0
-    check("after a round with requests the next check is POLL_MIN (5 min) away",
-          fi.POLL_MIN == 300 and fi.POLL_MIN - 1 <= nxt <= fi.POLL_MIN + 5, nxt)
+    check("after a round the next check is POLL_SECONDS (1 hour) away",
+          fi.POLL_SECONDS == 3600 and fi.POLL_SECONDS - 1 <= nxt <= fi.POLL_SECONDS + 5, nxt)
     n = len(CLI)
     check("not due yet: start_round does nothing, no Zalo call", not await luot() and len(CLI) == n)
     gaps = []
@@ -276,14 +276,12 @@ async def chay():
         fi._poll["zalo-1"]["next"] = 0
         await luot()
         gaps.append(fi._poll["zalo-1"]["gap"])
-    check("nothing pending: the interval doubles up to POLL_MAX (15 min) and stays there",
-          gaps == [600, 900, 900, 900] and fi.POLL_MAX == 900, gaps)
-    check("so at most 86400 / POLL_MIN = 288 checks a day, about 96 when idle",
-          86400 // fi.POLL_MIN == 288 and 86400 // fi.POLL_MAX == 96)
+    check("nothing pending: still one check an hour", gaps == [3600, 3600, 3600, 3600], gaps)
+    check("so at most 86400 / POLL_SECONDS = 24 checks a day", 86400 // fi.POLL_SECONDS == 24)
     STATE["requests"] = [req("p9", "Mới", "", 900)]
     fi._poll["zalo-1"]["next"] = 0
     await luot()
-    check("a request arriving resets the interval to POLL_MIN", fi._poll["zalo-1"]["gap"] == fi.POLL_MIN)
+    check("a request arriving does not make it check more often", fi._poll["zalo-1"]["gap"] == fi.POLL_SECONDS)
 
     LUOT.clear()
     ev = fi.intro_event(dict(CONN), {"uid": "p1", "name": "Hương Lan", "message": "x", "time": 100})
@@ -320,8 +318,8 @@ async def chay():
                   and 2 * fi.FAIL_BACKOFF - 5 <= f.get("until", 0) - time.time() <= 2 * fi.FAIL_BACKOFF, f)
     check("after MAX_FAILS refusals: never tried again (no endless failing calls)",
           accepts().count("r1") == fi.MAX_FAILS - 1 and fi.skipped("zalo-1", "r1", later * 10), accepts())
-    check("a person who only had back-offs does not keep the account polling fast",
-          fi._poll["zalo-1"]["gap"] > fi.POLL_MIN, fi._poll["zalo-1"])
+    check("a person who only had back-offs does not make the account poll more often",
+          fi._poll["zalo-1"]["gap"] == fi.POLL_SECONDS, fi._poll["zalo-1"])
     STATE["accept_fail"] = set()
     fi._fails.clear()
     CLI.clear()
@@ -363,7 +361,7 @@ async def chay():
     zalo_cli.run_cli = broken
     kq = await fi.run_once(dict(CONN))
     check("Zalo cannot be read: an error is returned, nothing raised, backed off",
-          kq.get("error") == "Not logged in" and fi._poll["zalo-1"]["gap"] > fi.POLL_MIN, kq)
+          kq.get("error") == "Not logged in" and fi._poll["zalo-1"]["next"] - time.time() >= fi.POLL_SECONDS - 5, kq)
 
     async def old_cli(conn, command, positionals=None, options=None, timeout=120):
         return False, None, "CLI Zalo thoát mã 1. error: unknown command 'recommendations'"

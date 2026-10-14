@@ -7,8 +7,8 @@ someone who did not must be asked. That message only exists while the request is
 the inbox nor the bot ever saw what the person wrote.
 
 What it does, for each account whose bot on duty has `nhan_ket_ban` switched on (off by default, see chatbot_store):
-  1. ask Zalo for received requests (`friend recommendations`, items with recommType 2), at most every `POLL_MIN`
-     seconds, backing off to `POLL_MAX` while there is nothing to accept;
+  1. ask Zalo for received requests (`friend recommendations`, items with recommType 2) once every `POLL_SECONDS`
+     (one hour: at most 24 calls a day per account, the owner's choice on 2026-10-15);
   2. accept the oldest ones (`friend accept`), at most `MAX_PER_ROUND` per round, `ACCEPT_GAP` seconds apart;
   3. write the introduction into the inbox as that person's first message (a fixed message id per request, so a
      repeat never writes twice), then hand it to the bot exactly like a message the person sent. The bot's own rules
@@ -41,8 +41,7 @@ import conversations
 import localefmt
 import zalo_cli
 
-POLL_MIN = 300             # seconds between two checks of an account that just had requests to accept
-POLL_MAX = 900             # an account with nothing to accept backs off to this (doubling from POLL_MIN)
+POLL_SECONDS = 3600        # one check per account per hour: 24 calls a day at most (owner's choice, 2026-10-15)
 CLI_TIMEOUT = 20           # seconds for one CLI call (run_cli defaults to 120, made for file uploads)
 ROUND_TIMEOUT = 120        # hard cap on one whole round
 MAX_PER_ROUND = 10         # requests accepted per round; the rest wait for the next one
@@ -101,12 +100,11 @@ def due(conn_id: str, now: Optional[float] = None) -> bool:
 
 
 def _schedule(conn_id: str, found: bool, now: float, wait: Optional[float] = None) -> None:
-    st = _poll.setdefault(str(conn_id), {"gap": POLL_MIN, "next": 0.0})
-    if wait is not None:
-        st["next"] = now + wait
-        return
-    st["gap"] = POLL_MIN if found else min(POLL_MAX, max(POLL_MIN, float(st.get("gap") or POLL_MIN) * 2))
-    st["next"] = now + st["gap"]
+    """Next check of this account: `POLL_SECONDS` from now, or `wait` when given. `found` is kept for callers and logs;
+    the interval is the same either way (an hour is already as quiet as the owner wants)."""
+    st = _poll.setdefault(str(conn_id), {"gap": POLL_SECONDS, "next": 0.0})
+    st["gap"] = POLL_SECONDS
+    st["next"] = now + (POLL_SECONDS if wait is None else wait)
 
 
 def skipped(conn_id: str, uid: str, now: Optional[float] = None) -> bool:
@@ -197,7 +195,7 @@ async def run_once(conn: dict, now: Optional[float] = None) -> Dict[str, Any]:
     import zalo_personal_channel as zc
     cid = str(conn["id"])
     now = time.time() if now is None else now
-    _schedule(cid, False, now, wait=POLL_MAX)      # provisional: a round that dies midway is not retried at once
+    _schedule(cid, False, now, wait=POLL_SECONDS)      # provisional: a round that dies midway is not retried at once
     home = zalo_cli.home_of(conn)
     if not home:
         _schedule(cid, False, now)
@@ -272,7 +270,7 @@ def start_round(conn: dict, now: Optional[float] = None) -> bool:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return False
-    _schedule(cid, False, time.time() if now is None else now, wait=POLL_MAX)   # the task sets the real next time
+    _schedule(cid, False, time.time() if now is None else now, wait=POLL_SECONDS)   # the task sets the real next time
     t = loop.create_task(_round(dict(conn)))
     _tasks[cid] = t
     t.add_done_callback(lambda _t, c=cid: _tasks.pop(c, None) if _tasks.get(c) is _t else None)
