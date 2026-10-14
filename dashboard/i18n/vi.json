@@ -1204,7 +1204,7 @@
   "cb.hint_ngoai_le": "Chọn một cuộc chat RIÊNG trong danh sách (các cuộc chat Hộp thư đã biết trên tài khoản đang tích) để cho nó mức quyền riêng, vd người nhà nhắn vào nick Zalo này. Ngoại lệ gắn với đúng tài khoản đó: cùng mã ở tài khoản hay kênh khác không được tính. Các cuộc chat khác và mọi nhóm vẫn theo mức chung của bot. Giây chờ (0 đến 60, để trống = như mọi người) chỉ có tác dụng ở Zalo cá nhân. Chỉ nâng mức cho người bạn tin tuyệt đối.",
   "cb.ngoai_le_sai": "Giây chờ của ngoại lệ phải là số nguyên từ 0 đến 60, hoặc để trống.",
   "cb.xn_ngoai_le": "Cấp mức cao cho cuộc chat riêng: {ds}. Người trong cuộc chat đó điều khiển được bot ở mức này, kể cả thao tác không hoàn tác được. Chỉ đồng ý nếu bạn tin người đó tuyệt đối. Đồng ý?",
-  "cb.ph_nl_cho": "giây chờ",
+  "cb.ph_nl_cho": "Giây chờ",
   "cb.nl_bo": "Bỏ",
   "cb.nl_rong": "Chưa có ngoại lệ nào.",
   "cb.tt_ngoai_le": "{n} ngoại lệ",
