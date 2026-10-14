@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.155.0] - 2026-10-15
+### Fixed
+- In progress: four personal Zalo bot fixes.
+
 ## [0.153.0] - 2026-10-15
 ### Improved
 - **The chat composer is redesigned in the style of Claude:** one rounded card holding attachments, the text box and a single button row underneath (the **+** button, model chip, Effort chip, Fast mode bolt, a small mic and a round send button).

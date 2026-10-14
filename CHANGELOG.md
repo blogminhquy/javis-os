@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.155.0] - 2026-10-15
+### Sửa lỗi
+- Đang viết: sửa bốn lỗi bot Zalo cá nhân.
+
 ## [0.153.0] - 2026-10-15
 ### Cải thiện
 - **Khung gõ chat làm lại theo kiểu Claude:** một thẻ bo tròn chứa file đính kèm, ô gõ và một hàng nút duy nhất ở dưới (nút **+**, chip model, chip Effort, tia sét Fast mode, mic nhỏ và nút gửi tròn).
