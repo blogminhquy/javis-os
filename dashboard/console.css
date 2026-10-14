@@ -2076,6 +2076,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-item.unread .ht-item-sub small { color: var(--text2); font-weight: 600; }
 .ht-badge { flex: none; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent);
   color: var(--on-accent); font-size: 11px; font-weight: 700; text-align: center; line-height: 18px; }
+/* Tổng số tin của cuộc (0.148.0): viên xám trung tính, tách hẳn số đỏ (cam) của tin chưa đọc. */
+.ht-count { flex: none; font-size: 11px; line-height: 18px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border);
+  color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ht-mode { flex: none; font-size: 10.5px; padding: 1px 6px; border-radius: 999px; background: var(--warn-wash);
   color: var(--warn-ink); font-weight: 600; }
 .ht-thread { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--border);
@@ -2179,7 +2182,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .ht-wrap.thread-on .ht-thread { display: flex; min-height: 70vh; }
   .ht-back { display: inline-flex; }
   .ht-item-top strong, .ht-bubble, .ht-src-text strong { font-size: 16px; }
-  .ht-item-sub small, .ht-head-text small, .ht-foot, .ht-intro, .ht-src-text small, .ht-switch { font-size: 14px; }
+  .ht-item-sub small, .ht-head-text small, .ht-foot, .ht-intro, .ht-src-text small, .ht-switch, .ht-count { font-size: 14px; }
   .ht-msg { max-width: 88%; }
 }
 
@@ -3117,3 +3120,27 @@ span.tmp-lead { cursor: default; }
 .ws-item-top > strong { flex: 1 1 auto; min-width: 0; }
 .ws-item-time { flex: none; font-size: 14px; color: var(--text3); font-variant-numeric: tabular-nums; }
 @media (max-width: 900px) { .ws-item-time { font-size: 14px; } }
+
+/* 0.148.0: tay kéo đổi bề rộng cột (col-resize.js) ở trang đồ thị (cột Vault, cột hội thoại) và trang Trò chuyện (cột
+   Hội thoại/Thư mục). Chỉ màn rộng; màn hẹp các cột là ngăn kéo hay xếp dọc nên không có tay kéo. Cột đang thu về dải
+   44-46px cũng không có tay kéo. */
+.col-resize { display: none; }
+@media (min-width: 861px) {
+  .hud-body > .hud-left, .hud-body > .hud-right { position: relative; }
+  .hud-body > .hud-left > .col-resize, .hud-body > .hud-right > .col-resize, .chatpage-side > .col-resize {
+    display: block; position: absolute; top: 0; bottom: 0; width: 8px; z-index: 6; cursor: col-resize; touch-action: none; }
+  /* Nằm TRỌN trong cột: cột trái và phải của trang đồ thị cắt phần tràn (overflow), và canvas đồ thị bên cạnh bắt chuột. */
+  .col-resize-right { right: 0; }
+  .col-resize-left { left: 0; }
+  body.vault-thu .hud-body > .hud-left > .col-resize, body.chatcol-thu .hud-body > .hud-right > .col-resize,
+  .chatpage.side-thu .chatpage-side > .col-resize { display: none; }
+}
+/* Node .hud-left được tab Thư mục của trang Trò chuyện mượn: tay kéo của trang đồ thị không đi theo. */
+.cside-pane .col-resize { display: none !important; }
+.col-resize::after { content: ""; position: absolute; top: 0; bottom: 0; width: 2px; background: transparent;
+  transition: background .12s; }
+.col-resize:hover::after, .col-resize:focus-visible::after, body.col-resizing .col-resize::after { background: var(--accent); }
+.col-resize:focus-visible { outline: none; }
+body.col-resizing { cursor: col-resize; user-select: none; }
+.col-resize-right::after { right: 0; }
+.col-resize-left::after { left: 0; }

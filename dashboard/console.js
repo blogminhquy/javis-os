@@ -7499,7 +7499,7 @@
        .hud-top (thanh trên toàn cục) hiển thị. Rời tab (bỏ .on-chat) HUD tự hiện lại + graph thức. */
     body.on-chat .hud-body{ visibility:hidden; }
     .chatpage{ display:flex; height:100%; min-height:0; position:relative; }
-    .chatpage-side{ width:280px; flex:none; display:flex; flex-direction:column; gap:10px;
+    .chatpage-side{ width:var(--cp-side-w, 280px); flex:none; display:flex; flex-direction:column; gap:10px;
       min-height:0; padding:14px 12px; border-right:1px solid var(--glass-brd); background:var(--surface-1); }
     .chatpage-main{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; min-height:0; padding:14px 20px 16px; }
     .chatpage-bar{ display:flex; align-items:center; gap:10px; padding:0 4px 10px; flex:none; }
@@ -7913,6 +7913,13 @@
       if (isNar()) { page.classList.toggle("side-open"); return; }
       datSideThu(!page.classList.contains("side-thu"));
     };
+    // Cột Hội thoại/Thư mục kéo được ở đường biên phải (0.148.0, col-resize.js); màn hẹp là ngăn kéo, CSS ẩn tay kéo.
+    if (sideEl && window.JavisColResize) {
+      const oSide = { host: page, varName: "--cp-side-w", key: "javis_cp_side_w", min: 220, max: 560, edge: "right",
+        label: "common.resize_chatside", keep: 420, total: () => page.clientWidth };
+      window.JavisColResize.apply(oSide);
+      window.JavisColResize.attach(sideEl, oSide);
+    }
     _neoCotTrai(page, el.querySelector("#chatPageSide"), slot);
     // Khung chat PHẢI khi đang sửa file (.edit-on): nút thu co vào bên phải + nhớ trạng
     // thái. Nút gắn vào slot SAU khi mượn node chat nên không bị _borrowChatNodes chen chỗ.

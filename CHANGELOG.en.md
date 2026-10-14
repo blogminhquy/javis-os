@@ -8,13 +8,16 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.148.0] - 2026-10-15
+## [0.151.0] - 2026-10-15
 ### Improved
-- **The 10-minute pause of the Zalo bot after you type by hand can be turned off.** The bot form has a new **Step aside after you type (minutes)** box: set 0 and the bot keeps answering in any chat you type into, groups and direct tags included. Existing bots keep 10 minutes.
-- **Other values work too** (e.g. 3): the bot steps aside for exactly that long, and in private chats waits that long before answering customer messages you have not answered.
-- **In groups, a direct tag is answered at once**, even right after you typed. Messages that call no one wait out the step-aside time, then the bot answers them, one turn per person.
-- **The wait counts from your hand-typed message**: if you do not type, the bot answers continuously; if you do, the bot picks up exactly that many minutes after your message, without making the customer wait longer.
+- **Resizable panels:** on the graph page (folder column and chat panel) and the Chat page (conversation list), hover the edge and drag; double-click to reset. The width is remembered.
+- **The Chatbot inbox shows each conversation's message count** (grey pill, e.g. "12 msgs"), next to the red unread count.
 
+## [0.147.0] - 2026-10-14
+### Improved
+- **Background jobs now take one tidy line above the chat box.** The old "running in the background" block took three lines with a button and a row of chips, and cut job names off mid-word. Now it is one small pill: a green dot, the most relevant job (the one you just assigned in this chat first) and "+2" when more are running.
+- **Click the pill for the details:** each job with its status, how long it has been running, which ones came from this chat, and a button to open the Tasks page. Click outside or press Esc to close it.
+- Jobs that were assigned but will not run on their own (orchestration off) still show in amber and say so on the pill, with how to turn it on in the details.
 
 ## [0.146.0] - 2026-10-14
 ### Fixed

@@ -412,7 +412,11 @@
           (tags.length ? '<span class="ht-item-tags">' + tags.join("") + '</span>' : "") +
           '<span class="ht-item-sub">' + logoKenh(c.channel) +
             '<small>' + esc(ai + (c.last_message || "")) + '</small>' +
-            (c.unread_count ? '<span class="ht-badge">' + c.unread_count + '</span>' : "") +
+            // Tổng số tin của cuộc (0.148.0, như cột Lịch sử của Trò chuyện), khác số đỏ là số tin CHƯA ĐỌC.
+            (c.message_count ? '<span class="ht-count" title="' + esc(window.t("ht.so_tin_title", { count: c.message_count })) + '">' +
+              esc(window.t("sess.msgs", { count: c.message_count })) + '</span>' : "") +
+            (c.unread_count ? '<span class="ht-badge" title="' + esc(window.t("ht.chua_doc_title", { count: c.unread_count })) + '">' +
+              c.unread_count + '</span>' : "") +
           '</span>' +
         '</span></button>';
     }).join("") + (_conDS ? '<div class="ht-more"><button type="button" class="s-btn-ghost ht-more-b">' +

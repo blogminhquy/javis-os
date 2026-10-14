@@ -242,14 +242,14 @@ check("dải chỉ vẽ đúng việc gây ra mức đó, không đổ cả hàn
       'x.status === "running" : !!x.stalled' in STRIP)
 check("dải có trần số chip", "MAX_CHIP" in STRIP)
 check("phần quyết định là hàm thuần, test bằng node được (tests/js/test_dai_viec_nen.js)",
-      "module.exports = { quyetDinh: quyetDinh }" in STRIP)
+      "module.exports = { quyetDinh: quyetDinh" in STRIP)
 check("dải nói thẳng khi việc KHÔNG tự chạy",
       "bgs.dau_stall" in STRIP
       and "KHÔNG tự chạy" in _VI.get("bgs.dau_stall", "")
       and "bgs.warn_xep_hang" in STRIP
       and "AI tự vận hành" in _VI.get("bgs.warn_xep_hang", ""))
 check("dải không vẽ lại DOM khi trạng thái không đổi (đỡ nháy)",
-      "lastKey" in STRIP and "if (key === lastKey) return;" in STRIP)
+      "lastKey" in STRIP and "if (key === lastKey) { capNhatTuoi(); return; }" in STRIP)
 check("app.js làm tươi dải khi lượt xong và khi việc nền báo về",
       APPJS.count("window.JavisBackground.refresh()") >= 2)
 check("app.js dọn dải khi đổi/mở hội thoại khác",

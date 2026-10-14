@@ -6,13 +6,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.148.0] - 2026-10-15
+## [0.151.0] - 2026-10-15
 ### Cải thiện
-- **Tắt được việc bot Zalo im 10 phút sau khi bạn nhắn tay.** Form bot có ô mới **Nhường khi bạn nhắn tay (phút)**: đặt 0 thì bạn nhắn vào cuộc chat nào bot vẫn trả lời ở đó, kể cả trong nhóm khi được tag. Bot cũ giữ 10 phút như trước.
-- **Đặt số phút khác cũng được** (vd 3): bot nhường đúng chừng ấy, và ở chat riêng chờ đúng chừng ấy rồi trả lời thay tin khách bạn chưa đáp.
-- **Trong nhóm, bị tag thẳng thì bot trả lời ngay**, kể cả khi bạn vừa nhắn tay. Tin không gọi ai thì chờ hết quãng nhường rồi bot trả lời tiếp, mỗi người một lượt.
-- **Mốc chờ tính từ tin bạn nhắn tay**: không nhắn tay thì bot trả lời liên tục; có nhắn tay thì đúng số phút sau tin đó bot chủ động trả lời tiếp, không bắt khách chờ thêm.
+- **Kéo đổi bề rộng khung:** ở trang đồ thị (cột thư mục và khung hội thoại) và trang Trò chuyện (cột Hội thoại), rê chuột vào đường biên rồi kéo; nhấp đúp để về mặc định. Bề rộng được nhớ cho lần sau.
+- **Trang Chatbot hiện số tin của từng cuộc hội thoại** (viên xám, vd. "12 tin"), nằm cạnh số đỏ là số tin chưa đọc.
 
+## [0.147.0] - 2026-10-14
+### Cải thiện
+- **Việc chạy ngầm chỉ còn một dòng gọn trên khung chat.** Trước đây khối "việc đang chạy ngầm" chiếm ba dòng, kèm nút và hàng chip, tên việc còn bị cắt giữa chừng. Giờ chỉ còn một viên nhỏ: chấm xanh, tên việc quan trọng nhất (ưu tiên việc bạn vừa giao ở hội thoại này) và "+2" nếu còn việc khác.
+- **Bấm vào viên đó để xem chi tiết:** từng việc với trạng thái, đã chạy bao lâu, việc nào giao từ hội thoại này, và nút mở trang Việc. Bấm ra ngoài hoặc nhấn Esc là đóng.
+- Việc đã giao mà chưa tự chạy (điều phối đang tắt) vẫn hiện màu vàng và nói rõ ngay trên viên, kèm cách bật ở khung chi tiết.
 
 ## [0.146.0] - 2026-10-14
 ### Sửa lỗi

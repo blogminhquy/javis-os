@@ -2049,7 +2049,11 @@
   "bgs.kind.job": "Chạy nền",
   "bgs.chip_mine": "giao từ hội thoại này",
   "bgs.chip_more": "+{so} nữa",
-  "bgs.open_kanban": "Trang Việc",
+  "bgs.open_kanban": "Mở trang Việc",
+  "bgs.age_now": "vừa bắt đầu",
+  "bgs.age_min": "đã chạy {n} phút",
+  "bgs.age_hour": "đã chạy {h} giờ {m} phút",
+  "bgs.pill_hint": "bấm để xem chi tiết",
   "brains.new_prompt": "Tên brain mới:",
   "brains.create_net_err": "Lỗi mạng khi tạo brain.",
   "brains.create_failed": "Không tạo được brain.",
@@ -4200,5 +4204,12 @@
   "ws.last_chat": "Nhắn gần nhất: {when}",
   "ws.resize_list": "Kéo để đổi bề rộng danh sách cộng sự",
   "ws.resize_panel": "Kéo để đổi bề rộng cột phải",
-  "ws.resize_hint": "Kéo để đổi bề rộng, nhấp đúp để về mặc định"
+  "ws.resize_hint": "Kéo để đổi bề rộng, nhấp đúp để về mặc định",
+  "ht.so_tin_title": "Cuộc này có {count} tin",
+  "ht.chua_doc_title": "{count} tin chưa đọc",
+  "common.resize_col": "Kéo để đổi bề rộng cột",
+  "common.resize_hint": "Kéo để đổi bề rộng, nhấp đúp để về mặc định",
+  "common.resize_vault": "Kéo để đổi bề rộng cột thư mục",
+  "common.resize_chatcol": "Kéo để đổi bề rộng khung hội thoại",
+  "common.resize_chatside": "Kéo để đổi bề rộng cột hội thoại"
 }
