@@ -87,8 +87,8 @@ async def xa(giay_sau):
 
 bid, err = chatbot_store.create_bot({"name": "Trợ lý Zalo", "agent_slug": "tro-ly", "brain": "b",
                                      "account_ids": ["zalo-1"]})
-ok, loi = chatbot_store.update_bot(bid, {"xac_nhan_rui_ro": True, "ngoai_le": json.dumps(
-    [{"chat_id": "u_me", "ten": "Mẹ", "muc_quyen": "full", "cho_giay": 10}])})
+ok, loi = chatbot_store.update_bot(bid, {"xac_nhan_ngoai_le": True, "ngoai_le": json.dumps(
+    [{"account_id": "zalo-1", "chat_id": "u_me", "ten": "Mẹ", "muc_quyen": "full", "cho_giay": 10}])})
 
 
 async def chay():

@@ -436,15 +436,14 @@ Thẻ bot nào được nâng quyền đều có một dải màu ghi rõ mức 
 
 ### Ngoại lệ theo cuộc chat (từ 0.144.0)
 
-Một con bot trả lời người lạ ở mức **Chỉ đọc** mà vẫn phải làm việc thật cho một người thân (ví dụ mẹ bạn nhắn vào chính nick Zalo đó, nhờ sửa file Word, Excel) thì đừng nâng cả bot. Thêm một **ngoại lệ** cho đúng cuộc chat riêng của người đó, ở mục **Ngoại lệ theo cuộc chat** trong form bot, mỗi dòng một người:
+Một con bot trả lời người lạ ở mức **Chỉ đọc** mà vẫn phải làm việc thật cho một người thân (ví dụ mẹ bạn nhắn vào chính nick Zalo đó, nhờ sửa file Word, Excel) thì đừng nâng cả bot. Thêm một **ngoại lệ** cho đúng cuộc chat riêng của người đó, ở mục **Ngoại lệ theo cuộc chat** trong form bot: gõ vài chữ tên người đó vào ô tìm, chọn cuộc chat trong danh sách (các cuộc chat riêng mà Hộp thư đã biết trên tài khoản đang tích), bấm **Thêm**, rồi chọn mức và giây chờ cho dòng đó.
 
-`mã cuộc chat | tên | mức | giây chờ`, ví dụ `123456789 | Mẹ | full | 10`
-
-- **Chỉ cuộc chat đó** chạy ở mức đã ghi; mọi cuộc chat khác và mọi nhóm vẫn ở mức chung của bot. Cùng một mã nhưng là nhóm thì không tính.
-- Nâng một cuộc chat lên **Được ghi** hay **Toàn quyền** cũng phải xác nhận rủi ro như nâng cả bot. Lưu lại cùng danh sách hay hạ mức thì không hỏi lại.
-- Người trong ngoại lệ luôn được bot trả lời, kể cả khi bot đang ở chế độ chỉ trả lời người đã chọn. Ở Zalo cá nhân, bot được dặn không im chỉ vì đó là chuyện gia đình.
-- **Giây chờ** (0 đến 60) là thời gian bot đợi người đó nhắn xong, riêng cho cuộc chat ấy; để trống là như mọi người. Thẻ bot ghi số ngoại lệ đang có.
-- Mã cuộc chat Zalo cá nhân là mã của người đó (threadId): hỏi Javis "mã Zalo của <tên>" là nó tra bằng công cụ Zalo. Chỉ thêm người bạn tin tuyệt đối: ở mức Toàn quyền, người đó điều khiển được bot như chính bạn.
+- **Chỉ cuộc chat đó, trên đúng tài khoản đó** chạy ở mức đã chọn. Ngoại lệ gắn với tài khoản kênh nơi cuộc chat nằm: cùng một mã ở tài khoản khác của bot (Telegram, WhatsApp, một nick Zalo khác) không được tính, nhóm trùng mã cũng không. Mọi cuộc chat khác vẫn ở mức chung của bot. Vì phải chọn từ danh sách nên người đó phải nhắn vào nick ít nhất một lần trước.
+- Nâng một cuộc chat lên **Được ghi** hay **Toàn quyền** phải xác nhận rủi ro **riêng cho ngoại lệ**, tách khỏi xác nhận nâng cả bot: đồng ý nâng bot không có nghĩa là đồng ý nâng một cuộc chat. Lưu lại cùng danh sách hay hạ mức thì không hỏi lại.
+- Nâng mức thì người đó luôn được bot trả lời, kể cả khi bot chỉ trả lời người đã chọn, và ở Zalo cá nhân bot được dặn không im chỉ vì đó là chuyện gia đình. **Hạ mức** (vd bot Toàn quyền nhưng bạn không tin một khách) thì chỉ hạ: cuộc chat đó không thành người đã chọn và bot không được dặn gì thêm.
+- Mức của ngoại lệ áp cho cả lượt bot tự trả lời lẫn khi bạn bấm **Trả lời giúp** hay **Gợi ý câu trả lời** ở Hộp thư.
+- **Giây chờ** (0 đến 60, để trống là như mọi người) là thời gian bot đợi người đó nhắn xong, và **chỉ có ở Zalo cá nhân**, kênh duy nhất gom tin trước khi trả lời. Kênh khác bỏ qua giá trị này. Lưu ý tin gom quá 180 giây (`TUOI_TOI_DA`) thì bị bỏ khỏi lượt, nên với người hay nhắn rải rác lâu, đặt chờ ngắn thì an toàn hơn chờ 60 giây.
+- Chỉ nâng mức cho người bạn tin tuyệt đối: ở mức Toàn quyền, người đó điều khiển được bot như chính bạn. Thẻ bot ghi số ngoại lệ đang có.
 
 ### Engine nào chạy được mức nâng quyền
 

@@ -320,9 +320,10 @@ def build_bot_prompt(bot: dict) -> str:
         phan.append(_NGU_CANH_NHOM.format(khoi=nc))
     # Per-chat exception (0.144.0). LAST on purpose: the personal Zalo paragraph above says to stay silent on family
     # matters, and this chat is often exactly that (the owner's mother). Without this line the model refuses or stays
-    # silent on work the owner allowed for this one chat.
+    # silent on work the owner allowed for this one chat. Only for a RAISED chat: a chat the owner lowered out of
+    # distrust must not be told "this is not a stranger" (its lower level already reaches the prompt as `muc_quyen`).
     nl = (bot or {}).get("_ngoai_le")
-    if isinstance(nl, dict):
+    if isinstance(nl, dict) and chatbot_store.ngoai_le_nang(bot):
         ai = f' ("{nl.get("ten")}")' if nl.get("ten") else ""
         phan.append(f"\nQUYỀN CỦA CUỘC CHAT NÀY: chủ đã chọn riêng cuộc chat này{ai} cho bạn và cấp mức "
                     f"\"{chatbot_store.MUC_NHAN.get(nl.get('muc_quyen'), nl.get('muc_quyen'))}\", khác mức chung của bot "
@@ -604,8 +605,9 @@ def _ly_do_im_co_ban(bot_cfg: dict, meta: dict) -> str:
             return ""
         if _khop_nhom(bot_cfg.get("people") or [], (meta or {}).get("chat_id")):
             return ""
-        # A chat the owner gave its own exception (0.144.0) is a chosen person by definition.
-        if chatbot_store.ngoai_le_cua(bot_cfg, meta):
+        # A chat the owner RAISED with its own exception (0.144.0) is a chosen person by definition. A lowered one is
+        # not: lowering a chat must never widen who the bot answers.
+        if chatbot_store.ngoai_le_nang(chatbot_store.ap_ngoai_le(bot_cfg, meta)):
             return ""
         return "nguoi_chua_chon"
     # Chưa khai nhóm nào thì bot không tự nhận việc trong nhóm lạ. Cùng một lý do với nhóm đã
@@ -1661,6 +1663,9 @@ async def manual_answer(conv: dict, msgs: list, draft: bool = False) -> dict:
                                                                     "The bot is already drafting for this chat, wait a moment")}
     _MANUAL_BUSY.add(conv_id)
     meta = manual_meta(conv, last)
+    # Per-chat exception (0.144.0, review of #653): the owner's "Reply for me" / "Suggest a reply" runs this chat at the
+    # SAME level as the live bot would, never at the bot-wide one. A chat lowered out of distrust stays lowered here too.
+    cfg = chatbot_store.ap_ngoai_le(cfg, meta)
     key = f"bot:{bot_id}:{meta['chat_id']}"
     probe, undo = _deps.get("session_probe"), _deps.get("session_undo")
     sid, keep = "", 0

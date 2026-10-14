@@ -920,11 +920,13 @@ def _giao_cho_bot(conn: dict, ev: dict) -> None:
 
 def _cho_cua(tb: Any, thread: str) -> float:
     """Seconds this private chat must be quiet before the bot answers: the chat's own exception (0.144.0,
-    `chatbot_store.ngoai_le_cua`) when it sets one, otherwise `CHO_KHACH_IM`."""
+    `chatbot_store.ngoai_le_cua`) when it sets one, otherwise `CHO_KHACH_IM`. The exception must name this very
+    account (`tb.account_id`, set by `chatbot_runtime.start_bot`). Personal Zalo only: no other channel gathers."""
     try:
         import chatbot_store
         cfg = (tb.cfg_fn() if getattr(tb, "cfg_fn", None) else None) or {}
-        e = chatbot_store.ngoai_le_cua(cfg, {"chat_type": "private", "chat_id": thread})
+        e = chatbot_store.ngoai_le_cua(cfg, {"chat_type": "private", "chat_id": thread,
+                                             "account_id": str(getattr(tb, "account_id", "") or "")})
     except Exception:       # noqa: BLE001 - a broken bot record must not stop the read loop
         e = None
     if e and e.get("cho_giay") is not None:
