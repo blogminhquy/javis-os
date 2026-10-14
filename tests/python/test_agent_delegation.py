@@ -132,14 +132,14 @@ def test_expired_ticket_refused(monkeypatch):
 
 def test_plugin_registers_readonly_tool():
     import plugins_host
-    path = ROOT / "system" / "plugins" / "javis-ask-agent" / "plugin.py"
-    spec = importlib.util.spec_from_file_location("javis_ask_agent_plugin", path)
+    path = ROOT / "system" / "plugins" / "javis-workflow" / "plugin.py"
+    spec = importlib.util.spec_from_file_location("javis_workflow_plugin_ask", path)
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
-    ctx = plugins_host.PluginContext("javis-ask-agent", "bundled", path.parent, None)
+    ctx = plugins_host.PluginContext("javis-workflow", "bundled", path.parent, None)
     m.register(ctx)
-    tool = ctx._tools[0]
-    assert tool["name"] == ad.TOOL_NAME and tool["min_mode"] == "readonly"
+    tool = [t for t in ctx._tools if t["name"] == ad.TOOL_NAME][0]
+    assert tool["min_mode"] == "readonly"
 
     async def run(target, prompt):
         return "từ plugin", ""
