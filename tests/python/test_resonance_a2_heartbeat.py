@@ -339,6 +339,8 @@ snap = [r["id"] for r in w.reasons(g.id)]
 held = R._agent_intent(w.store.get(P, g.id), w.deps)
 act = w.store.begin_action(P, g.id, 1, "work", lease_until=T0 + 10, now=T0,
                            intent={"prompt_kind": "work", "wake_reasons": snap, **held})
+# A5 R1: host thật ghi mốc engine ngay trước lời gọi engine; lượt chết GIỮA lời gọi đã qua mốc này.
+w.store.mark_engine(P, act["id"], T0)
 check("chết giữa lượt: lý do đã phục vụ cùng ý định", set(act["served"]) == set(snap) and not w.reasons(g.id, "pending")
       or all(r["code"] == "recovery" for r in w.reasons(g.id)))
 w.reopen()

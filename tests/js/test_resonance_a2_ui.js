@@ -63,8 +63,9 @@ const keys = Object.keys(vi).filter((k) => k.startsWith("resonance.wake") || ["r
 check(`chuỗi A2 có đủ hai thứ tiếng (${keys.length} khoá)`, keys.length >= 28 && keys.every((k) => en[k] && vi[k]));
 const wakeKeys = SRC.match(/var WAKE_KEYS = \{([\s\S]*?)\};/)[1].match(/"(resonance\.wake\.\w+)"/g) || [];
 // 20 mã của A2, cộng 3 mã của A3 (method_trial, method_followup; trial_recovery, review mã A3 P2-1), cộng 1 mã của A4
-// (scope_granted: chủ dự án vừa cho phép phạm vi ghi).
-check("mọi mã lý do trong thẻ có nhãn (" + wakeKeys.length + ")", wakeKeys.length === 24 &&
+// (scope_granted: chủ dự án vừa cho phép phạm vi ghi), cộng 7 mã của A5 (review_due, review_retry, review_changes,
+// review_done, review_recheck, team_detached; prepare_recheck từ review mã A5 vòng 1, R1).
+check("mọi mã lý do trong thẻ có nhãn (" + wakeKeys.length + ")", wakeKeys.length === 31 &&
   wakeKeys.map((s) => s.replace(/"/g, "")).every((k) => vi[k] && en[k]));
 check("không có ký tự gạch dài trong chuỗi A2", keys.every((k) => !/\u2014/.test(vi[k] + en[k])));
 

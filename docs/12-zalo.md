@@ -234,6 +234,11 @@ hỏi Javis; MCP có thể dùng `zalo_get_messages` cho tin đang đệm hoặc
 - **Tool gửi bị chặn**: mở menu chip tài khoản và chuyển quyền sang **Toàn quyền**.
 - **Báo phiên đang được dùng nơi khác**: đóng Zalo Web hoặc tiến trình
   `javis-zalo` (hay `zalo-agent-cli` cũ) khác đang dùng cùng tài khoản, rồi thử lại.
+- **Bot im sau khi Javis khởi động lại**: trước 0.114.0, nếu Javis tắt không êm (crash, bị
+  dừng cứng khi cập nhật) thì tiến trình `javis-zalo` cũ còn sống. Server mới mở thêm một phiên,
+  và cùng một tài khoản có hai phiên nghe. Zalo chỉ đẩy tin về một phiên nên bot đọc phiên kia
+  và không thấy gì. Từ 0.114.0 Javis ghi lại mọi tiến trình MCP nó mở và tự dọn tiến trình sót
+  của lần chạy trước. Bản cũ hơn thì khởi động lại cả máy chủ (hoặc container) là sạch.
 - **Muốn đăng nhập lại từ đầu**: xoá connection trên dashboard, sau đó kết nối và quét QR
   lại. Thư mục phiên của connection khác không bị ảnh hưởng.
 

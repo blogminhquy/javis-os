@@ -2,7 +2,7 @@
 
 Ngày chốt hướng: 08/10/2026. Mã đối chiếu: main `09f254d0e4d009451dc58cb2e97788631c5acc1a` (0.86.1). MVP Resonance đã phát hành trong 0.86.0, commit `438f8309`, PR #587.
 
-**Trạng thái tài liệu:** hướng sản phẩm theo yêu cầu mới của chủ dự án, kèm lộ trình và điều kiện nghiệm thu. Tiến độ cập nhật 09/10/2026: A1 đã phát hành 0.87.0 (mục 12), A2 đã phát hành 0.88.0 (mục 13); A3 đã phát hành 0.89.0 (`33a3c1aa`, PR #598, [thiết kế A3](2026-10-09-resonance-a3-feedback-learning-design.md), biên bản [resonance-a3-verification](../../dev/resonance-a3-verification.md)); A4 thiết kế chốt, mã đạt review vòng 5 (`5b5e3ef0`); smoke giao diện bằng engine giả xong, sửa một lỗi thẻ (`f6aeb6d1`); bộ chạy pilot sẵn, dry 10/10, **chờ duyệt pilot**; chưa merge, chưa phát hành ([thiết kế A4](2026-10-10-resonance-a4-handoff-grants-design.md), PR #604, số 0.96.0); A5 chưa bắt đầu. Đây không phải lệnh chạy model, bật tính năng hoặc sửa hệ thống đang vận hành. Kế hoạch code chi tiết của từng PR được viết từ tài liệu này và mã mới nhất khi bắt đầu.
+**Trạng thái tài liệu:** hướng sản phẩm theo yêu cầu mới của chủ dự án, kèm lộ trình và điều kiện nghiệm thu. Tiến độ cập nhật 12/10/2026: A1 đã phát hành 0.87.0 (mục 12), A2 đã phát hành 0.88.0 (mục 13); A3 đã phát hành 0.89.0 (`33a3c1aa`, PR #598, [thiết kế A3](2026-10-09-resonance-a3-feedback-learning-design.md), biên bản [resonance-a3-verification](../../dev/resonance-a3-verification.md)); A4 thiết kế chốt, mã đạt review vòng 5 (`5b5e3ef0`); smoke giao diện bằng engine giả xong, sửa một lỗi thẻ (`f6aeb6d1`); pilot thật một lần (2 lượt Claude Code Opus, 0 việc nền; kết quả gốc `technical_failed` do bộ chạy, đã khép bằng hậu kiểm; bản cuối đạt nội dung, bản đầu tự thêm ngày); **đã phát hành 0.96.0** (`d36ebb3e`, PR #604, 11/10/2026; CI `main` run 38146898745 và build image run 38146898746 thành công; image `ghcr.io/blogminhquy/javis-os:0.96.0`, digest `sha256:8f1751d2…`; VPS chưa kéo) ([thiết kế A4](2026-10-10-resonance-a4-handoff-grants-design.md), biên bản [resonance-a4-verification](../../dev/resonance-a4-verification.md)); A5 thiết kế chốt (vòng 3, `56f7ab50`), **mã đạt review vòng 2 tại `05e9b065`; pilot thật real-2 tại `33cec518` được reviewer chấp nhận trong phạm vi một mẫu `pass_first` (1 lượt làm, 1 lượt review, 0 chat; chưa chứng minh vòng sửa bằng model thật); chưa phát hành** (PR nháp #616, số 0.109.0, đã tích hợp `main` 0.108.0, chờ review tích hợp, [thiết kế A5](2026-10-11-resonance-a5-maker-reviewer-design.md), biên bản [resonance-a5-verification](../../dev/resonance-a5-verification.md); chưa phát hành). Đây không phải lệnh chạy model, bật tính năng hoặc sửa hệ thống đang vận hành. Kế hoạch code chi tiết của từng PR được viết từ tài liệu này và mã mới nhất khi bắt đầu.
 
 ## 1. Điều anh muốn và điều giữ lại
 
@@ -122,14 +122,14 @@ Vòng đích: **ghi phản hồi có nguồn → đề xuất thay đổi nhỏ 
 
 ## 8. Thứ tự, đầu ra và cổng hoàn thành
 
-| Mốc | Kết quả nhìn thấy được | Trạng thái 08/10 |
+| Mốc | Kết quả nhìn thấy được | Trạng thái 11/10 |
 |---|---|---|
 | D0 | Xác minh vận hành trên máy triển khai | Localhost thử ghim `438f8309` (0.86.0) đạt 13 kiểm không model và 1 chat thật; commit, cách chạy và kết quả ở [biên bản D0](../../dev/resonance-d0-local-check-2026-10-08.md). VPS chưa kiểm, không chặn thiết kế A1 |
 | A1 | Trang agent có công tắc Cộng hưởng, mục tiêu đúng chủ thể và tiến độ tối thiểu | Đạt review mã (`cc79deb2`), pilot A1-1 đạt kỹ thuật và nội dung trong một kịch bản. Đã phát hành 0.87.0 (`fdfec7c5`, PR #590). Biên bản: [resonance-a1-verification](../../dev/resonance-a1-verification.md) |
 | A2 | Agent thức vì lý do cụ thể, ngủ khi chờ, không gọi model vô ích | Thiết kế đạt (`cb11fc23`), mã đạt review (`b5975b7e`), review cuối đạt (`b80ae0ea`). Đã phát hành 0.88.0 (`c101d108`, PR #593); hiệu năng VPS chưa đo. Biên bản: [resonance-a2-verification](../../dev/resonance-a2-verification.md) |
 | A3 | Phản hồi dẫn tới điều chỉnh có kiểm chứng; không chạy theo emoji | Đã phát hành 0.89.0 (`33a3c1aa`, PR #598). Pilot làn M một lần (4 lượt Sonnet, hoà, không áp dụng). Biên bản: [resonance-a3-verification](../../dev/resonance-a3-verification.md) |
-| A4 | Các engine nộp sản phẩm theo cùng hợp đồng host | Mã đạt review, chờ duyệt pilot (Claude Code; các engine khác chỉ kiểm bằng engine giả): công cụ `javis_submit_deliverable` cho Claude, Codex, engine API; phạm vi do chủ dự án cho phép trên thẻ (không cấp từ lời chat). [Thiết kế A4](2026-10-10-resonance-a4-handoff-grants-design.md), [biên bản](../../dev/resonance-a4-verification.md) |
-| A5 | Một agent làm, một agent review; báo rõ ai đang chờ ai | Có hạ tầng workflow/reviewer; chưa thành đội Resonance |
+| A4 | Các engine nộp sản phẩm theo cùng hợp đồng host | Đã phát hành 0.96.0 (`d36ebb3e`, PR #604). Pilot thật một mẫu Claude Code (2 lượt chat, 0 việc nền), khép bằng hậu kiểm; các engine khác chỉ kiểm bằng engine giả. Công cụ `javis_submit_deliverable` cho Claude, Codex, engine API; phạm vi do chủ dự án cho phép trên thẻ (không cấp từ lời chat). [Thiết kế A4](2026-10-10-resonance-a4-handoff-grants-design.md), [biên bản](../../dev/resonance-a4-verification.md) |
+| A5 | Một agent làm, một agent review; báo rõ ai đang chờ ai | Mã đạt review; pilot thật real-2 được chấp nhận trong phạm vi một mẫu `pass_first`; chưa phát hành (PR nháp #616, 0.109.0): [thiết kế A5](2026-10-11-resonance-a5-maker-reviewer-design.md), [hướng dẫn](../../dev/resonance-a5-team.md). Có hạ tầng workflow/reviewer; chưa thành đội Resonance |
 
 A1–A5 là thứ tự phát triển, không phải năm tính năng đã có. Mỗi mốc ra một PR hoặc các PR nhỏ có giá trị kiểm riêng; không cần xí chỗ toàn bộ số phiên bản ngay bây giờ. Không đưa lịch ngày hoàn thành hoặc % công sức khi chưa ước lượng.
 
@@ -175,4 +175,4 @@ Nguồn audit và các khoảng trống bằng chứng: [Báo cáo tiến độ 
 - **Kiểm tích hợp:** smoke dry trên server thật (0 lượt engine), soi giao diện heartbeat trên sandbox.
 - **Biên bản:** [resonance-a2-verification](../../dev/resonance-a2-verification.md).
 - **Phát hành:** 0.88.0, PR #593 squash thành `c101d108` (09/10/2026), image GHCR 0.88.0.
-- **Chưa làm:** chưa đo hiệu năng VPS. A3 đã phát hành 0.89.0; A4 mã đạt review, pilot thật đã chạy một lần (2 lượt Claude Code Opus, 0 việc nền; kết quả gốc technical_failed do bộ chạy, đã khép bằng hậu kiểm), chờ review tích hợp và chủ dự án quyết merge (0.96.0); A5 chưa bắt đầu.
+- **Chưa làm:** chưa đo hiệu năng VPS. A3 đã phát hành 0.89.0; A4 đã phát hành 0.96.0 (`d36ebb3e`); A5 đạt review mã và pilot real-2 (một mẫu `pass_first`), chưa phát hành.

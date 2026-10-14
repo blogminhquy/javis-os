@@ -28,6 +28,7 @@ from pathlib import Path
 
 import httpx
 
+import mcp_orphans
 import winproc
 
 PROTOCOL = "2025-06-18"
@@ -252,8 +253,12 @@ class McpHttpSession:
 # stdio - subprocess NDJSON (Windows-first)
 # ============================================================
 class McpStdioSession:
-    def __init__(self, command, args=None, env=None, label=""):
+    def __init__(self, command, args=None, env=None, label="", key=""):
         self.command = command
+        # Pool key (connection id): the process is written down under it (mcp_orphans), so the
+        # next server lifetime can reap it if this one dies without closing it.
+        self.key = str(key or "")
+        self._closed = False
         self.args = list(args or [])
         self.env = {k: str(v) for k, v in (env or {}).items() if v is not None}
         self.label = label or command
@@ -295,6 +300,15 @@ class McpStdioSession:
     _STREAM_LIMIT = 16 * 1024 * 1024
 
     async def start(self):
+        if self._closed:
+            raise ConnectionError("phiên đã đóng")
+        # First stdio start of this server lifetime: kill what an earlier lifetime left running
+        # (crash, kill -9, updater). Two live `mcp start` for one Zalo account and Zalo feeds only
+        # one of them - the bot reads the other and goes silent (2026-10-13). See mcp_orphans.
+        try:
+            await asyncio.to_thread(mcp_orphans.reap_all)
+        except Exception as e:      # noqa: BLE001 - cleanup must never block a session
+            print(f"[mcp orphans] {type(e).__name__}: {e}", file=sys.stderr)
         kwargs = {}
         if os.name == "nt":
             kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -308,6 +322,12 @@ class McpStdioSession:
             *self._argv(), stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE, env=env, limit=self._STREAM_LIMIT, **kwargs)
         self._stderr_task = asyncio.ensure_future(self._drain_stderr())
+        if self._closed:
+            # Closed WHILE the process was being created: `close()` saw no process to kill, and
+            # the pool has already dropped this object, so nobody would ever close it again.
+            self._kill_tree()
+            raise ConnectionError("phiên đã đóng")
+        mcp_orphans.record(self.key, self.proc.pid, self.args)
 
     def _err_tail(self, n=8, cap=900):
         lines = [l for l in self._stderr if l.strip()]
@@ -412,12 +432,15 @@ class McpStdioSession:
     async def close(self):
         # KHÔNG canh alive() ở đây: launcher chết trước (crash lúc import...) thì cháu
         # của nó vẫn sống mồ côi - vẫn phải quét nhóm.
+        self._closed = True
         try:
             if self.proc:
                 self._kill_tree()
                 await self.proc.wait()
         except Exception:
             pass
+        if self.proc:
+            mcp_orphans.forget(self.key, self.proc.pid)
 
 
 # ============================================================
@@ -486,7 +509,7 @@ class SessionPool:
         t = spec.get("transport") or "http"
         if t == "stdio":
             return McpStdioSession(spec.get("command", ""), spec.get("args"), spec.get("env"),
-                                   label=spec.get("label", ""))
+                                   label=spec.get("label", ""), key=spec.get("key") or "")
         if t == "internal":
             return McpInternalSession(spec.get("internal", ""), spec)
         return McpHttpSession(spec.get("url", ""), spec.get("headers"))

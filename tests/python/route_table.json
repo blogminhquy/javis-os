@@ -4138,5 +4138,25 @@
    "GET"
   ],
   "trong": null
+ },
+ {
+  "order": 416,
+  "type": "APIRoute",
+  "path": "/resonance/agents/reviewer",
+  "name": "resonance_agent_reviewer",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 417,
+  "type": "APIRoute",
+  "path": "/goals/{goal_id}/reviewer/enable",
+  "name": "goal_reviewer_enable",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
  }
 ]

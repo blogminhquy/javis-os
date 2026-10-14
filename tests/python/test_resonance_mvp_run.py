@@ -272,6 +272,8 @@ g_r2 = make_goal()
 target(g_r2).unlink(missing_ok=True)
 act2 = store.begin_action(P, g_r2.id, g_r2.revision, "work", lease_until=clock_r() - 5, now=clock_r() - 600,
                           intent=RA.pin(store, BRAIN))
+# A5 R1: host thật ghi mốc engine ngay trước lời gọi engine; lượt chết GIỮA lời gọi đã qua mốc này.
+store.mark_engine(P, act2["id"], clock_r() - 600)
 deps_r2, _, eng_r2 = make_deps(clock=clock_r)
 adv(g_r2.id, {"kind": "wake"}, deps_r2)
 rec2 = store.get_action(P, act2["id"])

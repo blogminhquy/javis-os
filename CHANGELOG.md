@@ -6,6 +6,20 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.114.0] - 2026-10-14
+### Sửa lỗi
+- **Bot Zalo không còn im sau khi Javis khởi động lại.** Javis tắt không êm (crash, dừng cứng khi cập nhật) từng để lại tiến trình Zalo cũ còn chạy, nên tài khoản có hai phiên nghe. Zalo chỉ gửi tin về một phiên, bot đọc phiên kia và im luôn. Giờ Javis ghi lại mọi tiến trình kết nối nó mở và tự dọn phần sót của lần chạy trước.
+- **An toàn khi dọn.** Chỉ dọn khi server cũ đã thật sự tắt và tiến trình vẫn đúng là lệnh Javis đã mở, nên không đụng tới chương trình khác.
+
+## [0.109.0] - 2026-10-13
+### Thêm mới
+- **Trợ lý có thể có người review (Cộng hưởng A5).** Ở trang trợ lý đã bật Cộng hưởng, chọn một trợ lý khác ở ô **Người review**. Từ đó mục tiêu mới của trợ lý này chỉ được coi là đạt khi người review xem đúng bản đã đăng và kết luận đạt. Mục tiêu đang có không đổi.
+- **Review đòi sửa thì trợ lý tự sửa theo góp ý**, tối đa hai lần. Mỗi mục tiêu có đội dùng tối đa 8 lượt, mỗi vai 4; hết vòng hay hết lượt thì dừng và báo, không tự nới.
+- **Thẻ mục tiêu cho biết ai làm, ai review**, bản nào đã được review, đang chờ ai và lượt còn của từng vai. Có nút **Bật lại người review** và **Bỏ yêu cầu review** khi mục tiêu bị kẹt.
+- Mục tiêu duy trì và bước khám phá cũng chờ người review đạt rồi mới báo đã cập nhật hay xong bước; cùng một bản không bị review lại theo lịch.
+- Lượt hỏng trước khi kịp gọi model được trả lại, không bị tính.
+- File đã đăng bị sửa tay thì mục tiêu có đội chờ, không tự coi là đạt. Muốn quay về 0.108.0: tắt Javis, chạy `tools/resonance_restore_pre_a5.py`.
+
 ## [0.108.0] - 2026-10-13
 ### Sửa lỗi
 - **Bot không còn gửi câu báo hết lượt cho khách.** Câu như "You've hit your session limit" hay "API Error" từng được bot đăng thẳng vào nhóm Zalo kèm tag người hỏi. Giờ lượt đó tính là lượt hỏng: người hỏi nhận câu xin lỗi chung, lý do thật nằm trong nhật ký bot.

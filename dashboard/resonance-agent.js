@@ -58,7 +58,32 @@
 
   /* Khối Cộng hưởng của MỘT trợ lý. `row`: một mục của GET /resonance/agents (hay null khi chưa tải được),
      `session`: ready | needs_new_session | not_this_agent | null, `goals`: GET /resonance/goals?agent_key=. */
-  function panelHtml(row, session, goals) {
+  /* A5: ô chọn Người review (thiết kế A5 mục 4.2). Danh sách là các trợ lý ĐÃ BẬT Cộng hưởng trong brain, trừ chính
+     trợ lý này; lấy theo trạng thái Cộng hưởng, không theo tag. Cặp lưu ở host theo mã bền. Người review đang chọn mà
+     đã tắt vẫn hiện (kèm nhãn) để chủ dự án thấy vì sao mục tiêu bị chặn. */
+  function reviewerHtml(row, all) {
+    var cur = (row && row.reviewer) || null;
+    var curSlug = cur ? String(cur.slug || "") : "";
+    var cands = (all || []).filter(function (a) {
+      return a && a.slug !== S.slug && a.status === "active" && a.enabled;
+    });
+    var opts = '<option value="">' + esc(tw("resonance.a5_reviewer_none")) + "</option>";
+    var seen = false;
+    cands.forEach(function (a) {
+      if (a.slug === curSlug) seen = true;
+      opts += '<option value="' + esc(a.slug) + '"' + (a.slug === curSlug ? " selected" : "") + ">" +
+        esc(a.name || a.slug) + "</option>";
+    });
+    if (curSlug && !seen) {
+      opts += '<option value="' + esc(curSlug) + '" selected>' + esc(curSlug) + " " +
+        esc(tw("resonance.a5_reviewer_off_tag")) + "</option>";
+    }
+    return '<div class="rsa-team"><label class="rsa-sub" for="rsaReviewer">' + esc(tw("resonance.a5_reviewer")) +
+      '</label><select class="js-input rsa-reviewer" id="rsaReviewer">' + opts + "</select>" +
+      '<div class="rsa-sub rsa-note">' + esc(tw("resonance.a5_reviewer_note")) + "</div></div>";
+  }
+
+  function panelHtml(row, session, goals, all) {
     var r = row || { status: "unregistered", enabled: false };
     var on = !!r.enabled && r.status === "active";
     var html = '<div class="rsa-head"><span class="rsa-title">' + esc(tw("resonance.a1_title")) + "</span>" +
@@ -75,6 +100,7 @@
         esc(tw("resonance.a1_confirm_new")) + "</button></div>";
     }
     html += supportHtml(r.support);
+    if (on) html += reviewerHtml(r, all);
     var list = (goals || []).filter(function (g) { return g && g.goal_id; });
     html += '<div class="rsa-goals-title">' + esc(tw("resonance.a1_goals_title")) + "</div>";
     if (!list.length) html += '<div class="rsa-sub">' + esc(tw("resonance.a1_no_goals")) + "</div>";
@@ -270,7 +296,7 @@
       return goalsP.then(function (gr) {
         if (t !== S.ticket) return;
         var goals = (gr.j && gr.j.goals) || [];
-        host.innerHTML = panelHtml(row, session, goals);
+        host.innerHTML = panelHtml(row, session, goals, (res.j && res.j.agents) || []);
         wire(host, row);
         if (key) {
           // A3: mục Bài học của trợ lý (đọc ghi bù hết hạn đề xuất ở server). Lỗi tải thì bỏ qua mục này.
@@ -312,6 +338,22 @@
           refresh();
         })
         .catch(function () { box.checked = !box.checked; box.disabled = false; });
+    });
+    var rs = host.querySelector(".rsa-reviewer");
+    if (rs) rs.addEventListener("change", function () {
+      // A5: chỉ chủ dự án đổi được (route qua lớp auth của dashboard); đổi cặp chỉ áp cho mục tiêu MỚI.
+      rs.disabled = true;
+      postJson("/resonance/agents/reviewer?brain=" + q(brain()), { slug: S.slug, reviewer_slug: rs.value })
+        .then(function (res) {
+          if (res.code !== 200) {
+            host.insertAdjacentHTML("beforeend", '<div class="rsa-warn">' + esc((res.j && res.j.error) ||
+              tw("resonance.failed")) + "</div>");
+            rs.disabled = false;
+            return;
+          }
+          refresh();
+        })
+        .catch(function () { rs.disabled = false; });
     });
     var nb = host.querySelector(".rsa-new-session");
     if (nb) nb.addEventListener("click", function () {
@@ -406,7 +448,8 @@
     });
   }
 
-  var api = { mount: mount, refresh: refresh, panelHtml: panelHtml, settingsHtml: settingsHtml, toggleNote: toggleNote,
+  var api = { mount: mount, refresh: refresh, panelHtml: panelHtml, reviewerHtml: reviewerHtml,
+    settingsHtml: settingsHtml, toggleNote: toggleNote,
     lessonsHtml: lessonsHtml, supportHtml: supportHtml };
   if (typeof window !== "undefined") window.JavisResonanceAgent = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

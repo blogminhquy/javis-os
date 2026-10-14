@@ -1,6 +1,6 @@
 # Resonance A4: biên bản kiểm mã (10/10/2026)
 
-**Trạng thái:** mã A4 trên nhánh `claude/resonance-a4-handoff-grants` (PR #604, số 0.96.0; đánh số lại bốn lần vì `main` đi qua 0.91.0, 0.92.1, 0.94.0 rồi 0.95.1) đã sửa theo **review mã vòng 1** (`a3356165`: 1 P1, 3 P2) **vòng 2** (`7b47e246`: 3 P2) và **vòng 3** (`d26c0f09`: 1 P2); **review mã vòng 5 đạt tại `5b5e3ef0`** (không còn P1, P2 chặn). Sau đó: smoke giao diện trên sandbox bằng engine giả (một lỗi thẻ đã sửa ở `f6aeb6d1`) và bộ chạy pilot (review cổng pilot đạt tại `5305687a`, dry 13/13). **Pilot thật đã chạy MỘT lần** tại `5305687a` (chủ dự án duyệt 11/10): 2 lượt chat Claude Code `claude-opus-5-5` qua gói thuê bao, 0 việc nền; kết quả gốc `technical_failed` do bộ chạy, đã khép bằng hậu kiểm offline (mục "Pilot thật real-1"). Thiết kế chốt vòng 5 tại `6d774bd5` (D1: không cấp quyền ghi từ lời chat), reviewer chấp thuận để code. Chưa merge, chưa phát hành, không đụng VPS.
+**Trạng thái:** mã A4 trên nhánh `claude/resonance-a4-handoff-grants` (PR #604, số 0.96.0; đánh số lại bốn lần vì `main` đi qua 0.91.0, 0.92.1, 0.94.0 rồi 0.95.1) đã sửa theo **review mã vòng 1** (`a3356165`: 1 P1, 3 P2) **vòng 2** (`7b47e246`: 3 P2) và **vòng 3** (`d26c0f09`: 1 P2); **review mã vòng 5 đạt tại `5b5e3ef0`** (không còn P1, P2 chặn). Sau đó: smoke giao diện trên sandbox bằng engine giả (một lỗi thẻ đã sửa ở `f6aeb6d1`) và bộ chạy pilot (review cổng pilot đạt tại `5305687a`, dry 13/13). **Pilot thật đã chạy MỘT lần** tại `5305687a` (chủ dự án duyệt 11/10): 2 lượt chat Claude Code `claude-opus-5-5` qua gói thuê bao, 0 việc nền; kết quả gốc `technical_failed` do bộ chạy, đã khép bằng hậu kiểm offline (mục "Pilot thật real-1"). Thiết kế chốt vòng 5 tại `6d774bd5` (D1: không cấp quyền ghi từ lời chat), reviewer chấp thuận để code. Review tích hợp và review cuối đạt tại `3606362c`; **đã phát hành 0.96.0** (`d36ebb3e`, PR #604, 11/10/2026; CI `main` run 38146898745 và build image run 38146898746 thành công; image `ghcr.io/blogminhquy/javis-os:0.96.0`, digest `sha256:8f1751d2…`; VPS chưa kéo). Pilot real-1 chạy trên `5305687a`, không phải trên bản tích hợp.
 
 Thiết kế: [2026-10-10-resonance-a4-handoff-grants-design.md](../superpowers/specs/2026-10-10-resonance-a4-handoff-grants-design.md) (mục 12 là ma trận; mục 17 là ghi chú triển khai cần reviewer xác nhận). Hướng dẫn: [resonance-a4-grants.md](resonance-a4-grants.md).
 
@@ -183,7 +183,7 @@ Một lượt soát độc lập (agent chỉ đọc, có chạy thử trên kho
 - Engine giả và đồng hồ giả; không có lượt model thật, không chạy server thật ngoài `TestClient`.
 - Test rollback chạy mã 0.91.0 thật lấy bằng `git show 1d0b515c` (trước khi merge `main` mới là 0.89.0 `33a3c1aa`).
 - Chưa kiểm giao diện bằng trình duyệt thật (chỉ hàm thuần của thẻ).
-- Các điểm I1, I2 ở mục 17 của thiết kế chạm cơ chế quyền và **cần reviewer xác nhận**.
+- Các điểm I1, I2 ở mục 17 của thiết kế chạm cơ chế quyền; reviewer đã chấp nhận ở review mã vòng 1.
 
 ## Toàn repo
 

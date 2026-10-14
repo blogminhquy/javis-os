@@ -17,7 +17,12 @@ from typing import Iterable, Optional
 
 # heartbeat.v2 (A3): thêm hai lớp sự kiện của làn học cách làm, `FOLLOWUP` (lượt làm sản phẩm bằng cách mới, dùng
 # lượt đã giữ sẵn) và `TRIAL` (phép thử M5). Các tham số còn lại giữ nguyên như v1.
-POLICY_VERSION = "heartbeat.v2"
+# heartbeat.v3 (A5): mã của đội làm và review: `review_due` (START, lần review đầu của một bộ ghim), `review_retry`
+# (AUTO, thử lại sau `unknown` tạm thời), `review_changes` (lớp mới `FIX`: lượt sửa theo góp ý, dùng được lượt cuối của
+# vai làm, giới hạn bởi số vòng). Lỗi cố định thêm `too_large`, `snapshot_mismatch`. Hẹn gỡ gác thêm `review_recheck` và
+# `prepare_recheck` (pha chuẩn bị của một lượt lỗi sau khi đã giữ chỗ: lượt được hoàn, kiểm lại bằng code). Tham số số giữ
+# nguyên.
+POLICY_VERSION = "heartbeat.v3"
 
 POLICY = {
     "RETRY_BASE_S": 15 * 60,
@@ -37,19 +42,27 @@ POLICY = {
 # Lớp của từng mã lý do (mục 3). Mã không có ở đây là "check": chỉ kiểm, không gọi model.
 START, NEW, AUTO, CHECK, OBSERVE = "start", "new", "auto", "check", "observe"
 FOLLOWUP, TRIAL = "followup", "trial"
+FIX = "fix"
 CLASSES = {
     "created": START, "revised": START, "assigned": START,
     "feedback": NEW, "user_schedule": NEW,
     "retry_not_met": AUTO, "error_retry": AUTO, "recovery": AUTO,
     "guard_observe": OBSERVE,
     "method_followup": FOLLOWUP, "method_trial": TRIAL,
+    "review_due": START, "review_retry": AUTO, "review_changes": FIX,
 }
+# Lý do của VAI REVIEW: chỉ nhánh đội xét (resonance._team_review), `decide` của vai làm không bao giờ thấy chúng.
+REVIEW_CODES = ("review_due", "review_retry")
+# Trần số lần TÍNH (charged=1) của một bộ ghim review (A5 mục 5.6, 6.4); `seq` chỉ để lưu vết.
+REVIEW_MAX_CHARGED = 3
 # Nghĩa vụ (slot) của hẹn giờ: hẹn mới chỉ thay hẹn cũ cùng nghĩa vụ.
 RETRY_CODES = ("retry_not_met", "error_retry", "recovery")
-UNPARK_CODES = ("agent_recheck", "guard_recheck", "drift_recheck", "handoff_wait")
+UNPARK_CODES = ("agent_recheck", "guard_recheck", "drift_recheck", "handoff_wait", "review_recheck",
+                "prepare_recheck")
 
 # Lỗi cố định: thử lại tự động không giúp gì (mục 4). Mã chưa biết coi là tạm thời, vẫn bị trần.
-FIXED_ERRORS = frozenset({"engine_build", "engine_blocked", "output_scope", "budget_exhausted", "invalid_action_id"})
+FIXED_ERRORS = frozenset({"engine_build", "engine_blocked", "output_scope", "budget_exhausted", "invalid_action_id",
+                          "too_large", "snapshot_mismatch"})
 
 
 def classify(code: str) -> str:
@@ -65,6 +78,12 @@ def slot_of(code: str) -> str:
     if code == "trial_recovery":
         # A3: hẹn đối soát của phép thử có nghĩa vụ riêng, không thay hay bị thay bởi các hẹn kiểm khác.
         return "trial"
+    if code == "review_recheck":
+        # A5: hẹn kiểm lại engine của lượt review có nghĩa vụ riêng, không thay hẹn thử lại hay hẹn kiểm của vai làm.
+        return "review"
+    if code == "prepare_recheck":
+        # A5 (review mã vòng 1, R1): hẹn kiểm lại sau khi pha chuẩn bị của lượt việc lỗi; nghĩa vụ riêng.
+        return "prepare"
     return "check"
 
 
@@ -144,7 +163,12 @@ def decide(snapshot: Iterable[dict], *, attempted: bool, outcome: str, left: int
     new = next((c for c in codes if classes[c] == NEW), "")
     if new:
         return Decision("work" if (left > 0 or hold_ok) else "budget", "có tin mới từ người dùng", new)
-    start = next((c for c in codes if classes[c] == START), "")
+    fix = next((c for c in codes if classes[c] == FIX), "")
+    if fix:
+        # A5: lượt sửa theo góp ý review. Như tin mới: dùng được lượt cuối của vai làm (không bị lượt dự phòng chặn);
+        # số vòng đã giới hạn ở kho lúc thêm lý do (mục 5.4, 6.4).
+        return Decision("work" if left > 0 else "budget", "sửa theo góp ý của người review", fix)
+    start = next((c for c in codes if classes[c] == START and c not in REVIEW_CODES), "")
     if start and not attempted:
         return Decision("work" if left > 0 else "budget", "bước đầu của revision", start)
     follow = next((c for c in codes if classes[c] == FOLLOWUP), "")
@@ -154,7 +178,7 @@ def decide(snapshot: Iterable[dict], *, attempted: bool, outcome: str, left: int
     if trial and trial_ok:
         return Decision("trial", "thử một cách làm khác khi bế tắc, đủ ngân sách trọn vòng", trial)
     for c in codes:
-        if classes[c] == AUTO:
+        if classes[c] == AUTO and c not in REVIEW_CODES:
             ok, why = auto_allowed(c, chain, left, policy)
             if ok:
                 return Decision("work", "thử lại tự động trong trần", c)

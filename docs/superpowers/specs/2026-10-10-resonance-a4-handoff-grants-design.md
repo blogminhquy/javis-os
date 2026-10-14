@@ -1,6 +1,6 @@
 # Resonance A4: nộp sản phẩm đa engine qua một hợp đồng host, kèm quyền có phạm vi
 
-**Trạng thái:** thiết kế **chốt** (vòng 5, phương án dự phòng D1), reviewer chấp thuận để code. **Mã A4 đạt review mã vòng 5** (`5b5e3ef0`; mục 17: I1, I2 đã được chấp nhận; I10 tới I16). Smoke giao diện và bộ chạy pilot: [biên bản](../../dev/resonance-a4-verification.md). Chưa pilot model thật. Đổi cơ chế cấp quyền ngoài bản này thì gửi diff thiết kế review trước.
+**Trạng thái:** thiết kế **chốt** (vòng 5, phương án dự phòng D1), reviewer chấp thuận để code. **Mã A4 đạt review mã vòng 5** (`5b5e3ef0`; mục 17: I1, I2 đã được chấp nhận; I10 tới I16). Smoke giao diện, bộ chạy pilot và pilot thật một lần (11/10, khép bằng hậu kiểm): [biên bản](../../dev/resonance-a4-verification.md). **đã phát hành 0.96.0** (`d36ebb3e`, PR #604, 11/10/2026; CI `main` run 38146898745 và build image run 38146898746 thành công; image `ghcr.io/blogminhquy/javis-os:0.96.0`, digest `sha256:8f1751d2…`; VPS chưa kéo). Đổi cơ chế cấp quyền ngoài bản này thì gửi diff thiết kế review trước.
 
 - **Nhánh:** `claude/resonance-a4-handoff-grants`, PR nháp #604, số **0.96.0** (đặt 0.90.0; `main` đi qua 0.91.0, 0.92.1, 0.94.0 rồi 0.95.1 nên đánh số lại bốn lần).
 - **Vòng 1** (`5edfc9b6`) chưa đạt: 3 P1, 2 P2 (`exports/reviews/PR-604-A4-design-r1-review.md`, ngoài git).

@@ -324,7 +324,9 @@ check("decide: FOLLOWUP trước TRIAL trước AUTO; không đòi phần dư tr
 check("decide: lượt giữ không hợp lệ thì FOLLOWUP không mở lượt; phép thử không đủ thì không chạy",
       HB.decide([{"code": "method_followup"}, {"code": "method_trial"}], attempted=True, outcome="not_met", left=5,
                 chain=HB.Chain()).action == "evaluate")
-check("heartbeat.v2", HB.POLICY_VERSION == "heartbeat.v2")
+# A5 (0.109.0) nâng chính sách lên heartbeat.v3 (thêm mã của đội làm và review); các lớp của A3 giữ nguyên.
+check("heartbeat.v3 (A3 thêm v2, A5 thêm v3)", HB.POLICY_VERSION == "heartbeat.v3"
+      and HB.classify("method_followup") == HB.FOLLOWUP and HB.classify("method_trial") == HB.TRIAL)
 
 # ═══════════════════ Làn M: trọn vòng (R3a) ═══════════════════
 
@@ -763,6 +765,8 @@ to_applied(w, g.id)
 fid = [r["id"] for r in w.pending(g.id, "method_followup")]
 crashed = w.store.begin_action(P, g.id, w.g(g.id).revision, "work", lease_until=w.clock() + 5, now=w.clock(),
                                intent={"require_hold": True, "wake_reasons": fid, **R._agent_intent(w.g(g.id), w.deps)})
+# A5 R1: host thật ghi mốc engine ngay trước lời gọi engine; lượt chết GIỮA lời gọi đã qua mốc này.
+w.store.mark_engine(P, crashed["id"], w.clock())
 w.clock.t += 3600
 w.reopen()
 w.run_days(g.id, 1)

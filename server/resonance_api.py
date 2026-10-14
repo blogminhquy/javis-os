@@ -276,7 +276,20 @@ def register_agents(app, deps: ResonanceApiDeps):
                 "enabled": bool((reg or {}).get("enabled")), "status": (reg or {}).get("status") or "unregistered",
                 "config_version": (reg or {}).get("config_version"),
                 "goals_open": len(store.list_open(RS.Principal("owner", "owner", root), agent_key=reg["agent_key"]))
-                if reg else 0}
+                if reg else 0,
+                "reviewer": _reviewer_of(store, root, reg)}
+
+    def _reviewer_of(store, root: str, reg: Optional[dict]) -> Optional[dict]:
+        """A5: người review đang chọn cho agent làm này (theo mã bền), hay None. Không suy từ tag hay slug."""
+        if reg is None or not hasattr(store, "team_pair"):
+            return None
+        pr = store.team_pair(root, reg["agent_key"])
+        if not pr or not pr.get("enabled"):
+            return None
+        rv = store.agent_by_key(root, pr["reviewer_agent_key"]) or {}
+        return {"agent_key": pr["reviewer_agent_key"], "slug": rv.get("slug") or "", "status": rv.get("status") or "",
+                "enabled": bool(rv.get("enabled")), "pair_version": pr.get("config_version")}
+
 
     @app.get("/resonance/agents")
     async def resonance_agents(brain: str = "brain", slug: str = "", session_id: str = ""):
@@ -293,7 +306,7 @@ def register_agents(app, deps: ResonanceApiDeps):
             return {"ok": True, "agents": [{"slug": m["slug"], "name": m.get("name") or m["slug"],
                                             "support": R.engine_support(m.get("provider") or ""), "registered": False,
                                             "agent_key": None, "enabled": False, "status": "unregistered",
-                                            "config_version": None, "goals_open": 0} for m in metas],
+                                            "config_version": None, "goals_open": 0, "reviewer": None} for m in metas],
                     "orphans": [], "unassigned": 0, "legacy_brain_switch": R.enabled_for(root),
                     "session": "needs_new_session" if slug and session_id else None}
         store = deps.store()
@@ -652,3 +665,71 @@ def register_a4(app, deps: ResonanceApiDeps):
         if got is None:
             return _err(404, "Không có bản nháp này", "No such draft")
         return {"ok": True, **got}
+
+
+def register_a5(app, deps: ResonanceApiDeps):
+    """Route của A5 (đội làm và review), đăng ký SAU mọi route có sẵn (bảng route chỉ thêm ở cuối)."""
+    def _ctx(brain: str):
+        root = deps.brain_key(brain or "")
+        if not root or not Path(root).is_dir():
+            return None, None
+        return root, RS.Principal("owner", "owner", root)
+
+    @app.post("/resonance/agents/reviewer")
+    async def resonance_agent_reviewer(request: Request, brain: str = "brain"):
+        """A5: chủ dự án chọn hay bỏ chọn NGƯỜI REVIEW cho một agent làm (theo slug hiện tại, lưu theo mã bền). Chỉ qua
+        lớp auth/CSRF của dashboard; không tool nào gọi được. `reviewer_slug` rỗng là bỏ chế độ đội cho mục tiêu MỚI;
+        mục tiêu đã có đội giữ nguyên người review đã ghim. Tag không tham gia."""
+        root, owner = _ctx(brain)
+        if root is None:
+            return _err(404, "Không tìm thấy brain", "Brain not found")
+        if not _store_exists():
+            return _err(409, "Trợ lý chưa bật Cộng hưởng", "The assistant has Resonance turned off")
+        body = await _body(request)
+        slug = str(body.get("slug") or "").strip()
+        rslug = str(body.get("reviewer_slug") or "").strip()
+        store = deps.store()
+        mk = store.agent(root, slug) if slug else None
+        if mk is None or mk["status"] != "active":
+            return _err(409, "Trợ lý làm chưa bật Cộng hưởng", "The maker assistant has Resonance turned off")
+        rv = None
+        if rslug:
+            rv = store.agent(root, rslug)
+            if rv is None or rv["status"] != "active" or not rv["enabled"]:
+                return _err(409, "Người review phải là trợ lý đã bật Cộng hưởng trong brain này",
+                            "The reviewer must be an assistant with Resonance turned on in this brain")
+        try:
+            pr = await asyncio.to_thread(store.team_pair_set, owner, mk["agent_key"], rv["agent_key"] if rv else None)
+        except RS.AgentStateError as e:
+            return _err(409, f"Chưa chọn được người review: {e}", f"Could not set the reviewer: {e}")
+        return {"ok": True, "pair": pr}
+
+    @app.post("/goals/{goal_id}/reviewer/enable")
+    async def goal_reviewer_enable(goal_id: str, request: Request, brain: str = "brain"):
+        """A5 (review mã vòng 1, R2): nút "Bật lại người review" trên thẻ. Gửi MÃ BỀN của reviewer mà thẻ đang hiện; kho
+        kiểm trong một giao dịch rằng mục tiêu vẫn ghim đúng mã đó và mã còn hoạt động rồi mới bật. Thẻ cũ (reviewer đã
+        nghỉ, agent mới cùng slug, đội đã bỏ) nhận 409 kèm trạng thái mới, không bật ai. Nút bật ở trang trợ lý vẫn đi
+        `/resonance/agents/toggle` như cũ."""
+        root, owner = _ctx(brain)
+        if root is None:
+            return _err(404, "Không tìm thấy brain", "Brain not found")
+        if not _store_exists():
+            return _err(404, "Không có mục tiêu này", "No such goal")
+        body = await _body(request)
+        key = str(body.get("agent_key") or "").strip()
+        store = deps.store()
+        cur = await asyncio.to_thread(store.agent_by_key, root, key) if key else None
+        if cur is not None and cur["status"] == "active" and deps.agent_file(root, cur["slug"]) is None:
+            await asyncio.to_thread(store.agent_mark_missing, root, key)
+            return _err(409, "File của người review không còn trong brain", "The reviewer file is missing from this brain",
+                        goal=await _view(store, owner, goal_id, root))
+        try:
+            a = await asyncio.to_thread(store.team_reviewer_enable, owner, goal_id, key)
+        except RS.ScopeError:
+            return _err(404, "Không có mục tiêu này", "No such goal")
+        except RS.ConflictError as e:
+            return _err(409, f"Người review trên thẻ không còn là người review của mục tiêu ({e})",
+                        f"The reviewer on this card is no longer the goal's reviewer ({e})",
+                        goal=await _view(store, owner, goal_id, root))
+        await asyncio.to_thread(store.wake_agent_goals, root, a["agent_key"])
+        return {"ok": True, "agent": a, "goal": await _view(store, owner, goal_id, root)}

@@ -65,7 +65,11 @@
                  "stalled", "source_drift", "handoff",
                  // A4: phạm vi ghi do chủ dự án cho phép
                  "scope_pending", "scope_denied", "grant_revoked", "grant_missing", "path_rejected",
-                 "publish_settling"];
+                 "publish_settling",
+                 // A5: đội một agent làm, một agent review
+                 "review_pending", "review_changes", "review_retry", "review_rounds", "review_unknown",
+                 "review_input", "review_engine", "budget_maker", "budget_reviewer", "reviewer_off",
+                 "reviewer_missing", "reviewer_retired", "prepare_error"];
     if (known.indexOf(r) >= 0) return "resonance.st_" + r;
     if (g.run_state === "running") return "resonance.st_running";
     if (g.run_state === "blocked") return "resonance.st_blocked";
@@ -99,7 +103,15 @@
     method_followup: "resonance.wake.method_followup",
     trial_recovery: "resonance.wake.recovery",
     // A4: chủ dự án vừa cho phép phạm vi ghi
-    scope_granted: "resonance.wake.scope_granted"
+    scope_granted: "resonance.wake.scope_granted",
+    // A5: lượt của người review và lượt sửa theo góp ý
+    review_due: "resonance.wake.review_due",
+    review_retry: "resonance.wake.review_retry",
+    review_changes: "resonance.wake.review_changes",
+    review_done: "resonance.wake.review_done",
+    review_recheck: "resonance.wake.review_recheck",
+    team_detached: "resonance.wake.team_detached",
+    prepare_recheck: "resonance.wake.prepare_recheck"
   };
 
   /* A3: dòng "cách làm đã học" trên thẻ, theo trạng thái bài học làn M của revision hiện tại. Khoá nguyên văn. */
@@ -291,6 +303,64 @@
   }
 
   /* HTML của thẻ từ trạng thái GET /goals/{id}. Thuần: không đụng DOM, không gọi mạng. */
+  /* A5: dòng đội của thẻ (thiết kế A5 mục 11). Chỉ hiển thị; kho mới là căn cứ. Hai nút của chủ dự án: Bật lại người
+     review (route riêng của thẻ, ghim mã bền reviewer) và Bỏ yêu cầu review (lệnh `team_detach`). Không có nút nào cho
+     agent; tag không có ở đây. */
+  var TEAM_BLOCKS = ["review_rounds", "review_unknown", "review_input", "review_engine", "budget_maker",
+                     "budget_reviewer", "reviewer_off", "reviewer_missing", "reviewer_retired", "source_drift"];
+
+  function teamHtml(g) {
+    var t = g && g.team;
+    if (!t) return "";
+    if (t.legacy) return '<div class="rs-line rs-muted rs-team">' + esc(tw("resonance.a5_legacy")) + "</div>";
+    var mk = (t.maker || {}).slug || "", rv = (t.reviewer || {}).slug || "";
+    if (t.status === "detached") {
+      return '<div class="rs-line rs-muted rs-team">' + esc(tw("resonance.a5_detached_line")) + "</div>";
+    }
+    var h = '<div class="rs-line rs-team">' + esc(tw("resonance.a5_team", { maker: mk, reviewer: rv })) + "</div>";
+    var lt = t.latest;
+    if (lt) {
+      var v = lt.verdict === "pass" ? tw("resonance.a5_v_pass")
+        : lt.verdict === "needs_changes" ? tw("resonance.a5_v_changes", { k: t.rounds_used || 0, max: t.max_rounds || 0 })
+        : tw("resonance.a5_v_unknown");
+      h += '<div class="rs-line rs-team">' + esc(tw("resonance.a5_reviewed", { sha: lt.sha8 || "", verdict: v })) + "</div>";
+    }
+    var active = g.status === "active";
+    if (active && g.block_reason === "review_pending") {
+      h += '<div class="rs-line rs-team">' + esc(tw("resonance.a5_wait_review", { reviewer: rv })) + "</div>";
+    } else if (active && g.block_reason === "review_changes") {
+      h += '<div class="rs-line rs-team">' + esc(tw("resonance.a5_wait_fix", { maker: mk })) + "</div>";
+    }
+    var c = t.calls || {}, m = c.maker || {}, r = c.reviewer || {};
+    h += '<div class="rs-line rs-muted rs-team">' + esc(tw("resonance.a5_calls", {
+      m: Math.max(0, (m.cap || 0) - (m.used || 0)), mc: m.cap || 0,
+      r: Math.max(0, (r.cap || 0) - (r.used || 0)), rc: r.cap || 0 })) + "</div>";
+    if (lt && lt.verdict === "needs_changes" && ((lt.criteria || []).length || lt.fixes)) {
+      var items = (lt.criteria || []).filter(function (x) { return x && !x.ok && x.reason; }).map(function (x) {
+        return "<li>" + esc(x.reason) + "</li>";
+      }).join("");
+      h += '<details class="rs-details rs-team-fb"><summary>' + esc(tw("resonance.a5_fixes")) + "</summary>" +
+        (items ? '<ul class="rs-list">' + items + "</ul>" : "") +
+        (lt.fixes ? '<div class="rs-line">' + esc(lt.fixes) + "</div>" : "") + "</details>";
+    }
+    if (active) {
+      var btns = "";
+      // Nút ghim MÃ BỀN của reviewer đang hiện (review mã A5 vòng 1, R2): host chỉ bật đúng mã đó nếu mục tiêu vẫn ghim
+      // nó; agent mới cùng slug không bao giờ được bật qua nút này.
+      var rk = (t.reviewer || {}).agent_key || "";
+      if (g.block_reason === "reviewer_off" && rk) {
+        btns += '<button type="button" class="rs-act" data-act="reviewer_enable" data-key="' + esc(rk) + '">' +
+          esc(tw("resonance.btn_reviewer_enable")) + "</button>";
+      }
+      if (TEAM_BLOCKS.indexOf(String(g.block_reason || "")) >= 0) {
+        btns += '<button type="button" class="rs-act" data-act="team_detach">' + esc(tw("resonance.btn_team_detach")) +
+          "</button>";
+      }
+      if (btns) h += '<div class="rs-btns rs-team-acts">' + btns + "</div>";
+    }
+    return h;
+  }
+
   function viewHtml(g, note) {
     g = g || {};
     var active = g.status === "active";
@@ -346,6 +416,7 @@
         "</div>";
     }
     h += scopeHtml(g);
+    h += teamHtml(g);
     h += learnHtml(g);
     h += '<div class="rs-line rs-muted">' + esc(tw("resonance.budget", { used: g.calls_used || 0,
       total: g.budget_calls || 0 })) + "</div>";
@@ -408,6 +479,11 @@
     if (act === "lesson_dismiss") {
       return { url: "/resonance/lessons/" + encodeURIComponent(String((dir || {}).lesson || "")) + "/decision",
         body: { action: "dismiss" } };
+    }
+    if (act === "reviewer_enable") {
+      // A5 (R2): Bật lại người review gửi mã bền đang hiện trên thẻ; thẻ cũ (mã khác) nhận 409 và vẽ lại.
+      var rvk = String((dir || {}).key || ((g.team || {}).reviewer || {}).agent_key || "");
+      return { url: "/goals/" + id + "/reviewer/enable", body: { agent_key: rvk, expected_revision: rev } };
     }
     if (act === "drop") {
       return { url: "/goals/" + id + "/commands", body: { command: "drop_directive", expected_revision: rev,
@@ -534,6 +610,8 @@
       return tw("resonance.a4_approved_draft_pending");
     }
     if (act === "revoke_grant") return tw("resonance.a4_revoked");
+    if (act === "team_detach") return tw("resonance.a5_detached");
+    if (act === "reviewer_enable") return tw("resonance.a5_reviewer_enabled");
     return "";
   }
 
@@ -560,6 +638,8 @@
     if (act === "cancel" && !window.confirm(tw("resonance.cancel_confirm"))) return;
     if (act === "drop" && !window.confirm(tw("resonance.drop_confirm"))) return;
     if (act === "revoke_grant" && !window.confirm(tw("resonance.revoke_confirm"))) return;
+    if (act === "team_detach" && !window.confirm(tw("resonance.a5_detach_confirm"))) return;
+    if (act === "reviewer_enable" && !window.confirm(tw("resonance.a5_enable_confirm"))) return;
     if (act === "draft_preview") { preview(el, g); return; }
     var req = requestFor(act, g, critId, dir, newNonce());
     var btns = el.querySelectorAll("button.rs-act");
@@ -602,7 +682,7 @@
 
   var api = { tach: tach, viewHtml: viewHtml, compactHtml: compactHtml, requestFor: requestFor, stateKey: stateKey, wakeLabel: wakeLabel,
     ve: ve, render: render, reactHtml: reactHtml, reactBody: reactBody, learnHtml: learnHtml, isNotice: isNotice,
-    scopeHtml: scopeHtml, noteFor: noteFor, _send: send };
+    scopeHtml: scopeHtml, teamHtml: teamHtml, noteFor: noteFor, _send: send };
   if (typeof window !== "undefined") window.JavisResonance = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

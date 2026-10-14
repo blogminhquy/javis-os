@@ -22050,6 +22050,8 @@ resonance_api.register_agents(app, _RESONANCE_API_DEPS)
 resonance_api.register_learning(app, _RESONANCE_API_DEPS)
 # A4: xem trước bản nháp chờ chủ dự án cho phép (đăng ký cuối, bảng route chỉ thêm ở cuối).
 resonance_api.register_a4(app, _RESONANCE_API_DEPS)
+# A5: chọn người review cho một trợ lý làm (đăng ký cuối, bảng route chỉ thêm ở cuối).
+resonance_api.register_a5(app, _RESONANCE_API_DEPS)
 
 
 if __name__ == "__main__":
