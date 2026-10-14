@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.149.0] - 2026-10-15
 ### Thêm mới
-- **Bot Zalo tự nhận lời mời kết bạn và đọc lời giới thiệu.** (đang viết)
+- **Bot Zalo tự nhận lời mời kết bạn và đọc lời giới thiệu.** Bật ô mới trong form bot: Javis nhận các lời mời đang chờ, lưu lời nhắn kèm lời mời vào Hộp thư và đưa cho bot. Ai đã giới thiệu đủ tên, tên con, lớp thì bot không hỏi lại; thiếu thì bot hỏi tiếp.
+- Trước đây lời nhắn này mất ngay khi nhận kết bạn nên bot luôn phải hỏi lại. Mặc định tắt, chỉ Zalo cá nhân.
 
 ## [0.146.0] - 2026-10-14
 ### Sửa lỗi

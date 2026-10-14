@@ -351,6 +351,11 @@ def _hhmm(v: Any) -> Optional[str]:
     return f"{h:02d}:{mi:02d}"
 
 
+def clean_bat(v: Any) -> bool:
+    """Công tắc bật/tắt gửi từ form ("1", "true", "on", True...)."""
+    return v is True or str(v if v is not None else "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def parse_gio_truc(v: Any) -> tuple[Optional[dict], str]:
     """Validate an active-hours value. Returns ({} for all day | {"tu", "den"}, "") or (None, error).
 
@@ -676,6 +681,9 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "muc_quyen": _clean_muc(data.get("muc_quyen")) or MUC_QUYEN_DEFAULT,
             "ngon_ngu": _clean_ngon_ngu(data.get("ngon_ngu")),
             "gio_truc": gio_truc,
+            # Tự nhận lời mời kết bạn và đọc lời giới thiệu (0.149.0, chỉ Zalo cá nhân). Mặc định TẮT: nhận kết bạn
+            # là hành động ra ngoài dưới tên chủ, chỉ bật khi chủ chọn.
+            "nhan_ket_ban": clean_bat(data.get("nhan_ket_ban")),
             "handoff_to": str(data.get("handoff_to") or "").strip(),
             "created_at": _now(),
             "updated_at": _now(),
@@ -709,7 +717,8 @@ def _nhan_brain_cho_tk(bot: dict) -> None:
 # không ai đọc nó nữa, và patch gửi khoá đó tới thì bị bỏ qua như mọi khoá lạ.
 _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
-              "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc")
+              "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
+              "nhan_ket_ban")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -792,6 +801,8 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                     b["ngon_ngu"] = _clean_ngon_ngu(v)
                 elif k == "gio_truc":
                     b["gio_truc"] = gio_moi      # đã kiểm ở đầu hàm
+                elif k == "nhan_ket_ban":
+                    b["nhan_ket_ban"] = clean_bat(v)
 
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()

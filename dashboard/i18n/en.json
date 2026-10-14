@@ -1194,6 +1194,8 @@
   "cb.lb_muc": "What the bot may do",
   "cb.lb_ngon_ngu": "What language the bot answers in",
   "cb.hint_ngon_ngu": "Automatic = follows the language the customer writes in. Pin one language when everyone messaging in shares the same one.",
+  "cb.nhan_ket_ban": "Accept friend requests and read their introduction",
+  "cb.hint_nhan_ket_ban": "Personal Zalo only. Every minute Javis accepts pending friend requests, saves the message sent with each request in the Inbox as that person's first message and hands it to the bot: a complete introduction is not asked again, a partial one gets a question for what is missing.",
   "cb.s_gio_truc": "Active hours",
   "cb.gio_tu": "From",
   "cb.gio_den": "Until",

@@ -10,7 +10,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.149.0] - 2026-10-15
 ### Added
-- **The Zalo bot accepts friend requests and reads their introduction.** (in progress)
+- **The Zalo bot accepts friend requests and reads their introduction.** Tick the new box in the bot form: Javis accepts pending requests, saves the message sent with each one in the Inbox and hands it to the bot. Someone who already gave their name, child's name and class is not asked again; anyone else is asked for what is missing.
+- Before, that message vanished as soon as the request was accepted, so the bot always had to ask. Off by default, personal Zalo only.
 
 ## [0.146.0] - 2026-10-14
 ### Fixed

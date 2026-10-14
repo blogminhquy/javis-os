@@ -897,6 +897,10 @@
                 ' <input type="time" id="cbGioDen" value="' + esc(((b && b.gio_truc) || {}).den || "") + '"></label>' +
             '</div>' +
             '<div class="cb-hint">' + esc(window.t("cb.hint_gio_truc")) + '</div>' +
+            // Friend-request intake (0.149.0, personal Zalo only): accept requests and hand their introduction to the bot.
+            '<label class="cb-gio-truc"><input type="checkbox" id="cbNhanKetBan"' +
+              (b && b.nhan_ket_ban ? " checked" : "") + '> ' + esc(window.t("cb.nhan_ket_ban")) + '</label>' +
+            '<div class="cb-hint">' + esc(window.t("cb.hint_nhan_ket_ban")) + '</div>' +
           '</div>' +
 
           // Nâng cao: chỉ ngôn ngữ trả lời. Ngôn ngữ của bot ĐỘC LẬP với ngôn ngữ của chủ: bot nói
@@ -1234,7 +1238,8 @@
                     groups: co ? ds("group").join("\n") : "",
                     reply_when: co ? (the === "auto" ? "auto" : (giaTri("cbRw") || "mention")) : "mention",
                     account_ids: ids.join(","),
-                    gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "" };
+                    gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "",
+                    nhan_ket_ban: (box.querySelector("#cbNhanKetBan") || {}).checked ? "1" : "0" };
       try {
         if (sua) {
           await api("/chatbots/" + encodeURIComponent(b.id) + "/update", { method: "POST", body: fd(chung) });

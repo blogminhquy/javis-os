@@ -1194,6 +1194,8 @@
   "cb.lb_muc": "Bot được làm gì",
   "cb.lb_ngon_ngu": "Bot trả lời khách bằng tiếng gì",
   "cb.hint_ngon_ngu": "Tự động = bám theo thứ tiếng khách nhắn tới. Ghim một ngôn ngữ khi người nhắn tới đều dùng chung một thứ tiếng.",
+  "cb.nhan_ket_ban": "Tự nhận lời mời kết bạn và đọc lời giới thiệu",
+  "cb.hint_nhan_ket_ban": "Chỉ Zalo cá nhân. Mỗi phút Javis nhận các lời mời kết bạn đang chờ, lưu lời nhắn kèm lời mời vào Hộp thư như tin đầu tiên của người đó và đưa cho bot: giới thiệu đủ thì bot không hỏi lại, thiếu thì bot hỏi tiếp phần còn thiếu.",
   "cb.s_gio_truc": "Giờ trực",
   "cb.gio_tu": "Từ",
   "cb.gio_den": "Đến",
