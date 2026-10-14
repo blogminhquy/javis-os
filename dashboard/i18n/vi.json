@@ -1195,7 +1195,7 @@
   "cb.lb_ngon_ngu": "Bot trả lời khách bằng tiếng gì",
   "cb.hint_ngon_ngu": "Tự động = bám theo thứ tiếng khách nhắn tới. Ghim một ngôn ngữ khi người nhắn tới đều dùng chung một thứ tiếng.",
   "cb.nhuong_tay": "Nhường khi bạn nhắn tay (phút)",
-  "cb.hint_nhuong_tay": "Chỉ Zalo cá nhân. Bạn vừa tự nhắn vào một cuộc chat bằng nick này thì bot im chừng ấy phút ở cuộc chat đó; ở chat riêng, khách nhắn trong lúc đó mà bạn chưa trả lời thì hết thời gian bot trả lời thay. Đặt 0 để bot không bao giờ im vì bạn nhắn tay.",
+  "cb.hint_nhuong_tay": "Chỉ Zalo cá nhân. Bạn vừa tự nhắn vào một cuộc chat bằng nick này thì bot im chừng ấy phút ở cuộc chat đó, tính từ tin bạn nhắn tay cuối; hết thời gian mà bạn không nhắn thêm thì bot trả lời các tin khách đang chờ. Để trống = mặc định 10 phút, nhóm im suốt quãng đó như trước. Ghi một số thì ở nhóm, tin tag thẳng nick được trả lời ngay và tin khác được trả lời khi hết thời gian. Đặt 0 để bot không bao giờ im vì bạn nhắn tay.",
   "cb.nhuong_tay_sai": "Số phút nhường phải là số nguyên từ 0 đến 240.",
   "cb.s_gio_truc": "Giờ trực",
   "cb.gio_tu": "Từ",

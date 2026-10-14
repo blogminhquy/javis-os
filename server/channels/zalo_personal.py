@@ -297,14 +297,24 @@ class Transport:
         self._task = None
         self._khoa = {}         # thread -> Lock: một cuộc chat một lượt, khỏi trả lời chồng nhau
 
+    def _nhuong_phut(self):
+        """The bot's saved `nhuong_tay_phut` as an int, or None when the owner never set it (old records, blank)."""
+        v = ((self.cfg_fn() if self.cfg_fn else {}) or {}).get("nhuong_tay_phut")
+        if v is None or str(v).strip() == "":
+            return None
+        return max(0, int(v))
+
     def tay_im(self) -> int:
         """Giây bot nhường sau khi chủ nhắn tay (0.148.0): cài đặt `nhuong_tay_phut` của bot, 0 = không nhường. Không
         khai thì mặc định của kênh (`zalo_personal_channel.TAY_IM`, 10 phút)."""
         import zalo_personal_channel as zc
-        v = ((self.cfg_fn() if self.cfg_fn else {}) or {}).get("nhuong_tay_phut")
-        if v is None or v == "":
-            return zc.TAY_IM
-        return max(0, int(v)) * 60
+        n = self._nhuong_phut()
+        return zc.TAY_IM if n is None else n * 60
+
+    def yield_explicit(self) -> bool:
+        """True when the owner saved a yield time on this bot. Only then do groups get the 0.148.0 logic (tags answered
+        during the window, held messages released afterwards); otherwise groups stay silent as before."""
+        return self._nhuong_phut() is not None
 
     # ---- vòng đời ------------------------------------------------------------------
     def start(self):
@@ -399,8 +409,12 @@ class Transport:
             if chi_file:
                 return text, [], False
             return text + "\n[Khách có gửi kèm file; bot này không có quyền lưu file nên không mở được.]", [], True
+        # A group message that tags the account or replies to it is answered during the owner's yield when the
+        # bot's yield time was set explicitly (0.148.0, see `xu_ly`), so its file must be downloaded too.
+        goi_trong_nhuong = (meta.get("chat_type") == "group" and (meta.get("mentioned") or meta.get("reply_to_bot"))
+                            and zc.yield_explicit(self.conn_id))
         if (zc._BOTS.get(self.conn_id) is not self or not zc.ket_noi_theo_id(self.conn_id)
-                or zc.chu_vua_nhan_tay(self.conn_id, thread)
+                or (zc.chu_vua_nhan_tay(self.conn_id, thread) and not goi_trong_nhuong)
                 or conversations.che_do("zalo_personal", self.conn_id, thread) == "human"):
             return text, [], False
         r = self.precheck_fn(text, meta)
@@ -509,15 +523,22 @@ class Transport:
             return
         if nhom:
             await self._bao_nhom(thread, ev)
-        # Lượt "chủ chưa trả lời" (0.136.0, `zc.xa_cho_chu`) cũ là có chủ ý: nó đã chờ chủ đủ `CHO_CHU_TRA_LOI` giây.
+        # Lượt "chủ chưa trả lời" (0.136.0, `zc.xa_cho_chu`) cũ là có chủ ý. Since 0.148.0 it is released once the
+        # bot's yield time (`zc.tay_im_cua`, default `CHO_CHU_TRA_LOI`) has passed since the owner's LAST hand-typed
+        # message; in groups this happens only when the bot's yield time was saved explicitly (`zc.yield_explicit`).
         sau_chu_im = bool((ev.get("metadata") or {}).get("sau_chu_im"))
         if time.time() - float(ev.get("created_at") or 0) > zc.TUOI_TOI_DA and not sau_chu_im:
             return
-        # Chủ vừa nhắn tay thì bot nhường (`nhuong_tay_phut` của bot). Riêng NHÓM, tin TAG thẳng nick hoặc trả lời
-        # tin của nick vẫn được trả lời ngay (0.148.0, chủ nick MTM chốt 14/10/2026): người ta gọi đích danh thì
-        # im 3 phút là bỏ rơi họ. Xét sau khi biết tin có gọi hay không, ở nhánh nhóm bên dưới.
+        # With a 0-minute yield the bot does not go quiet, but a private message the owner has already answered by
+        # hand is not answered again under the owner's name (held turns are filtered the same way in `xa_cho_chu`).
+        if not nhom and zc.owner_typed_after(self.conn_id, thread, float(ev.get("created_at") or 0)):
+            return
+        # Chủ vừa nhắn tay thì bot nhường (`nhuong_tay_phut` của bot). Riêng NHÓM của bot ĐÃ ĐẶT số phút nhường, tin
+        # TAG thẳng nick hoặc trả lời tin của nick vẫn được trả lời ngay (0.148.0, chủ nick MTM chốt 14/10/2026):
+        # người ta gọi đích danh thì im 3 phút là bỏ rơi họ. Xét sau khi biết tin có gọi hay không, ở nhánh nhóm bên
+        # dưới. A bot without the setting keeps the old group rule: silent for the whole window.
         chu_nhuong = zc.chu_vua_nhan_tay(self.conn_id, thread)
-        if chu_nhuong and not nhom:
+        if chu_nhuong and (not nhom or not zc.yield_explicit(self.conn_id)):
             return
         meta = {
             "chat_id": thread, "chat_type": "group" if nhom else "private",

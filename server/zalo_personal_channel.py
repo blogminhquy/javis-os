@@ -485,11 +485,10 @@ def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
                 trung += 1
                 continue
             _TAY[(conn["id"], ev["external_chat_id"])] = float(ev.get("created_at") or time.time())
-            # Chủ đã vào cuộc: mấy tin khách đang gom chờ là việc của chủ, không phải của bot. Trừ khi bot được đặt
-            # KHÔNG nhường (0.148.0): chủ đã chọn để bot trả lời cả lúc mình đang nhắn.
-            if tay_im_cua(conn["id"]) > 0:
-                _GOM.pop((conn["id"], ev["external_chat_id"]), None)
-                bo_cho_chu(conn["id"], ev["external_chat_id"])
+            # Chủ đã vào cuộc: mấy tin khách đang gom chờ là việc của chủ, không phải của bot. This holds even when
+            # the bot is set to yield 0 minutes: 0 means "do not go quiet", not "repeat what I just answered".
+            _GOM.pop((conn["id"], ev["external_chat_id"]), None)
+            bo_cho_chu(conn["id"], ev["external_chat_id"])
         elif _la_tieng_vong(conn["id"], ev["external_chat_id"], ev["text"], TIENG_VONG_TOI_THIEU):
             # Ví dụ trong tài liệu của MCP không có cờ "tin của chính mình", nên câu bot vừa gửi
             # có thể quay về như tin của một KHÁCH. Để lọt thì trong nhóm bot sẽ tự trả lời chính
@@ -912,11 +911,35 @@ def tay_im_cua(conn_id: str) -> int:
     return TAY_IM
 
 
+def yield_explicit(conn_id: str) -> bool:
+    """True when the bot on duty for this account has an explicitly saved `nhuong_tay_phut` (0.148.0).
+
+    Only then do groups get the newer yield logic (a direct tag is answered at once, other messages are held and
+    released per person when the window ends). A bot that never set it keeps the pre-0.148.0 group behaviour: silent
+    for the whole window, nothing held."""
+    fn = getattr(_BOTS.get(str(conn_id)), "yield_explicit", None)
+    if callable(fn):
+        try:
+            return bool(fn())
+        except Exception:      # noqa: BLE001 - a broken setting falls back to the old, quieter behaviour
+            pass
+    return False
+
+
 def chu_vua_nhan_tay(conn_id: str, thread: str, now: Optional[float] = None) -> bool:
     """Chủ vừa tự tay nhắn cuộc chat này (trong `tay_im_cua` giây) - bot nhường. Bot đặt nhường 0 phút thì không bao giờ."""
     t = _TAY.get((str(conn_id), str(thread)))
+    if not t:
+        return False        # cheap path first: most chats never had a hand-typed message, skip reading the bot setting
     im = tay_im_cua(conn_id)
-    return bool(t) and im > 0 and ((time.time() if now is None else now) - t) < im
+    return im > 0 and ((time.time() if now is None else now) - t) < im
+
+
+def owner_typed_after(conn_id: str, thread: str, ts: float) -> bool:
+    """True when the owner typed into this chat by hand after a customer message sent at `ts`. With a 0-minute yield
+    the bot does not go quiet, but a customer message the owner already answered is still not answered again."""
+    t = _TAY.get((str(conn_id), str(thread)))
+    return bool(t) and float(t) > float(ts or 0)
 
 
 def _giao_cho_bot(conn: dict, ev: dict) -> None:
@@ -924,9 +947,13 @@ def _giao_cho_bot(conn: dict, ev: dict) -> None:
     tb = _BOTS.get(cid)
     if not tb or ev.get("sender_type") != "customer":
         return
-    if CHO_CHU_TRA_LOI > 0 and chu_vua_nhan_tay(cid, str(ev.get("external_chat_id") or "")):
-        if ev.get("chat_type") == "group":
-            # Nhóm (0.148.0): tin TAG thẳng nick hoặc trả lời tin của nick thì trả lời ngay, không chờ chủ.
+    nhom = ev.get("chat_type") == "group"
+    if (CHO_CHU_TRA_LOI > 0 and (not nhom or yield_explicit(cid))
+            and chu_vua_nhan_tay(cid, str(ev.get("external_chat_id") or ""))):
+        if nhom:
+            # Nhóm (0.148.0, only when the bot's yield minutes were set explicitly): tin TAG thẳng nick hoặc trả lời
+            # tin của nick thì trả lời ngay, không chờ chủ. A bot without the setting falls through to `_chay`, and
+            # `Transport.xu_ly` stays silent for the whole window as before 0.148.0.
             tag, rep = nhan_dien_goi(cid, ev, ((ket_noi_theo_id(cid) or {}).get("label") or "",))
             if tag or rep:
                 _chay(tb, ev)
@@ -1076,10 +1103,12 @@ def xa_hang_cho(conn_id: str, luc: Optional[float] = None) -> int:
 # `xa_hang_cho`: chỉ lượt đọc mới xác nhận được là chủ chưa nhắn gì.
 #
 # 0.148.0 (chủ nick chốt 14/10/2026: "có nhắn tay thì 3 phút sau tin nhắn tay đó chủ động nhắn tiếp"): mốc chờ là
-# TIN NHẮN TAY cuối của chủ cộng `tay_im_cua` (số phút nhường của bot), không phải tin khách đầu tiên; và NHÓM cũng
-# áp: tin tag thẳng nick trả lời ngay, tin khác giữ tới hết quãng nhường rồi mỗi người một lượt, qua đúng luật nhóm
-# của bot (bộ phán xử, "trả lời khi"). Hàng chờ chỉ nằm trong RAM: Javis khởi động lại thì mất, tệ nhất là một tin
-# không được trả lời thay, không bao giờ là trả lời hai lần.
+# TIN NHẮN TAY cuối của chủ cộng `tay_im_cua` (số phút nhường của bot), không phải tin khách đầu tiên. Groups get
+# this only when the bot's yield minutes were saved explicitly (`yield_explicit`): a direct tag is answered at once,
+# other messages are held until the window ends and then answered one turn per person, through the bot's group
+# rules (judge, "reply when"). Without the setting groups stay silent for the whole window, as before 0.148.0.
+# Hàng chờ chỉ nằm trong RAM: Javis khởi động lại thì mất, tệ nhất là một tin không được trả lời thay, không bao giờ
+# là trả lời hai lần.
 CHO_CHU_TRA_LOI = 600   # giây chờ chủ trả lời tin khách tới lúc chủ đang nhắn tay; 0 = tắt (bỏ tin như trước 0.136.0)
 _CHO_CHU: Dict[tuple, dict] = {}    # (conn_id, thread) -> {"evs": [...], "dau": giờ tin khách đầu tiên chưa ai trả lời}
 
@@ -1116,13 +1145,16 @@ def _ten_kem(e: dict) -> str:
     return {"audio": "một tin thoại", "video": "một video", "sticker": "một sticker"}.get(loai, "một tin không phải chữ")
 
 
-def gop_cho_chu(evs: List[dict], cho: int = 0) -> dict:
+def gop_cho_chu(evs: List[dict], cho: int = 0, tay: float = 0) -> dict:
     """Các tin khách đã chờ chủ trả lời -> một lượt cho `Transport.xu_ly` (dựa trên `gop_tin`), thêm một dòng ghi chú:
     khách nhắn lúc nào, đã chờ bao lâu, gửi kèm gì. `metadata.sau_chu_im` cho `xu_ly` biết lượt này cũ là có chủ ý.
 
     File đi theo lượt như mọi lượt gộp (`metadata.attachments`): `xu_ly` tải về khi bot có quyền Được ghi và tự ghi
     kết quả (nội dung file, hay lý do không mở được) vào lượt, nên ghi chú ở đây chỉ kể tên, không đoán bot mở được
-    hay không. Giờ theo múi giờ trong Cài đặt (`localefmt.tz`), không theo đồng hồ máy chủ (VPS thường chạy UTC)."""
+    hay không. Giờ theo múi giờ trong Cài đặt (`localefmt.tz`), không theo đồng hồ máy chủ (VPS thường chạy UTC).
+
+    `cho` is the configured wait in seconds and `tay` the time of the owner's last hand-typed message: since 0.148.0
+    the clock runs from that message, so the note says so instead of "has not answered after N minutes"."""
     ev = gop_tin(evs)
     kem = [_ten_kem(e) for e in evs
            if e.get("message_type") not in ("text", "image")
@@ -1131,8 +1163,12 @@ def gop_cho_chu(evs: List[dict], cho: int = 0) -> dict:
     phut = max(1, round((cho or CHO_CHU_TRA_LOI) / 60))
     from datetime import datetime
     gio = datetime.fromtimestamp(dau, localefmt.tz()).strftime("%H:%M")
-    ghi = (f"[Ghi chú của Javis, không phải lời khách: khách nhắn lúc {gio}, "
-           f"chủ nick chưa trả lời sau {phut} phút nên tới lượt bạn"
+    if tay:
+        gio_tay = datetime.fromtimestamp(float(tay), localefmt.tz()).strftime("%H:%M")
+        cho_chu = f"chủ nick nhắn tay lần cuối lúc {gio_tay} rồi {phut} phút không nhắn thêm gì nên tới lượt bạn"
+    else:
+        cho_chu = f"chủ nick chưa trả lời sau {phut} phút nên tới lượt bạn"
+    ghi = (f"[Ghi chú của Javis, không phải lời khách: khách nhắn lúc {gio}, " + cho_chu
            + (f"; khách gửi kèm {', '.join(kem)}" if kem else "") + ".]")
     md = dict(ev.get("metadata") or {})
     md["sau_chu_im"] = True
@@ -1148,11 +1184,14 @@ def xa_cho_chu(conn_id: str, luc: Optional[float] = None) -> int:
     Chat riêng: một lượt gộp. Nhóm: mỗi người một lượt gộp, đi qua đúng luật nhóm của bot. Trả số lượt đã giao."""
     cid = str(conn_id)
     luc = time.time() if luc is None else luc
+    khoas = [k for k in _CHO_CHU if k[0] == cid]
+    if not khoas:
+        return 0        # runs after every read cycle: nothing held means no need to read the bot setting
     tb = _BOTS.get(cid)
     # Chờ chủ đúng bằng quãng bot nhường (0.148.0: chủ đặt nhường 5 phút thì chờ 5 phút); không khai thì `CHO_CHU_TRA_LOI`.
     cho = tay_im_cua(cid) or CHO_CHU_TRA_LOI
     n = 0
-    for khoa in [k for k in _CHO_CHU if k[0] == cid]:
+    for khoa in khoas:
         o = _CHO_CHU.get(khoa) or {}
         if not tb or CHO_CHU_TRA_LOI <= 0:
             _CHO_CHU.pop(khoa, None)
@@ -1173,10 +1212,10 @@ def xa_cho_chu(conn_id: str, luc: Optional[float] = None) -> int:
             # Người nhắn sau cùng đứng sau trong dict (Python giữ thứ tự chèn theo lần đầu): sắp lại theo tin cuối.
             nhom = sorted(theo_nguoi.values(), key=lambda ds: float(ds[-1].get("created_at") or 0))[-MAX_NGUOI_NHOM:]
             for ds in nhom:
-                _chay(tb, gop_cho_chu(ds, cho))
+                _chay(tb, gop_cho_chu(ds, cho, tay))
                 n += 1
         else:
-            _chay(tb, gop_cho_chu(evs, cho))
+            _chay(tb, gop_cho_chu(evs, cho, tay))
             n += 1
     return n
 

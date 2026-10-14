@@ -21543,7 +21543,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         "reply_policy": reply_policy,
         # Giờ trực (0.130.0): JSON {"tu","den"} HH:MM theo múi giờ cài đặt; rỗng = cả ngày.
         "gio_truc": gio_truc,
-        # Nhường khi chủ nhắn tay (0.148.0): số phút, 0 = không nhường; rỗng hay lạ = mặc định 10.
+        # Owner yield (0.148.0): minutes, 0 = never yield; blank or invalid = not set (channel default: 10 minutes,
+        # groups stay silent for the whole window as before 0.148.0).
         "nhuong_tay_phut": nhuong_tay_phut,
     })
     if err:

@@ -898,11 +898,12 @@
             '</div>' +
             '<div class="cb-hint">' + esc(window.t("cb.hint_gio_truc")) + '</div>' +
             // Owner yield (0.148.0, personal Zalo only): minutes the bot stays out of a chat after the owner types into it
-            // by hand; 0 = never. Old bots without the field show the default 10.
+            // by hand; 0 = never. Left blank = not set: the channel default (10 minutes, groups silent as before), shown
+            // as a placeholder so saving the form does not turn an unset bot into an explicit 10.
             '<div class="cb-gio-truc">' +
               '<label>' + esc(window.t("cb.nhuong_tay")) +
-                ' <input type="number" id="cbNhuongTay" min="0" max="240" step="1" style="width:5em" value="' +
-                esc(String(b && b.nhuong_tay_phut != null ? b.nhuong_tay_phut : 10)) + '"></label>' +
+                ' <input type="number" id="cbNhuongTay" min="0" max="240" step="1" style="width:5em" placeholder="10" value="' +
+                esc(b && b.nhuong_tay_phut != null ? String(b.nhuong_tay_phut) : "") + '"></label>' +
             '</div>' +
             '<div class="cb-hint">' + esc(window.t("cb.hint_nhuong_tay")) + '</div>' +
           '</div>' +
@@ -1245,7 +1246,7 @@
                     reply_when: co ? (the === "auto" ? "auto" : (giaTri("cbRw") || "mention")) : "mention",
                     account_ids: ids.join(","),
                     gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "",
-                    nhuong_tay_phut: nhuong === "" ? "10" : nhuong };
+                    nhuong_tay_phut: nhuong };
       try {
         if (sua) {
           await api("/chatbots/" + encodeURIComponent(b.id) + "/update", { method: "POST", body: fd(chung) });

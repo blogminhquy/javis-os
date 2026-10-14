@@ -354,7 +354,10 @@ def _hhmm(v: Any) -> Optional[str]:
 # Nhường khi chủ nhắn tay (0.148.0, chỉ Zalo cá nhân): chủ vừa tự nhắn vào một cuộc chat bằng nick của bot thì bot im
 # chừng này phút ở cuộc chat đó. 0 = không bao giờ nhường. Chủ nick MTM yêu cầu 14/10/2026 ("tôi không muốn chặn tin
 # nhắn trong 10 phút"): một tin nick gửi lúc 22:26 làm bot im cả nhóm 10 phút, kể cả khi được tag thẳng.
-NHUONG_TAY_MAC_DINH = 10
+# The stored value is None (or the key is missing, on records older than 0.148.0) when the owner never set it: the
+# channel then keeps its pre-0.148.0 behaviour (10 minutes, groups silent for the whole window). Only an explicitly
+# saved number turns on the newer group logic (see `zalo_personal_channel.yield_explicit`), so "unset" and "set to 10"
+# are different states on purpose.
 NHUONG_TAY_TOI_DA = 240
 
 
@@ -692,8 +695,8 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "muc_quyen": _clean_muc(data.get("muc_quyen")) or MUC_QUYEN_DEFAULT,
             "ngon_ngu": _clean_ngon_ngu(data.get("ngon_ngu")),
             "gio_truc": gio_truc,
-            "nhuong_tay_phut": (lambda n: NHUONG_TAY_MAC_DINH if n is None else n)(
-                clean_nhuong_tay(data.get("nhuong_tay_phut"))),
+            # None = not set by the owner (channel default, old group behaviour); see `clean_nhuong_tay`.
+            "nhuong_tay_phut": clean_nhuong_tay(data.get("nhuong_tay_phut")),
             "handoff_to": str(data.get("handoff_to") or "").strip(),
             "created_at": _now(),
             "updated_at": _now(),
@@ -812,10 +815,14 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                 elif k == "gio_truc":
                     b["gio_truc"] = gio_moi      # đã kiểm ở đầu hàm
                 elif k == "nhuong_tay_phut":
-                    # Giá trị lạ thì GIỮ giá trị cũ, như muc_quyen: rơi về mặc định là bật lại cái nhường chủ đã tắt.
-                    n = clean_nhuong_tay(v)
-                    if n is not None:
-                        b["nhuong_tay_phut"] = n
+                    # A blank value clears the setting (back to the channel default). Giá trị lạ thì GIỮ giá trị cũ, như
+                    # muc_quyen: rơi về mặc định là bật lại cái nhường chủ đã tắt.
+                    if str(v if v is not None else "").strip() == "":
+                        b["nhuong_tay_phut"] = None
+                    else:
+                        n = clean_nhuong_tay(v)
+                        if n is not None:
+                            b["nhuong_tay_phut"] = n
 
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()
