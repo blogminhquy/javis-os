@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.144.0] - 2026-10-14
+### Thêm mới
+- **Ngoại lệ theo cuộc chat cho bot** (đang viết).
+
 ## [0.141.0] - 2026-10-14
 ### Cải thiện
 - **Bot Zalo xem được ảnh trong tin được quote.** Quote (trả lời) một ảnh rồi tag bot "xem ảnh này" là bot nhìn đúng ảnh đó. Trước đây bot chỉ nhận chữ và nói không thấy ảnh, phải gửi lại ảnh rồi tag trong 3 phút.
