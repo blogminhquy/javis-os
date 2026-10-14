@@ -63,6 +63,18 @@ class ToolStreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(calls)
         self.assertEqual(events[-1]['type'], 'error')
 
+    async def test_truncated_stream_is_retryable(self):
+        # A cut stream before anything went out is temporary: the retry wrapper may run it again.
+        events, calls, _ = await self.run_stream([[done(CALL)]])
+        self.assertTrue(events[-1].get('tam_thoi'))
+
+    async def test_streamed_reasoning_without_encrypted_content_is_not_replayed(self):
+        reasoning = {"type": "reasoning", "id": "rs1", "summary": []}
+        events, calls, client = await self.run_stream([
+            [done(reasoning), done(CALL), completed([])], [completed([MESSAGE])]])
+        self.assertEqual(len(calls), 1)
+        self.assertFalse(any(i.get('type') == 'reasoning' for i in client.inputs[1]))
+
     async def test_failed_stream_cannot_execute_tool(self):
         events, calls, _ = await self.run_stream([[done(CALL), {"type": "response.failed", "error": {"message": "failed"}}]])
         self.assertFalse(calls)

@@ -2130,10 +2130,20 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                 yield ev_loi_exc(_c("ChatGPT lỗi", "ChatGPT error"), e)
                 return
             if not completed:
-                yield {"type": "error", "content": _c("ChatGPT: luồng phản hồi chưa hoàn tất.",
-                                                      "ChatGPT: response stream did not complete.")}
+                # A cut stream is the textbook temporary failure. `tam_thoi` lets
+                # thu_lai_khi_tam_thoi run the turn again, which it only does while nothing
+                # (no text, no tool call) has gone out yet, so no tool can run twice.
+                yield {"type": "error", "tam_thoi": True,
+                       "content": _c("ChatGPT: luồng phản hồi chưa hoàn tất.",
+                                     "ChatGPT: response stream did not complete.")}
                 return
-            output = output or list(streamed_items.values())
+            if not output:
+                # Fallback to the items streamed one by one. A streamed `reasoning` item carries
+                # no encrypted content (the payload does not ask for it and store is False), so
+                # sending it back as input can be rejected by the API: keep only the ones that
+                # can be replayed.
+                output = [it for it in streamed_items.values()
+                          if it.get("type") != "reasoning" or it.get("encrypted_content")]
             # A repeated SSE item must not execute a tool twice.
             unique_output, seen_calls = [], set()
             for item in output:
