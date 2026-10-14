@@ -64,8 +64,9 @@ Nút **Hướng dẫn trên GitHub** trong thẻ Zalo luôn mở trang tài li�
 | `zalo_view_media` | Tải/mở ảnh, âm thanh hoặc video trên máy chủ (bộ não không thấy ảnh, xem `zalo_read_images` bên dưới) | Đọc |
 | `zalo_mark_read` | Đánh dấu đã xử lý đến một cursor | Ghi |
 | `zalo_send_message` | Gửi tin cho cá nhân hoặc nhóm | Nguy hiểm |
+| `zalo_send_file` | Gửi file (Excel, PDF, Word...) kèm lời nhắn, chỉ file nằm trong hộp gửi của phiên (xem "Gửi ảnh và file") | Nguy hiểm |
 
-Danh sách trên theo mã nguồn `javis-zalo` 1.1.0. Tên tham số lấy từ mã nguồn: kiểu cuộc chat của
+Danh sách trên theo mã nguồn `javis-zalo` 1.4.0. Tên tham số lấy từ mã nguồn: kiểu cuộc chat của
 `zalo_send_message` là `threadType` (0 = chat riêng, 1 = nhóm), và `zalo_get_messages` đọc bằng
 `since` chứ không có `cursor`. Lịch sử chỉ có từ lúc MCP kết nối, cộng phần Zalo gửi lại lúc kết
 nối (khoảng hai tuần gần nhất); tin cũ hơn thì không API nào lấy được.
@@ -161,6 +162,30 @@ Ba điều nên biết:
   khoản là gửi dưới danh tính người khác, nên đây là chỗ không được đoán.
 
 Cần Node.js 20+ trên máy chạy Javis, giống như phần kết nối Zalo.
+
+### Vì sao file đi đường khác ảnh (từ 0.126.0)
+
+Ảnh tải lên Zalo là có link ngay. File (Excel, PDF, Word, zip, video, cả ảnh `.bmp`) thì khác:
+Zalo nhận xong mới báo "đã tải lên" qua **kết nối thời gian thực** của tài khoản. Trước 0.126.0
+Javis gửi file bằng một lệnh chạy một lần, không mở kết nối đó, nên lệnh chờ mãi rồi bị cắt ở
+120 giây, file không tới (14/10/2026 gửi bảng Excel 11 KB cho nhân sự treo hai lần, phải đổi
+sang ảnh). Mở thêm kết nối riêng cũng không được: Zalo chỉ giữ một kết nối Web mỗi tài khoản và
+sẽ đá kết nối đang trực Hộp thư.
+
+Từ 0.126.0 file đi qua tool `zalo_send_file` của chính tiến trình MCP đang giữ kết nối:
+
+- Javis chép file vào hộp gửi của phiên Zalo (`.zalo-agent-cli/outbox/` trong thư mục phiên), gọi
+  tool, xong thì xoá bản chép. Tool chỉ nhận file trong hộp gửi đó, nên model gọi thẳng tool cũng
+  không gửi được file nào khác trên máy chủ.
+- **Zalo không xác nhận trong 60 giây thì báo lỗi rõ và KHÔNG gửi gì**, kể cả khi xác nhận tới
+  muộn sau đó. Gửi lại là an toàn. Kết nối thời gian thực đang rớt thì báo ngay, không chờ.
+- Ảnh (jpg, png, webp, gif) vẫn đi đường cũ.
+- Kết nối Zalo còn chạy bản `javis-zalo` cũ (chưa có tool này) thì Javis báo cập nhật Javis rồi
+  tắt-bật lại kết nối Zalo, không phải quét QR lại.
+
+Lệnh dòng lệnh `javis-zalo msg send-file` gửi file khi không có kết nối thời gian thực thì báo lỗi
+ngay. Thêm `--listen` để nó tự mở kết nối cho lượt gửi đó, nhưng chỉ dùng trên máy KHÔNG chạy MCP
+Zalo, vì kết nối mới sẽ đá MCP ra.
 
 ## Tag người, ghi chú, nhắc hẹn và poll
 

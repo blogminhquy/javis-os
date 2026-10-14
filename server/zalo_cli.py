@@ -15,6 +15,11 @@ Bẫy cần biết (đều đã dính hoặc suýt dính):
     Chỉ khi không tìm thấy mới rơi về cmd, và lúc đó TỪ CHỐI tham số chứa ký tự nguy hiểm thay vì đoán cách thoát.
   - Tham số bắt đầu bằng "-" ("- Họp lúc 9h") bị Commander coi là cờ. Dùng `--` chặn trước các tham số vị trí.
   - CLI KHÔNG thoát mã khác 0 khi Zalo từ chối (xem `interpret`).
+  - GỬI FILE (xlsx, pdf, docx, zip, mp4...) KHÔNG đi đường CLI. Zalo chỉ báo "đã tải lên xong" cho file không phải ảnh qua
+    kết nối thời gian thực (sự kiện `file_done`), mà lệnh CLI chạy một lần không mở kết nối đó, nên trước javis-zalo 1.4.0 nó
+    chờ mãi tới khi bị giết ở 120 giây (14/10/2026, gửi file Excel cho nhân sự treo hai lần). Mở kết nối riêng trong CLI cũng
+    không được: Zalo giữ một kết nối Web mỗi tài khoản, và MCP đang trực Hộp thư bị đá thì tự thoát. Nên file đi qua tool MCP
+    `zalo_send_file` của chính tiến trình MCP đang giữ kết nối, xem `send_files`. Ảnh vẫn đi CLI như cũ.
   - Tốc độ: mỗi lần `npx -y <gói>` mất khoảng 3 giây chỉ để khởi động (đo trên Windows), cộng thêm việc HOME của
     phiên Zalo là thư mục riêng nên trên Linux npx còn có thể tải lại gói vào cache của HOME đó. Nên Javis cài ngầm MỘT bản ghim vào
     thư mục của mình (`install_dir`) và chạy thẳng `node index.js`; chưa cài xong thì vẫn chạy bằng npx như cũ.
@@ -28,13 +33,14 @@ import re
 import shutil
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
 import winproc
 
 CONNECTOR_ID = "zalo"
-CLI_PACKAGE = "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.3.0"  # ghim đúng bản mà connector Zalo đang chạy
+CLI_PACKAGE = "https://codeload.github.com/blogminhquy/javis-zalo/tar.gz/refs/tags/v1.4.0"  # ghim đúng bản mà connector Zalo đang chạy
 CLI_NAME = "javis-zalo"                   # tên gói trong package.json của bản ghim: thư mục trong node_modules
 DEFAULT_TIMEOUT = 120                     # tải file lên Zalo có thể lâu, nhưng không lâu vô hạn
 TIMEOUT_MARK = "giây chưa xong"          # đuôi câu báo hết giờ; `is_timeout` nhận ra câu đó
@@ -382,3 +388,74 @@ async def run_cli(conn: dict, command: List[str], positionals: Optional[List[str
         return False, None, why
     rc, out, err = await run(argv, home, timeout)
     return interpret(rc, out, err)
+
+
+# ============================================================
+# Gửi FILE qua MCP (javis-zalo >= 1.4.0), xem đầu file
+# ============================================================
+SEND_FILE_TOOL = "zalo_send_file"
+OUTBOX_PARTS = (".zalo-agent-cli", "outbox")   # trùng OUTBOX_DIR của javis-zalo: tool chỉ nhận file nằm trong đây
+# Đuôi zca-js tải lên như ảnh/GIF: link về ngay trong phản hồi HTTP, không cần kết nối thời gian thực.
+_NO_LIVE_CONFIRM = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+
+
+def needs_live_confirm(path) -> bool:
+    """File này phải chờ Zalo xác nhận qua kết nối thời gian thực (mọi thứ trừ jpg/png/webp/gif)?"""
+    return Path(str(path)).suffix.lower() not in _NO_LIVE_CONFIRM
+
+
+def outbox_dir(home: str) -> Path:
+    """Thư mục hộp gửi của phiên Zalo: `zalo_send_file` chỉ gửi file nằm trong đây (chặn model gửi file tuỳ ý trên máy chủ)."""
+    return Path(home).joinpath(*OUTBOX_PARTS)
+
+
+def _old_mcp(why: str) -> bool:
+    w = why.lower()
+    return SEND_FILE_TOOL in w and ("not found" in w or "unknown" in w)
+
+
+async def send_files(conn_id: str, home: str, thread_id: str, files: List[Path], thread_type: int = 0,
+                     caption: str = "") -> Tuple[bool, Any, str]:
+    """Gửi file (không phải ảnh) bằng tool MCP `zalo_send_file` của kết nối `conn_id`. Trả `(ok, dữ liệu, lỗi)` như `run_cli`.
+
+    Chép file vào một thư mục con riêng của hộp gửi rồi gọi tool, xong (được hay hỏng) thì xoá thư mục đó. MCP tự bỏ sau 60
+    giây nếu Zalo không xác nhận, và khi đó KHÔNG gửi gì, nên báo lỗi là chắc chắn chưa gửi; chỉ lỗi quá giờ của chính lời gọi
+    MCP (trần 120 giây) mới mang `TIMEOUT_MARK`."""
+    try:
+        import zalo_personal_channel
+    except Exception as e:      # noqa: BLE001
+        return False, None, f"không nạp được kênh Zalo ({type(e).__name__})"
+    conn = zalo_personal_channel.ket_noi_theo_id(conn_id)
+    if not conn:
+        return False, None, f"kết nối Zalo '{conn_id}' không còn bật"
+    box = outbox_dir(home) / uuid.uuid4().hex
+    try:
+        try:
+            box.mkdir(parents=True)
+            copied, seen = [], set()
+            for i, f in enumerate(files):
+                name = Path(f).name
+                if name.lower() in seen:            # hai file trùng tên thì Zalo hiện cả hai, đừng để cái sau đè cái trước
+                    name = f"{Path(name).stem} ({i + 1}){Path(name).suffix}"
+                seen.add(name.lower())
+                dst = box / name
+                shutil.copyfile(f, dst)
+                copied.append(str(dst))
+        except OSError as e:
+            return False, None, f"không chép được file vào hộp gửi Zalo ({e})"
+        args = {"threadId": str(thread_id), "threadType": int(thread_type), "paths": copied, "caption": caption or ""}
+        try:
+            data = await zalo_personal_channel._goi(conn, SEND_FILE_TOOL, args)
+        except TimeoutError as e:
+            return False, None, f"quá 120 {TIMEOUT_MARK} ({e})"
+        except Exception as e:      # noqa: BLE001 - lỗi nào cũng phải thành câu người đọc hiểu
+            why = re.sub(r"^\s*Error:\s*", "", str(e)).strip() or type(e).__name__
+            if _old_mcp(why):
+                return False, None, ("kết nối Zalo đang chạy bản javis-zalo cũ chưa có tool gửi file. Cập nhật Javis rồi "
+                                     "tắt-bật lại kết nối Zalo ở trang Kết nối (không phải quét QR lại).")
+            return False, None, why
+        if not isinstance(data, dict) or not data.get("success"):
+            return False, None, f"MCP Zalo trả kết quả lạ: {json.dumps(data, ensure_ascii=False)[:200]}"
+        return True, data, ""
+    finally:
+        shutil.rmtree(box, ignore_errors=True)
