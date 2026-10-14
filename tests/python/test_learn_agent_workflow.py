@@ -449,6 +449,70 @@ def test_append_history_khong_dung_phan_chu_viet(tmp_path):
     assert "- [2026-08-26] sửa bước 2" in out
 
 
+# ---- Sự cố 15/10/2026: bốn mục luật chủ viết SAU "## Lịch sử (tự học)" bị xoá im lặng ----
+# Mục lịch sử từng kéo tới tiêu đề `## ` kế tiếp và chỉ giữ dòng "- ", nên luật đánh số, `###` và đoạn
+# văn chủ thêm vào cuối file đều rơi ở lần tự học sau; chốt chặn bỏ qua đúng vùng đó nên không bắt được.
+
+_AGENT_DUOI_LICH_SU = """---
+type: agent
+name: Trợ lý Zalo
+slug: viet-email
+role: Trả lời phụ huynh trên Zalo
+---
+Bạn là trợ lý lớp học.
+21. Mốc hẹn và câu xác nhận theo mẫu đã duyệt.
+
+## Bổ sung (tự học)
+- Đọc hết các tin liền nhau rồi trả một lần.
+
+## Lịch sử (tự học)
+- [2026-10-14] Huấn luyện lại giọng nhắn Zalo.
+
+22. THÔNG BÁO SAU BUỔI HỌC: ảnh bảng điểm cả lớp gửi vào nhóm phụ huynh.
+### TIN NGOÀI VIỆC LỚP CỦA HỌC SINH
+Học sinh kể chuyện riêng thì vẫn đáp một câu ngắn; dấu hiệu tự hại thì báo thầy ngay.
+- Không bỏ lửng tin nào của học sinh.
+TIN XÁC NHẬN NGẮN: "Dạ vâng ạ" là đủ, không mở thêm câu hỏi.
+"""
+
+_DONG_CHU_SAU_LICH_SU = ("22. THÔNG BÁO SAU BUỔI HỌC", "### TIN NGOÀI VIỆC LỚP CỦA HỌC SINH",
+                         "dấu hiệu tự hại thì báo thầy ngay", "- Không bỏ lửng tin nào của học sinh.",
+                         "TIN XÁC NHẬN NGẮN")
+
+
+def test_tu_hoc_sua_agent_khong_xoa_luat_chu_viet_sau_muc_lich_su(tmp_path):
+    feature = _feature(tmp_path)
+    cfg = feature.read_config()
+    _write(tmp_path / "agents" / "viet-email.md", _AGENT_DUOI_LICH_SU)
+    for i in range(3):
+        rep = feature._promote_sync("brain", {"agents": [_agent(
+            op="update", reason=f"vòng {i}", add_rules=[f"Mẹo số {i}."])]}, cfg, CAPS, allow_write=True)
+        assert rep["agents_updated"] == ["viet-email"], rep
+    _, body = _fm(tmp_path / "agents" / "viet-email.md")
+    for dong in _DONG_CHU_SAU_LICH_SU:
+        assert dong in body, f"mất dòng chủ viết: {dong}"
+    assert "Mẹo số 2." in body and "- [2026-10-14] Huấn luyện lại" in body and "vòng 2" in body
+
+
+def test_append_history_giu_doan_chu_viet_sau_muc(tmp_path):
+    out = learn_mod.append_history(_AGENT_DUOI_LICH_SU.split("---\n", 2)[2], "lý do", "2026-10-15")
+    for dong in _DONG_CHU_SAU_LICH_SU:
+        assert dong in out, f"mất dòng chủ viết: {dong}"
+    lich_su = out.split("## Lịch sử (tự học)\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    assert lich_su == ["- [2026-10-14] Huấn luyện lại giọng nhắn Zalo.", "- [2026-10-15] lý do"], lich_su
+
+
+def test_chot_chan_bat_duoc_kieu_xoa_cu(tmp_path):
+    """Bản ghi kiểu cũ (vùng lịch sử nuốt tới cuối file, chỉ giữ dòng "- ") phải bị chốt chặn từ chối."""
+    import agent_rules
+    cu = _AGENT_DUOI_LICH_SU.split("---\n", 2)[2]
+    xoa_kieu_cu = cu.split("## Lịch sử (tự học)")[0] + "## Lịch sử (tự học)\n- [2026-10-14] Huấn luyện lại giọng nhắn Zalo.\n" \
+        "- Không bỏ lửng tin nào của học sinh.\n- [2026-10-15] lý do"
+    mat = agent_rules.missing_owner_lines(cu, xoa_kieu_cu, learn_mod._AGENT_MANAGED)
+    assert any("THÔNG BÁO SAU BUỔI HỌC" in m for m in mat) and any("TIN XÁC NHẬN NGẮN" in m for m in mat), mat
+    assert any("Không bỏ lửng" in m for m in mat), "gạch đầu dòng của chủ dưới ### cũng là của chủ"
+
+
 def test_append_history_chong_trung_va_giu_10_dong(tmp_path):
     body = ""
     for i in range(14):

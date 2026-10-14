@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.155.0] - 2026-10-15
 ### Sửa lỗi
-- Đang viết: sửa bốn lỗi bot Zalo cá nhân.
+- **Bot Zalo cá nhân báo được người trực.** Trước đây ô người nhận chỉ chạy với Telegram nên khách xin gặp người (/nhanvien), bot bí hai câu hay bot lỗi đều không báo được ai. Nay bot báo qua đúng kênh của nó: một chat riêng, hoặc `nhom:<id>` để báo vào một nhóm. Trang Chatbot có lại ô này, ghi rõ từng kênh nhận gì, có nút **Gửi thử**, và thẻ bot báo đỏ khi một lần báo không tới nơi.
+- **Luật của chủ trong file Agent thắng mặc định của Javis.** Ở Zalo cá nhân, câu Javis tự chèn "chuyện riêng tư thì im" từng đè luật chủ viết (vd học sinh kể chuyện buồn thì vẫn đáp một câu). Nay luật trong file Agent được ưu tiên; bot không có luật riêng vẫn im an toàn như cũ.
+- **Tự học không còn xoá phần chủ viết sau mục "Lịch sử (tự học)".** Luật đánh số, mục con hay đoạn văn chủ thêm vào cuối file Agent từng bị xoá im lặng ở lần tự học kế tiếp. Nay chúng được giữ nguyên, và chốt chặn từ chối mọi lần ghi làm mất dòng như vậy.
+- **Bot không tra bản sao cũ và luật nội bộ như tài liệu khách:** bỏ qua thư mục `backup`, `.backup`, cùng `agents/` và `workflows/` ở gốc brain.
 
 ## [0.153.0] - 2026-10-15
 ### Cải thiện

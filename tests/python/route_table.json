@@ -4508,5 +4508,15 @@
    "POST"
   ],
   "trong": null
+ },
+ {
+  "order": 453,
+  "type": "APIRoute",
+  "path": "/chatbots/{bot_id}/handoff-test",
+  "name": "chatbots_handoff_test",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
  }
 ]

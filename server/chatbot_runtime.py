@@ -215,16 +215,27 @@ def engine_notice(text: str) -> str:
 # đây là nick chủ dùng hằng ngày nên bạn bè, người nhà, đồng nghiệp đều nhắn vào. Chủ đã chọn
 # (29/09) để bot TỰ QUYẾT có trả lời không thay vì bật công tắc từng người, nên quyết định đó phải
 # được nói cho model biết - và nó là chỉ dẫn duy nhất Javis thêm vào prompt bot, chỉ ở kênh này.
+#
+# 0.155.0: đoạn này là MẶC ĐỊNH, không phải luật đè lên chủ. Bản cũ đứng SAU file Agent và ra lệnh
+# trống ("chuyện riêng tư thì KHÔNG trả lời"), nên nó thắng luật chủ đã viết: Agent của một trung tâm
+# ghi rõ học sinh kể chuyện riêng thì vẫn đáp một câu kéo về việc lớp, vậy mà "Thầy ơi con buồn quá,
+# con mới chia tay người yêu" vẫn ra agent_silent (15/10/2026). Nay nó đứng TRƯỚC file Agent và nói
+# thẳng file Agent thắng; bot không có Agent, hoặc Agent không nói gì về loại tin đó, vẫn im an toàn.
 IM_LANG = "[IM_LANG]"
 _CAU_ZALO_CA_NHAN = f"""
-## Kênh này là Zalo CÁ NHÂN của chủ
+## Kênh này là Zalo CÁ NHÂN của chủ (mặc định của Javis)
 
 Bạn đang trả lời tin nhắn ở tài khoản Zalo cá nhân của chủ, và câu bạn gửi đi mang TÊN CHỦ.
 Người nhắn tới có thể là khách, nhưng cũng có thể là bạn bè, người nhà, đồng nghiệp của chủ.
-Hãy tự quyết định có nên trả lời hay không: chỉ trả lời khi tin nhắn đúng là việc mà vai của bạn
-phụ trách. Nếu đó là chuyện riêng tư, chuyện gia đình bạn bè, một tin không cần hồi đáp, hoặc
-bạn không chắc có nên nhân danh chủ trả lời hay không, thì KHÔNG trả lời: viết đúng một dòng
-`{IM_LANG}` và không thêm chữ nào khác.
+
+Hướng dẫn vai của chủ ở phần dưới LUÔN thắng đoạn này. Khi hướng dẫn vai đã nói cách xử lý một
+loại tin (ví dụ: người nhắn kể chuyện riêng thì vẫn đáp một câu ngắn), làm đúng như hướng dẫn vai,
+kể cả khi đoạn này nói khác.
+
+Chỉ với loại tin mà hướng dẫn vai KHÔNG nói tới: tự quyết định có nên trả lời hay không, chỉ trả
+lời khi tin nhắn đúng là việc mà vai của bạn phụ trách. Nếu đó là chuyện riêng tư, chuyện gia đình
+bạn bè, một tin không cần hồi đáp, hoặc bạn không chắc có nên nhân danh chủ trả lời hay không, thì
+KHÔNG trả lời: viết đúng một dòng `{IM_LANG}` và không thêm chữ nào khác.
 """
 
 # Chế độ "Tự đánh giá" (0.64.82): một tin trong NHÓM mà không ai gọi tên bot. Cùng lý do với đoạn
@@ -279,6 +290,10 @@ def build_bot_prompt(bot: dict) -> str:
                     f"kể cả khi khách nhắn bằng tiếng khác. {_l.nudge}")
     else:
         phan.append("\nNGÔN NGỮ: trả lời bằng ĐÚNG ngôn ngữ khách đang nhắn.")
+    # Kênh của LƯỢT này, do _make_answer_fn gắn vào. Chỉ Zalo cá nhân mới có thêm đoạn này, và nó đứng
+    # TRƯỚC file Agent: mặc định của Javis đọc trước, luật của chủ đọc sau và thắng (0.155.0).
+    if (bot or {}).get("_kenh_luot") == "zalo_personal":
+        phan.append(_CAU_ZALO_CA_NHAN)
     if than.strip():
         phan.append("\n" + than.strip())
     if not meta:
@@ -300,9 +315,6 @@ def build_bot_prompt(bot: dict) -> str:
     if tu_mo:
         phan.append(_TU_MO_TAI_LIEU.format(
             chat=_TU_MO_CHAT if bot.get("nguon_tra_loi") == "tai_lieu" else ""))
-    # Kênh của LƯỢT này, do _make_answer_fn gắn vào. Chỉ Zalo cá nhân mới có thêm đoạn này.
-    if (bot or {}).get("_kenh_luot") == "zalo_personal":
-        phan.append(_CAU_ZALO_CA_NHAN)
     # The channel of THIS turn sends files (0.84.3): tell the Agent how to send an image, or it never knows it can.
     if bot_images.channel_sends_files((bot or {}).get("_kenh_luot")):
         phan.append(bot_images.PROMPT_HINT)
@@ -1123,14 +1135,14 @@ def _make_command_fn(bot_cfg: dict):
             # ở trong nhóm đó, nên để công khai được. Kèm luôn chẩn đoán: xem `_chan_doan_nhom`.
             return {"reply": _chan_doan_nhom(bot_cfg.get("id") or "", chat, meta or {})}
         if c in ("nhanvien", "nhan_vien", "human"):
-            return {"reply": _bao_nhan_vien(bot_cfg, chat, "Người hỏi chủ động xin gặp người thật.")}
+            return {"reply": _bao_nhan_vien(bot_cfg, chat, "Người hỏi chủ động xin gặp người thật.", meta)}
         # Mọi lệnh khác (kể cả /brain, /model, /status của bot chủ) im lặng: nói "không có lệnh
         # đó" là tự khai còn tồn tại một tập lệnh khác ở đâu đó.
         return {"reply": "Anh chị cứ nhắn câu hỏi bình thường giúp em ạ."}
     return _cmd
 
 
-def _bao_nhan_vien(bot_cfg: dict, chat_id: str, ly_do: str) -> str:
+def _bao_nhan_vien(bot_cfg: dict, chat_id: str, ly_do: str, meta: Optional[dict] = None) -> str:
     """Chuyển người thật. Trả về câu nói với khách; phần báo nhân viên chạy nền."""
     dich = str(bot_cfg.get("handoff_to") or "").strip()
     if not dich:
@@ -1139,28 +1151,106 @@ def _bao_nhan_vien(bot_cfg: dict, chat_id: str, ly_do: str) -> str:
         # thông tin gì đâu, họ xin gặp người), vừa đóng cửa: khách không biết còn hỏi được nữa.
         return ("Hiện em chưa nối máy sang người trực được ạ. Anh chị cứ hỏi tiếp ở đây, "
                 "em trả lời được tới đâu em hỗ trợ tới đó.")
-    asyncio.ensure_future(_gui_nhan_vien(bot_cfg, dich, chat_id, ly_do))
+    asyncio.ensure_future(_gui_nhan_vien(bot_cfg, dich, chat_id, ly_do, meta))
     return ("Cái này để em chuyển cho người phụ trách hỗ trợ anh chị ạ. "
             "Anh chị chờ một chút nhé.")
 
 
-async def _gui_nhan_vien(bot_cfg: dict, dich: str, chat_id: str, ly_do: str) -> None:
-    tb = _poller_dau(bot_cfg.get("id") or "")
-    if not tb:
-        return
+# The on-duty person (`handoff_to`) is a chat id ON THE BOT'S OWN CHANNEL, sent through that channel's
+# `gui` (0.155.0). Before, the alert always went through Telegram's `sendMessage` URL, so on personal Zalo
+# (whose transport has no such URL) every alert died inside a swallowed exception: the owner set a
+# recipient, the bot told customers "a person will help you", and nobody was ever told.
+#
+# A plain id is a private chat. "nhom:<id>" (or "group:<id>") is a group, which only personal Zalo needs:
+# its send call must say which kind of thread the id is, while Telegram tells groups apart by the id itself.
+HANDOFF_GROUP_PREFIXES = ("nhom:", "nhóm:", "group:")
+
+# bot_id -> {"ts", "loi"}: the last alert that could not be delivered, shown on the bot's card until one goes
+# through. In RAM like the other card warnings: a restart that clears it also gets the next alert's real result.
+_LOI_BAO_NGUOI: Dict[str, dict] = {}
+
+
+def handoff_target(dich: str) -> tuple:
+    """`(chat id, chat type)` written in the `handoff_to` box: "nhom:<id>"/"group:<id>" is a group, the rest a private chat."""
+    s = str(dich or "").strip()
+    low = s.lower()
+    for p in HANDOFF_GROUP_PREFIXES:
+        if low.startswith(p):
+            return s[len(p):].strip(), "group"
+    return s, "private"
+
+
+def loi_bao_nguoi(bot_id: str) -> str:
+    """Why the last alert to the on-duty person failed, "" when the last one went through (or none was sent)."""
+    return str((_LOI_BAO_NGUOI.get(bot_id) or {}).get("loi") or "")
+
+
+def _tk_gui_cua(bot_cfg: dict, account_id: str = "") -> Optional[dict]:
+    """The channel account the alert goes out from: the account of the turn when known, else the bot's first one."""
+    chon = None
+    for a, tok in chatbot_store.tokens(str(bot_cfg.get("id") or "")):
+        if not tok:
+            continue
+        if account_id and str(a.get("id") or "") == account_id:
+            chon = (a, tok)
+            break
+        if chon is None:
+            chon = (a, tok)
+    if not chon:
+        return None
+    tk = dict(chon[0])
+    tk["token"] = chon[1]
+    return tk
+
+
+def _cau_bao_nguoi(bot_cfg: dict, chat_id: str, ly_do: str, meta: Optional[dict]) -> str:
+    m = meta or {}
+    ten = str(m.get("user_name") or m.get("username") or "").strip()
+    ai = f"{ten} ({chat_id})" if ten and chat_id else (ten or str(chat_id or ""))
+    nhom = str(m.get("chat_title") or "").strip() if m.get("chat_type") == "group" else ""
+    # Tin cho CHỦ / người trực (không phải khách): theo ngôn ngữ giao diện của máy.
+    return localefmt.chu(
+        f"🔔 Bot \"{bot_cfg.get('name')}\" cần người thật.\nNgười nhắn: {ai}\n"
+        + (f"Nhóm: {nhom}\n" if nhom else "") + f"Lý do: {ly_do}",
+        f"🔔 Bot \"{bot_cfg.get('name')}\" needs a human.\nSender: {ai}\n"
+        + (f"Group: {nhom}\n" if nhom else "") + f"Reason: {ly_do}")
+
+
+async def gui_nguoi_truc(bot_cfg: dict, dich: str, text: str, account_id: str = "") -> tuple:
+    """Send `text` to the on-duty chat `dich` through the bot's own channel. `(ok, error)`; never raises."""
+    cid, loai = handoff_target(dich)
+    if not cid:
+        return False, localefmt.chu("chưa khai người nhận", "no recipient set")
+    tk = _tk_gui_cua(bot_cfg, account_id)
+    if not tk:
+        return False, localefmt.chu("bot chưa có tài khoản kênh nào để gửi", "the bot has no channel account to send from")
+    kenh = str(tk.get("channel") or "")
+    if kenh == "zalo_personal":
+        try:
+            import zalo_personal_channel as zc
+            # Remember BEFORE sending, like the transport does: the alert comes back in the read loop as the
+            # owner's own message, and taken for a hand-typed one it would make the bot yield in that chat.
+            zc.ghi_da_gui(str(tk.get("id") or ""), cid, text)
+        except Exception:      # noqa: BLE001 - worst case one duplicate line in the inbox
+            pass
     try:
-        import httpx
-        async with httpx.AsyncClient(timeout=15) as client:
-            await client.post(tb._url("sendMessage"), json={
-                "chat_id": dich,
-                # Tin cho CHỦ / người trực (không phải khách): theo ngôn ngữ giao diện của máy.
-                "text": localefmt.chu(f"🔔 Bot \"{bot_cfg.get('name')}\" cần người thật.\n"
-                                      f"Người nhắn: {chat_id}\nLý do: {ly_do}",
-                                      f"🔔 Bot \"{bot_cfg.get('name')}\" needs a human.\n"
-                                      f"Sender: {chat_id}\nReason: {ly_do}"),
-            })
-    except Exception as e:
-        print(f"[chatbot handoff] {e}", file=sys.stderr)
+        ok, loi = await channels.gui(kenh, tk, cid, text, loai)
+    except Exception as e:      # noqa: BLE001 - reported to the owner below, never to the customer
+        ok, loi = False, f"{type(e).__name__}: {e}"
+    return bool(ok), str(loi or "")
+
+
+async def _gui_nhan_vien(bot_cfg: dict, dich: str, chat_id: str, ly_do: str,
+                         meta: Optional[dict] = None) -> tuple:
+    bot_id = str(bot_cfg.get("id") or "")
+    ok, loi = await gui_nguoi_truc(bot_cfg, dich, _cau_bao_nguoi(bot_cfg, chat_id, ly_do, meta),
+                                   str((meta or {}).get("account_id") or ""))
+    if ok:
+        _LOI_BAO_NGUOI.pop(bot_id, None)
+    else:
+        _LOI_BAO_NGUOI[bot_id] = {"ts": time.time(), "loi": str(loi)[:300]}
+        print(f"[chatbot handoff {bot_id}] không báo được người trực: {loi}", file=sys.stderr)
+    return ok, loi
 
 
 # ============================================================
@@ -1270,7 +1360,7 @@ def _ghi_loi_tu_dong(bot_id: str, cfg: dict, meta: dict, text: str, loi: str) ->
         try:
             asyncio.ensure_future(_gui_nhan_vien(
                 cfg, str(cfg["handoff_to"]), str((meta or {}).get("chat_id") or ""),
-                localefmt.chu(f"Bot đang LỖI: {str(loi)[:300]}", f"The bot is FAILING: {str(loi)[:300]}")))
+                localefmt.chu(f"Bot đang LỖI: {str(loi)[:300]}", f"The bot is FAILING: {str(loi)[:300]}"), meta))
         except Exception as e:      # noqa: BLE001
             print(f"[chatbot {bot_id}] báo người trực lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
@@ -1578,7 +1668,7 @@ def _make_answer_fn(bot_id: str):
                 (localefmt.chu(f"Bot đang LỖI: {loi_ky_thuat[:300]}",
                                f"The bot is FAILING: {loi_ky_thuat[:300]}") if loi_ky_thuat else
                  localefmt.chu(f"Bí {lien_tiep} câu liên tiếp. Câu gần nhất: {str(text)[:200]}",
-                               f"Stuck on {lien_tiep} messages in a row. Latest: {str(text)[:200]}"))))
+                               f"Stuck on {lien_tiep} messages in a row. Latest: {str(text)[:200]}")), meta))
         return out
     return _answer
 

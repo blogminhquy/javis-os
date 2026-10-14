@@ -401,9 +401,16 @@ check("chỉ ngôn ngữ gấp vào Nâng cao; nhóm và người nằm ở ph�
   /class="cb-nangcao"/.test(CB) && noi("cb.nang_cao", "Nâng cao: ngôn ngữ trả lời") &&
   CB.indexOf('class="cb-nangcao"') < CB.indexOf('id="cbNgonNgu"') &&
   CB.indexOf('id="cbPk"') < CB.indexOf('class="cb-nangcao"') && !/id="cbNhomBox"/.test(CB));
-// 0.64.83: chủ dự án bỏ ô "người trực nhận chuyển tiếp" (Chat ID Telegram, vô nghĩa với bot Zalo).
-check("form KHÔNG còn ô người trực nhận chuyển tiếp và không gửi handoff_to lên server",
-  !/id="cbHandoff"/.test(CB) && !/handoff_to:\s*ho/.test(CB) && !/cb\.lb_handoff/.test(CB));
+// 0.64.83 bỏ ô "người trực nhận chuyển tiếp" vì nó chỉ là Chat ID Telegram, vô nghĩa với bot Zalo.
+// 0.155.0 đưa ô trở lại vì lý do đó đã hết: báo người trực nay đi qua đúng kênh của bot (Zalo cá nhân
+// gửi tới một chat riêng hoặc "nhom:<id>"), chữ hướng dẫn nói rõ từng kênh nhận gì, và nút Gửi thử trả
+// lỗi thật của kênh thay vì để chủ phát hiện ngày khách cần người.
+check("ô người trực có lại, giải thích theo từng kênh, có nút Gửi thử và gửi handoff_to khi lưu",
+  /id="cbHandoff"/.test(CB) && /handoff_to: \(\(box\.querySelector\("#cbHandoff"\)/.test(CB) &&
+  /\/handoff-test"/.test(CB) && tu("cb.hint_nguoi_truc", "nhom:123456789") &&
+  tu("cb.hint_nguoi_truc", "Telegram") && tu("cb.hint_nguoi_truc", "Zalo Bot"));
+check("thẻ bot báo đỏ khi lần báo người trực gần nhất không tới nơi",
+  /b\.loi_bao_nguoi/.test(CB) && /lluot \+ lnguoi \+ cbao/.test(CB) && tu("cb.loi_bao_nguoi", "KHÔNG tới nơi"));
 check("thẻ bot KHÔNG còn nhãn cảnh báo 'chưa đặt người nhận' (hết chỗ để đặt)",
   !/cb\.chua_nguoi_nhan/.test(CB));
 // 0.64.85: form một cuộn, bốn phần theo đúng thứ tự, phần "bot trả lời ai" là phần nổi bật thứ hai.

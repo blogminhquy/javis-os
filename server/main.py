@@ -21406,6 +21406,9 @@ async def chatbots_list(brain: str = ""):
         # Lượt gần nhất chạy được nhưng KHÔNG đúng mức đã đặt. Không gộp vào `loi_luot`: hai
         # chuyện sửa khác nhau, gộp lại là thẻ báo sai loại việc.
         b["canh_bao_luot"] = chatbot_log.canh_bao_gan_nhat(b["id"])
+        # The last alert to the on-duty person (`handoff_to`) that did not go through (0.155.0). Before, that
+        # failure was swallowed: the bot told the customer "someone will help you" and nobody was ever told.
+        b["loi_bao_nguoi"] = chatbot_runtime.loi_bao_nguoi(b["id"])
         # Nhóm có người gọi bot mà chủ chưa cho phép. Không đưa lên đây thì hành vi đúng ("bot
         # không tự nhận việc trong nhóm lạ") trông hệt hành vi hỏng: gọi tên bot trong nhóm và
         # không có gì xảy ra, không chỗ nào nói vì sao.
@@ -22664,6 +22667,26 @@ async def agent_jobs_assign(slug: str, request: Request, brain: str = "brain"):
         return {"ok": True, "task_id": tid, "session_id": sid, "kind": kind,
                 "board": tasks_feature.store.board_mode(root)}
     return await asyncio.to_thread(_do)
+
+
+@app.post("/chatbots/{bot_id}/handoff-test")
+async def chatbots_handoff_test(bot_id: str, handoff_to: str = Form("")):
+    """Send one test alert to the on-duty chat (the value typed in the form, else the saved one) and return the
+    channel's real answer, so a wrong id shows up when it is set rather than on the day a customer needs a person."""
+    cfg = chatbot_store.get_bot(bot_id)
+    if not cfg:
+        return JSONResponse({"ok": False, "error": chatbot_store.LOI_KHONG_CO_BOT}, status_code=404)
+    dich = str(handoff_to or cfg.get("handoff_to") or "").strip()
+    if not dich:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Chưa khai người nhận", "No recipient set")},
+                            status_code=400)
+    text = localefmt.chu(
+        f"Tin thử từ Javis: bot \"{cfg.get('name')}\" sẽ báo vào cuộc chat này khi cần người thật.",
+        f"Test from Javis: bot \"{cfg.get('name')}\" will alert this chat when it needs a human.")
+    ok, loi = await chatbot_runtime.gui_nguoi_truc(cfg, dich, text)
+    if not ok:
+        return JSONResponse({"ok": False, "error": loi}, status_code=400)
+    return {"ok": True}
 
 
 if __name__ == "__main__":

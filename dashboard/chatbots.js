@@ -242,6 +242,10 @@
     // Lượt CHẠY ĐƯỢC nhưng không đúng mức đã đặt (engine không gọi nổi công cụ, hoặc chưa đấu
     // nguồn nào). Màu vàng chứ không đỏ: bot vẫn trả lời tử tế, chỉ là chạy thiếu quyền. Để im
     // thì chủ tưởng bot đang làm việc thật - đúng kiểu hỏng lặng lẽ mà cả trang này chống.
+    // The on-duty alert did not arrive (0.155.0): red, because the bot already told that customer a person is coming.
+    var lnguoi = b.loi_bao_nguoi
+      ? '<div class="cb-err">' + ic("triangle-alert") + ' ' + esc(window.t("cb.loi_bao_nguoi")) + ' ' +
+        esc(String(b.loi_bao_nguoi).slice(0, 200)) + '</div>' : "";
     var cbao = b.canh_bao_luot
       ? '<div class="cb-quyen ghi">' + ic("triangle-alert") + '<span class="cb-quyen-t">' +
         esc(String(b.canh_bao_luot).slice(0, 300)) + '</span></div>' : "";
@@ -364,7 +368,7 @@
             esc(window.t("cb.hoi_thoai_tom", { hom_nay: b.hoi_thoai.hom_nay || 0,
                                                chua_doc: b.hoi_thoai.chua_doc || 0 })) + '</span></div>'
           : "") +
-        cho + loiTen + riengTu + mat + lluot + cbao + loi +
+        cho + loiTen + riengTu + mat + lluot + lnguoi + cbao + loi +
         // Bật/tắt và Sửa nằm ngoài, ba việc phụ (nhật ký, hội thoại, xoá) vào menu "...": thẻ có
         // năm nút ngang hàng thì không nút nào nổi bật, và Xoá đứng cạnh Sửa là chỗ bấm nhầm.
         '<div class="cb-acts">' +
@@ -899,6 +903,19 @@
             '<div class="cb-hint">' + esc(window.t("cb.hint_gio_truc")) + '</div>' +
           '</div>' +
 
+          // 6. On-duty person (0.155.0). Before, the form had no box for it at all and the alert only ever went out
+          // through Telegram, so on personal Zalo it was lost without a word. "Send test" returns the channel's real answer.
+          '<div class="cb-sec">' + secH("bell", "cb.s_nguoi_truc") +
+            '<div class="cb-row">' +
+              '<input id="cbHandoff" value="' + esc((b && b.handoff_to) || "") + '" placeholder="' +
+                esc(window.t("cb.ph_nguoi_truc")) + '">' +
+              (sua ? '<button class="s-btn-ghost" id="cbHandoffThu" type="button">' + ic("send") + ' ' +
+                esc(window.t("cb.gui_thu_nguoi_truc")) + '</button>' : '') +
+            '</div>' +
+            '<div class="cb-hint" id="cbHandoffKq"></div>' +
+            '<div class="cb-hint">' + esc(window.t("cb.hint_nguoi_truc")) + '</div>' +
+          '</div>' +
+
           // Nâng cao: chỉ ngôn ngữ trả lời. Ngôn ngữ của bot ĐỘC LẬP với ngôn ngữ của chủ: bot nói
           // chuyện với NGƯỜI NGOÀI, và chủ dùng Javis bằng tiếng Việt mà người nhắn tới nói tiếng khác
           // là chuyện bình thường, nên suy ngôn ngữ của bot từ ngôn ngữ của chủ là suy sai.
@@ -922,6 +939,18 @@
     document.body.appendChild(box);
     var dong = function () { if (box.parentNode) box.parentNode.removeChild(box); };
     box.onmousedown = function (e) { if (e.target === box) dong(); };
+
+    // Send one test alert to the value typed now (saved or not), and show the channel's own answer under the box.
+    var thuNguoi = box.querySelector("#cbHandoffThu");
+    if (thuNguoi) thuNguoi.onclick = async function () {
+      var kq = box.querySelector("#cbHandoffKq");
+      kq.textContent = window.t("cb.gui_thu_dang");
+      try {
+        await api("/chatbots/" + encodeURIComponent(b.id) + "/handoff-test", { method: "POST",
+          body: fd({ handoff_to: box.querySelector("#cbHandoff").value.trim() }) });
+        kq.textContent = window.t("cb.gui_thu_ok");
+      } catch (e) { kq.textContent = window.t("cb.gui_thu_loi") + " " + e.message; }
+    };
 
     // Sang thẳng trang Cộng sự. Đóng form trước để quay lại không bị hai lớp modal chồng nhau.
     box.querySelector("#cbNewAgent").onclick = function () {
@@ -1234,6 +1263,7 @@
                     groups: co ? ds("group").join("\n") : "",
                     reply_when: co ? (the === "auto" ? "auto" : (giaTri("cbRw") || "mention")) : "mention",
                     account_ids: ids.join(","),
+                    handoff_to: ((box.querySelector("#cbHandoff") || {}).value || "").trim(),
                     gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "" };
       try {
         if (sua) {

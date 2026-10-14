@@ -10,7 +10,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.155.0] - 2026-10-15
 ### Fixed
-- In progress: four personal Zalo bot fixes.
+- **Personal Zalo bots can alert the on-duty person.** The recipient box only ever worked on Telegram, so a customer asking for a person (/nhanvien), a bot stuck on two messages, or a failing bot alerted nobody. The alert now goes through the bot's own channel: a private chat, or `nhom:<id>` for a group. The Chatbot page has the box again, explains what each channel expects, adds a **Send test** button, and the bot card turns red when an alert does not arrive.
+- **The owner's rules in the Agent file beat Javis's default.** On personal Zalo, the line Javis adds ("private matters: stay silent") used to override what the owner wrote (e.g. a student sharing something sad still gets one reply). The Agent file now wins; a bot without such a rule still stays safely silent.
+- **Self-learning no longer deletes what the owner wrote after its history section.** Numbered rules, subsections or paragraphs added at the end of an Agent file were silently removed on the next learning round. They are now kept, and the guard refuses any write that would drop such lines.
+- **Bots no longer quote old copies or internal rules as customer documents:** `backup`, `.backup`, and `agents/` and `workflows/` at the brain root are skipped.
 
 ## [0.153.0] - 2026-10-15
 ### Improved
