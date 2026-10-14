@@ -207,6 +207,20 @@ async def chay():
           (LUOT, GUI))
 
     check("trạng thái vòng đọc báo thời gian chờ chủ", zc.trang_thai().get("cho_chu_tra_loi") == 600)
+
+    # ---- file đi theo lượt (0.133.0): bot có quyền ghi thì tải được, nên ghi chú không được nói "không mở được" ----
+    f = zc.chuan_hoa_tin(dict(CONN), {"threadId": "u9", "from": "u9", "type": "share.file", "id": "f9",
+                                      "ts": int(time.time() * 1000), "threadType": 0, "text": "Bang-diem.xlsx",
+                                      "attachment": {"url": "https://files.zdn.vn/x", "description": "Bang-diem.xlsx"}}, {})
+    t = dict(f, message_type="text", text="thầy xem giúp con", metadata={}, external_message_id="t9")
+    luot = zc.gop_cho_chu([f, t])
+    check("lượt chờ chủ mang file theo để xu_ly tải (metadata.attachments)",
+          [a.get("name") for a in (luot.get("metadata") or {}).get("attachments") or []] == ["Bang-diem.xlsx"], luot)
+    check("ghi chú kể đúng tên file lấy từ attachment", "file Bang-diem.xlsx" in luot["text"], luot["text"])
+    check("ghi chú không đoán bot mở được hay không (xu_ly tự ghi kết quả tải)",
+          "không mở được" not in luot["text"], luot["text"])
+    check("giờ trong ghi chú theo múi giờ Cài đặt, không theo đồng hồ máy chủ",
+          "localefmt.tz()" in (SERVER / "zalo_personal_channel.py").read_text(encoding="utf-8"))
     check("không dùng em dash", chr(0x2014) not in open(__file__, encoding="utf-8").read()
           and chr(0x2014) not in (SERVER / "zalo_personal_channel.py").read_text(encoding="utf-8"))
 

@@ -1039,23 +1039,30 @@ def _ten_kem(e: dict) -> str:
     if loai == "image":
         return "một ảnh"
     if loai == "file":
-        ten = str(md.get("fileName") or e.get("text") or "").strip()
+        # Tên file nằm ở `metadata.attachment` (0.133.0, `zalo_attachments.normalize`).
+        ten = str((md.get("attachment") or {}).get("name") or md.get("fileName") or e.get("text") or "").strip()
         return f"file {ten}" if ten and not ten.startswith("[") else "một file"
     return {"audio": "một tin thoại", "video": "một video", "sticker": "một sticker"}.get(loai, "một tin không phải chữ")
 
 
 def gop_cho_chu(evs: List[dict], cho: int = 0) -> dict:
     """Các tin khách đã chờ chủ trả lời -> một lượt cho `Transport.xu_ly` (dựa trên `gop_tin`), thêm một dòng ghi chú:
-    khách nhắn lúc nào, đã chờ bao lâu, gửi kèm gì. `metadata.sau_chu_im` cho `xu_ly` biết lượt này cũ là có chủ ý."""
+    khách nhắn lúc nào, đã chờ bao lâu, gửi kèm gì. `metadata.sau_chu_im` cho `xu_ly` biết lượt này cũ là có chủ ý.
+
+    File đi theo lượt như mọi lượt gộp (`metadata.attachments`): `xu_ly` tải về khi bot có quyền Được ghi và tự ghi
+    kết quả (nội dung file, hay lý do không mở được) vào lượt, nên ghi chú ở đây chỉ kể tên, không đoán bot mở được
+    hay không. Giờ theo múi giờ trong Cài đặt (`localefmt.tz`), không theo đồng hồ máy chủ (VPS thường chạy UTC)."""
     ev = gop_tin(evs)
     kem = [_ten_kem(e) for e in evs
            if e.get("message_type") not in ("text", "image")
            or (e.get("message_type") == "image" and not conversations.chu_thich_anh(e.get("text")))]
     dau = min(float(e.get("created_at") or time.time()) for e in evs)
     phut = max(1, round((cho or CHO_CHU_TRA_LOI) / 60))
-    ghi = (f"[Ghi chú của Javis, không phải lời khách: khách nhắn lúc {time.strftime('%H:%M', time.localtime(dau))}, "
+    from datetime import datetime
+    gio = datetime.fromtimestamp(dau, localefmt.tz()).strftime("%H:%M")
+    ghi = (f"[Ghi chú của Javis, không phải lời khách: khách nhắn lúc {gio}, "
            f"chủ nick chưa trả lời sau {phut} phút nên tới lượt bạn"
-           + (f"; khách gửi kèm {', '.join(kem)} (bạn không mở được nội dung file)" if kem else "") + ".]")
+           + (f"; khách gửi kèm {', '.join(kem)}" if kem else "") + ".]")
     md = dict(ev.get("metadata") or {})
     md["sau_chu_im"] = True
     return dict(ev, text=(str(ev.get("text") or "").strip() + "\n" + ghi).strip(), metadata=md)
