@@ -177,7 +177,7 @@ async def chay():
     check("không có chủ nhắn tay thì không giữ, trả lời như thường", ("zalo-1", "u5") not in zc._CHO_CHU and len(LUOT) == 1,
           (zc._CHO_CHU.keys(), LUOT))
 
-    # ---- 6. nhóm (0.147.0): tag thẳng trả lời ngay, tin khác chờ hết quãng nhường rồi mỗi người một lượt -----
+    # ---- 6. nhóm (0.148.0): tag thẳng trả lời ngay, tin khác chờ hết quãng nhường rồi mỗi người một lượt -----
     don()
     await doc(tin("g1", "Cả nhà ơi", 30, nhom=True, cua_minh=True))
     await doc(tin("g1", "Thầy ơi mai học không ạ", 3, nhom=True, **{"from": "u9"}),

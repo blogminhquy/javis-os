@@ -8,7 +8,7 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.147.0] - 2026-10-15
+## [0.148.0] - 2026-10-15
 ### Improved
 - **The 10-minute pause of the Zalo bot after you type by hand can be turned off.** The bot form has a new **Step aside after you type (minutes)** box: set 0 and the bot keeps answering in any chat you type into, groups and direct tags included. Existing bots keep 10 minutes.
 - **Other values work too** (e.g. 3): the bot steps aside for exactly that long, and in private chats waits that long before answering customer messages you have not answered.

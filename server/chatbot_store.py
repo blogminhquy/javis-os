@@ -351,7 +351,7 @@ def _hhmm(v: Any) -> Optional[str]:
     return f"{h:02d}:{mi:02d}"
 
 
-# Nhường khi chủ nhắn tay (0.147.0, chỉ Zalo cá nhân): chủ vừa tự nhắn vào một cuộc chat bằng nick của bot thì bot im
+# Nhường khi chủ nhắn tay (0.148.0, chỉ Zalo cá nhân): chủ vừa tự nhắn vào một cuộc chat bằng nick của bot thì bot im
 # chừng này phút ở cuộc chat đó. 0 = không bao giờ nhường. Chủ nick MTM yêu cầu 14/10/2026 ("tôi không muốn chặn tin
 # nhắn trong 10 phút"): một tin nick gửi lúc 22:26 làm bot im cả nhóm 10 phút, kể cả khi được tag thẳng.
 NHUONG_TAY_MAC_DINH = 10

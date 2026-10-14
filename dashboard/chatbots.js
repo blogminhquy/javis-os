@@ -897,7 +897,7 @@
                 ' <input type="time" id="cbGioDen" value="' + esc(((b && b.gio_truc) || {}).den || "") + '"></label>' +
             '</div>' +
             '<div class="cb-hint">' + esc(window.t("cb.hint_gio_truc")) + '</div>' +
-            // Owner yield (0.147.0, personal Zalo only): minutes the bot stays out of a chat after the owner types into it
+            // Owner yield (0.148.0, personal Zalo only): minutes the bot stays out of a chat after the owner types into it
             // by hand; 0 = never. Old bots without the field show the default 10.
             '<div class="cb-gio-truc">' +
               '<label>' + esc(window.t("cb.nhuong_tay")) +

@@ -298,7 +298,7 @@ class Transport:
         self._khoa = {}         # thread -> Lock: một cuộc chat một lượt, khỏi trả lời chồng nhau
 
     def tay_im(self) -> int:
-        """Giây bot nhường sau khi chủ nhắn tay (0.147.0): cài đặt `nhuong_tay_phut` của bot, 0 = không nhường. Không
+        """Giây bot nhường sau khi chủ nhắn tay (0.148.0): cài đặt `nhuong_tay_phut` của bot, 0 = không nhường. Không
         khai thì mặc định của kênh (`zalo_personal_channel.TAY_IM`, 10 phút)."""
         import zalo_personal_channel as zc
         v = ((self.cfg_fn() if self.cfg_fn else {}) or {}).get("nhuong_tay_phut")
@@ -514,7 +514,7 @@ class Transport:
         if time.time() - float(ev.get("created_at") or 0) > zc.TUOI_TOI_DA and not sau_chu_im:
             return
         # Chủ vừa nhắn tay thì bot nhường (`nhuong_tay_phut` của bot). Riêng NHÓM, tin TAG thẳng nick hoặc trả lời
-        # tin của nick vẫn được trả lời ngay (0.147.0, chủ nick MTM chốt 14/10/2026): người ta gọi đích danh thì
+        # tin của nick vẫn được trả lời ngay (0.148.0, chủ nick MTM chốt 14/10/2026): người ta gọi đích danh thì
         # im 3 phút là bỏ rơi họ. Xét sau khi biết tin có gọi hay không, ở nhánh nhóm bên dưới.
         chu_nhuong = zc.chu_vua_nhan_tay(self.conn_id, thread)
         if chu_nhuong and not nhom:

@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.147.0] - 2026-10-15
+## [0.148.0] - 2026-10-15
 ### Cải thiện
 - **Tắt được việc bot Zalo im 10 phút sau khi bạn nhắn tay.** Form bot có ô mới **Nhường khi bạn nhắn tay (phút)**: đặt 0 thì bạn nhắn vào cuộc chat nào bot vẫn trả lời ở đó, kể cả trong nhóm khi được tag. Bot cũ giữ 10 phút như trước.
 - **Đặt số phút khác cũng được** (vd 3): bot nhường đúng chừng ấy, và ở chat riêng chờ đúng chừng ấy rồi trả lời thay tin khách bạn chưa đáp.

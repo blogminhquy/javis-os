@@ -1,4 +1,4 @@
-"""Zalo cá nhân: số phút bot nhường sau khi chủ nhắn tay là cài đặt của từng bot, 0 = không nhường (0.147.0).
+"""Zalo cá nhân: số phút bot nhường sau khi chủ nhắn tay là cài đặt của từng bot, 0 = không nhường (0.148.0).
 
     python tests/run.py nhuong_tay      (KHÔNG mạng, MCP giả)
 
@@ -42,7 +42,7 @@ check("số phút hợp lệ 0..240", chatbot_store.clean_nhuong_tay("0") == 0 a
 check("giá trị lạ là None", all(chatbot_store.clean_nhuong_tay(v) is None for v in ("", "abc", "-1", "241", None, "2.5")))
 
 bid, err = chatbot_store.create_bot({"name": "Bot thử", "agent_slug": "tro-ly", "brain": "b", "channel": "zalo_personal"})
-check("tạo bot không khai thì mặc định nhường 10 phút (như trước 0.147.0)",
+check("tạo bot không khai thì mặc định nhường 10 phút (như trước 0.148.0)",
       not err and (chatbot_store.get_bot(bid) or {}).get("nhuong_tay_phut") == 10, err)
 ok, err = chatbot_store.update_bot(bid, {"nhuong_tay_phut": "0"})
 check("sửa thành 0 (không nhường) lưu được", ok and chatbot_store.get_bot(bid)["nhuong_tay_phut"] == 0, err)

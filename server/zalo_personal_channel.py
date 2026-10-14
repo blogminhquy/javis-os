@@ -486,7 +486,7 @@ def _ghi_lo(conn: dict, tin: list, ten: dict) -> tuple:
                 continue
             _TAY[(conn["id"], ev["external_chat_id"])] = float(ev.get("created_at") or time.time())
             # Chủ đã vào cuộc: mấy tin khách đang gom chờ là việc của chủ, không phải của bot. Trừ khi bot được đặt
-            # KHÔNG nhường (0.147.0): chủ đã chọn để bot trả lời cả lúc mình đang nhắn.
+            # KHÔNG nhường (0.148.0): chủ đã chọn để bot trả lời cả lúc mình đang nhắn.
             if tay_im_cua(conn["id"]) > 0:
                 _GOM.pop((conn["id"], ev["external_chat_id"]), None)
                 bo_cho_chu(conn["id"], ev["external_chat_id"])
@@ -901,7 +901,7 @@ def _la_tieng_vong(conn_id: str, thread: str, text: str, toi_thieu: int = 0) -> 
 
 def tay_im_cua(conn_id: str) -> int:
     """Số giây bot của tài khoản này nhường sau khi chủ nhắn tay: cài đặt "Nhường khi bạn nhắn tay" của bot đang trực
-    (0.147.0, 0 = không nhường), không có bot hay bot không khai thì `TAY_IM`."""
+    (0.148.0, 0 = không nhường), không có bot hay bot không khai thì `TAY_IM`."""
     tb = _BOTS.get(str(conn_id))
     fn = getattr(tb, "tay_im", None)
     if callable(fn):
@@ -926,7 +926,7 @@ def _giao_cho_bot(conn: dict, ev: dict) -> None:
         return
     if CHO_CHU_TRA_LOI > 0 and chu_vua_nhan_tay(cid, str(ev.get("external_chat_id") or "")):
         if ev.get("chat_type") == "group":
-            # Nhóm (0.147.0): tin TAG thẳng nick hoặc trả lời tin của nick thì trả lời ngay, không chờ chủ.
+            # Nhóm (0.148.0): tin TAG thẳng nick hoặc trả lời tin của nick thì trả lời ngay, không chờ chủ.
             tag, rep = nhan_dien_goi(cid, ev, ((ket_noi_theo_id(cid) or {}).get("label") or "",))
             if tag or rep:
                 _chay(tb, ev)
@@ -1075,7 +1075,7 @@ def xa_hang_cho(conn_id: str, luc: Optional[float] = None) -> int:
 # ảnh không chữ), để bot đáp hợp cảnh thay vì im vì tin không có chữ. Xả sau một lượt đọc thành công, như
 # `xa_hang_cho`: chỉ lượt đọc mới xác nhận được là chủ chưa nhắn gì.
 #
-# 0.147.0 (chủ nick chốt 14/10/2026: "có nhắn tay thì 3 phút sau tin nhắn tay đó chủ động nhắn tiếp"): mốc chờ là
+# 0.148.0 (chủ nick chốt 14/10/2026: "có nhắn tay thì 3 phút sau tin nhắn tay đó chủ động nhắn tiếp"): mốc chờ là
 # TIN NHẮN TAY cuối của chủ cộng `tay_im_cua` (số phút nhường của bot), không phải tin khách đầu tiên; và NHÓM cũng
 # áp: tin tag thẳng nick trả lời ngay, tin khác giữ tới hết quãng nhường rồi mỗi người một lượt, qua đúng luật nhóm
 # của bot (bộ phán xử, "trả lời khi"). Hàng chờ chỉ nằm trong RAM: Javis khởi động lại thì mất, tệ nhất là một tin
@@ -1144,12 +1144,12 @@ MAX_NGUOI_NHOM = 5     # nhóm: hết quãng nhường thì trả lời tối đ
 
 def xa_cho_chu(conn_id: str, luc: Optional[float] = None) -> int:
     """Giao cho bot các cuộc chat của tài khoản này mà quãng nhường đã hết: đủ `tay_im_cua` giây tính từ TIN NHẮN TAY
-    cuối của chủ (0.147.0, chủ nick chốt 14/10/2026: "có nhắn tay thì 3 phút sau tin nhắn tay đó chủ động nhắn tiếp").
+    cuối của chủ (0.148.0, chủ nick chốt 14/10/2026: "có nhắn tay thì 3 phút sau tin nhắn tay đó chủ động nhắn tiếp").
     Chat riêng: một lượt gộp. Nhóm: mỗi người một lượt gộp, đi qua đúng luật nhóm của bot. Trả số lượt đã giao."""
     cid = str(conn_id)
     luc = time.time() if luc is None else luc
     tb = _BOTS.get(cid)
-    # Chờ chủ đúng bằng quãng bot nhường (0.147.0: chủ đặt nhường 5 phút thì chờ 5 phút); không khai thì `CHO_CHU_TRA_LOI`.
+    # Chờ chủ đúng bằng quãng bot nhường (0.148.0: chủ đặt nhường 5 phút thì chờ 5 phút); không khai thì `CHO_CHU_TRA_LOI`.
     cho = tay_im_cua(cid) or CHO_CHU_TRA_LOI
     n = 0
     for khoa in [k for k in _CHO_CHU if k[0] == cid]:
