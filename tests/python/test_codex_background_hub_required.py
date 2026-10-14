@@ -17,8 +17,8 @@ Fix, for the scheduled background lanes only (reminder, loop, Kanban dispatch):
     lines, and the chat card keeps 300 characters, reminders.json 400.
 Chat never goes through `_build_codex`; workflow Codex agents are built by
 main._workflow_agent_helpers. Both must stay unchanged.
-Runs on both trees: upstream (hub header from the shared profile) and the Afftera fork, which also
-sends each job's permission level (0.84.5, `codex_mode_override`); the mode checks follow the tree.
+Since 0.117.0 every `_build_codex` lane also pins the job's own permission level
+(`mcp_hub.dat_codex_mode`), so the mode checks expect the job's level.
 
     python tests/run.py codex_background_hub_required      (no network, does not spawn codex)
 """
@@ -74,9 +74,8 @@ REQ_FAIL = getattr(claude_cli, "CODEX_REQUIRED_FAIL", "required MCP servers fail
 HUB_REQ = getattr(mcp_hub, "dat_codex_hub_bat_buoc", None)
 APPS_OFF = getattr(mcp_hub, "dat_codex_tat_app", None)
 BRAIN = _TMP / "brains" / "Brain Default"
-# Fork 0.84.5 sends the job's level per process; upstream keeps the profile's "full" for every lane.
-HAS_JOB_MODE = hasattr(mcp_hub, "codex_mode_override")
-want_mode = (lambda m: m) if HAS_JOB_MODE else (lambda m: "full")
+# 0.117.0: the hub sees each job's level (mcp_hub.dat_codex_mode), not the profile's "full".
+want_mode = (lambda m: m)
 CODEX_SPEC = {"provider": aux_engine.CODEX, "model": "gpt-5.5"}
 
 
@@ -139,7 +138,7 @@ set_hub(True)
 
 # ---- 1. The two overrides: replace, never stack -----------------------------------------------
 check("helpers dat_codex_hub_bat_buoc / dat_codex_tat_app exist", HUB_REQ is not None and APPS_OFF is not None)
-MODE_OV = mcp_hub.codex_mode_override("auto") if HAS_JOB_MODE else 'mcp_servers.javis.http_headers.X-Javis-Vault="/b"'
+MODE_OV = mcp_hub.dat_codex_mode([], "auto")[0]
 extra = ["model_reasoning_effort=high", f"{REQ_KEY}=false", f"{APPS_KEY}=true", MODE_OV]
 if HUB_REQ and APPS_OFF:
     for _ in range(3):
@@ -161,7 +160,7 @@ for tag in BG_TAGS:
         check(f"{tag} {m}: hub entry is required", j.get("required") is True, sorted(j))
         check(f"{tag} {m}: startup_timeout_sec still 20 from the profile", j.get("startup_timeout_sec") == 20)
         check(f"{tag} {m}: ChatGPT apps switched off", (cfg.get("features") or {}).get("apps") is False)
-        check(f"{tag} {m}: hub receives X-Javis-Mode={want_mode(m)} (per-job level kept where the tree has it)",
+        check(f"{tag} {m}: hub receives X-Javis-Mode={want_mode(m)} (the job's level)",
               h.get("X-Javis-Mode") == want_mode(m))
         check(f"{tag} {m}: auth still comes from the profile", str(h.get("Authorization", "")).startswith("Bearer "))
         check(f"{tag} {m}: exactly one required and one apps override",
@@ -173,7 +172,7 @@ for tag in ("workflow", "workflow-main", "ingest", "reply-policy", "reply-policy
     cfg = effective_config(argv)
     check(f"{tag}: hub not marked required", "required" not in hub_entry(cfg))
     check(f"{tag}: apps feature untouched", "apps" not in (cfg.get("features") or {}))
-    check(f"{tag}: mode header unchanged ({want_mode('suggest')})",
+    check(f"{tag}: mode header is the job's level ({want_mode('suggest')})",
           (hub_entry(cfg).get("http_headers") or {}).get("X-Javis-Mode") == want_mode("suggest"))
 
 # ---- 4. Shared profile (read by chat lanes) never carries the background overrides -------------
@@ -285,6 +284,14 @@ check("required hub failed: the reason is in the first 300 characters (what the 
       bool(evs) and REQ_FAIL in str(evs[-1].get("content", ""))[:300], str(evs[-1].get("content", ""))[:300] if evs else "")
 check("required hub failed: Codex's own line is kept (javis + timed out after 20s)",
       bool(evs) and "javis: timed out handshaking with MCP server after 20s" in str(evs[-1].get("content", "")))
+
+LIMIT = "You've hit your session limit · resets 4:40am (UTC)"
+claude_het = FakeEngine([{"type": "error", "content": LIMIT}], provider="claude")
+codex = FakeEngine([{"type": "error", "content": REQ_ERR}], provider="openai-oauth")
+evs = asyncio.run(collect(FB([claude_het, codex])))
+noi = str(evs[-1].get("content", "")) if evs else ""
+check("Codex as the -main fallback: the earlier link's error (plan limit) is kept, so the queue can "
+      "postpone until the plan reopens", REQ_FAIL in noi[:300] and LIMIT in noi, noi[:400])
 
 codex = FakeEngine([{"type": "error", "content": "Codex: You've hit your usage limit."}], provider="openai-oauth")
 claude = FakeEngine([FINAL("claude cứu")])

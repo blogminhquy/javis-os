@@ -516,7 +516,10 @@ class _FallbackChain:
                         if _hub_bat_buoc_hong(got_error):
                             print(f"[aux router] {self._name(e)}: hub bắt buộc không lên - dừng chuỗi, "
                                   "không thử mắt kế tiếp.", file=sys.stderr)
-                            yield {"type": "error", "content": got_error}
+                            # Giữ cả lỗi của mắt TRƯỚC (vd Claude hết lượt gói): tasks._het_luot
+                            # đọc nó để hoãn tới giờ gói mở lại. Lý do hub đứng đầu vì ô lỗi bị cắt.
+                            yield {"type": "error",
+                                   "content": got_error + (f" | {dau}" if dau else "")}
                             return
                         break
                     # Engine CLI chưa đăng nhập trả một FINAL ngắn kiểu "Not logged in ·
