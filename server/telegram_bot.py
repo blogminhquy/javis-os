@@ -89,10 +89,17 @@ TYPING_MOI_GIAY = 4.0   # Telegram tắt chấm "đang nhập" sau ~5 giây, ph�
 # Hàng đợi lượt, luật /stop, cổng precheck và dòng vết công cụ nằm ở `bot_gateway`: chúng là
 # luật hành vi của Javis, không phải chi tiết của Telegram, nên kênh Zalo dùng chung y hệt.
 
-# Câu duy nhất được nói ra khi một lượt gãy ở chế độ người thật. Không mã lỗi, không tên lớp
-# ngoại lệ - người thật không đọc traceback ra miệng. Chi tiết vẫn vào stderr + log bot.
+# Câu xin lỗi CŨ khi một lượt gãy ở chế độ người thật. Từ 15/10/2026 không kênh nào gửi nó nữa:
+# chủ repo chốt trục trặc kỹ thuật là việc của chủ, khách không nhận gì (xem
+# chatbot_runtime.CAU_LUOT_HONG). Giữ tên để mã cũ import không gãy.
 CAU_LOI_NGUOI_THAT = ("Dạ em xin lỗi, chỗ này em đang trục trặc nên chưa trả lời ngay được ạ. "
                       "Anh chị nhắn lại giúp em một chút nữa nhé.")
+
+
+def _im_khi_hong() -> dict:
+    """Kết quả 'im lặng' cho một lượt gãy ở chế độ người thật: kênh thấy im_lang thì không gửi gì."""
+    return {"text": "", "files": [], "im_lang": True}
+
 
 
 # Dòng mở đầu khối tin thoại đã nghe thành chữ. Nằm ở `stt` vì kênh nào cũng dùng, và
@@ -772,8 +779,9 @@ class TelegramBot(HangLuot):
                 return   # /stop sẽ tự báo, không gửi trùng
             except Exception as e:
                 print(f"[telegram lượt hỏng] {type(e).__name__}: {e}", file=sys.stderr)
-                # Người thật không đọc tên lớp ngoại lệ ra miệng.
-                reply = (CAU_LOI_NGUOI_THAT if self.giau_trang_thai
+                # Chế độ người thật: trục trặc kỹ thuật không gửi gì cho khách (chủ repo 15/10/2026).
+                # Lỗi đã vào stderr; chủ và người trực được báo ở tầng chatbot_runtime.
+                reply = (_im_khi_hong() if self.giau_trang_thai
                          else f"⚠ Lỗi: {type(e).__name__}: {e}")
             im_lang = False
             if isinstance(reply, dict):

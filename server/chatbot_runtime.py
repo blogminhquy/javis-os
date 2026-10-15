@@ -83,6 +83,11 @@ _BI_LIEN_TIEP: Dict[tuple, int] = {}
 # bot_id đã báo lỗi kỹ thuật cho nhân viên và chưa chạy lại được lượt nào. Chống báo mỗi lượt
 # khi engine hỏng - lúc đó MỌI lượt đều gãy.
 _DA_BAO_LOI: set = set()
+# bot_id đã có một mẩu thư "bot đang lỗi" trong chuông thông báo của Javis và chưa chạy lại được
+# lượt nào. Tách khỏi `_DA_BAO_LOI` vì cái kia chỉ đánh dấu khi có người trực (`handoff_to`), còn
+# chuông thì luôn báo. Một mẩu cho mỗi đợt hỏng: engine hết lượt thì mọi lượt đều gãy, báo hết là
+# biến chuông thành log lỗi.
+_DA_BAO_HOP_THU: set = set()
 
 # bot_id -> {chat_id: {"chat_id", "ten", "ts", "lan", "cau"}} - những nhóm CÓ NGƯỜI GỌI BOT mà
 # chủ chưa cho phép. Đây là bản vá cho lỗi hỏng-lặng-lẽ nặng nhất của tính năng nhóm: thả bot
@@ -107,12 +112,14 @@ CAU_NHOM_CHUA_BAT = ("Em chưa được bật cho nhóm này ạ. Chủ bot mở
                      "ở thẻ của em sẽ thấy nhóm này đang chờ, bấm **Cho phép** một cái là em "
                      "trả lời được ngay.")
 
-# Câu bot gửi người đã gọi nó khi lượt trả lời HỎNG (engine lỗi, hết lượt gói, không trả nội dung).
+# Lượt trả lời HỎNG (engine lỗi, hết lượt gói, không trả nội dung) thì KHÔNG gửi gì cho khách.
 #
-# Chủ repo đổi 14/10/2026: câu cũ "Em đang gặp trục trặc kỹ thuật, anh chị nhắn lại giúp em sau ít
-# phút ạ" khai với khách rằng đây là máy và đẩy việc nhắn lại sang khách. Nick Zalo cá nhân mang
-# tên người thật, nên câu này nói như người đang trực: xin khách chờ một chút. Người trực vẫn được
-# báo lỗi thật (`handoff_to`), và lỗi gốc nằm trong nhật ký bot cho chủ.
+# Lịch sử: tới 14/10/2026 bot nói "Em đang gặp trục trặc kỹ thuật, anh chị nhắn lại giúp em sau ít
+# phút ạ", rồi đổi sang "Anh chị đợi em chút xíu để em kiểm tra lại ạ.". Chủ repo bỏ hẳn ngày
+# 15/10/2026 (ảnh chụp Zalo: hết token là khách nhận câu "đợi em kiểm tra" mà không ai kiểm tra gì
+# cả): trục trặc kỹ thuật là việc của chủ, khách không cần biết. Chủ được báo ở chuông thông báo
+# của Javis (`_bao_hop_thu`), người trực vẫn được báo như cũ (`handoff_to`), lỗi gốc nằm trong
+# nhật ký bot. Hằng số giữ lại chỉ để test và tài liệu cũ còn tham chiếu được; không đường nào gửi nó.
 CAU_LUOT_HONG = "Anh chị đợi em chút xíu để em kiểm tra lại ạ."
 
 # Bí bao nhiêu lượt liên tiếp thì mới gọi người thật.
@@ -129,13 +136,17 @@ BI_LIEN_TIEP_DE_GOI = 2
 _deps: Dict[str, Callable] = {}
 
 
-def wire(*, answer, brain_root, read_agent, session_probe=None, session_undo=None):
+def wire(*, answer, brain_root, read_agent, session_probe=None, session_undo=None, notify=None):
     """main.py cấp ba thứ: lõi một lượt, đường tới brain, và cách đọc file Agent.
 
     `session_probe(key) -> (sid, số tin lịch sử RAM)` và `session_undo(key, giữ)` chỉ cho BẢN NHÁP ở Hộp thư (0.65.5): lấy phiên
     đang nói để đọc ngữ cảnh, rồi gỡ dấu vết của lượt nháp khỏi bộ nhớ (xem `manual_answer`). Thiếu thì bản nháp vẫn chạy, chỉ
-    không có ngữ cảnh lưu trong kho và không tự dọn."""
+    không có ngữ cảnh lưu trong kho và không tự dọn.
+
+    `notify(text) -> awaitable` bỏ một mẩu thư vào chuông thông báo của Javis (lượt bot hỏng, xem `_bao_hop_thu`).
+    Thiếu thì lượt hỏng chỉ còn trong nhật ký bot và báo người trực."""
     _deps["answer"] = answer
+    _deps["notify"] = notify
     _deps["brain_root"] = brain_root
     _deps["read_agent"] = read_agent
     _deps["session_probe"] = session_probe
@@ -1273,6 +1284,38 @@ def _ghi_loi_tu_dong(bot_id: str, cfg: dict, meta: dict, text: str, loi: str) ->
                 localefmt.chu(f"Bot đang LỖI: {str(loi)[:300]}", f"The bot is FAILING: {str(loi)[:300]}")))
         except Exception as e:      # noqa: BLE001
             print(f"[chatbot {bot_id}] báo người trực lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+    _bao_hop_thu(bot_id, cfg, meta, loi)
+
+
+def _bao_hop_thu(bot_id: str, cfg: dict, meta: dict, loi: str) -> None:
+    """Lượt bot hỏng: một mẩu thư vào chuông thông báo của Javis cho chủ, mỗi đợt hỏng một lần.
+
+    Khách không nhận gì (chủ repo 15/10/2026), nên đây là chỗ DUY NHẤT chủ biết khách vừa nhắn
+    mà không được trả lời. Mẩu thư nói ai nhắn, ở đâu, lỗi gì và phải làm gì."""
+    if bot_id in _DA_BAO_HOP_THU:
+        return
+    fn = _deps.get("notify")
+    if not fn:
+        return
+    _DA_BAO_HOP_THU.add(bot_id)
+    ten_bot = str(cfg.get("name") or bot_id)
+    ai = str((meta or {}).get("user_name") or (meta or {}).get("user_id") or "")
+    nhom = str((meta or {}).get("chat_title") or "") if (meta or {}).get("chat_type") == "group" else ""
+    noi = (f" trong nhóm {nhom}" if nhom else "")
+    noi_en = (f" in the group {nhom}" if nhom else "")
+    text = localefmt.chu(
+        f"Bot {ten_bot} đang lỗi, chưa trả lời được {ai or 'khách'}{noi}\n\n"
+        f"Lỗi: {str(loi)[:300]}\n\nKhách không nhận được tin nào. Mở trang Chatbot để trả lời tay hoặc xem "
+        "nhật ký bot. Các lượt hỏng tiếp theo không báo lại cho tới khi bot chạy được.",
+        f"Bot {ten_bot} is failing and could not answer {ai or 'a customer'}{noi_en}\n\n"
+        f"Error: {str(loi)[:300]}\n\nThe customer received nothing. Open the Chatbot page to reply by hand or "
+        "read the bot log. Further failures are not reported again until the bot works.")
+    try:
+        r = fn(text)
+        if asyncio.iscoroutine(r):
+            asyncio.ensure_future(r)
+    except Exception as e:      # noqa: BLE001 - the bell must never cost the turn anything
+        print(f"[chatbot {bot_id}] báo chuông lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 def ghi_tin_bot(cfg: dict, meta: dict, text: str, loi: str = "", files=None) -> None:
@@ -1464,11 +1507,14 @@ def _make_answer_fn(bot_id: str):
                 _rp_retract(rp_dec, "turn_failed")
                 _ghi_loi_tu_dong(bot_id, cfg, meta, text, f"{type(e).__name__}: {e}")
                 return {"text": "", "files": [], "im_lang": True}
-            xin_loi = CAU_LUOT_HONG
-            ghi_tin_bot(cfg, meta or {}, xin_loi, loi=f"{type(e).__name__}: {e}")
-            return {"text": xin_loi, "files": []}
+            # Same handling as a failed turn returned as a string below: nothing to the customer, the
+            # owner hears it in the Javis bell, the on-duty person as before.
+            out = f"{type(e).__name__}: {e}"
+            nem_loi = True
+        else:
+            nem_loi = False
         run = _RUNNING.get(bot_id)
-        if run:
+        if run and not nem_loi:
             run["answered"] = run.get("answered", 0) + 1
             run["last_at"] = time.time()
         # Lõi trả CHUỖI khi là thông báo lỗi. Không dội câu lỗi kỹ thuật vào mặt người ngoài,
@@ -1489,7 +1535,9 @@ def _make_answer_fn(bot_id: str):
                 _rp_retract(rp_dec, "turn_failed")
                 _ghi_loi_tu_dong(bot_id, cfg, meta, text, loi_ky_thuat)
                 return {"text": "", "files": [], "im_lang": True}
-            out = {"text": CAU_LUOT_HONG, "files": []}
+            # Không gửi gì cho khách (chủ repo 15/10/2026, xem CAU_LUOT_HONG). Phần dưới vẫn ghi nhật ký,
+            # đếm bí, báo người trực; cuối hàm trả im lặng.
+            out = {"text": "", "files": []}
 
         dap = (out or {}).get("text") or ""
         # Bot TỰ QUYẾT im lặng (được dạy ở Zalo cá nhân và ở lượt Tự đánh giá, xem _CAU_ZALO_CA_NHAN
@@ -1545,9 +1593,11 @@ def _make_answer_fn(bot_id: str):
         if loi_ky_thuat:
             bao_lan_dau = bot_id not in _DA_BAO_LOI
             _DA_BAO_LOI.add(bot_id)
+            _bao_hop_thu(bot_id, cfg, meta, loi_ky_thuat)
         else:
             bao_lan_dau = False
             _DA_BAO_LOI.discard(bot_id)
+            _DA_BAO_HOP_THU.discard(bot_id)
 
         # Lượt Tự đánh giá thì "bí" KHÔNG gọi người: tin đó đâu ai nhờ bot, đánh thức nhân viên
         # vì một câu người ta hỏi nhau trong nhóm là cách nhanh nhất để họ tắt thông báo.
@@ -1557,7 +1607,8 @@ def _make_answer_fn(bot_id: str):
         chatbot_log.ghi(bot_id, {
             "chat_id": chat_id, "chat_type": (meta or {}).get("chat_type"),
             "user_name": (meta or {}).get("user_name"),
-            "hoi": text, "dap": dap, "loi": loi_ky_thuat,
+            "hoi": text, "dap": dap or ("(lượt hỏng, bot không gửi gì cho khách)" if loi_ky_thuat else ""),
+            "loi": loi_ky_thuat,
             "co_tai_lieu": bool(tl.get("co")), "nguon": tl.get("nguon"),
             "chuyen_nguoi": goi_nguoi, "bi": bi,
             "muc_quyen": cfg.get("muc_quyen") or "suggest",
@@ -1567,7 +1618,7 @@ def _make_answer_fn(bot_id: str):
             # cần biết, người đang hỏi thì không cần.
             "canh_bao": " · ".join(x for x in ((out or {}).get("canh_bao"), tl.get("canh_bao_link"), cfg.get("_anh_loi")) if x),
         })
-        # Câu bot nói (kể cả câu xin lỗi khi gãy) vào Hộp thư hội thoại, cạnh tin khách.
+        # Câu bot nói vào Hộp thư hội thoại, cạnh tin khách. Lượt gãy thì `dap` rỗng nên không ghi gì: khách không nhận tin nào.
         ghi_tin_bot(cfg, meta or {}, dap, loi=loi_ky_thuat, files=(out or {}).get("files"))
         if goi_nguoi:
             _BI_LIEN_TIEP[khoa] = 0     # đã gọi người rồi thì đếm lại, đừng gọi mỗi lượt sau đó
@@ -1579,6 +1630,8 @@ def _make_answer_fn(bot_id: str):
                                f"The bot is FAILING: {loi_ky_thuat[:300]}") if loi_ky_thuat else
                  localefmt.chu(f"Bí {lien_tiep} câu liên tiếp. Câu gần nhất: {str(text)[:200]}",
                                f"Stuck on {lien_tiep} messages in a row. Latest: {str(text)[:200]}"))))
+        if loi_ky_thuat:
+            return {"text": "", "files": [], "im_lang": True}
         return out
     return _answer
 
@@ -2090,6 +2143,7 @@ def quen_bot(bot_id: str) -> None:
     stop_bot(bot_id)
     _NHOM_CHO.pop(bot_id, None)
     _DA_BAO_LOI.discard(bot_id)
+    _DA_BAO_HOP_THU.discard(bot_id)
     for k in [x for x in _DA_BAO_NHOM if x and x[0] == bot_id]:
         _DA_BAO_NHOM.discard(k)
     for kho in (_BI_LIEN_TIEP,):

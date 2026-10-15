@@ -427,8 +427,9 @@ async def chay():
     LOI_ENGINE["v"] = "⚠ Codex không trả về nội dung nào."
     KHO_TIN.append(nhom_msg("Javis Vũ ơi lỗi cổng 7777 làm sao em", "lt-g", uid="7770299", nguoi="Học viên C"))
     await doc(0.4)
-    check("người GỌI bot mà lượt hỏng thì vẫn được báo (câu xin lỗi), không im",
-          len(GUI) == 1 and "đợi em chút xíu" in GUI[0].get("message", GUI[0].get("text", str(GUI[0]))), GUI)
+    # Chủ repo 15/10/2026: trục trặc kỹ thuật không gửi gì cho khách, kể cả người đã gọi bot.
+    # Chủ nghe ở chuông thông báo của Javis, lỗi gốc nằm trong nhật ký bot.
+    check("người GỌI bot mà lượt hỏng thì KHÔNG nhận câu xin lỗi nào", not GUI, GUI)
     LOI_ENGINE["v"] = None
     GUI.clear()
 

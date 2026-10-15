@@ -12240,7 +12240,10 @@ async def _start_scheduler():
         # khởi động (xem bước "Import thật main" trong CI).
         chatbot_runtime.wire(answer=_tg_answer, brain_root=_brain_root,
                              read_agent=lambda b, slug: _read_md(_agents_dir(b) / f"{slug}.md"),
-                             session_probe=_manual_session_probe, session_undo=_manual_session_undo)
+                             session_probe=_manual_session_probe, session_undo=_manual_session_undo,
+                             # Lượt bot hỏng: khách không nhận gì, chủ nghe ở chuông thông báo (chủ repo 15/10/2026).
+                             notify=lambda text: _bo_vao_hom_thu("", text, kind="system", source="chatbot",
+                                                                 label=localefmt.chu("Chatbot", "Chatbot")))
         chatbot_reply_policy.wire(ask=_reply_policy_ask)
         chatbot_reply_policy_review.wire(ask=_reply_policy_review_ask, notify=_reply_policy_notify,
                                          write_feedback=_reply_policy_write_feedback, get_bot=chatbot_store.get_bot)

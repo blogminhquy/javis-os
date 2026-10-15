@@ -418,8 +418,9 @@ class WhatsAppBot(HangLuot):
                 return
             except Exception as e:
                 print(f"[whatsapp turn failed] {type(e).__name__}: {e}", file=sys.stderr)
-                from telegram_bot import CAU_LOI_NGUOI_THAT
-                reply = (CAU_LOI_NGUOI_THAT if self.giau_trang_thai else f"⚠ {type(e).__name__}: {e}")
+                # Human mode: a technical failure sends the customer nothing (owner, 2026-10-15).
+                from telegram_bot import _im_khi_hong
+                reply = (_im_khi_hong() if self.giau_trang_thai else f"⚠ {type(e).__name__}: {e}")
             silent = False
             if isinstance(reply, dict):
                 files = reply.get("files") or []

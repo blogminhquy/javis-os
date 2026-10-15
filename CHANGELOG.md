@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.166.3] - 2026-10-15
+### Sửa lỗi
+- **Bot không còn nhắn khách "Anh chị đợi em chút xíu để em kiểm tra lại ạ" khi gặp trục trặc kỹ thuật** (hết token, hết lượt gói, model lỗi). Khách không nhận tin nào cả, kể cả trên Zalo cá nhân, Zalo OA, Telegram và WhatsApp.
+- **Chủ được báo ở chuông thông báo của Javis:** bot nào lỗi, khách nào vừa nhắn mà chưa được trả lời, lỗi gì. Mỗi đợt lỗi chỉ báo một lần, bot chạy lại được thì lần lỗi sau mới báo tiếp. Người trực (nếu có cài) vẫn được báo như trước.
+
 ## [0.166.2] - 2026-10-15
 ### Sửa lỗi
 - **Tạo ảnh bằng gói ChatGPT không còn kẹt ở lỗi "The 'gpt-5.5' model is not supported".** Gói nào không có model đó, Javis tự chuyển sang model khác trong danh sách model ChatGPT của chính tài khoản bạn và tạo ảnh luôn, không phải chỉnh gì.

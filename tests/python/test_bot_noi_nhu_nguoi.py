@@ -200,7 +200,7 @@ async def t_tran_hang_cho():
 
 
 # ============================================================
-# 3. Lượt gãy: xin lỗi bằng lời người, không đọc tên lớp ngoại lệ
+# 3. Lượt gãy: khách không nhận gì (chủ repo 15/10/2026), chủ vẫn thấy lỗi
 # ============================================================
 async def t_luot_gay():
     async def no(text, meta, progress):
@@ -212,7 +212,7 @@ async def t_luot_gay():
     gui = tg.texts()
     check("khách: không lộ tên lớp ngoại lệ",
           not any("ValueError" in t or "⚠" in t for t in gui))
-    check("khách: xin lỗi bằng một câu người thật nói được", gui == [CAU_LOI_NGUOI_THAT])
+    check("khách: trục trặc kỹ thuật không gửi gì, kể cả câu xin lỗi", gui == [] and CAU_LOI_NGUOI_THAT not in gui)
 
     tg2 = FakeTelegram()
     await bot_chu(no)._handle_turn(tg2, "42", "hỏi")

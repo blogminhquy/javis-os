@@ -539,8 +539,9 @@ class ZaloBot(HangLuot):
                 return   # /stop tự báo, không gửi trùng
             except Exception as e:
                 print(f"[zalo lượt hỏng] {type(e).__name__}: {e}", file=sys.stderr)
-                from telegram_bot import CAU_LOI_NGUOI_THAT
-                reply = (CAU_LOI_NGUOI_THAT if self.giau_trang_thai
+                # Chế độ người thật: trục trặc kỹ thuật không gửi gì cho khách (chủ repo 15/10/2026).
+                from telegram_bot import _im_khi_hong
+                reply = (_im_khi_hong() if self.giau_trang_thai
                          else f"⚠ Lỗi: {type(e).__name__}: {e}")
             im_lang = False
             if isinstance(reply, dict):

@@ -125,8 +125,8 @@ async def chay():
     gui_chu = [g.get("text") for g in GUI]
     check("CANARY: câu 'session limit' KHÔNG tới khách", not any("session limit" in (t or "") for t in gui_chu),
           gui_chu)
-    check("khách được hỏi thì nhận câu xin lỗi chung như mọi lượt hỏng",
-          any("đợi em chút xíu" in (t or "") for t in gui_chu), gui_chu)
+    # Chủ repo 15/10/2026: hết lượt là trục trặc kỹ thuật, khách không nhận gì (trước đây nhận "đợi em chút xíu").
+    check("hết lượt: khách KHÔNG nhận câu nào, kể cả câu xin lỗi", not any(gui_chu), gui_chu)
     check("Hộp thư không ghi câu hết lượt như lời bot",
           not any("session limit" in t and s == "ai" for s, t in _hop_thu()), _hop_thu())
     GUI.clear()

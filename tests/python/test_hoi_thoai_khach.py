@@ -154,13 +154,13 @@ check("hội thoại có đủ tin khách rồi tin bot, đúng nội dung",
       and tin[0]["text"] == "còn size 42?" and tin[1]["text"] == _dap["text"]
       and tin[0]["external_message_id"] == "501")
 
-# Engine gãy: khách nhận câu xin lỗi -> câu đó cũng phải nằm trong hội thoại, kèm lý do cho chủ
+# Engine gãy: khách không nhận gì (chủ repo 15/10/2026), tin khách vẫn vào kho để người trực trả lời tay
 _dap = "⚠ Model 'x' không chạy được"
-asyncio.run(fn("hỏi nữa", {**meta, "message_id": 502}))
+ra = asyncio.run(fn("hỏi nữa", {**meta, "message_id": 502}))
 tin = conversations.tin_nhan(ds[0]["id"])
-check("lượt gãy: tin khách vẫn vào kho và câu xin lỗi là tin bot kèm lý do kỹ thuật",
-      len(tin) == 4 and tin[3]["sender_type"] == "ai" and "đợi em chút xíu" in tin[3]["text"]
-      and "không chạy được" in (tin[3]["metadata"] or {}).get("loi", ""))
+check("lượt gãy: bot im, tin khách vẫn vào kho, không có tin bot giả nào",
+      ra.get("im_lang") is True and not ra.get("text")
+      and len(tin) == 3 and tin[2]["sender_type"] == "customer" and tin[2]["text"] == "hỏi nữa")
 _dap = {"text": "Dạ có ạ.", "files": []}
 
 # Người thật tiếp quản: bot IM, tin khách vẫn vào
