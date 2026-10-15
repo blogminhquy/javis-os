@@ -144,6 +144,8 @@ check("no plugin at all: no fence, no sender id", "operator_context" not in p an
 check("no plugin at all: hook reports nobody listening", plugins_host.has_chatbot_context_hooks(str(BRAIN)) is False)
 
 write_plugin("ctx-verdict", VERDICT)
+# User plugins load by default since 0.162.0, so "off" has to be said explicitly here.
+os.environ["JAVIS_ENABLE_USER_PLUGINS"] = "false"
 p = turn()
 check("user plugin installed but JAVIS_ENABLE_USER_PLUGINS off: prompt unchanged", p == baseline() and "VERIFIED" not in p)
 
