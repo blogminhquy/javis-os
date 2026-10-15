@@ -585,18 +585,22 @@ class Transport:
             meta["image_url"] = str((ev.get("metadata") or {}).get("image_url") or "")
             if not nhom:
                 zc.nho_anh_rieng(self.conn_id, thread, meta["image_url"])
-        elif not nhom and zc.anh_rieng_gan_day(self.conn_id, thread):
-            # Lượt chữ ngay sau một ảnh ở chat riêng ("check xem đúng chưa", trả lời câu hỏi danh tính rồi nhờ tiếp):
-            # kèm lại ảnh đó để bot vẫn thấy, kèm một dòng nói rõ ảnh từ tin trước.
-            gio, url = zc.anh_rieng_gan_day(self.conn_id, thread)
-            meta.update(co_anh=True, image_url=url, anh_truoc=True)
-            text = (text + "\n[Kèm ảnh khách gửi lúc " + time.strftime("%H:%M", time.localtime(gio))
-                    + " trong cuộc chat này, có thể liên quan tới tin trên]")
         elif not vao_nhom:
             # 0.141.0: a message that QUOTES a photo ("@bot xem ảnh này" as a reply to it) shows the bot that photo.
+            # Checked BEFORE the remembered private photo (0.172.0): a quoted photo is the one the person means, the
+            # latest photo is only a guess.
             url_quote = zc.anh_duoc_quote(self.conn_id, thread, md0)
             if url_quote:
                 meta.update(co_anh=True, image_url=url_quote, anh_quote=True)
+            elif not nhom and zc.anh_rieng_gan_day(self.conn_id, thread):
+                # Lượt chữ ngay sau một ảnh ở chat riêng ("check xem đúng chưa", trả lời câu hỏi danh tính rồi nhờ
+                # tiếp): kèm lại ảnh đó để bot vẫn thấy, kèm một dòng nói rõ ảnh từ tin trước. Giờ theo múi giờ trong
+                # Cài đặt, không theo giờ máy: VPS thường chạy UTC.
+                from datetime import datetime
+                gio, url = zc.anh_rieng_gan_day(self.conn_id, thread)
+                meta.update(co_anh=True, image_url=url, anh_truoc=True)
+                text = (text + "\n[Kèm ảnh khách gửi lúc " + datetime.fromtimestamp(gio, localefmt.tz()).strftime("%H:%M")
+                        + " trong cuộc chat này, có thể liên quan tới tin trên]")
         duoc_goi = False
         pol = None
         if vao_nhom:

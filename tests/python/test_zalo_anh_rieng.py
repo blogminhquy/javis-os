@@ -82,6 +82,18 @@ async def chay():
     await tb.xu_ly(ev("t1", text="Nguyễn Duy Hoàng, giáo viên lớp 2K12"))
     check("a turn later (answering who they are) still has the photo", LUOT and LUOT[0][1].get("image_url") == url, LUOT)
 
+    # 0.172.0: a message that QUOTES a different photo gets the quoted one, not the latest remembered photo.
+    LUOT.clear()
+    goc_quote = zc.anh_duoc_quote
+    zc.anh_duoc_quote = lambda conn, thread, md: "https://zalo.example/anh-khac.jpg"
+    try:
+        await tb.xu_ly(ev("t1", text="Còn ảnh này thì sao"))
+    finally:
+        zc.anh_duoc_quote = goc_quote
+    m = LUOT[0][1] if LUOT else {}
+    check("CANARY: a quoted photo wins over the remembered one",
+          m.get("image_url") == "https://zalo.example/anh-khac.jpg" and m.get("anh_quote") and not m.get("anh_truoc"), m)
+
     LUOT.clear()
     k = ("zalo-1", "t1")
     zc._ANH_RIENG[k] = (time.time() - zc.ANH_RIENG_GIAY - 1, url)
