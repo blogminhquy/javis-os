@@ -999,25 +999,36 @@ def _da_cai_dat(d) -> bool:
 
 
 def _chan_ghi_trang(cfg) -> None:
-    """Lưới cuối (0.166.4): không bao giờ ghi một cấu hình "máy mới cài" đè lên máy đã cài đặt.
+    """Lưới cuối (0.166.4): không ghi một cấu hình TRỐNG đè lên máy đã cài đặt.
 
-    Không đường nào trong Javis đặt `setup_done` về False và xoá mật khẩu admin cùng lúc qua
-    write_settings (đặt lại mật khẩu đi bằng reset-auth, sửa thẳng file). Thấy cả hai thì cấu hình
-    trong tay gần như chắc chắn đến từ một lần đọc hỏng, và ghi nó xuống là xoá tài khoản, model,
-    khoá API và mọi kênh (chủ repo 15/10/2026, lúc lưu kênh Lark). Chặn và báo to thay vì ghi."""
+    Cấu hình trống = mất tài khoản (không mật khẩu, setup_done False) VÀ đưa những mục khác mà file trên
+    đĩa đã tuỳ chỉnh (model, kênh, tên workspace...) về đúng giá trị mặc định. Đó là dấu vân tay của một
+    lần đọc hỏng trả về mặc định: ghi nó xuống là xoá tài khoản, model, khoá API và mọi kênh (chủ repo
+    15/10/2026, lúc lưu kênh Lark). Chặn và báo to thay vì ghi.
+
+    Đặt lại tài khoản có chủ đích (lấy cấu hình đầy đủ, `pop("auth")` rồi ghi) vẫn đi qua: các mục khác
+    vẫn giữ giá trị trên đĩa, không mục nào bị kéo về mặc định."""
     if _da_cai_dat(cfg) or not SETTINGS_PATH.exists():
         return
     try:
         tren_dia = _doc_file_settings()
     except SettingsUnreadable:
-        tren_dia = {"setup_done": True}     # không đọc được bản thật thì càng không được đè lên nó
-    if _da_cai_dat(tren_dia):
-        import traceback
-        noi = "".join(traceback.format_stack(limit=4)[:-1]).strip().replace("\n", " | ")
-        print(f"[config] CHẶN ghi settings.json: cấu hình mới trông như máy mới cài (không mật khẩu, "
-              f"setup_done=False) trong khi file trên đĩa đã cài đặt. Gọi từ: {noi[-400:]}",
-              file=__import__("sys").stderr)
-        raise SettingsUnreadable("Từ chối ghi một cấu hình trống đè lên máy đã cài đặt")
+        tren_dia = None                     # không đọc được bản thật thì càng không được đè lên nó
+    if tren_dia is not None:
+        if not _da_cai_dat(tren_dia):
+            return
+        mat = [k for k, v in tren_dia.items()
+               if k not in ("auth", "setup_done") and k in _DEFAULT
+               and v != _DEFAULT[k] and cfg.get(k) == _DEFAULT[k]]
+        if not mat:
+            return
+    else:
+        mat = ["(không đọc được file trên đĩa)"]
+    import traceback
+    noi = "".join(traceback.format_stack(limit=4)[:-1]).strip().replace("\n", " | ")
+    print(f"[config] CHẶN ghi settings.json: cấu hình mới mất tài khoản và đưa {', '.join(mat[:5])} về mặc "
+          f"định trong khi file trên đĩa đã cài đặt. Gọi từ: {noi[-400:]}", file=__import__("sys").stderr)
+    raise SettingsUnreadable("Từ chối ghi một cấu hình trống đè lên máy đã cài đặt")
 
 
 def _write_settings_full(cfg):
