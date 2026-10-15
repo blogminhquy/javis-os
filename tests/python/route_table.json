@@ -3863,6 +3863,16 @@
  },
  {
   "order": 388,
+  "type": "APIRoute",
+  "path": "/conversations/{conv_id}/media",
+  "name": "conversations_media",
+  "methods": [
+   "GET"
+  ],
+  "trong": 377
+ },
+ {
+  "order": 389,
   "type": "_IncludedRouter",
   "path": null,
   "name": null,
@@ -3870,97 +3880,97 @@
   "trong": null
  },
  {
-  "order": 389,
+  "order": 390,
   "type": "APIRoute",
   "path": "/coding/folders",
   "name": "coding_thu_muc_ds",
   "methods": [
    "GET"
   ],
-  "trong": 388
+  "trong": 389
  },
  {
-  "order": 390,
+  "order": 391,
   "type": "APIRoute",
   "path": "/coding/folders",
   "name": "coding_thu_muc_them",
   "methods": [
    "POST"
   ],
-  "trong": 388
+  "trong": 389
  },
  {
-  "order": 391,
+  "order": 392,
   "type": "APIRoute",
   "path": "/coding/folders/{tid}/delete",
   "name": "coding_thu_muc_bo",
   "methods": [
    "POST"
   ],
-  "trong": 388
+  "trong": 389
  },
  {
-  "order": 392,
+  "order": 393,
   "type": "APIRoute",
   "path": "/coding/sessions",
   "name": "coding_phien_ds",
   "methods": [
    "GET"
   ],
-  "trong": 388
+  "trong": 389
  },
  {
-  "order": 393,
+  "order": 394,
   "type": "APIRoute",
   "path": "/coding/session/{sid}",
   "name": "coding_phien",
   "methods": [
    "GET"
   ],
-  "trong": 388
+  "trong": 389
  },
  {
-  "order": 394,
+  "order": 395,
   "type": "APIRoute",
   "path": "/coding/session/{sid}/pin",
   "name": "coding_session_pin",
   "methods": [
    "POST"
   ],
-  "trong": 388
+  "trong": 389
  },
  {
-  "order": 395,
+  "order": 396,
   "type": "APIRoute",
   "path": "/coding/session/{sid}",
   "name": "coding_phien_dat",
   "methods": [
    "POST"
   ],
-  "trong": 388
+  "trong": 389
  },
  {
-  "order": 396,
+  "order": 397,
   "type": "APIRoute",
   "path": "/coding/session/{sid}/checkpoint",
   "name": "coding_diem_hoi",
   "methods": [
    "POST"
   ],
-  "trong": 388
+  "trong": 389
  },
  {
-  "order": 397,
+  "order": 398,
   "type": "APIRoute",
   "path": "/coding/session/{sid}/rollback",
   "name": "coding_rollback",
   "methods": [
    "POST"
   ],
-  "trong": 388
+  "trong": 389
  },
  {
-  "order": 398,
+  "order": 399,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -3970,7 +3980,7 @@
   "trong": null
  },
  {
-  "order": 399,
+  "order": 400,
   "type": "APIRoute",
   "path": "/chat",
   "name": "chat_once",
@@ -3980,7 +3990,7 @@
   "trong": null
  },
  {
-  "order": 400,
+  "order": 401,
   "type": "APIRoute",
   "path": "/chat/stream",
   "name": "chat_stream",
@@ -3990,7 +4000,7 @@
   "trong": null
  },
  {
-  "order": 401,
+  "order": 402,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",
@@ -4000,7 +4010,7 @@
   "trong": null
  },
  {
-  "order": 402,
+  "order": 403,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/compact",
   "name": "sessions_compact",
@@ -4010,7 +4020,7 @@
   "trong": null
  },
  {
-  "order": 403,
+  "order": 404,
   "type": "APIRoute",
   "path": "/slash/status",
   "name": "slash_status",
@@ -4020,7 +4030,7 @@
   "trong": null
  },
  {
-  "order": 404,
+  "order": 405,
   "type": "APIRoute",
   "path": "/slash/memory",
   "name": "slash_memory",
@@ -4030,7 +4040,7 @@
   "trong": null
  },
  {
-  "order": 405,
+  "order": 406,
   "type": "APIRoute",
   "path": "/slash/block",
   "name": "slash_block",
@@ -4040,7 +4050,7 @@
   "trong": null
  },
  {
-  "order": 406,
+  "order": 407,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/reply-policy",
   "name": "reply_policy_state",
@@ -4050,7 +4060,7 @@
   "trong": null
  },
  {
-  "order": 407,
+  "order": 408,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/reply-policy/label",
   "name": "reply_policy_label",
@@ -4060,7 +4070,7 @@
   "trong": null
  },
  {
-  "order": 408,
+  "order": 409,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/reply-policy/cases/{case_id}/delete",
   "name": "reply_policy_case_delete",
@@ -4070,7 +4080,7 @@
   "trong": null
  },
  {
-  "order": 409,
+  "order": 410,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/reply-policy/forget",
   "name": "reply_policy_forget",
@@ -4080,7 +4090,7 @@
   "trong": null
  },
  {
-  "order": 410,
+  "order": 411,
   "type": "APIRoute",
   "path": "/voice/brain-models",
   "name": "voice_brain_models_route",
@@ -4090,7 +4100,7 @@
   "trong": null
  },
  {
-  "order": 411,
+  "order": 412,
   "type": "APIRoute",
   "path": "/share/rename",
   "name": "share_rename",
@@ -4100,7 +4110,7 @@
   "trong": null
  },
  {
-  "order": 412,
+  "order": 413,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/try",
   "name": "chatbot_try",
@@ -4110,7 +4120,7 @@
   "trong": null
  },
  {
-  "order": 413,
+  "order": 414,
   "type": "APIRoute",
   "path": "/resonance/agents",
   "name": "resonance_agents",
@@ -4120,7 +4130,7 @@
   "trong": null
  },
  {
-  "order": 414,
+  "order": 415,
   "type": "APIRoute",
   "path": "/resonance/agents/toggle",
   "name": "resonance_agent_toggle",
@@ -4130,7 +4140,7 @@
   "trong": null
  },
  {
-  "order": 415,
+  "order": 416,
   "type": "APIRoute",
   "path": "/resonance/agents/confirm",
   "name": "resonance_agent_confirm",
@@ -4140,7 +4150,7 @@
   "trong": null
  },
  {
-  "order": 416,
+  "order": 417,
   "type": "APIRoute",
   "path": "/goals/{goal_id}/assign",
   "name": "goal_assign",
@@ -4150,7 +4160,7 @@
   "trong": null
  },
  {
-  "order": 417,
+  "order": 418,
   "type": "APIRoute",
   "path": "/resonance/reactions",
   "name": "resonance_reaction_get",
@@ -4160,7 +4170,7 @@
   "trong": null
  },
  {
-  "order": 418,
+  "order": 419,
   "type": "APIRoute",
   "path": "/resonance/reactions",
   "name": "resonance_reaction",
@@ -4170,7 +4180,7 @@
   "trong": null
  },
  {
-  "order": 419,
+  "order": 420,
   "type": "APIRoute",
   "path": "/resonance/lessons",
   "name": "resonance_lessons",
@@ -4180,7 +4190,7 @@
   "trong": null
  },
  {
-  "order": 420,
+  "order": 421,
   "type": "APIRoute",
   "path": "/resonance/lessons/{lesson_id}/decision",
   "name": "resonance_lesson_decision",
@@ -4190,7 +4200,7 @@
   "trong": null
  },
  {
-  "order": 421,
+  "order": 422,
   "type": "APIRoute",
   "path": "/goals/{goal_id}/drafts/{submission_id}",
   "name": "goal_draft",
@@ -4200,7 +4210,7 @@
   "trong": null
  },
  {
-  "order": 422,
+  "order": 423,
   "type": "APIRoute",
   "path": "/resonance/agents/reviewer",
   "name": "resonance_agent_reviewer",
@@ -4210,7 +4220,7 @@
   "trong": null
  },
  {
-  "order": 423,
+  "order": 424,
   "type": "APIRoute",
   "path": "/goals/{goal_id}/reviewer/enable",
   "name": "goal_reviewer_enable",
@@ -4220,7 +4230,7 @@
   "trong": null
  },
  {
-  "order": 424,
+  "order": 425,
   "type": "APIRoute",
   "path": "/teams",
   "name": "teams_list",
@@ -4230,7 +4240,7 @@
   "trong": null
  },
  {
-  "order": 425,
+  "order": 426,
   "type": "APIRoute",
   "path": "/teams",
   "name": "teams_create",
@@ -4240,7 +4250,7 @@
   "trong": null
  },
  {
-  "order": 426,
+  "order": 427,
   "type": "APIRoute",
   "path": "/teams/{team_id}",
   "name": "teams_get",
@@ -4250,7 +4260,7 @@
   "trong": null
  },
  {
-  "order": 427,
+  "order": 428,
   "type": "APIRoute",
   "path": "/teams/{team_id}",
   "name": "teams_patch",
@@ -4260,7 +4270,7 @@
   "trong": null
  },
  {
-  "order": 428,
+  "order": 429,
   "type": "APIRoute",
   "path": "/teams/{team_id}/members",
   "name": "teams_member_add",
@@ -4270,7 +4280,7 @@
   "trong": null
  },
  {
-  "order": 429,
+  "order": 430,
   "type": "APIRoute",
   "path": "/teams/{team_id}/members/{agent_key}",
   "name": "teams_member_remove",
@@ -4280,7 +4290,7 @@
   "trong": null
  },
  {
-  "order": 430,
+  "order": 431,
   "type": "APIRoute",
   "path": "/teams/{team_id}/leader",
   "name": "teams_leader",
@@ -4290,7 +4300,7 @@
   "trong": null
  },
  {
-  "order": 431,
+  "order": 432,
   "type": "APIRoute",
   "path": "/teams/{team_id}/caps",
   "name": "teams_caps",
@@ -4300,7 +4310,7 @@
   "trong": null
  },
  {
-  "order": 432,
+  "order": 433,
   "type": "APIRoute",
   "path": "/teams/{team_id}/queue",
   "name": "teams_queue",
@@ -4310,7 +4320,7 @@
   "trong": null
  },
  {
-  "order": 433,
+  "order": 434,
   "type": "APIRoute",
   "path": "/teams/{team_id}/queue/{task_id}/priority",
   "name": "teams_priority",
@@ -4320,7 +4330,7 @@
   "trong": null
  },
  {
-  "order": 434,
+  "order": 435,
   "type": "APIRoute",
   "path": "/teams/{team_id}/tasks/{task_id}",
   "name": "teams_task",
@@ -4330,7 +4340,7 @@
   "trong": null
  },
  {
-  "order": 435,
+  "order": 436,
   "type": "APIRoute",
   "path": "/teams/{team_id}/tasks/{task_id}/cancel",
   "name": "teams_task_cancel",
@@ -4340,7 +4350,7 @@
   "trong": null
  },
  {
-  "order": 436,
+  "order": 437,
   "type": "APIRoute",
   "path": "/teams/{team_id}/tasks/{task_id}/amend",
   "name": "teams_task_amend",
@@ -4350,7 +4360,7 @@
   "trong": null
  },
  {
-  "order": 437,
+  "order": 438,
   "type": "APIRoute",
   "path": "/teams/{team_id}/tasks/{task_id}/unblock",
   "name": "teams_task_unblock",
@@ -4360,7 +4370,7 @@
   "trong": null
  },
  {
-  "order": 438,
+  "order": 439,
   "type": "APIRoute",
   "path": "/teams/{team_id}/pin",
   "name": "teams_pin",
@@ -4370,7 +4380,7 @@
   "trong": null
  },
  {
-  "order": 439,
+  "order": 440,
   "type": "APIRoute",
   "path": "/teams/{team_id}/tasks/{task_id}/extend",
   "name": "teams_task_extend",
@@ -4380,7 +4390,7 @@
   "trong": null
  },
  {
-  "order": 440,
+  "order": 441,
   "type": "APIRoute",
   "path": "/teams/{team_id}/messages",
   "name": "teams_messages",
@@ -4390,7 +4400,7 @@
   "trong": null
  },
  {
-  "order": 441,
+  "order": 442,
   "type": "APIRoute",
   "path": "/teams/{team_id}/messages/{message_id}/reaction",
   "name": "teams_reaction",
@@ -4400,7 +4410,7 @@
   "trong": null
  },
  {
-  "order": 442,
+  "order": 443,
   "type": "APIRoute",
   "path": "/teams/{team_id}/messages",
   "name": "teams_send",
@@ -4410,7 +4420,7 @@
   "trong": null
  },
  {
-  "order": 443,
+  "order": 444,
   "type": "APIRoute",
   "path": "/teams/{team_id}/messages/{message_id}/replies/{agent_key}/retry",
   "name": "teams_reply_retry",
@@ -4420,7 +4430,7 @@
   "trong": null
  },
  {
-  "order": 444,
+  "order": 445,
   "type": "APIRoute",
   "path": "/teams/{team_id}/messages/{message_id}/accept",
   "name": "teams_accept",
@@ -4430,7 +4440,7 @@
   "trong": null
  },
  {
-  "order": 445,
+  "order": 446,
   "type": "APIRoute",
   "path": "/teams/{team_id}/messages/{message_id}/reject",
   "name": "teams_reject",
@@ -4440,7 +4450,7 @@
   "trong": null
  },
  {
-  "order": 446,
+  "order": 447,
   "type": "APIRoute",
   "path": "/teams/{team_id}/messages/{message_id}/decision",
   "name": "teams_decision",
@@ -4450,7 +4460,7 @@
   "trong": null
  },
  {
-  "order": 447,
+  "order": 448,
   "type": "APIRoute",
   "path": "/teams/{team_id}/turns",
   "name": "teams_turns",
@@ -4460,7 +4470,7 @@
   "trong": null
  },
  {
-  "order": 448,
+  "order": 449,
   "type": "APIRoute",
   "path": "/teams/{team_id}/authority",
   "name": "teams_authority",
@@ -4470,7 +4480,7 @@
   "trong": null
  },
  {
-  "order": 449,
+  "order": 450,
   "type": "APIRoute",
   "path": "/teams/{team_id}/members/{agent_key}/managed",
   "name": "teams_member_managed",
@@ -4480,7 +4490,7 @@
   "trong": null
  },
  {
-  "order": 450,
+  "order": 451,
   "type": "APIRoute",
   "path": "/teams/{team_id}/search",
   "name": "teams_search",
@@ -4490,7 +4500,7 @@
   "trong": null
  },
  {
-  "order": 451,
+  "order": 452,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/messages/{message_id}/reaction",
   "name": "sessions_message_reaction",
@@ -4500,7 +4510,7 @@
   "trong": null
  },
  {
-  "order": 452,
+  "order": 453,
   "type": "APIRoute",
   "path": "/agents/jobs/counts",
   "name": "agent_jobs_counts",
@@ -4510,7 +4520,7 @@
   "trong": null
  },
  {
-  "order": 453,
+  "order": 454,
   "type": "APIRoute",
   "path": "/agents/{slug}/jobs/verify-targets",
   "name": "agent_jobs_verify_targets",
@@ -4520,7 +4530,7 @@
   "trong": null
  },
  {
-  "order": 454,
+  "order": 455,
   "type": "APIRoute",
   "path": "/agents/{slug}/jobs",
   "name": "agent_jobs_list",
@@ -4530,7 +4540,7 @@
   "trong": null
  },
  {
-  "order": 455,
+  "order": 456,
   "type": "APIRoute",
   "path": "/agents/{slug}/jobs",
   "name": "agent_jobs_assign",
@@ -4540,7 +4550,7 @@
   "trong": null
  },
  {
-  "order": 456,
+  "order": 457,
   "type": "APIRoute",
   "path": "/agents/{slug}/pulse",
   "name": "agent_pulse_view",
@@ -4550,7 +4560,7 @@
   "trong": null
  },
  {
-  "order": 457,
+  "order": 458,
   "type": "APIRoute",
   "path": "/agents/{slug}/pulse/wake",
   "name": "agent_pulse_wake",
@@ -4560,7 +4570,7 @@
   "trong": null
  },
  {
-  "order": 458,
+  "order": 459,
   "type": "APIRoute",
   "path": "/agents/{slug}/pulse/pause",
   "name": "agent_pulse_pause",
@@ -4570,7 +4580,7 @@
   "trong": null
  },
  {
-  "order": 459,
+  "order": 460,
   "type": "APIRoute",
   "path": "/agents/{slug}/pulse/resume",
   "name": "agent_pulse_resume",
@@ -4580,7 +4590,7 @@
   "trong": null
  },
  {
-  "order": 460,
+  "order": 461,
   "type": "APIRoute",
   "path": "/agents/{slug}/pulse/reset",
   "name": "agent_pulse_reset",
@@ -4590,7 +4600,7 @@
   "trong": null
  },
  {
-  "order": 461,
+  "order": 462,
   "type": "APIRoute",
   "path": "/agents/{slug}/pulse/revert",
   "name": "agent_pulse_revert",
@@ -4600,7 +4610,7 @@
   "trong": null
  },
  {
-  "order": 462,
+  "order": 463,
   "type": "APIRoute",
   "path": "/agents/{slug}/pulse/proposals/{pid}/accept",
   "name": "agent_pulse_proposal_accept",
@@ -4610,7 +4620,7 @@
   "trong": null
  },
  {
-  "order": 463,
+  "order": 464,
   "type": "APIRoute",
   "path": "/agents/{slug}/pulse/proposals/{pid}/reject",
   "name": "agent_pulse_proposal_reject",
@@ -4620,7 +4630,7 @@
   "trong": null
  },
  {
-  "order": 464,
+  "order": 465,
   "type": "APIRoute",
   "path": "/agents/{slug}/pulse/max_tier",
   "name": "agent_pulse_max_tier",
@@ -4630,7 +4640,7 @@
   "trong": null
  },
  {
-  "order": 465,
+  "order": 466,
   "type": "APIRoute",
   "path": "/seen",
   "name": "pulse_seen",
@@ -4640,7 +4650,7 @@
   "trong": null
  },
  {
-  "order": 466,
+  "order": 467,
   "type": "APIRoute",
   "path": "/agents/{slug}/judge",
   "name": "agent_judge_view",
@@ -4650,7 +4660,7 @@
   "trong": null
  },
  {
-  "order": 467,
+  "order": 468,
   "type": "APIRoute",
   "path": "/agents/{slug}/judge/label",
   "name": "agent_judge_label",
@@ -4660,7 +4670,7 @@
   "trong": null
  },
  {
-  "order": 468,
+  "order": 469,
   "type": "APIRoute",
   "path": "/agents/{slug}/lessons/{lesson_id}/revoke",
   "name": "agent_lesson_revoke",
@@ -4670,7 +4680,7 @@
   "trong": null
  },
  {
-  "order": 469,
+  "order": 470,
   "type": "APIRoute",
   "path": "/agents/{slug}/lessons/{lesson_id}/promote",
   "name": "agent_lesson_promote",
@@ -4680,7 +4690,7 @@
   "trong": null
  },
  {
-  "order": 470,
+  "order": 471,
   "type": "APIRoute",
   "path": "/agents/{slug}/budget",
   "name": "agent_budget_set",
@@ -4690,7 +4700,7 @@
   "trong": null
  },
  {
-  "order": 471,
+  "order": 472,
   "type": "APIRoute",
   "path": "/model/fast-state",
   "name": "model_fast_state",
@@ -4700,7 +4710,7 @@
   "trong": null
  },
  {
-  "order": 455,
+  "order": 473,
   "type": "APIRoute",
   "path": "/share/chat",
   "name": "share_chat",
@@ -4710,7 +4720,7 @@
   "trong": null
  },
  {
-  "order": 456,
+  "order": 474,
   "type": "APIRoute",
   "path": "/share/chat/of",
   "name": "share_chat_of",

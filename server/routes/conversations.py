@@ -12,12 +12,14 @@ Không nhận `import main` - mọi thứ cần từ main đi qua `deps`.
 """
 from __future__ import annotations
 
+import mimetypes
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable, Optional
 
-from fastapi import APIRouter, Form
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Form, Query
+from fastapi.responses import FileResponse, JSONResponse
 
 import channel_accounts
 import channels
@@ -37,6 +39,16 @@ class ConversationsDeps:
     # ghi và dạy sau khi đã gửi. Không import chatbot_runtime ở đây: route đi qua deps như mọi route khác.
     manual_answer: Callable = None
     manual_done: Callable = None
+    # `brain_root(brain) -> str`: thư mục gốc của một brain. Cần cho `/conversations/{id}/media` (0.171.0), nơi phát ảnh và file khách
+    # gửi mà kênh đã tải về brain của bot. Thiếu thì đường đó trả 404.
+    brain_root: Callable = None
+
+
+# Ảnh và file khách gửi chỉ được phát từ hai thư mục mà các kênh tự tải về: `inbox/` (Telegram, Zalo Bot, Slack, WhatsApp,
+# Messenger, Discord, Lark ghi vào `inbox/khach`) và `attachments/` (ảnh Zalo cá nhân bot đã tải để xem). Không ghi chú nào khác của brain.
+_THU_MUC_MEDIA = ("inbox", "attachments")
+_DUOI_XEM_THANG = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".heic", ".mp4", ".webm", ".mp3", ".ogg", ".m4a",
+                   ".wav", ".opus", ".pdf")
 
 
 _DEPS: "ConversationsDeps" = None   # type: ignore
@@ -314,5 +326,52 @@ def register(app, deps: ConversationsDeps):
             return JSONResponse({"ok": False, "error": err},
                                 status_code=404 if hop_le else 400)
         return {"ok": True, "conversation": conversations.chi_tiet(conv_id)}
+
+    def _goc_media(c: dict) -> list:
+        """Các thư mục được phép phát media của hội thoại này: inbox/ và attachments/ trong brain của bot trực nó, và
+        brain gắn với tài khoản kênh."""
+        if not _DEPS or not _DEPS.brain_root:
+            return []
+        brains = []
+        bot = chatbot_store.get_bot(str(c.get("bot_id") or "")) if c.get("bot_id") else None
+        if bot and bot.get("brain"):
+            brains.append(str(bot["brain"]))
+        for key in (str(c.get("channel_account_id") or ""), _tk_goc(c)):
+            try:
+                a = channel_accounts.get_account(key) if key else None
+            except Exception:      # noqa: BLE001 - a broken account record must not break the inbox
+                a = None
+            if a and a.get("brain"):
+                brains.append(str(a["brain"]))
+        goc = []
+        for b in dict.fromkeys(brains):
+            try:
+                root = Path(_DEPS.brain_root(b)).resolve()
+            except Exception:      # noqa: BLE001
+                continue
+            goc += [root / d for d in _THU_MUC_MEDIA]
+        return goc
+
+    @router.get("/conversations/{conv_id}/media")
+    async def conversations_media(conv_id: int, p: str = Query(...), dl: int = Query(0)):
+        """Ảnh hay file KHÁCH gửi mà kênh đã tải về máy (0.171.0): Hộp thư hiện ảnh ngay trong cuộc chat, file thì tải về.
+
+        Đường dẫn nằm sẵn trong tin ("[... đã tải về: <path>]"). Chỉ phát file nằm thật trong inbox/ hoặc attachments/ của brain
+        của chính hội thoại này (resolve trước khi so, nên `..` hay symlink không leo ra được). Cần đăng nhập như mọi route khác."""
+        c = conversations.chi_tiet(conv_id)
+        if not c:
+            return _404()
+        try:
+            f = Path(str(p or "")).expanduser().resolve()
+        except (OSError, ValueError):
+            return _404(localefmt.chu("không có file đó", "no such file"))
+        if not f.is_file() or not any(g == f.parent or g in f.parents for g in _goc_media(c)):
+            return _404(localefmt.chu("không có file đó", "no such file"))
+        if dl or f.suffix.lower() not in _DUOI_XEM_THANG:
+            return FileResponse(str(f), filename=f.name)
+        resp = FileResponse(str(f), media_type=mimetypes.guess_type(f.name)[0] or "application/octet-stream")
+        resp.headers["Content-Disposition"] = "inline"
+        resp.headers["X-Content-Type-Options"] = "nosniff"
+        return resp
 
     app.include_router(router)

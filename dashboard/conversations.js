@@ -411,7 +411,8 @@
             '<small class="ht-item-time">' + esc(gio(c.last_message_at)) + '</small></span>' +
           (tags.length ? '<span class="ht-item-tags">' + tags.join("") + '</span>' : "") +
           '<span class="ht-item-sub">' + logoKenh(c.channel) +
-            '<small>' + esc(ai + (c.last_message || "")) + '</small>' +
+            '<small>' + esc(ai + (window.JavisHtMedia ? window.JavisHtMedia.tomTat(c.last_message || "", window.t)
+                                                     : (c.last_message || ""))) + '</small>' +
             // Tổng số tin của cuộc (0.148.0, như cột Lịch sử của Trò chuyện), khác số đỏ là số tin CHƯA ĐỌC.
             (c.message_count ? '<span class="ht-count" title="' + esc(window.t("ht.so_tin_title", { count: c.message_count })) + '">' +
               esc(window.t("sess.msgs", { count: c.message_count })) + '</span>' : "") +
@@ -754,12 +755,18 @@
            : t.sender_type === "ai" ? (t.sender_name || window.t("ht.bot"))
            : t.sender_type === "human" ? window.t("ht.ban") : "";
     var than;
+    // Ảnh và file khách gửi (0.171.0, ht-media.js): ảnh hiện thẳng trong bong bóng, file thành thẻ bấm tải về. Chỉ còn chú
+    // thích thật của khách đi kèm; dòng "đã tải về: <đường dẫn máy chủ>" và link ảnh trần không hiện ra nữa.
+    var media = (t.sender_type === "customer" && window.JavisHtMedia) ? window.JavisHtMedia.phanTich(t, t.conversation_id) : null;
+    var coMedia = !!(media && (media.anh || media.file));
     if (t.sender_type === "ai" && window.mdToHtml) {
       try { than = window.mdToHtml(t.text || "", ""); } catch (e) { than = esc(t.text || ""); }
+    } else if (coMedia) {
+      than = window.JavisHtMedia.html(media, esc, ic, window.t) + (media.chu ? '<div class="ht-chu-thich">' + esc(media.chu) + '</div>' : "");
     } else {
       than = esc(t.text || "");
     }
-    var loai = t.message_type && t.message_type !== "text"
+    var loai = (t.message_type && t.message_type !== "text" && !coMedia)
       ? '<span class="ht-loai">' + ic(t.message_type === "image" ? "image" : t.message_type === "audio" ? "mic" : "paperclip") +
         ' ' + esc(t.message_type) + '</span>' : "";
     var loi = t.metadata && t.metadata.loi

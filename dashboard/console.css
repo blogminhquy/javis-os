@@ -3217,3 +3217,20 @@ body.col-resizing { cursor: col-resize; user-select: none; }
   padding: 4px 0; text-decoration: underline; cursor: pointer; color: inherit; }
 
 .tm-proposal-state { font-size: 16px; color: var(--text2); margin-top: 6px; }
+
+/* Ảnh và file khách gửi trong Hộp thư bot (0.171.0, ht-media.js). Ảnh hiện thẳng, bấm mở cỡ thật ở thẻ mới;
+   link ảnh của Zalo hết hạn thì thay bằng một dòng nói rõ, vẫn bấm mở link gốc được. */
+.ht-anh { display: block; max-width: min(320px, 100%); text-decoration: none; }
+.ht-anh img { display: block; max-width: 100%; max-height: 360px; border-radius: 10px; object-fit: contain;
+  background: var(--bg2, rgba(0,0,0,.04)); }
+.ht-anh .ht-anh-hong { display: none; color: var(--text3); font-size: 16px; }
+.ht-anh.hong img { display: none; }
+.ht-anh.hong .ht-anh-hong { display: inline-flex; align-items: center; gap: 6px; }
+.ht-file { display: flex; align-items: center; gap: 10px; max-width: min(360px, 100%); padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: 10px; color: var(--text); text-decoration: none; }
+.ht-file:hover { border-color: var(--accent); }
+.ht-file-ico, .ht-file-dl { flex: none; color: var(--accent); display: inline-flex; }
+.ht-file-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.ht-file-ten { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.ht-file-meta { color: var(--text3); font-size: 16px; }
+.ht-chu-thich { margin-top: 8px; white-space: pre-wrap; }
