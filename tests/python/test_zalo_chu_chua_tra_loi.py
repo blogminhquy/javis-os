@@ -77,8 +77,11 @@ async def _answer(text, meta, progress):
     return {"text": "Dạ em nhận được rồi ạ, thầy sẽ xem và phản hồi mình sớm nhé.", "files": []}
 
 
+CFG = {"id": "bot-x", "reply_when": "mention"}     # cấu hình SỐNG của bot: một phần test đặt `nhuong_tay_phut` rồi gỡ ra
+
+
 def lam_bot():
-    return zp.Transport("zalo-1", [], _answer, cfg_fn=lambda: {"id": "bot-x", "reply_when": "mention"})
+    return zp.Transport("zalo-1", [], _answer, cfg_fn=lambda: CFG)
 
 
 async def doc(*ds):
@@ -127,7 +130,8 @@ async def chay():
     n = await xa()
     check("CANARY: chủ im đủ 10 phút: bot trả lời đúng MỘT lần", n == 1 and len(LUOT) == 1 and len(GUI) == 1, (n, LUOT, GUI))
     text, meta = LUOT[0] if LUOT else ("", {})
-    check("Agent được báo chủ chưa trả lời sau 10 phút", "chủ nick chưa trả lời sau 10 phút" in text, text)
+    check("Agent được báo chủ đã 10 phút không nhắn thêm kể từ tin nhắn tay cuối (0.172.0)",
+          "chủ nick nhắn tay lần cuối lúc" in text and "rồi 10 phút không nhắn thêm gì" in text, text)
     check("và khách gửi kèm gì (tên file, một ảnh), để đáp hợp cảnh thay vì im vì tin không có chữ",
           "file Ke-hoach-sinh-hoat-chuyen-de-quy-4.docx" in text and "một ảnh" in text, text)
     check("ghi chú nói rõ không phải lời khách", "không phải lời khách" in text, text)
@@ -177,11 +181,41 @@ async def chay():
     check("không có chủ nhắn tay thì không giữ, trả lời như thường", ("zalo-1", "u5") not in zc._CHO_CHU and len(LUOT) == 1,
           (zc._CHO_CHU.keys(), LUOT))
 
-    # ---- 6. nhóm không áp ----------------------------------------------------------------------
+    # ---- 6a. nhóm, bot CHƯA ĐẶT số phút nhường: như trước 0.172.0, không giữ gì ---------------------------
     don()
     await doc(tin("g1", "Cả nhà ơi", 30, nhom=True, cua_minh=True))
     await doc(tin("g1", "Thầy ơi mai học không ạ", 2, nhom=True, **{"from": "u9"}))
-    check("nhóm: không giữ tin chờ chủ", ("zalo-1", "g1") not in zc._CHO_CHU)
+    check("nhóm, bot chưa đặt: không giữ tin chờ chủ", ("zalo-1", "g1") not in zc._CHO_CHU and not LUOT, LUOT)
+    zc._TAY.pop(("zalo-1", "g1"), None)
+
+    # ---- 6. nhóm, bot ĐÃ ĐẶT số phút (0.172.0): tag thẳng trả lời ngay, tin khác chờ hết quãng rồi mỗi người một lượt
+    don()
+    CFG["nhuong_tay_phut"] = 10
+    await doc(tin("g1", "Cả nhà ơi", 30, nhom=True, cua_minh=True))
+    await doc(tin("g1", "Thầy ơi mai học không ạ", 3, nhom=True, **{"from": "u9"}),
+              tin("g1", "Con em nghỉ buổi mai ạ", 2, nhom=True, **{"from": "u8"}))
+    check("nhóm: tin không gọi ai được giữ chờ chủ", ("zalo-1", "g1") in zc._CHO_CHU and not LUOT, LUOT)
+    zc._ID_MINH["zalo-1"] = {"uid": "me", "ten": "Toán Thầy Thành"}
+    await doc(tin("g1", "@Toán Thầy Thành lớp mai học mấy giờ ạ", 1, nhom=True, **{"from": "u7"}))
+    check("nhóm: tin TAG thẳng nick trả lời ngay, không chờ", len(LUOT) == 1 and "lớp mai học mấy giờ" in LUOT[0][0], LUOT)
+    LUOT.clear()
+    lui_gio(610)
+    n = await xa()
+    check("nhóm: hết quãng nhường, mỗi người một lượt (hai người, hai lượt)", n == 2 and len(LUOT) == 2, (n, LUOT))
+    check("nhóm: lượt mang ghi chú chủ không nhắn thêm từ tin nhắn tay cuối",
+          all("chủ nick nhắn tay lần cuối lúc" in x[0] for x in LUOT), LUOT)
+    CFG.pop("nhuong_tay_phut", None)
+
+    # ---- 6b. mốc chờ là TIN NHẮN TAY, không phải tin khách đầu tiên (chủ chốt 14/10) --------------------
+    don()
+    zc._TAY.pop(("zalo-1", "u2"), None)
+    await doc(tin("u2", "Để thầy xem", 500, cua_minh=True))
+    check("tin nhắn tay 500 giây trước: còn trong 10 phút nhường", zc.chu_vua_nhan_tay("zalo-1", "u2"))
+    await doc(tin("u2", "Dạ vâng ạ", 2))
+    lui_gio(110)
+    await xa()
+    check("đủ 10 phút tính từ tin nhắn tay thì trả lời, dù tin khách mới chờ 2 phút",
+          len(LUOT) == 1 and "Dạ vâng ạ" in LUOT[0][0], LUOT)
 
     # ---- 7. rào: tin cũ của bộ đệm, tắt tính năng, tắt bot ----------------------------------------
     don()

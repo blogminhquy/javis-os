@@ -897,6 +897,15 @@
                 ' <input type="time" id="cbGioDen" value="' + esc(((b && b.gio_truc) || {}).den || "") + '"></label>' +
             '</div>' +
             '<div class="cb-hint">' + esc(window.t("cb.hint_gio_truc")) + '</div>' +
+            // Owner yield (0.172.0, personal Zalo only): minutes the bot stays out of a chat after the owner types into it
+            // by hand; 0 = never. Left blank = not set: the channel default (10 minutes, groups silent as before), shown
+            // as a placeholder so saving the form does not turn an unset bot into an explicit 10.
+            '<div class="cb-gio-truc">' +
+              '<label>' + esc(window.t("cb.nhuong_tay")) +
+                ' <input type="number" id="cbNhuongTay" min="0" max="240" step="1" style="width:8em" placeholder="' + esc(window.t("cb.ph_nhuong_tay")) + '" value="' +
+                esc(b && b.nhuong_tay_phut != null ? String(b.nhuong_tay_phut) : "") + '"></label>' +
+            '</div>' +
+            '<div class="cb-hint">' + esc(window.t("cb.hint_nhuong_tay")) + '</div>' +
           '</div>' +
 
           // Nâng cao: chỉ ngôn ngữ trả lời. Ngôn ngữ của bot ĐỘC LẬP với ngôn ngữ của chủ: bot nói
@@ -1225,6 +1234,8 @@
       var gioTu = ((box.querySelector("#cbGioTu") || {}).value || "").trim();
       var gioDen = ((box.querySelector("#cbGioDen") || {}).value || "").trim();
       if (!gioTu !== !gioDen) return alert(window.t("cb.gio_thieu"));
+      var nhuong = ((box.querySelector("#cbNhuongTay") || {}).value || "").trim();
+      if (nhuong !== "" && !(/^\d+$/.test(nhuong) && +nhuong <= 240)) return alert(window.t("cb.nhuong_tay_sai"));
       // Không tài khoản nào đứng được trong nhóm thì gửi danh sách nhóm rỗng: bản ghi mang một danh
       // sách nhóm không bao giờ dùng tới là một lời hứa suông nằm lại trong dữ liệu.
       var chung = { name: ten, agent_slug: ag, agent_brain: br, brain: br,
@@ -1234,7 +1245,8 @@
                     groups: co ? ds("group").join("\n") : "",
                     reply_when: co ? (the === "auto" ? "auto" : (giaTri("cbRw") || "mention")) : "mention",
                     account_ids: ids.join(","),
-                    gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "" };
+                    gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "",
+                    nhuong_tay_phut: nhuong };
       try {
         if (sua) {
           await api("/chatbots/" + encodeURIComponent(b.id) + "/update", { method: "POST", body: fd(chung) });
