@@ -341,6 +341,17 @@ Lowering the level asks nothing: lowering is always safe, and while you are tryi
 
 A bot card with a raised level carries a coloured band naming the level, yellow for Can write, red for Full power. A Read only bot carries no label, since that is the default. The log also records the level of **each turn**, so reviewing "what the bot did that day" stays accurate even after you lowered the level following an incident.
 
+### Per-chat exceptions (since 0.172.0)
+
+When a bot answers strangers at **Read only** but must also do real work for one person close to you (for example your mother messaging that same Zalo nick to get her Word or Excel files edited), do not raise the whole bot. Add an **exception** for that person's private chat, under **Per-chat exceptions** in the bot form: type part of their name in the search box, pick the chat from the list (private chats the inbox already knows on the ticked accounts), press **Add**, then choose the level and wait for that row.
+
+- **Only that chat, on that very account,** runs at the chosen level. The exception is tied to the channel account the chat lives on: the same id on another account of the bot (Telegram, WhatsApp, another Zalo nick) never counts, and neither does a group with the same id. Every other chat keeps the bot's level. Since you pick from the list, the person must have messaged the nick at least once.
+- Raising a chat to **Can write** or **Full power** needs a risk confirmation **of its own**, separate from the one for raising the bot: agreeing to raise the bot never means agreeing to raise one chat. Saving the same list again or lowering does not ask again.
+- A raised chat is always answered, even when the bot only answers chosen people, and on a personal Zalo nick the bot is told not to stay silent just because it is a family matter. A **lowered** chat (say a Full power bot and one customer you do not trust) is only lowered: it does not become a chosen person and the bot is told nothing more.
+- The exception's level applies both to the bot's own replies and when you press **Reply for me** or **Suggest a reply** in the inbox.
+- **Wait seconds** (0 to 60, empty = same as everyone) is how long the bot waits for that person to finish typing, and it **only works on personal Zalo**, the one channel that gathers messages before answering. Other channels ignore it. Gathered messages older than 180 seconds (`TUOI_TOI_DA`) are dropped from the turn, so for someone who types in bursts over a long time a short wait is safer than 60 seconds.
+- Only raise the level for people you fully trust: at Full power that person steers the bot as if they were you. The bot card shows how many exceptions it has.
+
 ### Which engines can run the raised levels
 
 The **Read only** level runs identically on all nine brains, with no exceptions.

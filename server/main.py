@@ -21714,6 +21714,21 @@ def _chan_nang_quyen(muc, xac_nhan):
                          "canh_bao": chatbot_store.canh_bao_muc(m)}, status_code=400)
 
 
+def _chan_ngoai_le(raw, cu, xac_nhan):
+    """Same gate as `_chan_nang_quyen`, for per-chat exceptions (0.172.0): an exception that raises a chat to a level
+    needing the risk confirmation answers `can_force` with that level's warnings, so the form asks instead of failing.
+    `xac_nhan` is the exception's OWN flag (`xac_nhan_ngoai_le`), and the answer names it in `co` so a caller knows
+    which flag to resend. A list that does not parse is left to the store, which answers with the reason."""
+    moi, loi = chatbot_store.parse_ngoai_le(raw)
+    if loi or not chatbot_store.can_xac_nhan_ngoai_le(moi, cu, xac_nhan):
+        return None
+    m = "full" if any(e["muc_quyen"] == "full" for e in moi) else "auto"
+    return JSONResponse({"ok": False, "error": chatbot_store._loi(chatbot_store.LOI_CHUA_XAC_NHAN_NGOAI_LE),
+                         "can_force": True, "co": "xac_nhan_ngoai_le", "muc_quyen": m,
+                         "nhan": chatbot_store.nhan_muc(m),
+                         "canh_bao": chatbot_store.canh_bao_muc(m)}, status_code=400)
+
+
 @app.get("/chatbots/chats")
 async def chatbots_chats(account_ids: str = "", bot_id: str = "", q: str = "", limit: int = 60):
     """Các cuộc chat ĐÃ BIẾT (người và nhóm) cho ô "chọn người và nhóm" của form bot.
@@ -21771,12 +21786,14 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           channel: str = Form(""), xac_nhan_rui_ro: str = Form(""),
                           ngon_ngu: str = Form(""), account_ids: str = Form(""),
                           account_label: str = Form(""), reply_policy: str = Form(""),
-                          gio_truc: str = Form(""), nhuong_tay_phut: str = Form("")):
+                          gio_truc: str = Form(""), nhuong_tay_phut: str = Form(""),
+                          ngoai_le: str = Form(""), xac_nhan_ngoai_le: str = Form("")):
     # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
     # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
     br = (brain or agent_brain or "").strip()
     ack = str(xac_nhan_rui_ro).strip() not in ("", "0", "false")
-    chan = _chan_nang_quyen(muc_quyen, ack)
+    ack_nl = str(xac_nhan_ngoai_le).strip() not in ("", "0", "false")
+    chan = _chan_nang_quyen(muc_quyen, ack) or _chan_ngoai_le(ngoai_le, [], ack_nl)
     if chan is not None:
         return chan
     bid, err = chatbot_store.create_bot({
@@ -21803,6 +21820,9 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         # Owner yield (0.172.0): minutes, 0 = never yield; blank or invalid = not set (channel default: 10 minutes,
         # groups stay silent for the whole window as before 0.172.0).
         "nhuong_tay_phut": nhuong_tay_phut,
+        # Per-chat exceptions (0.172.0): JSON list of {chat_id, ten, muc_quyen, cho_giay}; raised levels need the ack.
+        "ngoai_le": ngoai_le,
+        "xac_nhan_ngoai_le": ack_nl,
     })
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)
@@ -21832,6 +21852,12 @@ async def chatbots_update(bot_id: str, request: Request):
     form["xac_nhan_rui_ro"] = str(form.get("xac_nhan_rui_ro") or "").strip() not in ("", "0", "false")
     if "muc_quyen" in form:
         chan = _chan_nang_quyen(form.get("muc_quyen"), form["xac_nhan_rui_ro"])
+        if chan is not None:
+            return chan
+    if "ngoai_le" in form:
+        form["xac_nhan_ngoai_le"] = str(form.get("xac_nhan_ngoai_le") or "").strip() not in ("", "0", "false")
+        chan = _chan_ngoai_le(form.get("ngoai_le"), (chatbot_store.get_bot(bot_id) or {}).get("ngoai_le"),
+                              form["xac_nhan_ngoai_le"])
         if chan is not None:
             return chan
     ok, err = chatbot_store.update_bot(bot_id, form)

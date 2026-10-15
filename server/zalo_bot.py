@@ -127,12 +127,20 @@ def _lay_url(msg: dict, khoa_thu) -> str:
     return ""
 
 
-def _chat_type(raw) -> str:
+def _chat_type(raw, chat_id: str = "", sender_id: str = "") -> str:
     """Zalo dùng PRIVATE/GROUP, Javis dùng private/group ở mọi nơi khác (xem
     `chatbot_runtime._ly_do_im`). Quy về MỘT bảng chữ ngay tại cửa vào, chứ đừng bắt mỗi
-    chỗ đọc meta phải nhớ kênh nào viết hoa."""
+    chỗ đọc meta phải nhớ kênh nào viết hoa.
+
+    A MISSING type is not taken as private on trust (review of #653): a private Zalo Bot chat carries the sender's own
+    id as its chat id, so a chat whose id differs from the sender's is a group. Otherwise a group id entered as a
+    per-chat exception could match a group message that arrived without its type."""
     s = str(raw or "").strip().lower()
     if s.startswith("group"):
+        return "group"
+    if s:
+        return "private"
+    if chat_id and sender_id and str(chat_id) != str(sender_id):
         return "group"
     return "private"
 
@@ -329,7 +337,8 @@ class ZaloBot(HangLuot):
         return {
             "platform": "zalo",
             "chat_id": str(chat_obj.get("id", "") or frm.get("id", "")),
-            "chat_type": _chat_type(chat_obj.get("chat_type") or chat_obj.get("type")),
+            "chat_type": _chat_type(chat_obj.get("chat_type") or chat_obj.get("type"),
+                                    str(chat_obj.get("id", "") or ""), str(frm.get("id") or "")),
             "chat_title": chat_obj.get("name") or chat_obj.get("title") or "",
             "user_name": frm.get("display_name") or "",
             "username": frm.get("display_name") or "",

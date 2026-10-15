@@ -991,10 +991,26 @@ def _giao_cho_bot(conn: dict, ev: dict) -> None:
         # trả lời MỘT lần cho tất cả, thay vì hai câu liền nhau (một cho tin cũ, một cho tin mới).
         _giu_cho_chu(cid, ev)
         return
-    if CHO_KHACH_IM > 0 and ev.get("chat_type") == "private":
+    if ev.get("chat_type") == "private" and _cho_cua(tb, str(ev.get("external_chat_id") or "")) > 0:
         _xep_cho(cid, ev)
         return
     _chay(tb, ev)
+
+
+def _cho_cua(tb: Any, thread: str) -> float:
+    """Seconds this private chat must be quiet before the bot answers: the chat's own exception (0.172.0,
+    `chatbot_store.ngoai_le_cua`) when it sets one, otherwise `CHO_KHACH_IM`. The exception must name this very
+    account (`tb.account_id`, set by `chatbot_runtime.start_bot`). Personal Zalo only: no other channel gathers."""
+    try:
+        import chatbot_store
+        cfg = (tb.cfg_fn() if getattr(tb, "cfg_fn", None) else None) or {}
+        e = chatbot_store.ngoai_le_cua(cfg, {"chat_type": "private", "chat_id": thread,
+                                             "account_id": str(getattr(tb, "account_id", "") or "")})
+    except Exception:       # noqa: BLE001 - a broken bot record must not stop the read loop
+        e = None
+    if e and e.get("cho_giay") is not None:
+        return float(e["cho_giay"])
+    return CHO_KHACH_IM
 
 
 def _chay(tb: Any, ev: dict) -> None:
@@ -1117,7 +1133,7 @@ def xa_hang_cho(conn_id: str, luc: Optional[float] = None) -> int:
         if not tb:
             _GOM.pop(khoa, None)
             continue
-        if luc - float(o.get("cuoi") or 0) < CHO_KHACH_IM:
+        if luc - float(o.get("cuoi") or 0) < _cho_cua(tb, khoa[1]):
             continue
         _GOM.pop(khoa, None)
         evs = [e for e in o.get("evs") or []
@@ -1309,10 +1325,14 @@ def _nhip_cua(conn_id: str, now: Optional[float] = None) -> int:
     """Nhịp đọc kế tiếp của một tài khoản: dày khi có cuộc chat đang chờ khách nhắn xong hoặc vừa có
     tin khách chat riêng, thường thì `NHIP`. Chỉ khi có bot trực và đang bật chờ."""
     cid = str(conn_id)
-    if cid not in _BOTS or CHO_KHACH_IM <= 0:
+    if cid not in _BOTS:
         return NHIP
+    # A chat waiting in `_GOM` reads fast even with CHO_KHACH_IM = 0: it can only be there through its own
+    # per-chat wait (0.172.0, `_cho_cua`).
+    if any(k[0] == cid for k in _GOM):
+        return NHIP_NHANH
     now = time.time() if now is None else now
-    if any(k[0] == cid for k in _GOM) or now - float(_NONG.get(cid) or 0) < NONG_GIAY:
+    if CHO_KHACH_IM > 0 and now - float(_NONG.get(cid) or 0) < NONG_GIAY:
         return NHIP_NHANH
     return NHIP
 

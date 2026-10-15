@@ -370,6 +370,130 @@ def clean_nhuong_tay(v: Any) -> Optional[int]:
     return n if 0 <= n <= NHUONG_TAY_TOI_DA else None
 
 
+# Per-chat exceptions (0.172.0): ONE private chat gets its own permission level and wait time. Asked by the owner of a
+# personal Zalo nick on 2026-10-14: the bot that answers ~90 parents at "read only" must also help the owner's mother edit
+# her Word/Excel files. Raising the whole bot would hand those tools to every stranger who messages the nick; the risk
+# text for "full" itself says to give it only to people you fully trust. An exception names exactly that chat.
+# Private chats only: in a group "the person writing" is anyone in the group.
+NGOAI_LE_TOI_DA = 20
+CHO_GIAY_TOI_DA = 60
+_HANG_MUC = {m: i for i, m in enumerate(MUC_QUYEN)}     # suggest < read_docs < auto < full
+
+
+def _clean_ma(v: Any) -> str:
+    """A platform id (chat or channel account): trimmed, no whitespace, at most 64 chars; "" when unusable."""
+    s = str(v or "").strip()
+    return s if s and len(s) <= 64 and not any(c.isspace() for c in s) else ""
+
+
+def parse_ngoai_le(v: Any) -> tuple[Optional[list], str]:
+    """Validate the exception list (JSON text or list). Returns (list, "") or (None, reason).
+
+    Each entry: {"account_id": the channel account the chat lives on, "chat_id": private chat id on that account,
+    "ten": label for the owner, "muc_quyen": a level, "cho_giay": seconds the bot waits for that chat to finish
+    typing (personal Zalo only), or None for the channel default}.
+
+    An entry is scoped to ONE channel account (review of #653): one bot can hold up to 20 accounts across channels,
+    and a raw id saved for a personal-Zalo chat must never raise a chat that happens to carry the same string on the
+    bot's Telegram, WhatsApp or Messenger account."""
+    if v in (None, ""):
+        return [], ""
+    if isinstance(v, str):
+        try:
+            v = json.loads(v)
+        except ValueError:
+            return None, localefmt.chu("Danh sách ngoại lệ không đọc được.", "The exception list cannot be read.")
+    if not isinstance(v, list):
+        return None, localefmt.chu("Danh sách ngoại lệ không đọc được.", "The exception list cannot be read.")
+    if len(v) > NGOAI_LE_TOI_DA:
+        return None, localefmt.chu(f"Tối đa {NGOAI_LE_TOI_DA} ngoại lệ.", f"At most {NGOAI_LE_TOI_DA} exceptions.")
+    out, seen = [], set()
+    for x in v:
+        if not isinstance(x, dict):
+            return None, localefmt.chu("Danh sách ngoại lệ không đọc được.", "The exception list cannot be read.")
+        cid = _clean_ma(x.get("chat_id"))
+        if not cid:
+            return None, localefmt.chu("Mỗi ngoại lệ cần mã cuộc chat (không có dấu cách).",
+                                       "Each exception needs a chat id (no spaces).")
+        aid = _clean_ma(x.get("account_id"))
+        if not aid:
+            return None, localefmt.chu(f"Ngoại lệ {cid} thiếu tài khoản kênh: chọn cuộc chat từ danh sách.",
+                                       f"Exception {cid} has no channel account: pick the chat from the list.")
+        if (aid, cid) in seen:
+            return None, localefmt.chu(f"Cuộc chat {cid} có hai ngoại lệ.", f"Chat {cid} has two exceptions.")
+        muc = _clean_muc(x.get("muc_quyen"))
+        if not muc:
+            return None, localefmt.chu(f"Mức quyền của ngoại lệ {cid} không hợp lệ.",
+                                       f"The permission level of exception {cid} is not valid.")
+        cho = x.get("cho_giay")
+        if cho in (None, ""):
+            cho = None
+        else:
+            try:
+                cho = int(str(cho).strip())
+            except (TypeError, ValueError):
+                cho = -1
+            if not 0 <= cho <= CHO_GIAY_TOI_DA:
+                return None, localefmt.chu(f"Thời gian chờ của ngoại lệ {cid} phải từ 0 đến {CHO_GIAY_TOI_DA} giây.",
+                                           f"The wait of exception {cid} must be 0 to {CHO_GIAY_TOI_DA} seconds.")
+        seen.add((aid, cid))
+        out.append({"account_id": aid, "chat_id": cid, "ten": " ".join(str(x.get("ten") or "").split())[:60],
+                    "muc_quyen": muc, "cho_giay": cho})
+    return out, ""
+
+
+def can_xac_nhan_ngoai_le(moi: list, cu: Any, xac_nhan: Any) -> bool:
+    """An exception RAISES a chat to a level that needs the risk confirmation, and it is not confirmed.
+
+    `xac_nhan` is the exception's OWN flag (`xac_nhan_ngoai_le`), never the bot-level `xac_nhan_rui_ro`: a caller that
+    acknowledges raising the bot must not silently acknowledge raising one chat too (review of #653). Saving the form
+    again with the same exception does not ask again (the edit form always resends every field), and lowering never
+    asks."""
+    if xac_nhan:
+        return False
+    truoc = {(e.get("account_id"), e.get("chat_id")): e.get("muc_quyen") for e in (cu or []) if isinstance(e, dict)}
+    return any(e["muc_quyen"] in MUC_NANG
+               and _HANG_MUC[e["muc_quyen"]] > _HANG_MUC.get(truoc.get((e["account_id"], e["chat_id"])), -1)
+               for e in moi or [])
+
+
+def ngoai_le_cua(cfg: dict, meta: Optional[dict]) -> Optional[dict]:
+    """The exception that applies to this turn, or None. Private chats only, and only on the channel account the
+    exception names: both `chat_id` and `account_id` of the turn must match exactly."""
+    m = meta or {}
+    if str(m.get("chat_type") or "") != "private":
+        return None
+    cid = str(m.get("chat_id") or "").strip()
+    aid = str(m.get("account_id") or "").strip()
+    if not cid or not aid:
+        return None
+    for e in (cfg or {}).get("ngoai_le") or []:
+        if isinstance(e, dict) and e.get("chat_id") == cid and e.get("account_id") == aid:
+            return e
+    return None
+
+
+def ngoai_le_nang(cfg: dict) -> bool:
+    """The turn runs at an exception level HIGHER than the bot's own (`cfg` from `ap_ngoai_le`). Only then is the chat
+    a trusted, chosen person; a chat the owner LOWERED out of distrust gains nothing from its exception."""
+    e = (cfg or {}).get("_ngoai_le")
+    if not isinstance(e, dict):
+        return False
+    return _HANG_MUC.get(e.get("muc_quyen"), -1) > _HANG_MUC.get(cfg.get("_muc_bot"), len(MUC_QUYEN))
+
+
+def ap_ngoai_le(cfg: dict, meta: Optional[dict]) -> dict:
+    """A COPY of the bot record with this chat's exception applied (level replaced, `_ngoai_le` and the bot's own level
+    `_muc_bot` set), or `cfg` itself when no exception applies. Every place that reads `muc_quyen` for a turn must go
+    through this: the live turn, the inbox "Reply for me" / "Suggest a reply", and the file download."""
+    if isinstance((cfg or {}).get("_ngoai_le"), dict):
+        return cfg          # already applied for this turn: applying twice would lose the bot's own level
+    e = ngoai_le_cua(cfg, meta)
+    if not e:
+        return cfg
+    return dict(cfg, muc_quyen=e["muc_quyen"], _ngoai_le=dict(e), _muc_bot=cfg.get("muc_quyen"))
+
+
 def parse_gio_truc(v: Any) -> tuple[Optional[dict], str]:
     """Validate an active-hours value. Returns ({} for all day | {"tu", "den"}, "") or (None, error).
 
@@ -462,6 +586,8 @@ def _public(b: dict) -> dict:
     out["people"] = _clean_groups(out.get("people"))
     # Giờ trực (0.130.0). Thiếu khoá = bản ghi cũ = cả ngày; giá trị hỏng cũng đọc là cả ngày (xem `trong_gio_truc`).
     out["gio_truc"] = parse_gio_truc(out.get("gio_truc"))[0] or {}
+    # Per-chat exceptions (0.172.0). Missing key = old record = none; a broken value also reads as none (narrowest).
+    out["ngoai_le"] = parse_ngoai_le(out.get("ngoai_le"))[0] or []
     # Bộ phán xử hội thoại nhóm (0.65.0). Thiếu khoá = bản ghi cũ = tắt; có khoá mà hỏng = phía hẹp nhất.
     import chatbot_reply_policy
     out["reply_policy"] = chatbot_reply_policy.normalize_config(out.get("reply_policy"))
@@ -592,6 +718,10 @@ LOI_CHUA_XAC_NHAN = ("Mức quyền này cho bot làm việc THẬT ra ngoài, d
 LOI_CHUA_XAC_NHAN_DOI_TUONG = ("Chọn 'mọi cuộc chat trên kênh' nghĩa là ai nhắn tới tài khoản này, kể cả nhóm "
                                "và người quen, cũng được bot trả lời. Phải xác nhận đã đọc cảnh báo rủi ro "
                                "(xac_nhan_rui_ro) mới đặt được.")
+# Per-chat exceptions (0.172.0) have their OWN flag, `xac_nhan_ngoai_le`, sent by the form only after the exception's
+# own confirm: acknowledging a bot-level raise must never acknowledge raising one chat as well.
+LOI_CHUA_XAC_NHAN_NGOAI_LE = ("Ngoại lệ này cho một cuộc chat làm việc THẬT ra ngoài qua bot. Phải xác nhận đã đọc "
+                              "cảnh báo rủi ro của ngoại lệ (xac_nhan_ngoai_le) mới đặt được.")
 # Hai câu RIÊNG cho hai chuyện khác nhau. Gộp làm một là cách cũ, và nó nói sai với chủ: người
 # đã chọn Agent trong ô mà đọc "Thiếu Agent" thì không có đường nào lần ra lỗi thật.
 LOI_KHONG_CO_BOT = "Không có bot nào id đó"
@@ -608,6 +738,8 @@ _LOI_EN = {
     LOI_CHUA_XAC_NHAN_DOI_TUONG: "Choosing 'every chat on the channel' means anyone who messages this account, including "
                                  "groups and people you know, gets bot replies. You must confirm you have read the "
                                  "risk warning (xac_nhan_rui_ro) to set it.",
+    LOI_CHUA_XAC_NHAN_NGOAI_LE: "This exception lets one chat take REAL outside actions through the bot. You must "
+                                "confirm you have read the exception's risk warning (xac_nhan_ngoai_le) to set it.",
     LOI_THIEU_AGENT: "The bot needs an Agent (without a brain the bot cannot answer anything)",
     LOI_SLUG_AGENT: ("Agent name not usable: it must be a file name in the brain's agents folder, at most "
                      f"{SLUG_MAX} characters, without '/', '\\' or '..'."),
@@ -654,6 +786,11 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
     gio_truc, loi = parse_gio_truc(data.get("gio_truc"))
     if loi:
         return None, loi
+    ngoai_le, loi = parse_ngoai_le(data.get("ngoai_le"))
+    if loi:
+        return None, loi
+    if can_xac_nhan_ngoai_le(ngoai_le, [], data.get("xac_nhan_ngoai_le")):
+        return None, _loi(LOI_CHUA_XAC_NHAN_NGOAI_LE)
     # Tài khoản kênh: hoặc CHỌN tài khoản có sẵn (account_ids), hoặc dán token mới (token +
     # channel) thì tạo tài khoản ngay tại đây. Cả hai cùng lúc cũng được.
     acc, loi = _clean_account_ids(data.get("account_ids"))
@@ -697,6 +834,7 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "gio_truc": gio_truc,
             # None = not set by the owner (channel default, old group behaviour); see `clean_nhuong_tay`.
             "nhuong_tay_phut": clean_nhuong_tay(data.get("nhuong_tay_phut")),
+            "ngoai_le": ngoai_le,
             "handoff_to": str(data.get("handoff_to") or "").strip(),
             "created_at": _now(),
             "updated_at": _now(),
@@ -731,7 +869,7 @@ def _nhan_brain_cho_tk(bot: dict) -> None:
 _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
-              "nhuong_tay_phut")
+              "nhuong_tay_phut", "ngoai_le")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -763,6 +901,13 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
         gio_moi, loi = parse_gio_truc(patch.get("gio_truc"))
         if loi:
             return False, loi
+    ngoai_le_moi = None
+    if "ngoai_le" in patch:
+        ngoai_le_moi, loi = parse_ngoai_le(patch.get("ngoai_le"))
+        if loi:
+            return False, loi
+        if can_xac_nhan_ngoai_le(ngoai_le_moi, (get_bot(bot_id) or {}).get("ngoai_le"), patch.get("xac_nhan_ngoai_le")):
+            return False, _loi(LOI_CHUA_XAC_NHAN_NGOAI_LE)
     acc_moi = None
     if "account_ids" in patch:
         acc_moi, loi = _clean_account_ids(patch.get("account_ids"), exclude_bot=bot_id)
@@ -823,6 +968,8 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                         n = clean_nhuong_tay(v)
                         if n is not None:
                             b["nhuong_tay_phut"] = n
+                elif k == "ngoai_le":
+                    b["ngoai_le"] = ngoai_le_moi     # checked at the top, risk gate included
 
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()

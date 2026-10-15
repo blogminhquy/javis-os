@@ -37,12 +37,14 @@ def danh_sach(accounts: List[dict], q: str = "", limit: int = 60,
     people = (bot or {}).get("people") or []
     out: Dict[str, Dict[str, Any]] = {}
 
-    def _them(cid, loai, ten, kenh, luc, cho_duyet):
+    def _them(cid, loai, ten, kenh, luc, cho_duyet, tk=""):
         d = out.get(cid)
         if d is None:
+            # `tk`: the channel account the inbox saw this chat on (per-chat exceptions are scoped to it, 0.172.0);
+            # empty for rows known only from the approval queue or the saved lists.
             d = out[cid] = {"id": cid, "loai": loai, "ten": ten, "kenh": kenh, "luc": luc or 0,
                             "da_chon": _khop(groups if loai == "group" else people, cid),
-                            "cho": False}
+                            "cho": False, "tk": tk}
         d["cho"] = d["cho"] or bool(cho_duyet)
         if ten and not d.get("ten"):
             d["ten"] = ten
@@ -62,7 +64,7 @@ def danh_sach(accounts: List[dict], q: str = "", limit: int = 60,
                 continue
             loai = "group" if c.get("chat_type") == "group" else "private"
             ten = str(c.get("title") or c.get("customer_name") or cid)
-            _them(cid, loai, ten, kenh, c.get("last_message_at") or c.get("updated_at"), False)
+            _them(cid, loai, ten, kenh, c.get("last_message_at") or c.get("updated_at"), False, aid)
 
     hom = q.lower()
     for g in (cho or []):
