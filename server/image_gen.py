@@ -30,8 +30,20 @@ import localefmt
 import openai_oauth
 
 CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses"
-# Model chat 'chủ' chỉ để gọi tool; ảnh do IMAGE_MODEL sinh. Override qua env nếu gói đổi tên model.
-HOST_MODEL = os.getenv("JAVIS_IMAGE_HOST_MODEL", "gpt-5.5")
+# Model chat 'chủ' chỉ để gọi tool; ảnh do IMAGE_MODEL sinh. Đặt env là GHIM cứng một model
+# (không thử model nào khác). Không đặt thì HOST_MODEL chỉ là lựa chọn đầu tiên, xem
+# host_model_candidates(): gói ChatGPT nào không có model này (2026-10-15, ảnh chụp của chủ
+# repo: "The 'gpt-5.5' model is not supported when using Codex with a ChatGPT account") thì
+# Javis chuyển sang model khác trong danh mục thật của tài khoản thay vì chết ở đó.
+_HOST_ENV = os.getenv("JAVIS_IMAGE_HOST_MODEL", "").strip()
+HOST_MODEL = _HOST_ENV or "gpt-5.5"
+MAX_HOST_TRIES = 4
+# Model vừa tạo ảnh thành công gần nhất: lượt sau thử nó trước, khỏi đốt một lượt 400.
+_host_ok: list = [""]
+# Model đã gỡ khỏi Javis (main._MODEL_DA_GO) mà danh mục cũ có thể còn giữ.
+_KHONG_PHAI_MODEL = frozenset({"chatgpt-web"})
+_TU_CHOI_MODEL = ("not supported", "unsupported", "does not exist", "not found", "not available",
+                  "do not have access", "don't have access", "no access", "invalid model")
 IMAGE_MODEL = os.getenv("JAVIS_IMAGE_MODEL", "gpt-image-2")
 INSTRUCTIONS = ("You are an assistant that must fulfill image generation and image editing "
                 "requests by using the image_generation tool when provided.")
@@ -94,7 +106,60 @@ def read_reference_image(path: str, vault_root: Optional[str] = None) -> dict:
             "name": p.name}
 
 
-def build_payload(prompt: str, size: str, quality: str, images: Optional[list] = None) -> dict:
+def _clean_models(ids) -> list:
+    return [str(m).strip() for m in (ids or [])
+            if str(m or "").strip() and str(m).strip() not in _KHONG_PHAI_MODEL]
+
+
+def _catalog_models() -> list:
+    """Danh mục model ChatGPT/Codex đã lấy live từ tài khoản (trang Models lưu vào settings)."""
+    try:
+        import config
+        cat = (((config.read_settings().get("model") or {}).get("catalog") or {}).get("openai-oauth")) or []
+        return _clean_models(cat)
+    except Exception:
+        return []
+
+
+def host_model_candidates(catalog: Optional[list] = None) -> list:
+    """Thứ tự model 'chủ' sẽ thử cho một lượt tạo ảnh.
+
+    Env ghim thì chỉ đúng model đó. Còn lại: model vừa chạy được, rồi HOST_MODEL nếu tài khoản
+    có nó, rồi các model thường trong danh mục (đuôi -codex xếp sau vì là model chuyên code),
+    rồi tới chính HOST_MODEL khi chưa có danh mục nào. Danh mục là của CHÍNH tài khoản nên một
+    model không có trong đó thì đừng thử, gói đó chắc chắn từ chối.
+    """
+    if _HOST_ENV:
+        return [_HOST_ENV]
+    cat = _clean_models(_catalog_models() if catalog is None else catalog)
+    out: list = []
+
+    def them(m: str) -> None:
+        if m and m not in out:
+            out.append(m)
+
+    if _host_ok[0] and (not cat or _host_ok[0] in cat):
+        them(_host_ok[0])
+    if not cat or HOST_MODEL in cat:
+        them(HOST_MODEL)
+    for m in cat:
+        if not m.endswith("-codex"):
+            them(m)
+    for m in cat:
+        them(m)
+    return out[:MAX_HOST_TRIES]
+
+
+def model_rejected(status: int, text: str) -> bool:
+    """Lỗi này là 'gói không cho dùng model này' (đổi model thử tiếp được), không phải lỗi khác."""
+    low = str(text or "").lower()
+    if status not in (0, 400, 403, 404):
+        return False
+    return "model" in low and any(k in low for k in _TU_CHOI_MODEL)
+
+
+def build_payload(prompt: str, size: str, quality: str, images: Optional[list] = None,
+                  model: str = "") -> dict:
     """Body Responses cho 1 lời gọi image_generation (mirror hermes openai-codex).
 
     `images` = danh sách data URL của ảnh MẪU. Có ảnh thì đây là lượt SỬA/DỰNG THEO ẢNH chứ
@@ -104,7 +169,7 @@ def build_payload(prompt: str, size: str, quality: str, images: Optional[list] =
     for u in (images or []):
         noi_dung.append({"type": "input_image", "image_url": u})
     return {
-        "model": HOST_MODEL,
+        "model": model or HOST_MODEL,
         "store": False,
         "instructions": INSTRUCTIONS,
         "input": [{"type": "message", "role": "user", "content": noi_dung}],
@@ -327,9 +392,67 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
         data_urls.append(r["data_url"])
 
     size = resolve_size(aspect)
-    payload = build_payload(prompt, size, quality, data_urls)
     headers = _headers(creds["access_token"], creds.get("account_id") or "")
 
+    b64: Optional[str] = None
+    err: Optional[str] = None
+    da_thu: list = []
+    hang_doi = host_model_candidates()
+    da_hoi_live = False
+    while True:
+        if not hang_doi and not da_hoi_live and err and model_rejected(0, err) and not _HOST_ENV:
+            # Mọi model trong danh mục đã lưu đều bị từ chối: danh mục có thể đã cũ (gói vừa đổi).
+            # Hỏi lại danh sách LIVE của tài khoản đúng một lần rồi thử các model chưa thử.
+            da_hoi_live = True
+            live = await _live_models(creds)
+            hang_doi = [m for m in host_model_candidates(live) if m not in da_thu]
+        if not hang_doi or len(da_thu) >= MAX_HOST_TRIES + 2:
+            break
+        model = hang_doi.pop(0)
+        da_thu.append(model)
+        payload = build_payload(prompt, size, quality, data_urls, model=model)
+        b64, err, status = await _mot_luot(payload, headers, timeout_s)
+        if b64:
+            _host_ok[0] = model
+            break
+        if not (err and model_rejected(status, err)):
+            break                     # lỗi khác (mạng, token, nội dung...): đổi model cũng vô ích
+        if _host_ok[0] == model:
+            _host_ok[0] = ""
+
+    if not b64 and err and model_rejected(0, err) and len(da_thu) > 0:
+        ds = ", ".join(da_thu)
+        err = err + localefmt.chu(
+            f" (đã thử model: {ds}). Gói ChatGPT này không cho dùng các model đó để tạo ảnh. Mở trang "
+            "Models để Javis tải lại danh sách model của ChatGPT rồi thử lại.",
+            f" (models tried: {ds}). This ChatGPT plan does not allow those models for image generation. "
+            "Open the Models page so Javis reloads the ChatGPT model list, then try again.")
+
+    if err or not b64:
+        return {"ok": False, "error": err or localefmt.chu(
+            "ChatGPT không trả ảnh (gói ChatGPT có thể chưa hỗ trợ tạo ảnh qua Codex).",
+            "ChatGPT returned no image (the ChatGPT plan may not support image generation through Codex yet).")}
+
+    saved = save_png_b64(b64, vault_root, prefix="javis-img")
+    if not saved.get("ok"):
+        return saved
+    return {"ok": True, "rel_path": saved["rel_path"], "abs_path": saved["abs_path"],
+            "file": saved["file"], "size": size, "quality": quality, "aspect": aspect,
+            "provider": "openai-codex", "prompt": prompt, "refs": len(data_urls), "model": da_thu[-1]}
+
+
+async def _live_models(creds: dict) -> list:
+    """Danh sách model live của tài khoản (Codex app-server / backend). Hỏng thì []."""
+    import asyncio
+    try:
+        ids = await asyncio.to_thread(openai_oauth.list_models, creds)
+    except Exception:
+        return []
+    return _clean_models(ids)
+
+
+async def _mot_luot(payload: dict, headers: dict, timeout_s: float):
+    """Một lượt gọi tạo ảnh. Trả (b64 | None, lỗi | None, mã HTTP; 0 khi lỗi nằm trong stream)."""
     b64: Optional[str] = None
     err: Optional[str] = None
     try:
@@ -338,7 +461,7 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
             async with client.stream("POST", CODEX_RESPONSES_URL, headers=headers, json=payload) as r:
                 if r.status_code != 200:
                     body = await r.aread()
-                    return {"ok": False, "error": f"ChatGPT {r.status_code}: {body.decode('utf-8', 'replace')[:300]}"}
+                    return None, f"ChatGPT {r.status_code}: {body.decode('utf-8', 'replace')[:300]}", r.status_code
                 async for line in r.aiter_lines():
                     line = (line or "").strip()
                     if not line.startswith("data:"):
@@ -370,17 +493,6 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
                     if kind == "response.completed":
                         break
     except Exception as e:
-        return {"ok": False, "error": localefmt.chu(f"Gọi ChatGPT lỗi: {type(e).__name__}: {e}",
-                                                f"Calling ChatGPT failed: {type(e).__name__}: {e}")}
-
-    if err or not b64:
-        return {"ok": False, "error": err or localefmt.chu(
-            "ChatGPT không trả ảnh (gói ChatGPT có thể chưa hỗ trợ tạo ảnh qua Codex).",
-            "ChatGPT returned no image (the ChatGPT plan may not support image generation through Codex yet).")}
-
-    saved = save_png_b64(b64, vault_root, prefix="javis-img")
-    if not saved.get("ok"):
-        return saved
-    return {"ok": True, "rel_path": saved["rel_path"], "abs_path": saved["abs_path"],
-            "file": saved["file"], "size": size, "quality": quality, "aspect": aspect,
-            "provider": "openai-codex", "prompt": prompt, "refs": len(data_urls)}
+        return None, localefmt.chu(f"Gọi ChatGPT lỗi: {type(e).__name__}: {e}",
+                                   f"Calling ChatGPT failed: {type(e).__name__}: {e}"), -1
+    return b64, err, 0

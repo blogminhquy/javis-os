@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.166.2] - 2026-10-15
 ### Sửa lỗi
-- (đang viết)
+- **Tạo ảnh bằng gói ChatGPT không còn kẹt ở lỗi "The 'gpt-5.5' model is not supported".** Gói nào không có model đó, Javis tự chuyển sang model khác trong danh sách model ChatGPT của chính tài khoản bạn và tạo ảnh luôn, không phải chỉnh gì.
+- Lần sau Javis dùng ngay model vừa tạo ảnh được, nên không mất thêm một lượt lỗi. Tính năng nhờ ChatGPT xem ảnh hộ cũng được sửa cùng kiểu.
 
 ## [0.165.1] - 2026-10-15
 ### Sửa lỗi

@@ -97,6 +97,31 @@ iv.openai_oauth = types.SimpleNamespace(status=lambda: (_ for _ in ()).throw(Run
 check("connected() swallows a broken status", iv.connected() is False)
 iv.openai_oauth, iv.httpx = real_oauth, real_httpx
 
+# A plan without the default host model (2026-10-15: "The 'gpt-5.5' model is not supported when using Codex with a ChatGPT
+# account") moves on to another model from the account's own catalog instead of failing the look.
+TRIED = []
+
+
+def picky(request):
+    model = json.loads(request.content).get("model")
+    TRIED.append(model)
+    if model != "gpt-6-luna":
+        return httpx.Response(400, content=f"The '{model}' model is not supported when using Codex with a ChatGPT account.".encode())
+    return chatgpt(request)
+
+
+real_cat = iv.image_gen._catalog_models
+iv.image_gen._catalog_models = lambda: ["gpt-5.5", "gpt-6-luna"]
+iv.openai_oauth = types.SimpleNamespace(valid_creds=lambda: {"access_token": "tok", "account_id": "acc"},
+                                        status=lambda: {"connected": True})
+pt = httpx.MockTransport(picky)
+iv.httpx = types.SimpleNamespace(AsyncClient=lambda **kw: httpx.AsyncClient(transport=pt, **kw), Timeout=httpx.Timeout)
+r = asyncio.run(iv.describe_images(["attachments/x.jpg"], "có gì", vault_root=str(vault)))
+check("a refused model falls through to the next one in the account catalog", r.get("ok") and TRIED == ["gpt-5.5", "gpt-6-luna"]
+      and r.get("model") == "gpt-6-luna", (r, TRIED))
+iv.image_gen._catalog_models = real_cat
+iv.openai_oauth, iv.httpx = real_oauth, real_httpx
+
 # ============================================================
 # 2. javis_describe_image in the bundled image-chatgpt plugin
 # ============================================================

@@ -146,7 +146,7 @@ Lưu ý: hai biến TTS này áp cho giọng Edge TTS miễn phí mặc định.
 | `JAVIS_CLAUDE_PROJECTS_DIR` | Nơi Javis đọc log phiên Claude Code để tính **Mức dùng** | `~/.claude/projects` | Log Claude Code nằm chỗ khác. Xem [Mức dùng: token & chi phí](23-muc-dung-token.md). |
 | `JAVIS_CODEX_SESSIONS_DIR` | Nơi Javis đọc log phiên Codex để tính **Mức dùng** | `~/.codex/sessions` | Log Codex nằm chỗ khác. |
 | `JAVIS_YOUTUBE_PROXY` | Proxy RIÊNG cho phần đọc phụ đề YouTube, dạng `http://user:mat-khau@may-chu:cong`. Chỉ lưu lượng đi YouTube mới qua đây | (trống, đi thẳng) | Javis báo "YouTube nghi máy chủ này là robot" lặp đi lặp lại. Gốc rễ của lỗi đó là **danh tiếng địa chỉ IP**: YouTube đánh dấu dải IP của các nhà cung cấp máy chủ (AWS, Google Cloud, Azure, VPS giá rẻ), nên cùng một đoạn mã chạy ở nhà thì trôi chảy còn chạy trên VPS thì bị hỏi giấy. Trỏ qua một proxy dân cư là đứng ở chỗ khác trên Internet. Đừng dùng `HTTPS_PROXY` của hệ thống cho việc này: nó đẩy **toàn bộ** lưu lượng của Javis qua đó, gồm cả gọi model và MCP, vừa chậm vừa lộ dữ liệu cho bên thứ ba. Xem [Trò chuyện](02-tro-chuyen-va-giong-noi.md). |
-| `JAVIS_IMAGE_HOST_MODEL` | Model chat "chủ" dùng để gọi tool tạo ảnh qua gói ChatGPT | `gpt-5.5` | Nhà cung cấp đổi tên model làm chức năng tạo ảnh hỏng. |
+| `JAVIS_IMAGE_HOST_MODEL` | Ghim cứng model chat "chủ" dùng để gọi tool tạo ảnh qua gói ChatGPT | trống (tự chọn: `gpt-5.5` nếu gói có, không thì model khác trong danh sách model ChatGPT của tài khoản) | Muốn ép đúng một model. Không đặt thì Javis tự đổi model khi gói báo "model is not supported". |
 | `JAVIS_IMAGE_MODEL` | Model sinh ảnh thật sự | `gpt-image-2` | Như trên. |
 
 Ghi chú: `JAVIS_ENABLE_USER_PLUGINS` cũng là biến nâng cao nhưng vì nó là rào bảo mật nên đã nằm ở nhóm 3.

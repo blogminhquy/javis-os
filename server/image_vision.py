@@ -28,7 +28,8 @@ import image_gen
 import localefmt
 import openai_oauth
 
-VISION_MODEL = os.getenv("JAVIS_VISION_MODEL", image_gen.HOST_MODEL)
+_VISION_ENV = os.getenv("JAVIS_VISION_MODEL", "").strip()
+VISION_MODEL = _VISION_ENV or image_gen.HOST_MODEL
 MAX_IMAGES = image_gen.MAX_REF_IMAGES
 MAX_OUTPUT_CHARS = 12_000
 INSTRUCTIONS = (
@@ -226,8 +227,35 @@ async def describe_images(paths: List[str], question: str = "", vault_root: Opti
         if not r.get("ok"):
             return {"ok": False, "error": r.get("error") or localefmt.chu(f"Không đọc được ảnh '{p}'.", f"Could not read image '{p}'.")}
         data_urls.append(r["data_url"])
-    payload = build_payload(build_prompt(question, labels if labels else ["" for _ in paths]), data_urls)
+    prompt = build_prompt(question, labels if labels else ["" for _ in paths])
     headers = image_gen._headers(creds["access_token"], creds.get("account_id") or "")
+    # Same model order as image generation: a plan without HOST_MODEL moves on to another model of that very account instead
+    # of handing the user "model is not supported" (seen 2026-10-15 with gpt-5.5 on a plan that lacks it).
+    candidates = [_VISION_ENV] if _VISION_ENV else image_gen.host_model_candidates()
+    parts, final, err, status = [], "", "", 0
+    payload = build_payload(prompt, data_urls, model=candidates[0] if candidates else "")
+    for model in candidates:
+        payload = build_payload(prompt, data_urls, model=model)
+        parts, final, err, status = await _look_once(payload, headers, timeout_s)
+        if status == -1:
+            return {"ok": False, "error": err}
+        if (parts or final) or not image_gen.model_rejected(status, err):
+            break
+    if status not in (0, -1) and not (parts or final):
+        return {"ok": False, "error": err}
+    text = ("".join(parts) or final).strip()
+    if err and not text:
+        return {"ok": False, "error": f"ChatGPT: {err}"}
+    if not text:
+        return {"ok": False, "error": localefmt.chu("ChatGPT không trả lời gì về ảnh này.", "ChatGPT said nothing about this image.")}
+    if len(text) > MAX_OUTPUT_CHARS:
+        text = text[:MAX_OUTPUT_CHARS] + " ..."
+    return {"ok": True, "text": text, "count": len(data_urls), "model": payload["model"]}
+
+
+async def _look_once(payload: dict, headers: dict, timeout_s: float):
+    """One streamed look. Returns (deltas, completed text, error, status): status is the HTTP code of a refused request,
+    0 when the stream ran (an error inside it is in `error`), -1 when the call itself blew up."""
     parts: List[str] = []
     final = ""
     err = ""
@@ -236,7 +264,7 @@ async def describe_images(paths: List[str], question: str = "", vault_root: Opti
             async with client.stream("POST", image_gen.CODEX_RESPONSES_URL, headers=headers, json=payload) as r:
                 if r.status_code != 200:
                     body = await r.aread()
-                    return {"ok": False, "error": f"ChatGPT {r.status_code}: {body.decode('utf-8', 'replace')[:300]}"}
+                    return [], "", f"ChatGPT {r.status_code}: {body.decode('utf-8', 'replace')[:300]}", r.status_code
                 async for line in r.aiter_lines():
                     line = (line or "").strip()
                     if not line.startswith("data:"):
@@ -261,13 +289,6 @@ async def describe_images(paths: List[str], question: str = "", vault_root: Opti
                         final = text_from_completed(obj)
                         break
     except Exception as e:      # noqa: BLE001 - a tool answers with a sentence, never a traceback
-        return {"ok": False, "error": localefmt.chu(f"Gọi ChatGPT lỗi: {type(e).__name__}: {e}",
-                                                f"Calling ChatGPT failed: {type(e).__name__}: {e}")}
-    text = ("".join(parts) or final).strip()
-    if err and not text:
-        return {"ok": False, "error": f"ChatGPT: {err}"}
-    if not text:
-        return {"ok": False, "error": localefmt.chu("ChatGPT không trả lời gì về ảnh này.", "ChatGPT said nothing about this image.")}
-    if len(text) > MAX_OUTPUT_CHARS:
-        text = text[:MAX_OUTPUT_CHARS] + " ..."
-    return {"ok": True, "text": text, "count": len(data_urls), "model": payload["model"]}
+        return [], "", localefmt.chu(f"Gọi ChatGPT lỗi: {type(e).__name__}: {e}",
+                                     f"Calling ChatGPT failed: {type(e).__name__}: {e}"), -1
+    return parts, final, err, 0

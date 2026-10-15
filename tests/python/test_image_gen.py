@@ -316,6 +316,124 @@ _install_fake(["data: " + json.dumps(_preview)])
 result = asyncio.run(image_gen.generate_chatgpt("test", vault_root=vault))
 check("EOF chỉ có ảnh nháp: không báo thành công", result.get("ok") is False)
 
+
+# ---- 10. Gói ChatGPT không có model 'chủ' mặc định: tự đổi sang model của chính tài khoản ----
+# Chủ repo gửi ảnh 15/10: "ChatGPT 400: The 'gpt-5.5' model is not supported when using Codex
+# with a ChatGPT account", trong khi gpt-6-luna / gpt-5.6-luna của cùng tài khoản tạo ảnh được.
+_goc_cat = image_gen._catalog_models
+image_gen._host_ok[0] = ""
+image_gen._catalog_models = lambda: ["gpt-5.3-codex", "gpt-6-luna", "chatgpt-web", "gpt-5.6-luna"]
+_ung = image_gen.host_model_candidates()
+check("danh mục không có gpt-5.5 thì KHÔNG thử gpt-5.5", image_gen.HOST_MODEL not in _ung)
+check("model thường xếp trước model -codex, bỏ id đã gỡ",
+      _ung == ["gpt-6-luna", "gpt-5.6-luna", "gpt-5.3-codex"])
+image_gen._catalog_models = lambda: ["gpt-6-luna", image_gen.HOST_MODEL]
+check("tài khoản có HOST_MODEL thì thử nó đầu tiên",
+      image_gen.host_model_candidates()[0] == image_gen.HOST_MODEL)
+image_gen._catalog_models = lambda: []
+check("chưa có danh mục: chỉ còn HOST_MODEL", image_gen.host_model_candidates() == [image_gen.HOST_MODEL])
+
+_loi_55 = "ChatGPT 400: The 'gpt-5.5' model is not supported when using Codex with a ChatGPT account."
+check("nhận ra lỗi 'model is not supported'", image_gen.model_rejected(400, _loi_55))
+check("lỗi khác không bị coi là từ chối model", not image_gen.model_rejected(401, "ChatGPT 401: unauthorized")
+      and not image_gen.model_rejected(400, "ChatGPT 400: prompt too long"))
+
+
+def _install_theo_model(ok_models):
+    """Backend giả: model nằm trong ok_models thì trả ảnh, model khác trả 400 như ảnh chụp."""
+    goi = []
+
+    class Stream:
+        def __init__(self, model):
+            self.model = model
+            self.status_code = 200 if model in ok_models else 400
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def aiter_lines(self):
+            for ln in sse:
+                yield ln
+        async def aread(self):
+            return (f"{{\"detail\":\"The '{self.model}' model is not supported when using Codex "
+                    f"with a ChatGPT account.\"}}").encode()
+
+    class Client:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        def stream(self, *a, **k):
+            m = (k.get("json") or {}).get("model")
+            goi.append(m)
+            return Stream(m)
+
+    image_gen.httpx.AsyncClient = Client
+    return goi
+
+
+openai_oauth.valid_creds = lambda: {"access_token": "faketoken", "account_id": "acc_1"}
+image_gen._catalog_models = lambda: ["gpt-5.5", "gpt-6-luna"]
+_goi_m = _install_theo_model({"gpt-6-luna"})
+r_doi = asyncio.run(image_gen.generate_chatgpt("hình vuông xanh", vault_root=vault))
+check("gpt-5.5 bị từ chối thì tự thử model kế và RA ẢNH", r_doi.get("ok") is True and _goi_m == ["gpt-5.5", "gpt-6-luna"])
+check("kết quả nói model nào đã tạo ảnh", r_doi.get("model") == "gpt-6-luna")
+_goi_m.clear()
+asyncio.run(image_gen.generate_chatgpt("lần hai", vault_root=vault))
+check("lượt sau thử ngay model vừa chạy được, không đốt lượt 400", _goi_m == ["gpt-6-luna"])
+
+# Danh mục đã lưu cũ (chỉ toàn model gói không cho): hỏi danh sách live đúng một lần.
+image_gen._host_ok[0] = ""
+image_gen._catalog_models = lambda: ["gpt-5.5"]
+_goc_live = openai_oauth.list_models
+_hoi_live = []
+openai_oauth.list_models = lambda creds: (_hoi_live.append(1), ["gpt-5.6-luna"])[1]
+_goi_m = _install_theo_model({"gpt-5.6-luna"})
+r_live = asyncio.run(image_gen.generate_chatgpt("x", vault_root=vault))
+check("danh mục cũ: hỏi danh sách live rồi tạo ảnh được", r_live.get("ok") is True
+      and _goi_m == ["gpt-5.5", "gpt-5.6-luna"] and len(_hoi_live) == 1)
+
+# Không model nào chạy: báo lỗi gốc, kèm các model đã thử và chỗ cần làm.
+image_gen._host_ok[0] = ""
+openai_oauth.list_models = lambda creds: []
+_goi_m = _install_theo_model(set())
+r_het = asyncio.run(image_gen.generate_chatgpt("x", vault_root=vault))
+check("hết model: ok False, giữ mã lỗi và nêu model đã thử",
+      r_het.get("ok") is False and "400" in r_het["error"] and "gpt-5.5" in r_het["error"] and "Models" in r_het["error"])
+
+# Lỗi KHÔNG phải do model (401...) thì không đổi model thử lại vô ích.
+image_gen._catalog_models = lambda: ["gpt-5.5", "gpt-6-luna"]
+_goi_401 = []
+
+
+def _install_401():
+    class Stream:
+        status_code = 401
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def aread(self): return b"unauthorized"
+
+    class Client:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        def stream(self, *a, **k):
+            _goi_401.append(1)
+            return Stream()
+
+    image_gen.httpx.AsyncClient = Client
+
+
+_install_401()
+r_401 = asyncio.run(image_gen.generate_chatgpt("x", vault_root=vault))
+check("lỗi 401: chỉ gọi một lần", r_401.get("ok") is False and len(_goi_401) == 1)
+
+# Env ghim thì chỉ đúng model đó.
+_goc_env = image_gen._HOST_ENV
+image_gen._HOST_ENV = "gpt-ghim"
+check("env JAVIS_IMAGE_HOST_MODEL ghim một model", image_gen.host_model_candidates() == ["gpt-ghim"])
+image_gen._HOST_ENV = _goc_env
+openai_oauth.list_models = _goc_live
+image_gen._catalog_models = _goc_cat
+image_gen._host_ok[0] = ""
+
 print()
 if _fails:
     print(f"THẤT BẠI {len(_fails)}: {_fails}")
