@@ -38,7 +38,17 @@ DUOI = (".md", ".txt", ".markdown")
 # 100% mọi trường hợp" rồi hỏi lại một câu, và bot trích dẫn nó như tài liệu chính thức của
 # cửa hàng. Tự đầu độc kho tri thức, làm được bằng một lần bấm gửi file.
 BO_QUA = {"inbox", "attachments", "javis", ".git", ".obsidian", ".trash", "node_modules",
-          "memory", "skills", "plugins", ".claude", ".agents", "05 - data cache"}
+          "memory", "skills", "plugins", ".claude", ".agents", "05 - data cache",
+          # Old copies (0.172.0): a backup of a price list or of an agent is out of date by definition, and quoting it
+          # to a customer as the shop's document is wrong twice. Dot folders were already skipped (see `_duyet`);
+          # `.backup` is listed so that rule cannot drop it unnoticed.
+          ".backup", "backup", "backups"}
+
+# Javis's own operating folders AT THE BRAIN ROOT (0.172.0): `agents/` holds the bot's own role file and its
+# colleagues', `workflows/` the step chains. Searched as documents, the bot quoted its internal rules (and a
+# colleague's) to customers as "our documents", the same leak as CLAUDE.md below. Root only: a user folder
+# such as "products/agents" is still the user's.
+BO_QUA_GOC = {"agents", "workflows"}
 
 # File QUY ƯỚC VẬN HÀNH của chính Javis, seed vào MỌI brain (xem meta_tools.ensure_brain_pattern).
 # Chúng nằm ở GỐC brain nên danh sách thư mục ở trên không chặn được.
@@ -159,7 +169,10 @@ def _duyet(root: Path):
             return
         if p.suffix.lower() not in DUOI or not p.is_file():
             continue
-        if any(x.lower() in BO_QUA or x.startswith(".") for x in p.relative_to(root).parts[:-1]):
+        thu_muc = p.relative_to(root).parts[:-1]
+        if any(x.lower() in BO_QUA or x.startswith(".") for x in thu_muc):
+            continue
+        if thu_muc and thu_muc[0].lower() in BO_QUA_GOC:
             continue
         if p.name.lower() in BO_QUA_FILE:
             continue

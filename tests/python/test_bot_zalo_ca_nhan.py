@@ -232,6 +232,31 @@ check("prompt Telegram KHÔNG có đoạn tự quyết im lặng",
 check("prompt Zalo cá nhân có",
       "[IM_LANG]" in chatbot_runtime.build_bot_prompt(dict(_bot, _kenh_luot="zalo_personal")))
 
+# ============================================================
+# 0.172.0 (#666): the owner's role file beats Javis's personal-Zalo default
+# ============================================================
+# The default paragraph used to sit AFTER the Agent file with a flat "private matters: do NOT answer", so it won over
+# what the owner wrote (a teacher's Agent said "a student sharing something personal still gets one short reply", yet
+# "Thầy ơi con buồn quá" came out silent, 15/10/2026). It now sits BEFORE the Agent file and says the Agent wins.
+chatbot_runtime.wire(answer=_engine, brain_root=lambda b: tempfile.mkdtemp(prefix="brain-"),
+                     read_agent=lambda br, slug: ({"name": "Trợ lý", "role": "Trợ lý lớp học"},
+                                                  "Học sinh kể chuyện riêng thì vẫn đáp một câu ngắn rồi kéo về việc lớp."))
+_bot_ql = {"name": "Trợ lý", "agent": {"brain": "b", "slug": "tro-ly"}, "_kenh_luot": "zalo_personal"}
+p = chatbot_runtime.build_bot_prompt(_bot_ql)
+check("Zalo cá nhân vẫn có đoạn mặc định (im khi không chắc)", "[IM_LANG]" in p)
+check("đoạn mặc định nói thẳng hướng dẫn vai của chủ THẮNG nó", "LUÔN thắng đoạn này" in p)
+check("đoạn mặc định đứng TRƯỚC file Agent (luật chủ đọc sau cùng)",
+      0 <= p.index("Zalo CÁ NHÂN của chủ") < p.index("Học sinh kể chuyện riêng"), p)
+check("lệnh im chuyện riêng chỉ áp cho loại tin hướng dẫn vai KHÔNG nói tới",
+      p.index("hướng dẫn vai KHÔNG nói tới") < p.index("chuyện riêng tư, chuyện gia đình"))
+check("Telegram không có đoạn này",
+      "[IM_LANG]" not in chatbot_runtime.build_bot_prompt(dict(_bot_ql, _kenh_luot="telegram")))
+chatbot_runtime.wire(answer=_engine, brain_root=lambda b: tempfile.mkdtemp(prefix="brain-"),
+                     read_agent=lambda br, slug: ({}, ""))
+p0 = chatbot_runtime.build_bot_prompt(_bot_ql)
+check("bot không nạp được Agent vẫn giữ mặc định an toàn (im)",
+      "[IM_LANG]" in p0 and "chưa nạp được hướng dẫn" in p0)
+
 print()
 if _fails:
     print(f"{len(_fails)} FAIL")

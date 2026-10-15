@@ -143,6 +143,33 @@ check("nhưng note wiki THẬT của người dùng vẫn dùng được",
       any("ky-luat-ban-than" in h["path"]
           for h in chatbot_grounding.tim(BRAIN, "kỷ luật bản thân là gì", 8)))
 
+# 0.172.0: bản sao cũ và file vai của Javis không phải tài liệu trả khách. Một bot Zalo thật có
+# `.backup/agents/` (bản agent cũ) và `agents/` (chính file luật của nó) ngay trong brain.
+_CU = "# Bảng giá cũ\n\nNước mắm cốt nhĩ 500ml giá 99.000 đồng một chai, giá khuyến mãi tháng trước.\n"
+for _d in (".backup/agents", "backup", "Backups/2026-09"):
+    (BRAIN / _d).mkdir(parents=True, exist_ok=True)
+    (BRAIN / _d / "bang-gia-cu.md").write_text(_CU, encoding="utf-8")
+(BRAIN / "agents").mkdir(exist_ok=True)
+(BRAIN / "agents" / "tro-ly-zalo.md").write_text(
+    "---\ntype: agent\n---\nLuật nội bộ: giá khuyến mãi nước mắm 500ml chỉ báo khi khách hỏi lần hai.\n",
+    encoding="utf-8")
+(BRAIN / "workflows").mkdir(exist_ok=True)
+(BRAIN / "workflows" / "cham-khach.md").write_text("# Chăm khách\n\nBước 1: hỏi giá nước mắm.\n", encoding="utf-8")
+(BRAIN / "san-pham" / "agents").mkdir(parents=True, exist_ok=True)
+(BRAIN / "san-pham" / "agents" / "dai-ly.md").write_text(
+    "# Đại lý\n\nĐại lý cấp một nhận nước mắm 500ml giá đại lý 140.000 đồng.\n", encoding="utf-8")
+_ds = chatbot_grounding.ds_tai_lieu(BRAIN)
+check(".backup KHÔNG phải tài liệu (bản agent cũ)", not any(p.startswith(".backup/") for p in _ds))
+check("thư mục backup/backups (không dấu chấm) cũng bị loại",
+      not any(p.split("/")[0].lower() in ("backup", "backups") for p in _ds))
+check("agents/ và workflows/ ở gốc brain (luật nội bộ của bot) KHÔNG lọt vào tài liệu",
+      not any(p.startswith(("agents/", "workflows/")) for p in _ds))
+check("nhưng thư mục 'agents' của người dùng nằm sâu bên trong vẫn là tài liệu",
+      "san-pham/agents/dai-ly.md" in _ds)
+_gia = chatbot_grounding.tim(BRAIN, "nước mắm 500ml giá khuyến mãi bao nhiêu", 8)
+check("tra giá không ra bảng giá cũ hay luật nội bộ",
+      all("bang-gia-cu" not in h["path"] and not h["path"].startswith("agents/") for h in _gia))
+
 
 # ============================================================
 # 3. Khối nhét vào prompt

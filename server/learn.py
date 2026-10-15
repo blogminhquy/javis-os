@@ -198,15 +198,13 @@ def dump_fm(data: dict) -> str:
 
 
 def _split_history(body: str) -> Tuple[List[str], List[str], List[str]]:
-    """(phần trước mục lịch sử, các dòng lịch sử, phần sau mục)."""
-    lines = (body or "").splitlines()
-    i0 = next((i for i, l in enumerate(lines) if l.strip() == _HISTORY_HEADER), None)
-    if i0 is None:
-        return lines, [], []
-    i1 = next((i for i in range(i0 + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
-    return (lines[:i0],
-            [l.rstrip() for l in lines[i0 + 1:i1] if l.strip().startswith("- ")],
-            lines[i1:])
+    """(phần trước mục lịch sử, các dòng lịch sử, phần sau mục).
+
+    Dùng chung ranh giới với chốt chặn (agent_rules.split_section, 0.172.0): mục chỉ gồm dải gạch
+    đầu dòng ngay dưới tiêu đề. Bản cũ kéo tới `## ` kế tiếp rồi chỉ giữ dòng "- ", nên đoạn chủ
+    viết sau mục này (luật đánh số, `###`, đoạn văn) bị xoá im lặng ở lần sửa kế tiếp.
+    """
+    return agent_rules.split_section(body, _HISTORY_HEADER)
 
 
 def append_history(body: str, reason: str, today: str, old_body: str = "") -> str:

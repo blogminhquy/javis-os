@@ -226,16 +226,27 @@ def engine_notice(text: str) -> str:
 # đây là nick chủ dùng hằng ngày nên bạn bè, người nhà, đồng nghiệp đều nhắn vào. Chủ đã chọn
 # (29/09) để bot TỰ QUYẾT có trả lời không thay vì bật công tắc từng người, nên quyết định đó phải
 # được nói cho model biết - và nó là chỉ dẫn duy nhất Javis thêm vào prompt bot, chỉ ở kênh này.
+#
+# 0.172.0: đoạn này là MẶC ĐỊNH, không phải luật đè lên chủ. Bản cũ đứng SAU file Agent và ra lệnh
+# trống ("chuyện riêng tư thì KHÔNG trả lời"), nên nó thắng luật chủ đã viết: Agent của một trung tâm
+# ghi rõ học sinh kể chuyện riêng thì vẫn đáp một câu kéo về việc lớp, vậy mà "Thầy ơi con buồn quá,
+# con mới chia tay người yêu" vẫn ra agent_silent (15/10/2026). Nay nó đứng TRƯỚC file Agent và nói
+# thẳng file Agent thắng; bot không có Agent, hoặc Agent không nói gì về loại tin đó, vẫn im an toàn.
 IM_LANG = "[IM_LANG]"
 _CAU_ZALO_CA_NHAN = f"""
-## Kênh này là Zalo CÁ NHÂN của chủ
+## Kênh này là Zalo CÁ NHÂN của chủ (mặc định của Javis)
 
 Bạn đang trả lời tin nhắn ở tài khoản Zalo cá nhân của chủ, và câu bạn gửi đi mang TÊN CHỦ.
 Người nhắn tới có thể là khách, nhưng cũng có thể là bạn bè, người nhà, đồng nghiệp của chủ.
-Hãy tự quyết định có nên trả lời hay không: chỉ trả lời khi tin nhắn đúng là việc mà vai của bạn
-phụ trách. Nếu đó là chuyện riêng tư, chuyện gia đình bạn bè, một tin không cần hồi đáp, hoặc
-bạn không chắc có nên nhân danh chủ trả lời hay không, thì KHÔNG trả lời: viết đúng một dòng
-`{IM_LANG}` và không thêm chữ nào khác.
+
+Hướng dẫn vai của chủ ở phần dưới LUÔN thắng đoạn này. Khi hướng dẫn vai đã nói cách xử lý một
+loại tin (ví dụ: người nhắn kể chuyện riêng thì vẫn đáp một câu ngắn), làm đúng như hướng dẫn vai,
+kể cả khi đoạn này nói khác.
+
+Chỉ với loại tin mà hướng dẫn vai KHÔNG nói tới: tự quyết định có nên trả lời hay không, chỉ trả
+lời khi tin nhắn đúng là việc mà vai của bạn phụ trách. Nếu đó là chuyện riêng tư, chuyện gia đình
+bạn bè, một tin không cần hồi đáp, hoặc bạn không chắc có nên nhân danh chủ trả lời hay không, thì
+KHÔNG trả lời: viết đúng một dòng `{IM_LANG}` và không thêm chữ nào khác.
 """
 
 # Chế độ "Tự đánh giá" (0.64.82): một tin trong NHÓM mà không ai gọi tên bot. Cùng lý do với đoạn
@@ -290,6 +301,10 @@ def build_bot_prompt(bot: dict) -> str:
                     f"kể cả khi khách nhắn bằng tiếng khác. {_l.nudge}")
     else:
         phan.append("\nNGÔN NGỮ: trả lời bằng ĐÚNG ngôn ngữ khách đang nhắn.")
+    # Kênh của LƯỢT này, do _make_answer_fn gắn vào. Chỉ Zalo cá nhân mới có thêm đoạn này, và nó đứng
+    # TRƯỚC file Agent: mặc định của Javis đọc trước, luật của chủ đọc sau và thắng (0.172.0).
+    if (bot or {}).get("_kenh_luot") == "zalo_personal":
+        phan.append(_CAU_ZALO_CA_NHAN)
     if than.strip():
         phan.append("\n" + than.strip())
     if not meta:
@@ -311,9 +326,6 @@ def build_bot_prompt(bot: dict) -> str:
     if tu_mo:
         phan.append(_TU_MO_TAI_LIEU.format(
             chat=_TU_MO_CHAT if bot.get("nguon_tra_loi") == "tai_lieu" else ""))
-    # Kênh của LƯỢT này, do _make_answer_fn gắn vào. Chỉ Zalo cá nhân mới có thêm đoạn này.
-    if (bot or {}).get("_kenh_luot") == "zalo_personal":
-        phan.append(_CAU_ZALO_CA_NHAN)
     # Lines a plugin returned from the `chatbot_turn_context` hook for THIS turn (plugin_context). No plugin = no key = no block.
     nc_plugin = (bot or {}).get("_ngu_canh_plugin")
     if nc_plugin:

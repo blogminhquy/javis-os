@@ -42,19 +42,45 @@ def normalize(line: str) -> str:
     return re.sub(r"\W+", "", line or "").casefold()
 
 
+def _section_end(lines: List[str], i0: int) -> int:
+    """Index just past the managed section whose header is `lines[i0]`.
+
+    The section is the header, any blank lines right under it, then ONE run of contiguous
+    `- ` bullets: exactly what Javis writes. It ends at the first line that is anything else,
+    including a blank line after the bullets.
+
+    Before 0.172.0 it ran to the next `## ` heading and only its bullets were kept, so an owner
+    paragraph, numbered rule or `### ` subsection written after it was deleted on the next
+    rewrite, and the guard (which skipped the same span) never noticed. On 2026-10-15 that
+    removed four rule sections the owner had added under "## Lịch sử (tự học)" in a Zalo bot.
+    """
+    i, seen_bullet = i0 + 1, False
+    while i < len(lines):
+        s = lines[i].strip()
+        if s.startswith("- "):
+            seen_bullet = True
+        elif s or seen_bullet:
+            break
+        i += 1
+    return i
+
+
 def split_section(text: str, header: str) -> Tuple[List[str], List[str], List[str]]:
     """(lines before the section, bullet lines inside it, lines after it).
 
-    The section runs from its exact header line to the next `## ` heading. Non-bullet lines
-    inside it are dropped, matching how the lesson section has always been rebuilt.
+    See `_section_end` for where the section stops. Every line after it comes back in the third
+    part untouched (leading blank lines dropped), so nothing the owner wrote there is lost.
     """
     lines = (text or "").splitlines()
     i0 = next((i for i, l in enumerate(lines) if l.strip() == header), None)
     if i0 is None:
         return lines, [], []
-    i1 = next((i for i in range(i0 + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    i1 = _section_end(lines, i0)
     bullets = [l.rstrip() for l in lines[i0 + 1:i1] if l.strip().startswith("- ")]
-    return lines[:i0], bullets, lines[i1:]
+    after = lines[i1:]
+    while after and not after[0].strip():
+        after.pop(0)
+    return lines[:i0], bullets, after
 
 
 def merge_bullets(text: str, header: str, items: Iterable[str],
@@ -99,16 +125,22 @@ def extract_rules(out: str) -> Tuple[List[str], str]:
 
 
 def owner_lines(text: str, managed_headers: Sequence[str]) -> List[str]:
-    """Non-blank lines outside every Javis-managed section, i.e. what the owner wrote."""
+    """Non-blank lines outside every Javis-managed section, i.e. what the owner wrote.
+
+    A managed section stops where `split_section` stops (see `_section_end`), so anything the
+    owner wrote after its bullets counts as the owner's and the guard notices when it goes.
+    """
     managed = {h.strip() for h in managed_headers}
-    out, inside = [], False
-    for line in (text or "").splitlines():
-        if line.startswith("## "):
-            inside = line.strip() in managed
-            if inside:
-                continue
-        if not inside and line.strip():
-            out.append(line.strip())
+    lines = (text or "").splitlines()
+    out, i = [], 0
+    while i < len(lines):
+        s = lines[i].strip()
+        if lines[i].startswith("## ") and s in managed:
+            i = _section_end(lines, i)
+            continue
+        if s:
+            out.append(s)
+        i += 1
     return out
 
 
