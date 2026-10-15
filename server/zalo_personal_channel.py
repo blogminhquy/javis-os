@@ -1076,7 +1076,7 @@ def xa_hang_cho(conn_id: str, luc: Optional[float] = None) -> int:
 
 
 # ============================================================
-# Câu trả lời đã cũ (0.165.0)
+# Câu trả lời đã cũ (0.172.0)
 # ============================================================
 # Ca thật 15/10/2026: phụ huynh nhắn cách nhau 8 đến 15 giây, bot soạn mất 8 đến 18 giây. Bot đợi đủ
 # `CHO_KHACH_IM` giây rồi bắt đầu soạn; tin tiếp theo của khách tới LÚC ĐANG SOẠN, nên câu gửi đi lỗi thời

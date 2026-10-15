@@ -658,7 +658,7 @@ class Transport:
                     text, da_tai, dung = await self._tai_file(files, text, meta, thread, chi_file)
                     if not dung:
                         return
-                # Câu trả lời đã cũ (0.165.0, `zc.bo_do_gui`): lượt chat riêng này tới sau một lượt bị bỏ vì khách nhắn thêm.
+                # Câu trả lời đã cũ (0.172.0, `zc.bo_do_gui`): lượt chat riêng này tới sau một lượt bị bỏ vì khách nhắn thêm.
                 cu = {}
                 if not nhom and md0.get("seq_cuoi") is not None:
                     meta["seq_cuoi"] = int(md0["seq_cuoi"])
@@ -668,7 +668,8 @@ class Transport:
                         meta["ghi_chu_dau"] = ("[Ghi chú của Javis, không phải lời khách: câu trả lời trước của bạn CHƯA được gửi "
                                                "vì khách nhắn thêm trong lúc bạn soạn. Các tin khách chưa được đáp, theo thứ tự: "
                                                + " / ".join(cu["texts"]) + ". Hãy trả lời MỘT lần cho các tin này cùng tin mới "
-                                               "bên dưới, đừng hỏi lại điều khách đã nói.]")
+                                               "bên dưới, đừng hỏi lại điều khách đã nói. Việc lượt trước đã làm bằng công cụ (ghi file, gửi tin, "
+                                               "đặt lịch) là ĐÃ xong, đừng làm lại.]")
                 try:
                     out = await self.answer_fn(text, meta, None)
                 except BaseException:

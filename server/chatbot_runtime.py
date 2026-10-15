@@ -1503,7 +1503,7 @@ def _make_answer_fn(bot_id: str):
         cfg.pop("_anh_loi", None)
         text_engine, cfg["_anh"] = await anh_cho_bot(text_engine, gan_anh_cho(bot_id, meta, text), cfg)
         if (meta or {}).get("ghi_chu_dau"):
-            # Lượt nối tiếp một câu trả lời đã bỏ (0.165.0): ghi chú chỉ cho model, không vào Hộp thư hay nhật ký.
+            # Lượt nối tiếp một câu trả lời đã bỏ (0.172.0): ghi chú chỉ cho model, không vào Hộp thư hay nhật ký.
             text_engine = str(meta["ghi_chu_dau"]) + "\n" + text_engine
 
         # Bản ghi truyền xuống lõi phải có brain và slug - lõi dựa vào đó để đổi brain, đổi
@@ -1570,7 +1570,7 @@ def _make_answer_fn(bot_id: str):
                 "muc_quyen": cfg.get("muc_quyen") or "suggest",
             })
             return {"text": "", "files": [], "im_lang": True}
-        # Zalo chat riêng: khách đã nhắn thêm chữ trong lúc bot soạn thì câu này là CŨ (0.165.0). Không gửi, không vào
+        # Zalo chat riêng: khách đã nhắn thêm chữ trong lúc bot soạn thì câu này là CŨ (0.172.0). Không gửi, không vào
         # Hộp thư như lời bot nói; lượt kế tiếp đọc cả tin mới lẫn tin của lượt này và trả lời một lần.
         if not loi_ky_thuat and dap and _luot_cu(meta):
             chatbot_log.ghi(bot_id, {

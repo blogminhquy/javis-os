@@ -1,4 +1,4 @@
-"""Zalo cá nhân: khách nhắn thêm lúc bot đang soạn thì bỏ câu cũ, gộp lại trả lời MỘT lần (0.165.0).
+"""Zalo cá nhân: khách nhắn thêm lúc bot đang soạn thì bỏ câu cũ, gộp lại trả lời MỘT lần (0.172.0).
 
     python tests/run.py cau_tra_loi_cu      (KHÔNG mạng, MCP giả)
 
