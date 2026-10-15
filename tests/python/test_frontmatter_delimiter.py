@@ -40,7 +40,7 @@ def check(name, cond, extra=""):
 
 
 def old_split(text):
-    """The pre-0.154.1 behaviour, kept here as the reference for valid files."""
+    """The behaviour before 0.172.0 (`text.split("---", 2)`), kept here as the reference for valid files."""
     if not text.startswith("---"):
         return None
     parts = text.split("---", 2)
