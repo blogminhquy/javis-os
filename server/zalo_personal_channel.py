@@ -697,6 +697,30 @@ _BOTS: Dict[str, Any] = {}          # conn_id -> Transport đang trực
 _DA_GUI: Dict[tuple, list] = {}     # (conn_id, thread) -> [(ts, chữ đã chuẩn hoá)]
 _DA_GUI_ANH: Dict[tuple, list] = {}  # (conn_id, thread) -> [ts mỗi ảnh bot vừa gửi] (xem ghi_da_gui_anh)
 _TAY: Dict[tuple, float] = {}       # (conn_id, thread) -> giờ tin chủ tự nhắn gần nhất
+# Ảnh khách gửi trong CHAT RIÊNG (nhớ cho các lượt chữ ngay sau, xem `Transport.xu_ly`). Ca thật 15/10/2026: giáo viên gửi
+# ảnh bài làm rồi nhắn "check xem đúng chưa", bot hỏi danh tính; trả lời xong thì ảnh đã ở tin trước nên bot nói "chưa đọc
+# được ảnh", và ảnh gửi lại KHÔNG kèm chữ thì bị bỏ hẳn. Nhóm có cơ chế riêng (`_nho_anh_tron`, bộ phán xử).
+ANH_RIENG_GIAY = 600    # giây một ảnh chat riêng còn được kèm vào các lượt chữ sau
+_ANH_RIENG: Dict[tuple, tuple] = {}  # (conn_id, thread) -> (giờ, link ảnh) ảnh gần nhất khách gửi
+
+
+def nho_anh_rieng(conn_id: str, thread: str, url: str, now: Optional[float] = None) -> None:
+    if url:
+        _ANH_RIENG[(str(conn_id), str(thread))] = (time.time() if now is None else now, url)
+        if len(_ANH_RIENG) > 500:
+            for k in list(_ANH_RIENG)[:250]:
+                _ANH_RIENG.pop(k, None)
+
+
+def anh_rieng_gan_day(conn_id: str, thread: str, now: Optional[float] = None) -> tuple:
+    """(giờ, link) của ảnh khách gửi gần nhất trong chat riêng này nếu còn trong `ANH_RIENG_GIAY`, không thì ()."""
+    v = _ANH_RIENG.get((str(conn_id), str(thread)))
+    if not v:
+        return ()
+    if (time.time() if now is None else now) - v[0] > ANH_RIENG_GIAY:
+        _ANH_RIENG.pop((str(conn_id), str(thread)), None)
+        return ()
+    return v
 _VIEC: set = set()                  # giữ tham chiếu task đang chạy, kẻo bị thu gom giữa chừng
 _GOM: Dict[tuple, dict] = {}        # (conn_id, thread) -> {"evs": [...], "cuoi": ts}: chat riêng đang chờ khách nhắn xong
 _NONG: Dict[str, float] = {}        # conn_id -> giờ thấy tin khách chat riêng gần nhất (đọc dày, xem `_nhip_cua`)
