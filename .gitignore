@@ -67,6 +67,7 @@ server/memory_index.db*
 # cây git bẩn thêm một file, và `git add -A` commit đường dẫn máy người khác.
 server/bin_paths.json
 server/claude-update.json
+server/agy-update.json
 server/antigravity-duong-prompt.json
 server/usage-marks.jsonl*
 server/conversations.db

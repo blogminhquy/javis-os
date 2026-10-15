@@ -140,7 +140,7 @@ const data = { ok: true, board: "off", max_workers: 2, errors: [],
       open: { kind: "chat", session_id: "s2", goal_id: "g1" }, cancel: null }] };
 let jh = AJ.html(data, { name: "Minh" });
 check("bốn trạng thái có chip đếm: Đang làm, Đang chờ, Cần bạn, Đã xong", ["ajobs.b.running", "ajobs.b.waiting",
-  "ajobs.b.needs_you", "ajobs.b.done"].every(function (k) { return jh.includes(vi[k]); }) && /data-aj-filter="waiting"[^>]*>[^<]*<span class="aj-n">2/.test(jh), jh);
+  "ajobs.b.needs_you", "ajobs.b.done"].every(function (k) { return jh.includes(vi[k]); }) && /<option value="waiting">[^<]*\(2\)<\/option>/.test(jh), jh);
 check("có nút Giao việc", jh.includes("aj-assign-open") && jh.includes(vi["ajobs.assign"]));
 check("Cần bạn đứng đầu, lý do hiện và đã escape", jh.indexOf('aj-sec-h">' + vi["ajobs.b.needs_you"]) < jh.indexOf('aj-sec-h">' + vi["ajobs.b.running"])
   && jh.includes("Trợ lý gặp lỗi &lt;b&gt;"), jh);
@@ -163,7 +163,9 @@ check("trang Cộng sự: Lịch sử, Công việc, Cài đặt; tài liệu v�
   && ws.includes('id="wsFiles"') && ws.includes("JavisAgentJobs.mount"));
 check("mở việc nhóm đi đúng nhóm và lọc đúng việc", /JavisTeams\.open\(teamId, taskId\)/.test(ws)
   && /function open\(teamId, taskId\)/.test(fs.readFileSync(path.join(ROOT, "dashboard", "teams.js"), "utf8")));
-check("chữ tab Công việc 16px, nút 44px", /\.aj \{[^}]*font-size: 16px/.test(css) && /\.aj \.aj-acts \.ws-btn \{ min-height: 44px/.test(css));
+// Owner, 2026-10-15: 16px was too big for the narrow column; 13px text, 44px buttons on touch screens.
+check("Work tab text 13px, buttons 44px on touch screens", /\.aj \{[^}]*font-size: 13px/.test(css)
+  && /@media \(pointer: coarse\) \{[^}]*\.aj \.aj-acts \.ws-btn[^}]*min-height: 44px/.test(css));
 
 // ───────────── Auto (trước là Cộng hưởng) ─────────────
 const RAX = require(path.join(ROOT, "dashboard", "resonance-agent.js"));

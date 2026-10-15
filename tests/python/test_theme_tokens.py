@@ -48,14 +48,15 @@ check(f"cp-css không gõ cứng màu (còn: {_hard})", not _hard)
 
 check("khung nhập ở tab Trò chuyện dùng đúng nền của thanh nhập màn Javis",
       ".chatpage-slot .hud-voice{ background:var(--bg2);" in CP_CSS)
-check("khung nhập ở tab Trò chuyện bo góc bằng bản gốc (18px)",
-      re.search(r"\.chatpage-slot \.hud-voice\{[^}]*border-radius:18px", CP_CSS) is not None)
+# 0.153.0: the owner approved a rounder composer (18px -> 24px).
+check("the Chat page composer has the same corners as the original (24px)",
+      re.search(r"\.chatpage-slot \.hud-voice\{[^}]*border-radius:24px", CP_CSS) is not None)
 
 # HAI chỗ đặt chat phải cùng một bộ mặt, nếu không lật tông là thấy ngay chỗ vênh.
 # (Trước 0.12.4 có ba: cockpit, tab Trò chuyện, và lớp nổi "phóng to". Lớp nổi đã bỏ - phóng
 # to nay là chuyển hẳn sang tab Trò chuyện, xem tests/js/test_chat_zoom_sang_trang.js.)
-check("thanh nhập gốc ở cockpit vẫn là --bg2 + bo 18px",
-      re.search(r"\.hud-voice \{[^}]*border-radius: 18px;[^}]*background: var\(--bg2\)", STYLE) is not None)
+check("the cockpit composer is still --bg2 with 24px corners",
+      re.search(r"\.hud-voice \{[^}]*border-radius: 24px;[^}]*background: var\(--bg2\)", STYLE) is not None)
 check("không còn bộ mặt thứ ba đi lạc (lớp nổi đã bỏ)",
       ".chat-stage-body" not in STYLE)
 

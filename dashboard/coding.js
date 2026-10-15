@@ -40,7 +40,7 @@
 
    Dải chip ngữ cảnh nhét vào chính #modelBar đã mượn, đứng TRƯỚC chip Model của app.
 
-   Các hàm THUẦN (chipHtml, nhanHienThi) phơi ra cuối file để test bằng node.
+   The pure function chipHtml is exported at the end of the file for node tests.
    KHÔNG dùng ký tự em dash. Chữ hiện ra lấy từ từ điển window.t. */
 (function () {
   "use strict";
@@ -85,13 +85,6 @@
   // Hàm thuần (test bằng node)
   // ============================================================
 
-  /** Nhãn ngắn của một thư mục trên chip. Đường dẫn dài trên điện thoại đẩy mọi chip khác ra
-   *  khỏi màn hình, nên chip mang TÊN, còn đường dẫn đầy đủ nằm ở title. */
-  function nhanHienThi(tm) {
-    if (!tm) return "";
-    return String(tm.ten || tm.duong_dan || "").split(/[\\/]/).pop();
-  }
-
   /** HTML của hàng chip ngữ cảnh. Thuần để test được không cần DOM.
    *
    *  `rb` là ràng buộc phiên, `tm` là thư mục đang gắn (null khi chưa gắn).
@@ -113,16 +106,10 @@
     var chipQuyen = function () {
       return chip("quyen", ic("shield") + " " + esc(nhanQuyen(mq)), " cd-mq-" + esc(mq));
     };
-    if (!tm) {
-      return chip("thumuc", ic("folder-plus") + " " + esc(t("coding.chip_pick_folder")),
-                  " cd-chip-mo") + chipQuyen();
-    }
-    // Gắn nhiều thư mục thì chip mang tên thư mục CHÍNH kèm "+N": tên chính là thứ người
-    // dùng cần thấy (engine đứng đó, git chạy đó), còn con số chỉ để biết còn thư mục khác.
-    var them = Math.max(0, (Number(rb.so_thu_muc) || 1) - 1);
-    var ra = '<button type="button" class="cd-chip cd-chip-tm" data-cd="thumuc" title="' +
-      esc(tm.duong_dan || "") + '">' + ic("folder-open") + " " + esc(nhanHienThi(tm)) +
-      (them ? ' <span class="cd-chip-them">+' + them + "</span>" : "") + "</button>";
+    // 0.158.0: the folder itself is shown and changed by the composer chip (composer-folder.js),
+    // so this row only carries the git chips and the permission level.
+    if (!tm) return chipQuyen();
+    var ra = "";
     if (tm.la_git) {
       var wt = !!(rb.worktree || "").trim();
       ra += chip("nhanh", ic("git-branch") + " " + esc(rb.nhanh || tm.nhanh || t("coding.branch_unknown")));
@@ -149,10 +136,11 @@
           '<div class="chatpage-bar">' +
             '<button class="cp-ico-btn cp-side-toggle" type="button" id="cdLeftBtn" title="' +
               esc(t("coding.toggle_list")) + '">' + ic("history") + "</button>" +
-            '<div class="cd-id" id="cdIdentity"></div>' +
             // Chip gom nhóm hội thoại của trang Trò chuyện đậu vào đây, y như thanh tiêu đề
             // của trang đó. Thiếu ô này thì JavisChatSide.chip() không có chỗ để vẽ.
             '<span class="proj-chip-host"></span>' +
+            // 0.159.0: errors get their own slot, so a chip redraw cannot wipe them.
+            '<small class="cd-err ws-err" id="cdErr" role="status"></small>' +
           "</div>" +
           // Chỗ đứng của dải chip trên MÀN HẸP. Trên máy tính dải chip nằm trong #modelBar
           // (một hàng đọc từ trái sang: thư mục, nhánh, worktree, điểm hồi, chế độ, model),
@@ -186,7 +174,7 @@
                           el.querySelector("#cdSlot"))
       : function () { el.querySelector("#cdPage").classList.toggle("side-thu"); };
     el.querySelector("#cdLeftBtn").onclick = bat;
-    await taiThuMuc();
+    await taiKenh();
 
     // CỘT TRÁI = chính cột hội thoại của trang Trò chuyện, lọc theo kênh Coding. Mượn nguyên
     // module nên có sẵn: tab Hội thoại|Thư mục, thanh gom nhóm, ô tìm, ghim, nhóm theo ngày,
@@ -205,10 +193,17 @@
       _mqChip.addEventListener("change", _mqChipFn);
     } catch (e) { _mqChip = null; }
 
+    // The composer chip pins or unpins the working folder (0.158.0): reload the git chips.
+    W.addEventListener("javis:pinned-folder-changed", onPinned);
+
     bocMoPhien();
     await moPhienDau();
   }
   var _mqChip = null, _mqChipFn = null;
+  function onPinned(e) {
+    var d = (e && e.detail) || {};
+    if (active && d.sid && d.sid === sid()) taiRangBuoc(d.sid);
+  }
 
   /** Bọc `JavisSessions.open` trong lúc ở trang này.
    *
@@ -238,15 +233,17 @@
     // không còn tồn tại, và mỗi lần vào lại trang là chồng thêm một người nghe nữa.
     try { if (_mqChip && _mqChipFn) _mqChip.removeEventListener("change", _mqChipFn); } catch (e) {}
     _mqChip = null; _mqChipFn = null;
+    W.removeEventListener("javis:pinned-folder-changed", onPinned);
   }
 
   // ============================================================
   // Dữ liệu
   // ============================================================
-  async function taiThuMuc() {
-    var r = await api("/coding/folders?brain=" + encodeURIComponent(brain()));
+  // The Coding channel name comes from the server (coding_store.KENH). /coding/sessions returns
+  // it with a one-row list, much lighter than reading the whole folder registry for one field.
+  async function taiKenh() {
+    var r = await api("/coding/sessions?brain=" + encodeURIComponent(brain()) + "&limit=1");
     if (!active) return;
-    S.thuMuc = (r && r.thu_muc) || [];
     if (r && r.kenh) S.kenh = r.kenh;
   }
 
@@ -322,9 +319,10 @@
     }
   }
 
+  // Errors go to the page bar slot #cdErr; an empty message clears it.
   function veLoi(msg) {
-    var el = S.el && S.el.querySelector("#cdIdentity");
-    if (el) el.innerHTML = '<small class="ws-err">' + esc(msg) + "</small>";
+    var el = S.el && S.el.querySelector("#cdErr");
+    if (el) el.textContent = msg || "";
   }
 
   function sid() { return W.JavisSessions ? W.JavisSessions.current() : ""; }
@@ -337,13 +335,8 @@
     S.tmDs = (r && r.thu_muc_ds) || (S.tm ? [S.tm] : []);
     S.cwd = (r && r.cwd) || "";
     S.diemHoi = (r && r.diem_hoi) || [];
+    veLoi("");
     veChip();
-    var idn = S.el && S.el.querySelector("#cdIdentity");
-    if (idn) {
-      idn.innerHTML = S.cwd
-        ? '<span class="cd-cwd" title="' + esc(S.cwd) + '">' + esc(S.cwd) + "</span>"
-        : '<span class="cd-cwd dim">' + esc(t("coding.in_brain")) + "</span>";
-    }
   }
 
   // ============================================================
@@ -375,8 +368,7 @@
       bar.insertBefore(row, bar.firstChild);
     }
     var rb = S.rb || {};
-    row.innerHTML = chipHtml({ nhanh: rb.nhanh, worktree: rb.worktree, muc_quyen: rb.muc_quyen,
-                               so_thu_muc: (S.tmDs || []).length }, S.tm);
+    row.innerHTML = chipHtml({ nhanh: rb.nhanh, worktree: rb.worktree, muc_quyen: rb.muc_quyen }, S.tm);
     row.querySelectorAll("[data-cd]").forEach(function (n) {
       n.onclick = function () { bamChip(n.dataset.cd, n); };
     });
@@ -401,7 +393,6 @@
   }
 
   function bamChip(loai, node) {
-    if (loai === "thumuc") return menuThuMuc(node);
     if (loai === "nhanh") {
       var ds = (S.tm && S.tm.nhanh_ds) || [];
       if (!ds.length) return;
@@ -422,102 +413,6 @@
     if (loai === "diemhoi") return menuDiemHoi(node);
   }
 
-  /** Menu thư mục: chọn cái đã khai, thêm cái mới, gỡ khỏi phiên, bỏ khỏi Javis.
-   *
-   *  Quản lý thư mục nằm TRONG menu này chứ không thành một cột riêng: cả trang chỉ có một
-   *  chỗ nói về thư mục, và nó nằm đúng chỗ người dùng đang nhìn khi cần đổi. */
-  /** Menu thư mục: TÍCH CHỌN, gắn được nhiều thư mục vào một việc (0.63.8).
-   *
-   *  Một việc thật hay đụng nhiều thư mục cùng lúc (mã nguồn với tài liệu, app với thư viện
-   *  dùng chung), nên bắt chọn đúng một cái là bắt người dùng đổi qua đổi lại giữa chừng.
-   *
-   *  Thư mục ĐẦU danh sách là CHÍNH: engine đứng ở đó và mọi thao tác git chạy ở đó, vì một
-   *  tiến trình chỉ đứng được ở một chỗ. Các thư mục còn lại đi vào prompt bằng đường dẫn
-   *  tuyệt đối. Bỏ tích cái chính thì cái kế tiếp lên thay.
-   *
-   *  Menu KHÔNG đóng sau mỗi lần tích: chọn ba thư mục mà phải mở menu ba lần thì thà quay
-   *  lại kiểu cũ. */
-  function idDangGan() { return (S.tmDs || []).map(function (x) { return x.id; }); }
-
-  function menuThuMuc(node) {
-    var dang = idDangGan();
-    var muc = S.thuMuc.map(function (x) {
-      var co = dang.indexOf(x.id) >= 0;
-      var laChinh = co && dang[0] === x.id;
-      return {
-        nhan: x.ten + (x.co_that ? "" : "  (" + t("coding.folder_gone") + ")"),
-        phu: (laChinh ? t("coding.folder_main") + " · " : "") + x.duong_dan,
-        chon: co,
-        tich: true,
-        giuMo: true,
-        bam: async function () {
-          var ids = idDangGan();
-          var i = ids.indexOf(x.id);
-          if (i >= 0) ids.splice(i, 1); else ids.push(x.id);
-          await datRangBuoc({ thu_mucs: ids.join(",") });
-        },
-      };
-    });
-    muc.push({ nhan: t("coding.add_folder"), nhanMoi: true, bam: function () { moKhungThemThuMuc(); } });
-    if (S.tm) {
-      muc.push({ nhan: t("coding.detach_folder"), bam: function () { datRangBuoc({ thu_mucs: "" }); } });
-      muc.push({ nhan: t("coding.forget_folder"), nguyHiem: true, bam: function () { boThuMuc(S.tm); } });
-    }
-    menu(node, muc, menuThuMuc);
-  }
-
-  async function boThuMuc(tm) {
-    if (!W.confirm(t("coding.forget_confirm", { ten: tm.ten }))) return;
-    await api("/coding/folders/" + encodeURIComponent(tm.id) + "/delete", { method: "POST" });
-    await taiThuMuc();
-    await datRangBuoc({ thu_muc: "" });
-  }
-
-  /** Thêm thư mục: MỞ HỘP DUYỆT để bấm chọn, không bắt gõ đường dẫn.
-   *
-   *  Bản 0.63.2 chỉ có một ô chữ trống. Trên máy để bàn thì còn dán được, nhưng trên điện
-   *  thoại thì phải gõ tay một đường dẫn tuyệt đối không dấu gợi ý nào, gõ sai một ký tự là
-   *  nhận câu "không phải thư mục" mà không biết sai ở đâu. Chọn thư mục là việc DUYỆT, nên
-   *  phải bày ra cái cây để bấm.
-   *
-   *  Hộp duyệt là JavisFolderPicker, dùng chung với các trang khác, chạy trên chính endpoint
-   *  GET /browse mà hộp chọn brain của app vẫn dùng. Truyền demMd=false: người chọn thư mục
-   *  code không cần biết trong đó có bao nhiêu file .md, mà đếm nó là quét cả node_modules.
-   *  Ô đường dẫn trong hộp vẫn gõ và dán được, nên ai đã có sẵn đường dẫn không mất gì. */
-  function moKhungThemThuMuc() {
-    dongMenu();
-    if (!W.JavisFolderPicker) return;
-    W.JavisFolderPicker.open({
-      tieuDe: t("coding.add_folder"),
-      nhanDung: t("coding.add_folder"),
-      demMd: false,
-      brain: brain(),
-      // Mở sẵn ở thư mục cha của thư mục đang gắn: mấy dự án thường nằm cạnh nhau, nên đó là
-      // chỗ gần đích nhất mà Javis biết chắc. Chưa gắn gì thì để rỗng, và hộp mở ra ở màn
-      // ĐIỂM XUẤT PHÁT (bộ não đang mở, thư mục chứa các bộ não, thư mục nhà) chứ không đổ
-      // thẳng vào thư mục nhà - trên VPS chỗ đó thường rỗng trơn.
-      batDau: chaCuaThuMucDangGan(),
-      chon: async function (duongDan) {
-        var r = await api("/coding/folders", { method: "POST", body: fd({ duong_dan: duongDan, brain: brain() }) });
-        // Trả về câu lỗi là hộp GIỮ NGUYÊN và in câu đó: người dùng đang đứng đúng chỗ vừa
-        // chọn, chỉ cần bấm sang thư mục khác. Đóng hộp rồi báo lỗi ở đâu đó là bắt họ mở lại
-        // và duyệt lại từ đầu.
-        if (!r || r.error) return (r && r.error) || t("coding.add_err");
-        await taiThuMuc();
-        await datRangBuoc({ thu_muc: r.thu_muc.id });
-        return "";
-      },
-    });
-  }
-
-  /** Thư mục mở sẵn khi bật hộp duyệt: cha của thư mục đang gắn, rỗng nếu chưa gắn gì. */
-  function chaCuaThuMucDangGan() {
-    var p = (S.tm && S.tm.duong_dan) || "";
-    if (!p) return "";
-    var cat = p.replace(/[\\/]+$/, "").split(/[\\/]/);
-    cat.pop();
-    return cat.length > 1 ? cat.join("/") : "";
-  }
 
   function menuDiemHoi(node) {
     var muc = [{
@@ -546,18 +441,13 @@
   // ============================================================
   // Menu bật lên từ một chip
   // ============================================================
-  /** `veLai` (tuỳ chọn) = hàm dựng lại chính menu này, cho những mục mang `giuMo`. */
-  function menu(anchor, muc, veLai) {
+  function menu(anchor, muc) {
     dongMenu();
     var m = document.createElement("div");
     m.className = "cd-menu"; m.id = "cdMenu";
     m.innerHTML = muc.map(function (x, i) {
-      // Mục TÍCH CHỌN mang thêm một ô vuông: dấu tích nói "đang gắn", chữ đậm thôi thì
-      // người dùng không đoán ra là bấm vào sẽ THÊM hay THAY.
-      var o = x.tich ? '<span class="cd-tich">' + (x.chon ? ic("check") : "") + "</span>" : "";
       return '<button type="button" data-i="' + i + '" class="' +
-        (x.chon ? "on " : "") + (x.nguyHiem ? "nguy " : "") + (x.tich ? "tich " : "") +
-        (x.nhanMoi ? "moi" : "") + '">' + o +
+        (x.chon ? "on " : "") + (x.nguyHiem ? "nguy" : "") + '">' +
         "<span>" + esc(x.nhan) + (x.phu ? '<small>' + esc(x.phu) + "</small>" : "") + "</span>" +
         "</button>";
     }).join("");
@@ -585,14 +475,8 @@
     m.style.top = (len ? Math.max(tran, r.top - cao - 6)
                        : Math.min(r.bottom + 6, Math.max(tran, vh - cao - 8))) + "px";
     m.querySelectorAll("[data-i]").forEach(function (b) {
-      b.onclick = async function (e) {
+      b.onclick = function () {
         var x = muc[Number(b.dataset.i)];
-        if (x && x.giuMo && veLai) {
-          e.stopPropagation();          // đừng để cú bấm này rơi xuống bộ đóng menu ở dưới
-          if (x.bam) await x.bam();
-          if (document.getElementById("cdMenu") === m) veLai(anchor);   // vẽ lại cho đúng dấu tích
-          return;
-        }
         dongMenu();
         if (x && x.bam) x.bam();
       };
@@ -618,10 +502,10 @@
 
   W.JavisCoding = {
     render: render, roi: roi,
-    // Phơi cho test node
-    chipHtml: chipHtml, nhanHienThi: nhanHienThi,
+    // Exposed for node tests
+    chipHtml: chipHtml,
   };
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { chipHtml: chipHtml, nhanHienThi: nhanHienThi };
+    module.exports = { chipHtml: chipHtml };
   }
 })();

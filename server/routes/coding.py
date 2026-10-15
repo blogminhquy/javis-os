@@ -21,10 +21,12 @@ là bỏ sót - main đã có sẵn bộ bí danh đó, chép lại ở đây l�
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Callable
 
 from fastapi import APIRouter, Form, Query
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 import coding_store
@@ -37,6 +39,10 @@ router = APIRouter()
 @dataclass
 class CodingDeps:
     brain_keys: Callable[[str], list]
+    # 0.158.0, composer pinned folder: resolve a browse-relative path (raises ValueError when it
+    # leaves the ceiling) and give the brain root, both owned by main.
+    resolve_path: Callable[[str, str], str] = None
+    brain_root: Callable[[str], str] = None
 
 
 _DEPS: "CodingDeps" = None   # type: ignore
@@ -71,6 +77,86 @@ def _ve_thu_muc(r: dict) -> dict:
         "nhanh": coding_store.nhanh_hien_tai(p) if git else "",
         "nhanh_ds": coding_store.danh_sach_nhanh(p) if git else [],
     }
+
+
+def _folder_view(r):
+    """English view of a registered folder for the composer chip (0.158.0)."""
+    if not r:
+        return None
+    v = _ve_thu_muc(r)
+    return {"id": v["id"], "name": v["ten"], "path": v["duong_dan"], "exists": v["co_that"], "is_git": v["la_git"]}
+
+
+def _brain_fields(sid: str, brain: str) -> dict:
+    """`in_brain` / `brain_rel` of the session's main folder, relative to the brain root."""
+    out = {"in_brain": False, "brain_rel": ""}
+    tm = coding_store.thu_muc(coding_store.rang_buoc(sid).get("thu_muc") or "")
+    if not tm or not brain or not (_DEPS and _DEPS.brain_root):
+        return out
+    try:
+        rel = Path(tm["duong_dan"]).resolve().relative_to(Path(_DEPS.brain_root(brain)).resolve()).as_posix()
+        out = {"in_brain": True, "brain_rel": "" if rel == "." else rel}
+    except (ValueError, OSError):
+        pass
+    # 0.159.0: extra folders bound before the composer pin existed (they still reach the prompt),
+    # so the chip can show "+N" instead of hiding them.
+    out["extra_folders"] = [r.get("ten") or "" for r in coding_store.thu_muc_cua_phien(sid)
+                            if r.get("id") != tm.get("id")]
+    return out
+
+
+def _session_view(sid: str, brain: str) -> dict:
+    """GET /coding/session/{sid}: blocking git and disk reads, run in a worker thread."""
+    rb = coding_store.rang_buoc(sid)
+    tm = coding_store.thu_muc(rb.get("thu_muc") or "")
+    cwd = coding_store.cwd_cua_phien(sid)
+    return {
+        "rang_buoc": rb,
+        # `thu_muc` là thư mục CHÍNH (engine đứng ở đó, git chạy ở đó); `thu_muc_ds` là
+        # cả tập phiên đang gắn, theo thứ tự, chính đứng đầu.
+        "thu_muc": _ve_thu_muc(tm) if tm else None,
+        "thu_muc_ds": [_ve_thu_muc(x) for x in coding_store.thu_muc_cua_phien(sid)],
+        "cwd": cwd,
+        "diem_hoi": coding_store.danh_sach_diem_hoi(sid),
+        # Chưa gắn thư mục thì KHÔNG chạy git ở đâu cả. Suy biến về "." là chạy `git status`
+        # trong thư mục của tiến trình server - trả lời về một cây người dùng không hỏi.
+        "cay_sach": coding_store.cay_sach(cwd) if cwd else None,
+        # 0.158.0: English fields for the composer chip (old fields above stay as they are).
+        "folder": _folder_view(tm),
+        **_brain_fields(sid, brain),
+    }
+
+
+def _pin(sid: str, raw: str, brain: str):
+    """POST /coding/session/{sid}/pin body, run in a worker thread (git and disk reads).
+    Returns (status, payload)."""
+    try:
+        if not raw:
+            old = [r["id"] for r in coding_store.thu_muc_cua_phien(sid)]   # main first, then extras
+            coding_store.dat_rang_buoc(sid, thu_muc_id="")
+            # Forget folders no other conversation uses, so the registry does not grow forever.
+            # Only the registry entries go; nothing on disk is touched.
+            for tid in old:
+                if not coding_store.sessions_using(tid):
+                    coding_store.bo_thu_muc(tid)
+            return 200, {"ok": True, "folder": None, "in_brain": False, "brain_rel": "", "extra_folders": []}
+        if os.path.isabs(raw):
+            target = raw
+        else:
+            if not (_DEPS and _DEPS.resolve_path):
+                return 400, {"ok": False, "error": localefmt.chu("Không đọc được đường dẫn.", "Cannot read path.")}
+            try:
+                target = _DEPS.resolve_path(brain, raw)
+            except ValueError as e:
+                return 400, {"ok": False, "error": str(e)}
+        rec = coding_store.them_thu_muc(target, brain=brain)
+        # Re-pinning the folder that is already the main one changes nothing: rebinding would
+        # reset the worktree, the branch and the extra folders of that session.
+        if rec["id"] != (coding_store.rang_buoc(sid).get("thu_muc") or ""):
+            coding_store.dat_rang_buoc(sid, thu_muc_id=rec["id"])
+    except coding_store.LoiCoding as e:
+        return 400, {"ok": False, "error": str(e)}
+    return 200, {"ok": True, "folder": _folder_view(rec), **_brain_fields(sid, brain)}
 
 
 def _make_router() -> APIRouter:
@@ -135,22 +221,19 @@ def _make_router() -> APIRouter:
         return {"phien": ra, "kenh": coding_store.KENH}
 
     @r.get("/coding/session/{sid}")
-    async def coding_phien(sid: str):
-        rb = coding_store.rang_buoc(sid)
-        tm = coding_store.thu_muc(rb.get("thu_muc") or "")
-        cwd = coding_store.cwd_cua_phien(sid)
-        return {
-            "rang_buoc": rb,
-            # `thu_muc` là thư mục CHÍNH (engine đứng ở đó, git chạy ở đó); `thu_muc_ds` là
-            # cả tập phiên đang gắn, theo thứ tự, chính đứng đầu.
-            "thu_muc": _ve_thu_muc(tm) if tm else None,
-            "thu_muc_ds": [_ve_thu_muc(x) for x in coding_store.thu_muc_cua_phien(sid)],
-            "cwd": cwd,
-            "diem_hoi": coding_store.danh_sach_diem_hoi(sid),
-            # Chưa gắn thư mục thì KHÔNG chạy git ở đâu cả. Suy biến về "." là chạy `git status`
-            # trong thư mục của tiến trình server - trả lời về một cây người dùng không hỏi.
-            "cay_sach": coding_store.cay_sach(cwd) if cwd else None,
-        }
+    async def coding_phien(sid: str, brain: str = Query("")):
+        return await run_in_threadpool(_session_view, sid, brain)
+
+    @r.post("/coding/session/{sid}/pin")
+    async def coding_session_pin(sid: str, path: str = Form(""), brain: str = Form("")):
+        """Pin (or unpin with an empty path) the conversation's working folder in one call.
+
+        `path` is absolute (from the folder browser, same trust as POST /coding/folders) or
+        relative as /files/list and /files/search return it. Registering and binding in one
+        request means the UI can never leave a folder registered but not bound.
+        """
+        status, payload = await run_in_threadpool(_pin, sid, str(path or "").strip(), brain)
+        return payload if status == 200 else JSONResponse(payload, status_code=status)
 
     @r.post("/coding/session/{sid}")
     async def coding_phien_dat(sid: str, thu_muc: str = Form(None), nhanh: str = Form(None),

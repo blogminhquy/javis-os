@@ -39,6 +39,7 @@
     ready = value;
     var input = document.getElementById("chatInput");
     if (input) input.disabled = !value;
+    ["plusBtn", "sendBtn"].forEach(function (id) { var b = document.getElementById(id); if (b) b.disabled = !value; });
     var files = S.el && S.el.querySelector("#wsFiles"); if (files) files.disabled = !value;
     var run = S.el && S.el.querySelector("#wsRun");
     if (run) run.disabled = !value;

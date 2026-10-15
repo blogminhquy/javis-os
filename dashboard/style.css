@@ -471,7 +471,8 @@ button, input, select, textarea { font-family: inherit; }
   display: grid;
   /* minmax(0, 1fr) rất quan trọng: canvas và chuỗi tool dài không được dùng min-content
      để nới cột giữa rồi đẩy khung hội thoại ra ngoài viewport. */
-  grid-template-columns: 260px minmax(0, 1fr) 320px;
+  /* Bề rộng hai cột kéo được ở đường biên (0.148.0, col-resize.js); thiếu biến thì về mặc định cũ. */
+  grid-template-columns: var(--hud-left-w, 260px) minmax(0, 1fr) var(--hud-right-w, 320px);
   min-width: 0;
   overflow: hidden;
 }
@@ -491,7 +492,7 @@ button, input, select, textarea { font-family: inherit; }
    Trò chuyện mượn đúng node này (nằm trong .cside-pane) và ở đó không có gì để thu -
    selector con trực tiếp giữ cho trạng thái thu không đi lạc theo node. */
 .vault-expand { display: none; }
-body.vault-thu .hud-body { grid-template-columns: 44px minmax(0, 1fr) 320px; }
+body.vault-thu .hud-body { grid-template-columns: 44px minmax(0, 1fr) var(--hud-right-w, 320px); }
 body.vault-thu .hud-body > .hud-left { padding: 12px 6px; align-items: center; overflow: hidden; }
 body.vault-thu .hud-body > .hud-left > :not(.vault-expand) { display: none; }
 body.vault-thu .hud-body > .hud-left > .vault-expand {
@@ -513,7 +514,7 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
 .chatcol-thu-btn svg, .chatcol-expand svg { transform: scaleX(-1); }
 @media (max-width: 860px) { .chatcol-thu-btn { display: none; } }
 @media (min-width: 861px) {
-  body.chatcol-thu .hud-body { grid-template-columns: 260px minmax(0, 1fr) 44px; }
+  body.chatcol-thu .hud-body { grid-template-columns: var(--hud-left-w, 260px) minmax(0, 1fr) 44px; }
   body.vault-thu.chatcol-thu .hud-body { grid-template-columns: 44px minmax(0, 1fr) 44px; }
   body.chatcol-thu .hud-body > .hud-right { padding: 12px 6px; align-items: center; overflow: hidden; }
   body.chatcol-thu .hud-body > .hud-right > :not(.chatcol-expand) { display: none; }
@@ -1352,134 +1353,208 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .voice-focus-resume[hidden] { display: none; }
 .hud-voice {
   position: relative;
-  /* flex-end chứ không center: ô nhập LỚN DẦN theo chữ (kiểu claude.ai), các nút mic/gửi
-     phải neo ở đáy thay vì trôi lơ lửng giữa một ô nhập cao. */
-  display: flex; align-items: flex-end; gap: 12px;
-  margin: 4px 16px 16px; padding: 8px 12px;
-  border: 1px solid var(--border); border-radius: 18px; background: var(--bg2);
+  /* One rounded card in the style of Claude (0.153.0): attachments, text box and button row stacked.
+     Each child stretches to full width (align-self: stretch below); flex-end keeps children from
+     drifting to the middle when the card grows. */
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  margin: 4px 16px 16px; padding: 10px 12px 8px;
+  border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
+  transition: border-color .15s;
 }
+.hud-voice > * { align-self: stretch; }
+.hud-voice:focus-within { border-color: var(--accent-line); }
+/* The attachment strip sits inside the card: drop the 20px side margin of the full-width strip. Written as
+   .has-items.attach-bar (not .attach-bar.has-items) so the base block below stays the first with that name. */
+.hud-voice .attach-bar { padding: 0 2px; }
+.hud-voice .has-items.attach-bar { padding: 2px 2px 6px; }
+.model-bar:empty { display: none; }
+.cp-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.cp-chips { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto; }
+.cp-gap { flex: 1 1 auto; }
+.cp-plus, .cp-fast {
+  flex: none; width: 32px; height: 32px; border-radius: 50%; padding: 0;
+  border: 1px solid var(--border); background: transparent; color: var(--text2);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.cp-plus:hover, .cp-plus[aria-expanded="true"], .cp-fast:hover { border-color: var(--accent); color: var(--accent); }
+.cp-plus:focus-visible, .cp-fast:focus-visible, .cp-eff:focus-visible, .mic-big:focus-visible,
+.send-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cp-eff {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 12px;
+  padding: 4px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg3);
+  color: var(--accent-ink); font-family: var(--font); font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.cp-eff:hover, .cp-eff[aria-expanded="true"] { border-color: var(--accent); }
+/* Fast mode bolt: still when off; when on, an orange background with a moving shine and a gently pulsing bolt. */
+.cp-fast[aria-pressed="true"] {
+  color: var(--on-accent); border-color: var(--accent);
+  background: linear-gradient(110deg, var(--accent) 0%, var(--accent-ink) 25%, var(--accent) 50%, var(--accent-solid) 75%, var(--accent) 100%);
+  background-size: 250% 100%; animation: fastWave 1.6s linear infinite;
+}
+.cp-fast[aria-pressed="true"] svg { animation: fastZap 1.6s ease-in-out infinite; }
+.cp-fast[aria-disabled="true"] { opacity: .45; cursor: help; }
+@keyframes fastWave { to { background-position: -250% 0; } }
+@keyframes fastZap { 50% { transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) {
+  .cp-fast[aria-pressed="true"], .cp-fast[aria-pressed="true"] svg { animation: none; }
+}
+/* Pinned working folder chip, right after the bolt (composer-folder.js, 0.158.0). */
+.cp-pin { display: inline-flex; align-items: center; gap: 5px; height: 30px; max-width: 190px; padding: 0 10px;
+  border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text2);
+  font: inherit; font-size: 12.5px; cursor: pointer; flex: 0 1 auto; min-width: 0; }
+.cp-pin:hover, .cp-pin:focus-visible { border-color: var(--accent); color: var(--text); }
+.cp-pin .cp-ic { width: 14px; height: 14px; flex: none; }
+.cp-pin span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-pin-gone span { text-decoration: line-through; opacity: .7; }
+.cp-pin-err { color: var(--warn-ink); font-size: 12.5px; padding: 4px 10px; }
+.cp-pin-more { flex: none; font-size: 11.5px; color: var(--text3); }
+.cp-pin-current { cursor: default; color: var(--text); }
+.cp-pin-current:hover { background: transparent; }
+.cp-pin-err:empty { display: none; }
+@media (max-width: 860px) { .cp-pin { max-width: 120px; padding: 0 8px; } }
 .mic-big {
-  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
-  width: 46px; height: 46px; border-radius: 50%; cursor: pointer; flex-shrink: 0;
+  background: transparent; border: 1px solid transparent; color: var(--text2);
+  width: 34px; height: 34px; border-radius: 50%; cursor: pointer; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center; transition: all 0.2s;
 }
 .mic-big:hover { border-color: var(--accent); color: var(--accent); }
 .mic-big.recording {
   border-color: var(--red); color: var(--red);
-  box-shadow: 0 0 0 4px var(--danger-wash); animation: micpulse 1.2s ease-in-out infinite;
+  box-shadow: 0 0 0 3px var(--danger-wash); animation: micpulse 1.2s ease-in-out infinite;
 }
-@keyframes micpulse { 50% { box-shadow: 0 0 0 10px rgba(239,68,68,0); } }
+@keyframes micpulse { 50% { box-shadow: 0 0 0 6px rgba(239,68,68,0); } }
 .mic-big.focus-waiting { animation: none; opacity: .65; }
 /* Hands-free: luôn nghe - vòng cam cố định */
 .mic-big.handsfree {
   border-color: var(--accent); color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-line), 0 0 18px rgba(255,107,43,0.35);
+  box-shadow: 0 0 0 2px var(--accent-line), 0 0 10px rgba(255,107,43,0.35);
 }
 .mic-big.handsfree.recording {
   border-color: var(--accent); color: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-line);
+  box-shadow: 0 0 0 3px var(--accent-line);
   animation: micpulse-hf 1.2s ease-in-out infinite;
 }
-@keyframes micpulse-hf { 50% { box-shadow: 0 0 0 11px rgba(255,107,43,0); } }
+@keyframes micpulse-hf { 50% { box-shadow: 0 0 0 7px rgba(255,107,43,0); } }
 .voice-input {
-  flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: 12px;
-  color: var(--text); font-size: 16px; padding: 11px 14px; resize: none; outline: none;
+  flex: none; background: transparent; border: none; border-radius: 0;
+  color: var(--text); font-size: 16px; padding: 6px 6px 8px; resize: none; outline: none;
   /* max-height 45vh chỉ là lưới đỡ - chiều cao thật do app.js đặt theo scrollHeight
      (nở theo chữ, xuống dòng là thấy toàn bộ văn bản). Trần cũ 90px từng chặn cứng
      autosize ở ~3 dòng trên desktop dù JS đã tính đúng - chủ báo 27/08. */
   line-height: 1.4; max-height: 45vh; font-family: var(--font-chat);
 }
-.voice-input:focus { border-color: var(--accent-line); }
+.voice-input:focus { border-color: transparent; }
 .voice-input::placeholder { color: var(--text3); }
 .send-btn {
-  background: var(--accent-solid); border: none; color: var(--on-accent); width: 44px; height: 44px;
-  border-radius: 12px; cursor: pointer; flex-shrink: 0;
+  background: var(--accent-solid); border: none; color: var(--on-accent); width: 34px; height: 34px;
+  border-radius: 50%; cursor: pointer; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center; transition: opacity 0.2s;
 }
 .send-btn:hover { opacity: 0.85; }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ===== Mobile: ô nhập thành viên pill lớn (chat là chính) ===== */
+/* ===== Mobile: same card with tighter padding; the model chip moves to the page header (mobile-chat.js) ===== */
 @media (max-width: 860px) {
   .hud-voice {
-    margin: 6px 10px 8px; padding: 5px 6px 5px 8px; gap: 4px;
+    margin: 6px 10px 8px; padding: 8px 8px 6px; gap: 2px;
     border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
     align-items: flex-end;
   }
-  .hud-voice .attach-btn { order: 1; width: 34px; height: 34px; border: none; background: transparent; }
-  .hud-voice .voice-input {
-    order: 2; border: none; background: transparent; border-radius: 0;
-    min-height: 36px; max-height: 40vh; padding: 8px 4px; font-size: 16px;
-  }
-  .hud-voice .voice-input:focus { border: none; }
-  .hud-voice .mic-big { order: 3; width: 34px; height: 34px; border: none; background: transparent; }
-  .hud-voice .stop-btn, .hud-voice .send-btn { order: 4; width: 36px; height: 36px; border-radius: 50%; }
+  .hud-voice .voice-input { min-height: 36px; max-height: 40vh; padding: 6px 6px; font-size: 16px; }
 }
 
 .stop-btn {
-  background: var(--red); border: none; color: white; width: 44px; height: 44px;
-  border-radius: 12px; cursor: pointer; flex-shrink: 0;
+  background: var(--red); border: none; color: white; width: 34px; height: 34px;
+  border-radius: 50%; cursor: pointer; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center; transition: opacity 0.2s;
   animation: stoppulse 1.3s ease-in-out infinite;
 }
 .stop-btn:hover { opacity: 0.85; }
 @keyframes stoppulse { 50% { box-shadow: 0 0 0 5px var(--danger-wash); } }
-
-.attach-btn {
-  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
-  width: 40px; height: 40px; border-radius: 10px; cursor: pointer; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; transition: all 0.2s;
-}
-.attach-btn:hover { border-color: var(--accent); color: var(--accent); }
 /* Nút loa trên khung chat ĐÃ BỎ (02/09): loa đi theo mic, mic là công tắc duy nhất. */
 
 /* ===== Dải VIỆC NỀN ngay trên khung nhập (background-strip.js) =====
-   Hai tông, đúng hai trạng thái đáng cắt ngang khung chat:
+   Một viên thuốc MỘT dòng (2026-10-15, chủ repo: khối ba dòng cũ "chiếm cả màn hình"), bấm vào
+   mới bật khung chi tiết lên trên, cùng kiểu khung đổi model ngay bên dưới. Hai tông:
      .bg-run   xanh  - có việc đang chạy THẬT
-     .bg-stall vàng  - vừa giao nhưng điều phối tắt nên nó KHÔNG chạy (đây là ca gây hiểu lầm
-                       nhất, nên nó phải nổi hơn cả ca đang chạy)
-   Mọi trạng thái khác (nhắc hẹn/loop chờ tới giờ) thì phần tử mang [hidden] nên không chiếm
-   một pixel nào - xem mức "idle" trong background_status.active_view để biết vì sao. */
+     .bg-stall vàng  - vừa giao nhưng điều phối tắt nên nó KHÔNG chạy (ca gây hiểu lầm nhất)
+   Không có gì thì phần tử mang [hidden], không chiếm một pixel nào. */
 .bg-strip {
-  margin: 0 20px 8px; padding: 8px 12px; border-radius: 12px;
-  border: 1px solid var(--border); background: var(--bg3);
-  font-size: 16px; color: var(--text2); max-height: 150px; overflow-y: auto;
+  position: relative; display: flex; margin: 0 20px 6px; min-width: 0;
+  font-size: 14px; color: var(--text2);
   /* flex: none vì dải sống trong các cột flex (.chatpage-slot, cột chat mobile): thiếu nó thì
-     khung chat đầy tin là dải bị bóp còn nửa dòng đầu (ảnh chủ repo 2026-08-24). Trần cao đã
-     có max-height ở trên lo, không cần nhờ flex co. */
+     khung chat đầy tin bóp mất dải (ảnh chủ repo 2026-08-24). */
   flex: none;
 }
 .bg-strip[hidden] { display: none; }
-.bg-run { border-color: var(--ok-line); background: var(--ok-wash); }
-.bg-stall { border-color: var(--warn-line); background: var(--warn-wash); }
-.bg-head { display: flex; align-items: center; gap: 8px; }
-.bg-title { font-weight: 600; color: var(--text); flex: 1 1 auto; min-width: 0; }
-.bg-open {
-  flex: none; background: none; border: 1px solid var(--border); color: var(--text2);
-  border-radius: 8px; padding: 5px 10px; font-size: 15px; cursor: pointer; font-family: inherit;
-  min-height: 34px;
+.bg-pill {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: min(560px, 100%);
+  padding: 5px 10px 5px 11px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text); font: inherit; font-size: 14px; cursor: pointer;
+  min-height: 32px; transition: border-color .15s, background .15s;
 }
-.bg-open:hover { color: var(--accent); border-color: var(--accent); }
-.bg-dot {
-  flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text2);
+.bg-run .bg-pill { border-color: var(--ok-line); background: var(--ok-wash); }
+.bg-stall .bg-pill { border-color: var(--warn-line); background: var(--warn-wash); color: var(--warn-ink); }
+.bg-pill:hover, .bg-pill[aria-expanded="true"] { border-color: var(--accent); }
+.bg-pill:focus-visible, .bg-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bg-pill-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bg-pill-more {
+  flex: none; font-size: 14px; font-weight: 600; color: var(--text2);
+  padding: 0 6px; border-radius: 999px; background: var(--bg);
 }
+.bg-caret {
+  flex: none; width: 7px; height: 7px; margin: 0 2px 0 1px; border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor; transform: rotate(-135deg) translate(-1px, -1px); opacity: .55;
+  transition: transform .15s;
+}
+.bg-pill[aria-expanded="true"] .bg-caret { transform: rotate(45deg) translate(-2px, -2px); }
+.bg-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text2); }
 .bg-run .bg-dot { background: var(--green, #3fb27f); animation: bgPulse 1.4s ease-in-out infinite; }
 .bg-stall .bg-dot { background: var(--warn-ink); }
 @keyframes bgPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
-.bg-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
-.bg-chip {
-  display: inline-flex; align-items: baseline; gap: 5px; max-width: 320px;
-  padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border);
-  background: var(--bg); font-size: 15px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+@media (prefers-reduced-motion: reduce) { .bg-run .bg-dot { animation: none; } .bg-caret { transition: none; } }
+
+/* Khung chi tiết: bật lên PHÍA TRÊN viên thuốc, không đẩy khung chat. */
+.bg-pop {
+  position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 60;
+  width: min(400px, calc(100vw - 32px)); max-height: min(55vh, 420px); overflow: auto;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow-3); padding: 10px;
 }
-.bg-chip b { font-weight: 600; color: var(--text2); font-size: 14px; }
-.bg-chip i { font-style: normal; color: var(--text2); opacity: 0.8; font-size: 14px; }
-.bg-chip.mine { border-color: var(--accent); }
-.bg-chip.on b { color: var(--green, #3fb27f); }
-.bg-warn { margin-top: 7px; color: var(--warn-ink); line-height: 1.45; }
+.bg-pop[hidden] { display: none; }
+.bg-pop-head {
+  display: flex; align-items: center; gap: 8px; padding: 2px 4px 8px;
+  font-weight: 600; color: var(--text); font-size: 15px;
+}
+.bg-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.bg-row {
+  padding: 8px 10px; border-radius: 10px; background: var(--bg3); border: 1px solid transparent;
+}
+.bg-row.mine { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.bg-row-meta {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+  font-size: 14px; color: var(--text2);
+}
+.bg-row-meta b { font-weight: 600; }
+.bg-row.on .bg-row-meta b { color: var(--green, #3fb27f); }
+.bg-row-meta em { font-style: normal; color: var(--accent); }
+.bg-age { font-variant-numeric: tabular-nums; }
+.bg-row-title {
+  margin-top: 3px; color: var(--text); font-size: 15px; line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.bg-row-more { background: none; color: var(--text2); font-size: 14px; padding: 2px 10px; }
+.bg-warn { margin: 8px 2px 0; color: var(--warn-ink); line-height: 1.45; font-size: 14px; }
+.bg-open {
+  display: block; width: 100%; margin-top: 10px; background: none; border: 1px solid var(--border);
+  color: var(--text2); border-radius: 8px; padding: 7px 10px; font-size: 14px; cursor: pointer;
+  font-family: inherit; min-height: 36px;
+}
+.bg-open:hover { color: var(--accent); border-color: var(--accent); }
 @media (max-width: 860px) {
-  .bg-strip { margin: 0 12px 6px; max-height: 128px; }
+  .bg-strip { margin: 0 12px 6px; }
+  .bg-pill { max-width: 100%; }
 }
 
 /* 0.64.48: chữ dải việc nền nâng từ 11-13px lên 14-16px cho dễ đọc trên điện thoại. */
@@ -2082,10 +2157,48 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .mb-sep { opacity: .4; }
 .mb-eff { color: var(--accent2); }
 .mb-caret { opacity: .6; font-size: 10px; }
-.mb-pop { position: absolute; bottom: calc(100% + 6px); left: 12px; z-index: 60; width: 340px;
+.mb-pop { position: absolute; bottom: calc(100% + 6px); left: 8px; z-index: 60; width: 340px;
   max-height: 62vh; overflow: auto; background: var(--bg2); border: 1px solid var(--border);
   border-radius: 12px; box-shadow: var(--shadow-3); padding: 8px; }
 .mb-pop[hidden] { display: none; }
+.eff-pop, .cp-menu {
+  position: absolute; bottom: calc(100% + 6px); z-index: 60; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-3);
+}
+.eff-pop[hidden], .cp-menu[hidden] { display: none; }
+.cp-menu { left: 8px; width: min(320px, calc(100vw - 32px)); max-height: min(60vh, 440px); overflow: auto; padding: 6px; }
+.cp-mi {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: none; border-radius: 8px;
+  background: transparent; color: var(--text); font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+}
+.cp-mi:hover, .cp-mi:focus-visible { background: var(--bg3); outline: none; }
+.cp-ic { flex: none; width: 18px; height: 18px; }
+.cp-chev { flex: none; width: 15px; height: 15px; margin-left: 4px; color: var(--text3); }
+.cp-mi-lbl { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-mi-hint { flex: 0 1 auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text3); }
+.cp-warn { color: var(--warn-ink); }
+.cp-back { color: var(--text2); font-weight: 600; }
+.cp-sep { height: 1px; background: var(--border); margin: 4px 6px; }
+.cp-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; margin: 0 5px; background: var(--warn-ink); }
+.cp-dot-ok { background: var(--green, #3fb27f); }
+.cp-dot-bad { background: var(--red); }
+.cp-search { width: 100%; box-sizing: border-box; margin: 4px 0 6px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; font-size: 14px; }
+.cp-search:focus { outline: none; border-color: var(--accent); }
+.cp-empty { padding: 8px 10px; font-size: 13px; color: var(--text3); }
+.eff-pop { padding: 14px 16px; width: min(330px, calc(100vw - 32px)); }
+.eff-head { display: flex; align-items: baseline; gap: 8px; font-size: 15px; }
+.eff-lbl { color: var(--text2); }
+.eff-val { color: var(--accent-ink); font-weight: 600; }
+.eff-ends { display: flex; justify-content: space-between; font-size: 13px; color: var(--text2); margin: 12px 0 6px; }
+.eff-track { position: relative; height: 28px; border-radius: 999px; background: var(--bg3); overflow: hidden; cursor: pointer; touch-action: none; }
+.eff-track:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eff-cv { position: absolute; inset: 0; width: 100%; height: 100%; }
+.eff-ticks { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; padding: 0 13px; pointer-events: none; }
+.eff-ticks i { width: 4px; height: 4px; border-radius: 50%; background: var(--text3); opacity: .6; }
+.eff-thumb { position: absolute; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-1); transition: left .18s; }
+.eff-rec { font-size: 12px; color: var(--text3); margin-top: 6px; padding-left: calc(40% - 18px); }
+.eff-locked { margin: 10px 0 2px; font-size: 13px; color: var(--text2); line-height: 1.45; }
+@media (prefers-reduced-motion: reduce) { .eff-thumb { transition: none; } }
 .mb-search { width: 100%; box-sizing: border-box; background: var(--bg); border: 1px solid var(--border);
   color: var(--text); border-radius: 8px; padding: 7px 9px; font-size: 13px; margin-bottom: 6px;
   font-family: var(--font); }

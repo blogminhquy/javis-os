@@ -83,9 +83,11 @@ THOẠI, không phải cho lập trình viên đọc diff:
 Repo mở cho người đóng góp quốc tế, nên phần NGƯỜI NGOÀI ĐỌC viết bằng tiếng Anh:
 
 - **Commit message, tiêu đề và mô tả PR:** tiếng Anh.
-- **Module, tên hàm, comment MỚI:** tiếng Anh. Sửa trong một file sẵn có thì theo ngôn ngữ của
-  file đó cho nhất quán; không dịch lại phần code không đụng tới. Bảng từ điển định danh tiếng
-  Việt cho người nước ngoài ở `docs/dev/GLOSSARY.md`, kiến trúc ở `ARCHITECTURE.md`.
+- **Mọi code mới viết tiếng Anh** (chủ repo chốt 15/10/2026): tên module, hàm, biến, trường dữ
+  liệu, comment, docstring, tên test và câu in trong `check(...)`, kể cả khi thêm vào một file cũ
+  đang viết tiếng Việt. Không dịch lại phần code cũ không đụng tới. Chữ hiện cho người dùng đi qua
+  i18n (`vi.json` có dấu, `en.json`). Bảng từ điển định danh tiếng Việt cũ cho người nước ngoài ở
+  `docs/dev/GLOSSARY.md`, kiến trúc ở `ARCHITECTURE.md`.
 - **Giữ tiếng Việt:** `CHANGELOG.md` (bản gốc, chủ repo đọc), file quy ước này, spec trong
   `docs/dev/`, và prompt gửi cho model (lý do ở `docs/dev/them-mot-ngon-ngu.md`).
 - PR từ người ngoài không cần đụng `VERSION`/CHANGELOG: người merge tăng số và viết nhật ký.

@@ -97,10 +97,10 @@ const data = { ok: true, board: "auto", max_workers: 2, errors: [], next: "30", 
   source_counts: { team: 10, chat: 30, auto: 5 }, teams: [{ team_id: "tm1", name: "Ra mắt <x>" }],
   jobs: [job({}), job({ id: "team:t1", source: "team", source_label: "Ra mắt", bucket: "running" })] };
 h = AJ.html(data, { name: "Minh" });
-check("hàng lọc nguồn: Mọi nguồn, Nhóm, Chat riêng, Auto kèm số", h.includes("aj-sources")
-  && /data-aj-source=""[^>]*>[^<]*<span class="aj-n">45/.test(h) && /data-aj-source="team"[^>]*>[^<]*<span class="aj-n">10/.test(h)
-  && h.includes(T("ajobs.srcf.chat")) && /data-aj-source="auto"/.test(h), h.slice(0, 1500));
-check("số Đã xong khi lịch sử còn nữa ghi '+' (không nói số giả)", /data-aj-filter="done"[^>]*>[^<]*<span class="aj-n">41\+/.test(h), h);
+check("source select: All sources, Teams, Private chat, Auto with counts",
+  /<option value="" selected>[^<]*\(45\)<\/option>/.test(h) && /<option value="team">[^<]*\(10\)<\/option>/.test(h)
+  && h.includes(T("ajobs.srcf.chat")) && /<option value="auto">/.test(h), h.slice(0, 1500));
+check("Done count says '+' while more history exists (no fake number)", /<option value="done">[^<]*\(41\+\)<\/option>/.test(h), h);
 check("còn trang sau: nút Xem thêm", h.includes("aj-more") && h.includes(T("ajobs.more")));
 check("hết trang: không có Xem thêm", !AJ.html(Object.assign({}, data, { next: null }), {}).includes("aj-more"));
 
@@ -135,7 +135,7 @@ function fakeHost() {
   return { innerHTML: "", isConnected: true, L,
     addEventListener(t, f) { (L[t] = L[t] || []).push(f); },
     querySelector() { return null; }, contains() { return true; },
-    fire(t, target) { (L[t] || []).forEach((f) => f({ target })); } };
+    fire(t, target) { (L[t] || []).forEach((f) => f({ type: t, target })); } };
 }
 function btn(cls, dataset) {
   const b = { dataset: dataset || {}, classList: { contains: (c) => c === cls } };
@@ -143,6 +143,24 @@ function btn(cls, dataset) {
   return b;
 }
 function field(cls, value) { return { classList: { contains: (c) => c === cls }, value }; }
+
+// Compact toolbar (0.158.0): two native selects instead of two scrolling chip rows.
+{
+  const data = { counts: { running: 1, waiting: 2, needs_you: 3, done: 4 }, source_counts: { team: 1, chat: 2, auto: 0 } };
+  const tb = AJ.toolbarHtml(data, { source: "", filter: "" });
+  check("toolbar has a source select and a status select",
+    /<select class="aj-sel aj-tb-sel aj-src-sel"/.test(tb) && /<select class="aj-sel aj-tb-sel aj-status-sel"/.test(tb), tb);
+  // draw() restores focus by id only: without ids a keyboard user loses focus after each change.
+  check("both selects have stable ids so keyboard focus survives a redraw",
+    /<select [^>]*id="ajSrcSel"/.test(tb) && /<select [^>]*id="ajStatusSel"/.test(tb), tb);
+  check("options carry their counts (sources 3, statuses 10)", tb.indexOf("(3)</option>") !== -1 && tb.indexOf("(10)</option>") !== -1, tb);
+  check("the selected option follows the ui state",
+    /value="needs_you" selected/.test(AJ.toolbarHtml(data, { source: "", filter: "needs_you" })));
+  check("amber dot when something needs you and the filter is elsewhere", tb.indexOf("aj-dot") !== -1);
+  check("no amber dot once filtered to needs you", AJ.toolbarHtml(data, { source: "", filter: "needs_you" }).indexOf("aj-dot") === -1);
+  check("no amber dot when nothing needs you", AJ.toolbarHtml({ counts: {}, source_counts: {} }, {}).indexOf("aj-dot") === -1);
+  check("no chip rows left", tb.indexOf("aj-chip") === -1 && typeof AJ.filterHtml === "undefined");
+}
 
 (async function () {
   const pages = {
@@ -173,12 +191,20 @@ function field(cls, value) { return { classList: { contains: (c) => c === cls },
   check("nhịp hỏi thưa cho Kanban (không giữ tiến trình node)", intervals.length === 1 && intervals[0].ms >= 10000 && intervals[0].unrefd);
 
   // Lọc nguồn: tải lại ở server với source=team, từ trang đầu.
+  // Source filter is a select since 0.158.0: a select fires input AND change, it must load once.
   calls = [];
-  host.fire("click", btn("aj-chip", { ajSource: "team" }));
+  host.fire("input", field("aj-src-sel", "team"));
+  host.fire("change", field("aj-src-sel", "team"));
   await flush(); await flush();
-  check("bấm chip Nhóm: tải lại với source=team", calls.length === 1 && /source=team/.test(calls[0].url) && !/cursor=/.test(calls[0].url),
-    calls.map((c) => c.url).join(" | "));
-  host.fire("click", btn("aj-chip", { ajSource: "" }));
+  check("choosing Teams in the source select reloads once with source=team",
+    calls.length === 1 && /source=team/.test(calls[0].url) && !/cursor=/.test(calls[0].url), calls.map((c) => c.url).join(" | "));
+  host.fire("change", field("aj-src-sel", ""));
+  await flush(); await flush();
+  calls = [];
+  host.fire("change", field("aj-status-sel", "needs_you"));
+  await flush(); await flush();
+  check("choosing a status reloads with that bucket", calls.length === 1 && /bucket=needs_you/.test(calls[0].url), calls.map((c) => c.url).join(" | "));
+  host.fire("change", field("aj-status-sel", ""));
   await flush(); await flush();
 
   // Xem thêm: trang sau nối vào, không trùng.
@@ -328,9 +354,13 @@ function field(cls, value) { return { classList: { contains: (c) => c === cls },
   }
   const cssPath = process.env.JAVIS_JOBS_CSS || path.join(ROOT, "dashboard", "console.css");
   const css = fs.readFileSync(cssPath, "utf8");
-  const ajCss = css.split("\n").filter((l) => /\.(aj-next|aj-link|aj-kind|aj-field-label|aj-sel|aj-sum|aj-more|ws-jb)/.test(l)).join("\n");
-  const small = (ajCss.match(/font-size:\s*(\d+(?:\.\d+)?)px/g) || []).filter((x) => parseFloat(x.replace(/[^\d.]/g, "")) < 16);
-  check("chữ của phần mới tối thiểu 16px", ajCss.length > 0 && small.length === 0, small.join(","));
+  // Owner, 2026-10-15: the Work tab text was too big for the narrow column. Panel text is 12 to 14px now;
+  // touch screens keep 44px targets through a pointer: coarse rule.
+  const ajCss = css.split("\n").filter((l) => /^\.aj|^\.aj-|\.aj /.test(l)).join("\n");
+  const sizes = (ajCss.match(/font-size:\s*(\d+(?:\.\d+)?)px/g) || []).map((x) => parseFloat(x.replace(/[^\d.]/g, "")));
+  check("Work tab text sits between 11.5 and 14px", sizes.length > 0 && sizes.every((n) => n >= 11.5 && n <= 14), sizes.join(","));
+  check("touch screens keep 44px targets in the Work tab", /@media \(pointer: coarse\)[\s\S]{0,400}\.aj-sel[\s\S]{0,200}min-height: 44px/.test(css));
+  check("no horizontal chip rows left in the Work tab CSS", !/\.aj-filters/.test(css));
 
   console.log(fails ? "\nĐỎ " + fails + " mục" : "\nTất cả xanh.");
   process.exit(fails ? 1 : 0);

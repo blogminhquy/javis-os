@@ -5130,6 +5130,9 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         if "reasoning" in patch:
             r = patch["reasoning"]
             m["reasoning"] = r if r in engine.REASONING_LEVELS else "off"
+        # Fast mode (composer bolt, 0.153.0). This POST drops unknown keys, so it needs its own branch.
+        if "fast" in patch:
+            m["fast"] = patch["fast"] is True
         # Legacy trực tiếp (tương thích ngược)
         for k in ("engine", "claude_model", "openrouter_model"):
             if k in patch:
@@ -5881,20 +5884,25 @@ def _cwd_luot_chat(row, brain: str) -> str:
     return _brain_root(brain)
 
 
-def _khoi_coding(row) -> str:
+def _khoi_coding(row, brain: str = "") -> str:
     """Khối prompt của phiên Coding (thư mục làm việc, nhánh, và mức quyền nghĩa là gì).
 
     Trả "" cho mọi phiên khác, nên nối vào prompt là vô hại ở đường chat thường. Đặt `cwd`
     thôi chưa đủ: model vẫn đoán đường dẫn từ trí nhớ của nó, và ở chế độ Plan thì còn phải
     NÓI cho nó biết là hãy lập kế hoạch rồi dừng.
+
+    Since 0.158.0 any other session with a folder pinned from the composer gets the short
+    pinned-folder block (no permission line: a normal chat keeps running at `full`).
     """
     try:
         sid = (row or {}).get("id") or ""
-        if sid and str((row or {}).get("channel") or "").startswith("coding:"):
+        if not sid:
+            return ""
+        if str((row or {}).get("channel") or "").startswith("coding:"):
             return coding_store.khoi_prompt(sid)
+        return coding_store.pinned_folder_prompt(sid, _brain_root(brain) if brain else "")
     except Exception:
-        pass
-    return ""
+        return ""
 
 
 def _muc_quyen_luot_chat(row, user_message="") -> str:
@@ -7367,7 +7375,7 @@ def _fold_accents(s: str) -> str:
 
 @app.get("/files/search")
 async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: int = Query(50),
-                       mode: str = Query("all"), include_dirs: bool = False):
+                       mode: str = Query("all"), include_dirs: bool = False, only_dirs: bool = False):
     """Tìm note trong GỐC BRAIN (KHÔNG phải trần duyệt - tránh quét cả ổ đĩa trên localhost).
     `mode=name` khớp TÊN file (mọi loại, không phân biệt dấu tiếng Việt), `mode=content` tìm
     trong NỘI DUNG file text, còn `mode=all` giữ hành vi cũ là tìm cả hai; bỏ file >1MB
@@ -7394,7 +7402,7 @@ async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: i
         out = []
         for dirpath, dirnames, filenames in os.walk(broot):
             dirnames[:] = [dn for dn in dirnames if not dn.startswith(".") and dn not in SKIP_DIRS]
-            if include_dirs and mode in ("name", "all"):
+            if (include_dirs or only_dirs) and mode in ("name", "all"):
                 for dn in sorted(dirnames):
                     if len(out) >= limit:
                         return out
@@ -7406,6 +7414,8 @@ async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: i
                         continue
                     out.append({"path": rel, "name": dn, "type": "dir", "ext": "",
                                 "snippet": "", "line": 0, "match": "name"})
+            if only_dirs:          # 0.159.0, folder picker: files must not use up the limit
+                continue
             for fn in sorted(filenames):
                 if len(out) >= limit:
                     return out
@@ -7506,6 +7516,26 @@ def _md_hong_ghi_sach(broot: str, sach: bool) -> None:
     except Exception as e:
         print(f"[md-hong] không ghi được dấu đã soi: {type(e).__name__}: {e}", file=sys.stderr)
 
+
+
+@app.get("/files/resolve")
+async def files_resolve(brain: str = Query("brain"), path: str = Query("")):
+    """ABSOLUTE path of a file already in the brain, for the composer "+" menu item "Pick a file from
+    the brain" (0.153.0). `path` is relative to the browse ceiling, as /files/search returns it. Only a
+    real file inside the brain root is accepted (blocks `..`, absolute paths, symlinks pointing out)."""
+    rel = (path or "").strip().replace("\\", "/")
+    if not rel or rel.startswith("/") or re.match(r"^[A-Za-z]:", rel):
+        return JSONResponse({"ok": False, "error": "path"}, status_code=400)
+    root = Path(_files_root(brain)).resolve()
+    broot = Path(_brain_root(brain)).resolve()
+    try:
+        p = (root / rel).resolve(strict=True)
+    except (OSError, RuntimeError):
+        return JSONResponse({"ok": False, "error": "not_found"}, status_code=400)
+    if not p.is_file() or (p != broot and broot not in p.parents):
+        return JSONResponse({"ok": False, "error": "outside"}, status_code=400)
+    kind = "image" if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".gif", ".webp") else "file"
+    return {"ok": True, "path": str(p), "name": p.name, "size": p.stat().st_size, "kind": kind}
 
 @app.get("/files/md-hong")
 async def files_md_hong(brain: str = Query("brain"), force: str = Query("")):
@@ -14693,7 +14723,7 @@ async def websocket_endpoint(ws: WebSocket):
                         ) + channel_context.build_channel_block(
                             "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                             port=_javis_port(), brain_root=_brain_root(brain),
-                        ) + _khoi_coding(_row0)
+                        ) + _khoi_coding(_row0, brain)
                 return sysprompt
 
             async def _subscription_system_prompt(route_provider, route_model, route_kind):
@@ -14722,7 +14752,7 @@ async def websocket_endpoint(ws: WebSocket):
                     ) + channel_context.build_channel_block(
                         "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                         port=_javis_port(), brain_root=_brain_root(brain),
-                    ) + _khoi_coding(_row0)
+                    ) + _khoi_coding(_row0, brain)
 
                 try:
                     plan = await asyncio.to_thread(
@@ -21729,7 +21759,10 @@ conversations_routes.register(app, conversations_routes.ConversationsDeps(
 # `coding_store` đứng một mình, không cần gì từ main. Chiều phụ thuộc ngược lại thì có:
 # đường chat gọi `coding_store.cwd_cua_phien` để biết engine phải chạy ở thư mục nào.
 import routes.coding as coding_routes   # noqa: E402
-coding_routes.register(app, coding_routes.CodingDeps(brain_keys=_brain_keys))
+coding_routes.register(app, coding_routes.CodingDeps(
+    brain_keys=_brain_keys,
+    resolve_path=lambda b, rel: str(_safe_serve_path(b, rel)),
+    brain_root=lambda b: str(_brain_root(b))))
 
 
 @app.post("/telegram/test")

@@ -156,27 +156,31 @@
       "</button>";
   }
 
-  function sourceFilterHtml(data, ui) {
-    var sc = (data && data.source_counts) || {};
-    var cur = ui.source || "";
-    var total = SOURCES.reduce(function (a, s) { return a + (sc[s] || 0); }, 0);
-    return '<div class="aj-filters aj-sources" role="group" aria-label="' + esc(tw("ajobs.srcf.label")) + '">' +
-      chipHtml("data-aj-source", "", tw("ajobs.srcf.all"), total, !cur, " aj-chip-src") +
-      SOURCES.map(function (s) { return chipHtml("data-aj-source", s, tw(SOURCE_CHIP[s]), sc[s] || 0, cur === s, " aj-chip-src"); }).join("") +
-      "</div>";
-  }
-
-  function filterHtml(data, ui) {
-    var counts = (data && data.counts) || {};
+  // One compact row of two native selects (0.158.0). They work with the keyboard and screen readers,
+  // phones open their own picker, and nothing scrolls sideways in the narrow column.
+  function toolbarHtml(data, ui) {
+    ui = ui || {};
+    var sc = (data && data.source_counts) || {}, counts = (data && data.counts) || {};
     var partial = data && data.counts_partial && data.counts_partial.done;
-    var cur = ui.filter || "";
-    var total = BUCKETS.reduce(function (a, b) { return a + (counts[b] || 0); }, 0);
-    return '<div class="aj-filters" role="group" aria-label="' + esc(tw("ajobs.filter")) + '">' +
-      chipHtml("data-aj-filter", "", tw("ajobs.all"), total + (partial ? "+" : ""), !cur) +
+    var srcTotal = SOURCES.reduce(function (a, s) { return a + (sc[s] || 0); }, 0);
+    var stTotal = BUCKETS.reduce(function (a, b) { return a + (counts[b] || 0); }, 0);
+    var src = ui.source || "", st = ui.filter || "";
+    function opt(value, label, n, cur) {
+      return '<option value="' + esc(value) + '"' + (cur === value ? " selected" : "") + ">" + esc(label) + " (" + esc(n) + ")</option>";
+    }
+    var dot = (counts.needs_you || 0) > 0 && st !== "needs_you"
+      ? '<span class="aj-dot" title="' + esc(tw("ajobs.b.needs_you")) + '" aria-hidden="true"></span>' : "";
+    return '<div class="aj-toolbar">' +
+      '<label class="aj-tb-field"><span class="aj-tb-lbl">' + esc(tw("ajobs.tb_source")) + "</span>" +
+      '<select class="aj-sel aj-tb-sel aj-src-sel" id="ajSrcSel" aria-label="' + esc(tw("ajobs.srcf.label")) + '">' +
+      opt("", tw("ajobs.srcf.all"), srcTotal, src) +
+      SOURCES.map(function (s) { return opt(s, tw(SOURCE_CHIP[s]), sc[s] || 0, src); }).join("") + "</select></label>" +
+      '<label class="aj-tb-field"><span class="aj-tb-lbl">' + esc(tw("ajobs.tb_status")) + dot + "</span>" +
+      '<select class="aj-sel aj-tb-sel aj-status-sel" id="ajStatusSel" aria-label="' + esc(tw("ajobs.filter")) + '">' +
+      opt("", tw("ajobs.all"), stTotal + (partial ? "+" : ""), st) +
       ["running", "waiting", "needs_you", "done"].map(function (b) {
-        return chipHtml("data-aj-filter", b, tw(BUCKET_KEY[b]), (counts[b] || 0) + (b === "done" && partial ? "+" : ""), cur === b,
-          " aj-chip-" + b);
-      }).join("") + "</div>";
+        return opt(b, tw(BUCKET_KEY[b]), (counts[b] || 0) + (b === "done" && partial ? "+" : ""), st);
+      }).join("") + "</select></label></div>";
   }
 
   // Tên nơi nhận kết quả cho ô chọn và cho bước xác nhận.
@@ -305,7 +309,7 @@
       esc(tw(ui.loadingMore ? "ajobs.loading" : "ajobs.more")) + "</button>" : "";
     var foot = '<div class="aj-foot">' + esc(tw(data.board === "off" ? "ajobs.foot_off" : "ajobs.foot", { n: data.max_workers || 2 })) +
       "</div>";
-    return '<div class="aj">' + head + sourceFilterHtml(data, ui) + filterHtml(data, ui) + errs + body + more + foot + "</div>";
+    return '<div class="aj">' + head + toolbarHtml(data, ui) + errs + body + more + foot + "</div>";
   }
 
   // Huy hiệu việc trên thẻ trợ lý (trang Cộng sự): Đang làm và Cần bạn, tách khỏi công tắc Auto.
@@ -504,6 +508,11 @@
     function onInput(e) {
       var t = e.target, cl = t && t.classList;
       if (!cl) return;
+      if (cl.contains("aj-src-sel") || cl.contains("aj-status-sel")) {
+        if (e.type === "input") return;            // a select fires input AND change: act once, on change
+        if (cl.contains("aj-src-sel")) st.ui.source = t.value; else st.ui.filter = t.value;
+        draw(); load(false); return;
+      }
       if (cl.contains("aj-crit")) { st.ui.criteria = t.value; st.nonce = ""; return; }
       if (cl.contains("aj-text")) { st.ui.draft = t.value; st.nonce = ""; return; }
       if (cl.contains("aj-target")) { st.ui.target = t.value; st.nonce = ""; return; }
@@ -514,8 +523,6 @@
       var t = e.target.closest ? e.target.closest("button") : null;
       if (!t || !host.contains(t)) return;
       var d = t.dataset || {};
-      if (d.ajFilter !== undefined) { st.ui.filter = d.ajFilter; draw(); load(false); return; }
-      if (d.ajSource !== undefined) { st.ui.source = d.ajSource; draw(); load(false); return; }
       if (d.ajKind !== undefined) {
         st.ui.kind = d.ajKind === "verify" ? "verify" : "task"; st.nonce = ""; st.ui.assignError = "";
         if (st.ui.kind === "verify" && st.ui.targets == null && !st.ui.targetsLoading) loadTargets(); else draw();
@@ -580,7 +587,7 @@
       .then(function (j) { return j && j.ok ? (j.counts || {}) : null; }, function () { return null; });
   }
 
-  var api = { html: html, jobHtml: jobHtml, filterHtml: filterHtml, sourceFilterHtml: sourceFilterHtml, assignHtml: assignHtml,
+  var api = { html: html, jobHtml: jobHtml, toolbarHtml: toolbarHtml, assignHtml: assignHtml,
     confirmHtml: confirmHtml, badgeHtml: badgeHtml, nextText: nextText, relTime: relTime, mount: mount, loadCounts: loadCounts,
     RELOAD_MS: RELOAD_MS, setStrings: function (o) { STR = o || {}; } };
   if (typeof window !== "undefined") window.JavisAgentJobs = api;

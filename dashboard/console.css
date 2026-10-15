@@ -2076,6 +2076,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-item.unread .ht-item-sub small { color: var(--text2); font-weight: 600; }
 .ht-badge { flex: none; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent);
   color: var(--on-accent); font-size: 11px; font-weight: 700; text-align: center; line-height: 18px; }
+/* Tổng số tin của cuộc (0.148.0): viên xám trung tính, tách hẳn số đỏ (cam) của tin chưa đọc. */
+.ht-count { flex: none; font-size: 11px; line-height: 18px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border);
+  color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ht-mode { flex: none; font-size: 10.5px; padding: 1px 6px; border-radius: 999px; background: var(--warn-wash);
   color: var(--warn-ink); font-weight: 600; }
 .ht-thread { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--border);
@@ -2179,7 +2182,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .ht-wrap.thread-on .ht-thread { display: flex; min-height: 70vh; }
   .ht-back { display: inline-flex; }
   .ht-item-top strong, .ht-bubble, .ht-src-text strong { font-size: 16px; }
-  .ht-item-sub small, .ht-head-text small, .ht-foot, .ht-intro, .ht-src-text small, .ht-switch { font-size: 14px; }
+  .ht-item-sub small, .ht-head-text small, .ht-foot, .ht-intro, .ht-src-text small, .ht-switch, .ht-count { font-size: 14px; }
   .ht-msg { max-width: 88%; }
 }
 
@@ -2279,11 +2282,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    ============================================================
    Khung trang dùng lại nguyên bộ lớp `.chatpage*` của trang Trò chuyện (luật xếp khung nằm
    trong _injectChatCss của console.js), và cột trái là chính module lịch sử `.cside-*`. Nên ở
-   đây chỉ còn ba thứ trang này thật sự đẻ ra: dải chip ngữ cảnh, menu bật lên từ chip, và
-   tấm thêm thư mục. */
-.cd-id { flex: 1 1 auto; min-width: 0; font-size: 14px; color: var(--text3);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cd-cwd.dim { opacity: .75; }
+   đây chỉ còn hai thứ trang này thật sự đẻ ra: dải chip ngữ cảnh và menu bật lên từ chip.
+   0.159.0: errors sit in their own slot (#cdErr) in the page bar. */
+.cd-err { margin-left: auto; font-size: 12.5px; }
+.cd-err:empty { display: none; }
 
 /* Hàng chip ngữ cảnh: nhét vào chính #modelBar đã mượn, đứng TRƯỚC chip Model, nên một hàng
    đọc từ trái sang là thư mục, nhánh, worktree, điểm hồi, chế độ, rồi model. */
@@ -2293,10 +2295,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   background: var(--bg3); color: var(--text2); cursor: pointer; white-space: nowrap; }
 .cd-chip:hover { border-color: var(--info-line); color: var(--text); }
 .cd-chip.on { border-color: var(--ok-line); color: var(--text); }
-.cd-chip-tm { font-weight: 600; color: var(--text); }
-/* Chip mời gắn thư mục: nét đứt để đọc ra ngay là "chỗ trống chờ chọn", không phải một giá
-   trị đã đặt. Chưa gắn thì đây là chip DUY NHẤT trên hàng. */
-.cd-chip-mo { border-style: dashed; }
 /* Ba chế độ, ba sắc thái. Plan đọc là "an toàn", Toàn quyền phải NHÌN ra được từ xa vì ở mức
    đó engine commit, push và deploy được.
 
@@ -2341,21 +2339,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    VIỀN, alpha 0,35, nên đặt làm màu CHỮ thì chữ mờ đến khó đọc (chủ dự án báo 22/09). Dùng
    biến -ink dành cho chữ, kèm in đậm để mắt bắt ngay mục đang chọn. */
 .cd-menu button.on { color: var(--info-ink); font-weight: 600; }
-/* Mục TÍCH CHỌN: ô vuông bên trái nói rõ bấm vào là THÊM/BỚT chứ không phải THAY. */
-.cd-menu button.tich { display: flex; align-items: flex-start; gap: 8px; }
-/* Ô chữ phải CO ĐƯỢC: mặc định con của flex không hẹp hơn nội dung, nên đường dẫn dài đâm
-   thẳng ra mép menu và bị cắt cụt không dấu "...". */
-.cd-menu button.tich > span:not(.cd-tich) { flex: 1 1 auto; min-width: 0; }
-.cd-tich { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 2px; border-radius: 4px;
-  border: 1px solid var(--glass-brd); display: inline-flex; align-items: center;
-  justify-content: center; color: var(--info-ink); }
-.cd-menu button.on .cd-tich { border-color: var(--info-line); background: var(--info-wash); }
-.cd-tich svg { width: 12px; height: 12px; }
-/* Đang gắn nhiều thư mục: chip mang tên thư mục chính kèm "+N". */
-.cd-chip-them { font-weight: 600; color: var(--info-ink); }
-.cd-menu button.moi { border-top: 1px solid var(--glass-brd); border-radius: 0 0 8px 8px; }
-/* Chưa gắn thư mục nào thì "Thêm thư mục" là mục DUY NHẤT: vạch ngăn phía trên chẳng ngăn gì cả. */
-.cd-menu button.moi:first-child { border-top: 0; border-radius: 8px; }
 .cd-menu button.nguy { color: var(--red); }   /* --danger không có trong bảng màu */
 .cd-menu button small { display: block; font-size: 12px; color: var(--text3); margin-top: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2981,39 +2964,43 @@ span.tmp-lead { cursor: default; }
 .tm-reply-acts { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .tm-reply-act { min-height: 44px; padding: 0 14px; font-size: 16px; }
 
-/* 0.142.0: tab Công việc của trợ lý (agent-jobs.js). Chữ 16px, vùng chạm 44px. */
-.aj { display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 16px; font-size: 16px; }
+/* Agent Work tab (agent-jobs.js). 0.158.0: the owner found 16px too big for the narrow column, so the panel
+   uses 12 to 14px text; touch screens keep 44px targets through the pointer: coarse rule at the end. */
+.aj { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 16px; font-size: 13px; }
 .aj-head { display: flex; flex-direction: column; gap: 8px; }
-.aj-head > .ws-btn, .aj .aj-acts .ws-btn { min-height: 44px; font-size: 16px; display: inline-flex; align-items: center; gap: 6px;
+.aj-head > .ws-btn, .aj .aj-acts .ws-btn { min-height: 32px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;
   justify-content: center; }
-.aj-head > .aj-assign-open { align-self: flex-start; padding: 0 16px; }
+.aj-head > .aj-assign-open { align-self: flex-start; padding: 0 12px; }
 .aj-assign { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--accent-line); border-radius: 12px; background: var(--accent-wash); }
 .aj-assign-label { font-weight: 600; }
-.aj-text { font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+.aj-text { font: inherit; font-size: 13px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
   background: var(--field-bg); color: var(--text); resize: vertical; min-height: 88px; width: 100%; box-sizing: border-box; }
 .aj-text:focus { outline: none; border-color: var(--accent); }
-.aj-help, .aj-foot { color: var(--text3); font-size: 16px; line-height: 1.45; }
+.aj-help, .aj-foot { color: var(--text3); font-size: 12.5px; line-height: 1.45; }
 .aj-err { color: var(--warn-ink); background: var(--warn-wash); border: 1px solid var(--warn-line); border-radius: 10px; padding: 8px 10px; }
 .aj-note { color: var(--text2); background: var(--surface-2); border-radius: 10px; padding: 8px 10px; }
-.aj-filters { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
-.aj-chip { flex: 0 0 auto; min-height: 40px; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border);
-  background: var(--surface-2); color: var(--text); font: inherit; font-size: 16px; cursor: pointer; white-space: nowrap; }
+/* Two filter selects in one row (0.158.0). The amber dot sits next to the Status label. */
+.aj-toolbar { display: flex; gap: 8px; align-items: flex-end; }
+.aj-tb-field { display: flex; flex-direction: column; gap: 3px; flex: 1 1 0; min-width: 0; }
+.aj-tb-lbl { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text3); }
+.aj-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn-ink); flex: none; }
+.aj-chip { flex: 0 0 auto; min-height: 32px; padding: 4px 12px; border-radius: 16px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
 .aj-chip.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
-.aj-chip-needs_you:not(.is-on) .aj-n { color: var(--warn-ink); }
-.aj-n { font-size: 16px; opacity: .8; }
-.aj-sec { display: flex; flex-direction: column; gap: 8px; }
-.aj-sec-h { margin: 4px 0 0; font-size: 16px; font-weight: 700; color: var(--text2); }
+.aj-n { font-size: 12px; opacity: .8; }
+.aj-sec { display: flex; flex-direction: column; gap: 6px; }
+.aj-sec-h { margin: 4px 0 0; font-size: 12px; font-weight: 700; color: var(--text2); }
 .aj-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.aj-job { padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-1); display: flex;
+.aj-job { padding: 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-1); display: flex;
   flex-direction: column; gap: 6px; border-left-width: 4px; }
 .aj-running { border-left-color: var(--accent); }
 .aj-waiting { border-left-color: var(--text3); }
 .aj-needs_you { border-left-color: var(--warn-ink); }
 .aj-done { border-left-color: var(--green); opacity: .92; }
-.aj-title { font-weight: 600; overflow-wrap: anywhere; }
-.aj-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--text2); }
+.aj-title { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.aj-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--text2); font-size: 12px; }
 .aj-src { display: inline-flex; align-items: center; gap: 4px; }
-.aj-role { font-size: 14px; padding: 2px 8px; border-radius: 10px; background: var(--surface-3); color: var(--text2); }
+.aj-role { font-size: 12px; padding: 1px 7px; border-radius: 10px; background: var(--surface-3); color: var(--text2); }
 .aj-line { color: var(--text3); }
 .aj-reason { color: var(--warn-ink); overflow-wrap: anywhere; }
 .aj-result { color: var(--text2); overflow-wrap: anywhere; }
@@ -3046,24 +3033,27 @@ span.tmp-lead { cursor: default; }
 .rsa-desc { color: var(--text2); }
 
 /* Tab Công việc: lọc nguồn, bước kế tiếp, mục được kiểm, form Giao việc hai bước, Xem thêm (0.142.0, bổ sung). */
-.aj-sources .aj-chip-src.is-on { background: var(--surface-3); border-color: var(--accent); color: var(--text); }
-.aj-next { font-size: 16px; color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
-.aj-link { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 16px; color: var(--text2);
+.aj-next { font-size: 13px; color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+.aj-link { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text2);
   padding: 8px 10px; border-radius: 10px; background: var(--surface-2); overflow-wrap: anywhere; }
-.aj-link svg { width: 16px; height: 16px; flex: none; }
+.aj-link svg { width: 14px; height: 14px; flex: none; }
 .aj-link > span { flex: 1 1 160px; min-width: 0; }
-.aj .aj-link .aj-link-open { min-height: 44px; font-size: 16px; }
+.aj .aj-link .aj-link-open { min-height: 30px; font-size: 12.5px; }
 .aj-role-verifier, .aj-role-verifier_legacy { background: var(--accent-wash); color: var(--accent-ink); }
 .aj-kind { display: flex; gap: 8px; flex-wrap: wrap; }
-.aj-kind .aj-chip { min-height: 44px; font-size: 16px; }
-.aj-field-label { font-size: 16px; font-weight: 600; color: var(--text2); margin-top: 4px; }
-.aj-sel { font: inherit; font-size: 16px; min-height: 44px; padding: 8px 10px; border-radius: 10px;
+.aj-kind .aj-chip { min-height: 32px; font-size: 13px; }
+.aj-field-label { font-size: 12.5px; font-weight: 600; color: var(--text2); margin-top: 4px; }
+.aj-sel { font: inherit; font-size: 13px; min-height: 32px; padding: 5px 10px; border-radius: 9px;
   border: 1px solid var(--border); background: var(--surface-1); color: var(--text); width: 100%; max-width: 100%; }
+.aj-tb-sel { text-overflow: ellipsis; cursor: pointer; }
 .aj-sel:focus { outline: none; border-color: var(--accent); }
 .aj-crit { min-height: 64px; }
-.aj-confirm .aj-sum { margin: 0; padding: 0 0 0 20px; display: grid; gap: 6px; font-size: 16px; line-height: 1.45;
+.aj-confirm .aj-sum { margin: 0; padding: 0 0 0 20px; display: grid; gap: 6px; font-size: 13px; line-height: 1.45;
   overflow-wrap: anywhere; }
-.aj .aj-more { align-self: center; min-height: 44px; font-size: 16px; padding: 0 20px; }
+.aj .aj-more { align-self: center; min-height: 32px; font-size: 13px; padding: 0 16px; }
+@media (pointer: coarse) {
+  .aj-sel, .aj-chip, .aj-head > .ws-btn, .aj .aj-acts .ws-btn, .aj .aj-link .aj-link-open, .aj .aj-more { min-height: 44px; }
+}
 
 /* Huy hiệu việc trên thẻ trợ lý (trang Cộng sự): góc trên, tách khỏi công tắc Auto ở góc dưới. */
 .ws-jb { flex: none; align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; margin-left: auto;
@@ -3117,3 +3107,27 @@ span.tmp-lead { cursor: default; }
 .ws-item-top > strong { flex: 1 1 auto; min-width: 0; }
 .ws-item-time { flex: none; font-size: 14px; color: var(--text3); font-variant-numeric: tabular-nums; }
 @media (max-width: 900px) { .ws-item-time { font-size: 14px; } }
+
+/* 0.148.0: tay kéo đổi bề rộng cột (col-resize.js) ở trang đồ thị (cột Vault, cột hội thoại) và trang Trò chuyện (cột
+   Hội thoại/Thư mục). Chỉ màn rộng; màn hẹp các cột là ngăn kéo hay xếp dọc nên không có tay kéo. Cột đang thu về dải
+   44-46px cũng không có tay kéo. */
+.col-resize { display: none; }
+@media (min-width: 861px) {
+  .hud-body > .hud-left, .hud-body > .hud-right { position: relative; }
+  .hud-body > .hud-left > .col-resize, .hud-body > .hud-right > .col-resize, .chatpage-side > .col-resize {
+    display: block; position: absolute; top: 0; bottom: 0; width: 8px; z-index: 6; cursor: col-resize; touch-action: none; }
+  /* Nằm TRỌN trong cột: cột trái và phải của trang đồ thị cắt phần tràn (overflow), và canvas đồ thị bên cạnh bắt chuột. */
+  .col-resize-right { right: 0; }
+  .col-resize-left { left: 0; }
+  body.vault-thu .hud-body > .hud-left > .col-resize, body.chatcol-thu .hud-body > .hud-right > .col-resize,
+  .chatpage.side-thu .chatpage-side > .col-resize { display: none; }
+}
+/* Node .hud-left được tab Thư mục của trang Trò chuyện mượn: tay kéo của trang đồ thị không đi theo. */
+.cside-pane .col-resize { display: none !important; }
+.col-resize::after { content: ""; position: absolute; top: 0; bottom: 0; width: 2px; background: transparent;
+  transition: background .12s; }
+.col-resize:hover::after, .col-resize:focus-visible::after, body.col-resizing .col-resize::after { background: var(--accent); }
+.col-resize:focus-visible { outline: none; }
+body.col-resizing { cursor: col-resize; user-select: none; }
+.col-resize-right::after { right: 0; }
+.col-resize-left::after { left: 0; }

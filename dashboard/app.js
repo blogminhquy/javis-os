@@ -1322,6 +1322,8 @@ function handleMessage(data) {
 // Lượt Enter đang ĐỢI file tải lên xong. Chỉ giữ một lượt: bấm Enter hai lần trong lúc chờ
 // không được thành hai tin.
 let _choTaiLen = null;
+// A working-folder pin held on the empty chat: the first turn is sent once its /pin request settles.
+let _pinWait = null;
 let _sendEpoch = 0;   // callbacks queued in an old voice/chat context may not send in a new one
 
 // ---- Tin đang đợi lượt cũ dừng HẲN rồi mới gửi ----
@@ -1531,6 +1533,8 @@ function sendMessage(text, opts) {
     try { if (window.JavisProjects) window.JavisProjects.claim(savedSessionId); } catch (e) {}
     // Model đã chọn khi khung chat còn trống -> ghim luôn cho phiên vừa sinh (model-picker.js).
     try { if (window.JavisModelBar) window.JavisModelBar.claimPending(savedSessionId); } catch (e) {}
+    // A working folder pinned on the empty chat follows the session that was just minted (0.158.0).
+    try { if (window.JavisPinnedFolder) _pinWait = window.JavisPinnedFolder.claimPending(savedSessionId); } catch (e) {}
   }
   const sid = savedSessionId;
   // Phiên đang trả lời thì không gửi chồng lượt. NHƯNG tin từ MIC (hay gõ trong lúc rảnh tay)
@@ -1601,7 +1605,7 @@ function sendMessage(text, opts) {
   let outMsg = _isSkill ? _slash.message : _than;
   if (atts.length) {
     const lines = atts.map(a => `- ${a.path}`).join("\n");
-    const src = atts[0].sources || "", attDir = atts[0].attachments || "";
+    const src = (atts.find(a => a.sources) || {}).sources || "", attDir = (atts.find(a => a.attachments) || {}).attachments || "";
     if (_isSkill) {
       // Với lệnh skill (vd /notes): đưa path như dữ liệu, để chính skill quyết định lưu.
       outMsg = `[File đính kèm (đường dẫn), Sources="${src}", Attachments="${attDir}":\n${lines}]\n\n${_slash.message}`;
@@ -1661,7 +1665,20 @@ function sendMessage(text, opts) {
                           voice_input: _tuGiong, voice_turn_id: String(turns[sid].id),
                           wf_run: !!(opts && opts.wfRun), ...(adaptiveMeta || {}) };
   if(adaptiveMeta) { adaptiveCurrent.set(sid,adaptiveMeta.utterance_id);adaptiveOutbox.set(adaptiveMeta.utterance_id,{payload,element:userElement,since:performance.now()}); }
-  ws.send(JSON.stringify(payload));
+  const _send = () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      // The socket dropped while the first turn waited for the folder pin: nothing was sent,
+      // so end the turn here and give the text back instead of losing it silently.
+      if (turns[sid]) turns[sid].running = false;
+      setSessionRunning(sid, false); hideActivity(); syncActiveUI();
+      chatInput.value = msg;
+      ghiChuThoang(window.t("app.ws_mat_ket_noi"));
+      return;
+    }
+    try { ws.send(JSON.stringify(payload)); } catch (e) {}
+  };
+  const _w = _pinWait; _pinWait = null;
+  if (_w) _w.then(_send, _send); else _send();
   _tuGiong = false;
 }
 // Trang đang mở và đoạn đang bôi đen, cho khối NGỮ CẢNH GIAO DIỆN. Chọn trong ô nhập chat thì
@@ -3544,11 +3561,25 @@ function taiLaiDinhKem(i) {
   uploadFile(a.file, a);
 }
 
-document.getElementById("attachBtn").addEventListener("click", () => fileInput.click());
+const attachBtn = document.getElementById("attachBtn");
+if (attachBtn) attachBtn.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => {
   [...fileInput.files].forEach(f => uploadFile(f));
   fileInput.value = "";
 });
+
+// The composer "+" menu (composer-plus.js, 0.153.0) shares the upload path and the attachment list.
+window.JavisAttach = {
+  pick: () => fileInput.click(),
+  upload: (f) => uploadFile(f),
+  addBrainFile: (it) => {
+    if (!it || !it.path || pendingAttachments.some(a => a.path === it.path)) return;
+    pendingAttachments.push({ name: it.name, kind: it.kind || "file", preview: null, url: it.url || null, path: it.path,
+      size: it.size || 0, sources: null, attachments: null, uploading: false, loi: false, xong: Promise.resolve() });
+    renderChips();
+  },
+  note: (s) => { attachNote = String(s || ""); renderChips(); },
+};
 
 // Dán ảnh (Ctrl+V) + dán VĂN BẢN SIÊU DÀI thành file .txt đính kèm (kiểu Claude):
 // bài dài nhồi thẳng vào ô chat vừa khó đọc vừa nặng khung hội thoại - biến thành

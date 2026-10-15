@@ -22,6 +22,14 @@
  *   - đang chạy thật  -> chấm xanh nhấp nháy + tên việc đang chạy
  *   - đã giao, đang xếp hàng, điều phối TẮT -> chấm vàng + nói thẳng là nó KHÔNG tự chạy
  *   - còn lại          -> ẩn hẳn dải
+ *
+ * VÀ VÌ SAO NÓ CHỈ CÒN MỘT DÒNG (2026-10-15)
+ * Chủ repo, kèm ảnh: khối "1 việc đang chạy ngầm" + nút Trang Việc + hàng chip chiếm ba dòng
+ * trên khung nhập, tên việc bị cắt giữa chừng, "nhìn trông rất tệ về trải nghiệm"; chỉ cần hiện
+ * MỘT việc, bấm vào mới ra chi tiết. Nên dải giờ là một viên thuốc một dòng cạnh chỗ gõ (chấm,
+ * tên việc quan trọng nhất, "+N" nếu còn), và mọi thứ còn lại (từng việc với trạng thái, đã chạy
+ * bao lâu, cảnh báo điều phối, nút sang trang Việc) nằm trong khung bật lên khi bấm viên thuốc.
+ * Việc kẹt thì viên thuốc nói luôn câu cảnh báo, vì đó là ca người dùng tưởng nó đang chạy.
  */
 (function () {
   "use strict";
@@ -88,10 +96,24 @@
     if (muc === "stall") {
       warn = tw("bgs.warn_xep_hang", { muc: data.orchestration || "off" });
     }
-    return { hien: true, muc: muc, dau: dau, chips: chips, them: them, warn: warn };
+    // Việc lên viên thuốc: việc của chính hội thoại này trước, vì người dùng vừa giao nó ở đây.
+    var chinh = chips[0];
+    for (var j = 0; j < chips.length; j++) if (chips[j].mine) { chinh = chips[j]; break; }
+    var tong = muc === "run" ? (data.running_count || chips.length) : (data.stalled_count || chips.length);
+    return { hien: true, muc: muc, dau: dau, chips: chips, them: them, warn: warn,
+             chinh: chinh, con: Math.max(0, tong - 1) };
   }
 
-  if (typeof module !== "undefined" && module.exports) module.exports = { quyetDinh: quyetDinh };
+  /* "đã chạy bao lâu" cho một việc đang chạy. `at` là giây (máy chủ), `bayGio` là mili-giây. */
+  function tuoi(at, bayGio) {
+    var giay = Math.max(0, Math.floor(((bayGio || Date.now()) / 1000) - (Number(at) || 0)));
+    if (!at || giay < 60) return tw("bgs.age_now");
+    var phut = Math.floor(giay / 60);
+    if (phut < 60) return tw("bgs.age_min", { n: phut });
+    return tw("bgs.age_hour", { h: Math.floor(phut / 60), m: phut % 60 });
+  }
+
+  if (typeof module !== "undefined" && module.exports) module.exports = { quyetDinh: quyetDinh, tuoi: tuoi };
   if (typeof document === "undefined") return;   // chạy bằng node (test): chỉ lấy hàm thuần
 
   function el() { return document.getElementById("bgStrip"); }
@@ -111,12 +133,45 @@
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
+  var moPop = false;          // khung chi tiết đang mở: giữ nguyên qua các nhịp hỏi máy chủ
+
   function hide() {
     var e = el();
     if (e) { e.hidden = true; e.innerHTML = ""; }
     lastKey = "";
     dangHien = false;
+    moPop = false;
   }
+
+  function datPop(mo) {
+    var e = el();
+    if (!e) return;
+    moPop = !!mo;
+    var pop = e.querySelector(".bg-pop"), pill = e.querySelector(".bg-pill");
+    if (pop) pop.hidden = !moPop;
+    if (pill) pill.setAttribute("aria-expanded", moPop ? "true" : "false");
+    if (moPop) capNhatTuoi();
+  }
+
+  function capNhatTuoi() {
+    var e = el();
+    if (!e) return;
+    var ds = e.querySelectorAll(".bg-age[data-at]");
+    for (var i = 0; i < ds.length; i++) ds[i].textContent = tuoi(ds[i].getAttribute("data-at"));
+  }
+
+  // Bấm ra ngoài hay Esc thì đóng khung chi tiết, như khung đổi model ngay bên dưới.
+  document.addEventListener("click", function (ev) {
+    var e = el();
+    if (moPop && e && !e.contains(ev.target)) datPop(false);
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (moPop && ev.key === "Escape") {
+      datPop(false);
+      var pill = el() && el().querySelector(".bg-pill");
+      if (pill) pill.focus();
+    }
+  });
 
   function render(d) {
     var e = el();
@@ -132,35 +187,50 @@
     // Khoá so sánh: không vẽ lại DOM khi không có gì đổi. Vẽ lại mỗi nhịp làm nháy chấm nhấp
     // nháy và làm mất selection nếu người dùng đang bôi đen tên việc.
     var key = JSON.stringify([q.muc, q.dau, q.them, q.chips.map(function (x) {
-      return [x.kind, x.id, x.status, x.mine].join("|");
+      return [x.kind, x.id, x.status, x.mine, x.title].join("|");
     })]);
     dangHien = true;
-    if (key === lastKey) return;
+    if (key === lastKey) { capNhatTuoi(); return; }
     lastKey = key;
 
-    var chips = q.chips.map(function (x) {
-      return '<span class="bg-chip' + (x.mine ? " mine" : "") +
-        (x.status === "running" ? " on" : "") + '" title="' +
-        esc(loai(x.kind)) + " · " + esc(nhan(x.status)) +
-        (x.mine ? " · " + esc(tw("bgs.chip_mine")) : "") + '">' +
-        '<b>' + esc(loai(x.kind)) + '</b> ' + esc(x.title) +
-        ' <i>' + esc(nhan(x.status)) + '</i></span>';
+    var c = q.chinh || {};
+    // Viên thuốc: MỘT dòng. Đang chạy -> tên việc chính (+N). Kẹt -> câu cảnh báo, vì tên việc
+    // đứng một mình trông như nó đang chạy, đúng điều cần tránh.
+    var chu = q.muc === "run" ? (c.title || q.dau) : q.dau;
+    var hang = q.chips.map(function (x) {
+      var dangChayX = x.status === "running";
+      return '<li class="bg-row' + (x.mine ? " mine" : "") + (dangChayX ? " on" : "") + '">' +
+        '<div class="bg-row-meta"><b>' + esc(loai(x.kind)) + '</b><span>' + esc(nhan(x.status)) + '</span>' +
+        (dangChayX && x.at ? '<span class="bg-age" data-at="' + esc(x.at) + '">' + esc(tuoi(x.at)) + '</span>' : "") +
+        (x.mine ? '<em>' + esc(tw("bgs.chip_mine")) + '</em>' : "") + '</div>' +
+        '<div class="bg-row-title">' + esc(x.title) + '</div></li>';
     }).join("");
-    if (q.them) chips += '<span class="bg-chip">' + esc(tw("bgs.chip_more", { so: q.them })) + "</span>";
+    if (q.them) hang += '<li class="bg-row bg-row-more">' + esc(tw("bgs.chip_more", { so: q.them })) + '</li>';
 
     e.hidden = false;
     e.className = "bg-strip bg-" + q.muc;
     e.innerHTML =
-      '<div class="bg-head"><span class="bg-dot"></span><span class="bg-title">' + esc(q.dau) +
-      '</span><button type="button" class="bg-open">' + esc(tw("bgs.open_kanban")) +
-      '</button></div>' +
-      '<div class="bg-chips">' + chips + '</div>' +
-      (q.warn ? '<div class="bg-warn">' + esc(q.warn) + '</div>' : "");
+      '<button type="button" class="bg-pill" aria-haspopup="dialog" aria-controls="bgPop" aria-expanded="false"' +
+      ' title="' + esc(q.dau + " · " + tw("bgs.pill_hint")) + '">' +
+      '<span class="bg-dot" aria-hidden="true"></span>' +
+      '<span class="bg-pill-txt">' + esc(chu) + '</span>' +
+      (q.muc === "run" && q.con ? '<span class="bg-pill-more">+' + q.con + '</span>' : "") +
+      '<span class="bg-caret" aria-hidden="true"></span></button>' +
+      '<div class="bg-pop" id="bgPop" role="dialog" aria-label="' + esc(q.dau) + '" hidden>' +
+      '<div class="bg-pop-head"><span class="bg-dot" aria-hidden="true"></span><span>' + esc(q.dau) + '</span></div>' +
+      '<ul class="bg-list">' + hang + '</ul>' +
+      (q.warn ? '<div class="bg-warn">' + esc(q.warn) + '</div>' : "") +
+      '<button type="button" class="bg-open">' + esc(tw("bgs.open_kanban")) + '</button></div>';
 
+    var pill = e.querySelector(".bg-pill");
+    if (pill) pill.onclick = function (ev) { ev.stopPropagation(); datPop(!moPop); };
     var btn = e.querySelector(".bg-open");
     if (btn) btn.onclick = function () {
+      datPop(false);
       try { window.Alpine.store("nav").go("kanban"); } catch (err) { location.hash = "#kanban"; }
     };
+    // Vẽ lại vì danh sách đổi: khung đang mở thì vẫn mở, đừng đóng dưới tay người đang đọc.
+    if (moPop) datPop(true);
   }
 
   function refresh() {
