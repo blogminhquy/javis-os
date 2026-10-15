@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.168.0] - 2026-10-15
+### Sửa lỗi
+- **Bot Zalo hết trả lời lệch và trả lời đôi khi khách nhắn dồn.** Trước đây khách nhắn thêm lúc bot đang soạn thì câu gửi đi đã cũ ("chị gửi thêm số điện thoại" dù số vừa nhắn xong), rồi tin sau bị đáp thêm một câu riêng. Giờ soạn xong mà thấy khách nhắn thêm thì bot bỏ câu cũ, đọc lại cả các tin chưa đáp và trả lời **một lần**. Chỉ áp dụng chat riêng; nếu khách nhắn mãi thì bot vẫn trả lời sau tối đa 3 lần bỏ.
+- **Bot Zalo cá nhân biết mình đang ở cuộc chat nào.** Trước đây lời dặn riêng cho một cuộc chat trong file Agent (vd. chat của người nhà chủ) không áp dụng được vì bot không thấy mã cuộc chat, nên đối xử như khách lạ. Giờ mã cuộc chat do Zalo cấp được đưa vào lượt trả lời.
+
 ## [0.167.0] - 2026-10-15
 ### Sửa lỗi
 - **Thu quyền là thu cả lượt đang chạy:** bạn vừa thu, cấp lại hay mới cho quyền tự quyết thì lệnh quản trị của lượt người điều phối đang trả lời dở bị bỏ kèm ghi chú; lượt sau mới dùng quyền mới.

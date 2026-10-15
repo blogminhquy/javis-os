@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.168.0] - 2026-10-15
+### Fixed
+- **The Zalo bot no longer answers out of order or twice when a customer types in bursts.** Before, a message that arrived while the bot was composing made its reply stale ("please send your phone number" right after the number was sent), and the next message got a separate answer. Now, if the customer wrote more while the bot was composing, it drops the stale reply, rereads every unanswered message and answers **once**. Private chats only; if the customer keeps typing, the bot still answers after at most 3 drops.
+- **The personal Zalo bot now knows which chat it is in.** Before, a per-chat instruction in the Agent file (for example the owner's family member) could never apply because the bot never saw the chat id, so it treated them like a stranger. The chat id Zalo provides now reaches every reply.
+
 ## [0.167.0] - 2026-10-15
 ### Fixed
 - **Taking back the right to decide alone covers a turn already running:** if you take it back, give it again or give it for the first time, the admin commands of the coordinator's unfinished turn are dropped with a note; only the next turn uses the new permission.

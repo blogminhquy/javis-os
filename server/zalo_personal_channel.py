@@ -700,6 +700,8 @@ _TAY: Dict[tuple, float] = {}       # (conn_id, thread) -> giờ tin chủ tự 
 _VIEC: set = set()                  # giữ tham chiếu task đang chạy, kẻo bị thu gom giữa chừng
 _GOM: Dict[tuple, dict] = {}        # (conn_id, thread) -> {"evs": [...], "cuoi": ts}: chat riêng đang chờ khách nhắn xong
 _NONG: Dict[str, float] = {}        # conn_id -> giờ thấy tin khách chat riêng gần nhất (đọc dày, xem `_nhip_cua`)
+_SEQ: Dict[tuple, int] = {}         # (conn_id, thread) -> số tin khách chat riêng CÓ CHỮ đã thấy (xem "Câu trả lời đã cũ")
+_BO_DO: Dict[tuple, dict] = {}      # (conn_id, thread) -> {"texts": [...], "n": số lần bỏ, "luc": giờ}: tin khách của câu trả lời đã bỏ
 _ID_MINH: Dict[str, dict] = {}      # conn_id -> {"uid", "ten"} của CHÍNH nick này, học từ tin của nó
 
 
@@ -967,6 +969,20 @@ def _xep_cho(conn_id: str, ev: dict, now: Optional[float] = None) -> None:
         o["evs"].append(ev)
     o["cuoi"] = max(float(o["cuoi"]), ts)
     _NONG[str(conn_id)] = now
+    if _co_chu(ev):
+        khoa = (str(conn_id), str(ev.get("external_chat_id") or ""))
+        _SEQ[khoa] = _SEQ.get(khoa, 0) + 1
+
+
+def _co_chu(ev: dict) -> bool:
+    """Tin này sẽ thành CHỮ trong lượt gộp (tin chữ, hay ảnh có chú thích). Sticker, tiếng, file không tính:
+    lượt gộp của chúng có thể không có chữ nên không bao giờ có lượt trả lời nối tiếp."""
+    loai = ev.get("message_type")
+    if loai == "text":
+        return bool(str(ev.get("text") or "").strip())
+    if loai == "image":
+        return bool(conversations.chu_thich_anh(ev.get("text")))
+    return False
 
 
 def gop_tin(evs: List[dict]) -> dict:
@@ -1030,9 +1046,53 @@ def xa_hang_cho(conn_id: str, luc: Optional[float] = None) -> int:
         evs = [e for e in o.get("evs") or []
                if luc - min(float(e.get("created_at") or luc), luc) <= TUOI_TOI_DA]
         if evs:
-            _chay(tb, gop_tin(evs))
+            _chay(tb, _dong_dau_seq(gop_tin(evs), khoa))
             n += 1
     return n
+
+
+# ============================================================
+# Câu trả lời đã cũ (0.165.0)
+# ============================================================
+# Ca thật 15/10/2026: phụ huynh nhắn cách nhau 8 đến 15 giây, bot soạn mất 8 đến 18 giây. Bot đợi đủ
+# `CHO_KHACH_IM` giây rồi bắt đầu soạn; tin tiếp theo của khách tới LÚC ĐANG SOẠN, nên câu gửi đi lỗi thời
+# ("chị gửi thêm số điện thoại" trong khi số vừa nhắn xong), rồi tin sau lại bị đáp thêm một lượt riêng.
+#
+# Cách làm: mỗi tin khách có chữ ở chat riêng tăng `_SEQ`; lượt gộp mang `seq_cuoi` lúc nó được giao. Soạn
+# xong mà `_SEQ` đã lớn hơn `seq_cuoi` thì câu trả lời là cũ: KHÔNG gửi, KHÔNG vào Hộp thư như lời bot nói,
+# chữ của khách trong lượt đó được giữ lại (`bo_do_gui`) để lượt kế tiếp, vốn đang chờ khoá cuộc chat, đọc
+# cùng tin mới và trả lời MỘT lần (`lay_bo_do`). Tối đa `MAX_BO_DO` lần liền, để khách nhắn mãi không bao giờ
+# nhận được câu nào.
+MAX_BO_DO = 3           # số lần liền một cuộc chat được bỏ câu đã cũ; tới đó thì gửi dù khách còn nhắn thêm
+BO_DO_TUOI = 300        # giây: chữ giữ lại quá cũ thì bỏ, không trộn vào một cuộc trò chuyện đã nguội
+
+
+def _dong_dau_seq(ev: dict, khoa: tuple) -> dict:
+    """Đóng dấu `seq_cuoi` (số tin khách có chữ đã thấy tới lúc giao lượt) vào lượt gộp chat riêng."""
+    md = dict(ev.get("metadata") or {})
+    md["seq_cuoi"] = _SEQ.get(khoa, 0)
+    return dict(ev, metadata=md)
+
+
+def co_tin_moi(conn_id: str, thread: str, seq_cuoi: int) -> bool:
+    """Từ lúc lượt có dấu `seq_cuoi` được giao, khách có nhắn thêm chữ vào cuộc chat này không."""
+    return _SEQ.get((str(conn_id), str(thread)), 0) > int(seq_cuoi)
+
+
+def bo_do_gui(conn_id: str, thread: str, texts: List[str], n: int) -> None:
+    """Giữ chữ của khách trong một lượt có câu trả lời đã bỏ, cho lượt kế tiếp đọc lại."""
+    texts = [t for t in texts if str(t or "").strip()]
+    if texts:
+        _BO_DO[(str(conn_id), str(thread))] = {"texts": texts[-MAX_GOM_TIN:], "n": int(n), "luc": time.time()}
+
+
+def lay_bo_do(conn_id: str, thread: str, now: Optional[float] = None) -> dict:
+    """Lấy (và xoá) chữ khách của các câu trả lời đã bỏ của cuộc chat này; trống nếu không có hay đã nguội."""
+    o = _BO_DO.pop((str(conn_id), str(thread)), None) or {}
+    now = time.time() if now is None else now
+    if not o or now - float(o.get("luc") or 0) > BO_DO_TUOI:
+        return {}
+    return o
 
 
 # ============================================================
@@ -1131,7 +1191,7 @@ def xa_cho_chu(conn_id: str, luc: Optional[float] = None) -> int:
         evs = [e for e in o.get("evs") or [] if float(e.get("created_at") or 0) > tay]
         evs = [e for e in evs if luc - float(e.get("created_at") or luc) <= CHO_CHU_TRA_LOI + TUOI_TOI_DA]
         if evs:
-            _chay(tb, gop_cho_chu(evs))
+            _chay(tb, _dong_dau_seq(gop_cho_chu(evs), khoa))
             n += 1
     return n
 
