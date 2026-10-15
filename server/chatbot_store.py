@@ -494,6 +494,11 @@ def ap_ngoai_le(cfg: dict, meta: Optional[dict]) -> dict:
     return dict(cfg, muc_quyen=e["muc_quyen"], _ngoai_le=dict(e), _muc_bot=cfg.get("muc_quyen"))
 
 
+def clean_bat(v: Any) -> bool:
+    """Công tắc bật/tắt gửi từ form ("1", "true", "on", True...)."""
+    return v is True or str(v if v is not None else "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def parse_gio_truc(v: Any) -> tuple[Optional[dict], str]:
     """Validate an active-hours value. Returns ({} for all day | {"tu", "den"}, "") or (None, error).
 
@@ -835,6 +840,9 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             # None = not set by the owner (channel default, old group behaviour); see `clean_nhuong_tay`.
             "nhuong_tay_phut": clean_nhuong_tay(data.get("nhuong_tay_phut")),
             "ngoai_le": ngoai_le,
+            # Tự nhận lời mời kết bạn và đọc lời giới thiệu (0.172.0, chỉ Zalo cá nhân). Mặc định TẮT: nhận kết bạn
+            # là hành động ra ngoài dưới tên chủ, chỉ bật khi chủ chọn.
+            "nhan_ket_ban": clean_bat(data.get("nhan_ket_ban")),
             "handoff_to": str(data.get("handoff_to") or "").strip(),
             "created_at": _now(),
             "updated_at": _now(),
@@ -869,7 +877,7 @@ def _nhan_brain_cho_tk(bot: dict) -> None:
 _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "handoff_to",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
-              "nhuong_tay_phut", "ngoai_le")
+              "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -970,6 +978,8 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                             b["nhuong_tay_phut"] = n
                 elif k == "ngoai_le":
                     b["ngoai_le"] = ngoai_le_moi     # checked at the top, risk gate included
+                elif k == "nhan_ket_ban":
+                    b["nhan_ket_ban"] = clean_bat(v)
 
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()

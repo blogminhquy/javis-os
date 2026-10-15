@@ -375,6 +375,11 @@ class Transport:
         during the window, held messages released afterwards); otherwise groups stay silent as before."""
         return self._nhuong_phut() is not None
 
+    def nhan_ket_ban(self) -> bool:
+        """Bot này tự nhận lời mời kết bạn và đọc lời giới thiệu kèm theo (0.172.0, `zalo_friend_intake`)."""
+        v = ((self.cfg_fn() if self.cfg_fn else {}) or {}).get("nhan_ket_ban")
+        return v is True or str(v).strip().lower() in ("1", "true", "yes", "on")
+
     # ---- vòng đời ------------------------------------------------------------------
     def start(self):
         import zalo_personal_channel as zc

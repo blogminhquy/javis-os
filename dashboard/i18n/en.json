@@ -1248,6 +1248,8 @@
   "cb.ph_nhuong_tay": "Default 10",
   "cb.hint_nhuong_tay": "Personal Zalo only. When you type into a chat yourself with this account, the bot stays out of that chat for this many minutes, counted from your last hand-typed message; when that time passes without another message from you, the bot answers the customer messages that are waiting. Blank = the default 10 minutes, with groups silent the whole time as before. With a number, a group message that tags the account is answered at once and other group messages are answered when the time is up. Set 0 so the bot never stays out because you typed.",
   "cb.nhuong_tay_sai": "Step-aside minutes must be a whole number from 0 to 240.",
+  "cb.nhan_ket_ban": "Accept friend requests and read their introduction",
+  "cb.hint_nhan_ket_ban": "Once an hour, inside active hours, Javis accepts pending friend requests, saves the message sent with each request in the Inbox as that person's first message and hands it to the bot: a complete introduction is not asked again, a partial one gets a question for what is missing. Not used when the bot answers only chosen people, or when the bot is at Can write or higher. Accepted people become real Zalo friends of this account and can see what friends see (diary, posts), so only switch this on for an account used for customers.",
   "cb.s_gio_truc": "Active hours",
   "cb.gio_tu": "From",
   "cb.gio_den": "Until",

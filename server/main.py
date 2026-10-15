@@ -21787,7 +21787,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           ngon_ngu: str = Form(""), account_ids: str = Form(""),
                           account_label: str = Form(""), reply_policy: str = Form(""),
                           gio_truc: str = Form(""), nhuong_tay_phut: str = Form(""),
-                          ngoai_le: str = Form(""), xac_nhan_ngoai_le: str = Form("")):
+                          ngoai_le: str = Form(""), xac_nhan_ngoai_le: str = Form(""),
+                          nhan_ket_ban: str = Form("")):
     # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
     # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
     br = (brain or agent_brain or "").strip()
@@ -21823,6 +21824,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         # Per-chat exceptions (0.172.0): JSON list of {chat_id, ten, muc_quyen, cho_giay}; raised levels need the ack.
         "ngoai_le": ngoai_le,
         "xac_nhan_ngoai_le": ack_nl,
+        # Tự nhận lời mời kết bạn và đọc lời giới thiệu (0.172.0, Zalo cá nhân): "1" = bật, mặc định tắt.
+        "nhan_ket_ban": nhan_ket_ban,
     })
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)
