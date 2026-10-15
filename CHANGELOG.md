@@ -7,8 +7,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.172.0] - 2026-10-16
-### Cải thiện
-- (đang viết)
+### Thêm mới
+- **Zalo cá nhân, chỉnh được số phút bot nhường khi bạn tự nhắn tay** (0 là không nhường). Mốc tính từ tin nhắn tay cuối của bạn, nên ở chat riêng bot trả lời thay sớm hơn trước. Đã ghi số thì trong nhóm, tin tag thẳng nick vẫn được trả lời ngay.
+- **Ngoại lệ theo từng cuộc chat:** một người tin cậy (ví dụ người nhà) được mức quyền và thời gian chờ riêng, không phải nâng cả bot đang trả lời người lạ. Tự nhận lời mời kết bạn Zalo (mặc định tắt) và đưa lời giới thiệu cho bot đọc. Plugin thêm được một dòng ngữ cảnh cho mỗi lượt bot.
+### Sửa lỗi
+- **Zalo cá nhân hiểu khách hơn:** ảnh gửi không kèm chữ ở chat riêng tới được bot và được kèm lại 10 phút. Khách nhắn thêm lúc bot đang soạn thì bỏ câu cũ, trả lời một lần cho tất cả. Hướng dẫn vai bạn viết luôn thắng mặc định của Javis. Bot không còn trích bản sao cũ hay file agent, workflow như tài liệu.
+- **Sửa lặt vặt:** nhắc việc trả lời `[SILENT]` không gửi gì. Phần bạn viết dưới mục "Lịch sử (tự học)" không còn bị xoá. Dòng `---` giữa câu không còn làm workflow 16 bước thành 14.
 
 ## [0.171.4] - 2026-10-16
 ### Sửa lỗi
