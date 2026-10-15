@@ -7,6 +7,7 @@ git-backed) + để scheduler nền (main._scheduler_loop, tick 30s) đánh th�
   - mode "notify" (mặc định): tới giờ bắn thẳng tin nhắc qua Telegram cho ĐÚNG người đã đặt.
   - mode "task"            : tới giờ chạy engine làm việc đã hẹn rồi gửi kết quả về Telegram.
                              Quyền theo `muc_quyen` (suggest | auto | full, mặc định full).
+                             Kết quả MỞ ĐẦU bằng [SILENT] → im lặng, vẫn lưu vào bản ghi.
   - mode "script"          : job KHÔNG cần LLM (rẻ, để giám sát) - chạy script có sẵn trong
                              <brain>/Javis/scripts, đẩy stdout về Telegram; exit≠0 → cảnh báo lỗi,
                              stdout rỗng hoặc có cờ [SILENT] → im lặng (port ý no_agent của Hermes).
@@ -144,6 +145,20 @@ class NotifyNotReady(ValueError):
             "Channels page (paste the bot token + Chat ID), then create it again. To create it "
             "anyway, set allow_no_channel=true - it will run but nobody will be notified."
         ))
+
+
+SILENT_MARK = "[SILENT]"
+
+
+def _is_silent_task_result(body: str) -> bool:
+    """True when a task reminder's answer opens with the [SILENT] flag.
+
+    Script jobs go quiet on [SILENT] anywhere in stdout. A model answer is prose that may
+    mention the flag while explaining something, so a task only counts as silent when the
+    answer STARTS with it (after control blocks, whitespace and markdown emphasis).
+    """
+    text = channel_context.strip_control_blocks(body or "").lstrip(" \t\r\n`*_>")
+    return text.startswith(SILENT_MARK)
 
 
 def _now() -> float:
@@ -578,7 +593,12 @@ class RemindersFeature:
         if mode == "task":
             async with self.lock:
                 body, err = await self._run_task(brain, text, muc_quyen_cua(rem))
-            if body:
+            if body and _is_silent_task_result(body):
+                # Same quiet rule as script jobs: a watcher that found nothing to do answers
+                # "[SILENT] ..." and must not post to the channel. The result is still saved
+                # on the reminder below so the run can be reviewed.
+                deliver = False
+            elif body:
                 # `text`/`head` là prompt nội bộ để agent làm việc, có thể dài và chứa đường dẫn,
                 # vai trò, quy trình. Telegram chỉ cần KẾT QUẢ cuối; ghép prompt vào đây vừa rối
                 # vừa làm lộ chỉ dẫn máy như ca Coach Mục Tiêu & Kỷ Luật.
