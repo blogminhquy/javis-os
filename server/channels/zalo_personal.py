@@ -653,18 +653,38 @@ class Transport:
             khoa = self._khoa.setdefault(thread, asyncio.Lock())
             async with khoa:
                 da_tai = []
+                chu_khach = text        # chữ của khách trong lượt này, trước khi gắn kết quả đọc file
                 if files:
                     text, da_tai, dung = await self._tai_file(files, text, meta, thread, chi_file)
                     if not dung:
                         return
+                # Câu trả lời đã cũ (0.165.0, `zc.bo_do_gui`): lượt chat riêng này tới sau một lượt bị bỏ vì khách nhắn thêm.
+                cu = {}
+                if not nhom and md0.get("seq_cuoi") is not None:
+                    meta["seq_cuoi"] = int(md0["seq_cuoi"])
+                    cu = zc.lay_bo_do(self.conn_id, thread)
+                    meta["bo_do_n"] = int(cu.get("n") or 0)
+                    if cu:
+                        meta["ghi_chu_dau"] = ("[Ghi chú của Javis, không phải lời khách: câu trả lời trước của bạn CHƯA được gửi "
+                                               "vì khách nhắn thêm trong lúc bạn soạn. Các tin khách chưa được đáp, theo thứ tự: "
+                                               + " / ".join(cu["texts"]) + ". Hãy trả lời MỘT lần cho các tin này cùng tin mới "
+                                               "bên dưới, đừng hỏi lại điều khách đã nói.]")
                 try:
                     out = await self.answer_fn(text, meta, None)
                 except BaseException:
                     for f in da_tai:
                         f.unlink(missing_ok=True)
+                    if cu:
+                        zc.bo_do_gui(self.conn_id, thread, cu["texts"], int(cu.get("n") or 0))
                     raise
                 anh = []
                 if isinstance(out, dict):
+                    if out.get("khach_nhan_them"):
+                        # Soạn xong mà khách đã nhắn thêm: không gửi câu cũ, giữ chữ khách cho lượt kế tiếp (đang chờ khoá).
+                        for f in da_tai:
+                            f.unlink(missing_ok=True)
+                        zc.bo_do_gui(self.conn_id, thread, list(cu.get("texts") or []) + [chu_khach], int(cu.get("n") or 0) + 1)
+                        return
                     if out.get("im_lang"):
                         return
                     cau = str(out.get("text") or "").strip()

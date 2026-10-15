@@ -1403,6 +1403,21 @@ def _ghi_bo_qua(bot_id: str, cfg: dict, meta: dict, text: str, ma: str, tl: dict
     })
 
 
+def _luot_cu(meta) -> bool:
+    """Lượt Zalo chat riêng mà khách đã nhắn thêm chữ kể từ lúc lượt được giao (xem `zalo_personal_channel.co_tin_moi`)?
+    Chỉ đúng khi lượt mang `seq_cuoi` và chưa bỏ quá `MAX_BO_DO` lần liền; lỗi nào cũng coi là chưa cũ (cứ gửi)."""
+    m = meta or {}
+    if m.get("seq_cuoi") is None:
+        return False
+    try:
+        import zalo_personal_channel as zc
+        if int(m.get("bo_do_n") or 0) >= zc.MAX_BO_DO:
+            return False
+        return zc.co_tin_moi(str(m.get("account_id") or ""), str(m.get("chat_id") or ""), int(m["seq_cuoi"]))
+    except Exception:       # noqa: BLE001 - không kiểm được thì cứ gửi, đừng nuốt câu trả lời
+        return False
+
+
 def _make_answer_fn(bot_id: str):
     async def _answer(text, meta=None, progress=None):
         cfg = chatbot_store.get_bot(bot_id)
@@ -1487,6 +1502,9 @@ def _make_answer_fn(bot_id: str):
                 text_engine = f"[{ten_nguoi}] {text}"
         cfg.pop("_anh_loi", None)
         text_engine, cfg["_anh"] = await anh_cho_bot(text_engine, gan_anh_cho(bot_id, meta, text), cfg)
+        if (meta or {}).get("ghi_chu_dau"):
+            # Lượt nối tiếp một câu trả lời đã bỏ (0.165.0): ghi chú chỉ cho model, không vào Hộp thư hay nhật ký.
+            text_engine = str(meta["ghi_chu_dau"]) + "\n" + text_engine
 
         # Bản ghi truyền xuống lõi phải có brain và slug - lõi dựa vào đó để đổi brain, đổi
         # khoá phiên và đổi nhãn kênh.
@@ -1552,6 +1570,18 @@ def _make_answer_fn(bot_id: str):
                 "muc_quyen": cfg.get("muc_quyen") or "suggest",
             })
             return {"text": "", "files": [], "im_lang": True}
+        # Zalo chat riêng: khách đã nhắn thêm chữ trong lúc bot soạn thì câu này là CŨ (0.165.0). Không gửi, không vào
+        # Hộp thư như lời bot nói; lượt kế tiếp đọc cả tin mới lẫn tin của lượt này và trả lời một lần.
+        if not loi_ky_thuat and dap and _luot_cu(meta):
+            chatbot_log.ghi(bot_id, {
+                "chat_id": chat_id, "chat_type": (meta or {}).get("chat_type"),
+                "user_name": (meta or {}).get("user_name"), "hoi": text,
+                "dap": "(bỏ câu trả lời vì khách nhắn thêm trong lúc soạn)", "loi": "", "bo_qua": "khach_nhan_them",
+                "co_tai_lieu": bool(tl.get("co")), "nguon": tl.get("nguon"),
+                "chuyen_nguoi": False, "bi": False,
+                "muc_quyen": cfg.get("muc_quyen") or "suggest",
+            })
+            return {"text": "", "files": [], "im_lang": True, "khach_nhan_them": True}
         # Images the Agent asked to send (0.84.3): `![...](path)` inside the bot's own brain becomes a file the
         # channel sends after the text. Only on channels that send files; see bot_images for the gates.
         if not loi_ky_thuat and dap and bot_images.channel_sends_files(kenh_luot):
