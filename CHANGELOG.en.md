@@ -10,7 +10,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.166.4] - 2026-10-15
 ### Fixed
-- (in progress)
+- **Saving a setting can no longer wipe the admin account, models and admin channels.** If `settings.json` was locked for a split second while Javis read it (common on Windows when antivirus scans a freshly written file), Javis took it for a fresh install, showed the setup wizard again, and the next save (saving the Lark channel, for example) wrote an empty setup over the real one. Javis now retries the read until it works, and never writes an empty setup over a machine that is already set up.
 
 ## [0.166.3] - 2026-10-15
 ### Fixed

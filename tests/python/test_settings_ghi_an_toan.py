@@ -22,6 +22,8 @@ lên; ghi không nguyên tử; không khoá đọc-sửa-ghi.
   5. File hỏng: giữ bản hỏng `.bad-*`, đọc bản dự phòng `.bak`, lần ghi sau không làm mất tên miền.
   6. Ghi nguyên tử: lỗi giữa chừng để nguyên file cũ, không sót file tạm.
   7. Nhiều luồng cùng cập nhật: không thay đổi nào bị đè mất.
+  8. Đọc hỏng thoáng qua (file bị khoá) không thành "máy mới cài", và cấu hình trống không bao
+     giờ ghi đè được máy đã cài đặt (0.166.4, lỗi lưu kênh Lark).
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import json
@@ -182,6 +184,67 @@ c = cfgmod.read_settings()
 check("nhiều luồng cùng cập nhật: không thay đổi nào bị đè mất",
       all(c["dashboard"].get(f"k{i}") == i for i in range(N)) and not con_nguyen(c),
       [i for i in range(N) if c["dashboard"].get(f"k{i}") != i])
+
+
+# ---- 8. Đọc hỏng THOÁNG QUA không được biến thành "máy mới cài" (0.166.4) ----
+# Chủ repo 15/10/2026: lưu kênh Lark ở trang Kênh admin xong thì mất sạch tài khoản, model, kênh admin
+# và trình cài đặt hiện lại. Đường dẫn tới đó: settings.json bị khoá trong tích tắc (diệt virus,
+# os.replace trên Windows) -> đọc lỗi -> .bak cũng lỗi -> trả {} = mặc định = máy mới cài, bộ nhớ đệm
+# giữ luôn bản trống đó, và lần lưu kế tiếp ghi nó xuống đĩa.
+from pathlib import Path  # noqa: E402
+
+seed()
+c = cfgmod.read_settings()
+c["setup_done"] = True
+c["auth"] = {"username": "admin", "password_hash": "h", "salt": "s"}
+cfgmod.write_settings(c)
+cfgmod.write_settings(cfgmod.read_settings())      # có .bak tốt
+_goc_read_text = Path.read_text
+_khoa = {"n": 0}
+
+
+def _read_text_bi_khoa(self, *a, **k):
+    if self.name.startswith(cfgmod.SETTINGS_PATH.name) and _khoa["n"] > 0:
+        _khoa["n"] -= 1
+        raise PermissionError(13, "file đang bị khoá")
+    return _goc_read_text(self, *a, **k)
+
+
+Path.read_text = _read_text_bi_khoa
+try:
+    cfgmod._SETTINGS_CACHE["sig"] = None
+    _khoa["n"] = 3                                # khoá vài chục mili giây rồi nhả
+    c = cfgmod.read_settings()
+    check("khoá thoáng qua: đọc lại được bản thật, không ra máy mới",
+          c.get("setup_done") is True and c["auth"].get("password_hash") == "h" and not con_nguyen(c))
+
+    cfgmod._SETTINGS_CACHE["sig"] = None
+    _khoa["n"] = 10 ** 6                          # khoá mãi, cả .bak
+    try:
+        cfgmod.read_settings()
+        ra = "không ném"
+    except cfgmod.SettingsUnreadable:
+        ra = "ném"
+    check("khoá mãi cả file lẫn .bak: ném SettingsUnreadable, KHÔNG trả cấu hình mặc định", ra == "ném", ra)
+    _khoa["n"] = 0
+    c = cfgmod.read_settings()
+    check("nhả khoá xong đọc lại bản thật (không giữ bản lỗi trong bộ nhớ đệm)",
+          c.get("setup_done") is True and not con_nguyen(c))
+finally:
+    Path.read_text = _goc_read_text
+
+# Lưới cuối: dù cấu hình trống đến từ đâu, không ghi nó đè lên máy đã cài đặt.
+trong = json.loads(json.dumps(cfgmod._DEFAULT))
+trong["lark"] = {"enabled": True, "app_id": "cli_x", "app_secret": "s", "domain": "lark", "allow": ""}
+try:
+    cfgmod.write_settings(trong)
+    ra = "đã ghi"
+except cfgmod.SettingsUnreadable:
+    ra = "chặn"
+c = cfgmod.read_settings()
+check("CANARY: cấu hình 'máy mới cài' KHÔNG ghi đè được máy đã cài đặt", ra == "chặn", ra)
+check("chặn xong tài khoản, model, kênh vẫn nguyên",
+      c.get("setup_done") is True and c["auth"].get("password_hash") == "h" and not con_nguyen(c))
 
 print()
 if _fails:

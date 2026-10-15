@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.166.4] - 2026-10-15
 ### Sửa lỗi
-- (đang viết)
+- **Lưu cài đặt không còn có thể xoá sạch tài khoản, model và kênh admin.** Nếu `settings.json` bị khoá trong tích tắc lúc Javis đọc (hay gặp trên Windows khi phần mềm diệt virus quét file vừa ghi), Javis từng hiểu nhầm là máy mới cài, hiện lại trình cài đặt, rồi lần lưu kế tiếp (ví dụ lưu kênh Lark) ghi cấu hình trống đè lên cấu hình thật. Giờ Javis đọc lại vài lần cho tới khi được, và không bao giờ ghi một cấu hình trống đè lên máy đã cài đặt.
 
 ## [0.166.3] - 2026-10-15
 ### Sửa lỗi
