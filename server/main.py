@@ -7906,12 +7906,16 @@ async def files_raw(brain: str = Query("brain"), path: str = Query(...), dl: int
 
 def _share_chan(ban) -> str:
     """Dòng chân trang: nói rõ đây là file được chia sẻ, để người xem biết mình đang xem gì."""
+    if share_store.la_hoi_thoai(ban):
+        return localefmt.chu("Đoạn hội thoại được chia sẻ từ Javis OS", "A conversation shared from Javis OS")
     ten = os.path.basename(str(ban.get("path") or "")) or "file"
     return share_render.esc(ten) + localefmt.chu(" · được chia sẻ từ Javis OS", " · shared from Javis OS")
 
 
 def _share_file(ban):
-    """File THẬT mà token trỏ tới. None nếu nó đã bị xoá hoặc đổi tên."""
+    """File THẬT mà token trỏ tới. None nếu nó đã bị xoá hoặc đổi tên. Link hội thoại không có file."""
+    if share_store.la_hoi_thoai(ban):
+        return None
     try:
         f = _safe_serve_path(ban.get("brain") or "brain", ban.get("path") or "")
     except ValueError:
@@ -7992,6 +7996,55 @@ def _share_asset(ban, p: str):
     return None
 
 
+def _share_tin_toi_moc(ban) -> list:
+    """Tin của hội thoại được chia sẻ, dừng ở MỐC lúc bấm chia sẻ (xem share_store: ảnh chụp,
+    không phải bản sống). Link cũ không có mốc thì lấy hết."""
+    tin = get_store().get_messages(str(ban.get("session_id") or ""))
+    moc = ban.get("moc")
+    if isinstance(moc, (list, tuple)) and len(moc) == 2:
+        try:
+            ts_moc, id_moc = float(moc[0]), int(moc[1])
+            tin = [m for m in tin if (float(m.get("ts") or 0), int(m.get("id") or 0)) <= (ts_moc, id_moc)]
+        except (TypeError, ValueError):
+            pass
+    return tin
+
+
+def _share_trang_hoi_thoai(ban):
+    """Trang xem công khai của một hội thoại (0.171.0)."""
+    sid = str(ban.get("session_id") or "")
+    sess = get_store().get_session(sid)
+    if not sess:
+        return HTMLResponse(share_render.trang_loi(localefmt.chu("Hội thoại đã bị xoá.", "The conversation was deleted.")),
+                            status_code=404)
+    tin = share_render.tin_cong_khai(_share_tin_toi_moc(ban))
+    ten = _share_ten(ban)
+    meta = localefmt.chu(f"{len(tin)} tin nhắn", f"{len(tin)} messages")
+    trang = share_render.trang_hoi_thoai(
+        ten, tin, "/s/" + ban["token"] + "/asset", meta, _share_chan(ban),
+        nhan_nguoi=localefmt.chu("Người hỏi", "Question"), nhan_javis="Javis")
+    return HTMLResponse(trang, headers={"Content-Security-Policy": share_render.CSP_TINH,
+                                        "X-Content-Type-Options": "nosniff",
+                                        "Referrer-Policy": "no-referrer"})
+
+
+def _share_anh_hoi_thoai(ban, p: str):
+    """Ảnh trong một hội thoại được chia sẻ: CHỈ ảnh và tài nguyên trình bày nằm trong `attachments`
+    của brain - nơi Javis cất ảnh nó tạo ra. Không ghi chú, không file nào khác của brain."""
+    brain = str(ban.get("brain") or "brain")
+    dinh_kem = Path(_brain_root(brain)).resolve() / "attachments"
+    raw = (p or "").replace("\\", "/").strip().lstrip("/")
+    for ung_vien in (raw, "attachments/" + raw.split("/")[-1]):
+        try:
+            f = _safe_serve_path(brain, ung_vien)
+        except ValueError:
+            continue
+        if (f.is_file() and f.suffix.lower() in share_render.DUOI_TAI_NGUYEN
+                and dinh_kem.is_dir() and dinh_kem in f.parents):
+            return f
+    return None
+
+
 @app.post("/share/create")
 async def share_create(body: dict = Body(...)):
     """Bật chia sẻ cho một file. Gọi lại trên cùng file thì trả đúng link cũ, không đẻ link mới."""
@@ -8024,7 +8077,11 @@ async def share_of(brain: str = Query("brain"), path: str = Query(...)):
 
 
 def _share_ten_tu_dong(ban) -> str:
-    """Tên tự đặt của một link: tiêu đề file, không có thì tên dự phòng (share_render)."""
+    """Tên tự đặt của một link: tiêu đề file, không có thì tên dự phòng (share_render).
+    Link hội thoại: tiêu đề của hội thoại."""
+    if share_store.la_hoi_thoai(ban):
+        sess = get_store().get_session(str(ban.get("session_id") or "")) or {}
+        return str(sess.get("title") or "").strip()[:120] or localefmt.chu("Hội thoại", "Conversation")
     f = _share_file(ban)
     return (share_render.tieu_de_file(f) if f else "") or share_render.ten_du_phong(ban.get("path") or "")
 
@@ -8042,6 +8099,7 @@ async def share_list(brain: str = Query("")):
     ten = await asyncio.to_thread(lambda: [_share_ten(b) for b in ds])
     return {"ok": True, "items": [{"token": b["token"], "brain": b.get("brain"),
                                    "path": b.get("path"), "tao_luc": b.get("tao_luc"),
+                                   "loai": b.get("loai") or "file", "session_id": b.get("session_id") or "",
                                    "ten": t, "url": "/s/" + b["token"]} for b, t in zip(ds, ten)]}
 
 
@@ -8052,6 +8110,8 @@ async def share_xem(token: str):
     if not ban:
         return HTMLResponse(share_render.trang_loi(localefmt.chu("Link không tồn tại hoặc đã bị thu hồi.", "This link does not exist or has been revoked.")),
                             status_code=404)
+    if share_store.la_hoi_thoai(ban):
+        return await asyncio.to_thread(_share_trang_hoi_thoai, ban)
     f = _share_file(ban)
     if f is None:
         return HTMLResponse(share_render.trang_loi(localefmt.chu("File đã bị xoá hoặc đổi tên.", "The file was deleted or renamed.")), status_code=404)
@@ -8110,7 +8170,7 @@ async def share_asset(token: str, p: str = Query(...)):
     ban = share_store.doc(token)
     if not ban:
         return JSONResponse({"error": "not found"}, status_code=404)
-    f = _share_asset(ban, p)
+    f = _share_anh_hoi_thoai(ban, p) if share_store.la_hoi_thoai(ban) else _share_asset(ban, p)
     if f is None:
         return JSONResponse({"error": "not found"}, status_code=404)
     resp = FileResponse(str(f), media_type=mimetypes.guess_type(f.name)[0]
@@ -8179,6 +8239,8 @@ async def share_xem_html(token: str):
     if not ban:
         return HTMLResponse(share_render.trang_loi(localefmt.chu("Link không tồn tại hoặc đã bị thu hồi.", "This link does not exist or has been revoked.")),
                             status_code=404)
+    if share_store.la_hoi_thoai(ban):
+        return RedirectResponse(url="/s/" + ban["token"], status_code=307)
     f = _share_file(ban)
     if f is None:
         return HTMLResponse(share_render.trang_loi(localefmt.chu("File đã bị xoá hoặc đổi tên.", "The file was deleted or renamed.")), status_code=404)
@@ -24021,3 +24083,35 @@ if __name__ == "__main__":
     host = os.getenv("JAVIS_HOST", "127.0.0.1")
     port = int(os.getenv("JAVIS_PORT", "7777"))
     uvicorn.run("main:app", host=host, port=port, reload=False)
+
+
+@app.post("/share/chat")
+async def share_chat(body: dict = Body(...)):
+    """Chia sẻ một HỘI THOẠI ra ngoài (0.171.0). Link là ảnh chụp tới tin cuối lúc bấm; bấm lại trên cùng
+    hội thoại thì dời mốc tới hiện tại và giữ nguyên link. Đặt cuối file để bảng route chỉ thêm dòng."""
+    sid = str(body.get("session_id") or "").strip()
+    store = get_store()
+    sess = store.get_session(sid) if sid else None
+    if not sess:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Hội thoại chưa có tin nào để chia sẻ.",
+                                                                 "This conversation has nothing to share yet.")},
+                            status_code=400)
+    tin = await asyncio.to_thread(store.get_messages, sid)
+    if not share_render.tin_cong_khai(tin):
+        return JSONResponse({"ok": False, "error": localefmt.chu("Hội thoại chưa có tin nào để chia sẻ.",
+                                                                 "This conversation has nothing to share yet.")},
+                            status_code=400)
+    cuoi = tin[-1]
+    moc = [float(cuoi.get("ts") or 0), int(cuoi.get("id") or 0)]
+    try:
+        ban = share_store.tao_hoi_thoai(sid, sess.get("brain") or "brain", "", moc)
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    return {"ok": True, "token": ban["token"], "path": "/s/" + ban["token"]}
+
+
+@app.get("/share/chat/of")
+async def share_chat_of(session_id: str = Query(...)):
+    """Hội thoại này đã có link chưa? Nút Chia sẻ trong khung chat hỏi câu này."""
+    ban = share_store.cua_hoi_thoai(session_id)
+    return {"ok": True, "share": ({"token": ban["token"], "path": "/s/" + ban["token"]} if ban else None)}

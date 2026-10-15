@@ -1481,7 +1481,7 @@ const _gocCongSu = {};
 // dù câu trong ô nhập có nghe như đang nói về chính quy trình.
 function sendMessage(text, opts) {
   if (window.JavisWorkspace && !window.JavisWorkspace.canSend()) return;
-  const msg = (text || chatInput.value).trim();
+  let msg = (text || chatInput.value).trim();
   // Lệnh / : session-command chạy tại chỗ; skill-command bung thành lời gọi skill.
   // `opts.prefix` = tin do lệnh /plan, /goal (hoặc vòng tự động của /goal) gửi: khối chỉ dẫn đã
   // dựng sẵn, và nội dung `msg` là câu người dùng nên KHÔNG được route lại (câu có thể tình cờ
@@ -1547,6 +1547,13 @@ function sendMessage(text, opts) {
   }
   const atts = pendingAttachments.filter(a => a.path);
   if (!msg && atts.length === 0) return;
+  // Trích dẫn (0.171.0): đoạn trích đứng ở đầu tin dạng "> ...", là một phần chữ của tin. Chỉ gắn vào
+  // tin thường, không gắn vào lệnh "/" và lượt tự động, rồi xoá chip để tin sau không mang theo nữa.
+  if (_quote && window.JavisQuote && _slash.type === "passthrough" && !(opts && opts.adaptive)) {
+    msg = window.JavisQuote.ghep(_quote.text, msg);
+    _quote = null;
+    renderChips();
+  }
   if (!savedSessionId) {
     savedSessionId = newSid();                           // hội thoại mới → mint id để định tuyến
     // Đang mở một project ở cột Lịch sử thì hội thoại mới rơi thẳng vào project đó, khỏi phải
@@ -2203,7 +2210,7 @@ function appendUserMessage(text, attachments, ts) {
   // Tin dài (>10 dòng hoặc >900 ký tự) thu gọn lại, bấm "Xem thêm" để mở
   const isLong = text && (text.split("\n").length > 10 || text.length > 900);
   const textHtml = text
-    ? `<div class="utext${isLong ? " clamped" : ""}">${escapeHtml(text)}</div>` +
+    ? `<div class="utext${isLong ? " clamped" : ""}">${window.JavisQuote ? window.JavisQuote.utextHtml(text, escapeHtml) : escapeHtml(text)}</div>` +
       (isLong ? `<button class="clamp-more" type="button">${window.t("app.show_more")}</button>` : "")
     : "";
   div.innerHTML = `<div class="bubble">${textHtml}${attHtml}</div>` +
@@ -2466,6 +2473,28 @@ function runMsgAct(btn) {
   const msgEl = btn.closest(".msg");
   if (!msgEl) return;
   const act = btn.dataset.act;
+  if (act === "quote") {
+    // Bôi đen một đoạn TRONG tin này thì trích đúng đoạn đó; không thì trích cả tin. Tin Javis lấy
+    // markdown gốc (dataset.md), không lấy chữ đã vẽ, để đoạn trích còn nguyên đậm, danh sách, link.
+    let chon = "";
+    try {
+      const sel = window.getSelection && window.getSelection();
+      if (sel && !sel.isCollapsed && sel.rangeCount && msgEl.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+        chon = String(sel.toString() || "").trim();
+      }
+    } catch (e) {}
+    const b = msgEl.querySelector(".bubble");
+    const ca = msgEl.classList.contains("msg-javis")
+      ? window.JavisVisibleMarkdown(msgEl.dataset.md || (b ? b.innerText : ""))
+      : (window.JavisQuote ? window.JavisQuote.tach(msgEl.dataset.text || (b ? b.innerText : "")).rest
+                           : (msgEl.dataset.text || ""));
+    const text = (chon || ca || "").trim();
+    if (!text) return;
+    _quote = { text };
+    renderChips();
+    try { chatInput.focus(); } catch (e) {}
+    return;
+  }
   if (act === "copy") {
     const b = msgEl.querySelector(".bubble");
     // Tin Javis giữ markdown gốc trong dataset.md: copy bản đó để bài viết dán sang
@@ -3296,6 +3325,8 @@ function maybeAutoLearn() {
 // File đính kèm → lưu vào Sources
 // ============================================
 let pendingAttachments = [];
+// Đoạn đang trích dẫn (0.171.0, chat-quote.js): {text}. Gửi tin kế tiếp thì nó đi kèm ở đầu tin rồi tự xoá.
+let _quote = null;
 const attachBar = document.getElementById("attachBar");
 const fileInput = document.getElementById("fileInput");
 const dropOverlay = document.getElementById("dropOverlay");
@@ -3326,8 +3357,19 @@ function _pinRestore() {
 // tải file mới kế tiếp.
 let attachNote = "";
 function renderChips() {
-  attachBar.classList.toggle("has-items", pendingAttachments.length > 0 || !!pinnedNote || !!attachNote);
+  attachBar.classList.toggle("has-items", pendingAttachments.length > 0 || !!pinnedNote || !!attachNote || !!_quote);
   attachBar.innerHTML = "";
+  if (_quote && window.JavisQuote) {
+    const chip = document.createElement("div");
+    chip.className = "attach-chip quote-chip";
+    chip.title = _quote.text.slice(0, 600);
+    chip.innerHTML = `<div class="chip-ico">${ic("quote")}</div>`
+      + `<div class="chip-info"><span class="chip-name">${escapeHtml(window.JavisQuote.xemTruoc(_quote.text))}</span>`
+      + `<span class="chip-meta">${escapeHtml(window.t("app.quote_meta"))}</span></div>`
+      + `<button class="chip-x" data-unquote="1" title="${escapeHtml(window.t("app.quote_remove"))}"`
+      + ` aria-label="${escapeHtml(window.t("app.quote_remove"))}">${ic("x")}</button>`;
+    attachBar.appendChild(chip);
+  }
   if (pinnedNote) {
     const chip = document.createElement("div");
     chip.className = "attach-chip pinned";
@@ -3385,7 +3427,8 @@ function renderChips() {
     b.addEventListener("click", () => taiLaiDinhKem(+b.dataset.i)));
   attachBar.querySelectorAll(".chip-x").forEach(b =>
     b.addEventListener("click", () => {
-      if (b.dataset.unpin) JavisPin.clear();
+      if (b.dataset.unquote) { _quote = null; renderChips(); }
+      else if (b.dataset.unpin) JavisPin.clear();
       else removeAttachment(+b.dataset.i);
     }));
 }

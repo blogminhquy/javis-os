@@ -4698,5 +4698,25 @@
    "GET"
   ],
   "trong": null
+ },
+ {
+  "order": 455,
+  "type": "APIRoute",
+  "path": "/share/chat",
+  "name": "share_chat",
+  "methods": [
+   "POST"
+  ],
+  "trong": null
+ },
+ {
+  "order": 456,
+  "type": "APIRoute",
+  "path": "/share/chat/of",
+  "name": "share_chat_of",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
  }
 ]

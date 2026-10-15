@@ -332,9 +332,12 @@
     // Icon GHIM GIẤY, cùng icon với nút "File & link" của trang Cộng sự (workspace.js #wsFiles).
     // Ba màn (Đồ thị, Trò chuyện, Cộng sự) mở ra CÙNG MỘT ngăn kéo, nên mang ba icon khác nhau
     // thì người dùng phải học lại nút ấy ở mỗi trang (chủ dự án yêu cầu 16/09).
+    // Nút CHIA SẺ HỘI THOẠI (0.171.0) đứng ngay cạnh: cùng điều kiện (cuộc đã được lưu), cùng cỡ.
     var html = currentId()
       ? '<button class="cts-btn" type="button" title="' + esc(pdT("cts.open")) + '">' +
-          ic("paperclip") + "</button>"
+          ic("paperclip") + "</button>" +
+        '<button class="cts-btn cts-share" type="button" title="' + esc(pdT("cts.share")) + '"' +
+          ' aria-label="' + esc(pdT("cts.share")) + '">' + ic("share-2") + "</button>"
       : "";
     if (p) {
       var meta = "";
@@ -356,9 +359,107 @@
       h.innerHTML = html;
       var b = h.querySelector(".proj-chip");
       if (b) b.onclick = function () { openProjDrawer(pid); };
-      var c = h.querySelector(".cts-btn");
+      var c = h.querySelector(".cts-btn:not(.cts-share)");
       if (c) c.onclick = function () { openCuocDrawer(); };
+      var sh = h.querySelector(".cts-share");
+      if (sh) sh.onclick = function () { moChiaSeHoiThoai(sh); };
     });
+  }
+
+  // ── Chia sẻ hội thoại (0.171.0) ──────────────────────────────────────────────
+  // Bấm nút là TẠO link luôn (ý định đã rõ), rồi mở một khung nhỏ: chép, mở xem, cập nhật tới tin
+  // mới nhất, thu hồi. Link là ảnh chụp tới lúc bấm (server: share_store), nên "Cập nhật" là cách
+  // duy nhất để người cầm link thấy phần chat sau đó; token giữ nguyên, không phải gửi lại link.
+  var _shPop = null;
+  function dongChiaSe() {
+    if (_shPop) { _shPop.remove(); _shPop = null; }
+    document.removeEventListener("keydown", _shPhim, true);
+  }
+  function _shPhim(e) { if (e.key === "Escape") dongChiaSe(); }
+  function chepChu(chu) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(chu);
+    return new Promise(function (ok) {
+      var o = document.createElement("textarea");
+      o.value = chu; o.style.cssText = "position:fixed;opacity:0";
+      document.body.appendChild(o); o.select();
+      try { document.execCommand("copy"); } catch (e) {}
+      o.remove(); ok();
+    });
+  }
+  async function taoLinkHoiThoai(sid) {
+    var r = await fetch("/share/chat", { method: "POST", headers: { "Content-Type": "application/json" },
+                                         body: JSON.stringify({ session_id: sid }) });
+    var d = {};
+    try { d = await r.json(); } catch (e) {}
+    if (!r.ok || !d.ok) throw new Error((d && d.error) || pdT("cts.share_fail"));
+    return d;
+  }
+  async function moChiaSeHoiThoai(nut) {
+    var sid = currentId();
+    if (!sid) return;
+    dongChiaSe();
+    var pop = el('<div class="cts-share-pop" role="dialog" aria-label="' + esc(pdT("cts.share_head")) + '">' +
+      '<div class="csp-head"><b>' + esc(pdT("cts.share_head")) + '</b>' +
+      '<button class="csp-x" type="button" aria-label="' + esc(pdT("common.close")) + '">' + ic("x") + '</button></div>' +
+      '<div class="csp-body">' + ic("loader", { cls: "ic-spin" }) + '</div></div>');
+    document.body.appendChild(pop);
+    _shPop = pop;
+    // Đặt ngay dưới nút trên màn rộng; màn hẹp thì CSS biến nó thành tấm trượt từ đáy.
+    try {
+      var r = nut.getBoundingClientRect();
+      pop.style.top = Math.round(r.bottom + 8) + "px";
+      pop.style.left = Math.round(Math.max(12, Math.min(window.innerWidth - 372, r.right - 360))) + "px";
+    } catch (e) {}
+    pop.querySelector(".csp-x").onclick = dongChiaSe;
+    document.addEventListener("keydown", _shPhim, true);
+    var body = pop.querySelector(".csp-body");
+    var d;
+    try { d = await taoLinkHoiThoai(sid); }
+    catch (e) { body.textContent = String(e.message || e); return; }
+    if (_shPop !== pop) return;
+    var url = location.origin + d.path;
+    body.innerHTML =
+      '<p class="csp-note">' + esc(pdT("cts.share_note")) + '</p>' +
+      '<input class="csp-url" type="text" readonly value="' + esc(url) + '">' +
+      '<div class="csp-acts">' +
+        '<button class="gcard-btn" type="button" data-csp="copy">' + ic("copy") + " " + esc(pdT("cts.share_copy")) + '</button>' +
+        '<a class="gcard-btn ghost" href="' + esc(url) + '" target="_blank" rel="noopener">' + ic("external-link") + " " + esc(pdT("cts.share_open")) + '</a>' +
+      '</div>' +
+      '<div class="csp-acts">' +
+        '<button class="gcard-btn ghost" type="button" data-csp="update">' + ic("rotate-cw") + " " + esc(pdT("cts.share_update")) + '</button>' +
+        '<button class="gcard-btn ghost csp-danger" type="button" data-csp="revoke">' + esc(pdT("cts.share_revoke")) + '</button>' +
+      '</div>' +
+      '<a class="csp-manage" href="#" data-csp="manage">' + esc(pdT("cts.share_manage")) + ' →</a>';
+    var o = body.querySelector(".csp-url");
+    o.onclick = function () { o.select(); };
+    var nutChep = body.querySelector('[data-csp="copy"]');
+    function chep() {
+      chepChu(url).then(function () {
+        nutChep.innerHTML = ic("check") + " " + esc(pdT("cts.share_copied"));
+        setTimeout(function () { nutChep.innerHTML = ic("copy") + " " + esc(pdT("cts.share_copy")); }, 1400);
+      }, function () {});
+    }
+    nutChep.onclick = chep;
+    chep();                                    // vừa tạo xong là chép luôn: việc người ta cần làm tiếp
+    var nutCN = body.querySelector('[data-csp="update"]');
+    nutCN.onclick = async function () {
+      nutCN.disabled = true;
+      try { await taoLinkHoiThoai(sid); nutCN.innerHTML = ic("check") + " " + esc(pdT("cts.share_updated")); }
+      catch (e) { nutCN.textContent = String(e.message || e); }
+      setTimeout(function () { nutCN.disabled = false; nutCN.innerHTML = ic("rotate-cw") + " " + esc(pdT("cts.share_update")); }, 1600);
+    };
+    body.querySelector('[data-csp="revoke"]').onclick = async function () {
+      try {
+        await fetch("/share/revoke", { method: "POST", headers: { "Content-Type": "application/json" },
+                                       body: JSON.stringify({ token: d.token }) });
+      } catch (e) {}
+      dongChiaSe();
+    };
+    body.querySelector('[data-csp="manage"]').onclick = function (e) {
+      e.preventDefault();
+      dongChiaSe();
+      try { window.JavisNav.go("share"); } catch (err) {}
+    };
   }
 
   // ── Ngăn kéo ─────────────────────────────────────────────────────────────────

@@ -8,6 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.171.0] - 2026-10-15
 ### Thêm mới
+- **Trích dẫn để hỏi tiếp:** dưới mỗi tin trong khung chat có nút Trích dẫn. Bấm vào là đoạn đó nằm sẵn trên ô nhập, bạn chỉ việc gõ câu hỏi tiếp, khỏi phải chép lại. Muốn trích một phần thì bôi đen đoạn đó rồi bấm.
+- **Chia sẻ hội thoại bằng link:** nút Chia sẻ cạnh nút kẹp giấy trên đầu khung chat tạo link cho người khác đọc, không cần đăng nhập, link tự được chép sẵn. Người xem chỉ thấy câu hỏi và câu trả lời, không thấy file đính kèm, công cụ hay ghi chú ẩn.
+- **Link là ảnh chụp tới lúc chia sẻ:** tin gõ sau đó không tự hiện ra. Muốn người xem thấy thêm thì bấm "Cập nhật tới tin mới nhất", link giữ nguyên. Link hội thoại nằm chung ở trang Link chia sẻ, đổi tên và thu hồi được như link file.
 - (đang viết)
 ## [0.170.0] - 2026-10-15
 ### Cải thiện

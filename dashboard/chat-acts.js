@@ -1,7 +1,7 @@
 /* chat-acts.js - hang nut duoi moi tin nhan trong khung chat Javis.
 
    Moi bong bong co mot hang nho ben duoi. Tin cua NGUOI DUNG: gio gui, gui lai, sua lai,
-   sao chep. Tin cua JAVIS: chi gio gui + sao chep. Hang nay AN san (opacity 0), chi hien khi
+   trich dan, sao chep. Tin cua JAVIS: gio gui, trich dan, sao chep. Hang nay AN san (opacity 0), chi hien khi
    hover tren may tinh hoac khi cham vao tin tren dien thoai (.acts-on).
 
    File nay chi giu phan THUAN (khong dung tai lieu DOM that) de test bang node:
@@ -79,7 +79,12 @@
       send = '<button class="msg-act" type="button" data-act="retry" title="' + esc(tw("cact.retry")) + '">↻</button>' +
         '<button class="msg-act" type="button" data-act="edit" title="' + esc(tw("cact.edit")) + '">' + ic("pencil") + '</button>';
     }
-    return '<div class="msg-acts">' + time + send +
+    // Trich dan (0.171.0): dat doan nay len tren o nhap de hoi tiep, khoi go lai. Co o ca tin
+    // nguoi dung lan tin Javis. Bam truot cung vo hai: no chi dat chip, khong chay gi.
+    // Tin nguoi dung chi co anh thi khong co chu de trich, bo nut nhu nut gui lai.
+    var quote = (role === "user" && canResend === false) ? "" :
+      '<button class="msg-act" type="button" data-act="quote" title="' + esc(tw("cact.quote")) + '">' + ic("quote") + '</button>';
+    return '<div class="msg-acts">' + time + send + quote +
       '<button class="msg-act" type="button" data-act="copy" title="' + esc(tw("cact.copy")) + '">⧉</button>' +
       "</div>";
   }

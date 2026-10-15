@@ -69,7 +69,8 @@ def tao(brain: str, path: str, nhan: str = "") -> dict:
     with _LOCK:
         d = _doc_tho()
         for tok, ban in d.items():
-            if isinstance(ban, dict) and ban.get("brain") == brain and _chuan_path(ban.get("path")) == path:
+            if (isinstance(ban, dict) and not la_hoi_thoai(ban) and ban.get("brain") == brain
+                    and _chuan_path(ban.get("path")) == path):
                 return dict(ban, token=tok)          # đã có link: trả lại đúng cái cũ
         if len(d) >= TRAN:
             raise ValueError(localefmt.chu(f"Đã đạt trần {TRAN} link chia sẻ, gỡ bớt link cũ trước",
@@ -86,7 +87,11 @@ def doc(token: str):
     if not tok:
         return None
     ban = _doc_tho().get(tok)
-    if not isinstance(ban, dict) or not ban.get("path"):
+    if not isinstance(ban, dict):
+        return None
+    if la_hoi_thoai(ban):
+        return dict(ban, token=tok) if ban.get("session_id") else None
+    if not ban.get("path"):
         return None
     return dict(ban, token=tok)
 
@@ -133,6 +138,57 @@ def cua_file(brain: str, path: str):
     brain = str(brain or "brain")
     path = _chuan_path(path)
     for tok, ban in _doc_tho().items():
-        if isinstance(ban, dict) and ban.get("brain") == brain and _chuan_path(ban.get("path")) == path:
+        if (isinstance(ban, dict) and not la_hoi_thoai(ban) and ban.get("brain") == brain
+                and _chuan_path(ban.get("path")) == path):
+            return dict(ban, token=tok)
+    return None
+
+
+# ---------------------------------------------------------------- link HỘI THOẠI (0.171.0)
+#
+# Chủ repo 15/10/2026: chia sẻ cả một đoạn hội thoại cho người khác đọc, giống link file và
+# quản lý chung ở trang Link chia sẻ. Cùng kho, cùng token, phân biệt bằng `loai: "hoi_thoai"`.
+#
+# Khác link file ở MỘT điều có chủ đích: link hội thoại là ẢNH CHỤP tới lúc bấm chia sẻ, không
+# phải bản sống. File thì người chia sẻ sửa có chủ ý; hội thoại thì cứ thế dài thêm, và câu hỏi
+# riêng tư gõ SAU khi gửi link không được tự lọt ra ngoài. Bấm Chia sẻ lại trên cùng hội thoại
+# thì dời mốc tới hiện tại và GIỮ token: người đã có link thấy thêm phần mới, không link mới nào
+# phải gửi lại. Mốc là cặp (ts, id) của tin cuối, đúng thứ tự `ORDER BY ts, id` của kho phiên.
+LOAI_HOI_THOAI = "hoi_thoai"
+
+
+def la_hoi_thoai(ban) -> bool:
+    return isinstance(ban, dict) and ban.get("loai") == LOAI_HOI_THOAI
+
+
+def tao_hoi_thoai(session_id: str, brain: str = "", nhan: str = "", moc=None) -> dict:
+    """Tạo link cho một hội thoại, hoặc DỜI MỐC của link đã có tới `moc` (giữ token)."""
+    sid = str(session_id or "").strip()
+    if not sid:
+        raise ValueError(localefmt.chu("Thiếu mã hội thoại", "Missing conversation id"))
+    moc = list(moc) if moc else None
+    with _LOCK:
+        d = _doc_tho()
+        for tok, ban in d.items():
+            if la_hoi_thoai(ban) and ban.get("session_id") == sid:
+                ban["moc"] = moc
+                ban["cap_nhat_luc"] = time.time()
+                _ghi_tho(d)
+                return dict(ban, token=tok)
+        if len(d) >= TRAN:
+            raise ValueError(localefmt.chu(f"Đã đạt trần {TRAN} link chia sẻ, gỡ bớt link cũ trước",
+                                           f"Reached the limit of {TRAN} share links, remove some old links first"))
+        tok = secrets.token_urlsafe(18)
+        d[tok] = {"loai": LOAI_HOI_THOAI, "session_id": sid, "brain": str(brain or ""), "path": "",
+                  "nhan": " ".join(str(nhan or "").split())[:120], "moc": moc, "tao_luc": time.time()}
+        _ghi_tho(d)
+        return dict(d[tok], token=tok)
+
+
+def cua_hoi_thoai(session_id: str):
+    """Link đã có của hội thoại này, hoặc None."""
+    sid = str(session_id or "").strip()
+    for tok, ban in _doc_tho().items():
+        if la_hoi_thoai(ban) and ban.get("session_id") == sid:
             return dict(ban, token=tok)
     return None

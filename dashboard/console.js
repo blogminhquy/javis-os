@@ -7011,7 +7011,7 @@
       return `<div class="share-row" data-token="${esc(m.token)}">
         <div class="share-info">
           <div class="share-name">${esc(ten)}</div>
-          <div class="share-path">${esc(m.path || "")}${m.tao_luc ? " · " + esc(ngayGio(m.tao_luc)) : ""}</div>
+          <div class="share-path">${m.loai === "hoi_thoai" ? ic("messages-square") + " " + esc(t("share.chat_label")) : esc(m.path || "")}${m.tao_luc ? " · " + esc(ngayGio(m.tao_luc)) : ""}</div>
           <a class="share-url" href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a>
         </div>
         <div class="share-acts">

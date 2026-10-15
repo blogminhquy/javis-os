@@ -1144,6 +1144,13 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 
 /* Tin user nhiều dòng: giữ xuống dòng + thu gọn khi quá dài */
 .msg-user .bubble .utext { white-space: pre-wrap; word-break: break-word; }
+/* Trích dẫn (0.171.0, chat-quote.js): đoạn trích ở đầu tin người dùng, hiện thành khối có vạch
+   bên trái. Giới hạn chiều cao để một đoạn trích dài không đẩy câu hỏi khuất xuống dưới. */
+.msg-user .bubble .uquote { display: block; margin: 0 0 8px; padding: 2px 0 2px 10px;
+  border-left: 3px solid var(--accent); color: var(--text2); font-size: .94em;
+  max-height: 7.6em; overflow: hidden; }
+.attach-chip.quote-chip { max-width: min(520px, 100%); }
+.attach-chip.quote-chip .chip-ico { color: var(--accent); }
 .msg-user .bubble .utext.clamped { display: -webkit-box; -webkit-line-clamp: 10;
   -webkit-box-orient: vertical; overflow: hidden; }
 .clamp-more { display: block; margin-top: 5px; background: none; border: none;
@@ -3786,3 +3793,25 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .rsa-pv-label { font-size: 12px; color: var(--text3); }
 .rsa-pv-text { font-size: 13px; color: var(--text); padding: 6px 8px; border-radius: 8px; background: var(--surface-2);
   overflow-wrap: anywhere; }
+
+/* Khung chia sẻ hội thoại (0.171.0, sessions-ui.js moChiaSeHoiThoai). Màn rộng: đứng dưới nút;
+   màn hẹp: tấm trượt từ đáy, chữ tối thiểu 16px cho dễ đọc trên điện thoại. */
+.cts-share-pop { position: fixed; z-index: 1200; width: 360px; max-width: calc(100vw - 24px);
+  background: var(--panel, var(--bg)); color: var(--text); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.28); font-size: 15px; }
+.cts-share-pop .csp-head { display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px 4px; }
+.cts-share-pop .csp-x { background: none; border: 0; color: var(--text3); cursor: pointer; padding: 4px; }
+.cts-share-pop .csp-body { padding: 4px 14px 14px; }
+.cts-share-pop .csp-note { margin: 0 0 10px; color: var(--text2); font-size: 14px; line-height: 1.5; }
+.cts-share-pop .csp-url { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; }
+.cts-share-pop .csp-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.cts-share-pop .csp-acts .gcard-btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.cts-share-pop .csp-danger { color: var(--red); }
+.cts-share-pop .csp-manage { display: inline-block; margin-top: 12px; color: var(--accent); font-size: 14px; }
+@media (max-width: 640px) {
+  .cts-share-pop { top: auto !important; left: 0 !important; right: 0; bottom: 0; width: auto;
+    max-width: none; border-radius: 16px 16px 0 0; font-size: 16px; padding-bottom: env(safe-area-inset-bottom); }
+  .cts-share-pop .csp-note, .cts-share-pop .csp-url, .cts-share-pop .csp-manage { font-size: 16px; }
+}

@@ -346,6 +346,13 @@ th{background:var(--ma)}
 .wk{color:var(--nhan)}
 footer{max-width:760px;margin:40px auto 0;padding-top:16px;border-top:1px solid var(--vien);
  color:var(--mo);font-size:14px}
+.ht-meta{color:var(--mo);font-size:15px;margin:-.4em 0 1.6em}
+.tin{margin:0 0 22px}
+.tin-ai{font-size:14px;font-weight:700;color:var(--mo);margin:0 0 6px;letter-spacing:.02em}
+.tin-nguoi .tin-than{background:var(--ma);border:1px solid var(--vien);border-radius:14px;
+ padding:12px 16px}
+.tin-javis .tin-ai{color:var(--nhan)}
+.tin-than>:last-child{margin-bottom:0}
 """
 
 
@@ -433,3 +440,66 @@ def chen_polyfill_luu_tru(html: str) -> str:
 
 def json_an_toan(o) -> str:
     return json.dumps(o, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------- trang HỘI THOẠI (0.171.0)
+#
+# Một đoạn chat được chia sẻ công khai. Server tự dựng, KHÔNG có script, cùng khung với trang
+# markdown nên cùng CSP_TINH. Chỉ hiện câu người hỏi và câu Javis trả lời: tool, khối ngữ cảnh
+# máy chèn vào đầu tin (file đính kèm, file đang ghim, ngữ cảnh giao diện, lệnh /plan) và khối
+# điều khiển ẩn của Javis đều bị gỡ. Đó là chữ của máy, người đọc link không cần, và khối file
+# đính kèm còn chứa đường dẫn trên máy chủ.
+
+# Khớp `_KHOI_NGU_CANH` của dashboard/app.js (chuNguoiGo): khối đầu tin do giao diện tự chèn.
+KHOI_NGU_CANH = ("[FILE ĐANG MỞ trong trình sửa của Javis:", "[File đính kèm", "[NGỮ CẢNH GIAO DIỆN:",
+                 "[SKILL: ", "[CHẾ ĐỘ KẾ HOẠCH:", "[MỤC TIÊU:")
+_COMMENT_RE = re.compile(r"<!--[\s\S]*?-->")
+
+
+def chu_nguoi_go(text: str) -> str:
+    """Câu người dùng thật sự gõ: gỡ các khối ngữ cảnh ở đầu tin (cùng luật với chuNguoiGo)."""
+    s = str(text or "")
+    for _ in range(6):
+        t = s.lstrip()
+        if not any(t.startswith(k) for k in KHOI_NGU_CANH):
+            break
+        i = t.find("]\n\n")
+        if i < 0:
+            break
+        s = t[i + 3:]
+    return s.strip()
+
+
+def chu_javis_hien(text: str) -> str:
+    """Câu Javis hiện ra: bỏ HTML comment (khối điều khiển JAVIS_* luôn vô hình)."""
+    return _COMMENT_RE.sub("", str(text or "")).strip()
+
+
+def tin_cong_khai(tin: list) -> list:
+    """Lọc danh sách tin của kho phiên thành [(vai, chữ)] để hiện công khai. Bỏ tin rỗng."""
+    ra = []
+    for m in tin or []:
+        vai = m.get("role")
+        if vai == "user":
+            chu = chu_nguoi_go(m.get("content"))
+        elif vai == "assistant":
+            chu = chu_javis_hien(m.get("content"))
+        else:
+            continue
+        if chu:
+            ra.append((vai, chu))
+    return ra
+
+
+def trang_hoi_thoai(tieu_de: str, tin: list, goc_asset: str, meta: str = "", chan: str = "",
+                    nhan_nguoi: str = "", nhan_javis: str = "Javis") -> str:
+    """`tin` = [(vai, chữ)] đã lọc bằng tin_cong_khai. Chữ cả hai phía là markdown: câu người hỏi
+    có trích dẫn (`> ...`) thì hiện thành khối trích dẫn như trong khung chat."""
+    khoi = ["<h1>" + _esc(tieu_de) + "</h1>"]
+    if meta:
+        khoi.append('<p class="ht-meta">' + _esc(meta) + "</p>")
+    for vai, chu in tin:
+        lop, ai = ("tin-nguoi", nhan_nguoi) if vai == "user" else ("tin-javis", nhan_javis)
+        khoi.append('<section class="tin %s"><div class="tin-ai">%s</div><div class="tin-than">%s</div></section>'
+                    % (lop, _esc(ai), md_to_html(chu, goc_asset)))
+    return trang(tieu_de, "\n".join(khoi), chan)
