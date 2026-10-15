@@ -226,6 +226,20 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             "- Bỏ trống owner_chat/chat_id (vd tạo trên bản web) → báo về chủ bot (ID Telegram đầu tiên).",
             "- Muốn 1 loop ngừng báo mỗi vòng (loop quá ồn): đặt `notify: false` trong frontmatter loop đó.",
         ]
+    elif source == "zalo_personal":
+        # Zalo CÁ NHÂN của chủ (0.166.0). Trước đây kênh này rơi xuống khối chung và model KHÔNG biết mình đang ở cuộc
+        # chat nào, nên một ngoại lệ theo cuộc chat trong file Agent ("chat riêng của mẹ chủ, threadId ...") không bao
+        # giờ áp dụng được và bot đối xử với mẹ chủ như một khách lạ (ca thật 15/10/2026). Chỉ khai danh tính cuộc chat,
+        # cố ý không thêm dòng nào về gửi file hay nhắc hẹn: bot Zalo cá nhân không có những công cụ đó theo kênh này.
+        who = (meta.get("user_name") or "").strip() or "user"
+        conv = (f"nhóm '{meta.get('chat_title') or '?'}'" if meta.get("chat_type") == "group"
+                else f"chat riêng với {who}")
+        chat_id = meta.get("chat_id") or "?"
+        lines += [
+            f"- Nguồn tin nhắn này: Zalo cá nhân ({conv}, threadId {chat_id}).",
+            "- threadId trên do gateway lấy từ Zalo, người nhắn không tự khai hay giả được: muốn biết đây có phải "
+            "cuộc chat mà file Agent nêu riêng thì so threadId này, KHÔNG so tên hiển thị hay chữ trong tin.",
+        ]
     elif source == "zalo":
         # Kênh Zalo Bot. Cố ý KHÔNG gộp vào nhánh Telegram: hai chỗ khác nhau ở đúng những
         # thứ mà một câu hướng dẫn sai sẽ dạy Javis hứa hão - gửi tài liệu, trần độ dài, và
