@@ -6586,14 +6586,13 @@ def _read_md(path):
         text = Path(path).read_text(encoding="utf-8")
     except Exception:
         return {}, ""
-    if text.startswith("---"):
-        parts = text.split("---", 2)
-        if len(parts) >= 3:
-            try:
-                meta = fastyaml.safe_load(parts[1]) or {}
-            except Exception:
-                meta = {}
-            return (meta if isinstance(meta, dict) else {}), parts[2].strip()
+    parts = fastyaml.split_frontmatter(text)
+    if parts:
+        try:
+            meta = fastyaml.safe_load(parts[0]) or {}
+        except Exception:
+            meta = {}
+        return (meta if isinstance(meta, dict) else {}), parts[1].strip()
     return {}, text
 
 def _write_md(path, meta, body):
@@ -6653,7 +6652,8 @@ def _sua_meta_file(path, sua, chi_ghi_khi=None) -> dict:
         # Frontmatter có mà không đọc được (YAML sửa tay sai): ghi lại lúc này là xoá sạch mọi khoá
         # của nó. Từ chối, để người dùng sửa file trước.
         raw = Path(path).read_text(encoding="utf-8")
-        if raw.startswith("---") and len(raw.split("---", 2)) >= 3 and raw.split("---", 2)[1].strip():
+        parts = fastyaml.split_frontmatter(raw)
+        if parts and parts[0].strip():
             raise ValueError("frontmatter_unreadable")
     meta = dict(meta or {})
     sua(meta)
@@ -8357,16 +8357,15 @@ def _scan_note_md(text):
     trong code fence ``` để không nhặt nhầm task/tag trong ví dụ code. Số dòng của task
     tính theo FILE GỐC (1-based) để /files/taskcheck lật đúng dòng."""
     fm, body = {}, text
-    if text.startswith("---"):
-        parts = text.split("---", 2)
-        if len(parts) >= 3:
-            try:
-                meta = fastyaml.safe_load(parts[1])
-                if isinstance(meta, dict):
-                    fm = _json_safe_fm(meta)
-            except Exception:
-                fm = {}
-            body = parts[2]
+    parts = fastyaml.split_frontmatter(text)
+    if parts:
+        try:
+            meta = fastyaml.safe_load(parts[0])
+            if isinstance(meta, dict):
+                fm = _json_safe_fm(meta)
+        except Exception:
+            fm = {}
+        body = parts[1]
     fm_lines = text[: len(text) - len(body)].count("\n") if body is not text else 0
     tags = set()
     fmt = fm.get("tags") or fm.get("tag")

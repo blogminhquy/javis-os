@@ -32,6 +32,7 @@ from dataclasses import asdict, dataclass, field, replace as dataclasses_replace
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+import fastyaml
 import resonance_heartbeat as HB
 import resonance_learning as L
 
@@ -2057,8 +2058,8 @@ def _reviewer_role_text(deps: "GoalDeps", slug: str) -> str:
     except OSError:
         return ""
     if raw.startswith("---"):
-        parts = raw.split("---", 2)
-        raw = parts[2] if len(parts) >= 3 else ""
+        parts = fastyaml.split_frontmatter(raw)
+        raw = parts[1] if parts else ""
     return raw.strip()[:REVIEW_ROLE_MAX_CHARS]
 
 
