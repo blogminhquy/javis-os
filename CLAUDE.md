@@ -95,11 +95,11 @@ A plugin is a Python FOLDER you drop in to add a **tool** (callable by engines) 
 
 **When to create a plugin** (do not overuse): when you need a specific, reusable TOOL doable in plain Python (computation, data transformation, reading/writing files under custom rules, calling one simple API) that no MCP covers. If you only need INSTRUCTIONS for using existing tools → write a Skill. If it is an external data source that already has an MCP → connect the MCP.
 
-**Where to write it:** a user plugin goes by default to the GLOBAL `<JAVIS_STATE_DIR>/plugins/<slug>/` so EVERY brain shares it (loadable from Claude Code/Codex too, since it does not depend on the vault). Only when the user wants it PRIVATE to one brain, write `<vault>/plugins/<slug>/`. Both need the env gate `JAVIS_ENABLE_USER_PLUGINS=true`. Each plugin is 2 files (`plugin.yaml` + `plugin.py`) - **the full template is in the `javis-builder` skill**, load it when you actually create one.
+**Where to write it:** a user plugin goes by default to the GLOBAL `<JAVIS_STATE_DIR>/plugins/<slug>/` so EVERY brain shares it (loadable from Claude Code/Codex too, since it does not depend on the vault). Only when the user wants it PRIVATE to one brain, write `<vault>/plugins/<slug>/`. Both load by default. Each plugin is 2 files (`plugin.yaml` + `plugin.py`) - **the full template is in the `javis-builder` skill**, load it when you actually create one.
 
 **SAFETY (MANDATORY):**
 - A plugin created from chat is ALWAYS `enabled: false`. Do not enable it yourself.
-- User plugins (global and vault alike) run REAL PYTHON CODE inside the server process, so the app BLOCKS them by default and only runs them once the user sets the environment variable `JAVIS_ENABLE_USER_PLUGINS=true` (old alias `JAVIS_ENABLE_VAULT_PLUGINS`) and restarts. Always SAY THIS CLEARLY when creating a plugin for the user.
+- User plugins run REAL PYTHON CODE in the server. They load by default (owner, 2026-10-15) and run once their manifest says `enabled: true`, so tell the user clearly it stays off until they enable it in the app. `JAVIS_ENABLE_USER_PLUGINS=false` turns all user plugins off.
 - Set `min_mode` to match what the tool really does: `readonly` for pure reads or computation, `safe` for file writes, `full` for outside actions (sending, paying, ordering, publishing). Plugins may perform outside actions; the permission level of the caller decides whether the call goes through.
 - SYSTEM plugins (bundled in `system/plugins/`, e.g. `datetime-vn`) ship with the app - do not clone them into the vault.
 

@@ -17,8 +17,9 @@ khi có plugin đăng ký (0 overhead khi không plugin nào dùng hook).
 
 AN TOÀN (lớp CỨNG - plugin chạy code Python THẬT trong tiến trình server):
     - Bundled: tự nạp khi effective-enabled (mặc định theo manifest `enabled:`).
-    - Vault:  CHỈ nạp khi env  JAVIS_ENABLE_VAULT_PLUGINS=true  (giống Hermes
-      HERMES_ENABLE_PROJECT_PLUGINS - chống RCE khi ai đó ghi được vào vault) VÀ enabled:true.
+    - Vault:  loaded when the manifest says enabled:true. Since 0.162.0 (owner decision) user and vault
+      plugins load by default; JAVIS_ENABLE_USER_PLUGINS=false opts out (it used to be opt-in, like
+      Hermes HERMES_ENABLE_PROJECT_PLUGINS).
     - Enable-state: bundled ở STATE_DIR/plugins.json (override, KHÔNG mutate file app);
       vault ở frontmatter plugin.yaml.
     - 1 plugin lỗi KHÔNG làm sập hub: mọi load/tool/hook đều bọc try/except.
@@ -105,14 +106,22 @@ def valid_slug(s: Any) -> bool:
     return bool(_SLUG_RE.match(str(s or "")))
 
 
+_OFF_VALUES = ("0", "false", "no", "off")
+
+
 def _env_user_enabled() -> bool:
-    """Cho phép chạy plugin do NGƯỜI DÙNG cài (global STATE_DIR/plugins + vault/plugins). Chúng chạy
-    code Python THẬT trong tiến trình server nên mặc định TẮT - bật bằng JAVIS_ENABLE_USER_PLUGINS=true
-    (hoặc alias cũ JAVIS_ENABLE_VAULT_PLUGINS=true) rồi khởi động lại. Plugin BUNDLED không chịu gate này."""
+    """May user-installed plugins run (global STATE_DIR/plugins + vault/plugins)?
+
+    0.162.0, owner decision: YES BY DEFAULT. Each plugin still runs only when its own manifest says
+    `enabled: true` (a plugin created from chat starts at `enabled: false`), and the permission level
+    of the caller still decides every tool call. Opt out with JAVIS_ENABLE_USER_PLUGINS=false (or
+    the old alias JAVIS_ENABLE_VAULT_PLUGINS=false) and a restart. The new name wins when both are
+    set; an empty value counts as not set. Bundled plugins never go through this gate."""
     for k in ("JAVIS_ENABLE_USER_PLUGINS", "JAVIS_ENABLE_VAULT_PLUGINS"):
-        if str(os.getenv(k, "")).strip().lower() in ("1", "true", "yes", "on"):
-            return True
-    return False
+        v = str(os.getenv(k, "") or "").strip().lower()
+        if v:
+            return v not in _OFF_VALUES
+    return True
 
 
 # Alias tương thích: main.py + code cũ còn gọi _env_vault_enabled().
@@ -663,7 +672,7 @@ def _load_all(vault_root: Optional[str], scope_vault: bool = True) -> dict:
                 continue
             if source in ("user", "vault"):
                 if not env_ok:
-                    continue   # gate CỨNG: plugin user (global+vault) cần JAVIS_ENABLE_USER_PLUGINS=true
+                    continue   # opted out on this machine: JAVIS_ENABLE_USER_PLUGINS=false
                 if not valid_slug(slug):
                     errors[slug] = "slug không hợp lệ"
                     continue
@@ -1138,9 +1147,8 @@ def set_enabled(slug: str, enabled: bool, vault_root: Optional[str] = None) -> d
     invalidate()
     gated = bool(enabled and not _env_user_enabled())
     note = localefmt.chu(
-        "Đã bật trong manifest NHƯNG plugin do người dùng cài chỉ chạy khi đặt biến môi trường "
-        "JAVIS_ENABLE_USER_PLUGINS=true rồi khởi động lại (bảo vệ chống chạy code lạ).",
-        "Enabled in the manifest, BUT user-installed plugins only run once the environment variable "
-        "JAVIS_ENABLE_USER_PLUGINS=true is set and Javis is restarted (protection against running "
-        "unknown code).") if gated else ""
+        "Đã bật trong manifest NHƯNG máy này đang tắt plugin do người dùng cài bằng "
+        "JAVIS_ENABLE_USER_PLUGINS=false. Bỏ biến đó (hoặc đặt true) rồi khởi động lại để chạy.",
+        "Enabled in the manifest, BUT this machine turns user-installed plugins off with "
+        "JAVIS_ENABLE_USER_PLUGINS=false. Remove it (or set it to true) and restart to run it.") if gated else ""
     return {"ok": True, "source": source, "gated": gated, "note": note}

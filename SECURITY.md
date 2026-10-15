@@ -23,4 +23,4 @@ Only the latest release receives security fixes. Please check that the problem s
 
 ## Scope notes
 
-Some behaviour is by design and documented: the CLI brains can run shell commands on the host, user plugins run real Python inside the server (blocked until `JAVIS_ENABLE_USER_PLUGINS=true`), and connections at **Full access** can act on real accounts. A way to get past those safeguards (login, CSRF and DNS-rebinding protection, the plugin gate, connection permission levels) is exactly what we want to hear about.
+Some behaviour is by design and documented: the CLI brains can run shell commands on the host, user plugins run real Python inside the server (loaded by default once enabled in their manifest; `JAVIS_ENABLE_USER_PLUGINS=false` turns them off), and connections at **Full access** can act on real accounts. A way to get past those safeguards (login, CSRF and DNS-rebinding protection, the plugin gate, connection permission levels) is exactly what we want to hear about.

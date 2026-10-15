@@ -390,7 +390,7 @@ Javis を開くと、セットアップウィザードがブラウザの言語�
 | `JAVIS_ALLOWED_HOSTS` | 許可リストに追加するホスト名（CSRF と DNS リバインディング対策） | localhost + あなたのドメイン |
 | `JAVIS_STATE_DIR` | 設定、セッション、暗号化キーの保存先 | `server/`（Docker：`/data/state`） |
 | `BRAINS_DIR` | すべての Brain を収める親フォルダ | `brains/`（Docker：`/brains`） |
-| `JAVIS_ENABLE_USER_PLUGINS` | `true` で自作 Plugin の実行を許可（サーバー内で本物の Python が動きます） | *（オフ）* |
+| `JAVIS_ENABLE_USER_PLUGINS` | `false` で自作 Plugin をオフにします（サーバー内で本物の Python が動きます） | *（オン）* |
 | `TTS_VOICE` / `TTS_RATE` | Edge TTS の声と速度 | `en-US-EmmaMultilingualNeural` / `+5%` |
 
 ---
@@ -401,7 +401,7 @@ Javis を開くと、セットアップウィザードがブラウザの言語�
 - **2FA（TOTP）**、ログイン試行回数の制限、8 文字以上のパスワード、HTTPS 下での `Secure` Cookie、30 日で期限切れになるセッション。
 - **CSRF と DNS リバインディング対策**：不明なオリジンからの書き込みリクエストはすべて拒否されます。
 - **シークレットは暗号化** して `settings.json` に保存されます（API キー、OAuth トークン、ボットトークン）。暗号化キーはマシンごとに異なります。
-- **自作 Plugin はデフォルトでブロック** され、`JAVIS_ENABLE_USER_PLUGINS=true` を設定するまで動きません。
+- **自作 Plugin はデフォルトで読み込まれますが、アプリでオンにするまで各 Plugin はオフのまま** です。すべて止めるには `JAVIS_ENABLE_USER_PLUGINS=false` を設定します。
 - **接続の権限はモデルではなくハブが強制します**：読み取り専用のアカウントを使って送信、支払い、公開を行うことはできません。
 
 脆弱性を見つけた場合は、公開の Issue を立てるのではなく [SECURITY.md](../../../SECURITY.md) の手順に従ってください。

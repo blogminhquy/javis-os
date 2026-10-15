@@ -69,7 +69,7 @@ An important detail about `JAVIS_HOST`: Javis uses a "safe by default" rule. If 
 | `JAVIS_SETUP_2FA` | Open the QR screen for two-factor auth on the Account page. `1` = open it | Off | You want 2FA on from the first sign-in. This flag is only a **reminder**: it does NOT enable 2FA by itself. You must scan the QR and enter one correct code before it is really on, because switching it on before you have proved your app produces valid codes locks you out of your own account. You can turn 2FA on or off any time in Dashboard → Account without this variable. |
 | `JAVIS_SECURE_COOKIE` | Send the cookie only over HTTPS. `1`/`true`/`yes`/`on` = on | Off | Only turn on when you are CERTAIN of end-to-end HTTPS (a custom domain with SSL). Turning it on by mistake behind an HTTP proxy causes a login loop (the right password still bounces you back to the sign-in page). |
 | `JAVIS_ALLOWED_HOSTS` | Extra hostnames allowed to call Javis (CSRF and DNS-rebinding protection). Comma separated | (empty) | Running behind a reverse proxy on a domain not declared in the app, with no password set, and getting 403 "host not allowed". `localhost`, `127.0.0.1`, `::1` and the domain you set in Settings are already allowed. |
-| `JAVIS_ENABLE_USER_PLUGINS` | The HARD gate for plugins you install. Only `true` loads them | Off | You installed a plugin yourself (the global `plugins/` folder or one inside a brain) and want it to run. User plugins run REAL PYTHON CODE inside the server process, so they are blocked by default. Old alias: `JAVIS_ENABLE_VAULT_PLUGINS`. Plugins bundled with the app are not subject to this gate. See [Plugins](20-plugins.md). |
+| `JAVIS_ENABLE_USER_PLUGINS` | The switch that turns off plugins you install. `false` stops loading them | On | Since 0.162.0 plugins you install load by default; each one still runs only after you enable it in the app. Set `false` to block them on this machine (user plugins run REAL PYTHON CODE inside the server process). Old alias: `JAVIS_ENABLE_VAULT_PLUGINS`. Plugins bundled with the app are not subject to this switch. See [Plugins](20-plugins.md). |
 | `JAVIS_TERMINAL` | The switch that removes the Terminal in the Code group entirely. `0`/`off`/`false`/`no` = off | On | You do not want any command line openable from a browser. The Terminal is already only open to a SIGNED-IN browser (API tokens cannot reach it), but many people still want it hard-locked at the server layer. See [The Code group: Terminal](27-code-terminal.md). |
 | `JAVIS_TERMINAL_SHELL` | The shell the Terminal runs | `$SHELL`, falling back to `bash`/`sh`. Windows: `powershell.exe` then `cmd.exe` | You want to force another shell (`zsh`, `fish`, `cmd.exe`). |
 | `JAVIS_TERMINAL_CWD` | The folder the terminal opens in | The HOME of the user running Javis | You want the shell to open at the brain root or another project folder. |
@@ -205,7 +205,7 @@ In the second example, because `JAVIS_HOST=0.0.0.0` (public) Javis turns forced 
 3. If you are unsure what a variable does, leave the `#` (comment) in place. The defaults already work well.
 4. For on/off variables (`JAVIS_REQUIRE_LOGIN`, `JAVIS_SECURE_COOKIE`, `JAVIS_ENABLE_USER_PLUGINS`), on accepts `1`, `true`, `yes`, `on`. Off accepts `0`, `false`, `no`, `off`.
 5. The `.env` file holds passwords and sensitive configuration. Do not put it anywhere public. On a shared machine, restrict read permissions. The `.secret_key` file in the state folder deserves the same care, and matters even more: losing it loses every stored API key.
-6. Turning on `JAVIS_ENABLE_USER_PLUGINS=true` is a weighty decision: plugins you install run real Python code inside the server process. Only turn it on when you know exactly where every plugin in the `plugins/` folder came from.
+6. Plugins you install run real Python code inside the server process. Javis loads them by default but only runs the ones you enabled; only enable a plugin when you know where it came from, and set `JAVIS_ENABLE_USER_PLUGINS=false` if this machine should run none.
 
 ## Common problems
 
@@ -217,7 +217,7 @@ In the second example, because `JAVIS_HOST=0.0.0.0` (public) Javis turns forced 
 
 **Everything returns 403 "host not allowed".** You reached Javis through a domain not on the allowlist, with no password set. Add the domain to `JAVIS_ALLOWED_HOSTS` (or enter it in Settings → Domain and SSL), or simply set a password.
 
-**A plugin is enabled in the app but still does not run.** Plugins you install also need `JAVIS_ENABLE_USER_PLUGINS=true` in `.env` plus a restart. The app states this sentence too when you enable a plugin that is blocked.
+**A plugin is enabled in the app but still does not run.** Check `.env` for `JAVIS_ENABLE_USER_PLUGINS=false`: if it is there, remove it (or set `true`) and restart. The app states this too when you enable a plugin that is turned off.
 
 **You set the workspace name in .env but the app shows another one.** The app prefers the name saved in Settings over the `WORKSPACE_NAME` variable. Edit the name in the app's Settings panel, or clear the saved name so the app falls back to the `.env` value.
 

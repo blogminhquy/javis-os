@@ -62,7 +62,7 @@ async def main():
     plugins_host.set_enabled("tool-audit", False, None)
     assert "javis_tool_stats" not in _names(plugins_host.plugin_tools("full", None)[0])
 
-    # 7) gate vault: dù enabled, thiếu env → không nạp
+    # 7) 0.162.0, owner decision: user plugins LOAD BY DEFAULT; JAVIS_ENABLE_USER_PLUGINS=false opts out
     vault = tempfile.mkdtemp(prefix="javis-vault-")
     pdir = os.path.join(vault, "plugins", "demo-x")
     os.makedirs(pdir)
@@ -71,14 +71,20 @@ async def main():
     with open(os.path.join(pdir, "plugin.py"), "w", encoding="utf-8") as f:
         f.write("def register(ctx):\n"
                 "    ctx.register_tool('demo_ping','ping',lambda a,c:'pong',min_mode='readonly')\n")
-    os.environ["JAVIS_ENABLE_VAULT_PLUGINS"] = ""      # gate OFF
+    os.environ.pop("JAVIS_ENABLE_USER_PLUGINS", None)
+    os.environ.pop("JAVIS_ENABLE_VAULT_PLUGINS", None)   # nothing set: loads by default
     plugins_host.invalidate()
-    assert "demo_ping" not in _names(plugins_host.plugin_tools("full", vault)[0]), "vault plugin ran without gate!"
+    assert "demo_ping" in _names(plugins_host.plugin_tools("full", vault)[0]), "an enabled vault plugin did not load by default"
     d = {x["slug"]: x for x in plugins_host.describe(vault)}
-    assert d["demo-x"]["gated"] is True
-    os.environ["JAVIS_ENABLE_VAULT_PLUGINS"] = "true"  # gate ON (alias cũ vẫn chạy)
+    assert d["demo-x"]["gated"] is False
+    os.environ["JAVIS_ENABLE_VAULT_PLUGINS"] = "false"  # the old alias can still opt out
     plugins_host.invalidate()
-    assert "demo_ping" in _names(plugins_host.plugin_tools("full", vault)[0]), "vault plugin didn't run with gate"
+    assert "demo_ping" not in _names(plugins_host.plugin_tools("full", vault)[0]), "opt-out through the old alias was ignored"
+    assert {x["slug"]: x for x in plugins_host.describe(vault)}["demo-x"]["gated"] is True
+    os.environ["JAVIS_ENABLE_USER_PLUGINS"] = "true"    # the new name wins over the old alias
+    plugins_host.invalidate()
+    assert "demo_ping" in _names(plugins_host.plugin_tools("full", vault)[0]), "JAVIS_ENABLE_USER_PLUGINS=true must win"
+    os.environ.pop("JAVIS_ENABLE_USER_PLUGINS", None)
 
     # 8) GLOBAL plugin (STATE_DIR/plugins) - CHUNG mọi brain + nạp cả khi vault_root=None (đường Claude/Codex)
     os.environ.pop("JAVIS_ENABLE_VAULT_PLUGINS", None)
@@ -89,14 +95,14 @@ async def main():
     with open(os.path.join(gdir, "plugin.py"), "w", encoding="utf-8") as f:
         f.write("def register(ctx):\n"
                 "    ctx.register_tool('demo_global','g',lambda a,c:'G',min_mode='readonly')\n")
-    # gate OFF → không nạp
-    os.environ["JAVIS_ENABLE_USER_PLUGINS"] = ""
+    # opted out with =false: not loaded, reported as gated
+    os.environ["JAVIS_ENABLE_USER_PLUGINS"] = "false"
     plugins_host.invalidate()
-    assert "demo_global" not in _names(plugins_host.plugin_tools("full", None)[0]), "global plugin ran without gate!"
+    assert "demo_global" not in _names(plugins_host.plugin_tools("full", None)[0]), "global plugin ran despite the opt-out"
     dg = {x["slug"]: x for x in plugins_host.describe(None)}
     assert dg["demo-global"]["source"] == "user" and dg["demo-global"]["gated"] is True
-    # gate ON → nạp, và có mặt DÙ vault_root=None (tức mọi brain + Claude/Codex đều thấy)
-    os.environ["JAVIS_ENABLE_USER_PLUGINS"] = "true"
+    # empty value counts as "not set": loads by default, and DESPITE vault_root=None (every brain + Claude/Codex)
+    os.environ["JAVIS_ENABLE_USER_PLUGINS"] = ""
     plugins_host.invalidate()
     names_none = _names(plugins_host.plugin_tools("full", None)[0])          # đường hub (Claude/Codex)
     names_brainA = _names(plugins_host.plugin_tools("full", tempfile.mkdtemp())[0])  # brain bất kỳ

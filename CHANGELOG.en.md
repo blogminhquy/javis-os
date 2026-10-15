@@ -8,10 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.161.0] - 2026-10-15
+## [0.163.0] - 2026-10-15
 ### Added
 - **Assistants can ask a colleague mid-task.** When a workflow step hits something outside the assistant's expertise (say, a sales assistant needs figures checked), it asks the right colleague, gets the answer back and carries on.
 - Only colleagues you list on the `can_ask` line of the assistant's file can be asked. The colleague cannot ask anyone else, each job allows at most 3 asks, and the colleague never runs above the asker's permission level.
+## [0.162.0] - 2026-10-15
+### Security
+- **Plugins you install load by default**, no environment variable needed. Each plugin still runs only after you click **Enable** on its card (a plugin Javis creates from chat always starts disabled), and the permission level still decides every tool call.
+- To block user plugins on a machine altogether (a shared server, bots for strangers), set `JAVIS_ENABLE_USER_PLUGINS=false` and restart.
+
 ## [0.160.0] - 2026-10-15
 ### Improved
 - **The Effort chip reads the real level of Antigravity models** that carry it in their name (e.g. `-high`), on the chip and in the slider popover.

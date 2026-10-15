@@ -390,7 +390,7 @@ Dashboard:                             http://localhost:7777
 | `JAVIS_ALLOWED_HOSTS` | 额外加入允许列表的主机名（CSRF 和 DNS 重绑定防护） | localhost + 你的域名 |
 | `JAVIS_STATE_DIR` | 设置、会话和加密密钥的存放位置 | `server/`（Docker：`/data/state`） |
 | `BRAINS_DIR` | 存放所有 Brain 的上级文件夹 | `brains/`（Docker：`/brains`） |
-| `JAVIS_ENABLE_USER_PLUGINS` | 设为 `true` 后允许运行你自己的 Plugin（在服务器内运行真正的 Python 代码） | *（关闭）* |
+| `JAVIS_ENABLE_USER_PLUGINS` | 设为 `false` 会关闭你自己的 Plugin（它们在服务器内运行真正的 Python 代码） | *（开启）* |
 | `TTS_VOICE` / `TTS_RATE` | Edge TTS 的声音和语速 | `en-US-EmmaMultilingualNeural` / `+5%` |
 
 ---
@@ -401,7 +401,7 @@ Dashboard:                             http://localhost:7777
 - **2FA（TOTP）**、登录频率限制、至少 8 个字符的密码、HTTPS 下的 `Secure` cookie，以及 30 天后过期的会话。
 - **CSRF 和 DNS 重绑定防护**：任何来自未知来源的写入请求都会被拒绝。
 - `settings.json` 中的**密钥均已加密**（API key、OAuth 令牌、机器人令牌），使用每台机器独有的密钥。
-- **你自己的 Plugin 默认被阻止**，直到你设置 `JAVIS_ENABLE_USER_PLUGINS=true`。
+- **你自己的 Plugin 默认会加载，但每个 Plugin 在你于应用中开启前都保持关闭**；设置 `JAVIS_ENABLE_USER_PLUGINS=false` 可全部关闭。
 - **连接权限由 Hub 强制执行**，而不是由模型：只读账号无法被用来发送消息、付款或发布内容。
 
 发现了漏洞？请按照 [SECURITY.md](../../../SECURITY.md) 的说明处理，而不是公开提交 issue。

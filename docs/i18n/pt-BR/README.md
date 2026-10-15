@@ -390,7 +390,7 @@ Todas as linhas podem ficar vazias e o Javis continua rodando. Copie `env.exampl
 | `JAVIS_ALLOWED_HOSTS` | Hostnames extras na lista de permitidos (proteção contra CSRF e DNS rebinding) | localhost + o seu domínio |
 | `JAVIS_STATE_DIR` | Onde ficam as configurações, as sessões e a chave de criptografia | `server/` (Docker: `/data/state`) |
 | `BRAINS_DIR` | Pasta pai que contém todos os Brains | `brains/` (Docker: `/brains`) |
-| `JAVIS_ENABLE_USER_PLUGINS` | `true` deixa os seus próprios plugins rodarem (Python de verdade dentro do servidor) | *(desligado)* |
+| `JAVIS_ENABLE_USER_PLUGINS` | `false` desliga os seus próprios plugins (eles rodam Python de verdade dentro do servidor) | *(ligado)* |
 | `TTS_VOICE` / `TTS_RATE` | Voz e velocidade do Edge TTS | `en-US-EmmaMultilingualNeural` / `+5%` |
 
 ---
@@ -401,7 +401,7 @@ Todas as linhas podem ficar vazias e o Javis continua rodando. Copie `env.exampl
 - **2FA (TOTP)**, limite de tentativas de login, senhas de pelo menos 8 caracteres, cookies `Secure` sob HTTPS e sessões que expiram depois de 30 dias.
 - **Proteção contra CSRF e DNS rebinding**: qualquer requisição de escrita vinda de uma origem desconhecida é rejeitada.
 - **Os segredos ficam criptografados** em `settings.json` (API keys, tokens OAuth, tokens de bots) com uma chave própria de cada máquina.
-- **Os seus próprios plugins ficam bloqueados por padrão** até você definir `JAVIS_ENABLE_USER_PLUGINS=true`.
+- **Os seus próprios plugins são carregados por padrão, mas cada um fica desligado até você ativá-lo** no app; defina `JAVIS_ENABLE_USER_PLUGINS=false` para desligar todos.
 - **As permissões das conexões são aplicadas** pelo hub, não pelo modelo: uma conta somente leitura não pode ser usada para enviar, pagar ou publicar.
 
 Encontrou uma vulnerabilidade? Siga o [SECURITY.md](../../../SECURITY.md) em vez de abrir uma issue pública.

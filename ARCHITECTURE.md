@@ -113,7 +113,8 @@ User docs: [docs/en/10-models-and-engines.md](docs/en/10-models-and-engines.md).
   `substack_mcp.py`). `oauth_mcp.py` does MCP OAuth 2.1 so no engine needs a terminal login.
 - **Plugins.** `plugins_host.py` loads Python plugin folders (`plugin.yaml` + `plugin.py`) from,
   in order: `system/plugins/` (bundled), installed packs, `STATE_DIR/plugins/` (global user
-  plugins) and `<brain>/plugins/`. User plugins run only with `JAVIS_ENABLE_USER_PLUGINS=true`.
+  plugins) and `<brain>/plugins/`. User plugins load by default when their manifest is enabled;
+  `JAVIS_ENABLE_USER_PLUGINS=false` turns them off.
   Javis's own tools (`javis_task`, `javis_schedule`, `javis_ui`, ...) are bundled plugins.
 - **Packs.** `packs.py` loads extension packs from `STATE_DIR/packs/` so connectors and plugins
   can ship without a new release; `pack_install.py`, `packs_fetch.py` (HTTPS only, SSRF

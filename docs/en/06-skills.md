@@ -88,7 +88,7 @@ These two are easy to confuse because both sit in the **Capabilities** group in 
 | Nature | **KNOW-HOW**: a file of instructions the AI reads and follows | **Real Python CODE** running inside the server process |
 | What it produces | A procedure, a template, a set of rules | A new **tool** every engine can call, and/or a **hook** running around each tool call |
 | Where it lives | `skills/<slug>/SKILL.md` in the brain | The `plugins/<slug>/` folder (`plugin.yaml` + `plugin.py`) |
-| How to enable | Tick the checkbox on the card | Plugins you install also need `JAVIS_ENABLE_USER_PLUGINS=true` and a restart |
+| How to enable | Tick the checkbox on the card | Also tick the checkbox on the card. A machine with `JAVIS_ENABLE_USER_PLUGINS=false` does not run plugins you install |
 
 How to choose: if you need **instructions** for working with existing tools, write a Skill. If you need a **specific Python action** no source covers (a computation, a data transformation, a simple API call), write a Plugin. And if it is an external data source that already has a server, connect an MCP on the Connections page rather than writing a plugin. Details in [Plugins](20-plugins.md) and [Connections & business data](09-connections-and-business-data.md).
 

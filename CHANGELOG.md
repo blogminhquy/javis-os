@@ -6,10 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.161.0] - 2026-10-15
+## [0.163.0] - 2026-10-15
 ### Thêm mới
 - **Trợ lý nhờ được đồng nghiệp giữa chừng.** Đang làm một bước quy trình mà gặp phần ngoài chuyên môn (ví dụ trợ lý bán hàng cần soát số) thì trợ lý tự nhờ đúng người, nhận kết quả về rồi làm tiếp.
 - Chỉ nhờ được người bạn ghi trong dòng `can_ask` của file trợ lý. Người được nhờ không nhờ tiếp ai, mỗi việc nhờ tối đa 3 lần, và không bao giờ chạy ở mức quyền cao hơn người nhờ.
+## [0.162.0] - 2026-10-15
+### Bảo mật
+- **Plugin do bạn cài được tải mặc định**, không cần đặt biến môi trường nữa. Từng plugin vẫn chỉ chạy khi bạn bấm **Bật** trên thẻ của nó (plugin Javis tạo qua chat luôn bắt đầu ở trạng thái tắt), và mức quyền vẫn quyết định từng lần gọi tool.
+- Máy nào muốn chặn hẳn plugin người dùng (máy chủ dùng chung, bot cho người lạ) thì đặt `JAVIS_ENABLE_USER_PLUGINS=false` rồi khởi động lại.
+
 ## [0.160.0] - 2026-10-15
 ### Cải thiện
 - **Chip Effort đọc đúng mức của model Antigravity** đã ghi sẵn mức trong tên (vd. `-high`), cả trên chip lẫn trong khung thanh trượt.

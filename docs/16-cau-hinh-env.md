@@ -73,7 +73,7 @@ Chi tiết quan trọng về `JAVIS_HOST`: Javis dùng cơ chế "an toàn mặc
 | `JAVIS_SETUP_2FA` | Mở sẵn màn quét QR bật xác thực 2 lớp ở trang Tài khoản. `1` = mở sẵn | Tắt | Muốn bật 2FA ngay lần đầu đăng nhập. Cờ này chỉ là **lời nhắc**: nó KHÔNG tự bật 2FA. Phải quét QR và nhập đúng một mã thì mới bật thật, vì bật trước lúc bạn chứng minh app sinh đúng mã là tự khoá mình ra ngoài. Bật hay tắt 2FA lúc nào cũng được ngay trong Dashboard → Tài khoản, không cần biến này. |
 | `JAVIS_SECURE_COOKIE` | Bật cookie chỉ gửi qua HTTPS. `1`/`true`/`yes`/`on` = bật | Tắt | Chỉ bật khi CHẮC CHẮN chạy HTTPS đầu-cuối (domain riêng có SSL). Bật nhầm khi proxy đang chạy HTTP sẽ kẹt vòng đăng nhập (nhập đúng mật khẩu vẫn bị đá về trang login). |
 | `JAVIS_ALLOWED_HOSTS` | Thêm hostname được phép gọi Javis (chống CSRF và DNS-rebinding). Nhiều tên cách nhau dấu phẩy | (trống) | Chạy sau reverse proxy với tên miền chưa khai trong app mà chưa đặt mật khẩu, bị 403 "host không được phép". Mặc định đã cho `localhost`, `127.0.0.1`, `::1` và tên miền bạn đặt ở Cài đặt. |
-| `JAVIS_ENABLE_USER_PLUGINS` | Cổng chặn CỨNG cho plugin do bạn cài. `true` mới nạp | Tắt | Bạn tự cài plugin (thư mục `plugins/` toàn cục hoặc trong brain) và muốn nó chạy. Plugin user chạy CODE PYTHON THẬT trong tiến trình server nên mặc định bị chặn. Alias cũ: `JAVIS_ENABLE_VAULT_PLUGINS`. Plugin đi kèm app (bundled) không chịu cổng này. Xem [Plugins](20-plugins.md). |
+| `JAVIS_ENABLE_USER_PLUGINS` | Công tắc tắt hẳn plugin do bạn cài. Đặt `false` là không nạp | Bật | Từ 0.162.0 plugin do bạn cài được tải mặc định; từng plugin vẫn chỉ chạy khi bạn bật nó trong app. Đặt `false` khi muốn chặn hẳn trên máy này (plugin user chạy CODE PYTHON THẬT trong tiến trình server). Alias cũ: `JAVIS_ENABLE_VAULT_PLUGINS`. Plugin đi kèm app (bundled) không chịu công tắc này. Xem [Plugins](20-plugins.md). |
 | `JAVIS_TERMINAL` | Công tắc tắt hẳn Terminal trong nhóm Code. `0`/`off`/`false`/`no` = tắt | Bật | Không muốn có dòng lệnh nào mở được từ trình duyệt. Terminal vốn đã chỉ mở cho trình duyệt ĐÃ ĐĂNG NHẬP (token API không vào được), nhưng nhiều người vẫn muốn khoá cứng ở tầng máy chủ. Xem [Nhóm Code: Terminal](27-tab-code-terminal.md). |
 | `JAVIS_TERMINAL_SHELL` | Shell mà Terminal chạy | `$SHELL`, không có thì `bash`/`sh`. Windows: `powershell.exe` rồi `cmd.exe` | Muốn ép dùng một shell khác (`zsh`, `fish`, `cmd.exe`). |
 | `JAVIS_TERMINAL_CWD` | Thư mục terminal mở ra | HOME của user chạy Javis | Muốn shell mở sẵn ở gốc brain hoặc một thư mục dự án khác. |
@@ -209,7 +209,7 @@ JAVIS_ALLOWED_HOSTS=javis.tencuaban.com
 3. Không chắc một biến làm gì thì cứ để nguyên dấu `#` (chú thích) cho an toàn. Mặc định đã chạy tốt.
 4. Với các biến bật/tắt (`JAVIS_REQUIRE_LOGIN`, `JAVIS_SECURE_COOKIE`, `JAVIS_ENABLE_USER_PLUGINS`), giá trị bật chấp nhận `1`, `true`, `yes`, `on`. Giá trị tắt chấp nhận `0`, `false`, `no`, `off`.
 5. File `.env` chứa mật khẩu và cấu hình nhạy cảm. Không đưa lên nơi công khai. Trên máy chung, đặt quyền đọc hạn chế. Tệp `.secret_key` trong thư mục state cũng vậy, và nó còn quan trọng hơn: mất là mất luôn mọi API key đã lưu.
-6. Bật `JAVIS_ENABLE_USER_PLUGINS=true` là một quyết định có trọng lượng: plugin do bạn cài chạy code Python thật trong tiến trình server. Chỉ bật khi bạn biết rõ từng plugin trong thư mục `plugins/` đến từ đâu.
+6. Plugin do bạn cài chạy code Python thật trong tiến trình server. Javis tải chúng mặc định nhưng chỉ chạy plugin bạn đã bật; chỉ bật plugin khi biết rõ nó đến từ đâu, và đặt `JAVIS_ENABLE_USER_PLUGINS=false` nếu máy này không nên chạy plugin nào.
 
 ## Sự cố thường gặp
 
@@ -221,7 +221,7 @@ JAVIS_ALLOWED_HOSTS=javis.tencuaban.com
 
 **Mọi thao tác trả 403 "host không được phép".** Bạn vào Javis bằng một tên miền chưa nằm trong allowlist, trong lúc chưa đặt mật khẩu. Thêm tên miền vào `JAVIS_ALLOWED_HOSTS` (hoặc nhập nó ở Cài đặt → Tên miền & SSL), hoặc đơn giản là đặt mật khẩu.
 
-**Đã bật plugin trong app rồi mà nó vẫn không chạy.** Plugin do bạn cài cần thêm biến `JAVIS_ENABLE_USER_PLUGINS=true` trong `.env` rồi khởi động lại. Trong app, Javis cũng ghi rõ câu này khi bạn bật một plugin đang bị chặn.
+**Đã bật plugin trong app rồi mà nó vẫn không chạy.** Xem `.env` có dòng `JAVIS_ENABLE_USER_PLUGINS=false` không: có thì bỏ dòng đó (hoặc đặt `true`) rồi khởi động lại. Trong app, Javis cũng ghi rõ câu này khi bạn bật một plugin đang bị tắt.
 
 **Đặt tên workspace trong .env mà app hiển thị tên khác.** App ưu tiên tên đã lưu trong Cài đặt hơn biến `WORKSPACE_NAME`. Sửa tên trong bảng Cài đặt của app, hoặc xoá tên đã lưu để app dùng lại giá trị từ `.env`.
 

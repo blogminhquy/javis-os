@@ -390,7 +390,7 @@ Javis를 열면 설정 마법사가 브라우저 언어로 차근차근 안내�
 | `JAVIS_ALLOWED_HOSTS` | 허용 목록에 추가할 호스트 이름(CSRF 및 DNS 리바인딩 방어) | localhost + 내 도메인 |
 | `JAVIS_STATE_DIR` | 설정, 세션, 암호화 키가 저장되는 위치 | `server/` (Docker: `/data/state`) |
 | `BRAINS_DIR` | 모든 Brain을 담는 상위 폴더 | `brains/` (Docker: `/brains`) |
-| `JAVIS_ENABLE_USER_PLUGINS` | `true` 면 직접 만든 Plugin 실행 허용(서버 안에서 실제 Python이 실행됨) | *(꺼짐)* |
+| `JAVIS_ENABLE_USER_PLUGINS` | `false` 면 직접 만든 Plugin을 끕니다(서버 안에서 실제 Python이 실행됨) | *(켜짐)* |
 | `TTS_VOICE` / `TTS_RATE` | Edge TTS의 음성과 속도 | `en-US-EmmaMultilingualNeural` / `+5%` |
 
 ---
@@ -401,7 +401,7 @@ Javis를 열면 설정 마법사가 브라우저 언어로 차근차근 안내�
 - **2FA (TOTP)**, 로그인 시도 횟수 제한, 8자 이상 비밀번호, HTTPS에서 `Secure` 쿠키, 30일 후 만료되는 세션.
 - **CSRF 및 DNS 리바인딩 방어**: 알 수 없는 출처에서 온 쓰기 요청은 모두 거부됩니다.
 - **비밀 정보는 암호화** 되어 `settings.json` 에 저장됩니다(API 키, OAuth 토큰, 봇 토큰). 암호화 키는 컴퓨터마다 다릅니다.
-- **직접 만든 Plugin은 기본적으로 차단** 되며, `JAVIS_ENABLE_USER_PLUGINS=true` 를 설정해야 실행됩니다.
+- **직접 만든 Plugin은 기본적으로 로드되지만, 앱에서 켜기 전까지 각 Plugin은 꺼져 있습니다**. 모두 끄려면 `JAVIS_ENABLE_USER_PLUGINS=false` 를 설정하세요.
 - **연결 권한은 모델이 아니라 허브가 강제합니다**: 읽기 전용 계정으로는 전송, 결제, 게시를 할 수 없습니다.
 
 취약점을 발견하셨나요? 공개 이슈를 열지 말고 [SECURITY.md](../../../SECURITY.md) 의 절차를 따라 주세요.

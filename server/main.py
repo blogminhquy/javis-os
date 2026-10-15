@@ -11782,7 +11782,7 @@ def _render_javis_index(caps: dict) -> str:
             if p.get("loaded"):
                 stt = "chạy"
             elif p.get("gated"):
-                stt = "⚠ chờ env JAVIS_ENABLE_USER_PLUGINS"
+                stt = "⚠ tắt bằng env JAVIS_ENABLE_USER_PLUGINS=false"
             elif p.get("error"):
                 stt = "⚠ lỗi"
             else:
@@ -11813,7 +11813,7 @@ def _render_javis_index(caps: dict) -> str:
         flags.append(f"- Loop tự tạm dừng (cần xem): {', '.join(paused)}")
     p_gated = [p["slug"] for p in plugins if p.get("gated")]
     if p_gated:
-        flags.append(f"- Plugin bật nhưng bị chặn (đặt env JAVIS_ENABLE_USER_PLUGINS=true): {', '.join(p_gated)}")
+        flags.append(f"- Plugin bật nhưng máy này tắt plugin người dùng (JAVIS_ENABLE_USER_PLUGINS=false): {', '.join(p_gated)}")
     p_err = [p["slug"] for p in plugins if p.get("error")]
     if p_err:
         flags.append(f"- Plugin lỗi nạp: {', '.join(p_err)}")
@@ -11945,7 +11945,7 @@ async def javis_index(brain: str = Query("brain")):
 #   - bundled  <project>/system/plugins/<slug>/     (ship theo app, tin cậy)
 #   - user     <JAVIS_STATE_DIR>/plugins/<slug>/    (TOÀN CỤC - chung MỌI brain; nơi cài mặc định)
 #   - vault    <brain>/plugins/<slug>/              (riêng 1 brain)
-# user + vault chạy code thật → CHỈ nạp khi env JAVIS_ENABLE_USER_PLUGINS=true (alias cũ *_VAULT_*).
+# user + vault run real code: loaded by default since 0.161.0; JAVIS_ENABLE_USER_PLUGINS=false opts out (old alias *_VAULT_*).
 # ============================================================
 @app.post("/image/generate")
 async def image_generate(prompt: str = Form(...), aspect_ratio: str = Form("square"),

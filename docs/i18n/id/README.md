@@ -390,7 +390,7 @@ Setiap baris boleh dibiarkan kosong dan Javis tetap berjalan. Salin `env.example
 | `JAVIS_ALLOWED_HOSTS` | Hostname tambahan di allow-list (perlindungan CSRF dan DNS rebinding) | localhost + domain Anda |
 | `JAVIS_STATE_DIR` | Tempat pengaturan, sesi, dan kunci enkripsi disimpan | `server/` (Docker: `/data/state`) |
 | `BRAINS_DIR` | Folder induk yang menampung setiap Brain | `brains/` (Docker: `/brains`) |
-| `JAVIS_ENABLE_USER_PLUGINS` | `true` mengizinkan plugin buatan Anda sendiri berjalan (Python sungguhan di dalam server) | *(nonaktif)* |
+| `JAVIS_ENABLE_USER_PLUGINS` | `false` mematikan plugin buatan Anda sendiri (menjalankan Python sungguhan di dalam server) | *(aktif)* |
 | `TTS_VOICE` / `TTS_RATE` | Suara dan kecepatan untuk Edge TTS | `en-US-EmmaMultilingualNeural` / `+5%` |
 
 ---
@@ -401,7 +401,7 @@ Setiap baris boleh dibiarkan kosong dan Javis tetap berjalan. Salin `env.example
 - **2FA (TOTP)**, pembatasan percobaan login, password minimal 8 karakter, cookie `Secure` di bawah HTTPS, sesi yang kedaluwarsa setelah 30 hari.
 - **Perlindungan CSRF dan DNS rebinding**: setiap request tulis dari origin yang tidak dikenal akan ditolak.
 - **Secret dienkripsi** di `settings.json` (API key, token OAuth, token bot) dengan kunci per mesin.
-- **Plugin buatan Anda sendiri diblokir secara default** sampai Anda mengatur `JAVIS_ENABLE_USER_PLUGINS=true`.
+- **Plugin buatan Anda dimuat secara default, tetapi tiap plugin tetap mati sampai Anda menyalakannya** di aplikasi; atur `JAVIS_ENABLE_USER_PLUGINS=false` untuk mematikan semuanya.
 - **Izin koneksi ditegakkan** oleh hub, bukan oleh model: akun read-only tidak bisa dipakai untuk mengirim, membayar, atau memublikasikan.
 
 Menemukan celah keamanan? Silakan ikuti [SECURITY.md](../../../SECURITY.md), jangan membuka issue publik.

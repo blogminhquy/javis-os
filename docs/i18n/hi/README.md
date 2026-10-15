@@ -390,7 +390,7 @@ Javis खोलिए और setup wizard आपको आपके browser क�
 | `JAVIS_ALLOWED_HOSTS` | Allow-list में अतिरिक्त hostnames (CSRF और DNS-rebinding से सुरक्षा) | localhost + आपका domain |
 | `JAVIS_STATE_DIR` | Settings, sessions और encryption key कहाँ रहते हैं | `server/` (Docker: `/data/state`) |
 | `BRAINS_DIR` | वह parent folder जिसमें हर Brain रहता है | `brains/` (Docker: `/brains`) |
-| `JAVIS_ENABLE_USER_PLUGINS` | `true` करने पर आपके अपने plugins चल सकते हैं (server के अंदर असली Python) | *(बंद)* |
+| `JAVIS_ENABLE_USER_PLUGINS` | `false` करने पर आपके अपने plugins बंद हो जाते हैं (वे server के अंदर असली Python चलाते हैं) | *(चालू)* |
 | `TTS_VOICE` / `TTS_RATE` | Edge TTS की आवाज़ और गति | `en-US-EmmaMultilingualNeural` / `+5%` |
 
 ---
@@ -401,7 +401,7 @@ Javis खोलिए और setup wizard आपको आपके browser क�
 - **2FA (TOTP)**, login rate limiting, कम से कम 8 अक्षरों वाले passwords, HTTPS के तहत `Secure` cookies, 30 दिन बाद expire होने वाले sessions।
 - **CSRF और DNS-rebinding से सुरक्षा**: किसी अनजान origin से आई हर write request reject कर दी जाती है।
 - **Secrets encrypted रहते हैं** `settings.json` में (API keys, OAuth tokens, bot tokens), हर मशीन की अपनी key से।
-- **आपके अपने plugins default रूप से blocked रहते हैं**, जब तक आप `JAVIS_ENABLE_USER_PLUGINS=true` सेट नहीं करते।
+- **आपके अपने plugins default रूप से load होते हैं, पर हर plugin तब तक बंद रहता है जब तक आप उसे app में चालू नहीं करते**; सभी को बंद करने के लिए `JAVIS_ENABLE_USER_PLUGINS=false` सेट करें।
 - **Connection permissions hub लागू करता है**, model नहीं: read-only account से send, payment या publish नहीं किया जा सकता।
 
 कोई vulnerability मिली? कृपया public issue खोलने के बजाय [SECURITY.md](../../../SECURITY.md) का पालन कीजिए।

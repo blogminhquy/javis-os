@@ -88,7 +88,7 @@ Hai thứ này dễ lẫn vì cùng nằm trong nhóm **Năng lực** trên than
 | Bản chất | Tri thức **CÁCH LÀM**: một file hướng dẫn cho AI đọc rồi làm theo | **CODE Python thật** chạy trong tiến trình server |
 | Cho ra cái gì | Một quy trình, khung mẫu, bộ quy tắc | Một **tool** mới mà mọi engine gọi được, và/hoặc **hook** chạy quanh mỗi lần gọi tool |
 | Nằm ở đâu | `skills/<slug>/SKILL.md` trong brain | Thư mục `plugins/<slug>/` (gồm `plugin.yaml` + `plugin.py`) |
-| Bật thế nào | Tích ô đánh dấu trên thẻ là xong | Plugin do bạn cài còn cần biến môi trường `JAVIS_ENABLE_USER_PLUGINS=true` rồi khởi động lại |
+| Bật thế nào | Tích ô đánh dấu trên thẻ là xong | Cũng tích ô trên thẻ. Máy nào đặt `JAVIS_ENABLE_USER_PLUGINS=false` thì plugin do bạn cài không chạy |
 
 Chọn thế nào: cần **hướng dẫn** làm việc bằng công cụ sẵn có thì viết Skill. Cần một **hành động Python cụ thể** chưa có nguồn nào phủ (tính toán, biến đổi dữ liệu, gọi một API đơn giản) thì viết Plugin. Còn nếu là một nguồn dữ liệu ngoài đã có sẵn server thì đấu MCP ở trang Kết nối, đừng viết plugin. Chi tiết ở [Plugins](20-plugins.md) và [Kết nối & số liệu kinh doanh](09-mcp-va-so-lieu.md).
 

@@ -197,6 +197,7 @@ ctx có `ctx.vault_root`, `ctx.data_dir` (state riêng plugin, không đụng va
   phân biệt được với skill khác (mô tả mơ hồ làm Javis chọn skill sai). Đừng tạo skill trùng
   chức năng skill đã có.
 - Plugin user (toàn cục lẫn vault) chạy CODE PYTHON THẬT trong tiến trình server -> tạo `enabled: false`,
-  `min_mode: readonly`, và NÓI RÕ với user: plugin chỉ chạy khi họ đặt env `JAVIS_ENABLE_USER_PLUGINS=true`
-  rồi khởi động lại (rào chống chạy code lạ). Plugin làm hành động ra ngoài thì khai `min_mode: full` cho đúng, hub xét theo mức quyền của chỗ gọi.
+  `min_mode: readonly`, và NÓI RÕ với user: plugin nằm tắt cho tới khi họ bật nó trong app. Từ 15/10/2026
+  Javis cho tải plugin người dùng mặc định; máy nào muốn chặn hẳn thì đặt env `JAVIS_ENABLE_USER_PLUGINS=false`
+  rồi khởi động lại. Plugin làm hành động ra ngoài thì khai `min_mode: full` cho đúng, hub xét theo mức quyền của chỗ gọi.
 - Sau khi tạo, KHÔNG tự chạy thứ có side-effect; để user xem trước.

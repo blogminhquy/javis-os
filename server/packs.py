@@ -28,6 +28,8 @@ lần đó không phải di trú.
 
 Vì sao thả tay vào đây KHÔNG cần cổng env, còn `<brain>/plugins/` thì cần
 ---------------------------------------------------------------------
+(Since 0.161.0 that gate is open by default and `JAVIS_ENABLE_USER_PLUGINS=false` opts out; the
+reasoning below explains why packs never needed it.)
 `plugins_host` bắt `JAVIS_ENABLE_USER_PLUGINS` cho plugin trong vault vì **model ghi được vào
 vault**: `javis_write_file` mở đúng cây đó, nên "một thư mục ghi được" ở đấy nghĩa là code chạy
 mà không ai bấm gì. `STATE_DIR/packs/` thì không tool nào của Javis ghi tới; ghi được vào đây

@@ -319,7 +319,7 @@ File mẫu cố ý **chỉ có dòng `TÊN=giá trị`, không một dòng chú 
 | `BRAINS_DIR` | Thư mục CHA chứa mọi brain | `brains/` (Docker: `/brains`) |
 | `OBSIDIAN_VAULT_PATH` | Vault Second Brain ngoài (nếu bạn đã có vault sẵn) | `vault/` (Docker: `/data/vault`) |
 | `CLAUDE_CWD` | Thư mục dự phòng của bộ não Claude (chat chạy trong thư mục brain) | repo root |
-| `JAVIS_ENABLE_USER_PLUGINS` | `true` mới cho phép chạy plugin do bạn cài (code Python thật trong server) | *(tắt)* |
+| `JAVIS_ENABLE_USER_PLUGINS` | `false` để tắt plugin do bạn cài (chúng chạy code Python thật trong server) | *(bật)* |
 | `WATCHTOWER_TOKEN` | Token cho nút "Cập nhật ngay" trên bản Docker | `javis-update` |
 | `TTS_VOICE` / `TTS_RATE` | Giọng đọc + tốc độ (Edge TTS) | `en-US-EmmaMultilingualNeural` / `+5%` |
 
@@ -334,7 +334,7 @@ Danh sách đầy đủ mọi biến: [docs/16 - Cấu hình .env](../../../docs
 - **Rate-limit** đăng nhập (khoá tạm sau nhiều lần sai), mật khẩu ≥ 8 ký tự, cookie `secure` khi HTTPS, session hết hạn 30 ngày.
 - **Chặn CSRF và DNS-rebinding**: mọi request ghi có Origin lạ đều bị từ chối.
 - **Khoá bí mật được mã hoá** trong `settings.json` (API key, token OAuth, token bot Telegram, token backup) bằng khoá riêng của máy ở `JAVIS_STATE_DIR/.secret_key`.
-- **Plugin do bạn cài mặc định bị chặn** - phải tự bật `JAVIS_ENABLE_USER_PLUGINS=true` vì chúng chạy code Python thật trong tiến trình server.
+- **Plugin do bạn cài được tải mặc định, nhưng từng plugin vẫn tắt cho tới khi bạn bật nó trong app**; đặt `JAVIS_ENABLE_USER_PLUGINS=false` nếu muốn tắt hết.
 - Truy cập từ xa nên qua **HTTPS** (Hostinger `*.hstgr.cloud` hoặc Cloudflare Tunnel) - đừng phơi cổng thô.
 
 ---

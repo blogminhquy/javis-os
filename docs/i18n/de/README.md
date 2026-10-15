@@ -390,7 +390,7 @@ Jede Zeile darf leer bleiben, und Javis läuft trotzdem. Kopiere `env.example` �
 | `JAVIS_ALLOWED_HOSTS` | Zusätzliche Hostnamen auf der Allow-List (Schutz vor CSRF und DNS-Rebinding) | localhost + deine Domain |
 | `JAVIS_STATE_DIR` | Wo Einstellungen, Sitzungen und der Verschlüsselungsschlüssel liegen | `server/` (Docker: `/data/state`) |
 | `BRAINS_DIR` | Übergeordneter Ordner mit allen Brains | `brains/` (Docker: `/brains`) |
-| `JAVIS_ENABLE_USER_PLUGINS` | `true` erlaubt das Ausführen eigener Plugins (echtes Python im Server) | *(aus)* |
+| `JAVIS_ENABLE_USER_PLUGINS` | `false` schaltet eigene Plugins ab (sie führen echtes Python im Server aus) | *(an)* |
 | `TTS_VOICE` / `TTS_RATE` | Stimme und Geschwindigkeit für Edge TTS | `en-US-EmmaMultilingualNeural` / `+5%` |
 
 ---
@@ -401,7 +401,7 @@ Jede Zeile darf leer bleiben, und Javis läuft trotzdem. Kopiere `env.example` �
 - **2FA (TOTP)**, Begrenzung der Anmeldeversuche, Passwörter mit mindestens 8 Zeichen, `Secure`-Cookies unter HTTPS, Sitzungen, die nach 30 Tagen ablaufen.
 - **Schutz vor CSRF und DNS-Rebinding**: Jede schreibende Anfrage von einem unbekannten Ursprung wird abgelehnt.
 - **Geheimnisse werden verschlüsselt** in `settings.json` (API-Schlüssel, OAuth-Tokens, Bot-Tokens), mit einem Schlüssel pro Rechner.
-- **Eigene Plugins sind standardmäßig blockiert**, bis du `JAVIS_ENABLE_USER_PLUGINS=true` setzt.
+- **Eigene Plugins werden standardmäßig geladen, jedes bleibt aber aus, bis du es in der App einschaltest**; mit `JAVIS_ENABLE_USER_PLUGINS=false` schaltest du alle ab.
 - **Verbindungsberechtigungen werden durchgesetzt** vom Hub, nicht vom Modell: Mit einem Nur-Lese-Konto kann nichts gesendet, bezahlt oder veröffentlicht werden.
 
 Eine Sicherheitslücke gefunden? Bitte folge [SECURITY.md](../../../SECURITY.md), statt ein öffentliches Issue zu eröffnen.

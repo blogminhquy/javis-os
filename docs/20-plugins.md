@@ -39,7 +39,7 @@ Mở dashboard (mặc định tại cổng 7777), nhìn thanh điều hướng b
 Ngay dưới tiêu đề là ba khối giới thiệu:
 
 1. Dòng mô tả: "Plugin thêm **tool** (công cụ engine gọi được) và **hook** native cho Javis mà không sửa lõi - dùng được ở MỌI engine (Claude Code, Codex, API) qua hub, tôn trọng 3 mức quyền như tool khác."
-2. Khung cảnh báo màu cam (chỉ hiện khi chưa mở khoá): "**⚠ Plugin do bạn cài đang bị chặn.** Plugin toàn cục/brain chạy code Python thật trong server nên mặc định TẮT. Để bật: đặt biến môi trường `JAVIS_ENABLE_USER_PLUGINS=true` rồi khởi động lại Javis. Plugin có sẵn (bundled) vẫn chạy bình thường."
+2. Khung cảnh báo màu cam (chỉ hiện khi máy này tắt plugin người dùng): "**⚠ Plugin do bạn cài đang bị tắt trên máy này.** Máy này đặt biến môi trường `JAVIS_ENABLE_USER_PLUGINS=false` nên plugin toàn cục/brain không chạy. Bỏ biến đó (hoặc đặt true) rồi khởi động lại Javis. Plugin có sẵn (bundled) vẫn chạy bình thường."
 3. Dòng chỉ đường xám: "Thả plugin TOÀN CỤC (dùng cho MỌI brain) vào `<đường dẫn thật trên máy bạn>` · mỗi plugin gồm `plugin.yaml` + `plugin.py`. Hoặc bảo Javis trong khung chat: "tạo plugin ..."."
 
 Đường dẫn trong dòng thứ 3 là đường dẫn **thật** trên máy đang chạy Javis, cứ sao chép từ màn hình ra chứ đừng gõ tay theo tài liệu.
@@ -90,7 +90,7 @@ Với plugin **Toàn cục** và **Brain này**, Javis ghi thẳng `enabled: tru
 
 Bật/tắt có hiệu lực ngay, không cần khởi động lại: Javis làm mới bộ nhớ đệm của hub nên tool xuất hiện hoặc biến mất ở lượt chat kế tiếp, và chỉ mục năng lực `Javis/index.md` của brain cũng được dựng lại.
 
-Ngoại lệ duy nhất: nếu bạn bật một plugin **Toàn cục/Brain này** trong khi chưa mở khoá biến môi trường, Javis hiện hộp thoại báo: "Đã bật trong manifest NHƯNG plugin do người dùng cài chỉ chạy khi đặt biến môi trường JAVIS_ENABLE_USER_PLUGINS=true rồi khởi động lại (bảo vệ chống chạy code lạ)." Thẻ khi đó chuyển sang **⚠ chờ bật env**.
+Ngoại lệ duy nhất: nếu bạn bật một plugin **Toàn cục/Brain này** trên máy đặt `JAVIS_ENABLE_USER_PLUGINS=false`, Javis hiện hộp thoại báo: "Đã bật trong manifest NHƯNG máy này đang tắt plugin do người dùng cài bằng JAVIS_ENABLE_USER_PLUGINS=false. Bỏ biến đó (hoặc đặt true) rồi khởi động lại để chạy." Thẻ khi đó chuyển sang **⚠ tắt bằng env**.
 
 ### Bước 3: Kiểm tra tool đã ra tới engine chưa
 
@@ -140,7 +140,7 @@ Từ 0.55.23, một **Gói** cài ở trang **Năng lực > Kho cài đặt** ma
 Khác ba nguồn kia ở ba điểm:
 
 - **Bật, tắt và gỡ đều làm ở Kho cài đặt**, không làm ở đây. Plugin đi theo cả gói, nên tách ra bật lẻ chỉ gây nhầm. Thẻ ở trang này có nút dẫn thẳng sang đó.
-- **Không cần biến môi trường `JAVIS_ENABLE_USER_PLUGINS`.** Gói đi qua trình cài, tức bạn đã xem màn hình liệt kê từng tệp mã rồi mới bấm đồng ý. Đó là cùng một loại bảo đảm mà biến môi trường cung cấp, chỉ theo từng gói thay vì bật tắt tất cả.
+- **Biến môi trường `JAVIS_ENABLE_USER_PLUGINS` không áp cho gói.** Gói đi qua trình cài, tức bạn đã xem màn hình liệt kê từng tệp mã rồi mới bấm đồng ý, và chữ ký mã được đối chiếu mỗi lần nạp.
 - **Mã trong gói bị khoá theo nội dung.** Lúc cài, Javis ghi lại một dấu vân tay của toàn bộ mã trong gói. Mỗi lần nạp, nó tính lại và đối chiếu: lệch một byte là plugin **không chạy**, và thẻ nói rõ "mã trong gói đã đổi so với lúc bạn đồng ý cài". Muốn dùng tiếp thì cài lại ở Kho cài đặt để xem và xác nhận lại.
 
 Lưu ý khi tự sửa: mở tệp `plugin.py` của một gói bằng trình soạn thảo trên Windows rồi lưu là đủ để dấu vân tay lệch, vì nhiều trình soạn thảo tự đổi ký tự xuống dòng. Đó không phải lỗi, chỉ là nội dung tệp thật sự đã khác. Sửa plugin thì nên sửa trong thư mục plugin của bạn chứ không sửa trong gói.
@@ -222,24 +222,25 @@ Vài điều cần nhớ khi viết:
 - Muốn tool tự từ chối khi chưa đủ điều kiện (chưa đăng nhập, thiếu khoá), truyền thêm `check_fn=` là một hàm trả về `None` khi sẵn sàng hoặc một câu tiếng Việt giải thích khi chưa.
 - Một plugin lỗi **không làm sập** Javis: mọi bước nạp, mọi lần gọi tool và hook đều được bọc lại, lỗi chỉ hiện trên thẻ plugin đó.
 
-### Bước 4: Mở khoá bằng biến môi trường
+### Bước 4: Bật plugin
 
-Plugin bạn tự cài **mặc định bị chặn**, kể cả khi `enabled: true`. Để mở khoá:
+Từ 0.162.0, Javis **tải plugin do bạn cài theo mặc định**: plugin nào có `enabled: true` (tức bạn đã bấm **Bật** trên thẻ) là chạy, không cần biến môi trường nào.
+
+Muốn chặn hẳn plugin người dùng trên một máy (ví dụ máy chủ dùng chung):
 
 1. Mở file `.env` ở thư mục gốc dự án (chưa có thì tạo, xem [Cấu hình .env](16-cau-hinh-env.md)).
-2. Thêm một dòng: `JAVIS_ENABLE_USER_PLUGINS=true`
+2. Thêm một dòng: `JAVIS_ENABLE_USER_PLUGINS=false`
 3. Lưu file và **khởi động lại Javis**.
-4. Quay lại trang **Plugins**: khung cảnh báo màu cam biến mất, và plugin đang bật chuyển sang **● đang chạy**.
 
-Giá trị nhận là `1`, `true`, `yes` hoặc `on` (không phân biệt hoa thường). Tên cũ `JAVIS_ENABLE_VAULT_PLUGINS` vẫn còn tác dụng để tương thích, nhưng nên dùng tên mới.
+Giá trị tắt nhận `0`, `false`, `no` hoặc `off` (không phân biệt hoa thường). Tên cũ `JAVIS_ENABLE_VAULT_PLUGINS` vẫn còn tác dụng, nhưng nếu đặt cả hai thì tên mới thắng.
 
 ## Rào an toàn (đọc trước khi cài plugin lạ)
 
 Đây là phần quan trọng nhất của trang này.
 
-- **Plugin do bạn cài chạy mã Python thật, trong chính tiến trình server của Javis.** Nó có quyền của tiến trình đó: đọc ghi file, gọi mạng, đọc biến môi trường. Vì vậy Javis **chặn cứng theo mặc định** và chỉ chạy khi bạn tự tay đặt `JAVIS_ENABLE_USER_PLUGINS=true` rồi khởi động lại. Đây là rào chống việc ai đó ghi được một thư mục vào brain là chạy được mã trên máy bạn.
-- **Chỉ mở khoá khi bạn đã tự đọc mã** của mọi plugin đang nằm trong hai thư mục đó. Biến môi trường này mở khoá cho **tất cả** plugin người dùng, không mở lẻ từng cái.
-- **Plugin có sẵn (nhãn "Có sẵn") không chịu rào này** vì chúng đi kèm bản phát hành Javis. Chúng vẫn chạy bình thường khi biến môi trường chưa bật.
+- **Plugin do bạn cài chạy mã Python thật, trong chính tiến trình server của Javis.** Nó có quyền của tiến trình đó: đọc ghi file, gọi mạng, đọc biến môi trường. Từ 0.162.0 chủ dự án quyết định **cho tải mặc định**; chốt chặn còn lại là công tắc **Bật** của từng plugin (`enabled: true` trong `plugin.yaml`).
+- **Chỉ bật plugin khi bạn đã tự đọc mã của nó.** Lưu ý: ai ghi được vào thư mục `plugins/` (kể cả model, vì nó ghi được vào brain) cũng có thể ghi `enabled: true`. Máy chủ dùng chung hoặc chạy bot cho người lạ thì nên đặt `JAVIS_ENABLE_USER_PLUGINS=false`.
+- **Plugin có sẵn (nhãn "Có sẵn") không chịu công tắc này** vì chúng đi kèm bản phát hành Javis. Chúng vẫn chạy bình thường kể cả khi máy đặt `false`.
 - **Plugin do Javis tạo qua chat luôn ở trạng thái tắt** (`enabled: false`) và mức `readonly`. Javis không tự bật hộ; bạn phải đọc mã rồi tự bấm **Bật**.
 - **Đừng viết plugin để làm hành động tiền bạc, tạo đơn, gửi tin hay đăng bài.** Những việc đó nên đi qua kết nối MCP và hệ mức quyền, nơi đã có lớp chặn và nhật ký. Plugin nên để `min_mode: readonly` trừ khi bạn cố ý cần khác.
 - **Đừng nhân bản plugin có sẵn vào brain.** Chúng đi theo app và tự cập nhật; bản sao trong brain sẽ đè mất bản gốc và không được cập nhật nữa.
@@ -289,7 +290,7 @@ def register(ctx):
 | Bạn thấy | Ý nghĩa / thao tác |
 |---|---|
 | **● đang chạy** (xanh lá) | Plugin đã nạp, tool của nó đang có mặt cho engine |
-| **⚠ chờ bật env** (cam) | Bạn đã bật plugin nhưng chưa đặt `JAVIS_ENABLE_USER_PLUGINS=true`, hoặc đặt rồi mà chưa khởi động lại |
+| **⚠ tắt bằng env** (cam) | Bạn đã bật plugin nhưng máy này đặt `JAVIS_ENABLE_USER_PLUGINS=false` |
 | **⚠ lỗi** (đỏ) | Manifest hỏng hoặc mã nạp không được; lý do hiện ngay dưới hàng chip |
 | **○ tắt** (xám) | Plugin có mặt nhưng đang tắt, không có tool nào ra |
 | **● bật (chưa nạp)** (cam) | Trạng thái hiếm: đã bật nhưng chưa nạp được vì lý do khác. Tải lại trang, nếu vẫn vậy thì xem log server |
@@ -313,7 +314,7 @@ def register(ctx):
 
 ## Sự cố thường gặp
 
-- **Thẻ ghi "⚠ chờ bật env":** bạn chưa đặt `JAVIS_ENABLE_USER_PLUGINS=true`, hoặc đã đặt nhưng chưa khởi động lại Javis. Biến này chỉ được đọc lúc khởi động.
+- **Thẻ ghi "⚠ tắt bằng env":** máy này đặt `JAVIS_ENABLE_USER_PLUGINS=false`. Bỏ dòng đó trong `.env` (hoặc đặt `true`) rồi khởi động lại Javis. Biến này chỉ được đọc lúc khởi động.
 - **Đã đặt biến môi trường mà vẫn bị chặn:** kiểm tra file `.env` nằm đúng thư mục gốc dự án, dòng biến không bị dấu `#` ở đầu, và giá trị là `true` (hoặc `1`/`yes`/`on`). Trên Docker thì đặt biến ở phần Environment của container chứ không phải trong file trên máy chủ.
 - **Plugin mới thả vào mà không hiện trên trang:** thư mục phải nằm **trực tiếp** trong thư mục plugins (không lồng thêm cấp), và bên trong phải có `plugin.py` (hoặc `__init__.py`). Thiếu thì Javis không coi đó là plugin. Tên thư mục cũng phải là slug hợp lệ (chữ thường không dấu).
 - **Thẻ ghi "⚠ lỗi" kèm "thiếu plugin.py":** thư mục chỉ có `plugin.yaml`. Thêm file mã vào.
