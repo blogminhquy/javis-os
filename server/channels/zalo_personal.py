@@ -612,10 +612,14 @@ class Transport:
 
     def _cau_bao_doi(self) -> str:
         """Câu báo chờ theo ngôn ngữ trả lời của bot (bot nói với KHÁCH, nên theo cài đặt của bot, không theo ui_lang)."""
-        lang = str(((self.cfg_fn() if self.cfg_fn else {}) or {}).get("ngon_ngu") or "vi").lower()
-        if lang.startswith("en"):
-            return "Got it, give me a moment to look into this and I will get back to you."
-        return "Dạ em nhận được rồi, đợi em một xíu để em xem rồi gửi lại ạ."
+        import lang_registry
+        import localefmt
+        ma = lang_registry.chuan_hoa(str(((self.cfg_fn() if self.cfg_fn else {}) or {}).get("ngon_ngu") or ""))
+        # "auto" (bám theo khách) không phải một ngôn ngữ: rơi về ngôn ngữ trả lời của máy.
+        return lang_registry.chon_ban_dich(ma or localefmt.ngon_ngu_tra_loi(), {
+            "vi": "Dạ em nhận được rồi, đợi em một xíu để em xem rồi gửi lại ạ.",
+            "en": "Got it, give me a moment to look into this and I will get back to you.",
+        })
 
     async def _tra_loi(self, text: str, meta: dict, thread: str, loai: str, bao_doi: bool):
         """Gọi `answer_fn`; lượt chưa xong sau `BAO_DOI_GIAY` giây thì gửi trước MỘT câu báo chờ rồi chờ tiếp.
