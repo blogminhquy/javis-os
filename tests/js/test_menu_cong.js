@@ -32,7 +32,7 @@ check("a failed brain file lookup says so instead of closing silently", src.inde
 
 ["attach", "brain_file", "commands", "connections", "partners"].forEach(id =>
   check("default item with id " + id, src.indexOf('id: "' + id + '"') !== -1));
-check("Ctrl+U blocks the browser default (source check)", /key === "u"[\s\S]{0,400}preventDefault/.test(src));
+check("Ctrl+U blocks the browser default (source check)", /key === "u"[\s\S]{0,800}preventDefault/.test(src));
 check("the commands item opens the / menu through an input event", src.indexOf('new Event("input"') !== -1);
 check("calling an assistant inserts the same token as the / menu", src.indexOf('"/agent-" + ') !== -1 && src.indexOf('"/workflow-" + ') !== -1);
 check("app.js exposes JavisAttach (pick, upload, addBrainFile, note)", /window\.JavisAttach = \{[\s\S]*pick[\s\S]*upload[\s\S]*addBrainFile[\s\S]*note/.test(app));
@@ -40,5 +40,9 @@ check("composer-plus.js loads after model-picker.js", html.indexOf("model-picker
 check("no Vietnamese in composer-plus.js run code",
   !/[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i.test(src.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "")));
 
+// 0.160.0 follow-ups.
+check("Ctrl+U does nothing when the composer is hidden or its + button is disabled",
+  /key === "u"[\s\S]{0,600}plusBtn[\s\S]{0,120}disabled[\s\S]{0,200}offsetParent/.test(src));
+check("the connections-to-fix count is refreshed each time the menu opens", /function open\(\) \{[\s\S]{0,300}refreshConnHealth\(\)/.test(src));
 if (fails.length) { console.log("\nFAIL - test_menu_cong: " + fails.length); process.exit(1); }
 console.log("\nOK - test_menu_cong: all pass");

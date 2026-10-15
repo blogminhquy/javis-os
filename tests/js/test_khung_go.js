@@ -56,5 +56,12 @@ const slash = fs.readFileSync(path.join(ROOT, "dashboard/chat-slash.js"), "utf8"
 check("the / menu anchors to the card (#hudVoice) and does not cover attachments",
   slash.indexOf('input.closest(".hud-voice") || input') !== -1);
 
+// 0.160.0 follow-ups.
+check("workspace locks send through a flag that app.js honours, so a turn update cannot re-enable it",
+  /dataset\.wsLock/.test(ws) && /sendBtn\.disabled = isProcessing \|\| sendBtn\.dataset\.wsLock === "1"/.test(app)
+  && /function setProcessing\(s\) \{[^}]*sendBtn\.dataset\.wsLock === "1"/.test(app));
+check("leaving the page mid-turn does not re-enable send (workspace asks app.js to resync)", /JavisSyncActiveUI/.test(ws) && /window\.JavisSyncActiveUI = syncActiveUI/.test(app));
+check("no CSS left for the old Effort row and separator", !/\.mb-eff-row|\.mb-eff-btn|\.mb-sep|\.mb-eff \{/.test(css));
+check("mobile-chat.js has no unused modelBar variable", !/var modelBar = /.test(mobile));
 if (fails.length) { console.log("\nFAIL - test_khung_go: " + fails.length); process.exit(1); }
 console.log("\nOK - test_khung_go: all pass");

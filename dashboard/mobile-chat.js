@@ -12,7 +12,6 @@
     // ---- 1) Header mobile: dời chip model + nút + lên header; desktop trả về chỗ cũ ----
     var mbOpen = document.getElementById("mbOpen");
     var mbPop = document.getElementById("mbPop");
-    var modelBar = document.getElementById("modelBar");
     // Since 0.153.0 the model chip lives in the composer's button row (#cpChips); its picker (#mbPop) is a child of the card.
     var chipHost = document.getElementById("cpChips");
     var mbPopHome = mbPop ? mbPop.parentElement : null;

@@ -32,7 +32,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=110">
+  <link rel="stylesheet" href="/static/style.css?v=111">
   <link rel="stylesheet" href="/static/console.css?v=81">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
@@ -886,15 +886,15 @@
   <script src="/static/voice-live.js?v=6"></script>
   <script src="/static/screen-awake.js?v=1"></script>
   <script src="/static/call-bar.js?v=1"></script>
-  <script src="/static/app.js?v=131"></script>
+  <script src="/static/app.js?v=132"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=3"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
        studio.js (ô Model của trợ lý) vì cả hai gọi window.JavisModelList lúc vẽ. -->
   <script src="/static/model-list.js?v=3"></script>
-  <script src="/static/effort-slider.js?v=1"></script>
-  <script src="/static/model-picker.js?v=11"></script>
-  <script src="/static/composer-plus.js?v=2"></script>
+  <script src="/static/effort-slider.js?v=2"></script>
+  <script src="/static/model-picker.js?v=12"></script>
+  <script src="/static/composer-plus.js?v=3"></script>
   <script src="/static/composer-folder.js?v=2"></script>
   <script src="/static/branding.js?v=7"></script>
   <script src="/static/quick-settings.js?v=11"></script>
@@ -906,7 +906,7 @@
        console.js (renderWorkspace ủy quyền cho window.JavisWorkspace). -->
   <!-- Tab Công việc của trợ lý (0.142.0): nạp TRƯỚC workspace.js, workspace.js gọi window.JavisAgentJobs. -->
   <script src="/static/agent-jobs.js?v=2"></script>
-  <script src="/static/workspace.js?v=18"></script>
+  <script src="/static/workspace.js?v=19"></script>
   <script src="/static/packs.js?v=1"></script>
   <!-- Hộp chọn thành viên kiểu Zalo (0.142.0): nạp TRƯỚC teams.js, teams.js gọi window.JavisTeamPicker. -->
   <script src="/static/team-picker.js?v=1"></script>
@@ -931,7 +931,7 @@
   <!-- Phần đọc cấu hình của form "Tự thêm MCP" (thuần, có test node). Nạp TRƯỚC console.js. -->
   <script src="/static/mcp-form-parse.js?v=1"></script>
   <script src="/static/console.js?v=169"></script>
-  <script src="/static/mobile-chat.js?v=12"></script>
+  <script src="/static/mobile-chat.js?v=13"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>
   <script src="/static/install-nudge.js?v=1"></script>

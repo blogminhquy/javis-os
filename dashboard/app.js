@@ -32,7 +32,8 @@ function updateStopBtn() {
 function syncActiveUI() {
   const t = savedSessionId ? turns[savedSessionId] : null;
   isProcessing = !!(t && t.running);
-  sendBtn.disabled = isProcessing;
+  // Workspace may lock send while its session is not ready (dataset.wsLock); both reasons count.
+  sendBtn.disabled = isProcessing || sendBtn.dataset.wsLock === "1";
   // Đang trả lời thì khoá nút gửi lại của mọi tin (CSS .transcript.busy) cho khỏi chồng lượt.
   try { chatArea.classList.toggle("busy", isProcessing); } catch (e) {}
   updateStopBtn();
@@ -2331,7 +2332,9 @@ function hideActivity() {
   if (activityEl && activityEl.parentNode) activityEl.parentNode.removeChild(activityEl);
   activityEl = null;
 }
-function setProcessing(s) { isProcessing = s; sendBtn.disabled = s; }
+function setProcessing(s) { isProcessing = s; sendBtn.disabled = s || sendBtn.dataset.wsLock === "1"; }
+// workspace.js calls this after changing its lock, so send ends up disabled for the right reason.
+window.JavisSyncActiveUI = syncActiveUI;
 
 // ============================================
 // Cuộn thông minh: chỉ tự cuộn khi user đang ở đáy; đang đọc lại phía trên thì

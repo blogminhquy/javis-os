@@ -91,6 +91,18 @@
     closeOthers();
     menu.hidden = false; btn.setAttribute("aria-expanded", "true");
     render(topRows());
+    refreshConnHealth();
+  }
+  // The "Connections" row hint counts connections that need reconnecting. Re-read it each time
+  // the menu opens (cheap, cached on the server) and redraw the top rows if it changed.
+  function refreshConnHealth() {
+    getJson("/connect/health").then(function (d) {
+      var h = (d && d.health) || {};
+      var n = Object.keys(h).filter(function (k) { return h[k] && h[k].ok === false; }).length;
+      if (n === badConn) return;
+      badConn = n;
+      if (isOpen() && !menu.querySelector("[data-back]")) render(topRows());
+    });
   }
   // Panel items draw their own body (search box, custom rows) under a back row.
   function openPanel(it) {
@@ -239,6 +251,10 @@
     document.addEventListener("keydown", function (e) {
       var key = String(e.key || "").toLowerCase();
       if (key === "u" && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+        // Only when the composer is usable: on a page without it, or while Workspace has
+        // disabled the + button, a file would land in a composer nobody can see.
+        var pb = $("plusBtn"), card = $("hudVoice");
+        if (!pb || pb.disabled || !card || card.offsetParent === null) return;
         var a = document.activeElement;
         var other = a && a !== input() && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
         if (other) return;
@@ -246,11 +262,8 @@
         if (window.JavisAttach) window.JavisAttach.pick();
       }
     });
-    // Count connections that need reconnecting for the "Connections" row (read once at page load).
-    getJson("/connect/health").then(function (d) {
-      var h = (d && d.health) || {};
-      badConn = Object.keys(h).filter(function (k) { return h[k] && h[k].ok === false; }).length;
-    });
+    // First count at page load; refreshed again each time the menu opens.
+    refreshConnHealth();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 

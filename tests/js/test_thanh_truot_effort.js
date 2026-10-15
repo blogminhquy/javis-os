@@ -29,5 +29,17 @@ check("the slider has role=slider and arrow keys", srcSlider.indexOf('"slider"')
 check("respects reduced motion", srcSlider.indexOf("prefers-reduced-motion") !== -1);
 check("no Vietnamese in effort-slider.js run code", !/[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i.test(srcSlider.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "")));
 
+// 0.160.0 follow-ups.
+check("the level baked into an Antigravity name is read for display",
+  S.lockedLevel("gemini-3.8-flash-high") === "high" && S.lockedLevel("m-minimal") === "low" && S.lockedLevel("m-max") === "ultra"
+  && S.lockedLevel("m-xhigh") === "xhigh" && S.lockedLevel("plain") === "");
+check("a locked model shows its own level on the chip and in the popover, not the global one",
+  (picker.match(/JavisEffortSlider\.lockedLevel\(/g) || []).length >= 2);
+const drawBody = (srcSlider.match(/function draw\(t\) \{[\s\S]*?\n    \}\n/) || [""])[0];
+check("the animation frame does not re-read styles or media queries", drawBody && !/getComputedStyle|matchMedia|reduced\(\)/.test(drawBody), drawBody.slice(0, 200));
+check("the canvas is only resized when the track size changes", /if \(cv\.width !== W \|\| cv\.height !== H\)/.test(srcSlider));
+check("a cancelled touch drag stops dragging", /pointercancel/.test(srcSlider) && /lostpointercapture/.test(srcSlider));
+check("the effort popover is kept inside the card", /function effOpen\(\)[\s\S]{0,1500}pop\.offsetWidth[\s\S]{0,200}Math\.min\(btn\.offsetLeft, maxLeft\)/.test(picker));
+check("the unused effortLabel export is gone", picker.indexOf("effortLabel") === -1);
 if (fails.length) { console.log("\nFAIL - test_thanh_truot_effort: " + fails.length); process.exit(1); }
 console.log("\nOK - test_thanh_truot_effort: all pass");

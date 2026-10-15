@@ -10,6 +10,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Thêm mới
 - **Trợ lý nhờ được đồng nghiệp giữa chừng.** Đang làm một bước quy trình mà gặp phần ngoài chuyên môn (ví dụ trợ lý bán hàng cần soát số) thì trợ lý tự nhờ đúng người, nhận kết quả về rồi làm tiếp.
 - Chỉ nhờ được người bạn ghi trong dòng `can_ask` của file trợ lý. Người được nhờ không nhờ tiếp ai, mỗi việc nhờ tối đa 3 lần, và không bao giờ chạy ở mức quyền cao hơn người nhờ.
+## [0.160.0] - 2026-10-15
+### Cải thiện
+- **Chip Effort đọc đúng mức của model Antigravity** đã ghi sẵn mức trong tên (vd. `-high`), cả trên chip lẫn trong khung thanh trượt.
+- **Khung thanh trượt không còn tràn mép** màn hình hẹp, và hiệu ứng hạt cam nhẹ máy hơn (không đo lại mỗi khung hình); vuốt dở trên điện thoại không còn làm thanh trượt tự nhảy.
+- **Ctrl+U chỉ mở chọn file khi có khung gõ** đang dùng được, không mở ở trang khác hay lúc khung gõ đang khoá.
+- **Số kết nối cần làm lại ở menu +** được đếm lại mỗi lần mở menu.
+- **Rời trang Cộng sự giữa lượt chat** không còn làm nút Gửi bật lại nhầm.
+
 ## [0.159.0] - 2026-10-15
 ### Cải thiện
 - **Ghim thư mục chắc tay hơn:** đổi sang brain khác thì thư mục đang chờ ghim không bị gắn nhầm sang brain mới; thư mục trong brain chọn qua hộp duyệt không còn bị ghi nhầm là "ngoài brain"; ô tìm chỉ trả về thư mục nên không còn bị file chiếm chỗ.

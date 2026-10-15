@@ -39,7 +39,15 @@
     ready = value;
     var input = document.getElementById("chatInput");
     if (input) input.disabled = !value;
-    ["plusBtn", "sendBtn"].forEach(function (id) { var b = document.getElementById(id); if (b) b.disabled = !value; });
+    ["plusBtn", "sendBtn"].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (!b) return;
+      if (id === "plusBtn") { b.disabled = !value; return; }
+      // Send has two owners: this lock and a running turn in app.js. Set the lock and let app.js
+      // decide, so leaving the page mid-turn does not re-enable send.
+      b.dataset.wsLock = value ? "" : "1";
+      if (window.JavisSyncActiveUI) window.JavisSyncActiveUI(); else b.disabled = !value;
+    });
     var files = S.el && S.el.querySelector("#wsFiles"); if (files) files.disabled = !value;
     var run = S.el && S.el.querySelector("#wsRun");
     if (run) run.disabled = !value;

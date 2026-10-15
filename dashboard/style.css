@@ -2154,8 +2154,6 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   flex: 0 1 auto; min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; }
 .mb-chip:hover { color: var(--text); border-color: var(--accent); }
 .mb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex: none; }
-.mb-sep { opacity: .4; }
-.mb-eff { color: var(--accent2); }
 .mb-caret { opacity: .6; font-size: 10px; }
 .mb-pop { position: absolute; bottom: calc(100% + 6px); left: 8px; z-index: 60; width: 340px;
   max-height: 62vh; overflow: auto; background: var(--bg2); border: 1px solid var(--border);
@@ -2215,13 +2213,6 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .mb-empty { font-size: 12px; color: var(--text3); padding: 4px 10px 8px; }
 .mb-link { font-size: 12px; color: var(--accent2); padding: 4px 10px 8px; cursor: pointer; }
 .mb-link:hover { text-decoration: underline; }
-.mb-eff-row { display: flex; gap: 6px; border-top: 1px solid var(--border); margin-top: 6px; padding: 8px 4px 4px; }
-.mb-eff-row .lbl { font-size: 11px; color: var(--text3); align-self: center; margin-right: 2px; }
-.mb-eff-btn { flex: 1; font-size: 12px; color: var(--text2); background: var(--bg3);
-  border: 1px solid var(--border); border-radius: 8px; padding: 5px; cursor: pointer; text-align: center;
-  font-family: var(--font); }
-.mb-eff-btn:hover { color: var(--text); }
-.mb-eff-btn.cur { background: var(--accent2-wash-2); color: var(--accent2); border-color: var(--accent2); }
 
 /* ============================================================
    Chat render (chat-render.js): markdown day du + code highlight + ARTIFACT

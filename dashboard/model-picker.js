@@ -103,7 +103,13 @@
           : window.t("mpick.follow_default");
     }
     const eb = $("effTxt");
-    if (eb) eb.textContent = window.t(EFF_KEY[(EFFORT.find((e) => e[0] === state.reasoning) || EFFORT[0])[0]]);
+    if (eb) {
+      // A locked Antigravity model runs at the level in its name, so the chip shows that level.
+      const effM = effective();
+      const own = window.JavisEffortSlider && window.JavisEffortSlider.isLocked(effM.provider, effM.model)
+        ? window.JavisEffortSlider.lockedLevel(effM.model) : "";
+      eb.textContent = window.t(EFF_KEY[own || (EFFORT.find((e) => e[0] === state.reasoning) || EFFORT[0])[0]]);
+    }
     renderFast();
   }
 
@@ -180,13 +186,19 @@
     close(); closePlus();
     const eff = effective();
     pop.hidden = false;
-    pop.style.left = btn ? (btn.offsetLeft) + "px" : "8px";
+    const locked = window.JavisEffortSlider.isLocked(eff.provider, eff.model);
     if (btn) btn.setAttribute("aria-expanded", "true");
     effSlider = window.JavisEffortSlider.mount(pop, {
       value: state.reasoning,
-      locked: window.JavisEffortSlider.isLocked(eff.provider, eff.model),
+      locked: locked,
+      lockedValue: locked ? window.JavisEffortSlider.lockedLevel(eff.model) : "",
       onChange: async (v) => { state.reasoning = v; renderBar(); await saveModel({ reasoning: v }); },
     });
+    // Keep the popover inside the card: on a narrow phone the chip sits far enough right that a
+    // popover opened at its left edge would spill past the screen.
+    const card = pop.offsetParent;
+    const maxLeft = card ? Math.max(8, card.clientWidth - pop.offsetWidth - 8) : 8;
+    pop.style.left = (btn ? Math.min(btn.offsetLeft, maxLeft) : 8) + "px";
     if (effSlider.focus) effSlider.focus();
   }
   function effClose() {
@@ -310,7 +322,6 @@
       return r;
     },
     fastNote: fastNote,
-    effortLabel: function () { return window.t(EFF_KEY[state.reasoning] || "eff.off"); },
     hienTai: function () {
       const eff = effective();
       const p = state.providers.find((x) => x.id === eff.provider);
