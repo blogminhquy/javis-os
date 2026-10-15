@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.172.0] - 2026-10-16
+### Cải thiện
+- (đang viết)
+
 ## [0.171.4] - 2026-10-16
 ### Sửa lỗi
 - **Gọi tên trợ lý trong nhóm mà không gắn @ giờ được nhận ra.** Trước đây trợ lý tên Minh không bao giờ nghe thấy "Minh ơi", vì khi bỏ dấu, "Minh" trùng với chữ "mình" và bị bỏ qua. Javis giờ so cả dấu, nên "nhóm mình" vẫn không bị hiểu là gọi Minh.
