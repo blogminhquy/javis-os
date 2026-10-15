@@ -41,14 +41,13 @@ _ALLOWED_TOP = ("agents/", "workflows/", "skills/")
 
 def _parse(text: str):
     """(meta dict, body) từ file .md có frontmatter YAML."""
-    if (text or "").startswith("---"):
-        parts = text.split("---", 2)
-        if len(parts) >= 3:
-            try:
-                meta = fastyaml.safe_load(parts[1]) or {}
-            except Exception:
-                meta = {}
-            return (meta if isinstance(meta, dict) else {}), parts[2]
+    parts = fastyaml.split_frontmatter(text)
+    if parts:
+        try:
+            meta = fastyaml.safe_load(parts[0]) or {}
+        except Exception:
+            meta = {}
+        return (meta if isinstance(meta, dict) else {}), parts[1]
     return {}, (text or "")
 
 

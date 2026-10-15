@@ -11,6 +11,8 @@ Javis chạy). Thiếu thì tự rơi về bản Python, không vỡ gì.
 
 Dùng: `import fastyaml` rồi `fastyaml.safe_load(text)` - thay thẳng cho `yaml.safe_load`.
 """
+import re
+
 import yaml
 
 try:
@@ -37,3 +39,29 @@ def safe_load(stream):
         return yaml.load(stream, Loader=_CLoader)
     except yaml.YAMLError:
         return yaml.load(stream, Loader=_PyLoader)
+
+
+# Frontmatter delimiters are LINES of their own. Splitting on the first "---" anywhere cut a
+# workflow whose `task:` said "... giữa hai dòng --- gồm ..." in half and silently dropped its
+# later steps (16 steps read as 14, 2026-10-15).
+_FM_OPEN_RE = re.compile(r"---[ \t]*\r?\n")
+_FM_CLOSE_RE = re.compile(r"^---[ \t]*\r?$", re.MULTILINE)
+
+
+def split_frontmatter(text):
+    """(header, body) of a Markdown file with a YAML frontmatter block, or None if it has none.
+
+    Both delimiters must be a line holding only `---` (trailing spaces and CRLF allowed); a
+    `---` inside a sentence is content. For a valid file the result is byte-identical to the
+    old `text.split("---", 2)[1:]`: header is everything between the two delimiter lines
+    (newlines included) and body starts right after the closing dashes.
+    """
+    if not text or not text.startswith("---"):
+        return None
+    m = _FM_OPEN_RE.match(text)
+    if not m:
+        return None
+    c = _FM_CLOSE_RE.search(text, m.end())
+    if not c:
+        return None
+    return text[3:c.start()], text[c.start() + 3:]

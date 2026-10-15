@@ -194,14 +194,13 @@ def resolve_skill_file(root, slug: str) -> Optional[Path]:
 
 def split_frontmatter(text: str):
     """(meta dict, body). Không có frontmatter → ({}, text). Tha lỗi YAML."""
-    if (text or "").startswith("---"):
-        parts = text.split("---", 2)
-        if len(parts) >= 3:
-            try:
-                meta = fastyaml.safe_load(parts[1]) or {}
-            except Exception:
-                meta = {}
-            return (meta if isinstance(meta, dict) else {}), parts[2]
+    parts = fastyaml.split_frontmatter(text)
+    if parts:
+        try:
+            meta = fastyaml.safe_load(parts[0]) or {}
+        except Exception:
+            meta = {}
+        return (meta if isinstance(meta, dict) else {}), parts[1]
     return {}, (text or "")
 
 

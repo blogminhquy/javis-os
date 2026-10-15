@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.166.1] - 2026-10-15
+### Fixed
+- **Workflows, agents and skills no longer lose content when their header has `---` mid-sentence.** A phrase like "between two --- lines" in a task description used to cut the header short, so a 16-step workflow showed 14 steps with no error.
+- Only a line holding just `---` now ends the header; files that were already well formed read exactly as before.
+
 ## [0.165.1] - 2026-10-15
 ### Fixed
 - **Files and links in a Project (and in each conversation) stay newest first** even when two were added in the same instant. Before, two items with the same timestamp could swap places at random between visits.
