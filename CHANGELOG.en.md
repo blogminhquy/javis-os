@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.165.2] - 2026-10-15
+### Fixed
+- **A "run a task" reminder that answers `[SILENT]` now stays quiet**, like a script job. A watcher that runs every 10 minutes no longer posts an empty message to Telegram or the chat on every idle run; the result is still kept on the reminder for review.
+
 ## [0.165.1] - 2026-10-15
 ### Fixed
 - **Files and links in a Project (and in each conversation) stay newest first** even when two were added in the same instant. Before, two items with the same timestamp could swap places at random between visits.

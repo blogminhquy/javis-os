@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.165.2] - 2026-10-15
+### Sửa lỗi
+- **Lịch nhắc kiểu "chạy nhiệm vụ" trả lời `[SILENT]` thì không nhắn gì nữa**, giống job script. Lịch canh việc chạy 10 phút một lần giờ không còn bắn tin rỗng lên Telegram hay khung chat mỗi lượt không có việc; kết quả vẫn lưu trong lịch để xem lại.
+
 ## [0.165.1] - 2026-10-15
 ### Sửa lỗi
 - **Danh sách tài liệu và link trong Project (và trong từng hội thoại) giữ đúng thứ tự mới nhất trước** kể cả khi hai mục được thêm cùng một tích tắc. Trước đây hai mục trùng giờ có thể đổi chỗ cho nhau ngẫu nhiên giữa các lần mở.
