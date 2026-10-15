@@ -92,7 +92,14 @@ def _jittered_backoff(attempt: int, base: float = 1.0, max_delay: float = 8.0, j
 
 
 _RETRY_STATUS = {408, 429, 502, 503, 504, 529}   # 529 = Anthropic/OpenRouter "Overloaded" (transient)
-_RETRY_EXC = (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.ConnectError, httpx.RemoteProtocolError)
+# Lỗi mạng đáng chạy lại. `httpx.NetworkError` gom ConnectError, ReadError, WriteError, CloseError.
+# Trước 0.171.2 chỉ có ConnectError: kết nối mở được rồi bị cắt giữa chừng (ReadError, vd
+# "[WinError 1236] The network connection was aborted by the local system" trên Windows, thường do
+# mạng chập chờn, VPN hay phần mềm diệt virus) thì không được chạy lại, cả lượt chết ngay cú đầu.
+_MANG_GAY = (httpx.NetworkError, httpx.RemoteProtocolError)
+_RETRY_EXC = (httpx.ReadTimeout, httpx.ConnectTimeout) + _MANG_GAY
+# Số lần gửi MỘT vòng gọi model trong vòng tool khi kết nối gãy (xem `_gui_vong`).
+_LAN_GUI_VONG = 3
 
 # Cụm từ trong BODY báo lỗi tạm thời - bắt ca provider trả overload/rate-limit dưới status KHÔNG retriable
 # (vd 400/402/200-with-error). Hẹp & nghiêng "overload/throttle" để 400 sai-format thật KHÔNG khớp.
@@ -243,9 +250,52 @@ def ev_loi_exc(nhan, exc):
     và mỗi lần chạy lại là một lượt gọi model thật đã trả tiền.
     """
     ev = {"type": "error", "content": f"{nhan}: {_describe_exc(exc)}"}
+    da_thu = getattr(exc, "_javis_da_thu", 0)
+    if da_thu:
+        # `_gui_vong` đã gửi lại vòng này đủ số lần. Không gắn `tam_thoi` nữa, kẻo tầng
+        # `thu_lai_khi_tam_thoi` chạy lại cả lượt và số lần gọi nở thành cấp số nhân.
+        ev["content"] += _c(f" (đã thử lại {da_thu} lần)", f" (retried {da_thu} times)") + _goi_y_mang()
+        return ev
     if isinstance(exc, _RETRY_EXC):
         ev["tam_thoi"] = True
+    if isinstance(exc, _MANG_GAY):
+        ev["mang"] = True
     return ev
+
+
+def _goi_y_mang() -> str:
+    """Câu dặn khi kết nối tới nhà cung cấp gãy hẳn sau mọi lần thử: chuỗi lỗi kỹ thuật một mình
+    không nói được người ta phải làm gì."""
+    return _c(" - kết nối tới nhà cung cấp bị cắt giữa chừng. Thường do mạng chập chờn, VPN, hoặc phần mềm "
+              "diệt virus/tường lửa trên máy chặn kết nối. Gửi lại tin là được; lặp lại nhiều lần thì kiểm "
+              "tra mạng và tạm tắt quét HTTPS của phần mềm diệt virus.",
+              " - the connection to the provider was cut mid-request. Usually a flaky network, a VPN, or an "
+              "antivirus/firewall on this machine dropping the connection. Send the message again; if it keeps "
+              "happening, check the network and turn off the antivirus HTTPS scanning.")
+
+
+async def _gui_vong(gui, nhan=""):
+    """Gửi MỘT vòng gọi model của vòng tool, gửi lại khi kết nối gãy giữa chừng (0.171.2).
+
+    Vòng tool gọi model nhiều lần trong một lượt. `thu_lai_khi_tam_thoi` chỉ chạy lại cả lượt
+    khi CHƯA chạy tool nào, nên một cú rớt mạng ở vòng thứ hai trở đi giết trọn lượt, dù tool đã
+    chạy xong và chỉ còn đợi model viết câu trả lời. Gửi lại đúng request đó thì an toàn: request
+    gãy chưa trả về gì, tool không chạy lại, cái mất duy nhất là tiền một lượt gọi model.
+
+    Chỉ gửi lại khi MẠNG gãy, không gửi lại khi hết giờ chờ: một request 180 giây mà gửi lại ba
+    lần là người ta ngồi nhìn màn hình chín phút. Hết lượt thì ném đúng lỗi gốc, gắn số lần đã thử
+    để `ev_loi_exc` nói cho người dùng."""
+    for lan in range(1, _LAN_GUI_VONG + 1):
+        try:
+            return await gui()
+        except _MANG_GAY as e:
+            if lan >= _LAN_GUI_VONG:
+                e._javis_da_thu = lan
+                raise
+            cho = _jittered_backoff(lan)
+            print(f"[thử lại vòng {nhan or '?'}] lần {lan} rớt mạng, chờ {cho:.1f}s: {_describe_exc(e)[:160]}",
+                  file=sys.stderr)
+            await asyncio.sleep(cho)
 
 
 async def thu_lai_khi_tam_thoi(tao_stream, *, so_lan=3, nhan=""):
@@ -310,6 +360,8 @@ async def thu_lai_khi_tam_thoi(tao_stream, *, so_lan=3, nhan=""):
             cuoi["da_thu"] = lan
             if lan > 1:
                 cuoi["content"] = cuoi["content"] + _c(f" (đã thử lại {lan} lần)", f" (retried {lan} times)")
+            if cuoi.pop("mang", None):
+                cuoi["content"] += _goi_y_mang()
             # Câu này đi thẳng lên thẻ bot của CHỦ. Một cục JSON của nhà cung cấp không nói
             # được phải làm gì tiếp, mà đó đúng là thứ chủ cần biết khi nhìn thẻ đỏ.
             if loi_hoan.get("ma") == 429:
@@ -1810,7 +1862,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                 if requirement != "required" else "required"
             )
         payload.update(reasoning_extra or {})
-        try:
+        async def _gui(payload=payload):
             async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=15)) as client:
                 r = await client.post(url, headers=headers, json=payload)
                 # Một số endpoint OpenAI-compatible chỉ nhận "required", không nhận named choice.
@@ -1818,6 +1870,9 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                         and requirement not in (None, "required")):
                     payload["tool_choice"] = "required"
                     r = await client.post(url, headers=headers, json=payload)
+            return r
+        try:
+            r = await _gui_vong(_gui, label)
             if r.status_code == 200 and (reasoning_extra or {}).get("service_tier"):
                 fast_mode.remember(str(label).lower(), "on")
             if r.status_code != 200:
@@ -2311,7 +2366,8 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             if sys_txt:
                 payload["system"] = [{"type": "text", "text": sys_txt, "cache_control": {"type": "ephemeral"}}]
             try:
-                r = await client.post(ANTHROPIC_URL, headers={**headers, **fast_h}, json=payload)
+                r = await _gui_vong(lambda: client.post(ANTHROPIC_URL, headers={**headers, **fast_h}, json=payload),
+                                    "Anthropic")
             except Exception as e:
                 yield ev_loi_exc(_c("Anthropic lỗi", "Anthropic error"), e)
                 return

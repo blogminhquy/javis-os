@@ -80,13 +80,14 @@ def _poller_dau(bot_id: str):
     return None
 # (bot_id, chat_id) -> số lượt BÍ LIÊN TIẾP. Trả lời được một câu là về 0.
 _BI_LIEN_TIEP: Dict[tuple, int] = {}
-# bot_id đã báo lỗi kỹ thuật cho nhân viên và chưa chạy lại được lượt nào. Chống báo mỗi lượt
-# khi engine hỏng - lúc đó MỌI lượt đều gãy.
-_DA_BAO_LOI: set = set()
 # bot_id đã có một mẩu thư "bot đang lỗi" trong chuông thông báo của Javis và chưa chạy lại được
-# lượt nào. Tách khỏi `_DA_BAO_LOI` vì cái kia chỉ đánh dấu khi có người trực (`handoff_to`), còn
-# chuông thì luôn báo. Một mẩu cho mỗi đợt hỏng: engine hết lượt thì mọi lượt đều gãy, báo hết là
-# biến chuông thành log lỗi.
+# lượt nào. Một mẩu cho mỗi đợt hỏng: engine hết lượt thì mọi lượt đều gãy, báo hết là biến chuông
+# thành log lỗi.
+#
+# Từ 0.171.2 chuông là chỗ DUY NHẤT nhận cảnh báo của bot. Đường cũ nhắn cho "người trực" (`handoff_to`,
+# một Chat ID Telegram) đã gỡ: ô đặt nó bị bỏ khỏi form từ 0.64.83, nên bot mới không bao giờ báo
+# còn bot cũ thì báo tới một chỗ chủ không xem cũng không tắt được, lại gửi bằng tài khoản của chính
+# con bot (bot Zalo cầm một ID Telegram thì tin đi đâu không ai biết).
 _DA_BAO_HOP_THU: set = set()
 
 # bot_id -> {chat_id: {"chat_id", "ten", "ts", "lan", "cau"}} - những nhóm CÓ NGƯỜI GỌI BOT mà
@@ -118,8 +119,7 @@ CAU_NHOM_CHUA_BAT = ("Em chưa được bật cho nhóm này ạ. Chủ bot mở
 # phút ạ", rồi đổi sang "Anh chị đợi em chút xíu để em kiểm tra lại ạ.". Chủ repo bỏ hẳn ngày
 # 15/10/2026 (ảnh chụp Zalo: hết token là khách nhận câu "đợi em kiểm tra" mà không ai kiểm tra gì
 # cả): trục trặc kỹ thuật là việc của chủ, khách không cần biết. Chủ được báo ở chuông thông báo
-# của Javis (`_bao_hop_thu`), người trực vẫn được báo như cũ (`handoff_to`), lỗi gốc nằm trong
-# nhật ký bot. Hằng số giữ lại chỉ để test và tài liệu cũ còn tham chiếu được; không đường nào gửi nó.
+# của Javis (`_bao_hop_thu`), lỗi gốc nằm trong nhật ký bot. Hằng số giữ lại chỉ để test và tài liệu cũ còn tham chiếu được; không đường nào gửi nó.
 CAU_LUOT_HONG = "Anh chị đợi em chút xíu để em kiểm tra lại ạ."
 
 # Bí bao nhiêu lượt liên tiếp thì mới gọi người thật.
@@ -1142,36 +1142,40 @@ def _make_command_fn(bot_cfg: dict):
 
 
 def _bao_nhan_vien(bot_cfg: dict, chat_id: str, ly_do: str) -> str:
-    """Chuyển người thật. Trả về câu nói với khách; phần báo nhân viên chạy nền."""
-    dich = str(bot_cfg.get("handoff_to") or "").strip()
-    if not dich:
-        # Chưa đặt người nhận thì nói THẬT là chưa nối được người, và mời hỏi tiếp - đừng dừng
-        # hẳn cuộc trò chuyện. Câu cũ ("chưa có thông tin, chờ phản hồi") vừa sai (khách có hỏi
-        # thông tin gì đâu, họ xin gặp người), vừa đóng cửa: khách không biết còn hỏi được nữa.
+    """Khách xin gặp người thật. Báo chủ ở chuông thông báo, trả về câu nói với khách."""
+    if not _goi_chu(bot_cfg, chat_id, ly_do):
+        # Không bỏ được vào chuông thì nói THẬT là chưa nối được người, và mời hỏi tiếp - đừng
+        # dừng hẳn cuộc trò chuyện.
         return ("Hiện em chưa nối máy sang người trực được ạ. Anh chị cứ hỏi tiếp ở đây, "
                 "em trả lời được tới đâu em hỗ trợ tới đó.")
-    asyncio.ensure_future(_gui_nhan_vien(bot_cfg, dich, chat_id, ly_do))
-    return ("Cái này để em chuyển cho người phụ trách hỗ trợ anh chị ạ. "
-            "Anh chị chờ một chút nhé.")
+    # Chỉ nói "đã báo" vì chuông ĐÃ nhận tin thật. Không hứa "chờ một chút" là sẽ có người trả
+    # lời: chủ có thể chưa nhìn chuông, nên vẫn mời khách hỏi tiếp với bot.
+    return ("Em đã báo người phụ trách rồi ạ. Trong lúc chờ, anh chị cứ hỏi tiếp ở đây, "
+            "em hỗ trợ được tới đâu em hỗ trợ tới đó.")
 
 
-async def _gui_nhan_vien(bot_cfg: dict, dich: str, chat_id: str, ly_do: str) -> None:
-    tb = _poller_dau(bot_cfg.get("id") or "")
-    if not tb:
-        return
+def _goi_chu(bot_cfg: dict, ai: str, ly_do: str) -> bool:
+    """Bỏ một mẩu thư "bot cần người thật" vào chuông thông báo của Javis. True nếu bỏ được.
+
+    Thay cho tin Telegram gửi "người trực" (`handoff_to`) trước 0.171.2: chủ repo 16/10/2026 gom mọi
+    cảnh báo của bot về một chỗ anh ấy thật sự xem."""
+    fn = _deps.get("notify")
+    if not fn:
+        return False
+    ten_bot = str(bot_cfg.get("name") or bot_cfg.get("id") or "")
+    text = localefmt.chu(
+        f"Bot {ten_bot} cần người thật: {ai or 'khách'}\n\n{ly_do}\n\n"
+        "Mở trang Chatbot, thẻ Hòm thư bot để đọc và trả lời tay.",
+        f"Bot {ten_bot} needs a human: {ai or 'a customer'}\n\n{ly_do}\n\n"
+        "Open the Chatbot page, Bot inbox tab, to read and reply by hand.")
     try:
-        import httpx
-        async with httpx.AsyncClient(timeout=15) as client:
-            await client.post(tb._url("sendMessage"), json={
-                "chat_id": dich,
-                # Tin cho CHỦ / người trực (không phải khách): theo ngôn ngữ giao diện của máy.
-                "text": localefmt.chu(f"🔔 Bot \"{bot_cfg.get('name')}\" cần người thật.\n"
-                                      f"Người nhắn: {chat_id}\nLý do: {ly_do}",
-                                      f"🔔 Bot \"{bot_cfg.get('name')}\" needs a human.\n"
-                                      f"Sender: {chat_id}\nReason: {ly_do}"),
-            })
-    except Exception as e:
-        print(f"[chatbot handoff] {e}", file=sys.stderr)
+        r = fn(text)
+        if asyncio.iscoroutine(r):
+            asyncio.ensure_future(r)
+        return True
+    except Exception as e:      # noqa: BLE001 - the bell must never cost the turn anything
+        print(f"[chatbot {bot_cfg.get('id')}] báo chuông cần người: {type(e).__name__}: {e}", file=sys.stderr)
+        return False
 
 
 # ============================================================
@@ -1262,7 +1266,7 @@ def ghi_tin_khach(cfg: dict, meta: dict, text: str) -> None:
 
 
 def _ghi_loi_tu_dong(bot_id: str, cfg: dict, meta: dict, text: str, loi: str) -> None:
-    """A Tự đánh giá turn failed (0.102.1): record it for the owner and alert the on-duty person once, send nothing.
+    """A Tự đánh giá turn failed (0.102.1): record it for the owner and ring the Javis bell once, send nothing.
 
     Before, the failure went out as "Em đang gặp trục trặc kỹ thuật..." tagged to whoever had written in the group,
     though that person never asked the bot anything."""
@@ -1276,14 +1280,6 @@ def _ghi_loi_tu_dong(bot_id: str, cfg: dict, meta: dict, text: str, loi: str) ->
         })
     except Exception as e:      # noqa: BLE001 - logging must not cost anything else
         print(f"[chatbot {bot_id}] ghi lỗi tự đánh giá hỏng: {type(e).__name__}: {e}", file=sys.stderr)
-    if cfg.get("handoff_to") and bot_id not in _DA_BAO_LOI:
-        _DA_BAO_LOI.add(bot_id)
-        try:
-            asyncio.ensure_future(_gui_nhan_vien(
-                cfg, str(cfg["handoff_to"]), str((meta or {}).get("chat_id") or ""),
-                localefmt.chu(f"Bot đang LỖI: {str(loi)[:300]}", f"The bot is FAILING: {str(loi)[:300]}")))
-        except Exception as e:      # noqa: BLE001
-            print(f"[chatbot {bot_id}] báo người trực lỗi: {type(e).__name__}: {e}", file=sys.stderr)
     _bao_hop_thu(bot_id, cfg, meta, loi)
 
 
@@ -1587,22 +1583,16 @@ def _make_answer_fn(bot_id: str):
         _BI_LIEN_TIEP[khoa] = lien_tiep
 
         # Lượt GÃY khác hẳn lượt bí: bí là thiếu tài liệu, gãy là bot không chạy được. Gãy thì
-        # báo NGAY từ lần đầu, đừng bắt chờ đủ hai câu - mỗi phút im lặng là khách nghĩ cửa
-        # hàng bỏ mặc họ. Nhưng chỉ báo MỘT lần cho tới khi có lượt chạy được: engine hỏng thì
-        # mọi lượt sau đều gãy, báo hết là biến hộp thư nhân viên thành log lỗi.
+        # báo chuông NGAY từ lần đầu (một mẩu mỗi đợt hỏng, xem `_bao_hop_thu`), không tính là
+        # "gọi người": chủ cần sửa engine chứ không cần trả lời thay một câu hỏi.
         if loi_ky_thuat:
-            bao_lan_dau = bot_id not in _DA_BAO_LOI
-            _DA_BAO_LOI.add(bot_id)
             _bao_hop_thu(bot_id, cfg, meta, loi_ky_thuat)
         else:
-            bao_lan_dau = False
-            _DA_BAO_LOI.discard(bot_id)
             _DA_BAO_HOP_THU.discard(bot_id)
 
-        # Lượt Tự đánh giá thì "bí" KHÔNG gọi người: tin đó đâu ai nhờ bot, đánh thức nhân viên
-        # vì một câu người ta hỏi nhau trong nhóm là cách nhanh nhất để họ tắt thông báo.
-        goi_nguoi = bool(cfg.get("handoff_to")) and (
-            bao_lan_dau or (not loi_ky_thuat and not tu_dong and lien_tiep >= BI_LIEN_TIEP_DE_GOI))
+        # Lượt Tự đánh giá thì "bí" KHÔNG gọi người: tin đó đâu ai nhờ bot, báo chủ vì một câu
+        # người ta hỏi nhau trong nhóm là cách nhanh nhất để chuông thành tiếng ồn.
+        goi_nguoi = not loi_ky_thuat and not tu_dong and lien_tiep >= BI_LIEN_TIEP_DE_GOI
 
         chatbot_log.ghi(bot_id, {
             "chat_id": chat_id, "chat_type": (meta or {}).get("chat_type"),
@@ -1622,14 +1612,10 @@ def _make_answer_fn(bot_id: str):
         ghi_tin_bot(cfg, meta or {}, dap, loi=loi_ky_thuat, files=(out or {}).get("files"))
         if goi_nguoi:
             _BI_LIEN_TIEP[khoa] = 0     # đã gọi người rồi thì đếm lại, đừng gọi mỗi lượt sau đó
-            # Lượt HỎNG thì báo nguyên văn lý do kỹ thuật, không báo "bí N câu": chủ cần biết
-            # bot đang gãy chứ không phải đang thiếu tài liệu. Hai chuyện đó sửa khác nhau hoàn toàn.
-            asyncio.ensure_future(_gui_nhan_vien(
-                cfg, str(cfg["handoff_to"]), chat_id,
-                (localefmt.chu(f"Bot đang LỖI: {loi_ky_thuat[:300]}",
-                               f"The bot is FAILING: {loi_ky_thuat[:300]}") if loi_ky_thuat else
-                 localefmt.chu(f"Bí {lien_tiep} câu liên tiếp. Câu gần nhất: {str(text)[:200]}",
-                               f"Stuck on {lien_tiep} messages in a row. Latest: {str(text)[:200]}"))))
+            _goi_chu(cfg, str((meta or {}).get("user_name") or chat_id),
+                     localefmt.chu(f"Bot bí {lien_tiep} câu liên tiếp. Câu gần nhất: {str(text)[:200]}",
+                                   f"The bot was stuck on {lien_tiep} messages in a row. "
+                                   f"Latest: {str(text)[:200]}"))
         if loi_ky_thuat:
             return {"text": "", "files": [], "im_lang": True}
         return out
@@ -2142,7 +2128,6 @@ def quen_bot(bot_id: str) -> None:
     """
     stop_bot(bot_id)
     _NHOM_CHO.pop(bot_id, None)
-    _DA_BAO_LOI.discard(bot_id)
     _DA_BAO_HOP_THU.discard(bot_id)
     for k in [x for x in _DA_BAO_NHOM if x and x[0] == bot_id]:
         _DA_BAO_NHOM.discard(k)

@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.171.2] - 2026-10-16
 ### Sửa lỗi
-- (đang viết)
+- **Mất kết nối giữa chừng không còn làm hỏng cả lượt:** khi kết nối tới nhà cung cấp model bị cắt (lỗi kiểu `ReadError ... WinError 1236` trên Windows), Javis tự gửi lại tối đa 3 lần, kể cả giữa một lượt đang dùng công cụ. Hết cách thì báo rõ nguyên nhân hay gặp (mạng, VPN, phần mềm diệt virus) thay vì chỉ dán chuỗi lỗi.
+- **Tin Zalo dài tự cắt thành nhiều tin:** câu trả lời dài trên Zalo cá nhân được chia ở chỗ hết đoạn hoặc hết câu rồi gửi lần lượt, thay vì bị Zalo từ chối và khách không nhận được gì. Trong nhóm, người được trả lời chỉ bị tag ở tin đầu.
+### Cải thiện
+- **Cảnh báo của bot chỉ về chuông thông báo:** bỏ đường nhắn Telegram cho "người trực" (ô này đã ẩn khỏi form từ lâu). Khách xin gặp người thật hoặc bot bí 2 câu liền giờ báo vào chuông của Javis, kèm tên khách. Lỗi kỹ thuật vẫn báo chuông như bản trước.
 
 ## [0.171.0] - 2026-10-15
 ### Thêm mới

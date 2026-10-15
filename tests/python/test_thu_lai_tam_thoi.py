@@ -360,5 +360,79 @@ _lau429 = engine.ev_loi_http("X", 429, "bận",
 _c2 = chay(lambda: engine.thu_lai_khi_tam_thoi(lam_stream([[_lau429]], []), nhan="t"))[-1]
 check("chờ quá lâu thì báo ngay VÀ nói còn bao lâu", "cửa sổ mở lại sau" in _c2["content"])
 
+# ============================================================
+# 6. Kết nối bị cắt giữa chừng (0.171.2)
+# ============================================================
+# Ảnh chụp của chủ repo 16/10/2026, máy Windows, bộ não OpenAI Compatible:
+#   ⚠ OpenAI Compatible lỗi: ReadError <- ReadError <- BrokenResourceError <- ConnectionAbortedError(
+#     [WinError 1236] The network connection was aborted by the local system)
+# Kết nối mở được rồi bị cắt. Trước bản này `_RETRY_EXC` chỉ có ConnectError nên ReadError không
+# được thử lại lần nào, cả lượt chết ngay cú đầu.
+_rd = httpx.ReadError("[WinError 1236] The network connection was aborted by the local system")
+_ev = engine.ev_loi_exc("OpenAI Compatible lỗi", _rd)
+check("ReadError (kết nối bị cắt) là lỗi tạm thời", _ev.get("tam_thoi") is True)
+check("WriteError cũng vậy", engine.ev_loi_exc("X", httpx.WriteError("x")).get("tam_thoi") is True)
+check("lỗi lập trình vẫn KHÔNG thử lại", engine.ev_loi_exc("X", KeyError("k")).get("tam_thoi") is None)
+
+_cuoi = chay(lambda: engine.thu_lai_khi_tam_thoi(lam_stream([[_ev]] * 3, []), nhan="t"))[-1]
+check("rớt mạng mãi thì câu cuối nói phải làm gì, không chỉ dán chuỗi lỗi",
+      "Gửi lại tin" in _cuoi["content"] and "WinError 1236" in _cuoi["content"])
+check("câu cuối không còn dấu nội bộ", "mang" not in _cuoi and "tam_thoi" not in _cuoi)
+
+
+# Vòng tool gọi model nhiều lần mỗi lượt. Rớt mạng ở một vòng thì gửi lại ĐÚNG vòng đó, kể cả
+# khi tool đã chạy ở vòng trước (tầng trên không chạy lại cả lượt được nữa).
+class _ClientGia:
+    kich_ban = []
+    goi = 0
+
+    def __init__(self, *a, **kw):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+    async def post(self, *a, **kw):
+        _ClientGia.goi += 1
+        buoc = _ClientGia.kich_ban.pop(0)
+        if isinstance(buoc, BaseException):
+            raise buoc
+        return httpx.Response(200, json={"choices": [{"message": {"content": buoc}}],
+                                         "usage": {"prompt_tokens": 1, "completion_tokens": 1}},
+                              request=httpx.Request("POST", "https://x"))
+
+
+def _vong_tool(kich_ban):
+    _ClientGia.kich_ban = list(kich_ban)
+    _ClientGia.goi = 0
+    goc = engine.httpx.AsyncClient
+    engine.httpx.AsyncClient = _ClientGia
+    try:
+        return chay(lambda: engine._cc_tool_loop("https://x", {}, "m", [{"role": "user", "content": "alo"}],
+                                                 [], None, {}, "OpenAI Compatible"))
+    finally:
+        engine.httpx.AsyncClient = goc
+
+
+_evs = _vong_tool([httpx.ReadError("cắt"), "Dạ em đây"])
+check("vòng tool: rớt mạng một lần thì gửi lại và trả lời được",
+      any(e.get("type") == "text" and "Dạ em đây" in e.get("content", "") for e in _evs)
+      and not any(e.get("type") == "error" for e in _evs))
+check("vòng tool: gửi đúng hai lần", _ClientGia.goi == 2)
+
+_evs = _vong_tool([httpx.ReadError("cắt")] * engine._LAN_GUI_VONG)
+_loi = [e for e in _evs if e.get("type") == "error"]
+check("vòng tool: rớt mãi thì dừng đúng số lần, không gửi vô tận", _ClientGia.goi == engine._LAN_GUI_VONG)
+check("vòng tool: hết lượt thì báo lỗi kèm số lần đã thử và lời dặn",
+      _loi and "đã thử lại" in _loi[-1]["content"] and "Gửi lại tin" in _loi[-1]["content"])
+check("vòng tool: lỗi cuối KHÔNG mời tầng trên chạy lại cả lượt (khỏi nở cấp số nhân)",
+      _loi and not _loi[-1].get("tam_thoi"))
+
+_evs = _vong_tool([httpx.ReadTimeout("chậm")])
+check("vòng tool: hết giờ chờ thì KHÔNG gửi lại trong vòng (180 giây x 3 là quá lâu)", _ClientGia.goi == 1)
+
 print(("\nFAILED: " + ", ".join(_fails)) if _fails else "\nAll passed")
 sys.exit(1 if _fails else 0)

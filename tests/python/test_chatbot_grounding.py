@@ -503,12 +503,36 @@ check("lượt gãy tính là bí (bot đúng là không trả lời được)",
 # ...nhưng KHÔNG được lẫn vào danh sách "thiếu tài liệu": một bên sửa bằng cách đổi engine,
 # một bên sửa bằng cách viết thêm tài liệu vào brain.
 check("CANARY: lượt gãy KHÔNG lọt vào tab Bot bí", chatbot_log.lo_hong(_bid) == [])
-check("lượt gãy báo nhân viên NGAY, không chờ đủ hai câu", _luot[0]["chuyen_nguoi"] is True)
+# 0.171.2 (chủ repo 16/10/2026): bỏ đường nhắn "người trực" (`handoff_to`). Lượt gãy chỉ báo chuông,
+# và không tính là "gọi người": chủ cần sửa engine, không cần trả lời thay một câu hỏi.
+check("lượt gãy KHÔNG còn tính là gọi người trực", _luot[0]["chuyen_nguoi"] is False)
+_src_rt_moi = (SERVER / "chatbot_runtime.py").read_text(encoding="utf-8")
+check("CANARY: runtime không còn đọc handoff_to để gửi tin cho ai",
+      'cfg.get("handoff_to")' not in _src_rt_moi and 'bot_cfg.get("handoff_to")' not in _src_rt_moi
+      and "_gui_nhan_vien" not in _src_rt_moi)
 
-# Engine hỏng thì MỌI lượt sau đều gãy. Báo hết là biến hộp thư nhân viên thành log lỗi.
+# Engine hỏng thì MỌI lượt sau đều gãy. Báo hết là biến chuông thành log lỗi.
 asyncio.run(_chay_va_cho("câu nữa", {"chat_id": "77", "chat_type": "private"}))
 check("lượt gãy thứ hai KHÔNG báo lại", chatbot_log.doc(_bid)[0]["chuyen_nguoi"] is False)
 check("lượt gãy thứ hai KHÔNG thêm mẩu thư chuông", len(_CHUONG) == 1)
+
+# Khách xin gặp người thật: chủ nghe ở chuông, khách được nói thật là đã báo và vẫn hỏi tiếp được.
+_CHUONG.clear()
+async def _xin_nguoi():
+    c = chatbot_runtime._bao_nhan_vien({"id": _bid, "name": "Bot lỗi"}, "Lan", "Người hỏi chủ động xin gặp người thật.")
+    await asyncio.sleep(0)      # lệnh /nhanvien chạy trong vòng sự kiện của poller, mẩu thư đi bằng ensure_future
+    return c
+
+
+_cau = asyncio.run(_xin_nguoi())
+check("xin gặp người: chuông nhận một mẩu thư nói bot nào, ai",
+      len(_CHUONG) == 1 and "Bot lỗi" in _CHUONG[0] and "Lan" in _CHUONG[0])
+check("xin gặp người: khách được nói đã báo, và vẫn mời hỏi tiếp", "đã báo" in _cau and "hỏi tiếp" in _cau)
+chatbot_runtime.wire(answer=_loi_gia, brain_root=lambda b: str(BRAIN),
+                     read_agent=lambda b, s: ({"name": "Hoa"}, ""), notify=None)
+_cau = chatbot_runtime._bao_nhan_vien({"id": _bid, "name": "Bot lỗi"}, "Lan", "x")
+check("không có chuông thì nói thật là chưa nối được người", "chưa nối máy" in _cau)
+_CHUONG.clear()
 
 
 # Engine VĂNG lỗi (không trả chuỗi) cũng đi đúng đường đó: khách im, chủ nghe chuông, nhật ký có lỗi gốc.
@@ -522,7 +546,7 @@ _bid3, _ = chatbot_store.create_bot({"name": "Bot văng", "agent_slug": "cskh", 
 _fn = chatbot_runtime._make_answer_fn(_bid3)
 _ra3 = asyncio.run(_chay_va_cho("alo", {"chat_id": "78", "chat_type": "private", "user_name": "Minh"}))
 check("engine văng lỗi: khách KHÔNG nhận gì", _ra3.get("im_lang") is True and not _ra3.get("text"))
-check("engine văng lỗi: chủ nghe chuông, có lỗi gốc", len(_CHUONG) == 2 and "hết token" in _CHUONG[1])
+check("engine văng lỗi: chủ nghe chuông, có lỗi gốc", len(_CHUONG) == 1 and "hết token" in _CHUONG[0])
 check("engine văng lỗi: nhật ký bot giữ lỗi gốc", "hết token" in (chatbot_log.doc(_bid3)[0].get("loi") or ""))
 
 print()

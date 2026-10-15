@@ -1206,7 +1206,7 @@
   "cb.th_gan_nhat": "Last seen",
   "cb.khong_tai_lieu": "no matching document found",
   "cb.luot_nay_loi": "This turn FAILED, the bot did not answer wrong:",
-  "cb.da_bao_nguoi_truc": "handed off to a human",
+  "cb.da_bao_nguoi_truc": "flagged to you in the bell",
   "cb.xn_bat": "Turn on bot \"{ten}\" at level {muc}?",
   "cb.xn_bat_full": "From now on anyone who messages the bot can make it send things out, pay, book/cancel, delete or publish externally. That cannot be undone.",
   "cb.xn_bat_auto": "From now on the bot can write files in its brain and call the data sources you connected, at the request of whoever messages it.",

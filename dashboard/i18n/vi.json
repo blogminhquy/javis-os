@@ -1206,7 +1206,7 @@
   "cb.th_gan_nhat": "Gần nhất",
   "cb.khong_tai_lieu": "không tìm thấy tài liệu nào khớp",
   "cb.luot_nay_loi": "Lượt này LỖI, không phải bot trả lời sai:",
-  "cb.da_bao_nguoi_truc": "đã báo người trực",
+  "cb.da_bao_nguoi_truc": "đã báo bạn ở chuông",
   "cb.xn_bat": "Bật bot \"{ten}\" ở mức {muc}?",
   "cb.xn_bat_full": "Từ lúc này ai nhắn cho bot cũng có thể khiến nó gửi đi, thanh toán, đặt/huỷ, xoá hoặc công bố ra ngoài. Không hoàn tác được.",
   "cb.xn_bat_auto": "Từ lúc này bot ghi được file trong brain của nó và gọi được các nguồn dữ liệu bạn đã đấu, theo lời người nhắn.",

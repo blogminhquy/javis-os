@@ -74,6 +74,12 @@ def trang_thai() -> dict:
 TAG_TIMEOUT = 40            # giây: gửi một dòng chữ mà quá thế là bất thường; gồm cả lần đầu npx nạp package
 TAG_FAIL_LIMIT = 3          # từng đó lần tag hỏng LIÊN TIẾP thì nghỉ, khỏi lần nào cũng trả thêm vài giây cho một thứ đang hỏng
 TAG_PAUSE = 600             # giây nghỉ tag sau khi hỏng liên tiếp; tin vẫn đi bằng MCP như cũ
+# Trần một tin (0.171.2). Zalo từ chối cả tin quá dài (quanh 2000 ký tự) và khách không nhận được gì: chủ repo
+# 16/10/2026 gặp lần thứ ba, hai lần trước ở khách Khang Duy Dao. 1500 chừa chỗ cho "@Tên" khi tag trong nhóm.
+TIN_TOI_DA = 1500
+NGHI_GIUA_DOAN = 1.2        # giây nghỉ giữa hai đoạn của một câu trả lời dài, cho giống người gõ và giữ thứ tự
+# Chỗ cắt tốt theo thứ tự ưu tiên: hết đoạn văn, hết dòng, hết câu, rồi mới tới khoảng trắng.
+_CHO_CAT = (re.compile(r"\n\s*\n"), re.compile(r"\n"), re.compile(r"[.!?…:;](?=\s)"), re.compile(r"\s"))
 _TAG_STATE: dict = {}       # conn_id -> {"fails": số lần hỏng liên tiếp, "until": giờ hết nghỉ}
 _UID_RE = re.compile(r"\d{3,25}")
 
@@ -220,6 +226,35 @@ async def _send_tagged(conn: dict, chat_id: str, text: str, mention) -> Optional
     return None
 
 
+def cat_tin(text: str, toi_da: int = TIN_TOI_DA) -> list:
+    """Cắt một câu trả lời dài thành các đoạn không quá `toi_da` ký tự (0.171.2).
+
+    Cắt ở chỗ hết đoạn văn trước, rồi hết dòng, hết câu, cuối cùng là khoảng trắng: không cắt giữa chữ,
+    và không cắt giữa một link (link không có khoảng trắng). Chỉ khi cả cửa sổ không có khoảng trắng nào
+    (một chuỗi dài liền) mới cắt cứng. Chỗ cắt nằm ở nửa sau cửa sổ, kẻo đoạn đầu cụt lủn."""
+    con = str(text or "").strip()
+    if len(con) <= toi_da:
+        return [con] if con else []
+    ra = []
+    while len(con) > toi_da:
+        cua_so = con[:toi_da + 1]
+        cat = 0
+        for mau in _CHO_CAT:
+            vt = [m.end() for m in mau.finditer(cua_so) if toi_da // 2 <= m.end() <= toi_da]
+            if vt:
+                cat = vt[-1]
+                break
+        if not cat:
+            cat = toi_da
+        doan = con[:cat].strip()
+        if doan:
+            ra.append(doan)
+        con = con[cat:].strip()
+    if con:
+        ra.append(con)
+    return ra
+
+
 async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", mention=None):
     """Gửi qua MCP: `threadId`, `text` và kiểu cuộc chat (0 = chat riêng, 1 = nhóm).
 
@@ -236,6 +271,30 @@ async def gui(tk: dict, chat_id: str, text: str, chat_type: str = "private", men
     if not conn:
         return False, localefmt.chu("tài khoản Zalo này không còn ở trang Kết nối (hoặc đang tắt)",
                                      "this Zalo account is no longer on the Connections page (or is turned off)")
+    doan = cat_tin(str(text or "")) or [str(text or "")]
+    if len(doan) == 1:
+        return await _gui_mot(conn, chat_id, doan[0], chat_type, mention)
+    # Tin dài: gửi lần lượt từng đoạn. Mỗi đoạn về vòng đọc như một tin riêng, nên phải nhớ TỪNG đoạn là
+    # tiếng vọng (người gọi chỉ nhớ cả câu). Thiếu bước này thì đoạn hai trở đi bị coi là chủ nhắn tay: Hộp thư
+    # hiện đôi và bot im TAY_IM giây.
+    cid = str(conn.get("id") or "")
+    for i, phan in enumerate(doan):
+        if i:
+            await asyncio.sleep(NGHI_GIUA_DOAN)
+        try:
+            zalo_personal_channel.ghi_da_gui(cid, str(chat_id), phan)
+        except Exception:      # noqa: BLE001 - không nhớ được tiếng vọng thì vẫn gửi, tệ nhất là một dòng trùng
+            pass
+        # Trong nhóm chỉ tag người được trả lời ở đoạn ĐẦU, kẻo một người bị tag mấy lần cho một câu trả lời.
+        ok, loi = await _gui_mot(conn, chat_id, phan, chat_type, mention if i == 0 else None)
+        if not ok:
+            return False, localefmt.chu(f"đoạn {i + 1}/{len(doan)}: {loi}", f"part {i + 1}/{len(doan)}: {loi}")[:300]
+    return True, ""
+
+
+async def _gui_mot(conn: dict, chat_id: str, text: str, chat_type: str, mention=None):
+    """Gửi MỘT tin (đã vừa trần `TIN_TOI_DA`). `(ok, lỗi)`."""
+    import zalo_personal_channel
     loai = 1 if str(chat_type or "") == "group" else 0
     if loai == 1 and (mention or "@" in str(text or "")):
         r = await _send_tagged(conn, str(chat_id), str(text or ""), mention)
