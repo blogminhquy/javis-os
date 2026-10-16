@@ -152,6 +152,7 @@ import agent_assets      # tài liệu & link gắn vào MỘT trợ lý (lưu t
 import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
 import javis_core        # Javis Core (0.185.0): system assistant pinned in every brain
 import memory_control    # 0.188.0: list/edit/forget memories, learning switch, person profile
+import memory_chat       # 0.189.0: the same, plus agent lessons, from chat (tool javis_memory)
 import chatbot_cuoc_chat  # danh sách cuộc chat cho ô chọn người/nhóm của form bot
 import chatbot_reply_policy        # bộ phán xử hội thoại nhóm (0.65.0): bot tự quyết nói hay im
 import chatbot_reply_policy_store  # kho quyết định, ca đã học, ngưỡng theo cuộc chat
@@ -24511,6 +24512,12 @@ agent_review.wire(agent_review.ReviewHost(agent_review.ReviewDeps(
     publish=lambda ev: _CHAT_RUNTIME.publish(ev), judge_payload=_learn_judge_payload, contexts=_pulse_contexts,
     legacy=_learn_legacy)))
 agent_review.register_with_pulse()
+memory_chat.wire(memory_chat.Deps(
+    memory_dir=lambda root: _brain_memory_dir(root),
+    agents=lambda root: [{"slug": a.get("slug"), "name": a.get("name")} for a in agents_index(root, kem_prompt=False)],
+    agent_key=lambda root, slug, reg: _agent_jobs_key(_brain_key(root), slug, register=reg),
+    lesson_store=lambda: _pulse_store() or _resonance_store(),
+    agent_memory_file=lambda root, slug: _brain_memory_dir(root) / "agents" / slug / "MEMORY.md"))
 
 
 def _learn_register_sender():

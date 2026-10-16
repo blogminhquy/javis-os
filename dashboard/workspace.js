@@ -419,7 +419,7 @@
     }
     // T0 nhóm chat team: trạng thái Cộng hưởng của MỌI trợ lý trong một request riêng (không gọi theo từng dòng), đọc
     // SAU khi danh sách đã có: tới đâu vẽ lại tới đó. Chưa về hay lỗi thì dòng không có công tắc (không đoán).
-    loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
+    loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") { veDanhSach(); veAuto(dangChon()); } });
     loadJobCounts().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
     S.agents = sapXep(r[0].agents, "last_chat_at");
     S.workflows = sapXep(r[1].workflows.filter(function (w) { return w.status === "active"; }), "last_run_at");
@@ -1648,13 +1648,14 @@
       // the chat box like any chat.
       host.innerHTML = '<div class="ws-core-card"><div class="ws-core-head">' + avatar(item, 40) + '<h3>' + esc(item.name) +
         '</h3><span class="ws-sys">' + esc(t("ws.system_badge")) + '</span></div><p>' + esc(item.role || "") + '</p>' +
-        '<p class="ws-core-note">' + esc(t("ws.core_note")) + '</p></div><div class="ws-core-mem" id="wsCoreMem"></div>';
-      // 0.188.0: what Javis remembers in this brain, the learning switch and the person's profile (core-memory.js).
-      if (window.JavisCoreMemory) window.JavisCoreMemory.mount(host.querySelector("#wsCoreMem"), brain());
+        '<p class="ws-core-note">' + esc(t("ws.core_note")) + '</p></div>';
+      // 0.189.0 (owner, 16/10/2026): no memory list here any more. Javis already learns from the brain; seeing, editing
+      // or forgetting a memory is a chat message ("quên chuyện đó đi"), done with the javis_memory tool.
     } else if (S.loai === "agent") {
-      // Khối Cộng hưởng (A1) đứng ĐẦU cột phải: công tắc của trợ lý này và các mục tiêu nó đang theo đuổi.
-      host.innerHTML = '<div class="rsa-panel" id="wsResonance"></div><div class="rsa-panel pulse-panel" id="wsPulse"></div>' +
-        '<div class="ws-rtitle">' + esc(t("ws.agent_settings")) + '</div><div class="ws-form" id="wsAgentForm"></div>' +
+      // 0.189.0 (owner, 16/10/2026: "tối giản nhất, người ta không cần hiểu gì về cài đặt cũng dùng được"): the column
+      // opens on what every assistant app has (picture, name, role, instructions, documents, skills, model). The Auto
+      // block sits below and shows only while Auto is on (veAuto); lessons are handled in chat (javis_memory).
+      host.innerHTML = '<div class="ws-form" id="wsAgentForm"></div><div class="ws-auto" id="wsAuto"></div>' +
         '<div class="ws-acts"><button type="button" class="ws-btn" id="wsExport">' + esc(t("studio.export")) + '</button>' +
         '<button type="button" class="ws-btn danger" id="wsDel">' + esc(t("common.delete")) + '</button></div>';
       // MƯỢN chính trình sửa agent của Studio (studio.js), không dựng bản thứ hai: chọn model,
@@ -1663,7 +1664,7 @@
         window.JavisStudio.editAgent(item, { host: host.querySelector("#wsAgentForm"),
           onSaved: async function () { await sauLuu(item, "agent"); } });
       }
-      ganCongHuong(item);
+      veAuto(item);
       host.querySelector("#wsExport").onclick = function () { window.JavisStudio && window.JavisStudio.exportItem("agent", item.slug); };
       host.querySelector("#wsDel").onclick = async function () {
         if (!confirm(t("studio.del_ag", { ten: item.name }))) return;
@@ -1695,6 +1696,16 @@
   }
   // Khối Cộng hưởng của trợ lý (resonance-agent.js). Biết phiên đang mở để server nói được phiên này dùng được mã
   // hiện tại không; "Mở cuộc trò chuyện mới" đi đúng đường mở phiên của trang (moPhien), không tự chuyển phiên cũ.
+  // The Auto block of one assistant: goals and pulse, only while its Auto switch (left row) is on. Off means nothing to
+  // show, so the column stays the plain settings form.
+  function veAuto(item) {
+    var box = S.el && S.el.querySelector("#wsAuto");
+    if (!box || !item || item.system) return;
+    if (!window.JavisResonanceAgent || !autoBat(S.rs, item.slug)) { box.innerHTML = ""; return; }
+    if (box.querySelector("#wsResonance")) return;
+    box.innerHTML = '<div class="rsa-panel" id="wsResonance"></div><div class="rsa-panel pulse-panel" id="wsPulse"></div>';
+    ganCongHuong(item);
+  }
   function ganCongHuong(item, sid) {
     var host = S.el && S.el.querySelector("#wsResonance");
     if (!host || !window.JavisResonanceAgent || !item || item.system) return;
@@ -1916,7 +1927,7 @@
   // đặt): đọc lại trạng thái THẬT của host rồi vẽ lại danh sách. Không giữ trạng thái người dùng vừa bấm.
   window.addEventListener("javis:resonance-agents-changed", function () {
     if (!active) return;
-    loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
+    loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") { veDanhSach(); veAuto(dangChon()); } });
     henDemViec();
   });
   // Huy hiệu việc trên thẻ trợ lý theo cùng các sự kiện với tab Công việc (gộp nhịp 800ms).

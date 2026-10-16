@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.189.0] - 2026-10-16
 ### Improved
-- **Simpler settings:** in progress.
+- **Settings like the apps you know:** an assistant's settings column now opens on its picture, name, description, instructions, documents, skills and model. The Auto block shows only while that assistant has Auto on.
+- **Memory and lessons from chat:** to have Javis remember, change or forget something, or tell an assistant to drop a habit it learnt, just say so, for example "forget the sales channel note" or "tell Writer to stop using emoji". Javis does it, on any model.
+- **Confusing lists removed:** the Javis Core card no longer has a Memory section, and an assistant's column no longer has Lessons, Revoke, Use everywhere or old unscoped lessons.
 
 ## [0.188.0] - 2026-10-16
 ### Fixed

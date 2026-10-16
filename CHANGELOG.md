@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.189.0] - 2026-10-16
 ### Cải thiện
-- **Cài đặt tối giản:** đang làm.
+- **Cài đặt gọn như app quen dùng:** cột Cài đặt của trợ lý mở ra là ảnh đại diện, tên, mô tả, hướng dẫn, tài liệu, kỹ năng và model. Khối Auto chỉ hiện khi trợ lý đang bật Auto.
+- **Trí nhớ và bài học làm qua chat:** muốn Javis nhớ gì, sửa, quên hay bảo một trợ lý thôi làm điều đã học, bạn cứ nhắn, ví dụ "quên chuyện kênh bán đi" hay "bảo Viết bài đừng dùng emoji nữa". Javis tự làm, mọi model đều làm được.
+- **Bỏ các danh sách khó hiểu:** thẻ Javis Core không còn mục Trí nhớ, cột trợ lý không còn Bài học, Thu hồi, Dùng ở mọi nơi hay bài học cũ chưa có phạm vi.
 
 ## [0.188.0] - 2026-10-16
 ### Sửa lỗi

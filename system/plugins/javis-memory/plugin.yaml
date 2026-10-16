@@ -1,0 +1,12 @@
+name: Trí nhớ qua chat
+name_en: "Memory from chat"
+slug: javis-memory
+version: 1.0.0
+description: Cho Javis xem, sửa, quên ghi nhớ của brain, bật tắt việc lưu ghi nhớ mới, sửa hồ sơ chung và thu hồi bài học của trợ lý khi người dùng nhắn. Thay cho các danh sách trí nhớ và bài học từng nằm ở cột Cài đặt. Chỉ phiên của chủ thấy tool này.
+description_en: "Lets Javis list, edit and forget the brain's memories, switch new memories on or off, edit the shared profile and revoke an assistant's lessons when the person asks in chat. Replaces the memory and lesson lists that used to sit in the settings column. Only the owner's own sessions see this tool."
+author: Javis (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - javis_memory
+hooks: []

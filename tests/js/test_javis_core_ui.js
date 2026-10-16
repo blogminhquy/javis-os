@@ -41,6 +41,12 @@ check("opening it goes to the brain's default chat (where reports land)",
   /if \(!id && !moiHan && item\.system\) \{[\s\S]{0,300}api\("\/javis-core\/session", \{ method: "POST"/.test(src));
 check("no Auto panel mounted for it", /!item \|\| item\.system\) return;/.test(src));
 check("the list asks the server for it (system=1)", /\/agents\?brain=" \+ b \+ "&prompt=0&system=1"/.test(src));
+check("0.189.0: the core card carries no memory list, one short line says to ask in chat",
+  !/wsCoreMem|JavisCoreMemory/.test(src) && /chat/.test(vi["ws.core_note"]) && vi["ws.core_note"].length < 160);
+check("0.189.0: an assistant's column opens on the settings form; the Auto block only while Auto is on",
+  /host\.innerHTML = '<div class="ws-form" id="wsAgentForm"><\/div><div class="ws-auto" id="wsAuto"><\/div>'/.test(src)
+  && /function veAuto\(item\) \{[\s\S]{0,300}!autoBat\(S\.rs, item\.slug\)\) \{ box\.innerHTML = ""; return; \}/.test(src)
+  && (src.match(/veDanhSach\(\); veAuto\(dangChon\(\)\);/g) || []).length === 2);
 check("i18n vi/en", vi["ws.system_badge"] === "Hệ thống" && en["ws.system_badge"] === "System"
   && !!vi["ws.core_note"] && !!en["ws.core_note"]);
 check("CSS for the badge and card", css.includes(".ws-sys {") && css.includes(".ws-core-card {"));

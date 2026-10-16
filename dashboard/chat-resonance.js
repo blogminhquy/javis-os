@@ -282,8 +282,6 @@
         row._st = res.j.reaction || {};
         row.innerHTML = reactHtml(row._st, row._open && row._st.value !== "none",
           res.j.proposal ? tw("resonance.react_proposal") : "");
-        // Mục Bài học ở ngăn trợ lý (resonance-agent.js) đang mở thì tải lại: đề xuất mới và số đếm 30 ngày vừa đổi.
-        try { window.dispatchEvent(new CustomEvent("javis:resonance-lessons")); } catch (e) {}
       })
       .catch(function () { row.innerHTML = reactHtml(row._st, row._open, tw("resonance.failed")); });
   }

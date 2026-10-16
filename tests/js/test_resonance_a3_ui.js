@@ -73,56 +73,16 @@ check("nút Bỏ qua lần thử gọi route quyết định bài học",
 check("lệnh quay lại cách cũ đi đường lệnh của thẻ",
   RS.requestFor("revert_method", base, null, {}, "n").url === "/goals/g/commands");
 
-// ── mục Bài học ──
-const data = {
-  lessons: [
-    { id: "ls_p", lane: "presentation", key: "notice_detail", to_value: "brief", status: "proposed", updated_at: 1.5,
-      evidence: { reactions: ["reaction:1@1", "reaction:2@1"] },
-      preview: { kind: "detail", old: "Mục tiêu đã đạt: câu dài", new: "Đã đạt: câu ngắn" } },
-    { id: "ls_a", lane: "presentation", key: "notice_ping", to_value: "quiet", status: "active", evidence_missing: 1 },
-    { id: "ls_m", lane: "method", key: "method", to_value: "work.checklist.v1", status: "rejected" },
-  ],
-  stats: { up: 2, down: 3 },
-};
-const lh = RA.lessonsHtml(data);
-check("đề xuất: câu cũ và câu mới xếp dọc, số tin căn cứ, nút Áp dụng mang updated_at, nút Bỏ qua",
-  lh.includes("Mục tiêu đã đạt: câu dài") && lh.includes("Đã đạt: câu ngắn") && lh.includes('data-upd="1.5"')
-  && lh.includes('data-act="dismiss"') && lh.includes(vi["resonance.a3_evidence"].replace("{n}", "2")));
-check("bài học đang dùng: nút Thu hồi và cảnh báo nguồn đã xoá",
-  lh.includes('data-act="revoke"') && lh.includes(vi["resonance.a3_evidence_missing"]));
-check("lịch sử ngắn có bài học làn M đã thử thua", lh.includes(vi["resonance.a3_st_rejected"]));
-check("tin bắt buộc luôn đầy đủ được nói rõ trên đề xuất", lh.includes(vi["resonance.a3_mandatory_note"]));
-check("chưa có bài học: nói ngắn là chưa có, câu giải thích nằm trong khối i", RA.lessonsHtml({ lessons: [] }).includes(vi["resonance.a3_lessons_none"])
-  && RA.lessonsHtml({ lessons: [] }).includes(vi["resonance.a3_lessons_about"]));
-
-// ── soi giao diện trên sandbox (UI1 tới UI5) ──
-const md = RA.lessonsHtml({ lessons: [{ id: "ls_md", lane: "presentation", key: "notice_detail", to_value: "brief",
-  status: "proposed", updated_at: 2, evidence: { reactions: ["r:1", "r:2"] },
-  preview: { kind: "detail", old: "Sản phẩm: [Inbox/p.md](Inbox/p.md).", new: "Đã đạt. Sản phẩm: [Inbox/p.md](Inbox/p.md)." } }] });
-check("UI2 xem trước bỏ cú pháp liên kết markdown, giữ chữ",
-  md.includes("Sản phẩm: Inbox/p.md.") && !md.includes("](") && !md.includes("[Inbox"));
-const trying = RA.lessonsHtml({ lessons: [
-  { id: "ls_t", lane: "method", key: "method", to_value: "work.checklist.v1", to_label: "Rà đủ ý trước khi trả",
-    goal_label: "Ghi chú tuần sau", status: "trial_pending" },
-  { id: "ls_on", lane: "method", key: "method", to_value: "work.checklist.v1", to_label: "Rà đủ ý trước khi trả",
-    goal_label: "Ghi chú tháng", status: "active" }] });
-const tryBlock = (trying.match(/<div class="rsa-lesson rsa-trying"[\s\S]*?<\/div><\/div>/) || [""])[0];
-check("UI2 phép thử đang chờ: khối riêng có nút Bỏ qua mang mã bài học, ghi mục tiêu, không lẫn vào lịch sử",
-  tryBlock.includes('data-act="dismiss" data-lid="ls_t"') && tryBlock.includes("Ghi chú tuần sau")
-  && !trying.includes(vi["resonance.a3_history"]));
-check("UI2 bài học cách làm hiện nhãn dịch, không hiện mã thô; bài học đang dùng ghi mục tiêu",
-  trying.includes("Rà đủ ý trước khi trả") && !trying.includes("work.checklist.v1") && trying.includes("Ghi chú tháng"));
+// ── mục Bài học: 0.189.0 bỏ khỏi cột của trợ lý (chủ repo 16/10/2026), bài học làm qua chat (javis_memory) ──
 const RASRC = fs.readFileSync(path.join(ROOT, "dashboard", "resonance-agent.js"), "utf8");
 const RSSRC = fs.readFileSync(path.join(ROOT, "dashboard", "chat-resonance.js"), "utf8");
-check("UI3 xung đột 409: ghi chú giữ qua lần tải lại danh sách rồi mới xoá",
-  /S\.lessonNote = tw\("resonance\.a3_changed"\)/.test(RASRC)
-  && /S\.lessonNote \? '<div class="rsa-warn">'[\s\S]{0,120}lessonsHtml\(/.test(RASRC) && /S\.lessonNote = "";/.test(RASRC));
+check("0.189.0: cột trợ lý không còn tải hay vẽ mục Bài học, không nút Áp dụng/Thu hồi",
+  !/\/resonance\/lessons\?/.test(RASRC) && !/lessonsHtml|rsa-lesson-act|lessonNote/.test(RASRC) && !("lessonsHtml" in RA));
 check("UI4 hàng phản hồi không đoán phiên đang mở: gửi phiên trống, server tra biên nhận theo khoá báo cáo",
   /row\._ctx = \{ session_id: "", report: card\.report, goal_id: card\.goal_id \}/.test(RSSRC)
   && !/JavisSessions/.test(RSSRC));
-check("UI5 phản hồi ghi xong thì báo mục Bài học tải lại (không cần F5)",
-  /dispatchEvent\(new CustomEvent\("javis:resonance-lessons"\)\)/.test(RSSRC)
-  && /addEventListener\("javis:resonance-lessons"[\s\S]{0,120}refresh\(\)/.test(RASRC));
+check("0.189.0: không còn sự kiện tải lại mục Bài học (không ai nghe)",
+  !/javis:resonance-lessons/.test(RSSRC) && !/javis:resonance-lessons/.test(RASRC));
 
 // ── khoá từ điển ──
 const used = new Set();
@@ -134,7 +94,7 @@ while ((m = mapRe.exec(SRC))) used.add(m[1]);
 const a3 = [...used].filter((k) => k.startsWith("resonance.a3_") || k.startsWith("resonance.react") ||
   k === "resonance.btn_revert_method" || k === "resonance.btn_lesson_dismiss" || k.startsWith("resonance.wake.method"));
 const miss = a3.filter((k) => !(k in vi) || !(k in en));
-check(`mọi khoá A3 có ở cả vi và en (${a3.length} khoá)`, a3.length >= 40 && !miss.length, miss.join(", "));
+check(`mọi khoá A3 có ở cả vi và en (${a3.length} khoá)`, a3.length >= 15 && !miss.length, miss.join(", "));
 check("không ghép khoá tw() bằng nối chuỗi", !/tw\(\s*"resonance\.[a-z0-9_.]*"\s*\+/.test(SRC));
 check("không ký tự gạch dài", !SRC.includes("\u2014"));
 const enVals = a3.map((k) => en[k] || "").join(" ");

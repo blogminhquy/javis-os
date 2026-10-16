@@ -56,8 +56,8 @@ brain, nhận báo cáo đúng người, hỗ trợ trao đổi tiếp và thíc
 | 7.3, 15 hỏi tiếp | `POST /javis-core/cite` (chép thông báo kèm nguồn, thời điểm vào chat Javis Core riêng) |
 | 8 đẩy, Telegram | `telegram.owner_chat_id`, `webpush` gắn `phien`, `/auth/logout` gỡ thiết bị, `push.preview` |
 | 8 trùng khi thử lại | `inbox.add(dedup=...)`; khoá theo việc/lần chạy ở Kanban, loop, nhắc hẹn, việc chạy nền |
-| 10.2 hồ sơ người dùng | `STATE_DIR/user_profile.md`, `GET/POST /profile`, nạp TRƯỚC bộ nhớ brain |
-| 12, 13 xem/sửa/quên/tắt | `server/memory_control.py`, `/memory/items|edit|forget|learning`, `dashboard/core-memory.js` |
+| 10.2 hồ sơ người dùng | `STATE_DIR/user_profile.md`, `GET/POST /profile`, tool `javis_memory op=profile`, nạp TRƯỚC bộ nhớ brain |
+| 12, 13 xem/sửa/quên/tắt | `server/memory_control.py`, `/memory/items|edit|forget|learning`; từ 0.189.0 làm qua chat bằng tool `javis_memory` (`server/memory_chat.py`, plugin `system/plugins/javis-memory`) |
 | 12.4 không học lại điều đã quên | `memory/forgotten.json` (dấu vân tay), `learn._promote_sync`, `agent_lessons.add` |
 
 ## 4. Kết quả kiểm thử theo nhóm nghiệm thu
@@ -74,7 +74,7 @@ Mỗi dòng là một phép kiểm có thật trong test (chạy `python tests/p
 - **Tin hệ thống, đẩy** (`test_javis_core_notices.py`): đã-đọc ở máy chủ, đánh dấu một lần thấy ở mọi thiết bị; hỏi
   Javis Core chép đúng thông báo vào chat của brain đúng, hỏi lại không chép trùng, thông báo chung không đổi; thiết
   bị gắn với đăng nhập, đăng xuất là gỡ, đăng nhập hết hạn không nhận; ẩn nội dung thì bản đẩy không mang chữ.
-- **Tự học và cá nhân hoá** (`test_javis_core_memory.py`, `tests/js/test_core_memory.js`): xem, sửa, quên; đã quên
+- **Tự học và cá nhân hoá** (`test_javis_core_memory.py`, `test_memory_chat.py`): xem, sửa, quên; đã quên
   thì vòng tự học không ghi lại (cùng slug hay cùng chữ); quên không xoá chat; tắt tự học thì vòng học, bài học trợ
   lý và tool ghi file của model đều không ghi vào `memory/`, model được báo; model không sửa được công tắc hay danh
   sách đã quên; bài học bị thu hồi không học lại; hồ sơ dùng chung mọi brain, nằm trước bộ nhớ brain.
@@ -105,7 +105,7 @@ Mỗi dòng là một phép kiểm có thật trong test (chạy `python tests/p
   của Claude Code tự ghi file, và tool file riêng của Codex, Grok, Antigravity; các đường này chỉ có lời dặn
   "GHI NHỚ MỚI ĐANG TẮT" trong prompt.
 - **Quên có giới hạn:** brain lưu bằng git (tự học dùng git commit) vẫn còn bản cũ trong lịch sử git; bản sao lưu
-  làm trước đó cũng vậy. Màn hình nói rõ điều này trước khi quên.
+  làm trước đó cũng vậy. Câu trả lời của tool nói rõ điều này sau khi quên.
 - **Hồ sơ người dùng do người dùng tự viết.** Javis không tự suy diễn tính cách hay ghi vào hồ sơ này.
 - Từ 0.188.0 ghi nhớ model viết trong một lượt chat mà thiếu `source` được máy chủ tự gắn "chat <ngày> (<mã chat>)".
   `status` (xác nhận hay suy luận) và `scope` vẫn chỉ có khi đường ghi tự điền.
@@ -118,3 +118,24 @@ Mỗi dòng là một phép kiểm có thật trong test (chạy `python tests/p
 - **Javis Core gọn hơn:** vòng chạy trót lọt (`quiet`) chỉ ở chuông (nút "Hỏi Javis Core" vẫn đưa vào được); báo cáo
   gửi Telegram chỉ chép vào Javis Core khi đó là Telegram của chính chủ.
 - **Ô "Telegram của bạn"** là ô chọn từ danh sách ID được phép.
+
+## 8. Cài đặt tối giản, trí nhớ qua chat (0.189.0)
+
+Chủ repo 16/10/2026, sau khi xem thẻ Javis Core và cột trợ lý: tự học của Core hiện quá nhiều thứ trong khi Javis đã có
+ngữ cảnh trong brain; bài học cũ của trợ lý lòng vòng, nút Thu hồi và Dùng ở mọi nơi người dùng không biết dùng. "Thà
+nhắn tin bảo xoá sửa thu hồi rồi AI làm giúp còn tốt hơn." Cài đặt chỉ giữ thứ thị trường quen dùng (đổi ảnh đại diện,
+tên, mô tả, hướng dẫn, tài liệu, kỹ năng, model).
+
+- **Thẻ Javis Core:** chỉ còn ảnh, tên, nhãn Hệ thống, vai trò và một câu "muốn nhớ, sửa hay quên thì nhắn trong chat".
+  `dashboard/core-memory.js` đã gỡ.
+- **Cột một trợ lý:** form cài đặt đứng đầu. Khối Auto (mục tiêu, nhịp, hạn mức tự chạy) nằm dưới và chỉ hiện khi Auto
+  của trợ lý đang bật (`veAuto` trong `workspace.js`). Mục Bài học A3 (`resonance-agent.js`) và danh sách bài học theo
+  phạm vi, bài học cũ, thay đổi tự rà soát, đề xuất (`agent-lessons-ui.js`) rời màn hình; mục còn lại là "Hạn mức tự
+  chạy".
+- **Tool `javis_memory`** (chỉ phiên của chủ, mức `safe`, mọi engine): `list`, `edit`, `forget`, `learning`, `profile`,
+  `lessons`, `lesson_add`, `lesson_revoke`. Luật giữ nguyên: quên chỉ còn dấu vân tay và không học lại, bài học bị thu
+  hồi không tự học lại, tool ghi file của model vẫn không ghi được công tắc.
+- **Chưa đưa vào tool:** bài học trình bày A3 (báo gọn hay đủ) đã áp dụng trước đây; đề xuất mới loại này không còn
+  nút Áp dụng nên không phát sinh thêm. Các route `/memory/*`, `/profile`, `/agents/{slug}/lessons/*` vẫn còn cho
+  công cụ ngoài.
+
