@@ -932,6 +932,9 @@
         loi +
         '<div class="ht-acc-acts">' +
           congTac +
+          // 0.174.0: nhập tin cũ (Zalo cá nhân giữ khoảng 2 tuần). Chủ bấm mới chạy; tin cũ không vào bot, không tính chưa đọc.
+          (nl.nhap_lich_su && a.kind === "account"
+            ? '<button type="button" class="s-btn-ghost ht-acc-nhap-cu">' + ic("history") + ' ' + esc(window.t("ht.nhap_cu")) + '</button>' : "") +
           '<button type="button" class="s-btn-ghost ht-acc-inbox">' + ic("messages-square") + ' ' + esc(window.t("ht.tab_inbox")) + '</button>' +
           (!a.bot_id
             ? '<button type="button" class="s-btn-ghost ht-acc-tao-bot">' + ic("headset") + ' ' + esc(window.t("ht.tk_tao_bot")) + '</button>' : "") +
@@ -962,6 +965,8 @@
       _dauVetTK = "";
       taiTK(true);
     };
+    var nhapCu = c.querySelector(".ht-acc-nhap-cu");
+    if (nhapCu) nhapCu.onclick = function () { nhapTinCu(a, nhapCu); };
     var sua = c.querySelector(".ht-acc-sua");
     if (sua) sua.onclick = function () { moSuaTK(a); };
     var kn = c.querySelector(".ht-acc-ket-noi");
@@ -1179,6 +1184,27 @@
     };
   }
 
+  // Nhập tin cũ của một tài khoản (0.174.0). Dùng chung cho nút trên thẻ kênh và chip Zalo trên thẻ bot (chatbots.js): kênh đã có bot
+  // không hiện thẻ ở mục "Kênh chưa có bot", nên chip là đường duy nhất tới nút này.
+  async function nhapTinCu(a, nut) {
+    if (!confirm(window.t("ht.xn_nhap_cu", { ten: a.label || a.external_id || a.id }))) return;
+    var goc = nut ? nut.innerHTML : "";
+    if (nut) { nut.disabled = true; nut.textContent = window.t("ht.dang_nhap_cu"); }
+    try {
+      var r = await api("/channels/accounts/" + encodeURIComponent(a.id) + "/import-history",
+                        { method: "POST", body: fd({ channel: a.channel }) });
+      var bao = r.so_tin
+        ? window.t("ht.da_nhap_cu", { tin: r.so_tin, chat: r.so_cuoc_chat })
+        : window.t("ht.khong_co_tin_cu");
+      if (r.bo_qua) bao += "\n" + window.t("ht.nhap_cu_bo_qua", { count: r.bo_qua });
+      if (r.het_tran) bao += "\n" + window.t("ht.nhap_cu_het_tran");
+      alert(bao);
+    } catch (e) { alert(window.t("ht.loi_nhap_cu") + " " + e.message); }
+    if (nut) { nut.disabled = false; nut.innerHTML = goc; }
+    _dauVetTK = "";
+    taiTK(true);
+  }
+
   // Sửa một kênh theo id: chip kênh trên thẻ bot (chatbots.js) gọi vào đây. Chưa nạp danh sách kênh thì nạp rồi mới mở.
   async function suaKenh(id) {
     var tim = function () { return _tk.filter(function (x) { return x.id === id; })[0]; };
@@ -1197,5 +1223,5 @@
   }
 
   window.JavisConversations = { render: render, mo: moTu, chonTab: chonTab,
-                               themTaiKhoan: moThemTK, suaKenh: suaKenh, tenBrain: tenBrain };
+                               themTaiKhoan: moThemTK, suaKenh: suaKenh, tenBrain: tenBrain, nhapTinCu: nhapTinCu };
 })();

@@ -280,12 +280,15 @@ def _tai_khoan_id(kenh: str, account_id: str) -> str:
     return f"{kenh}:{account_id}"
 
 
-def ghi_su_kien(ev: dict) -> dict:
+def ghi_su_kien(ev: dict, dem_chua_doc: bool = True) -> dict:
     """Đổ MỘT sự kiện chuẩn vào kho: tìm/tạo tài khoản kênh, khách, hội thoại rồi thêm tin.
 
     Trả về {"ok": True, "conversation_id", "message_id", "customer_id", "trung": bool}.
     Tin trùng `external_message_id` trong cùng hội thoại thì `trung=True` và không ghi gì.
     Lỗi trả {"ok": False, "loi": ...} và KHÔNG ném: người gọi là lượt trả lời khách.
+
+    `dem_chua_doc=False` (0.174.0): tin NHẬP LẠI từ lịch sử (Zalo cá nhân, `nhap_lich_su`) không cộng vào số chưa đọc. Đó là tin
+    cũ đã đọc trên điện thoại; đếm vào là hàng trăm cuộc chat đỏ chót ngay sau một lần bấm.
     """
     e = chuan_hoa(ev)
     if e.get("loi"):
@@ -365,7 +368,7 @@ def ghi_su_kien(ev: dict) -> dict:
 
                 # 5. Cập nhật hội thoại: tin cuối, số tin, chưa đọc (chỉ đếm tin KHÁCH)
                 tom = e["text"].strip().replace("\n", " ")[:200] or f"[{e['message_type']}]"
-                them_chua_doc = 1 if e["sender_type"] == "customer" else 0
+                them_chua_doc = 1 if e["sender_type"] == "customer" and dem_chua_doc else 0
                 db.execute(
                     "UPDATE conversations SET last_message=?, last_message_at=?, last_sender_type=?,"
                     " unread_count=unread_count+?, message_count=message_count+1, updated_at=?"
@@ -384,6 +387,16 @@ def ghi_su_kien(ev: dict) -> dict:
     except Exception as ex:
         print(f"[conversations] ghi lỗi: {type(ex).__name__}: {ex}", file=sys.stderr)
         return {"ok": False, "loi": f"{type(ex).__name__}: {ex}"}
+
+
+def co_tin(kenh: str, account_id: str, external_chat_id: str) -> bool:
+    """Cuộc chat này đã có ít nhất một tin trong kho chưa (0.174.0, cho `zalo_personal_channel.nhap_lich_su`)."""
+    with _lock:
+        r = _conn().execute(
+            "SELECT 1 FROM messages m JOIN conversations c ON c.id = m.conversation_id"
+            " WHERE c.channel_account_id=? AND c.external_chat_id=? LIMIT 1",
+            (_tai_khoan_id(kenh, account_id), str(external_chat_id))).fetchone()
+    return bool(r)
 
 
 def _cat_nhom_mot_cuoc(db, conv_id: int, giu: int = GIU_TIN_NHOM) -> int:

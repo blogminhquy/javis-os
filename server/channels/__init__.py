@@ -54,6 +54,7 @@ NANG_LUC_MAC_DINH = {
     "tra_loi_tu_javis": False,   # chủ trả lời khách ngay từ Hộp thư (cần hàm `gui`)
     "bot": False,             # gắn được một Bot chuyên trách (kind == "bot")
     "ghi_theo_cong_tac": False,  # ghi vào hộp thư khi chủ BẬT (kind == "account")
+    "nhap_lich_su": False,    # nhập lại tin cũ vào hộp thư khi chủ bấm (0.174.0, cần hàm `nhap_lich_su`)
 }
 
 
@@ -130,6 +131,7 @@ def _nap() -> Dict[str, KenhSpec]:
         # kết nối ở trang Kết nối), xem `bot_token_ids`.
         nl["bot"] = spec.kind in ("bot", "account") and getattr(m, "Transport", None) is not None
         nl["ghi_theo_cong_tac"] = spec.kind == "account" and callable(getattr(m, "bat", None))
+        nl["nhap_lich_su"] = callable(getattr(m, "nhap_lich_su", None))
         spec.nang_luc = nl
         if not spec.logo:
             spec.logo = spec.id

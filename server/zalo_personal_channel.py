@@ -389,6 +389,92 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
 
 
 # ============================================================
+# Nhập tin cũ (0.174.0)
+# ============================================================
+# Chủ repo hỏi 16/10/2026: đăng nhập Zalo vào Javis lần đầu thì Hộp thư trống trơn, dù điện thoại có cả trăm cuộc chat. javis-zalo
+# (từ 1.1.0) tự kéo tin cũ về mỗi lần kết nối, khoảng 2 tuần gần nhất theo cửa sổ phát lại của Zalo, rồi giữ trong kho lịch sử của
+# nó (`zalo_search_history`). Vòng đọc ở dưới không dùng kho đó: nó chỉ đọc bộ đệm tin MỚI (`zalo_get_messages`), đúng như quyết
+# định 3 ở đầu file. Nút "Nhập tin cũ" là lựa chọn riêng của chủ, không chạy tự động.
+#
+# Ba rào:
+#   1. Chỉ nhập vào cuộc chat CHƯA có tin nào trong kho. Khung tin xếp theo id, nên tin cũ nhập sau tin mới sẽ hiện SAU tin mới.
+#      Cuộc chat đã có tin thì bỏ qua, nói rõ trong kết quả.
+#   2. Không giao cho bot, không cộng số chưa đọc, không đụng đồng hồ "chủ vừa nhắn tay": đây là tin đã qua, ghi để xem lại.
+#   3. Có trần (`NHAP_TOI_DA` tin, `NHAP_NGAY` ngày) để một nick nhiều nhóm không làm kho phình. Nhóm vẫn chỉ giữ
+#      `conversations.GIU_TIN_NHOM` tin gần nhất như mọi lúc.
+NHAP_NGAY = 14
+NHAP_TOI_DA = 5000
+NHAP_TRANG = 200            # trần `limit` của zalo_search_history
+_DANG_NHAP: set = set()     # conn_id đang nhập: bấm hai lần liền không chạy chồng
+
+
+async def nhap_lich_su(conn_id: str, ngay: int = NHAP_NGAY) -> dict:
+    """Nhập tin cũ javis-zalo đã giữ (tối đa `ngay` ngày, `NHAP_TOI_DA` tin) vào Hộp thư, chỉ cho cuộc chat chưa có tin nào.
+
+    Trả {"ok", "so_tin", "so_cuoc_chat", "bo_qua", "het_tran"} hoặc {"ok": False, "loi"}."""
+    cid = str(conn_id or "")
+    conn = ket_noi_theo_id(cid)
+    if not conn:
+        return {"ok": False, "loi": localefmt.chu("Tài khoản Zalo này không còn ở trang Kết nối (hoặc đang tắt).",
+                                                   "This Zalo account is no longer on the Connections page (or is off).")}
+    if cid in _DANG_NHAP:
+        return {"ok": False, "loi": localefmt.chu("Đang nhập tin cũ cho tài khoản này, chờ chút rồi xem lại Hộp thư.",
+                                                   "Old messages are already being imported for this account.")}
+    _DANG_NHAP.add(cid)
+    try:
+        ngay = max(1, min(int(ngay or NHAP_NGAY), 30))
+        tu = int((time.time() - ngay * 86400) * 1000)
+        tin: List[dict] = []
+        truoc, het_tran = None, False
+        while True:
+            args: Dict[str, Any] = {"since": tu, "limit": NHAP_TRANG}
+            if truoc:
+                args["before"] = truoc
+            try:
+                d = await _goi(conn, "zalo_search_history", args)
+            except Exception as e:
+                if not tin:
+                    return {"ok": False, "loi": localefmt.chu(
+                        f"javis-zalo không trả được tin cũ: {str(e)[:200]}. Bản javis-zalo cần từ 1.1.0 trở lên.",
+                        f"javis-zalo could not return old messages: {str(e)[:200]}. javis-zalo 1.1.0 or newer is needed.")}
+                break
+            trang = (d.get("messages") if isinstance(d, dict) else None) or []
+            tin.extend(m for m in trang if isinstance(m, dict))
+            if len(tin) >= NHAP_TOI_DA:
+                het_tran = True
+                break
+            truoc = d.get("cursor") if isinstance(d, dict) else None
+            if not (isinstance(d, dict) and d.get("hasMore") and truoc and trang):
+                break
+        if not tin:
+            return {"ok": True, "so_tin": 0, "so_cuoc_chat": 0, "bo_qua": 0, "het_tran": False}
+        ten = await _nap_ten(conn, {})
+        theo_chat: Dict[str, List[dict]] = {}
+        for m in tin:
+            ev = chuan_hoa_tin(conn, m, ten)
+            if ev and ev.get("external_message_id"):
+                ev["metadata"] = dict(ev.get("metadata") or {}, lich_su=True)
+                theo_chat.setdefault(ev["external_chat_id"], []).append(ev)
+        so_tin = so_chat = bo_qua = 0
+        for chat, evs in theo_chat.items():
+            if conversations.co_tin(KENH, cid, chat):
+                bo_qua += 1
+                continue
+            evs.sort(key=lambda e: float(e.get("created_at") or 0))
+            ghi = 0
+            for ev in evs:
+                r = conversations.ghi_su_kien(ev, dem_chua_doc=False)
+                if r.get("ok") and not r.get("trung"):
+                    ghi += 1
+            if ghi:
+                so_tin += ghi
+                so_chat += 1
+        return {"ok": True, "so_tin": so_tin, "so_cuoc_chat": so_chat, "bo_qua": bo_qua, "het_tran": het_tran}
+    finally:
+        _DANG_NHAP.discard(cid)
+
+
+# ============================================================
 # Vòng đọc
 # ============================================================
 def _epoch(conn: dict) -> int:

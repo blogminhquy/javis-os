@@ -49,6 +49,15 @@ The **Guide on GitHub** button in the Zalo card always opens this documentation 
 
 <https://github.com/blogminhquy/javis-os/blob/main/docs/en/12-zalo-agent-mcp.md>
 
+## Importing old messages into the Inbox (since 0.174.0)
+
+Right after you sign Zalo in to Javis, the Inbox only holds messages from the moment **Record conversations** was switched on. To bring in older ones, press **Import old messages** on the Zalo account card on the Chatbot page, Bots tab, under Channels without a bot. If Zalo already has a bot, press the Zalo chip on that bot's card.
+
+- Javis takes the messages javis-zalo pulls in on every connect: about the last **2 weeks**, since Zalo does not allow going further back. At most 5,000 messages per run.
+- Only chats with **no message yet** in the Inbox are filled. Chats that already have messages are skipped, since old messages added later would show in the wrong order.
+- The bot **does not answer** these messages, they are **not counted as unread**, and groups still keep only their latest 100 messages as usual.
+- Right after scanning the QR code, wait a few minutes for Zalo to finish loading old messages before pressing it. Pressing again never duplicates anything.
+
 ## The MCP tools
 
 | Tool | What it does | Action level |

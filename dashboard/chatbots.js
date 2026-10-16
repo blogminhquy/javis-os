@@ -85,6 +85,12 @@
       return '<button type="button" class="cb-kenh-chip cb-kenh-sua" data-tk="' + esc(a.id) + '" title="' +
              esc(window.t("cb.sua_kenh_title", { kenh: k.nhan })) + '">' + ten + "</button>";
     }
+    // 0.174.0: kênh nhập được tin cũ (Zalo cá nhân) thì chip là nút nhập tin cũ. Kênh đã có bot không hiện thẻ riêng ở mục
+    // "Kênh chưa có bot", nên đây là chỗ duy nhất chủ bấm được.
+    if ((k.nang_luc || {}).nhap_lich_su) {
+      return '<button type="button" class="cb-kenh-chip cb-kenh-nhap-cu" data-tk="' + esc(a.id) + '" title="' +
+             esc(window.t("cb.nhap_cu_title", { kenh: k.nhan })) + '">' + ten + ' ' + ic("history") + "</button>";
+    }
     return '<span class="cb-kenh-chip" title="' + esc(k.nhan) + '">' + ten + "</span>";
   }
   // Bot có tài khoản nào đứng được trong nhóm không (quyết định khối cấu hình nhóm).
@@ -411,6 +417,13 @@
       if (window.JavisTryBot) window.JavisTryBot.open(b, { groups: coNhom(b) || !(b.accounts || []).length });
     };
     c.querySelector(".cb-kenh-them").onclick = function () { moForm(b, { buoc: 1 }); };
+    c.querySelectorAll(".cb-kenh-nhap-cu").forEach(function (n) {
+      n.onclick = function () {
+        var fn = window.JavisConversations && window.JavisConversations.nhapTinCu;
+        var a = (b.accounts || []).filter(function (x) { return x.id === n.dataset.tk; })[0];
+        if (fn && a) fn(a, n);
+      };
+    });
     c.querySelectorAll(".cb-kenh-sua").forEach(function (n) {
       n.onclick = function () {
         var fn = window.JavisConversations && window.JavisConversations.suaKenh;

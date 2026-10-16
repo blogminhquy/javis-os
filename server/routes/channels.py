@@ -243,6 +243,23 @@ def register(app, deps: ChannelsDeps):
         return _404(localefmt.chu("không có tài khoản kênh nào id đó (hoặc đang tắt ở trang Kết nối)",
                                   "no channel account with that id (or it is off on the Connections page)"))
 
+    @router.post("/channels/accounts/{account_id}/import-history")
+    async def channels_account_import_history(account_id: str, channel: str = Form("")):
+        """Nhập tin cũ của tài khoản kênh vào hộp thư (0.174.0, hiện chỉ Zalo cá nhân). Chủ bấm mới chạy, không tự động."""
+        k = str(channel or "").strip().lower()
+        for s in channels.danh_sach():
+            if k and s.id != k:
+                continue
+            m = channels.module(s.id)
+            fn = getattr(m, "nhap_lich_su", None) if m else None
+            if not callable(fn):
+                continue
+            r = await fn(account_id)
+            if r.get("ok") or k:
+                return r if r.get("ok") else _400(r.get("loi") or "")
+        return _404(localefmt.chu("kênh này không nhập được tin cũ, hoặc không có tài khoản id đó",
+                                  "this channel cannot import old messages, or there is no account with that id"))
+
     @router.post("/channels/accounts/{account_id}/delete")
     async def channels_account_delete(account_id: str, go_khoi_bot: str = Form("")):
         """Xoá một tài khoản kênh. `go_khoi_bot=1` thì GỠ nó khỏi bot đang trực rồi xoá luôn.

@@ -62,6 +62,12 @@ def bat(account_id: str, on: bool) -> dict:
     return zalo_personal_channel.bat(account_id, on)
 
 
+async def nhap_lich_su(account_id: str) -> dict:
+    """Nhập tin cũ (khoảng 2 tuần javis-zalo giữ được) vào Hộp thư, xem `zalo_personal_channel.nhap_lich_su`."""
+    import zalo_personal_channel
+    return await zalo_personal_channel.nhap_lich_su(account_id)
+
+
 def trang_thai() -> dict:
     import zalo_personal_channel
     return zalo_personal_channel.trang_thai()
