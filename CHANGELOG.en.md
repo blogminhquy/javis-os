@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.188.0] - 2026-10-16
+### Fixed
+- **Javis Core follow-ups:** in progress.
+
 ## [0.187.0] - 2026-10-16
 ### Added
 - **Ask Javis Core about a notice:** cards in the bell have an **Ask Javis Core** button. The notice goes into your own Javis Core chat with its source and time so you can follow up; the shared notice itself does not change.

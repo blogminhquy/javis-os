@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.188.0] - 2026-10-16
+### Sửa lỗi
+- **Javis Core sau rà soát:** đang làm.
+
 ## [0.187.0] - 2026-10-16
 ### Thêm mới
 - **Hỏi Javis Core về một thông báo:** thẻ trong chuông có nút **Hỏi Javis Core**. Thông báo được đưa vào khung Javis Core của bạn kèm nguồn và thời điểm để hỏi tiếp; thông báo chung không đổi.
