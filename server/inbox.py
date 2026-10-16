@@ -247,3 +247,53 @@ def xoa(item_id: str) -> bool:
             return False
         _save(d)
         return True
+
+
+# ── read state of the shared news (releases, announcements), 0.187.0 ─────────────────────────────────────────────
+#
+# The "News" tab is computed for everyone (`GET /notifications`), so the items are not stored once per person; only
+# WHICH of them this account has read is. It used to live in each browser's localStorage, so the phone and the
+# laptop disagreed. One instance has one account (the owner), so one file holds that account's read set; reading on
+# one device clears it on every device, and switching brains changes nothing.
+NEWS_STORE = STATE_DIR / "news_read.json"
+NEWS_MAX = 500
+
+
+def _news_load() -> dict:
+    try:
+        d = json.loads(NEWS_STORE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        d = {}
+    ids = d.get("read") if isinstance(d, dict) else None
+    return {"read": [str(x) for x in ids] if isinstance(ids, list) else [],
+            "initialized": bool(isinstance(d, dict) and d.get("initialized"))}
+
+
+def news_state() -> dict:
+    with _LOCK:
+        return _news_load()
+
+
+def news_mark(ids, *, initialized: bool = False) -> dict:
+    """Add `ids` to the read set (newest kept, capped). `initialized` records that the first-run pass is done."""
+    with _LOCK:
+        d = _news_load()
+        seen = set(d["read"])
+        for x in ids or []:
+            x = str(x or "").strip()[:200]
+            if x and x not in seen:
+                d["read"].append(x)
+                seen.add(x)
+        d["read"] = d["read"][-NEWS_MAX:]
+        if initialized:
+            d["initialized"] = True
+        tmp = NEWS_STORE.with_name(NEWS_STORE.name + ".tmp")
+        tmp.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(NEWS_STORE)
+        return d
+
+
+def get(item_id: str):
+    """One inbox item by id, or None."""
+    with _LOCK:
+        return next((it for it in _load()["items"] if it.get("id") == str(item_id or "")), None)

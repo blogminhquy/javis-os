@@ -4,7 +4,8 @@
 //                nên điện thoại và máy tính đếm giống nhau, và bấm vào là quay về ĐÚNG hội
 //                thoại đã hỏi - nội dung đầy đủ nằm ở đó, không phải trong cái thẻ này.
 //   "Tin tức"  = /notifications : bản phát hành + tin cộng đồng, phát chung cho mọi người.
-//                Đã-đọc giữ ở localStorage như cũ (ai đọc trên máy nấy, không cần đồng bộ).
+//                Từ 0.187.0 đã-đọc cũng nằm ở SERVER (/notifications/read), nên đọc trên điện thoại là
+//                máy tính cũng hết chấm; localStorage chỉ còn là bản đệm, và lần đầu được đẩy lên server.
 //
 // Gộp một danh sách thì một kết quả công việc thật bị chôn dưới mấy dòng changelog.
 (function () {
@@ -35,12 +36,37 @@
       state.read = new Set(Array.isArray(raw) ? raw.map(String) : []);
     } catch (e) { state.read = new Set(); }
   }
-  function saveRead() {
+  function saveRead(moi) {
     try { localStorage.setItem(READ_KEY, JSON.stringify(Array.from(state.read).slice(-300))); } catch (e) {}
+    // 0.187.0: the server keeps this account's read set, so every device agrees.
+    if (moi && moi.length) guiDaDoc({ ids: moi });
+  }
+  function guiDaDoc(body) {
+    try {
+      return fetch("/notifications/read", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body) }).then(function (r) { return r.json(); }).catch(function () {});
+    } catch (e) { return Promise.resolve(); }
+  }
+  // Read set from the server, merged with this browser's old local one (pushed up once).
+  var daDocTuServer = null;
+  function taiDaDoc() {
+    if (daDocTuServer) return daDocTuServer;
+    daDocTuServer = fetch("/notifications/read", { cache: "no-store" }).then(function (r) { return r.json(); })
+      .then(function (d) {
+        var sv = new Set(((d && d.read) || []).map(String));
+        var chiMayNay = Array.from(state.read).filter(function (x) { return !sv.has(x); });
+        sv.forEach(function (x) { state.read.add(x); });
+        state.serverInit = !!(d && d.initialized);
+        if (chiMayNay.length || (!state.serverInit && localStorage.getItem(INIT_KEY) === "1")) {
+          state.serverInit = true;
+          guiDaDoc({ ids: chiMayNay, initialized: true });
+        }
+      }).catch(function () {});
+    return daDocTuServer;
   }
   function firstRun(items) {
     try {
-      if (localStorage.getItem(INIT_KEY) === "1") return;
+      if (state.serverInit || localStorage.getItem(INIT_KEY) === "1") return;
       // Không biến toàn bộ lịch sử phiên bản thành hàng trăm tin chưa đọc ở lần mở đầu.
       // Chỉ giữ unread cho bản đang dùng/bản mới và thông báo cộng đồng ưu tiên cao.
       items.forEach(function (item) {
@@ -49,7 +75,9 @@
         if (!important) state.read.add(String(item.id));
       });
       localStorage.setItem(INIT_KEY, "1");
+      state.serverInit = true;
       saveRead();
+      guiDaDoc({ ids: Array.from(state.read), initialized: true });
     } catch (e) {}
   }
   // Bản ĐÃ CÀI thì không bao giờ tính là chưa đọc.
@@ -70,8 +98,9 @@
     return state.items.filter(chuaDoc);
   }
   function markRead(id) {
+    var moi = !state.read.has(String(id));
     state.read.add(String(id));
-    saveRead();
+    saveRead(moi ? [String(id)] : null);
     render();
   }
   function markAll() {
@@ -86,6 +115,7 @@
     }
     state.items.forEach(function (item) { state.read.add(String(item.id)); });
     saveRead();
+    guiDaDoc({ all: true });
     render();
   }
   function kindLabel(kind) {
@@ -171,6 +201,29 @@
     } catch (e) {}
     try { if (window.JavisSessions) window.JavisSessions.open(item.session_id); } catch (e) {}
   }
+  // "Ask Javis Core" (0.187.0, spec 7.3): the notice goes into this person's own Javis Core chat, with its source
+  // and time, and the chat opens there. The shared notice itself never changes.
+  function nutHoi(src, id) {
+    return '<button type="button" class="noti-ask" data-ask-src="' + src + '" data-ask-id="' + esc(id) + '">' +
+      esc(window.t("noti.ask_core")) + "</button>";
+  }
+  async function hoiCore(src, id) {
+    var brain = "brain";
+    try { if (window.JavisSessions && window.JavisSessions.brain) brain = window.JavisSessions.brain() || "brain"; } catch (e) {}
+    try {
+      var r = await (await fetch("/javis-core/cite", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: src, id: id, brain: brain }) })).json();
+      if (!r || !r.id) return;
+      closePanel();
+      if (window.JavisWorkspace && window.JavisWorkspace.openCommand) window.JavisWorkspace.openCommand("agent", "javis-core", r.id);
+    } catch (e) {}
+  }
+  function noiNutHoi(list) {
+    list.querySelectorAll("[data-ask-id]").forEach(function (b) {
+      b.addEventListener("click", function (e) { e.stopPropagation(); hoiCore(b.dataset.askSrc, b.dataset.askId); });
+      b.addEventListener("keydown", function (e) { e.stopPropagation(); });
+    });
+  }
   function theThu(item) {
     var chua = !item.read ? " unread" : "";
     var phu = item.session_id ? window.t(item.channel === "agent:javis-core" ? "noti.open_core" : "noti.reopen_chat") : "";
@@ -181,7 +234,9 @@
       esc(nhanLoai(item.kind)) + '</span><span class="noti-time">' + esc(thoiGian(item.ts)) + "</span></div>" +
       "<h4>" + esc(item.title || window.t("noti.msg_title")) + "</h4>" +
       '<p class="noti-card-body">' + esc(item.body || "") + "</p>" +
-      (phu ? '<span class="noti-cta">' + phu + "</span>" : "") + "</article>";
+      (phu ? '<span class="noti-cta">' + phu + "</span>" : "") +
+      // A report already in a chat opens that chat; a notice with no chat of its own can be asked about.
+      (!item.session_id || item.kind === "system" ? nutHoi("inbox", item.id) : "") + "</article>";
   }
   function veHomThu(list) {
     if (!state.thu.length) {
@@ -200,6 +255,7 @@
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); chay(); }
       });
     });
+    noiNutHoi(list);
   }
   function chonTab(tab) {
     state.tab = tab === "news" ? "news" : "mine";
@@ -261,7 +317,7 @@
         '<div class="noti-card-top"><span class="noti-kind ' + esc(kind) + '">' + esc(kindLabel(kind)) + '</span>' +
         '<span class="noti-time">' + esc(item.published_at || "") + "</span></div>" +
         "<h4>" + esc(item.title || window.t("noti.card_untitled")) + "</h4>" +
-        '<p class="noti-card-summary">' + esc(item.summary || "") + "</p>" + body + cta + "</article>";
+        '<p class="noti-card-summary">' + esc(item.summary || "") + "</p>" + body + cta + nutHoi("news", id) + "</article>";
     }).join("");
     var remaining = limited.length - visible.length;
     var loadMore = remaining > 0
@@ -269,6 +325,7 @@
         esc(window.t("noti.load_more", { count: Math.min(PAGE_SIZE, remaining) })) + "</button>"
       : "";
     list.innerHTML = cards + loadMore;
+    noiNutHoi(list);
     list.querySelectorAll("[data-noti-id]").forEach(function (card) {
       function activate() {
         var item = state.items.find(function (x) { return String(x.id) === card.dataset.notiId; });
@@ -310,6 +367,7 @@
       state.items = Array.isArray(data.items) ? data.items : [];
       state.visibleCount = PAGE_SIZE;
       state.loadedAt = Date.now();
+      await taiDaDoc();
       firstRun(state.items);
       render();
     } catch (e) {
@@ -349,6 +407,19 @@
     }
     nut.hidden = false;
     var on = await JavisPush.dangBat();
+    // 0.187.0: privacy of the push preview (the setting is per account, on the server).
+    var anRow = byId("notificationPushHideRow"), an = byId("notificationPushHide");
+    if (anRow && an) {
+      anRow.hidden = !on;
+      if (!an.dataset.wired) {
+        an.dataset.wired = "1";
+        try { var st = await (await fetch("/settings", { cache: "no-store" })).json(); an.checked = !!(st.push && st.push.preview === "hidden"); } catch (e) {}
+        an.addEventListener("change", function () {
+          var f = new FormData(); f.append("section", "push"); f.append("data", JSON.stringify({ preview: an.checked ? "hidden" : "full" }));
+          fetch("/settings", { method: "POST", body: f }).catch(function () {});
+        });
+      }
+    }
     nut.textContent = on ? window.t("noti.push_off") : window.t("noti.push_on");
     nut.classList.toggle("primary", !on);
     if (thu) thu.hidden = !on;
@@ -400,6 +471,7 @@
     var trigger = byId("notificationTrigger");
     if (!trigger) return;
     loadRead();
+    taiDaDoc().then(render);
     try { state.tab = localStorage.getItem(TAB_KEY) === "news" ? "news" : "mine"; } catch (e) {}
     trigger.addEventListener("click", function () {
       byId("notificationPanel").hidden ? openPanel() : closePanel();

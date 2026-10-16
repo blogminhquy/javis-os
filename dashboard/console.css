@@ -3231,6 +3231,24 @@ span.tmp-lead { cursor: default; }
 .ws-core-head h3 { margin: 0; font-size: 16px; }
 .ws-core-card p { margin: 10px 0 0; font-size: 14.5px; line-height: 1.5; }
 .ws-core-card .ws-core-note { color: var(--text2); font-size: 13.5px; }
+/* 0.188.0: memory controls on the Javis Core card (core-memory.js). Side-panel scale like the assistant settings. */
+.ws-core-mem { font-size: 13.5px; }
+.cm-switch { display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; font-weight: 600; cursor: pointer; }
+.cm-hint { margin: 4px 0 10px; color: var(--text2); font-size: 13px; line-height: 1.45; }
+.cm-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.cm-item { border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; background: var(--surface-1); }
+.cm-title { font-weight: 600; font-size: 14px; }
+.cm-meta { color: var(--text3); font-size: 12px; margin-top: 2px; }
+.cm-body { margin-top: 6px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 7.5em; overflow: hidden; }
+.cm-acts { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.cm-btn { padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  font-size: 13px; cursor: pointer; }
+.cm-btn.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+.cm-btn.danger { color: var(--red, #d64545); }
+.cm-text { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font: inherit; resize: vertical; }
+.cm-note { color: var(--text2); font-size: 12.5px; }
+@media (pointer: coarse) { .cm-btn { min-height: 36px; font-size: 15px; } .cm-text { font-size: 16px; } }
 .ws-item-time { flex: none; font-size: 14px; color: var(--text3); font-variant-numeric: tabular-nums; }
 @media (max-width: 900px) { .ws-item-time { font-size: 14px; } }
 

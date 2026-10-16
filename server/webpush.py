@@ -236,7 +236,7 @@ def _save_subs(d: dict) -> None:
         print(f"[webpush] ghi {SUBS_FILE.name} lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
 
-def dang_ky(sub: dict, nhan: str = "") -> tuple:
+def dang_ky(sub: dict, nhan: str = "", phien: str = "") -> tuple:
     """Ghi nhận MỘT trình duyệt. Trả (ok, lỗi). Trùng endpoint thì CẬP NHẬT, không đẻ thêm.
 
     Trùng là chuyện bình thường chứ không phải ngoại lệ: mỗi lần mở lại dashboard, trang
@@ -257,8 +257,12 @@ def dang_ky(sub: dict, nhan: str = "") -> tuple:
     with _LOCK:
         d = _load_subs()
         d["subs"] = [s for s in d["subs"] if s.get("endpoint") != ep]
-        d["subs"].append({"endpoint": ep, "p256dh": p256dh, "auth": auth,
-                          "nhan": str(nhan or "")[:120], "ts": time.time()})
+        moi = {"endpoint": ep, "p256dh": p256dh, "auth": auth, "nhan": str(nhan or "")[:120], "ts": time.time()}
+        # 0.187.0: the login this device subscribed under (a hash, never the token). Logging out drops the device,
+        # and while login is required a device whose login ended gets nothing (`gui_het`).
+        if phien:
+            moi["phien"] = str(phien)[:32]
+        d["subs"].append(moi)
         _save_subs(d)
     return True, ""
 
@@ -316,7 +320,19 @@ def ten_dich_vu(endpoint: str) -> str:
     return host or "?"
 
 
-async def gui_het(tieu_de: str, than: str, url: str = "/", tag: str = "javis") -> tuple:
+def huy_theo_phien(phien: str) -> int:
+    """Drop every device subscribed under this login (logout, 0.187.0). Returns how many."""
+    if not phien:
+        return 0
+    with _LOCK:
+        d = _load_subs()
+        truoc = len(d["subs"])
+        d["subs"] = [s for s in d["subs"] if s.get("phien") != phien]
+        _save_subs(d)
+        return truoc - len(d["subs"])
+
+
+async def gui_het(tieu_de: str, than: str, url: str = "/", tag: str = "javis", phien_hop_le=None) -> tuple:
     """Đẩy MỘT thông báo tới MỌI trình duyệt đã đăng ký. Trả (số_gửi_được, số_bị_dọn, chi_tiết).
 
     Gửi cho tất cả là cố ý: bật/tắt là việc của từng thiết bị, nên đã bật ở đâu thì ở đó phải
@@ -327,6 +343,10 @@ async def gui_het(tieu_de: str, than: str, url: str = "/", tag: str = "javis") -
     chắc chắn hỏng. Mọi mã lỗi KHÁC đều được giữ lại trên đăng ký để màn hình nói ra được.
     """
     subs = danh_sach_sub()
+    # `phien_hop_le` (0.187.0): the set of logins still valid, or None when login is not required. A device bound to
+    # a login that ended (logout elsewhere, expiry) is skipped: it may now be someone else's browser.
+    if phien_hop_le is not None:
+        subs = [x for x in subs if not x.get("phien") or x.get("phien") in phien_hop_le]
     if not subs:
         return 0, 0, []
     payload = json.dumps({"title": tieu_de, "body": than, "url": url, "tag": tag},

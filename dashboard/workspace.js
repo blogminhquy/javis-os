@@ -1648,7 +1648,9 @@
       // the chat box like any chat.
       host.innerHTML = '<div class="ws-core-card"><div class="ws-core-head">' + avatar(item, 40) + '<h3>' + esc(item.name) +
         '</h3><span class="ws-sys">' + esc(t("ws.system_badge")) + '</span></div><p>' + esc(item.role || "") + '</p>' +
-        '<p class="ws-core-note">' + esc(t("ws.core_note")) + '</p></div>';
+        '<p class="ws-core-note">' + esc(t("ws.core_note")) + '</p></div><div class="ws-core-mem" id="wsCoreMem"></div>';
+      // 0.188.0: what Javis remembers in this brain, the learning switch and the person's profile (core-memory.js).
+      if (window.JavisCoreMemory) window.JavisCoreMemory.mount(host.querySelector("#wsCoreMem"), brain());
     } else if (S.loai === "agent") {
       // Khối Cộng hưởng (A1) đứng ĐẦU cột phải: công tắc của trợ lý này và các mục tiêu nó đang theo đuổi.
       host.innerHTML = '<div class="rsa-panel" id="wsResonance"></div><div class="rsa-panel pulse-panel" id="wsPulse"></div>' +

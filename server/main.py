@@ -151,6 +151,7 @@ import cli_autoinstall   # trạng thái agy/grok do container Docker tự cài 
 import agent_assets      # tài liệu & link gắn vào MỘT trợ lý (lưu trong frontmatter agent)
 import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
 import javis_core        # Javis Core (0.185.0): system assistant pinned in every brain
+import memory_control    # 0.188.0: list/edit/forget memories, learning switch, person profile
 import chatbot_cuoc_chat  # danh sách cuộc chat cho ô chọn người/nhóm của form bot
 import chatbot_reply_policy        # bộ phán xử hội thoại nhóm (0.65.0): bot tự quyết nói hay im
 import chatbot_reply_policy_store  # kho quyết định, ca đã học, ngưỡng theo cuộc chat
@@ -896,8 +897,13 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
             mem = idx.read_text(encoding="utf-8")
     except Exception:
         mem = ""
+    if include_memory:
+        # 0.188.0: the person's own profile (every brain) BEFORE the brain's memory, which wins where they differ.
+        base += memory_control.profile_block()
     if include_memory and mem.strip():
         base += "\n\n# === BỘ NHỚ DÀI HẠN (nạp sẵn) ===\n" + _fit_memory_index(mem)
+    if not memory_control.learning_enabled(_brain_memory_dir(brain)):
+        base += memory_control.LEARNING_OFF_NOTE
     # Ngay sau bộ nhớ, TRƯỚC lớp agentic: hướng dẫn project là luật hành xử, phải đứng cùng
     # khu với CLAUDE.md và MEMORY.md chứ không lẫn vào khối đường dẫn kỹ thuật bên dưới.
     if project_id:
@@ -1704,7 +1710,13 @@ async def auth_tokens_revoke(request: Request, id: str = Form(...)):
 
 @app.post("/auth/logout")
 async def auth_logout(request: Request):
-    cfgmod.drop_session(request.cookies.get("javis_session", ""))
+    tok = request.cookies.get("javis_session", "")
+    # 0.187.0: this device stops receiving the account's notifications once it logs out.
+    try:
+        webpush.huy_theo_phien(_phien_bam(tok))
+    except Exception as e:  # noqa: BLE001
+        print(f"[webpush] logout cleanup: {type(e).__name__}: {e}", file=sys.stderr)
+    cfgmod.drop_session(tok)
     resp = JSONResponse({"ok": True})
     resp.delete_cookie("javis_session", path="/")
     return resp
@@ -5207,6 +5219,10 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             t["owner_chat_id"] = own if own in tg_parse_ids(t.get("chat_id")) else ""
         if patch.get("token"):
             t["token"] = patch["token"]
+    elif section == "push":
+        # 0.187.0: "hidden" = push notifications say only that something arrived, without its text.
+        if "preview" in patch:
+            cfg.setdefault("push", {})["preview"] = "hidden" if patch.get("preview") == "hidden" else "full"
     elif section == "zalo_bot":
         # Cùng khuôn với telegram. Id Zalo là chuỗi HEX chứ không phải số, nhưng `tg_parse_ids`
         # chỉ tách và bỏ trùng chứ không ép kiểu nên dùng chung được.
@@ -5822,6 +5838,61 @@ async def provider_models_index(provider: str, refresh: bool = False) -> dict:
 async def provider_models(provider: str = Query(...), refresh: bool = Query(False)):
     """Model động cho 1 provider. ``refresh=1`` bỏ cache để picker hỏi Codex ngay."""
     return await provider_models_index(provider, refresh=refresh)
+
+
+@app.get("/memory/items")
+def memory_items(brain: str = Query("brain")):
+    """What this brain remembers, with each memory's type, origin, source and dates (0.188.0, spec 13)."""
+    md = _brain_memory_dir(brain)
+    return {"items": memory_control.list_memories(md), "learning": memory_control.learning_enabled(md),
+            "forgotten": len(memory_control.forgotten(md)), "brain": Path(_brain_root(brain)).name}
+
+
+@app.post("/memory/edit")
+def memory_edit(payload: dict = Body(None)):
+    p = payload or {}
+    try:
+        return {"ok": True, **memory_control.edit_memory(_brain_memory_dir(str(p.get("brain") or "brain")),
+                                                          str(p.get("slug") or ""), str(p.get("body") or ""),
+                                                          str(p.get("type") or "") or None)}
+    except FileNotFoundError:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không có ghi nhớ này", "No such memory")}, status_code=404)
+    except ValueError:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Nội dung không hợp lệ", "Invalid content")}, status_code=400)
+
+
+@app.post("/memory/forget")
+def memory_forget(payload: dict = Body(None)):
+    """Forget one memory of this brain: the file and its index line go, a fingerprint stays so it is not re-learnt.
+    Chats are not touched."""
+    p = payload or {}
+    try:
+        return {"ok": True, **memory_control.forget_memory(_brain_memory_dir(str(p.get("brain") or "brain")),
+                                                            str(p.get("slug") or ""))}
+    except FileNotFoundError:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không có ghi nhớ này", "No such memory")}, status_code=404)
+    except ValueError:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Tên ghi nhớ không hợp lệ", "Invalid memory name")},
+                            status_code=400)
+
+
+@app.post("/memory/learning")
+def memory_learning(payload: dict = Body(None)):
+    """Switch saving NEW memories on or off for one brain; what is remembered stays in use."""
+    p = payload or {}
+    on = memory_control.set_learning(_brain_memory_dir(str(p.get("brain") or "brain")), bool(p.get("enabled")))
+    return {"ok": True, "learning": on}
+
+
+@app.get("/profile")
+def profile_get():
+    """The person's profile shared by every brain (0.188.0, spec 10.2): written by the person, never guessed."""
+    return {"text": memory_control.read_profile(), "max": memory_control.PROFILE_MAX}
+
+
+@app.post("/profile")
+def profile_set(payload: dict = Body(None)):
+    return {"ok": True, "text": memory_control.write_profile(str((payload or {}).get("text") or ""))}
 
 
 @app.get("/memory/stats")
@@ -9899,7 +9970,8 @@ def _workflow_agent_helpers(brain, tools, mode=None):
         lessons = lessons + rules
         if not lessons:
             return out
-        _ghi_bai_hoc(brain, aslug, lessons)
+        if memory_control.learning_enabled(_brain_memory_dir(brain)):   # 0.188.0: off = strip, do not write
+            _ghi_bai_hoc(brain, aslug, lessons)
         return sach
 
     return _mk, _agent_sysprompt, _log_run, _learn
@@ -10035,6 +10107,8 @@ def _ket_luot_agent(brain, slug, user_message, final_text, conv_sid="") -> str:
         rules = []
     # Không có câu của chủ trong lượt thì JAVIS_RULE không có căn cứ: hạ xuống bài học.
     lessons, sach = _boc_bai_hoc(text + "".join(f"\nJAVIS_LESSON: {r}" for r in rules))
+    if lessons and not memory_control.learning_enabled(_brain_memory_dir(brain)):
+        lessons = []   # 0.188.0: learning is off for this brain; the lines are still stripped from the answer
     if lessons:
         key = _dm_agent_key(brain, slug, conv_sid, register=True)
         if key:
@@ -10950,11 +11024,16 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         # còn không thì mở hòm thư. Không có tham số này thì push chỉ mở trang chủ, và
         # người dùng lại phải tự đi tìm - đúng cái phiền mà hòm thư sinh ra để bỏ.
         url = f"/?mo_thu={item['id']}"
+        # 0.187.0: "hide content" in the bell's settings shows only that something arrived; the text is read after
+        # opening Javis, where login is checked again.
+        title, body = item["title"], item["body"][:200]
+        if (cfgmod.read_settings().get("push") or {}).get("preview") == "hidden":
+            title, body = "Javis", localefmt.chu("Bạn có tin mới trong Javis.", "You have a new message in Javis.")
         # KHÔNG await: mỗi đăng ký chết là một request chờ tới 15 giây, mà việc rung chuông
         # không được phép giữ chân cái đã xong. Hòm thư đã ghi rồi - push chỉ là chuông cửa.
         # Giữ tham chiếu tới task, không thì bộ dọn rác có thể nuốt nó giữa chừng.
         t = asyncio.create_task(
-            webpush.gui_het(item["title"], item["body"][:200], url, tag=f"javis-{item['id']}"))
+            webpush.gui_het(title, body, url, tag=f"javis-{item['id']}", phien_hop_le=_phien_con_hieu_luc()))
         _PUSH_TASKS.add(t)
         t.add_done_callback(_PUSH_TASKS.discard)
     except Exception as e:
@@ -13634,6 +13713,12 @@ _NOTIFICATION_CACHE = {"at": 0.0, "data": None}
 @app.get("/notifications")
 async def notifications_info():
     """Hộp thư thống nhất: release tự động + tin cộng đồng/marketing từ GitHub main."""
+    return await _notifications_data()
+
+
+async def _notifications_data():
+    """The News feed itself (releases + announcements), shared by the route and by code that needs the items
+    (marking all read, asking Javis Core about one). Route handlers are not called as plain functions."""
     now = time.monotonic()
     ngon_ngu = localefmt.ngon_ngu_giao_dien()
     cached = _NOTIFICATION_CACHE.get("data")
@@ -13699,6 +13784,85 @@ async def notifications_info():
     return data
 
 
+@app.get("/notifications/read")
+async def notifications_read_get():
+    """This account's read set of the shared news (0.187.0): kept on the server, the same on every device."""
+    return inbox.news_state()
+
+
+@app.post("/notifications/read")
+async def notifications_read_post(payload: dict = Body(None)):
+    """Mark news read: `ids`, or `all` (every item the News tab shows now). `initialized` ends the first-run pass."""
+    p = payload or {}
+    ids = [str(x) for x in (p.get("ids") or []) if x]
+    if p.get("all"):
+        try:
+            data = await _notifications_data()
+            ids += [str(it.get("id")) for it in (data.get("items") or []) if it.get("id")]
+        except Exception as e:  # noqa: BLE001 - a feed error must not block marking what the client sent
+            print(f"[news read] {type(e).__name__}: {e}", file=sys.stderr)
+    return inbox.news_mark(ids, initialized=bool(p.get("initialized")))
+
+
+def _cite_text(src: str, item: dict, brain: str) -> str:
+    """A notice or report put into Javis Core so the person can ask about it (0.187.0, spec 7.3 and 15).
+
+    Written as data with its source and time, and said to be a snapshot: Javis must check live state with tools
+    before talking about "now". The marker lets a second click reuse it instead of posting it twice."""
+    import datetime as _dt
+    ts = item.get("ts") or 0
+    when = item.get("published_at") or (_dt.datetime.fromtimestamp(float(ts)).strftime("%d/%m/%Y %H:%M") if ts else "")
+    title = str(item.get("title") or "").strip()
+    body = str(item.get("body") or item.get("summary") or "").strip()
+    if src == "news" and item.get("summary") and item.get("body"):
+        body = f"{item['summary']}\n{item['body']}"
+    if title and body.startswith(title):
+        body = body[len(title):].strip()   # an inbox title is the body's first line: do not say it twice
+    nguon = str(item.get("label") or "").strip()   # a human label only, never a raw code like "system"
+    try:
+        ten_brain = Path(_brain_root(item.get("brain") or brain)).name
+    except Exception:
+        ten_brain = ""
+    head = localefmt.chu("Thông báo hệ thống" if src == "news" or item.get("kind") == "system" else "Báo cáo",
+                         "System notice" if src == "news" or item.get("kind") == "system" else "Report")
+    meta = " · ".join(x for x in (nguon, ten_brain, when) if x)
+    note = localefmt.chu("Nội dung tại thời điểm thông báo, không phải trạng thái hiện tại. Hỏi gì tiếp cứ nhắn ở đây.",
+                         "Content as of the notice, not the current state. Ask anything about it here.")
+    return (f"📌 **{head}**" + (f" · {meta}" if meta else "") + f"\n\n**{title}**\n{body}\n\n_{note}_\n"
+            f"<!-- javis-cite:{src}:{item.get('id', '')} -->")
+
+
+@app.post("/javis-core/cite")
+async def javis_core_cite(payload: dict = Body(None)):
+    """Open a notice or report in this brain's Javis Core to ask about it (0.187.0).
+
+    `source`: "inbox" (an item of the bell) or "news" (a release or announcement); `id`; `brain`: the brain open now,
+    used only for news and for an inbox item that has no source brain. The text goes into the person's own Javis Core
+    chat, never back into the shared notice. Asking twice reuses the first copy."""
+    p = payload or {}
+    src = "news" if p.get("source") == "news" else "inbox"
+    iid = str(p.get("id") or "")
+    if src == "inbox":
+        item = inbox.get(iid)
+    else:
+        data = await _notifications_data()
+        item = next((it for it in (data.get("items") or []) if str(it.get("id")) == iid), None)
+    if not item:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Không tìm thấy thông báo này", "Notice not found")},
+                            status_code=404)
+    brain = (item.get("brain") if src == "inbox" else "") or str(p.get("brain") or "brain")
+    store = get_store()
+    sid = javis_core.default_session(store, _brain_key(brain), same_brain=_cung_brain)
+    mark = f"<!-- javis-cite:{src}:{iid} -->"
+    try:
+        da_co = any(mark in str(m.get("content") or "") for m in (store.get_messages(sid) or [])[-80:])
+    except Exception:
+        da_co = False
+    if not da_co:
+        store.append_message(sid, "assistant", _cite_text(src, item, brain))
+    return {"ok": True, "id": sid, "channel": javis_core.CHANNEL, "reused": da_co}
+
+
 # ============================================
 # HÒM THƯ + THÔNG BÁO ĐẨY
 #
@@ -13750,10 +13914,27 @@ async def push_key():
     return {"key": webpush.khoa_cong_khai(), "subs": len(tb), "devices": tb}
 
 
+def _phien_bam(token: str) -> str:
+    """A short hash of a login token: what a push subscription keeps, never the token itself (0.187.0)."""
+    import hashlib
+    return hashlib.sha256(str(token).encode()).hexdigest()[:24] if token else ""
+
+
+def _phien_con_hieu_luc():
+    """Hashes of the logins still valid, or None when login is not required (local use, no password)."""
+    try:
+        if not cfgmod.gate_active():
+            return None
+        return {_phien_bam(t) for t in list(cfgmod.SESSIONS) if cfgmod.valid_session(t)}
+    except Exception:
+        return None
+
+
 @app.post("/push/subscribe")
-async def push_subscribe(payload: dict = Body(None)):
+async def push_subscribe(request: Request, payload: dict = Body(None)):
     p = payload or {}
-    ok, err = webpush.dang_ky(p.get("subscription") or p, str(p.get("nhan") or ""))
+    ok, err = webpush.dang_ky(p.get("subscription") or p, str(p.get("nhan") or ""),
+                              phien=_phien_bam(request.cookies.get("javis_session", "")))
     return {"ok": ok, "error": err, "subs": webpush.so_sub()}
 
 

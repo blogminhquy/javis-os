@@ -640,6 +640,19 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
                         f"trong số đó.")
             return (f"ERROR: '{(args or {}).get('path')}' nằm ngoài bộ não đang làm việc nên "
                     f"tool này không ghi được. Dùng đường dẫn tương đối trong brain.")
+        # 0.188.0 (Javis Core spec 13, 14): the learning switch and the forgotten list are the person's, never the
+        # model's; and with learning off nothing new is written under memory/.
+        try:
+            import memory_control
+            mem = (Path(vault_root) / "memory").resolve()
+            rp = p.resolve()
+            if rp.parent == mem and rp.name in (memory_control.LEARNING, memory_control.FORGOTTEN):
+                return "ERROR: công tắc ghi nhớ và danh sách đã quên do người dùng quản lý, tool không ghi được."
+            if (rp == mem or mem in rp.parents) and not memory_control.learning_enabled(mem):
+                return ("ERROR: người dùng đã TẮT việc lưu ghi nhớ mới cho brain này nên không ghi vào memory/. "
+                        "Nói với người dùng rằng ghi nhớ đang tắt (bật lại ở Javis Core > Trí nhớ).")
+        except Exception:
+            pass
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(str((args or {}).get("content") or ""), encoding="utf-8")
         return f"Đã ghi {p.name} ({len(str((args or {}).get('content') or ''))} ký tự)"

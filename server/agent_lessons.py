@@ -177,6 +177,14 @@ def add(store, *, agent_key: str, scope: str, kind: str, text: str, source: str,
     with store._Tx(store) as c:
         old = c.execute("SELECT * FROM agent_lessons WHERE agent_key=? AND scope=? AND text_norm=? AND status='active'",
                         (key, scope, norm)).fetchone()
+        if old is None and source != "owner":
+            # 0.188.0: a lesson the owner revoked is not learnt again by the agent from the same words; only the
+            # owner can bring it back (restore, or add it as their own).
+            gone = c.execute("SELECT id FROM agent_lessons WHERE agent_key=? AND scope=? AND text_norm=? AND "
+                             "status='revoked'", (key, scope, norm)).fetchone()
+            if gone is not None:
+                _event(c, gone["id"], key, "relearn_blocked", by or source, {"source": source, "refs": refs}, t)
+                return int(gone["id"])
         if old is not None:
             cur = _jl(old["source_refs_json"], [])
             merged = cur + [x for x in refs if x not in cur]

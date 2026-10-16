@@ -36,7 +36,7 @@ check("row: System badge, no Auto switch, no ... menu for the system assistant",
   /var he = laAgent && !!x\.system;/.test(src) && /\(he \? '<span class="ws-sys">' \+ esc\(t\("ws\.system_badge"\)\)/.test(src)
   && /S\.loai === "agent" && !he && window\.JavisResonanceAgent/.test(src) && /\(he \? "" : '<button type="button" class="ws-item-more"/.test(src));
 check("right column: a read-only card, no editor and no Delete button",
-  /if \(S\.loai === "agent" && item\.system\) \{[\s\S]{0,700}ws-core-card[\s\S]{0,400}\} else if \(S\.loai === "agent"\)/.test(src));
+  /if \(S\.loai === "agent" && item\.system\) \{[\s\S]{0,700}ws-core-card[\s\S]{0,900}\} else if \(S\.loai === "agent"\)/.test(src));
 check("opening it goes to the brain's default chat (where reports land)",
   /if \(!id && !moiHan && item\.system\) \{[\s\S]{0,300}api\("\/javis-core\/session", \{ method: "POST"/.test(src));
 check("no Auto panel mounted for it", /!item \|\| item\.system\) return;/.test(src));

@@ -540,6 +540,13 @@ class LearnFeature:
                 brains.append(brain)
                 cfg["brains"] = brains
                 self.write_config(cfg)
+            # 0.188.0: learning switched off for this brain (Javis Core > Memory) = nothing new is queued.
+            try:
+                import memory_control
+                if not memory_control.learning_enabled(self.deps.brain_memory_dir(brain)):
+                    return
+            except Exception:
+                pass
             kind = self._classify_turn(user, assistant)
             if kind == "low":
                 return
@@ -1238,6 +1245,13 @@ class LearnFeature:
                         rep["blocked"].append(f"fact '{slug}': chứa secret"); continue
                     if injection_in_output(body):
                         rep["blocked"].append(f"fact '{slug}': chứa câu injection"); continue
+                    # 0.188.0: a memory the person forgot is not learnt again from old chats (slug or same text).
+                    try:
+                        import memory_control
+                        if memory_control.is_forgotten(mem_dir, slug=slug, text=body):
+                            rep["blocked"].append(f"fact '{slug}': người dùng đã yêu cầu quên"); continue
+                    except Exception:
+                        pass
                     fp = facts_dir / f"{slug}.md"
                     sup = _slugify(f.get("supersedes") or "")
                     if fp.exists() and not sup:

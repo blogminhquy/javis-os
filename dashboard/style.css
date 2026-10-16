@@ -385,6 +385,16 @@ button, input, select, textarea { font-family: inherit; }
   -webkit-line-clamp: 3; line-clamp: 3;
 }
 .noti-cta { display: inline-block; margin-top: 9px; color: var(--accent-ink); font-size: 11.5px; font-weight: 600; }
+/* 0.187.0: ask Javis Core about a notice (the notice goes into your own Javis Core chat). */
+.noti-ask { display: inline-flex; align-items: center; margin: 9px 0 0 10px; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--accent); background: var(--accent-wash); color: var(--accent-ink); font-size: 12.5px;
+  font-weight: 600; cursor: pointer; }
+.noti-cta + .noti-ask { margin-left: 10px; }
+p + .noti-ask, h4 + .noti-ask { margin-left: 0; }
+.noti-push-hide { display: flex; align-items: center; gap: 8px; flex-basis: 100%; margin-top: 8px; font-size: 13px;
+  color: var(--text2); cursor: pointer; }
+.noti-push-hide[hidden] { display: none; }
+@media (pointer: coarse) { .noti-ask { min-height: 36px; font-size: 14px; } .noti-push-hide { font-size: 15px; } }
 .noti-loading, .noti-empty { padding: 30px 18px; color: var(--text3); text-align: center; font-size: 13px; line-height: 1.6; }
 .noti-load-more {
   display: block; width: calc(100% - 8px); margin: 10px 4px 4px; padding: 10px 12px;
@@ -422,7 +432,7 @@ button, input, select, textarea { font-family: inherit; }
 }
 /* Công tắc thông báo đẩy - nằm ngay trên chân panel, thấy được lúc đang đọc thư. */
 .noti-push {
-  flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+  flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   padding: 10px 12px; border-top: 1px solid var(--hairline); background: var(--surface-1);
 }
 .noti-push-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
