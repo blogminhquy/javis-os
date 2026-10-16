@@ -3,7 +3,7 @@
    Hợp đồng: docs/dev/team-chat-t2-contract.md mục 1, 2, 3 và 6. File này là NƠI DUY NHẤT của repo chứa bảng sáu emoji
    (test_icons.py cho phép đúng sáu ký tự đó, chỉ trong bảng EMOJI dưới đây).
 
-   - Bỏ emoji gửi `value: "none"`. Từ 0.177.0 giao diện chỉ còn emoji (góc 👍 kiểu Zalo, cornerHtml); lý do, trục nói/im
+   - Bỏ emoji gửi `value: "none"`. Từ 0.177.0 giao diện chỉ còn emoji (nút Thích ở góc bong bóng kiểu Zalo, cornerHtml); lý do, trục nói/im
      và góp ý vẫn được route nhận nhưng luôn gửi rỗng.
    - Trạng thái (`status`) do host ghi; giao diện chỉ hiện nhãn qua i18n và câu `status_reason` host viết sẵn.
    - Chống trùng: mỗi thao tác một `nonce`, giữ tới khi có kết quả; lỗi mạng (hay 5xx) thì gửi lại đúng nonce cũ, thành
