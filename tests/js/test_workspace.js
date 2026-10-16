@@ -205,7 +205,7 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     nhomCua: (x) => (String((x && x.group) || "").trim()) || "Chung", NHOM_MD: "Chung", brain: () => "brain",
     // Tag của agent (0.100.0) cũng khai ở đầu module: mượn bản thật qua W.
     tagsCua: W.tagsCua, tagCap: W.tagCap, laKhoa: W.laKhoa, demTag: W.demTag, coTag: W.coTag,
-    khoaTag: W.khoaTag, dongChonTag: W.dongChonTag, TAG_NONE: W.TAG_NONE,
+    khoaTag: W.khoaTag, dongChonTag: W.dongChonTag, TAG_NONE: W.TAG_NONE, TAG_AUTO: W.TAG_AUTO, laLocGia: W.laLocGia, autoBat: W.autoBat,
     TAB_PHAI: ["cai", "lichsu", "viec"],
     luuChon() {}, moPhien() {}, heptLai: () => false, chatReady() {}, active: true, opening: 0,
     esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: () => "<svg></svg>", avatar: () => "<i></i>",

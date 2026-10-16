@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.181.0] - 2026-10-16
+### Cải thiện
+- **Lọc trợ lý đang bật Auto:** menu tag ở trang Trợ lý có thêm mục **Đang bật Auto** kèm số lượng. Chọn nó là chỉ còn các trợ lý đang chạy Auto, tắt cái nào thì cái đó rời khỏi danh sách, rà để tắt rất nhanh.
+- **Chữ ở khung cài đặt trợ lý và cài đặt nhóm nhỏ lại cho gọn:** các khối Auto, mục tiêu, nhịp chủ động cùng cỡ với phần còn lại của khung. Khung chat và các trang khác vẫn giữ chữ 16px.
+
+### Sửa lỗi
+- **Câu trả lời ở trang Trợ lý không còn sát lề phải:** khung câu trả lời rộng vừa đọc như bên Trò chuyện, không chạy tới sát dải mục lục. Hết luôn thanh cuộn ngang làm khung chat bị xô lệch.
+
 ## [0.180.0] - 2026-10-16
 ### Cải thiện
 - **Nút chọn model gọn như app Claude:** chỉ hiện tên model (ví dụ "Opus 4.8", "GPT-5 mini"), không kèm tên nhà cung cấp. Bấm vào vẫn mở bảng chọn nhà cung cấp và model như cũ, rê chuột vào nút thì thấy tên nhà cung cấp. Phiên nào đang ghim model riêng thì nút có biểu tượng ghim nhỏ, ghim vẫn chạy như cũ.

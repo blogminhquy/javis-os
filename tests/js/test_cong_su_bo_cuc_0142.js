@@ -111,8 +111,10 @@ check("CSS: cột trái rộng hơn mặc định và theo biến kéo được;
   /\.wspage > \.ws-left \{ width: var\(--ws-left-w, clamp\(240px, 24vw, 320px\)\);/.test(css) &&
   /\.wspage > \.ws-right \{ width: var\(--ws-right-w, 350px\);/.test(css) && /\.ws-resize \{ display: none; \}/.test(css) &&
   /cursor: col-resize; touch-action: none;/.test(css));
-check("CSS: cột phải ẩn thì chữ trong khung chat giãn ra",
-  /\.wspage\.right-open \.ws-slot \.msg-javis \.bubble \{ max-width: min\(120ch, 100%\); \}/.test(css));
+// 0.181.0: the owner reversed the 120ch widening (answers ran up to the outline bar); the assistant page keeps the main
+// chat's 72ch measure.
+check("CSS: no 120ch widening on the assistant page any more (same measure as the main chat)",
+  !/\.wspage\.right-open \.ws-slot \.msg-javis \.bubble \{ max-width: min\(120ch/.test(css));
 // Rà soát trước khi phát hành.
 check("đổi khổ màn: đặt lại right-open theo nghĩa mới (màn hẹp đóng ngăn, màn rộng theo lựa chọn)",
   /function theoKhoMan\(\)[\s\S]{0,600}page\.classList\.toggle\("right-open", manRong\(\) \? !nhoPhaiHien\(\) : false\)/.test(src) &&

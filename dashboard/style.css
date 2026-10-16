@@ -1209,7 +1209,9 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 /* Khung chat chừa lề phải đúng bằng dải mốc, và CHỈ khi dải đang hiện (JS gắn class). Không
    chừa thì bong bóng chạy tới sát mép, nằm ngay dưới dải - mà chữ nằm dưới một vùng bắt chuột
    thì không cách nào bôi đen sạch được. */
-.transcript.cm-co-thanh { padding-right: 34px; }
+/* overflow-x: hidden (0.181.0): the outline's negative margin below made Chromium count 34px of extra width, so the chat had
+   a horizontal scrollbar (the grey bar under the answers the owner saw) and a sideways swipe slid every bubble left. */
+.transcript.cm-co-thanh { padding-right: 34px; overflow-x: hidden; }
 /* ...và dải PHẢI nằm trong chính phần lề đó (0.176.0). #chatMarks rộng 0, căn flex-end nên đứng ở mép NỘI DUNG; không có
    lề âm này thì .cm-ray (right:0, rộng 20px) phủ đúng 20px cuối của bong bóng (đo trong Chromium: dải 1380-1400, bong
    bóng kết thúc ở 1400), còn 22px lề chừa ra lại bỏ trống. Chủ repo báo 16/10/2026: câu mình nhắn sát mục lục quá, rê tới

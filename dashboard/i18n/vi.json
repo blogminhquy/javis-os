@@ -3204,6 +3204,7 @@
   "ws.group_empty_hint": "Nhóm này chưa có ai. Về \"Tất cả nhóm\", bấm \"...\" ở một cộng sự rồi chọn \"Chuyển vào nhóm\" để đưa vào đây.",
   "ws.tag_all": "Tất cả agent",
   "ws.tag_none": "Chưa gắn tag",
+  "ws.tag_auto": "Đang bật Auto",
   "ws.tag_pick_title": "Lọc agent theo tag",
   "ws.tag_clear_title": "Bỏ lọc tag",
   "ws.tag_menu": "Gắn tag",

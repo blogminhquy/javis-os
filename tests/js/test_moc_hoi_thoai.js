@@ -178,12 +178,12 @@ check("dải mốc sát mép phải, không lùi vào đè lên chữ",
 check("và rộng đúng bằng vạch dài nhất (20px), không phải 22px như bản đầu",
   /\.cm-ray \{[^}]*width: 20px;/.test(CSS));
 check("khung chat chừa lề phải cho dải mốc, nên hai vùng không chồng nhau",
-  /\.transcript\.cm-co-thanh \{ padding-right: \d+px; \}/.test(CSS));
+  /\.transcript\.cm-co-thanh \{ padding-right: \d+px;( overflow-x: hidden;)? \}/.test(CSS));
 // 0.176.0 (chủ repo 16/10/2026, ảnh: câu mình nhắn sát mục lục, rê tới cuối câu là danh sách bung ra): chừa lề thôi CHƯA ĐỦ.
 // #chatMarks căn flex-end nên đứng ở mép NỘI DUNG, tức dải vẫn phủ 20px cuối của bong bóng (đo trong Chromium). Lề âm đúng
 // bằng padding-right mới đưa dải ra phần lề trống.
 (function () {
-  var pad = (CSS.match(/\.transcript\.cm-co-thanh \{ padding-right: (\d+)px; \}/) || [])[1];
+  var pad = (CSS.match(/\.transcript\.cm-co-thanh \{ padding-right: (\d+)px;(?: overflow-x: hidden;)? \}/) || [])[1];
   var neg = (CSS.match(/\.transcript\.cm-co-thanh > #chatMarks \{ margin-right: -(\d+)px; \}/) || [])[1];
   check("CANARY: dải mốc nằm TRONG phần lề phải (lề âm bằng đúng padding), không phủ lên cuối bong bóng",
     pad && neg && pad === neg && Number(pad) >= 20 + 12, [pad, neg]);

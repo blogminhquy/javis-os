@@ -136,6 +136,12 @@
   // Giá trị lọc "Chưa gắn tag": bắt đầu bằng dấu cách nên không bao giờ trùng tên tag thật (server cắt
   // khoảng trắng hai đầu tag).
   var TAG_NONE = " none";
+  // 0.181.0 (owner: "lọc những agent nào đang mở Auto để lựa mà tắt"): one more value in the tag filter, the agents whose
+  // Auto is on right now. Same leading-space trick as TAG_NONE, so it never clashes with a real tag.
+  var TAG_AUTO = " auto";
+  function autoBat(rs, slug) { var r = rs && rs[slug]; return !!(r && r.enabled && r.status === "active"); }
+  // A pseudo filter (not a real tag): "untagged" or "Auto on". Real tags go through the tag-key path.
+  function laLocGia(v) { return v === TAG_NONE || v === TAG_AUTO; }
   function tagsCua(x) {
     if (x && Array.isArray(x.tags)) return x.tags.map(String);
     // Server cũ chưa trả `tags`: nhóm thật (khác nhãn mặc định) coi như một tag.
@@ -178,12 +184,14 @@
   }
 
   // `laTag`: lọc theo TAG của agent (nhom = khoá hay tên tag, TAG_NONE = chưa gắn tag). Không truyền: lọc theo nhóm.
-  function loc(ds, q, nhom, laTag) {
+  // `rs`: the Auto state map (S.rs), needed only for the TAG_AUTO filter.
+  function loc(ds, q, nhom, laTag, rs) {
     var nq = khongDau(q || "").trim();
-    var khoa = laTag && nhom && nhom !== TAG_NONE ? laKhoa(ds, nhom) : null;
+    var khoa = laTag && nhom && !laLocGia(nhom) ? laKhoa(ds, nhom) : null;
     return ds.filter(function (x) {
       if (laTag) {
         if (nhom === TAG_NONE) { if (tagsCua(x).length) return false; }
+        else if (nhom === TAG_AUTO) { if (!autoBat(rs, x.slug)) return false; }
         else if (khoa != null && !coTag(x, khoa)) return false;
       } else if (nhom && (x.group || "Chung") !== nhom) return false;
       if (!nq) return true;
@@ -685,7 +693,7 @@
   // Ở tab trợ lý `S.nhom` giữ KHOÁ tag (không phải tên): truyền tên vào cũng được, đổi về khoá ngay ở đây.
   function chonNhom(g) {
     S.nhom = g || "";
-    if (S.loai === "agent" && S.nhom && S.nhom !== TAG_NONE) S.nhom = laKhoa(danhSach(), S.nhom);
+    if (S.loai === "agent" && S.nhom && !laLocGia(S.nhom)) S.nhom = laKhoa(danhSach(), S.nhom);
     S.hien = TRANG; S.tagNote = null; veTrai();
   }
   function taoNhomMoi() {
@@ -767,11 +775,12 @@
   function nhanTag(k) {
     if (!k) return t("ws.tag_all");
     if (k === TAG_NONE) return t("ws.tag_none");
+    if (k === TAG_AUTO) return t("ws.tag_auto");
     var g = demTag(danhSach()).tags.find(function (x) { return x.key === k; });
     return g ? g.ten : k;
   }
   function veThanhTag(bar) {
-    var ic0 = !S.nhom ? "layers" : S.nhom === TAG_NONE ? "circle" : "tag";
+    var ic0 = !S.nhom ? "layers" : S.nhom === TAG_NONE ? "circle" : S.nhom === TAG_AUTO ? "zap" : "tag";
     bar.innerHTML =
       '<button type="button" class="cs-proj-cur" title="' + esc(t("ws.tag_pick_title")) + '">' +
         '<span class="cs-proj-name">' + ic(ic0) + ' ' + esc(nhanTag(S.nhom)) + '</span>' +
@@ -793,6 +802,11 @@
       { label: t("ws.tag_none"), icon: "circle", right: String(dem.khong), on: S.nhom === TAG_NONE,
         run: function () { chonNhom(TAG_NONE); } },
     ];
+    if (window.JavisResonanceAgent) {
+      var soAuto = danhSach().filter(function (x) { return autoBat(S.rs, x.slug); }).length;
+      rows.push({ label: t("ws.tag_auto"), icon: "zap", right: String(soAuto), on: S.nhom === TAG_AUTO,
+        run: function () { chonNhom(TAG_AUTO); } });
+    }
     if (dem.tags.length) rows.push({ sep: true });
     dem.tags.forEach(function (g) {
       rows.push({ label: g.ten, icon: "tag", right: String(g.n), on: S.nhom === g.key,
@@ -854,7 +868,7 @@
     if (S.loai === "agent") {
       // Tag không có "tag trống": tag tồn tại khi có agent mang nó. Tag đang lọc vừa bị đổi tên hay
       // xoá (ở tab khác, sau F5) thì về "Tất cả agent".
-      if (S.nhom && S.nhom !== TAG_NONE) {
+      if (S.nhom && !laLocGia(S.nhom)) {
         var kLoc = laKhoa(danhSach(), S.nhom);
         S.nhom = danhSach().some(function (x) { return coTag(x, kLoc); }) ? kLoc : "";
       }
@@ -893,7 +907,7 @@
   function veDanhSach() {
     var el = S.el; if (!el) return;
     var laTag = S.loai === "agent";
-    var ds = loc(danhSach(), S.q, S.nhom, laTag), chon = S.chon[S.loai];
+    var ds = loc(danhSach(), S.q, S.nhom, laTag, S.rs), chon = S.chon[S.loai];
     var host = el.querySelector("#wsList");
     var trong = (S.q || S.nhom || laTag) ? [] : docNhomTrong();
     if (!ds.length && !trong.length) {
@@ -1867,7 +1881,7 @@
   window.JavisWorkspace = { gioNgan: gioNgan, render: render, roi: roi, openCommand: openCommand, openTab: openTab, onTurnDone: onTurnDone, canSend: function () { return !active || ready; }, dungKhiChuaCoTuDien: function () { return dungKhiChuaCoTuDien; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram,
     dangChay: dangChay, tabPhai: chonTabPhai, gomNhom: gomNhom, nhomHtml: nhomHtml, chonNhom: chonNhom, state: function () { return S; },
     tagsCua: tagsCua, tagCap: tagCap, laKhoa: laKhoa, demTag: demTag, coTag: coTag, khoaTag: khoaTag,
-    dongChonTag: dongChonTag, chipTagHtml: chipTagHtml, TAG_NONE: TAG_NONE,
+    dongChonTag: dongChonTag, chipTagHtml: chipTagHtml, TAG_NONE: TAG_NONE, TAG_AUTO: TAG_AUTO, laLocGia: laLocGia, autoBat: autoBat,
     resonanceMap: resonanceMap, afterToggle: afterToggle };
   // Sidebar lịch sử mở phiên trực tiếp qua JavisSessions.open, ngoài đường moPhien ở trên.
   // Ghi lại sau khi nó mở xong để lần dựng trang sau vẫn ở đúng cuộc đã chọn.

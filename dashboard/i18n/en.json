@@ -3204,6 +3204,7 @@
   "ws.group_empty_hint": "This group is empty. Go back to \"All groups\", open \"...\" on a member and pick \"Move to group\" to add them here.",
   "ws.tag_all": "All agents",
   "ws.tag_none": "Untagged",
+  "ws.tag_auto": "Auto on",
   "ws.tag_pick_title": "Filter agents by tag",
   "ws.tag_clear_title": "Clear tag filter",
   "ws.tag_menu": "Tags",
