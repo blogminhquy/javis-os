@@ -3957,3 +3957,8 @@ div.info-body > * { margin: 0; font-size: inherit; }
 .jv-brain-note-btn { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--accent); background: var(--accent-wash);
   color: var(--accent-ink); font-size: 13px; font-weight: 600; cursor: pointer; }
 @media (pointer: coarse) { .jv-brain-note { font-size: 16px; } .jv-brain-note-btn { min-height: 36px; font-size: 15px; } }
+
+/* 0.191.1 (owner, 16/10/2026: the Jobs filter list opened white with pale words): a native dropdown list takes the
+   select's background, and most selects here have a see-through one, so Windows draws the list white under light text.
+   Every option gets a solid theme background and the theme's text colour, in both themes. */
+select option, select optgroup { background-color: var(--bg2); color: var(--text); }

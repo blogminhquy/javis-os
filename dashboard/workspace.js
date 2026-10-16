@@ -1023,10 +1023,13 @@
       ? window.JavisAgentJobs.badgeHtml(S.jc[x.slug]) : "";
     // 0.190.0: the Auto switch and the time sit in the corner cluster (.ws-item-end), so only a badge needs a third line.
     var coTt = !!bd;
+    // 0.191.1: the job state as one dot on the avatar of the avatar strip (data-st, colours in console.css).
+    var jst = laAgent && S.jc && window.JavisAgentJobs && window.JavisAgentJobs.statusOf
+      ? window.JavisAgentJobs.statusOf(S.jc[x.slug]) : "";
     var title = laAgent ? [x.name, x.role || ""].concat(tg.length ? [t("ws.tags_aria") + ": " + tg.join(", ")] : [])
       .filter(Boolean).join("\n") : "";
     return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + (he ? " he" : "") + (coTt ? " co-tt" : "") +
-      (laAgent ? " has-end" : "") + '">' +
+      (laAgent ? " has-end" : "") + '"' + (jst ? ' data-st="' + jst + '"' : "") + '>' +
       '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '"' +
         (title ? ' title="' + esc(title) + '"' : "") + '>' +
       '<span class="ws-item-ic">' + (laAgent ? avatar(x, 40)
@@ -1620,11 +1623,16 @@
     var ten = b.querySelector(".ws-item-top > strong"), phu = b.querySelector(".ws-item-text > small");
     var wrap = b.closest(".ws-item-wrap"), gio = wrap && wrap.querySelector(".ws-item-time");
     var anh = b.querySelector(".ws-item-ic");
+    var x = (S.agents || []).filter(function (a) { return a.slug === b.dataset.slug; })[0];
+    var tt = S.loai === "agent" && x && S.jc && window.JavisAgentJobs && window.JavisAgentJobs.statusText
+      ? window.JavisAgentJobs.statusText(S.jc[x.slug]) : "";
+    var st = tt ? window.JavisAgentJobs.statusOf(S.jc[x.slug]) : "";
     var the = theMini();
     the.innerHTML = '<div class="ws-mini-tip-head">' + (anh ? '<span class="ws-mini-tip-ava">' + anh.innerHTML + '</span>' : "") +
       '<strong>' + esc(ten ? ten.textContent : "") + '</strong>' +
       (gio ? '<span class="ws-mini-tip-time">' + esc(gio.textContent) + '</span>' : "") + '</div>' +
-      (phu && phu.textContent ? '<div class="ws-mini-tip-sub">' + esc(phu.textContent) + '</div>' : "");
+      (phu && phu.textContent ? '<div class="ws-mini-tip-sub">' + esc(phu.textContent) + '</div>' : "") +
+      (tt ? '<div class="ws-mini-tip-st" data-st="' + st + '">' + esc(tt) + '</div>' : "");
     if (b.hasAttribute("title")) { b.setAttribute("data-tip-title", b.getAttribute("title")); b.removeAttribute("title"); }
     the.hidden = false;
     var r = b.getBoundingClientRect(), h = the.getBoundingClientRect().height;

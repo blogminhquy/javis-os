@@ -337,6 +337,24 @@
       (c.running ? '<span class="ws-jb-run">' + esc(tw("ajobs.chip_running", { n: c.running })) + "</span>" : "") + "</span>";
   }
 
+  // 0.191.1 (owner, 16/10/2026: "4 trạng thái xanh nước biển, vàng cam, xanh lá và đỏ ... giống như bên claude"): the dot on
+  // an assistant's avatar. One state, the most urgent first: red needs you (blocked, to review, or failed in the last day),
+  // blue working, orange waiting in line, green finished in the last day. Nothing at all: no dot.
+  function statusOf(c) {
+    if (!c) return "";
+    if (c.needs_you || c.failed) return "need";
+    if (c.running) return "run";
+    if (c.waiting) return "wait";
+    if (c.done) return "done";
+    return "";
+  }
+  function statusText(c) {
+    var st = statusOf(c);
+    if (!st) return "";
+    var n = st === "need" ? (c.needs_you || 0) + (c.failed || 0) : st === "run" ? c.running : st === "wait" ? c.waiting : c.done;
+    return tw("ajobs.dot_" + st, { n: n || 0 });
+  }
+
   function newNonce() {
     try { if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID(); } catch (e) { /* cũ */ }
     return "n" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
@@ -604,7 +622,7 @@
   }
 
   var api = { html: html, jobHtml: jobHtml, toolbarHtml: toolbarHtml, assignHtml: assignHtml,
-    confirmHtml: confirmHtml, badgeHtml: badgeHtml, nextText: nextText, reasonText: reasonText, relTime: relTime, mount: mount, loadCounts: loadCounts,
+    confirmHtml: confirmHtml, badgeHtml: badgeHtml, statusOf: statusOf, statusText: statusText, nextText: nextText, reasonText: reasonText, relTime: relTime, mount: mount, loadCounts: loadCounts,
     RELOAD_MS: RELOAD_MS, setStrings: function (o) { STR = o || {}; } };
   if (typeof window !== "undefined") window.JavisAgentJobs = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

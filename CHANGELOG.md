@@ -8,7 +8,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.191.1] - 2026-10-16
 ### Cải thiện
-- (đang làm) Chấm trạng thái việc trên avatar cộng sự.
+- **Chấm trạng thái 4 màu trên avatar:** khi cột Cộng sự co về dải avatar, chấm nhỏ trên avatar cho biết việc của cộng sự đó: đỏ là cần bạn (hoặc vừa hỏng), xanh nước biển là đang làm, vàng cam là đang chờ, xanh lá là vừa xong trong 24 giờ. Rê chuột vào thì thẻ tên ghi rõ bằng chữ.
+
+### Sửa lỗi
+- **Thẻ tên khi rê chuột đọc được rồi:** thẻ có nền đặc, không còn bị chữ phía sau lẫn vào.
+- **Ô chọn Nguồn, Trạng thái không còn bị trắng:** danh sách xổ xuống có nền đúng màu giao diện, chữ đọc rõ ở cả nền sáng lẫn nền tối.
 
 ## [0.191.0] - 2026-10-16
 ### Thêm mới

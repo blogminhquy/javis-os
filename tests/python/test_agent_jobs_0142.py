@@ -8,6 +8,7 @@ model.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import os
+import time
 import tempfile
 from pathlib import Path
 
@@ -346,6 +347,14 @@ check("huy hiệu: đếm Đang làm và Cần bạn theo trợ lý", r.status_c
 code, j = jobs("hoa")
 check("huy hiệu khớp tab Công việc", cn.get("hoa", {}).get("running") == j["counts"]["running"]
       and cn.get("hoa", {}).get("needs_you", 0) == j["counts"]["needs_you"], (cn, j["counts"]))
+
+check("0.191.1: chấm trạng thái: huy hiệu đếm cả Đang chờ, Vừa xong (24 giờ) và Hỏng", all(
+      set(v) == {"running", "needs_you", "waiting", "done", "failed"} for v in cn.values()), cn)
+check("0.191.1: Minh vừa xong việc A và còn việc B: có mặt với việc đang làm hay đang chờ, việc A tính vừa xong",
+      cn.get("minh", {}).get("done", 0) >= 1 and (cn["minh"]["waiting"] + cn["minh"]["running"]) >= 1, cn.get("minh"))
+old_cn = agent_jobs.active_counts({"minh": keys["minh"]}, ROOT_B, brain_keys=main._brain_keys(B), tasks=store,
+                           sessions=main.get_store(), now=time.time() + 2 * agent_jobs.DONE_FRESH)
+check("0.191.1: việc xong quá 24 giờ thì không còn tính vừa xong", old_cn.get("minh", {}).get("done", 0) == 0, old_cn)
 
 # ───────────── vai theo đúng mã trợ lý, không theo slug ─────────────
 check("vai: mã đúng của slug thì có vai", "Bạn là Minh" in main._agent_persona(ROOT_B, "minh", keys["minh"]))

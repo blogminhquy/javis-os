@@ -23821,7 +23821,8 @@ def _agent_jobs_sources(root, key):
 
 @app.get("/agents/jobs/counts")
 async def agent_jobs_counts(brain: str = "brain"):
-    """Huy hiệu việc trên thẻ trợ lý (trang Cộng sự): {slug: {running, needs_you}}, chỉ trợ lý đang có việc. Đọc nhẹ:
+    """Huy hiệu và chấm trạng thái trên thẻ trợ lý (trang Cộng sự): {slug: {running, needs_you, waiting, done, failed}}
+    (done, failed: trong 24 giờ gần nhất), chỉ trợ lý có việc. Đọc nhẹ:
     bỏ lịch sử, Kanban đọc một lần cho cả brain. Tách khỏi trạng thái Auto: Auto tắt vẫn có thể có việc Đang làm."""
     root = _brain_key(brain)
 

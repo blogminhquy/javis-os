@@ -67,13 +67,29 @@ check("a remembered strip width comes back as the strip; double-click restores t
 check("hovering an avatar in the strip shows its name card, the card goes with the rows",
   ws.includes("hienTheMini(b)") && ws.includes('b.addEventListener("mouseleave", anTheMini)') && /function veDanhSach\(\) \{\n[^\n]*\n    anTheMini\(\);/.test(ws));
 check("CSS: the strip hides the words on wide screens only, keeps a dot for waiting work",
-  /@media \(min-width: 901px\) \{\n  \.wspage\.ws-mini > \.ws-left/.test(css) && css.includes(".wspage.ws-mini .ws-item-wrap.co-tt::after")
+  /@media \(min-width: 901px\) \{\n  \.wspage\.ws-mini > \.ws-left/.test(css) && css.includes(".wspage.ws-mini .ws-item-wrap[data-st]::after")
   && css.includes(".ws-mini-tip {"));
 check("Javis Core's Jobs tab has no Assign button and its own empty line",
   ws.includes("noAssign: !!item.system,") && aj.includes('if (ui.noAssign) return "";') && vi["ajobs.empty_core"] && en["ajobs.empty_core"]);
 check("the right column tabs leave room around the label of the selected one",
   css.includes(".ws-rtabs .cside-tab { flex: 1 1 auto; padding: 7px 10px;"));
 check("no em dash in the new text", !/[–—]/.test(vi["ajobs.empty_core"] + en["ajobs.empty_core"] + vi["ajobs.empty"] + en["ajobs.empty"]));
+
+// ---- 0.191.1: four-colour job state dot, solid hover card, readable dropdowns ----
+const AJ = require(path.join(root, "dashboard", "agent-jobs.js"));
+check("one state per assistant, most urgent first: red needs you or failed, blue working, orange waiting, green done",
+  AJ.statusOf({ needs_you: 1, running: 2 }) === "need" && AJ.statusOf({ failed: 1, running: 1 }) === "need"
+  && AJ.statusOf({ running: 1, waiting: 3 }) === "run" && AJ.statusOf({ waiting: 1, done: 4 }) === "wait"
+  && AJ.statusOf({ done: 2 }) === "done" && AJ.statusOf({}) === "" && AJ.statusOf(undefined) === "");
+check("the row carries the state for the dot, the hover card says it in words",
+  ws.includes("(jst ? ' data-st=\"' + jst + '\"' : \"\")") && ws.includes('class="ws-mini-tip-st" data-st="'));
+check("CSS: the dot is 8px, each state has its colour, the card is solid",
+  /\.ws-item-wrap\[data-st\]::after \{ content: ""; position: absolute; top: 6px; right: 10px; width: 8px;/.test(css)
+  && ["need", "run", "wait", "done"].every((k) => css.includes('[data-st="' + k + '"] { --st-dot:'))
+  && /\.ws-mini-tip \{[^}]*background: var\(--bg2\);/.test(css));
+check("every dropdown list gets a solid theme background", css.includes("select option, select optgroup { background-color: var(--bg2); color: var(--text); }"));
+const dk = ["ajobs.dot_need", "ajobs.dot_run", "ajobs.dot_wait", "ajobs.dot_done"];
+check("state words vi/en, no em dash", dk.every((k) => vi[k] && en[k]) && !/[–—]/.test(dk.map((k) => vi[k] + en[k]).join("")));
 
 if (fails) { console.log("\nFAIL " + fails); process.exit(1); }
 console.log("\nOK test_team_docs_ui");

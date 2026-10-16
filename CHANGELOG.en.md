@@ -10,7 +10,11 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.191.1] - 2026-10-16
 ### Improved
-- (in progress) Job status dot on partner avatars.
+- **Four-colour status dot on avatars:** when the partner list shrinks to avatars, a small dot shows each partner's work: red needs you (or just failed), blue working, orange waiting, green finished in the last 24 hours. Hover to read it in words.
+
+### Fixed
+- **The hover card is readable:** it has a solid background, so the chat behind no longer shows through the words.
+- **Source and Status dropdowns are no longer white:** the list that opens uses the theme's colours, readable in both light and dark.
 
 ## [0.191.0] - 2026-10-16
 ### Added

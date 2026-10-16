@@ -38,6 +38,10 @@ MAX_PAGE = 100
 # Lịch sử tối thiểu đọc mỗi nguồn (cửa sổ thật = vị trí trang + cỡ trang + 1, xem `collect`).
 TEAM_HISTORY = 30
 GOAL_LIMIT = 40
+# 0.191.1: the status dot on an assistant's avatar turns green for a job that finished within this window (seconds),
+# reading only the few newest finished jobs of each source.
+DONE_FRESH = 24 * 3600
+FRESH_WINDOW = 3
 # Trần của chính kho Kanban (list_tasks). Việc xong quá hạn tự rời bảng (archived), nên tập còn sống vốn nhỏ.
 KANBAN_LIMIT = 5000
 
@@ -370,14 +374,15 @@ def _cursor(cursor: Any) -> int:
 def collect(agent_key: str, slug: str, root: str, *, brain_keys: Any = None, teams=None, tasks=None, sessions=None,
             goals=None, principal=None, now: Optional[float] = None, source: str = "all", bucket: str = "",
             cursor: Any = None, limit: int = PAGE, history: bool = True, kanban_rows: Optional[list] = None,
-            resolve: bool = True) -> dict:
+            resolve: bool = True, done_since: float = 0) -> dict:
     """Một trang việc của một trợ lý.
 
     Trả {"jobs": trang, "counts": {ngăn: số} theo nguồn đang lọc, "source_counts": {nguồn: số}, "total", "next": cursor
     trang sau hay None, "counts_partial": {"done": bool}, "errors"}. Mỗi nguồn hỏng không làm mất nguồn khác: nguồn lỗi
     được ghi trong `errors` để giao diện nói rõ thiếu phần nào thay vì im lặng.
 
-    `history=False`: bỏ việc đã xong (đếm nhẹ cho huy hiệu trên thẻ trợ lý)."""
+    `history=False`: bỏ việc đã xong (đếm nhẹ cho huy hiệu trên thẻ trợ lý). Thêm `done_since` thì giữ lại việc xong từ
+    mốc đó (chỉ đọc vài việc xong mới nhất mỗi nguồn), cho chấm xanh "vừa xong"."""
     src = source if source in SOURCES else "all"
     want = bucket if bucket in BUCKETS else ""
     offset = _cursor(cursor)
@@ -385,24 +390,27 @@ def collect(agent_key: str, slug: str, root: str, *, brain_keys: Any = None, tea
     # Lịch sử đọc theo cửa sổ vừa đủ cho trang này: việc đã xong luôn xếp cuối, nên mỗi nguồn chỉ cần tối đa
     # offset + limit + 1 việc đã xong mới nhất để trang đúng và biết còn trang sau.
     window = offset + limit + 1 if history else 0
+    fresh = FRESH_WINDOW if (done_since and not history) else 0
     flags: dict = {}
     jobs, errors = [], []
     for name, fn in (("team", lambda: _team_jobs(agent_key, root, teams, tasks, max(window, TEAM_HISTORY if history
-                                                                                     else 0), flags)),
+                                                                                     else fresh), flags)),
                      ("chat", lambda: _kanban_jobs(agent_key, slug, root, brain_keys, tasks, sessions, goals,
-                                                   history, kanban_rows)),
+                                                   history or bool(fresh), kanban_rows)),
                      ("auto", lambda: _auto_jobs(agent_key, goals, principal, max(window, GOAL_LIMIT if history
-                                                                                  else 0), flags))):
+                                                                                  else fresh), flags))):
         try:
             jobs += fn()
         except Exception as ex:  # noqa: BLE001
             errors.append({"source": name, "error": f"{type(ex).__name__}: {str(ex)[:200]}"})
     if not history:
-        jobs = [j for j in jobs if j["bucket"] != "done"]
+        jobs = [j for j in jobs if j["bucket"] != "done" or (done_since and not j.get("cancelled")
+                                                              and (j.get("updated_at") or 0) >= done_since)]
     source_counts = {s: sum(1 for j in jobs if j["source"] == s) for s in SOURCES}
     if src != "all":
         jobs = [j for j in jobs if j["source"] == src]
     counts = {b: sum(1 for j in jobs if j["bucket"] == b) for b in BUCKETS}
+    failed = sum(1 for j in jobs if j["bucket"] == "done" and j.get("failed")) if done_since else 0
     if want:
         jobs = [j for j in jobs if j["bucket"] == want]
     jobs.sort(key=lambda j: (_ORDER.get(j["bucket"], 9), -(j.get("updated_at") or 0), j["id"]))
@@ -415,26 +423,33 @@ def collect(agent_key: str, slug: str, root: str, *, brain_keys: Any = None, tea
                 j["link"] = resolve_link(tok, root, tasks=tasks, goals=goals, principal=principal) or \
                     {"id": tok, "title": "", "open": None, "missing": True}
     nxt = str(offset + limit) if offset + limit < total else None
-    return {"jobs": page, "counts": counts, "source_counts": source_counts, "total": total, "next": nxt,
-            "counts_partial": {"done": bool(flags.get("done_more"))}, "errors": errors,
-            "at": now if now is not None else time.time()}
+    out = {"jobs": page, "counts": counts, "source_counts": source_counts, "total": total, "next": nxt,
+           "counts_partial": {"done": bool(flags.get("done_more"))}, "errors": errors,
+           "at": now if now is not None else time.time()}
+    if done_since:
+        out["failed_recent"] = failed
+    return out
 
 
 def active_counts(agents: dict, root: str, *, brain_keys: Any = None, teams=None, tasks=None, sessions=None, goals=None,
-                  principal=None) -> dict:
-    """{slug: {"running", "needs_you"}} cho huy hiệu trên thẻ trợ lý. Nhẹ: bỏ lịch sử, đọc Kanban một lần cho cả brain.
-    `agents`: {slug: agent_key hay ""}."""
+                  principal=None, now: Optional[float] = None) -> dict:
+    """{slug: {"running", "needs_you", "waiting", "done", "failed"}} cho huy hiệu và chấm trạng thái trên thẻ trợ lý;
+    "done" và "failed" chỉ đếm việc xong (hay hỏng) trong DONE_FRESH giây gần nhất. Nhẹ: đọc Kanban một lần cho cả brain, mỗi nguồn chỉ vài việc xong mới nhất.
+    Trợ lý không có việc nào thì không có mặt. `agents`: {slug: agent_key hay ""}."""
+    since = (now if now is not None else time.time()) - DONE_FRESH
     rows = tasks.list_tasks(root, include_archived=False, limit=KANBAN_LIMIT) if tasks is not None else []
     live = [t for t in rows if t.get("status") not in ("done", "cancelled", "archived")
-            or "[[NEEDS_INPUT]]" in str(t.get("result") or "")]
+            or "[[NEEDS_INPUT]]" in str(t.get("result") or "")
+            or (t.get("status") == "done" and float(t.get("updated_at") or 0) >= since)]
     out = {}
     for slug, key in agents.items():
         got = collect(key or "", slug, root, brain_keys=brain_keys, teams=teams if key else None, tasks=tasks,
                       sessions=sessions, goals=goals if key else None, principal=principal, history=False,
-                      kanban_rows=live, limit=1, resolve=False)
-        c = got["counts"]
-        if c["running"] or c["needs_you"]:
-            out[slug] = {"running": c["running"], "needs_you": c["needs_you"]}
+                      kanban_rows=live, limit=1, resolve=False, done_since=since)
+        c, failed = got["counts"], int(got.get("failed_recent") or 0)
+        if c["running"] or c["needs_you"] or c["waiting"] or c["done"]:
+            out[slug] = {"running": c["running"], "needs_you": c["needs_you"], "waiting": c["waiting"],
+                         "done": c["done"] - failed, "failed": failed}
     return out
 
 

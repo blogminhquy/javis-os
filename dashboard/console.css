@@ -3471,14 +3471,15 @@ body.col-resizing { cursor: col-resize; user-select: none; }
     padding-top: 4px; }
   .wspage.ws-mini .ws-grp-tog { justify-content: center; font-size: 0; }
   .wspage.ws-mini .ws-grp-tog svg { width: 16px; height: 16px; }
-  /* Work waiting on a row (needs you / running) stays visible as a dot on the avatar. */
-  .wspage.ws-mini .ws-item-wrap.co-tt::after { content: ""; position: absolute; top: 5px; right: 9px; width: 10px; height: 10px;
-    border-radius: 50%; background: var(--accent); border: 2px solid var(--surface-1); pointer-events: none; }
+  /* 0.191.1: the job state is one small dot on the avatar, four colours (data-st from JavisAgentJobs.statusOf). */
+  .wspage.ws-mini .ws-item-wrap[data-st]::after { content: ""; position: absolute; top: 6px; right: 10px; width: 8px;
+    height: 8px; border-radius: 50%; background: var(--st-dot); box-shadow: 0 0 0 2px var(--bg2); pointer-events: none; }
   .wspage.ws-mini .ws-more { font-size: 0; padding: 6px 0; }
   .wspage.ws-mini .ws-more::before { content: "\2022\2022\2022"; font-size: 14px; letter-spacing: 2px; }
 }
+/* Solid card (owner, 16/10/2026: the see-through one let the chat behind show through the words). */
 .ws-mini-tip { position: fixed; z-index: 60; max-width: 300px; padding: 10px 12px; border-radius: 12px;
-  background: var(--surface-2, var(--surface-1)); border: 1px solid var(--glass-brd); box-shadow: 0 10px 30px var(--shadow-veil);
+  background: var(--bg2); border: 1px solid var(--border); box-shadow: var(--shadow-2);
   color: var(--text); pointer-events: none; }
 .ws-mini-tip[hidden] { display: none; }
 .ws-mini-tip-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -3489,3 +3490,11 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 .ws-mini-tip-time { flex: none; font-size: 12px; color: var(--text3); }
 .ws-mini-tip-sub { margin-top: 4px; font-size: 14px; line-height: 1.4; color: var(--text2, var(--text3));
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* The four job state colours: dot on the avatar strip and the state line of its hover card. */
+[data-st="need"] { --st-dot: var(--red); }
+[data-st="run"] { --st-dot: #3b82f6; }
+[data-st="wait"] { --st-dot: #f59e0b; }
+[data-st="done"] { --st-dot: var(--green); }
+.ws-mini-tip-st { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 14px; font-weight: 600;
+  color: var(--text2); }
+.ws-mini-tip-st::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--st-dot); }
