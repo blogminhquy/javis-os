@@ -352,7 +352,8 @@
     var st = statusOf(c);
     if (!st) return "";
     var n = st === "need" ? (c.needs_you || 0) + (c.failed || 0) : st === "run" ? c.running : st === "wait" ? c.waiting : c.done;
-    return tw("ajobs.dot_" + st, { n: n || 0 });
+    var key = { need: "ajobs.dot_need", run: "ajobs.dot_run", wait: "ajobs.dot_wait", done: "ajobs.dot_done" }[st];
+    return tw(key, { n: n || 0 });
   }
 
   function newNonce() {
