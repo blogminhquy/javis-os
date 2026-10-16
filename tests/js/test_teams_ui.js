@@ -9,6 +9,7 @@ const fs = require("fs");
 const path = require("path");
 const ROOT = path.join(__dirname, "..", "..");
 const TM = require(path.join(ROOT, "dashboard", "teams.js"));
+const JR0 = require(path.join(ROOT, "dashboard", "reactions.js"));
 const vi = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
 const en = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "en.json"), "utf8"));
 const consoleJs = fs.readFileSync(path.join(ROOT, "dashboard", "console.js"), "utf8");
@@ -223,7 +224,8 @@ check("thả cảm xúc: nonce giữ theo thao tác (thử lại sau lỗi mạn
       && /body\.nonce = reactNonces\.take\(key, body\)/.test(teamsJs) && /reactNonces\.settle\(key, r\.code\)/.test(teamsJs)
       && /reactNonces\.settle\(key, 0\);\s*setNote\(tw\("teams\.err_network"\), retry\)/.test(teamsJs)
       && /JR\.payload\(value, reasons, axis, comment, m0 && m0\.content_sha\)/.test(teamsJs));
-check("0.176 corner press: like, or remove the reaction already there", /return sendReaction\(Number\(d\.rxToggle\), rv \? "none" : "like"\)/.test(teamsJs));
+check("0.176 corner press: like, or remove the reaction already there", /return sendReaction\(Number\(d\.rxToggle\), JR\.cornerToggle\(rm && rm\.reaction\)\)/.test(teamsJs)
+      && JR0.cornerToggle(null) === "like" && JR0.cornerToggle({ value: "sad" }) === "none" && JR0.cornerToggle({ value: "none" }) === "like");
 check("điện thoại: nhấn giữ tin mở bảng, có ngưỡng rung tay", teamsJs.includes('"pointerdown"') && /> 10/.test(teamsJs));
 check("gói WS không mang phản hồi thì giữ phản hồi đang có", teamsJs.includes('!("reaction" in nm)'));
 check("0.176 swipe left past the threshold replies; vertical moves stay scrolling", /var SWIPE_AT = 60;/.test(teamsJs)

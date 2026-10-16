@@ -65,50 +65,23 @@ check("trục hợp lệ giữ nguyên", JR.payload("none", [], "should_silent",
   check("newNonce khác nhau mỗi lần, dài không quá 100", x !== y && x.length > 0 && x.length <= 100 && y.length <= 100);
 })();
 
-// ───────────── chip, bộ chọn, trạng thái, chip agent ─────────────
-check("không có phản hồi: không chip", JR.chipHtml(null, { mid: 1 }) === "" &&
-      JR.chipHtml({ value: null, reasons: [], axis: "", comment: "" }, { mid: 1 }) === "");
-let h = JR.chipHtml({ value: "sad", reasons: ["too_long", "missing"], axis: "should_speak", comment: "x" }, { mid: 'a"b' });
-check("chip: emoji, nhãn, số lý do, trục, có góp ý; mã tin được escape", h.includes("\u{1F622}") && h.includes(vi["teams.react.sad"])
-      && h.includes(vi["teams.react_reasons_n"].replace("{n}", "2")) && h.includes(vi["react.axis.should_speak"])
-      && h.includes(vi["teams.react_has_comment"]) && h.includes('data-react-open="a&quot;b"') && h.includes('class="jr-react-chip"'), h);
-check("chip theo họ class của nơi gọi", JR.chipHtml({ value: "like" }, { mid: 1, prefix: "tm" }).includes('class="tm-react-chip"'));
-
-h = JR.pickerHtml(9, { value: "love", reasons: ["unclear"], axis: "should_silent", comment: "Gọn <b>hơn</b>" });
-check("bộ chọn: sáu nút emoji, emoji đang chọn được đánh dấu", (h.match(/class="jr-react-pick"/g) || []).length === 6
-      && /data-react="love"[^>]*aria-pressed="true"/.test(h) && (h.match(/aria-pressed="true"/g) || []).length === 1, h);
-check("bộ chọn: sáu lý do một nhóm chọn nhiều", (h.match(/type="checkbox" name="jr-reason"/g) || []).length === 6
-      && /value="unclear" checked/.test(h));
-check("bộ chọn: trục nói/im là nhóm RIÊNG chọn một (radio cùng tên, có Không chọn)",
-      (h.match(/type="radio" name="jr-axis-9"/g) || []).length === 3 && /role="radiogroup"/.test(h)
-      && /value="should_silent" checked/.test(h) && !/value="" checked/.test(h)
-      && h.indexOf('name="jr-reason"') < h.indexOf('role="radiogroup"') && h.includes(vi["react.axis.none"])
-      && h.includes(vi["react.axis.should_speak"]) && h.includes(vi["react.axis.should_silent"]) && h.includes(vi["react.axis"]), h);
-check("bộ chọn: góp ý tuỳ chọn tối đa 500 ký tự, đã escape; không ô nào bắt buộc", h.includes('maxlength="500"')
-      && h.includes("Gọn &lt;b&gt;hơn&lt;/b&gt;") && !h.includes("<b>hơn") && !/\brequired\b/.test(h));
-check("bộ chọn: có Lưu, Bỏ, Đóng và ghi chú cảm xúc", h.includes("data-react-save=\"9\"") && h.includes("data-react-clear=\"9\"")
-      && h.includes("data-react-close=\"9\"") && h.includes(vi["teams.react_note"]));
-check("bộ chọn chưa có reaction: trục mặc định Không chọn", /value="" checked/.test(JR.pickerHtml(3, null)));
-h = JR.pickerHtml(9, { value: "love", reasons: [], axis: "", comment: "" }, { draft: { reasons: ["missing"], axis: "should_speak", comment: "đang gõ" } });
-check("bản nháp giữ lý do, trục, góp ý qua lần vẽ lại", /value="missing" checked/.test(h) && /value="should_speak" checked/.test(h)
-      && h.includes("đang gõ") && /data-react="love"[^>]*aria-pressed="true"/.test(h), h);
-check("bộ chọn chèn được nút riêng của nơi gọi (Ghim ở trang Nhóm)", JR.pickerHtml(1, null, { extraHtml: "<i>X</i>" }).includes("<i>X</i>"));
-
-const STATUSES = ["received", "pending_review", "reviewing", "adjusted", "no_change", "waiting_quota", "stored_only"];
-check("bảy trạng thái của hợp đồng đều có khoá viết trọn trong reactions.js",
-      STATUSES.every((s) => reactJs.includes('"react.status.' + s + '"')) && Object.keys(JR.STATUS_KEY).length === 7);
-check("nhãn trạng thái có ở vi (có dấu) và en", STATUSES.every((s) => vi["react.status." + s] && en["react.status." + s])
-      && vi["react.status.received"] === "Đã nhận" && vi["react.status.stored_only"] === "Đã nhận, chỉ lưu",
-      STATUSES.filter((s) => !vi["react.status." + s] || !en["react.status." + s]).join(","));
-check("smoke T2: lý do trùng ý với nhãn không bị lặp, lý do khác nhãn vẫn hiện",
-      (JR.statusHtml({ status: "stored_only", status_reason: vi["react.status.stored_only"] }).match(/chỉ lưu/g) || []).length === 1
-      && JR.statusHtml({ status: "stored_only", status_reason: "Cộng hưởng của trợ lý đang tắt" }).includes("Cộng hưởng của trợ lý đang tắt"));
-check("mỗi trạng thái vẽ đúng nhãn", STATUSES.every((s) => JR.statusHtml({ status: s }).includes(vi["react.status." + s])
-      && JR.statusHtml({ status: s }).includes('data-status="' + s + '"')));
-h = JR.statusHtml({ status: "waiting_quota", status_reason: "Hết <hạn> mức hôm nay" });
-check("trạng thái kèm lý do ngắn của host, đã escape", h.includes("Hết &lt;hạn&gt; mức hôm nay") && h.includes('role="status"'), h);
-check("không có reaction hay trạng thái lạ: không vẽ", JR.statusHtml(null) === "" && JR.statusHtml({ status: "bogus" }) === ""
-      && JR.statusHtml({ value: "like" }) === "");
+// ───────────── 0.177.0: Zalo-style corner, no reasons panel ─────────────
+let h = JR.cornerHtml('a"b', null, { prefix: "jr", icon: "<svg/>" });
+check("0.177 corner without reaction: outline like (icon), press likes, mid escaped", h.includes('class="jr-rx"')
+      && h.includes('data-rx-toggle="a&quot;b"') && h.includes("<svg/>") && h.includes('aria-label="' + vi["teams.react.like"] + '"'), h);
+h = JR.cornerHtml(9, { value: "love", reasons: ["unclear"], axis: "should_silent", comment: "Gọn <b>hơn</b>" }, { prefix: "jr", last: true });
+check("0.177 corner with reaction: the emoji in place of the icon, marked in the pill, no reasons/comment shown",
+      h.includes('class="jr-rx has is-last"') && h.includes('<span class="jr-rx-emoji">❤️</span>')
+      && /data-react="love"[^>]*aria-pressed="true"/.test(h) && (h.match(/aria-pressed="true"/g) || []).length === 1
+      && (h.match(/class="jr-rx-pick"/g) || []).length === 6 && !h.includes("Gọn") && !h.includes("jr-reason"), h);
+check("0.177 corner follows the caller's class family (tm on the Teams page)", JR.cornerHtml(1, null, { prefix: "tm" }).includes('class="tm-rx-btn"')
+      && JR.barHtml(1, "", { prefix: "tm" }).includes('class="tm-rx-pick"'));
+check("0.177 long press opens the pill without hover", JR.cornerHtml(1, null, { prefix: "jr", open: true }).includes("jr-rx is-open"));
+check("0.177 corner press: like when empty, remove when a reaction is there", JR.cornerToggle(null) === "like"
+      && JR.cornerToggle({ value: "none" }) === "like" && JR.cornerToggle({ value: "sad" }) === "none");
+check("0.177 the reasons panel, chip and status label are gone from the UI module",
+      !JR.pickerHtml && !JR.readPanel && !JR.chipHtml && !JR.statusHtml && !reactJs.includes("react_comment_ph"));
+check("bảy trạng thái của hợp đồng vẫn có khoá (server còn ghi)", Object.keys(JR.STATUS_KEY).length === 7);
 
 h = JR.agentChipsHtml([{ agent_key: "ag_1", name: "Lan <b>", source_kind: "leader", value: "wow", reasons: [], comment: "" },
   { agent_key: "ag_2", name: "Minh", source_kind: "member", value: null, reasons: ["missing"], comment: "" },
@@ -205,7 +178,7 @@ const before = changes;
 check("turn_saved: bong bóng vừa chốt nhận data-mid, data-sid, content_sha và hiện nút",
       CR.onFrame({ type: "turn_saved", session_id: "s1", message_id: 123, content_sha: "abc" }) === true
       && live.dataset.mid === "123" && live.dataset.sid === "s1" && live.dataset.sha === "abc"
-      && live.row().includes('class="jr-react-btn"') && live.row().includes('data-react-open="123"'), live.row());
+      && live.row().includes('class="jr-rx-btn"') && live.row().includes('data-rx-toggle="123"'), live.row());
 check("turn_saved ghi mã tin vào convo để F5 còn nút", entry.mid === 123 && entry.sha === "abc" && changes > before);
 const streamed = fakeBubble();
 bubblesInDom.push(streamed);
@@ -221,11 +194,11 @@ CR.attach(other, { sid: "s9", mid: 123, reaction: null });
 CR.onFrame({ type: "chat_reaction", session_id: "s1", message_id: 123,
   reaction: { value: "haha", reasons: [], axis: "", comment: "", status: "received", status_reason: "" } });
 check("chat_reaction vẽ lại MỌI bong bóng của tin đó trong phiên (tab khác đổi cũng thấy)",
-      live.row().includes("\u{1F602}") && hist.row().includes("\u{1F602}") && hist.row().includes(vi["react.status.received"]));
-check("chat_reaction không đụng tin cùng mã ở phiên khác", !other.row().includes("\u{1F602}"));
+      live.row().includes('jr-rx-emoji">\u{1F602}') && hist.row().includes('jr-rx-emoji">\u{1F602}') && !hist.row().includes(vi["react.status.received"]));
+check("chat_reaction không đụng tin cùng mã ở phiên khác", !other.row().includes('jr-rx-emoji">\u{1F602}'));
 check("chat_reaction cập nhật convo để F5 đúng", hEntry.reaction && hEntry.reaction.value === "haha");
 CR.onFrame({ type: "chat_reaction", session_id: "s1", message_id: 123, reaction: null });
-check("bỏ hết reaction: chip biến mất, nút còn", !hist.row().includes("jr-react-chip") && hist.row().includes("jr-react-btn"));
+check("bỏ hết reaction: emoji biến mất, nút Thích còn", !hist.row().includes("jr-rx-emoji") && hist.row().includes("jr-rx-btn"));
 
 // Gửi: lỗi mạng hiện Thử lại; Thử lại dùng đúng nonce cũ; thao tác sau thành công dùng nonce mới.
 (async function () {
@@ -242,7 +215,7 @@ check("bỏ hết reaction: chip biến mất, nút còn", !hist.row().includes(
   };
   const target = function (data, el) {
     const btn = { dataset: data, closest: function (sel) {
-      if (sel.indexOf("[data-react") === 0) return btn;
+      if (sel.indexOf("[data-rx-toggle]") === 0) return btn;
       if (sel === ".jr-chat") return { closest: function () { return el; } };
       return null;
     } };
@@ -251,9 +224,9 @@ check("bỏ hết reaction: chip biến mất, nút còn", !hist.row().includes(
   live.dataset.sha = "abc";
   await listeners.click(target({ react: "love" }, live));
   const first = calls[0];
-  check("bấm emoji: POST đúng route, thân có value/reasons/axis/comment/nonce/seen_sha",
+  check("bấm emoji: POST đúng route, thân có value, lý do/trục/góp ý rỗng, nonce, seen_sha",
         first && first.opt.method === "POST" && first.url === "/sessions/s1/messages/123/reaction?brain=vault%2Fa%20b"
-        && first.body.value === "love" && Array.isArray(first.body.reasons) && first.body.axis === "" && first.body.comment === ""
+        && first.body.value === "love" && first.body.reasons.length === 0 && first.body.axis === "" && first.body.comment === ""
         && !!first.body.nonce && first.body.seen_sha === "abc" && first.opt.headers["Content-Type"] === "application/json",
         JSON.stringify(first && first.body));
   check("lỗi mạng: dòng lỗi kèm nút Thử lại", live.row().includes("jr-react-err") && live.row().includes("data-react-retry=\"123\"")
@@ -262,12 +235,13 @@ check("bỏ hết reaction: chip biến mất, nút còn", !hist.row().includes(
   await listeners.click(target({ reactRetry: "123" }, live));
   check("Thử lại gửi đúng nonce cũ (server trả trạng thái hiện tại, không ghi trùng)", calls[1].body.nonce === first.body.nonce
         && calls[1].body.value === "love");
-  check("thành công: chip mới, hết dòng lỗi", live.row().includes("\u{2764}") && !live.row().includes("jr-react-err"));
+  check("thành công: emoji vào góc, hết dòng lỗi", live.row().includes('<span class="jr-rx-emoji">\u{2764}') && !live.row().includes("jr-react-err"));
   await listeners.click(target({ react: "love" }, live));
   check("chọn lại emoji đang chọn là bỏ, nonce mới", calls[2].body.value === "none" && calls[2].body.nonce !== first.body.nonce);
-  await listeners.click(target({ reactClear: "123" }, live));
-  check("Bỏ phản hồi gửi none, lý do rỗng, trục rỗng, góp ý rỗng", calls[3].body.value === "none" && calls[3].body.reasons.length === 0
-        && calls[3].body.axis === "" && calls[3].body.comment === "");
+  await listeners.click(target({ rxToggle: "123" }, live));
+  check("0.177 bấm góc khi chưa có cảm xúc: gửi like", calls[3].body.value === "like" && calls[3].body.reasons.length === 0);
+  await listeners.click(target({ rxToggle: "123" }, live));
+  check("0.177 bấm góc khi đã có cảm xúc: bỏ (none)", calls[4].body.value === "none");
 
   // ───────────── review T2 UI: thứ tự gói, refresh đủ tin, Esc, lỗi cũ ─────────────
   const realNow = Date.now;
@@ -279,7 +253,7 @@ check("bỏ hết reaction: chip biến mất, nút còn", !hist.row().includes(
         CR.onFrame({ type: "turn_saved", session_id: "v1", message_id: 300, content_sha: "s300" }) === false);
   CR.expect("v1", vb, vEntry);
   check("P2-1 response tới sau: expect ghép ngay mã đã giữ, convo có mã (F5 còn nút)", vb.dataset.mid === "300"
-        && vb.dataset.sha === "s300" && vEntry.mid === 300 && vb.row().includes("jr-react-btn"), vb.row());
+        && vb.dataset.sha === "s300" && vEntry.mid === 300 && vb.row().includes("jr-rx-btn"), vb.row());
   const vb2 = fakeBubble(); bubblesInDom.push(vb2);
   CR.expect("v1", vb2, null);
   check("P2-1 mã đã dùng không bị ghép lần hai cho bong bóng sau", !vb2.dataset.mid);
@@ -321,9 +295,9 @@ check("bỏ hết reaction: chip biến mất, nút còn", !hist.row().includes(
   await CR.refresh("rf", items);
   check("P2-2 hỏi đủ số tin vừa dựng (không chỉ 30)", gotUrl === "/sessions/rf/messages?limit=18", gotUrl);
   check("P2-2 gắn mã cho bong bóng khôi phục còn thiếu, khớp từ cuối lên theo nội dung", r1.dataset.mid === "80" && r3.dataset.mid === "82"
-        && items[1].entry.mid === 80 && items[3].entry.mid === 82 && r3.row().includes("\u{1F44D}"));
+        && items[1].entry.mid === 80 && items[3].entry.mid === 82 && r3.row().includes('jr-rx-emoji">\u{1F44D}'));
   check("P2-2 không khớp nội dung thì không gán bừa", !r4.dataset.mid);
-  check("P2-2 tin đã có mã nhận trạng thái mới của server", r2.row().includes(vi["react.status.adjusted"]) && e2.reaction.status === "adjusted");
+  check("P2-2 tin đã có mã nhận trạng thái mới của server (lưu, không vẽ nhãn)", !r2.row().includes(vi["react.status.adjusted"]) && e2.reaction.status === "adjusted");
   const many = Array.from({ length: 150 }, () => ({ el: fakeBubble(), entry: { role: "javis", text: "x" } }));
   await CR.refresh("rf", many);
   check("P2-2 trần 200 tin mỗi lần hỏi", /limit=200$/.test(gotUrl), gotUrl);
@@ -333,7 +307,7 @@ check("bỏ hết reaction: chip biến mất, nút còn", !hist.row().includes(
   CR.onFrame({ type: "chat_reaction", session_id: "rf", message_id: 82, reaction: { value: "angry", status: "received" } });
   release({ json: function () { return Promise.resolve({ messages: srv }); } });
   await pend;
-  check("P3 kết quả refresh cũ hơn lần ghi mới (WS/POST) bị bỏ, không đè", r3.row().includes("\u{1F621}") && !r3.row().includes("\u{1F44D}"));
+  check("P3 kết quả refresh cũ hơn lần ghi mới (WS/POST) bị bỏ, không đè", r3.row().includes('jr-rx-emoji">\u{1F621}') && !r3.row().includes('jr-rx-emoji">\u{1F44D}'));
   check("P2-2 socket nối lại thì hỏi lại reaction của phiên đang mở",
         /if \(_daChao\) \{ try \{ if \(window\.JavisChatReactions && savedSessionId\) window\.JavisChatReactions\.refresh\(savedSessionId\); \} catch \(e\) \{\} \}/.test(appJs));
   check("P2-2 F5 đưa danh sách câu trả lời vừa dựng cho refresh", appJs.includes("_traLoi.push({ el, entry: t });")
@@ -345,12 +319,12 @@ check("bỏ hết reaction: chip biến mất, nút còn", !hist.row().includes(
   let stopped = false, prevented2 = false;
   listeners.keydown({ key: "Escape", target: target({}, live).target, preventDefault: function () { prevented2 = true; },
     stopPropagation: function () { stopped = true; } });
-  check("P3 Esc đóng bộ chọn và dừng lan (không tắt loa, rảnh tay)", stopped && prevented2 && live._jr.open === false);
+  check("P3 Esc đóng thanh cảm xúc và dừng lan (không tắt loa, rảnh tay)", stopped && prevented2 && live._jr.open === false);
   live._jr.error = { text: "cũ", retry: true };
   CR.onFrame({ type: "chat_reaction", session_id: "s1", message_id: 123, reaction: { value: "wow", status: "received" } });
   check("P3 gói chat_reaction xác nhận thì xoá dòng lỗi cũ", !live.row().includes("jr-react-err") && live._jr.error === null);
   check("P3 đổi ngôn ngữ vẽ lại hàng reaction", chatJs.includes('window.addEventListener("javis:i18n", rerenderAll)'));
-  check("P3 lưu xong trả focus về nút mặt cười", /focusBtn\(el\);\s+\/\/ bảng vừa đóng/.test(chatJs));
+  check("P3 Esc trả focus về nút Thích", /setOpen\(el, false\); focusBtn\(el\);/.test(chatJs));
   check("P3 bỏ đường rbrain không ai đặt", !chatJs.includes("rbrain"));
   check("P3 máy chạm: tắt menu chạm giữ của iOS trên bong bóng có mã", /@media \(hover: none\) \{[\s\S]{0,300}\.msg-javis\[data-mid\] \{ -webkit-touch-callout: none; \}/.test(css));
   check("P3 nhấn giữ hạ cờ ở lần chạm sau (iOS không bắn contextmenu)", /var down = function \(e\) \{[\s\S]{0,200}held = false;\s*if \(e\.pointerType === "mouse"\) return;/.test(reactJs));
@@ -385,17 +359,17 @@ check("bỏ hết reaction: chip biến mất, nút còn", !hist.row().includes(
   check("index.html nạp reactions.js trước chat-reactions.js, app.js, teams.js, mobile-chat.js (có ?v=)",
         pos("reactions.js?v=") > 0 && pos("reactions.js") < pos("chat-reactions.js") && pos("chat-reactions.js") < pos("app.js")
         && pos("reactions.js") < pos("teams.js") && pos("reactions.js") < pos("mobile-chat.js"));
-  check("CSS: nút luôn hiện ở máy chạm, vùng chạm 44px", /@media \(hover: none\) \{\s*\.jr-react-btn \{ opacity: 1; min-width: 44px; min-height: 44px; \}/.test(css)
-        && /\.jr-react-chip, \.jr-react-reason, \.jr-actions \.ws-btn, \.jr-react-err \.ws-btn \{ min-height: 44px; \}/.test(css));
-  check("CSS: máy tính hiện nút khi rê chuột hay đang mở", /\.msg-javis:hover \.jr-react-btn, \.jr-react-btn:focus-visible, \.jr-react-btn\[aria-expanded="true"\] \{ opacity: 1; \}/.test(css));
-  check("CSS: chữ 16px", ["jr-react-chip", "jr-react-sub", "jr-react-reasons", "jr-react-comment", "jr-react-note"].every((c) => {
-    const i = css.indexOf("." + c + " {"); return i >= 0 && /font-size: 16px/.test(css.slice(i, css.indexOf("}", i)));
-  }));
-  check("CSS: lớp flex có luật [hidden] riêng", [".jr-chat", ".jr-row", ".jr-react-panel", ".jr-react-reasons", ".jr-actions", ".jr-react-err"]
-        .every((s) => css.includes(s + "[hidden] { display: none; }")));
-  check("CSS 375px: sáu nút lọt bề ngang", /@media \(max-width: 480px\) \{[\s\S]{0,200}\.jr-react-row \{ flex-wrap: nowrap; justify-content: space-between; gap: 4px; \}/.test(css));
+  check("0.177 CSS: corner sits on the bubble's bottom-right edge, anchor as wide as the bubble",
+        /\.msg-javis > \.jr-chat \{ display: block; max-width: min\(72ch, 100%\); font-size: 16px; font-family: var\(--font-chat\);/.test(css)
+        && /\.jr-anchor \{ position: relative; height: 0; \}/.test(css) && /\.jr-rx \{ position: absolute; right: -6px; top: -16px;/.test(css));
+  check("0.177 CSS: latest answer always shows Like, others on hover; pill on hover, focus or long press",
+        css.includes(".msg-javis:not(:has(~ .msg-javis)) .jr-rx-btn") && /@media \(hover: hover\) \{ \.jr-rx:hover \.jr-rx-bar/.test(css)
+        && css.includes(".jr-rx:focus-within .jr-rx-bar, .jr-rx.is-open .jr-rx-bar { display: flex; }"));
+  check("0.177 CSS: old panel, chip and smiley button rules are gone", !css.includes(".jr-react-panel") && !css.includes(".jr-react-btn")
+        && !css.includes(".jr-react-chip") && css.includes(".jr-chat[hidden] { display: none; }") && css.includes(".jr-react-err[hidden] { display: none; }"));
+  check("0.177 corner placed right after the bubble", /if \(bubble\) el\.insertBefore\(node, bubble\.nextSibling\)/.test(chatJs));
   const used = Array.from(new Set((reactJs + chatJs).match(/"react\.[a-z0-9_.]+"/g).map((s) => s.slice(1, -1))));
-  check("mọi khoá react.* dùng trong hai file có ở vi và en", used.length >= 12 && used.every((k) => vi[k] && en[k]),
+  check("mọi khoá react.* dùng trong hai file có ở vi và en", used.length >= 3 && used.every((k) => vi[k] && en[k]),
         used.filter((k) => !vi[k] || !en[k]).join(","));
   const added = Object.keys(vi).filter((k) => k.indexOf("react.") === 0);
   check("khoá mới đứng ngay sau teams.react_saved", (function () {

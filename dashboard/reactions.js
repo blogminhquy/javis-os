@@ -3,8 +3,8 @@
    Hợp đồng: docs/dev/team-chat-t2-contract.md mục 1, 2, 3 và 6. File này là NƠI DUY NHẤT của repo chứa bảng sáu emoji
    (test_icons.py cho phép đúng sáu ký tự đó, chỉ trong bảng EMOJI dưới đây).
 
-   - Bỏ emoji gửi `value: "none"`. Lý do chất lượng chọn nhiều; trục nói/im chọn một hoặc không; góp ý tối đa 500 ký tự.
-     Không trường nào bắt buộc để thả emoji.
+   - Bỏ emoji gửi `value: "none"`. Từ 0.177.0 giao diện chỉ còn emoji (góc 👍 kiểu Zalo, cornerHtml); lý do, trục nói/im
+     và góp ý vẫn được route nhận nhưng luôn gửi rỗng.
    - Trạng thái (`status`) do host ghi; giao diện chỉ hiện nhãn qua i18n và câu `status_reason` host viết sẵn.
    - Chống trùng: mỗi thao tác một `nonce`, giữ tới khi có kết quả; lỗi mạng (hay 5xx) thì gửi lại đúng nonce cũ, thành
      công hay lỗi 4xx thì thao tác sau dùng nonce mới (`nonceKeeper`).
@@ -114,32 +114,39 @@
     };
   }
 
-  // Chip của chủ dưới tin: emoji kèm nhãn, số lý do, trục, có góp ý. Bấm để đổi hay bỏ.
-  function chipHtml(R, opts) {
-    if (!R) return "";
-    var p = pfx(opts), mid = opts && opts.mid != null ? opts.mid : "";
-    var r = emojiOf(R.value);
-    var bits = [];
-    if (r) bits.push('<span class="' + p + '-react-emoji">' + r.emoji + "</span>" + esc(tw(r.key)));
-    if ((R.reasons || []).length) bits.push(esc(tw("teams.react_reasons_n", { n: R.reasons.length })));
-    var ax = find(AXES, R.axis);
-    if (ax) bits.push(esc(tw(ax.key)));
-    if (R.comment) bits.push(esc(tw("teams.react_has_comment")));
-    if (!bits.length) return "";
-    return '<button type="button" class="' + p + '-react-chip" data-react-open="' + esc(mid) + '" title="' +
-      esc(tw("teams.react_change")) + '">' + bits.join(" · ") + "</button>";
+  // 0.177.0 (owner, 2026-10-16): reactions are plain emoji like Zalo, in BOTH chats. The reasons, talk/silent axis and
+  // comment panel and the host status label are gone from the screen (the route still accepts them; the UI always sends
+  // them empty). To correct an answer the owner replies to it.
+
+  // Six emoji in one floating pill. opts: prefix.
+  function barHtml(mid, cur, opts) {
+    var p = pfx(opts), m = esc(mid);
+    return '<div class="' + p + '-rx-bar" role="toolbar" aria-label="' + esc(tw("teams.react")) + '">' + EMOJI.map(function (r) {
+      var on = cur === r.value;
+      return '<button type="button" class="' + p + '-rx-pick" data-react="' + r.value + '" data-mid="' + m + '" aria-pressed="' +
+        (on ? "true" : "false") + '" aria-label="' + esc(tw(r.key)) + '" title="' + esc(tw(r.key)) + '">' + r.emoji + "</button>";
+    }).join("") + "</div>";
   }
 
-  // Trạng thái host ghi (mục 2 hợp đồng): nhãn qua i18n, thêm câu lý do ngắn nếu có. Không có trạng thái thì không vẽ.
-  function statusHtml(R, opts) {
-    if (!R || !STATUS_KEY[R.status]) return "";
-    var p = pfx(opts);
-    var label = tw(STATUS_KEY[R.status]);
-    var why = String(R.status_reason || "").trim();
-    // Lý do trùng ý với nhãn (dữ liệu cũ ghi lý do bằng chính câu của nhãn) thì không lặp lại.
-    if (why && label.toLowerCase().indexOf(why.toLowerCase()) >= 0) why = "";
-    return '<div class="' + p + '-react-status" data-status="' + esc(R.status) + '" role="status">' +
-      esc(label) + (why ? '<span class="' + p + '-react-why">' + esc(why) + "</span>" : "") + "</div>";
+  // Reaction corner at the bottom right of an answer bubble, like Zalo: the chosen emoji, or an outline thumbs-up. Press it:
+  // like (or remove the reaction already there). Hover it (long press on a phone): the six emoji. opts: prefix, last (the
+  // latest answer keeps its button visible), open (pill shown without hover), icon (outline thumbs-up html).
+  function cornerHtml(mid, R, opts) {
+    opts = opts || {};
+    var p = pfx(opts), m = esc(mid);
+    var cur = R && R.value && R.value !== "none" ? R.value : "";
+    var e = cur ? emojiOf(cur) : null;
+    var label = e ? tw("teams.react_remove", { what: tw(e.key) }) : tw("teams.react.like");
+    return '<div class="' + p + '-rx' + (e ? " has" : "") + (opts.last ? " is-last" : "") + (opts.open ? " is-open" : "") + '">' +
+      '<button type="button" class="' + p + '-rx-btn" data-rx-toggle="' + m + '" aria-label="' + esc(label) + '" title="' +
+      esc(e ? tw(e.key) : tw("teams.react.like")) + '">' +
+      (e ? '<span class="' + p + '-rx-emoji">' + e.emoji + "</span>" : (opts.icon || "")) + "</button>" +
+      barHtml(mid, cur, opts) + "</div>";
+  }
+
+  // The value a press on the corner sends: like when nothing is there, "none" when a reaction is there.
+  function cornerToggle(R) {
+    return R && R.value && R.value !== "none" ? "none" : "like";
   }
 
   // Reaction của trưởng nhóm, thành viên (hợp đồng mục 5): chip CHỈ ĐỌC có tên agent, tách khỏi chip của chủ.
@@ -163,63 +170,6 @@
         ((a.reasons || []).length && !r ? " " + esc(tw("teams.react_reasons_n", { n: a.reasons.length })) : "") +
         '</span><span class="' + p + '-react-sr">' + esc(label) + "</span></span>";
     }).join("") + "</div>";
-  }
-
-  // Bộ chọn mở ngay tại tin: sáu emoji, sáu lý do (chọn nhiều), trục nói/im (chọn một hoặc không), góp ý tuỳ chọn.
-  // opts: prefix; draft {reasons, axis, comment} đang soạn dở (giữ qua lần vẽ lại); extraHtml (vd. nút Ghim của trang Nhóm).
-  function pickerHtml(mid, R, opts) {
-    opts = opts || {};
-    var p = pfx(opts);
-    var cur = R || {};
-    var d = opts.draft;
-    var st = d ? { value: cur.value, reasons: d.reasons || [], axis: d.axis != null ? d.axis : (cur.axis || ""),
-      comment: d.comment || "" } : { value: cur.value, reasons: cur.reasons || [], axis: cur.axis || "", comment: cur.comment || "" };
-    var m = esc(mid);
-    var row = EMOJI.map(function (r) {
-      var on = st.value === r.value;
-      return '<button type="button" class="' + p + '-react-pick" data-react="' + r.value + '" data-mid="' + m + '"' +
-        ' aria-pressed="' + (on ? "true" : "false") + '" aria-label="' + esc(tw(r.key)) + '" title="' + esc(tw(r.key)) + '">' +
-        r.emoji + "</button>";
-    }).join("");
-    var have = {};
-    (st.reasons || []).forEach(function (x) { have[x] = true; });
-    var reasons = REASONS.map(function (x) {
-      return '<label class="' + p + '-react-reason"><input type="checkbox" name="' + p + '-reason" value="' + x.value + '"' +
-        (have[x.value] ? " checked" : "") + "> " + esc(tw(x.key)) + "</label>";
-    }).join("");
-    var axName = p + "-axis-" + m;
-    var axes = [{ value: "", key: "react.axis.none" }].concat(AXES).map(function (x) {
-      return '<label class="' + p + '-react-reason"><input type="radio" name="' + axName + '" value="' + x.value + '"' +
-        ((st.axis || "") === x.value ? " checked" : "") + "> " + esc(tw(x.key)) + "</label>";
-    }).join("");
-    return '<div class="' + p + '-react-panel" data-panel="' + m + '" role="dialog" aria-label="' + esc(tw("teams.react")) + '">' +
-      '<div class="' + p + '-react-row">' + row + "</div>" +
-      '<div class="' + p + '-react-sub">' + esc(tw("teams.react_reasons")) + "</div>" +
-      '<div class="' + p + '-react-reasons">' + reasons + "</div>" +
-      '<div class="' + p + '-react-sub" id="' + p + '-react-axis-' + m + '">' + esc(tw("react.axis")) + "</div>" +
-      '<div class="' + p + '-react-reasons ' + p + '-react-axes" role="radiogroup" aria-labelledby="' + p + '-react-axis-' + m + '">' +
-      axes + "</div>" +
-      '<label class="' + p + '-react-sub" for="' + p + '-react-comment-' + m + '">' + esc(tw("teams.react_comment")) + "</label>" +
-      '<textarea class="' + p + '-react-comment" id="' + p + '-react-comment-' + m + '" maxlength="' + COMMENT_MAX + '" rows="2"' +
-      ' placeholder="' + esc(tw("teams.react_comment_ph")) + '">' + esc(st.comment || "") + "</textarea>" +
-      '<div class="' + p + '-react-note">' + esc(tw("teams.react_note")) + "</div>" +
-      '<div class="' + p + '-actions"><button type="button" class="ws-btn" data-react-save="' + m + '">' +
-      esc(tw("teams.react_save")) + '</button><button type="button" class="ws-btn" data-react-clear="' + m + '">' +
-      esc(tw("teams.react_clear")) + "</button>" + (opts.extraHtml || "") +
-      '<button type="button" class="ws-btn" data-react-close="' + m + '">' +
-      esc(tw("teams.react_close")) + "</button></div></div>";
-  }
-
-  // Đọc lý do, trục, góp ý đang chọn trong bảng (DOM). Không có bảng thì lấy theo reaction đã có.
-  function readPanel(panel, R, opts) {
-    var p = pfx(opts);
-    var have = R || {};
-    if (!panel) return { reasons: have.reasons || [], axis: have.axis || "", comment: have.comment || "" };
-    var reasons = Array.prototype.map.call(panel.querySelectorAll('input[name="' + p + '-reason"]:checked'),
-      function (x) { return x.value; });
-    var ax = panel.querySelector('input[type="radio"]:checked');
-    var box = panel.querySelector("." + p + "-react-comment");
-    return { reasons: reasons, axis: ax ? ax.value : "", comment: box ? box.value.trim().slice(0, COMMENT_MAX) : "" };
   }
 
   // Nhấn giữ 500 ms trên máy chạm (chuột thì bỏ qua, giữ chuột để bôi chữ như thường). Rung tay quá 10px là huỷ. Lần giữ đã
@@ -257,8 +207,8 @@
 
   var api = { EMOJI: EMOJI, REASONS: REASONS, AXES: AXES, STATUS_KEY: STATUS_KEY, COMMENT_MAX: COMMENT_MAX,
     LONG_PRESS_MS: LONG_PRESS_MS, emojiOf: emojiOf, nextReaction: nextReaction, payload: payload, newNonce: newNonce,
-    nonceKeeper: nonceKeeper, chipHtml: chipHtml, statusHtml: statusHtml, agentChipsHtml: agentChipsHtml,
-    pickerHtml: pickerHtml, readPanel: readPanel, bindLongPress: bindLongPress, esc: esc };
+    nonceKeeper: nonceKeeper, agentChipsHtml: agentChipsHtml, barHtml: barHtml, cornerHtml: cornerHtml,
+    cornerToggle: cornerToggle, bindLongPress: bindLongPress, esc: esc };
   if (typeof window !== "undefined") window.JavisReactions = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

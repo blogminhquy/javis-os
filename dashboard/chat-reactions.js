@@ -37,21 +37,17 @@
       encodeURIComponent(brain || "brain");
   }
 
-  // Hàng reaction dưới một bong bóng: nút mở bộ chọn, chip của chủ, trạng thái host ghi; bộ chọn khi mở; dòng lỗi kèm Thử lại.
-  // st: {mid, reaction, open, draft, busy, error: {text, retry}}
+  // Reaction corner of one answer (0.177.0, owner 2026-10-16: like Zalo). A zero-height anchor placed right after the
+  // bubble holds the corner at the bubble's bottom right: the chosen emoji or an outline thumbs-up. Pressing it likes (or
+  // removes the reaction); hovering it, or a long press on a phone, shows the six emoji. Under it, an error line with Retry.
+  // st: {mid, reaction, open, busy, error: {text, retry}}
   function rowHtml(st) {
     var mid = esc(st.mid);
-    var R = st.reaction || null;
-    var btn = '<button type="button" class="jr-react-btn" data-react-open="' + mid + '" aria-expanded="' +
-      (st.open ? "true" : "false") + '" aria-label="' + esc(tw("teams.react")) + '" title="' + esc(tw("teams.react")) + '">' +
-      ic("smile") + "</button>";
-    var busy = st.busy ? '<span class="jr-react-busy" role="status">' + esc(tw("react.sending")) + "</span>" : "";
     var err = st.error ? '<div class="jr-react-err" role="alert"><span>' + esc(st.error.text) + "</span>" +
       (st.error.retry ? '<button type="button" class="ws-btn" data-react-retry="' + mid + '">' + esc(tw("react.retry")) +
         "</button>" : "") + "</div>" : "";
-    return '<div class="jr-chat" data-jr-mid="' + mid + '"><div class="jr-row">' + btn + JR.chipHtml(R, { mid: st.mid, prefix: "jr" }) +
-      JR.statusHtml(R, P) + busy + "</div>" + (st.open ? JR.pickerHtml(st.mid, R, { prefix: "jr", draft: st.draft || null }) : "") +
-      err + "</div>";
+    return '<div class="jr-chat' + (st.busy ? " is-busy" : "") + '" data-jr-mid="' + mid + '"><div class="jr-anchor">' +
+      JR.cornerHtml(st.mid, st.reaction, { prefix: "jr", open: !!st.open, icon: ic("thumbs-up") }) + "</div>" + err + "</div>";
   }
 
   var root = null;
@@ -89,21 +85,15 @@
     var st = el && el._jr;
     if (!st) return;
     var old = el.querySelector(".jr-chat");
-    // Đang gõ góp ý mà có gói mới (trạng thái host đổi): giữ con trỏ trong ô góp ý.
-    var act = typeof document !== "undefined" ? document.activeElement : null;
-    var typing = old && act && old.contains(act) && act.classList.contains("jr-react-comment")
-      ? { start: act.selectionStart, end: act.selectionEnd } : null;
     var wrap = document.createElement("div");
     wrap.innerHTML = rowHtml(st);
     var node = wrap.firstChild;
     if (old) old.parentNode.replaceChild(node, old);
     else {
-      var acts = el.querySelector(".msg-acts");
-      if (acts && acts.parentNode === el) el.insertBefore(node, acts.nextSibling); else el.appendChild(node);
-    }
-    if (typing) {
-      var ta = node.querySelector(".jr-react-comment");
-      if (ta) { ta.focus(); try { ta.setSelectionRange(typing.start, typing.end); } catch (e) {} }
+      // Right after the bubble, so the corner sits on the bubble's bottom edge (not under the row of small buttons).
+      var bubble = null;
+      for (var c = el.firstElementChild; c; c = c.nextElementSibling) if (c.classList.contains("bubble")) { bubble = c; break; }
+      if (bubble) el.insertBefore(node, bubble.nextSibling); else el.appendChild(node);
     }
   }
 
@@ -113,7 +103,7 @@
     el.dataset.sid = String(info.sid);
     if (info.sha) el.dataset.sha = String(info.sha);
     el._jr = { sid: String(info.sid), mid: String(info.mid), sha: info.sha || "", brain: info.brain || "",
-      reaction: info.reaction || null, entry: info.entry || null, open: false, draft: null, busy: false, error: null };
+      reaction: info.reaction || null, entry: info.entry || null, open: false, busy: false, error: null };
     render(el);
     return true;
   }
@@ -195,25 +185,27 @@
   }
 
   function focusBtn(el) {
-    var b = el.querySelector(".jr-react-btn");
+    var b = el.querySelector(".jr-rx-btn");
     if (b) { try { b.focus(); } catch (e) {} }
   }
 
+  var openEl = null;   // the answer whose six-emoji pill is open by long press (phones)
+
   function setOpen(el, open) {
-    var st = el._jr;
-    st.open = open;
-    st.draft = null;
+    if (openEl && openEl !== el && openEl._jr) { openEl._jr.open = false; render(openEl); }
+    el._jr.open = open;
+    openEl = open ? el : null;
     render(el);
-    var f = open ? el.querySelector(".jr-react-panel .jr-react-pick") : null;
-    if (f) { try { f.focus(); } catch (e) {} } else if (!open) focusBtn(el);
+    var f = open ? el.querySelector(".jr-rx-pick") : null;
+    if (f) { try { f.focus({ preventScroll: true }); } catch (e) {} }
   }
 
-  function send(el, value, reasons, axis, comment) {
+  function send(el, value) {
     var st = el._jr;
-    var body = JR.payload(value, reasons, axis, comment, st.sha);
+    var body = JR.payload(value, [], "", "", st.sha);
     var key = keyOf(st.sid, st.mid);
     body.nonce = keeper.take(key, body);
-    st.last = { value: value, reasons: reasons, axis: axis, comment: comment };
+    st.last = { value: value };
     st.busy = true;
     st.error = null;
     render(el);
@@ -222,9 +214,8 @@
       st.busy = false;
       if (code === 200 && j && j.ok !== false) {
         st.open = false;
-        st.draft = null;
+        if (openEl === el) openEl = null;
         if (!apply(st.sid, st.mid, j.reaction || null)) { st.reaction = j.reaction || null; render(el); }
-        focusBtn(el);   // bảng vừa đóng (nút cũ bị thay): trả focus về nút mặt cười
         return;
       }
       st.error = code === 0 ? { text: tw("react.err_network"), retry: true }
@@ -238,38 +229,25 @@
     }, function () { done(0, null); });
   }
 
-  function panelOf(el) { return el.querySelector(".jr-react-panel"); }
-
   function onClick(e) {
-    var t = e.target && e.target.closest && e.target.closest(
-      "[data-react-open],[data-react],[data-react-save],[data-react-clear],[data-react-close],[data-react-retry]");
+    // A press anywhere else closes the pill opened by long press.
+    if (openEl && openEl._jr && openEl.contains && !(e.target && openEl.contains(e.target))) { openEl._jr.open = false; render(openEl); openEl = null; }
+    var t = e.target && e.target.closest && e.target.closest("[data-rx-toggle],[data-react],[data-react-retry]");
     var el = t && stateOf(t);
     if (!el) return;
     var st = el._jr;
     var d = t.dataset;
-    if (d.reactOpen != null) return setOpen(el, !st.open);
-    if (d.reactClose != null) return setOpen(el, false);
     if (st.busy) return;
-    if (d.reactRetry != null && st.last) return send(el, st.last.value, st.last.reasons, st.last.axis, st.last.comment);
-    var cur = st.reaction || {};
-    var form = JR.readPanel(panelOf(el), st.reaction, P);
-    if (d.react != null) return send(el, JR.nextReaction(cur.value, d.react), form.reasons, form.axis, form.comment);
-    if (d.reactSave != null) return send(el, cur.value || "none", form.reasons, form.axis, form.comment);
-    if (d.reactClear != null) return send(el, "none", [], "", "");
+    if (d.reactRetry != null) return st.last ? send(el, st.last.value) : undefined;
+    if (d.rxToggle != null) return send(el, JR.cornerToggle(st.reaction));
+    if (d.react != null) return send(el, JR.nextReaction((st.reaction || {}).value, d.react));
   }
 
-  // Lý do, trục, góp ý đang soạn: giữ qua lần vẽ lại khi có gói mới tới.
-  function onEdit(e) {
-    var el = stateOf(e.target);
-    if (!el || !el._jr.open) return;
-    el._jr.draft = JR.readPanel(panelOf(el), el._jr.reaction, P);
-  }
-
-  // Esc đóng bộ chọn và DỪNG ở đây: phím Esc chung của trang (app.js) còn tắt loa và chế độ rảnh tay.
+  // Esc closes the pill and STOPS there: the page's own Esc (app.js) also turns the speaker and hands-free mode off.
   function onKey(e) {
     if (e.key !== "Escape") return;
     var el = stateOf(e.target);
-    if (el && el._jr.open) { e.preventDefault(); e.stopPropagation(); setOpen(el, false); }
+    if (el && el._jr.open) { e.preventDefault(); e.stopPropagation(); setOpen(el, false); focusBtn(el); }
   }
 
   function norm(s) {
@@ -337,10 +315,8 @@
     if (root || !cfg.root) return;
     root = cfg.root;
     root.addEventListener("click", onClick);
-    root.addEventListener("change", onEdit);
-    root.addEventListener("input", onEdit);
     root.addEventListener("keydown", onKey);
-    // Điện thoại: nhấn giữ bong bóng trả lời 500 ms mở bộ chọn (nút vẫn luôn hiện ở máy chạm).
+    // Phone: a 500 ms long press on an answer bubble opens the six emoji.
     JR.bindLongPress(root, ".msg-javis[data-mid]", function (el) { if (el._jr && !el._jr.open) setOpen(el, true); });
     // Đổi ngôn ngữ giao diện: vẽ lại nhãn của mọi hàng reaction.
     if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("javis:i18n", rerenderAll);

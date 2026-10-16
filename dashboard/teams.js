@@ -107,26 +107,12 @@
   // no comment box: to correct an answer the owner REPLIES to that message, which reaches the assistant directly.
   // The server route still takes reasons/axis/comment (private chat uses them); this page always sends them empty.
 
-  // Six emoji in one floating pill. `open`: shown without hover (long press on a touch screen).
-  function reactBarHtml(m, cur) {
-    return '<div class="tm-rx-bar" role="toolbar" aria-label="' + esc(tw("teams.react")) + '">' + REACTIONS.map(function (r) {
-      var on = cur === r.value;
-      return '<button type="button" class="tm-rx-pick" data-react="' + r.value + '" data-mid="' + esc(m.id) + '" aria-pressed="' +
-        (on ? "true" : "false") + '" aria-label="' + esc(tw(r.key)) + '" title="' + esc(tw(r.key)) + '">' + r.emoji + "</button>";
-    }).join("") + "</div>";
-  }
+  // Six emoji pill and the Zalo-style reaction corner come from reactions.js (shared with the main chat, 0.177.0).
+  function reactBarHtml(m, cur) { return JR.barHtml(m.id, cur, { prefix: "tm" }); }
 
-  // Reaction corner of an assistant bubble: the chosen emoji, or an outline thumbs-up. It always shows on the latest
-  // assistant message (`last`), on others only on hover. Pressing it likes (or removes the reaction already there);
-  // hovering it opens the six emoji.
+  // The latest assistant message keeps its corner visible (`last`); older ones show it on hover.
   function reactCornerHtml(m, last) {
-    var cur = m.reaction && m.reaction.value && m.reaction.value !== "none" ? m.reaction.value : "";
-    var e = cur ? JR.emojiOf(cur) : null;
-    return '<div class="tm-rx' + (e ? " has" : "") + (last ? " is-last" : "") + '">' +
-      '<button type="button" class="tm-rx-btn" data-rx-toggle="' + esc(m.id) + '" aria-label="' +
-      esc(e ? tw("teams.react_remove", { what: tw(e.key) }) : tw("teams.react.like")) + '" title="' +
-      esc(e ? tw(e.key) : tw("teams.react.like")) + '">' + (e ? '<span class="tm-rx-emoji">' + e.emoji + "</span>" : ic("thumbs-up")) +
-      "</button>" + reactBarHtml(m, cur) + "</div>";
+    return JR.cornerHtml(m.id, m.reaction, { prefix: "tm", last: last, icon: ic("thumbs-up") });
   }
 
   // Reply, copy and pin next to a bubble, shown on hover (mouse). Touch screens use swipe left (reply) and long press.
@@ -2245,8 +2231,7 @@
     if (d.agentEdit) return openAgentSettings(d.agentEdit);
     if (d.rxToggle) {
       var rm = msgById(Number(d.rxToggle));
-      var rv = rm && rm.reaction && rm.reaction.value && rm.reaction.value !== "none" ? rm.reaction.value : "";
-      return sendReaction(Number(d.rxToggle), rv ? "none" : "like");
+      return sendReaction(Number(d.rxToggle), JR.cornerToggle(rm && rm.reaction));
     }
     if (d.react && d.mid) {
       var cur = msgById(Number(d.mid));

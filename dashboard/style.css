@@ -1081,56 +1081,56 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 /* Đang chạy một lượt thì không cho bấm gửi lại (app.js gắn .busy vào #chatArea) */
 .transcript.busy .msg-act[data-act="retry"] { opacity: 0.35; pointer-events: none; }
 
-/* T2 0.154.0: sáu reaction dưới câu trả lời (chat-reactions.js + reactions.js). Máy tính: nút mặt cười hiện khi rê chuột,
-   chip đã chọn luôn hiện; máy chạm: nút luôn hiện, vùng chạm 44px. Chữ 16px, lọt bề ngang 375px không cuộn ngang. */
-.jr-chat { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; max-width: min(72ch, 100%); min-width: 0; }
+/* 0.177.0 reactions on answers (chat-reactions.js + reactions.js), like Zalo (owner, 2026-10-16). A zero-height anchor
+   right after the bubble, as wide as the bubble (same max-width, same font so `ch` matches), holds the corner on the
+   bubble's bottom-right edge: the chosen emoji, or an outline thumbs-up that always shows on the latest answer and on hover
+   for older ones. Pressing it likes; hovering it opens six native emoji in a floating pill; a long press does the same on a
+   phone. No reasons, axis or comment panel any more. */
+.msg-javis > .jr-chat { display: block; max-width: min(72ch, 100%); font-size: 16px; font-family: var(--font-chat); min-width: 0; }
 .jr-chat[hidden] { display: none; }
-.jr-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
-.jr-row[hidden] { display: none; }
-.jr-react-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px;
-  border: 1px solid transparent; border-radius: 8px; background: none; color: var(--text3); cursor: pointer; padding: 4px;
-  opacity: 0; transition: opacity 0.15s; }
-.msg-javis:hover .jr-react-btn, .jr-react-btn:focus-visible, .jr-react-btn[aria-expanded="true"] { opacity: 1; }
-.jr-react-btn:hover { color: var(--text-hi); border-color: var(--border); }
-.jr-react-chip { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; border: 1px solid var(--border);
-  background: var(--surface-2); color: var(--text); border-radius: 999px; padding: 2px 12px; font: inherit; font-size: 16px;
-  line-height: 1.4; cursor: pointer; overflow-wrap: anywhere; text-align: left; }
+.jr-anchor { position: relative; height: 0; }
+.jr-rx { position: absolute; right: -6px; top: -16px; z-index: 3; }
+.jr-rx-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; padding: 0 6px;
+  border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--text3); cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .12); opacity: 0; transition: opacity .12s, transform .12s; }
+.jr-rx-btn svg, .jr-rx-btn .ic { width: 16px; height: 16px; }
+.jr-rx.has .jr-rx-btn, .msg-javis:not(:has(~ .msg-javis)) .jr-rx-btn, .msg-javis:hover .jr-rx-btn, .jr-rx-btn:focus-visible,
+.jr-rx.is-open .jr-rx-btn { opacity: 1; }
+.jr-rx-btn:hover { color: var(--accent); transform: scale(1.08); }
+.jr-chat.is-busy .jr-rx-btn { opacity: .6; pointer-events: none; }
+.jr-rx-emoji { font-size: 17px; line-height: 1; }
+.jr-rx-bar { display: none; position: absolute; right: 0; bottom: calc(100% + 4px); gap: 2px; padding: 4px 6px;
+  border-radius: 999px; background: var(--bg); border: 1px solid var(--border); box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+  white-space: nowrap; }
+/* Transparent strip under the pill: the hover survives the pointer's trip from the button up to the emoji. */
+.jr-rx-bar::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 8px; }
+@media (hover: hover) { .jr-rx:hover .jr-rx-bar { display: flex; animation: jr-pop .14s ease; } }
+.jr-rx:focus-within .jr-rx-bar, .jr-rx.is-open .jr-rx-bar { display: flex; }
+@keyframes jr-pop { from { opacity: 0; transform: translateY(4px) scale(.96); } to { opacity: 1; transform: none; } }
+.jr-rx-pick { border: none; background: none; padding: 2px; width: 38px; height: 38px; border-radius: 50%; cursor: pointer;
+  font-size: 27px; line-height: 1; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  transition: transform .12s ease; }
+.jr-rx-pick:hover, .jr-rx-pick:focus-visible { transform: scale(1.28) translateY(-3px); outline: none; }
+.jr-rx-pick[aria-pressed="true"] { background: var(--accent-wash); }
+@media (prefers-reduced-motion: reduce) { .jr-rx-pick, .jr-rx-btn { transition: none; } .jr-rx-bar { animation: none; } }
+/* The row of small buttons under the bubble starts below the corner, so the two never overlap. */
+.msg-javis > .jr-chat + .msg-acts { margin-top: 8px; }
 .jr-react-emoji { font-size: 18px; margin-right: 4px; }
-.jr-react-status, .jr-react-busy { font-size: 16px; line-height: 1.4; color: var(--text3); overflow-wrap: anywhere; }
-.jr-react-why { margin-left: 6px; }
-.jr-react-why::before { content: "\00B7"; margin-right: 6px; }
-.jr-react-panel { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border);
-  border-radius: 12px; background: var(--bg); min-width: 0; box-sizing: border-box; max-width: 100%; }
-.jr-react-panel[hidden] { display: none; }
-.jr-react-row { display: flex; gap: 6px; flex-wrap: wrap; }
-.jr-react-pick { min-width: 44px; min-height: 44px; font-size: 24px; line-height: 1; border: 1px solid var(--border);
-  border-radius: 12px; background: var(--surface-1); cursor: pointer; }
-.jr-react-pick[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-wash); }
-.jr-react-sub { font-size: 16px; color: var(--text2); }
-.jr-react-reasons { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 16px; color: var(--text); }
-.jr-react-reasons[hidden] { display: none; }
-.jr-react-reason { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; cursor: pointer; }
-.jr-react-comment { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; font-size: 16px; padding: 8px 10px;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--text); }
-.jr-react-note { font-size: 16px; color: var(--text3); }
-.jr-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.jr-actions[hidden] { display: none; }
-.jr-actions .ws-btn, .jr-react-err .ws-btn { font-size: 16px; }
-.jr-react-err { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-size: 16px; color: var(--danger, var(--text2)); }
+.jr-react-err { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 18px; font-size: 16px;
+  color: var(--danger, var(--text2)); }
 .jr-react-err[hidden] { display: none; }
+.jr-react-err .ws-btn { font-size: 16px; }
 .jr-react-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
   white-space: nowrap; }
 @media (hover: none) {
-  .jr-react-btn { opacity: 1; min-width: 44px; min-height: 44px; }
-  /* Nhấn giữ bong bóng trả lời mở bộ chọn: tắt menu chạm giữ mặc định của iOS cho bong bóng đã có mã tin. */
+  .jr-rx-btn { min-width: 36px; height: 36px; }
+  /* Long press on an answer opens the emoji: switch off iOS's own long-press menu on answers that have a message id. */
   .msg-javis[data-mid] { -webkit-touch-callout: none; }
-  .jr-react-chip, .jr-react-reason, .jr-actions .ws-btn, .jr-react-err .ws-btn { min-height: 44px; }
+  .jr-react-err .ws-btn { min-height: 44px; }
 }
 @media (max-width: 480px) {
-  /* 375px: sáu nút 44px và năm khe phải lọt bề ngang bong bóng. */
-  .jr-react-panel { padding: 8px 6px; }
-  .jr-react-row { flex-wrap: nowrap; justify-content: space-between; gap: 4px; }
-  .jr-react-pick { flex: 1 1 0; min-width: 44px; min-height: 48px; padding: 0; }
+  /* 375px: six emoji fit inside the pill, which opens toward the left from the corner. */
+  .jr-rx-pick { width: 40px; height: 40px; font-size: 28px; }
 }
 
 /* Copy code block (nút nổi góc phải khối code) */
