@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.175.0] - 2026-10-16
+### Cải thiện
+- (đang viết)
+
 ## [0.174.0] - 2026-10-16
 ### Thêm mới
 - **Nhập tin cũ của Zalo cá nhân vào Hộp thư:** mới đăng nhập Zalo vào Javis thì bấm **Nhập tin cũ** (trên thẻ tài khoản Zalo, hoặc bấm vào ô Zalo trên thẻ bot). Javis lấy khoảng 2 tuần tin gần nhất mà Zalo cho tải lại, tối đa 5.000 tin.
