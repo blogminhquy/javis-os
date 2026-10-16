@@ -86,12 +86,12 @@ def prompt_block() -> str:
     return f"\n\n# === {BLOCK_TITLE} ===\n{body}" if body else ""
 
 
-def list_entry(last_chat_at: float = 0.0, lang: str = "") -> Dict[str, Any]:
-    """The row GET /agents puts first. Same shape as a brain agent, plus the system flags."""
+def list_entry(last_chat_at: float = 0.0) -> Dict[str, Any]:
+    """The row GET /agents puts first. Same shape as a brain agent, plus the system flags. The caller picks the role
+    text for the screen language (`localefmt.chu(role, role_en)`)."""
     d = definition()
-    role = d["role_en"] if str(lang or "").lower().startswith("en") else d["role"]
     return {
-        "slug": SLUG, "name": NAME, "role": role, "skills": [], "model": "", "model_provider": "",
+        "slug": SLUG, "name": NAME, "role": d["role"], "skills": [], "model": "", "model_provider": "",
         "tags": [], "tag_keys": [], "group": "", "pinned": True,
         "avatar": {},
         "system": True, "protected": True,
