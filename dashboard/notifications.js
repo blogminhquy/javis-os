@@ -173,7 +173,9 @@
   }
   function theThu(item) {
     var chua = !item.read ? " unread" : "";
-    var phu = item.session_id ? window.t("noti.reopen_chat") : "";
+    var phu = item.session_id ? window.t(item.channel === "agent:javis-core" ? "noti.open_core" : "noti.reopen_chat") : "";
+    // 0.186.0: a report Javis could not place (no chat, no source brain) says so instead of looking like any other.
+    if (item.routing) phu = window.t("noti.no_target");
     return '<article class="noti-card' + chua + '" tabindex="0" role="button" data-thu-id="' + esc(item.id) + '">' +
       '<div class="noti-card-top"><span class="noti-kind ' + esc(item.kind || "answer") + '">' +
       esc(nhanLoai(item.kind)) + '</span><span class="noti-time">' + esc(thoiGian(item.ts)) + "</span></div>" +

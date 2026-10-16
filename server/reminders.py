@@ -644,6 +644,11 @@ class RemindersFeature:
                 kw = {}
                 if _nhan_kw(self.deps.send_telegram, "viec"):
                     kw = {"viec": viec, "web": channel_context.strip_control_blocks(web)}
+                if _nhan_kw(self.deps.send_telegram, "brain"):
+                    # 0.186.0: the reminder's own brain (an empty chat_id lands in its Javis Core) and one key per
+                    # firing, so a send repeated after a crash is filed once.
+                    kw["brain"] = brain
+                    kw["dedup"] = f"rem:{rem.get('id', '')}:{rem.get('due_at') or ''}"
                 ok, send_err = await self.deps.send_telegram(
                     rem.get("chat_id", ""), channel_context.strip_control_blocks(msg), **kw)
             except Exception as e:

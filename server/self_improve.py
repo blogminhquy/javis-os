@@ -140,6 +140,16 @@ def _in_quiet_hours(spec: str, hour: int) -> bool:
     return (a <= hour < b) if a < b else (hour >= a or hour < b)
 
 
+def _accepts(fn, name: str) -> bool:
+    """`fn` takes keyword `name` (or **kwargs). Lets a report hook gain fields without breaking test fakes."""
+    import inspect
+    try:
+        ps = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(p.name == name or p.kind is p.VAR_KEYWORD for p in ps)
+
+
 @dataclass
 class LoopDeps:
     """Các helper của main.py được tiêm vào (tránh import vòng)."""
@@ -881,8 +891,8 @@ class LoopFeature:
                 body += f"\n\n⚠ **{patch['auto_paused_reason']}** - bật lại hoặc bấm Chạy ngay để tiếp tục."
             self._log_append(brain, {"title": title, "body": body})
             # BÁO CÁO mỗi vòng cho NGƯỜI YÊU CẦU loop (mặc định của Javis; đặt notify: false
-            # trong frontmatter để tắt loop nào quá ồn). owner_chat rỗng (loop tạo trên web) →
-            # helper report tự gửi ID Telegram đầu tiên.
+            # trong frontmatter để tắt loop nào quá ồn). owner_chat rỗng → Javis Core của brain loop
+            # (0.186.0; trước đây là ID Telegram đầu tiên).
             report_sent = False
             # Thẻ cho khung chat web (dashboard/chat-viec.js, 0.64.49): dòng đầu thẻ đã nói
             # trạng thái và tên loop, nên bản web bỏ câu đầu có emoji.
@@ -912,11 +922,16 @@ class LoopFeature:
                     # thông báo - lúc đó cái đáng báo (loop hỏng, loop tự tạm dừng) cũng mất
                     # theo. Đây đúng luật việc Kanban đã theo từ 01/09/2026: chỉ thứ CẦN
                     # người dùng ra tay mới được kêu.
+                    # 0.186.0: the loop's own brain (an empty owner_chat lands in that brain's Javis Core) and a key
+                    # per run, so a retried report is filed once.
+                    kw = {}
+                    if _accepts(self.deps.report, "brain"):
+                        kw = {"brain": vault_root, "dedup": f"loop:{vault_root}:{slug}:{patch['last_run']}"}
                     asyncio.create_task(self.deps.report(
                         loop.get("owner_chat", ""),
                         channel_context.strip_control_blocks("\n\n".join(parts)),
                         quiet=not (failed or paused_now), viec=viec,
-                        web=channel_context.strip_control_blocks("\n\n".join(parts[1:]) or parts[0])))
+                        web=channel_context.strip_control_blocks("\n\n".join(parts[1:]) or parts[0]), **kw))
                     report_sent = True
                 except Exception:
                     pass

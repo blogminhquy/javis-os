@@ -4622,5 +4622,10 @@
   "teams.proposal_accepted": "Đã tạo việc từ đề xuất này",
   "teams.proposal_rejected": "Bạn đã bác đề xuất này",
   "ws.system_badge": "Hệ thống",
-  "ws.core_note": "Trợ lý hệ thống, có sẵn trong mọi brain: không xoá, đổi tên hay sửa được. Báo cáo không có hội thoại riêng sẽ về đây. Chọn model ở khung chat như mọi cuộc trò chuyện."
+  "ws.core_note": "Trợ lý hệ thống, có sẵn trong mọi brain: không xoá, đổi tên hay sửa được. Báo cáo không có hội thoại riêng sẽ về đây. Chọn model ở khung chat như mọi cuộc trò chuyện.",
+  "ach.telegram_owner": "Telegram của bạn (nhận báo cáo)",
+  "ach.telegram_owner_ph": "Một chat ID trong danh sách trên",
+  "ach.telegram_owner_hint": "Báo cáo không có hội thoại riêng sẽ về khung Javis Core và gửi thêm cho chat này. Để trống mà danh sách chỉ có một ID thì Javis dùng ID đó; có nhiều ID thì Javis không đoán, chỉ báo trên dashboard.",
+  "noti.open_core": "Mở trong Javis Core",
+  "noti.no_target": "Không rõ gửi về đâu nên chỉ giữ ở đây"
 }

@@ -123,6 +123,27 @@ LY_DO_CAN_QUYEN = (
 )
 
 
+
+# Bucket key of the blocked-job batch: recipient and source brain (0.186.0).
+_BUCKET_SEP = "\x1f"
+
+
+def _report_extra(fn, brain, dedup) -> dict:
+    """`brain` and `dedup` for the report hook when it takes them (0.186.0); test fakes that only take the old
+    arguments keep working."""
+    import inspect
+    try:
+        ps = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return {}
+    if not any(p.name == "brain" or p.kind is p.VAR_KEYWORD for p in ps):
+        return {}
+    out = {"brain": str(brain or "")}
+    if dedup:
+        out["dedup"] = dedup
+    return out
+
+
 @dataclass
 class TasksDeps:
     brain_root: Callable[[str], str]
@@ -1160,7 +1181,9 @@ Trả DUY NHẤT một dòng JSON, không markdown:
 
         Gom theo TỪNG người nhận: hai việc của hai kênh khác nhau không được trộn vào một tin.
         """
-        chat_id = str(task.get("chat_id") or "")
+        # One bucket per recipient AND source brain (0.186.0): an empty chat id means "this brain's Javis Core", and
+        # two brains' blocked jobs must not merge into one message.
+        chat_id = str(task.get("chat_id") or "") + _BUCKET_SEP + str(task.get("brain_root") or "")
         try:
             cho = [t["title"] for t in self.store.waiting_on(str(task.get("id") or ""))]
         except Exception:
@@ -1214,8 +1237,10 @@ Trả DUY NHẤT một dòng JSON, không markdown:
             dong.append(localefmt.chu("Xem chi tiết ở trang Việc.", "See details on the Work page."))
             parts = dong
         try:
+            cid, _, root = chat_id.partition(_BUCKET_SEP)
             await self.deps.report(
-                chat_id, channel_context.strip_control_blocks("\n\n".join(parts)), quiet=False)
+                cid, channel_context.strip_control_blocks("\n\n".join(parts)), quiet=False,
+                **_report_extra(self.deps.report, root, ""))
         except Exception as e:
             print(f"[kanban] báo gộp việc kẹt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
@@ -1321,6 +1346,8 @@ Trả DUY NHẤT một dòng JSON, không markdown:
                 viec={"kind": "task", "status": status, "title": str(task.get("title") or ""),
                       "id": str(task.get("id") or "")},
                 web=channel_context.strip_control_blocks(web),
+                **_report_extra(self.deps.report, task.get("brain_root"),
+                                f"task:{task.get('id', '')}:{status}:{task.get('current_run_id') or task.get('updated_at') or ''}"),
             )
         except Exception as e:
             # KHÔNG nuốt im: đây là đường DUY NHẤT để kết quả việc nền quay về với người dùng,

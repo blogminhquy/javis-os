@@ -4622,5 +4622,10 @@
   "teams.proposal_accepted": "A job was created from this proposal",
   "teams.proposal_rejected": "You rejected this proposal",
   "ws.system_badge": "System",
-  "ws.core_note": "The system assistant, built into every brain: it cannot be deleted, renamed or edited. Reports without a chat of their own arrive here. Choose its model in the chat box like any chat."
+  "ws.core_note": "The system assistant, built into every brain: it cannot be deleted, renamed or edited. Reports without a chat of their own arrive here. Choose its model in the chat box like any chat.",
+  "ach.telegram_owner": "Your Telegram (receives reports)",
+  "ach.telegram_owner_ph": "One chat ID from the list above",
+  "ach.telegram_owner_hint": "Reports without a chat of their own go to Javis Core and also to this chat. Left empty with a single ID in the list, Javis uses that ID; with several IDs Javis does not guess and reports on the dashboard only.",
+  "noti.open_core": "Open in Javis Core",
+  "noti.no_target": "No known destination, so it is kept here only"
 }

@@ -6179,6 +6179,9 @@
           <p class="ach-hint">${tr(`ach.${def.key}_who`)}</p>
           <label class="js-lbl" for="${id("allow")}">${esc(lbl("allow"))}</label>
           <input class="js-input" id="${id("allow")}" value="${esc(allowVal)}" placeholder="${esc(window.t(`ach.${def.key}_allow_ph`))}" autocomplete="off" spellcheck="false">
+          ${def.key === "telegram" ? `<label class="js-lbl" for="${id("owner")}">${tr("ach.telegram_owner")}</label>
+          <input class="js-input" id="${id("owner")}" value="${esc(c.owner_chat_id || "")}" placeholder="${esc(window.t("ach.telegram_owner_ph"))}" autocomplete="off" spellcheck="false" inputmode="numeric">
+          <p class="ach-hint">${tr("ach.telegram_owner_hint")}</p>` : ""}
           <div id="${id("cho")}"></div>
         </div>
 
@@ -6260,6 +6263,8 @@
         if (v || kind !== true) data[f] = v;
       });
       data[def.allowKey] = $id("allow").value.trim();
+      // 0.186.0: the owner's own Telegram chat, where reports without a chat of their own go.
+      if (def.key === "telegram" && $id("owner")) data.owner_chat_id = $id("owner").value.trim();
       return data;
     }
     // Trường bắt buộc còn trống mà chưa từng lưu: nói tên trường thay vì để server báo chung chung.

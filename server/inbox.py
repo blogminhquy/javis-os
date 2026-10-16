@@ -115,7 +115,7 @@ def _tieu_de(text: str) -> str:
 
 def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "",
         source: str = "", label: str = "", title: str = "", read: bool = False,
-        channel: str = "") -> dict:
+        channel: str = "", dedup: str = "", routing: str = "") -> dict:
     """Bỏ MỘT mẩu thư vào hòm. Trả về thư vừa tạo.
 
     `text` là nguyên văn nội dung đã gửi cho người dùng; hòm thư chỉ giữ bản cắt ngắn để
@@ -146,8 +146,20 @@ def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "
         # (đúng lỗi bản 0.59.15 đã chữa cho đường rời trang).
         "channel": str(channel or ""),
     }
+    # `dedup` (0.186.0): a retried report (a reminder sent again after a crash, a job reported twice) carries the
+    # same key; the first item stands and the caller learns it was a repeat (`duplicate`), so no channel rings twice.
+    # `routing` (0.186.0): why the report could not be delivered to a chat ("no_target": no chat and no source brain),
+    # kept so the owner sees it in the bell instead of Javis guessing a recipient.
+    if dedup:
+        item["dedup"] = str(dedup)[:200]
+    if routing:
+        item["routing"] = str(routing)[:40]
     with _LOCK:
         d = _load()
+        if dedup:
+            cu = next((it for it in d["items"] if it.get("dedup") == item["dedup"]), None)
+            if cu is not None:
+                return {**cu, "duplicate": True}
         d["items"].append(item)
         if len(d["items"]) > MAX_ITEMS:
             # Cắt từ ĐẦU (cũ nhất) và chỉ cắt thư ĐÃ ĐỌC trước; thư chưa đọc là thứ người

@@ -204,8 +204,8 @@ class OwnerChannel:
         return self._transport()(self._credentials(c), "", None, giau_trang_thai=True)
 
     async def send_to(self, chat_id, text) -> tuple:
-        """Send a background result to `chat_id` (raw id, prefix already stripped). An empty id
-        or one outside the allow-list goes to the first allowed id, like Telegram and Zalo."""
+        """Send a background result to `chat_id` (raw id, prefix already stripped). An empty id or one outside the
+        allow-list is refused (0.186.0), like Telegram and Zalo."""
         b = self._sender()
         if not b:
             return False, localefmt.chu(f"Kênh {self.label} chưa bật hoặc thiếu thông tin",
@@ -214,10 +214,11 @@ class OwnerChannel:
         cid = str(chat_id or "").strip()
         if self.trust_turn_ids:
             # A Slack DM channel id (D...) is not what the allow-list holds (user ids), so any
-            # id the turn itself produced is trusted; empty falls back to the first owner.
-            target = cid or (ids[0] if ids else "")
+            # id the turn itself produced is trusted.
+            target = cid
         else:
-            target = cid if (cid and cid in ids) else (ids[0] if ids else "")
+            target = cid if (cid and cid in ids) else ""
+        # 0.186.0: no fallback to the first allowed id; that may be someone else. The report stays in the bell.
         if not target:
             return False, localefmt.chu(f"Chưa có {self.idl()} nào được phép",
                                         f"No allowed {self.idl()} yet")

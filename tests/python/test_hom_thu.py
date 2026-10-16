@@ -87,6 +87,10 @@ check("CANARY: cắt bớt nhưng KHÔNG xoá thư chưa đọc",
 inbox.STORE.unlink(missing_ok=True)
 n0 = len(inbox.danh_sach(10_000))
 gui = []
+# 0.186.0: a `web:` target is that chat only while the chat exists (a deleted one goes to the brain's Javis Core,
+# or stays in the bell when the brain is unknown, test_javis_core_routing.py). These two chats exist.
+for _sid in ("phien-abc", "phien-xyz"):
+    main.get_store().create_session(session_id=_sid)
 
 
 async def _gia_kenh(owner_chat, text, **_kw):
@@ -192,7 +196,7 @@ check("CANARY: owner là Telegram (không có phiên web) thì kênh để trố
 # luật việc Kanban đã theo từ 01/09/2026.
 _si = (ROOT / "server" / "self_improve.py").read_text(encoding="utf-8")
 _i = _si.index("if loop.get(\"notify\", True) and self.deps.report:")
-_khoi = _si[_i:_i + 1800]
+_khoi = _si[_i:_i + 2600]   # 0.186.0: + the brain/dedup keywords
 check("loop báo kèm cờ quiet", "quiet=not (failed or paused_now)" in _khoi)
 check("CANARY: vòng HỎNG và vòng tự tạm dừng vẫn kêu",
       "failed or paused_now" in _khoi and "quiet=True" not in _khoi)

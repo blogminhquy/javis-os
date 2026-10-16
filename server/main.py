@@ -2038,7 +2038,7 @@ def _reply_policy_write_feedback(bot: dict, text: str) -> None:
 
 
 async def _reply_policy_notify(text: str) -> None:
-    await _notify_owner("", text, kind="answer", label=localefmt.chu("Bộ phán xử", "Reply judge"),
+    await _notify_owner("", text, kind="system", label=localefmt.chu("Bộ phán xử", "Reply judge"),
                         source="reply-policy")
 
 
@@ -5200,6 +5200,11 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         if "chat_id" in patch:
             # Nhận MỘT hoặc NHIỀU ID ("id1, id2" / list) → chuẩn hoá lưu "id1,id2".
             t["chat_id"] = ",".join(tg_parse_ids(patch["chat_id"]))
+        if "owner_chat_id" in patch:
+            # 0.186.0: the owner's OWN chat, where reports without a chat of their own go (_owner_telegram_id).
+            # Only an id on the allow-list counts; anything else clears the link instead of storing a stranger.
+            own = str(patch.get("owner_chat_id") or "").strip()
+            t["owner_chat_id"] = own if own in tg_parse_ids(t.get("chat_id")) else ""
         if patch.get("token"):
             t["token"] = patch["token"]
     elif section == "zalo_bot":
@@ -9490,7 +9495,8 @@ async def _bao_cao_tuan_neu_toi_gio() -> bool:
         return False
     usage_saving.ghi_moc("ngan_sach", tuan, "", "Đã gửi báo cáo token tuần")
     try:
-        await _notify_owner("" if dich == "auto" else dich, await _bao_cao_token("last_week"))
+        # An account-level report with no brain: kind system (the bell and the owner's own Telegram, 0.186.0).
+        await _notify_owner("" if dich == "auto" else dich, await _bao_cao_token("last_week"), kind="system")
     except Exception as e:  # noqa: BLE001 - gửi hỏng thì thôi, đừng giết vòng lặp nền
         print(f"[bao cao tuan] {type(e).__name__}: {e}", file=sys.stderr)
     return True
@@ -10649,25 +10655,19 @@ import self_improve
 
 
 async def _loop_notify(text: str) -> None:
-    """Báo Telegram khi loop tự tạm dừng (nice-to-have, im lặng nếu chưa cấu hình bot).
-    Gửi tới TẤT CẢ chat ID trong whitelist (hỗ trợ nhiều người dùng chung bot)."""
+    """A restricted system notice: a loop paused itself, the AI engine is down (0.186.0).
+
+    It used to go to EVERY Telegram id on the allow-list. It is the owner's business only, so it now lands in the
+    bell (kind system) and on the owner's own Telegram when that is known (`_owner_telegram_id`)."""
     try:
-        tg = cfgmod.read_settings().get("telegram", {})
-        ids = tg_parse_ids(tg.get("chat_id"))
-        if not (tg.get("enabled") and tg.get("token") and ids):
-            return
-        import httpx
-        async with httpx.AsyncClient(timeout=10) as c:
-            for cid in ids:
-                await c.post(f"https://api.telegram.org/bot{tg['token']}/sendMessage",
-                             json={"chat_id": cid, "text": text})
+        await _notify_owner("", text, kind="system", source="system")
     except Exception as e:
         print(f"[loop notify] {e}", file=__import__('sys').stderr)
 
 
 async def _tg_send_to(chat_id, text) -> tuple:
     """Gửi 1 tin tới ĐÚNG chat_id (dùng cho nhắc hẹn). chat_id rỗng hoặc không nằm trong
-    whitelist → gửi cho CHỦ bot (mọi ID whitelist). Trả (ok, error).
+    whitelist → không gửi (0.186.0; trước đây gửi cho mọi ID whitelist). Trả (ok, error).
 
     Nhắc hẹn đặt TỪ Zalo mang chat_id có tiền tố `zalo:` - rẽ sang bot Zalo ngay tại đây. Tên
     hàm giữ nguyên vì nó là cửa duy nhất `reminders.py` biết; đổi tên chỉ để đúng chính tả là
@@ -10685,9 +10685,10 @@ async def _tg_send_to(chat_id, text) -> tuple:
     if not (tg.get("enabled") and token):
         return False, "Bot Telegram chưa bật"
     cid = str(chat_id or "").strip()
-    targets = [cid] if (cid and (not ids or cid in ids)) else (ids or ([cid] if cid else []))
+    # 0.186.0: only the named chat. An empty or unlisted one used to fan out to every allowed id.
+    targets = [cid] if (cid and (not ids or cid in ids)) else []
     if not targets:
-        return False, "Chưa có chat_id đích"
+        return False, "Chưa có chat_id đích" if not cid else "Chat này không nằm trong danh sách được phép"
     import httpx
     ok_any, errs = False, []
     try:
@@ -10835,9 +10836,10 @@ async def _zalo_send_to(chat_id, text) -> tuple:
     if not (z.get("enabled") and token):
         return False, "Bot Zalo chưa bật"
     cid = str(chat_id or "").strip()
-    targets = [cid] if (cid and (not ids or cid in ids)) else (ids or ([cid] if cid else []))
+    # 0.186.0: only the named chat. An empty or unlisted one used to fan out to every allowed id.
+    targets = [cid] if (cid and (not ids or cid in ids)) else []
     if not targets:
-        return False, "Chưa có chat_id đích"
+        return False, "Chưa có chat_id đích" if not cid else "Chat này không nằm trong danh sách được phép"
     import httpx
     ok_any, errs = False, []
     url = f"https://bot-api.zaloplatforms.com/bot{token}/sendMessage"
@@ -10896,7 +10898,7 @@ def huy_viec_nen_giong(conv_sid: str) -> int:
 
 
 async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="",
-                          quiet=False) -> bool:
+                          quiet=False, brain="", dedup="", routing=""):
     """Để lại MỘT mẩu thư cho mọi kết quả chạy nền, rồi rung chuông đẩy nếu có đăng ký.
 
     Vì sao đặt ở đây chứ không ở từng nơi sinh việc: `_notify_owner` là CỬA DUY NHẤT mà
@@ -10925,10 +10927,12 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
                 print(f"[inbox] không đọc được kênh của phiên {sid[:8]}: "
                       f"{type(e).__name__}: {e}", file=sys.stderr)
         item = inbox.add(text, kind=kind, session_id=sid, source=source, label=label,
-                         read=bool(quiet), channel=kenh)
+                         read=bool(quiet), channel=kenh, brain=brain, dedup=dedup, routing=routing)
     except Exception as e:
         print(f"[inbox] bỏ thư lỗi: {type(e).__name__}: {e}", file=sys.stderr)
-        return False
+        return None
+    if item.get("duplicate"):
+        return item   # the same report was already filed: no second bell, no second push
     try:
         # Ai đang mở dashboard thì chấm đỏ trên chuông phải nhảy NGAY, không đợi lần
         # tải lại trang sau. Đi chung đường WebSocket sẵn có của khung chat.
@@ -10940,7 +10944,7 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         # rung thông báo đẩy. Nội dung thì người dùng đã thấy rồi - nó vừa rơi thẳng vào
         # khung chat đã giao việc. Vẫn bắn WebSocket ở trên để danh sách chuông đang mở
         # hiện thêm mẩu này ngay, chỉ là không kêu.
-        return True
+        return item
     try:
         # Bấm vào thông báo đẩy phải về ĐÚNG chỗ nội dung nằm: hội thoại đã hỏi nếu có,
         # còn không thì mở hòm thư. Không có tham số này thì push chỉ mở trang chủ, và
@@ -10955,16 +10959,76 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         t.add_done_callback(_PUSH_TASKS.discard)
     except Exception as e:
         print(f"[webpush] đẩy lỗi: {type(e).__name__}: {e}", file=sys.stderr)
-    return True
+    return item
+
+
+def _owner_telegram_id() -> str:
+    """The owner's own Telegram chat, the only one an untargeted report may go to (0.186.0).
+
+    Explicit link first: `telegram.owner_chat_id`, set on the Telegram settings card, and only while it is still on
+    the allow-list. Without it, a single allowed id is the owner's beyond doubt. Several ids and no link: nobody;
+    Javis no longer sends to "the first id", which may be a colleague who shares the bot.
+    """
+    tg = cfgmod.read_settings().get("telegram", {}) or {}
+    ids = tg_parse_ids(tg.get("chat_id"))
+    own = str(tg.get("owner_chat_id") or "").strip()
+    if own and own in ids:
+        return own
+    return ids[0] if len(ids) == 1 else ""
+
+
+def _report_route(owner_chat, brain, kind) -> dict:
+    """Where one report goes (0.186.0, Javis Core spec section 6). Pure decision, no sending.
+
+    - `web:<sid>` of a chat that still exists: that chat, nothing copied to Javis Core.
+    - `web:<sid>` of a deleted chat: the source brain's Javis Core when the brain is known, else a routing error.
+    - an outside channel (Telegram id, `zalo:`, `slack:`...): that channel, plus the source brain's Javis Core so the
+      report can be read and discussed on the dashboard too.
+    - empty: the source brain's Javis Core and the owner's own Telegram (see `_owner_telegram_id`). A system notice
+      has no brain and goes to the bell and the owner's Telegram. A report with neither target nor brain is not
+      guessed: it stays in the bell marked `no_target`.
+    The brain is the one the WORK belongs to, passed by the producer, never the brain open on screen.
+    """
+    cid = str(owner_chat or "").strip()
+    bk = ""
+    if brain:
+        try:
+            bk = _brain_key(brain)
+        except Exception:
+            bk = ""
+
+    def core():
+        return javis_core.default_session(get_store(), bk, same_brain=_cung_brain) if bk else ""
+
+    if cid.startswith(WEB_CHAT_PREFIX):
+        sid = cid[len(WEB_CHAT_PREFIX):]
+        try:
+            row = get_store().get_session(sid) if sid else None
+        except Exception:
+            row = None
+        if row:
+            return {"chat": sid, "external": "", "brain": bk or str(row.get("brain") or "")}
+        if bk:
+            return {"chat": core(), "external": "", "brain": bk, "lost_origin": True}
+        return {"chat": "", "external": "", "brain": "", "routing": "lost_origin"}
+    if cid:
+        return {"chat": core(), "external": cid, "brain": bk}
+    own = _owner_telegram_id()
+    if kind == "system":
+        return {"chat": "", "external": own, "brain": bk}
+    if bk:
+        return {"chat": core(), "external": own, "brain": bk}
+    return {"chat": "", "external": "", "brain": "", "routing": "no_target"}
 
 
 async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
-                        quiet=False, ngan="", viec=None, web="", card="") -> tuple:
+                        quiet=False, ngan="", viec=None, web="", card="", brain="", dedup="") -> tuple:
     """Báo cáo cho NGƯỜI YÊU CẦU loop/task (mặc định của Javis). Quy tắc:
       - owner_chat dạng "web:<sid>" → đẩy thẳng vào ĐÚNG khung chat web đã giao việc.
       - owner_chat dạng "zalo:<id>" → gửi qua bot Zalo cho ĐÚNG người đó.
       - owner_chat là chat_id Telegram trong whitelist → gửi ĐÚNG người đó.
-      - owner_chat rỗng (không rõ ai giao) → gửi ID ĐẦU TIÊN trong whitelist (chủ bot).
+      - owner_chat rỗng (không rõ ai giao) → Javis Core của brain nguồn (`brain`) và Telegram của CHÍNH chủ
+        (`_owner_telegram_id`); không có brain thì chỉ giữ trong hòm thư, không đoán (0.186.0, `_report_route`).
 
     Vì sao có nhánh web: người ngồi dashboard giao việc xong thì lượt chat đã đóng, mà kênh
     báo duy nhất trước 0.9.289 là Telegram - máy không đấu Telegram thì im lặng tuyệt đối,
@@ -10990,9 +11054,26 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
     Trả (ok, error). `ok` là ĐÃ TỚI ĐƯỢC NGƯỜI DÙNG, và hòm thư tính là tới: nó nằm ở
     server, còn sau F5, thấy được từ máy khác. Nhờ vậy một cái nhắc hẹn trên máy chưa đấu
     Telegram không còn bị ghi là "failed" trong khi nội dung đang nằm sẵn trong hòm."""
-    vao_hom = await _bo_vao_hom_thu(owner_chat, text, kind=kind, label=label, source=source,
-                                    quiet=quiet)
-    ok, err = await _gui_qua_kenh(owner_chat, text, ngan=ngan, viec=viec, web=web, card=card)
+    route = _report_route(owner_chat, brain, kind)
+    chat = route.get("chat") or ""
+    vao_hom = await _bo_vao_hom_thu(f"{WEB_CHAT_PREFIX}{chat}" if chat else "", text, kind=kind, label=label,
+                                    source=source, quiet=quiet, brain=route.get("brain") or "", dedup=dedup,
+                                    routing=route.get("routing") or "")
+    if vao_hom and vao_hom.get("duplicate"):
+        return True, ""   # filed before: a retry must not post or ring a second time
+    if route.get("routing"):
+        # No chat and no source brain: kept in the bell for the owner, sent nowhere else (spec 6.4).
+        print(f"[notify] không rõ nơi nhận ({route['routing']}), chỉ giữ trong hòm thư: {str(text)[:80]!r}",
+              file=sys.stderr)
+        return bool(vao_hom), ("" if vao_hom else "no_target")
+    ok, err = False, ""
+    if chat:
+        ok, err = await _gui_qua_kenh(f"{WEB_CHAT_PREFIX}{chat}", text, ngan=ngan, viec=viec, web=web, card=card)
+    ext = route.get("external") or ""
+    if ext:
+        # Each channel on its own: one that fails does not stop the other or lose the report.
+        ok2, err2 = await _gui_qua_kenh(ext, text, ngan=ngan, viec=viec, web=web, card=card)
+        ok, err = (ok or ok2), (err if ok2 else (err2 or err))
     if ok or not vao_hom:
         return ok, ("" if ok else err)
     # Kênh hỏng nhưng hòm thư đã giữ tin: với NGƯỜI DÙNG đây là thành công, nên đừng trả lỗi
@@ -11055,7 +11136,11 @@ async def _gui_qua_kenh(owner_chat, text, *, ngan="", viec=None, web="", card=""
     ids = tg_parse_ids(tg.get("chat_id"))
     if not (tg.get("enabled") and token and ids):
         return False, "Bot Telegram chưa bật hoặc chưa có chat_id"
-    target = cid if (cid and cid in ids) else ids[0]
+    # 0.186.0: an explicit id outside the allow-list, or no id at all, is not redirected to "the first id" (that may be
+    # someone else sharing the bot). `_report_route` already put the owner's own id here when it is known.
+    if not cid or cid not in ids:
+        return False, ("Không rõ người nhận Telegram" if not cid else "Chat Telegram này không nằm trong danh sách được phép")
+    target = cid
     import httpx
     try:
         async with httpx.AsyncClient(timeout=15) as c:
@@ -11095,7 +11180,7 @@ loop_feature = self_improve.register(app, self_improve.LoopDeps(
     safe_tools=SAFE_FILE_TOOLS,
     readonly_tools=READONLY_TOOLS,
     notify=_loop_notify,
-    report=_notify_owner,               # báo Telegram cho NGƯỜI YÊU CẦU loop mỗi vòng (web → ID đầu)
+    report=_notify_owner,               # báo NGƯỜI YÊU CẦU loop mỗi vòng (rỗng → Javis Core của brain loop)
     apply_mcp=_apply_mcp,               # loop ĐỌC được dữ liệu thật qua MCP Javis-quản-lý
     mcp_allow_patterns=_loop_mcp_allow,
 ))
@@ -11176,7 +11261,7 @@ tasks_feature = tasks_mod.register(app, tasks_mod.TasksDeps(
     scheduler_brains=_kanban_brains,
     apply_mcp=_apply_mcp,
     mcp_allow_patterns=_loop_mcp_allow,
-    report=_notify_owner,               # báo Telegram cho NGƯỜI YÊU CẦU task khi chạy xong (web → ID đầu)
+    report=_notify_owner,               # báo NGƯỜI YÊU CẦU task khi chạy xong (rỗng → Javis Core của brain việc)
 ))
 
 # Nối learn → Kanban: engine học đề xuất việc nền → enqueue vào backlog.
@@ -11263,14 +11348,14 @@ def _notify_live_warn() -> str:
         return ""
 
 
-async def _bao_nhac_hen(chat_id, text, viec=None, web="") -> tuple:
+async def _bao_nhac_hen(chat_id, text, viec=None, web="", brain="", dedup="") -> tuple:
     """Đường BÁO của nhắc hẹn. Cùng chữ ký (chat_id, text) -> (ok, err) như `_tg_send_to` cũ,
     nhưng đi qua `_notify_owner` nên nhắc hẹn được đúng ba thứ mà trước đây nó không có:
     hòm thư ở server, đẩy về khung chat web khi chat_id là "web:<sid>", và thông báo đẩy.
     Trước bản này nhắc hẹn là thứ DUY NHẤT còn gọi thẳng Telegram - đó cũng là lý do
     reminders.py phải chặn không cho tạo khi chưa đấu bot."""
     return await _notify_owner(chat_id, text, kind="report", source="reminder",
-                               viec=viec, web=web)
+                               viec=viec, web=web, brain=brain, dedup=dedup)
 
 
 reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
@@ -11545,7 +11630,8 @@ async def _khi_tien_trinh_xong(v: dict) -> None:
     try:
         await _notify_owner(owner, text, kind="answer", label="Việc chạy nền", source="job",
                             viec={"kind": "job", "status": st, "title": mo_ta[:120],
-                                  "id": str(v.get("id") or "")})
+                                  "id": str(v.get("id") or "")},
+                            brain=root, dedup=f"job:{v.get('id') or ''}:{st}")
     except Exception as e:
         print(f"[tien trinh nen] báo lỗi: {type(e).__name__}: {e}", file=sys.stderr)
     if not se_tiep:
