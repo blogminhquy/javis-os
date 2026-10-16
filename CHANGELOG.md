@@ -7,6 +7,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.175.0] - 2026-10-16
+### Sửa lỗi
+- **Kết nối Higgsfield (và các máy chủ MCP đăng nhập qua Clerk) không còn báo invalid_grant:** Javis chỉ xin những quyền máy chủ MCP cần. Nhà cung cấp từ chối quyền nào thì Javis tự bỏ quyền đó và mở lại trang đăng nhập; lỗi khác ở bước đăng nhập hiện đúng tên lỗi.
+
 ### Cải thiện
 - **Thẻ trợ lý gọn lại:** mỗi thẻ còn tên, giờ, vai trò. Chỉ khi có chuyện mới thêm một dòng "Cần bạn 1", "Đang làm 2" bằng chữ, thay biểu tượng bàn tay dễ nhầm với dấu ghim. Auto chỉ hiện thành nhãn nhỏ khi đang bật (bật ở menu ba chấm hoặc tab Cài đặt). Tag không vẽ trên thẻ nữa (lọc ở ô đầu cột, rê chuột vào thẻ để xem).
 - **Trợ lý đang chờ bạn lên đầu danh sách,** dưới nhãn "Đang chờ bạn", rồi mới tới mục ghim và phần còn lại.

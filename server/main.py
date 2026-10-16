@@ -7,6 +7,7 @@ Javis KHÔNG gọi Anthropic API trực tiếp. Mọi reasoning + tool calling �
 """
 import brain_seed_i18n   # file hạt giống của brain mới theo ngôn ngữ người dùng
 import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
+import html as html_mod   # escape lời báo lỗi OAuth trên trang callback (biến cục bộ `html` che tên module)
 import posixpath
 import os
 import json
@@ -4986,9 +4987,14 @@ async def connect_oauth_start(request: Request):
 
 
 @app.get("/connect/oauth/callback")
-async def connect_oauth_callback(state: str = Query(""), code: str = Query("")):
-    res = await oauth_mcp.handle_callback(state, code)
+async def connect_oauth_callback(state: str = Query(""), code: str = Query(""), error: str = Query(""),
+                                 error_description: str = Query("")):
+    # 0.175.1: nhà cung cấp báo lỗi ở bước xin quyền (vd invalid_scope của Higgsfield/Clerk) thì không có code; đọc lỗi thật.
+    # invalid_scope có cách gỡ: oauth_mcp bỏ phạm vi bị từ chối và trả trang đăng nhập mới, chuyển thẳng sang đó.
+    res = await oauth_mcp.handle_callback(state, code, error, error_description)
     mcp_hub.invalidate_cache()
+    if res.get("retry_url"):
+        return RedirectResponse(url=res["retry_url"], status_code=302)
     if res.get("ok"):
         _write_codex_profile()
         # Vừa có token: kiểm lại đèn ngay, không thì chip vẫn báo "Kết nối lại" tới vòng quét
@@ -5021,7 +5027,8 @@ async def connect_oauth_callback(state: str = Query(""), code: str = Query("")):
     else:
         html = (f"<html><body style='font-family:sans-serif;background:#111;color:#eee;text-align:center;padding-top:80px'>"
                 + localefmt.chu("<h2>⚠ Kết nối thất bại</h2>", "<h2>⚠ Connection failed</h2>")
-                + f"<p>{res.get('error', '')}</p></body></html>")
+                # Lời báo có thể mang error_description do nhà cung cấp (qua URL) gửi về: escape, không chèn HTML thô.
+                + f"<p>{html_mod.escape(str(res.get('error', '')))}</p></body></html>")
     return HTMLResponse(html)
 
 
