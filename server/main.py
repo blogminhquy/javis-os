@@ -6866,6 +6866,8 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
     path = _agents_dir(brain) / f"{slug}.md"
     tags = tags if isinstance(tags, str) else None
     group = group if isinstance(group, str) else None
+    # Gọi thẳng hàm (test, mã nội bộ) mà không truyền thì đây là đối tượng Form(None) chứ không phải None: coi như không gửi.
+    avatar_image = avatar_image if isinstance(avatar_image, str) else None
 
     def _luu():
         # ĐỌC `previous` rồi GHI trong CÙNG một khoá với các đường tag (/capability/meta, đổi tên, xoá tag),
