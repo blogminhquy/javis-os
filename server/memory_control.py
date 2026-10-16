@@ -103,6 +103,21 @@ def _remember_forgotten(mem_dir: Path, slug: str, title: str, body: str) -> None
 
 # ── learning switch ───────────────────────────────────────────────────────────
 
+# ── memory writes that leave no file behind (0.189.0) ─────────────────────────
+# A lesson revoked or added through the memory tool lives in the lesson store, not under memory/. The turn's receipt
+# and the empty-claim check (memory_receipt) still have to know something was written, so the tools note it here.
+_ACTIVITY: Dict[str, float] = {}
+
+
+def note_change(mem_dir) -> None:
+    with _LOCK:
+        _ACTIVITY[str(Path(mem_dir))] = time.time()
+
+
+def changed_since(mem_dir, t: float) -> bool:
+    return _ACTIVITY.get(str(Path(mem_dir)), 0.0) >= float(t or 0)
+
+
 def learning_enabled(mem_dir: Path) -> bool:
     try:
         d = json.loads((Path(mem_dir) / LEARNING).read_text(encoding="utf-8"))

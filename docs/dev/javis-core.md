@@ -138,4 +138,13 @@ tên, mô tả, hướng dẫn, tài liệu, kỹ năng, model).
 - **Chưa đưa vào tool:** bài học trình bày A3 (báo gọn hay đủ) đã áp dụng trước đây; đề xuất mới loại này không còn
   nút Áp dụng nên không phát sinh thêm. Các route `/memory/*`, `/profile`, `/agents/{slug}/lessons/*` vẫn còn cho
   công cụ ngoài.
+- **Dòng "Đã nhớ · Hoàn tác"** (`server/memory_receipt.py`, `dashboard/chat-nho.js`): đầu lượt chat dashboard chụp
+  `memory/` (bỏ `conversations/`, `runs/`), cuối lượt so lại; ghi nhớ mới, đã sửa, đã quên thành một dòng đẩy vào
+  chat (khối ẩn `JAVIS_NHO`, F5 vẫn còn). Hoàn tác gọi `/memory/forget` nên không học lại. Câu trả lời khai "đã nhớ,
+  đã quên, đã thu hồi" (tập `MEMORY_CLAIM` trong `server/lexicon`) mà không file nào đổi và không tool trí nhớ nào ghi
+  (`memory_control.note_change`) thì có dòng đính chính. Chỉ đường dashboard; Telegram chưa có dòng này.
+- **Thẻ trợ lý:** giờ chat (12px) và công tắc Auto chung cụm `.ws-item-end` ở góc dưới phải, công tắc có trên mọi
+  trợ lý (bỏ luật ẩn khi tắt của 0.175.0). Khối Auto trong cột Cài đặt dùng bảng Nhịp bản gọn (`compact`): một dòng
+  hạn mức bằng lời thường và đề xuất đang chờ; bảng đầy đủ vẫn ở ngăn Nhóm.
+- **Tin tức không vào Javis Core:** thẻ tab Tin tức bỏ nút "Hỏi Javis Core"; thông báo việc của chính chủ vẫn có.
 

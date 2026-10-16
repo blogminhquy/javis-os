@@ -12,6 +12,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ### Improved
 - **Settings like the apps you know:** an assistant's settings column now opens on its picture, name, description, instructions, documents, skills and model. The Auto block shows only while that assistant has Auto on.
 - **Memory and lessons from chat:** to have Javis remember, change or forget something, or tell an assistant to drop a habit it learnt, just say so, for example "forget the sales channel note" or "tell Writer to stop using emoji". Javis does it, on any model.
+- **See what Javis just remembered:** a chat turn that saves, changes or forgets a memory shows one small line under the answer, "Remembered: ...", with an **Undo** button for a new memory. If Javis says it remembered or forgot something while nothing changed, a correction line says so.
+- **Tidier assistant cards:** the chat time is small and sits on the same row as the Auto switch in the bottom corner, and the switch is back on every assistant. The Auto block in Settings is down to one line, "Work on its own up to ... times a day", plus anything waiting on you.
+- **Release news stays out of Javis Core:** cards in the bell's News tab no longer have "Ask Javis Core"; release news lives only there.
 - **Confusing lists removed:** the Javis Core card no longer has a Memory section, and an assistant's column no longer has Lessons, Revoke, Use everywhere or old unscoped lessons.
 
 ## [0.188.0] - 2026-10-16

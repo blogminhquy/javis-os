@@ -4634,5 +4634,15 @@
   "core.save_err": "Not saved, try again.",
   "app.brain_of_chat": "This chat belongs to brain {name}. Javis answers with that brain.",
   "app.brain_switch_to": "Switch to {name}",
-  "ach.telegram_owner_auto": "Automatic (only when the list has one ID)"
+  "ach.telegram_owner_auto": "Automatic (only when the list has one ID)",
+  "nho.saved": "Remembered",
+  "nho.updated": "Updated",
+  "nho.forgot": "Forgot",
+  "nho.undo": "Undo",
+  "nho.undone": "Dropped, Javis will not keep this",
+  "nho.undo_err": "Not dropped, tap again",
+  "lessons.cap_before": "Work on its own up to",
+  "lessons.cap_after": "times a day",
+  "lessons.cap_unlimited": "no limit",
+  "lessons.cap_today": "Worked on its own {used} times today."
 }

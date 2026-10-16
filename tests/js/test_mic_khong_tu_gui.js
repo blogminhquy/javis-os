@@ -88,7 +88,7 @@ check("chỗ thứ 6 là tin hoãn, chỉ gửi sau khi lượt cũ đã dừng"
 
 // ---- 4. Server không tự nhập liệu: việc nền luôn là tin của Javis ----
 check("push_to_chat ghi vai assistant, không bao giờ là user",
-  /def push_to_chat[\s\S]{0,1400}append_message\(sid, "assistant", clean\)/.test(server));
+  /def push_to_chat[\s\S]{0,1900}append_message\(sid, "assistant", clean\)/.test(server));
 // Năm chỗ ghi vai "user": bốn đường nhập liệu và một thao tác duyệt quy trình.
 // Bốn đường nhập liệu là: WebSocket của dashboard,
 // tin nhắn đến từ Telegram/Zalo (phiên riêng theo chat_id), và HAI chỗ trong phiên nghe nói

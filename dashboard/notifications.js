@@ -333,7 +333,7 @@
         '<div class="noti-card-top"><span class="noti-kind ' + esc(kind) + '">' + esc(kindLabel(kind)) + '</span>' +
         '<span class="noti-time">' + esc(item.published_at || "") + "</span></div>" +
         "<h4>" + esc(item.title || window.t("noti.card_untitled")) + "</h4>" +
-        '<p class="noti-card-summary">' + esc(item.summary || "") + "</p>" + body + cta + nutHoi("news", id) + "</article>";
+        '<p class="noti-card-summary">' + esc(item.summary || "") + "</p>" + body + cta + "</article>";
     }).join("");
     var remaining = limited.length - visible.length;
     var loadMore = remaining > 0

@@ -343,7 +343,7 @@ check("bỏ hết reaction: emoji biến mất, nút Thích còn", !hist.row().i
   check("app.js: gói turn_saved và chat_reaction đi vào chat-reactions, gợi ý là bong bóng của lượt",
         /data\.type === "turn_saved" \|\| data\.type === "chat_reaction"\) \{[\s\S]{0,700}JavisChatReactions\.onFrame\(data, \{ bubble: t && t\.bubble \}\)/.test(appJs));
   check("app.js: F5 dựng lại hàng reaction từ convo và hỏi lại server",
-        /t\.mid != null && window\.JavisChatReactions\) window\.JavisChatReactions\.attach\(el, \{ sid: savedSessionId, mid: t\.mid/.test(appJs)
+        /t\.mid != null && window\.JavisChatReactions(?: && !el\.classList\.contains\("msg-nho"\))?\) window\.JavisChatReactions\.attach\(el, \{ sid: savedSessionId, mid: t\.mid/.test(appJs)
         && /JavisChatReactions\.refresh\(savedSessionId\)/.test(appJs));
   check("app.js: init trên #chatArea, đổi reaction thì lưu convo", /JavisChatReactions\.init\(\{ root: chatArea, brain: currentBrainPath, onChange: persistSession \}\)/.test(appJs)
         && appJs.indexOf("JavisChatReactions.init(") < appJs.lastIndexOf("restoreSession();"));

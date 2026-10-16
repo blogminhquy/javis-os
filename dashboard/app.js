@@ -1137,6 +1137,8 @@ function handleMessage(data) {
     if (isActive) {
       const el = appendJavisMessage(data.content || "");
       recordTurn("javis", data.content || "", null, null);
+      // The memory receipt line is not a message: no reactions, never read aloud (0.189.0).
+      if (el && el.classList.contains("msg-nho")) { scrollBottom(); notifySessions(); return; }
       // Tin đẩy về có mã tin (0.168.0): gắn hàng sáu cảm xúc ngay, kể cả tin báo goal (không còn hàng A3 riêng).
       if (el && data.message_id != null && window.JavisChatReactions && window.JavisChatReactions.attach) {
         window.JavisChatReactions.attach(el, { sid: data.session_id, mid: data.message_id, sha: data.content_sha || "",
@@ -1881,7 +1883,7 @@ function restoreSession() {
     _traLoi.push({ el, entry: t });
     // T2: tin đã có mã (lịch sử hay gói turn_saved) mang lại hàng reaction; tin lưu trước bản này không có mã thì không có nút.
     try {
-      if (t.mid != null && window.JavisChatReactions) window.JavisChatReactions.attach(el, { sid: savedSessionId, mid: t.mid,
+      if (t.mid != null && window.JavisChatReactions && !el.classList.contains("msg-nho")) window.JavisChatReactions.attach(el, { sid: savedSessionId, mid: t.mid,
         sha: t.sha || "", brain: t.brain || s.brain, reaction: t.reaction || null, entry: t });
     } catch (e) {}
     // Chip chỉ sống lại ở tin CUỐI: có tin sau nó nghĩa là câu hỏi đã được trả lời rồi.
@@ -1937,7 +1939,7 @@ function veTinDaLuu(m, brainCua, sidCua) {
     const entry = { role: "javis", text: m.content || "", atts: [], ts, brain: brainCua,
                     mid: m.id, sha: m.content_sha || "", reaction: m.reaction || null };
     try {
-      if (window.JavisChatReactions) window.JavisChatReactions.attach(el, { sid: sidCua, mid: m.id, sha: m.content_sha || "",
+      if (window.JavisChatReactions && !el.classList.contains("msg-nho")) window.JavisChatReactions.attach(el, { sid: sidCua, mid: m.id, sha: m.content_sha || "",
         brain: brainCua, reaction: m.reaction || null, entry });
     } catch (e) {}
     return entry;
@@ -2282,6 +2284,9 @@ function appendJavisMessage(text, ts, brain) {
   // Thẻ mục tiêu (Resonance M4, chat-resonance.js): bóc khối JAVIS_RESONANCE rồi vẽ thẻ sống dưới bong bóng.
   const tr = window.JavisResonance ? window.JavisResonance.tach(tv.clean) : { clean: tv.clean, cards: [] };
   tv.clean = tr.clean;
+  // 0.189.0: the "Đã nhớ · Hoàn tác" line (chat-nho.js): a pushed message with a JAVIS_NHO block is drawn as that line.
+  const tn = window.JavisNho ? window.JavisNho.tach(tv.clean) : { clean: tv.clean, nho: null };
+  tv.clean = tn.clean;
   const div = document.createElement("div");
   div.className = "msg msg-javis";
   // Phiên bản ẢNH của tin này (0.65.33, xem markdownToHtml): tin cũ dựng lại dùng đúng mốc giờ của
@@ -2291,6 +2296,7 @@ function appendJavisMessage(text, ts, brain) {
     actsHtml("javis", ts === undefined ? Date.now() : ts, !!lastUserText().trim());
   if (tv.viec) window.JavisViec.ve(div, tv.viec);
   for (const c of tr.cards) window.JavisResonance.ve(div, c);
+  if (tn.nho) window.JavisNho.ve(div, tn.nho);
   div.dataset.md = tv.clean || "";   // copy nội dung markdown, không chép marker việc nền
   chatAppend(div); scrollBottom();
   return div;

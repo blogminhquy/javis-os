@@ -72,6 +72,29 @@
     return html + "</div>";
   }
 
+  /* 0.189.0: the one plain line of the Auto block in an assistant's settings: "Tự làm tối đa [6] lần mỗi ngày", with
+     how many it did today. No reserve numbers, no explanation box. Same select and same save path as the full part. */
+  function capHtml(view, opts) {
+    var o = opts || {}, v = view || {};
+    var p = (v.parts && v.parts.lessons) || null;
+    if (!p || p.error) return "";
+    var b = p.budget || {};
+    var cur = b.cap == null ? "unlimited" : String(b.cap);
+    var choices = CAP_CHOICES.slice();
+    if (b.cap != null && choices.indexOf(Number(b.cap)) < 0) choices.push(Number(b.cap));
+    choices.sort(function (x, y) { return x - y; });
+    var html = '<div class="lessons-part lessons-cap" data-compact="1" data-slug="' + esc(p.slug || "") + '">' +
+      '<label class="lessons-budget"><span>' + esc(tw("lessons.cap_before")) + '</span><select class="lessons-budget-sel" ' +
+      'data-prev="' + esc(cur) + '">' + choices.map(function (n) {
+        return '<option value="' + n + '"' + (String(n) === cur ? " selected" : "") + ">" + esc(String(n)) + "</option>";
+      }).join("") + '<option value="unlimited"' + (cur === "unlimited" ? " selected" : "") + ">" +
+      esc(tw("lessons.cap_unlimited")) + '</option></select><span>' + esc(tw("lessons.cap_after")) + "</span></label>" +
+      '<div class="pulse-line pulse-note">' + esc(tw("lessons.cap_today", { used: b.used || 0 })) + "</div>";
+    if (o.err) html += '<div class="pulse-line pulse-err" role="alert">' + esc(tw("lessons.error", { e: o.err })) + "</div>";
+    else if (o.msg) html += '<div class="pulse-line pulse-ok" role="status">' + esc(o.msg) + "</div>";
+    return html + "</div>";
+  }
+
   function brainName() {
     try { return (window.JavisSessions && window.JavisSessions.brain()) || "brain"; } catch (e) { return "brain"; }
   }
@@ -91,6 +114,7 @@
   }
 
   function redraw(box, view, o) {
+    if (box.getAttribute && box.getAttribute("data-compact") === "1") { box.outerHTML = capHtml(view, o); return; }
     var part = box.closest ? box.closest(".pulse-part") : null;
     (part || box.parentNode || box).innerHTML = partHtml(view, o);
   }
@@ -126,11 +150,12 @@
     });
   }
 
-  var part = { name: "lessons", render: function (view) { return partHtml(view, {}); } };
+  var part = { name: "lessons", render: function (view) { return partHtml(view, {}); },
+    compact: function (view) { return capHtml(view, {}); } };
   if (typeof window !== "undefined") {
     window.JavisPulseParts = window.JavisPulseParts || [];
     if (!window.JavisPulseParts.some(function (x) { return x && x.name === "lessons"; })) window.JavisPulseParts.push(part);
   }
-  var apiOut = { partHtml: partHtml, budgetLine: budgetLine, actionRequest: actionRequest, part: part };
+  var apiOut = { partHtml: partHtml, capHtml: capHtml, budgetLine: budgetLine, actionRequest: actionRequest, part: part };
   if (typeof module !== "undefined" && module.exports) module.exports = apiOut;
 })();

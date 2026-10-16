@@ -78,6 +78,25 @@ const miss = keys.filter((k) => !(k in vi) || !(k in en));
 check("mọi khoá lessons.* của file có ở vi và en", keys.length >= 9 && miss.length === 0, miss.join(", "));
 check("không em dash / en dash", !/[\u2013\u2014]/.test(lsrc + vi["lessons.title"] + en["lessons.title"]));
 
+// 0.189.0: bản gọn trong cột Cài đặt của trợ lý: một dòng lời thường, không số kỹ thuật.
+const cap = LUI.capHtml(view);
+check("bản gọn: 'Tự làm tối đa [6] lần mỗi ngày' và số lần hôm nay, không 'giữ lượt', không nút i",
+  cap.includes(vi["lessons.cap_before"]) && cap.includes(vi["lessons.cap_after"]) && cap.includes('<option value="6" selected>')
+  && cap.includes(vi["lessons.cap_today"].replace("{used}", "2")) && !cap.includes("info-body")
+  && !cap.includes(vi["lessons.budget_line"].split("{")[0]), cap);
+check("bản gọn dùng chung ô chọn và đường lưu, vẽ lại đúng bản gọn sau khi lưu",
+  cap.includes('class="lessons-part lessons-cap" data-compact="1" data-slug="viet"') && cap.includes("lessons-budget-sel")
+  && /data-compact"\) === "1"\) \{ box\.outerHTML = capHtml\(view, o\); return; \}/.test(lsrc));
+const comp = P.compactHtml(Object.assign({}, view, { proposals: [
+  { id: 1, title: "Mở việc tuần", status: "pending", context_ref: "dm:ag_1" },
+  { id: 2, title: "Đã bác", status: "rejected", context_ref: "dm:ag_1" }], contexts: [{ context_ref: "dm:ag_1" }] }),
+  { registry: [LUI.part] });
+check("bảng Nhịp bản gọn: dòng hạn mức + đề xuất ĐANG CHỜ (nút Nhận/Bác), không nhịp, không đề xuất đã quyết",
+  comp.includes(vi["lessons.cap_before"]) && comp.includes("Mở việc tuần") && comp.includes('data-pulse-act="proposal_accept"')
+  && !comp.includes("Đã bác") && !comp.includes("pulse-max-sel") && !comp.includes(vi["pulse.title"]), comp);
+check("cột Cài đặt gắn bảng Nhịp ở bản gọn", /JavisPulse\.mount\(ph, \{ slug: item\.slug, brain: brain\(\), compact: true \}\)/
+  .test(read("workspace.js")) && /o\.compact \? compactHtml\(view, o\) : panelHtml\(view, o\)/.test(read("agent-pulse.js")));
+
 // Smoke T3: Auto đang bật mà chưa có nhịp thì không khuyên bật Auto.
 {
   const panel = P.panelHtml({ resonance: true, contexts: [], parts: {} }, { slug: "lan", registry: [] });

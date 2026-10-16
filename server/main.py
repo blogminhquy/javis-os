@@ -153,6 +153,7 @@ import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi các
 import javis_core        # Javis Core (0.185.0): system assistant pinned in every brain
 import memory_control    # 0.188.0: list/edit/forget memories, learning switch, person profile
 import memory_chat       # 0.189.0: the same, plus agent lessons, from chat (tool javis_memory)
+import memory_receipt    # 0.189.0: the "Đã nhớ · Hoàn tác" line under an answer, and no empty "đã quên"
 import chatbot_cuoc_chat  # danh sách cuộc chat cho ô chọn người/nhóm của form bot
 import chatbot_reply_policy        # bộ phán xử hội thoại nhóm (0.65.0): bot tự quyết nói hay im
 import chatbot_reply_policy_store  # kho quyết định, ca đã học, ngưỡng theo cuộc chat
@@ -10130,6 +10131,7 @@ def _ket_luot_agent(brain, slug, user_message, final_text, conv_sid="") -> str:
                                                   source_refs=[f"session:{conv_sid}"] if conv_sid else [])
             except Exception as _e:  # noqa: BLE001
                 print(f"[dm lessons] {slug}: {type(_e).__name__}: {_e}", file=sys.stderr)
+            memory_control.note_change(_brain_memory_dir(brain))   # 0.189.0: "em sẽ nhớ" is backed by a lesson
         else:
             print(f"[dm lessons] {slug}: không tra được mã trợ lý, bỏ {len(lessons)} bài học", file=sys.stderr)
     _log(slug, user_message or "", sach or "")
@@ -10823,7 +10825,7 @@ def _resonance_card(card) -> tuple:
     return c, None
 
 
-async def push_to_chat(session_id, text, viec=None, card="") -> bool:
+async def push_to_chat(session_id, text, viec=None, card="", nho="") -> bool:
     """Đẩy MỘT tin của Javis vào đúng phiên chat web, ngoài luồng hỏi-đáp thường.
 
     Vì sao cần: việc Kanban / loop / nhắc hẹn chạy nền xong thì lượt chat đã kết thúc từ lâu,
@@ -10842,6 +10844,9 @@ async def push_to_chat(session_id, text, viec=None, card="") -> bool:
     if _k:
         clean = _k + "\n" + clean
     # `card` (Resonance M4): thẻ mục tiêu, gắn SAU khi bóc như thẻ việc. Xem _resonance_card.
+    # `nho` (0.189.0): the memory receipt block from memory_receipt.receipt_block, nothing else (dashboard/chat-nho.js).
+    if nho and str(nho).startswith("<!-- JAVIS_NHO: ") and str(nho).endswith(" -->"):
+        clean = clean + "\n" + str(nho)
     card, report = _resonance_card(card)
     if card:
         clean = clean + "\n" + card
@@ -15030,7 +15035,7 @@ async def _luot_quy_trinh(store, conv_sid, user_message, brain, slug, emit, resu
 # ============================================
 # Lưu MỘT lượt hội thoại - đường DUY NHẤT, dùng chung cho mọi kênh (dashboard, Telegram)
 # ============================================
-async def _persist_turn(store, conv_sid, brain, user_message, final_text):
+async def _persist_turn(store, conv_sid, brain, user_message, final_text, turn_started: float = 0):
     """Lưu lượt vừa xong: kho phiên + tiêu đề + nhật ký Memory + hàng đợi tự học.
 
     Bóc khối điều khiển (`<!-- JAVIS_ASK ... -->`) TRƯỚC khi lưu. Dashboard vẽ nút từ sự kiện
@@ -15060,7 +15065,7 @@ async def _persist_turn(store, conv_sid, brain, user_message, final_text):
     log_conversation(brain, user_message, clean)
     # 0.188.0 (spec 12.3): a memory the model wrote during this turn without a source gets one: this chat, today.
     try:
-        memory_control.stamp_new_facts(_brain_memory_dir(brain), since=time.time() - 1800,
+        memory_control.stamp_new_facts(_brain_memory_dir(brain), since=turn_started or time.time() - 1800,
                                        source=f"chat {time.strftime('%Y-%m-%d')} ({str(conv_sid)[:8]})")
     except Exception as _e:  # noqa: BLE001
         print(f"[memory stamp] {type(_e).__name__}: {_e}", file=sys.stderr)
@@ -15180,6 +15185,12 @@ async def websocket_endpoint(ws: WebSocket):
         async def _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
                            has_attachments=False, resume_attempt=0, user_mid=0, user_text=None):
             ws = _SendProxy(conv_sid, runtime_trace)  # các nhánh engine bên dưới dùng ws proxy này
+            # 0.189.0: what the brain's memory looks like before the turn, for the "Đã nhớ · Hoàn tác" line and the
+            # empty-claim check after it (memory_receipt).
+            try:
+                _mem_snap = memory_receipt.snapshot(_brain_memory_dir(brain))
+            except Exception:  # noqa: BLE001 - no snapshot only means no receipt this turn
+                _mem_snap = None
             _cfg_all = cfgmod.read_settings()
             mcfg = _cfg_all.get("model", {})
             # Lượt này vấp "hết lượt gói thuê bao"? Bốn nhánh engine thuê bao ghi vào đây qua
@@ -16289,7 +16300,20 @@ async def websocket_endpoint(ws: WebSocket):
             # Lưu lượt assistant: kho phiên + title + log Memory + hàng đợi tự học.
             # Đường lưu DÙNG CHUNG với Telegram (_persist_turn) - nó tự bóc khối điều khiển.
             if final_text:
-                await _persist_turn(store, conv_sid, brain, user_message, final_text)
+                await _persist_turn(store, conv_sid, brain, user_message, final_text,
+                                    turn_started=(_mem_snap or {}).get("t0") or 0)
+                # 0.189.0: the turn saved, changed or forgot a memory -> one small line under the answer with Undo;
+                # it said so but nothing changed -> one line of fact. Stored like every pushed line, so F5 keeps it.
+                try:
+                    _nho = memory_receipt.facts_diff(_mem_snap, _brain_memory_dir(brain))
+                    if _nho:
+                        await push_to_chat(conv_sid, memory_receipt.receipt_text(_nho),
+                                           nho=memory_receipt.receipt_block(_nho, _brain_key(brain)))
+                    elif (memory_receipt.detect_claim(final_text)
+                          and not memory_receipt.changed(_mem_snap, _brain_memory_dir(brain))):
+                        await push_to_chat(conv_sid, memory_receipt.claim_note())
+                except Exception as _e:  # noqa: BLE001
+                    print(f"[memory receipt] {type(_e).__name__}: {_e}", file=sys.stderr)
                 # Engine bỏ lại lệnh chạy ngầm (render, build...) → Javis nhận theo dõi và nói ra
                 # ngay. PHẢI chạy trước cảnh báo hứa suông: có việc được theo dõi thì lời hứa
                 # "xong em gửi" đã có cơ chế thật đứng sau, không còn là hứa suông.

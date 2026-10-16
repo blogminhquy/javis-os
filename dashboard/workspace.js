@@ -1019,27 +1019,27 @@
     var tg = laAgent ? tagsCua(x) : [];
     var bd = laAgent && S.jc && window.JavisAgentJobs && window.JavisAgentJobs.badgeHtml
       ? window.JavisAgentJobs.badgeHtml(S.jc[x.slug]) : "";
-    var rsRow = laAgent && window.JavisResonanceAgent ? S.rs[x.slug] : null;
-    var autoOn = !!(rsRow && rsRow.enabled && rsRow.status === "active");
-    var rsLa = !!(rsRow && (rsRow.status === "missing" || rsRow.status === "retired"));
-    var coTt = !!(bd || autoOn || rsLa || (rsRow && S.rsSaving[x.slug]));
+    // 0.189.0: the Auto switch and the time sit in the corner cluster (.ws-item-end), so only a badge needs a third line.
+    var coTt = !!bd;
     var title = laAgent ? [x.name, x.role || ""].concat(tg.length ? [t("ws.tags_aria") + ": " + tg.join(", ")] : [])
       .filter(Boolean).join("\n") : "";
-    return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + (he ? " he" : "") + (coTt ? " co-tt" : "") + '">' +
+    return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + (he ? " he" : "") + (coTt ? " co-tt" : "") +
+      (laAgent ? " has-end" : "") + '">' +
       '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '"' +
         (title ? ' title="' + esc(title) + '"' : "") + '>' +
       '<span class="ws-item-ic">' + (laAgent ? avatar(x, 40)
         : (chay ? ic("loader", { cls: "ic-spin", title: t("ws.running") }) : ic("workflow"))) + '</span>' +
       '<span class="ws-item-text"><span class="ws-item-top"><strong>' + esc(x.name) + '</strong>' +
-      (he ? '<span class="ws-sys">' + esc(t("ws.system_badge")) + '</span>' : "") +
-      (laAgent ? gioNhanHtml(x.last_chat_at) : "") + '</span>' +
+      (he ? '<span class="ws-sys">' + esc(t("ws.system_badge")) + '</span>' : "") + '</span>' +
       '<small>' + esc(phu) + '</small>' +
       (coTt ? '<span class="ws-item-tt">' + bd + '</span>' : "") + '</span>' +
       '</button>' +
-      // Công tắc Auto của trợ lý (0.142.0, trước là Cộng hưởng): ngang hàng với hai nút (không lồng trong nút chọn mục),
-      // CSS đặt nó BÊN TRONG thẻ, cùng hàng với tag, bên phải (nhìn là biết thuộc trợ lý nào).
-      (S.loai === "agent" && !he && window.JavisResonanceAgent
-        ? window.JavisResonanceAgent.rowToggleHtml(S.rs[x.slug], { saving: !!S.rsSaving[x.slug] }) : "") +
+      // 0.189.0 (owner, 16/10/2026: "thời gian phải cùng hàng với nút bật tắt auto và nhỏ thôi"): giờ chat gần nhất và
+      // công tắc Auto đứng chung một cụm nhỏ ở góc dưới phải của thẻ. Công tắc có trên MỌI trợ lý, tắt thì màu xám.
+      // Cụm nằm ngoài nút chọn mục (không lồng nút trong nút); CSS đặt nó BÊN TRONG thẻ.
+      (laAgent ? '<div class="ws-item-end">' + gioNhanHtml(x.last_chat_at) +
+        (!he && window.JavisResonanceAgent
+          ? window.JavisResonanceAgent.rowToggleHtml(S.rs[x.slug], { saving: !!S.rsSaving[x.slug] }) : "") + '</div>' : "") +
       (he ? "" : '<button type="button" class="ws-item-more" data-more="' + esc(x.slug) + '" title="' +
         esc(t("ws.manage")) + '" aria-label="' + esc(t("ws.manage")) + '">' + ic("ellipsis-vertical") + '</button>') +
       '</div>';
@@ -1655,7 +1655,7 @@
       // 0.189.0 (owner, 16/10/2026: "tối giản nhất, người ta không cần hiểu gì về cài đặt cũng dùng được"): the column
       // opens on what every assistant app has (picture, name, role, instructions, documents, skills, model). The Auto
       // block sits below and shows only while Auto is on (veAuto); lessons are handled in chat (javis_memory).
-      host.innerHTML = '<div class="ws-form" id="wsAgentForm"></div><div class="ws-auto" id="wsAuto"></div>' +
+      host.innerHTML = '<div class="ws-form" id="wsAgentForm"></div><div class="ws-auto-block" id="wsAuto"></div>' +
         '<div class="ws-acts"><button type="button" class="ws-btn" id="wsExport">' + esc(t("studio.export")) + '</button>' +
         '<button type="button" class="ws-btn danger" id="wsDel">' + esc(t("common.delete")) + '</button></div>';
       // MƯỢN chính trình sửa agent của Studio (studio.js), không dựng bản thứ hai: chọn model,
@@ -1714,7 +1714,8 @@
       onNewSession: function () { var x = dangChon(); return x ? moPhien(x, true) : false; } });
     // T3: bảng Nhịp chủ động (agent-pulse.js) ngay dưới Cộng hưởng: mọi ngữ cảnh của trợ lý, nút chỉ báo xong sau 200.
     var ph = S.el && S.el.querySelector("#wsPulse");
-    if (ph && window.JavisPulse) window.JavisPulse.mount(ph, { slug: item.slug, brain: brain() });
+    // 0.189.0: the compact view: one plain line for the daily limit and pending proposals only (no pace, no thresholds).
+    if (ph && window.JavisPulse) window.JavisPulse.mount(ph, { slug: item.slug, brain: brain(), compact: true });
   }
   function tenAgent(slug) { var a = S.agents.find(function (x) { return x.slug === slug; }); return a ? a.name : (slug || ""); }
   // Tiến độ ĐANG XEM: lần chạy sống của phiên đang mở nếu có, không thì khung rỗng dựng từ

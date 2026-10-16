@@ -205,6 +205,18 @@ PROMISE = (
     )),
 )
 
+
+# 0.189.0 (memory_receipt.detect_claim): the answer SAYS it remembered, forgot or revoked something.
+MEMORY_CLAIM = (
+    ("will_remember", re.compile(r"\b(i(?:'| wi)?ll|i will|i(?:'ve| have)?)\s+(always\s+)?"
+                                 r"(remember|remembered|noted|saved|stored)\b[^.!?\n]{0,40}?"
+                                 r"\b(that|this|it|your|from now on|going forward|in (my )?memory)\b")),
+    ("forgot", re.compile(r"\b(i(?:'ve| have)?|i just)\s+(forgotten|forgot|removed|deleted|revoked|erased)\b"
+                          r"[^.!?\n]{0,60}?\b(memory|memories|lesson|note|that|it)\b")),
+    ("saved_to_memory", re.compile(r"\b(saved|stored|added|updated|written)\b[^.!?\n]{0,30}?"
+                                   r"\b(to|in|into)\s+(my |your |the )?(memory|memories)\b")),
+)
+
 REMEMBER = re.compile(
     r"(remember this|remember that|keep in mind|note that|make a note|save this|"
     r"store this|don't forget|do not forget|for future reference|remember i)", re.I

@@ -32,7 +32,8 @@ const off = Object.assign({}, on, { enabled: false });
 let h = RA.panelHtml(off, null, []);
 check("tắt: chữ trạng thái Tắt (công tắc ở dòng trợ lý, T0), ghi chú trợ lý vẫn trò chuyện như thường",
       !h.includes("rsa-toggle") && h.includes(vi["resonance.t0_state_off"]) && h.includes(vi["resonance.a1_off_note"]));
-check("chưa có mục tiêu: nói rõ", h.includes(vi["resonance.a1_no_goals"]));
+check("0.189.0: chưa có mục tiêu thì không vẽ gì thêm (không tiêu đề, không câu 'chưa có')",
+      !h.includes(vi["resonance.a1_no_goals"]) && !h.includes(vi["resonance.a1_goals_title"]));
 h = RA.panelHtml(on, "ready", []);
 check("bật, phiên dùng được: chữ trạng thái Bật, không có nút mở phiên mới",
       h.includes(vi["resonance.t0_state_on"]) && h.includes(vi["resonance.a1_on_note"]) && !h.includes("rsa-new-session"));

@@ -237,23 +237,22 @@ def run(args: dict, vault_root: str) -> str:
         return "ERROR: máy chủ đang khởi động, thử lại sau vài giây."
     args = args if isinstance(args, dict) else {}
     op = str(args.get("op") or "").strip()
-    if op == "profile":
-        return _op_profile(args)
     root = str(vault_root or "").strip()
+    if op == "profile":
+        out = _op_profile(args)
+        if "text" in args and root:
+            MC.note_change(d.memory_dir(root))   # "đã nhớ cách xưng hô" is backed by the shared profile
+        return out
     if not root:
         return "ERROR: chưa biết đang ở brain nào nên không đụng được trí nhớ."
-    if op == "list":
-        return _op_list(d, root)
-    if op == "edit":
-        return _op_edit(d, root, args)
-    if op == "forget":
-        return _op_forget(d, root, args)
-    if op == "learning":
-        return _op_learning(d, root, args)
-    if op == "lessons":
-        return _op_lessons(d, root, args)
-    if op == "lesson_add":
-        return _op_lesson_add(d, root, args)
-    if op == "lesson_revoke":
-        return _op_lesson_revoke(d, root, args)
+    fn = {"list": lambda: _op_list(d, root), "edit": lambda: _op_edit(d, root, args),
+          "forget": lambda: _op_forget(d, root, args), "learning": lambda: _op_learning(d, root, args),
+          "lessons": lambda: _op_lessons(d, root, args), "lesson_add": lambda: _op_lesson_add(d, root, args),
+          "lesson_revoke": lambda: _op_lesson_revoke(d, root, args)}.get(op)
+    if fn is not None:
+        out = fn()
+        wrote = op not in ("list", "lessons") and not (op == "learning" and "enabled" not in args)
+        if wrote and not out.startswith("ERROR"):
+            MC.note_change(d.memory_dir(root))   # the turn's empty-claim check must not flag a real write
+        return out
     return "ERROR: op phải là một trong " + ", ".join(OPS) + "."

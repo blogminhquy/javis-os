@@ -4634,5 +4634,15 @@
   "core.save_err": "Chưa lưu được, thử lại.",
   "app.brain_of_chat": "Cuộc chat này thuộc brain {name}. Javis trả lời theo brain đó.",
   "app.brain_switch_to": "Chuyển sang {name}",
-  "ach.telegram_owner_auto": "Tự động (chỉ khi danh sách có một ID)"
+  "ach.telegram_owner_auto": "Tự động (chỉ khi danh sách có một ID)",
+  "nho.saved": "Đã nhớ",
+  "nho.updated": "Đã cập nhật",
+  "nho.forgot": "Đã quên",
+  "nho.undo": "Hoàn tác",
+  "nho.undone": "Đã bỏ, Javis sẽ không nhớ điều này nữa",
+  "nho.undo_err": "Chưa bỏ được, bấm lại",
+  "lessons.cap_before": "Tự làm tối đa",
+  "lessons.cap_after": "lần mỗi ngày",
+  "lessons.cap_unlimited": "không giới hạn",
+  "lessons.cap_today": "Hôm nay đã tự làm {used} lần."
 }

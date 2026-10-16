@@ -182,14 +182,16 @@ check("menu ba chấm có mục Auto dùng chung hàm bật tắt với công t�
 // 0.175.0 (chủ repo 16/10/2026: "nút Auto quá to che mất hết các thông tin khác"): Auto TẮT không vẽ trên thẻ (bật ở menu ba
 // chấm); Auto BẬT là nhãn nhỏ góc dưới phải, cùng dòng trạng thái; vẫn bật cam, tắt xám; vùng chạm 44px trên cảm ứng bằng lớp
 // trong suốt chứ không phóng to nhãn.
-check("Auto trên thẻ: tắt thì ẩn, bật là nhãn nhỏ góc dưới phải, chạm 44px trên điện thoại",
-  /\.ws-item-wrap > \.ws-auto:not\(\.is-on\):not\(\.is-saving\) \{ display: none; \}/.test(css)
-  && /\.ws-item-wrap > \.ws-auto \{ position: absolute; right: 8px; bottom: 8px;/.test(css)
-  && /\.ws-item-wrap\.co-tt > \.ws-item-more \{ top: 6px; transform: none; \}/.test(css)
-  && !/\.ws-item-wrap:has\(> \.ws-auto\)/.test(css)
+// 0.189.0 (chủ repo 16/10/2026: "mất nút bật tắt auto của anh rồi, thời gian phải cùng hàng với nút bật tắt auto và nhỏ
+// thôi"): công tắc có lại trên MỌI thẻ (tắt xám, bật cam), chung một cụm nhỏ với giờ ở góc dưới phải; ba chấm lên góc trên.
+check("0.189.0: Auto trên mọi thẻ, cùng cụm với giờ ở góc dưới phải, chạm 44px trên điện thoại",
+  !/\.ws-auto:not\(\.is-on\):not\(\.is-saving\) \{ display: none; \}/.test(css)
+  && /\.ws-item-end \{ position: absolute; right: 8px; bottom: 8px; display: flex;/.test(css)
+  && /\.ws-item-wrap\.has-end > \.ws-item-more \{ top: 6px; transform: none; \}/.test(css)
+  && /\.ws-item-end > \.ws-auto\.is-on \{ color: var\(--accent-ink/.test(css)
   && /\.ws-auto \.toggle-sm input:checked \+ span \{ background: var\(--accent\)/.test(css)
   && /\.ws-auto \.toggle-sm span \{ background: var\(--bg3\)/.test(css)
-  && /\.ws-item-wrap > \.ws-auto::after, \.ws-item-wrap > \.ws-rs-confirm::after \{ content: ""; position: absolute; inset: -11px -6px; \}/.test(css));
+  && /\.ws-item-end > \.ws-auto::after, \.ws-item-end > \.ws-rs-confirm::after \{ content: ""; position: absolute; inset: -12px -6px; \}/.test(css));
 const ph = RAX.panelHtml({ slug: "a", status: "active", enabled: true }, "ready", [], []);
 check("bảng trợ lý: mô tả Auto và câu Auto không phải Toàn quyền", ph.includes(vi["resonance.auto_desc"])
   && ph.includes(vi["resonance.auto_not_full"]));

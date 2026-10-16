@@ -3132,10 +3132,18 @@ span.tmp-lead { cursor: default; }
 .ws-item-wrap.co-tt > .ws-item-more { top: 6px; transform: none; }
 .ws-item-tt { display: flex; align-items: center; gap: 6px; min-height: 22px; margin-top: 4px; padding-right: 64px; min-width: 0; }
 .ws-item-text:has(> .ws-item-tt) { flex: 1 1 auto; }
-.ws-item-wrap > .ws-auto:not(.is-on):not(.is-saving) { display: none; }
-.ws-item-wrap > .ws-auto { position: absolute; right: 8px; bottom: 8px; margin: 0; min-height: 22px; padding: 0 5px 0 8px;
-  gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--accent-ink, var(--accent)); background: var(--accent-wash, rgba(255, 122, 60, .12));
-  border-radius: 999px; }
+/* 0.189.0 (chủ repo 16/10/2026: "thời gian tự nhiên font chữ bị to đùng... mất nút bật tắt auto... thời gian phải cùng
+   hàng với nút bật tắt auto và nhỏ thôi"): giờ chat gần nhất và công tắc Auto chung một cụm nhỏ ở góc dưới phải của thẻ.
+   Công tắc có trên mọi trợ lý (tắt thì xám). Nút ba chấm luôn ở góc trên phải; dòng chữ cuối chừa chỗ cho cụm. */
+.ws-item-wrap.has-end > .ws-item-more { top: 6px; transform: none; }
+.ws-item-wrap.has-end .ws-item-text > :last-child { padding-right: 104px; }
+.ws-item-wrap.has-end.he .ws-item-text > :last-child { padding-right: 44px; }
+.ws-item-end { position: absolute; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 6px;
+  pointer-events: none; }
+.ws-item-end > .ws-auto, .ws-item-end > .ws-rs-confirm { pointer-events: auto; position: relative; }
+.ws-item-end > .ws-auto { margin: 0; min-height: 20px; padding: 0 4px 0 7px; gap: 4px; font-size: 12px; font-weight: 600;
+  color: var(--text3); background: var(--surface-2, rgba(0, 0, 0, .05)); border-radius: 999px; }
+.ws-item-end > .ws-auto.is-on { color: var(--accent-ink, var(--accent)); background: var(--accent-wash, rgba(255, 122, 60, .12)); }
 .ws-auto .toggle-sm { width: 24px; height: 14px; }
 .ws-auto .toggle-sm span { background: var(--bg3); border-color: var(--border); }
 .ws-auto .toggle-sm span::before { width: 10px; height: 10px; left: 1px; top: 1px; background: var(--text3); }
@@ -3143,12 +3151,11 @@ span.tmp-lead { cursor: default; }
 .ws-auto .toggle-sm input:checked + span::before { transform: translateX(10px); background: #fff; }
 .ws-auto .toggle-sm input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ws-auto.is-saving { opacity: .7; cursor: progress; }
-.ws-item-wrap > .ws-rs-confirm { position: absolute; right: 8px; bottom: 8px; margin: 0; min-height: 22px; font-size: 12.5px; }
+.ws-item-end > .ws-rs-confirm { margin: 0; min-height: 20px; font-size: 12px; }
 /* Màn cảm ứng: nhãn vẫn nhỏ cho mắt, vùng chạm nới ra 44px bằng một lớp trong suốt (không đẩy chữ khác đi). */
 @media (hover: none), (max-width: 600px) {
   .ws-item-tt { font-size: 14px; }
-  .ws-item-wrap > .ws-auto, .ws-item-wrap > .ws-rs-confirm { font-size: 14px; }
-  .ws-item-wrap > .ws-auto::after, .ws-item-wrap > .ws-rs-confirm::after { content: ""; position: absolute; inset: -11px -6px; }
+  .ws-item-end > .ws-auto::after, .ws-item-end > .ws-rs-confirm::after { content: ""; position: absolute; inset: -12px -6px; }
 }
 .rsa-desc { color: var(--text2); }
 
@@ -3231,8 +3238,7 @@ span.tmp-lead { cursor: default; }
 .ws-core-head h3 { margin: 0; font-size: 16px; }
 .ws-core-card p { margin: 10px 0 0; font-size: 14.5px; line-height: 1.5; }
 .ws-core-card .ws-core-note { color: var(--text2); font-size: 13.5px; }
-.ws-item-time { flex: none; font-size: 14px; color: var(--text3); font-variant-numeric: tabular-nums; }
-@media (max-width: 900px) { .ws-item-time { font-size: 14px; } }
+.ws-item-time { flex: none; font-size: 12px; color: var(--text3); font-variant-numeric: tabular-nums; }
 
 /* 0.148.0: tay kéo đổi bề rộng cột (col-resize.js) ở trang đồ thị (cột Vault, cột hội thoại) và trang Trò chuyện (cột
    Hội thoại/Thư mục). Chỉ màn rộng; màn hẹp các cột là ngăn kéo hay xếp dọc nên không có tay kéo. Cột đang thu về dải
@@ -3369,3 +3375,16 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 .ht-file-ten { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .ht-file-meta { color: var(--text3); font-size: 16px; }
 .ht-chu-thich { margin-top: 8px; white-space: pre-wrap; }
+
+/* 0.189.0: the "Đã nhớ · Hoàn tác" line under an answer (chat-nho.js). Small and quiet: a note, not a message. */
+.msg-nho .bubble { background: transparent; border: 0; box-shadow: none; padding: 2px 0; }
+.nho-line { display: flex; flex-direction: column; gap: 4px; }
+.nho-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13.5px; color: var(--text2); }
+.nho-ic svg { width: 14px; height: 14px; color: var(--accent); vertical-align: -2px; }
+.nho-txt { min-width: 0; overflow-wrap: anywhere; }
+.msg-nho .nho-txt strong { color: var(--text); font-weight: 600; }
+.nho-undo { border: 1px solid var(--border); background: transparent; color: var(--text2); border-radius: 999px;
+  padding: 1px 10px; font-size: 12.5px; cursor: pointer; }
+.nho-undo:hover { color: var(--accent); border-color: var(--accent); }
+@media (hover: none), (pointer: coarse) { .nho-row { font-size: 15px; } .nho-undo { min-height: 32px; font-size: 14px; } }
+

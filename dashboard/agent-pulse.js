@@ -244,6 +244,21 @@
     return html;
   }
 
+  /* 0.189.0 (chủ repo 16/10/2026: "tối giản nhất"): bản GỌN cho cột Cài đặt của một trợ lý. Không nhịp, không ngưỡng,
+     không lịch sử thay đổi: chỉ dòng hạn mức bằng lời thường (mục nào trong sổ đăng ký có `compact(view)`) và đề xuất
+     đang chờ chủ quyết, nếu có. Bảng đầy đủ vẫn ở hàng thành viên của ngăn Nhóm. */
+  function compactHtml(view, opts) {
+    var o = opts || {}, v = view || {};
+    var list = o.registry || (typeof window !== "undefined" ? window.JavisPulseParts : null) || [];
+    var html = list.map(function (p) {
+      try { return p && typeof p.compact === "function" ? p.compact(v) : ""; } catch (e) { return ""; }
+    }).join("");
+    html += proposalsHtml((v.proposals || []).filter(function (p) { return p.status === "pending"; }), o);
+    if (o.err) html += '<div class="pulse-line pulse-err" role="alert">' + esc(tw("pulse.error", { e: o.err })) + "</div>";
+    else if (o.msg) html += '<div class="pulse-line pulse-ok" role="status">' + esc(o.msg) + "</div>";
+    return html;
+  }
+
   /* {code, j}: thành công chỉ khi máy chủ trả 200 và ok = true. */
   function call(url, body) {
     var init = { credentials: "same-origin" };
@@ -267,7 +282,7 @@
     if (!host || !opts || !opts.slug) return null;
     var o = Object.assign({ busy: {} }, opts), view = null;
     var base = "/agents/" + encodeURIComponent(o.slug) + "/pulse";
-    function draw() { host.classList.add("pulse-panel"); host.innerHTML = panelHtml(view, o); }
+    function draw() { host.classList.add("pulse-panel"); host.innerHTML = o.compact ? compactHtml(view, o) : panelHtml(view, o); }
     function load() {
       return call(base + "?brain=" + encodeURIComponent(brainOf(o))).then(function (res) {
         if (res.code !== 200 || !res.j || res.j.ok !== true) throw res.j;
@@ -317,7 +332,7 @@
 
   if (typeof window !== "undefined" && !window.JavisPulseParts) window.JavisPulseParts = [];
   var apiOut = { panelHtml: panelHtml, contextLabel: contextLabel, changeLine: changeLine, feedbackLine: feedbackLine,
-    partsHtml: partsHtml, proposalsHtml: proposalsHtml, policyHtml: policyHtml, tierLabel: tierLabel, stateLabel: stateLabel, mount: mount };
+    partsHtml: partsHtml, compactHtml: compactHtml, proposalsHtml: proposalsHtml, policyHtml: policyHtml, tierLabel: tierLabel, stateLabel: stateLabel, mount: mount };
   if (typeof window !== "undefined") window.JavisPulse = apiOut;
   if (typeof module !== "undefined" && module.exports) module.exports = apiOut;
 })();

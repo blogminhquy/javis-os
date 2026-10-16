@@ -196,6 +196,20 @@ PROMISE = (
     )),
 )
 
+
+# 0.189.0 (memory_receipt.detect_claim): the answer SAYS it remembered, forgot or revoked something. Checked against
+# what really changed in the brain's memory; a claim with no change gets one line of fact under the answer.
+# Narrow on purpose: "em nhớ là anh nói..." (recalling) must not match, only "đã/sẽ ghi nhớ", "đã quên ... ghi nhớ".
+MEMORY_CLAIM = (
+    ("da_nho", re.compile(r"\b(em|minh|toi|javis)\s+(da|se|vua)\s+(ghi nho|nho ky|luu lai|ghi lai)\b")),
+    ("da_nho_ngan", re.compile(r"\b(em|minh|toi)\s+(da|vua)\s+nho\s+(roi|nhe|a|nha|dieu|chuyen|viec)\b")),
+    ("da_quen", re.compile(
+        r"\b(da|vua)\s+(quen|xoa|go bo|go|thu hoi)\b[^.!?\n]{0,60}?\b(ghi nho|tri nho|bai hoc|bo nho)\b"
+        r"|\b(em|minh|toi)\s+(da|vua)\s+quen\s+(roi|het|chuyen|dieu|viec|thong tin)\b")),
+    ("da_luu_tri_nho", re.compile(
+        r"\b(da|vua)\s+(luu|ghi|cap nhat|sua)\b[^.!?\n]{0,30}?\b(vao|trong)\s+(tri nho|bo nho|ghi nho)\b")),
+)
+
 REMEMBER = re.compile(
     r"(ghi nhớ|nhớ giúp|lưu lại|nhớ là|remember this|ghi lại vào bộ nhớ)", re.I
 )

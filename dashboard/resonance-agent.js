@@ -140,8 +140,8 @@
     }
     if (supWarn) html += sup;
     var list = (goals || []).filter(function (g) { return g && g.goal_id; });
-    html += '<div class="rsa-goals-title">' + esc(tw("resonance.a1_goals_title")) + "</div>";
-    if (!list.length) html += '<div class="rsa-sub">' + esc(tw("resonance.a1_no_goals")) + "</div>";
+    // 0.189.0 (chủ repo 16/10/2026: "tối giản nhất"): no goals means nothing to show, not a "no goals yet" line.
+    if (list.length) html += '<div class="rsa-goals-title">' + esc(tw("resonance.a1_goals_title")) + "</div>";
     list.forEach(function (g) {
       html += '<div class="rs-card rsa-card" data-goal="' + esc(g.goal_id) + '"></div>';
     });

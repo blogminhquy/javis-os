@@ -54,6 +54,7 @@ BAT_BUOC = (
     "REMEMBER",          # user bảo "ghi nhớ điều này"
     "DENSE",             # lượt chat đáng chưng cất thành tri thức
     "STUCK",             # chatbot tự nhận là bí
+    "MEMORY_CLAIM",      # assistant KHAI đã nhớ/quên/thu hồi (0.189.0, memory_receipt)
 )
 
 _CACHE: Dict[str, Optional[ModuleType]] = {}

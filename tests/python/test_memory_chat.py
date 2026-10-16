@@ -125,6 +125,65 @@ check("remove one old file lesson, the owner's own part untouched",
       "Dùng emoji" not in md and "Mở bài bằng câu hỏi" in md and "Phần chủ viết." in md, md)
 check("an unknown assistant says so", call({"op": "lessons", "agent": "Không ai"}).startswith("ERROR"))
 
+src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
+# ---- the receipt under an answer, and no empty "đã quên" (memory_receipt) ----
+import memory_receipt as R  # noqa: E402
+import time as _t  # noqa: E402
+(mem / "facts" / "gio-mo-cua.md").write_text("---\ntype: business\n---\nMở cửa 8h-21h.\n", encoding="utf-8")
+(mem / "facts" / "xung-ho.md").write_text("---\ntype: preference\n---\nGọi là anh.\n", encoding="utf-8")
+(mem / "MEMORY.md").write_text("# Bộ nhớ\n- [Giờ mở cửa](facts/gio-mo-cua.md)\n- [Xưng hô](facts/xung-ho.md)\n", encoding="utf-8")
+snap = R.snapshot(mem)
+check("nothing done in the turn: no receipt, and nothing changed", R.facts_diff(snap, mem) == [] and not R.changed(snap, mem))
+_t.sleep(0.02)
+(mem / "facts" / "kenh-moi.md").write_text("---\ntype: business\n---\nBán thêm qua TikTok.\n", encoding="utf-8")
+(mem / "facts" / "xung-ho.md").write_text("---\ntype: preference\n---\nGọi là anh Quý.\n", encoding="utf-8")
+call({"op": "forget", "slug": "gio-mo-cua"})
+d = {i["slug"]: i for i in R.facts_diff(snap, mem)}
+check("the receipt knows what was saved, changed and forgotten in the turn, with titles",
+      d.get("kenh-moi", {}).get("act") == "new" and d["kenh-moi"]["title"] == "Bán thêm qua TikTok."
+      and d.get("xung-ho", {}).get("act") == "updated" and d.get("gio-mo-cua", {}).get("act") == "forgot"
+      and d["gio-mo-cua"]["title"] == "Giờ mở cửa", d)
+blk = R.receipt_block(list(d.values()), "/brain/x")
+check("hidden block the dashboard draws, with the brain for Undo", blk.startswith("<!-- JAVIS_NHO: ")
+      and json.loads(blk[len("<!-- JAVIS_NHO: "):-4])["brain"] == "/brain/x")
+check("plain fallback line", "Bán thêm qua TikTok." in R.receipt_text(list(d.values())))
+snap2 = R.snapshot(mem)
+check("a lesson added through the tool counts as a change (no file moves)",
+      call({"op": "lesson_add", "agent": "viet-bai", "text": "Ngắn gọn."}) and R.changed(snap2, mem))
+snap3 = R.snapshot(mem)
+call({"op": "forget", "slug": "khong-co"})
+check("a failed tool call is not a change", not R.changed(snap3, mem))
+for t in ("Dạ em đã ghi nhớ anh thích báo cáo buổi sáng.", "Em đã quên ghi nhớ về kênh bán rồi ạ.",
+          "Mình đã nhớ rồi nhé!", "Em đã thu hồi bài học đó.", "I will remember that from now on.", "Saved to memory."):
+    check(f"claim caught: {t}", R.detect_claim(t) != "")
+for t in ("Em nhớ là anh nói bán qua Zalo.", "Doanh thu hôm nay 12 triệu.", "I remember you said Zalo.",
+          "Anh muốn em ghi nhớ điều gì không?", "`em đã ghi nhớ` là câu mẫu trong code"):
+    check(f"not a claim: {t}", R.detect_claim(t) == "")
+check("the note is plain and says what to do", "không đổi gì" in R.claim_note() and "\u2014" not in R.claim_note())
+sid_r = main.get_store().create_session(brain=main._brain_key(str(BR)), channel="web")
+pub = []
+
+
+async def _pub(ev):
+    pub.append(ev)
+
+_orig_pub = main._CHAT_RUNTIME.publish
+main._CHAT_RUNTIME.publish = _pub
+try:
+    asyncio.new_event_loop().run_until_complete(main.push_to_chat(sid_r, "Đã nhớ: x", nho=blk))
+    asyncio.new_event_loop().run_until_complete(main.push_to_chat(sid_r, "y", nho="<script>"))
+finally:
+    main._CHAT_RUNTIME.publish = _orig_pub
+msgs = [m["content"] for m in main.get_store().get_messages(sid_r)]
+check("push_to_chat stores the receipt block with the line (F5 draws it again) and pushes it live",
+      msgs and msgs[0].endswith(blk) and pub and pub[0]["content"].endswith(blk), msgs)
+check("push_to_chat takes only a real receipt block, nothing else", msgs[-1] == "y", msgs)
+check("the turn takes a snapshot first, then pushes the receipt or the note after saving",
+      "_mem_snap = memory_receipt.snapshot(_brain_memory_dir(brain))" in src
+      and "memory_receipt.facts_diff(_mem_snap, _brain_memory_dir(brain))" in src
+      and "memory_receipt.detect_claim(final_text)" in src and "turn_started=(_mem_snap or {}).get(\"t0\") or 0" in src)
+check("an agent lesson recorded in the turn counts as a change", "memory_control.note_change(_brain_memory_dir(brain))" in src)
+
 # ---- the screen no longer carries these lists ----
 ws = (ROOT / "dashboard" / "workspace.js").read_text(encoding="utf-8")
 html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
