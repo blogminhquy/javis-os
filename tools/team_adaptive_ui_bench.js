@@ -100,10 +100,10 @@ out.two_tabs_ws_reactions_simulated = Object.assign(stats(evT), { events_per_run
   simulated_full_list_redraws: redraws / RUNS,
   note: "mô phỏng, không gọi onTeamEvent: theo mã teams.js mỗi gói team_message vẽ lại cả khung tin của mỗi tab (O(số tin đang hiện)), cộng một lần đọc lại danh sách, hàng đợi, nhóm sau 300 ms (gộp)" });
 
-// Chip reaction và bộ chọn (reactions.js).
+// Reaction corner and six-emoji pill (reactions.js, 0.177.0: replaces the old chip and reasons picker).
 const chipT = [];
 for (let r = 0; r < RUNS; r++) chipT.push(time(() => {
-  for (let k = 0; k < 500; k++) { RX.chipHtml({ value: vals[k % 6], reasons: ["too_long"], status: "pending_review" }); RX.pickerHtml(k, null); }
+  for (let k = 0; k < 500; k++) { RX.cornerHtml(k, { value: vals[k % 6] }, { prefix: "tm", last: k === 499 }); RX.barHtml(k, "", { prefix: "jr" }); }
 }));
-out.reaction_chip_and_picker_x500 = stats(chipT);
+out.reaction_corner_and_bar_x500 = stats(chipT);
 console.log(JSON.stringify(out));
