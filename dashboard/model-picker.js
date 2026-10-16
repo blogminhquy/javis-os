@@ -30,6 +30,7 @@
   }
   // FAST_NOTE_END
   let state = { providers: [], main: { provider: "", model: "" }, reasoning: "off", fast: false };
+  let agentEff = null;   // { slug, level } while the chat in front is an assistant's (0.193.0)
   let sessionPin = null;   // {provider, model} phiên đang mở đã ghim; null = theo mặc định chung
   let pinBroken = false;   // phiên có ghim nhưng ghim HỎNG (provider mất key) - server đang chạy mặc định chung
   let pinSid = null;       // phiên mà sessionPin đang nói về (chống vẽ nhầm khi đổi phiên nhanh)
@@ -68,6 +69,14 @@
     try { await fetch("/settings", { method: "POST", body: fd }); } catch (e) {}
   }
 
+  async function saveAgentEffort(slug, level) {
+    const fd = new FormData();
+    fd.append("level", level);
+    fd.append("brain", curBrain() || "brain");
+    try { await fetch(`/agents/${encodeURIComponent(slug)}/reasoning`, { method: "POST", body: fd }); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent("javis:agent-reasoning", { detail: { slug: slug, level: level } })); } catch (e) {}
+  }
+
   async function pinToSession(sid, prov, model) {
     const fd = new FormData();
     fd.append("provider", prov);
@@ -92,7 +101,7 @@
   async function loadSessionPin() {
     const sid = curSid();
     pinSid = sid;
-    if (!sid) { sessionPin = null; pinBroken = false; pendingPin = null; return; }
+    if (!sid) { sessionPin = null; pinBroken = false; pendingPin = null; agentEff = null; return; }
     pendingPin = null;
     try {
       const r = await fetch(`/sessions/${encodeURIComponent(sid)}/meta`);
@@ -101,9 +110,11 @@
       // pin_ok=false: ghim còn trong DB nhưng không chạy được (provider mất key) -
       // server đang rơi về mặc định chung, nên hiển thị cũng phải theo mặc định chung.
       pinBroken = !!(d && d.pinned_provider && d.pin_ok === false);
+      // 0.193.0: in an assistant's chat the effort chip shows and sets that assistant's own level (default medium).
+      agentEff = d && d.agent_slug ? { slug: d.agent_slug, level: d.agent_reasoning || "medium" } : null;
       sessionPin = (d && d.pinned_provider && !pinBroken)
         ? { provider: d.pinned_provider, model: d.pinned_model || "" } : null;
-    } catch (e) { if (pinSid === sid) { sessionPin = null; pinBroken = false; } }
+    } catch (e) { if (pinSid === sid) { sessionPin = null; pinBroken = false; agentEff = null; } }
   }
 
   function renderBar() {
@@ -144,7 +155,10 @@
       const effM = effective();
       const own = window.JavisEffortSlider && window.JavisEffortSlider.isLocked(effM.provider, effM.model)
         ? window.JavisEffortSlider.lockedLevel(effM.model) : "";
-      eb.textContent = window.t(EFF_KEY[own || (EFFORT.find((e) => e[0] === state.reasoning) || EFFORT[0])[0]]);
+      const lvl = agentEff ? agentEff.level : state.reasoning;
+      eb.textContent = window.t(EFF_KEY[own || (EFFORT.find((e) => e[0] === lvl) || EFFORT[0])[0]]);
+      const effB = $("effBtn");
+      if (effB) effB.title = agentEff ? window.t("mpick.eff_agent") : "";
     }
     renderFast();
   }
@@ -248,10 +262,13 @@
     const locked = window.JavisEffortSlider.isLocked(eff.provider, eff.model);
     if (btn) btn.setAttribute("aria-expanded", "true");
     effSlider = window.JavisEffortSlider.mount(pop, {
-      value: state.reasoning,
+      value: agentEff ? agentEff.level : state.reasoning,
       locked: locked,
       lockedValue: locked ? window.JavisEffortSlider.lockedLevel(eff.model) : "",
-      onChange: async (v) => { state.reasoning = v; renderBar(); await saveModel({ reasoning: v }); },
+      onChange: async (v) => {
+        if (agentEff) { agentEff.level = v; renderBar(); await saveAgentEffort(agentEff.slug, v); return; }
+        state.reasoning = v; renderBar(); await saveModel({ reasoning: v });
+      },
     });
     // Keep the popover inside the card: on a narrow phone the chip sits far enough right that a
     // popover opened at its left edge would spill past the screen.

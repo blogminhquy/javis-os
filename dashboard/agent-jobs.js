@@ -153,13 +153,34 @@
       (ui.canVerify && j.kind !== "verify" ? '<button type="button" class="ws-btn aj-verify" data-aj-verify="' + esc(j.id) + '">' +
         esc(tw("ajobs.verify_this")) + "</button>" : "") +
       (j.cancel ? '<button type="button" class="ws-btn aj-cancel" data-aj-cancel="' + esc(j.id) + '"' + (busy ? " disabled" : "") + ">" +
-        esc(tw(busy ? "ajobs.cancelling" : "ajobs.cancel")) + "</button>" : "");
+        esc(tw(busy ? "ajobs.cancelling" : "ajobs.cancel")) + "</button>" : "") +
+      // 0.193.0: a finished job stays until the owner checks it and presses Done; Done moves it to the Archive.
+      (j.bucket === "done" && !j.archived_at ? '<button type="button" class="ws-btn aj-done-btn" data-aj-archive="' + esc(j.id) + '">' +
+        ic("check") + esc(tw("ajobs.mark_done")) + "</button>" : "");
     return '<li class="aj-job aj-' + esc(j.bucket) + '" data-aj-id="' + esc(j.id) + '">' +
-      '<div class="aj-top"><span class="aj-title" title="' + esc(j.title) + '">' + esc(j.title) + "</span></div>" +
+      '<div class="aj-top"><span class="aj-title" title="' + esc(j.title) + '">' + esc(j.title) + "</span>" +
+        '<span class="aj-state aj-state-' + esc(j.bucket) + '">' + esc(tw(BUCKET_KEY[j.bucket] || "ajobs.b.waiting")) + "</span></div>" +
       '<div class="aj-meta"><span class="aj-src">' + ic(SOURCE_ICON[j.source] || "circle") + esc(sourceText(j)) + "</span>" + roles + "</div>" +
       (nxt ? '<div class="aj-next">' + esc(nxt) + "</div>" : "") +
       (lines.length ? '<div class="aj-line">' + esc(lines.join(" · ")) + "</div>" : "") + link + reason + result +
       (acts ? '<div class="aj-acts">' + acts + "</div>" : "") + "</li>";
+  }
+
+  // 0.193.0: jobs the owner pressed Done on, folded at the bottom. Only here can a job be deleted (one, or all).
+  function archiveHtml(list, ui) {
+    if (!list.length) return "";
+    var open = !!ui.archOpen;
+    return '<section class="aj-sec aj-arch"><div class="aj-arch-head"><button type="button" class="aj-arch-toggle" aria-expanded="' +
+      (open ? "true" : "false") + '">' + ic(open ? "chevron-down" : "chevron-right") + esc(tw("ajobs.archive")) +
+      ' <span class="aj-n">' + list.length + "</span></button>" +
+      (open ? '<button type="button" class="ws-btn aj-arch-clear">' + ic("trash-2") + esc(tw("ajobs.archive_clear")) + "</button>" : "") +
+      "</div>" + (open ? '<ul class="aj-list">' + list.map(function (j) {
+        return '<li class="aj-job aj-archived" data-aj-id="' + esc(j.id) + '"><div class="aj-top"><span class="aj-title" title="' +
+          esc(j.title) + '">' + esc(j.title) + "</span></div>" + (j.result ? '<div class="aj-result">' + esc(j.result) + "</div>" : "") +
+          '<div class="aj-acts"><button type="button" class="ws-btn" data-aj-unarchive="' + esc(j.id) + '">' + esc(tw("ajobs.archive_back")) +
+          '</button><button type="button" class="ws-btn aj-cancel" data-aj-delete="' + esc(j.id) + '">' + ic("trash-2") +
+          esc(tw("ajobs.archive_delete")) + "</button></div></li>";
+      }).join("") + "</ul>" : "") + "</section>";
   }
 
   function chipHtml(attr, key, label, n, on, extra) {
@@ -319,6 +340,7 @@
           '</span></h4><ul class="aj-list">' + part.map(function (j) { return jobHtml(j, ui); }).join("") + "</ul></section>";
       }).join("");
     }
+    body += archiveHtml(data.archived || [], ui);
     var more = data.next ? '<button type="button" class="ws-btn aj-more"' + (ui.loadingMore ? " disabled" : "") + ">" +
       esc(tw(ui.loadingMore ? "ajobs.loading" : "ajobs.more")) + "</button>" : "";
     var foot = '<div class="aj-foot">' + esc(tw(data.board === "off" ? "ajobs.foot_off" : "ajobs.foot", { n: data.max_workers || 2 })) +
@@ -444,6 +466,12 @@
       fetch("/agents/" + q(opts.slug) + "/jobs/verify-targets?brain=" + q(opts.brain())).then(function (r) { return r.json(); })
         .then(function (j) { st.ui.targetsLoading = false; st.ui.targets = (j && j.ok && j.items) || []; draw(); },
           function () { st.ui.targetsLoading = false; st.ui.targets = []; draw(); });
+    }
+    function markJobs(ids, state) {
+      return jsonPost("/jobs/marks", { brain: opts.brain(), ids: ids, state: state }).then(function (r) {
+        if (!r.ok) { st.ui.note = tw("ajobs.mark_err"); draw(); return; }
+        changed(); load(true);
+      });
     }
     function byId(id) { return ((st.data && st.data.jobs) || []).filter(function (x) { return x.id === id; })[0]; }
     function jsonPost(url, body) {
@@ -574,6 +602,17 @@
       if (t.classList.contains("aj-assign-send")) { send(); return; }
       if (t.classList.contains("aj-reload")) { st.ui.error = false; draw(); load(false); return; }
       if (t.classList.contains("aj-more")) { loadMore(); return; }
+      if (d.ajArchive) { markJobs([d.ajArchive], "archived"); return; }
+      if (d.ajUnarchive) { markJobs([d.ajUnarchive], ""); return; }
+      if (d.ajDelete) { markJobs([d.ajDelete], "deleted"); return; }
+      if (t.classList.contains("aj-arch-toggle")) { st.ui.archOpen = !st.ui.archOpen; draw(); return; }
+      if (t.classList.contains("aj-arch-clear")) {
+        var all = ((st.data && st.data.archived) || []).map(function (x) { return x.id; });
+        if (all.length && (typeof window === "undefined" || window.confirm(tw("ajobs.archive_clear_confirm", { n: all.length })))) {
+          markJobs(all, "deleted");
+        }
+        return;
+      }
       if (d.ajCancel) { var jc = byId(d.ajCancel); if (jc) cancelJob(jc); return; }
       if (d.ajResume) { var jr = byId(d.ajResume); if (jr) resumeJob(jr); return; }
       if (d.ajPrio) { var jp = byId(d.ajPrio); if (jp) prioJob(jp); return; }
@@ -623,7 +662,7 @@
   }
 
   var api = { html: html, jobHtml: jobHtml, toolbarHtml: toolbarHtml, assignHtml: assignHtml,
-    confirmHtml: confirmHtml, badgeHtml: badgeHtml, statusOf: statusOf, statusText: statusText, nextText: nextText, reasonText: reasonText, relTime: relTime, mount: mount, loadCounts: loadCounts,
+    confirmHtml: confirmHtml, badgeHtml: badgeHtml, archiveHtml: archiveHtml, statusOf: statusOf, statusText: statusText, nextText: nextText, reasonText: reasonText, relTime: relTime, mount: mount, loadCounts: loadCounts,
     RELOAD_MS: RELOAD_MS, setStrings: function (o) { STR = o || {}; } };
   if (typeof window !== "undefined") window.JavisAgentJobs = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

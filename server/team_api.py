@@ -34,6 +34,7 @@ from team_store import TeamError
 LOOP_EVERY_S = 5.0          # nhịp điều phối (spec 8.3: cùng nhịp 5 giây của Kanban)
 REMIND_EVERY_S = 3600.0     # nhịp nhắc việc bị chặn quá 24 giờ
 RECONCILE_EVERY_S = 60.0    # nhịp đối soát sổ lượt chung với team_turns (T2, thiết kế 9.1)
+FINISHED_SHOWN = 30          # việc đã xong hiện ở tab Việc của nhóm (0.193.0)
 PINNED_SHOWN = 20            # tin đã ghim hiện ở dải trên khung chat (0.192.0), như Sổ quyết định của lượt
 DESCRIBE_TIMEOUT_S = 120.0   # tả ảnh đính kèm trước lượt thành viên (0.192.0): quá thì lượt vẫn chạy, không có mô tả
 
@@ -694,8 +695,33 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             team, err = _team(team_id, brain)
             if err:
                 return err
-            return dict(deps.task_store().team_queue(team_id), ok=True, busy=api.runner().busy_view(team_id))
+            out = dict(deps.task_store().team_queue(team_id), ok=True, busy=api.runner().busy_view(team_id))
+            out.update(_finished(team))
+            return out
         return await api.io(_do)
+
+    def _finished(team: dict) -> dict:
+        """0.193.0: finished jobs of the team for the Jobs tab: `finished` (not yet marked Done by the owner, each with a
+        short report: result, who did which step) and `archived` (marked Done). Deleted ones are left out."""
+        import job_marks
+        rows = deps.task_store().team_history(team["team_id"], FINISHED_SHOWN)
+        jobs = []
+        for t in rows:
+            steps = []
+            try:
+                steps = [{"agent_key": x.get("agent_key") or "", "kind": x.get("kind") or "", "status": x.get("status") or ""}
+                         for x in api.teams().steps(t["id"])][:20]
+            except Exception:  # noqa: BLE001 - a broken step list never hides the job
+                steps = []
+            jobs.append({"id": f"team:{t['id']}", "task_id": t["id"], "title": t.get("title") or "", "bucket": "done",
+                         "status": t.get("status") or "", "cancelled": t.get("status") == "cancelled",
+                         "result": str(t.get("result") or "")[:4000], "created_at": t.get("created_at"),
+                         "updated_at": t.get("updated_at"), "steps": steps})
+        try:
+            kept, archived = job_marks.split(jobs, job_marks.marks(team["brain_id"]))
+        except Exception:  # noqa: BLE001
+            kept, archived = jobs, []
+        return {"finished": kept, "archived": archived}
 
     @app.post("/teams/{team_id}/queue/{task_id}/priority")
     async def teams_priority(team_id: str, task_id: str, request: Request, brain: str = "brain"):

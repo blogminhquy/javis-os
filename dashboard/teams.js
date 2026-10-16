@@ -607,10 +607,14 @@
   }
 
   // Tab Việc trong ngăn: Đang làm, Chờ bạn, Sắp làm (đánh số đúng thứ tự chạy).
-  function queueHtml(q) {
+  function queueHtml(q, view) {
     q = q || {};
+    view = view || {};
     var running = q.running || [], waiting = q.waiting || [], blocked = q.blocked || [];
-    if (!running.length && !waiting.length && !blocked.length) return '<div class="tm-empty">' + esc(tw("teams.queue_empty")) + "</div>";
+    var fin = finishedHtml(q.finished || [], q.archived || [], view);
+    if (!running.length && !waiting.length && !blocked.length) {
+      return (fin ? "" : '<div class="tm-empty">' + esc(tw("teams.queue_empty")) + "</div>") + fin;
+    }
     var h = "";
     if (running.length) {
       h += '<div class="tm-qhead">' + esc(tw("teams.queue_running")) + "</div>";
@@ -632,7 +636,68 @@
           '<button type="button" class="ws-btn" data-cancel="' + esc(t.id) + '">' + esc(tw("teams.cancel")) + "</button></span></div>";
       }).join("");
     }
+    return h + fin;
+  }
+
+  // 0.193.0 (owner, 16/10/2026): finished jobs stay in the Jobs tab until the owner presses Done; Open shows a short report
+  // (what came out, who did which step); Done moves the job to the Archive below (nothing deleted); only in the Archive
+  // can a job be deleted, one by one or all at once.
+  function finishedHtml(fin, arch, view) {
+    var h = "";
+    if (fin.length) {
+      h += '<div class="tm-qhead tm-qhead-done">' + esc(tw("teams.queue_finished")) + ' <span class="tm-qn">' + fin.length + "</span></div>";
+      h += fin.map(function (j) {
+        var open = view.openFin === j.id;
+        return '<div class="tm-qrow tm-jdone' + (j.cancelled ? " is-cancelled" : "") + '"><span class="tm-qok" aria-hidden="true">' +
+          ic(j.cancelled ? "circle-x" : "circle-check") + '</span><span class="tm-qtitle">' + esc(j.title) + "</span>" +
+          '<span class="tm-actions"><button type="button" class="ws-btn" data-fin-open="' + esc(j.id) + '" aria-expanded="' +
+          (open ? "true" : "false") + '">' + ic(open ? "chevron-up" : "file-text") + esc(tw(open ? "teams.fin_close" : "teams.fin_open")) +
+          '</button><button type="button" class="ws-btn tm-primary" data-job-archive="' + esc(j.id) + '">' + ic("check") +
+          esc(tw("teams.fin_done")) + "</button></span>" + (open ? reportHtml(j, view) : "") + "</div>";
+      }).join("");
+    }
+    if (arch.length) {
+      var aopen = !!view.archOpen;
+      h += '<div class="tm-qhead tm-qhead-arch"><button type="button" class="tm-arch-toggle" aria-expanded="' + (aopen ? "true" : "false") + '">' +
+        ic(aopen ? "chevron-down" : "chevron-right") + esc(tw("teams.archive")) + ' <span class="tm-qn">' + arch.length + "</span></button>" +
+        (aopen ? '<button type="button" class="ws-btn tm-arch-clear" data-job-delete-all="1">' + ic("trash-2") +
+          esc(tw("teams.archive_clear")) + "</button>" : "") + "</div>";
+      if (aopen) {
+        h += arch.map(function (j) {
+          return '<div class="tm-qrow tm-jarch"><span class="tm-qok" aria-hidden="true">' + ic("folder") + '</span><span class="tm-qtitle">' +
+            esc(j.title) + '</span><span class="tm-actions"><button type="button" class="ws-btn" data-fin-open="' + esc(j.id) + '">' +
+            esc(tw(view.openFin === j.id ? "teams.fin_close" : "teams.fin_open")) + '</button><button type="button" class="ws-btn" data-job-unarchive="' +
+            esc(j.id) + '">' + esc(tw("teams.archive_back")) + '</button><button type="button" class="ws-btn" data-job-delete="' + esc(j.id) +
+            '">' + ic("trash-2") + esc(tw("teams.archive_delete")) + "</button></span>" + (view.openFin === j.id ? reportHtml(j, view) : "") + "</div>";
+        }).join("");
+      }
+    }
     return h;
+  }
+
+  function reportHtml(j, view) {
+    var members = view.members || [];
+    var who = {}, order = [];
+    (j.steps || []).forEach(function (st) {
+      if (!st.agent_key) return;
+      if (!who[st.agent_key]) { who[st.agent_key] = []; order.push(st.agent_key); }
+      who[st.agent_key].push(st);
+    });
+    var md = typeof window !== "undefined" && window.mdToHtml;
+    var res = String(j.result || "").trim();
+    var resHtml = res ? (md ? (function () { try { return '<div class="msg-javis tm-mdwrap"><div class="bubble">' + md(res, brain()) + "</div></div>"; }
+      catch (e) { return esc(res); } })() : esc(res).replace(/\n/g, "<br>")) : '<p class="tm-sub">' + esc(tw("teams.fin_no_result")) + "</p>";
+    var when = j.updated_at ? new Date(Number(j.updated_at) * 1000).toLocaleString() : "";
+    return '<div class="tm-report">' +
+      '<div class="tm-report-meta">' + esc(tw(j.cancelled ? "teams.fin_cancelled_at" : "teams.fin_done_at", { when: when })) + "</div>" +
+      (order.length ? '<div class="tm-report-who">' + order.map(function (k) {
+        var m = memberOf(members, k) || { name: k };
+        var kinds = who[k].map(function (st) { return tw(ROLE_KEY[st.kind] || "teams.role.work"); }).filter(function (x, i, a) { return a.indexOf(x) === i; });
+        return '<span class="tm-report-person">' + agentAva(m, 18) + "<b>" + esc(m.name || m.slug || k) + "</b>" + esc(kinds.join(", ")) + "</span>";
+      }).join("") + "</div>" : "") +
+      '<div class="tm-report-body">' + resHtml + "</div>" +
+      (j.task_id ? '<button type="button" class="ws-btn" data-view-task="' + esc(j.task_id) + '">' + esc(tw("teams.view_msgs")) + "</button>" : "") +
+      "</div>";
   }
 
   // ───────────── khung soạn ─────────────
@@ -857,7 +922,9 @@
         esc(rsText(m.resonance_enabled)) + "</span></label>" +
         '<label class="tm-rs"><input type="checkbox" class="tm-managed-toggle" data-key="' + esc(m.agent_key) + '"' +
         (m.managed ? " checked" : "") + "><span>" + esc(tw("teams.managed")) + "</span></label>" +
-        '<span class="tm-actions">' + (m.slug ? '<button type="button" class="ws-btn" data-agent-edit="' + esc(m.slug) + '">' +
+        '<span class="tm-actions">' + (m.slug ? '<button type="button" class="ws-btn" data-agent-chat="' + esc(m.slug) + '">' +
+          ic("message-circle") + esc(tw("teams.chat_private")) + "</button>" +
+          '<button type="button" class="ws-btn" data-agent-edit="' + esc(m.slug) + '">' +
           ic("settings") + esc(tw("teams.agent_settings_short")) + "</button>" : "") + (lead
           ?'<button type="button" class="ws-btn" data-leader="">' + esc(tw("teams.remove_leader")) + "</button>"
           : '<button type="button" class="ws-btn" data-leader="' + esc(m.agent_key) + '">' + esc(tw("teams.make_leader")) + "</button>") +
@@ -1708,7 +1775,7 @@
     S.picker = null;
     var St = typeof window !== "undefined" && window.JavisStudio;
     if (St && St.editAgent) {
-      St.editAgent({ slug: slug }, { onSaved: function () { loadTeam(); loadMsgs(false); } });
+      St.editAgent({ slug: slug }, { chatButton: true, onSaved: function () { loadTeam(); loadMsgs(false); } });
       return;
     }
     if (window.JavisWorkspace && window.JavisWorkspace.openCommand) window.JavisWorkspace.openCommand("agent", slug);
@@ -1800,6 +1867,14 @@
   function stopReveal() {
     if (S && S.rv && S.rv.timer) clearTimeout(S.rv.timer);
     if (S) S.rv = null;
+  }
+
+  function markJobs(ids, state) {
+    return call("POST", "/jobs/marks", { brain: brain(), ids: ids, state: state }).then(function (r) {
+      if (r.code !== 200) return fail(r);
+      if (state === "archived" && ids.indexOf(S.openFin) >= 0) S.openFin = null;
+      return loadQueue();
+    });
   }
 
   // ───────────── 0.192.0: pinned messages ─────────────
@@ -1913,7 +1988,8 @@
       return '<button type="button" class="tm-tab" role="tab" data-tab="' + k + '" aria-selected="' + (S.tab === k ? "true" : "false") +
         '">' + esc(tw(TAB_KEY[k])) + "</button>";
     }).join("");
-    var body = S.tab === "info" ? infoTabHtml(S.team) : S.tab === "jobs" ? queueHtml(S.queue)
+    var body = S.tab === "info" ? infoTabHtml(S.team) : S.tab === "jobs" ? queueHtml(S.queue,
+      { openFin: S.openFin, archOpen: S.archOpen, members: S.team ? S.team.members : [] })
       : teamTabHtml(S.team, S.agents, { openMember: S.openMember, advOpen: S.advOpen, turns: S.turns });
     side.innerHTML = '<div class="tm-bar tm-side-bar"><div class="tm-tabs" role="tablist">' + tabs + "</div>" +
       '<button type="button" class="ws-btn tm-icon tm-close" aria-label="' + esc(tw("teams.close")) + '" title="' +
@@ -2340,7 +2416,9 @@
       '<li>' + avaHtml(tw("teams.you")) + "<span>" + esc(tw("teams.you")) + "</span></li>" +
       members.map(function (m) {
         return "<li>" + agentAva(m, 28) + "<span>" + esc(m.name || m.slug) + "</span>" +
-          (m.agent_key && m.agent_key === t.leader_key ? '<span class="tm-info-badge">' + esc(tw("teams.leader_badge")) + "</span>" : "") + "</li>";
+          (m.agent_key && m.agent_key === t.leader_key ? '<span class="tm-info-badge">' + esc(tw("teams.leader_badge")) + "</span>" : "") +
+          (m.slug ? '<button type="button" class="tm-bar-x tm-info-chat" data-agent-chat="' + esc(m.slug) + '" aria-label="' +
+            esc(tw("teams.chat_private")) + '" title="' + esc(tw("teams.chat_private")) + '">' + ic("message-circle") + "</button>" : "") + "</li>";
       }).join("") + "</ul></section>";
     h += '<section class="tm-info-sec"><h4>' + esc(tw("teams.info_folder")) + "</h4>" + (S.folder
       ? '<div class="tm-info-row">' + ic("folder") + '<span class="tm-info-grow" title="' + esc(S.folder.path) + '">' + esc(S.folder.name) +
@@ -2779,7 +2857,19 @@
     if (d.renameTeam) { S.rowMenu = null; S.renaming = d.renameTeam; drawList(); return; }
     if (d.deleteTeam) { if (S.rowMenu) closeRowMenu(); return deleteTeam(d.deleteTeam); }
     if (d.renameHead) { S.renamingHead = true; drawHead(); return; }
+    if (d.finOpen) { S.openFin = S.openFin === d.finOpen ? null : d.finOpen; drawSide(); return; }
+    if (t.classList.contains("tm-arch-toggle")) { S.archOpen = !S.archOpen; drawSide(); return; }
+    if (d.jobArchive) return markJobs([d.jobArchive], "archived");
+    if (d.jobUnarchive) return markJobs([d.jobUnarchive], "");
+    if (d.jobDelete) return markJobs([d.jobDelete], "deleted");
+    if (d.jobDeleteAll) {
+      var all = ((S.queue || {}).archived || []).map(function (j) { return j.id; });
+      if (!all.length || !window.confirm(tw("teams.archive_clear_confirm", { n: all.length }))) return;
+      return markJobs(all, "deleted");
+    }
     if (d.agentEdit) return openAgentSettings(d.agentEdit);
+    // 0.193.0: message a member privately, straight from the team (the Partners page chat with that assistant).
+    if (d.agentChat) { if (window.JavisWorkspace && window.JavisWorkspace.openCommand) window.JavisWorkspace.openCommand("agent", d.agentChat); return; }
     if (d.rxToggle) {
       var rm = msgById(Number(d.rxToggle));
       return sendReaction(Number(d.rxToggle), JR.cornerToggle(rm && rm.reaction));

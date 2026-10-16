@@ -750,7 +750,13 @@
     // 0.175.0: câu giải thích dài của Tài liệu và Model nằm sau nút i cạnh nhãn (info-tip.js); câu báo việc cần làm (chưa
     // lưu nên chưa gắn tài liệu được, chưa kết nối nhà cung cấp nào) vẫn hiện thẳng.
     const JI = window.JavisInfo;
-    box.innerHTML = `<h3>${esc(a ? t("studio.edit") : t("studio.create"))} Agent</h3>
+    // 0.193.0: the assistant's own reasoning level (default medium) and, from a team, a button to message it privately.
+    const REASONING = [["off", "models.r_off"], ["low", "models.r_low"], ["medium", "models.r_med"], ["high", "models.r_high"],
+      ["xhigh", "models.r_xhigh"], ["ultra", "models.r_ultra"]];
+    const curReason = (a && a.reasoning) || "medium";
+    const chatBtn = opts.chatButton && a && a.slug
+      ? `<button type="button" class="s-btn-ghost ag-chat-btn" id="agChat">${ic("message-circle")} ${esc(t("studio.chat_private"))}</button>` : "";
+    box.innerHTML = `<div class="ag-head"><h3>${esc(a ? t("studio.edit") : t("studio.create"))} Agent</h3>${chatBtn}</div>
       <div class="agent-avatar-picker" id="agAvatar"></div>
       <label>${esc(t("studio.name"))}</label><input id="agName" value="${esc(a ? a.name : "")}">
       <label>${esc(t("studio.role"))}</label><input id="agRole" value="${esc(a ? a.role : "")}">
@@ -778,6 +784,9 @@
       </div>
       ${coKetNoi && JI ? JI.body(`<div class="dim" style="font-size:12px">${esc(t("studio.model_hint"))}</div>`)
         : `<div class="dim" style="font-size:12px;margin-top:4px">${esc(coKetNoi ? t("studio.model_hint") : t("studio.model_none"))}</div>`}
+      <label for="agReasoning">${esc(t("studio.reasoning"))}</label>
+      <select id="agReasoning">${REASONING.map(([v, k]) => `<option value="${v}"${v === curReason ? " selected" : ""}>${esc(t(k))}</option>`).join("")}</select>
+      <div class="dim" style="font-size:12px;margin-top:4px">${esc(t("studio.reasoning_hint"))}</div>
       <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd"${opts.host ? ' style="display:none"' : ""}>${esc(t("common.cancel"))}</button><button class="s-btn" id="saveAg">${esc(t("common.save"))}</button></div>`;
     if (window.JavisAvatar) window.JavisAvatar.picker(box.querySelector("#agAvatar"), avatar, v => { avatar = v; });
     // TÀI LIỆU & LINK của trợ lý: mở ĐÚNG ngăn kéo mà project và cuộc trò chuyện đang dùng
@@ -873,6 +882,11 @@
     // nó đã bị ẩn ở trên; giữ handler để bấm nhầm bằng bàn phím cũng không đóng modal người
     // khác đang mở.
     box.querySelector("#cancelEd").onclick = () => { if (opts.host) return; moDong(false); };
+    const nutChat = box.querySelector("#agChat");
+    if (nutChat) nutChat.onclick = () => {
+      moDong(false);
+      if (window.JavisWorkspace && window.JavisWorkspace.openCommand) window.JavisWorkspace.openCommand("agent", a.slug);
+    };
     box.querySelector("#saveAg").onclick = async () => {
       const name = box.querySelector("#agName").value.trim(); if (!name) return alert(t("studio.need_name"));
       const sk = [...chosen].join(",");
@@ -887,6 +901,7 @@
         // người dùng vừa đổi ở cột trái. Server thấy thiếu field là giữ nguyên nhóm đang có.
         const saved = await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value,
           prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv,
+          reasoning: (box.querySelector("#agReasoning") || {}).value || "medium",
           slug: a ? a.slug : "", brain: brain(), ...(avatar ? window.JavisAvatar.formFields(avatar) : {}) }) });
         if (!saved.ok) { alert(loiLuu(saved.error)); return; }
         moDong(false);

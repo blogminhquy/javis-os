@@ -6,6 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.193.0] - 2026-10-16
+### Thêm mới
+- **Việc đã xong không tự biến mất:** ở tab Công việc của cộng sự và tab Việc trong Team, việc xong nằm ở mục riêng, bấm **Mở** xem báo cáo (ai làm phần nào, kết quả ra sao). Bấm **Đã hoàn thành / Done** thì việc chuyển vào **Lưu trữ**, không bị xoá; chỉ trong Lưu trữ mới có **Xoá** và **Xoá tất cả**.
+- **Mức suy luận riêng cho từng cộng sự:** mặc định Vừa (trung bình), chỉnh trong khung Sửa Agent hoặc ngay nút mức suy luận trên khung chat với cộng sự đó. Áp cho cả chat riêng và lượt trả lời trong Team.
+- **Nhắn riêng từ Team:** nút **Nhắn riêng** ở khung Sửa Agent, danh sách thành viên và tab Thông tin, bấm là sang chat riêng với cộng sự đó.
+
+### Cải thiện
+- **Thẻ việc có màu theo trạng thái:** đỏ là cần bạn, xanh nước biển là đang làm, cam là đang chờ, xanh lá là đã xong, kèm nhãn chữ trên mỗi thẻ.
+
 ## [0.192.0] - 2026-10-16
 ### Thêm mới
 - **Team dán và kéo thả được:** dán ảnh (Ctrl+V) hay kéo thả file vào khung chat Team là thành file đính kèm, có ảnh xem trước. Dán đoạn chữ rất dài thì tự thành file .txt.

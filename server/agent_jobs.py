@@ -374,7 +374,7 @@ def _cursor(cursor: Any) -> int:
 def collect(agent_key: str, slug: str, root: str, *, brain_keys: Any = None, teams=None, tasks=None, sessions=None,
             goals=None, principal=None, now: Optional[float] = None, source: str = "all", bucket: str = "",
             cursor: Any = None, limit: int = PAGE, history: bool = True, kanban_rows: Optional[list] = None,
-            resolve: bool = True, done_since: float = 0) -> dict:
+            resolve: bool = True, done_since: float = 0, marks: Optional[dict] = None) -> dict:
     """Một trang việc của một trợ lý.
 
     Trả {"jobs": trang, "counts": {ngăn: số} theo nguồn đang lọc, "source_counts": {nguồn: số}, "total", "next": cursor
@@ -406,6 +406,11 @@ def collect(agent_key: str, slug: str, root: str, *, brain_keys: Any = None, tea
     if not history:
         jobs = [j for j in jobs if j["bucket"] != "done" or (done_since and not j.get("cancelled")
                                                               and (j.get("updated_at") or 0) >= done_since)]
+    archived: list = []
+    if marks is not None:
+        # 0.193.0: finished jobs the owner pressed Done on go to the archive list; deleted ones are not shown.
+        import job_marks
+        jobs, archived = job_marks.split(jobs, marks)
     source_counts = {s: sum(1 for j in jobs if j["source"] == s) for s in SOURCES}
     if src != "all":
         jobs = [j for j in jobs if j["source"] == src]
@@ -428,6 +433,8 @@ def collect(agent_key: str, slug: str, root: str, *, brain_keys: Any = None, tea
            "at": now if now is not None else time.time()}
     if done_since:
         out["failed_recent"] = failed
+    if marks is not None:
+        out["archived"] = archived
     return out
 
 

@@ -3818,6 +3818,17 @@ def _reasoning_level(mcfg):
     r = (mcfg or {}).get("reasoning", "off")
     return r if r in engine.REASONING_LEVELS else "off"
 
+
+# 0.193.0 (owner, 16/10/2026: "agent hiện tại không lựa chọn được mức suy luận, cần bổ sung ngay và mặc định là trung
+# bình"): each assistant keeps its own reasoning level in its frontmatter (`reasoning`), used by its chat, its team turns
+# and nothing else. An assistant that never set one thinks at "medium", not at the main chat's level.
+AGENT_REASONING_DEFAULT = "medium"
+
+
+def _agent_reasoning(meta) -> str:
+    r = str((meta or {}).get("reasoning") or "").strip()
+    return r if r in engine.REASONING_LEVELS else AGENT_REASONING_DEFAULT
+
 # Từ khoá kích hoạt extended thinking của Claude Code (engine cli không có flag chuẩn).
 # Bộ từ khoá suy nghĩ của Claude Code. ĐƯỜNG DỰ PHÒNG từ 0.55.40: bản CLI có cờ `--effort`
 # thì đi bằng cờ đó (xem `_cli_do_sau`), vì hai mức trên cùng ở bảng này ra CÙNG một từ khoá
@@ -6984,6 +6995,7 @@ def agent_get(slug: str = Query(...), brain: str = Query("brain")):
     return {"slug": slug, "name": meta.get("name", slug), "role": meta.get("role", ""),
             "skills": meta.get("skills", []) or [], "model": meta.get("model", ""),
             **_agent_tag_fields(meta), "model_provider": meta.get("model_provider", ""),
+            "reasoning": _agent_reasoning(meta),
             "prompt": body, "pinned": bool(meta.get("pinned")),
             "avatar": agent_avatar.for_agent(meta, slug)}
 
@@ -6994,7 +7006,8 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
                      group: str = Form(None), avatar_shape: str = Form(None),
                      avatar_palette: str = Form(None), avatar_color: str = Form(None),
                      avatar_eye: str = Form(None), avatar_eye_color: str = Form(None),
-                     avatar_eye_size: str = Form(None), avatar_image: str = Form(None), tags: str = Form(None)):
+                     avatar_eye_size: str = Form(None), avatar_image: str = Form(None), tags: str = Form(None),
+                     reasoning: str = Form(None)):
     # Trợ lý MỚI đặt tên file không dấu ("Bống Work" -> bong-work.md), đúng quy ước slug của Javis. Trước
     # 0.88.1 tên giữ nguyên dấu; các file đó vẫn đọc, sửa, xoá được nhờ skill_router.valid_file_slug.
     # TẠO MỚI = form không gửi slug. Nhóm chat team (spec 2026-10-13 mục 5.1): tạo mới mà slug suy từ tên đã có file thì
@@ -7054,6 +7067,8 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
             except agent_tags.TagError as e:
                 return _loi_tag(str(e), 409 if str(e) == "stale_client" else 400)
             meta = dict(previous or {})
+            if isinstance(reasoning, str) and reasoning in engine.REASONING_LEVELS:
+                meta["reasoning"] = reasoning
             meta.update({"type": "agent", "name": name, "slug": slug, "role": role,
                          "skills": skills_list, "model": model, "avatar": avatar,
                          "model_provider": mp if mp in AGENT_PROVIDERS else "",
@@ -15265,6 +15280,12 @@ async def websocket_endpoint(ws: WebSocket):
                 return ""
             prov, kind, api_key, api_model = _chat_provider_for_session(mcfg, _row0)
             reasoning = _reasoning_level(mcfg)
+            if _persona and _persona[0] == "agent":
+                # 0.193.0: an assistant's chat thinks at the assistant's own level (default medium).
+                try:
+                    reasoning = _agent_reasoning(_read_md(_agents_dir(brain) / f"{_persona[1]}.md")[0])
+                except Exception:  # noqa: BLE001 - an unreadable file keeps the main level
+                    pass
             fast_mode.use(mcfg.get("fast") is True)
             _CONTEXT_RUNTIME.set_route(
                 runtime_trace,
@@ -17880,7 +17901,39 @@ async def sessions_meta(session_id: str):
         # vẫn kêu "ghim hỏng", đúng thứ trong ảnh chủ repo gửi 02/09.
         key = _provider_key(mcfg, d) if d else ""
         sess["pin_ok"] = bool(d) and (d.get("kind") != "api" or bool(key))
+    # 0.193.0: an assistant's chat tells the model bar whose reasoning level it shows and changes.
+    _p = workflow_chat.persona_cua_phien(sess)
+    if _p and _p[0] == "agent":
+        try:
+            _m = _read_md(_agents_dir(sess.get("brain") or "brain") / f"{_p[1]}.md")[0]
+            sess["agent_slug"], sess["agent_reasoning"] = _p[1], _agent_reasoning(_m)
+        except Exception:  # noqa: BLE001
+            pass
     return sess
+
+
+@app.post("/agents/{slug}/reasoning")
+async def agent_set_reasoning(slug: str, level: str = Form(...), brain: str = Form("brain")):
+    """Set one assistant's reasoning level (0.193.0), from its settings or the model bar of its chat. Only this key of
+    the frontmatter changes, under the same lock as the other agent writes."""
+    if not skill_router.valid_file_slug(slug) or javis_core.is_core_slug(slug):
+        return JSONResponse({"ok": False, "error": localefmt.chu("Trợ lý không hợp lệ", "Invalid assistant")}, status_code=400)
+    if level not in engine.REASONING_LEVELS:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Mức suy luận không hợp lệ", "Invalid reasoning level")},
+                            status_code=400)
+    path = _agents_dir(brain) / f"{slug}.md"
+
+    def _luu():
+        with _AGENT_META_LOCK:
+            if not path.is_file():
+                return JSONResponse({"ok": False, "error": localefmt.chu("Không tìm thấy trợ lý", "Assistant not found")},
+                                    status_code=404)
+            meta, body = _read_md(path)
+            meta = dict(meta or {})
+            meta["reasoning"] = level
+            _write_md(path, meta, body)
+            return {"ok": True, "slug": slug, "reasoning": level}
+    return await asyncio.to_thread(_luu)
 
 
 @app.post("/sessions/{session_id}/model")
@@ -23036,14 +23089,28 @@ def _team_agent_info(root, agent_key):
     if not reg or reg.get("status") != "active" or not _agent_md_path(root, reg["slug"]):
         return None
     name, system, model, provider = _workflow_agent_helpers(root, None)[1](reg["slug"])
-    role = ""
+    role, reasoning = "", AGENT_REASONING_DEFAULT
     try:
         meta, _b = _read_md(_agent_md_path(root, reg["slug"]))
         role = str((meta or {}).get("role") or "")
+        reasoning = _agent_reasoning(meta)
     except Exception:  # noqa: BLE001
         pass
     return {"slug": reg["slug"], "name": name, "system": system, "model": model or "", "model_provider": provider or "",
-            "role": role}
+            "role": role, "reasoning": reasoning}
+
+
+def _team_reasoning(eng, level, prompt):
+    """A team turn thinks at the member's own level (0.193.0): Claude Code through its effort flag (or the old keyword),
+    an API engine through its reasoning setting. Engines with neither keep their default. Returns the prompt to send."""
+    if hasattr(eng, "effort"):
+        return _cli_do_sau(eng, level, prompt)
+    if hasattr(eng, "reasoning"):
+        try:
+            eng.reasoning = level
+        except Exception:  # noqa: BLE001
+            pass
+    return prompt
 
 
 _TEAM_ENGINE_BUILD_REAL = team_engine.build
@@ -23090,9 +23157,10 @@ def _team_engine_for(team, agent_key, role):
         # cũ còn sống (review 0.142.0, #2).
         tag = f"team-{str(req['team_id'])[-8:]}-{str(req.get('turn_id') or '')[-10:]}"
         eng = await asyncio.to_thread(_build, req["system"], tag)
+        prompt = _team_reasoning(eng, info.get("reasoning") or AGENT_REASONING_DEFAULT, req["prompt"])
         await req["engine_started"]()
         outcome = team_runner.TextOnlyOutcome()
-        stream = eng.query(req["prompt"])
+        stream = eng.query(prompt)
         try:
             async for ev in stream:
                 outcome.note(ev)
@@ -23788,6 +23856,25 @@ async def _feedback_pulse_startup():
 
 # ── Tab Công việc của trợ lý (0.142.0): gom việc theo agent_key từ nhóm, chat riêng và Auto ──
 import agent_jobs  # noqa: E402
+import job_marks  # noqa: E402
+job_marks.configure(Path(cfgmod.STATE_DIR) / "job_marks.sqlite3")
+
+
+@app.post("/jobs/marks")
+async def jobs_marks(request: Request):
+    """0.193.0: the owner's Done (archive), delete from the archive, and back to the list, for finished jobs of the Jobs
+    tabs (an assistant's and a team's). Body {brain, ids, state: "archived" | "deleted" | ""}."""
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    ids = body.get("ids") if isinstance(body.get("ids"), list) else []
+    state = str(body.get("state") or "")
+    if state not in ("", *job_marks.STATES) or not ids:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Yêu cầu không hợp lệ", "Invalid request")}, status_code=400)
+    root = _brain_key(str(body.get("brain") or "brain"))
+    n = await asyncio.to_thread(job_marks.set_state, root, ids, state)
+    return {"ok": True, "changed": n}
 
 
 def _agent_persona(root, slug, agent_key=None):
@@ -23908,7 +23995,7 @@ async def agent_jobs_list(slug: str, brain: str = "brain", source: str = "all", 
         goals, teams, principal = _agent_jobs_sources(root, key)
         out = agent_jobs.collect(key or "", slug, root, brain_keys=_brain_keys(brain), teams=teams,
                                  tasks=tasks_feature.store, sessions=get_store(), goals=goals, principal=principal,
-                                 source=source, bucket=bucket, cursor=cursor, limit=limit)
+                                 source=source, bucket=bucket, cursor=cursor, limit=limit, marks=job_marks.marks(root))
         out["board"] = tasks_feature.store.board_mode(root)
         out["max_workers"] = tasks_feature.max_workers
         out["teams"] = _agent_jobs_teams(key, root)

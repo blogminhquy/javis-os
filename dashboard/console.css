@@ -3580,3 +3580,47 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
 .tm-rv-hide { display: none !important; }
 .tm-rv-on .tm-text .bubble > *:not(.tm-rv-hide) { animation: tm-rv-in .22s ease both; }
 @keyframes tm-rv-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+/* 0.193.0: the agent editor head carries "Message privately" when opened from a team. */
+.agent-editor .ag-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.agent-editor .ag-head h3 { margin: 0; }
+.agent-editor .ag-chat-btn { display: inline-flex; align-items: center; gap: 6px; }
+.tm-info-members .tm-info-chat { margin-left: auto; }
+/* 0.193.0: finished jobs, their report and the archive in the team Jobs tab. */
+.tm-qn { display: inline-block; min-width: 18px; padding: 0 6px; border-radius: 999px; background: var(--surface-3); color: var(--text2);
+  font-size: 12px; text-align: center; }
+.tm-qhead-done { color: var(--green); }
+.tm-qok { flex: none; display: inline-flex; color: var(--green); margin-top: 2px; }
+.tm-jdone.is-cancelled .tm-qok, .tm-jarch .tm-qok { color: var(--text3); }
+.tm-jdone .tm-qtitle { color: var(--text); }
+.tm-jarch .tm-qtitle { color: var(--text2); font-weight: 500 !important; }
+.tm-qhead-arch { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.tm-arch-toggle { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 4px 0; font: inherit;
+  font-weight: 700; color: var(--text2); cursor: pointer; }
+.tm-arch-toggle svg { width: 14px; height: 14px; }
+.tm-arch-clear { color: var(--red); }
+.tm-report { flex: 1 1 100%; margin: 4px 0 0 26px; padding: 10px 12px; border-radius: 10px; background: var(--bg3); border: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
+.tm-report-meta { font-size: 13px; color: var(--text3); }
+.tm-report-who { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.tm-report-person { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text2); }
+.tm-report-person b { color: var(--text); font-weight: 600; }
+.tm-report-body { max-height: 320px; overflow: auto; }
+/* 0.193.0 (owner, 16/10/2026: "những việc nào làm đến cuối rồi thì sẽ đổi màu"): one colour per job state, the same four as
+   the avatar dot: red needs you, blue working, orange waiting, green finished; a state label on each card. */
+.aj-job.aj-needs_you { border-left-color: var(--red); }
+.aj-job.aj-running { border-left-color: #3b82f6; }
+.aj-job.aj-waiting { border-left-color: #f59e0b; }
+.aj-job.aj-done { border-left-color: var(--green); opacity: 1; background: var(--ok-wash, var(--surface-1)); }
+.aj-job.aj-archived { border-left-color: var(--text3); opacity: .85; }
+.aj-top { display: flex; align-items: flex-start; gap: 8px; }
+.aj-top .aj-title { flex: 1 1 auto; min-width: 0; }
+.aj-state { flex: none; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; color: #fff; }
+.aj-state-needs_you { background: var(--red); }
+.aj-state-running { background: #3b82f6; }
+.aj-state-waiting { background: #f59e0b; color: #1a1400; }
+.aj-state-done { background: var(--green); }
+.aj-done-btn { color: var(--green); border-color: var(--ok-line, var(--border)); }
+.aj-arch-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.aj-arch-toggle { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 4px 0; font: inherit;
+  font-size: 13px; font-weight: 700; color: var(--text2); cursor: pointer; }
+.aj-arch-toggle svg { width: 14px; height: 14px; }
