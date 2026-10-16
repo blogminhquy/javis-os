@@ -103,13 +103,20 @@
   //     đó là chỗ của người chưa được xếp vào đâu, giống "Không thuộc dự án" bên Trò chuyện.
   // `nhomTrong`: nhóm vừa tạo bằng "+ Nhóm mới" mà chưa có ai (xem docNhomTrong) - vẫn vẽ
   // tiêu đề với số 0 để người dùng thấy nhóm mình vừa lập rồi kéo cộng sự vào.
-  function gomNhom(ds, nhomLoc, nhomTrong) {
+  // `can` (0.175.0, chỉ trợ lý): hàm báo mục nào đang CHỜ BẠN (có việc cần người duyệt hay trả lời). Những mục đó lên
+  // một khối riêng đứng TRÊN CẢ khối ghim: chủ repo 16/10/2026 thấy thứ tự "không phù hợp chút nào", việc đang đợi mình
+  // nằm lẫn giữa danh sách theo giờ chat. Mỗi mục vẫn chỉ hiện một lần.
+  function gomNhom(ds, nhomLoc, nhomTrong, can) {
+    var ra = [];
+    if (typeof can === "function") {
+      var cho = (ds || []).filter(function (x) { return can(x); });
+      if (cho.length) { ra.push({ can: true, nhom: "", items: cho }); ds = (ds || []).filter(function (x) { return !can(x); }); }
+    }
     var ghim = (ds || []).filter(function (x) { return x.pinned; });
     var thuong = (ds || []).filter(function (x) { return !x.pinned; });
-    var ra = [];
     if (ghim.length) ra.push({ ghim: true, nhom: "", items: ghim });
     if (nhomLoc) {
-      if (thuong.length) ra.push({ ghim: false, nhom: nhomLoc, items: thuong, theoNhom: false, tieuDe: !!ghim.length });
+      if (thuong.length) ra.push({ ghim: false, nhom: nhomLoc, items: thuong, theoNhom: false, tieuDe: ra.length > 0 });
       return ra;
     }
     var theo = {};
@@ -899,9 +906,11 @@
     // trang; phân trang đếm MỤC đã vẽ chứ không đếm tiêu đề. Agent (tag) không chia khối theo tag:
     // một khối ghim và một khối còn lại, mỗi agent đúng một lần dù mang bao nhiêu tag.
     var html = "", daVe = 0, tong = 0;
-    gomNhom(ds, laTag ? (S.nhom || "*") : S.nhom, trong).forEach(function (n) {
+    var can = laTag && S.jc ? function (x) { var c = S.jc[x.slug]; return !!(c && c.needs_you); } : null;
+    gomNhom(ds, laTag ? (S.nhom || "*") : S.nhom, trong, can).forEach(function (n) {
       var thu = n.theoNhom && daThu(n.nhom);
-      if (n.ghim) html += '<div class="ws-glabel">' + esc(t("ws.grp_pinned")) + '</div>';
+      if (n.can) html += '<div class="ws-glabel ws-glabel-need">' + esc(t("ws.grp_needs")) + '</div>';
+      else if (n.ghim) html += '<div class="ws-glabel">' + esc(t("ws.grp_pinned")) + '</div>';
       else if (n.theoNhom) html += nhomHtml(n.nhom, n.items.length, thu);
       else if (n.tieuDe) html += '<div class="ws-glabel">' + esc(t("ws.grp_rest")) + '</div>';
       if (thu) return;
@@ -979,18 +988,29 @@
     // Nút "..." KHÔNG được lồng trong nút chọn mục: button trong button là HTML sai và
     // trình duyệt tự tách thẻ ra, làm cú bấm rơi vào chỗ không ai ngờ. Nên bọc cả hai trong
     // một khối và để chúng là hai nút ngang hàng.
-    return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + '">' +
-      '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '">' +
-      '<span class="ws-item-ic">' + (S.loai === "agent" ? avatar(x, 42)
+    // 0.175.0 (chủ repo 16/10/2026: "nhiều thông tin, ghim bàn tay, nút Auto quá to che hết"): mỗi thẻ còn HAI dòng chữ
+    // (tên + giờ, vai trò) và một dòng trạng thái CHỈ khi có chuyện: "Cần bạn n", "Đang làm n" bằng chữ (thay biểu tượng bàn
+    // tay dễ nhầm với dấu ghim) và nhãn Auto nhỏ khi Auto đang bật. Tag không vẽ trên thẻ nữa (đã có ô lọc theo tag ở đầu
+    // cột, tên tag vẫn đọc được ở tooltip). Dấu ghim không vẽ: thẻ ghim đã nằm dưới tiêu đề "Đã ghim".
+    var laAgent = S.loai === "agent";
+    var tg = laAgent ? tagsCua(x) : [];
+    var bd = laAgent && S.jc && window.JavisAgentJobs && window.JavisAgentJobs.badgeHtml
+      ? window.JavisAgentJobs.badgeHtml(S.jc[x.slug]) : "";
+    var rsRow = laAgent && window.JavisResonanceAgent ? S.rs[x.slug] : null;
+    var autoOn = !!(rsRow && rsRow.enabled && rsRow.status === "active");
+    var rsLa = !!(rsRow && (rsRow.status === "missing" || rsRow.status === "retired"));
+    var coTt = !!(bd || autoOn || rsLa || (rsRow && S.rsSaving[x.slug]));
+    var title = laAgent ? [x.name, x.role || ""].concat(tg.length ? [t("ws.tags_aria") + ": " + tg.join(", ")] : [])
+      .filter(Boolean).join("\n") : "";
+    return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + (coTt ? " co-tt" : "") + '">' +
+      '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '"' +
+        (title ? ' title="' + esc(title) + '"' : "") + '>' +
+      '<span class="ws-item-ic">' + (laAgent ? avatar(x, 40)
         : (chay ? ic("loader", { cls: "ic-spin", title: t("ws.running") }) : ic("workflow"))) + '</span>' +
       '<span class="ws-item-text"><span class="ws-item-top"><strong>' + esc(x.name) + '</strong>' +
-      (S.loai === "agent" ? gioNhanHtml(x.last_chat_at) : "") + '</span>' +
-      '<small>' + esc(phu) + '</small>' + (S.loai === "agent" ? chipTagHtml(x) : "") + '</span>' +
-      // Huy hiệu việc (Đang làm, Cần bạn): ô riêng ở góc trên, tách hẳn công tắc Auto ở góc dưới (0.142.0).
-      (S.loai === "agent" && S.jc && window.JavisAgentJobs && window.JavisAgentJobs.badgeHtml
-        ? window.JavisAgentJobs.badgeHtml(S.jc[x.slug]) : "") +
-      // Dấu ghim đứng NGOÀI khối chữ: trong đó nó bị ellipsis của cái tên cắt mất.
-      (x.pinned ? '<span class="ws-item-pin" title="' + esc(t("ws.pinned")) + '">' + ic("pin") + '</span>' : "") +
+      (laAgent ? gioNhanHtml(x.last_chat_at) : "") + '</span>' +
+      '<small>' + esc(phu) + '</small>' +
+      (coTt ? '<span class="ws-item-tt">' + bd + '</span>' : "") + '</span>' +
       '</button>' +
       // Công tắc Auto của trợ lý (0.142.0, trước là Cộng hưởng): ngang hàng với hai nút (không lồng trong nút chọn mục),
       // CSS đặt nó BÊN TRONG thẻ, cùng hàng với tag, bên phải (nhìn là biết thuộc trợ lý nào).

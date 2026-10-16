@@ -55,6 +55,12 @@ check("loc theo nhom", W.loc(ds, "", "Finance").map(x => x.slug).join() === "b")
   check("loc mot nhom -> mot khoi, khong tieu de nhom",
     kl.length === 1 && kl[0].theoNhom === false && kl[0].tieuDe === false);
   check("khong co gi thi rong", W.gomNhom([], "").length === 0);
+  // 0.175.0: trợ lý đang CHỜ BẠN lên khối riêng trên cả khối ghim, mỗi người vẫn một lần; phần còn lại có nhãn.
+  const kc = W.gomNhom(ds2, "*", [], x => x.slug === "c" || x.slug === "f");
+  check("khoi Dang cho ban dung dau, tren ca khoi ghim, khong lap lai ben duoi",
+    kc[0].can === true && kc[0].items.map(x => x.slug).join() === "c,f" && !kc.some(k => k.ghim)
+    && kc[1].items.map(x => x.slug).join() === "a,b,d,e" && kc[1].tieuDe === true, JSON.stringify(kc));
+  check("khong ai cho thi khong co khoi Dang cho ban", !W.gomNhom(ds2, "*", [], () => false).some(k => k.can));
   // Nhóm TRỐNG (vừa tạo bằng "+ Nhóm mới"): vẫn có khối riêng với 0 người, xếp đúng chỗ theo tên.
   const kt = W.gomNhom(ds2, "", ["Bán hàng", "Marketing", "Chung"]);
   check("nhom trong thanh mot khoi 0 nguoi, xep theo ten; trung nhom that hay 'Chung' thi bo qua",
@@ -247,11 +253,14 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
   check("agent: thanh loc hien Tat ca agent, khong co nut tao nhom/tag rieng",
     tagBar.includes("ws.tag_all") && !tagBar.includes("cs-proj-add") && !tagBar.includes("cs-proj-x"));
   check("agent: khong chia tieu de theo tag (agent nhieu tag khong hien hai lan)", !tagDs.includes("data-nhom="));
-  check("agent: moi hang co chip tag", (tagDs.match(/class="ws-tag"/g) || []).length === 3, tagDs.slice(0, 300));
+  // 0.175.0 (chủ repo 16/10/2026: thẻ "nhiều thông tin"): tag KHÔNG vẽ thành chip trên thẻ nữa, đã có ô lọc theo tag ở đầu
+  // cột; tên tag vẫn đọc được ở tooltip của thẻ.
+  check("agent: the khong ve chip tag, ten tag nam o tooltip",
+    !/class="ws-tag"/.test(tagDs) && /title="[^"]*ws\.tags_aria: /.test(tagDs), tagDs.slice(0, 300));
   ds[0].tags = ["Marketing", "Viết nội dung"]; ds[1].tags = []; ds[2].tags = ["marketing"];
   ctx.veTrai();
   check("agent nhieu tag xuat hien DUNG MOT lan o Tat ca",
-    (nodes["#wsList"].innerHTML.match(/Người viết/g) || []).length === 1);
+    (nodes["#wsList"].innerHTML.match(/<strong>Người viết<\/strong>/g) || []).length === 1);
   ctx.chonNhom("Marketing");
   check("loc mot tag: khop khong phan biet hoa thuong, khong lay agent khac tag",
     nodes["#wsList"].innerHTML.includes("Người viết") && nodes["#wsList"].innerHTML.includes("Chạy ads")
@@ -372,8 +381,10 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
   ctx.veDanhSach();
   const htmlGhim = nodes["#wsList"].innerHTML;
   check("hang ghim mang lop rieng", /ws-item-wrap ghim/.test(htmlGhim));
-  check("dau ghim nam NGOAI the ten (khong bi ellipsis cat)",
-    /<\/strong>/.test(htmlGhim) && htmlGhim.indexOf("ws-item-pin") > htmlGhim.indexOf("</strong>"));
+  // 0.175.0: không vẽ dấu ghim nữa (chủ repo đọc dấu ghim cạnh biểu tượng bàn tay thành "ghim bàn tay"). Thẻ ghim nằm
+  // dưới nhãn "Đã ghim" và mang vạch màu bên trái (lớp ghim), thế là đủ nhận ra.
+  check("ghim: khong ve dau ghim rieng, the ghim nam duoi nhan Da ghim",
+    !htmlGhim.includes("ws-item-pin") && htmlGhim.indexOf("ws.grp_pinned") < htmlGhim.indexOf("ws-item-wrap ghim"));
   check("CANARY: dau ghim khong con nam trong <strong>",
     !/<strong>[^<]*<span class="ws-item-pin"/.test(htmlGhim));
   // 0.59.46: ở "Tất cả", phần không ghim chia theo NHÓM chứ không gom thành "Còn lại"

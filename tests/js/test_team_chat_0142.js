@@ -179,17 +179,17 @@ check("menu ba chấm có mục Auto dùng chung hàm bật tắt với công t�
   /nutMenu\("zap", t\(autoOn \? "resonance\.auto_menu_on" : "resonance\.auto_menu_off"\)/.test(wsJs)
   && /ma\.onclick = function \(\) \{ dongMenu\(\); doiAuto\(item\.slug, !autoOn\); \}/.test(wsJs)
   && /box\.checked = !wantOn;[\s\S]{0,160}doiAuto\(box\.dataset\.rs, wantOn\)/.test(wsJs));
-// Chủ repo chốt 14/10/2026 (sau ảnh 375): công tắc lên CÙNG HÀNG với tag, bên phải trong thẻ; hàng tag chừa chỗ, nút ba
-// chấm lên ngang hàng tên; chỉ trợ lý chưa có tag mới chừa hàng đáy riêng.
-check("công tắc nằm trong thẻ, cùng hàng tag bên phải, bật cam, tắt xám, chạm 44px trên điện thoại",
-  /\.ws-item-wrap > \.ws-auto \{ position: absolute; right: 4px; bottom: 6px;/.test(css)
-  && /\.ws-item-wrap:has\(> \.ws-auto\) \.ws-tags \{ padding-right: 76px; \}/.test(css)
-  && /\.ws-item-wrap:has\(> \.ws-auto\) > \.ws-item-more \{ top: 8px; transform: none; \}/.test(css)
-  && /\.ws-item-wrap:has\(> \.ws-auto\):not\(:has\(\.ws-tags\)\) > \.ws-item \{ padding-bottom: 30px; \}/.test(css)
-  && !/\.ws-item-wrap:has\(> \.ws-auto\) > \.ws-item \{ padding-bottom/.test(css)
+// 0.175.0 (chủ repo 16/10/2026: "nút Auto quá to che mất hết các thông tin khác"): Auto TẮT không vẽ trên thẻ (bật ở menu ba
+// chấm); Auto BẬT là nhãn nhỏ góc dưới phải, cùng dòng trạng thái; vẫn bật cam, tắt xám; vùng chạm 44px trên cảm ứng bằng lớp
+// trong suốt chứ không phóng to nhãn.
+check("Auto trên thẻ: tắt thì ẩn, bật là nhãn nhỏ góc dưới phải, chạm 44px trên điện thoại",
+  /\.ws-item-wrap > \.ws-auto:not\(\.is-on\):not\(\.is-saving\) \{ display: none; \}/.test(css)
+  && /\.ws-item-wrap > \.ws-auto \{ position: absolute; right: 8px; bottom: 8px;/.test(css)
+  && /\.ws-item-wrap\.co-tt > \.ws-item-more \{ top: 6px; transform: none; \}/.test(css)
+  && !/\.ws-item-wrap:has\(> \.ws-auto\)/.test(css)
   && /\.ws-auto \.toggle-sm input:checked \+ span \{ background: var\(--accent\)/.test(css)
   && /\.ws-auto \.toggle-sm span \{ background: var\(--bg3\)/.test(css)
-  && /\.ws-item-wrap > \.ws-auto, \.ws-item-wrap > \.ws-rs-confirm \{ min-height: 44px;/.test(css));
+  && /\.ws-item-wrap > \.ws-auto::after, \.ws-item-wrap > \.ws-rs-confirm::after \{ content: ""; position: absolute; inset: -11px -6px; \}/.test(css));
 const ph = RAX.panelHtml({ slug: "a", status: "active", enabled: true }, "ready", [], []);
 check("bảng trợ lý: mô tả Auto và câu Auto không phải Toàn quyền", ph.includes(vi["resonance.auto_desc"])
   && ph.includes(vi["resonance.auto_not_full"]));

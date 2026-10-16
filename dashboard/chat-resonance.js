@@ -367,8 +367,51 @@
     return h;
   }
 
-  function viewHtml(g, note) {
+  /* 0.175.0 (chủ repo 16/10/2026: "đã ấn Đúng ý rồi mà thẻ cứ hiện hoài"): thẻ tự THU GỌN khi không còn câu hỏi nào chờ chủ
+     TRẢ LỜI. Thẻ chỉ mở đủ khi chủ phải đọc kỹ rồi quyết: chưa xác nhận cách hiểu, chờ duyệt sản phẩm, xin quyền ghi file, file
+     bị sửa ngoài Javis. Trục trặc vận hành (đang dừng, bị chặn, bộ não việc nền hỏng, mất theo dõi) KHÔNG cần đọc lại cả danh
+     sách ràng buộc: bản gọn tự nói trạng thái bằng một dòng cảnh báo và để sẵn đúng nút cần bấm. Thuần để test. */
+  var LY_DO_EM = ["", "healthy", "scheduled", "discovery_done"];
+  function canChu(g) {
     g = g || {};
+    if (g.status !== "active") return false;
+    if (g.fit !== "confirmed" || g.source_drift) return true;
+    if (g.scope && g.scope.state === "pending" && g.scope.request) return true;
+    return (g.criteria || []).some(function (c) {
+      return c && c.evaluator === "human_confirmation" && g.artifact_ref && c.verdict === "unknown";
+    });
+  }
+  function trucTrac(g) {
+    return g.status === "active" && !!(g.paused || g.run_state === "blocked" ||
+      LY_DO_EM.indexOf(String(g.block_reason || "")) < 0 || (g.observe && g.observe.state === "lost"));
+  }
+
+  /* Bản gọn của thẻ: tiêu đề, trạng thái, cách hiểu (tối đa hai dòng), dòng cảnh báo khi có trục trặc, một dòng nhịp làm tiếp
+     và lượt đã dùng, nút Xem chi tiết. Ràng buộc, giả định, lịch sử và các nút điều khiển khác nằm trong bản đủ. */
+  function gonHtml(g, note) {
+    var dong = [], loi = trucTrac(g);
+    if (g.next_wake && g.status === "active" && !g.paused) dong.push(tw("resonance.next_wake", { at: fmtTime(g.next_wake.at) }));
+    if (g.budget_calls) dong.push(tw("resonance.budget", { used: g.calls_used || 0, total: g.budget_calls || 0 }));
+    var nut = "";
+    if (g.status === "active" && g.paused) nut = '<button type="button" class="rs-act rs-primary" data-act="resume">' + esc(tw("resonance.btn_resume")) + "</button>";
+    else if (g.status === "active" && g.block_reason === "guard") nut = '<button type="button" class="rs-act rs-primary" data-act="resume">' + esc(tw("resonance.btn_reopen")) + "</button>";
+    var canhBao = !loi ? "" : (g.observe && g.observe.state === "lost") ? tw("resonance.observe_lost") : tw(stateKey(g));
+    return '<div class="rs-head"><span class="rs-title">' + esc(tw("resonance.card_title")) + "</span>" +
+      '<span class="rs-state rs-' + esc(String(g.status || "")) + (loi ? " rs-state-warn" : "") + '">' + esc(tw(stateKey(g))) + "</span>" +
+      (g.fit === "confirmed" && g.status === "active" ? '<span class="rs-fit-ok">' + esc(tw("resonance.fit_confirmed")) + "</span>" : "") +
+      "</div>" +
+      '<div class="rs-understanding rs-clamp">' + esc(g.understanding || tw("resonance.no_understanding")) + "</div>" +
+      (canhBao && canhBao !== tw(stateKey(g)) ? '<div class="rs-warn">' + esc(canhBao) + "</div>" : "") +
+      '<div class="rs-gon-foot">' + (dong.length ? '<span class="rs-muted">' + esc(dong.join(" · ")) + "</span>" : "") + nut +
+      '<button type="button" class="rs-tog" data-tog="expand" aria-expanded="false">' + esc(tw("resonance.btn_expand")) +
+      "</button></div>" + (note ? '<div class="rs-note">' + esc(note) + "</div>" : "");
+  }
+
+  function viewHtml(g, note, opts) {
+    g = g || {};
+    var o = opts || {};
+    var can = canChu(g);
+    if (!can && !o.open) return gonHtml(g, note);
     var active = g.status === "active";
     var h = '<div class="rs-head"><span class="rs-title">' + esc(tw("resonance.card_title")) + "</span>" +
       '<span class="rs-state rs-' + esc(String(g.status || "")) + '">' + esc(tw(stateKey(g))) + "</span></div>";
@@ -429,9 +472,10 @@
     if (active) {
       var fit = g.fit === "confirmed" ? tw("resonance.fit_confirmed")
         : g.fit === "rejected" ? tw("resonance.fit_rejected") : "";
+      // Đã xác nhận rồi thì không mời bấm "Đúng ý" lần nữa; còn "Chưa đúng ý" để đổi ý (0.175.0).
       h += '<div class="rs-actions">' +
         (fit ? '<span class="rs-fit">' + esc(fit) + "</span>" : "") +
-        '<button type="button" class="rs-act" data-act="fit_ok">' + esc(tw("resonance.btn_fit_ok")) + "</button>" +
+        (g.fit === "confirmed" ? "" : '<button type="button" class="rs-act rs-primary" data-act="fit_ok">' + esc(tw("resonance.btn_fit_ok")) + "</button>") +
         '<button type="button" class="rs-act" data-act="fit_no">' + esc(tw("resonance.btn_fit_no")) + "</button>" +
         (g.paused
           ? '<button type="button" class="rs-act" data-act="resume">' + esc(tw("resonance.btn_resume")) + "</button>"
@@ -440,7 +484,12 @@
           ? '<button type="button" class="rs-act" data-act="resume">' + esc(tw("resonance.btn_reopen")) + "</button>"
           : "") +
         '<button type="button" class="rs-act rs-danger" data-act="cancel">' + esc(tw("resonance.btn_cancel")) +
-        "</button></div>";
+        "</button>" +
+        (can ? "" : '<button type="button" class="rs-tog" data-tog="collapse" aria-expanded="true">' +
+          esc(tw("resonance.btn_collapse")) + "</button>") + "</div>";
+    } else if (o.open) {
+      h += '<div class="rs-actions"><button type="button" class="rs-tog" data-tog="collapse" aria-expanded="true">' +
+        esc(tw("resonance.btn_collapse")) + "</button></div>";
     }
     var tl = (g.timeline || []).map(function (x) {
       return "<li>" + esc(fmtTime(x.at)) + " " + esc(x.kind === "publish" ? tw("resonance.kind_publish") : tw("resonance.kind_work")) +
@@ -542,7 +591,7 @@
       x._goal = g;
       x.classList.toggle("rs-done", g.status !== "active");
       x.classList.toggle("rs-old", !full);
-      x.innerHTML = full ? viewHtml(g, note) : compactHtml(g);
+      x.innerHTML = full ? viewHtml(g, note, { open: !!x._open }) : compactHtml(g);
     });
   }
 
@@ -677,6 +726,16 @@
            { field: b.getAttribute("data-field"), key: b.getAttribute("data-key"),
              lesson: b.getAttribute("data-lesson") });
     });
+    // Mở / thu gọn thẻ (0.175.0): chỉ là cách xem, không gửi gì lên server. Nhớ theo từng thẻ để vẽ lại vẫn giữ.
+    document.addEventListener("click", function (ev) {
+      var b = ev.target && ev.target.closest && ev.target.closest("button.rs-tog");
+      if (!b) return;
+      var el = b.closest(".rs-card");
+      if (!el || !el._goal) return;
+      ev.preventDefault();
+      el._open = b.getAttribute("data-tog") === "expand";
+      el.innerHTML = viewHtml(el._goal, "", { open: el._open });
+    });
     document.addEventListener("click", function (ev) {
       var b = ev.target && ev.target.closest && ev.target.closest("button.rs-react-b");
       if (!b) return;
@@ -689,7 +748,7 @@
 
   /* Công tắc theo BRAIN cũ đã bỏ (A1): công tắc nay theo từng trợ lý, ở resonance-agent.js. */
 
-  var api = { tach: tach, viewHtml: viewHtml, compactHtml: compactHtml, requestFor: requestFor, stateKey: stateKey, wakeLabel: wakeLabel,
+  var api = { tach: tach, viewHtml: viewHtml, canChu: canChu, gonHtml: gonHtml, compactHtml: compactHtml, requestFor: requestFor, stateKey: stateKey, wakeLabel: wakeLabel,
     ve: ve, render: render, A3_REACT_ROW: A3_REACT_ROW, reactHtml: reactHtml, reactBody: reactBody, learnHtml: learnHtml, isNotice: isNotice,
     scopeHtml: scopeHtml, teamHtml: teamHtml, noteFor: noteFor, _send: send };
   if (typeof window !== "undefined") window.JavisResonance = api;

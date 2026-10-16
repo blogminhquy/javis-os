@@ -10,7 +10,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.175.0] - 2026-10-16
 ### Improved
-- (in progress)
+- **Tidier assistant cards:** each card shows name, time and role. A third line appears only when something is going on, "Needs you 1" or "Working 2" in words, instead of a hand icon that looked like a pin. Tags are no longer drawn on the card (filter at the top of the column, hover a card to see them).
+- **Auto shows only when it is on:** a small Auto label in the card corner. When Auto is off the card shows nothing; turn it on from the three-dot menu or the Settings tab.
+- **Assistants waiting on you move to the top,** under "Waiting on you", ahead of pinned and the rest.
+- **The goal card folds itself once you press "That's right":** just the short understanding, status and next run; press Show details for everything. The Jobs tab is tidier (two-line titles, one row of buttons, "Waiting on you" in plain words) and the Settings tab folds its long explanations.
 
 ## [0.174.0] - 2026-10-16
 ### Added
@@ -57,7 +60,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **Share a conversation by link:** the Share button next to the paperclip at the top of the chat makes a link anyone can read without signing in, and copies it for you. Readers see only the questions and answers, never attachments, tools or hidden notes.
 - **The bot inbox shows the photos and files customers send:** photos appear right in the chat (click for full size) and files become a card with a Download button, instead of a long link or a server path. Works for personal Zalo and the Telegram, Zalo Bot, Slack, WhatsApp, Messenger, Discord and Lark bot channels.
 - **The link is a snapshot up to when you shared:** later messages do not show up on their own. Press "Update to the latest message" to include them; the link stays the same. Conversation links live on the Share links page next to file links, and can be renamed or revoked the same way.
-- (in progress)
+
 ## [0.170.0] - 2026-10-15
 ### Improved
 - **Teams with thousands of messages still remember what matters:** every assistant turn still sees pinned decisions, the original request and status of open jobs, who contributed to the latest result, and your feedback still waiting for review, however far back they are in the history.

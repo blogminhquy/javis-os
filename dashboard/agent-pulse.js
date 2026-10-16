@@ -192,7 +192,10 @@
     var o = opts || {}, v = view || {};
     var html = '<div class="pulse-head"><span class="pulse-title">' + esc(tw("pulse.title")) + "</span></div>" +
       '<div class="pulse-line pulse-note">' + esc(tw(v.resonance ? "pulse.resonance_on" : "pulse.resonance_off")) + "</div>";
-    if (!o.only) html += '<div class="pulse-line pulse-note">' + esc(tw("pulse.intro")) + "</div>";
+    // 0.175.0 (chủ repo 16/10/2026: tab Cài đặt "quá rồi"): lời giải thích cách nhịp chạy gấp vào "Cách nhịp hoạt động",
+    // mặc định đóng. Ngoài mặt chỉ còn trạng thái, các dòng nhịp và ô chọn.
+    var how = [];
+    if (!o.only) how.push(tw("pulse.intro"));
     var ctxs = (v.contexts || []).filter(function (c) { return !o.only || c.context_ref === o.only; });
     if (!v.agent_key || !ctxs.length) {
       // Auto đang bật mà chưa có dòng nhịp (chưa tới lần thức đầu): nói đúng như vậy, không khuyên "bật Auto".
@@ -205,7 +208,12 @@
       html += '<label class="pulse-max"><span>' + esc(tw("pulse.max_tier")) + '</span><select class="pulse-max-sel">' +
         [0, 1, 2, 3, 4, 5, 6, 7].map(function (n) {
           return '<option value="' + n + '"' + (n === mt ? " selected" : "") + ">" + esc(tierLabel(n)) + "</option>";
-        }).join("") + '</select></label><div class="pulse-line pulse-note">' + esc(tw("pulse.max_tier_note")) + "</div>";
+        }).join("") + "</select></label>";
+      how.push(tw("pulse.max_tier_note"));
+    }
+    if (how.length) {
+      html += '<details class="rsa-more"><summary>' + esc(tw("pulse.how")) + "</summary>" +
+        how.map(function (x) { return '<div class="pulse-line pulse-note">' + esc(x) + "</div>"; }).join("") + "</details>";
     }
     var changes = (v.changes || []).filter(function (e) { return !o.only || e.context_ref === o.only || e.context_ref === "*"; });
     if (changes.length) {

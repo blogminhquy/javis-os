@@ -3741,6 +3741,7 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .rs-title { font-weight: 600; color: var(--text); }
 .rs-state { margin-left: auto; font-size: 13px; color: var(--text2); }
 .rs-state.rs-succeeded { color: var(--green); }
+.rs-state.rs-state-warn { color: var(--warn-ink, var(--warning, #b7791f)); font-weight: 600; }
 .rs-understanding { color: var(--text); margin-bottom: 8px; }
 .rs-label { font-size: 13px; color: var(--text3); margin: 8px 0 2px; }
 .rs-line { margin: 4px 0; }
@@ -3769,6 +3770,17 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .rs-note { margin-top: 8px; font-size: 13px; color: var(--text2); }
 .rs-card.rs-old { padding: 8px 12px; opacity: .8; }
 .rs-dir .rs-drop { margin-left: 6px; padding: 2px 8px; }
+/* 0.175.0: bản GỌN của thẻ khi không còn gì chờ chủ quyết. Cách hiểu tối đa hai dòng, một dòng nhịp làm tiếp, nút Xem chi tiết. */
+.rs-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px; }
+.rs-gon-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.rs-fit-ok { font-size: 13px; color: var(--green); }
+.rs-tog {
+  font: inherit; font-size: 13px; padding: 4px 0; margin-left: auto; border: 0; background: none; cursor: pointer;
+  color: var(--accent); text-decoration: underline; text-underline-offset: 2px;
+}
+.rs-tog:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.rs-act.rs-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+@media (max-width: 600px) { .rs-tog { min-height: 44px; } }
 
 /* Resonance A1: khối Cộng hưởng của một trợ lý (cột phải trang Cộng sự) và danh sách trợ lý ở trang Cài đặt
    (resonance-agent.js). Một cột, chữ xuống dòng được trên điện thoại. */
@@ -3780,6 +3792,17 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .rsa-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .rsa-new-session { margin-top: 8px; }
 .rsa-goals-title { font-size: 13px; font-weight: 600; color: var(--text2); margin-top: 12px; }
+/* 0.175.0: các câu giải thích của Auto gập lại, mở khi cần đọc. */
+.rsa-more { margin-top: 8px; font-size: 13px; color: var(--text2); }
+.rsa-more > summary { cursor: pointer; color: var(--text2); min-height: 32px; display: flex; align-items: center; }
+.rsa-more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.rsa-more[open] > summary { color: var(--text); }
+.rsa-more > summary { list-style: none; gap: 6px; }
+.rsa-more > summary::-webkit-details-marker { display: none; }
+.rsa-more > summary::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform .12s; flex: none; }
+.rsa-more[open] > summary::before { transform: rotate(45deg); }
+@media (max-width: 600px) { .rsa-more > summary { min-height: 44px; } }
 .rsa-card { font-size: 14px; }
 .rsa-wait { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-top: 1px solid var(--hairline); }
 .rsa-wait-text { font-size: 14px; color: var(--text); }

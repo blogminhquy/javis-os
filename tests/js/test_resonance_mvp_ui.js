@@ -130,5 +130,26 @@ check("index.html có khối Cộng hưởng theo trợ lý, tiêu đề qua dat
 const css = fs.readFileSync(path.join(ROOT, "dashboard", "style.css"), "utf8");
 check("style.css có kiểu cho thẻ và dùng biến màu có thật", css.includes(".rs-card {") && !/var\(--surface\)/.test(css));
 
+// ───────────── 0.175.0: thẻ tự thu gọn sau khi bấm Đúng ý ─────────────
+// Chủ repo 16/10/2026: "ấn xác nhận đúng ý rồi nhưng phải tự tắt đi chứ cứ hiện hoài". Ảnh chủ gửi là mục tiêu ĐÃ xác nhận mà
+// bộ não việc nền bị chặn: trục trặc vận hành không được giữ thẻ mở đủ với cả danh sách ràng buộc.
+const gBase = { goal_id: "g1", status: "active", fit: "confirmed", understanding: "Chăm sóc cô Thảo", revision: 4,
+  assumptions: ["Giả định dài số một"], directives: [{ field: "constraint", key: "k", text: "không nhắn sau 21h" }],
+  criteria: [{ id: "c1", evaluator: "human_confirmation", verdict: "unknown", description: "Cô xác nhận" }], budget_calls: 6 };
+check("CANARY: chưa xác nhận cách hiểu thì thẻ mở đủ, có nút Đúng ý", RS.canChu(Object.assign({}, gBase, { fit: "" }))
+  && RS.viewHtml(Object.assign({}, gBase, { fit: "" })).includes('data-act="fit_ok"'));
+const gBlocked = Object.assign({}, gBase, { run_state: "blocked", block_reason: "engine_blocked" });
+const hb = RS.viewHtml(gBlocked);
+check("đã Đúng ý mà bộ não việc nền bị chặn: thẻ gọn, không còn danh sách ràng buộc, có nút Xem chi tiết",
+  !RS.canChu(gBlocked) && !hb.includes("không nhắn sau 21h") && hb.includes('data-tog="expand"') && hb.includes("rs-state-warn"), hb);
+const hp = RS.viewHtml(Object.assign({}, gBase, { paused: true }));
+check("đang dừng: bản gọn để sẵn nút Làm tiếp", hp.includes('data-act="resume"') && hp.includes('data-tog="expand"'), hp);
+check("chờ duyệt sản phẩm hay xin quyền ghi file thì vẫn mở đủ",
+  RS.canChu(Object.assign({}, gBase, { artifact_ref: "a.md" }))
+  && RS.canChu(Object.assign({}, gBase, { scope: { state: "pending", request: { path: "x.md" } } })));
+const ho = RS.viewHtml(gBlocked, "", { open: true });
+check("mở đủ: không mời bấm Đúng ý lần nữa, có nút Thu gọn",
+  !ho.includes('data-act="fit_ok"') && ho.includes('data-act="fit_no"') && ho.includes('data-tog="collapse"'), ho);
+
 console.log(fails ? `\n${fails} FAIL` : "\nOK");
 process.exit(fails ? 1 : 0);

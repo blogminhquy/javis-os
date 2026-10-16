@@ -1917,12 +1917,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-item-more:hover { color: var(--accent); background: var(--surface-1); }
 /* Màn cảm ứng KHÔNG có trỏ vào: ẩn theo hover là nút vĩnh viễn không thấy trên điện thoại. */
 @media (hover: none) { .ws-item-more { opacity: .75; } }
-/* Dấu ghim là một Ô RIÊNG ở mép phải hàng, KHÔNG nằm trong thẻ tên: tên cắt bằng ellipsis
-   nên dấu ghim để trong đó thì tên dài một chút là nó bị cắt mất, ghim rồi mà nhìn y như
-   chưa ghim (chủ dự án báo 16/09). Chừa chỗ cho nút "..." bằng margin-right. */
-.ws-item-pin { flex: none; display: inline-flex; margin-left: auto; margin-right: 22px;
-  color: var(--accent); }
-.ws-item-pin svg { width: 14px; height: 14px; }
 /* T0 nhóm chat team: công tắc Cộng hưởng của trợ lý, một dải nhỏ ngay dưới tên, thẳng hàng với chữ (sau ảnh 42px).
    Nằm NGOÀI nút chọn mục (nút trong nút là HTML sai). Trạng thái luôn có chữ, không chỉ màu. */
 /* inline-flex: chỉ phần chữ và công tắc bấm được, không cả dải rộng dưới tên (chạm nhầm là bật mục tiêu thật). */
@@ -3029,31 +3023,39 @@ span.tmp-lead { cursor: default; }
 .aj-line { color: var(--text3); }
 .aj-reason { color: var(--warn-ink); overflow-wrap: anywhere; }
 .aj-result { color: var(--text2); overflow-wrap: anywhere; }
-.aj-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+/* 0.175.0 (chủ repo 16/10/2026: ngăn Công việc "không gọn"): tiêu đề việc cắt ở hai dòng (đủ câu ở tooltip), nút xếp từ trái,
+   "Mở" đứng đầu, "Huỷ việc" dạt sang phải và nhạt màu để không bấm nhầm, nút nhỏ lại để ba nút vừa một hàng ở cột 320px. */
+.aj-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.aj-acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
+.aj .aj-acts .ws-btn { padding: 0 10px; font-size: 13px; }
+.aj .aj-acts .aj-cancel { margin-left: auto; color: var(--text3); }
+.aj .aj-acts .aj-cancel:hover { color: var(--danger, #e5484d); }
 .aj-empty { color: var(--text3); padding: 16px 4px; text-align: center; line-height: 1.5; }
 
-/* 0.142.0: công tắc Auto nằm TRONG thẻ trợ lý, CÙNG HÀNG với tag, bên phải (chủ repo chốt 14/10/2026: đặt ở hàng riêng
-   dưới đáy thẻ thì khó biết công tắc thuộc trợ lý nào). Nhãn ngắn + công tắc nhỏ; bật màu cam Javis, tắt xám. Hàng tag
-   chừa chỗ bên phải cho công tắc; trợ lý chưa có tag thì công tắc đứng ở chính hàng đó (thẻ chừa một hàng đáy). Vùng chạm
-   đủ 44px trên màn cảm ứng, căn giữa theo hàng tag. */
-.ws-item-wrap:has(> .ws-auto) .ws-tags { padding-right: 76px; }
-/* Nút ba chấm lên ngang hàng tên (góc trên phải) để công tắc Auto dùng được góc dưới phải mà tag vẫn đủ chỗ ở cột hẹp. */
-.ws-item-wrap:has(> .ws-auto) > .ws-item-more { top: 8px; transform: none; }
-.ws-item-wrap:has(> .ws-auto):not(:has(.ws-tags)) > .ws-item { padding-bottom: 30px; }
-.ws-item-wrap > .ws-auto { position: absolute; right: 4px; bottom: 6px; margin: 0; min-height: 28px; padding: 0 4px;
-  gap: 6px; font-size: 14px; color: var(--text3); border-radius: 8px; }
-.ws-auto.is-on { color: var(--accent); }
-.ws-auto .toggle-sm { width: 32px; height: 18px; }
+/* 0.175.0: thẻ trợ lý GỌN (chủ repo 16/10/2026: "nhiều thông tin, nút Auto quá to che mất hết các thông tin khác").
+   Thẻ còn hai dòng chữ (tên + giờ, vai trò). Dòng thứ ba CHỈ có khi có chuyện (lớp .co-tt): "Cần bạn n", "Đang làm n" bên trái,
+   nhãn Auto nhỏ bên phải khi Auto đang bật. Auto TẮT không vẽ gì trên thẻ (bật ở menu ba chấm hoặc tab Cài đặt): tắt là trạng
+   thái mặc định, vẽ một công tắc xám trên mọi thẻ là nhiễu. Nút ba chấm lên góc trên phải để góc dưới dành cho nhãn Auto. */
+.ws-item-wrap.co-tt > .ws-item-more { top: 6px; transform: none; }
+.ws-item-tt { display: flex; align-items: center; gap: 6px; min-height: 22px; margin-top: 4px; padding-right: 64px; min-width: 0; }
+.ws-item-text:has(> .ws-item-tt) { flex: 1 1 auto; }
+.ws-item-wrap > .ws-auto:not(.is-on):not(.is-saving) { display: none; }
+.ws-item-wrap > .ws-auto { position: absolute; right: 8px; bottom: 8px; margin: 0; min-height: 22px; padding: 0 5px 0 8px;
+  gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--accent-ink, var(--accent)); background: var(--accent-wash, rgba(255, 122, 60, .12));
+  border-radius: 999px; }
+.ws-auto .toggle-sm { width: 24px; height: 14px; }
 .ws-auto .toggle-sm span { background: var(--bg3); border-color: var(--border); }
-.ws-auto .toggle-sm span::before { width: 12px; height: 12px; left: 2px; top: 2px; background: var(--text3); }
+.ws-auto .toggle-sm span::before { width: 10px; height: 10px; left: 1px; top: 1px; background: var(--text3); }
 .ws-auto .toggle-sm input:checked + span { background: var(--accent); border-color: var(--accent); }
-.ws-auto .toggle-sm input:checked + span::before { transform: translateX(14px); background: #fff; }
+.ws-auto .toggle-sm input:checked + span::before { transform: translateX(10px); background: #fff; }
 .ws-auto .toggle-sm input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ws-auto.is-saving { opacity: .7; cursor: progress; }
-.ws-item-wrap > .ws-rs-confirm { position: absolute; right: 4px; bottom: 6px; margin: 0; font-size: 14px; }
+.ws-item-wrap > .ws-rs-confirm { position: absolute; right: 8px; bottom: 8px; margin: 0; min-height: 22px; font-size: 12.5px; }
+/* Màn cảm ứng: nhãn vẫn nhỏ cho mắt, vùng chạm nới ra 44px bằng một lớp trong suốt (không đẩy chữ khác đi). */
 @media (hover: none), (max-width: 600px) {
-  .ws-item-wrap:has(> .ws-auto):not(:has(.ws-tags)) > .ws-item { padding-bottom: 40px; }
-  .ws-item-wrap > .ws-auto, .ws-item-wrap > .ws-rs-confirm { min-height: 44px; bottom: -2px; padding: 0 8px; }
+  .ws-item-tt { font-size: 14px; }
+  .ws-item-wrap > .ws-auto, .ws-item-wrap > .ws-rs-confirm { font-size: 14px; }
+  .ws-item-wrap > .ws-auto::after, .ws-item-wrap > .ws-rs-confirm::after { content: ""; position: absolute; inset: -11px -6px; }
 }
 .rsa-desc { color: var(--text2); }
 
@@ -3080,18 +3082,16 @@ span.tmp-lead { cursor: default; }
   .aj-sel, .aj-chip, .aj-head > .ws-btn, .aj .aj-acts .ws-btn, .aj .aj-link .aj-link-open, .aj .aj-more { min-height: 44px; }
 }
 
-/* Huy hiệu việc trên thẻ trợ lý (trang Cộng sự): góc trên, tách khỏi công tắc Auto ở góc dưới. */
-.ws-jb { flex: none; align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; margin-left: auto;
-  font-size: 16px; line-height: 1; }
-.ws-jb-run, .ws-jb-need { display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px; border-radius: 999px;
-  font-size: 16px; font-weight: 600; }
+/* Dòng trạng thái việc trên thẻ trợ lý (0.175.0): chữ trong viên thuốc nhỏ, không biểu tượng. "Cần bạn" màu cảnh báo đứng
+   trước vì đó là việc đang đợi người xem; "Đang làm" xám. */
+.ws-jb { display: inline-flex; align-items: center; gap: 4px; min-width: 0; line-height: 1; }
+.ws-jb-run, .ws-jb-need { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .ws-jb-run { background: var(--surface-3); color: var(--text2); }
 .ws-jb-need { background: var(--warn-wash); color: var(--warn-ink); }
-.ws-jb svg { width: 16px; height: 16px; }
-.ws-item .ws-jb + .ws-item-pin { margin-left: 6px; }
-@media (prefers-reduced-motion: no-preference) {
-  .ws-jb-run svg { animation: ic-spin 1.6s linear infinite; }
-}
+@media (hover: none), (max-width: 600px) { .ws-jb-run, .ws-jb-need { font-size: 14px; } }
+/* Khối "Đang chờ bạn" ở đầu danh sách trợ lý: cùng nhãn nhóm, thêm màu cảnh báo. */
+.ws-glabel.ws-glabel-need { color: var(--warn-ink); }
 
 /* 0.142.0: trang Cộng sự. Cột danh sách rộng hơn và kéo được ở đường biên, cột phải mặc định ẩn ở màn rộng (chủ repo chốt
    14/10/2026). Bề rộng kéo được lưu trong biến --ws-left-w / --ws-right-w (workspace.js nhớ qua localStorage). Màn hẹp

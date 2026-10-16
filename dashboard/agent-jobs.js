@@ -88,13 +88,25 @@
     return tw("noti.ago_day", { count: Math.floor(s / 86400) });
   }
 
+  // Lý do "Chờ bạn" (0.175.0): mục tiêu Auto gửi MÃ (engine_blocked, budget, guard...), chủ repo thấy nguyên văn
+  // "Chờ bạn: engine_blocked". Mã đọc bằng lời qua bảng trạng thái của thẻ mục tiêu (chat-resonance.js); mã lạ thì một câu
+  // chung, không lộ mã thô. Lý do là câu chữ (việc nhóm, việc chat) thì giữ nguyên.
+  function reasonText(r) {
+    r = String(r || "");
+    if (!/^[a-z][a-z0-9_]*$/.test(r)) return r;
+    var RS = typeof window !== "undefined" ? window.JavisResonance : null;
+    var k = RS && RS.stateKey ? RS.stateKey({ status: "active", block_reason: r }) : "";
+    if (k && k !== "resonance.st_working" && k !== "resonance.st_blocked" && k !== "resonance.st_running") return tw(k);
+    return tw("ajobs.reason.code_generic");
+  }
+
   // Bước kế tiếp do server tính (mã + tham số), đọc bằng lời.
   function nextText(j) {
     var n = j && j.next;
     if (!n || !n.code) return "";
     if (n.code === "queue") return n.n ? tw("ajobs.next.queue", { n: n.n, team: bareTeam(n.team) }) : "";
     if (n.code === "busy") return tw("ajobs.next.busy", { team: bareTeam(n.team) });
-    if (n.code === "needs_you") return n.reason ? tw("ajobs.next.needs_you", { reason: n.reason }) : tw("ajobs.next.needs_you_plain");
+    if (n.code === "needs_you") return n.reason ? tw("ajobs.next.needs_you", { reason: reasonText(n.reason) }) : tw("ajobs.next.needs_you_plain");
     if (n.code === "board_off") return tw("ajobs.next.board_off");
     if (n.code === "agent_busy") return tw("ajobs.next.agent_busy");
     if (n.code === "queued") return tw("ajobs.next.queued");
@@ -119,7 +131,7 @@
     // Mã lý do của mục tiêu Auto (đang dừng, đã gỡ người review cố định) đọc bằng lời thường; lý do khác hiện nguyên văn.
     // Bước kế "Chờ bạn: <lý do>" đã mang lý do thì không lặp lại dòng lý do.
     var why = REASON_KEY[j.reason_code] ? tw(REASON_KEY[j.reason_code])
-      : (j.next && j.next.code === "needs_you" && j.next.reason ? "" : j.reason);
+      : (j.next && j.next.code === "needs_you" && j.next.reason ? "" : reasonText(j.reason));
     var reason = why ? '<div class="aj-reason">' + esc(why) + "</div>" : "";
     var result = j.result ? '<div class="aj-result">' + esc(j.result) + "</div>" : "";
     var link = "";
@@ -143,7 +155,7 @@
       (j.cancel ? '<button type="button" class="ws-btn aj-cancel" data-aj-cancel="' + esc(j.id) + '"' + (busy ? " disabled" : "") + ">" +
         esc(tw(busy ? "ajobs.cancelling" : "ajobs.cancel")) + "</button>" : "");
     return '<li class="aj-job aj-' + esc(j.bucket) + '" data-aj-id="' + esc(j.id) + '">' +
-      '<div class="aj-top"><span class="aj-title">' + esc(j.title) + "</span></div>" +
+      '<div class="aj-top"><span class="aj-title" title="' + esc(j.title) + '">' + esc(j.title) + "</span></div>" +
       '<div class="aj-meta"><span class="aj-src">' + ic(SOURCE_ICON[j.source] || "circle") + esc(sourceText(j)) + "</span>" + roles + "</div>" +
       (nxt ? '<div class="aj-next">' + esc(nxt) + "</div>" : "") +
       (lines.length ? '<div class="aj-line">' + esc(lines.join(" · ")) + "</div>" : "") + link + reason + result +
@@ -316,9 +328,11 @@
   function badgeHtml(c) {
     if (!c || (!c.running && !c.needs_you)) return "";
     var label = tw("ajobs.badge_aria", { running: c.running || 0, needs: c.needs_you || 0 });
+    // 0.175.0: nói bằng CHỮ ("Cần bạn 1", "Đang làm 2"). Biểu tượng bàn tay cũ đứng cạnh dấu ghim nên chủ repo đọc thành
+    // "ghim bàn tay" và không biết nó nghĩa là gì.
     return '<span class="ws-jb" role="img" aria-label="' + esc(label) + '" title="' + esc(label) + '">' +
-      (c.running ? '<span class="ws-jb-run">' + ic("loader") + esc(c.running) + "</span>" : "") +
-      (c.needs_you ? '<span class="ws-jb-need">' + ic("hand") + esc(c.needs_you) + "</span>" : "") + "</span>";
+      (c.needs_you ? '<span class="ws-jb-need">' + esc(tw("ajobs.chip_needs", { n: c.needs_you })) + "</span>" : "") +
+      (c.running ? '<span class="ws-jb-run">' + esc(tw("ajobs.chip_running", { n: c.running })) + "</span>" : "") + "</span>";
   }
 
   function newNonce() {
@@ -588,7 +602,7 @@
   }
 
   var api = { html: html, jobHtml: jobHtml, toolbarHtml: toolbarHtml, assignHtml: assignHtml,
-    confirmHtml: confirmHtml, badgeHtml: badgeHtml, nextText: nextText, relTime: relTime, mount: mount, loadCounts: loadCounts,
+    confirmHtml: confirmHtml, badgeHtml: badgeHtml, nextText: nextText, reasonText: reasonText, relTime: relTime, mount: mount, loadCounts: loadCounts,
     RELOAD_MS: RELOAD_MS, setStrings: function (o) { STR = o || {}; } };
   if (typeof window !== "undefined") window.JavisAgentJobs = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

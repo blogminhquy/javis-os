@@ -110,13 +110,20 @@
     var r = row || { status: "unregistered", enabled: false };
     var on = !!r.enabled && r.status === "active";
     // T0: công tắc nằm trên dòng trợ lý ở cột trái (một nơi duy nhất). Ở đây chỉ còn trạng thái bằng chữ.
+    // 0.175.0 (chủ repo 16/10/2026: "bên cài đặt quá rồi"): đầu mục chỉ còn trạng thái và một câu mô tả. Các câu giải thích
+    // (bật ở đâu, Auto không phải Toàn quyền, ghi chú công tắc, kiểm chứng) gom vào một mục gập "Cách Auto hoạt động". Thứ
+    // cần chủ làm (mở phiên mới, xác nhận trợ lý, cảnh báo engine) vẫn đứng ngoài, không bị gập mất.
     var html = '<div class="rsa-head"><span class="rsa-title">' + esc(tw("resonance.a1_title")) + "</span>" +
       '<span class="rsa-state">' + esc(tw(stateKey(r))) + "</span></div>" +
-      '<div class="rsa-sub rsa-desc">' + esc(tw("resonance.auto_desc")) + "</div>" +
+      '<div class="rsa-sub rsa-desc">' + esc(tw("resonance.auto_desc")) + "</div>";
+    var sup = supportHtml(r.support);
+    var supWarn = sup.indexOf("rsa-warn") >= 0;
+    html += '<details class="rsa-more"><summary>' + esc(tw("resonance.auto_how")) + "</summary>" +
       '<div class="rsa-sub">' + esc(tw("resonance.t0_where")) + "</div>" +
-      '<div class="rsa-sub rsa-note">' + esc(tw("resonance.auto_not_full")) + "</div>";
-    html += '<div class="rsa-sub rsa-note">' + esc(toggleNote(r.status === "unregistered" ? { status: "active",
-      enabled: false } : r, session)) + "</div>";
+      '<div class="rsa-sub rsa-note">' + esc(tw("resonance.auto_not_full")) + "</div>" +
+      '<div class="rsa-sub rsa-note">' + esc(toggleNote(r.status === "unregistered" ? { status: "active",
+        enabled: false } : r, session)) + "</div>" +
+      (supWarn ? "" : sup) + (on ? verifyNoteHtml() : "") + "</details>";
     if (on && session === "needs_new_session") {
       html += '<button type="button" class="ws-btn rsa-new-session">' + esc(tw("resonance.a1_open_new")) + "</button>";
     }
@@ -125,8 +132,7 @@
         esc(tw("resonance.a1_confirm_same")) + '</button><button type="button" class="ws-btn rsa-confirm" data-same="0">' +
         esc(tw("resonance.a1_confirm_new")) + "</button></div>";
     }
-    html += supportHtml(r.support);
-    if (on) html += verifyNoteHtml();
+    if (supWarn) html += sup;
     var list = (goals || []).filter(function (g) { return g && g.goal_id; });
     html += '<div class="rsa-goals-title">' + esc(tw("resonance.a1_goals_title")) + "</div>";
     if (!list.length) html += '<div class="rsa-sub">' + esc(tw("resonance.a1_no_goals")) + "</div>";
