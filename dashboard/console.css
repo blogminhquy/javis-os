@@ -684,8 +684,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .hud-top .brand, .hud-top .navbar-brain,
   .hud-top #themeToggle, .hud-top #studioOpenBtn,
   .hud-top #settingsBtn, .hud-top #ttsToggle, .hud-top #resetBtn { display: none; }
-  .hud-center-title { display: none; }                /* mobile: ẩn tên workspace + ngày; chip model làm giữa header */
-  .hud-top #mbOpen { display: inline-flex; margin-left: auto; margin-right: auto; }  /* chip model căn giữa, đẩy ＋ sang phải */
+  .hud-center-title { display: none; }                /* mobile: ẩn tên workspace + ngày */
+  /* 0.180.0: the model chip stays in the composer, so the + button pushes itself to the right end of the header. */
+  .hud-top .new-chat-btn { margin-left: auto; }
   .hud-top .notification-trigger {
     flex: 0 0 34px; width: 34px; min-width: 34px; height: 34px; padding: 0;
   }
@@ -702,8 +703,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .notification-shade { background: var(--scrim); backdrop-filter: blur(2px); }
   .noti-head { padding: 14px 13px 12px; }
   .noti-list { padding: 7px; }
-  .hud-top #mbPop { position: fixed; top: calc(50px + env(safe-area-inset-top, 0px)); bottom: auto; left: 50%; transform: translateX(-50%);
-    width: min(340px, 92vw); z-index: 200; max-height: 70vh; }
   .model-bar { display: none; }                       /* hàng model gốc ẩn; chip bên trong dời đi (JS) */
   #jv-sess-btn { display: none; }                     /* nút Lịch sử: ẩn ở mobile để header cockpit khỏi chồng/lệch */
 

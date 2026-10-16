@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.180.0] - 2026-10-16
+### Improved
+- **A tidy model button, like the Claude app:** it shows the model name only (for example "Opus 4.8", "GPT-5 mini"), without the provider. Pressing it still opens the provider and model picker as before; hover it to see the provider. A session with its own pinned model shows a small pin icon on the button; pinning works as before.
+- **Phone: the model button sits right under the message box**, next to the thinking-level button, instead of in the top bar. Pick a model where you type.
+- **Copy no longer slides away (computer):** while Javis is answering, the chat stops following the answer while your mouse is on a message's buttons or moving over a message. Move the mouse away and it catches up to the bottom.
+
 ## [0.179.0] - 2026-10-16
 ### Improved
 - **Long press on a phone now works (Zalo style):** hold a message about half a second, the screen dims, that message stays bright, 6 emoji pop up above your finger and a card with Reply, Copy, Edit, Send again sits at the bottom. Main chat and the Team page alike.

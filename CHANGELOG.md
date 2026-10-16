@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.180.0] - 2026-10-16
+### Cải thiện
+- **Nút chọn model gọn như app Claude:** chỉ hiện tên model (ví dụ "Opus 4.8", "GPT-5 mini"), không kèm tên nhà cung cấp. Bấm vào vẫn mở bảng chọn nhà cung cấp và model như cũ, rê chuột vào nút thì thấy tên nhà cung cấp. Phiên nào đang ghim model riêng thì nút có biểu tượng ghim nhỏ, ghim vẫn chạy như cũ.
+- **Điện thoại: nút model nằm ngay dưới khung soạn**, cạnh nút mức suy nghĩ, không còn nằm trên thanh đầu trang. Chọn model ngay chỗ đang gõ.
+- **Bấm Sao chép không bị trượt nữa (máy tính):** lúc Javis đang trả lời, khung chat tạm dừng tự cuộn khi chuột đang ở hàng nút của một tin hoặc đang di trên tin. Rời chuột ra là nó cuộn tiếp xuống cuối.
+
 ## [0.179.0] - 2026-10-16
 ### Cải thiện
 - **Nhấn giữ tin trên điện thoại đã chạy (kiểu Zalo):** giữ tin chừng nửa giây, màn hình tối lại, tin đó sáng lên, hàng 6 biểu tượng hiện ngay trên ngón tay và thẻ Trả lời, Sao chép, Sửa, Gửi lại hiện ở dưới. Áp dụng cả khung Trò chuyện lẫn trang Nhóm.

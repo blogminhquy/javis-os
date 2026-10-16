@@ -2449,11 +2449,36 @@ chatArea.addEventListener("scroll", () => {
   // Rời đáy là hiện nút NGAY, không chờ tin mới nào cả.
   capNhatNutXuong();
 });
+// 0.180.0 (owner: "bấm copy mà tin cứ chạy mất"): while Javis is writing, the chat keeps scrolling to the bottom,
+// so the message under the mouse slides away right as you reach its Copy button. On a computer with a mouse, the
+// follow-along now holds while the mouse is on a message's button row or reaction, or is moving over a message
+// (moved in the last 1.2 s). A mouse just resting on the text does not hold it. When the hold ends, it catches up.
+const HOLD_MOVE_MS = 1200;
+let _diChuotLuc = 0, _treoCuon = null;
+const coChuot = () => { try { return window.matchMedia("(hover: hover) and (pointer: fine)").matches; } catch (e) { return false; } };
+chatArea.addEventListener("mousemove", (e) => {
+  if (e.target.closest && e.target.closest(".msg")) _diChuotLuc = Date.now();
+});
+chatArea.addEventListener("mouseleave", () => { _diChuotLuc = 0; });
+function dangGiuCuon() {
+  if (!coChuot()) return false;
+  if (chatArea.querySelector(".msg-acts:hover, .jr-chat:hover")) return true;
+  return Date.now() - _diChuotLuc < HOLD_MOVE_MS && !!chatArea.querySelector(".msg:hover");
+}
+function choCuonTiep() {
+  if (_treoCuon) return;
+  _treoCuon = setTimeout(function lai() {
+    if (dangGiuCuon()) { _treoCuon = setTimeout(lai, 250); return; }
+    _treoCuon = null;
+    scrollBottom();
+  }, 250);
+}
 function scrollBottom(force) {
   // Đang chèn ngược tin cũ: appendUserMessage/appendJavisMessage vẫn gọi vào đây theo thói
   // quen, mà cuộn xuống đáy lúc này là quăng người đọc khỏi chỗ họ đang đứng.
   if (_dangChenCu) return;
   if (force) stickBottom = true;
+  if (stickBottom && !force && dangGiuCuon()) { choCuonTiep(); return; }
   if (stickBottom) {
     chatArea.scrollTop = chatArea.scrollHeight;
     newMsgBtn.classList.remove("show");

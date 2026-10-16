@@ -1540,7 +1540,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .send-btn:hover { opacity: 0.85; }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ===== Mobile: same card with tighter padding; the model chip moves to the page header (mobile-chat.js) ===== */
+/* ===== Mobile: same card with tighter padding; the model chip stays in the card next to the effort chip (0.180.0) ===== */
 @media (max-width: 860px) {
   .hud-voice {
     margin: 6px 10px 8px; padding: 8px 8px 6px; gap: 2px;
@@ -2240,6 +2240,17 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   flex: 0 1 auto; min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; }
 .mb-chip:hover { color: var(--text); border-color: var(--accent); }
 .mb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex: none; }
+/* 0.180.0: the chip shows the model name only; a long one ends in "..." instead of pushing the send button off. */
+#mbModelTxt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mb-chip.is-pin-broken .mb-dot { background: var(--warn-ink); }
+.mb-pin { display: inline-flex; flex: none; color: var(--accent); }
+.mb-pin[hidden] { display: none; }
+.mb-pin svg, .mb-pin .ic { width: 12px; height: 12px; }
+.mb-chip.is-pin-broken .mb-pin { color: var(--warn-ink); }
+@media (max-width: 860px) {
+  #cpChips .mb-chip { max-width: 42vw; }
+  .hud-voice .mb-pop { left: 0; width: min(340px, calc(100vw - 36px)); max-height: 60vh; }
+}
 .mb-caret { opacity: .6; font-size: 10px; }
 .mb-pop { position: absolute; bottom: calc(100% + 6px); left: 8px; z-index: 60; width: 340px;
   max-height: 62vh; overflow: auto; background: var(--bg2); border: 1px solid var(--border);

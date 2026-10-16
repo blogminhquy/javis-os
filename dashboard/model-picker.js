@@ -39,6 +39,22 @@
 
   const short = (m) => (m || "").split("/").pop().replace(/^(claude-|gpt-)/, "").slice(0, 26) || window.t("models.mp_default");
   const provShort = (lbl) => (lbl || "").split(" ")[0];
+  // Chip text: the model name alone. No model set means the provider's own default, so the provider name stands in
+  // ("Claude") rather than a bare "Default".
+  const chipLabel = (eff, p) => (eff.model ? prettyModel(eff.model) : (p ? provShort(p.label) : "Model"));
+  // "claude-opus-4-8-20260101" -> "Opus 4.8", "gpt-5.1-codex" -> "GPT-5.1 codex", "openai/gpt-4o" -> "GPT-4o",
+  // "gemini-2.5-pro" -> "Gemini 2.5 pro". Pure, so the node test can run it.
+  function prettyModel(id) {
+    let n = String(id || "").split("/").pop().replace(/[-@]\d{8}$/, "").replace(/^claude-/, "");
+    const fam = /^(opus|sonnet|haiku|fable)((?:-\d{1,2})*)(.*)$/i.exec(n);
+    if (fam) {
+      const ver = fam[2] ? " " + fam[2].slice(1).split("-").join(".") : "";
+      return (fam[1][0].toUpperCase() + fam[1].slice(1).toLowerCase() + ver + fam[3].replace(/-/g, " ")).trim();
+    }
+    if (/^gpt-/i.test(n)) return ("GPT-" + n.slice(4)).replace(/-(?=[a-z])/g, " ").replace(/^GPT /, "GPT-");
+    n = n.replace(/-/g, " ").replace(/:/g, " ");
+    return n ? n[0].toUpperCase() + n.slice(1) : n;
+  }
   const $ = (id) => document.getElementById(id);
   const curSid = () => { try { return (window.JavisSessions && window.JavisSessions.current()) || null; } catch (e) { return null; } };
   const curBrain = () => { try { return (window.JavisSessions && window.JavisSessions.brain()) || ""; } catch (e) { return ""; } };
@@ -95,13 +111,32 @@
     const p = state.providers.find((x) => x.id === eff.provider);
     const mt = $("mbModelTxt");
     if (mt) {
-      mt.textContent = (p ? provShort(p.label) : "Model") + " · " + short(eff.model)
-        + (sessionPin ? " · " + window.t("mpick.pin") : pinBroken ? " · " + window.t("mpick.pin_broken") : "");
-      mt.title = sessionPin
+      // 0.180.0 (owner): the chip shows the model name only, like "Opus 5.5" in the Claude app. The provider moves to
+      // the tooltip; the pin state shows as an icon (below).
+      mt.textContent = chipLabel(eff, p);
+      mt.title = (p ? p.label + " · " + (eff.model || window.t("models.mp_default")) + "\n" : "") + (sessionPin
         ? window.t("mpick.pin_title")
         : pinBroken
           ? window.t("mpick.pin_broken_title")
-          : window.t("mpick.follow_default");
+          : window.t("mpick.follow_default"));
+      // The per-session pin keeps a visible mark (owner: "chế độ ghim vẫn hoạt động nhé"): a small pin icon on the
+      // chip instead of the old "· ghim" text, orange-amber when the pin is broken. Screen readers get it in words.
+      const chip = $("mbOpen");
+      if (chip) {
+        chip.classList.toggle("is-pinned", !!sessionPin);
+        chip.classList.toggle("is-pin-broken", pinBroken);
+        let pin = chip.querySelector(".mb-pin");
+        if (!pin) {
+          pin = document.createElement("span");
+          pin.className = "mb-pin";
+          pin.setAttribute("aria-hidden", "true");
+          pin.innerHTML = typeof ic === "function" ? ic("pin") : "";
+          chip.insertBefore(pin, chip.querySelector(".mb-caret"));
+        }
+        pin.hidden = !(sessionPin || pinBroken);
+        chip.setAttribute("aria-label", mt.textContent
+          + (sessionPin ? ", " + window.t("mpick.pin") : pinBroken ? ", " + window.t("mpick.pin_broken") : ""));
+      }
     }
     const eb = $("effTxt");
     if (eb) {
@@ -351,6 +386,7 @@
       return r;
     },
     fastNote: fastNote,
+    prettyModel: prettyModel,
     hienTai: function () {
       const eff = effective();
       const p = state.providers.find((x) => x.id === eff.provider);
