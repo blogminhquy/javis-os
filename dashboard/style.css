@@ -3894,10 +3894,15 @@ div.info-body > * { margin: 0; font-size: inherit; }
 /* 0.179.0: long press a message on a touch screen (msg-press.js), main chat and Teams. The screen dims, six emoji pop
    up above the finger (slide across: the one under the finger grows and shows its name, lift to react) and the actions
    sit in a card at the bottom, like Zalo. Messages are not selectable on touch screens so iOS does not start its own
-   long-press gesture first; Copy in the card copies the whole message. */
+   long-press gesture first; Copy in the card copies the whole message.
+   0.184.0 (owner, iPhone): the hold still ended in iOS's own text selection, its handle on "Trả lời" in the card. iOS
+   selects the nearest selectable text when the spot under the finger is not, and the card, the lifted copy and the
+   time row under a bubble were still selectable. Now the whole message and the whole layer are not; fields stay. */
 @media (hover: none) {
-  .mp-host .msg .bubble, .mp-host .tm-bubble, .mp-host .jr-rx-btn, .mp-host .tm-rx-btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .mp-host .msg, .mp-host .tm-msg, .mp-host .jr-rx-btn, .mp-host .tm-rx-btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .mp-host .msg :is(input, textarea, [contenteditable]), .mp-host .tm-msg :is(input, textarea, [contenteditable]) { -webkit-user-select: text; user-select: text; }
 }
+.mp-layer, .mp-layer * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .mp-layer { position: fixed; inset: 0; z-index: 3200; }
 .mp-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .32); animation: mp-fade .15s ease; }
 .mp-bar { position: absolute; display: flex; gap: 2px; padding: 6px 8px; border-radius: 999px; background: var(--bg);

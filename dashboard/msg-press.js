@@ -11,7 +11,9 @@
    - Tap the dim area to close.
 
    Messages are made unselectable on touch screens (CSS, .mp-host) so iOS does not start its own gesture; copying goes
-   through the Copy action instead, which copies the whole message like Zalo does.
+   through the Copy action instead, which copies the whole message like Zalo does. 0.184.0: iOS still picked the nearest
+   selectable text (the card, under the finger once it opened), so while a hold runs or the card is open, selectstart is
+   refused and any selection already made is cleared.
 
    bind(root, opts) is generic: the main chat (chat-reactions.js / app.js) and the Teams page (teams.js) pass their own
    selector, emoji, actions and callbacks. place() is pure so node tests can run it. */
@@ -85,6 +87,10 @@
 
     function onEsc(e) { if (e.key === "Escape") { e.preventDefault(); close(); } }
 
+    function unselect() {
+      try { var s = window.getSelection && window.getSelection(); if (s && s.rangeCount) s.removeAllRanges(); } catch (e) { /* old browser */ }
+    }
+
     function open(el, x, y) {
       close();
       var react = opts.canReact ? !!opts.canReact(el) : false;
@@ -108,6 +114,7 @@
       document.addEventListener("keydown", onEsc, true);
       openedAt = Date.now();
       sliding = !!bar;
+      unselect();
       try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) { /* not supported */ }
     }
 
@@ -202,12 +209,16 @@
     // A long press that opened the card must not also open the browser's own menu.
     function onMenu(e) { if (layer || timer) e.preventDefault(); }
 
+    // Nor iOS's text selection: a hold in progress or an open card refuses it (owner, iPhone, 16/10/2026).
+    function onSelect(e) { if (layer || timer) e.preventDefault(); }
+
     root.classList.add("mp-host");
     root.addEventListener("touchstart", onStart, { passive: true });
     document.addEventListener("touchmove", onMove, { passive: false });
     document.addEventListener("touchend", onEnd, { passive: false });
     document.addEventListener("touchcancel", onCancel);
     root.addEventListener("contextmenu", onMenu);
+    document.addEventListener("selectstart", onSelect);
     return function unbind() {
       close();
       root.classList.remove("mp-host");
@@ -216,6 +227,7 @@
       document.removeEventListener("touchend", onEnd);
       document.removeEventListener("touchcancel", onCancel);
       root.removeEventListener("contextmenu", onMenu);
+      document.removeEventListener("selectstart", onSelect);
     };
   }
 

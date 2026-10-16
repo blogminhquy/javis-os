@@ -43,7 +43,7 @@ check("slide to pick: the emoji under the finger grows, lifting on it reacts, sc
   && /if \(e\.cancelable\) e\.preventDefault\(\);\s*var under/.test(src));
 check("the click iOS fires after lifting does not close the card it just opened", /Date\.now\(\) - openedAt > 350/.test(src));
 check("CSS: messages not selectable on touch screens (no iOS callout), hot emoji grows with its name",
-  /@media \(hover: none\) \{\s*\.mp-host \.msg \.bubble, \.mp-host \.tm-bubble, \.mp-host \.jr-rx-btn, \.mp-host \.tm-rx-btn \{ -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; \}/.test(css)
+  /@media \(hover: none\) \{\s*\.mp-host \.msg, \.mp-host \.tm-msg, \.mp-host \.jr-rx-btn, \.mp-host \.tm-rx-btn \{ -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; \}/.test(css)
   && /\.mp-pick\.is-hot \{ transform: translateY\(-14px\) scale\(1\.55\);/.test(css) && css.includes(".mp-pick.is-hot .mp-tip { opacity: 1; }"));
 check("the held message is drawn bright above the dim layer, with its own classes and a solid backing",
   /function lift\(el\)/.test(src) && /copy\.className = String\(el\.className\)/.test(src) && /lift\(el\);/.test(src)
@@ -68,6 +68,14 @@ check("no hover bridge over the like button, and the pill opens on keyboard focu
   && /\.jr-rx:has\(:focus-visible\) \.jr-rx-bar/.test(css) && !/\.jr-rx:focus-within/.test(css)
   && /\.tm-rx:has\(:focus-visible\) \.tm-rx-bar/.test(ccss) && !/\.tm-rx:focus-within/.test(ccss));
 const pos = (f) => indexHtml.indexOf("/static/" + f);
+// 0.184.0 (owner, iPhone): the hold ended in iOS's own text selection, its handle on "Trả lời" in the card.
+check("iPhone: the card, the lifted copy and the whole message (time row too) are not selectable; fields still are",
+  css.includes(".mp-layer, .mp-layer * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }")
+  && /\.mp-host \.msg :is\(input, textarea, \[contenteditable\]\)[^{]*\{ -webkit-user-select: text; user-select: text; \}/.test(css));
+check("iPhone: a hold in progress or an open card refuses iOS's selection and clears one already made",
+  /function onSelect\(e\) \{ if \(layer \|\| timer\) e\.preventDefault\(\); \}/.test(src)
+  && /document\.addEventListener\("selectstart", onSelect\)/.test(src) && /document\.removeEventListener\("selectstart", onSelect\)/.test(src)
+  && /sliding = !!bar;\s*unselect\(\);/.test(src) && /removeAllRanges\(\)/.test(src));
 check("index.html loads msg-press.js before chat-reactions.js and teams.js", pos("msg-press.js?v=") > 0
   && pos("msg-press.js") < pos("chat-reactions.js") && pos("msg-press.js") < pos("teams.js"));
 check("phone menu labels in vi and en", ["mpress.reply", "mpress.copy", "mpress.edit", "mpress.resend"].every((k) => vi[k] && en[k]));
