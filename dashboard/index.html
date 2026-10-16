@@ -32,8 +32,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=120">
-  <link rel="stylesheet" href="/static/console.css?v=91">
+  <link rel="stylesheet" href="/static/style.css?v=121">
+  <link rel="stylesheet" href="/static/console.css?v=92">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
        Chế độ "auto" (0.74.0, mặc định khi chưa chọn gì từ 0.75.1) tính theo khung giờ "HH:MM-HH:MM", cùng quy tắc với lightAt() trong
@@ -875,8 +875,8 @@
   <!-- Sáu reaction dùng chung (T2 0.154.0): nạp TRƯỚC chat-reactions.js, app.js, teams.js và mobile-chat.js. -->
   <script src="/static/reactions.js?v=3"></script>
   <!-- Nhấn giữ tin trên điện thoại (0.179.0): nạp TRƯỚC chat-reactions.js và teams.js. -->
-  <script src="/static/msg-press.js?v=1"></script>
-  <script src="/static/chat-reactions.js?v=3"></script>
+  <script src="/static/msg-press.js?v=2"></script>
+  <script src="/static/chat-reactions.js?v=4"></script>
   <script src="/static/chat-marks.js?v=4"></script>
   <!-- Khối tiến trình từng bước trong khung chat: phải đứng TRƯỚC app.js vì app.js gọi
        window.JavisSteps ngay khi khung tool_call đầu tiên về. -->
@@ -925,7 +925,7 @@
   <script src="/static/agent-judge-ui.js?v=2"></script>
   <!-- Nút mic nhập chữ của khung soạn Nhóm (0.176.0): nạp TRƯỚC teams.js. -->
   <script src="/static/dictate.js?v=1"></script>
-  <script src="/static/teams.js?v=6"></script>
+  <script src="/static/teams.js?v=7"></script>
   <script src="/static/chatbots-reply-policy.js?v=1"></script>
   <script src="/static/chatbots-try.js?v=1"></script>
   <script src="/static/chatbots.js?v=18"></script>
@@ -947,7 +947,7 @@
   <!-- Phần đọc cấu hình của form "Tự thêm MCP" (thuần, có test node). Nạp TRƯỚC console.js. -->
   <script src="/static/mcp-form-parse.js?v=1"></script>
   <script src="/static/console.js?v=170"></script>
-  <script src="/static/mobile-chat.js?v=14"></script>
+  <script src="/static/mobile-chat.js?v=15"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>
   <script src="/static/install-nudge.js?v=1"></script>

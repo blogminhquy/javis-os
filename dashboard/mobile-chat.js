@@ -1,5 +1,5 @@
 // Wiring giao diện chat trên điện thoại (mobile-only, <=860px):
-//  - dời nút + (#newChatBtn) và chuông lên header khi mobile, trả về khi desktop (chip model ở yên trong khung soạn từ 0.180.0)
+//  - dời chip model (#mbOpen + #mbPop) và nút + (#newChatBtn) lên header khi mobile, trả về khi desktop
 //  - dời nhóm Hệ thống (chọn brain, đổi tông, loa, dải HỆ THỐNG) vào đáy ngăn kéo
 //  - nút + = hội thoại mới (reset) + focus ô nhập
 //  - ngăn kéo điều hướng: nút menu mở/đóng, backdrop / Esc / chọn mục thì đóng
@@ -9,13 +9,14 @@
     var mq = window.matchMedia("(max-width: 860px)");
     var railEl = document.querySelector(".rail");
 
-    // ---- 1) Header mobile: dời nút + lên header; desktop trả về chỗ cũ ----
+    // ---- 1) Header mobile: dời chip model + nút + lên header; desktop trả về chỗ cũ ----
     var mbOpen = document.getElementById("mbOpen");
     var mbPop = document.getElementById("mbPop");
     // Since 0.153.0 the model chip lives in the composer's button row (#cpChips); its picker (#mbPop) is a child of the card.
     var chipHost = document.getElementById("cpChips");
     var mbPopHome = mbPop ? mbPop.parentElement : null;
     var headerRoot = document.querySelector(".hud-top");
+    var headerCenter = document.querySelector(".hud-center-title");
     var newChatBtn = document.getElementById("newChatBtn");
     var origNewChatParent = newChatBtn ? newChatBtn.parentElement : null;
     var notificationTrigger = document.getElementById("notificationTrigger");
@@ -29,8 +30,12 @@
           if (navToggle && navToggle.parentElement === headerRoot) headerRoot.insertBefore(notificationTrigger, navToggle.nextSibling);
           else headerRoot.insertBefore(notificationTrigger, headerRoot.firstChild);
         }
-        // 0.180.0 (owner): the model chip stays in the composer next to the effort chip, as in the Claude app, instead
-        // of moving up to the header. The desktop branch below still brings it home if an older layout moved it.
+        // 0.182.0: back in the header on a phone (0.180.0 had moved it into the composer; the owner found that worse).
+        if (mbOpen && mbOpen.parentElement !== headerRoot) {
+          if (headerCenter && headerCenter.parentElement === headerRoot) headerRoot.insertBefore(mbOpen, headerCenter.nextSibling);
+          else headerRoot.appendChild(mbOpen);
+          if (mbPop) headerRoot.insertBefore(mbPop, mbOpen.nextSibling);
+        }
         if (newChatBtn && newChatBtn.parentElement !== headerRoot) headerRoot.appendChild(newChatBtn);  // + về cuối header
       } else {
         if (mbOpen && chipHost && mbOpen.parentElement !== chipHost) {

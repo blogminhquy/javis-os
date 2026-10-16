@@ -10,7 +10,12 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.182.0] - 2026-10-16
 ### Fixed
-- **Phone: a steadier chat, model button back in the top bar:** in progress.
+- **The chat no longer slides left and right:** on a phone the reaction button at the bubble's corner stuck out past the edge, so the whole chat could be dragged sideways. It now sits inside the bubble and the chat only scrolls up and down.
+- **Tapping Like works every time:** an invisible area from the previous version covered the top half of the button, so a tap on a phone, or a click near its top on a computer, did nothing.
+- **Holding the reaction button at the bottom-right corner also opens the emoji row**, the same as holding the message; slide your finger to pick.
+
+### Improved
+- **Phone: the model button is back in the top bar** as before, still showing just the model name and the pin icon. Pressing it opens the provider picker as usual.
 
 ## [0.181.1] - 2026-10-16
 ### Improved

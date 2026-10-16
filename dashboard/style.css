@@ -1025,8 +1025,10 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 }
 .fm-use:hover { opacity: 0.88; }
 /* RIGHT transcript */
+/* overflow-x: hidden (0.182.0, owner on a phone: "khung chat kéo trái kéo phải được, cảm giác app lỏng lẻo"): the chat only
+   ever scrolls up and down. Code blocks and tables keep their own sideways scroll inside the bubble. */
 .transcript {
-  flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; overscroll-behavior-x: none; display: flex; flex-direction: column; gap: 10px;
   /* Ô chat chiếm phần lớn chiều cao, co giãn theo cửa sổ; các panel dưới cuộn tiếp */
   min-height: clamp(280px, 46vh, 620px);
 }
@@ -1090,6 +1092,9 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .jr-chat[hidden] { display: none; }
 .jr-anchor { position: relative; height: 0; }
 .jr-rx { position: absolute; right: -6px; top: -16px; z-index: 3; }
+/* Phone: the answer bubble is as wide as the chat, so a corner hanging 6px outside it (plus its hidden emoji row) pushed the
+   chat 22px wider than the screen. On a narrow screen it sits just inside the bubble's edge instead. */
+@media (max-width: 860px) { .jr-rx { right: 4px; } }
 .jr-rx-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; padding: 0 6px;
   border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--text3); cursor: pointer;
   box-shadow: 0 1px 3px rgba(0, 0, 0, .12); opacity: 0; transition: opacity .12s, transform .12s; }
@@ -1106,12 +1111,16 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   bottom: calc(100% + 4px); gap: 2px; padding: 4px 6px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border);
   box-shadow: 0 6px 20px rgba(0, 0, 0, .18); white-space: nowrap;
   transition: opacity .16s ease .5s, transform .16s ease .5s, visibility 0s linear .66s; }
-.jr-rx-bar::before { content: ""; position: absolute; inset: -18px -22px -6px; z-index: -1; }
-.jr-rx-bar::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 22px; }
+/* The invisible margin reaches down exactly to the 4px gap above the button and NO further (0.182.0): the 0.179.0 bridge was
+   22px tall and covered the top of the like button, so a tap there (and on a phone any tap, because focusing the button shows
+   the pill under the finger) landed on the bridge and the like never registered. */
+.jr-rx-bar::before { content: ""; position: absolute; inset: -18px -22px -4px; z-index: -1; }
 @media (hover: hover) {
   .jr-rx:hover .jr-rx-bar { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
 }
-.jr-rx:focus-within .jr-rx-bar, .jr-rx.is-open .jr-rx-bar { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
+/* Keyboard focus only (:focus-visible), not the focus a tap or click gives the button: on a phone a tap on Like used to pop
+   the pill up under the finger and leave it open (0.182.0). The long-press menu is the phone's way to pick an emoji. */
+.jr-rx:has(:focus-visible) .jr-rx-bar, .jr-rx.is-open .jr-rx-bar { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
 .jr-rx-pick { border: none; background: none; padding: 2px; width: 38px; height: 38px; border-radius: 50%; cursor: pointer;
   font-size: 27px; line-height: 1; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
   transition: transform .12s ease; }
@@ -1542,7 +1551,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .send-btn:hover { opacity: 0.85; }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ===== Mobile: same card with tighter padding; the model chip stays in the card next to the effort chip (0.180.0) ===== */
+/* ===== Mobile: same card with tighter padding; the model chip moves to the page header (mobile-chat.js, back there in 0.182.0) ===== */
 @media (max-width: 860px) {
   .hud-voice {
     margin: 6px 10px 8px; padding: 8px 8px 6px; gap: 2px;
@@ -2249,10 +2258,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .mb-pin[hidden] { display: none; }
 .mb-pin svg, .mb-pin .ic { width: 12px; height: 12px; }
 .mb-chip.is-pin-broken .mb-pin { color: var(--warn-ink); }
-@media (max-width: 860px) {
-  #cpChips .mb-chip { max-width: 42vw; }
-  .hud-voice .mb-pop { left: 0; width: min(340px, calc(100vw - 36px)); max-height: 60vh; }
-}
+
 .mb-caret { opacity: .6; font-size: 10px; }
 .mb-pop { position: absolute; bottom: calc(100% + 6px); left: 8px; z-index: 60; width: 340px;
   max-height: 62vh; overflow: auto; background: var(--bg2); border: 1px solid var(--border);
@@ -3890,7 +3896,7 @@ div.info-body > * { margin: 0; font-size: inherit; }
    sit in a card at the bottom, like Zalo. Messages are not selectable on touch screens so iOS does not start its own
    long-press gesture first; Copy in the card copies the whole message. */
 @media (hover: none) {
-  .mp-host .msg .bubble, .mp-host .tm-bubble { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .mp-host .msg .bubble, .mp-host .tm-bubble, .mp-host .jr-rx-btn, .mp-host .tm-rx-btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 }
 .mp-layer { position: fixed; inset: 0; z-index: 3200; }
 .mp-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .32); animation: mp-fade .15s ease; }

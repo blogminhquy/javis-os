@@ -39,13 +39,13 @@ check("the per-session pin stays visible: a pin icon on the chip, in words for s
   && css.includes(".mb-pin[hidden] { display: none; }") && css.includes(".mb-chip.is-pin-broken .mb-pin { color: var(--warn-ink); }"));
 check("pinning itself is untouched: picking a model still pins it to the open session",
   /sessionPin = \{ provider: prov, model: model \};/.test(mp) && /await pinToSession\(sid, prov, model\);/.test(mp));
-check("phone: the chip is no longer moved up to the header", !/headerRoot\.insertBefore\(mbOpen/.test(mobile)
-  && !/headerRoot\.appendChild\(mbOpen\)/.test(mobile) && !ccss.includes(".hud-top #mbOpen") && !ccss.includes(".hud-top #mbPop"));
-check("phone header: + stays at the right end", ccss.includes(".hud-top .new-chat-btn { margin-left: auto; }"));
-check("long model names end in ... and the phone picker fits the screen",
-  /#mbModelTxt \{ min-width: 0; overflow: hidden; text-overflow: ellipsis; \}/.test(css)
-  && /\.hud-voice \.mb-pop \{ left: 0; width: min\(340px, calc\(100vw - 36px\)\);/.test(css));
-
+// 0.182.0: the owner reversed the phone move; the chip is back in the top bar (centred), still short and with the pin icon.
+check("phone: the chip goes back up to the header, centred, with its picker under the bar",
+  /headerRoot\.insertBefore\(mbOpen, headerCenter\.nextSibling\)/.test(mobile) && /headerRoot\.insertBefore\(mbPop, mbOpen\.nextSibling\)/.test(mobile)
+  && ccss.includes(".hud-top #mbOpen { display: inline-flex; margin-left: auto; margin-right: auto; max-width: 56vw; }")
+  && ccss.includes(".hud-top #mbPop { position: fixed;") && !ccss.includes(".hud-top .new-chat-btn { margin-left: auto; }"));
+check("long model names end in ...", /#mbModelTxt \{ min-width: 0; overflow: hidden; text-overflow: ellipsis; \}/.test(css)
+  && !css.includes("#cpChips .mb-chip { max-width: 42vw; }"));
 check("scroll hold: only with a real mouse", /matchMedia\("\(hover: hover\) and \(pointer: fine\)"\)/.test(app));
 check("scroll hold: on a message's button row or reaction, or while the mouse moves over a message",
   /querySelector\("\.msg-acts:hover, \.jr-chat:hover"\)/.test(app) && /const HOLD_MOVE_MS = 1200;/.test(app)

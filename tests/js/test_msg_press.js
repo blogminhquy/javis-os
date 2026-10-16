@@ -43,7 +43,7 @@ check("slide to pick: the emoji under the finger grows, lifting on it reacts, sc
   && /if \(e\.cancelable\) e\.preventDefault\(\);\s*var under/.test(src));
 check("the click iOS fires after lifting does not close the card it just opened", /Date\.now\(\) - openedAt > 350/.test(src));
 check("CSS: messages not selectable on touch screens (no iOS callout), hot emoji grows with its name",
-  /@media \(hover: none\) \{\s*\.mp-host \.msg \.bubble, \.mp-host \.tm-bubble \{ -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; \}/.test(css)
+  /@media \(hover: none\) \{\s*\.mp-host \.msg \.bubble, \.mp-host \.tm-bubble, \.mp-host \.jr-rx-btn, \.mp-host \.tm-rx-btn \{ -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; \}/.test(css)
   && /\.mp-pick\.is-hot \{ transform: translateY\(-14px\) scale\(1\.55\);/.test(css) && css.includes(".mp-pick.is-hot .mp-tip { opacity: 1; }"));
 check("the held message is drawn bright above the dim layer, with its own classes and a solid backing",
   /function lift\(el\)/.test(src) && /copy\.className = String\(el\.className\)/.test(src) && /lift\(el\);/.test(src)
@@ -53,6 +53,20 @@ const cr = fs.readFileSync(path.join(D, "chat-reactions.js"), "utf8");
 const tm = fs.readFileSync(path.join(D, "teams.js"), "utf8");
 check("main chat and Teams name their bubble for the lifted copy", /bubble: "\.bubble",/.test(cr) && /bubble: "\.tm-bubble",/.test(tm)
   && /done: "teams\.copied"/.test(cr));
+const ccss = fs.readFileSync(path.join(D, "console.css"), "utf8");
+// 0.182.0
+check("holding the reaction button opens the menu too (main chat and Teams), its tap is swallowed",
+  /var onBtn = opts\.holdOn && t\.closest\(opts\.holdOn\);/.test(src) && /if \(!onBtn && t\.closest\("button, a,/.test(src)
+  && /holdOn: "\.jr-rx-btn",/.test(cr) && /holdOn: "\.tm-rx-btn",/.test(tm));
+check("the chat never scrolls sideways (phone: app felt loose)",
+  /\.transcript \{\s*flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; overscroll-behavior-x: none;/.test(css)
+  && /\.tm-msgs \{[^}]*overflow-x: hidden; overscroll-behavior-x: none;/.test(ccss)
+  && css.includes("@media (max-width: 860px) { .jr-rx { right: 4px; } }"));
+check("no hover bridge over the like button, and the pill opens on keyboard focus only, not on a tap",
+  !/\.jr-rx-bar::after/.test(css) && !/\.tm-rx-bar::after/.test(ccss)
+  && css.includes(".jr-rx-bar::before { content: \"\"; position: absolute; inset: -18px -22px -4px; z-index: -1; }")
+  && /\.jr-rx:has\(:focus-visible\) \.jr-rx-bar/.test(css) && !/\.jr-rx:focus-within/.test(css)
+  && /\.tm-rx:has\(:focus-visible\) \.tm-rx-bar/.test(ccss) && !/\.tm-rx:focus-within/.test(ccss));
 const pos = (f) => indexHtml.indexOf("/static/" + f);
 check("index.html loads msg-press.js before chat-reactions.js and teams.js", pos("msg-press.js?v=") > 0
   && pos("msg-press.js") < pos("chat-reactions.js") && pos("msg-press.js") < pos("teams.js"));

@@ -165,7 +165,11 @@
       var t = e.target;
       var el = t && t.closest && t.closest(opts.selector);
       if (!el || !root.contains(el)) return;
-      if (t.closest("button, a, input, textarea, select, label, summary, .mp-layer")) return;
+      // Buttons keep their own tap, except the ones listed in `holdOn` (the reaction button at the bubble's corner, owner
+      // 16/10/2026: "ấn giữ vào icon mép phải bên dưới cũng phải hiện emoji"). Holding one opens the same menu; the tap it
+      // would have made is swallowed by onEnd (preventDefault), so the hold does not also toggle a like.
+      var onBtn = opts.holdOn && t.closest(opts.holdOn);
+      if (!onBtn && t.closest("button, a, input, textarea, select, label, summary, .mp-layer")) return;
       if (opts.accept && !opts.accept(el)) return;
       var p = point(e);
       sx = p.clientX; sy = p.clientY; target = el;

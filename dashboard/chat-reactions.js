@@ -340,6 +340,7 @@
       MP.bind(root, {
         selector: ".msg-javis, .msg-user",
         bubble: ".bubble",
+        holdOn: ".jr-rx-btn",
         emoji: JR.EMOJI,
         canReact: function (el) { return !!(el._jr && el.classList.contains("msg-javis")); },
         current: function (el) { return el._jr && el._jr.reaction ? el._jr.reaction.value : ""; },

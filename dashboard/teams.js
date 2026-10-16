@@ -2822,6 +2822,7 @@
       S.unpress = MP.bind(el, {
         selector: ".tm-msg",
         bubble: ".tm-bubble",
+        holdOn: ".tm-rx-btn",
         emoji: REACTIONS,
         canReact: function (m) { return m.classList.contains("tm-msg-agent"); },
         current: function (m) {
