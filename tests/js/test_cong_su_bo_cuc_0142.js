@@ -34,7 +34,8 @@ check("xa hơn: ngày/tháng; khác năm thì kèm năm", g.gioNgan(at(2026, 8, 
   g.gioNgan(at(2025, 11, 31, 8, 0), now) === "31/12/2025");
 check("chưa nhắn bao giờ: không ghi gì", g.gioNgan(0, now) === "" && g.gioNgan(undefined, now) === "");
 check("thẻ trợ lý: giờ cùng hàng tên, chỉ ở tab Trợ lý",
-  /<span class="ws-item-top"><strong>' \+ esc\(x\.name\) \+ '<\/strong>' \+\s*\(S\.loai === "agent" \? gioNhanHtml\(x\.last_chat_at\) : ""\)/.test(src));
+  /<span class="ws-item-top"><strong>' \+ esc\(x\.name\) \+ '<\/strong>' \+\s*\(laAgent \? gioNhanHtml\(x\.last_chat_at\) : ""\)/.test(src)
+  && /var laAgent = S\.loai === "agent";/.test(src));
 check("xong một lượt chat: giờ trên thẻ đổi ngay", /function onTurnDone\(sid\) \{[\s\S]{0,400}ag\.last_chat_at = Date\.now\(\) \/ 1000/.test(src));
 check("CSS: tên co giãn, giờ đứng yên bên phải", /\.ws-item-top \{ display: flex;/.test(css) &&
   /\.ws-item-top > strong \{ flex: 1 1 auto; min-width: 0; \}/.test(css) && /\.ws-item-time \{ flex: none;/.test(css));
