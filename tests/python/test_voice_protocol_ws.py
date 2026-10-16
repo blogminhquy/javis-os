@@ -39,7 +39,8 @@ class VoiceProtocolWS(unittest.IsolatedAsyncioTestCase):
             reg=types.SimpleNamespace(cancel=lambda sid:False)
             namespace=dict(_real_ws=Socket(),json=json,store=store,voice_turn_protocol=vp,
                 _CHAT_RUNTIME=runtime,cfgmod=cfg,_chat_provider_for_session=lambda *a:('test','api','key','test'),
-                _brain_key=lambda x:x,send_raw=send,send_client=send,sys=__import__('sys'),uuid=uuid,
+                _brain_key=lambda x:x,_cung_brain=lambda a,b:a==b,_brain_ui_value=lambda x:x,
+                _brain_root=lambda x:x,Path=Path,send_raw=send,send_client=send,sys=__import__('sys'),uuid=uuid,
                 limit_resume=types.SimpleNamespace(REGISTRY=reg),
                 _CONTEXT_RUNTIME=types.SimpleNamespace(start_turn=lambda *a:None),
                 workflow_chat=types.SimpleNamespace(persona_cua_phien=lambda r:None),
