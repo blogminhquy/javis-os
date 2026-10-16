@@ -117,7 +117,7 @@ Javis에서 모델은 교체할 수 있는 부품입니다. 쌓아 온 모든 �
 | **작업** | 답하고 나서 기다림 | 결과를 보고해 주는 **백그라운드 Loop, 리마인더, AI가 운영하는 작업 대기열** |
 | **인터페이스** | 채팅창 하나 | 대시보드 + 지식 그래프 + **핸즈프리 음성** + Telegram, Slack, WhatsApp, Zalo + CLI |
 | **내 작업** | 업체의 서버에, 업체의 형식으로 남음 | **내 컴퓨터에 있는 일반 파일**: 기록, 메모리, Skill, Agent, Workflow가 어떤 새 모델로든 그대로 넘어감 |
-| **배포** | 남의 클라우드 | **셀프 호스팅**: 원클릭 Hostinger, Docker, 또는 어떤 VPS든 |
+| **배포** | 남의 클라우드 | **셀프 호스팅**: 원클릭 [Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN), Docker, 또는 어떤 VPS든 |
 
 > 💡 **철학: 능력은 모델이 아니라 Javis에 있습니다.** 모든 브레인은 하나의 공유 연결 허브(MCP Hub)를 통해 같은 도구 상자를 받습니다. Claude에서 Gemini로 바꿔도 잃는 것은 셸 접근뿐이며, 이는 CLI 엔진에만 있는 기능입니다.
 
@@ -247,6 +247,8 @@ flowchart LR
 <details open>
 <summary><b>방법 1: Hostinger Docker Manager (도메인 + HTTPS, 원클릭)</b></summary>
 
+> 🛒 **아직 VPS가 없나요?** [여기서 Hostinger VPS 신청하기](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Docker Manager가 기본 탑재되어 있어 Javis를 원클릭으로 설치합니다. 준비되면 아래 단계로 돌아오세요.
+
 Hostinger VPS → **Docker Manager → Compose → URL** → Hostinger용 파일을 붙여 넣고 **Deploy** 를 누릅니다.
 
 ```
@@ -272,6 +274,8 @@ Hostinger의 Traefik이 HTTPS 인증서를 발급하도록 `DOMAIN_NAME` 을 설
 
 <details>
 <summary><b>방법 2: 아무 VPS에서 Docker로 (clone 불필요)</b></summary>
+
+> 🛒 **VPS가 필요하신가요?** 이 방법도 [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN)에서 동작합니다.
 
 ```bash
 # Docker required (don't have it?  curl -fsSL https://get.docker.com | sh)

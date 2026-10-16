@@ -9,6 +9,8 @@ Jalankan Javis OS dalam beberapa menit. Panduan lengkap: [docs/en/](../../../doc
 
 ## Opsi 1 - VPS Hostinger (Docker Manager, sekali klik)
 
+> 🛒 **Belum punya VPS?** [Sewa VPS Hostinger di sini](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Docker Manager sudah tersedia, jadi Javis terpasang sekali klik. Setelah siap, kembali ke langkah di bawah.
+
 1. hPanel → VPS → **Docker Manager** → **Compose** → **Compose from URL**.
 2. Tempel URL ini:
    ```
@@ -25,6 +27,8 @@ Jalankan Javis OS dalam beberapa menit. Panduan lengkap: [docs/en/](../../../doc
 Untuk memperbarui: tekan **Redeploy** di Docker Manager (image `:latest`, `pull_policy: always`). Data Brain tetap tersimpan di volume.
 
 ## Opsi 2 - Docker di mesin atau VPS apa pun
+
+> 🛒 **Butuh VPS?** [VPS Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) juga bisa menjalankan opsi ini.
 
 ```
 docker compose -f docker-compose.yml up -d

@@ -117,7 +117,7 @@ Was dir das bringt:
 | **Arbeit** | Antwortet und wartet dann | **Hintergrund-Loops, Erinnerungen und eine von der KI gesteuerte Aufgabenwarteschlange**, die dir Bericht erstatten |
 | **Oberfläche** | Ein Chatfenster | Dashboard + Wissensgraph + **freihändige Sprachsteuerung** + Telegram, Slack, WhatsApp, Zalo + eine CLI |
 | **Deine Arbeit** | Bleibt auf den Servern des Anbieters, im Format des Anbieters | **Einfache Dateien auf deinem Rechner**: Verlauf, Gedächtnis, Skills, Agents und Workflows lassen sich zu jedem neuen Modell mitnehmen |
-| **Bereitstellung** | Die Cloud von jemand anderem | **Selbst gehostet**: Hostinger mit einem Klick, Docker oder ein beliebiger VPS |
+| **Bereitstellung** | Die Cloud von jemand anderem | **Selbst gehostet**: [Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) mit einem Klick, Docker oder ein beliebiger VPS |
 
 > 💡 **Die Philosophie: Die Fähigkeiten stecken in Javis, nicht im Modell.** Jedes Gehirn bekommt denselben Werkzeugkasten über einen gemeinsamen Verbindungs-Hub (den MCP Hub). Der Wechsel von Claude zu Gemini kostet dich nichts außer dem Shell-Zugriff, den nur die CLI-Engines haben.
 
@@ -247,6 +247,8 @@ flowchart LR
 <details open>
 <summary><b>Option 1: Hostinger Docker Manager (Domain + HTTPS, ein Klick)</b></summary>
 
+> 🛒 **Noch keinen VPS?** [Hol dir hier einen Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Docker Manager ist eingebaut, Javis installiert sich also mit einem Klick. Sobald er bereit ist, mach mit den Schritten unten weiter.
+
 Hostinger VPS → **Docker Manager → Compose → URL** → füge die Hostinger-Datei ein und klicke auf **Deploy**:
 
 ```
@@ -272,6 +274,8 @@ Details und Fehlerbehebung: [DEPLOY.en.md](../../../DEPLOY.en.md).
 
 <details>
 <summary><b>Option 2: Docker auf einem beliebigen VPS (ohne Klonen)</b></summary>
+
+> 🛒 **Brauchst du einen VPS?** Ein [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) eignet sich auch für diese Option.
 
 ```bash
 # Docker required (don't have it?  curl -fsSL https://get.docker.com | sh)

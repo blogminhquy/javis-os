@@ -117,7 +117,7 @@ Lo que ganas con eso:
 | **Trabajo** | Responde y se queda esperando | **Loops en segundo plano, recordatorios y una cola de tareas gestionada por la IA** que te informan de los resultados |
 | **Interfaz** | Un cuadro de chat | Panel + grafo de conocimiento + **voz manos libres** + Telegram, Slack, WhatsApp, Zalo + una CLI |
 | **Tu trabajo** | Se queda en los servidores del proveedor, en el formato del proveedor | **Archivos planos en tu máquina**: historial, memoria, skills, agents y workflows pasan tal cual a cualquier modelo nuevo |
-| **Despliegue** | La nube de otra persona | **Autoalojado**: Hostinger en un clic, Docker o cualquier VPS |
+| **Despliegue** | La nube de otra persona | **Autoalojado**: [Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) en un clic, Docker o cualquier VPS |
 
 > 💡 **La filosofía: la capacidad vive en Javis, no en el modelo.** Todos los cerebros reciben la misma caja de herramientas a través de un único hub de conexiones compartido (el MCP Hub). Cambiar de Claude a Gemini no te cuesta nada salvo el acceso a la shell, que solo tienen los motores CLI.
 
@@ -247,6 +247,8 @@ flowchart LR
 <details open>
 <summary><b>Opción 1: Hostinger Docker Manager (dominio + HTTPS, en un clic)</b></summary>
 
+> 🛒 **¿Aún no tienes VPS?** [Consigue un VPS de Hostinger aquí](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Trae Docker Manager integrado, así que Javis se instala en un clic. Cuando esté listo, vuelve a los pasos de abajo.
+
 VPS de Hostinger → **Docker Manager → Compose → URL** → pega el archivo de Hostinger y pulsa **Deploy**:
 
 ```
@@ -272,6 +274,8 @@ Detalles y solución de problemas: [DEPLOY.en.md](../../../DEPLOY.en.md).
 
 <details>
 <summary><b>Opción 2: Docker en cualquier VPS (sin clonar)</b></summary>
+
+> 🛒 **¿Necesitas un VPS?** Un [VPS de Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) también sirve para esta opción.
 
 ```bash
 # Docker required (don't have it?  curl -fsSL https://get.docker.com | sh)

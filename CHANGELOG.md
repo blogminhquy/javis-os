@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.181.1] - 2026-10-16
+### Cải thiện
+- **Tài liệu cài trên VPS dễ theo hơn:** README, Quick start và hướng dẫn cài server được làm gọn lại, các bản dịch cập nhật theo.
+
 ## [0.181.0] - 2026-10-16
 ### Cải thiện
 - **Lọc trợ lý đang bật Auto:** menu tag ở trang Trợ lý có thêm mục **Đang bật Auto** kèm số lượng. Chọn nó là chỉ còn các trợ lý đang chạy Auto, tắt cái nào thì cái đó rời khỏi danh sách, rà để tắt rất nhanh.

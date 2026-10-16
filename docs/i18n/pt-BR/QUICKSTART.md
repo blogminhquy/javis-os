@@ -9,6 +9,8 @@ Coloque o Javis OS para rodar em poucos minutos. Guias completos: [docs/en/](../
 
 ## Opção 1 - VPS da Hostinger (Docker Manager, em um clique)
 
+> 🛒 **Ainda não tem VPS?** [Contrate uma VPS da Hostinger aqui](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Ela já vem com o Docker Manager, então o Javis instala em um clique. Quando estiver pronta, volte aos passos abaixo.
+
 1. hPanel → VPS → **Docker Manager** → **Compose** → **Compose from URL**.
 2. Cole esta URL:
    ```
@@ -25,6 +27,8 @@ Coloque o Javis OS para rodar em poucos minutos. Guias completos: [docs/en/](../
 Para atualizar: clique em **Redeploy** no Docker Manager (imagem `:latest`, `pull_policy: always`). Os dados do Brain ficam no volume.
 
 ## Opção 2 - Docker em qualquer máquina ou VPS
+
+> 🛒 **Precisa de uma VPS?** Uma [VPS da Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) também roda esta opção.
 
 ```
 docker compose -f docker-compose.yml up -d

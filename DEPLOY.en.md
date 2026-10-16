@@ -14,6 +14,8 @@ Javis OS is a personal AI agent plus a Second Brain. Its "brain" is the **Claude
 
 ## Way 1 - Hostinger Docker Manager (1-click, the fastest) ⚡
 
+> 🛒 **No VPS yet?** [Get a Hostinger VPS here](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Docker Manager comes built in, so Javis installs in one click. Once it is ready, come back to the steps below.
+
 On the Hostinger VPS go to **Docker Manager → Compose → URL**, paste the link and **Deploy**:
 ```
 https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.yml
@@ -46,6 +48,8 @@ hPanel → VPS) and you get the **create admin account** screen.
 ---
 
 ## Way 2 - Docker on any VPS (pull the image, no source clone needed)
+
+> 🛒 **Need a VPS?** A [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) runs this option too.
 
 Docker is required. Do not have it? `curl -fsSL https://get.docker.com | sh`
 ```bash

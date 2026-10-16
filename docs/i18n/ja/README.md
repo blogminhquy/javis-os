@@ -117,7 +117,7 @@ Javis では、モデルは交換できる部品にすぎません。あなた�
 | **作業** | 答えたら待つだけ | 結果を報告してくれる **バックグラウンドの Loop、リマインダー、AI が運用するタスクキュー** |
 | **インターフェース** | チャット欄ひとつ | ダッシュボード + ナレッジグラフ + **ハンズフリー音声** + Telegram、Slack、WhatsApp、Zalo + CLI |
 | **あなたの成果** | ベンダーのサーバー上に、ベンダーの形式のまま残る | **自分のマシン上のプレーンなファイル**：履歴、記憶、Skill、Agent、Workflow をどの新しいモデルにも引き継げる |
-| **デプロイ** | 誰かのクラウド | **セルフホスト**：ワンクリックの Hostinger、Docker、または任意の VPS |
+| **デプロイ** | 誰かのクラウド | **セルフホスト**：ワンクリックの [Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN)、Docker、または任意の VPS |
 
 > 💡 **設計思想：能力はモデルではなく Javis に宿る。** どの頭脳も、ひとつの共有接続ハブ（MCP Hub）を通じて同じツール一式を受け取ります。Claude から Gemini に切り替えても失うものはありません。例外はシェルアクセスだけで、これは CLI エンジンにしかありません。
 
@@ -247,6 +247,8 @@ flowchart LR
 <details open>
 <summary><b>方法 1：Hostinger Docker Manager（ドメイン + HTTPS、ワンクリック）</b></summary>
 
+> 🛒 **VPS をまだお持ちでない方へ：** [Hostinger VPS はこちら](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN)。Docker Manager が標準搭載なので、Javis はワンクリックで入ります。準備ができたら下の手順に戻ってください。
+
 Hostinger VPS → **Docker Manager → Compose → URL** → Hostinger 用のファイルを貼り付けて **Deploy** を押します。
 
 ```
@@ -272,6 +274,8 @@ Hostinger の Traefik が HTTPS 証明書を発行できるよう、`DOMAIN_NAME
 
 <details>
 <summary><b>方法 2：任意の VPS で Docker（clone 不要）</b></summary>
+
+> 🛒 **VPS が必要ですか？** この方法も [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) で動きます。
 
 ```bash
 # Docker required (don't have it?  curl -fsSL https://get.docker.com | sh)

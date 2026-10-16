@@ -145,6 +145,8 @@ The status line at the bottom of the card can read:
 
 ## If you deploy on Hostinger (a different path)
 
+> 🛒 No Hostinger VPS yet? [Get one here](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN).
+
 A Hostinger VPS already runs the Traefik reverse proxy handling SSL, and Traefik holds ports 80/443. Javis still lets you enter a domain, check DNS and prepare the variable you need right in the UI, but the container has no authority to edit hPanel's Traefik routes. So the **Enable SSL** button is hidden, the SSL badge reads **SSL: via Hostinger**, and step 3 of the wizard becomes **3. Activate the HTTPS route on Hostinger**:
 
 1. Point DNS: the record `A  <your domain> → <Hostinger VPS IP>`.

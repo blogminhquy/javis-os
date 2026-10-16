@@ -9,6 +9,8 @@
 
 ## 방법 1 - Hostinger VPS (Docker Manager, 원클릭)
 
+> 🛒 **아직 VPS가 없나요?** [여기서 Hostinger VPS 신청하기](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Docker Manager가 기본 탑재되어 있어 Javis를 원클릭으로 설치합니다. 준비되면 아래 단계로 돌아오세요.
+
 1. hPanel → VPS → **Docker Manager** → **Compose** → **Compose from URL**.
 2. 다음 URL을 붙여 넣습니다.
    ```
@@ -25,6 +27,8 @@
 업데이트하려면 Docker Manager에서 **Redeploy** 를 누릅니다(이미지 `:latest`, `pull_policy: always`). Brain 데이터는 볼륨에 그대로 남습니다.
 
 ## 방법 2 - 아무 컴퓨터나 VPS에서 Docker로
+
+> 🛒 **VPS가 필요하신가요?** 이 방법도 [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN)에서 동작합니다.
 
 ```
 docker compose -f docker-compose.yml up -d

@@ -117,7 +117,7 @@ Javis में model एक ऐसा पुर्ज़ा है जिसे
 | **काम** | जवाब देता है, फिर इंतज़ार करता है | **Background loops, reminders और AI से चलने वाली task queue** जो आपको नतीजे वापस भेजती हैं |
 | **इंटरफ़ेस** | एक chat box | Dashboard + knowledge graph + **hands-free आवाज़** + Telegram, Slack, WhatsApp, Zalo + एक CLI |
 | **आपका काम** | Vendor के servers पर, vendor के format में ही रह जाता है | **आपकी मशीन पर plain files**: history, memory, skills, agents और workflows किसी भी नए model के साथ चलते हैं |
-| **Deployment** | किसी और का cloud | **Self-hosted**: one-click Hostinger, Docker, या कोई भी VPS |
+| **Deployment** | किसी और का cloud | **Self-hosted**: one-click [Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN), Docker, या कोई भी VPS |
 
 > 💡 **फ़लसफ़ा: क्षमता Javis में रहती है, model में नहीं।** हर ब्रेन को एक ही साझा connection hub (MCP Hub) के ज़रिए एक जैसा toolbox मिलता है। Claude से Gemini पर जाने में आपका कुछ नहीं जाता, सिवाय shell access के, जो सिर्फ़ CLI engines के पास होता है।
 
@@ -247,6 +247,8 @@ flowchart LR
 <details open>
 <summary><b>विकल्प 1: Hostinger Docker Manager (domain + HTTPS, एक click में)</b></summary>
 
+> 🛒 **अभी VPS नहीं है?** [Hostinger VPS यहाँ से लीजिए](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN)। इसमें Docker Manager पहले से है, इसलिए Javis एक click में install होता है। तैयार होने पर नीचे के steps पर लौट आइए।
+
 Hostinger VPS → **Docker Manager → Compose → URL** → Hostinger वाली file paste कीजिए और **Deploy** दबाइए:
 
 ```
@@ -272,6 +274,8 @@ Certificate के लिए 1-3 मिनट इंतज़ार कीजि
 
 <details>
 <summary><b>विकल्प 2: किसी भी VPS पर Docker (clone की ज़रूरत नहीं)</b></summary>
+
+> 🛒 **VPS चाहिए?** यह विकल्प भी [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) पर चलता है।
 
 ```bash
 # Docker required (don't have it?  curl -fsSL https://get.docker.com | sh)

@@ -145,6 +145,8 @@ Dòng trạng thái dưới cùng của card có thể là:
 
 ## Nếu bạn deploy trên Hostinger (khác cách trên)
 
+> 🛒 Chưa có VPS Hostinger? [Đăng ký tại đây](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN).
+
 Hostinger VPS đã cài sẵn reverse proxy Traefik lo SSL, và cổng 80/443 đã bị Traefik chiếm. Javis vẫn cho nhập tên miền, kiểm tra DNS và tạo sẵn biến cần dùng ngay trên UI, nhưng container không có quyền sửa route Traefik của hPanel. Vì thế nút **Bật SSL** bị ẩn, badge SSL ghi **SSL: qua Hostinger**, và bước 3 của wizard đổi thành **3. Kích hoạt route HTTPS trên Hostinger**:
 
 1. Trỏ DNS: bản ghi `A  <tên miền của bạn> → <IP VPS Hostinger>`.

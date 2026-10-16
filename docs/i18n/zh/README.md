@@ -117,7 +117,7 @@ Javis OS **不是**聊天机器人。它是一个运行在你自己的机器或 
 | **工作** | 回答完就等着 | **后台 Loop、提醒和由 AI 运行的任务队列**，并把结果汇报给你 |
 | **界面** | 一个聊天框 | 仪表盘 + 知识图谱 + **免手动语音** + Telegram、Slack、WhatsApp、Zalo + CLI |
 | **你的成果** | 留在厂商的服务器上，用的是厂商的格式 | **你机器上的普通文件**：历史、记忆、Skill、Agent 和 Workflow 都能带到任何新模型 |
-| **部署** | 别人的云 | **自托管**：Hostinger 一键部署、Docker，或任意 VPS |
+| **部署** | 别人的云 | **自托管**：[Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) 一键部署、Docker，或任意 VPS |
 
 > 💡 **设计理念：能力在 Javis 身上，而不在模型身上。** 每个大脑都通过同一个共享连接中心（MCP Hub）获得同一套工具箱。从 Claude 切换到 Gemini 不会让你失去任何东西，唯一的例外是 shell 访问，只有 CLI 引擎才有。
 
@@ -247,6 +247,8 @@ flowchart LR
 <details open>
 <summary><b>方式一：Hostinger Docker Manager（域名 + HTTPS，一键部署）</b></summary>
 
+> 🛒 **还没有 VPS？** [在这里购买 Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN)。它自带 Docker Manager，一键即可安装 Javis。开通后回到下面的步骤。
+
 Hostinger VPS → **Docker Manager → Compose → URL** → 粘贴 Hostinger 专用文件，然后点击 **Deploy**：
 
 ```
@@ -272,6 +274,8 @@ https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.hosti
 
 <details>
 <summary><b>方式二：在任意 VPS 上使用 Docker（无需克隆仓库）</b></summary>
+
+> 🛒 **需要 VPS？** [Hostinger VPS](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) 同样适用这种方式。
 
 ```bash
 # Docker required (don't have it?  curl -fsSL https://get.docker.com | sh)

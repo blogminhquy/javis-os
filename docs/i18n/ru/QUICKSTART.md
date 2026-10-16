@@ -9,6 +9,8 @@
 
 ## Вариант 1 - VPS на Hostinger (Docker Manager, в один клик)
 
+> 🛒 **Ещё нет VPS?** [Возьмите VPS на Hostinger здесь](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN). Docker Manager там встроен, поэтому Javis ставится в один клик. Когда VPS будет готов, вернитесь к шагам ниже.
+
 1. hPanel → VPS → **Docker Manager** → **Compose** → **Compose from URL**.
 2. Вставьте этот URL:
    ```
@@ -25,6 +27,8 @@
 Обновление: нажмите **Redeploy** в Docker Manager (образ `:latest`, `pull_policy: always`). Данные Brain остаются в томе.
 
 ## Вариант 2 - Docker на любой машине или VPS
+
+> 🛒 **Нужен VPS?** [VPS на Hostinger](https://www.hostinger.com?REFERRALCODE=UTRBLOGMIDSN) подходит и для этого варианта.
 
 ```
 docker compose -f docker-compose.yml up -d
