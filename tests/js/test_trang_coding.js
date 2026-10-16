@@ -218,7 +218,7 @@ check("bấm lên trên và bấm vào thư mục con đều duyệt tiếp",
   /duyet\(d\.parent\)/.test(FP_MA) && /duyet\(x\.path\)/.test(FP_MA));
 check("vẫn dán được đường dẫn dài rồi Enter", /fp-go/.test(FP_MA) && /key !== "Enter"/.test(FP_MA));
 check("a pin error shows IN the picker and keeps it open",
-  /chon: function \(p\) \{ return pin\(p\); \}/.test(CF) && /return \(d && d\.error\) \|\| tw\("cp\.pin_failed"\)/.test(CF)
+  /chon: function \(p\) \{ return (?:pin|pinTo)\(p\); \}/.test(CF) && /return \(d && d\.error\) \|\| tw\("cp\.pin_failed"\)/.test(CF)
   && /if \(loi\) \{ mach\(loi, true\); return; \}/.test(FP_MA));
 check("chữ của hộp duyệt có ở cả hai từ điển",
   ["fp.title", "fp.use", "fp.up", "fp.pick", "fp.path_ph"].every((k) => !!VI[k] && !!EN[k]));

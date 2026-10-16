@@ -286,8 +286,11 @@ class TeamRunner:
                  notify: Optional[Callable[[str, str], Any]] = None, worker_id: str = "team-runner",
                  max_parallel_teams: int = 2, clock: Callable[[], float] = time.time, admin: Any = None,
                  ceiling: Any = None, projector: Any = None, judge: Any = None,
-                 learning: Any = None, contrib_reader: Any = None):
+                 learning: Any = None, contrib_reader: Any = None, docs_block: Any = None):
         self.teams = teams
+        # 0.191.0: documents, links and the pinned working folder of the team (team_docs.block), added to every member
+        # turn. `docs_block(team) -> str`. None: no documents block.
+        self.docs_block = docs_block
         # T4 (0.170.0): đọc tỷ lệ ghi nhận đóng góp của một bản tổng hợp (`pulse_contrib` của phần nhịp T3), dùng ở khối
         # lịch sử dài. `contrib_reader(result_ref) -> [{agent_key, share, role}]`. None: chỉ liệt kê đầu vào do host ghi.
         self.contrib_reader = contrib_reader
@@ -451,7 +454,7 @@ class TeamRunner:
     # ───────────── tin của chủ nhóm ─────────────
 
     def submit(self, team_id: str, text: str, *, mentions: Optional[list] = None, as_job: bool = False,
-               client_msg_id: str = "") -> dict:
+               client_msg_id: str = "", files: Optional[list] = None) -> dict:
         """Ghi tin của chủ nhóm rồi định tuyến (spec 7.1 tới 7.3). Không gọi model ở đây."""
         team = self._team(team_id)
         if team["status"] == "archived":
@@ -486,6 +489,10 @@ class TeamRunner:
                 # Câu cho chủ đọc, không kèm mã (mã có "_" bị khung soạn coi là mã ghi chú nội bộ và ẩn đi, 0.142.0).
                 out["notes"].append(f"{self._name(team, key)} không còn trong nhóm nên không trả lời tin này")
         meta = {"mentions": valid, "as_job": bool(as_job), "notes": list(out["notes"])}
+        if files:
+            # 0.191.0: the attached files (already team documents) for the bubble to show as chips.
+            meta["files"] = [{"name": str(f.get("name") or ""), "path": str(f.get("path") or ""),
+                              "image": bool(f.get("image"))} for f in files][:10]
         hint = self._judge_hint(team, text, valid)
         if hint:
             # "Sao em không trả lời?": chỉ GỢI Ý quyết định im gần nhất (thiết kế 7.6); chủ xác nhận trong lịch sử quyết định.
@@ -2084,10 +2091,18 @@ class TeamRunner:
         req = {"team_id": team_id, "brain": team["brain_id"], "agent_key": agent_key, "role": role,
                "system": (str(info.get("system") or "").rstrip() + "\n\n" + TEXT_ONLY_NOTE + "\n\n" +
                           "\n".join(INTERNAL_GROUP_NOTE)).lstrip(),
-               "prompt": self._context(team, agent_key, role, task, step, authority_pin=pin) + "\n\n" + body,
+               "prompt": self._context(team, agent_key, role, task, step, authority_pin=pin) + self._docs(team) + "\n\n" + body,
                "thread": f"teammate:{team_id}:{agent_key}", "task_id": task["id"] if task else None,
                "step_id": step["step_id"] if step else None, "turn_id": turn_id, "tools": []}
         return {"pre": "done", "engine": str(engine or ""), "model": str(model or ""), "fn": fn, "req": req}
+
+    def _docs(self, team: dict) -> str:
+        if self.docs_block is None:
+            return ""
+        try:
+            return str(self.docs_block(team) or "")
+        except Exception:  # noqa: BLE001 - documents are context; a broken one must not cost the turn
+            return ""
 
     async def _turn(self, team: dict, agent_key: str, role: str, body: str, *, task: Optional[dict] = None,
                     step: Optional[dict] = None, reply_to=None, vet=None, on_engine=None, on_wait=None,

@@ -2298,6 +2298,14 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cp-search { width: 100%; box-sizing: border-box; margin: 4px 0 6px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; font-size: 14px; }
 .cp-search:focus { outline: none; border-color: var(--accent); }
 .cp-empty { padding: 8px 10px; font-size: 13px; color: var(--text3); }
+/* 0.191.0: a folder row with folders inside: the name pins it, ">" goes inside. */
+.cp-row { display: flex; align-items: center; gap: 2px; }
+.cp-row > .cp-mi { flex: 1 1 auto; min-width: 0; }
+.cp-in { flex: none; width: 34px; height: 34px; border: none; border-radius: 8px; background: transparent; color: var(--text2);
+  font-size: 20px; line-height: 1; cursor: pointer; }
+.cp-in:hover, .cp-in:focus-visible { background: var(--bg3); color: var(--accent); outline: none; }
+.cp-pin-here { color: var(--accent-ink, var(--accent)); font-weight: 600; }
+@media (pointer: coarse) { .cp-in { width: 44px; height: 44px; } }
 .eff-pop { padding: 14px 16px; width: min(330px, calc(100vw - 32px)); }
 .eff-head { display: flex; align-items: baseline; gap: 8px; font-size: 15px; }
 .eff-lbl { color: var(--text2); }

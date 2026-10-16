@@ -12,7 +12,7 @@
 
   function folderRows(items, listPath) {
     return (items || []).filter(function (x) { return x && x.type === "dir" && !HIDDEN.test(String(x.name || "")); })
-      .map(function (x) { return { name: x.name, path: x.path || ((listPath ? listPath + "/" : "") + x.name) }; });
+      .map(function (x) { return { name: x.name, path: x.path || ((listPath ? listPath + "/" : "") + x.name), dirs: !!x.dirs }; });
   }
   // Row hint: the path inside the brain ("home" from /files/list), not from the browse ceiling.
   function displayPath(path, home) {
@@ -151,57 +151,81 @@
     });
   }
 
-  function panel(box, api) {
-    // The current folder is its own (non-clickable) row, Unpin a separate button (spec).
-    var head = folder ? '<div class="cp-mi cp-pin-current" aria-current="true">' + icon() + '<span class="cp-mi-lbl">' + esc(folder.name) +
-      '</span><span class="cp-mi-hint">' + esc(tw("cp.pin_current")) + "</span></div>" +
-      '<button type="button" class="cp-mi" data-unpin="1"><span class="cp-mi-lbl">' + esc(tw("cp.pin_unpin")) + "</span></button>" +
-      '<div class="cp-sep"></div>' : "";
-    box.innerHTML = head + '<input type="search" class="cp-search" placeholder="' + esc(tw("cp.pin_search_ph")) + '" aria-label="' +
-      esc(tw("cp.pin_search_ph")) + '"><div class="cp-results"></div><div class="cp-sep"></div>' +
-      '<button type="button" class="cp-mi" data-browse="1">' + icon() + '<span class="cp-mi-lbl">' + esc(tw("cp.pin_browse")) + "</span></button>" +
-      '<div class="cp-pin-err" role="status"></div>';
-    var input = box.querySelector(".cp-search"), out = box.querySelector(".cp-results"), err = box.querySelector(".cp-pin-err");
-    var list = [], timer = 0, seq = 0, home = "";
-    // Top-level rows need no hint; search results show where they sit inside the brain.
-    function show(items, withHint) {
-      list = items;
-      out.innerHTML = items.length ? items.map(function (r, i) {
-        var hint = withHint ? displayPath(r.path, home) : "";
-        return '<button type="button" class="cp-mi" data-pin="' + i + '">' + icon() + '<span class="cp-mi-lbl">' + esc(r.name) +
-          "</span>" + (hint && hint !== r.name ? '<span class="cp-mi-hint">' + esc(hint) + "</span>" : "") + "</button>";
-      }).join("") : '<div class="cp-empty">' + esc(tw("cp.pin_empty")) + "</div>";
-    }
-    function load() {
-      var q = input.value.trim(), n = ++seq;
-      var url = q ? "/files/search?mode=name&only_dirs=true&limit=30&brain=" + encodeURIComponent(brain()) + "&q=" + encodeURIComponent(q)
-        : "/files/list?brain=" + encodeURIComponent(brain());
-      getJson(url).then(function (d) {
-        if (!q && d && d.home) home = d.home;
-        if (n === seq) show(folderRows((d && d.items) || [], (d && d.path) || ""), !!q);
-      });
-    }
-    function done(msg) {
-      if (msg) { err.textContent = msg; return; }
-      api.close();
-      var i = document.getElementById("chatInput"); if (i) i.focus();
-    }
-    box.addEventListener("click", function (e) {
-      var b = e.target.closest ? e.target.closest("button") : null;
-      if (!b) return;
-      if (b.dataset.unpin) { pin("").then(done); return; }
-      if (b.dataset.browse) {
-        api.close();
-        if (window.JavisFolderPicker) window.JavisFolderPicker.open({ tieuDe: tw("cp.pin_folder"), nhanDung: tw("cp.pin_folder"), demMd: false,
-          brain: brain(), batDau: folder && isAbs(folder.path) ? folder.path : "", chon: function (p) { return pin(p); } });
-        return;
+  // The panel, for any conversation: the main chat (defaults below) and a team chat (teams.js passes its own
+  // brain, current folder and pin). 0.191.0 (owner, 16/10/2026): a folder with folders inside has a ">" button;
+  // ">" goes inside, the name pins that folder; inside a folder the first row pins the folder you are in.
+  function makePanel(o) {
+    o = o || {};
+    var brainOf = o.brain || brain, currentOf = o.current || function () { return folder; }, pinTo = o.pin || pin;
+    return function (box, api) {
+      var cur = currentOf();
+      // The current folder is its own (non-clickable) row, Unpin a separate button (spec).
+      var head = cur ? '<div class="cp-mi cp-pin-current" aria-current="true">' + icon() + '<span class="cp-mi-lbl">' + esc(cur.name) +
+        '</span><span class="cp-mi-hint">' + esc(tw("cp.pin_current")) + "</span></div>" +
+        '<button type="button" class="cp-mi" data-unpin="1"><span class="cp-mi-lbl">' + esc(tw("cp.pin_unpin")) + "</span></button>" +
+        '<div class="cp-sep"></div>' : "";
+      box.innerHTML = head + '<input type="search" class="cp-search" placeholder="' + esc(tw("cp.pin_search_ph")) + '" aria-label="' +
+        esc(tw("cp.pin_search_ph")) + '"><div class="cp-results"></div><div class="cp-sep"></div>' +
+        '<button type="button" class="cp-mi" data-browse="1">' + icon() + '<span class="cp-mi-lbl">' + esc(tw("cp.pin_browse")) + "</span></button>" +
+        '<div class="cp-pin-err" role="status"></div>';
+      var input = box.querySelector(".cp-search"), out = box.querySelector(".cp-results"), err = box.querySelector(".cp-pin-err");
+      var list = [], timer = 0, seq = 0, home = "", trail = [];   // trail: the folders gone into, [{name, path}]
+      function inner() { return trail.length ? trail[trail.length - 1] : null; }
+      // Top-level rows need no hint; search results show where they sit inside the brain.
+      function show(items, withHint) {
+        list = items;
+        var here = inner();
+        var top = here ? '<button type="button" class="cp-mi cp-back" data-back="1"><span class="cp-mi-lbl">‹ ' +
+          esc(trail.length > 1 ? trail[trail.length - 2].name : tw("cp.pin_top")) + "</span></button>" +
+          '<button type="button" class="cp-mi cp-pin-here" data-pin-here="1">' + icon() + '<span class="cp-mi-lbl">' +
+          esc(tw("cp.pin_here", { name: here.name })) + "</span></button>" : "";
+        out.innerHTML = top + (items.length ? items.map(function (r, i) {
+          var hint = withHint ? displayPath(r.path, home) : "";
+          return '<div class="cp-row"><button type="button" class="cp-mi" data-pin="' + i + '">' + icon() + '<span class="cp-mi-lbl">' +
+            esc(r.name) + "</span>" + (hint && hint !== r.name ? '<span class="cp-mi-hint">' + esc(hint) + "</span>" : "") + "</button>" +
+            (r.dirs ? '<button type="button" class="cp-in" data-in="' + i + '" title="' + esc(tw("cp.pin_open", { name: r.name })) +
+              '" aria-label="' + esc(tw("cp.pin_open", { name: r.name })) + '">›</button>' : "") + "</div>";
+        }).join("") : '<div class="cp-empty">' + esc(tw(here ? "cp.pin_no_sub" : "cp.pin_empty")) + "</div>");
       }
-      if (b.dataset.pin !== undefined) { var r = list[+b.dataset.pin]; if (r) pin(r.path).then(done); }
-    });
-    input.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(load, 180); });
-    input.focus();
-    load();
+      function load() {
+        var q = input.value.trim(), n = ++seq, here = inner();
+        var url = q ? "/files/search?mode=name&only_dirs=true&limit=30&brain=" + encodeURIComponent(brainOf()) + "&q=" + encodeURIComponent(q)
+          : "/files/list?subdirs=1&brain=" + encodeURIComponent(brainOf()) + (here ? "&path=" + encodeURIComponent(here.path) : "");
+        getJson(url).then(function (d) {
+          if (!q && d && d.home) home = d.home;
+          if (n === seq) show(folderRows((d && d.items) || [], (d && d.path) || ""), !!q);
+        });
+      }
+      function done(msg) {
+        if (msg) { err.textContent = msg; return; }
+        api.close();
+        if (o.focus) o.focus(); else { var i = document.getElementById("chatInput"); if (i) i.focus(); }
+      }
+      box.addEventListener("click", function (e) {
+        var b = e.target.closest ? e.target.closest("button") : null;
+        if (!b) return;
+        if (b.dataset.unpin) { pinTo("").then(done); return; }
+        if (b.dataset.browse) {
+          api.close();
+          if (window.JavisFolderPicker) window.JavisFolderPicker.open({ tieuDe: tw("cp.pin_folder"), nhanDung: tw("cp.pin_folder"), demMd: false,
+            brain: brainOf(), batDau: cur && isAbs(cur.path) ? cur.path : "", chon: function (p) { return pinTo(p); } });
+          return;
+        }
+        if (b.dataset.back) { trail.pop(); input.value = ""; load(); return; }
+        if (b.dataset.pinHere) { var h = inner(); if (h) pinTo(h.path).then(done); return; }
+        if (b.dataset.in !== undefined) {
+          var d = list[+b.dataset.in];
+          if (d) { trail.push({ name: d.name, path: d.path }); input.value = ""; load(); }
+          return;
+        }
+        if (b.dataset.pin !== undefined) { var r = list[+b.dataset.pin]; if (r) pinTo(r.path).then(done); }
+      });
+      input.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(load, 180); });
+      input.focus();
+      load();
+    };
   }
+  var panel = makePanel();
 
   function init() {
     if (!window.JavisComposerMenu) return;
@@ -214,5 +238,6 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 
-  window.JavisPinnedFolder = { claimPending: claimPending, current: function () { return folder; }, refresh: refresh, pin: pin };
+  window.JavisPinnedFolder = { claimPending: claimPending, current: function () { return folder; }, refresh: refresh, pin: pin,
+    panelFor: makePanel };
 })();

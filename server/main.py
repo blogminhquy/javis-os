@@ -7521,7 +7521,9 @@ def _files_rel(root: Path, p: Path) -> str:
 
 
 @app.get("/files/list")
-async def files_list(brain: str = Query("brain"), path: str = Query(None)):
+async def files_list(brain: str = Query("brain"), path: str = Query(None), subdirs: int = Query(0)):
+    """`subdirs=1` (0.191.0): each folder row says whether it holds folders of its own (`dirs`), so a folder picker can
+    show a ">" to go inside it. Off by default: the file browser does not need it."""
     root = _files_root(brain)
     broot = Path(_brain_root(brain)).resolve()
     try:
@@ -7555,9 +7557,11 @@ async def files_list(brain: str = Query("brain"), path: str = Query(None)):
     for p in sorted(d.iterdir(), key=lambda x: (x.is_file(), x.name.lower())):
         try:
             st = p.stat()
-            items.append({"name": p.name, "type": "dir" if p.is_dir() else "file",
-                          "size": st.st_size if p.is_file() else 0, "mtime": st.st_mtime,
-                          "ext": p.suffix.lower()})
+            row = {"name": p.name, "type": "dir" if p.is_dir() else "file",
+                   "size": st.st_size if p.is_file() else 0, "mtime": st.st_mtime, "ext": p.suffix.lower()}
+            if subdirs and row["type"] == "dir":
+                row["dirs"] = _co_thu_muc_con(p)
+            items.append(row)
         except (PermissionError, OSError):
             continue
     return {"root": root.name or str(root), "path": _files_rel(root, d),
@@ -7565,6 +7569,29 @@ async def files_list(brain: str = Query("brain"), path: str = Query(None)):
             "parent": None if d == root else _files_rel(root, d.parent),   # None = đã ở trần → ẩn Lên
             "focus": focus, "missing": missing,
             "items": items}
+
+
+_AN_THU_MUC = (".", "node_modules", "__pycache__")
+
+
+def _co_thu_muc_con(p: Path, tran: int = 400) -> bool:
+    """Does this folder hold a visible folder? Stops at the first one and after `tran` entries (a huge flat folder
+    must not slow the list down; past the cap it answers no and the person can still search)."""
+    try:
+        with os.scandir(p) as it:
+            for i, e in enumerate(it):
+                if i >= tran:
+                    return False
+                if e.name.startswith(_AN_THU_MUC[0]) or e.name in _AN_THU_MUC[1:]:
+                    continue
+                try:
+                    if e.is_dir():
+                        return True
+                except OSError:
+                    continue
+    except OSError:
+        return False
+    return False
 
 
 def _fold_accents(s: str) -> str:
@@ -23510,6 +23537,40 @@ def _team_learning():
     return _TEAM_LEARNING[0]
 
 
+def _team_attach(team, attachments):
+    """Files attached in a team chat (composer or the team info panel) become the team's documents (0.191.0)."""
+    import doc_text
+    import team_docs
+    brain = team.get("brain_id") or "brain"
+    broot = Path(_brain_root(brain)).resolve()
+    root = _files_root(brain)
+    store, sid = get_store(), team.get("session_id") or ""
+    if not sid:
+        return []
+    return team_docs.save(attachments, staging=STAGING, brain_root=broot,
+                          dest_dir=broot / "attachments" / "teams" / str(team.get("team_id") or "team"),
+                          to_rel=lambda p: _files_rel(root, Path(p)),
+                          add=lambda rel, name: store.add_session_file(sid, rel, name),
+                          pin=lambda fid: store.set_session_file_pinned(sid, fid, True),
+                          readable=PROJECT_GHIM_DUOI, extract=doc_text.extract, extract_suffixes=doc_text.SUFFIXES)
+
+
+def _team_docs_block(team):
+    """Documents, links and the pinned working folder of a team, for every member turn (0.191.0, team_docs.block)."""
+    import team_docs
+    sid = team.get("session_id") or ""
+    if not sid:
+        return ""
+    try:
+        store = get_store()
+        files, links = store.list_session_files(sid), store.list_session_links(sid)
+        listed, loaded = _liet_ke_tai_lieu(team.get("brain_id") or "brain", files, links) if (files or links) else ([], [])
+        return team_docs.block(listed, loaded, coding_store.cwd_cua_phien(sid))
+    except Exception as e:  # noqa: BLE001 - a broken document must not stop the team from answering
+        print(f"[team docs] {type(e).__name__}: {e}", file=sys.stderr)
+        return ""
+
+
 _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     brain_key=lambda b: _brain_key(b), session_store=lambda: get_store(),
     task_store=lambda: tasks_feature.store, resonance_store=lambda: _resonance_store(),
@@ -23518,7 +23579,7 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     owner_name=lambda: ((cfgmod.read_settings().get("auth") or {}).get("username") or ""),
     ceiling=_team_ceiling, projector=_feedback_projector, judge=lambda: _agent_judge(),
     learning=_team_learning,
-    contrib_reader=lambda ref: _team_contrib_reader(ref)))
+    contrib_reader=lambda ref: _team_contrib_reader(ref), attach=_team_attach, docs_block=_team_docs_block))
 
 
 def _team_contrib_reader(result_ref):

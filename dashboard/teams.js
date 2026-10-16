@@ -50,7 +50,7 @@
   var CAP_KEY = { task_turns: "teams.cap.task_turns", task_steps: "teams.cap.task_steps", daily_turns: "teams.cap.daily_turns",
     mentions: "teams.cap.mentions", help_depth: "teams.cap.help_depth", busy_wait_s: "teams.cap.busy_wait_s",
     judge_daily: "teams.cap.judge_daily", volunteer_k: "teams.cap.volunteer_k", judge_off_batch: "teams.cap.judge_off_batch" };
-  var TAB_KEY = { jobs: "teams.tab_jobs", team: "teams.tab_team" };
+  var TAB_KEY = { info: "teams.tab_info", jobs: "teams.tab_jobs", team: "teams.tab_team" };
   var LATE = ["late_cancelled", "late", "old_revision", "member_left", "leader_changed", "lease_lost"];
   // Trần chủ nhóm chỉnh được (team_store.OWNER_CAPS). Bốn trần đầu có "Không giới hạn" (lưu null, GOAL T1 mục 9).
   var CAP_FIELDS = ["task_turns", "task_steps", "help_depth", "daily_turns", "mentions", "busy_wait_s", "judge_daily",
@@ -159,7 +159,11 @@
     if (mine) {
       var Q = quoteApi();
       var t = Q ? Q.tach(text) : { quote: "", rest: text };
-      return (t.quote ? quoteHtml(t.quote) : "") + '<div class="tm-text">' + esc(t.rest).replace(/\n/g, "<br>") + "</div>";
+      // 0.191.0: files sent with the message show as chips; the "📎 names" line stored for the team turns is not repeated.
+      var files = ((m.meta || {}).files || []).filter(function (f) { return f && f.path; });
+      var rest = files.length ? t.rest.replace(/(?:\n\n)?📎 [^\n]*$/, "") : t.rest;
+      return (t.quote ? quoteHtml(t.quote) : "") + (rest ? '<div class="tm-text">' + esc(rest).replace(/\n/g, "<br>") + "</div>" : "") +
+        (files.length ? '<div class="tm-files">' + files.map(fileChipHtml).join("") + "</div>" : "");
     }
     var md = typeof window !== "undefined" && window.mdToHtml;
     if (md) {
@@ -167,6 +171,14 @@
       catch (e) { /* fall through to plain text */ }
     }
     return '<div class="tm-text">' + esc(text).replace(/\n/g, "<br>") + "</div>";
+  }
+
+  function rawUrl(path) { return "/files/raw?brain=" + q(brain()) + "&path=" + q(path); }
+  function fileChipHtml(f) {
+    var img = !!f.image || /\.(png|jpe?g|gif|webp)$/i.test(String(f.path || ""));
+    return '<a class="tm-file' + (img ? " is-img" : "") + '" href="' + esc(rawUrl(f.path)) + '" target="_blank" rel="noopener" title="' +
+      esc(f.name || f.path) + '">' + (img ? '<img src="' + esc(rawUrl(f.path)) + '" alt="" loading="lazy">' : ic("file-text")) +
+      "<span>" + esc(f.name || f.path) + "</span></a>";
   }
 
   // One-line plain preview of a message for the reply bar and the quote: markdown marks and an earlier quote dropped.
@@ -1145,7 +1157,8 @@
       focusPicker: false, focusBack: null, searchOpen: false, searchResults: null, searchQuery: "", jumped: null,
       openMember: null, advOpen: false, turns: [], sideOpener: null, rowMenu: null, focusRowMenu: false, swallowClick: false,
       picked: [], retrying: {}, pickSt: null, pickOpener: null, pickHost: null, roster: [],
-      renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle" };
+      renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle",
+      atts: [], folder: null, info: null };
   }
 
   function teamUrl(path) { return "/teams/" + q(S.activeId) + (path || ""); }
@@ -1228,7 +1241,9 @@
       var title = S.renamingHead ? '<div class="tm-title">' + renameInputHtml(t) + "</div>"
         : '<button type="button" class="tm-title tm-title-btn" data-rename-head="1" title="' + esc(tw("teams.rename_head")) + '">' +
           "<strong>" + esc(t.name) + '</strong><span class="tm-sub">' + esc(lead) + "</span></button>";
-      head.innerHTML = back + teamAvatarHtml(t, 36) + title +
+      // 0.191.0: the team picture opens the team info panel (members, files, links, working folder), like a chat app.
+      head.innerHTML = back + '<button type="button" class="tm-ava-btn" data-team-info="1" aria-label="' + esc(tw("teams.info_open")) +
+        '" title="' + esc(tw("teams.info_open")) + '">' + teamAvatarHtml(t, 36) + "</button>" + title +
         jobsChipHtml(S.queue, S.side && S.tab === "jobs") +
         '<button type="button" class="ws-btn tm-icon tm-search-btn" aria-label="' + esc(tw("teams.search")) + '" title="' +
         esc(tw("teams.search")) + '"' + (S.searchOpen ? ' aria-expanded="true"' : ' aria-expanded="false"') + ">" + ic("search") +
@@ -1434,6 +1449,7 @@
         '</span></div><button type="button" class="tm-bar-x" data-reply-cancel="1" aria-label="' + esc(tw("teams.reply_cancel")) +
         '" title="' + esc(tw("teams.reply_cancel")) + '">' + ic("x") + "</button></div>";
     }
+    h += chipsHtml();
     if (S.asJob) {
       h += '<div class="tm-jobmode">' + ic("list-todo") + '<span class="tm-replying-main">' + esc(tw("teams.as_job_on")) +
         '</span><button type="button" class="tm-bar-x tm-asjob" aria-label="' + esc(tw("teams.as_job_off")) + '" title="' +
@@ -1451,6 +1467,8 @@
         (checked ? '<span class="tm-plus-on">' + ic("check") + "</span>" : "") + "</button>";
     };
     return '<div class="tm-plus-menu" role="menu" aria-label="' + esc(tw("teams.plus")) + '">' +
+      item('role="menuitem" data-plus-attach="1"', "paperclip", tw("teams.attach")) +
+      item('role="menuitem" data-plus-folder="1"', "folder", tw("cp.pin_folder")) +
       item('role="menuitemcheckbox" aria-checked="' + (S.asJob ? "true" : "false") + '" class="tm-asjob" title="' +
         esc(tw("teams.as_job_title")) + '"', "list-todo", tw("teams.as_job"), S.asJob) +
       item('role="menuitem" data-insert-at="1"', "at-sign", tw("teams.mention_insert")) +
@@ -1666,11 +1684,11 @@
     if (side.hidden) { side.innerHTML = ""; return; }
     var keep = side.querySelector(".tm-side-body");
     var top = keep ? keep.scrollTop : 0;
-    var tabs = ["jobs", "team"].map(function (k) {
+    var tabs = ["info", "jobs", "team"].map(function (k) {
       return '<button type="button" class="tm-tab" role="tab" data-tab="' + k + '" aria-selected="' + (S.tab === k ? "true" : "false") +
         '">' + esc(tw(TAB_KEY[k])) + "</button>";
     }).join("");
-    var body = S.tab === "jobs" ? queueHtml(S.queue)
+    var body = S.tab === "info" ? infoTabHtml(S.team) : S.tab === "jobs" ? queueHtml(S.queue)
       : teamTabHtml(S.team, S.agents, { openMember: S.openMember, advOpen: S.advOpen, turns: S.turns });
     side.innerHTML = '<div class="tm-bar tm-side-bar"><div class="tm-tabs" role="tablist">' + tabs + "</div>" +
       '<button type="button" class="ws-btn tm-icon tm-close" aria-label="' + esc(tw("teams.close")) + '" title="' +
@@ -1696,12 +1714,13 @@
   // Mở ngăn: nhớ nút đã mở (chip việc, ba chấm, nút trên băng hay thẻ việc) để lúc đóng trả focus về đúng nút đó.
   function openSide(tab, opener) {
     if (opener && opener.matches) S.sideOpener = opener.matches(".tm-jobs-chip") ? ".tm-jobs-chip"
-      : opener.matches(".tm-gear") ? ".tm-gear" : null;
+      : opener.matches(".tm-gear") ? ".tm-gear" : opener.matches(".tm-ava-btn") ? ".tm-ava-btn" : null;
     S.side = true;
     S.tab = tab;
     drawSide(true);
     drawHead();
     if (tab === "team") loadAgents().then(function () { if (S.side && S.tab === "team") drawSide(); });
+    if (tab === "info") { loadInfo(); loadFolder(); }
     var first = S.el.querySelector(".tm-side .tm-tab[aria-selected=\"true\"]");
     if (first) first.focus();
   }
@@ -1851,20 +1870,224 @@
     S.activeId = id; S.view = "chat"; S.asJob = false; S.pending = null; S.filterTask = String(taskId || "");
     S.team = null; S.queue = null; S.msgs = []; S.taskTitles = {}; S.side = false; S.openMember = null; S.turns = [];
     S.picker = null; S.draft = null; S.picked = []; S.retrying = {};
-    S.replyTo = null; S.plusOpen = false; S.renamingHead = false;
+    S.replyTo = null; S.plusOpen = false; S.renamingHead = false; S.atts = []; S.folder = null; S.info = null;
+    closeFolderPanel();
     stopMic();
     var input = S.el.querySelector(".tm-input");
     if (input) input.value = "";
     setNote("");
     drawAll(true);
-    Promise.all([loadTeam(), loadQueue(), loadMsgs(false)]).then(function () { if (S.activeId === id) drawAll(true); });
+    Promise.all([loadTeam(), loadQueue(), loadMsgs(false)]).then(function () { if (S.activeId === id) { drawAll(true); loadFolder(); } });
+  }
+
+  // ───────────── 0.191.0: files, working folder and the team info panel ─────────────
+  // A team is a normal conversation underneath: its documents are that conversation's documents
+  // (/sessions/{session_id}/assets) and its working folder is that conversation's pinned folder (/coding/session/...).
+
+  function upload(file) {
+    var fd = new FormData();
+    fd.append("file", file);
+    fd.append("brain", brain());
+    return fetch("/upload", { method: "POST", body: fd, credentials: "same-origin" }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { code: r.status, j: j || {} }; });
+    });
+  }
+
+  function pickFiles(onDone) {
+    var inp = document.createElement("input");
+    inp.type = "file"; inp.multiple = true;
+    inp.addEventListener("change", function () { onDone(Array.prototype.slice.call(inp.files || [])); });
+    inp.click();
+  }
+
+  function attachFiles(files) {
+    files.slice(0, 10).forEach(function (f) {
+      var a = { name: f.name, size: f.size, kind: /^image\//.test(f.type || "") ? "image" : "file", path: "", busy: true, err: "" };
+      S.atts.push(a);
+      upload(f).then(function (r) {
+        a.busy = false;
+        if (r.code !== 200 || !r.j.staged) a.err = (r.j && (r.j.error || r.j.detail)) || tw("teams.attach_err");
+        else a.path = r.j.staged;
+        drawComposer();
+      }).catch(function () { a.busy = false; a.err = tw("teams.err_network"); drawComposer(); });
+    });
+    drawComposer();
+  }
+
+  function chipsHtml() {
+    var h = "";
+    if (S.folder) {
+      h += '<span class="tm-chip tm-chip-folder" title="' + esc(S.folder.path || S.folder.name) + '">' + ic("folder") +
+        '<button type="button" class="tm-chip-name" data-folder-open="1">' + esc(S.folder.name) + "</button>" +
+        '<button type="button" class="tm-chip-x" data-folder-unpin="1" aria-label="' + esc(tw("cp.pin_unpin")) + '" title="' +
+        esc(tw("cp.pin_unpin")) + '">' + ic("x") + "</button></span>";
+    }
+    S.atts.forEach(function (a, i) {
+      h += '<span class="tm-chip' + (a.err ? " is-err" : "") + '">' + ic(a.kind === "image" ? "image" : "paperclip") +
+        '<span class="tm-chip-name">' + esc(a.name) + "</span>" +
+        (a.busy ? '<span class="tm-chip-st">' + esc(tw("teams.uploading")) + "</span>" : a.err ? '<span class="tm-chip-st">' + esc(a.err) + "</span>" : "") +
+        '<button type="button" class="tm-chip-x" data-att-x="' + i + '" aria-label="' + esc(tw("teams.attach_remove")) + '" title="' +
+        esc(tw("teams.attach_remove")) + '">' + ic("x") + "</button></span>";
+    });
+    return h ? '<div class="tm-attach-chips">' + h + "</div>" : "";
+  }
+
+  function sessionId() { return (S.team && S.team.session_id) || ""; }
+
+  function loadFolder() {
+    var sid = sessionId();
+    if (!sid) return Promise.resolve();
+    return fetch("/coding/session/" + q(sid) + "?brain=" + q(brain()), { credentials: "same-origin" })
+      .then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (d) {
+        if (sessionId() !== sid) return;
+        S.folder = (d && d.folder) || null;
+        drawComposer();
+        if (S.side && S.tab === "info") drawSide(true);
+      }).catch(function () {});
+  }
+
+  function pinTeamFolder(p) {
+    var sid = sessionId();
+    if (!sid) return Promise.resolve("");
+    var b = new FormData();
+    b.append("path", p); b.append("brain", brain());
+    return fetch("/coding/session/" + q(sid) + "/pin", { method: "POST", body: b, credentials: "same-origin" })
+      .then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (d) {
+        if (!d || d.ok === false) return (d && d.error) || tw("cp.pin_failed");
+        if (sessionId() === sid) { S.folder = d.folder || null; drawComposer(); if (S.side && S.tab === "info") drawSide(true); }
+        return "";
+      }).catch(function () { return tw("teams.err_network"); });
+  }
+
+  // The folder picker of the main chat (composer-folder.js), in a small pop-up above the team composer.
+  function closeFolderPanel() {
+    var pop = document.querySelector(".tm-folder-pop");
+    if (pop) pop.remove();
+    document.removeEventListener("mousedown", folderOutside, true);
+    document.removeEventListener("keydown", folderEsc, true);
+  }
+  function folderOutside(e) { if (!(e.target.closest && e.target.closest(".tm-folder-pop"))) closeFolderPanel(); }
+  function folderEsc(e) { if (e.key === "Escape") closeFolderPanel(); }
+  function openFolderPanel() {
+    var P = window.JavisPinnedFolder && window.JavisPinnedFolder.panelFor;
+    var comp = S.el.querySelector(".tm-composer");
+    if (!P || !comp || !S.team) return;
+    closeFolderPanel();
+    var r = comp.getBoundingClientRect();
+    var pop = document.createElement("div");
+    pop.className = "cp-menu tm-folder-pop";
+    pop.style.left = Math.max(8, r.left + 8) + "px";
+    pop.style.bottom = Math.max(8, window.innerHeight - r.top + 6) + "px";
+    pop.innerHTML = '<div class="cp-mi cp-back">' + esc(tw("cp.pin_folder")) + '</div><div class="cp-sep"></div><div class="tm-folder-body"></div>';
+    document.body.appendChild(pop);
+    P({ brain: brain, current: function () { return S.folder; }, pin: pinTeamFolder,
+      focus: function () { var i = S.el.querySelector(".tm-input"); if (i) i.focus(); } })(pop.querySelector(".tm-folder-body"),
+      { close: closeFolderPanel });
+    setTimeout(function () {
+      document.addEventListener("mousedown", folderOutside, true);
+      document.addEventListener("keydown", folderEsc, true);
+    }, 0);
+  }
+
+  function loadInfo() {
+    var sid = sessionId();
+    if (!sid) return Promise.resolve();
+    return fetch("/sessions/" + q(sid) + "/assets?brain=" + q(brain()), { credentials: "same-origin" })
+      .then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (d) {
+        if (sessionId() !== sid) return;
+        S.info = { files: (d && d.files) || [], links: (d && d.links) || [], err: d && d.ok === false ? (d.error || "") : "" };
+        if (S.side && S.tab === "info") drawSide(true);
+      }).catch(function () { S.info = { files: [], links: [], err: tw("teams.err_network") }; if (S.side && S.tab === "info") drawSide(true); });
+  }
+
+  function assetPost(path, form) {
+    var sid = sessionId();
+    if (!sid) return Promise.resolve();
+    return fetch("/sessions/" + q(sid) + "/assets" + path, { method: "POST", body: form || new FormData(), credentials: "same-origin" })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (d) { if (d && d.ok === false) setNote(d.error || tw("teams.err_generic")); return loadInfo(); })
+      .catch(function () { setNote(tw("teams.err_network")); });
+  }
+
+  function addTeamLink() {
+    var inp = S.el.querySelector(".tm-info-link");
+    var url = inp ? inp.value.trim() : "";
+    if (!url) { if (inp) inp.focus(); return; }
+    if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+    var f = new FormData();
+    f.append("url", url); f.append("label", "");
+    assetPost("/links", f);
+  }
+
+  function addTeamFiles(files) {
+    if (!files.length || !S.team) return;
+    setNote(tw("teams.uploading"));
+    Promise.all(files.slice(0, 10).map(function (f) {
+      return upload(f).then(function (r) { return r.code === 200 && r.j.staged ? { path: r.j.staged, name: f.name } : null; })
+        .catch(function () { return null; });
+    })).then(function (got) {
+      var atts = got.filter(Boolean);
+      if (!atts.length) { setNote(tw("teams.attach_err")); return; }
+      return call("POST", teamUrl("/files"), { attachments: atts }).then(function (r) {
+        setNote(r.code === 200 ? "" : ((r.j && r.j.error) || tw("teams.attach_err")));
+        loadInfo();
+      });
+    });
+  }
+
+  // The info panel (0.191.0): who is in the team, the working folder, pictures, files and links shared in it.
+  function infoTabHtml(t) {
+    if (!t) return "";
+    var I = S.info;
+    var members = (t.members || []).filter(function (m) { return m.status !== "left"; });
+    var h = '<div class="tm-info-head">' + teamAvatarHtml(t, 64) + '<div class="tm-info-name"><strong>' + esc(t.name) + "</strong>" +
+      (t.description ? '<span class="tm-sub">' + esc(t.description) + "</span>" : "") + "</div></div>";
+    h += '<section class="tm-info-sec"><h4>' + esc(tw("teams.info_members", { n: members.length + 1 })) + '</h4><ul class="tm-info-members">' +
+      '<li>' + avaHtml(tw("teams.you")) + "<span>" + esc(tw("teams.you")) + "</span></li>" +
+      members.map(function (m) {
+        return "<li>" + agentAva(m, 28) + "<span>" + esc(m.name || m.slug) + "</span>" +
+          (m.agent_key && m.agent_key === t.leader_key ? '<span class="tm-info-badge">' + esc(tw("teams.leader_badge")) + "</span>" : "") + "</li>";
+      }).join("") + "</ul></section>";
+    h += '<section class="tm-info-sec"><h4>' + esc(tw("teams.info_folder")) + "</h4>" + (S.folder
+      ? '<div class="tm-info-row">' + ic("folder") + '<span class="tm-info-grow" title="' + esc(S.folder.path) + '">' + esc(S.folder.name) +
+        '</span><button type="button" class="ws-btn" data-folder-open="1">' + esc(tw("teams.change")) + "</button></div>"
+      : '<button type="button" class="ws-btn" data-folder-open="1">' + ic("folder") + " " + esc(tw("cp.pin_folder")) + "</button>") + "</section>";
+    if (!I) return h + '<p class="tm-sub">' + esc(tw("common.loading")) + "</p>";
+    var imgs = I.files.filter(function (f) { return f.image; });
+    var docs = I.files.filter(function (f) { return !f.image; });
+    if (imgs.length) {
+      h += '<section class="tm-info-sec"><h4>' + esc(tw("teams.info_images", { n: imgs.length })) + '</h4><div class="tm-info-imgs">' +
+        imgs.slice(0, 12).map(function (f) {
+          return '<a href="' + esc(rawUrl(f.brain_path || f.path)) + '" target="_blank" rel="noopener" title="' + esc(f.name) + '"><img src="' +
+            esc(rawUrl(f.brain_path || f.path)) + '" alt="" loading="lazy"></a>';
+        }).join("") + "</div></section>";
+    }
+    h += '<section class="tm-info-sec"><div class="tm-info-sechead"><h4>' + esc(tw("teams.info_files", { n: docs.length })) + "</h4>" +
+      '<button type="button" class="ws-btn" data-info-add-file="1">' + ic("plus") + " " + esc(tw("teams.info_add_file")) + "</button></div>" +
+      (docs.length ? '<ul class="tm-info-list">' + docs.map(function (f) {
+        return '<li><a href="' + esc(rawUrl(f.brain_path || f.path)) + '" target="_blank" rel="noopener">' + ic("file-text") + "<span>" +
+          esc(f.label || f.name) + "</span></a>" + (f.manual && f.id ? '<button type="button" class="tm-chip-x" data-info-del-file="' + esc(f.id) +
+          '" aria-label="' + esc(tw("teams.info_remove")) + '" title="' + esc(tw("teams.info_remove")) + '">' + ic("x") + "</button>" : "") + "</li>";
+      }).join("") + "</ul>" : '<p class="tm-sub">' + esc(tw("teams.info_no_files")) + "</p>") + "</section>";
+    h += '<section class="tm-info-sec"><h4>' + esc(tw("teams.info_links", { n: I.links.length })) + "</h4>" +
+      '<div class="tm-info-addlink"><input type="url" class="tm-info-link" placeholder="' + esc(tw("teams.info_link_ph")) + '">' +
+      '<button type="button" class="ws-btn" data-info-add-link="1">' + esc(tw("teams.info_add")) + "</button></div>" +
+      (I.links.length ? '<ul class="tm-info-list">' + I.links.map(function (l) {
+        return '<li><a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + ic("link") + "<span>" + esc(l.label || l.url) + "</span></a>" +
+          (l.manual && l.id ? '<button type="button" class="tm-chip-x" data-info-del-link="' + esc(l.id) + '" aria-label="' +
+            esc(tw("teams.info_remove")) + '" title="' + esc(tw("teams.info_remove")) + '">' + ic("x") + "</button>" : "") + "</li>";
+      }).join("") + "</ul>" : '<p class="tm-sub">' + esc(tw("teams.info_no_links")) + "</p>") + "</section>";
+    if (I.err) h += '<p class="tm-sub">' + esc(I.err) + "</p>";
+    return h;
   }
 
   function send() {
     var input = S.el.querySelector(".tm-input");
     if (!input || !S.team) return;
     var typed = input.value.trim();
-    if (!typed) return;
+    if (S.atts.some(function (a) { return a.busy; })) { setNote(tw("teams.attach_wait")); return; }
+    var atts = S.atts.filter(function (a) { return a.path && !a.err; });
+    if (!typed && !atts.length) return;
     stopMic();
     var scan = mentionScan(typed, S.team.members, S.picked);
     if (scan.ambiguous.length) { drawHint(); return; }
@@ -1877,13 +2100,15 @@
     // Gửi lại sau rớt mạng: cùng chữ thì giữ ĐÚNG mã cũ để server trả tin cũ, không thêm lượt.
     if (!S.pending || S.pending.text !== text) S.pending = { text: text, typed: typed, id: newClientId() };
     var body = { text: text, mentions: mentions, as_job: S.asJob, client_msg_id: S.pending.id };
+    if (atts.length) body.attachments = atts.map(function (a) { return { path: a.path, name: a.name, kind: a.kind }; });
     var btn = S.el.querySelector(".tm-send");
     if (btn) btn.disabled = true;
     var forTeam = S.activeId;
     call("POST", teamUrl("/messages"), body).then(function (r) {
       if (S.activeId !== forTeam) return;
       if (r.code !== 200) { fail(r); drawHint(); return; }
-      S.pending = null; S.asJob = false; S.picked = []; S.replyTo = null; S.plusOpen = false; input.value = "";
+      S.pending = null; S.asJob = false; S.picked = []; S.replyTo = null; S.plusOpen = false; input.value = ""; S.atts = [];
+      if (atts.length && S.side && S.tab === "info") loadInfo();
       setNote(r.j.notes && r.j.notes.length ? r.j.notes.filter(function (n) { return !/^[a-z_]+$/.test(n); }).join(" · ") : "");
       if ((r.j.notes || []).indexOf("daily_cap") >= 0) setNote(tw("teams.daily_cap"));
       drawComposer();
@@ -2258,6 +2483,15 @@
       return;
     }
     if (t.classList.contains("tm-plus")) return setPlus(!S.plusOpen);
+    if (d.teamInfo) return S.side && S.tab === "info" ? closeSide() : openSide("info", t);
+    if (d.plusAttach) { setPlus(false); return pickFiles(attachFiles); }
+    if (d.plusFolder || d.folderOpen) { setPlus(false); return openFolderPanel(); }
+    if (d.folderUnpin) return pinTeamFolder("");
+    if (d.attX !== undefined) { S.atts.splice(+d.attX, 1); drawComposer(); return; }
+    if (d.infoAddFile) return pickFiles(addTeamFiles);
+    if (d.infoDelFile) return assetPost("/files/" + q(d.infoDelFile) + "/delete");
+    if (d.infoDelLink) return assetPost("/links/" + q(d.infoDelLink) + "/delete");
+    if (d.infoAddLink) return addTeamLink();
     if (t.classList.contains("tm-mic")) return toggleMic();
     if (d.insertAt) {
       setPlus(false);

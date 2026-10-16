@@ -56,6 +56,8 @@ class TeamApiDeps:
     judge: Optional[Callable[[], Any]] = None          # () -> agent_judge.Judge (T3 phần J) | None
     learning: Optional[Callable[[], Any]] = None       # () -> agent_lessons.TeamLearning (T3 phần L) | None
     contrib_reader: Optional[Callable[[str], list]] = None  # result_ref -> pulse_contrib còn hiệu lực (T4, lịch sử dài)
+    attach: Optional[Callable[[dict, list], list]] = None  # (team, attachments) -> [{name, path, image}] (0.191.0)
+    docs_block: Optional[Callable[[dict], str]] = None    # team -> documents/folder block of member turns (0.191.0)
 
 
 async def _body(request: Request) -> dict:
@@ -146,7 +148,7 @@ class TeamApi:
                 projector=self.deps.projector() if self.deps.projector is not None else None,
                 judge=self.deps.judge() if self.deps.judge is not None else None,
                 learning=self.deps.learning() if self.deps.learning is not None else None,
-                contrib_reader=self.deps.contrib_reader)
+                contrib_reader=self.deps.contrib_reader, docs_block=self.deps.docs_block)
             if self._loop is not None:
                 self._runner._loop, self._runner._loop_thread = self._loop, self._loop_thread
         return self._runner
@@ -869,10 +871,18 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             if team["status"] == "archived":
                 return _err(409, "Nhóm đã lưu trữ, không gửi tin được", "The team is archived")
             runner = api.runner()
+            text = str(body.get("text") or "").strip()
+            files = []
+            if body.get("attachments") and api.deps.attach is not None:
+                # 0.191.0: the files become the team's documents (text ones are read by every member turn); the
+                # message keeps their names so everyone in the chat sees what was sent.
+                files = api.deps.attach(team, list(body.get("attachments") or []))
+                if files:
+                    text = (text + "\n\n" if text else "") + "📎 " + ", ".join(f["name"] for f in files)
             try:
-                sub = runner.submit(team_id, str(body.get("text") or ""), mentions=list(body.get("mentions") or []),
+                sub = runner.submit(team_id, text, mentions=list(body.get("mentions") or []),
                                     as_job=bool(body.get("as_job")),
-                                    client_msg_id=str(body.get("client_msg_id") or ""))
+                                    client_msg_id=str(body.get("client_msg_id") or ""), files=files)
             except TeamError as ex:
                 return _team_err(ex)
             if sub["replies"] or sub.get("judge"):
@@ -881,6 +891,23 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             if sub.get("task_id") and sub["created"]:
                 api.kick()
             return dict(sub, ok=True)
+        return await api.io(_do)
+
+    @app.post("/teams/{team_id}/files")
+    async def teams_add_files(team_id: str, request: Request, brain: str = "brain"):
+        """Add documents to a team from its info panel, without a message (0.191.0). Same rules as attaching in chat."""
+        body = await _body(request)
+
+        def _do():
+            team, err = _team(team_id, brain)
+            if err:
+                return err
+            if api.deps.attach is None:
+                return _err(501, "Máy chủ chưa hỗ trợ tài liệu nhóm", "Team documents are not supported here")
+            files = api.deps.attach(team, list(body.get("attachments") or []))
+            if not files:
+                return _err(400, "Không thêm được file nào", "No file could be added")
+            return {"ok": True, "files": files, "session_id": team["session_id"]}
         return await api.io(_do)
 
     @app.post("/teams/{team_id}/messages/{message_id}/replies/{agent_key}/retry")
