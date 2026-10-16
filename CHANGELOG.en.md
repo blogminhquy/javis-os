@@ -8,6 +8,9 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.174.0] - 2026-10-16
+### Added
+- (in progress)
 ## [0.173.1] - 2026-10-16
 ### Improved
 - **Clearer /goal:** every time Javis nudges itself to keep going you see a line you can expand (round n/5) with a Stop goal button, and it survives a page reload.
