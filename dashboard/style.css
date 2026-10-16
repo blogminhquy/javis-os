@@ -1099,20 +1099,25 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .jr-rx-btn:hover { color: var(--accent); transform: scale(1.08); }
 .jr-chat.is-busy .jr-rx-btn { opacity: .6; pointer-events: none; }
 .jr-rx-emoji { font-size: 17px; line-height: 1; }
-.jr-rx-bar { display: none; position: absolute; right: 0; bottom: calc(100% + 4px); gap: 2px; padding: 4px 6px;
-  border-radius: 999px; background: var(--bg); border: 1px solid var(--border); box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
-  white-space: nowrap; }
-/* Transparent strip under the pill: the hover survives the pointer's trip from the button up to the emoji. */
-.jr-rx-bar::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 8px; }
-@media (hover: hover) { .jr-rx:hover .jr-rx-bar { display: flex; animation: jr-pop .14s ease; } }
-.jr-rx:focus-within .jr-rx-bar, .jr-rx.is-open .jr-rx-bar { display: flex; }
-@keyframes jr-pop { from { opacity: 0; transform: translateY(4px) scale(.96); } to { opacity: 1; transform: none; } }
+/* 0.179.0 (owner: "slide the mouse sideways and the emoji vanish too fast, the hover area is too narrow"): the pill is
+   always laid out but hidden, fades in at once, and only fades out after 0.5 s; an invisible margin of 18px around the
+   pill and a tall bridge down to the button keep the hover while the pointer wanders across the row. */
+.jr-rx-bar { display: flex; visibility: hidden; opacity: 0; transform: translateY(4px) scale(.97); position: absolute; right: 0;
+  bottom: calc(100% + 4px); gap: 2px; padding: 4px 6px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .18); white-space: nowrap;
+  transition: opacity .16s ease .5s, transform .16s ease .5s, visibility 0s linear .66s; }
+.jr-rx-bar::before { content: ""; position: absolute; inset: -18px -22px -6px; z-index: -1; }
+.jr-rx-bar::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 22px; }
+@media (hover: hover) {
+  .jr-rx:hover .jr-rx-bar { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
+}
+.jr-rx:focus-within .jr-rx-bar, .jr-rx.is-open .jr-rx-bar { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
 .jr-rx-pick { border: none; background: none; padding: 2px; width: 38px; height: 38px; border-radius: 50%; cursor: pointer;
   font-size: 27px; line-height: 1; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
   transition: transform .12s ease; }
 .jr-rx-pick:hover, .jr-rx-pick:focus-visible { transform: scale(1.28) translateY(-3px); outline: none; }
 .jr-rx-pick[aria-pressed="true"] { background: var(--accent-wash); }
-@media (prefers-reduced-motion: reduce) { .jr-rx-pick, .jr-rx-btn { transition: none; } .jr-rx-bar { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .jr-rx-pick, .jr-rx-btn { transition: none; } }
 /* The row of small buttons under the bubble starts below the corner, so the two never overlap. */
 .msg-javis > .jr-chat + .msg-acts { margin-top: 8px; }
 .jr-react-emoji { font-size: 18px; margin-right: 4px; }
@@ -3866,3 +3871,43 @@ div.info-body > * { margin: 0; font-size: inherit; }
     max-width: none; border-radius: 16px 16px 0 0; font-size: 16px; padding-bottom: env(safe-area-inset-bottom); }
   .cts-share-pop .csp-note, .cts-share-pop .csp-url, .cts-share-pop .csp-manage { font-size: 16px; }
 }
+
+/* 0.179.0: long press a message on a touch screen (msg-press.js), main chat and Teams. The screen dims, six emoji pop
+   up above the finger (slide across: the one under the finger grows and shows its name, lift to react) and the actions
+   sit in a card at the bottom, like Zalo. Messages are not selectable on touch screens so iOS does not start its own
+   long-press gesture first; Copy in the card copies the whole message. */
+@media (hover: none) {
+  .mp-host .msg .bubble, .mp-host .tm-bubble { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+}
+.mp-layer { position: fixed; inset: 0; z-index: 3200; }
+.mp-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .32); animation: mp-fade .15s ease; }
+.mp-bar { position: absolute; display: flex; gap: 2px; padding: 6px 8px; border-radius: 999px; background: var(--bg);
+  border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, .25); animation: mp-pop .18s ease; }
+.mp-pick { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px;
+  border: none; background: none; border-radius: 50%; padding: 0; cursor: pointer; transition: transform .12s ease; }
+.mp-emoji { font-size: 32px; line-height: 1; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+.mp-pick.is-on { background: var(--accent-wash); }
+.mp-layer.is-picking .mp-pick:not(.is-hot) { transform: scale(.88); }
+.mp-pick.is-hot { transform: translateY(-14px) scale(1.55); z-index: 1; }
+.mp-tip { position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%); padding: 2px 8px; border-radius: 999px;
+  background: rgba(0, 0, 0, .65); color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap; opacity: 0; pointer-events: none; }
+.mp-pick.is-hot .mp-tip { opacity: 1; }
+.mp-sheet { position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 10px 8px; border-radius: 18px; background: var(--bg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .25); animation: mp-up .2s ease; max-width: 520px; margin: 0 auto; }
+.mp-act { display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 72px; padding: 8px 4px; border: none;
+  border-radius: 12px; background: none; color: var(--text); font: inherit; font-size: 14px; cursor: pointer; }
+.mp-act:active { background: var(--surface-2); }
+.mp-act-ic { display: inline-flex; color: var(--accent); }
+.mp-act-ic svg, .mp-act-ic .ic { width: 26px; height: 26px; }
+.mp-act.is-danger { color: var(--red, #d64545); }
+.mp-target { position: relative; z-index: 1; }
+.mp-layer .mp-lift { position: absolute; display: block; margin: 0; padding: 0; max-width: none; pointer-events: none;
+  background: var(--bg); box-shadow: 0 8px 24px rgba(0, 0, 0, .22); animation: mp-fade .15s ease; }
+.mp-toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  z-index: 3300; padding: 8px 16px; border-radius: 999px; background: rgba(20, 20, 20, .86); color: #fff; font-size: 15px;
+  pointer-events: none; animation: mp-fade .15s ease; }
+@keyframes mp-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mp-pop { from { opacity: 0; transform: translateY(8px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes mp-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .mp-scrim, .mp-bar, .mp-sheet { animation: none; } .mp-pick { transition: none; } }

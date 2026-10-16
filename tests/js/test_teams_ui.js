@@ -230,8 +230,10 @@ check("điện thoại: nhấn giữ tin mở bảng, có ngưỡng rung tay", t
 check("gói WS không mang phản hồi thì giữ phản hồi đang có", teamsJs.includes('!("reaction" in nm)'));
 check("0.176 swipe left past the threshold replies; vertical moves stay scrolling", /var SWIPE_AT = 60;/.test(teamsJs)
       && /if \(fire && sw\.dx <= -SWIPE_AT\) startReply\(sw\.mid\)/.test(teamsJs) && /\.tm-msg \{ touch-action: pan-y;/.test(css));
-check("mở bảng đưa focus vào emoji đầu; đóng trả focus về nút góc hay nút Trả lời", /S\.focusPicker = true/.test(teamsJs)
-      && /\.tm-sheet \.tm-rx-pick"\) \|\| box\.querySelector\("\.tm-sheet button"\);\s*if \(first\) first\.focus\(\)/.test(teamsJs)
+check("0.179 long press uses msg-press.js (Reply, Copy, Pin; emoji on assistant messages); unbound on leave",
+      /S\.unpress = MP\.bind\(el, \{\s*selector: "\.tm-msg"/.test(teamsJs) && /if \(S\.unpress\) \{ S\.unpress\(\);/.test(teamsJs)
+      && /document\.querySelector\("\.mp-layer"\)\) \{ endSwipe\(false\); return; \}/.test(teamsJs));
+check("bảng (bàn phím) đưa focus vào emoji đầu; đóng trả focus về nút góc hay nút Trả lời", /\.tm-sheet \.tm-rx-pick"\) \|\| box\.querySelector\("\.tm-sheet button"\);\s*if \(first\) first\.focus\(\)/.test(teamsJs)
       && /\.tm-rx-btn\[data-rx-toggle="' \+ S\.focusBack/.test(teamsJs));
 check("nhấn giữ chỉ cho chạm và bút, không cho chuột; chặn menu ngữ cảnh của lần giữ đó",
       teamsJs.includes('if (e.pointerType === "mouse") return;') && /"contextmenu"[\s\S]{0,80}if \(held\) \{ e\.preventDefault\(\)/.test(teamsJs));

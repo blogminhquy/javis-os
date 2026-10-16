@@ -2679,15 +2679,17 @@ body.on-teams .cview-head { display: none; }
 .tm-rx.has .tm-rx-btn, .tm-rx.is-last .tm-rx-btn, .tm-msg-agent:hover .tm-rx-btn, .tm-rx-btn:focus-visible { opacity: 1; }
 .tm-rx-btn:hover { color: var(--accent); transform: scale(1.08); }
 .tm-rx-emoji { font-size: 16px; line-height: 1; }
-.tm-rx-bar { display: none; position: absolute; right: 0; bottom: calc(100% + 4px); gap: 2px; padding: 4px 6px;
-  border-radius: 999px; background: var(--bg); border: 1px solid var(--border); box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
-  white-space: nowrap; }
-/* A transparent strip under the pill keeps the hover alive while the pointer travels from the button up to the emoji. */
-.tm-rx-bar::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 8px; }
+/* 0.179.0: same steadier hover as the main chat (style.css .jr-rx-bar): fades out only after 0.5 s, wide invisible margin. */
+.tm-rx-bar { display: flex; visibility: hidden; opacity: 0; transform: translateY(4px) scale(.97); position: absolute; right: 0;
+  bottom: calc(100% + 4px); gap: 2px; padding: 4px 6px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .18); white-space: nowrap;
+  transition: opacity .16s ease .5s, transform .16s ease .5s, visibility 0s linear .66s; }
+.tm-rx-bar::before { content: ""; position: absolute; inset: -18px -22px -6px; z-index: -1; }
+.tm-rx-bar::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 22px; }
 @media (hover: hover) {
-  .tm-rx:hover .tm-rx-bar { display: flex; animation: tm-pop .14s ease; }
+  .tm-rx:hover .tm-rx-bar { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
 }
-.tm-rx:focus-within .tm-rx-bar { display: flex; }
+.tm-rx:focus-within .tm-rx-bar { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
 @keyframes tm-pop { from { opacity: 0; transform: translateY(4px) scale(.96); } to { opacity: 1; transform: none; } }
 .tm-rx-pick { border: none; background: none; padding: 2px; width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
   font-size: 26px; line-height: 1; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
@@ -2709,8 +2711,8 @@ body.on-teams .cview-head { display: none; }
 .tm-sheet { flex: 1 1 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding: 8px;
   border: 1px solid var(--border); border-radius: 14px; background: var(--bg); box-shadow: 0 6px 20px rgba(0, 0, 0, .12); }
 .tm-sheet[hidden] { display: none; }
-.tm-sheet .tm-rx-bar { display: flex; position: static; justify-content: space-between; box-shadow: none; border: none;
-  padding: 0; }
+.tm-sheet .tm-rx-bar { display: flex; visibility: visible; opacity: 1; transform: none; position: static;
+  justify-content: space-between; box-shadow: none; border: none; padding: 0; }
 .tm-sheet .tm-rx-bar::after { display: none; }
 .tm-sheet .tm-rx-pick { width: 44px; height: 44px; font-size: 30px; }
 .tm-sheet-acts { display: flex; flex-wrap: wrap; gap: 6px; }

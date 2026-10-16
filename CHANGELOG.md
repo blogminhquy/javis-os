@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.179.0] - 2026-10-16
+### Cải thiện
+- **Nhấn giữ tin trên điện thoại đã chạy (kiểu Zalo):** giữ tin chừng nửa giây, màn hình tối lại, tin đó sáng lên, hàng 6 biểu tượng hiện ngay trên ngón tay và thẻ Trả lời, Sao chép, Sửa, Gửi lại hiện ở dưới. Áp dụng cả khung Trò chuyện lẫn trang Nhóm.
+- **Trượt ngón tay để chọn cảm xúc (kiểu Facebook):** không nhấc tay, trượt qua hàng biểu tượng, cái nào dưới ngón tay sẽ phóng to và hiện tên, nhấc tay là chọn. Nhấc tay chỗ khác thì thẻ vẫn mở để bấm.
+- **Bấm Sao chép trong thẻ thì hiện "Đã sao chép"** và chép nguyên cả tin, không cần bôi đen.
+- **Trên máy tính, hàng biểu tượng không còn tắt vội:** vùng rê chuột rộng hơn và chờ nửa giây mới ẩn, kéo chuột ngang qua các biểu tượng thoải mái.
+
 ## [0.178.0] - 2026-10-16
 ### Thêm mới
 - **Tải ảnh của bạn làm ảnh đại diện trợ lý:** trong phần sửa trợ lý, dưới ô xem trước có nút **Tải ảnh lên**. Ảnh tự cắt vuông và thu nhỏ trước khi gửi, rồi hiện ở mọi chỗ có trợ lý: danh sách, khung chat, nhóm. Bấm **Dùng hình Javis** là về hình cũ.

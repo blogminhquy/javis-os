@@ -354,7 +354,8 @@ check("bỏ hết reaction: emoji biến mất, nút Thích còn", !hist.row().i
         [appJs, teamsJs, mobileJs, chatJs].every((s) => !/\u{1F44D}|\u{1F602}|\u{1F62E}|\u{1F622}|\u{1F621}/u.test(s)) &&
         [teamsJs, mobileJs, chatJs].every((s) => s.indexOf("❤") < 0));
   check("chat-reactions.js và teams.js dùng module chung", chatJs.includes("window.JavisReactions") && teamsJs.includes("window.JavisReactions"));
-  check("chat-reactions.js nhấn giữ qua bindLongPress dùng chung", /JR\.bindLongPress\(root, "\.msg-javis\[data-mid\]"/.test(chatJs));
+  check("0.179 chat-reactions.js: long press goes through msg-press.js (survives iOS), answers and own messages",
+        /MP\.bind\(root, \{\s*selector: "\.msg-javis, \.msg-user"/.test(chatJs) && !chatJs.includes("JR.bindLongPress"));
   const pos = (f) => indexHtml.indexOf("/static/" + f);
   check("index.html nạp reactions.js trước chat-reactions.js, app.js, teams.js, mobile-chat.js (có ?v=)",
         pos("reactions.js?v=") > 0 && pos("reactions.js") < pos("chat-reactions.js") && pos("chat-reactions.js") < pos("app.js")
@@ -363,8 +364,10 @@ check("bỏ hết reaction: emoji biến mất, nút Thích còn", !hist.row().i
         /\.msg-javis > \.jr-chat \{ display: block; max-width: min\(72ch, 100%\); font-size: 16px; font-family: var\(--font-chat\);/.test(css)
         && /\.jr-anchor \{ position: relative; height: 0; \}/.test(css) && /\.jr-rx \{ position: absolute; right: -6px; top: -16px;/.test(css));
   check("0.177 CSS: latest answer always shows Like, others on hover; pill on hover, focus or long press",
-        css.includes(".msg-javis:not(:has(~ .msg-javis)) .jr-rx-btn") && /@media \(hover: hover\) \{ \.jr-rx:hover \.jr-rx-bar/.test(css)
-        && css.includes(".jr-rx:focus-within .jr-rx-bar, .jr-rx.is-open .jr-rx-bar { display: flex; }"));
+        css.includes(".msg-javis:not(:has(~ .msg-javis)) .jr-rx-btn") && /\.jr-rx:hover \.jr-rx-bar \{ visibility: visible; opacity: 1;/.test(css)
+        && css.includes(".jr-rx:focus-within .jr-rx-bar, .jr-rx.is-open .jr-rx-bar { visibility: visible;"));
+  check("0.179 CSS: the pill fades out only after 0.5 s and has a wide invisible hover margin",
+        /\.jr-rx-bar \{[^}]*transition: opacity \.16s ease \.5s/.test(css) && /\.jr-rx-bar::before \{ content: ""; position: absolute; inset: -18px -22px -6px;/.test(css));
   check("0.177 CSS: old panel, chip and smiley button rules are gone", !css.includes(".jr-react-panel") && !css.includes(".jr-react-btn")
         && !css.includes(".jr-react-chip") && css.includes(".jr-chat[hidden] { display: none; }") && css.includes(".jr-react-err[hidden] { display: none; }"));
   check("0.177 corner placed right after the bubble", /if \(bubble\) el\.insertBefore\(node, bubble\.nextSibling\)/.test(chatJs));

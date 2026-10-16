@@ -1,0 +1,61 @@
+// 0.179.0: long press a message on a touch screen (dashboard/msg-press.js), main chat and Teams.
+//
+//     node tests/js/test_msg_press.js
+"use strict";
+const fs = require("fs");
+const path = require("path");
+const D = path.join(__dirname, "..", "..", "dashboard");
+const MP = require(path.join(D, "msg-press.js"));
+const JR = require(path.join(D, "reactions.js"));
+const src = fs.readFileSync(path.join(D, "msg-press.js"), "utf8");
+const css = fs.readFileSync(path.join(D, "style.css"), "utf8");
+const indexHtml = fs.readFileSync(path.join(D, "index.html"), "utf8");
+const vi = JSON.parse(fs.readFileSync(path.join(D, "i18n", "vi.json"), "utf8"));
+const en = JSON.parse(fs.readFileSync(path.join(D, "i18n", "en.json"), "utf8"));
+let fails = 0;
+function check(name, cond, extra) {
+  console.log((cond ? "ok   " : "FAIL ") + name + (cond || !extra ? "" : "  " + extra));
+  if (!cond) fails++;
+}
+
+let p = MP.place(200, 500, 300, 58, 390, 800, 120);
+check("emoji row sits above the finger, centred", p.top === 500 - 58 - 28 && p.left === 50, JSON.stringify(p));
+p = MP.place(10, 500, 300, 58, 390, 800, 0);
+check("emoji row never leaves the screen on the left or right", p.left === 8 && MP.place(385, 500, 300, 58, 390, 800, 0).left === 82);
+p = MP.place(200, 40, 300, 58, 390, 800, 0);
+check("finger near the top: the row goes below the finger", p.top === 68, JSON.stringify(p));
+p = MP.place(200, 760, 300, 58, 390, 800, 200);
+check("finger near the bottom: the row stays above the action card", p.top <= 800 - 200 - 58 - 12, JSON.stringify(p));
+
+const h = MP.layerHtml(JR.EMOJI, "love", [{ icon: "reply", label: "Trả lời <b>" }, { icon: "copy", label: "Sao chép" }]);
+check("layer: dim area, six emoji with names, the current one marked, actions escaped",
+  h.includes('class="mp-scrim" data-mp-close="1"') && (h.match(/class="mp-pick/g) || []).length === 6
+  && /mp-pick is-on" data-mp-react="love"/.test(h) && h.includes('<span class="mp-tip">' + vi["teams.react.like"] + "</span>")
+  && h.includes("Trả lời &lt;b&gt;") && (h.match(/class="mp-act"/g) || []).length === 2, h);
+check("own message: no emoji row, only actions", !MP.layerHtml(null, "", [{ icon: "copy", label: "x" }]).includes("mp-bar"));
+
+check("hold time is short (Zalo feel) and finger jitter cancels it", MP.HOLD_MS <= 400 && /var MOVE_TOL = 10;/.test(src));
+check("touch events, not pointer events (iOS cancels the pointer stream when its own long press starts)",
+  /addEventListener\("touchstart", onStart, \{ passive: true \}\)/.test(src) && /addEventListener\("touchmove", onMove, \{ passive: false \}\)/.test(src)
+  && !/pointerdown/.test(src));
+check("slide to pick: the emoji under the finger grows, lifting on it reacts, scrolling is held",
+  /elementFromPoint\(p\.clientX, p\.clientY\)/.test(src) && /if \(hot\) return pick\(hot\.getAttribute\("data-mp-react"\)\)/.test(src)
+  && /if \(e\.cancelable\) e\.preventDefault\(\);\s*var under/.test(src));
+check("the click iOS fires after lifting does not close the card it just opened", /Date\.now\(\) - openedAt > 350/.test(src));
+check("CSS: messages not selectable on touch screens (no iOS callout), hot emoji grows with its name",
+  /@media \(hover: none\) \{\s*\.mp-host \.msg \.bubble, \.mp-host \.tm-bubble \{ -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; \}/.test(css)
+  && /\.mp-pick\.is-hot \{ transform: translateY\(-14px\) scale\(1\.55\);/.test(css) && css.includes(".mp-pick.is-hot .mp-tip { opacity: 1; }"));
+check("the held message is drawn bright above the dim layer, with its own classes and a solid backing",
+  /function lift\(el\)/.test(src) && /copy\.className = String\(el\.className\)/.test(src) && /lift\(el\);/.test(src)
+  && /\.mp-layer \.mp-lift \{[^}]*background: var\(--bg\)/.test(css));
+check("an action can say it is done (Copy shows a short note)", /toast\(a\.done\)/.test(src) && css.includes(".mp-toast {"));
+const cr = fs.readFileSync(path.join(D, "chat-reactions.js"), "utf8");
+const tm = fs.readFileSync(path.join(D, "teams.js"), "utf8");
+check("main chat and Teams name their bubble for the lifted copy", /bubble: "\.bubble",/.test(cr) && /bubble: "\.tm-bubble",/.test(tm)
+  && /done: "teams\.copied"/.test(cr));
+const pos = (f) => indexHtml.indexOf("/static/" + f);
+check("index.html loads msg-press.js before chat-reactions.js and teams.js", pos("msg-press.js?v=") > 0
+  && pos("msg-press.js") < pos("chat-reactions.js") && pos("msg-press.js") < pos("teams.js"));
+check("phone menu labels in vi and en", ["mpress.reply", "mpress.copy", "mpress.edit", "mpress.resend"].every((k) => vi[k] && en[k]));
+check("no em or en dash", src.indexOf(String.fromCharCode(0x2014)) < 0 && src.indexOf(String.fromCharCode(0x2013)) < 0);
+process.exit(fails ? 1 : 0);

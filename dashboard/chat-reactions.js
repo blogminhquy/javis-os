@@ -250,6 +250,22 @@
     if (el && el._jr.open) { e.preventDefault(); e.stopPropagation(); setOpen(el, false); focusBtn(el); }
   }
 
+  // Actions of the phone menu for one message: only the ones its own button row offers.
+  var PRESS_ACTS = [
+    { act: "quote", icon: "reply", key: "mpress.reply" },
+    { act: "copy", icon: "copy", key: "mpress.copy", done: "teams.copied" },
+    { act: "edit", icon: "pencil", key: "mpress.edit" },
+    { act: "retry", icon: "rotate-cw", key: "mpress.resend" }
+  ];
+  function pressActions(el) {
+    return PRESS_ACTS.filter(function (a) { return el.querySelector('.msg-act[data-act="' + a.act + '"]'); }).map(function (a) {
+      return { icon: a.icon, label: tw(a.key), done: a.done ? tw(a.done) : "", run: function (m) {
+        var b = m && m.querySelector('.msg-act[data-act="' + a.act + '"]');
+        if (b) b.click();
+      } };
+    });
+  }
+
   function norm(s) {
     return String(s || "").replace(/<!--[\s\S]*?-->/g, "").replace(/\s+/g, " ").trim();
   }
@@ -316,8 +332,23 @@
     root = cfg.root;
     root.addEventListener("click", onClick);
     root.addEventListener("keydown", onKey);
-    // Phone: a 500 ms long press on an answer bubble opens the six emoji.
-    JR.bindLongPress(root, ".msg-javis[data-mid]", function (el) { if (el._jr && !el._jr.open) setOpen(el, true); });
+    // Phone (0.179.0): long press any message opens the menu of msg-press.js, emoji above the finger (slide to pick)
+    // and Reply / Copy / Edit / Send again at the bottom. The actions press the message's own hidden buttons
+    // (app.js runMsgAct), so they behave exactly like the desktop row.
+    var MP = typeof window !== "undefined" && window.JavisMsgPress;
+    if (MP) {
+      MP.bind(root, {
+        selector: ".msg-javis, .msg-user",
+        bubble: ".bubble",
+        emoji: JR.EMOJI,
+        canReact: function (el) { return !!(el._jr && el.classList.contains("msg-javis")); },
+        current: function (el) { return el._jr && el._jr.reaction ? el._jr.reaction.value : ""; },
+        react: function (el, value) {
+          if (el._jr && !el._jr.busy) send(el, JR.nextReaction((el._jr.reaction || {}).value, value));
+        },
+        actions: function (el) { return pressActions(el); }
+      });
+    }
     // Đổi ngôn ngữ giao diện: vẽ lại nhãn của mọi hàng reaction.
     if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("javis:i18n", rerenderAll);
   }

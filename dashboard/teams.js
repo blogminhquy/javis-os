@@ -2736,7 +2736,7 @@
   function leave() {
     clearTimeout(refreshTimer);
     if (S && S.pickSt) closePicker();
-    if (S) { S.side = false; S.picker = null; stopMic(); }
+    if (S) { S.side = false; S.picker = null; stopMic(); if (S.unpress) { S.unpress(); S.unpress = null; } }
   }
 
   function render(el) {
@@ -2782,16 +2782,13 @@
         }, 500);
         return;
       }
+      // Long press on a message is msg-press.js (bound below): it survives iOS's own long-press gesture, which
+      // cancelled this pointer timer. Here only the swipe-to-reply is tracked.
       var msg = e.target.closest && e.target.closest(".tm-msg");
       if (!msg || e.target.closest("button, a, input, textarea, select, .tm-sheet")) return;
       stopHold();
       hx = e.clientX; hy = e.clientY;
       swipe = { el: msg, bubble: msg.querySelector(".tm-bubble"), mid: msg.getAttribute("data-mid"), dx: 0, on: false };
-      hold = setTimeout(function () {
-        hold = null; held = true;
-        endSwipe(false);
-        S.picker = Number(msg.getAttribute("data-mid")); S.sheetAt = Date.now(); S.focusPicker = true; drawMsgs(false);
-      }, 500);
     });
     // Nhấn giữ đã mở bộ chọn: chặn menu ngữ cảnh mặc định của máy chạm (chọn chữ, sao chép) cho lần giữ đó.
     el.addEventListener("contextmenu", function (e) {
@@ -2803,6 +2800,8 @@
     el.addEventListener("pointermove", function (e) {
       if (hold && (Math.abs(e.clientX - hx) > 10 || Math.abs(e.clientY - hy) > 10)) stopHold();
       if (!swipe) return;
+      // The long-press menu is open: the finger is choosing an emoji, not swiping the bubble.
+      if (document.querySelector(".mp-layer")) { endSwipe(false); return; }
       var dx = e.clientX - hx, dy = e.clientY - hy;
       if (!swipe.on) {
         if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { endSwipe(false); return; }   // scrolling, not swiping
@@ -2816,6 +2815,42 @@
     });
     el.addEventListener("pointerup", function () { stopHold(); endSwipe(true); });
     ["pointercancel", "pointerleave"].forEach(function (n) { el.addEventListener(n, function () { stopHold(); endSwipe(false); }); });
+    // Phone (0.179.0): hold a message for the msg-press.js menu, emoji above the finger (slide to pick, assistant
+    // messages) and Reply / Copy / Pin at the bottom.
+    var MP = typeof window !== "undefined" && window.JavisMsgPress;
+    if (MP) {
+      S.unpress = MP.bind(el, {
+        selector: ".tm-msg",
+        bubble: ".tm-bubble",
+        emoji: REACTIONS,
+        canReact: function (m) { return m.classList.contains("tm-msg-agent"); },
+        current: function (m) {
+          var x = msgById(Number(m.getAttribute("data-mid")));
+          return x && x.reaction && x.reaction.value !== "none" ? x.reaction.value : "";
+        },
+        react: function (m, value) {
+          var mid = Number(m.getAttribute("data-mid"));
+          var x = msgById(mid);
+          sendReaction(mid, nextReaction(x && x.reaction && x.reaction.value, value));
+        },
+        actions: function (m) {
+          var mid = m.getAttribute("data-mid");
+          var x = msgById(Number(mid));
+          if (!x) return [];
+          var out = [{ icon: "reply", label: tw("teams.msg_reply"), run: function () { startReply(mid); } },
+            { icon: "copy", label: tw("teams.copy"), run: function () { copyMsg(mid); } }];
+          if (!(x.meta || {}).decision) {
+            out.push({ icon: "pin", label: tw("teams.decision_pin"), run: function () {
+              call("POST", teamUrl("/messages/" + q(mid) + "/decision"), { on: true }).then(function (r) {
+                if (r.code !== 200) return fail(r);
+                loadMsgs(false);
+              });
+            } });
+          }
+          return out;
+        }
+      });
+    }
     drawAll(false);
     loadTeams(false);
   }
