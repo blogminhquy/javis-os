@@ -211,6 +211,9 @@ class TeamStore:
                 # Người tạo nhóm (0.142.0): người thật, lấy từ phiên xác thực của server, không từ client. Javis hiện chỉ
                 # có một tài khoản chủ máy nên nhóm cũ nhận đúng chủ đó ("owner"), không giả lập đa người dùng.
                 c.execute("ALTER TABLE teams ADD COLUMN created_by TEXT NOT NULL DEFAULT 'owner'")
+            if "avatar_image" not in tcols:
+                # Ảnh nhóm tự tải lên (0.176.0): tên ảnh trong kho avatar_upload; rỗng = ảnh ghép từ gương mặt thành viên.
+                c.execute("ALTER TABLE teams ADD COLUMN avatar_image TEXT NOT NULL DEFAULT ''")
             if "client_req_id" not in tcols:
                 # Mã yêu cầu tạo nhóm của client (0.142.0): bấm Tạo hai lần hay mạng chậm gửi lại thì trả lại nhóm đã tạo.
                 c.execute("ALTER TABLE teams ADD COLUMN client_req_id TEXT")
@@ -250,7 +253,8 @@ class TeamStore:
         return {"team_id": r["team_id"], "brain_id": r["brain_id"], "name": r["name"], "description": r["description"],
                 "session_id": r["session_id"], "leader_key": r["leader_key"], "leader_mode": r["leader_mode"],
                 "status": r["status"], "caps": caps, "created_at": r["created_at"], "updated_at": r["updated_at"],
-                "pinned_at": r["pinned_at"], "created_by": r["created_by"] if "created_by" in r.keys() else "owner"}
+                "pinned_at": r["pinned_at"], "created_by": r["created_by"] if "created_by" in r.keys() else "owner",
+                "avatar_image": (r["avatar_image"] or "") if "avatar_image" in r.keys() else ""}
 
     def _event(self, c, team_id: str, kind: str, by: str, before: Any = None, after: Any = None) -> None:
         c.execute("INSERT INTO team_events(team_id,kind,by,before_json,after_json,created_at) VALUES(?,?,?,?,?,?)",
@@ -341,7 +345,7 @@ class TeamStore:
         return self.get(team_id)
 
     def update(self, team_id: str, by: str = "owner", **fields) -> dict:
-        allowed = {"name", "description", "status"}
+        allowed = {"name", "description", "status", "avatar_image"}
         bad = set(fields) - allowed
         if bad:
             raise TeamError(f"trường không đổi được: {sorted(bad)}")

@@ -444,6 +444,11 @@ def section_r5():
     async def max_gap(coro_factory, beats_n=80):
         beats = []
         stop = asyncio.Event()
+        # Dọn rác TRƯỚC khi đo (0.176.0): một lượt gc thế hệ 2 trên tiến trình đã nạp cả `main` dừng mọi luồng ~130 ms và
+        # rơi vào cửa sổ đo tuỳ lúc, tức là đổi chỗ nào đó số đối tượng tạo ra là test đỏ dù không có I/O nào chạy trên
+        # event loop. Test này canh I/O chặn, không canh lịch dọn rác của Python.
+        import gc
+        gc.collect()
 
         async def pulse():
             while not stop.is_set():

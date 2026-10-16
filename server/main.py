@@ -145,6 +145,7 @@ import tien_trinh_nen     # lệnh chạy ngầm engine bỏ lại: nhận theo 
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
 import agent_avatar
+import avatar_upload   # ảnh đại diện tự tải lên của trợ lý và nhóm (0.176.0)
 import agent_tags   # tag của agent (0.100.0): nhiều tag, nhóm cũ thành một tag
 import cli_autoinstall   # trạng thái agy/grok do container Docker tự cài (0.85.1)
 import agent_assets      # tài liệu & link gắn vào MỘT trợ lý (lưu trong frontmatter agent)
@@ -6849,7 +6850,7 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
                      group: str = Form(None), avatar_shape: str = Form(None),
                      avatar_palette: str = Form(None), avatar_color: str = Form(None),
                      avatar_eye: str = Form(None), avatar_eye_color: str = Form(None),
-                     avatar_eye_size: str = Form(None), tags: str = Form(None)):
+                     avatar_eye_size: str = Form(None), avatar_image: str = Form(None), tags: str = Form(None)):
     # Trợ lý MỚI đặt tên file không dấu ("Bống Work" -> bong-work.md), đúng quy ước slug của Javis. Trước
     # 0.88.1 tên giữ nguyên dấu; các file đó vẫn đọc, sửa, xoá được nhờ skill_router.valid_file_slug.
     # TẠO MỚI = form không gửi slug. Nhóm chat team (spec 2026-10-13 mục 5.1): tạo mới mà slug suy từ tên đã có file thì
@@ -6883,7 +6884,7 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
             try:
                 avatar = agent_avatar.for_save(previous, slug, avatar_shape, avatar_palette,
                                                avatar_color, avatar_eye, avatar_eye_color,
-                                               avatar_eye_size)
+                                               avatar_eye_size, avatar_image)
             except ValueError as exc:
                 return JSONResponse({"error": str(exc)}, status_code=400)
             # GIỮ mọi khoá frontmatter KHÔNG nằm trong form. Trước đây meta được dựng lại từ đầu, nên
@@ -13731,6 +13732,33 @@ async def favicon_ico():
     media = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
              ".webp": "image/webp", ".gif": "image/gif"}.get(p.suffix.lower(), "image/png")
     return FileResponse(str(p), media_type=media, headers={"Cache-Control": "public, max-age=300"})
+
+
+# ============================================
+# Ảnh đại diện tự tải lên cho trợ lý và nhóm (0.176.0, server/avatar_upload.py). Tải lên chỉ trả TÊN ảnh; gắn vào trợ lý
+# qua POST /agents (avatar_image), vào nhóm qua PATCH /teams/{id} (avatar_image).
+# ============================================
+@app.post("/avatars/upload")
+async def avatar_upload_post(file: UploadFile = File(...)):
+    data = await file.read(avatar_upload.MAX_BYTES + 1)
+    try:
+        name = await asyncio.to_thread(avatar_upload.luu, data)
+    except ValueError as exc:
+        msg = {"avatar_too_big": localefmt.chu("Ảnh quá lớn (tối đa 2MB).", "Image too large (max 2MB)."),
+               "avatar_empty": localefmt.chu("File rỗng.", "The file is empty.")}.get(
+            str(exc), localefmt.chu("Chỉ nhận ảnh PNG, JPG, WEBP hoặc GIF.", "Only PNG, JPG, WEBP or GIF images are accepted."))
+        return JSONResponse({"ok": False, "code": str(exc), "error": msg}, status_code=400)
+    return {"ok": True, "image": name, "url": "/avatars/" + name}
+
+
+@app.get("/avatars/{name}")
+async def avatar_get(name: str):
+    p = avatar_upload.duong_dan(name)
+    if p is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    # Tên là băm nội dung: đổi ảnh là đổi tên, nên trình duyệt giữ mãi được. nosniff: chỉ hiện như ảnh.
+    return FileResponse(str(p), headers={"Cache-Control": "private, max-age=31536000, immutable",
+                                         "X-Content-Type-Options": "nosniff"})
 
 
 @app.post("/branding/logo")

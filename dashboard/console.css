@@ -1826,6 +1826,16 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 @keyframes aa-think { 0%,100% { transform:translateY(0) rotate(-5deg); } 50% { transform:translateY(-3px) rotate(5deg); } }
 @keyframes aa-talk { 0%,100% { transform:scaleY(.7); } 50% { transform:scaleY(1.1); } }
 .aa-preview { display:flex; justify-content:center; padding:12px 0; min-height:112px; }
+/* Ảnh tự tải lên (0.176.0): tròn, phủ kín ô, cùng cỡ với hình Javis ở mọi chỗ vẽ. Hàng nút tải ảnh nằm ngay dưới ô xem thử. */
+.agent-avatar.has-img { border-radius:50%; overflow:hidden; background:var(--surface-2); }
+.agent-avatar.has-img img { display:block; width:100%; height:100%; object-fit:cover; }
+.aa-upload { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:0 0 6px; }
+.aa-upload .ws-btn { display:inline-flex; align-items:center; gap:6px; }
+.aa-upload .ws-btn svg { width:15px; height:15px; }
+.aa-upload-msg { text-align:center; font-size:13px; color:var(--text2); min-height:0; margin-bottom:6px; }
+.aa-upload-msg:empty { display:none; }
+.aa-upload-msg.loi { color:var(--red, #e5484d); }
+@media (pointer: coarse) { .aa-upload .ws-btn { min-height:44px; } }
 .aa-options { text-align:center; margin-bottom:18px; }
 .aa-options summary { cursor:pointer; font-size:12px; color:var(--text2); padding:6px; }
 .aa-options[open] { background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:8px; }
@@ -2494,6 +2504,13 @@ body.on-teams .cview-head { display: none; }
 .tm-face[hidden] { display: none; }
 .tm-gava { position: relative; display: inline-block; flex: none; width: var(--gava, 44px); height: var(--gava, 44px); }
 .tm-gava[hidden] { display: none; }
+.tm-gava-img { border-radius: 50%; overflow: hidden; background: var(--surface-2); }
+.tm-gava-img > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Ô Ảnh nhóm trong cài đặt nhóm (0.176.0): ảnh bên trái, nút tải ảnh bên phải; hẹp quá thì nút xuống dòng. */
+.tm-ava-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tm-ava-acts { flex: 1 1 160px; min-width: 0; }
+.tm-ava-acts .aa-upload { justify-content: flex-start; margin: 0; }
+.tm-ava-acts .aa-upload-msg { text-align: left; margin: 6px 0 0; }
 .tm-gava > .tm-face, .tm-gava > .tm-ava, .tm-gava-more { position: absolute; width: var(--face); height: var(--face);
   box-shadow: 0 0 0 2px var(--bg); }
 .tm-gava-1 > :nth-child(1) { inset: 0; }

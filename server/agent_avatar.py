@@ -8,6 +8,8 @@ trang / custom kèm `eyeColor`) và hệ số cỡ mắt (`eyeSize`). Các khoá
 import re
 import secrets
 
+import avatar_upload
+
 SHAPES = ("circle", "square", "triangle", "cloud", "pentagon", "star")
 # 12 màu ĐẦU là bộ gốc và là bộ bốc mặc định theo slug. Đừng đổi thứ tự hay chèn vào giữa:
 # trợ lý cũ chưa lưu avatar lấy màu bằng `seed % 12`, đổi ở đây là cả danh sách đổi màu.
@@ -59,11 +61,14 @@ def for_agent(meta, slug):
     size = _eye_size(avatar.get("eyeSize"))
     if size is not None and size != 1:
         out["eyeSize"] = size
+    # Ảnh tự tải lên (0.176.0): có thì mọi chỗ vẽ trợ lý hiện ảnh này; hình Javis ở trên vẫn giữ để gỡ ảnh là về như cũ.
+    if avatar_upload.hop_le(avatar.get("image")):
+        out["image"] = avatar["image"]
     return out
 
 
 def for_save(previous, slug, shape=None, palette=None, color=None, eye=None, eye_color=None,
-             eye_size=None):
+             eye_size=None, image=None):
     avatar = for_agent(previous, slug) if previous is not None else {
         "shape": secrets.choice(SHAPES), "palette": secrets.choice(PALETTES_MAC_DINH)}
     for key, value, allowed in (("shape", shape, SHAPES), ("palette", palette, PALETTES),
@@ -96,4 +101,13 @@ def for_save(previous, slug, shape=None, palette=None, color=None, eye=None, eye
         raise ValueError("avatar_eye_color")
     if avatar.get("eyeSize") == 1:
         avatar.pop("eyeSize", None)
+    # image: None = giữ như cũ, "none" (hay "") = gỡ ảnh tự tải (về hình Javis), tên ảnh = dùng ảnh đó (phải có trong
+    # kho ảnh). Form gửi "none" chứ không gửi chuỗi rỗng: FastAPI coi ô form rỗng là không gửi, gỡ ảnh sẽ không ăn.
+    if image is not None:
+        if image in ("", "none"):
+            avatar.pop("image", None)
+        elif avatar_upload.hop_le(image):
+            avatar["image"] = image
+        else:
+            raise ValueError("avatar_image")
     return avatar

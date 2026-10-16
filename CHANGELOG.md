@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.178.0] - 2026-10-16
+### Thêm mới
+- **Tải ảnh của bạn làm ảnh đại diện trợ lý:** trong phần sửa trợ lý, dưới ô xem trước có nút **Tải ảnh lên**. Ảnh tự cắt vuông và thu nhỏ trước khi gửi, rồi hiện ở mọi chỗ có trợ lý: danh sách, khung chat, nhóm. Bấm **Dùng hình Javis** là về hình cũ.
+- **Ảnh riêng cho nhóm làm việc:** mục Ảnh nhóm trong cài đặt nhóm cũng có nút Tải ảnh lên. Mặc định nhóm vẫn dùng ảnh ghép từ gương mặt thành viên như trước.
+- Nhận ảnh PNG, JPG, WEBP, GIF, tối đa 2MB.
+
 ## [0.177.0] - 2026-10-16
 ### Cải thiện
 - **Thả cảm xúc kiểu Zalo ở khung Trò chuyện:** nút 👍 nằm ngay góc phải dưới bong bóng câu trả lời, bấm một cái là Thích, bấm lại là bỏ. Rê chuột vào nút hiện 6 biểu tượng, điện thoại thì nhấn giữ câu trả lời.

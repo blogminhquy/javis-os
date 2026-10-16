@@ -112,7 +112,17 @@ assert.equal(swatch[1],'#112233');
   const v = A.of({avatar:{shape:'star',palette:'custom',color:'#FA4F05',eye:'custom',eyeColor:'#2A62B0',eyeSize:1.3}});
   assert.equal(JSON.stringify(v), JSON.stringify({shape:'star',palette:'custom',color:'#fa4f05',eye:'custom',eyeColor:'#2a62b0',eyeSize:1.3}));
   assert.deepEqual(A.formFields(v), {avatar_shape:'star',avatar_palette:'custom',avatar_eye_size:'1.3',
-    avatar_color:'#fa4f05',avatar_eye:'custom',avatar_eye_color:'#2a62b0'});
+    avatar_color:'#fa4f05',avatar_eye:'custom',avatar_eye_color:'#2a62b0',avatar_image:'none'});
+  // 0.176.0: ảnh tự tải lên. of() chỉ giữ tên đúng dạng kho ảnh đặt; html() vẽ <img> thay hình Javis; formFields gửi tên
+  // ảnh, không có ảnh thì "none" (gỡ ảnh: FastAPI coi ô form rỗng là không gửi).
+  const IMG = '0123456789abcdef0123.webp';
+  const vi = A.of({avatar:{shape:'star',palette:'jade',image:IMG}});
+  assert.equal(vi.image, IMG);
+  assert(!('image' in A.of({avatar:{shape:'star',palette:'jade',image:'../x.png'}})), 'tên ảnh lạ không được giữ');
+  assert(!('image' in A.of({avatar:{shape:'star',palette:'jade',image:'"><img onerror=alert(1)>.png'}})));
+  const hi = A.html({avatar:vi}, 32);
+  assert(hi.includes('class="agent-avatar has-img"') && hi.includes('src="/avatars/' + IMG + '"') && !hi.includes('<svg'), hi);
+  assert.equal(A.formFields(vi).avatar_image, IMG);
   // Mã rác trong frontmatter không lọt: "custom" mất mã thì về bảng màu theo slug.
   const hong = A.of({slug:'legacy',avatar:{palette:'custom',color:'"><script>',eye:'custom'}});
   assert(co(ctx.PALETTES, hong.palette) && !hong.color && !hong.eye);

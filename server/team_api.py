@@ -23,6 +23,7 @@ from typing import Any, Callable, Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+import avatar_upload
 import localefmt
 import resonance_store as RS
 import task_store
@@ -411,10 +412,10 @@ class TeamOps:
         return {"team": team, "duplicate": False}
 
     def update(self, root: str, team_id: str, **fields) -> dict:
-        """Đổi tên, mô tả, trạng thái (`active`/`paused`/`archived`). Lưu trữ huỷ việc đang chờ hay bị chặn; mở lại thì
-        chạy tiếp. Trả dòng nhóm sau khi đổi."""
+        """Đổi tên, mô tả, ảnh nhóm, trạng thái (`active`/`paused`/`archived`). Lưu trữ huỷ việc đang chờ hay bị chặn;
+        mở lại thì chạy tiếp. Trả dòng nhóm sau khi đổi."""
         team = self.team(root, team_id)
-        fields = {k: v for k, v in fields.items() if k in ("name", "description", "status") and v is not None}
+        fields = {k: v for k, v in fields.items() if k in ("name", "description", "status", "avatar_image") and v is not None}
         if not fields:
             return team
         runner = self.api.runner()
@@ -576,7 +577,16 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             team, err = _team(team_id, brain)
             if err:
                 return err
-            fields = {k: body[k] for k in ("name", "description", "status") if k in body}
+            fields = {k: body[k] for k in ("name", "description", "status", "avatar_image") if k in body}
+            # Ảnh nhóm (0.176.0): "" gỡ ảnh (về ảnh ghép từ thành viên); tên ảnh phải có trong kho ảnh đã tải lên.
+            if "avatar_image" in fields:
+                img = fields["avatar_image"]
+                if img is None:
+                    fields["avatar_image"] = ""
+                elif img != "" and not avatar_upload.hop_le(img):
+                    return JSONResponse({"ok": False, "error": localefmt.chu("Ảnh nhóm không hợp lệ, tải lại ảnh.",
+                                                                             "Invalid team picture, upload it again.")},
+                                        status_code=400)
             try:
                 updated = ops.update(team["brain_id"], team_id, **fields)
             except (OpError, TeamError) as ex:

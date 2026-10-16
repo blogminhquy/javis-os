@@ -221,9 +221,15 @@
 
   // Ảnh nhóm ghép từ ảnh thành viên: 1 người một ảnh, 2 người hai ảnh chéo, 3 người ba ảnh tam giác, từ 4 người lưới 2x2;
   // hơn 4 người thì ba ảnh và ô đếm "+N" (quá 99 ghi "99+"), như nhóm Zalo. Chưa có ai thì chữ đầu của tên nhóm.
+  // Ảnh nhóm tự tải lên (0.176.0): tên ảnh do máy chủ đặt (băm + đuôi); có thì thay ảnh ghép.
+  var TEN_ANH = /^[0-9a-f]{20}\.(png|jpg|webp|gif)$/;
   function teamAvatarHtml(t, box) {
     t = t || {};
     box = box || 44;
+    if (typeof t.avatar_image === "string" && TEN_ANH.test(t.avatar_image)) {
+      return '<span class="tm-gava tm-gava-img" style="--gava:' + box + 'px" aria-hidden="true"><img src="/avatars/' +
+        esc(t.avatar_image) + '" alt="" loading="lazy" decoding="async" draggable="false"></span>';
+    }
     var f = facesOf(t);
     if (!f.faces.length) return avaHtml(t.name);
     var more = f.count > 4 ? f.count - 3 : 0;
@@ -842,7 +848,12 @@
       return '<label class="tm-radio"><input type="radio" name="tm-status" value="' + s + '"' + (team.status === s ? " checked" : "") +
         "><span>" + esc(tw(TEAM_STATUS_KEY[s])) + "</span></label>";
     }).join("");
-    return '<form class="tm-form" onsubmit="return false">' +
+    // Ảnh nhóm (0.176.0): mặc định ghép từ gương mặt thành viên; "Tải ảnh lên" thay bằng ảnh riêng, lưu ngay không chờ nút Lưu.
+    var A = typeof window !== "undefined" && window.JavisAvatar;
+    var ava = A && A.uploadRowHtml ? '<div class="tm-field tm-ava-set"><span>' + esc(tw("teams.avatar")) + '</span><div class="tm-ava-row">' +
+      teamAvatarHtml(team, 56) + '<div class="tm-ava-acts">' + A.uploadRowHtml(!!team.avatar_image, tw("teams.avatar_use_faces")) +
+      "</div></div></div>" : "";
+    return '<form class="tm-form" onsubmit="return false">' + ava +
       '<label class="tm-field"><span>' + esc(tw("teams.name")) + '</span><input name="tm-set-name" value="' + esc(team.name) + '"></label>' +
       '<label class="tm-field"><span>' + esc(tw("teams.description")) + '</span><textarea name="tm-set-desc" rows="2">' + esc(team.description) + "</textarea></label>" +
       '<div class="tm-field"><span>' + esc(tw("teams.status")) + '</span><div class="tm-radios">' + st + "</div></div>" +
@@ -2424,6 +2435,13 @@
       if (typeof confirm === "function" && !confirm(tw("teams.remove_confirm", { name: nm }))) return;
       return call("DELETE", teamUrl("/members/" + q(d.remove))).then(function (r) { S.openMember = null; act(r, drawAll); });
     }
+    if (t.closest && t.closest(".tm-ava-set")) {
+      var avaSet = t.closest(".tm-ava-set");
+      if (t.hasAttribute("data-aa-upload")) { var inp = avaSet.querySelector("[data-aa-file]"); if (inp) inp.click(); return; }
+      if (t.hasAttribute("data-aa-unimg")) {
+        return call("PATCH", teamUrl(), { avatar_image: "" }).then(function (r) { act(r, drawAll); });
+      }
+    }
     if (t.classList.contains("tm-save")) return saveSettings();
     if (t.classList.contains("tm-caps-save")) return saveCaps();
     if (t.classList.contains("tm-auth-save")) {
@@ -2540,7 +2558,30 @@
     });
   }
 
+  // Chọn ảnh nhóm xong: thu nhỏ, tải lên (agent-avatar.js) rồi gắn vào nhóm. Lỗi báo ngay dưới nút.
+  function uploadTeamAvatar(inp) {
+    var f = inp.files && inp.files[0];
+    var box = inp.closest(".tm-ava-set");
+    var msg = box && box.querySelector(".aa-upload-msg");
+    var btn = box && box.querySelector("[data-aa-upload]");
+    inp.value = "";
+    if (!f || !window.JavisAvatar) return;
+    if (btn) btn.disabled = true;
+    if (msg) { msg.textContent = tw("ws.avatar_uploading"); msg.classList.remove("loi"); }
+    window.JavisAvatar.uploadImage(f).then(function (name) {
+      return call("PATCH", teamUrl(), { avatar_image: name }).then(function (r) { act(r, drawAll); });
+    }).catch(function (err) {
+      if (btn) btn.disabled = false;
+      if (msg) { msg.textContent = (err && err.message && err.message !== "decode" && err.message !== "encode") ? err.message
+        : tw("ws.avatar_upload_fail"); msg.classList.add("loi"); }
+    });
+  }
+
   function onChange(e) {
+    if (e.target.hasAttribute && e.target.hasAttribute("data-aa-file") && e.target.closest && e.target.closest(".tm-ava-set")) {
+      uploadTeamAvatar(e.target);
+      return;
+    }
     if (S.pickSt && e.target.classList && e.target.classList.contains("tmp-check")) {
       pickToggle(e.target.getAttribute("data-pick-slug"));
       return;

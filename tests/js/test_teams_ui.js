@@ -558,6 +558,12 @@ h = TM.teamAvatarHtml({ name: "Nhóm", faces: fz(4), member_count: 9 });
 check("ảnh nhóm hơn bốn người: ba ảnh và ô '+6' (như Zalo)", (h.match(/fake-ava/g) || []).length === 3
       && /class="tm-gava-more">\+6</.test(h), h);
 check("hơn 102 người: ô đếm ghi 99+", /tm-gava-more">99\+</.test(TM.teamAvatarHtml({ name: "N", faces: fz(4), member_count: 150 })));
+// 0.176.0: ảnh nhóm tự tải lên thay ảnh ghép; tên ảnh lạ thì bỏ qua, về ảnh ghép như cũ.
+h = TM.teamAvatarHtml({ name: "Nhóm", faces: fz(2), member_count: 2, avatar_image: "0123456789abcdef0123.webp" }, 56);
+check("ảnh nhóm tự tải lên: một ảnh tròn, không ghép gương mặt", /tm-gava tm-gava-img/.test(h)
+      && h.includes('src="/avatars/0123456789abcdef0123.webp"') && !h.includes("fake-ava") && h.includes("--gava:56px"), h);
+h = TM.teamAvatarHtml({ name: "Nhóm", faces: fz(2), member_count: 2, avatar_image: '../x.png" onerror="alert(1)' });
+check("CANARY: tên ảnh nhóm lạ thì về ảnh ghép, không chèn vào src", !h.includes("onerror") && /tm-gava-2/.test(h), h);
 check("nhóm chưa có ai: chữ đầu của tên nhóm", /tm-ava tm-ava-c\d" aria-hidden="true">N</.test(TM.teamAvatarHtml({ name: "Nhóm", faces: [], member_count: 0 })));
 check("ảnh nhóm suy từ thành viên khi dòng không kèm gương mặt (đầu khung chat): trưởng nhóm trước, bỏ người đã rời",
       (function (x) { return x.indexOf('data-slug="minh"') > x.indexOf('data-slug="lan"') && x.includes('data-slug="minh"'); })(
