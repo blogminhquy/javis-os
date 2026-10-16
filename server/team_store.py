@@ -750,6 +750,14 @@ class TeamStore:
                 (float(floor), float(floor), float(settled_since))).fetchall()]
         return window, special
 
+    def active_turns(self, team_id: str) -> list:
+        """Lượt đang chạy engine của một nhóm, cũ trước: [{agent_key, role, engine_at}]. Dải "đang trả lời" trên ô nhập của
+        khung chat nhóm đọc từ đây (0.192.0). Lượt mới giữ chỗ (`reserved`, còn chờ khoá bận) chưa tính là đang trả lời."""
+        with closing(self._conn()) as c:
+            return [dict(r) for r in c.execute(
+                "SELECT agent_key, role, engine_at FROM team_turns WHERE team_id=? AND status='running' "
+                "ORDER BY engine_at, turn_id", (team_id,)).fetchall()]
+
     def open_turns(self) -> list:
         """Lượt còn `reserved` hay `running` (dùng khi khởi động lại để chốt `interrupted` hay hoàn)."""
         with closing(self._conn()) as c:

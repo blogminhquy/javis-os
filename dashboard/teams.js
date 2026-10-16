@@ -151,7 +151,54 @@
 
   function quoteHtml(q) {
     var mm = /^([^:\n]{1,60}):\s+([\s\S]*)$/.exec(q);
-    return '<div class="tm-quote">' + (mm ? "<b>" + esc(mm[1]) + "</b>" + esc(mm[2]) : esc(q)).replace(/\n/g, "<br>") + "</div>";
+    // 0.192.0: the quote carries the same quote mark as the main chat's quote chip.
+    return '<div class="tm-quote"><span class="tm-quote-ico" aria-hidden="true">' + ic("quote") + "</span><span class=\"tm-quote-body\">" +
+      (mm ? "<b>" + esc(mm[1]) + "</b>" + esc(mm[2]) : esc(q)).replace(/\n/g, "<br>") + "</span></div>";
+  }
+
+  // 0.192.0 (owner, 16/10/2026: "agent phản hồi ai thì phải tag vào hoặc quote lại"): an assistant's message that answers
+  // another one shows that message on top, like a reply in a group chat. Tapping it goes to the message.
+  function replyRefHtml(m, ctx) {
+    var to = m.reply_to != null ? Number(m.reply_to) : 0;
+    var t = to && ctx && ctx.byId ? ctx.byId[to] : null;
+    if (!t) return "";
+    var mine = t.author_kind === "owner";
+    var a = mine ? null : (memberOf(ctx.members, t.author_ref) || (ctx.authors || {})[t.author_ref] || null);
+    var who = mine ? tw("teams.owner") : t.author_kind === "agent" ? (a ? (a.name || a.slug) : t.author_ref) : tw("teams.system");
+    return '<button type="button" class="tm-quote tm-quote-ref" data-jump="' + esc(t.id) + '" data-ts="' + esc(t.ts) + '" title="' +
+      esc(tw("teams.quote_open")) + '"><span class="tm-quote-ico" aria-hidden="true">' + ic("quote") + "</span>" +
+      '<span class="tm-quote-body"><b>' + esc(who) + "</b>" + esc(plainPreview(t.content, 140)) + "</span></button>";
+  }
+
+  // 0.192.0: "@Chủ nhóm" and "@Name" written by an assistant are drawn as mentions; calling the owner flags the message.
+  // The words an assistant may use to call the owner ("@Chủ nhóm", "@Owner", the owner label): teams.owner_tags.
+  function ownerTags() {
+    return String(tw("teams.owner_tags") || "").split(",").concat([tw("teams.owner")]).map(function (x) {
+      return String(x || "").trim();
+    }).filter(function (x) { return x && x !== "teams.owner_tags" && x !== "teams.owner"; });
+  }
+  function markMentions(html, members) {
+    var names = [];
+    ownerTags().forEach(function (n) { names.push({ n: n, me: true }); });
+    (members || []).forEach(function (m) {
+      [m.name, m.slug].forEach(function (n) { n = String(n || "").trim(); if (n) names.push({ n: n, me: false }); });
+    });
+    names.sort(function (a, b) { return b.n.length - a.n.length; });
+    var me = false;
+    var rx = new RegExp("@(" + names.map(function (x) {
+      return esc(x.n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }).join("|") + ")(?![\\p{L}\\p{M}\\p{N}_])", "giu");
+    // Only text between tags is touched, never an attribute or a link target.
+    var out = String(html).split(/(<[^>]*>)/).map(function (part) {
+      if (!part || part.charAt(0) === "<") return part;
+      return part.replace(rx, function (all, name) {
+        var low = name.toLowerCase();
+        var isMe = names.some(function (x) { return x.me && esc(x.n).toLowerCase() === low; });
+        if (isMe) me = true;
+        return '<span class="tm-at' + (isMe ? " tm-at-me" : "") + '">' + all + "</span>";
+      });
+    }).join("");
+    return { html: out, me: me };
   }
 
   function bodyHtml(m, mine) {
@@ -186,6 +233,10 @@
     var Q = quoteApi();
     var s = String(text == null ? "" : text);
     if (Q) s = Q.tach(s).rest;
+    // 0.192.0: a preview reads as text: pictures dropped, [label](path) and [[note|label]] become their label.
+    s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, " ").replace(/!\[\[[^\]]*\]\]/g, " ")
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+      .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, function (a, t, l) { return l || t; });
     return Q ? Q.xemTruoc(s, n || 160) : s.replace(/\s+/g, " ").trim().slice(0, n || 160);
   }
 
@@ -451,6 +502,13 @@
     if (meta.job_result) head.push('<span class="tm-result">' + esc(tw("teams.job_result")) + "</span>");
     var late = !mine && LATE.indexOf(meta.status) >= 0;
     var body = bodyHtml(m, mine);
+    var asksMe = false;
+    if (!mine && m.author_kind === "agent") {
+      var mk = markMentions(body, ctx.members);
+      body = replyRefHtml(m, ctx) + mk.html;
+      asksMe = mk.me || !!meta.asks_owner;
+      if (asksMe) head.push('<span class="tm-asks">' + ic("at-sign") + esc(tw("teams.asks_you")) + "</span>");
+    }
     // "Xong" là bình thường nên không hiện; chỉ báo khi câu trả lời KHÔNG được áp dụng.
     var lateLine = late ? '<div class="tm-late">' + ic("triangle-alert") + esc(tw(STATUS_KEY[meta.status])) + "</div>" : "";
     var notes = (meta.notes || []).map(function (n) { return '<div class="tm-note-line">' + esc(n) + "</div>"; }).join("");
@@ -478,7 +536,7 @@
     var foot = decision + JR.agentChipsHtml(m.agent_reactions, { prefix: "tm" });
     var corner = mine ? "" : reactCornerHtml(m, ctx.lastAgent !== undefined && ctx.lastAgent !== null &&
       Number(ctx.lastAgent) === Number(m.id));
-    var cls = "tm-msg" + (mine ? " tm-msg-owner" : " tm-msg-agent") + (late ? " tm-msg-late" : "") +
+    var cls = "tm-msg" + (mine ? " tm-msg-owner" : " tm-msg-agent") + (late ? " tm-msg-late" : "") + (asksMe ? " tm-msg-asks" : "") +
       (meta.job_result ? " tm-msg-result" : "") + (hit ? " tm-msg-hit" : "") + (open ? " is-sheet" : "");
     var bubble = '<div class="tm-bubble">' + (head.length ? '<div class="tm-head">' + head.join("") + "</div>" : "") +
       body + lateLine + notes + prop + (foot ? '<div class="tm-foot">' + foot + "</div>" : "") + corner + "</div>";
@@ -611,6 +669,7 @@
   // thì gọi ĐÚNG mã đó (hai trợ lý trùng tên vẫn đúng người, không suy lại theo tên); sửa hay xoá token thì lựa chọn đó
   // mất, không gọi ai theo nó nữa. Gõ tay một tên duy nhất vẫn gọi được; gõ tay một tên trùng thì không gọi ai và báo
   // `ambiguous` để chủ chọn trong gợi ý.
+  var ALL_TOKEN = "all";
   function mentionScan(text, members, picked) {
     var norm = function (s) { s = String(s || ""); return (s.normalize ? s.normalize("NFC") : s).toLowerCase(); };
     var low = norm(text);
@@ -662,6 +721,12 @@
         at = i + 1;
       }
     });
+    // 0.192.0 (owner, 16/10/2026: "có thể tag @all để tag tất cả mọi người"): @all calls every active member.
+    var all = false, ai = 0, aj;
+    while ((aj = low.indexOf("@" + ALL_TOKEN, ai)) >= 0) {
+      if (bounded(aj, ALL_TOKEN.length)) { all = true; break; }
+      ai = aj + 1;
+    }
     var used = {}, out = [], ambiguous = [];
     Object.keys(byPos).map(Number).sort(function (a, b) { return a - b; }).forEach(function (i) {
       var g = byPos[i], key = null;
@@ -678,7 +743,12 @@
         if (out.indexOf(key) < 0) out.push(key);
       }
     });
-    return { keys: out, ambiguous: ambiguous };
+    if (all) {
+      (members || []).forEach(function (m) {
+        if ((!m.status || m.status === "active") && out.indexOf(m.agent_key) < 0) out.push(m.agent_key);
+      });
+    }
+    return { keys: out, ambiguous: ambiguous, all: all };
   }
 
   // Bỏ một người khỏi tin đang soạn: xoá token "@tên" của họ trong chữ (token đã chọn trước, rồi tới tên gõ tay) và bỏ
@@ -721,8 +791,15 @@
   }
 
   // Hàng "Gọi:" trên khung soạn: mỗi người sẽ được gọi là một token riêng, bấm x để bỏ gọi.
-  function callsHtml(keys, members) {
+  function callsHtml(keys, members, all) {
     if (!(keys || []).length) return "";
+    if (all) {
+      // @all: one chip for the whole team; its x takes "@all" out of the text.
+      return '<span class="tm-calls-label">' + esc(tw("teams.calls")) + '</span><span class="tm-call">' +
+        '<span class="tm-sug-all" aria-hidden="true">' + ic("users") + '</span><span class="tm-call-name">@' + ALL_TOKEN +
+        " (" + keys.length + ')</span><button type="button" class="tm-call-x" data-unmention="*all" aria-label="' +
+        esc(tw("teams.uncall", { name: "@" + ALL_TOKEN })) + '">' + ic("x") + "</button></span>";
+    }
     return '<span class="tm-calls-label">' + esc(tw("teams.calls")) + "</span>" + keys.map(function (k) {
       var m = memberOf(members, k) || { name: k };
       return '<span class="tm-call">' + agentAva(m, 20) + '<span class="tm-call-name">@' + esc(m.name || m.slug || k) +
@@ -740,6 +817,7 @@
     var cap = Number(st.cap || 3);
     var ments = st.mentions || [];
     if ((st.ambiguous || []).length) return { ok: false, text: tw("teams.mention_ambiguous", { name: st.ambiguous[0] }) };
+    if (st.all) return { ok: true, text: tw("teams.hint_all", { n: ments.length }) };
     if (ments.length > cap) return { ok: false, text: tw("teams.hint_cap", { cap: cap }) };
     if (!st.asJob) return { ok: true, text: "" };
     if (ments.length) {
@@ -1158,7 +1236,7 @@
       openMember: null, advOpen: false, turns: [], sideOpener: null, rowMenu: null, focusRowMenu: false, swallowClick: false,
       picked: [], retrying: {}, pickSt: null, pickOpener: null, pickHost: null, roster: [],
       renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle",
-      atts: [], folder: null, info: null };
+      atts: [], folder: null, info: null, typing: [], pinned: [], pinsOpen: false };
   }
 
   function teamUrl(path) { return "/teams/" + q(S.activeId) + (path || ""); }
@@ -1196,7 +1274,7 @@
       '<div class="tm-teams"></div><button type="button" class="ws-btn tm-more-teams" hidden>' + esc(tw("teams.next_page")) + "</button></aside>" +
       '<section class="tm-chat"><div class="tm-bar tm-chat-head"></div><div class="tm-search" hidden></div>' +
       '<div class="tm-banners"></div><div class="tm-jobs" hidden></div>' +
-      '<div class="tm-filterbar" hidden></div><div class="tm-msgs" aria-live="polite"></div><div class="tm-composer"></div></section>' +
+      '<div class="tm-filterbar" hidden></div><div class="tm-pinbar" hidden></div><div class="tm-msgs" aria-live="polite"></div><div class="tm-composer"></div></section>' +
       // Vùng thông báo chung NGOÀI khung chat: trên điện thoại khung chat bị ẩn khi đang ở danh sách, thông báo (vd. ghim
       // lỗi) vẫn phải nhìn thấy (review 4f6268bd #2).
       '<aside class="tm-side" hidden></aside><div class="tm-scrim" hidden></div><div class="tm-note" role="status" aria-live="polite" hidden></div></div>';
@@ -1325,7 +1403,9 @@
   }
 
   function ctx(lastAgent) {
-    return { members: S.team ? S.team.members : [], authors: S.team ? S.team.authors : null,
+    var byId = {};
+    (S.msgs || []).forEach(function (m) { byId[Number(m.id)] = m; });
+    return { members: S.team ? S.team.members : [], authors: S.team ? S.team.authors : null, byId: byId,
       leaderKey: S.team && S.team.leader_key, taskTitles: S.taskTitles,
       picker: S.picker, jumped: S.jumped, retrying: S.retrying, lastAgent: lastAgent };
   }
@@ -1364,6 +1444,7 @@
   function drawMsgs(stick) {
     var box = S.el.querySelector(".tm-msgs");
     if (!box) return;
+    drawPins();
     // T3 (6.2): khung tin của nhóm đang mở; pulse-seen.js đọc mã nhóm ở đây để báo tin của trợ lý đã được xem.
     if (S.team) box.setAttribute("data-seen-team", S.team.team_id); else box.removeAttribute("data-seen-team");
     if (!S.team) {
@@ -1385,6 +1466,7 @@
         if (S.skipped["p" + m.id] && m.meta && m.meta.proposal) mm = Object.assign({}, m, { meta: Object.assign({}, m.meta, { proposal: null }) });
         return messageHtml(mm, c);
       }).join("");
+    applyReveal(box);
     // Bảng đang "mở" mà không vẽ ra (tin đã đổi, đã ghim): bỏ trạng thái mở, kẻo tin mới không còn tự cuộn xuống.
     if (S.picker !== null && !box.querySelector('[data-panel="' + S.picker + '"]')) S.picker = null;
     if ((stick || atEnd) && S.picker === null) box.scrollTop = box.scrollHeight;
@@ -1418,7 +1500,8 @@
     var old = box.querySelector(".tm-input");
     var draft = S.pending ? (S.pending.typed || S.pending.text) : old ? old.value : "";
     var off = S.team.status === "archived";
-    box.innerHTML = '<div class="tm-sug" role="listbox" id="tm-sug" aria-label="' + esc(tw("teams.mention_list")) + '" hidden></div>' +
+    box.innerHTML = '<div class="tm-typing" role="status" aria-live="polite" hidden></div>' +
+      '<div class="tm-sug" role="listbox" id="tm-sug" aria-label="' + esc(tw("teams.mention_list")) + '" hidden></div>' +
       composerTopHtml() + '<div class="tm-calls" hidden></div><div class="tm-hint" hidden></div>' + plusMenuHtml(off) +
       '<div class="tm-row"><button type="button" class="tm-plus" aria-haspopup="menu" aria-expanded="' +
       (S.plusOpen ? "true" : "false") + '" aria-label="' + esc(tw("teams.plus")) + '" title="' + esc(tw("teams.plus")) + '"' +
@@ -1433,6 +1516,7 @@
       ic("send") + "</button></div>";
     grow(box.querySelector(".tm-input"));
     drawHint();
+    drawTyping();
     if (S.focusComposer && !off) {
       S.focusComposer = false;
       var inp = box.querySelector(".tm-input");
@@ -1444,7 +1528,7 @@
   function composerTopHtml() {
     var h = "";
     if (S.replyTo) {
-      h += '<div class="tm-replying">' + ic("reply") + '<div class="tm-replying-main"><b>' +
+      h += '<div class="tm-replying"><span class="tm-replying-ico" aria-hidden="true">' + ic("quote") + '</span><div class="tm-replying-main"><b>' +
         esc(tw("teams.replying", { name: S.replyTo.who })) + '</b><span class="tm-replying-text">' + esc(S.replyTo.preview) +
         '</span></div><button type="button" class="tm-bar-x" data-reply-cancel="1" aria-label="' + esc(tw("teams.reply_cancel")) +
         '" title="' + esc(tw("teams.reply_cancel")) + '">' + ic("x") + "</button></div>";
@@ -1644,17 +1728,158 @@
 
   function currentMentions() { return currentScan().keys; }
 
+  // ───────────── 0.192.0: answers appear as if typed ─────────────
+  // Owner, 16/10/2026: "chữ đang xổ 1 phát ra cả 1 đống, anh muốn hiệu ứng chữ chạy người này gõ xong hết rồi người kia
+  // gõ lần lượt ... hiện dần từng mảng từ trên xuống dưới cho nhanh". A NEW assistant message arriving live is shown one
+  // block (paragraph, list item, code block) at a time, top to bottom, quickly; messages arriving together play one after
+  // another in arrival order, the next one hidden until the previous is done. History, the owner's own messages, a hidden
+  // tab and reduced motion show everything at once. State lives in S.rv so a redraw of the list keeps the progress.
+  var REVEAL_STEP_MS = 110, REVEAL_MAX_STEPS = 40;
+  function revealOff() {
+    try {
+      if (typeof document !== "undefined" && document.hidden) return true;
+      return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    } catch (e) { return true; }
+  }
+  function queueReveal(m) {
+    if (!m || m.author_kind !== "agent" || revealOff()) return;
+    S.rv = S.rv || { active: null, shown: 0, queue: [], timer: null };
+    if (S.rv.active === null) { S.rv.active = Number(m.id); S.rv.shown = 0; }
+    else S.rv.queue.push(Number(m.id));
+  }
+  function revealBlocks(msgEl) {
+    var root = msgEl.querySelector(".tm-text .bubble") || msgEl.querySelector(".tm-text");
+    if (!root) return [];
+    var kids = Array.prototype.slice.call(root.children || []);
+    return kids.length ? kids : [root];
+  }
+  function applyReveal(box) {
+    var rv = S.rv;
+    if (!rv || rv.active === null || !box) return;
+    rv.queue.forEach(function (id) {
+      var w = box.querySelector('[data-mid="' + id + '"]');
+      if (w) w.classList.add("tm-rv-wait");
+    });
+    var el = box.querySelector('[data-mid="' + rv.active + '"]');
+    if (!el) { nextReveal(); return; }
+    var blocks = revealBlocks(el);
+    el.classList.add("tm-rv-on");
+    blocks.forEach(function (b, i) { b.classList.toggle("tm-rv-hide", i >= rv.shown); });
+    if (!rv.timer) {
+      rv.timer = setTimeout(function () {
+        rv.timer = null;
+        if (!S || S.rv !== rv) return;
+        // Long answers keep a quick pace: never more than REVEAL_MAX_STEPS steps for one message.
+        rv.shown += Math.max(1, Math.ceil(blocks.length / REVEAL_MAX_STEPS));
+        if (rv.shown >= blocks.length) {
+          el.classList.remove("tm-rv-on");
+          blocks.forEach(function (b) { b.classList.remove("tm-rv-hide"); });
+          nextReveal();
+          return;
+        }
+        var msgs = S.el && S.el.querySelector(".tm-msgs");
+        var atEnd = msgs && msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 120;
+        applyReveal(msgs);
+        if (atEnd) msgs.scrollTop = msgs.scrollHeight;
+      }, REVEAL_STEP_MS);
+    }
+  }
+  function nextReveal() {
+    var rv = S.rv;
+    if (!rv) return;
+    if (rv.timer) { clearTimeout(rv.timer); rv.timer = null; }
+    rv.active = rv.queue.length ? rv.queue.shift() : null;
+    rv.shown = 0;
+    var msgs = S.el && S.el.querySelector(".tm-msgs");
+    if (!msgs) return;
+    var w = rv.active !== null ? msgs.querySelector('[data-mid="' + rv.active + '"]') : null;
+    if (w) w.classList.remove("tm-rv-wait");
+    if (rv.active !== null) applyReveal(msgs);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+  function stopReveal() {
+    if (S && S.rv && S.rv.timer) clearTimeout(S.rv.timer);
+    if (S) S.rv = null;
+  }
+
+  // ───────────── 0.192.0: pinned messages ─────────────
+  // Owner, 16/10/2026: "làm chức năng ghim đoạn chat cho nó có tác dụng". Pinning already fed every member turn (the
+  // decision book, team_runner._context) but nothing on screen showed it. A strip on top of the chat now shows the newest
+  // pin, how many there are and that the whole team follows them; tap a pin to go to it, open the list to see all or unpin.
+  function pinsHtml(pins, open, ctx) {
+    pins = (pins || []).slice().reverse();      // newest first
+    if (!pins.length) return "";
+    var who = function (p) {
+      if (p.author_kind === "owner") return tw("teams.owner");
+      var a = memberOf(ctx.members, p.author_ref) || (ctx.authors || {})[p.author_ref];
+      return a ? (a.name || a.slug) : (p.author_kind === "agent" ? p.author_ref : tw("teams.system"));
+    };
+    var pinRow = function (p, x) {
+      return '<div class="tm-pin-row"><button type="button" class="tm-pin-go" data-jump="' + esc(p.id) + '" data-ts="' + esc(p.ts) +
+        '" title="' + esc(tw("teams.quote_open")) + '"><b>' + esc(who(p)) + "</b>" + esc(plainPreview(p.content, 160)) + "</button>" +
+        (x ? '<button type="button" class="tm-bar-x" data-decision="' + esc(p.id) + '" data-on="0" aria-label="' +
+          esc(tw("teams.decision_unpin")) + '" title="' + esc(tw("teams.decision_unpin")) + '">' + ic("x") + "</button>" : "") + "</div>";
+    };
+    var pinTop = '<div class="tm-pin-head"><span class="tm-pin-ico" aria-hidden="true">' + ic("pin") + "</span>" +
+      '<span class="tm-pin-title">' + esc(tw("teams.pins_title", { n: pins.length })) + "</span>" +
+      '<span class="tm-pin-note">' + esc(tw("teams.pins_note")) + "</span>" +
+      '<button type="button" class="tm-bar-x tm-pin-toggle" aria-expanded="' + (open ? "true" : "false") + '" aria-label="' +
+      esc(tw(open ? "teams.pins_close" : "teams.pins_open")) + '" title="' + esc(tw(open ? "teams.pins_close" : "teams.pins_open")) + '">' +
+      ic(open ? "chevron-up" : "chevron-down") + "</button></div>";
+    return pinTop + (open ? '<div class="tm-pin-list">' + pins.map(function (p) { return pinRow(p, true); }).join("") + "</div>"
+      : pinRow(pins[0], false));
+  }
+  function drawPins() {
+    var el = S && S.el && S.el.querySelector(".tm-pinbar");
+    if (!el) return;
+    var h = S.team && !S.filterTask ? pinsHtml(S.pinned, !!S.pinsOpen, ctx(null)) : "";
+    el.innerHTML = h;
+    el.hidden = !h;
+  }
+
+  // ───────────── 0.192.0: who is writing right now ─────────────
+  // Owner, 16/10/2026: "các agent khác nhau trong nhóm chat khi chat phải hiện trạng thái đang trả lời, nếu không thì sẽ
+  // không biết ai đang trả lời". One strip above the input, like a group chat's "is typing": each member whose turn is at
+  // the engine, with its picture. Fed by the team_typing event and by GET /teams/{id} when the chat opens.
+  var TYPING_MAX = 4;
+  function typingHtml(list, members) {
+    var seen = {}, rows = [];
+    (list || []).forEach(function (t) {
+      if (!t || !t.agent_key || seen[t.agent_key]) return;
+      seen[t.agent_key] = 1;
+      rows.push(t);
+    });
+    if (!rows.length) return "";
+    var shown = rows.slice(0, TYPING_MAX);
+    return shown.map(function (t) {
+      var m = memberOf(members, t.agent_key) || { name: t.agent_key };
+      var name = m.name || m.slug || t.agent_key;
+      var reply = /reply|volunteer/.test(String(t.role || ""));
+      return '<span class="tm-typing-who">' + agentAva(m, 18) + '<span class="tm-typing-text">' +
+        esc(tw(reply ? "teams.typing_reply" : "teams.typing_work", { name: name })) + "</span>" +
+        '<span class="tm-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>';
+    }).join("") + (rows.length > TYPING_MAX
+      ? '<span class="tm-typing-more">' + esc(tw("teams.typing_more", { n: rows.length - TYPING_MAX })) + "</span>" : "");
+  }
+  function drawTyping() {
+    var el = S && S.el && S.el.querySelector(".tm-typing");
+    if (!el) return;
+    var h = S.team ? typingHtml(S.typing, S.team.members) : "";
+    el.innerHTML = h;
+    el.hidden = !h;
+  }
+
   function drawHint() {
     var hintEl = S.el.querySelector(".tm-hint");
     if (!hintEl || !S.team) return;
     var sc = currentScan();
-    var h = composerHint({ mentions: sc.keys, ambiguous: sc.ambiguous, asJob: S.asJob, cap: (S.team.caps || {}).mentions,
+    var h = composerHint({ mentions: sc.keys, all: sc.all, ambiguous: sc.ambiguous, asJob: S.asJob, cap: (S.team.caps || {}).mentions,
       members: S.team.members, leaderKey: S.team.leader_key });
     hintEl.textContent = h.text;
     hintEl.hidden = !h.text;
     var calls = S.el.querySelector(".tm-calls");
     if (calls) {
-      var ch = callsHtml(sc.keys, S.team.members);
+      var ch = callsHtml(sc.keys, S.team.members, sc.all);
       calls.innerHTML = ch;
       calls.hidden = !ch;
     }
@@ -1828,7 +2053,9 @@
       if (r.code === 404) return closeGone(forTeam);
       if (r.code !== 200) return fail(r);
       S.team = r.j.team;
-      drawHead(); drawHint(); drawSide();
+      if (r.j.typing) S.typing = r.j.typing;
+      S.pinned = r.j.pinned || [];
+      drawHead(); drawHint(); drawSide(); drawTyping(); drawPins();
     });
   }
 
@@ -1870,7 +2097,8 @@
     S.activeId = id; S.view = "chat"; S.asJob = false; S.pending = null; S.filterTask = String(taskId || "");
     S.team = null; S.queue = null; S.msgs = []; S.taskTitles = {}; S.side = false; S.openMember = null; S.turns = [];
     S.picker = null; S.draft = null; S.picked = []; S.retrying = {};
-    S.replyTo = null; S.plusOpen = false; S.renamingHead = false; S.atts = []; S.folder = null; S.info = null;
+    S.replyTo = null; S.plusOpen = false; S.renamingHead = false; forgetAtts(S.atts); S.atts = []; S.folder = null; S.info = null;
+    S.typing = []; S.pinned = []; S.pinsOpen = false; stopReveal();
     closeFolderPanel();
     stopMic();
     var input = S.el.querySelector(".tm-input");
@@ -1903,6 +2131,8 @@
   function attachFiles(files) {
     files.slice(0, 10).forEach(function (f) {
       var a = { name: f.name, size: f.size, kind: /^image\//.test(f.type || "") ? "image" : "file", path: "", busy: true, err: "" };
+      // 0.192.0: a picture shows itself on its chip, like the main chat.
+      if (a.kind === "image") { try { a.url = URL.createObjectURL(f); } catch (e) { a.url = ""; } }
       S.atts.push(a);
       upload(f).then(function (r) {
         a.busy = false;
@@ -1914,6 +2144,69 @@
     drawComposer();
   }
 
+  // ───────────── 0.192.0: paste and drop into the team chat ─────────────
+  // Owner, 16/10/2026: "không copy và dán ảnh vào khung chat của team được". The main chat's paste and drop listeners sit on
+  // the whole document and sent a picture pasted here to the hidden main chat. The team page answers first (its own
+  // listeners, propagation stopped) and the page is marked data-localdrop so the main chat's drop leaves it alone.
+  var PASTE_TXT_CHARS = 1500, PASTE_TXT_LINES = 25;   // same thresholds as the main chat (app.js)
+  // Copy the bytes while the event is still running: a phone only lets a page read a pasted or dropped file then.
+  function grabFile(f) {
+    var read;
+    try { read = f.arrayBuffer(); } catch (e) { return Promise.resolve(f); }
+    return Promise.resolve(read).then(function (buf) {
+      return buf && buf.byteLength
+        ? new File([buf], f.name || "anh-dan.png", { type: f.type || "application/octet-stream", lastModified: f.lastModified || Date.now() })
+        : f;
+    }).catch(function () { return f; });
+  }
+  function canAttach() { return !!(S && S.team && S.team.status !== "archived" && S.el.querySelector(".tm-input")); }
+  function attachGrabbed(list) {
+    Promise.all(list.map(grabFile)).then(function (files) { if (canAttach()) attachFiles(files); });
+  }
+  function onPaste(e) {
+    if (!canAttach()) return;
+    var cd = e.clipboardData;
+    var files = [];
+    Array.prototype.forEach.call((cd && cd.items) || [], function (it) {
+      if (it.kind === "file") { var f = it.getAsFile(); if (f) files.push(f); }
+    });
+    if (files.length) {
+      e.preventDefault(); e.stopPropagation();
+      attachGrabbed(files);
+      return;
+    }
+    // A very long text pasted into the team input becomes a .txt document instead of a wall in the box.
+    if (!(e.target && e.target.classList && e.target.classList.contains("tm-input"))) return;
+    var txt = (cd && cd.getData("text/plain")) || "";
+    if (txt.length > PASTE_TXT_CHARS || txt.split("\n").length > PASTE_TXT_LINES) {
+      e.preventDefault(); e.stopPropagation();
+      var d = new Date(), p2 = function (n) { return String(n).padStart(2, "0"); };
+      var name = "van-ban-dan-" + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds()) + ".txt";
+      attachFiles([new File([new Blob([txt], { type: "text/plain" })], name, { type: "text/plain" })]);
+    }
+  }
+  var dropDepth = 0;
+  function hasFiles(e) {
+    return !!(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0);
+  }
+  function markDrop(on) {
+    var box = S && S.el && S.el.querySelector(".tm-composer");
+    if (box) box.classList.toggle("is-drop", !!on);
+  }
+  function onDragEnter(e) { if (hasFiles(e) && canAttach()) { dropDepth++; markDrop(true); } }
+  function onDragOver(e) { if (hasFiles(e) && canAttach()) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }
+  function onDragLeave() { if (--dropDepth <= 0) { dropDepth = 0; markDrop(false); } }
+  function onDrop(e) {
+    dropDepth = 0; markDrop(false);
+    if (!hasFiles(e)) return;
+    e.preventDefault(); e.stopPropagation();
+    if (!canAttach()) return;
+    attachGrabbed(Array.prototype.slice.call(e.dataTransfer.files || []));
+  }
+  function forgetAtts(list) {
+    (list || []).forEach(function (a) { if (a && a.url) { try { URL.revokeObjectURL(a.url); } catch (e) {} } });
+  }
+
   function chipsHtml() {
     var h = "";
     if (S.folder) {
@@ -1923,7 +2216,8 @@
         esc(tw("cp.pin_unpin")) + '">' + ic("x") + "</button></span>";
     }
     S.atts.forEach(function (a, i) {
-      h += '<span class="tm-chip' + (a.err ? " is-err" : "") + '">' + ic(a.kind === "image" ? "image" : "paperclip") +
+      h += '<span class="tm-chip' + (a.err ? " is-err" : "") + (a.url ? " has-thumb" : "") + '">' +
+        (a.url ? '<img class="tm-chip-thumb" src="' + esc(a.url) + '" alt="">' : ic(a.kind === "image" ? "image" : "paperclip")) +
         '<span class="tm-chip-name">' + esc(a.name) + "</span>" +
         (a.busy ? '<span class="tm-chip-st">' + esc(tw("teams.uploading")) + "</span>" : a.err ? '<span class="tm-chip-st">' + esc(a.err) + "</span>" : "") +
         '<button type="button" class="tm-chip-x" data-att-x="' + i + '" aria-label="' + esc(tw("teams.attach_remove")) + '" title="' +
@@ -2100,6 +2394,7 @@
     // Gửi lại sau rớt mạng: cùng chữ thì giữ ĐÚNG mã cũ để server trả tin cũ, không thêm lượt.
     if (!S.pending || S.pending.text !== text) S.pending = { text: text, typed: typed, id: newClientId() };
     var body = { text: text, mentions: mentions, as_job: S.asJob, client_msg_id: S.pending.id };
+    if (scan.all) body.mention_all = true;
     if (atts.length) body.attachments = atts.map(function (a) { return { path: a.path, name: a.name, kind: a.kind }; });
     var btn = S.el.querySelector(".tm-send");
     if (btn) btn.disabled = true;
@@ -2107,7 +2402,7 @@
     call("POST", teamUrl("/messages"), body).then(function (r) {
       if (S.activeId !== forTeam) return;
       if (r.code !== 200) { fail(r); drawHint(); return; }
-      S.pending = null; S.asJob = false; S.picked = []; S.replyTo = null; S.plusOpen = false; input.value = ""; S.atts = [];
+      S.pending = null; S.asJob = false; S.picked = []; S.replyTo = null; S.plusOpen = false; input.value = ""; forgetAtts(S.atts); S.atts = [];
       if (atts.length && S.side && S.tab === "info") loadInfo();
       setNote(r.j.notes && r.j.notes.length ? r.j.notes.filter(function (n) { return !/^[a-z_]+$/.test(n); }).join(" · ") : "");
       if ((r.j.notes || []).indexOf("daily_cap") >= 0) setNote(tw("teams.daily_cap"));
@@ -2148,16 +2443,20 @@
       var n = foldName(a.name || a.slug).trim();
       seen[n] = (seen[n] || 0) + 1;
     });
+    var activeN = (S.team.members || []).filter(function (a) { return !a.status || a.status === "active"; }).length;
+    var withAll = activeN > 1 && ALL_TOKEN.indexOf(foldName(query).trim()) === 0;
+    if (withAll) list = [{ agent_key: "*all", name: "@" + ALL_TOKEN, title: tw("teams.mention_all", { n: activeN }), all: true }].concat(list);
     S.sugKeys = list.map(function (a) { return a.agent_key; });
     if (S.sugIdx == null || S.sugIdx >= list.length) S.sugIdx = 0;
     box.hidden = !list.length;
     input.setAttribute("aria-expanded", list.length ? "true" : "false");
     box.innerHTML = list.map(function (a, i) {
       // Trùng tên: thêm mã ngắn (slug) để chọn đúng người. Vai của trợ lý (dòng "role" ở Cộng sự) nằm dưới tên.
-      var dup = seen[foldName(a.name || a.slug).trim()] > 1;
+      var dup = !a.all && seen[foldName(a.name || a.slug).trim()] > 1;
       var on = i === S.sugIdx;
       return '<button type="button" class="tm-sug-item' + (on ? " is-active" : "") + '" role="option" id="tm-sug-' + i +
-        '" aria-selected="' + (on ? "true" : "false") + '" data-mention="' + esc(a.agent_key) + '">' + agentAva(a, 28) +
+        '" aria-selected="' + (on ? "true" : "false") + '" data-mention="' + esc(a.agent_key) + '">' +
+        (a.all ? '<span class="tm-sug-all" aria-hidden="true">' + ic("users") + "</span>" : agentAva(a, 28)) +
         '<span class="tm-sug-text"><span class="tm-sug-name">' + esc(a.name || a.slug) +
         (dup ? ' <span class="tm-sug-slug">' + esc(a.slug) + "</span>" : "") + "</span>" +
         (a.title ? '<span class="tm-sug-role">' + esc(a.title) + "</span>" : "") + "</span></button>";
@@ -2201,6 +2500,16 @@
 
   function pickMention(key) {
     var input = S.el.querySelector(".tm-input");
+    if (input && key === "*all") {
+      // @all is read from the text itself (mentionScan), so it needs no picked entry.
+      var at = input.selectionStart || input.value.length;
+      var upto = input.value.slice(0, at).replace(/@([^\s@]*)$/, "@" + ALL_TOKEN + " ");
+      input.value = upto + input.value.slice(at);
+      try { input.setSelectionRange(upto.length, upto.length); } catch (e) {}
+      input.focus();
+      grow(input);
+      key = "";
+    }
     if (input && key) {
       var label = nameOf(S.team.members, key);
       var pos = input.selectionStart || input.value.length;
@@ -2226,6 +2535,11 @@
   function unMention(key) {
     var input = S.el.querySelector(".tm-input");
     if (!input || !S.team) return;
+    if (key === "*all") {
+      input.value = input.value.replace(new RegExp("(^|\\s)@" + ALL_TOKEN + "(?![\\p{L}\\p{M}\\p{N}_])\\s?", "giu"), "$1");
+      S.pending = null; grow(input); input.focus(); drawHint();
+      return;
+    }
     var r = removeMention(input.value, S.team.members, S.picked, key);
     input.value = r.text;
     S.picked = r.picked;
@@ -2487,7 +2801,7 @@
     if (d.plusAttach) { setPlus(false); return pickFiles(attachFiles); }
     if (d.plusFolder || d.folderOpen) { setPlus(false); return openFolderPanel(); }
     if (d.folderUnpin) return pinTeamFolder("");
-    if (d.attX !== undefined) { S.atts.splice(+d.attX, 1); drawComposer(); return; }
+    if (d.attX !== undefined) { forgetAtts(S.atts.splice(+d.attX, 1)); drawComposer(); return; }
     if (d.infoAddFile) return pickFiles(addTeamFiles);
     if (d.infoDelFile) return assetPost("/files/" + q(d.infoDelFile) + "/delete");
     if (d.infoDelLink) return assetPost("/links/" + q(d.infoDelLink) + "/delete");
@@ -2593,7 +2907,16 @@
       return;
     }
     if (t.classList.contains("tm-search-go")) return runSearch();
-    if (d.jump) return jumpTo(d.jump, d.ts);
+    if (d.jump) {
+      var here = S.el.querySelector('.tm-msgs [data-mid="' + Number(d.jump) + '"]');
+      if (here && here.scrollIntoView) {
+        here.scrollIntoView({ block: "center", behavior: "smooth" });
+        here.classList.add("tm-msg-flash");
+        setTimeout(function () { here.classList.remove("tm-msg-flash"); }, 1600);
+        return;
+      }
+      return jumpTo(d.jump, d.ts);
+    }
     if (t.classList.contains("tm-jump-back")) { S.jumped = null; loadMsgs(false); return; }
     if (t.classList.contains("tm-filter-clear")) { S.filterTask = ""; drawFilterbar(); loadMsgs(false); return; }
     if (d.reactClose) { S.focusBack = S.picker; S.picker = null; drawMsgs(false); return; }
@@ -2631,9 +2954,10 @@
       return call("POST", teamUrl("/messages/" + q(d.decision) + "/decision"), { on: d.on === "1" }).then(function (r) {
         if (r.code !== 200) return fail(r);
         S.picker = null; S.draft = null;
-        loadMsgs(false);
+        loadMsgs(false); loadTeam();
       });
     }
+    if (t.classList.contains("tm-pin-toggle")) { S.pinsOpen = !S.pinsOpen; drawPins(); return; }
     if (d.prio) {
       return call("POST", teamUrl("/queue/" + q(d.prio) + "/priority"),
         { on: d.on === "1", expected_queue_version: (S.queue && S.queue.version) || 0 }).then(function (r) { act(r); });
@@ -2934,6 +3258,10 @@
       if (S.activeId) { loadMsgs(false); loadQueue(); loadTeam(); }
       return;
     }
+    if (d.type === "team_typing") {
+      if (d.team_id === S.activeId) { S.typing = d.typing || []; drawTyping(); }
+      return;
+    }
     if (d.type === "team_state" && d.deleted && d.team_id === S.activeId) closeGone(d.team_id);
     if (d.type === "team_replies" && d.team_id === S.activeId) {
       // Kết cục lượt trả lời đổi (0.142.0): chỉ vẽ lại khung tin, không cần hỏi lại danh sách.
@@ -2957,7 +3285,7 @@
       // Khung lọc theo việc (hợp đồng T2 mục 5): chỉ vẽ lại tin ĐANG hiện (reaction đổi ở tab khác), không chèn tin mới
       // vào danh sách của việc; khung thường thì chèn như cũ.
       if (i >= 0) S.msgs[i] = S.filterTask ? Object.assign({}, S.msgs[i], nm) : nm;
-      else if (!S.filterTask && (S.jumped === null || S.jumped === undefined)) S.msgs.push(nm);
+      else if (!S.filterTask && (S.jumped === null || S.jumped === undefined)) { S.msgs.push(nm); queueReveal(nm); }
       if (i >= 0 || !S.filterTask) drawMsgs(false);
     }
     clearTimeout(refreshTimer);
@@ -2971,7 +3299,7 @@
   function leave() {
     clearTimeout(refreshTimer);
     if (S && S.pickSt) closePicker();
-    if (S) { S.side = false; S.picker = null; stopMic(); if (S.unpress) { S.unpress(); S.unpress = null; } }
+    if (S) { S.side = false; S.picker = null; stopMic(); stopReveal(); if (S.unpress) { S.unpress(); S.unpress = null; } }
   }
 
   function render(el) {
@@ -2981,6 +3309,13 @@
     el.addEventListener("change", onChange);
     el.addEventListener("input", onInput);
     el.addEventListener("keydown", onKey);
+    // 0.192.0: paste and drop land in this team, not in the hidden main chat (see onPaste).
+    el.setAttribute("data-localdrop", "");
+    el.addEventListener("paste", onPaste);
+    el.addEventListener("dragenter", onDragEnter);
+    el.addEventListener("dragover", onDragOver);
+    el.addEventListener("dragleave", onDragLeave);
+    el.addEventListener("drop", onDrop);
     // Leaving an inline name editor saves it (a redraw that removes the box does not count: the box is gone by then).
     el.addEventListener("focusout", function (e) {
       var x = e.target;
@@ -3110,7 +3445,8 @@
     bannersHtml: bannersHtml, reactCornerHtml: reactCornerHtml, reactBarHtml: reactBarHtml, sheetHtml: sheetHtml,
     hoverActsHtml: hoverActsHtml, bodyHtml: bodyHtml, plainPreview: plainPreview, previewText: previewText,
     nextReaction: nextReaction, REACTIONS: REACTIONS, authorityHtml: authorityHtml, readGrant: readGrant,
-    searchResultsHtml: searchResultsHtml, replyStatusHtml: replyStatusHtml, headLine: headLine };
+    searchResultsHtml: searchResultsHtml, replyStatusHtml: replyStatusHtml, headLine: headLine,
+    typingHtml: typingHtml, pinsHtml: pinsHtml, markMentions: markMentions, replyRefHtml: replyRefHtml };
   if (typeof window !== "undefined") window.JavisTeams = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

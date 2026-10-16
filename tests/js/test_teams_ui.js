@@ -264,7 +264,7 @@ check("gói WS không mang reaction của agent thì giữ cái đang có", team
 // ───────────── 0.176.0: reply, markdown, assistant settings, rename and delete ─────────────
 const qm = TM.messageHtml({ id: 9, author_kind: "owner", content: "> Lan: Câu <cũ>\n\nSai rồi em", meta: {} }, { members: members });
 check("0.176 owner reply shows the quote block (name bold) above the text, both escaped",
-      qm.includes('<div class="tm-quote"><b>Lan</b>Câu &lt;cũ&gt;</div>') && qm.includes('<div class="tm-text">Sai rồi em</div>'), qm);
+      qm.includes('<span class="tm-quote-body"><b>Lan</b>Câu &lt;cũ&gt;</span></div>') && qm.includes('<div class="tm-text">Sai rồi em</div>'), qm);
 check("0.176 sending a reply puts the quote on top and calls the assistant replied to when nobody is @-mentioned",
       /var text = S\.replyTo && Q \? Q\.ghep\(S\.replyTo\.quote, typed\) : typed;/.test(teamsJs)
       && /if \(S\.replyTo && S\.replyTo\.key && !mentions\.length\) mentions = \[S\.replyTo\.key\];/.test(teamsJs));
@@ -344,7 +344,7 @@ check("tin được nhảy tới được tô sáng", TM.messageHtml(am, { membe
 check("nhảy tới tin: tải trang kết thúc ở đúng tin đó, có nút về tin mới nhất",
       /before_ts=" \+ q\(ts\) \+ "&before_id=" \+ q\(Number\(mid\) \+ 1\)/.test(teamsJs) && teamsJs.includes("tm-jump-back"));
 check("đang xem tin cũ: tin mới tới không chèn vào giữa khúc cũ",
-      teamsJs.includes("else if (!S.filterTask && (S.jumped === null || S.jumped === undefined)) S.msgs.push(nm);"));
+      teamsJs.includes("else if (!S.filterTask && (S.jumped === null || S.jumped === undefined)) { S.msgs.push(nm); queueReveal(nm); }"));
 check("CSS: lớp flex mới của tìm có [hidden], vùng chạm 44px trên điện thoại",
       /\.tm-search\[hidden\]/.test(css) && /\.tm-search-row\[hidden\]/.test(css) && /\.tm-jumped\[hidden\]/.test(css)
       && /\.tm-search-btn, \.tm-search-go, \.tm-search-input, \.tm-search-hit, \.tm-jump-back \{ min-height: 44px; \}/.test(css));

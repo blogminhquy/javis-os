@@ -98,6 +98,27 @@ def save(attachments: Iterable[dict], *, staging: Path, brain_root: Path, dest_d
     return out
 
 
+def save_description(names: List[str], text: str, who: str, *, dest_dir: Path, to_rel: Callable[[Path], str],
+                     add: Callable[[str, str], Optional[str]], pin: Callable[[str], object]) -> Optional[str]:
+    """Keep what another brain saw in the pictures of a team message as a pinned text document (0.192.0).
+
+    Team turns are text only, so a member cannot look at a picture; this description is what it reads instead. One file
+    per message, named after the first picture. Returns the document's path, or None when nothing was kept."""
+    body = str(text or "").strip()
+    if not body or not names:
+        return None
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    first = Path(_safe_name(names[0])).stem
+    out = _unique(dest_dir, f"{first} - mo ta anh.txt")
+    head = "Mô tả ảnh " + ", ".join(names) + (f" (do {who} xem hộ)" if who else "") + ":\n\n"
+    out.write_text(head + body + "\n", encoding="utf-8")
+    fid = add(to_rel(out), ", ".join(names) + " (mô tả ảnh)")
+    if not fid:
+        return None
+    pin(fid)
+    return to_rel(out)
+
+
 def tree(folder: str, depth: int = TREE_DEPTH, cap: int = TREE_MAX) -> List[str]:
     """A short indented listing of a folder (folders first), at most `cap` lines, hidden folders left out."""
     root = Path(folder or "")
@@ -132,8 +153,8 @@ def block(listed: List[str], loaded: List[str], folder: str) -> str:
     if listed:
         out += ("\n\n# === TÀI LIỆU VÀ LINK CỦA NHÓM ===\n"
                 "Chủ nhóm gắn các tài liệu và link này cho cả nhóm. Lượt nhóm chỉ chữ: bạn KHÔNG mở được file hay link; "
-                "chỉ đọc được phần nội dung đã nạp sẵn bên dưới. Tài liệu chưa nạp thì nói rõ là chưa đọc được, đừng đoán "
-                "nội dung từ cái tên.\n" + "\n".join(listed))
+                "chỉ đọc được phần nội dung đã nạp sẵn bên dưới. Ảnh thì đọc tài liệu \"mô tả ảnh\" đi kèm (một bộ não khác "
+                "đã xem hộ); ảnh hay tài liệu chưa nạp thì nói rõ là chưa đọc được, đừng đoán nội dung từ cái tên.\n" + "\n".join(listed))
     if loaded:
         out += "\n\n# === NỘI DUNG TÀI LIỆU CỦA NHÓM (nạp sẵn) ===" + "".join(loaded)
     lines = tree(folder)

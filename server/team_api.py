@@ -34,6 +34,8 @@ from team_store import TeamError
 LOOP_EVERY_S = 5.0          # nhịp điều phối (spec 8.3: cùng nhịp 5 giây của Kanban)
 REMIND_EVERY_S = 3600.0     # nhịp nhắc việc bị chặn quá 24 giờ
 RECONCILE_EVERY_S = 60.0    # nhịp đối soát sổ lượt chung với team_turns (T2, thiết kế 9.1)
+PINNED_SHOWN = 20            # tin đã ghim hiện ở dải trên khung chat (0.192.0), như Sổ quyết định của lượt
+DESCRIBE_TIMEOUT_S = 120.0   # tả ảnh đính kèm trước lượt thành viên (0.192.0): quá thì lượt vẫn chạy, không có mô tả
 
 
 @dataclass
@@ -58,6 +60,9 @@ class TeamApiDeps:
     contrib_reader: Optional[Callable[[str], list]] = None  # result_ref -> pulse_contrib còn hiệu lực (T4, lịch sử dài)
     attach: Optional[Callable[[dict, list], list]] = None  # (team, attachments) -> [{name, path, image}] (0.191.0)
     docs_block: Optional[Callable[[dict], str]] = None    # team -> documents/folder block of member turns (0.191.0)
+    # (team, files, caption) -> awaitable: pictures among `files` get a pinned text description, read by member turns
+    # (team turns are text only). Awaited BEFORE the member turns of the message that carried them (0.192.0).
+    describe: Optional[Callable[[dict, list, str], Any]] = None
 
 
 async def _body(request: Request) -> dict:
@@ -488,6 +493,17 @@ def current() -> Optional[TeamOps]:
     return _CURRENT[0]
 
 
+
+async def _described_then(api: "TeamApi", team: dict, pics: list, caption: str, then: Any) -> None:
+    """Describe the pictures of a team message, then run what comes after it (`then()`, its member turns). A failed or slow
+    description never stops the turns: they run anyway and the documents block says the picture could not be read."""
+    try:
+        await asyncio.wait_for(api.deps.describe(team, pics, caption), DESCRIBE_TIMEOUT_S)
+    except Exception as ex:  # noqa: BLE001 - timeouts and engine errors alike
+        print(f"[team] không tả được ảnh: {type(ex).__name__}: {str(ex)[:200]}", file=sys.stderr)
+    if then is not None:
+        await then()
+
 def register(app, deps: TeamApiDeps) -> TeamApi:
     """Đăng ký route `/teams/*`. Gọi SAU route cuối của main.py để bảng route cũ giữ nguyên thứ tự."""
     api = TeamApi(deps)
@@ -568,7 +584,14 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
     async def teams_get(team_id: str, brain: str = "brain"):
         def _do():
             team, err = _team(team_id, brain)
-            return err or {"ok": True, "team": api.view(team)}
+            # 0.192.0: who is writing right now, for the "is typing" strip when the chat opens or reconnects.
+            if err:
+                return err
+            # 0.192.0: pinned messages for the pinned strip on top of the chat (the same list member turns follow).
+            pinned = [{"id": m["id"], "ts": m["ts"], "author_kind": m["author_kind"], "author_ref": m["author_ref"],
+                       "content": str(m.get("content") or "")[:400]}
+                      for m in deps.session_store().team_decisions(team["session_id"], PINNED_SHOWN)]
+            return {"ok": True, "team": api.view(team), "typing": api.teams().active_turns(team_id), "pinned": pinned}
         return await api.io(_do)
 
     @app.patch("/teams/{team_id}")
@@ -882,12 +905,21 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             try:
                 sub = runner.submit(team_id, text, mentions=list(body.get("mentions") or []),
                                     as_job=bool(body.get("as_job")),
-                                    client_msg_id=str(body.get("client_msg_id") or ""), files=files)
+                                    client_msg_id=str(body.get("client_msg_id") or ""), files=files,
+                                    mention_all=bool(body.get("mention_all")))
             except TeamError as ex:
                 return _team_err(ex)
+            pics = [f for f in files if f.get("image")] if api.deps.describe is not None else []
             if sub["replies"] or sub.get("judge"):
                 # Lượt trả lời theo @ (như cũ), rồi bộ phán xử cho người không được gọi (T3 phần J), đều chạy nền.
-                runner._on_loop(lambda: api._spawn(runner.run_message(sub)))
+                # 0.192.0: ảnh đính kèm được tả thành chữ TRƯỚC, để lượt của thành viên đọc được ảnh (lượt chỉ chữ).
+                if pics:
+                    turns = lambda: runner.run_message(sub)  # noqa: E731 - created only once the pictures are described
+                    runner._on_loop(lambda: api._spawn(_described_then(api, team, pics, text, turns)))
+                else:
+                    runner._on_loop(lambda: api._spawn(runner.run_message(sub)))
+            elif pics:
+                runner._on_loop(lambda: api._spawn(_described_then(api, team, pics, text, None)))
             if sub.get("task_id") and sub["created"]:
                 api.kick()
             return dict(sub, ok=True)
@@ -907,6 +939,9 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             files = api.deps.attach(team, list(body.get("attachments") or []))
             if not files:
                 return _err(400, "Không thêm được file nào", "No file could be added")
+            pics = [f for f in files if f.get("image")] if api.deps.describe is not None else []
+            if pics:
+                api.runner()._on_loop(lambda: api._spawn(_described_then(api, team, pics, "", None)))
             return {"ok": True, "files": files, "session_id": team["session_id"]}
         return await api.io(_do)
 

@@ -3498,3 +3498,85 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 .ws-mini-tip-st { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 14px; font-weight: 600;
   color: var(--text2); }
 .ws-mini-tip-st::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--st-dot); }
+
+/* 0.192.0: who in the team is writing right now, one strip above the input (teams.js typingHtml). */
+.tm-typing { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 4px 8px; font-size: 14px;
+  color: var(--text2); }
+.tm-typing[hidden] { display: none; }
+.tm-typing-who { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.tm-typing-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 320px; font-weight: 600; }
+.tm-typing-more { color: var(--text3); }
+/* 0.192.0: a file dragged over the team chat lands in its composer; the composer says so. */
+.tm-composer.is-drop { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--accent-wash); }
+/* A picture attached in the team composer shows itself on its chip. */
+.tm-chip.has-thumb { padding-left: 4px; }
+.tm-chip-thumb { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; flex: none; }
+@media (pointer: coarse) { .tm-typing { font-size: 15px; } }
+/* 0.192.0: the @all suggestion and its chip carry a group icon instead of a member picture. */
+.tm-sug-all { width: 28px; height: 28px; border-radius: 50%; flex: none; display: inline-flex; align-items: center;
+  justify-content: center; background: var(--accent-wash-2); color: var(--accent); }
+.tm-call .tm-sug-all { width: 20px; height: 20px; }
+.tm-sug-all svg { width: 16px; height: 16px; }
+.tm-call .tm-sug-all svg { width: 12px; height: 12px; }
+/* 0.192.0 (owner, 16/10/2026: the team quote had no quote mark like the main chat): quotes in team bubbles carry the main
+   chat's quote mark in a small accent box; an assistant's reply quotes the message it answers and is a button to it. */
+.tm-quote { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border-left: 0; border-radius: 10px;
+  background: var(--surface-2, var(--bg3)); -webkit-line-clamp: unset; }
+.tm-quote-ico { flex: none; width: 26px; height: 26px; border-radius: 6px; display: inline-flex; align-items: center;
+  justify-content: center; background: var(--bg); color: var(--accent); }
+.tm-quote-ico svg { width: 14px; height: 14px; }
+.tm-quote-body { min-width: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  overflow-wrap: anywhere; }
+button.tm-quote-ref { width: 100%; text-align: left; font: inherit; font-size: 14px; color: var(--text2); border: 1px solid transparent;
+  cursor: pointer; margin: 0 0 8px; }
+button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var(--accent-line); outline: none; }
+.tm-replying { border-left: 0; padding: 6px 6px 6px 6px; background: var(--bg3); border: 1px solid var(--border); }
+.tm-replying-ico { flex: none; width: 34px; height: 34px; border-radius: 6px; display: inline-flex; align-items: center;
+  justify-content: center; background: var(--bg); color: var(--accent); }
+.tm-replying-ico svg { width: 16px; height: 16px; }
+/* Mentions written by an assistant; "@Chủ nhóm" flags the message as waiting for the owner. */
+.tm-at { color: var(--accent-ink, var(--accent)); font-weight: 600; }
+.tm-at-me { background: var(--accent-wash-2); border-radius: 6px; padding: 0 4px; }
+.tm-asks { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px;
+  font-weight: 700; color: var(--accent-ink, var(--accent)); background: var(--accent-wash-2); }
+.tm-asks svg { width: 12px; height: 12px; }
+.tm-msg-asks .tm-bubble { box-shadow: inset 3px 0 0 var(--accent); }
+.tm-msg-flash .tm-bubble { animation: tm-flash 1.6s ease; }
+@keyframes tm-flash { 0%, 40% { background: var(--accent-wash-2); } 100% { background: inherit; } }
+@media (prefers-reduced-motion: reduce) { .tm-msg-flash .tm-bubble { animation: none; outline: 2px solid var(--accent); } }
+/* 0.192.0: pinned strip on top of the team chat. */
+.tm-pinbar { border-bottom: 1px solid var(--border); padding: 6px 12px; background: var(--bg2); display: flex; flex-direction: column;
+  gap: 4px; max-height: 40vh; overflow: auto; }
+.tm-pinbar[hidden] { display: none; }
+.tm-pin-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tm-pin-ico { flex: none; width: 24px; height: 24px; border-radius: 6px; display: inline-flex; align-items: center;
+  justify-content: center; background: var(--accent-wash-2); color: var(--accent); }
+.tm-pin-ico svg { width: 13px; height: 13px; }
+.tm-pin-title { font-size: 14px; font-weight: 700; color: var(--text); flex: none; }
+.tm-pin-note { flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--text3); overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.tm-pin-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tm-pin-go { flex: 1 1 auto; min-width: 0; text-align: left; font: inherit; font-size: 14px; color: var(--text2); background: none;
+  border: 0; padding: 4px 0 4px 32px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-pin-go b { color: var(--text); font-weight: 600; margin-right: 6px; }
+.tm-pin-go:hover, .tm-pin-go:focus-visible { color: var(--text); outline: none; text-decoration: underline; }
+@media (pointer: coarse) { .tm-pin-go { font-size: 15px; min-height: 40px; } }
+/* 0.192.0 (owner, 16/10/2026: "phần việc khi giao nó đang bị co chữ và khó nhìn"): in the team side panel a job's title
+   takes the whole line and its buttons go on the line under it, instead of three buttons squeezing the title into a
+   narrow column. */
+.tm-side-body .tm-qrow { align-items: flex-start; gap: 8px; padding: 10px 0; font-size: 15px; }
+.tm-side-body .tm-qrow .tm-qtitle { flex: 1 1 calc(100% - 40px); line-height: 1.45; font-weight: 600; color: var(--text); }
+.tm-side-body .tm-qrow .tm-spin, .tm-side-body .tm-qrow .tm-qpos { margin-top: 2px; }
+.tm-side-body .tm-qrow .tm-actions { flex: 1 1 100%; padding-left: 26px; }
+.tm-side-body .tm-jcard-text .tm-actions { margin-top: 8px; }
+/* 0.192.0 (owner, 16/10/2026: "avatar đang ở dưới cùng hội thoại ko thấy tên người gửi"): an assistant's picture sits at
+   the top of its message, next to its name, so a long answer still says who wrote it at a glance. */
+.tm-msg-agent { align-items: flex-start; }
+.tm-msg-agent > .tm-ava, .tm-msg-agent > .tm-face-btn { margin-top: 2px; }
+.tm-msg-agent .tm-bubble { border-bottom-left-radius: 16px; border-top-left-radius: 6px; }
+.tm-msg-agent .tm-who { font-size: 14px; }
+/* 0.192.0: a new answer appears block by block, one member after another (teams.js applyReveal). */
+.tm-msg.tm-rv-wait { display: none; }
+.tm-rv-hide { display: none !important; }
+.tm-rv-on .tm-text .bubble > *:not(.tm-rv-hide) { animation: tm-rv-in .22s ease both; }
+@keyframes tm-rv-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }

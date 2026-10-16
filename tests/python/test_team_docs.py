@@ -122,6 +122,115 @@ check("the Jobs tab of Javis Core gets an empty ok list (it used to be a 404 sho
       r.status_code == 200 and r.json().get("ok") and r.json()["jobs"] == [] and r.json()["total"] == 0, r.text)
 check("an unknown assistant is still a 404", client.get("/agents/khong-co/jobs", params={"brain": b}).status_code == 404)
 
+# ---- 0.192.0: pictures are described for the text-only member turns ----
+import asyncio  # noqa: E402
+import team_api  # noqa: E402
+seen = {}
+
+
+async def _fake_eyes(images, text, prov, api_model, chat_id=""):
+    seen["args"] = (list(images), text, chat_id)
+    return "Bảng giá: nước mắm 50.000đ, chai 500ml.", "openai-oauth/gpt-test", ""
+
+main._bot_xem_ho = _fake_eyes
+pic = client.post("/upload", data={"brain": b}, files={"file": ("bang-gia.png", b"\x89PNG fake2")}).json()
+kept_pic = main._team_attach(dict(team, session_id=sid), [{"path": pic["staged"], "name": "bang-gia.png"}])
+check("a picture is kept as a team document, marked as a picture", kept_pic and kept_pic[0]["image"], kept_pic)
+asyncio.run(main._team_describe(dict(team, session_id=sid, brain_id=main._brain_key(b)), kept_pic, "giá bao nhiêu"))
+check("another brain looks at the picture itself (the file in the brain), with the message as caption",
+      seen.get("args") and seen["args"][0][0].endswith("bang-gia.png") and seen["args"][1] == "giá bao nhiêu"
+      and seen["args"][2] == f"team:{tid}", seen)
+desc = [f for f in store.list_session_files(sid) if f["name"] == "bang-gia.png (mô tả ảnh)"]
+check("what it saw becomes a pinned team document", desc and desc[0]["pinned"], store.list_session_files(sid))
+blk = main._team_docs_block(dict(team, session_id=sid, brain_id=main._brain_key(b)))
+check("member turns read the description, and are told that is how they see a picture",
+      "nước mắm 50.000đ" in blk and "openai-oauth/gpt-test" in blk and "mô tả ảnh" in blk, blk[:900])
+
+
+async def _no_eyes(images, text, prov, api_model, chat_id=""):
+    return "", "", "không bộ não nào xem được"
+
+main._bot_xem_ho = _no_eyes
+n0 = len(store.list_session_files(sid))
+asyncio.run(main._team_describe(dict(team, session_id=sid, brain_id=main._brain_key(b)), kept_pic, ""))
+check("no brain could look: nothing is invented", len(store.list_session_files(sid)) == n0)
+check("the host wires the describer into team chat", main._TEAM_API.deps.describe is main._team_describe)
+order = []
+
+
+class _Api:
+    class deps:
+        @staticmethod
+        async def describe(team, pics, caption):
+            order.append("describe")
+
+
+async def _turns():
+    order.append("turns")
+
+asyncio.run(team_api._described_then(_Api, team, kept_pic, "", _turns))
+check("the member turns of a message with a picture start only after the picture is described",
+      order == ["describe", "turns"], order)
+
+
+class _SlowApi:
+    class deps:
+        @staticmethod
+        async def describe(team, pics, caption):
+            raise RuntimeError("engine down")
+
+order.clear()
+asyncio.run(team_api._described_then(_SlowApi, team, kept_pic, "", _turns))
+check("a failed description never stops the turns", order == ["turns"], order)
+src = (ROOT / "server" / "team_api.py").read_text(encoding="utf-8")
+check("send and the info panel both describe new pictures",
+      src.count("_described_then(api, team, pics,") == 3 and "DESCRIBE_TIMEOUT_S = 120.0" in src)
+
+# ---- 0.192.0: who is writing right now (the "is typing" strip) ----
+teams_store = main._TEAM_API.teams()
+key = team["members"][0]["agent_key"] if team.get("members") else teams_store.get(tid)["leader_key"]
+events = []
+runner = main._TEAM_API.runner()
+runner._publish_fn = lambda ev: events.append(ev)
+turn = teams_store.reserve_turn(tid, None, None, key, "member_reply")
+check("a turn still waiting for its seat is not typing yet", teams_store.active_turns(tid) == [])
+runner._mark_engine(turn, "fake", "m")
+check("a turn at the engine is typing, and the chat is told",
+      [t["agent_key"] for t in teams_store.active_turns(tid)] == [key]
+      and any(e.get("type") == "team_typing" and e["team_id"] == tid and e["typing"][0]["agent_key"] == key
+              and e["typing"][0]["role"] == "member_reply" for e in events), events)
+g = client.get(f"/teams/{tid}", params={"brain": b}).json()
+check("opening the team returns who is typing", [t["agent_key"] for t in g.get("typing") or []] == [key], g.get("typing"))
+events.clear()
+runner._settle_turn(turn, "ok")
+check("the turn ends: nobody is typing, the chat is told",
+      teams_store.active_turns(tid) == [] and events and events[-1]["typing"] == [], events)
+
+# ---- 0.192.0: @all, the owner flag, pinned messages ----
+r = client.post(f"/teams/{tid}/messages", params={"brain": b}, headers=H, json={
+    "text": "@all họp nhanh nhé", "mentions": [], "mention_all": True, "as_job": False, "client_msg_id": "all1"})
+allm = store.team_message(sid, r.json().get("message_id") or 0) or {}
+everyone = [m["agent_key"] for m in teams_store.members(tid)]
+check("@all calls every active member, leader first, past the per-message @ cap",
+      r.status_code == 200 and sorted(allm.get("meta", {}).get("mentions") or []) == sorted(everyone)
+      and allm["meta"].get("mention_all") is True, (r.text, allm.get("meta")))
+check("without @all the cap still holds", "if len(wanted) > cap and not mention_all:" in
+      (ROOT / "server" / "team_runner.py").read_text(encoding="utf-8"))
+import team_runner  # noqa: E402
+mid_ask = runner._post(teams_store.get(tid), "@Chủ nhóm ơi, anh chọn mẫu A hay B?", author_kind="agent", author_ref=key)
+mid_no = runner._post(teams_store.get(tid), "Em làm xong rồi, gửi @Lan xem.", author_kind="agent", author_ref=key)
+check("an assistant calling the owner is flagged; one calling a teammate is not",
+      store.team_message(sid, mid_ask)["meta"].get("asks_owner") is True
+      and not store.team_message(sid, mid_no)["meta"].get("asks_owner"))
+check("team members are told to tag the owner and each other",
+      any("@Chủ nhóm" in line for line in team_runner.INTERNAL_GROUP_NOTE))
+client.post(f"/teams/{tid}/messages/{mid_ask}/decision", params={"brain": b}, headers=H, json={"on": True})
+g = client.get(f"/teams/{tid}", params={"brain": b}).json()
+check("opening the team returns its pinned messages for the pinned strip",
+      [p["id"] for p in g.get("pinned") or []] == [mid_ask] and "mẫu A hay B" in g["pinned"][0]["content"], g.get("pinned"))
+client.post(f"/teams/{tid}/messages/{mid_ask}/decision", params={"brain": b}, headers=H, json={"on": False})
+check("unpinned: off the strip", client.get(f"/teams/{tid}", params={"brain": b}).json().get("pinned") == [])
+
 print()
 if fails:
     print(f"FAIL - {len(fails)} check(s)")

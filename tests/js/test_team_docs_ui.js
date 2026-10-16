@@ -91,5 +91,57 @@ check("every dropdown list gets a solid theme background", css.includes("select 
 const dk = ["ajobs.dot_need", "ajobs.dot_run", "ajobs.dot_wait", "ajobs.dot_done"];
 check("state words vi/en, no em dash", dk.every((k) => vi[k] && en[k]) && !/[–—]/.test(dk.map((k) => vi[k] + en[k]).join("")));
 
+// ---- 0.192.0: paste, drop, typing strip, @all, mentions, reply quotes, pins, job rows ----
+const T = require(path.join(root, "dashboard", "teams.js"));
+const tj = read("teams.js");
+check("paste and drop on the team page land in the team, not the hidden main chat",
+  tj.includes('el.setAttribute("data-localdrop", "")') && tj.includes('el.addEventListener("paste", onPaste)')
+  && tj.includes('el.addEventListener("drop", onDrop)') && /e\.preventDefault\(\); e\.stopPropagation\(\);\n\s+attachGrabbed\(files\);/.test(tj));
+check("a very long paste becomes a .txt document like the main chat",
+  tj.includes("var PASTE_TXT_CHARS = 1500, PASTE_TXT_LINES = 25;") && tj.includes('"van-ban-dan-"'));
+check("pasted bytes are copied while the event runs (phones)", tj.includes("function grabFile(f)") && tj.includes("f.arrayBuffer()"));
+check("a picture chip shows the picture", tj.includes('<img class="tm-chip-thumb" src="') && tj.includes("URL.revokeObjectURL"));
+const mem = [{ agent_key: "a", name: "Lan" }, { agent_key: "b", name: "Minh Anh" }, { agent_key: "c", name: "Hoa", status: "removed" }];
+const ty = T.typingHtml([{ agent_key: "a", role: "member_reply" }, { agent_key: "b", role: "work" }, { agent_key: "a", role: "member_reply" }], mem);
+check("typing strip: one entry per member, replying vs working, with the picture", (ty.match(/tm-typing-who/g) || []).length === 2
+  && ty.includes("Lan đang trả lời") && ty.includes("Minh Anh đang làm việc") && T.typingHtml([], mem) === "", ty);
+check("the typing strip sits above the input and follows team_typing events",
+  tj.includes('<div class="tm-typing" role="status" aria-live="polite" hidden></div>') && tj.includes('d.type === "team_typing"'));
+const sa = T.mentionScan("@all làm nhé", mem, []), sx = T.mentionScan("mail@allx @Lan", mem, []);
+check("@all calls every active member; @allx is not @all", sa.all && sa.keys.join() === "a,b" && !sx.all && sx.keys.join() === "a",
+  JSON.stringify([sa, sx]));
+check("@all is offered first in the suggestions and sent as mention_all",
+  tj.includes('agent_key: "*all"') && tj.includes("if (scan.all) body.mention_all = true;"));
+const mk = T.markMentions('<p>@Lan xem, <a href="mailto:x@Lan">x</a></p>', mem);
+check("assistant mentions are drawn as mentions, never inside a link", mk.html.includes('<span class="tm-at">@Lan</span>')
+  && mk.html.includes('href="mailto:x@Lan"') && !mk.me, mk.html);
+const byId = { 5: { id: 5, ts: 1, author_kind: "owner", content: "Làm landing <b> nhé" } };
+const rq = T.replyRefHtml({ id: 6, reply_to: 5, author_kind: "agent" }, { members: mem, byId: byId });
+check("an assistant's reply quotes the message it answers, as a button to it", rq.includes('data-jump="5"')
+  && rq.includes("Làm landing &lt;b&gt; nhé") && rq.includes("tm-quote-ico") && T.replyRefHtml({ id: 7 }, { byId: byId }) === "", rq);
+const am = T.messageHtml({ id: 8, author_kind: "agent", author_ref: "a", content: "Anh chọn mẫu nào?", meta: { asks_owner: true } },
+  { members: mem, byId: {} });
+check("a message calling the owner is flagged for the owner", am.includes("tm-msg-asks") && am.includes(vi["teams.asks_you"]), am);
+const pins = T.pinsHtml([{ id: 1, ts: 1, author_kind: "owner", content: "Giá sỉ 50k" }, { id: 2, ts: 2, author_kind: "agent",
+  author_ref: "a", content: "Chốt màu cam" }], false, { members: mem });
+check("pinned strip: the newest pin, the count, and that the team follows them", pins.includes("Chốt màu cam")
+  && !pins.includes("Giá sỉ 50k") && pins.includes("Đã ghim · 2") && pins.includes(vi["teams.pins_note"]), pins);
+check("opening the strip lists every pin with an unpin button",
+  (T.pinsHtml([{ id: 1, ts: 1, author_kind: "owner", content: "a" }, { id: 2, ts: 2, author_kind: "owner", content: "b" }], true,
+    { members: mem }).match(/data-on="0"/g) || []).length === 2);
+const css2 = read("console.css");
+check("CSS: typing strip, drop target, quote mark, mention, owner flag, pinned strip, job rows",
+  [".tm-typing {", ".tm-composer.is-drop", ".tm-quote-ico {", ".tm-at-me {", ".tm-msg-asks .tm-bubble", ".tm-pinbar {",
+    ".tm-side-body .tm-qrow .tm-actions { flex: 1 1 100%;"].every((x) => css2.includes(x)));
+const k192 = ["teams.typing_reply", "teams.typing_work", "teams.typing_more", "teams.hint_all", "teams.mention_all", "teams.asks_you",
+  "teams.quote_open", "teams.pins_title", "teams.pins_note", "teams.pins_open", "teams.pins_close", "teams.owner_tags"];
+check("0.192.0 words vi/en, no em dash", k192.every((k) => vi[k] && en[k]) && !/[–—]/.test(k192.map((k) => vi[k] + en[k]).join("")),
+  k192.filter((k) => !vi[k] || !en[k]).join(","));
+check("0.192.0: a new assistant message appears block by block, one member after another, history at once",
+  tj.includes("{ S.msgs.push(nm); queueReveal(nm); }") && tj.includes('if (!m || m.author_kind !== "agent" || revealOff()) return;')
+  && tj.includes("else S.rv.queue.push(Number(m.id));") && tj.includes("applyReveal(box);")
+  && css2.includes(".tm-msg.tm-rv-wait { display: none; }") && css2.includes("prefers-reduced-motion"));
+check("0.192.0: the assistant picture sits at the top next to its name", css2.includes(".tm-msg-agent { align-items: flex-start; }"));
+
 if (fails) { console.log("\nFAIL " + fails); process.exit(1); }
 console.log("\nOK test_team_docs_ui");

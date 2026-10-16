@@ -8,7 +8,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.192.0] - 2026-10-16
 ### Thêm mới
-- (đang làm) Dán ảnh và kéo thả file vào khung chat Team.
+- **Team dán và kéo thả được:** dán ảnh (Ctrl+V) hay kéo thả file vào khung chat Team là thành file đính kèm, có ảnh xem trước. Dán đoạn chữ rất dài thì tự thành file .txt.
+- **Cộng sự trong Team đọc được ảnh:** ảnh gửi trong Team được một bộ não đã kết nối xem hộ và tả lại bằng chữ trước khi cả team trả lời.
+- **Biết ai đang trả lời:** dải nhỏ trên ô nhập hiện "Lan đang trả lời...", "Minh đang làm việc..." kèm ảnh. Câu trả lời mới hiện dần từng đoạn, người này xong mới tới người kia.
+- **Gọi tên rõ ràng:** gõ **@all** để gọi cả team. Cộng sự trả lời tin nào thì có khung trích dẫn tin đó; tin cần bạn trả lời có nhãn "Cần bạn trả lời".
+- **Ghim có tác dụng thấy được:** tin đã ghim hiện ở thanh trên cùng khung chat, bấm là nhảy tới tin. Cả team luôn làm theo các tin ghim này.
+
+### Sửa lỗi
+- **Khung chat Team dễ đọc hơn:** ảnh đại diện nằm ngang tên người gửi, trích dẫn có biểu tượng như khung chat chính, tên việc trong tab Việc không còn bị ép thành cột hẹp.
 
 ## [0.191.1] - 2026-10-16
 ### Cải thiện

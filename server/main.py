@@ -23555,6 +23555,36 @@ def _team_attach(team, attachments):
                           readable=PROJECT_GHIM_DUOI, extract=doc_text.extract, extract_suffixes=doc_text.SUFFIXES)
 
 
+async def _team_describe(team, pics, caption):
+    """Pictures sent in a team: another connected brain describes them (borrowed_eyes, the same eyes a Zalo bot uses) and
+    the description becomes a pinned team document, so text-only member turns can read what the picture shows (0.192.0)."""
+    import team_docs
+    brain = team.get("brain_id") or "brain"
+    sid = team.get("session_id") or ""
+    if not sid or not pics:
+        return
+    paths = []
+    for f in pics:
+        try:
+            paths.append(str(_safe_path(brain, f.get("path") or "")))
+        except ValueError:
+            continue
+    if not paths:
+        return
+    mo_ta, who, _why = await _bot_xem_ho(paths, caption or "", "", "", chat_id=f"team:{team.get('team_id') or ''}")
+    if not mo_ta:
+        return
+    broot = Path(_brain_root(brain)).resolve()
+    root = _files_root(brain)
+    store = get_store()
+    await asyncio.to_thread(
+        team_docs.save_description, [f.get("name") or "" for f in pics], mo_ta, who,
+        dest_dir=broot / "attachments" / "teams" / str(team.get("team_id") or "team"),
+        to_rel=lambda p: _files_rel(root, Path(p)),
+        add=lambda rel, name: store.add_session_file(sid, rel, name),
+        pin=lambda fid: store.set_session_file_pinned(sid, fid, True))
+
+
 def _team_docs_block(team):
     """Documents, links and the pinned working folder of a team, for every member turn (0.191.0, team_docs.block)."""
     import team_docs
@@ -23579,7 +23609,8 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     owner_name=lambda: ((cfgmod.read_settings().get("auth") or {}).get("username") or ""),
     ceiling=_team_ceiling, projector=_feedback_projector, judge=lambda: _agent_judge(),
     learning=_team_learning,
-    contrib_reader=lambda ref: _team_contrib_reader(ref), attach=_team_attach, docs_block=_team_docs_block))
+    contrib_reader=lambda ref: _team_contrib_reader(ref), attach=_team_attach, docs_block=_team_docs_block,
+    describe=_team_describe))
 
 
 def _team_contrib_reader(result_ref):
