@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.183.0] - 2026-10-16
 ### Fixed
-- **Zalo no longer silently misses a contact's reply:** in progress.
+- **Zalo no longer silently misses a contact's reply:** every Javis restart or update used to wipe the Zalo message store, so a message that came in right then could vanish from all three ways of reading. The store is now kept (30 days) and survives restarts.
+- **Javis knows when messages may be missing:** each Zalo read now says whether the connection was down during that period. If it was, Javis says it is not certain, keeps the waiting step (approval, publishing) on hold and tells you, instead of concluding the contact has not replied.
+- **Messages from an outage reach the Inbox:** messages Zalo replays after a reconnect now show up in the conversation Inbox too, not only in history.
 
 ## [0.182.0] - 2026-10-16
 ### Fixed

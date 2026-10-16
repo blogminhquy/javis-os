@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.183.0] - 2026-10-16
 ### Sửa lỗi
-- **Zalo không còn lặng lẽ bỏ sót tin khách:** đang hoàn thiện.
+- **Zalo không còn lặng lẽ bỏ sót tin khách:** trước đây mỗi lần Javis khởi động lại hay cập nhật, kho tin Zalo bị xoá sạch, tin khách nhắn đúng lúc đó có thể biến mất khỏi cả ba cách đọc. Giờ kho tin được lưu lại (30 ngày) và không mất khi khởi động lại.
+- **Biết khi nào có thể đang thiếu tin:** mỗi lần đọc tin Zalo, Javis biết trong khoảng đó có lúc mất kết nối hay không. Nếu có, Javis nói rõ là chưa chắc, giữ bước đang chờ (duyệt, phát hành) và báo bạn, thay vì kết luận khách chưa trả lời.
+- **Tin tới lúc mất kết nối vẫn vào Hộp thư:** tin mà Zalo gửi bù khi kết nối lại giờ cũng hiện trong Hộp thư hội thoại, không chỉ nằm trong lịch sử.
 
 ## [0.182.0] - 2026-10-16
 ### Sửa lỗi

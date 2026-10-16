@@ -75,10 +75,25 @@ Mới đăng nhập Zalo vào Javis thì Hộp thư chỉ có tin từ lúc bậ
 | `zalo_send_message` | Gửi tin cho cá nhân hoặc nhóm | Nguy hiểm |
 | `zalo_send_file` | Gửi file (Excel, PDF, Word...) kèm lời nhắn, chỉ file nằm trong hộp gửi của phiên (xem "Gửi ảnh và file") | Nguy hiểm |
 
-Danh sách trên theo mã nguồn `javis-zalo` 1.4.0. Tên tham số lấy từ mã nguồn: kiểu cuộc chat của
+Danh sách trên theo mã nguồn `javis-zalo` 1.5.0. Tên tham số lấy từ mã nguồn: kiểu cuộc chat của
 `zalo_send_message` là `threadType` (0 = chat riêng, 1 = nhóm), và `zalo_get_messages` đọc bằng
 `since` chứ không có `cursor`. Lịch sử chỉ có từ lúc MCP kết nối, cộng phần Zalo gửi lại lúc kết
 nối (khoảng hai tuần gần nhất); tin cũ hơn thì không API nào lấy được.
+
+### Khi nào có thể thiếu tin (từ 0.183.0, javis-zalo 1.5.0)
+
+Ba tool đọc tin chỉ đọc kho do chính javis-zalo gom: tin tới lúc đang kết nối, cộng phần Zalo gửi
+lại mỗi lần vừa kết nối. Không có cách hỏi lại Zalo lịch sử chat riêng sau đó. Nên tin tới đúng lúc
+mất kết nối (Javis khởi động lại hay cập nhật, mạng rớt, một phiên Zalo Web khác đang giữ kết nối)
+chỉ thấy được nếu phần gửi lại mang nó về.
+
+- Kho lịch sử giờ **lưu ra đĩa** (30 ngày) trong thư mục phiên của tài khoản, nên khởi động lại
+  không còn xoá sạch.
+- Mỗi kết quả đọc có thêm `sync`. `sync.complete: false` nghĩa là trong khoảng đó có lúc mất kết
+  nối mà phần gửi lại chưa phủ hết (`sync.gaps` ghi từ lúc nào đến lúc nào): có thể đang thiếu tin,
+  **không phải** là khách chưa trả lời. Javis khi đó giữ bước đang chờ (duyệt, phát hành) và báo chủ.
+- Tin tới lúc mất kết nối mà phần gửi lại mang về được đưa vào luồng tin mới, đánh dấu
+  `recovered: true`, nên Hộp thư cũng có.
 
 ## Duyệt người xin vào nhóm
 

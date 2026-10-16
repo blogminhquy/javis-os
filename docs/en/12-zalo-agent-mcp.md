@@ -75,9 +75,25 @@ Right after you sign Zalo in to Javis, the Inbox only holds messages from the mo
 | `zalo_send_message` | Send a message to a person or group | Dangerous |
 | `zalo_send_file` | Send files (Excel, PDF, Word...) with a message, only files in the session outbox (see "Sending images and files") | Dangerous |
 
-The list follows the `javis-zalo` 1.4.0 source. History only covers what arrived since the MCP
+The list follows the `javis-zalo` 1.5.0 source. History only covers what arrived since the MCP
 connected, plus what Zalo replays on connect (roughly the last two weeks); nothing older is
 available through any API.
+
+### When a message may be missing (since 0.183.0, javis-zalo 1.5.0)
+
+The three read tools only read what javis-zalo captured itself: messages that arrive while it is
+connected, plus Zalo's replay each time it connects. There is no way to ask Zalo for a DM's history
+later. So a message that arrives during an outage (a Javis restart or update, a dropped network,
+another Zalo Web session holding the connection) is only seen if the replay brings it back.
+
+- History is now **kept on disk** (30 days) in the account's session folder, so a restart no longer
+  wipes it.
+- Every read result carries `sync`. `sync.complete: false` means the connection was down during
+  part of that period and the replay did not cover it (`sync.gaps` says when): a message may be
+  missing, which is **not** the same as the contact not replying. Javis then keeps the waiting step
+  (approval, publishing) on hold and tells the owner.
+- Messages from an outage that the replay brings back go to the live feed, flagged
+  `recovered: true`, so the Inbox has them too.
 
 ## Approving join requests
 

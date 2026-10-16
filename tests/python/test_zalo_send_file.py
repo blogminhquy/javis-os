@@ -161,11 +161,13 @@ def find_zalo(o):
 
 
 zalo = find_zalo(cat)
+# 0.183.0: v1.5.0 (history kept across restarts, `sync` coverage on reads); still has zalo_send_file from v1.4.0.
 check("CANARY: the three javis-zalo pins agree and are v1.4.0 or later (the first with zalo_send_file)",
-      Z.CLI_PACKAGE == zalo_login._CLI_PACKAGE and Z.CLI_PACKAGE in zalo["args"] and Z.CLI_PACKAGE.endswith("/v1.4.0"),
+      Z.CLI_PACKAGE == zalo_login._CLI_PACKAGE and Z.CLI_PACKAGE in zalo["args"] and Z.CLI_PACKAGE.endswith("/v1.5.0"),
       (Z.CLI_PACKAGE, zalo_login._CLI_PACKAGE, zalo["args"]))
-check("the previous pin is listed as an old command, so existing connections move to the new one",
-      any(Z.CLI_PACKAGE.replace("v1.4.0", "v1.3.0") in (c.get("args") or []) for c in zalo["lenh_cu"]))
+check("the previous pins are listed as old commands, so existing connections move to the new one",
+      all(Z.CLI_PACKAGE.replace("v1.5.0", v) in [a for c in zalo["lenh_cu"] for a in (c.get("args") or [])]
+          for v in ("v1.3.0", "v1.4.0")))
 check("zalo_send_file is in the danger group (it sends, like zalo_send_message)",
       "zalo_send_file" in zalo["tool_meta"]["danger"] and "zalo_send_message" in zalo["tool_meta"]["danger"])
 
