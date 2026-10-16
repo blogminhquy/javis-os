@@ -93,10 +93,10 @@ check("a news item can be asked about too", r["id"] == sid
       and "Bảo trì tối nay" in str(store.get_messages(sid)[-1]["content"]))
 check("the shared notice is unchanged", inbox.get(it["id"])["body"] == "⚠ Bộ não AI ngừng trả lời")
 check("an unknown notice is a 404", client.post("/javis-core/cite", json={"source": "inbox", "id": "x"}).status_code == 404)
-check("the bell offers it on notices with no chat of their own", "nutHoi(\"inbox\", item.id)" in js
+check("0.191.0: tapping a notice with no chat of its own opens it in Javis Core (no separate Ask button)",
+      'if (!item.session_id) { closePanel(); hoiCore("inbox", item.id); return; }' in js
       and "openCommand(\"agent\", \"javis-core\", r.id)" in js)
-check("0.190.0: News items (releases, announcements) have their own tab and no Ask Javis Core button",
-      'nutHoi("news"' not in js)
+check("0.191.0: no notice card carries an Ask Javis Core button any more", "nutHoi" not in js and "noti-ask" not in js)
 
 # ---- 3. push devices bound to a login ----
 webpush.SUBS_FILE.unlink(missing_ok=True)

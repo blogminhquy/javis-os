@@ -11,8 +11,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Team gửi được file và ghim thư mục làm việc:** nút **+** trong khung chat Team có thêm **Đính kèm file hoặc ảnh** và **Ghim thư mục làm việc**. File chữ (.md, .txt, PDF, Word...) cả team đọc được nội dung; thư mục ghim hiện thành cây thư mục cho cả team biết dự án gồm gì.
 - **Bảng thông tin Team:** bấm ảnh Team ở góc trên trái để xem thành viên, thư mục làm việc, ảnh, file và link đã gửi trong Team. Thêm file, dán link hay gỡ đi ngay ở đó.
 
+### Cải thiện
+- **Co cột Cộng sự về chỉ còn avatar:** kéo mép cột danh sách vào hẹp là nó tự co thành dải avatar, rê chuột vào avatar thấy tên và vai trò. Kéo mép ra là danh sách đầy đủ trở lại, nhấp đúp mép để về cỡ mặc định.
+
 ### Sửa lỗi
 - **Ghim thư mục con:** trong ô ghim thư mục, thư mục nào có thư mục con thì có dấu **>**. Bấm dấu để đi vào trong, bấm tên để ghim đúng thư mục đó.
+- **Bấm thông báo là vào đúng chỗ:** bỏ nút "Hỏi Javis Core". Thông báo trả lời đoạn chat nào thì bấm vào là mở lại đúng đoạn đó; thông báo của hệ thống thì mở trong Javis Core.
+- **Tab Công việc:** chưa có việc thì báo "Chưa có công việc nào" thay vì "Chưa tải được công việc". Nút tab đang chọn có khoảng thở, không còn dính sát chữ.
 
 ## [0.190.0] - 2026-10-16
 ### Cải thiện

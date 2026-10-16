@@ -32,8 +32,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=125">
-  <link rel="stylesheet" href="/static/console.css?v=98">
+  <link rel="stylesheet" href="/static/style.css?v=126">
+  <link rel="stylesheet" href="/static/console.css?v=99">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
        Chế độ "auto" (0.74.0, mặc định khi chưa chọn gì từ 0.75.1) tính theo khung giờ "HH:MM-HH:MM", cùng quy tắc với lightAt() trong
@@ -915,11 +915,11 @@
   <!-- Trang Cộng sự: nạp SAU studio.js (mượn trình sửa agent/workflow của Studio) và TRƯỚC
        console.js (renderWorkspace ủy quyền cho window.JavisWorkspace). -->
   <!-- Tab Công việc của trợ lý (0.142.0): nạp TRƯỚC workspace.js, workspace.js gọi window.JavisAgentJobs. -->
-  <script src="/static/agent-jobs.js?v=3"></script>
+  <script src="/static/agent-jobs.js?v=4"></script>
   <script src="/static/agent-pulse.js?v=4"></script>
   <script src="/static/pulse-seen.js?v=1"></script>
   <script src="/static/agent-lessons-ui.js?v=4"></script>
-  <script src="/static/workspace.js?v=27"></script>
+  <script src="/static/workspace.js?v=28"></script>
   <script src="/static/packs.js?v=1"></script>
   <!-- Hộp chọn thành viên kiểu Zalo (0.142.0): nạp TRƯỚC teams.js, teams.js gọi window.JavisTeamPicker. -->
   <script src="/static/team-picker.js?v=1"></script>
@@ -928,7 +928,7 @@
   <script src="/static/agent-judge-ui.js?v=2"></script>
   <!-- Nút mic nhập chữ của khung soạn Nhóm (0.176.0): nạp TRƯỚC teams.js. -->
   <script src="/static/dictate.js?v=1"></script>
-  <script src="/static/teams.js?v=8"></script>
+  <script src="/static/teams.js?v=9"></script>
   <script src="/static/chatbots-reply-policy.js?v=1"></script>
   <script src="/static/chatbots-try.js?v=1"></script>
   <script src="/static/chatbots.js?v=18"></script>
@@ -954,7 +954,7 @@
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>
   <script src="/static/install-nudge.js?v=1"></script>
-  <script src="/static/notifications.js?v=7"></script>
+  <script src="/static/notifications.js?v=8"></script>
   <!-- Linh vật ở mép màn hình. Nạp SAU app.js vì nó chỉ được app.js gọi vào
        (setOrbState -> JavisPet.setState), và sau console.js để trang Cài đặt vẽ được thẻ chọn. -->
   <script src="/static/pet.js?v=1"></script>

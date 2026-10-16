@@ -215,6 +215,8 @@
 
   function assignHtml(ui, data) {
     ui = ui || {};
+    // 0.191.0: Javis Core takes no jobs of its own (no agent file, no team seat), so it gets no Assign button.
+    if (ui.noAssign) return "";
     if (!ui.assignOpen) {
       return '<button type="button" class="ws-btn primary aj-assign-open">' + ic("plus") + esc(tw("ajobs.assign")) + "</button>";
     }
@@ -305,7 +307,7 @@
     var body;
     var anyAtAll = SOURCES.some(function (s) { return ((data.source_counts || {})[s] || 0) > 0; }) || (data.jobs || []).length;
     if (!jobs.length) {
-      body = '<div class="aj-empty">' + esc(tw(anyAtAll ? "ajobs.empty_filter" : "ajobs.empty")) + "</div>";
+      body = '<div class="aj-empty">' + esc(tw(anyAtAll ? "ajobs.empty_filter" : ui.noAssign ? "ajobs.empty_core" : "ajobs.empty")) + "</div>";
     } else if (ui.filter) {
       body = '<ul class="aj-list">' + jobs.map(function (j) { return jobHtml(j, ui); }).join("") + "</ul>";
     } else {
@@ -352,7 +354,7 @@
     var st = { data: null, nonce: "",
       ui: { filter: "", source: "", assignOpen: false, step: "edit", kind: "task", draft: "", criteria: "", target: "chat",
         link: "", verifier: "", verifyFor: null, targets: null, name: opts.name, cancelling: {}, busy: {}, canVerify: true,
-        agents: [] } };
+        agents: [], noAssign: !!opts.noAssign } };
     var alive = true, seq = 0, timer = null, poll = null;
     function q(s) { return encodeURIComponent(s); }
     function others() {

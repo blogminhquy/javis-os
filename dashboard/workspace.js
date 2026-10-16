@@ -657,6 +657,7 @@
     if (!host) return;
     if (!item || S.loai !== "agent" || !window.JavisAgentJobs) { host.innerHTML = ""; return; }
     _congViec = window.JavisAgentJobs.mount(host, { slug: item.slug, name: item.name || item.slug, brain: brain,
+      noAssign: !!item.system,
       // Trợ lý KHÁC trong brain: người nhận việc kiểm chứng khi bấm "Giao kiểm chứng" trên một thẻ.
       agents: function () {
         return S.agents.filter(function (a) { return a.slug !== item.slug; })
@@ -913,6 +914,7 @@
   //    thì chỉ tổ chật cột.
   function veDanhSach() {
     var el = S.el; if (!el) return;
+    anTheMini();   // the rows are about to be replaced: a card left on a gone row would never get its mouseleave
     var laTag = S.loai === "agent";
     var ds = loc(danhSach(), S.q, S.nhom, laTag, S.rs), chon = S.chon[S.loai];
     var host = el.querySelector("#wsList");
@@ -1048,6 +1050,10 @@
   // chết theo node cũ.
   function noiDanhSach(host) {
     host.querySelectorAll("[data-slug]").forEach(function (b) {
+      b.addEventListener("mouseenter", function () { hienTheMini(b); });
+      b.addEventListener("mouseleave", anTheMini);
+      b.addEventListener("focus", function () { hienTheMini(b); });
+      b.addEventListener("blur", anTheMini);
       b.onclick = function () {
         S.chon[S.loai] = b.dataset.slug; luuChon(); veDanhSach(); moPhien(dangChon(), false);
         // Chọn xong thì đóng ngăn kéo - nhưng CHỈ ở khổ màn hình có ngăn kéo. Màn rộng lớp này
@@ -1553,7 +1559,12 @@
   var BE_RONG = { left: { bien: "--ws-left-w", khoa: "javis_ws_left_w", min: 220, max: 560 },
     right: { bien: "--ws-right-w", khoa: "javis_ws_right_w", min: 280, max: 640 } };
   var CHAT_TOI_THIEU = 360;   // khung chat giữa không bao giờ hẹp hơn mức này vì kéo hai cột bên
+  // 0.191.0 (owner, 16/10/2026: "khi co nhỏ vào đến 1 cỡ thì nó chỉ còn các hình avatar thôi"): dragging the list edge
+  // past NGUONG_MINI snaps the column to MINI_W, a strip of avatars only (class ws-mini on the page; hover shows the
+  // name card). Dragging back out past the threshold gives the normal list again.
+  var MINI_W = 72, NGUONG_MINI = 160;
   function chanBeRong(ben, w, page) {
+    if (ben === "left" && w < NGUONG_MINI) return MINI_W;
     var c = BE_RONG[ben], tran = c.max;
     var tong = page && page.clientWidth;
     if (tong) {
@@ -1570,12 +1581,55 @@
     Object.keys(BE_RONG).forEach(function (ben) {
       var v = 0;
       try { v = parseInt(localStorage.getItem(BE_RONG[ben].khoa) || "0", 10) || 0; } catch (e) {}
-      if (v) page.style.setProperty(BE_RONG[ben].bien, chanBeRong(ben, v, page) + "px");
+      if (v) datBeRong(page, ben, chanBeRong(ben, v, page));
     });
   }
+  function datBeRong(page, ben, w) {
+    if (w) page.style.setProperty(BE_RONG[ben].bien, w + "px");
+    else page.style.removeProperty(BE_RONG[ben].bien);
+    if (ben === "left") {
+      page.classList.toggle("ws-mini", w === MINI_W);
+      if (w !== MINI_W) anTheMini();
+    }
+  }
   function luuBeRong(ben, w, page) {
-    page.style.setProperty(BE_RONG[ben].bien, w + "px");
+    datBeRong(page, ben, w);
     try { localStorage.setItem(BE_RONG[ben].khoa, String(w)); } catch (e) {}
+  }
+  // The name card of the avatar strip: the row's name, role or step count, and time, next to the avatar under the
+  // pointer. One card for the page, moved from row to row; the row's own tooltip is held back while it shows.
+  function theMini() {
+    var the = document.getElementById("wsMiniTip");
+    if (!the) {
+      the = document.createElement("div");
+      the.id = "wsMiniTip"; the.className = "ws-mini-tip"; the.setAttribute("role", "tooltip"); the.hidden = true;
+      document.body.appendChild(the);
+    }
+    return the;
+  }
+  function anTheMini() {
+    var the = document.getElementById("wsMiniTip");
+    if (the) the.hidden = true;
+    var b = S.el && S.el.querySelector(".ws-item[data-tip-title]");
+    if (b) { b.setAttribute("title", b.getAttribute("data-tip-title")); b.removeAttribute("data-tip-title"); }
+  }
+  function hienTheMini(b) {
+    var page = S.el && S.el.querySelector("#wsPage");
+    if (!page || !page.classList.contains("ws-mini") || heptLai()) return;
+    anTheMini();
+    var ten = b.querySelector(".ws-item-top > strong"), phu = b.querySelector(".ws-item-text > small");
+    var wrap = b.closest(".ws-item-wrap"), gio = wrap && wrap.querySelector(".ws-item-time");
+    var anh = b.querySelector(".ws-item-ic");
+    var the = theMini();
+    the.innerHTML = '<div class="ws-mini-tip-head">' + (anh ? '<span class="ws-mini-tip-ava">' + anh.innerHTML + '</span>' : "") +
+      '<strong>' + esc(ten ? ten.textContent : "") + '</strong>' +
+      (gio ? '<span class="ws-mini-tip-time">' + esc(gio.textContent) + '</span>' : "") + '</div>' +
+      (phu && phu.textContent ? '<div class="ws-mini-tip-sub">' + esc(phu.textContent) + '</div>' : "");
+    if (b.hasAttribute("title")) { b.setAttribute("data-tip-title", b.getAttribute("title")); b.removeAttribute("title"); }
+    the.hidden = false;
+    var r = b.getBoundingClientRect(), h = the.getBoundingClientRect().height;
+    the.style.left = Math.round(r.right + 8) + "px";
+    the.style.top = Math.round(Math.max(8, Math.min(window.innerHeight - h - 8, r.top + r.height / 2 - h / 2))) + "px";
   }
   function noiKeoBien(page) {
     page.querySelectorAll("[data-resize]").forEach(function (h) {
@@ -1592,7 +1646,7 @@
       h.addEventListener("pointermove", function (e) {
         if (!batDau) return;
         var dx = e.clientX - batDau.x;
-        page.style.setProperty(BE_RONG[ben].bien, chanBeRong(ben, batDau.w + (ben === "left" ? dx : -dx), page) + "px");
+        datBeRong(page, ben, chanBeRong(ben, batDau.w + (ben === "left" ? dx : -dx), page));
       });
       var xong = function () {
         if (!batDau) return;
@@ -1610,7 +1664,7 @@
         luuBeRong(ben, chanBeRong(ben, cot.getBoundingClientRect().width + buoc, page), page);
       });
       h.addEventListener("dblclick", function () {
-        page.style.removeProperty(BE_RONG[ben].bien);
+        datBeRong(page, ben, 0);
         try { localStorage.removeItem(BE_RONG[ben].khoa); } catch (e) {}
       });
     });
@@ -1902,7 +1956,7 @@
   // mục là của trang NÀY mượn, nên trang này tự dọn lấy chứ không phó thác cho người gọi.
   // Hàm trả kiểm _vaultSlot trước nên gọi hai lần vẫn vô hại.
   function roi() {
-    active = false; opening++; chatReady(true);
+    active = false; opening++; chatReady(true); anTheMini();
     dongMenu(); traCayThuMuc(); traKhungChat();
     // Tab Công việc: gỡ trình nghe sự kiện, nhịp hỏi và hẹn tải lại của lần gắn đang sống.
     if (_congViec) { _congViec.destroy(); _congViec = null; }

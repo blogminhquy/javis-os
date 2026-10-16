@@ -57,5 +57,23 @@ check("CSS: chips, info panel, the '>' button 44px on touch", css.includes(".tm-
   && /\(pointer: coarse\) \{ \.cp-in \{ width: 44px; height: 44px; \}/.test(css));
 check("no em dash", !/[–—]/.test(cf + keys.map((k) => vi[k] + en[k]).join("")));
 
+// ---- 0.191.0 follow-ups: avatar strip of the partner list, Javis Core's Jobs tab, the tab pill ----
+const ws = read("workspace.js"), aj = read("agent-jobs.js");
+check("dragging the list edge past the threshold snaps it to the avatar strip and marks the page",
+  ws.includes("var MINI_W = 72, NGUONG_MINI = 160;") && ws.includes('if (ben === "left" && w < NGUONG_MINI) return MINI_W;')
+  && ws.includes('page.classList.toggle("ws-mini", w === MINI_W)'));
+check("a remembered strip width comes back as the strip; double-click restores the default list",
+  ws.includes("if (v) datBeRong(page, ben, chanBeRong(ben, v, page));") && ws.includes("datBeRong(page, ben, 0);"));
+check("hovering an avatar in the strip shows its name card, the card goes with the rows",
+  ws.includes("hienTheMini(b)") && ws.includes('b.addEventListener("mouseleave", anTheMini)') && /function veDanhSach\(\) \{\n[^\n]*\n    anTheMini\(\);/.test(ws));
+check("CSS: the strip hides the words on wide screens only, keeps a dot for waiting work",
+  /@media \(min-width: 901px\) \{\n  \.wspage\.ws-mini > \.ws-left/.test(css) && css.includes(".wspage.ws-mini .ws-item-wrap.co-tt::after")
+  && css.includes(".ws-mini-tip {"));
+check("Javis Core's Jobs tab has no Assign button and its own empty line",
+  ws.includes("noAssign: !!item.system,") && aj.includes('if (ui.noAssign) return "";') && vi["ajobs.empty_core"] && en["ajobs.empty_core"]);
+check("the right column tabs leave room around the label of the selected one",
+  css.includes(".ws-rtabs .cside-tab { flex: 1 1 auto; padding: 7px 10px;"));
+check("no em dash in the new text", !/[–—]/.test(vi["ajobs.empty_core"] + en["ajobs.empty_core"] + vi["ajobs.empty"] + en["ajobs.empty"]));
+
 if (fails) { console.log("\nFAIL " + fails); process.exit(1); }
 console.log("\nOK test_team_docs_ui");

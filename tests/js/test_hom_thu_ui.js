@@ -53,8 +53,8 @@ check("CANARY: mở thư gọi JavisSessions.open (quay về hội thoại đã 
   /window\.JavisSessions\.open\(item\.session_id\)/.test(noti));
 check("CANARY: KHÔNG mở hội thoại mới khi đọc thư",
   noti.indexOf("JavisSessions.new()") === -1);
-check("thư không gắn hội thoại thì chỉ đánh dấu đã đọc, không nhảy đi đâu",
-  /if \(!item\.session_id\) \{ render\(\); return; \}/.test(noti));
+check("0.191.0: thư không gắn hội thoại thì mở trong Javis Core (chép sang đó một lần, kèm nguồn)",
+  /if \(!item\.session_id\) \{ closePanel\(\); hoiCore\("inbox", item\.id\); return; \}/.test(noti));
 
 // ---- 3. Đã-đọc nằm ở server ----
 check("đánh dấu đã đọc gọi /inbox/read", noti.indexOf('fetch("/inbox/read"') !== -1);

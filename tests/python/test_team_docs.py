@@ -115,6 +115,13 @@ check("going inside lists the subfolder's folders", [i["name"] for i in d["items
 check("without subdirs the file browser gets the same rows as before",
       "dirs" not in [i for i in client.get("/files/list", params={"brain": b}).json()["items"] if i["type"] == "dir"][0])
 
+# ---- Javis Core has no jobs of its own: its Jobs tab says "no jobs yet", not "could not load" ----
+import javis_core  # noqa: E402
+r = client.get(f"/agents/{javis_core.SLUG}/jobs", params={"brain": b})
+check("the Jobs tab of Javis Core gets an empty ok list (it used to be a 404 shown as a load error)",
+      r.status_code == 200 and r.json().get("ok") and r.json()["jobs"] == [] and r.json()["total"] == 0, r.text)
+check("an unknown assistant is still a 404", client.get("/agents/khong-co/jobs", params={"brain": b}).status_code == 404)
+
 print()
 if fails:
     print(f"FAIL - {len(fails)} check(s)")

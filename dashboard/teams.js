@@ -159,9 +159,9 @@
     if (mine) {
       var Q = quoteApi();
       var t = Q ? Q.tach(text) : { quote: "", rest: text };
-      // 0.191.0: files sent with the message show as chips; the "📎 names" line stored for the team turns is not repeated.
+      // 0.191.0: files sent with the message show as chips; the paperclip names line stored for the team turns is not repeated.
       var files = ((m.meta || {}).files || []).filter(function (f) { return f && f.path; });
-      var rest = files.length ? t.rest.replace(/(?:\n\n)?📎 [^\n]*$/, "") : t.rest;
+      var rest = files.length ? t.rest.replace(/(?:\n\n)?\uD83D\uDCCE [^\n]*$/, "") : t.rest;
       return (t.quote ? quoteHtml(t.quote) : "") + (rest ? '<div class="tm-text">' + esc(rest).replace(/\n/g, "<br>") + "</div>" : "") +
         (files.length ? '<div class="tm-files">' + files.map(fileChipHtml).join("") + "</div>" : "");
     }

@@ -83,11 +83,12 @@ const cot = { w: 300, getBoundingClientRect() { return { width: this.w }; } };
 const page2 = {
   clientWidth: 1200,
   style: { setProperty: (k, v) => { props[k] = v; cot.w = parseInt(v, 10); }, removeProperty: (k) => { delete props[k]; } },
-  classList: { add() {}, remove() {} },
+  classList: { _c: {}, add() {}, remove() {}, toggle(c, on) { this._c[c] = !!on; } },
   querySelectorAll: () => [handle],
   querySelector: () => cot,
 };
-const k = vm.createContext({ localStorage: { getItem: (x) => store2[x] || null, setItem: (x, v) => { store2[x] = v; },
+const k = vm.createContext({ S: { el: null }, document: { getElementById: () => null }, heptLai: () => false, esc: String,
+  localStorage: { getItem: (x) => store2[x] || null, setItem: (x, v) => { store2[x] = v; },
   removeItem: (x) => { delete store2[x]; } } });
 vm.runInContext(keoSrc + "\nglobalThis.api = { chanBeRong, apBeRong, noiKeoBien };", k);
 k.api.noiKeoBien(page2);
@@ -99,7 +100,13 @@ check("kéo biên trái sang phải 80px: cột rộng 380px và được nhớ"
 handlers.pointerdown({ button: 0, clientX: 380, preventDefault() {}, pointerId: 1 });
 handlers.pointermove({ clientX: 10 });
 handlers.pointerup({});
-check("kéo quá hẹp: dừng ở 220px", props["--ws-left-w"] === "220px", props["--ws-left-w"]);
+check("0.191.0: kéo quá hẹp: co về dải avatar 72px, trang mang lớp ws-mini",
+  props["--ws-left-w"] === "72px" && page2.classList._c["ws-mini"] === true, props["--ws-left-w"]);
+handlers.pointerdown({ button: 0, clientX: 72, preventDefault() {}, pointerId: 1 });
+handlers.pointermove({ clientX: 190 });
+handlers.pointerup({});
+check("kéo ra quá ngưỡng: danh sách đầy đủ, ít nhất 220px, bỏ lớp ws-mini",
+  props["--ws-left-w"] === "220px" && page2.classList._c["ws-mini"] === false, props["--ws-left-w"]);
 check("không rộng quá 45% trang", k.api.chanBeRong("left", 2000, page2) === 540 && k.api.chanBeRong("right", 2000, page2) === 600);
 handlers.keydown({ key: "ArrowRight", preventDefault() {} });
 check("bàn phím: mũi tên phải nới 16px", props["--ws-left-w"] === "236px", props["--ws-left-w"]);

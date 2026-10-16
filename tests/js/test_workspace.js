@@ -208,6 +208,8 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     khoaTag: W.khoaTag, dongChonTag: W.dongChonTag, TAG_NONE: W.TAG_NONE, TAG_AUTO: W.TAG_AUTO, laLocGia: W.laLocGia, autoBat: W.autoBat,
     TAB_PHAI: ["cai", "lichsu", "viec"],
     luuChon() {}, moPhien() {}, heptLai: () => false, chatReady() {}, active: true, opening: 0,
+    // The avatar strip's name card (0.191.0) lives in the edge-drag block, outside the cut: same as above.
+    anTheMini() {}, hienTheMini() {},
     esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: () => "<svg></svg>", avatar: () => "<i></i>",
     localStorage: { getItem: (k) => (k in kho ? kho[k] : null), setItem(k, v) { kho[k] = String(v); } },
     document: { getElementById: () => null },

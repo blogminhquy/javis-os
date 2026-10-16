@@ -186,7 +186,9 @@
   function moThu(item) {
     item.read = true;
     docThu({ id: item.id }).then(render);
-    if (!item.session_id) { render(); return; }
+    // 0.191.0 (owner, 16/10/2026): a notice with no chat of its own opens in Javis Core (copied there with its source
+    // and time, once); a notice that answers a chat opens that chat. No separate "Ask Javis Core" button.
+    if (!item.session_id) { closePanel(); hoiCore("inbox", item.id); return; }
     closePanel();
     if (chuyenBrainNeuCan(item)) { setTimeout(function () { moThuTiep(item); }, 450); return; }
     moThuTiep(item);
@@ -217,12 +219,8 @@
     } catch (e) {}
     try { if (window.JavisSessions) window.JavisSessions.open(item.session_id); } catch (e) {}
   }
-  // "Ask Javis Core" (0.187.0, spec 7.3): the notice goes into this person's own Javis Core chat, with its source
-  // and time, and the chat opens there. The shared notice itself never changes.
-  function nutHoi(src, id) {
-    return '<button type="button" class="noti-ask" data-ask-src="' + src + '" data-ask-id="' + esc(id) + '">' +
-      esc(window.t("noti.ask_core")) + "</button>";
-  }
+  // Javis Core (0.187.0, spec 7.3): the notice goes into this person's own Javis Core chat, with its source and time,
+  // and the chat opens there. The shared notice itself never changes.
   async function hoiCore(src, id) {
     var brain = "brain";
     try { if (window.JavisSessions && window.JavisSessions.brain) brain = window.JavisSessions.brain() || "brain"; } catch (e) {}
@@ -234,25 +232,16 @@
       if (window.JavisWorkspace && window.JavisWorkspace.openCommand) window.JavisWorkspace.openCommand("agent", "javis-core", r.id);
     } catch (e) {}
   }
-  function noiNutHoi(list) {
-    list.querySelectorAll("[data-ask-id]").forEach(function (b) {
-      b.addEventListener("click", function (e) { e.stopPropagation(); hoiCore(b.dataset.askSrc, b.dataset.askId); });
-      b.addEventListener("keydown", function (e) { e.stopPropagation(); });
-    });
-  }
   function theThu(item) {
     var chua = !item.read ? " unread" : "";
-    var phu = item.session_id ? window.t(item.channel === "agent:javis-core" ? "noti.open_core" : "noti.reopen_chat") : "";
-    // 0.186.0: a report Javis could not place (no chat, no source brain) says so instead of looking like any other.
-    if (item.routing) phu = window.t("noti.no_target");
+    // Where a press takes you: the chat it answers, or Javis Core for a notice with no chat of its own (0.191.0).
+    var phu = window.t(!item.session_id || item.channel === "agent:javis-core" ? "noti.open_core" : "noti.reopen_chat");
     return '<article class="noti-card' + chua + '" tabindex="0" role="button" data-thu-id="' + esc(item.id) + '">' +
       '<div class="noti-card-top"><span class="noti-kind ' + esc(item.kind || "answer") + '">' +
       esc(nhanLoai(item.kind)) + '</span><span class="noti-time">' + esc(thoiGian(item.ts)) + "</span></div>" +
       "<h4>" + esc(item.title || window.t("noti.msg_title")) + "</h4>" +
       '<p class="noti-card-body">' + esc(item.body || "") + "</p>" +
-      (phu ? '<span class="noti-cta">' + phu + "</span>" : "") +
-      // A report already in a chat opens that chat; a notice with no chat of its own can be asked about.
-      (!item.session_id || item.kind === "system" ? nutHoi("inbox", item.id) : "") + "</article>";
+      (phu ? '<span class="noti-cta">' + phu + "</span>" : "") + "</article>";
   }
   function veHomThu(list) {
     if (!state.thu.length) {
@@ -271,7 +260,6 @@
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); chay(); }
       });
     });
-    noiNutHoi(list);
   }
   function chonTab(tab) {
     state.tab = tab === "news" ? "news" : "mine";
@@ -341,7 +329,6 @@
         esc(window.t("noti.load_more", { count: Math.min(PAGE_SIZE, remaining) })) + "</button>"
       : "";
     list.innerHTML = cards + loadMore;
-    noiNutHoi(list);
     list.querySelectorAll("[data-noti-id]").forEach(function (card) {
       function activate() {
         var item = state.items.find(function (x) { return String(x.id) === card.dataset.notiId; });

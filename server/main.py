@@ -23861,6 +23861,12 @@ async def agent_jobs_list(slug: str, brain: str = "brain", source: str = "all", 
     """Việc của một trợ lý, đọc thẳng bản ghi gốc (không sao chép): việc nhóm (kể cả bước con, hỗ trợ), việc từ chat
     riêng, mục tiêu Auto. Lọc theo nguồn và ngăn, phân trang bằng `cursor`. Chỉ đọc, không tạo gì."""
     root = _brain_key(brain)
+    if slug == javis_core.SLUG:
+        # 0.191.0 (owner, 16/10/2026): Javis Core has no agent file, no team seat and no Auto, so it has no jobs of its
+        # own. The tab must say "no jobs yet", not "could not load jobs".
+        return {"ok": True, "jobs": [], "counts": {"running": 0, "waiting": 0, "needs_you": 0, "done": 0},
+                "source_counts": {"team": 0, "chat": 0, "auto": 0}, "total": 0, "next": None,
+                "counts_partial": {"done": False}, "errors": [], "at": time.time(), "teams": [], "agent_key": ""}
     if not _agent_md_path(root, slug):
         return JSONResponse({"ok": False, "error": localefmt.chu("Không tìm thấy trợ lý", "Assistant not found")},
                             status_code=404)

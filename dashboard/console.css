@@ -1605,7 +1605,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    mặc định của .cside-tab làm chữ tràn ra ngoài viền.
    Khung nội dung tự cuộn chứ không để cả cột cuộn: cây thư mục có thanh cuộn riêng, để nó
    nằm trong luồng chung là hai thanh cuộn lồng nhau. */
-.ws-rtabs .cside-tab { padding: 7px 4px; gap: 5px; min-width: 0; font-size: 12.5px;
+/* 0.191.0 (owner, 16/10/2026: "vệt màu cam đang bị dính quá sát vào chữ"): 10px each side so the active pill has room
+   around its label, and each tab is as wide as its label (flex auto) instead of three equal thirds. */
+.ws-rtabs .cside-tab { flex: 1 1 auto; padding: 7px 10px; gap: 6px; min-width: 0; font-size: 12.5px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-rtabs .cside-tab svg { flex: none; }
 /* Cột phải co xuống 272px ở màn hẹp hơn: chia ba thì mỗi tab còn 76px, không đủ cho cả icon
@@ -3445,3 +3447,45 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 .tm-info-addlink input:focus { outline: none; border-color: var(--accent); }
 @media (pointer: coarse) { .tm-chip-x { width: 36px; height: 36px; } .tm-info-addlink input { font-size: 16px; } }
 
+
+/* 0.191.0 (owner, 16/10/2026): drag the list edge narrow enough and the column becomes a strip of avatars only
+   (workspace.js snaps it to 72px and sets .ws-mini). Words go, pictures stay; hovering an avatar shows its name card.
+   Wide screens only: below 901px the list is a drawer of fixed width. */
+@media (min-width: 901px) {
+  .wspage.ws-mini > .ws-left { padding: 12px 8px; gap: 10px; }
+  .wspage.ws-mini .ws-filters, .wspage.ws-mini .ws-empty, .wspage.ws-mini .ws-item-text,
+  .wspage.ws-mini .ws-item-end, .wspage.ws-mini .ws-item-more, .wspage.ws-mini .ws-grp-more { display: none; }
+  .wspage.ws-mini .ws-seg { flex-direction: column; gap: 4px; }
+  .wspage.ws-mini .ws-seg button, .wspage.ws-mini .ws-left-foot .ws-btn { font-size: 0; gap: 0; padding: 8px 0;
+    justify-content: center; }
+  .wspage.ws-mini .ws-seg button svg, .wspage.ws-mini .ws-left-foot .ws-btn svg { width: 18px; height: 18px; }
+  .wspage.ws-mini .ws-list { gap: 6px; align-items: center; scrollbar-width: none; }
+  .wspage.ws-mini .ws-item-wrap { width: 100%; }
+  .wspage.ws-mini .ws-item-wrap > .ws-item, .wspage.ws-mini .ws-item { justify-content: center; padding: 6px;
+    border-radius: 12px; }
+  .wspage.ws-mini .ws-item-wrap.ghim > .ws-item { border-left-width: 1px; box-shadow: inset 3px 0 0 var(--accent); }
+  /* Group headings shrink to a thin rule: the order of the strip still shows where a block starts. */
+  .wspage.ws-mini .ws-glabel { width: 100%; font-size: 0; padding: 0; margin: 2px 0; height: 1px;
+    background: var(--glass-brd); }
+  .wspage.ws-mini .ws-glabel.ws-grp { height: auto; background: none; border-top: 1px solid var(--glass-brd);
+    padding-top: 4px; }
+  .wspage.ws-mini .ws-grp-tog { justify-content: center; font-size: 0; }
+  .wspage.ws-mini .ws-grp-tog svg { width: 16px; height: 16px; }
+  /* Work waiting on a row (needs you / running) stays visible as a dot on the avatar. */
+  .wspage.ws-mini .ws-item-wrap.co-tt::after { content: ""; position: absolute; top: 5px; right: 9px; width: 10px; height: 10px;
+    border-radius: 50%; background: var(--accent); border: 2px solid var(--surface-1); pointer-events: none; }
+  .wspage.ws-mini .ws-more { font-size: 0; padding: 6px 0; }
+  .wspage.ws-mini .ws-more::before { content: "\2022\2022\2022"; font-size: 14px; letter-spacing: 2px; }
+}
+.ws-mini-tip { position: fixed; z-index: 60; max-width: 300px; padding: 10px 12px; border-radius: 12px;
+  background: var(--surface-2, var(--surface-1)); border: 1px solid var(--glass-brd); box-shadow: 0 10px 30px var(--shadow-veil);
+  color: var(--text); pointer-events: none; }
+.ws-mini-tip[hidden] { display: none; }
+.ws-mini-tip-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ws-mini-tip-ava { flex: none; display: inline-flex; width: 22px; height: 22px; }
+.ws-mini-tip-ava > * { width: 22px !important; height: 22px !important; font-size: 11px; }
+.ws-mini-tip-head strong { flex: 1 1 auto; min-width: 0; font-size: 16px; font-weight: 700; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.ws-mini-tip-time { flex: none; font-size: 12px; color: var(--text3); }
+.ws-mini-tip-sub { margin-top: 4px; font-size: 14px; line-height: 1.4; color: var(--text2, var(--text3));
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
