@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.187.0] - 2026-10-16
+### Thêm mới
+- **Thông báo hệ thống và trí nhớ:** đang làm.
+
 ## [0.186.0] - 2026-10-16
 ### Sửa lỗi
 - **Báo cáo không có hội thoại riêng giờ về Javis Core của đúng brain:** việc nền, loop, nhắc hẹn tạo trên trang Việc hay không gắn chat sẽ báo vào khung Javis Core của brain đã sinh ra việc đó, không phụ thuộc brain bạn đang mở.

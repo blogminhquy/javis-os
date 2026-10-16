@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.187.0] - 2026-10-16
+### Added
+- **System notices and memory:** in progress.
+
 ## [0.186.0] - 2026-10-16
 ### Fixed
 - **Reports without a chat of their own now go to the right brain's Javis Core:** background jobs, loops and reminders created on the Work page or without a chat report into the Javis Core of the brain that produced them, whatever brain you have open.
