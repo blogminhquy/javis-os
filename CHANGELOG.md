@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.192.0] - 2026-10-16
+### Thêm mới
+- (đang làm) Dán ảnh và kéo thả file vào khung chat Team.
+
 ## [0.191.1] - 2026-10-16
 ### Cải thiện
 - **Chấm trạng thái 4 màu trên avatar:** khi cột Cộng sự co về dải avatar, chấm nhỏ trên avatar cho biết việc của cộng sự đó: đỏ là cần bạn (hoặc vừa hỏng), xanh nước biển là đang làm, vàng cam là đang chờ, xanh lá là vừa xong trong 24 giờ. Rê chuột vào thì thẻ tên ghi rõ bằng chữ.

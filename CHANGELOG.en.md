@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.192.0] - 2026-10-16
+### Added
+- (in progress) Paste pictures and drop files into a team chat.
+
 ## [0.191.1] - 2026-10-16
 ### Improved
 - **Four-colour status dot on avatars:** when the partner list shrinks to avatars, a small dot shows each partner's work: red needs you (or just failed), blue working, orange waiting, green finished in the last 24 hours. Hover to read it in words.
