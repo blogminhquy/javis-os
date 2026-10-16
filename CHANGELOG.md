@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.176.0] - 2026-10-16
+### Cải thiện
+- **Trang Nhóm chat mượt như Zalo:** đang hoàn thiện.
+
 ## [0.175.0] - 2026-10-16
 ### Sửa lỗi
 - **Kết nối Higgsfield (và các máy chủ MCP đăng nhập qua Clerk) không còn báo invalid_grant:** Javis chỉ xin những quyền máy chủ MCP cần. Nhà cung cấp từ chối quyền nào thì Javis tự bỏ quyền đó và mở lại trang đăng nhập; lỗi khác ở bước đăng nhập hiện đúng tên lỗi.
