@@ -1205,7 +1205,10 @@ def invalidate_cache():
     _ambient_cache["ts"] = 0.0   # ép nạp lại danh sách connector tài khoản ở lần discover kế
     try:
         for c in mcp_store.list_connections():
-            mcp_client.pool.invalidate(c["id"])
+            # A session still in its first package download is closed as soon as its handshake
+            # is over, not now: killing it mid-install leaves a half-installed npx folder that npx
+            # reuses forever. The new credentials or the disabled state apply right after.
+            mcp_client.pool.invalidate(c["id"], defer_if_starting=True)
     except Exception:
         pass
 

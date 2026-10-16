@@ -44,6 +44,25 @@ _INTERNAL = {"botcake": "botcake_mcp", "substack": "substack_mcp"}   # transport
 _DIAL_SONG_SONG = 8      # số connection dò tool CÙNG LÚC (đừng để npx nổ ra 30 tiến trình)
 _DIAL_TRAN = "20"        # giây - trần dò tool CHO MỖI connection (0 = không giới hạn)
 _WARM_TRAN = "180"       # giây - trần cho vòng LÀM NÓNG lúc khởi động (xem tran_warm)
+# Seconds the MCP handshake of a stdio server may take, measured by the session itself (not by
+# whoever is waiting for it). A cold start, when npx has no installed copy of the package yet,
+# includes the whole download, so it gets the longer budget. See McpStdioSession.ensure_init.
+_INIT_TIMEOUT = "90"
+_INSTALL_TIMEOUT = "300"
+
+
+def _env_seconds(name, default):
+    try:
+        v = float(os.getenv(name, default))
+    except (TypeError, ValueError):
+        v = float(default)
+    return v if v > 0 else float(default)
+
+
+def _consume_task_error(task):
+    """Done-callback: mark a background task's exception as retrieved (no asyncio warning)."""
+    if not task.cancelled():
+        task.exception()
 
 
 def sanitize_fn(name):
@@ -270,6 +289,18 @@ class McpStdioSession:
         self._stderr = deque(maxlen=50)
         self._stderr_task = None
         self._init_done = False
+        self._init_task = None
+        self._cold_start = False
+        # Result of the npx cache check before the last spawn (npx_cache.prepare): decides the
+        # handshake budget and which npx folder this session claims while it starts.
+        self.npx_check = {}
+        # Why the last handshake of this session failed ("" = none failed). A later attempt that
+        # is still starting is then not a first download, and health reports this error instead.
+        self.last_init_error = ""
+
+    def is_starting(self):
+        """The handshake is still running: process spawned, `initialize` not answered yet."""
+        return self._init_task is not None and not self._init_task.done()
 
     def _argv(self):
         # Tìm cả trong Scripts/bin của venv Javis: uvx/uv cài theo requirements nằm ở đó
@@ -389,18 +420,81 @@ class McpStdioSession:
             # notification/request từ server → bỏ qua (Javis không hỗ trợ sampling)
 
     async def ensure_init(self):
+        """Run the MCP handshake once per process, in a task of its own.
+
+        The first start of an `npx -y` / `uvx` server includes the package download, which can
+        take longer than the 20 s a chat turn waits for one source (`tran_dial`). The handshake
+        used to run inside the caller's coroutine: a caller that gave up cancelled it, and the
+        discovery timeout then closed the session, which is a SIGKILL on the whole process tree
+        in the middle of `npm install`. That left a half-extracted npx folder that npx later
+        treats as installed (2026-10-13, mcp-server-gsc: MODULE_NOT_FOUND on every start).
+        In its own task the handshake survives a caller that stops waiting, the next caller
+        waits on the same task, and the session's own timeout still bounds a server that
+        never answers.
+        """
+        if self._init_done:
+            return
+        task = self._init_task
+        if task is None or task.done():
+            task = self._init_task = asyncio.ensure_future(self._initialize())
+            task.add_done_callback(_consume_task_error)
+        await asyncio.shield(task)
+
+    async def _initialize(self):
         async with self._lock:
             if self._init_done:
                 return
             if not self.alive():
+                await self._check_npx_folder()
                 await self.start()
-            # npx lần đầu phải TẢI package → init cho timeout dài
-            await self._rpc("initialize", {
-                "protocolVersion": PROTOCOL, "capabilities": {},
-                "clientInfo": {"name": "javis-os", "version": "1.0"},
-            }, timeout=90)
-            await self._rpc("notifications/initialized", notify=True)
-            self._init_done = True
+            import npx_cache
+            folder = self.npx_check.get("dir") if self._cold_start else None
+            npx_cache.claim(folder)
+            try:
+                timeout = (_env_seconds("JAVIS_MCP_INSTALL_TIMEOUT", _INSTALL_TIMEOUT) if self._cold_start
+                           else _env_seconds("JAVIS_MCP_INIT_TIMEOUT", _INIT_TIMEOUT))
+                await self._rpc("initialize", {
+                    "protocolVersion": PROTOCOL, "capabilities": {},
+                    "clientInfo": {"name": "javis-os", "version": "1.0"},
+                }, timeout=timeout)
+                await self._rpc("notifications/initialized", notify=True)
+                self._init_done = True
+                self.last_init_error = ""
+            except Exception as e:
+                # Never reuse a process whose handshake failed. A second `initialize` sent to the
+                # same pid would keep a server that hangs at startup alive for good, reading as
+                # "starting" on every discovery round. Kill it now; the next ensure_init spawns a
+                # fresh process through start(), which also checks the npx folder again.
+                self.last_init_error = f"{type(e).__name__}: {e}"[:300]
+                await self._discard_process()
+                raise
+            finally:
+                npx_cache.release(folder)
+
+    async def _check_npx_folder(self):
+        """Before a (re)start: an `npx -y` package whose first install was cut short leaves a
+        folder npx reuses forever (MODULE_NOT_FOUND on every start); move it aside so npx
+        installs again. Also clears the stderr tail of an earlier failed run of this session."""
+        import npx_cache
+        self._stderr.clear()
+        env = dict(os.environ)
+        env.update(self.env)
+        try:
+            self.npx_check = await asyncio.to_thread(npx_cache.prepare, self.command, self.args, env)
+        except Exception as e:      # noqa: BLE001 - the check must never block a session
+            self.npx_check = {"state": "error", "error": f"{type(e).__name__}: {e}"}
+        self._cold_start = self.npx_check.get("state") in ("absent", "repaired")
+
+    async def _discard_process(self):
+        """Kill this session's process tree but keep the session usable for a fresh start."""
+        if not self.proc:
+            return
+        try:
+            self._kill_tree()
+            await asyncio.wait_for(self.proc.wait(), timeout=5)
+        except Exception:      # noqa: BLE001 - best effort, close() repeats it
+            pass
+        mcp_orphans.forget(self.key, self.proc.pid)
 
     async def list_tools(self):
         await self.ensure_init()
@@ -499,8 +593,11 @@ class SessionPool:
         # `not v.get("ban")`: phiên đang chạy dở một tool call thì TUYỆT ĐỐI không đóng. Đóng
         # phiên stdio là SIGKILL cả cây tiến trình (xem `McpStdioSession.close`), tức là giết
         # luôn cái đơn/tin đang gửi dở. Một tool call dài hơn _IDLE_TTL là hiếm nhưng có thật.
+        # A session marked stale while it was still starting (see `invalidate`) is closed as
+        # soon as its handshake is over, used or not (a disabled connection is never used again).
         for key in [k for k, v in self._sessions.items()
-                    if now - v["last"] > _IDLE_TTL and not v.get("ban")]:
+                    if not v.get("ban") and (now - v["last"] > _IDLE_TTL
+                                             or (v.get("stale") and not self.is_starting_key(k)))]:
             ent = self._sessions.pop(key, None)
             if ent:
                 self._close_later(ent["obj"])
@@ -519,7 +616,9 @@ class SessionPool:
         key = spec.get("key") or _spec_hash(spec)
         h = _spec_hash(spec)
         ent = self._sessions.get(key)
-        if ent and ent["hash"] != h:   # đổi key/URL/env → session cũ vô hiệu
+        # đổi key/URL/env → session cũ vô hiệu; same for a session marked stale while starting,
+        # once its handshake is over (`invalidate(defer_if_starting=True)`).
+        if ent and (ent["hash"] != h or (ent.get("stale") and not self.is_starting_key(key))):
             self._close_later(ent["obj"])
             ent = None
             self._sessions.pop(key, None)
@@ -558,7 +657,31 @@ class SessionPool:
         ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
         return (ent or {}).get("tools")
 
-    def invalidate(self, key):
+    def is_starting(self, spec) -> bool:
+        """The session for this spec is still in its handshake (often a first package download).
+
+        A discovery or health check that gives up on it must leave it running: closing it kills
+        `npx`/`uvx` in the middle of an install. See McpStdioSession.ensure_init."""
+        return self.is_starting_key(spec.get("key") or _spec_hash(spec))
+
+    def is_starting_key(self, key) -> bool:
+        """`is_starting` by pool key (the connection id), for callers that have no spec."""
+        starting = getattr((self._sessions.get(key) or {}).get("obj"), "is_starting", None)
+        return bool(callable(starting) and starting())
+
+    def init_error(self, spec) -> str:
+        """Why the last handshake of this spec's session failed, "" if none did."""
+        ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
+        return str(getattr((ent or {}).get("obj"), "last_init_error", "") or "")
+
+    def invalidate(self, key, defer_if_starting=False):
+        """Close the session under `key`. With `defer_if_starting`, a session still in its
+        handshake (often a first package download) is only marked stale: killing it would leave
+        a half-installed npx folder, and starting a second one now would race it in the same
+        folder. `_get` and `_sweep` close it as soon as the handshake is over."""
+        if defer_if_starting and self.is_starting_key(key):
+            self._sessions[key]["stale"] = True
+            return
         ent = self._sessions.pop(key, None)
         if ent:
             self._close_later(ent["obj"])
@@ -613,7 +736,11 @@ class SessionPool:
         try:
             return await self._chay(key, sess, op, ban)
         except Exception as e:
-            self.invalidate(key)
+            # Drop the session that failed, not whichever one sits under the key by now. Several
+            # callers share one handshake task, so they fail together, and the first one's retry
+            # has already put a fresh session (often mid-install) under that key.
+            if (self._sessions.get(key) or {}).get("obj") is sess:
+                self.invalidate(key)
             if not (idempotent or self._pre_send_error(e)):
                 raise
             key, sess = self._get(spec)
@@ -847,6 +974,11 @@ async def warm_pool(conns):
                 if pool.dang_goi_tool(spec):
                     print(f"[mcp warm] {conn.get('label')}: đang chạy tool - để nguyên phiên",
                           file=sys.stderr)
+                elif pool.is_starting(spec):
+                    # Still in its handshake, usually a package download: the handshake runs in
+                    # its own task, so no request is half read. Keep the process installing.
+                    print(f"[mcp warm] {conn.get('label')}: still starting - keep the process",
+                          file=sys.stderr)
                 else:
                     pool.invalidate(spec.get("key") or _spec_hash(spec))
                     print(f"[mcp warm] {conn.get('label')}: quá hạn làm nóng", file=sys.stderr)
@@ -913,6 +1045,14 @@ async def discover_resolved(conns, bo_qua=None):
                           file=sys.stderr)
                     if cu:
                         return spec, cu
+                elif pool.is_starting(spec):
+                    # (c) Still in its handshake: `npx -y` / `uvx` downloading the package on a
+                    #     first start often needs more than this cap. The handshake runs in its
+                    #     own task (McpStdioSession.ensure_init), so nothing is half read; killing
+                    #     it here is what left half-installed npx folders behind (2026-10-13).
+                    #     Skip the source this round and let the install finish.
+                    print(f"[mcp discover] {conn.get('label')}: still starting - keep the "
+                          "process, skip this round", file=sys.stderr)
                 else:
                     pool.invalidate(spec.get("key") or _spec_hash(spec))
                     print(f"[mcp discover] {conn.get('label')}: quá hạn dò tool - bỏ qua vòng này",
