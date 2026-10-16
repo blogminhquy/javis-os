@@ -1,4 +1,4 @@
-// 0.189.0: the "Đã nhớ · Hoàn tác" line under an answer (dashboard/chat-nho.js).
+// 0.190.0: the "Đã nhớ · Hoàn tác" line under an answer (dashboard/chat-nho.js).
 //
 //     node tests/js/test_chat_nho.js
 "use strict";

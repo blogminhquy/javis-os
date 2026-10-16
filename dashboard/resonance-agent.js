@@ -140,7 +140,7 @@
     }
     if (supWarn) html += sup;
     var list = (goals || []).filter(function (g) { return g && g.goal_id; });
-    // 0.189.0 (chủ repo 16/10/2026: "tối giản nhất"): no goals means nothing to show, not a "no goals yet" line.
+    // 0.190.0 (chủ repo 16/10/2026: "tối giản nhất"): no goals means nothing to show, not a "no goals yet" line.
     if (list.length) html += '<div class="rsa-goals-title">' + esc(tw("resonance.a1_goals_title")) + "</div>";
     list.forEach(function (g) {
       html += '<div class="rs-card rsa-card" data-goal="' + esc(g.goal_id) + '"></div>';
@@ -148,7 +148,7 @@
     return html;
   }
 
-  /* 0.189.0 (owner, 16/10/2026): the A3 "Lessons" list (proposals, active lessons with Revoke, history) is no longer on
+  /* 0.190.0 (owner, 16/10/2026): the A3 "Lessons" list (proposals, active lessons with Revoke, history) is no longer on
      the assistant's column. People never used it; lessons are handled in chat with the javis_memory tool. Method
      lessons still surface as cards in the chat itself (chat-resonance.js). */
 

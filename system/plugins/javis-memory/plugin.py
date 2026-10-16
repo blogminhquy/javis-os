@@ -1,4 +1,4 @@
-"""Bundled plugin: memory and lessons from chat (0.189.0).
+"""Bundled plugin: memory and lessons from chat (0.190.0).
 
 The owner (16/10/2026) wanted the memory list and the lesson lists out of the settings column: people never open
 them, they would rather say "quên chuyện đó đi" or "đừng làm vậy nữa" and let Javis do it. This tool is that door, for

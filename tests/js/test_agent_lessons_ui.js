@@ -1,8 +1,8 @@
-// T3 phần L (0.156.0), rút gọn 0.189.0: mục "Hạn mức tự chạy" trong bảng Nhịp (agent-lessons-ui.js).
+// T3 phần L (0.156.0), rút gọn 0.190.0: mục "Hạn mức tự chạy" trong bảng Nhịp (agent-lessons-ui.js).
 //
 //     python tests/run.py --js agent_lessons_ui -v
 //
-// 0.189.0 (chủ repo 16/10/2026): danh sách bài học theo phạm vi, nút Thu hồi / Dùng ở mọi nơi, "bài học cũ chưa có phạm
+// 0.190.0 (chủ repo 16/10/2026): danh sách bài học theo phạm vi, nút Thu hồi / Dùng ở mọi nơi, "bài học cũ chưa có phạm
 // vi", thay đổi của tự rà soát và đề xuất rời màn hình; bài học làm qua chat (tool javis_memory, test_memory_chat.py).
 // Mục chỉ còn hạn mức lượt tự phát hôm nay và ô chọn. Hàm thuần dưới node, cộng chỗ nối: sổ JavisPulseParts, script
 // trong index.html, CSS 16px, i18n hai thứ tiếng, dòng bảng giới hạn của teams.js.
@@ -35,7 +35,7 @@ const view = { ok: true, agent_key: "ag_1", parts: { lessons: lessons } };
 const h = LUI.partHtml(view, {});
 check("tiêu đề Hạn mức tự chạy và hạn mức hôm nay", h.includes(vi["lessons.title"]) && vi["lessons.title"] === "Hạn mức tự chạy"
   && h.includes(vi["lessons.budget_line"].replace("{used}", "2").replace("{cap}", "6").replace("{reserved}", "2")), h);
-check("0.189.0: không còn danh sách bài học, bài học cũ, thay đổi tự rà soát hay đề xuất",
+check("0.190.0: không còn danh sách bài học, bài học cũ, thay đổi tự rà soát hay đề xuất",
   !h.includes("Hỏi lại khi mơ hồ") && !h.includes("Bài học cũ trộn nhóm") && !h.includes("Cho quyền mở việc")
   && !h.includes("data-lessons-act"), h);
 check("ô chọn hạn mức có Không giới hạn, chọn đúng giá trị hiện tại",
@@ -78,7 +78,7 @@ const miss = keys.filter((k) => !(k in vi) || !(k in en));
 check("mọi khoá lessons.* của file có ở vi và en", keys.length >= 9 && miss.length === 0, miss.join(", "));
 check("không em dash / en dash", !/[\u2013\u2014]/.test(lsrc + vi["lessons.title"] + en["lessons.title"]));
 
-// 0.189.0: bản gọn trong cột Cài đặt của trợ lý: một dòng lời thường, không số kỹ thuật.
+// 0.190.0: bản gọn trong cột Cài đặt của trợ lý: một dòng lời thường, không số kỹ thuật.
 const cap = LUI.capHtml(view);
 check("bản gọn: 'Tự làm tối đa [6] lần mỗi ngày' và số lần hôm nay, không 'giữ lượt', không nút i",
   cap.includes(vi["lessons.cap_before"]) && cap.includes(vi["lessons.cap_after"]) && cap.includes('<option value="6" selected>')

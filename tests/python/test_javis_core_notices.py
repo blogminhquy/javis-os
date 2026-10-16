@@ -95,7 +95,7 @@ check("the shared notice is unchanged", inbox.get(it["id"])["body"] == "⚠ Bộ
 check("an unknown notice is a 404", client.post("/javis-core/cite", json={"source": "inbox", "id": "x"}).status_code == 404)
 check("the bell offers it on notices with no chat of their own", "nutHoi(\"inbox\", item.id)" in js
       and "openCommand(\"agent\", \"javis-core\", r.id)" in js)
-check("0.189.0: News items (releases, announcements) have their own tab and no Ask Javis Core button",
+check("0.190.0: News items (releases, announcements) have their own tab and no Ask Javis Core button",
       'nutHoi("news"' not in js)
 
 # ---- 3. push devices bound to a login ----

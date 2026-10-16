@@ -103,7 +103,7 @@ def _remember_forgotten(mem_dir: Path, slug: str, title: str, body: str) -> None
 
 # ── learning switch ───────────────────────────────────────────────────────────
 
-# ── memory writes that leave no file behind (0.189.0) ─────────────────────────
+# ── memory writes that leave no file behind (0.190.0) ─────────────────────────
 # A lesson revoked or added through the memory tool lives in the lesson store, not under memory/. The turn's receipt
 # and the empty-claim check (memory_receipt) still have to know something was written, so the tools note it here.
 _ACTIVITY: Dict[str, float] = {}

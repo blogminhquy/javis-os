@@ -152,8 +152,8 @@ import agent_assets      # tài liệu & link gắn vào MỘT trợ lý (lưu t
 import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
 import javis_core        # Javis Core (0.185.0): system assistant pinned in every brain
 import memory_control    # 0.188.0: list/edit/forget memories, learning switch, person profile
-import memory_chat       # 0.189.0: the same, plus agent lessons, from chat (tool javis_memory)
-import memory_receipt    # 0.189.0: the "Đã nhớ · Hoàn tác" line under an answer, and no empty "đã quên"
+import memory_chat       # 0.190.0: the same, plus agent lessons, from chat (tool javis_memory)
+import memory_receipt    # 0.190.0: the "Đã nhớ · Hoàn tác" line under an answer, and no empty "đã quên"
 import chatbot_cuoc_chat  # danh sách cuộc chat cho ô chọn người/nhóm của form bot
 import chatbot_reply_policy        # bộ phán xử hội thoại nhóm (0.65.0): bot tự quyết nói hay im
 import chatbot_reply_policy_store  # kho quyết định, ca đã học, ngưỡng theo cuộc chat
@@ -10131,7 +10131,7 @@ def _ket_luot_agent(brain, slug, user_message, final_text, conv_sid="") -> str:
                                                   source_refs=[f"session:{conv_sid}"] if conv_sid else [])
             except Exception as _e:  # noqa: BLE001
                 print(f"[dm lessons] {slug}: {type(_e).__name__}: {_e}", file=sys.stderr)
-            memory_control.note_change(_brain_memory_dir(brain))   # 0.189.0: "em sẽ nhớ" is backed by a lesson
+            memory_control.note_change(_brain_memory_dir(brain))   # 0.190.0: "em sẽ nhớ" is backed by a lesson
         else:
             print(f"[dm lessons] {slug}: không tra được mã trợ lý, bỏ {len(lessons)} bài học", file=sys.stderr)
     _log(slug, user_message or "", sach or "")
@@ -10844,7 +10844,7 @@ async def push_to_chat(session_id, text, viec=None, card="", nho="") -> bool:
     if _k:
         clean = _k + "\n" + clean
     # `card` (Resonance M4): thẻ mục tiêu, gắn SAU khi bóc như thẻ việc. Xem _resonance_card.
-    # `nho` (0.189.0): the memory receipt block from memory_receipt.receipt_block, nothing else (dashboard/chat-nho.js).
+    # `nho` (0.190.0): the memory receipt block from memory_receipt.receipt_block, nothing else (dashboard/chat-nho.js).
     if nho and str(nho).startswith("<!-- JAVIS_NHO: ") and str(nho).endswith(" -->"):
         clean = clean + "\n" + str(nho)
     card, report = _resonance_card(card)
@@ -15185,7 +15185,7 @@ async def websocket_endpoint(ws: WebSocket):
         async def _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
                            has_attachments=False, resume_attempt=0, user_mid=0, user_text=None):
             ws = _SendProxy(conv_sid, runtime_trace)  # các nhánh engine bên dưới dùng ws proxy này
-            # 0.189.0: what the brain's memory looks like before the turn, for the "Đã nhớ · Hoàn tác" line and the
+            # 0.190.0: what the brain's memory looks like before the turn, for the "Đã nhớ · Hoàn tác" line and the
             # empty-claim check after it (memory_receipt).
             try:
                 _mem_snap = memory_receipt.snapshot(_brain_memory_dir(brain))
@@ -16302,7 +16302,7 @@ async def websocket_endpoint(ws: WebSocket):
             if final_text:
                 await _persist_turn(store, conv_sid, brain, user_message, final_text,
                                     turn_started=(_mem_snap or {}).get("t0") or 0)
-                # 0.189.0: the turn saved, changed or forgot a memory -> one small line under the answer with Undo;
+                # 0.190.0: the turn saved, changed or forgot a memory -> one small line under the answer with Undo;
                 # it said so but nothing changed -> one line of fact. Stored like every pushed line, so F5 keeps it.
                 try:
                     _nho = memory_receipt.facts_diff(_mem_snap, _brain_memory_dir(brain))
@@ -23196,7 +23196,7 @@ class _TeamAdmin:
 
 async def _team_notify(session_id, text):
     await _bo_vao_hom_thu(f"{WEB_CHAT_PREFIX}{session_id}", text, kind="report",
-                          label=localefmt.chu("Nhóm", "Team"), source="team")
+                          label=localefmt.chu("Team", "Team"), source="team")
 
 
 _FEEDBACK_PROJECTOR = [None]

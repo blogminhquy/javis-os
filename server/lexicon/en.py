@@ -206,7 +206,7 @@ PROMISE = (
 )
 
 
-# 0.189.0 (memory_receipt.detect_claim): the answer SAYS it remembered, forgot or revoked something.
+# 0.190.0 (memory_receipt.detect_claim): the answer SAYS it remembered, forgot or revoked something.
 MEMORY_CLAIM = (
     ("will_remember", re.compile(r"\b(i(?:'| wi)?ll|i will|i(?:'ve| have)?)\s+(always\s+)?"
                                  r"(remember|remembered|noted|saved|stored)\b[^.!?\n]{0,40}?"

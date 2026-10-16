@@ -6,14 +6,20 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.189.0] - 2026-10-16
+## [0.190.0] - 2026-10-16
 ### Cải thiện
-- **Cài đặt gọn như app quen dùng:** cột Cài đặt của trợ lý mở ra là ảnh đại diện, tên, mô tả, hướng dẫn, tài liệu, kỹ năng và model. Khối Auto chỉ hiện khi trợ lý đang bật Auto.
-- **Trí nhớ và bài học làm qua chat:** muốn Javis nhớ gì, sửa, quên hay bảo một trợ lý thôi làm điều đã học, bạn cứ nhắn, ví dụ "quên chuyện kênh bán đi" hay "bảo Viết bài đừng dùng emoji nữa". Javis tự làm, mọi model đều làm được.
-- **Thấy ngay Javis vừa nhớ gì:** lượt chat nào lưu, sửa hay quên một ghi nhớ thì hiện một dòng nhỏ "Đã nhớ: ..." ngay dưới câu trả lời, ghi nhớ mới có nút **Hoàn tác**. Javis nói "đã nhớ, đã quên" mà thật ra không đổi gì thì có dòng đính chính.
-- **Thẻ trợ lý gọn lại:** giờ chat nhỏ, đứng cùng hàng với công tắc Auto ở góc dưới, công tắc có lại trên mọi trợ lý. Khối Auto trong Cài đặt chỉ còn một dòng "Tự làm tối đa ... lần mỗi ngày" và việc cần bạn quyết.
-- **Tin cập nhật không vào Javis Core nữa:** thẻ ở tab Tin tức của chuông bỏ nút "Hỏi Javis Core", tin bản mới chỉ nằm ở đó.
-- **Bỏ các danh sách khó hiểu:** thẻ Javis Core không còn mục Trí nhớ, cột trợ lý không còn Bài học, Thu hồi, Dùng ở mọi nơi hay bài học cũ chưa có phạm vi.
+- **Cài đặt gọn như app quen dùng:** cột Cài đặt của cộng sự chỉ còn ảnh, tên, mô tả, hướng dẫn, tài liệu, kỹ năng, model. Bài học, Thu hồi, Dùng ở mọi nơi và mục Trí nhớ của Javis Core không còn nữa: muốn sửa hay quên gì, bạn cứ nhắn trong chat, ví dụ "quên chuyện kênh bán đi".
+- **Thấy ngay Javis vừa nhớ gì:** lượt chat nào lưu, sửa hay quên một ghi nhớ thì hiện dòng nhỏ "Đã nhớ: ..." dưới câu trả lời, có nút **Hoàn tác**. Javis nói "đã nhớ, đã quên" mà không đổi gì thật thì có dòng đính chính.
+- **Thẻ cộng sự gọn lại:** giờ chat nhỏ, cùng hàng với công tắc Auto ở góc dưới; công tắc có lại trên mọi cộng sự. Khối Auto trong Cài đặt chỉ còn "Tự làm tối đa ... lần mỗi ngày" và việc cần bạn quyết.
+- **Tin bản mới không vào Javis Core nữa:** thẻ tab Tin tức của chuông bỏ nút "Hỏi Javis Core".
+
+## [0.189.1] - 2026-10-16
+### Sửa lỗi
+- **Khung tạo team không còn vỡ khi chọn nhiều cộng sự:** trước đây chọn tới người thứ ba là khung bị đẩy lên, mất tiêu đề, nút Tạo nằm lơ lửng giữa màn hình và phía dưới trống trơn. Giờ khung đứng yên dù chọn bao nhiêu người.
+
+### Cải thiện
+- **"Nhóm" đổi thành "Team"** ở thanh bên và mọi chỗ của tính năng này: Tạo team, Tên team, Danh sách team. Trong Team, các thành viên giờ cũng gọi là "cộng sự" thay vì "trợ lý".
+- **Trang Cộng sự gọi thống nhất là "Cộng sự":** tab, nút tạo, bộ lọc bên trong không còn ghi "Trợ lý" hay "agent".
 
 ## [0.188.0] - 2026-10-16
 ### Sửa lỗi

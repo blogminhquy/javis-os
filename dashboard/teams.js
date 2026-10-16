@@ -2168,7 +2168,8 @@
     var host = S.pickHost;
     var back = host && (fromChip ? host.querySelector(".tmp-search-input")
       : host.querySelector('.tmp-check[data-pick-slug="' + (window.CSS && CSS.escape ? CSS.escape(slug) : slug) + '"]'));
-    if (back) { try { back.focus(); } catch (e) {} }
+    // preventScroll: dòng vừa bấm đang nằm trong tầm nhìn, đừng để focus kéo cuộn hộp chọn.
+    if (back) { try { back.focus({ preventScroll: true }); } catch (e) {} }
   }
 
   function pickFail(msg) {

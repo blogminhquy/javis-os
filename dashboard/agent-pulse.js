@@ -244,7 +244,7 @@
     return html;
   }
 
-  /* 0.189.0 (chủ repo 16/10/2026: "tối giản nhất"): bản GỌN cho cột Cài đặt của một trợ lý. Không nhịp, không ngưỡng,
+  /* 0.190.0 (chủ repo 16/10/2026: "tối giản nhất"): bản GỌN cho cột Cài đặt của một trợ lý. Không nhịp, không ngưỡng,
      không lịch sử thay đổi: chỉ dòng hạn mức bằng lời thường (mục nào trong sổ đăng ký có `compact(view)`) và đề xuất
      đang chờ chủ quyết, nếu có. Bảng đầy đủ vẫn ở hàng thành viên của ngăn Nhóm. */
   function compactHtml(view, opts) {

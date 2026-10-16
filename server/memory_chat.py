@@ -1,4 +1,4 @@
-"""Memory and lessons handled from chat (0.189.0).
+"""Memory and lessons handled from chat (0.190.0).
 
 Owner, 16/10/2026, on the 0.187.0-0.188.0 settings: "Những phần đó người dùng không bao giờ dùng, thà nhắn tin bảo
 xóa sửa thu hồi rồi AI làm giúp còn tốt hơn." The memory list on the Javis Core card and the lesson lists on an

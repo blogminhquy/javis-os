@@ -584,7 +584,7 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
                 if img is None:
                     fields["avatar_image"] = ""
                 elif img != "" and not avatar_upload.hop_le(img):
-                    return JSONResponse({"ok": False, "error": localefmt.chu("Ảnh nhóm không hợp lệ, tải lại ảnh.",
+                    return JSONResponse({"ok": False, "error": localefmt.chu("Ảnh team không hợp lệ, tải lại ảnh.",
                                                                              "Invalid team picture, upload it again.")},
                                         status_code=400)
             try:

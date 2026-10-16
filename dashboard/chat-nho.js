@@ -1,4 +1,4 @@
-/* chat-nho.js - the "Đã nhớ · Hoàn tác" line under an answer (0.189.0).
+/* chat-nho.js - the "Đã nhớ · Hoàn tác" line under an answer (0.190.0).
 
    Owner, 16/10/2026: the memory list left the settings column, memory is handled in chat. So when a turn saves,
    changes or forgets a memory, the server pushes one small line into the chat (server/memory_receipt.py) carrying

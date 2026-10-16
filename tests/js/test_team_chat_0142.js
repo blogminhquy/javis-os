@@ -144,7 +144,7 @@ check("bốn trạng thái có chip đếm: Đang làm, Đang chờ, Cần bạn
 check("có nút Giao việc", jh.includes("aj-assign-open") && jh.includes(vi["ajobs.assign"]));
 check("Cần bạn đứng đầu, lý do hiện và đã escape", jh.indexOf('aj-sec-h">' + vi["ajobs.b.needs_you"]) < jh.indexOf('aj-sec-h">' + vi["ajobs.b.running"])
   && jh.includes("Trợ lý gặp lỗi &lt;b&gt;"), jh);
-check("nguồn nhóm có tên nhóm, vai trợ lý trong việc", jh.includes("Nhóm Ra mắt &lt;x&gt;") && jh.includes(vi["ajobs.role.helper"])
+check("nguồn nhóm có tên nhóm, vai trợ lý trong việc", jh.includes("Team Ra mắt &lt;x&gt;") && jh.includes(vi["ajobs.role.helper"])
   && jh.includes(vi["ajobs.role.coordinator"]));
 check("tiến độ là số bước thật, vị trí trong hàng nhóm, hàng chờ trung thực khi AI tự vận hành tắt",
   jh.includes("1/3") && jh.includes(vi["ajobs.queue_pos"].replace("{n}", "2")) && jh.includes(vi["ajobs.board_off"]));
@@ -182,9 +182,9 @@ check("menu ba chấm có mục Auto dùng chung hàm bật tắt với công t�
 // 0.175.0 (chủ repo 16/10/2026: "nút Auto quá to che mất hết các thông tin khác"): Auto TẮT không vẽ trên thẻ (bật ở menu ba
 // chấm); Auto BẬT là nhãn nhỏ góc dưới phải, cùng dòng trạng thái; vẫn bật cam, tắt xám; vùng chạm 44px trên cảm ứng bằng lớp
 // trong suốt chứ không phóng to nhãn.
-// 0.189.0 (chủ repo 16/10/2026: "mất nút bật tắt auto của anh rồi, thời gian phải cùng hàng với nút bật tắt auto và nhỏ
+// 0.190.0 (chủ repo 16/10/2026: "mất nút bật tắt auto của anh rồi, thời gian phải cùng hàng với nút bật tắt auto và nhỏ
 // thôi"): công tắc có lại trên MỌI thẻ (tắt xám, bật cam), chung một cụm nhỏ với giờ ở góc dưới phải; ba chấm lên góc trên.
-check("0.189.0: Auto trên mọi thẻ, cùng cụm với giờ ở góc dưới phải, chạm 44px trên điện thoại",
+check("0.190.0: Auto trên mọi thẻ, cùng cụm với giờ ở góc dưới phải, chạm 44px trên điện thoại",
   !/\.ws-auto:not\(\.is-on\):not\(\.is-saving\) \{ display: none; \}/.test(css)
   && /\.ws-item-end \{ position: absolute; right: 8px; bottom: 8px; display: flex;/.test(css)
   && /\.ws-item-wrap\.has-end > \.ws-item-more \{ top: 6px; transform: none; \}/.test(css)

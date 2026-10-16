@@ -1,4 +1,4 @@
-"""What a chat turn did to the brain's memory, shown under the answer (0.189.0).
+"""What a chat turn did to the brain's memory, shown under the answer (0.190.0).
 
 Owner, 16/10/2026: the memory list left the settings column; memory is handled in chat. Two things keep that honest:
 

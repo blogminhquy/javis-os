@@ -2965,7 +2965,7 @@ body.on-teams .cview-head { display: none; }
 .tmp-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .45); }
 .tmp-dialog { position: relative; display: flex; flex-direction: column; width: min(560px, 100%); max-height: min(760px, 90vh);
   background: var(--bg2); color: var(--text); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 18px 50px rgba(0, 0, 0, .25);
-  overflow: hidden; font-size: 16px; }
+  overflow: hidden; overflow: clip; font-size: 16px; }
 .tmp-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
 .tmp-title { flex: 1; margin: 0; font-size: 18px; font-weight: 700; }
 .tmp-close { min-width: 44px; min-height: 44px; border: none; background: none; color: var(--text3); cursor: pointer; border-radius: 10px;
@@ -3018,7 +3018,10 @@ span.tmp-lead { cursor: default; }
   display: inline-flex; align-items: center; justify-content: center; font-size: 16px; }
 .tmp-sel-x:hover { background: var(--surface-2); color: var(--text); }
 .tmp-list { display: flex; flex-direction: column; gap: 2px; }
-.tmp-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 8px; border-radius: 12px; cursor: pointer; }
+/* position: relative giữ ô tick ẩn trong dòng của nó. Thiếu nó, ô tick bám vào .tmp-dialog, nằm ngoài vùng cuộn, và lúc
+   focus lại sau khi chọn thì trình duyệt cuộn CẢ hộp (overflow: hidden vẫn cuộn được bằng code): tiêu đề trôi mất, footer
+   bị kéo lên giữa, đáy hộp trống (0.189.1). overflow: clip ở trên chặn luôn kiểu cuộn đó. */
+.tmp-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 8px; border-radius: 12px; cursor: pointer; }
 .tmp-row:hover { background: var(--surface-2); }
 .tmp-row.is-on { background: var(--accent-wash-2, var(--surface-2)); }
 .tmp-row .tmp-check { position: absolute; opacity: 0; pointer-events: none; }
@@ -3132,7 +3135,7 @@ span.tmp-lead { cursor: default; }
 .ws-item-wrap.co-tt > .ws-item-more { top: 6px; transform: none; }
 .ws-item-tt { display: flex; align-items: center; gap: 6px; min-height: 22px; margin-top: 4px; padding-right: 64px; min-width: 0; }
 .ws-item-text:has(> .ws-item-tt) { flex: 1 1 auto; }
-/* 0.189.0 (chủ repo 16/10/2026: "thời gian tự nhiên font chữ bị to đùng... mất nút bật tắt auto... thời gian phải cùng
+/* 0.190.0 (chủ repo 16/10/2026: "thời gian tự nhiên font chữ bị to đùng... mất nút bật tắt auto... thời gian phải cùng
    hàng với nút bật tắt auto và nhỏ thôi"): giờ chat gần nhất và công tắc Auto chung một cụm nhỏ ở góc dưới phải của thẻ.
    Công tắc có trên mọi trợ lý (tắt thì xám). Nút ba chấm luôn ở góc trên phải; dòng chữ cuối chừa chỗ cho cụm. */
 .ws-item-wrap.has-end > .ws-item-more { top: 6px; transform: none; }
@@ -3376,7 +3379,7 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 .ht-file-meta { color: var(--text3); font-size: 16px; }
 .ht-chu-thich { margin-top: 8px; white-space: pre-wrap; }
 
-/* 0.189.0: the "Đã nhớ · Hoàn tác" line under an answer (chat-nho.js). Small and quiet: a note, not a message. */
+/* 0.190.0: the "Đã nhớ · Hoàn tác" line under an answer (chat-nho.js). Small and quiet: a note, not a message. */
 .msg-nho .bubble { background: transparent; border: 0; box-shadow: none; padding: 2px 0; }
 .nho-line { display: flex; flex-direction: column; gap: 4px; }
 .nho-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13.5px; color: var(--text2); }

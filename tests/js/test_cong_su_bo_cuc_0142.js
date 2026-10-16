@@ -33,7 +33,7 @@ check("hôm qua: chữ Hôm qua", g.gioNgan(at(2026, 9, 13, 23, 59), now) === "H
 check("xa hơn: ngày/tháng; khác năm thì kèm năm", g.gioNgan(at(2026, 8, 30, 8, 0), now) === "30/09" &&
   g.gioNgan(at(2025, 11, 31, 8, 0), now) === "31/12/2025");
 check("chưa nhắn bao giờ: không ghi gì", g.gioNgan(0, now) === "" && g.gioNgan(undefined, now) === "");
-check("0.189.0: thẻ trợ lý: giờ nhỏ đứng cùng cụm với công tắc Auto ở góc dưới phải, chỉ ở tab Trợ lý",
+check("0.190.0: thẻ trợ lý: giờ nhỏ đứng cùng cụm với công tắc Auto ở góc dưới phải, chỉ ở tab Trợ lý",
   /\(laAgent \? '<div class="ws-item-end">' \+ gioNhanHtml\(x\.last_chat_at\) \+/.test(src)
   && !/'<\/strong>' \+\s*\(he \? '<span class="ws-sys">'[^\n]*gioNhanHtml/.test(src)
   && /var laAgent = S\.loai === "agent";/.test(src));

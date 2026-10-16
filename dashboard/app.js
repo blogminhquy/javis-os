@@ -1137,7 +1137,7 @@ function handleMessage(data) {
     if (isActive) {
       const el = appendJavisMessage(data.content || "");
       recordTurn("javis", data.content || "", null, null);
-      // The memory receipt line is not a message: no reactions, never read aloud (0.189.0).
+      // The memory receipt line is not a message: no reactions, never read aloud (0.190.0).
       if (el && el.classList.contains("msg-nho")) { scrollBottom(); notifySessions(); return; }
       // Tin đẩy về có mã tin (0.168.0): gắn hàng sáu cảm xúc ngay, kể cả tin báo goal (không còn hàng A3 riêng).
       if (el && data.message_id != null && window.JavisChatReactions && window.JavisChatReactions.attach) {
@@ -2284,7 +2284,7 @@ function appendJavisMessage(text, ts, brain) {
   // Thẻ mục tiêu (Resonance M4, chat-resonance.js): bóc khối JAVIS_RESONANCE rồi vẽ thẻ sống dưới bong bóng.
   const tr = window.JavisResonance ? window.JavisResonance.tach(tv.clean) : { clean: tv.clean, cards: [] };
   tv.clean = tr.clean;
-  // 0.189.0: the "Đã nhớ · Hoàn tác" line (chat-nho.js): a pushed message with a JAVIS_NHO block is drawn as that line.
+  // 0.190.0: the "Đã nhớ · Hoàn tác" line (chat-nho.js): a pushed message with a JAVIS_NHO block is drawn as that line.
   const tn = window.JavisNho ? window.JavisNho.tach(tv.clean) : { clean: tv.clean, nho: null };
   tv.clean = tn.clean;
   const div = document.createElement("div");

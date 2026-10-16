@@ -197,7 +197,7 @@ PROMISE = (
 )
 
 
-# 0.189.0 (memory_receipt.detect_claim): the answer SAYS it remembered, forgot or revoked something. Checked against
+# 0.190.0 (memory_receipt.detect_claim): the answer SAYS it remembered, forgot or revoked something. Checked against
 # what really changed in the brain's memory; a claim with no change gets one line of fact under the answer.
 # Narrow on purpose: "em nhớ là anh nói..." (recalling) must not match, only "đã/sẽ ghi nhớ", "đã quên ... ghi nhớ".
 MEMORY_CLAIM = (

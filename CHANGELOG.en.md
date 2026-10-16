@@ -8,14 +8,20 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.189.0] - 2026-10-16
+## [0.190.0] - 2026-10-16
 ### Improved
-- **Settings like the apps you know:** an assistant's settings column now opens on its picture, name, description, instructions, documents, skills and model. The Auto block shows only while that assistant has Auto on.
-- **Memory and lessons from chat:** to have Javis remember, change or forget something, or tell an assistant to drop a habit it learnt, just say so, for example "forget the sales channel note" or "tell Writer to stop using emoji". Javis does it, on any model.
-- **See what Javis just remembered:** a chat turn that saves, changes or forgets a memory shows one small line under the answer, "Remembered: ...", with an **Undo** button for a new memory. If Javis says it remembered or forgot something while nothing changed, a correction line says so.
-- **Tidier assistant cards:** the chat time is small and sits on the same row as the Auto switch in the bottom corner, and the switch is back on every assistant. The Auto block in Settings is down to one line, "Work on its own up to ... times a day", plus anything waiting on you.
-- **Release news stays out of Javis Core:** cards in the bell's News tab no longer have "Ask Javis Core"; release news lives only there.
-- **Confusing lists removed:** the Javis Core card no longer has a Memory section, and an assistant's column no longer has Lessons, Revoke, Use everywhere or old unscoped lessons.
+- **Settings like the apps you know:** a colleague's settings column keeps only picture, name, description, instructions, documents, skills and model. Lessons, Revoke, Use everywhere and the Javis Core Memory section are gone: to change or forget something, just say so in chat, for example "forget the sales channel note".
+- **See what Javis just remembered:** a chat turn that saves, changes or forgets a memory shows a small "Remembered: ..." line under the answer, with **Undo**. If Javis says it remembered or forgot something while nothing changed, a correction line says so.
+- **Tidier colleague cards:** the chat time is small and sits on the same row as the Auto switch in the bottom corner; the switch is back on every colleague. The Auto block in Settings is down to "Work on its own up to ... times a day" plus anything waiting on you.
+- **Release news stays out of Javis Core:** cards in the bell's News tab no longer have "Ask Javis Core".
+
+## [0.189.1] - 2026-10-16
+### Fixed
+- **The create-team picker no longer breaks when you pick several members:** picking a third one used to push the whole box up, hiding the title, leaving the Create button floating mid-screen and a blank area below. The box now stays put however many people you pick.
+
+### Improved
+- **The Vietnamese interface now uses the word "Team"** for teams, in the sidebar and across this feature, and calls team members colleagues rather than assistants.
+- **The colleagues page uses one name throughout** in Vietnamese: its tab, create button and filters now match the page title instead of saying "assistant" or "agent".
 
 ## [0.188.0] - 2026-10-16
 ### Fixed

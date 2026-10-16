@@ -57,7 +57,7 @@ brain, nhận báo cáo đúng người, hỗ trợ trao đổi tiếp và thíc
 | 8 đẩy, Telegram | `telegram.owner_chat_id`, `webpush` gắn `phien`, `/auth/logout` gỡ thiết bị, `push.preview` |
 | 8 trùng khi thử lại | `inbox.add(dedup=...)`; khoá theo việc/lần chạy ở Kanban, loop, nhắc hẹn, việc chạy nền |
 | 10.2 hồ sơ người dùng | `STATE_DIR/user_profile.md`, `GET/POST /profile`, tool `javis_memory op=profile`, nạp TRƯỚC bộ nhớ brain |
-| 12, 13 xem/sửa/quên/tắt | `server/memory_control.py`, `/memory/items|edit|forget|learning`; từ 0.189.0 làm qua chat bằng tool `javis_memory` (`server/memory_chat.py`, plugin `system/plugins/javis-memory`) |
+| 12, 13 xem/sửa/quên/tắt | `server/memory_control.py`, `/memory/items|edit|forget|learning`; từ 0.190.0 làm qua chat bằng tool `javis_memory` (`server/memory_chat.py`, plugin `system/plugins/javis-memory`) |
 | 12.4 không học lại điều đã quên | `memory/forgotten.json` (dấu vân tay), `learn._promote_sync`, `agent_lessons.add` |
 
 ## 4. Kết quả kiểm thử theo nhóm nghiệm thu
@@ -119,7 +119,7 @@ Mỗi dòng là một phép kiểm có thật trong test (chạy `python tests/p
   gửi Telegram chỉ chép vào Javis Core khi đó là Telegram của chính chủ.
 - **Ô "Telegram của bạn"** là ô chọn từ danh sách ID được phép.
 
-## 8. Cài đặt tối giản, trí nhớ qua chat (0.189.0)
+## 8. Cài đặt tối giản, trí nhớ qua chat (0.190.0)
 
 Chủ repo 16/10/2026, sau khi xem thẻ Javis Core và cột trợ lý: tự học của Core hiện quá nhiều thứ trong khi Javis đã có
 ngữ cảnh trong brain; bài học cũ của trợ lý lòng vòng, nút Thu hồi và Dùng ở mọi nơi người dùng không biết dùng. "Thà

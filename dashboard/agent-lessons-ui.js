@@ -1,10 +1,10 @@
-/* Mục "Hạn mức tự chạy" của bảng Nhịp một trợ lý (T3 phần L, 0.156.0; rút gọn 0.189.0).
+/* Mục "Hạn mức tự chạy" của bảng Nhịp một trợ lý (T3 phần L, 0.156.0; rút gọn 0.190.0).
 
    Phần P dựng bảng từ GET /agents/{slug}/pulse; mục của phần L nằm ở `view.parts.lessons` (sổ đăng ký phía máy chủ
    `register_view_part("lessons", ...)`). File này góp hàm vẽ vào sổ phía trang `window.JavisPulseParts` ({name, render})
    theo đúng hợp đồng của agent-pulse.js: `render(view)` trả HTML đã escape.
 
-   0.189.0 (chủ repo 16/10/2026: "bài học cũ của một agent quá lòng vòng... Thu hồi với Dùng ở mọi nơi, thực chất người
+   0.190.0 (chủ repo 16/10/2026: "bài học cũ của một agent quá lòng vòng... Thu hồi với Dùng ở mọi nơi, thực chất người
    dùng không biết dùng đâu"): mục chỉ còn hạn mức lượt tự phát hôm nay và ô chọn hạn mức. Danh sách bài học theo phạm
    vi, bài học cũ trong MEMORY.md, thay đổi của tự rà soát và đề xuất không còn trên màn hình: người dùng nhắn trong chat
    ("thôi đừng làm vậy nữa"), Javis dùng tool `javis_memory` (op=lessons, lesson_revoke, lesson_add).
@@ -72,7 +72,7 @@
     return html + "</div>";
   }
 
-  /* 0.189.0: the one plain line of the Auto block in an assistant's settings: "Tự làm tối đa [6] lần mỗi ngày", with
+  /* 0.190.0: the one plain line of the Auto block in an assistant's settings: "Tự làm tối đa [6] lần mỗi ngày", with
      how many it did today. No reserve numbers, no explanation box. Same select and same save path as the full part. */
   function capHtml(view, opts) {
     var o = opts || {}, v = view || {};

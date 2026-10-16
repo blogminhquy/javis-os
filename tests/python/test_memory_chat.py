@@ -1,4 +1,4 @@
-"""Memory and lessons from chat: tool `javis_memory` (0.189.0).
+"""Memory and lessons from chat: tool `javis_memory` (0.190.0).
 
     python tests/python/test_memory_chat.py
 

@@ -98,7 +98,7 @@ check("dòng chỗ trống đã giao cho điều phối: ẩn", h === "");
 const team = { team_id: "tm1", leader_key: "ag_lan", creator: { kind: "owner", you: true, name: "minhquy" },
   members: [{ agent_key: "ag_lan", slug: "lan", name: "Lan", status: "active", role: "leader" },
     { agent_key: "ag_m", slug: "m", name: "Minh", status: "active", role: "member" }] };
-check("đầu nhóm: 'Bạn + 2 trợ lý · Lan điều phối'", TM.headLine(team) === "Bạn + 2 trợ lý · Lan điều phối", TM.headLine(team));
+check("đầu nhóm: 'Bạn + 2 cộng sự · Lan điều phối'", TM.headLine(team) === "Bạn + 2 cộng sự · Lan điều phối", TM.headLine(team));
 check("chưa có điều phối: nói rõ", TM.headLine(Object.assign({}, team, { leader_key: null })).includes(vi["teams.no_leader_short"]));
 const mh = TM.membersHtml(team, [], null);
 check("ngăn Nhóm: dòng Bạn (tên đăng nhập do server cấp) · Người tạo nhóm/quản lý, đứng đầu", mh.indexOf("Bạn (minhquy)") >= 0 &&
@@ -185,8 +185,13 @@ check("người đã rời nhóm: dòng trạng thái hiện TÊN (sổ tác gi�
 check("Thử lại: phản hồi 200 có trạng thái mới thì mở khoá nút, không chỉ trông vào gói WS",
   /x\.agent_key === d\.retryKey && x\.status !== "error"\) delete S\.retrying\[rk\]/.test(teamsJs));
 check("hộp chọn: chọn xong focus lại đúng ô, Escape đóng được cả khi focus ở ngoài",
-  /function pickToggle\(slug\)[\s\S]{0,900}back\.focus\(\)/.test(teamsJs) &&
+  /function pickToggle\(slug\)[\s\S]{0,900}back\.focus\(\{ preventScroll: true \}\)/.test(teamsJs) &&
   /document\.addEventListener\("keydown", pickEsc, true\)/.test(teamsJs) && /document\.removeEventListener\("keydown", pickEsc, true\)/.test(teamsJs));
+// 0.189.1: chọn tới người thứ ba ở dưới thấp thì cả hộp chọn bị cuộn (tiêu đề trôi mất, đáy hộp trống). Ô tick ẩn phải nằm
+// trong dòng của nó (.tmp-row position: relative) và hộp không được cuộn bằng code (overflow: clip).
+const consoleCss = fs.readFileSync(path.join(ROOT, "dashboard", "console.css"), "utf8");
+check("hộp chọn không bị cuộn cả khung khi focus lại ô tick",
+  /\.tmp-row \{ position: relative;/.test(consoleCss) && /\.tmp-dialog \{[^}]*overflow: hidden; overflow: clip;/.test(consoleCss));
 check("ghi chú cho chủ đọc không bị lọc (chỉ lọc mã như daily_cap)", teamsJs.includes("return !/^[a-z_]+$/.test(n);"));
 const consoleJs = fs.readFileSync(path.join(ROOT, "dashboard", "console.js"), "utf8");
 check("Vị trí file ở trang Cộng sự: mở trang Tệp tin (không còn tab Thư mục)",

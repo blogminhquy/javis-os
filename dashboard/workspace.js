@@ -1019,7 +1019,7 @@
     var tg = laAgent ? tagsCua(x) : [];
     var bd = laAgent && S.jc && window.JavisAgentJobs && window.JavisAgentJobs.badgeHtml
       ? window.JavisAgentJobs.badgeHtml(S.jc[x.slug]) : "";
-    // 0.189.0: the Auto switch and the time sit in the corner cluster (.ws-item-end), so only a badge needs a third line.
+    // 0.190.0: the Auto switch and the time sit in the corner cluster (.ws-item-end), so only a badge needs a third line.
     var coTt = !!bd;
     var title = laAgent ? [x.name, x.role || ""].concat(tg.length ? [t("ws.tags_aria") + ": " + tg.join(", ")] : [])
       .filter(Boolean).join("\n") : "";
@@ -1034,7 +1034,7 @@
       '<small>' + esc(phu) + '</small>' +
       (coTt ? '<span class="ws-item-tt">' + bd + '</span>' : "") + '</span>' +
       '</button>' +
-      // 0.189.0 (owner, 16/10/2026: "thời gian phải cùng hàng với nút bật tắt auto và nhỏ thôi"): giờ chat gần nhất và
+      // 0.190.0 (owner, 16/10/2026: "thời gian phải cùng hàng với nút bật tắt auto và nhỏ thôi"): giờ chat gần nhất và
       // công tắc Auto đứng chung một cụm nhỏ ở góc dưới phải của thẻ. Công tắc có trên MỌI trợ lý, tắt thì màu xám.
       // Cụm nằm ngoài nút chọn mục (không lồng nút trong nút); CSS đặt nó BÊN TRONG thẻ.
       (laAgent ? '<div class="ws-item-end">' + gioNhanHtml(x.last_chat_at) +
@@ -1649,10 +1649,10 @@
       host.innerHTML = '<div class="ws-core-card"><div class="ws-core-head">' + avatar(item, 40) + '<h3>' + esc(item.name) +
         '</h3><span class="ws-sys">' + esc(t("ws.system_badge")) + '</span></div><p>' + esc(item.role || "") + '</p>' +
         '<p class="ws-core-note">' + esc(t("ws.core_note")) + '</p></div>';
-      // 0.189.0 (owner, 16/10/2026): no memory list here any more. Javis already learns from the brain; seeing, editing
+      // 0.190.0 (owner, 16/10/2026): no memory list here any more. Javis already learns from the brain; seeing, editing
       // or forgetting a memory is a chat message ("quên chuyện đó đi"), done with the javis_memory tool.
     } else if (S.loai === "agent") {
-      // 0.189.0 (owner, 16/10/2026: "tối giản nhất, người ta không cần hiểu gì về cài đặt cũng dùng được"): the column
+      // 0.190.0 (owner, 16/10/2026: "tối giản nhất, người ta không cần hiểu gì về cài đặt cũng dùng được"): the column
       // opens on what every assistant app has (picture, name, role, instructions, documents, skills, model). The Auto
       // block sits below and shows only while Auto is on (veAuto); lessons are handled in chat (javis_memory).
       host.innerHTML = '<div class="ws-form" id="wsAgentForm"></div><div class="ws-auto-block" id="wsAuto"></div>' +
@@ -1714,7 +1714,7 @@
       onNewSession: function () { var x = dangChon(); return x ? moPhien(x, true) : false; } });
     // T3: bảng Nhịp chủ động (agent-pulse.js) ngay dưới Cộng hưởng: mọi ngữ cảnh của trợ lý, nút chỉ báo xong sau 200.
     var ph = S.el && S.el.querySelector("#wsPulse");
-    // 0.189.0: the compact view: one plain line for the daily limit and pending proposals only (no pace, no thresholds).
+    // 0.190.0: the compact view: one plain line for the daily limit and pending proposals only (no pace, no thresholds).
     if (ph && window.JavisPulse) window.JavisPulse.mount(ph, { slug: item.slug, brain: brain(), compact: true });
   }
   function tenAgent(slug) { var a = S.agents.find(function (x) { return x.slug === slug; }); return a ? a.name : (slug || ""); }
