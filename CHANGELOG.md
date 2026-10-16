@@ -8,10 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.175.0] - 2026-10-16
 ### Cải thiện
-- **Thẻ trợ lý gọn lại:** mỗi thẻ còn tên, giờ, vai trò. Chỉ khi có chuyện mới thêm một dòng "Cần bạn 1", "Đang làm 2" bằng chữ, thay biểu tượng bàn tay dễ nhầm với dấu ghim. Tag không vẽ trên thẻ nữa (lọc ở ô đầu cột, rê chuột vào thẻ để xem).
-- **Auto chỉ hiện khi đang bật:** nhãn Auto nhỏ ở góc thẻ. Auto tắt thì thẻ không vẽ gì, bật ở menu ba chấm hoặc tab Cài đặt.
+- **Thẻ trợ lý gọn lại:** mỗi thẻ còn tên, giờ, vai trò. Chỉ khi có chuyện mới thêm một dòng "Cần bạn 1", "Đang làm 2" bằng chữ, thay biểu tượng bàn tay dễ nhầm với dấu ghim. Auto chỉ hiện thành nhãn nhỏ khi đang bật (bật ở menu ba chấm hoặc tab Cài đặt). Tag không vẽ trên thẻ nữa (lọc ở ô đầu cột, rê chuột vào thẻ để xem).
 - **Trợ lý đang chờ bạn lên đầu danh sách,** dưới nhãn "Đang chờ bạn", rồi mới tới mục ghim và phần còn lại.
-- **Thẻ mục tiêu tự thu gọn khi bạn đã bấm Đúng ý:** chỉ còn cách hiểu ngắn, trạng thái và lần làm tiếp; bấm Xem chi tiết để mở đủ. Tab Công việc gọn hơn (tiêu đề hai dòng, nút một hàng, "Chờ bạn" nói bằng lời), tab Cài đặt gấp phần giải thích dài lại.
+- **Thẻ mục tiêu tự thu gọn khi bạn đã bấm Đúng ý:** chỉ còn cách hiểu ngắn, trạng thái và lần làm tiếp; bấm Xem chi tiết để mở đủ. Tab Công việc gọn hơn: tiêu đề hai dòng, nút một hàng, "Chờ bạn" nói bằng lời.
+- **Tab Cài đặt bớt chữ:** mỗi mục chỉ còn tiêu đề, số liệu và ô chọn. Lời giải thích nằm sau nút **i** nhỏ cạnh tiêu đề, bấm mới hiện.
 
 ## [0.174.0] - 2026-10-16
 ### Thêm mới

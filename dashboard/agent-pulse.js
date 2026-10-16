@@ -28,6 +28,13 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
+  // Nút "i" (info-tip.js, 0.175.0): có thì lời giải thích ẩn sau nút cạnh tiêu đề; không có (test Node) thì vẽ thẳng ra.
+  function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(tw("info.more")) : ""; }
+  function infoBody(html) {
+    var J = typeof window !== "undefined" && window.JavisInfo;
+    return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
+  }
+
 
   // Khoá viết TRỌN (không ghép chuỗi) để bộ kiểm i18n đọc được từng khoá đang dùng.
   var TIER_KEY = ["pulse.tier_0", "pulse.tier_1", "pulse.tier_2", "pulse.tier_3", "pulse.tier_4", "pulse.tier_5",
@@ -190,12 +197,12 @@
   /* Cả bảng. `view`: kết quả GET /agents/{slug}/pulse. `o`: {only, teamNames, busy, msg, err, registry}. */
   function panelHtml(view, opts) {
     var o = opts || {}, v = view || {};
-    var html = '<div class="pulse-head"><span class="pulse-title">' + esc(tw("pulse.title")) + "</span></div>" +
-      '<div class="pulse-line pulse-note">' + esc(tw(v.resonance ? "pulse.resonance_on" : "pulse.resonance_off")) + "</div>";
-    // 0.175.0 (chủ repo 16/10/2026: tab Cài đặt "quá rồi"): lời giải thích cách nhịp chạy gấp vào "Cách nhịp hoạt động",
-    // mặc định đóng. Ngoài mặt chỉ còn trạng thái, các dòng nhịp và ô chọn.
-    var how = [];
+    var html = '<div class="pulse-head"><span class="pulse-title">' + esc(tw("pulse.title")) + infoBtn() + "</span></div>";
+    // 0.175.0 (chủ repo 16/10/2026: tab Cài đặt "nhiều thông tin quá"): mọi câu giải thích nằm sau nút i cạnh tiêu đề.
+    // Ngoài mặt chỉ còn các dòng nhịp và ô chọn.
+    var how = [tw(v.resonance ? "pulse.resonance_on" : "pulse.resonance_off")];
     if (!o.only) how.push(tw("pulse.intro"));
+    var hi = html.length;
     var ctxs = (v.contexts || []).filter(function (c) { return !o.only || c.context_ref === o.only; });
     if (!v.agent_key || !ctxs.length) {
       // Auto đang bật mà chưa có dòng nhịp (chưa tới lần thức đầu): nói đúng như vậy, không khuyên "bật Auto".
@@ -211,10 +218,8 @@
         }).join("") + "</select></label>";
       how.push(tw("pulse.max_tier_note"));
     }
-    if (how.length) {
-      html += '<details class="rsa-more"><summary>' + esc(tw("pulse.how")) + "</summary>" +
-        how.map(function (x) { return '<div class="pulse-line pulse-note">' + esc(x) + "</div>"; }).join("") + "</details>";
-    }
+    html = html.slice(0, hi) + infoBody(how.map(function (x) { return '<div class="pulse-line pulse-note">' + esc(x) + "</div>"; })
+      .join("")) + html.slice(hi);
     var changes = (v.changes || []).filter(function (e) { return !o.only || e.context_ref === o.only || e.context_ref === "*"; });
     if (changes.length) {
       html += '<div class="pulse-sub">' + esc(tw("pulse.changes_title")) + '</div><ul class="pulse-list">' +

@@ -30,6 +30,13 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
+  // Nút "i" (info-tip.js, 0.175.0): có thì lời giải thích ẩn sau nút cạnh tiêu đề; không có (test Node) thì vẽ thẳng ra.
+  function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(tw("info.more")) : ""; }
+  function infoBody(html) {
+    var J = typeof window !== "undefined" && window.JavisInfo;
+    return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
+  }
+
 
   // Khoá viết TRỌN để bộ kiểm i18n đọc được từng khoá.
   var SOURCE_KEY = { owner: "lessons.source.owner", teammate: "lessons.source.teammate", leader: "lessons.source.leader",
@@ -126,7 +133,8 @@
     }
     var dis = o.busy ? " disabled" : "";
     var html = '<div class="lessons-part" data-slug="' + esc(p.slug || "") + '" data-agent="' + esc(p.agent_key || "") +
-      '"><div class="pulse-sub">' + esc(tw("lessons.title")) + "</div>";
+      '"><div class="pulse-sub">' + esc(tw("lessons.title")) + infoBtn() + "</div>" +
+      infoBody('<div class="pulse-line pulse-note">' + esc(tw("lessons.budget_note")) + "</div>");
     var b = p.budget || {};
     var cur = b.cap == null ? "unlimited" : String(b.cap);
     var choices = CAP_CHOICES.slice();
@@ -137,8 +145,7 @@
       dis + ">" + choices.map(function (n) {
         return '<option value="' + n + '"' + (String(n) === cur ? " selected" : "") + ">" + esc(String(n)) + "</option>";
       }).join("") + '<option value="unlimited"' + (cur === "unlimited" ? " selected" : "") + ">" +
-      esc(tw("lessons.unlimited")) + "</option></select></label>" +
-      '<div class="pulse-line pulse-note">' + esc(tw("lessons.budget_note")) + "</div>";
+      esc(tw("lessons.unlimited")) + "</option></select></label>";
     var scopes = p.scopes || [];
     // Hàng thành viên của MỘT nhóm: chỉ bài học của nhóm đó và bài học dùng mọi nơi (không hiện chat riêng ở đây).
     if (o.only) scopes = scopes.filter(function (x) { return x.scope === o.only || x.scope === "*"; });

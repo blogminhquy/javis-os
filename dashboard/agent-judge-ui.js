@@ -30,6 +30,13 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
+  // Nút "i" (info-tip.js, 0.175.0): có thì lời giải thích ẩn sau nút cạnh tiêu đề; không có (test Node) thì vẽ thẳng ra.
+  function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(tw("info.more")) : ""; }
+  function infoBody(html) {
+    var J = typeof window !== "undefined" && window.JavisInfo;
+    return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
+  }
+
 
   // Khoá viết TRỌN để bộ kiểm i18n đọc được từng khoá.
   var VERDICT_KEY = { speak: "judge.verdict.speak", wait: "judge.verdict.wait", silent: "judge.verdict.silent" };
@@ -113,9 +120,10 @@
     opts = opts || {};
     if (!view) return "";
     var ctxs = view.contexts || [];
-    var head = opts.compact ? "" : '<div class="agj-head">' + esc(tw("judge.title")) + '</div><div class="agj-sub">' +
-      esc(tw("judge.intro")) + "</div>" + '<div class="agj-sub">' + esc(tw(view.resonance_on ? "judge.learn_on" : "judge.learn_off")) +
-      "</div>";
+    // 0.175.0: hai câu giải thích nằm sau nút i cạnh tiêu đề (chủ repo: tab Cài đặt "nhiều thông tin quá").
+    var head = opts.compact ? "" : '<div class="agj-head">' + esc(tw("judge.title")) + infoBtn() + "</div>" +
+      infoBody('<div class="agj-sub">' + esc(tw("judge.intro")) + "</div>" + '<div class="agj-sub">' +
+        esc(tw(view.resonance_on ? "judge.learn_on" : "judge.learn_off")) + "</div>");
     return '<div class="agj">' + head + (ctxs.length ? ctxs.map(function (c) { return contextHtml(c, opts); }).join("")
       : '<div class="agj-sub">' + esc(tw("judge.empty")) + "</div>") + "</div>";
   }

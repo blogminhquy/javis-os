@@ -747,15 +747,19 @@
     if (opts.host && !box.isConnected) return;
     let avatar = window.JavisAvatar ? (a ? window.JavisAvatar.of(a) : window.JavisAvatar.random()) : null;
     box.classList.add("agent-editor");
+    // 0.175.0: câu giải thích dài của Tài liệu và Model nằm sau nút i cạnh nhãn (info-tip.js); câu báo việc cần làm (chưa
+    // lưu nên chưa gắn tài liệu được, chưa kết nối nhà cung cấp nào) vẫn hiện thẳng.
+    const JI = window.JavisInfo;
     box.innerHTML = `<h3>${esc(a ? t("studio.edit") : t("studio.create"))} Agent</h3>
       <div class="agent-avatar-picker" id="agAvatar"></div>
       <label>${esc(t("studio.name"))}</label><input id="agName" value="${esc(a ? a.name : "")}">
       <label>${esc(t("studio.role"))}</label><input id="agRole" value="${esc(a ? a.role : "")}">
-      <label for="agAssets">${esc(t("studio.assets"))}</label>
+      <label for="agAssets">${esc(t("studio.assets"))}${a && a.slug && JI ? JI.btn(t("info.more")) : ""}</label>
       <div class="ag-assets">
         <button type="button" class="s-btn-ghost" id="agAssets"${a && a.slug ? "" : " disabled"}>${ic("paperclip")} ${esc(t("studio.assets_open"))}</button>
-        <div class="dim ag-assets-hint">${esc(a && a.slug ? t("studio.assets_hint") : t("studio.assets_new"))}</div>
+        ${a && a.slug && JI ? "" : `<div class="dim ag-assets-hint">${esc(a && a.slug ? t("studio.assets_hint") : t("studio.assets_new"))}</div>`}
       </div>
+      ${a && a.slug && JI ? JI.body(`<div class="dim ag-assets-hint">${esc(t("studio.assets_hint"))}</div>`) : ""}
       <label>${esc(t("studio.sys_prompt"))}</label><textarea id="agPrompt" rows="4">${esc(a ? (a.prompt || "") : "")}</textarea>
       <label>Skills</label>
       ${skills.length ? `<div class="sp-box">
@@ -764,7 +768,7 @@
           <button type="button" class="s-btn-ghost sp-clear" id="spClear">${esc(t("studio.sp_clear"))}</button></div>
         <div class="sp-groups" id="skillPick"></div>
       </div>` : `<div class="skill-pick"><span class="dim">${esc(t("studio.sp_none"))}</span></div>`}
-      <label for="agModelBtn">Model</label>
+      <label for="agModelBtn">Model${coKetNoi && JI ? JI.btn(t("info.more")) : ""}</label>
       <div class="ag-model-pick" id="agModelPick">
         <button type="button" class="ag-model-btn" id="agModelBtn">
           <span id="agModelTxt">${esc(nhanModel())}</span>${ic("chevron-down")}
@@ -772,9 +776,8 @@
         <input type="hidden" id="agModel" value="${esc(mModel ? val(mProv, mModel) : "")}">
         <div class="mb-pop ag-model-pop" id="agModelPop" hidden></div>
       </div>
-      <div class="dim" style="font-size:12px;margin-top:4px">${esc(coKetNoi
-        ? t("studio.model_hint")
-        : t("studio.model_none"))}</div>
+      ${coKetNoi && JI ? JI.body(`<div class="dim" style="font-size:12px">${esc(t("studio.model_hint"))}</div>`)
+        : `<div class="dim" style="font-size:12px;margin-top:4px">${esc(coKetNoi ? t("studio.model_hint") : t("studio.model_none"))}</div>`}
       <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd"${opts.host ? ' style="display:none"' : ""}>${esc(t("common.cancel"))}</button><button class="s-btn" id="saveAg">${esc(t("common.save"))}</button></div>`;
     if (window.JavisAvatar) window.JavisAvatar.picker(box.querySelector("#agAvatar"), avatar, v => { avatar = v; });
     // TÀI LIỆU & LINK của trợ lý: mở ĐÚNG ngăn kéo mà project và cuộc trò chuyện đang dùng

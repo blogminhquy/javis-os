@@ -32,7 +32,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=114">
+  <link rel="stylesheet" href="/static/style.css?v=115">
   <link rel="stylesheet" href="/static/console.css?v=85">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
@@ -836,6 +836,7 @@
   <script src="/static/i18n/index.js?v=2"></script>
   <script src="/static/vendor/lucide-icons.js?v=7"></script>
   <script src="/static/icons.js?v=2"></script>
+  <script src="/static/info-tip.js?v=1"></script>
 
   <!-- theme.js phải nạp TRƯỚC mọi file khác: graph.js / app.js đăng ký
        hàm vẽ lại theo tông ngay lúc parse, nếu window.javisTheme chưa có thì chúng
@@ -880,7 +881,7 @@
   <script src="/static/chat-steps.js?v=2"></script>
   <script src="/static/chat-viec.js?v=2"></script>
   <script src="/static/chat-resonance.js?v=3"></script>
-  <script src="/static/resonance-agent.js?v=2"></script>
+  <script src="/static/resonance-agent.js?v=3"></script>
   <!-- Voice V1: khối ngữ cảnh giao diện + bộ nhận lệnh ui_action, nạp TRƯỚC app.js. -->
   <!-- Kéo đổi bề rộng cột ở trang đồ thị và trang Trò chuyện (0.148.0): nạp TRƯỚC app.js và console.js. -->
   <script src="/static/col-resize.js?v=1"></script>
@@ -905,21 +906,21 @@
   <script src="/static/chat-zoom.js?v=6"></script>
   <script src="/static/brains-ui.js?v=7"></script>
   <script src="/static/sessions-ui.js?v=21"></script>
-  <script src="/static/studio.js?v=43"></script>
+  <script src="/static/studio.js?v=44"></script>
   <!-- Trang Cộng sự: nạp SAU studio.js (mượn trình sửa agent/workflow của Studio) và TRƯỚC
        console.js (renderWorkspace ủy quyền cho window.JavisWorkspace). -->
   <!-- Tab Công việc của trợ lý (0.142.0): nạp TRƯỚC workspace.js, workspace.js gọi window.JavisAgentJobs. -->
   <script src="/static/agent-jobs.js?v=3"></script>
-  <script src="/static/agent-pulse.js?v=2"></script>
+  <script src="/static/agent-pulse.js?v=3"></script>
   <script src="/static/pulse-seen.js?v=1"></script>
-  <script src="/static/agent-lessons-ui.js?v=1"></script>
+  <script src="/static/agent-lessons-ui.js?v=2"></script>
   <script src="/static/workspace.js?v=21"></script>
   <script src="/static/packs.js?v=1"></script>
   <!-- Hộp chọn thành viên kiểu Zalo (0.142.0): nạp TRƯỚC teams.js, teams.js gọi window.JavisTeamPicker. -->
   <script src="/static/team-picker.js?v=1"></script>
   <!-- Bộ phán xử nói / chờ / im của từng trợ lý (T3 phần J 0.156.0): lịch sử quyết định và nút sửa. Nạp TRƯỚC teams.js
        (ngăn Nhóm gọi window.JavisAgentJudge.hydrate); góp phần "judge" vào khung nhịp qua window.JavisPulseParts. -->
-  <script src="/static/agent-judge-ui.js?v=1"></script>
+  <script src="/static/agent-judge-ui.js?v=2"></script>
   <script src="/static/teams.js?v=2"></script>
   <script src="/static/chatbots-reply-policy.js?v=1"></script>
   <script src="/static/chatbots-try.js?v=1"></script>

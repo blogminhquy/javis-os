@@ -10,10 +10,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.175.0] - 2026-10-16
 ### Improved
-- **Tidier assistant cards:** each card shows name, time and role. A third line appears only when something is going on, "Needs you 1" or "Working 2" in words, instead of a hand icon that looked like a pin. Tags are no longer drawn on the card (filter at the top of the column, hover a card to see them).
-- **Auto shows only when it is on:** a small Auto label in the card corner. When Auto is off the card shows nothing; turn it on from the three-dot menu or the Settings tab.
+- **Tidier assistant cards:** each card shows name, time and role. A third line appears only when something is going on, "Needs you 1" or "Working 2" in words, instead of a hand icon that looked like a pin. Auto shows as a small label only while it is on (turn it on from the three-dot menu or the Settings tab). Tags are no longer drawn on the card (filter at the top of the column, hover a card to see them).
 - **Assistants waiting on you move to the top,** under "Waiting on you", ahead of pinned and the rest.
-- **The goal card folds itself once you press "That's right":** just the short understanding, status and next run; press Show details for everything. The Jobs tab is tidier (two-line titles, one row of buttons, "Waiting on you" in plain words) and the Settings tab folds its long explanations.
+- **The goal card folds itself once you press "That's right":** just the short understanding, status and next run; press Show details for everything. The Jobs tab is tidier: two-line titles, one row of buttons, "Waiting on you" in plain words.
+- **Less to read in the Settings tab:** each section keeps only its title, numbers and pickers. Explanations sit behind a small **i** button next to the title and appear only when pressed.
 
 ## [0.174.0] - 2026-10-16
 ### Added

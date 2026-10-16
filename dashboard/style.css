@@ -3793,15 +3793,21 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .rsa-new-session { margin-top: 8px; }
 .rsa-goals-title { font-size: 13px; font-weight: 600; color: var(--text2); margin-top: 12px; }
 /* 0.175.0: các câu giải thích của Auto gập lại, mở khi cần đọc. */
-.rsa-more { margin-top: 8px; font-size: 13px; color: var(--text2); }
-.rsa-more > summary { cursor: pointer; color: var(--text2); min-height: 32px; display: flex; align-items: center; }
-.rsa-more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
-.rsa-more[open] > summary { color: var(--text); }
-.rsa-more > summary { list-style: none; gap: 6px; }
-.rsa-more > summary::-webkit-details-marker { display: none; }
-.rsa-more > summary::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform .12s; flex: none; }
-.rsa-more[open] > summary::before { transform: rotate(45deg); }
+/* Nút "i" mở lời giải thích (0.175.0, info-tip.js): chủ repo thấy tab Cài đặt "nhiều thông tin quá". Nút tròn nhỏ cạnh tiêu đề
+   mục, đứng cùng dòng chữ; vùng chạm nới ra 44px trên cảm ứng bằng một lớp trong suốt, không đẩy chữ. Khối giải thích là một ô
+   nền nhạt ngay dưới tiêu đề. */
+.info-i { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+  margin-left: 6px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text3); cursor: pointer;
+  vertical-align: middle; flex: none; }
+.info-i svg { width: 16px; height: 16px; }
+.info-i:hover, .info-i.on { color: var(--accent); }
+.info-i:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (hover: none), (max-width: 600px) { .info-i::after { content: ""; position: absolute; inset: -12px; } }
+.info-body { margin: 6px 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); color: var(--text2);
+  font-size: 13px; line-height: 1.5; font-weight: 400; display: flex; flex-direction: column; gap: 6px; overflow-wrap: anywhere; }
+.info-body[hidden] { display: none; }
+div.info-body > * { margin: 0; font-size: inherit; }
+@media (max-width: 600px) { .info-body { font-size: 14px; } }
 @media (max-width: 600px) { .rsa-more > summary { min-height: 44px; } }
 .rsa-card { font-size: 14px; }
 .rsa-wait { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-top: 1px solid var(--hairline); }
