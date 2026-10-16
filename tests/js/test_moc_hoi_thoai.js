@@ -179,6 +179,18 @@ check("và rộng đúng bằng vạch dài nhất (20px), không phải 22px nh
   /\.cm-ray \{[^}]*width: 20px;/.test(CSS));
 check("khung chat chừa lề phải cho dải mốc, nên hai vùng không chồng nhau",
   /\.transcript\.cm-co-thanh \{ padding-right: \d+px; \}/.test(CSS));
+// 0.176.0 (chủ repo 16/10/2026, ảnh: câu mình nhắn sát mục lục, rê tới cuối câu là danh sách bung ra): chừa lề thôi CHƯA ĐỦ.
+// #chatMarks căn flex-end nên đứng ở mép NỘI DUNG, tức dải vẫn phủ 20px cuối của bong bóng (đo trong Chromium). Lề âm đúng
+// bằng padding-right mới đưa dải ra phần lề trống.
+(function () {
+  var pad = (CSS.match(/\.transcript\.cm-co-thanh \{ padding-right: (\d+)px; \}/) || [])[1];
+  var neg = (CSS.match(/\.transcript\.cm-co-thanh > #chatMarks \{ margin-right: -(\d+)px; \}/) || [])[1];
+  check("CANARY: dải mốc nằm TRONG phần lề phải (lề âm bằng đúng padding), không phủ lên cuối bong bóng",
+    pad && neg && pad === neg && Number(pad) >= 20 + 12, [pad, neg]);
+})();
+check("rê chuột thì mở có trễ (lướt qua mép phải không bung danh sách), bàn phím mở ngay",
+  /boc\.addEventListener\("mouseenter", henMo\)/.test(JS) && /choMo = setTimeout\(function \(\) \{ moHop\(\); \}, TRE_MO\)/.test(JS)
+  && /boc\.addEventListener\("focusin", moHop\)/.test(JS) && /clearTimeout\(choMo\); dongHop\(\);/.test(JS));
 check("CANARY: đang giữ chuột kéo thì dải mốc trong suốt với chuột",
   /\.transcript\.cm-dang-chon \.cm-ray[^{]*\{[^}]*pointer-events: none/.test(CSS));
 check("CANARY: mở danh sách phải xét đang-bôi-đen trước",

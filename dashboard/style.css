@@ -1204,7 +1204,12 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 /* Khung chat chừa lề phải đúng bằng dải mốc, và CHỈ khi dải đang hiện (JS gắn class). Không
    chừa thì bong bóng chạy tới sát mép, nằm ngay dưới dải - mà chữ nằm dưới một vùng bắt chuột
    thì không cách nào bôi đen sạch được. */
-.transcript.cm-co-thanh { padding-right: 22px; }
+.transcript.cm-co-thanh { padding-right: 34px; }
+/* ...và dải PHẢI nằm trong chính phần lề đó (0.176.0). #chatMarks rộng 0, căn flex-end nên đứng ở mép NỘI DUNG; không có
+   lề âm này thì .cm-ray (right:0, rộng 20px) phủ đúng 20px cuối của bong bóng (đo trong Chromium: dải 1380-1400, bong
+   bóng kết thúc ở 1400), còn 22px lề chừa ra lại bỏ trống. Chủ repo báo 16/10/2026: câu mình nhắn sát mục lục quá, rê tới
+   cuối câu để bôi đen là danh sách bung ra che mất. Lề âm bằng đúng padding-right: dải về sát mép ngoài, cách chữ 14px. */
+.transcript.cm-co-thanh > #chatMarks { margin-right: -34px; }
 /* Đang giữ chuột kéo (bôi đen) thì dải mốc TRONG SUỐT với chuột. Hai cái trên đã tách vùng,
    nhưng người ta hay quét lố ra ngoài mép chữ một chút - đây là lớp cuối, và cũng là lớp duy
    nhất đúng cho cả trường hợp quét từ trong ra ngoài khung. */

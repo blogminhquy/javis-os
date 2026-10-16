@@ -14,6 +14,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 - **A picture of your own for a team:** the Team picture field in team settings has the same Upload button. By default a team still shows the collage of its members' faces.
 - PNG, JPG, WEBP and GIF pictures up to 2MB are accepted.
 
+### Fixed
+- **Selecting your own message is no longer blocked by the outline:** the outline bar on the right of the chat used to cover the end of your messages, so reaching the end of a line popped its list open. The bar now sits in the margin, clear of the text, and opens only when you rest the mouse on it for a moment.
+
 ## [0.177.0] - 2026-10-16
 ### Improved
 - **Zalo-style reactions in the main chat:** a 👍 button sits on the bottom-right corner of each answer bubble; one press likes, a second press removes it. Hovering it shows 6 emoji; on a phone, long press the answer.

@@ -38,7 +38,8 @@
   var chatArea = null, boc = null, ray = null, hop = null, tam = null;
   var moc = [];             // [{el, text}]
   var vanTruoc = "";        // chữ ký nội dung, để bỏ qua lượt dựng lại không đổi gì
-  var choDung = null, choScroll = 0, choDong = null;
+  var choDung = null, choScroll = 0, choDong = null, choMo = null;
+  var TRE_MO = 260;         // ms dừng chuột trên dải trước khi danh sách mở
 
   // Màn hẹp dùng chế độ KHÁC HẲN, không phải dãy vạch thu nhỏ. Dãy vạch sống bằng rê chuột, mà
   // ngón tay không rê được; và một dải chạm sát mép phải thì giành mất cú vuốt để cuộn - hai
@@ -89,8 +90,10 @@
     //
     // Rê vào bất kỳ đâu trong khối thì mở danh sách; rời ra thì đóng. Nghe ở KHỐI BỌC chứ
     // không ở riêng thanh: chuột đi từ thanh sang danh sách phải được coi là vẫn ở trong.
-    boc.addEventListener("mouseenter", moHop);
-    boc.addEventListener("mouseleave", dongHop);
+    // Mở CÓ TRỄ khi rê chuột (0.176.0): chuột chỉ lướt qua mép phải (đi tới cuối một câu để bôi đen, kéo thanh cuộn) thì
+    // danh sách không bung ra che chữ. Dừng trên dải một nhịp ngắn mới là ý muốn mở. Bàn phím (focusin) vẫn mở ngay.
+    boc.addEventListener("mouseenter", henMo);
+    boc.addEventListener("mouseleave", function () { clearTimeout(choMo); dongHop(); });
     boc.addEventListener("focusin", moHop);
     boc.addEventListener("focusout", function (e) {
       if (!boc.contains(e.relatedTarget)) dongHop();
@@ -115,6 +118,13 @@
       var sel = window.getSelection();
       return !!(sel && !sel.isCollapsed && String(sel).trim());
     } catch (err) { return false; }
+  }
+
+  function henMo(e) {
+    clearTimeout(choMo);
+    if (hop && !hop.hidden) { moHop(e); return; }   // đang mở (chuột vòng ra rồi vào lại): giữ mở, không chờ
+    if (dangBoiDen(e)) return;
+    choMo = setTimeout(function () { moHop(); }, TRE_MO);
   }
 
   function moHop(e) {

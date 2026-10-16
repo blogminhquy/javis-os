@@ -12,6 +12,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Ảnh riêng cho nhóm làm việc:** mục Ảnh nhóm trong cài đặt nhóm cũng có nút Tải ảnh lên. Mặc định nhóm vẫn dùng ảnh ghép từ gương mặt thành viên như trước.
 - Nhận ảnh PNG, JPG, WEBP, GIF, tối đa 2MB.
 
+### Sửa lỗi
+- **Bôi đen câu mình nhắn không còn bị mục lục che:** thanh mục lục bên phải khung chat trước đè lên cuối các tin của bạn, rê chuột tới cuối câu là danh sách bung ra. Giờ thanh nằm hẳn ở lề, cách chữ một khoảng, và chỉ mở khi bạn dừng chuột trên thanh một chút.
+
 ## [0.177.0] - 2026-10-16
 ### Cải thiện
 - **Thả cảm xúc kiểu Zalo ở khung Trò chuyện:** nút 👍 nằm ngay góc phải dưới bong bóng câu trả lời, bấm một cái là Thích, bấm lại là bỏ. Rê chuột vào nút hiện 6 biểu tượng, điện thoại thì nhấn giữ câu trả lời.
