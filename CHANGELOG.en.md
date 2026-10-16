@@ -10,7 +10,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.184.0] - 2026-10-16
 ### Fixed
-- **Long press on iPhone no longer triggers the phone's own text selection:** holding a message a little longer used to highlight the text and show iOS's Copy bar on top of the Javis menu. Now only the Javis menu appears (reactions, Reply, Copy...).
+- **Long press on a phone no longer triggers the phone's own text selection (iPhone and Android):** holding a message a little longer used to highlight the text and show the phone's Copy bar on top of the Javis menu. Now only the Javis menu appears (reactions, Reply, Copy...).
 - **Copying still works:** Copy in the menu copies the whole message. Text fields can still be selected and pasted into.
 
 ## [0.183.0] - 2026-10-16

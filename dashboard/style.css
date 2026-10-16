@@ -3897,12 +3897,14 @@ div.info-body > * { margin: 0; font-size: inherit; }
    long-press gesture first; Copy in the card copies the whole message.
    0.184.0 (owner, iPhone): the hold still ended in iOS's own text selection, its handle on "Trả lời" in the card. iOS
    selects the nearest selectable text when the spot under the finger is not, and the card, the lifted copy and the
-   time row under a bubble were still selectable. Now the whole message and the whole layer are not; fields stay. */
-@media (hover: none) {
-  .mp-host .msg, .mp-host .tm-msg, .mp-host .jr-rx-btn, .mp-host .tm-rx-btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+   time row under a bubble were still selectable. Now the whole message and the whole layer are not; fields stay.
+   Android too (owner): pointer: coarse catches phones that misreport hover, and html.mp-holding (set by msg-press.js
+   while the card is open) switches selection off on the whole page, whatever the browser. */
+@media (hover: none), (pointer: coarse) {
+  .mp-host .msg, .mp-host .tm-msg, .mp-host .jr-rx-btn, .mp-host .tm-rx-btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
   .mp-host .msg :is(input, textarea, [contenteditable]), .mp-host .tm-msg :is(input, textarea, [contenteditable]) { -webkit-user-select: text; user-select: text; }
 }
-.mp-layer, .mp-layer * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.mp-layer, .mp-layer *, html.mp-holding, html.mp-holding * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 .mp-layer { position: fixed; inset: 0; z-index: 3200; }
 .mp-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .32); animation: mp-fade .15s ease; }
 .mp-bar { position: absolute; display: flex; gap: 2px; padding: 6px 8px; border-radius: 999px; background: var(--bg);

@@ -13,7 +13,9 @@
    Messages are made unselectable on touch screens (CSS, .mp-host) so iOS does not start its own gesture; copying goes
    through the Copy action instead, which copies the whole message like Zalo does. 0.184.0: iOS still picked the nearest
    selectable text (the card, under the finger once it opened), so while a hold runs or the card is open, selectstart is
-   refused and any selection already made is cleared.
+   refused and any selection already made is cleared. Android (owner, same day): Chrome there fires contextmenu at the
+   spot under the finger, which by then is the card, outside root, so contextmenu is now refused on the whole document;
+   and html.mp-holding switches selection off on the whole page while the card is open (style.css).
 
    bind(root, opts) is generic: the main chat (chat-reactions.js / app.js) and the Teams page (teams.js) pass their own
    selector, emoji, actions and callbacks. place() is pure so node tests can run it. */
@@ -67,6 +69,13 @@
 
     function stop() { clearTimeout(timer); timer = null; }
 
+    // html.mp-holding while the card is open: no text selection anywhere on the page (style.css). Not during the
+    // 0.35 s wait: that runs on every scroll that starts on a message, and a page-wide class costs a full restyle; the
+    // browsers' own long press (about 0.5 s) comes after the card is open anyway.
+    function holding() {
+      try { document.documentElement.classList.toggle("mp-holding", !!layer); } catch (e) { /* no DOM */ }
+    }
+
     function setHot(btn) {
       if (hot === btn) return;
       if (hot) hot.classList.remove("is-hot");
@@ -83,6 +92,7 @@
       if (cur && cur.el) cur.el.classList.remove("mp-target");
       cur = null;
       document.removeEventListener("keydown", onEsc, true);
+      holding();
     }
 
     function onEsc(e) { if (e.key === "Escape") { e.preventDefault(); close(); } }
@@ -115,6 +125,7 @@
       openedAt = Date.now();
       sliding = !!bar;
       unselect();
+      holding();
       try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) { /* not supported */ }
     }
 
@@ -206,7 +217,8 @@
 
     function onCancel() { stop(); if (layer) { sliding = false; setHot(null); } }
 
-    // A long press that opened the card must not also open the browser's own menu.
+    // A long press that opened the card must not also open the browser's own menu. On the document: on Android the
+    // menu event lands on the card under the finger, not on root.
     function onMenu(e) { if (layer || timer) e.preventDefault(); }
 
     // Nor iOS's text selection: a hold in progress or an open card refuses it (owner, iPhone, 16/10/2026).
@@ -217,7 +229,7 @@
     document.addEventListener("touchmove", onMove, { passive: false });
     document.addEventListener("touchend", onEnd, { passive: false });
     document.addEventListener("touchcancel", onCancel);
-    root.addEventListener("contextmenu", onMenu);
+    document.addEventListener("contextmenu", onMenu);
     document.addEventListener("selectstart", onSelect);
     return function unbind() {
       close();
@@ -226,7 +238,7 @@
       document.removeEventListener("touchmove", onMove);
       document.removeEventListener("touchend", onEnd);
       document.removeEventListener("touchcancel", onCancel);
-      root.removeEventListener("contextmenu", onMenu);
+      document.removeEventListener("contextmenu", onMenu);
       document.removeEventListener("selectstart", onSelect);
     };
   }
