@@ -195,66 +195,55 @@ check("nhãn sáu reaction và sáu lý do có ở cả vi và en", rkeys.every(
 check("chọn lại cái đang chọn là bỏ; chọn cái khác là đổi", TM.nextReaction("sad", "sad") === "none"
       && TM.nextReaction("sad", "wow") === "wow" && TM.nextReaction(undefined, "like") === "like");
 const am = { id: 7, author_kind: "agent", author_ref: "ag_lan", content: "Chuyện buồn", meta: { status: "done" } };
+// 0.176.0 (owner, 2026-10-16): plain emoji like Zalo. No reasons, no talk/silent axis, no comment box; the owner replies
+// to a message to correct it.
 let mh = TM.messageHtml(am, { members: members });
-check("tin của trợ lý có nút thả cảm xúc, chưa mở bộ chọn", mh.includes('class="tm-react-btn"') && mh.includes('data-react-open="7"')
-      && !mh.includes("tm-react-panel"), mh);
-check("tin của chủ không có nút thả cảm xúc", !TM.messageHtml({ id: 8, author_kind: "owner", content: "x", meta: {} },
-  { members: members }).includes("tm-react-btn"));
-mh = TM.messageHtml(am, { members: members, picker: 7 });
-check("mở bộ chọn ngay tại tin: sáu nút, lý do, ô góp ý tối đa 500", (mh.match(/class="tm-react-pick"/g) || []).length === 6
-      && (mh.match(/name="tm-reason"/g) || []).length === 6 && mh.includes('maxlength="500"') && mh.includes(vi["teams.react_note"]), mh);
+check("0.176 assistant message: reaction corner (outline like) + six-emoji pill, no reasons panel",
+      mh.includes('class="tm-rx-btn" data-rx-toggle="7"') && (mh.match(/class="tm-rx-pick"/g) || []).length === 6
+      && !mh.includes("tm-reason") && !mh.includes("tm-react-comment") && !mh.includes("tm-react-panel"), mh);
+check("0.176 the latest assistant message keeps its Like visible, older ones on hover",
+      TM.messageHtml(am, { members: members, lastAgent: 7 }).includes('class="tm-rx is-last"') && !mh.includes("is-last")
+      && /\.tm-rx\.has \.tm-rx-btn, \.tm-rx\.is-last \.tm-rx-btn, \.tm-msg-agent:hover \.tm-rx-btn/.test(css));
+check("0.176 owner message has no reaction corner but has Reply/Copy/Pin on hover", (function (x) {
+  return !x.includes("tm-rx-btn") && x.includes('data-reply="8"') && x.includes('data-copy="8"') && x.includes('data-decision="8"');
+})(TM.messageHtml({ id: 8, author_kind: "owner", content: "x", meta: {} }, { members: members })));
 const withR = Object.assign({}, am, { reaction: { value: "sad", reasons: ["too_long"], comment: "Gọn <b>hơn</b>" } });
-mh = TM.messageHtml(withR, { members: members, picker: 7 });
-check("emoji đã chọn hiện dưới tin, bấm để đổi", /class="tm-react-chip" data-react-open="7"/.test(mh) && mh.includes("\u{1F622}")
-      && mh.includes(vi["teams.react.sad"]), mh);
-check("bộ chọn đánh dấu emoji đang chọn và lý do đã chọn", /data-react="sad"[^>]*aria-pressed="true"/.test(mh)
-      && /value="too_long" checked/.test(mh), mh);
-check("góp ý được escape", mh.includes("Gọn &lt;b&gt;hơn&lt;/b&gt;") && !mh.includes("<b>hơn"), mh);
-const draft = TM.reactionPickerHtml(am, { value: "like", reasons: [], comment: "" }, { reasons: ["missing"], comment: "đang gõ" });
-check("bản nháp đang soạn giữ qua lần vẽ lại", /value="missing" checked/.test(draft) && draft.includes("đang gõ")
-      && /data-react="like"[^>]*aria-pressed="true"/.test(draft), draft);
-check("chỉ có lý do/góp ý (bỏ emoji): chip vẫn hiện", TM.reactionChipHtml(am, { value: null, reasons: ["missing"], comment: "" })
-      .includes(vi["teams.react_reasons_n"].replace("{n}", "1")));
-check("không có phản hồi: không chip", TM.reactionChipHtml(am, null) === "");
-check("thả cảm xúc: nonce giữ theo thao tác (thử lại sau lỗi mạng dùng lại), kèm axis và seen_sha, không mở lượt",
+mh = TM.messageHtml(withR, { members: members });
+check("0.176 chosen emoji sits in the corner, marked in the pill; old comment text is not shown",
+      /class="tm-rx has"/.test(mh) && mh.includes('<span class="tm-rx-emoji">\u{1F622}</span>')
+      && /data-react="sad"[^>]*aria-pressed="true"/.test(mh) && !mh.includes("Gọn"), mh);
+mh = TM.messageHtml(am, { members: members, picker: 7 });
+check("0.176 long press sheet: six emoji, Reply, Copy, Pin, Close", mh.includes('class="tm-sheet" data-panel="7"')
+      && (mh.match(/class="tm-rx-pick"/g) || []).length === 12 && /tm-sheet-act" data-reply="7"/.test(mh)
+      && /tm-sheet-act" data-copy="7"/.test(mh) && /tm-sheet-act" data-react-close="7"/.test(mh), mh);
+check("0.176 owner sheet has no emoji row", !TM.messageHtml({ id: 8, author_kind: "owner", content: "x", meta: {} },
+  { members: members, picker: 8 }).match(/tm-sheet[\s\S]*tm-rx-pick/));
+check("thả cảm xúc: nonce giữ theo thao tác (thử lại sau lỗi mạng dùng lại), kèm seen_sha, không mở lượt",
       /var reactNonces = JR\.nonceKeeper\(newClientId\)/.test(teamsJs)
       && /body\.nonce = reactNonces\.take\(key, body\)/.test(teamsJs) && /reactNonces\.settle\(key, r\.code\)/.test(teamsJs)
       && /reactNonces\.settle\(key, 0\);\s*setNote\(tw\("teams\.err_network"\), retry\)/.test(teamsJs)
       && /JR\.payload\(value, reasons, axis, comment, m0 && m0\.content_sha\)/.test(teamsJs));
-check("điện thoại: nhấn giữ tin mở bộ chọn, có ngưỡng rung tay", teamsJs.includes('"pointerdown"') && /> 10/.test(teamsJs));
+check("0.176 corner press: like, or remove the reaction already there", /return sendReaction\(Number\(d\.rxToggle\), rv \? "none" : "like"\)/.test(teamsJs));
+check("điện thoại: nhấn giữ tin mở bảng, có ngưỡng rung tay", teamsJs.includes('"pointerdown"') && /> 10/.test(teamsJs));
 check("gói WS không mang phản hồi thì giữ phản hồi đang có", teamsJs.includes('!("reaction" in nm)'));
-check("CSS: nút mặt cười hiện khi rê chuột, luôn hiện trên máy chạm, tắt menu nhấn giữ của máy",
-      /\.tm-msg-agent:hover \.tm-react-btn/.test(css)
-      && /@media \(hover: none\) \{ \.tm-react-btn \{ opacity: 1; \} \.tm-msg-agent \{ -webkit-touch-callout: none; \} \}/.test(css));
-// Review T2 #4 tới #6
-check("đang soạn góp ý thì vẽ lại giữ con trỏ, chỗ cuộn, không kéo xuống cuối",
-      /typing = S\.picker !== null && act && act\.classList/.test(teamsJs) && /ta\.setSelectionRange\(typing\.start, typing\.end\)/.test(teamsJs)
-      && /\(stick \|\| atEnd\) && S\.picker === null/.test(teamsJs));
-check("mở bộ chọn đưa focus vào emoji đầu (bảng của tin chủ: nút đầu); đóng trả focus về nút đã mở",
-      /S\.focusPicker = true/.test(teamsJs)
-      && /\.tm-react-panel \.tm-react-pick"\) \|\| box\.querySelector\("\.tm-react-panel button"\);\s*if \(first\) first\.focus\(\)/.test(teamsJs)
-      && /\.tm-react-btn\[data-react-open="' \+ S\.focusBack/.test(teamsJs) && /\.tm-more-btn\[data-react-open="' \+ S\.focusBack/.test(teamsJs));
+check("0.176 swipe left past the threshold replies; vertical moves stay scrolling", /var SWIPE_AT = 60;/.test(teamsJs)
+      && /if \(fire && sw\.dx <= -SWIPE_AT\) startReply\(sw\.mid\)/.test(teamsJs) && /\.tm-msg \{ touch-action: pan-y;/.test(css));
+check("mở bảng đưa focus vào emoji đầu; đóng trả focus về nút góc hay nút Trả lời", /S\.focusPicker = true/.test(teamsJs)
+      && /\.tm-sheet \.tm-rx-pick"\) \|\| box\.querySelector\("\.tm-sheet button"\);\s*if \(first\) first\.focus\(\)/.test(teamsJs)
+      && /\.tm-rx-btn\[data-rx-toggle="' \+ S\.focusBack/.test(teamsJs));
 check("nhấn giữ chỉ cho chạm và bút, không cho chuột; chặn menu ngữ cảnh của lần giữ đó",
       teamsJs.includes('if (e.pointerType === "mouse") return;') && /"contextmenu"[\s\S]{0,80}if \(held\) \{ e\.preventDefault\(\)/.test(teamsJs));
-check("CSS: điện thoại hàng ngang lớn, vùng chạm >= 44px", /\.tm-react-pick \{ flex: 1 1 0; min-width: 44px; min-height: 48px/.test(css));
-check("CSS 375px: sáu nút 44px lọt bề ngang (khe 4px, đệm 6px; smoke T2 thấy 😡 tràn mép)",
-      /\.tm-react-panel \{ padding: 8px 6px; \}/.test(css) && /\.tm-react-row \{ flex-wrap: nowrap; justify-content: space-between; gap: 4px; \}/.test(css));
-check("CSS: bảng chọn display:flex có luật [hidden] riêng", /\.tm-react-panel\[hidden\] \{ display: none; \}/.test(css));
+check("CSS 375px: six emoji of the sheet share the width", /\.tm-sheet \.tm-rx-pick \{ flex: 1 1 0; min-width: 40px; \}/.test(css));
+check("CSS: sheet display:flex has its own [hidden] rule", /\.tm-sheet\[hidden\] \{ display: none; \}/.test(css));
 
-// ───────────── T2 0.154.0: bảng dùng chung, trạng thái, trục nói/im, chip agent, khung lọc theo việc ─────────────
+// ───────────── T2 0.154.0: bảng dùng chung, chip agent, khung lọc theo việc ─────────────
 const JR = require(path.join(ROOT, "dashboard", "reactions.js"));
 check("teams.js không còn bảng emoji riêng: REACTIONS là bảng của reactions.js", TM.REACTIONS === JR.EMOJI
       && !/var REACTIONS = \[/.test(teamsJs) && teamsJs.includes("window.JavisReactions"));
-mh = TM.messageHtml(am, { members: members, picker: 7 });
-check("bộ chọn có nhóm trục nói/im chọn một, tách khỏi lý do", (mh.match(/type="radio" name="tm-axis-7"/g) || []).length === 3
-      && mh.includes('role="radiogroup"') && mh.includes(vi["react.axis.should_speak"]) && mh.includes(vi["react.axis.should_silent"]), mh);
 const withS = Object.assign({}, am, { reaction: { value: "like", reasons: [], axis: "should_silent", comment: "",
   status: "pending_review", status_reason: "Chờ <lượt> xem xét" } });
 mh = TM.messageHtml(withS, { members: members });
-check("trạng thái host ghi hiện dưới chip, kèm lý do đã escape", mh.includes('class="tm-react-status" data-status="pending_review"')
-      && mh.includes(vi["react.status.pending_review"]) && mh.includes("Chờ &lt;lượt&gt; xem xét")
-      && mh.indexOf("tm-react-chip") < mh.indexOf("tm-react-status"), mh);
-check("chip của chủ nhắc trục nói/im đã chọn", mh.includes(vi["react.axis.should_silent"]), mh);
+check("0.176 host status labels (Received...) are no longer drawn under team messages", !mh.includes("tm-react-status"), mh);
 const withA = Object.assign({}, am, { agent_reactions: [{ agent_key: "ag_minh", name: "Minh <b>", source_kind: "member",
   value: "wow", reasons: [], comment: "" }] });
 mh = TM.messageHtml(withA, { members: members });
@@ -267,8 +256,40 @@ check("khung lọc theo việc nhận gói team_message: vẽ lại tin đang hi
       !teamsJs.includes('d.message && !S.filterTask)') && teamsJs.includes("S.msgs[i] = S.filterTask ? Object.assign({}, S.msgs[i], nm) : nm;")
       && teamsJs.includes("if (i >= 0 || !S.filterTask) drawMsgs(false);"));
 check("gói WS không mang reaction của agent thì giữ cái đang có", teamsJs.includes('!("agent_reactions" in nm)'));
-check("bảng chọn giữ trục nói/im đang soạn qua lần vẽ lại", /S\.draft = \{ mid: S\.picker, reasons: pv\.reasons, axis: pv\.axis/.test(teamsJs)
-      && /\/\^tm-axis-\//.test(teamsJs));
+
+// ───────────── 0.176.0: reply, markdown, assistant settings, rename and delete ─────────────
+const qm = TM.messageHtml({ id: 9, author_kind: "owner", content: "> Lan: Câu <cũ>\n\nSai rồi em", meta: {} }, { members: members });
+check("0.176 owner reply shows the quote block (name bold) above the text, both escaped",
+      qm.includes('<div class="tm-quote"><b>Lan</b>Câu &lt;cũ&gt;</div>') && qm.includes('<div class="tm-text">Sai rồi em</div>'), qm);
+check("0.176 sending a reply puts the quote on top and calls the assistant replied to when nobody is @-mentioned",
+      /var text = S\.replyTo && Q \? Q\.ghep\(S\.replyTo\.quote, typed\) : typed;/.test(teamsJs)
+      && /if \(S\.replyTo && S\.replyTo\.key && !mentions\.length\) mentions = \[S\.replyTo\.key\];/.test(teamsJs));
+check("0.176 list preview drops the quote", TM.previewText({ last: { text: "> Lan: cũ\n\nmới", author_kind: "owner" } }) ===
+      vi["teams.you"] + ": mới");
+check("0.176 assistant text goes through the main chat markdown renderer in the browser",
+      /window\.mdToHtml/.test(teamsJs) && teamsJs.includes('tm-text msg-javis tm-mdwrap"><div class="bubble">')
+      && /\.tm-mdwrap\.msg-javis \.bubble \{ background: none; border: none; padding: 0;/.test(css));
+check("0.176 assistant avatar opens its settings", TM.messageHtml(am, { members: members })
+  .includes('class="tm-face-btn" data-agent-edit="lan"') && /St\.editAgent\(\{ slug: slug \}/.test(teamsJs));
+h = TM.teamListHtml([team], "tm_1", 0, "tm_1");
+check("0.176 row menu: Pin, Rename, Delete behind one ... button", h.includes('data-row-menu="tm_1"')
+      && h.includes('data-rename-team="tm_1"') && h.includes('data-delete-team="tm_1"') && h.includes('data-pin-team="tm_1"'), h);
+h = TM.teamListHtml([team], "tm_1", 0, null, "tm_1");
+check("0.176 renaming a row draws an input with the current name", /class="tm-rename-input" data-rename-for="tm_1" value="Ra mắt &lt;i&gt;"/.test(h), h);
+check("0.176 deleting archives first, then deletes, after one confirmation", /teams\.delete_confirm/.test(teamsJs)
+      && /call\("PATCH", "\/teams\/" \+ q\(id\), \{ status: "archived" \}\)/.test(teamsJs) && /call\("DELETE", "\/teams\/" \+ q\(id\)\)/.test(teamsJs));
+check("0.176 header: gear icon for settings, name is a rename button", /ic\("settings"\) \+ "<\/button>";\n    \}/.test(teamsJs)
+      && teamsJs.includes('data-rename-head="1"'));
+check("0.176 page header hidden on every screen", /^body\.on-teams \.cview-head \{ display: none; \}/m.test(css));
+check("0.176 composer: + menu holds Assign job; mic and send sit on the right", /class="tm-plus" aria-haspopup="menu"/.test(teamsJs)
+      && /role="menuitemcheckbox" aria-checked="/.test(teamsJs) && teamsJs.includes('class="tm-mic') && indexHtml.includes("/static/dictate.js"));
+const D = require(path.join(ROOT, "dashboard", "dictate.js"));
+check("0.176 dictation appends after typed text with one space", D.joinText("chào", "em") === "chào em"
+      && D.joinText("chào ", "em") === "chào em" && D.joinText("", " em ") === "em" && D.joinText("x", "") === "x");
+["teams.msg_reply", "teams.copy", "teams.replying", "teams.plus", "teams.mic", "teams.rename", "teams.delete_team",
+  "teams.delete_confirm", "teams.agent_settings"].forEach(function (k) {
+  check("0.176 key " + k + " in vi and en", !!(vi[k] && en[k]));
+});
 check("lý do server_ceiling có nhãn ở lượt trả lời và ở việc bị chặn",
       teamsJs.includes('server_ceiling: "teams.reply.why.server_ceiling"') && teamsJs.includes('server_ceiling: "teams.block.server_ceiling"'));
 
@@ -369,7 +390,7 @@ check("T5 @ phải hết tên ('@Lanx' không gọi Lan); người đã rời kh
 // 0.142.0 (đối chiếu goal-claude-v2 mục 3): người được gọi là TOKEN riêng ở hàng "Gọi:" (tm-calls), bấm x là bỏ gọi và
 // xoá token trong chữ. Hàng chip @ cũ của T5 (tm-chips, lặp lại chữ) vẫn không quay lại.
 check("T5 gửi tin lấy người được gọi từ chữ, không còn hàng chip @ trùng chữ; 0.142.0 có hàng token Gọi",
-      /var scan = mentionScan\(text, S\.team\.members, S\.picked\);/.test(teamsJs) && !teamsJs.includes("tm-chips")
+      /var scan = mentionScan\(typed, S\.team\.members, S\.picked\);/.test(teamsJs) && !teamsJs.includes("tm-chips")
       && teamsJs.includes("data-unmention") && teamsJs.includes("tm-calls"));
 
 // Một nút giải quyết cho việc bị chặn.
@@ -436,16 +457,16 @@ h = TM.membersHtml(team, [], "ag_minh");
 check("T5 chạm một thành viên mở thao tác của người đó", /data-expand="ag_minh" aria-expanded="true"/.test(h)
       && (h.match(/class="tm-mact" hidden/g) || []).length === 1, h);
 
-// Bảng của tin: tin trợ lý có cảm xúc kèm Ghim; tin của chủ chỉ Ghim.
+// Bảng của tin (0.176.0): tin trợ lý có cảm xúc kèm Trả lời, Sao chép, Ghim; tin của chủ không có cảm xúc.
 h = TM.messageHtml({ id: 20, author_kind: "owner", content: "Chốt", meta: {} }, { members: members, picker: 20 });
-check("T5 tin của chủ: bảng chỉ có Ghim làm quyết định", h.includes("tm-owner-panel") && /data-decision="20" data-on="1"/.test(h)
-      && !h.includes("tm-react-pick"), h);
+check("T5 tin của chủ: bảng có Trả lời, Sao chép, Ghim, không có cảm xúc", h.includes("tm-sheet") && /data-decision="20" data-on="1"/.test(h)
+      && /data-reply="20"/.test(h) && !h.includes("tm-rx-pick"), h);
 h = TM.messageHtml({ id: 21, author_kind: "agent", author_ref: "ag_lan", content: "x", meta: {} }, { members: members, picker: 21 });
 check("T5 tin trợ lý: bảng cảm xúc kèm Ghim; tin đã ghim thì không lặp nút Ghim", /data-decision="21" data-on="1"/.test(h)
       && !/data-on="1"/.test(TM.messageHtml({ id: 22, author_kind: "agent", author_ref: "ag_lan", content: "x", meta: { decision: true } },
         { members: members, picker: 22 })), h);
-check("T5 nút mở bảng nằm cạnh bong bóng, không thêm hàng dưới tin", (function (x) {
-  return x.indexOf("tm-bubble") < x.indexOf("tm-react-btn") && !/tm-foot[^>]*>[^<]*<button type="button" class="tm-react-btn"/.test(x);
+check("T5 nút thao tác nằm cạnh bong bóng, không thêm hàng dưới tin", (function (x) {
+  return x.indexOf("tm-bubble") < x.indexOf("tm-hacts") && !/tm-foot[^>]*>[^<]*<button type="button" class="tm-hact"/.test(x);
 })(TM.messageHtml(am, { members: members })));
 check("T5 nhấn giữ mở bảng cho mọi tin (cả tin của chủ)", teamsJs.includes('e.target.closest(".tm-msg")'));
 
@@ -453,10 +474,11 @@ check("T5 nhấn giữ mở bảng cho mọi tin (cả tin của chủ)", teamsJ
 check("T5 console.js: trang Nhóm dùng cview-flush, body.on-teams; rời trang gỡ cả hai và báo teams.js",
       /id === "teams"[\s\S]{0,700}el\.classList\.add\("cview-flush"\);\s*document\.body\.classList\.add\("on-teams"\);/.test(consoleJs)
       && /_pageLeave = \(\) => \{\s*el\.classList\.remove\("cview-flush"\);\s*document\.body\.classList\.remove\("on-teams"\);/.test(consoleJs));
-check("T5 điện thoại: bỏ đầu trang chung và linh vật trên trang Nhóm",
-      /@media \(max-width: 760px\) \{[\s\S]*body\.on-teams \.cview-head \{ display: none; \}[\s\S]*body\.on-teams #javisPet \{ display: none; \}/.test(css));
-check("T5 khung soạn một hàng: công tắc Giao việc, ô chữ, nút gửi; ô chữ không còn chiếm trọn hàng",
-      /class="tm-mode tm-asjob" aria-pressed=/.test(teamsJs) && /textarea class="tm-input" rows="1"/.test(teamsJs)
+check("T5 điện thoại: ẩn linh vật trên trang Nhóm; 0.176 bỏ đầu trang chung ở MỌI cỡ màn",
+      /@media \(max-width: 760px\) \{[\s\S]*body\.on-teams #javisPet \{ display: none; \}/.test(css)
+      && /^body\.on-teams \.cview-head \{ display: none; \}/m.test(css));
+check("T5 khung soạn một hàng: nút +, ô chữ, mic, nút gửi; ô chữ không còn chiếm trọn hàng",
+      /class="tm-plus" aria-haspopup="menu"/.test(teamsJs) && /textarea class="tm-input" rows="1"/.test(teamsJs)
       && !/\.tm-input \{ flex-basis: 100%; \}/.test(css) && /\.tm-row \{ display: flex; align-items: flex-end;/.test(css));
 check("T5 ô chữ tự cao tới khoảng năm dòng", /Math\.min\(input\.scrollHeight \|\| 0, INPUT_MAX_PX\)/.test(teamsJs)
       && /\.tm-input \{[^}]*max-height: 132px/.test(css));
@@ -467,7 +489,7 @@ check("T5 ngăn Việc | Nhóm đóng sẵn, mở từ chip việc hay nút ba c
       /side: false/.test(teamsJs) && /d\.openJobs/.test(teamsJs) && /tm-gear/.test(teamsJs) && /e\.key === "Escape" && S\.side/.test(teamsJs)
       && /\.tm-scrim \{ display: block; position: fixed;/.test(css));
 const t5Hidden = [".tm-jobs", ".tm-jcard", ".tm-filterbar", ".tm-mact", ".tm-mrow", ".tm-level", ".tm-guide", ".tm-banner",
-  ".tm-late", ".tm-radios", ".tm-mode", ".tm-composer", ".tm-jobs-chip", ".tm-scrim", ".tm-hint", ".tm-foot", ".tm-msg"];
+  ".tm-late", ".tm-radios", ".tm-plus-menu", ".tm-replying", ".tm-jobmode", ".tm-hacts", ".tm-sheet", ".tm-composer", ".tm-jobs-chip", ".tm-scrim", ".tm-hint", ".tm-foot", ".tm-msg"];
 check("T5 CSS: mọi lớp flex mới có luật [hidden] riêng", t5Hidden.every(function (c) { return css.includes(c + "[hidden]"); }),
       t5Hidden.filter(function (c) { return !css.includes(c + "[hidden]"); }).join(","));
 check("T5 điện thoại: vùng chạm 44px cho nút mới", /\.tm-jobs-chip,\s*\.tm-filter-clear, \.tm-banner \.ws-btn, \.tm-adv-sum, \.tm-decision, \.tm-jmore \{ min-height: 44px; \}/.test(css)
@@ -488,10 +510,9 @@ check("review T5: chữ gõ tổ hợp (NFD) vẫn so đúng, dấu rời không
       TM.mentionsFromText("@Cũ ơi", [{ agent_key: "ag_x", slug: "x", name: "Cũ", status: "active" }]).join() === "ag_x"
       && TM.mentionsFromText("@Lañ", mem3).length === 0);
 h = TM.messageHtml({ id: 30, author_kind: "owner", content: "Chốt", meta: { decision: true } }, { members: members, picker: 30 });
-check("review T5 I5: tin của chủ đã ghim không có nút ba chấm (bảng của nó trống)", !h.includes("tm-more-btn"), h);
-check("review T5 I5: nhấn giữ tin của chủ đã ghim không mở bảng; bảng không còn thì bỏ trạng thái mở để tin mới vẫn tự cuộn",
-      /tm-msg-owner"\) && msg\.querySelector\("\.tm-decision"\)\) return;/.test(teamsJs)
-      && /if \(S\.picker !== null && !box\.querySelector\('\[data-panel="' \+ S\.picker \+ '"\]'\)\) S\.picker = null;/.test(teamsJs));
+check("review T5 I5 (0.176): tin của chủ đã ghim không lặp nút Ghim trong bảng", !/data-decision="30" data-on="1"/.test(h), h);
+check("review T5 I5: bảng không còn thì bỏ trạng thái mở để tin mới vẫn tự cuộn",
+      /if \(S\.picker !== null && !box\.querySelector\('\[data-panel="' \+ S\.picker \+ '"\]'\)\) S\.picker = null;/.test(teamsJs));
 check("review T5 I4: mô tả mức 3 không hứa bỏ giới hạn", !/không bị chặn|without number limits/i.test(vi["teams.level_3_desc"] + en["teams.level_3_desc"])
       && vi["teams.level_3_desc"].includes("tự nâng"));
 check("review T5 I3: ngăn kéo bắt đầu dưới thanh trên toàn cục; trang trượt lên theo chiều cao khung nhìn thật",
@@ -599,12 +620,15 @@ check("console.js không còn nhãn số giữ chỗ 0.111.0", !consoleJs.includ
 // Ghim ngay trên danh sách: máy tính rê chuột hiện nút ghim, chuột phải hay nhấn giữ (điện thoại) mở menu Ghim / Bỏ ghim
 const tPin = Object.assign({}, team, { pinned_at: 1791900000 }), tPlain = Object.assign({}, team, { team_id: "tm_2", pinned_at: null });
 h = TM.teamListHtml([tPin, tPlain], "tm_1", now);
-check("dòng nhóm vẫn là nút mở nhóm (đánh dấu nhóm đang mở) và có nút ghim riêng bên cạnh, không lồng nút",
+check("dòng nhóm vẫn là nút mở nhóm (đánh dấu nhóm đang mở) và có nút ... riêng bên cạnh, không lồng nút",
       /data-team="tm_1"[^>]*aria-current="true"/.test(h) && /<div class="tm-team-wrap">/.test(h)
-      && /<\/button><button type="button" class="tm-row-pin" data-pin-team="tm_1" data-on="0" aria-label="[^"]+"/.test(h)
-      && /class="tm-row-pin" data-pin-team="tm_2" data-on="1"/.test(h), h);
-check("nút ghim ghi đúng việc sẽ làm: Bỏ ghim cho nhóm đã ghim, Ghim nhóm cho nhóm chưa ghim",
-      h.includes('data-on="0" aria-label="' + vi["teams.unpin_team"]) && h.includes('data-on="1" aria-label="' + vi["teams.pin_team"]), h);
+      && /<\/button><button type="button" class="tm-row-more" data-row-menu="tm_1" aria-haspopup="menu"/.test(h)
+      && /class="tm-row-more" data-row-menu="tm_2"/.test(h), h);
+check("nhóm đã ghim có dấu ghim nhỏ cạnh tên, nhóm chưa ghim thì không",
+      /data-team="tm_1"[\s\S]*?tm-team-name[^<]*<\/span><span class="tm-pinned"/.test(h)
+      && !/data-team="tm_2"[\s\S]*?tm-pinned/.test(h.slice(h.indexOf('data-team="tm_2"'))), h);
+check("menu ghi đúng việc sẽ làm: Bỏ ghim cho nhóm đã ghim", TM.teamListHtml([tPin], "", now, "tm_1")
+      .includes('data-pin-team="tm_1" data-on="0">') && TM.teamListHtml([tPin], "", now, "tm_1").includes(vi["teams.unpin_team"]));
 check("chưa mở menu: không có menu", !h.includes("tm-row-menu"));
 h = TM.teamListHtml([tPin, tPlain], "", now, "tm_2");
 check("mở menu của một nhóm: đúng một menu, một mục Ghim nhóm", (h.match(/class="tm-row-menu"/g) || []).length === 1
@@ -616,9 +640,9 @@ check("nhấn giữ dòng nhóm mở menu, chặn cú bấm mở nhóm ngay sau 
       && /e\.key === "Escape" && S\.rowMenu/.test(teamsJs) && /function openRowMenu\(id\) \{\s*S\.rowMenu = id;/.test(teamsJs));
 check("ghim từ danh sách dùng cùng cách lưu (lỗi thì báo, không kẹt)", /function pinTeamWith\(id, on, btn, deps\)[\s\S]{0,500}savePin\(/.test(teamsJs)
       && /\/teams\/" \+ q\(id\) \+ "\/pin"/.test(teamsJs));
-check("CSS: nút ghim hiện khi rê chuột hay focus, máy chạm ẩn (dùng nhấn giữ); menu có [hidden], mục menu 44px",
-      /\.tm-team-wrap:hover \.tm-row-pin, \.tm-row-pin:focus-visible \{ opacity: 1; \}/.test(css)
-      && /@media \(hover: none\) \{ \.tm-row-pin \{ display: none; \}/.test(css) && css.includes(".tm-row-menu[hidden]")
+check("CSS: nút ... hiện khi rê chuột hay focus, máy chạm ẩn (dùng nhấn giữ); menu có [hidden], mục menu 44px",
+      /\.tm-team-wrap:hover \.tm-row-more, \.tm-row-more:focus-visible/.test(css)
+      && /@media \(hover: none\) \{ \.tm-row-more \{ display: none; \}/.test(css) && css.includes(".tm-row-menu[hidden]")
       && css.includes(".tm-team-wrap[hidden]") && /\.tm-row-menu button \{[^}]*min-height: 44px/.test(css));
 check("khoá chữ ghim có ở vi và en", ["teams.pin_team", "teams.unpin_team", "teams.row_menu"].every(function (k) { return vi[k] && en[k]; }));
 

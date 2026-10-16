@@ -2474,7 +2474,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .tm-bar[hidden] { display: none; }
 .tm-list-bar { padding: 2px 4px 6px; }
 .tm-list-title { font-size: 16px; }
-/* Máy tính: đầu trang đã ghi "Nhóm", khỏi lặp. Chưa có nhóm: thẻ hướng dẫn đã có nút Tạo nhóm. */
+/* 0.176.0: no page header any more (owner, 2026-10-16: the rail already says "Nhóm", the room goes to the chat), and the
+   list keeps only its Create button on a computer. Chưa có nhóm: thẻ hướng dẫn đã có nút Tạo nhóm. */
+body.on-teams .cview-head { display: none; }
 @media (min-width: 761px) { .tm-list-title { display: none; } .tm-list-bar .tm-new { margin-left: auto; } }
 .tm-list-bar-empty .tm-new { display: none; }
 
@@ -2509,18 +2511,22 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .tm-pinned { display: inline-flex; flex: none; color: var(--text3); }
 .tm-pinned[hidden] { display: none; }
 .tm-pin-row { margin-bottom: 8px; }
-/* Ghim ngay trên danh sách: nút ghim nằm cạnh dòng nhóm (không lồng trong nút mở nhóm), hiện khi rê chuột hay focus;
-   máy chạm không có hover nên ẩn nút, ghim bằng nhấn giữ dòng nhóm (menu Ghim / Bỏ ghim). */
+/* 0.176.0: one "..." button per row (Pin or Unpin, Rename, Delete), shown on hover or focus and always while its menu is
+   open; it sits over the time so the preview line keeps its full width. Touch screens open the same menu by long press.
+   The pin mark sits right after the name, small, like Zalo. */
 .tm-team-wrap { position: relative; }
 .tm-team-wrap[hidden] { display: none; }
-.tm-team-wrap .tm-team { padding-right: 40px; }
-.tm-row-pin { position: absolute; top: 6px; right: 6px; display: inline-flex; align-items: center; justify-content: center;
+.tm-row-more { position: absolute; top: 8px; right: 6px; display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border: none; border-radius: 8px; background: var(--surface-2); color: var(--text2); cursor: pointer;
   opacity: 0; transition: opacity .12s; }
-.tm-row-pin[hidden] { display: none; }
-.tm-row-pin[data-on="0"] { color: var(--accent); }
-.tm-team-wrap:hover .tm-row-pin, .tm-row-pin:focus-visible { opacity: 1; }
-@media (hover: none) { .tm-row-pin { display: none; } .tm-team { -webkit-touch-callout: none; } }
+.tm-row-more[hidden] { display: none; }
+.tm-team-wrap:hover .tm-row-more, .tm-row-more:focus-visible, .tm-team-wrap.is-menu .tm-row-more { opacity: 1; }
+@media (hover: none) { .tm-row-more { display: none; } .tm-team { -webkit-touch-callout: none; } }
+.tm-pinned .ic, .tm-pinned svg { width: 13px; height: 13px; }
+.tm-team-edit { cursor: default; background: var(--accent-wash); border-color: var(--accent-line); }
+.tm-rename-input { flex: 1; min-width: 0; font: inherit; font-weight: 600; padding: 6px 10px; border-radius: 8px;
+  border: 1px solid var(--accent); background: var(--bg2); color: var(--text); }
+.tm-row-menu .tm-danger, .tm-page .ws-btn.tm-danger { color: var(--red, #c0392b); }
 .tm-row-menu { position: absolute; top: 100%; right: 8px; z-index: 6; display: flex; flex-direction: column; min-width: 180px;
   padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); box-shadow: 0 8px 24px rgba(0, 0, 0, .18); }
 .tm-row-menu[hidden] { display: none; }
@@ -2556,6 +2562,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .tm-chat-head .tm-ava { width: 34px; height: 34px; font-size: 14px; }
 .tm-title { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
 .tm-title strong, .tm-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.tm-title-btn { align-items: flex-start; border: none; background: none; color: var(--text); font: inherit; text-align: left;
+  padding: 2px 6px; margin-left: -6px; border-radius: 8px; cursor: text; }
+.tm-title-btn:hover strong { text-decoration: underline dotted; text-underline-offset: 3px; }
 .tm-sub { font-size: 12px; color: var(--text3); }
 .tm-icon { flex: none; justify-content: center; min-width: 36px; padding: 0 8px; }
 .tm-jobs-chip { display: inline-flex; align-items: center; gap: 4px; flex: none; border: 1px solid var(--border); border-radius: 999px;
@@ -2637,34 +2646,79 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   color: var(--text2); font: inherit; font-size: 11.5px; cursor: pointer; margin-right: auto; }
 .tm-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .tm-actions[hidden] { display: none; }
-/* T2: thả cảm xúc. Desktop: nút mặt cười (tin trợ lý) và nút ba chấm (tin của chủ) hiện khi rê chuột; máy chạm (không có
-   hover) luôn hiện nút mặt cười, còn tin của chủ mở bảng bằng nhấn giữ. */
-.tm-react-btn, .tm-more-btn { flex: none; border: none; background: none; color: var(--text3); cursor: pointer; padding: 4px; border-radius: 8px;
-  opacity: 0; transition: opacity .12s; align-self: center; }
-.tm-msg-agent:hover .tm-react-btn, .tm-react-btn:focus-visible { opacity: 1; }
-.tm-msg-owner:hover .tm-more-btn, .tm-more-btn:focus-visible { opacity: 1; }
-@media (hover: none) { .tm-react-btn { opacity: 1; } .tm-msg-agent { -webkit-touch-callout: none; } }
-@media (hover: none) { .tm-more-btn { display: none; } .tm-msg-owner { -webkit-touch-callout: none; } }
-.tm-react-chip { border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: 999px;
-  padding: 1px 10px; font-size: 12px; cursor: pointer; margin-right: auto; }
-.tm-react-emoji { font-size: 15px; margin-right: 4px; }
-.tm-react-panel { flex: 1 1 100%; margin-top: 4px; padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg);
-  display: flex; flex-direction: column; gap: 6px; }
-.tm-react-panel[hidden] { display: none; }
-.tm-react-row { display: flex; gap: 6px; flex-wrap: wrap; }
-.tm-react-pick { min-width: 40px; min-height: 40px; font-size: 22px; line-height: 1; border: 1px solid var(--border);
-  border-radius: 12px; background: var(--surface-1); cursor: pointer; }
-.tm-react-pick[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-wash); }
-.tm-react-sub { font-size: 12px; color: var(--text2); }
-.tm-react-reasons { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; }
-.tm-react-reason { display: inline-flex; align-items: center; gap: 4px; }
-.tm-react-comment { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; padding: 6px 8px;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--text); }
-.tm-react-note { font-size: 11.5px; color: var(--text3); }
-/* T2 0.154.0: trạng thái host ghi dưới chip của chủ, chip CHỈ ĐỌC của agent (trưởng nhóm, thành viên). Chữ 16px. */
-.tm-react-status { flex: 1 1 100%; font-size: 16px; line-height: 1.4; color: var(--text3); text-align: right; }
-.tm-react-why { margin-left: 6px; }
-.tm-react-why::before { content: "\00B7"; margin-right: 6px; }
+/* 0.176.0 reactions, Zalo style (owner, 2026-10-16). The corner of an assistant bubble holds the chosen emoji or an
+   outline thumbs-up; the latest assistant message always shows it, older ones on hover. Hovering the corner opens a
+   floating pill of six native emoji (no boxes around them, they read like the emoji people send). Touch screens: long
+   press opens the sheet under the message. */
+.tm-msg { touch-action: pan-y; position: relative; }
+.tm-msg-agent { margin-bottom: 10px; }
+.tm-bubble { position: relative; transition: transform .15s ease; }
+.tm-msg.is-swiping .tm-bubble { transition: none; }
+.tm-rx { position: absolute; right: -8px; bottom: -14px; z-index: 2; }
+.tm-rx-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 6px;
+  border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--text3); cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .12); opacity: 0; transition: opacity .12s, transform .12s; }
+.tm-rx-btn .ic, .tm-rx-btn svg { width: 15px; height: 15px; }
+.tm-rx.has .tm-rx-btn, .tm-rx.is-last .tm-rx-btn, .tm-msg-agent:hover .tm-rx-btn, .tm-rx-btn:focus-visible { opacity: 1; }
+.tm-rx-btn:hover { color: var(--accent); transform: scale(1.08); }
+.tm-rx-emoji { font-size: 16px; line-height: 1; }
+.tm-rx-bar { display: none; position: absolute; right: 0; bottom: calc(100% + 4px); gap: 2px; padding: 4px 6px;
+  border-radius: 999px; background: var(--bg); border: 1px solid var(--border); box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+  white-space: nowrap; }
+/* A transparent strip under the pill keeps the hover alive while the pointer travels from the button up to the emoji. */
+.tm-rx-bar::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 8px; }
+@media (hover: hover) {
+  .tm-rx:hover .tm-rx-bar { display: flex; animation: tm-pop .14s ease; }
+}
+.tm-rx:focus-within .tm-rx-bar { display: flex; }
+@keyframes tm-pop { from { opacity: 0; transform: translateY(4px) scale(.96); } to { opacity: 1; transform: none; } }
+.tm-rx-pick { border: none; background: none; padding: 2px; width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+  font-size: 26px; line-height: 1; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  transition: transform .12s ease; }
+.tm-rx-pick:hover, .tm-rx-pick:focus-visible { transform: scale(1.28) translateY(-3px); outline: none; }
+.tm-rx-pick[aria-pressed="true"] { background: var(--accent-wash); }
+@media (prefers-reduced-motion: reduce) { .tm-rx-pick, .tm-rx-btn, .tm-bubble { transition: none; } .tm-rx-bar { animation: none; } }
+/* Hover actions beside the bubble: Reply, Copy, Pin. */
+.tm-hacts { display: inline-flex; gap: 2px; align-self: center; opacity: 0; transition: opacity .12s; }
+.tm-msg:hover .tm-hacts, .tm-hacts:focus-within { opacity: 1; }
+.tm-hact { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none;
+  border-radius: 8px; background: none; color: var(--text3); cursor: pointer; }
+.tm-hact:hover, .tm-hact:focus-visible { background: var(--surface-2); color: var(--text); }
+@media (hover: none) { .tm-hacts { display: none; } .tm-msg { -webkit-touch-callout: none; } }
+/* Swipe left to reply: a reply arrow shows on the right once the swipe is far enough. */
+.tm-msg.is-armed::after { content: ""; position: absolute; right: 6px; top: 50%; width: 22px; height: 22px; margin-top: -11px;
+  border-radius: 50%; background: var(--accent); opacity: .85; }
+/* Long-press sheet under a message. */
+.tm-sheet { flex: 1 1 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding: 8px;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--bg); box-shadow: 0 6px 20px rgba(0, 0, 0, .12); }
+.tm-sheet[hidden] { display: none; }
+.tm-sheet .tm-rx-bar { display: flex; position: static; justify-content: space-between; box-shadow: none; border: none;
+  padding: 0; }
+.tm-sheet .tm-rx-bar::after { display: none; }
+.tm-sheet .tm-rx-pick { width: 44px; height: 44px; font-size: 30px; }
+.tm-sheet-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.tm-sheet-act { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text); font: inherit; font-size: 15px; cursor: pointer; }
+/* Avatar of an assistant is a button: it opens that assistant's settings. */
+.tm-face-btn { flex: none; display: inline-flex; padding: 0; border: none; background: none; border-radius: 50%; cursor: pointer; }
+.tm-face-btn:hover { box-shadow: 0 0 0 2px var(--accent-line); }
+.tm-face-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Message text: the same type and colours as the main chat (style.css .msg-javis .bubble / .msg-user .bubble). The
+   assistant text is wrapped in .msg-javis > .bubble to inherit every markdown rule; only the box of that inner bubble is
+   switched off because .tm-bubble already draws one. */
+.tm-text { font-family: var(--font-chat); font-size: 16px; line-height: 1.55; }
+.tm-mdwrap.msg-javis .bubble { background: none; border: none; padding: 0; border-radius: 0; max-width: none;
+  line-height: 1.65; font-size: 16px; }
+.tm-mdwrap.msg-javis { display: block; }
+.tm-msg-owner .tm-bubble { background: var(--accent-wash-2); }
+.tm-quote { margin: 0 0 6px; padding: 4px 0 4px 10px; border-left: 3px solid var(--accent); color: var(--text2); font-size: 14px;
+  line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow-wrap: anywhere; }
+.tm-quote b { display: block; color: var(--text); font-weight: 600; }
+/* Read-only reaction chips of assistants: small, like the reaction counters of a chat app. */
+.tm-msgs .tm-react-agent { font-size: 13px; padding: 0 8px; border-style: solid; background: var(--bg); }
+.tm-msgs .tm-react-agent .tm-react-emoji { font-size: 14px; margin-right: 3px; }
+@media (hover: hover) { .tm-team-wrap:hover .tm-team-time, .tm-team-wrap.is-menu .tm-team-time { visibility: hidden; } }
 .tm-react-agents { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; flex: 1 1 100%; }
 .tm-react-agents[hidden] { display: none; }
 .tm-react-agent { display: inline-flex; align-items: center; border: 1px dashed var(--border); border-radius: 999px; padding: 1px 10px;
@@ -2695,12 +2749,38 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .tm-composer[hidden] { display: none; }
 .tm-row { display: flex; align-items: flex-end; gap: 6px; }
 .tm-row[hidden] { display: none; }
-.tm-mode { display: inline-flex; align-items: center; gap: 4px; flex: none; height: 40px; padding: 0 12px; border-radius: 20px;
-  border: 1px solid var(--border); background: var(--surface-1); color: var(--text2); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
-.tm-mode[hidden] { display: none; }
-.tm-mode[aria-pressed="true"] { background: var(--accent); color: var(--on-accent, #fff); border-color: var(--accent); }
+/* 0.176.0 composer, the same shape as the main chat: "+" (menu: Assign job, Mention, Search), the input, mic, send. */
+.tm-plus, .tm-mic { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface-1); color: var(--text2); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.tm-plus:hover, .tm-mic:hover { color: var(--text); border-color: var(--accent-line); }
+.tm-plus[aria-expanded="true"] { background: var(--accent-wash); color: var(--accent); border-color: var(--accent-line); }
+.tm-plus:disabled, .tm-mic:disabled { opacity: .45; cursor: default; }
+.tm-mic { border-color: transparent; background: none; }
+.tm-mic.is-rec { background: var(--red, #d64545); color: #fff; border-color: transparent; animation: tm-rec 1.4s ease-in-out infinite; }
+@keyframes tm-rec { 0%, 100% { box-shadow: 0 0 0 0 rgba(214, 69, 69, .45); } 50% { box-shadow: 0 0 0 6px rgba(214, 69, 69, 0); } }
+@media (prefers-reduced-motion: reduce) { .tm-mic.is-rec { animation: none; } }
+.tm-plus-menu { position: absolute; bottom: calc(100% - 4px); left: 10px; z-index: 6; display: flex; flex-direction: column;
+  min-width: 230px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .22); }
+.tm-plus-menu button { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border: none;
+  border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.tm-plus-menu button > span:not(.tm-plus-on) { flex: 1; }
+.tm-plus-menu button:hover, .tm-plus-menu button:focus-visible { background: var(--surface-2); outline: none; }
+.tm-plus-on { display: inline-flex; color: var(--accent); }
+.tm-plus-menu[hidden], .tm-replying[hidden], .tm-jobmode[hidden], .tm-hacts[hidden] { display: none; }
+/* Bars above the input: replying to a message, Assign job on. */
+.tm-replying, .tm-jobmode { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 6px 6px 10px;
+  border-left: 3px solid var(--accent); border-radius: 8px; background: var(--surface-1); color: var(--text2); font-size: 14px; }
+.tm-jobmode { background: var(--accent-wash); color: var(--text); }
+.tm-replying-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tm-replying-main b { color: var(--text); font-weight: 600; }
+.tm-replying-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-bar-x { flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px;
+  border: none; border-radius: 8px; background: none; color: var(--text3); cursor: pointer; }
+.tm-bar-x:hover { background: var(--surface-2); color: var(--text); }
 .tm-input { flex: 1; min-width: 0; resize: none; box-sizing: border-box; min-height: 40px; max-height: 132px; overflow-y: auto;
-  border-radius: 20px; border: 1px solid var(--border); background: var(--bg2); color: var(--text); padding: 9px 14px; font: inherit; line-height: 20px; }
+  border-radius: 20px; border: 1px solid var(--border); background: var(--bg2); color: var(--text); padding: 9px 14px; font: inherit;
+  font-size: 16px; line-height: 20px; }
 /* Chữ gợi ý một dòng: gợi ý xuống dòng làm ô chữ trống cao gấp đôi. */
 .tm-input::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tm-send { flex: none; width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--accent); color: var(--on-accent, #fff);
@@ -2828,24 +2908,17 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .tm-save, .tm-caps-save, .tm-create-save, .tm-new, .tm-more-teams, .tm-older, .tm-rs, .tm-radio { min-height: 44px; }
   .tm-back, .tm-close, .tm-search-btn { min-width: 44px; justify-content: center; }
   .tm-gear { min-width: 44px; }
-  .tm-mode { height: 44px; padding: 0 10px; }
-  .tm-send { width: 44px; height: 44px; }
+  .tm-plus, .tm-mic, .tm-send { width: 44px; height: 44px; }
+  .tm-bar-x { min-width: 44px; min-height: 44px; }
+  .tm-plus-menu button { min-height: 48px; }
   .tm-input { min-height: 44px; padding: 11px 14px; }
   .tm-add select, .tm-add .ws-btn, .tm-field input, .tm-field select { min-height: 44px; }
-  /* Điện thoại: bộ chọn dạng hàng ngang lớn, vùng chạm tối thiểu 44px (spec 14.3). */
-  /* 375px: sáu nút 44px + 5 khe phải lọt bề ngang tin (smoke T2: khe 6px và đệm 10px làm nút cuối tràn mép). */
-  .tm-react-panel { padding: 8px 6px; }
-  .tm-react-row { flex-wrap: nowrap; justify-content: space-between; gap: 4px; }
-  .tm-react-pick { flex: 1 1 0; min-width: 44px; min-height: 48px; font-size: 26px; }
-  .tm-react-btn, .tm-react-chip, .tm-react-reason { min-height: 44px; }
-  .tm-react-btn { min-width: 44px; }
-  /* T2 0.154.0: chữ của bộ chọn, chip và trạng thái 16px trên điện thoại (spec 4.2). */
-  .tm-react-sub, .tm-react-reasons, .tm-react-note, .tm-react-chip, .tm-react-comment { font-size: 16px; }
-  .tm-react-chip { display: inline-flex; align-items: center; }
+  /* 375px: six 44px emoji plus gaps fit the width of the long-press sheet. */
+  .tm-sheet .tm-rx-pick { flex: 1 1 0; min-width: 40px; }
+  .tm-rx-btn { min-width: 32px; height: 32px; }
   .tm-search-btn, .tm-search-go, .tm-search-input, .tm-search-hit, .tm-jump-back { min-height: 44px; }
   /* Trang Nhóm trên điện thoại: bỏ đầu trang chung (danh sách tự có tiêu đề, khung chat có đầu riêng) và ẩn linh vật để
      không che khung soạn. */
-  body.on-teams .cview-head { display: none; }
   body.on-teams #javisPet { display: none; }
 }
 
@@ -3217,6 +3290,22 @@ body.col-resizing { cursor: col-resize; user-select: none; }
   padding: 4px 0; text-decoration: underline; cursor: pointer; color: inherit; }
 
 .tm-proposal-state { font-size: 16px; color: var(--text2); margin-top: 6px; }
+
+/* 0.176.0 (owner, 2026-10-16): the team settings panel read too big. Like the Jobs tab in 0.158.0, the narrow side panel
+   uses 13 to 14px text; touch screens keep their 44px targets. These rules only shrink text INSIDE the panel, the 16px
+   rules above stay for the same parts shown elsewhere (Assistants page). */
+.tm-side { font-size: 14px; }
+.tm-side .tm-react-sub { font-size: 13px; color: var(--text2); }
+.tm-side .tm-adv .tm-field, .tm-side .tm-adv .tm-unl, .tm-side .tm-adv .tm-react-sub, .tm-side .tm-adv .tm-auth-fixed,
+.tm-side .tm-adv .tm-auth-status, .tm-side .tm-adv .tm-auth-pair, .tm-side .tm-adv .tm-sub, .tm-side .tm-adv .tm-note-line,
+.tm-side .tm-limits, .tm-side .tm-limits-head, .tm-side .tm-limits-note, .tm-side .tm-limits-list,
+.tm-side .pulse-panel, .tm-side .pulse-line, .tm-side .pulse-badge, .tm-side .pulse-list, .tm-side .pulse-acts .ws-btn,
+.tm-side .pulse-max select, .tm-side .agj, .tm-side .agj-sub, .tm-side .agj-why, .tm-side .agj-score, .tm-side .agj-excerpt,
+.tm-side .agj-labeled, .tm-side .agj-note, .tm-side .agj-verdict, .tm-side .agj-kind, .tm-side .agj-when, .tm-side .agj-btn,
+.tm-side .lessons-part, .tm-side .lessons-meta, .tm-side .lessons-part .ws-btn, .tm-side .lessons-budget select { font-size: 13.5px; }
+.tm-side .tm-mname { font-size: 14.5px; }
+.tm-side .tm-field, .tm-side .tm-rs, .tm-side .tm-unl { font-size: 13.5px; }
+.tm-side .tmp-badge { font-size: 12.5px; padding: 1px 8px; }
 
 /* Ảnh và file khách gửi trong Hộp thư bot (0.171.0, ht-media.js). Ảnh hiện thẳng, bấm mở cỡ thật ở thẻ mới;
    link ảnh của Zalo hết hạn thì thay bằng một dòng nói rõ, vẫn bấm mở link gốc được. */

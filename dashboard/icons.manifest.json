@@ -72,7 +72,12 @@
       "log-out",
       "eraser",
       "brush-cleaning",
-      "ellipsis-vertical"
+      "ellipsis-vertical",
+      "reply",
+      "thumbs-up",
+      "at-sign",
+      "square",
+      "ellipsis"
     ],
     "dieu-huong": [
       "chevron-down",

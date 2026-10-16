@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.176.0] - 2026-10-16
 ### Cải thiện
-- **Trang Nhóm chat mượt như Zalo:** đang hoàn thiện.
+- **Nhóm chat giống app chat thật:** chữ in đậm, danh sách, màu sắc hiện y như khung Trò chuyện. Bỏ dòng tiêu đề "Nhóm" để khung chat rộng hơn, chữ ở phần cài đặt nhỏ lại cho dễ nhìn.
+- **Trả lời từng tin:** rê chuột vào tin rồi bấm Trả lời (điện thoại thì vuốt tin sang trái). Trả lời tin của trợ lý nào thì đúng trợ lý đó nhận, góp ý thẳng như nhắn tin, không cần chọn lý do.
+- **Thả cảm xúc kiểu Zalo:** tin cuối của trợ lý luôn có sẵn nút Thích, rê vào hiện 6 biểu tượng (điện thoại thì nhấn giữ). Bỏ hẳn bảng lý do và ô góp ý rườm rà.
+- **Khung soạn gọn:** nút **+** chứa Giao việc, Nhắc tên trợ lý, Tìm; thêm **nút mic** nói ra chữ. Nút ⋯ ở mỗi nhóm để Ghim, Đổi tên, Xoá; bấm tên nhóm để đổi tên; bấm ảnh trợ lý để mở cài đặt của trợ lý đó.
 
 ## [0.175.0] - 2026-10-16
 ### Sửa lỗi

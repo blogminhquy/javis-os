@@ -103,26 +103,92 @@
   // Nonce theo thao tác: thử lại sau lỗi mạng gửi đúng nonce cũ, thành công hay lỗi 4xx thì lần sau nonce mới.
   var reactNonces = JR.nonceKeeper(newClientId);
 
-  function reactionChipHtml(m, reaction) {
-    return JR.chipHtml(reaction, { mid: m.id, prefix: "tm" });
+  // 0.176.0 (owner, 2026-10-16): reactions are plain emoji, like Zalo or Messenger. No reasons, no talk/silent axis,
+  // no comment box: to correct an answer the owner REPLIES to that message, which reaches the assistant directly.
+  // The server route still takes reasons/axis/comment (private chat uses them); this page always sends them empty.
+
+  // Six emoji in one floating pill. `open`: shown without hover (long press on a touch screen).
+  function reactBarHtml(m, cur) {
+    return '<div class="tm-rx-bar" role="toolbar" aria-label="' + esc(tw("teams.react")) + '">' + REACTIONS.map(function (r) {
+      var on = cur === r.value;
+      return '<button type="button" class="tm-rx-pick" data-react="' + r.value + '" data-mid="' + esc(m.id) + '" aria-pressed="' +
+        (on ? "true" : "false") + '" aria-label="' + esc(tw(r.key)) + '" title="' + esc(tw(r.key)) + '">' + r.emoji + "</button>";
+    }).join("") + "</div>";
   }
 
-  function pinButtonHtml(m) {
-    return '<button type="button" class="ws-btn tm-pin" data-decision="' + esc(m.id) + '" data-on="1">' + ic("pin") +
-      esc(tw("teams.decision_pin")) + "</button>";
+  // Reaction corner of an assistant bubble: the chosen emoji, or an outline thumbs-up. It always shows on the latest
+  // assistant message (`last`), on others only on hover. Pressing it likes (or removes the reaction already there);
+  // hovering it opens the six emoji.
+  function reactCornerHtml(m, last) {
+    var cur = m.reaction && m.reaction.value && m.reaction.value !== "none" ? m.reaction.value : "";
+    var e = cur ? JR.emojiOf(cur) : null;
+    return '<div class="tm-rx' + (e ? " has" : "") + (last ? " is-last" : "") + '">' +
+      '<button type="button" class="tm-rx-btn" data-rx-toggle="' + esc(m.id) + '" aria-label="' +
+      esc(e ? tw("teams.react_remove", { what: tw(e.key) }) : tw("teams.react.like")) + '" title="' +
+      esc(e ? tw(e.key) : tw("teams.react.like")) + '">' + (e ? '<span class="tm-rx-emoji">' + e.emoji + "</span>" : ic("thumbs-up")) +
+      "</button>" + reactBarHtml(m, cur) + "</div>";
   }
 
-  // `draft`: lý do và góp ý đang soạn dở (giữ qua lần vẽ lại khi có tin mới tới). `pin`: thêm nút Ghim vào bảng.
-  function reactionPickerHtml(m, reaction, draft, pin) {
-    return JR.pickerHtml(m.id, reaction, { prefix: "tm", draft: draft || null, extraHtml: pin ? pinButtonHtml(m) : "" });
+  // Reply, copy and pin next to a bubble, shown on hover (mouse). Touch screens use swipe left (reply) and long press.
+  function hoverActsHtml(m) {
+    var id = esc(m.id);
+    return '<div class="tm-hacts">' +
+      '<button type="button" class="tm-hact" data-reply="' + id + '" aria-label="' + esc(tw("teams.msg_reply")) + '" title="' +
+      esc(tw("teams.msg_reply")) + '">' + ic("reply") + "</button>" +
+      '<button type="button" class="tm-hact" data-copy="' + id + '" aria-label="' + esc(tw("teams.copy")) + '" title="' +
+      esc(tw("teams.copy")) + '">' + ic("copy") + "</button>" +
+      ((m.meta || {}).decision ? "" : '<button type="button" class="tm-hact" data-decision="' + id + '" data-on="1" aria-label="' +
+        esc(tw("teams.decision_pin")) + '" title="' + esc(tw("teams.decision_pin")) + '">' + ic("pin") + "</button>") + "</div>";
   }
 
-  // Bảng của tin do chủ gửi (nhấn giữ hay nút ba chấm): chỉ có Ghim làm quyết định.
-  function ownerPanelHtml(m) {
-    return '<div class="tm-react-panel tm-owner-panel" data-panel="' + esc(m.id) + '" role="dialog" aria-label="' +
-      esc(tw("teams.msg_more")) + '"><div class="tm-actions">' + pinButtonHtml(m) +
-      '<button type="button" class="ws-btn" data-react-close="' + esc(m.id) + '">' + esc(tw("teams.react_close")) +
-      "</button></div></div>";
+  // Long press on a touch screen: emoji row (assistant messages) and Reply / Copy / Pin, right under the message.
+  function sheetHtml(m, mine) {
+    var id = esc(m.id);
+    var cur = m.reaction && m.reaction.value !== "none" ? m.reaction.value : "";
+    var btn = function (attr, icon, key) {
+      return '<button type="button" class="tm-sheet-act" ' + attr + ">" + ic(icon) + "<span>" + esc(tw(key)) + "</span></button>";
+    };
+    return '<div class="tm-sheet" data-panel="' + id + '" role="dialog" aria-label="' + esc(tw("teams.msg_more")) + '">' +
+      (mine ? "" : reactBarHtml(m, cur)) + '<div class="tm-sheet-acts">' +
+      btn('data-reply="' + id + '"', "reply", "teams.msg_reply") + btn('data-copy="' + id + '"', "copy", "teams.copy") +
+      ((m.meta || {}).decision ? "" : btn('data-decision="' + id + '" data-on="1"', "pin", "teams.decision_pin")) +
+      btn('data-react-close="' + id + '"', "x", "teams.close") + "</div></div>";
+  }
+
+  // Message body. Assistant text goes through the main chat's markdown renderer and inherits its look (bold in the
+  // accent colour, lists, code, tables), so the two chats read the same. Owner text stays plain like the main chat's
+  // user bubble, with a reply quote block on top when the message quotes an earlier one.
+  function quoteApi() {
+    if (typeof window !== "undefined" && window.JavisQuote) return window.JavisQuote;
+    try { return require("./chat-quote.js"); } catch (e) { return null; }
+  }
+
+  function quoteHtml(q) {
+    var mm = /^([^:\n]{1,60}):\s+([\s\S]*)$/.exec(q);
+    return '<div class="tm-quote">' + (mm ? "<b>" + esc(mm[1]) + "</b>" + esc(mm[2]) : esc(q)).replace(/\n/g, "<br>") + "</div>";
+  }
+
+  function bodyHtml(m, mine) {
+    var text = String(m.content == null ? "" : m.content);
+    if (mine) {
+      var Q = quoteApi();
+      var t = Q ? Q.tach(text) : { quote: "", rest: text };
+      return (t.quote ? quoteHtml(t.quote) : "") + '<div class="tm-text">' + esc(t.rest).replace(/\n/g, "<br>") + "</div>";
+    }
+    var md = typeof window !== "undefined" && window.mdToHtml;
+    if (md) {
+      try { return '<div class="tm-text msg-javis tm-mdwrap"><div class="bubble">' + md(text, brain()) + "</div></div>"; }
+      catch (e) { /* fall through to plain text */ }
+    }
+    return '<div class="tm-text">' + esc(text).replace(/\n/g, "<br>") + "</div>";
+  }
+
+  // One-line plain preview of a message for the reply bar and the quote: markdown marks and an earlier quote dropped.
+  function plainPreview(text, n) {
+    var Q = quoteApi();
+    var s = String(text == null ? "" : text);
+    if (Q) s = Q.tach(s).rest;
+    return Q ? Q.xemTruoc(s, n || 160) : s.replace(/\s+/g, " ").trim().slice(0, n || 160);
   }
 
   function initial(name) {
@@ -236,31 +302,46 @@
     var last = t.last;
     if (!last || !last.text) return tw("teams.no_messages");
     var who = last.author_kind === "owner" ? tw("teams.you") : last.author_kind === "agent" ? (last.author || "") : "";
-    return (who ? who + ": " : "") + last.text;
+    return (who ? who + ": " : "") + plainPreview(last.text, 120);
   }
 
-  // `menuId`: nhóm đang mở menu Ghim / Bỏ ghim (nhấn giữ trên điện thoại, chuột phải trên máy tính). Mỗi dòng còn có nút
-  // ghim riêng (anh em của nút mở nhóm, không lồng nút), hiện khi rê chuột hay focus.
-  function teamListHtml(teams, activeId, now, menuId) {
+  // Inline name editor (list row and chat header). Enter saves, Escape cancels, leaving the box saves.
+  function renameInputHtml(t) {
+    return '<input class="tm-rename-input" data-rename-for="' + esc(t.team_id) + '" value="' + esc(t.name) + '" maxlength="80" ' +
+      'aria-label="' + esc(tw("teams.rename")) + '" enterkeyhint="done">';
+  }
+
+  // `menuId`: the team whose menu is open (the "..." button, long press on a phone, right click on a computer): Pin or
+  // Unpin, Rename, Delete. `renaming`: the team whose name is being edited in place.
+  function teamListHtml(teams, activeId, now, menuId, renaming) {
     if (!teams || !teams.length) return guideHtml();
     return teams.map(function (t) {
       var on = t.team_id === activeId;
       var last = t.last || {};
       var pinned = !!t.pinned_at;
+      var id = esc(t.team_id);
+      if (renaming === t.team_id) {
+        return '<div class="tm-team-wrap"><div class="tm-team tm-team-edit">' + teamAvatarHtml(t, 44) + renameInputHtml(t) +
+          "</div></div>";
+      }
       var pin = pinned ? '<span class="tm-pinned" title="' + esc(tw("teams.pinned")) + '" aria-label="' +
         esc(tw("teams.pinned")) + '">' + ic("pin") + "</span>" : "";
-      var label = esc(tw(pinned ? "teams.unpin_team" : "teams.pin_team"));
-      var data = 'data-pin-team="' + esc(t.team_id) + '" data-on="' + (pinned ? "0" : "1") + '"';
-      var menu = menuId === t.team_id ? '<div class="tm-row-menu" role="menu" aria-label="' + esc(tw("teams.row_menu")) + '">' +
-        '<button type="button" role="menuitem" ' + data + ">" + ic("pin") + label + "</button></div>" : "";
-      return '<div class="tm-team-wrap"><button type="button" class="tm-team" data-team="' + esc(t.team_id) + '"' +
+      var open = menuId === t.team_id;
+      var menu = open ? '<div class="tm-row-menu" role="menu" aria-label="' + esc(tw("teams.row_menu")) + '">' +
+        '<button type="button" role="menuitem" data-pin-team="' + id + '" data-on="' + (pinned ? "0" : "1") + '">' + ic("pin") +
+        esc(tw(pinned ? "teams.unpin_team" : "teams.pin_team")) + "</button>" +
+        '<button type="button" role="menuitem" data-rename-team="' + id + '">' + ic("pencil") + esc(tw("teams.rename")) + "</button>" +
+        '<button type="button" role="menuitem" class="tm-danger" data-delete-team="' + id + '">' + ic("trash-2") +
+        esc(tw("teams.delete_team")) + "</button></div>" : "";
+      return '<div class="tm-team-wrap' + (open ? " is-menu" : "") + '"><button type="button" class="tm-team" data-team="' + id + '"' +
         (on ? ' aria-current="true"' : "") + ">" +
         teamAvatarHtml(t, 44) + '<span class="tm-team-main"><span class="tm-team-top"><span class="tm-team-name">' + esc(t.name) +
-        '</span><span class="tm-team-time">' + esc(timeShort(last.ts || t.updated_at, now)) + "</span></span>" +
-        '<span class="tm-team-bottom"><span class="tm-team-sub">' + esc(previewText(t)) + "</span>" + teamBadge(t) + pin +
+        "</span>" + pin + '<span class="tm-team-time">' + esc(timeShort(last.ts || t.updated_at, now)) + "</span></span>" +
+        '<span class="tm-team-bottom"><span class="tm-team-sub">' + esc(previewText(t)) + "</span>" + teamBadge(t) +
         "</span></span></button>" +
-        '<button type="button" class="tm-row-pin" ' + data + ' aria-label="' + label + '" title="' + label + '">' + ic("pin") +
-        "</button>" + menu + "</div>";
+        '<button type="button" class="tm-row-more" data-row-menu="' + id + '" aria-haspopup="menu" aria-expanded="' +
+        (open ? "true" : "false") + '" aria-label="' + esc(tw("teams.row_menu")) + '" title="' + esc(tw("teams.row_menu")) + '">' +
+        ic("ellipsis") + "</button>" + menu + "</div>";
     }).join("");
   }
 
@@ -365,7 +446,7 @@
     }
     if (meta.job_result) head.push('<span class="tm-result">' + esc(tw("teams.job_result")) + "</span>");
     var late = !mine && LATE.indexOf(meta.status) >= 0;
-    var body = '<div class="tm-text">' + esc(m.content).replace(/\n/g, "<br>") + "</div>";
+    var body = bodyHtml(m, mine);
     // "Xong" là bình thường nên không hiện; chỉ báo khi câu trả lời KHÔNG được áp dụng.
     var lateLine = late ? '<div class="tm-late">' + ic("triangle-alert") + esc(tw(STATUS_KEY[meta.status])) + "</div>" : "";
     var notes = (meta.notes || []).map(function (n) { return '<div class="tm-note-line">' + esc(n) + "</div>"; }).join("");
@@ -386,33 +467,29 @@
             esc(tw("teams.proposal_create")) + '</button><button type="button" class="ws-btn" data-skip="' + esc(m.id) + '">' +
             esc(tw("teams.proposal_skip")) + "</button></div>") + "</div>";
     }
-    // Quyết định đã ghim: nhãn là nút bỏ ghim. Chưa ghim: nút Ghim nằm trong bảng nhấn giữ / ba chấm.
+    // Pinned decision: the label is the unpin button. Not pinned yet: Pin sits in the hover actions and the long-press sheet.
     var decision = meta.decision ? '<button type="button" class="tm-decision" data-decision="' + esc(m.id) + '" data-on="0" title="' +
       esc(tw("teams.decision_unpin")) + '">' + ic("pin") + esc(tw("teams.decision_pinned")) + "</button>" : "";
-    // Nút mở bảng nằm CẠNH bong bóng (không thêm một hàng dưới mỗi tin); bảng mở ra chiếm trọn bề ngang bên dưới.
-    var foot = decision, panel = "", side;
-    // Reaction của trưởng nhóm, thành viên: chip chỉ đọc có tên agent, tách khỏi chip của chủ (hợp đồng T2 mục 5).
-    var agentChips = JR.agentChipsHtml(m.agent_reactions, { prefix: "tm" });
-    if (mine) {
-      // Tin của chủ đã ghim: bảng của nó chỉ có Ghim nên trống; bỏ nút, bỏ ghim bằng nhãn Quyết định (review T5 I5).
-      side = meta.decision ? "" : '<button type="button" class="tm-more-btn" data-react-open="' + esc(m.id) + '" aria-label="' +
-        esc(tw("teams.msg_more")) + '" title="' + esc(tw("teams.msg_more")) + '">' + ic("ellipsis-vertical") + "</button>";
-      if (open && !meta.decision) panel = ownerPanelHtml(m);
-      foot += agentChips;
-    } else {
-      // Trạng thái do host ghi (Đã nhận, Chờ xem xét...) nằm ngay sau chip của chủ.
-      foot += reactionChipHtml(m, m.reaction) + JR.statusHtml(m.reaction, { prefix: "tm" }) + agentChips;
-      side = '<button type="button" class="tm-react-btn" data-react-open="' + esc(m.id) + '" aria-label="' +
-        esc(tw("teams.react")) + '" title="' + esc(tw("teams.react")) + '">' + ic("smile") + "</button>";
-      if (open) panel = reactionPickerHtml(m, m.reaction, ctx.draft && ctx.draft.mid === m.id ? ctx.draft : null, !meta.decision);
-    }
+    // Reactions of the leader and members: read-only chips with the assistant's name (T2 contract 5).
+    var foot = decision + JR.agentChipsHtml(m.agent_reactions, { prefix: "tm" });
+    var corner = mine ? "" : reactCornerHtml(m, ctx.lastAgent !== undefined && ctx.lastAgent !== null &&
+      Number(ctx.lastAgent) === Number(m.id));
     var cls = "tm-msg" + (mine ? " tm-msg-owner" : " tm-msg-agent") + (late ? " tm-msg-late" : "") +
-      (meta.job_result ? " tm-msg-result" : "") + (hit ? " tm-msg-hit" : "");
+      (meta.job_result ? " tm-msg-result" : "") + (hit ? " tm-msg-hit" : "") + (open ? " is-sheet" : "");
     var bubble = '<div class="tm-bubble">' + (head.length ? '<div class="tm-head">' + head.join("") + "</div>" : "") +
-      body + lateLine + notes + prop + (foot ? '<div class="tm-foot">' + foot + "</div>" : "") + "</div>";
-    var face = mine ? "" : agentAva(author || { name: who }, 28);
+      body + lateLine + notes + prop + (foot ? '<div class="tm-foot">' + foot + "</div>" : "") + corner + "</div>";
+    // The assistant's picture opens that assistant's settings right here (name, role, model, prompt, skills).
+    var face = "";
+    if (!mine) {
+      var slug = author && !author.avatar_seed ? author.slug : "";
+      face = slug ? '<button type="button" class="tm-face-btn" data-agent-edit="' + esc(slug) + '" aria-label="' +
+        esc(tw("teams.agent_settings", { name: who })) + '" title="' + esc(tw("teams.agent_settings", { name: who })) + '">' +
+        agentAva(author, 28) + "</button>" : agentAva(author || { name: who }, 28);
+    }
+    var side = hoverActsHtml(m);
     return '<div class="' + cls + '" data-mid="' + esc(m.id) + '">' +
-      (mine ? side + bubble : face + bubble + side) + panel + "</div>" + (mine ? replyStatusHtml(m, ctx) : "");
+      (mine ? side + bubble : face + bubble + side) + (open ? sheetHtml(m, mine) : "") + "</div>" +
+      (mine ? replyStatusHtml(m, ctx) : "");
   }
 
   // ───────────── việc ─────────────
@@ -698,8 +775,9 @@
         esc(rsText(m.resonance_enabled)) + "</span></label>" +
         '<label class="tm-rs"><input type="checkbox" class="tm-managed-toggle" data-key="' + esc(m.agent_key) + '"' +
         (m.managed ? " checked" : "") + "><span>" + esc(tw("teams.managed")) + "</span></label>" +
-        '<span class="tm-actions">' + (lead
-          ? '<button type="button" class="ws-btn" data-leader="">' + esc(tw("teams.remove_leader")) + "</button>"
+        '<span class="tm-actions">' + (m.slug ? '<button type="button" class="ws-btn" data-agent-edit="' + esc(m.slug) + '">' +
+          ic("settings") + esc(tw("teams.agent_settings_short")) + "</button>" : "") + (lead
+          ?'<button type="button" class="ws-btn" data-leader="">' + esc(tw("teams.remove_leader")) + "</button>"
           : '<button type="button" class="ws-btn" data-leader="' + esc(m.agent_key) + '">' + esc(tw("teams.make_leader")) + "</button>") +
         '<button type="button" class="ws-btn" data-remove="' + esc(m.agent_key) + '">' + esc(tw("teams.remove")) + "</button></span>" +
         // T3: nhịp chủ động của thành viên TRONG nhóm này (agent-pulse.js gắn vào sau khi vẽ).
@@ -782,7 +860,9 @@
       '<label class="tm-field"><span>' + esc(tw("teams.name")) + '</span><input name="tm-set-name" value="' + esc(team.name) + '"></label>' +
       '<label class="tm-field"><span>' + esc(tw("teams.description")) + '</span><textarea name="tm-set-desc" rows="2">' + esc(team.description) + "</textarea></label>" +
       '<div class="tm-field"><span>' + esc(tw("teams.status")) + '</span><div class="tm-radios">' + st + "</div></div>" +
-      '<button type="button" class="ws-btn tm-save">' + esc(tw("teams.save")) + "</button></form>";
+      '<div class="tm-actions"><button type="button" class="ws-btn tm-save">' + esc(tw("teams.save")) + "</button>" +
+      '<button type="button" class="ws-btn tm-danger" data-delete-team="' + esc(team.team_id) + '">' + ic("trash-2") +
+      esc(tw("teams.delete_team")) + "</button></div></form>";
   }
 
   // Các số giới hạn của nhóm (trong Nâng cao). Nút Lưu ở cuối.
@@ -1067,7 +1147,8 @@
       filterTask: "", taskTitles: {}, teamNames: {}, note: "", skipped: {}, picker: null, draft: null,
       focusPicker: false, focusBack: null, searchOpen: false, searchResults: null, searchQuery: "", jumped: null,
       openMember: null, advOpen: false, turns: [], sideOpener: null, rowMenu: null, focusRowMenu: false, swallowClick: false,
-      picked: [], retrying: {}, pickSt: null, pickOpener: null, pickHost: null, roster: [] };
+      picked: [], retrying: {}, pickSt: null, pickOpener: null, pickHost: null, roster: [],
+      renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle" };
   }
 
   function teamUrl(path) { return "/teams/" + q(S.activeId) + (path || ""); }
@@ -1113,7 +1194,9 @@
 
   function drawList() {
     var box = S.el.querySelector(".tm-teams");
-    if (box) box.innerHTML = S.loaded || S.teams.length ? teamListHtml(S.teams, S.activeId, undefined, S.rowMenu) : "";
+    var rd = renameDraft(box);
+    if (box) box.innerHTML = S.loaded || S.teams.length ? teamListHtml(S.teams, S.activeId, undefined, S.rowMenu, S.renaming) : "";
+    if (S.renaming) focusRename(box, rd);
     if (box && S.rowMenu && S.focusRowMenu) {
       S.focusRowMenu = false;
       var item = box.querySelector(".tm-row-menu [role=\"menuitem\"]");
@@ -1134,6 +1217,7 @@
   function drawHead() {
     var head = S.el.querySelector(".tm-chat-head");
     if (!head) return;
+    var rd = renameDraft(head);
     var back = '<button type="button" class="ws-btn tm-back" aria-label="' + esc(tw("teams.back")) + '" title="' +
       esc(tw("teams.back")) + '">' + ic("chevron-left") + "</button>";
     if (!S.team) {
@@ -1143,16 +1227,20 @@
       var t = S.team;
       var lead = headLine(t);
       head.hidden = false;
-      head.innerHTML = back + teamAvatarHtml(t, 36) +
-        '<div class="tm-title"><strong>' + esc(t.name) + '</strong><span class="tm-sub">' + esc(lead) + "</span></div>" +
+      // The name is a button: press it to rename the team in place (the old way hid renaming deep in the settings panel).
+      var title = S.renamingHead ? '<div class="tm-title">' + renameInputHtml(t) + "</div>"
+        : '<button type="button" class="tm-title tm-title-btn" data-rename-head="1" title="' + esc(tw("teams.rename_head")) + '">' +
+          "<strong>" + esc(t.name) + '</strong><span class="tm-sub">' + esc(lead) + "</span></button>";
+      head.innerHTML = back + teamAvatarHtml(t, 36) + title +
         jobsChipHtml(S.queue, S.side && S.tab === "jobs") +
         '<button type="button" class="ws-btn tm-icon tm-search-btn" aria-label="' + esc(tw("teams.search")) + '" title="' +
         esc(tw("teams.search")) + '"' + (S.searchOpen ? ' aria-expanded="true"' : ' aria-expanded="false"') + ">" + ic("search") +
         "</button>" +
         '<button type="button" class="ws-btn tm-icon tm-gear" aria-expanded="' + (S.side && S.tab === "team" ? "true" : "false") +
         '" aria-label="' + esc(tw("teams.settings_btn")) + '" title="' + esc(tw("teams.settings_btn")) + '">' +
-        ic("ellipsis-vertical") + "</button>";
+        ic("settings") + "</button>";
     }
+    if (S.renamingHead) focusRename(head, rd);
     drawSearch();
     var b = S.el.querySelector(".tm-banners");
     if (b) b.innerHTML = S.team ? bannersHtml(S.team, S.teamNames) : "";
@@ -1224,10 +1312,28 @@
     return out;
   }
 
-  function ctx() {
+  function ctx(lastAgent) {
     return { members: S.team ? S.team.members : [], authors: S.team ? S.team.authors : null,
       leaderKey: S.team && S.team.leader_key, taskTitles: S.taskTitles,
-      picker: S.picker, draft: S.draft, jumped: S.jumped, retrying: S.retrying };
+      picker: S.picker, jumped: S.jumped, retrying: S.retrying, lastAgent: lastAgent };
+  }
+
+  // Inline name editor: a redraw (new message, team event) must not wipe what is being typed. Read the box before the
+  // redraw, put the text and the caret back after it.
+  function renameDraft(root) {
+    var inp = root && root.querySelector(".tm-rename-input");
+    return inp ? { v: inp.value, a: inp.selectionStart, b: inp.selectionEnd } : null;
+  }
+  function focusRename(root, draft) {
+    var inp = root && root.querySelector(".tm-rename-input");
+    if (!inp) return;
+    if (draft) inp.value = draft.v;
+    if (inp === document.activeElement) return;
+    try {
+      inp.focus();
+      if (draft && draft.a != null) inp.setSelectionRange(draft.a, draft.b);
+      else inp.setSelectionRange(inp.value.length, inp.value.length);
+    } catch (e) {}
   }
 
   // Lưu công tắc ghim: khoá trong lúc lưu; lưu được thì gọi `done`; HTTP khác 200 hay lỗi mạng thì trả công tắc về trạng
@@ -1253,11 +1359,11 @@
       return;
     }
     var atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
-    // Đang soạn góp ý trong bộ chọn mà có tin mới tới: giữ con trỏ và chỗ cuộn, không kéo xuống cuối (review T2).
-    var act = document.activeElement;
-    var typing = S.picker !== null && act && act.classList && act.classList.contains("tm-react-comment") ?
-      { start: act.selectionStart, end: act.selectionEnd, top: box.scrollTop } : null;
     var list = S.msgs.filter(function (m) { return !S.skipped[m.id]; });
+    // The latest assistant message keeps its Like button visible (like Zalo); older ones show it on hover.
+    var lastAgent = null;
+    for (var li = list.length - 1; li >= 0; li--) if (list[li].author_kind === "agent") { lastAgent = list[li].id; break; }
+    var c = ctx(lastAgent);
     box.innerHTML = (S.jumped !== null && S.jumped !== undefined ? '<div class="tm-jumped">' + esc(tw("teams.search_viewing")) +
       ' <button type="button" class="ws-btn tm-jump-back">' + ic("chevrons-down") + esc(tw("teams.search_back")) +
       "</button></div>" : "") + (S.hasMore ? '<button type="button" class="ws-btn tm-older">' + esc(tw("teams.older")) + "</button>" : "") +
@@ -1265,26 +1371,20 @@
       list.map(function (m) {
         var mm = m;
         if (S.skipped["p" + m.id] && m.meta && m.meta.proposal) mm = Object.assign({}, m, { meta: Object.assign({}, m.meta, { proposal: null }) });
-        return messageHtml(mm, ctx());
+        return messageHtml(mm, c);
       }).join("");
-    if (typing) {
-      box.scrollTop = typing.top;
-      var ta = box.querySelector(".tm-react-comment");
-      if (ta) { ta.focus(); try { ta.setSelectionRange(typing.start, typing.end); } catch (e) {} }
-      return;
-    }
     // Bảng đang "mở" mà không vẽ ra (tin đã đổi, đã ghim): bỏ trạng thái mở, kẻo tin mới không còn tự cuộn xuống.
     if (S.picker !== null && !box.querySelector('[data-panel="' + S.picker + '"]')) S.picker = null;
     if ((stick || atEnd) && S.picker === null) box.scrollTop = box.scrollHeight;
     if (S.focusPicker) {
       // Mở bộ chọn: focus vào nút đầu của bảng (bàn phím và trình đọc màn hình vào được bảng, Escape đóng được).
       S.focusPicker = false;
-      var first = box.querySelector(".tm-react-panel .tm-react-pick") || box.querySelector(".tm-react-panel button");
+      var first = box.querySelector(".tm-sheet .tm-rx-pick") || box.querySelector(".tm-sheet button");
       if (first) first.focus();
     }
     if (S.focusBack !== null && S.focusBack !== undefined) {
-      var back = box.querySelector('.tm-react-btn[data-react-open="' + S.focusBack + '"]') ||
-        box.querySelector('.tm-more-btn[data-react-open="' + S.focusBack + '"]');
+      var back = box.querySelector('.tm-rx-btn[data-rx-toggle="' + S.focusBack + '"]') ||
+        box.querySelector('.tm-hact[data-reply="' + S.focusBack + '"]');
       S.focusBack = null;
       if (back) back.focus();
     }
@@ -1304,15 +1404,19 @@
     box.hidden = !S.team;
     if (box.hidden) { box.innerHTML = ""; return; }
     var old = box.querySelector(".tm-input");
-    var draft = S.pending ? S.pending.text : old ? old.value : "";
+    var draft = S.pending ? (S.pending.typed || S.pending.text) : old ? old.value : "";
     var off = S.team.status === "archived";
     box.innerHTML = '<div class="tm-sug" role="listbox" id="tm-sug" aria-label="' + esc(tw("teams.mention_list")) + '" hidden></div>' +
-      '<div class="tm-calls" hidden></div><div class="tm-hint" hidden></div>' +
-      '<div class="tm-row"><button type="button" class="tm-mode tm-asjob" aria-pressed="' + (S.asJob ? "true" : "false") +
-      '" title="' + esc(tw("teams.as_job_title")) + '"' + (off ? " disabled" : "") + ">" + ic("list-todo") + "<span>" +
-      esc(tw("teams.as_job")) + "</span></button>" +
+      composerTopHtml() + '<div class="tm-calls" hidden></div><div class="tm-hint" hidden></div>' + plusMenuHtml(off) +
+      '<div class="tm-row"><button type="button" class="tm-plus" aria-haspopup="menu" aria-expanded="' +
+      (S.plusOpen ? "true" : "false") + '" aria-label="' + esc(tw("teams.plus")) + '" title="' + esc(tw("teams.plus")) + '"' +
+      (off ? " disabled" : "") + ">" + ic("plus") + "</button>" +
       '<textarea class="tm-input" rows="1" aria-autocomplete="list" aria-controls="tm-sug" placeholder="' + esc(tw(S.asJob ? "teams.placeholder_job" : "teams.placeholder")) + '"' +
       (off ? " disabled" : "") + ">" + esc(draft) + "</textarea>" +
+      '<button type="button" class="tm-mic' + (S.dictState !== "idle" ? " is-rec" : "") + '" aria-pressed="' +
+      (S.dictState === "listening" ? "true" : "false") + '" aria-label="' + esc(tw(S.dictState === "idle" ? "teams.mic" : "teams.mic_stop")) +
+      '" title="' + esc(tw(S.dictState === "idle" ? "teams.mic" : "teams.mic_stop")) + '"' + (off ? " disabled" : "") + ">" +
+      ic(S.dictState === "idle" ? "mic" : "square") + "</button>" +
       '<button type="button" class="tm-send" aria-label="' + esc(tw("teams.send")) + '" title="' + esc(tw("teams.send")) + '">' +
       ic("send") + "</button></div>";
     grow(box.querySelector(".tm-input"));
@@ -1322,6 +1426,193 @@
       var inp = box.querySelector(".tm-input");
       if (inp) { try { inp.focus(); } catch (e) {} }
     }
+  }
+
+  // Bars above the input: the message being replied to, and "this message becomes a job" while that mode is on.
+  function composerTopHtml() {
+    var h = "";
+    if (S.replyTo) {
+      h += '<div class="tm-replying">' + ic("reply") + '<div class="tm-replying-main"><b>' +
+        esc(tw("teams.replying", { name: S.replyTo.who })) + '</b><span class="tm-replying-text">' + esc(S.replyTo.preview) +
+        '</span></div><button type="button" class="tm-bar-x" data-reply-cancel="1" aria-label="' + esc(tw("teams.reply_cancel")) +
+        '" title="' + esc(tw("teams.reply_cancel")) + '">' + ic("x") + "</button></div>";
+    }
+    if (S.asJob) {
+      h += '<div class="tm-jobmode">' + ic("list-todo") + '<span class="tm-replying-main">' + esc(tw("teams.as_job_on")) +
+        '</span><button type="button" class="tm-bar-x tm-asjob" aria-label="' + esc(tw("teams.as_job_off")) + '" title="' +
+        esc(tw("teams.as_job_off")) + '">' + ic("x") + "</button></div>";
+    }
+    return h;
+  }
+
+  // The "+" menu of the composer: Assign as a job (on/off), Mention an assistant, Search this team. Room for more later
+  // without growing the composer row (the old always-visible "Assign job" pill took a third of a phone's width).
+  function plusMenuHtml(off) {
+    if (!S.plusOpen || off) return "";
+    var item = function (attr, icon, label, checked) {
+      return '<button type="button" ' + attr + ">" + ic(icon) + "<span>" + esc(label) + "</span>" +
+        (checked ? '<span class="tm-plus-on">' + ic("check") + "</span>" : "") + "</button>";
+    };
+    return '<div class="tm-plus-menu" role="menu" aria-label="' + esc(tw("teams.plus")) + '">' +
+      item('role="menuitemcheckbox" aria-checked="' + (S.asJob ? "true" : "false") + '" class="tm-asjob" title="' +
+        esc(tw("teams.as_job_title")) + '"', "list-todo", tw("teams.as_job"), S.asJob) +
+      item('role="menuitem" data-insert-at="1"', "at-sign", tw("teams.mention_insert")) +
+      item('role="menuitem" data-plus-search="1"', "search", tw("teams.search")) + "</div>";
+  }
+
+  function setPlus(open) {
+    if (S.plusOpen === open) return;
+    S.plusOpen = open;
+    drawComposer();
+    if (open) {
+      var first = S.el.querySelector(".tm-plus-menu button");
+      if (first) first.focus();
+    }
+  }
+
+  // ───────────── mic: speak, the words land in the input (dictate.js) ─────────────
+
+  function toggleMic() {
+    var D = typeof window !== "undefined" && window.JavisDictate;
+    if (!D) { setNote(tw("teams.mic_unsupported")); return; }
+    if (S.dict && S.dict.active()) { S.dict.stop(); return; }
+    if (S.dictState === "transcribing") return;
+    var input = S.el.querySelector(".tm-input");
+    S.dictBase = input ? input.value : "";
+    var forTeam = S.activeId;
+    S.dict = D.create({
+      onText: function (text) {
+        var inp = S.el.querySelector(".tm-input");
+        if (!inp || S.activeId !== forTeam) return;
+        inp.value = D.joinText(S.dictBase, text);
+        S.pending = null;
+        grow(inp);
+        drawHint();
+      },
+      onState: function (st) {
+        S.dictState = st;
+        if (S.activeId !== forTeam) return;
+        var btn = S.el.querySelector(".tm-mic");
+        if (!btn) return;
+        btn.classList.toggle("is-rec", st !== "idle");
+        btn.setAttribute("aria-pressed", st === "listening" ? "true" : "false");
+        var lab = tw(st === "idle" ? "teams.mic" : st === "transcribing" ? "teams.mic_busy" : "teams.mic_stop");
+        btn.setAttribute("aria-label", lab); btn.title = lab;
+        btn.innerHTML = ic(st === "idle" ? "mic" : st === "transcribing" ? "loader" : "square");
+        if (st === "idle") { var inp = S.el.querySelector(".tm-input"); if (inp) inp.focus(); }
+      },
+      onError: function (code) {
+        setNote(tw(code === "denied" ? "teams.mic_denied" : code === "unsupported" ? "teams.mic_unsupported" : "teams.mic_failed"));
+      }
+    });
+    S.dict.start();
+  }
+
+  function stopMic() {
+    if (S && S.dict && S.dict.active()) S.dict.stop();
+  }
+
+  // ───────────── reply to a message ─────────────
+
+  function startReply(mid) {
+    var m = msgById(Number(mid));
+    if (!m || !S.team) return;
+    var mine = m.author_kind === "owner";
+    var author = mine ? null : (memberOf(S.team.members, m.author_ref) || (S.team.authors || {})[m.author_ref] || null);
+    var who = mine ? tw("teams.owner") : author ? (author.name || author.slug || m.author_ref) : (m.author_ref || tw("teams.system"));
+    // Replying to an assistant also calls that assistant (when nobody else is @-mentioned), so the correction lands
+    // with the one who wrote the answer, like replying to someone in a group chat.
+    var active = author && memberOf(S.team.members, m.author_ref);
+    S.replyTo = { id: Number(m.id), who: who, preview: plainPreview(m.content, 160),
+      quote: who + ": " + plainPreview(m.content, 280),
+      key: !mine && active && (!active.status || active.status === "active") ? m.author_ref : "" };
+    S.picker = null;
+    S.pending = null;
+    var box = S.el.querySelector(".tm-msgs");
+    var atEnd = box && box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+    drawMsgs(false);
+    drawComposer();
+    // The reply bar makes the composer taller: keep the latest message in view when the owner was reading it.
+    if (box && atEnd) box.scrollTop = box.scrollHeight;
+    var inp = S.el.querySelector(".tm-input");
+    if (inp) { try { inp.focus(); } catch (e) {} }
+  }
+
+  function copyMsg(mid) {
+    var m = msgById(Number(mid));
+    if (!m) return;
+    var Q = quoteApi();
+    var text = m.author_kind === "owner" && Q ? Q.tach(m.content).rest : String(m.content || "");
+    var done = function () { setNote(tw("teams.copied")); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { setNote(tw("teams.err_network")); });
+      }
+    } catch (e) { /* old browser: nothing to copy with */ }
+    S.picker = null;
+    drawMsgs(false);
+  }
+
+  // ───────────── rename and delete a team ─────────────
+
+  function teamById(id) {
+    if (S.team && S.team.team_id === id) return S.team;
+    for (var i = 0; i < S.teams.length; i++) if (S.teams[i].team_id === id) return S.teams[i];
+    return null;
+  }
+
+  function saveRename(id, value) {
+    var t = teamById(id);
+    var name = String(value || "").trim();
+    S.renaming = ""; S.renamingHead = false;
+    if (!t || !name || name === t.name) {
+      if (t && !name) setNote(tw("teams.name_empty"));
+      drawList(); drawHead();
+      return;
+    }
+    call("PATCH", "/teams/" + q(id), { name: name }).then(function (r) {
+      if (r.code !== 200) { fail(r); drawList(); drawHead(); return; }
+      S.teams.forEach(function (x) { if (x.team_id === id) x.name = name; });
+      S.teamNames[id] = name;
+      if (S.team && S.team.team_id === id && r.j.team) S.team = r.j.team;
+      drawList(); drawHead();
+      if (S.side) drawSide(true);
+    }, function () { setNote(tw("teams.err_network")); drawList(); drawHead(); });
+  }
+
+  // The server only deletes an archived team, so an active one is archived first, then deleted, after ONE confirmation.
+  function deleteTeam(id) {
+    var t = teamById(id);
+    if (!t) return;
+    if (typeof confirm === "function" && !confirm(tw("teams.delete_confirm", { name: t.name }))) return;
+    var arch = t.status === "archived" ? Promise.resolve({ code: 200, j: {} })
+      : call("PATCH", "/teams/" + q(id), { status: "archived" });
+    arch.then(function (r) {
+      if (r.code !== 200) return fail(r);
+      return call("DELETE", "/teams/" + q(id)).then(function (r2) {
+        if (r2.code !== 200) { fail(r2); loadTeams(false); return; }
+        if (S.activeId === id) {
+          S.activeId = ""; S.team = null; S.queue = null; S.msgs = []; S.view = "list"; S.side = false;
+          S.picker = null; S.picked = []; S.filterTask = ""; S.turns = []; S.replyTo = null;
+        }
+        S.teams = S.teams.filter(function (x) { return x.team_id !== id; });
+        drawAll(false);
+        setNote(tw("teams.deleted", { name: t.name }));
+        loadTeams(false);
+      });
+    }, function () { setNote(tw("teams.err_network")); });
+  }
+
+  // The assistant's own settings (the same editor as the Assistants page), opened over the chat.
+  function openAgentSettings(slug) {
+    if (!slug) return;
+    S.picker = null;
+    var St = typeof window !== "undefined" && window.JavisStudio;
+    if (St && St.editAgent) {
+      St.editAgent({ slug: slug }, { onSaved: function () { loadTeam(); loadMsgs(false); } });
+      return;
+    }
+    if (window.JavisWorkspace && window.JavisWorkspace.openCommand) window.JavisWorkspace.openCommand("agent", slug);
   }
 
   // Khung soạn một dòng, tự cao theo chữ tới khoảng năm dòng rồi cuộn trong.
@@ -1563,6 +1854,8 @@
     S.activeId = id; S.view = "chat"; S.asJob = false; S.pending = null; S.filterTask = String(taskId || "");
     S.team = null; S.queue = null; S.msgs = []; S.taskTitles = {}; S.side = false; S.openMember = null; S.turns = [];
     S.picker = null; S.draft = null; S.picked = []; S.retrying = {};
+    S.replyTo = null; S.plusOpen = false; S.renamingHead = false;
+    stopMic();
     var input = S.el.querySelector(".tm-input");
     if (input) input.value = "";
     setNote("");
@@ -1573,13 +1866,19 @@
   function send() {
     var input = S.el.querySelector(".tm-input");
     if (!input || !S.team) return;
-    var text = input.value.trim();
-    if (!text) return;
-    var scan = mentionScan(text, S.team.members, S.picked);
+    var typed = input.value.trim();
+    if (!typed) return;
+    stopMic();
+    var scan = mentionScan(typed, S.team.members, S.picked);
     if (scan.ambiguous.length) { drawHint(); return; }
     var mentions = scan.keys;
+    // A reply carries the quoted message as a markdown quote on top (the same convention as the main chat, so every
+    // engine reads it and history shows it), and calls the assistant being replied to when nobody is @-mentioned.
+    var Q = quoteApi();
+    var text = S.replyTo && Q ? Q.ghep(S.replyTo.quote, typed) : typed;
+    if (S.replyTo && S.replyTo.key && !mentions.length) mentions = [S.replyTo.key];
     // Gửi lại sau rớt mạng: cùng chữ thì giữ ĐÚNG mã cũ để server trả tin cũ, không thêm lượt.
-    if (!S.pending || S.pending.text !== text) S.pending = { text: text, id: newClientId() };
+    if (!S.pending || S.pending.text !== text) S.pending = { text: text, typed: typed, id: newClientId() };
     var body = { text: text, mentions: mentions, as_job: S.asJob, client_msg_id: S.pending.id };
     var btn = S.el.querySelector(".tm-send");
     if (btn) btn.disabled = true;
@@ -1587,7 +1886,7 @@
     call("POST", teamUrl("/messages"), body).then(function (r) {
       if (S.activeId !== forTeam) return;
       if (r.code !== 200) { fail(r); drawHint(); return; }
-      S.pending = null; S.asJob = false; S.picked = []; input.value = "";
+      S.pending = null; S.asJob = false; S.picked = []; S.replyTo = null; S.plusOpen = false; input.value = "";
       setNote(r.j.notes && r.j.notes.length ? r.j.notes.filter(function (n) { return !/^[a-z_]+$/.test(n); }).join(" · ") : "");
       if ((r.j.notes || []).indexOf("daily_cap") >= 0) setNote(tw("teams.daily_cap"));
       drawComposer();
@@ -1927,8 +2226,64 @@
     if (S.rowMenu && !(e.target.closest && e.target.closest(".tm-row-menu")) && !(t && t.dataset && t.dataset.pinTeam)) {
       if (!(t && t.dataset && t.dataset.team && S.swallowClick)) closeRowMenu();
     }
+    // A press anywhere outside the "+" menu closes it; outside the long-press sheet closes the sheet.
+    var inside = function (sel) { return !!(e.target.closest && e.target.closest(sel)); };
+    if (S.plusOpen && !inside(".tm-plus-menu") && !inside(".tm-plus")) setPlus(false);
+    if (S.picker !== null && !inside(".tm-sheet") && Date.now() - (S.sheetAt || 0) > 600) {
+      S.picker = null;
+      drawMsgs(false);
+    }
     if (!t || !(S.el.contains(t) || (S.pickHost && S.pickHost.contains(t)))) return;
     var d = t.dataset || {};
+    if (d.rowMenu) {
+      if (S.rowMenu === d.rowMenu) return closeRowMenu(true);
+      return openRowMenu(d.rowMenu);
+    }
+    if (d.renameTeam) { S.rowMenu = null; S.renaming = d.renameTeam; drawList(); return; }
+    if (d.deleteTeam) { if (S.rowMenu) closeRowMenu(); return deleteTeam(d.deleteTeam); }
+    if (d.renameHead) { S.renamingHead = true; drawHead(); return; }
+    if (d.agentEdit) return openAgentSettings(d.agentEdit);
+    if (d.rxToggle) {
+      var rm = msgById(Number(d.rxToggle));
+      var rv = rm && rm.reaction && rm.reaction.value && rm.reaction.value !== "none" ? rm.reaction.value : "";
+      return sendReaction(Number(d.rxToggle), rv ? "none" : "like");
+    }
+    if (d.react && d.mid) {
+      var cur = msgById(Number(d.mid));
+      return sendReaction(Number(d.mid), nextReaction(cur && cur.reaction && cur.reaction.value, d.react));
+    }
+    if (d.reply) return startReply(d.reply);
+    if (d.copy) return copyMsg(d.copy);
+    if (d.replyCancel) {
+      S.replyTo = null; S.pending = null; drawComposer();
+      var ri = S.el.querySelector(".tm-input");
+      if (ri) ri.focus();
+      return;
+    }
+    if (t.classList.contains("tm-plus")) return setPlus(!S.plusOpen);
+    if (t.classList.contains("tm-mic")) return toggleMic();
+    if (d.insertAt) {
+      setPlus(false);
+      var ai = S.el.querySelector(".tm-input");
+      if (ai) {
+        var pos = ai.selectionStart != null ? ai.selectionStart : ai.value.length;
+        var pre = ai.value.slice(0, pos);
+        var add = (pre && !/\s$/.test(pre) ? " " : "") + "@";
+        ai.value = pre + add + ai.value.slice(pos);
+        ai.focus();
+        try { ai.setSelectionRange(pos + add.length, pos + add.length); } catch (x) {}
+        grow(ai); suggest(); drawHint();
+      }
+      return;
+    }
+    if (d.plusSearch) {
+      setPlus(false);
+      S.searchOpen = true;
+      drawHead();
+      var ps = S.el.querySelector(".tm-search-input");
+      if (ps) ps.focus();
+      return;
+    }
     // Nhấn giữ vừa mở menu ghim: cú bấm sinh ra lúc nhấc tay không được mở nhóm.
     if (d.team && S.swallowClick) { S.swallowClick = false; return; }
     if (d.pinTeam) {
@@ -1988,10 +2343,10 @@
       S.asJob = !S.asJob;
       // Đổi loại tin là một tin KHÁC: mã client cũ thuộc tin trước, gửi lại bằng nó sẽ được trả tin cũ khác loại.
       S.pending = null;
-      t.setAttribute("aria-pressed", S.asJob ? "true" : "false");
+      S.plusOpen = false;
+      drawComposer();
       var inp = S.el.querySelector(".tm-input");
-      if (inp) { inp.placeholder = tw(S.asJob ? "teams.placeholder_job" : "teams.placeholder"); inp.focus(); }
-      drawHint();
+      if (inp) inp.focus();
       return;
     }
     if (t.classList.contains("tm-send")) return send();
@@ -2010,28 +2365,7 @@
     if (d.jump) return jumpTo(d.jump, d.ts);
     if (t.classList.contains("tm-jump-back")) { S.jumped = null; loadMsgs(false); return; }
     if (t.classList.contains("tm-filter-clear")) { S.filterTask = ""; drawFilterbar(); loadMsgs(false); return; }
-    if (d.reactOpen) {
-      var was = S.picker;
-      S.picker = S.picker === Number(d.reactOpen) ? null : Number(d.reactOpen);
-      S.draft = null;
-      if (S.picker !== null) S.focusPicker = true; else S.focusBack = was;
-      drawMsgs(false);
-      return;
-    }
-    if (d.reactClose) { S.focusBack = S.picker; S.picker = null; S.draft = null; drawMsgs(false); return; }
-    if (d.react) {
-      var cur = msgById(Number(d.mid));
-      var form = panelValues(Number(d.mid), cur);
-      return sendReaction(Number(d.mid), nextReaction(cur && cur.reaction && cur.reaction.value, d.react), form.reasons,
-        form.axis, form.comment);
-    }
-    if (d.reactSave) {
-      var cm = msgById(Number(d.reactSave));
-      var fv = panelValues(Number(d.reactSave), cm);
-      return sendReaction(Number(d.reactSave), (cm && cm.reaction && cm.reaction.value) || "none", fv.reasons, fv.axis,
-        fv.comment);
-    }
-    if (d.reactClear) return sendReaction(Number(d.reactClear), "none", [], "", "");
+    if (d.reactClose) { S.focusBack = S.picker; S.picker = null; drawMsgs(false); return; }
     if ((d.task && t.classList.contains("tm-tag")) || d.viewTask) {
       S.filterTask = d.task || d.viewTask;
       if (d.viewTask && window.matchMedia && window.matchMedia("(max-width: 1060px)").matches) S.side = false;
@@ -2125,12 +2459,6 @@
     return null;
   }
 
-  // Lý do, trục nói/im và góp ý đang soạn trong bảng chọn (chưa lưu thì lấy theo phản hồi đã có).
-  function panelValues(mid, m) {
-    var panel = S.el.querySelector('[data-panel="' + mid + '"]');
-    return JR.readPanel(panel, m && m.reaction, { prefix: "tm" });
-  }
-
   // Thả cảm xúc: chỉ ghi phản hồi (không mở lượt, không gọi model). `seen_sha` là nội dung tin giao diện đang thấy. Nonce
   // giữ theo thao tác (reactNonces): rớt mạng thì Thử lại gửi đúng nonce cũ, server trả trạng thái hiện tại, không ghi trùng.
   function sendReaction(mid, value, reasons, axis, comment) {
@@ -2147,8 +2475,6 @@
       if (m) m.reaction = r.j.reaction || null;
       S.focusBack = S.picker;
       S.picker = null;
-      S.draft = null;
-      setNote(tw("teams.react_saved"));
       drawMsgs(false);
     }, function () {
       reactNonces.settle(key, 0);
@@ -2238,11 +2564,6 @@
       S.pickSt = Object.assign({}, S.pickSt, { leader: e.target.value, leaderTouched: true });
       return;
     }
-    if ((e.target.name === "tm-reason" || /^tm-axis-/.test(e.target.name || "")) && S.picker !== null) {
-      var pv = panelValues(S.picker, msgById(S.picker));
-      S.draft = { mid: S.picker, reasons: pv.reasons, axis: pv.axis, comment: pv.comment };
-      return;
-    }
     if (e.target.name === "tm-level") { setLevel(Number(e.target.value), e.target); return; }
     if (e.target.classList.contains("tm-pin-toggle")) {
       // Ghim nhóm lên đầu danh sách: lưu được thì act() tải lại nhóm và danh sách; lỗi thì công tắc về trạng thái đã lưu,
@@ -2300,7 +2621,24 @@
       return;
     }
     if (e.key === "Escape" && S.rowMenu) { closeRowMenu(true); return; }
-    if (e.key === "Escape" && S.picker !== null) { S.focusBack = S.picker; S.picker = null; S.draft = null; drawMsgs(false); return; }
+    if (e.target.classList && e.target.classList.contains("tm-rename-input")) {
+      if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) {
+        e.preventDefault();
+        saveRename(e.target.getAttribute("data-rename-for"), e.target.value);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        S.renaming = ""; S.renamingHead = false; drawList(); drawHead();
+      }
+      return;
+    }
+    if (e.key === "Escape" && S.plusOpen) { setPlus(false); var pb = S.el.querySelector(".tm-plus"); if (pb) pb.focus(); return; }
+    if (e.key === "Escape" && S.picker !== null) { S.focusBack = S.picker; S.picker = null; drawMsgs(false); return; }
+    if (e.key === "Escape" && S.replyTo && e.target.classList && e.target.classList.contains("tm-input")) {
+      S.replyTo = null; S.pending = null; drawComposer();
+      var ri = S.el.querySelector(".tm-input");
+      if (ri) ri.focus();
+      return;
+    }
     if (e.key === "Escape" && S.side) { closeSide(); return; }
     if (e.target.classList && e.target.classList.contains("tm-input") && e.key === "Enter" && !e.shiftKey && !e.isComposing &&
         e.keyCode !== 229) {
@@ -2317,13 +2655,8 @@
     }
     if (S.pickSt && e.target.classList.contains("tmp-name-input")) { S.pickSt.name = e.target.value; return; }
     if (S.pickSt && e.target.classList.contains("tmp-desc-input")) { S.pickSt.desc = e.target.value; return; }
-    if (e.target.classList.contains("tm-react-comment") && S.picker !== null) {
-      var dv = panelValues(S.picker, msgById(S.picker));
-      S.draft = { mid: S.picker, reasons: dv.reasons, axis: dv.axis, comment: e.target.value };
-      return;
-    }
     if (e.target.classList.contains("tm-input")) {
-      S.pending = S.pending && S.pending.text === e.target.value.trim() ? S.pending : null;
+      S.pending = S.pending && (S.pending.typed || S.pending.text) === e.target.value.trim() ? S.pending : null;
       grow(e.target);
       suggest();
       drawHint();
@@ -2377,7 +2710,7 @@
   function leave() {
     clearTimeout(refreshTimer);
     if (S && S.pickSt) closePicker();
-    if (S) { S.side = false; S.picker = null; }
+    if (S) { S.side = false; S.picker = null; stopMic(); }
   }
 
   function render(el) {
@@ -2387,9 +2720,28 @@
     el.addEventListener("change", onChange);
     el.addEventListener("input", onInput);
     el.addEventListener("keydown", onKey);
-    // Điện thoại: nhấn giữ một tin mở bảng của tin đó (cảm xúc và ghim cho tin trợ lý, ghim cho tin của chủ; spec 14.3).
-    var hold = null, hx = 0, hy = 0, held = false;
+    // Leaving an inline name editor saves it (a redraw that removes the box does not count: the box is gone by then).
+    el.addEventListener("focusout", function (e) {
+      var x = e.target;
+      if (!x.classList || !x.classList.contains("tm-rename-input")) return;
+      setTimeout(function () {
+        if (!x.isConnected || x === document.activeElement) return;
+        if (S.renaming || S.renamingHead) saveRename(x.getAttribute("data-rename-for"), x.value);
+      }, 0);
+    });
+    // Phone: long press a message opens its sheet (emoji for assistant messages, Reply, Copy, Pin); swipe a message to
+    // the left replies to it, like Zalo.
+    var hold = null, hx = 0, hy = 0, held = false, swipe = null;
+    var SWIPE_AT = 60;
     var stopHold = function () { clearTimeout(hold); hold = null; };
+    var endSwipe = function (fire) {
+      if (!swipe) return;
+      var sw = swipe;
+      swipe = null;
+      if (sw.bubble) { sw.bubble.style.transform = ""; sw.bubble.style.transition = ""; }
+      if (sw.el) sw.el.classList.remove("is-swiping", "is-armed");
+      if (fire && sw.dx <= -SWIPE_AT) startReply(sw.mid);
+    };
     el.addEventListener("pointerdown", function (e) {
       S.swallowClick = false;
       if (e.pointerType === "mouse") return;   // chuột đã có nút khi rê; giữ chuột để bôi chữ như thường
@@ -2405,14 +2757,14 @@
         return;
       }
       var msg = e.target.closest && e.target.closest(".tm-msg");
-      if (!msg || e.target.closest("button, a, input, textarea, select")) return;
-      // Tin của chủ đã ghim: bảng của nó trống (bỏ ghim bằng nhãn Quyết định), khỏi mở.
-      if (msg.classList.contains("tm-msg-owner") && msg.querySelector(".tm-decision")) return;
+      if (!msg || e.target.closest("button, a, input, textarea, select, .tm-sheet")) return;
       stopHold();
       hx = e.clientX; hy = e.clientY;
+      swipe = { el: msg, bubble: msg.querySelector(".tm-bubble"), mid: msg.getAttribute("data-mid"), dx: 0, on: false };
       hold = setTimeout(function () {
         hold = null; held = true;
-        S.picker = Number(msg.getAttribute("data-mid")); S.draft = null; S.focusPicker = true; drawMsgs(false);
+        endSwipe(false);
+        S.picker = Number(msg.getAttribute("data-mid")); S.sheetAt = Date.now(); S.focusPicker = true; drawMsgs(false);
       }, 500);
     });
     // Nhấn giữ đã mở bộ chọn: chặn menu ngữ cảnh mặc định của máy chạm (chọn chữ, sao chép) cho lần giữ đó.
@@ -2424,8 +2776,20 @@
     });
     el.addEventListener("pointermove", function (e) {
       if (hold && (Math.abs(e.clientX - hx) > 10 || Math.abs(e.clientY - hy) > 10)) stopHold();
+      if (!swipe) return;
+      var dx = e.clientX - hx, dy = e.clientY - hy;
+      if (!swipe.on) {
+        if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { endSwipe(false); return; }   // scrolling, not swiping
+        if (dx > -12 || Math.abs(dx) <= Math.abs(dy)) return;
+        swipe.on = true;
+        swipe.el.classList.add("is-swiping");
+      }
+      swipe.dx = Math.max(-90, Math.min(0, dx));
+      if (swipe.bubble) swipe.bubble.style.transform = "translateX(" + swipe.dx + "px)";
+      swipe.el.classList.toggle("is-armed", swipe.dx <= -SWIPE_AT);
     });
-    ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { el.addEventListener(n, stopHold); });
+    el.addEventListener("pointerup", function () { stopHold(); endSwipe(true); });
+    ["pointercancel", "pointerleave"].forEach(function (n) { el.addEventListener(n, function () { stopHold(); endSwipe(false); }); });
     drawAll(false);
     loadTeams(false);
   }
@@ -2446,7 +2810,8 @@
     callsHtml: callsHtml, foldName: foldName, emailBefore: emailBefore, composerHint: composerHint, newClientId: newClientId,
     membersHtml: membersHtml, settingsFormHtml: settingsFormHtml, capsFormHtml: capsFormHtml, capsPayload: capsPayload, saveCapsFlow: saveCapsFlow, teamTabHtml: teamTabHtml, limitsHtml: limitsHtml,
     levelOf: levelOf, grantFor: grantFor, teamAvatarHtml: teamAvatarHtml, savePin: savePin, pinTeamWith: pinTeamWith, noteHtml: noteHtml, levelsHtml: levelsHtml, turnsHtml: turnsHtml,
-    bannersHtml: bannersHtml, reactionPickerHtml: reactionPickerHtml, reactionChipHtml: reactionChipHtml,
+    bannersHtml: bannersHtml, reactCornerHtml: reactCornerHtml, reactBarHtml: reactBarHtml, sheetHtml: sheetHtml,
+    hoverActsHtml: hoverActsHtml, bodyHtml: bodyHtml, plainPreview: plainPreview, previewText: previewText,
     nextReaction: nextReaction, REACTIONS: REACTIONS, authorityHtml: authorityHtml, readGrant: readGrant,
     searchResultsHtml: searchResultsHtml, replyStatusHtml: replyStatusHtml, headLine: headLine };
   if (typeof window !== "undefined") window.JavisTeams = api;
