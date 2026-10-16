@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.182.0] - 2026-10-16
+### Sửa lỗi
+- **Điện thoại: khung chat chắc chắn hơn, nút model về chỗ cũ:** đang hoàn thiện.
+
 ## [0.181.1] - 2026-10-16
 ### Cải thiện
 - **Tài liệu cài trên VPS dễ theo hơn:** README, Quick start và hướng dẫn cài server được làm gọn lại, các bản dịch cập nhật theo.
