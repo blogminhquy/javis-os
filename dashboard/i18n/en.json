@@ -4620,5 +4620,7 @@
   "pulse.prop.status.accepted": "Turned into a job",
   "pulse.prop.status.rejected": "Rejected",
   "teams.proposal_accepted": "A job was created from this proposal",
-  "teams.proposal_rejected": "You rejected this proposal"
+  "teams.proposal_rejected": "You rejected this proposal",
+  "ws.system_badge": "System",
+  "ws.core_note": "The system assistant, built into every brain: it cannot be deleted, renamed or edited. Reports without a chat of their own arrive here. Choose its model in the chat box like any chat."
 }

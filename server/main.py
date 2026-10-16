@@ -150,6 +150,7 @@ import agent_tags   # tag của agent (0.100.0): nhiều tag, nhóm cũ thành m
 import cli_autoinstall   # trạng thái agy/grok do container Docker tự cài (0.85.1)
 import agent_assets      # tài liệu & link gắn vào MỘT trợ lý (lưu trong frontmatter agent)
 import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
+import javis_core        # Javis Core (0.185.0): system assistant pinned in every brain
 import chatbot_cuoc_chat  # danh sách cuộc chat cho ô chọn người/nhóm của form bot
 import chatbot_reply_policy        # bộ phán xử hội thoại nhóm (0.65.0): bot tự quyết nói hay im
 import chatbot_reply_policy_store  # kho quyết định, ca đã học, ngưỡng theo cuộc chat
@@ -863,6 +864,15 @@ def _agent_assets_block(brain: str, meta: dict) -> str:
     return ra
 
 
+def _javis_core_block(session_id: str) -> str:
+    """Javis Core's role block when `session_id` is a Javis Core chat, else "" (0.185.0)."""
+    try:
+        row = get_store().get_session(session_id) if session_id else None
+    except Exception:
+        row = None
+    return javis_core.prompt_block() if row and javis_core.is_core_channel(row.get("channel")) else ""
+
+
 def build_system_prompt(brain: str = "brain", include_memory: bool = True,
                         include_skills: bool = True,
                         lang: "lang_mod.LangDecision | str | None" = None,
@@ -902,6 +912,7 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
             base += _session_block(session_id)
         except Exception:
             pass
+        base += _javis_core_block(session_id)
     # Đường dẫn lớp Agentic của vault đang làm việc (để Javis tạo agent/workflow/loop qua chat)
     root = _brain_root(brain)
     system_sync.ensure_synced(root)   # brain nào cũng có đủ năng lực hệ thống (1 lần/process, rẻ)
@@ -6791,6 +6802,8 @@ def agents_index(brain: str, *, kem_prompt: bool = True) -> list:
     """
     out = []
     for f in sorted(_agents_dir(brain).glob("*.md")):
+        if javis_core.is_core_slug(f.stem):
+            continue   # reserved for the system assistant (GET /agents adds it first)
         meta, body = _read_md(f)
         out.append({"slug": f.stem, "name": meta.get("name", f.stem),
                     "role": meta.get("role", ""), "skills": meta.get("skills", []) or [],
@@ -6817,13 +6830,53 @@ def agents_index(brain: str, *, kem_prompt: bool = True) -> list:
 # 12 giây thì trình sửa báo "Không tải được trợ lý này" dù trợ lý vẫn nằm nguyên đó (chủ repo
 # gặp 23/09). `def` thì FastAPI chạy ở threadpool, không phải chờ loop.
 @app.get("/agents")
-def list_agents(brain: str = Query("brain"), prompt: int = Query(1)):
+def list_agents(brain: str = Query("brain"), prompt: int = Query(1), system: int = Query(0)):
     """`prompt=0` = danh sách NHẸ, không kèm system prompt của từng trợ lý.
 
     Mặc định vẫn kèm: một dashboard cũ còn nằm trong cache trình duyệt vẫn đọc `prompt` từ
     đây để đổ vào ô sửa, và trả về rỗng cho nó là bấm Lưu một cái mất trắng prompt.
     """
-    return {"agents": agents_index(brain, kem_prompt=bool(prompt))}
+    ds = agents_index(brain, kem_prompt=bool(prompt))
+    # `system=1` (the Partners page, 0.185.0): Javis Core first. Pickers that need a brain agent FILE (team members,
+    # chatbots, the "/" menu) do not ask for it, so they never offer the system assistant.
+    return {"agents": ([_javis_core_entry(brain)] if system else []) + ds}
+
+
+def _javis_core_entry(brain: str) -> dict:
+    """Javis Core's row for GET /agents: always first, with the system flags (0.185.0)."""
+    try:
+        moc = get_store().moc_cap_nhat_theo_kenh(_brain_keys(brain), "agent:")
+    except Exception:
+        moc = {}
+    e = javis_core.list_entry(moc.get(javis_core.CHANNEL, 0))
+    e["role"] = localefmt.chu(javis_core.definition()["role"], javis_core.definition()["role_en"])
+    e["avatar"] = agent_avatar.for_agent({}, javis_core.SLUG)   # the same stable face in every brain
+    return e
+
+
+def _core_refusal() -> JSONResponse:
+    """The one answer to every attempt to delete, rename, unpin, edit or reuse Javis Core."""
+    return JSONResponse({"ok": False, "code": "system_assistant", "error": localefmt.chu(
+        "Javis Core là trợ lý hệ thống: không xoá, đổi tên, bỏ ghim hay sửa được. Chọn model vẫn được.",
+        "Javis Core is the system assistant: it cannot be deleted, renamed, unpinned or edited. "
+        "Choosing its model still works.")}, status_code=403)
+
+
+@app.post("/javis-core/session")
+def javis_core_session(brain: str = Form("brain")):
+    """This brain's default Javis Core chat, made when missing (deleted or archived ones are not revived)."""
+    sid = javis_core.default_session(get_store(), _brain_key(brain), same_brain=_cung_brain)
+    return {"id": sid, "channel": javis_core.CHANNEL}
+
+
+def _cung_brain(a: str, b: str) -> bool:
+    """Two stored brain keys name the same brain (aliases: "brain", relative or absolute paths)."""
+    if a == b:
+        return True
+    try:
+        return _brain_key(a) == _brain_key(b)
+    except Exception:
+        return False
 
 
 @app.get("/agents/get")
@@ -6833,6 +6886,8 @@ def agent_get(slug: str = Query(...), brain: str = Query("brain")):
     Qua `_agent_md_path` chứ không tự ghép tên file: slug đến từ URL, mà `../../x` ghép thẳng
     vào đường dẫn là đọc được file ngoài thư mục agents.
     """
+    if javis_core.is_core_slug(slug):
+        return {**_javis_core_entry(brain), "prompt": javis_core.definition()["body"]}
     path = _agent_md_path(brain, slug)
     if not path:
         return JSONResponse({"error": localefmt.chu("Không tìm thấy trợ lý", "Assistant not found")}, status_code=404)
@@ -6857,6 +6912,8 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
     # KHÔNG ghi đè agent cũ (trước đây ghi đè âm thầm tên, vai, lời nhắc của người khác); trả 409 kèm gợi ý slug trống.
     creating = not (slug or "").strip()
     slug = slug or _ascii_slug(name)
+    if javis_core.is_core_slug(slug):
+        return _core_refusal()
     skills_list = [s.strip() for s in re.split(r"[,\n]", skills) if s.strip()]
     # `model_provider` nói RÕ model thuộc nhà nào - cùng một tên model có thể có ở hai nhà
     # (gemini-2.5-pro: Gemini CLI lẫn Gemini API; claude-*: Claude Code lẫn Anthropic API).
@@ -6923,6 +6980,8 @@ async def delete_agent(slug: str = Form(...), brain: str = Form("brain")):
     # slug ghép thẳng vào tên file: phải hợp lệ, không thì `../x` xoá được file ngoài thư mục agents.
     if not skill_router.valid_file_slug(slug):
         return JSONResponse({"ok": False, "error": "slug không hợp lệ"}, status_code=400)
+    if javis_core.is_core_slug(slug):
+        return _core_refusal()
     def _xoa():
         # Tìm và xoá file TRONG khoá ghi agent, ở worker (R5): thao tác tag hay form đang giữ khoá thì xoá
         # đợi nó ghi xong rồi mới xoá; thao tác tới sau thấy file đã mất và không tạo lại. Đợi khoá ở
@@ -6981,6 +7040,10 @@ def _agent_file(brain: str, slug: str):
     dạng tách dấu (NFD), còn slug tới từ trình duyệt là dạng dựng sẵn (NFC), hai chuỗi trông y hệt mà
     so khác nhau."""
     import unicodedata
+    # Javis Core's slug is reserved for the platform definition: a stray `agents/javis-core.md` in a brain
+    # (hand-written, imported, written by a model) is never read, edited or deleted as a brain agent.
+    if javis_core.is_core_slug(slug):
+        return None
     d = _agents_dir(brain)
     for dang in dict.fromkeys((slug, unicodedata.normalize("NFC", slug), unicodedata.normalize("NFD", slug))):
         f = d / f"{dang}.md"
@@ -8731,6 +8794,8 @@ async def capability_meta(kind: str = Form(...), slug: str = Form(...),
     các tag đó trên tập hiện có; `tags` thay cả tập (`[]` = bỏ hết). `group` của client cũ theo luật
     tương thích (agent nhiều tag thì 409, không thay nhiều tag bằng một).
     """
+    if (kind or "").strip() == "agent" and javis_core.is_core_slug(slug):
+        return _core_refusal()
     thu_muc = _META_KIND.get((kind or "").strip())
     if not thu_muc:
         return JSONResponse({"ok": False, "error": localefmt.chu("kind phải là agent hoặc workflow", "kind must be agent or workflow")},
@@ -15550,7 +15615,7 @@ async def websocket_endpoint(ws: WebSocket):
                     def _phase8_base(include_memory: bool, include_skills: bool) -> str:
                         return build_adaptive_source_prompt(
                             brain, include_memory=include_memory, include_skills=include_skills
-                        ) + channel_context.build_channel_block(
+                        ) + _javis_core_block(conv_sid or "") + channel_context.build_channel_block(
                             "dashboard", {"session_id": conv_sid},
                             telegram_running=bool(_TG_BOT), port=_javis_port(),
                             brain_root=_brain_root(brain),
@@ -17049,6 +17114,11 @@ def sessions_new(brain: str = Form("brain"), channel: str = Form("web")):
         # với cwd = brain, y như mọi phiên thường.
         sid = get_store().create_session(brain=_brain_key(brain), engine="cli", channel=ch)
         return {"id": sid, "channel": ch}
+    if loai == "agent" and javis_core.is_core_slug(slug):
+        # A further Javis Core chat ("New chat"). Reports keep landing in the brain's default one.
+        sid = get_store().create_session(brain=_brain_key(brain), engine="cli", channel=javis_core.CHANNEL,
+                                         title=javis_core.NAME)
+        return {"id": sid, "channel": javis_core.CHANNEL}
     thu_muc = _agents_dir(brain) if loai == "agent" else _workflows_dir(brain)
     if not (thu_muc / f"{slug}.md").exists():
         return JSONResponse({"error": localefmt.chu(f"{loai} '{slug}' không có trong brain này",
@@ -22722,7 +22792,7 @@ class _TeamAdmin:
             d = _agents_dir(root)
             d.mkdir(parents=True, exist_ok=True)
             slug, n = base, 2
-            while (d / f"{slug}.md").exists():
+            while (d / f"{slug}.md").exists() or javis_core.is_core_slug(slug):
                 slug, n = f"{base}-{n}", n + 1
             meta = {"type": "agent", "name": name, "slug": slug, "role": role, "skills": [],
                     "model": str(model or "").strip(), "updated": _today()}

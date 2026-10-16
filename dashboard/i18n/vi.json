@@ -4620,5 +4620,7 @@
   "pulse.prop.status.accepted": "Đã nhận thành việc",
   "pulse.prop.status.rejected": "Đã bác",
   "teams.proposal_accepted": "Đã tạo việc từ đề xuất này",
-  "teams.proposal_rejected": "Bạn đã bác đề xuất này"
+  "teams.proposal_rejected": "Bạn đã bác đề xuất này",
+  "ws.system_badge": "Hệ thống",
+  "ws.core_note": "Trợ lý hệ thống, có sẵn trong mọi brain: không xoá, đổi tên hay sửa được. Báo cáo không có hội thoại riêng sẽ về đây. Chọn model ở khung chat như mọi cuộc trò chuyện."
 }

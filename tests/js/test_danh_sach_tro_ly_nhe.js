@@ -23,7 +23,7 @@ const check = (name, cond) => { console.log((cond ? "ok   " : "FAIL ") + name); 
 
 // ---- 1. Mọi chỗ lấy DANH SÁCH đều xin bản nhẹ ----
 check("workspace.js (cột trái trang Cộng sự) xin prompt=0",
-  /api\("\/agents\?brain=" \+ b \+ "&prompt=0"\)/.test(WS));
+  /api\("\/agents\?brain=" \+ b \+ "&prompt=0&system=1"\)/.test(WS));   // 0.185.0: + Javis Core first
 check("studio.js loadAgents (lưới thẻ) xin prompt=0",
   /\/agents\?brain=\$\{encodeURIComponent\(brain\(\)\)\}&prompt=0`\);\s*\n\s*_agState\.agents/.test(ST));
 check("studio.js editWorkflow (ô chọn agent của từng bước) xin prompt=0",

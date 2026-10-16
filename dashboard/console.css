@@ -3221,6 +3221,16 @@ span.tmp-lead { cursor: default; }
 .ws-item-text { flex: 1 1 auto; }
 .ws-item-top { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .ws-item-top > strong { flex: 1 1 auto; min-width: 0; }
+/* 0.185.0: Javis Core, the system assistant. A small System badge on its row and on its card; the row keeps the
+   accent edge like a pinned one. */
+.ws-sys { flex: 0 0 auto; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 600; line-height: 1.5;
+  color: var(--accent); background: var(--accent-wash); border: 1px solid var(--accent); }
+.ws-item-wrap.he > .ws-item { border-left: 3px solid var(--accent); border-radius: 9px; }
+.ws-core-card { padding: 4px 2px 12px; }
+.ws-core-head { display: flex; align-items: center; gap: 10px; }
+.ws-core-head h3 { margin: 0; font-size: 16px; }
+.ws-core-card p { margin: 10px 0 0; font-size: 14.5px; line-height: 1.5; }
+.ws-core-card .ws-core-note { color: var(--text2); font-size: 13.5px; }
 .ws-item-time { flex: none; font-size: 14px; color: var(--text3); font-variant-numeric: tabular-nums; }
 @media (max-width: 900px) { .ws-item-time { font-size: 14px; } }
 

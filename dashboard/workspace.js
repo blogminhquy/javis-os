@@ -64,6 +64,9 @@
   // cộng sự ghim mà hai tuần không gọi sẽ tụt xuống cuối và cái ghim thành vô nghĩa.
   function sapXep(ds, khoa) {
     return ds.slice().sort(function (a, b) {
+      // Javis Core (0.185.0, `system`) is always first, ahead of the pinned ones.
+      var sa = a.system ? 1 : 0, sb = b.system ? 1 : 0;
+      if (sa !== sb) return sb - sa;
       var ga = a.pinned ? 1 : 0, gb = b.pinned ? 1 : 0;
       if (ga !== gb) return gb - ga;
       var ma = Number(a[khoa] || 0), mb = Number(b[khoa] || 0);
@@ -108,6 +111,10 @@
   // nằm lẫn giữa danh sách theo giờ chat. Mỗi mục vẫn chỉ hiện một lần.
   function gomNhom(ds, nhomLoc, nhomTrong, can) {
     var ra = [];
+    // Javis Core (0.185.0): its own first block, above "needs you" and the pinned ones, with no heading (the row
+    // carries the System badge).
+    var he = (ds || []).filter(function (x) { return x.system; });
+    if (he.length) { ra.push({ he: true, nhom: "", items: he }); ds = (ds || []).filter(function (x) { return !x.system; }); }
     if (typeof can === "function") {
       var cho = (ds || []).filter(function (x) { return can(x); });
       if (cho.length) { ra.push({ can: true, nhom: "", items: cho }); ds = (ds || []).filter(function (x) { return !can(x); }); }
@@ -405,7 +412,7 @@
     // còn 2.9 KB - 99% số byte là thứ cột trái không bao giờ hiện. Qua mạng nhà, 366 KB là cả
     // giây cột trái trống trơn mỗi lần mở trang (chủ dự án 22/09: mở trang Cộng sự từ linh vật
     // vẫn lag). Prompt của ĐÚNG trợ lý đang sửa do studio.js lấy riêng qua /agents/get.
-    var r = await Promise.all([api("/agents?brain=" + b + "&prompt=0"), api("/workflows?brain=" + b)]);
+    var r = await Promise.all([api("/agents?brain=" + b + "&prompt=0&system=1"), api("/workflows?brain=" + b)]);
     if (lan !== lanDung || b0 !== brain()) return false;
     if (!r[0] || !Array.isArray(r[0].agents) || !r[1] || !Array.isArray(r[1].workflows)) {
       throw new Error((r[0] && r[0].error) || (r[1] && r[1].error) || "list");
@@ -923,7 +930,8 @@
     var can = laTag && S.jc ? function (x) { var c = S.jc[x.slug]; return !!(c && c.needs_you); } : null;
     gomNhom(ds, laTag ? (S.nhom || "*") : S.nhom, trong, can).forEach(function (n) {
       var thu = n.theoNhom && daThu(n.nhom);
-      if (n.can) html += '<div class="ws-glabel ws-glabel-need">' + esc(t("ws.grp_needs")) + '</div>';
+      if (n.he) { /* no heading: the System badge on the row says it */ }
+      else if (n.can) html += '<div class="ws-glabel ws-glabel-need">' + esc(t("ws.grp_needs")) + '</div>';
       else if (n.ghim) html += '<div class="ws-glabel">' + esc(t("ws.grp_pinned")) + '</div>';
       else if (n.theoNhom) html += nhomHtml(n.nhom, n.items.length, thu);
       else if (n.tieuDe) html += '<div class="ws-glabel">' + esc(t("ws.grp_rest")) + '</div>';
@@ -1007,6 +1015,7 @@
     // tay dễ nhầm với dấu ghim) và nhãn Auto nhỏ khi Auto đang bật. Tag không vẽ trên thẻ nữa (đã có ô lọc theo tag ở đầu
     // cột, tên tag vẫn đọc được ở tooltip). Dấu ghim không vẽ: thẻ ghim đã nằm dưới tiêu đề "Đã ghim".
     var laAgent = S.loai === "agent";
+    var he = laAgent && !!x.system;   // Javis Core: no Auto switch, no "..." menu (the server refuses those anyway)
     var tg = laAgent ? tagsCua(x) : [];
     var bd = laAgent && S.jc && window.JavisAgentJobs && window.JavisAgentJobs.badgeHtml
       ? window.JavisAgentJobs.badgeHtml(S.jc[x.slug]) : "";
@@ -1016,22 +1025,23 @@
     var coTt = !!(bd || autoOn || rsLa || (rsRow && S.rsSaving[x.slug]));
     var title = laAgent ? [x.name, x.role || ""].concat(tg.length ? [t("ws.tags_aria") + ": " + tg.join(", ")] : [])
       .filter(Boolean).join("\n") : "";
-    return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + (coTt ? " co-tt" : "") + '">' +
+    return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + (he ? " he" : "") + (coTt ? " co-tt" : "") + '">' +
       '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '"' +
         (title ? ' title="' + esc(title) + '"' : "") + '>' +
       '<span class="ws-item-ic">' + (laAgent ? avatar(x, 40)
         : (chay ? ic("loader", { cls: "ic-spin", title: t("ws.running") }) : ic("workflow"))) + '</span>' +
       '<span class="ws-item-text"><span class="ws-item-top"><strong>' + esc(x.name) + '</strong>' +
+      (he ? '<span class="ws-sys">' + esc(t("ws.system_badge")) + '</span>' : "") +
       (laAgent ? gioNhanHtml(x.last_chat_at) : "") + '</span>' +
       '<small>' + esc(phu) + '</small>' +
       (coTt ? '<span class="ws-item-tt">' + bd + '</span>' : "") + '</span>' +
       '</button>' +
       // Công tắc Auto của trợ lý (0.142.0, trước là Cộng hưởng): ngang hàng với hai nút (không lồng trong nút chọn mục),
       // CSS đặt nó BÊN TRONG thẻ, cùng hàng với tag, bên phải (nhìn là biết thuộc trợ lý nào).
-      (S.loai === "agent" && window.JavisResonanceAgent
+      (S.loai === "agent" && !he && window.JavisResonanceAgent
         ? window.JavisResonanceAgent.rowToggleHtml(S.rs[x.slug], { saving: !!S.rsSaving[x.slug] }) : "") +
-      '<button type="button" class="ws-item-more" data-more="' + esc(x.slug) + '" title="' +
-        esc(t("ws.manage")) + '" aria-label="' + esc(t("ws.manage")) + '">' + ic("ellipsis-vertical") + '</button>' +
+      (he ? "" : '<button type="button" class="ws-item-more" data-more="' + esc(x.slug) + '" title="' +
+        esc(t("ws.manage")) + '" aria-label="' + esc(t("ws.manage")) + '">' + ic("ellipsis-vertical") + '</button>') +
       '</div>';
   }
   // Nối dây cho các nút vừa vẽ. Gọi lại sau MỖI lần vẽ: innerHTML mới là node mới, handler cũ
@@ -1406,6 +1416,12 @@
     try {
       vePhai(item);
       var b = encodeURIComponent(brain()), ch = kenh(item), id = sidChiDinh || null;
+      if (!id && !moiHan && item.system) {
+        // Javis Core: open the brain's default chat, the one reports land in (the server makes it when missing).
+        var c = await api("/javis-core/session", { method: "POST", body: fd({ brain: brain() }) });
+        if (!still()) return false;
+        id = c && c.id;
+      }
       if (!id && !moiHan) {
         var r = await api("/sessions?brain=" + b + "&channel=" + encodeURIComponent(ch) + "&limit=1");
         if (!still()) return false;
@@ -1627,7 +1643,13 @@
     // khỏi phải nhớ chỗ nào được phép ghi đè chỗ nào không.
     traCayThuMuc();
     if (!item) { host.innerHTML = ""; veLichSu(null); chonTabPhai(tabTheoLoai()); return; }
-    if (S.loai === "agent") {
+    if (S.loai === "agent" && item.system) {
+      // Javis Core (0.185.0): no editor, no Delete, no Auto. The definition ships with the app; the model is chosen in
+      // the chat box like any chat.
+      host.innerHTML = '<div class="ws-core-card"><div class="ws-core-head">' + avatar(item, 40) + '<h3>' + esc(item.name) +
+        '</h3><span class="ws-sys">' + esc(t("ws.system_badge")) + '</span></div><p>' + esc(item.role || "") + '</p>' +
+        '<p class="ws-core-note">' + esc(t("ws.core_note")) + '</p></div>';
+    } else if (S.loai === "agent") {
       // Khối Cộng hưởng (A1) đứng ĐẦU cột phải: công tắc của trợ lý này và các mục tiêu nó đang theo đuổi.
       host.innerHTML = '<div class="rsa-panel" id="wsResonance"></div><div class="rsa-panel pulse-panel" id="wsPulse"></div>' +
         '<div class="ws-rtitle">' + esc(t("ws.agent_settings")) + '</div><div class="ws-form" id="wsAgentForm"></div>' +
@@ -1673,7 +1695,7 @@
   // hiện tại không; "Mở cuộc trò chuyện mới" đi đúng đường mở phiên của trang (moPhien), không tự chuyển phiên cũ.
   function ganCongHuong(item, sid) {
     var host = S.el && S.el.querySelector("#wsResonance");
-    if (!host || !window.JavisResonanceAgent || !item) return;
+    if (!host || !window.JavisResonanceAgent || !item || item.system) return;
     window.JavisResonanceAgent.mount(host, { slug: item.slug,
       sessionId: sid || (window.JavisSessions && window.JavisSessions.current && window.JavisSessions.current()) || "",
       onNewSession: function () { var x = dangChon(); return x ? moPhien(x, true) : false; } });
