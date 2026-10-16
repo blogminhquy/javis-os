@@ -838,8 +838,16 @@ class ClaudeSDK:
             kw["mcp_servers"] = servers
             if strict:
                 kw["strict_mcp_config"] = True
-        if self.disallowed_tools:
-            kw["disallowed_tools"] = list(self.disallowed_tools)
+        _deny = list(self.disallowed_tools or [])
+        # 0.188.0 (Javis Core spec 13, 14): the learning switch is a hard rule for Claude Code too. It writes files
+        # natively (not through the hub), so the memory guard goes in as deny rules on its own tools.
+        try:
+            import memory_control
+            _deny += [r for r in memory_control.claude_deny_rules(self.javis_vault) if r not in _deny]
+        except Exception:
+            pass
+        if _deny:
+            kw["disallowed_tools"] = _deny
         if self.allowed_tools:
             # Chế độ nền an toàn: whitelist auto-allow, MỌI tool khác rơi vào _permission_gate → DENY.
             # KHÔNG nạp settings filesystem: allow-rule trong settings user có thể che gate.

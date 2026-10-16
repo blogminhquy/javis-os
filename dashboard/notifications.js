@@ -171,11 +171,27 @@
   }
   // Bấm một mẩu thư = quay về ĐÚNG hội thoại đã hỏi. Mở hội thoại MỚI ở đây là sai: toàn bộ
   // ngữ cảnh nằm trong hội thoại cũ, hỏi tiếp ở chỗ khác là phải kể lại từ đầu.
+  // 0.188.0 (Javis Core spec 9): an item of another brain switches the dashboard to that brain FIRST (only on this
+  // click, never when a report arrives), so the chat opens in the right brain and what you type goes there.
+  // Returns true when it switched (the caller then waits for the pages to redraw on the new brain).
+  function chuyenBrainNeuCan(item) {
+    var gs = (typeof document !== "undefined" && document.getElementById) ? document.getElementById("graphSource") : null;
+    var v = item && item.brain_ui;
+    if (!gs || !v || gs.value === v) return false;
+    if (!Array.prototype.some.call(gs.options || [], function (o) { return o.value === v; })) return false;
+    gs.value = v;
+    gs.dispatchEvent(new Event("change"));
+    return true;
+  }
   function moThu(item) {
     item.read = true;
     docThu({ id: item.id }).then(render);
     if (!item.session_id) { render(); return; }
     closePanel();
+    if (chuyenBrainNeuCan(item)) { setTimeout(function () { moThuTiep(item); }, 450); return; }
+    moThuTiep(item);
+  }
+  function moThuTiep(item) {
     // Hội thoại của một TRỢ LÝ / QUY TRÌNH phải mở ở trang Cộng sự, không đổ vào khung chat
     // của bộ não chính. Đổ nhầm thì hai chuyện xảy ra cùng lúc: người dùng nhìn một đoạn chat
     // với trợ lý trên màn Javis mà không hiểu vì sao, và phiên đang mở trở thành phiên của

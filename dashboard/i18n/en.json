@@ -4646,5 +4646,8 @@
   "core.profile_hint": "How to address you, language, presentation, level of detail. Javis uses it in every brain; a brain's own memory wins where they differ.",
   "core.profile_ph": "Example: call me Sam, keep answers short, prefer bullet points.",
   "core.saved": "Saved",
-  "core.save_err": "Not saved, try again."
+  "core.save_err": "Not saved, try again.",
+  "app.brain_of_chat": "This chat belongs to brain {name}. Javis answers with that brain.",
+  "app.brain_switch_to": "Switch to {name}",
+  "ach.telegram_owner_auto": "Automatic (only when the list has one ID)"
 }

@@ -6180,7 +6180,8 @@
           <label class="js-lbl" for="${id("allow")}">${esc(lbl("allow"))}</label>
           <input class="js-input" id="${id("allow")}" value="${esc(allowVal)}" placeholder="${esc(window.t(`ach.${def.key}_allow_ph`))}" autocomplete="off" spellcheck="false">
           ${def.key === "telegram" ? `<label class="js-lbl" for="${id("owner")}">${tr("ach.telegram_owner")}</label>
-          <input class="js-input" id="${id("owner")}" value="${esc(c.owner_chat_id || "")}" placeholder="${esc(window.t("ach.telegram_owner_ph"))}" autocomplete="off" spellcheck="false" inputmode="numeric">
+          <select class="js-input" id="${id("owner")}">${[""].concat(String(allowVal || "").split(/[\s,]+/).filter(Boolean)).map(v =>
+            `<option value="${esc(v)}" ${v === (c.owner_chat_id || "") ? "selected" : ""}>${esc(v || window.t("ach.telegram_owner_auto"))}</option>`).join("")}</select>
           <p class="ach-hint">${tr("ach.telegram_owner_hint")}</p>` : ""}
           <div id="${id("cho")}"></div>
         </div>

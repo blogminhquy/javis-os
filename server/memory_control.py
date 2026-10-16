@@ -243,3 +243,56 @@ def profile_block() -> str:
     return ("\n\n# === HỒ SƠ NGƯỜI DÙNG (chung mọi brain, do người dùng tự viết) ===\n"
             "Cách xưng hô, ngôn ngữ, cách trình bày và mức chi tiết người dùng muốn. Bộ nhớ riêng của brain bên dưới "
             "thắng khi hai bên khác nhau.\n" + t) if t else ""
+
+
+# ── 0.188.0: hard block for Claude Code, and a source on every new memory ─────────────────────────────────────────
+
+def claude_deny_rules(vault_root) -> List[str]:
+    """Permission rules for a Claude Code turn in this brain (`disallowed_tools`; deny rules hold even in
+    bypassPermissions). The switch file and the forgotten list are never the model's to write; with learning off
+    nothing under memory/ is. Paths are given both relative to the brain (the turn's cwd) and absolute."""
+    if not vault_root:
+        return []
+    mem = Path(vault_root) / "memory"
+    rels, tools = [], ("Write", "Edit", "MultiEdit", "NotebookEdit")
+    if learning_enabled(mem):
+        rels = [f"memory/{LEARNING}", f"memory/{FORGOTTEN}"]
+    else:
+        rels = ["memory/**"]
+    out = []
+    for r in rels:
+        absolute = "/" + str((Path(vault_root) / r).as_posix()).lstrip("/")
+        for t in tools:
+            out.append(f"{t}({r})")
+            out.append(f"{t}(/{absolute})")   # "//abs/path" = absolute in Claude Code rule syntax
+    return out
+
+
+def stamp_new_facts(mem_dir, *, source: str, since: float) -> List[str]:
+    """Give a source to memories written during a turn that did not record one (spec 12.3): the chat and the date.
+    The model is asked to, but the server makes sure. Returns the slugs it stamped."""
+    facts = Path(mem_dir) / "facts"
+    if not facts.is_dir() or not source:
+        return []
+    done = []
+    for f in facts.glob("*.md"):
+        try:
+            if f.stat().st_mtime < since:
+                continue
+            text = f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        meta, body = _split(text)
+        if meta.get("source") or not body:
+            continue
+        meta["source"] = source[:120]
+        meta.setdefault("status", "confirmed" if meta.get("origin") == "owner-edited" else "")
+        if not meta.get("status"):
+            meta.pop("status", None)
+        with _LOCK:
+            try:
+                f.write_text(_join(meta, body), encoding="utf-8")
+                done.append(f.stem)
+            except OSError:
+                pass
+    return done

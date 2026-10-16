@@ -68,6 +68,32 @@ function stopCurrent() {
   syncActiveUI();
 }
 function handsFreeActive() { return typeof handsFree !== "undefined" && handsFree; }
+// 0.188.0 (Javis Core spec 9): one line in the chat saying the open chat belongs to another brain, with a button to
+// switch the dashboard to it. Javis already answers on that chat's brain (server side); this makes it visible.
+function veNhanBrain(ten, uiVal) {
+  try {
+    const area = document.getElementById("chatArea");
+    if (!area || !ten) return;
+    const cu = area.querySelector(".jv-brain-note");
+    if (cu) cu.remove();
+    const d = document.createElement("div");
+    d.className = "jv-brain-note";
+    d.setAttribute("role", "status");
+    const sp = document.createElement("span");
+    sp.textContent = window.t("app.brain_of_chat", { name: ten });
+    d.appendChild(sp);
+    const gs = document.getElementById("graphSource");
+    if (gs && uiVal && [...gs.options].some(o => o.value === uiVal)) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "jv-brain-note-btn";
+      b.textContent = window.t("app.brain_switch_to", { name: ten });
+      b.onclick = () => { gs.value = uiVal; gs.dispatchEvent(new Event("change")); d.remove(); };
+      d.appendChild(b);
+    }
+    area.insertBefore(d, area.firstChild);
+  } catch (e) {}
+}
 function currentBrainPath() {
   const v = document.getElementById("graphSource").value;
   return v.startsWith("path:") ? v.slice(5) : "brain";
@@ -1149,6 +1175,11 @@ function handleMessage(data) {
     try { window.dispatchEvent(new CustomEvent("javis:resonance-agents-changed")); } catch (e) {}
     return;
   }
+  if (data.type === "brain_follow") {
+    // 0.188.0: the turn ran on the brain this chat belongs to, not the one picked on screen. Say so in the chat.
+    if (isActive) veNhanBrain(data.brain_name || "", data.brain_ui || "");
+    return;
+  }
   if (data.type === "inbox") {
     // Việc nền vừa để lại một mẩu thư → chấm đỏ trên chuông nhảy NGAY, không đợi tải lại
     // trang. Nếu thư thuộc đúng hội thoại đang mở thì coi như đã đọc luôn: người dùng đang
@@ -2029,6 +2060,8 @@ async function openStoredSession(id, stillCurrent) {
       ? { sid: id, brain: sess.brain, ts: ds[0].ts, id: ds[0].id, con: !!sess.has_more, dangTai: false }
       : null;
     datMoiTinCu();
+    // 0.188.0: a chat of another brain (opened from the bell, history, a link) says whose it is.
+    if (sess.brain_ui && sess.brain_ui !== graphSource.value) veNhanBrain(sess.brain_name || "", sess.brain_ui);
     savedSessionId = id;          // lượt gửi tiếp theo → server resume đúng phiên này
     try { if (window.JavisInbox) window.JavisInbox.docPhien(id); } catch (e) {}
     // Phiên này đang generate NỀN → gắn bong bóng SỐNG (kèm phần đã stream) để xem tiếp trực tiếp.

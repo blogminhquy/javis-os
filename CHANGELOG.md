@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.188.0] - 2026-10-16
 ### Sửa lỗi
-- **Javis Core sau rà soát:** đang làm.
+- **Chat luôn chạy đúng brain của nó:** mở một chat của brain khác (từ chuông, lịch sử) rồi nhắn tiếp, Javis giờ trả lời bằng trí nhớ và file của chính brain đó, và khung chat ghi rõ chat thuộc brain nào kèm nút chuyển. Bấm thông báo của brain khác thì dashboard tự chuyển sang brain đó trước.
+- **Javis Core gọn hơn:** vòng chạy trót lọt chỉ nằm ở chuông thông báo, chỉ báo cáo cần bạn ra tay mới vào chat. Báo cáo gửi Telegram của người khác dùng chung bot không còn chép vào Javis Core của bạn.
+- **Tắt tự học là chặn thật với Claude Code:** khi tắt, Claude Code không ghi được gì vào thư mục trí nhớ của brain đó.
+- **Ghi nhớ mới luôn có nguồn:** Javis tự ghi chat và ngày tạo ra ghi nhớ. Ô "Telegram của bạn" giờ là ô chọn từ danh sách ID.
 
 ## [0.187.0] - 2026-10-16
 ### Thêm mới

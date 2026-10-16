@@ -6945,6 +6945,17 @@ def javis_core_session(brain: str = Form("brain")):
     return {"id": sid, "channel": javis_core.CHANNEL}
 
 
+def _brain_ui_value(brain_key: str) -> str:
+    """The value the dashboard's brain picker uses for a stored brain key: "brain" for the default brain,
+    "path:<dir>" for any other (0.188.0)."""
+    try:
+        if _cung_brain(str(brain_key or ""), str(_default_brain_dir())):
+            return "brain"
+    except Exception:
+        pass
+    return f"path:{brain_key}" if brain_key else "brain"
+
+
 def _cung_brain(a: str, b: str) -> bool:
     """Two stored brain keys name the same brain (aliases: "brain", relative or absolute paths)."""
     if a == b:
@@ -11056,7 +11067,7 @@ def _owner_telegram_id() -> str:
     return ids[0] if len(ids) == 1 else ""
 
 
-def _report_route(owner_chat, brain, kind) -> dict:
+def _report_route(owner_chat, brain, kind, quiet=False) -> dict:
     """Where one report goes (0.186.0, Javis Core spec section 6). Pure decision, no sending.
 
     - `web:<sid>` of a chat that still exists: that chat, nothing copied to Javis Core.
@@ -11090,13 +11101,17 @@ def _report_route(owner_chat, brain, kind) -> dict:
         if bk:
             return {"chat": core(), "external": "", "brain": bk, "lost_origin": True}
         return {"chat": "", "external": "", "brain": "", "routing": "lost_origin"}
-    if cid:
-        return {"chat": core(), "external": cid, "brain": bk}
     own = _owner_telegram_id()
+    # 0.188.0: Javis Core is a place to work, not a log. A run that went fine (`quiet`) stays in the bell, where
+    # "Ask Javis Core" can still bring it in; only what needs the owner lands in the chat. A report for an outside
+    # channel is copied in only when that channel is the owner's own, never someone else's who shares the bot.
+    if cid:
+        mine = bool(own) and cid == own
+        return {"chat": core() if (mine and not quiet) else "", "external": cid, "brain": bk}
     if kind == "system":
         return {"chat": "", "external": own, "brain": bk}
     if bk:
-        return {"chat": core(), "external": own, "brain": bk}
+        return {"chat": "" if quiet else core(), "external": own, "brain": bk}
     return {"chat": "", "external": "", "brain": "", "routing": "no_target"}
 
 
@@ -11133,7 +11148,7 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
     Trả (ok, error). `ok` là ĐÃ TỚI ĐƯỢC NGƯỜI DÙNG, và hòm thư tính là tới: nó nằm ở
     server, còn sau F5, thấy được từ máy khác. Nhờ vậy một cái nhắc hẹn trên máy chưa đấu
     Telegram không còn bị ghi là "failed" trong khi nội dung đang nằm sẵn trong hòm."""
-    route = _report_route(owner_chat, brain, kind)
+    route = _report_route(owner_chat, brain, kind, quiet=quiet)
     chat = route.get("chat") or ""
     vao_hom = await _bo_vao_hom_thu(f"{WEB_CHAT_PREFIX}{chat}" if chat else "", text, kind=kind, label=label,
                                     source=source, quiet=quiet, brain=route.get("brain") or "", dedup=dedup,
@@ -13876,7 +13891,12 @@ async def javis_core_cite(payload: dict = Body(None)):
 # ============================================
 @app.get("/inbox")
 async def inbox_list(limit: int = 50):
-    return {"items": inbox.danh_sach(limit), "unread": inbox.so_chua_doc(),
+    items = inbox.danh_sach(limit)
+    for it in items:
+        # 0.188.0: opening an item first switches the dashboard to the brain it belongs to.
+        if it.get("brain"):
+            it["brain_ui"] = _brain_ui_value(it["brain"])
+    return {"items": items, "unread": inbox.so_chua_doc(),
             "push": {"supported": True, "subs": webpush.so_sub()}}
 
 
@@ -15037,6 +15057,12 @@ async def _persist_turn(store, conv_sid, brain, user_message, final_text):
         print(f"[turn_saved] {type(_e).__name__}: {_e}", file=sys.stderr)
     store.auto_title(conv_sid, user_message)
     log_conversation(brain, user_message, clean)
+    # 0.188.0 (spec 12.3): a memory the model wrote during this turn without a source gets one: this chat, today.
+    try:
+        memory_control.stamp_new_facts(_brain_memory_dir(brain), since=time.time() - 1800,
+                                       source=f"chat {time.strftime('%Y-%m-%d')} ({str(conv_sid)[:8]})")
+    except Exception as _e:  # noqa: BLE001
+        print(f"[memory stamp] {type(_e).__name__}: {_e}", file=sys.stderr)
     # Rewire: đưa lượt vào hàng đợi học. `enqueue` chỉ đọc config + cộng bộ đếm dưới khoá
     # (mẻ học thật chạy ở `learn_feature.tick`), nên await thẳng - rẻ hơn một lần ghi file
     # log ngay trên. Trước đây dùng create_task: task mồ côi, không ai chờ, nuốt lỗi im.
@@ -16992,6 +17018,17 @@ async def websocket_endpoint(ws: WebSocket):
             # của phiên, không phải từ mặc định chung - nhãn sai là clear_codex_thread_id
             # dọn nhầm/không dọn mạch native khi đổi engine.
             _prow = store.get_session(payload.get("session_id") or "") or {}
+            # 0.188.0 (Javis Core spec 9): a chat belongs to ONE brain. A turn in a chat of brain B sent while brain A
+            # is picked on screen (opened from the bell, a link, another tab) runs on brain B: B's memory, files and
+            # tools. The dashboard is told, so it can say so and switch.
+            if _prow.get("brain") and not _cung_brain(str(_prow["brain"]), _brain_key(brain)):
+                brain = str(_prow["brain"])
+                try:
+                    await send_client({"type": "brain_follow", "session_id": _prow.get("id") or "",
+                                       "brain_ui": _brain_ui_value(brain),
+                                       "brain_name": Path(_brain_root(brain)).name})
+                except Exception:
+                    pass
             prov, kind, api_key, api_model = _chat_provider_for_session(mcfg, _prow)
             engine_label = ("codex" if prov == "openai-oauth"
                             else "grok-cli" if prov == "grok-cli"
@@ -17433,6 +17470,13 @@ def sessions_get(session_id: str, limit: int = Query(0)):
     else:
         sess["messages"] = store.get_messages(session_id)
     _gan_reaction(store, session_id, sess["messages"])
+    # 0.188.0: which brain this chat belongs to, in the picker's terms, so the dashboard can say so (and switch).
+    if sess.get("brain"):
+        sess["brain_ui"] = _brain_ui_value(sess["brain"])
+        try:
+            sess["brain_name"] = Path(_brain_root(sess["brain"])).name
+        except Exception:
+            sess["brain_name"] = ""
     return sess
 
 

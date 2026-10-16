@@ -4646,5 +4646,8 @@
   "core.profile_hint": "Cách xưng hô, ngôn ngữ, cách trình bày, mức chi tiết bạn muốn. Javis dùng ở mọi brain; ghi nhớ riêng của từng brain thắng khi khác nhau.",
   "core.profile_ph": "Ví dụ: xưng bạn/mình, trả lời ngắn gọn, ưu tiên gạch đầu dòng.",
   "core.saved": "Đã lưu",
-  "core.save_err": "Chưa lưu được, thử lại."
+  "core.save_err": "Chưa lưu được, thử lại.",
+  "app.brain_of_chat": "Cuộc chat này thuộc brain {name}. Javis trả lời theo brain đó.",
+  "app.brain_switch_to": "Chuyển sang {name}",
+  "ach.telegram_owner_auto": "Tự động (chỉ khi danh sách có một ID)"
 }

@@ -8,6 +8,7 @@ brain, nhận báo cáo đúng người, hỗ trợ trao đổi tiếp và thíc
 | 0.185.0 | Javis Core: định nghĩa chung, ghim, khoá ở máy chủ, chat mặc định mỗi brain |
 | 0.186.0 | Định tuyến báo cáo về Javis Core, bỏ mọi kiểu gửi đoán |
 | 0.187.0 | Tin hệ thống (đã đọc ở máy chủ, hỏi Javis Core), thông báo đẩy theo đăng nhập, kiểm soát trí nhớ |
+| 0.188.0 | Sau rà soát: lượt chat theo brain của chat, Javis Core gọn hơn, chặn cứng ghi trí nhớ cho Claude Code, máy chủ tự ghi nguồn ghi nhớ |
 
 ## 1. Kiến trúc tìm thấy khi rà soát (trước 0.185.0)
 
@@ -99,10 +100,21 @@ Mỗi dòng là một phép kiểm có thật trong test (chạy `python tests/p
   ở `_brain_root`, ánh xạ Telegram ID → người. Đây là dự án riêng, cần chủ repo quyết.
 - **Mọi ID trong danh sách Telegram được phép vẫn là "chủ"** khi chat (như trước). 0.186.0 chỉ ngừng GỬI báo cáo
   không đích cho họ.
-- **Claude Code ghi file trực tiếp** (không qua tool của hub) nên chốt "tắt tự học" ở tầng file không chặn được
-  đường đó; model được dặn bằng khối "GHI NHỚ MỚI ĐANG TẮT". Các engine API đi qua hub thì bị chặn thật.
+- **Tắt tự học chặn cứng ở hai đường:** tool ghi file của hub (engine API) và luật từ chối `Write/Edit/MultiEdit/
+  NotebookEdit(memory/**)` cho Claude Code (0.188.0, giữ hiệu lực cả khi bypassPermissions). Chưa chặn: lệnh Bash
+  của Claude Code tự ghi file, và tool file riêng của Codex, Grok, Antigravity; các đường này chỉ có lời dặn
+  "GHI NHỚ MỚI ĐANG TẮT" trong prompt.
 - **Quên có giới hạn:** brain lưu bằng git (tự học dùng git commit) vẫn còn bản cũ trong lịch sử git; bản sao lưu
   làm trước đó cũng vậy. Màn hình nói rõ điều này trước khi quên.
 - **Hồ sơ người dùng do người dùng tự viết.** Javis không tự suy diễn tính cách hay ghi vào hồ sơ này.
-- Ghi nhớ mới vẫn theo định dạng cũ (`type/created/updated`); các trường `source`, `status`, `scope` được hiển thị
-  khi có nhưng chưa bắt buộc ở mọi đường ghi.
+- Từ 0.188.0 ghi nhớ model viết trong một lượt chat mà thiếu `source` được máy chủ tự gắn "chat <ngày> (<mã chat>)".
+  `status` (xác nhận hay suy luận) và `scope` vẫn chỉ có khi đường ghi tự điền.
+
+## 7. Bổ sung 0.188.0 (sau rà soát)
+
+- **Lượt chat theo brain của chat** (spec 9): mở chat của brain B khi đang chọn brain A thì lượt chạy trên B (máy chủ
+  đổi brain theo phiên và báo `brain_follow`); chat hiện dòng "thuộc brain B" kèm nút chuyển; bấm thông báo của brain
+  khác thì dashboard chuyển brain TRƯỚC rồi mới mở. Báo cáo đến thì không tự chuyển gì.
+- **Javis Core gọn hơn:** vòng chạy trót lọt (`quiet`) chỉ ở chuông (nút "Hỏi Javis Core" vẫn đưa vào được); báo cáo
+  gửi Telegram chỉ chép vào Javis Core khi đó là Telegram của chính chủ.
+- **Ô "Telegram của bạn"** là ô chọn từ danh sách ID được phép.

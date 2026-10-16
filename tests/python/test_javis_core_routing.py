@@ -108,8 +108,15 @@ set_tg("111")
 rt = main._report_route("", "", "system")
 check("a system notice: the bell plus the owner's own Telegram, no chat", rt["chat"] == "" and rt["external"] == "111")
 rt = main._report_route("777", str(A), "answer")
-check("an outside target keeps its channel and also lands in Javis Core on the dashboard",
-      rt["external"] == "777" and rt["chat"] == core_a)
+check("0.188.0: someone else's outside chat keeps its channel and is NOT copied into the owner's Javis Core",
+      rt["external"] == "777" and rt["chat"] == "")
+rt = main._report_route("111", str(A), "answer")
+check("the owner's own Telegram: also in Javis Core on the dashboard", rt["external"] == "111" and rt["chat"] == core_a)
+rt = main._report_route("111", str(A), "answer", quiet=True)
+check("0.188.0: a run that went fine stays out of the Javis Core chat", rt["external"] == "111" and rt["chat"] == "")
+rt = main._report_route("", str(A), "report", quiet=True)
+check("0.188.0: an untargeted run that went fine: bell (and owner's Telegram) only, not the chat, not an error",
+      rt["chat"] == "" and rt["external"] == "111" and not rt.get("routing") and rt["brain"] == KA)
 
 # ---- 3. end to end through _notify_owner ----
 main._gui_qua_kenh = fake_channel

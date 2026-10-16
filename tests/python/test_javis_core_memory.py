@@ -113,11 +113,16 @@ try:
 finally:
     main.agent_lessons.record_self_lessons = orig
 check("off: an agent's JAVIS_LESSON is stripped from the answer and not stored", calls == [] and "JAVIS_LESSON" not in out, (calls, out))
-hub = (ROOT / "server" / "mcp_hub.py").read_text(encoding="utf-8")
-check("off: the model's file tool refuses to write under memory/",
-      "not memory_control.learning_enabled(mem)" in hub and "người dùng đã TẮT việc lưu ghi nhớ mới" in hub)
-check("the model can never write the switch or the forgotten list",
-      "rp.name in (memory_control.LEARNING, memory_control.FORGOTTEN)" in hub)
+import mcp_hub  # noqa: E402
+_tools, _route = mcp_hub._builtin_tools("full", str(B))
+_write = _route["javis_write_file"]["call"]
+_r1 = asyncio.new_event_loop().run_until_complete(_write({"path": "memory/facts/moi.md", "content": "x"}))
+check("off: the model's file tool refuses to write under memory/ (called for real)",
+      _r1.startswith("ERROR") and not (mem / "facts" / "moi.md").exists(), _r1)
+_r2 = asyncio.new_event_loop().run_until_complete(_write({"path": "notes/ok.md", "content": "y"}))
+check("off: writing elsewhere in the brain still works", not _r2.startswith("ERROR") and (B / "notes" / "ok.md").exists(), _r2)
+_r3 = asyncio.new_event_loop().run_until_complete(_write({"path": "memory/learning.json", "content": '{"enabled": true}'}))
+check("the model can never write the switch file", _r3.startswith("ERROR") and MC.learning_enabled(mem) is False, _r3)
 client.post("/memory/learning", json={"brain": str(B), "enabled": True})
 check("on again", MC.learning_enabled(mem) is True)
 
