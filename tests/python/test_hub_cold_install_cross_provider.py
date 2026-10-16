@@ -56,7 +56,7 @@ def check(name, cond, detail=""):
 
 CONN = {"id": "slowsrc", "connector_id": "custom", "label": "slow source", "slug": "slowsrc",
         "namespace": "slowsrc", "transport": "stdio", "url": "", "command": sys.executable,
-        "args": [HELPER, "--delay", "2.0", "--marker", str(MARKER)], "headers": {}, "env": {},
+        "args": [HELPER, "--delay", "8.0", "--marker", str(MARKER)], "headers": {}, "env": {},
         "internal": "", "secrets": {}, "config": {}, "perm": "readonly", "deny_tools": [],
         "is_default": True, "enabled": True, "auth": None, "connector": {}}
 mcp_store.resolved = lambda enabled_only=True, *a, **k: [dict(CONN)]
@@ -156,10 +156,14 @@ async def main():
         # A connection edit elsewhere while the source is still downloading (Connections page,
         # pack install): the download must survive it. Closing it once its handshake is over is
         # intended (the edit may concern it) and covered by test_mcp_cold_install_not_killed.
-        mcp_hub.invalidate_cache()
-        await asyncio.sleep(0.5)
         # Read with getattr so this file still runs (and turns red) on a tree without the fix.
         starting = getattr(mcp_client.pool, "is_starting_key", lambda key: False)
+        # Precondition, not a result: the edit must land while the source is still downloading.
+        # The 8 s download leaves room for a slow, loaded CI box; if even that ran out, say so.
+        check("precondition: the source is still downloading when the connection edit lands",
+              not glob.glob(str(MARKER / "ready.*")), glob.glob(str(MARKER / "ready.*")))
+        mcp_hub.invalidate_cache()
+        await asyncio.sleep(0.5)
         check("a connection edit (invalidate_cache) does not kill the downloading source",
               len(spawns()) == 1 and alive(pid_of(spawns()[0])) and starting("slowsrc"), spawns())
         while starting("slowsrc"):
@@ -169,7 +173,7 @@ async def main():
         before_up = len(spawns())
 
         # --- The download is over: each engine's own cache entry expires, they ask again ---
-        deadline = time.time() + 10
+        deadline = time.time() + 30
         results = {}
         while time.time() < deadline:
             mcp_hub._cache.clear()           # the cache TTL running out, without closing sessions

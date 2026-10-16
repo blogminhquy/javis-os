@@ -60,7 +60,8 @@ def conn(i, marker, delay, *extra):
 
 
 def markers(marker, kind):
-    return sorted(glob.glob(os.path.join(str(marker), f"{kind}.*")))
+    """Marker files in creation order (pid order breaks when the pid gains a digit)."""
+    return sorted(glob.glob(os.path.join(str(marker), f"{kind}.*")), key=os.path.getmtime)
 
 
 def alive(pid):
@@ -77,6 +78,17 @@ def alive(pid):
 
 def pid_of(path):
     return int(path.rsplit(".", 1)[1])
+
+
+async def wait_until(pred, timeout=10.0, step=0.1):
+    """Poll for something that must happen. A fixed short sleep turned red on a loaded CI box:
+    a fresh Python process can need more than a second just to start."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if pred():
+            return True
+        await asyncio.sleep(step)
+    return bool(pred())
 
 
 async def scenario_warmup_and_chat_turn():
@@ -138,7 +150,7 @@ async def scenario_stuck_request_still_discarded():
     await mcp_client.pool._get(spec)[1].ensure_init()      # handshake done
     skipped = set()
     tools, _ = await mcp_client.discover_resolved([c], bo_qua=skipped)
-    await asyncio.sleep(0.5)
+    await wait_until(lambda: not alive(pid_of(markers(marker, "started")[0])), timeout=10)
     started = markers(marker, "started")
     check("stuck in tools/list after the handshake: still skipped", tools == [] and skipped == {"cold3"},
           (tools, skipped))
@@ -176,6 +188,7 @@ async def scenario_handshake_still_bounded():
         await asyncio.wait_for(sess.ensure_init(), timeout=0.3)
     except (asyncio.TimeoutError, TimeoutError):
         pass
+    await wait_until(lambda: len(markers(marker, "started")) == 2)
     check("the next attempt starts a fresh process", len(markers(marker, "started")) == 2,
           markers(marker, "started"))
     os.environ.pop("JAVIS_MCP_INIT_TIMEOUT", None)
@@ -191,10 +204,13 @@ async def scenario_hung_at_startup_not_kept_forever():
     os.environ["JAVIS_MCP_INIT_TIMEOUT"] = "1"
     os.environ["JAVIS_MCP_DISCOVER_TIMEOUT"] = "0.3"
     spec = mcp_client._conn_spec(c)
-    deadline = time.time() + 4.5
+    deadline = time.time() + 20
     while time.time() < deadline:
         await mcp_client.discover_resolved([c])
         await asyncio.sleep(0.4)
+        done = markers(marker, "started")
+        if len(done) >= 2 and all(not alive(pid_of(p)) for p in done[:-1]):
+            break
     started = markers(marker, "started")
     check("a server hung at startup is replaced after its handshake budget (not kept for good)",
           len(started) >= 2 and all(not alive(pid_of(p)) for p in started[:-1]), started)
@@ -225,11 +241,12 @@ async def scenario_deferred_invalidation():
     first = markers(marker, "started")
     check("connection edit during the download: the downloading process is not killed",
           len(first) == 1 and alive(pid_of(first[0])), first)
-    await asyncio.sleep(1.5)
+    await wait_until(lambda: len(markers(marker, "ready")) == 1 and not mcp_client.pool.is_starting_key("cold7")
+                     if hasattr(mcp_client.pool, "is_starting_key") else len(markers(marker, "ready")) == 1)
     check("it finished its handshake (its install completed)", len(markers(marker, "ready")) == 1,
           markers(marker, "ready"))
     tools = await mcp_client.pool.list_tools(spec)
-    await asyncio.sleep(0.3)
+    await wait_until(lambda: len(markers(marker, "started")) == 2 and not alive(pid_of(markers(marker, "started")[0])))
     started = markers(marker, "started")
     check("then the next use runs on a fresh process (the edit applies)",
           len(started) == 2 and not alive(pid_of(started[0])) and [t["name"] for t in tools] == ["echo"],

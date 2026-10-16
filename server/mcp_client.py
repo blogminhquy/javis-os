@@ -580,6 +580,10 @@ class SessionPool:
     def __init__(self):
         self._sessions = {}   # key -> {"obj", "hash", "last"}
         self._down = {}       # key -> (thời điểm, spec hash, lỗi): nguồn vừa KHỞI ĐỘNG hỏng, xem `call_tool`
+        # key -> why the last handshake failed. Kept here, not only on the session: `_retry` replaces
+        # a session whose handshake failed under a waiter, and the new one must not read as a first
+        # start. Cleared by the next successful tools/list.
+        self._init_errors = {}
 
     def _close_later(self, obj):
         try:
@@ -670,9 +674,10 @@ class SessionPool:
         return bool(callable(starting) and starting())
 
     def init_error(self, spec) -> str:
-        """Why the last handshake of this spec's session failed, "" if none did."""
-        ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
-        return str(getattr((ent or {}).get("obj"), "last_init_error", "") or "")
+        """Why the last handshake for this spec failed, "" if none did since the last success."""
+        key = spec.get("key") or _spec_hash(spec)
+        own = str(getattr((self._sessions.get(key) or {}).get("obj"), "last_init_error", "") or "")
+        return own or str(self._init_errors.get(key) or "")
 
     def invalidate(self, key, defer_if_starting=False):
         """Close the session under `key`. With `defer_if_starting`, a session still in its
@@ -740,6 +745,8 @@ class SessionPool:
             # callers share one handshake task, so they fail together, and the first one's retry
             # has already put a fresh session (often mid-install) under that key.
             if (self._sessions.get(key) or {}).get("obj") is sess:
+                if getattr(sess, "last_init_error", ""):
+                    self._init_errors[key] = sess.last_init_error
                 self.invalidate(key)
             if not (idempotent or self._pre_send_error(e)):
                 raise
@@ -759,6 +766,7 @@ class SessionPool:
         tools = await self._retry(spec, lambda s: s.list_tools(), idempotent=True)
         # Dò được là nguồn đã sống lại (nút Kiểm tra, vòng quét sức khoẻ): bỏ dấu "vừa hỏng" ngay.
         self._down.pop(spec.get("key") or _spec_hash(spec), None)
+        self._init_errors.pop(spec.get("key") or _spec_hash(spec), None)
         # Nhớ lại để vòng dò sau còn thứ mà dùng khi phiên đang bận (xem `tool_da_biet`).
         ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
         if ent is not None and tools:
