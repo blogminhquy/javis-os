@@ -6,6 +6,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.191.0] - 2026-10-16
+### Thêm mới
+- **Team gửi được file và ghim thư mục làm việc:** nút **+** trong khung chat Team có thêm **Đính kèm file hoặc ảnh** và **Ghim thư mục làm việc**. File chữ (.md, .txt, PDF, Word...) cả team đọc được nội dung; thư mục ghim hiện thành cây thư mục cho cả team biết dự án gồm gì.
+- **Bảng thông tin Team:** bấm ảnh Team ở góc trên trái để xem thành viên, thư mục làm việc, ảnh, file và link đã gửi trong Team. Thêm file, dán link hay gỡ đi ngay ở đó.
+
+### Sửa lỗi
+- **Ghim thư mục con:** trong ô ghim thư mục, thư mục nào có thư mục con thì có dấu **>**. Bấm dấu để đi vào trong, bấm tên để ghim đúng thư mục đó.
+
 ## [0.190.0] - 2026-10-16
 ### Cải thiện
 - **Cài đặt gọn như app quen dùng:** cột Cài đặt của cộng sự chỉ còn ảnh, tên, mô tả, hướng dẫn, tài liệu, kỹ năng, model. Bài học, Thu hồi, Dùng ở mọi nơi và mục Trí nhớ của Javis Core không còn nữa: muốn sửa hay quên gì, bạn cứ nhắn trong chat, ví dụ "quên chuyện kênh bán đi".
