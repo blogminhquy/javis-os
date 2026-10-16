@@ -10,7 +10,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Thêm mới
 - **Nhập tin cũ của Zalo cá nhân vào Hộp thư:** mới đăng nhập Zalo vào Javis thì bấm **Nhập tin cũ** (trên thẻ tài khoản Zalo, hoặc bấm vào ô Zalo trên thẻ bot). Javis lấy khoảng 2 tuần tin gần nhất mà Zalo cho tải lại, tối đa 5.000 tin.
 - **An toàn khi nhập:** chỉ nhập vào cuộc chat chưa có tin trong Hộp thư, bot không trả lời các tin này và chúng không tính là chưa đọc. Bấm lại nhiều lần không bị trùng.
-- (đang viết)
+
 ## [0.173.1] - 2026-10-16
 ### Cải thiện
 - **/goal rõ ràng hơn:** mỗi lần Javis tự nhắc làm tiếp hiện một dòng gập mở được (vòng n/5), kèm nút Tắt mục tiêu, và vẫn còn sau khi tải lại trang.

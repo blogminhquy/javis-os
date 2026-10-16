@@ -12,7 +12,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ### Added
 - **Import old personal Zalo messages into the Inbox:** right after signing Zalo in to Javis, press **Import old messages** (on the Zalo account card, or on the Zalo chip of a bot card). Javis takes about the last 2 weeks Zalo lets it reload, up to 5,000 messages.
 - **Safe to run:** only chats with no message in the Inbox yet are filled, the bot does not answer these messages and they are not counted as unread. Pressing again never duplicates anything.
-- (in progress)
+
 ## [0.173.1] - 2026-10-16
 ### Improved
 - **Clearer /goal:** every time Javis nudges itself to keep going you see a line you can expand (round n/5) with a Stop goal button, and it survives a page reload.
