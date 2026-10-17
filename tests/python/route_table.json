@@ -4898,5 +4898,15 @@
    "GET"
   ],
   "trong": null
+ },
+ {
+  "order": 492,
+  "type": "APIRoute",
+  "path": "/health/loop",
+  "name": "health_loop",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
  }
 ]

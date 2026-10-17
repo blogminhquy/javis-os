@@ -890,7 +890,10 @@ class ClaudeSDK:
         tran_init = ap_tran_khoi_dong()
         self._stderr_tail.clear()   # chỉ giữ dòng của lượt này
         loop = asyncio.get_running_loop()
-        options = self._options()
+        # Off the event loop (0.194.0): building options reads the MCP config, loads every plugin (imports their code
+        # the first time) and writes the prompt file. On the loop that froze every open page for as long as it took
+        # (loop_watch caught it). `to_thread` copies the turn's context variables, so the per-turn hub key still lands.
+        options = await asyncio.to_thread(self._options)
         completion = _CompletionWatch(RESULT_IDLE if getattr(options, "include_hook_events", False) else None)
         client = ClaudeSDKClient(options=options)
         started = time.time()

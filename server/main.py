@@ -15192,7 +15192,12 @@ async def websocket_endpoint(ws: WebSocket):
             except Exception:
                 pass
 
-    _CHAT_RUNTIME.add_client(client_id, send_client)
+    def _drop_client():
+        # The runtime gave up on this page (its sends were stuck, chat_runtime.STUCK_S): close the socket so the page
+        # reconnects and resyncs from `hello` instead of hanging on a half-dead connection.
+        asyncio.ensure_future(_real_ws.close(code=1011))
+
+    _CHAT_RUNTIME.add_client(client_id, send_client, _drop_client)
     await send_client({
         "type": "hello",
         "stop_tag": conn_tag,
@@ -24851,3 +24856,24 @@ async def share_chat_of(session_id: str = Query(...)):
     """Hội thoại này đã có link chưa? Nút Chia sẻ trong khung chat hỏi câu này."""
     ban = share_store.cua_hoi_thoai(session_id)
     return {"ok": True, "share": ({"token": ban["token"], "path": "/s/" + ban["token"]} if ban else None)}
+
+
+# ── Event loop watchdog (0.194.0, owner 17/10/2026: "Mất kết nối tới máy chủ" more and more often) ──
+# Synchronous work on the event loop freezes every socket at once; the watchdog names the code (loop_watch.py).
+import loop_watch  # noqa: E402
+
+
+@app.on_event("startup")
+async def _start_loop_watch():
+    loop_watch.start(state_dir=str(cfgmod.STATE_DIR))
+
+
+@app.on_event("shutdown")
+async def _stop_loop_watch():
+    loop_watch.stop()
+
+
+@app.get("/health/loop")
+async def health_loop():
+    """Recent event-loop freezes with the stack where the loop was stuck (loop_watch). Read only."""
+    return loop_watch.report()

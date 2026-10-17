@@ -932,6 +932,12 @@ function connect() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   ws = new WebSocket(WS_URL);
   _wsLastFrameAt = Date.now(); _wsPingAt = 0;
+  // 0.194.0: a handshake that hangs (server busy, a proxy holding the request) used to leave the page "reconnecting"
+  // for minutes, since nothing retried a socket stuck in CONNECTING. Give it WS_MO_MS, then close it: onclose retries.
+  const dangMo = ws;
+  setTimeout(() => {
+    if (dangMo === ws && dangMo.readyState === WebSocket.CONNECTING) { try { dangMo.close(); } catch (e) {} }
+  }, WS_MO_MS);
   // Mất socket là trạng thái THẬT người dùng cần thấy ("ĐANG KẾT NỐI LẠI"), không phải đoán.
   ws.onclose = () => {
     try { runActions(turn.wsDown()); } catch (e) {}
@@ -952,7 +958,9 @@ function connect() {
 // Im quá WS_IM_MS thì hỏi server một tiếng; không ai đáp trong WS_PONG_MS là socket chết thật:
 // bỏ nó, nối socket mới. Lời chào "hello" của socket mới đồng bộ lại lượt đang chạy và câu trả lời
 // đã xong trong lúc đứt.
-const WS_IM_MS = 30000, WS_PONG_MS = 10000;
+// 0.194.0: pong wait 10s -> 20s. A server busy for a few seconds answers late, and dropping a live socket then only
+// adds a reconnect on top of the wait.
+const WS_IM_MS = 30000, WS_PONG_MS = 20000, WS_MO_MS = 10000;
 let _wsLastFrameAt = 0, _wsPingAt = 0;
 function _dropDeadSocket() {
   const cu = ws;

@@ -6,11 +6,30 @@ vì vậy đóng/F5 tab không được phép huỷ job đang chạy.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from collections import deque
+from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Dict, Optional
 
 
 Writer = Callable[[dict], Awaitable[None]]
+
+# Fan-out to open pages (0.194.0). Before, `publish` awaited EVERY page's send. A page whose socket died without closing
+# (phone asleep, Wi-Fi gone, a tab the browser froze) blocks its send until TCP gives up, and with it the running turn
+# and every other page. Now a send that takes longer than SEND_WAIT_S keeps going in the background, later events for
+# that page wait in its own backlog (order kept), and a page stuck past STUCK_S or BACKLOG_MAX events is dropped: its
+# socket is closed and the page reconnects and resyncs from `hello`.
+SEND_WAIT_S = 2.0
+STUCK_S = 20.0
+BACKLOG_MAX = 500
+
+
+@dataclass
+class _Client:
+    writer: Writer
+    on_drop: Optional[Callable[[], None]] = None
+    pending: Optional[asyncio.Future] = None
+    since: float = 0.0
+    backlog: deque = field(default_factory=deque)
 
 
 @dataclass
@@ -26,14 +45,45 @@ class ChatRuntime:
     """Registry in-memory cho job chat và các kết nối đang xem."""
 
     def __init__(self) -> None:
-        self._clients: Dict[str, Writer] = {}
+        self._clients: Dict[str, _Client] = {}
         self._jobs: Dict[str, ChatJob] = {}
 
-    def add_client(self, client_id: str, writer: Writer) -> None:
-        self._clients[client_id] = writer
+    def add_client(self, client_id: str, writer: Writer, on_drop: Optional[Callable[[], None]] = None) -> None:
+        """`on_drop()` closes the page's socket when the runtime gives up on it (stuck sends)."""
+        self._clients[client_id] = _Client(writer, on_drop)
 
     def remove_client(self, client_id: str) -> None:
-        self._clients.pop(client_id, None)
+        c = self._clients.pop(client_id, None)
+        if c is not None:
+            c.backlog.clear()
+            if c.pending is not None and not c.pending.done():
+                c.pending.cancel()
+
+    def _drop(self, client_id: str, c: _Client) -> None:
+        if self._clients.get(client_id) is not c:
+            return
+        self.remove_client(client_id)
+        if c.on_drop is not None:
+            try:
+                c.on_drop()
+            except Exception:  # noqa: BLE001 - the page is gone either way
+                pass
+
+    def _send(self, client_id: str, c: _Client, event: dict) -> asyncio.Future:
+        loop = asyncio.get_running_loop()
+        fut = asyncio.ensure_future(c.writer(event))
+        c.pending, c.since = fut, loop.time()
+
+        def _next(f: asyncio.Future, cid=client_id, cl=c) -> None:
+            if not f.cancelled():
+                f.exception()   # retrieved: a dead socket's error must not be logged as "never retrieved"
+            if self._clients.get(cid) is not cl or cl.pending is not f:
+                return
+            cl.pending = None
+            if cl.backlog:
+                self._send(cid, cl, cl.backlog.popleft())
+        fut.add_done_callback(_next)
+        return fut
 
     def register_job(self, session_id: str, task: asyncio.Task, tag: str,
                      runtime_task_id: str = "", runtime_step_id: str = "") -> None:
@@ -99,7 +149,20 @@ class ChatRuntime:
             elif kind == "response":
                 job.text = str(event.get("content") or job.text)
 
-        writers = list(self._clients.values())
-        if writers:
-            await asyncio.gather(*(writer(event) for writer in writers),
-                                 return_exceptions=True)
+        if not self._clients:
+            return
+        now = asyncio.get_running_loop().time()
+        sends = []
+        for cid, c in list(self._clients.items()):
+            if c.pending is not None or c.backlog:
+                # This page is still busy with an earlier event (`pending` clears only once the next one is taken
+                # from the backlog, so order holds): queue behind it, or give up on it.
+                if (not c.pending.done() and now - c.since > STUCK_S) or len(c.backlog) >= BACKLOG_MAX:
+                    self._drop(cid, c)
+                else:
+                    c.backlog.append(event)
+                continue
+            sends.append(self._send(cid, c, event))
+        if sends:
+            # Healthy pages finish well inside the wait, so a caller still sees its event delivered when this returns.
+            await asyncio.wait(sends, timeout=SEND_WAIT_S)
