@@ -70,6 +70,8 @@ BOT_COMMANDS = [
 ]
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+# 0.202.0: audio (voice notes) goes as sendAudio so Telegram shows a player instead of a file.
+AUDIO_EXTS = {".mp3", ".m4a"}
 MAX_DOC_MB = 50     # trần sendDocument của bot API
 MAX_PHOTO_MB = 10   # trần sendPhoto
 MAX_DOWNLOAD_MB = 20  # bot API chỉ cho TẢI VỀ file ≤ 20MB
@@ -387,6 +389,13 @@ class TelegramBot(HangLuot):
                     except Exception:
                         pass
                     # ảnh bị từ chối (kích thước/định dạng lạ) → rơi xuống gửi dạng document
+                elif p.suffix.lower() in AUDIO_EXTS:
+                    r = await client.post(self._url("sendAudio"), data=data, files={"audio": (p.name, content)})
+                    try:
+                        if r.json().get("ok"):
+                            return True, ""
+                    except Exception:
+                        pass
                 r = await client.post(self._url("sendDocument"), data=data,
                                       files={"document": (p.name, content)})
                 d = {}

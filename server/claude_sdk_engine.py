@@ -19,6 +19,7 @@ quyền enforce PER-CALL bằng callback can_use_tool - tool ngoài whitelist b�
 từng lần gọi (kể cả Bash/Write builtin) + ghi audit, thay vì chỉ dựa --allowedTools tĩnh.
 """
 import asyncio
+import re
 import collections
 import fnmatch
 import json
@@ -859,6 +860,68 @@ class ClaudeSDK:
             # Parity CLI: nạp settings máy (ambient MCP, CLAUDE.md, config user) như claude -p vẫn làm
             kw["setting_sources"] = ["user", "project", "local"]
         return ClaudeAgentOptions(**kw)
+
+    async def warm_ping(self, timeout_s: float = 120.0) -> dict:
+        """One tool-less request forked from this chat's Claude session, so the provider re-reads the cached prefix and
+        keeps it alive (0.202.0, cache_keepwarm.py; design from Cache Tax via OpenMausBot). Same options as the chat
+        turn, so the prefix is byte-identical; `fork_session` plus `--no-session-persistence` keep the conversation
+        untouched; every tool call is denied and one turn is allowed. Never raises.
+        Returns {ok, cache_read, cache_write, output} or {ok: False, reason, limit?}."""
+        if not self.session_id:
+            return {"ok": False, "reason": "no Claude session yet"}
+        if not self.is_available():
+            return {"ok": False, "reason": "claude-agent-sdk not ready"}
+        try:
+            from claude_cli import co_co
+            if not co_co("--no-session-persistence") or not co_co("--fork-session"):
+                return {"ok": False, "reason": "this claude version cannot fork a session without saving it"}
+            from claude_agent_sdk import ClaudeSDKClient, ResultMessage, PermissionResultDeny
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "reason": f"{type(e).__name__}: {e}"}
+
+        async def _deny(tool_name, input_data, context):
+            return PermissionResultDeny(message="Javis keep-warm ping: no tools")
+
+        client = None
+        try:
+            opts = await asyncio.to_thread(self._options)
+            opts.resume = self.session_id
+            opts.fork_session = True
+            extra = dict(getattr(opts, "extra_args", None) or {})
+            extra["no-session-persistence"] = None
+            opts.extra_args = extra
+            opts.can_use_tool = _deny
+            opts.max_turns = 1
+            client = ClaudeSDKClient(options=opts)
+
+            async def _run():
+                await client.connect()
+                await client.query("Reply with the single word: warm")
+                async for msg in client.receive_response():
+                    if isinstance(msg, ResultMessage):
+                        return msg
+                return None
+
+            msg = await asyncio.wait_for(_run(), timeout=timeout_s)
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "reason": f"{type(e).__name__}: {str(e)[:200]}"}
+        finally:
+            if client is not None:
+                try:
+                    await client.disconnect()
+                except Exception:
+                    pass
+            self._cleanup_tmp()
+        if msg is None:
+            return {"ok": False, "reason": "no result"}
+        text = str(getattr(msg, "result", "") or "")
+        if getattr(msg, "is_error", False):
+            limited = bool(re.search(r"usage limit|limit reached|hết lượt|rate limit", text, re.I))
+            return {"ok": False, "reason": text[:200] or "API error", "limit": limited}
+        u = getattr(msg, "usage", None) or {}
+        return {"ok": True, "cache_read": int(u.get("cache_read_input_tokens") or 0),
+                "cache_write": int(u.get("cache_creation_input_tokens") or 0),
+                "output": int(u.get("output_tokens") or 0)}
 
     async def query(self, prompt):
         if not self.is_available():

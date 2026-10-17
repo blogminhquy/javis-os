@@ -477,6 +477,16 @@ Cards are drawn from data inside the answer, so reopening the chat shows them ag
 
 Start a new chat that refers to an old one ("carry on with the fish sauce landing page from last time") and Javis searches your other chats in this brain and adds up to 3 short excerpts to the question for context. Only the owner's chats are searched (the main chat, chats with partners, Javis Core); team chats, chatbots and customer conversations never feed it. The excerpts are not saved in the chat history. To turn it off, set `recall.enabled` to `false` in the settings.
 
+## Voice notes
+
+Ask Javis to "read it to me", "send a voice note", or say you would rather hear a report than read it, and Javis calls the `javis_voice_note` tool: a short spoken message (up to 1000 characters) is saved as an mp3 in the brain's `attachments/voice/`. The chat shows a player next to the link, Telegram receives it as audio, and Javis still writes the words as text below. The voice is a free Edge voice picked by the language of the text.
+
+Reminders also have a **Read it aloud** box: at the set time, the reminder or the report arrives with a voice note.
+
+## Keep the prompt cache warm (Claude Code, Pro/Max plan)
+
+A Pro/Max plan keeps Claude Code's prompt cache for one hour. After a longer break, the next message reloads the whole conversation, which costs a lot of allowance on a long chat. On the **Token usage** page, the budget section has a **Keep the prompt cache warm** box: with it on, about 50 minutes after the last message Javis sends one tiny request (no tools, nothing written to the conversation) that keeps the cache for another hour. It only runs within 2 hours of the last message, never while the chat is answering, and stops at once when the plan reports a usage limit or the cache has gone cold. It is still background use of the plan, so it is off by default.
+
 ## Using it on a phone
 
 Below 860px wide, the interface changes to fit the screen:

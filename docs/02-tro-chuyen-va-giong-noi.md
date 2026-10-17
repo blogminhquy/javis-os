@@ -494,6 +494,16 @@ Thẻ vẽ từ dữ liệu trong câu trả lời nên mở lại hội thoại
 
 Mở chat mới mà nhắc chuyện cũ ("làm tiếp landing page nước mắm hôm trước"), Javis tự tìm trong các chat khác của chính bạn ở brain này và đưa tối đa 3 đoạn trích ngắn vào kèm câu hỏi để hiểu ngữ cảnh. Chỉ chat của chủ (khung chính, chat với cộng sự, Javis Core) được tìm; chat Team, chatbot và hội thoại với khách không bao giờ được đưa vào. Đoạn trích không lưu vào lịch sử chat. Muốn tắt thì đặt `recall.enabled` thành `false` trong cài đặt.
 
+## Tin thoại
+
+Bảo Javis "đọc cho tôi nghe", "gửi tin thoại" hay muốn nghe báo cáo thay vì đọc, Javis gọi công cụ `javis_voice_note`: một đoạn nói ngắn (tối đa 1000 ký tự) được ghi thành file mp3 trong `attachments/voice/` của brain. Khung chat hiện trình phát ngay cạnh link, Telegram nhận dạng âm thanh. Javis vẫn viết nội dung đó bằng chữ bên dưới. Giọng là Edge miễn phí, tự chọn theo ngôn ngữ của câu.
+
+Nhắc hẹn còn có ô **Đọc thành tiếng**: tới giờ, câu nhắc hay kết quả báo cáo được gửi kèm tin thoại.
+
+## Giữ ấm bộ nhớ đệm (Claude Code, gói Pro/Max)
+
+Gói Pro/Max giữ bộ nhớ đệm của Claude Code 1 giờ. Nghỉ quá 1 giờ thì tin tiếp theo phải nạp lại cả cuộc trò chuyện, tốn nhiều hạn mức với chat dài. Ở trang **Mức dùng token**, mục ngân sách có ô **Giữ ấm bộ nhớ đệm**: bật lên thì khoảng 50 phút sau tin cuối, Javis gửi một yêu cầu rất nhỏ (không công cụ, không ghi vào cuộc trò chuyện) để giữ bộ nhớ đệm thêm 1 giờ. Chỉ chạy trong 2 giờ sau tin cuối, không bao giờ khi chat đang trả lời, và dừng ngay khi gói báo hết lượt hay bộ nhớ đệm đã nguội. Đây vẫn là việc chạy nền trên gói, nên mặc định tắt.
+
 ## Dùng trên điện thoại
 
 Dưới 860px chiều ngang, giao diện đổi hẳn cho vừa màn hình:

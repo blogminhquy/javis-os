@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.202.0] - 2026-10-17
+### Thêm mới
+- **Tin thoại:** bảo Javis "đọc cho tôi nghe" là nó ghi một đoạn nói ngắn thành file mp3, khung chat hiện trình phát ngay dưới câu trả lời, Telegram nhận dạng âm thanh. Nội dung vẫn có bằng chữ bên dưới.
+- **Nhắc hẹn đọc thành tiếng:** tick **Đọc thành tiếng** là tới giờ nhắc hay báo cáo được gửi kèm tin thoại, nghe được lúc đang lái xe hay nấu ăn.
+- **Giữ ấm bộ nhớ đệm (tuỳ chọn, mặc định tắt):** ở trang Mức dùng token, bật là Javis giữ bộ nhớ đệm 1 giờ của chat Claude Code qua lúc bạn nghỉ ngắn, tin tiếp theo không phải nạp lại cả cuộc trò chuyện. Dừng ngay khi hết lượt hay cache đã nguội.
+
 ## [0.201.0] - 2026-10-17
 ### Thêm mới
 - **Biểu đồ và ô số liệu ngay trong chat:** báo cáo doanh thu, đơn hàng, quảng cáo có thể kèm biểu đồ cột hay đường và vài ô số chính có mức tăng giảm, vẽ thẳng dưới câu trả lời.
@@ -33,8 +39,6 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ### Cải thiện
 - **Lịch lặp hiện ba lần chạy tới** trên thẻ việc, và khi tạo lịch từ chat Javis đọc lại ba ngày đó để bạn xác nhận. Lần chạy bị trễ vì máy tắt thì Javis biết là trễ.
-
-- **Đang làm:** webhook chạy workflow, lịch chạy nhớ lần trước và chạy bù.
 
 ## [0.197.1] - 2026-10-17
 ### Sửa lỗi

@@ -1,0 +1,12 @@
+name: Tin thoại
+name_en: "Voice notes"
+slug: voice-note
+version: 1.0.0
+description: Javis ghi một đoạn nói ngắn (tối đa 1000 ký tự) thành file mp3 trong attachments/voice/ rồi nhúng vào câu trả lời. Khung chat hiện trình phát, Telegram nhận file âm thanh. Dùng giọng Edge miễn phí theo ngôn ngữ của câu.
+description_en: "Javis records a short spoken message (up to 1000 characters) as an mp3 in attachments/voice/ and embeds it in the answer. The chat shows a player, Telegram receives the audio file. Uses the free Edge voices, picked by the language of the text."
+author: Javis (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - javis_voice_note
+hooks: []

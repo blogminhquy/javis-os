@@ -2026,6 +2026,7 @@
                 <button class="si-chip" data-mq="auto">${esc(window.t("cs.si_mq_write"))}</button>
                 <button class="si-chip sel" data-mq="full">${esc(window.t("cs.si_mode_full"))}</button></div></div>
               <label id="lpRemLastWrap" style="display:none;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemLast"> ${esc(window.t("cs.si_rem_last"))}</label>
+              <label style="display:flex;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemSpeak"> ${esc(window.t("cs.si_rem_speak"))}</label>
             </div>
             <div class="dim" style="font-size:12px;color:var(--text3);margin-top:4px">${esc(window.t("cs.si_rem_hint"))}</div>
           </div>
@@ -2165,6 +2166,7 @@
       // thì server đã quy về mặc định trong _view, nên chỗ này không phải đoán lại).
       frmq = (rem && rem.muc_quyen) || "full";
       el.querySelector("#lpRemLast").checked = !!(rem && rem.remember_last);
+      el.querySelector("#lpRemSpeak").checked = !!(rem && rem.speak);
       const locked = !!(lp || rem);   // đang SỬA (loop hay nhắc) → khoá loại việc + brain
       el.querySelector("#lpSlug").value = lp ? lp.slug : "";
       el.querySelector("#lpRemId").value = rem ? rem.id : "";
@@ -2222,6 +2224,7 @@
         const whenRaw = el.querySelector("#lpRemWhen").value.trim();
         const timePayload = whenRaw ? parseReminderWhen(whenRaw) : null;
         const rememberLast = frmode === "task" && el.querySelector("#lpRemLast").checked;
+        const speak = el.querySelector("#lpRemSpeak").checked;
         if (!remId && !timePayload) { msg.textContent = window.t("cs.si_need_when"); return; }
         b.textContent = window.t("settings.saving");
         let r = {};
@@ -2231,13 +2234,14 @@
           f.append("label", name); f.append("text", body); f.append("mode", frmode);
           f.append("muc_quyen", frmq);
           f.append("remember_last", rememberLast ? "true" : "false");
+          f.append("speak", speak ? "true" : "false");
           if (timePayload) Object.keys(timePayload).forEach(k => f.append(k, timePayload[k]));
           try { r = await (await fetch("/reminders/update", { method: "POST", body: f })).json(); }
           catch (e) { r = { error: e.message }; }
         } else {
           r = await createReminder(Object.assign(
             { text: body, label: name, mode: frmode, muc_quyen: frmq, brain: brainVal,
-              remember_last: rememberLast, created_by: "dashboard" }, timePayload));
+              remember_last: rememberLast, speak: speak, created_by: "dashboard" }, timePayload));
         }
         b.innerHTML = SAVE_ICON + " " + window.t("common.save");
         if (!r.ok) {
@@ -2250,7 +2254,7 @@
             if (fb) fb.onclick = async () => {
               const r2 = await createReminder(Object.assign(
                 { text: body, label: name, mode: frmode, muc_quyen: frmq, brain: brainVal,
-                  remember_last: rememberLast, created_by: "dashboard", allow_no_channel: true }, timePayload));
+                  remember_last: rememberLast, speak: speak, created_by: "dashboard", allow_no_channel: true }, timePayload));
               if (!r2.ok) { msg.innerHTML = Icons.warn(r2.error || window.t("cs.si_save_err")); return; }
               el.querySelector("#lpForm").style.display = "none";
               loadAll();
@@ -2412,6 +2416,7 @@
         <div class="dim" style="font-size:12px;color:var(--text3)">${esc(when)} · ${esc(kind)}${mq ? ` · <span class="rm-mq${r.muc_quyen === "full" ? " on" : ""}">${esc(mq)}</span>` : ""}${r.cron ? ` · <code>${esc(r.cron)}</code>` : ""}</div>
         ${(r.next_runs || []).length > 1 ? `<div class="dim" style="font-size:12px;color:var(--text3)">${esc(window.t("cs.si_rem_next3", { ds: r.next_runs.map(x => fmtWhen(x.at)).join(" · ") }))}</div>` : ""}
         ${r.remember_last ? `<div class="dim" style="font-size:12px;color:var(--text3)">${ic("history")} ${esc(window.t("cs.si_rem_last_tag"))}</div>` : ""}
+        ${r.speak ? `<div class="dim" style="font-size:12px;color:var(--text3)">${ic("volume-2")} ${esc(window.t("cs.si_rem_speak_tag"))}</div>` : ""}
         ${r.error ? `<div style="font-size:12px;color:var(--warn-ink);margin-top:4px">${WARN_ICON} ${esc(window.t("cs.si_prev_err"))} ${esc(r.error.slice(0, 160))}</div>` : ""}
         <div class="wf-actions" style="margin-top:8px">
           <button class="s-btn-ghost rmEdit">${esc(window.t("common.edit"))}</button>

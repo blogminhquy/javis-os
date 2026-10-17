@@ -385,6 +385,8 @@ async def _post_reminder(payload: dict, brain_name: str = "") -> str:
         ra += f" Mức quyền {mq} ({ten})."
     if data.get("remember_last"):
         ra += " Mỗi lần chạy sẽ nhận lại kết quả lần trước."
+    if data.get("speak"):
+        ra += " Kết quả sẽ kèm tin thoại đọc thành tiếng."
     return ra
 
 
@@ -443,6 +445,8 @@ async def _do_create(vault_root: str, args: dict) -> str:
         payload["muc_quyen"] = str(args["muc_quyen"]).strip().lower()
     if args.get("remember_last") and not notify_only:
         payload["remember_last"] = True
+    if args.get("speak"):
+        payload["speak"] = True
     payload.update(_reminder_time_payload(schedule))
     return await _post_reminder(payload, brain_name=brain_name)
 
@@ -650,6 +654,8 @@ def register(ctx) -> None:
                                               "tạo đơn, thanh toán). 'auto' = đọc + ghi file, "
                                               "không hành động ra ngoài. 'suggest' = chỉ đọc rồi "
                                               "báo lại. Chỉ hạ mức khi user muốn vậy.")},
+                "speak": {"type": "boolean",
+                          "description": "true = tới giờ gửi kèm TIN THOẠI đọc kết quả thành tiếng (user muốn nghe)."},
                 "remember_last": {"type": "boolean",
                                   "description": ("true = mỗi lần chạy nhận lại kết quả lần trước (theo dõi, "
                                                   "báo cái mới). Chỉ cho nhắc hẹn tự làm, không cho loop.")},

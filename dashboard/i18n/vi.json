@@ -4802,5 +4802,9 @@
   "doi.k_loop": "việc lặp",
   "doi.k_agent": "cộng sự",
   "doi.k_workflow": "quy trình",
-  "doi.k_skill": "kỹ năng"
+  "doi.k_skill": "kỹ năng",
+  "usage.kw.label": "Giữ ấm bộ nhớ đệm của chat Claude Code khi nghỉ ngắn (gói Pro/Max)",
+  "usage.kw.hint": "Trước khi bộ nhớ đệm 1 giờ hết hạn, Javis gửi một yêu cầu rất nhỏ để giữ nó, nên tin tiếp theo không phải nạp lại cả cuộc trò chuyện. Chỉ trong 2 giờ sau tin cuối, dừng ngay khi hết lượt hay cache đã nguội. Đây vẫn là việc chạy nền trên gói, nên mặc định tắt.",
+  "cs.si_rem_speak": "Đọc thành tiếng (gửi kèm tin thoại)",
+  "cs.si_rem_speak_tag": "đọc thành tiếng"
 }

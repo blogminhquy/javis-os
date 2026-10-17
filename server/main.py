@@ -11436,6 +11436,8 @@ import sentinel
 import change_receipt
 import team_bundle
 import chat_recall
+import voice_note
+import cache_keepwarm
 
 
 def _notify_ready() -> tuple:
@@ -11514,6 +11516,24 @@ async def _bao_nhac_hen(chat_id, text, viec=None, web="", brain="", dedup="") ->
                                viec=viec, web=web, brain=brain, dedup=dedup)
 
 
+async def _voice_note_rel(brain, text) -> str:
+    """0.202.0: a reminder that reads its result aloud: the mp3 path inside the brain, "" on failure."""
+    res = await voice_note.make(_brain_root(brain), text)
+    return res.get("rel_path", "") if res.get("ok") else ""
+
+
+async def _send_voice_file(chat_id, path, brain) -> tuple:
+    """The voice note as an audio message where the channel needs the file itself. Telegram: the asking chat, or the
+    owner's own chat when the reminder has none (same rule as _report_route). The web chat plays the link already."""
+    cid = str(chat_id or "").strip()
+    if cid.startswith(("web:", "zalo:")) or _TG_BOT is None:
+        return False, "no file channel"
+    cid = cid or _owner_telegram_id()
+    if not cid:
+        return False, "no Telegram chat"
+    return await _TG_BOT.send_file(path, chat=cid)
+
+
 reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     brain_root=_brain_root,
     atomic_write_text=_atomic_write_text,
@@ -11527,6 +11547,8 @@ reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     scheduler_brains=loop_feature.scheduler_brains,
     apply_mcp=_apply_mcp,                 # nhắc mode 'task' ĐỌC được dữ liệu thật qua MCP
     mcp_allow_patterns=_loop_mcp_allow,
+    make_voice=lambda brain, text: _voice_note_rel(brain, text),
+    send_file=lambda chat_id, path, brain: _send_voice_file(chat_id, path, brain),
 ))
 
 
@@ -11647,6 +11669,36 @@ async def sentinel_scan(hours: float = 24):
         pass
     hours = max(1.0, min(float(hours or 24), 24 * 14))
     return await asyncio.to_thread(sentinel.scan, cfgmod.STATE_DIR, brains, None, hours * 3600)
+
+
+# 0.202.0: keep the prompt cache of a Claude Code chat warm across a short break. OFF unless switched on.
+def _keepwarm_cfg() -> dict:
+    return dict(cfgmod.read_settings().get("cache_keepwarm") or {})
+
+
+_KEEPWARM = cache_keepwarm.KeepWarm(
+    enabled=lambda: bool(_keepwarm_cfg().get("enabled", False)),
+    window_min=lambda: int(_keepwarm_cfg().get("window_min") or cache_keepwarm.DEFAULT_WINDOW_MIN),
+    busy=lambda sid: luot_dang_chay.has_turn(f"{WEB_CHAT_PREFIX}{sid}"),
+)
+
+
+@app.get("/cache-keepwarm")
+async def cache_keepwarm_get():
+    return {"ok": True, "window_min": int(_keepwarm_cfg().get("window_min") or cache_keepwarm.DEFAULT_WINDOW_MIN),
+            **_KEEPWARM.status()}
+
+
+@app.post("/cache-keepwarm")
+async def cache_keepwarm_set(payload: dict = Body(None)):
+    p = payload or {}
+    cur = _keepwarm_cfg()
+    if "enabled" in p:
+        cur["enabled"] = bool(p.get("enabled"))
+    if p.get("window_min") is not None:
+        cur["window_min"] = max(30, min(int(p.get("window_min") or 120), cache_keepwarm.MAX_WINDOW_MIN))
+    cfgmod.update_settings({"cache_keepwarm": cur})
+    return {"ok": True, **cur}
 
 
 @app.get("/viec/all")
@@ -12678,6 +12730,8 @@ async def _start_scheduler():
                 # 3b) Nhắc hẹn từ chat: tới giờ → bắn Telegram (mode task: chạy engine rồi báo)
                 try:
                     await reminders_feature.tick()
+                    # 0.202.0: prompt-cache keep-warm (off unless switched on, see cache_keepwarm.py).
+                    asyncio.create_task(_KEEPWARM.tick())
                 except Exception as rte:
                     print(f"[reminders tick] {type(rte).__name__}: {rte}", file=__import__('sys').stderr)
                 # 3b2) Bộ phán xử tự soát (0.77.0): tick() tự giữ nhịp 30 phút, đo các lần soát cũ rồi khởi tối đa
@@ -16369,6 +16423,13 @@ async def websocket_endpoint(ws: WebSocket):
                             _cost = event.get("cost_usd")
                             if _cli_sid:
                                 store.set_cli_session_id(conv_sid, _cli_sid)
+                                # 0.202.0: this chat may be kept warm across a short break (off by default).
+                                try:
+                                    if claude_auth.che_do() == claude_auth.SUBSCRIPTION:
+                                        cli.session_id = _cli_sid
+                                        _KEEPWARM.note_turn(conv_sid, cli, int(event.get("tokens_in", 0) or 0))
+                                except Exception:
+                                    pass
                             _ctx_in += int(event.get("tokens_in", 0) or 0)
                             usage_store.record("cli", cli.model or mcfg.get("claude_model") or "mặc định",
                                                event.get("tokens_in", 0), event.get("tokens_out", 0), event.get("cost_usd") or 0)

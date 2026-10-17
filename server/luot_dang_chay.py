@@ -53,6 +53,12 @@ def bat_dau(chat_id: str, vault, msg_id: int = 0, user_text: str = "") -> str:
     return khoa
 
 
+def has_turn(chat_id: str) -> bool:
+    """A turn is running in this chat right now (0.202.0: keep-warm never pings a busy chat)."""
+    cid = str(chat_id or "").strip()
+    return bool(cid) and any(v.get("chat_id") == cid for v in list(_DANG.values()))
+
+
 def ket_thuc(khoa: str) -> None:
     _DANG.pop(str(khoa or ""), None)
     _SONG.pop(str(khoa or ""), None)

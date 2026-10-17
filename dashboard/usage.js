@@ -307,8 +307,10 @@
       fetch("/usage/tong-quan?period=" + encodeURIComponent(state.period)).then(jsonOk).catch(function () { return null; }),
       loadMuc(false),
       loadViec(false),
+      fetch("/cache-keepwarm").then(jsonOk).catch(function () { return null; }),
     ]).then(function (res) {
       state.tq = res[2] || null;
+      state.kw = res[5] || null;
       paint(res[0] || {}, (res[1] || {}).items || []);
     }).catch(function (e) {
       loi(e && e.message ? e.message : "");
@@ -602,6 +604,9 @@
       + window.t("usage.ns.tu_phanh") + "</label>"
       + '<label class="chk"><input id="tk-ns-tuan" type="checkbox"' + tick("tuan", !!t.bao_cao_tuan) + ">"
       + window.t("usage.ns.bao_cao_tuan") + "</label>"
+      // 0.202.0: keep a Claude Code chat's prompt cache warm across a short break (server/cache_keepwarm.py).
+      + '<label class="chk" title="' + esc(window.t("usage.kw.hint")) + '"><input id="tk-kw" type="checkbox"'
+      + ((state.kw || {}).enabled ? " checked" : "") + ">" + window.t("usage.kw.label") + "</label>"
       + '<div class="acts"><button class="save" data-act="ns-luu">' + window.t("common.save") + "</button>"
       + '<button class="tk-mini" data-act="ns">' + window.t("common.cancel") + "</button></div>"
       + '<div class="hint">'
@@ -828,6 +833,13 @@
         load(false);
       };
     });
+    var kw = el.querySelector("#tk-kw");
+    if (kw) kw.onchange = function () {
+      fetch("/cache-keepwarm", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: kw.checked }) }).then(jsonOk).then(function (r) {
+        state.kw = Object.assign({}, state.kw || {}, { enabled: !!(r && r.enabled) });
+      }).catch(function () { kw.checked = !kw.checked; });
+    };
     var luu = el.querySelector('[data-act="ns-luu"]');
     if (luu) luu.onclick = function () {
       luu.disabled = true;
