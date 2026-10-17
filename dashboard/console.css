@@ -173,8 +173,8 @@ body.in-console .hud-actions { display: none; }
 .prov-action .js-input { margin-bottom: 0; flex: 1; }
 .prov-action .gcard-btn { width: auto; flex: 0 0 auto; margin-top: 0; font-size: 16px; }
 .prov-note { font-size: 16px; line-height: 1.55; color: var(--text3); margin-top: 8px; overflow-wrap: anywhere; }
-/* Cảnh báo trên thẻ provider (vd Google đã ngắt Gemini CLI với tài khoản cá nhân). Bỏ luôn
-   opacity 0.7 của .prov-note: đây là thứ người dùng PHẢI đọc, làm mờ đi là phản tác dụng. */
+/* Warning box on a provider card (missing CLI, a vendor cutting off a plan). Something the user
+   MUST read, so it gets its own colors and frame instead of the muted note style. */
 .prov-note.warn { color: var(--warn-ink); background: var(--warn-wash); border: 1px solid var(--warn-line);
   border-radius: 8px; padding: 10px 12px; }
 .prov-note.warn code { background: var(--bg3); padding: 1px 5px; border-radius: 5px; font-size: 16px; }

@@ -85,7 +85,7 @@ import json  # noqa: E402
 
 for lang in ("vi", "en"):
     d = json.loads((ROOT / "dashboard" / "i18n" / f"{lang}.json").read_text(encoding="utf-8"))
-    for k in ("cliw_on", "cliw_off", "cliw_docker", "cliw_manual", "cliw_after", "cliw_after_plain",
+    for k in ("cliw_on", "cliw_off", "cliw_off_key", "cliw_docker", "cliw_manual", "cliw_after", "cliw_after_plain",
               "cliw_help_q", "cliw_help"):
         check(f"{lang}: models.{k}", bool(d.get("models." + k)))
     check(f"{lang}: the old fragments are gone", not any(f"models.cli_missing{n}" in d for n in (2, 3, 4)))

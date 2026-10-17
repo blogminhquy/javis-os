@@ -82,7 +82,7 @@ Each provider card shows **● Connected** or **○ Not connected**, the number 
 This is the default engine. It can use every tool, skill and memory, plus run shell commands. It is not mandatory: if you have no Claude plan, skip this and go straight to section B (ChatGPT) or C (API keys), where Javis has the same functionality minus shell commands.
 
 1. Open **Models** and find the **Claude Code** card.
-2. If you are not signed in, the card reads **○ Not signed in** with two buttons: **Sign into Claude** and **↻ Re-check**.
+2. If you are not signed in, the card reads **○ Not signed in** with two buttons: **Sign into Claude** and **↻ Re-check**. If the machine running Javis has no `claude` command, the card reads **○ Claude Code not installed**, shows one install box (Docker build: update Javis; manual install: one command to copy) and offers only **↻ Re-check**.
 3. Click **Sign into Claude**. Javis shows "**1)** Open this link to sign into claude.ai" with the link.
 4. Open that link and sign into your claude.ai account.
 5. If the page shows **a code**, paste it into the "paste code (if any)" field and click **Send code**. Some flows need no code: Javis waits and re-checks every 3 seconds, and the card updates once connected. After 5 minutes it reports a timeout and asks you to retry.
@@ -322,6 +322,7 @@ Up to and including 0.42.1 there was a bug in exactly this place: only ChatGPT/C
 | **MAIN** | Corner of a provider card | This provider is the Main Model |
 | **● Connected** / **○ Not connected** | Provider card | The state, with the number of available models |
 | **○ Not signed in** | Claude Code card | Claude Code is not signed in on this machine |
+| **○ Claude Code not installed** | Claude Code card | The machine running Javis has no `claude` command; follow the install box on the card |
 | **Sign into Claude** | Claude Code card | Start the link-based sign-in flow |
 | **↻ Re-check** | Claude Code card (only while signed out) | Re-query the sign-in state |
 | **Sign into ChatGPT** | OpenAI OAuth card | Sign in with a device code |

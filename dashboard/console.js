@@ -3973,6 +3973,9 @@
       const cliWarn = (ten) => {
         if (p.cli_found !== false) return "";
         const signedIn = on && p.kind === "oauth";
+        // "Sign in" means nothing to a Claude card that runs on an API key.
+        const firstKey = signedIn ? "models.cliw_on"
+          : (p.auth_mode === "api_key" ? "models.cliw_off_key" : "models.cliw_off");
         const how = p.docker
           ? `<div>${esc(t("models.cliw_docker"))}</div>`
           : `<div>${esc(t("models.cliw_manual"))}</div>
@@ -3982,7 +3985,7 @@
                <div>${esc(t("models.cliw_help", { env: p.cli_env || "" }))}</div></details>`;
         return `<div class="prov-note warn" id="cliWarn-${ten}">
             <div>${WARN_ICON} <b>${esc(t("models.cli_missing"))} <code>${ten}</code></b></div>
-            <div>${esc(t(signedIn ? "models.cliw_on" : "models.cliw_off"))}</div>
+            <div>${esc(t(firstKey))}</div>
             ${how}
           </div>`;
       };
@@ -4428,10 +4431,10 @@
   // ---- Card Claude Code: status + login/logout (giống OpenAI OAuth) ----
   async function refreshClaudeCard(el, ep) {
     const st = el.querySelector("#cliStatus"), act = el.querySelector("#cliAction");
-    if (!st || !act) return;
+    if (!st || !act) { el._cliRedrawn = false; return; }
     let d;
     try { d = await (await fetch("/claude/status" + (ep ? "?refresh=1" : ""))).json(); }
-    catch (e) { st.textContent = t("models.cant_check"); return; }
+    catch (e) { el._cliRedrawn = false; st.textContent = t("models.cant_check"); return; }
     veCapNhatClaude(el, d);
     // The install box is drawn with the card from the provider list. A check made later can
     // disagree (installed or removed meanwhile), so redraw the tab once; the flag stops a loop

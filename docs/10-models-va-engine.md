@@ -82,7 +82,7 @@ Mỗi card provider hiển thị trạng thái **● Đã kết nối** hoặc *
 Đây là engine mặc định. Nó dùng được toàn bộ công cụ, skill và bộ nhớ, cộng thêm chạy lệnh máy. Không bắt buộc: nếu bạn không có gói Claude thì bỏ qua mục này và đi thẳng xuống mục B (ChatGPT) hoặc C (API key) - Javis chạy đủ chức năng như nhau, chỉ thiếu phần lệnh máy khi đi bằng API key.
 
 1. Vào **Models**, tìm card **Claude Code**.
-2. Nếu chưa đăng nhập, card báo **○ Chưa đăng nhập** và có hai nút: **Đăng nhập Claude** và **↻ Kiểm tra lại**.
+2. Nếu chưa đăng nhập, card báo **○ Chưa đăng nhập** và có hai nút: **Đăng nhập Claude** và **↻ Kiểm tra lại**. Nếu máy chạy Javis chưa có lệnh `claude`, card báo **○ Chưa cài Claude Code**, hiện một khung hướng dẫn cài (bản Docker: cập nhật Javis; bản cài tay: một lệnh để chép) và chỉ có nút **↻ Kiểm tra lại**.
 3. Bấm **Đăng nhập Claude**. Javis hiện dòng "**1)** Mở link này để đăng nhập claude.ai" kèm đường link.
 4. Mở link đó để đăng nhập tài khoản claude.ai của bạn.
 5. Nếu trang hiện **một mã code**, dán mã vào ô "dán code (nếu có)" rồi bấm **Gửi code**. Một số luồng không cần dán code - Javis vừa chờ vừa tự kiểm tra mỗi 3 giây, kết nối xong là card tự đổi. Quá 5 phút không xong thì báo "Hết thời gian, thử lại.".
@@ -338,6 +338,7 @@ Từ 0.42.1 trở về trước có lỗi ở đúng chỗ này: chỉ mạch c�
 | **MAIN** | Góc card provider | Provider này đang là Main Model |
 | **● Đã kết nối** / **○ Chưa kết nối** | Card provider | Trạng thái, kèm số model khả dụng |
 | **○ Chưa đăng nhập** | Card Claude Code | Chưa đăng nhập Claude Code trên máy |
+| **○ Chưa cài Claude Code** | Card Claude Code | Máy chạy Javis chưa có lệnh `claude`, làm theo khung hướng dẫn cài trên card |
 | **Đăng nhập Claude** | Card Claude Code | Bắt đầu luồng đăng nhập bằng link |
 | **↻ Kiểm tra lại** | Card Claude Code (chỉ khi chưa đăng nhập) | Hỏi lại trạng thái đăng nhập |
 | **Đăng nhập ChatGPT** | Card OpenAI OAuth | Đăng nhập bằng mã device code |
