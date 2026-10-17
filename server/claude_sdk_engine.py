@@ -527,6 +527,9 @@ class ClaudeSDK:
         self.effort = None
         self.javis_mode = None    # _apply_mcp đặt (suggest|auto|full) - enforce min_mode plugin in-process
         self.javis_vault = None   # _apply_mcp đặt - brain đang làm việc, cho ctx của plugin
+        # 0.207.0: id of the tool gate of a gated Team step (team_gate.py). Set = a PreToolUse hook refuses an outside
+        # action before it runs unless the owner approved that exact call; bypassPermissions does not skip hooks.
+        self.team_gate = None
         # True = gửi system_prompt TRẦN, bỏ preset claude_code. Đường tiết kiệm token dùng cái
         # này: cả giá trị của nó nằm ở chỗ system prompt chỉ còn vài trăm token, mà preset
         # claude_code thì tự nhét lại prompt đầy đủ của Claude Code và ăn sạch phần tiết kiệm.
@@ -857,6 +860,14 @@ class ClaudeSDK:
                                "PostToolUseFailure": [HookMatcher(matcher=None, hooks=[self._steer_hook])]}
             except Exception:
                 pass
+        if "hooks" in fields and self.team_gate:
+            try:
+                from claude_agent_sdk import HookMatcher
+                hooks = dict(kw.get("hooks") or {})
+                hooks["PreToolUse"] = [HookMatcher(matcher=None, hooks=[self._team_gate_hook])]
+                kw["hooks"] = hooks
+            except Exception:
+                pass
         if self.allowed_tools:
             # Chế độ nền an toàn: whitelist auto-allow, MỌI tool khác rơi vào _permission_gate → DENY.
             # KHÔNG nạp settings filesystem: allow-rule trong settings user có thể che gate.
@@ -868,6 +879,32 @@ class ClaudeSDK:
             # Parity CLI: nạp settings máy (ambient MCP, CLAUDE.md, config user) như claude -p vẫn làm
             kw["setting_sources"] = ["user", "project", "local"]
         return ClaudeAgentOptions(**kw)
+
+    @staticmethod
+    def pre_tool_hooks_supported() -> bool:
+        """Can this SDK refuse a tool call before it runs (PreToolUse hooks)? A gated Team step needs it (0.207.0)."""
+        if not _SDK_OK:
+            return False
+        try:
+            from claude_agent_sdk import ClaudeAgentOptions, HookMatcher  # noqa: F401
+            return "hooks" in getattr(ClaudeAgentOptions, "__dataclass_fields__", {})
+        except Exception:
+            return False
+
+    async def _team_gate_hook(self, input_data, tool_use_id, context):
+        """PreToolUse of a gated Team step (0.207.0): an outside action is refused before it runs and recorded as the
+        step's approval request. Fails closed: an error here refuses the call."""
+        name = str((input_data or {}).get("tool_name") or "")
+        try:
+            import team_gate
+            ok, msg = team_gate.native_check(self.team_gate, name, (input_data or {}).get("tool_input") or {})
+        except Exception as e:  # noqa: BLE001
+            ok, msg = False, f"Javis không kiểm được quyền của lời gọi này ({type(e).__name__}), đã chặn."
+        if ok:
+            return {}
+        _audit(self.tag, name, False, "chờ chủ nhóm duyệt")
+        return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                       "permissionDecisionReason": msg}}
 
     async def _steer_hook(self, input_data, tool_use_id, context):
         """PostToolUse: hand the turn what the owner sent meanwhile, as extra context the model reads before its next

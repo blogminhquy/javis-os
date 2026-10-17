@@ -23371,6 +23371,7 @@ resonance_api.register_a5(app, _RESONANCE_API_DEPS)
 import team_api  # noqa: E402
 import team_runner  # noqa: E402
 import team_engine  # noqa: E402
+import team_gate  # noqa: E402
 
 
 def _team_agent_info(root, agent_key):
@@ -23415,6 +23416,25 @@ _TEAM_ENGINE_BUILD_TOOLS_REAL = team_engine.build_tools
 TEAM_WORK_MODE = "full"
 
 
+def _team_gate_support(provider):
+    """Can a gated Team step run on this provider (team_gate.provider_support), with this machine's real flags."""
+    prov = str(provider or aux_engine.CLAUDE)
+    if prov == aux_engine.CLAUDE:
+        from claude_sdk_engine import ClaudeSDK
+        if not ClaudeSDK.pre_tool_hooks_supported():
+            return {"ok": False, "approved_actions": False,
+                    "reason": "bản claude-agent-sdk đang cài chưa có móc PreToolUse nên Javis không chặn được công cụ trước khi chạy"}
+    deny = True
+    if prov == aux_engine.GROK_CLI:
+        try:
+            import grok_cli as _g
+            deny = bool(_g.co_co("--deny"))
+        except Exception:  # noqa: BLE001
+            deny = False
+    return team_gate.provider_support(prov, codex_sandbox=claude_cli.codex_sandbox_cho_mode("auto"), grok_deny=deny,
+                                      api_providers=tuple(aux_engine.API_PROVIDERS))
+
+
 def _team_engine_for(team, agent_key, role):
     """Engine CHỈ CHỮ cho một lượt nhóm (phán quyết R3 của kế hoạch T1): thư mục trống, không MCP, cổng từ chối mọi công
     cụ. Model theo hợp đồng chat tương tác và giao việc (`team_engine`, 0.142.0): model riêng của trợ lý, thiếu hay chưa
@@ -23438,24 +23458,43 @@ def _team_engine_for(team, agent_key, role):
         info.get("model") or "", info.get("model_provider") or "", _effective_main(settings),
         _agent_model_provider, lambda sp: aux_engine.availability(sp, settings), tools=True)
 
-    def _build_tools(system, tag):
+    def _build_tools(system, tag, gate_id=""):
         # 0.194.0: a Work/Help step of a job runs like a private chat with this member: cwd is the team's working folder
         # (or the brain), the hub is attached at the private chat's level, files of the brain go through `javis_vault`.
+        # 0.207.0: a gated team (`work_mode`) runs the step behind its tool gate (team_gate.py): hub level `gated`,
+        # natives at `auto` (Codex sandbox, Grok deny), a PreToolUse hook on Claude. A provider that cannot stop its own
+        # tools before they run is refused here, before the engine starts, with the reason.
         if os.environ.get("JAVIS_NO_REAL_TEAM_ENGINE") == "1" and team_engine.build_tools is _TEAM_ENGINE_BUILD_TOOLS_REAL:
             raise team_runner.EngineUnavailable("JAVIS_NO_REAL_TEAM_ENGINE: không dựng engine nhóm thật")
+        prov = str(tool_spec.get("provider") or aux_engine.CLAUDE)
+        if gate_id:
+            sup = _team_gate_support(prov)
+            if not sup["ok"]:
+                raise team_runner.EngineUnavailable(team_gate.unsupported_text(sup["reason"]))
         vault = str(_brain_root(root))
         cwd = ""
         try:
             cwd = coding_store.cwd_cua_phien(team.get("session_id") or "") if team.get("session_id") else ""
         except Exception:  # noqa: BLE001 - a broken folder binding falls back to the brain
             cwd = ""
+        hub_mode = team_gate.HUB_MODE if gate_id else TEAM_WORK_MODE
         base = claude_engine(system_prompt=system, cwd=cwd or vault, tag=tag)
-        _apply_mcp(base, mode=TEAM_WORK_MODE, brain=root)
+        _apply_mcp(base, mode=hub_mode, brain=root)
+        if gate_id:
+            base.team_gate = gate_id
+            team_gate.set_roots(gate_id, [cwd or vault, vault])
+        build_mode = (("auto" if prov in (aux_engine.CODEX, aux_engine.GROK_CLI) else hub_mode) if gate_id
+                      else TEAM_WORK_MODE)
         try:
-            eng = team_engine.build_tools(tool_spec, base, tag, settings, mode=TEAM_WORK_MODE,
+            eng = team_engine.build_tools(tool_spec, base, tag, settings, mode=build_mode,
                                           codex_profile=_write_codex_profile)
         except team_engine.TeamEngineUnavailable as ex:
             raise team_runner.EngineUnavailable(ex.reason)
+        if gate_id and prov == aux_engine.CODEX:
+            # Natives stay in Codex's own `auto` sandbox (no network); hub tools get the gated level and the turn key,
+            # so an approved outside action can pass the gate and nothing else can.
+            mcp_hub.dat_codex_mode(eng.extra_config, team_gate.HUB_MODE)
+            eng.hub_turn = True
         if tool_spec.get("provider") == aux_engine.CODEX:
             try:
                 openai_oauth.write_codex_auth()
@@ -23488,7 +23527,10 @@ def _team_engine_for(team, agent_key, role):
         tag = f"team-{str(req['team_id'])[-8:]}-{str(req.get('turn_id') or '')[-10:]}"
         tools_on = bool(req.get("tool_turn"))
         used = tool_spec if tools_on else spec
-        eng = await asyncio.to_thread(_build_tools if tools_on else _build, req["system"], tag)
+        if tools_on:
+            eng = await asyncio.to_thread(_build_tools, req["system"], tag, str(req.get("team_gate") or ""))
+        else:
+            eng = await asyncio.to_thread(_build, req["system"], tag)
         prompt = _team_reasoning(eng, info.get("reasoning") or AGENT_REASONING_DEFAULT, req["prompt"])
         if tools_on:
             # The tool spec can differ from the text one (Grok Build, Antigravity run tool turns): mark the real engine.

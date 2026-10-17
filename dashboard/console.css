@@ -3688,3 +3688,21 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
 @media (min-width: 1061px) {
   .tm-page.tm-mini .tm-mini-unread { display: flex; gap: 2px; position: absolute; top: 0; right: 2px; pointer-events: none; }
 }
+
+/* 0.207.0: approval request card in the team chat (teams.js approvalCardHtml) */
+.tm-ap { align-self: stretch; max-width: 640px; margin: 6px auto; padding: 12px 14px; border: 1px solid var(--hairline);
+  border-left: 3px solid var(--accent, #d97706); border-radius: 10px; background: var(--surface-2); font-size: 16px;
+  line-height: 1.5; display: flex; flex-direction: column; gap: 6px; }
+.tm-ap-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tm-ap-head svg { width: 18px; height: 18px; }
+.tm-ap-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.tm-ap-k { color: var(--text3); min-width: 88px; }
+.tm-ap-calls, .tm-ap-ev { margin: 0; padding-left: 20px; }
+.tm-ap-calls code { font-size: 14px; word-break: break-all; }
+.tm-ap .tm-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.tm-ap .tm-actions .ws-btn { min-height: 40px; font-size: 16px; }
+.tm-ap-state { color: var(--text2); }
+.tm-ap-approved, .tm-ap-consumed { border-left-color: var(--ok, #16a34a); }
+.tm-ap-rejected, .tm-ap-expired, .tm-ap-revoked { border-left-color: var(--danger, #dc2626); }
+.tm-ap-superseded, .tm-ap-cancelled, .tm-ap-changes_requested { border-left-color: var(--text3); }
+.tm-wm .tm-radio { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-size: 16px; }

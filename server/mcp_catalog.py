@@ -27,7 +27,9 @@ WRITE_HINTS = ("create", "update", "delete", "add", "remove", "edit", "send", "s
                "execute", "submit", "launch", "react", "block", "kick")
 
 PERM_RANK = {"readonly": 0, "safe": 1, "full": 2}
-_MODE_CAP = {"suggest": "readonly", "auto": "safe", "full": "full"}
+# "gated" (0.207.0, team_gate.py): a Team step that needs the owner's approval for outside actions. Caps like auto, so
+# anything that does not know the gate fails closed; the hub lists the step's tools like full and asks the gate.
+_MODE_CAP = {"suggest": "readonly", "auto": "safe", "full": "full", "gated": "safe"}
 
 _cache = {"sig": None, "by_id": {}}
 

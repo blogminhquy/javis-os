@@ -130,6 +130,8 @@ CREATE TABLE IF NOT EXISTS team_reaction_log(
 from reaction_values import (AXES as REACTION_AXES, COMMENT_MAX, REACTION_EMOJI, REACTIONS,  # noqa: E402
                              REASONS as REACTION_REASONS, SOURCE_KINDS, STATUSES as REACTION_STATUSES)
 T2_SNAPSHOT_SUFFIX = ".pre-0.154.0"
+GATE_SNAPSHOT_SUFFIX = ".pre-0.207.0"
+WORK_MODES = ("gated", "full")
 # Cột thêm cho kho đã có (ALTER, idempotent). Mọi cột có mặc định: bản 0.153.x vẫn đọc ghi được kho đã nâng. Dòng nhật ký
 # cũ coi như đã chiếu xong (`effect_state` mặc định 'done', không backfill tác động).
 _T2_REACTION_COLS = (
@@ -212,6 +214,8 @@ class TeamStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # T2: kho có từ trước thì chụp một bản trước khi thêm cột reaction (khôi phục khi hạ phiên bản).
         team_migration.snapshot_once(self.path, "team_reactions", "axis", suffix=T2_SNAPSHOT_SUFFIX)
+        # 0.207.0: one copy before the approval gate's column, so a downgrade can restore the store as it was.
+        team_migration.snapshot_once(self.path, "teams", "work_mode", suffix=GATE_SNAPSHOT_SUFFIX)
         with closing(self._conn()) as c:
             c.executescript(_SCHEMA)
             for table, col, decl in _T2_REACTION_COLS:
@@ -262,6 +266,10 @@ class TeamStore:
             if "muted" not in tcols:
                 # Tắt thông báo của nhóm (0.197.0): 1 = không báo gì về máy chủ, kể cả tin gọi tên chủ.
                 c.execute("ALTER TABLE teams ADD COLUMN muted INTEGER NOT NULL DEFAULT 0")
+            if "work_mode" not in tcols:
+                # Quyền làm việc của nhóm (0.207.0, team_gate.py): `gated` (mặc định, cả nhóm cũ) = hành động ra ngoài
+                # phải có yêu cầu chủ đã duyệt; `full` = chủ cho nhóm tự làm, không hỏi từng bước. Bản cũ bỏ qua cột.
+                c.execute("ALTER TABLE teams ADD COLUMN work_mode TEXT NOT NULL DEFAULT 'gated'")
             c.execute("CREATE UNIQUE INDEX IF NOT EXISTS teams_client_req ON teams(brain_id, client_req_id) "
                       "WHERE client_req_id IS NOT NULL")
 
@@ -304,7 +312,8 @@ class TeamStore:
                 "owner_at": r["owner_at"] if "owner_at" in r.keys() else None,
                 # A new team counts from its creation: nothing in it is unread until someone writes.
                 "read_at": (r["read_at"] if "read_at" in r.keys() else None) or r["created_at"],
-                "muted": bool(r["muted"]) if "muted" in r.keys() else False}
+                "muted": bool(r["muted"]) if "muted" in r.keys() else False,
+                "work_mode": (r["work_mode"] if "work_mode" in r.keys() else "") or "gated"}
 
     def _event(self, c, team_id: str, kind: str, by: str, before: Any = None, after: Any = None) -> None:
         c.execute("INSERT INTO team_events(team_id,kind,by,before_json,after_json,created_at) VALUES(?,?,?,?,?,?)",
@@ -411,6 +420,21 @@ class TeamStore:
                 raise TeamError("không có nhóm này")
             c.execute("UPDATE teams SET muted=? WHERE team_id=?", (1 if on else 0, team_id))
             self._event(c, team_id, "muted" if on else "unmuted", by, {"muted": bool(r["muted"])}, {"muted": bool(on)})
+        return self.get(team_id)
+
+    def set_work_mode(self, team_id: str, mode: str, by: str = "owner") -> Optional[dict]:
+        """Owner's switch for outside actions (0.207.0): `gated` asks for approval, `full` lets the team act. Logged as an
+        event with the previous value, so the team history shows who opened or closed it and when."""
+        mode = str(mode or "").strip().lower()
+        if mode not in WORK_MODES:
+            raise TeamError("quyền làm việc không hợp lệ")
+        with self._Tx(self) as c:
+            r = c.execute("SELECT work_mode FROM teams WHERE team_id=?", (team_id,)).fetchone()
+            if r is None:
+                raise TeamError("không có nhóm này")
+            if r["work_mode"] != mode:
+                c.execute("UPDATE teams SET work_mode=? WHERE team_id=?", (mode, team_id))
+                self._event(c, team_id, "work_mode", by, {"work_mode": r["work_mode"]}, {"work_mode": mode})
         return self.get(team_id)
 
     def update(self, team_id: str, by: str = "owner", **fields) -> dict:
@@ -711,7 +735,8 @@ class TeamStore:
     def cancel_open_steps(self, task_id: str, note: str) -> int:
         with self._Tx(self) as c:
             return c.execute("UPDATE team_steps SET status='cancelled', note=?, updated_at=? "
-                             "WHERE task_id=? AND status IN ('queued','waiting')", (note, time.time(), task_id)).rowcount
+                             "WHERE task_id=? AND status IN ('queued','waiting','waiting_owner')",
+                             (note, time.time(), task_id)).rowcount
 
     def set_step_status(self, step_id: str, status: str, note: str = "") -> None:
         with self._Tx(self) as c:

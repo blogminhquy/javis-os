@@ -33,6 +33,9 @@ import localefmt
 import reaction_values as RV
 from io_offload import run_io  # noqa: F401 - giữ `team_runner.run_io` cho team_api và test
 import resonance_store
+import team_approval
+import team_gate
+import turn_context
 from team_store import (CAP_MAX, DEFAULT_CAPS, FIXED_CAPS, OWNER_CAPS, REACTION_EMOJI, UNLIMITED_CAPS, TeamError,
                         TurnCapReached)
 
@@ -44,10 +47,10 @@ DIRECTIVE_RE = re.compile(r"<!--\s*JAVIS_TEAM:\s*(.*?)-->", re.S)
 OPS_BY_ROLE = {
     "leader_reply": {"propose_job"},
     "member_reply": set(),
-    "plan": {"assign"},
-    "work": {"request_help"},
-    "help": {"request_help"},
-    "synthesize": set(),
+    "plan": {"assign", "ask_approval"},
+    "work": {"request_help", "ask_approval"},
+    "help": {"request_help", "ask_approval"},
+    "synthesize": {"ask_approval"},
     # T3 phần J (0.156.0): lượt tự lên tiếng khi không ai gọi (bộ phán xử chọn). Không lệnh quản trị, không mở việc.
     "member_volunteer": set(),
 }
@@ -142,6 +145,23 @@ WORK_TOOLS_NOTE = ("# LƯỢT LÀM VIỆC CÓ CÔNG CỤ\nĐây là lượt bạ
                    "gì, file hay link nào, còn vướng gì. Chỉ làm đúng phạm vi bước được giao; hành động ra ngoài (gửi tin, đăng "
                    "bài, thanh toán, xoá dữ liệu) chỉ làm khi việc nói rõ. Thành viên khác làm lần lượt trên cùng thư mục, "
                    "nên đừng sửa file của bước khác khi bước của bạn không cần.")
+# 0.207.0: owner approval is a real gate (team_approval.py, team_gate.py). Any step of a job may ask with this directive;
+# the step then waits (the job leaves its slot) and nothing it asked for runs until the owner decides on the card.
+APPROVAL_OP = "ask_approval"
+APPROVAL_HINT = ('Cần chủ nhóm quyết trước khi làm tiếp (phương án, hành động ra ngoài, chi tiêu) thì KHÔNG hỏi bằng lời mà '
+                 'xin duyệt bằng một khối: <!-- JAVIS_TEAM: {"op": "ask_approval", "title": "<xin gì, một dòng>", '
+                 '"action": "<sẽ làm chính xác gì>", "scope": "<phạm vi>", "impact": "<ảnh hưởng, chi phí>", '
+                 '"evidence": ["<dữ kiện hay đường dẫn>"]} -->. Bước sẽ dừng chờ chủ bấm Duyệt, Từ chối hay Yêu cầu sửa; '
+                 'chưa được duyệt thì chưa làm.')
+# Gated tool step (teams.work_mode = gated, 0.207.0): what runs freely and what waits for the owner.
+GATED_NOTE = ("# QUYỀN CỦA NHÓM: CẦN DUYỆT\nNhóm này đang ở quyền 'cần duyệt'. Trong phạm vi bước bạn làm tự do: đọc, tìm, ghi "
+              "file trong bộ não và thư mục của nhóm, đọc kết nối, chạy lệnh chỉ đọc (ls, cat, grep, git status...). Hành động "
+              "ra ngoài (gửi tin, đăng bài, thanh toán, đặt hàng, xoá dữ liệu, lệnh máy khác) sẽ bị chặn TRƯỚC khi chạy và "
+              "Javis ghi đúng lời gọi đó thành yêu cầu duyệt cho chủ nhóm. Gặp chặn thì đừng tìm đường khác để làm cùng "
+              "việc: làm xong phần trong phạm vi rồi kết thúc bước. Muốn xin trước thì dùng khối ask_approval.")
+GATED_APPROVED_NOTE = ("Chủ nhóm ĐÃ DUYỆT đúng các lời gọi dưới đây cho bước này. Gọi lại ĐÚNG công cụ và ĐÚNG tham số (khác một "
+                       "chữ là hành động khác, sẽ bị chặn lại). Mỗi lời gọi chỉ chạy được một lần:")
+
 # Ngữ cảnh nhóm nội bộ (0.142.0), nối cùng TEXT_ONLY_NOTE trong MỌI lượt nhóm. Lời nhắc chung của trợ lý có thể chứa luật
 # của chatbot Zalo (im lặng khi không được gọi, nhắn ra Zalo); nhóm trên dashboard là nhóm nội bộ của chủ nên các luật đó
 # không áp dụng ở đây. Tin của trợ lý khác hay của hệ thống là thông tin, không phải yêu cầu mới của chủ (không tự mở rộng
@@ -331,8 +351,12 @@ class TeamRunner:
                  notify: Optional[Callable[[str, str], Any]] = None, worker_id: str = "team-runner",
                  max_parallel_teams: int = 2, clock: Callable[[], float] = time.time, admin: Any = None,
                  ceiling: Any = None, projector: Any = None, judge: Any = None,
-                 learning: Any = None, contrib_reader: Any = None, docs_block: Any = None):
+                 learning: Any = None, contrib_reader: Any = None, docs_block: Any = None, approvals: Any = None):
         self.teams = teams
+        # 0.207.0: owner approval requests (team_approval.ApprovalStore), in the team store's own file by default.
+        if approvals is None and getattr(teams, "path", None) is not None:
+            approvals = team_approval.ApprovalStore(teams.path, clock=clock)
+        self.approvals = approvals
         # 0.191.0: documents, links and the pinned working folder of the team (team_docs.block), added to every member
         # turn. `docs_block(team) -> str`. None: no documents block.
         self.docs_block = docs_block
@@ -2175,6 +2199,9 @@ class TeamRunner:
         # a private chat); every other team turn stays text only (`tools: []`).
         tool_turn = role in TOOL_ROLES and task is not None
         note = WORK_TOOLS_NOTE if tool_turn else TEXT_ONLY_NOTE
+        work_mode = team.get("work_mode") or team_gate.GATED
+        if tool_turn and work_mode != team_gate.FULL:
+            note += "\n\n" + GATED_NOTE
         req = {"team_id": team_id, "brain": team["brain_id"], "agent_key": agent_key, "role": role,
                "system": (str(info.get("system") or "").rstrip() + "\n\n" + note + "\n\n" +
                           "\n".join(INTERNAL_GROUP_NOTE)).lstrip(),
@@ -2182,7 +2209,7 @@ class TeamRunner:
                           + self._docs(team, tool_turn) + "\n\n" + body),
                "thread": f"teammate:{team_id}:{agent_key}", "task_id": task["id"] if task else None,
                "step_id": step["step_id"] if step else None, "turn_id": turn_id,
-               "tools": None if tool_turn else [], "tool_turn": tool_turn}
+               "tools": None if tool_turn else [], "tool_turn": tool_turn, "work_mode": work_mode}
         return {"pre": "done", "engine": str(engine or ""), "model": str(model or ""), "fn": fn, "req": req}
 
     def _docs(self, team: dict, tools: bool = False) -> str:
@@ -2276,8 +2303,17 @@ class TeamRunner:
                             pass
 
             req["engine_started"] = engine_started
+            # 0.207.0: a tool step of a gated team runs behind its tool gate (team_gate.py). The gate id rides in the turn
+            # (turn_context), so the hub can find it from the turn key; what it refused becomes the step's approval.
             if not getattr(fn, "marks_engine", False):
                 await engine_started()
+            gate = None
+            ctx_tok = None
+            if req.get("tool_turn") and req.get("work_mode") != team_gate.FULL and self.approvals is not None:
+                gate = team_gate.open_gate(self.approvals, team_id, task_id or "", step_id or "")
+                req["team_gate"] = gate.gate_id
+                ctx_tok = turn_context.bind(turn_context.make("team", chat_id=team_id, team_gate=gate.gate_id,
+                                                              provider=prep["engine"]))
             try:
                 limit = self.turn_timeout if role in REPLY_ROLES else self.step_timeout
                 if req.get("tool_turn"):
@@ -2316,9 +2352,15 @@ class TeamRunner:
                 kind = "auth" if isinstance(ex, EngineOutcomeError) and ex.kind == "auth" else ""
                 return {"status": "error", "error": msg[:500], "detail": detail[:500], "turn_id": turn_id,
                         "reason": kind}
+            finally:
+                if ctx_tok is not None:
+                    turn_context.reset(ctx_tok)
+                gate_out = team_gate.close_gate(gate.gate_id) if gate is not None else None
             if not marked:
                 await engine_started()
-            res = res or {}
+            res = dict(res or {})
+            if gate_out is not None:
+                res["gate"] = gate_out
             await self._io(self._settle_turn, turn_id, "ok", res.get("tokens_in"), res.get("tokens_out"),
                            res.get("cost_usd"))
         finally:
@@ -2560,7 +2602,7 @@ class TeamRunner:
         return {"status": status, "applied": applied, "ops": kept, "notes": notes, "message_id": mid,
                 "text": clean, "sha": meta["sha"], "turn_id": turn_id, "extra": extra, "ask_peer": asked,
                 "commit": commit if applied and step is not None else None, "lessons": held,
-                "lease_lost": lease_lost if status == "lease_lost" else None}
+                "lease_lost": lease_lost if status == "lease_lost" else None, "gate": res.get("gate")}
 
     def _commit_once(self, turn_id: str, commit: Any, notes: list) -> None:
         """Ghi bài học của lượt đúng một lần (gọi trong `accept_lock`, sau khi đã kiểm đầu ra còn hiệu lực)."""
@@ -2634,14 +2676,16 @@ class TeamRunner:
                              {"task_id": task["id"], "coordinator_key": task.get("coordinator_key")},
                              {"task_id": task["id"], "coordinator_key": new_key})
 
-    def _block(self, task_id: str, kind: str, reason: str) -> str:
+    def _block(self, task_id: str, kind: str, reason: str, post: bool = True) -> str:
+        """`post=False` (0.207.0, approval requests): the caller posts its own card and notification instead."""
         task = self.tasks.get_task(task_id)
         if self.tasks.team_block(task_id, kind, reason) is not None and task:
             self._judge_job_changed(task_id, task["team_id"])
-            self._notify(task["team_id"], f"Việc nhóm \"{task['title']}\" bị chặn: {reason}")
+            if post:
+                self._notify(task["team_id"], f"Việc nhóm \"{task['title']}\" bị chặn: {reason}")
             # Lỗi của việc chạy nền cũng hiện NGAY trong khung chat (0.142.0), không chỉ ở hộp thư và hàng việc.
             team = self.teams.get(task["team_id"])
-            if team and team.get("status") != "archived":
+            if post and team and team.get("status") != "archived":
                 try:
                     self._post(team, f"Việc \"{task['title']}\" đang dừng: {reason}", author_kind="system",
                                task_id=task_id, meta={"kind": "job_blocked", "block_kind": kind})
@@ -2746,6 +2790,9 @@ class TeamRunner:
         return out
 
     def _body(self, step: dict, task: dict) -> str:
+        return self._body_core(step, task) + "\n" + APPROVAL_HINT + self._approved_block(step)
+
+    def _body_core(self, step: dict, task: dict) -> str:
         if step["kind"] == "plan":
             return ("Bạn là trưởng nhóm, lập kế hoạch cho việc trên. Giao từng phần cho thành viên phù hợp, mỗi phần một "
                     'khối: <!-- JAVIS_TEAM: {"op": "assign", "agent": "<mã thành viên>", "brief": "..."} -->\n'
@@ -2755,8 +2802,47 @@ class TeamRunner:
         return ("Làm phần việc của bạn và trả kết quả. Cần hỏi thành viên khác thì dùng: "
                 '<!-- JAVIS_TEAM: {"op": "request_help", "agent": "<mã thành viên>", "question": "..."} -->')
 
+    def _approved_block(self, step: dict) -> str:
+        """The exact calls the owner approved for this step (0.207.0), so the agent repeats them to the letter."""
+        if self.approvals is None:
+            return ""
+        ap = self.approvals.approved_for_step(step["step_id"])
+        if not ap:
+            return ""
+        lines = [f"\n\n# ĐÃ ĐƯỢC DUYỆT: {ap['title']}"]
+        if ap.get("decision_note"):
+            lines.append(f"Lời chủ nhóm: {ap['decision_note']}")
+        calls = [f for f in ap.get("fingerprints") or [] if not f.get("used_at")]
+        if calls:
+            lines.append(GATED_APPROVED_NOTE)
+            for f in calls:
+                lines.append(f"- {f.get('call') or f.get('label')}")
+        else:
+            lines.append(f"Được làm: {ap['action']}")
+        return "\n".join(lines)
+
     def _vet_step(self, team, role, ops, notes, task=None, step=None) -> tuple:
+        # 0.207.0: a structured approval request (`ask_approval`) is taken out first; the first valid one counts.
+        asks = [op for op in ops if op.get("op") == APPROVAL_OP]
+        ops = [op for op in ops if op.get("op") != APPROVAL_OP]
+        req = None
+        for op in asks:
+            got = team_approval.parse_request(op)
+            if got is None:
+                notes.append("Lệnh 'ask_approval' thiếu nội dung xin duyệt, đã bỏ")
+            elif req is None:
+                req = got
+            else:
+                notes.append("Mỗi bước chỉ xin duyệt một lần, đã gộp vào yêu cầu đầu")
+        kept, extra = self._vet_step_ops(team, role, ops, notes, task, step)
+        if req is not None:
+            extra = dict(extra, approval_request=req)
+        return kept, extra
+
+    def _vet_step_ops(self, team, role, ops, notes, task=None, step=None) -> tuple:
         kept = []
+        if role == "synthesize":
+            return [], {}
         if role == "plan":
             for op in ops:
                 key = self._resolve(team, op.get("agent"))
@@ -2978,6 +3064,14 @@ class TeamRunner:
                 self.teams.finish_step(sid, "failed", mid, False, "không tiến triển")
                 return self._block(task["id"], "no_progress", "Hai lần liền trợ lý không làm ra gì mới")
         kind = step["kind"]
+        # 0.207.0: the step asked the owner (structured request, gate-refused actions, or a decision asked in prose). It
+        # waits: no `done`, no job result, no dependent step, nothing it asked for runs until the owner decides.
+        need = self._approval_need(team, task, step, out)
+        if need is not None:
+            return self._request_approval(team, task, step, out, need)
+        if self.approvals is not None and note.startswith("approval:"):
+            # The step the owner approved has run: what it did not use of its approval is closed now.
+            self.approvals.consume(note.split(":", 1)[1], "step_done")
         if kind == "plan":
             assigns = out["ops"]
             if not assigns and (out.get("extra") or {}).get("assign_dropped"):
@@ -3011,6 +3105,235 @@ class TeamRunner:
                 if not ok:
                     return "team_blocked"
         return None
+
+    # ───────────── chờ chủ duyệt (0.207.0) ─────────────
+
+    @staticmethod
+    def _call_text(kind: str, name: str, args: Any) -> str:
+        try:
+            a = json.dumps(args, ensure_ascii=False, sort_keys=True)
+        except (TypeError, ValueError):
+            a = str(args)
+        return f"{name} {a}"[:1500] if kind == "hub" else f"{name}: {a}"[:1500]
+
+    def _approval_need(self, team: dict, task: dict, step: dict, out: dict) -> Optional[dict]:
+        """What this applied step asks the owner, or None. Host-observed refusals and the structured request are the
+        protocol; a decision asked in prose without a request is the safety net (kind `question`)."""
+        if self.approvals is None:
+            return None
+        blocked = list(((out.get("gate") or {}).get("blocked")) or [])
+        req = (out.get("extra") or {}).get("approval_request")
+        text = str(out.get("text") or "")
+        fps = [{"fp": b["fp"], "label": b.get("label") or b.get("name"),
+                "call": self._call_text(b.get("kind") or "hub", b.get("name") or "", b.get("args"))} for b in blocked]
+        if req:
+            for a in req.get("actions") or []:
+                tool = a["tool"]
+                kind, args = (("native", {"command": str((a.get("args") or {}).get("command") or "")})
+                              if tool == "Bash" else ("hub", a.get("args") or {}))
+                fp = team_approval.fingerprint(kind, tool, args)
+                if not any(f["fp"] == fp for f in fps):
+                    fps.append({"fp": fp, "label": tool, "call": self._call_text(kind, tool, args)})
+            return {"kind": "action" if fps else "plan", "title": req["title"], "action": req["action"],
+                    "scope": req.get("scope", ""), "impact": req.get("impact", ""), "evidence": req.get("evidence", []),
+                    "deadline_at": req.get("deadline_at"), "fingerprints": fps[:team_gate.MAX_BLOCKED]}
+        if fps:
+            labels = "; ".join(f["label"] for f in fps)
+            return {"kind": "action", "title": f"{self._name(team, step['agent_key'])} cần làm {len(fps)} hành động ra "
+                                               f"ngoài phạm vi",
+                    "action": f"Javis đã chặn trước khi chạy: {labels}", "scope": task.get("title") or "",
+                    "impact": "", "evidence": [team_approval.excerpt(text, 600)] if text.strip() else [],
+                    "deadline_at": None, "fingerprints": fps}
+        if team_approval.asks_decision(text):
+            return {"kind": "question", "title": f"{self._name(team, step['agent_key'])} hỏi chủ nhóm quyết định",
+                    "action": team_approval.excerpt(text, 800),
+                    "scope": "Trợ lý hỏi bằng lời, chưa nêu phương án có cấu trúc", "impact": "", "evidence": [],
+                    "deadline_at": None, "fingerprints": []}
+        return None
+
+    def _request_approval(self, team: dict, task: dict, step: dict, out: dict, need: dict) -> str:
+        sid = step["step_id"]
+        mid = out.get("message_id")
+        prev = str(step.get("note") or "")
+        if prev.startswith("approval:"):
+            # An approved step asks again: what it did not use of the earlier approval closes here, never carried over.
+            self.approvals.consume(prev.split(":", 1)[1], "asked_again")
+        held = []
+        if step["kind"] == "plan":
+            held = [{"kind": "work", "agent": a["agent"], "brief": a["brief"], "inputs": [mid] if mid else []}
+                    for a in out.get("ops") or []]
+        ap = self.approvals.create(team_id=team["team_id"], task_id=task["id"], step_id=sid,
+                                   team_rev=int(step["job_revision"]), requested_by=step["agent_key"],
+                                   kind=need["kind"], title=need["title"], action=need["action"], scope=need["scope"],
+                                   impact=need["impact"], evidence=need["evidence"], deadline_at=need["deadline_at"],
+                                   fingerprints=need["fingerprints"], held_ops=held)
+        self.teams.finish_step(sid, "waiting_owner", mid, True, f"awaiting:{ap['approval_id']}")
+        self._block(task["id"], "waiting_user", f"Chờ chủ nhóm duyệt: {ap['title']}", post=False)
+        cur = self._team(team["team_id"])
+        card = self._post(cur, f"Xin duyệt: {ap['title']}", author_kind="system", task_id=task["id"], step_id=sid,
+                          reply_to=mid, meta={"kind": "approval_request", "approval": team_approval.view(ap)})
+        self.approvals.set_message(ap["approval_id"], card)
+        self._notify(team["team_id"], localefmt.chu("Nhóm \"{nhom}\" xin duyệt: {t}", "Team \"{nhom}\" asks for approval: {t}",
+                                                     nhom=cur.get("name") or "", t=ap["title"]))
+        return "team_blocked"
+
+    def _refresh_card(self, team: dict, ap: dict) -> None:
+        if not ap or not ap.get("message_id"):
+            return
+        self.sessions.update_team_message_meta(team["session_id"], int(ap["message_id"]),
+                                               {"approval": team_approval.view(ap)})
+        m = self.sessions.team_message(team["session_id"], int(ap["message_id"]))
+        if m:
+            self._publish({"type": "team_message", "team_id": team["team_id"], "message": self.message_view(team, m)})
+
+    def approvals_view(self, team_id: str, task_id: Optional[str] = None) -> list:
+        if self.approvals is None:
+            return []
+        rows = self.approvals.for_task(task_id) if task_id else self.approvals.for_team(team_id)
+        return [team_approval.view(a) for a in rows if a["team_id"] == team_id]
+
+    def decide_approval(self, team_id: str, approval_id: str, decision: str, *, note: str = "", decision_key: str = "",
+                        expected_rev: Optional[int] = None, by: str = "owner") -> dict:
+        """The owner's click on an approval card (route POST /teams/{id}/approvals/{aid}/decide), the ONLY way a request
+        is decided. `approve` opens the exact request for a new step of the same member, `reject` keeps the job stopped
+        with the owner's reason, `changes` sends the owner's note back to the member for a new proposal, `revoke` takes
+        back an approval not used yet. Everything in `accept_lock`, so a decision never interleaves with an edit, a cancel
+        or a step being applied. Returns {"ok", "status", "error", "approval", "replay"}."""
+        if self.approvals is None:
+            return {"ok": False, "error": "no_store"}
+        decision = str(decision or "").strip().lower()
+        with self.accept_lock:
+            ap = self.approvals.get(approval_id)
+            if ap is None or ap["team_id"] != team_id:
+                return {"ok": False, "error": "not_found"}
+            team = self._team(team_id)
+            if decision == "revoke":
+                return self._revoke_locked(team, ap, by, note)
+            task = self.tasks.get_task(ap["task_id"]) or {}
+            if expected_rev is not None and int(expected_rev) != int(ap["team_rev"]):
+                return {"ok": False, "error": "stale", "approval": team_approval.view(ap)}
+            waiting = task.get("status") == "team_blocked" and task.get("block_kind") == "waiting_user"
+            if ap["status"] == "pending" and not waiting:
+                # The job moved on without the owner (cancelled, edited, recovered): the card is out of date.
+                if task.get("status") in ("cancelled", "done"):
+                    self.approvals.close_task(ap["task_id"], "cancelled", "việc đã kết thúc", ("pending",))
+                    ap = self.approvals.get(approval_id)
+                    self._refresh_card(team, ap)
+                    return {"ok": False, "error": "job_ended", "approval": team_approval.view(ap)}
+            if ap["status"] == "pending" and not self.teams.is_active_member(team_id, ap["requested_by"]):
+                self.approvals.close_task(ap["task_id"], "superseded", "người xin đã rời nhóm", ("pending",))
+                ap = self.approvals.get(approval_id)
+                self._refresh_card(team, ap)
+                return {"ok": False, "error": "member_left", "approval": team_approval.view(ap)}
+            res = self.approvals.decide(approval_id, decision, by=by, note=note, decision_key=decision_key,
+                                        current_rev=int(task.get("team_rev") or ap["team_rev"]))
+            if not res.get("ok") or res.get("replay"):
+                res = dict(res, approval=team_approval.view(res.get("approval") or self.approvals.get(approval_id)))
+                if res.get("error") in ("expired", "stale"):
+                    self._after_dead_request(team, task, self.approvals.get(approval_id))
+                return res
+            ap = res["approval"]
+            step = self.teams.step(ap["step_id"]) or {}
+            if res["status"] == "approved":
+                self._open_approved(team, task, step, ap)
+            elif res["status"] == "rejected":
+                self.teams.set_step_status(ap["step_id"], "cancelled", f"rejected:{approval_id}")
+                self.tasks.team_reblock(task["id"], "rejected",
+                                        "Chủ nhóm từ chối: " + (note.strip() or ap["title"]))
+            else:   # changes_requested
+                self.teams.set_step_status(ap["step_id"], "cancelled", f"changes:{approval_id}")
+                if step:
+                    self.teams.add_step(task["id"], team_id, step["kind"], step["agent_key"], int(task["team_rev"]),
+                                        f"Chủ nhóm yêu cầu sửa đề xuất \"{ap['title']}\": {note.strip() or '(không ghi chú)'}"
+                                        f"\n\n{step['brief']}", list(step.get("input_refs") or []),
+                                        step.get("parent_step"))
+                self.tasks.team_unblock(task["id"])
+            ap = self.approvals.get(approval_id)
+            self._refresh_card(team, ap)
+            label = {"approved": "đã duyệt", "rejected": "đã từ chối", "changes_requested": "yêu cầu sửa"}[res["status"]]
+            self._post(team, f"Chủ nhóm {label}: {ap['title']}" + (f". Ghi chú: {note.strip()}" if note.strip() else ""),
+                       author_kind="system", task_id=task.get("id"), meta={"kind": "approval_decided",
+                                                                           "approval_id": approval_id,
+                                                                           "decision": res["status"]})
+        self._judge_job_changed(task.get("id") or "", team_id)
+        self._state(team_id)
+        return dict(res, approval=team_approval.view(ap))
+
+    def _open_approved(self, team: dict, task: dict, step: dict, ap: dict) -> None:
+        """Approve = a NEW step (the asking step stays as the record of the request). A plan's held assignments become
+        work steps; any other step runs again for the same member with the exact approved calls in its brief. Then the
+        job goes back to the queue. Called in `accept_lock`."""
+        held = list(ap.get("held_ops") or [])
+        self.teams.set_step_status(ap["step_id"], "done" if held else "continued", f"approved:{ap['approval_id']}")
+        if held:
+            self._put_steps(team, task, held)
+            self.approvals.consume(ap["approval_id"], "assigned")
+        elif step:
+            new = self.teams.add_step(task["id"], team["team_id"], step["kind"], step["agent_key"], int(task["team_rev"]),
+                                      step["brief"], list(step.get("input_refs") or []) +
+                                      ([step["result_msg_id"]] if step.get("result_msg_id") else []),
+                                      step.get("parent_step"))
+            self.teams.set_step_status(new["step_id"], "queued", f"approval:{ap['approval_id']}")
+            self.approvals.granted_step(ap["approval_id"], new["step_id"])
+        self.tasks.team_unblock(task["id"])
+
+    def _after_dead_request(self, team: dict, task: dict, ap: Optional[dict]) -> None:
+        """A request that expired or went stale while the job waited for it: the job stays stopped with that reason."""
+        if not ap:
+            return
+        self._refresh_card(team, ap)
+        if task.get("status") == "team_blocked" and task.get("block_kind") == "waiting_user":
+            why = ("Yêu cầu duyệt đã hết hạn" if ap["status"] == "expired" else "Yêu cầu duyệt không còn hợp lệ")
+            self.tasks.team_reblock(task["id"], "approval_expired", f"{why}: {ap['title']}")
+
+    def _revoke_locked(self, team: dict, ap: dict, by: str, note: str) -> dict:
+        if ap["status"] != "approved":
+            return {"ok": False, "error": "not_revocable", "approval": team_approval.view(ap)}
+        self.approvals.close_task(ap["task_id"], "revoked", note.strip() or "chủ nhóm thu hồi", ("approved",))
+        ap = self.approvals.get(ap["approval_id"])
+        task = self.tasks.get_task(ap["task_id"]) or {}
+        for s_ in self.teams.steps(ap["task_id"]):
+            if s_["status"] == "queued" and s_.get("note") == f"approval:{ap['approval_id']}":
+                self.teams.set_step_status(s_["step_id"], "cancelled", f"revoked:{ap['approval_id']}")
+                if task.get("status") == "team_queued":
+                    self.tasks.team_block(task["id"], "rejected", "Chủ nhóm thu hồi duyệt: " + ap["title"])
+        self._refresh_card(team, ap)
+        self._post(team, f"Chủ nhóm thu hồi duyệt: {ap['title']}", author_kind="system", task_id=ap["task_id"],
+                   meta={"kind": "approval_decided", "approval_id": ap["approval_id"], "decision": "revoked"})
+        self._state(team["team_id"])
+        return {"ok": True, "status": "revoked", "approval": team_approval.view(ap)}
+
+    def on_job_amended(self, task_id: str) -> None:
+        """The owner edited the job (new revision): every request of the old revision is void. A job that waited for
+        one goes back to its coordination point under the new revision. Called in `accept_lock`."""
+        if self.approvals is None:
+            return
+        ids = self.approvals.close_task(task_id, "superseded", "yêu cầu của việc đã sửa")
+        task = self.tasks.get_task(task_id) or {}
+        team = self._team(task["team_id"]) if task.get("team_id") else None
+        for aid in ids:
+            if team:
+                self._refresh_card(team, self.approvals.get(aid))
+        if team and task.get("status") == "team_blocked" and task.get("block_kind") in (
+                "waiting_user", "rejected", "approval_expired"):
+            res = self._recoordinate(team, task, {"agent_key": ""}, "yêu cầu đã sửa")
+            if res is None:
+                self.tasks.team_unblock(task_id)
+
+    def expire_approvals(self) -> int:
+        """Requests past their deadline (tick): closed `expired`, the job stays stopped with that reason."""
+        if self.approvals is None:
+            return 0
+        n = 0
+        with self.accept_lock:
+            for ap in self.approvals.expire_due():
+                task = self.tasks.get_task(ap["task_id"]) or {}
+                team = self.teams.get(ap["team_id"])
+                if team:
+                    self._after_dead_request(team, task, self.approvals.get(ap["approval_id"]))
+                    self._state(team["team_id"])
+                n += 1
+        return n
 
     async def dispatch_once(self, wait: bool = True) -> list:
         """Nhận việc đầu hàng của các nhóm còn chỗ chạy (spec 8.3). Pool riêng `max_parallel_teams` nhóm.
@@ -3144,6 +3467,13 @@ class TeamRunner:
             if prev is None:
                 return None
             self.teams.cancel_open_steps(task_id, "việc đã huỷ")
+            if self.approvals is not None:
+                # 0.207.0: a cancelled job's requests (waiting or approved, not used) can never open anything.
+                for aid in self.approvals.close_task(task_id, "cancelled", reason or "việc đã huỷ"):
+                    t_ = self.tasks.get_task(task_id) or {}
+                    tm_ = self.teams.get(t_.get("team_id") or "")
+                    if tm_:
+                        self._refresh_card(tm_, self.approvals.get(aid))
             for s in self.teams.steps(task_id):
                 if s["status"] == "running":
                     self.teams.set_step_status(s["step_id"], "cancelled", "việc đã huỷ")
@@ -3189,8 +3519,17 @@ class TeamRunner:
             steps = self.teams.steps(task_id)
             last = next((s for s in reversed(steps) if s["status"] in ("failed", "interrupted")), None)
             if last:
-                self.teams.add_step(task_id, task["team_id"], last["kind"], last["agent_key"], int(task["team_rev"]),
-                                    last["brief"], last["input_refs"], last["parent_step"])
+                new = self.teams.add_step(task_id, task["team_id"], last["kind"], last["agent_key"],
+                                          int(task["team_rev"]), last["brief"], last["input_refs"], last["parent_step"])
+                ap_id = ""
+                if self.approvals is not None:
+                    granted = self.approvals.approved_for_step(last["step_id"])
+                    ap_id = granted["approval_id"] if granted else ""
+                if ap_id:
+                    # 0.207.0: a step the owner approved was interrupted (restart, error). Its approval moves to the
+                    # retry; calls already used stay used, so nothing that already happened can happen twice.
+                    self.teams.set_step_status(new["step_id"], "queued", f"approval:{ap_id}")
+                    self.approvals.granted_step(ap_id, new["step_id"])
         done = self.tasks.team_unblock(task_id) is not None
         if done:
             self._judge_job_changed(task_id, task["team_id"])

@@ -61,7 +61,9 @@ class Engine:
 _n = [0]
 
 
-def world(label, engine_for=None):
+def world(label, engine_for=None, work_mode="full"):
+    """`work_mode` full: these cases check the 0.194.0 private-chat level, which since 0.207.0 is the owner's choice
+    (`teams.work_mode`); the gated default is covered by test_team_gate_factory_0207.py."""
     _n[0] += 1
     d = TEMP / f"{_n[0]:02d}-{label}"
     (d / "agents").mkdir(parents=True)
@@ -77,6 +79,8 @@ def world(label, engine_for=None):
     for k in INFO:
         tm.add_member(tid, k, INFO[k]["slug"])
     tm.set_leader(tid, "agent-one")
+    if work_mode:
+        tm.set_work_mode(tid, work_mode)
     r = TR.TeamRunner(teams=tm, tasks=ts, sessions=ss, engine_for=engine_for or main._team_engine_for,
                       agent_info=ident)
     return r, tm, ts, ss, tm.get(tid), d

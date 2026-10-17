@@ -239,6 +239,23 @@ Người nhận bấm **Nhập team** ở đầu danh sách team, chọn file, x
 
 Mỗi lượt chat tạo, sửa hay gỡ lịch, việc lặp, cộng sự, quy trình hay kỹ năng còn để lại một dòng nhỏ dưới câu trả lời ("Đã tạo lịch: ..."). Cái mới tạo có nút **Hoàn tác**: huỷ lịch, xoá việc lặp, cộng sự, quy trình hay kỹ năng vừa tạo.
 
+## Team chờ bạn duyệt (từ 0.207.0)
+
+Trong việc giao cho Team, một cộng sự cần bạn quyết (chọn phương án, chi tiền, gửi tin hay đăng bài ra ngoài) thì bước đó **dừng thật**: việc chuyển sang **Chờ bạn duyệt**, nhả chỗ cho việc khác của nhóm, và trong khung chat hiện một **thẻ Xin duyệt** ghi rõ sẽ làm gì, phạm vi, ảnh hưởng, bằng chứng và đúng các lời gọi sẽ chạy. Trước đây câu "@Chủ nhóm anh duyệt nhé?" vẫn bị coi là kết quả và việc tự chốt xong.
+
+- **Duyệt**: cộng sự làm tiếp ở một bước mới, và chỉ đúng lời gọi đã duyệt được chạy, mỗi lời gọi một lần. Máy khởi động lại hay chạy lại bước cũng không làm lại hành động đã chạy.
+- **Yêu cầu sửa**: ghi điều muốn đổi, cộng sự đưa phương án mới (thành một thẻ mới).
+- **Từ chối**: ghi lý do, việc dừng ở đó; bạn sửa yêu cầu để giao hướng khác hoặc huỷ việc.
+- **Thu hồi duyệt**: rút lại một duyệt chưa dùng tới.
+
+Sửa yêu cầu của việc hay huỷ việc làm thẻ cũ hết hiệu lực. Chữ trong chat (của bạn hay của cộng sự) không bao giờ thay cho nút Duyệt. Mỗi lần bấm có mã riêng, nên mạng chập chờn bấm lại không làm hai lần, và mở hai tab thì tab sau được báo là đã quyết.
+
+**Quyền của nhóm** (tab Nhóm, mục **Hành động ra ngoài của nhóm**):
+- **Cần chủ duyệt** (mặc định, cả nhóm cũ): cộng sự tự đọc, tìm, ghi file trong bộ não và thư mục của nhóm, chạy lệnh chỉ đọc. Gửi, đăng, thanh toán, đặt hàng, xoá dữ liệu hay lệnh máy khác bị chặn TRƯỚC khi chạy và thành thẻ xin duyệt.
+- **Nhóm tự làm, không hỏi**: quyền như khi bạn chat riêng với từng cộng sự (cách Team chạy ở 0.194.0 tới 0.206.0).
+
+Ở chế độ Cần chủ duyệt, Claude Code, Codex (có sandbox riêng) và các bộ não dùng API key chặn được hành động trước khi chạy. Grok Build chỉ làm phần trong phạm vi (hành động đã duyệt không chạy được trên Grok). Antigravity không chặn được công cụ của chính nó nên bước đó bị từ chối kèm lời giải thích: đổi trợ lý sang bộ não khác hoặc bật "Nhóm tự làm".
+
 ## Thao tác nhanh và khắc phục sự cố
 
 - **Tạo mới:** chọn tab rồi bấm nút tạo ở cuối cột trái; hoặc mở **Javis Store**.

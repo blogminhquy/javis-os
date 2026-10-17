@@ -222,6 +222,23 @@ The person who receives it presses **Import team** at the top of the team list, 
 
 Every chat turn that creates, edits or removes a schedule, loop, partner, workflow or skill also leaves a small line under the answer ("Created schedule: ..."). New items get an **Undo** button: it cancels the schedule or deletes the loop, partner, workflow or skill just created.
 
+## A Team waiting for your approval (from 0.207.0)
+
+In a job given to a Team, when a member needs your decision (pick a plan, spend money, send or post something outside) that step **really stops**: the job moves to **Waiting for your approval**, frees the team's slot for its other jobs, and the chat shows an **Approval request** card with what will be done, the scope, the impact, the evidence and the exact calls that will run. Before, "@Owner please approve?" was taken as the result and the job closed itself.
+
+- **Approve**: the member carries on in a new step, and only the exact approved calls run, each once. A restart or a rerun of the step never repeats an action that already ran.
+- **Ask for changes**: write what should change; the member brings a new proposal (as a new card).
+- **Reject**: write the reason; the job stops there, and you edit the job to give a new direction or cancel it.
+- **Revoke approval**: take back an approval that was not used yet.
+
+Editing or cancelling the job voids its old cards. Words in the chat (yours or a member's) never stand in for the Approve button. Each click carries its own key, so a retry on a flaky connection does not act twice, and a second tab is told the request was already decided.
+
+**The team's permission** (Team tab, **The team's outside actions**):
+- **Needs your approval** (default, older teams too): members read, search, write files in the brain and the team folder, and run read-only commands on their own. Sending, posting, paying, ordering, deleting data or other machine commands are stopped BEFORE they run and become an approval card.
+- **The team acts without asking**: the same rights as your private chat with each member (how Teams ran from 0.194.0 to 0.206.0).
+
+With Needs your approval, Claude Code, Codex (with its own sandbox) and the API-key brains stop an action before it runs. Grok Build only does the in-scope part (an approved action cannot run on Grok). Antigravity cannot stop its own tools, so that step is refused with an explanation: move the member to another brain or turn on "The team acts without asking".
+
 ## Quick actions and troubleshooting
 
 - **Create:** choose a tab and use the create button at the bottom left, or open **Javis Store**.

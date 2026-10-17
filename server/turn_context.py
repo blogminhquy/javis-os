@@ -26,6 +26,9 @@ Resonance A1 adds three keys, filled by the host only for a dashboard chat turn:
                 registered in the Resonance registry, else None. Resolved by the host from the
                 stored session row and the registry, never from anything the model says.
 
+0.207.0 adds `team_gate`: the id of the tool gate of a Team Work/Help step (team_gate.py), "" elsewhere. Set by the
+team runner, never from model output; the hub uses it to let one approved outside action through.
+
 No turn at all (background jobs, loops, engines that cannot carry the key yet) -> `turn` is
 None. A hook that needs an identity must read None as "nobody", never as "the owner".
 
@@ -87,9 +90,10 @@ _LOCK = threading.Lock()  # CLI engines build argv from worker threads too
 
 
 def make(kenh, sender_id="", chat_type="", chat_id="", la_chu=False, *, session_id="", message_id=0,
-         agent=None, authority_seq=None, provider="") -> dict:
+         agent=None, authority_seq=None, provider="", team_gate="") -> dict:
     """`authority_seq` (Resonance A4): ảnh chụp thứ tự quyền do HOST đọc trước khi engine chạy; None khi lượt không
-    thuộc trợ lý nào. `provider`: engine của lượt, để hồ sơ bản nộp ghi đúng khả năng engine."""
+    thuộc trợ lý nào. `provider`: engine của lượt, để hồ sơ bản nộp ghi đúng khả năng engine.
+    `team_gate` (0.207.0): id cổng công cụ của một bước việc nhóm (team_gate.py), "" ngoài bước đó."""
     return {
         "kenh": str(kenh or "").strip(),
         "sender_id": str(sender_id or "").strip(),
@@ -101,6 +105,7 @@ def make(kenh, sender_id="", chat_type="", chat_id="", la_chu=False, *, session_
         "agent": _agent(agent),
         "authority_seq": None if authority_seq is None else int(authority_seq),
         "provider": str(provider or "").strip(),
+        "team_gate": str(team_gate or "").strip(),
     }
 
 

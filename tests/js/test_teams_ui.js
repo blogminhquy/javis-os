@@ -401,7 +401,10 @@ check("T5 gửi tin lấy người được gọi từ chữ, không còn hàng 
 const BA = TM.blockedAction;
 check("T5 nút giải quyết theo lý do chặn", BA("cap_reached").act === "extend" && BA("failed").act === "retry"
       && BA("no_progress").act === "retry" && BA("interrupted").key === "teams.act.continue" && BA("no_leader").act === "leader"
-      && BA("agent_busy_long").act === "resume" && BA("waiting_user").act === "resume" && BA("assignee_removed") === null);
+      && BA("agent_busy_long").act === "resume" && BA("assignee_removed") === null);
+// 0.207.0: waiting for the owner is a real approval now; the strip button only shows the card (the card decides).
+check("0.207.0 chờ duyệt: nút dẫn tới thẻ duyệt, không còn Cho chạy tiếp", BA("waiting_user").act === "view"
+      && BA("rejected").act === "amend" && BA("approval_expired").act === "amend");
 h = TM.jobStripHtml({ running: [{ id: "t_1", title: "Soạn <kế>" }], waiting: [{ id: "t_9", title: "x" }],
   blocked: [{ id: "a", title: "A", block_kind: "cap_reached", block_reason: "Nhóm đã dùng hết số lần trả lời hôm nay" },
     { id: "b", title: "B", block_kind: "no_leader", block_reason: "" }, { id: "c", title: "C", block_kind: "failed" }] });

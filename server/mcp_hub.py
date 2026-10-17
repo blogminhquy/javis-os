@@ -34,6 +34,7 @@ import mcp_client
 import mcp_store
 import skill_router
 import skill_usage
+import team_gate
 import turn_context
 from config import STATE_DIR
 
@@ -219,6 +220,11 @@ def _guard(ent, fn, mode):
     async def _call(args):
         cls = mcp_catalog.classify(connector, tool, args)
         ok, why = mcp_catalog.allowed(connector, conn.get("perm"), mode, tool, args)
+        if not ok and mode == team_gate.HUB_MODE and \
+                mcp_catalog.allowed(connector, conn.get("perm"), "full", tool, args)[0]:
+            # 0.207.0: a gated Team step. The connection itself allows the call; only the owner's approval of this exact
+            # call for this step lets it through (team_gate.py). No live gate means refused, like at auto.
+            ok, why = team_gate.hub_check(fn, args, f"{conn.get('label') or conn.get('connector_id') or ''}: {tool}")
         if ok and not _rate_ok(conn["id"], connector):
             ok, why = False, (f"Kết nối '{conn.get('label')}' vượt giới hạn tần suất "
                               f"(chống spam/khoá tài khoản). Chờ 1 phút rồi thử lại.")
@@ -1111,7 +1117,9 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
             continue
         conn = raw["conn"]
         connector = mcp_catalog.get(conn.get("connector_id"))
-        eff = mcp_catalog.effective_perm(conn.get("perm"), mode)
+        # A gated Team step (0.207.0) lists like full: an outside action must be callable so the gate can stop it and
+        # turn it into an approval request, and run it once approved. The call itself is still capped (`_guard`).
+        eff = mcp_catalog.effective_perm(conn.get("perm"), "full" if mode == team_gate.HUB_MODE else mode)
         # Tool ĐA HÀNH ĐỘNG (schema có tham số arg_rules.param, vd action của Pancake) → coi là
         # "read" lúc LIST để còn liệt kê được; chặn thật lúc call (đã có args). Tool thường →
         # phân loại tĩnh theo tool_meta/heuristic.
@@ -1693,7 +1701,7 @@ def codex_vault_override(vault_root):
 
 
 CODEX_MODE_KEY = "mcp_servers.javis.http_headers.X-Javis-Mode"
-_CODEX_MODES = ("suggest", "auto", "full")
+_CODEX_MODES = ("suggest", "auto", "full", "gated")
 
 
 def dat_codex_mode(extra_config, mode):

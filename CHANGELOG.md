@@ -6,6 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.207.0] - 2026-10-17
+### Sửa lỗi
+- **Team hỏi bạn duyệt thì dừng thật:** câu "@Chủ nhóm anh duyệt nhé?" không còn bị coi là kết quả rồi tự chốt việc. Việc chuyển sang Chờ bạn duyệt, nhả chỗ cho việc khác, và chưa duyệt thì không có gì được làm.
+
+### Thêm mới
+- **Thẻ Xin duyệt trong chat Team:** ghi rõ sẽ làm gì, phạm vi, ảnh hưởng, bằng chứng và đúng lời gọi sẽ chạy, kèm nút Duyệt, Yêu cầu sửa, Từ chối, Thu hồi. Sửa hay huỷ việc làm thẻ cũ hết hiệu lực; bấm lại hay mở hai tab không làm hai lần.
+- **Chặn hành động ra ngoài trước khi chạy:** ở quyền mặc định "Cần chủ duyệt", gửi tin, đăng bài, thanh toán hay lệnh máy của Team bị chặn rồi thành thẻ xin duyệt; duyệt xong chỉ đúng lời gọi đó chạy một lần, khởi động lại cũng không chạy lại.
+- **Công tắc "Nhóm tự làm, không hỏi"** ở tab Nhóm cho nhóm bạn tin, chạy như trước bản này.
+
 ## [0.206.0] - 2026-10-17
 ### Thêm mới
 - **Gửi thêm việc khi Javis đang làm, như Claude Code và Codex:** gõ rồi gửi tiếp trong lúc Javis đang chạy, việc đang làm không bị dừng. Trước đây tin gõ lúc này bị bỏ qua im lặng.

@@ -303,6 +303,8 @@ class TeamApi:
             rep = await r._io(r.recover)
             if rep["resumed"]:
                 self._spawn(r.resume_jobs(rep["resumed"]))
+        # 0.207.0: approval requests past their deadline close before dispatch, so their jobs stay stopped with the reason.
+        await r._io(r.expire_approvals)
         await r.dispatch_once(wait=False)
         # T3 phần J: lần chờ của bộ phán xử quá 30 phút thì hết hạn (nhóm và chat riêng), xử lý nền.
         await r._io(r.judge_tick)
@@ -805,6 +807,8 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             with runner.accept_lock:
                 shares = runner.result_shares(deps.task_store().get_task(task_id))
                 rev = deps.task_store().team_amend(task_id, text)
+                if rev is not None:
+                    runner.on_job_amended(task_id)
             if rev is None:
                 return _err(409, "Việc đã kết thúc", "The job has already ended")
             runner._state(team_id)
@@ -1135,6 +1139,84 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             # 0.197.0: the team is read now; other open pages and devices clear its unread badge.
             api.runner()._publish({"type": "team_read", "team_id": team_id})
             return {"ok": True}
+        return await api.io(_do)
+
+    @app.get("/teams/{team_id}/approvals")
+    async def teams_approvals(team_id: str, brain: str = "brain", task_id: str = ""):
+        """Owner approval requests of the team (0.207.0), newest first, or of one job with `task_id`."""
+        def _do():
+            team, err = _team(team_id, brain)
+            if err:
+                return err
+            return {"ok": True, "approvals": api.runner().approvals_view(team_id, task_id or None)}
+        return await api.io(_do)
+
+    @app.post("/teams/{team_id}/approvals/{approval_id}/decide")
+    async def teams_approval_decide(team_id: str, approval_id: str, request: Request, brain: str = "brain"):
+        """The owner's decision on one approval card (0.207.0): `decision` approve | reject | changes | revoke, `note`,
+        `decision_key` (one per click: a retry replays the first answer, a second tab gets already_decided) and
+        `expected_rev` (the job revision the card showed). Owner-only by construction: the dashboard's login and CSRF
+        stand in front of this route, and no JAVIS_TEAM directive or chat text reaches it."""
+        body = await _body(request)
+        decision = str(body.get("decision") or "").strip().lower()
+        note = str(body.get("note") or "")[:2000]
+        key = str(body.get("decision_key") or "").strip()[:80]
+        try:
+            rev = int(body["expected_rev"]) if body.get("expected_rev") not in (None, "") else None
+        except (TypeError, ValueError):
+            rev = None
+
+        def _do():
+            team, err = _team(team_id, brain)
+            if err:
+                return err
+            if decision not in ("approve", "reject", "changes", "revoke"):
+                return _err(400, "Quyết định không hợp lệ", "Invalid decision")
+            if decision != "revoke" and not key:
+                return _err(400, "Thiếu mã lần bấm", "Missing decision key")
+            if decision in ("reject", "changes") and not note.strip():
+                return _err(400, "Ghi lý do để trợ lý biết hướng sửa", "Add a reason so the assistant knows what to change")
+            out = api.runner().decide_approval(team_id, approval_id, decision, note=note, decision_key=key,
+                                               expected_rev=rev, by="owner")
+            if not out.get("ok"):
+                code = 404 if out.get("error") == "not_found" else 409
+                msgs = {"not_found": ("Không có yêu cầu này", "No such request"),
+                        "already_decided": ("Yêu cầu đã được quyết ở nơi khác", "This request was already decided"),
+                        "stale": ("Việc đã sửa, yêu cầu này không còn hợp lệ", "The job changed; this request is void"),
+                        "expired": ("Yêu cầu đã hết hạn", "This request has expired"),
+                        "job_ended": ("Việc đã kết thúc", "The job has already ended"),
+                        "member_left": ("Người xin đã rời nhóm", "The member who asked left the team"),
+                        "not_revocable": ("Chỉ thu hồi được yêu cầu đã duyệt mà chưa dùng",
+                                          "Only an approved, unused request can be revoked"),
+                        "key_reused": ("Mã lần bấm đã dùng cho yêu cầu khác", "This decision key was used elsewhere")}
+                vi, en = msgs.get(out.get("error") or "", ("Không quyết được", "Could not decide"))
+                return _err(code, vi, en, error=out.get("error"), approval=out.get("approval"))
+            api.kick()
+            return {"ok": True, "status": out.get("status"), "replay": bool(out.get("replay")),
+                    "approval": out.get("approval")}
+        return await api.io(_do)
+
+    @app.post("/teams/{team_id}/work_mode")
+    async def teams_work_mode(team_id: str, request: Request, brain: str = "brain"):
+        """Owner's switch (0.207.0): `mode` gated (outside actions wait for approval, default) or full (the team acts on
+        its own). Takes effect from the next step; a step already running keeps the level it started with."""
+        mode = str((await _body(request)).get("mode") or "").strip().lower()
+
+        def _do():
+            team, err = _team(team_id, brain)
+            if err:
+                return err
+            if mode not in ("gated", "full"):
+                return _err(400, "Quyền làm việc không hợp lệ", "Invalid work mode")
+            before = team.get("work_mode") or "gated"
+            api.teams().set_work_mode(team_id, mode)
+            if before != mode:
+                r = api.runner()
+                r._post(api.teams().get(team_id), "Chủ nhóm cho nhóm tự làm hành động ra ngoài, không cần hỏi từng bước."
+                        if mode == "full" else "Chủ nhóm đặt lại: hành động ra ngoài của nhóm phải chờ duyệt.",
+                        author_kind="system", meta={"kind": "work_mode", "work_mode": mode})
+                r._publish({"type": "team_state", "team_id": team_id})
+            return {"ok": True, "work_mode": mode}
         return await api.io(_do)
 
     @app.post("/teams/{team_id}/mute")

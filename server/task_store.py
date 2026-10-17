@@ -1400,6 +1400,12 @@ class TaskStore:
         return self._team_move(task_id, ("team_running", "team_queued"), "team_blocked", "team_blocked",
                                block_kind=str(kind or "failed"), block_reason=reason, run_status="blocked")
 
+    def team_reblock(self, task_id: str, kind: str, reason: str = "") -> Optional[str]:
+        """A blocked job stays blocked for another reason (0.207.0: the owner rejected or revoked an approval, the request
+        expired). Same place in the queue; the new kind decides which buttons the owner gets."""
+        return self._team_move(task_id, ("team_blocked",), "team_blocked", "team_reblocked",
+                               block_kind=str(kind or "failed"), block_reason=reason)
+
     def team_unblock(self, task_id: str) -> Optional[str]:
         return self._team_move(task_id, ("team_blocked",), "team_queued", "team_unblocked")
 
