@@ -23524,12 +23524,9 @@ def _team_engine_for(team, agent_key, role):
         if gate_id and prov == aux_engine.CODEX:
             # Natives stay in Codex's own `auto` sandbox (no network); hub tools get the gated level and the turn key,
             # so an approved outside action can pass the gate and nothing else can.
-            mcp_hub.dat_codex_mode(eng.extra_config, team_gate.HUB_MODE)
+            # Review 0.207.0: also no ChatGPT apps (Gmail, Slack... outside the hub) and no shell network.
+            mcp_hub.dat_codex_team_gated(eng.extra_config)
             eng.hub_turn = True
-            # Review 0.207.0: no ChatGPT apps (Gmail, Slack... outside the hub) and no shell network, whatever the
-            # user's own Codex config says.
-            mcp_hub.dat_codex_tat_app(eng.extra_config)
-            eng.extra_config.append("sandbox_workspace_write.network_access=false")
         if tool_spec.get("provider") == aux_engine.CODEX:
             try:
                 openai_oauth.write_codex_auth()
@@ -24136,7 +24133,8 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     ceiling=_team_ceiling, projector=_feedback_projector, judge=lambda: _agent_judge(),
     learning=_team_learning,
     contrib_reader=lambda ref: _team_contrib_reader(ref), attach=_team_attach, docs_block=_team_docs_block,
-    describe=_team_describe, mandate_deps=lambda: _MandateDeps()))
+    describe=_team_describe, mandate_deps=lambda: _MandateDeps(),
+    check_command=lambda cmd, cwd: _MandateDeps().run_test(cmd, cwd)))
 
 
 # ============================================================

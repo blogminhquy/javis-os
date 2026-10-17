@@ -33,6 +33,7 @@ import localefmt
 import reaction_values as RV
 from io_offload import run_io  # noqa: F401 - giữ `team_runner.run_io` cho team_api và test
 import resonance_store
+import team_acceptance
 import team_approval
 import team_gate
 import turn_context
@@ -351,12 +352,21 @@ class TeamRunner:
                  notify: Optional[Callable[[str, str], Any]] = None, worker_id: str = "team-runner",
                  max_parallel_teams: int = 2, clock: Callable[[], float] = time.time, admin: Any = None,
                  ceiling: Any = None, projector: Any = None, judge: Any = None,
-                 learning: Any = None, contrib_reader: Any = None, docs_block: Any = None, approvals: Any = None):
+                 learning: Any = None, contrib_reader: Any = None, docs_block: Any = None, approvals: Any = None,
+                 acceptance: Any = None, check_command: Optional[Callable] = None,
+                 brain_root: Optional[Callable] = None):
         self.teams = teams
         # 0.207.0: owner approval requests (team_approval.ApprovalStore), in the team store's own file by default.
         if approvals is None and getattr(teams, "path", None) is not None:
             approvals = team_approval.ApprovalStore(teams.path, clock=clock)
         self.approvals = approvals
+        # 0.209.0: product acceptance (team_acceptance.py). `check_command(cmd, cwd) -> {ran, exit, output, error}` runs
+        # a command_ok criterion (None: such a criterion stays unknown, the owner decides). `brain_root(team) -> Path`.
+        if acceptance is None and getattr(teams, "path", None) is not None:
+            acceptance = team_acceptance.AcceptanceStore(teams.path, clock=clock)
+        self.acceptance = acceptance
+        self.check_command = check_command
+        self.brain_root = brain_root or (lambda team: __import__("pathlib").Path(str(team["brain_id"])))
         # 0.191.0: documents, links and the pinned working folder of the team (team_docs.block), added to every member
         # turn. `docs_block(team) -> str`. None: no documents block.
         self.docs_block = docs_block
@@ -2762,8 +2772,19 @@ class TeamRunner:
 
     def _finish(self, team: dict, task_id: str, msg_id: int, text: str, rev: int) -> Optional[str]:
         """Chốt việc bằng kết quả của bản yêu cầu `rev` (CAS ở kho, review T1 R7). Yêu cầu đã sửa sang bản khác thì kết
-        quả này chỉ là bằng chứng: không chốt, việc làm lại theo bản mới."""
+        quả này chỉ là bằng chứng: không chốt, việc làm lại theo bản mới.
+
+        0.209.0: a job with acceptance criteria closes only when its product passes them (`_accept_product`)."""
+        acc = self.acceptance.get(task_id) if self.acceptance is not None else None
+        if acc is not None:
+            cur = self.tasks.get_task(task_id) or {}
+            if cur.get("status") == "team_running" and int(cur.get("team_rev") or 0) == int(rev):
+                verdict = self._accept_product(team, cur, msg_id, int(rev), acc)
+                if verdict != "pass":
+                    return verdict
         if self.tasks.team_finish(task_id, text, expected_rev=rev) is not None:
+            if acc is not None:
+                self._acceptance_signal(team, task_id, int(rev), "objective_pass")
             self._judge_job_changed(task_id, team["team_id"])
             self.sessions.update_team_message_meta(team["session_id"], msg_id, {"job_result": True})
             self._publish({"type": "team_message", "team_id": team["team_id"],
@@ -2775,6 +2796,146 @@ class TeamRunner:
             self._supersede(team, msg_id, "old_revision")
             return self._recoordinate(team, cur, {"agent_key": ""}, "yêu cầu đã sửa")
         return None
+
+    # ───────────── nghiệm thu (0.209.0) ─────────────
+
+    def _acceptance_signal(self, team: dict, task_id: str, rev: int, event: str) -> None:
+        """Reward only from a confirmed acceptance: once per (job, revision), from the host, never from an agent."""
+        try:
+            task = self.tasks.get_task(task_id)
+            shares = self.result_shares(task)
+            self.pulse_task_event(event, team["team_id"], list(shares), f"acceptance:{task_id}:{rev}:{event}",
+                                  shares=shares)
+        except Exception as ex:  # noqa: BLE001 - the signal must never break closing the job
+            log.warning("acceptance signal: %s: %s", type(ex).__name__, ex)
+
+    def _accept_product(self, team: dict, task: dict, msg_id: int, rev: int, acc: dict) -> Optional[str]:
+        """Check the product against the job's criteria. "pass" lets `_finish` close the job; otherwise the job goes into
+        a fix round, waits for the owner, or stops at acceptance_failed. Called in `accept_lock`."""
+        root = self.brain_root(team)
+        results = team_acceptance.run_checks(acc, root, self.check_command)
+        hist = self.acceptance.history(task["id"])
+        rnd = max([h["round"] for h in hist] or [0]) + 1
+        self.acceptance.record(task["id"], rev, rnd, results)
+        summary = team_acceptance.summarize(results)
+        lines = []
+        for c, v, ev in results:
+            mark = {"pass": "đạt", "fail": "chưa đạt", "unknown": "chưa rõ"}[v]
+            what = c.get("label") or c.get("path") or c.get("command") or c["kind"]
+            lines.append(f"- {what}: {mark}" + (f" ({ev.get('detail')})" if ev.get("detail") else ""))
+        if summary == "pass":
+            self.acceptance.set_state(task["id"], status="passed", revision=rev, result_msg_id=msg_id)
+            self._post(team, "Nghiệm thu đạt:\n" + "\n".join(lines), author_kind="system", task_id=task["id"],
+                       meta={"kind": "acceptance_result", "verdict": "pass", "round": rnd})
+            return "pass"
+        if summary == "fail":
+            used = int(acc.get("rounds_used") or 0)
+            if used < int(acc.get("fix_rounds") or 0):
+                step = next((s for s in self.teams.steps(task["id"]) if s.get("result_msg_id") == msg_id), None)
+                self.acceptance.set_state(task["id"], status="fixing", rounds_used=used + 1, revision=rev)
+                self._post(team, f"Nghiệm thu chưa đạt (vòng sửa {used + 1}/{acc['fix_rounds']}):\n" + "\n".join(lines),
+                           author_kind="system", task_id=task["id"],
+                           meta={"kind": "acceptance_result", "verdict": "fail", "round": rnd})
+                if step:
+                    self.teams.set_step_status(step["step_id"], "continued", f"acceptance_fix:{rnd}")
+                    brief = (f"{step['brief']}\n\nNGHIỆM THU CHƯA ĐẠT (vòng sửa {used + 1}/{acc['fix_rounds']}). Sửa đúng "
+                             "các điểm sau trên chính sản phẩm (file), rồi trả kết quả:\n" + "\n".join(lines))
+                    ok = self._add_steps(team, task, [{"kind": step["kind"], "agent": step["agent_key"], "brief": brief,
+                                                       "inputs": list(step.get("input_refs") or []) + [msg_id],
+                                                       "parent": step.get("parent_step"), "rev": rev}])
+                    return None if ok else "team_blocked"
+            self.acceptance.set_state(task["id"], status="failed", revision=rev, result_msg_id=msg_id)
+            self._post(team, "Nghiệm thu chưa đạt, đã hết vòng sửa:\n" + "\n".join(lines), author_kind="system",
+                       task_id=task["id"], meta={"kind": "acceptance_result", "verdict": "fail", "round": rnd})
+            self._acceptance_signal(team, task["id"], rev, "objective_fail")
+            return self._block(task["id"], "acceptance_failed", "Sản phẩm chưa đạt tiêu chí nghiệm thu sau các vòng sửa")
+        # review: unknown checks or an owner confirmation left
+        self.acceptance.set_state(task["id"], status="review", revision=rev, result_msg_id=msg_id)
+        self._block(task["id"], "acceptance_review", "Chờ bạn xác nhận nghiệm thu sản phẩm", post=False)
+        acc = self.acceptance.get(task["id"])
+        mid = self._post(team, "Nghiệm thu chờ bạn xác nhận:\n" + "\n".join(lines), author_kind="system", task_id=task["id"],
+                         meta={"kind": "acceptance_review", "acceptance": self.acceptance_view(team, task["id"])})
+        self.acceptance.set_state(task["id"], message_id=mid)
+        self._notify(team["team_id"], localefmt.chu("Nhóm \"{nhom}\" chờ bạn nghiệm thu: {t}",
+                                                     "Team \"{nhom}\" waits for your acceptance: {t}",
+                                                     nhom=team.get("name") or "", t=task.get("title") or ""))
+        return "team_blocked"
+
+    def acceptance_view(self, team: dict, task_id: str) -> Optional[dict]:
+        if self.acceptance is None:
+            return None
+        acc = self.acceptance.get(task_id)
+        return team_acceptance.view(acc, self.acceptance.history(task_id), self.brain_root(team)) if acc else None
+
+    def set_acceptance(self, team_id: str, task_id: str, criteria: Any, fix_rounds: Any = None) -> dict:
+        """Owner sets the criteria of a job not finished yet (route). A new set restarts the rounds."""
+        with self.accept_lock:
+            task = self.tasks.get_task(task_id) or {}
+            if task.get("team_id") != team_id or task.get("status") in ("done", "cancelled"):
+                raise team_acceptance.AcceptanceError("việc đã kết thúc hay không thuộc nhóm này")
+            if task.get("block_kind") == "acceptance_review":
+                raise team_acceptance.AcceptanceError("việc đang chờ bạn xác nhận nghiệm thu; xác nhận hay trả về trước")
+            return self.acceptance.put(task_id, team_id, criteria, fix_rounds)
+
+    def decide_acceptance(self, team_id: str, task_id: str, decision: str, note: str = "", by: str = "owner") -> dict:
+        """Owner on the acceptance card: `accept` closes the job with the checked product (only if the product files are
+        still the ones checked), `reject` sends it back to the member with the note as a fix step."""
+        with self.accept_lock:
+            task = self.tasks.get_task(task_id) or {}
+            acc = self.acceptance.get(task_id) if self.acceptance is not None else None
+            if not acc or task.get("team_id") != team_id:
+                return {"ok": False, "error": "not_found"}
+            if task.get("status") != "team_blocked" or task.get("block_kind") != "acceptance_review" or \
+                    acc["status"] != "review" or int(acc.get("revision") or -1) != int(task.get("team_rev") or 0):
+                return {"ok": False, "error": "not_waiting"}
+            team = self._team(team_id)
+            root = self.brain_root(team)
+            hist = self.acceptance.history(task_id)
+            last_round = max([h["round"] for h in hist] or [0])
+            checked = {h["evidence"]["path"]: h["evidence"].get("sha256") for h in hist
+                       if h["round"] == last_round and h["evidence"].get("path")}
+            if decision == "accept":
+                now_h = {}
+                for rel, sha in checked.items():
+                    p = team_acceptance.resolve_in(root, rel)
+                    cur = team_acceptance.sha256_file(p) if p else None
+                    if cur != sha:
+                        return {"ok": False, "error": "product_changed", "path": rel}
+                    now_h[rel] = cur
+                m = self.sessions.team_message(team["session_id"], int(acc["result_msg_id"])) if acc.get("result_msg_id") else None
+                if self.tasks.team_finish_reviewed(task_id, (m or {}).get("content", ""), expected_rev=int(acc["revision"])) is None:
+                    return {"ok": False, "error": "not_waiting"}
+                self.acceptance.set_state(task_id, status="accepted", confirmed_by=by, confirmed_at=self.clock(),
+                                          confirmed_hashes=now_h)
+                if acc.get("result_msg_id"):
+                    self.sessions.update_team_message_meta(team["session_id"], int(acc["result_msg_id"]), {"job_result": True})
+                self._post(team, "Chủ nhóm xác nhận nghiệm thu đạt." + (f" Ghi chú: {note.strip()}" if note.strip() else ""),
+                           author_kind="system", task_id=task_id, meta={"kind": "acceptance_decided", "decision": "accept"})
+                self._acceptance_signal(team, task_id, int(acc["revision"]), "accept")
+            elif decision == "reject":
+                if not note.strip():
+                    return {"ok": False, "error": "note_required"}
+                step = next((s for s in self.teams.steps(task_id) if s.get("result_msg_id") == acc.get("result_msg_id")), None)
+                if step:
+                    self.teams.set_step_status(step["step_id"], "continued", "acceptance_rejected")
+                    self.teams.add_step(task_id, team_id, step["kind"], step["agent_key"], int(task["team_rev"]),
+                                        f"{step['brief']}\n\nCHỦ NHÓM CHƯA NGHIỆM THU: {note.strip()}",
+                                        list(step.get("input_refs") or []) + [acc["result_msg_id"]], step.get("parent_step"))
+                self.acceptance.set_state(task_id, status="fixing")
+                self.tasks.team_unblock(task_id)
+                self._post(team, f"Chủ nhóm chưa nghiệm thu: {note.strip()}", author_kind="system", task_id=task_id,
+                           meta={"kind": "acceptance_decided", "decision": "reject"})
+            else:
+                return {"ok": False, "error": "bad_decision"}
+            if acc.get("message_id"):
+                self.sessions.update_team_message_meta(team["session_id"], int(acc["message_id"]),
+                                                       {"acceptance": self.acceptance_view(team, task_id)})
+                mm = self.sessions.team_message(team["session_id"], int(acc["message_id"]))
+                if mm:
+                    self._publish({"type": "team_message", "team_id": team_id, "message": self.message_view(team, mm)})
+        self._judge_job_changed(task_id, team_id)
+        self._state(team_id)
+        return {"ok": True, "acceptance": self.acceptance_view(team, task_id)}
 
     def _supersede(self, team: dict, msg_id: Optional[int], status: str) -> None:
         """Tin kết quả đã đăng nhưng hết hiệu lực trước khi áp dụng: đổi nhãn thành bằng chứng (applied=false)."""
@@ -3361,8 +3522,11 @@ class TeamRunner:
         for aid in ids:
             if team:
                 self._refresh_card(team, self.approvals.get(aid))
+        if self.acceptance is not None and self.acceptance.get(task_id):
+            # 0.209.0: an edit voids the evidence of the old revision; the new revision is checked from round zero.
+            self.acceptance.set_state(task_id, status="pending", rounds_used=0, revision=None)
         if team and task.get("status") == "team_blocked" and task.get("block_kind") in (
-                "waiting_user", "rejected", "approval_expired"):
+                "waiting_user", "rejected", "approval_expired", "acceptance_review", "acceptance_failed"):
             res = self._recoordinate(team, task, {"agent_key": ""}, "yêu cầu đã sửa")
             if res is None:
                 self.tasks.team_unblock(task_id)
@@ -3557,7 +3721,7 @@ class TeamRunner:
         for tid in ids:
             self._start_job(tid, team_id)
 
-    APPROVAL_BLOCKS = ("waiting_user", "rejected", "approval_expired")
+    APPROVAL_BLOCKS = ("waiting_user", "rejected", "approval_expired", "acceptance_review", "acceptance_failed")
 
     def unblock(self, task_id: str, action: str = "resume") -> bool:
         """Gỡ chặn: `retry` chạy lại bước lỗi hay bị ngắt (bước mới, lượt mới); `resume` cho chạy tiếp như cũ.

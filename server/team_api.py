@@ -67,6 +67,8 @@ class TeamApiDeps:
     # 0.208.0: what the department mandate needs from the host (team_mandate.MandateEngine deps): brain_root,
     # kanban_failures, mcp_status, run_test, open_job. None: mandates can be written but are never observed.
     mandate_deps: Optional[Callable[[], Any]] = None
+    # 0.209.0: runs a `command_ok` acceptance criterion: (command, cwd) -> {ran, exit, output, error}. None: unknown.
+    check_command: Optional[Callable[[str, Any], dict]] = None
 
 
 async def _body(request: Request) -> dict:
@@ -159,7 +161,8 @@ class TeamApi:
                 projector=self.deps.projector() if self.deps.projector is not None else None,
                 judge=self.deps.judge() if self.deps.judge is not None else None,
                 learning=self.deps.learning() if self.deps.learning is not None else None,
-                contrib_reader=self.deps.contrib_reader, docs_block=self.deps.docs_block)
+                contrib_reader=self.deps.contrib_reader, docs_block=self.deps.docs_block,
+                check_command=self.deps.check_command)
             if self._loop is not None:
                 self._runner._loop, self._runner._loop_thread = self._loop, self._loop_thread
         return self._runner
@@ -1256,6 +1259,64 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
                         author_kind="system", meta={"kind": "work_mode", "work_mode": mode})
                 r._publish({"type": "team_state", "team_id": team_id})
             return {"ok": True, "work_mode": mode}
+        return await api.io(_do)
+
+    # ───────────── 0.209.0: product acceptance ─────────────
+
+    @app.get("/teams/{team_id}/tasks/{task_id}/acceptance")
+    async def teams_acceptance_get(team_id: str, task_id: str, brain: str = "brain"):
+        def _do():
+            team, err = _team(team_id, brain)
+            if err:
+                return err
+            if not _own_task(team_id, task_id):
+                return _err(404, "Không có việc này trong nhóm", "No such job in this team")
+            r = api.runner()
+            return {"ok": True, "acceptance": r.acceptance_view(team, task_id),
+                    "history": r.acceptance.history(task_id) if r.acceptance is not None else []}
+        return await api.io(_do)
+
+    @app.put("/teams/{team_id}/tasks/{task_id}/acceptance")
+    async def teams_acceptance_put(team_id: str, task_id: str, request: Request, brain: str = "brain"):
+        """Owner sets the job's acceptance criteria (owner only: no JAVIS_TEAM directive reaches this)."""
+        body = await _body(request)
+
+        def _do():
+            import team_acceptance
+            team, err = _team(team_id, brain)
+            if err:
+                return err
+            if not _own_task(team_id, task_id):
+                return _err(404, "Không có việc này trong nhóm", "No such job in this team")
+            try:
+                api.runner().set_acceptance(team_id, task_id, body.get("criteria"), body.get("fix_rounds"))
+            except team_acceptance.AcceptanceError as ex:
+                return _err(400, f"Tiêu chí chưa hợp lệ: {ex}", f"Criteria are not valid: {ex}")
+            api.runner()._system(api.teams().get(team_id), "Chủ nhóm đã đặt tiêu chí nghiệm thu cho việc này.",
+                                 "acceptance_set")
+            return {"ok": True, "acceptance": api.runner().acceptance_view(team, task_id)}
+        return await api.io(_do)
+
+    @app.post("/teams/{team_id}/tasks/{task_id}/acceptance/decide")
+    async def teams_acceptance_decide(team_id: str, task_id: str, request: Request, brain: str = "brain"):
+        body = await _body(request)
+
+        def _do():
+            team, err = _team(team_id, brain)
+            if err:
+                return err
+            out = api.runner().decide_acceptance(team_id, task_id, str(body.get("decision") or "").lower(),
+                                                 note=str(body.get("note") or "")[:2000])
+            if not out.get("ok"):
+                msgs = {"not_found": ("Việc này chưa có tiêu chí nghiệm thu", "This job has no acceptance criteria"),
+                        "not_waiting": ("Việc không ở bước chờ nghiệm thu", "The job is not waiting for acceptance"),
+                        "product_changed": ("Sản phẩm đã đổi sau lần kiểm, cần kiểm lại", "The product changed after the check"),
+                        "note_required": ("Ghi điều cần sửa", "Say what should change"),
+                        "bad_decision": ("Quyết định không hợp lệ", "Invalid decision")}
+                vi, en = msgs.get(out.get("error") or "", ("Không quyết được", "Could not decide"))
+                return _err(404 if out.get("error") == "not_found" else 409, vi, en, error=out.get("error"))
+            api.kick()
+            return out
         return await api.io(_do)
 
     # ───────────── 0.208.0: department mandate ─────────────

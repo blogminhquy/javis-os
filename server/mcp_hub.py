@@ -1784,6 +1784,17 @@ def dat_codex_hub_bat_buoc(extra_config):
     return extra_config
 
 
+def dat_codex_team_gated(extra_config):
+    """0.207.0: one Codex process of a GATED Team step (team_gate.py): hub level `gated` (the gate decides outside
+    actions), no ChatGPT apps (they bypass the hub) and no shell network in its workspace sandbox, whatever the user's
+    own Codex config says. Chat and workflow Codex processes never get this."""
+    dat_codex_mode(extra_config, "gated")
+    dat_codex_tat_app(extra_config)
+    extra_config[:] = [x for x in extra_config if not str(x).startswith("sandbox_workspace_write.network_access=")]
+    extra_config.append("sandbox_workspace_write.network_access=false")
+    return extra_config
+
+
 def dat_codex_tat_app(extra_config):
     """Tắt app ChatGPT (`codex_apps`) cho MỘT CodexCLI, THAY bản cũ nếu có."""
     extra_config[:] = [x for x in extra_config if not str(x).startswith(CODEX_APPS_KEY + "=")]

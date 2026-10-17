@@ -1420,6 +1420,11 @@ class TaskStore:
         return self._team_move(task_id, ("team_running",), "done", "team_done", "done",
                                result=result, run_status="completed", expected_rev=expected_rev)
 
+    def team_finish_reviewed(self, task_id: str, result: str = "", expected_rev: Optional[int] = None) -> Optional[str]:
+        """0.209.0: the owner confirmed the product of a job that waited for acceptance (blocked) -> done, same CAS."""
+        return self._team_move(task_id, ("team_blocked",), "done", "team_done", "done (owner accepted)",
+                               result=result, run_status="completed", expected_rev=expected_rev)
+
     def team_cancel(self, task_id: str, reason: str = "owner cancel") -> Optional[str]:
         return self._team_move(task_id, TEAM_OPEN_STATUS, "cancelled", "team_cancelled", reason,
                                block_kind="cancelled", block_reason=reason, run_status="cancelled")
