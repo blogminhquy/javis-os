@@ -139,6 +139,15 @@ def current() -> Optional[Gate]:
     return get((t or {}).get("team_gate"))
 
 
+def audit_fields() -> dict:
+    """For the hub's audit line (0.210.0): which Team step a call came from, so the pilot can match every outside call
+    to its approval. Empty outside a gated step."""
+    g = current()
+    if g is None:
+        return {}
+    return {"team_gate": g.gate_id, "team_id": g.team_id, "task_id": g.task_id, "step_id": g.step_id}
+
+
 def _trim(args: Any) -> Any:
     if isinstance(args, dict):
         return {str(k)[:80]: (v if isinstance(v, (int, float, bool)) or v is None else str(v)[:600])

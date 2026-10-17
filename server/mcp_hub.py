@@ -241,7 +241,7 @@ def _guard(ent, fn, mode):
             _audit_append({"ts": datetime.now().isoformat(timespec="seconds"), "conn_id": conn["id"],
                            "connector": conn.get("connector_id"), "label": conn.get("label"),
                            "tool": tool, "mode": mode, "cls": cls, "ok": False, "ms": 0,
-                           "err": why[:200], "args_keys": sorted((args or {}).keys())})
+                           "err": why[:200], "args_keys": sorted((args or {}).keys()), **team_gate.audit_fields()})
             return "ERROR: " + why
         t0 = time.time()
         result = await mcp_client.call_route({fn: {"spec": ent["spec"], "tool": tool}}, fn, args)
@@ -250,7 +250,7 @@ def _guard(ent, fn, mode):
                        "tool": tool, "mode": mode, "cls": cls,
                        "ok": not str(result).startswith("ERROR:"), "ms": int((time.time() - t0) * 1000),
                        "err": str(result)[:200] if str(result).startswith("ERROR:") else "",
-                       "args_keys": sorted((args or {}).keys())})
+                       "args_keys": sorted((args or {}).keys()), **team_gate.audit_fields()})
         # Lỗi từ dịch vụ trả về NGUYÊN VĂN tiếng Anh thì model phải tự đoán, và nó đoán sai:
         # vụ 2026-07-30 Google trả "The caller does not have permission", model kết luận là hub
         # của Javis chặn quyền rồi đi sửa nhầm tầng. GẮN THÊM chẩn đoán (không thay thế - giữ

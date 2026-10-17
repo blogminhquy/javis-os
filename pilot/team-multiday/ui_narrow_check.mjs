@@ -6,6 +6,8 @@
 //     node pilot/team-multiday/ui_narrow_check.mjs [screenshot-dir]
 //
 // Not part of CI (CI has no browser). Run it before the pilot and keep the screenshots with the report.
+// The app font (Be Vietnam Pro, Google Fonts) is not loaded here, so widths are measured on the system fallback font;
+// a final look on a real phone is still part of run_guide.txt.
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -47,6 +49,9 @@ function cardsHtml(lang) {
     TM.mandateHtml({ mandate: m }),
     TM.opportunityCardHtml({ id: 2, meta: { opportunity: opp } }),
     TM.acceptanceCardHtml({ id: 3, meta: { acceptance: acc } }),
+    // The two forms whose CSS changed (review 0.210.0): mandate editor and acceptance criteria editor.
+    TM.mandateHtml({ mandate: m }, true),
+    TM.queueHtml({ waiting: [{ id: "t_9", title: lang === "vi" ? "Viết bài ra mắt" : "Write the launch post" }] }, { accEdit: "t_9" }),
   ].join("");
 }
 
@@ -65,14 +70,15 @@ for (const lang of ["vi", "en"]) {
   await page.goto("file://" + file);
   const r = await page.evaluate(() => {
     const doc = document.documentElement;
-    const small = [...document.querySelectorAll(".tm-ap, .tm-md, .tm-wm .tm-radio, .tm-ap button, .tm-md button, .tm-md .tm-sub, .tm-ap .tm-sub, .tm-md li, .tm-ap li")]
+    const small = [...document.querySelectorAll(".tm-ap, .tm-md, .tm-wm .tm-radio, .tm-ap button, .tm-md button, .tm-md .tm-sub, .tm-ap .tm-sub, .tm-md li, .tm-ap li, .tm-ap code, .tm-md code, .tm-md-form textarea, .tm-md-form input, .tm-md-form select, .tm-acc-form textarea, .tm-acc-form input, .tm-acc-form button")]
       .map((e) => [e.className, parseFloat(getComputedStyle(e).fontSize)]).filter(([, fs]) => fs < 16);
     const out = [...document.querySelectorAll("button")].filter((b) => { const x = b.getBoundingClientRect(); return x.right > innerWidth + 0.5 || x.left < -0.5; })
       .map((b) => b.textContent);
-    return { scroll: doc.scrollWidth, width: innerWidth, small, out, cards: document.querySelectorAll(".tm-ap, .tm-md, .tm-wm").length };
+    return { scroll: doc.scrollWidth, width: innerWidth, small, out, cards: document.querySelectorAll(".tm-ap, .tm-md, .tm-wm").length,
+      forms: document.querySelectorAll(".tm-md-form, .tm-acc-form").length };
   });
-  const ok = r.scroll <= r.width && r.small.length === 0 && r.out.length === 0 && r.cards >= 5;
-  console.log((ok ? "ok   " : "FAIL ") + `${lang} 390px: ${r.cards} cards, scrollWidth ${r.scroll}, small text ${JSON.stringify(r.small)}, buttons off screen ${JSON.stringify(r.out)}`);
+  const ok = r.scroll <= r.width && r.small.length === 0 && r.out.length === 0 && r.cards >= 5 && r.forms === 2;
+  console.log((ok ? "ok   " : "FAIL ") + `${lang} 390px: ${r.cards} cards, ${r.forms} forms, scrollWidth ${r.scroll}, small text ${JSON.stringify(r.small)}, buttons off screen ${JSON.stringify(r.out)}`);
   if (!ok) fails++;
   if (shots) {
     fs.mkdirSync(shots, { recursive: true });

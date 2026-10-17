@@ -3725,3 +3725,4 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
 .tm-md-form input, .tm-md-form select, .tm-acc-form input { font-size: 16px; }
 .tm-md .tm-sub, .tm-ap .tm-sub, .tm-acc-form .tm-sub, .tm-md .tm-qhead, .tm-wm .tm-qhead {
   font-size: 16px; white-space: normal; overflow: visible; text-overflow: clip; }
+.tm-ap code, .tm-md code { font-size: 16px; }

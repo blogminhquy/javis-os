@@ -1,14 +1,20 @@
 GIỚI HẠN VÀ NGÂN SÁCH CỦA PILOT
 
-Provider và model (chủ chọn trước khi chạy, ghi vào báo cáo)
+Provider và model (đề xuất mặc định: provider "Anthropic API" cho cả 3 nhóm; model cụ thể chủ chọn ở trang Models
+trước khi chạy và ghi vào báo cáo)
   - Khuyên dùng: Claude Code với KHOÁ API Anthropic, hoặc một model API (OpenRouter, OpenAI API). Lý do: pilot chạy nền
     nhiều ngày; gói Pro/Max của Anthropic dành cho dùng cá nhân thông thường, chạy nền 24/7 hay trên VPS có rủi ro bị
     khoá tài khoản. Gói xAI cũng chưa nói rõ chuyện này.
-  - Codex (gói ChatGPT) chạy được ở quyền "cần duyệt" khi MCP Hub bật và Codex không có MCP riêng ngoài Javis.
+  - Claude Code chạy được ở quyền "cần duyệt" khi bản claude-agent-sdk có móc PreToolUse (bản ghim trong
+    requirements.txt có); thiếu thì Javis từ chối bước và nói rõ.
+  - Codex (gói ChatGPT) chạy được ở quyền "cần duyệt" khi: MCP Hub bật, sandbox riêng của Codex bật (KHÔNG đặt
+    JAVIS_CODEX_SANDBOX=off, nên trong Docker không bubblewrap thì Codex không dùng được cho nhóm cần duyệt), và
+    ~/.codex/config.toml không có MCP riêng ngoài Javis.
   - KHÔNG dùng Grok Build hay Antigravity cho nhóm ở quyền "cần duyệt": Javis từ chối bước có công cụ trên hai engine
     này (không chặn được trước khi chạy). Muốn dùng thì phải bật "Nhóm tự làm", và khi đó không còn cổng duyệt.
 
-Ngân sách mặc định cho mỗi nhóm (đặt ở tab Nhóm > Nâng cao và mục Mục tiêu phòng ban)
+Ngân sách mặc định cho mỗi nhóm (đặt ở tab Nhóm > Nâng cao và mục Mục tiêu phòng ban). config/teams.json đặt riêng
+cho từng nhóm và THẮNG các số dưới đây khi khác nhau.
   daily_turns (lần trả lời mỗi ngày)        40
   task_turns (lần trả lời mỗi việc)         12
   task_steps (bước mỗi việc)                8

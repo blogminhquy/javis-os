@@ -18,9 +18,15 @@ import asyncio
 import json
 import os
 import tempfile
+import time
 from pathlib import Path
 from unittest.mock import patch
 
+# Day boundaries are local time in the code (budgets per day); pin the zone so the simulated days are the same on
+# every machine (review 0.210.0: Tokyo or Auckland crossed midnight inside "day 1").
+os.environ["TZ"] = "UTC"
+if hasattr(time, "tzset"):
+    time.tzset()
 os.environ["JAVIS_STATE_DIR"] = tempfile.mkdtemp(prefix="javis-team-multiday-")
 os.environ["JAVIS_NO_REAL_TEAM_ENGINE"] = "1"
 STATE = Path(os.environ["JAVIS_STATE_DIR"])
@@ -33,6 +39,7 @@ import task_store  # noqa: E402
 import team_approval  # noqa: E402
 import team_mandate as TM  # noqa: E402
 import team_runner as TR  # noqa: E402
+import team_gate  # noqa: E402
 import team_store  # noqa: E402
 
 fails = []
@@ -107,7 +114,9 @@ def writer(path, text, reply="Đã ghi sản phẩm"):
 
 def sender(args):
     async def go(req):
-        out = await mcp_hub._guard(ZALO, "zalo_send_message", "gated")(args)
+        # The hub level the engine factory gives the step: gated with a gate, full for a team the owner set to full.
+        mode = team_gate.HUB_MODE if req.get("team_gate") else "full"
+        out = await mcp_hub._guard(ZALO, "zalo_send_message", mode)(args)
         return f"Gửi tin: {out}"
     return go
 
@@ -171,8 +180,25 @@ A = team(B1, "Nội dung", ["ag_lan", "ag_minh"], "ag_lan")
 B = team(B1, "Bán hàng", ["ag_hoa", "ag_minh"], "ag_hoa")
 C = team(B2, "Vận hành", ["ag_tu"], "ag_tu", mode="full")
 r, st, eng = make_runner()
-check("fail fast: the runner only has the fake engine factory, real team engines are locked",
-      r.engine_for == fake.engine_for and os.environ.get("JAVIS_NO_REAL_TEAM_ENGINE") == "1")
+# Fail fast: the REAL engine factory refuses to build anything in this test (review 0.210.0: comparing the runner's
+# factory with itself proved nothing).
+import main  # noqa: E402
+import team_engine  # noqa: E402
+real_built = []
+with patch.object(main, "_team_agent_info", side_effect=info):
+    _p, _m, real_run = main._team_engine_for(A, "ag_lan", "plan")
+
+    async def _try_real():
+        try:
+            await real_run({"team_id": A["team_id"], "system": "", "prompt": "x", "turn_id": "tu_x",
+                            "engine_started": lambda *a: None, "tool_turn": False})
+            return "built"
+        except TR.EngineUnavailable as ex:
+            return str(ex)
+    why = run(_try_real())
+check("fail fast: the real team engine factory refuses to build an engine (JAVIS_NO_REAL_TEAM_ENGINE)",
+      "JAVIS_NO_REAL_TEAM_ENGINE" in why and team_engine.build is main._TEAM_ENGINE_BUILD_REAL, why)
+check("fail fast: this week runs on the fake engine factory only", r.engine_for == fake.engine_for)
 
 st.put(A["team_id"], {"outcome": "Mỗi yêu cầu nội dung có bài viết đạt chuẩn", "sources": ["folder:yeu-cau"],
                       "scope": "Chỉ thư mục yeu-cau và bai-viet", "cadence_min": 60,
@@ -236,6 +262,27 @@ tick_hours(1)
 second = [o for o in st.opportunities(A["team_id"]) if o["opp_id"] != opps_a[0]["opp_id"]]
 check("day 1: past the day's job budget the next opportunity is only proposed", second and second[0]["decision"] == "propose",
       second)
+rej = eng.decide(A["team_id"], second[0]["opp_id"], "reject")
+check("day 1: the owner rejects that proposal", rej["ok"] and st.opportunity(second[0]["opp_id"])["status"] == "rejected", rej)
+# Stays inside its sources: a change in a folder the mandate was not given never becomes anything.
+(B1 / "khac").mkdir()
+n_before = len(st.opportunities(A["team_id"], limit=200))
+(B1 / "khac" / "bi-mat.md").write_text("không thuộc nguồn được giao", encoding="utf-8")
+tick_hours(2)
+check("day 1: a change outside the granted sources makes no opportunity",
+      len(st.opportunities(A["team_id"], limit=200)) == n_before)
+
+# A rejected outside action never runs: team B is asked to message customers on day 1 and the owner says no.
+fake.say("ag_minh", "work", sender({"threadId": "nhom-khach", "message": "Giảm giá 50% hôm nay!"}))
+job_r = r.submit(B["team_id"], "Nhắn nhóm khách báo giảm giá", mentions=["ag_minh"], as_job=True,
+                 client_msg_id="r1")["task_id"]
+tick_hours(1)
+ap_r = r.approvals.pending_for_task(job_r)
+r.decide_approval(B["team_id"], ap_r["approval_id"], "reject", note="Không giảm giá kiểu này", decision_key="d1-r")
+tick_hours(2)
+check("day 1: a rejected outside action never ran and the job stays stopped with the reason", EFFECTS == []
+      and ts.get_task(job_r)["block_kind"] == "rejected" and r.approvals.get(ap_r["approval_id"])["status"] == "rejected",
+      (EFFECTS, ts.get_task(job_r)["block_kind"]))
 
 # ═════ Day 2: team B's check fails -> proposal -> owner accepts -> member wants to send -> gate -> approve -> once ═════
 clock.t = T0 + DAY + HOUR
@@ -252,10 +299,20 @@ tick_hours(2)
 ap_b = r.approvals.pending_for_task(job_b)
 check("day 2: the outside send was stopped before it ran and became an exact-call request", EFFECTS == [] and ap_b
       and ap_b["kind"] == "action" and "nhom-khach" in ap_b["fingerprints"][0]["call"], (EFFECTS, ap_b))
-check("day 2: team B waiting did not hold team A or C: their slots are free", ts.get_task(job_b)["status"] == "team_blocked")
+fake.say("ag_tu", "work", "Đã kiểm kho xong.")
+job_c0 = r.submit(C["team_id"], "Kiểm kho trong lúc B chờ", mentions=["ag_tu"], as_job=True, client_msg_id="c0")["task_id"]
+tick_hours(1)
+check("day 2: while team B waits for the owner, another team's job runs in the next tick",
+      ts.get_task(job_b)["block_kind"] == "waiting_user" and ts.get_task(job_c0)["status"] == "done",
+      (ts.get_task(job_b)["block_kind"], ts.get_task(job_c0)["status"]))
 
 # ═════ Day 3: restart while B waits; approve after the restart -> the send runs once ═════
 clock.t = T0 + 2 * DAY + HOUR
+# Restart: every store reopened from its file, no gate of the old process left in memory.
+team_gate._GATES.clear()
+ss = sessions.SessionStore(db_path=STATE / "s.db")
+ts = task_store.TaskStore(STATE / "kanban.sqlite3")
+tm = team_store.TeamStore(STATE / "team.sqlite3")
 r, st, eng = make_runner()
 eng.deps.tests["kiem-tra-kich-ban"] = {"ran": True, "exit": 1, "output": "kịch bản 3 sai giá"}
 rep = r.recover()
@@ -265,24 +322,27 @@ r.decide_approval(B["team_id"], ap_b["approval_id"], "approve", decision_key="d3
 tick_hours(2)
 check("day 3: the approved send ran exactly once and the job finished", len(EFFECTS) == 1 and ts.get_task(job_b)["status"] == "done",
       (EFFECTS, ts.get_task(job_b)["status"]))
-r.unblock(job_b, "retry")
+fake.say("ag_minh", "work", sender(SEND))
+job_b2 = r.submit(B["team_id"], "Gửi lại đúng tin đó", mentions=["ag_minh"], as_job=True, client_msg_id="b2")["task_id"]
 tick_hours(1)
-check("day 3: nothing can make the same approved send run again", len(EFFECTS) == 1)
+check("day 3: the same send in a new job is stopped again (the approval was used, it does not carry over)",
+      len(EFFECTS) == 1 and r.approvals.pending_for_task(job_b2) is not None, (EFFECTS, ts.get_task(job_b2)["block_kind"]))
 
 # ═════ Day 4: team C (full) works in parallel, untouched by the gate ═════
 clock.t = T0 + 3 * DAY + HOUR
-fake.say("ag_tu", "work", writer(B2 / "van-hanh" / "ca-truc.md", "Lịch trực tuần này"))
-job_c = r.submit(C["team_id"], "Lên lịch trực", mentions=["ag_tu"], as_job=True, client_msg_id="c1")["task_id"]
+SEND_C = {"threadId": "nhom-van-hanh", "message": "Lịch trực tuần này đã có."}
+fake.say("ag_tu", "work", sender(SEND_C))
+job_c = r.submit(C["team_id"], "Báo lịch trực cho nhóm", mentions=["ag_tu"], as_job=True, client_msg_id="c1")["task_id"]
 tick_hours(1)
 gates_c = [c["gate"] for c in fake.calls if c["team"] == C["team_id"]]
-check("day 4: the full team's job ran without a gate and finished", ts.get_task(job_c)["status"] == "done"
-      and gates_c and not any(gates_c), gates_c)
+check("day 4: the full team sends without a gate and without asking (the owner's choice)",
+      ts.get_task(job_c)["status"] == "done" and gates_c and not any(gates_c) and len(EFFECTS) == 2
+      and r.approvals.for_task(job_c) == [], (gates_c, EFFECTS))
 
 # ═════ Day 4-6: reject a proposal; unchanged data never comes back; new data does ═════
-second = st.opportunity(second[0]["opp_id"])
-if second["status"] == "proposed":
-    eng.decide(A["team_id"], second["opp_id"], "reject")
 tick_hours(24)
+check("days 4-5: the rejected opportunity stays rejected",
+      st.opportunity(second[0]["opp_id"])["status"] == "rejected")
 check("days 4-5: a rejected opportunity with unchanged data never came back",
       len([o for o in st.opportunities(A["team_id"]) if o["status"] in ("proposed", "asked", "enqueued", "open")
            and o["opp_id"] != opps_a[0]["opp_id"]]) == 0)
@@ -297,12 +357,13 @@ ap_d = r.approvals.pending_for_task(job_d)
 tick_hours(12)
 check("day 6: an approval left past its deadline expired, the job says so, nothing ran",
       r.approvals.get(ap_d["approval_id"])["status"] == "expired" and ts.get_task(job_d)["block_kind"] == "approval_expired"
-      and len(EFFECTS) == 1, (r.approvals.get(ap_d["approval_id"])["status"], ts.get_task(job_d)["block_kind"]))
+      and len(EFFECTS) == 2, (r.approvals.get(ap_d["approval_id"])["status"], ts.get_task(job_d)["block_kind"]))
 
 (B1 / "yeu-cau" / "bai-2.md").write_text("Bài thứ hai, đã thêm yêu cầu mới", encoding="utf-8")
 tick_hours(2)
 check("day 6: new data on the rejected source makes a new opportunity",
-      any(o["status"] in ("asked", "proposed") and o["created_at"] > T0 + 5 * DAY for o in st.opportunities(A["team_id"])))
+      any(o["ref"] == "yeu-cau" and o["status"] in ("asked", "proposed") and o["created_at"] > T0 + 5 * DAY
+          and o["version_key"] != second[0]["version_key"] for o in st.opportunities(A["team_id"])))
 
 # ═════ Day 7: revoke team A's mandate -> its unstarted job cancelled, nothing new ═════
 clock.t = T0 + 6 * DAY + HOUR
@@ -318,7 +379,14 @@ all_jobs = [ts.get_task(o["task_id"]) for tm_ in (A, B) for o in st.opportunitie
 with_criteria = [j for j in all_jobs if r.acceptance.get(j["id"])]
 check("week: every job with criteria that is done has a passing or owner-confirmed acceptance",
       all(r.acceptance.get(j["id"])["status"] in ("passed", "accepted") for j in with_criteria if j["status"] == "done"))
-check("week: exactly one outside effect happened (the approved one)", len(EFFECTS) == 1, EFFECTS)
+check("week: exactly two outside effects: the one the owner approved for B and the full team's own",
+      len(EFFECTS) == 2 and EFFECTS[0][1] == json.dumps(SEND, sort_keys=True, ensure_ascii=False)
+      and EFFECTS[1][1] == json.dumps(SEND_C, sort_keys=True, ensure_ascii=False), EFFECTS)
+per_day = {}
+for o in st.observations(A["team_id"], limit=5000):
+    per_day.setdefault(int((o["observed_at"] - T0) // DAY), set()).add(o["observed_at"])
+check("week: observations per day never exceed the mandate's observe_per_day (30)",
+      per_day and max(len(v) for v in per_day.values()) <= 30, {k: len(v) for k, v in per_day.items()})
 done_waiting = [j for j in ts.team_tasks_by_status("done") if r.approvals.pending_for_task(j["id"])]
 check("week: no job is done while it still has a pending approval", done_waiting == [], done_waiting)
 check("week: every mandate job carries its trace in the source ref", all(

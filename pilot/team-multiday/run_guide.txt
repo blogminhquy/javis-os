@@ -13,11 +13,23 @@ HƯỚNG DẪN CHẠY PILOT (chưa chạy; người chạy làm theo khi chủ c
    - Tạo cộng sự và 3 nhóm theo config/teams.json; giữ "Cần chủ duyệt" cho cả 3.
    - Đặt mục tiêu từng nhóm (tab Nhóm > Mục tiêu phòng ban), bấm Bật.
 
+   - Nghiệm thu: khi thẻ "Mở việc theo mục tiêu" hiện, bấm Nghiệm thu trên việc đó và dán tiêu chí theo
+     acceptance_template của nhóm, RỒI mới Duyệt. Việc giao tay cũng đặt tiêu chí trước khi việc chạy xong.
+   - Trước ngày 1: node pilot/team-multiday/ui_narrow_check.mjs <thư mục ảnh> (phải ALL OK), rồi mở dashboard trên
+     một điện thoại thật xem thẻ duyệt, mục tiêu, nghiệm thu.
+
 3. Theo dõi hằng ngày (5 phút)
    - Mở tab Việc của từng nhóm: thẻ duyệt đang chờ, việc dừng vì nghiệm thu.
-   - Xuất dấu vết: python pilot/team-multiday/trace_export.py <STATE_DIR> --out trace-ngay-N.jsonl
+   - Xuất dấu vết (chạy bằng đúng user của dịch vụ Javis):
+     python pilot/team-multiday/trace_export.py <STATE_DIR> --out trace-ngay-N.jsonl
    - Kiểm 4 chỉ số an toàn S1 tới S4 trong metrics.txt. Một chỉ số khác 0 là DỪNG KHẨN.
    - Ghi chi phí ngày từ trang nhà cung cấp và lượt engine từ trace (C1).
+
+3b. Khởi động lại theo kịch bản (ngày 3)
+   - Cài kiểu systemd: sudo systemctl restart <tên dịch vụ Javis pilot>. Cài kiểu Docker: docker restart <tên container>.
+     Chạy tay: dừng tiến trình (Ctrl+C) rồi chạy lại đúng lệnh khởi động cũ.
+   - Sau khi lên lại: thẻ duyệt đang chờ phải còn nguyên; việc đang kiểm nghiệm thu được kiểm lại tự động; không bước
+     nào tự chạy lại tác động cũ (đối chiếu mcp_audit.jsonl trước và sau).
 
 4. Dừng khẩn (bất kỳ điều kiện dừng nào trong limits.txt)
    a. Tab Nhóm của từng nhóm: Tạm dừng nhóm (việc đang chạy dừng ở điểm điều phối kế tiếp).
@@ -31,8 +43,9 @@ HƯỚNG DẪN CHẠY PILOT (chưa chạy; người chạy làm theo khi chủ c
    - Kho nhóm: bảng mới (team_approvals, team_mandates, mandate_*, team_acceptance*) và cột teams.work_mode bị bản cũ bỏ
      qua, không cần xoá. Muốn trả kho về đúng như trước: dùng bản chụp tự động team.sqlite3.pre-0.207.0 cạnh team.sqlite3
      (tạo lần đầu bản mới mở kho cũ), hoặc bản sao lưu ở bước 1.
-   - Việc đang dừng "waiting_user" sẽ hiện nút "Cho chạy tiếp" của bản cũ: KHÔNG bấm nếu còn hành động ra ngoài chưa
-     được duyệt; huỷ việc đó thay vì chạy tiếp.
+   - Bản cũ không biết các lý do dừng mới (waiting_user, rejected, approval_expired, acceptance_review,
+     acceptance_failed, acceptance_checking) và có thể hiện nút "Cho chạy tiếp" cho chúng: KHÔNG bấm. Trước khi quay
+     về, huỷ hay xử lý xong mọi việc đang dừng vì các lý do đó trên bản mới.
    - kanban.sqlite3 có thêm việc tạo sẵn ở trạng thái chặn (cột có sẵn từ trước), bản cũ đọc được.
 
 6. Kết thúc

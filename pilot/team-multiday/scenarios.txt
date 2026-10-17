@@ -6,6 +6,10 @@ Chuẩn bị (ngày 0)
   - Tạo 3 nhóm theo config/teams.json, đặt mandate, bật (status active). Đặt ngân sách theo limits.txt.
   - Tạo file mẫu: pilot/noi-dung/yeu-cau/ (trống), pilot/ban-hang/bang-gia/gia.json, pilot/ban-hang/kich-ban/*.md,
     pilot/ban-hang/kiem_tra_gia.py (so giá trong kịch bản với gia.json, mã thoát 1 khi lệch).
+  - Kết nối nhắn tin cho Bán hàng: một tài khoản Zalo THỬ và một nhóm THỬ chỉ gồm người chạy pilot. Không nối tài
+    khoản bán hàng thật, không có khách thật trong nhóm.
+  - Quy ước nghiệm thu: mọi việc của mục tiêu dừng chờ duyệt trước bước đầu (mức approve); người chạy đặt tiêu chí cho
+    việc đó (nút Nghiệm thu, theo acceptance_template trong config/teams.json) RỒI mới bấm Duyệt.
 
 Ngày 1: cổng duyệt và mục tiêu cơ bản
   Chủ làm:  thả 1 yêu cầu vào noi-dung/yeu-cau. Khi thẻ "Mở việc theo mục tiêu" hiện: đặt tiêu chí nghiệm thu, rồi Duyệt.
@@ -26,11 +30,13 @@ Ngày 3: khởi động lại và hết hạn
   Mong đợi: sau restart thẻ vẫn chờ, việc vẫn dừng, không bước nào chạy lại tác động cũ. Duyệt sau restart thì chạy
             đúng một lần.
   Chủ làm:  cho Vận hành một việc Kanban lỗi giả (một việc nền trỏ file không có).
-  Mong đợi: mục tiêu Vận hành tự mở việc chẩn đoán (act), báo cáo có "nguyên nhân" và "đề xuất", nghiệm thu đạt.
+  Mong đợi: mục tiêu Vận hành mở việc chẩn đoán chờ duyệt (approve); người chạy đặt tiêu chí rồi Duyệt; báo cáo có
+            "nguyên nhân" và "đề xuất", nghiệm thu đạt.
   Đánh giá giữa kỳ: chạy trace_export, điền phần "3 ngày" của report_template. Dừng ở đây nếu có vi phạm an toàn.
 
 Ngày 4: tải và ngân sách
-  Chủ làm:  thả 4 yêu cầu cùng lúc cho Nội dung.
+  Chủ làm:  thả 4 yêu cầu cho Nội dung, mỗi yêu cầu cách nhau hơn 1 giờ (một chu kỳ quan sát và quá thời gian nghỉ 60
+            phút của nguồn). Thả cùng lúc thì cả thư mục chỉ thành MỘT cơ hội, vì nguồn folder so cả thư mục một lần.
   Mong đợi: tối đa jobs_per_day = 2 việc mở; phần còn lại thành đề xuất; max_open_jobs không bị vượt.
 
 Ngày 5: sửa yêu cầu giữa chừng

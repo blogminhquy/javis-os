@@ -2,11 +2,19 @@
 
     python pilot/team-multiday/trace_export.py <STATE_DIR> [--team <team_id>] [--out trace.jsonl]
 
-One JSON line per link, in time order, for every job of the pilot teams:
+One JSON line per link, sorted by time ("at"), for every job of the pilot teams:
 
-    mandate_version -> observation -> opportunity -> decision -> approval(s) -> job -> steps -> acceptance
+    mandate_version -> observation -> opportunity -> decision -> approval(s) (+ approval_event) -> job -> steps
+    -> turn -> acceptance
 
-It opens team.sqlite3 and kanban.sqlite3 read-only (`mode=ro`), changes nothing, and calls no model. Tables that an
+Every observation is exported (not only those that became an opportunity), so observations per day and missing
+sources can be counted; approval events include the "used" rows the safety metric S1 needs; turns carry engine,
+model and tokens for C1. The hub's mcp_audit.jsonl lines carry team_gate/team_id/task_id/step_id for gated steps
+(0.210.0) so each outside call can be matched to its approval.
+
+It opens team.sqlite3 and kanban.sqlite3 read-only (`mode=ro`), changes nothing, and calls no model. Run it as the
+same user as the server: SQLite may create the -wal/-shm side files of a WAL database even for a read-only open, and
+files owned by another user could then get in the server's way. Tables that an
 older build never created are skipped, so the script also works on a state from before 0.207.0 (it then reports only
 jobs and steps). The pilot report's numbers come from this file, never from memory or from agents' messages.
 """
@@ -53,18 +61,24 @@ def export(state_dir: Path, team_id: str = "") -> list:
                 out.append({"link": "mandate_version", "team_id": tid, "at": v["at"], "version": v["version"],
                             "by": v["by"], "mandate": json.loads(v["snapshot_json"])})
         opp_by_task = {}
+        if _has(tc, "mandate_observations"):
+            for ob in _rows(tc, "SELECT id, mandate_version, source, ref, version_key, ok, summary_json, observed_at "
+                                "FROM mandate_observations WHERE team_id=? ORDER BY id", (tid,)):
+                summ = json.loads(ob.pop("summary_json") or "{}")
+                out.append({"link": "observation", "team_id": tid, "at": ob["observed_at"], **ob,
+                            "missing": summ.get("missing", ""), "suppressed": bool(summ.get("suppressed")),
+                            "truncated": bool(summ.get("truncated"))})
         if _has(tc, "mandate_opportunities"):
             for o in _rows(tc, "SELECT * FROM mandate_opportunities WHERE team_id=? ORDER BY created_at", (tid,)):
-                if o.get("observation_id") and _has(tc, "mandate_observations"):
-                    ob = tc.execute("SELECT id, source, ref, version_key, ok, observed_at FROM mandate_observations "
-                                    "WHERE id=?", (o["observation_id"],)).fetchone()
-                    if ob:
-                        out.append({"link": "observation", "team_id": tid, "at": ob["observed_at"], **dict(ob)})
                 out.append({"link": "opportunity", "team_id": tid, "at": o["created_at"], "opp_id": o["opp_id"],
                             "mandate_version": o["mandate_version"], "source": o["source"], "ref": o["ref"],
                             "version_key": o["version_key"], "kind": o["kind"], "reason": o["reason"],
-                            "benefit": o["benefit"], "evidence": json.loads(o["evidence_json"] or "[]")})
-                out.append({"link": "decision", "team_id": tid, "at": o["updated_at"], "opp_id": o["opp_id"],
+                            "benefit": o["benefit"], "evidence": json.loads(o["evidence_json"] or "[]"),
+                            "observation_id": o["observation_id"]})
+                # The decision is taken when the opportunity is made (code) or by the owner later; `updated_at`
+                # also moves on expiry, so both are kept.
+                out.append({"link": "decision", "team_id": tid, "at": o["created_at"], "updated_at": o["updated_at"],
+                            "opp_id": o["opp_id"],
                             "decision": o["decision"], "status": o["status"], "by": o["decided_by"],
                             "task_id": o["task_id"]})
                 if o.get("task_id"):
@@ -82,6 +96,12 @@ def export(state_dir: Path, team_id: str = "") -> list:
                                 "decided_at": a["decided_at"], "consumed_at": a["consumed_at"],
                                 "calls": [f.get("call") or f.get("label")
                                           for f in json.loads(a["fingerprints_json"] or "[]")]})
+                    if _has(tc, "team_approval_events"):
+                        for e in _rows(tc, "SELECT at, kind, by, detail_json FROM team_approval_events WHERE "
+                                           "approval_id=? ORDER BY id", (a["approval_id"],)):
+                            out.append({"link": "approval_event", "team_id": tid, "at": e["at"], "task_id": j["id"],
+                                        "approval_id": a["approval_id"], "kind": e["kind"], "by": e["by"],
+                                        "detail": json.loads(e["detail_json"] or "{}")})
             out.append({"link": "job", "team_id": tid, "at": j["created_at"], "task_id": j["id"], "title": j["title"],
                         "status": j["status"], "block_kind": j["block_kind"], "revision": j["team_rev"],
                         "source_ref": j["source_ref"], "opp_id": opp_by_task.get(j["id"]),
@@ -89,6 +109,10 @@ def export(state_dir: Path, team_id: str = "") -> list:
             for s in _rows(tc, "SELECT step_id, seq, kind, agent_key, status, note, job_revision, updated_at FROM "
                                "team_steps WHERE task_id=? ORDER BY seq", (j["id"],)):
                 out.append({"link": "step", "team_id": tid, "at": s["updated_at"], "task_id": j["id"], **s})
+            for tu in _rows(tc, "SELECT turn_id, step_id, agent_key, role, engine, model, status, tokens_in, tokens_out, "
+                                "cost_usd, created_at, engine_at, settled_at FROM team_turns WHERE task_id=? "
+                                "ORDER BY created_at", (j["id"],)):
+                out.append({"link": "turn", "team_id": tid, "at": tu["created_at"], "task_id": j["id"], **tu})
             if _has(tc, "team_acceptance"):
                 acc = tc.execute("SELECT * FROM team_acceptance WHERE task_id=?", (j["id"],)).fetchone()
                 if acc:
@@ -98,6 +122,7 @@ def export(state_dir: Path, team_id: str = "") -> list:
                                 "status": acc["status"], "rounds_used": acc["rounds_used"],
                                 "confirmed_by": acc["confirmed_by"],
                                 "checks": [dict(c, evidence=json.loads(c.pop("evidence_json") or "{}")) for c in checks]})
+    out.sort(key=lambda x: (float(x.get("at") or 0), x["link"]))
     return out
 
 
