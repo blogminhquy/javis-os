@@ -36,7 +36,10 @@ check("no long dashes in the new strings", keys.every((k) => !/[\u2013\u2014]/.t
 
 check("script loaded before app.js", html.indexOf("incoming-call.js") > 0 && html.indexOf("incoming-call.js") < html.indexOf("/static/app.js"));
 check("push branch rings a call before the plain voice-note autoplay",
-  /if \(!goiDenTheoLich\(data\.content \|\| ""\)\) ringReminder\(el, data\.content \|\| ""\);/.test(app));
+  /if \(!daGoi\) ringReminder\(el, data\.content \|\| ""\);/.test(app));
+// 0.204.0: it rings whichever chat is open, not only when the reminder's own chat is the open one.
+const pushBranch = app.slice(app.indexOf('if (data.type === "push") {'), app.indexOf("if (isActive) {", app.indexOf('if (data.type === "push") {')));
+check("call rings before the open-chat check", /const daGoi = goiDenTheoLich\(data\.content \|\| ""\);/.test(pushBranch));
 const fn = app.match(/function goiDenTheoLich\(raw\) \{[\s\S]*?\n\}/);
 check("goiDenTheoLich exists", !!fn);
 check("already in a call: nothing rings", fn && /if \(!c \|\| handsFree\) return false;/.test(fn[0]));

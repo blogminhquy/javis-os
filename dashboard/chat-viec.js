@@ -76,7 +76,8 @@
   function trangCua(kind) {
     if (kind === "job") return "";
     // 0.199.0: webhooks and incidents live on the Recurring work page too (its Webhooks and Health sections).
-    return (kind === "loop" || kind === "reminder" || kind === "webhook" || kind === "incident") ? "selfimprove" : "kanban";
+    if (kind === "webhook") return "webhooks";   // 0.204.0: its own page
+    return (kind === "loop" || kind === "reminder" || kind === "incident") ? "selfimprove" : "kanban";
   }
 
   function moTrang(trang) {

@@ -370,7 +370,9 @@
   }
   function unreadHtml(t, activeId) {
     var u = unreadOf(t, activeId);
-    return (u.at ? '<span class="tm-at" title="' + esc(tw("teams.calls_you")) + '" aria-label="' + esc(tw("teams.calls_you")) +
+    // 0.204.0: its own class. It shared "tm-at" with the @mentions inside messages, and this round 20px badge rule
+    // squeezed every mention into a circle, one letter per line.
+    return (u.at ? '<span class="tm-at-badge" title="' + esc(tw("teams.calls_you")) + '" aria-label="' + esc(tw("teams.calls_you")) +
         '">@</span>' : "") +
       (u.n ? '<span class="notification-badge tm-unread' + (t.muted ? " is-muted" : "") + '" title="' +
         esc(tw("teams.unread_n", { n: u.n })) + '">' + (u.n > 99 ? "99+" : String(u.n)) + "</span>" : "");

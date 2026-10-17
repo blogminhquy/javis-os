@@ -103,19 +103,20 @@
     saveRead(moi ? [String(id)] : null);
     render();
   }
+  // 0.204.0: "Read all" reads BOTH tabs. It used to read only the open one, so the bell kept a count after pressing it.
   function markAll() {
-    if (state.tab === "mine") {
-      // Thư riêng: đã-đọc nằm ở SERVER, nên đánh dấu ở đây phải đi qua API chứ không
-      // chỉ tô lại màu trên máy này.
+    // Thư riêng: đã-đọc nằm ở SERVER, nên đánh dấu ở đây phải đi qua API chứ không
+    // chỉ tô lại màu trên máy này.
+    if (state.thuChuaDoc || state.thu.some(function (t) { return !t.read; })) {
       state.thu.forEach(function (t) { t.read = true; });
       state.thuChuaDoc = 0;
       docThu({ all: true }).then(render);
-      render();
-      return;
     }
-    state.items.forEach(function (item) { state.read.add(String(item.id)); });
-    saveRead();
-    guiDaDoc({ all: true });
+    if (unreadItems().length) {
+      state.items.forEach(function (item) { state.read.add(String(item.id)); });
+      saveRead();
+      guiDaDoc({ all: true });
+    }
     render();
   }
   function kindLabel(kind) {
@@ -284,6 +285,9 @@
     if (summary) summary.textContent = tong
       ? window.t("noti.unread_n", { count: tong })
       : window.t("noti.all_read");
+    // 0.204.0: "Read all" is a real button, lit while something is unread and dimmed (disabled) once nothing is.
+    var readAll = byId("notificationReadAll");
+    if (readAll) { readAll.disabled = tong === 0; readAll.classList.toggle("has-unread", tong > 0); }
 
     var tabMine = byId("notiTabMine"), tabNews = byId("notiTabNews");
     if (tabMine && tabNews) {

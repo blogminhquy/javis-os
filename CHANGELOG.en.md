@@ -8,6 +8,15 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.204.0] - 2026-10-17
+### Improved
+- **A tidier Scheduled page:** a brain picker instead of every brain stacked up, a **Repeating job / Reminder** filter and paging at 10 jobs a page. Incidents and Log are their own tabs; Webhooks have their own page in the Work group.
+
+### Fixed
+- **Scheduled calls really ring now:** the call used to ring only when the chat receiving the reminder was the open one, so usually nothing showed. The call card now shows on whichever Javis page is open.
+- **A bigger Read all button in Notifications:** lit while something is unread, dimmed once all is read, and it now reads both tabs instead of only the open one.
+- **@mentions in Team messages look normal again**, no longer squeezed into a small circle with one letter per line.
+
 ## [0.203.0] - 2026-10-17
 ### Added
 - **Javis calls you at a set time:** reminders get a **Call me** box (or say "call me at 7am and read the report"). At that time an open Javis tab rings and shows an incoming-call card with **Answer** and **Decline**.

@@ -1171,12 +1171,15 @@ function handleMessage(data) {
     // Tin do việc chạy NỀN đẩy vào (việc Kanban / loop / nhắc hẹn xong), không thuộc lượt
     // hỏi-đáp nào. KHÔNG đụng turns[sid]: lượt đang chạy (nếu có) vẫn stream bình thường,
     // tin này chỉ chèn thêm một bong bóng. Server đã lưu vào kho phiên nên F5 vẫn còn.
+    // 0.204.0: a "call me" reminder rings whichever chat is open. Its message usually lands in the brain's Javis Core
+    // chat (a reminder made without a chat id), so ringing only when that chat was the open one meant no call at all.
+    const daGoi = goiDenTheoLich(data.content || "");
     if (isActive) {
       const el = appendJavisMessage(data.content || "");
       recordTurn("javis", data.content || "", null, null);
       // 0.203.0: a reminder made with "call me" rings as an incoming call; otherwise (0.202.1) a reminder that reads
       // aloud plays its voice note at once.
-      if (!goiDenTheoLich(data.content || "")) ringReminder(el, data.content || "");
+      if (!daGoi) ringReminder(el, data.content || "");
       // The memory receipt line is not a message: no reactions, never read aloud (0.190.0).
       if (el && el.classList.contains("msg-nho")) { scrollBottom(); notifySessions(); return; }
       // Tin đẩy về có mã tin (0.168.0): gắn hàng sáu cảm xúc ngay, kể cả tin báo goal (không còn hàng A3 riêng).

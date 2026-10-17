@@ -346,6 +346,13 @@ button, input, select, textarea { font-family: inherit; }
 .noti-text-btn { padding: 6px 8px; border-radius: 7px; font-size: 11.5px; }
 .noti-text-btn:hover { color: var(--text-hi); background: var(--surface-2); }
 .noti-text-btn.primary { color: var(--accent-ink); font-weight: 600; }
+/* 0.204.0: "Read all" was 11.5px text, too small to hit. A full-size button: lit (accent) while something is
+   unread, dimmed and not clickable once everything is read. */
+#notificationReadAll { padding: 8px 14px; min-height: 36px; font-size: 14px; font-weight: 600; border-radius: 9px;
+  border: 1px solid var(--hairline); color: var(--text3); opacity: .55; }
+#notificationReadAll.has-unread { opacity: 1; color: var(--on-accent); background: var(--accent-solid); border-color: transparent; }
+#notificationReadAll.has-unread:hover { filter: brightness(1.08); color: var(--on-accent); background: var(--accent-solid); }
+#notificationReadAll:disabled { cursor: default; background: transparent; }
 .noti-close {
   width: 30px; height: 30px; border-radius: 8px; font-size: 23px; line-height: 1;
 }
@@ -424,6 +431,8 @@ button, input, select, textarea { font-family: inherit; }
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--accent); color: #fff; font-size: 10px; font-weight: 700;
 }
+/* 0.204.0: display above beat the hidden attribute, so an empty tab showed a "0" pill. */
+.noti-tab-count[hidden] { display: none; }
 /* Công tắc thông báo đẩy - nằm ngay trên chân panel, thấy được lúc đang đọc thư. */
 .noti-push {
   flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;

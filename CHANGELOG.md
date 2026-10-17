@@ -6,6 +6,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.204.0] - 2026-10-17
+### Cải thiện
+- **Trang Việc định kỳ gọn lại:** ô chọn bộ não thay cho cảnh mọi bộ não xếp chồng, thêm lọc **Việc lặp / Nhắc hẹn** và phân trang 10 việc một trang. Sự cố và Nhật ký thành tab riêng; Webhook có trang riêng trong nhóm Việc.
+
+### Sửa lỗi
+- **Cuộc gọi hẹn giờ giờ đổ chuông thật:** trước đây chuông chỉ đổ khi bạn đang mở đúng cuộc trò chuyện nhận nhắc hẹn, nên thường không thấy gì. Giờ thẻ cuộc gọi hiện ở bất kỳ trang Javis nào đang mở.
+- **Nút Đọc tất cả ở Thông báo to và dễ bấm hơn:** sáng màu khi còn tin chưa đọc, mờ đi khi đã đọc hết, và giờ đọc hết cả hai tab thay vì chỉ tab đang mở.
+- **Tên được gọi @ trong tin nhắn Team hiện bình thường**, không còn bị ép thành vòng tròn nhỏ với từng chữ xếp dọc.
+
 ## [0.203.0] - 2026-10-17
 ### Thêm mới
 - **Javis gọi điện cho bạn đúng giờ:** nhắc hẹn có thêm ô **Gọi điện cho tôi** (hoặc nói "7h sáng gọi đọc báo cáo cho anh"). Tới giờ, trang Javis đang mở đổ chuông và hiện thẻ cuộc gọi đến với nút **Nghe** và **Từ chối**.

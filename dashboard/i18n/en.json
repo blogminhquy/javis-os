@@ -4814,5 +4814,13 @@
   "call.in_title_none": "Reminder",
   "call.in_answer": "Answer",
   "call.in_decline": "Decline",
-  "call.in_script": "This is the scheduled call \"{title}\". Read me the content below briefly, then ask if I need anything else:\n\n{text}"
+  "call.in_script": "This is the scheduled call \"{title}\". Read me the content below briefly, then ask if I need anything else:\n\n{text}",
+  "page.webhooks.label": "Webhooks",
+  "page.webhooks.sub": "Secret links other apps call to run Javis work",
+  "cs.si_tab_jobs": "Jobs",
+  "cs.si_tab_health": "Incidents",
+  "cs.si_tab_log": "Log",
+  "cs.si_kind_all": "All",
+  "cs.si_all_brains": "All brains ({so})",
+  "cs.si_none_kind": "No jobs of this kind. Press All to see every job."
 }

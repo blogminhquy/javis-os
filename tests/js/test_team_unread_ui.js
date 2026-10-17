@@ -21,7 +21,7 @@ function check(name, cond, extra) {
 const t = { team_id: "a", name: "Web", unread: { n: 3, at: 1 }, last: { ts: 100 }, updated_at: 100 };
 const h = TM.unreadHtml(t, "x");
 check("a team with unread messages shows the count in the navbar bell's pill", /class="notification-badge tm-unread"[^>]*>3</.test(h), h);
-check("a message calling the owner adds the @ mark", h.includes('class="tm-at"') && h.includes(">@<"), h);
+check("a message calling the owner adds the @ mark", h.includes('class="tm-at-badge"') && h.includes(">@<"), h);
 check("more than 99 reads 99+", TM.unreadHtml({ team_id: "a", unread: { n: 120, at: 0 } }, "").includes(">99+<"));
 check("nothing unread draws nothing", TM.unreadHtml({ team_id: "a", unread: { n: 0, at: 0 } }, "") === "");
 check("the team open on screen shows no badge (the owner is reading it)", TM.unreadHtml(t, "a") === "");
@@ -43,5 +43,8 @@ for (const k of ["teams.mute_team", "teams.unmute_team", "teams.muted", "teams.u
 }
 check("no dynamic i18n key for the mute item", src.includes('tw(t.muted ? "teams.unmute_team" : "teams.mute_team")'));
 
+// 0.204.0: the @ badge has its own class; sharing ".tm-at" with message mentions drew every mention as a 20px circle.
+check("only one .tm-at rule (the mention style), the badge is .tm-at-badge",
+  (css.match(/^\.tm-at \{/gm) || []).length === 1 && /^\.tm-at-badge \{/m.test(css));
 console.log(fails ? "\nFAIL - " + fails + " check(s)" : "\nPASS - test_team_unread_ui");
 process.exit(fails ? 1 : 0);

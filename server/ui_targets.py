@@ -19,7 +19,7 @@ import unicodedata
 # Thêm trang mới thì thêm ở cả ba chỗ.
 PAGES = (
     "home", "chat", "settings", "workspace", "teams", "skills", "chatbots", "conversations", "files",
-    "terminal", "coding", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
+    "terminal", "coding", "selfimprove", "webhooks", "learn", "kanban", "models", "channels", "mcp", "plugins",
     "packs", "logs", "account", "usage", "pet", "share",
 )
 
@@ -41,6 +41,7 @@ ALIASES = {
     "shared links": "share", "quan ly chia se": "share",
     "tu hoc": "selfimprove", "self improve": "selfimprove", "hoc": "learn",
     "viec dinh ky": "selfimprove", "nhac hen": "selfimprove",
+    "webhook": "webhooks", "webhooks": "webhooks", "hook": "webhooks",
     "code": "terminal", "ma": "terminal", "nhat ky": "logs", "log": "logs",
     # "code" trần GIỮ NGUYÊN nghĩa cũ là Terminal: người dùng đã quen từ 0.32, đổi
     # nghĩa một bí danh đang dùng là lấy đi thứ họ gõ hàng ngày để tặng một trang mới.

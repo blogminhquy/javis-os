@@ -3673,7 +3673,8 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
 .tm-team { position: relative; }
 .tm-unread { flex: none; height: 20px; min-width: 20px; border-radius: 10px; font-size: 12px; box-shadow: none; }
 .tm-unread.is-muted { background: var(--surface-2); color: var(--text2); }
-.tm-at { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+/* 0.204.0: was ".tm-at", the same class as the @mentions in messages, which it squeezed into a 20px circle. */
+.tm-at-badge { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
   border-radius: 50%; font-size: 13px; font-weight: 700; color: var(--on-accent); background: var(--accent-solid); }
 .tm-muted { display: inline-flex; flex: none; color: var(--text3); }
 .tm-muted .ic, .tm-muted svg { width: 14px; height: 14px; }

@@ -34,6 +34,8 @@
     skills: "puzzle",
     files: "folder-tree",
     selfimprove: "repeat",
+    // 0.204.0: webhooks are their own page under Work (they were a section of the scheduled-jobs page).
+    webhooks: "webhook",
     learn: "brain",
     kanban: "square-kanban",
     terminal: "terminal",
@@ -102,7 +104,7 @@
   // tiếng Việt khi thiếu key, nên một bản dịch làm dở không bao giờ để lại key trần trên rail.
   const RAIL_ITEMS = [
     "home", "chat", "settings", "workspace", "teams", "skills", "chatbots", "conversations", "files",
-    "terminal", "coding", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
+    "terminal", "coding", "selfimprove", "webhooks", "learn", "kanban", "models", "channels", "mcp", "plugins",
     "packs", "logs", "account", "usage", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
@@ -126,7 +128,7 @@
     // 0.61.0: Chatbot gộp vào trang Hội thoại (tab thứ ba); id "chatbots" giữ làm bí danh
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
     { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON.nang_luc,    ids: ["workspace", "teams", "conversations", "skills", "plugins"] },
-    { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON.viec,        ids: ["kanban", "selfimprove"] },
+    { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON.viec,        ids: ["kanban", "selfimprove", "webhooks"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON.ket_noi,     ids: ["mcp", "packs", "channels", "models"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON.he_thong,    ids: ["settings", "share", "account"], foot: true },
   ];
@@ -181,7 +183,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "teams", "skills", "files", "terminal", "coding", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "teams", "skills", "files", "terminal", "coding", "selfimprove", "webhooks", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -533,6 +535,7 @@
     if (id === "coding")   return renderCoding(el);
     if (CODE_PAGES.includes(id)) return renderCode(el, id);
     if (id === "selfimprove") return renderSelfImprove(el);
+    if (id === "webhooks") return renderWebhooks(el);
     if (id === "chatbots") return renderChatbots(el);
     if (id === "teams") {
       // Trang Nhóm do teams.js dựng, uỷ quyền như trang Gói. Trang chat chiếm trọn khung và tự cuộn bên trong (khung soạn
@@ -1299,7 +1302,7 @@
     .si-field select,.si-field input,.si-field textarea{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--hairline);background:var(--field-bg);color:var(--text);font-size:15px;outline:none}
     .si-field textarea{min-height:80px;resize:vertical;font-family:inherit}
     .si-row{display:flex;gap:10px;flex-wrap:wrap}
-    .si-chip{padding:7px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.14);background:rgba(15,22,40,.6);color:var(--text);cursor:pointer;font-size:14px}
+    .si-chip{padding:7px 14px;border-radius:20px;border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);cursor:pointer;font-size:14px}
     .si-chip.sel{border-color:var(--accent);background:rgba(255,138,60,.15);color:var(--accent-ink)}
     .si-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
     .si-status{margin-top:16px;padding:12px 14px;border-radius:10px;background:var(--surface-1);border:1px solid rgba(255,255,255,.07);font-size:15px;color:var(--text)}
@@ -2036,15 +2039,30 @@
           <div class="si-actions"><button class="s-btn" id="lpSave">${SAVE_ICON} ${esc(window.t("common.save"))}</button><button class="s-btn-ghost" id="lpCancel">${esc(window.t("common.cancel"))}</button><span class="dim" id="lpFormMsg" style="font-size:13px;color:var(--warn-ink)"></span></div>
         </div>
       </div>
-      <div class="lp-search-row" style="margin:6px 0 10px">
-        <input id="lpSearch" type="search" autocomplete="off" placeholder="${esc(window.t("cs.si_search_ph"))}"
-          style="width:100%;max-width:340px;padding:8px 12px;border-radius:8px;border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);font-size:14px;outline:none">
-        <span class="dim" id="lpSearchNote" style="display:none;font-size:12px;color:var(--text3);margin-left:8px"></span>
+      <!-- 0.204.0: three tabs instead of one long page (jobs, then incidents, then the log, all stacked), and the jobs
+           tab shows ONE brain at a time from a dropdown, with a kind filter and paging. Webhooks have their own page. -->
+      <div class="ach-tabs si-tabs" role="tablist" aria-label="${esc(t("page.selfimprove.label"))}">
+        <button type="button" role="tab" data-si-tab="jobs" aria-selected="true">${ic("repeat")}<span>${esc(window.t("cs.si_tab_jobs"))}</span><span class="si-tab-n" id="siNJobs"></span></button>
+        <button type="button" role="tab" data-si-tab="health" aria-selected="false">${ic("shield")}<span>${esc(window.t("cs.si_tab_health"))}</span><span class="si-tab-n warn" id="siNHealth" hidden></span></button>
+        <button type="button" role="tab" data-si-tab="log" aria-selected="false">${ic("scroll-text")}<span>${esc(window.t("cs.si_tab_log"))}</span></button>
       </div>
-      <div id="lpGroups">${esc(window.t("common.loading"))}</div>
-      <div id="whSection"></div>
-      <div id="hpSection"></div>
-      <div class="si-log"><h3 style="font-size:15px;color:var(--text)">${esc(window.t("cs.si_log_head"))} · <select id="lpLogFilter" class="loop-sel" style="font-size:13px"><option value="">${esc(window.t("cs.si_log_all"))}</option></select></h3><div id="lpLog">${esc(window.t("common.loading"))}</div></div>
+      <section data-si-pane="jobs" role="tabpanel">
+        <div class="si-toolbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px">
+          <select id="lpBrainFilter" class="loop-sel" aria-label="${esc(window.t("cs.si_brain"))}" style="font-size:15px;min-width:180px;max-width:100%"></select>
+          <div class="si-row" id="lpKindFilter" role="group">
+            <button class="si-chip sel" data-k="all">${esc(window.t("cs.si_kind_all"))}</button>
+            <button class="si-chip" data-k="loop">${ic("repeat")} ${esc(window.t("cs.si_kind_loop"))}</button>
+            <button class="si-chip" data-k="rem">${ic("alarm-clock")} ${esc(window.t("cs.si_kind_rem"))}</button>
+          </div>
+          <input id="lpSearch" type="search" autocomplete="off" placeholder="${esc(window.t("cs.si_search_ph"))}"
+            style="flex:1 1 200px;max-width:340px;padding:8px 12px;border-radius:8px;border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);font-size:15px;outline:none">
+        </div>
+        <div id="lpGroups">${esc(window.t("common.loading"))}</div>
+      </section>
+      <section data-si-pane="health" role="tabpanel" hidden><div id="hpSection"></div></section>
+      <section data-si-pane="log" role="tabpanel" hidden>
+        <div class="si-log" style="margin-top:0"><h3 style="font-size:15px;color:var(--text)">${esc(window.t("cs.si_log_head"))} · <select id="lpLogFilter" class="loop-sel" style="font-size:14px"><option value="">${esc(window.t("cs.si_log_all"))}</option></select></h3><div id="lpLog">${esc(window.t("common.loading"))}</div></div>
+      </section>
     </div>`;
 
     let fcur = { mode: "full" };   // mặc định toàn quyền (chủ repo bỏ luật an toàn cũ 2026-09-10)
@@ -2297,31 +2315,67 @@
       return String(s == null ? "" : s).toLowerCase()
         .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d");
     }
-    // Lọc các thẻ việc trong #lpGroups theo ô tìm kiếm. Ẩn thẻ không khớp; ẩn luôn tiêu đề brain /
-    // "Nhắc hẹn đang chờ" khi cả nhóm/mục không còn thẻ nào hiện. Gọi lại sau mỗi lần render danh sách.
-    function applyLpSearch() {
-      const input = el.querySelector("#lpSearch");
-      const note = el.querySelector("#lpSearchNote");
-      const q = _lpNorm(input ? input.value.trim() : "");
-      let shown = 0, totalCards = 0;
-      el.querySelectorAll("#lpGroups .lp-group").forEach(group => {
-        let groupShown = 0, remShown = 0;
-        group.querySelectorAll(".wf-card").forEach(card => {
-          totalCards++;
-          const hit = !q || (card.dataset.search || "").indexOf(q) !== -1;
-          card.style.display = hit ? "" : "none";
-          if (hit) { groupShown++; shown++; if (card.dataset.kind === "rem") remShown++; }
-        });
-        const remHead = group.querySelector('[data-lp="remhead"]');
-        if (remHead) remHead.style.display = (q && !remShown) ? "none" : "";
-        const emptyRow = group.querySelector('[data-lp="empty"]');
-        if (emptyRow) emptyRow.style.display = q ? "none" : "";
-        group.style.display = (q && !groupShown) ? "none" : "";
-      });
-      if (note) {
-        if (q && !shown && totalCards) { note.style.display = ""; note.textContent = window.t("cs.si_none_match"); }
-        else note.style.display = "none";
+    // 0.204.0: the jobs tab shows one brain (or all, each card tagged with its brain), filtered by kind and the search
+    // box, 10 cards a page. Choices are remembered per browser (try/catch: storage can be blocked).
+    const LP_PER_PAGE = 10;
+    const LS_BRAIN = "javis.si.brain", LS_KIND = "javis.si.kind", LS_TAB = "javis.si.tab";
+    const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+    let lpData = [];                                       // brains from /viec/all, current brain first
+    let lpBrain = lsGet(LS_BRAIN) || "";                   // brain path, "*" = every brain, "" = the sidebar's brain
+    let lpKind = ["all", "loop", "rem"].includes(lsGet(LS_KIND)) ? lsGet(LS_KIND) : "all";
+    let lpPage = 0;
+    function syncBrainFilter() {
+      const sel = el.querySelector("#lpBrainFilter");
+      if (!sel) return;
+      if (lpBrain !== "*" && !lpData.some(g => g.path === lpBrain)) {
+        const cur = lpData.find(isCurrentBrain) || lpData[0];
+        lpBrain = cur ? cur.path : "*";
       }
+      const n = g => (g.loops || []).length + (g.reminders || []).length;
+      const total = lpData.reduce((a, g) => a + n(g), 0);
+      sel.innerHTML = `<option value="*">${esc(window.t("cs.si_all_brains", { so: total }))}</option>`
+        + lpData.map(g => `<option value="${esc(g.path)}">${esc(g.name)} (${n(g)})${isCurrentBrain(g) ? " · " + esc(window.t("cs.si_viewing")) : ""}</option>`).join("");
+      sel.value = lpBrain;
+      const nj = el.querySelector("#siNJobs");
+      if (nj) nj.textContent = total ? String(total) : "";
+    }
+    function renderList() {
+      const box = el.querySelector("#lpGroups");
+      if (!box) return;
+      el.querySelectorAll("#lpKindFilter .si-chip").forEach(c => c.classList.toggle("sel", c.dataset.k === lpKind));
+      const q = _lpNorm((el.querySelector("#lpSearch") || {}).value || "").trim();
+      const many = lpBrain === "*";
+      const cards = [];
+      let inScope = 0, inBrain = 0;
+      lpData.forEach(g => {
+        if (!many && g.path !== lpBrain) return;
+        inBrain += (g.loops || []).length + (g.reminders || []).length;
+        const items = [];
+        if (lpKind !== "rem") (g.loops || []).forEach(lp => items.push(loopCard(lp)));
+        if (lpKind !== "loop") (g.reminders || []).forEach(r => items.push(reminderCard(r)));
+        inScope += items.length;
+        items.forEach(card => {
+          if (q && (card.dataset.search || "").indexOf(q) === -1) return;
+          if (many) {
+            const tag = document.createElement("div");
+            tag.className = "dim";
+            tag.style.cssText = "font-size:12px;color:var(--text3);margin-bottom:4px";
+            tag.innerHTML = `${ic("brain")} ${esc(g.name)}`;
+            card.insertBefore(tag, card.firstChild);
+          }
+          cards.push(card);
+        });
+      });
+      const empty = inScope
+        ? `<div class="empty">${esc(window.t("cs.si_none_match"))}</div>`
+        : inBrain ? `<div class="empty">${esc(window.t("cs.si_none_kind"))}</div>`
+        : `<div class="empty">${esc(window.t("cs.si_empty_brain_a"))} <b>+ ${esc(window.t("cs.si_add"))}</b>${esc(window.t("cs.si_empty_brain_b"))}</div>`;
+      pager(box, cards, LP_PER_PAGE, rows => {
+        const f = document.createDocumentFragment();
+        rows.forEach(c => f.appendChild(c));
+        return f;
+      }, empty, { page: lpPage, onPage: p => { lpPage = p; } });
     }
 
     function loopCard(lp) {
@@ -2504,49 +2558,14 @@
           if (go) go.onclick = (ev) => { ev.preventDefault(); navigateTo("channels"); };
         }
       }
-      allLoops = [];
-      const groups = (d.brains || []).slice().sort((a, b) => {
+      lpData = (d.brains || []).slice().sort((a, b) => {
         const ac = isCurrentBrain(a) ? 0 : 1, bc = isCurrentBrain(b) ? 0 : 1;
         return ac - bc || String(a.name).localeCompare(String(b.name));
       });
-      box.innerHTML = "";
-      let anyItem = false;
-      groups.forEach(g => {
-        const loops = g.loops || [], rems = g.reminders || [];
-        const cur = isCurrentBrain(g);
-        if (!loops.length && !rems.length && !cur) return;   // brain rỗng không phải brain đang xem → ẩn
-        if (loops.length || rems.length) anyItem = true;
-        // Mỗi brain gói vào 1 wrapper .lp-group để ô tìm kiếm ẩn/hiện cả nhóm gọn gàng.
-        const group = document.createElement("div");
-        group.className = "lp-group";
-        const head = document.createElement("div");
-        head.style.cssText = "display:flex;align-items:center;gap:8px;margin:18px 0 8px;font-size:15px;color:var(--text);font-weight:600;border-bottom:1px solid var(--hairline);padding-bottom:6px";
-        head.innerHTML = `<span>${ic("brain")} ${esc(g.name)}</span>`
-          + (cur ? `<span style="font-size:11px;color:var(--green);font-weight:500">${esc(window.t("cs.si_viewing"))}</span>` : "")
-          + (g.is_default ? `<span style="font-size:11px;color:var(--text3);font-weight:400">${esc(window.t("cs.si_is_default"))}</span>` : "");
-        group.appendChild(head);
-        if (!loops.length && !rems.length) {
-          const e2 = document.createElement("div");
-          e2.className = "empty"; e2.style.margin = "0 0 10px";
-          e2.dataset.lp = "empty";
-          e2.innerHTML = `${esc(window.t("cs.si_empty_brain_a"))} <b>+ ${esc(window.t("cs.si_add"))}</b>${esc(window.t("cs.si_empty_brain_b"))}`;
-          group.appendChild(e2);
-        }
-        loops.forEach(lp => { allLoops.push(lp); group.appendChild(loopCard(lp)); });
-        if (rems.length) {
-          const rh = document.createElement("div");
-          rh.style.cssText = "font-size:13px;color:var(--text3);margin:10px 0 6px";
-          rh.dataset.lp = "remhead";
-          rh.textContent = window.t("cs.si_rem_pending");
-          group.appendChild(rh);
-          rems.forEach(r => group.appendChild(reminderCard(r)));
-        }
-        box.appendChild(group);
-      });
-      if (!anyItem) {
-        box.innerHTML = `<div class="empty">${esc(window.t("cs.si_empty_all_a"))} <b>+ ${esc(window.t("cs.si_add"))}</b>${esc(window.t("cs.si_empty_all_b"))}</div>`;
-      }
-      applyLpSearch();   // giữ nguyên bộ lọc tìm kiếm sau mỗi lần render lại danh sách
+      allLoops = [];
+      lpData.forEach(g => (g.loops || []).forEach(lp => allLoops.push(lp)));
+      syncBrainFilter();
+      renderList();
       // Bộ lọc nhật ký: mọi loop mọi brain (value = index vào allLoops → biết cả brain lẫn slug).
       const sel = el.querySelector("#lpLogFilter");
       const cur = sel.value;
@@ -2576,18 +2595,57 @@
             `<div class="dim" style="color:var(--text3)">${esc(window.t("cs.si_no_log"))}</div>`);
     }
     el.querySelector("#lpLogFilter").onchange = loadLog;
-    { const s = el.querySelector("#lpSearch"); if (s) s.oninput = applyLpSearch; }
-    ensureBrains();   // nạp sẵn danh sách brain cho ô chọn (không chờ /viec/all vốn nặng)
-    loadAll(); loadLog();
-    // Webhooks (0.198.0): their own section under the scheduled jobs, see dashboard/webhooks.js.
-    if (window.JavisWebhooks) {
-      ensureBrains().then(() => {
-        if (myGen === _renderGen) window.JavisWebhooks.mount(el.querySelector("#whSection"),
-          { brains: () => allBrains, current: () => fbrain() });
-      });
-    }
+    { const s = el.querySelector("#lpSearch"); if (s) s.oninput = () => { lpPage = 0; renderList(); }; }
+    el.querySelector("#lpBrainFilter").onchange = (e) => { lpBrain = e.target.value; lsSet(LS_BRAIN, lpBrain); lpPage = 0; renderList(); };
+    el.querySelectorAll("#lpKindFilter .si-chip").forEach(c => c.onclick = () => {
+      lpKind = c.dataset.k; lsSet(LS_KIND, lpKind); lpPage = 0; renderList();
+    });
+    // Tabs (0.204.0). The health scan and the log load on first open, not on every visit to the jobs.
     // Health (0.199.0): incidents Javis Core is handling and the read-only scan, see dashboard/health-panel.js.
-    if (window.JavisHealthPanel) window.JavisHealthPanel.mount(el.querySelector("#hpSection"));
+    const opened = {};
+    function openTab(name) {
+      if (!["jobs", "health", "log"].includes(name)) name = "jobs";
+      lsSet(LS_TAB, name);
+      el.querySelectorAll("[data-si-tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.siTab === name)));
+      el.querySelectorAll("[data-si-pane]").forEach(p => { p.hidden = p.dataset.siPane !== name; });
+      if (opened[name]) return;
+      opened[name] = true;
+      if (name === "health" && window.JavisHealthPanel) window.JavisHealthPanel.mount(el.querySelector("#hpSection"));
+      if (name === "log") loadLog();
+    }
+    el.querySelectorAll("[data-si-tab]").forEach(b => b.onclick = () => openTab(b.dataset.siTab));
+    // Open incidents show as a count on the tab, so a problem is visible without opening it.
+    fetch("/incidents").then(r => r.json()).then(d => {
+      if (myGen !== _renderGen) return;
+      const n = (d.incidents || []).filter(i => i.status !== "resolved").length;
+      const b = el.querySelector("#siNHealth");
+      if (b) { b.hidden = !n; b.textContent = String(n); }
+    }).catch(() => {});
+    ensureBrains();   // nạp sẵn danh sách brain cho ô chọn (không chờ /viec/all vốn nặng)
+    loadAll();
+    openTab(lsGet(LS_TAB) || "jobs");
+  }
+
+  // ============================================
+  // Trang Webhook (0.204.0): tách khỏi trang Việc định kỳ. Webhook là cửa vào cho sự kiện từ bên ngoài
+  // (form, thanh toán), không phải việc chạy theo giờ, nên đứng thành một mục riêng trong nhóm Việc.
+  // Phần ruột vẫn là dashboard/webhooks.js (0.198.0).
+  // ============================================
+  async function renderWebhooks(el) {
+    _injectExtraCss();
+    const myGen = _renderGen;
+    if (!window.JavisWebhooks) {
+      el.innerHTML = placeholder("webhooks", window.t("cs.mod_not_ready", { ten: "webhooks.js" }));
+      return;
+    }
+    el.innerHTML = `<div class="cview-section"><div id="whSection"></div></div>`;
+    let brains = [];
+    try {
+      const d = await (await fetch("/brains")).json();
+      brains = (d.brains || []).map(b => ({ name: b.name, path: b.path, is_default: b.is_default }));
+    } catch (e) {}
+    if (myGen !== _renderGen) return;
+    window.JavisWebhooks.mount(el.querySelector("#whSection"), { brains: () => brains, current: () => fbrain() });
   }
 
   // ============================================
