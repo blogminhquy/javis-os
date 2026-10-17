@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.211.0] - 2026-10-17
+### Cải thiện
+- **Thẻ Claude Code trên trang Models gọn và rõ hơn** (đang làm).
+
 ## [0.210.0] - 2026-10-17
 ### Cải thiện
 - **Thẻ của Team đọc dễ trên điện thoại:** nút và chữ phụ ở mục Mục tiêu phòng ban, Nghiệm thu giờ cỡ 16px, dòng dài tự xuống dòng thay vì bị cắt. Đã kiểm ở màn 390px bằng cả tiếng Việt và tiếng Anh.

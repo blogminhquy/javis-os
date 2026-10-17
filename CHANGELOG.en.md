@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.211.0] - 2026-10-17
+### Improved
+- **The Claude Code card on the Models page is cleaner and clearer** (in progress).
+
 ## [0.210.0] - 2026-10-17
 ### Improved
 - **Team cards read well on a phone:** buttons and helper text in the Department mandate and Acceptance sections are now 16px, and long lines wrap instead of being cut. Checked at 390px wide in Vietnamese and English.
