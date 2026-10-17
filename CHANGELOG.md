@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.201.0] - 2026-10-17
+### Thêm mới
+- **Biểu đồ và ô số liệu ngay trong chat:** báo cáo doanh thu, đơn hàng, quảng cáo có thể kèm biểu đồ cột hay đường và vài ô số chính có mức tăng giảm, vẽ thẳng dưới câu trả lời.
+- **Nút bấm chọn nhanh:** Javis có thể đưa tối đa 4 nút như "Duyệt bản A", bấm là gửi câu đó như bạn tự gõ. Telegram và Zalo nhận bản chữ dễ đọc.
+- **Javis nhớ lại chat cũ:** mở chat mới mà nhắc chuyện hôm trước, Javis tự tìm trong các chat khác của bạn và lấy vài đoạn liên quan làm ngữ cảnh. Chat Team và chat với khách không bao giờ được đưa vào.
+
 ## [0.200.0] - 2026-10-17
 ### Thêm mới
 - **Chia sẻ cả team bằng một file:** menu ⋯ của team có **Chia sẻ team**, tải về một file gồm các cộng sự, kỹ năng và hướng dẫn chung. Không có lịch sử chat, khoá, model hay công tắc Auto; chữ trông giống mật khẩu hay khoá API bị xoá trước khi ghi.

@@ -480,6 +480,20 @@ Bảng thẻ số liệu cố định ở cột trái đã được gỡ (từ b
 
 Giờ muốn xem số thì cứ hỏi thẳng trong chat ("doanh thu hôm nay thế nào", "so với tuần trước"). Javis gọi đúng nguồn đang đấu (POS, kênh, quảng cáo...) và trả lời bằng lời, nên chỉ chạy khi bạn thật sự cần. Chi tiết về nguồn số liệu xem [Kết nối & số liệu kinh doanh](09-mcp-va-so-lieu.md).
 
+## Thẻ biểu đồ, ô số liệu và nút bấm trong câu trả lời
+
+Khi trả lời bằng số thật (doanh thu, đơn, chi phí quảng cáo), Javis có thể vẽ thẳng trong khung chat:
+
+- **Biểu đồ** cột hoặc đường cho xu hướng theo ngày, tuần (tối đa 24 mốc, 3 chuỗi số).
+- **Ô số liệu**: vài con số chính kèm mức tăng giảm, giảm thì hiện màu đỏ.
+- **Nút bấm** (tối đa 4) khi cần bạn chọn nhanh, ví dụ "Duyệt bản A" hay "Sửa lại". Bấm là gửi câu đó như bạn tự gõ; nút không cấp quyền gì thêm.
+
+Thẻ vẽ từ dữ liệu trong câu trả lời nên mở lại hội thoại vẫn thấy. Telegram, Zalo và terminal nhận bản chữ: biểu đồ thành từng dòng số, nút thành danh sách đánh số để trả lời bằng số. Chữ trông giống khoá API trong thẻ được che trước khi vẽ.
+
+## Javis nhớ lại các cuộc trò chuyện trước
+
+Mở chat mới mà nhắc chuyện cũ ("làm tiếp landing page nước mắm hôm trước"), Javis tự tìm trong các chat khác của chính bạn ở brain này và đưa tối đa 3 đoạn trích ngắn vào kèm câu hỏi để hiểu ngữ cảnh. Chỉ chat của chủ (khung chính, chat với cộng sự, Javis Core) được tìm; chat Team, chatbot và hội thoại với khách không bao giờ được đưa vào. Đoạn trích không lưu vào lịch sử chat. Muốn tắt thì đặt `recall.enabled` thành `false` trong cài đặt.
+
 ## Dùng trên điện thoại
 
 Dưới 860px chiều ngang, giao diện đổi hẳn cho vừa màn hình:

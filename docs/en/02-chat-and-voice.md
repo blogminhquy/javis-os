@@ -463,6 +463,20 @@ The fixed grid of metric cards in the left column was removed in version 0.9.166
 
 Now, when you want numbers, just ask in chat ("how is revenue today", "compare with last week"). Javis calls the right connected source (POS, sales channels, ads...) and answers in words, so it only runs when you actually need it. Details about data sources are in [Connections & business data](09-connections-and-business-data.md).
 
+## Charts, number tiles and buttons in an answer
+
+When an answer is built on real numbers (revenue, orders, ad spend), Javis can draw them right in the chat:
+
+- **Charts**, bars or a line, for a trend over days or weeks (up to 24 points and 3 series).
+- **Number tiles**: a few key figures with their change, drawn red when they fall.
+- **Buttons** (up to 4) when it needs a quick choice from you, for example "Approve draft A" or "Redo it". A press sends that text as if you typed it; a button grants nothing.
+
+Cards are drawn from data inside the answer, so reopening the chat shows them again. Telegram, Zalo and the terminal get a text version: a chart becomes one line of numbers per label, buttons become a numbered list you answer with a number. Text in a card that looks like an API key is masked before drawing.
+
+## Javis recalls earlier conversations
+
+Start a new chat that refers to an old one ("carry on with the fish sauce landing page from last time") and Javis searches your other chats in this brain and adds up to 3 short excerpts to the question for context. Only the owner's chats are searched (the main chat, chats with partners, Javis Core); team chats, chatbots and customer conversations never feed it. The excerpts are not saved in the chat history. To turn it off, set `recall.enabled` to `false` in the settings.
+
 ## Using it on a phone
 
 Below 860px wide, the interface changes to fit the screen:

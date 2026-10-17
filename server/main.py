@@ -11435,6 +11435,7 @@ import incident_desk as incident_desk_mod
 import sentinel
 import change_receipt
 import team_bundle
+import chat_recall
 
 
 def _notify_ready() -> tuple:
@@ -15235,6 +15236,7 @@ async def _persist_turn(store, conv_sid, brain, user_message, final_text, turn_s
                                      "content_sha": sessions.content_sha(clean)})
     except Exception as _e:   # noqa: BLE001 - gói hiển thị không được làm hỏng việc lưu lượt
         print(f"[turn_saved] {type(_e).__name__}: {_e}", file=sys.stderr)
+    user_message = chat_recall.strip_block(user_message)
     store.auto_title(conv_sid, user_message)
     log_conversation(brain, user_message, clean)
     # 0.188.0 (spec 12.3): a memory the model wrote during this turn without a source gets one: this chat, today.
@@ -16572,6 +16574,17 @@ async def websocket_endpoint(ws: WebSocket):
             # nghe, khối quy trình) và khối ngữ cảnh giao diện, để câu căn cứ không trích nhầm chữ của host.
             if user_text is None:
                 user_text = nghe_sua.split_ui_context(user_message)[1]
+            # 0.201.0: a few lines from the owner's other chats when they look relevant (chat_recall.py). Rides in front of
+            # the engine's message only: the stored user message, the title and the log keep the person's own words.
+            try:
+                if (cfgmod.read_settings().get("recall") or {}).get("enabled", True) and chat_recall.allowed_channel(
+                        (store.get_session(conv_sid) or {}).get("channel")):
+                    _hits = await asyncio.to_thread(chat_recall.recall, store, user_text,
+                                                    brain=_brain_keys(brain), current_sid=conv_sid)
+                    if _hits:
+                        user_message = chat_recall.block(_hits) + user_message
+            except Exception as _e:  # noqa: BLE001 - recall is a bonus, never a reason to fail a turn
+                print(f"[recall] {type(_e).__name__}: {_e}", file=sys.stderr)
             _t0_luot = time.time()
             _khoa_luot = luot_dang_chay.bat_dau(f"{WEB_CHAT_PREFIX}{conv_sid}", _brain_root(brain),
                                                 msg_id=user_mid, user_text=user_text)

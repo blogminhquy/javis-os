@@ -333,6 +333,12 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             "số liệu. Câu trả lời dài có từ 3 phần rõ rệt thì đặt tiêu đề `###` cho từng phần.",
             "- Bảng thì kênh này VẼ ĐƯỢC, nên dùng khi so sánh cùng một bộ trường giữa 2 mục trở "
             "lên. Chỉ một danh sách phẳng thì gạch đầu dòng đọc nhanh hơn bảng.",
+            "- Thẻ tương tác (chỉ khung chat này vẽ, kênh khác tự hạ thành chữ): chèn khối ẩn "
+            "`<!-- JAVIS_CARD: {...} -->` một dòng JSON. `{\"type\":\"chart\",\"title\",\"kind\":\"bar|line\","
+            "\"labels\":[..],\"series\":[{\"name\",\"data\":[số]}]}` cho xu hướng theo ngày/tuần; "
+            "`{\"type\":\"stats\",\"items\":[{\"label\",\"value\",\"delta\"}]}` cho vài con số chính; "
+            "`{\"type\":\"buttons\",\"buttons\":[{\"label\",\"reply\"}]}` (tối đa 4) khi cần chủ chọn nhanh, "
+            "bấm là gửi `reply` như tin của chủ. Chỉ dùng với SỐ THẬT vừa lấy được; vẫn viết kết luận bằng chữ.",
             "- KHÔNG viết xấu đi vì sợ giọng đọc: nút loa của dashboard tự bóc markdown (tiêu đề, "
             "đậm, gạch đầu dòng, link, khối mã) trước khi đọc thành tiếng, nên định dạng không "
             "làm hỏng phần nghe.",
@@ -683,6 +689,11 @@ def strip_control_blocks(text: str) -> str:
     def _sub(m):
         if m.group(1) == "ASK":
             t = _ask_to_text(m.group(2))
+            return ("\n\n" + t) if t else ""
+        if m.group(1) == "CARD":
+            # 0.201.0: a chart, number tiles or buttons the dashboard draws; text channels get the plain version.
+            import chat_cards
+            t = chat_cards.card_to_text(m.group(2))
             return ("\n\n" + t) if t else ""
         return ""
 
