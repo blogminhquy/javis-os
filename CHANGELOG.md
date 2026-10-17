@@ -9,8 +9,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.195.0] - 2026-10-17
 ### Thêm mới
 - **Vào Team là gặp ngay nhóm đang làm:** mở trang Team thì tự mở nhóm bạn làm việc gần nhất (nhóm vừa nhắn hay vừa mở, trên máy nào cũng vậy), khỏi phải tìm lại.
-- **Nhãn cho nhóm:** gắn nhãn dự án cho từng nhóm trong cài đặt nhóm (nút bánh răng, tab Nhóm), ví dụ "Web bán hàng". Nhiều nhóm làm chung một dự án thì gắn cùng một nhãn.
-- **Lọc theo nhãn:** hàng nhãn trên đầu danh sách nhóm, bấm một nhãn là chỉ còn các nhóm của dự án đó; mỗi nhóm hiện nhãn ngay dưới tên.
+- **Gắn tag cho nhóm:** bấm "..." ở một nhóm, chọn **Gắn tag**, y hệt cách gắn tag cho cộng sự. Nhiều nhóm làm chung một dự án thì gắn cùng một tag.
+- **Lọc nhóm theo tag:** ô lọc trên đầu danh sách nhóm giống hệt bên Cộng sự: Tất cả nhóm, Chưa gắn tag, rồi từng tag kèm số nhóm.
 
 ## [0.194.1] - 2026-10-17
 ### Cải thiện

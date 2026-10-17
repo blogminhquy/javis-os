@@ -213,7 +213,9 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: () => "<svg></svg>", avatar: () => "<i></i>",
     localStorage: { getItem: (k) => (k in kho ? kho[k] : null), setItem(k, v) { kho[k] = String(v); } },
     document: { getElementById: () => null },
-    window: { JavisVaultPanel: { borrow(h) { goi.push("borrow"); ctx._into = h; return true; },
+    // 0.195.0: the tag bar and picker markup are shared with the Teams page (tag-picker.js).
+    window: { JavisTagPicker: require(path.join(root, "dashboard", "tag-picker.js")),
+              JavisVaultPanel: { borrow(h) { goi.push("borrow"); ctx._into = h; return true; },
                                  giveBack() { goi.push("giveBack"); } },
               // Tab Công việc (0.142.0): ghi lại lần gắn để đo đúng trợ lý.
               JavisAgentJobs: { mount(h, o) { goi.push("jobs:" + o.slug); ctx._jobsInto = h; return { destroy() {} }; } },

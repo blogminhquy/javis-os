@@ -19,36 +19,61 @@ function check(name, cond, extra) {
   if (!cond) fails++;
 }
 
+const TP = require(path.join(root, "dashboard", "tag-picker.js"));
+const ws = read("workspace.js");
 const teams = [
   { team_id: "a", name: "Nội dung Web", tags: ["Web bán hàng"], last: { ts: 100 }, updated_at: 100 },
   { team_id: "b", name: "Quảng cáo Web", tags: ["web bán hàng", "Q4"], last: { ts: 300 }, updated_at: 300 },
   { team_id: "c", name: "Game", tags: [], last: { ts: 200 }, updated_at: 200 },
 ];
 
+// ---- one implementation, two pages (owner: "cái gì mà có rồi thì tái sử dụng") ----
+check("the Partners page draws its filter bar and its tag picker with the shared module",
+  ws.includes("window.JavisTagPicker.barHtml({") && ws.includes("m.innerHTML = TP.pickerHtml(dongChonTag(item, danhSach()))") &&
+  ws.includes("TP.bind(m, {") && !ws.includes('class="ws-tag-new"'));
+check("the Teams page uses the same module and the shared dropdown (JavisChatSide.menu)",
+  src.includes("TP.barHtml({") && src.includes("picker.pickerHtml(tagPickRows(") && src.includes("TP.bind(m, {") &&
+  src.includes("cs.menu(t, tagMenuRows(") && !src.includes("tm-tagf") && !src.includes("tm-tag-input"));
+check("tag-picker.js loads before workspace.js and teams.js",
+  (() => { const ix = read("index.html"); const a = ix.indexOf("/static/tag-picker.js"), b = ix.indexOf("/static/workspace.js"),
+    c = ix.indexOf("/static/teams.js"); return a > 0 && a < b && a < c; })());
+
 const tags = TM.allTags(teams);
-check("allTags: one entry per tag (case folded), with how many teams carry it, sorted",
-  JSON.stringify(tags) === JSON.stringify([{ tag: "Q4", n: 1 }, { tag: "Web bán hàng", n: 2 }]), JSON.stringify(tags));
-check("filterTeams: a tag keeps only its teams (any case); no tag keeps all",
-  TM.filterTeams(teams, "WEB BÁN HÀNG").map((t) => t.team_id).join() === "a,b" && TM.filterTeams(teams, "").length === 3);
+check("allTags: one entry per tag (case folded key), with how many teams carry it, sorted",
+  JSON.stringify(tags.map((g) => [g.ten, g.key, g.n])) === JSON.stringify([["Q4", "q4", 1], ["Web bán hàng", "web bán hàng", 2]]),
+  JSON.stringify(tags));
+check("filterTeams: a tag key keeps only its teams; 'no tag yet' keeps untagged; none keeps all",
+  TM.filterTeams(teams, "web bán hàng").map((t) => t.team_id).join() === "a,b" &&
+  TM.filterTeams(teams, TM.TAG_NONE).map((t) => t.team_id).join() === "c" && TM.filterTeams(teams, "").length === 3);
 
-let h = TM.tagBarHtml(teams, "Q4");
-check("tag bar: All first, then each tag with its count; the chosen one is pressed",
-  /data-tag-filter="" aria-pressed="false"/.test(h) && /data-tag-filter="Q4" aria-pressed="true"/.test(h) &&
-  /Web bán hàng<\/span><span class="tm-tagf-n">2</.test(h), h);
-check("tag bar is empty (hidden) while no team has a tag", TM.tagBarHtml([{ team_id: "x", tags: [] }], "") === "");
+let h = TM.tagBarHtml(teams, "q4");
+check("filter bar: the Partners bar (cs-proj-cur) with the chosen tag and the clear button",
+  h.includes('class="cs-proj-cur"') && h.includes("Q4") && h.includes('class="cs-proj-x"'), h);
+check("filter bar with no filter: All teams, no clear button", TM.tagBarHtml(teams, "").includes(vi["teams.tags_all"]) &&
+  !TM.tagBarHtml(teams, "").includes("cs-proj-x"));
+const picked = [];
+const rows = TM.tagMenuRows(teams, "", (k) => picked.push(k));
+check("dropdown rows: All teams, No tag yet, a line, then each tag with its count (like the Partners dropdown)",
+  rows[0].right === "3" && rows[0].on && rows[1].right === "1" && rows[2].sep &&
+  rows.slice(3).map((r) => r.label + ":" + r.right).join() === "Q4:1,Web bán hàng:2", JSON.stringify(rows));
+rows[4].run();
+check("picking a tag in the dropdown filters by its key", picked[0] === "web bán hàng");
 
-h = TM.teamListHtml([teams[1]], "", 400, null, "");
-check("a team row shows its tags under the name", h.includes('<span class="tm-team-tags"><span class="tm-tag-chip">web bán hàng</span>' +
-  '<span class="tm-tag-chip">Q4</span></span>'), h);
-check("a row without tags adds nothing", !TM.teamListHtml([teams[2]], "", 400, null, "").includes("tm-team-tags"));
-
-h = TM.tagEditorHtml(teams[0], teams);
-check("editor: the team's tags with a remove button each, a box to add one",
-  /data-tag-remove="Web bán hàng"/.test(h) && h.includes('class="tm-tag-input"') && h.includes('maxlength="32"'), h);
-check("editor suggests the tags other teams use (and not the ones this team has)",
-  /data-tag-add="Q4"/.test(h) && !/data-tag-add="Web bán hàng"/.test(h) && /<option value="Q4">/.test(h), h);
-check("the settings form carries the tag editor", TM.settingsFormHtml(Object.assign({ status: "active", description: "" }, teams[0]))
-  .includes("tm-tags-edit"));
+const pr = TM.tagPickRows(teams[0], teams);
+check("picker rows: every tag in the list, checked when the team has it",
+  JSON.stringify(pr.map((r) => r.ten + ":" + r.on)) === JSON.stringify(["Q4:false", "Web bán hàng:true"]), JSON.stringify(pr));
+h = TM.teamListHtml([teams[0]], "", 400, "a", "", "a");
+check("row menu in tag mode shows the Partners picker (back, new tag box, check rows)",
+  h.includes("tm-tag-menu") && h.includes('data-act="quay"') && h.includes('class="ws-tag-new"') &&
+  /role="menuitemcheckbox" aria-checked="true"[^>]*data-tag="Web bán hàng"/.test(h), h);
+h = TM.teamListHtml([teams[0]], "", 400, "a", "");
+check("row menu has a Tag item next to Pin, Rename, Delete", /data-tag-team="a"/.test(h) && h.includes(vi["ws.tag_menu"]));
+check("a team's tags show in its row tooltip, no chips drawn (like a partner card)",
+  TM.teamListHtml([teams[0]], "", 400, null, "").includes('title="Nội dung Web\n' + vi["teams.tags_title"] + ': Web bán hàng"') &&
+  !TM.teamListHtml([teams[0]], "", 400, null, "").includes("tm-tag-chip"));
+check("the team settings no longer carry a separate tag editor",
+  !TM.settingsFormHtml(Object.assign({ status: "active", description: "" }, teams[0])).includes("tag"));
+check("tag picker: shared markup escapes names", TP.pickerHtml([{ ten: "<b>x</b>", key: "k", on: false }]).includes("&lt;b&gt;"));
 
 check("last worked team: the highest owner time wins over newer messages elsewhere",
   TM.lastWorkedTeam([Object.assign({}, teams[0], { owner_at: 50 }), teams[1], teams[2]]).team_id === "a");
@@ -59,14 +84,9 @@ check("last worked team: nothing when there is no team", TM.lastWorkedTeam([]) =
 check("the page opens it once per visit, after the list arrives, unless a team was asked for",
   /else if \(!append && !S\.autoOpened && !S\.activeId\)/.test(src) && src.includes("openTeam(lastT.team_id)"));
 check("opening a team tells the server (any device opens it next time)", src.includes('call("POST", "/teams/" + q(id) + "/opened", {})'));
-check("Enter or comma in the tag box adds the tag; a tag change redraws only the tag box",
-  src.includes('contains("tm-tag-input") && (e.key === "Enter" || e.key === ",")') &&
-  src.includes('box.outerHTML = tagEditorHtml(S.team, S.teams)'));
 check("the chosen filter is remembered per device and survives a blocked storage",
   src.includes('var TAG_FILTER_KEY = "javis.teams.tagFilter"') && /try \{ return \(typeof localStorage/.test(src));
-check("tag input is 16px (no zoom on a phone) and chips are styled",
-  /\.tm-tag-input \{[^}]*font-size: 16px/.test(css) && /\.tm-tagf\.is-on \{/.test(css) && /\.tm-team-tags \{/.test(css));
-["teams.tags", "teams.tags_all", "teams.tags_none", "teams.tag_add", "teams.tag_remove", "teams.tags_hint"].forEach((k) =>
+["teams.tags_all", "teams.tags_none", "teams.tag_pick_title", "teams.tags_title", "ws.tag_menu", "ws.tag_none"].forEach((k) =>
   check("i18n " + k + " in vi and en", !!vi[k] && !!en[k]));
 
 process.exit(fails ? 1 : 0);

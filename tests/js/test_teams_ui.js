@@ -660,7 +660,7 @@ check("ghim từ danh sách dùng cùng cách lưu (lỗi thì báo, không kẹ
 check("CSS: nút ... hiện khi rê chuột hay focus, máy chạm ẩn (dùng nhấn giữ); menu có [hidden], mục menu 44px",
       /\.tm-team-wrap:hover \.tm-row-more, \.tm-row-more:focus-visible/.test(css)
       && /@media \(hover: none\) \{ \.tm-row-more \{ display: none; \}/.test(css) && css.includes(".tm-row-menu[hidden]")
-      && css.includes(".tm-team-wrap[hidden]") && /\.tm-row-menu button \{[^}]*min-height: 44px/.test(css));
+      && css.includes(".tm-team-wrap[hidden]") && /\.tm-row-menu:not\(\.tm-tag-menu\) button \{[^}]*min-height: 44px/.test(css));
 check("khoá chữ ghim có ở vi và en", ["teams.pin_team", "teams.unpin_team", "teams.row_menu"].every(function (k) { return vi[k] && en[k]; }));
 
 // Review b93c46bd #1: công tắc ghim lưu lỗi (HTTP khác 200, lỗi mạng) thì về trạng thái đã lưu, bật lại, báo lỗi

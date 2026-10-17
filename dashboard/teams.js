@@ -380,49 +380,81 @@
       'aria-label="' + esc(tw("teams.rename")) + '" enterkeyhint="done">';
   }
 
-  // ───────────── nhãn dự án (0.195.0) ─────────────
-  // Owner, 17/10/2026: "nhiều team đang triển khai cùng 1 dự án thì sẽ có thể add vào 1 tag". Tags live on the team
-  // (server cleans them: team_store.clean_tags); the list derives the set of tags from the teams it has.
+  // ───────────── tag (0.195.0) ─────────────
+  // Owner, 17/10/2026: "nhiều team đang triển khai cùng 1 dự án thì sẽ có thể add vào 1 tag", then "tag em làm dropdown
+  // giống bên cộng sự ... cái gì mà có rồi thì tái sử dụng". So the filter is the Partners page's bar and dropdown, and
+  // tags are set from the row menu with the Partners page's picker (both from tag-picker.js); tags on a row show in its
+  // tooltip, as on a partner card. Tags live on the team (server cleans them: team_store.clean_tags).
+  var TAG_NONE = "\u0001none";   // filter value "no tag yet", like the Partners page's TAG_NONE
 
+  function tagKey(s) { var v = String(s == null ? "" : s); try { v = v.normalize("NFC"); } catch (e) {} return v.toLowerCase(); }
+
+  // Every tag the listed teams carry, once (case folded), with how many teams carry it, sorted by name.
   function allTags(teams) {
     var seen = {}, out = [];
     (teams || []).forEach(function (t) {
       (t.tags || []).forEach(function (g) {
-        var k = String(g).toLowerCase();
-        if (!seen[k]) { seen[k] = { tag: g, n: 0 }; out.push(seen[k]); }
+        var k = tagKey(g);
+        if (!Object.prototype.hasOwnProperty.call(seen, k)) { seen[k] = { ten: g, key: k, n: 0 }; out.push(seen[k]); }
         seen[k].n++;
       });
     });
-    return out.sort(function (a, b) { return a.tag.localeCompare(b.tag); });
+    return out.sort(function (a, b) { return a.ten.localeCompare(b.ten, "vi"); });
   }
 
-  function hasTag(t, tag) {
-    var k = String(tag || "").toLowerCase();
-    return (t.tags || []).some(function (g) { return String(g).toLowerCase() === k; });
+  function hasTag(t, key) {
+    return (t.tags || []).some(function (g) { return tagKey(g) === key; });
   }
 
-  function filterTeams(teams, tag) {
-    return tag ? (teams || []).filter(function (t) { return hasTag(t, tag); }) : (teams || []);
+  function filterTeams(teams, key) {
+    if (!key) return teams || [];
+    if (key === TAG_NONE) return (teams || []).filter(function (t) { return !(t.tags || []).length; });
+    return (teams || []).filter(function (t) { return hasTag(t, key); });
   }
 
-  // The filter row on top of the list: All, then every tag with how many teams carry it. Hidden while no team has a tag.
-  function tagBarHtml(teams, current) {
+  function tagLabel(teams, key) {
+    if (!key) return tw("teams.tags_all");
+    if (key === TAG_NONE) return tw("ws.tag_none");
+    var g = allTags(teams).filter(function (x) { return x.key === key; })[0];
+    return g ? g.ten : key;
+  }
+
+  // The filter bar on top of the list: the Partners page's bar (JavisTagPicker.barHtml).
+  function tagBarHtml(teams, key) {
+    var TP = tagPicker();
+    if (!TP) return "";
+    return TP.barHtml({ label: tagLabel(teams, key), icon: !key ? "layers" : key === TAG_NONE ? "circle" : "tag",
+                        canClear: !!key, pickTitle: tw("teams.tag_pick_title"), clearTitle: tw("ws.tag_clear_title") });
+  }
+
+  // Rows of the filter dropdown (JavisChatSide.menu, the same dropdown the Partners page opens).
+  function tagMenuRows(teams, key, pick) {
     var tags = allTags(teams);
-    if (!tags.length) return "";
-    var chip = function (val, label, n) {
-      var on = (current || "") === val;
-      return '<button type="button" class="tm-tagf' + (on ? " is-on" : "") + '" data-tag-filter="' + esc(val) + '" aria-pressed="' +
-        (on ? "true" : "false") + '">' + (val ? ic("tag") : "") + "<span>" + esc(label) + "</span>" +
-        (n != null ? '<span class="tm-tagf-n">' + n + "</span>" : "") + "</button>";
-    };
-    return chip("", tw("teams.tags_all"), null) + tags.map(function (x) { return chip(x.tag, x.tag, x.n); }).join("");
+    var none = (teams || []).filter(function (t) { return !(t.tags || []).length; }).length;
+    var rows = [
+      { label: tw("teams.tags_all"), icon: "layers", right: String((teams || []).length), on: !key, run: function () { pick(""); } },
+      { label: tw("ws.tag_none"), icon: "circle", right: String(none), on: key === TAG_NONE, run: function () { pick(TAG_NONE); } },
+    ];
+    if (tags.length) rows.push({ sep: true });
+    tags.forEach(function (g) {
+      rows.push({ label: g.ten, icon: "tag", right: String(g.n), on: key === g.key, run: function () { pick(g.key); } });
+    });
+    return rows;
   }
 
-  function rowTagsHtml(t) {
-    var tags = t.tags || [];
-    return tags.length ? '<span class="tm-team-tags">' + tags.map(function (g) {
-      return '<span class="tm-tag-chip">' + esc(g) + "</span>";
-    }).join("") + "</span>" : "";
+  // Rows of the "Tag" picker in a team's row menu: every tag in the list plus the team's own, checked when it has it.
+  function tagPickRows(team, teams) {
+    var mine = {}, out = [];
+    (team.tags || []).forEach(function (g) { mine[tagKey(g)] = g; });
+    var seen = {};
+    allTags(teams).forEach(function (g) { seen[g.key] = 1; out.push({ ten: g.ten, key: g.key, on: !!mine[g.key] }); });
+    Object.keys(mine).forEach(function (k) { if (!seen[k]) out.push({ ten: mine[k], key: k, on: true }); });
+    return out.sort(function (a, b) { return a.ten.localeCompare(b.ten, "vi"); });
+  }
+
+  function tagPicker() {
+    if (typeof window !== "undefined" && window.JavisTagPicker) return window.JavisTagPicker;
+    try { return require("./tag-picker.js"); } catch (e) { return null; }
   }
 
   // The team the owner worked in last (0.195.0): the highest `owner_at` (sent a message or opened it, on any device).
@@ -439,7 +471,7 @@
 
   // `menuId`: the team whose menu is open (the "..." button, long press on a phone, right click on a computer): Pin or
   // Unpin, Rename, Delete. `renaming`: the team whose name is being edited in place.
-  function teamListHtml(teams, activeId, now, menuId, renaming) {
+  function teamListHtml(teams, activeId, now, menuId, renaming, tagMode) {
     if (!teams || !teams.length) return guideHtml();
     return teams.map(function (t) {
       var on = t.team_id === activeId;
@@ -453,18 +485,24 @@
       var pin = pinned ? '<span class="tm-pinned" title="' + esc(tw("teams.pinned")) + '" aria-label="' +
         esc(tw("teams.pinned")) + '">' + ic("pin") + "</span>" : "";
       var open = menuId === t.team_id;
-      var menu = open ? '<div class="tm-row-menu" role="menu" aria-label="' + esc(tw("teams.row_menu")) + '">' +
+      // 0.195.0: "Tag" opens the Partners page's tag picker right in this menu (tagMode), like a partner's row menu.
+      var picker = open && tagMode === t.team_id && tagPicker();
+      var menu = !open ? "" : picker ? '<div class="tm-row-menu tm-tag-menu" role="menu" aria-label="' + esc(tw("ws.tag_menu")) + '">' +
+        // Suggestions come from EVERY team, not only those the filter shows.
+        picker.pickerHtml(tagPickRows(t, (S && S.teams && S.teams.length ? S.teams : teams))) + "</div>" : '<div class="tm-row-menu" role="menu" aria-label="' + esc(tw("teams.row_menu")) + '">' +
         '<button type="button" role="menuitem" data-pin-team="' + id + '" data-on="' + (pinned ? "0" : "1") + '">' + ic("pin") +
         esc(tw(pinned ? "teams.unpin_team" : "teams.pin_team")) + "</button>" +
+        '<button type="button" role="menuitem" data-tag-team="' + id + '">' + ic("tag") + esc(tw("ws.tag_menu")) + "</button>" +
         '<button type="button" role="menuitem" data-rename-team="' + id + '">' + ic("pencil") + esc(tw("teams.rename")) + "</button>" +
         '<button type="button" role="menuitem" class="tm-danger" data-delete-team="' + id + '">' + ic("trash-2") +
-        esc(tw("teams.delete_team")) + "</button></div>" : "";
+        esc(tw("teams.delete_team")) + "</button></div>";
+      var tagTip = (t.tags || []).length ? ' title="' + esc(t.name + "\n" + tw("teams.tags_title") + ": " + t.tags.join(", ")) + '"' : "";
       return '<div class="tm-team-wrap' + (open ? " is-menu" : "") + '"><button type="button" class="tm-team" data-team="' + id + '"' +
-        (on ? ' aria-current="true"' : "") + ">" +
+        (on ? ' aria-current="true"' : "") + tagTip + ">" +
         teamAvatarHtml(t, 44) + '<span class="tm-team-main"><span class="tm-team-top"><span class="tm-team-name">' + esc(t.name) +
         "</span>" + pin + '<span class="tm-team-time">' + esc(timeShort(last.ts || t.updated_at, now)) + "</span></span>" +
         '<span class="tm-team-bottom"><span class="tm-team-sub">' + esc(previewText(t)) + "</span>" + teamBadge(t) +
-        "</span>" + rowTagsHtml(t) + "</span></button>" +
+        "</span></span></button>" +
         '<button type="button" class="tm-row-more" data-row-menu="' + id + '" aria-haspopup="menu" aria-expanded="' +
         (open ? "true" : "false") + '" aria-label="' + esc(tw("teams.row_menu")) + '" title="' + esc(tw("teams.row_menu")) + '">' +
         ic("ellipsis") + "</button>" + menu + "</div>";
@@ -1084,34 +1122,11 @@
       "</div></div></div>" : "";
     return '<form class="tm-form" onsubmit="return false">' + ava +
       '<label class="tm-field"><span>' + esc(tw("teams.name")) + '</span><input name="tm-set-name" value="' + esc(team.name) + '"></label>' +
-      tagEditorHtml(team, S && S.teams) +
       '<label class="tm-field"><span>' + esc(tw("teams.description")) + '</span><textarea name="tm-set-desc" rows="2">' + esc(team.description) + "</textarea></label>" +
       '<div class="tm-field"><span>' + esc(tw("teams.status")) + '</span><div class="tm-radios">' + st + "</div></div>" +
       '<div class="tm-actions"><button type="button" class="ws-btn tm-save">' + esc(tw("teams.save")) + "</button>" +
       '<button type="button" class="ws-btn tm-danger" data-delete-team="' + esc(team.team_id) + '">' + ic("trash-2") +
       esc(tw("teams.delete_team")) + "</button></div></form>";
-  }
-
-  // Tags of this team (0.195.0): chips with a remove button and a box to add one; suggestions are the tags other teams
-  // already use, so several teams on one project end up on the SAME tag. Adding or removing saves at once.
-  function tagEditorHtml(team, teams) {
-    var mine = team.tags || [];
-    var others = allTags(teams).filter(function (x) { return !hasTag(team, x.tag); });
-    return '<div class="tm-field tm-tags-edit"><span>' + esc(tw("teams.tags")) + "</span>" +
-      '<div class="tm-tags-row">' + mine.map(function (g) {
-        return '<span class="tm-tag-chip">' + esc(g) + '<button type="button" class="tm-tag-x" data-tag-remove="' + esc(g) +
-          '" aria-label="' + esc(tw("teams.tag_remove", { tag: g })) + '" title="' + esc(tw("teams.tag_remove", { tag: g })) + '">' +
-          ic("x") + "</button></span>";
-      }).join("") +
-      '<input class="tm-tag-input" list="tm-tag-list" maxlength="32" enterkeyhint="done" placeholder="' + esc(tw("teams.tag_add")) +
-      '" aria-label="' + esc(tw("teams.tag_add")) + '"><datalist id="tm-tag-list">' + others.map(function (x) {
-        return '<option value="' + esc(x.tag) + '"></option>';
-      }).join("") + "</datalist></div>" +
-      (others.length ? '<div class="tm-tags-suggest">' + others.slice(0, 8).map(function (x) {
-        return '<button type="button" class="tm-tag-chip tm-tag-sug" data-tag-add="' + esc(x.tag) + '">' + ic("plus") + esc(x.tag) +
-          "</button>";
-      }).join("") + "</div>" : "") +
-      '<small class="tm-hint-line">' + esc(tw("teams.tags_hint")) + "</small></div>";
   }
 
   // Các số giới hạn của nhóm (trong Nâng cao). Nút Lưu ở cuối.
@@ -1434,7 +1449,7 @@
       '<div class="tm-page" data-view="' + S.view + '" data-side="0">' +
       '<aside class="tm-list"><div class="tm-bar tm-list-bar"><strong class="tm-list-title">' + esc(tw("page.teams.label")) + "</strong>" +
       '<button type="button" class="ws-btn tm-new">' + ic("plus") + esc(tw("teams.create")) + "</button></div>" +
-      '<div class="tm-tagbar" role="toolbar" aria-label="' + esc(tw("teams.tags")) + '" hidden></div>' +
+      '<div class="cside-proj ws-nhom-bar tm-tagbar" hidden></div>' +
       '<div class="tm-teams"></div><button type="button" class="ws-btn tm-more-teams" hidden>' + esc(tw("teams.next_page")) + "</button></aside>" +
       '<section class="tm-chat"><div class="tm-bar tm-chat-head"></div><div class="tm-search" hidden></div>' +
       '<div class="tm-banners"></div><div class="tm-jobs" hidden></div>' +
@@ -1448,14 +1463,19 @@
     var box = S.el.querySelector(".tm-teams");
     var rd = renameDraft(box);
     // 0.195.0: the tag filter. A tag no team carries any more (removed elsewhere) drops back to All.
-    if (S.tagFilter && !allTags(S.teams).some(function (x) { return x.tag.toLowerCase() === S.tagFilter.toLowerCase(); })) {
+    if (S.tagFilter && S.tagFilter !== TAG_NONE && !allTags(S.teams).some(function (x) { return x.key === S.tagFilter; })) {
       setTagFilter("");
     }
     var tb = S.el.querySelector(".tm-tagbar");
-    if (tb) { tb.innerHTML = tagBarHtml(S.teams, S.tagFilter); tb.hidden = !tb.innerHTML; }
+    // Shown once a team has a tag (or a filter is on): with no tag anywhere the bar would only say "All teams".
+    if (tb) {
+      tb.innerHTML = allTags(S.teams).length || S.tagFilter ? tagBarHtml(S.teams, S.tagFilter) : "";
+      tb.hidden = !tb.innerHTML;
+    }
     var shown = filterTeams(S.teams, S.tagFilter);
     if (box) box.innerHTML = S.loaded || S.teams.length ? (S.tagFilter && !shown.length ? '<p class="tm-empty">' +
-      esc(tw("teams.tags_none")) + "</p>" : teamListHtml(shown, S.activeId, undefined, S.rowMenu, S.renaming)) : "";
+      esc(tw("teams.tags_none")) + "</p>" : teamListHtml(shown, S.activeId, undefined, S.rowMenu, S.renaming, S.tagMenu)) : "";
+    bindTagPicker(box);
     if (S.renaming) focusRename(box, rd);
     if (box && S.rowMenu && S.focusRowMenu) {
       S.focusRowMenu = false;
@@ -2314,29 +2334,34 @@
     try { if (typeof localStorage !== "undefined") localStorage.setItem(TAG_FILTER_KEY, S.tagFilter); } catch (e) {}
   }
 
-  function saveTags(tags) {
-    if (!S.team) return;
-    call("PATCH", teamUrl(), { tags: tags }).then(function (r) {
-      if (r.code === 200 && r.j && r.j.team) {
-        S.team = r.j.team;
-        S.teams.forEach(function (t) { if (t.team_id === S.team.team_id) t.tags = S.team.tags || []; });
-        drawList();
-        // Only the tag box is redrawn: the rest of the form may hold a name or description being typed.
-        var box = S.el.querySelector(".tm-tags-edit");
-        if (box) box.outerHTML = tagEditorHtml(S.team, S.teams);
-        var inp = S.el.querySelector(".tm-tag-input");
-        if (inp) inp.focus();
-        return;
-      }
-      act(r);
-    });
+  // The "Tag" picker of a team's row menu (0.195.0): tapping a tag adds or removes it, the box adds a new one; the menu
+  // stays open so several tags can be set in one go, exactly like a partner's row menu.
+  function bindTagPicker(box) {
+    var TP = tagPicker();
+    var m = box && S.tagMenu ? box.querySelector(".tm-tag-menu") : null;
+    if (!TP || !m) return;
+    var id = S.tagMenu;
+    TP.bind(m, {
+      back: function () { S.tagMenu = null; S.focusRowMenu = true; drawList(); },
+      add: function (ten) { changeTags(id, [ten], [], TP.FOCUS_INPUT); },
+      toggle: function (ten, on, key) { changeTags(id, on ? [] : [ten], on ? [key] : [], key); },
+    }, S.tagFocus);
+    S.tagFocus = null;
   }
 
-  function addTag(tag) {
-    tag = String(tag || "").replace(/\s+/g, " ").trim();
-    if (!tag || !S.team) return;
-    if (hasTag(S.team, tag)) return;
-    saveTags((S.team.tags || []).concat([tag]));
+  function changeTags(id, add, removeKeys, focusKey) {
+    var t = S.teams.filter(function (x) { return x.team_id === id; })[0];
+    if (!t || S.tagBusy) return;
+    var next = (t.tags || []).filter(function (g) { return removeKeys.indexOf(tagKey(g)) < 0; }).concat(add);
+    S.tagBusy = true;
+    call("PATCH", "/teams/" + q(id), { tags: next }).then(function (r) {
+      S.tagBusy = false;
+      if (r.code !== 200 || !r.j || !r.j.team) return act(r);
+      t.tags = r.j.team.tags || [];
+      if (S.team && S.team.team_id === id) S.team.tags = t.tags;
+      S.tagFocus = focusKey;
+      drawList();
+    }, function () { S.tagBusy = false; });
   }
 
   // ───────────── 0.191.0: files, working folder and the team info panel ─────────────
@@ -2815,6 +2840,7 @@
   // hay sau khi chọn.
   function openRowMenu(id) {
     S.rowMenu = id;
+    S.tagMenu = null;
     S.focusRowMenu = true;
     drawList();
   }
@@ -2822,6 +2848,7 @@
   function closeRowMenu(focusRow) {
     var id = S.rowMenu;
     S.rowMenu = null;
+    S.tagMenu = null;
     drawList();
     if (focusRow && id) {
       var row = S.el.querySelector('.tm-team[data-team="' + id + '"]');
@@ -3010,13 +3037,13 @@
       return openRowMenu(d.rowMenu);
     }
     if (d.renameTeam) { S.rowMenu = null; S.renaming = d.renameTeam; drawList(); return; }
-    if (d.tagFilter !== undefined) { setTagFilter(S.tagFilter === d.tagFilter ? "" : d.tagFilter); drawList(); return; }
-    if (d.tagAdd) { addTag(d.tagAdd); return; }
-    if (d.tagRemove && S.team) {
-      var rm = d.tagRemove.toLowerCase();
-      saveTags((S.team.tags || []).filter(function (g) { return String(g).toLowerCase() !== rm; }));
+    if (d.tagTeam) { S.tagMenu = d.tagTeam; S.tagFocus = null; drawList(); return; }
+    if (t.classList && t.classList.contains("cs-proj-cur") && t.closest(".tm-tagbar")) {
+      var cs = typeof window !== "undefined" && window.JavisChatSide;
+      if (cs && cs.menu) cs.menu(t, tagMenuRows(S.teams, S.tagFilter, function (k) { setTagFilter(k); drawList(); }));
       return;
     }
+    if (t.classList && t.classList.contains("cs-proj-x") && t.closest(".tm-tagbar")) { setTagFilter(""); drawList(); return; }
     if (d.deleteTeam) { if (S.rowMenu) closeRowMenu(); return deleteTeam(d.deleteTeam); }
     if (d.renameHead) { S.renamingHead = true; drawHead(); return; }
     if (d.finOpen) { S.openFin = S.openFin === d.finOpen ? null : d.finOpen; drawSide(); return; }
@@ -3458,14 +3485,6 @@
       return;
     }
     if (e.key === "Escape" && S.rowMenu) { closeRowMenu(true); return; }
-    if (e.target.classList && e.target.classList.contains("tm-tag-input") && (e.key === "Enter" || e.key === ",") &&
-        !e.isComposing && e.keyCode !== 229) {
-      e.preventDefault();
-      var tv = e.target.value;
-      e.target.value = "";
-      addTag(tv);
-      return;
-    }
     if (e.target.classList && e.target.classList.contains("tm-rename-input")) {
       if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) {
         e.preventDefault();
@@ -3707,7 +3726,8 @@
     nextReaction: nextReaction, REACTIONS: REACTIONS, authorityHtml: authorityHtml, readGrant: readGrant,
     searchResultsHtml: searchResultsHtml, replyStatusHtml: replyStatusHtml, headLine: headLine,
     typingHtml: typingHtml, pinsHtml: pinsHtml, markMentions: markMentions, replyRefHtml: replyRefHtml,
-    allTags: allTags, filterTeams: filterTeams, tagBarHtml: tagBarHtml, tagEditorHtml: tagEditorHtml, lastWorkedTeam: lastWorkedTeam };
+    allTags: allTags, filterTeams: filterTeams, tagBarHtml: tagBarHtml, tagMenuRows: tagMenuRows, tagPickRows: tagPickRows,
+    lastWorkedTeam: lastWorkedTeam, TAG_NONE: TAG_NONE };
   if (typeof window !== "undefined") window.JavisTeams = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

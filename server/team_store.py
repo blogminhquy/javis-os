@@ -174,7 +174,7 @@ def _j(v: Any) -> str:
 # Team tags (0.195.0): short project labels. A tag is trimmed, inner spaces collapsed, at most TAG_CHARS characters; a
 # team keeps at most TAGS_MAX, duplicates (ignoring case) dropped, first spelling kept.
 TAGS_MAX = 8
-TAG_CHARS = 32
+TAG_CHARS = 40
 
 
 def clean_tags(tags: Any) -> list:

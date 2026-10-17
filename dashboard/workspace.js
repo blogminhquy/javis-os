@@ -789,11 +789,10 @@
   }
   function veThanhTag(bar) {
     var ic0 = !S.nhom ? "layers" : S.nhom === TAG_NONE ? "circle" : S.nhom === TAG_AUTO ? "zap" : "tag";
+    // 0.195.0: the bar markup is shared with the Teams page (tag-picker.js), so both look and behave the same.
     bar.innerHTML =
-      '<button type="button" class="cs-proj-cur" title="' + esc(t("ws.tag_pick_title")) + '">' +
-        '<span class="cs-proj-name">' + ic(ic0) + ' ' + esc(nhanTag(S.nhom)) + '</span>' +
-        '<span class="cs-proj-caret">' + ic("chevron-down") + '</span></button>' +
-      (S.nhom ? '<button type="button" class="cs-proj-x" title="' + esc(t("ws.tag_clear_title")) + '">' + ic("x") + '</button>' : '') +
+      window.JavisTagPicker.barHtml({ label: nhanTag(S.nhom), icon: ic0, canClear: !!S.nhom,
+                                      pickTitle: t("ws.tag_pick_title"), clearTitle: t("ws.tag_clear_title") }) +
       // Kết quả thao tác tag (gộp tag, lỗi một phần) nằm ngay dưới thanh, sống tới lần thao tác kế.
       (S.tagNote ? '<div class="ws-tag-note' + (S.tagNote.loi ? " loi" : "") + '" role="status">' +
         esc(S.tagNote.msg) + '<button type="button" class="ws-tag-note-x" title="' + esc(t("common.close")) + '">' +
@@ -1279,19 +1278,8 @@
     return tatCa.map(function (g) { return { ten: g.ten, key: g.key, on: coKhoa.has(g.key) }; });
   }
   function veMenuTag(item, m, focusKhoa) {
-    var tatCa = dongChonTag(item, danhSach());
-    m.innerHTML =
-      '<button type="button" class="ws-menu-it quay" data-act="quay">' + ic("chevron-left") +
-        '<span>' + esc(t("ws.tag_menu")) + '</span></button>' +
-      '<form class="ws-tag-new" data-act="moi"><input type="text" maxlength="40" class="ws-tag-in" ' +
-        'placeholder="' + esc(t("ws.tag_new_ph")) + '" aria-label="' + esc(t("ws.tag_new_ph")) + '">' +
-        '<button type="submit" class="ws-btn">' + esc(t("ws.tag_add")) + '</button></form>' +
-      tatCa.map(function (g) {
-        return '<button type="button" role="menuitemcheckbox" aria-checked="' + g.on + '" class="ws-menu-it' +
-          (g.on ? " on" : "") + '" data-tag="' + esc(g.ten) + '" data-key="' + esc(g.key) + '" title="' +
-          esc(t(g.on ? "ws.tag_remove_title" : "ws.tag_add_title", { ten: g.ten })) +
-          '">' + ic(g.on ? "check" : "tag") + '<span>' + esc(g.ten) + '</span></button>';
-      }).join("");
+    var TP = window.JavisTagPicker;   // 0.195.0: shared with the Teams page row menu
+    m.innerHTML = TP.pickerHtml(dongChonTag(item, danhSach()));
     var dang = false;
     async function doi(fields, giuKhoa) {
       if (dang) return; dang = true;
@@ -1309,23 +1297,12 @@
       var moi = danhSach().find(function (x) { return x.slug === item.slug; }) || item;
       if (S.menu === m) veMenuTag(moi, m, giuKhoa);
     }
-    m.querySelector('[data-act="quay"]').onclick = function () { veMenuGoc(item, m); };
-    var form = m.querySelector('[data-act="moi"]'), o = m.querySelector(".ws-tag-in");
-    form.onsubmit = function (e) {
-      e.preventDefault();
-      var ten = String(o.value || "").trim();
-      if (ten) doi({ add_tags: JSON.stringify([ten]) }, "\u0001in");
-    };
-    m.querySelectorAll("[data-tag]").forEach(function (b) {
-      b.onclick = function () {
-        var g = b.dataset.tag, on = b.getAttribute("aria-checked") === "true";
-        doi(on ? { remove_tags: JSON.stringify([g]) } : { add_tags: JSON.stringify([g]) }, b.dataset.key);
-      };
-    });
-    // Giữ chỗ bàn phím sau khi vẽ lại: ô nhập nếu vừa gắn tag mới, nút tag vừa bấm nếu vừa bật/tắt.
-    var nhan = focusKhoa === "\u0001in" || focusKhoa == null ? o
-      : Array.prototype.find.call(m.querySelectorAll("[data-tag]"), function (b) { return b.dataset.key === focusKhoa; });
-    if (nhan) try { nhan.focus(); } catch (e) {}
+    // Giữ chỗ bàn phím sau khi vẽ lại: ô nhập nếu vừa gắn tag mới, nút tag vừa bấm nếu vừa bật/tắt (TP.bind).
+    TP.bind(m, {
+      back: function () { veMenuGoc(item, m); },
+      add: function (ten) { doi({ add_tags: JSON.stringify([ten]) }, TP.FOCUS_INPUT); },
+      toggle: function (g, on, key) { doi(on ? { remove_tags: JSON.stringify([g]) } : { add_tags: JSON.stringify([g]) }, key); },
+    }, focusKhoa);
   }
 
   // Sửa MỘT PHẦN frontmatter (ghim / nhóm) rồi tải lại danh sách. Đi đường /capability/meta
