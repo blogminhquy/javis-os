@@ -265,6 +265,36 @@ Hai rào an toàn cứng của đường này, không tham số nào đổi đư
 - Việc lặp tạo qua chat **luôn** ở `enabled: false`, và mặc định `mode: full` (nói "chỉ đọc" hoặc "chỉ ghi nháp" nếu muốn nhẹ hơn). Bạn phải vào trang Việc định kỳ bấm **Bật** thì nó mới chạy thật.
 - Không rõ chu kỳ (ví dụ bạn chỉ nói "mỗi sáng" mà không kèm giờ) thì công cụ báo lỗi và hỏi lại, tuyệt đối không tự đoán.
 
+## Webhook: hệ thống bên ngoài gọi Javis làm việc
+
+Nhắc hẹn chạy theo giờ. Webhook chạy theo **sự kiện**: khách vừa điền form trên landing page, vừa thanh toán, hay một app khác vừa có dữ liệu mới thì Javis vào việc ngay, không phải chờ tới lượt lịch kế tiếp.
+
+**Tạo một webhook:** ở cuối trang Việc định kỳ, mục **Webhook**, bấm **+ Thêm webhook**. Đặt tên, chọn brain, rồi chọn chạy gì:
+
+- **Một quy trình**: chọn quy trình có sẵn trong brain. Dữ liệu sự kiện thành đầu vào của quy trình.
+- **Một việc viết tay**: viết việc cần làm, ví dụ "Gọi lại cho khách trong 5 phút, ghi vào sổ khách hàng".
+
+Chọn mức quyền như nhắc hẹn (Chỉ đọc, Được ghi file, Toàn quyền), rồi **Lưu**.
+
+**Mã bí mật chỉ hiện một lần**, ngay sau khi lưu, kèm một lệnh `curl` để thử. Hệ thống gọi tới gửi mã trong header `Authorization: Bearer <mã>` (hoặc header `X-Javis-Token`, hoặc `?token=` cuối link nếu nó không đặt được header). Javis chỉ giữ bản băm của mã, nên quên mã thì bấm **Tạo mã mới**; mã cũ ngừng chạy ngay.
+
+**Kết quả về đâu:** như nhắc hẹn, vào khung Javis Core của brain, hòm thư (chuông) và Telegram của bạn. Kết quả mở đầu bằng `[SILENT]` thì không báo.
+
+**Rào an toàn:**
+
+- Link sai mã, webhook đã tắt hay không tồn tại đều nhận cùng một câu từ chối, nên không ai dò được.
+- Dữ liệu sự kiện được đưa cho bộ não như **dữ liệu**, không phải lệnh. Giới hạn 32 KB mỗi lần gọi.
+- Mỗi webhook chạy từng việc một, chờ tối đa 5 việc, tối đa 30 lần mỗi giờ.
+- Hệ thống gọi lại vì mạng chập (gửi kèm header `Idempotency-Key` hoặc `X-Request-Id`) thì Javis nhận nhưng không chạy lần hai.
+
+**Link phải ra được Internet.** Javis chạy trên VPS có tên miền thì dùng luôn. Chạy trên máy nhà thì cần một đường hầm (Cloudflare Tunnel, Tailscale Funnel) trỏ vào Javis.
+
+## Nhắc hẹn nhớ kết quả lần trước
+
+Nhắc hẹn kiểu **Tự làm rồi báo** có thêm ô **Nhớ kết quả lần trước**. Bật lên thì mỗi lần chạy Javis nhận lại báo cáo lần trước (tối đa 2.000 ký tự), nên chỉ báo cái mới hay cái thay đổi. Hợp với việc theo dõi giá đối thủ, theo dõi chỉ số, rà hộp thư.
+
+Lịch lặp theo cron còn hiện **ba lần chạy tới** ngay trên thẻ. Lần chạy bị trễ vì máy tắt thì vẫn chạy bù một lần khi máy mở lại, và Javis được báo là đang chạy trễ để tính theo giờ hiện tại.
+
 ## Trường nâng cao (chỉ sửa được trong file .md)
 
 Biểu mẫu trên dashboard cố ý giữ gọn. Những thứ dưới đây phải mở `Javis/loops/<slug>.md` và sửa phần frontmatter (qua [Quản lý tệp tin](05-quan-ly-tep-tin.md) hoặc Obsidian). Sửa xong, dashboard đọc lại ngay, không cần khởi động lại gì.

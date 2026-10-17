@@ -132,6 +132,7 @@ operations index and media cleanup; Kanban has its own dispatcher.
 | Kanban tasks | `tasks.py`, `task_store.py` | `STATE_DIR/kanban.sqlite3` (+ JSON snapshot in `<brain>/Javis/kanban.json`) | Dispatcher claims tasks atomically and runs them as asyncio tasks |
 | Loops | `self_improve.py` | `<brain>/Javis/loops/<slug>.md`, state in `Javis/loop-state.json` | "Every X minutes find one unit of work"; run one at a time |
 | Reminders and cron jobs | `reminders.py`, `cron_util.py` | `<brain>/Javis/reminders.json` | Dependency-free 5-field cron parser |
+| Webhook triggers | `webhook_triggers.py` | `STATE_DIR/webhooks.json` (token hashes only) | `POST /hooks/<id>` runs a workflow or job from an outside event |
 | Workflows | `execute_workflow()` in `main.py`, `workflow_runtime.py`, `workflow_runs.py` | `<brain>/workflows/<slug>.md`, run history in SQLite | A chain of agent steps with checkpoints |
 | Self-learning | `learn.py`, `git_brain.py` | `<brain>/memory/` | The learning fork is read-only; only trusted Python writes, and only when the brain is a git checkout |
 | Results inbox | `inbox.py`, `webpush.py` | `STATE_DIR/inbox.json` | Every background result lands here, plus browser push |

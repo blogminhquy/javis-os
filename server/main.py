@@ -229,7 +229,9 @@ app.add_middleware(CORSMiddleware,
 # `path.startswith(p)`, nên khai "/s" sẽ mở công khai LUÔN /settings, /skills, /sessions,
 # /stt và mọi đường bắt đầu bằng chữ s. Xem test_share_link.py, phép thử đó tồn tại chỉ để
 # canh đúng một ký tự này.
-_AUTH_PUBLIC_PREFIX = ("/static", "/health", "/s/")
+# "/hooks/" (0.198.0): webhook triggers, called by outside systems with no cookie. Same trailing
+# slash rule as "/s/"; each hook checks its own secret token in webhook_triggers.accept().
+_AUTH_PUBLIC_PREFIX = ("/static", "/health", "/s/", "/hooks/")
 # /brand-logo: hiện trên màn đăng nhập (trước session). /tls-check: Caddy gọi (không đăng nhập được).
 _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth/setup",
                       "/brand-logo", "/brand-theme.css", "/tls-check",
@@ -10555,7 +10557,7 @@ async def _ghi_lich_su(gen, *, brain, slug, name, input, source, session_id, run
 # Sources that run a workflow with nobody pressing a button. A workflow switched off is not run
 # from these; Studio and the workflow chat (source "web") still run it, since there the owner
 # asked for this one run in person, typically to try it out before switching it on.
-_WORKFLOW_UNATTENDED_SOURCES = ("kanban", "reminder", "loop")
+_WORKFLOW_UNATTENDED_SOURCES = ("kanban", "reminder", "loop", "webhook")
 
 
 async def execute_workflow(brain, slug, input="", tools=None, session_id="", source="other",
@@ -11426,6 +11428,7 @@ tasks_feature.deps.learn_hook = learn_feature.enqueue_job
 # mode notify = nhắn lại · mode task = chạy engine (đọc MCP, ghi nháp) rồi báo. KHÔNG tiền/đơn.
 # ============================================================
 import reminders as reminders_mod
+import webhook_triggers
 
 
 def _notify_ready() -> tuple:
@@ -11517,6 +11520,43 @@ reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     scheduler_brains=loop_feature.scheduler_brains,
     apply_mcp=_apply_mcp,                 # nhắc mode 'task' ĐỌC được dữ liệu thật qua MCP
     mcp_allow_patterns=_loop_mcp_allow,
+))
+
+
+async def _webhook_run_workflow(brain, slug, prompt, level):
+    """Webhook target "workflow": same permission ladder as a reminder (suggest reads, auto adds
+    file writes, full has every tool), and the same event handling as a Kanban `wf:` route."""
+    tools = None if level == "full" else (SAFE_FILE_TOOLS if level == "auto" else READONLY_TOOLS)
+    result, error, needs_input = "", "", False
+    async for ev in execute_workflow(_brain_root(brain), slug, prompt, tools, source="webhook", mode=level):
+        kind = ev.get("type")
+        if kind == "done":
+            result = ev.get("result") or result
+        elif kind in ("wait_user", "escalation") or (kind == "error" and ev.get("needs_input")):
+            needs_input = True
+            result = (result + "\n" if result else "") + str(
+                ev.get("content") or ev.get("reason") or ev.get("prompt") or ev.get("node") or "")
+        elif kind in ("error", "step_error"):
+            error = ev.get("content") or error
+    return result, error, needs_input
+
+
+async def _webhook_send(chat_id, text, viec=None, web="", brain="", dedup=""):
+    return await _notify_owner(chat_id, text, kind="report", source="webhook",
+                               viec=viec, web=web, brain=brain, dedup=dedup)
+
+
+webhook_feature = webhook_triggers.register(app, webhook_triggers.WebhookDeps(
+    state_dir=lambda: cfgmod.STATE_DIR,
+    run_task=lambda brain, text, level: reminders_feature._run_task(
+        brain, text, level, intro=webhook_triggers.TASK_INTRO),
+    run_workflow=_webhook_run_workflow,
+    send=_webhook_send,
+    base_url=lambda request: web_security.external_base(
+        request.url.scheme, request.url.netloc,
+        request.headers.get("x-forwarded-proto", ""), request.headers.get("x-forwarded-host", "")),
+    workflow_exists=lambda brain, slug: (_workflows_dir(brain) / f"{slug}.md").is_file(),
+    atomic_write_text=_atomic_write_text,
 ))
 
 

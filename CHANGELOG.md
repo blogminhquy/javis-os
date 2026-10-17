@@ -6,6 +6,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.198.0] - 2026-10-17
+### Thêm mới
+- **Webhook: hệ thống bên ngoài gọi Javis làm việc.** Ở trang Việc, mục **Webhook** tạo một đường link bí mật. Form trên landing page, đơn thanh toán hay một app khác gọi vào là Javis chạy ngay quy trình hoặc việc bạn chọn, kèm dữ liệu sự kiện, rồi báo kết quả như nhắc hẹn.
+- **An toàn sẵn:** mã bí mật chỉ hiện một lần, có nút gửi thử, tắt, tạo mã mới. Gửi trùng không chạy hai lần, tối đa 30 lần mỗi giờ cho mỗi webhook.
+- **Nhắc hẹn tự làm có thể nhớ lần trước:** tick **Nhớ kết quả lần trước** là mỗi lần chạy Javis biết đã báo gì, chỉ báo cái mới. Hợp với việc theo dõi giá đối thủ, theo dõi chỉ số.
+
+### Cải thiện
+- **Lịch lặp hiện ba lần chạy tới** trên thẻ việc, và khi tạo lịch từ chat Javis đọc lại ba ngày đó để bạn xác nhận. Lần chạy bị trễ vì máy tắt thì Javis biết là trễ.
+
+- **Đang làm:** webhook chạy workflow, lịch chạy nhớ lần trước và chạy bù.
+
 ## [0.197.1] - 2026-10-17
 ### Sửa lỗi
 - **Safari không còn mất kết nối hàng phút.** Safari có lỗi riêng với kiểu nén dữ liệu trên đường kết nối trực tiếp: gặp tin lớn là tự cắt, rồi nối lại cũng cắt tiếp, trong khi Chrome vẫn chạy bình thường. Javis giờ tắt kiểu nén đó, mọi trình duyệt đều ổn định như Chrome.

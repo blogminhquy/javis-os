@@ -115,6 +115,12 @@ MAX_FIRE_PER_TICK = 6          # trần số nhắc bắn mỗi nhịp (chống 
 MAX_KEEP = 500                 # trần số bản ghi giữ lại mỗi brain
 SCRIPT_TIMEOUT_S = 120         # trần thời gian chạy 1 job script
 SCRIPT_OUT_CAP = 3500          # trần ký tự stdout đẩy về Telegram
+# "Remember the last run" (0.198.0, idea from OpenMausBot routines): a task-mode reminder can start from
+# its previous result, so a watcher knows what it already reported. Capped so one long report
+# cannot eat the next run's context.
+PREVIOUS_RESULT_CAP = 2000
+NEXT_RUNS_SHOWN = 3            # upcoming firings listed for a cron schedule
+LATE_NOTE_AFTER_S = 15 * 60    # a firing this late (server off or busy) tells the model so
 
 # Đuôi file script → trình chạy. Chỉ chạy script CÓ SẴN trong <brain>/Javis/scripts (chủ tự viết),
 # KHÔNG nhận lệnh tuỳ ý từ chat → chặn prompt-injection tạo job phá hoại.
@@ -347,7 +353,8 @@ class RemindersFeature:
     # (hàm module-level `muc_quyen_cua` ở cuối file - dùng chung cho _view và _run_task)
     def _create(self, brain: str, text: str, *, delay_min=None, at=None, due_at=None,
                 chat_id="", mode="notify", repeat_min=0, label="", cron=None, script="",
-                created_by="user", allow_no_channel=False, muc_quyen=None) -> dict:
+                created_by="user", allow_no_channel=False, muc_quyen=None,
+                remember_last=False) -> dict:
         mode = mode if mode in VALID_MODE else "notify"
         mq = str(muc_quyen or "").strip().lower()
         mq = mq if mq in VALID_MUC_QUYEN else MUC_QUYEN_MAC_DINH
@@ -386,6 +393,7 @@ class RemindersFeature:
             "chat_id": str(chat_id or ""), "repeat_min": rep, "cron": cron_expr,
             "script": script_name, "label": (label or "")[:120], "status": "pending",
             "muc_quyen": mq,
+            "remember_last": bool(remember_last),
             "created_by": created_by, "created_at": _now(),
             "fired_at": 0.0, "result": "", "error": "",
         }
@@ -413,10 +421,13 @@ class RemindersFeature:
                 # Bản ghi cũ (tạo trước khi có mức quyền) không có trường này → hiện đúng mức
                 # nó SẼ chạy, chứ không phải để trống rồi người dùng tự đoán.
                 "muc_quyen": muc_quyen_cua(r),
+                "remember_last": bool(r.get("remember_last")),
+                "next_runs": next_runs(cron) if cron and r.get("status") == "pending" else [],
                 "result": (r.get("result") or "")[:500], "error": r.get("error", "")}
 
     def update(self, brain: str, rid: str, *, text=None, label=None, mode=None, chat_id=None,
-               cron=None, at=None, delay_min=None, due_at=None, muc_quyen=None) -> dict:
+               cron=None, at=None, delay_min=None, due_at=None, muc_quyen=None,
+               remember_last=None) -> dict:
         """Sửa 1 nhắc/lịch ĐANG CHỜ: nội dung, tên, kiểu, và thời điểm. Trả {"ok", "error",
         "reminder"}. Chỉ nhận tham số được truyền (None = giữ nguyên) nên gọi sửa một phần
         được. Đổi lịch thì tính lại due_at ngay để người dùng thấy lần chạy kế tiếp mới."""
@@ -450,6 +461,8 @@ class RemindersFeature:
             if mq not in VALID_MUC_QUYEN:
                 return {"ok": False, "error": localefmt.chu(f"mức quyền không hợp lệ: {muc_quyen}", f"invalid permission level: {muc_quyen}")}
             cur["muc_quyen"] = mq
+        if remember_last is not None:
+            cur["remember_last"] = _truthy(remember_last)
         has_when = any(v not in (None, "") for v in (cron, at, delay_min, due_at))
         if has_when:
             try:
@@ -591,8 +604,18 @@ class RemindersFeature:
         body, err = "", ""
         deliver, msg = True, ""
         if mode == "task":
+            previous = ""
+            if rem.get("remember_last") and rem.get("result") and float(rem.get("fired_at") or 0) > 0:
+                previous = (f"[{_fmt_vn(rem.get('fired_at'))}] "
+                            + str(rem.get("result") or "")[:PREVIOUS_RESULT_CAP])
+            late_s = _now() - float(rem.get("due_at") or _now())
+            extra = {}
+            if previous:
+                extra["previous"] = previous
+            if late_s >= LATE_NOTE_AFTER_S:
+                extra["late_s"] = late_s
             async with self.lock:
-                body, err = await self._run_task(brain, text, muc_quyen_cua(rem))
+                body, err = await self._run_task(brain, text, muc_quyen_cua(rem), **extra)
             if body and _is_silent_task_result(body):
                 # Same quiet rule as script jobs: a watcher that found nothing to do answers
                 # "[SILENT] ..." and must not post to the channel. The result is still saved
@@ -728,7 +751,8 @@ class RemindersFeature:
         err = (err_b or b"").decode("utf-8", "replace")
         return out, err, (proc.returncode if proc.returncode is not None else -1)
 
-    async def _run_task(self, brain: str, text: str, muc_quyen: str = ""):
+    async def _run_task(self, brain: str, text: str, muc_quyen: str = "", previous: str = "",
+                        late_s: float = 0.0, intro: str = ""):
         """mode 'task': tới giờ chạy engine làm việc user đã hẹn. Trả (kết_quả, lỗi).
 
         Mức quyền quyết định nó được chạm tới đâu, khớp với ba mức của loop:
@@ -801,11 +825,14 @@ class RemindersFeature:
                      "làm được thì làm rồi thuật lại đã làm gì, không làm được thì nói thẳng "
                      "là chưa làm và vì sao, tuyệt đối đừng hỏi lại rồi ngồi đợi."),
         }[mq]
+        # `intro` (0.198.0): another caller of this runner, such as a webhook, says what woke it.
         prompt = (
-            "NHIỆM VỤ NHẮC HẸN - tới giờ user đã đặt trước. Làm việc dưới đây rồi VIẾT câu trả lời "
+            (intro or "NHIỆM VỤ NHẮC HẸN - tới giờ user đã đặt trước.")
+            + " Làm việc dưới đây rồi VIẾT câu trả lời "
             "NGẮN GỌN như tin nhắn Telegram gửi cho user (tiếng Việt, không bảng, không gạch ngang dài). "
             + rang_buoc + "\n\n"
             "Việc cần làm:\n" + text
+            + task_context_note(previous, late_s)
         )
         out, err = "", ""
         try:
@@ -858,6 +885,7 @@ class RemindersFeature:
                         created_by=str(p.get("created_by") or "user"),
                         allow_no_channel=bool(p.get("allow_no_channel") or False),
                         muc_quyen=p.get("muc_quyen"),
+                        remember_last=_truthy(p.get("remember_last")),
                     )
             except NotifyNotReady as e:
                 # can_force: chỗ gọi (dashboard/chat) hỏi lại người dùng rồi tạo tiếp với
@@ -871,6 +899,8 @@ class RemindersFeature:
                     "due_at": rem["due_at"], "due_human": _fmt_vn(rem["due_at"]),
                     "cron": rem["cron"], "repeat_min": rem["repeat_min"],
                     "muc_quyen": rem.get("muc_quyen"),
+                    "remember_last": rem.get("remember_last", False),
+                    "next_runs": next_runs(rem["cron"]) if rem["cron"] else [],
                     # Kèm lời đọc để chỗ gọi (chat) nhắc lại lịch bằng tiếng Việt, khỏi bắt user
                     # tự dịch "0 7 * * *".
                     "cron_human": cron_util.describe_cron(rem["cron"]) if rem["cron"] else ""}
@@ -906,13 +936,13 @@ class RemindersFeature:
                                    mode: str = Form(None), chat_id: str = Form(None),
                                    cron: str = Form(None), at: str = Form(None),
                                    delay_min: str = Form(None), due_at: str = Form(None),
-                                   muc_quyen: str = Form(None)):
+                                   muc_quyen: str = Form(None), remember_last: str = Form(None)):
             """Sửa nhắc/lịch đang chờ (trang Việc định kỳ: nút Sửa). Bỏ trống trường nào thì giữ
             nguyên trường đó; truyền cron HOẶC at/delay_min/due_at để đổi thời điểm."""
             async with self._io:
                 return self.update(brain, id, text=text, label=label, mode=mode, chat_id=chat_id,
                                    cron=cron, at=at, delay_min=delay_min, due_at=due_at,
-                                   muc_quyen=muc_quyen)
+                                   muc_quyen=muc_quyen, remember_last=remember_last)
 
         @router.post("/reminders/delete")
         async def reminders_delete(id: str = Form(...), brain: str = Form("brain")):
@@ -938,6 +968,43 @@ class RemindersFeature:
             return {"ok": True}
 
         return router
+
+
+def _truthy(v) -> bool:
+    """Form fields arrive as strings ("true", "1", "on"); JSON as booleans."""
+    if isinstance(v, bool):
+        return v
+    return str(v or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def next_runs(cron: str, count: int = NEXT_RUNS_SHOWN, after: Optional[float] = None) -> list:
+    """The next `count` firings of a cron schedule as [{"at", "human"}], so a person confirms a
+    schedule by its dates instead of decoding "0 9 1 * *". Empty on a bad expression."""
+    out = []
+    t = _now() if after is None else float(after)
+    try:
+        for _ in range(max(0, int(count))):
+            t = cron_util.cron_next(cron, t, VN_TZ())
+            out.append({"at": t, "human": _fmt_vn(t)})
+    except Exception:
+        return []
+    return out
+
+
+def task_context_note(previous: str, late_s: float) -> str:
+    """Extra context appended to a task-mode prompt: the previous run's report (when the reminder
+    remembers it) and a line saying this run fired late. Prompt text, so Vietnamese (see
+    docs/dev/them-mot-ngon-ngu.md)."""
+    parts = []
+    if late_s >= LATE_NOTE_AFTER_S:
+        mins = int(late_s // 60)
+        parts.append(f"Lưu ý: lần chạy này TRỄ khoảng {mins} phút so với giờ hẹn (máy chủ tắt hoặc "
+                     "đang bận). Nếu việc phụ thuộc giờ giấc thì tính theo thời điểm hiện tại.")
+    if previous:
+        parts.append("Kết quả LẦN CHẠY TRƯỚC của chính việc này (để biết đã báo gì, chỉ báo cái "
+                     "mới hoặc cái thay đổi, đừng lặp lại y nguyên):\n<<<\n"
+                     + previous.replace(">>>", "> > >") + "\n>>>")
+    return ("\n\n" + "\n\n".join(parts)) if parts else ""
 
 
 def register(app, deps: RemindersDeps) -> RemindersFeature:

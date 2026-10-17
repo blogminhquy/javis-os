@@ -265,6 +265,36 @@ Two hard safety rails on this path, which no parameter can change:
 - A loop created through chat is **always** `enabled: false`, and defaults to `mode: full` (say "read only" or "drafts only" for a lighter one). You must open the Recurring jobs page and click **Enable** for it to run for real.
 - If the cycle is unclear (you said "every morning" without a time), the tool reports an error and asks back, never guessing.
 
+## Webhooks: outside systems start work in Javis
+
+Reminders run on the clock. A webhook runs on an **event**: a customer just filled the form on a landing page, just paid, or another app just has new data, and Javis starts at once instead of waiting for the next scheduled run.
+
+**Create a webhook:** at the bottom of the Recurring jobs page, in the **Webhooks** section, click **+ Add webhook**. Name it, pick a brain, then choose what runs:
+
+- **A workflow**: pick an existing workflow in the brain. The event data becomes the workflow's input.
+- **A written job**: write what to do, for example "Call the customer back within 5 minutes and log them in the CRM".
+
+Pick the permission level as for a reminder (Read only, Can write files, Full access), then **Save**.
+
+**The secret is shown only once**, right after saving, together with a `curl` command to test it. The calling system sends it in the `Authorization: Bearer <token>` header (or the `X-Javis-Token` header, or `?token=` at the end of the link when it cannot set headers). Javis keeps only a hash, so if you lose it press **New token**; the old one stops working at once.
+
+**Where results go:** like a reminder, to the brain's Javis Core chat, the inbox (bell) and your Telegram. A result starting with `[SILENT]` is not reported.
+
+**Safety rails:**
+
+- A wrong token, a switched-off webhook and an unknown one all get the same refusal, so nobody can probe.
+- The event data reaches the brain as **data**, not instructions. 32 KB per call at most.
+- Each webhook runs one job at a time, queues at most 5, and runs at most 30 times an hour.
+- When the sender retries after a network glitch (sending an `Idempotency-Key` or `X-Request-Id` header), Javis acknowledges it without running twice.
+
+**The link must be reachable from the Internet.** On a VPS with a domain it works as is. On a home machine you need a tunnel (Cloudflare Tunnel, Tailscale Funnel) pointing at Javis.
+
+## Reminders that remember the last result
+
+A **Do it and report** reminder has a **Remember the last result** box. With it on, each run receives the previous report (up to 2,000 characters), so it reports only what is new or changed. Good for watching competitor prices, a metric or an inbox.
+
+A cron schedule also shows its **next three runs** on the card. A run missed because the machine was off still runs once when it comes back, and Javis is told it is running late so it works from the current time.
+
 ## Advanced fields (editable only in the .md file)
 
 The dashboard form is deliberately compact. The following require opening `Javis/loops/<slug>.md` and editing the frontmatter (through [File manager](05-file-manager.md) or Obsidian). Once saved, the dashboard rereads it immediately, with no restart.

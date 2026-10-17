@@ -375,6 +375,7 @@ async def _post_reminder(payload: dict, brain_name: str = "") -> str:
         lich = data.get("cron_human") or data["cron"]
         ra = (f"Đã đặt lịch lặp {lich} (cron {data['cron']}){where} (id {data.get('id')}), "
               f"lần chạy kế tiếp {data.get('due_human') or '?'}.")
+        ra += _next_runs_line(data.get("next_runs"))
     else:
         ra = f"Đã đặt nhắc hẹn lúc {data.get('due_human') or '?'}{where} (id {data.get('id')})."
     mq = str(data.get("muc_quyen") or "").strip().lower()
@@ -382,7 +383,15 @@ async def _post_reminder(payload: dict, brain_name: str = "") -> str:
         ten = {"full": "toàn quyền, tự thao tác ra ngoài", "auto": "chỉ ghi file nháp",
                "suggest": "chỉ đọc rồi báo lại"}.get(mq, mq)
         ra += f" Mức quyền {mq} ({ten})."
+    if data.get("remember_last"):
+        ra += " Mỗi lần chạy sẽ nhận lại kết quả lần trước."
     return ra
+
+
+def _next_runs_line(runs) -> str:
+    """Three upcoming dates, so the reply confirms the schedule in dates rather than cron syntax."""
+    days = [str(r.get("human") or "") for r in (runs or []) if isinstance(r, dict) and r.get("human")]
+    return (" Ba lần chạy tới: " + "; ".join(days) + ". Đọc lại các ngày này cho user xác nhận.") if days else ""
 
 
 async def _get_reminders(vault_root: str) -> dict:
@@ -432,6 +441,8 @@ async def _do_create(vault_root: str, args: dict) -> str:
     # Bỏ trống thì máy chủ tự đặt mặc định; chỉ gửi khi model có ý hạ/nâng mức rõ ràng.
     if str(args.get("muc_quyen") or "").strip():
         payload["muc_quyen"] = str(args["muc_quyen"]).strip().lower()
+    if args.get("remember_last") and not notify_only:
+        payload["remember_last"] = True
     payload.update(_reminder_time_payload(schedule))
     return await _post_reminder(payload, brain_name=brain_name)
 
@@ -449,7 +460,8 @@ async def _update_reminder(vault_root: str, rid: str, fields: dict) -> str:
     rem = data.get("reminder") or {}
     when = rem.get("cron_human") or rem.get("cron") or ""
     return (f"Đã sửa lịch {rid}" + (f" thành '{when}'" if when else "")
-            + f", lần chạy kế tiếp {rem.get('due_human') or '?'}.")
+            + f", lần chạy kế tiếp {rem.get('due_human') or '?'}."
+            + _next_runs_line(rem.get("next_runs")))
 
 
 def _update_loop_file(vault_root: str, slug: str, fields: dict) -> str:
@@ -508,6 +520,8 @@ async def _do_update(vault_root: str, args: dict) -> str:
         fields["prompt"] = str(args["prompt"]).strip()
     if str(args.get("schedule") or "").strip():
         fields["schedule"] = str(args["schedule"]).strip()
+    if isinstance(args.get("remember_last"), bool):
+        fields["remember_last"] = args["remember_last"]
     if not fields:
         return "ERROR: không có gì để sửa - truyền ít nhất một trong name / prompt / schedule."
     if (_loops_dir(vault_root) / f"{rid}.md").is_file():
@@ -520,6 +534,8 @@ async def _do_update(vault_root: str, args: dict) -> str:
         payload["text"] = fields["prompt"]
     if "schedule" in fields:
         payload.update(_reminder_time_payload(fields["schedule"]))
+    if "remember_last" in fields:
+        payload["remember_last"] = "true" if fields["remember_last"] else "false"
     return await _update_reminder(vault_root, rid, payload)
 
 
@@ -634,6 +650,9 @@ def register(ctx) -> None:
                                               "tạo đơn, thanh toán). 'auto' = đọc + ghi file, "
                                               "không hành động ra ngoài. 'suggest' = chỉ đọc rồi "
                                               "báo lại. Chỉ hạ mức khi user muốn vậy.")},
+                "remember_last": {"type": "boolean",
+                                  "description": ("true = mỗi lần chạy nhận lại kết quả lần trước (theo dõi, "
+                                                  "báo cái mới). Chỉ cho nhắc hẹn tự làm, không cho loop.")},
                 "chat_id": {"type": "string",
                              "description": "chat_id Telegram người yêu cầu, để báo đúng người. Bỏ trống nếu không rõ."},
                 "allow_no_channel": {"type": "boolean",

@@ -2025,6 +2025,7 @@
                 <button class="si-chip" data-mq="suggest">${esc(window.t("cs.si_mq_read"))}</button>
                 <button class="si-chip" data-mq="auto">${esc(window.t("cs.si_mq_write"))}</button>
                 <button class="si-chip sel" data-mq="full">${esc(window.t("cs.si_mode_full"))}</button></div></div>
+              <label id="lpRemLastWrap" style="display:none;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemLast"> ${esc(window.t("cs.si_rem_last"))}</label>
             </div>
             <div class="dim" style="font-size:12px;color:var(--text3);margin-top:4px">${esc(window.t("cs.si_rem_hint"))}</div>
           </div>
@@ -2039,6 +2040,7 @@
         <span class="dim" id="lpSearchNote" style="display:none;font-size:12px;color:var(--text3);margin-left:8px"></span>
       </div>
       <div id="lpGroups">${esc(window.t("common.loading"))}</div>
+      <div id="whSection"></div>
       <div class="si-log"><h3 style="font-size:15px;color:var(--text)">${esc(window.t("cs.si_log_head"))} · <select id="lpLogFilter" class="loop-sel" style="font-size:13px"><option value="">${esc(window.t("cs.si_log_all"))}</option></select></h3><div id="lpLog">${esc(window.t("common.loading"))}</div></div>
     </div>`;
 
@@ -2074,6 +2076,8 @@
     function syncRemMq() {
       const wrap = el.querySelector("#lpRemMqWrap");
       if (wrap) wrap.style.display = frmode === "task" ? "" : "none";
+      const lastWrap = el.querySelector("#lpRemLastWrap");
+      if (lastWrap) lastWrap.style.display = frmode === "task" ? "flex" : "none";
       el.querySelectorAll("#lpRemMq .si-chip").forEach(x => x.classList.toggle("sel", x.dataset.mq === frmq));
     }
     el.querySelectorAll("#lpRemModes .si-chip").forEach(c => c.onclick = () => {
@@ -2159,6 +2163,7 @@
       // Mở form một nhắc hẹn cũ thì hiện ĐÚNG mức nó đang chạy (bản ghi cũ chưa có trường này
       // thì server đã quy về mặc định trong _view, nên chỗ này không phải đoán lại).
       frmq = (rem && rem.muc_quyen) || "full";
+      el.querySelector("#lpRemLast").checked = !!(rem && rem.remember_last);
       const locked = !!(lp || rem);   // đang SỬA (loop hay nhắc) → khoá loại việc + brain
       el.querySelector("#lpSlug").value = lp ? lp.slug : "";
       el.querySelector("#lpRemId").value = rem ? rem.id : "";
@@ -2215,6 +2220,7 @@
         const remId = el.querySelector("#lpRemId").value;
         const whenRaw = el.querySelector("#lpRemWhen").value.trim();
         const timePayload = whenRaw ? parseReminderWhen(whenRaw) : null;
+        const rememberLast = frmode === "task" && el.querySelector("#lpRemLast").checked;
         if (!remId && !timePayload) { msg.textContent = window.t("cs.si_need_when"); return; }
         b.textContent = window.t("settings.saving");
         let r = {};
@@ -2223,13 +2229,14 @@
           f.append("id", remId); f.append("brain", brainVal);
           f.append("label", name); f.append("text", body); f.append("mode", frmode);
           f.append("muc_quyen", frmq);
+          f.append("remember_last", rememberLast ? "true" : "false");
           if (timePayload) Object.keys(timePayload).forEach(k => f.append(k, timePayload[k]));
           try { r = await (await fetch("/reminders/update", { method: "POST", body: f })).json(); }
           catch (e) { r = { error: e.message }; }
         } else {
           r = await createReminder(Object.assign(
             { text: body, label: name, mode: frmode, muc_quyen: frmq, brain: brainVal,
-              created_by: "dashboard" }, timePayload));
+              remember_last: rememberLast, created_by: "dashboard" }, timePayload));
         }
         b.innerHTML = SAVE_ICON + " " + window.t("common.save");
         if (!r.ok) {
@@ -2242,7 +2249,7 @@
             if (fb) fb.onclick = async () => {
               const r2 = await createReminder(Object.assign(
                 { text: body, label: name, mode: frmode, muc_quyen: frmq, brain: brainVal,
-                  created_by: "dashboard", allow_no_channel: true }, timePayload));
+                  remember_last: rememberLast, created_by: "dashboard", allow_no_channel: true }, timePayload));
               if (!r2.ok) { msg.innerHTML = Icons.warn(r2.error || window.t("cs.si_save_err")); return; }
               el.querySelector("#lpForm").style.display = "none";
               loadAll();
@@ -2402,6 +2409,8 @@
       div.dataset.search = _lpNorm(`${title} ${when} ${r.cron || ""} ${kind} ${mq}`);
       div.innerHTML = `<b>${ic("alarm-clock")} ${esc(title)}</b>
         <div class="dim" style="font-size:12px;color:var(--text3)">${esc(when)} · ${esc(kind)}${mq ? ` · <span class="rm-mq${r.muc_quyen === "full" ? " on" : ""}">${esc(mq)}</span>` : ""}${r.cron ? ` · <code>${esc(r.cron)}</code>` : ""}</div>
+        ${(r.next_runs || []).length > 1 ? `<div class="dim" style="font-size:12px;color:var(--text3)">${esc(window.t("cs.si_rem_next3", { ds: r.next_runs.map(x => fmtWhen(x.at)).join(" · ") }))}</div>` : ""}
+        ${r.remember_last ? `<div class="dim" style="font-size:12px;color:var(--text3)">${ic("history")} ${esc(window.t("cs.si_rem_last_tag"))}</div>` : ""}
         ${r.error ? `<div style="font-size:12px;color:var(--warn-ink);margin-top:4px">${WARN_ICON} ${esc(window.t("cs.si_prev_err"))} ${esc(r.error.slice(0, 160))}</div>` : ""}
         <div class="wf-actions" style="margin-top:8px">
           <button class="s-btn-ghost rmEdit">${esc(window.t("common.edit"))}</button>
@@ -2559,6 +2568,13 @@
     { const s = el.querySelector("#lpSearch"); if (s) s.oninput = applyLpSearch; }
     ensureBrains();   // nạp sẵn danh sách brain cho ô chọn (không chờ /viec/all vốn nặng)
     loadAll(); loadLog();
+    // Webhooks (0.198.0): their own section under the scheduled jobs, see dashboard/webhooks.js.
+    if (window.JavisWebhooks) {
+      ensureBrains().then(() => {
+        if (myGen === _renderGen) window.JavisWebhooks.mount(el.querySelector("#whSection"),
+          { brains: () => allBrains, current: () => fbrain() });
+      });
+    }
   }
 
   // ============================================
