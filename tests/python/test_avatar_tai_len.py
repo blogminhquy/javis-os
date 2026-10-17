@@ -134,7 +134,8 @@ check("nhóm: gỡ ảnh", ts.update(tid, avatar_image="").get("avatar_image") =
 
 src = open(os.path.join(ROOT, "server", "team_api.py"), encoding="utf-8").read()
 check("PATCH /teams: chỉ nhận ảnh có trong kho (hop_le), rỗng là gỡ",
-      "avatar_upload.hop_le(img)" in src and '"avatar_image") if k in body' in src)
+      "avatar_upload.hop_le(img)" in src
+      and '("name", "description", "status", "avatar_image", "tags") if k in body' in src)   # 0.195.0 adds tags
 check("no em dash", chr(0x2014) not in open(__file__, encoding="utf-8").read())
 
 print()
