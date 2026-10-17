@@ -74,6 +74,7 @@ R4.3 Giao diện hẹp hai thứ tiếng
            trong màn hình). Chạy được ở máy có Chromium; CI không có trình duyệt nên không nằm trong CI.
            Test chuỗi và cấu trúc thẻ trong CI: test_team_approval_ui_0207.js, test_team_mandate_ui_0208.js,
            test_team_acceptance_ui_0209.js, test_i18n.mjs
+R4.5 Review độc lập 0.210.0: 3 P1, 8 P2 đã sửa (commit "0.210.0: fixes from the independent review ...")
 R4.4 Review độc lập từng mốc, sửa P1/P2, không nới ngưỡng, không xoá test
      Bằng chứng: ba commit "fixes from the independent review"; test cũ chỉ đổi khi hành vi đổi có chủ ý (ghi rõ trong
                  commit: test_team_work_tools ghim full, test_teams_ui nút chờ duyệt mới)
@@ -82,6 +83,6 @@ R4.4 Review độc lập từng mốc, sửa P1/P2, không nới ngưỡng, khô
 R5.1 2 tới 3 nhóm, kịch bản 3 tới 7 ngày        config/teams.json, scenarios.txt
 R5.2 SHA ghim, provider/model, ngân sách, giới hạn  README.txt, limits.txt
 R5.3 Dừng khẩn và quay về                         run_guide.txt (bước 4, 5), bản chụp team.sqlite3.pre-0.207.0
-R5.4 Chỉ số                                       metrics.txt
+R5.4 Chỉ số                                       metrics.txt (S1 khớp chính xác nhờ team_gate/step_id trong mcp_audit)
 R5.5 Nhật ký dấu vết goal -> ... -> acceptance     trace_export.py (kiểm trong test_team_multiday_0210.py)
 R5.6 Hướng dẫn chạy, mẫu báo cáo                   run_guide.txt, report_template.txt (trống, không có số giả)

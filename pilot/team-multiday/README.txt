@@ -20,9 +20,10 @@ Các file
   ui_narrow_check.mjs     kiểm thẻ duyệt, mục tiêu, nghiệm thu ở màn hẹp 390px bằng tiếng Việt và tiếng Anh
 
 Bản được ghim
-  Chạy đúng commit đầu của PR #728 tại thời điểm bắt đầu pilot. Ghi SHA đó vào report_template.txt trước khi bật.
-  Lúc chuẩn bị gói này, đầu nhánh là commit có tiêu đề "0.210.0: ..." (xem git log của nhánh
-  claude/openmausbot-jarvis-research-ewnzc6). Không chạy trên main cho tới khi PR được chủ duyệt.
+  Ứng viên: 7b90482177ef05635e4e628451b30a8610cbac50
+  (commit mã và test cuối của 0.210.0 trên nhánh claude/openmausbot-jarvis-research-ewnzc6; commit sau nó chỉ ghi SHA
+  này vào tài liệu). Nếu PR #728 có thêm commit sửa mã trước khi chạy, ghim commit mã mới nhất và ghi lại vào
+  report_template.txt. Không chạy trên main cho tới khi PR được chủ duyệt.
 
 Không làm trong goal này
   Không merge, không gọi model thật, không chạy pilot, không deploy, không đụng VPS.

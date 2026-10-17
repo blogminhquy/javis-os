@@ -1,7 +1,7 @@
 BÁO CÁO PILOT TEAM NHIỀU NGÀY (mẫu, điền SAU khi chạy; hiện chưa có số nào)
 
 Thông tin chạy
-  Commit ghim (SHA):                  ____
+  Commit ghim (SHA):                  ____   (ứng viên khi chuẩn bị: 7b90482177ef05635e4e628451b30a8610cbac50)
   Máy / môi trường:                   ____
   Provider và model từng nhóm:        ____
   Ngày bắt đầu / kết thúc:            ____ / ____   (số ngày: __)
