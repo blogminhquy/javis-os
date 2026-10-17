@@ -1362,6 +1362,11 @@
       '<div class="tm-sub">' + esc(tw("teams.turns_note")) + "</div></div>";
   }
 
+  var WM_KEY = { gated: ["teams.wm.gated", "teams.wm.gated_desc"], full: ["teams.wm.full", "teams.wm.full_desc"] };
+  var AP_ST_KEY = { pending: "teams.ap.st.pending", approved: "teams.ap.st.approved", consumed: "teams.ap.st.consumed",
+    rejected: "teams.ap.st.rejected", changes_requested: "teams.ap.st.changes_requested", expired: "teams.ap.st.expired",
+    superseded: "teams.ap.st.superseded", cancelled: "teams.ap.st.cancelled", revoked: "teams.ap.st.revoked" };
+
   // 0.207.0: what the team may do outside without asking. Gated (default): outside actions wait for an approval card.
   function workModeHtml(team) {
     var full = team.work_mode === "full";
@@ -1369,8 +1374,8 @@
       esc(tw("teams.wm.title")) + "</div>" +
       ["gated", "full"].map(function (m) {
         return '<label class="tm-radio"><input type="radio" name="tm-wm" value="' + m + '" data-work-mode="' + m + '"' +
-          ((m === "full") === full ? " checked" : "") + "><span><b>" + esc(tw("teams.wm." + m)) + "</b><br>" +
-          esc(tw("teams.wm." + m + "_desc")) + "</span></label>";
+          ((m === "full") === full ? " checked" : "") + "><span><b>" + esc(tw(WM_KEY[m][0])) + "</b><br>" +
+          esc(tw(WM_KEY[m][1])) + "</span></label>";
       }).join("") + "</section>";
   }
 
@@ -1407,7 +1412,7 @@
       foot = '<div class="tm-actions">' + b("approve", "teams.ap.approve", " tm-primary") + b("changes", "teams.ap.changes") +
         b("reject", "teams.ap.reject") + "</div>";
     } else {
-      foot = '<div class="tm-ap-state tm-ap-' + esc(st) + '">' + esc(tw("teams.ap.st." + st)) +
+      foot = '<div class="tm-ap-state tm-ap-' + esc(st) + '">' + esc(tw(AP_ST_KEY[st] || AP_ST_KEY.pending)) +
         (ap.decision_note ? " · " + esc(ap.decision_note) : "") + (ap.close_reason && st !== "consumed" ? " · " +
         esc(ap.close_reason) : "") + "</div>" +
         (st === "approved" ? '<div class="tm-actions"><button type="button" class="ws-btn" data-ap-decide="revoke" data-ap="' +
