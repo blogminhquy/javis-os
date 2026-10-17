@@ -11,7 +11,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ## [0.195.0] - 2026-10-17
 ### Added
 - **Teams opens where you left off:** the Teams page opens the team you worked in most recently (the one you last messaged or opened, on any device), no searching.
-- **Team tags:** tag each team with its project in the Info tab (for example "Sales website"). Several teams on one project share the same tag.
+- **Team tags:** tag each team with its project in the team settings (gear button, Team tab), for example "Sales website". Several teams on one project share the same tag.
 - **Filter by tag:** a row of tags on top of the team list; tap one to see only that project's teams. Each team shows its tags under its name.
 
 ## [0.194.1] - 2026-10-17

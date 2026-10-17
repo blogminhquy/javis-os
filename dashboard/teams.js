@@ -380,6 +380,63 @@
       'aria-label="' + esc(tw("teams.rename")) + '" enterkeyhint="done">';
   }
 
+  // ───────────── nhãn dự án (0.195.0) ─────────────
+  // Owner, 17/10/2026: "nhiều team đang triển khai cùng 1 dự án thì sẽ có thể add vào 1 tag". Tags live on the team
+  // (server cleans them: team_store.clean_tags); the list derives the set of tags from the teams it has.
+
+  function allTags(teams) {
+    var seen = {}, out = [];
+    (teams || []).forEach(function (t) {
+      (t.tags || []).forEach(function (g) {
+        var k = String(g).toLowerCase();
+        if (!seen[k]) { seen[k] = { tag: g, n: 0 }; out.push(seen[k]); }
+        seen[k].n++;
+      });
+    });
+    return out.sort(function (a, b) { return a.tag.localeCompare(b.tag); });
+  }
+
+  function hasTag(t, tag) {
+    var k = String(tag || "").toLowerCase();
+    return (t.tags || []).some(function (g) { return String(g).toLowerCase() === k; });
+  }
+
+  function filterTeams(teams, tag) {
+    return tag ? (teams || []).filter(function (t) { return hasTag(t, tag); }) : (teams || []);
+  }
+
+  // The filter row on top of the list: All, then every tag with how many teams carry it. Hidden while no team has a tag.
+  function tagBarHtml(teams, current) {
+    var tags = allTags(teams);
+    if (!tags.length) return "";
+    var chip = function (val, label, n) {
+      var on = (current || "") === val;
+      return '<button type="button" class="tm-tagf' + (on ? " is-on" : "") + '" data-tag-filter="' + esc(val) + '" aria-pressed="' +
+        (on ? "true" : "false") + '">' + (val ? ic("tag") : "") + "<span>" + esc(label) + "</span>" +
+        (n != null ? '<span class="tm-tagf-n">' + n + "</span>" : "") + "</button>";
+    };
+    return chip("", tw("teams.tags_all"), null) + tags.map(function (x) { return chip(x.tag, x.tag, x.n); }).join("");
+  }
+
+  function rowTagsHtml(t) {
+    var tags = t.tags || [];
+    return tags.length ? '<span class="tm-team-tags">' + tags.map(function (g) {
+      return '<span class="tm-tag-chip">' + esc(g) + "</span>";
+    }).join("") + "</span>" : "";
+  }
+
+  // The team the owner worked in last (0.195.0): the highest `owner_at` (sent a message or opened it, on any device).
+  // Teams never touched since this version fall back to their latest message, then their last update.
+  function lastWorkedTeam(teams) {
+    var best = null, bestAt = -1;
+    (teams || []).forEach(function (t) {
+      var at = Number(t.owner_at) || 0;
+      var rank = at ? 2e12 + at : Number((t.last || {}).ts || t.updated_at || 0);
+      if (rank > bestAt) { bestAt = rank; best = t; }
+    });
+    return best;
+  }
+
   // `menuId`: the team whose menu is open (the "..." button, long press on a phone, right click on a computer): Pin or
   // Unpin, Rename, Delete. `renaming`: the team whose name is being edited in place.
   function teamListHtml(teams, activeId, now, menuId, renaming) {
@@ -407,7 +464,7 @@
         teamAvatarHtml(t, 44) + '<span class="tm-team-main"><span class="tm-team-top"><span class="tm-team-name">' + esc(t.name) +
         "</span>" + pin + '<span class="tm-team-time">' + esc(timeShort(last.ts || t.updated_at, now)) + "</span></span>" +
         '<span class="tm-team-bottom"><span class="tm-team-sub">' + esc(previewText(t)) + "</span>" + teamBadge(t) +
-        "</span></span></button>" +
+        "</span>" + rowTagsHtml(t) + "</span></button>" +
         '<button type="button" class="tm-row-more" data-row-menu="' + id + '" aria-haspopup="menu" aria-expanded="' +
         (open ? "true" : "false") + '" aria-label="' + esc(tw("teams.row_menu")) + '" title="' + esc(tw("teams.row_menu")) + '">' +
         ic("ellipsis") + "</button>" + menu + "</div>";
@@ -1027,11 +1084,34 @@
       "</div></div></div>" : "";
     return '<form class="tm-form" onsubmit="return false">' + ava +
       '<label class="tm-field"><span>' + esc(tw("teams.name")) + '</span><input name="tm-set-name" value="' + esc(team.name) + '"></label>' +
+      tagEditorHtml(team, S && S.teams) +
       '<label class="tm-field"><span>' + esc(tw("teams.description")) + '</span><textarea name="tm-set-desc" rows="2">' + esc(team.description) + "</textarea></label>" +
       '<div class="tm-field"><span>' + esc(tw("teams.status")) + '</span><div class="tm-radios">' + st + "</div></div>" +
       '<div class="tm-actions"><button type="button" class="ws-btn tm-save">' + esc(tw("teams.save")) + "</button>" +
       '<button type="button" class="ws-btn tm-danger" data-delete-team="' + esc(team.team_id) + '">' + ic("trash-2") +
       esc(tw("teams.delete_team")) + "</button></div></form>";
+  }
+
+  // Tags of this team (0.195.0): chips with a remove button and a box to add one; suggestions are the tags other teams
+  // already use, so several teams on one project end up on the SAME tag. Adding or removing saves at once.
+  function tagEditorHtml(team, teams) {
+    var mine = team.tags || [];
+    var others = allTags(teams).filter(function (x) { return !hasTag(team, x.tag); });
+    return '<div class="tm-field tm-tags-edit"><span>' + esc(tw("teams.tags")) + "</span>" +
+      '<div class="tm-tags-row">' + mine.map(function (g) {
+        return '<span class="tm-tag-chip">' + esc(g) + '<button type="button" class="tm-tag-x" data-tag-remove="' + esc(g) +
+          '" aria-label="' + esc(tw("teams.tag_remove", { tag: g })) + '" title="' + esc(tw("teams.tag_remove", { tag: g })) + '">' +
+          ic("x") + "</button></span>";
+      }).join("") +
+      '<input class="tm-tag-input" list="tm-tag-list" maxlength="32" enterkeyhint="done" placeholder="' + esc(tw("teams.tag_add")) +
+      '" aria-label="' + esc(tw("teams.tag_add")) + '"><datalist id="tm-tag-list">' + others.map(function (x) {
+        return '<option value="' + esc(x.tag) + '"></option>';
+      }).join("") + "</datalist></div>" +
+      (others.length ? '<div class="tm-tags-suggest">' + others.slice(0, 8).map(function (x) {
+        return '<button type="button" class="tm-tag-chip tm-tag-sug" data-tag-add="' + esc(x.tag) + '">' + ic("plus") + esc(x.tag) +
+          "</button>";
+      }).join("") + "</div>" : "") +
+      '<small class="tm-hint-line">' + esc(tw("teams.tags_hint")) + "</small></div>";
   }
 
   // Các số giới hạn của nhóm (trong Nâng cao). Nút Lưu ở cuối.
@@ -1318,7 +1398,8 @@
       openMember: null, advOpen: false, turns: [], sideOpener: null, rowMenu: null, focusRowMenu: false, swallowClick: false,
       picked: [], retrying: {}, pickSt: null, pickOpener: null, pickHost: null, roster: [],
       renaming: "", renamingHead: false, replyTo: null, plusOpen: false, dict: null, dictBase: "", dictState: "idle",
-      atts: [], folder: null, info: null, typing: [], pinned: [], pinsOpen: false };
+      atts: [], folder: null, info: null, typing: [], pinned: [], pinsOpen: false, tagFilter: readTagFilter(),
+      autoOpened: false };
   }
 
   function teamUrl(path) { return "/teams/" + q(S.activeId) + (path || ""); }
@@ -1353,6 +1434,7 @@
       '<div class="tm-page" data-view="' + S.view + '" data-side="0">' +
       '<aside class="tm-list"><div class="tm-bar tm-list-bar"><strong class="tm-list-title">' + esc(tw("page.teams.label")) + "</strong>" +
       '<button type="button" class="ws-btn tm-new">' + ic("plus") + esc(tw("teams.create")) + "</button></div>" +
+      '<div class="tm-tagbar" role="toolbar" aria-label="' + esc(tw("teams.tags")) + '" hidden></div>' +
       '<div class="tm-teams"></div><button type="button" class="ws-btn tm-more-teams" hidden>' + esc(tw("teams.next_page")) + "</button></aside>" +
       '<section class="tm-chat"><div class="tm-bar tm-chat-head"></div><div class="tm-search" hidden></div>' +
       '<div class="tm-banners"></div><div class="tm-jobs" hidden></div>' +
@@ -1365,7 +1447,15 @@
   function drawList() {
     var box = S.el.querySelector(".tm-teams");
     var rd = renameDraft(box);
-    if (box) box.innerHTML = S.loaded || S.teams.length ? teamListHtml(S.teams, S.activeId, undefined, S.rowMenu, S.renaming) : "";
+    // 0.195.0: the tag filter. A tag no team carries any more (removed elsewhere) drops back to All.
+    if (S.tagFilter && !allTags(S.teams).some(function (x) { return x.tag.toLowerCase() === S.tagFilter.toLowerCase(); })) {
+      setTagFilter("");
+    }
+    var tb = S.el.querySelector(".tm-tagbar");
+    if (tb) { tb.innerHTML = tagBarHtml(S.teams, S.tagFilter); tb.hidden = !tb.innerHTML; }
+    var shown = filterTeams(S.teams, S.tagFilter);
+    if (box) box.innerHTML = S.loaded || S.teams.length ? (S.tagFilter && !shown.length ? '<p class="tm-empty">' +
+      esc(tw("teams.tags_none")) + "</p>" : teamListHtml(shown, S.activeId, undefined, S.rowMenu, S.renaming)) : "";
     if (S.renaming) focusRename(box, rd);
     if (box && S.rowMenu && S.focusRowMenu) {
       S.focusRowMenu = false;
@@ -2088,7 +2178,14 @@
       if (pendingOpen) {
         var want = pendingOpen, wantTask = pendingTask;
         pendingOpen = null; pendingTask = "";
+        S.autoOpened = true;
         openTeam(want, wantTask);
+      } else if (!append && !S.autoOpened && !S.activeId) {
+        // 0.195.0 (owner, 17/10/2026: "khi vào team thì sẽ vào đoạn chat mà chủ team đang làm việc gần nhất"): opening
+        // the page lands in the team worked in last. Once per visit: going back to the list stays on the list.
+        S.autoOpened = true;
+        var lastT = lastWorkedTeam(S.teams);
+        if (lastT) openTeam(lastT.team_id);
       }
     });
   }
@@ -2197,6 +2294,49 @@
     setNote("");
     drawAll(true);
     Promise.all([loadTeam(), loadQueue(), loadMsgs(false)]).then(function () { if (S.activeId === id) { drawAll(true); loadFolder(); } });
+    markOpened(id);
+  }
+
+  // 0.195.0: the owner works in this team now, so next visit (any device) opens it. Best effort: a failure changes nothing.
+  function markOpened(id) {
+    var t = S.teams.filter(function (x) { return x.team_id === id; })[0];
+    if (t) t.owner_at = Date.now() / 1000;
+    call("POST", "/teams/" + q(id) + "/opened", {}).then(function () {}, function () {});
+  }
+
+  // The chosen tag filter is a per-device convenience (localStorage); a blocked storage only forgets it.
+  var TAG_FILTER_KEY = "javis.teams.tagFilter";
+  function readTagFilter() {
+    try { return (typeof localStorage !== "undefined" && localStorage.getItem(TAG_FILTER_KEY)) || ""; } catch (e) { return ""; }
+  }
+  function setTagFilter(tag) {
+    S.tagFilter = String(tag || "");
+    try { if (typeof localStorage !== "undefined") localStorage.setItem(TAG_FILTER_KEY, S.tagFilter); } catch (e) {}
+  }
+
+  function saveTags(tags) {
+    if (!S.team) return;
+    call("PATCH", teamUrl(), { tags: tags }).then(function (r) {
+      if (r.code === 200 && r.j && r.j.team) {
+        S.team = r.j.team;
+        S.teams.forEach(function (t) { if (t.team_id === S.team.team_id) t.tags = S.team.tags || []; });
+        drawList();
+        // Only the tag box is redrawn: the rest of the form may hold a name or description being typed.
+        var box = S.el.querySelector(".tm-tags-edit");
+        if (box) box.outerHTML = tagEditorHtml(S.team, S.teams);
+        var inp = S.el.querySelector(".tm-tag-input");
+        if (inp) inp.focus();
+        return;
+      }
+      act(r);
+    });
+  }
+
+  function addTag(tag) {
+    tag = String(tag || "").replace(/\s+/g, " ").trim();
+    if (!tag || !S.team) return;
+    if (hasTag(S.team, tag)) return;
+    saveTags((S.team.tags || []).concat([tag]));
   }
 
   // ───────────── 0.191.0: files, working folder and the team info panel ─────────────
@@ -2870,6 +3010,13 @@
       return openRowMenu(d.rowMenu);
     }
     if (d.renameTeam) { S.rowMenu = null; S.renaming = d.renameTeam; drawList(); return; }
+    if (d.tagFilter !== undefined) { setTagFilter(S.tagFilter === d.tagFilter ? "" : d.tagFilter); drawList(); return; }
+    if (d.tagAdd) { addTag(d.tagAdd); return; }
+    if (d.tagRemove && S.team) {
+      var rm = d.tagRemove.toLowerCase();
+      saveTags((S.team.tags || []).filter(function (g) { return String(g).toLowerCase() !== rm; }));
+      return;
+    }
     if (d.deleteTeam) { if (S.rowMenu) closeRowMenu(); return deleteTeam(d.deleteTeam); }
     if (d.renameHead) { S.renamingHead = true; drawHead(); return; }
     if (d.finOpen) { S.openFin = S.openFin === d.finOpen ? null : d.finOpen; drawSide(); return; }
@@ -3311,6 +3458,14 @@
       return;
     }
     if (e.key === "Escape" && S.rowMenu) { closeRowMenu(true); return; }
+    if (e.target.classList && e.target.classList.contains("tm-tag-input") && (e.key === "Enter" || e.key === ",") &&
+        !e.isComposing && e.keyCode !== 229) {
+      e.preventDefault();
+      var tv = e.target.value;
+      e.target.value = "";
+      addTag(tv);
+      return;
+    }
     if (e.target.classList && e.target.classList.contains("tm-rename-input")) {
       if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) {
         e.preventDefault();
@@ -3551,7 +3706,8 @@
     hoverActsHtml: hoverActsHtml, bodyHtml: bodyHtml, plainPreview: plainPreview, previewText: previewText,
     nextReaction: nextReaction, REACTIONS: REACTIONS, authorityHtml: authorityHtml, readGrant: readGrant,
     searchResultsHtml: searchResultsHtml, replyStatusHtml: replyStatusHtml, headLine: headLine,
-    typingHtml: typingHtml, pinsHtml: pinsHtml, markMentions: markMentions, replyRefHtml: replyRefHtml };
+    typingHtml: typingHtml, pinsHtml: pinsHtml, markMentions: markMentions, replyRefHtml: replyRefHtml,
+    allTags: allTags, filterTeams: filterTeams, tagBarHtml: tagBarHtml, tagEditorHtml: tagEditorHtml, lastWorkedTeam: lastWorkedTeam };
   if (typeof window !== "undefined") window.JavisTeams = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

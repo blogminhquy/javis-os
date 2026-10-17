@@ -3631,3 +3631,34 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
 .aj-arch-toggle { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 4px 0; font: inherit;
   font-size: 13px; font-weight: 700; color: var(--text2); cursor: pointer; }
 .aj-arch-toggle svg { width: 14px; height: 14px; }
+/* 0.195.0 project tags (owner, 17/10/2026): a filter row on top of the team list, tags under each team name, and a tag
+   editor in the team settings. */
+.tm-tagbar { display: flex; gap: 6px; padding: 6px 12px 8px; overflow-x: auto; scrollbar-width: none; flex: 0 0 auto; }
+.tm-tagbar::-webkit-scrollbar { display: none; }
+.tm-tagbar[hidden] { display: none; }
+.tm-tagf { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text2); font: inherit; font-size: 13px;
+  cursor: pointer; white-space: nowrap; }
+.tm-tagf .ic, .tm-tagf svg { width: 13px; height: 13px; }
+.tm-tagf:hover { color: var(--text); border-color: var(--accent-line); }
+.tm-tagf.is-on { background: var(--accent-wash); border-color: var(--accent-line); color: var(--accent); }
+.tm-tagf-n { font-size: 11.5px; color: var(--text3); }
+.tm-tagf.is-on .tm-tagf-n { color: inherit; }
+.tm-team-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.tm-tag-chip { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; padding: 1px 8px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text2); font-size: 12px; line-height: 18px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.tm-tags-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--bg); }
+.tm-tags-row .tm-tag-chip { font-size: 13px; padding: 2px 4px 2px 10px; }
+.tm-tag-x { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: none;
+  border-radius: 50%; background: none; color: var(--text3); cursor: pointer; padding: 0; }
+.tm-tag-x:hover, .tm-tag-x:focus-visible { background: var(--surface-1); color: var(--text); }
+.tm-tag-x .ic, .tm-tag-x svg { width: 13px; height: 13px; }
+.tm-tag-input { flex: 1 1 140px; min-width: 120px; border: none; background: none; color: var(--text); font: inherit;
+  font-size: 16px; padding: 4px; outline: none; }
+.tm-tags-suggest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.tm-tag-sug { border: 1px dashed var(--border); cursor: pointer; font: inherit; font-size: 13px; padding: 2px 10px; }
+.tm-tag-sug:hover { border-color: var(--accent-line); color: var(--accent); }
+.tm-tag-sug .ic, .tm-tag-sug svg { width: 12px; height: 12px; }
+.tm-hint-line { display: block; margin-top: 4px; color: var(--text3); font-size: 12px; }

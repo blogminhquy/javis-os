@@ -423,7 +423,8 @@ class TeamOps:
         """Đổi tên, mô tả, ảnh nhóm, trạng thái (`active`/`paused`/`archived`). Lưu trữ huỷ việc đang chờ hay bị chặn;
         mở lại thì chạy tiếp. Trả dòng nhóm sau khi đổi."""
         team = self.team(root, team_id)
-        fields = {k: v for k, v in fields.items() if k in ("name", "description", "status", "avatar_image") and v is not None}
+        fields = {k: v for k, v in fields.items() if k in ("name", "description", "status", "avatar_image", "tags")
+                  and v is not None}
         if not fields:
             return team
         runner = self.api.runner()
@@ -603,7 +604,7 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             team, err = _team(team_id, brain)
             if err:
                 return err
-            fields = {k: body[k] for k in ("name", "description", "status", "avatar_image") if k in body}
+            fields = {k: body[k] for k in ("name", "description", "status", "avatar_image", "tags") if k in body}
             # Ảnh nhóm (0.176.0): "" gỡ ảnh (về ảnh ghép từ thành viên); tên ảnh phải có trong kho ảnh đã tải lên.
             if "avatar_image" in fields:
                 img = fields["avatar_image"]
@@ -920,6 +921,8 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             if team["status"] == "archived":
                 return _err(409, "Nhóm đã lưu trữ, không gửi tin được", "The team is archived")
             runner = api.runner()
+            # 0.195.0: the owner works here now; the Teams page opens this team next time, on any device.
+            api.teams().mark_owner(team_id)
             text = str(body.get("text") or "").strip()
             files = []
             if body.get("attachments") and api.deps.attach is not None:
@@ -1110,6 +1113,18 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             except TeamError as ex:
                 return _team_err(ex)
             return {"ok": True, "results": results}
+        return await api.io(_do)
+
+    @app.post("/teams/{team_id}/opened")
+    async def teams_opened(team_id: str, brain: str = "brain"):
+        """The owner opened this team (0.195.0). GET /teams returns `owner_at`, so the Teams page opens the team worked in
+        last, on any device. Not an edit: the list order and the team's history stay as they are."""
+        def _do():
+            team, err = _team(team_id, brain)
+            if err:
+                return err
+            api.teams().mark_owner(team_id)
+            return {"ok": True}
         return await api.io(_do)
 
     return api

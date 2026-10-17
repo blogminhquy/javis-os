@@ -171,6 +171,37 @@ def _j(v: Any) -> str:
     return json.dumps(v, ensure_ascii=False, sort_keys=True)
 
 
+# Team tags (0.195.0): short project labels. A tag is trimmed, inner spaces collapsed, at most TAG_CHARS characters; a
+# team keeps at most TAGS_MAX, duplicates (ignoring case) dropped, first spelling kept.
+TAGS_MAX = 8
+TAG_CHARS = 32
+
+
+def clean_tags(tags: Any) -> list:
+    if isinstance(tags, str):
+        tags = tags.split(",")
+    if not isinstance(tags, (list, tuple)):
+        raise TeamError("nhãn phải là một danh sách chữ")
+    out, seen = [], set()
+    for t in tags:
+        t = " ".join(str(t or "").split())[:TAG_CHARS].strip()
+        if not t or t.lower() in seen:
+            continue
+        seen.add(t.lower())
+        out.append(t)
+        if len(out) >= TAGS_MAX:
+            break
+    return out
+
+
+def _tags_of(raw: Any) -> list:
+    try:
+        v = json.loads(raw or "[]")
+    except (TypeError, ValueError):
+        return []
+    return [str(x) for x in v if str(x).strip()] if isinstance(v, list) else []
+
+
 def new_team_id() -> str:
     return "tm_" + secrets.token_hex(8)
 
@@ -217,6 +248,12 @@ class TeamStore:
             if "client_req_id" not in tcols:
                 # Mã yêu cầu tạo nhóm của client (0.142.0): bấm Tạo hai lần hay mạng chậm gửi lại thì trả lại nhóm đã tạo.
                 c.execute("ALTER TABLE teams ADD COLUMN client_req_id TEXT")
+            if "tags_json" not in tcols:
+                # Nhãn dự án của nhóm (0.195.0): danh sách chuỗi; nhiều nhóm cùng dự án gắn chung một nhãn để lọc.
+                c.execute("ALTER TABLE teams ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
+            if "owner_at" not in tcols:
+                # Lần cuối chủ làm việc trong nhóm (0.195.0: nhắn hay mở nhóm), để trang Team mở đúng nhóm đó trên mọi máy.
+                c.execute("ALTER TABLE teams ADD COLUMN owner_at REAL")
             c.execute("CREATE UNIQUE INDEX IF NOT EXISTS teams_client_req ON teams(brain_id, client_req_id) "
                       "WHERE client_req_id IS NOT NULL")
 
@@ -254,7 +291,9 @@ class TeamStore:
                 "session_id": r["session_id"], "leader_key": r["leader_key"], "leader_mode": r["leader_mode"],
                 "status": r["status"], "caps": caps, "created_at": r["created_at"], "updated_at": r["updated_at"],
                 "pinned_at": r["pinned_at"], "created_by": r["created_by"] if "created_by" in r.keys() else "owner",
-                "avatar_image": (r["avatar_image"] or "") if "avatar_image" in r.keys() else ""}
+                "avatar_image": (r["avatar_image"] or "") if "avatar_image" in r.keys() else "",
+                "tags": _tags_of(r["tags_json"] if "tags_json" in r.keys() else "[]"),
+                "owner_at": r["owner_at"] if "owner_at" in r.keys() else None}
 
     def _event(self, c, team_id: str, kind: str, by: str, before: Any = None, after: Any = None) -> None:
         c.execute("INSERT INTO team_events(team_id,kind,by,before_json,after_json,created_at) VALUES(?,?,?,?,?,?)",
@@ -344,8 +383,14 @@ class TeamStore:
             self._event(c, team_id, "pinned" if on else "unpinned", by, {"pinned_at": r["pinned_at"]}, {"pinned_at": after})
         return self.get(team_id)
 
+    def mark_owner(self, team_id: str) -> None:
+        """The owner just worked in this team (sent a message or opened it): GET /teams lets the page open it next time.
+        Not an edit of the team: no event, `updated_at` (the list order) stays."""
+        with closing(self._conn()) as c:
+            c.execute("UPDATE teams SET owner_at=? WHERE team_id=?", (time.time(), str(team_id or "")))
+
     def update(self, team_id: str, by: str = "owner", **fields) -> dict:
-        allowed = {"name", "description", "status", "avatar_image"}
+        allowed = {"name", "description", "status", "avatar_image", "tags"}
         bad = set(fields) - allowed
         if bad:
             raise TeamError(f"trường không đổi được: {sorted(bad)}")
@@ -357,10 +402,14 @@ class TeamStore:
             r = c.execute("SELECT * FROM teams WHERE team_id=?", (team_id,)).fetchone()
             if r is None:
                 raise TeamError("không có nhóm này")
-            before = {k: r[k] for k in fields}
-            sets = ", ".join(f"{k}=?" for k in fields)
+            cols = {("tags_json" if k == "tags" else k): (_j(clean_tags(v)) if k == "tags" else str(v))
+                    for k, v in fields.items()}
+            before = {k: (_tags_of(r["tags_json"]) if k == "tags" else r[k]) for k in fields}
+            sets = ", ".join(f"{k}=?" for k in cols)
             c.execute(f"UPDATE teams SET {sets}, updated_at=? WHERE team_id=?",
-                      (*[str(v) for v in fields.values()], time.time(), team_id))
+                      (*cols.values(), time.time(), team_id))
+            if "tags" in fields:
+                fields = dict(fields, tags=clean_tags(fields["tags"]))
             self._event(c, team_id, "updated", by, before, fields)
         return self.get(team_id)
 
