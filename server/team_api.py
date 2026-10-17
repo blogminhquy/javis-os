@@ -865,6 +865,10 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
                 return _err(404, "Không có việc này trong nhóm", "No such job in this team")
             if action not in ("retry", "resume"):
                 return _err(400, "Thao tác không hợp lệ", "Invalid action")
+            cur = deps.task_store().get_task(task_id) or {}
+            if cur.get("block_kind") in api.runner().APPROVAL_BLOCKS:
+                return _err(409, "Việc này đang chờ quyết định trên thẻ duyệt; hãy duyệt, sửa yêu cầu hay huỷ việc",
+                            "This job waits for a decision on its approval card; decide, edit or cancel the job")
             if not api.runner().unblock(task_id, action):
                 return _err(409, "Việc không ở trạng thái bị chặn", "The job is not blocked")
             api.kick()

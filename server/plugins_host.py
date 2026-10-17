@@ -839,11 +839,13 @@ def _make_call(tool: dict, ctx: PluginContext, mode: str):
     name = tool["name"]
 
     async def _call(args):
-        if not _min_mode_ok(min_mode, mode) and str(mode or "").strip().lower() == "gated" \
-                and _min_mode_ok(min_mode, "full"):
-            # 0.207.0: a gated Team step. Only the owner's approval of this exact call lets it through (team_gate.py).
+        if str(mode or "").strip().lower() == "gated" and min_mode != "readonly":
+            # 0.207.0: a gated Team step. A plugin that writes or acts (review: `javis_task` and `javis_schedule` are
+            # `safe` yet queue work that runs at full later) needs the owner's approval of this exact call
+            # (team_gate.py). Read-only plugin tools run.
+            import asyncio
             import team_gate
-            ok, why = team_gate.hub_check(name, args or {}, f"plugin: {name}")
+            ok, why = await asyncio.to_thread(team_gate.hub_check, name, args or {}, f"plugin: {name}")
             if not ok:
                 return why
         elif not _min_mode_ok(min_mode, mode):

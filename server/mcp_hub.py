@@ -220,14 +220,23 @@ def _guard(ent, fn, mode):
     async def _call(args):
         cls = mcp_catalog.classify(connector, tool, args)
         ok, why = mcp_catalog.allowed(connector, conn.get("perm"), mode, tool, args)
-        if not ok and mode == team_gate.HUB_MODE and \
-                mcp_catalog.allowed(connector, conn.get("perm"), "full", tool, args)[0]:
-            # 0.207.0: a gated Team step. The connection itself allows the call; only the owner's approval of this exact
-            # call for this step lets it through (team_gate.py). No live gate means refused, like at auto.
-            ok, why = team_gate.hub_check(fn, args, f"{conn.get('label') or conn.get('connector_id') or ''}: {tool}")
-        if ok and not _rate_ok(conn["id"], connector):
-            ok, why = False, (f"Kết nối '{conn.get('label')}' vượt giới hạn tần suất "
-                              f"(chống spam/khoá tài khoản). Chờ 1 phút rồi thử lại.")
+        gated_ask = False
+        if mode == team_gate.HUB_MODE and cls != "read":
+            # 0.207.0: a gated Team step. Anything that is not a read is an outside action (review: a custom
+            # connector's `send_email` is classed `write`, which `auto` would allow). The connection itself must allow
+            # it at full; then only the owner's approval of this exact call for this step lets it through
+            # (team_gate.py). No live gate means refused.
+            full_ok, full_why = mcp_catalog.allowed(connector, conn.get("perm"), "full", tool, args)
+            ok, why, gated_ask = (False, full_why, False) if not full_ok else (False, "", True)
+        if (ok or gated_ask) and not _rate_ok(conn["id"], connector):
+            ok, gated_ask = False, False
+            why = (f"Kết nối '{conn.get('label')}' vượt giới hạn tần suất "
+                   f"(chống spam/khoá tài khoản). Chờ 1 phút rồi thử lại.")
+        if gated_ask:
+            # Checked after the rate limit, so a refused call never burns the owner's approval.
+            ok, why = await asyncio.to_thread(team_gate.hub_check, fn, args,
+                                              f"{conn.get('label') or conn.get('connector_id') or ''}: {tool}")
+            why = why[len("ERROR: "):] if why.startswith("ERROR: ") else why
         if not ok:
             _audit_append({"ts": datetime.now().isoformat(timespec="seconds"), "conn_id": conn["id"],
                            "connector": conn.get("connector_id"), "label": conn.get("label"),
@@ -659,6 +668,22 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
                         "Nói với người dùng rằng ghi nhớ đang tắt (bật lại ở Javis Core > Trí nhớ).")
         except Exception:
             pass
+        if mode == team_gate.HUB_MODE:
+            # 0.207.0 review: a gated Team step writes its deliverables, never files that run or configure code
+            # (plugins/, .claude/, Javis/ loops and reminders...). Those go through the owner's approval like any action.
+            rel = None
+            for base in [vault_root] + list(workspace_root if isinstance(workspace_root, (list, tuple)) else
+                                            ([workspace_root] if workspace_root else [])):
+                try:
+                    rel = p.resolve().relative_to(Path(base).resolve())
+                    break
+                except (ValueError, TypeError, OSError):
+                    continue
+            if rel is None or team_gate.protected_rel(rel):
+                ok, why = await asyncio.to_thread(team_gate.hub_check, "javis_write_file", dict(args or {}),
+                                                  f"ghi {(args or {}).get('path')}")
+                if not ok:
+                    return why
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(str((args or {}).get("content") or ""), encoding="utf-8")
         return f"Đã ghi {p.name} ({len(str((args or {}).get('content') or ''))} ký tự)"

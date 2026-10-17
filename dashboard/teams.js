@@ -3556,8 +3556,11 @@
       } else if (dec === "revoke" && typeof confirm === "function" && !confirm(tw("teams.ap.revoke_confirm"))) {
         return;
       }
-      // One key per click: a retry after a lost connection replays the same answer, a second tab is told it is decided.
-      var dkey = "ap-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+      // One key per decision of this card in this tab: pressing again after a lost connection replays the same answer
+      // (no second action, no error), another tab has its own key and is told the request is already decided.
+      S.apKeys = S.apKeys || {};
+      var kk = d.ap + "|" + dec;
+      var dkey = S.apKeys[kk] || (S.apKeys[kk] = "ap-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10));
       t.disabled = true;
       return call("POST", teamUrl("/approvals/" + q(d.ap) + "/decide"), { decision: dec, note: (note || "").trim(),
         decision_key: dkey, expected_rev: d.apRev ? Number(d.apRev) : null }).then(function (r) {

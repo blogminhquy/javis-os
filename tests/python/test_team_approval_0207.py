@@ -469,19 +469,89 @@ cases = [("Bash", {"command": "ls -la"}, "free"), ("Bash", {"command": "git stat
          ("Write", {"file_path": "/etc/passwd"}, "outside"), ("Edit", {"file_path": "../../x"}, "outside"),
          ("Read", {"file_path": "/etc/hosts"}, "free"), ("mcp__javis__zalo_send_message", {}, "free"),
          ("mcp__Gmail__send_message", {"to": "a"}, "outside"), ("mcp__Gmail__search_threads", {}, "free"),
-         ("SomethingNew", {}, "outside")]
+         ("SomethingNew", {}, "outside"),
+         # review 0.207.0
+         ("Bash", {"command": "rg --pre ./x.sh foo"}, "outside"), ("Bash", {"command": "sort -o /etc/x a"}, "outside"),
+         ("Bash", {"command": "uniq a /root/.bashrc"}, "outside"), ("Bash", {"command": "date -s 2030"}, "outside"),
+         ("Bash", {"command": "git diff --output=/tmp/x"}, "outside"), ("Bash", {"command": "git log --oneline"}, "free"),
+         ("Write", {"file_path": str(STATE / "brain" / "plugins" / "x" / "plugin.py")}, "outside"),
+         ("Write", {"file_path": str(STATE / "brain" / ".claude" / "settings.json")}, "outside"),
+         ("Edit", {"file_path": str(STATE / "brain" / ".git" / "config")}, "outside"),
+         ("Write", {"file_path": str(STATE / "brain" / "Javis" / "loops" / "x.md")}, "outside"),
+         ("WebFetch", {"url": "https://example.com/docs/guide"}, "free"),
+         ("WebFetch", {"url": "https://api.telegram.org/bot123/sendMessage?chat_id=1&text=hi"}, "outside")]
 bad = [(t, i) for t, i, want in cases if team_gate.classify_native(t, i, roots) != want]
 check("native: the read/write/shell/connector classification of a gated Claude step", not bad, bad)
 check("native: no gate id means refused (fail closed)", team_gate.native_check("tg_missing", "Read", {})[0] is False)
 sup = {p: team_gate.provider_support(p, api_providers=("openrouter",))["ok"]
        for p in ("anthropic-cli", "openai-oauth", "openrouter", "grok-cli", "antigravity-cli")}
-check("providers: Claude, Codex, API, Grok can run gated; Antigravity cannot",
-      sup == {"anthropic-cli": True, "openai-oauth": True, "openrouter": True, "grok-cli": True,
+check("providers: Claude, Codex, API can run gated; Grok and Antigravity cannot (review 0.207.0)",
+      sup == {"anthropic-cli": True, "openai-oauth": True, "openrouter": True, "grok-cli": False,
               "antigravity-cli": False}, sup)
 check("providers: Codex without its sandbox cannot run gated",
       team_gate.provider_support("openai-oauth", codex_sandbox=None)["ok"] is False)
-check("providers: an approved action cannot run on Grok (no turn key to the hub)",
-      team_gate.provider_support("grok-cli")["approved_actions"] is False)
+check("providers: Grok says why it is refused", "file cấu hình" in team_gate.provider_support("grok-cli")["reason"])
+
+# ═════ 10. Review 0.207.0 fixes ═════
+EFFECTS.clear()
+WRITE_ENT = {"conn": {"id": "c_mail", "connector_id": "custom", "perm": "full", "label": "Mail"}, "tool": "create_draft",
+             "spec": {}}
+with patch.object(mcp_catalog, "classify", side_effect=lambda c, t, a=None: "write"):
+    out = run(mcp_hub._guard(WRITE_ENT, "mail_create_draft", "gated")({"to": "a"}))
+check("hub: a write-class call at gated is an outside action too (no live gate: refused, nothing runs)",
+      str(out).startswith("ERROR") and EFFECTS == [], out)
+call_safe = plugins_host._make_call({"handler": _plugin_handler, "min_mode": "safe", "name": "javis_task"}, None, "gated")
+check("plugin: a safe-level plugin (javis_task) at gated is refused without approval",
+      str(run(call_safe({"title": "gửi tin"}))).startswith("ERROR") and EFFECTS == [])
+call_ro = plugins_host._make_call({"handler": _plugin_handler, "min_mode": "readonly", "name": "doc_so"}, None, "gated")
+check("plugin: a read-only plugin runs at gated", run(call_ro({})) == "đã đăng")
+
+r, tm, ts, ss, fake, T, pub, inbox = world("unblock")
+fake.say("ag_lan", "plan", "@Chủ nhóm anh duyệt nhé?")
+j = job(r, T, "Việc U")
+run(r.dispatch_once())
+check("unblock: a job waiting for approval cannot be resumed around the card",
+      r.unblock(j, "resume") is False and r.unblock(j, "retry") is False
+      and ts.get_task(j)["block_kind"] == "waiting_user")
+
+r, tm, ts, ss, fake, T, pub, inbox = world("net-full", work_mode="full")
+fake.say("ag_lan", "plan", "Kịch bản gửi khách: Chị có đồng ý đặt 2 hộp không ạ?")
+j = job(r, T, "Viết kịch bản chốt đơn")
+run(r.dispatch_once())
+check("prose net: off for a full team (a deliverable asking a customer is a result)", ts.get_task(j)["status"] == "done")
+
+r, tm, ts, ss, fake, T, pub, inbox = world("net-loop")
+fake.say("ag_lan", "plan", "@Chủ nhóm anh duyệt nhé?", "Đã làm. @Chủ nhóm anh duyệt nhé?")
+j = job(r, T, "Việc L")
+run(r.dispatch_once())
+ap = r.approvals.pending_for_task(j)
+r.decide_approval(T["team_id"], ap["approval_id"], "approve", decision_key="l1")
+run(r.dispatch_once())
+check("prose net: the approved rerun is taken as the result, no approval loop", ts.get_task(j)["status"] == "done"
+      and r.approvals.pending_for_task(j) is None, ts.get_task(j)["status"])
+
+r, tm, ts, ss, fake, T, pub, inbox = world("revoke-one")
+fake.say("ag_minh", "work", work_send)
+j = job(r, T, "Nhắn", mentions=["ag_minh"])
+run(r.dispatch_once())
+ap = r.approvals.pending_for_task(j)
+r.decide_approval(T["team_id"], ap["approval_id"], "approve", decision_key="ro1")
+other = r.approvals.create(team_id=T["team_id"], task_id="t_other", step_id="s", team_rev=1, requested_by="ag_minh",
+                           kind="plan", title="khác", action="x")
+r.approvals.decide(other["approval_id"], "approve", by="owner", decision_key="ro-other")
+r.decide_approval(T["team_id"], ap["approval_id"], "revoke")
+check("revoke touches only the clicked approval", r.approvals.get(other["approval_id"])["status"] == "approved"
+      and r.approvals.get(ap["approval_id"])["status"] == "revoked")
+
+g2 = team_gate.open_gate(store, "tm", "task", "step-p")
+brain = STATE / "brain-p"
+(brain / "plugins").mkdir(parents=True)
+team_gate.set_roots(g2.gate_id, [str(brain)])
+(brain / "plugins" / "evil").mkdir()
+(brain / "plugins" / "evil" / "plugin.yaml").write_text("enabled: true", encoding="utf-8")
+out = team_gate.close_gate(g2.gate_id)
+check("protected files changed during a gated step are reported as actions for the owner",
+      any(b["kind"] == "protected" and "plugin.yaml" in b["args"]["path"] for b in out["blocked"]), out)
 
 for p in patches:
     p.stop()

@@ -897,7 +897,8 @@ class ClaudeSDK:
         name = str((input_data or {}).get("tool_name") or "")
         try:
             import team_gate
-            ok, msg = team_gate.native_check(self.team_gate, name, (input_data or {}).get("tool_input") or {})
+            ok, msg = await asyncio.to_thread(team_gate.native_check, self.team_gate, name,
+                                              (input_data or {}).get("tool_input") or {})
         except Exception as e:  # noqa: BLE001
             ok, msg = False, f"Javis không kiểm được quyền của lời gọi này ({type(e).__name__}), đã chặn."
         if ok:

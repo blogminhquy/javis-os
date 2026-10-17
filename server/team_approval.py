@@ -84,12 +84,22 @@ ASKS_DECISION_RE = re.compile(
     r"@(?:chủ nhóm|chủ team|chu nhom|owner)(?![\w])|"
     r"(?:anh|chị|chủ nhóm|bạn)\s+(?:có\s+)?(?:duyệt|phê duyệt|đồng ý|xác nhận|chốt|quyết định|cho phép)[^.\n?]{0,160}\?|"
     r"(?:cần|xin|chờ)\s+(?:anh|chị|chủ nhóm|bạn)\s+(?:duyệt|phê duyệt|xác nhận|quyết định|cho phép)|"
-    r"\b(?:please\s+approve|need\s+your\s+approval|awaiting\s+(?:your\s+)?approval|should\s+i\s+proceed)\b",
+    r"\b(?:need\s+your\s+approval|awaiting\s+your\s+approval|should\s+i\s+proceed|can\s+you\s+approve|do\s+you\s+approve)\b",
     re.IGNORECASE)
 
 
+_CODE_RE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
+
+
+def _own_words(text: str) -> str:
+    """The agent's own prose: without code blocks, inline code and quoted lines (a deliverable that quotes a customer's
+    "Chị có đồng ý không?" is not the agent asking the owner)."""
+    t = _CODE_RE.sub(" ", str(text or ""))
+    return "\n".join(line for line in t.splitlines() if not line.lstrip().startswith(">"))
+
+
 def asks_decision(text: str) -> bool:
-    return bool(ASKS_DECISION_RE.search(str(text or "")))
+    return bool(ASKS_DECISION_RE.search(_own_words(text)))
 
 
 def excerpt(text: str, n: int = 600) -> str:
@@ -336,17 +346,17 @@ class ApprovalStore:
                 self._event(c, aid, status, "host", {"reason": _clip(reason, 200)})
         return ids
 
-    def close_team(self, team_id: str, status: str, reason: str, from_statuses: tuple = ("approved",)) -> list:
+    def close_one(self, aid: str, status: str, reason: str, from_statuses: tuple = LIVE) -> bool:
+        if status not in STATUSES:
+            raise ValueError("status")
         now = self.clock()
         with self._Tx(self) as c:
-            rows = c.execute(f"SELECT approval_id FROM team_approvals WHERE team_id=? AND status IN "
-                             f"({','.join('?' * len(from_statuses))})", (team_id, *from_statuses)).fetchall()
-            ids = [r["approval_id"] for r in rows]
-            for aid in ids:
-                c.execute("UPDATE team_approvals SET status=?, close_reason=?, updated_at=? WHERE approval_id=?",
-                          (status, _clip(reason, 200), now, aid))
+            n = c.execute(f"UPDATE team_approvals SET status=?, close_reason=?, updated_at=? WHERE approval_id=? AND status IN "
+                          f"({','.join('?' * len(from_statuses))})",
+                          (status, _clip(reason, 200), now, aid, *from_statuses)).rowcount
+            if n:
                 self._event(c, aid, status, "host", {"reason": _clip(reason, 200)})
-        return ids
+            return n == 1
 
     def expire_due(self) -> list:
         now = self.clock()

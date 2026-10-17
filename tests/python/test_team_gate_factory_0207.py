@@ -140,6 +140,12 @@ e = seen[0]["eng"] if seen else None
 check("codex gated: built at auto (own sandbox, no network)", seen and seen[0]["mode"] == "auto", seen and seen[0]["mode"])
 check("codex gated: hub level overridden to gated and the turn key on", e is not None and e.hub_turn
       and any(str(x).endswith('"gated"') for x in e.extra_config), getattr(e, "extra_config", None))
+check("codex gated: ChatGPT apps off and no shell network", e is not None
+      and any(str(x).endswith("=false") and "apps" in str(x) for x in e.extra_config)
+      and "sandbox_workspace_write.network_access=false" in e.extra_config, getattr(e, "extra_config", None))
+cb = seen[0]["base"] if seen else None
+check("codex gated: works in the team's own folder, not at the brain root",
+      cb is not None and Path(cb.cwd).parent.name == "teams", getattr(cb, "cwd", None))
 with patch.object(main.claude_cli, "codex_sandbox_cho_mode", return_value=None):
     seen, task, tm, t = one_job("codex-nosandbox", aux_engine.CODEX)
 check("codex gated without its sandbox: refused before the engine, with the reason",
@@ -151,9 +157,14 @@ with patch.object(aux_engine, "availability", return_value=(True, "")):
 check("api gated: built at the gated hub level", seen and seen[0]["mode"] == team_gate.HUB_MODE, seen and seen[0]["mode"])
 
 # Grok: shell denied at auto, hub at auto (no turn key, fail closed)
-with patch("grok_cli.co_co", return_value=True):
-    seen, task, tm, t = one_job("grok", aux_engine.GROK_CLI)
-check("grok gated: built at auto", seen and seen[0]["mode"] == "auto", seen and seen[0]["mode"])
+seen, task, tm, t = one_job("grok", aux_engine.GROK_CLI)
+check("grok gated: refused before the engine (shared config file), with the reason",
+      not seen and task["status"] == "team_blocked" and "Grok" in (task["block_reason"] or ""), task["block_reason"])
+with patch.object(main, "_codex_user_mcp_servers", return_value=["github"]), \
+        patch.object(main.claude_cli, "codex_sandbox_cho_mode", return_value="workspace-write"):
+    seen, task, tm, t = one_job("codex-extra", aux_engine.CODEX)
+check("codex gated with the user's own MCP servers: refused, named", not seen and "github" in (task["block_reason"] or ""),
+      task["block_reason"])
 
 # Antigravity: cannot pre-block its own tools -> refused with an explanation, nothing built
 seen, task, tm, t = one_job("agy", aux_engine.ANTIGRAVITY)

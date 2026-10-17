@@ -23416,6 +23416,22 @@ _TEAM_ENGINE_BUILD_TOOLS_REAL = team_engine.build_tools
 TEAM_WORK_MODE = "full"
 
 
+def _codex_user_mcp_servers():
+    """MCP servers in the user's own Codex config besides Javis' hub: Codex would call them without the gate."""
+    try:
+        import tomllib
+        p = claude_cli._codex_home() / "config.toml"
+        if not p.is_file():
+            return []
+        cfg = tomllib.loads(p.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - unreadable config: nothing known to add
+        return []
+    names = set((cfg.get("mcp_servers") or {}).keys())
+    for prof in (cfg.get("profiles") or {}).values():
+        names |= set(((prof or {}).get("mcp_servers") or {}).keys())
+    return sorted(n for n in names if n != "javis")
+
+
 def _team_gate_support(provider):
     """Can a gated Team step run on this provider (team_gate.provider_support), with this machine's real flags."""
     prov = str(provider or aux_engine.CLAUDE)
@@ -23424,6 +23440,15 @@ def _team_gate_support(provider):
         if not ClaudeSDK.pre_tool_hooks_supported():
             return {"ok": False, "approved_actions": False,
                     "reason": "bản claude-agent-sdk đang cài chưa có móc PreToolUse nên Javis không chặn được công cụ trước khi chạy"}
+    if prov == aux_engine.CODEX:
+        if not _hub_enabled():
+            return {"ok": False, "approved_actions": False,
+                    "reason": "MCP Hub đang tắt nên Codex gọi thẳng các kết nối, không qua cổng duyệt của Javis"}
+        extra = _codex_user_mcp_servers()
+        if extra:
+            return {"ok": False, "approved_actions": False,
+                    "reason": ("Codex trên máy này có MCP riêng ngoài Javis (" + ", ".join(extra[:5]) + ") mà Javis không "
+                               "chặn được trước khi chạy")}
     deny = True
     if prov == aux_engine.GROK_CLI:
         try:
@@ -23478,6 +23503,12 @@ def _team_engine_for(team, agent_key, role):
         except Exception:  # noqa: BLE001 - a broken folder binding falls back to the brain
             cwd = ""
         hub_mode = team_gate.HUB_MODE if gate_id else TEAM_WORK_MODE
+        if gate_id and prov == aux_engine.CODEX and not cwd:
+            # Review 0.207.0: Codex's own file tools write anywhere under its working folder (no hook), so a gated step
+            # without a pinned folder works in the team's own folder of the brain, never at the brain root where
+            # plugins/ and settings live. Files elsewhere in the brain go through the hub's gated file tool.
+            cwd = str(Path(vault) / "teams" / str(team["team_id"]))
+            Path(cwd).mkdir(parents=True, exist_ok=True)
         base = claude_engine(system_prompt=system, cwd=cwd or vault, tag=tag)
         _apply_mcp(base, mode=hub_mode, brain=root)
         if gate_id:
@@ -23495,6 +23526,10 @@ def _team_engine_for(team, agent_key, role):
             # so an approved outside action can pass the gate and nothing else can.
             mcp_hub.dat_codex_mode(eng.extra_config, team_gate.HUB_MODE)
             eng.hub_turn = True
+            # Review 0.207.0: no ChatGPT apps (Gmail, Slack... outside the hub) and no shell network, whatever the
+            # user's own Codex config says.
+            mcp_hub.dat_codex_tat_app(eng.extra_config)
+            eng.extra_config.append("sandbox_workspace_write.network_access=false")
         if tool_spec.get("provider") == aux_engine.CODEX:
             try:
                 openai_oauth.write_codex_auth()

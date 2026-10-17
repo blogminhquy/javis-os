@@ -2309,6 +2309,11 @@ class TeamRunner:
                 await engine_started()
             gate = None
             ctx_tok = None
+            if req.get("tool_turn") and req.get("work_mode") != team_gate.FULL and self.approvals is None:
+                # No approval store means no gate: a gated tool step never runs ungated (review 0.207.0).
+                await self._io(self._refund_if_unmarked, turn_id)
+                return {"status": "error", "error": "Không mở được cổng duyệt của nhóm nên bước có công cụ không chạy",
+                        "before_engine": True, "turn_id": turn_id}
             if req.get("tool_turn") and req.get("work_mode") != team_gate.FULL and self.approvals is not None:
                 gate = team_gate.open_gate(self.approvals, team_id, task_id or "", step_id or "")
                 req["team_gate"] = gate.gate_id
@@ -3129,8 +3134,14 @@ class TeamRunner:
         if req:
             for a in req.get("actions") or []:
                 tool = a["tool"]
-                kind, args = (("native", {"command": str((a.get("args") or {}).get("command") or "")})
-                              if tool == "Bash" else ("hub", a.get("args") or {}))
+                # Same kind, name and argument shape the gate fingerprints at call time (hub route name, or a
+                # Claude native tool with team_gate._native_args), so a declared call can match the real one.
+                if tool.startswith("mcp__javis__"):
+                    kind, tool, args = "hub", tool[len("mcp__javis__"):], a.get("args") or {}
+                elif tool in team_gate.NATIVE_WRITE or tool in ("Bash", "WebFetch") or tool.startswith("mcp__"):
+                    kind, args = "native", team_gate._native_args(tool, a.get("args") or {})
+                else:
+                    kind, args = "hub", a.get("args") or {}
                 fp = team_approval.fingerprint(kind, tool, args)
                 if not any(f["fp"] == fp for f in fps):
                     fps.append({"fp": fp, "label": tool, "call": self._call_text(kind, tool, args)})
@@ -3144,7 +3155,10 @@ class TeamRunner:
                     "action": f"Javis đã chặn trước khi chạy: {labels}", "scope": task.get("title") or "",
                     "impact": "", "evidence": [team_approval.excerpt(text, 600)] if text.strip() else [],
                     "deadline_at": None, "fingerprints": fps}
-        if team_approval.asks_decision(text):
+        # The prose net: only in a gated team, and never on the step the owner just approved (its rerun may repeat the
+        # question; the owner already answered it, so the result is taken). Review 0.207.0, P2.
+        gated = (self._team(team["team_id"]).get("work_mode") or team_gate.GATED) != team_gate.FULL
+        if gated and not str(step.get("note") or "").startswith("approval:") and team_approval.asks_decision(text):
             return {"kind": "question", "title": f"{self._name(team, step['agent_key'])} hỏi chủ nhóm quyết định",
                     "action": team_approval.excerpt(text, 800),
                     "scope": "Trợ lý hỏi bằng lời, chưa nêu phương án có cấu trúc", "impact": "", "evidence": [],
@@ -3229,6 +3243,8 @@ class TeamRunner:
             if decision == "revoke":
                 return self._revoke_locked(team, ap, by, note)
             task = self.tasks.get_task(ap["task_id"]) or {}
+            if not task.get("id"):
+                return {"ok": False, "error": "job_ended", "approval": team_approval.view(ap)}
             if expected_rev is not None and int(expected_rev) != int(ap["team_rev"]):
                 return {"ok": False, "error": "stale", "approval": team_approval.view(ap)}
             waiting = task.get("status") == "team_blocked" and task.get("block_kind") == "waiting_user"
@@ -3289,8 +3305,13 @@ class TeamRunner:
         held = list(ap.get("held_ops") or [])
         self.teams.set_step_status(ap["step_id"], "done" if held else "continued", f"approved:{ap['approval_id']}")
         if held:
-            self._put_steps(team, task, held)
+            # Through the step cap like any plan (review 0.207.0): over it, the job stops at cap_reached with these
+            # steps recorded for "Cho thêm lượt". Unblocked first so that stop can apply; the job tick waits for this
+            # lock, so nothing runs in between.
             self.approvals.consume(ap["approval_id"], "assigned")
+            self.tasks.team_unblock(task["id"])
+            self._add_steps(team, self.tasks.get_task(task["id"]), held)
+            return
         elif step:
             new = self.teams.add_step(task["id"], team["team_id"], step["kind"], step["agent_key"], int(task["team_rev"]),
                                       step["brief"], list(step.get("input_refs") or []) +
@@ -3315,7 +3336,7 @@ class TeamRunner:
     def _revoke_locked(self, team: dict, ap: dict, by: str, note: str) -> dict:
         if ap["status"] != "approved":
             return {"ok": False, "error": "not_revocable", "approval": team_approval.view(ap)}
-        self.approvals.close_task(ap["task_id"], "revoked", note.strip() or "chủ nhóm thu hồi", ("approved",))
+        self.approvals.close_one(ap["approval_id"], "revoked", note.strip() or "chủ nhóm thu hồi", ("approved",))
         ap = self.approvals.get(ap["approval_id"])
         task = self.tasks.get_task(ap["task_id"]) or {}
         for s_ in self.teams.steps(ap["task_id"]):
@@ -3536,10 +3557,21 @@ class TeamRunner:
         for tid in ids:
             self._start_job(tid, team_id)
 
+    APPROVAL_BLOCKS = ("waiting_user", "rejected", "approval_expired")
+
     def unblock(self, task_id: str, action: str = "resume") -> bool:
-        """Gỡ chặn: `retry` chạy lại bước lỗi hay bị ngắt (bước mới, lượt mới); `resume` cho chạy tiếp như cũ."""
+        """Gỡ chặn: `retry` chạy lại bước lỗi hay bị ngắt (bước mới, lượt mới); `resume` cho chạy tiếp như cũ.
+
+        0.207.0 review: a job stopped by an approval (waiting, rejected, expired) is never resumed this way, only by the
+        decision on its card, an edit of the job or a cancel. Checked in `accept_lock`, like every decision."""
+        with self.accept_lock:
+            return self._unblock_locked(task_id, action)
+
+    def _unblock_locked(self, task_id: str, action: str) -> bool:
         task = self.tasks.get_task(task_id)
         if not task or task["status"] != "team_blocked":
+            return False
+        if task.get("block_kind") in self.APPROVAL_BLOCKS:
             return False
         if action == "retry":
             steps = self.teams.steps(task_id)

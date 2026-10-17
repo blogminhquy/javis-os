@@ -41,15 +41,24 @@ MAX_BLOCKED = 5             # recorded refusals per step (an approval card lists
 
 # Claude Code native tools a gated step may use without asking: reading, searching, writing files inside the step's
 # folders (checked below), planning and sub-agents (their own tool calls go through this same hook).
-NATIVE_FREE = frozenset({"Read", "Glob", "Grep", "LS", "NotebookRead", "TodoWrite", "TodoRead", "WebSearch", "WebFetch",
+NATIVE_FREE = frozenset({"Read", "Glob", "Grep", "LS", "NotebookRead", "TodoWrite", "TodoRead", "WebSearch",
                          "Task", "Agent", "BashOutput", "KillShell", "KillBash", "ExitPlanMode", "ToolSearch",
                          "ListMcpResourcesTool", "ReadMcpResourceTool"})
 NATIVE_WRITE = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
 # Shell programs that only read. Narrower than run_command's `auto` list on purpose: python, node, npm and make run any
 # code, which can reach the network, so in a gated team they are outside actions.
-BASH_READ = frozenset({"ls", "cat", "head", "tail", "wc", "find", "grep", "rg", "file", "stat", "du", "tree", "diff",
-                       "pwd", "date", "which", "basename", "dirname", "realpath", "sort", "uniq", "cut", "jq"})
+# Review 0.207.0: rg (--pre runs a program), sort/uniq/tree (write an output file), date (-s), file (-C) are out.
+BASH_READ = frozenset({"ls", "cat", "head", "tail", "wc", "find", "grep", "stat", "du", "diff", "pwd", "which",
+                       "basename", "dirname", "realpath", "cut", "jq"})
 _GIT_READ = frozenset({"status", "diff", "log", "show", "ls-files", "rev-parse", "describe", "blame", "shortlog"})
+# git flags that write a file or run a configured program
+_GIT_BAD = ("--output", "--ext-diff", "--textconv", "-o")
+# Paths inside the step's folders whose content runs or configures code: writing them is never "in scope" (a vault plugin
+# loads into the server, Claude/Grok/Codex settings carry hooks, git config runs fsmonitor, Javis/ holds loops and
+# reminders that run on their own).
+PROTECTED_PARTS = ("plugins", ".claude", ".git", ".grok", ".codex", ".agents", ".gemini", ".antigravity", "Javis",
+                   ".javis")
+PROTECTED_FILES = (".mcp.json", ".mcp_hub.json", "CLAUDE.md", "AGENTS.md", "GEMINI.md")
 _FIND_ACT = frozenset({"-exec", "-execdir", "-delete", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls"})
 _SHELL_CHARS = set(">|&;<`$\n")
 _READ_VERBS = ("get", "list", "search", "read", "fetch", "query", "find", "describe", "lookup", "view", "count",
@@ -63,7 +72,7 @@ NO_GATE_NOTE = ("ERROR: Hành động ra ngoài của nhóm cần chủ nhóm du
 
 
 class Gate:
-    __slots__ = ("gate_id", "team_id", "task_id", "step_id", "store", "roots", "blocked", "passed", "lock")
+    __slots__ = ("gate_id", "team_id", "task_id", "step_id", "store", "roots", "blocked", "passed", "lock", "snap")
 
     def __init__(self, store, team_id: str, task_id: str, step_id: str):
         self.gate_id = "tg_" + secrets.token_hex(8)
@@ -73,6 +82,7 @@ class Gate:
         self.blocked: list = []
         self.passed: list = []
         self.lock = threading.Lock()
+        self.snap: Optional[dict] = None
 
 
 _GATES: dict = {}
@@ -98,6 +108,7 @@ def set_roots(gate_id: str, roots: list) -> None:
                 except Exception:  # noqa: BLE001
                     continue
         g.roots = out
+        g.snap = protect_snapshot(out)
 
 
 def close_gate(gate_id: str) -> dict:
@@ -105,8 +116,14 @@ def close_gate(gate_id: str) -> dict:
         g = _GATES.pop(gate_id, None)
     if g is None:
         return {"blocked": [], "passed": []}
+    changed = protect_changes(g.roots, g.snap) if g.snap is not None else []
     with g.lock:
-        return {"blocked": list(g.blocked), "passed": list(g.passed)}
+        for path in changed[:MAX_BLOCKED]:
+            fp = team_approval.fingerprint("protected", "write", {"path": path})
+            if not any(b["fp"] == fp for b in g.blocked):
+                g.blocked.append({"fp": fp, "kind": "protected", "name": "write", "args": {"path": path},
+                                  "label": f"đã sửa file chạy mã hay cấu hình: {path} (kiểm tra trước khi cho làm tiếp)"})
+        return {"blocked": list(g.blocked), "passed": list(g.passed), "protected_changed": changed}
 
 
 def get(gate_id: Optional[str]) -> Optional[Gate]:
@@ -168,13 +185,23 @@ def bash_readonly(command: str) -> bool:
     if prog not in BASH_READ and prog != "git":
         return False
     if prog == "git":
-        return len(argv) > 1 and argv[1].lower() in _GIT_READ
+        return (len(argv) > 1 and argv[1].lower() in _GIT_READ
+                and not any(a.startswith(_GIT_BAD) for a in argv[2:]))
     if prog == "find" and any(a in _FIND_ACT for a in argv[1:]):
         return False
     return True
 
 
+def protected_rel(rel: Any) -> bool:
+    """A path (relative to a step folder) that runs or configures code: plugins/, .claude/, .git/, Javis/..."""
+    parts = [x for x in Path(str(rel or "")).parts if x not in ("", ".")]
+    if not parts:
+        return False
+    return parts[0] in PROTECTED_PARTS or parts[-1] in PROTECTED_FILES or ".git" in parts
+
+
 def _inside(path: str, roots: list) -> bool:
+    """Inside one of the step folders AND not a protected path there."""
     if not path or not roots:
         return False
     try:
@@ -183,11 +210,24 @@ def _inside(path: str, roots: list) -> bool:
         return False
     for r in roots:
         try:
-            p.relative_to(r)
-            return True
+            rel = p.relative_to(r)
         except ValueError:
             continue
+        return not protected_rel(rel)
     return False
+
+
+def webfetch_free(url: Any) -> bool:
+    """Reading a page is in scope; a URL with a query string or a token-looking path may act (a bot's sendMessage)."""
+    from urllib.parse import urlparse
+    try:
+        u = urlparse(str(url or ""))
+    except Exception:  # noqa: BLE001
+        return False
+    if u.scheme not in ("http", "https") or u.query or "@" in u.netloc:
+        return False
+    low = u.path.lower()
+    return not any(w in low for w in ("/bot", "send", "token", "webhook", "hook", "api/"))
 
 
 def _native_args(tool: str, inp: dict) -> Any:
@@ -209,6 +249,8 @@ def classify_native(tool: str, inp: dict, roots: list) -> str:
         return "free" if _inside(str(path), roots) else "outside"
     if name == "Bash":
         return "free" if bash_readonly((inp or {}).get("command")) else "outside"
+    if name == "WebFetch":
+        return "free" if webfetch_free((inp or {}).get("url")) else "outside"
     if name.startswith("mcp__"):
         last = name.rsplit("__", 1)[-1].lower()
         return "free" if last.startswith(_READ_VERBS) else "outside"
@@ -224,6 +266,59 @@ def native_check(gate_id: Optional[str], tool: str, inp: dict) -> tuple:
     args = _native_args(tool, inp)
     label = f"{tool}: {args.get('command') if tool == 'Bash' else (inp or {}).get('file_path') or ''}".strip(": ")
     return decide(g, "native", tool, args, label)
+
+
+# ---- protected files: fingerprint before a gated step, report what it changed ----
+# Defense in depth for engines whose own file tools are not hooked (Codex in its workspace sandbox): a gated step that
+# changed a file that runs or configures code is stopped for the owner, like a refused action. Javis/ (written by the
+# server itself all the time) and .claude/skills (the server's skill mirror) are left out so the server's own writes
+# never look like the step's.
+
+PROTECT_MAX_FILES = 2000
+_PROTECT_SKIP = ("Javis", ".javis")
+
+
+def _protected_files(root: Path) -> list:
+    out = []
+    root = Path(root)
+    if not root.is_dir():
+        return out
+    for name in PROTECTED_PARTS:
+        if name in _PROTECT_SKIP:
+            continue
+        base = root / name
+        if base.is_dir():
+            for dp, dns, fns in os.walk(base):
+                rel = Path(dp).relative_to(root)
+                dns[:] = [d for d in dns if d not in ("node_modules", "__pycache__", "objects", "lfs", "logs")
+                          and not (rel == Path(".claude") and d == "skills")]
+                for fn in fns:
+                    out.append(Path(dp) / fn)
+                    if len(out) >= PROTECT_MAX_FILES:
+                        return out
+        elif base.is_file():
+            out.append(base)
+    for name in PROTECTED_FILES:
+        if (root / name).is_file():
+            out.append(root / name)
+    return out
+
+
+def protect_snapshot(roots: list) -> dict:
+    snap = {}
+    for r in roots or []:
+        for p in _protected_files(Path(r)):
+            try:
+                st = p.stat()
+                snap[str(p)] = (st.st_size, st.st_mtime_ns)
+            except OSError:
+                continue
+    return snap
+
+
+def protect_changes(roots: list, snap: dict) -> list:
+    now = protect_snapshot(roots)
+    return sorted(p for p in set(now) | set(snap) if now.get(p) != snap.get(p))
 
 
 # ---- providers ----
@@ -250,11 +345,11 @@ def provider_support(provider: str, *, codex_sandbox: Optional[str] = "workspace
     if p in api_providers:
         return {"ok": True, "approved_actions": True, "reason": ""}
     if p == GROK:
-        if not grok_deny:
-            return {"ok": False, "approved_actions": False,
-                    "reason": "bản Grok Build đang cài không có cờ --deny nên Javis không chặn được lệnh máy của nó"}
-        return {"ok": True, "approved_actions": False,
-                "reason": "Grok Build không mang được khoá lượt tới MCP Hub nên hành động đã duyệt không chạy được trên nó"}
+        # Review 0.207.0: Grok reads its hub level from a config file shared by the whole brain, which another Grok
+        # turn can rewrite to full while this step runs, and its own Write is not limited to the step folders.
+        return {"ok": False, "approved_actions": False,
+                "reason": ("Grok Build đọc mức quyền từ một file cấu hình dùng chung cho cả bộ não và ghi file không giới "
+                           "hạn thư mục, nên Javis không bảo đảm chặn được trước khi chạy")}
     if p == ANTIGRAVITY:
         return {"ok": False, "approved_actions": False,
                 "reason": "Antigravity CLI không có cách chặn công cụ của chính nó trước khi chạy ở mức này"}
