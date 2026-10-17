@@ -498,7 +498,7 @@ Mở chat mới mà nhắc chuyện cũ ("làm tiếp landing page nước mắm
 
 Bảo Javis "đọc cho tôi nghe", "gửi tin thoại" hay muốn nghe báo cáo thay vì đọc, Javis gọi công cụ `javis_voice_note`: một đoạn nói ngắn (tối đa 1000 ký tự) được ghi thành file mp3 trong `attachments/voice/` của brain. Khung chat hiện trình phát ngay cạnh link, Telegram nhận dạng âm thanh. Javis vẫn viết nội dung đó bằng chữ bên dưới. Giọng là Edge miễn phí, tự chọn theo ngôn ngữ của câu.
 
-Nhắc hẹn còn có ô **Đọc thành tiếng**: tới giờ, câu nhắc hay kết quả báo cáo được gửi kèm tin thoại.
+Nhắc hẹn còn có ô **Đọc thành tiếng**: tới giờ, câu nhắc hay kết quả báo cáo được gửi kèm tin thoại. Nếu Javis đang mở trên máy hay điện thoại, tin thoại tự phát ngay như một cuộc gọi (trình duyệt chặn tự phát thì bấm nút phát).
 
 ## Giữ ấm bộ nhớ đệm (Claude Code, gói Pro/Max)
 

@@ -1174,6 +1174,8 @@ function handleMessage(data) {
     if (isActive) {
       const el = appendJavisMessage(data.content || "");
       recordTurn("javis", data.content || "", null, null);
+      // 0.202.1: a reminder that reads aloud rings like a call while this chat is open: its voice note plays at once.
+      ringReminder(el, data.content || "");
       // The memory receipt line is not a message: no reactions, never read aloud (0.190.0).
       if (el && el.classList.contains("msg-nho")) { scrollBottom(); notifySessions(); return; }
       // Tin đẩy về có mã tin (0.168.0): gắn hàng sáu cảm xúc ngay, kể cả tin báo goal (không còn hàng A3 riêng).
@@ -2315,6 +2317,14 @@ function appendGoalRound(round, live) {
 // brain (tuỳ chọn): brain của HỘI THOẠI chứa tin này. Bỏ trống = brain đang chọn (tin mới).
 // Truyền vào khi dựng lại tin CŨ, để ảnh trong tin phân giải theo đúng brain của nó thay vì
 // brain đang chọn - nếu không thì mở hội thoại cũ ở brain khác là ảnh 404 rồi biến thành ô xám.
+// 0.202.1: plays the voice note of a reminder pushed into the open chat. A browser that blocks autoplay
+// leaves the player in place to press.
+function ringReminder(el, raw) {
+  if (!el || !/JAVIS_VIEC:[^>]*"kind":\s*"reminder"/.test(raw)) return;
+  const a = el.querySelector("audio.jv-audio");
+  if (!a) return;
+  try { const p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) { /* autoplay blocked */ }
+}
 function appendJavisMessage(text, ts, brain) {
   // Tin do việc nền đẩy về mang khối ẩn JAVIS_VIEC (chat-viec.js): bóc ra để vẽ thành THẺ việc
   // (icon trạng thái, tên việc, nút mở trang Việc) thay cho bong bóng chữ trơn (0.64.48).

@@ -481,7 +481,7 @@ Start a new chat that refers to an old one ("carry on with the fish sauce landin
 
 Ask Javis to "read it to me", "send a voice note", or say you would rather hear a report than read it, and Javis calls the `javis_voice_note` tool: a short spoken message (up to 1000 characters) is saved as an mp3 in the brain's `attachments/voice/`. The chat shows a player next to the link, Telegram receives it as audio, and Javis still writes the words as text below. The voice is a free Edge voice picked by the language of the text.
 
-Reminders also have a **Read it aloud** box: at the set time, the reminder or the report arrives with a voice note.
+Reminders also have a **Read it aloud** box: at the set time, the reminder or the report arrives with a voice note. If Javis is open on a computer or phone, the voice note plays at once like a call (press play when the browser blocks autoplay).
 
 ## Keep the prompt cache warm (Claude Code, Pro/Max plan)
 
