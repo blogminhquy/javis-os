@@ -39,6 +39,7 @@ VERDICTS = ("pass", "fail", "unknown")
 DEFAULT_FIX_ROUNDS = 2
 MAX_CRITERIA = 12
 READ_MAX = 2_000_000
+HASH_MAX = 200_000_000   # bigger products are recorded by size and mtime only (no sha256, verdict at most unknown)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS team_acceptance(
@@ -121,44 +122,79 @@ def resolve_in(root: Path, rel: str) -> Optional[Path]:
         return None
 
 
-def _file_evidence(root: Path, rel: str) -> dict:
+def _file_evidence(root: Path, rel: str, since: float = 0.0) -> tuple:
+    """(evidence, content bytes or None). The bytes are read once and the hash is of those same bytes (review 0.209.0),
+    so the evidence describes exactly what was checked. Over HASH_MAX only size and mtime are kept."""
     p = resolve_in(root, rel)
     if p is None:
-        return {"path": rel, "error": "ngoài bộ não"}
+        return {"path": rel, "error": "ngoài bộ não"}, None
     if not p.is_file():
-        return {"path": rel, "exists": False}
+        return {"path": rel, "exists": False}, None
     st = p.stat()
-    return {"path": rel, "exists": True, "size": st.st_size, "mtime": st.st_mtime, "sha256": sha256_file(p)}
+    ev = {"path": rel, "exists": True, "size": st.st_size, "mtime": st.st_mtime}
+    if since and st.st_mtime < since:
+        ev["older_than_job"] = True
+    if st.st_size > HASH_MAX:
+        ev["too_big"] = True
+        return ev, None
+    try:
+        data = p.read_bytes()
+    except OSError:
+        return dict(ev, error="không đọc được"), None
+    ev["sha256"] = hashlib.sha256(data).hexdigest()
+    return ev, data
 
 
-def check_one(c: dict, root: Path, run_command: Optional[Callable] = None) -> tuple:
-    """(verdict, evidence) for one criterion on the product as it is now."""
+def _script_sha(root: Path, command: str) -> dict:
+    """The hash of a script file a check command runs (python x.py, node y.js...), so the evidence says WHICH checker
+    passed: an agent can write files in the brain, a changed checker is visible (review 0.209.0)."""
+    import shlex
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return {}
+    for a in parts[1:]:
+        p = resolve_in(root, a) if _rel_ok(a) else None
+        if p is not None and p.is_file():
+            return {"script": a, "script_sha256": sha256_file(p)}
+    return {}
+
+
+def check_one(c: dict, root: Path, run_command: Optional[Callable] = None, since: float = 0.0) -> tuple:
+    """(verdict, evidence) for one criterion on the product as it is now. `since`: the job's start; a product file not
+    touched since then did not come from this job, so it is only "unknown" (the owner decides)."""
     k = c["kind"]
     if k == "command_ok":
         if run_command is None:
             return "unknown", {"command": c["command"], "detail": "máy chủ không chạy được lệnh kiểm tra"}
+        sc = _script_sha(root, c["command"])
         res = run_command(c["command"], root) or {}
         if not res.get("ran"):
-            return "unknown", {"command": c["command"], "detail": str(res.get("error") or "lệnh không chạy")[:300]}
+            return "unknown", dict(sc, command=c["command"], detail=str(res.get("error") or "lệnh không chạy")[:300])
         code = int(res.get("exit") or 0)
-        return ("pass" if code == 0 else "fail"), {"command": c["command"], "exit": code,
-                                                    "output": str(res.get("output") or "")[-600:]}
+        return ("pass" if code == 0 else "fail"), dict(sc, command=c["command"], exit=code,
+                                                       output=str(res.get("output") or "")[-600:])
     if k == "owner_confirm":
-        ev = _file_evidence(root, c["path"]) if c.get("path") else {}
+        if not c.get("path"):
+            return "unknown", {"detail": "chờ chủ nhóm xác nhận"}
+        ev, _ = _file_evidence(root, c["path"], since)
+        if ev.get("error") or not ev.get("exists"):
+            return "fail", dict(ev, detail="chưa có file để xác nhận")
         return "unknown", dict(ev, detail="chờ chủ nhóm xác nhận")
-    ev = _file_evidence(root, c["path"])
+    ev, data = _file_evidence(root, c["path"], since)
     if ev.get("error"):
         return "fail", ev
     if not ev.get("exists"):
         return "fail", dict(ev, detail="chưa có file")
+    if ev.get("older_than_job"):
+        return "unknown", dict(ev, detail="file có từ trước khi giao việc, không phải sản phẩm của việc này")
     if k == "file_exists":
-        return "pass", ev
-    p = resolve_in(root, c["path"])
-    if ev["size"] > READ_MAX:
+        return ("unknown", dict(ev, detail="file quá lớn để băm")) if ev.get("too_big") else ("pass", ev)
+    if data is None or ev["size"] > READ_MAX:
         return "unknown", dict(ev, detail="file quá lớn để đọc kiểm")
     try:
-        text = p.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
         return "unknown", dict(ev, detail="không đọc được nội dung dạng chữ")
     if k == "file_contains":
         miss = [m for m in c.get("must_contain") or [] if m.lower() not in text.lower()]
@@ -252,8 +288,8 @@ class AcceptanceStore:
                 "WHERE task_id=? ORDER BY id", (task_id,)).fetchall()]
 
 
-def run_checks(acc: dict, root: Path, run_command: Optional[Callable] = None) -> list:
-    return [(c,) + check_one(c, root, run_command) for c in acc["criteria"]]
+def run_checks(acc: dict, root: Path, run_command: Optional[Callable] = None, since: float = 0.0) -> list:
+    return [(c,) + check_one(c, root, run_command, since) for c in acc["criteria"]]
 
 
 def summarize(results: list) -> str:
@@ -271,15 +307,25 @@ def stale(acc: Optional[dict], history: list, root: Path) -> list:
     if not acc or acc.get("status") not in ("passed", "accepted"):
         return []
     hashes = dict(acc.get("confirmed_hashes") or {})
-    if not hashes:
-        last_round = max([h["round"] for h in history] or [0])
-        for h in history:
-            if h["round"] == last_round and h["evidence"].get("sha256"):
-                hashes[h["evidence"]["path"]] = h["evidence"]["sha256"]
+    seen = {}
+    last_round = max([h["round"] for h in history] or [0])
+    for h in history:
+        ev = h["evidence"]
+        if h["round"] == last_round and ev.get("path"):
+            seen[ev["path"]] = ev
+            if not acc.get("confirmed_hashes") and ev.get("sha256"):
+                hashes[ev["path"]] = ev["sha256"]
     out = []
     for rel, sha in hashes.items():
         p = resolve_in(root, rel)
-        if p is None or sha256_file(p) != sha:
+        if p is None or not p.is_file():
+            out.append(rel)
+            continue
+        st = p.stat()
+        ev = seen.get(rel) or {}
+        if ev.get("size") == st.st_size and ev.get("mtime") == st.st_mtime:
+            continue   # same size and mtime as checked: no need to hash again on every view
+        if st.st_size > HASH_MAX or sha256_file(p) != sha:
             out.append(rel)
     return out
 

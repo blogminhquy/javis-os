@@ -4120,6 +4120,8 @@
   "teams.acc.v.pass": "Pass",
   "teams.acc.v.fail": "Fail",
   "teams.acc.v.unknown": "Unclear",
+  "teams.block.acceptance_checking": "Checking the product against the criteria",
+  "teams.acc.replace": "Saving replaces every earlier criterion of this job and restarts the fix rounds.",
   "teams.block.acceptance_review": "Waiting for your acceptance of the product",
   "teams.block.acceptance_failed": "The product did not meet the criteria after the fix rounds",
   "teams.block.rejected": "You rejected the proposal",

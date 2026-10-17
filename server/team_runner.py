@@ -2779,12 +2779,8 @@ class TeamRunner:
         if acc is not None:
             cur = self.tasks.get_task(task_id) or {}
             if cur.get("status") == "team_running" and int(cur.get("team_rev") or 0) == int(rev):
-                verdict = self._accept_product(team, cur, msg_id, int(rev), acc)
-                if verdict != "pass":
-                    return verdict
+                return self._accept_product(team, cur, msg_id, int(rev), acc)
         if self.tasks.team_finish(task_id, text, expected_rev=rev) is not None:
-            if acc is not None:
-                self._acceptance_signal(team, task_id, int(rev), "objective_pass")
             self._judge_job_changed(task_id, team["team_id"])
             self.sessions.update_team_message_meta(team["session_id"], msg_id, {"job_result": True})
             self._publish({"type": "team_message", "team_id": team["team_id"],
@@ -2810,10 +2806,49 @@ class TeamRunner:
             log.warning("acceptance signal: %s: %s", type(ex).__name__, ex)
 
     def _accept_product(self, team: dict, task: dict, msg_id: int, rev: int, acc: dict) -> Optional[str]:
-        """Check the product against the job's criteria. "pass" lets `_finish` close the job; otherwise the job goes into
-        a fix round, waits for the owner, or stops at acceptance_failed. Called in `accept_lock`."""
-        root = self.brain_root(team)
-        results = team_acceptance.run_checks(acc, root, self.check_command)
+        """Start the product check of a job that produced its result. Called in `accept_lock`, so it does NOT check
+        here (review 0.209.0: a check command can run for minutes, and every team waits on this lock): the job leaves
+        its slot as `acceptance_checking`, the checks run in the background without the lock, and `_apply_checks`
+        applies them only if nothing changed meanwhile (same revision, same criteria, still checking)."""
+        self.acceptance.set_state(task["id"], status="checking", revision=rev, result_msg_id=msg_id)
+        self._block(task["id"], "acceptance_checking", "Đang kiểm sản phẩm theo tiêu chí nghiệm thu", post=False)
+        self._spawn_bg(self._check_async(team["team_id"], task["id"]))
+        return "team_blocked"
+
+    async def recheck(self, task_id: str) -> Optional[str]:
+        """Run the pending check of a job again (after a restart, or new criteria on a stopped job)."""
+        task = await self._io(self.tasks.get_task, task_id)
+        if not task:
+            return None
+        return await self._check_async(task["team_id"], task_id)
+
+    async def _check_async(self, team_id: str, task_id: str) -> Optional[str]:
+        acc = await self._io(self.acceptance.get, task_id)
+        task = await self._io(self.tasks.get_task, task_id)
+        if not acc or not task or acc["status"] != "checking":
+            return None
+        team = await self._io(self._team, team_id)
+        snap = {"rev": int(acc.get("revision") or 0), "criteria": acc["criteria"], "msg_id": acc.get("result_msg_id")}
+        since = float(task.get("created_at") or 0)
+        results = await self._io(team_acceptance.run_checks, acc, self.brain_root(team), self.check_command, since)
+        return await self._io(self._apply_checks, team_id, task_id, snap, results)
+
+    def _apply_checks(self, team_id: str, task_id: str, snap: dict, results: list) -> Optional[str]:
+        with self.accept_lock:
+            task = self.tasks.get_task(task_id) or {}
+            acc = self.acceptance.get(task_id)
+            if (not acc or acc["status"] != "checking" or task.get("status") != "team_blocked"
+                    or task.get("block_kind") != "acceptance_checking" or int(task.get("team_rev") or 0) != snap["rev"]
+                    or int(acc.get("revision") or 0) != snap["rev"] or acc["criteria"] != snap["criteria"]):
+                return None   # edited, cancelled or re-set while checking: these results are void
+            team = self._team(team_id)
+            out = self._apply_checks_locked(team, task, acc, snap, results)
+        self._judge_job_changed(task_id, team_id)
+        self._state(team_id)
+        return out
+
+    def _apply_checks_locked(self, team: dict, task: dict, acc: dict, snap: dict, results: list) -> Optional[str]:
+        rev, msg_id = snap["rev"], snap["msg_id"]
         hist = self.acceptance.history(task["id"])
         rnd = max([h["round"] for h in hist] or [0]) + 1
         self.acceptance.record(task["id"], rev, rnd, results)
@@ -2824,42 +2859,62 @@ class TeamRunner:
             what = c.get("label") or c.get("path") or c.get("command") or c["kind"]
             lines.append(f"- {what}: {mark}" + (f" ({ev.get('detail')})" if ev.get("detail") else ""))
         if summary == "pass":
-            self.acceptance.set_state(task["id"], status="passed", revision=rev, result_msg_id=msg_id)
+            m = self.sessions.team_message(team["session_id"], int(msg_id)) if msg_id else None
+            if self.tasks.team_finish_reviewed(task["id"], (m or {}).get("content", ""), expected_rev=rev) is None:
+                return None
+            self.acceptance.set_state(task["id"], status="passed")
             self._post(team, "Nghiệm thu đạt:\n" + "\n".join(lines), author_kind="system", task_id=task["id"],
                        meta={"kind": "acceptance_result", "verdict": "pass", "round": rnd})
-            return "pass"
+            if msg_id:
+                self.sessions.update_team_message_meta(team["session_id"], int(msg_id), {"job_result": True})
+            self._acceptance_signal(team, task["id"], rev, "objective_pass")
+            return "done"
         if summary == "fail":
             used = int(acc.get("rounds_used") or 0)
-            if used < int(acc.get("fix_rounds") or 0):
-                step = next((s for s in self.teams.steps(task["id"]) if s.get("result_msg_id") == msg_id), None)
-                self.acceptance.set_state(task["id"], status="fixing", rounds_used=used + 1, revision=rev)
+            step = next((s for s in self.teams.steps(task["id"]) if s.get("result_msg_id") == msg_id), None)
+            if step and used < int(acc.get("fix_rounds") or 0):
+                self.acceptance.set_state(task["id"], status="fixing", rounds_used=used + 1)
                 self._post(team, f"Nghiệm thu chưa đạt (vòng sửa {used + 1}/{acc['fix_rounds']}):\n" + "\n".join(lines),
                            author_kind="system", task_id=task["id"],
                            meta={"kind": "acceptance_result", "verdict": "fail", "round": rnd})
-                if step:
-                    self.teams.set_step_status(step["step_id"], "continued", f"acceptance_fix:{rnd}")
-                    brief = (f"{step['brief']}\n\nNGHIỆM THU CHƯA ĐẠT (vòng sửa {used + 1}/{acc['fix_rounds']}). Sửa đúng "
-                             "các điểm sau trên chính sản phẩm (file), rồi trả kết quả:\n" + "\n".join(lines))
-                    ok = self._add_steps(team, task, [{"kind": step["kind"], "agent": step["agent_key"], "brief": brief,
-                                                       "inputs": list(step.get("input_refs") or []) + [msg_id],
-                                                       "parent": step.get("parent_step"), "rev": rev}])
-                    return None if ok else "team_blocked"
-            self.acceptance.set_state(task["id"], status="failed", revision=rev, result_msg_id=msg_id)
+                self.teams.set_step_status(step["step_id"], "continued", f"acceptance_fix:{rnd}")
+                brief = (f"{step['brief']}\n\nNGHIỆM THU CHƯA ĐẠT (vòng sửa {used + 1}/{acc['fix_rounds']}). Sửa đúng "
+                         "các điểm sau trên chính sản phẩm (file), rồi trả kết quả:\n" + "\n".join(lines))
+                self.tasks.team_unblock(task["id"])
+                self._add_steps(team, self.tasks.get_task(task["id"]),
+                                [{"kind": step["kind"], "agent": step["agent_key"], "brief": brief,
+                                  "inputs": list(step.get("input_refs") or []) + [msg_id],
+                                  "parent": step.get("parent_step"), "rev": rev}])
+                return None
+            self.acceptance.set_state(task["id"], status="failed")
             self._post(team, "Nghiệm thu chưa đạt, đã hết vòng sửa:\n" + "\n".join(lines), author_kind="system",
                        task_id=task["id"], meta={"kind": "acceptance_result", "verdict": "fail", "round": rnd})
             self._acceptance_signal(team, task["id"], rev, "objective_fail")
-            return self._block(task["id"], "acceptance_failed", "Sản phẩm chưa đạt tiêu chí nghiệm thu sau các vòng sửa")
+            self.tasks.team_reblock(task["id"], "acceptance_failed", "Sản phẩm chưa đạt tiêu chí nghiệm thu sau các vòng sửa")
+            self._notify(team["team_id"], f"Việc nhóm \"{task['title']}\" chưa đạt nghiệm thu")
+            return "team_blocked"
         # review: unknown checks or an owner confirmation left
-        self.acceptance.set_state(task["id"], status="review", revision=rev, result_msg_id=msg_id)
-        self._block(task["id"], "acceptance_review", "Chờ bạn xác nhận nghiệm thu sản phẩm", post=False)
-        acc = self.acceptance.get(task["id"])
-        mid = self._post(team, "Nghiệm thu chờ bạn xác nhận:\n" + "\n".join(lines), author_kind="system", task_id=task["id"],
+        self.acceptance.set_state(task["id"], status="review")
+        self.tasks.team_reblock(task["id"], "acceptance_review", "Chờ bạn xác nhận nghiệm thu sản phẩm")
+        mid = self._post(team, "Nghiệm thu chờ bạn xác nhận:\n" + "\n".join(lines), author_kind="system",
+                         task_id=task["id"],
                          meta={"kind": "acceptance_review", "acceptance": self.acceptance_view(team, task["id"])})
         self.acceptance.set_state(task["id"], message_id=mid)
+        self._refresh_acc_card(team, task["id"])
         self._notify(team["team_id"], localefmt.chu("Nhóm \"{nhom}\" chờ bạn nghiệm thu: {t}",
                                                      "Team \"{nhom}\" waits for your acceptance: {t}",
                                                      nhom=team.get("name") or "", t=task.get("title") or ""))
         return "team_blocked"
+
+    def _refresh_acc_card(self, team: dict, task_id: str) -> None:
+        acc = self.acceptance.get(task_id) if self.acceptance is not None else None
+        if not acc or not acc.get("message_id"):
+            return
+        self.sessions.update_team_message_meta(team["session_id"], int(acc["message_id"]),
+                                               {"acceptance": self.acceptance_view(team, task_id)})
+        mm = self.sessions.team_message(team["session_id"], int(acc["message_id"]))
+        if mm:
+            self._publish({"type": "team_message", "team_id": team["team_id"], "message": self.message_view(team, mm)})
 
     def acceptance_view(self, team: dict, task_id: str) -> Optional[dict]:
         if self.acceptance is None:
@@ -2868,40 +2923,63 @@ class TeamRunner:
         return team_acceptance.view(acc, self.acceptance.history(task_id), self.brain_root(team)) if acc else None
 
     def set_acceptance(self, team_id: str, task_id: str, criteria: Any, fix_rounds: Any = None) -> dict:
-        """Owner sets the criteria of a job not finished yet (route). A new set restarts the rounds."""
+        """Owner sets the criteria of a job not finished yet (route). A new set restarts the rounds. On a job stopped at
+        acceptance_failed the product is checked again against the new criteria without redoing the work: the result
+        has `recheck: True` and the caller runs `recheck(task_id)` in the background."""
         with self.accept_lock:
             task = self.tasks.get_task(task_id) or {}
             if task.get("team_id") != team_id or task.get("status") in ("done", "cancelled"):
                 raise team_acceptance.AcceptanceError("việc đã kết thúc hay không thuộc nhóm này")
-            if task.get("block_kind") == "acceptance_review":
-                raise team_acceptance.AcceptanceError("việc đang chờ bạn xác nhận nghiệm thu; xác nhận hay trả về trước")
-            return self.acceptance.put(task_id, team_id, criteria, fix_rounds)
+            if task.get("block_kind") in ("acceptance_review", "acceptance_checking"):
+                raise team_acceptance.AcceptanceError("việc đang được kiểm hay chờ bạn xác nhận; quyết trên thẻ trước")
+            old = self.acceptance.get(task_id)
+            acc = self.acceptance.put(task_id, team_id, criteria, fix_rounds)
+            if task.get("block_kind") == "acceptance_failed" and old and old.get("result_msg_id"):
+                self.acceptance.set_state(task_id, status="checking", revision=int(task["team_rev"]),
+                                          result_msg_id=old["result_msg_id"])
+                self.tasks.team_reblock(task_id, "acceptance_checking", "Đang kiểm lại sản phẩm theo tiêu chí mới")
+                return dict(self.acceptance.get(task_id), recheck=True)
+            return acc
 
-    def decide_acceptance(self, team_id: str, task_id: str, decision: str, note: str = "", by: str = "owner") -> dict:
+    def decide_acceptance(self, team_id: str, task_id: str, decision: str, note: str = "", by: str = "owner",
+                          revision: Optional[int] = None, round_: Optional[int] = None) -> dict:
         """Owner on the acceptance card: `accept` closes the job with the checked product (only if the product files are
-        still the ones checked), `reject` sends it back to the member with the note as a fix step."""
+        still the ones checked), `reject` sends it back to the member with the note as a fix step.
+
+        Review 0.209.0: the decision is bound to what the owner saw (`revision` and `round_` of the card: a card of an
+        older revision or round is refused), and the product files are hashed BEFORE taking the lock; under the lock
+        only those values are compared."""
+        if self.acceptance is None:
+            return {"ok": False, "error": "not_found"}
+        team0 = self.teams.get(team_id) or {}
+        hist0 = self.acceptance.history(task_id)
+        last0 = max([h["round"] for h in hist0] or [0])
+        checked = {h["evidence"]["path"]: h["evidence"].get("sha256") for h in hist0
+                   if h["round"] == last0 and h["evidence"].get("path")}
+        now_h = {}
+        if decision == "accept" and team0:
+            root = self.brain_root(team0)
+            for rel in checked:
+                p = team_acceptance.resolve_in(root, rel)
+                now_h[rel] = team_acceptance.sha256_file(p) if p else None
         with self.accept_lock:
             task = self.tasks.get_task(task_id) or {}
-            acc = self.acceptance.get(task_id) if self.acceptance is not None else None
+            acc = self.acceptance.get(task_id)
             if not acc or task.get("team_id") != team_id:
                 return {"ok": False, "error": "not_found"}
             if task.get("status") != "team_blocked" or task.get("block_kind") != "acceptance_review" or \
                     acc["status"] != "review" or int(acc.get("revision") or -1) != int(task.get("team_rev") or 0):
                 return {"ok": False, "error": "not_waiting"}
-            team = self._team(team_id)
-            root = self.brain_root(team)
             hist = self.acceptance.history(task_id)
             last_round = max([h["round"] for h in hist] or [0])
-            checked = {h["evidence"]["path"]: h["evidence"].get("sha256") for h in hist
-                       if h["round"] == last_round and h["evidence"].get("path")}
+            if (revision is not None and int(revision) != int(acc["revision"])) or \
+                    (round_ is not None and int(round_) != last_round) or last_round != last0:
+                return {"ok": False, "error": "stale_card"}
+            team = self._team(team_id)
             if decision == "accept":
-                now_h = {}
                 for rel, sha in checked.items():
-                    p = team_acceptance.resolve_in(root, rel)
-                    cur = team_acceptance.sha256_file(p) if p else None
-                    if cur != sha:
+                    if now_h.get(rel) != sha:
                         return {"ok": False, "error": "product_changed", "path": rel}
-                    now_h[rel] = cur
                 m = self.sessions.team_message(team["session_id"], int(acc["result_msg_id"])) if acc.get("result_msg_id") else None
                 if self.tasks.team_finish_reviewed(task_id, (m or {}).get("content", ""), expected_rev=int(acc["revision"])) is None:
                     return {"ok": False, "error": "not_waiting"}
@@ -2916,23 +2994,21 @@ class TeamRunner:
                 if not note.strip():
                     return {"ok": False, "error": "note_required"}
                 step = next((s for s in self.teams.steps(task_id) if s.get("result_msg_id") == acc.get("result_msg_id")), None)
-                if step:
-                    self.teams.set_step_status(step["step_id"], "continued", "acceptance_rejected")
-                    self.teams.add_step(task_id, team_id, step["kind"], step["agent_key"], int(task["team_rev"]),
-                                        f"{step['brief']}\n\nCHỦ NHÓM CHƯA NGHIỆM THU: {note.strip()}",
-                                        list(step.get("input_refs") or []) + [acc["result_msg_id"]], step.get("parent_step"))
                 self.acceptance.set_state(task_id, status="fixing")
                 self.tasks.team_unblock(task_id)
+                if step:
+                    self.teams.set_step_status(step["step_id"], "continued", "acceptance_rejected")
+                    # Through the step cap like every added step (review 0.209.0).
+                    self._add_steps(team, self.tasks.get_task(task_id),
+                                    [{"kind": step["kind"], "agent": step["agent_key"],
+                                      "brief": f"{step['brief']}\n\nCHỦ NHÓM CHƯA NGHIỆM THU: {note.strip()}",
+                                      "inputs": list(step.get("input_refs") or []) + [acc["result_msg_id"]],
+                                      "parent": step.get("parent_step"), "rev": int(task["team_rev"])}])
                 self._post(team, f"Chủ nhóm chưa nghiệm thu: {note.strip()}", author_kind="system", task_id=task_id,
                            meta={"kind": "acceptance_decided", "decision": "reject"})
             else:
                 return {"ok": False, "error": "bad_decision"}
-            if acc.get("message_id"):
-                self.sessions.update_team_message_meta(team["session_id"], int(acc["message_id"]),
-                                                       {"acceptance": self.acceptance_view(team, task_id)})
-                mm = self.sessions.team_message(team["session_id"], int(acc["message_id"]))
-                if mm:
-                    self._publish({"type": "team_message", "team_id": team_id, "message": self.message_view(team, mm)})
+            self._refresh_acc_card(team, task_id)
         self._judge_job_changed(task_id, team_id)
         self._state(team_id)
         return {"ok": True, "acceptance": self.acceptance_view(team, task_id)}
@@ -3521,6 +3597,13 @@ class TeamRunner:
     def on_job_amended(self, task_id: str) -> None:
         """The owner edited the job (new revision): every request of the old revision is void. A job that waited for
         one goes back to its coordination point under the new revision. Called in `accept_lock`."""
+        if self.acceptance is not None and self.acceptance.get(task_id):
+            # 0.209.0: an edit voids the evidence of the old revision; the new revision is checked from round zero, and
+            # the old card loses its buttons (review: a click on it must never accept the new product).
+            self.acceptance.set_state(task_id, status="pending", rounds_used=0, revision=None)
+            t0 = self.tasks.get_task(task_id) or {}
+            if t0.get("team_id"):
+                self._refresh_acc_card(self._team(t0["team_id"]), task_id)
         if self.approvals is None:
             return
         ids = self.approvals.close_task(task_id, "superseded", "yêu cầu của việc đã sửa")
@@ -3529,11 +3612,9 @@ class TeamRunner:
         for aid in ids:
             if team:
                 self._refresh_card(team, self.approvals.get(aid))
-        if self.acceptance is not None and self.acceptance.get(task_id):
-            # 0.209.0: an edit voids the evidence of the old revision; the new revision is checked from round zero.
-            self.acceptance.set_state(task_id, status="pending", rounds_used=0, revision=None)
         if team and task.get("status") == "team_blocked" and task.get("block_kind") in (
-                "waiting_user", "rejected", "approval_expired", "acceptance_review", "acceptance_failed"):
+                "waiting_user", "rejected", "approval_expired", "acceptance_review", "acceptance_failed",
+                "acceptance_checking"):
             res = self._recoordinate(team, task, {"agent_key": ""}, "yêu cầu đã sửa")
             if res is None:
                 self.tasks.team_unblock(task_id)
@@ -3728,7 +3809,8 @@ class TeamRunner:
         for tid in ids:
             self._start_job(tid, team_id)
 
-    APPROVAL_BLOCKS = ("waiting_user", "rejected", "approval_expired", "acceptance_review", "acceptance_failed")
+    APPROVAL_BLOCKS = ("waiting_user", "rejected", "approval_expired", "acceptance_review", "acceptance_failed",
+                       "acceptance_checking")
 
     def unblock(self, task_id: str, action: str = "resume") -> bool:
         """Gỡ chặn: `retry` chạy lại bước lỗi hay bị ngắt (bước mới, lượt mới); `resume` cho chạy tiếp như cũ.
@@ -3907,4 +3989,7 @@ class TeamRunner:
                 resumed.append(task["id"])
         # Sổ chung: lượt nhóm của tiến trình trước đã hoàn hay chốt ở trên; dòng sổ thiếu hay dư được đối soát (9.1).
         self.reconcile_ceiling(startup=True)
-        return {"resumed": resumed, "blocked": blocked}
+        # 0.209.0: a product check that was running when the server stopped runs again (the caller spawns `recheck`).
+        rechecks = [t["id"] for t in self.tasks.team_tasks_by_status("team_blocked")
+                    if t.get("block_kind") == "acceptance_checking"]
+        return {"resumed": resumed, "blocked": blocked, "rechecks": rechecks}

@@ -48,6 +48,7 @@
     agent_busy_long: "teams.block.agent_busy_long", waiting_user: "teams.block.waiting_user", cancelled: "teams.block.cancelled",
     rejected: "teams.block.rejected", approval_expired: "teams.block.approval_expired",
     acceptance_review: "teams.block.acceptance_review", acceptance_failed: "teams.block.acceptance_failed",
+    acceptance_checking: "teams.block.acceptance_checking",
     server_ceiling: "teams.block.server_ceiling" };
   var CAP_KEY = { task_turns: "teams.cap.task_turns", task_steps: "teams.cap.task_steps", daily_turns: "teams.cap.daily_turns",
     mentions: "teams.cap.mentions", help_depth: "teams.cap.help_depth", busy_wait_s: "teams.cap.busy_wait_s",
@@ -741,6 +742,9 @@
     return '<div class="tm-jcard"><div class="tm-jcard-text"><strong class="tm-qtitle">' + esc(t.title) + "</strong>" +
       '<span class="tm-qwhy">' + esc(t.block_reason || tw(BLOCK_KEY[kind] || BLOCK_KEY.failed)) + "</span></div>" +
       '<span class="tm-actions">' + blockedButtonHtml(t) +
+      // 0.209.0 review: criteria can be set on a stopped job too (acceptance_failed re-checks without redoing the work).
+      (kind === "acceptance_review" || kind === "acceptance_checking" ? "" :
+        '<button type="button" class="ws-btn" data-acc-edit="' + esc(t.id) + '">' + esc(tw("teams.acc.set")) + "</button>") +
       '<button type="button" class="ws-btn" data-cancel="' + esc(t.id) + '">' + esc(tw("teams.cancel")) + "</button></span></div>";
   }
 
@@ -779,6 +783,7 @@
     return '<form class="tm-form tm-acc-form" data-acc-task="' + esc(t.id) + '" onsubmit="return false">' +
       '<label class="tm-field"><span>' + esc(tw("teams.acc.criteria")) + '</span><textarea name="tm-acc-text" rows="4"></textarea></label>' +
       '<div class="tm-sub">' + esc(tw("teams.acc.help")) + "</div>" +
+      '<div class="tm-sub">' + esc(tw("teams.acc.replace")) + "</div>" +
       '<label class="tm-field tm-cap"><span>' + esc(tw("teams.acc.rounds")) + '</span><input type="number" min="0" max="5" name="tm-acc-rounds" value="2"></label>' +
       '<div class="tm-actions"><button type="button" class="ws-btn tm-primary tm-acc-save">' + esc(tw("teams.save")) +
       '</button><button type="button" class="ws-btn" data-acc-edit="">' + esc(tw("teams.cancel")) + "</button></div></form>";
@@ -800,8 +805,9 @@
       ic("check") + "<b>" + esc(tw("teams.acc.title")) + "</b></div>" + '<ul class="tm-ap-calls">' + rows + "</ul>" +
       ((a.stale || []).length ? '<div class="tm-note-line">' + esc(tw("teams.acc.stale")) + "</div>" : "") +
       (waiting ? '<div class="tm-actions"><button type="button" class="ws-btn tm-primary" data-acc-decide="accept" data-acc="' +
-        esc(a.task_id) + '">' + esc(tw("teams.acc.accept")) + '</button><button type="button" class="ws-btn" data-acc-decide="reject" data-acc="' +
-        esc(a.task_id) + '">' + esc(tw("teams.acc.reject")) + "</button></div>" :
+        esc(a.task_id) + '" data-acc-rev="' + esc(a.revision) + '" data-acc-round="' + esc(a.rounds) + '">' + esc(tw("teams.acc.accept")) +
+        '</button><button type="button" class="ws-btn" data-acc-decide="reject" data-acc="' + esc(a.task_id) + '" data-acc-rev="' +
+        esc(a.revision) + '" data-acc-round="' + esc(a.rounds) + '">' + esc(tw("teams.acc.reject")) + "</button></div>" :
         '<div class="tm-ap-state">' + esc(tw(a.status === "accepted" ? "teams.acc.st.accepted" : "teams.acc.st.closed")) + "</div>") +
       "</div>";
   }
@@ -835,7 +841,7 @@
     }
     if (blocked.length) {
       h += '<div class="tm-qhead">' + esc(tw("teams.queue_blocked")) + "</div>";
-      h += blocked.map(blockedCardHtml).join("");
+      h += blocked.map(function (t) { return blockedCardHtml(t) + accEditorHtml(t, view); }).join("");
     }
     if (waiting.length) {
       h += '<div class="tm-qhead">' + esc(tw("teams.queue_waiting")) + "</div>";
@@ -3652,7 +3658,10 @@
         if (!anote || !anote.trim()) return;
       }
       t.disabled = true;
-      return call("POST", teamUrl("/tasks/" + q(d.acc) + "/acceptance/decide"), { decision: d.accDecide, note: anote }).then(function (r) {
+      // The card's own revision and round: a click on an older card is refused by the server (never accepts a newer
+      // product the owner did not see).
+      return call("POST", teamUrl("/tasks/" + q(d.acc) + "/acceptance/decide"), { decision: d.accDecide, note: anote,
+        revision: d.accRev ? Number(d.accRev) : null, round: d.accRound ? Number(d.accRound) : null }).then(function (r) {
         if (r.code !== 200) { t.disabled = false; fail(r); }
         loadMsgs(false); loadQueue();
       }).catch(function () { t.disabled = false; setNote(tw("teams.err_network")); });

@@ -24138,7 +24138,8 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     learning=_team_learning,
     contrib_reader=lambda ref: _team_contrib_reader(ref), attach=_team_attach, docs_block=_team_docs_block,
     describe=_team_describe, mandate_deps=lambda: _MandateDeps(),
-    check_command=lambda cmd, cwd: _MandateDeps().run_test(cmd, cwd)))
+    check_command=lambda cmd, cwd: _MandateDeps().run_test(cmd, cwd),
+    brain_root=lambda team: Path(_brain_root(team["brain_id"]))))
 
 
 # ============================================================

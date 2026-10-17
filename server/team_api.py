@@ -69,6 +69,7 @@ class TeamApiDeps:
     mandate_deps: Optional[Callable[[], Any]] = None
     # 0.209.0: runs a `command_ok` acceptance criterion: (command, cwd) -> {ran, exit, output, error}. None: unknown.
     check_command: Optional[Callable[[str, Any], dict]] = None
+    brain_root: Optional[Callable[[dict], Any]] = None   # team -> Path of its brain (acceptance product paths)
 
 
 async def _body(request: Request) -> dict:
@@ -162,7 +163,7 @@ class TeamApi:
                 judge=self.deps.judge() if self.deps.judge is not None else None,
                 learning=self.deps.learning() if self.deps.learning is not None else None,
                 contrib_reader=self.deps.contrib_reader, docs_block=self.deps.docs_block,
-                check_command=self.deps.check_command)
+                check_command=self.deps.check_command, brain_root=self.deps.brain_root)
             if self._loop is not None:
                 self._runner._loop, self._runner._loop_thread = self._loop, self._loop_thread
         return self._runner
@@ -334,6 +335,8 @@ class TeamApi:
             rep = await r._io(r.recover)
             if rep["resumed"]:
                 self._spawn(r.resume_jobs(rep["resumed"]))
+            for tid in rep.get("rechecks") or []:
+                self._spawn(r.recheck(tid))
         # 0.207.0: approval requests past their deadline close before dispatch, so their jobs stay stopped with the reason.
         await r._io(r.expire_approvals)
         # 0.208.0: department mandates observe their granted sources when due (code only, no model).
@@ -1299,7 +1302,9 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             if not _own_task(team_id, task_id):
                 return _err(404, "Không có việc này trong nhóm", "No such job in this team")
             try:
-                api.runner().set_acceptance(team_id, task_id, body.get("criteria"), body.get("fix_rounds"))
+                got = api.runner().set_acceptance(team_id, task_id, body.get("criteria"), body.get("fix_rounds"))
+                if got.get("recheck"):
+                    api._spawn(api.runner().recheck(task_id))
             except team_acceptance.AcceptanceError as ex:
                 return _err(400, f"Tiêu chí chưa hợp lệ: {ex}", f"Criteria are not valid: {ex}")
             api.runner()._system(api.teams().get(team_id), "Chủ nhóm đã đặt tiêu chí nghiệm thu cho việc này.",
@@ -1315,13 +1320,20 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             team, err = _team(team_id, brain)
             if err:
                 return err
+            def _int(v):
+                try:
+                    return int(v) if v not in (None, "") else None
+                except (TypeError, ValueError):
+                    return None
             out = api.runner().decide_acceptance(team_id, task_id, str(body.get("decision") or "").lower(),
-                                                 note=str(body.get("note") or "")[:2000])
+                                                 note=str(body.get("note") or "")[:2000],
+                                                 revision=_int(body.get("revision")), round_=_int(body.get("round")))
             if not out.get("ok"):
                 msgs = {"not_found": ("Việc này chưa có tiêu chí nghiệm thu", "This job has no acceptance criteria"),
                         "not_waiting": ("Việc không ở bước chờ nghiệm thu", "The job is not waiting for acceptance"),
                         "product_changed": ("Sản phẩm đã đổi sau lần kiểm, cần kiểm lại", "The product changed after the check"),
                         "note_required": ("Ghi điều cần sửa", "Say what should change"),
+                        "stale_card": ("Thẻ này đã cũ, xem thẻ nghiệm thu mới nhất", "This card is out of date; see the latest one"),
                         "bad_decision": ("Quyết định không hợp lệ", "Invalid decision")}
                 vi, en = msgs.get(out.get("error") or "", ("Không quyết được", "Could not decide"))
                 return _err(404 if out.get("error") == "not_found" else 409, vi, en, error=out.get("error"))

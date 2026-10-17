@@ -4120,6 +4120,8 @@
   "teams.acc.v.pass": "Đạt",
   "teams.acc.v.fail": "Chưa đạt",
   "teams.acc.v.unknown": "Chưa rõ",
+  "teams.block.acceptance_checking": "Đang kiểm sản phẩm theo tiêu chí",
+  "teams.acc.replace": "Lưu sẽ thay toàn bộ tiêu chí cũ của việc này và tính lại vòng sửa từ đầu.",
   "teams.block.acceptance_review": "Chờ bạn nghiệm thu sản phẩm",
   "teams.block.acceptance_failed": "Sản phẩm chưa đạt tiêu chí sau các vòng sửa",
   "teams.block.rejected": "Bạn đã từ chối đề xuất",
