@@ -94,6 +94,15 @@ While Javis is thinking or speaking, the send button turns into a **stop button*
 
 The stop button only stops **the session you are looking at**; other sessions running in the background continue. See [Sessions](04-sessions.md).
 
+### Sending more while Javis is working
+
+From 0.206.0 you can keep typing and sending while Javis works, like in Claude Code or Codex. As soon as there is text in the box, the send button comes back next to the stop button (tooltip "Send to the work in progress"); Enter works too on a computer. The running work is **not stopped**:
+
+- With Claude Code and the API-key brains, Javis reads the new message at its **next step** (after the tool call in progress) and acts on it. A correction is applied at once; a new task is taken on as well, in parallel where possible, and both are answered.
+- With Codex, Grok Build and Antigravity CLI (which run in one go and take no input mid-way), or when Javis is already writing its final answer, your message **runs as the next turn** as soon as the current work ends. Nothing is lost.
+
+A small line under the message you sent says where it is: "Javis will read this at its next step", "Javis has read this", "Javis will do this right after the current task" or "Javis is working on this now". You can send several in a row; Javis reads them in order. To drop the current work altogether, press stop as before.
+
 ## Slash "/" commands in the chat box
 
 Typing **`/`** opens a command menu just above the input box, and it works **at the start of the box or mid-sentence**.

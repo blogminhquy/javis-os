@@ -107,7 +107,7 @@ Cuộc chưa được đặt tên sẽ hiện tạm câu hỏi đầu tiên củ
 
 Cuộc nào còn một lượt đang chạy nền sẽ có biểu tượng **⏳** đứng trước tên (chú thích khi rê chuột: "Đang trả lời") và cả dòng được làm nổi. Bạn cứ đi làm việc khác, câu trả lời vẫn chạy tiếp trên máy chủ và tự lưu vào cuộc đó.
 
-Trong lúc đó nếu bạn gửi thêm một câu nữa vào chính cuộc đang chạy, Javis từ chối và báo: "Phiên này đang trả lời - đợi lượt hiện tại xong đã." Muốn hỏi việc khác ngay thì bấm **＋ Hội thoại mới** rồi hỏi ở cuộc mới.
+Trong lúc đó bạn vẫn gửi thêm được vào chính cuộc đang chạy (từ 0.206.0): Javis đọc tin đó ở bước kế tiếp mà không dừng việc đang làm, hoặc làm nó ngay sau khi xong. Xem [Gửi thêm việc khi Javis đang làm](02-tro-chuyen-va-giong-noi.md). Muốn một việc chạy hoàn toàn riêng thì bấm **＋ Hội thoại mới**.
 
 ### Tìm kiếm toàn văn
 
@@ -226,7 +226,7 @@ Danh sách chỉ nạp 20 cuộc một lần. Cuộn xuống cuối và bấm **
 Kiểm tra bạn có đang ở đúng bộ não chứa cuộc đó không. Nếu vẫn không ra, thử từ khoá ngắn hơn hoặc một từ đơn giản hơn thay vì cả câu dài.
 
 **Gửi câu mới thì báo "Phiên này đang trả lời - đợi lượt hiện tại xong đã."**
-Cuộc đó còn một lượt đang chạy (dòng tương ứng có ⏳). Đợi lượt đó xong, hoặc bấm **＋ Hội thoại mới** để hỏi việc khác song song.
+Từ 0.206.0 tin gõ trong lúc đang chạy đi vào việc đang làm (xem [Gửi thêm việc khi Javis đang làm](02-tro-chuyen-va-giong-noi.md)), nên câu này chỉ còn gặp ở các đường khác như nút Chạy lại. Đợi lượt đó xong, hoặc bấm **＋ Hội thoại mới** để hỏi việc khác song song.
 
 **Mở lại cuộc cũ nhưng Javis không nhớ ngữ cảnh trước.**
 Với engine Claude, khả năng nhớ đầy đủ phụ thuộc vào phiên gốc còn được lưu hay không. Với engine Codex, thread native có thể đã bị dọn khỏi máy - Javis sẽ tự khôi phục từ lịch sử đã lưu và báo một dòng trong khung chat. Với engine API, phần rất cũ có thể đã ở dạng tóm tắt nén thay vì nguyên văn, nên chi tiết vụn có thể mờ đi; khi đó nhắc lại ngắn gọn thông tin quan trọng trong câu hỏi mới là đủ.

@@ -58,7 +58,8 @@ check("the / menu anchors to the card (#hudVoice) and does not cover attachments
 
 // 0.160.0 follow-ups.
 check("workspace locks send through a flag that app.js honours, so a turn update cannot re-enable it",
-  /dataset\.wsLock/.test(ws) && /sendBtn\.disabled = isProcessing \|\| sendBtn\.dataset\.wsLock === "1"/.test(app)
+  /dataset\.wsLock/.test(ws) && // 0.206.0: during a turn the button unlocks for an add-on message (coTheGuiBoSung); the workspace flag still wins.
+  /sendBtn\.disabled = \(isProcessing && !coTheGuiBoSung\(\)\) \|\| sendBtn\.dataset\.wsLock === "1"/.test(app)
   && /function setProcessing\(s\) \{[^}]*sendBtn\.dataset\.wsLock === "1"/.test(app));
 check("leaving the page mid-turn does not re-enable send (workspace asks app.js to resync)", /JavisSyncActiveUI/.test(ws) && /window\.JavisSyncActiveUI = syncActiveUI/.test(app));
 check("no CSS left for the old Effort row and separator", !/\.mb-eff-row|\.mb-eff-btn|\.mb-sep|\.mb-eff \{/.test(css));

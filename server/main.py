@@ -188,11 +188,24 @@ import voice_brain   # Voice V2: bộ não giọng nói riêng (Antigravity số
 import voice_live    # Voice V2: nghe nói thẳng qua Gemini Live / OpenAI Realtime
 import voice_ear     # tai nghe lại: model đa ngôn ngữ nghe âm thanh rồi mới chốt chữ (0.65.15)
 import agent_notify  # 0.205.0: unread and mute for private partner chats
+import steer_inbox  # 0.206.0: messages the owner sends while a turn runs
 import codex_realtime  # ChatGPT Live: một Codex app-server sống lâu, realtime trên gói ChatGPT (0.65.17)
 import voice_call     # nút mic là gọi Javis: tự chọn ChatGPT Live / Live API / Cơ bản (0.65.18)
 
 app = FastAPI(title="Javis OS")
 _CHAT_RUNTIME = ChatRuntime()
+
+
+def _steer_read(sid, ids):
+    """0.206.0: a running turn just read these messages; every open tab marks them read (steer_inbox.py)."""
+    try:
+        asyncio.get_running_loop().create_task(
+            _CHAT_RUNTIME.publish({"type": "steer_read", "session_id": sid, "ids": list(ids)}))
+    except RuntimeError:
+        pass
+
+
+steer_inbox.INBOX.on_read = _steer_read
 ui_bridge.attach(_CHAT_RUNTIME)
 _CONTEXT_RUNTIME = context_runtime.get_runtime()
 _CAPABILITY_REGISTRY = capability_registry.get_registry()
@@ -15639,6 +15652,7 @@ async def websocket_endpoint(ws: WebSocket):
                     **_ctx_frame(runtime_trace, _ctx_in),
                 }))
             elif _codex_fast_plan is not None and kind in ("oauth", "cli"):
+                steer_inbox.INBOX.set_live(conv_sid, False)   # 0.206.0: one model call, no step to read at
                 # ===== GÓI THUÊ BAO, ĐƯỜNG TẮT: gọi thẳng model một vòng =====
                 # Câu hỏi không cần tra cứu gì thì không có lý do đi qua CLI, nơi mỗi lượt là
                 # cả một vòng lặp đọc file và gọi tool. Đây là chỗ token thật sự nằm: đo trên
@@ -15686,6 +15700,7 @@ async def websocket_endpoint(ws: WebSocket):
             if _da_tra_loi:
                 pass
             elif prov == "grok-cli":
+                steer_inbox.INBOX.set_live(conv_sid, False)   # 0.206.0: one-shot CLI, messages wait for the end
                 # ===== Gói SuperGrok / X Premium+ qua GROK BUILD CLI - tool native + MCP hub =====
                 #
                 # CÓ nối lại mạch như nhánh Gemini/Codex, khác nhánh `agy` ngay dưới: `grok`
@@ -15777,6 +15792,7 @@ async def websocket_endpoint(ws: WebSocket):
                         "model": actual_model or "", "session_id": conv_sid,
                         **_ctx_frame(runtime_trace, _ctx_in)}))
             elif prov == "antigravity-cli":
+                steer_inbox.INBOX.set_live(conv_sid, False)   # 0.206.0: one-shot CLI, messages wait for the end
                 # ===== Gói Google qua ANTIGRAVITY CLI (`agy`) - tool native + MCP hub =====
                 #
                 # CỐ Ý chưa nối lại mạch hội thoại của CLI như nhánh Gemini/Codex ngay trên.
@@ -15839,6 +15855,7 @@ async def websocket_endpoint(ws: WebSocket):
                         "model": actual_model or "", "session_id": conv_sid,
                         **_ctx_frame(runtime_trace, _ctx_in)}))
             elif prov == "openai-oauth":
+                steer_inbox.INBOX.set_live(conv_sid, False)   # 0.206.0: `codex exec` is one-shot, messages wait for the end
                 # ===== ChatGPT subscription qua CODEX CLI - MCP/tool NATIVE (như Hermes, dùng codex của máy) =====
                 actual_model = _codex_safe_model(api_model)   # gpt-5-mini/gpt-4o... → coerce về model Codex hợp lệ
                 sysprompt, _sub_plan = await _subscription_system_prompt("codex", actual_model, kind)
@@ -16653,6 +16670,8 @@ async def websocket_endpoint(ws: WebSocket):
             _t0_luot = time.time()
             _khoa_luot = luot_dang_chay.bat_dau(f"{WEB_CHAT_PREFIX}{conv_sid}", _brain_root(brain),
                                                 msg_id=user_mid, user_text=user_text)
+            # 0.206.0: from here on, a message the owner sends goes to this turn (steer_inbox.py).
+            _steer_tok = steer_inbox.INBOX.open(conv_sid, turn_tag)
             _engine_outcome_reset(conv_sid)
             try:
                 final_text = await _do_turn(
@@ -16691,6 +16710,11 @@ async def websocket_endpoint(ws: WebSocket):
                                 "session_id": conv_sid, **context_runtime.event_fields(runtime_trace)})
             finally:
                 luot_dang_chay.ket_thuc(_khoa_luot)
+                _steer_left = steer_inbox.INBOX.close(conv_sid, turn_tag, _steer_tok)
+                if _steer_left:
+                    # Sent while this turn ran but never read by it: the next turn of this chat, right after this one.
+                    asyncio.create_task(_start_steer_turn(conv_sid, [i["text"] for i in _steer_left], brain,
+                                                          [i["id"] for i in _steer_left]))
                 tien_trinh_nen.bo_tag(turn_tag)   # lượt lỗi/bị dừng không tới bước nhận nuôi
                 turn_context.reset(_luot_token)
                 context_runtime.reset_trace(_trace_token)
@@ -17141,6 +17165,31 @@ async def websocket_endpoint(ws: WebSocket):
                 _TG_SESS.pop(khoa_mach, None)
             await push_to_chat(conv_sid, out or "(việc nền xong nhưng không có nội dung)", viec=viec)
 
+        async def _start_steer_turn(conv_sid, texts, brain, ids):
+            """0.206.0: messages sent while a turn was running that it never read (a one-shot CLI engine, or it was
+            already writing its final answer) run as the next turn of the same chat, once that turn has ended. They are
+            in the history already (stored when they arrived), so only the engine gets the wrapped prompt."""
+            for _ in range(1200):
+                if not _CHAT_RUNTIME.get_job(conv_sid):
+                    break
+                await asyncio.sleep(0.5)
+            else:
+                return
+            turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
+            runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
+            task = asyncio.create_task(run_turn(
+                conv_sid, steer_inbox.followup_prompt(texts), brain, turn_tag, runtime_trace, False,
+                user_text="\n\n".join(texts)))
+            _CHAT_RUNTIME.register_job(
+                conv_sid, task, turn_tag,
+                runtime_task_id=runtime_trace.task_id if runtime_trace else "",
+                runtime_step_id=runtime_trace.step_id if runtime_trace else "",
+            )
+            try:
+                await _CHAT_RUNTIME.publish({"type": "steer_turn", "session_id": conv_sid, "ids": list(ids or [])})
+            except Exception:
+                pass
+
         async def _start_followup_turn(conv_sid, text, brain, do_sau):
             """Lượt nối tiếp sau khi một việc chạy nền xong (tien_trinh_nen, 0.64.66).
 
@@ -17220,6 +17269,26 @@ async def websocket_endpoint(ws: WebSocket):
                 _tag = _CHAT_RUNTIME.cancel_session(_sid)
                 if _tag:
                     cancel_all(_tag)     # giết subprocess engine của đúng lượt đó
+                continue
+            if action == "steer":
+                # 0.206.0: a message typed while this chat's turn is still running (steer_inbox.py). Stored now as the
+                # owner's message; the running turn reads it at its next step, or it runs right after the turn ends.
+                _sid = str(payload.get("session_id") or "").strip()
+                _txt = str(payload.get("message") or "").strip()[:steer_inbox.MAX_CHARS]
+                _cid = str(payload.get("client_id") or "")[:40]
+                _row = store.get_session(_sid) if _sid else None
+                if not _row or not _txt:
+                    continue
+                store.append_message(_sid, "user", _txt)
+                _it = steer_inbox.INBOX.put(_sid, _txt)
+                if _it:
+                    _mode, _id = ("live" if steer_inbox.INBOX.live(_sid) else "after"), _it["id"]
+                else:
+                    # The turn just ended (or too many are waiting): this message is its own next turn.
+                    _mode, _id = "after", 0
+                    asyncio.create_task(_start_steer_turn(_sid, [_txt], _row.get("brain") or "brain", []))
+                await send_client({"type": "steer_ack", "session_id": _sid, "client_id": _cid,
+                                   "steer_id": _id, "mode": _mode})
                 continue
             if action == "wf_resume":
                 # Nút Duyệt ở cột phải trang Cộng sự: chạy tiếp lần đang chờ, kết quả về cùng phiên.

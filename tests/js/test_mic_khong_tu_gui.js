@@ -102,7 +102,9 @@ const ghiUser = (server.match(/append_message\([^)]*"user"/g) || []).length;
 // 0.64.66 thêm chỗ thứ sáu: lượt nối tiếp sau khi việc chạy nền xong (_start_followup_turn)
 // ghi tin mở lượt, có đánh dấu "[Việc chạy nền đã xong]", để mở lại hội thoại vẫn hiểu vì sao
 // Javis tự nói tiếp. Không phải chữ của mic nên không đụng luật "mic không tự gửi".
-check("chỉ 6 chỗ ghi vai user (web + bot + 2 Live + duyệt quy trình + nối tiếp việc nền)", ghiUser === 6, ghiUser);
+// 0.206.0 thêm chỗ thứ bảy: tin GÕ thêm trong lúc lượt đang chạy (action "steer", steer_inbox.py), ghi ngay khi tới để
+// lịch sử đúng thứ tự. Người dùng tự gõ và bấm gửi, không phải mic tự gửi.
+check("chỉ 7 chỗ ghi vai user (web + bot + 2 Live + duyệt quy trình + nối tiếp việc nền + gửi thêm lúc đang chạy)", ghiUser === 7, ghiUser);
 check("chỗ thứ sáu nằm TRONG _start_followup_turn",
   /async def _start_followup_turn[\s\S]{0,1600}store\.append_message\(conv_sid, "user", text\)/.test(server));
 const approvalBody = server.slice(server.indexOf('if action == "wf_resume":'), server.indexOf('if action == "resume_now":'));

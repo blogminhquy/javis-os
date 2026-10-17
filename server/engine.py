@@ -25,6 +25,7 @@ import fast_mode   # composer Fast mode bolt: per-provider parameters (0.164.0)
 import limit_learner
 import localefmt
 import vision_input
+import steer_inbox   # 0.206.0: messages the owner sends while a turn runs
 
 
 def _c(vi: str, en: str) -> str:
@@ -1968,6 +1969,9 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
             nhac = guard.loi_nhac()
             if nhac:
                 msgs[-1]["content"] += nhac   # nối vào kết quả tool cuối - chỗ chắc chắn model đọc
+            _bs = steer_inbox.INBOX.take_note_current()   # 0.206.0: what the owner sent while this turn runs
+            if _bs:
+                msgs[-1]["content"] += _bs
             if guard.ket():
                 if usage_in or usage_out:
                     yield {"type": "usage", "input": usage_in, "output": usage_out}
@@ -2306,6 +2310,9 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                 nhac = guard.loi_nhac()
                 if nhac:
                     items[-1]["output"] += nhac   # nối vào kết quả tool cuối - chỗ chắc chắn model đọc
+                _bs = steer_inbox.INBOX.take_note_current()   # 0.206.0: what the owner sent while this turn runs
+                if _bs:
+                    items[-1]["output"] += _bs
                 if guard.ket():
                     if usage_in or usage_out:
                         yield {"type": "usage", "input": usage_in, "output": usage_out}
@@ -2421,6 +2428,9 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
                 nhac = guard.loi_nhac()
                 if nhac:
                     results[-1]["content"] += nhac   # nối vào kết quả tool cuối - chỗ chắc chắn model đọc
+                _bs = steer_inbox.INBOX.take_note_current()   # 0.206.0: what the owner sent while this turn runs
+                if _bs:
+                    results.append({"type": "text", "text": _bs})
                 conv.append({"role": "user", "content": results})
                 if guard.ket():
                     if usage_in or usage_out:

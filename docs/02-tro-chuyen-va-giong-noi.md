@@ -110,6 +110,15 @@ Khi Javis đang suy nghĩ hoặc đang đọc, nút gửi ở thanh nhập biế
 
 Nút dừng chỉ dừng **phiên bạn đang xem**; phiên khác đang chạy nền vẫn tiếp tục. Xem [Phiên hội thoại](04-phien-hoi-thoai.md).
 
+### Gửi thêm việc khi Javis đang làm
+
+Từ 0.206.0, trong lúc Javis đang làm bạn vẫn gõ và gửi tiếp được, giống Claude Code hay Codex. Gõ chữ vào ô nhập thì nút gửi hiện lại ngay cạnh nút dừng (chú thích "Gửi thêm vào việc đang làm"), trên máy tính nhấn Enter cũng được. Việc đang làm **không bị dừng**:
+
+- Với Claude Code và các bộ não dùng API key, Javis đọc tin mới ở **bước kế tiếp** (sau lần dùng công cụ đang chạy) rồi làm luôn. Tin là lời sửa hướng thì Javis áp dụng ngay, là việc mới thì Javis nhận thêm, làm song song nếu được, và trả lời cả hai.
+- Với Codex, Grok Build và Antigravity CLI (chạy một mạch, không nhận tin giữa chừng), hoặc khi Javis đang viết câu trả lời cuối, tin của bạn **tự chạy thành lượt kế tiếp** ngay khi việc hiện tại xong. Không tin nào bị mất.
+
+Dưới tin bạn vừa gửi có một dòng nhỏ cho biết nó đang ở đâu: "Javis sẽ đọc tin này ở bước kế tiếp", "Javis đã đọc tin này", "Javis làm tin này ngay sau khi xong việc hiện tại" hoặc "Javis đang làm tin này". Gửi được nhiều tin liên tiếp, Javis đọc theo đúng thứ tự. Muốn bỏ hẳn việc đang làm thì vẫn bấm nút dừng như cũ.
+
 ## Lệnh gạch chéo "/" trong ô chat
 
 Gõ dấu **`/`** là một menu lệnh hiện lên ngay phía trên ô gõ - **ở đầu ô nhập hay giữa câu đều được**.

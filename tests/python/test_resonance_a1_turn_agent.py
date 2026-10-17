@@ -158,7 +158,7 @@ _ns = dict(asyncio=asyncio, sys=sys, time=time, uuid=uuid, nghe_sua=nghe_sua, lo
            luot_dang_chay=luot_dang_chay, WEB_CHAT_PREFIX="web:", _brain_root=main._brain_root,
            _do_turn=fake_do_turn, _resonance_after_turn=lambda *a: None, _record_quality_shadow=lambda *a: None,
            _resonance_turn_agent=main._resonance_turn_agent,
-           tien_trinh_nen=types.SimpleNamespace(bo_tag=lambda *a: None),
+           tien_trinh_nen=types.SimpleNamespace(bo_tag=lambda *a: None), steer_inbox=__import__("steer_inbox"),
            _engine_outcome_reset=lambda *a: None, _engine_outcome_exception=lambda *a: None,
            _engine_outcome_turn=lambda *a: None, _engine_outcome_pop=lambda *a: {})
 _tree = ast.parse((SERVER / "main.py").read_text(encoding="utf-8"))

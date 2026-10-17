@@ -110,7 +110,7 @@ namespace = dict(asyncio=asyncio, sys=sys, time=time, uuid=uuid, voice_brain=pro
                  # Kết cục engine gửi kèm turn_done (pilot lần 4): test riêng ở test_turn_engine_status.
                  _engine_outcome_reset=lambda *a: None, _engine_outcome_exception=lambda *a: None,
                  _engine_outcome_pop=lambda *a: {}, _engine_outcome_turn=lambda *a: None,
-                 _record_quality_shadow=lambda *a: None, tien_trinh_nen=types.SimpleNamespace(bo_tag=lambda *a: None))
+                 _record_quality_shadow=lambda *a: None, tien_trinh_nen=types.SimpleNamespace(bo_tag=lambda *a: None), steer_inbox=__import__("steer_inbox"))
 _tree = ast.parse((SERVER / "main.py").read_text(encoding="utf-8"))
 _nodes = [next(n for n in ast.walk(_tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == name)
           for name in ("run_turn", "run_voice_turn", "_start_resumed_turn")]

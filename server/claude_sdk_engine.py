@@ -849,6 +849,14 @@ class ClaudeSDK:
             pass
         if _deny:
             kw["disallowed_tools"] = _deny
+        # 0.206.0: a chat turn reads what the owner sends while it runs, after each tool call (steer_inbox.py).
+        if "hooks" in fields and str(self.tag or "").startswith("chat:"):
+            try:
+                from claude_agent_sdk import HookMatcher
+                kw["hooks"] = {"PostToolUse": [HookMatcher(matcher=None, hooks=[self._steer_hook])],
+                               "PostToolUseFailure": [HookMatcher(matcher=None, hooks=[self._steer_hook])]}
+            except Exception:
+                pass
         if self.allowed_tools:
             # Chế độ nền an toàn: whitelist auto-allow, MỌI tool khác rơi vào _permission_gate → DENY.
             # KHÔNG nạp settings filesystem: allow-rule trong settings user có thể che gate.
@@ -860,6 +868,21 @@ class ClaudeSDK:
             # Parity CLI: nạp settings máy (ambient MCP, CLAUDE.md, config user) như claude -p vẫn làm
             kw["setting_sources"] = ["user", "project", "local"]
         return ClaudeAgentOptions(**kw)
+
+    async def _steer_hook(self, input_data, tool_use_id, context):
+        """PostToolUse: hand the turn what the owner sent meanwhile, as extra context the model reads before its next
+        step (0.206.0). Only on the main thread: a tool call inside a sub-agent carries agent_id and is left alone."""
+        try:
+            if (input_data or {}).get("agent_id"):
+                return {}
+            import steer_inbox
+            note = steer_inbox.INBOX.take_note_for_tag(self.tag)
+        except Exception:
+            return {}
+        if not note:
+            return {}
+        return {"hookSpecificOutput": {"hookEventName": (input_data or {}).get("hook_event_name") or "PostToolUse",
+                                       "additionalContext": note}}
 
     async def warm_ping(self, timeout_s: float = 120.0) -> dict:
         """One tool-less request forked from this chat's Claude session, so the provider re-reads the cached prefix and

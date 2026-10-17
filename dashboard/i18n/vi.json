@@ -4832,5 +4832,11 @@
   "ws.mute_8am": "Cho đến 8:00 sáng",
   "ws.mute_forever": "Cho đến khi được mở lại",
   "ws.unread_n": "{n} tin chưa đọc",
-  "ws.mute_err": "Chưa đổi được thông báo của cộng sự này, thử lại nhé."
+  "ws.mute_err": "Chưa đổi được thông báo của cộng sự này, thử lại nhé.",
+  "app.steer_send": "Gửi thêm vào việc đang làm",
+  "app.steer_sent": "Đã gửi thêm, Javis đang làm dở việc trước",
+  "app.steer_live": "Javis sẽ đọc tin này ở bước kế tiếp, không dừng việc đang làm",
+  "app.steer_after": "Javis làm tin này ngay sau khi xong việc hiện tại",
+  "app.steer_read": "Javis đã đọc tin này",
+  "app.steer_turn": "Javis đang làm tin này"
 }

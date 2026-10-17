@@ -3971,3 +3971,5 @@ div.info-body > * { margin: 0; font-size: inherit; }
    select's background, and most selects here have a see-through one, so Windows draws the list white under light text.
    Every option gets a solid theme background and the theme's text colour, in both themes. */
 select option, select optgroup { background-color: var(--bg2); color: var(--text); }
+/* 0.206.0: a message sent while Javis works shows where it is (read by the running turn, or waiting to run next). */
+.msg-user .steer-note { font-size: 12px; color: var(--text3); text-align: right; margin: 3px 4px 0; }

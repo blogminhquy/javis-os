@@ -25,7 +25,15 @@ let stopTag = null;        // tag phiên chat server phát qua message hello →
 function updateStopBtn() {
   const active = isProcessing || voice.isSpeaking();
   stopBtn.style.display = active ? "flex" : "none";
-  sendBtn.style.display = active ? "none" : "flex";
+  // 0.206.0: while Javis works, typed text can still go out (as an add-on to the running turn), so the send button
+  // comes back next to Stop as soon as there is something to send.
+  const boSung = coTheGuiBoSung();
+  sendBtn.style.display = active && !boSung ? "none" : "flex";
+  sendBtn.title = boSung ? window.t("app.steer_send") : window.t("bar.send");
+}
+function coTheGuiBoSung() {
+  try { return isProcessing && !handsFreeActive() && !!(chatInput.value.trim() || pendingAttachments.some(a => a.path)); }
+  catch (e) { return false; }
 }
 
 // Đồng bộ nút gửi/dừng + cờ isProcessing theo lượt của phiên ĐANG XEM (savedSessionId).
@@ -33,7 +41,7 @@ function syncActiveUI() {
   const t = savedSessionId ? turns[savedSessionId] : null;
   isProcessing = !!(t && t.running);
   // Workspace may lock send while its session is not ready (dataset.wsLock); both reasons count.
-  sendBtn.disabled = isProcessing || sendBtn.dataset.wsLock === "1";
+  sendBtn.disabled = (isProcessing && !coTheGuiBoSung()) || sendBtn.dataset.wsLock === "1";
   // Đang trả lời thì khoá nút gửi lại của mọi tin (CSS .transcript.busy) cho khỏi chồng lượt.
   try { chatArea.classList.toggle("busy", isProcessing); } catch (e) {}
   updateStopBtn();
@@ -1209,6 +1217,11 @@ function handleMessage(data) {
     try { if (window.JavisBackground) window.JavisBackground.refresh(); } catch (e) {}
     return;
   }
+  if (data.type === "steer_ack" || data.type === "steer_read" || data.type === "steer_turn") {
+    // 0.206.0: a message sent while Javis works was received, read by the running turn, or is now its own turn.
+    try { trangThaiBoSung(data); } catch (e) {}
+    return;
+  }
   if (data.type === "agent_read") {
     // 0.205.0: a partner chat was read or muted (this tab or another): the Partners list reads its counts again.
     try { window.dispatchEvent(new CustomEvent("javis:agent-read", { detail: data })); } catch (e) {}
@@ -1662,7 +1675,9 @@ function sendMessage(text, opts) {
       datTinCho(msg, opts);
       return;
     }
-    if (!(_tuGiong || handsFree)) return;   // gõ chữ lúc không rảnh tay: giữ chốt cũ
+    // 0.206.0 (owner, 17/10/2026: "like Claude Code, type and send more while it works"): typed text goes to the
+    // running turn. It reads it at its next step, or it runs right after the turn (server steer_inbox.py).
+    if (!(_tuGiong || handsFree)) { guiBoSung(msg, atts); return; }
     // Đang gọi (0.65.28): KHÔNG dừng lượt đang chạy. Câu mới xếp hàng, gửi khi lượt cũ xong và
     // loa đọc xong. Chủ dự án báo 02/10: nói chen một câu là "Đã dừng lượt này", mô hình bị
     // cắt liên tục nên không liền mạch; cuộc gọi chỉ được dừng khi bấm lại nút mic.
@@ -2310,6 +2325,44 @@ function appendUserMessage(text, attachments, ts) {
     actsHtml("user", ts === undefined ? Date.now() : ts, !!(text || "").trim());
   vaAnhHong(div);
   chatAppend(div); scrollBottom(true);
+}
+// 0.206.0: send more while Javis is working. The message is stored and shown at once; its small status line follows
+// what the server reports: read by the running turn, or waiting to run right after it.
+let _boSungSeq = 0;
+const _boSungEl = {};   // client_id or "s<steer_id>" -> the status line of that message
+function guiBoSung(msg, atts) {
+  const sid = savedSessionId;
+  const tep = (atts || []).filter(a => a.path);
+  let chu = String(msg || "");
+  if (tep.length) chu += (chu ? "\n\n" : "") + tep.map(a => "\uD83D\uDCCE " + a.path).join("\n");
+  if (!chu.trim() || !sid || !ws || ws.readyState !== WebSocket.OPEN) return false;
+  const cid = "bs" + (++_boSungSeq) + "-" + Date.now().toString(36);
+  chatInput.value = ""; chatInput.style.height = "auto";
+  if (tep.length) clearAttachments();
+  appendUserMessage(msg, tep);
+  const _ds = chatArea.querySelectorAll(".msg-user"), div = _ds[_ds.length - 1];
+  recordTurn("user", chu, tep);
+  if (div) {
+    div.classList.add("msg-steer");
+    const note = document.createElement("div");
+    note.className = "steer-note";
+    note.textContent = window.t("app.steer_sent");
+    div.appendChild(note);
+    _boSungEl[cid] = note;
+  }
+  ws.send(JSON.stringify({ action: "steer", session_id: sid, message: chu, client_id: cid }));
+  syncActiveUI();
+  return true;
+}
+function trangThaiBoSung(data) {
+  const ghi = (el, key) => { if (el) el.textContent = window.t(key); };
+  if (data.type === "steer_ack") {
+    const el = _boSungEl[data.client_id];
+    if (el && data.steer_id) _boSungEl["s" + data.steer_id] = el;
+    ghi(el, data.mode === "live" ? "app.steer_live" : "app.steer_after");
+  } else {
+    (data.ids || []).forEach(id => ghi(_boSungEl["s" + id], data.type === "steer_read" ? "app.steer_read" : "app.steer_turn"));
+  }
 }
 // 0.173.1: one automatic /goal round as a collapsible line with a Stop goal button (chat-lenh.js draws the
 // HTML). `live`: drawn while the goal runs, so the button works; restored rounds show it disabled.
@@ -3903,6 +3956,7 @@ function chupFile(f) {
 // Events
 // ============================================
 chatInput.addEventListener("input", () => {
+  if (isProcessing) syncActiveUI();   // 0.206.0: the send button shows up next to Stop once there is text
   chatInput.style.height = "auto";
   // Ô nhập NỞ THEO CHỮ như claude.ai (chủ yêu cầu 27/08): xuống dòng là thấy toàn bộ văn
   // bản, không phải cuộn trong một ô 3 dòng. Trần ở trang Trò chuyện là 40% màn hình

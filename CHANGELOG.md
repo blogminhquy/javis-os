@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.206.0] - 2026-10-17
+### Thêm mới
+- **Gửi thêm việc khi Javis đang làm, như Claude Code và Codex:** gõ rồi gửi tiếp trong lúc Javis đang chạy, việc đang làm không bị dừng. Trước đây tin gõ lúc này bị bỏ qua im lặng.
+- **Claude Code và các bộ não dùng API key đọc tin mới ở bước kế tiếp:** sửa hướng thì áp dụng ngay, việc mới thì nhận thêm và làm song song nếu được.
+- **Codex, Grok và Antigravity tự làm tin của bạn ngay sau khi xong việc hiện tại**, vì các engine này chạy một mạch. Không tin nào bị mất.
+- **Dưới tin vừa gửi có dòng trạng thái:** sẽ đọc ở bước kế tiếp, đã đọc, hay đang làm.
+
 ## [0.205.0] - 2026-10-17
 ### Cải thiện
 - **Cộng sự vừa có tin mới tự lên đầu danh sách:** bạn nhắn, cộng sự trả lời hay việc nền báo kết quả vào hội thoại của cộng sự đều đẩy thẻ đó lên trên (sau Javis Core và mục đã ghim).

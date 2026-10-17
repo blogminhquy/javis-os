@@ -4832,5 +4832,11 @@
   "ws.mute_8am": "Until 8:00 AM",
   "ws.mute_forever": "Until turned back on",
   "ws.unread_n": "{n} unread",
-  "ws.mute_err": "Could not change this partner's notifications, please try again."
+  "ws.mute_err": "Could not change this partner's notifications, please try again.",
+  "app.steer_send": "Send to the work in progress",
+  "app.steer_sent": "Sent, Javis is still on the previous task",
+  "app.steer_live": "Javis will read this at its next step, without stopping",
+  "app.steer_after": "Javis will do this right after the current task",
+  "app.steer_read": "Javis has read this",
+  "app.steer_turn": "Javis is working on this now"
 }

@@ -93,6 +93,8 @@ An unnamed conversation temporarily shows your first question as its title. Javi
 
 A conversation with a turn still running in the background shows an **⏳** before its title (tooltip: "Answering") and the whole row is highlighted. Go do something else; the answer keeps running on the server and saves itself into that conversation.
 
+You can still send more into that same conversation while it runs (from 0.206.0): Javis reads the message at its next step without stopping, or does it right after. See [Sending more while Javis is working](02-chat-and-voice.md). For work that should run fully apart, click **＋ New conversation**.
+
 If you send another message into that same running conversation, Javis declines and says: "This session is answering, wait for the current turn to finish." To ask something else immediately, click **＋ New conversation** and ask there.
 
 ### Full-text search

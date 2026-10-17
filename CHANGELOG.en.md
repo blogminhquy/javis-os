@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.206.0] - 2026-10-17
+### Added
+- **Send more while Javis is working, like Claude Code and Codex:** type and send while a turn runs; the work in progress is not stopped. Before, a message typed at this point was silently ignored.
+- **Claude Code and the API-key brains read the new message at their next step:** a correction applies at once, a new task is taken on too, in parallel where possible.
+- **Codex, Grok and Antigravity run your message right after the current work**, since those engines run in one go. Nothing is lost.
+- **A status line under the message you sent:** will read it at the next step, read, or working on it.
+
 ## [0.205.0] - 2026-10-17
 ### Improved
 - **A partner with a new message moves to the top of the list:** you writing, the partner replying, or a background job reporting into its chat all push that card up (after Javis Core and the pinned ones).

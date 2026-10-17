@@ -163,7 +163,7 @@ _ns = dict(asyncio=asyncio, sys=sys, time=time, uuid=uuid, nghe_sua=nghe_sua, lo
            _CONTEXT_RUNTIME=types.SimpleNamespace(finish=lambda *a: None, note_error=lambda *a: None),
            luot_dang_chay=luot_dang_chay, WEB_CHAT_PREFIX="web:", _brain_root=lambda b: b,
            _resonance_after_turn=lambda *a: None, _record_quality_shadow=lambda *a: None,
-           tien_trinh_nen=types.SimpleNamespace(bo_tag=lambda *a: None),
+           tien_trinh_nen=types.SimpleNamespace(bo_tag=lambda *a: None), steer_inbox=__import__("steer_inbox"),
            _engine_outcome_reset=main._engine_outcome_reset, _engine_outcome_exception=main._engine_outcome_exception,
            _engine_outcome_turn=main._engine_outcome_turn, _engine_outcome_pop=main._engine_outcome_pop)
 _tree0 = ast.parse(Path(main.__file__).read_text(encoding="utf-8"))
