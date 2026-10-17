@@ -239,6 +239,19 @@ Editing or cancelling the job voids its old cards. Words in the chat (yours or a
 
 With Needs your approval, Claude Code, Codex (with its own sandbox) and the API-key brains stop an action before it runs. Grok Build only does the in-scope part (an approved action cannot run on Grok). Antigravity cannot stop its own tools, so that step is refused with an explanation: move the member to another brain or turn on "The team acts without asking".
 
+## A Team's department mandate (from 0.208.0)
+
+The Team tab has a **Department mandate** section. Older teams have none, so nothing runs on its own until you set one and press **Turn on**.
+
+- **Outcome**: what this team is for. **How it is measured**: one criterion per line.
+- **Granted sources**, one per line: `folder:reports` (a folder in the brain), `kanban` (failed Kanban jobs of the brain), `mcp:<connection id>` (whether a connection is down), `test:<check command>` (run at the safe level; a non-zero exit is a failure).
+- **Scope**, **observe every**, **observations per day**, **jobs it may open per day**, and **stop opening jobs at N open jobs**.
+- For each kind of opportunity (documents changed, Kanban job failed, check command failing, connection down) pick: **Only record it**, **Propose it to me**, **Open a job, wait for my approval** or **Open the job itself**.
+
+Javis reads the sources with code, no model. A source it cannot read shows as **missing** with the reason; no problem is made up. A change becomes an **opportunity** with its source, data version, a reason tied to the outcome and the benefit. The same data never opens twice, an opportunity you **Skip** only returns when the data changes, each source has a cooldown, and a proposal left for 48 hours expires. Past the day's job budget or the open-job limit it only proposes.
+
+A job the mandate opens carries the trace (mandate, version, observation, opportunity) in its request, and its outside actions still go through the approval gate. **Pause** stops observing; **Revoke** cancels the mandate's jobs that have not started and closes open proposals. Every edit is a new version with history.
+
 ## Quick actions and troubleshooting
 
 - **Create:** choose a tab and use the create button at the bottom left, or open **Javis Store**.

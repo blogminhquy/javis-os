@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.208.0] - 2026-10-17
+### Thêm mới
+- **Mục tiêu phòng ban cho Team:** đặt mục tiêu, cách đo, nguồn được giao (thư mục, việc Kanban lỗi, kết nối, lệnh kiểm tra), phạm vi, ngân sách mỗi ngày và mức tự quyết. Nhóm cũ không tự bật.
+- **Nhóm tự phát hiện cơ hội trong phạm vi:** thay đổi ở nguồn thành đề xuất có nguồn, lý do và lợi ích; tự mở việc, mở việc chờ duyệt hay chỉ đề xuất theo lựa chọn của bạn. Nguồn thiếu thì báo thiếu, không bịa.
+- **Không lặp, có hạn:** cùng dữ liệu không mở hai lần, cơ hội bỏ qua chỉ quay lại khi dữ liệu đổi, đề xuất quá 48 giờ tự hết hạn. Tạm dừng hay thu hồi bất cứ lúc nào.
+
 ## [0.207.0] - 2026-10-17
 ### Sửa lỗi
 - **Team hỏi bạn duyệt thì dừng thật:** câu "@Chủ nhóm anh duyệt nhé?" không còn bị coi là kết quả rồi tự chốt việc. Việc chuyển sang Chờ bạn duyệt, nhả chỗ cho việc khác, và chưa duyệt thì không có gì được làm.

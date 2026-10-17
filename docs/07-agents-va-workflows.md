@@ -256,6 +256,19 @@ Sửa yêu cầu của việc hay huỷ việc làm thẻ cũ hết hiệu lực
 
 Ở chế độ Cần chủ duyệt, Claude Code, Codex (có sandbox riêng) và các bộ não dùng API key chặn được hành động trước khi chạy. Grok Build chỉ làm phần trong phạm vi (hành động đã duyệt không chạy được trên Grok). Antigravity không chặn được công cụ của chính nó nên bước đó bị từ chối kèm lời giải thích: đổi trợ lý sang bộ não khác hoặc bật "Nhóm tự làm".
 
+## Mục tiêu phòng ban của Team (từ 0.208.0)
+
+Ở tab Nhóm có mục **Mục tiêu phòng ban**. Nhóm cũ không có mục tiêu nên không có gì tự chạy cho tới khi bạn đặt và bấm **Bật**.
+
+- **Mục tiêu**: nhóm này để làm gì. **Cách đo**: mỗi dòng một tiêu chí.
+- **Nguồn được giao**, mỗi dòng một nguồn: `folder:bao-cao` (thư mục trong bộ não), `kanban` (việc Kanban lỗi của bộ não), `mcp:<mã kết nối>` (kết nối có đang lỗi không), `test:<lệnh kiểm tra>` (lệnh chạy ở mức an toàn, mã thoát khác 0 là lỗi).
+- **Phạm vi**, **chu kỳ quan sát**, **số lần quan sát mỗi ngày**, **số việc tự mở mỗi ngày**, và **dừng mở việc khi đang có N việc**.
+- Với mỗi loại cơ hội (tài liệu thay đổi, việc Kanban lỗi, lệnh kiểm tra báo lỗi, kết nối lỗi) chọn: **Chỉ ghi nhận**, **Đề xuất cho tôi**, **Mở việc, chờ tôi duyệt** hay **Tự mở việc**.
+
+Javis đọc các nguồn bằng mã, không gọi model. Nguồn đọc không được thì hiện **thiếu nguồn** kèm lý do, không bịa ra vấn đề. Một thay đổi thành **cơ hội** có nguồn, phiên bản dữ liệu, lý do gắn mục tiêu và lợi ích. Cùng dữ liệu không mở lại lần hai, cơ hội bạn **Bỏ qua** chỉ quay lại khi dữ liệu đổi, mỗi nguồn có thời gian nghỉ, đề xuất để quá 48 giờ thì hết hạn. Hết số việc trong ngày hay chạm giới hạn việc đang mở thì chỉ đề xuất.
+
+Việc do mục tiêu mở ghi dấu vết mục tiêu, bản, quan sát, cơ hội ngay trong yêu cầu, và mọi hành động ra ngoài của nó vẫn qua cổng duyệt. **Tạm dừng** ngừng quan sát; **Thu hồi** huỷ việc mục tiêu đã mở mà chưa chạy và đóng đề xuất đang mở. Mỗi lần sửa là một bản mới, có lịch sử.
+
 ## Thao tác nhanh và khắc phục sự cố
 
 - **Tạo mới:** chọn tab rồi bấm nút tạo ở cuối cột trái; hoặc mở **Javis Store**.
