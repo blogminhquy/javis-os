@@ -4786,5 +4786,21 @@
   "hp.src_loop": "Loop",
   "hp.src_reminder": "Reminder",
   "hp.src_webhook": "Webhook",
-  "hp.src_workflow": "Workflow"
+  "hp.src_workflow": "Workflow",
+  "teams.share_team": "Share team (download file)",
+  "teams.share_note": "Downloading the team file. It holds partners, skills and shared instructions; no chat history, keys or models.",
+  "teams.import": "Import team",
+  "teams.import_title": "Add a team from a file someone shared",
+  "teams.import_bad": "Could not import this team file.",
+  "teams.import_confirm": "Add team \"{name}\" with {n} partners and {s} skills? Partners you already have under the same name are kept as they are. You pick models and Auto afterwards.",
+  "teams.imported": "Added team \"{name}\" ({kept} partners kept from your own).",
+  "doi.new": "Created {kind}",
+  "doi.updated": "Edited {kind}",
+  "doi.removed": "Removed {kind}",
+  "doi.undone": "Undone",
+  "doi.k_reminder": "schedule",
+  "doi.k_loop": "loop",
+  "doi.k_agent": "partner",
+  "doi.k_workflow": "workflow",
+  "doi.k_skill": "skill"
 }

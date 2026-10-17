@@ -2325,6 +2325,9 @@ function appendJavisMessage(text, ts, brain) {
   // 0.190.0: the "Đã nhớ · Hoàn tác" line (chat-nho.js): a pushed message with a JAVIS_NHO block is drawn as that line.
   const tn = window.JavisNho ? window.JavisNho.tach(tv.clean) : { clean: tv.clean, nho: null };
   tv.clean = tn.clean;
+  // 0.200.0: the "Đã tạo · Hoàn tác" line for schedules, loops, partners, workflows and skills (chat-doi.js).
+  const td = window.JavisDoi ? window.JavisDoi.tach(tv.clean) : { clean: tv.clean, doi: null };
+  tv.clean = td.clean;
   const div = document.createElement("div");
   div.className = "msg msg-javis";
   // Phiên bản ẢNH của tin này (0.65.33, xem markdownToHtml): tin cũ dựng lại dùng đúng mốc giờ của
@@ -2335,6 +2338,7 @@ function appendJavisMessage(text, ts, brain) {
   if (tv.viec) window.JavisViec.ve(div, tv.viec);
   for (const c of tr.cards) window.JavisResonance.ve(div, c);
   if (tn.nho) window.JavisNho.ve(div, tn.nho);
+  if (td.doi) window.JavisDoi.ve(div, td.doi);
   div.dataset.md = tv.clean || "";   // copy nội dung markdown, không chép marker việc nền
   chatAppend(div); scrollBottom();
   return div;

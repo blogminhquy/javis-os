@@ -518,6 +518,8 @@
         '<button type="button" role="menuitem" data-mute-team="' + id + '" data-on="' + (t.muted ? "0" : "1") + '">' +
         ic(t.muted ? "bell" : "bell-off") + esc(tw(t.muted ? "teams.unmute_team" : "teams.mute_team")) + "</button>" +
         '<button type="button" role="menuitem" data-rename-team="' + id + '">' + ic("pencil") + esc(tw("teams.rename")) + "</button>" +
+        // 0.200.0: the whole team as one file (server/team_bundle.py).
+        '<button type="button" role="menuitem" data-share-team="' + id + '">' + ic("share-2") + esc(tw("teams.share_team")) + "</button>" +
         '<button type="button" role="menuitem" class="tm-danger" data-delete-team="' + id + '">' + ic("trash-2") +
         esc(tw("teams.delete_team")) + "</button></div>";
       var tagTip = (t.tags || []).length ? ' title="' + esc(t.name + "\n" + tw("teams.tags_title") + ": " + t.tags.join(", ")) + '"' : "";
@@ -1473,7 +1475,9 @@
     S.el.innerHTML =
       '<div class="tm-page" data-view="' + S.view + '" data-side="0">' +
       '<aside class="tm-list"><div class="tm-bar tm-list-bar"><strong class="tm-list-title">' + esc(tw("page.teams.label")) + "</strong>" +
-      '<button type="button" class="ws-btn tm-new">' + ic("plus") + esc(tw("teams.create")) + "</button></div>" +
+      '<button type="button" class="ws-btn tm-new">' + ic("plus") + esc(tw("teams.create")) + "</button>" +
+      '<button type="button" class="ws-btn tm-import" title="' + esc(tw("teams.import_title")) + '">' + ic("upload-cloud") +
+      esc(tw("teams.import")) + "</button></div>" +
       '<div class="cside-proj ws-nhom-bar tm-tagbar" hidden></div>' +
       '<div class="tm-teams"></div><button type="button" class="ws-btn tm-more-teams" hidden>' + esc(tw("teams.next_page")) + "</button></aside>" +
       '<section class="tm-chat"><div class="tm-bar tm-chat-head"></div><div class="tm-search" hidden></div>' +
@@ -2922,6 +2926,47 @@
 
   // 0.197.0: turning a team's notifications off or on saves the same way as pinning it (button locked while saving, a
   // visible error with Retry).
+  // 0.200.0: download the team file. Chat history, keys, model choices and Auto switches never go in.
+  function shareTeam(id) {
+    var a = document.createElement("a");
+    a.href = "/teams/" + q(id) + "/export?brain=" + q(brain());
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setNote(tw("teams.share_note"));
+  }
+
+  // 0.200.0: add a team file. A preview first (who comes in, how many skills), then one confirm.
+  function importTeam() {
+    var inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = ".zip,application/zip";
+    inp.onchange = function () {
+      var f = inp.files && inp.files[0];
+      if (!f) return;
+      var send = function (preview) {
+        var fd = new FormData();
+        fd.append("file", f);
+        fd.append("brain", brain());
+        fd.append("preview", preview ? "1" : "0");
+        return fetch("/teams/import", { method: "POST", credentials: "same-origin", body: fd })
+          .then(function (r) { return r.json().catch(function () { return {}; }); });
+      };
+      send(true).then(function (pv) {
+        if (!pv || !pv.ok) { setNote(pv && pv.error || tw("teams.import_bad")); return; }
+        var ask = tw("teams.import_confirm", { name: pv.name, n: (pv.members || []).length, s: (pv.skills || []).length });
+        if (typeof confirm === "function" && !confirm(ask)) return;
+        send(false).then(function (r) {
+          if (!r || !r.ok) { setNote(r && r.error || tw("teams.import_bad")); return; }
+          setNote(tw("teams.imported", { name: r.team && r.team.name || pv.name, kept: (r.kept || []).length }));
+          loadTeams(false);
+        });
+      });
+    };
+    inp.click();
+  }
+
   function muteTeam(id, on, btn) {
     return pinTeamWith(id, on, btn, {
       post: function (want) { return call("POST", "/teams/" + q(id) + "/mute", { on: want }); },
@@ -3168,6 +3213,10 @@
       if (S.rowMenu) closeRowMenu();
       return muteTeam(d.muteTeam, d.on === "1", null);
     }
+    if (d.shareTeam) {
+      if (S.rowMenu) closeRowMenu();
+      return shareTeam(d.shareTeam);
+    }
     if (d.team) return openTeam(d.team);
     if (t.classList.contains("tm-scrim")) return closeSide();
     if (t.classList.contains("tm-note-close")) { setNote(""); return; }
@@ -3185,6 +3234,7 @@
       return;
     }
     if (t.classList.contains("tm-new")) return openPicker("create", t);
+    if (t.classList.contains("tm-import")) return importTeam();
     if (t.classList.contains("tm-add-open")) return openPicker("add", t);
     if (d.pickTag !== undefined) { S.pickSt.tag = d.pickTag; drawPicker("filter"); return; }
     if (d.pickToggle) { pickToggle(d.pickToggle); return; }

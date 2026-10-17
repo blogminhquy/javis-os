@@ -4786,5 +4786,21 @@
   "hp.src_loop": "Việc lặp",
   "hp.src_reminder": "Nhắc hẹn",
   "hp.src_webhook": "Webhook",
-  "hp.src_workflow": "Quy trình"
+  "hp.src_workflow": "Quy trình",
+  "teams.share_team": "Chia sẻ team (tải file)",
+  "teams.share_note": "Đang tải file team. File chỉ có cộng sự, kỹ năng và hướng dẫn chung; không có lịch sử chat, khoá hay model.",
+  "teams.import": "Nhập team",
+  "teams.import_title": "Thêm một team từ file người khác chia sẻ",
+  "teams.import_bad": "Không nhập được file team này.",
+  "teams.import_confirm": "Thêm team \"{name}\" với {n} cộng sự và {s} kỹ năng? Cộng sự trùng tên đã có thì giữ nguyên bản của bạn. Model và chế độ Auto bạn tự chọn sau.",
+  "teams.imported": "Đã thêm team \"{name}\" ({kept} cộng sự giữ bản sẵn có).",
+  "doi.new": "Đã tạo {kind}",
+  "doi.updated": "Đã sửa {kind}",
+  "doi.removed": "Đã gỡ {kind}",
+  "doi.undone": "Đã hoàn tác",
+  "doi.k_reminder": "lịch",
+  "doi.k_loop": "việc lặp",
+  "doi.k_agent": "cộng sự",
+  "doi.k_workflow": "quy trình",
+  "doi.k_skill": "kỹ năng"
 }

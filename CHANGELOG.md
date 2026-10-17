@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.200.0] - 2026-10-17
+### Thêm mới
+- **Chia sẻ cả team bằng một file:** menu ⋯ của team có **Chia sẻ team**, tải về một file gồm các cộng sự, kỹ năng và hướng dẫn chung. Không có lịch sử chat, khoá, model hay công tắc Auto; chữ trông giống mật khẩu hay khoá API bị xoá trước khi ghi.
+- **Nhập team:** nút **Nhập team** ở trang Team đọc file, cho xem trước có những ai rồi mới thêm. Cộng sự trùng tên bạn đã có thì giữ nguyên bản của bạn.
+- **Thấy ngay Javis vừa tạo gì:** lượt chat nào tạo, sửa hay gỡ lịch, việc lặp, cộng sự, quy trình hay kỹ năng thì hiện dòng nhỏ "Đã tạo lịch: ..." dưới câu trả lời. Cái mới tạo có nút **Hoàn tác**.
+
 ## [0.199.0] - 2026-10-17
 ### Thêm mới
 - **Javis Core tự xử lý việc nền hỏng:** việc Kanban, việc lặp, nhắc hẹn hay webhook bị lỗi thì Javis Core biết trước tiên. Lỗi thoáng qua (mạng chập, hết giờ) thì nó cho chạy lại một lần; lỗi chỉ bạn gỡ được (đăng nhập, khoá, cài đặt) thì nói rõ một hai câu cần làm gì.

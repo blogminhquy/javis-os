@@ -10893,7 +10893,9 @@ async def push_to_chat(session_id, text, viec=None, card="", nho="") -> bool:
         clean = _k + "\n" + clean
     # `card` (Resonance M4): thẻ mục tiêu, gắn SAU khi bóc như thẻ việc. Xem _resonance_card.
     # `nho` (0.190.0): the memory receipt block from memory_receipt.receipt_block, nothing else (dashboard/chat-nho.js).
-    if nho and str(nho).startswith("<!-- JAVIS_NHO: ") and str(nho).endswith(" -->"):
+    # 0.200.0: or the change receipt block from change_receipt.receipt_block (dashboard/chat-doi.js).
+    if nho and (str(nho).startswith("<!-- JAVIS_NHO: ") or str(nho).startswith("<!-- JAVIS_DOI: ")) \
+            and str(nho).endswith(" -->"):
         clean = clean + "\n" + str(nho)
     card, report = _resonance_card(card)
     if card:
@@ -11431,6 +11433,8 @@ import reminders as reminders_mod
 import webhook_triggers
 import incident_desk as incident_desk_mod
 import sentinel
+import change_receipt
+import team_bundle
 
 
 def _notify_ready() -> tuple:
@@ -15366,6 +15370,11 @@ async def websocket_endpoint(ws: WebSocket):
                 _mem_snap = memory_receipt.snapshot(_brain_memory_dir(brain))
             except Exception:  # noqa: BLE001 - no snapshot only means no receipt this turn
                 _mem_snap = None
+            # 0.200.0: schedules, loops, partners, workflows and skills before the turn, for the "Đã tạo · Hoàn tác" line.
+            try:
+                _cap_snap = change_receipt.snapshot(_brain_root(brain))
+            except Exception:  # noqa: BLE001
+                _cap_snap = None
             _cfg_all = cfgmod.read_settings()
             mcfg = _cfg_all.get("model", {})
             # Lượt này vấp "hết lượt gói thuê bao"? Bốn nhánh engine thuê bao ghi vào đây qua
@@ -16495,6 +16504,13 @@ async def websocket_endpoint(ws: WebSocket):
                         await push_to_chat(conv_sid, memory_receipt.claim_note())
                 except Exception as _e:  # noqa: BLE001
                     print(f"[memory receipt] {type(_e).__name__}: {_e}", file=sys.stderr)
+                try:
+                    _doi = change_receipt.diff(_cap_snap, _brain_root(brain))
+                    if _doi:
+                        await push_to_chat(conv_sid, change_receipt.receipt_text(_doi),
+                                           nho=change_receipt.receipt_block(_doi, _brain_key(brain)))
+                except Exception as _e:  # noqa: BLE001
+                    print(f"[change receipt] {type(_e).__name__}: {_e}", file=sys.stderr)
                 # Engine bỏ lại lệnh chạy ngầm (render, build...) → Javis nhận theo dõi và nói ra
                 # ngay. PHẢI chạy trước cảnh báo hứa suông: có việc được theo dõi thì lời hứa
                 # "xong em gửi" đã có cơ chế thật đứng sau, không còn là hứa suông.
@@ -23853,6 +23869,97 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     learning=_team_learning,
     contrib_reader=lambda ref: _team_contrib_reader(ref), attach=_team_attach, docs_block=_team_docs_block,
     describe=_team_describe))
+
+
+# ============================================================
+# 0.200.0: share a whole team as one file (team_bundle.py). Idea from OpenMausBot's "Share team".
+# ============================================================
+TEAM_SHARE_PINS = 20
+
+
+@app.get("/teams/{team_id}/export")
+async def teams_export(team_id: str, brain: str = "brain"):
+    """One `.javis.zip`: the members' partner files (model fields and Auto removed, secrets scrubbed), their skills, and
+    `javis-team.json` (name, description, tags, leader, members, pinned team messages as instructions)."""
+    ops = team_api.current()
+    if ops is None:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Team chưa sẵn sàng", "Teams are not ready")}, status_code=503)
+
+    def _do():
+        root = ops.root(brain)
+        team = ops.team(root, team_id)
+        members = [m for m in _TEAM_API.teams().members(team_id) if m.get("slug_at_join")]
+        slugs = [m["slug_at_join"] for m in members]
+        leader = next((m["slug_at_join"] for m in members if m["agent_key"] == team.get("leader_key")), "")
+        pins = [str(m.get("content") or "") for m in
+                _TEAM_API.deps.session_store().team_decisions(team["session_id"], TEAM_SHARE_PINS)]
+        data, _ = share_bundle.build_bundle("agent", slugs, agents_dir=_agents_dir(brain),
+                                            workflows_dir=_workflows_dir(brain), skills_root=_skills_dir(brain),
+                                            include_deps=True, system_slugs=system_sync.system_skill_slugs(),
+                                            app_version=_app_version())
+        if not data:
+            raise team_api.OpError(400, "Team chưa có cộng sự nào để chia sẻ", "The team has no partners to share")
+        manifest = team_bundle.team_manifest(team, slugs, leader, pins)
+        name = f"{share_bundle._safe_name(team.get('name') or 'team')}.team.javis.zip"
+        return team_bundle.add_team_entry(data, manifest), name
+
+    try:
+        data, name = await asyncio.to_thread(_do)
+    except team_api.OpError as ex:
+        return JSONResponse({"ok": False, "error": localefmt.chu(ex.vi, ex.en)}, status_code=ex.code)
+    return Response(content=data, media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.post("/teams/import")
+async def teams_import(file: UploadFile = File(...), brain: str = Form("brain"), preview: str = Form("0")):
+    """Add a team file to this brain. `preview=1` only says what the file holds (the review step). Partners already
+    present under the same slug are kept as they are; the new team uses them."""
+    data = await file.read()
+    if not data or len(data) > 25 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": localefmt.chu("File rỗng hoặc quá lớn", "Empty or too large file")},
+                            status_code=400)
+    pv = team_bundle.preview(data)
+    if not pv.get("ok"):
+        return JSONResponse({"ok": False, "error": localefmt.chu("Đây không phải file team của Javis",
+                                                                 "This is not a Javis team file")}, status_code=400)
+    if preview in ("1", "true"):
+        return pv
+    ops = team_api.current()
+    if ops is None:
+        return JSONResponse({"ok": False, "error": localefmt.chu("Team chưa sẵn sàng", "Teams are not ready")}, status_code=503)
+    manifest = team_bundle.read_team_entry(data)
+
+    def _do():
+        root = ops.root(brain)
+        res = share_bundle.import_bundle(data, file.filename, agents_dir=_agents_dir(brain),
+                                         workflows_dir=_workflows_dir(brain), skills_root=_skills_dir(brain),
+                                         overwrite=False)
+        if any(str(k).startswith("skill:") for k in res.get("imported", [])):
+            try:
+                system_sync.mirror_skills(_brain_root(brain))
+            except Exception:
+                pass
+        members, missing = team_bundle.resolve_members(manifest, res.get("imported", []), res.get("skipped", []),
+                                                       ops.slugs(root))
+        if not members:
+            raise team_api.OpError(400, "Không cộng sự nào của team nhập được", "None of the team's partners could be added")
+        desc = manifest.get("description") or ""
+        if manifest.get("instructions"):
+            desc = (desc + "\n\n" if desc else "") + "\n".join("- " + t for t in manifest["instructions"])
+        leader = manifest.get("leader") if manifest.get("leader") in members else ""
+        got = ops.create(brain, root, manifest["name"], members, leader, desc[:2000], "")
+        try:
+            rebuild_javis_index(_brain_root(brain))
+        except Exception:
+            pass
+        return {"ok": True, "team": _TEAM_API.view(got["team"]), "imported": res.get("imported", []),
+                "kept": res.get("skipped", []), "missing": missing, "errors": res.get("errors", [])}
+
+    try:
+        return await asyncio.to_thread(_do)
+    except team_api.OpError as ex:
+        return JSONResponse({"ok": False, "error": localefmt.chu(ex.vi, ex.en)}, status_code=ex.code)
 
 
 def _team_contrib_reader(result_ref):

@@ -206,6 +206,14 @@ You can package an agent, skill or workflow into **one `.zip`** to send to someo
 
 Note: an exported package only contains definition files. **An agent's memory and run log do not travel with it**, so the recipient gets the role and the skills, not the memories.
 
+## Share a whole Team
+
+On the Teams page, a team's **⋯** menu has **Share team**: it downloads one `.team.javis.zip` file with the team's partners, their skills, the leader and the pinned messages (as shared instructions). The file holds **no** chat history, keys, passwords, models or Auto switches; text that looks like an API key, a bot token or a `password: ...` line is replaced with `[REDACTED]` before writing.
+
+The person who receives it presses **Import team** at the top of the team list, picks the file, sees which partners and how many skills come in, and confirms. A partner already in the brain under the same name keeps the receiver's version; models and Auto are the receiver's choice afterwards. An older Javis can still open the file with the Import button on the Partners page (it then adds the partners without building the team).
+
+Every chat turn that creates, edits or removes a schedule, loop, partner, workflow or skill also leaves a small line under the answer ("Created schedule: ..."). New items get an **Undo** button: it cancels the schedule or deletes the loop, partner, workflow or skill just created.
+
 ## Quick actions and troubleshooting
 
 - **Create:** choose a tab and use the create button at the bottom left, or open **Javis Store**.
