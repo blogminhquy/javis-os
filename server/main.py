@@ -24048,6 +24048,50 @@ def _team_docs_block(team, tools=False):
         return ""
 
 
+class _MandateDeps:
+    """0.208.0: what a department mandate reads (team_mandate.MandateEngine). Only granted sources, code only."""
+
+    def brain_root(self, team):
+        return _brain_root(team["brain_id"])
+
+    def kanban_failures(self, brain, since):
+        import sentinel
+        root = str(_brain_root(brain))
+        return [x for x in sentinel.kanban_failures(cfgmod.STATE_DIR, since) if str(x.get("brain") or "") == root]
+
+    def mcp_status(self, conn_id):
+        conn = mcp_store.get_connection(conn_id)
+        if not conn:
+            return {"known": False}
+        rec = connect_health.snapshot().get(conn_id)
+        if rec is None:   # not checked yet: unknown is not "down", nothing to report
+            return {"known": True, "ok": True, "label": conn.get("label") or conn_id, "error": ""}
+        return {"known": True, "ok": bool(rec.get("ok")), "label": conn.get("label") or conn_id,
+                "error": str(rec.get("message") or rec.get("kind") or "")}
+
+    def run_test(self, command, cwd):
+        import coding_ctx
+        import run_command
+        ctx = coding_ctx.CodingToolContext(session_id="mandate", workspace_root=str(cwd),
+                                           workspace_roots=(str(cwd),), permission_mode="auto")
+        kq = run_command.chay(command, ctx, ".", timeout_s=300)
+        if not kq.da_chay:
+            return {"ran": False, "error": kq.error or kq.output}
+        return {"ran": True, "exit": int(kq.exit_code), "output": kq.output}
+
+    def open_job(self, team, title, intent, source_ref):
+        tid, created = tasks_feature.store.enqueue_team(
+            team["brain_id"], team["team_id"], title, intent, source_ref=source_ref,
+            chat_id=f"team:{team['team_id']}", created_by=f"mandate:{team['team_id']}")
+        if created:
+            _TEAM_API.teams().log_event(team["team_id"], "job_opened", "mandate", None,
+                                        {"task_id": tid, "title": title, "source_ref": source_ref, "via": "mandate"})
+        return tid, created
+
+    def clock(self):
+        return time.time()
+
+
 _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     brain_key=lambda b: _brain_key(b), session_store=lambda: get_store(),
     task_store=lambda: tasks_feature.store, resonance_store=lambda: _resonance_store(),
@@ -24057,7 +24101,7 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     ceiling=_team_ceiling, projector=_feedback_projector, judge=lambda: _agent_judge(),
     learning=_team_learning,
     contrib_reader=lambda ref: _team_contrib_reader(ref), attach=_team_attach, docs_block=_team_docs_block,
-    describe=_team_describe))
+    describe=_team_describe, mandate_deps=lambda: _MandateDeps()))
 
 
 # ============================================================

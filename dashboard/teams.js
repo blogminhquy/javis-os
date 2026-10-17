@@ -623,6 +623,9 @@
     if (m.author_kind !== "owner" && m.author_kind !== "agent" && meta.kind === "approval_request" && meta.approval) {
       return approvalCardHtml(m);
     }
+    if (m.author_kind !== "owner" && m.author_kind !== "agent" && meta.kind === "mandate_opportunity" && meta.opportunity) {
+      return opportunityCardHtml(m);
+    }
     if (m.author_kind !== "owner" && m.author_kind !== "agent") {
       return '<div class="tm-sys' + (hit ? " tm-msg-hit" : "") + '" data-mid="' + esc(m.id) + '">' +
         esc(m.content).replace(/\n/g, "<br>") + "</div>";
@@ -1362,6 +1365,127 @@
       '<div class="tm-sub">' + esc(tw("teams.turns_note")) + "</div></div>";
   }
 
+  // 0.208.0: department mandate (team_mandate.py). Kinds, levels and states with literal keys for test_i18n.
+  var MD_KINDS = ["file_changed", "job_failed", "test_failing", "connection_down"];
+  var MD_KIND_KEY = { file_changed: "teams.md.kind.file_changed", job_failed: "teams.md.kind.job_failed",
+    test_failing: "teams.md.kind.test_failing", connection_down: "teams.md.kind.connection_down" };
+  var MD_LEVELS = ["watch", "propose", "approve", "act"];
+  var MD_LEVEL_KEY = { watch: "teams.md.level.watch", propose: "teams.md.level.propose", approve: "teams.md.level.approve",
+    act: "teams.md.level.act" };
+  var MD_STATUS_KEY = { off: "teams.md.st.off", active: "teams.md.st.active", paused: "teams.md.st.paused",
+    revoked: "teams.md.st.revoked" };
+  var MD_SRC_KEY = { ok: "teams.md.src.ok", missing: "teams.md.src.missing", never: "teams.md.src.never" };
+  var OPP_ST_KEY = { proposed: "teams.md.opp.proposed", enqueued: "teams.md.opp.enqueued", asked: "teams.md.opp.asked",
+    rejected: "teams.md.opp.rejected", expired: "teams.md.opp.expired", dismissed: "teams.md.opp.dismissed",
+    watched: "teams.md.opp.watched", open: "teams.md.opp.proposed", accepting: "teams.md.opp.enqueued" };
+
+  function mdLevelOf(m, kind) {
+    var a = (m && m.autonomy) || {};
+    if ((a.act || []).indexOf(kind) >= 0) return "act";
+    if ((a.approve || []).indexOf(kind) >= 0) return "approve";
+    if ((a.propose || []).indexOf(kind) >= 0) return "propose";
+    return "watch";
+  }
+
+  function mandateFormHtml(m) {
+    m = m || {};
+    var b = m.budget || {};
+    var area = function (name, key, val, rows) {
+      return '<label class="tm-field"><span>' + esc(tw(key)) + '</span><textarea name="' + name + '" rows="' + (rows || 2) +
+        '">' + esc(val || "") + "</textarea></label>";
+    };
+    var num = function (name, key, val) {
+      return '<label class="tm-field tm-cap"><span>' + esc(tw(key)) + '</span><input type="number" min="0" name="' + name +
+        '" value="' + esc(val == null ? "" : val) + '"></label>';
+    };
+    var levels = MD_KINDS.map(function (k) {
+      var cur = mdLevelOf(m, k);
+      return '<label class="tm-field tm-cap"><span>' + esc(tw(MD_KIND_KEY[k])) + '</span><select name="tm-md-lvl-' + k + '">' +
+        MD_LEVELS.map(function (l) {
+          return '<option value="' + l + '"' + (l === cur ? " selected" : "") + ">" + esc(tw(MD_LEVEL_KEY[l])) + "</option>";
+        }).join("") + "</select></label>";
+    }).join("");
+    return '<form class="tm-form tm-md-form" onsubmit="return false">' +
+      area("tm-md-outcome", "teams.md.outcome", m.outcome, 2) +
+      area("tm-md-metrics", "teams.md.metrics", (m.metrics || []).join("\n"), 3) +
+      area("tm-md-sources", "teams.md.sources", (m.sources || []).join("\n"), 3) +
+      '<div class="tm-sub">' + esc(tw("teams.md.sources_help")) + "</div>" +
+      area("tm-md-scope", "teams.md.scope", m.scope, 2) +
+      num("tm-md-cadence", "teams.md.cadence", m.cadence_min || 60) +
+      num("tm-md-obs", "teams.md.observe_per_day", b.observe_per_day == null ? 48 : b.observe_per_day) +
+      num("tm-md-jobs", "teams.md.jobs_per_day", b.jobs_per_day == null ? 3 : b.jobs_per_day) +
+      num("tm-md-maxopen", "teams.md.max_open", (m.stop || {}).max_open_jobs) +
+      '<div class="tm-qhead">' + esc(tw("teams.md.autonomy")) + "</div>" + levels +
+      '<div class="tm-actions"><button type="button" class="ws-btn tm-primary tm-md-save">' + esc(tw("teams.save")) +
+      '</button><button type="button" class="ws-btn" data-mandate-edit="0">' + esc(tw("teams.cancel")) + "</button></div></form>";
+  }
+
+  function mandateHtml(team, editing) {
+    var m = team.mandate;
+    var head = '<div class="tm-qhead">' + esc(tw("teams.md.title")) + "</div>";
+    if (editing) return '<section class="tm-sec tm-md">' + head + mandateFormHtml(m) + "</section>";
+    if (!m) {
+      return '<section class="tm-sec tm-md">' + head + '<div class="tm-sub">' + esc(tw("teams.md.none")) + "</div>" +
+        '<div class="tm-actions"><button type="button" class="ws-btn" data-mandate-edit="1">' + esc(tw("teams.md.set")) +
+        "</button></div></section>";
+    }
+    var st = m.status || "off";
+    var srcs = (m.sources_state || []).map(function (x) {
+      return '<li class="tm-md-src tm-md-src-' + esc(x.state) + '"><code>' + esc(x.source) + "</code> · " +
+        esc(tw(MD_SRC_KEY[x.state] || MD_SRC_KEY.never)) + (x.missing ? ": " + esc(x.missing) : "") + "</li>";
+    }).join("");
+    var lv = MD_KINDS.map(function (k) { return esc(tw(MD_KIND_KEY[k])) + ": " + esc(tw(MD_LEVEL_KEY[mdLevelOf(m, k)])); }).join(" · ");
+    var btn = function (status, key) {
+      return '<button type="button" class="ws-btn" data-mandate-status="' + status + '">' + esc(tw(key)) + "</button>";
+    };
+    var acts = st === "revoked" ? "" : (st === "active" ? btn("paused", "teams.md.pause") : btn("active", "teams.md.start")) +
+      btn("revoked", "teams.md.revoke");
+    return '<section class="tm-sec tm-md">' + head +
+      '<div class="tm-md-status tm-md-' + esc(st) + '">' + esc(tw(MD_STATUS_KEY[st] || MD_STATUS_KEY.off)) +
+      " · " + esc(tw("teams.md.version", { v: m.version })) + "</div>" +
+      '<div class="tm-md-outcome">' + esc(m.outcome) + "</div>" +
+      ((m.metrics || []).length ? '<ul class="tm-md-metrics">' + m.metrics.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" : "") +
+      '<div class="tm-sub">' + esc(tw("teams.md.sources")) + '</div><ul class="tm-md-srcs">' + srcs + "</ul>" +
+      '<div class="tm-sub">' + lv + "</div>" +
+      (m.observing === false ? '<div class="tm-note-line">' + esc(tw("teams.md.not_observing")) + "</div>" : "") +
+      '<div class="tm-actions">' + acts + '<button type="button" class="ws-btn" data-mandate-edit="1">' +
+      esc(tw("teams.md.edit")) + "</button></div></section>";
+  }
+
+  // A proposal card from the mandate in the team chat: why, evidence, and the owner's two buttons.
+  function opportunityCardHtml(m) {
+    var o = (m.meta || {}).opportunity || {};
+    var st = o.status || "proposed";
+    var ev = (o.evidence || []).map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("");
+    var foot = (st === "proposed" || st === "open") ?
+      '<div class="tm-actions"><button type="button" class="ws-btn tm-primary" data-opp-decide="accept" data-opp="' +
+        esc(o.opp_id) + '">' + esc(tw("teams.md.accept")) + '</button><button type="button" class="ws-btn" data-opp-decide="reject" data-opp="' +
+        esc(o.opp_id) + '">' + esc(tw("teams.md.reject")) + "</button></div>" :
+      '<div class="tm-ap-state">' + esc(tw(OPP_ST_KEY[st] || OPP_ST_KEY.proposed)) + "</div>";
+    return '<div class="tm-ap tm-opp tm-ap-' + esc(st) + '" data-mid="' + esc(m.id) + '" role="group"><div class="tm-ap-head">' +
+      ic("lightbulb") + "<b>" + esc(tw("teams.md.opp_title")) + "</b></div>" +
+      '<div>' + esc(o.reason || "") + "</div>" +
+      (o.benefit ? '<div class="tm-ap-row"><span class="tm-ap-k">' + esc(tw("teams.md.benefit")) + "</span><span>" + esc(o.benefit) + "</span></div>" : "") +
+      (ev ? '<div class="tm-ap-k">' + esc(tw("teams.ap.evidence")) + '</div><ul class="tm-ap-ev">' + ev + "</ul>" : "") +
+      '<div class="tm-sub"><code>' + esc((o.source || "") + ":" + (o.ref || "") + " @ " + (o.version_key || "")) + "</code></div>" +
+      foot + "</div>";
+  }
+
+  function readMandateForm(form) {
+    var val = function (n) { var el = form.querySelector('[name="' + n + '"]'); return el ? el.value : ""; };
+    var lines = function (n) { return val(n).split("\n").map(function (x) { return x.trim(); }).filter(Boolean); };
+    var autonomy = { act: [], approve: [], propose: [] };
+    MD_KINDS.forEach(function (k) {
+      var l = val("tm-md-lvl-" + k);
+      if (autonomy[l]) autonomy[l].push(k);
+    });
+    var body = { outcome: val("tm-md-outcome").trim(), metrics: lines("tm-md-metrics"), sources: lines("tm-md-sources"),
+      scope: val("tm-md-scope").trim(), cadence_min: Number(val("tm-md-cadence")) || 60,
+      budget: { observe_per_day: Number(val("tm-md-obs")), jobs_per_day: Number(val("tm-md-jobs")) }, autonomy: autonomy };
+    if (val("tm-md-maxopen") !== "") body.stop = { max_open_jobs: Number(val("tm-md-maxopen")) };
+    return body;
+  }
+
   var WM_KEY = { gated: ["teams.wm.gated", "teams.wm.gated_desc"], full: ["teams.wm.full", "teams.wm.full_desc"] };
   var AP_ST_KEY = { pending: "teams.ap.st.pending", approved: "teams.ap.st.approved", consumed: "teams.ap.st.consumed",
     rejected: "teams.ap.st.rejected", changes_requested: "teams.ap.st.changes_requested", expired: "teams.ap.st.expired",
@@ -1431,7 +1555,7 @@
       esc(tw("teams.head_people", { n: nAct })) + "</div>" +
       membersHtml(team, agents, ui.openMember) + "</section>" +
       '<section class="tm-sec">' + levelsHtml(team) + usageHtml(team) + "</section>" +
-      workModeHtml(team) +
+      workModeHtml(team) + mandateHtml(team, ui.mandateEdit) +
       '<section class="tm-sec"><div class="tm-qhead">' + esc(tw("teams.tab_team")) + "</div>" +
       '<label class="tm-rs tm-pin-row"><input type="checkbox" class="tm-pin-toggle"' + (team.pinned_at ? " checked" : "") +
       "><span>" + esc(tw("teams.pin_top")) + "</span></label>" + settingsFormHtml(team) + "</section>" +
@@ -2218,7 +2342,7 @@
     }).join("");
     var body = S.tab === "info" ? infoTabHtml(S.team) : S.tab === "jobs" ? queueHtml(S.queue,
       { openFin: S.openFin, archOpen: S.archOpen, members: S.team ? S.team.members : [] })
-      : teamTabHtml(S.team, S.agents, { openMember: S.openMember, advOpen: S.advOpen, turns: S.turns });
+      : teamTabHtml(S.team, S.agents, { openMember: S.openMember, advOpen: S.advOpen, turns: S.turns, mandateEdit: S.mandateEdit });
     side.innerHTML = '<div class="tm-bar tm-side-bar"><div class="tm-tabs" role="tablist">' + tabs + "</div>" +
       '<button type="button" class="ws-btn tm-icon tm-close" aria-label="' + esc(tw("teams.close")) + '" title="' +
       esc(tw("teams.close")) + '">' + ic("x") + '</button></div><div class="tm-side-body" role="tabpanel" aria-label="' +
@@ -3441,6 +3565,28 @@
         loadMsgs(false); loadQueue();
       }).catch(function () { t.disabled = false; setNote(tw("teams.err_network")); });
     }
+    if (d.mandateEdit !== undefined) { S.mandateEdit = d.mandateEdit === "1"; drawSide(); return; }
+    if (t.classList.contains("tm-md-save")) {
+      var mform = S.el.querySelector(".tm-md-form");
+      if (!mform) return;
+      return call("PUT", teamUrl("/mandate"), readMandateForm(mform)).then(function (r) {
+        if (r.code !== 200) return fail(r);
+        S.mandateEdit = false;
+        setNote(tw("teams.saved"));
+        act(r, drawSide);
+      });
+    }
+    if (d.mandateStatus) {
+      if (d.mandateStatus === "revoked" && typeof confirm === "function" && !confirm(tw("teams.md.revoke_confirm"))) return;
+      return call("POST", teamUrl("/mandate/status"), { status: d.mandateStatus }).then(function (r) { act(r, drawSide); });
+    }
+    if (d.oppDecide) {
+      t.disabled = true;
+      return call("POST", teamUrl("/mandate/opportunities/" + q(d.opp) + "/decide"), { decision: d.oppDecide }).then(function (r) {
+        if (r.code !== 200) { t.disabled = false; fail(r); }
+        loadMsgs(false); loadQueue();
+      }).catch(function () { t.disabled = false; setNote(tw("teams.err_network")); });
+    }
     if (d.amend) {
       var at = S.taskTitles[d.amend] || d.amend;
       var text = typeof prompt === "function" ? prompt(tw("teams.amend_prompt", { title: at })) : "";
@@ -3998,6 +4144,7 @@
 
   var api = { render: render, leave: leave, open: open, teamListHtml: teamListHtml, messageHtml: messageHtml, queueHtml: queueHtml,
     jobStripHtml: jobStripHtml, blockedAction: blockedAction, approvalCardHtml: approvalCardHtml, workModeHtml: workModeHtml,
+    mandateHtml: mandateHtml, opportunityCardHtml: opportunityCardHtml, readMandateForm: readMandateForm,
     jobsChip: jobsChip, jobsChipHtml: jobsChipHtml, timeShort: timeShort,
     mentionMatches: mentionMatches, mentionsFromText: mentionsFromText, mentionScan: mentionScan, removeMention: removeMention,
     callsHtml: callsHtml, foldName: foldName, emailBefore: emailBefore, composerHint: composerHint, newClientId: newClientId,

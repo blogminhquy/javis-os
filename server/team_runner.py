@@ -3169,13 +3169,32 @@ class TeamRunner:
                                    fingerprints=need["fingerprints"], held_ops=held)
         self.teams.finish_step(sid, "waiting_owner", mid, True, f"awaiting:{ap['approval_id']}")
         self._block(task["id"], "waiting_user", f"Chờ chủ nhóm duyệt: {ap['title']}", post=False)
+        self._approval_card(team, task["id"], sid, mid, ap)
+        return "team_blocked"
+
+    def _approval_card(self, team: dict, task_id: str, step_id: Optional[str], reply_to, ap: dict) -> None:
         cur = self._team(team["team_id"])
-        card = self._post(cur, f"Xin duyệt: {ap['title']}", author_kind="system", task_id=task["id"], step_id=sid,
-                          reply_to=mid, meta={"kind": "approval_request", "approval": team_approval.view(ap)})
+        card = self._post(cur, f"Xin duyệt: {ap['title']}", author_kind="system", task_id=task_id, step_id=step_id,
+                          reply_to=reply_to, meta={"kind": "approval_request", "approval": team_approval.view(ap)})
         self.approvals.set_message(ap["approval_id"], card)
         self._notify(team["team_id"], localefmt.chu("Nhóm \"{nhom}\" xin duyệt: {t}", "Team \"{nhom}\" asks for approval: {t}",
                                                      nhom=cur.get("name") or "", t=ap["title"]))
-        return "team_blocked"
+
+    def mandate_job_needs_approval(self, team: dict, task_id: str, title: str, opp: dict, mandate: dict) -> Optional[str]:
+        """0.208.0: a job the department mandate opens at the `approve` level waits for the owner before its first step.
+        The request is the same kind of card as any other (kind plan), from `mandate:v<version>`. Called with the pool
+        lock held, before the dispatcher can claim the job."""
+        if self.approvals is None:
+            return None
+        task = self.tasks.get_task(task_id) or {}
+        ap = self.approvals.create(team_id=team["team_id"], task_id=task_id, step_id="", team_rev=int(task.get("team_rev") or 1),
+                                   requested_by=f"mandate:v{mandate['version']}", kind="plan",
+                                   title=f"Mở việc theo mục tiêu: {title}", action=opp["reason"],
+                                   scope=mandate.get("scope") or "", impact=opp.get("benefit") or "",
+                                   evidence=list(opp.get("evidence") or []))
+        self.tasks.team_block(task_id, "waiting_user", f"Chờ chủ nhóm duyệt: {ap['title']}")
+        self._approval_card(team, task_id, None, None, ap)
+        return ap["approval_id"]
 
     def _refresh_card(self, team: dict, ap: dict) -> None:
         if not ap or not ap.get("message_id"):
@@ -3220,7 +3239,8 @@ class TeamRunner:
                     ap = self.approvals.get(approval_id)
                     self._refresh_card(team, ap)
                     return {"ok": False, "error": "job_ended", "approval": team_approval.view(ap)}
-            if ap["status"] == "pending" and not self.teams.is_active_member(team_id, ap["requested_by"]):
+            if ap["status"] == "pending" and not str(ap["requested_by"]).startswith("mandate:") and \
+                    not self.teams.is_active_member(team_id, ap["requested_by"]):
                 self.approvals.close_task(ap["task_id"], "superseded", "người xin đã rời nhóm", ("pending",))
                 ap = self.approvals.get(approval_id)
                 self._refresh_card(team, ap)
@@ -3242,6 +3262,9 @@ class TeamRunner:
                                         "Chủ nhóm từ chối: " + (note.strip() or ap["title"]))
             else:   # changes_requested
                 self.teams.set_step_status(ap["step_id"], "cancelled", f"changes:{approval_id}")
+                if not step:
+                    # A mandate job waiting before its first step: the owner's note becomes part of the job's request.
+                    self.tasks.team_amend(task["id"], note.strip() or ap["title"])
                 if step:
                     self.teams.add_step(task["id"], team_id, step["kind"], step["agent_key"], int(task["team_rev"]),
                                         f"Chủ nhóm yêu cầu sửa đề xuất \"{ap['title']}\": {note.strip() or '(không ghi chú)'}"
@@ -3275,6 +3298,9 @@ class TeamRunner:
                                       step.get("parent_step"))
             self.teams.set_step_status(new["step_id"], "queued", f"approval:{ap['approval_id']}")
             self.approvals.granted_step(ap["approval_id"], new["step_id"])
+        else:
+            # A job opened by the department mandate waited before its first step: approval just lets it start.
+            self.approvals.consume(ap["approval_id"], "job_opened")
         self.tasks.team_unblock(task["id"])
 
     def _after_dead_request(self, team: dict, task: dict, ap: Optional[dict]) -> None:

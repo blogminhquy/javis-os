@@ -3706,3 +3706,13 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
 .tm-ap-rejected, .tm-ap-expired, .tm-ap-revoked { border-left-color: var(--danger, #dc2626); }
 .tm-ap-superseded, .tm-ap-cancelled, .tm-ap-changes_requested { border-left-color: var(--text3); }
 .tm-wm .tm-radio { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-size: 16px; }
+
+/* 0.208.0: department mandate section (teams.js mandateHtml) and opportunity card (reuses .tm-ap) */
+.tm-md { font-size: 16px; }
+.tm-md-outcome { font-weight: 600; margin: 4px 0; }
+.tm-md-metrics, .tm-md-srcs { margin: 4px 0; padding-left: 20px; }
+.tm-md-src-missing { color: var(--danger, #dc2626); }
+.tm-md-status { color: var(--text2); }
+.tm-md-active { color: var(--ok, #16a34a); }
+.tm-md-form textarea { width: 100%; font-size: 16px; }
+.tm-opp { border-left-color: var(--accent, #2563eb); }
