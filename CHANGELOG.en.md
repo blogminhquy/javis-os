@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.194.0] - 2026-10-17
+### Added
+- **Teams do real work:** when you assign a job in a Team, a member's **Work** and **Help** turns get the same tools as a private chat: read and write files in the brain and the team's working folder, call connections (MCP), run skills. Members do the job and return real results (files, links) instead of sending you to a private chat.
+- **No stepping on each other:** Work turns inside one Team run one at a time, so two members never edit the same file at once.
+
+### Improved
+- **Chat stays fast and cheap:** ordinary chat replies in a Team are still text only. When a reply needs files or connections, the member suggests turning it into a job.
+
 ## [0.193.0] - 2026-10-16
 ### Added
 - **Finished jobs stay until you clear them:** in a partner's Jobs tab and a team's Jobs tab, finished jobs have their own section; **Open** shows a short report (who did what, the result). **Done** moves a job to the **Archive**, nothing is deleted; only the Archive has **Delete** and **Delete all**.
