@@ -46,7 +46,9 @@ def fn(name):
     return APP[i:j]
 
 
-check("ngưỡng im 30 giây, chờ pong 10 giây", "const WS_IM_MS = 30000, WS_PONG_MS = 10000;" in APP)
+# 0.194.0: pong wait 10s -> 20s (a briefly busy server answers late), plus a 10s cap on a handshake stuck in CONNECTING.
+check("ngưỡng im 30 giây, chờ pong 20 giây, nối kẹt quá 10 giây thì thử lại",
+      "const WS_IM_MS = 30000, WS_PONG_MS = 20000, WS_MO_MS = 10000;" in APP)
 check("kiểm socket theo nhịp", "setInterval(_checkSocket, 5000);" in APP)
 
 conn = fn("connect")
