@@ -4806,5 +4806,13 @@
   "usage.kw.label": "Keep a Claude Code chat's prompt cache warm across a short break (Pro/Max plan)",
   "usage.kw.hint": "Just before the one-hour cache expires, Javis sends one tiny request to keep it, so the next message does not reload the whole chat. Only within 2 hours of the last message, and it stops at a usage limit or a cold cache. It is still background use of the plan, so it is off by default.",
   "cs.si_rem_speak": "Read it aloud (attach a voice note)",
-  "cs.si_rem_speak_tag": "read aloud"
+  "cs.si_rem_speak_tag": "read aloud",
+  "cs.si_rem_call": "Call me",
+  "cs.si_rem_call_hint": "At its time, an open Javis tab rings like an incoming call. Answer and Javis reads it out and keeps talking.",
+  "cs.si_rem_call_tag": "calls at its time",
+  "call.in_label": "Javis is calling, as scheduled",
+  "call.in_title_none": "Reminder",
+  "call.in_answer": "Answer",
+  "call.in_decline": "Decline",
+  "call.in_script": "This is the scheduled call \"{title}\". Read me the content below briefly, then ask if I need anything else:\n\n{text}"
 }

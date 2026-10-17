@@ -1174,8 +1174,9 @@ function handleMessage(data) {
     if (isActive) {
       const el = appendJavisMessage(data.content || "");
       recordTurn("javis", data.content || "", null, null);
-      // 0.202.1: a reminder that reads aloud rings like a call while this chat is open: its voice note plays at once.
-      ringReminder(el, data.content || "");
+      // 0.203.0: a reminder made with "call me" rings as an incoming call; otherwise (0.202.1) a reminder that reads
+      // aloud plays its voice note at once.
+      if (!goiDenTheoLich(data.content || "")) ringReminder(el, data.content || "");
       // The memory receipt line is not a message: no reactions, never read aloud (0.190.0).
       if (el && el.classList.contains("msg-nho")) { scrollBottom(); notifySessions(); return; }
       // Tin đẩy về có mã tin (0.168.0): gắn hàng sáu cảm xúc ngay, kể cả tin báo goal (không còn hàng A3 riêng).
@@ -2324,6 +2325,22 @@ function ringReminder(el, raw) {
   const a = el.querySelector("audio.jv-audio");
   if (!a) return;
   try { const p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) { /* autoplay blocked */ }
+}
+// 0.203.0 (incoming-call.js): "Javis calls you at a set time". Answer = press the mic, and the call's first line asks
+// Javis to read the reminder aloud. Already in a call: nothing rings, the message is in the chat.
+let _goiDenMoDau = "";
+function layMoDauGoiDen() { const s = _goiDenMoDau; _goiDenMoDau = ""; return s; }
+function goiDenTheoLich(raw) {
+  const IC = window.JavisIncomingCall;
+  const c = IC ? IC.parse(raw) : null;
+  if (!c || handsFree) return false;
+  IC.show({ title: c.title, t: window.t, onAnswer: () => {
+    if (handsFree) return;
+    const moDau = IC.script(c, window.t);
+    if (voiceMode === "live") { _goiDenMoDau = moDau; voiceBtn.click(); }
+    else { voiceBtn.click(); if (handsFree) sendMessage(moDau); }
+  } });
+  return true;
 }
 function appendJavisMessage(text, ts, brain) {
   // Tin do việc nền đẩy về mang khối ẩn JAVIS_VIEC (chat-viec.js): bóc ra để vẽ thành THẺ việc
@@ -3997,7 +4014,8 @@ voiceBtn.addEventListener("click", () => {
   try { if (window.JavisTts) window.JavisTts.set(handsFree); } catch (e) {}
   // Voice V2 bậc Live: nút mic mở phiên nghe nói thẳng thay cho Web Speech + TTS.
   if (voiceMode === "live") {
-    if (handsFree) batLive();
+    // 0.203.0: a call answered from the incoming-call card opens with its reminder line (goiDenTheoLich).
+    if (handsFree) batLive(layMoDauGoiDen());
     else tatRanhTay();
     return;
   }

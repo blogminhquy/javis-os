@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.203.0] - 2026-10-17
+### Thêm mới
+- **Javis gọi điện cho bạn đúng giờ:** nhắc hẹn có thêm ô **Gọi điện cho tôi** (hoặc nói "7h sáng gọi đọc báo cáo cho anh"). Tới giờ, trang Javis đang mở đổ chuông và hiện thẻ cuộc gọi đến với nút **Nghe** và **Từ chối**.
+- **Bấm Nghe là vào cuộc gọi giọng nói:** Javis đọc ngắn gọn nội dung nhắc hay báo cáo rồi hỏi bạn cần gì thêm, nói chuyện tiếp như khi bấm mic (ChatGPT Live nếu đã bật).
+- **Không nghe thì không mất gì:** sau 45 giây là cuộc gọi nhỡ, nội dung vẫn nằm trong khung chat; không mở Javis thì Telegram vẫn nhận tin như mọi nhắc hẹn khác.
+
 ## [0.202.1] - 2026-10-17
 ### Cải thiện
 - **Nhắc hẹn đọc thành tiếng giờ "gọi" thật:** tới giờ, nếu Javis đang mở thì tin thoại tự phát ngay như một cuộc gọi, không cần bấm. Trình duyệt chặn tự phát thì trình phát vẫn nằm đó để bấm; Telegram vẫn nhận file âm thanh như trước.

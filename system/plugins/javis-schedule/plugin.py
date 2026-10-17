@@ -387,6 +387,9 @@ async def _post_reminder(payload: dict, brain_name: str = "") -> str:
         ra += " Mỗi lần chạy sẽ nhận lại kết quả lần trước."
     if data.get("speak"):
         ra += " Kết quả sẽ kèm tin thoại đọc thành tiếng."
+    if data.get("call"):
+        ra += (" Tới giờ Javis sẽ GỌI ĐẾN trên trang Javis đang mở: bấm Nghe là vào cuộc gọi và Javis đọc"
+               " kết quả; không mở Javis thì kết quả vẫn tới như tin nhắn thường.")
     return ra
 
 
@@ -447,6 +450,8 @@ async def _do_create(vault_root: str, args: dict) -> str:
         payload["remember_last"] = True
     if args.get("speak"):
         payload["speak"] = True
+    if args.get("call"):
+        payload["call"] = True
     payload.update(_reminder_time_payload(schedule))
     return await _post_reminder(payload, brain_name=brain_name)
 
@@ -526,9 +531,12 @@ async def _do_update(vault_root: str, args: dict) -> str:
         fields["schedule"] = str(args["schedule"]).strip()
     if isinstance(args.get("remember_last"), bool):
         fields["remember_last"] = args["remember_last"]
-    if not fields:
+    call = args.get("call") if isinstance(args.get("call"), bool) else None
+    if not fields and call is None:
         return "ERROR: không có gì để sửa - truyền ít nhất một trong name / prompt / schedule."
     if (_loops_dir(vault_root) / f"{rid}.md").is_file():
+        if not fields:
+            return "ERROR: việc lặp không gọi điện được; 'call' chỉ dành cho nhắc hẹn."
         return _update_loop_file(vault_root, rid, fields)
     # Kho nhắc hẹn: đổi lịch thì dịch chuỗi lịch sang tham số thời gian như lúc tạo.
     payload = {}
@@ -540,6 +548,8 @@ async def _do_update(vault_root: str, args: dict) -> str:
         payload.update(_reminder_time_payload(fields["schedule"]))
     if "remember_last" in fields:
         payload["remember_last"] = "true" if fields["remember_last"] else "false"
+    if call is not None:
+        payload["call"] = "true" if call else "false"
     return await _update_reminder(vault_root, rid, payload)
 
 
@@ -656,6 +666,9 @@ def register(ctx) -> None:
                                               "báo lại. Chỉ hạ mức khi user muốn vậy.")},
                 "speak": {"type": "boolean",
                           "description": "true = tới giờ gửi kèm TIN THOẠI đọc kết quả thành tiếng (user muốn nghe)."},
+                "call": {"type": "boolean",
+                         "description": ("true = tới giờ Javis GỌI ĐẾN như cuộc gọi trên trang Javis đang mở, user bấm "
+                                         "Nghe thì Javis đọc kết quả và nói chuyện tiếp (\"7h gọi đọc báo cáo cho anh\").")},
                 "remember_last": {"type": "boolean",
                                   "description": ("true = mỗi lần chạy nhận lại kết quả lần trước (theo dõi, "
                                                   "báo cái mới). Chỉ cho nhắc hẹn tự làm, không cho loop.")},

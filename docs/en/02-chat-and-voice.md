@@ -483,6 +483,8 @@ Ask Javis to "read it to me", "send a voice note", or say you would rather hear 
 
 Reminders also have a **Read it aloud** box: at the set time, the reminder or the report arrives with a voice note. If Javis is open on a computer or phone, the voice note plays at once like a call (press play when the browser blocks autoplay).
 
+To have Javis **call you at a set time**, tick **Call me** (or say in chat "call me at 7am and read the sales report"). At that time an open Javis tab rings and shows an incoming-call card with **Answer** and **Decline**. Answer starts the voice call just like the mic button (ChatGPT Live when it is set up, the basic voice otherwise): Javis reads the reminder or report briefly, asks if you need anything else, and the call goes on as usual. Unanswered for 45 seconds, it counts as missed and the content stays in the chat. With no Javis tab open nothing rings: Telegram gets the message like any other reminder. This is a call inside the Javis app, not a call to a phone number.
+
 ## Keep the prompt cache warm (Claude Code, Pro/Max plan)
 
 A Pro/Max plan keeps Claude Code's prompt cache for one hour. After a longer break, the next message reloads the whole conversation, which costs a lot of allowance on a long chat. On the **Token usage** page, the budget section has a **Keep the prompt cache warm** box: with it on, about 50 minutes after the last message Javis sends one tiny request (no tools, nothing written to the conversation) that keeps the cache for another hour. It only runs within 2 hours of the last message, never while the chat is answering, and stops at once when the plan reports a usage limit or the cache has gone cold. It is still background use of the plan, so it is off by default.

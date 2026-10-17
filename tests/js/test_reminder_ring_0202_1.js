@@ -22,7 +22,8 @@ const blocked = { querySelector: () => ({ play() { throw new Error("NotAllowedEr
 let threw = false;
 try { ringReminder(blocked, '<!-- JAVIS_VIEC: {"kind": "reminder"} -->'); } catch (e) { threw = true; }
 check("autoplay blocked is swallowed", !threw);
-check("called from the live push branch", /appendJavisMessage\(data\.content \|\| ""\);\s*recordTurn\("javis"[^\n]*\n[^\n]*\n\s*ringReminder\(el, data\.content \|\| ""\);/.test(src));
+// 0.203.0: a reminder marked "call" rings as an incoming call instead (test_incoming_call_0203.js).
+check("called from the live push branch", /appendJavisMessage\(data\.content \|\| ""\);\s*recordTurn\("javis"[\s\S]{0,300}?ringReminder\(el, data\.content \|\| ""\);/.test(src));
 
 if (fails) { console.log(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nPASS");

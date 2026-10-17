@@ -60,7 +60,7 @@ check("server: nhận khung context và played", /d\.get\("type"\) == "context"/
 check("server: goaway -> reconnect", /if ev\.get\("type"\) == "goaway":/.test(main) && /await prov\.reconnect\(\)/.test(main));
 
 // 4
-check("app.js: chế độ live -> batLive/tatRanhTay ở nút mic", /if \(voiceMode === "live"\) \{/.test(app) && /batLive\(\)/.test(app) && /else tatRanhTay\(\);/.test(app));
+check("app.js: chế độ live -> batLive/tatRanhTay ở nút mic", /if \(voiceMode === "live"\) \{/.test(app) && /batLive\((?:layMoDauGoiDen\(\))?\)/.test(app) && /else tatRanhTay\(\);/.test(app));
 check("app.js: keep-alive không mở Web Speech khi live", /handsFree && voiceMode !== "live" && !voice\.isListening/.test(app));
 check("app.js: bản ghi Javis khi live ghi vào hội thoại", /recordTurn\("javis", _liveJavisText\.trim\(\)/.test(app));
 check("app.js: Esc hủy toàn bộ phiên giọng", /e\.code === "Escape"[\s\S]{0,500}tatRanhTay\(\)/.test(app));

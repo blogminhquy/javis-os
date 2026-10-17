@@ -500,6 +500,8 @@ Bảo Javis "đọc cho tôi nghe", "gửi tin thoại" hay muốn nghe báo cá
 
 Nhắc hẹn còn có ô **Đọc thành tiếng**: tới giờ, câu nhắc hay kết quả báo cáo được gửi kèm tin thoại. Nếu Javis đang mở trên máy hay điện thoại, tin thoại tự phát ngay như một cuộc gọi (trình duyệt chặn tự phát thì bấm nút phát).
 
+Muốn Javis **gọi điện đúng giờ** thì tick ô **Gọi điện cho tôi** (hoặc nói trong chat "7h sáng gọi đọc báo cáo doanh thu cho anh"). Tới giờ, trang Javis đang mở đổ chuông và hiện thẻ cuộc gọi đến với hai nút **Nghe** và **Từ chối**. Bấm Nghe là vào cuộc gọi giọng nói như khi bấm mic (ChatGPT Live nếu đã bật, giọng cơ bản nếu chưa): Javis đọc ngắn gọn nội dung nhắc hay báo cáo rồi hỏi bạn cần gì thêm, bạn nói tiếp như cuộc gọi thường. Không nghe trong 45 giây thì coi là cuộc gọi nhỡ, nội dung vẫn nằm trong khung chat. Không mở Javis thì không có chuông: Telegram vẫn nhận tin như mọi nhắc hẹn khác. Đây là cuộc gọi trong app Javis, không phải cuộc gọi tới số điện thoại.
+
 ## Giữ ấm bộ nhớ đệm (Claude Code, gói Pro/Max)
 
 Gói Pro/Max giữ bộ nhớ đệm của Claude Code 1 giờ. Nghỉ quá 1 giờ thì tin tiếp theo phải nạp lại cả cuộc trò chuyện, tốn nhiều hạn mức với chat dài. Ở trang **Mức dùng token**, mục ngân sách có ô **Giữ ấm bộ nhớ đệm**: bật lên thì khoảng 50 phút sau tin cuối, Javis gửi một yêu cầu rất nhỏ (không công cụ, không ghi vào cuộc trò chuyện) để giữ bộ nhớ đệm thêm 1 giờ. Chỉ chạy trong 2 giờ sau tin cuối, không bao giờ khi chat đang trả lời, và dừng ngay khi gói báo hết lượt hay bộ nhớ đệm đã nguội. Đây vẫn là việc chạy nền trên gói, nên mặc định tắt.

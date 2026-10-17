@@ -4806,5 +4806,13 @@
   "usage.kw.label": "Giữ ấm bộ nhớ đệm của chat Claude Code khi nghỉ ngắn (gói Pro/Max)",
   "usage.kw.hint": "Trước khi bộ nhớ đệm 1 giờ hết hạn, Javis gửi một yêu cầu rất nhỏ để giữ nó, nên tin tiếp theo không phải nạp lại cả cuộc trò chuyện. Chỉ trong 2 giờ sau tin cuối, dừng ngay khi hết lượt hay cache đã nguội. Đây vẫn là việc chạy nền trên gói, nên mặc định tắt.",
   "cs.si_rem_speak": "Đọc thành tiếng (gửi kèm tin thoại)",
-  "cs.si_rem_speak_tag": "đọc thành tiếng"
+  "cs.si_rem_speak_tag": "đọc thành tiếng",
+  "cs.si_rem_call": "Gọi điện cho tôi",
+  "cs.si_rem_call_hint": "Tới giờ, trang Javis đang mở sẽ đổ chuông như cuộc gọi đến. Bấm Nghe là Javis đọc nội dung và nói chuyện tiếp.",
+  "cs.si_rem_call_tag": "gọi điện đúng giờ",
+  "call.in_label": "Javis đang gọi theo lịch hẹn",
+  "call.in_title_none": "Nhắc hẹn",
+  "call.in_answer": "Nghe",
+  "call.in_decline": "Từ chối",
+  "call.in_script": "Đây là cuộc gọi hẹn giờ \"{title}\". Đọc cho mình nghe nội dung dưới đây thật ngắn gọn, rồi hỏi mình có cần gì thêm không:\n\n{text}"
 }

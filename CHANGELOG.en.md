@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.203.0] - 2026-10-17
+### Added
+- **Javis calls you at a set time:** reminders get a **Call me** box (or say "call me at 7am and read the report"). At that time an open Javis tab rings and shows an incoming-call card with **Answer** and **Decline**.
+- **Answer starts a voice call:** Javis reads the reminder or report briefly, asks if you need anything else, and you keep talking as with the mic button (ChatGPT Live when it is set up).
+- **Missing it costs nothing:** after 45 seconds it is a missed call and the content stays in the chat; with no Javis tab open, Telegram gets the message like any other reminder.
+
 ## [0.202.1] - 2026-10-17
 ### Improved
 - **Reminders that read aloud now really "call":** at the set time, if Javis is open, the voice note plays at once like a call, no press needed. When the browser blocks autoplay the player stays there to press; Telegram still receives the audio file as before.

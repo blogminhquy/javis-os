@@ -360,7 +360,7 @@ class RemindersFeature:
     def _create(self, brain: str, text: str, *, delay_min=None, at=None, due_at=None,
                 chat_id="", mode="notify", repeat_min=0, label="", cron=None, script="",
                 created_by="user", allow_no_channel=False, muc_quyen=None,
-                remember_last=False, speak=False) -> dict:
+                remember_last=False, speak=False, call=False) -> dict:
         mode = mode if mode in VALID_MODE else "notify"
         mq = str(muc_quyen or "").strip().lower()
         mq = mq if mq in VALID_MUC_QUYEN else MUC_QUYEN_MAC_DINH
@@ -401,6 +401,8 @@ class RemindersFeature:
             "muc_quyen": mq,
             "remember_last": bool(remember_last),
             "speak": bool(speak) and mode != "script",
+            # 0.203.0: ring the open dashboard as an incoming call at its time (dashboard/incoming-call.js).
+            "call": bool(call) and mode != "script",
             "created_by": created_by, "created_at": _now(),
             "fired_at": 0.0, "result": "", "error": "",
         }
@@ -430,12 +432,13 @@ class RemindersFeature:
                 "muc_quyen": muc_quyen_cua(r),
                 "remember_last": bool(r.get("remember_last")),
                 "speak": bool(r.get("speak")),
+                "call": bool(r.get("call")),
                 "next_runs": next_runs(cron) if cron and r.get("status") == "pending" else [],
                 "result": (r.get("result") or "")[:500], "error": r.get("error", "")}
 
     def update(self, brain: str, rid: str, *, text=None, label=None, mode=None, chat_id=None,
                cron=None, at=None, delay_min=None, due_at=None, muc_quyen=None,
-               remember_last=None, speak=None) -> dict:
+               remember_last=None, speak=None, call=None) -> dict:
         """Sửa 1 nhắc/lịch ĐANG CHỜ: nội dung, tên, kiểu, và thời điểm. Trả {"ok", "error",
         "reminder"}. Chỉ nhận tham số được truyền (None = giữ nguyên) nên gọi sửa một phần
         được. Đổi lịch thì tính lại due_at ngay để người dùng thấy lần chạy kế tiếp mới."""
@@ -473,6 +476,8 @@ class RemindersFeature:
             cur["remember_last"] = _truthy(remember_last)
         if speak is not None:
             cur["speak"] = _truthy(speak) and cur.get("mode") != "script"
+        if call is not None:
+            cur["call"] = _truthy(call) and cur.get("mode") != "script"
         has_when = any(v not in (None, "") for v in (cron, at, delay_min, due_at))
         if has_when:
             try:
@@ -681,6 +686,9 @@ class RemindersFeature:
             loi = bool(err) or msg.startswith("⚠")
             viec = {"kind": "reminder", "status": "failed" if loi else "done",
                     "title": str(head or "")[:160], "id": str(rem.get("id") or "")}
+            if rem.get("call") and not loi:
+                # 0.203.0: the open dashboard rings with this message as an incoming call (dashboard/incoming-call.js).
+                viec["call"] = "1"
             web = msg
             if mode == "notify":
                 web = text + (f"\n\n[🔊 Tin thoại]({voice_rel})" if voice_rel else "")
@@ -919,6 +927,7 @@ class RemindersFeature:
                         muc_quyen=p.get("muc_quyen"),
                         remember_last=_truthy(p.get("remember_last")),
                         speak=_truthy(p.get("speak")),
+                        call=_truthy(p.get("call")),
                     )
             except NotifyNotReady as e:
                 # can_force: chỗ gọi (dashboard/chat) hỏi lại người dùng rồi tạo tiếp với
@@ -934,6 +943,7 @@ class RemindersFeature:
                     "muc_quyen": rem.get("muc_quyen"),
                     "remember_last": rem.get("remember_last", False),
                     "speak": rem.get("speak", False),
+                    "call": rem.get("call", False),
                     "next_runs": next_runs(rem["cron"]) if rem["cron"] else [],
                     # Kèm lời đọc để chỗ gọi (chat) nhắc lại lịch bằng tiếng Việt, khỏi bắt user
                     # tự dịch "0 7 * * *".
@@ -971,13 +981,13 @@ class RemindersFeature:
                                    cron: str = Form(None), at: str = Form(None),
                                    delay_min: str = Form(None), due_at: str = Form(None),
                                    muc_quyen: str = Form(None), remember_last: str = Form(None),
-                                   speak: str = Form(None)):
+                                   speak: str = Form(None), call: str = Form(None)):
             """Sửa nhắc/lịch đang chờ (trang Việc định kỳ: nút Sửa). Bỏ trống trường nào thì giữ
             nguyên trường đó; truyền cron HOẶC at/delay_min/due_at để đổi thời điểm."""
             async with self._io:
                 return self.update(brain, id, text=text, label=label, mode=mode, chat_id=chat_id,
                                    cron=cron, at=at, delay_min=delay_min, due_at=due_at,
-                                   muc_quyen=muc_quyen, remember_last=remember_last, speak=speak)
+                                   muc_quyen=muc_quyen, remember_last=remember_last, speak=speak, call=call)
 
         @router.post("/reminders/delete")
         async def reminders_delete(id: str = Form(...), brain: str = Form("brain")):
