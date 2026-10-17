@@ -210,6 +210,8 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     luuChon() {}, moPhien() {}, heptLai: () => false, chatReady() {}, active: true, opening: 0,
     // The avatar strip's name card (0.191.0) lives in the edge-drag block, outside the cut: same as above.
     anTheMini() {}, hienTheMini() {},
+    // 0.205.0: the unread pill and the muted mark are drawn by helpers outside the cut too.
+    chuaDoc: () => 0, tinHtml: () => "",
     esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: () => "<svg></svg>", avatar: () => "<i></i>",
     localStorage: { getItem: (k) => (k in kho ? kho[k] : null), setItem(k, v) { kho[k] = String(v); } },
     document: { getElementById: () => null },

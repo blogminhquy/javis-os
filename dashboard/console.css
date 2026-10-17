@@ -3681,6 +3681,10 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
 .tm-team.has-unread .tm-team-name { font-weight: 700; }
 .tm-team.has-unread .tm-team-sub { color: var(--text); font-weight: 600; }
 .tm-mini-unread { display: none; }
+/* 0.205.0: a private partner chat shows its unread count and the bell-off mark in the row's corner cluster, like a
+   team row; an unread row reads in full ink. */
+.ws-item-end .tm-unread { margin-left: 2px; }
+.ws-item-wrap.has-unread .ws-item-top strong, .ws-item-wrap.has-unread .ws-item small { color: var(--text); font-weight: 700; }
 @media (min-width: 1061px) {
   .tm-page.tm-mini .tm-mini-unread { display: flex; gap: 2px; position: absolute; top: 0; right: 2px; pointer-events: none; }
 }

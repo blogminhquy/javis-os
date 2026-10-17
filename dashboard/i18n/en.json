@@ -4822,5 +4822,15 @@
   "cs.si_tab_log": "Log",
   "cs.si_kind_all": "All",
   "cs.si_all_brains": "All brains ({so})",
-  "cs.si_none_kind": "No jobs of this kind. Press All to see every job."
+  "cs.si_none_kind": "No jobs of this kind. Press All to see every job.",
+  "ws.mute": "Mute notifications",
+  "ws.unmute": "Unmute notifications",
+  "ws.muted": "Notifications muted",
+  "ws.muted_until": "muted until {luc}",
+  "ws.mute_1h": "For 1 hour",
+  "ws.mute_4h": "For 4 hours",
+  "ws.mute_8am": "Until 8:00 AM",
+  "ws.mute_forever": "Until turned back on",
+  "ws.unread_n": "{n} unread",
+  "ws.mute_err": "Could not change this partner's notifications, please try again."
 }

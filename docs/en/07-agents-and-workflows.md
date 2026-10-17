@@ -32,6 +32,14 @@ On narrow screens, use the list and details buttons to open the side drawers. Sw
 
 Partner conversations are separate from Javis's main chat history. Returning to a partner resumes its most recent conversation.
 
+### Unread messages and muting
+
+From 0.205.0 the partner list works like a message list:
+
+- A partner with a new message (you wrote, the partner replied, or a background job reported into its chat) **moves to the top**. Javis Core and the **Pinned** ones still come first.
+- A partner card shows its **unread count** in the bottom corner, next to the time. Opening that partner's chat clears it, in every open tab.
+- Each card's **⋮** button has **Mute notifications**, with **For 1 hour**, **For 4 hours**, **Until 8:00 AM** or **Until turned back on**. A muted card shows a crossed-out bell and a grey unread count. Messages still reach the chat and the bell, just without a sound or a push notification. Press **Unmute notifications** to turn them back on.
+
 ## Creating, searching and Javis Store
 
 Choose a tab and use the create agent or workflow button at the bottom of the left column. **Javis Store** opens the matching package catalogue. Agents are sorted by **tags**, workflows by **group** (see below).

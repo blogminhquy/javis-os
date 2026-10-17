@@ -187,6 +187,7 @@ import voice_turn_protocol
 import voice_brain   # Voice V2: bộ não giọng nói riêng (Antigravity sống lâu / Groq / Gemini...)
 import voice_live    # Voice V2: nghe nói thẳng qua Gemini Live / OpenAI Realtime
 import voice_ear     # tai nghe lại: model đa ngôn ngữ nghe âm thanh rồi mới chốt chữ (0.65.15)
+import agent_notify  # 0.205.0: unread and mute for private partner chats
 import codex_realtime  # ChatGPT Live: một Codex app-server sống lâu, realtime trên gói ChatGPT (0.65.17)
 import voice_call     # nút mic là gọi Javis: tự chọn ChatGPT Live / Live API / Cơ bản (0.65.18)
 
@@ -11064,6 +11065,9 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         if sid:
             try:
                 kenh = str((get_store().get_session(sid) or {}).get("channel") or "")
+                # 0.205.0: a muted partner's report still lands in its chat and the bell, just quietly.
+                if kenh.startswith("agent:") and _partner_muted(get_store().get_session(sid) or {}):
+                    quiet = True
             except Exception as e:
                 print(f"[inbox] không đọc được kênh của phiên {sid[:8]}: "
                       f"{type(e).__name__}: {e}", file=sys.stderr)
@@ -24290,6 +24294,69 @@ def _agent_jobs_sources(root, key):
     goals = _resonance_store() if key else None
     teams = _TEAM_API.teams() if (key and _TEAM_API.exists()) else None
     return goals, teams, resonance_store.Principal("owner", "owner", root)
+
+
+# 0.205.0: unread counts and mute for private partner chats (server/agent_notify.py).
+_AGENT_NOTIFY = agent_notify.AgentNotify(lambda: cfgmod.STATE_DIR)
+
+
+@app.get("/agents/unread")
+async def agents_unread(brain: str = "brain"):
+    """{slug: {n, last_at, muted_until}} for every partner of this brain that has a chat: the unread count on its row,
+    the time of its newest message (the list sorts by it, so a partner just written to moves to the top) and its mute."""
+    root = _brain_key(brain)
+
+    def _do():
+        store = get_store()
+        slugs = [ch.split(":", 1)[1] for ch in store.moc_cap_nhat_theo_kenh(_brain_keys(brain), "agent:")]
+        recs = _AGENT_NOTIFY.records(root, slugs)
+        act = store.agent_activity(_brain_keys(brain), {s: r["read_at"] for s, r in recs.items()})
+        return {"ok": True, "agents": {s: {"n": act.get(s, {}).get("n", 0), "last_at": act.get(s, {}).get("last_at", 0),
+                                           "muted_until": recs[s]["muted_until"]} for s in slugs}}
+    return await asyncio.to_thread(_do)
+
+
+@app.post("/agents/opened")
+async def agents_opened(brain: str = Form("brain"), slug: str = Form(...)):
+    """The owner has this partner's chat open: its messages up to now are read. Other open tabs clear the count too."""
+    slug = str(slug or "").strip()
+    if not slug or "|" in slug:
+        return {"ok": False, "error": "slug"}
+    at = await asyncio.to_thread(_AGENT_NOTIFY.mark_read, _brain_key(brain), slug)
+    try:
+        await _CHAT_RUNTIME.publish({"type": "agent_read", "slug": slug, "brain": _brain_key(brain)})
+    except Exception as e:
+        print(f"[agents] agent_read WebSocket: {type(e).__name__}: {e}", file=sys.stderr)
+    return {"ok": True, "read_at": at}
+
+
+@app.post("/agents/mute")
+async def agents_mute(brain: str = Form("brain"), slug: str = Form(...), choice: str = Form(...)):
+    """Mute one partner's notifications: 1h, 4h, 8am (the next 08:00 in the owner's time zone), forever, or off."""
+    slug = str(slug or "").strip()
+    if not slug or "|" in slug:
+        return {"ok": False, "error": "slug"}
+    try:
+        until = agent_notify.mute_until(choice, localefmt.now())
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    await asyncio.to_thread(_AGENT_NOTIFY.set_mute, _brain_key(brain), slug, until)
+    try:
+        await _CHAT_RUNTIME.publish({"type": "agent_read", "slug": slug, "brain": _brain_key(brain)})
+    except Exception as e:
+        print(f"[agents] agent_read WebSocket: {type(e).__name__}: {e}", file=sys.stderr)
+    return {"ok": True, "muted_until": until}
+
+
+def _partner_muted(session_row) -> bool:
+    """A report bound for a muted partner's chat is filed as read, with no push (0.205.0)."""
+    try:
+        ch = str((session_row or {}).get("channel") or "")
+        if not ch.startswith("agent:"):
+            return False
+        return _AGENT_NOTIFY.muted(_brain_key((session_row or {}).get("brain") or "brain"), ch.split(":", 1)[1])
+    except Exception:
+        return False
 
 
 @app.get("/agents/jobs/counts")

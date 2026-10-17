@@ -294,6 +294,8 @@
             rs: {}, rsSaving: {},
             // Huy hiệu việc theo slug (Đang làm, Cần bạn), tách khỏi công tắc Auto: Auto tắt vẫn có thể có việc Đang làm.
             jc: {},
+            // 0.205.0: unread count, newest message time and mute per partner (GET /agents/unread).
+            un: {},
             // Tab cột phải NHỚ RIÊNG theo loại. Trợ lý mở ở Lịch sử (chốt 16/09, xem TAB_PHAI);
             // quy trình mở ở Cài đặt vì nút Chạy nằm ở đó (chủ dự án chốt 17/09). Dùng chung
             // một ô nhớ thì vừa xem xong hội thoại của một trợ lý, sang quy trình là Lịch sử
@@ -373,6 +375,66 @@
   }
   // Gộp nhịp: gói nhóm, mục tiêu đổi, việc nền báo về, việc vừa tạo hay huỷ ở tab Công việc đều đọc lại huy hiệu sau 800ms.
   var _henDem = null;
+
+  // 0.205.0 (owner, 17/10/2026): a private partner chat behaves like a messenger thread. The list re-sorts by the newest
+  // message (yours, the partner's, or a background result), each row shows its unread count, and notifications can be
+  // muted per partner. One request for the whole brain; a burst of events reads it once (same rule as loadJobCounts).
+  var _unDang = false, _unLai = false, _henUn = null;
+  async function loadUnread() {
+    var round = lanDung, b0 = brain();
+    if (_unDang) { _unLai = true; return false; }
+    _unDang = true;
+    var d = null;
+    try { d = await api("/agents/unread?brain=" + encodeURIComponent(b0)); } catch (e) { d = null; } finally { _unDang = false; }
+    if (_unLai) { _unLai = false; setTimeout(henUnread, 0); }
+    if (round !== lanDung || b0 !== brain() || !d || !d.ok) return false;
+    S.un = d.agents || {};
+    S.agents.forEach(function (a) {
+      var u = S.un[a.slug];
+      if (u && Number(u.last_at) > Number(a.last_chat_at || 0)) a.last_chat_at = Number(u.last_at);
+    });
+    S.agents = sapXep(S.agents, "last_chat_at");
+    var cur = S.loai === "agent" ? dangChon() : null;
+    if (cur && dangXemCongSu(cur.slug) && S.un[cur.slug] && S.un[cur.slug].n) daDoc(cur.slug);
+    return true;
+  }
+  function henUnread() {
+    if (!active || S.loai !== "agent") return;
+    if (_henUn) clearTimeout(_henUn);
+    _henUn = setTimeout(function () {
+      _henUn = null;
+      if (active && S.loai === "agent") loadUnread().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
+    }, 800);
+  }
+  // The partner whose chat is on screen right now: its messages count as read.
+  function dangXemCongSu(slug) {
+    var c = S.loai === "agent" ? dangChon() : null;
+    return active && !!c && c.slug === slug && !(typeof document !== "undefined" && document.hidden);
+  }
+  function daDoc(slug) {
+    if (S.un[slug]) S.un[slug].n = 0;
+    api("/agents/opened", { method: "POST", body: fd({ brain: brain(), slug: slug }) }).catch(function () {});
+  }
+  function tatDen(u) { var m = Number((u && u.muted_until) || 0); return m === -1 || m > Date.now() / 1000 ? m : 0; }
+  function chuaDoc(slug) { var u = S.un[slug]; return u && !dangXemCongSu(slug) ? Number(u.n) || 0 : 0; }
+  // The unread pill (grey while muted) and the bell-off mark, in the row's corner cluster next to the time.
+  function tinHtml(x) {
+    var n = chuaDoc(x.slug), tat = tatDen(S.un[x.slug]);
+    return (tat ? '<span class="tm-muted" title="' + esc(t("ws.muted")) + '" aria-label="' + esc(t("ws.muted")) + '">' +
+        ic("bell-off") + "</span>" : "") +
+      (n ? '<span class="notification-badge tm-unread' + (tat ? " is-muted" : "") + '" title="' + esc(t("ws.unread_n", { n: n })) +
+        '">' + (n > 99 ? "99+" : String(n)) + "</span>" : "");
+  }
+  async function datTat(item, choice) {
+    var r;
+    try { r = await api("/agents/mute", { method: "POST", body: fd({ brain: brain(), slug: item.slug, choice: choice }) }); }
+    catch (e) { r = null; }
+    if (!r || !r.ok) { S.tagNote = { loi: true, msg: t("ws.mute_err") }; if (active) veTrai(); return; }
+    S.tagNote = null;
+    S.un[item.slug] = S.un[item.slug] || { n: 0, last_at: 0 };
+    S.un[item.slug].muted_until = r.muted_until;
+    if (active) veDanhSach();
+  }
   function henDemViec() {
     // Chỉ đọc khi danh sách trợ lý đang hiện và tab trình duyệt đang mở (review 0.142.0, #6): đếm việc tốn một lượt đọc
     // mỗi trợ lý, không cần chạy cho mọi gói nhóm khi đang xem Quy trình hay tab ẩn. Quay lại thì taiDanhSach đọc lại.
@@ -421,6 +483,7 @@
     // SAU khi danh sách đã có: tới đâu vẽ lại tới đó. Chưa về hay lỗi thì dòng không có công tắc (không đoán).
     loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") { veDanhSach(); veAuto(dangChon()); } });
     loadJobCounts().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
+    loadUnread().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
     S.agents = sapXep(r[0].agents, "last_chat_at");
     S.workflows = sapXep(r[1].workflows.filter(function (w) { return w.status === "active"; }), "last_run_at");
     daTai = true;
@@ -1027,7 +1090,8 @@
       ? window.JavisAgentJobs.statusOf(S.jc[x.slug]) : "";
     var title = laAgent ? [x.name, x.role || ""].concat(tg.length ? [t("ws.tags_aria") + ": " + tg.join(", ")] : [])
       .filter(Boolean).join("\n") : "";
-    return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + (he ? " he" : "") + (coTt ? " co-tt" : "") +
+    var nTin = laAgent ? chuaDoc(x.slug) : 0;
+    return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + (he ? " he" : "") + (coTt ? " co-tt" : "") + (nTin ? " has-unread" : "") +
       (laAgent ? " has-end" : "") + '"' + (jst ? ' data-st="' + jst + '"' : "") + '>' +
       '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '"' +
         (title ? ' title="' + esc(title) + '"' : "") + '>' +
@@ -1041,7 +1105,7 @@
       // 0.190.0 (owner, 16/10/2026: "thời gian phải cùng hàng với nút bật tắt auto và nhỏ thôi"): giờ chat gần nhất và
       // công tắc Auto đứng chung một cụm nhỏ ở góc dưới phải của thẻ. Công tắc có trên MỌI trợ lý, tắt thì màu xám.
       // Cụm nằm ngoài nút chọn mục (không lồng nút trong nút); CSS đặt nó BÊN TRONG thẻ.
-      (laAgent ? '<div class="ws-item-end">' + gioNhanHtml(x.last_chat_at) +
+      (laAgent ? '<div class="ws-item-end">' + gioNhanHtml(x.last_chat_at) + tinHtml(x) +
         (!he && window.JavisResonanceAgent
           ? window.JavisResonanceAgent.rowToggleHtml(S.rs[x.slug], { saving: !!S.rsSaving[x.slug] }) : "") + '</div>' : "") +
       (he ? "" : '<button type="button" class="ws-item-more" data-more="' + esc(x.slug) + '" title="' +
@@ -1210,6 +1274,10 @@
       (coAuto ? nutMenu("zap", t(autoOn ? "resonance.auto_menu_on" : "resonance.auto_menu_off") +
         (S.rsSaving[item.slug] ? " · " + t("resonance.t0_saving") : ""), "auto") : "") +
       nutMenu("pin", ghim ? t("ws.unpin") : t("ws.pin"), "ghim") +
+      // 0.205.0: mute this partner's notifications (1h, 4h, until 8:00, until turned back on), or turn them back on.
+      (laTag ? (tatDen(S.un[item.slug])
+        ? nutMenu("bell", t("ws.unmute") + (tatDen(S.un[item.slug]) > 0 ? " · " + t("ws.muted_until", { luc: gioTat(tatDen(S.un[item.slug])) }) : ""), "tb")
+        : nutMenu("bell-off", t("ws.mute"), "tb")) : "") +
       (laTag ? nutMenu("tag", t("ws.tag_menu"), "nhom") : nutMenu("folder", t("ws.move_group"), "nhom")) +
       nutMenu("pencil", t("ws.edit"), "sua") +
       nutMenu("trash-2", t("common.delete"), "xoa");
@@ -1223,9 +1291,30 @@
       ma.title = t("resonance.auto_desc");
       ma.onclick = function () { dongMenu(); doiAuto(item.slug, !autoOn); };
     }
+    var mt = m.querySelector('[data-act="tb"]');
+    if (mt) mt.onclick = function () {
+      if (tatDen(S.un[item.slug])) { dongMenu(); datTat(item, "off"); } else veMenuTat(item, m);
+    };
     m.querySelector('[data-act="nhom"]').onclick = function () { if (laTag) veMenuTag(item, m); else veMenuNhom(item, m); };
     m.querySelector('[data-act="sua"]').onclick = function () { dongMenu(); suaMuc(item); };
     m.querySelector('[data-act="xoa"]').onclick = function () { dongMenu(); xoaMuc(item); };
+  }
+  function gioTat(ts) {
+    try { return new Date(Number(ts) * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; }
+  }
+  // 0.205.0: the four mute lengths, drawn in place like the group picker (Zalo's "Tắt thông báo" sub-menu).
+  function veMenuTat(item, m) {
+    var CHON = [["1h", "ws.mute_1h"], ["4h", "ws.mute_4h"], ["8am", "ws.mute_8am"], ["forever", "ws.mute_forever"]];
+    m.innerHTML =
+      '<button type="button" class="ws-menu-it quay" data-act="quay">' + ic("chevron-left") +
+        '<span>' + esc(t("ws.mute")) + '</span></button>' +
+      CHON.map(function (c) {
+        return '<button type="button" role="menuitem" class="ws-menu-it" data-tat="' + c[0] + '"><span>' + esc(t(c[1])) + '</span></button>';
+      }).join("");
+    m.querySelector('[data-act="quay"]').onclick = function () { veMenuGoc(item, m); };
+    m.querySelectorAll("[data-tat]").forEach(function (b) {
+      b.onclick = function () { dongMenu(); datTat(item, b.dataset.tat); };
+    });
   }
   // Chọn nhóm NGAY TRONG menu (hai tầng tại chỗ) thay vì menu con nổi ra cạnh: menu con phải
   // tự tính chỗ lần nữa và rất dễ tràn khỏi màn hình hẹp.
@@ -1429,6 +1518,7 @@
       if (!window.JavisSessions || window.JavisSessions.current() !== id) throw new Error(t("ws.err_session"));
       chatReady(true);
       luuViTri(id);
+      if (S.loai === "agent") daDoc(item.slug);   // 0.205.0: opening the chat reads it
       if (S.loai === "workflow") veBuoc(item, tienDoHienTai(item));
       else ganCongHuong(item, id);
       return true;
@@ -1898,8 +1988,14 @@
     // Vừa xong một lượt chat với trợ lý: giờ nhắn gần nhất trên thẻ của trợ lý đó đổi ngay, không chờ tải lại danh sách.
     if (sid && S.loai === "agent" && S.sessionCuaPhien[sid]) {
       var ag = S.agents.filter(function (a) { return a.slug === S.sessionCuaPhien[sid]; })[0];
-      if (ag) { ag.last_chat_at = Date.now() / 1000; if (active) veDanhSach(); }
-    }
+      if (ag) {
+        ag.last_chat_at = Date.now() / 1000;
+        // 0.205.0: the partner just written to moves to the top, and its chat stays read while it is on screen.
+        S.agents = sapXep(S.agents, "last_chat_at");
+        if (dangXemCongSu(ag.slug)) daDoc(ag.slug);
+        if (active) veDanhSach();
+      }
+    } else if (sid && S.loai === "agent") henUnread();
     if (!sid || !S.tienDo[sid] || S.tienDo[sid].trang_thai !== "dang") return;
     apDung(S.tienDo[sid], { type: "stopped" });
     if (S.loai === "workflow") veDanhSach();
@@ -1954,7 +2050,7 @@
     dangChay: dangChay, tabPhai: chonTabPhai, gomNhom: gomNhom, nhomHtml: nhomHtml, chonNhom: chonNhom, state: function () { return S; },
     tagsCua: tagsCua, tagCap: tagCap, laKhoa: laKhoa, demTag: demTag, coTag: coTag, khoaTag: khoaTag,
     dongChonTag: dongChonTag, chipTagHtml: chipTagHtml, TAG_NONE: TAG_NONE, TAG_AUTO: TAG_AUTO, laLocGia: laLocGia, autoBat: autoBat,
-    resonanceMap: resonanceMap, afterToggle: afterToggle };
+    resonanceMap: resonanceMap, afterToggle: afterToggle, tinHtml: tinHtml, tatDen: tatDen };
   // Sidebar lịch sử mở phiên trực tiếp qua JavisSessions.open, ngoài đường moPhien ở trên.
   // Ghi lại sau khi nó mở xong để lần dựng trang sau vẫn ở đúng cuộc đã chọn.
   window.addEventListener("javis:sessions-changed", function () {
@@ -1970,5 +2066,12 @@
   // Huy hiệu việc trên thẻ trợ lý theo cùng các sự kiện với tab Công việc (gộp nhịp 800ms).
   ["javis:team-event", "javis:sessions-changed", "javis:agent-jobs-changed"].forEach(function (ev) {
     window.addEventListener(ev, henDemViec);
+  });
+  // 0.205.0: a message landed somewhere, or another tab read or muted a partner: read the unread counts again.
+  ["javis:sessions-changed", "javis:agent-read"].forEach(function (ev) { window.addEventListener(ev, henUnread); });
+  if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("visibilitychange", function () {
+    if (document.hidden || !active || S.loai !== "agent") return;
+    var c = dangChon();
+    if (c && S.un[c.slug] && S.un[c.slug].n) { daDoc(c.slug); veDanhSach(); }
   });
 })();

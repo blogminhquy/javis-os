@@ -1304,6 +1304,24 @@ class SessionStore:
         sql += " GROUP BY channel"
         return {r["channel"]: float(r["m"] or 0) for r in self._read(sql, tuple(params))}
 
+    def agent_activity(self, brain: Any, since: Dict[str, float], cap: int = 99) -> Dict[str, Dict[str, float]]:
+        """0.205.0, private partner chats: {slug: {"n": partner messages after since[slug] (at most `cap`), "last_at": the
+        newest message of any side}} over every `agent:<slug>` chat of this brain. `last_at` reads the messages, not
+        sessions.updated_at, which also moves on a rename or an archive."""
+        cond, bparams = loc_brain(brain)
+        extra = (" AND " + cond) if cond else ""
+        out: Dict[str, Dict[str, float]] = {}
+        for slug, ts in since.items():
+            ch = "agent:" + str(slug)
+            rows = self._read(
+                "SELECT (SELECT COUNT(*) FROM (SELECT 1 FROM messages m JOIN sessions s ON s.id = m.session_id "
+                f"WHERE s.channel = ?{extra} AND m.role = 'assistant' AND m.ts > ? LIMIT ?)), "
+                f"(SELECT MAX(m.ts) FROM messages m JOIN sessions s ON s.id = m.session_id WHERE s.channel = ?{extra})",
+                tuple([ch] + list(bparams) + [float(ts or 0), max(1, int(cap)), ch] + list(bparams)))
+            n, last = (rows[0][0], rows[0][1]) if rows else (0, 0)
+            out[str(slug)] = {"n": int(n or 0), "last_at": float(last or 0)}
+        return out
+
     # ── ghim / icon / project của một hội thoại ──
 
     def set_pinned(self, session_id: str, pinned: bool = True) -> None:

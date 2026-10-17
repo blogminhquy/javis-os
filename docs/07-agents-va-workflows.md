@@ -32,6 +32,14 @@ Trên màn hình hẹp, dùng nút mở danh sách hoặc cột chi tiết để
 
 Hội thoại cộng sự tách khỏi lịch sử chat chính của Javis. Quay lại một cộng sự sẽ mở tiếp phiên gần nhất của cộng sự đó.
 
+### Tin chưa đọc và tắt thông báo
+
+Từ 0.205.0 danh sách cộng sự chạy như danh sách tin nhắn:
+
+- Cộng sự vừa có tin mới (bạn nhắn, cộng sự trả lời, hay một việc nền báo kết quả vào hội thoại của cộng sự) **tự lên đầu** danh sách. Javis Core và các mục **Đã ghim** vẫn đứng trước.
+- Thẻ cộng sự hiện **số tin chưa đọc** ở góc dưới, cạnh giờ nhắn. Mở hội thoại của cộng sự đó là số này tự xoá, ở mọi tab đang mở.
+- Nút **⋮** của mỗi thẻ có **Tắt thông báo**, chọn **Trong 1 giờ**, **Trong 4 giờ**, **Cho đến 8:00 sáng** hoặc **Cho đến khi được mở lại**. Thẻ đang tắt có biểu tượng chuông gạch và số chưa đọc màu xám. Tin vẫn vào hội thoại và chuông thông báo, chỉ là không kêu và không gửi thông báo đẩy. Bấm **Bật thông báo** để mở lại.
+
 ## Tạo mới, tìm kiếm và Javis Store
 
 Chọn tab cần dùng rồi bấm nút tạo trợ lý hoặc quy trình ở cuối cột trái. **Javis Store** mở kho gói tương ứng để thêm cộng sự có sẵn. Trợ lý được phân loại bằng **tag**, quy trình bằng **nhóm** (xem dưới).

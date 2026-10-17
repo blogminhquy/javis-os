@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.205.0] - 2026-10-17
+### Cải thiện
+- **Cộng sự vừa có tin mới tự lên đầu danh sách:** bạn nhắn, cộng sự trả lời hay việc nền báo kết quả vào hội thoại của cộng sự đều đẩy thẻ đó lên trên (sau Javis Core và mục đã ghim).
+- **Số tin chưa đọc trên từng thẻ cộng sự**, cạnh giờ nhắn. Mở hội thoại là số tự xoá, ở mọi tab đang mở.
+- **Tắt thông báo theo từng cộng sự:** nút ⋮ có **Tắt thông báo** trong 1 giờ, 4 giờ, đến 8:00 sáng hoặc đến khi mở lại. Tin vẫn vào hội thoại và chuông, chỉ không kêu và không đẩy thông báo.
+
 ## [0.204.0] - 2026-10-17
 ### Cải thiện
 - **Trang Việc định kỳ gọn lại:** ô chọn bộ não thay cho cảnh mọi bộ não xếp chồng, thêm lọc **Việc lặp / Nhắc hẹn** và phân trang 10 việc một trang. Sự cố và Nhật ký thành tab riêng; Webhook có trang riêng trong nhóm Việc.

@@ -34,6 +34,8 @@ function dung() {
     loadResonance: () => Promise.resolve(false), active: false, veDanhSach() {},
     // 0.142.0: taiDanhSach cũng đọc số việc của từng trợ lý (badge riêng, khác công tắc Auto). Không liên quan thứ tự.
     loadJobCounts: () => Promise.resolve(false),
+    // 0.205.0: and the unread counts and mute of every partner (one request). Not about the order either.
+    loadUnread: () => Promise.resolve(false),
   };
   vm.createContext(ctx);
   vm.runInContext(fn + "\nglobalThis.taiDanhSach = taiDanhSach;", ctx);

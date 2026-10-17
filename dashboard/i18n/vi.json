@@ -4822,5 +4822,15 @@
   "cs.si_tab_log": "Nhật ký",
   "cs.si_kind_all": "Tất cả",
   "cs.si_all_brains": "Tất cả bộ não ({so})",
-  "cs.si_none_kind": "Không có việc loại này. Bấm Tất cả để xem mọi việc."
+  "cs.si_none_kind": "Không có việc loại này. Bấm Tất cả để xem mọi việc.",
+  "ws.mute": "Tắt thông báo",
+  "ws.unmute": "Bật thông báo",
+  "ws.muted": "Đã tắt thông báo",
+  "ws.muted_until": "đang tắt đến {luc}",
+  "ws.mute_1h": "Trong 1 giờ",
+  "ws.mute_4h": "Trong 4 giờ",
+  "ws.mute_8am": "Cho đến 8:00 sáng",
+  "ws.mute_forever": "Cho đến khi được mở lại",
+  "ws.unread_n": "{n} tin chưa đọc",
+  "ws.mute_err": "Chưa đổi được thông báo của cộng sự này, thử lại nhé."
 }
