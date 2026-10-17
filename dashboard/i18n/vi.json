@@ -4088,6 +4088,8 @@
   "teams.limits.step_timeout": "Thời gian tối đa một bước của việc",
   "teams.limits.admin_ops_per_turn": "Lệnh quản trị tối đa trong một lần trả lời của người điều phối",
   "teams.limits.history_window": "Tin gần đây cộng sự đọc mỗi lượt (phần cũ hơn được tóm tắt)",
+  "teams.resize_list": "Kéo để đổi bề rộng danh sách nhóm, kéo hẳn vào trong để chỉ còn ảnh nhóm",
+  "teams.resize_side": "Kéo để đổi bề rộng khung thông tin, kéo hẳn sang phải để thu lại",
   "teams.tag_pick_title": "Lọc nhóm theo tag",
   "teams.tags_title": "Tag",
   "teams.tags_all": "Tất cả nhóm",

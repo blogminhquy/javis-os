@@ -2122,6 +2122,7 @@
       esc(tw(TAB_KEY[S.tab])) + '">' + body + "</div>";
     var nb = side.querySelector(".tm-side-body");
     if (nb && keep) nb.scrollTop = top;
+    attachSideResize(side);
     if (window.JavisPulse) {
       Array.prototype.forEach.call(side.querySelectorAll(".tm-pulse[data-pulse-slug]"), function (el) {
         var names = {};
@@ -3577,13 +3578,85 @@
   // Rời trang (console.js gọi qua _pageLeave): đóng ngăn, bỏ hẹn giờ; trang dựng lại từ đầu lần ghé sau.
   function leave() {
     clearTimeout(refreshTimer);
+    if (colResize()) colResize().miniTip.hide();
     if (S && S.pickSt) closePicker();
     if (S) { S.side = false; S.picker = null; stopMic(); stopReveal(); if (S.unpress) { S.unpress(); S.unpress = null; } }
+  }
+
+  // ───────────── column widths (0.196.0) ─────────────
+  // Owner, 17/10/2026: drag a column edge like the Partners page; past a point the list folds into a strip of team
+  // pictures (hover shows the team card) and the side panel folds away. Same helper and card as every other page
+  // (col-resize.js: JavisColResize.attach with snap/collapse, JavisColResize.miniTip).
+  var LIST_MINI_W = 72;   // the Partners page's avatar strip width (workspace.js MINI_W)
+
+  function colResize() { return typeof window !== "undefined" ? window.JavisColResize : null; }
+
+  function listResizeOpts(page) {
+    var CR = colResize();
+    var side = function () { var x = page.querySelector(".tm-side"); return x && !x.hidden ? x.getBoundingClientRect().width : 0; };
+    return { host: page, varName: "--tm-list-w", key: "javis_tm_list_w", min: 220, max: 480, edge: "right",
+      label: "teams.resize_list", keep: 420, total: function () { return page.clientWidth; }, other: side,
+      snap: { below: CR.FOLD_AT(220), to: LIST_MINI_W, onSnap: function (on) {
+        page.classList.toggle("tm-mini", !!on);
+        if (!on) CR.miniTip.hide();
+      } } };
+  }
+
+  function sideResizeOpts(page) {
+    var CR = colResize();
+    var list = function () { var x = page.querySelector(".tm-list"); return x ? x.getBoundingClientRect().width : 0; };
+    return { host: page, varName: "--tm-side-w", key: "javis_tm_side_w", min: 300, max: 640, edge: "left",
+      label: "teams.resize_side", keep: 420, total: function () { return page.clientWidth; }, other: list,
+      collapse: { below: CR.FOLD_AT(300), run: function () { closeSide(); } } };
+  }
+
+  function attachListResize() {
+    var CR = colResize(), page = S.el.querySelector(".tm-page"), list = S.el.querySelector(".tm-list");
+    if (!CR || !page || !list) return;
+    var o = listResizeOpts(page);
+    CR.apply(o);
+    CR.attach(list, o);
+  }
+
+  // The side panel redraws its whole content, so its handle is put back after every draw (attach skips a duplicate).
+  function attachSideResize(side) {
+    var CR = colResize(), page = S.el.querySelector(".tm-page");
+    if (!CR || !page || !side || side.hidden) return;
+    var o = sideResizeOpts(page);
+    CR.apply(o);
+    CR.attach(side, o);
+  }
+
+  // The team card next to a team picture while the list is a strip (the Partners page's card): name, time, last line,
+  // and what waits (badge).
+  function miniCard(row) {
+    var CR = colResize(), page = S.el.querySelector(".tm-page");
+    if (!CR || !page || !page.classList.contains("tm-mini")) return;
+    var ava = row.querySelector(".tm-gava, .tm-ava");
+    var txt = function (sel) { var x = row.querySelector(sel); return x ? x.textContent.trim() : ""; };
+    var badge = row.querySelector(".tm-team-bottom .tm-badge");
+    // The card's state colours are the job-state ones (need red, run blue), so a team that needs you reads the same.
+    var st = badge ? (badge.classList.contains("tm-badge-owner") ? "need" : badge.classList.contains("tm-badge-run") ? "run" : "") : "";
+    CR.miniTip.show(row, { ava: ava ? ava.outerHTML : "", name: txt(".tm-team-name"), time: txt(".tm-team-time"),
+      sub: txt(".tm-team-sub"), stText: badge ? badge.textContent.trim() : "", st: st });
   }
 
   function render(el) {
     S = fresh(el);
     shell();
+    attachListResize();
+    el.addEventListener("mouseover", function (e) {
+      var row = e.target.closest && e.target.closest(".tm-team");
+      if (row && !row.contains(e.relatedTarget)) miniCard(row);
+    });
+    el.addEventListener("mouseout", function (e) {
+      var row = e.target.closest && e.target.closest(".tm-team");
+      if (row && !row.contains(e.relatedTarget) && colResize()) colResize().miniTip.hide();
+    });
+    el.addEventListener("focusin", function (e) { if (e.target.classList && e.target.classList.contains("tm-team")) miniCard(e.target); });
+    el.addEventListener("focusout", function (e) {
+      if (e.target.classList && e.target.classList.contains("tm-team") && colResize()) colResize().miniTip.hide();
+    });
     el.addEventListener("click", onClick);
     el.addEventListener("change", onChange);
     el.addEventListener("input", onInput);

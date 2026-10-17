@@ -4088,6 +4088,8 @@
   "teams.limits.step_timeout": "Max time for one job step",
   "teams.limits.admin_ops_per_turn": "Max admin commands in one coordinator reply",
   "teams.limits.history_window": "Recent messages an assistant reads per turn (older ones are summarized)",
+  "teams.resize_list": "Drag to resize the team list, drag all the way in for team pictures only",
+  "teams.resize_side": "Drag to resize the info panel, drag all the way right to fold it",
   "teams.tag_pick_title": "Filter teams by tag",
   "teams.tags_title": "Tags",
   "teams.tags_all": "All teams",

@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.196.0] - 2026-10-17
+### Cải thiện
+- **Kéo hẹp là tự thu vào:** ở Đồ thị, Trò chuyện, Cộng sự và Team, kéo thanh chia cột hẹp quá một mức thì cột tự ẩn luôn vào trong, y như bên Cộng sự. Lúc sắp ẩn cột mờ đi để bạn biết trước.
+- **Danh sách nhóm thu gọn chỉ còn logo:** kéo danh sách Team vào sâu thì chỉ còn logo từng nhóm, đưa chuột vào logo là hiện thẻ chi tiết (tên, giờ, tin cuối, trạng thái), cùng một thẻ với bên Cộng sự.
+- **Kéo rộng hẹp được cả hai bên Team:** danh sách nhóm và ô thông tin bên phải đều kéo được, máy nhớ độ rộng cho lần sau.
+
 ## [0.195.0] - 2026-10-17
 ### Thêm mới
 - **Vào Team là gặp ngay nhóm đang làm:** mở trang Team thì tự mở nhóm bạn làm việc gần nhất (nhóm vừa nhắn hay vừa mở, trên máy nào cũng vậy), khỏi phải tìm lại.

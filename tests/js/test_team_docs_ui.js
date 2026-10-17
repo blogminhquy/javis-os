@@ -82,7 +82,9 @@ check("one state per assistant, most urgent first: red needs you or failed, blue
   && AJ.statusOf({ running: 1, waiting: 3 }) === "run" && AJ.statusOf({ waiting: 1, done: 4 }) === "wait"
   && AJ.statusOf({ done: 2 }) === "done" && AJ.statusOf({}) === "" && AJ.statusOf(undefined) === "");
 check("the row carries the state for the dot, the hover card says it in words",
-  ws.includes("(jst ? ' data-st=\"' + jst + '\"' : \"\")") && ws.includes('class="ws-mini-tip-st" data-st="'));
+  ws.includes("(jst ? ' data-st=\"' + jst + '\"' : \"\")") && ws.includes("stText: tt, st: st") &&
+  // 0.196.0: the card is drawn by the shared helper (col-resize.js), used by the Teams page too.
+  read("col-resize.js").includes('class="ws-mini-tip-st" data-st="'));
 check("CSS: the dot is 8px, each state has its colour, the card is solid",
   /\.ws-item-wrap\[data-st\]::after \{ content: ""; position: absolute; top: 6px; right: 10px; width: 8px;/.test(css)
   && ["need", "run", "wait", "done"].every((k) => css.includes('[data-st="' + k + '"] { --st-dot:'))

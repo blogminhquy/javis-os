@@ -1543,6 +1543,9 @@
   // past NGUONG_MINI snaps the column to MINI_W, a strip of avatars only (class ws-mini on the page; hover shows the
   // name card). Dragging back out past the threshold gives the normal list again.
   var MINI_W = 72, NGUONG_MINI = 160;
+  // 0.196.0: the right panel (History, Jobs, Settings) folds away when let go narrower than this (its min 280 less 60,
+  // the same gap as the list's snap; col-resize.js FOLD_AT).
+  var NGUONG_AN_PHAI = 220;
   function chanBeRong(ben, w, page) {
     if (ben === "left" && w < NGUONG_MINI) return MINI_W;
     var c = BE_RONG[ben], tran = c.max;
@@ -1577,21 +1580,10 @@
     try { localStorage.setItem(BE_RONG[ben].khoa, String(w)); } catch (e) {}
   }
   // The name card of the avatar strip: the row's name, role or step count, and time, next to the avatar under the
-  // pointer. One card for the page, moved from row to row; the row's own tooltip is held back while it shows.
-  function theMini() {
-    var the = document.getElementById("wsMiniTip");
-    if (!the) {
-      the = document.createElement("div");
-      the.id = "wsMiniTip"; the.className = "ws-mini-tip"; the.setAttribute("role", "tooltip"); the.hidden = true;
-      document.body.appendChild(the);
-    }
-    return the;
-  }
+  // pointer. The card itself is shared with the Teams page (0.196.0: JavisColResize.miniTip in col-resize.js).
   function anTheMini() {
-    var the = document.getElementById("wsMiniTip");
-    if (the) the.hidden = true;
-    var b = S.el && S.el.querySelector(".ws-item[data-tip-title]");
-    if (b) { b.setAttribute("title", b.getAttribute("data-tip-title")); b.removeAttribute("data-tip-title"); }
+    var CR = typeof window !== "undefined" ? window.JavisColResize : null;
+    if (CR && CR.miniTip) CR.miniTip.hide();
   }
   function hienTheMini(b) {
     var page = S.el && S.el.querySelector("#wsPage");
@@ -1604,23 +1596,14 @@
     var tt = S.loai === "agent" && x && S.jc && window.JavisAgentJobs && window.JavisAgentJobs.statusText
       ? window.JavisAgentJobs.statusText(S.jc[x.slug]) : "";
     var st = tt ? window.JavisAgentJobs.statusOf(S.jc[x.slug]) : "";
-    var the = theMini();
-    the.innerHTML = '<div class="ws-mini-tip-head">' + (anh ? '<span class="ws-mini-tip-ava">' + anh.innerHTML + '</span>' : "") +
-      '<strong>' + esc(ten ? ten.textContent : "") + '</strong>' +
-      (gio ? '<span class="ws-mini-tip-time">' + esc(gio.textContent) + '</span>' : "") + '</div>' +
-      (phu && phu.textContent ? '<div class="ws-mini-tip-sub">' + esc(phu.textContent) + '</div>' : "") +
-      (tt ? '<div class="ws-mini-tip-st" data-st="' + st + '">' + esc(tt) + '</div>' : "");
-    if (b.hasAttribute("title")) { b.setAttribute("data-tip-title", b.getAttribute("title")); b.removeAttribute("title"); }
-    the.hidden = false;
-    var r = b.getBoundingClientRect(), h = the.getBoundingClientRect().height;
-    the.style.left = Math.round(r.right + 8) + "px";
-    the.style.top = Math.round(Math.max(8, Math.min(window.innerHeight - h - 8, r.top + r.height / 2 - h / 2))) + "px";
+    window.JavisColResize.miniTip.show(b, { ava: anh ? anh.innerHTML : "", name: ten ? ten.textContent : "",
+      time: gio ? gio.textContent : "", sub: phu ? phu.textContent : "", stText: tt, st: st });
   }
   function noiKeoBien(page) {
     page.querySelectorAll("[data-resize]").forEach(function (h) {
       var ben = h.dataset.resize;
       var cot = page.querySelector(ben === "left" ? "#wsLeft" : "#wsRight");
-      var batDau = null;
+      var batDau = null, tho = 0;
       h.addEventListener("pointerdown", function (e) {
         if (e.button !== 0 || !cot) return;
         e.preventDefault();
@@ -1631,12 +1614,26 @@
       h.addEventListener("pointermove", function (e) {
         if (!batDau) return;
         var dx = e.clientX - batDau.x;
-        datBeRong(page, ben, chanBeRong(ben, batDau.w + (ben === "left" ? dx : -dx), page));
+        tho = batDau.w + (ben === "left" ? dx : -dx);
+        datBeRong(page, ben, chanBeRong(ben, tho, page));
+        // 0.196.0: the right panel shows it will fold away while dragged past the fold point.
+        if (ben === "right" && cot.classList) cot.classList.toggle("col-resize-folding", tho < NGUONG_AN_PHAI);
       });
       var xong = function () {
         if (!batDau) return;
+        var w0 = batDau.w;
         batDau = null;
         page.classList.remove("ws-resizing");
+        if (cot.classList) cot.classList.remove("col-resize-folding");
+        if (ben === "right" && tho && tho < NGUONG_AN_PHAI) {
+          // 0.196.0 (owner, 17/10/2026: "kéo đến 1 cỡ nhất định thì nó ẩn vào thụt luôn vào trong"): let go that narrow and
+          // the panel folds away like its X button; its width before the drag is kept for when it opens again.
+          luuBeRong(ben, chanBeRong(ben, w0, page), page);
+          tho = 0;
+          datPhai(false);
+          return;
+        }
+        tho = 0;
         luuBeRong(ben, chanBeRong(ben, cot.getBoundingClientRect().width, page), page);
       };
       h.addEventListener("pointerup", xong);

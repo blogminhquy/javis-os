@@ -3638,3 +3638,33 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
 .tm-tagbar[hidden] { display: none; }
 .tm-tag-menu { padding: 5px; min-width: 220px; max-height: min(420px, 70vh); overflow-y: auto; }
 .tm-tag-menu { background: var(--bg2); }
+
+/* 0.196.0 (owner, 17/10/2026: "kéo đến 1 cỡ nhất định thì nó ẩn vào thụt luôn vào trong ... riêng phần team ... chỉ hiện
+   logo nhóm giống như bên cộng sự"): every column handle folds its column when let go past the fold point
+   (col-resize.js collapse/snap). While dragged past it, the column dims to say so. */
+.col-resize-folding { opacity: .45; transition: opacity .12s; }
+/* Team page: the list and the side panel get the shared handles on wide screens; the list scrolls inside .tm-teams so
+   the handle stays put. */
+.tm-list { overflow: hidden; }
+.tm-teams { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+@media (min-width: 1061px) {
+  .tm-page, .tm-page[data-side="0"] { grid-template-columns: var(--tm-list-w, 280px) minmax(0, 1fr); }
+  .tm-page[data-side="1"] { grid-template-columns: var(--tm-list-w, 280px) minmax(0, 1fr) var(--tm-side-w, 360px); }
+  .tm-list, .tm-side { position: relative; }
+  .tm-list > .col-resize, .tm-side > .col-resize { display: block; position: absolute; top: 0; bottom: 0; width: 8px; z-index: 6;
+    cursor: col-resize; touch-action: none; }
+  /* The strip of team pictures (like the Partners list .ws-mini): names, previews, tags, the row "..." and paging hide;
+     "New team" keeps only its icon; the hover card (JavisColResize.miniTip) gives the details. */
+  .tm-page.tm-mini .tm-list { padding: 8px 6px; }
+  .tm-page.tm-mini .tm-list-title, .tm-page.tm-mini .tm-tagbar, .tm-page.tm-mini .tm-team-main,
+  .tm-page.tm-mini .tm-row-more, .tm-page.tm-mini .tm-row-menu, .tm-page.tm-mini .tm-more-teams { display: none; }
+  .tm-page.tm-mini .tm-list-bar { justify-content: center; padding: 2px 0 8px; }
+  .tm-page.tm-mini .tm-new { font-size: 0; gap: 0; padding: 8px; }
+  .tm-page.tm-mini .tm-team { justify-content: center; padding: 6px 0; gap: 0; }
+}
+@media (min-width: 1061px) {
+  .tm-page.tm-mini .tm-new svg, .tm-page.tm-mini .tm-new .ic { width: 18px; height: 18px; }
+}
+/* A team picture made of member faces (44px) shrinks to the card's 22px avatar spot. */
+.ws-mini-tip-ava:has(> .tm-gava) { overflow: hidden; }
+.ws-mini-tip-ava > .tm-gava { width: 44px !important; height: 44px !important; flex: none; transform: scale(.5); transform-origin: top left; }

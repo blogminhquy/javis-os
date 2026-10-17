@@ -7922,8 +7922,10 @@
     };
     // Cột Hội thoại/Thư mục kéo được ở đường biên phải (0.148.0, col-resize.js); màn hẹp là ngăn kéo, CSS ẩn tay kéo.
     if (sideEl && window.JavisColResize) {
+      // 0.196.0: let go narrower than the fold point and the column folds away, as its collapse button does.
       const oSide = { host: page, varName: "--cp-side-w", key: "javis_cp_side_w", min: 220, max: 560, edge: "right",
-        label: "common.resize_chatside", keep: 420, total: () => page.clientWidth };
+        label: "common.resize_chatside", keep: 420, total: () => page.clientWidth,
+        collapse: { below: window.JavisColResize.FOLD_AT(220), run: () => datSideThu(true) } };
       window.JavisColResize.apply(oSide);
       window.JavisColResize.attach(sideEl, oSide);
     }
