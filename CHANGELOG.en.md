@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.211.0] - 2026-10-17
 ### Improved
-- **The Claude Code card on the Models page is cleaner and clearer** (in progress).
+- **The Claude Code card says one thing when the CLI is missing:** a single install box (Docker: update Javis; manual install: one command to copy) and only a Check again button. The Sign in button that could only fail is gone, and so are the version line and Update button for a program that is not there.
+- **Messages are no longer squeezed into a narrow column:** errors and hints sit under the buttons at full width, and buttons keep their height. The PATH and Windows details fold under "Installed but still missing?".
+- **Provider cards use 16px text**, easier to read on a phone. The card is now named "Claude Code" (Javis never uses its OAuth token), and the green shield lights only when the CLI is there.
 
 ## [0.210.0] - 2026-10-17
 ### Improved

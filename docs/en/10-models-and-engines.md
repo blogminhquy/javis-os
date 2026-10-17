@@ -17,7 +17,7 @@ The most important thing to understand: **changing model does NOT cost Javis any
 
 | Route | Provider | Javis MCP · brain file tools · skills | Shell commands (Bash) |
 |---|---|---|---|
-| Through **Claude Code** | Anthropic OAuth (Claude Code) | Yes, native MCP + native skills | **Yes** |
+| Through **Claude Code** | Claude Code | Yes, native MCP + native skills | **Yes** |
 | Through **Codex** | OpenAI OAuth (ChatGPT) | Yes, MCP through the hub (local connections such as Zalo/Webcake included) + Codex's OWN MCP registry (servers you added with `codex mcp add`) + skills through the router (`javis_use_skill` / reading `skills/` files) | **Yes** |
 | Through **Antigravity CLI** | Google Antigravity CLI (`agy`) | Yes, MCP through the hub (written into `~/.gemini/config/mcp_config.json`, see B1b) + skills through the router | **Yes** |
 | **Direct API** | OpenRouter | Yes, MCP through the hub + vault file tools + skills through the router | No |
@@ -59,7 +59,7 @@ The **Providers** block lists 10 providers. **Connected ones are sorted first**,
 
 | Provider (on-screen label) | Connection type | Notes |
 |---|---|---|
-| **Anthropic OAuth (Claude Code)** | Claude Code sign-in, no key needed | Full MCP/skills/shell. The default Main Model |
+| **Claude Code** | Claude Code sign-in, no key needed | Full MCP/skills/shell. The default Main Model |
 | **OpenAI OAuth (ChatGPT)** | Device code (ChatGPT plan sign-in) | Runs through Codex, wires the Connections store through the hub and uses skills through the router |
 | **xAI Grok Build CLI** | Sign in **on the Models page itself** (device code), no key needed | Uses your existing **SuperGrok / X Premium+** plan. Runs through the `grok` binary. Full MCP/skills/shell, and can resume a conversation thread. It is the **only CLI card that can sign in while Javis runs on a VPS**, see [B1a](#b1a-connecting-grok-build-cli-using-a-supergrok--x-premium-plan) |
 | **Google Antigravity CLI** | Type `agy` **once in a terminal**, no key needed | Google's designated replacement for Gemini CLI. Runs through the `agy` binary. Full MCP/skills/shell, and can pick **exactly the Antigravity IDE model lineup** (non-Google models included) |
@@ -81,7 +81,7 @@ Each provider card shows **● Connected** or **○ Not connected**, the number 
 
 This is the default engine. It can use every tool, skill and memory, plus run shell commands. It is not mandatory: if you have no Claude plan, skip this and go straight to section B (ChatGPT) or C (API keys), where Javis has the same functionality minus shell commands.
 
-1. Open **Models** and find the **Anthropic OAuth (Claude Code)** card.
+1. Open **Models** and find the **Claude Code** card.
 2. If you are not signed in, the card reads **○ Not signed in** with two buttons: **Sign into Claude** and **↻ Re-check**.
 3. Click **Sign into Claude**. Javis shows "**1)** Open this link to sign into claude.ai" with the link.
 4. Open that link and sign into your claude.ai account.

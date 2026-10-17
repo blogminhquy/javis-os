@@ -73,7 +73,7 @@ Press **Start using Javis →** to save and enter the app. The wizard also sets 
 This is the important step if you chose Claude Code. The wizard only saves the provider choice; signing in to Claude happens on the **Models** page (**Connections** group):
 
 1. Open **Models** on the left rail.
-2. Find the **Anthropic OAuth (Claude Code)** card. It starts at "○ Not signed in".
+2. Find the **Claude Code** card. It starts at "○ Not signed in".
 3. Press **Sign in to Claude**.
 4. Javis shows a link. Open it (in a new tab) and sign in at claude.ai.
 5. If the page shows a code afterwards, paste it into the **paste code (if any)** box and press **Send code**. Some flows need no code; Javis re-checks status every 3 seconds and updates the card.
@@ -90,7 +90,7 @@ The Javis Claude engine runs through the **Claude Agent SDK**, but the SDK still
 Once signed in, check and choose models on the **Models** page:
 
 - **◆ Main Model** shows the model used for conversations. Press **Change model ▾** to pick another.
-- **◆ Providers** lists all providers: Anthropic OAuth (Claude Code), OpenAI OAuth (ChatGPT), xAI Grok Build CLI, Google Antigravity CLI, OpenRouter, Anthropic (API), OpenAI (ChatGPT API), Google Gemini (API), Groq (API) and Ollama Cloud. Cards that need a key have a key box and **Connect** / **Change key** / **Disconnect** buttons.
+- **◆ Providers** lists all providers: Claude Code, OpenAI OAuth (ChatGPT), xAI Grok Build CLI, Google Antigravity CLI, OpenRouter, Anthropic (API), OpenAI (ChatGPT API), Google Gemini (API), Groq (API) and Ollama Cloud. Cards that need a key have a key box and **Connect** / **Change key** / **Disconnect** buttons.
 - **◆ Background-work model** (subtitled "loops · Kanban work · reminders · self-learning · source ingestion") lets you pick a cheap model for background work to spare your quota. Until you change it, the status line reads "Claude Code default". Press **Change model ▾** to pick, **Reset to default** to undo. Choosing a provider that is not connected shows "⚠ this provider is not connected - background work will fall back to Claude".
 - **◆ Reasoning** sets how deeply it thinks before answering: **Off**, **Low**, **Medium**, **High**. The default is Off (fast answers).
 
@@ -108,7 +108,7 @@ Subtitle: "Current status and shortcuts into the deeper groups". Four status box
 
 | Box | Tells you |
 |---|---|
-| **Engine** | The provider label behind the main model, e.g. "Anthropic OAuth (Claude Code)", "OpenRouter", "Google Gemini (API)" |
+| **Engine** | The provider label behind the main model, e.g. "Claude Code", "OpenRouter", "Google Gemini (API)" |
 | **Model** | The main model in use, or "Default" |
 | **Workspace** | The workspace name you set in the wizard |
 | **Telegram** | "On" or "Off" (see [Telegram](../11-telegram.md)) |
@@ -231,7 +231,7 @@ When Javis runs publicly (listening on `0.0.0.0`, i.e. VPS/Docker/Hostinger) wit
 | Button / label | Where | What it does |
 |---|---|---|
 | **Start using Javis →** | Wizard | Saves the workspace, account and provider, then enters the app |
-| **Sign in to Claude** | Models, Anthropic OAuth (Claude Code) card | Starts the device-code flow and shows the claude.ai link |
+| **Sign in to Claude** | Models, Claude Code card | Starts the device-code flow and shows the claude.ai link |
 | **Send code** | Models, after pressing Sign in to Claude | Submits the code taken from claude.ai |
 | **↻ Re-check** | Models, Claude Code card | Reloads the sign-in status |
 | **Disconnect** | Models | Signs the provider out of Javis |

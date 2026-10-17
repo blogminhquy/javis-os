@@ -631,7 +631,9 @@ def auth_status(bo_qua_cache: bool = False):
     """
     cli = find_claude_cli()
     if not cli:
-        return {"connected": False, "error": cau_thieu_cli("claude", "Claude")}
+        # `cli_missing` lets the Models card show one install step instead of a login button
+        # that can only fail; `error` stays for callers that print it.
+        return {"connected": False, "cli_missing": True, "error": cau_thieu_cli("claude", "Claude")}
     now = time.time()
     if not bo_qua_cache and _AUTH_CACHE["val"] and now - _AUTH_CACHE["ts"] < _AUTH_TTL:
         return dict(_AUTH_CACHE["val"])

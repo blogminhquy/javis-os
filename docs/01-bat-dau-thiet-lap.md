@@ -73,7 +73,7 @@ Bấm **Bắt đầu dùng Javis →** để lưu và vào app. Wizard đồng t
 Đây là bước quan trọng nhất nếu bạn chọn Claude Code. Wizard chỉ lưu lựa chọn nhà cung cấp, việc đăng nhập Claude thực hiện ở trang **Models** (nhóm **Kết nối**):
 
 1. Vào mục **Models** trên rail bên trái.
-2. Tìm thẻ **Anthropic OAuth (Claude Code)**. Trạng thái ban đầu là "○ Chưa đăng nhập".
+2. Tìm thẻ **Claude Code**. Trạng thái ban đầu là "○ Chưa đăng nhập".
 3. Bấm nút **Đăng nhập Claude**.
 4. Javis hiện một đường link. Bấm mở link đó (mở trong tab mới) để đăng nhập tại claude.ai.
 5. Nếu sau khi đăng nhập trang hiện một mã code, dán mã đó vào ô **dán code (nếu có)** rồi bấm **Gửi code**. Một số luồng không cần dán code, Javis tự dò lại trạng thái mỗi 3 giây và cập nhật thẻ.
@@ -90,7 +90,7 @@ Engine Claude của Javis chạy qua **Claude Agent SDK**, nhưng SDK vẫn gọ
 Sau khi đã đăng nhập, kiểm tra và chọn model ở trang **Models**:
 
 - Phần **◆ Main Model** hiển thị model đang dùng cho hội thoại. Bấm **Đổi model ▾** để chọn model khác.
-- Phần **◆ Providers** liệt kê **mười** nhà cung cấp: Anthropic OAuth (Claude Code), OpenAI OAuth (ChatGPT), xAI Grok Build CLI, Google Antigravity CLI, OpenRouter, Anthropic (API), OpenAI (ChatGPT API), Google Gemini (API), Groq (API), Ollama Cloud. Thẻ nào cần key thì có ô dán key và nút **Kết nối** / **Đổi key** / **Ngắt**.
+- Phần **◆ Providers** liệt kê **mười** nhà cung cấp: Claude Code, OpenAI OAuth (ChatGPT), xAI Grok Build CLI, Google Antigravity CLI, OpenRouter, Anthropic (API), OpenAI (ChatGPT API), Google Gemini (API), Groq (API), Ollama Cloud. Thẻ nào cần key thì có ô dán key và nút **Kết nối** / **Đổi key** / **Ngắt**.
 - Phần **◆ Model việc nền** (phụ đề "loop · việc Kanban · nhắc hẹn · tự học · tiêu hoá nguồn") cho phép chọn một model rẻ cho các việc chạy nền để đỡ hạn mức. Chưa đổi thì dòng trạng thái ghi "Mặc định của Claude Code". Bấm **Đổi model ▾** để chọn, bấm **Về mặc định** để trả lại. Nếu bạn chọn nhà cung cấp chưa kết nối, thẻ cảnh báo "⚠ nhà cung cấp này chưa kết nối - việc nền sẽ tự dùng lại Claude".
 - Phần **◆ Suy nghĩ** (reasoning) đặt độ sâu suy nghĩ khi trả lời: **Tắt**, **Thấp**, **Vừa**, **Cao**. Mặc định là Tắt (trả lời nhanh).
 
@@ -108,7 +108,7 @@ Phụ đề: "Trạng thái hiện tại và lối tắt tới các nhóm chuyê
 
 | Ô | Cho biết |
 |---|---|
-| **Engine** | Nhãn nhà cung cấp đang làm model chính, ví dụ "Anthropic OAuth (Claude Code)", "OpenRouter", "Google Gemini (API)" |
+| **Engine** | Nhãn nhà cung cấp đang làm model chính, ví dụ "Claude Code", "OpenRouter", "Google Gemini (API)" |
 | **Model** | Model chính đang dùng, hoặc "Mặc định" |
 | **Workspace** | Tên workspace bạn đặt ở wizard |
 | **Telegram** | "Đang bật" hoặc "Đang tắt" (xem [Kênh Telegram](11-telegram.md)) |
@@ -231,7 +231,7 @@ Khi Javis chạy công khai (nghe trên `0.0.0.0`, tức VPS/Docker/Hostinger) m
 | Nút / dòng chữ | Ở đâu | Làm gì |
 |---|---|---|
 | **Bắt đầu dùng Javis →** | Wizard | Lưu workspace, tài khoản, nhà cung cấp rồi vào app |
-| **Đăng nhập Claude** | Models, thẻ Anthropic OAuth (Claude Code) | Bắt đầu luồng device-code, hiện link claude.ai |
+| **Đăng nhập Claude** | Models, thẻ Claude Code | Bắt đầu luồng device-code, hiện link claude.ai |
 | **Gửi code** | Models, sau khi bấm Đăng nhập Claude | Gửi mã code lấy từ trang claude.ai |
 | **↻ Kiểm tra lại** | Models, thẻ Claude Code | Nạp lại trạng thái đăng nhập |
 | **Ngắt** | Models | Đăng xuất nhà cung cấp khỏi Javis |

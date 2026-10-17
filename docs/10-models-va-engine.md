@@ -17,7 +17,7 @@ Javis có thể chạy trên nhiều "engine" (nhà cung cấp AI) khác nhau. B
 
 | Cách gọi | Provider | MCP Javis · tool file brain · skill | Chạy lệnh máy (Bash) |
 |---|---|---|---|
-| Qua **Claude Code** | Anthropic OAuth (Claude Code) | Có - MCP native + skill native | **Có** |
+| Qua **Claude Code** | Claude Code | Có - MCP native + skill native | **Có** |
 | Qua **Codex** | OpenAI OAuth (ChatGPT) | Có - MCP qua hub (cả kết nối local như Zalo/Webcake) + kho MCP GỐC của Codex (server bạn tự `codex mcp add`) + skill qua router (`javis_use_skill` / đọc file `skills/`) | **Có** |
 | Qua **Antigravity CLI** | Google Antigravity CLI (`agy`) | Có - MCP qua hub (ghi vào `~/.gemini/config/mcp_config.json`, xem B1b) + skill qua router | **Có** |
 | **Gọi API thẳng** | OpenRouter | Có - MCP qua hub + tool file vault + skill qua router | Không |
@@ -59,7 +59,7 @@ Khối **Providers** liệt kê 10 nhà cung cấp. **Cái nào đã kết nối
 
 | Provider (nhãn trên màn hình) | Kiểu kết nối | Ghi chú |
 |---|---|---|
-| **Anthropic OAuth (Claude Code)** | Đăng nhập Claude Code, không cần key | Đầy đủ MCP/skill/tool máy. Là Main Model mặc định |
+| **Claude Code** | Đăng nhập Claude Code, không cần key | Đầy đủ MCP/skill/tool máy. Là Main Model mặc định |
 | **OpenAI OAuth (ChatGPT)** | Device code (đăng nhập gói ChatGPT) | Chạy qua Codex, đấu kho Kết nối qua hub + dùng skill qua router |
 | **xAI Grok Build CLI** | Đăng nhập **ngay trên trang Models** (device code), không cần key | Dùng gói **SuperGrok / X Premium+** sẵn có. Chạy qua binary `grok`. Đầy đủ MCP/skill/tool máy, nối lại được mạch hội thoại. Là thẻ CLI **duy nhất đăng nhập được khi Javis chạy trên VPS** - xem [B1a](#b1a-kết-nối-grok-build-cli-dùng-gói-supergrok--x-premium) |
 | **Google Antigravity CLI** | Gõ `agy` **một lần trong terminal**, không cần key | Bản Google chỉ định thay Gemini CLI. Chạy qua binary `agy`. Đầy đủ MCP/skill/tool máy, và chọn được **đúng dàn model của Antigravity IDE** (có cả model không phải của Google) |
@@ -81,7 +81,7 @@ Mỗi card provider hiển thị trạng thái **● Đã kết nối** hoặc *
 
 Đây là engine mặc định. Nó dùng được toàn bộ công cụ, skill và bộ nhớ, cộng thêm chạy lệnh máy. Không bắt buộc: nếu bạn không có gói Claude thì bỏ qua mục này và đi thẳng xuống mục B (ChatGPT) hoặc C (API key) - Javis chạy đủ chức năng như nhau, chỉ thiếu phần lệnh máy khi đi bằng API key.
 
-1. Vào **Models**, tìm card **Anthropic OAuth (Claude Code)**.
+1. Vào **Models**, tìm card **Claude Code**.
 2. Nếu chưa đăng nhập, card báo **○ Chưa đăng nhập** và có hai nút: **Đăng nhập Claude** và **↻ Kiểm tra lại**.
 3. Bấm **Đăng nhập Claude**. Javis hiện dòng "**1)** Mở link này để đăng nhập claude.ai" kèm đường link.
 4. Mở link đó để đăng nhập tài khoản claude.ai của bạn.

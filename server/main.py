@@ -1771,7 +1771,7 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     # default_models của thẻ này là LƯỚI CUỐI, dùng khi không đọc được danh mục của binary
     # `claude` và máy cũng không có API key. Alias đứng trước (luôn trỏ bản mới nhất của dòng),
     # rồi tới id đầy đủ để `_claude_api_model` dịch được alias sang tên thật.
-    {"id": "anthropic-cli", "label": "Anthropic OAuth (Claude Code)", "kind": "cli", "key_field": None,          "catalog_key": "claude",
+    {"id": "anthropic-cli", "label": "Claude Code", "kind": "cli", "key_field": None,          "catalog_key": "claude",
      "default_models": ["fable", "opus", "sonnet", "haiku",
                         "claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1",
                         "claude-opus-5", "claude-sonnet-5",
@@ -1907,6 +1907,8 @@ def _providers_view(cfg):
             # được. Lộ cli_found để thẻ nói thẳng ngay tại trang Models.
             item["cli_found"] = bool(find_codex_cli())
             item["cai_lenh"] = "npm install -g @openai/codex"
+            item["cli_env"] = "JAVIS_CODEX_BIN"
+            item["docker"] = deploy_info.deploy_mode() == "docker"
         if p["id"] == "grok-cli":
             _k = grok_cli.auth_status()
             item["cli_found"] = bool(grok_cli.find_grok_cli())
@@ -1945,6 +1947,8 @@ def _providers_view(cfg):
             # nhưng bản cài tay thiếu binary `claude` thì chat chết ngay lượt đầu.
             item["cli_found"] = bool(find_claude_cli())
             item["cai_lenh"] = "npm install -g @anthropic-ai/claude-code"
+            item["cli_env"] = "JAVIS_CLAUDE_BIN"
+            item["docker"] = deploy_info.deploy_mode() == "docker"
         out.append(item)
     return out
 

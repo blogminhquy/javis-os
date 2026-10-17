@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.211.0] - 2026-10-17
 ### Cải thiện
-- **Thẻ Claude Code trên trang Models gọn và rõ hơn** (đang làm).
+- **Thẻ Claude Code nói đúng một việc khi máy chưa cài:** một khung hướng dẫn duy nhất (Docker thì cập nhật Javis, cài tay thì một lệnh để chép), chỉ còn nút Kiểm tra lại. Bỏ nút Đăng nhập vốn chỉ báo lỗi, bỏ dòng phiên bản và nút Cập nhật của một chương trình chưa có.
+- **Thông báo không còn bị ép thành cột hẹp:** lỗi và hướng dẫn nằm dưới hàng nút, đủ bề ngang, nút giữ đúng chiều cao. Chi tiết về PATH và Windows gập vào mục "Đã cài mà vẫn báo thiếu?".
+- **Chữ trên các thẻ nhà cung cấp lên 16px**, đọc dễ trên điện thoại. Thẻ đổi tên thành "Claude Code" (Javis không dùng token OAuth của nó), khiên xanh chỉ sáng khi đã có CLI.
 
 ## [0.210.0] - 2026-10-17
 ### Cải thiện

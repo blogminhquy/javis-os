@@ -3967,11 +3967,25 @@
       // Máy thiếu binary CLI thì nói TẠI ĐÂY, đừng để user đăng nhập xanh rồi vào chat mới
       // vỡ (báo cáo 16/08: người mới cài "kết nối được nhưng không sử dụng được").
       // cli_found === false mới cảnh báo - undefined nghĩa là thẻ không thuộc diện kiểm.
-      const cliWarn = (ten) => p.cli_found === false
-        ? `<div class="prov-note warn">${WARN_ICON} <b>${esc(t("models.cli_missing"))} <code>${ten}</code></b>
-             - ${on ? esc(t("models.cli_missing2")) + " " : ""}${esc(t("models.cli_missing3"))}
-             <code>${esc(p.cai_lenh || "")}</code> ${esc(t("models.cli_missing4"))}</div>`
-        : "";
+      // One install box, with only the path that fits this machine (Docker or manual). The old
+      // single line listed both paths, and told a Claude Code card that "sign-in is done" while
+      // it had never signed in: that card always reports configured, so `on` proves nothing there.
+      const cliWarn = (ten) => {
+        if (p.cli_found !== false) return "";
+        const signedIn = on && p.kind === "oauth";
+        const how = p.docker
+          ? `<div>${esc(t("models.cliw_docker"))}</div>`
+          : `<div>${esc(t("models.cliw_manual"))}</div>
+             <div class="prov-cmd"><code>${esc(p.cai_lenh || "")}</code></div>
+             <div>${esc(t(p.kind === "cli" ? "models.cliw_after" : "models.cliw_after_plain"))}</div>
+             <details class="prov-help"><summary>${esc(t("models.cliw_help_q"))}</summary>
+               <div>${esc(t("models.cliw_help", { env: p.cli_env || "" }))}</div></details>`;
+        return `<div class="prov-note warn" id="cliWarn-${ten}">
+            <div>${WARN_ICON} <b>${esc(t("models.cli_missing"))} <code>${ten}</code></b></div>
+            <div>${esc(t(signedIn ? "models.cliw_on" : "models.cliw_off"))}</div>
+            ${how}
+          </div>`;
+      };
       if (p.kind === "oauth") {
         const st = on
           ? t("models.st_connected") + (p.plan ? " · " + esc(p.plan) : "") + " · " + p.models.length + " model"
@@ -4001,7 +4015,6 @@
         return `<div class="prov-card ${p.is_main ? "main" : ""}">
           ${provHead(p, on, "MCP/skill", st)}
           <div class="prov-note">${esc(t("models.grok_note"))}</div>
-          ${cliWarn("grok")}
           ${cliSetup(p, "Grok Build")}
           <div id="grokBox" class="prov-steps" style="display:none"></div>
           <div class="prov-action" style="flex-wrap:wrap">
@@ -4049,16 +4062,17 @@
         const byKey = p.auth_mode === "api_key";
         return `<div class="prov-card ${p.is_main ? "main" : ""}">
           <div class="prov-head">
-            <span class="prov-shield on">${_shield(true)}</span>
+            <span class="prov-shield ${p.cli_found === false ? "" : "on"}">${_shield(p.cli_found !== false)}</span>
             <div class="prov-info">
               <div class="prov-name">${esc(p.label)} <span class="prov-kind">MCP/skill</span></div>
-              <div class="prov-status" id="cliStatus">${esc(t("models.checking"))}</div>
+              <div class="prov-status" id="cliStatus">${esc(p.cli_found === false
+                ? t("models.st_no_cli", { ten: "Claude Code" }) : t("models.checking"))}</div>
             </div>
             ${p.is_main ? '<span class="prov-badge">MAIN</span>' : ""}
           </div>
           ${cliWarn("claude")}
-          <div class="prov-action" id="cliAction"></div>
-          <div class="prov-note" id="cliUpd" style="margin-top:8px;line-height:1.6"></div>
+          <div id="cliAction"></div>
+          <div class="prov-note" id="cliUpd"></div>
           <div class="prov-auth">
             <div class="prov-auth-title">${esc(t("models.auth_title"))}</div>
             <div class="prov-auth-note">${esc(t("models.auth_note"))}</div>
@@ -4419,18 +4433,38 @@
     try { d = await (await fetch("/claude/status" + (ep ? "?refresh=1" : ""))).json(); }
     catch (e) { st.textContent = t("models.cant_check"); return; }
     veCapNhatClaude(el, d);
+    // The install box is drawn with the card from the provider list. A check made later can
+    // disagree (installed or removed meanwhile), so redraw the tab once; the flag stops a loop
+    // when the two sources keep disagreeing.
+    const hasBox = !!el.querySelector("#cliWarn-claude");
+    if (hasBox !== !!d.cli_missing && !el._cliRedrawn) {
+      el._cliRedrawn = true;
+      renderModelsCloudTab(el);
+      return;
+    }
+    el._cliRedrawn = false;
+    if (d.cli_missing) {
+      // Nothing to sign in to yet: the box above says how to install, so the card offers only
+      // Check again. A login button here could only fail with the same message again.
+      st.className = "prov-status";
+      st.textContent = t("models.st_no_cli", { ten: "Claude Code" });
+      act.innerHTML = `<div class="prov-action">
+          <button class="gcard-btn ghost" id="cliRecheck">${esc(t("models.recheck"))}</button></div>`;
+      el.querySelector("#cliRecheck").onclick = () => refreshClaudeCard(el, true);
+      return;
+    }
     // KHÔNG hỏi được KHÁC hẳn "chưa đăng nhập", và trước bản này hai thứ đó vẽ y như nhau: một
     // lần hết giờ (hay gặp lúc đổi Main Model, khi trang cùng lúc gọi mấy tiến trình con) là
     // thẻ bày ra nút Đăng nhập, người dùng tưởng mất tài khoản rồi đi nối lại - trong khi
     // chẳng có gì mất cả (chủ repo báo 2026-08-13). Chưa biết thì nói là chưa biết.
     if (!d.connected && d.unknown) {
       st.className = "prov-status";
-      st.textContent = t("models.st_unknown") + (d.error ? " · " + d.error : "");
-      act.innerHTML = `
-        <button class="gcard-btn ghost" id="cliRecheck">${esc(t("models.recheck"))}</button>
-        <button class="gcard-btn ghost" id="cliLogin">${esc(t("models.login_claude"))}</button>
-        <span id="cliMsg" class="gcard-meta" style="margin-left:10px;flex:1"></span>
-        <div class="prov-note" style="margin-top:8px;line-height:1.6">
+      st.textContent = t("models.st_unknown");
+      act.innerHTML = `<div class="prov-action">
+          <button class="gcard-btn ghost" id="cliRecheck">${esc(t("models.recheck"))}</button>
+          <button class="gcard-btn ghost" id="cliLogin">${esc(t("models.login_claude"))}</button></div>
+        <div id="cliMsg" class="prov-msg">${d.error ? esc(d.error) : ""}</div>
+        <div class="prov-steps">
           ${esc(t("models.cli_unk1"))} <b>${esc(t("models.cli_unk2"))}</b>
           ${esc(t("models.cli_unk3"))}
         </div>`;
@@ -4442,21 +4476,24 @@
       st.className = "prov-status on";
       st.textContent = t("models.st_connected") + (d.email ? " · " + d.email : "") + (d.plan ? " · " + d.plan : "")
         + (d.stale ? " · " + t("models.st_stale") : "");
-      act.innerHTML = `<button class="gcard-btn ghost" id="cliLogout">${esc(t("models.disconnect"))}</button>`;
+      act.innerHTML = `<div class="prov-action"><button class="gcard-btn ghost" id="cliLogout">${esc(t("models.disconnect"))}</button></div>`;
       el.querySelector("#cliLogout").onclick = async () => {
         const b = el.querySelector("#cliLogout"); b.disabled = true; b.textContent = t("models.disconnecting");
         try { await fetch("/claude/logout", { method: "POST" }); } catch (e) {}
         refreshClaudeCard(el);
       };
     } else {
+      // The status line stays short; a CLI error (it can run to several sentences) goes in the
+      // message line under the buttons, where it has the full width of the card.
       st.className = "prov-status";
-      st.textContent = d.error ? "○ " + esc(d.error) : t("models.st_no_login");
-      act.innerHTML = `
-        <button class="gcard-btn" id="cliLogin">${esc(t("models.login_claude"))}</button>
-        <button class="gcard-btn ghost" id="cliRecheck">${esc(t("models.recheck"))}</button>
-        <span id="cliMsg" class="gcard-meta" style="margin-left:10px;flex:1"></span>
-        <div class="prov-note" style="margin-top:8px;line-height:1.6">
-          ${esc(t("models.cli_login_note"))} <code>claude auth login --claudeai</code>
+      st.textContent = t("models.st_no_login");
+      act.innerHTML = `<div class="prov-action">
+          <button class="gcard-btn" id="cliLogin">${esc(t("models.login_claude"))}</button>
+          <button class="gcard-btn ghost" id="cliRecheck">${esc(t("models.recheck"))}</button></div>
+        <div id="cliMsg" class="prov-msg">${d.error ? Icons.warn(d.error) : ""}</div>
+        <div class="prov-steps">
+          ${esc(t("models.cli_login_note"))}
+          <div class="prov-cmd"><code>claude auth login --claudeai</code></div>
         </div>`;
       el.querySelector("#cliLogin").onclick = () => startClaudeLogin(el);
       el.querySelector("#cliRecheck").onclick = () => refreshClaudeCard(el, true);
@@ -4470,16 +4507,20 @@
   function veCapNhatClaude(el, d) {
     const box = el.querySelector("#cliUpd");
     if (!box) return;
+    // No CLI on this machine: a version line and an update button would describe a program
+    // that is not there (the record of the last update outlives an uninstall).
+    box.style.display = d.cli_missing ? "none" : "";
+    if (d.cli_missing) { box.innerHTML = ""; return; }
     if (d.cap_nhat_docker) { box.textContent = t("models.cc_upd_docker"); return; }
     const cn = d.cap_nhat || {};
     let dong = cn.sau ? t("models.cc_upd_ver", { v: cn.sau }) + " · " : "";
     dong += t("models.cc_upd_auto");
-    if (cn.ts) dong += " · " + t("models.cc_upd_last", { luc: new Date(cn.ts * 1000).toLocaleString(LOC()) });
-    box.innerHTML = `<span>${esc(dong)}</span>
-      <div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    if (cn.ts) dong += " · " + t("models.cc_upd_last", { luc: new Date(cn.ts * 1000).toLocaleString(LOC(), { dateStyle: "short", timeStyle: "short" }) });
+    box.innerHTML = `<div>${esc(dong)}</div>
+      <div class="prov-action">
         <button class="gcard-btn ghost" id="cliUpdBtn">${esc(t("models.cc_upd_btn"))}</button>
-        <span id="cliUpdMsg" class="gcard-meta"></span>
-      </div>`;
+      </div>
+      <div id="cliUpdMsg" class="prov-msg"></div>`;
     const btn = box.querySelector("#cliUpdBtn"), msg = box.querySelector("#cliUpdMsg");
     btn.onclick = async () => {
       btn.disabled = true;
