@@ -226,9 +226,11 @@ check("@all calls every active member, leader first, past the per-message @ cap"
 check("without @all the cap still holds", "if len(wanted) > cap and not mention_all:" in
       (ROOT / "server" / "team_runner.py").read_text(encoding="utf-8"))
 import team_runner  # noqa: E402
-mid_ask = runner._post(teams_store.get(tid), "@Chủ nhóm ơi, anh chọn mẫu A hay B?", author_kind="agent", author_ref=key)
-mid_no = runner._post(teams_store.get(tid), "Em làm xong rồi, gửi @Lan xem.", author_kind="agent", author_ref=key)
-check("an assistant calling the owner is flagged; one calling a teammate is not",
+# 0.197.0: only the leader's call to the owner is flagged (test_team_unread_0197.py covers the other members).
+lead_key = teams_store.get(tid)["leader_key"]
+mid_ask = runner._post(teams_store.get(tid), "@Chủ nhóm ơi, anh chọn mẫu A hay B?", author_kind="agent", author_ref=lead_key)
+mid_no = runner._post(teams_store.get(tid), "Em làm xong rồi, gửi @Lan xem.", author_kind="agent", author_ref=lead_key)
+check("the leader calling the owner is flagged; calling a teammate is not",
       store.team_message(sid, mid_ask)["meta"].get("asks_owner") is True
       and not store.team_message(sid, mid_no)["meta"].get("asks_owner"))
 check("team members are told to tag the owner and each other",
