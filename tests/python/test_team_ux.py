@@ -232,10 +232,15 @@ run(r.run_replies(r.submit(T["team_id"], "Chào", client_msg_id="x1")))
 job = r.submit(T["team_id"], "Viết", mentions=["minh"], as_job=True, client_msg_id="x2")["task_id"]
 run(r.dispatch_once())
 roles = {c["role"]: c["system"] for c in fake.calls}
-check("lượt trả lời và lượt làm việc đều có đoạn chỉ chữ, đặt SAU lời nhắc của trợ lý (đè lời hứa bộ công cụ)",
-      set(roles) >= {"leader_reply", "work"} and all(s.startswith("Bạn có toàn bộ bộ công cụ") and TR.TEXT_ONLY_NOTE in s
-                                                    and s.index(TR.TEXT_ONLY_NOTE) > 0 for s in roles.values()),
+# 0.194.0: chat replies keep the text-only note; a Work step of a job gets the tool note instead (its own toolkit).
+check("lượt trả lời có đoạn chỉ chữ, đặt SAU lời nhắc của trợ lý (đè lời hứa bộ công cụ)",
+      set(roles) >= {"leader_reply", "work"}
+      and all(s.startswith("Bạn có toàn bộ bộ công cụ") and TR.TEXT_ONLY_NOTE in s and s.index(TR.TEXT_ONLY_NOTE) > 0
+              for k, s in roles.items() if k not in TR.TOOL_ROLES),
       {k: v[-200:] for k, v in roles.items()})
+check("lượt Làm của việc có đoạn CÓ công cụ thay đoạn chỉ chữ, đặt SAU lời nhắc của trợ lý",
+      TR.WORK_TOOLS_NOTE in roles["work"] and TR.TEXT_ONLY_NOTE not in roles["work"]
+      and roles["work"].index(TR.WORK_TOOLS_NOTE) > 0, roles["work"][-300:])
 check("đoạn chỉ chữ nói rõ không có công cụ và gọi công cụ làm hỏng lượt", "không có công cụ" in TR.TEXT_ONLY_NOTE
       and "hỏng" in TR.TEXT_ONLY_NOTE)
 

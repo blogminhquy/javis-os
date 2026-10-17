@@ -9,7 +9,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.194.0] - 2026-10-17
 ### Thêm mới
 - **Team làm được việc thật:** khi giao việc trong Team, lượt **Làm** và **Hỗ trợ** của thành viên có đủ công cụ như chat riêng: đọc và ghi file trong bộ não và thư mục làm việc của nhóm, gọi kết nối (MCP), chạy skill. Thành viên tự làm rồi trả kết quả thật (file, link), không còn bảo bạn sang chat riêng.
-- **Không giẫm chân nhau:** các lượt Làm trong cùng một Team chạy lần lượt, nên hai thành viên không sửa cùng một file một lúc.
+- **Không giẫm chân nhau:** các lượt Làm trên cùng một bộ não (kể cả của hai Team khác nhau) chạy lần lượt, nên hai thành viên không sửa cùng một file một lúc.
 
 ### Cải thiện
 - **Trò chuyện vẫn nhanh và rẻ:** câu trả lời trò chuyện thường trong Team vẫn chỉ bằng chữ. Cần đụng tới file hay kết nối thì thành viên đề nghị giao thành việc.

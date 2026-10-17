@@ -4088,7 +4088,7 @@
   "teams.limits.step_timeout": "Thời gian tối đa một bước của việc",
   "teams.limits.admin_ops_per_turn": "Lệnh quản trị tối đa trong một lần trả lời của người điều phối",
   "teams.limits.history_window": "Tin gần đây cộng sự đọc mỗi lượt (phần cũ hơn được tóm tắt)",
-  "teams.limits.text_only": "Lượt trong team chỉ trả lời bằng chữ, không dùng công cụ",
+  "teams.limits.text_only": "Trò chuyện trong team chỉ trả lời bằng chữ; lượt Làm và Hỗ trợ của việc được giao dùng công cụ như chat riêng",
   "teams.limits.server_call_ceiling": "Trần lượt toàn máy do máy chủ đặt (chỉ cho mục tiêu Auto)",
   "teams.limits.provider_quota": "Hạn mức của gói thuê bao hay nhà cung cấp model",
   "teams.limits.account": "Quyền của tài khoản model đang dùng",

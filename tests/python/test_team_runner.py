@@ -473,7 +473,11 @@ px = [c for c in fake.calls if c["team_id"] == X["team_id"]][0]
 check("TC22 lời nhắc nhóm X không chứa tin nhóm Y, chat riêng", "BÍ MẬT NHÓM Y" not in px["prompt"] + px["system"]
       and "CHUYỆN RIÊNG" not in px["prompt"] + px["system"] and "Nhóm X" in px["prompt"])
 check("TC21 mạch thành viên riêng theo nhóm", px["thread"] == f"teammate:{X['team_id']}:ag_minh")
-check("TC23 lượt nhóm T1 chỉ chữ: không có công cụ (không javis_goal)", all(c.get("tools") == [] for c in fake.calls))
+# 0.194.0: chat replies, plans and summaries stay text only; a Work/Help step of a job gets the member's own toolkit.
+check("TC23 lượt trò chuyện, lập kế hoạch, tổng hợp chỉ chữ: không có công cụ (không javis_goal)",
+      all(c.get("tools") == [] and not c.get("tool_turn") for c in fake.calls if c["role"] not in TR.TOOL_ROLES))
+check("TC23 lượt Làm/Hỗ trợ của việc có bộ công cụ của trợ lý",
+      all(c.get("tools") is None and c.get("tool_turn") for c in fake.calls if c["role"] in TR.TOOL_ROLES))
 
 tm.set_caps(X["team_id"], {"busy_wait_s": 0.05})
 hold = asyncio.Event()

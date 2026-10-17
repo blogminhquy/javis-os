@@ -68,6 +68,9 @@ ASK_PEER_OP = "ask_peer"
 ASK_PEER_PER_TURN = 2
 LEADER_ROLES = ("leader_reply", "plan", "synthesize")
 REPLY_ROLES = ("leader_reply", "member_reply")
+# Bước của việc nhóm chạy CÓ công cụ (0.194.0, chủ 17/10/2026: "team phải đầy đủ các quyền thì mới làm việc được"): Làm
+# và Hỗ trợ. Lượt trò chuyện, lập kế hoạch và tổng hợp vẫn chỉ chữ cho nhanh và rẻ.
+TOOL_ROLES = ("work", "help")
 ROLE_LABEL = {
     "leader_reply": "Trưởng nhóm trả lời trò chuyện",
     "member_reply": "Thành viên trả lời trò chuyện",
@@ -119,13 +122,25 @@ FIXED_LIMITS = {
     "server_call_ceiling": "JAVIS_RESONANCE_CALL_CEILING do máy chủ đặt (mục tiêu Auto và lượt nhóm)",
     "provider_quota": "Hạn mức của gói thuê bao hay của nhà cung cấp model",
     "account": "Quyền của tài khoản model đang dùng",
-    "technical": "Giới hạn kỹ thuật: lượt nhóm chỉ chữ, một lượt mỗi agent cùng lúc, hạn khoá bận",
+    "technical": "Giới hạn kỹ thuật: lượt trò chuyện chỉ chữ (lượt Làm, Hỗ trợ của việc có công cụ), một lượt mỗi agent "
+                 "cùng lúc, hạn khoá bận",
 }
 # Đoạn cố định nối SAU lời nhắc của trợ lý trong MỌI lượt nhóm (review tích hợp 0.140.0): lời nhắc chung của trợ lý có
 # đoạn "bộ công cụ của hub", còn lượt nhóm chạy chỉ chữ (phán quyết R3) nên mọi lần gọi công cụ đều làm hỏng lượt.
 TEXT_ONLY_NOTE = ("# LƯỢT NHÓM CHỈ CHỮ\nLượt này trong nhóm chat không có công cụ nào: không đọc hay ghi file, không gọi kết "
                   "nối (MCP), không chạy lệnh, dù phần trên có nhắc tới bộ công cụ. Chỉ trả lời bằng chữ; gọi công cụ sẽ làm "
-                  "hỏng lượt.")
+                  "hỏng lượt. Việc cần đọc, sửa file hay gọi kết nối thì đề nghị chủ nhóm giao thành việc của nhóm: lượt Làm "
+                  "của việc có đủ công cụ. Đừng bảo chủ nhóm chuyển sang chat riêng.")
+# Lượt Làm/Hỗ trợ của việc nhóm (TOOL_ROLES, 0.194.0) dùng đoạn này THAY TEXT_ONLY_NOTE: thành viên có bộ công cụ như chat
+# riêng và phải tự làm tới kết quả thật, không đẩy chủ sang chat riêng (pilot 17/10: "Dev - Huy" bảo chủ sang chat riêng
+# vì lượt nhóm không đụng được file).
+WORK_TOOLS_NOTE = ("# LƯỢT LÀM VIỆC CÓ CÔNG CỤ\nĐây là lượt bạn làm một bước của việc chủ nhóm giao. Bạn có bộ công cụ như khi "
+                   "chủ chat riêng với bạn: đọc và ghi file trong bộ não và thư mục làm việc của nhóm, gọi kết nối (MCP) đã "
+                   "nối, dùng skill, chạy lệnh nếu engine của bạn có. TỰ LÀM bước này tới kết quả thật (file đã ghi, link đã "
+                   "chạy, số liệu đã lấy), đừng bảo chủ nhóm chuyển sang chat riêng. Trả lời trong nhóm bằng kết quả: đã làm "
+                   "gì, file hay link nào, còn vướng gì. Chỉ làm đúng phạm vi bước được giao; hành động ra ngoài (gửi tin, đăng "
+                   "bài, thanh toán, xoá dữ liệu) chỉ làm khi việc nói rõ. Thành viên khác làm lần lượt trên cùng thư mục, "
+                   "nên đừng sửa file của bước khác khi bước của bạn không cần.")
 # Ngữ cảnh nhóm nội bộ (0.142.0), nối cùng TEXT_ONLY_NOTE trong MỌI lượt nhóm. Lời nhắc chung của trợ lý có thể chứa luật
 # của chatbot Zalo (im lặng khi không được gọi, nhắn ra Zalo); nhóm trên dashboard là nhóm nội bộ của chủ nên các luật đó
 # không áp dụng ở đây. Tin của trợ lý khác hay của hệ thống là thông tin, không phải yêu cầu mới của chủ (không tự mở rộng
@@ -285,6 +300,22 @@ class TextOnlyOutcome:
         if not f["content"].strip():
             raise EngineOutcomeError("empty")
         return {"text": f["content"], "tokens_in": self.tokens_in, "tokens_out": self.tokens_out}
+
+
+class ToolTurnOutcome(TextOnlyOutcome):
+    """Kết cục của lượt Làm/Hỗ trợ CÓ công cụ (0.194.0): cùng luật với lượt chỉ chữ (final lỗi, lỗi đăng nhập, lỗi sau
+    final, thiếu final, rỗng đều là lỗi), trừ việc gọi công cụ là bình thường. `tool_calls` đếm số lần gọi."""
+
+    TOOL_EVENTS = ()
+
+    def __init__(self):
+        super().__init__()
+        self.tool_calls = 0
+
+    def note(self, ev: Any) -> None:
+        if isinstance(ev, dict) and ev.get("type") in ("tool_call", "tool_use"):
+            self.tool_calls += 1
+        super().note(ev)
 
 
 class TeamRunner:
@@ -1417,7 +1448,7 @@ class TeamRunner:
                  "Lệnh quản trị, mỗi lệnh một khối ở cuối câu trả lời: <!-- JAVIS_TEAM: {...} -->"]
                 + [f"- {o}" for o in ops]
                 + ["Chỉ sửa được trợ lý do nhóm này quản lý. Không vượt được: hạn mức gói thuê bao hay nhà cung cấp, "
-                   "lượt chỉ chữ, một lượt mỗi trợ lý cùng lúc. Lệnh của chủ nhóm luôn thắng."])
+                   "lượt trò chuyện chỉ chữ, một lượt mỗi trợ lý cùng lúc. Lệnh của chủ nhóm luôn thắng."])
 
     def _system(self, team: dict, text: str, kind: str) -> None:
         self._post(team, text, author_kind="system", meta={"kind": kind})
@@ -2121,18 +2152,29 @@ class TeamRunner:
             return {"pre": pre}
         engine, model, fn = self.engine_for(team, agent_key, role)
         pin = (self.teams.turn(turn_id) or {}).get("authority_id")
+        # 0.194.0: a Work/Help step of a job gets the member's own toolkit (`tool_turn`, `tools: None` = the normal set of
+        # a private chat); every other team turn stays text only (`tools: []`).
+        tool_turn = role in TOOL_ROLES and task is not None
+        note = WORK_TOOLS_NOTE if tool_turn else TEXT_ONLY_NOTE
         req = {"team_id": team_id, "brain": team["brain_id"], "agent_key": agent_key, "role": role,
-               "system": (str(info.get("system") or "").rstrip() + "\n\n" + TEXT_ONLY_NOTE + "\n\n" +
+               "system": (str(info.get("system") or "").rstrip() + "\n\n" + note + "\n\n" +
                           "\n".join(INTERNAL_GROUP_NOTE)).lstrip(),
-               "prompt": self._context(team, agent_key, role, task, step, authority_pin=pin) + self._docs(team) + "\n\n" + body,
+               "prompt": (self._context(team, agent_key, role, task, step, authority_pin=pin)
+                          + self._docs(team, tool_turn) + "\n\n" + body),
                "thread": f"teammate:{team_id}:{agent_key}", "task_id": task["id"] if task else None,
-               "step_id": step["step_id"] if step else None, "turn_id": turn_id, "tools": []}
+               "step_id": step["step_id"] if step else None, "turn_id": turn_id,
+               "tools": None if tool_turn else [], "tool_turn": tool_turn}
         return {"pre": "done", "engine": str(engine or ""), "model": str(model or ""), "fn": fn, "req": req}
 
-    def _docs(self, team: dict) -> str:
+    def _docs(self, team: dict, tools: bool = False) -> str:
         if self.docs_block is None:
             return ""
         try:
+            if tools:
+                try:
+                    return str(self.docs_block(team, tools=True) or "")
+                except TypeError:  # an older docs_block(team) without the tool-turn wording
+                    pass
             return str(self.docs_block(team) or "")
         except Exception:  # noqa: BLE001 - documents are context; a broken one must not cost the turn
             return ""
@@ -2219,7 +2261,14 @@ class TeamRunner:
                 await engine_started()
             try:
                 limit = self.turn_timeout if role in REPLY_ROLES else self.step_timeout
-                res = await asyncio.wait_for(fn(req), timeout=limit)
+                if req.get("tool_turn"):
+                    # 0.194.0: tool turns in one brain take turns. One team already runs one job at a time, but two teams
+                    # of the same brain run side by side (max_parallel_teams) and write the same files. Waiting here is
+                    # not counted against the turn's time limit; the leases keep renewing meanwhile.
+                    async with self._tool_lock(str(team.get("brain_id") or team_id)):
+                        res = await asyncio.wait_for(fn(req), timeout=limit)
+                else:
+                    res = await asyncio.wait_for(fn(req), timeout=limit)
             except asyncio.TimeoutError:
                 if marked:
                     await self._io(self._settle_turn, turn_id, "error")
@@ -2280,6 +2329,14 @@ class TeamRunner:
             except Exception as ex:  # noqa: BLE001 - phán xử hỏng không được làm hỏng lượt đã đăng tin
                 log.warning("judge after accept failed: %s: %s", type(ex).__name__, ex)
         return out
+
+    def _tool_lock(self, brain: str) -> asyncio.Lock:
+        """One lock per brain for tool turns (0.194.0)."""
+        locks = self.__dict__.setdefault("_tool_locks", {})
+        lock = locks.get(brain)
+        if lock is None:
+            lock = locks[brain] = asyncio.Lock()
+        return lock
 
     def _renew_every(self) -> float:
         return max(0.01, min(float(self.lease_renew_s), float(self.busy_lease_s) / 3, float(self.job_lease_s) / 3))

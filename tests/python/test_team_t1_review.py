@@ -121,12 +121,13 @@ def patch_build(return_value=None, side_effect=None):
             return side_effect(system, tag)
         return return_value
 
-    def build(spec, base, tag, settings=None):
+    def build(spec, base, tag, settings=None, **_kw):
         eng, why = src(getattr(base, "system_prompt", ""), tag)
         if eng is None:
             raise main.team_engine.TeamEngineUnavailable(str((why or {}).get("reason") or why), spec.get("provider", ""))
         return eng
-    return patch.object(main.team_engine, "build", side_effect=build)
+    # 0.194.0: Work/Help steps build through `build_tools` (the member's toolkit), every other turn through `build`.
+    return patch.multiple(main.team_engine, build=build, build_tools=build)
 
 def agent_msgs(ss, team):
     return [m for m in ss.get_team_messages_page(team["session_id"], limit=200)["messages"] if m["author_kind"] == "agent"]
@@ -180,7 +181,16 @@ def section_r1():
         "blank_final": [{"type": "final", "content": "  \n "}],
         "no_final": [{"type": "text", "content": "đang nghĩ"}],
     }
+    # 0.194.0: a Work step runs with the member's tools, so a tool call there is normal work (checked below), not an
+    # error. Reply turns stay text only (the reply section checks that a tool call still breaks them).
+    TOOL_OK = ("tool_call", "tool_result")
+    for name in TOOL_OK:
+        w = job_via_factory(f"r1-{name}", BAD[name])
+        check(f"R1 {name}: lượt Làm có công cụ, gọi công cụ rồi trả final thì việc xong",
+              w["task"]["status"] == "done" and [x["status"] for x in w["turns"]] == ["ok"], (w["task"], w["turns"]))
     for name, events in BAD.items():
+        if name in TOOL_OK:
+            continue
         w = job_via_factory(f"r1-{name}", events)
         turns = w["turns"]
         check(f"R1 {name}: việc không xong, bị chặn 'failed' để Chạy lại",
@@ -218,6 +228,13 @@ def section_r1():
     check("R1 lượt trò chuyện final lỗi: kết cục error, không đăng câu trả lời, lượt tính",
           [o["status"] for o in outs] == ["error"] and agent_msgs(ss, t) == []
           and [x["status"] for x in tm.turns(t["team_id"])] == ["error"])
+    # 0.194.0: chat replies stay text only, so a tool call there still breaks the turn.
+    r, tm, ts, ss, t, d = world("r1-reply-tool")
+    with patch.object(main, "_team_agent_info", side_effect=ident), \
+            patch_build(return_value=(Engine(BAD["tool_call"]), {})):
+        outs = run(r.run_replies(r.submit(t["team_id"], "Chào", client_msg_id="r1-reply-tool")))
+    check("R1 lượt trò chuyện gọi công cụ: vẫn là lỗi (trò chuyện chỉ chữ), không đăng câu trả lời",
+          [o["status"] for o in outs] == ["error"] and agent_msgs(ss, t) == [])
 
     o = TR.TextOnlyOutcome()
     for ev in ({"type": "text", "content": "a"}, {"type": "usage", "input_tokens": 2, "output_tokens": 1},

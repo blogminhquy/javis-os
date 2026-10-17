@@ -11,7 +11,7 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 ## [0.194.0] - 2026-10-17
 ### Added
 - **Teams do real work:** when you assign a job in a Team, a member's **Work** and **Help** turns get the same tools as a private chat: read and write files in the brain and the team's working folder, call connections (MCP), run skills. Members do the job and return real results (files, links) instead of sending you to a private chat.
-- **No stepping on each other:** Work turns inside one Team run one at a time, so two members never edit the same file at once.
+- **No stepping on each other:** Work turns on the same brain (even from two different Teams) run one at a time, so two members never edit the same file at once.
 
 ### Improved
 - **Chat stays fast and cheap:** ordinary chat replies in a Team are still text only. When a reply needs files or connections, the member suggests turning it into a job.

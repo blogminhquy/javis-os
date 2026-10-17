@@ -12,6 +12,8 @@ Hợp đồng ở đây:
   báo lỗi rõ lý do trong khung chat, chủ đổi model của trợ lý hay bấm Thử lại.
 - **Quyền:** giữ nguyên giới hạn đã có của lượt nhóm (phán quyết R3): chỉ chữ, thư mục trống, không MCP, không hub.
   Sự kiện công cụ nào lọt ra vẫn làm hỏng lượt (`team_runner.TextOnlyOutcome`). Không nâng quyền, không bật Auto.
+  Ngoại lệ từ 0.194.0: lượt Làm và Hỗ trợ của một việc nhóm (`team_runner.TOOL_ROLES`) chạy CÓ công cụ như chat riêng
+  (`build_tools`). Lượt trò chuyện, lập kế hoạch, tổng hợp, quét và học vẫn chỉ chữ.
 
 Cơ chế chỉ chữ theo provider:
 - `anthropic-cli`: engine Claude hộp cát của caller (`allowed_tools` không khớp công cụ nào, MCP rỗng).
@@ -50,16 +52,17 @@ class TeamEngineUnavailable(RuntimeError):
 
 
 def choose_spec(agent_model: str, agent_provider: str, main: dict, resolve: Callable[[str, str], str],
-                available: Callable[[dict], tuple]) -> dict:
+                available: Callable[[dict], tuple], tools: bool = False) -> dict:
     """Spec {provider, model, source, note} cho lượt nhóm của một trợ lý.
 
     `resolve(model, provider)` là luật chọn provider của agent (main._agent_model_provider). `available(spec)` trả
-    (ok, lý do). Model riêng không chạy được thì theo model chính, kèm `note` nói vì sao (hiện trên tin)."""
+    (ok, lý do). Model riêng không chạy được thì theo model chính, kèm `note` nói vì sao (hiện trên tin).
+    `tools=True` (0.194.0): spec cho lượt Làm/Hỗ trợ CÓ công cụ, nơi Grok Build và Antigravity cũng chạy được."""
     model = str(agent_model or "").strip()
     if model:
         prov = resolve(model, str(agent_provider or ""))
         spec = {"provider": prov, "model": model, "source": "agent", "note": ""}
-        if not text_only_supported(prov):
+        if not (tools_supported(prov) if tools else text_only_supported(prov)):
             # Grok Build, Antigravity: chưa có cơ chế chỉ chữ được kiểm. Chạy bằng model chính và NÓI RÕ trên tin (không
             # âm thầm đổi provider), thay vì để trợ lý im hay báo lỗi mỗi tin.
             ok, why = False, "chưa chạy được lượt nhóm chỉ chữ (còn công cụ native không tắt riêng được)"
@@ -79,6 +82,12 @@ def text_only_supported(provider: str) -> bool:
     """Provider có cơ chế chỉ chữ đã kiểm cho lượt nhóm: Claude (cổng chặn), Codex (cờ + sandbox read-only), engine API."""
     p = str(provider or "")
     return p in (CLAUDE, CODEX) or p in aux_engine.API_PROVIDERS
+
+
+def tools_supported(provider: str) -> bool:
+    """Provider dựng được engine CÓ công cụ cho lượt Làm/Hỗ trợ (0.194.0): mọi provider có builder việc nền."""
+    p = str(provider or "")
+    return p in (CLAUDE, CODEX, aux_engine.GROK_CLI, aux_engine.ANTIGRAVITY) or p in aux_engine.API_PROVIDERS
 
 
 def codex_text_only(cc: Any) -> Any:
@@ -123,3 +132,30 @@ def build(spec: dict, base: Any, tag: str, settings: Optional[dict] = None) -> A
     raise TeamEngineUnavailable(
         f"{prov} chưa chạy được lượt nhóm chỉ chữ (còn công cụ native không tắt riêng cho lượt này được). "
         "Đổi model của trợ lý ở trang Cộng sự sang Claude, ChatGPT (Codex) hay một model API", prov)
+
+
+def build_tools(spec: dict, base: Any, tag: str, settings: Optional[dict] = None, mode: str = "full",
+                codex_profile: Optional[Callable[[], Any]] = None) -> Any:
+    """Engine CÓ công cụ cho lượt Làm/Hỗ trợ của việc nhóm (0.194.0, chủ 17/10/2026: "team phải đầy đủ các quyền thì mới
+    làm việc được"). `base` là engine Claude caller đã dựng như chat riêng: cwd là thư mục làm việc của nhóm (hay bộ não),
+    hub MCP gắn ở mức `mode`, `javis_vault` là bộ não. Provider khác Claude dựng bằng đúng các builder của việc nền
+    (`aux_engine._build_*`), nên quyền đi theo cùng một chỗ: hub chặn theo mức, sandbox Codex và cờ deny của Grok theo mức.
+    Không có chuỗi dự phòng (như việc nền mức full): provider đã chọn không chạy được thì báo lỗi rõ."""
+    prov = str(spec.get("provider") or CLAUDE)
+    model = str(spec.get("model") or "")
+    if prov == CLAUDE:
+        base.model = model or None
+        return base
+    ok, why = aux_engine.availability({"provider": prov, "model": model}, settings)
+    if not ok:
+        raise TeamEngineUnavailable(str(why or "provider chưa sẵn sàng"), prov)
+    sp = {"provider": prov, "model": model}
+    if prov == CODEX:
+        return aux_engine._build_codex(sp, base, mode, tag, codex_profile)
+    if prov == aux_engine.GROK_CLI:
+        return aux_engine._build_grok(sp, base, mode, tag)
+    if prov == aux_engine.ANTIGRAVITY:
+        return aux_engine._build_antigravity(sp, base, mode, tag)
+    if prov in aux_engine.API_PROVIDERS:
+        return aux_engine._build_api(sp, base, mode, tag)
+    raise TeamEngineUnavailable(f"{prov} chưa dựng được lượt làm việc có công cụ", prov)

@@ -101,7 +101,16 @@ check("the runner adds the block to every member turn", runner.docs_block is not
       and "THƯ MỤC LÀM VIỆC" in runner._docs(dict(team, session_id=sid, brain_id=main._brain_key(b))))
 src = (ROOT / "server" / "team_runner.py").read_text(encoding="utf-8")
 check("_prepare puts it between the team context and the message",
-      "self._context(team, agent_key, role, task, step, authority_pin=pin) + self._docs(team)" in src)
+      "self._context(team, agent_key, role, task, step, authority_pin=pin)\n" in src
+      and "+ self._docs(team, tool_turn) + \"\\n\\n\" + body" in src)
+# 0.194.0: a Work/Help turn can open the files and the folder itself, so its block says so instead of "cannot open".
+tblk = main._team_docs_block(dict(team, session_id=sid, brain_id=main._brain_key(b)), tools=True)
+check("tool turns: the block says the turn can open the files and works in the folder",
+      "có công cụ" in tblk and "KHÔNG mở được file" not in tblk and "chạy ngay trong thư mục đó" in tblk
+      and "- web/" in tblk, tblk[:600])
+check("tool turns through the runner get the tool wording, chat turns keep the text-only wording",
+      "chạy ngay trong thư mục đó" in runner._docs(dict(team, session_id=sid, brain_id=main._brain_key(b)), True)
+      and "Lượt nhóm không mở được file" in runner._docs(dict(team, session_id=sid, brain_id=main._brain_key(b))))
 check("tree keeps hidden folders out and stops at the cap",
       team_docs.tree(str(BR), cap=3)[-1].endswith("(còn nữa, đã cắt)") and not any(".x" in x for x in team_docs.tree(str(BR))))
 

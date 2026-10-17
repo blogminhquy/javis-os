@@ -4088,7 +4088,7 @@
   "teams.limits.step_timeout": "Max time for one job step",
   "teams.limits.admin_ops_per_turn": "Max admin commands in one coordinator reply",
   "teams.limits.history_window": "Recent messages an assistant reads per turn (older ones are summarized)",
-  "teams.limits.text_only": "Team turns reply in text only, no tools",
+  "teams.limits.text_only": "Team chat replies are text only; Work and Help turns of an assigned job use tools like a private chat",
   "teams.limits.server_call_ceiling": "Server-wide call ceiling (Auto goals only)",
   "teams.limits.provider_quota": "Quota of your subscription or model provider",
   "teams.limits.account": "Permissions of the model account in use",

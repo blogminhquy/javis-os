@@ -147,20 +147,27 @@ def tree(folder: str, depth: int = TREE_DEPTH, cap: int = TREE_MAX) -> List[str]
     return lines
 
 
-def block(listed: List[str], loaded: List[str], folder: str) -> str:
-    """The team documents block of a member's prompt. "" when the team has nothing attached and no folder."""
+def block(listed: List[str], loaded: List[str], folder: str, tools: bool = False) -> str:
+    """The team documents block of a member's prompt. "" when the team has nothing attached and no folder.
+    `tools=True` (0.194.0): the wording of a Work/Help turn, which can open the files and the folder itself."""
     out = ""
     if listed:
+        how = ("Lượt làm việc này có công cụ: mở thẳng file theo đường dẫn khi cần đọc hết hay sửa; phần nạp sẵn bên dưới "
+               "chỉ là bản đọc nhanh. Ảnh thì đọc tài liệu \"mô tả ảnh\" đi kèm hay mở ảnh nếu engine của bạn xem được ảnh."
+               if tools else
+               "Lượt nhóm chỉ chữ: bạn KHÔNG mở được file hay link; chỉ đọc được phần nội dung đã nạp sẵn bên dưới. Ảnh thì "
+               "đọc tài liệu \"mô tả ảnh\" đi kèm (một bộ não khác đã xem hộ); ảnh hay tài liệu chưa nạp thì nói rõ là chưa "
+               "đọc được, đừng đoán nội dung từ cái tên.")
         out += ("\n\n# === TÀI LIỆU VÀ LINK CỦA NHÓM ===\n"
-                "Chủ nhóm gắn các tài liệu và link này cho cả nhóm. Lượt nhóm chỉ chữ: bạn KHÔNG mở được file hay link; "
-                "chỉ đọc được phần nội dung đã nạp sẵn bên dưới. Ảnh thì đọc tài liệu \"mô tả ảnh\" đi kèm (một bộ não khác "
-                "đã xem hộ); ảnh hay tài liệu chưa nạp thì nói rõ là chưa đọc được, đừng đoán nội dung từ cái tên.\n" + "\n".join(listed))
+                "Chủ nhóm gắn các tài liệu và link này cho cả nhóm. " + how + "\n" + "\n".join(listed))
     if loaded:
         out += "\n\n# === NỘI DUNG TÀI LIỆU CỦA NHÓM (nạp sẵn) ===" + "".join(loaded)
     lines = tree(folder)
     if folder:
         out += ("\n\n# === THƯ MỤC LÀM VIỆC CỦA NHÓM ===\n"
                 f"Chủ nhóm ghim thư mục: {folder}\n"
-                "Đây là cây thư mục để cả nhóm biết dự án gồm gì. Lượt nhóm không mở được file trong đó; cần đọc file nào "
-                "thì nhờ chủ nhóm gắn file đó vào tài liệu của nhóm.\n" + "\n".join(lines))
+                + ("Lượt làm việc này chạy ngay trong thư mục đó: đọc, sửa file và chạy lệnh ở đây khi bước của bạn cần.\n"
+                   if tools else
+                   "Đây là cây thư mục để cả nhóm biết dự án gồm gì. Lượt nhóm không mở được file trong đó; cần đọc file nào "
+                   "thì nhờ chủ nhóm gắn file đó vào tài liệu của nhóm.\n") + "\n".join(lines))
     return out
