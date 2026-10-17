@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.209.0] - 2026-10-17
+### Thêm mới
+- **Nghiệm thu sản phẩm cho việc Team:** đặt tiêu chí ngay trên việc (có file, đủ nội dung, JSON đủ khoá, lệnh kiểm tra chạy đạt, bạn xác nhận). Việc chỉ chốt xong khi sản phẩm thật sự đạt.
+- **Chưa đạt thì tự sửa có giới hạn:** cộng sự nhận bước sửa ghi rõ chỗ chưa đạt, quá số vòng thì dừng chờ bạn. Mỗi lần kiểm có bằng chứng (mã băm, kích thước, giờ sửa) và lưu lại lịch sử.
+- **Thẻ Nghiệm thu sản phẩm** cho tiêu chí cần bạn xem: Đạt hay Trả lại kèm ghi chú. File đổi sau lần kiểm thì không chốt được; sửa sản phẩm sau khi nghiệm thu sẽ hiện cảnh báo.
+
 ## [0.208.0] - 2026-10-17
 ### Thêm mới
 - **Mục tiêu phòng ban cho Team:** đặt mục tiêu, cách đo, nguồn được giao (thư mục, việc Kanban lỗi, kết nối, lệnh kiểm tra), phạm vi, ngân sách mỗi ngày và mức tự quyết. Nhóm cũ không tự bật.

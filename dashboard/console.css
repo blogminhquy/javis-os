@@ -3716,3 +3716,7 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
 .tm-md-active { color: var(--ok, #16a34a); }
 .tm-md-form textarea { width: 100%; font-size: 16px; }
 .tm-opp { border-left-color: var(--accent, #2563eb); }
+
+/* 0.209.0: acceptance editor and card */
+.tm-acc-form textarea { width: 100%; font-size: 16px; }
+.tm-acc { border-left-color: var(--ok, #16a34a); }

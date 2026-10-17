@@ -269,6 +269,24 @@ Javis đọc các nguồn bằng mã, không gọi model. Nguồn đọc không 
 
 Việc do mục tiêu mở ghi dấu vết mục tiêu, bản, quan sát, cơ hội ngay trong yêu cầu, và mọi hành động ra ngoài của nó vẫn qua cổng duyệt. **Tạm dừng** ngừng quan sát; **Thu hồi** huỷ việc mục tiêu đã mở mà chưa chạy và đóng đề xuất đang mở. Mỗi lần sửa là một bản mới, có lịch sử.
 
+## Nghiệm thu sản phẩm của Team (từ 0.209.0)
+
+Ở tab Việc, việc đang chờ hay đang làm có nút **Nghiệm thu** để đặt tiêu chí, mỗi dòng một tiêu chí:
+
+- `file: bao-cao/tuan.md`: file phải có.
+- `contains: bai-viet/a.md | 300 | giá, liên hệ`: ít nhất 300 ký tự và có đủ các cụm chữ.
+- `json: data.json | doanh_thu, don`: JSON hợp lệ, có đủ các khoá.
+- `cmd: pytest -q`: lệnh kiểm tra phải trả mã 0 (chạy ở mức Ghi nháp của trang Coding).
+- `confirm: bao-cao/tuan.md`: bạn tự xác nhận.
+
+Khi cộng sự nộp kết quả, Javis kiểm chính sản phẩm (file) theo từng tiêu chí: **đạt**, **chưa đạt** hay **chưa rõ**, kèm bằng chứng (đường dẫn, mã băm sha256, kích thước, giờ sửa). Ý kiến của model không bao giờ là kết luận.
+
+- Đạt hết: việc mới chốt **xong**.
+- Có tiêu chí chưa đạt: cộng sự đó nhận một bước sửa ghi rõ chỗ chưa đạt. Quá số vòng sửa (mặc định 2) thì việc dừng ở **Chưa đạt tiêu chí**; bạn sửa yêu cầu để thử lại.
+- Có tiêu chí chưa rõ hay cần bạn xác nhận: chat hiện thẻ **Nghiệm thu sản phẩm** với **Đạt, chốt việc** hoặc **Chưa đạt, trả lại** (kèm ghi chú). File đã đổi sau lần kiểm thì không chốt được, phải kiểm lại.
+
+Sửa yêu cầu của việc làm bằng chứng cũ hết hiệu lực. Sau khi đã nghiệm thu, sửa file sản phẩm thì thẻ ghi "Sản phẩm đã đổi sau lần kiểm". Điểm học của cộng sự chỉ được cộng khi nghiệm thu đạt hay bạn xác nhận, mỗi việc một lần.
+
 ## Thao tác nhanh và khắc phục sự cố
 
 - **Tạo mới:** chọn tab rồi bấm nút tạo ở cuối cột trái; hoặc mở **Javis Store**.

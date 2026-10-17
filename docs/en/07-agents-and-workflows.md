@@ -252,6 +252,24 @@ Javis reads the sources with code, no model. A source it cannot read shows as **
 
 A job the mandate opens carries the trace (mandate, version, observation, opportunity) in its request, and its outside actions still go through the approval gate. **Pause** stops observing; **Revoke** cancels the mandate's jobs that have not started and closes open proposals. Every edit is a new version with history.
 
+## Product acceptance for a Team (from 0.209.0)
+
+On the Jobs tab, a waiting or running job has an **Acceptance** button to set criteria, one per line:
+
+- `file: reports/week.md`: the file must exist.
+- `contains: posts/a.md | 300 | price, contact`: at least 300 characters and every phrase.
+- `json: data.json | revenue, orders`: valid JSON with those keys.
+- `cmd: pytest -q`: a check command must exit 0 (runs at the Coding page's auto level).
+- `confirm: reports/week.md`: you confirm it yourself.
+
+When a member hands in the result, Javis checks the product itself (the files) against each criterion: **pass**, **fail** or **unclear**, with evidence (path, sha256 hash, size, modified time). A model's opinion is never the verdict.
+
+- All pass: only then is the job **done**.
+- A criterion fails: that member gets a fix step saying what failed. Past the fix rounds (2 by default) the job stops at **did not meet the criteria**; edit the job to try again.
+- A criterion is unclear or needs your confirmation: the chat shows a **Product acceptance** card with **Passes, close the job** or **Not yet, send back** (with a note). A file that changed after the check cannot be accepted until it is checked again.
+
+Editing the job voids the old evidence. After acceptance, editing a product file shows "The product changed after the check" on the card. A member's learning score only goes up from a passed acceptance or your confirmation, once per job.
+
 ## Quick actions and troubleshooting
 
 - **Create:** choose a tab and use the create button at the bottom left, or open **Javis Store**.
