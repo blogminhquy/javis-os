@@ -3720,3 +3720,8 @@ button.tm-quote-ref:hover, button.tm-quote-ref:focus-visible { border-color: var
 /* 0.209.0: acceptance editor and card */
 .tm-acc-form textarea { width: 100%; font-size: 16px; }
 .tm-acc { border-left-color: var(--ok, #16a34a); }
+/* 0.210.0 narrow-screen check: buttons in the mandate and acceptance sections are phone-sized like the cards */
+.tm-md .ws-btn, .tm-acc-form .ws-btn, .tm-md-form .ws-btn { font-size: 16px; min-height: 40px; }
+.tm-md-form input, .tm-md-form select, .tm-acc-form input { font-size: 16px; }
+.tm-md .tm-sub, .tm-ap .tm-sub, .tm-acc-form .tm-sub, .tm-md .tm-qhead, .tm-wm .tm-qhead {
+  font-size: 16px; white-space: normal; overflow: visible; text-overflow: clip; }

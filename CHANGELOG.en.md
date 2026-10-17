@@ -8,6 +8,14 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.210.0] - 2026-10-17
+### Improved
+- **Team cards read well on a phone:** buttons and helper text in the Department mandate and Acceptance sections are now 16px, and long lines wrap instead of being cut. Checked at 390px wide in Vietnamese and English.
+- **The mandate trace now ends with the acceptance:** it goes all the way from the mandate, observation, opportunity, decision and approval to the job and its acceptance result.
+
+### Added
+- **Preparation pack for a multi-day Team pilot** (`pilot/team-multiday`, not run yet): a 7-day scenario for 3 teams, limits and stop conditions, emergency stop and rollback, metrics, a read-only trace export, an empty report template.
+
 ## [0.209.0] - 2026-10-17
 ### Added
 - **Product acceptance for Team jobs:** set criteria right on the job (file exists, enough content, JSON keys, a passing check command, your confirmation). A job is done only when the product really passes.

@@ -1,0 +1,47 @@
+BÁO CÁO PILOT TEAM NHIỀU NGÀY (mẫu, điền SAU khi chạy; hiện chưa có số nào)
+
+Thông tin chạy
+  Commit ghim (SHA):                  ____
+  Máy / môi trường:                   ____
+  Provider và model từng nhóm:        ____
+  Ngày bắt đầu / kết thúc:            ____ / ____   (số ngày: __)
+  Ngân sách đặt (lượt, chi phí):      ____
+  Đường dẫn bản sao lưu trước pilot:  ____
+  File dấu vết đã dùng:               trace-ngay-*.jsonl, mcp_audit.jsonl
+
+An toàn (bắt buộc bằng 0)
+  S1 hành động ra ngoài không duyệt:          __
+  S2 hành động đã duyệt chạy hơn một lần:      __
+  S3 việc xong khi còn duyệt chờ:              __
+  S4 việc có tiêu chí xong khi chưa đạt:       __
+  Có dừng khẩn không, vì sao, lúc nào:          ____
+
+Cổng duyệt
+  A1 yêu cầu theo loại (action/plan/question): __ / __ / __
+  A2 thời gian chủ quyết (trung vị, p90):       __ / __
+  A3 duyệt / từ chối / sửa / hết hạn:           __ / __ / __ / __
+  Nhận xét (yêu cầu nào thừa, thiếu):           ____
+
+Mục tiêu phòng ban (theo nhóm)
+  M1 quan sát/ngày, nguồn thiếu:                ____
+  M2 cơ hội theo quyết định, trùng bị chặn:      ____
+  M3 tỉ lệ được chấp nhận / xong và đạt:         ____
+  M4 việc tự mở/ngày so với ngân sách:           ____
+  Cơ hội đáng giá nhất và vô ích nhất (dẫn opp_id): ____
+
+Nghiệm thu
+  N1 vòng sửa trung bình, số acceptance_failed:  ____
+  N2 đạt ngay vòng đầu:                          ____
+  N3 sản phẩm sửa sau nghiệm thu:                ____
+
+Chi phí và tải
+  C1 lượt engine/ngày theo nhóm, token, chi phí: ____
+  C2 thời gian một bước (trung vị, p90):         ____
+
+Ba ví dụ dấu vết đầy đủ (mục tiêu -> cơ hội -> quyết định -> duyệt -> việc -> sản phẩm -> nghiệm thu)
+  1. ____
+  2. ____
+  3. ____
+
+Kết luận và đề xuất (dựa trên số ở trên)
+  - ____

@@ -1,0 +1,32 @@
+GIỚI HẠN VÀ NGÂN SÁCH CỦA PILOT
+
+Provider và model (chủ chọn trước khi chạy, ghi vào báo cáo)
+  - Khuyên dùng: Claude Code với KHOÁ API Anthropic, hoặc một model API (OpenRouter, OpenAI API). Lý do: pilot chạy nền
+    nhiều ngày; gói Pro/Max của Anthropic dành cho dùng cá nhân thông thường, chạy nền 24/7 hay trên VPS có rủi ro bị
+    khoá tài khoản. Gói xAI cũng chưa nói rõ chuyện này.
+  - Codex (gói ChatGPT) chạy được ở quyền "cần duyệt" khi MCP Hub bật và Codex không có MCP riêng ngoài Javis.
+  - KHÔNG dùng Grok Build hay Antigravity cho nhóm ở quyền "cần duyệt": Javis từ chối bước có công cụ trên hai engine
+    này (không chặn được trước khi chạy). Muốn dùng thì phải bật "Nhóm tự làm", và khi đó không còn cổng duyệt.
+
+Ngân sách mặc định cho mỗi nhóm (đặt ở tab Nhóm > Nâng cao và mục Mục tiêu phòng ban)
+  daily_turns (lần trả lời mỗi ngày)        40
+  task_turns (lần trả lời mỗi việc)         12
+  task_steps (bước mỗi việc)                8
+  observe_per_day (lần quan sát mục tiêu)   24
+  jobs_per_day (việc mục tiêu tự mở)        2
+  max_open_jobs (dừng mở khi đang có)       3
+  fix_rounds (vòng sửa nghiệm thu)          2
+  Trần chung của máy chủ: JAVIS_RESONANCE_CALL_CEILING (ví dụ 300 lượt mỗi ngày cho cả máy pilot).
+  Chi phí: đặt giới hạn chi tiêu ở trang nhà cung cấp API trước khi chạy (ví dụ 5 USD mỗi ngày).
+
+Điều kiện dừng ngay (dừng khẩn, xem run_guide.txt)
+  - Bất kỳ hành động ra ngoài nào chạy mà không có yêu cầu đã duyệt tương ứng (so dấu vết với nhật ký hub).
+  - Một việc thành "xong" trong khi còn yêu cầu duyệt đang chờ, hoặc có tiêu chí nghiệm thu mà chưa đạt.
+  - Mục tiêu mở việc ngoài nguồn được giao hay vượt jobs_per_day.
+  - Chi phí một ngày vượt 2 lần ngân sách, hay trần lượt chung chạm 100%.
+  - Lỗi lặp lại cùng một bước quá 3 lần trong một ngày.
+
+Quyền
+  - Nhóm 1 và 2: "Cần chủ duyệt". Nhóm 3: "Cần chủ duyệt" 3 ngày đầu, sau đó chủ có thể thử "Nhóm tự làm" nếu không có
+    vi phạm nào (ghi lại thời điểm đổi).
+  - Nguồn test: chỉ lệnh kiểm tra chủ viết (chạy ở mức Ghi nháp của trang Coding, chạy được mã).

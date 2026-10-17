@@ -755,7 +755,10 @@ class MandateEngine:
                 "decision": opp["decision"], "approvals": approvals,
                 "job": ({k: task.get(k) for k in ("id", "title", "status", "block_kind", "result", "team_rev")}
                         if task else None),
-                "steps": [{k: s.get(k) for k in ("step_id", "kind", "agent_key", "status", "note")} for s in steps]}
+                "steps": [{k: s.get(k) for k in ("step_id", "kind", "agent_key", "status", "note")} for s in steps],
+                # 0.209.0: the last link, the product acceptance of the job (None when the owner set no criteria).
+                "acceptance": (self.runner.acceptance_view(self.runner.teams.get(team_id), opp["task_id"])
+                               if opp.get("task_id") and getattr(self.runner, "acceptance", None) is not None else None)}
 
 
 def view(opp: Optional[dict]) -> Optional[dict]:

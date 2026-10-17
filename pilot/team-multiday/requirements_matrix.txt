@@ -1,0 +1,87 @@
+MA TRẬN YÊU CẦU -> MÃ -> TEST -> BẰNG CHỨNG (0.207.0 tới 0.210.0)
+Test đều chạy bằng engine giả (không gọi model). "Bằng chứng" là thứ đọc lại được: bảng dữ liệu, dòng nhật ký, kết quả test.
+Chạy test: python tests/python/<file>.py và node tests/js/<file>.js (mỗi file là một script, in ALL OK khi đạt).
+
+1. CỔNG CHỜ DUYỆT THẬT (0.207.0)
+R1.1 Lỗi đã tái hiện: agent hỏi "@Chủ nhóm anh duyệt..." mà việc vẫn xong
+     Mã:   team_runner._approval_need, _request_approval (lưới chữ chỉ là lưới), team_approval.asks_decision
+     Test: test_team_approval_0207.py mục 1 ("bug: ...")
+     Bằng chứng: team_approvals (kind question, pending), team_steps.status waiting_owner, tasks.block_kind waiting_user
+R1.2 Vòng đời bền gắn nhóm/việc/bước/bản/người xin/hành động/phạm vi/bằng chứng/hạn; Duyệt, Từ chối, Yêu cầu sửa
+     Mã:   team_approval.ApprovalStore (bảng team_approvals, team_approval_events), team_runner.decide_approval
+     Test: test_team_approval_0207.py mục 1, 2, 4; test_team_routes_0207_0208.py (route)
+R1.3 Đang chờ: nhả suất, không done, không chạy bước phụ thuộc, không hành động
+     Mã:   _request_approval (team_blocked waiting_user, kế hoạch giữ lệnh giao việc trong held_ops)
+     Test: "bug: the waiting job released the team's slot", "held: no work step was added before approval"
+R1.4 Duyệt mở đúng hành động của đúng bản; sửa/huỷ/đổi phương án/thu hồi làm hết hiệu lực
+     Mã:   _open_approved (bước mới, granted_step), consume_fingerprint, on_job_amended, _cancel_records, _revoke_locked
+     Test: mục 3 (gate), 5 (amend, cancel, revoke, deadline), "gate: an approved call with other arguments is refused"
+R1.5 Khởi động lại an toàn, không làm lại; chống trùng nhiều tab và thử lại
+     Mã:   dấu vân tay tiêu trong cùng giao dịch; decision_key UNIQUE; unblock retry chuyển phần duyệt chưa dùng
+     Test: "restart: ...", "recover: ...", "race: exactly one click decides", "retry with the same key replays"
+           test_team_multiday_0210.py ngày 3
+R1.6 Lời agent, trích dẫn, reaction, lời đồng đội không giả được lời duyệt; không chỉ dựa regex
+     Mã:   chỉ route POST /teams/{id}/approvals/{aid}/decide quyết; không lệnh JAVIS_TEAM nào quyết
+     Test: "agent text or a fake directive does not decide the request", "owner chat text is not an approval"
+R1.7 Cổng kiểm TRƯỚC hành động, cả lượt có công cụ; provider không chặn trước được thì từ chối và giải thích
+     Mã:   team_gate.py; mcp_hub._guard (mức gated), plugins_host._make_call, claude_sdk_engine._team_gate_hook,
+           main._team_gate_support/_build_tools (Codex sandbox + hub gated + tắt app; Grok, Antigravity từ chối)
+     Test: test_team_gate_factory_0207.py; test_team_approval_0207.py mục 9, 10 (hub, plugin, native, fail closed)
+R1.8 Tôn trọng quyền đã cấp; nhóm cũ không mất gì ngoài ý muốn
+     Mã:   teams.work_mode (gated mặc định, full = như 0.194.0), route POST /teams/{id}/work_mode
+     Test: "full: no gate, the action runs", test_team_work_tools.py (ghim full cho ca 0.194.0)
+R1.9 Review độc lập: 4 P1, 3 P2 đã sửa (commit "0.207.0: fixes from the independent review ...")
+
+2. MỤC TIÊU PHÒNG BAN VÀ CƠ HỘI (0.208.0)
+R2.1 Mandate bền: mục tiêu, cách đo, nguồn, phạm vi, ngân sách, chu kỳ, act/propose/approve/stop; bật/tắt/sửa/dừng/thu hồi;
+     không tự bật cho nhóm cũ
+     Mã:   team_mandate.MandateStore (team_mandates, team_mandate_versions, team_mandate_events), routes /mandate*
+     Test: test_team_mandate_0208.py mục 1, 7; test_team_routes_0207_0208.py
+R2.2 Cơ hội chỉ từ nguồn được cấp, có nguồn, phiên bản dữ liệu, lý do, lợi ích; không bịa; thiếu nguồn thì hiện thiếu
+     Mã:   MandateEngine._observe (folder, kanban, mcp, test), sources_view
+     Test: mục 2, 3, 4
+R2.3 Trong phạm vi và ngân sách; chống trùng, nghỉ, hết hạn; bị bác không mở lại khi dữ liệu không đổi
+     Mã:   add_opportunity (UNIQUE team/source/ref/version, cooldown), classify (jobs_per_day, max_open_jobs), expire_due
+     Test: mục 2, 4, 6, 7, 9 ("cooldown holds ... comes out")
+R2.4 Phân loại none/watch/propose/ask/enqueue; việc tự sinh chỉ khi có nguồn hợp lệ; truy vết
+     Mã:   MandateEngine._act, _open (source_ref mandate:<opp>), trace()
+     Test: mục 5 (trace), test_team_multiday_0210.py (trace đủ tới nghiệm thu)
+R2.5 Thu hồi chặn mọi hành động mới; chỉ chủ điều khiển
+     Mã:   revoke (team_lock), set_status, PUT không đặt được revoked
+     Test: mục 7, 9 ("revoke during an observation ...")
+R2.6 Review độc lập: 2 P1, 5 P2 đã sửa (commit "0.208.0: fixes from the independent review ...")
+
+3. NGHIỆM THU (0.209.0)
+R3.1 Tiêu chí theo bản; sản phẩm có đường dẫn, sha256, bằng chứng; kiểm khách quan; đạt/chưa đạt/chưa rõ
+     Mã:   team_acceptance.py (check_one, run_checks, AcceptanceStore), team_runner._accept_product/_apply_checks
+     Test: test_team_acceptance_0209.py mục 2, 4, 6
+R3.2 Ý kiến model chỉ là bằng chứng; vòng sửa có giới hạn; done chỉ theo chính sách chủ chấp thuận
+     Mã:   _apply_checks_locked (fix round, acceptance_failed, acceptance_review), decide_acceptance
+     Test: mục 2, 3, 4
+R3.3 Sửa làm hết hiệu lực bằng chứng; lịch sử bền; thưởng chỉ từ nghiệm thu đạt hay chủ xác nhận
+     Mã:   on_job_amended, stale(), team_acceptance_checks, _acceptance_signal (một lần mỗi việc và bản)
+     Test: mục 2 ("stale"), 4, 5, 7
+R3.4 Review độc lập: 1 P1, 2 P2 đã sửa (commit "0.209.0: fixes from the independent review ...")
+
+4. KIỂM THỬ VÀ REVIEW (0.210.0)
+R4.1 Chỉ engine giả, dừng ngay nếu có engine thật
+     Bằng chứng: JAVIS_NO_REAL_TEAM_ENGINE=1 trong test; test_team_gate_factory_0207.py dùng nhà máy thật với build giả;
+                 test_team_multiday_0210.py kiểm "fail fast"
+R4.2 Test mức máy chủ: đồng hồ giả nhiều ngày, nhiều nhóm, khởi động lại
+     Test: test_team_multiday_0210.py (7 ngày, 3 nhóm, 2 bộ não, restart ngày 3)
+R4.3 Giao diện hẹp hai thứ tiếng
+     Kiểm: node pilot/team-multiday/ui_narrow_check.mjs (390px, vi và en: không cuộn ngang, chữ thẻ >= 16px, nút
+           trong màn hình). Chạy được ở máy có Chromium; CI không có trình duyệt nên không nằm trong CI.
+           Test chuỗi và cấu trúc thẻ trong CI: test_team_approval_ui_0207.js, test_team_mandate_ui_0208.js,
+           test_team_acceptance_ui_0209.js, test_i18n.mjs
+R4.4 Review độc lập từng mốc, sửa P1/P2, không nới ngưỡng, không xoá test
+     Bằng chứng: ba commit "fixes from the independent review"; test cũ chỉ đổi khi hành vi đổi có chủ ý (ghi rõ trong
+                 commit: test_team_work_tools ghim full, test_teams_ui nút chờ duyệt mới)
+
+5. CHUẨN BỊ PILOT (0.210.0, chưa chạy)
+R5.1 2 tới 3 nhóm, kịch bản 3 tới 7 ngày        config/teams.json, scenarios.txt
+R5.2 SHA ghim, provider/model, ngân sách, giới hạn  README.txt, limits.txt
+R5.3 Dừng khẩn và quay về                         run_guide.txt (bước 4, 5), bản chụp team.sqlite3.pre-0.207.0
+R5.4 Chỉ số                                       metrics.txt
+R5.5 Nhật ký dấu vết goal -> ... -> acceptance     trace_export.py (kiểm trong test_team_multiday_0210.py)
+R5.6 Hướng dẫn chạy, mẫu báo cáo                   run_guide.txt, report_template.txt (trống, không có số giả)

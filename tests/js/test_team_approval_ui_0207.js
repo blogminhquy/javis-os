@@ -46,7 +46,7 @@ check("work mode switch: full checked when the team is full", /value="full"[^>]*
 const keys = Object.keys(vi).filter(function (k) { return k.indexOf("teams.ap.") === 0 || k.indexOf("teams.wm.") === 0; });
 check("every new key exists in both languages", keys.length > 20 && keys.every(function (k) { return en[k] && vi[k]; }),
   keys.filter(function (k) { return !en[k]; }));
-check("no em or en dash in the new strings", keys.every(function (k) { return !/[–—]/.test(vi[k] + en[k]); }));
+check("no em or en dash in the new strings", keys.every(function (k) { return !/[\u2013\u2014]/.test(vi[k] + en[k]); }));
 check("each decision click carries its own key (retry replays, second tab is told)",
   /decision_key: dkey/.test(teamsJs) && /\/approvals\/" \+ q\(d\.ap\) \+ "\/decide"/.test(teamsJs));
 check("reject and changes ask for a reason before sending", /dec === "reject" \|\| dec === "changes"/.test(teamsJs));

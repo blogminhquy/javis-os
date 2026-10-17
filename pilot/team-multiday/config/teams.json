@@ -1,0 +1,70 @@
+{
+  "_doc": "Cấu hình 3 nhóm cho pilot nhiều ngày (0.210.0). Tạo nhóm và cộng sự trên dashboard theo đúng bảng này, rồi dán mandate qua tab Nhóm > Mục tiêu phòng ban (hoặc PUT /teams/{id}/mandate). Chưa chạy.",
+  "teams": [
+    {
+      "key": "noi-dung",
+      "name": "Phòng Nội dung",
+      "brain": "brain-pilot",
+      "members": [{"slug": "truong-noi-dung", "role": "leader"}, {"slug": "bien-tap"}, {"slug": "kiem-chung"}],
+      "work_mode": "gated",
+      "caps": {"daily_turns": 40, "task_turns": 12, "task_steps": 8},
+      "mandate": {
+        "outcome": "Mỗi yêu cầu nội dung trong thư mục yeu-cau có bài viết đạt chuẩn trong bai-viet",
+        "metrics": ["bài có trước hạn ghi trong yêu cầu", "bài có giá và cách liên hệ", "không lỗi chính tả rõ ràng"],
+        "sources": ["folder:pilot/noi-dung/yeu-cau"],
+        "scope": "Chỉ đọc yeu-cau, chỉ ghi vào pilot/noi-dung/bai-viet; không đăng bài ra ngoài",
+        "cadence_min": 60,
+        "budget": {"observe_per_day": 24, "jobs_per_day": 2},
+        "autonomy": {"approve": ["file_changed"]},
+        "stop": {"max_open_jobs": 3}
+      },
+      "acceptance_template": [
+        {"kind": "file_contains", "path": "pilot/noi-dung/bai-viet/<tên-bài>.md", "min_chars": 600, "must_contain": ["giá", "liên hệ"]},
+        {"kind": "owner_confirm", "path": "pilot/noi-dung/bai-viet/<tên-bài>.md"}
+      ]
+    },
+    {
+      "key": "ban-hang",
+      "name": "Phòng Bán hàng",
+      "brain": "brain-pilot",
+      "members": [{"slug": "truong-ban-hang", "role": "leader"}, {"slug": "cham-soc-khach"}],
+      "work_mode": "gated",
+      "caps": {"daily_turns": 40, "task_turns": 12, "task_steps": 8},
+      "mandate": {
+        "outcome": "Kịch bản chốt đơn luôn khớp bảng giá hiện hành",
+        "metrics": ["không kịch bản nào sai giá quá 1 ngày"],
+        "sources": ["test:python pilot/ban-hang/kiem_tra_gia.py", "folder:pilot/ban-hang/bang-gia"],
+        "scope": "Sửa kịch bản trong pilot/ban-hang/kich-ban; nhắn khách chỉ khi chủ duyệt từng tin",
+        "cadence_min": 120,
+        "budget": {"observe_per_day": 12, "jobs_per_day": 2},
+        "autonomy": {"propose": ["test_failing", "file_changed"]},
+        "stop": {"max_open_jobs": 2}
+      },
+      "acceptance_template": [
+        {"kind": "command_ok", "command": "python pilot/ban-hang/kiem_tra_gia.py"}
+      ]
+    },
+    {
+      "key": "van-hanh",
+      "name": "Phòng Vận hành",
+      "brain": "brain-pilot",
+      "members": [{"slug": "dieu-phoi", "role": "leader"}, {"slug": "ke-toan"}],
+      "work_mode": "gated",
+      "work_mode_after_day_3": "full nếu ngày 1 tới 3 không có vi phạm an toàn nào (chủ tự quyết, ghi lại giờ đổi)",
+      "caps": {"daily_turns": 30, "task_turns": 10, "task_steps": 6},
+      "mandate": {
+        "outcome": "Việc Kanban của bộ não không nằm lỗi quá nửa ngày",
+        "metrics": ["mọi việc lỗi có người nhận trong 12 giờ"],
+        "sources": ["kanban"],
+        "scope": "Chẩn đoán và đề xuất cách gỡ; chỉ chạy lại việc khi chủ duyệt",
+        "cadence_min": 60,
+        "budget": {"observe_per_day": 24, "jobs_per_day": 3},
+        "autonomy": {"act": ["job_failed"]},
+        "stop": {"max_open_jobs": 3}
+      },
+      "acceptance_template": [
+        {"kind": "file_contains", "path": "pilot/van-hanh/bao-cao/<ngày>.md", "min_chars": 200, "must_contain": ["nguyên nhân", "đề xuất"]}
+      ]
+    }
+  ]
+}

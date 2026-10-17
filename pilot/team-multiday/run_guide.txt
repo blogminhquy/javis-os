@@ -1,0 +1,40 @@
+HƯỚNG DẪN CHẠY PILOT (chưa chạy; người chạy làm theo khi chủ cho phép)
+
+1. Chuẩn bị máy
+   - Một bản Javis RIÊNG cho pilot: thư mục cài riêng, JAVIS_STATE_DIR riêng (ví dụ ~/javis-pilot-state), bộ não riêng
+     brain-pilot. Không trỏ vào state hay bộ não đang dùng thật.
+   - Sao lưu trước khi bắt đầu: tar toàn bộ JAVIS_STATE_DIR và bộ não pilot. Ghi đường dẫn bản sao vào báo cáo.
+   - Lấy đúng commit ghim: git fetch origin claude/openmausbot-jarvis-research-ewnzc6 && git checkout <SHA đã ghi>.
+   - Chạy test nhanh trên máy đó: python tests/python/test_team_multiday_0210.py (phải in ALL OK, chỉ dùng engine giả).
+
+2. Cấu hình
+   - Trang Models: chọn provider/model theo limits.txt. Đặt giới hạn chi tiêu ở trang nhà cung cấp.
+   - Đặt JAVIS_RESONANCE_CALL_CEILING (trần lượt chung) trong .env của bản pilot.
+   - Tạo cộng sự và 3 nhóm theo config/teams.json; giữ "Cần chủ duyệt" cho cả 3.
+   - Đặt mục tiêu từng nhóm (tab Nhóm > Mục tiêu phòng ban), bấm Bật.
+
+3. Theo dõi hằng ngày (5 phút)
+   - Mở tab Việc của từng nhóm: thẻ duyệt đang chờ, việc dừng vì nghiệm thu.
+   - Xuất dấu vết: python pilot/team-multiday/trace_export.py <STATE_DIR> --out trace-ngay-N.jsonl
+   - Kiểm 4 chỉ số an toàn S1 tới S4 trong metrics.txt. Một chỉ số khác 0 là DỪNG KHẨN.
+   - Ghi chi phí ngày từ trang nhà cung cấp và lượt engine từ trace (C1).
+
+4. Dừng khẩn (bất kỳ điều kiện dừng nào trong limits.txt)
+   a. Tab Nhóm của từng nhóm: Tạm dừng nhóm (việc đang chạy dừng ở điểm điều phối kế tiếp).
+   b. Mục tiêu phòng ban: Tạm dừng (hoặc Thu hồi nếu nghi mục tiêu hành động sai).
+   c. Nhóm nào đang "Nhóm tự làm": đổi về "Cần chủ duyệt".
+   d. Huỷ việc đang chờ duyệt nếu không chắc. Không bấm Duyệt cho tới khi đọc xong dấu vết.
+   e. Xuất dấu vết ngay, lưu kèm mcp_audit.jsonl để đối chiếu.
+
+5. Quay về bản cũ (rollback)
+   - Dừng Javis pilot. git checkout <bản trước pilot, ví dụ tag/commit 0.206.0>.
+   - Kho nhóm: bảng mới (team_approvals, team_mandates, mandate_*, team_acceptance*) và cột teams.work_mode bị bản cũ bỏ
+     qua, không cần xoá. Muốn trả kho về đúng như trước: dùng bản chụp tự động team.sqlite3.pre-0.207.0 cạnh team.sqlite3
+     (tạo lần đầu bản mới mở kho cũ), hoặc bản sao lưu ở bước 1.
+   - Việc đang dừng "waiting_user" sẽ hiện nút "Cho chạy tiếp" của bản cũ: KHÔNG bấm nếu còn hành động ra ngoài chưa
+     được duyệt; huỷ việc đó thay vì chạy tiếp.
+   - kanban.sqlite3 có thêm việc tạo sẵn ở trạng thái chặn (cột có sẵn từ trước), bản cũ đọc được.
+
+6. Kết thúc
+   - Xuất dấu vết cuối, điền report_template.txt bằng số từ dấu vết. Không điền số đoán.
+   - Giữ bản sao state pilot ít nhất 14 ngày để đối chiếu.
