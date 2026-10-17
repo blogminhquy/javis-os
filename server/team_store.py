@@ -254,6 +254,14 @@ class TeamStore:
             if "owner_at" not in tcols:
                 # Lần cuối chủ làm việc trong nhóm (0.195.0: nhắn hay mở nhóm), để trang Team mở đúng nhóm đó trên mọi máy.
                 c.execute("ALTER TABLE teams ADD COLUMN owner_at REAL")
+            if "read_at" not in tcols:
+                # Lần cuối chủ đã đọc nhóm (0.197.0): tin sau mốc này là tin chưa đọc trên danh sách nhóm. Nhóm cũ coi như
+                # đã đọc hết lúc nâng cấp, khỏi hiện cả trăm tin chưa đọc một lúc.
+                c.execute("ALTER TABLE teams ADD COLUMN read_at REAL")
+                c.execute("UPDATE teams SET read_at=?", (time.time(),))
+            if "muted" not in tcols:
+                # Tắt thông báo của nhóm (0.197.0): 1 = không báo gì về máy chủ, kể cả tin gọi tên chủ.
+                c.execute("ALTER TABLE teams ADD COLUMN muted INTEGER NOT NULL DEFAULT 0")
             c.execute("CREATE UNIQUE INDEX IF NOT EXISTS teams_client_req ON teams(brain_id, client_req_id) "
                       "WHERE client_req_id IS NOT NULL")
 
@@ -293,7 +301,10 @@ class TeamStore:
                 "pinned_at": r["pinned_at"], "created_by": r["created_by"] if "created_by" in r.keys() else "owner",
                 "avatar_image": (r["avatar_image"] or "") if "avatar_image" in r.keys() else "",
                 "tags": _tags_of(r["tags_json"] if "tags_json" in r.keys() else "[]"),
-                "owner_at": r["owner_at"] if "owner_at" in r.keys() else None}
+                "owner_at": r["owner_at"] if "owner_at" in r.keys() else None,
+                # A new team counts from its creation: nothing in it is unread until someone writes.
+                "read_at": (r["read_at"] if "read_at" in r.keys() else None) or r["created_at"],
+                "muted": bool(r["muted"]) if "muted" in r.keys() else False}
 
     def _event(self, c, team_id: str, kind: str, by: str, before: Any = None, after: Any = None) -> None:
         c.execute("INSERT INTO team_events(team_id,kind,by,before_json,after_json,created_at) VALUES(?,?,?,?,?,?)",
@@ -384,10 +395,23 @@ class TeamStore:
         return self.get(team_id)
 
     def mark_owner(self, team_id: str) -> None:
-        """The owner just worked in this team (sent a message or opened it): GET /teams lets the page open it next time.
-        Not an edit of the team: no event, `updated_at` (the list order) stays."""
+        """The owner just worked in this team (sent a message, opened it or read new messages in it): GET /teams lets the
+        page open it next time, and everything in it so far is read (0.197.0). Not an edit of the team: no event,
+        `updated_at` (the list order) stays."""
+        now = time.time()
         with closing(self._conn()) as c:
-            c.execute("UPDATE teams SET owner_at=? WHERE team_id=?", (time.time(), str(team_id or "")))
+            c.execute("UPDATE teams SET owner_at=?, read_at=? WHERE team_id=?", (now, now, str(team_id or "")))
+
+    def set_muted(self, team_id: str, on: bool, by: str = "owner") -> Optional[dict]:
+        """Turn this team's notifications off (or back on), 0.197.0. A muted team never notifies the owner's devices, not
+        even for a message that calls the owner; its unread count still shows. Not an edit: `updated_at` stays."""
+        with self._Tx(self) as c:
+            r = c.execute("SELECT muted FROM teams WHERE team_id=?", (team_id,)).fetchone()
+            if r is None:
+                raise TeamError("không có nhóm này")
+            c.execute("UPDATE teams SET muted=? WHERE team_id=?", (1 if on else 0, team_id))
+            self._event(c, team_id, "muted" if on else "unmuted", by, {"muted": bool(r["muted"])}, {"muted": bool(on)})
+        return self.get(team_id)
 
     def update(self, team_id: str, by: str = "owner", **fields) -> dict:
         allowed = {"name", "description", "status", "avatar_image", "tags"}

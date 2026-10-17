@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.197.0] - 2026-10-17
+### Thêm mới
+- **Số tin chưa đọc trên từng nhóm:** danh sách Team hiện số đỏ như Zalo, tên nhóm in đậm khi còn tin chưa đọc. Mở nhóm là đọc xong, máy nào cũng tắt số theo.
+- **Dấu @ khi có tin gọi bạn:** tin nào gọi "@Chủ nhóm" thì nhóm đó có thêm dấu @ cạnh số, thu gọn chỉ còn logo vẫn thấy.
+- **Chỉ trưởng nhóm được gọi bạn:** thành viên cần bạn quyết thì nhờ trưởng nhóm gom lại hỏi một lần, đỡ bị gọi liên tục.
+- **Thông báo Team chỉ khi được gọi tên:** tin thường trong nhóm không báo về máy, chỉ tin trưởng nhóm gọi "@Chủ nhóm" mới vào chuông thông báo. Bấm "..." ở một nhóm, chọn **Tắt thông báo** thì nhóm đó im hẳn, kể cả khi gọi tên bạn.
+
 ## [0.196.0] - 2026-10-17
 ### Cải thiện
 - **Kéo hẹp là tự thu vào:** ở Đồ thị, Trò chuyện, Cộng sự và Team, kéo thanh chia cột hẹp quá một mức thì cột tự ẩn luôn vào trong, y như bên Cộng sự. Lúc sắp ẩn cột mờ đi để bạn biết trước.

@@ -139,7 +139,9 @@ class TeamApi:
 
                 async def go():
                     team = await asyncio.to_thread(self.teams().get, team_id)
-                    if team:
+                    # 0.197.0: a muted team never reaches the owner's inbox or devices ("team nào bị tắt thông báo thì dù
+                    # có tag tên cũng không báo về máy").
+                    if team and not team.get("muted"):
                         res = self.deps.notify(team["session_id"], text)
                         if asyncio.iscoroutine(res):
                             await res
@@ -247,6 +249,11 @@ class TeamApi:
         author = self.runner()._name(team, m["author_ref"]) if m.get("author_kind") == "agent" and m.get("author_ref") else ""
         return {"author_kind": m.get("author_kind") or "", "author": author,
                 "text": " ".join(str(m.get("content") or "").split())[:120], "ts": m.get("ts") or 0}
+
+    def unread(self, team: dict) -> dict:
+        """0.197.0: messages from assistants and the system since the owner last read the team (`n`, at most 99), and how
+        many of them call the owner (`at`), for the badge and the @ mark on the team list."""
+        return self.deps.session_store().team_unread(team["session_id"], team.get("read_at") or 0)
 
     def view(self, team: dict) -> dict:
         q = self.deps.task_store().team_queue(team["team_id"])
@@ -556,7 +563,8 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             if not api.exists():
                 return {"ok": True, "teams": [], "next": None}
             meta = deps.agents_meta(root) or []
-            rows = [dict(t, counts=api.counts(t["team_id"]), last=api.last_message(t), **api.faces(t, meta))
+            rows = [dict(t, counts=api.counts(t["team_id"]), last=api.last_message(t), unread=api.unread(t),
+                         **api.faces(t, meta))
                     for t in api.teams().list_teams(root, limit=limit, before=before)]
             # Con trỏ trang sau chỉ tính nhóm không ghim (nhóm ghim luôn nằm ở trang đầu).
             plain = [t for t in rows if not t.get("pinned_at")]
@@ -1124,7 +1132,24 @@ def register(app, deps: TeamApiDeps) -> TeamApi:
             if err:
                 return err
             api.teams().mark_owner(team_id)
+            # 0.197.0: the team is read now; other open pages and devices clear its unread badge.
+            api.runner()._publish({"type": "team_read", "team_id": team_id})
             return {"ok": True}
+        return await api.io(_do)
+
+    @app.post("/teams/{team_id}/mute")
+    async def teams_mute(team_id: str, request: Request, brain: str = "brain"):
+        """Turn this team's notifications off (`on: true`) or back on (0.197.0). Muted: nothing from the team reaches the
+        owner's inbox or devices, not even a message calling the owner; the unread count still shows on the list."""
+        on = bool((await _body(request)).get("on"))
+
+        def _do():
+            team, err = _team(team_id, brain)
+            if err:
+                return err
+            api.teams().set_muted(team_id, on)
+            api.runner()._publish({"type": "team_state", "team_id": team_id})
+            return {"ok": True, "muted": on}
         return await api.io(_do)
 
     return api

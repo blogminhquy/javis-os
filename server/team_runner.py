@@ -29,6 +29,7 @@ import time
 import unicodedata
 from typing import Any, Awaitable, Callable, Optional
 
+import localefmt
 import reaction_values as RV
 from io_offload import run_io  # noqa: F401 - giữ `team_runner.run_io` cho team_api và test
 import resonance_store
@@ -155,10 +156,16 @@ INTERNAL_GROUP_NOTE = ("# NHÓM NỘI BỘ CỦA CHỦ",
                        "đề nghị.",
                        # 0.192.0 (owner, 16/10/2026): "câu anh cần phản hồi thì phải tag anh vào, agent phản hồi ai thì phải
                        # tag vào". The chat draws these tags as mentions and flags the message for the owner.
-                       "Gọi tên như nhóm chat thật: khi cần chủ nhóm trả lời, chọn hay quyết định điều gì, viết \"@Chủ nhóm\" "
-                       "ngay trước câu hỏi đó; khi trả lời hay nhờ một trợ lý khác, gọi \"@Tên\" của người đó. Không gọi ai "
-                       "khi không cần họ đáp.")
+                       # 0.197.0 (owner, 17/10/2026): "agent trưởng nhóm sẽ được quyền tag chủ nhóm vào tin nhắn để đọc".
+                       # Only the leader's call flags the owner and reaches the owner's devices (_post), so a busy team
+                       # does not ring the owner for every member's question.
+                       "Gọi tên như nhóm chat thật: khi trả lời hay nhờ một trợ lý khác, gọi \"@Tên\" của người đó. Chỉ "
+                       "trưởng nhóm (người ghi \"trưởng nhóm\" trong danh sách thành viên) được gọi \"@Chủ nhóm\", ngay "
+                       "trước câu chủ cần đọc, trả lời hay quyết định; tin đó báo về máy chủ nhóm. Thành viên khác cần chủ "
+                       "quyết thì gọi trưởng nhóm, trưởng nhóm gom lại rồi hỏi chủ một lần. Không gọi ai khi không cần họ "
+                       "đáp.")
 # Trợ lý gọi chủ nhóm trong tin (0.192.0, INTERNAL_GROUP_NOTE): tin đó được đánh dấu chờ chủ trả lời (meta.asks_owner).
+# Từ 0.197.0 chỉ tin của trưởng nhóm (hay của bất kỳ ai khi nhóm không có trưởng nhóm) mới được đánh dấu và báo về máy.
 ASKS_OWNER_RE = re.compile(r"@(?:chủ nhóm|chủ team|chu nhom|owner)(?![\w])", re.IGNORECASE)
 # Nhãn bằng lời thường cho tin hệ thống chủ đọc (T5); CAP_LABEL ở trên dùng trong lời nhắc của trưởng nhóm.
 CAP_PLAIN = {"task_turns": "số lần trả lời tối đa mỗi việc", "task_steps": "số bước tối đa mỗi việc",
@@ -463,8 +470,12 @@ class TeamRunner:
 
     def _post(self, team: dict, text: str, *, author_kind: str, author_ref: str = "", reply_to=None,
               task_id=None, step_id=None, meta=None, role: str = "assistant") -> int:
-        if author_kind == "agent" and ASKS_OWNER_RE.search(str(text or "")):
+        lead = team.get("leader_key") or ""
+        calls_owner = (author_kind == "agent" and (not lead or author_ref == lead)
+                       and bool(ASKS_OWNER_RE.search(str(text or ""))))
+        if calls_owner:
             # 0.192.0: an assistant calling "@Chủ nhóm" waits for the owner; the chat flags the message in every language.
+            # 0.197.0: only the leader's call counts (any member's when the team has no leader).
             meta = dict(meta or {}, asks_owner=True)
         mid, _ = self.sessions.append_team_message(team["session_id"], role, text, author_kind=author_kind,
                                                    author_ref=author_ref, reply_to=reply_to, task_id=task_id,
@@ -472,6 +483,14 @@ class TeamRunner:
         self.teams.touch(team["team_id"])
         self._publish({"type": "team_message", "team_id": team["team_id"],
                        "message": self.sessions.team_message(team["session_id"], mid)})
+        if calls_owner:
+            # 0.197.0 (owner, 17/10/2026): "thông báo của team về cho chủ sẽ chỉ là những thông báo có được tag tên chủ".
+            # The only chat message that reaches the owner's inbox and devices; a muted team stays silent (team_api).
+            preview = " ".join(ASKS_OWNER_RE.sub("", str(text or "")).split())[:160]
+            self._notify(team["team_id"], localefmt.chu("{ten} gọi bạn trong nhóm \"{nhom}\": {xem}",
+                                                        "{ten} called you in team \"{nhom}\": {xem}",
+                                                        ten=self._name(team, author_ref), nhom=team.get("name") or "",
+                                                        xem=preview))
         return mid
 
     def _state(self, team_id: str) -> None:

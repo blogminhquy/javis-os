@@ -723,6 +723,15 @@ class SessionStore:
                           (session_id, int(message_id)))
         return self._team_msg(rows[0]) if rows else None
 
+    def team_unread(self, session_id: str, since_ts: float, cap: int = 99) -> Dict[str, int]:
+        """Tin chưa đọc của phiên nhóm (0.197.0): tin của trợ lý và hệ thống sau `since_ts` (mốc chủ đọc lần cuối), tối đa
+        `cap`. `at`: bao nhiêu tin trong đó gọi tên chủ (meta.asks_owner), để danh sách nhóm hiện dấu @."""
+        rows = self._read("SELECT COUNT(*), COALESCE(SUM(CASE WHEN meta_json LIKE '%\"asks_owner\": true%' THEN 1 "
+                          "ELSE 0 END), 0) FROM (SELECT meta_json FROM messages WHERE session_id = ? AND ts > ? "
+                          "AND author_kind != 'owner' ORDER BY ts DESC LIMIT ?)",
+                          (session_id, float(since_ts or 0), max(1, int(cap))))
+        return {"n": int(rows[0][0] or 0), "at": int(rows[0][1] or 0)} if rows else {"n": 0, "at": 0}
+
     def team_message_count(self, session_id: str) -> int:
         """Số tin của một phiên nhóm (khối tóm tắt phần cũ, T4)."""
         rows = self._read("SELECT COUNT(*) FROM messages WHERE session_id = ?", (session_id,))

@@ -358,6 +358,24 @@
     return "";
   }
 
+  // 0.197.0 (owner, 17/10/2026: "hiện châm nổi bao nhiêu tin chưa đọc, có @ mình hay không"): the unread count of a team
+  // (assistant and system messages since the owner last read it) and an @ mark when one of them calls the owner. The
+  // team open on screen shows none: the owner is reading it. A muted team keeps its count, drawn grey.
+  function seeing(t, activeId) {
+    return t.team_id === activeId && (typeof document === "undefined" || document.visibilityState !== "hidden");
+  }
+  function unreadOf(t, activeId) {
+    var u = t.unread || {};
+    return seeing(t, activeId) ? { n: 0, at: 0 } : { n: Number(u.n) || 0, at: Number(u.at) || 0 };
+  }
+  function unreadHtml(t, activeId) {
+    var u = unreadOf(t, activeId);
+    return (u.at ? '<span class="tm-at" title="' + esc(tw("teams.calls_you")) + '" aria-label="' + esc(tw("teams.calls_you")) +
+        '">@</span>' : "") +
+      (u.n ? '<span class="notification-badge tm-unread' + (t.muted ? " is-muted" : "") + '" title="' +
+        esc(tw("teams.unread_n", { n: u.n })) + '">' + (u.n > 99 ? "99+" : String(u.n)) + "</span>" : "");
+  }
+
   // Dòng phụ ở đầu khung chat (0.142.0): "Bạn + N trợ lý · X điều phối". Bạn là người tạo, quản lý (người thật); điều
   // phối là một trợ lý AI. Chỉ đếm trợ lý đang hoạt động.
   function headLine(t) {
@@ -484,6 +502,9 @@
       }
       var pin = pinned ? '<span class="tm-pinned" title="' + esc(tw("teams.pinned")) + '" aria-label="' +
         esc(tw("teams.pinned")) + '">' + ic("pin") + "</span>" : "";
+      var mute = t.muted ? '<span class="tm-muted" title="' + esc(tw("teams.muted")) + '" aria-label="' +
+        esc(tw("teams.muted")) + '">' + ic("bell-off") + "</span>" : "";
+      var unread = unreadHtml(t, activeId);
       var open = menuId === t.team_id;
       // 0.195.0: "Tag" opens the Partners page's tag picker right in this menu (tagMode), like a partner's row menu.
       var picker = open && tagMode === t.team_id && tagPicker();
@@ -493,15 +514,19 @@
         '<button type="button" role="menuitem" data-pin-team="' + id + '" data-on="' + (pinned ? "0" : "1") + '">' + ic("pin") +
         esc(tw(pinned ? "teams.unpin_team" : "teams.pin_team")) + "</button>" +
         '<button type="button" role="menuitem" data-tag-team="' + id + '">' + ic("tag") + esc(tw("ws.tag_menu")) + "</button>" +
+        // 0.197.0: notifications per team, so the owner follows only the teams they choose.
+        '<button type="button" role="menuitem" data-mute-team="' + id + '" data-on="' + (t.muted ? "0" : "1") + '">' +
+        ic(t.muted ? "bell" : "bell-off") + esc(tw(t.muted ? "teams.unmute_team" : "teams.mute_team")) + "</button>" +
         '<button type="button" role="menuitem" data-rename-team="' + id + '">' + ic("pencil") + esc(tw("teams.rename")) + "</button>" +
         '<button type="button" role="menuitem" class="tm-danger" data-delete-team="' + id + '">' + ic("trash-2") +
         esc(tw("teams.delete_team")) + "</button></div>";
       var tagTip = (t.tags || []).length ? ' title="' + esc(t.name + "\n" + tw("teams.tags_title") + ": " + t.tags.join(", ")) + '"' : "";
-      return '<div class="tm-team-wrap' + (open ? " is-menu" : "") + '"><button type="button" class="tm-team" data-team="' + id + '"' +
-        (on ? ' aria-current="true"' : "") + tagTip + ">" +
-        teamAvatarHtml(t, 44) + '<span class="tm-team-main"><span class="tm-team-top"><span class="tm-team-name">' + esc(t.name) +
-        "</span>" + pin + '<span class="tm-team-time">' + esc(timeShort(last.ts || t.updated_at, now)) + "</span></span>" +
-        '<span class="tm-team-bottom"><span class="tm-team-sub">' + esc(previewText(t)) + "</span>" + teamBadge(t) +
+      return '<div class="tm-team-wrap' + (open ? " is-menu" : "") + '"><button type="button" class="tm-team' +
+        (unread ? " has-unread" : "") + '" data-team="' + id + '"' + (on ? ' aria-current="true"' : "") + tagTip + ">" +
+        teamAvatarHtml(t, 44) + (unread ? '<span class="tm-mini-unread">' + unread + "</span>" : "") +
+        '<span class="tm-team-main"><span class="tm-team-top"><span class="tm-team-name">' + esc(t.name) +
+        "</span>" + pin + mute + '<span class="tm-team-time">' + esc(timeShort(last.ts || t.updated_at, now)) + "</span></span>" +
+        '<span class="tm-team-bottom"><span class="tm-team-sub">' + esc(previewText(t)) + "</span>" + teamBadge(t) + unread +
         "</span></span></button>" +
         '<button type="button" class="tm-row-more" data-row-menu="' + id + '" aria-haspopup="menu" aria-expanded="' +
         (open ? "true" : "false") + '" aria-label="' + esc(tw("teams.row_menu")) + '" title="' + esc(tw("teams.row_menu")) + '">' +
@@ -2319,9 +2344,24 @@
   }
 
   // 0.195.0: the owner works in this team now, so next visit (any device) opens it. Best effort: a failure changes nothing.
+  // 0.197.0: the open team is read while the page is in front; one call per burst of messages.
+  var readTimer = null;
+  function readSoon() {
+    clearTimeout(readTimer);
+    readTimer = setTimeout(function () {
+      if (S && S.activeId && S.el && S.el.isConnected && document.visibilityState !== "hidden") markOpened(S.activeId);
+    }, 800);
+  }
+  function onVisible() {
+    if (document.visibilityState === "visible" && S && S.activeId && S.el && S.el.isConnected) {
+      markOpened(S.activeId);
+      drawList();
+    }
+  }
+
   function markOpened(id) {
     var t = S.teams.filter(function (x) { return x.team_id === id; })[0];
-    if (t) t.owner_at = Date.now() / 1000;
+    if (t) { t.owner_at = Date.now() / 1000; t.unread = { n: 0, at: 0 }; }
     call("POST", "/teams/" + q(id) + "/opened", {}).then(function () {}, function () {});
   }
 
@@ -2880,6 +2920,15 @@
       reload: function () { loadTeams(false); if (id === S.activeId) loadTeam(); } });
   }
 
+  // 0.197.0: turning a team's notifications off or on saves the same way as pinning it (button locked while saving, a
+  // visible error with Retry).
+  function muteTeam(id, on, btn) {
+    return pinTeamWith(id, on, btn, {
+      post: function (want) { return call("POST", "/teams/" + q(id) + "/mute", { on: want }); },
+      notify: setNote,
+      reload: function () { loadTeams(false); } });
+  }
+
   // ───────────── hộp chọn thành viên kiểu Zalo (0.142.0, team-picker.js) ─────────────
 
   function TP() { return (typeof window !== "undefined" && window.JavisTeamPicker) || null; }
@@ -3114,6 +3163,10 @@
     if (d.pinTeam) {
       if (S.rowMenu) closeRowMenu();
       return pinTeam(d.pinTeam, d.on === "1", S.el.contains(t) ? t : null);
+    }
+    if (d.muteTeam) {
+      if (S.rowMenu) closeRowMenu();
+      return muteTeam(d.muteTeam, d.on === "1", null);
     }
     if (d.team) return openTeam(d.team);
     if (t.classList.contains("tm-scrim")) return closeSide();
@@ -3553,6 +3606,8 @@
       }
       return;
     }
+    // 0.197.0: a message landing in the team on screen is read; tell the server so the badge stays clear on every device.
+    if (d.type === "team_message" && d.team_id === S.activeId && d.message && d.message.author_kind !== "owner") readSoon();
     if (d.type === "team_message" && d.team_id === S.activeId && d.message) {
       var i = S.msgs.findIndex(function (m) { return Number(m.id) === Number(d.message.id); });
       // Gói không mang phản hồi (tin đổi nhãn, kết quả việc): giữ phản hồi đang có của tin.
@@ -3637,8 +3692,11 @@
     var badge = row.querySelector(".tm-team-bottom .tm-badge");
     // The card's state colours are the job-state ones (need red, run blue), so a team that needs you reads the same.
     var st = badge ? (badge.classList.contains("tm-badge-owner") ? "need" : badge.classList.contains("tm-badge-run") ? "run" : "") : "";
+    // 0.197.0: with no job state to show, the card says how many messages wait unread.
+    var un = row.querySelector(".tm-team-bottom .tm-unread");
     CR.miniTip.show(row, { ava: ava ? ava.outerHTML : "", name: txt(".tm-team-name"), time: txt(".tm-team-time"),
-      sub: txt(".tm-team-sub"), stText: badge ? badge.textContent.trim() : "", st: st });
+      sub: txt(".tm-team-sub"), stText: badge ? badge.textContent.trim() : un ? un.getAttribute("title") : "",
+      st: badge ? st : un ? "need" : "" });
   }
 
   function render(el) {
@@ -3780,6 +3838,8 @@
 
   if (typeof window !== "undefined" && window.addEventListener) {
     window.addEventListener("javis:team-event", onTeamEvent);
+    // 0.197.0: back to this tab with a team open: what arrived while away is read now.
+    if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("visibilitychange", onVisible);
     // Auto bật/tắt ở trang Cộng sự hay tab khác (0.142.0): danh sách thành viên của nhóm đang mở đọc lại trạng thái.
     window.addEventListener("javis:resonance-agents-changed", function () {
       if (!S || !S.el || !S.el.isConnected || !S.activeId) return;
@@ -3800,7 +3860,7 @@
     searchResultsHtml: searchResultsHtml, replyStatusHtml: replyStatusHtml, headLine: headLine,
     typingHtml: typingHtml, pinsHtml: pinsHtml, markMentions: markMentions, replyRefHtml: replyRefHtml,
     allTags: allTags, filterTeams: filterTeams, tagBarHtml: tagBarHtml, tagMenuRows: tagMenuRows, tagPickRows: tagPickRows,
-    lastWorkedTeam: lastWorkedTeam, TAG_NONE: TAG_NONE };
+    lastWorkedTeam: lastWorkedTeam, TAG_NONE: TAG_NONE, unreadHtml: unreadHtml };
   if (typeof window !== "undefined") window.JavisTeams = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

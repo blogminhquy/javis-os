@@ -158,6 +158,7 @@
       "terminal",
       "git-branch",
       "bell",
+      "bell-off",
       "eye",
       "rocket",
       "layers",
