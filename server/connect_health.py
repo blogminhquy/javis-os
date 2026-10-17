@@ -10,8 +10,10 @@ Bài học vụ 0.9.189: thông điệp lỗi mù mờ làm cả agent lẫn ng�
 nói thẳng nguyên nhân là một tính năng, không phải trang trí.
 """
 import asyncio
+import json
 import sys
 import time
+from pathlib import Path
 
 import mcp_client
 import mcp_store
@@ -50,6 +52,14 @@ _EN = {
     "Phiên đăng nhập Claude Code đã hết hạn và không tự làm mới được.":
         "The Claude Code session has expired and could not refresh itself.",
     "Chưa kết nối ChatGPT (OAuth).": "ChatGPT (OAuth) is not connected.",
+    "Đang khởi động (lần chạy đầu có thể phải tải gói cài đặt) - chưa phải lỗi. Chờ một lát rồi "
+    "bấm Kiểm tra.":
+        "Still starting (a first run may be downloading its package) - not an error yet. Wait a "
+        "moment, then click Check.",
+    "Gói cài đặt của trình kết nối bị thiếu file (cài dở). Bấm Kiểm tra để Javis dọn bản hỏng "
+    "và cài lại.":
+        "The connector's installed package is missing files (an interrupted install). Click "
+        "Check and Javis removes the broken copy and installs it again.",
     "Composio từ chối consumer key mà Javis đang dùng. Vào Composio "
     "For You → Connect my agent, lấy key ck_*, nhập vào thẻ Composio "
     "trong Javis rồi bấm Kết nối hoặc Kết nối lại. Kết nối lại riêng "
@@ -79,15 +89,24 @@ _AUTH_HINTS = ("401", "unauthorized", "invalid_grant", "oauth session expired",
                "hết phiên đăng nhập")
 _SPAWN_HINTS = ("filenotfounderror", "no such file", "not recognized", "enoent",
                 "spawn", "exited with", "exit code", "notimplementederror")
+_BROKEN_INSTALL_HINTS = ("module_not_found", "cannot find module", "err_module_not_found")
 _NET_HINTS = ("timeout", "timed out", "getaddrinfo", "connection refused",
               "connecterror", "connectionerror", "ssl", "network", "unreachable",
               "connection closed", "server disconnected", "502", "503", "504")
 
 
+def _is_npx(conn) -> bool:
+    """The connection runs `npx ...`: only then can Check repair a broken install (npx_cache)."""
+    import npx_cache
+    c = conn or {}
+    return npx_cache.package_specs(c.get("command") or "", c.get("args") or []) is not None
+
+
 def classify_error(err: str, conn=None) -> tuple[str, str]:
     """Chuỗi lỗi kỹ thuật -> (kind, thông điệp tiếng người).
 
-    kind: auth | spawn | net | unknown. Nhóm `auth` là nhóm duy nhất UI gắn hành động
+    kind: auth | install | spawn | net | unknown (check_one adds `starting` for a server still
+    in its first download). Nhóm `auth` là nhóm duy nhất UI gắn hành động
     (nút Kết nối lại) nên thà bỏ sót (rơi vào unknown) còn hơn bắt nhầm."""
     low = (err or "").lower()
     if (conn or {}).get("connector_id") == "composio" and (
@@ -99,6 +118,12 @@ def classify_error(err: str, conn=None) -> tuple[str, str]:
         return "auth", message
     if any(s in low for s in _AUTH_HINTS):
         return "auth", "Hết phiên đăng nhập - bấm Kết nối lại để đăng nhập lại."
+    # Node cannot load a module of the connector's own package: an install that was cut short
+    # (see npx_cache). Checked before the generic spawn hints, which would only say "could not
+    # start" and send people looking at the wrong thing.
+    if any(s in low for s in _BROKEN_INSTALL_HINTS) and _is_npx(conn):
+        return "install", ("Gói cài đặt của trình kết nối bị thiếu file (cài dở). Bấm Kiểm tra "
+                           "để Javis dọn bản hỏng và cài lại.")
     if any(s in low for s in _SPAWN_HINTS):
         return "spawn", "Không khởi động được trình kết nối trên máy chạy Javis."
     if any(s in low for s in _NET_HINTS):
@@ -168,11 +193,22 @@ async def check_one(conn, pool=None) -> dict:
         # Quá hạn TRONG LÚC phiên đang chạy dở một tool call thật (lên đơn POS, gửi tin): ping
         # chỉ đang xếp hàng chờ khoá chứ nguồn không hề hỏng. Báo đỏ ở đây là trang Kết nối nói
         # dối đúng lúc nguồn đang LÀM VIỆC, rồi người dùng đi sửa một thứ không hỏng.
-        ban = (isinstance(e, (asyncio.TimeoutError, TimeoutError))
-               and pool.dang_goi_tool(spec))
+        timed_out = isinstance(e, (asyncio.TimeoutError, TimeoutError))
+        ban = timed_out and pool.dang_goi_tool(spec)
         if ban:
             rec.update(ok=True, kind="ban",
                        message="Đang chạy tool nên chưa ping được - không phải lỗi kết nối.")
+        elif timed_out and pool.is_starting(spec) and not pool.init_error(spec):
+            # Still in its first handshake, often an `npx -y` / `uvx` download. The process is
+            # left running (the handshake has its own task), so a later check finds it ready.
+            # An earlier handshake of this session that already failed means it is not a first
+            # download: that error is reported instead (the branch below).
+            rec.update(kind="starting",
+                       message="Đang khởi động (lần chạy đầu có thể phải tải gói cài đặt) - chưa "
+                               "phải lỗi. Chờ một lát rồi bấm Kiểm tra.")
+        elif timed_out and pool.init_error(spec):
+            kind, msg = classify_error(pool.init_error(spec), conn)
+            rec.update(kind=kind, message=msg)
         else:
             kind, msg = classify_error(f"{type(e).__name__}: {e}", conn)
             rec.update(kind=kind, message=msg)
@@ -460,13 +496,20 @@ def engines_snapshot() -> dict:
 
 async def _loop():
     await asyncio.sleep(_STARTUP_DELAY)
+    first = True
     while True:
         try:
             probe_engines()
-            await sweep()
+            # The first round after a restart or an update is the smoke test (it pings every
+            # source like a sweep, then retries and reports); the next ones are plain sweeps.
+            if first:
+                await startup_smoke(_app_version())
+            else:
+                await sweep()
         except Exception as e:
             print(f"[connect health] vòng quét lỗi: {type(e).__name__}: {e}",
                   file=sys.stderr)
+        first = False
         await asyncio.sleep(HEALTH_INTERVAL)
 
 
@@ -475,3 +518,116 @@ def start() -> None:
     global _task
     if _task is None or _task.done():
         _task = asyncio.create_task(_loop())
+
+
+# ─────────────── Smoke test after a restart or an update ───────────────
+# The periodic sweep only paints the Connections page, and nobody opens that page right after an
+# update. A connector that died at boot then stays broken without a word: 2026-10-13 to 10-16, a
+# Google Search Console connector failed on every start for three and a half days.
+
+# async fn(text) for the owner notice. Left None, the notice goes through `on_engine_down`,
+# which main.py already wires to the owner's system notice (`_loop_notify`).
+on_connections_down = None
+_SMOKE_RETRY_AFTER = 30      # seconds before failed or still-starting sources get a second ping
+_SMOKE_FILE = "connect_smoke.json"   # in STATE_DIR: what the last notice reported
+_smoke: dict = {}
+
+
+def _smoke_state_path():
+    import config
+    return Path(config.STATE_DIR) / _SMOKE_FILE
+
+
+def _last_notified() -> list:
+    try:
+        return list(json.loads(_smoke_state_path().read_text(encoding="utf-8")).get("notified") or [])
+    except (OSError, ValueError, AttributeError):
+        return []
+
+
+def _save_notified(fingerprint: list) -> None:
+    try:
+        _smoke_state_path().write_text(json.dumps({"notified": fingerprint, "at": time.time()}),
+                                       encoding="utf-8")
+    except OSError as e:
+        print(f"[connect smoke] cannot save state: {e}", file=sys.stderr)
+
+
+def last_smoke() -> dict:
+    """Result of the last startup smoke test ({} before the first one)."""
+    return dict(_smoke)
+
+
+def _app_version() -> str:
+    try:
+        return (Path(__file__).resolve().parent.parent / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+async def startup_smoke(version: str = "", pool=None, retry_after: float | None = None) -> dict:
+    """Ping every enabled connection once after boot, retry the failures once, tell the owner.
+
+    Runs as the first round of the health loop, `_STARTUP_DELAY` after boot, next to the boot
+    warm-up. A second ping goes to sources that failed or were still starting: the first ping may
+    have found a half-installed npx folder and moved it aside (npx_cache), so the retry is the
+    one that sees the fresh install. A source still in its first download gets until the end of
+    its handshake budget before that second ping. Only sources that still fail after that are reported, and a
+    set of failures already reported after an earlier restart is not reported again (a source
+    that stays broken would otherwise send a notice on every restart or crash loop).
+    """
+    global _smoke
+    wait = _SMOKE_RETRY_AFTER if retry_after is None else retry_after
+    conns = [c for c in await asyncio.to_thread(mcp_store.resolved, True)
+             if mcp_client.co_server_de_dial(c)]
+    results = {}
+    for conn in conns:
+        try:
+            results[conn["id"]] = await check_one(conn, pool)
+        except Exception as e:      # noqa: BLE001 - one source must not stop the test
+            results[conn["id"]] = {"ok": False, "kind": "unknown", "message": f"{type(e).__name__}: {e}"}
+    again = [c for c in conns if not results[c["id"]].get("ok")]
+    if again:
+        await asyncio.sleep(wait)
+        p = pool or mcp_client.pool
+        budget = mcp_client._env_seconds("JAVIS_MCP_INSTALL_TIMEOUT", mcp_client._INSTALL_TIMEOUT)
+        deadline = time.time() + budget
+        while time.time() < deadline and any(p.is_starting(mcp_client._conn_spec(c)) for c in again):
+            await asyncio.sleep(min(5.0, max(0.1, wait)))
+        for conn in again:
+            try:
+                results[conn["id"]] = await check_one(conn, pool)
+            except Exception as e:  # noqa: BLE001
+                results[conn["id"]] = {"ok": False, "kind": "unknown", "message": f"{type(e).__name__}: {e}"}
+    labels = {c["id"]: c.get("label") or c["id"] for c in conns}
+    failed = [{"id": cid, "label": labels[cid], "kind": rec.get("kind") or "",
+               "message": rec.get("message") or "", "message_en": rec.get("message_en") or ""}
+              for cid, rec in results.items() if not rec.get("ok")]
+    fingerprint = sorted(f"{f['id']}:{f['kind']}" for f in failed)
+    already = fingerprint == _last_notified()
+    _smoke = {"version": version, "at": time.time(), "checked": len(conns),
+              "ok": len(conns) - len(failed), "failed": failed, "notified": bool(failed) and not already}
+    _save_notified(fingerprint)
+    if failed:
+        print(f"[connect smoke] {len(failed)}/{len(conns)} connections fail after start: "
+              + ", ".join(f"{f['label']} ({f['kind']})" for f in failed)
+              + (" (same as the last notice, not sent again)" if already else ""), file=sys.stderr)
+        notify = on_connections_down or on_engine_down
+        if notify and not already:
+            import localefmt
+            ban = f" (bản {version})" if version else ""
+            ver = f" (version {version})" if version else ""
+            vi = "; ".join(f"{f['label']}: {f['message']}" for f in failed[:5])
+            en = "; ".join(f"{f['label']}: {f['message_en'] or _EN.get(f['message']) or f['message']}"
+                           for f in failed[:5])
+            try:
+                coro = notify(localefmt.chu(
+                    f"⚠ Sau khi Javis khởi động lại{ban}, {len(failed)} kết nối chưa chạy: {vi}. "
+                    "Mở trang Kết nối và bấm Kiểm tra.",
+                    f"⚠ After Javis restarted{ver}, {len(failed)} connection(s) are not working: "
+                    f"{en}. Open the Connections page and click Check."))
+                if asyncio.iscoroutine(coro):
+                    await coro
+            except Exception as e:  # noqa: BLE001 - a failed notice must not break the boot
+                print(f"[connect smoke] notify failed: {type(e).__name__}: {e}", file=sys.stderr)
+    return last_smoke()
