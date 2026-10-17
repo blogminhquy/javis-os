@@ -2701,11 +2701,18 @@ body.on-teams .cview-head { display: none; }
 .tm-rx-pick:hover, .tm-rx-pick:focus-visible { transform: scale(1.28) translateY(-3px); outline: none; }
 .tm-rx-pick[aria-pressed="true"] { background: var(--accent-wash); }
 @media (prefers-reduced-motion: reduce) { .tm-rx-pick, .tm-rx-btn, .tm-bubble { transition: none; } .tm-rx-bar { animation: none; } }
-/* Hover actions beside the bubble: Reply, Copy, Pin. */
-.tm-hacts { display: inline-flex; gap: 2px; align-self: center; opacity: 0; transition: opacity .12s; }
+/* 0.194.1 (owner, 17/10/2026): the bubble and its action row (time, Reply, Copy, Pin) stack in one column, the row right
+   under the bubble on its own side, like the main chat (.msg-acts). Beside the bubble it looked cluttered. */
+.tm-col { display: flex; flex-direction: column; min-width: 0; flex: 0 1 auto; }
+.tm-msg-agent .tm-col { align-items: flex-start; max-width: min(680px, calc(100% - 40px)); }
+.tm-msg-owner .tm-col { align-items: flex-end; max-width: min(680px, 85%); }
+.tm-msg .tm-col > .tm-bubble { max-width: 100%; }
+.tm-hacts { display: flex; align-items: center; gap: 2px; height: 26px; margin-top: 2px; opacity: 0; transition: opacity .12s; }
 .tm-msg:hover .tm-hacts, .tm-hacts:focus-within { opacity: 1; }
-.tm-hact { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none;
+.tm-time { color: var(--text3); font-size: 12px; margin: 0 4px 0 2px; white-space: nowrap; }
+.tm-hact { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 26px; border: none;
   border-radius: 8px; background: none; color: var(--text3); cursor: pointer; }
+.tm-hact .ic, .tm-hact svg { width: 15px; height: 15px; }
 .tm-hact:hover, .tm-hact:focus-visible { background: var(--surface-2); color: var(--text); }
 @media (hover: none) { .tm-hacts { display: none; } .tm-msg { -webkit-touch-callout: none; } }
 /* Swipe left to reply: a reply arrow shows on the right once the swipe is far enough. */

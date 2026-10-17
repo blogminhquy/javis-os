@@ -469,9 +469,16 @@ h = TM.messageHtml({ id: 21, author_kind: "agent", author_ref: "ag_lan", content
 check("T5 tin trợ lý: bảng cảm xúc kèm Ghim; tin đã ghim thì không lặp nút Ghim", /data-decision="21" data-on="1"/.test(h)
       && !/data-on="1"/.test(TM.messageHtml({ id: 22, author_kind: "agent", author_ref: "ag_lan", content: "x", meta: { decision: true } },
         { members: members, picker: 22 })), h);
-check("T5 nút thao tác nằm cạnh bong bóng, không thêm hàng dưới tin", (function (x) {
-  return x.indexOf("tm-bubble") < x.indexOf("tm-hacts") && !/tm-foot[^>]*>[^<]*<button type="button" class="tm-hact"/.test(x);
-})(TM.messageHtml(am, { members: members })));
+// 0.194.1 (owner, 17/10/2026): the action row sits UNDER the bubble, in the same column, like the main chat's .msg-acts.
+check("0.194.1 nút thao tác nằm ngay dưới bong bóng, cùng một cột, có giờ gửi", (function (x) {
+  return /<div class="tm-col"><div class="tm-bubble">[\s\S]*<\/div><div class="tm-hacts"><span class="tm-time"[^>]*>\d\d:\d\d<\/span>/.test(x)
+    && !/tm-foot[^>]*>[^<]*<button type="button" class="tm-hact"/.test(x) && x.includes('data-reply="7"') && x.includes('data-copy="7"');
+})(TM.messageHtml(Object.assign({}, am, { ts: 1792200000 }), { members: members })));
+check("0.194.1 tin của chủ cũng có hàng thao tác dưới bong bóng, dồn về bên phải", (function (x) {
+  return x.includes('<div class="tm-col"><div class="tm-bubble">') && x.indexOf("tm-bubble") < x.indexOf("tm-hacts");
+})(TM.messageHtml({ id: 8, author_kind: "owner", content: "x", meta: {}, ts: 1792200000 }, { members: members }))
+  && /\.tm-msg-owner \.tm-col \{ align-items: flex-end;/.test(css) && /\.tm-msg-agent \.tm-col \{ align-items: flex-start;/.test(css));
+check("0.194.1 tin không có mốc giờ thì không bịa giờ", !TM.messageHtml(Object.assign({}, am, { ts: 0 }), { members: members }).includes("tm-time"));
 check("T5 nhấn giữ mở bảng cho mọi tin (cả tin của chủ)", teamsJs.includes('e.target.closest(".tm-msg")'));
 
 // Trang chiếm trọn chiều cao, khung soạn một hàng ở đáy.

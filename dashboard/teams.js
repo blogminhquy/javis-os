@@ -115,12 +115,26 @@
     return JR.cornerHtml(m.id, m.reaction, { prefix: "tm", last: last, icon: ic("thumbs-up") });
   }
 
-  // Reply, copy and pin next to a bubble, shown on hover (mouse). Touch screens use swipe left (reply) and long press.
+  // Time, reply (quote), copy and pin in one row UNDER the bubble, like the main chat (0.194.1, owner 17/10/2026: beside the
+  // bubble it looked cluttered). Shown on hover (mouse); touch screens use swipe left (reply) and long press.
+  function actsApi() {
+    if (typeof window !== "undefined" && window.JavisActs) return window.JavisActs;
+    try { return require("./chat-acts.js"); } catch (e) { return null; }
+  }
+
+  function timeHtml(m) {
+    var A = actsApi();
+    // Team messages carry epoch seconds; the main chat's formatter takes what `new Date` takes.
+    var ms = Number(m.ts) > 0 ? (Number(m.ts) < 1e12 ? Number(m.ts) * 1000 : Number(m.ts)) : 0;
+    var t = A && ms ? A.fmtTime(ms) : "";
+    return t ? '<span class="tm-time" title="' + esc(A.fmtTimeFull(ms)) + '">' + esc(t) + "</span>" : "";
+  }
+
   function hoverActsHtml(m) {
     var id = esc(m.id);
-    return '<div class="tm-hacts">' +
+    return '<div class="tm-hacts">' + timeHtml(m) +
       '<button type="button" class="tm-hact" data-reply="' + id + '" aria-label="' + esc(tw("teams.msg_reply")) + '" title="' +
-      esc(tw("teams.msg_reply")) + '">' + ic("reply") + "</button>" +
+      esc(tw("teams.msg_reply")) + '">' + ic("quote") + "</button>" +
       '<button type="button" class="tm-hact" data-copy="' + id + '" aria-label="' + esc(tw("teams.copy")) + '" title="' +
       esc(tw("teams.copy")) + '">' + ic("copy") + "</button>" +
       ((m.meta || {}).decision ? "" : '<button type="button" class="tm-hact" data-decision="' + id + '" data-on="1" aria-label="' +
@@ -548,9 +562,10 @@
         esc(tw("teams.agent_settings", { name: who })) + '" title="' + esc(tw("teams.agent_settings", { name: who })) + '">' +
         agentAva(author, 28) + "</button>" : agentAva(author || { name: who }, 28);
     }
-    var side = hoverActsHtml(m);
+    // The bubble and its action row stack in one column, so the row sits right under the bubble on its side.
+    var col = '<div class="tm-col">' + bubble + hoverActsHtml(m) + "</div>";
     return '<div class="' + cls + '" data-mid="' + esc(m.id) + '">' +
-      (mine ? side + bubble : face + bubble + side) + (open ? sheetHtml(m, mine) : "") + "</div>" +
+      (mine ? col : face + col) + (open ? sheetHtml(m, mine) : "") + "</div>" +
       (mine ? replyStatusHtml(m, ctx) : "");
   }
 

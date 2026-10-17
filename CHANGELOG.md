@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.194.1] - 2026-10-17
+### Cải thiện
+- **Nút của tin trong Team nằm dưới bong bóng:** giờ gửi, Trả lời (trích dẫn), Sao chép và Ghim xếp thành một hàng ngay dưới tin, giống khung trò chuyện chính, thay vì nằm bên phải bong bóng nhìn rối mắt.
+
 ## [0.194.0] - 2026-10-17
 ### Thêm mới
 - **Team làm được việc thật:** khi giao việc trong Team, lượt **Làm** và **Hỗ trợ** của thành viên có đủ công cụ như chat riêng: đọc và ghi file trong bộ não và thư mục làm việc của nhóm, gọi kết nối (MCP), chạy skill. Thành viên tự làm rồi trả kết quả thật (file, link), không còn bảo bạn sang chat riêng. Các lượt Làm trên cùng một bộ não chạy lần lượt nên không ai sửa đè file của nhau.
