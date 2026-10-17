@@ -10,7 +10,8 @@ A team can carry ONE mandate, set only by the owner (HTTP routes in team_api, ne
                      folder:<path inside the brain>   files (mtime, size) of that folder
                      kanban                            failed or blocked Kanban jobs of the brain
                      mcp:<connection id>               health of one connection (missing = shown, never invented)
-                     test:<read-only command>          exit code of a safe command (run_command at `auto`)
+                     test:<check command>              exit code of a command the OWNER wrote (run_command at `auto`:
+                                                      it can run code such as pytest; a timeout counts as failing)
     scope          the boundary of what the team may take on
     budget         observations per day, jobs the mandate may open per day
     cadence_min    how often the sources are observed
@@ -38,6 +39,7 @@ import json
 import os
 import secrets
 import sqlite3
+import threading
 import time
 from contextlib import closing
 from pathlib import Path
@@ -105,6 +107,20 @@ def _clip(v: Any, n: int = TEXT_MAX) -> str:
 
 class MandateError(ValueError):
     pass
+
+
+# One lock per team for everything that changes what a mandate may do (status, revoke) and everything that acts on it
+# (opening a job, an owner's accept). Review 0.208.0: a revoke during a long observation must stop what follows.
+_TEAM_LOCKS: dict = {}
+_TEAM_LOCKS_GUARD = threading.Lock()
+
+
+def team_lock(team_id: str) -> threading.RLock:
+    with _TEAM_LOCKS_GUARD:
+        lk = _TEAM_LOCKS.get(team_id)
+        if lk is None:
+            lk = _TEAM_LOCKS[team_id] = threading.RLock()
+        return lk
 
 
 def parse_source(raw: Any) -> Optional[dict]:
@@ -226,8 +242,10 @@ class MandateStore:
     def put(self, team_id: str, body: dict, by: str = "owner", status: Optional[str] = None) -> dict:
         """Create or edit (a new version). A new mandate starts `off` unless `status` says otherwise."""
         m = clean(body)
+        if status not in (None, "off", "active", "paused"):
+            raise MandateError("sửa mục tiêu chỉ đặt được trạng thái tắt, bật hay tạm dừng; thu hồi dùng nút Thu hồi")
         now = self.clock()
-        with self._Tx(self) as c:
+        with team_lock(team_id), self._Tx(self) as c:
             old = c.execute("SELECT version, status, created_at FROM team_mandates WHERE team_id=?",
                             (team_id,)).fetchone()
             ver = (int(old["version"]) + 1) if old else 1
@@ -247,11 +265,11 @@ class MandateStore:
     def set_status(self, team_id: str, status: str, by: str = "owner") -> Optional[dict]:
         if status not in STATUSES:
             raise MandateError("trạng thái không hợp lệ")
-        with self._Tx(self) as c:
+        with team_lock(team_id), self._Tx(self) as c:
             r = c.execute("SELECT status FROM team_mandates WHERE team_id=?", (team_id,)).fetchone()
             if r is None:
                 raise MandateError("nhóm chưa có mục tiêu")
-            if r["status"] == "revoked" and status != "off":
+            if r["status"] == "revoked":
                 raise MandateError("mục tiêu đã thu hồi; viết lại mục tiêu mới để dùng tiếp")
             c.execute("UPDATE team_mandates SET status=?, updated_at=? WHERE team_id=?", (status, self.clock(), team_id))
             self._event(c, team_id, "status", by, {"from": r["status"], "to": status})
@@ -274,10 +292,26 @@ class MandateStore:
 
     # ---- observations ----
     def last_observation(self, team_id: str, source: str, ref: str) -> Optional[dict]:
+        """The baseline for the next comparison: the last observation whose change was not held back by a cooldown
+        (review 0.208.0: a change seen during the cooldown must still come out once the cooldown is over)."""
         with closing(self._conn()) as c:
-            r = c.execute("SELECT * FROM mandate_observations WHERE team_id=? AND source=? AND ref=? ORDER BY id DESC "
-                          "LIMIT 1", (team_id, source, ref)).fetchone()
+            r = c.execute("SELECT * FROM mandate_observations WHERE team_id=? AND source=? AND ref=? AND "
+                          "json_extract(summary_json, '$.suppressed') IS NULL ORDER BY id DESC LIMIT 1",
+                          (team_id, source, ref)).fetchone()
             return dict(r, summary=json.loads(r["summary_json"])) if r else None
+
+    def observation(self, obs_id: int) -> Optional[dict]:
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT * FROM mandate_observations WHERE id=?", (int(obs_id or 0),)).fetchone()
+            return dict(r, summary=json.loads(r["summary_json"])) if r else None
+
+    def suppress_observation(self, obs_id: int) -> None:
+        with self._Tx(self) as c:
+            r = c.execute("SELECT summary_json FROM mandate_observations WHERE id=?", (int(obs_id),)).fetchone()
+            if r is not None:
+                d = json.loads(r["summary_json"] or "{}")
+                d["suppressed"] = True
+                c.execute("UPDATE mandate_observations SET summary_json=? WHERE id=?", (_j(d), int(obs_id)))
 
     def add_observation(self, team_id: str, version: int, source: str, ref: str, version_key: str, ok: bool,
                         summary: dict, at: float) -> int:
@@ -323,17 +357,17 @@ class MandateStore:
 
     def add_opportunity(self, *, team_id: str, version: int, source: str, ref: str, version_key: str, kind: str,
                         reason: str, benefit: str, evidence: list, observation_id: int, at: float, expire_h: float,
-                        cooldown_min: float) -> Optional[dict]:
-        """A new opportunity, or None: same data version already seen (rejected ones included), or the source is still
-        in its cooldown after the last opportunity it produced."""
+                        cooldown_min: float) -> Any:
+        """A new opportunity, or the reason there is none: "dup" (same data version already seen, rejected ones
+        included) or "cooldown" (the source is still resting after its last opportunity)."""
         with self._Tx(self) as c:
             if c.execute("SELECT 1 FROM mandate_opportunities WHERE team_id=? AND source=? AND ref=? AND version_key=?",
                          (team_id, source, ref, version_key)).fetchone():
-                return None
+                return "dup"
             last = c.execute("SELECT created_at FROM mandate_opportunities WHERE team_id=? AND source=? AND ref=? "
                              "ORDER BY created_at DESC LIMIT 1", (team_id, source, ref)).fetchone()
             if last is not None and at - float(last["created_at"]) < cooldown_min * 60:
-                return None
+                return "cooldown"
             oid = "op_" + secrets.token_hex(8)
             c.execute("INSERT INTO mandate_opportunities(opp_id, team_id, mandate_version, source, ref, version_key, kind,"
                       " reason, benefit, evidence_json, observation_id, created_at, updated_at, expires_at) "
@@ -368,7 +402,8 @@ class MandateStore:
 
     def expire_due(self, at: float) -> list:
         with self._Tx(self) as c:
-            rows = c.execute("SELECT * FROM mandate_opportunities WHERE status IN ('open','proposed') AND expires_at<?",
+            rows = c.execute("SELECT * FROM mandate_opportunities WHERE status IN ('open','proposed','accepting') "
+                             "AND expires_at<?",
                              (at,)).fetchall()
             for r in rows:
                 c.execute("UPDATE mandate_opportunities SET status='expired', updated_at=? WHERE opp_id=?",
@@ -395,12 +430,15 @@ def folder_listing(root: Path, rel: str, limit: int = FOLDER_MAX_FILES) -> Optio
             if fn.startswith("."):
                 continue
             p = Path(dp) / fn
+            if p.is_symlink():
+                continue   # never read through a link that may point outside the brain (review 0.208.0)
             try:
-                st = p.stat()
+                st = p.lstat()
             except OSError:
                 continue
             out[str(p.relative_to(base)).replace(os.sep, "/")] = [int(st.st_size), int(st.st_mtime)]
             if len(out) >= limit:
+                out["__truncated__"] = [limit, 0]
                 return out
     return out
 
@@ -457,17 +495,28 @@ class MandateEngine:
         for o in self.store.expire_due(now):
             self._refresh_card(o["team_id"], o["opp_id"])
         for m in self.store.active():
-            team = self.runner.teams.get(m["team_id"])
-            if not team or team.get("status") != "active" or not self.due(m, now):
-                continue
-            self.store.mark_observed(m["team_id"], now)
-            for raw in m["sources"]:
-                src = parse_source(raw)
-                if src is None:
+            try:
+                team = self.runner.teams.get(m["team_id"])
+                if not team or team.get("status") != "active" or not self.due(m, now):
                     continue
-                for ev in self._observe(team, m, src, now):
-                    done.append(self._act(team, m, ev, now))
+                self.store.mark_observed(m["team_id"], now)
+                for raw in m["sources"]:
+                    src = parse_source(raw)
+                    if src is None:
+                        continue
+                    for ev in self._observe(team, m, src, now):
+                        done.append(self._act(team, m, ev, now))
+            except Exception as ex:  # noqa: BLE001 - one broken mandate must not stop the others
+                import sys
+                print(f"[team mandate] {m.get('team_id')}: {type(ex).__name__}: {ex}", file=sys.stderr)
         return [d for d in done if d]
+
+    def _still(self, m: dict) -> Optional[dict]:
+        """The mandate as it is NOW, only if still active and the same version (call under team_lock)."""
+        cur = self.store.get(m["team_id"])
+        if not cur or cur["status"] != "active" or int(cur["version"]) != int(m["version"]):
+            return None
+        return cur
 
     # ---- observe ----
     def _observe(self, team: dict, m: dict, src: dict, now: float) -> list:
@@ -483,7 +532,9 @@ class MandateEngine:
                 return []
             key = _hash(listing)
             prev = self.store.last_observation(tid, typ, ref)
-            oid = self.store.add_observation(tid, ver, typ, ref, key, True, {"files": len(listing), "listing": listing},
+            trunc = listing.pop("__truncated__", None) is not None
+            oid = self.store.add_observation(tid, ver, typ, ref, key, True, {"files": len(listing), "listing": listing,
+                                                                              "truncated": trunc},
                                              now)
             if prev is None or not prev["ok"]:
                 return []   # first sight of a folder is the baseline, not news
@@ -500,7 +551,7 @@ class MandateEngine:
             items = self.deps.kanban_failures(team["brain_id"], since) or []
             oid = self.store.add_observation(tid, ver, typ, ref, _hash([(i["ref"], i.get("at")) for i in items]), True,
                                              {"failed": len(items)}, now)
-            for i in items[:5]:
+            for i in items[:20]:
                 out.append({"source": typ, "ref": str(i["ref"]), "version_key": str(i.get("at") or ""),
                             "kind": "job_failed", "obs": oid, "evidence": [f"kanban:{i['ref']} {i.get('error') or ''}"[:300]],
                             "detail": f"việc \"{_clip(i.get('title'), 120)}\" đang lỗi: {_clip(i.get('error'), 200)}"})
@@ -561,18 +612,27 @@ class MandateEngine:
         n = 0
         for o in self.store.opportunities(team_id, ("enqueued", "asked"), limit=200):
             t = self.runner.tasks.get_task(o["task_id"]) if o.get("task_id") else None
-            if t and t["status"] not in ("done", "cancelled"):
+            if t and t["status"] not in ("done", "cancelled") and t.get("block_kind") != "rejected":
                 n += 1
         return n
 
     def _act(self, team: dict, m: dict, ev: dict, now: float) -> Optional[dict]:
+        with team_lock(team["team_id"]):
+            if self._still(m) is None:
+                return None   # paused, revoked or edited while the sources were read: act on nothing
+            return self._act_locked(team, m, ev, now)
+
+    def _act_locked(self, team: dict, m: dict, ev: dict, now: float) -> Optional[dict]:
         reason = f"{KIND_LABEL[ev['kind']]}: {ev['detail']}. Gắn với mục tiêu: {m['outcome'][:200]}"
         opp = self.store.add_opportunity(team_id=team["team_id"], version=int(m["version"]), source=ev["source"],
                                          ref=ev["ref"], version_key=ev["version_key"], kind=ev["kind"], reason=reason,
                                          benefit=KIND_BENEFIT[ev["kind"]], evidence=ev["evidence"],
                                          observation_id=ev["obs"], at=now, expire_h=self.expire_h,
                                          cooldown_min=self.cooldown_min)
-        if opp is None:
+        if opp == "cooldown":
+            self.store.suppress_observation(ev["obs"])
+            return None
+        if not isinstance(opp, dict):
             return None
         decision = self.classify(m, ev["kind"], now)
         self.store.update_opportunity(opp["opp_id"], decision=decision)
@@ -594,10 +654,17 @@ class MandateEngine:
         title = f"[Mục tiêu] {KIND_LABEL[opp['kind']].capitalize()}: {opp['ref']}"[:160]
         # Opening and stopping for approval happen under the runner's pool lock, so the dispatcher cannot claim the job
         # in between and run it before the owner decides.
-        lock = getattr(self.runner, "_pool_lock", None)
-        with (lock if lock is not None else _NullLock()):
-            tid, created = self.deps.open_job(team, title, self._intent(m, opp), f"mandate:{opp['opp_id']}")
-            aid = self.runner.mandate_job_needs_approval(team, tid, title, opp, m) if (ask and created) else None
+        # Review 0.208.0: an approve-level job is created already stopped (same transaction), so neither an error nor a
+        # crash before its approval card exists can leave it runnable.
+        tid, created = self.deps.open_job(team, title, self._intent(m, opp), f"mandate:{opp['opp_id']}",
+                                          blocked_kind="waiting_user" if ask else "")
+        aid = None
+        if ask and created:
+            try:
+                aid = self.runner.mandate_job_needs_approval(team, tid, title, opp, m)
+            except Exception:
+                self.runner.cancel_job(tid, "không tạo được thẻ duyệt cho việc của mục tiêu")
+                raise
         if not created:
             self.store.update_opportunity(opp["opp_id"], status="enqueued", task_id=tid, decided_by=by)
             return tid
@@ -630,28 +697,40 @@ class MandateEngine:
         opp = self.store.opportunity(opp_id)
         if not opp or opp["team_id"] != team_id:
             return {"ok": False, "error": "not_found"}
-        m = self.store.get(team_id)
-        team = self.runner.teams.get(team_id)
-        if decision == "reject":
-            ok = self.store.update_opportunity(opp_id, expect=OPEN_OPP, status="rejected", decided_by=by)
-        elif decision == "accept":
-            if not m or m["status"] in ("revoked", "off"):
-                return {"ok": False, "error": "mandate_off"}
-            ok = self.store.update_opportunity(opp_id, expect=OPEN_OPP, status="accepting", decided_by=by)
-            if ok:
-                self._open(team, m, self.store.opportunity(opp_id), by=by, ask=False)
-        else:
-            return {"ok": False, "error": "bad_decision"}
+        with team_lock(team_id):
+            m = self.store.get(team_id)
+            team = self.runner.teams.get(team_id)
+            if decision == "reject":
+                ok = self.store.update_opportunity(opp_id, expect=OPEN_OPP, status="rejected", decided_by=by)
+            elif decision == "accept":
+                if not m or m["status"] in ("revoked", "off"):
+                    return {"ok": False, "error": "mandate_off"}
+                if not team or team.get("status") != "active":
+                    return {"ok": False, "error": "team_inactive"}
+                ok = self.store.update_opportunity(opp_id, expect=OPEN_OPP, status="accepting", decided_by=by)
+                if ok:
+                    try:
+                        self._open(team, m, self.store.opportunity(opp_id), by=by, ask=False)
+                    except Exception:
+                        # Never stuck in `accepting`: back to the owner's card (review 0.208.0).
+                        self.store.update_opportunity(opp_id, expect=("accepting",), status="proposed", decided_by="")
+                        raise
+            else:
+                return {"ok": False, "error": "bad_decision"}
         self._refresh_card(team_id, opp_id)
         return {"ok": ok, "error": "" if ok else "already_decided", "opportunity": view(self.store.opportunity(opp_id))}
 
     def revoke(self, team_id: str, by: str = "owner") -> dict:
         """Revoke: nothing new from this mandate. Jobs it opened that did not start are cancelled, open opportunities
         close, its waiting approval cards close (through the job cancel)."""
+        with team_lock(team_id):
+            return self._revoke_locked(team_id, by)
+
+    def _revoke_locked(self, team_id: str, by: str) -> dict:
         m = self.store.set_status(team_id, "revoked", by)
         cancelled, closed = [], []
         for o in self.store.opportunities(team_id, limit=500):
-            if o["status"] in OPEN_OPP:
+            if o["status"] in OPEN_OPP + ("accepting",):
                 self.store.update_opportunity(o["opp_id"], status="dismissed", decided_by=by)
                 closed.append(o["opp_id"])
                 self._refresh_card(team_id, o["opp_id"])
@@ -668,7 +747,7 @@ class MandateEngine:
         if not opp or opp["team_id"] != team_id:
             return None
         vers = {v["version"]: v for v in self.store.versions(team_id)}
-        obs = next((o for o in self.store.observations(team_id, 500) if o["id"] == opp["observation_id"]), None)
+        obs = self.store.observation(opp["observation_id"]) if opp.get("observation_id") else None
         task = self.runner.tasks.get_task(opp["task_id"]) if opp.get("task_id") else None
         approvals = self.runner.approvals_view(team_id, opp["task_id"]) if opp.get("task_id") else []
         steps = self.runner.teams.steps(opp["task_id"]) if opp.get("task_id") else []

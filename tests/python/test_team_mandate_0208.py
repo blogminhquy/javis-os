@@ -68,9 +68,12 @@ class Deps:
     def run_test(self, cmd, cwd):
         return self.tests.get(cmd, {"ran": False, "error": "không chạy được"})
 
-    def open_job(self, team, title, intent, source_ref):
+    def open_job(self, team, title, intent, source_ref, blocked_kind=""):
+        if getattr(self, "boom", False):
+            raise RuntimeError("database is locked")
         tid, created = self.store.enqueue_team(team["brain_id"], team["team_id"], title, intent, source_ref=source_ref,
-                                               chat_id=f"team:{team['team_id']}", created_by="mandate")
+                                               chat_id=f"team:{team['team_id']}", created_by="mandate",
+                                               blocked_kind=blocked_kind)
         self.opened.append((tid, title, intent, source_ref))
         return tid, created
 
@@ -327,6 +330,84 @@ acts = eng.tick()
 check("a change in team 2's source opens a job only for team 2",
       len(acts) == 1 and st.opportunity(acts[0]["opp_id"])["team_id"] == tid2
       and ts.get_task(st.opportunity(acts[0]["opp_id"])["task_id"])["team_id"] == tid2, acts)
+
+# ═════ 9. Review 0.208.0 fixes ═════
+r, tm, ts, ss, st, eng, deps, clock, T, brain = world("race")
+st.put(T["team_id"], dict(BASE, sources=["folder:bao-cao", "test:slow"], autonomy={"act": ["file_changed", "test_failing"]}),
+       status="active")
+deps.tests["slow"] = {"ran": True, "exit": 0, "output": ""}
+eng.tick()
+clock.advance(3600)
+touch(brain / "bao-cao" / "r.md", "x", clock)
+
+
+def slow_and_revoke(cmd, cwd):
+    eng.revoke(T["team_id"])          # the owner revokes while the check command is running
+    return {"ran": True, "exit": 1, "output": "đỏ"}
+
+deps.run_test = slow_and_revoke
+acts = eng.tick()
+live = [o for o in st.opportunities(T["team_id"], limit=50) if o.get("task_id")
+        and ts.get_task(o["task_id"])["status"] not in ("cancelled",)]
+check("revoke during an observation: nothing opened after it stays alive", live == [], [(o["kind"], o["status"]) for o in live])
+
+r, tm, ts, ss, st, eng, deps, clock, T, brain = world("cooldown-keep")
+st.put(T["team_id"], dict(BASE, cadence_min=5, autonomy={"propose": ["file_changed"]}), status="active")
+eng.tick()
+clock.advance(600)
+touch(brain / "bao-cao" / "a2.md", "1", clock)
+first = eng.tick()
+clock.advance(600)
+touch(brain / "bao-cao" / "b2.md", "2", clock)
+check("cooldown holds the second change back", eng.tick() == [])
+clock.advance(TM.DEFAULT_COOLDOWN_MIN * 60)
+later = eng.tick()
+check("after the cooldown the held-back change comes out (not lost)", len(first) == 1 and len(later) == 1
+      and any("b2.md" in e for e in st.opportunity(later[0]["opp_id"])["evidence"]), later)
+
+r, tm, ts, ss, st, eng, deps, clock, T, brain = world("accepting")
+st.put(T["team_id"], dict(BASE, autonomy={"propose": ["file_changed"]}), status="active")
+eng.tick()
+clock.advance(3600)
+touch(brain / "bao-cao" / "c.md", "1", clock)
+acts = eng.tick()
+deps.boom = True
+try:
+    eng.decide(T["team_id"], acts[0]["opp_id"], "accept")
+except RuntimeError:
+    pass
+deps.boom = False
+check("a failed accept goes back to the owner's card, never stuck in accepting",
+      st.opportunity(acts[0]["opp_id"])["status"] == "proposed")
+
+r, tm, ts, ss, st, eng, deps, clock, T, brain = world("blocked-create")
+st.put(T["team_id"], dict(BASE, autonomy={"approve": ["file_changed"]}), status="active")
+eng.tick()
+clock.advance(3600)
+touch(brain / "bao-cao" / "d.md", "1", clock)
+real_needs = r.mandate_job_needs_approval
+r.mandate_job_needs_approval = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("busy"))
+try:
+    eng.tick()
+except RuntimeError:
+    pass
+r.mandate_job_needs_approval = real_needs
+opened = [o for o in deps.opened]
+check("approve level: a job whose card failed is never runnable (created stopped, then cancelled)",
+      opened and ts.get_task(opened[-1][0])["status"] in ("cancelled", "team_blocked"), opened)
+try:
+    st.put(T["team_id"], BASE, status="revoked")
+    ok_put = True
+except TM.MandateError:
+    ok_put = False
+check("an edit cannot set revoked (only the Revoke action with its cleanup)", not ok_put)
+eng.revoke(T["team_id"])
+try:
+    st.set_status(T["team_id"], "off")
+    back = True
+except TM.MandateError:
+    back = False
+check("revoked cannot go back through off", not back)
 
 print()
 if fails:

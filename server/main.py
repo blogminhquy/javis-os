@@ -24106,15 +24106,19 @@ class _MandateDeps:
         import run_command
         ctx = coding_ctx.CodingToolContext(session_id="mandate", workspace_root=str(cwd),
                                            workspace_roots=(str(cwd),), permission_mode="auto")
-        kq = run_command.chay(command, ctx, ".", timeout_s=300)
+        kq = run_command.chay(command, ctx, ".", timeout_s=120)
         if not kq.da_chay:
             return {"ran": False, "error": kq.error or kq.output}
+        if not kq.ok and int(kq.exit_code or 0) == 0:
+            # A check that hung (timeout) is a failing check, never a passing one (review 0.208.0).
+            return {"ran": True, "exit": 124, "output": (kq.error or "") + "\n" + (kq.output or "")}
         return {"ran": True, "exit": int(kq.exit_code), "output": kq.output}
 
-    def open_job(self, team, title, intent, source_ref):
+    def open_job(self, team, title, intent, source_ref, blocked_kind=""):
         tid, created = tasks_feature.store.enqueue_team(
             team["brain_id"], team["team_id"], title, intent, source_ref=source_ref,
-            chat_id=f"team:{team['team_id']}", created_by=f"mandate:{team['team_id']}")
+            chat_id=f"team:{team['team_id']}", created_by=f"mandate:{team['team_id']}",
+            blocked_kind=blocked_kind, blocked_reason="Chờ chủ nhóm duyệt" if blocked_kind else "")
         if created:
             _TEAM_API.teams().log_event(team["team_id"], "job_opened", "mandate", None,
                                         {"task_id": tid, "title": title, "source_ref": source_ref, "via": "mandate"})

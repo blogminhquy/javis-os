@@ -337,12 +337,22 @@ class TeamApi:
         # 0.207.0: approval requests past their deadline close before dispatch, so their jobs stay stopped with the reason.
         await r._io(r.expire_approvals)
         # 0.208.0: department mandates observe their granted sources when due (code only, no model).
+        # In the background with no overlap (review 0.208.0): a slow check command must not hold up team dispatch.
         me = self.mandate_engine()
-        if me is not None:
-            try:
-                await r._io(me.tick)
-            except Exception as ex:  # noqa: BLE001 - one broken source must not stop the team loop
-                print(f"[team mandate] {type(ex).__name__}: {ex}", file=sys.stderr)
+        t_now = asyncio.get_running_loop().time()
+        busy_at = getattr(self, "_mandate_busy_at", 0.0)
+        if me is not None and (not getattr(self, "_mandate_busy", False) or t_now - busy_at > 900):
+            self._mandate_busy, self._mandate_busy_at = True, t_now
+
+            async def _observe():
+                try:
+                    if await r._io(me.tick):
+                        self.kick()
+                except Exception as ex:  # noqa: BLE001 - one broken source must not stop the team loop
+                    print(f"[team mandate] {type(ex).__name__}: {ex}", file=sys.stderr)
+                finally:
+                    self._mandate_busy = False
+            self._spawn(_observe())
         await r.dispatch_once(wait=False)
         # T3 phần J: lần chờ của bộ phán xử quá 30 phút thì hết hạn (nhóm và chat riêng), xử lý nền.
         await r._io(r.judge_tick)

@@ -3440,14 +3440,21 @@ class TeamRunner:
             else:   # changes_requested
                 self.teams.set_step_status(ap["step_id"], "cancelled", f"changes:{approval_id}")
                 if not step:
-                    # A mandate job waiting before its first step: the owner's note becomes part of the job's request.
-                    self.tasks.team_amend(task["id"], note.strip() or ap["title"])
+                    # A mandate job waiting before its first step: the owner's note becomes part of the job's request,
+                    # and the changed job asks again (review 0.208.0: "changes" is not an approval).
+                    rev2 = self.tasks.team_amend(task["id"], note.strip() or ap["title"])
+                    ap2 = self.approvals.create(team_id=team_id, task_id=task["id"], step_id="", team_rev=int(rev2 or 1),
+                                                requested_by=ap["requested_by"], kind="plan", title=ap["title"],
+                                                action=f"{ap['action']}\n\nĐã sửa theo góp ý: {note.strip()}",
+                                                scope=ap["scope"], impact=ap["impact"], evidence=ap["evidence"])
+                    self._approval_card(team, task["id"], None, None, ap2)
                 if step:
                     self.teams.add_step(task["id"], team_id, step["kind"], step["agent_key"], int(task["team_rev"]),
                                         f"Chủ nhóm yêu cầu sửa đề xuất \"{ap['title']}\": {note.strip() or '(không ghi chú)'}"
                                         f"\n\n{step['brief']}", list(step.get("input_refs") or []),
                                         step.get("parent_step"))
-                self.tasks.team_unblock(task["id"])
+                if step:
+                    self.tasks.team_unblock(task["id"])
             ap = self.approvals.get(approval_id)
             self._refresh_card(team, ap)
             label = {"approved": "đã duyệt", "rejected": "đã từ chối", "changes_requested": "yêu cầu sửa"}[res["status"]]

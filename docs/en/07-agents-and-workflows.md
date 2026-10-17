@@ -244,7 +244,7 @@ With Needs your approval, Claude Code, Codex (with its own sandbox) and the API-
 The Team tab has a **Department mandate** section. Older teams have none, so nothing runs on its own until you set one and press **Turn on**.
 
 - **Outcome**: what this team is for. **How it is measured**: one criterion per line.
-- **Granted sources**, one per line: `folder:reports` (a folder in the brain), `kanban` (failed Kanban jobs of the brain), `mcp:<connection id>` (whether a connection is down), `test:<check command>` (run at the safe level; a non-zero exit is a failure).
+- **Granted sources**, one per line: `folder:reports` (a folder in the brain), `kanban` (failed Kanban jobs of the brain), `mcp:<connection id>` (whether a connection is down), `test:<check command>` (runs at the Coding page's auto level, so it can run code such as `pytest` or `npm test`; only you can set it; a non-zero exit or more than 2 minutes is a failure).
 - **Scope**, **observe every**, **observations per day**, **jobs it may open per day**, and **stop opening jobs at N open jobs**.
 - For each kind of opportunity (documents changed, Kanban job failed, check command failing, connection down) pick: **Only record it**, **Propose it to me**, **Open a job, wait for my approval** or **Open the job itself**.
 

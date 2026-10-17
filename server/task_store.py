@@ -1177,8 +1177,13 @@ class TaskStore:
         coordinator_key: str = "",
         chat_id: str = "",
         created_by: str = "owner",
+        blocked_kind: str = "",
+        blocked_reason: str = "",
     ) -> tuple[str, bool]:
         """Thêm một việc nhóm vào cuối hàng. Trả (task_id, created).
+
+        `blocked_kind` (0.208.0): the job is created already stopped (e.g. `waiting_user` for a job the department
+        mandate opens at the approve level), in the same transaction, so no crash or error can leave it runnable.
 
         Khoá idempotency là `source_ref` (tin giao việc): gửi lại cùng tin trả việc cũ. KHÔNG gộp
         theo tiêu đề như Kanban: hai việc khác nhau cùng tên vẫn là hai việc."""
@@ -1211,13 +1216,14 @@ class TaskStore:
                         id, brain_root, title, normalized_title, intent, route, capability,
                         execution_mode, priority, status, created_by, chat_id, idempotency_key,
                         max_attempts, created_at, updated_at, lane, team_id, team_seq, team_prio,
-                        team_rev, assignee_key, coordinator_key, source_ref
-                    ) VALUES (?, ?, ?, ?, ?, 'team', 'auto', 'auto', 2, 'team_queued', ?, ?, ?, 1,
-                              ?, ?, 'team', ?, ?, NULL, 1, ?, ?, ?)""",
+                        team_rev, assignee_key, coordinator_key, source_ref, block_kind, block_reason
+                    ) VALUES (?, ?, ?, ?, ?, 'team', 'auto', 'auto', 2, ?, ?, ?, ?, 1,
+                              ?, ?, 'team', ?, ?, NULL, 1, ?, ?, ?, ?, ?)""",
                     (
-                        tid, root, title, norm_title(title), intent or title, created_by or "owner",
+                        tid, root, title, norm_title(title), intent or title,
+                        "team_blocked" if blocked_kind else "team_queued", created_by or "owner",
                         str(chat_id or ""), key, ts, ts, team_id, seq, assignee_key or "",
-                        coordinator_key or "", source_ref,
+                        coordinator_key or "", source_ref, str(blocked_kind or ""), str(blocked_reason or "")[:2000],
                     ),
                 )
                 self._event(tid, "team_queued", f"team {team_id} #{seq}", metadata={"source_ref": source_ref})
