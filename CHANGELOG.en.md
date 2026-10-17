@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.195.0] - 2026-10-17
+### Added
+- **Teams opens where you left off:** the Teams page opens the team you worked in most recently (the one you last messaged or opened, on any device), no searching.
+- **Team tags:** tag each team with its project in the Info tab (for example "Sales website"). Several teams on one project share the same tag.
+- **Filter by tag:** a row of tags on top of the team list; tap one to see only that project's teams. Each team shows its tags under its name.
+
 ## [0.194.1] - 2026-10-17
 ### Improved
 - **Team message buttons sit under the bubble:** send time, Reply (quote), Copy and Pin now form one row right under the message, like the main chat, instead of a cluttered strip beside the bubble.
