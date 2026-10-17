@@ -11429,6 +11429,8 @@ tasks_feature.deps.learn_hook = learn_feature.enqueue_job
 # ============================================================
 import reminders as reminders_mod
 import webhook_triggers
+import incident_desk as incident_desk_mod
+import sentinel
 
 
 def _notify_ready() -> tuple:
@@ -11558,6 +11560,88 @@ webhook_feature = webhook_triggers.register(app, webhook_triggers.WebhookDeps(
     workflow_exists=lambda brain, slug: (_workflows_dir(brain) / f"{slug}.md").is_file(),
     atomic_write_text=_atomic_write_text,
 ))
+
+
+# ============================================================
+# 0.199.0: a broken background run reaches Javis Core (incident_desk.py), plus the read-only health scan
+# (sentinel.py). Idea from OpenMausBot's team incidents and Sentinel.
+# ============================================================
+async def _incident_ask(prompt: str) -> str:
+    """Triage turn: the background model, TEXT ONLY, empty folder, no MCP (the report quotes error text an outsider
+    may have shaped). Raises when no engine is ready, and in tests (same switch as the group judge)."""
+    if os.environ.get("JAVIS_NO_REAL_JUDGE_ENGINE") == "1":
+        raise RuntimeError("JAVIS_NO_REAL_JUDGE_ENGINE")
+    cli = _reply_policy_sandbox_engine("Bạn phân loại sự cố của việc nền. Chỉ trả về đúng một dòng JSON được yêu "
+                                       "cầu, không thêm lời dẫn.", "incident-triage", cwd_name="incident_cwd")
+    base = cli
+    cli = aux_engine.strip_tools(_aux_swap(cli, mode="suggest", tag="incident-triage"), base)
+    if not cli.is_available():
+        raise RuntimeError("background engine not ready")
+    final = ""
+    async for ev in cli.query(prompt):
+        if ev.get("type") == "final":
+            final = ev.get("content", "") or ""
+        elif ev.get("type") == "error":
+            raise RuntimeError(str(ev.get("content") or "engine error")[:200])
+    return final
+
+
+async def _incident_post(brain: str, text: str) -> None:
+    # Empty chat id: the brain's Javis Core chat, the inbox and the owner's Telegram (_report_route, 0.186.0).
+    await _notify_owner("", text, kind="report", source="incident", brain=brain,
+                        viec={"kind": "incident", "status": "failed" if text.startswith("⚠") else "done",
+                              "title": text[:120], "id": ""})
+
+
+async def _incident_retry_kanban(inc: dict) -> tuple:
+    ok = tasks_feature.store.move(str(inc.get("ref") or ""), "ready", "incident retry by Javis Core")
+    return bool(ok), "moved back to ready" if ok else "could not move the job"
+
+
+async def _incident_retry_reminder(inc: dict) -> tuple:
+    brain = str(inc.get("brain") or "brain")
+    rem = next((r for r in reminders_feature._load(brain).get("reminders", [])
+                if r.get("id") == inc.get("ref")), None)
+    if rem is None or rem.get("mode") != "task":
+        return False, "reminder not found"
+    reminders_feature._chay_nen(brain, dict(rem))
+    return True, "reminder fired again"
+
+
+incident_desk = incident_desk_mod.IncidentDesk(incident_desk_mod.IncidentDeps(
+    state_dir=lambda: cfgmod.STATE_DIR,
+    ask=_incident_ask,
+    post=_incident_post,
+    retry={"kanban": _incident_retry_kanban, "reminder": _incident_retry_reminder},
+    enabled=lambda: bool((cfgmod.read_settings().get("incidents") or {}).get("enabled", True)),
+    atomic_write_text=_atomic_write_text,
+))
+for _feat in (tasks_feature, loop_feature, reminders_feature, webhook_feature):
+    _feat.deps.incident_hook = incident_desk.report
+
+
+@app.get("/incidents")
+async def incidents_list(brain: str = "", limit: int = 50):
+    return {"ok": True, "incidents": incident_desk.list(brain, limit)}
+
+
+@app.post("/incidents/resolve")
+async def incidents_resolve(payload: dict = Body(None)):
+    return {"ok": incident_desk.resolve(str((payload or {}).get("id") or ""))}
+
+
+@app.get("/sentinel/scan")
+async def sentinel_scan(hours: float = 24):
+    """Read-only health scan of every store (no model). Same code as `python tools/sentinel.py`."""
+    brains = []
+    try:
+        for b in (await asyncio.to_thread(_list_brains_sync)).get("brains", []):
+            if b.get("path"):
+                brains.append(Path(b["path"]))
+    except Exception:
+        pass
+    hours = max(1.0, min(float(hours or 24), 24 * 14))
+    return await asyncio.to_thread(sentinel.scan, cfgmod.STATE_DIR, brains, None, hours * 3600)
 
 
 @app.get("/viec/all")

@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.199.0] - 2026-10-17
+### Thêm mới
+- **Javis Core tự xử lý việc nền hỏng:** việc Kanban, việc lặp, nhắc hẹn hay webhook bị lỗi thì Javis Core biết trước tiên. Lỗi thoáng qua (mạng chập, hết giờ) thì nó cho chạy lại một lần; lỗi chỉ bạn gỡ được (đăng nhập, khoá, cài đặt) thì nói rõ một hai câu cần làm gì.
+- **Không thành cơn bão tin:** một việc hỏng liên tục chỉ là một sự cố, chạy lại vẫn hỏng thì báo đúng một tin "cần bạn".
+- **Mục Sức khoẻ việc nền ở trang Việc:** xem sự cố đang mở, bấm Đã xử lý để đóng, và danh sách lỗi 24 giờ qua gom theo nguyên nhân (14 lần cùng một lỗi token hiện thành một dòng).
+- **Quét sức khoẻ từ ngoài:** lệnh `python tools/sentinel.py` đọc dữ liệu (chỉ đọc) và chạy được cả khi Javis đang tắt.
+
 ## [0.198.0] - 2026-10-17
 ### Thêm mới
 - **Webhook: hệ thống bên ngoài gọi Javis làm việc.** Ở trang Việc, mục **Webhook** tạo một đường link bí mật. Form trên landing page, đơn thanh toán hay một app khác gọi vào là Javis chạy ngay quy trình hoặc việc bạn chọn, kèm dữ liệu sự kiện, rồi báo kết quả như nhắc hẹn.

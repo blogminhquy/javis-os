@@ -289,6 +289,20 @@ Pick the permission level as for a reminder (Read only, Can write files, Full ac
 
 **The link must be reachable from the Internet.** On a VPS with a domain it works as is. On a home machine you need a tunnel (Cloudflare Tunnel, Tailscale Funnel) pointing at Javis.
 
+## Background health: Javis Core handles incidents
+
+When a background run breaks (a Kanban job, a loop that paused itself, a Do it and report reminder, a webhook), the brain's **Javis Core** hears first and decides one of three things:
+
+- **Run it again once** for a passing failure (a network glitch, a timeout, a busy machine). Only for Kanban jobs and reminders; loops and webhooks are not re-run on their own.
+- **Tell you** in one or two sentences when only you can fix it: a sign-in, an API key, a permission, a plan out of quota, a connection not made, a job switched off.
+- **Stay quiet** when it already recovered.
+
+The background model decides in text-only mode (no tools), but Javis keeps the hard rules: a sign-in or key error is never re-run, each incident is re-run at most once, and a retry that fails again sends exactly one message. With no model ready, Javis classifies by the error text.
+
+At the bottom of the Recurring jobs page, the **Background health** section lists open incidents (press **Done** to close one) and the last 24 hours of failures grouped by cause. To stop reporting to Javis Core, set `incidents.enabled` to `false` in the settings.
+
+**When Javis will not open:** run `python tools/sentinel.py` on the server. It only reads data, calls no model, and prints the failures grouped by cause; add `--json` for a machine-readable copy and `--out <folder>` to save a report (the folder must be outside Javis's data folder).
+
 ## Reminders that remember the last result
 
 A **Do it and report** reminder has a **Remember the last result** box. With it on, each run receives the previous report (up to 2,000 characters), so it reports only what is new or changed. Good for watching competitor prices, a metric or an inbox.

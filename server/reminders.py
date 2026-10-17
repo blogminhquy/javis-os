@@ -272,6 +272,8 @@ class RemindersDeps:
     # () -> (sẵn_sàng, lý_do): có đường gửi kết quả cho người dùng chưa (bot Telegram bật +
     # token + Chat ID). None = bỏ qua kiểm tra (test dựng deps tối giản).
     notify_ready: Optional[Callable[[], tuple]] = None
+    # 0.199.0: (source, ref, brain=, title=, error=, request=) -> report a broken run to Javis Core (incident_desk.py).
+    incident_hook: Optional[Callable] = None
 
 
 class RemindersFeature:
@@ -628,6 +630,12 @@ class RemindersFeature:
                 msg = body.strip()
             elif err:
                 msg = localefmt.chu("⚠ Nhắc hẹn chưa chạy được nhiệm vụ: ", "⚠ The reminder could not run its task: ") + err[:300]
+                if self.deps.incident_hook:
+                    try:
+                        self.deps.incident_hook("reminder", str(rem.get("id") or ""), brain=brain,
+                                                title=str(head or "")[:160], error=err, request=text[:1500])
+                    except Exception:
+                        pass
             else:
                 msg = localefmt.chu("⚠ Nhắc hẹn đã chạy nhưng không trả về nội dung.", "⚠ The reminder ran but returned nothing.")
         elif mode == "script":

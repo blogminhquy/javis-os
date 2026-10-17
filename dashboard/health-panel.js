@@ -1,0 +1,109 @@
+/* Health section of the Work page (0.199.0): incidents Javis Core is handling, and the read-only health scan.
+ *
+ * Incidents (server/incident_desk.py): a background run broke, Javis Core retried it once or said what only you can
+ * fix. Each row has "Done" to close it. Health scan (server/sentinel.py): failures of the last 24 hours from every
+ * store, grouped by cause and sorted by count. Nothing here starts or changes a job.
+ *
+ * Render helpers are pure (tested under node); `mount` wires the API calls.
+ */
+(function () {
+  "use strict";
+
+  function tw(key, vars) {
+    var s = (typeof window !== "undefined" && window.t) ? window.t(key, vars) : key;
+    if (vars) {
+      s = String(s).replace(/\{(\w+)\}/g, function (m, name) {
+        return Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : m;
+      });
+    }
+    return s;
+  }
+  function esc(t) {
+    return String(t == null ? "" : t).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  var ic = function (n) { return (typeof window !== "undefined" && window.ic) ? window.ic(n) : ""; };
+
+  var STATUS_KEY = { open: "hp.st_open", retrying: "hp.st_retrying", needs_you: "hp.st_needs_you", resolved: "hp.st_resolved" };
+  var SOURCE_KEY = { kanban: "hp.src_kanban", loop: "hp.src_loop", reminder: "hp.src_reminder", webhook: "hp.src_webhook",
+    workflow: "hp.src_workflow" };
+
+  function fmtTime(ts) {
+    if (!ts) return "";
+    var d = new Date(ts * 1000);
+    var p = function (n) { return String(n).padStart(2, "0"); };
+    return p(d.getHours()) + ":" + p(d.getMinutes()) + " " + p(d.getDate()) + "/" + p(d.getMonth() + 1);
+  }
+
+  function incidentHtml(i) {
+    var open = i.status !== "resolved";
+    return '<div class="wf-card" data-id="' + esc(i.id) + '"><b>' + ic(i.status === "needs_you" ? "triangle-alert" : "rotate-cw")
+      + " " + esc(i.title || i.source) + "</b>"
+      + '<div class="dim" style="font-size:12px;color:var(--text3)">' + esc(tw(SOURCE_KEY[i.source] || "hp.src_kanban"))
+      + " · " + esc(tw(STATUS_KEY[i.status] || "hp.st_open")) + " · " + esc(fmtTime(i.last_at || i.at))
+      + (i.count > 1 ? " · " + esc(tw("hp.times", { n: i.count })) : "") + "</div>"
+      + (i.message ? '<div style="font-size:13px;margin-top:4px">' + esc(i.message) + "</div>" : "")
+      + (i.error ? '<div class="dim" style="font-size:12px;color:var(--warn-ink);margin-top:4px">' + esc(String(i.error).slice(0, 220)) + "</div>" : "")
+      + (open ? '<div class="wf-actions" style="margin-top:8px"><button class="s-btn-ghost hpDone">' + esc(tw("hp.done")) + "</button></div>" : "")
+      + "</div>";
+  }
+
+  function issueHtml(g) {
+    var ex = (g.examples || []).map(function (e) {
+      return esc(tw(SOURCE_KEY[e.source] || "hp.src_kanban")) + ": " + esc(e.title || e.ref);
+    }).join(" · ");
+    return '<div class="le"><b>' + esc(tw("hp.times", { n: g.count })) + "</b> " + esc(g.error)
+      + (ex ? '<div class="dim" style="font-size:12px;color:var(--text3)">' + ex + "</div>" : "") + "</div>";
+  }
+
+  async function getJson(url, body) {
+    try {
+      var r = await fetch(url, body === undefined ? undefined : {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      return await r.json();
+    } catch (e) { return {}; }
+  }
+
+  function mount(box) {
+    if (!box) return;
+    box.innerHTML = '<div class="lp-group"><div style="display:flex;align-items:center;gap:8px;margin:22px 0 8px;font-size:15px;color:var(--text);font-weight:600;border-bottom:1px solid var(--hairline);padding-bottom:6px">'
+      + "<span>" + ic("shield") + " " + esc(tw("hp.head")) + "</span>"
+      + '<button class="s-btn-ghost" id="hpScan" style="margin-left:auto;font-size:13px">' + esc(tw("hp.scan")) + "</button></div>"
+      + '<p class="dim" style="font-size:13px;color:var(--text3);margin:0 0 10px;max-width:680px">' + esc(tw("hp.intro")) + "</p>"
+      + '<div id="hpInc"></div><div id="hpIssues" class="si-log"></div></div>';
+    var q = function (s) { return box.querySelector(s); };
+
+    async function loadIncidents() {
+      var d = await getJson("/incidents");
+      var list = (d.incidents || []).filter(function (i) { return i.status !== "resolved"; });
+      var host = q("#hpInc");
+      if (!host) return;
+      host.innerHTML = list.length ? list.map(incidentHtml).join("")
+        : '<div class="empty">' + esc(tw("hp.no_incidents")) + "</div>";
+      host.querySelectorAll(".hpDone").forEach(function (b) {
+        b.onclick = async function () {
+          var id = b.closest("[data-id]").dataset.id;
+          await getJson("/incidents/resolve", { id: id });
+          loadIncidents();
+        };
+      });
+    }
+    async function scan() {
+      var host = q("#hpIssues");
+      if (!host) return;
+      host.innerHTML = '<div class="dim">' + esc(tw("common.loading")) + "</div>";
+      var d = await getJson("/sentinel/scan");
+      var issues = d.issues || [];
+      host.innerHTML = '<h3 style="font-size:14px;color:var(--text)">' + esc(tw("hp.issues_head", { h: d.window_h || 24 })) + "</h3>"
+        + (issues.length ? issues.map(issueHtml).join("") : '<div class="dim" style="color:var(--text3)">' + esc(tw("hp.no_issues")) + "</div>");
+    }
+    q("#hpScan").onclick = scan;
+    loadIncidents();
+    scan();
+  }
+
+  var api_ = { mount: mount, incidentHtml: incidentHtml, issueHtml: issueHtml };
+  if (typeof window !== "undefined") window.JavisHealthPanel = api_;
+  if (typeof module !== "undefined" && module.exports) module.exports = api_;
+})();

@@ -74,6 +74,8 @@ class WebhookDeps:
     base_url: Callable[[Any], str]
     workflow_exists: Optional[Callable[[str, str], bool]] = None
     atomic_write_text: Optional[Callable[[Any, str], None]] = None
+    # 0.199.0: (source, ref, brain=, title=, error=, request=) -> report a broken run to Javis Core (incident_desk.py).
+    incident_hook: Optional[Callable] = None
 
 
 def hash_token(token: str) -> str:
@@ -370,6 +372,12 @@ class WebhookFeature:
         except Exception as e:
             error = f"{type(e).__name__}: {e}"
         status = "failed" if error and not result else ("waiting" if needs_input else "done")
+        if status == "failed" and self.deps.incident_hook:
+            try:
+                self.deps.incident_hook("webhook", hid, brain=brain, title=str(h.get("name") or ""), error=error,
+                                        request=str(h.get("text") or h.get("workflow") or ""))
+            except Exception:
+                pass
         silent = status == "done" and _is_silent(result)
         if not silent:
             if status == "failed":

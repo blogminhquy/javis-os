@@ -289,6 +289,20 @@ Chọn mức quyền như nhắc hẹn (Chỉ đọc, Được ghi file, Toàn q
 
 **Link phải ra được Internet.** Javis chạy trên VPS có tên miền thì dùng luôn. Chạy trên máy nhà thì cần một đường hầm (Cloudflare Tunnel, Tailscale Funnel) trỏ vào Javis.
 
+## Sức khoẻ việc nền: Javis Core lo sự cố
+
+Việc nền nào hỏng (việc Kanban, việc lặp tự tạm dừng, nhắc hẹn kiểu Tự làm rồi báo, webhook) thì **Javis Core** của brain đó được báo trước tiên, rồi quyết một trong ba:
+
+- **Chạy lại một lần** nếu lỗi thoáng qua (mạng chập, hết giờ, máy bận). Chỉ áp cho việc Kanban và nhắc hẹn; việc lặp và webhook không tự chạy lại.
+- **Báo bạn** một hai câu nếu chỉ bạn gỡ được: đăng nhập lại, khoá API, quyền, gói hết lượt, kết nối chưa đấu, việc đang tắt.
+- **Im** nếu việc đã tự ổn.
+
+Quyết định do model việc nền đưa ra ở chế độ chỉ chữ (không công cụ nào), nhưng luật cứng do Javis giữ: lỗi về đăng nhập hay khoá không bao giờ được chạy lại, mỗi sự cố chạy lại tối đa một lần, và chạy lại vẫn hỏng thì chỉ báo đúng một tin. Không có model sẵn sàng thì Javis tự phân loại theo chữ lỗi.
+
+Ở cuối trang Việc định kỳ, mục **Sức khoẻ việc nền** hiện các sự cố đang mở (bấm **Đã xử lý** để đóng) và các lỗi 24 giờ qua gom theo nguyên nhân. Muốn tắt hẳn việc báo cho Javis Core thì đặt `incidents.enabled` thành `false` trong cài đặt.
+
+**Khi Javis không mở được:** chạy `python tools/sentinel.py` trên máy chủ. Lệnh này chỉ đọc dữ liệu, không gọi model, in danh sách lỗi gom theo nguyên nhân; thêm `--json` để lấy bản máy đọc, `--out <thư mục>` để lưu báo cáo (thư mục phải nằm ngoài thư mục dữ liệu của Javis).
+
 ## Nhắc hẹn nhớ kết quả lần trước
 
 Nhắc hẹn kiểu **Tự làm rồi báo** có thêm ô **Nhớ kết quả lần trước**. Bật lên thì mỗi lần chạy Javis nhận lại báo cáo lần trước (tối đa 2.000 ký tự), nên chỉ báo cái mới hay cái thay đổi. Hợp với việc theo dõi giá đối thủ, theo dõi chỉ số, rà hộp thư.

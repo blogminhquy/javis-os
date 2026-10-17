@@ -170,6 +170,8 @@ class LoopDeps:
     # Đổi engine việc nền theo model phụ người dùng chọn (Claude / Codex / API rẻ).
     # None = giữ nguyên Claude như trước (test dựng deps tối giản không cần tiêm).
     aux_swap: Optional[Callable] = None
+    # 0.199.0: (source, ref, brain=, title=, error=, request=) -> report a broken run to Javis Core (incident_desk.py).
+    incident_hook: Optional[Callable] = None
 
 
 class LoopFeature:
@@ -937,6 +939,13 @@ class LoopFeature:
                     pass
             # Auto-pause: broadcast tới MỌI admin (sự kiện an toàn hiếm). Bỏ nếu báo-mỗi-vòng đã
             # gửi chủ loop rồi (tránh nhắn trùng ở setup 1 người dùng).
+            if paused_now and self.deps.incident_hook:
+                try:
+                    self.deps.incident_hook("loop", f"{vault_root}::{slug}", brain=vault_root,
+                                            title=str(loop.get("name") or slug), error=summary[:1500],
+                                            request=str(loop.get("body") or "")[:1500])
+                except Exception:
+                    pass
             if paused_now and self.deps.notify and not report_sent:
                 try:
                     asyncio.create_task(self.deps.notify(

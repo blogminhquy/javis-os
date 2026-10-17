@@ -165,6 +165,8 @@ class TasksDeps:
     # 0.142.0: việc giao cho một trợ lý (nút Giao việc ở tab Công việc) chạy với vai của trợ lý đó. (root, slug) -> đoạn
     # lời nhắc vai trò, rỗng khi không có. Engine, quyền và trần của Kanban giữ nguyên.
     agent_persona: Optional[Callable[[str, str, str], str]] = None
+    # 0.199.0: (source, ref, brain=, title=, error=, request=) -> report a broken job to Javis Core (incident_desk.py).
+    incident_hook: Optional[Callable] = None
 
 
 class TasksFeature:
@@ -1290,6 +1292,16 @@ Trả DUY NHẤT một dòng JSON, không markdown:
         if not self.deps.report:
             return
         status = str(task.get("status") or "")
+        # A job waiting for the owner (needs_input) or for a plan to reopen (limit) is not broken (0.199.0).
+        if (status == "blocked" and self.deps.incident_hook
+                and str(task.get("block_kind") or "") not in ("needs_input", "limit")):
+            try:
+                self.deps.incident_hook("kanban", str(task.get("id") or ""), brain=str(task.get("brain_root") or ""),
+                                        title=str(task.get("title") or ""),
+                                        error=str(task.get("block_reason") or task.get("block_kind") or ""),
+                                        request=str(task.get("intent") or "")[:1500])
+            except Exception:
+                pass
         if status == "blocked":
             await self._gom_bao(task)
             return

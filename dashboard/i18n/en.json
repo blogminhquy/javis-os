@@ -4769,5 +4769,22 @@
   "wh.st_silent": "nothing to report",
   "cs.si_rem_last": "Remember the last result (report only what is new)",
   "cs.si_rem_last_tag": "remembers last run",
-  "cs.si_rem_next3": "Next three: {ds}"
+  "cs.si_rem_next3": "Next three: {ds}",
+  "hp.head": "Background health",
+  "hp.scan": "Scan again",
+  "hp.intro": "Broken background runs (Kanban jobs, loops, reminders, webhooks) reach Javis Core first. It runs a passing failure again once, and for what only you can fix (a sign-in, a key, a setting) it says what to do. Below are the last 24 hours of failures, grouped by cause.",
+  "hp.no_incidents": "No open incidents.",
+  "hp.no_issues": "No failures in this window.",
+  "hp.issues_head": "Failures in the last {h} hours, grouped by cause",
+  "hp.times": "{n} times",
+  "hp.done": "Done",
+  "hp.st_open": "being looked at",
+  "hp.st_retrying": "ran again",
+  "hp.st_needs_you": "needs you",
+  "hp.st_resolved": "resolved",
+  "hp.src_kanban": "Job",
+  "hp.src_loop": "Loop",
+  "hp.src_reminder": "Reminder",
+  "hp.src_webhook": "Webhook",
+  "hp.src_workflow": "Workflow"
 }

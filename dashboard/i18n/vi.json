@@ -4769,5 +4769,22 @@
   "wh.st_silent": "không có gì cần báo",
   "cs.si_rem_last": "Nhớ kết quả lần trước (chỉ báo cái mới)",
   "cs.si_rem_last_tag": "nhớ lần trước",
-  "cs.si_rem_next3": "Ba lần tới: {ds}"
+  "cs.si_rem_next3": "Ba lần tới: {ds}",
+  "hp.head": "Sức khoẻ việc nền",
+  "hp.scan": "Quét lại",
+  "hp.intro": "Việc nền hỏng (việc Kanban, việc lặp, nhắc hẹn, webhook) được báo cho Javis Core trước. Javis Core cho chạy lại một lần nếu lỗi thoáng qua, còn lỗi chỉ bạn gỡ được (đăng nhập, khoá, cài đặt) thì nói rõ cần làm gì. Bên dưới là các lỗi 24 giờ qua, gom theo nguyên nhân.",
+  "hp.no_incidents": "Không có sự cố nào đang mở.",
+  "hp.no_issues": "Không có lỗi nào trong khoảng này.",
+  "hp.issues_head": "Lỗi {h} giờ qua, gom theo nguyên nhân",
+  "hp.times": "{n} lần",
+  "hp.done": "Đã xử lý",
+  "hp.st_open": "đang xem",
+  "hp.st_retrying": "đã cho chạy lại",
+  "hp.st_needs_you": "cần bạn",
+  "hp.st_resolved": "đã xong",
+  "hp.src_kanban": "Việc",
+  "hp.src_loop": "Việc lặp",
+  "hp.src_reminder": "Nhắc hẹn",
+  "hp.src_webhook": "Webhook",
+  "hp.src_workflow": "Quy trình"
 }

@@ -883,7 +883,7 @@
   <!-- Khối tiến trình từng bước trong khung chat: phải đứng TRƯỚC app.js vì app.js gọi
        window.JavisSteps ngay khi khung tool_call đầu tiên về. -->
   <script src="/static/chat-steps.js?v=2"></script>
-  <script src="/static/chat-viec.js?v=2"></script>
+  <script src="/static/chat-viec.js?v=3"></script>
   <script src="/static/chat-nho.js?v=1"></script>
   <script src="/static/chat-resonance.js?v=3"></script>
   <script src="/static/resonance-agent.js?v=5"></script>
@@ -953,7 +953,9 @@
   <script src="/static/mcp-form-parse.js?v=1"></script>
   <!-- Webhooks section of the Work page (0.198.0): load BEFORE console.js, which mounts window.JavisWebhooks. -->
   <script src="/static/webhooks.js?v=1"></script>
-  <script src="/static/console.js?v=174"></script>
+  <!-- Health section of the Work page (0.199.0): incidents Javis Core handles and the read-only scan. -->
+  <script src="/static/health-panel.js?v=1"></script>
+  <script src="/static/console.js?v=175"></script>
   <script src="/static/mobile-chat.js?v=15"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>

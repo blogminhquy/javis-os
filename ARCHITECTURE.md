@@ -133,6 +133,8 @@ operations index and media cleanup; Kanban has its own dispatcher.
 | Loops | `self_improve.py` | `<brain>/Javis/loops/<slug>.md`, state in `Javis/loop-state.json` | "Every X minutes find one unit of work"; run one at a time |
 | Reminders and cron jobs | `reminders.py`, `cron_util.py` | `<brain>/Javis/reminders.json` | Dependency-free 5-field cron parser |
 | Webhook triggers | `webhook_triggers.py` | `STATE_DIR/webhooks.json` (token hashes only) | `POST /hooks/<id>` runs a workflow or job from an outside event |
+| Incidents | `incident_desk.py` | `STATE_DIR/incidents.json` | A broken background run reaches Javis Core: retried once or the owner is told what to fix |
+| Health scan | `sentinel.py`, `tools/sentinel.py` | (read only) | Groups failures from every store by cause; runs without the server |
 | Workflows | `execute_workflow()` in `main.py`, `workflow_runtime.py`, `workflow_runs.py` | `<brain>/workflows/<slug>.md`, run history in SQLite | A chain of agent steps with checkpoints |
 | Self-learning | `learn.py`, `git_brain.py` | `<brain>/memory/` | The learning fork is read-only; only trusted Python writes, and only when the brain is a git checkout |
 | Results inbox | `inbox.py`, `webpush.py` | `STATE_DIR/inbox.json` | Every background result lands here, plus browser push |

@@ -2041,6 +2041,7 @@
       </div>
       <div id="lpGroups">${esc(window.t("common.loading"))}</div>
       <div id="whSection"></div>
+      <div id="hpSection"></div>
       <div class="si-log"><h3 style="font-size:15px;color:var(--text)">${esc(window.t("cs.si_log_head"))} · <select id="lpLogFilter" class="loop-sel" style="font-size:13px"><option value="">${esc(window.t("cs.si_log_all"))}</option></select></h3><div id="lpLog">${esc(window.t("common.loading"))}</div></div>
     </div>`;
 
@@ -2575,6 +2576,8 @@
           { brains: () => allBrains, current: () => fbrain() });
       });
     }
+    // Health (0.199.0): incidents Javis Core is handling and the read-only scan, see dashboard/health-panel.js.
+    if (window.JavisHealthPanel) window.JavisHealthPanel.mount(el.querySelector("#hpSection"));
   }
 
   // ============================================
