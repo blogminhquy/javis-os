@@ -383,7 +383,13 @@ users = sorted(n for n, s in SRC.items() if "dat_codex_hub_bat_buoc(" in s or "d
 check("only mcp_hub (definition) and aux_engine (_build_codex) use the overrides",
       users == ["aux_engine.py", "mcp_hub.py"], users)
 callers = sorted(n for n, s in SRC.items() if re.search(r"\b_build_codex\(", s))
-check("_build_codex is only called inside aux_engine (background router)", callers == ["aux_engine.py"], callers)
+# 0.194.0: team Work/Help turns build Codex through the same builder (team_engine.build_tools). Their tag
+# ("team-<id>-<turn>") is not a scheduled background lane, so the hub-required and no-app overrides stay off for them.
+check("_build_codex is only called by the background router and the team Work turn builder",
+      callers == ["aux_engine.py", "team_engine.py"], callers)
+import aux_engine as _ae  # noqa: E402
+check("a team turn tag is not a scheduled background lane (no hub-required override)",
+      not _ae.la_viec_nen_theo_lich("team-1d2c3b4a-tu_0a1b2c3d") and not _ae.la_viec_nen_theo_lich("team-x-y-main"))
 # The allowlist (reminder, loop, dispatch:*) only works while these lanes keep passing those tags.
 REM_SRC, TASK_SRC, LOOP_SRC = SRC.get("reminders.py", ""), SRC.get("tasks.py", ""), SRC.get("self_improve.py", "")
 check('reminders still route with tag="reminder"', 'aux_engine.apply(self.deps, cli, mode=mq, tag="reminder")' in REM_SRC)
