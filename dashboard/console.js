@@ -207,6 +207,18 @@
   const liteMode = () => !graphEnabled || isNarrow();
 
   const esc = (s) => (s || "").toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  // (i) button (info-tip.js, 0.212.0): long explanations hide behind it. Without info-tip.js
+  // (Node tests) the text is drawn open so nothing is lost.
+  const _infoLabel = () => (typeof window.t === "function" ? window.t("info.more") : "i");
+  function infoBtn() { const J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(_infoLabel()) : ""; }
+  function infoBody(html) {
+    const J = typeof window !== "undefined" && window.JavisInfo;
+    return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
+  }
+  function infoPair(html) {
+    const J = typeof window !== "undefined" && window.JavisInfo;
+    return J ? J.pair(html, _infoLabel()) : '<div class="info-body">' + html + "</div>";
+  }
   // Chỉ cho link http(s) HOẶC đường dẫn cùng origin (chặn javascript:/data: XSS); dùng kèm
   // esc() khi nhúng vào href.
   //
@@ -778,11 +790,11 @@
         <td class="num">${_uzTok(i.in)}</td><td class="num">${_uzTok(i.out)}</td>
         <td class="num">${i.turns || 0}</td><td class="num">${_uzCost(i.cost)}</td></tr>`).join("")
       : `<tr><td colspan="5" style="padding:16px;color:var(--text3)">${window.t("cs.uz_no_turns")}</td></tr>`;
-    const table = `<div class="uz-sec-h">${window.t("cs.uz_by_provider", { pv: scope })}</div>
+    const table = `<div class="uz-sec-h">${window.t("cs.uz_by_provider", { pv: scope })}${infoBtn()}</div>
       <table class="uz-tbl"><thead><tr><th>${window.t("cs.uz_th_provider")}</th><th style="text-align:right">${window.t("cs.uz_th_in")}</th><th style="text-align:right">${window.t("cs.uz_th_out")}</th><th style="text-align:right">${window.t("cs.uz_th_turns")}</th><th style="text-align:right">${window.t("cs.uz_th_cost")}</th></tr></thead><tbody>${rows}</tbody></table>`;
 
     el.innerHTML = `<div class="uz-wrap">${cards}${chart}${table}
-      <div class="uz-note">${window.t("cs.uz_note")}</div>
+      ${infoBody(esc(window.t("cs.uz_note")))}
     </div>`;
   }
 
@@ -1047,7 +1059,8 @@
   // muốn đổi file, nhưng nó không còn là câu trả lời chính.
   function _updVimSaoKhongCoNut(maLyDo) {
     if (maLyDo === "watchtower_off") {
-      return window.t("cs.upd_wt_a") + " <b>" + window.t("cs.upd_wt_b") + "</b> " + window.t("cs.upd_wt_c")
+      // Short reason stays visible; the how-to folds into the (i) block (0.212.0).
+      return window.t("cs.upd_wt_a") + " <b>" + window.t("cs.upd_wt_b") + "</b>" + infoBtn() + infoBody(window.t("cs.upd_wt_c")
         + "<br><code>curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.yml</code>"
         + "<br><code>docker compose up -d --pull always</code><br>"
         + window.t("cs.upd_wt_d")
@@ -1060,12 +1073,12 @@
         + "<div class=\"upd-why-sub\">" + window.t("cs.upd_wt_f") + " <code>no configuration file provided: not found</code> "
         + window.t("cs.upd_wt_g") + "<br>"
         + "<code>docker ps --format '{{.Names}}\\t{{.Label \"com.docker.compose.project.working_dir\"}}'</code>"
-        + "</div>";
+        + "</div>");
     }
     if (maLyDo === "no_token") {
-      return window.t("cs.upd_nt_a") + " <b>" + window.t("cs.upd_nt_b") + "</b> "
-        + window.t("cs.upd_nt_c") + " <b>Redeploy</b> " + window.t("cs.upd_nt_d")
-        + " <code>docker compose up -d --pull always</code>.";
+      return window.t("cs.upd_nt_a") + " <b>" + window.t("cs.upd_nt_b") + "</b>" + infoBtn()
+        + infoBody(window.t("cs.upd_nt_c") + " <b>Redeploy</b> " + window.t("cs.upd_nt_d")
+        + " <code>docker compose up -d --pull always</code>.");
     }
     // Rơi vào đây là mode lạ hoặc server cũ chưa trả mã lý do - giữ nguyên câu cũ, đừng đoán bừa.
     return "↻ " + window.t("cs.upd_fb_a") + " <b>Redeploy</b>" + window.t("cs.upd_fb_b")
@@ -1494,9 +1507,9 @@
     function veBangSua(items) {
       const n = items.length;
       fixEl.innerHTML = `<div class="fm-fix">${WARN_ICON}
-        <b>${window.t("cs.fm_fix_head", { so: n })}</b>
-        ${window.t("cs.fm_fix_why_a")} <code>---</code> ${window.t("cs.fm_fix_why_b")}
-        <code>* * *</code> ${window.t("cs.fm_fix_why_c")}
+        <b>${window.t("cs.fm_fix_head", { so: n })}</b>${infoBtn()}
+        ${infoBody(`${window.t("cs.fm_fix_why_a")} <code>---</code> ${window.t("cs.fm_fix_why_b")}
+        <code>* * *</code> ${window.t("cs.fm_fix_why_c")}`)}
         <div class="fm-fix-list" id="fmFixList"></div>
         <div class="fm-fix-act">
           <button class="s-btn" id="fmFixGo">${window.t("cs.fm_fix_go", { so: n })}</button>
@@ -1792,8 +1805,10 @@
       card.innerHTML =
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'
         + '<div style="min-width:0">'
-        + '<div style="font-weight:600">' + esc(ct.ten) + '</div>'
-        + '<div style="color:var(--text3);font-size:13px;margin-top:3px">' + esc(ct.mo_ta) + '</div>'
+        // Server description: two clamped lines, the full text in (i) when it is long (0.212.0).
+        + '<div style="font-weight:600">' + esc(ct.ten) + ((ct.mo_ta || "").length > 100 ? infoBtn() : "") + '</div>'
+        + '<div class="j-clamp2" style="color:var(--text3);font-size:13px;margin-top:3px">' + esc(ct.mo_ta) + '</div>'
+        + ((ct.mo_ta || "").length > 100 ? infoBody(esc(ct.mo_ta)) : "")
         + '<div style="color:var(--text3);font-size:12.5px;margin-top:6px;word-break:break-all">' + esc(ct.ly_do || "") + dl + '</div>'
         + (ct.tien_do && ct.trang_thai === "dang_cai"
             ? '<div style="color:var(--warn-ink);font-size:12.5px;margin-top:5px">' + esc(ct.tien_do) + '</div>' : "")
@@ -1867,14 +1882,16 @@
       const meta = [MM[p.min_mode] ? window.t("cs.pl_minmode", { muc: MM[p.min_mode] }) : "",
                     p.version ? `v${esc(p.version)}` : "", p.author ? esc(p.author) : ""].filter(Boolean).join(" · ");
       const chips = (p.tools || []).map(t => chip(t, "wrench")).join("") + (p.hooks || []).map(h => chip(h, "webhook")).join("");
+      // Server descriptions run 150-400 chars: two clamped lines on the card, the full text in (i).
+      const dongDai = (p.description || "").length > 100;
       const div = document.createElement("div");
       div.className = "wf-card" + (p.loaded ? "" : " off");
       div.innerHTML = `
         <div class="wf-top">
-          <div class="wf-name">${ic("puzzle")} ${esc(p.name)} <span class="dim" style="font-size:12px">${esc(p.slug)}</span> ${srcBadge(p.source)}</div>
+          <div class="wf-name">${ic("puzzle")} ${esc(p.name)} <span class="dim" style="font-size:12px">${esc(p.slug)}</span> ${srcBadge(p.source)}${dongDai ? infoBtn() : ""}</div>
           <div>${status}</div>
         </div>
-        <div class="wf-desc">${esc(p.description || "")}</div>
+        <div class="wf-desc j-clamp2">${esc(p.description || "")}</div>${dongDai ? infoBody(esc(p.description)) : ""}
         <div class="wf-steps">${meta}${chips ? `<div style="margin-top:8px">${chips}</div>` : ""}${p.error ? `<div style="margin-top:6px;color:var(--red)">${esc(p.error)}</div>` : ""}</div>
         <div class="wf-actions">${p.page ? `<a class="s-btn-ghost" href="${esc(safeHref(p.page))}" target="_blank" rel="noopener">${esc(window.t("cs.pl_open_page"))} ↗</a>` : ""}${p.source === "pack"
             ? `<button class="s-btn-ghost" data-goto-packs="1">${esc(window.t("cs.pl_manage_store"))}</button>`
@@ -1921,9 +1938,10 @@
       let d = { plugins: [] };
       try { d = await (await fetch(`/plugins?brain=${encodeURIComponent(fbrain())}`)).json(); } catch (e) {}
       if (myGen !== _renderGen) return;
-      const intro = `<p style="color:var(--text3);font-size:15px;max-width:720px;margin:0 0 12px">${esc(window.t("cs.pl_intro_a"))} <b>tool</b> ${esc(window.t("cs.pl_intro_b"))} <b>hook</b> ${esc(window.t("cs.pl_intro_c"))}</p>`;
-      const gateBanner = (!d.user_gate) ? `<div style="margin-bottom:14px;padding:11px 13px;border:1px solid rgba(224,160,74,.5);border-radius:10px;background:rgba(224,160,74,.08);color:var(--warn-ink);font-size:13px;line-height:1.55"><b>${WARN_ICON} ${esc(window.t("cs.pl_gate_head"))}</b> ${esc(window.t("cs.pl_gate_a"))} <code>JAVIS_ENABLE_USER_PLUGINS=false</code> ${esc(window.t("cs.pl_gate_b"))}</div>` : "";
-      const dirHint = `<p style="color:var(--text3);font-size:12.5px;margin:0 0 14px">${esc(window.t("cs.pl_dir_a"))} <code>${esc(d.global_dir || "")}</code> ${esc(window.t("cs.pl_dir_b"))} <code>plugin.yaml</code> + <code>plugin.py</code>${esc(window.t("cs.pl_dir_c"))}</p>`;
+      // The intro folds into (i) at the end of the folder hint line (0.212.0).
+      const intro = infoBody(`${esc(window.t("cs.pl_intro_a"))} <b>tool</b> ${esc(window.t("cs.pl_intro_b"))} <b>hook</b> ${esc(window.t("cs.pl_intro_c"))}`);
+      const gateBanner = (!d.user_gate) ? `<div style="margin-bottom:14px;padding:11px 13px;border:1px solid rgba(224,160,74,.5);border-radius:10px;background:rgba(224,160,74,.08);color:var(--warn-ink);font-size:13px;line-height:1.55"><b>${WARN_ICON} ${esc(window.t("cs.pl_gate_head"))}</b>${infoBtn()}${infoBody(`${esc(window.t("cs.pl_gate_a"))} <code>JAVIS_ENABLE_USER_PLUGINS=false</code> ${esc(window.t("cs.pl_gate_b"))}`)}</div>` : "";
+      const dirHint = `<p style="color:var(--text3);font-size:12.5px;margin:0 0 14px">${esc(window.t("cs.pl_dir_a"))} <code>${esc(d.global_dir || "")}</code> ${esc(window.t("cs.pl_dir_b"))} <code>plugin.yaml</code> + <code>plugin.py</code>${esc(window.t("cs.pl_dir_c"))}${infoBtn()}</p>`;
       const plugins = (d.plugins || []).slice();
       const order = { bundled: 0, user: 1, vault: 2 };
       plugins.sort((a, b) => (order[a.source] ?? 9) - (order[b.source] ?? 9) || (a.name || "").localeCompare(b.name || ""));
@@ -1933,7 +1951,7 @@
       // mang tới trang này ("sao Javis không mở được trình duyệt"), còn danh sách plugin là
       // thứ để xem sau. Khối tự ẩn khi không có công cụ tuỳ chọn nào.
       wrap.innerHTML = `<div id="ctTuyChon" style="margin-bottom:20px"></div>`
-        + intro + gateBanner + dirHint + `<div id="plCards"></div>`;
+        + gateBanner + dirHint + intro + `<div id="plCards"></div>`;
       const oCt = wrap.querySelector("#ctTuyChon");
       oCt.innerHTML = `<h3 style="margin:0 0 4px;font-size:15px">${esc(window.t("cs.ct_head"))}</h3>`
         + `<p style="color:var(--text3);font-size:13px;max-width:720px;margin:0 0 10px">${esc(window.t("cs.ct_intro"))}</p>`
@@ -1993,11 +2011,11 @@
     }
 
     el.innerHTML = `<div class="cview-section">
-      <p style="color:var(--text3);font-size:15px;max-width:680px;margin:0 0 14px">${esc(window.t("cs.si_intro_a"))} <b>loop</b> ${esc(window.t("cs.si_intro_b"))} <b>${esc(window.t("cs.si_intro_c"))}</b> ${esc(window.t("cs.si_intro_d"))} <b>${esc(window.t("cs.si_intro_e"))}</b> ${esc(window.t("cs.si_intro_f"))} <b>${esc(window.t("cs.si_intro_g"))}</b> ${esc(window.t("cs.si_intro_h"))}</p>
-      <div class="si-actions" style="margin-bottom:14px">
+      <div class="si-actions" style="margin-bottom:14px;align-items:center">
         <button class="s-btn" id="lpNew">+ ${esc(window.t("cs.si_add"))}</button>
-        <button class="s-btn-ghost" id="lpStop">■ ${esc(window.t("cs.si_stop"))}</button>
+        <button class="s-btn-ghost" id="lpStop">■ ${esc(window.t("cs.si_stop"))}</button>${infoBtn()}
       </div>
+      ${infoBody(`${esc(window.t("cs.si_intro_a"))} <b>loop</b> ${esc(window.t("cs.si_intro_b"))} <b>${esc(window.t("cs.si_intro_c"))}</b> ${esc(window.t("cs.si_intro_d"))} <b>${esc(window.t("cs.si_intro_e"))}</b> ${esc(window.t("cs.si_intro_f"))} <b>${esc(window.t("cs.si_intro_g"))}</b> ${esc(window.t("cs.si_intro_h"))}`)}
       <div id="lpNotifyWarn" style="display:none;margin-bottom:12px;padding:10px 12px;border:1px solid rgba(224,102,74,.5);border-radius:8px;background:rgba(224,102,74,.08);font-size:13px;line-height:1.5"></div>
       <div id="lpForm" style="display:none;margin-bottom:14px;padding:14px;border:1px solid var(--hairline);border-radius:10px;background:var(--surface-1)">
         <input type="hidden" id="lpSlug">
@@ -2011,16 +2029,17 @@
             <textarea id="lpBody" placeholder="${esc(window.t("cs.si_body_ph"))}"></textarea></div>
           <div id="lpLoopFields">
             <div class="si-row" style="gap:14px;flex-wrap:wrap">
-              <div class="si-field"><label>${esc(window.t("cs.si_mode"))}</label><div class="si-row" id="lpModes">
+              <div class="si-field"><label>${esc(window.t("cs.si_mode"))}${infoBtn()}</label><div class="si-row" id="lpModes">
                 <button class="si-chip" data-mode="suggest">${esc(window.t("cs.si_mode_suggest"))}</button>
                 <button class="si-chip" data-mode="auto">${esc(window.t("cs.si_mode_auto"))}</button>
                 <button class="si-chip" data-mode="full">${esc(window.t("cs.si_mode_full"))}</button></div></div>
               <div class="si-field"><label>${esc(window.t("cs.si_interval"))}</label><input type="number" id="lpInterval" min="5" value="120" style="max-width:120px"></div>
             </div>
+            ${infoBody(`${esc(window.t("cs.si_loopnote"))} <code>Javis/loops/&lt;${esc(window.t("cs.si_loopnote_name"))}&gt;.md</code>.`)}
           </div>
           <div id="lpRemFields" style="display:none">
             <div class="si-row" style="gap:14px;flex-wrap:wrap">
-              <div class="si-field"><label>${esc(window.t("cs.si_when"))}</label><input id="lpRemWhen" placeholder="${esc(window.t("cs.si_when_ph"))}" style="min-width:260px"></div>
+              <div class="si-field"><label>${esc(window.t("cs.si_when"))}${infoBtn()}</label><input id="lpRemWhen" placeholder="${esc(window.t("cs.si_when_ph"))}" style="min-width:260px"></div>
               <div class="si-field"><label>${esc(window.t("cs.si_rkind"))}</label><div class="si-row" id="lpRemModes">
                 <button class="si-chip sel" data-rmode="notify">${ic("alarm-clock")} ${esc(window.t("cs.si_rmode_notify"))}</button>
                 <button class="si-chip" data-rmode="task">${ic("bot")} ${esc(window.t("cs.si_rmode_task"))}</button></div></div>
@@ -2030,12 +2049,11 @@
                 <button class="si-chip sel" data-mq="full">${esc(window.t("cs.si_mode_full"))}</button></div></div>
               <label id="lpRemLastWrap" style="display:none;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemLast"> ${esc(window.t("cs.si_rem_last"))}</label>
               <label style="display:flex;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemSpeak"> ${esc(window.t("cs.si_rem_speak"))}</label>
-              <label style="display:flex;align-self:flex-end;font-size:13px;gap:6px;align-items:center" title="${esc(window.t("cs.si_rem_call_hint"))}"><input type="checkbox" id="lpRemCall"> ${esc(window.t("cs.si_rem_call"))}</label>
+              <label style="display:flex;align-self:flex-end;font-size:13px;gap:6px;align-items:center"><input type="checkbox" id="lpRemCall"> ${esc(window.t("cs.si_rem_call"))}</label>
             </div>
-            <div class="dim" style="font-size:12px;color:var(--text3);margin-top:4px">${esc(window.t("cs.si_rem_hint"))}</div>
+            ${infoBody(`${esc(window.t("cs.si_rem_hint"))}<br>${esc(window.t("cs.si_rem_call_hint"))}`)}
           </div>
           <div class="si-field"><label>${esc(window.t("cs.si_brain"))}</label><select id="lpBrain" class="loop-sel" style="min-width:180px"></select></div>
-          <div class="dim" id="lpLoopNote" style="font-size:12px;color:var(--text3);margin-top:2px">${esc(window.t("cs.si_loopnote"))} <code>Javis/loops/&lt;${esc(window.t("cs.si_loopnote_name"))}&gt;.md</code>.</div>
           <div class="si-actions"><button class="s-btn" id="lpSave">${SAVE_ICON} ${esc(window.t("common.save"))}</button><button class="s-btn-ghost" id="lpCancel">${esc(window.t("common.cancel"))}</button><span class="dim" id="lpFormMsg" style="font-size:13px;color:var(--warn-ink)"></span></div>
         </div>
       </div>
@@ -2081,7 +2099,6 @@
       const q = id => el.querySelector(id);
       if (q("#lpLoopFields")) q("#lpLoopFields").style.display = isRem ? "none" : "";
       if (q("#lpRemFields")) q("#lpRemFields").style.display = isRem ? "" : "none";
-      if (q("#lpLoopNote")) q("#lpLoopNote").style.display = isRem ? "none" : "";
       q("#lpBodyLabel").textContent = isRem
         ? window.t("cs.si_body_rem")
         : window.t("cs.si_body_loop");
@@ -2667,7 +2684,7 @@
     const capRow = [["memory", window.t("cs.ln_cap_memory")], ["wiki", window.t("cs.ln_cap_wiki")], ["skill", window.t("cs.ln_cap_skill")],
                     ["agent", window.t("cs.ln_cap_agent")], ["workflow", window.t("cs.ln_cap_workflow")], ["task", window.t("cs.ln_cap_task")]]
       .map(([k, l]) => `<button class="si-chip ${caps[k] ? "sel" : ""}" data-cap="${k}">${caps[k] ? "● " : "○ "}${l}</button>`).join("");
-    const gitWarn = cfg.git_available ? "" : `<div class="dim" style="color:var(--text3);font-size:13px;margin-top:6px">ℹ ${esc(window.t("cs.ln_gitwarn_a"))} <code>git</code>: ${esc(window.t("cs.ln_gitwarn_b"))}</div>`;
+    const gitWarn = cfg.git_available ? "" : `<div class="dim" style="color:var(--text3);font-size:13px;margin-top:6px">ℹ ${esc(window.t("cs.ln_gitwarn_a"))} <code>git</code>${infoBtn()}</div>${infoBody(esc(window.t("cs.ln_gitwarn_b")))}`;
 
     el.innerHTML = `<div class="cview-section">
       <p style="color:var(--text3);font-size:15px;max-width:660px;margin:0 0 14px">${esc(window.t("cs.ln_intro_a"))} <b>${esc(window.t("cs.ln_intro_b"))}</b>${esc(window.t("cs.ln_intro_c"))} <b>${esc(window.t("cs.ln_intro_d"))}</b>, <b>${esc(window.t("cs.ln_intro_f"))}</b>, <b>${esc(window.t("cs.ln_intro_g"))}</b>, <b>${esc(window.t("cs.ln_intro_h"))}</b> ${esc(window.t("cs.ln_intro_i"))} <b>${esc(window.t("cs.ln_intro_j"))}</b> ${esc(window.t("cs.ln_intro_k"))} <b>${esc(window.t("cs.ln_intro_l"))}</b> ${esc(window.t("cs.ln_intro_m"))} <b>${esc(window.t("cs.ln_intro_n"))}</b>${esc(window.t("cs.ln_intro_o"))} <b>${esc(window.t("cs.ln_intro_p"))}</b>.</p>
@@ -2677,8 +2694,8 @@
           <div class="dim" id="lnEnableNote" style="font-size:13px;margin-top:6px;color:var(--text3)">${esc(window.t("cs.ln_enable_note"))}</div></div>
         <div class="si-field"><label>${esc(window.t("cs.ln_mode_label"))}</label><div class="si-row" id="lnModes">${modeChips}</div>
           <div class="dim" id="lnModeDesc" style="font-size:14px;margin-top:6px;color:var(--text3)">${esc(modeDesc)}</div>${gitWarn}</div>
-        <div class="si-field"><label>${esc(window.t("cs.ln_caps_label"))}</label><div class="si-row" id="lnCaps">${capRow}</div>
-          <div class="dim" style="font-size:13px;margin-top:6px;color:var(--text3)">${esc(window.t("cs.ln_caps_note"))}</div></div>
+        <div class="si-field"><label>${esc(window.t("cs.ln_caps_label"))}${infoBtn()}</label><div class="si-row" id="lnCaps">${capRow}</div>
+          ${infoBody(esc(window.t("cs.ln_caps_note")))}</div>
         <div class="si-field"><label>${esc(window.t("cs.ln_curator_label"))}</label>
           <button class="si-chip ${(cfg.curator||{}).enabled ? "sel" : ""}" id="lnCurator">${(cfg.curator||{}).enabled ? "● " + esc(window.t("settings.tag_on")) : "○ " + esc(window.t("settings.tag_off"))}</button>
           <div class="dim" style="font-size:13px;margin-top:6px;color:var(--text3)">${esc(window.t("cs.ln_curator_note"))}</div></div>
@@ -2693,38 +2710,33 @@
       <div class="si-status" id="lnMetrics"></div>
 
       <div class="si-log" id="lnBackupBox">
-        <h3 style="font-size:15px;color:var(--text)">⇅ ${esc(window.t("cs.bk_head"))}</h3>
-        <p style="color:var(--text3);font-size:14px;max-width:680px;margin:2px 0 10px">${esc(window.t("cs.bk_p_a"))} <b>${esc(window.t("cs.bk_p_b"))}</b> ${esc(window.t("cs.bk_p_c"))} <b>${esc(window.t("cs.bk_p_d"))}</b>${esc(window.t("cs.bk_p_e"))} <code>.conflict-*</code> ${esc(window.t("cs.bk_p_f"))} <a href="https://github.com/blogminhquy/javis-os/blob/main/docs/18-sao-luu-github.md" target="_blank" style="color:var(--link-ink)">docs/18-sao-luu-github.md</a>.</p>
-        <ol style="color:var(--text3);font-size:13.5px;line-height:1.7;max-width:680px;margin:0 0 12px;padding-left:20px">
+        <h3 style="font-size:15px;color:var(--text)">⇅ ${esc(window.t("cs.bk_head"))}${infoBtn()}</h3>
+        ${infoBody(`<p style="margin:0 0 8px">${esc(window.t("cs.bk_p_a"))} <b>${esc(window.t("cs.bk_p_b"))}</b> ${esc(window.t("cs.bk_p_c"))} <b>${esc(window.t("cs.bk_p_d"))}</b>${esc(window.t("cs.bk_p_e"))} <code>.conflict-*</code> ${esc(window.t("cs.bk_p_f"))} <a href="https://github.com/blogminhquy/javis-os/blob/main/docs/18-sao-luu-github.md" target="_blank" style="color:var(--link-ink)">docs/18-sao-luu-github.md</a>.</p>
+        <ol style="line-height:1.7;margin:0;padding-left:20px">
           <li>${esc(window.t("cs.bk_li1_a"))} <b>Private</b> ${esc(window.t("cs.bk_li1_b"))} <code>javis-brain-backup</code>.</li>
           <li>${esc(window.t("cs.bk_li2_a"))} <b>Fine-grained tokens</b> ${esc(window.t("cs.bk_li2_b"))} <b>Contents: Read and write</b> ${esc(window.t("cs.bk_li2_c"))} <code>github_pat_...</code>).</li>
           <li>${esc(window.t("cs.bk_li3_a"))} <b>${esc(window.t("cs.bk_test_short"))}</b>${esc(window.t("cs.bk_li3_b"))} <b>${esc(window.t("cs.bk_sync_now"))}</b>${esc(window.t("cs.bk_li3_c"))}</li>
-        </ol>
-        <div style="max-width:680px;margin:0 0 12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-1);color:var(--text3);font-size:13.5px;line-height:1.7">
-          <b style="color:var(--text)">${esc(window.t("cs.bk_media_head"))}</b>
-          ${esc(window.t("cs.bk_media_a"))}
-          (<code>.md .txt .html .csv .json .canvas .py</code>…). <b>${esc(window.t("cs.bk_media_b"))}</b>;
-          ${esc(window.t("cs.bk_media_c"))}
-          <div style="margin-top:6px">${esc(window.t("cs.bk_media_d"))} <b>${esc(window.t("cs.bk_media_e"))}</b>${esc(window.t("cs.bk_media_f"))}</div>
-          <div style="margin-top:6px">${esc(window.t("cs.bk_media_g"))} <b>${esc(window.t("cs.bk_media_h"))}</b> ${esc(window.t("cs.bk_media_i"))}</div>
-        </div>
+        </ol>`)}
+        <div style="max-width:680px;margin:0 0 12px;color:var(--text3);font-size:13.5px;line-height:1.6">
+          <b style="color:var(--text)">${esc(window.t("cs.bk_media_head"))}</b>${infoBtn()}</div>
+        ${infoBody(`${esc(window.t("cs.bk_media_a"))} (<code>.md .txt .html .csv .json .canvas .py</code>…). <b>${esc(window.t("cs.bk_media_b"))}</b>; ${esc(window.t("cs.bk_media_c"))}<p>${esc(window.t("cs.bk_media_d"))} <b>${esc(window.t("cs.bk_media_e"))}</b>${esc(window.t("cs.bk_media_f"))}</p><p>${esc(window.t("cs.bk_media_g"))} <b>${esc(window.t("cs.bk_media_h"))}</b> ${esc(window.t("cs.bk_media_i"))}</p>`)}
         <div class="si-grid">
-          <div class="si-field"><label>${esc(window.t("cs.bk_repo_label"))}</label><input id="bkRepo" placeholder="${esc(window.t("cs.bk_repo_ph"))}"></div>
+          <div class="si-field"><label>${esc(window.t("cs.bk_repo_label"))}${infoBtn()}</label><input id="bkRepo" placeholder="${esc(window.t("cs.bk_repo_ph"))}"></div>
+          ${infoBody(`${WARN_ICON} ${esc(window.t("cs.bk_warn"))}`)}
           <div class="si-field"><label>${esc(window.t("cs.bk_token_label"))}</label><input id="bkToken" type="password" placeholder="${esc(window.t("cs.bk_token_ph"))}"></div>
           <div class="si-row" style="gap:14px;flex-wrap:wrap">
             <div class="si-field"><label>${esc(window.t("cs.bk_branch"))}</label><input id="bkBranch" value="main" style="max-width:120px"></div>
             <div class="si-field"><label>${esc(window.t("cs.bk_interval"))}</label><input type="number" id="bkInterval" min="1" value="6" style="max-width:120px"></div>
             <div class="si-field"><label>${esc(window.t("cs.bk_auto"))}</label><button class="si-chip" id="bkAuto">○ ${esc(window.t("settings.tag_off"))}</button></div>
-            <div class="si-field"><label>${esc(window.t("cs.bk_images"))}</label><button class="si-chip" id="bkAnh">○ ${esc(window.t("settings.tag_off"))}</button></div>
+            <div class="si-field"><label>${esc(window.t("cs.bk_images"))}${infoBtn()}</label><button class="si-chip" id="bkAnh">○ ${esc(window.t("settings.tag_off"))}</button></div>
           </div>
-          <div class="dim" style="font-size:12.5px;color:var(--text3);max-width:680px;margin-top:-4px">${esc(window.t("cs.bk_img_a"))} <b>${esc(window.t("cs.bk_img_b"))}</b> ${esc(window.t("cs.bk_img_c"))} <b>${esc(window.t("cs.bk_img_d"))}</b>${esc(window.t("cs.bk_img_e"))} <b>${esc(window.t("cs.bk_img_f"))}</b> ${esc(window.t("cs.bk_img_g"))}</div>
+          ${infoBody(`${esc(window.t("cs.bk_img_a"))} <b>${esc(window.t("cs.bk_img_b"))}</b> ${esc(window.t("cs.bk_img_c"))} <b>${esc(window.t("cs.bk_img_d"))}</b>${esc(window.t("cs.bk_img_e"))} <b>${esc(window.t("cs.bk_img_f"))}</b> ${esc(window.t("cs.bk_img_g"))}`)}
           <div class="si-actions">
             <button class="s-btn-ghost" id="bkTest">${ic("plug")} ${esc(window.t("cs.bk_test_conn"))}</button>
             <button class="s-btn" id="bkNow">⇅ ${esc(window.t("cs.bk_sync_now"))}</button>
             <button class="s-btn-ghost" id="bkSave">${SAVE_ICON} ${esc(window.t("cs.ln_save_cfg"))}</button>
           </div>
           <div class="dim" id="bkStatus" style="font-size:13px;color:var(--text3)"></div>
-          <div class="dim" id="bkWarn" style="font-size:12px;color:var(--warn-ink);margin-top:2px">${WARN_ICON} ${esc(window.t("cs.bk_warn"))}</div>
         </div>
       </div>
 
@@ -2915,8 +2927,8 @@
     el.innerHTML = `<div class="cview-section">
       <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap">
         <div>
-          <div style="font-size:16px;color:var(--text);font-weight:650"><span class="kn-dot off" id="knLiveDot"></span><span id="knLiveText">Dispatcher</span></div>
-          <p style="color:var(--text3);font-size:13px;max-width:680px;margin:6px 0 0">${esc(t("kanban.intro"))}</p>
+          <div style="font-size:16px;color:var(--text);font-weight:650"><span class="kn-dot off" id="knLiveDot"></span><span id="knLiveText">Dispatcher</span>${infoBtn()}</div>
+          ${infoBody(esc(t("kanban.intro")))}
         </div>
         <div class="si-actions" style="margin:0">
           <button class="s-btn" id="knAdd">${esc(t("kanban.add"))}</button>
@@ -3556,21 +3568,24 @@
     el.innerHTML =
       '<div class="gcard ol-empty">' +
         '<div class="ol-empty-ico">' + ic("cpu", { cls: "ic-xl" }) + "</div>" +
-        '<div class="ol-empty-title">' + esc(t("ol.title")) + "</div>" +
-        '<div class="ol-empty-desc">' + esc(t("ol.desc")) + "</div>" +
-        (xa ? '<div class="ol-note">' + ic("info") + "<span>" + esc(t("ol.note_docker")) + "</span></div>"
-            : '<div class="ol-note">' + ic("info") + "<span>" + esc(t("ol.note_native")) + "</span></div>") +
+        // 0.212.0: what Ollama is, the Docker caveat and the VPS how-to fold into (i) blocks.
+        '<div class="ol-empty-title">' + esc(t("ol.title")) + infoBtn() + "</div>" +
+        infoBody('<div class="ol-empty-desc">' + esc(t("ol.desc")) + "</div>" +
+          (xa ? '<div class="ol-note">' + ic("info") + "<span>" + esc(t("ol.note_docker")) + "</span></div>" +
+                '<div class="ol-note ol-warn">' + ic("triangle-alert") + "<span>" + esc(t("ol.dk_cham")) + "</span></div>"
+              : "")) +
+        (xa ? "" : '<div class="ol-note">' + ic("info") + "<span>" + esc(t("ol.note_native")) + "</span></div>") +
         (xa
-          ? '<div class="ol-note ol-warn">' + ic("triangle-alert") + "<span>" + esc(t("ol.dk_cham")) + "</span></div>" +
-            '<div class="ol-step">' + esc(t("ol.dk_title")) + "</div>" +
-            '<div class="ol-buoc">1. ' + esc(t("ol.dk_b1")) + "</div>" +
+          ? '<div class="ol-step">' + esc(t("ol.dk_title")) + infoBtn() + "</div>" +
+            infoBody('<div class="ol-buoc">1. ' + esc(t("ol.dk_b1")) + "</div>" +
             '<div class="ol-buoc">2. ' + esc(t("ol.dk_b2")) + "</div>" +
             '<div class="ol-cmd"><code>' + esc(lenh) + "</code>" +
               '<button class="gcard-btn ol-copy" type="button">' + ic("copy") + " " + esc(t("common.copy")) + "</button></div>" +
             '<div class="ol-buoc">3. ' + esc(t("ol.dk_b3")) + "</div>" +
             '<div class="ol-cmd"><code>' + esc(lenhNghe) + "</code>" +
-              '<button class="gcard-btn ol-copy2" type="button">' + ic("copy") + " " + esc(t("common.copy")) + "</button></div>" +
-            '<div class="ol-note ol-warn">' + ic("shield") + "<span>" + esc(t("ol.dk_canh_bao")) + "</span></div>" +
+              '<button class="gcard-btn ol-copy2" type="button">' + ic("copy") + " " + esc(t("common.copy")) + "</button>" + infoBtn() + "</div>" +
+            // The firewall caveat opens from its own (i) next to the command it is about.
+            infoBody('<div class="ol-note ol-warn">' + ic("shield") + "<span>" + esc(t("ol.dk_canh_bao")) + "</span></div>")) +
             '<div class="ol-step">' + esc(t("ol.dk_b4")) + "</div>"
           : '<div class="ol-step">1. ' + esc(t("ol.step_install")) + "</div>" +
             '<div class="ol-cmd"><code>' + esc(lenh) + "</code>" +
@@ -3584,21 +3599,23 @@
           '<input class="ol-in ol-ep" placeholder="' + esc(window.t("cs.ol_ep_ph")) + '"' +
             (st.goi_y_endpoint ? ' value="' + esc(st.goi_y_endpoint) + '"' : "") + ">" +
           '<button class="gcard-btn primary ol-noi" type="button">' + esc(t("ol.connect")) + "</button>" +
+          (xa && !st.goi_y_endpoint ? infoBtn() : "") +
         "</div>" +
         // Dò không ra cổng (mạng Docker lạ, hoặc chạy --network=host) thì nói thẳng là phải
         // tự tìm, kèm đúng một lệnh tìm. Im lặng để ô trống là đẩy người dùng vào ngõ cụt.
+        // 0.212.0: that note and its command sit in the (i) next to the Connect button.
         (xa && !st.goi_y_endpoint
-          ? '<div class="ol-note ol-warn">' + ic("triangle-alert") + "<span>" +
+          ? infoBody('<div class="ol-note ol-warn">' + ic("triangle-alert") + "<span>" +
             esc(t("ol.dk_khong_do_duoc")) + "</span></div>" +
             '<div class="ol-cmd"><code>' + esc(OL_LENH_TIM_CONG) + "</code>" +
               '<button class="gcard-btn ol-copy3" type="button">' + ic("copy") + " " +
-              esc(t("common.copy")) + "</button></div>"
+              esc(t("common.copy")) + "</button></div>")
           : "") +
-        (st.error ? '<div class="ol-err">' + ic("triangle-alert") + "<span>" + esc(st.error) + "</span></div>" : "") +
+        (st.error ? '<div class="ol-err">' + ic("triangle-alert") + "<span>" + esc(st.error) + "</span>" + (xa ? infoBtn() : "") + "</div>" : "") +
         // Đã lưu địa chỉ mà vẫn không nối được thì từ trong container Javis không phân biệt
         // nổi "chưa cài" với "đã chạy nhưng chỉ nghe 127.0.0.1". Máy chủ thì phân biệt được
         // bằng đúng một lệnh - đưa lệnh đó và cách đọc kết quả, thay vì để người dùng đoán.
-        (st.error && xa ? '<div class="ol-note">' + ic("terminal") + "<span>" + esc(t("ol.dk_chan_doan")) + "</span></div>" : "") +
+        (st.error && xa ? infoBody('<div class="ol-note">' + ic("terminal") + "<span>" + esc(t("ol.dk_chan_doan")) + "</span></div>") : "") +
       "</div>";
     const cop3 = el.querySelector(".ol-copy3");
     if (cop3) cop3.onclick = () => {
@@ -3669,7 +3686,8 @@
     let than = "";
     if (sp.source === "unknown") {
       // Không đoán bừa: nói thẳng là chưa biết, và vì sao lại chưa biết được.
-      than = '<div class="ol-note">' + ic("triangle-alert") + "<span>" + esc(t("ol.specs_unknown")) + "</span></div>";
+      // Folded into (i) next to the section title (0.212.0).
+      than = infoBody('<div class="ol-note">' + ic("triangle-alert") + "<span>" + esc(t("ol.specs_unknown")) + "</span></div>");
     } else {
       than = '<div class="ol-chips">' +
         chip("cpu", t("ol.ram") + ": " + olGb(sp.ram_gb)) +
@@ -3678,7 +3696,7 @@
         chip(tu ? "circle-check" : "pencil", tu ? t("ol.specs_auto") : t("ol.specs_manual")) +
         "</div>";
     }
-    host.innerHTML = '<h3 class="ol-h">' + ic("cpu") + " " + esc(t("ol.specs_title")) + "</h3>" + than +
+    host.innerHTML = '<h3 class="ol-h">' + ic("cpu") + " " + esc(t("ol.specs_title")) + (sp.source === "unknown" ? infoBtn() : "") + "</h3>" + than +
       '<div class="ol-row ol-specs-form">' +
         '<input class="ol-in ol-ram" type="number" min="0" step="1" placeholder="' + esc(t("ol.ram_ph")) + '" value="' + (sp.ram_gb || "") + '">' +
         '<input class="ol-in ol-vram" type="number" min="0" step="1" placeholder="' + esc(t("ol.vram_ph")) + '" value="' + (sp.vram_gb || "") + '">' +
@@ -3942,11 +3960,12 @@
       `<span class="seg-lb">${esc(l)}</span><span class="seg-d">${esc(d)}</span></button>`).join("");
 
     const KEYFIELD = { "openrouter": "openrouter_key", "anthropic-api": "anthropic_api_key", "openai": "openai_api_key", "gemini": "gemini_api_key", "groq": "groq_api_key", "deepseek": "deepseek_api_key", "ollama": "ollama_key", "openai-compat": "openai_compat_key" };
-    const provHead = (p, on, kindLabel, statusText) => `
+    // withInfo: an (i) after the name; the card puts infoBody(...) right after this head.
+    const provHead = (p, on, kindLabel, statusText, withInfo) => `
         <div class="prov-head">
           <span class="prov-shield ${on ? "on" : ""}">${_shield(on)}</span>
           <div class="prov-info">
-            <div class="prov-name">${esc(p.label)} <span class="prov-kind">${kindLabel}</span></div>
+            <div class="prov-name">${esc(p.label)} <span class="prov-kind">${kindLabel}</span>${withInfo ? infoBtn() : ""}</div>
             <div class="prov-status ${on ? "on" : ""}">${statusText}</div>
           </div>
           ${p.is_main ? '<span class="prov-badge">MAIN</span>' : ""}
@@ -4016,8 +4035,8 @@
             + (p.plan ? " · " + esc(p.plan) : "") + " · " + p.models.length + " model"
           : (p.cli_found ? t("models.st_cli_no_login") : t("models.st_no_cli", { ten: "Grok Build CLI" }));
         return `<div class="prov-card ${p.is_main ? "main" : ""}">
-          ${provHead(p, on, "MCP/skill", st)}
-          <div class="prov-note">${esc(t("models.grok_note"))}</div>
+          ${provHead(p, on, "MCP/skill", st, true)}
+          ${infoBody(esc(t("models.grok_note")))}
           ${cliSetup(p, "Grok Build")}
           <div id="grokBox" class="prov-steps" style="display:none"></div>
           <div class="prov-action" style="flex-wrap:wrap">
@@ -4043,8 +4062,8 @@
             + " · " + p.models.length + " model"
           : (p.cli_found ? t("models.st_cli_no_login") : t("models.st_no_cli", { ten: "Antigravity CLI" }));
         return `<div class="prov-card ${p.is_main ? "main" : ""}">
-          ${provHead(p, on, "MCP/skill", st)}
-          <div class="prov-note">${esc(t("models.agy_note"))}</div>
+          ${provHead(p, on, "MCP/skill", st, true)}
+          ${infoBody(esc(t("models.agy_note")))}
           ${cliSetup(p, "Antigravity CLI")}
           ${on ? "" : `<div class="prov-steps">
             <div><b>${esc(t("models.agy_login"))}</b> <code>${esc(dn.dang_nhap || "agy")}</code></div>
@@ -4077,14 +4096,15 @@
           <div id="cliAction"></div>
           <div class="prov-note" id="cliUpd"></div>
           <div class="prov-auth">
-            <div class="prov-auth-title">${esc(t("models.auth_title"))}</div>
-            <div class="prov-auth-note">${esc(t("models.auth_note"))}</div>
+            <div class="prov-auth-title">${esc(t("models.auth_title"))}${p.auth_warning ? " " + WARN_ICON : ""}${infoBtn()}</div>
+            ${infoBody(`<div class="prov-auth-note">${esc(t("models.auth_note"))}</div>
+              <div class="prov-auth-note"><b>${esc(t("models.auth_key"))}</b> ${esc(t("models.auth_key_d"))}</div>
+              ${p.auth_warning ? `<div class="prov-auth-warn">${WARN_ICON} ${esc(p.auth_warning)}</div>` : ""}`)}
             <label class="prov-auth-opt"><input type="radio" name="claudeAuth" value="subscription" ${byKey ? "" : "checked"}>
               <span><b>${esc(t("models.auth_sub"))}</b> ${esc(t("models.auth_sub_d"))}</span></label>
             <label class="prov-auth-opt"><input type="radio" name="claudeAuth" value="api_key" ${byKey ? "checked" : ""}>
-              <span><b>${esc(t("models.auth_key"))}</b> ${esc(t("models.auth_key_d"))}
+              <span><b>${esc(t("models.auth_key"))}</b>
               ${p.auth_api_key_set ? "" : ` <i>${esc(t("models.auth_key_none"))}</i>`}</span></label>
-            ${p.auth_warning ? `<div class="prov-auth-warn">${WARN_ICON} ${esc(p.auth_warning)}</div>` : ""}
           </div>
         </div>`;
       }
@@ -4092,8 +4112,8 @@
       if (p.id === "openai-compat") {
         // Endpoint tự khai: thứ quyết định "đã kết nối" là Base URL, key có thể bỏ trống.
         return `<div class="prov-card ${p.is_main ? "main" : ""}">
-          ${provHead(p, on, "MCP Javis", (on ? t("models.st_connected") : t("models.st_not_connected")) + " · " + p.models.length + " model")}
-          <div class="prov-note">${esc(t("models.oc_note"))}</div>
+          ${provHead(p, on, "MCP Javis", (on ? t("models.st_connected") : t("models.st_not_connected")) + " · " + p.models.length + " model", true)}
+          ${infoBody(esc(t("models.oc_note")))}
           <div class="prov-action" style="flex-wrap:wrap">
             <input class="js-input" id="ocBase" inputmode="url" spellcheck="false" style="flex:1 1 100%" value="${esc(m.openai_compat_base || "")}" placeholder="${esc(t("models.oc_base_ph"))}">
             <input class="js-input" id="ocKey" type="password" style="flex:1" placeholder="${on && masked ? esc(t("models.key_change_ph", { duoi: masked })) : esc(t("models.oc_key_ph"))}">
@@ -4129,7 +4149,8 @@
         <div class="prov-list">${provList.map(provCard).join("")}</div>
       </div>
       <div class="cview-section">
-        <h3>◆ ${esc(t("models.h_aux"))} <span style="opacity:.5">${esc(t("models.h_aux_sub"))}</span></h3>
+        <h3>◆ ${esc(t("models.h_aux"))} <span style="opacity:.5">${esc(t("models.h_aux_sub"))}</span>${infoBtn()}</h3>
+        ${infoBody(esc(t("models.aux_note")))}
         <div class="gcard aux-card">
           <div class="gcard-meta">${esc(t("models.aux_meta"))}</div>
           <div class="aux-now">
@@ -4143,13 +4164,12 @@
             </div>
           </div>
           ${auxReady ? "" : `<div class="aux-note warn">${WARN_ICON} ${esc(t("models.aux_warn"))}</div>`}
-          <div class="aux-note">${esc(t("models.aux_note"))}</div>
         </div>
       </div>
       <div class="cview-section">
-        <h3>◆ ${esc(t("models.h_tg"))} <span style="opacity:.5">${esc(t("models.h_tg_sub"))}</span></h3>
+        <h3>◆ ${esc(t("models.h_tg"))} <span style="opacity:.5">${esc(t("models.h_tg_sub"))}</span>${infoBtn()}</h3>
+        ${infoBody(`${esc(t("models.tg_meta"))}<br>${esc(t("models.tg_note"))}`)}
         <div class="gcard aux-card" id="tgCard">
-          <div class="gcard-meta">${esc(t("models.tg_meta"))}</div>
           <div class="aux-now">
             <div class="aux-now-txt">
               <div class="aux-now-model">${tgPinned ? esc(tgModel || "-") : esc(t("models.tg_follow"))}</div>
@@ -4161,15 +4181,14 @@
             </div>
           </div>
           ${tgReady ? "" : `<div class="aux-note warn">${WARN_ICON} ${esc(t("models.tg_warn"))}</div>`}
-          <div class="aux-note">${esc(t("models.tg_note"))}</div>
         </div>
       </div>
       <div class="cview-section">
-        <h3>◆ ${esc(t("models.h_reason"))} <span style="opacity:.5">${esc(t("models.h_reason_sub"))}</span></h3>
+        <h3>◆ ${esc(t("models.h_reason"))} <span style="opacity:.5">${esc(t("models.h_reason_sub"))}</span>${infoBtn()}</h3>
+        ${infoBody(esc(t("models.reason_note")))}
         <div class="gcard aux-card">
           <div class="gcard-meta">${esc(t("models.reason_meta"))}</div>
           <div class="seg">${reasonChips}</div>
-          <div class="aux-note">${esc(t("models.reason_note"))}</div>
         </div>
       </div>`;
 
@@ -4492,12 +4511,10 @@
       st.textContent = t("models.st_no_login");
       act.innerHTML = `<div class="prov-action">
           <button class="gcard-btn" id="cliLogin">${esc(t("models.login_claude"))}</button>
-          <button class="gcard-btn ghost" id="cliRecheck">${esc(t("models.recheck"))}</button></div>
+          <button class="gcard-btn ghost" id="cliRecheck">${esc(t("models.recheck"))}</button>${infoBtn()}</div>
         <div id="cliMsg" class="prov-msg">${d.error ? Icons.warn(d.error) : ""}</div>
-        <div class="prov-steps">
-          ${esc(t("models.cli_login_note"))}
-          <div class="prov-cmd"><code>claude auth login --claudeai</code></div>
-        </div>`;
+        ${infoBody(`${esc(t("models.cli_login_note"))}
+          <div class="prov-cmd"><code>claude auth login --claudeai</code></div>`)}`;
       el.querySelector("#cliLogin").onclick = () => startClaudeLogin(el);
       el.querySelector("#cliRecheck").onclick = () => refreshClaudeCard(el, true);
     }
@@ -4514,7 +4531,8 @@
     // that is not there (the record of the last update outlives an uninstall).
     box.style.display = d.cli_missing ? "none" : "";
     if (d.cli_missing) { box.innerHTML = ""; return; }
-    if (d.cap_nhat_docker) { box.textContent = t("models.cc_upd_docker"); return; }
+    // Docker: the explanation folds into (i) next to the product name (0.212.0).
+    if (d.cap_nhat_docker) { box.innerHTML = `<div>Claude Code${infoBtn()}</div>${infoBody(esc(t("models.cc_upd_docker")))}`; return; }
     const cn = d.cap_nhat || {};
     let dong = cn.sau ? t("models.cc_upd_ver", { v: cn.sau }) + " · " : "";
     dong += t("models.cc_upd_auto");
@@ -4931,10 +4949,13 @@
   function connectorCard(con, conns) {
     const chips = conns.map(connChip).join("")
       + '<button class="conn-chip add" data-addacc="' + esc(con.id) + '">＋ ' + esc(window.t("cs.cn_add_account")) + '</button>';
+    // Catalog descriptions run up to ~320 chars: two clamped lines, the full text in (i) (0.212.0).
+    const dai = (con.description || "").length > 100;
     return '<div class="prov-card conn-card">'
       + '<div class="prov-head"><span class="conn-ico">' + iconInner(con) + '</span>'
-      + '<div class="prov-info"><div class="prov-name">' + esc(con.name || con.id) + '</div>'
-      + '<div class="prov-status">' + esc(con.description || "") + '</div>'
+      + '<div class="prov-info"><div class="prov-name">' + esc(con.name || con.id) + (dai ? infoBtn() : "") + '</div>'
+      + '<div class="prov-status j-clamp2">' + esc(con.description || "") + '</div>'
+      + (dai ? infoBody(esc(con.description)) : "")
       + (con.guide_url ? '<a class="cat-doc" href="' + esc(safeHref(con.guide_url))
           + '" target="_blank" rel="noopener">' + esc(window.t("cs.cn_guide_github")) + ' ↗</a>' : "")
       + '</div></div>'
@@ -4962,11 +4983,14 @@
       const meta = GROUP_META[g] || { name: g, icon: ic("plug"), category: "Khác", desc: "" };
       const ids = byGroup[g].map(c => c.id);
       const nConn = (conns || []).filter(x => ids.includes(x.connector_id)).length;
+      const gDesc = meta.desc_key ? window.t(meta.desc_key) : (meta.desc || "");
+      const dai = gDesc.length > 100;
       return '<div class="cat-card" data-cat="' + esc(meta.category) + '">'
         + '<div class="cat-ico">' + meta.icon + '</div>'
         + '<div class="cat-name">' + esc(meta.name) + ' <span class="prov-kind">' + esc(window.t("cs.cn_services", { so: byGroup[g].length })) + '</span>'
-        + (nConn ? ' <span class="prov-kind" style="color:var(--green)">' + esc(window.t("cs.cn_linked_n", { so: nConn })) + '</span>' : "") + '</div>'
-        + '<div class="cat-desc">' + esc(meta.desc_key ? window.t(meta.desc_key) : (meta.desc || "")) + '</div>'
+        + (nConn ? ' <span class="prov-kind" style="color:var(--green)">' + esc(window.t("cs.cn_linked_n", { so: nConn })) + '</span>' : "") + (dai ? infoBtn() : "") + '</div>'
+        + '<div class="cat-desc j-clamp2">' + esc(gDesc) + '</div>'
+        + (dai ? infoBody(esc(gDesc)) : "")
         + '<button class="gcard-btn" data-groupopen="' + esc(g) + '">' + esc(window.t("cs.cn_pick_service")) + '</button>'
         + '</div>';
     }).join("");
@@ -4999,6 +5023,7 @@
 
   function catalogCard(con) {
     const soon = con.status === "soon";
+    const dai = (con.description || "").length > 100;   // long: clamp + full text in (i)
     const badge = '<span class="prov-kind">' + esc(AUTH_BADGE[con.auth_type] ? window.t(AUTH_BADGE[con.auth_type]) : (con.auth_type || "")) + '</span>'
       + (con.status === "beta" ? ' <span class="prov-kind" style="color:var(--warn-ink)">beta</span>' : "")
       + (soon ? ' <span class="prov-kind">' + esc(window.t("cs.cn_soon_badge")) + '</span>' : "");
@@ -5011,8 +5036,9 @@
     return '<div class="cat-card' + (soon ? " soon" : "") + '" data-cat="' + esc(con.category || "Khác") + '">'
       + nutGo
       + '<div class="cat-ico">' + iconInner(con) + '</div>'
-      + '<div class="cat-name">' + esc(con.name) + ' ' + badge + '</div>'
-      + '<div class="cat-desc">' + esc(con.description || "") + '</div>'
+      + '<div class="cat-name">' + esc(con.name) + ' ' + badge + (dai ? infoBtn() : "") + '</div>'
+      + '<div class="cat-desc j-clamp2">' + esc(con.description || "") + '</div>'
+      + (dai ? infoBody(esc(con.description)) : "")
       + (soon
         ? '<button class="gcard-btn" disabled style="opacity:.5">' + esc(window.t("cs.cn_soon_btn")) + '</button>'
           + (con.guide_url ? ' <a class="cat-doc" href="' + esc(safeHref(con.guide_url)) + '" target="_blank" rel="noopener">docs ↗</a>' : "")
@@ -5647,7 +5673,8 @@
         + (orphans.some(o => o.co_trong_kho)
             ? esc(window.t("cs.cn_orphan_local")) + ' ' : "")
         + (moCoiKho.length
-            ? esc(window.t("cs.cn_orphan_store"))
+            // Why and what reinstalling does: in (i); the reinstall buttons stay visible.
+            ? infoBtn() + infoBody(esc(window.t("cs.cn_orphan_store")))
               // Nút xếp NGANG và chỉ rộng bằng chữ. `.gcard-btn` mặc định chiếm trọn hàng, nên
               // để trần thì hai ba nút thành hai ba dải to đùng chồng lên nhau, trông như lỗi.
               + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">'
@@ -5687,9 +5714,10 @@
       // Cả hai khối đều NẰM TRONG DOM, chỉ ẩn đi - phần dây nối bên dưới tìm theo id và
       // chạy một lần cho cả hai, nên đổi tab không phải vẽ lại hay nối lại gì cả.
       + '<div id="mcpTabDaNoi"' + (_mcpTab === "danoi" ? "" : " hidden") + '>'
-      + '<div class="cview-section"><h3>◆ ' + esc(window.t("cs.cn_connected_head")) + ' <span style="opacity:.5">' + esc(window.t("cs.cn_account_n", { so: conns.length })) + '</span></h3>'
-      + '<div class="gcard-meta" style="max-width:740px">' + esc(window.t("cs.cn_intro"))
-      + '<label style="margin-left:8px;cursor:pointer"><input type="checkbox" id="mcpStrict" ' + (d.strict ? "checked" : "") + '> ' + esc(window.t("cs.cn_strict")) + '</label></div>'
+      + '<div class="cview-section"><h3>◆ ' + esc(window.t("cs.cn_connected_head")) + ' <span style="opacity:.5">' + esc(window.t("cs.cn_account_n", { so: conns.length })) + '</span>' + infoBtn() + '</h3>'
+      + infoBody(esc(window.t("cs.cn_intro")))
+      + '<div class="gcard-meta" style="max-width:740px">'
+      + '<label style="cursor:pointer"><input type="checkbox" id="mcpStrict" ' + (d.strict ? "checked" : "") + '> ' + esc(window.t("cs.cn_strict")) + '</label></div>'
       + '<div class="prov-list" style="margin-top:12px">' + (connectedHtml || '<div class="mp-empty">' + esc(window.t("cs.cn_empty_a")) + ' <b>' + esc(window.t("cs.cn_tab_sanco")) + '</b> ' + esc(window.t("cs.cn_empty_b")) + '</div>') + '</div></div>'
       // Lối đi tiếp, đặt ngay dưới danh sách. Không có nó thì tab này là ngõ cụt với
       // người chưa đấu gì: họ nhìn một ô trống mà không biết bước kế tiếp ở đâu.
@@ -6208,7 +6236,7 @@
     }
     el.innerHTML = `
       <div class="ach">
-        <p class="ach-intro">${esc(window.t("ach.intro"))} <a href="#" data-ach-go="chatbots">${esc(window.t("ach.intro_link"))} →</a></p>
+        <div class="ach-intro">${infoPair(`${esc(window.t("ach.intro"))} <a href="#" data-ach-go="chatbots">${esc(window.t("ach.intro_link"))} →</a>`)}</div>
         <div class="ach-tabs" role="tablist" aria-label="${esc(t("page.channels.title"))}">
           ${ADMIN_CH.map(c => `<button type="button" role="tab" id="ach-tab-${c.key}" data-ach-tab="${c.key}"
             aria-controls="ach-panel" aria-selected="${c.key === cur}" tabindex="${c.key === cur ? 0 : -1}">
@@ -6287,7 +6315,7 @@
     panel.innerHTML = `
       <div class="ach-card">
         <div class="ach-head">
-          <div class="ach-name">${Icons.kenh(def.key, { size: "26px" })}<b>${esc(def.title)}</b>
+          <div class="ach-name">${Icons.kenh(def.key, { size: "26px" })}<b>${esc(def.title)}</b>${infoBtn()}
             <span class="ach-pill st-${st.state}" id="${id("pill")}">${esc(window.t(ACH_PILL[st.state]))}</span></div>
           <label class="ach-switch" title="${tr("ach.switch_title")}">
             <input type="checkbox" role="switch" id="${id("on")}" ${st.on ? "checked" : ""}>
@@ -6296,24 +6324,24 @@
           </label>
         </div>
         <div class="ach-status" id="${id("status")}" role="status">${achLine(def, st)}</div>
-        <p class="ach-what">${tr(`ach.${def.key}_intro`)}</p>
+        ${infoBody(tr(`ach.${def.key}_intro`))}
 
         <div class="ach-step">
-          <h4><span class="ach-num">1</span>${tr("ach.step_connect")}</h4>
-          <p class="ach-hint">${tr(`ach.${def.key}_guide`)}${guideLink}</p>
+          <h4><span class="ach-num">1</span>${tr("ach.step_connect")}${infoBtn()}</h4>
+          ${infoBody(tr(`ach.${def.key}_guide`) + guideLink)}
           ${fields}
           ${def.webhook ? `<div class="ach-hook" id="${id("hook")}"></div>` : ""}
         </div>
 
         <div class="ach-step">
-          <h4><span class="ach-num">2</span>${tr("ach.step_who")}</h4>
-          <p class="ach-hint">${tr(`ach.${def.key}_who`)}</p>
+          <h4><span class="ach-num">2</span>${tr("ach.step_who")}${infoBtn()}</h4>
+          ${infoBody(tr(`ach.${def.key}_who`))}
           <label class="js-lbl" for="${id("allow")}">${esc(lbl("allow"))}</label>
           <input class="js-input" id="${id("allow")}" value="${esc(allowVal)}" placeholder="${esc(window.t(`ach.${def.key}_allow_ph`))}" autocomplete="off" spellcheck="false">
-          ${def.key === "telegram" ? `<label class="js-lbl" for="${id("owner")}">${tr("ach.telegram_owner")}</label>
+          ${def.key === "telegram" ? `<label class="js-lbl" for="${id("owner")}">${tr("ach.telegram_owner")}${infoBtn()}</label>
           <select class="js-input" id="${id("owner")}">${[""].concat(String(allowVal || "").split(/[\s,]+/).filter(Boolean)).map(v =>
             `<option value="${esc(v)}" ${v === (c.owner_chat_id || "") ? "selected" : ""}>${esc(v || window.t("ach.telegram_owner_auto"))}</option>`).join("")}</select>
-          <p class="ach-hint">${tr("ach.telegram_owner_hint")}</p>` : ""}
+          ${infoBody(tr("ach.telegram_owner_hint"))}` : ""}
           <div id="${id("cho")}"></div>
         </div>
 
@@ -6501,9 +6529,9 @@
         </div>
       </div>` : ""}
       <div class="cview-section">
-        <h3>${esc(window.t("cs.ac_tk_head"))}</h3>
+        <h3>${esc(window.t("cs.ac_tk_head"))}${infoBtn()}</h3>
+        ${infoBody(`${esc(window.t("cs.ac_tk_intro_a"))} <b>Javis CLI</b> ${esc(window.t("cs.ac_tk_intro_b"))}`)}
         <div class="gcard" style="max-width:560px">
-          <div class="gcard-meta">${esc(window.t("cs.ac_tk_intro_a"))} <b>Javis CLI</b> ${esc(window.t("cs.ac_tk_intro_b"))}</div>
           <label class="js-lbl">${esc(window.t("cs.ac_tk_name"))}</label>
           <input class="js-input" id="tkName" placeholder="${esc(window.t("cs.ac_tk_name_ph"))}">
           <label class="js-lbl">${esc(window.t("cs.ac_tk_scope"))}</label>
@@ -7101,9 +7129,13 @@
       // Ô tìm chỉ hiện khi danh sách đã đủ dài để phải tìm. Dưới ngưỡng đó nó là một ô trống
       // chiếm chỗ, và mắt vẫn quét hết danh sách nhanh hơn là gõ.
       const coTim = ds.length > SHARE_NGUONG_TIM;
+      // (i) next to the heading; local helpers since tests run this body on its own.
+      const JI = window.JavisInfo;
+      const infoBtn = () => (JI ? JI.btn(t("info.more")) : "");
+      const infoBody = (h) => (JI ? JI.body(h) : '<div class="info-body">' + h + "</div>");
       el.innerHTML = `<div class="settings-page"><div class="settings-card">
-        <div class="settings-card-head"><b>${esc(t("share.heading"))}</b><span class="gcard-tag">${ds.length}</span></div>
-        <p>${esc(t("share.warn"))}</p>
+        <div class="settings-card-head"><b>${esc(t("share.heading"))}${infoBtn()}</b><span class="gcard-tag">${ds.length}</span></div>
+        ${infoBody(esc(t("share.warn")))}
         ${coTim ? `<input id="shareSearch" class="share-search" type="search" spellcheck="false"
           autocomplete="off" placeholder="${esc(t("share.search_ph"))}" value="${esc(tuKhoa)}">
         <div class="share-count" id="shareCount"></div>` : ""}
@@ -7248,16 +7280,21 @@
       const cur = P.get();
       // Thứ tự: HÌNH DÁNG trước (thứ người ta tới đây để đổi), rồi cỡ, màu, màu mắt, và CUỐI
       // CÙNG mới tới khối nút Lưu / Tắt / Đặt lại. Chủ dự án chốt 15/09.
+      // What the pet does and how to handle it fold into (i) by the heading (0.212.0). Tests run
+      // this body on its own, so the (i) helpers are local copies here.
+      const JI = window.JavisInfo;
+      const infoBtn = () => (JI ? JI.btn(t("info.more")) : "");
+      const infoBody = (h) => (JI ? JI.body(h) : '<div class="info-body">' + h + "</div>");
       host.innerHTML = `<div class="settings-card"><div class="pet-editor" data-pet-editor>${P.editorHtml(cur, OPTS_ED)}</div></div>
       <div class="settings-card">
-        <div class="settings-card-head"><b>${esc(t("settings.pet"))}</b><span class="gcard-tag">${esc(cur.enabled ? t("settings.tag_on") : t("settings.tag_off"))}</span></div>
-        <p>${esc(t("settings.pet_desc"))}</p>
+        <div class="settings-card-head"><b>${esc(t("settings.pet"))}${infoBtn()}</b><span class="gcard-tag">${esc(cur.enabled ? t("settings.tag_on") : t("settings.tag_off"))}</span></div>
+        ${infoBody(esc(t("settings.pet_desc")) + "<br>" + esc(t("settings.pet_hint")))}
         <div class="js-actions">
           <button class="gcard-btn" id="setPetSave">${SAVE_ICON} ${esc(t("settings.pet_save"))}</button>
           <button class="gcard-btn ${cur.enabled ? "ghost" : ""}" id="setPetToggle">${esc(cur.enabled ? t("settings.pet_off") : t("settings.pet_on"))}</button>
           <button class="gcard-btn ghost" id="setPetReset">${esc(t("settings.pet_reset"))}</button>
         </div>
-        <div class="gcard-meta" id="setPetStatus">${esc(t("settings.pet_hint"))}</div>
+        <div class="gcard-meta" id="setPetStatus"></div>
       </div>`;
       // Nút Lưu. Mỗi cú bấm chọn hình/cỡ/màu đã tự gửi lên máy chủ rồi, nên nút này KHÔNG
       // phải chỗ duy nhất để lưu - nó là chỗ NÓI RA kết quả: đã vào máy chủ thật hay chưa.
@@ -7306,10 +7343,15 @@
       aria-pressed="${mode === v}"><span class="seg-lb">${esc(lb)}</span>
       <span class="seg-d">${esc(d)}</span></button>`;
     const now = mode === "auto" ? themeNowText(T) : "";
+    // (i) helpers as local copies: a test runs this body on its own (0.212.0).
+    const JI = window.JavisInfo;
+    const infoBtn = () => (JI ? JI.btn(t("info.more")) : "");
+    const infoBody = (h) => (JI ? JI.body(h) : '<div class="info-body">' + h + "</div>");
     // Hai ô giờ chỉ VẼ khi đang tự động, không dùng thuộc tính hidden: .qs-field là flex và
     // display của nó đè hidden (đã cắn một lần ở thẻ giọng nói).
     box.innerHTML = `
-      <div class="popover-label">${esc(t("settings.theme.title"))}</div>
+      <div class="popover-label">${esc(t("settings.theme.title"))}${infoBtn()}</div>
+      ${infoBody(esc(t("settings.theme.hint")))}
       <div class="seg" role="group" aria-label="${esc(t("settings.theme.title"))}">
         ${segBtn("dark", t("settings.theme.dark"), t("settings.theme.dark_d"))}
         ${segBtn("light", t("settings.theme.light"), t("settings.theme.light_d"))}
@@ -7324,8 +7366,7 @@
         <label class="qs-lbl" for="vpThemeDark">${esc(t("settings.theme.dark_from"))}</label>
         <input type="time" class="js-input" id="vpThemeDark" value="${esc(sch.dark)}">
       </div>
-      <div class="qs-hint" role="status">${esc(now)}</div>` : ""}
-      <div class="qs-hint">${esc(t("settings.theme.hint"))}</div>`;
+      <div class="qs-hint" role="status">${esc(now)}</div>` : ""}`;
     box.querySelectorAll("[data-theme-mode]").forEach(b => {
       b.onclick = () => T.setMode(b.dataset.themeMode);   // sự kiện javis-theme-change vẽ lại thẻ
     });
@@ -7430,21 +7471,21 @@
       <div class="qs-block">
         <div class="popover-label">${esc(t("settings.grp_lang"))}</div>
         <div class="qs-field">
-          <label class="qs-lbl" for="vpUiLang">${esc(t("settings.ui_lang.title"))}</label>
+          <label class="qs-lbl" for="vpUiLang">${esc(t("settings.ui_lang.title"))}${infoBtn()}</label>
           <select class="js-input" id="vpUiLang">
             ${uiLangChoices(s).map(l => opt(l.ma, l.ten, uiLang)).join("")}
           </select>
         </div>
-        <div class="qs-hint">${esc(t("settings.ui_lang.hint"))}
-          <b>${esc(t("settings.ui_lang.beta"))}</b></div>
+        ${infoBody(`${esc(t("settings.ui_lang.hint"))}
+          <b>${esc(t("settings.ui_lang.beta"))}</b>`)}
         <div class="qs-field">
-          <label class="qs-lbl" for="vpReplyLang">${esc(t("settings.lang.title"))}</label>
+          <label class="qs-lbl" for="vpReplyLang">${esc(t("settings.lang.title"))}${infoBtn()}</label>
           <select class="js-input" id="vpReplyLang">
             ${opt("auto", t("settings.lang.auto"), replyLang)}
             ${langs.map(l => opt(l.ma, l.ten, replyLang)).join("")}
           </select>
         </div>
-        <div class="qs-hint">${esc(t("settings.lang.hint"))}</div>
+        ${infoBody(esc(t("settings.lang.hint")))}
       </div>`;
 
     el.innerHTML = `<div class="settings-page">
@@ -7475,14 +7516,14 @@
             </div>
           </div>
           <div class="settings-card">
-            <div class="settings-card-head"><b>${esc(t("settings.migrate"))}</b></div>
-            <p>${esc(t("settings.migrate_desc"))}</p>
+            <div class="settings-card-head"><b>${esc(t("settings.migrate"))}${infoBtn()}</b></div>
+            ${infoBody(esc(t("settings.migrate_desc")))}
             <button class="gcard-btn ghost" id="setBrainMigrate">${esc(t("settings.migrate_btn"))}</button>
             <div class="gcard-meta" id="setBrainMigrateResult"></div>
           </div>
           <div class="settings-card">
-            <div class="settings-card-head"><b>${esc(t("settings.c2pa"))}</b><span class="gcard-tag">${esc(stripC2pa ? t("settings.c2pa_stripping") : t("settings.c2pa_keeping"))}</span></div>
-            <p>${esc(t("settings.c2pa_desc"))}</p>
+            <div class="settings-card-head"><b>${esc(t("settings.c2pa"))}${infoBtn()}</b><span class="gcard-tag">${esc(stripC2pa ? t("settings.c2pa_stripping") : t("settings.c2pa_keeping"))}</span></div>
+            ${infoBody(esc(t("settings.c2pa_desc")))}
             <div class="js-actions">
               <button class="gcard-btn ${stripC2pa ? "ghost" : ""}" id="setC2paKeep">${esc(t("settings.c2pa_keep"))}</button>
               <button class="gcard-btn ${stripC2pa ? "" : "ghost"}" id="setC2paStrip">${esc(t("settings.c2pa_strip"))}</button>

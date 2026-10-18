@@ -31,7 +31,7 @@ const check = (name, cond) => { console.log((cond ? "ok   " : "FAIL ") + name); 
 // 1. Có mặt trong trang Tài khoản
 // ============================================================
 check("trang Cài đặt có mục Token API",
-  /<h3>\$\{esc\(window\.t\("cs\.ac_tk_head"\)\)\}<\/h3>/.test(CON)
+  /<h3>\$\{esc\(window\.t\("cs\.ac_tk_head"\)\)\}(\$\{infoBtn\(\)\})?<\/h3>/.test(CON)
   && /Token API/.test(VI["cs.ac_tk_head"] || ""));
 check("có ô đặt tên token", /id="tkName"/.test(CON));
 check("có chọn phạm vi", /id="tkScope"/.test(CON));
