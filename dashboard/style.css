@@ -1090,6 +1090,15 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .msg-user .msg-acts { justify-content: flex-end; }
 .msg:hover .msg-acts, .msg.acts-on .msg-acts, .msg-acts:focus-within { opacity: 1; }
 .msg-time { color: var(--text3); font-size: 12px; margin-right: 4px; }
+/* 0.216.0: vuốt tin sang trái để trích dẫn (msg-swipe.js). Chỉ máy chạm: cuộn dọc vẫn của trình duyệt, chiều ngang để
+   cho cú vuốt. Dấu trích dẫn hiện dần bên phải, đậm màu khi đã đủ xa để nhấc tay là trích. */
+@media (hover: none) { .msg-javis, .msg-user { touch-action: pan-y; } }
+.msg.is-swiping { position: relative; }
+.msg-swipe-mark { position: absolute; right: 8px; top: 50%; width: 32px; height: 32px; margin-top: -16px; opacity: 0;
+  display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--bg3);
+  color: var(--text3); pointer-events: none; transition: background .12s ease, color .12s ease, transform .12s ease; }
+.msg-swipe-mark svg { width: 18px; height: 18px; }
+.msg.is-armed .msg-swipe-mark { background: var(--accent); color: #fff; transform: scale(1.1); }
 .msg-act { background: none; border: 1px solid transparent; color: var(--text3);
   border-radius: 6px; cursor: pointer; font-size: 13px; line-height: 1; padding: 3px 6px; }
 .msg-act:hover { color: var(--text-hi); border-color: var(--border); }

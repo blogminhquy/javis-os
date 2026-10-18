@@ -350,6 +350,17 @@
         actions: function (el) { return pressActions(el); }
       });
     }
+    // Phone (0.216.0, owner): swipe a message to the left to quote it, like Zalo. It presses the message's own Quote
+    // button, so the quote is exactly what that button takes (the whole message, Javis's original markdown).
+    var SW = typeof window !== "undefined" && window.JavisMsgSwipe;
+    if (SW) {
+      SW.bind(root, {
+        selector: ".msg-javis, .msg-user",
+        bubble: ".bubble",
+        can: function (el) { return !!el.querySelector('.msg-act[data-act="quote"]'); },
+        run: function (el) { var b = el.querySelector('.msg-act[data-act="quote"]'); if (b) b.click(); }
+      });
+    }
     // Đổi ngôn ngữ giao diện: vẽ lại nhãn của mọi hàng reaction.
     if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("javis:i18n", rerenderAll);
   }
