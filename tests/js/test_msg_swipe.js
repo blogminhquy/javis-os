@@ -133,7 +133,7 @@ check("index.html nạp msg-swipe.js trước chat-reactions.js",
 const css = fs.readFileSync(path.join(D, "style.css"), "utf8");
 check("máy chạm: tin chỉ để trình duyệt cuộn dọc, chiều ngang cho cú vuốt",
   css.includes("@media (hover: none) { .msg-javis, .msg-user { touch-action: pan-y; } }"));
-check("không em dash trong file mới", !/[–—]/.test(fs.readFileSync(path.join(D, "msg-swipe.js"), "utf8")));
+check("không em dash trong file mới", !/[\u2013\u2014]/.test(fs.readFileSync(path.join(D, "msg-swipe.js"), "utf8")));
 
 if (fails.length) { console.log("\nFAIL " + fails.length + ": " + fails.join(", ")); process.exit(1); }
 console.log("\nOK - test_msg_swipe: all pass");
