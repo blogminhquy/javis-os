@@ -27,7 +27,11 @@
       '">' + icon + "</button>";
   }
   function body(html) { return '<div class="info-body" hidden>' + html + "</div>"; }
-  function pair(html, label) { return '<span class="info-pair">' + btn(label) + "</span>" + body(html); }
+  // Standing alone, a bare round icon reads as decoration, so the pair's button also shows its label ("Xem giải thích").
+  function pair(html, label) {
+    var b = btn(label).replace('class="info-i"', 'class="info-i with-text"').replace("</button>", '<span>' + esc(label) + "</span></button>");
+    return '<span class="info-pair">' + b + "</span>" + body(html);
+  }
   // Nút có thể nằm trong một thẻ con của tiêu đề (span tên mục trong hàng tiêu đề): đi lên tối đa ba tầng, ở mỗi tầng tìm
   // khối giải thích đầu tiên đứng sau.
   function khoiCua(b) {

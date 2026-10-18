@@ -222,9 +222,8 @@
     if (!_bots.length) {
       box.innerHTML =
         '<div class="cb-empty"><div class="cb-empty-ico">' + ic("headset", { cls: "ic-xl" }) + '</div>' +
-        '<b>' + esc(window.t("cb.rong_tieu_de")) + '</b>' +
-        '<div>' + esc(window.t("cb.rong_1")) + ' <b>' + esc(window.t("cb.rong_tat")) + '</b>' +
-        esc(window.t("cb.rong_2")) + '</div></div>';
+        '<b>' + esc(window.t("cb.rong_tieu_de")) + infoBtn() + '</b>' +
+        infoBody(esc(window.t("cb.rong_1")) + ' <b>' + esc(window.t("cb.rong_tat")) + '</b>' + esc(window.t("cb.rong_2"))) + '</div>';
       return;
     }
     if (!ds.length) { box.innerHTML = '<div class="cb-empty">' + esc(window.t("cb.khong_khop")) + '</div>'; return; }

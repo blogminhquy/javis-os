@@ -3862,6 +3862,7 @@ div.info-body > * { margin: 0; font-size: inherit; }
 /* A pair stands alone (no title to sit next to): the button keeps its own line height and no left margin. */
 .info-pair { display: inline-flex; align-items: center; }
 .info-pair > .info-i { margin-left: 0; }
+.info-i.with-text { width: auto; height: auto; gap: 6px; padding: 2px 4px; border-radius: 6px; font-size: 16px; font-family: inherit; }
 @media (max-width: 600px) { .rsa-more > summary { min-height: 44px; } }
 .rsa-card { font-size: 14px; }
 .rsa-wait { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-top: 1px solid var(--hairline); }
