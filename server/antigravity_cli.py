@@ -252,6 +252,19 @@ _MA_TAM_THOI = ("code 429", "code 500", "code 502", "code 503", "code 504",
                 "429", "500 ", "502 ", "503", "504 ")
 
 
+def _la_het_gio_luot(loi: str) -> bool:
+    """`agy` stopped the turn itself because it ran past `--print-timeout` (the cap Javis sets).
+
+    Owner's screenshot 2026-10-18: a 70-step turn ended with "[agy] print timeout after 15m0s
+    with turn in progress; returning partial output". The word "timeout" made Javis call it a
+    temporary Google outage and claim two retries. It is neither: the turn was simply too long,
+    and running it again would redo every step (messages sent, files written).
+    """
+    l = (loi or "").lower()
+    return "print timeout" in l or "returning partial output" in l or (
+        "timeout" in l and "turn in progress" in l)
+
+
 def _la_loi_tam_thoi(loi: str) -> bool:
     """Câu lỗi này có phải kiểu CHỜ MỘT NHỊP LÀ HẾT không (nhà cung cấp gãy, không phải ta sai).
 
@@ -263,7 +276,7 @@ def _la_loi_tam_thoi(loi: str) -> bool:
     l = (loi or "").lower()
     if not l:
         return False
-    if _la_loi_chua_dang_nhap(l) or _la_loi_xung_effort(l):
+    if _la_loi_chua_dang_nhap(l) or _la_loi_xung_effort(l) or _la_het_gio_luot(l):
         return False
     if any(k in l for k in ("quota", "exhausted", "rate limit exceeded", "insufficient",
                             "not found", "invalid", "permission denied", "unauthor")):
@@ -278,18 +291,42 @@ def _la_loi_tam_thoi(loi: str) -> bool:
 _NHIP_THU_LAI = (2.0, 6.0)
 
 
-def _cau_bao_tam_thoi(loi: str) -> str:
-    """Câu nói cho người dùng khi thử lại hết nhịp mà vẫn gãy. Nói rõ LỖI CỦA AI."""
+def _cau_bao_tam_thoi(loi: str, so_lan: int = len(_NHIP_THU_LAI)) -> str:
+    """Câu nói cho người dùng khi thử lại hết nhịp mà vẫn gãy. Nói rõ LỖI CỦA AI.
+
+    `so_lan` is the number of retries that really ran: a turn that already used a tool is never
+    retried, and the old text claimed "retried 2 times" for it anyway (owner's screenshot 2026-10-18).
+    """
+    vi_thu = ("Javis đã tự thử lại " + str(so_lan) + " lần, vẫn chưa được.\n\n" if so_lan
+              else "Lượt này đã làm được một phần nên Javis không tự chạy lại, tránh làm một việc hai lần.\n\n")
+    en_thu = ("Javis retried " + str(so_lan) + " times without success.\n\n" if so_lan
+              else "This turn had already done part of the work, so Javis did not run it again (that would repeat it).\n\n")
     return localefmt.chu(
-        "Google (Antigravity) đang trục trặc tạm thời nên lượt này không gửi đi được. "
-        "Javis đã tự thử lại " + str(len(_NHIP_THU_LAI)) + " lần, vẫn chưa được.\n\n"
+        "Google (Antigravity) đang trục trặc tạm thời nên lượt này không gửi đi được. " + vi_thu +
         "Chờ một lát rồi nhắn lại, hoặc đổi sang bộ não khác ở trang Models. Đây là lỗi "
         "phía Google, không phải cấu hình của bạn.\n\n"
         "_Nguyên văn:_ " + (loi or "")[:400],
-        "Google (Antigravity) is having a temporary problem, so this turn could not be sent. "
-        "Javis retried " + str(len(_NHIP_THU_LAI)) + " times without success.\n\n"
+        "Google (Antigravity) is having a temporary problem, so this turn could not be sent. " + en_thu +
         "Wait a moment and send again, or switch to another brain on the Models page. This is an error "
         "on Google's side, not your configuration.\n\n"
+        "_Raw message:_ " + (loi or "")[:400])
+
+
+def _cau_bao_het_gio(loi: str, giay: float) -> str:
+    """Say what really happened when `agy` stops a turn at its time cap (see `_la_het_gio_luot`)."""
+    phut = max(1, int(round(giay / 60)))
+    return localefmt.chu(
+        "Lượt này chạy quá " + str(phut) + " phút nên Antigravity CLI tự dừng. Đây là trần thời gian "
+        "Javis đặt cho một lượt, không phải lỗi của Google hay cấu hình của bạn. Các bước đã chạy xong "
+        "vẫn giữ kết quả.\n\n"
+        "Nhắn \"làm tiếp\" để làm nốt phần còn lại, hoặc giao việc dài như vậy thành việc nền ở trang "
+        "Việc. Cần trần dài hơn thì đặt biến môi trường JAVIS_AGY_TIMEOUT (tính bằng giây).\n\n"
+        "_Nguyên văn:_ " + (loi or "")[:400],
+        "This turn ran over " + str(phut) + " minutes, so Antigravity CLI stopped it. That is the time "
+        "cap Javis sets for one turn, not a Google error or your configuration. Steps that finished keep "
+        "their results.\n\n"
+        "Send \"continue\" to finish the rest, or give a job this long to the background queue on the "
+        "Work page. For a longer cap, set the environment variable JAVIS_AGY_TIMEOUT (in seconds).\n\n"
         "_Raw message:_ " + (loi or "")[:400])
 
 
@@ -1317,11 +1354,13 @@ class AntigravityCLI:
         #   - lượt đó KHÔNG lấy được chữ nào (đã nhả chữ mà chạy lại là câu trả lời hiện hai lần);
         #   - lượt đó KHÔNG chạy tool nào (đã gửi tin, đã ghi file, đã đặt lịch thì chạy lại là
         #     làm hai lần) - cùng luật với đường API trong `engine.py`.
+        _da_thu = 0      # retries that really ran, for the message (see `_cau_bao_tam_thoi`)
         for _nhip in _NHIP_THU_LAI:
             if ket.get("text") or ket.get("co_tool"):
                 break
             if not any(_la_loi_tam_thoi(x) for x in ket.get("cac_loi") or []):
                 break
+            _da_thu += 1
             print(f"[antigravity] nhà cung cấp gãy tạm thời, chờ {_nhip}s rồi hỏi lại",
                   file=sys.stderr)
             await asyncio.sleep(_nhip)
@@ -1382,8 +1421,13 @@ class AntigravityCLI:
                 # Gãy tạm thời mà thử lại hết nhịp vẫn không xong: người dùng cần biết ĐÂY LÀ
                 # LỖI PHÍA GOOGLE và Javis đã tự thử lại rồi, chứ không phải một câu tiếng Anh
                 # sáu dòng nghe như mình cấu hình sai (chủ repo gửi đúng ảnh đó, 2026-09-08).
-                yield {"type": "error",
-                       "content": _cau_bao_tam_thoi(_l) if _la_loi_tam_thoi(_l) else _l}
+                if _la_het_gio_luot(_l):
+                    _noi = _cau_bao_het_gio(_l, self.timeout)
+                elif _la_loi_tam_thoi(_l):
+                    _noi = _cau_bao_tam_thoi(_l, _da_thu)
+                else:
+                    _noi = _l
+                yield {"type": "error", "content": _noi}
         text = ket.get("text") or ""
         if text:
             # Không nuốt chuyện này: trả lời mà thiếu system prompt thì vẫn trôi chảy, người dùng

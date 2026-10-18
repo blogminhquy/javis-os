@@ -1162,6 +1162,42 @@ try:
     chay(_gom(_g_t))
     check("CANARY: lượt đã chạy tool thì KHÔNG thử lại (không gửi tin hai lần)",
           (_d_t / "dem.txt").read_text().strip() == "1", (_d_t / "dem.txt").read_text())
+    _loi_t = " ".join(str(e.get("content") or "") for e in chay(_gom(_g_t)) if e["type"] == "error")
+    check("and its message does not claim retries that never ran (owner's screenshot 2026-10-18)",
+          "đã tự thử lại" not in _loi_t and "không tự chạy lại" in _loi_t, _loi_t[:300])
+
+    # `agy` stopping the turn at its own --print-timeout is not a Google outage (owner's screenshot
+    # 2026-10-18: "[agy] print timeout after 15m0s with turn in progress; returning partial output").
+    _LOI_HET_GIO = "[agy] print timeout after 15m0s with turn in progress; returning partial output"
+    check("the print timeout is recognised as the turn's time cap",
+          antigravity_cli._la_het_gio_luot(_LOI_HET_GIO))
+    check("CANARY: and is NOT treated as a temporary provider error (no retry, no 'Google' blame)",
+          not antigravity_cli._la_loi_tam_thoi(_LOI_HET_GIO))
+    check("a real 503 is still temporary", antigravity_cli._la_loi_tam_thoi(_LOI_503))
+    _reset_cache()
+    _cli_h, _d_h = _gia_gay_roi_hoi(0, [], stderr=_LOI_HET_GIO)
+    Path(_cli_h).write_text(
+        "#!/usr/bin/env python3\nimport sys, os\na = sys.argv[1:]\n"
+        f"if '--help' in a:\n    sys.stdout.write({_HELP_MOI!r}); sys.exit(0)\n"
+        f"dem = {str(_d_h / 'dem.txt')!r}\n"
+        "n = int(open(dem).read()) if os.path.exists(dem) else 0\n"
+        "open(dem, 'w').write(str(n + 1))\n"
+        "print(%r, flush=True)\n" % json.dumps(
+            {"type": "tool_use", "tool_name": "javis_write_file", "tool_id": "t1"}) +
+        f"sys.stderr.write({_LOI_HET_GIO!r}); sys.exit(1)\n",
+        encoding="utf-8")
+    Path(_cli_h).chmod(Path(_cli_h).stat().st_mode | stat.S_IEXEC)
+    antigravity_cli.find_antigravity_cli = lambda: _cli_h
+    _g_h = antigravity_cli.AntigravityCLI(cwd=str(_d_h))
+    _g_h.cli_path = _cli_h
+    _g_h.timeout = 900
+    _loi_h = " ".join(str(e.get("content") or "") for e in chay(_gom(_g_h)) if e["type"] == "error")
+    check("the turn that hit the cap runs exactly once (running it again would redo its steps)",
+          (_d_h / "dem.txt").read_text().strip() == "1", (_d_h / "dem.txt").read_text())
+    check("CANARY: the message says the turn ran too long, names the cap and how to go on",
+          "15 phút" in _loi_h and "làm tiếp" in _loi_h and "JAVIS_AGY_TIMEOUT" in _loi_h, _loi_h[:300])
+    check("and does not blame Google or claim retries",
+          "phía Google" not in _loi_h and "thử lại" not in _loi_h, _loi_h[:300])
 finally:
     antigravity_cli._NHIP_THU_LAI = _nhip_that
 
