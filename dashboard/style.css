@@ -3858,6 +3858,8 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
   text-align: left; text-transform: none; letter-spacing: normal; }
 .info-body[hidden] { display: none; }
 div.info-body > * { margin: 0; font-size: inherit; }
+/* A long item description on a card (plugin, workflow): two lines visible, the full text in the (i) block (0.212.0). */
+.j-clamp2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 /* A pair stands alone (no title to sit next to): the button keeps its own line height and no left margin. */
 .info-pair { display: inline-flex; align-items: center; }
 .info-pair > .info-i { margin-left: 0; }

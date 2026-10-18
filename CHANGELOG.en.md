@@ -10,7 +10,9 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.212.0] - 2026-10-18
 ### Improved
-- **Explanations fold into an (i) button** (in progress).
+- **Pages are much cleaner: explanations fold into an (i) button.** The page keeps titles, states, inputs and buttons; the why, the caveats and the step-by-step help sit behind the (i) next to the title and open on a tap. Applied across Javis: Models, Settings, Channels, Chatbots, Plugins, Learning, Work, Teams, Assistants, Usage.
+- **Long descriptions on cards (plugins, workflows) show two lines**, the full text is in the (i).
+- **Text in the explanation box is 16px**, easy to read on a phone.
 
 ## [0.211.0] - 2026-10-17
 ### Improved
