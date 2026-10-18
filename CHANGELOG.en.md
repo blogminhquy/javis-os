@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.217.0] - 2026-10-18
+### Fixed
+- **Wiki pages no longer vanish after a learning run.** (in progress)
+
 ## [0.216.0] - 2026-10-18
 ### Added
 - **The bot inbox can search by phone number.** 0912 345 678, 84912345678 and +84 912 345 678 all find the same person.
