@@ -140,12 +140,16 @@
     // ---- 5) Ngăn kéo điều hướng ----
     var toggle = document.getElementById("navToggle");
     var backdrop = document.getElementById("navBackdrop");
-    function openNav() { document.body.classList.add("nav-open"); if (backdrop) backdrop.hidden = false; }
+    // 0.216.0: một lần chạm trên điện thoại có thể tới thành HAI cú bấm (iPhone), cú thứ hai rơi đúng vào nút menu hoặc
+    // nền mờ vừa hiện ra và đóng ngay ngăn kéo vừa mở. Bỏ qua lệnh đóng bằng chạm trong NGAN_DONG ms sau khi mở.
+    var NGAN_DONG = 400, moLuc = 0;
+    function openNav() { document.body.classList.add("nav-open"); if (backdrop) backdrop.hidden = false; moLuc = Date.now(); }
     function closeNav() { document.body.classList.remove("nav-open"); if (backdrop) backdrop.hidden = true; }
+    function closeByTap() { if (Date.now() - moLuc >= NGAN_DONG) closeNav(); }
     if (toggle) toggle.addEventListener("click", function () {
-      document.body.classList.contains("nav-open") ? closeNav() : openNav();
+      document.body.classList.contains("nav-open") ? closeByTap() : openNav();
     });
-    if (backdrop) backdrop.addEventListener("click", closeNav);
+    if (backdrop) backdrop.addEventListener("click", closeByTap);
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeNav(); });
     if (railEl) railEl.addEventListener("click", function (e) {
       if (e.target.closest(".rail-item") && mq.matches) closeNav();  // chọn mục điều hướng -> đóng
@@ -249,7 +253,8 @@
       }
     });
 
-    var onChange = function () { applyAll(); closeNav(); };
+    // Chỉ đóng ngăn kéo khi THẬT SỰ sang màn rộng: trên màn rộng nó không phải ngăn kéo nữa.
+    var onChange = function () { applyAll(); if (!mq.matches) closeNav(); };
     if (mq.addEventListener) mq.addEventListener("change", onChange);
     else if (mq.addListener) mq.addListener(onChange);
   }

@@ -731,6 +731,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     gap: 4px;
     border-top: 0; border-right: 1px solid var(--glass-brd);
     transform: translateX(-100%); transition: transform .22s ease; z-index: 60; overflow-y: auto;
+    /* 0.216.0 (owner, iPhone): the drawer slid in then vanished, leaving only the dim backdrop. Safari can stop painting
+       a box that is blurred (backdrop-filter), moved (transform) and scrolled at once. The drawer sits over the dim
+       backdrop anyway, so it needs no blur: a solid background and its own layer. */
+    background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; will-change: transform;
   }
   body.nav-open .rail { transform: translateX(0); box-shadow: 8px 0 40px var(--shadow-veil); }
   .rail-top, .rail-foot { display: flex; }            /* hiện lại brand + version trong ngăn kéo */
@@ -751,8 +755,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .rail-sys-btns .hud-icon-btn { display: inline-flex; }
 
   /* Nền mờ khi mở ngăn kéo */
-  .nav-backdrop { position: fixed; inset: 0; background: var(--scrim); z-index: 55; }
-  .nav-backdrop[hidden] { display: none; }
+  /* Shown by the drawer's own state only (0.216.0): a dim screen with no drawer on it can no longer stay behind. */
+  .nav-backdrop, .nav-backdrop[hidden] { position: fixed; inset: 0; background: var(--scrim); z-index: 55; display: none; }
   body.nav-open .nav-backdrop { display: block; }
 
   /* Không còn chừa 56px đáy cho rail; chat chiếm hết */
