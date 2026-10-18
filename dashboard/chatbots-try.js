@@ -18,7 +18,7 @@
   function el(html) { var d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstChild; }
   function tt(k, v) { return window.t(k, v); }
   function ic(name) { return window.Icons ? window.Icons.ic(name) : ""; }
-  // (i) button (info-tip.js, 0.212.0): explanations sit behind it; without the helper (Node tests) they draw open.
+  // (i) button (info-tip.js, 0.214.0): explanations sit behind it; without the helper (Node tests) they draw open.
   function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(tt("info.more")) : ""; }
   function infoBody(html) {
     var J = typeof window !== "undefined" && window.JavisInfo;

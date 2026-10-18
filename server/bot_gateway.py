@@ -15,6 +15,9 @@ import asyncio
 import re
 import sys
 
+import localefmt
+import steer_inbox
+
 # ---- Dòng vết công cụ ----------------------------------------------------------------
 MAX_VET_TOOL = 6        # số tên công cụ hiện trên dòng vết, dư thì gộp thành "+n"
 # Tên công cụ nằm trong các chuỗi tiến trình do main.py bắn ra: "⚙ Đang gọi: X",
@@ -123,6 +126,15 @@ class HangLuot:
     `_cho`, `_stop`.
     """
 
+    @property
+    def _steer_meta(self):
+        """chat -> meta of the latest message held for its running turn (created on first use: the channel classes
+        build their own __init__)."""
+        d = self.__dict__.get("_steer_meta_d")
+        if d is None:
+            d = self.__dict__["_steer_meta_d"] = {}
+        return d
+
     def _busy(self, chat):
         t = self._current.get(chat)
         return bool(t and not t.done())
@@ -143,6 +155,7 @@ class HangLuot:
                 # cần nuốt để khỏi gửi trùng câu báo dừng) nên task kết thúc "bình thường" và
                 # `task.cancelled()` ở `_xong_luot` không bao giờ True.
                 self._cho.pop(chat, None)
+                steer_inbox.INBOX.drop(self._steer_sid(chat))   # 0.213.0: and what was sent for the turn mid-way
                 res = await self.command_fn("stop", "", chat, meta) if self.command_fn else None
                 # Chế độ người thật không có câu mặc định: "⏹ Đã dừng." là tiếng của máy. Bot
                 # chuyên trách vẫn nói được, nhưng bằng câu do command_fn của nó soạn.
@@ -184,8 +197,7 @@ class HangLuot:
                 # chứ không quay ra nói "đang xử lý câu trước". Gộp vào lượt kế tiếp.
                 self._xep_hang(chat, text, meta)
             else:
-                await self._send(client, chat,
-                                 "⏳ Đang xử lý câu trước. Gửi /stop để dừng rồi hỏi lại.")
+                await self._steer(client, chat, text, meta)
             return
         self._chay_luot(client, chat, text, meta)
 
@@ -204,8 +216,46 @@ class HangLuot:
             return
         o["texts"].append(str(text or ""))
 
+    # ---- Send more while Javis is working (0.213.0, the chat-channel side of 0.206.0) ----
+    def _steer_sid(self, chat):
+        """The steer_inbox key of one chat on THIS bot: two bots (or two channels) can share a chat id."""
+        return f"kenh:{id(self)}:{chat}"
+
+    async def _steer(self, client, chat, text, meta=None):
+        """The owner wrote again while their turn runs. Before 0.213.0 the bot answered "busy, send /stop" and the
+        message was lost. Now the running turn reads it at its next step (Claude Code after a tool call, the API
+        engines before the next model round); a one-shot engine, or a turn already writing its answer, leaves it for
+        the turn that runs right after this one (`_turn` puts the unread rest back in the queue)."""
+        sid = self._steer_sid(chat)
+        if steer_inbox.INBOX.put(sid, text) is not None:
+            self._steer_meta[chat] = meta
+            live = steer_inbox.INBOX.live(sid)
+        else:
+            self._xep_hang(chat, text, meta)   # the turn has not opened its inbox yet, or too many are waiting
+            live = False
+        await self._send(client, chat, localefmt.chu(
+            "↪ Đã nhận, Javis đọc tin này ngay ở bước kế tiếp của việc đang làm.",
+            "↪ Got it, Javis reads this at the next step of the current work.") if live else localefmt.chu(
+            "📥 Đã nhận, Javis làm tin này ngay sau câu đang trả lời.",
+            "📥 Got it, Javis handles this right after the current answer."))
+
+    async def _turn(self, client, chat, text, meta=None):
+        if self.giau_trang_thai:
+            # Customer-facing bots keep their own rule: messages sent meanwhile are merged into the next turn.
+            return await self._handle_turn(client, chat, text, meta)
+        sid = self._steer_sid(chat)
+        token = steer_inbox.INBOX.open(sid)
+        try:
+            return await self._handle_turn(client, chat, text, meta)
+        finally:
+            left = steer_inbox.INBOX.close(sid, token=token)
+            meta_moi = self._steer_meta.pop(chat, None)
+            if left:
+                o = self._cho.setdefault(chat, {"texts": [], "meta": meta_moi or meta})
+                o["texts"][:0] = [i["text"] for i in left]
+
     def _chay_luot(self, client, chat, text, meta=None):
-        task = asyncio.create_task(self._handle_turn(client, chat, text, meta))
+        task = asyncio.create_task(self._turn(client, chat, text, meta))
         self._current[chat] = task
         task.add_done_callback(lambda t, c=chat: self._xong_luot(client, c, t))
 

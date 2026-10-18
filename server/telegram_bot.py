@@ -218,7 +218,8 @@ class TelegramBot(HangLuot):
         # cùng 1 tài khoản vẫn tuần tự (1 lượt/lúc). Map chat_id(str) -> asyncio.Task.
         self._current = {}
         # Tin đến trong lúc chat đó đang bận, chờ trả lời xong lượt trước rồi gộp làm một lượt.
-        # Chỉ dùng ở chế độ người thật; chế độ chủ vẫn báo "đang xử lý câu trước" như cũ.
+        # Human mode merges them here. Owner mode (0.213.0) hands them to the running turn first
+        # (bot_gateway._steer); whatever that turn never read lands here too, for the next turn.
         # chat_id(str) -> {"texts": [str], "meta": dict}
         self._cho = {}
         self._stop = False

@@ -58,6 +58,9 @@ class SteerInbox:
         self._ids = itertools.count(1)
         self._clock = clock
         self.on_read: Optional[Callable[[str, List[int]], None]] = None
+        # Per-turn: where a read message is written into the chat history (0.213.0, chat channels). The web dashboard
+        # stores the owner's message when it arrives; a channel turn only knows its stored session once it has started.
+        self._sinks: Dict[str, Callable[[List[str]], None]] = {}
 
     # -- one turn's lifetime --
     def open(self, sid: str, tag: str = "") -> contextvars.Token:
@@ -77,6 +80,7 @@ class SteerInbox:
         """The turn ended: returns what it never read (to run as the next turn) and forgets the turn."""
         with self._lock:
             self._live.pop(sid, None)
+            self._sinks.pop(sid, None)
             if tag:
                 self._tags.pop(tag, None)
             left = self._pending.pop(sid, [])
@@ -86,6 +90,26 @@ class SteerInbox:
             except ValueError:
                 pass
         return left
+
+    def set_sink(self, sid: str, sink: Optional[Callable[[List[str]], None]]) -> None:
+        """While the turn of `sid` runs, `sink(texts)` gets every message it reads (0.213.0)."""
+        with self._lock:
+            if sid in self._live and sink is not None:
+                self._sinks[sid] = sink
+
+    def drop(self, sid: str) -> List[dict]:
+        """Forget what is waiting for the turn of `sid` without ending it (a /stop on a chat channel)."""
+        with self._lock:
+            return self._pending.pop(sid, [])
+
+    def requeue(self, sid: str, items: List[dict]) -> bool:
+        """Put back messages an engine took but could not hand over (Codex refused a steer because its turn had just
+        ended): ahead of anything newer, so the next turn runs them in order. False once the turn is over."""
+        with self._lock:
+            if sid not in self._live or not items:
+                return False
+            self._pending[sid] = list(items) + self._pending.get(sid, [])
+            return True
 
     def running(self, sid: str) -> bool:
         with self._lock:
@@ -115,6 +139,12 @@ class SteerInbox:
     def take(self, sid: str) -> List[dict]:
         with self._lock:
             items = self._pending.pop(sid, [])
+            sink = self._sinks.get(sid) if items else None
+        if sink is not None:
+            try:
+                sink([i["text"] for i in items])
+            except Exception:
+                pass
         if items and self.on_read:
             try:
                 self.on_read(sid, [i["id"] for i in items])
@@ -134,6 +164,11 @@ class SteerInbox:
         with self._lock:
             sid = self._tags.get(tag or "", "")
         return self.take_note(sid)
+
+
+def current_sid() -> str:
+    """The chat whose turn runs in this context ("" outside one)."""
+    return _CURRENT.get()
 
 
 INBOX = SteerInbox()

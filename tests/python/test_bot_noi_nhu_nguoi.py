@@ -162,21 +162,27 @@ async def t_ban_thi_xep_hang():
           thay == ["anh có nói chuyện được với em không javis vũ", ":)\nalo"])
     check("khách: cả hai lượt đều có câu trả lời gửi đi", len(tg.texts()) == 2)
 
-    # Chủ: giữ nguyên câu báo bận - đó là thông tin có ích cho người đang vận hành máy.
+    # Owner bot: until 0.212 it answered "busy, send /stop" and the message was lost. Since 0.213.0 the message is
+    # handed to the running turn, and what that turn never reads runs right after (test_steer_kenh_0213.py).
     cong2 = asyncio.Event()
+    thay2 = []
 
     async def answer2(text, meta, progress):
-        await cong2.wait()
+        thay2.append(text)
+        if len(thay2) == 1:
+            await cong2.wait()
         return "xong"
 
     tg2 = FakeTelegram()
     b2 = bot_chu(answer2)
     await b2._dispatch(tg2, "42", "câu 1", {})
+    await asyncio.sleep(0)
     await b2._dispatch(tg2, "42", "câu 2", {})
-    check("chủ: vẫn báo 'Đang xử lý câu trước' như cũ",
-          any("Đang xử lý câu trước" in t for t in tg2.texts()))
+    check("chủ: no more 'Đang xử lý câu trước', an acknowledgement instead",
+          not any("câu trước" in t for t in tg2.texts()) and any(t[:1] in ("↪", "📥") for t in tg2.texts()))
     cong2.set()
     await cho_xong(b2, "42")
+    check("chủ: the message sent meanwhile is not lost", thay2 == ["câu 1", "câu 2"])
 
 
 async def t_tran_hang_cho():

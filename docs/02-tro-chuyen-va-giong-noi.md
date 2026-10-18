@@ -115,9 +115,12 @@ Nút dừng chỉ dừng **phiên bạn đang xem**; phiên khác đang chạy n
 Từ 0.206.0, trong lúc Javis đang làm bạn vẫn gõ và gửi tiếp được, giống Claude Code hay Codex. Gõ chữ vào ô nhập thì nút gửi hiện lại ngay cạnh nút dừng (chú thích "Gửi thêm vào việc đang làm"), trên máy tính nhấn Enter cũng được. Việc đang làm **không bị dừng**:
 
 - Với Claude Code và các bộ não dùng API key, Javis đọc tin mới ở **bước kế tiếp** (sau lần dùng công cụ đang chạy) rồi làm luôn. Tin là lời sửa hướng thì Javis áp dụng ngay, là việc mới thì Javis nhận thêm, làm song song nếu được, và trả lời cả hai.
-- Với Codex, Grok Build và Antigravity CLI (chạy một mạch, không nhận tin giữa chừng), hoặc khi Javis đang viết câu trả lời cuối, tin của bạn **tự chạy thành lượt kế tiếp** ngay khi việc hiện tại xong. Không tin nào bị mất.
+- Từ 0.213.0, Codex (gói ChatGPT) cũng đọc tin mới ngay trong lượt, giống nút Enter của chính ứng dụng Codex: tin gửi lúc Codex đang chạy lệnh được chèn vào bước kế tiếp, tin gửi lúc Codex đang viết câu cuối thì Codex làm thêm một vòng trong cùng lượt để trả lời nốt. Muốn quay về cách cũ (để tin chờ tới lượt sau) thì đặt biến môi trường `JAVIS_CODEX_STEER=0` rồi khởi động lại Javis.
+- Với Grok Build và Antigravity CLI (chạy một mạch, không nhận tin giữa chừng), hoặc khi Javis đang viết câu trả lời cuối, tin của bạn **tự chạy thành lượt kế tiếp** ngay khi việc hiện tại xong. Không tin nào bị mất.
 
 Dưới tin bạn vừa gửi có một dòng nhỏ cho biết nó đang ở đâu: "Javis sẽ đọc tin này ở bước kế tiếp", "Javis đã đọc tin này", "Javis làm tin này ngay sau khi xong việc hiện tại" hoặc "Javis đang làm tin này". Gửi được nhiều tin liên tiếp, Javis đọc theo đúng thứ tự. Muốn bỏ hẳn việc đang làm thì vẫn bấm nút dừng như cũ.
+
+Từ 0.213.0, Telegram, Discord, Slack, Lark, Messenger và Zalo cũng vậy. Trước đây bot trả lời "Đang xử lý câu trước, gửi /stop" rồi bỏ tin đó. Giờ bot đáp một dòng ngắn: "↪ Đã nhận, Javis đọc tin này ngay ở bước kế tiếp" hoặc "📥 Đã nhận, Javis làm tin này ngay sau câu đang trả lời", rồi làm theo đúng hai cách ở trên. Gửi /stop thì dừng việc đang làm và bỏ luôn các tin đang chờ. Bot chăm sóc khách (chế độ người thật) giữ cách cũ: không đáp gì, gộp các tin khách nhắn thêm vào lượt sau.
 
 ## Lệnh gạch chéo "/" trong ô chat
 

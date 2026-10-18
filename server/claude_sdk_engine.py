@@ -853,7 +853,8 @@ class ClaudeSDK:
         if _deny:
             kw["disallowed_tools"] = _deny
         # 0.206.0: a chat turn reads what the owner sends while it runs, after each tool call (steer_inbox.py).
-        if "hooks" in fields and str(self.tag or "").startswith("chat:"):
+        # 0.213.0: also a chat-channel turn (tag "telegram:<chat>", every channel) whose gateway opened an inbox.
+        if "hooks" in fields and self._steer_on():
             try:
                 from claude_agent_sdk import HookMatcher
                 kw["hooks"] = {"PostToolUse": [HookMatcher(matcher=None, hooks=[self._steer_hook])],
@@ -907,6 +908,20 @@ class ClaudeSDK:
         return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                        "permissionDecisionReason": msg}}
 
+    def _steer_on(self) -> bool:
+        """Does this turn read what the owner sends mid-way? Web chat turns always; a chat-channel turn only when its
+        gateway opened an inbox (bot_gateway._turn; customer bots do not). Background forks and loops never."""
+        tag = str(self.tag or "")
+        if tag.startswith("chat:"):
+            return True
+        if not tag.startswith("telegram:"):
+            return False
+        try:
+            import steer_inbox
+            return steer_inbox.INBOX.running(steer_inbox.current_sid())
+        except Exception:
+            return False
+
     async def _steer_hook(self, input_data, tool_use_id, context):
         """PostToolUse: hand the turn what the owner sent meanwhile, as extra context the model reads before its next
         step (0.206.0). Only on the main thread: a tool call inside a sub-agent carries agent_id and is left alone."""
@@ -915,6 +930,9 @@ class ClaudeSDK:
                 return {}
             import steer_inbox
             note = steer_inbox.INBOX.take_note_for_tag(self.tag)
+            if not note and str(self.tag or "").startswith("telegram:"):
+                # A channel turn is keyed by its gateway, not by the engine tag: read the inbox of this context.
+                note = steer_inbox.INBOX.take_note_current()
         except Exception:
             return {}
         if not note:

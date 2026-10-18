@@ -575,7 +575,7 @@
       // tiết kiệm đi: "chưa chạy lượt nào" với "bạn đang chỉnh tay nên Javis không biết cấu
       // hình đó tốn bao nhiêu".
       if (k.khong_do_duoc) {
-        // The reason is state, like "chua_luot" below, so it stays open (review 0.212.0).
+        // The reason is state, like "chua_luot" below, so it stays open (review 0.214.0).
         return '<div class="tk-a"><div class="h">' + ic("sparkles", { cls: "ic-sm" }) + window.t("usage.tk.tieu_de") + "</div>"
           + '<div class="big">-</div><div class="s">' + window.t("usage.tk.chinh_tay") + "</div></div>";
       }

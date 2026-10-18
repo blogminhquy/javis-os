@@ -18,7 +18,7 @@
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
-  // (i) button (info-tip.js, 0.212.0): explanations sit behind it; without the helper (Node tests) they draw open.
+  // (i) button (info-tip.js, 0.214.0): explanations sit behind it; without the helper (Node tests) they draw open.
   function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(window.t("info.more")) : ""; }
   function infoBody(html) {
     var J = typeof window !== "undefined" && window.JavisInfo;
@@ -139,7 +139,7 @@
             esc(window.t("cb.bot_moi")) + '</button>' +
         '</div>' +
         '<div class="cb-loc"></div>' +
-        // One short line stays on the page; the rest of the intro folds behind (i) (0.212.0).
+        // One short line stays on the page; the rest of the intro folds behind (i) (0.214.0).
         '<div class="cb-intro">' + esc(window.t("cb.intro_1")) + ' <b>' + esc(brain()) + '</b>' + infoBtn() + '</div>' +
         infoBody(esc(window.t("cb.intro_2").replace(/^[.\s]+/, "")) + ' <b>Agent</b> ' +
           esc(window.t("cb.intro_3")) + esc(window.t("cb.intro_4")) +
@@ -324,7 +324,7 @@
         ' <b>' + esc(window.t("cb.rt_lenh")) + '</b> ' + esc(window.t("cb.rt_va")) +
         ' <b>' + esc(window.t("cb.rt_tra_thang")) + '</b>' +
         esc(b.reply_when === "always" || b.reply_when === "auto" ? window.t("cb.rt_always") : window.t("cb.rt_mention")) + '.' +
-        // The problem stays visible; how to fix it opens from (i) (0.212.0).
+        // The problem stays visible; how to fix it opens from (i) (0.214.0).
         infoBtn() + '</span>' + infoBody(esc(window.t("cb.rt_fix_1")) + ' <b>@BotFather</b> ' + esc(window.t("cb.rt_go")) +
         ' <b>/setprivacy</b>' + esc(window.t("cb.rt_fix_2")) + ' <b>Disable</b>' +
         esc(window.t("cb.rt_fix_3")) + ' <b>' + esc(window.t("cb.rt_quan_tri")) + '</b>. ' +
@@ -667,7 +667,7 @@
   function veCanhBao(id) {
     var m = mucCua(id);
     if (!(m.canh_bao || []).length) {
-      // What this level allows: the level name stays, the description opens from (i) (0.212.0).
+      // What this level allows: the level name stays, the description opens from (i) (0.214.0).
       return '<div class="cb-hint">' + esc(m.nhan) + infoBtn() + '</div>' +
         infoBody(esc(window.t(id === "read_docs" ? "cb2.mq_read_docs" : "cb2.mq_doc")));
     }
@@ -893,7 +893,7 @@
                 // What the picked mode does (filled by veRw), behind the (i) of the label above.
                 '<div class="info-body" id="cbRwH" hidden></div>' +
               '</div>' +
-              // A required fix (privacy off in BotFather), shown only when it applies: stays open (review 0.212.0).
+              // A required fix (privacy off in BotFather), shown only when it applies: stays open (review 0.214.0).
               '<div class="cb-hint cb-chi-tg" id="cbRwTg">' + ic("triangle-alert") + ' <b>Telegram</b>: ' +
                 esc(window.t("cb2.rw_tg")) + '</div>' +
               // Chỉ hiện khi chọn "Tự đánh giá": một dòng giải thích, không ô cài đặt nào (bộ phán xử tự vận hành).

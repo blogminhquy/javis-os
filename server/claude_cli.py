@@ -1560,6 +1560,9 @@ class CodexCLI:
         # Off otherwise, because an override under mcp_servers.javis with no hub entry would
         # create a broken half-entry.
         self.hub_turn = False
+        # True only on the main engine of a chat turn (web or chat channel, set by main.py): the turn then runs on
+        # `codex app-server` and takes the owner's messages mid-way (codex_steer.py, 0.213.0).
+        self.steer = False
 
     def is_available(self) -> bool:
         return self.cli_path is not None
@@ -1604,6 +1607,28 @@ class CodexCLI:
         return args
 
     async def query(self, prompt: str) -> AsyncIterator[dict]:
+        if self.cli_path:
+            import codex_steer
+            if codex_steer.wanted(self):
+                agen = codex_steer.run(self, prompt)
+                try:
+                    first = await agen.__anext__()
+                except StopAsyncIteration:
+                    return
+                except codex_steer.Fallback:
+                    first = None   # could not start on app-server: the exec path below, as before 0.213.0
+                if first is not None:
+                    try:
+                        yield first
+                        async for ev in agen:
+                            yield ev
+                    finally:
+                        await agen.aclose()   # Stop or an abandoned turn: close app-server now, not at GC
+                    return
+        async for ev in self._query_exec(prompt):
+            yield ev
+
+    async def _query_exec(self, prompt: str) -> AsyncIterator[dict]:
         if not self.cli_path:
             yield {"type": "error", "content": localefmt.chu("Không tìm thấy Codex CLI (cần ChatGPT login qua codex).",
                                                              "Codex CLI not found (ChatGPT sign-in through codex is needed).")}

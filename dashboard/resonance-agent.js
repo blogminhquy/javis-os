@@ -157,7 +157,7 @@
   function settingsHtml(data, unassigned) {
     var d = data || {};
     var agents = d.agents || [];
-    // 0.212.0: what Auto does sits behind the (i) at the end of the first line (summary, or the empty note).
+    // 0.214.0: what Auto does sits behind the (i) at the end of the first line (summary, or the empty note).
     var html = "";
     var nOn = agents.filter(function (a) { return a && a.enabled && a.status === "active"; }).length;
     html += agents.length

@@ -207,7 +207,7 @@
   const liteMode = () => !graphEnabled || isNarrow();
 
   const esc = (s) => (s || "").toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  // (i) button (info-tip.js, 0.212.0): long explanations hide behind it. Without info-tip.js
+  // (i) button (info-tip.js, 0.214.0): long explanations hide behind it. Without info-tip.js
   // (Node tests) the text is drawn open so nothing is lost.
   const _infoLabel = () => (typeof window.t === "function" ? window.t("info.more") : "i");
   function infoBtn() { const J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(_infoLabel()) : ""; }
@@ -1059,7 +1059,7 @@
   // muốn đổi file, nhưng nó không còn là câu trả lời chính.
   function _updVimSaoKhongCoNut(maLyDo) {
     if (maLyDo === "watchtower_off") {
-      // Short reason stays visible; the how-to folds into the (i) block (0.212.0).
+      // Short reason stays visible; the how-to folds into the (i) block (0.214.0).
       return window.t("cs.upd_wt_a") + " <b>" + window.t("cs.upd_wt_b") + "</b>" + infoBtn() + infoBody(window.t("cs.upd_wt_c")
         + "<br><code>curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.yml</code>"
         + "<br><code>docker compose up -d --pull always</code><br>"
@@ -1805,7 +1805,7 @@
       card.innerHTML =
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'
         + '<div style="min-width:0">'
-        // Server description: two clamped lines, the full text in (i) when it is long (0.212.0).
+        // Server description: two clamped lines, the full text in (i) when it is long (0.214.0).
         + '<div style="font-weight:600">' + esc(ct.ten) + ((ct.mo_ta || "").length > 100 ? infoBtn() : "") + '</div>'
         + '<div class="j-clamp2" style="color:var(--text3);font-size:13px;margin-top:3px">' + esc(ct.mo_ta) + '</div>'
         + ((ct.mo_ta || "").length > 100 ? infoBody(esc(ct.mo_ta)) : "")
@@ -3567,7 +3567,7 @@
     el.innerHTML =
       '<div class="gcard ol-empty">' +
         '<div class="ol-empty-ico">' + ic("cpu", { cls: "ic-xl" }) + "</div>" +
-        // 0.212.0: what Ollama is, the Docker caveat and the VPS how-to fold into (i) blocks.
+        // 0.214.0: what Ollama is, the Docker caveat and the VPS how-to fold into (i) blocks.
         '<div class="ol-empty-title">' + esc(t("ol.title")) + infoBtn() + "</div>" +
         infoBody('<div class="ol-empty-desc">' + esc(t("ol.desc")) + "</div>" +
           (xa ? '<div class="ol-note">' + ic("info") + "<span>" + esc(t("ol.note_docker")) + "</span></div>" +
@@ -3575,7 +3575,7 @@
               : "")) +
         (xa ? "" : '<div class="ol-note">' + ic("info") + "<span>" + esc(t("ol.note_native")) + "</span></div>") +
         (xa
-          // The steps are the action itself, so they stay open; only the firewall caveat folds (review 0.212.0).
+          // The steps are the action itself, so they stay open; only the firewall caveat folds (review 0.214.0).
           ? '<div class="ol-step">' + esc(t("ol.dk_title")) + "</div>" +
             '<div class="ol-buoc">1. ' + esc(t("ol.dk_b1")) + "</div>" +
             '<div class="ol-buoc">2. ' + esc(t("ol.dk_b2")) + "</div>" +
@@ -3602,7 +3602,7 @@
         "</div>" +
         // Dò không ra cổng (mạng Docker lạ, hoặc chạy --network=host) thì nói thẳng là phải
         // tự tìm, kèm đúng một lệnh tìm. Im lặng để ô trống là đẩy người dùng vào ngõ cụt.
-        // It is the only instruction for the empty box, so it stays open (review 0.212.0).
+        // It is the only instruction for the empty box, so it stays open (review 0.214.0).
         (xa && !st.goi_y_endpoint
           ? '<div class="ol-note ol-warn">' + ic("triangle-alert") + "<span>" +
             esc(t("ol.dk_khong_do_duoc")) + "</span></div>" +
@@ -3685,7 +3685,7 @@
     let than = "";
     if (sp.source === "unknown") {
       // Không đoán bừa: nói thẳng là chưa biết, và vì sao lại chưa biết được.
-      // Folded into (i) next to the section title (0.212.0).
+      // Folded into (i) next to the section title (0.214.0).
       than = infoBody('<div class="ol-note">' + ic("triangle-alert") + "<span>" + esc(t("ol.specs_unknown")) + "</span></div>");
     } else {
       than = '<div class="ol-chips">' +
@@ -4530,7 +4530,7 @@
     // that is not there (the record of the last update outlives an uninstall).
     box.style.display = d.cli_missing ? "none" : "";
     if (d.cli_missing) { box.innerHTML = ""; return; }
-    // Docker: the explanation folds into (i) next to the product name (0.212.0).
+    // Docker: the explanation folds into (i) next to the product name (0.214.0).
     if (d.cap_nhat_docker) { box.innerHTML = `<div>Claude Code${infoBtn()}</div>${infoBody(esc(t("models.cc_upd_docker")))}`; return; }
     const cn = d.cap_nhat || {};
     let dong = cn.sau ? t("models.cc_upd_ver", { v: cn.sau }) + " · " : "";
@@ -4948,7 +4948,7 @@
   function connectorCard(con, conns) {
     const chips = conns.map(connChip).join("")
       + '<button class="conn-chip add" data-addacc="' + esc(con.id) + '">＋ ' + esc(window.t("cs.cn_add_account")) + '</button>';
-    // Catalog descriptions run up to ~320 chars: two clamped lines, the full text in (i) (0.212.0).
+    // Catalog descriptions run up to ~320 chars: two clamped lines, the full text in (i) (0.214.0).
     const dai = (con.description || "").length > 100;
     return '<div class="prov-card conn-card">'
       + '<div class="prov-head"><span class="conn-ico">' + iconInner(con) + '</span>'
@@ -7279,7 +7279,7 @@
       const cur = P.get();
       // Thứ tự: HÌNH DÁNG trước (thứ người ta tới đây để đổi), rồi cỡ, màu, màu mắt, và CUỐI
       // CÙNG mới tới khối nút Lưu / Tắt / Đặt lại. Chủ dự án chốt 15/09.
-      // What the pet does and how to handle it fold into (i) by the heading (0.212.0). Tests run
+      // What the pet does and how to handle it fold into (i) by the heading (0.214.0). Tests run
       // this body on its own, so the (i) helpers are local copies here.
       const JI = window.JavisInfo;
       const infoBtn = () => (JI ? JI.btn(t("info.more")) : "");
@@ -7342,7 +7342,7 @@
       aria-pressed="${mode === v}"><span class="seg-lb">${esc(lb)}</span>
       <span class="seg-d">${esc(d)}</span></button>`;
     const now = mode === "auto" ? themeNowText(T) : "";
-    // (i) helpers as local copies: a test runs this body on its own (0.212.0).
+    // (i) helpers as local copies: a test runs this body on its own (0.214.0).
     const JI = window.JavisInfo;
     const infoBtn = () => (JI ? JI.btn(t("info.more")) : "");
     const infoBody = (h) => (JI ? JI.body(h) : '<div class="info-body">' + h + "</div>");

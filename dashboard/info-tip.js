@@ -10,7 +10,7 @@
  * Nút tìm khối `.info-body` ĐẦU TIÊN đứng sau phần tử chứa nó (hay sau tầng cha gần nhất có khối đó). Vẽ lại là đóng lại, đúng ý: giải thích là thứ đọc một lần.
  * Mô-đun nào chạy không có file này (test Node) thì tự vẽ lời giải thích ra luôn, không mất chữ.
  *
- * 0.212.0, owner 2026-10-18: the rule now covers the whole dashboard ("các dòng giải thích gọn lại trong chữ (i) chứ không
+ * 0.214.0, owner 2026-10-18: the rule now covers the whole dashboard ("các dòng giải thích gọn lại trong chữ (i) chứ không
  * để xổ hết ra bên ngoài"), written in docs/quy-uoc-dev.md and enforced by tests/python/test_info_tip_rule.py.
  *   JavisInfo.pair(html, label)  button and its hidden block side by side, for a spot with no title to sit next to.
  * In static HTML: <button type="button" class="info-i" aria-expanded="false" data-i18n-aria="info.more" data-i18n-title="info.more"><i data-ic="info"></i></button>

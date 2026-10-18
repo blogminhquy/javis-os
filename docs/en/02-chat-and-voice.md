@@ -99,9 +99,12 @@ The stop button only stops **the session you are looking at**; other sessions ru
 From 0.206.0 you can keep typing and sending while Javis works, like in Claude Code or Codex. As soon as there is text in the box, the send button comes back next to the stop button (tooltip "Send to the work in progress"); Enter works too on a computer. The running work is **not stopped**:
 
 - With Claude Code and the API-key brains, Javis reads the new message at its **next step** (after the tool call in progress) and acts on it. A correction is applied at once; a new task is taken on as well, in parallel where possible, and both are answered.
-- With Codex, Grok Build and Antigravity CLI (which run in one go and take no input mid-way), or when Javis is already writing its final answer, your message **runs as the next turn** as soon as the current work ends. Nothing is lost.
+- From 0.213.0 Codex (ChatGPT plan) also reads the new message within the turn, like Enter in the Codex app itself: a message sent while Codex runs a command joins the next step, and one sent while Codex writes its final answer makes Codex do one more round in the same turn to cover it. To go back to the old way (the message waits for the next turn), set the environment variable `JAVIS_CODEX_STEER=0` and restart Javis.
+- With Grok Build and Antigravity CLI (which run in one go and take no input mid-way), or when Javis is already writing its final answer, your message **runs as the next turn** as soon as the current work ends. Nothing is lost.
 
 A small line under the message you sent says where it is: "Javis will read this at its next step", "Javis has read this", "Javis will do this right after the current task" or "Javis is working on this now". You can send several in a row; Javis reads them in order. To drop the current work altogether, press stop as before.
+
+From 0.213.0 the same goes for Telegram, Discord, Slack, Lark, Messenger and Zalo. Before, the bot replied "Still on the previous message, send /stop" and dropped yours. Now it answers with one short line, "↪ Got it, Javis reads this at the next step of the current work" or "📥 Got it, Javis handles this right after the current answer", and then works in the two ways above. /stop ends the current work and drops what was waiting. Customer-facing bots (human mode) keep their old way: no reply line, and follow-up messages are merged into the next turn.
 
 ## Slash "/" commands in the chat box
 

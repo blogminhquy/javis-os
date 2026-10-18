@@ -63,7 +63,7 @@ không được là tiếng Việt trần:
 - **KHÔNG dịch:** prompt và mô tả tool gửi cho model, regex nhận câu người dùng gõ hay nói, log,
   nội dung ghi vào brain của người dùng. Lý do ở `docs/dev/them-mot-ngon-ngu.md`.
 
-## Chữ giải thích gập vào nút (i) (từ 0.212.0)
+## Chữ giải thích gập vào nút (i) (từ 0.214.0)
 
 Chủ repo chốt 18/10/2026: "có quá nhiều dòng giải thích, anh muốn các dòng giải thích đấy gọn lại trong chữ (i)
 chứ không để xổ hết ra bên ngoài". Luật cứng cho MỌI màn hình của dashboard:

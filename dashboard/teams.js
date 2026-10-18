@@ -30,7 +30,7 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
-  // 0.212.0: the (i) button and its hidden block (info-tip.js); in Node tests (no JavisInfo) the text is drawn open.
+  // 0.214.0: the (i) button and its hidden block (info-tip.js); in Node tests (no JavisInfo) the text is drawn open.
   function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(tw("info.more")) : ""; }
   function infoBody(html) {
     var J = typeof window !== "undefined" && window.JavisInfo;
@@ -1214,7 +1214,7 @@
         "</div></fieldset>";
     }
     var lvl = levelOf(team);
-    // 0.212.0: what each level allows sits behind the (i) in the legend; the choices keep their short names.
+    // 0.214.0: what each level allows sits behind the (i) in the legend; the choices keep their short names.
     legend = '<legend class="tm-qhead">' + esc(tw("teams.level_title")) + infoBtn() + "</legend>" +
       infoBody(LEVELS.map(function (L) { return "<div><b>" + esc(tw(L.key)) + "</b>: " + esc(tw(L.desc)) + "</div>"; }).join(""));
     return '<fieldset class="tm-levels">' + legend + LEVELS.map(function (L) {
@@ -1576,7 +1576,7 @@
   // 0.207.0: what the team may do outside without asking. Gated (default): outside actions wait for an approval card.
   function workModeHtml(team) {
     var full = team.work_mode === "full";
-    // 0.212.0: what each choice does sits behind the (i) next to the title; the choices keep their short names.
+    // 0.214.0: what each choice does sits behind the (i) next to the title; the choices keep their short names.
     return '<section class="tm-sec tm-wm" aria-label="' + esc(tw("teams.wm.title")) + '"><div class="tm-qhead">' +
       esc(tw("teams.wm.title")) + infoBtn() + "</div>" +
       infoBody(["gated", "full"].map(function (m) {

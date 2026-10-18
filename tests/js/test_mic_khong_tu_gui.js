@@ -104,7 +104,9 @@ const ghiUser = (server.match(/append_message\([^)]*"user"/g) || []).length;
 // Javis tự nói tiếp. Không phải chữ của mic nên không đụng luật "mic không tự gửi".
 // 0.206.0 thêm chỗ thứ bảy: tin GÕ thêm trong lúc lượt đang chạy (action "steer", steer_inbox.py), ghi ngay khi tới để
 // lịch sử đúng thứ tự. Người dùng tự gõ và bấm gửi, không phải mic tự gửi.
-check("chỉ 7 chỗ ghi vai user (web + bot + 2 Live + duyệt quy trình + nối tiếp việc nền + gửi thêm lúc đang chạy)", ghiUser === 7, ghiUser);
+// 0.213.0 adds the eighth: a message typed on a chat channel (Telegram, Zalo...) while a turn runs is written to the
+// session when that turn reads it (steer_inbox sink in _tg_answer). Typed and sent by the owner, never the mic.
+check("chỉ 8 chỗ ghi vai user (web + bot + 2 Live + duyệt quy trình + nối tiếp việc nền + gửi thêm lúc đang chạy, web và kênh)", ghiUser === 8, ghiUser);
 check("chỗ thứ sáu nằm TRONG _start_followup_turn",
   /async def _start_followup_turn[\s\S]{0,1600}store\.append_message\(conv_sid, "user", text\)/.test(server));
 const approvalBody = server.slice(server.indexOf('if action == "wf_resume":'), server.indexOf('if action == "resume_now":'));

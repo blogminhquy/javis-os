@@ -88,7 +88,7 @@
     });
   }
   function el(html) { var d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstChild; }
-  // (i) button (info-tip.js, 0.212.0): explanations sit behind it; without the helper (Node tests) they draw open.
+  // (i) button (info-tip.js, 0.214.0): explanations sit behind it; without the helper (Node tests) they draw open.
   function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(window.t("info.more")) : ""; }
   function infoBody(html) {
     var J = typeof window !== "undefined" && window.JavisInfo;
@@ -391,7 +391,7 @@
       box.innerHTML = '<div class="ht-empty">' + ic("messages-square") +
         '<b>' + esc(_q || _kenhLoc || _botLoc || _tkLoc || _statusLoc || _typeLoc ? window.t("ht.khong_khop") : window.t("ht.chua_co")) +
           (!coNguon ? infoBtn() : "") + '</b>' +
-        // Where messages come from opens from (i); the button to add an account stays visible (0.212.0).
+        // Where messages come from opens from (i); the button to add an account stays visible (0.214.0).
         (!coNguon ? infoBody(esc(window.t("ht.chua_co_goi_y"))) +
           '<button class="s-btn ht-mo-kenh" type="button">' + ic("plug") + ' ' + esc(window.t("ht.them_tk")) + '</button>' : "") +
         '</div>';
@@ -856,7 +856,7 @@
     if (!ds.length) {
       g.innerHTML = '<div class="ht-empty ht-kenh-het">' + ic("plug") +
         '<b>' + esc(window.t(_tk.length ? "ht.kenh_ranh_het" : "ht.tk_rong")) + (_tk.length ? "" : infoBtn()) + '</b>' +
-        // The short hint stays visible; the longer how-to for an empty brain opens from (i) (0.212.0).
+        // The short hint stays visible; the longer how-to for an empty brain opens from (i) (0.214.0).
         (_tk.length ? '<div>' + esc(window.t("ht.kenh_ranh_het_goi_y")) + '</div>'
           : infoBody(esc(window.t("ht.tk_rong_goi_y")))) + '</div>';
       return;

@@ -189,6 +189,7 @@ import voice_live    # Voice V2: nghe nói thẳng qua Gemini Live / OpenAI Real
 import voice_ear     # tai nghe lại: model đa ngôn ngữ nghe âm thanh rồi mới chốt chữ (0.65.15)
 import agent_notify  # 0.205.0: unread and mute for private partner chats
 import steer_inbox  # 0.206.0: messages the owner sends while a turn runs
+import codex_steer  # 0.213.0: Codex chat turns on app-server take those messages mid-way
 import codex_realtime  # ChatGPT Live: một Codex app-server sống lâu, realtime trên gói ChatGPT (0.65.17)
 import voice_call     # nút mic là gọi Javis: tự chọn ChatGPT Live / Live API / Cơ bản (0.65.18)
 
@@ -15859,7 +15860,10 @@ async def websocket_endpoint(ws: WebSocket):
                         "model": actual_model or "", "session_id": conv_sid,
                         **_ctx_frame(runtime_trace, _ctx_in)}))
             elif prov == "openai-oauth":
-                steer_inbox.INBOX.set_live(conv_sid, False)   # 0.206.0: `codex exec` is one-shot, messages wait for the end
+                if not codex_steer.enabled():
+                    # 0.206.0: `codex exec` is one-shot, messages wait for the end. Since 0.213.0 the chat engine runs
+                    # on app-server and takes them mid-way (codex_steer.py); this switch turns that off.
+                    steer_inbox.INBOX.set_live(conv_sid, False)
                 # ===== ChatGPT subscription qua CODEX CLI - MCP/tool NATIVE (như Hermes, dùng codex của máy) =====
                 actual_model = _codex_safe_model(api_model)   # gpt-5-mini/gpt-4o... → coerce về model Codex hợp lệ
                 sysprompt, _sub_plan = await _subscription_system_prompt("codex", actual_model, kind)
@@ -15882,6 +15886,7 @@ async def websocket_endpoint(ws: WebSocket):
                 # native, như nhánh workflow) + instructions=sysprompt (kèm ROUTER SKILL) → Codex
                 # dùng được skill. Mỗi hội thoại dashboard giữ riêng codex_thread_id để resume.
                 ccli = CodexCLI(cwd=_cwd_luot_chat(_row0, brain), model=actual_model, tag=turn_tag, instructions=sysprompt)
+                ccli.steer = True   # 0.213.0: the chat engine takes messages mid-way (codex_steer.py)
                 # Hub vẫn trỏ BRAIN kể cả khi cwd là repo: MCP, cron và nhắc hẹn thuộc về bộ
                 # não của người dùng, không thuộc về cây mã nguồn đang mở.
                 _apply_codex_hub(ccli, _brain_root(brain))   # MCP + đúng brain cho cron/nhắc hẹn
@@ -20286,6 +20291,10 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
                                     api_model or mcfg.get("claude_model"), channel=channel)
         if conv_sid and ghi_kho:
             store.append_message(conv_sid, "user", text)
+            # 0.213.0: a message the owner sent while this turn runs (bot_gateway._steer) joins the history when the
+            # turn reads it, so it sits between this question and the answer, as it happened.
+            steer_inbox.INBOX.set_sink(steer_inbox.current_sid(), lambda texts, _s=conv_sid: [
+                store.append_message(_s, "user", t) for t in texts])
             if bot and chatbot_runtime._rp_is_group(meta):
                 # Phiên của bot trong nhóm đặt tên theo NHÓM, không theo tin đầu của người nhắn đầu tiên.
                 store.name_group_session(conv_sid, (meta or {}).get("chat_title"))
@@ -21127,6 +21136,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # CHỈ nhận "execute". "reject" của đường tắt dựa trên trần TỰ KHAI, không phải hạn mức
         # nhà cung cấp nói ra - lấy nó chặn lượt chat là vượt quyền (cùng lý do với dashboard).
         if _fp is not None and _fp.action == "execute":
+            steer_inbox.INBOX.set_live(steer_inbox.current_sid(), False)   # 0.213.0: one model call, no step to read at
             await _p("⚡ Đường tắt…")
             _txt, _mdl, _ = await _fast_path_core(
                 _fp, prov, api_key, api_model or mcfg.get("claude_model") or "mặc định",
@@ -21136,6 +21146,9 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             if _txt.strip():
                 return {"text": channel_context.strip_control_blocks(_txt), "files": []}
 
+    if prov in ("grok-cli", "antigravity-cli") or (prov == "openai-oauth" and not codex_steer.enabled()):
+        # 0.213.0: one-shot engines take nothing mid-turn; what the owner sends meanwhile runs as the next turn.
+        steer_inbox.INBOX.set_live(steer_inbox.current_sid(), False)
     if prov == "grok-cli":
         # Cùng engine với dashboard: Grok Build CLI + tool native + MCP hub, chỉ khác chỗ giữ
         # mạch. Phiên Telegram giữ luôn object engine trong `sess` (như Codex), nên mạch hội
@@ -21262,6 +21275,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             ccli.model = actual_model
             ccli.instructions = sysprompt
         _apply_codex_hub(ccli, _brain_root(brain))
+        ccli.steer = True   # 0.213.0: a channel turn takes messages mid-way when its gateway opened an inbox (codex_steer.py)
         if not ccli.is_available():
             return "⚠ Chưa cài Codex CLI trong container nên ChatGPT chưa dùng được tool."
         t0 = time.time()

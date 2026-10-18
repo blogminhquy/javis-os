@@ -146,7 +146,9 @@ check("the main thread gets the note as additional context",
       and main_["hookSpecificOutput"]["hookEventName"] == "PostToolUse")
 check("nothing pending, nothing added", empty == {})
 src_sdk = (SERVER / "claude_sdk_engine.py").read_text(encoding="utf-8")
-check("the hook is attached for chat turns only", 'str(self.tag or "").startswith("chat:")' in src_sdk
+# 0.213.0 moved the tag test into _steer_on (chat turns, plus channel turns whose gateway opened an inbox).
+check("the hook is attached for chat turns only", 'if tag.startswith("chat:"):' in src_sdk
+      and 'if "hooks" in fields and self._steer_on():' in src_sdk
       and '"PostToolUse": [HookMatcher(matcher=None, hooks=[self._steer_hook])]' in src_sdk)
 
 # ---- main.py wiring ----

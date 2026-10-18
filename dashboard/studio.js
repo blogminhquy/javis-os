@@ -10,7 +10,7 @@
   const editor = document.getElementById("studioEditor");
   const brain = () => (window.currentBrainPath ? currentBrainPath() : "brain");
   const esc = (s) => (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  // 0.212.0: the (i) button and its hidden block (info-tip.js); without it the text is drawn open.
+  // 0.214.0: the (i) button and its hidden block (info-tip.js); without it the text is drawn open.
   const infoBtn = () => (window.JavisInfo ? window.JavisInfo.btn(t("info.more")) : "");
   const infoBody = (html) => (window.JavisInfo ? window.JavisInfo.body(html) : `<div class="info-body">${html}</div>`);
   const api = async (p, o) => {
