@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.217.0] - 2026-10-18
 ### Sửa lỗi
-- **Trang wiki không còn tự mất sau lượt tự học.** (đang làm)
+- **Trang wiki không còn tự mất sau lượt tự học.** Trên bộ não có thư mục `wiki` viết thường (mọi bộ não tạo mới), lượt tự học coi cả thư mục wiki là "ngoài phạm vi" rồi dọn đi những gì nó vừa đụng. Trang chat vừa tạo mà lượt học chỉ thêm mục Mâu thuẫn bị xoá trắng, còn dòng "mâu thuẫn" trong danh sách câu hỏi mở vẫn ở lại. Trang lượt học tự tạo cũng mất theo. Giờ lượt học nhận đúng thư mục wiki thật của từng bộ não, kể cả kiểu `07 - Wiki`.
+- **Bước dọn của lượt học không bao giờ xoá file chưa lưu vào lịch sử nữa.** File đó có thể do bạn hay chat vừa viết, nên được để nguyên.
+- **Dòng mâu thuẫn trong câu hỏi mở trỏ đúng tên trang thật**, không phải tên gần đúng do model đưa.
 
 ## [0.216.0] - 2026-10-18
 ### Thêm mới

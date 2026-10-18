@@ -434,15 +434,23 @@ def commit_paths(root: str, paths: List[str], msg: str) -> Optional[str]:
         return None
 
 
-def hard_reset_paths(root: str, paths: List[str]) -> None:
-    """Khôi phục các path về HEAD (dùng khi verify/secret-scan fail sau khi lỡ ghi).
-    Chỉ checkout đúng path, không đụng phần còn lại."""
-    try:
-        if paths:
-            _git(root, "checkout", "HEAD", "--", *paths)
-            _git(root, "clean", "-fd", "--", *paths)
-    except Exception:
-        pass
+def hard_reset_paths(root: str, paths: List[str]) -> List[str]:
+    """Đưa các path ĐÃ CÓ trong HEAD về bản ở HEAD (dùng khi lượt học lỡ ghi ra ngoài phạm vi). Trả các path đã đưa về.
+
+    0.217.0: KHÔNG BAO GIỜ xoá file chưa có trong lịch sử git. Bản cũ chạy `git clean -fd` trên cả danh sách, mà một
+    file chưa commit chưa chắc do engine tạo: trang wiki chat vừa viết (chat không commit) chỉ được lượt học thêm một
+    mục, và bị xoá trắng. Thêm nữa, `git checkout HEAD -- a b c` hỏng CẢ lệnh khi một path chưa có trong HEAD, nên các
+    file đã có cũng không được khôi phục. Giờ khôi phục từng path một, và file chưa theo dõi thì để nguyên trên đĩa."""
+    xong: List[str] = []
+    for p in paths or []:
+        try:
+            if _git(root, "cat-file", "-e", f"HEAD:{p}").returncode != 0:
+                continue   # chưa có trong HEAD: không biết ai tạo, không xoá
+            if _git(root, "checkout", "HEAD", "--", p).returncode == 0:
+                xong.append(p)
+        except Exception:
+            pass
+    return xong
 
 
 def list_learn_commits(root: str, n: int = 20) -> List[dict]:

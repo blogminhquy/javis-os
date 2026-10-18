@@ -1232,6 +1232,7 @@ class LearnFeature:
             mem_dir = self.deps.brain_memory_dir(brain)
             facts_dir = mem_dir / "facts"
             today = _today()
+            wiki_dir = None   # gán ở nhánh WIKI; scope guard cuối hàm cần biết thư mục thật
 
             # ---- FACTS (append-only) ----
             if caps.get("memory"):
@@ -1307,8 +1308,10 @@ class LearnFeature:
                                        f"- Cần xác minh (append _open-questions).\n")
                                 self.deps.atomic_write_text(cp, ct)
                                 written_paths.append(str(cp.relative_to(root)).replace("\\", "/"))
-                                self._append_open_question(brain, wiki_dir, conflict, "mâu thuẫn với quan điểm mới", written_paths, root)
-                                rep["wiki"].append(conflict + " (mâu thuẫn)")
+                                # Tên TRANG THẬT đã ghi, không phải chuỗi model đưa: `_wiki_trung` có thể khớp gần đúng
+                                # hoặc qua aliases, và dòng câu hỏi mở phải trỏ đúng trang vừa thêm mục Mâu thuẫn.
+                                self._append_open_question(brain, wiki_dir, cp.stem, "mâu thuẫn với quan điểm mới", written_paths, root)
+                                rep["wiki"].append(cp.stem + " (mâu thuẫn)")
                                 continue
                             except Exception:
                                 pass
@@ -1592,7 +1595,7 @@ class LearnFeature:
             # commit không -a → file dirty khác như conversations/loop-log không bị cuốn vào).
             written_paths = sorted(set(written_paths))
             if written_paths:
-                bad = git_brain.paths_within(written_paths, ALLOWED_WRITE_PREFIXES)
+                bad = git_brain.paths_within(written_paths, self._scope_cho_phep(root, mem_dir, wiki_dir))
                 if bad:
                     git_brain.hard_reset_paths(root, bad)   # an toàn: đây là file DO ENGINE vừa ghi
                     rep["blocked"].append(f"bỏ {len(bad)} path ngoài scope: {bad[:3]}")
@@ -1612,6 +1615,26 @@ class LearnFeature:
             return rep
         finally:
             lock.release()
+
+    @staticmethod
+    def _scope_cho_phep(root, *dirs) -> List[str]:
+        """Các tiền tố được ghi: danh sách cố định cộng thư mục memory và wiki THẬT của brain này.
+
+        0.217.0 (owner, 2026-10-18: một trang wiki chat vừa tạo biến mất sau lượt học). Danh sách cố định chỉ có "Wiki"
+        viết hoa, trong khi brain tạo mới dùng `wiki/` thường và nhánh WIKI tìm thư mục không phân biệt hoa thường (cả
+        `07 - Wiki/` cũng khớp). Mọi đường dẫn `wiki/...` bị coi là ngoài phạm vi và bị `hard_reset_paths` dọn, trong đó
+        có trang chat vừa tạo mà lượt học chỉ thêm mục Mâu thuẫn. Lấy đúng thư mục đã ghi thì không lệch được nữa."""
+        out = list(ALLOWED_WRITE_PREFIXES)
+        for d in dirs:
+            if not d:
+                continue
+            try:
+                rel = str(Path(d).resolve().relative_to(Path(root).resolve())).replace("\\", "/")
+            except (ValueError, OSError):
+                continue
+            if rel and rel != "." and rel not in out:
+                out.append(rel)
+        return out
 
     # ── merger cho file append-only (model KHÔNG được ghi trực tiếp) ──
     def _merge_memory_index(self, brain, slug, title, hook, written, root):
