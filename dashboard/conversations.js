@@ -255,6 +255,7 @@
               '<span class="ht-fcount"></span><span class="ht-loc"></span>' +
               '<button type="button" class="ht-fclear" hidden>' + esc(window.t("ht.f_clear")) + '</button>' +
             '</div>' +
+            '<div class="ht-sdt" role="status" hidden></div>' +
             '<div class="ht-list"><div class="ht-empty">' + esc(window.t("common.loading")) + '</div></div>' +
           '</div>' +
           '<div class="ht-thread"><div class="ht-empty ht-thread-empty">' + ic("messages-square") +
@@ -283,6 +284,39 @@
       "&q=" + encodeURIComponent(_q) + (window.JavisConvFilters ? window.JavisConvFilters.query(filterState()) : "");
   }
 
+  // Số di động Việt Nam đầy đủ (0912345678, 84912345678, +84 912 345 678), cùng luật với `conversations.chuan_hoa_sdt`: chỉ khi đó
+  // server mới hỏi Zalo, nên chỉ khi đó mới hiện "Đang hỏi Zalo" (0.216.0).
+  function laSdt(q) {
+    var t = String(q || "").replace(/[\s.\-()]/g, "");
+    return /^\+?(84[35789]\d{8}|0[35789]\d{8})$/.test(t);
+  }
+
+  // Dòng báo dưới ô tìm khi ô là một số điện thoại: số đó là Zalo của ai, chưa có cuộc chat, hay Zalo chưa trả lời được.
+  // Tìm thấy và cuộc chat đang hiện trong danh sách thì không cần báo gì.
+  function veSdt(pl, dangTim) {
+    var el = _host && _host.querySelector(".ht-sdt");
+    if (!el) return;
+    var dong = [];
+    if (dangTim) {
+      dong.push(window.t("ht.sdt_dang_tim", { so: _q }));
+    } else if (pl && pl.results && pl.results.length) {
+      var co = pl.results.filter(function (x) { return x.uid; });
+      co.forEach(function (x) {
+        if (x.shown) return;
+        dong.push(window.t(x.has_chat ? "ht.sdt_bi_loc" : "ht.sdt_chua_chat",
+          { so: pl.phone, ten: x.name || window.t("ht.sdt_nguoi"), tk: x.account_label }));
+      });
+      pl.results.forEach(function (x) {
+        if (x.error) dong.push(window.t("ht.sdt_loi", { tk: x.account_label, loi: x.error }));
+      });
+      if (!co.length && !pl.results.some(function (x) { return x.error; })) {
+        dong.push(window.t("ht.sdt_khong_co", { so: pl.phone }));
+      }
+    }
+    el.hidden = !dong.length;
+    el.innerHTML = dong.map(function (d) { return '<div>' + ic("search") + ' ' + esc(d) + '</div>'; }).join("");
+  }
+
   // `im` = nhịp tự động: không xoá danh sách đang hiện, mạng hỏng một nhịp thì giữ màn hình cũ.
   // Không phải nhịp (mở trang, đổi bộ lọc, gõ tìm) thì về trang đầu; nhịp thì hỏi lại đúng số dòng người dùng đã tải (tối đa MAX_DONG_NHIP).
   async function tai(im) {
@@ -291,8 +325,13 @@
     if (!im) { _soTrang = 1; box.scrollTop = 0; }
     var soDong = im ? Math.min(MAX_DONG_NHIP, TRANG * _soTrang) : TRANG;
     var url = urlDanhSach(soDong, 0);
+    var hoi = _q;
+    if (!im) veSdt(null, laSdt(hoi));
     try {
       var d = await api(url);
+      // Hỏi Zalo một số có thể mất vài giây: người dùng đã gõ tiếp thì kết quả này cũ, không được đè lên kết quả mới hơn.
+      if (hoi !== _q) return;
+      if (!im || d.phone_lookup) veSdt(d.phone_lookup, false);
       var dau = d.items || [];
       var duoi = im ? _items.slice(soDong) : [];       // phần đã tải sâu hơn nhịp hỏi: giữ nguyên
       _items = dau.concat(duoi);
@@ -305,6 +344,8 @@
       if (im && vet === _dauVet) return;
       _dauVet = vet;
     } catch (e) {
+      if (hoi !== _q) return;
+      if (!im) veSdt(null, false);
       if (!im) box.innerHTML = '<div class="ht-empty">' + esc(window.t("ht.loi_tai")) + ' ' + esc(e.message) + '</div>';
       return;
     }

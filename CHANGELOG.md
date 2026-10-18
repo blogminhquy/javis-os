@@ -8,7 +8,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.216.0] - 2026-10-18
 ### Thêm mới
-- **Hòm thư bot tìm được theo số điện thoại.** (đang làm)
+- **Hòm thư bot tìm được theo số điện thoại.** Gõ 0912 345 678, 84912345678 hay +84 912 345 678 đều ra cùng một người.
+- **Số chưa có trong máy thì Javis hỏi Zalo giúp:** gõ đủ một số, Javis hỏi các tài khoản Zalo cá nhân đang kết nối xem số đó là ai, rồi hiện cuộc chat với người đó. Từ đó số được nhớ vào khách, lần sau ra ngay.
+- **Người chưa từng nhắn thì Hòm thư báo rõ:** "Số này là Zalo của chị Ngọc, chưa có cuộc chat nào". Số không có Zalo, hoặc người đó tắt cho tìm bằng số, cũng được báo.
+- **Không hỏi Zalo lặp lại:** kết quả được nhớ (tìm thấy thì 30 ngày, không thấy thì 1 ngày). Mỗi giờ hỏi tối đa 20 số, vì Zalo giới hạn số lần tra mỗi ngày.
 
 ## [0.214.0] - 2026-10-18
 ### Sửa lỗi

@@ -10,7 +10,10 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.216.0] - 2026-10-18
 ### Added
-- **The bot inbox can search by phone number.** (in progress)
+- **The bot inbox can search by phone number.** 0912 345 678, 84912345678 and +84 912 345 678 all find the same person.
+- **A number the inbox does not know yet is looked up on Zalo:** type a full number and Javis asks the connected personal Zalo accounts whose number it is, then shows the chat with that person. The number is kept on the customer, so the next search finds it at once.
+- **Someone who never wrote is reported plainly:** "This number is Lan's Zalo, no conversation yet". A number with no Zalo account, or whose owner turned off search by phone, is reported too.
+- **Zalo is not asked twice:** answers are remembered (30 days when found, 1 day when not). At most 20 numbers are looked up per hour, because Zalo caps lookups per day.
 
 ## [0.214.0] - 2026-10-18
 ### Fixed

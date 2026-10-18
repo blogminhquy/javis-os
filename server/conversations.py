@@ -155,9 +155,19 @@ def _conn() -> sqlite3.Connection:
         db.execute("PRAGMA journal_mode=WAL")
         db.execute("PRAGMA busy_timeout=5000")
         db.executescript(_SCHEMA)
+        _nang_cap(db)
         db.commit()
         _db, _db_path = db, path
         return db
+
+
+def _nang_cap(db: sqlite3.Connection) -> None:
+    """Thêm cột cho kho cũ. `CREATE TABLE IF NOT EXISTS` không đụng bảng đã có, nên cột mới phải ALTER riêng."""
+    cot = {r[1] for r in db.execute("PRAGMA table_info(customers)").fetchall()}
+    if "phone" not in cot:
+        # 0.216.0: số điện thoại của khách (dạng 0xxxxxxxxx), để ô tìm kiếm của hòm thư tìm theo số.
+        db.execute("ALTER TABLE customers ADD COLUMN phone TEXT NOT NULL DEFAULT ''")
+    db.execute("CREATE INDEX IF NOT EXISTS ix_khach_sdt ON customers(phone) WHERE phone != ''")
 
 
 def close() -> None:
@@ -614,11 +624,17 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
         where.append("c.mode=?"); args.append(str(mode))
     if q:
         like = f"%{str(q).strip()}%"
-        where.append("(k.name LIKE ? OR c.title LIKE ? OR c.external_chat_id LIKE ? OR c.last_message LIKE ?)")
+        dk = ["k.name LIKE ?", "c.title LIKE ?", "c.external_chat_id LIKE ?", "c.last_message LIKE ?"]
         args += [like, like, like, like]
+        # Gõ số điện thoại: khớp số đã lưu của khách theo cả dạng 0912... lẫn 84912..., và id cuộc chat của những kênh lấy
+        # chính số làm id (WhatsApp giữ 84912...). Viết cách quãng "0912 345 678" cũng khớp.
+        for v in bien_the_sdt(q):
+            dk += ["k.phone LIKE ?", "c.external_chat_id LIKE ?"]
+            args += [f"%{v}%", f"%{v}%"]
+        where.append("(" + " OR ".join(dk) + ")")
     sql = (
         "SELECT c.*, a.channel AS channel, a.display_name AS account_name,"
-        " k.name AS customer_name, k.external_user_id AS customer_external_id"
+        " k.name AS customer_name, k.external_user_id AS customer_external_id, k.phone AS customer_phone"
         " FROM conversations c"
         " JOIN channel_accounts a ON a.id=c.channel_account_id"
         " LEFT JOIN customers k ON k.id=c.customer_id"
@@ -996,8 +1012,11 @@ def danh_sach_khach(channel: str = "", tag: str = "", q: str = "", days: int = 0
         where.append("k.tags_json LIKE ?"); args.append('%"' + str(tag).replace('"', "") + '"%')
     if q:
         like = f"%{str(q).strip()}%"
-        where.append("(k.name LIKE ? OR k.external_user_id LIKE ? OR k.note LIKE ?)")
+        dk = ["k.name LIKE ?", "k.external_user_id LIKE ?", "k.note LIKE ?"]
         args += [like, like, like]
+        for v in bien_the_sdt(q):
+            dk.append("k.phone LIKE ?"); args.append(f"%{v}%")
+        where.append("(" + " OR ".join(dk) + ")")
     if days and int(days) > 0:
         where.append("k.updated_at>=?"); args.append(_now() - int(days) * 86400)
     sql = _SQL_KHACH + (" WHERE " + " AND ".join(where) if where else "") \
@@ -1049,6 +1068,84 @@ def dat_tag_khach(customer_id: int, tags) -> Optional[List[str]]:
                          (_json(sach), int(customer_id)))
         db.commit()
     return sach if cur.rowcount > 0 else None
+
+
+# ============================================================
+# Số điện thoại của khách (0.216.0)
+# ============================================================
+_SDT_TACH = re.compile(r"[\s.\-()]")
+
+
+def chuan_hoa_sdt(s: Any) -> str:
+    """Một số di động Việt Nam ĐẦY ĐỦ về dạng `0xxxxxxxxx`, hoặc "" nếu không phải.
+
+    Nhận "0912345678", "84912345678", "+84 912 345 678", "0912.345.678". Chỉ nhận số có đầu 0 hoặc 84: gõ dở
+    "849123456" không được coi là số 084..., kẻo ô tìm kiếm đi hỏi Zalo một số người dùng chưa gõ xong."""
+    t = _SDT_TACH.sub("", str(s or "").strip())
+    if not re.fullmatch(r"\+?\d+", t or "x"):
+        return ""
+    d = t.lstrip("+")
+    if d.startswith("84") and len(d) == 11 and d[2] in "35789":
+        return "0" + d[2:]
+    if d.startswith("0") and len(d) == 10 and d[1] in "35789":
+        return d
+    return ""
+
+
+def sdt_84(phone: str) -> str:
+    """`0912345678` -> `84912345678`, dạng Zalo và WhatsApp dùng."""
+    p = chuan_hoa_sdt(phone)
+    return "84" + p[1:] if p else ""
+
+
+def bien_the_sdt(q: Any) -> List[str]:
+    """Các cách viết của một (phần) số điện thoại để tìm bằng LIKE: chính dãy số, và dạng 0 <-> 84 tương ứng.
+
+    Chỉ khi `q` toàn số (cho phép dấu cách, chấm, gạch, ngoặc, dấu + đầu) và từ 4 chữ số trở lên; còn lại trả [] để chữ
+    thường không tìm nhầm vào cột số."""
+    t = _SDT_TACH.sub("", str(q or "").strip())
+    if not re.fullmatch(r"\+?\d{4,15}", t or "x"):
+        return []
+    d = t.lstrip("+")
+    out = [d]
+    if d.startswith("84") and len(d) > 4:
+        out.append("0" + d[2:])
+    elif d.startswith("0") and len(d) > 4:
+        out.append("84" + d[1:])
+    return out
+
+
+def gan_sdt_khach(channel: str, account_id: str, external_user_id: str, phone: str, name: str = "") -> Optional[int]:
+    """Gắn số điện thoại cho khách `external_user_id` của tài khoản kênh (`account_id` là id NGOÀI, như sự kiện mang).
+
+    Có cuộc chat riêng với người đó mà chưa có khách (chỉ chủ nhắn đi, khách chưa nhắn lại) thì tạo khách và nối vào
+    cuộc chat, để lần tìm sau khớp ngay. Không có cả khách lẫn cuộc chat thì không tạo gì: hòm thư chỉ hiện cuộc chat.
+    Trả id khách, hoặc None."""
+    p = chuan_hoa_sdt(phone)
+    uid = str(external_user_id or "").strip()
+    if not p or not uid:
+        return None
+    tk = _tai_khoan_id(channel, account_id)
+    now = _now()
+    with _lock:
+        db = _conn()
+        r = db.execute("SELECT id FROM customers WHERE channel_account_id=? AND external_user_id=?",
+                       (tk, uid)).fetchone()
+        conv = db.execute("SELECT id, customer_id FROM conversations WHERE channel_account_id=? AND external_chat_id=?"
+                          " AND chat_type='private'", (tk, uid)).fetchone()
+        if r:
+            kid = int(r[0])
+            db.execute("UPDATE customers SET phone=? WHERE id=?", (p, kid))
+        elif conv:
+            cur = db.execute("INSERT INTO customers(channel_account_id, external_user_id, name, phone, created_at,"
+                             " updated_at) VALUES(?,?,?,?,?,?)", (tk, uid, _s(name, MAX_TEN), p, now, now))
+            kid = int(cur.lastrowid)
+        else:
+            return None
+        if conv and not conv["customer_id"]:
+            db.execute("UPDATE conversations SET customer_id=? WHERE id=?", (kid, int(conv["id"])))
+        db.commit()
+    return kid
 
 
 def dat_ghi_chu_khach(customer_id: int, note: str) -> bool:

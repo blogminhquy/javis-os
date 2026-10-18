@@ -163,6 +163,12 @@ def register(app, deps: ConversationsDeps):
                 it["bot_name"] = _ten_bot(str(it.get("bot_id") or ""))
                 it["need_reply"] = conversations.can_tra_loi(it, hesitant)
             return {"ok": True, "items": items}
+        phone_lookup = None
+        if q and conversations.chuan_hoa_sdt(q) and channel in ("", "zalo_personal") \
+                and (not account_id or account_id.startswith("zalo_personal:")):
+            items, phone_lookup = await _tim_sdt_tren_zalo(items, q, dict(
+                channel=channel, bot_id=bot_id, account_id=account_id, q=q, mode=mode, limit=limit,
+                status=status, chat_type=chat_type, hesitant=hesitant))
         facets = conversations.dem_bo_loc(hesitant)
         ten = {bid: _ten_bot(bid) for bid in facets["bots"] if bid}
         for it in items:
@@ -172,7 +178,29 @@ def register(app, deps: ConversationsDeps):
                 "stats": conversations.thong_ke(bot_id=bot_id, channel=channel, account_id=account_id),
                 "facets": facets,
                 "bots": [{"id": bid, "name": ten[bid], **facets["bots"][bid]} for bid in ten],
-                "channels": channels.cho_giao_dien()}
+                "channels": channels.cho_giao_dien(), "phone_lookup": phone_lookup}
+
+    async def _tim_sdt_tren_zalo(items: list, q: str, loc: dict) -> tuple:
+        """0.216.0: ô tìm kiếm là một số điện thoại đầy đủ mà chưa khách nào trong hòm thư mang số đó: hỏi Zalo của các
+        tài khoản Zalo cá nhân số này là ai, gắn số vào khách đó rồi tìm lại. Trả `(items, phone_lookup)`; `phone_lookup`
+        là None khi không cần hỏi (đã có khách mang số này) và cho giao diện biết người mang số chưa có cuộc chat nào."""
+        import zalo_phone_lookup
+        sdt = conversations.chuan_hoa_sdt(q)
+        if any(it.get("customer_phone") == sdt for it in items):
+            return items, None
+        r = await zalo_phone_lookup.lookup(sdt, account_id=loc.get("account_id") or "")
+        if not r["results"]:
+            return items, None
+        if any(x["uid"] for x in r["results"]):
+            items = conversations.danh_sach(**loc)
+        for x in r["results"]:
+            kenh, _, tk = x["account_id"].partition(":")
+            # `has_chat`: có cuộc chat riêng trong kho; `shown`: nó nằm trong danh sách đang hiện (bộ lọc có thể ẩn nó).
+            x["has_chat"] = bool(x["uid"]) and conversations.co_tin(kenh, tk, x["uid"])
+            x["shown"] = bool(x["uid"]) and any(
+                it.get("channel_account_id") == x["account_id"]
+                and x["uid"] in (it.get("customer_external_id"), it.get("external_chat_id")) for it in items)
+        return items, r
 
     @router.get("/conversations/stats")
     async def conversations_stats(bot_id: str = "", channel: str = "", account_id: str = ""):
