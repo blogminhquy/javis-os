@@ -2029,7 +2029,7 @@
             <textarea id="lpBody" placeholder="${esc(window.t("cs.si_body_ph"))}"></textarea></div>
           <div id="lpLoopFields">
             <div class="si-row" style="gap:14px;flex-wrap:wrap">
-              <div class="si-field"><label>${esc(window.t("cs.si_mode"))}${infoBtn()}</label><div class="si-row" id="lpModes">
+              <div class="si-field"><label for="lpModes">${esc(window.t("cs.si_mode"))}${infoBtn()}</label><div class="si-row" id="lpModes">
                 <button class="si-chip" data-mode="suggest">${esc(window.t("cs.si_mode_suggest"))}</button>
                 <button class="si-chip" data-mode="auto">${esc(window.t("cs.si_mode_auto"))}</button>
                 <button class="si-chip" data-mode="full">${esc(window.t("cs.si_mode_full"))}</button></div></div>
@@ -2039,7 +2039,7 @@
           </div>
           <div id="lpRemFields" style="display:none">
             <div class="si-row" style="gap:14px;flex-wrap:wrap">
-              <div class="si-field"><label>${esc(window.t("cs.si_when"))}${infoBtn()}</label><input id="lpRemWhen" placeholder="${esc(window.t("cs.si_when_ph"))}" style="min-width:260px"></div>
+              <div class="si-field"><label for="lpRemWhen">${esc(window.t("cs.si_when"))}${infoBtn()}</label><input id="lpRemWhen" placeholder="${esc(window.t("cs.si_when_ph"))}" style="min-width:260px"></div>
               <div class="si-field"><label>${esc(window.t("cs.si_rkind"))}</label><div class="si-row" id="lpRemModes">
                 <button class="si-chip sel" data-rmode="notify">${ic("alarm-clock")} ${esc(window.t("cs.si_rmode_notify"))}</button>
                 <button class="si-chip" data-rmode="task">${ic("bot")} ${esc(window.t("cs.si_rmode_task"))}</button></div></div>
@@ -2688,12 +2688,12 @@
 
     el.innerHTML = `<div class="cview-section">
       <div class="si-grid">
-        <div class="si-field"><label>${esc(window.t("cs.ln_enable_label"))}${infoBtn()}</label>${infoBody(`${esc(window.t("cs.ln_intro_a"))} <b>${esc(window.t("cs.ln_intro_b"))}</b>${esc(window.t("cs.ln_intro_c"))} <b>${esc(window.t("cs.ln_intro_d"))}</b>, <b>${esc(window.t("cs.ln_intro_f"))}</b>, <b>${esc(window.t("cs.ln_intro_g"))}</b>, <b>${esc(window.t("cs.ln_intro_h"))}</b> ${esc(window.t("cs.ln_intro_i"))} <b>${esc(window.t("cs.ln_intro_j"))}</b> ${esc(window.t("cs.ln_intro_k"))} <b>${esc(window.t("cs.ln_intro_l"))}</b> ${esc(window.t("cs.ln_intro_m"))} <b>${esc(window.t("cs.ln_intro_n"))}</b>${esc(window.t("cs.ln_intro_o"))} <b>${esc(window.t("cs.ln_intro_p"))}</b>.`)}
+        <div class="si-field"><label for="lnEnableNote">${esc(window.t("cs.ln_enable_label"))}${infoBtn()}</label>${infoBody(`${esc(window.t("cs.ln_intro_a"))} <b>${esc(window.t("cs.ln_intro_b"))}</b>${esc(window.t("cs.ln_intro_c"))} <b>${esc(window.t("cs.ln_intro_d"))}</b>, <b>${esc(window.t("cs.ln_intro_f"))}</b>, <b>${esc(window.t("cs.ln_intro_g"))}</b>, <b>${esc(window.t("cs.ln_intro_h"))}</b> ${esc(window.t("cs.ln_intro_i"))} <b>${esc(window.t("cs.ln_intro_j"))}</b> ${esc(window.t("cs.ln_intro_k"))} <b>${esc(window.t("cs.ln_intro_l"))}</b> ${esc(window.t("cs.ln_intro_m"))} <b>${esc(window.t("cs.ln_intro_n"))}</b>${esc(window.t("cs.ln_intro_o"))} <b>${esc(window.t("cs.ln_intro_p"))}</b>.`)}
           <button class="si-chip ${cfg.enabled ? "sel" : ""}" id="lnEnabled">${cfg.enabled ? "● " + esc(window.t("cs.ln_on")) : "○ " + esc(window.t("cs.ln_off"))}</button>
           <div class="dim" id="lnEnableNote" style="font-size:13px;margin-top:6px;color:var(--text3)">${esc(window.t("cs.ln_enable_note"))}</div></div>
         <div class="si-field"><label>${esc(window.t("cs.ln_mode_label"))}</label><div class="si-row" id="lnModes">${modeChips}</div>
           <div class="dim" id="lnModeDesc" style="font-size:14px;margin-top:6px;color:var(--text3)">${esc(modeDesc)}</div>${gitWarn}</div>
-        <div class="si-field"><label>${esc(window.t("cs.ln_caps_label"))}${infoBtn()}</label><div class="si-row" id="lnCaps">${capRow}</div>
+        <div class="si-field"><label for="lnCaps">${esc(window.t("cs.ln_caps_label"))}${infoBtn()}</label><div class="si-row" id="lnCaps">${capRow}</div>
           ${infoBody(esc(window.t("cs.ln_caps_note")))}</div>
         <div class="si-field"><label>${esc(window.t("cs.ln_curator_label"))}</label>
           <button class="si-chip ${(cfg.curator||{}).enabled ? "sel" : ""}" id="lnCurator">${(cfg.curator||{}).enabled ? "● " + esc(window.t("settings.tag_on")) : "○ " + esc(window.t("settings.tag_off"))}</button>
@@ -2720,14 +2720,14 @@
           <b style="color:var(--text)">${esc(window.t("cs.bk_media_head"))}</b>${infoBtn()}</div>
         ${infoBody(`${esc(window.t("cs.bk_media_a"))} (<code>.md .txt .html .csv .json .canvas .py</code>…). <b>${esc(window.t("cs.bk_media_b"))}</b>; ${esc(window.t("cs.bk_media_c"))}<p>${esc(window.t("cs.bk_media_d"))} <b>${esc(window.t("cs.bk_media_e"))}</b>${esc(window.t("cs.bk_media_f"))}</p><p>${esc(window.t("cs.bk_media_g"))} <b>${esc(window.t("cs.bk_media_h"))}</b> ${esc(window.t("cs.bk_media_i"))}</p>`)}
         <div class="si-grid">
-          <div class="si-field"><label>${esc(window.t("cs.bk_repo_label"))}${infoBtn()}</label><input id="bkRepo" placeholder="${esc(window.t("cs.bk_repo_ph"))}"></div>
-          ${infoBody(`${WARN_ICON} ${esc(window.t("cs.bk_warn"))}`)}
+          <div class="si-field"><label for="bkRepo">${esc(window.t("cs.bk_repo_label"))}</label><input id="bkRepo" placeholder="${esc(window.t("cs.bk_repo_ph"))}">
+            <div class="dim" id="bkWarn" style="font-size:16px;margin-top:6px;color:var(--warn-ink)">${WARN_ICON} ${esc(window.t("cs.bk_warn"))}</div></div>
           <div class="si-field"><label>${esc(window.t("cs.bk_token_label"))}</label><input id="bkToken" type="password" placeholder="${esc(window.t("cs.bk_token_ph"))}"></div>
           <div class="si-row" style="gap:14px;flex-wrap:wrap">
             <div class="si-field"><label>${esc(window.t("cs.bk_branch"))}</label><input id="bkBranch" value="main" style="max-width:120px"></div>
             <div class="si-field"><label>${esc(window.t("cs.bk_interval"))}</label><input type="number" id="bkInterval" min="1" value="6" style="max-width:120px"></div>
             <div class="si-field"><label>${esc(window.t("cs.bk_auto"))}</label><button class="si-chip" id="bkAuto">○ ${esc(window.t("settings.tag_off"))}</button></div>
-            <div class="si-field"><label>${esc(window.t("cs.bk_images"))}${infoBtn()}</label><button class="si-chip" id="bkAnh">○ ${esc(window.t("settings.tag_off"))}</button></div>
+            <div class="si-field"><label for="bkAnhRow">${esc(window.t("cs.bk_images"))}${infoBtn()}</label><button class="si-chip" id="bkAnh">○ ${esc(window.t("settings.tag_off"))}</button></div>
           </div>
           ${infoBody(`${esc(window.t("cs.bk_img_a"))} <b>${esc(window.t("cs.bk_img_b"))}</b> ${esc(window.t("cs.bk_img_c"))} <b>${esc(window.t("cs.bk_img_d"))}</b>${esc(window.t("cs.bk_img_e"))} <b>${esc(window.t("cs.bk_img_f"))}</b> ${esc(window.t("cs.bk_img_g"))}`)}
           <div class="si-actions">
@@ -3575,8 +3575,9 @@
               : "")) +
         (xa ? "" : '<div class="ol-note">' + ic("info") + "<span>" + esc(t("ol.note_native")) + "</span></div>") +
         (xa
-          ? '<div class="ol-step">' + esc(t("ol.dk_title")) + infoBtn() + "</div>" +
-            infoBody('<div class="ol-buoc">1. ' + esc(t("ol.dk_b1")) + "</div>" +
+          // The steps are the action itself, so they stay open; only the firewall caveat folds (review 0.212.0).
+          ? '<div class="ol-step">' + esc(t("ol.dk_title")) + "</div>" +
+            '<div class="ol-buoc">1. ' + esc(t("ol.dk_b1")) + "</div>" +
             '<div class="ol-buoc">2. ' + esc(t("ol.dk_b2")) + "</div>" +
             '<div class="ol-cmd"><code>' + esc(lenh) + "</code>" +
               '<button class="gcard-btn ol-copy" type="button">' + ic("copy") + " " + esc(t("common.copy")) + "</button></div>" +
@@ -3584,7 +3585,7 @@
             '<div class="ol-cmd"><code>' + esc(lenhNghe) + "</code>" +
               '<button class="gcard-btn ol-copy2" type="button">' + ic("copy") + " " + esc(t("common.copy")) + "</button>" + infoBtn() + "</div>" +
             // The firewall caveat opens from its own (i) next to the command it is about.
-            infoBody('<div class="ol-note ol-warn">' + ic("shield") + "<span>" + esc(t("ol.dk_canh_bao")) + "</span></div>")) +
+            infoBody('<div class="ol-note ol-warn">' + ic("shield") + "<span>" + esc(t("ol.dk_canh_bao")) + "</span></div>") +
             '<div class="ol-step">' + esc(t("ol.dk_b4")) + "</div>"
           : '<div class="ol-step">1. ' + esc(t("ol.step_install")) + "</div>" +
             '<div class="ol-cmd"><code>' + esc(lenh) + "</code>" +
@@ -3598,17 +3599,16 @@
           '<input class="ol-in ol-ep" placeholder="' + esc(window.t("cs.ol_ep_ph")) + '"' +
             (st.goi_y_endpoint ? ' value="' + esc(st.goi_y_endpoint) + '"' : "") + ">" +
           '<button class="gcard-btn primary ol-noi" type="button">' + esc(t("ol.connect")) + "</button>" +
-          (xa && !st.goi_y_endpoint ? infoBtn() : "") +
         "</div>" +
         // Dò không ra cổng (mạng Docker lạ, hoặc chạy --network=host) thì nói thẳng là phải
         // tự tìm, kèm đúng một lệnh tìm. Im lặng để ô trống là đẩy người dùng vào ngõ cụt.
-        // 0.212.0: that note and its command sit in the (i) next to the Connect button.
+        // It is the only instruction for the empty box, so it stays open (review 0.212.0).
         (xa && !st.goi_y_endpoint
-          ? infoBody('<div class="ol-note ol-warn">' + ic("triangle-alert") + "<span>" +
+          ? '<div class="ol-note ol-warn">' + ic("triangle-alert") + "<span>" +
             esc(t("ol.dk_khong_do_duoc")) + "</span></div>" +
             '<div class="ol-cmd"><code>' + esc(OL_LENH_TIM_CONG) + "</code>" +
               '<button class="gcard-btn ol-copy3" type="button">' + ic("copy") + " " +
-              esc(t("common.copy")) + "</button></div>")
+              esc(t("common.copy")) + "</button></div>"
           : "") +
         (st.error ? '<div class="ol-err">' + ic("triangle-alert") + "<span>" + esc(st.error) + "</span>" + (xa ? infoBtn() : "") + "</div>" : "") +
         // Đã lưu địa chỉ mà vẫn không nối được thì từ trong container Javis không phân biệt
@@ -4094,7 +4094,8 @@
           <div id="cliAction"></div>
           <div class="prov-note" id="cliUpd"></div>
           <div class="prov-auth">
-            <div class="prov-auth-title">${esc(t("models.auth_title"))}${p.auth_warning ? " " + WARN_ICON : ""}${infoBtn()}</div>
+            <div class="prov-auth-title">${esc(t("models.auth_title"))}${infoBtn()}</div>
+            ${p.auth_warning ? `<div class="prov-auth-warn">${WARN_ICON} ${esc(t("models.auth_warn_short"))}</div>` : ""}
             ${infoBody(`<div class="prov-auth-note">${esc(t("models.auth_note"))}</div>
               <div class="prov-auth-note"><b>${esc(t("models.auth_key"))}</b> ${esc(t("models.auth_key_d"))}</div>
               ${p.auth_warning ? `<div class="prov-auth-warn">${WARN_ICON} ${esc(p.auth_warning)}</div>` : ""}`)}

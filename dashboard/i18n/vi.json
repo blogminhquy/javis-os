@@ -481,6 +481,7 @@
   "models.agy_login": "Đăng nhập trong terminal của máy chạy Javis:",
   "models.agy_done": "Xong rồi bấm Kiểm tra lại ở dưới.",
   "models.auth_title": "Chạy bằng",
+  "models.auth_warn_short": "Gói Claude đang chạy cả việc nền nên có nguy cơ bị khoá tài khoản. Bấm (i) để xem cách tránh.",
   "models.auth_note": "Ô này chỉ đổi ai trả tiền. Cả hai đều chạy qua Claude Code nên giữ nguyên lệnh máy, WebFetch, MCP native và nối phiên cũ - khác hẳn thẻ \"Anthropic (API)\" bên dưới, thẻ đó gọi API thẳng nên không chạy được lệnh máy.",
   "models.auth_sub": "Gói đang đăng nhập",
   "models.auth_sub_d": "- không tốn thêm tiền. Hợp với một người dùng cá nhân ngồi gõ.",

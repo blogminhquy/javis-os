@@ -787,7 +787,9 @@
   function accEditorHtml(t, view) {
     if (!view || view.accEdit !== t.id) return "";
     return '<form class="tm-form tm-acc-form" data-acc-task="' + esc(t.id) + '" onsubmit="return false">' +
-      '<label class="tm-field"><span>' + esc(tw("teams.acc.criteria")) + infoBtn() + '</span><textarea name="tm-acc-text" rows="4"></textarea></label>' +
+      // for= binds the textarea; without it the (i) button, first in the label, would become the label's control.
+      '<label class="tm-field" for="tm-acc-' + esc(t.id) + '"><span>' + esc(tw("teams.acc.criteria")) + infoBtn() + '</span>' +
+      '<textarea id="tm-acc-' + esc(t.id) + '" name="tm-acc-text" rows="4"></textarea></label>' +
       infoBody('<div class="tm-sub">' + esc(tw("teams.acc.help")) + "</div>") +
       '<div class="tm-sub">' + esc(tw("teams.acc.replace")) + "</div>" +
       '<label class="tm-field tm-cap"><span>' + esc(tw("teams.acc.rounds")) + '</span><input type="number" min="0" max="5" name="tm-acc-rounds" value="2"></label>' +

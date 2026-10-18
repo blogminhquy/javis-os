@@ -114,16 +114,16 @@
     }
     function khoiChu() {
       var ids = chuBot();
-      var h = '<div class="cb-rp-owners"><div class="cb-sub">' + esc(tt("rp.owner_lb")) + infoBtn() + '</div>';
+      var h = '<div class="cb-rp-owners"><div class="cb-sub">' + esc(tt("rp.owner_lb")) + (ids.length ? infoBtn() : "") + '</div>';
       // Chưa có chủ: MỘT đoạn nói rõ hệ quả và cách đặt. Có chủ: danh sách kèm một dòng ngắn (điện thoại không nên nhồi chữ).
-      // 0.212.0: both texts open from the (i) next to "Chủ bot".
+      // 0.212.0: with owners, the note opens from (i); with none, the state and what to press stay open.
       h += ids.length
         ? '<div class="cb-rp-ownlist">' + ids.map(function (sid) {
             return '<span class="cb-rp-own">' + chip("ok", tenNguoi(sid)) +
               ' <button type="button" class="cb-rp-lnk rp-unowner" data-sid="' + esc(sid) + '" title="' + esc(tt("rp.owner_remove_tip")) + '">' +
               esc(tt("rp.owner_remove")) + '</button></span>';
           }).join("") + '</div>' + infoBody(esc(tt("rp.owner_h")))
-        : infoBody(esc(tt("rp.owner_none")));
+        : '<div class="cb-hint">' + esc(tt("rp.owner_none")) + '</div>';
       return h + '</div>';
     }
 

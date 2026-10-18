@@ -481,6 +481,7 @@
   "models.agy_login": "Sign in from the terminal of the machine running Javis:",
   "models.agy_done": "Then hit Check again below.",
   "models.auth_title": "Runs on",
+  "models.auth_warn_short": "Your Claude plan also runs background work, so the account may get locked. Press (i) to see how to avoid it.",
   "models.auth_note": "This choice only changes who pays. Both run through Claude Code, so shell commands, WebFetch, native MCP and session resume all stay - unlike the \"Anthropic (API)\" card below, which calls the API directly and cannot run shell commands.",
   "models.auth_sub": "Your signed-in plan",
   "models.auth_sub_d": "- no extra cost. A good fit for one person typing.",

@@ -325,10 +325,10 @@
         ' <b>' + esc(window.t("cb.rt_tra_thang")) + '</b>' +
         esc(b.reply_when === "always" || b.reply_when === "auto" ? window.t("cb.rt_always") : window.t("cb.rt_mention")) + '.' +
         // The problem stays visible; how to fix it opens from (i) (0.212.0).
-        infoBtn() + infoBody(esc(window.t("cb.rt_fix_1")) + ' <b>@BotFather</b> ' + esc(window.t("cb.rt_go")) +
+        infoBtn() + '</span>' + infoBody(esc(window.t("cb.rt_fix_1")) + ' <b>@BotFather</b> ' + esc(window.t("cb.rt_go")) +
         ' <b>/setprivacy</b>' + esc(window.t("cb.rt_fix_2")) + ' <b>Disable</b>' +
         esc(window.t("cb.rt_fix_3")) + ' <b>' + esc(window.t("cb.rt_quan_tri")) + '</b>. ' +
-        esc(window.t("cb.rt_fix_4"))) + '</span></div>' : "";
+        esc(window.t("cb.rt_fix_4"))) + '</div>' : "";
     var c = el(
       '<div class="cb-card">' +
         '<div class="cb-head">' +
@@ -832,7 +832,8 @@
 
         // ---------------------------------------------------------------- BƯỚC 1: trả lời ở đâu
         '<div class="cb-b" id="cbB1">' +
-          '<label>' + esc(window.t("cb.lb_tai_khoan")) + infoBtn() + '</label>' +
+          // for= points at the account list (not a form control), so the (i) inside never becomes the label's control.
+          '<label for="cbTkBox">' + esc(window.t("cb.lb_tai_khoan")) + infoBtn() + '</label>' +
           '<div id="cbTkBox">' + veChonTK(b, chonSan) + '</div>' +
           infoBody(esc(window.t("cb.hint_tai_khoan"))) +
           '<button class="s-btn-ghost cb-noi-kenh" type="button">' + ic("plus") + ' ' +
@@ -856,9 +857,9 @@
           '</div>' +
 
           // 2. Bot trả lời ai
-          '<div class="cb-sec">' + voiInfo(secH("users", "cb2.s_doituong"), '<span id="cbKoNhomI" style="display:none">' + infoBtn() + '</span>') +
-            // Why there are no group options (filled by apDoiTuong); opens from the (i) next to the title.
-            '<div class="info-body" id="cbKoNhom" hidden></div>' +
+          '<div class="cb-sec">' + secH("users", "cb2.s_doituong") +
+            // Why there are no group options (filled by apDoiTuong). Stays open: owners took a missing option for a bug (0.102.1).
+            '<div class="cb-hint" id="cbKoNhom" hidden></div>' +
             '<div class="cb-rcs" id="cbRcs">' +
               htmlThe("auto", card0, "cb2.aud_auto_t", "cb2.aud_auto_d") +
               htmlThe("all", card0, "cb2.aud_all_t", "cb2.aud_all_d") +
@@ -892,8 +893,9 @@
                 // What the picked mode does (filled by veRw), behind the (i) of the label above.
                 '<div class="info-body" id="cbRwH" hidden></div>' +
               '</div>' +
+              // A required fix (privacy off in BotFather), shown only when it applies: stays open (review 0.212.0).
               '<div class="cb-hint cb-chi-tg" id="cbRwTg">' + ic("triangle-alert") + ' <b>Telegram</b>: ' +
-                esc(window.t("cb.rt_che_do")) + infoBtn() + infoBody(esc(window.t("cb2.rw_tg"))) + '</div>' +
+                esc(window.t("cb2.rw_tg")) + '</div>' +
               // Chỉ hiện khi chọn "Tự đánh giá": một dòng giải thích, không ô cài đặt nào (bộ phán xử tự vận hành).
               (RP ? RP.formHtml() : '') +
             '</div>' +
@@ -1243,19 +1245,16 @@
       box.querySelector("#cbRwBox").style.display = co ? "" : "none";
       box.querySelector("#cbKbBox").style.display = coZaloCaNhan() ? "" : "none";
       // Không có nhóm thì nói vì sao, thay vì ẩn im lặng (0.102.1): chủ tưởng phải đưa bot vào nhóm mới hiện.
-      // 0.212.0: the reason sits behind the (i) next to the section title, shown only while it applies.
       var koNhom = box.querySelector("#cbKoNhom");
       var dsTk = tkDangChon();
-      box.querySelector("#cbKoNhomI").style.display = !co && dsTk.length ? "" : "none";
       if (!co && dsTk.length) {
         var tenKenh = [];
         dsTk.forEach(function (a) {
           var n = kenhCua(a.channel).nhan;
           if (tenKenh.indexOf(n) < 0) tenKenh.push(n);
         });
-        var moiKo = el(infoBody(esc(window.t("cb2.ko_nhom", { kenh: tenKenh.join(", ") }))));
-        // Replace only when the text changes, so an open note does not snap shut on every click.
-        if (moiKo.textContent !== koNhom.textContent) { moiKo.id = "cbKoNhom"; koNhom.replaceWith(moiKo); }
+        koNhom.textContent = window.t("cb2.ko_nhom", { kenh: tenKenh.join(", ") });
+        koNhom.hidden = false;
       } else {
         koNhom.hidden = true;
       }

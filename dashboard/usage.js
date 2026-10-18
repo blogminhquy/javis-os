@@ -432,8 +432,9 @@
       ? '<div class="tk-muc-body"><div class="tk-muc-list">' + btns + "</div>"
       + (state.toast ? state.toast : "")
       + doHtml
-      // Takes effect at once, how to undo, and whether the level was ever picked: behind the (i).
-      + infoPair(window.t("usage.muc.note", mucVars) + (d.tu_chon ? "" : " " + esc(window.t("usage.muc.chua_chon"))))
+      // Takes effect at once and how to undo: behind the (i). Whether the level was ever picked is state, so it stays open.
+      + infoPair(window.t("usage.muc.note", mucVars))
+      + (d.tu_chon ? "" : '<div class="tk-muc-chua">' + esc(window.t("usage.muc.chua_chon")) + "</div>")
       + "</div>"
       : (state.toast || "");
 
@@ -574,8 +575,9 @@
       // tiết kiệm đi: "chưa chạy lượt nào" với "bạn đang chỉnh tay nên Javis không biết cấu
       // hình đó tốn bao nhiêu".
       if (k.khong_do_duoc) {
-        return '<div class="tk-a"><div class="h">' + ic("sparkles", { cls: "ic-sm" }) + window.t("usage.tk.tieu_de") + infoBtn() + "</div>"
-          + '<div class="big">-</div>' + infoBody(window.t("usage.tk.chinh_tay")) + "</div>";
+        // The reason is state, like "chua_luot" below, so it stays open (review 0.212.0).
+        return '<div class="tk-a"><div class="h">' + ic("sparkles", { cls: "ic-sm" }) + window.t("usage.tk.tieu_de") + "</div>"
+          + '<div class="big">-</div><div class="s">' + window.t("usage.tk.chinh_tay") + "</div></div>";
       }
       return '<div class="tk-a"><div class="h">' + ic("sparkles", { cls: "ic-sm" }) + window.t("usage.tk.tieu_de") + "</div>"
         + '<div class="big">-</div><div class="s">' + window.t("usage.tk.chua_luot") + "</div></div>";

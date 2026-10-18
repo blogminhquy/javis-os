@@ -3853,11 +3853,15 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .info-i:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 @media (hover: none), (max-width: 600px) { .info-i::after { content: ""; position: absolute; inset: -12px; } }
 .info-body { margin: 6px 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); color: var(--text2);
-  font-size: 16px; line-height: 1.55; font-weight: 400; display: flex; flex-direction: column; gap: 6px; overflow-wrap: anywhere;
+  font-size: 16px; line-height: 1.55; font-weight: 400; display: block; overflow-wrap: anywhere;
   text-align: left; text-transform: none; letter-spacing: normal; }
 .info-body[hidden] { display: none; }
 div.info-body > * { margin: 0; font-size: inherit; }
+/* Block, not flex (review 0.212.0): a folded sentence often mixes <b>, <code> and <a> with text, and flex turned each of
+   those into its own stacked line. Block children (one line per div, p or list) still get a small gap. */
+.info-body > :is(div, p, ul, ol, pre) + :is(div, p, ul, ol, pre) { margin-top: 6px; }
 /* A long item description on a card (plugin, workflow): two lines visible, the full text in the (i) block (0.212.0). */
+.tk-muc-chua { margin-top: 6px; font-size: 16px; color: var(--text2); }
 .j-clamp2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 /* A pair stands alone (no title to sit next to): the button keeps its own line height and no left margin. */
 .info-pair { display: inline-flex; align-items: center; }
