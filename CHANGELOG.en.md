@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.215.0] - 2026-10-18
+### Fixed
+- **Zalo messages sent by automated jobs no longer silence the bot for 10 minutes:** Javis now recognises them as its own (like the bot's replies) and logs them in the Inbox under the bot's name, so when a parent or student answers, the bot replies right away.
+
 ## [0.213.0] - 2026-10-18
 ### Added
 - **Send more while Javis is working, now on Telegram, Discord, Slack, Lark, Messenger and Zalo too:** before, the bot replied "still on the previous message, send /stop" and dropped yours. Now it is kept, nothing is lost.

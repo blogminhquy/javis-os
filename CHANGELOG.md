@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.215.0] - 2026-10-18
+### Sửa lỗi
+- **Tin Zalo do việc tự động gửi không còn làm bot im 10 phút:** Javis giờ nhận ra đó là tin của chính nó (như câu bot trả lời), ghi vào Hộp thư dưới tên bot, nên phụ huynh, học sinh trả lời lại là bot đáp ngay.
+
 ## [0.213.0] - 2026-10-18
 ### Thêm mới
 - **Nhắn thêm khi Javis đang làm, giờ có cả trên Telegram, Discord, Slack, Lark, Messenger và Zalo:** trước đây bot báo "đang xử lý câu trước, gửi /stop" rồi bỏ tin của bạn. Giờ tin được giữ lại, không mất tin nào.
