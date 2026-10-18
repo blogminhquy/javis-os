@@ -194,14 +194,16 @@
     }).join("");
   }
 
+  function noteLines(xs) {
+    return xs.filter(Boolean).map(function (x) { return '<div class="pulse-line pulse-note">' + esc(x) + "</div>"; }).join("");
+  }
+
   /* Cả bảng. `view`: kết quả GET /agents/{slug}/pulse. `o`: {only, teamNames, busy, msg, err, registry}. */
   function panelHtml(view, opts) {
     var o = opts || {}, v = view || {};
     var html = '<div class="pulse-head"><span class="pulse-title">' + esc(tw("pulse.title")) + infoBtn() + "</span></div>";
     // 0.175.0 (chủ repo 16/10/2026: tab Cài đặt "nhiều thông tin quá"): mọi câu giải thích nằm sau nút i cạnh tiêu đề.
     // Ngoài mặt chỉ còn các dòng nhịp và ô chọn.
-    var how = [tw(v.resonance ? "pulse.resonance_on" : "pulse.resonance_off")];
-    if (!o.only) how.push(tw("pulse.intro"));
     var hi = html.length;
     var ctxs = (v.contexts || []).filter(function (c) { return !o.only || c.context_ref === o.only; });
     if (!v.agent_key || !ctxs.length) {
@@ -216,10 +218,13 @@
         [0, 1, 2, 3, 4, 5, 6, 7].map(function (n) {
           return '<option value="' + n + '"' + (n === mt ? " selected" : "") + ">" + esc(tierLabel(n)) + "</option>";
         }).join("") + "</select></label>";
-      how.push(tw("pulse.max_tier_note"));
     }
-    html = html.slice(0, hi) + infoBody(how.map(function (x) { return '<div class="pulse-line pulse-note">' + esc(x) + "</div>"; })
-      .join("")) + html.slice(hi);
+    // The (i) block goes right after the title; empty lines are dropped.
+    html = html.slice(0, hi) + infoBody(noteLines([
+      tw(v.resonance ? "pulse.resonance_on" : "pulse.resonance_off"),
+      o.only ? "" : tw("pulse.intro"),
+      !o.only && v.agent_key ? tw("pulse.max_tier_note") : ""
+    ])) + html.slice(hi);
     var changes = (v.changes || []).filter(function (e) { return !o.only || e.context_ref === o.only || e.context_ref === "*"; });
     if (changes.length) {
       html += '<div class="pulse-sub">' + esc(tw("pulse.changes_title")) + '</div><ul class="pulse-list">' +

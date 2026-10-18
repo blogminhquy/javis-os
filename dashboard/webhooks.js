@@ -27,6 +27,12 @@
     });
   }
   var ic = function (n) { return (typeof window !== "undefined" && window.ic) ? window.ic(n) : ""; };
+  // (i) button from info-tip.js; without it (node tests) the explanation is drawn inline.
+  function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(tw("info.more")) : ""; }
+  function infoBody(html) {
+    var J = typeof window !== "undefined" && window.JavisInfo;
+    return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
+  }
 
   var LEVEL_KEY = { suggest: "wh.level_suggest", auto: "wh.level_auto", full: "wh.level_full" };
   var STATUS_KEY = { done: "wh.st_done", failed: "wh.st_failed", waiting: "wh.st_waiting", silent: "wh.st_silent" };
@@ -131,9 +137,9 @@
     var current = function () { return (opts && opts.current && opts.current()) || ""; };
     var target = "workflow", level = "full";
     box.innerHTML = '<div class="lp-group"><div style="display:flex;align-items:center;gap:8px;margin:22px 0 8px;font-size:15px;color:var(--text);font-weight:600;border-bottom:1px solid var(--hairline);padding-bottom:6px">'
-      + "<span>" + ic("webhook") + " " + esc(tw("wh.head")) + "</span>"
+      + "<span>" + ic("webhook") + " " + esc(tw("wh.head")) + infoBtn() + "</span>"
       + '<button class="s-btn-ghost" id="whNew" style="margin-left:auto;font-size:13px">+ ' + esc(tw("wh.add")) + "</button></div>"
-      + '<p class="dim" style="font-size:13px;color:var(--text3);margin:0 0 10px;max-width:680px">' + esc(tw("wh.intro")) + "</p>"
+      + infoBody(esc(tw("wh.intro")))
       + '<div id="whSecret"></div><div id="whFormHost"></div><div id="whList"></div></div>';
     var q = function (s) { return box.querySelector(s); };
 

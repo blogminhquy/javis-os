@@ -465,6 +465,8 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     taoMoi: (loai) => tao.push(loai), dangChon: () => null, taiDanhSach: async () => {},
     veTrai() {}, chonMacDinh() {}, cacBuoc: () => [], avatar: () => "<i></i>",
     esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: (n) => '<svg data-ic="' + n + '"></svg>',
+    // (i) helpers live outside the sliced block (0.212.0).
+    infoBtn: () => "", infoBody: (h) => '<div class="info-body">' + h + "</div>",
     document: { getElementById: () => null },
     // Bộ giả phải có đủ cả hai hàm listener - trình duyệt thật luôn có.
     window: { addEventListener() {}, removeEventListener() {} },

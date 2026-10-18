@@ -30,6 +30,12 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
+  // 0.212.0: the (i) button and its hidden block (info-tip.js); in Node tests (no JavisInfo) the text is drawn open.
+  function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(tw("info.more")) : ""; }
+  function infoBody(html) {
+    var J = typeof window !== "undefined" && window.JavisInfo;
+    return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
+  }
   // Icon lấy từ bộ Lucide của dashboard; chạy trong Node (test) thì không có, trả chuỗi rỗng.
   var ic = function (n, o) { return (typeof window !== "undefined" && window.ic) ? window.ic(n, o) : ""; };
 
@@ -781,8 +787,8 @@
   function accEditorHtml(t, view) {
     if (!view || view.accEdit !== t.id) return "";
     return '<form class="tm-form tm-acc-form" data-acc-task="' + esc(t.id) + '" onsubmit="return false">' +
-      '<label class="tm-field"><span>' + esc(tw("teams.acc.criteria")) + '</span><textarea name="tm-acc-text" rows="4"></textarea></label>' +
-      '<div class="tm-sub">' + esc(tw("teams.acc.help")) + "</div>" +
+      '<label class="tm-field"><span>' + esc(tw("teams.acc.criteria")) + infoBtn() + '</span><textarea name="tm-acc-text" rows="4"></textarea></label>' +
+      infoBody('<div class="tm-sub">' + esc(tw("teams.acc.help")) + "</div>") +
       '<div class="tm-sub">' + esc(tw("teams.acc.replace")) + "</div>" +
       '<label class="tm-field tm-cap"><span>' + esc(tw("teams.acc.rounds")) + '</span><input type="number" min="0" max="5" name="tm-acc-rounds" value="2"></label>' +
       '<div class="tm-actions"><button type="button" class="ws-btn tm-primary tm-acc-save">' + esc(tw("teams.save")) +
@@ -1206,10 +1212,12 @@
         "</div></fieldset>";
     }
     var lvl = levelOf(team);
+    // 0.212.0: what each level allows sits behind the (i) in the legend; the choices keep their short names.
+    legend = '<legend class="tm-qhead">' + esc(tw("teams.level_title")) + infoBtn() + "</legend>" +
+      infoBody(LEVELS.map(function (L) { return "<div><b>" + esc(tw(L.key)) + "</b>: " + esc(tw(L.desc)) + "</div>"; }).join(""));
     return '<fieldset class="tm-levels">' + legend + LEVELS.map(function (L) {
       return '<label class="tm-level"><input type="radio" name="tm-level" value="' + L.n + '"' + (lvl === L.n ? " checked" : "") +
-        '><span class="tm-level-body"><strong>' + esc(tw(L.key)) + '</strong><span class="tm-level-desc">' + esc(tw(L.desc)) +
-        "</span></span></label>";
+        '><span class="tm-level-body"><strong>' + esc(tw(L.key)) + "</strong></span></label>";
     }).join("") + (lvl === "custom" ? '<div class="tm-sub">' + esc(tw("teams.level_custom")) + "</div>" : "") + "</fieldset>";
   }
 
@@ -1290,9 +1298,9 @@
     var body = LIMIT_CATS.map(function (cat) {
       var mine = rows.filter(function (x) { return x.category === cat.id; });
       if (!mine.length) return "";
-      var note = "";
-      if (cat.id === "leader" && !mine[0].granted) note = tw("teams.limits.leader_off");
-      else if (cat.id === "leader" && mine.some(function (x) { return x.model_turns; })) note = tw("teams.limits.leader_model_note");
+      var off = cat.id === "leader" && !mine[0].granted;
+      // The model-plan caveat sits behind the (i) next to the leader heading.
+      var modelNote = cat.id === "leader" && !off && mine.some(function (x) { return x.model_turns; });
       var items = mine.map(function (x) {
         var label = tw(cat.id === "owner" || cat.id === "leader" ? (CAP_KEY[x.key] || AUTH_CAP_KEY[x.key] || LIMIT_KEY[x.key])
           : LIMIT_KEY[x.key]);
@@ -1302,11 +1310,12 @@
         return '<li class="tm-limit"><span class="tm-limit-k">' + esc(label) + "</span>" +
           (v ? ': <span class="tm-limit-v">' + esc(v) + "</span>" : "") + esc(unl) + "</li>";
       }).join("");
-      return '<div class="tm-limits-cat"><div class="tm-limits-head">' + esc(tw(cat.key)) + "</div>" +
-        (note ? '<div class="tm-limits-note">' + esc(note) + "</div>" : "") + '<ul class="tm-limits-list">' + items + "</ul></div>";
+      return '<div class="tm-limits-cat"><div class="tm-limits-head">' + esc(tw(cat.key)) + (modelNote ? infoBtn() : "") + "</div>" +
+        (off ? '<div class="tm-limits-note">' + esc(tw("teams.limits.leader_off")) + "</div>" : "") +
+        (modelNote ? infoBody(esc(tw("teams.limits.leader_model_note"))) : "") + '<ul class="tm-limits-list">' + items + "</ul></div>";
     }).join("");
     return '<section class="tm-limits" aria-label="' + esc(tw("teams.limits.title")) + '"><div class="tm-qhead">' +
-      esc(tw("teams.limits.title")) + '</div><div class="tm-limits-note">' + esc(tw("teams.limits.intro")) + "</div>" + body +
+      esc(tw("teams.limits.title")) + infoBtn() + "</div>" + infoBody(esc(tw("teams.limits.intro"))) + body +
       "</section>";
   }
 
@@ -1494,7 +1503,9 @@
     var head = '<div class="tm-qhead">' + esc(tw("teams.md.title")) + "</div>";
     if (editing) return '<section class="tm-sec tm-md">' + head + mandateFormHtml(m) + "</section>";
     if (!m) {
-      return '<section class="tm-sec tm-md">' + head + '<div class="tm-sub">' + esc(tw("teams.md.none")) + "</div>" +
+      // No mandate yet: the title, the (i) with what a mandate does, and the Set button.
+      return '<section class="tm-sec tm-md"><div class="tm-qhead">' + esc(tw("teams.md.title")) + infoBtn() + "</div>" +
+        infoBody(esc(tw("teams.md.none"))) +
         '<div class="tm-actions"><button type="button" class="ws-btn" data-mandate-edit="1">' + esc(tw("teams.md.set")) +
         "</button></div></section>";
     }
@@ -1563,12 +1574,15 @@
   // 0.207.0: what the team may do outside without asking. Gated (default): outside actions wait for an approval card.
   function workModeHtml(team) {
     var full = team.work_mode === "full";
+    // 0.212.0: what each choice does sits behind the (i) next to the title; the choices keep their short names.
     return '<section class="tm-sec tm-wm" aria-label="' + esc(tw("teams.wm.title")) + '"><div class="tm-qhead">' +
-      esc(tw("teams.wm.title")) + "</div>" +
+      esc(tw("teams.wm.title")) + infoBtn() + "</div>" +
+      infoBody(["gated", "full"].map(function (m) {
+        return "<div><b>" + esc(tw(WM_KEY[m][0])) + "</b>: " + esc(tw(WM_KEY[m][1])) + "</div>";
+      }).join("")) +
       ["gated", "full"].map(function (m) {
         return '<label class="tm-radio"><input type="radio" name="tm-wm" value="' + m + '" data-work-mode="' + m + '"' +
-          ((m === "full") === full ? " checked" : "") + "><span><b>" + esc(tw(WM_KEY[m][0])) + "</b><br>" +
-          esc(tw(WM_KEY[m][1])) + "</span></label>";
+          ((m === "full") === full ? " checked" : "") + "><span><b>" + esc(tw(WM_KEY[m][0])) + "</b></span></label>";
       }).join("") + "</section>";
   }
 
@@ -1595,7 +1609,9 @@
       body += '<div class="tm-ap-row"><span class="tm-ap-k">' + esc(tw("teams.ap.deadline")) + "</span><span>" +
         esc(new Date(Number(ap.deadline_at) * 1000).toLocaleString()) + "</span></div>";
     }
-    if (ap.kind === "question") body += '<div class="tm-sub">' + esc(tw("teams.ap.prose")) + "</div>";
+    // A prose question: what Approve means sits behind the (i) in the card head.
+    var prose = ap.kind === "question";
+    if (prose) body = infoBody(esc(tw("teams.ap.prose"))) + body;
     var foot;
     if (st === "pending") {
       var b = function (d, k, cls) {
@@ -1613,7 +1629,7 @@
     }
     return '<div class="tm-ap tm-ap-' + esc(st) + '" data-mid="' + esc(m.id) + '" role="group" aria-label="' +
       esc(tw("teams.ap.title")) + '"><div class="tm-ap-head">' + ic("shield") + "<b>" + esc(tw("teams.ap.title")) +
-      "</b> " + esc(ap.title || "") + "</div>" + body + foot + "</div>";
+      "</b> " + esc(ap.title || "") + (prose ? infoBtn() : "") + "</div>" + body + foot + "</div>";
   }
 
   // Tab Nhóm: thành viên, mức tự quyết, số lần đã dùng hôm nay, tên và trạng thái; mọi con số trong Nâng cao (đóng sẵn).

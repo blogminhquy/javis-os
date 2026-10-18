@@ -12,6 +12,12 @@
 (function () {
   "use strict";
   var t = function (k, v) { return (window.t ? window.t(k, v) : k); };
+  // (i) button from info-tip.js; without it (node tests) the explanation is drawn inline.
+  function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(t("info.more")) : ""; }
+  function infoBody(html) {
+    var J = typeof window !== "undefined" && window.JavisInfo;
+    return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
+  }
   var ic = function (n, o) { return (window.ic ? window.ic(n, o) : ""); };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]; }); }
   function khongDau(s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\u0111/g, "d").replace(/\u0110/g, "D").toLowerCase(); }
@@ -1581,7 +1587,7 @@
     var trong = !S.agents.length && !S.workflows.length;
     var tieu = trong ? t("ws.start_title") : t(S.loai === "agent" ? "ws.start_no_agent" : "ws.start_no_workflow");
     host.innerHTML = ic("bot", { cls: "ws-ob-ic", size: "34px" }) +
-      '<h3>' + esc(tieu) + '</h3><p>' + esc(t("ws.start_desc")) + '</p>' +
+      '<h3>' + esc(tieu) + infoBtn() + '</h3>' + infoBody(esc(t("ws.start_desc"))) +
       '<div class="ws-ob-acts">' +
         '<button type="button" class="ws-btn primary" id="wsObAgent">' + ic("plus") + ' ' + esc(t("ws.new_agent")) + '</button>' +
         '<button type="button" class="ws-btn primary" id="wsObWf">' + ic("plus") + ' ' + esc(t("ws.new_workflow")) + '</button>' +
@@ -1772,9 +1778,9 @@
     if (S.loai === "agent" && item.system) {
       // Javis Core (0.185.0): no editor, no Delete, no Auto. The definition ships with the app; the model is chosen in
       // the chat box like any chat.
-      host.innerHTML = '<div class="ws-core-card"><div class="ws-core-head">' + avatar(item, 40) + '<h3>' + esc(item.name) +
+      host.innerHTML = '<div class="ws-core-card"><div class="ws-core-head">' + avatar(item, 40) + '<h3>' + esc(item.name) + infoBtn() +
         '</h3><span class="ws-sys">' + esc(t("ws.system_badge")) + '</span></div><p>' + esc(item.role || "") + '</p>' +
-        '<p class="ws-core-note">' + esc(t("ws.core_note")) + '</p></div>';
+        infoBody(esc(t("ws.core_note"))) + '</div>';
       // 0.190.0 (owner, 16/10/2026): no memory list here any more. Javis already learns from the brain; seeing, editing
       // or forgetting a memory is a chat message ("quên chuyện đó đi"), done with the javis_memory tool.
     } else if (S.loai === "agent") {
@@ -1799,7 +1805,10 @@
       };
     } else {
       var td = tienDoHienTai(item);
-      host.innerHTML = '<div class="ws-workflow-head">'+ic("workflow")+'<h3>'+esc(item.name)+'</h3><p>'+esc(item.description || t("ws.wf_sub", {n:cacBuoc(item).length}))+'</p>'+
+      // A long description shows two lines; the full text sits behind the (i) on the title.
+      var moTa = item.description || t("ws.wf_sub", {n:cacBuoc(item).length}), dai = moTa.length > 100;
+      host.innerHTML = '<div class="ws-workflow-head">'+ic("workflow")+'<h3>'+esc(item.name)+(dai ? infoBtn() : "")+'</h3>'+
+        '<p'+(dai ? ' class="j-clamp2"' : '')+'>'+esc(moTa)+'</p>'+(dai ? infoBody(esc(moTa)) : "")+
         '<button type="button" class="ws-btn primary ws-run-button" id="wsRun">'+ic("play")+' '+esc(t("ws.run"))+'</button></div>'+ '<div class="ws-rtitle">' + esc(t("ws.wf_progress")) + '</div>' +
         '<div class="ws-prog"><div style="width:' + phanTram(td) + '%"></div></div>' +
         '<div class="ws-status" id="wsWfStatus">' + esc(nhanTienDo(td)) + '</div>' +

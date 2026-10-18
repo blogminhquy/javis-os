@@ -52,6 +52,12 @@
     return String(s).replace(/\{(\w+)\}/g, (m, ten) =>
       (bien && bien[ten] != null) ? String(bien[ten]) : m);
   }
+  // (i) button from info-tip.js; without it (node tests) the explanation is drawn inline.
+  function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(tw("info.more")) : ""; }
+  function infoBody(html) {
+    var J = typeof window !== "undefined" && window.JavisInfo;
+    return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
+  }
   // Tên nhóm của gói là tiếng Việt và là KHOÁ lọc (`data-kho-nhom`), nên chỉ dịch lúc vẽ; xem
   // `JavisI18n.catLabel`. Tên lạ do gói cộng đồng tự đặt thì giữ nguyên.
   function nhanNhom(ten) {
@@ -274,9 +280,10 @@
         '<div class="pkm-o-gt">' + tw("store.inspect.conn_count", { count: kn.length }) + ' '
         + kn.map(x => '<code>' + esc(x) + '</code>').join(", ") + '</div>',
         tw("store.inspect.conn_note"), true) : "",
-      vt.length ? o(tw("store.inspect.add_vault"),
-        '<div class="pkm-o-gt">' + vt.join(", ") + '</div>',
-        tw("store.inspect.vault_note"), true) : "",
+      // How name clashes and uninstall are handled: behind the (i) on the label.
+      vt.length ? o(tw("store.inspect.add_vault") + infoBtn(),
+        '<div class="pkm-o-gt">' + vt.join(", ") + '</div>'
+        + infoBody(esc(tw("store.inspect.vault_note"))), "", true) : "",
     ].filter(Boolean).join("");
 
     modal(
@@ -546,6 +553,9 @@
     // "Đã cài" kể chuyện phiên bản, một chỗ duy nhất và nói đủ cả hai số.
     const meta = [g.id, g.installed ? "" : (g.version ? "v" + g.version : ""),
                   (g.author && g.author.name) || ""].filter(Boolean).map(esc).join(" · ");
+    // A long description shows two lines on the card; the full text sits behind the (i) on the name.
+    const moTa = nn(g.description);
+    const dai = moTa.length > 90;
     return '<div class="cat-card kho-the" data-loai="' + esc(g.kind || "bundle") + '"'
       + ' data-nhom="' + esc(g.nhom || "") + '" data-ng="' + (g.verified ? "1" : "0") + '">'
       + '<div class="kho-dau">' + veAvatar(g)
@@ -557,8 +567,10 @@
           ? ' <span class="prov-kind" style="color:var(--ok-ink,#2f855a)">'
             + tw("store.verified") + '</span>'
           : ' <span class="prov-kind">' + tw("store.community") + '</span>')
+      + (dai ? infoBtn() : "")
       + '</div>'
-      + '<div class="cat-desc">' + esc(nn(g.description)) + '</div>'
+      + '<div class="cat-desc' + (dai ? " j-clamp2" : "") + '">' + esc(moTa) + '</div>'
+      + (dai ? infoBody(esc(moTa)) : "")
       + '<div class="prov-meta">' + meta + '</div>'
       + dongDaCai(g)
       + '<div class="kho-nut">'
@@ -841,7 +853,9 @@
   // trạng thái. Giờ có một vùng thả thật, và cả lớp phủ chặn thả trượt.
   function manHinhChon(el, maxMb) {
     const m = modal(
-      pkmDau(null, tw("store.from_zip"), tw("store.pick.body"))
+      pkmDau(null, tw("store.from_zip") + infoBtn(), tw("store.pick.body"))
+      // Trust note and what the next step shows: behind the (i) on the title; the next screen shows the real warning.
+      + infoBody(esc(tw("store.pick.trust")))
       + '<div class="pkm-than">'
       + '<label class="pkm-tha" id="pkTha">'
       + '<input type="file" accept=".zip" id="pkTepHop" style="display:none">'
@@ -851,8 +865,6 @@
       + '</u></span>'
       + '<span class="pkm-tha-n">' + tw("store.pick.limit", { mb: (maxMb || 25) }) + '</span>'
       + '</label>'
-      + '<div class="pkm-luuy">' + ic("info")
-      + '<span>' + tw("store.pick.trust") + '</span></div>'
       + '</div>'
       + '<div class="pkm-chan"><button class="mp-btn" data-act="close">'
       + tw("common.cancel") + '</button></div>', true);

@@ -24,6 +24,12 @@
     });
   }
   var ic = function (n) { return (typeof window !== "undefined" && window.ic) ? window.ic(n) : ""; };
+  // (i) button from info-tip.js; without it (node tests) the explanation is drawn inline.
+  function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(tw("info.more")) : ""; }
+  function infoBody(html) {
+    var J = typeof window !== "undefined" && window.JavisInfo;
+    return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
+  }
 
   var STATUS_KEY = { open: "hp.st_open", retrying: "hp.st_retrying", needs_you: "hp.st_needs_you", resolved: "hp.st_resolved" };
   var SOURCE_KEY = { kanban: "hp.src_kanban", loop: "hp.src_loop", reminder: "hp.src_reminder", webhook: "hp.src_webhook",
@@ -68,9 +74,9 @@
   function mount(box) {
     if (!box) return;
     box.innerHTML = '<div class="lp-group"><div style="display:flex;align-items:center;gap:8px;margin:22px 0 8px;font-size:15px;color:var(--text);font-weight:600;border-bottom:1px solid var(--hairline);padding-bottom:6px">'
-      + "<span>" + ic("shield") + " " + esc(tw("hp.head")) + "</span>"
+      + "<span>" + ic("shield") + " " + esc(tw("hp.head")) + infoBtn() + "</span>"
       + '<button class="s-btn-ghost" id="hpScan" style="margin-left:auto;font-size:13px">' + esc(tw("hp.scan")) + "</button></div>"
-      + '<p class="dim" style="font-size:13px;color:var(--text3);margin:0 0 10px;max-width:680px">' + esc(tw("hp.intro")) + "</p>"
+      + infoBody(esc(tw("hp.intro")))
       + '<div id="hpInc"></div><div id="hpIssues" class="si-log"></div></div>';
     var q = function (s) { return box.querySelector(s); };
 

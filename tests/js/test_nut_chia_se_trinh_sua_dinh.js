@@ -39,6 +39,7 @@ function el(tag) {
     },
     setAttribute() {}, addEventListener() {}, select() {},
     appendChild(c) { this.children.push(c); return c; },
+    insertAdjacentHTML(pos, h) { this._html += String(h); },
     querySelector: () => null, querySelectorAll: () => [],
     get innerHTML() { return this._html; },
     set innerHTML(v) { this._html = String(v); if (v === "") this.children.length = 0; },
@@ -182,11 +183,11 @@ async function chayShareBtn() {
   const fn = new Function(
     "b", "ceil", "hostEl", "lop",
     "document", "window", "fetch", "location", "navigator", "setTimeout",
-    "ic", "esc", "tw", "injectCss", "elShareModal",
+    "ic", "esc", "tw", "injectCss", "elShareModal", "infoBtn", "infoBody",
     thanShare + "\nreturn btn;");
   const btn = fn("brain", "Javis/AGENTS.md", host, "",
     { createElement: el }, win, fetchGia, win.location, {}, () => {},
-    ic, esc, tt, () => {}, null);
+    ic, esc, tt, () => {}, null, () => "", (h) => '<div class="info-body">' + h + "</div>");
   await new Promise((r) => setTimeout(r, 0));
   check("nút hỏi /share/of ngay khi mở file", goi.some((g) => g.url.indexOf("/share/of") === 0),
     goi.map((g) => g.url).join(", "));

@@ -27,6 +27,13 @@
     } catch (e) { return khoa; }
   }
 
+  // (i) button from info-tip.js; without it (node tests) the explanation is drawn inline.
+  function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(tw("info.more")) : ""; }
+  function infoBody(html) {
+    var J = typeof window !== "undefined" && window.JavisInfo;
+    return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
+  }
+
   var IMG = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico"];
 
   function esc(s) {
@@ -120,7 +127,6 @@
       ".jvfe-share-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}" +
       ".jvfe-share-url{flex:1 1 220px;min-width:0;padding:7px 10px;border-radius:8px;" +
       "border:1px solid var(--border);background:var(--bg2);color:var(--text-hi);font-size:13px}" +
-      ".jvfe-share-note{margin-top:7px;line-height:1.5;opacity:.85}" +
       ".jvfe-body{flex:1;min-height:0;overflow:auto;background:var(--bg);display:flex;flex-direction:column}" +
       ".jvfe-text{flex:1;min-height:52vh;width:100%;box-sizing:border-box;border:0;outline:none;resize:none;" +
       "background:var(--bg);color:var(--text);font-family:ui-monospace,Menlo,Consolas,monospace;" +
@@ -379,14 +385,13 @@
           setTimeout(function () { elShare.hidden = true; elShare.textContent = ""; }, 1800);
         }).catch(function () { thu.disabled = false; });
       };
-      var nhac = document.createElement("div");
-      nhac.className = "jvfe-share-note";
-      nhac.textContent = tw("fedit.share_note");
       var hang = document.createElement("div");
       hang.className = "jvfe-share-row";
       hang.appendChild(o); hang.appendChild(chep); hang.appendChild(mo); hang.appendChild(thu);
+      // Who can see the link and how edits show up: behind the (i) at the end of the row.
+      hang.insertAdjacentHTML("beforeend", infoBtn());
       elShare.appendChild(hang);
-      elShare.appendChild(nhac);
+      elShare.insertAdjacentHTML("beforeend", infoBody(esc(tw("fedit.share_note"))));
     }
   }
 

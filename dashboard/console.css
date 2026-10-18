@@ -1370,6 +1370,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    của họ. Nên trật tự đọc được đặt cứng: đây là gói gì, đến từ tệp nào và vân tay ra sao, nó
    chạm vào đâu, cảnh báo, rồi mới tới hai cái nút. */
 .mp-box.pkm { width: 560px; max-height: min(88vh, 760px); }
+/* 0.212.0: the (i) block of the trust note sits right in the modal, which has no side padding. */
+.mp-box.pkm > .info-body { margin: 10px 20px 0; }
 .pkm-dau { display: flex; align-items: flex-start; gap: 14px; padding: 20px 20px 0; }
 .pkm-dau .kho-ava { width: 46px; height: 46px; border-radius: 13px; font-size: 17px; }
 .pkm-dau .kho-ava-img svg, .pkm-dau .kho-ava-img img { width: 40px; height: 40px; }
