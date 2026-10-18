@@ -8,7 +8,13 @@
  *   tiêu đề: '<div class="...">Tên mục' + JavisInfo.btn(nhãn) + '</div>'
  *   ngay sau (anh em kế tiếp, có thể cách vài phần tử): JavisInfo.body(htmlĐãEscape)
  * Nút tìm khối `.info-body` ĐẦU TIÊN đứng sau phần tử chứa nó (hay sau tầng cha gần nhất có khối đó). Vẽ lại là đóng lại, đúng ý: giải thích là thứ đọc một lần.
- * Mô-đun nào chạy không có file này (test Node) thì tự vẽ lời giải thích ra luôn, không mất chữ. */
+ * Mô-đun nào chạy không có file này (test Node) thì tự vẽ lời giải thích ra luôn, không mất chữ.
+ *
+ * 0.212.0, owner 2026-10-18: the rule now covers the whole dashboard ("các dòng giải thích gọn lại trong chữ (i) chứ không
+ * để xổ hết ra bên ngoài"), written in docs/quy-uoc-dev.md and enforced by tests/python/test_info_tip_rule.py.
+ *   JavisInfo.pair(html, label)  button and its hidden block side by side, for a spot with no title to sit next to.
+ * In static HTML: <button type="button" class="info-i" aria-expanded="false" data-i18n-aria="info.more" data-i18n-title="info.more"><i data-ic="info"></i></button>
+ * followed (as a sibling, or a sibling of a parent up to three levels) by <div class="info-body" hidden>...</div>. */
 (function () {
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -21,9 +27,13 @@
       '">' + icon + "</button>";
   }
   function body(html) { return '<div class="info-body" hidden>' + html + "</div>"; }
+  function pair(html, label) { return '<span class="info-pair">' + btn(label) + "</span>" + body(html); }
   // Nút có thể nằm trong một thẻ con của tiêu đề (span tên mục trong hàng tiêu đề): đi lên tối đa ba tầng, ở mỗi tầng tìm
   // khối giải thích đầu tiên đứng sau.
   function khoiCua(b) {
+    for (var own = b.nextElementSibling; own; own = own.nextElementSibling) {
+      if (own.classList && own.classList.contains("info-body")) return own;
+    }
     for (var up = b.parentElement, n = 0; up && n < 3; up = up.parentElement, n++) {
       for (var el = up.nextElementSibling; el; el = el.nextElementSibling) {
         if (el.classList && el.classList.contains("info-body")) return el;
@@ -45,5 +55,5 @@
       b.classList.toggle("on", mo);
     });
   }
-  window.JavisInfo = { btn: btn, body: body };
+  window.JavisInfo = { btn: btn, body: body, pair: pair };
 })();

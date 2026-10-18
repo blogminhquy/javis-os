@@ -3854,10 +3854,13 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .info-i:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 @media (hover: none), (max-width: 600px) { .info-i::after { content: ""; position: absolute; inset: -12px; } }
 .info-body { margin: 6px 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); color: var(--text2);
-  font-size: 13px; line-height: 1.5; font-weight: 400; display: flex; flex-direction: column; gap: 6px; overflow-wrap: anywhere; }
+  font-size: 16px; line-height: 1.55; font-weight: 400; display: flex; flex-direction: column; gap: 6px; overflow-wrap: anywhere;
+  text-align: left; text-transform: none; letter-spacing: normal; }
 .info-body[hidden] { display: none; }
 div.info-body > * { margin: 0; font-size: inherit; }
-@media (max-width: 600px) { .info-body { font-size: 14px; } }
+/* A pair stands alone (no title to sit next to): the button keeps its own line height and no left margin. */
+.info-pair { display: inline-flex; align-items: center; }
+.info-pair > .info-i { margin-left: 0; }
 @media (max-width: 600px) { .rsa-more > summary { min-height: 44px; } }
 .rsa-card { font-size: 14px; }
 .rsa-wait { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-top: 1px solid var(--hairline); }
