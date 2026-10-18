@@ -269,7 +269,8 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth
 # (op=update) gọi từ chính máy này khi user nói "đổi giờ việc đó sang 8h" - thiếu nó thì sửa lịch
 # bằng chat trả 401 câm. /reminders/delete CỐ Ý không có ở đây: xoá hẳn thì để dashboard (có
 # session) làm, chat chỉ cần huỷ.
-_AUTH_LOCAL_EXACT = ("/telegram/send-file", "/reminders", "/reminders/cancel", "/reminders/update")
+_AUTH_LOCAL_EXACT = ("/telegram/send-file", "/reminders", "/reminders/cancel", "/reminders/update",
+                     "/zalo/job-send")
 
 
 def duong_dan_router(request) -> str:
@@ -22992,6 +22993,20 @@ async def telegram_send_file(payload: dict = Body(...)):
         except Exception:
             pass
     return {"ok": ok, "error": err}
+
+
+@app.post("/zalo/job-send")
+async def zalo_job_send_route(request: Request, payload: dict = Body(...)):
+    """Send a personal-Zalo message for a background job the way the bot sends its replies (0.215.0): echo remembered
+    first, so the bot does not go quiet in that chat, and the message logged in the Inbox as the bot's. Loopback only,
+    even when no password is set: it speaks under the owner's Zalo identity. See zalo_job_send.py."""
+    import zalo_job_send
+    host = request.client.host if request.client else ""
+    if not zalo_job_send.is_loopback(host):
+        return JSONResponse({"ok": False, "error": localefmt.chu("chỉ gọi được từ chính máy chủ",
+                                                                  "only callable from the server itself")},
+                            status_code=403)
+    return await zalo_job_send.send(payload)
 
 
 # ============================================================
