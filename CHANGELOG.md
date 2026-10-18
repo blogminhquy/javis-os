@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.212.0] - 2026-10-18
+### Cải thiện
+- **Chữ giải thích gập vào nút (i)** (đang làm).
+
 ## [0.211.0] - 2026-10-17
 ### Cải thiện
 - **Thẻ Claude Code nói đúng một việc khi máy chưa cài:** một khung hướng dẫn duy nhất (Docker thì cập nhật Javis, cài tay thì một lệnh để chép), chỉ còn nút Kiểm tra lại. Bỏ nút Đăng nhập vốn chỉ báo lỗi, bỏ dòng phiên bản và nút Cập nhật của một chương trình chưa có.

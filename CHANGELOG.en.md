@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.212.0] - 2026-10-18
+### Improved
+- **Explanations fold into an (i) button** (in progress).
+
 ## [0.211.0] - 2026-10-17
 ### Improved
 - **The Claude Code card says one thing when the CLI is missing:** a single install box (Docker: update Javis; manual install: one command to copy) and only a Check again button. The Sign in button that could only fail is gone, and so are the version line and Update button for a program that is not there.
