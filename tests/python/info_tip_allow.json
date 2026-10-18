@@ -1,1 +1,10 @@
-{}
+{
+ "cb.can_ack": "error: alert when ack box not ticked",
+ "cb.xn_bat_auto": "confirm: confirm() before raising level",
+ "cb.xn_bat_full": "confirm: confirm() before raising level",
+ "cb.xn_full": "confirm: confirm() on save at full level",
+ "cb.xn_ngoai_le": "confirm: confirm() when exceptions raise level",
+ "cb2.aud_all_ack": "confirm: checkbox text the owner ticks to accept",
+ "ht.xn_nhap_cu": "confirm: confirm() before importing old messages",
+ "rp.stats": "status: numbers summary line of the panel"
+}

@@ -18,6 +18,12 @@
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
+  // (i) button (info-tip.js, 0.212.0): explanations sit behind it; without the helper (Node tests) they draw open.
+  function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(window.t("info.more")) : ""; }
+  function infoBody(html) {
+    var J = typeof window !== "undefined" && window.JavisInfo;
+    return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
+  }
   function el(html) { var d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstChild; }
   function brain() { try { return (window.currentBrainPath && window.currentBrainPath()) || "brain"; } catch (e) { return "brain"; } }
 
@@ -133,13 +139,13 @@
             esc(window.t("cb.bot_moi")) + '</button>' +
         '</div>' +
         '<div class="cb-loc"></div>' +
-        '<p class="cb-intro">' + esc(window.t("cb.intro_1")) + ' <b>' + esc(brain()) + '</b>' +
-        esc(window.t("cb.intro_2")) + ' <b>Agent</b> ' + esc(window.t("cb.intro_3")) +
-        esc(window.t("cb.intro_4")) + ' <b>' + esc(window.t("cb.intro_chi_doc")) + '</b>' +
-        esc(window.t("cb.intro_5")) + ' <b>' + esc(window.t("cb.intro_lam_that")) + '</b> ' +
-        esc(window.t("cb.intro_6")) + '<br>' +
-        esc(window.t("cb.intro_7")) + '<br>' +
-        esc(window.t("cb.intro_8")) + '</p>' +
+        // One short line stays on the page; the rest of the intro folds behind (i) (0.212.0).
+        '<div class="cb-intro">' + esc(window.t("cb.intro_1")) + ' <b>' + esc(brain()) + '</b>' + infoBtn() + '</div>' +
+        infoBody(esc(window.t("cb.intro_2").replace(/^[.\s]+/, "")) + ' <b>Agent</b> ' +
+          esc(window.t("cb.intro_3")) + esc(window.t("cb.intro_4")) +
+          ' <b>' + esc(window.t("cb.intro_chi_doc")) + '</b>' + esc(window.t("cb.intro_5")) +
+          ' <b>' + esc(window.t("cb.intro_lam_that")) + '</b> ' + esc(window.t("cb.intro_6")) + '<br>' +
+          esc(window.t("cb.intro_7")) + '<br>' + esc(window.t("cb.intro_8"))) +
         '<div class="cb-grid"></div>' +
       '</div>';
     host.querySelector(".cb-new").onclick = function () { moForm(null); };
@@ -318,11 +324,12 @@
         ' <b>' + esc(window.t("cb.rt_che_do")) + '</b> ' + esc(window.t("cb.rt_2")) +
         ' <b>' + esc(window.t("cb.rt_lenh")) + '</b> ' + esc(window.t("cb.rt_va")) +
         ' <b>' + esc(window.t("cb.rt_tra_thang")) + '</b>' +
-        esc(b.reply_when === "always" || b.reply_when === "auto" ? window.t("cb.rt_always") : window.t("cb.rt_mention")) + '.<br>' +
-        esc(window.t("cb.rt_fix_1")) + ' <b>@BotFather</b> ' + esc(window.t("cb.rt_go")) +
+        esc(b.reply_when === "always" || b.reply_when === "auto" ? window.t("cb.rt_always") : window.t("cb.rt_mention")) + '.' +
+        // The problem stays visible; how to fix it opens from (i) (0.212.0).
+        infoBtn() + infoBody(esc(window.t("cb.rt_fix_1")) + ' <b>@BotFather</b> ' + esc(window.t("cb.rt_go")) +
         ' <b>/setprivacy</b>' + esc(window.t("cb.rt_fix_2")) + ' <b>Disable</b>' +
         esc(window.t("cb.rt_fix_3")) + ' <b>' + esc(window.t("cb.rt_quan_tri")) + '</b>. ' +
-        esc(window.t("cb.rt_fix_4")) + '</span></div>' : "";
+        esc(window.t("cb.rt_fix_4"))) + '</span></div>' : "";
     var c = el(
       '<div class="cb-card">' +
         '<div class="cb-head">' +
@@ -624,6 +631,8 @@
   function secH(bieuTuong, key) {
     return '<div class="cb-sec-h">' + ic(bieuTuong) + ' <span>' + esc(window.t(key)) + '</span></div>';
   }
+  // Adds HTML (the (i) button of the section's folded explanation) at the end of a secH() title row.
+  function voiInfo(tieuDe, them) { return tieuDe.replace(/<\/div>$/, (them || infoBtn()) + "</div>"); }
 
   // Thẻ chọn (radio card) cho "bot trả lời ai": tiêu đề + một dòng mô tả. Ba phương án đứng cạnh
   // nhau vì quyết định này là thứ chủ cần NHÌN THẤY cùng lúc để so sánh.
@@ -659,7 +668,9 @@
   function veCanhBao(id) {
     var m = mucCua(id);
     if (!(m.canh_bao || []).length) {
-      return '<div class="cb-hint">' + esc(window.t(id === "read_docs" ? "cb2.mq_read_docs" : "cb2.mq_doc")) + '</div>';
+      // What this level allows: the level name stays, the description opens from (i) (0.212.0).
+      return '<div class="cb-hint">' + esc(m.nhan) + infoBtn() + '</div>' +
+        infoBody(esc(window.t(id === "read_docs" ? "cb2.mq_read_docs" : "cb2.mq_doc")));
     }
     var HIEN = 2;
     return '<div class="cb-canhbao ' + (id === "full" ? "full" : "ghi") + '">' +
@@ -822,9 +833,9 @@
 
         // ---------------------------------------------------------------- BƯỚC 1: trả lời ở đâu
         '<div class="cb-b" id="cbB1">' +
-          '<label>' + esc(window.t("cb.lb_tai_khoan")) + '</label>' +
+          '<label>' + esc(window.t("cb.lb_tai_khoan")) + infoBtn() + '</label>' +
           '<div id="cbTkBox">' + veChonTK(b, chonSan) + '</div>' +
-          '<div class="cb-hint">' + esc(window.t("cb.hint_tai_khoan")) + '</div>' +
+          infoBody(esc(window.t("cb.hint_tai_khoan"))) +
           '<button class="s-btn-ghost cb-noi-kenh" type="button">' + ic("plus") + ' ' +
             esc(window.t("cb.noi_kenh_moi")) + '</button>' +
         '</div>' +
@@ -846,7 +857,9 @@
           '</div>' +
 
           // 2. Bot trả lời ai
-          '<div class="cb-sec">' + secH("users", "cb2.s_doituong") +
+          '<div class="cb-sec">' + voiInfo(secH("users", "cb2.s_doituong"), '<span id="cbKoNhomI" style="display:none">' + infoBtn() + '</span>') +
+            // Why there are no group options (filled by apDoiTuong); opens from the (i) next to the title.
+            '<div class="info-body" id="cbKoNhom" hidden></div>' +
             '<div class="cb-rcs" id="cbRcs">' +
               htmlThe("auto", card0, "cb2.aud_auto_t", "cb2.aud_auto_d") +
               htmlThe("all", card0, "cb2.aud_all_t", "cb2.aud_all_d") +
@@ -870,17 +883,18 @@
               '</div>' +
               '<div class="cb-hint cb-pk-hint" id="cbPkHint"></div>' +
             '</div>' +
-            '<div class="cb-hint" id="cbKoNhom" style="display:none"></div>' +
             '<div id="cbRwBox" style="display:none">' +
               '<div id="cbRwSeg">' +
-                '<div class="cb-sub">' + esc(window.t("cb2.rw_lb")) + '</div>' +
+                '<div class="cb-sub">' + esc(window.t("cb2.rw_lb")) + infoBtn() + '</div>' +
                 htmlSeg("cbRw", "cbRw", [
                   { v: "mention", t: window.t("cb2.rw_mention") },
                   { v: "auto", t: window.t("cb2.rw_auto") },
                   { v: "always", t: window.t("cb2.rw_always") }], rw0) +
-                '<div class="cb-hint" id="cbRwH"></div>' +
+                // What the picked mode does (filled by veRw), behind the (i) of the label above.
+                '<div class="info-body" id="cbRwH" hidden></div>' +
               '</div>' +
-              '<div class="cb-hint cb-chi-tg" id="cbRwTg">' + esc(window.t("cb2.rw_tg")) + '</div>' +
+              '<div class="cb-hint cb-chi-tg" id="cbRwTg">' + ic("triangle-alert") + ' <b>Telegram</b>: ' +
+                esc(window.t("cb.rt_che_do")) + infoBtn() + infoBody(esc(window.t("cb2.rw_tg"))) + '</div>' +
               // Chỉ hiện khi chọn "Tự đánh giá": một dòng giải thích, không ô cài đặt nào (bộ phán xử tự vận hành).
               (RP ? RP.formHtml() : '') +
             '</div>' +
@@ -904,29 +918,29 @@
 
           // 5. Active hours (0.130.0). Both empty = all day. Outside them the bot stays silent and the message
           // still lands in the inbox; an end earlier than the start runs past midnight (08:00 to 02:00).
-          '<div class="cb-sec">' + secH("alarm-clock", "cb.s_gio_truc") +
+          '<div class="cb-sec">' + voiInfo(secH("alarm-clock", "cb.s_gio_truc")) +
             '<div class="cb-gio-truc">' +
               '<label>' + esc(window.t("cb.gio_tu")) +
                 ' <input type="time" id="cbGioTu" value="' + esc(((b && b.gio_truc) || {}).tu || "") + '"></label>' +
               '<label>' + esc(window.t("cb.gio_den")) +
                 ' <input type="time" id="cbGioDen" value="' + esc(((b && b.gio_truc) || {}).den || "") + '"></label>' +
             '</div>' +
-            '<div class="cb-hint">' + esc(window.t("cb.hint_gio_truc")) + '</div>' +
+            infoBody(esc(window.t("cb.hint_gio_truc"))) +
             // Owner yield (0.172.0, personal Zalo only): minutes the bot stays out of a chat after the owner types into it
             // by hand; 0 = never. Left blank = not set: the channel default (10 minutes, groups silent as before), shown
             // as a placeholder so saving the form does not turn an unset bot into an explicit 10.
             '<div class="cb-gio-truc">' +
-              '<label>' + esc(window.t("cb.nhuong_tay")) +
+              '<label for="cbNhuongTay">' + esc(window.t("cb.nhuong_tay")) + infoBtn() +
                 ' <input type="number" id="cbNhuongTay" min="0" max="240" step="1" style="width:8em" placeholder="' + esc(window.t("cb.ph_nhuong_tay")) + '" value="' +
                 esc(b && b.nhuong_tay_phut != null ? String(b.nhuong_tay_phut) : "") + '"></label>' +
             '</div>' +
-            '<div class="cb-hint">' + esc(window.t("cb.hint_nhuong_tay")) + '</div>' +
+            infoBody(esc(window.t("cb.hint_nhuong_tay"))) +
             // Friend-request intake (0.172.0): accept requests and hand their introduction to the bot. Shown only
             // while a personal Zalo account is ticked (`apDoiTuong`): no other channel has friend requests.
             '<div id="cbKbBox" style="display:none">' +
-              '<label class="cb-gio-truc"><input type="checkbox" id="cbNhanKetBan"' +
-                (b && b.nhan_ket_ban ? " checked" : "") + '> ' + esc(window.t("cb.nhan_ket_ban")) + '</label>' +
-              '<div class="cb-hint">' + esc(window.t("cb.hint_nhan_ket_ban")) + '</div>' +
+              '<label class="cb-gio-truc" for="cbNhanKetBan"><input type="checkbox" id="cbNhanKetBan"' +
+                (b && b.nhan_ket_ban ? " checked" : "") + '> ' + esc(window.t("cb.nhan_ket_ban")) + infoBtn() + '</label>' +
+              infoBody(esc(window.t("cb.hint_nhan_ket_ban"))) +
             '</div>' +
           '</div>' +
 
@@ -934,7 +948,7 @@
           // own level and wait, without raising the bot that also answers strangers.
           // Picked from the chats the inbox knows on the ticked accounts, never typed: each exception carries the
           // channel account it lives on, so the same id on another account or channel never matches.
-          '<div class="cb-sec">' + secH("user", "cb.s_ngoai_le") +
+          '<div class="cb-sec">' + voiInfo(secH("user", "cb.s_ngoai_le")) +
             '<div class="cb-pk">' +
               '<div class="cb-pk-body" id="cbNlList"></div>' +
               '<div class="cb-pk-add">' +
@@ -943,7 +957,7 @@
                 '<button type="button" class="s-btn-ghost" id="cbNlAdd">' + esc(window.t("cb2.pk_them")) + '</button>' +
               '</div>' +
             '</div>' +
-            '<div class="cb-hint">' + esc(window.t("cb.hint_ngoai_le")) + '</div>' +
+            infoBody(esc(window.t("cb.hint_ngoai_le"))) +
           '</div>' +
 
           // Nâng cao: chỉ ngôn ngữ trả lời. Ngôn ngữ của bot ĐỘC LẬP với ngôn ngữ của chủ: bot nói
@@ -951,9 +965,9 @@
           // là chuyện bình thường, nên suy ngôn ngữ của bot từ ngôn ngữ của chủ là suy sai.
           '<details class="cb-nangcao">' +
             '<summary>' + ic("settings") + ' ' + esc(window.t("cb.nang_cao")) + '</summary>' +
-            '<label>' + esc(window.t("cb.lb_ngon_ngu")) + '</label>' +
+            '<label for="cbNgonNgu">' + esc(window.t("cb.lb_ngon_ngu")) + infoBtn() + '</label>' +
             '<select id="cbNgonNgu">' + htmlNgonNgu((b && b.ngon_ngu) || "auto") + '</select>' +
-            '<div class="cb-hint">' + esc(window.t("cb.hint_ngon_ngu")) + '</div>' +
+            infoBody(esc(window.t("cb.hint_ngon_ngu"))) +
           '</details>' +
         '</div>' +
 
@@ -1230,16 +1244,21 @@
       box.querySelector("#cbRwBox").style.display = co ? "" : "none";
       box.querySelector("#cbKbBox").style.display = coZaloCaNhan() ? "" : "none";
       // Không có nhóm thì nói vì sao, thay vì ẩn im lặng (0.102.1): chủ tưởng phải đưa bot vào nhóm mới hiện.
+      // 0.212.0: the reason sits behind the (i) next to the section title, shown only while it applies.
       var koNhom = box.querySelector("#cbKoNhom");
       var dsTk = tkDangChon();
-      koNhom.style.display = !co && dsTk.length ? "" : "none";
+      box.querySelector("#cbKoNhomI").style.display = !co && dsTk.length ? "" : "none";
       if (!co && dsTk.length) {
         var tenKenh = [];
         dsTk.forEach(function (a) {
           var n = kenhCua(a.channel).nhan;
           if (tenKenh.indexOf(n) < 0) tenKenh.push(n);
         });
-        koNhom.textContent = window.t("cb2.ko_nhom", { kenh: tenKenh.join(", ") });
+        var moiKo = el(infoBody(esc(window.t("cb2.ko_nhom", { kenh: tenKenh.join(", ") }))));
+        // Replace only when the text changes, so an open note does not snap shut on every click.
+        if (moiKo.textContent !== koNhom.textContent) { moiKo.id = "cbKoNhom"; koNhom.replaceWith(moiKo); }
+      } else {
+        koNhom.hidden = true;
       }
       apGoiY();
       veRw();

@@ -18,6 +18,12 @@
   function el(html) { var d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstChild; }
   function tt(k, v) { return window.t(k, v); }
   function ic(name) { return window.Icons ? window.Icons.ic(name) : ""; }
+  // (i) button (info-tip.js, 0.212.0): explanations sit behind it; without the helper (Node tests) they draw open.
+  function infoBtn() { var J = typeof window !== "undefined" && window.JavisInfo; return J ? J.btn(tt("info.more")) : ""; }
+  function infoBody(html) {
+    var J = typeof window !== "undefined" && window.JavisInfo;
+    return J ? J.body(html) : '<div class="info-body">' + html + "</div>";
+  }
 
   var NOTE_LB = {
     readonly_tools: "try.note_readonly",
@@ -67,8 +73,8 @@
   function open(bot, opts) {
     var groups = !!(opts && opts.groups);
     var box = el('<div class="cb-modal"><div class="cb-form cb-try-form">' +
-      '<h3>' + esc(tt("try.title", { name: bot.name || "" })) + '</h3>' +
-      '<div class="cb-hint">' + esc(tt("try.hint")) + '</div>' +
+      '<h3>' + esc(tt("try.title", { name: bot.name || "" })) + infoBtn() + '</h3>' +
+      infoBody(esc(tt("try.hint"))) +
       (groups
         ? '<div class="cb-try-where">' +
             '<label><input type="radio" name="cbTryWhere" value="private" checked> ' + esc(tt("try.private")) + '</label>' +
