@@ -73,7 +73,7 @@ check("nguồn đang tắt thì nói đang tắt và bật lại là mọi brain
 check("mô tả tool javis_connections cũng nói dùng chung cho mọi brain",
       "DÙNG CHUNG cho mọi brain" in _hub)
 check("danh sách nguồn dò hụt được đưa vào javis_connections",
-      "_connections_json(include_ambient, hidden, bo_qua)" in _hub)
+      "_connections_json(include_ambient, hidden, bo_qua," in _hub)
 
 print()
 if _fails:

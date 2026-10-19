@@ -10244,9 +10244,31 @@ def _agent_chat_prompt(brain, slug) -> str:
     if _resonance_turn_enabled(brain):
         sysprompt = (sysprompt.replace(_AGENT_HAI_LOI, _AGENT_BA_LOI)
                      + "\n# Cộng hưởng (đang bật cho bạn)\n- " + _RESONANCE_GOAL_HINT + "\n")
-    return (sysprompt + "\n\n# Kênh: bạn đang trò chuyện trực tiếp với chủ trên dashboard Javis "
+    return (sysprompt + _agent_builder_block(brain)
+            + "\n\n# Kênh: bạn đang trò chuyện trực tiếp với chủ trên dashboard Javis "
             "(trang Cộng sự). Trả lời như đang nói chuyện, theo ngôn ngữ chủ đang dùng; "
             "không cần báo cáo dạng nhiệm vụ trừ khi được giao việc cụ thể.")
+
+
+def _agent_builder_block(brain) -> str:
+    """Where and how to build agents, workflows and skills, for a chat with an assistant (0.228.0).
+
+    `_agent_chat_prompt` leaves CLAUDE.md and the "LỚP AGENTIC" block out on purpose, and those were the only places
+    that named these paths. Claude Code still found its way (it runs inside the brain folder and loads the
+    javis-builder skill natively), but an API engine only knows what the prompt says: asked to create an agent or
+    give one a model, it answered that it could not (customer report 2026-10-19). Every line here is a hub tool or
+    a vault path every engine reaches.
+    """
+    root = _brain_root(brain)
+    return (
+        "\n# Tạo năng lực mới khi chủ nhờ (mọi engine, kể cả engine API)\n"
+        f"- Trước khi tạo, nạp mẫu chuẩn: `javis_use_skill` name=javis-builder, rồi ghi bằng `javis_write_file` "
+        f"đường dẫn TUYỆT ĐỐI: agent `{_agents_dir(brain)}/<slug>.md`, workflow `{_workflows_dir(brain)}/<slug>.md`, "
+        f"skill `{_skills_dir(brain)}/<slug>/SKILL.md`, loop `{Path(root) / 'Javis' / 'loops'}/<slug>.md`.\n"
+        "- Tạo trợ lý kèm model riêng, hay đổi model của trợ lý đang có: tool `javis_team` op=create_agent / "
+        "op=set_agent_model (slug, model, model_provider). Chưa thấy tool thì tìm bằng `javis_search_tools`.\n"
+        "- Nhắc hẹn, việc định kỳ: `javis_schedule`. Đừng nói là không tạo được khi các tool trên có sẵn.\n"
+    )
 
 
 def _dm_feedback_prompt(brain, slug, conv_sid) -> str:

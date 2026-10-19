@@ -50,11 +50,15 @@ slug: <ascii>
 role: <vai trò 1 câu>
 tags: [Marketing, Viết nội dung]   # một hay nhiều tag; ví dụ Marketing, Bán hàng, Nội dung, Vận hành, Tài chính, AI, Năng suất, Cá nhân
 skills: [slug-skill]      # [] nếu chưa gán; chỉ gán skill đã có trong skills/
-model: ""                 # "" mặc định | sonnet|opus|haiku|fable (Claude) | gpt-5.5|gpt-5.4|gpt-5.3-codex (ChatGPT/Codex)
+model: ""                 # "" = dùng model chính | tên model, vd sonnet, gpt-5.5, claude-sonnet-5-5, gemini-2.5-pro
+model_provider: ""        # "" = suy theo tên model | anthropic-cli, openai-oauth, anthropic-api, openai, openrouter, gemini...
 updated: <YYYY-MM-DD>
 ---
 <system prompt: cách làm việc, nguyên tắc, định dạng đầu ra mong muốn>
 ```
+Gán hay đổi model cho trợ lý: ưu tiên tool `javis_team` op=set_agent_model (slug, model, model_provider). Tool tự kiểm
+model_provider hợp lệ và chạy trên MỌI engine, kể cả engine API. Cùng một tên model có ở hai nhà (claude-* có ở Claude Code
+lẫn Anthropic API) thì PHẢI ghi model_provider.
 
 **Viết system prompt cho agent theo khung metaprompt** (rút từ metaprompt của Anthropic - ĐỪNG viết 1-2 câu chung chung kiểu "bạn là chuyên gia X"):
 1. Vai + mục tiêu: 1 câu nêu vai, 1 câu nêu kết quả tốt trông như thế nào.

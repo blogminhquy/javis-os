@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.228.0] - 2026-10-19
 ### Sửa lỗi
-- **Trợ lý lại dùng được kết nối điều khiển trình duyệt.** (đang viết)
+- **Trợ lý chạy bằng API key (Anthropic API, OpenAI API...) tạo được agent, workflow và gán model.** Trước đây chat với một trợ lý bằng model API thì nó nói không làm được, vì nó không được chỉ chỗ ghi file và cách đặt model. Giờ trợ lý nào cũng biết, trên mọi model.
+- **Trợ lý nói đúng lý do khi thiếu điều khiển trình duyệt.** Kết nối gắn với tài khoản Claude (như Composio nối trên claude.ai) chỉ chạy khi model chat là Claude Code. Chạy bằng API key thì trợ lý nói rõ điều đó và chỉ hai cách: nối nguồn đó ở trang Kết nối của Javis, hoặc đổi sang Claude Code.
 
 ## [0.227.0] - 2026-10-19
 ### Sửa lỗi

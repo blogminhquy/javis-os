@@ -688,6 +688,8 @@ LEGACY_HASHES.update({
         "b399b173c59b4a6c61fdf294944aec06e9cd6cdcd28d02cabaf1cbb424dc844b",
         # bản 0.96.1 (trước khi agent đổi từ `group` sang `tags` ở 0.100.0)
         "407a1eebf9248304be7d7d9db11d627afb38ef2fdb446661f8a68df776acd8f2",
+        # 0.227.0 (before the agent template gained model_provider, 0.228.0)
+        "886c8abf0fbc02bf7d605cc398ae75e2e5e1505d3f9333679abf6ea0a7f5b8e2",
     },
     # ingest-source bản trước contextual-retrieval (v0.9.33) = 313675bc... đã có ở trên
     "skills/lint-wiki": {

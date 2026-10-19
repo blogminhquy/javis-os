@@ -477,7 +477,7 @@ def _safe_read_path(vault_root, p, cho_phep_staging=False, workspace_root=None):
     return trong_vault                  # trong vault nhưng không tồn tại: để chỗ gọi báo
 
 
-def _connections_json(include_ambient=False, hidden=None, bo_qua=None):
+def _connections_json(include_ambient=False, hidden=None, bo_qua=None, owner_chat=False):
     hidden = hidden or {}
     bo_qua = set(bo_qua or ())
     # Sức khoẻ từng nguồn (vòng check định kỳ). Import trong hàm: connect_health import
@@ -528,6 +528,18 @@ def _connections_json(include_ambient=False, hidden=None, bo_qua=None):
             out.append({"connector": s["name"], "label": s["name"], "source": "claude_account",
                         "goi_the_nao": f"Đã có sẵn trong danh sách tool: mcp__{_ambient_prefix(s['name'])}__* "
                                        "- GỌI THẲNG, không qua javis_run_tool."})
+    elif owner_chat:
+        # 0.228.0: an engine with no Claude account (Anthropic API, OpenAI API...) never gets these connectors. Not
+        # listing them let the model answer "there is no such tool" with no way forward (customer report 2026-10-19,
+        # browser control through a Composio connector added on claude.ai). Name them and the two real fixes.
+        # Owner chat only: a customer-facing bot has no business learning which accounts the owner connected.
+        for s in _ambient_servers():
+            out.append({"connector": s["name"], "label": s["name"], "source": "claude_account",
+                        "dung_duoc_o_luot_nay": False,
+                        "ly_do": ("Kết nối này gắn với TÀI KHOẢN Claude của chủ, chỉ có khi model chat là Claude "
+                                  "Code. Model đang chạy bằng API key nên không gọi được. Nói đúng lý do đó, rồi "
+                                  "chỉ hai cách: nối nguồn này ở trang Kết nối của Javis (mọi model đều dùng "
+                                  "được), hoặc đổi model chat sang Claude Code.")})
     return json.dumps(out, ensure_ascii=False, indent=1)
 
 
@@ -579,7 +591,7 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         "vào TÀI KHOẢN Claude (Drive/Gmail/lịch...) - loại source='claude_account' gọi THẲNG qua "
         "tool native mcp__<tên>__*, KHÔNG qua javis_run_tool. Dùng khi cần biết đang có nguồn nào / "
         "tài khoản nào là mặc định, hoặc khi không tìm thấy tool tưởng phải có.",
-        {}, [], lambda args: _async_const(_connections_json(include_ambient, hidden, bo_qua)))
+        {}, [], lambda args: _async_const(_connections_json(include_ambient, hidden, bo_qua, owner_chat=staging)))
 
     if not vault_root:
         return tools, route
