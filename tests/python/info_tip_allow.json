@@ -82,5 +82,6 @@
  "wz.prov_claude": "content: wizard provider card description used to pick",
  "wz.prov_or": "content: wizard provider card description used to pick",
  "wh.turn_off_confirm": "confirm: asked before Stop receiving, points to Pause processing instead",
- "wh.ev_delete_confirm": "confirm: asked before deleting one event and its payload"
+ "wh.ev_delete_confirm": "confirm: asked before deleting one event and its payload",
+ "wh.close_failed_confirm": "confirm: asked before closing every failed event of a hook without resending"
 }

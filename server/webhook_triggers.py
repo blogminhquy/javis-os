@@ -191,27 +191,34 @@ def _mask_text(s: str) -> str:
                   lambda m: "•" * max(0, len(re.sub(r"\D", "", m.group(1))) - 3) + re.sub(r"\D", "", m.group(1))[-3:], s)
 
 
-def mask(v: Any, key: str = "", depth: int = 0) -> Any:
+def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False) -> Any:
     """Customer data and credentials masked for the dashboard (spec §12: masked by default; the raw view is a separate,
-    audited request). Keys that name a person, a phone, an address... are masked whole; credentials become ••••; email
-    addresses and phone numbers inside other text are masked too."""
+    audited request). Keys that name a person, a phone, an address... are masked whole, and so is every text UNDER such
+    a key (`customer.full`, `shipping.line1`: the inner key names nothing, the block is the customer's); credentials
+    become ••••; email addresses and phone numbers inside other text are masked too."""
     k = str(key or "").lower()
     if depth > 64:
         return "…"
     if any(x in k for x in _SECRET_KEYS):
         return "••••"
+    pii = pii or any(x in k for x in _PII_KEYS)
     if isinstance(v, dict):
-        return {kk: mask(vv, kk, depth + 1) for kk, vv in v.items()}
+        return {kk: mask(vv, kk, depth + 1, pii) for kk, vv in v.items()}
     if isinstance(v, list):
-        return [mask(x, key, depth + 1) for x in v]
+        return [mask(x, key, depth + 1, pii) for x in v]
     if isinstance(v, str):
-        if any(x in k for x in _PII_KEYS) and v:
+        if pii and v:
             return v[:1] + "•" * min(max(len(v) - 1, 1), 12)
         return _mask_text(v)
     if isinstance(v, (int, float)) and not isinstance(v, bool) and any(x in k for x in ("phone", "mobile", "tel", "sdt")):
         s = str(v)
         return "•" * max(0, len(s) - 3) + s[-3:]
     return v
+
+
+def _as_bool(v: Any) -> bool:
+    """A switch value from the dashboard or the API: true / false, or "1" / "true" / "on" / "yes" as text."""
+    return v if isinstance(v, bool) else str(v).strip().lower() in ("1", "true", "on", "yes")
 
 
 def mask_row(r: dict) -> dict:
@@ -604,10 +611,11 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         h = self._find_hook(hid)
         if h is None:
             return None, localefmt.chu("Không thấy webhook này.", "Webhook not found."), 404
-        if "enabled" in changes and not set(changes) - {"id", "enabled", "revision"}:
-            # The receive switch alone is always allowed, even when the rest of the hook would not validate any more
-            # (its workflow or brain is gone): the owner must always be able to stop receiving.
-            self.store().hook_set(hid, enabled=1 if changes.get("enabled") else 0)
+        if "enabled" in changes and not set(changes) - {"id", "enabled", "revision"} \
+                and not _as_bool(changes.get("enabled")):
+            # Stop receiving alone is always allowed, even when the rest of the hook would not validate any more (its
+            # workflow or brain is gone): the owner must always be able to stop it. Switching on goes the normal way.
+            self.store().hook_set(hid, enabled=0)
             return self.store().hook_get(hid), "", 200
         merged = dict(h)
         for k in ("name", "workflow", "text", "chat_id"):
@@ -647,8 +655,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             except webhook_actions.ActionError as e:
                 return None, localefmt.chu(f"Hành động chưa đúng: {e}", f"Actions are not valid: {e}"), 400
         if changes.get("enabled") is not None:
-            merged["enabled"] = str(changes["enabled"]).lower() in ("1", "true", "on", "yes") \
-                if not isinstance(changes["enabled"], bool) else changes["enabled"]
+            merged["enabled"] = _as_bool(changes["enabled"])
         err = self._validate(merged, merged.get("brain", ""))
         if err:
             return None, err, 400
@@ -780,7 +787,8 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         cap = int(((h.get("limits") or {}).get("body_kb") or BODY_MAX_BYTES // 1024)) * 1024
         if len(body) > cap:
             return 413, {"ok": False, "error": f"body larger than {cap} bytes"}
-        res = evaluate_closed(rules, body, ct, logged_event, reveal=True)
+        # A logged event holds customer data: its values are revealed only for the audited raw view (spec §12).
+        res = evaluate_closed(rules, body, ct, logged_event, reveal=not p.get("event") or bool(p.get("raw")))
         decision = res["decision"]
         out = {"ok": True, "decision": decision, "state": {"run": "processing", "filtered": "ignored",
                                                            "invalid": "quarantined"}.get(decision, decision),
@@ -805,13 +813,15 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                 self.store().audit("simulate_raw", str(h.get("id") or ""), str(p["event"]))
             else:
                 out["fields"], out["trace"] = mask(out["fields"]), mask(out["trace"])
+                out["correlation"] = _mask_text(str(out.get("correlation") or ""))
                 for d in out.get("deliveries") or []:
                     if "args" in d:
                         d["args"] = mask(d["args"])
                 if out.get("prompt"):
-                    # Rebuilt from the masked payload (masking the finished text would miss names).
-                    out["prompt"] = event_prompt(h, json.dumps(mask(webhook_rules.parse_payload(body, ct)[0]),
-                                                               ensure_ascii=False, indent=2), time.time(), out["fields"])
+                    # The prompt carries the whole payload, and masking by key names cannot know every key that holds a
+                    # name: it is shown only in the audited raw view.
+                    out.pop("prompt")
+                    out["prompt_hidden"] = True
                 out["masked"] = True
         return 200, out
 
@@ -1003,7 +1013,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             return 200, {"ok": True, "duplicate": True, "event_id": info.get("event_id", ""),
                          "run_id": info.get("event_id", "")}
         if code == 401:
-            return 401, {"ok": False, "error": "unauthorized"}
+            return 401, {"ok": False, "error": "unauthorized", "code": "off"}
         if code == 429:
             lim = h.get("limits") or {}
             msg = {"rate": f"more than {lim.get('per_minute') or webhook_store.INGRESS_PER_MIN} events in a minute",
@@ -1081,8 +1091,8 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                 print(f"[webhooks] receive {hook_id}: {type(e).__name__}: {e}", file=sys.stderr)
                 return js({"ok": False, "error": "temporarily unavailable, retry later", "code": "store_unavailable",
                            "retry_after": 30}, 503)
-            if code == 401:
-                self._auth_failed(ip, now)
+            if code == 401 and resp.get("code") != "off":
+                self._auth_failed(ip, now)          # a bad signature counts; a hook stopped meanwhile does not
             return js(resp, code)
 
         @router.get("/webhooks")
@@ -1274,7 +1284,11 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         async def webhooks_event_retry(payload: dict = Body(None)):
             """Run the deliveries of an event that failed, are unknown or blocked again, with the same delivery ids and
             the same snapshot. The owner decides (after reconciling): nothing retries an unknown delivery alone."""
-            ok, why = await asyncio.to_thread(self.store().retry, str((payload or {}).get("id") or ""))
+            eid = str((payload or {}).get("id") or "")
+            ev = await asyncio.to_thread(self.store().get, eid)
+            h = await asyncio.to_thread(self._find_hook, ev["hook_id"]) if ev else None
+            win = float((((h or {}).get("retry") or {}).get("deadline_h") or 24)) * 3600
+            ok, why = await asyncio.to_thread(self.store().retry, eid, None, win)
             if not ok:
                 return JSONResponse({"ok": False, "error": why}, status_code=404 if why == "not_found" else 409)
             self._kick()
@@ -1301,6 +1315,14 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             if not ok:
                 return JSONResponse({"ok": False, "error": why}, status_code=404 if why == "not_found" else 409)
             return {"ok": True}
+
+        @router.post("/webhooks/events/close_failed")
+        async def webhooks_events_close_failed(payload: dict = Body(None)):
+            """Settle every failed or dead event of a hook as given up, without resending (audited)."""
+            hid = str((payload or {}).get("hook") or "")
+            if not hid or await asyncio.to_thread(self._find_hook, hid) is None:
+                return JSONResponse({"ok": False, "error": "not_found"}, status_code=404)
+            return {"ok": True, "closed": await asyncio.to_thread(self.store().close_failed, hid)}
 
         @router.post("/webhooks/events/approve")
         async def webhooks_event_approve(payload: dict = Body(None)):

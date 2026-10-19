@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+import sqlite3
 import sys
 import time
 from typing import Optional
@@ -178,6 +179,13 @@ class WebhookWorker:
         for r in rows:
             try:
                 await self._triage_one(st, r)
+            except (webhook_store.Busy, sqlite3.Error, OSError) as e:
+                # The store itself is busy or failing: a passing fault, never a reason to quarantine the event.
+                print(f"[webhooks] triage of {r['id']} deferred: {type(e).__name__}: {e}", file=sys.stderr)
+                try:
+                    await asyncio.to_thread(st.triage_defer, r["id"], 30, f"store busy: {type(e).__name__}")
+                except Exception:
+                    pass
             except Exception as e:
                 # One event that cannot be decided must never hold every later event of every hook (the batch is
                 # oldest first, so a raise here would repeat on each pass): it is quarantined with the fault named.
@@ -445,7 +453,12 @@ class WebhookWorker:
                 if webhook_actions.plugin_busy(b["delivery_id"]):
                     return await close("retry", "not sent: the previous call of this delivery is still running", now + 60)
                 if not webhook_actions.plugin_slot_free(a["plugin"], found):
-                    # Its turn has not come (this plugin, or all plugins, are busy): no attempt is spent.
+                    # Its turn has not come (this plugin, or all plugins, are busy): no attempt is spent, but the wait
+                    # is bounded by the delivery's deadline. Past it the delivery fails (it was never sent) and the
+                    # owner is told: a plugin whose calls hang must not hold its deliveries forever, unseen.
+                    if float(b.get("deadline") or 0) and now > float(b["deadline"]):
+                        return await close("failed", "not sent: the plugin's earlier calls kept hanging until the "
+                                           "deadline (check the plugin, then Retry)")
                     return await close("retry", "not sent yet: plugin handlers are busy", now + 30)
             elif a["kind"] != "ai":
                 why = webhook_actions.level_ok(a, level)

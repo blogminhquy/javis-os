@@ -65,6 +65,7 @@ KEEP_PER_HOOK = 5000          # finished runs kept per hook (rows), apart from t
 KEEP_IGNORED_PER_HOOK = 2000  # ignored/quarantined events kept per hook
 KEEP_DAYS_MAX = 365
 BODY_KEEP_DAYS = 7            # body of a FINISHED event; unknown/waiting/blocked keep theirs until settled
+RETRY_WINDOW_S = 24 * 3600.0  # an owner's retry gets this window from now unless the hook sets its own (deadline_h)
 DEP_CANCEL = "not run: an action it depends on did not succeed"   # the detail of a dependent the owner's retry re-runs
 DEDUP_KEEP_DAYS = 7           # delivery keys outlive their events (Stripe/Shopify retry for up to 72 h)
 NOTIFY_TRIES = 5
@@ -1503,7 +1504,7 @@ class Store:
                 " LIMIT ?", (hook_id, hook_id, limit))]
 
     # ── owner actions ──
-    def retry(self, eid: str, now: Optional[float] = None) -> tuple:
+    def retry(self, eid: str, now: Optional[float] = None, window_s: float = 0.0) -> tuple:
         """The owner asks to run an event again (failed, unknown, dead, blocked), after reconciling. Only deliveries that
         failed, are unknown or blocked run again, with the SAME delivery ids and the same snapshot; a delivery that
         succeeded never does. Returns (ok, error_code)."""
@@ -1532,9 +1533,9 @@ class Store:
             # The owner's retry gets a fresh retry window from now (else an event retried after a day had one try).
             # Deliveries cancelled only because a dependency failed run again too (the chain the owner set up).
             self._db.execute("UPDATE deliveries SET status='pending', next_at=0, finished_at=0, tries=0,"
-                             " deadline=CASE WHEN deadline>0 THEN ? + (deadline - ?) ELSE 0 END WHERE event_id=?"
+                             " deadline=CASE WHEN deadline>0 THEN ? ELSE 0 END WHERE event_id=?"
                              " AND generation=? AND (status IN ('failed','unknown','blocked') OR (status='cancelled'"
-                             " AND detail LIKE ?))", (now, float(row["received_at"] or now), eid,
+                             " AND detail LIKE ?))", (now + float(window_s or RETRY_WINDOW_S), eid,
                                                       int(row["generation"]), DEP_CANCEL + "%"))
             self._db.execute("UPDATE events SET status='queued', next_at=?, dispatched_at=0, finished_at=0,"
                              " notified_at=0, notify_tries=0, tries=0, error='', result='' WHERE id=?", (now, eid))
@@ -1574,6 +1575,18 @@ class Store:
         now = time.time() if now is None else now
         with self._write():
             row = self._db.execute("SELECT status, generation, hook_id FROM events WHERE id=?", (eid,)).fetchone()
+            if row is not None and row["status"] in ("failed", "dead"):
+                # The owner settles a failed event without resending (done: handled outside; failed: given up). It
+                # leaves the kept-body set, so its body follows the normal retention and stops counting in the quota.
+                self._db.execute("UPDATE deliveries SET status=CASE WHEN ?='done' THEN 'completed' ELSE status END,"
+                                 " detail='owner: ' || ? WHERE event_id=? AND generation=? AND status IN ('failed',"
+                                 "'unknown','blocked')", (outcome, str(note or "settled")[:900], eid,
+                                                          int(row["generation"])))
+                self._db.execute("UPDATE events SET status=?, result=CASE WHEN ?='' THEN result ELSE ? END,"
+                                 " finished_at=?, notified_at=? WHERE id=?",
+                                 ("done" if outcome == "done" else "cancelled", note, str(note)[:1000], now, now, eid))
+                self._audit(now, "settle:" + outcome, row["hook_id"], eid, note)
+                return True, ""
             if row is None or row["status"] not in ("unknown", "waiting", "blocked"):
                 return False, "not_unknown"
             gen = int(row["generation"])
@@ -1597,6 +1610,21 @@ class Store:
                              (final, note, str(note)[:1000], now, now, eid))
         return True, ""
 
+    def close_failed(self, hook_id: str, now: Optional[float] = None) -> int:
+        """Settle every failed or dead event of a hook as given up (cancelled, audited), without resending: the way out
+        when kept failed bodies fill the hook's byte quota."""
+        now = time.time() if now is None else now
+        with self._write():
+            ids = [r[0] for r in self._db.execute("SELECT id FROM events WHERE hook_id=? AND status IN ('failed','dead')",
+                                                   (hook_id,))]
+            for i in range(0, len(ids), 500):
+                q = ",".join("?" * len(ids[i:i + 500]))
+                self._db.execute(f"UPDATE events SET status='cancelled', error='closed by the owner: ' || error,"
+                                 f" finished_at=?, notified_at=? WHERE id IN ({q})", [now, now] + ids[i:i + 500])
+            if ids:
+                self._audit(now, "close_failed", hook_id, "", f"{len(ids)} events")
+        return len(ids)
+
     def delete_event(self, eid: str, now: Optional[float] = None) -> tuple:
         """The owner deletes one event that is not being processed (spec §11: a failed body is kept until the owner
         settles or deletes it). Its delivery key goes too, so a resend from the source is received again; the business
@@ -1606,8 +1634,10 @@ class Store:
             row = self._db.execute("SELECT status, hook_id FROM events WHERE id=?", (eid,)).fetchone()
             if row is None:
                 return False, "not_found"
-            if row["status"] in ("received", "queued", "running"):
-                return False, "busy"
+            if row["status"] not in ("failed", "dead"):
+                # A finished or ignored event keeps its delivery key (a provider resend stays a duplicate); an open
+                # one is being processed. Only failed and dead events are deleted by hand.
+                return False, "not_deletable"
             self._db.execute("DELETE FROM dedup WHERE event_id=?", (eid,))
             self._db.execute("DELETE FROM biz_keys WHERE event_id=?", (eid,))
             self._db.execute("DELETE FROM notifications WHERE event_id=? AND status='pending'", (eid,))
@@ -1860,7 +1890,12 @@ class Store:
         # Deleted in small transactions: one long write would hold the store lock and make every receive wait.
         for i in range(0, len(ids), 200):
             with self._write():
-                self._delete_events(ids[i:i + 200])
+                # Re-checked inside the delete's own transaction: an event replayed meanwhile is open again.
+                chunk = ids[i:i + 200]
+                q = ",".join("?" * len(chunk))
+                still = [r[0] for r in self._db.execute(f"SELECT id FROM events WHERE id IN ({q}) AND status IN {fin}",
+                                                         chunk)]
+                self._delete_events(still)
         with self._write():
             self._db.execute("DELETE FROM dedup WHERE created_at<?", (now - DEDUP_KEEP_DAYS * 86400,))
             self._db.execute("DELETE FROM ai_runs WHERE at<?", (now - 3 * 86400,))

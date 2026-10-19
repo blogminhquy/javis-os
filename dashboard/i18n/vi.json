@@ -5146,5 +5146,10 @@
   "wh.sim_ran": "Qua bộ lọc",
   "wh.key_where_signed": "Chữ ký của {provider} là đủ để nhận, không cần khoá Javis.",
   "wh.ev_delete": "Xoá",
-  "wh.ev_delete_confirm": "Xoá sự kiện này cùng nội dung của nó? Không chạy lại được nữa; nếu nguồn gửi lại, Javis nhận như sự kiện mới."
+  "wh.ev_delete_confirm": "Xoá sự kiện này cùng nội dung của nó? Không chạy lại được nữa; nếu nguồn gửi lại, Javis nhận như sự kiện mới.",
+  "wh.ev_settle": "Đóng",
+  "wh.ev_settle_confirm": "Đóng sự kiện lỗi này mà không gửi lại (bạn đã xử lý bên ngoài hoặc bỏ qua)?",
+  "wh.close_failed": "Đóng mọi sự kiện lỗi",
+  "wh.close_failed_confirm": "Đóng mọi sự kiện lỗi của webhook này mà không gửi lại? Nội dung của chúng sẽ được dọn theo thời hạn lưu.",
+  "wh.closed_n": "Đã đóng {n} sự kiện"
 }

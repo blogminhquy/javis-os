@@ -437,6 +437,102 @@ async def plugin_fairness():
         await asyncio.sleep(0.3)
 
 
+async def second_round():
+    """Findings of the review of the fixes (R4)."""
+    import threading
+    import httpx
+    from fastapi import FastAPI
+    f = fresh()
+    st = f.store()
+    # R4 P2-1: a plugin whose calls hang does not hold its other deliveries past their deadline.
+    stop = threading.Event()
+
+    def slow(env, ctx):
+        stop.wait(20)
+        return {"status": "completed"}
+    f.deps.plugin_handler = lambda b, slug, n: {"handler": slow, "ctx": None, "min_mode": "readonly", "schema": None,
+                                                "ai": False, "idempotent": True} if slug == "hang" else None
+    old_t = mx.wa.PLUGIN_TIMEOUT_S
+    mx.wa.PLUGIN_TIMEOUT_S = 0.2
+    try:
+        hs = [f.create("/b1", name=f"hang{i}", target="", text="", level="full",
+                       actions=[{"id": "p", "kind": "plugin", "plugin": "hang", "handler": "h"}])[:2] for i in range(3)]
+        evs = []
+        for h, t in hs:
+            evs.append((await f.accept(h["id"], t, b"{}", "application/json", ""))[1]["event_id"])
+        await f.wait_idle()
+        late = evs[2]
+        st._db.execute("UPDATE deliveries SET deadline=?, next_at=0 WHERE event_id=?", (time.time() - 1, late))
+        st._db.execute("UPDATE events SET next_at=0 WHERE id=?", (late,))
+        f._kick()
+        await f.wait_idle()
+        b = st.get(late)["branches"][0]
+        check("R4 P2-1: a delivery that waited for a hung plugin past its deadline fails (never sent) instead of "
+              "waiting forever", b["status"] == "failed" and "deadline" in b["detail"] and int(b["tries"] or 0) == 0,
+              (b["status"], b["detail"], b["tries"]))
+    finally:
+        stop.set()
+        mx.wa.PLUGIN_TIMEOUT_S = old_t
+        await asyncio.sleep(0.3)
+    # R4 P2-2: failed events can be settled one by one or all at once, so kept bodies never wedge the quota.
+    f2 = fresh()
+    st2 = f2.store()
+    hq, tq, _ = f2.create("/b1", name="Đầy", target="", text="", level="full", limits={"backlog_mb": 1, "body_kb": 512},
+                          actions=[{"id": "crm", "kind": "http", "url": "https://wedge.example/in", "body": "raw"}])
+    mx.HTTP["by_host"]["wedge.example"] = 400
+    big = b'{"pad": "' + b"x" * 400000 + b'"}'
+    codes = [(await f2.accept(hq["id"], tq, big, "application/json", ""))[0] for _ in range(2)]
+    await f2.wait_idle()
+    refused, _ = await f2.accept(hq["id"], tq, big, "application/json", "")
+    ids = [r["id"] for r in st2.page(hook_id=hq["id"])["items"]]
+    ok1, _ = st2.resolve(ids[0], "done", "fixed by hand")
+    n = st2.close_failed(hq["id"])
+    mx.HTTP["by_host"]["wedge.example"] = 200
+    again, _ = await f2.accept(hq["id"], tq, big, "application/json", "")
+    check("R4 P2-2: kept failed bodies fill the byte quota (429), Close settles one, Close all the rest, and the hook "
+          "receives again", codes[:2] == [202, 202] and refused == 429 and ok1 and n >= 1 and again == 202
+          and st2.get(ids[0])["status"] == "done", (codes, refused, ok1, n, again))
+    okd, whyd = st2.delete_event(ids[0])
+    check("R4 P3: a done event cannot be deleted by hand (its delivery key must stay)", not okd and whyd == "not_deletable")
+    # R4 P2-3: simulating a logged event reveals no value unless raw.
+    app = FastAPI()
+    app.include_router(f2.router)
+    cl = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+    hn, tn, _ = f2.create("/b1", name="Tên", target="task", text="x",
+                          rules={"filter": {"path": "customer.full", "op": "exists"}, "correlation": "email"})
+    c, rn = await f2.accept(hn["id"], tn, body({"customer": {"full": "Nguyễn Văn Bình"}, "email": "binh@example.com"}),
+                            "application/json", "")
+    await f2.wait_idle()
+    sim = json.dumps((await cl.post("/webhooks/simulate", json={"id": hn["id"], "event": rn["event_id"]})).json(),
+                     ensure_ascii=False)
+    check("R4 P2-3: simulating a logged event shows no customer value in the trace nor the correlation",
+          "Nguyễn Văn Bình" not in sim and "binh@example.com" not in sim, sim[:300])
+    view = (await cl.get(f"/webhooks/events/{rn['event_id']}")).text
+    check("R4 P2-3: the masked event view hides every text under a customer block (customer.full)",
+          "Nguyễn Văn Bình" not in view and "Bình" not in view, view[:300])
+    # R4 P3: the retry window does not widen with each retry.
+    ev = st2.get(ids[1]) if st2.get(ids[1]) else None
+    hw, tw_, _ = f2.create("/b1", name="Cửa sổ", target="", text="", level="full",
+                           actions=[{"id": "crm", "kind": "http", "url": "https://win.example/in"}])
+    mx.HTTP["by_host"]["win.example"] = 400
+    c, rw = await f2.accept(hw["id"], tw_, b"{}", "application/json", "")
+    await f2.wait_idle()
+    wins = []
+    for _ in range(3):
+        st2.retry(rw["event_id"])
+        f2._kick()
+        await f2.wait_idle()
+        d = st2._db.execute("SELECT deadline FROM deliveries WHERE event_id=?", (rw["event_id"],)).fetchone()[0]
+        wins.append(round((d - time.time()) / 3600))
+    check("R4 P3: each owner retry gets the same 24 h window, never a wider one", wins == [24, 24, 24], wins)
+    # R4 P3: the Stop receiving shortcut parses text like the normal path.
+    hb, tb, _ = f2.create("/b1", name="Công tắc", target="task", text="x")
+    h_s, _, _ = f2.update(hb["id"], {"enabled": "false"})
+    check("R4 P3: {\"enabled\": \"false\"} switches receiving OFF", not h_s["enabled"])
+    await cl.aclose()
+    del ev
+
+
 async def main():
     await rules_and_triage()
     await receiving()
@@ -444,6 +540,7 @@ async def main():
     await rollback_cycle()
     await privacy_and_ops()
     await plugin_fairness()
+    await second_round()
 
 
 if __name__ == "__main__":

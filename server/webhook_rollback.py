@@ -86,6 +86,10 @@ def run(state_dir: Path, check: bool = False, force: bool = False, now: float = 
         if leases and not force:
             return {"ok": False, "error": f"{leases} event(s) are running under a live lease: stop the server first "
                                           "(or pass --force if it is certainly stopped)"}
+        if st.meta_get("rolled_back_at") and not st.meta_get("hooks_migrated") and not force:
+            return {"ok": False, "error": "a rollback was already prepared and no newer build has run since: running it "
+                                          "again would overwrite webhooks.json and lose what the older build changed "
+                                          "(pass --force if that file is not in use)"}
         hooks = st.hooks_all()
         open_ev = st.open_events()
         legacy, blocked = [], {}

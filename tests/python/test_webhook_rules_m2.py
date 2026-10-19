@@ -575,8 +575,12 @@ async def main():
     logged = st._db.execute("SELECT id FROM events WHERE status='filtered' AND hook_id=?", (h["id"],)).fetchone()[0]
     code, sim = f.simulate({"id": h["id"], "event": logged,
                             "rules": {"filter": {"path": "event", "op": "in", "value": ["sale", "refund"]}}})
-    check("simulate: replays a logged event's own body against changed rules", code == 200 and sim["decision"] == "run"
-          and sim["trace"]["filter"][0]["actual"] == "refund", sim)
+    code_r, sim_r = f.simulate({"id": h["id"], "event": logged, "raw": True,
+                                "rules": {"filter": {"path": "event", "op": "in", "value": ["sale", "refund"]}}})
+    check("simulate: replays a logged event's own body against changed rules; the values seen appear only in the raw "
+          "(audited) form (spec §12)", code == 200 and sim["decision"] == "run" and "actual" not in sim["trace"]["filter"][0]
+          and code_r == 200 and sim_r["trace"]["filter"][0]["actual"] == "refund"
+          and any(a["action"] == "simulate_raw" for a in st.audit_rows(h["id"])), (sim, sim_r))
     h2, _, _ = f.create("/b2", name="Khác", target="task", text="x")
     code, sim = f.simulate({"id": h2["id"], "event": logged})
     check("simulate: an event of another hook cannot be replayed (no cross-hook or cross-brain read)", code == 404)

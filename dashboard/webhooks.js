@@ -71,6 +71,8 @@
     if (r.run_id || r.id) acts += '<button class="s-btn-ghost whEvInfo" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.details")) + "</button>";
     // A failed body is kept until the owner settles it or deletes it (spec §11).
     if (st === "failed" || st === "dead") {
+      // Settle without resending (handled outside, or given up): its kept body then follows the normal retention.
+      acts += '<button class="s-btn-ghost whEvSettle" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.ev_settle")) + "</button>";
       acts += '<button class="s-btn-ghost whEvDel" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.ev_delete")) + "</button>";
     }
     return '<div class="le wh-ev wh-ev-' + esc(st) + '">' + esc(fmtTime(r.at || r.received_at)) + " · "
@@ -381,7 +383,8 @@
       + '<div class="whLogRows">' + (hist || '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.no_events")) + "</div>") + "</div>"
       + '<button class="s-btn-ghost whMore" style="font-size:16px">' + esc(tw("wh.more")) + "</button>"
       + ' <a class="s-btn-ghost" href="/webhooks/events/export?hook=' + encodeURIComponent(h.id) + '&format=csv" download>'
-      + esc(tw("wh.export")) + "</a></details>";
+      + esc(tw("wh.export")) + "</a>"
+      + ' <button class="s-btn-ghost whCloseFailed">' + esc(tw("wh.close_failed")) + "</button></details>";
     return '<b>' + ic("webhook") + " " + esc(h.name) + "</b>"
       + (h.enabled ? "" : ' <span class="dim" style="font-size:16px;color:var(--text3)">' + esc(tw("wh.off")) + "</span>")
       + (h.paused ? ' <span class="dim" style="font-size:16px;color:var(--warn-ink)">' + esc(tw("wh.paused_badge")) + "</span>" : "")
@@ -564,6 +567,13 @@
             });
           };
         });
+        scope.querySelectorAll(".whEvSettle").forEach(function (b) {
+          b.onclick = async function () {
+            if (!confirm(tw("wh.ev_settle_confirm"))) return;
+            var r = await api("/webhooks/events/resolve", { id: b.dataset.ev, outcome: "done", note: "settled by the owner" });
+            if (r.ok) load(); else b.textContent = errText(r);
+          };
+        });
         scope.querySelectorAll(".whEvDel").forEach(function (b) {
           b.onclick = async function () {
             if (!confirm(tw("wh.ev_delete_confirm"))) return;
@@ -579,6 +589,13 @@
         });
       }
       bindRows(div);
+      var closeAll = div.querySelector(".whCloseFailed");
+      if (closeAll) closeAll.onclick = async function () {
+        if (!confirm(tw("wh.close_failed_confirm"))) return;
+        var r = await api("/webhooks/events/close_failed", { hook: h.id });
+        closeAll.textContent = r.ok ? tw("wh.closed_n", { n: r.closed }) : errText(r);
+        if (r.ok) setTimeout(load, 1500);
+      };
       if (!more || !rowsBox) return;
       more.onclick = async function () {
         var url = "/webhooks/events?hook=" + encodeURIComponent(h.id) + "&limit=20" + (status ? "&status=" + encodeURIComponent(status) : "")

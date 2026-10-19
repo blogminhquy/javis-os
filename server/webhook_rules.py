@@ -1051,7 +1051,7 @@ def _canon(v: Any) -> list:
         if d is not None and d == d.to_integral_value():
             return ["number", str(int(d))]
         return ["number", format(d.normalize(), "f") if d is not None else str(v)]
-    return ["string", str(v)]
+    return ["string", unicodedata.normalize("NFC", str(v))]   # one key whenever eq says the texts are equal
 
 
 def business_key(spec: dict, doc: Any, fields: dict) -> tuple:
