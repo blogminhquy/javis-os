@@ -10,7 +10,7 @@ function check(name, ok) { console.log((ok ? "ok   " : "FAIL ") + name); if (!ok
 
 for (const st of ["filtered", "invalid", "duplicate"]) {
   const r = W.eventRowHtml({ run_id: "ev_1", at: 1, status: st, error: "why" });
-  check(`${st}: its own words and no actions`, r.includes("wh.st_" + st) && !r.includes("<button"));
+  check(`${st}: its own words and no Retry or Mark done`, r.includes("wh.st_" + st) && !r.includes("whEvRetry") && !r.includes("whEvDone"));
 }
 const card = (rules) => W.cardHtml({ id: "wh_1", name: "Đơn", target: "task", text: "x", level: "full", brain: "/b",
   url: "/hooks/wh_1", enabled: true, history: [], rules: rules }, []);

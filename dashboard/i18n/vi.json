@@ -5007,5 +5007,20 @@
   "wh.sim_filter": "Lọc",
   "wh.sim_fields": "Trường trích ra",
   "wh.sim_key": "Khoá chống trùng:",
-  "wh.sim_prompt": "Nội dung việc sẽ nhận"
+  "wh.sim_prompt": "Nội dung việc sẽ nhận",
+  "wh.details": "Chi tiết",
+  "wh.delivery": "Mã giao nhận:",
+  "wh.no_detail": "Chưa có chi tiết cho sự kiện này.",
+  "wh.br_completed": "xong",
+  "wh.br_accepted": "bên nhận đã nhận, tự làm tiếp",
+  "wh.br_failed": "lỗi",
+  "wh.br_unknown": "không rõ đã xong chưa",
+  "wh.br_pending": "chưa chạy",
+  "wh.br_retry": "sẽ gửi lại",
+  "wh.br_running": "đang chạy",
+  "wh.br_silent": "xong, không có gì cần báo",
+  "wh.br_waiting": "chờ bạn trả lời",
+  "wh.br_cancelled": "bỏ, hành động đã bị gỡ",
+  "wh.actions_label": "Hành động (JSON)",
+  "wh.actions_hint": "Gửi tiếp tới HTTP, Apps Script hoặc plugin. Để trống là chạy việc của webhook."
 }

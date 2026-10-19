@@ -5007,5 +5007,20 @@
   "wh.sim_filter": "Filter",
   "wh.sim_fields": "Fields picked",
   "wh.sim_key": "Duplicate key:",
-  "wh.sim_prompt": "What the run would receive"
+  "wh.sim_prompt": "What the run would receive",
+  "wh.details": "Details",
+  "wh.delivery": "Delivery id:",
+  "wh.no_detail": "No detail for this event yet.",
+  "wh.br_completed": "done",
+  "wh.br_accepted": "taken by the receiver, it finishes on its own",
+  "wh.br_failed": "failed",
+  "wh.br_unknown": "not known whether it finished",
+  "wh.br_pending": "not run yet",
+  "wh.br_retry": "will be sent again",
+  "wh.br_running": "running",
+  "wh.br_silent": "done, nothing to report",
+  "wh.br_waiting": "waiting for your answer",
+  "wh.br_cancelled": "skipped, the action was removed",
+  "wh.actions_label": "Actions (JSON)",
+  "wh.actions_hint": "Forward to HTTP, Apps Script or a plugin. Empty runs the webhook's own job."
 }

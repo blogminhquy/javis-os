@@ -48,6 +48,7 @@ from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 
 import localefmt
+import webhook_actions
 import webhook_rules
 import webhook_store
 
@@ -83,6 +84,12 @@ class WebhookDeps:
     atomic_write_text: Optional[Callable[[Any, str], None]] = None
     # 0.199.0: (source, ref, brain=, title=, error=, request=) -> report a broken run to Javis Core (incident_desk.py).
     incident_hook: Optional[Callable] = None
+    # M3: (brain, plugin slug, handler name) -> {"handler", "ctx", "min_mode"} | None (plugins_host.find_webhook_handler)
+    plugin_handler: Optional[Callable] = None
+    # M3: httpx transport for HTTP / Apps Script actions (tests pass a MockTransport); None = the real network
+    http_transport: Any = None
+    # M3: host -> [ip, ...] for the private-address check (tests pass a fake); None = DNS
+    resolve: Optional[Callable] = None
 
 
 def hash_token(token: str) -> str:
@@ -252,9 +259,25 @@ class WebhookFeature:
             "history": hist[-HISTORY_KEEP:][::-1],
             "unknown": unknown,
             "rules": h.get("rules") or {},
+            "actions": webhook_actions.view(h.get("actions")),
         }
 
     def _validate(self, fields: dict, brain: str) -> str:
+        if "actions" in fields:
+            try:
+                fields["actions"] = webhook_actions.validate(fields.get("actions"))
+            except webhook_actions.ActionError as e:
+                return localefmt.chu(f"Hành động chưa đúng: {e}", f"Actions are not valid: {e}")
+        if fields.get("actions") and not any(a["kind"] == "ai" for a in fields["actions"]):
+            # Only outside actions: no task or workflow to check (nothing here calls a model).
+            if fields.get("level") not in VALID_LEVELS:
+                return localefmt.chu("Mức quyền không hợp lệ.", "Invalid permission level.")
+            if "rules" in fields:
+                try:
+                    fields["rules"] = webhook_rules.validate(fields.get("rules"))
+                except webhook_rules.RuleError as e:
+                    return localefmt.chu(f"Quy tắc lọc chưa đúng: {e}", f"Rules are not valid: {e}")
+            return ""
         target = fields.get("target")
         if target not in VALID_TARGETS:
             return localefmt.chu("Chọn việc cần chạy: một quy trình hoặc một việc viết tay.",
@@ -278,11 +301,11 @@ class WebhookFeature:
         return ""
 
     def create(self, brain: str, *, name: str, target: str, workflow: str = "", text: str = "",
-               level: str = DEFAULT_LEVEL, chat_id: str = "", rules: Any = None) -> tuple:
+               level: str = DEFAULT_LEVEL, chat_id: str = "", rules: Any = None, actions: Any = None) -> tuple:
         """Returns (view, token, error). The token is returned only here and by rotate()."""
         fields = {"target": str(target or "").strip().lower(), "workflow": str(workflow or "").strip(),
                   "text": str(text or "").strip()[:TEXT_MAX],
-                  "level": str(level or DEFAULT_LEVEL).strip().lower(), "rules": rules}
+                  "level": str(level or DEFAULT_LEVEL).strip().lower(), "rules": rules, "actions": actions}
         err = self._validate(fields, brain)
         if err:
             return None, "", err
@@ -313,6 +336,12 @@ class WebhookFeature:
                 merged[k] = str(changes[k]).strip().lower()
         if "rules" in changes:
             merged["rules"] = changes.get("rules")
+        if "actions" in changes:
+            try:
+                merged["actions"] = webhook_actions.merge_secrets(webhook_actions.validate(changes.get("actions")),
+                                                                  h.get("actions") or [])
+            except webhook_actions.ActionError as e:
+                return None, localefmt.chu(f"Hành động chưa đúng: {e}", f"Actions are not valid: {e}")
         if changes.get("enabled") is not None:
             merged["enabled"] = str(changes["enabled"]).lower() in ("1", "true", "on", "yes") \
                 if not isinstance(changes["enabled"], bool) else changes["enabled"]
@@ -609,34 +638,93 @@ class WebhookFeature:
         lv_snap = snap.get("level") if snap.get("level") in VALID_LEVELS else lv_now
         level = min(lv_now, lv_snap, key=VALID_LEVELS.index)
         brain = cur.get("brain") or "brain"
-        payload = payload_text(bytes(row.get("body") or b""), row.get("content_type") or "")
+        # M3: the actions as they were at receipt (snapshot); an action the owner has REMOVED since does not run.
+        actions = webhook_actions.effective(snap.get("actions") if "actions" in snap else None)
+        current_ids = {a["id"] for a in webhook_actions.effective(cur.get("actions"))}
+        actions = webhook_actions.merge_secrets([json.loads(json.dumps(a)) for a in actions], cur.get("actions") or [])
+        rows = await asyncio.to_thread(st.branches_init, eid, fence, actions, webhook_actions.delivery_id)
+        if rows is None:
+            return                                   # lost the event: someone else owns it now
+        body = bytes(row.get("body") or b"")
+        ct = row.get("content_type") or ""
         try:
             fields = json.loads(row.get("fields") or "{}")
         except ValueError:
             fields = {}
-        prompt = event_prompt(hook, payload, float(row.get("received_at") or time.time()), fields)
-        if not await asyncio.to_thread(st.mark_dispatched, eid, fence):
-            return                                   # lost the lease: someone else owns it now; do not run
-        result, error, needs_input = "", "", False
-        try:
-            if hook.get("target") == "workflow":
-                result, error, needs_input = await self.deps.run_workflow(brain, hook.get("workflow", ""), prompt,
-                                                                          level)
-            else:
-                result, error = await self.deps.run_task(brain, prompt, level)
-        except Exception as e:
-            error = f"{type(e).__name__}: {e}"
-        webhook_store._crash("after_dispatch")
-        status = "failed" if error and not result else ("waiting" if needs_input else "done")
-        silent = status == "done" and _is_silent(result)
-        final = "silent" if silent else status
+        now = time.time()
+        todo = [b for b in rows if b["status"] in ("pending", "retry") and float(b["next_at"] or 0) <= now + 0.5]
+        by_id = {a["id"]: a for a in actions}
+        base = {"event_id": eid, "hook_id": hid, "received_at": float(row.get("received_at") or now), "brain": brain,
+                "fields": fields, "body": body, "content_type": ct,
+                "payload": webhook_rules.parse_payload(body, ct)[0]}
+        ai_out = {"result": "", "error": ""}
+
+        async def branch(b: dict) -> None:
+            a = by_id.get(b["action_id"]) or {"id": b["action_id"], "kind": b["kind"]}
+            aid = a["id"]
+            if aid not in current_ids:
+                await asyncio.to_thread(st.branch_finish, eid, fence, aid, "cancelled",
+                                        "action removed from the webhook since the event arrived")
+                return
+            ctx = dict(base, action_id=aid, delivery_id=b["delivery_id"])
+            found = None
+            if a["kind"] == "plugin":
+                found = await asyncio.to_thread(self._plugin_handler, brain, a["plugin"], a["handler"])
+            if a["kind"] != "ai":
+                why = webhook_actions.level_ok(a, level, (found or {}).get("min_mode", "full"))
+                if a["kind"] == "plugin" and not found:
+                    why = f"plugin handler {a['plugin']}/{a['handler']} is not installed or is off"
+                if why:
+                    await asyncio.to_thread(st.branch_finish, eid, fence, aid, "failed", why)
+                    return
+            if not await asyncio.to_thread(st.branch_dispatch, eid, fence, aid):
+                return                               # lost the lease: do not run
+            if a["kind"] == "ai":
+                status, detail, result = await self._run_ai(hook, brain, level, body, ct, base, fields)
+                ai_out.update(result=result, error=detail if status == "failed" else "")
+                webhook_store._crash("after_dispatch")
+                await self._branch_finish(st, eid, fence, aid, status, detail, {}, result)
+                return
+            try:
+                if a["kind"] == "http":
+                    out = await webhook_actions.run_http(a, ctx, self.deps.http_transport, self.deps.resolve)
+                elif a["kind"] == "apps_script":
+                    out = await webhook_actions.run_apps_script(a, ctx, self.deps.http_transport, self.deps.resolve)
+                else:
+                    out = await webhook_actions.run_plugin(a, ctx, found, level)
+            except Exception as e:
+                out = webhook_actions.Outcome("unknown", f"{type(e).__name__}: {e}"[:300])
+            webhook_store._crash("after_dispatch")
+            status, nxt = out.status, 0.0
+            if status == "retry":
+                tries = int(b.get("tries") or 0) + 1
+                if tries >= webhook_actions.MAX_BRANCH_TRIES:
+                    # Out of tries. "Not sent" stays certain (failed); a busy receiver after a send attempt too.
+                    status = "failed" if out.detail.startswith(("not sent", "HTTP 429", "HTTP 503")) else "unknown"
+                else:
+                    back = webhook_actions.BRANCH_BACKOFF_S[min(tries - 1, len(webhook_actions.BRANCH_BACKOFF_S) - 1)]
+                    nxt = time.time() + max(back, out.retry_after)
+            await self._branch_finish(st, eid, fence, aid, status, out.detail, out.receipt, "", nxt)
+
+        await asyncio.gather(*(branch(b) for b in todo))
+        rows = await asyncio.to_thread(st.branches, eid)
+        status, next_at = webhook_store.Store.summarize(rows)
+        if status == "queued":
+            if await asyncio.to_thread(st.requeue_branches, eid, fence, next_at):
+                self._kick()
+            return
+        result, error = self._event_text(rows, actions, ai_out)
+        final = status
         if not await self._finish(st, eid, fence, final, result, error):
             print(f"[webhooks] {eid}: the event was taken over; this run's result is kept on its attempt",
                   file=sys.stderr)
             return
-        if status == "failed" and self.deps.incident_hook:
+        ai_failed = any(r["kind"] == "ai" and r["status"] == "failed" for r in rows)
+        if ai_failed and self.deps.incident_hook:
+            # Only an AI branch goes to Javis Core's triage (which may use a model): a non-AI branch never does.
             try:
-                self.deps.incident_hook("webhook", hid, brain=brain, title=str(cur.get("name") or ""), error=error,
+                self.deps.incident_hook("webhook", hid, brain=brain, title=str(cur.get("name") or ""),
+                                        error=ai_out["error"] or error,
                                         request=str(hook.get("text") or hook.get("workflow") or ""))
             except Exception:
                 pass
@@ -648,12 +736,73 @@ class WebhookFeature:
                 c["last_at"] = time.time()
                 c["last_status"] = final
                 self._save(data)
-        if silent:
+        if final == "silent":
             await asyncio.to_thread(st.mark_notified, eid, fence)
             return
         ev = await asyncio.to_thread(st.get, eid)
         await self._notify(ev or {"id": eid, "hook_id": hid, "status": final, "result": result, "error": error,
                                   "fence": fence})
+
+    def _plugin_handler(self, brain: str, slug: str, name: str) -> Optional[dict]:
+        if not self.deps.plugin_handler:
+            return None
+        try:
+            return self.deps.plugin_handler(brain, slug, name)
+        except Exception as e:
+            print(f"[webhooks] plugin handler lookup {slug}/{name} failed: {type(e).__name__}: {e}", file=sys.stderr)
+            return None
+
+    async def _run_ai(self, hook: dict, brain: str, level: str, body: bytes, ct: str, base: dict,
+                      fields: dict) -> tuple:
+        """The hook's task or workflow: the only branch that may call a model. Returns (status, detail, result)."""
+        prompt = event_prompt(hook, payload_text(body, ct), base["received_at"], fields)
+        result, error, needs_input = "", "", False
+        try:
+            if hook.get("target") == "workflow":
+                result, error, needs_input = await self.deps.run_workflow(brain, hook.get("workflow", ""), prompt,
+                                                                          level)
+            else:
+                result, error = await self.deps.run_task(brain, prompt, level)
+        except Exception as e:
+            error = f"{type(e).__name__}: {e}"
+        if error and not result:
+            return "failed", str(error)[:1000], ""
+        if needs_input:
+            return "waiting", "", result
+        return ("silent" if _is_silent(result) else "completed"), "", result
+
+    async def _branch_finish(self, st, eid, fence, aid, status, detail, receipt, result, next_at=0.0) -> None:
+        """Like _finish: an outcome that is known must not be lost to a busy database."""
+        delay = 0.5
+        for i in range(5):
+            try:
+                await asyncio.to_thread(st.branch_finish, eid, fence, aid, status, detail, receipt, result, next_at)
+                return
+            except Exception as e:
+                if i == 4:
+                    raise
+                print(f"[webhooks] {eid}/{aid} branch finish failed, retrying: {type(e).__name__}: {e}",
+                      file=sys.stderr)
+                await asyncio.sleep(delay)
+                delay *= 2
+
+    @staticmethod
+    def _event_text(rows: list, actions: list, ai_out: dict) -> tuple:
+        """(result, error) of the whole event for the log and the owner notice. One AI branch alone reads as before."""
+        if len(rows) == 1 and rows[0]["kind"] == "ai":
+            r = rows[0]
+            return str(r.get("result") or ""), (str(r.get("detail") or "") if r["status"] in ("failed", "unknown") else "")
+        names = {a["id"]: a["id"] for a in actions}
+        ok, bad = [], []
+        for r in rows:
+            line = f"{names.get(r['action_id'], r['action_id'])}: {r['status']}"
+            d = str(r.get("detail") or "").strip()
+            if d:
+                line += f" ({d[:160]})"
+            (bad if r["status"] in ("failed", "unknown") else ok).append(line)
+            if r["kind"] == "ai" and r.get("result"):
+                ok.append(str(r["result"])[:1500])
+        return "\n".join(ok), "\n".join(bad)
 
     async def _finish(self, st, eid: str, fence: int, final: str, result: str, error: str) -> bool:
         """The run is over and its result is known: writing it must not fail on a busy database. Tried a few times
@@ -735,7 +884,8 @@ class WebhookFeature:
                 h, token, err = self.create(
                     str(p.get("brain") or "brain"), name=p.get("name", ""), target=p.get("target", ""),
                     workflow=p.get("workflow", ""), text=p.get("text", ""),
-                    level=p.get("level") or DEFAULT_LEVEL, chat_id=p.get("chat_id", ""), rules=p.get("rules"))
+                    level=p.get("level") or DEFAULT_LEVEL, chat_id=p.get("chat_id", ""), rules=p.get("rules"),
+                    actions=p.get("actions"))
             if err:
                 return JSONResponse({"ok": False, "error": err}, status_code=400)
             return {"ok": True, "hook": self.view(h, self.deps.base_url(request)), "token": token}

@@ -11762,6 +11762,8 @@ webhook_feature = webhook_triggers.register(app, webhook_triggers.WebhookDeps(
         request.headers.get("x-forwarded-proto", ""), request.headers.get("x-forwarded-host", "")),
     workflow_exists=lambda brain, slug: (_workflows_dir(brain) / f"{slug}.md").is_file(),
     atomic_write_text=_atomic_write_text,
+    # M3: a webhook action can name a plugin's webhook handler; only plugins visible to that hook's brain are found.
+    plugin_handler=lambda brain, slug, name: plugins_host.find_webhook_handler(str(_brain_root(brain)), slug, name),
 ))
 
 

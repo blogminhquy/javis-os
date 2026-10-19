@@ -396,6 +396,7 @@ class PluginContext:
         self._on_unload: List[Callable] = []
         self._http: List[dict] = []
         self._well_known: Dict[str, Callable] = {}
+        self._webhook_handlers: Dict[str, dict] = {}
 
     @property
     def data_dir(self) -> Path:
@@ -501,6 +502,24 @@ class PluginContext:
             raise ValueError(f"method không hợp lệ: {methods!r}")
         self._http.append({"path": duong, "handler": handler, "methods": mt,
                            "public": bool(public), "no_cookie": bool(no_cookie)})
+
+    def register_webhook_handler(self, name: str, handler: Callable, min_mode: str = "full",
+                                 description: str = "") -> None:
+        """0.229.0 (webhook platform M3): a handler a webhook can name as an action
+        (`{"kind": "plugin", "plugin": "<slug>", "handler": "<name>"}`).
+
+        handler(delivery: dict, ctx) -> {"status": "completed" | "accepted", "ref"?: str, "detail"?: str}
+        (sync or async). `delivery` holds `delivery_id` (the SAME on every retry of this event's branch: keep it and
+        drop a second copy), `event_id`, `hook_id`, `action_id`, `brain`, `fields`, `payload`, `level`.
+        `completed` = done now; `accepted` = the plugin took it and finishes later on its own schedule (Javis does
+        not chase it). Raising, or any other answer, is a failure the owner can retry. `min_mode` is checked against
+        the webhook's level at run time, like a tool's."""
+        if not _TOOL_RE.match(str(name or "")):
+            raise ValueError(f"tên handler không hợp lệ (a-z0-9_): {name!r}")
+        if min_mode not in VALID_MIN_MODE:
+            min_mode = "full"
+        self._webhook_handlers[str(name)] = {"handler": handler, "min_mode": min_mode,
+                                             "description": str(description or "")[:300]}
 
     def register_well_known(self, name: str, handler: Callable) -> None:
         """Phục vụ `GET /.well-known/<name>` và `/.well-known/<name>/<phần sau>` (ví dụ metadata
@@ -744,6 +763,29 @@ def tim_http(slug: str, duong: str, method: str = ""):
             if r["path"] == duong and (not method or method.upper() in r["methods"]):
                 return lp, r
     return None
+
+
+def find_webhook_handler(vault_root: Optional[str], slug: str, name: str) -> Optional[dict]:
+    """The webhook handler `name` of the ENABLED plugin `slug` visible to this brain (its own vault plugins, plus
+    bundled, pack and global ones), as {"handler", "ctx", "min_mode"}; None if absent or off. Another brain's vault
+    plugin is never found here."""
+    ent = _load_all(vault_root)
+    for lp in ent["plugins"]:
+        if lp.slug == slug:
+            h = getattr(lp.ctx, "_webhook_handlers", {}).get(name)
+            if h:
+                return {"handler": h["handler"], "ctx": lp.ctx, "min_mode": h["min_mode"]}
+    return None
+
+
+def webhook_handlers(vault_root: Optional[str] = None) -> List[dict]:
+    """Handlers a webhook of this brain can choose (for the dashboard)."""
+    out = []
+    for lp in _load_all(vault_root)["plugins"]:
+        for n, h in getattr(lp.ctx, "_webhook_handlers", {}).items():
+            out.append({"plugin": lp.slug, "handler": n, "label": lp.name, "min_mode": h["min_mode"],
+                        "description": h["description"]})
+    return out
 
 
 def tim_well_known(ten: str):

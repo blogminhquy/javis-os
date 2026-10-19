@@ -50,10 +50,33 @@
     if (st === "unknown") {
       acts += '<button class="s-btn-ghost whEvDone" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.mark_done")) + "</button>";
     }
+    if (r.run_id || r.id) acts += '<button class="s-btn-ghost whEvInfo" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.details")) + "</button>";
     return '<div class="le wh-ev wh-ev-' + esc(st) + '">' + esc(fmtTime(r.at || r.received_at)) + " · "
       + '<span class="wh-st">' + esc(tw(STATUS_KEY[st] || "wh.st_done")) + "</span>"
       + ((r.result || r.error) ? " · " + esc(String(r.result || r.error).slice(0, 140)) : "")
-      + (acts ? '<span class="wh-ev-acts">' + acts + "</span>" : "") + "</div>";
+      + (acts ? '<span class="wh-ev-acts">' + acts + "</span>" : "") + '<div class="whEvDetail"></div></div>';
+  }
+
+  // M3: one event in detail: each action's branch (state, what the receiver said, its delivery id) and why the
+  // rules decided what they did.
+  var BRANCH_KEY = { completed: "wh.br_completed", accepted: "wh.br_accepted", failed: "wh.br_failed", unknown: "wh.br_unknown",
+    pending: "wh.br_pending", retry: "wh.br_retry", running: "wh.br_running", silent: "wh.br_silent", waiting: "wh.br_waiting",
+    cancelled: "wh.br_cancelled" };
+  function detailHtml(ev) {
+    if (!ev) return "";
+    var out = "";
+    (ev.branches || []).forEach(function (b) {
+      var bad = b.status === "failed" || b.status === "unknown";
+      out += '<div class="wh-br wh-br-' + esc(b.status) + '" style="color:' + (bad ? "var(--warn-ink)" : "var(--text2)") + '">'
+        + "<b>" + esc(b.action_id) + "</b> (" + esc(b.kind) + ") · " + esc(tw(BRANCH_KEY[b.status] || "wh.br_pending"))
+        + (b.detail ? " · " + esc(b.detail) : "")
+        + (b.receipt && b.receipt.ref ? " · " + esc(b.receipt.ref) : "")
+        + '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.delivery")) + " <code>" + esc(b.delivery_id) + "</code></div></div>";
+    });
+    var t = ev.trace || {};
+    if (t.filter || t.schema || t.mapping || t.duplicate_of) out += simHtml({ ok: true, decision: ev.status === "filtered" || ev.status === "invalid"
+      || ev.status === "duplicate" ? ev.status : "run", reason: ev.error || "", trace: t, fields: ev.fields || {} });
+    return out || '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.no_detail")) + "</div>";
   }
 
   // M2: what the hook's rules decided for a sample body (POST /webhooks/simulate). Nothing was stored or run.
@@ -96,6 +119,10 @@
       + '<textarea class="whSample" spellcheck="false" style="width:100%;min-height:90px;font-family:monospace"></textarea>'
       + '<div class="wf-actions" style="margin-top:6px"><button class="s-btn-ghost whSim">' + esc(tw("wh.simulate")) + "</button>"
       + '<button class="s-btn whRulesSave">' + esc(tw("wh.rules_save")) + "</button></div>"
+      + '<label style="display:block;margin-top:6px">' + esc(tw("wh.actions_label")) + "</label>"
+      + '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.actions_hint")) + "</div>"
+      + '<textarea class="whActsTxt" spellcheck="false" style="width:100%;min-height:110px;font-family:monospace">'
+      + esc(h.actions && h.actions.length ? JSON.stringify(h.actions, null, 2) : "") + "</textarea>"
       + '<div class="whSimOut" style="margin-top:6px"></div></div>';
   }
   // The rules box as an object: "" means no rules; text that is not JSON is reported, not sent.
@@ -103,6 +130,14 @@
     var t = String(text || "").trim();
     if (!t) return { ok: true, rules: {} };
     try { return { ok: true, rules: JSON.parse(t) }; } catch (e) { return { ok: false }; }
+  }
+
+  // The actions box: "" = none (the webhook's own task or workflow runs). Masked header values ("••••") are sent back
+  // as they are; the server keeps the stored key for those.
+  function readActions(text) {
+    var t = String(text || "").trim();
+    if (!t) return { ok: true, actions: [] };
+    try { var a = JSON.parse(t); return Array.isArray(a) ? { ok: true, actions: a } : { ok: false }; } catch (e) { return { ok: false }; }
   }
 
   // Error codes of the event actions, in words.
@@ -279,6 +314,14 @@
             setTimeout(load, 3000);
           };
         });
+        scope.querySelectorAll(".whEvInfo").forEach(function (b) {
+          b.onclick = async function () {
+            var box = b.closest(".wh-ev").querySelector(".whEvDetail");
+            if (box.innerHTML) { box.innerHTML = ""; return; }
+            var d = await api("/webhooks/events/" + encodeURIComponent(b.dataset.ev));
+            box.innerHTML = d && d.ok ? detailHtml(d.event) : esc(errText(d));
+          };
+        });
         scope.querySelectorAll(".whEvDone").forEach(function (b) {
           b.onclick = async function () {
             var r = await api("/webhooks/events/resolve", { id: b.dataset.ev, outcome: "done" });
@@ -345,8 +388,9 @@
           };
           host.querySelector(".whRulesSave").onclick = async function () {
             var rr = readRules(host.querySelector(".whRulesTxt").value);
-            if (!rr.ok) { out.innerHTML = simHtml({ ok: false, error: tw("wh.rules_bad_json") }); return; }
-            var r = await api("/webhooks/update", { id: h.id, rules: rr.rules });
+            var ra = readActions(host.querySelector(".whActsTxt").value);
+            if (!rr.ok || !ra.ok) { out.innerHTML = simHtml({ ok: false, error: tw("wh.rules_bad_json") }); return; }
+            var r = await api("/webhooks/update", { id: h.id, rules: rr.rules, actions: ra.actions });
             if (!r.ok) { out.innerHTML = simHtml(r); return; }
             out.textContent = tw("wh.rules_saved");
             setTimeout(load, 1200);
@@ -364,7 +408,7 @@
   }
 
   var api_ = { mount: mount, cardHtml: cardHtml, secretHtml: secretHtml, targetLine: targetLine, eventRowHtml: eventRowHtml, errText: errText,
-    simHtml: simHtml, rulesPanelHtml: rulesPanelHtml, readRules: readRules };
+    simHtml: simHtml, rulesPanelHtml: rulesPanelHtml, readRules: readRules, readActions: readActions, detailHtml: detailHtml };
   if (typeof window !== "undefined") window.JavisWebhooks = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();

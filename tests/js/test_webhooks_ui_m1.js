@@ -13,8 +13,9 @@ check("done: no action buttons", !row("done").includes("whEvRetry") && !row("don
 check("failed: Retry, no Mark done", row("failed").includes("whEvRetry") && !row("failed").includes("whEvDone"));
 check("dead: Retry", row("dead").includes("whEvRetry"));
 check("unknown: Retry and Mark done", row("unknown").includes("whEvRetry") && row("unknown").includes("whEvDone"));
-check("queued and running: no actions (the worker owns them)",
-  !row("queued").includes("<button") && !row("running").includes("<button"));
+const acts = (h) => h.includes("whEvRetry") || h.includes("whEvDone");
+check("queued and running: no actions (the worker owns them), only Details",
+  !acts(row("queued")) && !acts(row("running")) && row("running").includes("whEvInfo"));
 check("buttons carry the event id", row("unknown").includes('data-ev="ev_1"'));
 check("error text is escaped", row("failed", { error: "<img src=x onerror=alert(1)>" }).includes("&lt;img"));
 check("a row from the paged API (id, received_at) works too",

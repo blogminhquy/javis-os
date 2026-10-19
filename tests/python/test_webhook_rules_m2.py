@@ -326,12 +326,14 @@ c.commit()
 c.close()
 st7 = ws.Store(s7 / "e.sqlite3")
 cols = {r[1] for r in st7._db.execute("PRAGMA table_info(events)")}
-check("a v1 store upgrades in place: new columns, schema 2, old event kept and still claimable",
-      {"trace", "fields", "biz_key"} <= cols and st7.schema_version() == 2 and st7.get("ev_old")["trace"] == {}
+tables = {r[0] for r in st7._db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+check("a v1 store upgrades in place: new columns and tables, current schema, old event kept and still claimable",
+      {"trace", "fields", "biz_key"} <= cols and {"biz_keys", "branches"} <= tables
+      and st7.schema_version() == ws.SCHEMA_VERSION and st7.get("ev_old")["trace"] == {}
       and st7.claim("W")["id"] == "ev_old")
 st7.close()
 st7b = ws.Store(s7 / "e.sqlite3")
-check("opening it again is a no-op", st7b.schema_version() == 2)
+check("opening it again is a no-op", st7b.schema_version() == ws.SCHEMA_VERSION)
 
 # ---- 5/6. through the feature ----
 FEAT = Path(tempfile.mkdtemp(prefix="wh-m2-feat-"))
