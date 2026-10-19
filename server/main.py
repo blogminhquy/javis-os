@@ -20303,7 +20303,7 @@ def _tg_lich_su_kho(store, conv_sid, text):
 
 
 async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=None,
-                     phien_kho="", ghi_kho=True):
+                     phien_kho="", ghi_kho=True, agent=None):
     """Vỏ ngoài một lượt KHÔNG-WEBSOCKET: khớp phiên trong kho -> chạy engine -> LƯU lượt.
 
     `channel` mở hàm này cho kênh thứ ba là CLI (xem docs/dev/2026-08-cli-spec.md). Cố ý
@@ -20328,6 +20328,10 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     trong lúc nói chuyện. Truyền `phien_kho` = phiên chat đang nói để lượt chạy NGAY TRONG đó,
     và `ghi_kho=False` khi người gọi tự lo phần ghi (việc nền ghi bằng `push_to_chat`), nên
     lịch sử chỉ được ĐỌC làm ngữ cảnh chứ không bị chèn thêm tin nào.
+
+    `agent` = {"brain", "slug"} ĐÃ KIỂM (xem `_cli_agent`): lượt của CHỦ chạy bằng prompt, kỹ
+    năng và model của một trợ lý trong brain đó. Khác `bot` ở chỗ người hỏi vẫn là chủ: phiên,
+    quyền và lưu kho y như lượt thường, chỉ đổi prompt và model.
     """
     # Gỡ ký tự vô hình (tag U+E0000, ghi đè hướng chữ, zero-width...) ngay ở cửa chung của mọi kênh: người lạ
     # giấu lệnh vào đó, model đọc được còn chủ thì không thấy. Gỡ TRƯỚC khi ghi kho vì vòng tự học đọc lại kho (0.83.2).
@@ -20349,11 +20353,16 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         channel = f"bot:{bot.get('slug') or bot['id']}"
     else:
         sess = _tg_session(chat_id)
-        brain = _tg_brain(chat_id)   # brain riêng của phiên (đổi bằng /brain), mặc định theo Settings
+        # brain riêng của phiên (đổi bằng /brain), mặc định theo Settings. Có agent thì chạy ĐÚNG
+        # brain đã kiểm agent, không tra lại: tra lại mà ra brain khác là prompt của agent một nơi,
+        # file và bộ nhớ một nẻo.
+        brain = agent["brain"] if agent else _tg_brain(chat_id)
     mcfg = cfgmod.read_settings().get("model", {})
     # Chủ chat trên Telegram thì theo ghim của kênh (nếu có). Bot chuyên trách KHÔNG ăn theo
     # ghim của chủ: nó phục vụ khách, và model của nó là model của chính Agent nó trỏ tới.
+    # Lượt có agent mượn đúng đường đó (cùng luật rơi về model chính khi agent để "Mặc định").
     prov, kind, api_key, api_model = (_chat_provider_bot(mcfg, bot) if bot
+                                      else _chat_provider_bot(mcfg, {"agent": agent}) if agent
                                       else _chat_provider_kenh(mcfg, channel))
     # Nhãn engine phải do VỎ quyết định rồi truyền xuống lõi: hai bên tự suy ra độc lập là
     # có ngày phiên bị dán nhãn 'cli' trong khi lượt thật chạy qua OpenRouter.
@@ -20403,7 +20412,18 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         out = await _tg_answer_engine(
             text, meta, progress, chat_id=chat_id, sess=sess, brain=brain, mcfg=mcfg,
             prov=prov, kind=kind, api_key=api_key, api_model=api_model,
-            store=store, conv_sid=conv_sid, channel=channel, bot=bot)
+            store=store, conv_sid=conv_sid, channel=channel, bot=bot, agent=agent)
+
+        if agent and isinstance(out, dict):
+            # Prompt của agent dặn phát JAVIS_LESSON / JAVIS_RULE ở cuối câu trả lời. Bóc TRƯỚC khi
+            # lưu phiên và trả cho client, không thì máy gọi /chat nhận cả dòng điều khiển. Đi đường
+            # của bước workflow (JAVIS_RULE hạ thành bài học) chứ không phải đường chat trực tiếp:
+            # lượt HTTP có thể mang nội dung của bên thứ ba, không đủ căn cứ là luật chủ dặn.
+            try:
+                _mk, _sp, _log, _learn = _workflow_agent_helpers(brain, None)
+                out["text"] = _learn(agent["slug"], out.get("text") or "")
+            except Exception as e:  # noqa: BLE001 - ghi bài học hỏng không được làm mất câu trả lời
+                print(f"[{channel} agent lesson] {type(e).__name__}: {e}", file=__import__('sys').stderr)
 
         # Cùng luật với dashboard: hứa "xong em báo" mà không có việc nền nào thì nói thẳng.
         # Ở kênh này tin nhắn CHƯA gửi đi nên nối luôn vào cuối, khỏi phải bắn thêm một tin.
@@ -21030,7 +21050,7 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
 
 async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                             prov, kind, api_key, api_model, store=None, conv_sid="",
-                            channel="telegram", bot=None):
+                            channel="telegram", bot=None, agent=None):
     """Lõi 4 nhánh engine của một lượt Telegram. Trả dict khi có câu trả lời thật,
     trả CHUỖI khi là thông báo lỗi (vỏ `_tg_answer` dựa vào đó để biết lượt nào đáng lưu)."""
     sess["last"] = text
@@ -21172,9 +21192,11 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
 
     if _bot_full:
         sysprompt = _bot_full_prompt(brain, _sys_bot_full, _lang_qd, conv_sid)
+    elif agent:
+        sysprompt = _cli_agent_prompt(brain, agent["slug"])
     try:
-        if _bot_full:
-            raise _BoQua()   # nguồn chọn lọc thay prompt bằng giọng Javis: không dùng cho bot
+        if _bot_full or agent:
+            raise _BoQua()   # nguồn chọn lọc thay prompt bằng giọng Javis: không dùng cho bot hay agent
         _p8 = await asyncio.to_thread(
             _get_adaptive_context().prepare, runtime_trace, text, _brain_root(brain),
             str(conv_sid or chat_id), [], channel, prov,
@@ -21205,8 +21227,9 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             "codex" if prov == "openai-oauth" else "cli",
             api_model or mcfg.get("claude_model") or "mặc định", kind,
         )
-    # Gateway huỷ lịch bằng câu chữ là lối tắt của chủ; bot Toàn quyền vẫn huỷ được qua tool javis_schedule.
-    schedule_action = None if _bot_full else await _schedule_cancel_action(text, brain)
+    # Gateway huỷ lịch bằng câu chữ là lối tắt của chủ; bot Toàn quyền và lượt có agent vẫn huỷ được
+    # qua tool javis_schedule. Lối tắt trả lời bằng giọng Javis, không bằng vai của agent.
+    schedule_action = None if (_bot_full or agent) else await _schedule_cancel_action(text, brain)
     if schedule_action:
         for call in schedule_action.get("calls") or []:
             await _p(f"⚙ Lịch: {call.split(':')[-1]}")
@@ -21214,7 +21237,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         return {"text": channel_context.strip_control_blocks(_schedule_cancel_reply(schedule_action)),
                 "files": []}
 
-    if _FAST_PATH is not None and not _bot_full:
+    if _FAST_PATH is not None and not _bot_full and not agent:
         try:
             _fp = await asyncio.to_thread(
                 _FAST_PATH.prepare, runtime_trace, text, _brain_root(brain), channel, prov,
@@ -22970,8 +22993,43 @@ def _cli_sess_key(session: str) -> str:
     return "cli:" + (raw or "default")
 
 
-async def _cli_turn(message: str, brain: str, session: str, host: str, progress=None):
-    """Một lượt chat của kênh CLI. Trả (out, key) với out là dict (trả lời thật) hoặc str (lỗi)."""
+def _cli_agent(brain: str, session: str, agent: str):
+    """Agent mà lượt CLI xin chạy. Trả ({"brain", "slug"}, "") khi hợp lệ, (None, câu lỗi) khi không,
+    (None, "") khi không xin agent nào.
+
+    Kiểm theo brain ĐÃ GIẢI, và brain sai tên là LỖI chứ không rơi về brain mặc định như lượt
+    thường (`_cli_turn`): rơi về thì một agent trùng slug ở brain mặc định sẽ chạy thay, tức đúng
+    đường lách luật "agent của brain khác trả 400".
+    """
+    slug = str(agent or "").strip()
+    if not slug:
+        return None, ""
+    ten = str(brain or "").strip()
+    if ten and ten != "brain" and not os.path.isdir(ten):
+        return None, localefmt.chu(f"Không có brain '{ten}'", f"Brain '{ten}' does not exist")
+    # Không gửi brain thì kiểm trong brain của phiên, đúng brain lượt này sẽ chạy.
+    root = _brain_root(ten or _tg_brain(_cli_sess_key(session)))
+    f = _agent_md_path(root, slug)
+    if f is None:
+        return None, localefmt.chu(f"Brain này không có agent '{slug}'", f"This brain has no agent '{slug}'")
+    # Slug theo TÊN FILE thật: các hàm đọc agent phía sau ghép thẳng `<slug>.md`, còn `_agent_md_path`
+    # tìm được cả tên khác dạng Unicode (NFC/NFD) với slug gửi lên.
+    return {"brain": root, "slug": f.stem}, ""
+
+
+def _cli_agent_prompt(brain, slug) -> str:
+    """Prompt của agent cho lượt CLI: đúng lõi prompt mà trang Cộng sự và workflow dùng (vai, thân
+    file, kỹ năng, bộ nhớ riêng, luật JAVIS_LESSON). Không ghép CLAUDE.md hay bộ nhớ của chủ, y như
+    chat với trợ lý trên dashboard. Bỏ câu "đang ở trang Cộng sự" của bản dashboard: khối kênh CLI
+    do lõi engine nối sau mới là kênh thật."""
+    _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
+    return _agent_sysprompt(slug)[1]
+
+
+async def _cli_turn(message: str, brain: str, session: str, host: str, progress=None, agent=None):
+    """Một lượt chat của kênh CLI. Trả (out, key) với out là dict (trả lời thật) hoặc str (lỗi).
+
+    `agent`: kết quả hợp lệ của `_cli_agent`, người gọi kiểm TRƯỚC để trả 400 thay vì chạy lượt."""
     key = _cli_sess_key(session)
     sess = _tg_session(key)
     if brain:
@@ -22984,7 +23042,7 @@ async def _cli_turn(message: str, brain: str, session: str, host: str, progress=
         except Exception:  # noqa: BLE001 - brain sai tên thì dùng mặc định, không phá lượt
             pass
     meta = {"chat_id": key, "host": (host or "")[:64]}
-    out = await _tg_answer(message, meta=meta, progress=progress, channel="cli")
+    out = await _tg_answer(message, meta=meta, progress=progress, channel="cli", agent=agent)
     return out, key
 
 
@@ -23000,22 +23058,28 @@ def _cli_payload(out, key: str) -> dict:
 
 @app.post("/chat")
 async def chat_once(message: str = Form(...), brain: str = Form(""),
-                    session: str = Form(""), host: str = Form("")):
+                    session: str = Form(""), host: str = Form(""), agent: str = Form("")):
     """Một lượt chat, đồng bộ. Trả câu trả lời cuối cùng.
 
     KHÔNG đặt trần thời gian riêng: một lượt agentic có thể chạy vài phút và cắt ngang giữa
     chừng là mất luôn công đã bỏ ra. Client tự chọn thời gian chờ; muốn thấy tiến độ thì dùng
     /chat/stream.
+
+    `agent` (tuỳ chọn) = slug một trợ lý của brain được chọn: lượt chạy bằng prompt, kỹ năng và
+    model của trợ lý đó. Agent không có trong brain, hay brain sai tên, trả 400.
     """
     if not str(message or "").strip():
         return JSONResponse({"ok": False, "error": localefmt.chu("message rỗng", "message is empty")}, status_code=400)
-    out, key = await _cli_turn(message, brain, session, host)
+    ag, loi = _cli_agent(brain, session, agent)
+    if loi:
+        return JSONResponse({"ok": False, "error": loi}, status_code=400)
+    out, key = await _cli_turn(message, brain, session, host, agent=ag)
     return _cli_payload(out, key)
 
 
 @app.post("/chat/stream")
 async def chat_stream(message: str = Form(...), brain: str = Form(""),
-                      session: str = Form(""), host: str = Form("")):
+                      session: str = Form(""), host: str = Form(""), agent: str = Form("")):
     """Cùng một lượt, nhưng đẩy tiến độ về ngay khi có (SSE).
 
     Gói đi theo ĐÚNG quy ước của WebSocket dashboard (`{"type": ...}`) để client không phải
@@ -23026,9 +23090,14 @@ async def chat_stream(message: str = Form(...), brain: str = Form(""),
 
     Client PHẢI bỏ qua im lặng mọi `type` nó chưa biết: server thêm loại gói mới là chuyện
     thường, và một CLI cũ không được vỡ vì điều đó.
+
+    `agent` như ở /chat. Kiểm TRƯỚC khi mở luồng: luồng đã mở thì mã trạng thái đã là 200.
     """
     if not str(message or "").strip():
         return JSONResponse({"ok": False, "error": localefmt.chu("message rỗng", "message is empty")}, status_code=400)
+    ag, loi = _cli_agent(brain, session, agent)
+    if loi:
+        return JSONResponse({"ok": False, "error": loi}, status_code=400)
 
     hang = asyncio.Queue()
 
@@ -23037,7 +23106,7 @@ async def chat_stream(message: str = Form(...), brain: str = Form(""),
 
     async def _chay():
         try:
-            out, key = await _cli_turn(message, brain, session, host, progress=_progress)
+            out, key = await _cli_turn(message, brain, session, host, progress=_progress, agent=ag)
             await hang.put({"type": "response", **_cli_payload(out, key)})
         except Exception as exc:  # noqa: BLE001 - lỗi phải tới được client, không nuốt
             await hang.put({"type": "error", "content": f"{type(exc).__name__}: {exc}"})

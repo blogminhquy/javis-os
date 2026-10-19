@@ -54,9 +54,10 @@ check("có endpoint chat một lượt", "/chat" in _paths)
 check("có endpoint chat dạng luồng", "/chat/stream" in _paths)
 
 # CANARY quan trọng nhất của cả file: hai endpoint phải gọi _tg_answer với channel="cli",
-# không được có lõi riêng.
+# không được có lõi riêng. Không ghim dấu đóng ngoặc, cùng lý do với dòng dưới: trường `agent`
+# của /chat đi tiếp qua đúng lời gọi này.
 check("CANARY: lượt CLI đi qua đúng vỏ chung, không đẻ lõi thứ hai",
-      'await _tg_answer(message, meta=meta, progress=progress, channel="cli")' in _SRC)
+      'await _tg_answer(message, meta=meta, progress=progress, channel="cli"' in _SRC)
 # Không ghim dấu đóng ngoặc: thứ cần canh là vỏ chung CÓ tham số kênh, không phải vỏ chung
 # vĩnh viễn không được thêm tham số nào nữa (Bot chuyên trách thêm `bot=None` ở 0.19.0).
 check("vỏ chung nhận tham số kênh", 'async def _tg_answer(text, meta=None, progress=None, channel="telegram"' in _SRC)
