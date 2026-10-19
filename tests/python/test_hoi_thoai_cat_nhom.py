@@ -156,7 +156,7 @@ for i in range(1, 61):
 kd = chatbot_runtime.ngu_canh_nhom({"chat_type": "group", "chat_id": GD, "message_id": "khong-co"}, "zalo_personal", "zp1")
 nd = kd.split("\n")
 check("CANARY: tối đa 30 tin và tổng không quá trần ký tự", len(nd) <= chatbot_runtime.NGU_CANH_TIN and len(kd) <= chatbot_runtime.NGU_CANH_TONG, (len(nd), len(kd)))
-check("mỗi tin bị cắt còn tối đa 300 ký tự (kèm nhãn)", all(len(x) <= chatbot_runtime.NGU_CANH_CHU + 12 for x in nd), max(len(x) for x in nd))
+check("mỗi tin giữ tối đa NGU_CANH_CHU ký tự (kèm nhãn)", all(len(x) <= chatbot_runtime.NGU_CANH_CHU + 12 for x in nd), max(len(x) for x in nd))
 check("quá trần thì bỏ tin CŨ, giữ tin MỚI (tin #60 còn, tin #1 mất)", nd[-1].split(": ", 1)[1].startswith("#60 ") and not any(x.split(": ", 1)[1].startswith("#1 ") for x in nd), nd[-1][:14])
 
 # ---- vào prompt hệ thống, không vào tin của người hỏi
