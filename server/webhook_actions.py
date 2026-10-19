@@ -388,6 +388,14 @@ class AddressRefused(Exception):
     pass
 
 
+def _refused(why: str) -> "Outcome":
+    """A name that did not resolve is a passing fault (DNS outage) and nothing was sent: retry. A private, local or
+    malformed address stays refused for good."""
+    if why.startswith("name did not resolve"):
+        return Outcome("retry", f"not sent: {why}", maybe_acted=False)
+    return Outcome("failed", why, maybe_acted=False)
+
+
 def _pinned_backend(allow_private: bool, resolve: Optional[Callable]):
     """An httpcore network backend that resolves the name itself, refuses a private address, and connects to the
     address it checked (TLS still verifies the certificate for the name: httpcore passes the host as SNI). A name
@@ -587,7 +595,7 @@ async def run_http(action: dict, ctx: dict, transport=None, resolve=None) -> Out
     import httpx
     why = await check_address(action["url"], action.get("allow_private", False), resolve)
     if why:
-        return Outcome("failed", why, maybe_acted=False)
+        return _refused(why)
     body, ct = build_body(action, ctx)
     try:
         async with httpx.AsyncClient(transport=transport or default_transport(action.get("allow_private", False),
@@ -638,7 +646,7 @@ async def run_apps_script(action: dict, ctx: dict, transport=None, resolve=None)
     import httpx
     why = await check_address(action["url"], False, resolve)
     if why:
-        return Outcome("failed", why, maybe_acted=False)
+        return _refused(why)
     body, ct = build_body(action, ctx)
     try:
         async with httpx.AsyncClient(transport=transport or default_transport(False, resolve), follow_redirects=False,

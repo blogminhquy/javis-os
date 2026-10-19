@@ -450,6 +450,11 @@ async def main():
     HITS.clear()
     o3 = await wa.run_http(act, ctx, httpx.MockTransport(lambda r: httpx.Response(302, headers={
         "Location": "http://10.0.0.1/admin"})), lambda h: ["93.184.216.34"])
+    def no_dns(h):
+        raise OSError("temporary failure in name resolution")
+    o4 = await wa.run_http(act, ctx, httpx.MockTransport(handler), no_dns)
+    check("§8: a name that does not resolve (DNS outage) is retried, nothing was sent; a private address stays refused",
+          o4.status == "retry" and not o4.maybe_acted and o2.status == "failed", o4)
     check("§15 Chuyển tiếp: a name that answers public to the check and private to the connection (DNS rebinding) gets "
           "nowhere; a metadata address is refused; a redirect to a private address is not followed",
           o1.status == "failed" and "private" in o1.detail and o2.status == "failed" and o3.status == "unknown"

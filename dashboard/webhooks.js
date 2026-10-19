@@ -7,6 +7,12 @@
  * URL (without the token), the target, the permission level, the last runs, and buttons: copy URL, send a test event,
  * switch on/off, new token, delete.
  *
+ * 0.229.0 (spec §12): each card has three parts, Configuration / Events / Health. Two switches stay apart: "Stop
+ * receiving" (enabled: new requests are refused) and "Pause processing" (paused: still received and stored within the
+ * quotas). A real test send shows what each action would do before anything is sent. An event opens on its timeline;
+ * its payload is masked, the raw view asks first and is recorded. "Process again with the current setup" previews
+ * first and says which actions already succeeded. Saving sends the revision edited; a 409 says someone saved first.
+ *
  * Render helpers are pure (tested under node); `mount` wires the API calls.
  */
 (function () {
@@ -37,10 +43,22 @@
   var LEVEL_KEY = { suggest: "wh.level_suggest", auto: "wh.level_auto", full: "wh.level_full" };
   var STATUS_KEY = { done: "wh.st_done", failed: "wh.st_failed", waiting: "wh.st_waiting", silent: "wh.st_silent",
     queued: "wh.st_queued", running: "wh.st_running", unknown: "wh.st_unknown", dead: "wh.st_dead",
-    filtered: "wh.st_filtered", invalid: "wh.st_invalid", duplicate: "wh.st_duplicate" };
+    filtered: "wh.st_filtered", invalid: "wh.st_invalid", duplicate: "wh.st_duplicate", received: "wh.st_received",
+    blocked: "wh.st_blocked", cancelled: "wh.st_cancelled" };
+  // The event's state in the spec's words (§7), from the server's `state`; the internal status adds detail.
+  var STATE_KEY = { ignored: "wh.ss_ignored", quarantined: "wh.ss_quarantined", processing: "wh.ss_processing",
+    waiting: "wh.ss_waiting", done: "wh.ss_done", partial_failed: "wh.ss_partial_failed", failed: "wh.ss_failed",
+    cancelled: "wh.ss_cancelled" };
+  var SAME = { done: "done", failed: "failed", waiting: "waiting", cancelled: "cancelled" };
+  function stateWord(r) {
+    var st = r.status || "done";
+    var base = tw(STATUS_KEY[st] || "wh.st_done");
+    if (!r.state || !STATE_KEY[r.state]) return base;
+    return SAME[st] === r.state ? tw(STATE_KEY[r.state]) : tw(STATE_KEY[r.state]) + " (" + base + ")";
+  }
   // 0.229.0: events are stored durably (server/webhook_store.py). A run that may have acted before the server stopped
   // is "unknown": only the owner decides, after checking outside, whether it happened (Mark done) or not (Retry).
-  var RETRYABLE = { failed: 1, unknown: 1, dead: 1 };
+  var RETRYABLE = { failed: 1, unknown: 1, dead: 1, blocked: 1 };
 
   // One line of the event log: time, status, short result, and the owner's actions for that event.
   function eventRowHtml(r) {
@@ -52,7 +70,7 @@
     }
     if (r.run_id || r.id) acts += '<button class="s-btn-ghost whEvInfo" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.details")) + "</button>";
     return '<div class="le wh-ev wh-ev-' + esc(st) + '">' + esc(fmtTime(r.at || r.received_at)) + " · "
-      + '<span class="wh-st">' + esc(tw(STATUS_KEY[st] || "wh.st_done")) + "</span>"
+      + '<span class="wh-st">' + esc(stateWord(r)) + "</span>"
       + ((r.result || r.error) ? " · " + esc(String(r.result || r.error).slice(0, 140)) : "")
       + (acts ? '<span class="wh-ev-acts">' + acts + "</span>" : "") + '<div class="whEvDetail"></div></div>';
   }
@@ -78,13 +96,93 @@
         + "</div>";
     });
     var t = ev.trace || {};
-    if (t.filter || t.schema || t.mapping || t.duplicate_of) out += simHtml({ ok: true, decision: ev.status === "filtered" || ev.status === "invalid"
-      || ev.status === "duplicate" ? ev.status : "run", reason: ev.error || "", trace: t, fields: ev.fields || {} });
-    return out || '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.no_detail")) + "</div>";
+    var stopped = ev.status === "filtered" || ev.status === "invalid" || ev.status === "duplicate";
+    if (t.filter || t.schema || t.mapping || t.duplicate_of) out += simHtml({ ok: true, decision: stopped ? ev.status : "ran",
+      reason: stopped ? ev.error || "" : "", trace: t, fields: ev.fields || {} });
+    if (!out && !(ev.timeline || []).length) return '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.no_detail")) + "</div>";
+    return timelineHtml(ev.timeline) + out + payloadHtml(ev)
+      + (ev.id ? '<div class="wf-actions" style="margin-top:6px"><button class="s-btn-ghost whReplay" data-ev="' + esc(ev.id) + '">'
+        + esc(tw("wh.replay")) + '</button></div><div class="whReplayOut"></div>' : "");
+  }
+
+  // Spec §12: received, verified, parsed, filter, duplicate, dispatch, attempt, receipt, result, notice.
+  var STEP_KEY = { received: "wh.tl_received", verified: "wh.tl_verified", parsed: "wh.tl_parsed", filter: "wh.tl_filter",
+    duplicate: "wh.tl_duplicate", duplicate_delivery: "wh.tl_duplicate_delivery", ignored: "wh.tl_ignored",
+    quarantined: "wh.tl_quarantined", dispatch: "wh.tl_dispatch", attempt: "wh.tl_attempt", receipt: "wh.tl_receipt",
+    result: "wh.tl_result", notice: "wh.tl_notice" };
+  function timelineHtml(tl) {
+    if (!tl || !tl.length) return "";
+    return '<div class="wh-tl" style="margin:4px 0 6px;font-size:16px"><b>' + esc(tw("wh.timeline")) + "</b>"
+      + tl.map(function (x) {
+        return '<div class="wh-tl-step" style="color:var(--text2)">' + esc(fmtTime(x.at)) + " · <b>"
+          + esc(tw(STEP_KEY[x.step] || x.step)) + "</b>" + (x.detail ? " · " + esc(x.detail) : "") + "</div>";
+      }).join("") + "</div>";
+  }
+  // The payload as the server sent it: masked unless the owner asked for the raw view (which the server records).
+  function payloadHtml(ev) {
+    if (ev.payload == null || ev.payload === "") return "";
+    return '<details class="wh-payload" style="margin-top:4px"><summary style="cursor:pointer">' + esc(tw(ev.masked === false
+      ? "wh.payload_raw" : "wh.payload_masked")) + "</summary>"
+      + '<pre class="whPayload" style="white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;font-size:16px">'
+      + esc(ev.payload) + "</pre>"
+      + (ev.masked !== false && ev.id ? '<button class="s-btn-ghost whRaw" data-ev="' + esc(ev.id) + '">' + esc(tw("wh.view_raw"))
+        + "</button>" : "") + "</details>";
+  }
+  // What the hook as it is now would do with this event; the actions that already succeeded would act again.
+  function replayHtml(p) {
+    if (!p || !p.ok) return '<div style="color:var(--warn-ink)">' + esc((p && p.error) || tw("wh.save_err")) + "</div>";
+    if (p.decision !== "run") return '<div style="color:var(--warn-ink)">' + esc(tw("wh.replay_no_run", { why: p.reason || p.decision })) + "</div>";
+    return planHtml(p.deliveries)
+      + ((p.may_repeat || []).length ? '<div class="wh-need" style="color:var(--warn-ink)">'
+        + esc(tw("wh.replay_repeat", { names: p.may_repeat.join(", ") })) + "</div>" : "")
+      + '<div class="wf-actions"><button class="s-btn whReplayGo" data-ev="' + esc(p.id || "") + '">' + esc(tw("wh.replay_go"))
+      + "</button></div>";
+  }
+  // One line per action: will it run, against what, waiting for approval or another action, and why not.
+  function planHtml(list) {
+    if (!list || !list.length) return '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.plan_none")) + "</div>";
+    return '<div class="wh-plan">' + list.map(function (d) {
+      return '<div class="wh-plan-row" style="color:' + (d.runs ? "var(--text2)" : "var(--text3)") + '">'
+        + ic(d.runs ? "check" : "x") + " <b>" + esc(d.action) + "</b> (" + esc(d.kind) + ")"
+        + (d.target ? " → <code>" + esc(d.target) + "</code>" : "")
+        + (d.needs_approval ? " · " + esc(tw("wh.plan_approval")) : "")
+        + ((d.depends_on || []).length ? " · " + esc(tw("wh.plan_after", { names: d.depends_on.map(function (x) {
+          return typeof x === "string" ? x : x.action || x.id; }).join(", ") })) : "")
+        + (d.already_succeeded ? " · " + esc(tw("wh.plan_done_before")) : "")
+        + (!d.runs && d.why_not ? " · " + esc(d.why_not) : "")
+        + (d.args ? '<div><code style="word-break:break-all">' + esc(JSON.stringify(d.args)) + "</code></div>" : "")
+        + "</div>";
+    }).join("") + "</div>";
+  }
+
+  // Spec §12 health. "Received" (202) is said apart from "processed": a 202 is not a finished order.
+  function healthHtml(hh) {
+    if (!hh) return "";
+    var mb = function (b) { return ((b || 0) / 1048576).toFixed(1) + " MB"; };
+    var dur = function (s) { return s == null ? "-" : (s < 120 ? Math.round(s) + " s" : Math.round(s / 60) + " min"); };
+    var row = function (k, v, bad) {
+      return '<div class="wh-hl"' + (bad ? ' style="color:var(--warn-ink)"' : "") + ">" + esc(tw(k)) + ": <b>" + esc(v) + "</b></div>";
+    };
+    var errs = (hh.errors_by_target || []).map(function (e) { return e.action_id + " (" + e.kind + ") " + e.n; }).join(", ");
+    return '<div class="wh-health" style="font-size:16px">'
+      + '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.h_note")) + "</div>"
+      + row("wh.h_received", hh.received || 0) + row("wh.h_matched", hh.matched || 0) + row("wh.h_ignored", hh.ignored || 0)
+      + row("wh.h_quarantined", hh.quarantined || 0, hh.quarantined)
+      + row("wh.h_duplicates", (hh.duplicate_deliveries || 0) + " / " + (hh.duplicate_business || 0))
+      + row("wh.h_backlog", hh.backlog || 0) + row("wh.h_oldest", dur(hh.oldest_open_age_s), hh.oldest_open_age_s > 3600)
+      + row("wh.h_ack", (hh.ack_p50_ms == null ? "-" : hh.ack_p50_ms + " / " + hh.ack_p95_ms + " ms"))
+      + row("wh.h_processing", dur(hh.processing_p50_s) + " / " + dur(hh.processing_p95_s))
+      + row("wh.h_retry", hh.retry_wait || 0) + row("wh.h_dead", hh.dead || 0, hh.dead)
+      + row("wh.h_unknown", hh.unknown || 0, hh.unknown) + row("wh.h_blocked", hh.blocked || 0, hh.blocked)
+      + row("wh.h_ai", hh.ai_calls || 0) + (errs ? row("wh.h_errors", errs, true) : "")
+      + row("wh.h_sql_busy", hh.sql_busy || 0, hh.sql_busy)
+      + row("wh.h_db", mb(hh.db_bytes) + " + WAL " + mb(hh.wal_bytes) + " / " + mb(hh.cap), hh.level && hh.level !== "ok")
+      + "</div>";
   }
 
   // M2: what the hook's rules decided for a sample body (POST /webhooks/simulate). Nothing was stored or run.
-  var SIM_KEY = { run: "wh.sim_run", filtered: "wh.sim_filtered", invalid: "wh.sim_invalid", duplicate: "wh.sim_duplicate" };
+  var SIM_KEY = { run: "wh.sim_run", ran: "wh.sim_ran", filtered: "wh.sim_filtered", invalid: "wh.sim_invalid",
+    duplicate: "wh.sim_duplicate" };
   function stepLine(ok, text) {
     return '<div class="wh-sim-step ' + (ok ? "pass" : "fail") + '" style="color:' + (ok ? "var(--text2)" : "var(--warn-ink)") + '">'
       + ic(ok ? "check" : "x") + " " + esc(text) + "</div>";
@@ -97,8 +195,9 @@
       + (sim.reason ? " · " + esc(sim.reason) : "") + "</div>";
     (t.schema || []).forEach(function (s) { out += stepLine(s.pass, tw("wh.sim_schema") + " " + s.path + ": " + s.why); });
     (t.filter || []).forEach(function (s) {
+      // A stored trace keeps no values (spec §7): the value seen is shown only by a simulation.
       out += stepLine(s.pass, tw("wh.sim_filter") + " " + s.path + " " + s.op + ("value" in s ? " " + plain(s.value) : "")
-        + " (" + plain(s.actual) + ")");
+        + ("actual" in s ? " (" + plain(s.actual) + ")" : ""));
     });
     var f = sim.fields || {};
     var names = Object.keys(f);
@@ -128,18 +227,24 @@
       + '<label style="display:block">' + esc(tw("wh.notify_label")) + ' <select class="whNotify loop-sel" style="font-size:16px">'
       + NOTIFY.map(function (m) { return '<option value="' + m + '"' + ((h.notify || "all") === m ? " selected" : "") + ">"
         + esc(tw(NOTIFY_KEY[m])) + "</option>"; }).join("") + "</select></label>"
-      + num("whPerHour", "wh.lim_hour", lim.per_hour, 1, 600) + num("whPerDay", "wh.lim_day", lim.per_day, 0, 20000)
-      + num("whBacklog", "wh.lim_backlog", lim.backlog, 1, 50) + num("whAiDay", "wh.ai_day", h.ai_per_day, 0, 5000)
+      + num("whPerMin", "wh.lim_minute", lim.per_minute, 1, 6000)
+      + num("whPerHour", "wh.lim_hour", lim.per_hour, 0, 100000) + num("whPerDay", "wh.lim_day", lim.per_day, 0, 1000000)
+      + num("whBacklog", "wh.lim_backlog", lim.backlog, 1, 100000) + num("whAiHour", "wh.ai_hour", h.ai_per_hour, 0, 1000)
+      + num("whAiDay", "wh.ai_day", h.ai_per_day, 0, 5000)
       + num("whKeep", "wh.keep_days", h.retention_days, 1, 365)
+      + '<label style="display:block;margin-top:6px"><input type="checkbox" class="whAiTriage"' + (h.ai_triage ? " checked" : "")
+      + "> " + esc(tw("wh.ai_triage")) + "</label>"
       + "</div>";
   }
   function readSettings(host) {
     var n = function (sel) { var v = host.querySelector(sel).value; return v === "" ? null : parseInt(v, 10); };
     var lim = {};
-    [["per_hour", ".whPerHour"], ["per_day", ".whPerDay"], ["backlog", ".whBacklog"]].forEach(function (x) {
+    [["per_minute", ".whPerMin"], ["per_hour", ".whPerHour"], ["per_day", ".whPerDay"], ["backlog", ".whBacklog"]].forEach(function (x) {
       var v = n(x[1]); if (v !== null && !isNaN(v)) lim[x[0]] = v;
     });
-    return { notify: host.querySelector(".whNotify").value, limits: lim, ai_per_day: n(".whAiDay"), retention_days: n(".whKeep") };
+    var tri = host.querySelector(".whAiTriage");
+    return { notify: host.querySelector(".whNotify").value, limits: lim, ai_per_hour: n(".whAiHour"), ai_per_day: n(".whAiDay"),
+      retention_days: n(".whKeep"), ai_triage: tri ? tri.checked : undefined };
   }
 
   function rulesPanelHtml(h) {
@@ -180,6 +285,7 @@
   }
 
   function testText(r) {
+    if (r && r.accepted && r.state === "received") return tw("wh.test_received");
     if (r && r.ok && r.ignored) return tw(STATUS_KEY[r.ignored] || "wh.st_filtered");
     if (r && r.ok && r.duplicate && r.reason === "business_key") return tw("wh.st_duplicate");
     if (r && r.ok) return tw("wh.test_sent");
@@ -189,8 +295,11 @@
 
   // Error codes of the event actions, in words.
   var ERR_KEY = { not_found: "wh.err_not_found", not_retryable: "wh.err_not_retryable", not_unknown: "wh.err_not_unknown",
-    key_taken: "wh.err_key_taken", not_waiting: "wh.err_not_waiting" };
-  function errText(r) { return tw(ERR_KEY[r && r.error] || "wh.save_err"); }
+    key_taken: "wh.err_key_taken", not_waiting: "wh.err_not_waiting", body_pruned: "wh.err_body_pruned" };
+  function errText(r) {
+    if (r && r._status === 409 && !ERR_KEY[r.error] && r.error) return String(r.error);
+    return tw(ERR_KEY[r && r.error] || "wh.save_err");
+  }
 
   function fmtTime(ts) {
     if (!ts) return "";
@@ -205,6 +314,11 @@
   }
 
   function targetLine(h) {
+    // A hook with only outside actions has no task or workflow of its own: name its actions instead.
+    var outside = (h.actions || []).filter(function (a) { return a.kind !== "ai"; });
+    if (outside.length && h.target !== "workflow" && !String(h.text || "").trim()) {
+      return tw("wh.target_actions_line", { names: outside.map(function (a) { return a.id + " (" + a.kind + ")"; }).join(", ") });
+    }
     return h.target === "workflow"
       ? tw("wh.target_wf_line", { name: h.workflow })
       : tw("wh.target_task_line", { text: String(h.text || "").slice(0, 80) });
@@ -215,45 +329,82 @@
       : tw("wh.never_run");
     var rows = (h.history || []).slice(0, 5);
     // The server counts unknown events over the WHOLE log, not just the newest rows drawn here.
-    var needYou = (h.unknown || 0) > 0 || (h.history || []).some(function (r) { return r.status === "unknown"; });
+    var needYou = (h.unknown || 0) > 0 || (h.blocked || 0) > 0
+      || (h.history || []).some(function (r) { return r.status === "unknown" || r.status === "blocked"; });
     var hist = rows.map(eventRowHtml).join("");
-    return '<b>' + ic("webhook") + " " + esc(h.name) + "</b>"
-      + (h.enabled ? "" : ' <span class="dim" style="font-size:12px;color:var(--text3)">' + esc(tw("wh.off")) + "</span>")
-      + '<div class="dim" style="font-size:12px;color:var(--text3)">' + esc(targetLine(h)) + " · "
+    var hasRules = h.rules && Object.keys(h.rules).length;
+    var tab = needYou ? "ev" : "cfg";
+    var pane = function (name, html) {
+      return '<div class="whPane" data-pane="' + name + '"' + (tab === name ? "" : ' style="display:none"') + ">" + html + "</div>";
+    };
+    var openBreakers = (h.breakers || []).filter(function (b) { return b.open_until > Date.now() / 1000; });
+    var cfg = '<div class="dim" style="font-size:16px;color:var(--text3)">' + esc(targetLine(h)) + " · "
       + esc(tw(LEVEL_KEY[h.level] || "wh.level_full")) + " · " + esc(brainName(brains, h.brain)) + "</div>"
-      + '<div style="font-size:12px;margin-top:4px;word-break:break-all"><code>' + esc(h.url) + "</code></div>"
-      + '<div class="dim" style="font-size:12px;color:var(--text3);margin-top:2px">' + esc(last)
-      + (h.count ? " · " + esc(tw("wh.count", { n: h.count })) : "") + "</div>"
-      + (needYou ? '<div class="wh-need" style="font-size:13px;color:var(--warn-ink);margin-top:4px">' + esc(tw("wh.unknown_hint")) + "</div>" : "")
-      + (hist ? '<details class="whLog" style="margin-top:4px"' + (needYou ? " open" : "") + '><summary style="font-size:12px;cursor:pointer">'
-        + esc(tw("wh.history")) + '</summary><div class="whLogRows">' + hist + "</div>"
-        + '<button class="s-btn-ghost whMore" style="font-size:12px">' + esc(tw("wh.more")) + "</button>"
-        + '<select class="whFilter loop-sel" style="font-size:16px;margin-left:6px">'
-        + [["", "wh.f_all"], ["needs_you", "wh.f_needs_you"], ["failed,dead", "wh.f_failed"], ["ran", "wh.f_ran"],
-          ["filtered,invalid,duplicate", "wh.f_filtered"]]
-          .map(function (x) { return '<option value="' + x[0] + '">' + esc(tw(x[1])) + "</option>"; }).join("") + "</select>"
-        + ' <a class="s-btn-ghost" href="/webhooks/events/export?hook=' + encodeURIComponent(h.id) + '&format=csv" download>'
-        + esc(tw("wh.export")) + "</a></details>" : "")
-      + ((h.breakers || []).filter(function (b) { return b.open_until > Date.now() / 1000; }).length
-        ? '<div class="wh-need" style="color:var(--warn-ink);margin-top:4px">' + esc(tw("wh.breaker_open", { names:
-          (h.breakers || []).filter(function (b) { return b.open_until > Date.now() / 1000; }).map(function (b) { return b.action; }).join(", ") }))
-          + "</div>" : "")
+      + '<div style="font-size:16px;margin-top:4px;word-break:break-all"><code>' + esc(h.url) + "</code></div>"
+      + '<div class="dim" style="font-size:16px;color:var(--text3);margin-top:2px">'
+      + esc(tw(h.query_token ? "wh.key_where_legacy" : "wh.key_where", { header: h.token_header || "X-Javis-Token" })) + "</div>"
+      + (h.ai_triage ? '<div class="dim" style="font-size:16px;color:var(--text3)">' + esc(tw("wh.ai_triage_on")) + "</div>" : "")
       + '<div class="wf-actions" style="margin-top:8px">'
       + '<button class="s-btn-ghost whCopy">' + esc(tw("wh.copy_url")) + "</button>"
       + '<button class="s-btn-ghost whTest">' + esc(tw("wh.test")) + "</button>"
-      + '<button class="s-btn-ghost whRules' + (h.rules && Object.keys(h.rules).length ? " has-rules" : "") + '">'
-      + esc(tw("wh.rules")) + (h.rules && Object.keys(h.rules).length ? " " + ic("check") : "") + "</button>"
-      + '<button class="s-btn-ghost whToggle">' + esc(tw(h.enabled ? "wh.turn_off" : "wh.turn_on")) + "</button>"
+      + '<button class="s-btn-ghost whRules' + (hasRules ? " has-rules" : "") + '">'
+      + esc(tw("wh.rules")) + (hasRules ? " " + ic("check") : "") + "</button>"
       + '<button class="s-btn-ghost whRotate">' + esc(tw("wh.rotate")) + "</button>"
       + '<button class="s-btn-ghost whDel" style="color:var(--red)">' + esc(tw("common.delete")) + "</button>"
       + "</div>"
-      + '<div class="whRulesHost"></div>';
+      // Two switches, never one (spec §12): receiving, and processing.
+      + '<div class="wh-switches" style="margin-top:8px;font-size:16px">'
+      + '<div><button class="s-btn-ghost whToggle">' + esc(tw(h.enabled ? "wh.turn_off" : "wh.turn_on")) + "</button> "
+      + '<span class="dim" style="color:var(--text3)">' + esc(tw(h.enabled ? "wh.receiving_on" : "wh.receiving_off")) + "</span></div>"
+      + '<div><button class="s-btn-ghost whPause">' + esc(tw(h.paused ? "wh.resume" : "wh.pause")) + "</button> "
+      + '<span class="dim" style="color:var(--text3)">' + esc(tw(h.paused ? "wh.paused_on" : "wh.paused_off")) + "</span></div>"
+      + "</div>"
+      + '<div class="whTestHost"></div><div class="whRulesHost"></div>';
+    var evs = (needYou ? '<div class="wh-need" style="font-size:16px;color:var(--warn-ink);margin-top:4px">' + esc(tw("wh.unknown_hint")) + "</div>" : "")
+      + '<details class="whLog" style="margin-top:4px"' + (needYou ? " open" : "") + '><summary style="font-size:16px;cursor:pointer">'
+      + esc(tw("wh.history")) + '</summary>'
+      + '<div class="wh-filters" style="margin:6px 0;display:flex;flex-wrap:wrap;gap:6px;align-items:center">'
+      + '<select class="whFilter loop-sel" style="font-size:16px">'
+      + [["", "wh.f_all"], ["needs_you", "wh.f_needs_you"], ["failed,dead", "wh.f_failed"], ["ran", "wh.f_ran"],
+        ["filtered,invalid,duplicate", "wh.f_filtered"]]
+        .map(function (x) { return '<option value="' + x[0] + '">' + esc(tw(x[1])) + "</option>"; }).join("") + "</select>"
+      + '<input class="whQ" type="search" placeholder="' + esc(tw("wh.f_q")) + '" style="font-size:16px;min-width:0;flex:1 1 140px">'
+      + '<label style="font-size:16px">' + esc(tw("wh.f_since")) + ' <input class="whSince" type="date" style="font-size:16px"></label>'
+      + '<label style="font-size:16px">' + esc(tw("wh.f_until")) + ' <input class="whUntil" type="date" style="font-size:16px"></label>'
+      + "</div>"
+      + '<div class="whLogRows">' + (hist || '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.no_events")) + "</div>") + "</div>"
+      + '<button class="s-btn-ghost whMore" style="font-size:16px">' + esc(tw("wh.more")) + "</button>"
+      + ' <a class="s-btn-ghost" href="/webhooks/events/export?hook=' + encodeURIComponent(h.id) + '&format=csv" download>'
+      + esc(tw("wh.export")) + "</a></details>";
+    return '<b>' + ic("webhook") + " " + esc(h.name) + "</b>"
+      + (h.enabled ? "" : ' <span class="dim" style="font-size:16px;color:var(--text3)">' + esc(tw("wh.off")) + "</span>")
+      + (h.paused ? ' <span class="dim" style="font-size:16px;color:var(--warn-ink)">' + esc(tw("wh.paused_badge")) + "</span>" : "")
+      + '<div class="dim" style="font-size:16px;color:var(--text3);margin-top:2px">' + esc(last)
+      + (h.count ? " · " + esc(tw("wh.count", { n: h.count })) : "") + "</div>"
+      + (openBreakers.length ? '<div class="wh-need" style="color:var(--warn-ink);margin-top:4px">' + esc(tw("wh.breaker_open", {
+        names: openBreakers.map(function (b) { return b.action; }).join(", ") })) + "</div>" : "")
+      + '<div class="si-row wh-tabs" style="margin-top:8px">'
+      + [["cfg", "wh.tab_cfg"], ["ev", "wh.tab_events"], ["health", "wh.tab_health"]].map(function (x) {
+        return '<button class="si-chip whTab' + (x[0] === tab ? " sel" : "") + '" data-tab="' + x[0] + '">' + esc(tw(x[1])) + "</button>";
+      }).join("") + "</div>"
+      + pane("cfg", cfg) + pane("ev", evs) + pane("health", '<div class="whHealthHost"></div>');
+  }
+
+  // The real test send (spec §12): the owner's own payload, the list of what each action would do, then the send.
+  function testPanelHtml() {
+    return '<div class="wh-test" style="margin-top:8px;padding:10px;border:1px solid var(--hairline);border-radius:8px">'
+      + '<div class="dim" style="color:var(--text3);font-size:16px">' + esc(tw("wh.test_hint")) + "</div>"
+      + '<textarea class="whTestBody" spellcheck="false" style="width:100%;min-height:90px;font-family:monospace;font-size:16px">'
+      + esc('{"test": true}') + "</textarea>"
+      + '<div class="wf-actions" style="margin-top:6px"><button class="s-btn-ghost whTestPreview">' + esc(tw("wh.test_preview"))
+      + '</button><button class="s-btn whTestGo" disabled>' + esc(tw("wh.test_go")) + "</button></div>"
+      + '<div class="whTestOut" style="margin-top:6px"></div></div>';
   }
 
   function secretHtml(url, token) {
     var curl = "curl -X POST '" + url + "' -H 'Authorization: Bearer " + token
       + "' -H 'Content-Type: application/json' -d '{\"name\":\"Lan\",\"phone\":\"0901\"}'";
-    return '<div style="padding:10px 12px;border:1px solid var(--green);border-radius:8px;margin-bottom:10px;font-size:13px;line-height:1.5">'
+    return '<div style="padding:10px 12px;border:1px solid var(--green);border-radius:8px;margin-bottom:10px;font-size:16px;line-height:1.5">'
       + "<b>" + esc(tw("wh.secret_head")) + "</b><br>" + esc(tw("wh.secret_body"))
       + '<div style="margin-top:6px;word-break:break-all"><code>' + esc(token) + "</code></div>"
       + '<div class="dim" style="margin-top:6px;color:var(--text3)">' + esc(tw("wh.secret_curl")) + "</div>"
@@ -280,7 +431,7 @@
       + '<button class="si-chip sel" data-l="full">' + esc(tw("wh.level_full")) + "</button></div></div>"
       + '<div class="si-actions"><button class="s-btn" id="whSave">' + esc(tw("common.save")) + "</button>"
       + '<button class="s-btn-ghost" id="whCancel">' + esc(tw("common.cancel")) + "</button>"
-      + '<span class="dim" id="whMsg" style="font-size:13px;color:var(--warn-ink)"></span></div>'
+      + '<span class="dim" id="whMsg" style="font-size:16px;color:var(--warn-ink)"></span></div>'
       + "</div></div>";
   }
 
@@ -288,7 +439,10 @@
     try {
       var r = await fetch(url, body === undefined ? undefined : {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      return await r.json();
+      var j = await r.json();
+      // The status travels with the answer: a 409 on save means someone saved first (spec: revision check).
+      if (j && typeof j === "object") j._status = r.status;
+      return j;
     } catch (e) { return { ok: false, error: e.message }; }
   }
 
@@ -306,9 +460,9 @@
     var brains = function () { return (opts && opts.brains && opts.brains()) || []; };
     var current = function () { return (opts && opts.current && opts.current()) || ""; };
     var target = "workflow", level = "full";
-    box.innerHTML = '<div class="lp-group"><div style="display:flex;align-items:center;gap:8px;margin:22px 0 8px;font-size:15px;color:var(--text);font-weight:600;border-bottom:1px solid var(--hairline);padding-bottom:6px">'
+    box.innerHTML = '<div class="lp-group"><div style="display:flex;align-items:center;gap:8px;margin:22px 0 8px;font-size:16px;color:var(--text);font-weight:600;border-bottom:1px solid var(--hairline);padding-bottom:6px">'
       + "<span>" + ic("webhook") + " " + esc(tw("wh.head")) + infoBtn() + "</span>"
-      + '<button class="s-btn-ghost" id="whNew" style="margin-left:auto;font-size:13px">+ ' + esc(tw("wh.add")) + "</button></div>"
+      + '<button class="s-btn-ghost" id="whNew" style="margin-left:auto;font-size:16px">+ ' + esc(tw("wh.add")) + "</button></div>"
       + infoBody(esc(tw("wh.intro")))
       + '<div id="whSecret"></div><div id="whFormHost"></div><div id="whList"></div></div>';
     var q = function (s) { return box.querySelector(s); };
@@ -364,6 +518,17 @@
     function wireEvents(div, h) {
       var cursor = "", rowsBox = div.querySelector(".whLogRows"), more = div.querySelector(".whMore");
       var filter = div.querySelector(".whFilter"), status = "";
+      var qBox = div.querySelector(".whQ"), sinceBox = div.querySelector(".whSince"), untilBox = div.querySelector(".whUntil");
+      // A date box as epoch seconds, local midnight; "until" includes its whole day.
+      function day(el, end) {
+        if (!el || !el.value) return 0;
+        var d = new Date(el.value + "T00:00:00");
+        return isNaN(d.getTime()) ? 0 : d.getTime() / 1000 + (end ? 86400 : 0);
+      }
+      function filters() {
+        var q = qBox ? qBox.value.trim() : "", since = day(sinceBox, false), until = day(untilBox, true);
+        return (q ? "&q=" + encodeURIComponent(q) : "") + (since ? "&since=" + since : "") + (until ? "&until=" + until : "");
+      }
       function bindRows(scope) {
         scope.querySelectorAll(".whEvRetry").forEach(function (b) {
           b.onclick = async function () {
@@ -379,6 +544,7 @@
             if (box.innerHTML) { box.innerHTML = ""; return; }
             var d = await api("/webhooks/events/" + encodeURIComponent(b.dataset.ev));
             box.innerHTML = d && d.ok ? detailHtml(d.event) : esc(errText(d));
+            wireDetail(box);
             box.querySelectorAll(".whApprove").forEach(function (x) {
               x.onclick = async function () {
                 var r = await api("/webhooks/events/approve", { id: x.dataset.ev, action: x.dataset.act, decision: x.dataset.d });
@@ -399,7 +565,7 @@
       if (!more || !rowsBox) return;
       more.onclick = async function () {
         var url = "/webhooks/events?hook=" + encodeURIComponent(h.id) + "&limit=20" + (status ? "&status=" + encodeURIComponent(status) : "")
-          + (cursor ? "&before=" + encodeURIComponent(cursor) : "");
+          + filters() + (cursor ? "&before=" + encodeURIComponent(cursor) : "");
         var d = await api(url);
         if (!d || !d.ok) { more.textContent = (d && d.error) || tw("wh.save_err"); return; }
         if (!cursor) rowsBox.innerHTML = "";
@@ -410,9 +576,35 @@
         cursor = d.next || "";
         more.style.display = cursor ? "" : "none";
       };
-      if (filter) filter.onchange = function () {
-        status = filter.value; cursor = ""; more.style.display = ""; more.onclick();
-      };
+      var refilter = function () { status = filter ? filter.value : ""; cursor = ""; more.style.display = ""; more.onclick(); };
+      if (filter) filter.onchange = refilter;
+      [qBox, sinceBox, untilBox].forEach(function (el) { if (el) el.onchange = refilter; });
+    }
+
+    // Raw payload (asks first; the server records the view) and "process again with the current setup".
+    function wireDetail(box) {
+      box.querySelectorAll(".whRaw").forEach(function (b) {
+        b.onclick = async function () {
+          if (!confirm(tw("wh.raw_confirm"))) return;
+          var d = await api("/webhooks/events/" + encodeURIComponent(b.dataset.ev) + "?raw=1");
+          var pre = b.closest(".wh-payload").querySelector(".whPayload");
+          if (d && d.ok) { pre.textContent = d.event.payload || ""; b.remove(); } else b.textContent = errText(d);
+        };
+      });
+      box.querySelectorAll(".whReplay").forEach(function (b) {
+        b.onclick = async function () {
+          var out = box.querySelector(".whReplayOut");
+          var p = await api("/webhooks/events/replay", { id: b.dataset.ev });
+          if (p && p.ok) p.id = b.dataset.ev;
+          out.innerHTML = replayHtml(p);
+          var go = out.querySelector(".whReplayGo");
+          if (go) go.onclick = async function () {
+            var r = await api("/webhooks/events/replay", { id: go.dataset.ev, confirm: true });
+            go.textContent = r && r.ok ? tw("wh.replay_sent") : errText(r);
+            if (r && r.ok) setTimeout(load, 2500);
+          };
+        };
+      });
     }
 
     async function load() {
@@ -429,14 +621,45 @@
         div.querySelector(".whCopy").onclick = function (ev) {
           copy(h.url).then(function () { ev.target.textContent = tw("wh.copied"); });
         };
-        div.querySelector(".whTest").onclick = async function (ev) {
-          var r = await api("/webhooks/test", { id: h.id });
-          // With rules the sample event is often stopped by them: say so instead of "sent".
-          ev.target.textContent = testText(r);
-          setTimeout(load, 4000);
+        div.querySelectorAll(".whTab").forEach(function (t) {
+          t.onclick = async function () {
+            div.querySelectorAll(".whTab").forEach(function (x) { x.classList.toggle("sel", x === t); });
+            div.querySelectorAll(".whPane").forEach(function (p) { p.style.display = p.dataset.pane === t.dataset.tab ? "" : "none"; });
+            if (t.dataset.tab === "health") {
+              var hd = await api("/webhooks/health?hook=" + encodeURIComponent(h.id));
+              div.querySelector(".whHealthHost").innerHTML = hd && hd.ok ? healthHtml(hd.health) : esc(errText(hd));
+            }
+          };
+        });
+        div.querySelector(".whTest").onclick = function () {
+          var host = div.querySelector(".whTestHost");
+          if (host.innerHTML) { host.innerHTML = ""; return; }
+          host.innerHTML = testPanelHtml();
+          var out = host.querySelector(".whTestOut"), go = host.querySelector(".whTestGo");
+          var body = function () { return host.querySelector(".whTestBody").value; };
+          host.querySelector(".whTestBody").oninput = function () { go.disabled = true; };
+          host.querySelector(".whTestPreview").onclick = async function () {
+            // Nothing is sent here: the server only says what each action would do with this payload.
+            var p = await api("/webhooks/test", { id: h.id, payload: body() });
+            out.innerHTML = p && p.ok ? simHtml(p) + planHtml(p.deliveries) : simHtml(p);
+            go.disabled = !(p && p.ok);
+          };
+          go.onclick = async function () {
+            if (!confirm(tw("wh.test_confirm"))) return;
+            var r = await api("/webhooks/test", { id: h.id, payload: body(), confirm: true });
+            // With rules the sample event is often stopped by them: say so instead of "sent".
+            out.textContent = testText(r);
+            go.disabled = true;
+            setTimeout(load, 4000);
+          };
         };
         div.querySelector(".whToggle").onclick = async function () {
+          if (h.enabled && !confirm(tw("wh.turn_off_confirm"))) return;
           await api("/webhooks/update", { id: h.id, enabled: !h.enabled });
+          load();
+        };
+        div.querySelector(".whPause").onclick = async function () {
+          await api("/webhooks/pause", { id: h.id, paused: !h.paused });
           load();
         };
         div.querySelector(".whRotate").onclick = async function () {
@@ -463,7 +686,8 @@
             var rv = readRules(host.querySelector(".whVerifyTxt").value);
             if (!rr.ok || !ra.ok || !rv.ok) { out.innerHTML = simHtml({ ok: false, error: tw("wh.rules_bad_json") }); return; }
             var r = await api("/webhooks/update", Object.assign({ id: h.id, rules: rr.rules, actions: ra.actions, verify: rv.rules },
-              readSettings(host)));
+              readSettings(host), { revision: h.revision }));
+            if (r._status === 409) { out.innerHTML = simHtml({ ok: false, error: r.error || tw("wh.conflict") }); return; }
             if (!r.ok) { out.innerHTML = simHtml(r); return; }
             out.textContent = tw("wh.rules_saved");
             setTimeout(load, 1200);
@@ -482,7 +706,8 @@
 
   var api_ = { mount: mount, cardHtml: cardHtml, secretHtml: secretHtml, targetLine: targetLine, eventRowHtml: eventRowHtml, errText: errText,
     simHtml: simHtml, rulesPanelHtml: rulesPanelHtml, readRules: readRules, readActions: readActions, detailHtml: detailHtml, settingsHtml: settingsHtml,
-    testText: testText };
+    testText: testText, readSettings: readSettings, stateWord: stateWord, timelineHtml: timelineHtml, payloadHtml: payloadHtml,
+    replayHtml: replayHtml, planHtml: planHtml, healthHtml: healthHtml, testPanelHtml: testPanelHtml };
   if (typeof window !== "undefined") window.JavisWebhooks = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();
