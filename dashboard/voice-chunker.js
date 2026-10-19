@@ -30,8 +30,8 @@
     minStaleWords: 5     // đẩy vì im lâu chỉ khi đã có từng này từ
   };
 
-  // Latin stops need whitespace after them ("1.5", "0.218.0" are not sentence ends). CJK stops
-  // (。！？) are never followed by a space, so they end a sentence on their own (0.218.0).
+  // Latin stops need whitespace after them ("1.5", "0.220.0" are not sentence ends). CJK stops
+  // (。！？) are never followed by a space, so they end a sentence on their own (0.220.0).
   var SENT_END = /[.!?…]+["'”’)\]]*(?=\s|$)|[。！？]+["'”’」』）)\]]*/g;
   // Liên từ chuyển ý: cắt TRƯỚC liên từ ("mình đã xem số liệu | và thấy rằng...").
   var CONJ = ["và", "nhưng", "rồi", "nên", "thì", "mà", "vì", "còn", "hoặc", "hay", "để", "tuy",

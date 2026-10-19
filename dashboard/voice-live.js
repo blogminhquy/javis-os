@@ -9,7 +9,7 @@
    Khung JSON gửi: text | context (khối ngữ cảnh giao diện, chỉ khi đổi) | played (số ms đã phát
    tới lúc bị ngắt, để server cắt ngữ cảnh đúng chỗ đã nghe) | stop.
 
-   Mic capture (0.218.0): an AudioWorklet (voice-live-worklet.js) on the audio thread, so a busy
+   Mic capture (0.220.0): an AudioWorklet (voice-live-worklet.js) on the audio thread, so a busy
    page no longer stalls the stream. Browsers without AudioWorklet fall back to ScriptProcessorNode
    as before. Same frames either way: PCM16 16 kHz, one per 4096 input frames.
 

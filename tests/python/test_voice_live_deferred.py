@@ -1,4 +1,4 @@
-"""Gemini 3.1 Live no longer freezes while the main brain works (0.218.0). No network.
+"""Gemini 3.1 Live no longer freezes while the main brain works (0.220.0). No network.
 
     python tests/run.py voice_live_deferred
 

@@ -6990,7 +6990,7 @@
     };
 
 
-    // Live over an API key: TV filter and reply pace (0.218.0). ChatGPT Live and the basic path
+    // Live over an API key: TV filter and reply pace (0.220.0). ChatGPT Live and the basic path
     // decide turn-taking themselves, so the box only shows when the call really runs on an API key.
     const liveBox = $("vcLiveBox");
     if (liveBox) {

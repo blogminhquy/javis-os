@@ -1,4 +1,4 @@
-/* voice-live-worklet.js - microphone capture for Live calls over an API key (0.218.0).
+/* voice-live-worklet.js - microphone capture for Live calls over an API key (0.220.0).
 
    Runs on the audio rendering thread, not the page's main thread: a busy dashboard (a long chat
    render, a big table) used to stall ScriptProcessorNode and the provider heard gaps in the voice.

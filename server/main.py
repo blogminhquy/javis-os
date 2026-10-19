@@ -5375,7 +5375,7 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             v["call_engine"] = patch["call_engine"]
         if patch.get("live_provider") in voice_live.PROVIDERS:
             v["live_provider"] = patch["live_provider"]
-        # Live over an API key (0.218.0): ignore speech not meant for Javis, and the reply pace.
+        # Live over an API key (0.220.0): ignore speech not meant for Javis, and the reply pace.
         if "live_proactive" in patch:
             v["live_proactive"] = bool(patch["live_proactive"])
         if patch.get("live_turn") in voice_live.TURN_PRESETS:
@@ -14569,7 +14569,7 @@ async def tts(
     from fastapi import HTTPException, Response
     if voice == "auto":
         # "Auto by language" is resolved per chunk in the browser (voice-lang.js); a page cached
-        # from before 0.218.0 can still send the raw value, which Edge would refuse.
+        # from before 0.220.0 can still send the raw value, which Edge would refuse.
         voice = "en-US-EmmaMultilingualNeural"
     from fastapi.responses import StreamingResponse
     cfg = cfgmod.read_settings()

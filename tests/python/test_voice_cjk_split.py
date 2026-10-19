@@ -1,4 +1,4 @@
-"""Japanese and Chinese replies are cut into sentences for the speaker (0.218.0).
+"""Japanese and Chinese replies are cut into sentences for the speaker (0.220.0).
 
     python tests/run.py voice_cjk_split
 
@@ -24,7 +24,7 @@ class SplitTests(unittest.TestCase):
         self.assertEqual(pos, len("今日は晴れです。"))
 
     def test_version_number_is_not_a_sentence_end(self):
-        out, _ = voice_brain.split_speakable("Bản 0.218.0 đã ra", 0)
+        out, _ = voice_brain.split_speakable("Bản 0.220.0 đã ra", 0)
         self.assertEqual(out, [])
 
 

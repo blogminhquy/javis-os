@@ -1,4 +1,4 @@
-// Live mic capture on an AudioWorklet (dashboard/voice-live-worklet.js, 0.218.0). No real audio.
+// Live mic capture on an AudioWorklet (dashboard/voice-live-worklet.js, 0.220.0). No real audio.
 //
 //     node tests/js/test_voice_live_worklet.js
 //

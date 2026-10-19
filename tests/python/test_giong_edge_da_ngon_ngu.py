@@ -45,7 +45,7 @@ GIONG_DA_NGON_NGU = {
 # Chỉ lấy các <option> BÊN TRONG ô chọn giọng, không quét cả trang.
 _sel = INDEX.split('id="voiceSel"', 1)[1].split("</select>", 1)[0]
 giong = re.findall(r'<option value="([^"]+)"', _sel)
-# 0.218.0: an eighth entry "auto" (the voice follows the language being read, voice-lang.js).
+# 0.220.0: an eighth entry "auto" (the voice follows the language being read, voice-lang.js).
 # It is not an Edge voice and must stay last, so the default (first entry) does not change.
 check("ô chọn giọng: mục cuối là 'auto' (tự động theo thứ tiếng)", giong[-1:] == ["auto"])
 giong = [g for g in giong if g != "auto"]

@@ -11,7 +11,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Gọi Javis qua Gemini Live không còn im lặng lúc đang tra cứu.** Javis đáp ngay một câu ngắn rồi vẫn nghe bạn nói tiếp, có kết quả thì tự đọc vào lúc không ai đang nói. Việc chạy lâu thì thỉnh thoảng báo tiến độ.
 - **Không trả lời tiếng TV hay người bên cạnh nữa** (Gemini Live). Trong Cài đặt → Giọng nói → Nâng cao có thêm ô **Lọc tiếng xung quanh** (mặc định bật) và **Nhịp trả lời**: Nhanh, Vừa, Chậm rãi.
 - **Giọng đọc tự đổi theo thứ tiếng:** chọn giọng "Tự động theo thứ tiếng" thì tiếng Việt đọc bằng Hoài My, tiếng Anh bằng Emma, tiếng Nhật, Trung, Hàn bằng giọng bản xứ. Câu ngắn như "OK" không làm đổi giọng.
-- **Tiếng mic mượt hơn khi gọi Live qua API key**, kể cả lúc trang đang bận. Câu trả lời tiếng Nhật, tiếng Trung được đọc từng câu nên tiếng ra sớm hơn, và số phiên bản như "0.218.0" không còn bị đọc ngắt quãng.
+- **Tiếng mic mượt hơn khi gọi Live qua API key**, kể cả lúc trang đang bận. Câu trả lời tiếng Nhật, tiếng Trung được đọc từng câu nên tiếng ra sớm hơn, và số phiên bản như "0.220.0" không còn bị đọc ngắt quãng.
 
 ## [0.219.0] - 2026-10-19
 ### Thêm mới

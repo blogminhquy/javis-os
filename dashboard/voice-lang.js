@@ -1,4 +1,4 @@
-/* voice-lang.js - "Auto by language" Edge voice for the basic call path (0.218.0). Pure module.
+/* voice-lang.js - "Auto by language" Edge voice for the basic call path (0.220.0). Pure module.
 
    The voice follows the language of the TEXT being read, detected from its script: Vietnamese
    diacritics, kana, Han, Hangul, Thai, Cyrillic, else Latin. Why not Whisper's language: the

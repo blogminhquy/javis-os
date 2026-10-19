@@ -123,7 +123,7 @@ check("lưu rồi đọc lại call_engine, chatgpt_voice, focus_mode",
 luu({"call_engine": "xxx", "chatgpt_voice": "khong-co"})
 check("đường gọi lạ và giọng lạ không ghi đè", doc().get("call_engine") == "basic" and doc().get("chatgpt_voice") == "maple")
 
-# ---- 7. Live over an API key (0.218.0): TV filter and reply pace ----
+# ---- 7. Live over an API key (0.220.0): TV filter and reply pace ----
 check("TV filter is on before anything is saved", cl.get("/voice/options?brains=0").json()["voice"]["live_proactive"] is True)
 luu({"live_proactive": False, "live_turn": "slow"})
 v = doc()

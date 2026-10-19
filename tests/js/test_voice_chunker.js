@@ -107,7 +107,7 @@ check("takeWords: quá số từ -> cả chuỗi", C.takeWords("một hai ba", 9
 check("takeWords: dấu câu dính từ đi theo từ", C.takeWords("Ừ, để mình xem.", 2) === "Ừ, để");
 check("takeWords: null không lỗi", C.takeWords(null, 3) === "");
 
-// ---- CJK stops end a sentence with no space after them (0.218.0) ----
+// ---- CJK stops end a sentence with no space after them (0.220.0) ----
 c = new C.Chunker();
 check("Japanese: three sentences with no spaces cut at each stop",
   j(c.push("今日は晴れです。売上は十二万円でした。明日も頑張ります！", 1)) === j(["今日は晴れです。売上は十二万円でした。明日も頑張ります！"]));
@@ -116,7 +116,7 @@ check("splitSentences: Japanese 3 sentences -> 3 parts",
 check("splitSentences: Chinese question mark",
   j(C.splitSentences("你好吗？我很好。")) === j(["你好吗？", "我很好。"]));
 check("splitSentences: a version number is not cut",
-  j(C.splitSentences("Bản 0.218.0 đã ra. Anh thử nhé")) === j(["Bản 0.218.0 đã ra. ", "Anh thử nhé"]));
+  j(C.splitSentences("Bản 0.220.0 đã ra. Anh thử nhé")) === j(["Bản 0.220.0 đã ra. ", "Anh thử nhé"]));
 check("splitSentences: empty text -> nothing", j(C.splitSentences("")) === "[]");
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }

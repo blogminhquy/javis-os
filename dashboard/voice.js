@@ -1189,7 +1189,7 @@ class JavisVoice {
     return `${this.ttsBackend}?text=${encodeURIComponent(text)}&voice=${encodeURIComponent(this._voiceFor(text))}&rate=${encodeURIComponent(this.ttsRate)}`;
   }
 
-  // "auto" (0.218.0): the Edge voice follows the language of the text being read (voice-lang.js).
+  // "auto" (0.220.0): the Edge voice follows the language of the text being read (voice-lang.js).
   _voiceFor(text) {
     if (this.ttsVoice !== "auto") return this.ttsVoice;
     const L = typeof window !== "undefined" && window.JavisVoiceLang;
@@ -1413,8 +1413,8 @@ class JavisVoice {
     if (this.recognition) this.recognition.lang = this.lang;
   }
 
-  // Sentences for TTS. Shares the chunker's rule: "0.218.0" and "1.5" are not sentence ends, and
-  // Japanese/Chinese stops (。！？) are, though no space follows them (0.218.0).
+  // Sentences for TTS. Shares the chunker's rule: "0.220.0" and "1.5" are not sentence ends, and
+  // Japanese/Chinese stops (。！？) are, though no space follows them (0.220.0).
   _sentences(text) {
     const C = typeof window !== "undefined" && window.JavisVoiceChunker;
     if (C && C.splitSentences) { const out = C.splitSentences(text); return out.length ? out : [text]; }

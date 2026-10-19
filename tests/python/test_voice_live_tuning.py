@@ -1,4 +1,4 @@
-"""Gemini Live ignores speech not meant for it, and the reply pace has three presets (0.218.0).
+"""Gemini Live ignores speech not meant for it, and the reply pace has three presets (0.220.0).
 
     python tests/run.py voice_live_tuning
 
