@@ -9,6 +9,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
 ## [0.229.0] - 2026-10-19
+### Added
+- **Webhook rules.** A webhook can filter events (run only for the right kind, with the right values), check that the data has the fields it needs, and pick fields such as order number, email or phone so the run gets them ready. An event that does not match is logged with the reason but does not run and does not use the hourly allowance.
+- **Duplicate check by order.** Set a key such as the order number or phone: the same order sent twice (even through two webhooks of the same brain) runs once within the period you choose. A phone written with +84 or with 0 counts as one.
+- **Test button.** Paste sample data and Javis shows each step: which conditions matched, which fields were picked, and what the run would receive. Nothing is stored, run or sent.
 ### Improved
 - **Webhooks no longer lose events on a restart.** Every event is written durably to disk before Javis answers "accepted", and only then runs. If the server stops, updates or crashes, the waiting events run when it is back.
 - **No blind re-run of work that may already have happened.** If the server stops while a run is in progress (it may have sent a message or written an order), the event is marked "not known whether it finished" and you are told. Check outside, then press Mark done or Retry in the webhook log.

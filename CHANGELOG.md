@@ -7,6 +7,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.229.0] - 2026-10-19
+### Thêm mới
+- **Quy tắc lọc cho webhook.** Mỗi webhook có thể lọc sự kiện (chỉ chạy khi đúng loại, đủ giá trị), kiểm dữ liệu có đủ trường cần thiết không, và trích sẵn các trường như mã đơn, email, số điện thoại để việc chạy nhận gọn gàng. Sự kiện không khớp được ghi lại kèm lý do nhưng không chạy, không tốn lượt mỗi giờ.
+- **Chống trùng theo đơn.** Đặt một khoá như mã đơn hoặc số điện thoại: cùng một đơn gửi tới hai lần (kể cả từ hai webhook trong cùng bộ não) chỉ chạy một lần trong thời hạn bạn chọn. Số điện thoại viết +84 hay 0 đều tính là một.
+- **Nút Chạy thử.** Dán dữ liệu mẫu, Javis cho thấy từng bước: khớp hay không khớp điều kiện nào, trường nào được trích, và nội dung việc sẽ nhận. Không lưu, không chạy, không gửi gì.
 ### Cải thiện
 - **Webhook không còn mất sự kiện khi máy khởi động lại.** Mỗi sự kiện được ghi bền vào đĩa trước khi Javis trả lời "đã nhận", rồi mới chạy. Máy tắt, cập nhật hay sập giữa chừng thì lúc mở lại Javis chạy tiếp những sự kiện còn chờ.
 - **Không chạy lại mù những việc có thể đã làm.** Nếu máy dừng đúng lúc việc đang chạy (có thể đã gửi tin, ghi đơn), sự kiện được đánh dấu "không rõ đã xong chưa" và Javis báo bạn. Bạn kiểm tra bên ngoài rồi bấm Đã xong hoặc Chạy lại trong nhật ký webhook.

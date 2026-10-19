@@ -36,7 +36,8 @@
 
   var LEVEL_KEY = { suggest: "wh.level_suggest", auto: "wh.level_auto", full: "wh.level_full" };
   var STATUS_KEY = { done: "wh.st_done", failed: "wh.st_failed", waiting: "wh.st_waiting", silent: "wh.st_silent",
-    queued: "wh.st_queued", running: "wh.st_running", unknown: "wh.st_unknown", dead: "wh.st_dead" };
+    queued: "wh.st_queued", running: "wh.st_running", unknown: "wh.st_unknown", dead: "wh.st_dead",
+    filtered: "wh.st_filtered", invalid: "wh.st_invalid", duplicate: "wh.st_duplicate" };
   // 0.229.0: events are stored durably (server/webhook_store.py). A run that may have acted before the server stopped
   // is "unknown": only the owner decides, after checking outside, whether it happened (Mark done) or not (Retry).
   var RETRYABLE = { failed: 1, unknown: 1, dead: 1 };
@@ -53,6 +54,55 @@
       + '<span class="wh-st">' + esc(tw(STATUS_KEY[st] || "wh.st_done")) + "</span>"
       + ((r.result || r.error) ? " · " + esc(String(r.result || r.error).slice(0, 140)) : "")
       + (acts ? '<span class="wh-ev-acts">' + acts + "</span>" : "") + "</div>";
+  }
+
+  // M2: what the hook's rules decided for a sample body (POST /webhooks/simulate). Nothing was stored or run.
+  var SIM_KEY = { run: "wh.sim_run", filtered: "wh.sim_filtered", invalid: "wh.sim_invalid", duplicate: "wh.sim_duplicate" };
+  function stepLine(ok, text) {
+    return '<div class="wh-sim-step" style="color:' + (ok ? "var(--text2)" : "var(--warn-ink)") + '">'
+      + (ok ? "✓ " : "✗ ") + esc(text) + "</div>";
+  }
+  function plain(v) { return v === null || v === undefined ? "∅" : (typeof v === "object" ? JSON.stringify(v) : String(v)); }
+  function simHtml(sim) {
+    if (!sim || !sim.ok) return '<div style="color:var(--warn-ink)">' + esc((sim && sim.error) || tw("wh.save_err")) + "</div>";
+    var t = sim.trace || {};
+    var out = '<div class="wh-sim-head"><b>' + esc(tw(SIM_KEY[sim.decision] || "wh.sim_run")) + "</b>"
+      + (sim.reason ? " · " + esc(sim.reason) : "") + "</div>";
+    (t.schema || []).forEach(function (s) { out += stepLine(s.pass, tw("wh.sim_schema") + " " + s.path + ": " + s.why); });
+    (t.filter || []).forEach(function (s) {
+      out += stepLine(s.pass, tw("wh.sim_filter") + " " + s.path + " " + s.op + ("value" in s ? " " + plain(s.value) : "")
+        + " (" + plain(s.actual) + ")");
+    });
+    var f = sim.fields || {};
+    var names = Object.keys(f);
+    if (names.length) {
+      out += '<div class="wh-sim-fields" style="margin-top:4px"><b>' + esc(tw("wh.sim_fields")) + "</b>"
+        + names.map(function (k) { return "<div><code>" + esc(k) + "</code>: " + esc(plain(f[k])) + "</div>"; }).join("") + "</div>";
+    }
+    if (sim.business_key) out += "<div>" + esc(tw("wh.sim_key")) + " <code>" + esc(sim.business_key.scope + "/" + sim.business_key.key) + "</code></div>";
+    if (sim.prompt) {
+      out += '<details style="margin-top:4px"><summary style="cursor:pointer">' + esc(tw("wh.sim_prompt")) + "</summary>"
+        + '<pre style="white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto">' + esc(sim.prompt) + "</pre></details>";
+    }
+    return out;
+  }
+  function rulesPanelHtml(h) {
+    var rules = h.rules && Object.keys(h.rules).length ? JSON.stringify(h.rules, null, 2) : "";
+    return '<div class="wh-rules" style="margin-top:8px;padding:10px;border:1px solid var(--hairline);border-radius:8px">'
+      + '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.rules_hint")) + "</div>"
+      + '<label style="display:block;margin-top:6px">' + esc(tw("wh.rules_label")) + "</label>"
+      + '<textarea class="whRulesTxt" spellcheck="false" style="width:100%;min-height:140px;font-family:monospace">' + esc(rules) + "</textarea>"
+      + '<label style="display:block;margin-top:6px">' + esc(tw("wh.sample_label")) + "</label>"
+      + '<textarea class="whSample" spellcheck="false" style="width:100%;min-height:90px;font-family:monospace"></textarea>'
+      + '<div class="wf-actions" style="margin-top:6px"><button class="s-btn-ghost whSim">' + esc(tw("wh.simulate")) + "</button>"
+      + '<button class="s-btn whRulesSave">' + esc(tw("wh.rules_save")) + "</button></div>"
+      + '<div class="whSimOut" style="margin-top:6px"></div></div>';
+  }
+  // The rules box as an object: "" means no rules; text that is not JSON is reported, not sent.
+  function readRules(text) {
+    var t = String(text || "").trim();
+    if (!t) return { ok: true, rules: {} };
+    try { return { ok: true, rules: JSON.parse(t) }; } catch (e) { return { ok: false }; }
   }
 
   // Error codes of the event actions, in words.
@@ -98,10 +148,12 @@
       + '<div class="wf-actions" style="margin-top:8px">'
       + '<button class="s-btn-ghost whCopy">' + esc(tw("wh.copy_url")) + "</button>"
       + '<button class="s-btn-ghost whTest">' + esc(tw("wh.test")) + "</button>"
+      + '<button class="s-btn-ghost whRules">' + esc(tw("wh.rules")) + (h.rules && Object.keys(h.rules).length ? " ✓" : "") + "</button>"
       + '<button class="s-btn-ghost whToggle">' + esc(tw(h.enabled ? "wh.turn_off" : "wh.turn_on")) + "</button>"
       + '<button class="s-btn-ghost whRotate">' + esc(tw("wh.rotate")) + "</button>"
       + '<button class="s-btn-ghost whDel" style="color:var(--red)">' + esc(tw("common.delete")) + "</button>"
-      + "</div>";
+      + "</div>"
+      + '<div class="whRulesHost"></div>';
   }
 
   function secretHtml(url, token) {
@@ -279,6 +331,26 @@
           load();
         };
         wireEvents(div, h);
+        div.querySelector(".whRules").onclick = function () {
+          var host = div.querySelector(".whRulesHost");
+          if (host.innerHTML) { host.innerHTML = ""; return; }
+          host.innerHTML = rulesPanelHtml(h);
+          var out = host.querySelector(".whSimOut");
+          host.querySelector(".whSim").onclick = async function () {
+            var rr = readRules(host.querySelector(".whRulesTxt").value);
+            if (!rr.ok) { out.innerHTML = simHtml({ ok: false, error: tw("wh.rules_bad_json") }); return; }
+            var sample = host.querySelector(".whSample").value;
+            out.innerHTML = simHtml(await api("/webhooks/simulate", { id: h.id, rules: rr.rules, payload: sample }));
+          };
+          host.querySelector(".whRulesSave").onclick = async function () {
+            var rr = readRules(host.querySelector(".whRulesTxt").value);
+            if (!rr.ok) { out.innerHTML = simHtml({ ok: false, error: tw("wh.rules_bad_json") }); return; }
+            var r = await api("/webhooks/update", { id: h.id, rules: rr.rules });
+            if (!r.ok) { out.innerHTML = simHtml(r); return; }
+            out.textContent = tw("wh.rules_saved");
+            setTimeout(load, 1200);
+          };
+        };
         div.querySelector(".whDel").onclick = async function () {
           if (!confirm(tw("wh.del_confirm", { name: h.name }))) return;
           await api("/webhooks/delete", { id: h.id });
@@ -290,7 +362,8 @@
     load();
   }
 
-  var api_ = { mount: mount, cardHtml: cardHtml, secretHtml: secretHtml, targetLine: targetLine, eventRowHtml: eventRowHtml, errText: errText };
+  var api_ = { mount: mount, cardHtml: cardHtml, secretHtml: secretHtml, targetLine: targetLine, eventRowHtml: eventRowHtml, errText: errText,
+    simHtml: simHtml, rulesPanelHtml: rulesPanelHtml, readRules: readRules };
   if (typeof window !== "undefined") window.JavisWebhooks = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();

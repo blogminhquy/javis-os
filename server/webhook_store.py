@@ -28,6 +28,11 @@ The rules this store keeps, each checked by tests/python/test_webhook_store_m1.p
      a crash is sent again at recovery under the same dedup key (the notifier drops a second copy).
 
 States: queued -> running -> done | silent | waiting | failed | unknown | dead.
+M2 (webhook_rules.py) adds three states decided AT RECEIPT, which never run and never notify the owner:
+`filtered` (the hook's filter did not match), `invalid` (schema or mapping failed) and `duplicate` (the business
+key was already seen in its namespace within its TTL). They are stored, with their trace, so the owner can see why
+an event did not run, but they do not count toward the hourly rate and have their own cap (IGNORED_PER_HOUR).
+Business keys live in `biz_keys`, scoped by (brain, namespace), written in the SAME transaction as the event.
 Nothing here imports main or calls a model.
 """
 from __future__ import annotations
@@ -43,7 +48,7 @@ import uuid
 from pathlib import Path
 from typing import Iterable, Optional
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 RATE_PER_HOUR = 30
 BACKLOG_MAX = 6               # waiting + running per hook (the old RAM queue: 1 running + QUEUE_MAX=5 waiting)
 LEASE_S = 120.0               # a running event's lease; the worker renews it every HEARTBEAT_S
@@ -56,7 +61,10 @@ BODY_KEEP_DAYS = 7            # the body of a FINISHED event is emptied after th
 DEDUP_KEEP_DAYS = 7           # idempotency keys outlive their events (Stripe/Shopify retry for up to 72 h)
 DB_MAX_BYTES = 256 * 1024 * 1024   # LIVE data (not free pages, not the WAL) past this: evict, then refuse (503)
 NOTIFY_TRIES = 3              # owner notice attempts before giving up (the event log still shows the result)
+IGNORED_PER_HOUR = 300       # filtered/invalid/duplicate events LOGGED per hook per hour (past it: answered, not logged)
+KEEP_IGNORED_PER_HOOK = 200   # and kept per hook, apart from the KEEP_PER_HOOK real runs (a flood cannot push them out)
 FINAL = ("done", "silent", "waiting", "failed", "unknown", "dead")
+IGNORED = ("filtered", "invalid", "duplicate")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT NOT NULL);
@@ -105,7 +113,21 @@ CREATE TABLE IF NOT EXISTS attempts(
     late_result TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS ix_att_ev ON attempts(event_id, n);
+CREATE TABLE IF NOT EXISTS biz_keys(
+    brain TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    bkey TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    hook_id TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    expires_at REAL NOT NULL,
+    PRIMARY KEY(brain, scope, bkey)
+);
+CREATE INDEX IF NOT EXISTS ix_bk_exp ON biz_keys(expires_at);
+CREATE INDEX IF NOT EXISTS ix_bk_ev ON biz_keys(event_id);
 """
+_COLUMNS_V2 = (("trace", "TEXT NOT NULL DEFAULT '{}'"), ("fields", "TEXT NOT NULL DEFAULT '{}'"),
+               ("biz_key", "TEXT NOT NULL DEFAULT ''"))
 
 
 def _crash(point: str) -> None:
@@ -143,9 +165,12 @@ class Store:
         self._db.execute("PRAGMA journal_size_limit=16777216")   # the WAL is truncated back to 16 MB at checkpoints
         with self._lock:
             self._db.executescript(_SCHEMA)
-            row = self._db.execute("SELECT v FROM meta WHERE k='schema_version'").fetchone()
-            if row is None:
-                self._db.execute("INSERT INTO meta(k, v) VALUES('schema_version', ?)", (str(SCHEMA_VERSION),))
+            # v1 -> v2 (M2): columns added in place; a v1 reader ignores them, so rolling back to M1 keeps working.
+            have = {r[1] for r in self._db.execute("PRAGMA table_info(events)")}
+            for col, decl in _COLUMNS_V2:
+                if col not in have:
+                    self._db.execute(f"ALTER TABLE events ADD COLUMN {col} {decl}")
+            self._db.execute("INSERT OR REPLACE INTO meta(k, v) VALUES('schema_version', ?)", (str(SCHEMA_VERSION),))
 
     def close(self) -> None:
         with self._lock:
@@ -205,7 +230,8 @@ class Store:
         now = time.time() if now is None else now
         target = int(DB_MAX_BYTES * 0.8) - int(need)
         n = 0
-        told = "status IN ('done','silent','waiting','failed','dead') AND (notified_at>0 OR status='silent')"
+        told = ("status IN ('done','silent','waiting','failed','dead','filtered','invalid','duplicate') AND"
+                " (notified_at>0 OR status='silent')")
         steps = (f"SELECT id FROM events WHERE {told} AND length(body)>0 ORDER BY received_at LIMIT 100",
                  f"SELECT id FROM events WHERE {told} ORDER BY received_at LIMIT 100")
         for i, sel in enumerate(steps):
@@ -232,12 +258,16 @@ class Store:
 
     # ── receive ──
     def ingest(self, hook: dict, body: bytes, content_type: str, idem_key: str = "", now: Optional[float] = None,
-               source: str = "http") -> tuple:
-        """Store one event. Returns (code, info):
+               source: str = "http", pre: Optional[dict] = None) -> tuple:
+        """Store one event. `pre` is webhook_rules.evaluate() of the hook's rules on this body (None = no rules).
+        Returns (code, info):
             (202, {"event_id"})             stored and committed: only now may the caller answer "accepted";
-            (200, {"event_id", "duplicate"}) the key was already stored for this hook;
+            (200, {"event_id", "duplicate"}) the idempotency key was already stored for this hook;
+            (200, {"event_id", "ignored": "filtered"|"duplicate", "first"?})  logged, will not run;
+            (422, {"event_id", "reason"})   invalid for the hook's schema/mapping: logged, will not run;
             (429, {"reason": "rate"|"backlog"})  refused, NOTHING stored (no event, no key);
             raises Busy                      the store cannot take it (disk cap, locked): answer 503, keep nothing.
+        An ignored event past IGNORED_PER_HOUR is answered the same way but not logged (event_id "").
         """
         now = time.time() if now is None else now
         key = str(idem_key or "").strip()[:200]
@@ -246,7 +276,12 @@ class Store:
             self.make_room(len(body), now)
             if self.size_bytes() + len(body) > DB_MAX_BYTES:
                 raise Busy("store full")         # only waiting/unknown events left: refuse rather than drop them
+        pre = pre or {}
+        decision = str(pre.get("decision") or "run")
         snap = {k: hook.get(k) for k in ("name", "brain", "target", "workflow", "text", "level", "chat_id")}
+        if hook.get("rules"):
+            snap["rules_rev"] = hashlib.sha256(json.dumps(hook["rules"], sort_keys=True, ensure_ascii=False)
+                                               .encode()).hexdigest()[:12]
         snap["rev"] = hashlib.sha256(json.dumps(snap, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
         eid = "ev_" + uuid.uuid4().hex[:16]
         with self._lock:
@@ -261,8 +296,20 @@ class Store:
                     if row is not None:
                         self._db.execute("ROLLBACK")
                         return 200, {"event_id": row["event_id"], "duplicate": True}
-                n_hour = self._db.execute("SELECT COUNT(*) FROM events WHERE hook_id=? AND received_at>?",
-                                          (hid, now - 3600)).fetchone()[0]
+                brain = str(hook.get("brain") or "")
+                bk = pre.get("business_key") if decision == "run" else None
+                first = ""
+                if bk:
+                    row = self._db.execute("SELECT event_id FROM biz_keys WHERE brain=? AND scope=? AND bkey=? AND"
+                                           " expires_at>?", (brain, bk["scope"], bk["key"], now)).fetchone()
+                    if row is not None:
+                        decision, first = "duplicate", row["event_id"]
+                if decision != "run":
+                    return self._ingest_ignored(hid, brain, decision, first, pre, snap, body, content_type, key, eid,
+                                                source, now)
+                n_hour = self._db.execute(
+                    "SELECT COUNT(*) FROM events WHERE hook_id=? AND received_at>? AND status NOT IN"
+                    " ('filtered','invalid','duplicate')", (hid, now - 3600)).fetchone()[0]
                 if n_hour >= RATE_PER_HOUR:
                     self._db.execute("ROLLBACK")
                     return 429, {"reason": "rate"}
@@ -272,12 +319,12 @@ class Store:
                 if backlog >= BACKLOG_MAX:
                     self._db.execute("ROLLBACK")
                     return 429, {"reason": "backlog"}
-                self._db.execute(
-                    "INSERT INTO events(id, hook_id, brain, received_at, content_type, body, body_sha, idem_key,"
-                    " hook_snapshot, source, status, next_at) VALUES(?,?,?,?,?,?,?,?,?,?, 'queued', ?)",
-                    (eid, hid, str(hook.get("brain") or ""), now, str(content_type or "")[:200], bytes(body),
-                     hashlib.sha256(bytes(body)).hexdigest(), key, json.dumps(snap, ensure_ascii=False), source,
-                     now))
+                self._insert_event(eid, hid, brain, now, content_type, body, key, snap, source, "queued", pre,
+                                   bk["scope"] + "/" + bk["key"] if bk else "")
+                if bk:
+                    self._db.execute("INSERT OR REPLACE INTO biz_keys(brain, scope, bkey, event_id, hook_id,"
+                                     " created_at, expires_at) VALUES(?,?,?,?,?,?,?)",
+                                     (brain, bk["scope"], bk["key"], eid, hid, now, now + float(bk["ttl_s"])))
                 if key:
                     self._db.execute("INSERT INTO dedup(hook_id, idem_key, event_id, created_at) VALUES(?,?,?,?)",
                                      (hid, key, eid, now))
@@ -304,6 +351,53 @@ class Store:
                 raise
         _crash("after_commit")
         return 202, {"event_id": eid}
+
+    def _insert_event(self, eid, hid, brain, now, content_type, body, key, snap, source, status, pre, biz) -> None:
+        fin = now if status in IGNORED else 0
+        self._db.execute(
+            "INSERT INTO events(id, hook_id, brain, received_at, content_type, body, body_sha, idem_key,"
+            " hook_snapshot, source, status, next_at, finished_at, notified_at, error, trace, fields, biz_key)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (eid, hid, brain, now, str(content_type or "")[:200], bytes(body), hashlib.sha256(bytes(body)).hexdigest(),
+             key, json.dumps(snap, ensure_ascii=False), source, status, now, fin, fin,
+             str((pre or {}).get("reason") or "")[:2000],
+             json.dumps((pre or {}).get("trace") or {}, ensure_ascii=False, default=str)[:16000],
+             json.dumps((pre or {}).get("fields") or {}, ensure_ascii=False, default=str)[:16000], biz))
+
+    def _ingest_ignored(self, hid, brain, decision, first, pre, snap, body, content_type, key, eid, source,
+                        now) -> tuple:
+        """Inside ingest's open transaction: log an event that will not run (and commit), or only answer when the
+        hook already logged IGNORED_PER_HOUR of them this hour. An invalid event keeps no idempotency key, so the
+        sender can resend a corrected payload under the same key."""
+        n = self._db.execute("SELECT COUNT(*) FROM events WHERE hook_id=? AND received_at>? AND status IN"
+                             " ('filtered','invalid','duplicate')", (hid, now - 3600)).fetchone()[0]
+        logged = n < IGNORED_PER_HOUR
+        if logged:
+            if decision == "duplicate":
+                pre = dict(pre)
+                pre["reason"] = f"business key already seen (event {first})"
+                pre["trace"] = dict(pre.get("trace") or {}, duplicate_of=first)
+            bk = pre.get("business_key") or {}
+            self._insert_event(eid, hid, brain, now, content_type, body, key, snap, source, decision, pre,
+                               (bk.get("scope", "") + "/" + bk.get("key", "")) if bk else "")
+            if key and decision != "invalid":
+                self._db.execute("INSERT OR IGNORE INTO dedup(hook_id, idem_key, event_id, created_at)"
+                                 " VALUES(?,?,?,?)", (hid, key, eid, now))
+            self._db.execute("COMMIT")
+        else:
+            self._db.execute("ROLLBACK")
+        out_id = eid if logged else ""
+        if decision == "invalid":
+            return 422, {"event_id": out_id, "reason": str(pre.get("reason") or "invalid")}
+        info = {"event_id": out_id, "ignored": decision}
+        if first:
+            info["first"] = first
+        return 200, info
+
+    def _release_keys(self, eid: str) -> None:
+        """Inside a write: an event that will never run (dead) gives its business key back, so the source's next
+        copy of that order is not refused as a duplicate of something that never happened."""
+        self._db.execute("DELETE FROM biz_keys WHERE event_id=?", (eid,))
 
     def import_legacy_keys(self, hook_id: str, keys: Iterable[str], now: Optional[float] = None) -> int:
         """Keys a pre-0.229.0 hook kept in webhooks.json stay duplicates after the upgrade. They point at no event
@@ -378,6 +472,8 @@ class Store:
             if ok:
                 self._db.execute("UPDATE attempts SET ended_at=?, outcome=?, error=? WHERE event_id=? AND fence=?",
                                  (now, status, str(error or "")[:500], eid, fence))
+                if status == "dead":
+                    self._release_keys(eid)
             else:
                 # The event was taken over (lease lost while the run was alive). The run's own result is not thrown
                 # away: it is kept on this attempt's row, where the owner reconciling the event can read it.
@@ -406,6 +502,8 @@ class Store:
                              (st, nxt, str(error)[:2000], now if st == "dead" else 0, eid))
             self._db.execute("UPDATE attempts SET ended_at=?, outcome=?, error=? WHERE event_id=? AND fence=?",
                              (now, "retry" if st == "queued" else "dead", str(error)[:500], eid, fence))
+            if st == "dead":
+                self._release_keys(eid)
         return st
 
     def recover(self, now: Optional[float] = None) -> dict:
@@ -428,6 +526,7 @@ class Store:
                     self._db.execute("UPDATE events SET status='dead', finished_at=?, lease_owner='', lease_until=0,"
                                      " error=? WHERE id=?", (now, "worker lost it before dispatch too many times",
                                                              r["id"]))
+                    self._release_keys(r["id"])
                     outcome = "dead"
                 else:
                     self._db.execute("UPDATE events SET status='queued', next_at=?, lease_owner='', lease_until=0"
@@ -508,6 +607,11 @@ class Store:
                 " ORDER BY n", (eid,)).fetchall()]
         if not with_body:
             d.pop("body", None)
+        for k in ("trace", "fields"):
+            try:
+                d[k] = json.loads(d.get(k) or "{}")
+            except ValueError:
+                d[k] = {}
         return d
 
     def page(self, hook_id: str = "", status: str = "", limit: int = 20, before: str = "") -> dict:
@@ -524,7 +628,8 @@ class Store:
                 where.append("(received_at<? OR (received_at=? AND id<?))"); args += [float(ts), float(ts), eid]
             except ValueError:
                 pass
-        sql = ("SELECT id, hook_id, brain, received_at, status, tries, idem_key, source, dispatched_at, finished_at,"
+        sql = ("SELECT id, hook_id, brain, received_at, status, tries, idem_key, biz_key, source, dispatched_at,"
+               " finished_at,"
                " substr(result, 1, 300) AS result, substr(error, 1, 300) AS error, length(body) AS size FROM events" + (" WHERE " + " AND ".join(where) if where else "")
                + " ORDER BY received_at DESC, id DESC LIMIT ?")
         with self._read():
@@ -533,6 +638,14 @@ class Store:
         rows = rows[:limit]
         cur = f"{rows[-1]['received_at']}|{rows[-1]['id']}" if more and rows else ""
         return {"items": rows, "next": cur}
+
+    def biz_key_lookup(self, brain: str, scope: str, bkey: str, now: Optional[float] = None) -> Optional[dict]:
+        """Read only (simulation): the live event holding this business key, or None."""
+        now = time.time() if now is None else now
+        with self._read():
+            row = self._db.execute("SELECT event_id, hook_id, created_at, expires_at FROM biz_keys WHERE brain=? AND"
+                                   " scope=? AND bkey=? AND expires_at>?", (brain, scope, bkey, now)).fetchone()
+        return dict(row) if row else None
 
     def counts(self, hook_id: str) -> dict:
         with self._read():
@@ -550,6 +663,8 @@ class Store:
         """A deleted hook: its waiting events become `dead` (they will never run), its keys are dropped."""
         now = time.time()
         with self._write():
+            self._db.execute("DELETE FROM biz_keys WHERE event_id IN (SELECT id FROM events WHERE hook_id=? AND"
+                             " status='queued')", (hook_id,))
             self._db.execute("UPDATE events SET status='dead', finished_at=?, notified_at=?, error='hook deleted'"
                              " WHERE hook_id=? AND status='queued'", (now, now, hook_id))
             self._db.execute("DELETE FROM dedup WHERE hook_id=?", (hook_id,))
@@ -559,14 +674,17 @@ class Store:
         BODY_KEEP_DAYS; idempotency keys after DEDUP_KEEP_DAYS (by age, whatever happened to their event)."""
         now = time.time() if now is None else now
         cut = now - KEEP_DAYS * 86400
-        fin = "('done','silent','waiting','failed','dead')"   # unknown is kept until the owner resolves it
+        ran = "('done','silent','waiting','failed','dead')"
+        ign = "('filtered','invalid','duplicate')"
+        fin = "('done','silent','waiting','failed','dead','filtered','invalid','duplicate')"   # unknown: kept
         with self._write():
             ids = [r[0] for r in self._db.execute(
                 f"SELECT id FROM events WHERE status IN {fin} AND finished_at>0 AND finished_at<?", (cut,))]
             for (hid,) in self._db.execute("SELECT DISTINCT hook_id FROM events").fetchall():
-                ids += [r[0] for r in self._db.execute(
-                    f"SELECT id FROM events WHERE hook_id=? AND status IN {fin} ORDER BY received_at DESC"
-                    " LIMIT -1 OFFSET ?", (hid, KEEP_PER_HOOK))]
+                for group, keep in ((ran, KEEP_PER_HOOK), (ign, KEEP_IGNORED_PER_HOOK)):
+                    ids += [r[0] for r in self._db.execute(
+                        f"SELECT id FROM events WHERE hook_id=? AND status IN {group} ORDER BY received_at DESC"
+                        " LIMIT -1 OFFSET ?", (hid, keep))]
             ids = list(dict.fromkeys(ids))
             for i in range(0, len(ids), 500):
                 chunk = ids[i:i + 500]
@@ -575,6 +693,8 @@ class Store:
                 self._db.execute(f"DELETE FROM events WHERE id IN ({q})", chunk)
             # Keys are kept by AGE, not with their event: a sender retrying for days must still get "duplicate".
             self._db.execute("DELETE FROM dedup WHERE created_at<?", (now - DEDUP_KEEP_DAYS * 86400,))
+            # Business keys live for their own TTL, not with their event (an order seen 20 days ago is still seen).
+            self._db.execute("DELETE FROM biz_keys WHERE expires_at<=?", (now,))
             self._db.execute(f"UPDATE events SET body=x'' WHERE status IN {fin} AND finished_at>0 AND finished_at<?"
                              " AND length(body)>0", (now - BODY_KEEP_DAYS * 86400,))
         try:
