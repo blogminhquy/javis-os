@@ -685,6 +685,29 @@ async def main():
     MODEL["answer"] = ("Đã xử lý.", "")
     check("§15 AI: a partial result with an error is not done (unknown: the owner decides)",
           st.get(rp["event_id"])["status"] == "unknown" and "partial" in st.get(rp["event_id"])["branches"][0]["detail"])
+    # A dispatch whose worker died: the AI branch was handed to the engine, the lease ran out. Two workers recover it at
+    # once: neither starts a second task (an AI run is never retry-safe), the branch waits for the owner as unknown.
+    sai = Path(tempfile.mkdtemp(prefix="mx-ai-lost-"))
+    fai = make(sai)
+    hal, tal, _ = fai.create("/b1", name="AI mất", target="task", text="x")
+    c, ral = await fai.accept(hal["id"], tal, b"{}", "application/json", "ai-lost")
+    await fai.wait_idle()
+    now = time.time()
+    sx = fai.store()
+    sx._db.execute("UPDATE events SET status='running', lease_until=?, dispatched_at=?, finished_at=0 WHERE id=?",
+                   (now - 1, now - 5, ral["event_id"]))
+    sx._db.execute("UPDATE deliveries SET status='running', dispatched_at=? WHERE event_id=?", (now - 5, ral["event_id"]))
+    sx.close()
+    calls0 = MODEL["calls"]
+    fa2, fb2 = make(sai), make(sai)
+    await asyncio.gather(fa2.sweep(), fb2.sweep())
+    await asyncio.gather(fa2.wait_idle(), fb2.wait_idle())
+    c_dup, r_dup = await fa2.accept(hal["id"], tal, b"{}", "application/json", "ai-lost")
+    await fa2.wait_idle()
+    bl = fa2.store().get(ral["event_id"])["branches"][0]
+    check("§15 AI: a lost dispatch recovered by two workers at once, and the sender's retry with the same key, never "
+          "start a second task: the branch is unknown for the owner", MODEL["calls"] == calls0 and bl["status"] == "unknown"
+          and c_dup == 200 and r_dup["event_id"] == ral["event_id"], (MODEL["calls"] - calls0, bl, c_dup))
 
     # ---- §15 Chờ chủ ----
     MODEL["wf"] = ("Anh chọn mẫu A hay B?", "", True)

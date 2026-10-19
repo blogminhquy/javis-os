@@ -460,7 +460,11 @@
     var brains = function () { return (opts && opts.brains && opts.brains()) || []; };
     var current = function () { return (opts && opts.current && opts.current()) || ""; };
     var target = "workflow", level = "full";
-    box.innerHTML = '<div class="lp-group"><div style="display:flex;align-items:center;gap:8px;margin:22px 0 8px;font-size:16px;color:var(--text);font-weight:600;border-bottom:1px solid var(--hairline);padding-bottom:6px">'
+    // Shared button and chip styles are smaller than 16px; inside this section nothing reads under 16px (owner rule).
+    box.classList.add("wh-root");
+    box.innerHTML = '<style>.wh-root :is(button,input,select,textarea,code,pre,label,span,div,a,summary,b,option)'
+      + '{font-size:max(16px,1em)}</style>'
+      + '<div class="lp-group"><div style="display:flex;align-items:center;gap:8px;margin:22px 0 8px;font-size:16px;color:var(--text);font-weight:600;border-bottom:1px solid var(--hairline);padding-bottom:6px">'
       + "<span>" + ic("webhook") + " " + esc(tw("wh.head")) + infoBtn() + "</span>"
       + '<button class="s-btn-ghost" id="whNew" style="margin-left:auto;font-size:16px">+ ' + esc(tw("wh.add")) + "</button></div>"
       + infoBody(esc(tw("wh.intro")))
