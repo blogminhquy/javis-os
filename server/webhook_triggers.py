@@ -50,7 +50,9 @@ from fastapi.responses import JSONResponse
 import localefmt
 import webhook_actions
 import webhook_rules
+import webhook_secrets
 import webhook_store
+import webhook_verify
 
 BODY_MAX_BYTES = 32 * 1024
 PAYLOAD_PROMPT_CHARS = 8000
@@ -90,6 +92,9 @@ class WebhookDeps:
     http_transport: Any = None
     # M3: host -> [ip, ...] for the private-address check (tests pass a fake); None = DNS
     resolve: Optional[Callable] = None
+    # M4: async call_tool(brain, level, tool_name, args) -> str, through the hub dispatcher (mcp_hub route with its
+    # permission guard and audit); None = tool actions are unavailable
+    call_tool: Optional[Callable] = None
 
 
 def hash_token(token: str) -> str:
@@ -157,11 +162,17 @@ def event_prompt(hook: dict, payload: str, received_at: float, fields: Optional[
     return "\n\n".join(parts)
 
 
-def evaluate_closed(rules: dict, body: bytes, content_type: str) -> dict:
+def evaluate_closed(rules: dict, body: bytes, content_type: str, event: Optional[dict] = None) -> dict:
     """webhook_rules.evaluate, FAILING CLOSED: if evaluation itself breaks, the event is `invalid` (logged, never run).
-    Running it unfiltered would let a payload built to break the evaluator skip the filter and the business key."""
+    Running it unfiltered would let a payload built to break the evaluator skip the filter and the business key.
+    `event` (M4, the provider's normalised event) is readable by the rules as `_event`."""
     try:
-        return webhook_rules.evaluate(rules, body, content_type)
+        # `_event` always comes from Javis (a hook without a provider gets an empty one), never from the payload.
+        res = webhook_rules.evaluate(rules, body, content_type,
+                                     {"_event": event or {"provider": "none", "type": "", "id": "", "occurred_at": ""}})
+        if event:
+            res["trace"]["event"] = event
+        return res
     except Exception as e:
         print(f"[webhooks] rule evaluation failed: {type(e).__name__}: {e}", file=sys.stderr)
         return {"decision": "invalid", "reason": "evaluation_error", "fields": {}, "business_key": None,
@@ -184,6 +195,7 @@ class WebhookFeature:
         self._active: dict = {}       # event id -> asyncio.Task running it in this process
         self._tasks: set = set()
         self._sweeper: Optional[asyncio.Task] = None
+        self.vault = webhook_secrets.Vault(Path(self.deps.state_dir()))
         self.router = self._make_router()
 
     # ── durable event store ──
@@ -271,9 +283,18 @@ class WebhookFeature:
             "unknown": unknown,
             "rules": h.get("rules") or {},
             "actions": webhook_actions.view(h.get("actions")),
+            "verify": ({"provider": h["verify"]["provider"], "secret": "••••",
+                        **{k: v for k, v in h["verify"].items() if k not in ("provider", "secret")}}
+                       if (h.get("verify") or {}).get("provider") not in (None, "none") else {"provider": "none"}),
+            "adapter_status": webhook_verify.ADAPTER_STATUS.get((h.get("verify") or {}).get("provider") or "none", ""),
         }
 
     def _validate(self, fields: dict, brain: str) -> str:
+        if "verify" in fields:
+            try:
+                fields["verify"] = webhook_verify.validate(fields.get("verify"))
+            except webhook_verify.VerifyError as e:
+                return localefmt.chu(f"Cách xác minh chưa đúng: {e}", f"Verification is not valid: {e}")
         if "actions" in fields:
             try:
                 fields["actions"] = webhook_actions.validate(fields.get("actions"))
@@ -312,11 +333,13 @@ class WebhookFeature:
         return ""
 
     def create(self, brain: str, *, name: str, target: str, workflow: str = "", text: str = "",
-               level: str = DEFAULT_LEVEL, chat_id: str = "", rules: Any = None, actions: Any = None) -> tuple:
+               level: str = DEFAULT_LEVEL, chat_id: str = "", rules: Any = None, actions: Any = None,
+               verify: Any = None) -> tuple:
         """Returns (view, token, error). The token is returned only here and by rotate()."""
         fields = {"target": str(target or "").strip().lower(), "workflow": str(workflow or "").strip(),
                   "text": str(text or "").strip()[:TEXT_MAX],
-                  "level": str(level or DEFAULT_LEVEL).strip().lower(), "rules": rules, "actions": actions}
+                  "level": str(level or DEFAULT_LEVEL).strip().lower(), "rules": rules, "actions": actions,
+                  "verify": verify}
         err = self._validate(fields, brain)
         if err:
             return None, "", err
@@ -329,9 +352,54 @@ class WebhookFeature:
                 "brain": str(brain or ""), "chat_id": str(chat_id or ""), "enabled": True,
                 "token_hash": hash_token(token), "created_at": time.time(), "count": 0,
                 "last_at": 0, "last_status": "", "history": [], "seen_keys": [], **fields}
+        try:
+            self._seal(hook)
+        except webhook_secrets.SecretError as e:
+            return None, "", localefmt.chu(f"Chưa cất được khoá bí mật: {e}", f"Could not store the secret: {e}")
         data["hooks"].append(hook)
         self._save(data)
         return hook, token, ""
+
+    def _seal(self, hook: dict) -> bool:
+        """M4: plain header values and the provider's signing secret move into the encrypted vault; the hook keeps
+        `{"$secret": name}`. Returns True when something was sealed."""
+        hid = str(hook["id"])
+        changed = False
+        for a in hook.get("actions") or []:
+            for k, v in list((a.get("headers") or {}).items()):
+                if isinstance(v, str):
+                    name = f"{hid}/a/{a['id']}/{k}"
+                    self.vault.put(name, v)
+                    a["headers"][k] = {"$secret": name}
+                    changed = True
+        ver = hook.get("verify") or {}
+        if isinstance(ver.get("secret"), str):
+            name = f"{hid}/verify"
+            self.vault.put(name, ver["secret"])
+            ver["secret"] = {"$secret": name}
+            changed = True
+        return changed
+
+    def _secret(self, ref) -> str:
+        if isinstance(ref, str):
+            return ref
+        if webhook_secrets.is_ref(ref):
+            return self.vault.get(ref["$secret"])
+        raise webhook_secrets.SecretError("no secret")
+
+    def _migrate_secrets(self) -> int:
+        """Once at start: a hook saved before M4 (plain header values) is sealed in place."""
+        data = self._load()
+        n = 0
+        for h in data.get("hooks", []):
+            try:
+                n += self._seal(h)
+            except Exception as e:
+                print(f"[webhooks] could not seal the secrets of {h.get('id')}: {type(e).__name__}: {e}",
+                      file=sys.stderr)
+        if n:
+            self._save(data)
+        return n
 
     def update(self, hid: str, changes: dict) -> tuple:
         data = self._load()
@@ -347,6 +415,13 @@ class WebhookFeature:
                 merged[k] = str(changes[k]).strip().lower()
         if "rules" in changes:
             merged["rules"] = changes.get("rules")
+        if "verify" in changes:
+            v = changes.get("verify")
+            if isinstance(v, dict) and v.get("secret") == "••••":
+                # The masked view sent back: keep the stored secret (same provider only).
+                old = h.get("verify") or {}
+                v = dict(v, secret=old.get("secret")) if old.get("provider") == v.get("provider") else dict(v, secret=None)
+            merged["verify"] = v
         if "actions" in changes:
             try:
                 merged["actions"] = webhook_actions.merge_secrets(webhook_actions.validate(changes.get("actions")),
@@ -359,8 +434,24 @@ class WebhookFeature:
         err = self._validate(merged, merged.get("brain", ""))
         if err:
             return None, err
+        try:
+            self._seal(merged)
+        except webhook_secrets.SecretError as e:
+            return None, localefmt.chu(f"Chưa cất được khoá bí mật: {e}", f"Could not store the secret: {e}")
+        # Secrets of headers or a verify config that are gone now are deleted from the vault.
+        keep = set(webhook_actions.sealed_names(merged.get("actions")))
+        if webhook_secrets.is_ref((merged.get("verify") or {}).get("secret")):
+            keep.add(merged["verify"]["secret"]["$secret"])
+        old = set(webhook_actions.sealed_names(h.get("actions")))
+        if webhook_secrets.is_ref((h.get("verify") or {}).get("secret")):
+            old.add(h["verify"]["secret"]["$secret"])
         h.update(merged)
         self._save(data)
+        for name in old - keep:
+            try:
+                self.vault.delete_prefix(name)
+            except Exception:
+                pass
         return h, ""
 
     def rotate(self, hid: str) -> tuple:
@@ -380,6 +471,10 @@ class WebhookFeature:
             return False
         data["hooks"] = left
         self._save(data)
+        try:
+            self.vault.delete_prefix(hid)
+        except Exception as e:
+            print(f"[webhooks] could not delete the secrets of {hid}: {type(e).__name__}: {e}", file=sys.stderr)
         try:
             self.store().forget_hook(hid)
         except Exception as e:
@@ -440,7 +535,7 @@ class WebhookFeature:
         return h if h.get("enabled", True) else None
 
     async def accept(self, hid: str, token: str, body: bytes, content_type: str,
-                     idem_key: str = "") -> tuple:
+                     idem_key: str = "", headers: Any = None) -> tuple:
         """Returns (status_code, response dict). The 202 is returned only after the event and its idempotency key
         are committed together (webhook_store.ingest); a refusal (401/413/429/503) stores nothing, so the
         sender's retry is a fresh event, never a false "duplicate"."""
@@ -449,17 +544,38 @@ class WebhookFeature:
             return 401, {"ok": False, "error": "unauthorized"}
         if len(body) > BODY_MAX_BYTES:
             return 413, {"ok": False, "error": f"body larger than {BODY_MAX_BYTES} bytes"}
-        return await self._ingest(h, body, content_type, idem_key, source="http")
+        ver = h.get("verify") or {}
+        prov = ver.get("provider") or "none"
+        if prov != "none":
+            # M4: the provider's signature on the RAW body, before anything is stored. A refusal keeps nothing.
+            try:
+                secret = await asyncio.to_thread(self._secret, ver.get("secret"))
+            except Exception as e:
+                print(f"[webhooks] {hid}: signing secret unavailable: {type(e).__name__}: {e}", file=sys.stderr)
+                return 503, {"ok": False, "error": "signature check unavailable, retry later"}
+            ok, why = webhook_verify.verify(ver, secret, headers or {}, body)
+            if not ok:
+                print(f"[webhooks] {hid}: signature refused: {why}", file=sys.stderr)
+                return 401, {"ok": False, "error": "bad signature"}
+        event = None
+        if prov != "none":
+            doc = webhook_rules.parse_payload(body, content_type)[0]
+            event = webhook_verify.normalize(prov, headers or {}, doc)
+            if not str(idem_key or "").strip():
+                idem_key = webhook_verify.idem_key(prov, headers or {}, doc)
+        return await self._ingest(h, body, content_type, idem_key, source="http", event=event)
 
     async def _ingest(self, h: dict, body: bytes, content_type: str, idem_key: str = "", source: str = "http",
-                      now: Optional[float] = None) -> tuple:
+                      now: Optional[float] = None, event: Optional[dict] = None) -> tuple:
         if self._store is None:
             await asyncio.to_thread(self.store)          # first open (schema, legacy import) off the event loop
         pre = None
         if h.get("rules"):
             # Pure and bounded (webhook_rules), in a thread so a heavy body cannot stall the server; decided before
             # the transaction, stored with the event in it.
-            pre = await asyncio.to_thread(evaluate_closed, h["rules"], body, content_type)
+            pre = await asyncio.to_thread(evaluate_closed, h["rules"], body, content_type, event)
+        elif event:
+            pre = {"decision": "run", "trace": {"event": event}, "fields": {}}
         try:
             code, info = await asyncio.to_thread(self.store().ingest, h, body, content_type, idem_key,
                                                  now, source, pre)
@@ -563,6 +679,13 @@ class WebhookFeature:
 
     async def _sweep_loop(self) -> None:
         n = 0
+        try:
+            async with self._io:
+                sealed = await asyncio.to_thread(self._migrate_secrets)
+            if sealed:
+                print(f"[webhooks] moved {sealed} secret(s) into the encrypted vault", file=sys.stderr)
+        except Exception as e:
+            print(f"[webhooks] secret migration failed: {type(e).__name__}: {e}", file=sys.stderr)
         while True:
             try:
                 await self.sweep()
@@ -685,6 +808,19 @@ class WebhookFeature:
                 if why:
                     await asyncio.to_thread(st.branch_finish, eid, fence, aid, "failed", why)
                     return
+            if a.get("approve") and not float(b.get("approved_at") or 0):
+                # M4: this action waits for the owner's approval of THIS event. Asked after the permission check, so
+                # nothing the hook may not do is ever offered for approval; checked again after approval.
+                await asyncio.to_thread(st.branch_finish, eid, fence, aid, "approval", "waiting for your approval")
+                return
+            if a.get("headers"):
+                try:
+                    a = dict(a, headers=await asyncio.to_thread(
+                        lambda: {k: self._secret(v) for k, v in a["headers"].items()}))
+                except Exception as e:
+                    await asyncio.to_thread(st.branch_finish, eid, fence, aid, "failed",
+                                            f"a header secret is not available ({type(e).__name__}): enter it again")
+                    return
             if not await asyncio.to_thread(st.branch_dispatch, eid, fence, aid):
                 return                               # lost the lease: do not run
             if a["kind"] == "ai":
@@ -698,6 +834,8 @@ class WebhookFeature:
                     out = await webhook_actions.run_http(a, ctx, self.deps.http_transport, self.deps.resolve)
                 elif a["kind"] == "apps_script":
                     out = await webhook_actions.run_apps_script(a, ctx, self.deps.http_transport, self.deps.resolve)
+                elif a["kind"] == "tool":
+                    out = await webhook_actions.run_tool(a, ctx, self.deps.call_tool, level)
                 else:
                     out = await webhook_actions.run_plugin(a, ctx, found, level)
             except Exception as e:
@@ -842,6 +980,12 @@ class WebhookFeature:
         if status in ("failed", "dead"):
             msg = localefmt.chu(f"⚠ Webhook \"{name}\" chưa chạy được: ",
                                 f"⚠ Webhook \"{name}\" could not run: ") + str(ev.get("error") or "")[:300]
+        elif status == "waiting" and any(b.get("status") == "approval" for b in (ev.get("branches") or [])):
+            names = ", ".join(b["action_id"] for b in ev["branches"] if b.get("status") == "approval")
+            msg = localefmt.chu(f"Webhook \"{name}\" cần bạn duyệt trước khi chạy: {names}. Mở nhật ký webhook, bấm "
+                                "Chi tiết rồi Duyệt hoặc Từ chối.",
+                                f"Webhook \"{name}\" needs your approval before it runs: {names}. Open the webhook log, "
+                                "press Details, then Approve or Reject.")
         elif status == "unknown":
             msg = localefmt.chu(f"⚠ Webhook \"{name}\": không rõ việc đã chạy xong chưa (máy dừng giữa chừng). "
                                 "Kiểm tra bên ngoài rồi bấm Chạy lại hoặc Đã xong trong nhật ký webhook.",
@@ -876,7 +1020,7 @@ class WebhookFeature:
             token = token_from_request(request.headers, request.url.query)
             idem = request.headers.get("idempotency-key") or request.headers.get("x-request-id") or ""
             code, resp = await self.accept(hook_id, token, body,
-                                           request.headers.get("content-type", ""), idem)
+                                           request.headers.get("content-type", ""), idem, headers=request.headers)
             return JSONResponse(resp, status_code=code)
 
         @router.get("/webhooks")
@@ -969,6 +1113,27 @@ class WebhookFeature:
                 return JSONResponse({"ok": False, "error": why}, status_code=404 if why == "not_found" else 409)
             self._kick()
             return {"ok": True}
+
+        @router.post("/webhooks/events/approve")
+        async def webhooks_event_approve(payload: dict = Body(None)):
+            """The owner approves or rejects one action of one event (M4). Approval does not lift any permission: the
+            branch is checked against the hook's level again when it runs."""
+            p = payload or {}
+            ok, why = await asyncio.to_thread(self.store().approve, str(p.get("id") or ""), str(p.get("action") or ""),
+                                              str(p.get("decision") or ""))
+            if not ok:
+                return JSONResponse({"ok": False, "error": why}, status_code=404 if why == "not_found" else 409)
+            self._kick()
+            return {"ok": True}
+
+        @router.post("/webhooks/secrets/rotate")
+        async def webhooks_secrets_rotate():
+            """New encryption key for the webhook secrets; every secret re-encrypted, the old key dropped (M4)."""
+            try:
+                res = await asyncio.to_thread(self.vault.rotate)
+            except webhook_secrets.SecretError as e:
+                return JSONResponse({"ok": False, "error": str(e)}, status_code=409)
+            return {"ok": True, "rewrapped": res["rewrapped"]}
 
         @router.post("/webhooks/events/resolve")
         async def webhooks_event_resolve(payload: dict = Body(None)):

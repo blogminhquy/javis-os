@@ -8,7 +8,12 @@ A hook may list `actions`, run as independent BRANCHES of one event:
      {"id": "ship",  "kind": "plugin", "plugin": "giao-hang", "handler": "new_order"},
      {"id": "ai",    "kind": "ai"}]                    # the hook's task/workflow, the only kind that calls a model
 
+     {"id": "crm2",  "kind": "tool", "tool": "pos_create_order", "args": {"phone": "{phone}", "ref": "{_delivery_id}"},
+      "approve": true}                                 # M4: a tool through the hub dispatcher, after the owner approves
+
 Without `actions` a hook has one branch, `{"id": "main", "kind": "ai"}`: the behaviour before M3.
+M4: header values are kept as `{"$secret": name}` references (webhook_secrets.py); `approve: true` (the default for
+`tool`) makes the branch wait for the owner's approval of that event before it runs.
 
 Each branch gets a DELIVERY ID that never changes for that (event, action): `dlv_<hash>`. It is sent as the
 `Idempotency-Key` and `X-Javis-Delivery` headers and inside the body, so a receiver that keeps it can drop a second
@@ -47,7 +52,9 @@ from typing import Any, Callable, Optional
 from urllib.parse import urlsplit
 
 ACTIONS_MAX = 8
-KINDS = ("http", "apps_script", "plugin", "ai")
+KINDS = ("http", "apps_script", "plugin", "tool", "ai")
+TOOL_TIMEOUT_S = 120.0
+ARGS_MAX = 30
 OUTSIDE = ("http", "apps_script")          # kinds that act outside: need the hook at `full`
 MAX_BRANCH_TRIES = 3
 BRANCH_BACKOFF_S = (10.0, 60.0, 300.0)
@@ -132,6 +139,9 @@ def validate(actions: Any) -> list:
             for k, v in hdrs.items():
                 if not _HEADER_RE.match(str(k)) or str(k).lower() in _FORBIDDEN_HEADERS:
                     raise ActionError(f"action {aid}: header {k!r} is not allowed")
+                if isinstance(v, dict) and set(v) == {"$secret"} and isinstance(v["$secret"], str):
+                    clean[str(k)] = {"$secret": v["$secret"]}       # already sealed (webhook_secrets)
+                    continue
                 if not isinstance(v, str) or len(v) > 2000 or "\n" in v or "\r" in v:
                     raise ActionError(f"action {aid}: header {k} must be one line of text")
                 clean[str(k)] = v
@@ -151,6 +161,21 @@ def validate(actions: Any) -> list:
             if not re.match(r"^[a-z0-9][a-z0-9._-]{0,63}$", slug) or not re.match(r"^[a-z][a-z0-9_]{0,63}$", name):
                 raise ActionError(f"action {aid}: needs `plugin` (slug) and `handler` (name)")
             o.update(plugin=slug, handler=name)
+        elif kind == "tool":
+            tool = str(a.get("tool") or "")
+            if not re.match(r"^[A-Za-z][A-Za-z0-9_.-]{0,127}$", tool):
+                raise ActionError(f"action {aid}: needs `tool` (the tool's name as the hub lists it)")
+            args = a.get("args") or {}
+            if not isinstance(args, dict) or len(args) > ARGS_MAX:
+                raise ActionError(f"action {aid}: args must be an object of at most {ARGS_MAX}")
+            for k, v in args.items():
+                if not re.match(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$", str(k)):
+                    raise ActionError(f"action {aid}: argument name {k!r}")
+                if isinstance(v, (dict, list)) or (isinstance(v, str) and len(v) > 2000):
+                    raise ActionError(f"action {aid}: argument {k} must be plain (text may use {{field}})")
+            o.update(tool=tool, args=dict(args))
+        if "approve" in a or kind == "tool":
+            o["approve"] = bool(a.get("approve", kind == "tool"))
         out.append(o)
     if sum(1 for o in out if o["kind"] == "ai") > 1:
         raise ActionError("at most one ai action (the hook's own task or workflow)")
@@ -170,6 +195,12 @@ def view(actions: Optional[list]) -> list:
             b["headers"] = {k: "••••" for k in b["headers"]}
         out.append(b)
     return out
+
+
+def sealed_names(actions: Optional[list]) -> list:
+    """Secret names referenced by the headers of these actions."""
+    return [v["$secret"] for a in actions or [] for v in (a.get("headers") or {}).values()
+            if isinstance(v, dict) and "$secret" in v]
 
 
 def merge_secrets(new: list, old: list) -> list:
@@ -193,6 +224,8 @@ def level_ok(action: dict, level: str, plugin_min: str = "readonly") -> str:
     lv = rank.get(level, 0)
     if action["kind"] in OUTSIDE and lv < 2:
         return "needs the webhook at level full (it sends data outside)"
+    if action["kind"] == "tool":
+        return ""      # the hub dispatcher checks every tool against this level (and the connection's own limit)
     if action["kind"] == "plugin" and lv < need.get(plugin_min, 2):
         return f"needs the webhook at a higher level (plugin handler min_mode {plugin_min})"
     return ""
@@ -250,7 +283,7 @@ def build_body(action: dict, ctx: dict) -> tuple:
 
 
 def _headers(action: dict, ctx: dict, content_type: str) -> dict:
-    h = dict(action.get("headers") or {})
+    h = {k: v for k, v in (action.get("headers") or {}).items() if isinstance(v, str)}
     h["Content-Type"] = content_type
     h["Idempotency-Key"] = ctx["delivery_id"]
     h["X-Javis-Delivery"] = ctx["delivery_id"]
@@ -414,3 +447,33 @@ async def run_plugin(action: dict, ctx: dict, found: Optional[dict], level: str)
         return Outcome("failed", "plugin answered without status completed or accepted")
     rc = {"ref": str(res.get("ref") or "")[:200]}
     return Outcome(res["status"], str(res.get("detail") or f"plugin {res['status']}")[:300], rc)
+
+
+def tool_args(action: dict, ctx: dict) -> dict:
+    """The tool's arguments: text values may use `{field}` of the mapped fields and `{_delivery_id}`, `{_event_id}`,
+    `{_hook_id}`. Substitution only (webhook_rules.render_template): nothing in the payload is evaluated."""
+    import webhook_rules
+    vals = dict(ctx.get("fields") or {})
+    vals.update(_delivery_id=ctx["delivery_id"], _event_id=ctx["event_id"], _hook_id=ctx["hook_id"])
+    out = {}
+    for k, v in (action.get("args") or {}).items():
+        out[k] = webhook_rules.render_template(v, vals) if isinstance(v, str) else v
+    return out
+
+
+async def run_tool(action: dict, ctx: dict, call_tool: Optional[Callable], level: str) -> Outcome:
+    """A tool through the hub dispatcher, at the hook's CURRENT level: the hub applies the same permission rules as
+    for any background run (a `danger` tool needs full, the connection's own limit applies too)."""
+    if not call_tool:
+        return Outcome("failed", "tools are not available to webhooks on this server")
+    args = tool_args(action, ctx)
+    try:
+        res = await asyncio.wait_for(call_tool(ctx.get("brain", ""), level, action["tool"], args), TOOL_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        return Outcome("unknown", f"tool did not answer in {int(TOOL_TIMEOUT_S)} s: it may have acted")
+    except Exception as e:
+        return Outcome("unknown", f"tool call broke ({type(e).__name__}): it may have acted")
+    text = str(res or "")
+    if text.startswith("ERROR:"):
+        return Outcome("failed", text[6:].strip()[:300], {"result": _short(text)})
+    return Outcome("completed", f"tool {action['tool']} ran", {"result": _short(text)})

@@ -33,7 +33,7 @@ for (const lang of ["vi", "en"]) {
   check(`${lang}: every new string present, no long dashes`, keys.every(k => t[k] && t[k].length && !/[\u2013\u2014]/.test(t[k])));
 }
 const js = fs.readFileSync(path.join(__dirname, "../../dashboard/webhooks.js"), "utf8");
-check("Save sends rules and actions together", js.includes('{ id: h.id, rules: rr.rules, actions: ra.actions }'));
+check("Save sends rules and actions together", js.includes('{ id: h.id, rules: rr.rules, actions: ra.actions, verify: rv.rules }'));
 check("Details reads the event detail route", js.includes('api("/webhooks/events/" + encodeURIComponent(b.dataset.ev))'));
 
 if (fails) { console.log(`\n${fails} FAILED`); process.exit(1); }

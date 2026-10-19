@@ -476,7 +476,7 @@ async def main():
           r.status_code == 200 and len(r.json()["event"]["branches"]) == 4 and "sk-SECRET" not in r.text)
     r = await cl.post("/webhooks/update", json={"id": h["id"], "actions": f.view(f._find(f._load(), h["id"]))["actions"]})
     check("saving the actions back from the dashboard keeps the stored API key",
-          r.status_code == 200 and f._find(f._load(), h["id"])["actions"][0]["headers"]["X-Api-Key"] == "sk-SECRET")
+          r.status_code == 200 and f._secret(f._find(f._load(), h["id"])["actions"][0]["headers"]["X-Api-Key"]) == "sk-SECRET")
     await cl.aclose()
     wa.BRANCH_BACKOFF_S = old_backoff
 

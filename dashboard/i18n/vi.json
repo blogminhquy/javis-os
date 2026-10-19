@@ -5023,5 +5023,14 @@
   "wh.br_cancelled": "bỏ, hành động đã bị gỡ",
   "wh.actions_label": "Hành động (JSON)",
   "wh.actions_hint": "Gửi tiếp tới HTTP, Apps Script hoặc plugin. Để trống là chạy việc của webhook.",
-  "wh.err_key_taken": "Một sự kiện khác cùng khoá chống trùng đang giữ khoá này, không chạy lại được."
+  "wh.err_key_taken": "Một sự kiện khác cùng khoá chống trùng đang giữ khoá này, không chạy lại được.",
+  "wh.br_approval": "chờ bạn duyệt",
+  "wh.approve": "Duyệt",
+  "wh.reject": "Từ chối",
+  "wh.approved": "Đã duyệt, đang chạy",
+  "wh.rejected": "Đã từ chối",
+  "wh.err_not_waiting": "Hành động này không còn chờ duyệt.",
+  "wh.verify_label": "Xác minh chữ ký (JSON)",
+  "wh.verify_hint": "Kiểm chữ ký của Stripe, GitHub, Shopify, Systeme.io hoặc HMAC trước khi nhận.",
+  "wh.adapter_unverified": "Cách đọc Systeme.io chưa được thử với tài khoản thật."
 }

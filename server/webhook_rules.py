@@ -646,7 +646,7 @@ def _key_value(v: Any, t: str) -> Optional[str]:
     return s or None
 
 
-def evaluate(rules: dict, body: bytes, content_type: str) -> dict:
+def evaluate(rules: dict, body: bytes, content_type: str, extra: Optional[dict] = None) -> dict:
     """Run parse -> schema -> filter -> mapping -> business key. Pure and deterministic.
 
     Returns {
@@ -658,6 +658,8 @@ def evaluate(rules: dict, body: bytes, content_type: str) -> dict:
     }"""
     rules = rules or {}
     doc, kind = parse_payload(body, content_type)
+    if extra and isinstance(doc, dict):
+        doc = dict(doc, **extra)        # e.g. `_event` from the provider adapter (M4); the payload cannot set it
     trace: dict = {"parse": kind}
     out = {"decision": "run", "reason": "", "fields": {}, "business_key": None, "trace": trace}
     if kind == "too_deep" and rules:

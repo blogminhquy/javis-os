@@ -14,6 +14,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Webhook gửi tiếp sang nơi khác, không cần AI.** Mỗi sự kiện có thể chuyển tới một địa chỉ HTTP (CRM, phần mềm bán hàng), một Google Apps Script (ghi vào Google Sheet) hoặc một plugin, cùng lúc với việc AI làm. Mỗi nơi chạy riêng: một nơi lỗi không chặn nơi khác, và bấm Chạy lại chỉ gửi lại nơi bị lỗi, nơi đã xong không bị làm hai lần.
 - **Biết chắc nơi nhận đã nhận chưa.** Apps Script phải trả về biên nhận thì mới tính là xong. Nơi nhận bận thì Javis tự gửi lại sau ít phút, cùng một mã giao nhận để bên kia bỏ được bản trùng. Nếu không rõ bên kia đã làm chưa (hết giờ chờ, lỗi máy chủ), Javis không tự gửi lại mà hỏi bạn.
 - **Nút Chi tiết trên từng sự kiện:** xem từng nơi nhận ra sao, bên kia trả lời gì, và vì sao sự kiện bị lọc.
+- **Kiểm chữ ký của Stripe, GitHub, Shopify, Systeme.io hoặc HMAC** trước khi nhận sự kiện. Chữ ký sai thì Javis từ chối và không lưu gì. Lần gửi lại của chính nhà cung cấp được nhận ra là trùng. Cách đọc Systeme.io chưa được thử với tài khoản thật nên được ghi rõ như vậy. POSCake chưa có vì chưa có tài liệu chính thức để làm đúng.
+- **Webhook gọi được tool của Javis** (POS, CRM, lịch...) mà không cần AI, và mặc định chờ bạn bấm Duyệt cho từng sự kiện rồi mới chạy. Duyệt không nâng quyền: tool vẫn chạy đúng mức quyền hiện tại của webhook.
+### Bảo mật
+- **Khoá API và khoá ký của webhook được mã hoá trên đĩa**, không còn nằm trần trong file cấu hình, và không bao giờ hiện ra trên giao diện. Có nút đổi khoá mã hoá. Hãy sao lưu file `webhook_keys.json` cùng `webhook_secrets.json`: mất file khoá thì phải nhập lại các khoá API.
 ### Cải thiện
 - **Webhook không còn mất sự kiện khi máy khởi động lại.** Mỗi sự kiện được ghi bền vào đĩa trước khi Javis trả lời "đã nhận", rồi mới chạy. Máy tắt, cập nhật hay sập giữa chừng thì lúc mở lại Javis chạy tiếp những sự kiện còn chờ.
 - **Không chạy lại mù những việc có thể đã làm.** Nếu máy dừng đúng lúc việc đang chạy (có thể đã gửi tin, ghi đơn), sự kiện được đánh dấu "không rõ đã xong chưa" và Javis báo bạn. Bạn kiểm tra bên ngoài rồi bấm Đã xong hoặc Chạy lại trong nhật ký webhook.

@@ -11746,6 +11746,16 @@ async def _webhook_run_workflow(brain, slug, prompt, level):
     return result, error, needs_input
 
 
+async def _webhook_call_tool(brain, level, name, args):
+    """M4: a webhook `tool` action through the hub dispatcher, at the webhook's level: the same permission guard,
+    connection limits, rate limit and audit as any background run. No model is involved."""
+    _, route = await mcp_hub.discover_all(level, vault_root=str(_brain_root(brain)), include_plugins=True)
+    if name not in route and mcp_hub._LAZY_RUN in route:
+        # Lazy menu on: the tool is behind javis_run_tool, which calls the same guarded route.
+        return str(await mcp_client.call_route(route, mcp_hub._LAZY_RUN, {"name": name, "args": args or {}}))
+    return str(await mcp_client.call_route(route, name, args or {}))
+
+
 async def _webhook_send(chat_id, text, viec=None, web="", brain="", dedup=""):
     return await _notify_owner(chat_id, text, kind="report", source="webhook",
                                viec=viec, web=web, brain=brain, dedup=dedup)
@@ -11764,6 +11774,7 @@ webhook_feature = webhook_triggers.register(app, webhook_triggers.WebhookDeps(
     atomic_write_text=_atomic_write_text,
     # M3: a webhook action can name a plugin's webhook handler; only plugins visible to that hook's brain are found.
     plugin_handler=lambda brain, slug, name: plugins_host.find_webhook_handler(str(_brain_root(brain)), slug, name),
+    call_tool=_webhook_call_tool,
 ))
 
 

@@ -52,7 +52,7 @@ import uuid
 from pathlib import Path
 from typing import Iterable, Optional
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 RATE_PER_HOUR = 30
 BACKLOG_MAX = 6               # waiting + running per hook (the old RAM queue: 1 running + QUEUE_MAX=5 waiting)
 LEASE_S = 120.0               # a running event's lease; the worker renews it every HEARTBEAT_S
@@ -142,11 +142,12 @@ CREATE TABLE IF NOT EXISTS branches(
     detail TEXT NOT NULL DEFAULT '',
     receipt TEXT NOT NULL DEFAULT '{}',
     result TEXT NOT NULL DEFAULT '',
+    approved_at REAL NOT NULL DEFAULT 0,
     PRIMARY KEY(event_id, action_id)
 );
 """
 # Branch states. pending/retry: may run; running: dispatched, outcome not written; the rest are final for the run.
-BRANCH_FINAL = ("completed", "accepted", "silent", "waiting", "cancelled", "failed", "unknown")
+BRANCH_FINAL = ("completed", "accepted", "silent", "waiting", "cancelled", "failed", "unknown", "approval")
 BRANCH_OK = ("completed", "accepted", "silent", "cancelled")
 _COLUMNS_V2 = (("trace", "TEXT NOT NULL DEFAULT '{}'"), ("fields", "TEXT NOT NULL DEFAULT '{}'"),
                ("biz_key", "TEXT NOT NULL DEFAULT ''"), ("biz_ttl", "REAL NOT NULL DEFAULT 0"))
@@ -206,6 +207,9 @@ class Store:
                 for col, decl in _COLUMNS_V2:
                     if col not in have:
                         self._db.execute(f"ALTER TABLE events ADD COLUMN {col} {decl}")
+                have_b = {r[1] for r in self._db.execute("PRAGMA table_info(branches)")}
+                if "approved_at" not in have_b:                     # v3 -> v4 (M4)
+                    self._db.execute("ALTER TABLE branches ADD COLUMN approved_at REAL NOT NULL DEFAULT 0")
                 row = self._db.execute("SELECT v FROM meta WHERE k='schema_version'").fetchone()
                 if row is None or int(row["v"]) < SCHEMA_VERSION:
                     # Never LOWER the marker: an older build opening a newer file leaves it as it is.
@@ -615,6 +619,8 @@ class Store:
         later = [float(r["next_at"] or 0) for r in rows if r["status"] in ("retry", "pending")]
         if later:
             return "queued", min(later)
+        if "approval" in st:
+            return "waiting", 0.0          # the owner must approve (or reject) a branch before it runs
         if "failed" in st:
             return "failed", 0.0
         if "waiting" in st:
@@ -622,6 +628,35 @@ class Store:
         if all(s == "silent" for s in st):
             return "silent", 0.0
         return "done", 0.0
+
+    def approve(self, eid: str, aid: str, decision: str, now: Optional[float] = None) -> tuple:
+        """The owner approves or rejects ONE branch waiting for approval. Approve: it runs at the next pass (the
+        current permissions are checked again then). Reject: it is cancelled. Returns (ok, error_code)."""
+        if decision not in ("approve", "reject"):
+            return False, "bad_decision"
+        now = time.time() if now is None else now
+        with self._write():
+            row = self._db.execute("SELECT status FROM events WHERE id=?", (eid,)).fetchone()
+            if row is None:
+                return False, "not_found"
+            cur = self._db.execute(
+                "UPDATE branches SET status=?, approved_at=?, detail=?, finished_at=? WHERE event_id=? AND action_id=?"
+                " AND status='approval'",
+                ("pending", now, "approved by the owner", 0, eid, aid) if decision == "approve"
+                else ("cancelled", 0, "rejected by the owner", now, eid, aid))
+            if cur.rowcount != 1:
+                return False, "not_waiting"
+            if row["status"] != "waiting":
+                return True, ""             # the event is still being worked on; the next pass picks it up
+            br = [dict(b) for b in self._db.execute("SELECT status, next_at FROM branches WHERE event_id=?", (eid,))]
+            st, nxt = self.summarize(br)
+            if st == "queued":
+                self._db.execute("UPDATE events SET status='queued', next_at=?, dispatched_at=0, finished_at=0,"
+                                 " notified_at=0, notify_tries=0, tries=0 WHERE id=?", (max(now, nxt), eid))
+            else:
+                self._db.execute("UPDATE events SET status=?, finished_at=?, notified_at=? WHERE id=?",
+                                 (st, now, now, eid))
+        return True, ""
 
     def requeue_branches(self, eid: str, fence: int, next_at: float, now: Optional[float] = None) -> bool:
         """Some branches run again later (receiver busy, not sent): the event goes back to the queue. The branches
@@ -820,7 +855,8 @@ class Store:
                 " ORDER BY n", (eid,)).fetchall()]
             d["branches"] = []
             for b in self._db.execute("SELECT action_id, kind, delivery_id, status, tries, dispatched_at, finished_at,"
-                                      " detail, receipt, substr(result, 1, 600) AS result FROM branches WHERE event_id=?"
+                                      " approved_at, detail, receipt, substr(result, 1, 600) AS result FROM branches"
+                                      " WHERE event_id=?"
                                       " ORDER BY rowid", (eid,)):
                 b = dict(b)
                 try:

@@ -61,7 +61,7 @@
   // rules decided what they did.
   var BRANCH_KEY = { completed: "wh.br_completed", accepted: "wh.br_accepted", failed: "wh.br_failed", unknown: "wh.br_unknown",
     pending: "wh.br_pending", retry: "wh.br_retry", running: "wh.br_running", silent: "wh.br_silent", waiting: "wh.br_waiting",
-    cancelled: "wh.br_cancelled" };
+    cancelled: "wh.br_cancelled", approval: "wh.br_approval" };
   function detailHtml(ev) {
     if (!ev) return "";
     var out = "";
@@ -71,7 +71,11 @@
         + "<b>" + esc(b.action_id) + "</b> (" + esc(b.kind) + ") · " + esc(tw(BRANCH_KEY[b.status] || "wh.br_pending"))
         + (b.detail ? " · " + esc(b.detail) : "")
         + (b.receipt && b.receipt.ref ? " · " + esc(b.receipt.ref) : "")
-        + '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.delivery")) + " <code>" + esc(b.delivery_id) + "</code></div></div>";
+        + '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.delivery")) + " <code>" + esc(b.delivery_id) + "</code></div>"
+        + (b.status === "approval" ? '<div class="wf-actions"><button class="s-btn whApprove" data-ev="' + esc(ev.id) + '" data-act="'
+          + esc(b.action_id) + '" data-d="approve">' + esc(tw("wh.approve")) + '</button><button class="s-btn-ghost whApprove" data-ev="'
+          + esc(ev.id) + '" data-act="' + esc(b.action_id) + '" data-d="reject">' + esc(tw("wh.reject")) + "</button></div>" : "")
+        + "</div>";
     });
     var t = ev.trace || {};
     if (t.filter || t.schema || t.mapping || t.duplicate_of) out += simHtml({ ok: true, decision: ev.status === "filtered" || ev.status === "invalid"
@@ -123,6 +127,11 @@
       + '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.actions_hint")) + "</div>"
       + '<textarea class="whActsTxt" spellcheck="false" style="width:100%;min-height:110px;font-family:monospace">'
       + esc(h.actions && h.actions.length ? JSON.stringify(h.actions, null, 2) : "") + "</textarea>"
+      + '<label style="display:block;margin-top:6px">' + esc(tw("wh.verify_label")) + "</label>"
+      + '<div class="dim" style="color:var(--text3)">' + esc(tw("wh.verify_hint"))
+      + (h.adapter_status === "unverified" ? " " + esc(tw("wh.adapter_unverified")) : "") + "</div>"
+      + '<textarea class="whVerifyTxt" spellcheck="false" style="width:100%;min-height:60px;font-family:monospace">'
+      + esc(h.verify && h.verify.provider && h.verify.provider !== "none" ? JSON.stringify(h.verify, null, 2) : "") + "</textarea>"
       + '<div class="whSimOut" style="margin-top:6px"></div></div>';
   }
   // The rules box as an object: "" means no rules; text that is not JSON is reported, not sent.
@@ -141,7 +150,7 @@
   }
 
   function testText(r) {
-    if (r && r.ok && r.ignored) return tw("wh.st_" + r.ignored);
+    if (r && r.ok && r.ignored) return tw(STATUS_KEY[r.ignored] || "wh.st_filtered");
     if (r && r.ok && r.duplicate && r.reason === "business_key") return tw("wh.st_duplicate");
     if (r && r.ok) return tw("wh.test_sent");
     if (r && r.error === "invalid") return tw("wh.st_invalid") + (r.reason ? ": " + r.reason : "");
@@ -150,7 +159,7 @@
 
   // Error codes of the event actions, in words.
   var ERR_KEY = { not_found: "wh.err_not_found", not_retryable: "wh.err_not_retryable", not_unknown: "wh.err_not_unknown",
-    key_taken: "wh.err_key_taken" };
+    key_taken: "wh.err_key_taken", not_waiting: "wh.err_not_waiting" };
   function errText(r) { return tw(ERR_KEY[r && r.error] || "wh.save_err"); }
 
   function fmtTime(ts) {
@@ -329,6 +338,13 @@
             if (box.innerHTML) { box.innerHTML = ""; return; }
             var d = await api("/webhooks/events/" + encodeURIComponent(b.dataset.ev));
             box.innerHTML = d && d.ok ? detailHtml(d.event) : esc(errText(d));
+            box.querySelectorAll(".whApprove").forEach(function (x) {
+              x.onclick = async function () {
+                var r = await api("/webhooks/events/approve", { id: x.dataset.ev, action: x.dataset.act, decision: x.dataset.d });
+                x.textContent = r.ok ? tw(x.dataset.d === "approve" ? "wh.approved" : "wh.rejected") : errText(r);
+                if (r.ok) setTimeout(load, 2500);
+              };
+            });
           };
         });
         scope.querySelectorAll(".whEvDone").forEach(function (b) {
@@ -399,8 +415,9 @@
           host.querySelector(".whRulesSave").onclick = async function () {
             var rr = readRules(host.querySelector(".whRulesTxt").value);
             var ra = readActions(host.querySelector(".whActsTxt").value);
-            if (!rr.ok || !ra.ok) { out.innerHTML = simHtml({ ok: false, error: tw("wh.rules_bad_json") }); return; }
-            var r = await api("/webhooks/update", { id: h.id, rules: rr.rules, actions: ra.actions });
+            var rv = readRules(host.querySelector(".whVerifyTxt").value);
+            if (!rr.ok || !ra.ok || !rv.ok) { out.innerHTML = simHtml({ ok: false, error: tw("wh.rules_bad_json") }); return; }
+            var r = await api("/webhooks/update", { id: h.id, rules: rr.rules, actions: ra.actions, verify: rv.rules });
             if (!r.ok) { out.innerHTML = simHtml(r); return; }
             out.textContent = tw("wh.rules_saved");
             setTimeout(load, 1200);

@@ -5023,5 +5023,14 @@
   "wh.br_cancelled": "skipped, the action was removed",
   "wh.actions_label": "Actions (JSON)",
   "wh.actions_hint": "Forward to HTTP, Apps Script or a plugin. Empty runs the webhook's own job.",
-  "wh.err_key_taken": "Another event with the same duplicate key holds it, so this one cannot run again."
+  "wh.err_key_taken": "Another event with the same duplicate key holds it, so this one cannot run again.",
+  "wh.br_approval": "waiting for your approval",
+  "wh.approve": "Approve",
+  "wh.reject": "Reject",
+  "wh.approved": "Approved, running",
+  "wh.rejected": "Rejected",
+  "wh.err_not_waiting": "This action is no longer waiting for approval.",
+  "wh.verify_label": "Signature check (JSON)",
+  "wh.verify_hint": "Check the Stripe, GitHub, Shopify, Systeme.io or HMAC signature before accepting.",
+  "wh.adapter_unverified": "The Systeme.io reading is not yet checked against a real account."
 }
