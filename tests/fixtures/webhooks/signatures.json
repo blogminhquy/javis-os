@@ -1,0 +1,125 @@
+{
+ "_note": "Frozen golden fixtures for webhook_verify. Only github_docs_vector comes from a provider's own documentation; the others were computed once from the published schemes and frozen; systeme_io_synthetic is an ASSUMED scheme (unverified). Replace it with a captured delivery (secrets removed) after the staging check.",
+ "fixtures": [
+  {
+   "name": "github_docs_vector",
+   "provider": "github",
+   "origin": "published in GitHub's documentation",
+   "secret": "It's a Secret to Everybody",
+   "body": "Hello, World!",
+   "headers": {
+    "X-Hub-Signature-256": "sha256=757107ea0eb2509fc211221cce984b8a37570b6d7586c22c46f4379c8b043e17"
+   },
+   "now": 0,
+   "valid": true
+  },
+  {
+   "name": "github_docs_vector_tampered",
+   "provider": "github",
+   "origin": "docs vector, body changed",
+   "secret": "It's a Secret to Everybody",
+   "body": "Hello, World?",
+   "headers": {
+    "X-Hub-Signature-256": "sha256=757107ea0eb2509fc211221cce984b8a37570b6d7586c22c46f4379c8b043e17"
+   },
+   "now": 0,
+   "valid": false
+  },
+  {
+   "name": "stripe_scheme",
+   "provider": "stripe",
+   "origin": "computed with Stripe's published scheme",
+   "secret": "whsec_golden_fixture_secret",
+   "body": "{\"id\":\"evt_golden_1\",\"object\":\"event\",\"type\":\"invoice.paid\",\"created\":1792411200,\"data\":{\"object\":{\"id\":\"in_1\",\"amount_paid\":150000}}}",
+   "headers": {
+    "Stripe-Signature": "t=1792411200,v1=1e521781e4f899cabdca6ad008e4adef66cfe1045e321574bf53e7eefb384f15"
+   },
+   "now": 1792411260,
+   "valid": true,
+   "event": {
+    "type": "invoice.paid",
+    "id": "evt_golden_1"
+   }
+  },
+  {
+   "name": "stripe_scheme_replayed_late",
+   "provider": "stripe",
+   "origin": "same delivery, 10 minutes later",
+   "secret": "whsec_golden_fixture_secret",
+   "body": "{\"id\":\"evt_golden_1\",\"object\":\"event\",\"type\":\"invoice.paid\",\"created\":1792411200,\"data\":{\"object\":{\"id\":\"in_1\",\"amount_paid\":150000}}}",
+   "headers": {
+    "Stripe-Signature": "t=1792411200,v1=1e521781e4f899cabdca6ad008e4adef66cfe1045e321574bf53e7eefb384f15"
+   },
+   "now": 1792411800,
+   "valid": false
+  },
+  {
+   "name": "stripe_scheme_second_v1",
+   "provider": "stripe",
+   "origin": "rotated secret: two v1 values, one matches",
+   "secret": "whsec_golden_fixture_secret",
+   "body": "{\"id\":\"evt_golden_1\",\"object\":\"event\",\"type\":\"invoice.paid\",\"created\":1792411200,\"data\":{\"object\":{\"id\":\"in_1\",\"amount_paid\":150000}}}",
+   "headers": {
+    "Stripe-Signature": "t=1792411200,v1=0000000000000000000000000000000000000000000000000000000000000000,v1=1e521781e4f899cabdca6ad008e4adef66cfe1045e321574bf53e7eefb384f15"
+   },
+   "now": 1792411260,
+   "valid": true
+  },
+  {
+   "name": "shopify_scheme",
+   "provider": "shopify",
+   "origin": "computed with Shopify's published scheme",
+   "secret": "shpss_golden",
+   "body": "{\"id\":820982911946154508,\"email\":\"jon@example.com\"}",
+   "headers": {
+    "X-Shopify-Hmac-Sha256": "NcGzPNsuH02xHBZlfJWQglSQuX0ejUA60N17p+vWc10=",
+    "X-Shopify-Topic": "orders/create",
+    "X-Shopify-Webhook-Id": "b54557e4-bdd9-4b37-8a5f-bf7d70bcd043"
+   },
+   "now": 0,
+   "valid": true,
+   "event": {
+    "type": "orders/create",
+    "id": "b54557e4-bdd9-4b37-8a5f-bf7d70bcd043"
+   }
+  },
+  {
+   "name": "hmac_base64_timestamp",
+   "provider": "hmac_sha256",
+   "origin": "computed (generic HMAC config)",
+   "config": {
+    "header": "X-Signature",
+    "encoding": "base64",
+    "prefix": "sha256=",
+    "timestamp_header": "X-Timestamp",
+    "tolerance_s": 300
+   },
+   "secret": "generic_golden_secret",
+   "body": "{\"order\":\"A-1\",\"total\":150000}",
+   "headers": {
+    "X-Signature": "sha256=KH+Es502aq+DN9N1rJyKH0verEsymSRnuG+w2HIcgtY=",
+    "X-Timestamp": "1792411200"
+   },
+   "now": 1792411210,
+   "valid": true
+  },
+  {
+   "name": "systeme_io_synthetic",
+   "provider": "systeme_io",
+   "origin": "SYNTHETIC: assumed scheme, NOT captured from Systeme.io",
+   "secret": "systeme_golden_secret",
+   "body": "{\"type\":\"CONTACT_CREATED\",\"data\":{\"contact\":{\"email\":\"lan@example.com\",\"fields\":[{\"slug\":\"first_name\",\"value\":\"Lan\"}]}}}",
+   "headers": {
+    "X-Webhook-Signature": "235b743d8daef4af72a4d44e287a44e021b3c550f192d5e774e132571932fd70",
+    "X-Webhook-Event": "CONTACT_CREATED",
+    "X-Webhook-Id": "sys-1"
+   },
+   "now": 0,
+   "valid": true,
+   "event": {
+    "type": "contact.created",
+    "id": "sys-1"
+   }
+  }
+ ]
+}
