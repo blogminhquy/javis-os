@@ -9,8 +9,9 @@
    Khung JSON gửi: text | context (khối ngữ cảnh giao diện, chỉ khi đổi) | played (số ms đã phát
    tới lúc bị ngắt, để server cắt ngữ cảnh đúng chỗ đã nghe) | stop.
 
-   Bắt mic bằng ScriptProcessorNode: đã lỗi thời nhưng chạy trên mọi trình duyệt còn dùng và
-   không cần nạp file worklet riêng qua CSP. Khối 4096 mẫu ở 16 kHz = 256 ms mỗi khung.
+   Mic capture (0.218.0): an AudioWorklet (voice-live-worklet.js) on the audio thread, so a busy
+   page no longer stalls the stream. Browsers without AudioWorklet fall back to ScriptProcessorNode
+   as before. Same frames either way: PCM16 16 kHz, one per 4096 input frames.
 
    ChatGPT Live (0.65.17, docs/dev/2026-10-voice-call-spec.md mục 3.4): khung `ready` mang
    transport "webrtc" thì KHÔNG đẩy PCM. Trình duyệt dựng RTCPeerConnection lấy track mic, kênh
@@ -22,7 +23,9 @@
   "use strict";
 
   var IN_RATE = 16000, OUT_RATE = 24000;
+  var WORKLET_URL = "/static/voice-live-worklet.js?v=1";
   var ws = null, inCtx = null, outCtx = null, proc = null, src = null, stream = null;
+  var workletReady = null;   // Promise<boolean>: the capture worklet loaded into inCtx
   var nextAt = 0, playing = [], on = false, opts = {};
   var wasSpeaking = false, speakTimer = null;
   var generation = 0, starting = null, cancelOpen = null;
@@ -221,6 +224,12 @@
     } catch (e) { stop(); emit("onError", "audio"); return false; }
     inCtx.resume().catch(function () {});
     outCtx.resume().catch(function () {});
+    // Load the capture worklet while the mic permission is pending; failure means the fallback.
+    try {
+      workletReady = inCtx.audioWorklet && window.AudioWorkletNode
+        ? inCtx.audioWorklet.addModule(WORKLET_URL).then(function () { return true; }, function () { return false; })
+        : Promise.resolve(false);
+    } catch (e) { workletReady = Promise.resolve(false); }
     if (!opts.deferMic) {
       try {
         var acquired = await getMic();
@@ -312,7 +321,7 @@
       return true;
     }
     pcmSocket = socket;
-    if (stream && !wirePcm(id)) { stop(); emit("onError", "audio"); return false; }
+    if (stream && !(await wirePcm(id))) { if (id === generation) { stop(); emit("onError", "audio"); } return false; }
     on = true;
     emit("onStarted");
     return true;
@@ -323,8 +332,26 @@
   }
 
   // Đường PCM (Live qua API): tiếng mic đi qua WebSocket của máy chủ.
-  function wirePcm(id) {
+  async function wirePcm(id) {
     var socket = pcmSocket;
+    var useWorklet = false;
+    try { useWorklet = await (workletReady || Promise.resolve(false)); } catch (e) { useWorklet = false; }
+    if (id !== generation || !inCtx || !stream) return false;
+    if (useWorklet) {
+      try {
+        src = inCtx.createMediaStreamSource(stream);
+        proc = new window.AudioWorkletNode(inCtx, "javis-mic", { numberOfInputs: 1, numberOfOutputs: 0, channelCount: 1 });
+        proc.port.onmessage = function (ev) {
+          if (id !== generation || ws !== socket || socket.readyState !== WebSocket.OPEN) return;
+          try { ws.send(ev.data); } catch (e) { socket.onerror(e); }
+        };
+        src.connect(proc);
+        return true;
+      } catch (e) {
+        try { if (src) src.disconnect(); } catch (e2) {}
+        src = null; proc = null;   // fall through to the old path
+      }
+    }
     try {
       src = inCtx.createMediaStreamSource(stream);
       proc = inCtx.createScriptProcessor(4096, 1, 1);
@@ -351,8 +378,9 @@
       if (rtc) {
         if (!rtcSender) return false;
         await rtcSender.replaceTrack(stream.getAudioTracks()[0]);
-      } else if (!wirePcm(id)) {
-        stop(); emit("onError", "audio"); return false;
+      } else if (!(await wirePcm(id))) {
+        if (id === generation) { stop(); emit("onError", "audio"); }
+        return false;
       }
       return true;
     } catch (e) {
@@ -408,8 +436,14 @@
     } catch (e) {}
     ws = null;
     lastCtx = ""; utterStartAt = 0;
-    try { if (proc) { proc.disconnect(); proc.onaudioprocess = null; } if (src) src.disconnect(); } catch (e) {}
-    proc = null; src = null; pcmSocket = null;
+    try {
+      if (proc) {
+        if (proc.port) { proc.port.onmessage = null; proc.port.postMessage("stop"); }
+        proc.disconnect(); proc.onaudioprocess = null;
+      }
+      if (src) src.disconnect();
+    } catch (e) {}
+    proc = null; src = null; pcmSocket = null; workletReady = null;
     try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
     stream = null;
     try { if (inCtx) inCtx.close().catch(function () {}); } catch (e) {}
