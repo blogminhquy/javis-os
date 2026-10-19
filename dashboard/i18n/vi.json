@@ -5143,5 +5143,8 @@
   "wh.tl_result": "Kết quả",
   "wh.tl_notice": "Thông báo",
   "wh.target_actions_line": "Hành động: {names}",
-  "wh.sim_ran": "Qua bộ lọc"
+  "wh.sim_ran": "Qua bộ lọc",
+  "wh.key_where_signed": "Chữ ký của {provider} là đủ để nhận, không cần khoá Javis.",
+  "wh.ev_delete": "Xoá",
+  "wh.ev_delete_confirm": "Xoá sự kiện này cùng nội dung của nó? Không chạy lại được nữa; nếu nguồn gửi lại, Javis nhận như sự kiện mới."
 }

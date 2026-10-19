@@ -69,6 +69,10 @@
       acts += '<button class="s-btn-ghost whEvDone" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.mark_done")) + "</button>";
     }
     if (r.run_id || r.id) acts += '<button class="s-btn-ghost whEvInfo" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.details")) + "</button>";
+    // A failed body is kept until the owner settles it or deletes it (spec §11).
+    if (st === "failed" || st === "dead") {
+      acts += '<button class="s-btn-ghost whEvDel" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.ev_delete")) + "</button>";
+    }
     return '<div class="le wh-ev wh-ev-' + esc(st) + '">' + esc(fmtTime(r.at || r.received_at)) + " · "
       + '<span class="wh-st">' + esc(stateWord(r)) + "</span>"
       + ((r.result || r.error) ? " · " + esc(String(r.result || r.error).slice(0, 140)) : "")
@@ -342,7 +346,9 @@
       + esc(tw(LEVEL_KEY[h.level] || "wh.level_full")) + " · " + esc(brainName(brains, h.brain)) + "</div>"
       + '<div style="font-size:16px;margin-top:4px;word-break:break-all"><code>' + esc(h.url) + "</code></div>"
       + '<div class="dim" style="font-size:16px;color:var(--text3);margin-top:2px">'
-      + esc(tw(h.query_token ? "wh.key_where_legacy" : "wh.key_where", { header: h.token_header || "X-Javis-Token" })) + "</div>"
+      + esc(h.verify && h.verify.provider && h.verify.provider !== "none"
+        ? tw("wh.key_where_signed", { provider: h.verify.provider })
+        : tw(h.query_token ? "wh.key_where_legacy" : "wh.key_where", { header: h.token_header || "X-Javis-Token" })) + "</div>"
       + (h.ai_triage ? '<div class="dim" style="font-size:16px;color:var(--text3)">' + esc(tw("wh.ai_triage_on")) + "</div>" : "")
       + '<div class="wf-actions" style="margin-top:8px">'
       + '<button class="s-btn-ghost whCopy">' + esc(tw("wh.copy_url")) + "</button>"
@@ -556,6 +562,13 @@
                 if (r.ok) setTimeout(load, 2500);
               };
             });
+          };
+        });
+        scope.querySelectorAll(".whEvDel").forEach(function (b) {
+          b.onclick = async function () {
+            if (!confirm(tw("wh.ev_delete_confirm"))) return;
+            var r = await api("/webhooks/events/delete", { id: b.dataset.ev });
+            if (r.ok) load(); else b.textContent = errText(r);
           };
         });
         scope.querySelectorAll(".whEvDone").forEach(function (b) {

@@ -86,20 +86,28 @@ check("P1-1: a 5000-digit integer literal is not parsed as a number", time.perf_
 
 # ---- P1-2 ----
 filt = {"filter": {"path": "event", "op": "eq", "value": "order.paid"}}
-check("P1-2: an overflowing number in the filtered field is filtered, not run", ev(filt, '{"event": 1e1000000}')["decision"] == "filtered")
+_ov = ev(filt, '{"event": 1e1000000}')
+check("P1-2: an overflowing number in the filtered field is never run (quarantined as number_out_of_range, spec §5)",
+      _ov["decision"] == "invalid" and _ov["reason"] == "number_out_of_range", _ov)
 deep = '{"event":' + "[" * 1200 + "]" * 1200 + ',"id":"A1"}'
 r = ev(dict(filt, business_key={"entity": "o", "path": "id"}), deep)
 check("P1-2: JSON nested 1200 deep is invalid, never run unfiltered", r["decision"] == "invalid" and "deeper" in r["reason"], r)
 check("P1-2: without rules a deep body is only text (nothing to bypass)", wr.evaluate({}, deep.encode(), "application/json")["decision"] == "run")
-check("P1-2: every value goes through _plain without overflow", wr._plain(wr._parse_float("1e1000000")) == "1e1000000"
-      and wr._plain(__import__("decimal").Decimal("1E+400")) == "1E+400")
+try:
+    wr._parse_float("1e1000000")
+    _raised = False
+except wr._NumberOutOfRange:
+    _raised = True
+check("P1-2: an overflowing literal is refused by the parser (never kept as text), and _plain never overflows",
+      _raised and wr._plain(__import__("decimal").Decimal("1E+400")) == "1E+400")
 
 # ---- P2-4 ----
 r = ev({"filter": {"path": "total", "op": "gte", "value": 100}, "mapping": {"t": "total"}}, '{"total": 1e400}')
-check("P2-4: 1e400 is not a number (filtered), and its trace and fields are valid JSON",
-      r["decision"] == "filtered" and json.dumps(r, allow_nan=False))
+check("P2-4: 1e400 is never run as a number (quarantined: number_out_of_range), and the result is valid JSON",
+      r["decision"] == "invalid" and r["reason"] == "number_out_of_range" and json.dumps(r, allow_nan=False))
 r = ev({"mapping": {"a": "a", "b": "b"}}, '{"a": NaN, "b": Infinity}')
-check("P2-4: NaN/Infinity literals stay text", r["fields"] == {"a": "NaN", "b": "Infinity"} and json.dumps(r, allow_nan=False))
+check("P2-4: NaN/Infinity literals are not numbers nor text: quarantined, valid JSON",
+      r["decision"] == "invalid" and r["reason"] == "number_out_of_range" and json.dumps(r, allow_nan=False))
 bk = {"business_key": {"entity": "o", "path": "id"}}
 k = lambda v: ev(bk, '{"id": ' + v + "}")["business_key"]["hash"]  # noqa: E731
 check("P2-4: 12345678901234567.5 and .7 are two keys", k("12345678901234567.5") != k("12345678901234567.7"),

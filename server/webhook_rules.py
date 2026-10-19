@@ -45,6 +45,7 @@ import hashlib
 import json
 import math
 import re
+import unicodedata
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 from urllib.parse import parse_qs
@@ -156,18 +157,42 @@ def _bounded(d: Decimal) -> bool:
     return d.is_finite() and (d.is_zero() or abs(d.adjusted()) <= NUM_EXP_MAX)
 
 
+class _NumberOutOfRange(ValueError):
+    """A JSON number no business value has (`1e999999`, a 400-digit integer, NaN, Infinity). It is never turned into
+    text: that would let `eq "1e999"` match a number and break "1 is not '1'" (spec §5). The payload is `bad_number`."""
+
+
 def _parse_float(s: str):
-    """JSON floats as exact Decimals, but only of sane size: `1e999999` stays the TEXT it was (a number that big is
-    not a business value, and turning it into an int or float costs seconds or overflows)."""
+    """JSON floats as exact Decimals, but only of sane size (a huge exponent costs seconds or overflows)."""
     try:
         d = Decimal(s)
     except InvalidOperation:
-        return s
-    return d if _bounded(d) else s
+        raise _NumberOutOfRange(s[:40])
+    if not _bounded(d):
+        raise _NumberOutOfRange(s[:40])
+    return d
 
 
 def _parse_int(s: str):
-    return int(s) if len(s.lstrip("-")) <= NUM_DIGITS_MAX else s
+    if len(s.lstrip("-")) > NUM_DIGITS_MAX:
+        raise _NumberOutOfRange(s[:40])
+    return int(s)
+
+
+def _parse_constant(c: str):
+    raise _NumberOutOfRange(c)
+
+
+def _load_json(text: str) -> tuple:
+    """(document, kind) of text known to be UTF-8 and not too deep. A lone surrogate (a `\\ud800` escape, legal to the
+    parser) cannot be stored or forwarded as UTF-8, so such a payload is `bad_utf8`, like undecodable bytes."""
+    doc = json.loads(text, parse_float=_parse_float, parse_int=_parse_int, parse_constant=_parse_constant)
+    if "\\u" in text or "\\U" in text:
+        try:
+            json.dumps(doc, ensure_ascii=False, default=str).encode("utf-8")
+        except UnicodeEncodeError:
+            return {"_text": text[:VALUE_MAX]}, "bad_utf8"
+    return doc, "json"
 
 
 def _depth(text: str) -> int:
@@ -219,8 +244,9 @@ def parse_payload(body: bytes, content_type: str) -> tuple:
         if _depth(text) > DEPTH_PAYLOAD_MAX:
             return {"_text": text[:VALUE_MAX]}, "too_deep"
         try:
-            return json.loads(text, parse_float=_parse_float, parse_int=_parse_int,
-                              parse_constant=lambda c: c), "json"
+            return _load_json(text)
+        except _NumberOutOfRange:
+            return {"_text": text[:VALUE_MAX]}, "bad_number"
         except (ValueError, RecursionError):
             return {"_text": text[:VALUE_MAX]}, ("bad_json" if _is_json_ct(ct) else "text")
     if text.strip() and looks_json and not any(x in ct for x in ("x-www-form-urlencoded", "multipart")):
@@ -228,8 +254,9 @@ def parse_payload(body: bytes, content_type: str) -> tuple:
         if _depth(text) <= DEPTH_PAYLOAD_MAX:
             try:
                 raw.decode("utf-8")
-                return json.loads(text, parse_float=_parse_float, parse_int=_parse_int,
-                                  parse_constant=lambda c: c), "json"
+                return _load_json(text)
+            except _NumberOutOfRange:
+                return {"_text": text[:VALUE_MAX]}, "bad_number"
             except (ValueError, RecursionError, UnicodeDecodeError):
                 pass
     if "x-www-form-urlencoded" in ct:
@@ -610,7 +637,9 @@ def _v_bkey(b: Any, mapping: dict) -> dict:
 
 # ── evaluation ──
 def _text(v: Any, case_sensitive: bool) -> str:
-    s = v[:VALUE_MAX]
+    """Compared text: NFC first, so "ợ" typed as one code point or as o + two marks is the same letter (spec §15
+    Unicode cases), then case folding when asked."""
+    s = unicodedata.normalize("NFC", v[:VALUE_MAX])
     return s if case_sensitive else s.casefold()
 
 
@@ -704,7 +733,13 @@ def eval_leaf(cond: dict, doc: Any) -> tuple:
         return ok, v, "" if ok else ("missing_field" if op == "exists" else "field_present"), ""
     if op in ("empty", "not_empty"):
         if wild:
-            return False, v, "", "quantifier_required" if v is not _MISSING and not cond.get("quantifier") else ""
+            if v is _MISSING:
+                return op == "empty", v, "", ""
+            if not cond.get("quantifier"):
+                return False, v, "", "quantifier_required"
+            res = [_empty(x) == (op == "empty") for x in v]
+            ok = bool(res) and (all(res) if cond["quantifier"] == "all" else any(res))
+            return ok, v, "" if ok else ("empty_array" if not v else ""), ""
         ok = _empty(v) == (op == "empty")
         return ok, v, "", ""
     if v is _MISSING:
@@ -741,13 +776,38 @@ def eval_leaf(cond: dict, doc: Any) -> tuple:
     return ok, v, why, ""
 
 
-def _eval_cond(cond: dict, doc: Any, steps: list, errors: list, reveal: bool) -> bool:
+# A leaf that failed because its field is missing or of another type is UNKNOWN, not false: `not` keeps it unknown,
+# so `not (status eq 4)` on a payload without `status` is filtered (missing_field), never a match (spec §5, strict
+# types). Three values: True, False, None (unknown); the filter passes only on True.
+_UNKNOWN_WHY = ("missing_field", "type_mismatch")
+
+
+def _eval_cond(cond: dict, doc: Any, steps: list, errors: list, reveal: bool) -> Optional[bool]:
     if "all" in cond:
-        return all(_eval_cond(c, doc, steps, errors, reveal) for c in cond["all"])
+        seen_unknown = False
+        for c in cond["all"]:
+            r = _eval_cond(c, doc, steps, errors, reveal)
+            if r is False:
+                return False
+            seen_unknown = seen_unknown or r is None
+        return None if seen_unknown else True
     if "any" in cond:
-        return any(_eval_cond(c, doc, steps, errors, reveal) for c in cond["any"])
+        seen_unknown = False
+        for c in cond["any"]:
+            r = _eval_cond(c, doc, steps, errors, reveal)
+            if r is True:
+                return True
+            seen_unknown = seen_unknown or r is None
+        return None if seen_unknown else False
     if "not" in cond:
-        return not _eval_cond(cond["not"], doc, steps, errors, reveal)
+        r = _eval_cond(cond["not"], doc, steps, errors, reveal)
+        if r is None:
+            return None
+        if r is True:
+            # The inner condition held, so `not` fails: say which one (else the reason would be empty).
+            steps.append({"path": "(not)", "op": "not", "pass": False, "type": "", "code": cond.get("reason") or
+                          "excluded_by_not"})
+        return not r
     ok, actual, why, err = eval_leaf(cond, doc)
     step = {"path": cond["path"], "op": cond["op"], "pass": ok, "type": type_of(actual)}
     if not ok:
@@ -759,6 +819,8 @@ def _eval_cond(cond: dict, doc: Any, steps: list, errors: list, reveal: bool) ->
         if "value" in cond:
             step["value"] = _short(cond["value"])
     steps.append(step)
+    if not ok and not err and why in _UNKNOWN_WHY and cond["op"] not in ("exists", "missing", "empty", "not_empty"):
+        return None
     return ok
 
 
@@ -767,7 +829,7 @@ def eval_condition(cond: dict, doc: Any) -> tuple:
     steps: list = []
     errors: list = []
     try:
-        ok = _eval_cond(cond, doc, steps, errors, False)
+        ok = _eval_cond(cond, doc, steps, errors, False) is True
     except Exception as e:                       # fail closed
         return False, "evaluation_error", f"{type(e).__name__}"
     if errors:
@@ -983,7 +1045,7 @@ def _canon(v: Any) -> list:
     if isinstance(v, bool):
         return ["boolean", "true" if v else "false"]
     if isinstance(v, int):
-        return ["integer", str(v)]
+        return ["number", str(v)]          # 1 and 1.0 are one key, as `eq` says they are equal
     if isinstance(v, (Decimal, float)):
         d = _num(v)
         if d is not None and d == d.to_integral_value():
@@ -1039,7 +1101,7 @@ def evaluate(rules: dict, body: bytes, content_type: str, extra: Optional[dict] 
            "trace": trace}
     if rules:
         bad = {"too_deep": f"payload_too_deep (nested deeper than {DEPTH_PAYLOAD_MAX})",
-               "bad_json": "invalid_json", "bad_utf8": "invalid_utf8",
+               "bad_json": "invalid_json", "bad_utf8": "invalid_utf8", "bad_number": "number_out_of_range",
                "unsupported": "unsupported_content_type"}.get(kind)
         if bad:
             out.update(decision="invalid", reason=bad, reasons=[bad.split(" ")[0]])
@@ -1063,7 +1125,7 @@ def evaluate(rules: dict, body: bytes, content_type: str, extra: Optional[dict] 
             return out
     if rules.get("filter"):
         steps, errors = [], []
-        ok = _eval_cond(rules["filter"], doc, steps, errors, reveal)
+        ok = _eval_cond(rules["filter"], doc, steps, errors, reveal) is True
         trace["filter"] = steps
         codes = [s["code"] for s in steps if not s["pass"] and s.get("code")]
         if errors:

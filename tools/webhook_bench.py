@@ -185,7 +185,10 @@ def run(seconds: float = 60, rate: float = 20, hooks: int = 5, size_kib: int = 1
     res = {"params": {"seconds": seconds, "rate": rate, "hooks": hooks, "size_kib": size_kib, "slow_s": slow},
            "load": load, "store": settled, "model_calls": guard, "state_dir": str(state)}
     queued_only = all(k in FINAL_OR_WAITING or k in ("received", "queued", "running") for k in settled["events"])
-    res["throughput_limit_per_s"] = round(hooks / slow, 2) if slow else None
+    # One delivery at a time per hook, inside a process-wide pool (spec §11): min(hooks, WORKER_MAX) run at once.
+    sys.path.insert(0, str(SERVER))
+    import webhook_worker
+    res["throughput_limit_per_s"] = round(min(hooks, webhook_worker.WORKER_MAX) / slow, 2) if slow else None
     res["targets"] = {
         "every request answered 202": accepted == load["sent"] and not load["errors"],
         "p95 ACK under 250 ms": (load["ack_ms"]["p95"] or 1e9) < 250,
@@ -229,7 +232,7 @@ def main(argv=None) -> int:
         print(f"processing s p50 {st['processing_s']['p50']}  p95 {st['processing_s']['p95']}  max {st['processing_s']['max']}")
         print(f"events {st['events']}  deliveries {st['deliveries']}  model calls {res['model_calls']}")
         if res["throughput_limit_per_s"]:
-            print(f"processing limit with one delivery at a time per hook: {res['throughput_limit_per_s']} events/s")
+            print(f"processing limit (one delivery per hook, shared pool): {res['throughput_limit_per_s']} events/s")
         for k, v in res["targets"].items():
             print(("ok   " if v else "FAIL ") + k)
     return 0 if res["ok"] else 1

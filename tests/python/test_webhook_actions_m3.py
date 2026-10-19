@@ -103,7 +103,9 @@ async def addr(ip, allow=False):
     return await wa.check_address("https://h.example/x", allow, lambda h: [ip])
 
 for ip in ("127.0.0.1", "10.0.0.5", "192.168.1.2", "169.254.169.254", "::1", "::ffff:127.0.0.1", "100.64.1.1", "0.0.0.0", "fd00::1"):
-    check(f"address {ip} refused", "private" in asyncio.run(addr(ip)), asyncio.run(addr(ip)))
+    check(f"address {ip} refused", any(w in asyncio.run(addr(ip)) for w in ("private", "metadata")), asyncio.run(addr(ip)))
+check("a cloud metadata address is refused even when the action allows private addresses",
+      "metadata" in asyncio.run(addr("169.254.169.254", True)) and asyncio.run(addr("10.0.0.5", True)) == "")
 check("public address allowed; private allowed only when the action says so",
       asyncio.run(addr("93.184.216.34")) == "" and asyncio.run(addr("10.0.0.5", True)) == "")
 check("a name that resolves to ANY private address is refused", "private" in asyncio.run(
@@ -167,8 +169,8 @@ seen.clear()
 o = http(lambda r: httpx.Response(302, headers={"Location": "http://169.254.169.254/"}))
 check("302 after a POST -> unknown (Post/Redirect/Get: it may have been done), redirect not followed",
       o.status == "unknown" and len(seen) == 1)
-check("307 -> failed (the POST was not processed there), not followed",
-      http(lambda r: httpx.Response(307, headers={"Location": "https://x/"})).status == "failed")
+check("307 -> unknown (the receiver may have taken the body before redirecting; spec §7), not followed",
+      http(lambda r: httpx.Response(307, headers={"Location": "https://x/"})).status == "unknown")
 check("connect error -> retry (never sent)", http(raise_(httpx.ConnectError("refused"))).status == "retry")
 check("read timeout -> unknown", http(raise_(httpx.ReadTimeout("slow"))).status == "unknown")
 check("dropped connection -> unknown", http(raise_(httpx.RemoteProtocolError("eof"))).status == "unknown")

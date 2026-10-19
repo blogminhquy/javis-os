@@ -160,7 +160,7 @@ def body_of(d):
 
 
 # ================================================================================================================
-async def main():
+async def matrix():
     f = make()
     st = f.store()
 
@@ -948,9 +948,6 @@ async def main():
     await cl.aclose()
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
-
 # ---- §16.7: the real host app: the public door is /hooks/ only; admin, raw and replay need the login ----
 os.environ["JAVIS_REQUIRE_LOGIN"] = "1"
 import main  # noqa: E402
@@ -978,9 +975,10 @@ async def host():
           and exp.status_code in (401, 403) and pub.status_code == 401 and guard["n"] == 0,
           (hooks.status_code, raw.status_code, rep.status_code, exp.status_code, pub.status_code))
 
-asyncio.run(host())
-
-if fails:
-    print(f"\nFAIL {len(fails)}: " + ", ".join(fails))
-    sys.exit(1)
-print("\nOK - test_webhook_spec_matrix: all pass")
+if __name__ == "__main__":
+    asyncio.run(matrix())
+    asyncio.run(host())
+    if fails:
+        print(f"\nFAIL {len(fails)}: " + ", ".join(fails))
+        sys.exit(1)
+    print("\nOK - test_webhook_spec_matrix: all pass")

@@ -15,8 +15,13 @@ server stopped:
      enabled, recent delivery keys). A hook that uses what the older build does not have (actions other than its own
      task, rules, provider signatures) is written SWITCHED OFF, so the older build never runs something other than what
      was configured;
-  5. clears the migration marker, so the next upgrade imports that file again (changes made meanwhile are kept);
-  6. writes `report.txt` saying what will not run on the older build.
+  5. records each hook's own switches (enabled, paused) and which hooks it switched off, then clears the migration
+     marker: the next upgrade imports that file again (changes made meanwhile are kept), gives each hook back its own
+     switch, and stops receiving on a hook the older build deleted;
+  6. holds every exported event as unknown, so an upgrade later never runs it beside a manual resend;
+  7. writes `report.txt` saying what will not run on the older build.
+
+A paused hook is written switched off too: the older build cannot store events without running them.
 
 `--check` writes nothing and prints the report. The store itself is left in place (the next upgrade uses it); nothing
 here deletes data. Rolling back the binary does not undo what actions already did outside: reconcile receipts first.
@@ -60,6 +65,8 @@ def legacy_hook(h: dict, keys: list) -> tuple:
         why.append(f"token header {h['token_header']}")
     if h.get("target") not in ("task", "workflow"):
         why.append("no task or workflow of its own")
+    if h.get("paused"):
+        why.append("processing paused (the older build has no pause)")
     out = {k: h.get(k) for k in LEGACY_FIELDS if h.get(k) is not None}
     out["count"] = int(h.get("count") or 0)
     out["seen_keys"] = keys[-50:]
@@ -100,7 +107,9 @@ def run(state_dir: Path, check: bool = False, force: bool = False, now: float = 
         for e in open_ev[:200]:
             lines.append(f"  - {e['id']} hook {e['hook_id']} {e['status']} received "
                          f"{time.strftime('%Y-%m-%d %H:%M', time.localtime(e['received_at']))}")
-        lines += ["", "Actions already done outside are not undone by a rollback: check receipts before resending."]
+        lines += ["", "These events are now held as unknown: after an upgrade they wait for Mark done or Retry, never run"
+                      " on their own.",
+                  "Actions already done outside are not undone by a rollback: check receipts before resending."]
         report = "\n".join(lines) + "\n"
         if check:
             return {"ok": True, "check": True, "report": report, "hooks": len(hooks), "blocked": blocked,
@@ -114,11 +123,16 @@ def run(state_dir: Path, check: bool = False, force: bool = False, now: float = 
             rows.append(json.dumps(ev, ensure_ascii=False, default=str))
         _private_write(out_dir / "backlog.jsonl", "\n".join(rows) + ("\n" if rows else ""))
         _private_write(state_dir / "webhooks.json", json.dumps({"hooks": legacy}, ensure_ascii=False, indent=1))
+        st.meta_set("rollback_state", json.dumps({
+            "at": now, "hooks": [h["id"] for h in hooks], "forced_off": sorted(blocked),
+            "enabled": {h["id"]: bool(h.get("enabled", True)) for h in hooks},
+            "paused": {h["id"]: bool(h.get("paused")) for h in hooks}}))
+        held = st.hold_for_rollback([e["id"] for e in open_ev], now)
         st.meta_del("hooks_migrated")
         st.meta_set("rolled_back_at", str(now))
         _private_write(out_dir / "report.txt", report)
         return {"ok": True, "backup": str(backup), "out_dir": str(out_dir), "hooks": len(hooks), "blocked": blocked,
-                "open_events": len(open_ev), "report": report}
+                "open_events": len(open_ev), "held": held, "report": report}
     finally:
         st.close()
 

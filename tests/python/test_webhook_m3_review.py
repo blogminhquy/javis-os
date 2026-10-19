@@ -94,7 +94,8 @@ def http(handler, **a):
 
 for code in (301, 302, 303):
     check(f"P2: {code} after a POST is unknown, not refused", http(lambda r, c=code: httpx.Response(c, headers={"Location": "https://x/"})).status == "unknown")
-check("P2: 308 stays failed", http(lambda r: httpx.Response(308, headers={"Location": "https://x/"})).status == "failed")
+check("P2: 308 is unknown too (any redirect after the POST may have been done; spec §7)",
+      http(lambda r: httpx.Response(308, headers={"Location": "https://x/"})).status == "unknown")
 date = time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime(time.time() + 120))
 o = http(lambda r: httpx.Response(429, headers={"Retry-After": date}))
 check("P3: Retry-After as an HTTP date", o.status == "retry" and 100 <= o.retry_after <= 121, o.retry_after)
@@ -142,8 +143,9 @@ async def pool_case():
     return outs, v, quick
 
 outs, v, quick = asyncio.run(pool_case())
-check("P2: hung handlers fill only their own pool; extra calls are not sent (retry later)",
-      outs[:wa.PLUGIN_THREADS] == ["unknown"] * wa.PLUGIN_THREADS and outs[wa.PLUGIN_THREADS:] == ["retry", "retry"], outs)
+check("P2: a hung plugin holds at most PLUGIN_PER_SLUG threads of its own pool; its extra calls are not sent (retry "
+      "later), so other plugins keep their turn", outs[:wa.PLUGIN_PER_SLUG] == ["unknown"] * wa.PLUGIN_PER_SLUG
+      and outs[wa.PLUGIN_PER_SLUG:] == ["retry"] * (len(outs) - wa.PLUGIN_PER_SLUG), outs)
 check("P2: the shared thread pool (store calls, ingest) still answers at once", v == 42 and quick < 0.5, quick)
 
 # ---- store: unknown vs retry, resolve, late outcome, retry tries ----

@@ -1,0 +1,454 @@
+"""0.233.0: regression tests for the independent reviews of the spec alignment (M1-M2, M3-M4, M5 and the whole chain).
+
+    python tests/run.py webhook_spec_review
+
+Each check names the finding it pins (R1 = store and rules review, R2 = delivery and security review, R3 = operations,
+UI and whole-chain review). The harness is the spec matrix's: the real feature and router, temporary SQLite, fake HTTP,
+plugin, tool and model runners, and a model guard.
+"""
+from _paths import ROOT, SERVER  # noqa: E402,F401
+import asyncio
+import json
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+import test_webhook_spec_matrix as mx  # noqa: E402  (the harness; its main() runs only as a script)
+import webhook_rules as wr  # noqa: E402
+
+fails = []
+
+
+def check(name, cond, them=""):
+    print(("ok   " if cond else "FAIL ") + name + (("  [" + str(them) + "]") if them and not cond else ""))
+    if not cond:
+        fails.append(name)
+
+
+def fresh():
+    return mx.make(Path(tempfile.mkdtemp(prefix="wh-review-")))
+
+
+def body(d):
+    return json.dumps(d, ensure_ascii=False).encode()
+
+
+async def rules_and_triage():
+    # R1 P1: a lone surrogate must not stop triage of every hook.
+    f = fresh()
+    h1, t1, _ = f.create("/b1", name="A", target="task", text="x", rules={"mapping": {"id": "id"}, "correlation": "id"})
+    h2, t2, _ = f.create("/b1", name="B", target="task", text="x")
+    c1, r1 = await f.accept(h1["id"], t1, b'{"id": "\\ud800"}', "application/json", "")
+    c2, r2 = await f.accept(h2["id"], t2, b'{"ok": 1}', "application/json", "")
+    await f.wait_idle()
+    st = f.store()
+    e1, e2 = st.get(r1["event_id"]), st.get(r2["event_id"])
+    check("R1 P1: a payload with a lone surrogate is quarantined (bad UTF-8) and the next event of another hook runs",
+          c1 == 202 and e1["status"] == "invalid" and "utf8" in (e1["error"] or "") and e2["status"] == "done",
+          (e1["status"], e1["error"], e2["status"]))
+    # A fault inside triage itself is isolated to its row.
+    orig = f._triage_one
+
+    async def boom(st_, r):
+        if r["hook_id"] == h1["id"]:
+            raise RuntimeError("triage fault")
+        return await orig(st_, r)
+    f._triage_one = boom
+    c3, r3 = await f.accept(h1["id"], t1, b'{"id": 1}', "application/json", "")
+    c4, r4 = await f.accept(h2["id"], t2, b'{"ok": 2}', "application/json", "")
+    await f.wait_idle()
+    f._triage_one = orig
+    check("R1 P1: an event whose triage raises is quarantined with the fault named; later events still run",
+          st.get(r3["event_id"])["status"] == "invalid" and "triage_error" in st.get(r3["event_id"])["error"]
+          and st.get(r4["event_id"])["status"] == "done")
+
+    # R1 P2-3: `not` over a missing field or another type is not a match.
+    ev = lambda rules, d: wr.evaluate(wr.validate(rules), d.encode(), "application/json")  # noqa: E731
+    r = ev({"filter": {"not": {"path": "status", "op": "eq", "value": 4}}}, "{}")
+    r2_ = ev({"filter": {"not": {"path": "total", "op": "gt", "value": 100}}}, '{"total": "500"}')
+    r3_ = ev({"filter": {"not": {"path": "status", "op": "eq", "value": 4}}}, '{"status": 1}')
+    r4_ = ev({"filter": {"not": {"path": "status", "op": "eq", "value": 4}}}, '{"status": 4}')
+    check("R1 P2-3: not(eq) on a missing field and not(gt) on text are filtered (missing_field, type_mismatch); "
+          "on a real other value it runs; on the value itself it is filtered with a reason",
+          r["decision"] == "filtered" and r["reason"] == "missing_field" and r2_["decision"] == "filtered"
+          and r2_["reason"] == "type_mismatch" and r3_["decision"] == "run" and r4_["decision"] == "filtered"
+          and r4_["reason"], (r["reason"], r2_["reason"], r3_["decision"], r4_["reason"]))
+    r = ev({"filter": {"any": [{"path": "a", "op": "eq", "value": 1}, {"path": "b", "op": "eq", "value": 2}]}}, '{"b": 2}')
+    check("R1 P2-3: any() still runs when one branch matches and the other field is missing", r["decision"] == "run")
+    r = ev({"filter": {"not": {"path": "a", "op": "exists"}}}, "{}")
+    check("R1 P2-3: not(exists) on a missing field is a real match (presence is never unknown)", r["decision"] == "run")
+
+    # R1 P2-4: empty / not_empty on a [*] path apply the quantifier.
+    all_empty = '{"items": [{"note": ""}, {"note": null}]}'
+    one = '{"items": [{"note": ""}, {"note": "gói quà"}]}'
+    cond = lambda op, q: {"filter": {"path": "items[*].note", "op": op, "quantifier": q}}  # noqa: E731
+    check("R1 P2-4: [*] empty all / any / not_empty any follow the items",
+          ev(cond("empty", "all"), all_empty)["decision"] == "run" and ev(cond("empty", "all"), one)["decision"] == "filtered"
+          and ev(cond("empty", "any"), one)["decision"] == "run" and ev(cond("not_empty", "any"), one)["decision"] == "run"
+          and ev(cond("not_empty", "any"), all_empty)["decision"] == "filtered")
+    check("R1 P2-4: not([*] empty all) no longer matches everything",
+          ev({"filter": {"not": cond("empty", "all")["filter"]}}, all_empty)["decision"] == "filtered")
+
+    # R1 P3: numbers and Unicode.
+    r = ev({"filter": {"path": "a", "op": "eq", "value": "1e999"}}, '{"a": 1e999}')
+    check("R1 P3: 1e999 never equals the text \"1e999\" (the payload is quarantined: number_out_of_range)",
+          r["decision"] == "invalid" and r["reason"] == "number_out_of_range")
+    k = lambda v: ev({"dedup": {"business_paths": ["id"]}}, '{"id": ' + v + "}")["business_key"]["hash"]  # noqa: E731
+    check("R1 P3: 1 and 1.0 are one business key (as eq says), \"1\" another", k("1") == k("1.0") != k('"1"'))
+    decomposed = '{"items": [{"name": "Gói TRỢ LÝ AI JAVIS"}]}'
+    r = ev({"filter": {"path": "items[*].name", "op": "contains", "value": "TRỢ LÝ AI JAVIS", "quantifier": "any"}},
+           decomposed)
+    check("R1 P3: text in decomposed Unicode (NFD) matches the composed value (NFC compare)", r["decision"] == "run", r)
+
+
+async def receiving():
+    import hashlib
+    import hmac
+    import httpx
+    from fastapi import FastAPI
+    f = fresh()
+    app = FastAPI()
+    app.include_router(f.router)
+    cl = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+    # R2 P2-5: a provider-checked hook takes a real delivery that carries no Javis token.
+    hg, tg, err = f.create("/b1", name="GitHub", target="task", text="x", verify={"provider": "github", "secret": "gh-secret-1"})
+    assert hg, err
+    raw = b'{"action": "opened"}'
+    sig = "sha256=" + hmac.new(b"gh-secret-1", raw, hashlib.sha256).hexdigest()
+    ok = await cl.post(f"/hooks/{hg['id']}", content=raw, headers={"X-Hub-Signature-256": sig, "X-GitHub-Delivery": "d-1",
+                                                                     "X-GitHub-Event": "pull_request",
+                                                                     "Content-Type": "application/json"})
+    bad = await cl.post(f"/hooks/{hg['id']}", content=raw, headers={"X-Hub-Signature-256": sig[:-1] + "0",
+                                                                      "Content-Type": "application/json"})
+    tok_bad_sig = await cl.post(f"/hooks/{hg['id']}", content=raw, headers={"X-Javis-Token": tg,
+                                                                              "X-Hub-Signature-256": "sha256=00"})
+    plain, tp, _ = f.create("/b1", name="Thường", target="task", text="x")
+    no_tok = await cl.post(f"/hooks/{plain['id']}", content=b"{}")
+    check("R2 P2-5: a signed GitHub delivery without the Javis token is received (202); a wrong signature is 401 even "
+          "with the token; a hook without a provider still needs its token",
+          ok.status_code == 202 and bad.status_code == 401 and tok_bad_sig.status_code == 401
+          and no_tok.status_code == 401, (ok.status_code, ok.text[:200], bad.status_code, tok_bad_sig.status_code))
+    # R3 P2-3: junk from many addresses never locks out a sender with a valid token.
+    for i in range(700):
+        await cl.post(f"/hooks/{plain['id']}", content=b"{}", headers={"X-Forwarded-For": f"203.0.113.{i % 250}",
+                                                                       "X-Javis-Token": "junk"})
+    good = await cl.post(f"/hooks/{plain['id']}", content=b"{}", headers={"X-Javis-Token": tp,
+                                                                          "X-Forwarded-For": "203.0.113.7"})
+    for _ in range(40):
+        await cl.post(f"/hooks/{plain['id']}", content=b"{}", headers={"X-Forwarded-For": "198.51.100.9"})
+    noisy = await cl.post(f"/hooks/{plain['id']}", content=b"{}", headers={"X-Forwarded-For": "198.51.100.9"})
+    other = await cl.post(f"/hooks/{plain['id']}", content=b"{}", headers={"X-Forwarded-For": "198.51.100.10"})
+    check("R3 P2-3: after 700 junk requests a valid token still gets 202 (also from an address that failed); an "
+          "address past 30 failures a minute gets 429, another address still 401",
+          good.status_code == 202 and noisy.status_code == 429 and other.status_code == 401,
+          (good.status_code, noisy.status_code, other.status_code))
+    f.update(plain["id"], {"enabled": False})
+    for _ in range(40):
+        await cl.post(f"/hooks/{plain['id']}", content=b"{}", headers={"X-Javis-Token": tp, "X-Forwarded-For": "192.0.2.5"})
+    f.update(plain["id"], {"enabled": True})
+    after = await cl.post(f"/hooks/{plain['id']}", content=b"{}", headers={"X-Forwarded-For": "192.0.2.5"})
+    check("R3 P2-3: 401s from a hook that stopped receiving do not count against the sender", after.status_code == 401,
+          after.status_code)
+
+    class Req:
+        def __init__(self, host, xff):
+            self.client = type("C", (), {"host": host})()
+            self.headers = {"x-forwarded-for": xff} if xff else {}
+    check("R3 P2-3: the forwarded address is used only behind a local or private proxy",
+          f.client_ip(Req("172.18.0.2", "1.2.3.4, 9.9.9.9")) == "9.9.9.9"
+          and f.client_ip(Req("8.8.4.4", "1.2.3.4")) == "8.8.4.4" and f.client_ip(Req("127.0.0.1", "")) == "127.0.0.1")
+    await f.wait_idle()
+    await cl.aclose()
+
+
+async def store_and_delivery():
+    st_codes = mx.HTTP
+    # R3 P1-1: a failed event keeps its body through retention; retry sends it, never an empty body.
+    f = fresh()
+    st = f.store()
+    hf, tf, _ = f.create("/b1", name="Lỗi", target="", text="", level="full",
+                         actions=[{"id": "crm", "kind": "http", "url": "https://keep.example/in", "body": "raw"}])
+    st_codes["by_host"]["keep.example"] = 400
+    c, r = await f.accept(hf["id"], tf, b'{"order": 9}', "application/json", "")
+    await f.wait_idle()
+    old = time.time() - 40 * 86400
+    st._db.execute("UPDATE events SET received_at=?, finished_at=?, notified_at=? WHERE id=?", (old, old, old,
+                                                                                               r["event_id"]))
+    st.prune()
+    kept = st.get(r["event_id"], True)
+    st_codes["by_host"]["keep.example"] = 200
+    mx.HITS.clear()
+    ok, why = st.retry(r["event_id"])
+    f._kick()
+    await f.wait_idle()
+    sent = [h for h in mx.HITS if h["host"] == "keep.example"]
+    check("R3 P1-1: retention keeps a failed event and its body; the owner's retry sends the same bytes",
+          kept is not None and bytes(kept["body"]) == b'{"order": 9}' and ok and sent and sent[0]["body"] == b'{"order": 9}',
+          (kept and kept["status"], ok, why, [x["body"] for x in sent]))
+    st._db.execute("UPDATE events SET status='failed', body=x'' WHERE id=?", (r["event_id"],))
+    ok2, why2 = st.retry(r["event_id"])
+    check("R3 P1-1: an event whose body is gone is refused (body_pruned), never sent empty", not ok2 and why2 == "body_pruned")
+    okd, _ = st.delete_event(r["event_id"])
+    check("the owner can delete a settled event (audited), and its delivery key goes with it",
+          okd and st.get(r["event_id"]) is None and any(a["action"] == "delete_event" for a in st.audit_rows(hf["id"])))
+
+    # R2 P2-1 / R3 P2-7: replay runs the CURRENT configuration.
+    hr, tr, _ = f.create("/b1", name="Replay", target="", text="", level="full",
+                         actions=[{"id": "a", "kind": "http", "url": "https://old.example/in"}])
+    c, rr = await f.accept(hr["id"], tr, b"{}", "application/json", "")
+    await f.wait_idle()
+    f.update(hr["id"], {"actions": [{"id": "a", "kind": "http", "url": "https://new.example/in"},
+                                    {"id": "b", "kind": "http", "url": "https://new.example/b"}]})
+    mx.HITS.clear()
+    code, resp = f.replay_confirm(rr["event_id"])
+    f._kick()
+    await f.wait_idle()
+    ev = st.get(rr["event_id"])
+    check("R2 P2-1: replay after changing a URL and adding an action sends both to the NEW targets",
+          code == 200 and {b["action_id"]: b["status"] for b in ev["branches"]} == {"a": "completed", "b": "completed"}
+          and sorted(h["url"] for h in mx.HITS) == ["https://new.example/b", "https://new.example/in"],
+          (code, resp, [(b["action_id"], b["status"], b["detail"]) for b in ev["branches"]]))
+
+    # R2 P2-2: the owner's retry re-runs a dependent cancelled because its dependency failed.
+    hd, td, _ = f.create("/b1", name="Chuỗi", target="", text="", level="full",
+                         actions=[{"id": "a", "kind": "http", "url": "https://dep.example/a"},
+                                  {"id": "b", "kind": "http", "url": "https://dep.example/b", "depends_on": ["a"]}])
+    st_codes["by_host"]["dep.example"] = 404
+    c, rd = await f.accept(hd["id"], td, b"{}", "application/json", "")
+    await f.wait_idle()
+    first = {b["action_id"]: b["status"] for b in st.get(rd["event_id"])["branches"]}
+    st_codes["by_host"]["dep.example"] = 200
+    st.retry(rd["event_id"])
+    f._kick()
+    await f.wait_idle()
+    after = {b["action_id"]: b["status"] for b in st.get(rd["event_id"])["branches"]}
+    check("R2 P2-2: after a's failure b is cancelled; the owner's retry runs a, then b", first == {"a": "failed",
+          "b": "cancelled"} and after == {"a": "completed", "b": "completed"}, (first, after))
+
+    # R2 P2-3: a dependent of a receiver that only accepted the work is released by Mark done.
+    ha, ta, _ = f.create("/b1", name="Nhận", target="", text="", level="full",
+                         actions=[{"id": "a", "kind": "http", "url": "https://acc.example/a"},
+                                  {"id": "b", "kind": "http", "url": "https://acc.example/b", "depends_on": ["a"]}])
+    st_codes["by_host"]["acc.example"] = 202
+    c, ra = await f.accept(ha["id"], ta, b"{}", "application/json", "")
+    await f.wait_idle()
+    waiting = st.get(ra["event_id"])["status"]
+    st_codes["by_host"]["acc.example"] = 200
+    okr, whyr = st.resolve(ra["event_id"], "done")
+    f._kick()
+    await f.wait_idle()
+    fin = st.get(ra["event_id"])
+    check("R2 P2-3: a dependent held by an accepted receiver waits, and Mark done releases it (it runs)",
+          waiting == "waiting" and okr and fin["status"] == "done"
+          and {b["action_id"]: b["status"] for b in fin["branches"]} == {"a": "completed", "b": "completed"},
+          (waiting, okr, whyr, fin["status"], [(b["action_id"], b["status"]) for b in fin["branches"]]))
+
+    # R1 P2-6: disk pressure never drops delivery keys younger than their keep time.
+    hk, tk, _ = f.create("/b1", name="Khoá", target="task", text="x")
+    c, rk = await f.accept(hk["id"], tk, b"{}", "application/json", "stripe-evt-1")
+    await f.wait_idle()
+    st._db.execute("UPDATE dedup SET created_at=? WHERE idem_key='h:stripe-evt-1'", (time.time() - 2 * 86400,))
+    old_cap = mx.ws.DB_MAX_BYTES
+    mx.ws.DB_MAX_BYTES = 1
+    try:
+        st.make_room(0)
+    finally:
+        mx.ws.DB_MAX_BYTES = old_cap
+    c2, r2 = await f.accept(hk["id"], tk, b"{}", "application/json", "stripe-evt-1")
+    check("R1 P2-6: under disk pressure a 2-day-old delivery key survives: the provider's retry is still a duplicate",
+          c2 == 200 and r2["event_id"] == rk["event_id"], (c2, r2))
+
+
+async def rollback_cycle():
+    import webhook_rollback as rb
+    sd = Path(tempfile.mkdtemp(prefix="wh-rb-"))
+    f = mx.make(sd)
+    h1, t1, _ = f.create("/b1", name="V2", target="", text="", level="full",
+                         actions=[{"id": "crm", "kind": "http", "url": "https://rb.example/in"}])
+    h2, t2, _ = f.create("/b1", name="Cũ", target="task", text="x")
+    h3, t3, _ = f.create("/b1", name="Tạm dừng", target="task", text="x")
+    f.pause(h3["id"], True)
+    st = f.store()
+    st._db.execute("UPDATE hooks SET enabled=1")
+    c, rq = await f.accept(h1["id"], t1, b'{"o": 1}', "application/json", "")
+    st._db.execute("UPDATE events SET status='queued', next_at=? WHERE id=?", (time.time() + 3600, rq["event_id"]))
+    st.close()
+    f._store = None
+    res = rb.run(sd)
+    leg = json.loads((sd / "webhooks.json").read_text(encoding="utf-8"))
+    by = {h["id"]: h for h in leg["hooks"]}
+    # The older build deletes h2 meanwhile.
+    leg["hooks"] = [h for h in leg["hooks"] if h["id"] != h2["id"]]
+    (sd / "webhooks.json").write_text(json.dumps(leg), encoding="utf-8")
+    mx.HITS.clear()
+    f2 = mx.make(sd)
+    st2 = f2.store()
+    f2._kick()
+    await f2.wait_idle()
+    hh1, hh2, hh3 = st2.hook_get(h1["id"]), st2.hook_get(h2["id"]), st2.hook_get(h3["id"])
+    ev = st2.get(rq["event_id"])
+    check("R1 P2-2 / R3 P1-2: the rollback writes v2 and paused hooks off for the older build, and the upgrade gives "
+          "each its own switches back (v2 on, paused still paused)",
+          res["ok"] and by[h1["id"]]["enabled"] is False and by[h3["id"]]["enabled"] is False
+          and hh1["enabled"] and hh3["enabled"] and hh3["paused"], (by[h1["id"]]["enabled"], hh1["enabled"], hh3))
+    check("R1 P2-2: a hook the older build deleted stops receiving after the upgrade (kept, audited)",
+          not hh2["enabled"] and any(a["action"].startswith("rollback:deleted") for a in st2.audit_rows(h2["id"])))
+    check("R3 P1-2: an event exported at rollback is held unknown and does not run after the upgrade",
+          ev["status"] == "unknown" and "rollback" in ev["error"] and not [x for x in mx.HITS if x["host"] == "rb.example"],
+          (ev["status"], ev["error"]))
+
+
+async def privacy_and_ops():
+    import httpx
+    from fastapi import FastAPI
+    f = fresh()
+    st = f.store()
+    app = FastAPI()
+    app.include_router(f.router)
+    cl = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+    # R1 P2-5: Systeme.io contact details never reach the stored trace; rules still read them.
+    fx = next(x for x in json.loads((ROOT / "tests/fixtures/webhooks/signatures.json").read_text(encoding="utf-8"))
+              ["fixtures"] if x["name"] == "systeme_io_synthetic_php_default")
+    hs, ts, err = f.create("/b1", name="Systeme", target="task", text="x",
+                           verify={"provider": "systeme_io", "secret": fx["secret"]},
+                           rules={"filter": {"path": "_event.contact.email", "op": "contains", "value": "@"}})
+    assert hs, err
+    rs = await cl.post(f"/hooks/{hs['id']}", content=fx["body"].encode(), headers=dict(fx["headers"],
+                                                                                         **{"Content-Type": "application/json"}))
+    await f.wait_idle()
+    row = st._db.execute("SELECT trace, status FROM events WHERE id=?", (rs.json()["event_id"],)).fetchone()
+    check("R1 P2-5: the stored trace holds the Systeme.io ids and type, never the contact's email or name; the rule on "
+          "_event.contact still matched", rs.status_code == 202 and "lan@example.com" not in row[0]
+          and "Trợ lý" not in row[0] and '"contact"' not in row[0] and row[1] == "done", (rs.status_code, row))
+
+    # R3 P2-5 / P2-6: masked by default everywhere; raw only on request, audited.
+    hm, tm, _ = f.create("/b1", name="Khách", target="task", text="x", rules={"mapping": {"phone": "phone"}})
+    mx.MODEL["answer"] = ("Đã gọi chị Lan số 0912345678, email lan@example.com", "")
+    c, rm = await f.accept(hm["id"], tm, body({"phone": "0912345678", "email": "lan@example.com"}), "application/json", "")
+    await f.wait_idle()
+    mx.MODEL["answer"] = ("Đã xử lý.", "")
+    eid = rm["event_id"]
+    view = (await cl.get(f"/webhooks/events/{eid}")).text
+    page = (await cl.get(f"/webhooks/events?hook={hm['id']}")).text
+    exp = (await cl.get(f"/webhooks/events/export?hook={hm['id']}&body=1")).text
+    lst = (await cl.get("/webhooks")).text
+    leaks = {n: ("0912345678" in t or "lan@example.com" in t) for n, t in (("view", view), ("page", page), ("export", exp),
+                                                                           ("list", lst))}
+    check("R3 P2-5: the phone and email (in the AI result, the fields, the payload) are masked in the event view, the "
+          "log page, the masked export and the hook list", not any(leaks.values()), leaks)
+    n0 = len(st.audit_rows(hm["id"]))
+    rawx = (await cl.get(f"/webhooks/events/export?hook={hm['id']}&raw=1")).text
+    sim = (await cl.post("/webhooks/simulate", json={"id": hm["id"], "event": eid})).json()
+    n1 = len(st.audit_rows(hm["id"]))
+    simr = (await cl.post("/webhooks/simulate", json={"id": hm["id"], "event": eid, "raw": True})).json()
+    n2 = len(st.audit_rows(hm["id"]))
+    check("R3 P2-6: a raw export without bodies is audited; simulating a logged event is masked, and its raw form is "
+          "audited", "0912345678" in rawx and n1 == n0 + 1 and "0912345678" not in json.dumps(sim, ensure_ascii=False)
+          and "0912345678" in json.dumps(simr, ensure_ascii=False) and n2 == n1 + 1, (n0, n1, n2))
+
+    # R3 P2-4: errors_only groups blocked and unknown into one incident.
+    mx.SENT.clear()
+    hb, tb, _ = f.create("/b1", name="Chặn", target="", text="", level="suggest", notify="errors_only",
+                         actions=[{"id": "crm", "kind": "http", "url": "https://blk.example/in"}])
+    for i in range(5):
+        await f.accept(hb["id"], tb, body({"i": i}), "application/json", "")
+    await f.wait_idle()
+    told = [m for m in mx.SENT if "Chặn" in m["text"]]
+    states = [st.get(r["id"])["status"] for r in st.page(hook_id=hb["id"])["items"]]
+    check("R3 P2-4: five blocked events in errors_only give one notice, not five", states.count("blocked") == 5
+          and len(told) == 1, (states, len(told)))
+
+    # R2 P3 / R1 P3: a retry-safe delivery found running after crashes is not resent past its attempts.
+    hr, tr, _ = f.create("/b1", name="An toàn", target="", text="", level="full",
+                         actions=[{"id": "crm", "kind": "http", "url": "https://safe.example/in",
+                                   "retry_safety": "idempotent"}])
+    c, rr = await f.accept(hr["id"], tr, b"{}", "application/json", "")
+    await f.wait_idle()
+    now = time.time()
+    st._db.execute("UPDATE events SET status='running', lease_until=?, dispatched_at=?, finished_at=0 WHERE id=?",
+                   (now - 1, now - 5, rr["event_id"]))
+    st._db.execute("UPDATE deliveries SET status='running', tries=4 WHERE event_id=?", (rr["event_id"],))
+    st.recover(now)
+    check("R2 P3: a retry-safe delivery that already used its 4 attempts is unknown after a crash, not resent",
+          st.get(rr["event_id"])["branches"][0]["status"] == "unknown")
+
+    # R3 P3: Stop receiving works even when the hook's workflow is gone.
+    hw, tw_, _ = f.create("/b1", name="WF", target="workflow", workflow="wf")
+    f.deps.workflow_exists = lambda b, s_: False
+    h_off, err_off, code_off = f.update(hw["id"], {"enabled": False})
+    f.deps.workflow_exists = lambda b, s_: True
+    check("R3 P3: Stop receiving is saved even when the workflow no longer exists", code_off == 200
+          and not h_off["enabled"], (code_off, err_off))
+    # R1 P3: a hook switched off between the token check and the commit stores nothing.
+    hx, tx, _ = f.create("/b1", name="Tắt giữa chừng", target="task", text="x")
+    st.hook_set(hx["id"], enabled=0)
+    code_x, resp_x = await f.accept_body(dict(hx, enabled=True), b"{}", "application/json", "")
+    check("R1 P3: a hook switched off after the token check stores nothing (401)", code_x == 401
+          and not st.page(hook_id=hx["id"])["items"], (code_x, resp_x))
+    # R2 P3: the token header cannot be one Javis stores with the event.
+    _, _, err_h = f.create("/b1", name="Hdr", target="task", text="x", token_header="X-Request-Id")
+    check("R2 P3: a token header named like a stored header (X-Request-Id) is refused", "store" in (err_h or ""), err_h)
+    await cl.aclose()
+
+
+async def plugin_fairness():
+    import threading
+    f = fresh()
+    st = f.store()
+    stop = threading.Event()
+    calls = {"fast": 0}
+
+    def slow(env, ctx):
+        stop.wait(20)
+        return {"status": "completed"}
+
+    def fast(env, ctx):
+        calls["fast"] += 1
+        return {"status": "completed"}
+    old_ph = f.deps.plugin_handler
+
+    def ph(brain, slug, name):
+        h = {"slow": slow, "fast": fast}.get(slug)
+        return {"handler": h, "ctx": None, "min_mode": "readonly", "schema": None, "ai": False, "idempotent": True} if h else None
+    f.deps.plugin_handler = ph
+    old_t = mx.wa.PLUGIN_TIMEOUT_S
+    mx.wa.PLUGIN_TIMEOUT_S = 0.3
+    try:
+        hooks = []
+        for i in range(4):
+            h, t, _ = f.create("/b1", name=f"slow{i}", target="", text="", level="full",
+                               actions=[{"id": "p", "kind": "plugin", "plugin": "slow", "handler": "h"}])
+            hooks.append((h, t))
+        for h, t in hooks:
+            await f.accept(h["id"], t, b"{}", "application/json", "")
+        await f.wait_idle()
+        hf, tf, _ = f.create("/b1", name="fast", target="", text="", level="full",
+                             actions=[{"id": "p", "kind": "plugin", "plugin": "fast", "handler": "h"}])
+        c, r = await f.accept(hf["id"], tf, b"{}", "application/json", "")
+        await f.wait_idle()
+        b = st.get(r["event_id"])["branches"][0]
+        check("R2 P2-4: four hung calls of one plugin do not stop another plugin: it runs at once, first attempt",
+              calls["fast"] == 1 and b["status"] == "completed" and int(b["tries"]) == 1, (calls, b["status"], b["tries"]))
+    finally:
+        stop.set()
+        mx.wa.PLUGIN_TIMEOUT_S = old_t
+        f.deps.plugin_handler = old_ph
+        await asyncio.sleep(0.3)
+
+
+async def main():
+    await rules_and_triage()
+    await receiving()
+    await store_and_delivery()
+    await rollback_cycle()
+    await privacy_and_ops()
+    await plugin_fairness()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+    if fails:
+        print(f"\nFAIL {len(fails)}: " + "; ".join(fails))
+        sys.exit(1)
+    print("\nOK - test_webhook_spec_review: all pass")

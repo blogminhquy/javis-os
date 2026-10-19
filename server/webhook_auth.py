@@ -77,8 +77,10 @@ def token_header_name(name: Any) -> str:
     if not n:
         return DEFAULT_TOKEN_HEADER
     if len(n) > 64 or not all(c.isalnum() or c == "-" for c in n) or n in (
-            "authorization", "cookie", "content-type", "content-length", "host", "idempotency-key"):
-        raise VerifyError("the token header is a plain header name (letters, digits and -)")
+            "authorization", "cookie", "content-length", "host", "x-forwarded-for") or n in STORED_HEADERS:
+        # A header Javis stores with the event (or uses as the delivery key) would put the token in the log and exports.
+        raise VerifyError("the token header is a plain header name (letters, digits and -) that Javis does not "
+                          "store or use for anything else")
     return n
 
 
@@ -331,6 +333,26 @@ def normalize(provider: str, headers: Any, doc: Any) -> dict:
         contact = _systeme_contact(d)
         if contact:
             out["contact"] = contact
+    return out
+
+
+TRACE_EVENT_KEYS = ("provider", "type", "id", "occurred_at", "signed_form")
+
+
+def trace_event(ev: Optional[dict]) -> dict:
+    """What of the normalised event may be STORED (the trace, spec §5: no customer data): ids and the type. The
+    contact block is derived again from the body whenever the event runs (`run_event`)."""
+    return {k: ev[k] for k in TRACE_EVENT_KEYS if isinstance(ev, dict) and k in ev}
+
+
+def run_event(ev: Optional[dict], doc: Any) -> dict:
+    """The event as rules and templates read it (`_event`): the stored part plus, for Systeme.io, the contact block
+    taken from the body again (it is never stored in the trace)."""
+    out = dict(ev or {})
+    if out.get("provider") == "systeme_io" and "contact" not in out and isinstance(doc, dict):
+        c = _systeme_contact(doc)
+        if c:
+            out["contact"] = c
     return out
 
 

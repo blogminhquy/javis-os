@@ -30,9 +30,11 @@ docs/webhook-platform/rollback.md and webhook_rollback.py).
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import os
 import shutil
+import sqlite3
 import sys
 import time
 import uuid
@@ -70,8 +72,9 @@ LIMIT_BOUNDS = {"per_minute": (1, 6000), "burst": (1, 1000), "per_hour": (0, 100
                 "backlog": (1, 100000), "backlog_mb": (1, 1024), "body_kb": (1, BODY_CEILING // 1024)}
 SETTINGS = ("notify", "limits", "ai_per_hour", "ai_per_day", "retention_days", "retry", "expire_after_h",
             "digest_timezone", "ai_triage", "token_header")
-AUTH_FAIL_MAX = 30            # failed auths per address per minute before it is refused without checking
-AUTH_FAIL_GLOBAL = 600        # and for all addresses together
+AUTH_FAIL_MAX = 30            # failed auths per address per minute: past it that address is answered 429
+# A valid token always passes, whatever the counts (a flood of junk must never lock the real senders out); the counts
+# only decide how a FAILING request is answered, and whether the body of a signature-checked hook is read at all.
 TASK_INTRO = "NHIỆM VỤ TỪ WEBHOOK - một hệ thống bên ngoài vừa gửi sự kiện tới."
 DEFAULT_LEVEL = "full"   # same reasoning as reminders.MUC_QUYEN_MAC_DINH: the owner wrote the job out
 _PII_KEYS = ("name", "phone", "email", "address", "mobile", "tel", "sdt", "ho_ten", "hoten", "dia_chi", "diachi",
@@ -211,16 +214,37 @@ def mask(v: Any, key: str = "", depth: int = 0) -> Any:
     return v
 
 
+def mask_row(r: dict) -> dict:
+    """An event (or a list row) as the dashboard shows it by default (spec §12): every text that can carry what a
+    customer or a receiver said is masked, not only the payload: the result and error (an AI result often names the
+    customer), each delivery's detail, receipt and result, the attempts, the mapped fields, the headers, the trace."""
+    r = dict(r)
+    for k in ("result", "error"):
+        if isinstance(r.get(k), str):
+            r[k] = _mask_text(r[k])
+    for k in ("fields", "headers", "trace"):
+        if k in r:
+            r[k] = mask(r.get(k) or {})
+    for k in ("branches", "deliveries"):
+        if isinstance(r.get(k), list):
+            r[k] = [dict(b, **{f: (mask(b[f]) if not isinstance(b.get(f), str) else _mask_text(b[f]))
+                               for f in ("detail", "receipt", "result") if b.get(f)}) for b in r[k]]
+    if isinstance(r.get("delivery_attempts"), list):
+        r["delivery_attempts"] = [dict(a, detail=_mask_text(a.get("detail") or "")) for a in r["delivery_attempts"]]
+    return r
+
+
 def evaluate_closed(rules: dict, body: bytes, content_type: str, event: Optional[dict] = None,
                     reveal: bool = False) -> dict:
     """webhook_rules.evaluate, FAILING CLOSED: if evaluation itself breaks, the event is `invalid` (quarantined, never
     run). `event` (the provider's normalised event) is readable by the rules as `_event`, always set by Javis."""
     try:
-        res = webhook_rules.evaluate(rules, body, content_type,
-                                     {"_event": event or {"provider": "none", "type": "", "id": "", "occurred_at": ""}},
-                                     reveal=reveal)
+        full = event or {"provider": "none", "type": "", "id": "", "occurred_at": ""}
+        if full.get("provider") == "systeme_io":
+            full = webhook_auth.run_event(full, webhook_rules.parse_payload(body, content_type)[0])
+        res = webhook_rules.evaluate(rules, body, content_type, {"_event": full}, reveal=reveal)
         if event:
-            res["trace"]["event"] = event
+            res["trace"]["event"] = webhook_auth.trace_event(event)     # stored: ids and type, no customer data
         return res
     except Exception as e:
         print(f"[webhooks] rule evaluation failed: {type(e).__name__}: {e}", file=sys.stderr)
@@ -241,7 +265,6 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         self.worker_id = f"{__import__('socket').gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:6]}"
         self._worker_init()
         self._fails: dict = {}                     # address -> deque of failed-auth times (RAM: protection only)
-        self._fails_all: deque = deque()
         self._ack_ms: deque = deque(maxlen=2000)   # receive latency of recent 202s (health)
         self.vault = webhook_secrets.Vault(Path(self.deps.state_dir()))
         self.router = self._make_router()
@@ -315,7 +338,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             pg = []
         if pg:
             hist = [{"run_id": r["id"], "at": r["received_at"], "status": r["status"], "state": r["state"],
-                     "result": str(r.get("result") or r.get("error") or "")[:300]} for r in pg][::-1]
+                     "result": _mask_text(str(r.get("result") or r.get("error") or ""))[:300]} for r in pg][::-1]
         try:
             counts = self.store().counts(hid)
         except Exception:
@@ -581,6 +604,11 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         h = self._find_hook(hid)
         if h is None:
             return None, localefmt.chu("Không thấy webhook này.", "Webhook not found."), 404
+        if "enabled" in changes and not set(changes) - {"id", "enabled", "revision"}:
+            # The receive switch alone is always allowed, even when the rest of the hook would not validate any more
+            # (its workflow or brain is gone): the owner must always be able to stop receiving.
+            self.store().hook_set(hid, enabled=1 if changes.get("enabled") else 0)
+            return self.store().hook_get(hid), "", 200
         merged = dict(h)
         for k in ("name", "workflow", "text", "chat_id"):
             if changes.get(k) is not None:
@@ -696,7 +724,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         doc = webhook_rules.parse_payload(body, ct)[0]
         ev = (res.get("trace") or {}).get("event")
         if isinstance(doc, dict) and ev:
-            doc = dict(doc, _event=ev)
+            doc = dict(doc, _event=webhook_auth.run_event(ev, doc))
         plan = self.plan_deliveries(eid, cfg, doc, time.time())
         acts = {a["id"]: a for a in webhook_actions.effective(cfg.get("actions"))}
         out = []
@@ -770,6 +798,21 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             out["deliveries"] = self._plan_view(h, cfg, res, body, ct)
             if any(a["kind"] == "ai" for a in webhook_actions.effective(cfg.get("actions"))):
                 out["prompt"] = event_prompt(h, payload_text(body, ct), time.time(), res["fields"])
+        if p.get("event"):
+            # A LOGGED event holds customer data: masked like its detail view unless the owner asks for the raw view,
+            # which is recorded (spec §12). A payload the owner pasted is theirs and is shown as pasted.
+            if p.get("raw"):
+                self.store().audit("simulate_raw", str(h.get("id") or ""), str(p["event"]))
+            else:
+                out["fields"], out["trace"] = mask(out["fields"]), mask(out["trace"])
+                for d in out.get("deliveries") or []:
+                    if "args" in d:
+                        d["args"] = mask(d["args"])
+                if out.get("prompt"):
+                    # Rebuilt from the masked payload (masking the finished text would miss names).
+                    out["prompt"] = event_prompt(h, json.dumps(mask(webhook_rules.parse_payload(body, ct)[0]),
+                                                               ensure_ascii=False, indent=2), time.time(), out["fields"])
+                out["masked"] = True
         return 200, out
 
     async def test_send(self, p: dict) -> tuple:
@@ -811,6 +854,8 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         plan = self._plan_view(h, cfg, res, body, ev.get("content_type") or "", eid) if res["decision"] == "run" else []
         for d in plan:
             d["already_succeeded"] = d["action"] in done
+            if "args" in d:
+                d["args"] = mask(d["args"])           # the logged event's data, masked like its detail view
         return 200, {"ok": True, "decision": res["decision"], "reason": res["reason"], "revision": h.get("revision"),
                      "level": h.get("level"), "generation": int(ev.get("generation") or 1) + 1, "deliveries": plan,
                      "may_repeat": sorted(d["action"] for d in plan if d["runs"] and d["already_succeeded"])}
@@ -825,8 +870,11 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         h = self._find_hook(ev["hook_id"])
         cfg = webhook_store.Store._config_of(h)
         doc = webhook_rules.parse_payload(bytes(ev.get("body") or b""), ev.get("content_type") or "")[0]
-        plan = self.plan_deliveries(eid, cfg, doc, float(ev["received_at"]), prev["generation"])
-        ok, why = self.store().replay(eid, plan)
+        if isinstance(doc, dict) and (ev.get("trace") or {}).get("event"):
+            doc = dict(doc, _event=webhook_auth.run_event(ev["trace"]["event"], doc))   # as the preview planned it
+        # Planned from now: the retry window of a replay starts when the owner asks for it.
+        plan = self.plan_deliveries(eid, cfg, doc, time.time(), prev["generation"])
+        ok, why = self.store().replay(eid, plan, revision=int(h.get("revision") or 0))
         if not ok:
             return 409, {"ok": False, "error": why}
         return 200, {"ok": True, "generation": prev["generation"], "may_repeat": prev["may_repeat"]}
@@ -836,15 +884,49 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         q = self._fails.get(ip)
         while q and q[0] < now - 60:
             q.popleft()
-        while self._fails_all and self._fails_all[0] < now - 60:
-            self._fails_all.popleft()
-        return bool(q and len(q) >= AUTH_FAIL_MAX) or len(self._fails_all) >= AUTH_FAIL_GLOBAL
+        return bool(q and len(q) >= AUTH_FAIL_MAX)
 
     def _auth_failed(self, ip: str, now: float) -> None:
         if len(self._fails) > 5000:
             self._fails.clear()
         self._fails.setdefault(ip, deque(maxlen=AUTH_FAIL_MAX + 5)).append(now)
-        self._fails_all.append(now)
+
+    @staticmethod
+    def client_ip(request) -> str:
+        """The sender's address. Behind a reverse proxy on this machine or the private network (Docker, Caddy,
+        Traefik) every request comes from the proxy, so the address it appended to X-Forwarded-For is used; a request
+        arriving straight from a public address cannot choose its own address that way."""
+        host = request.client.host if request.client else ""
+        try:
+            direct = ipaddress.ip_address(host)
+            behind = direct.is_loopback or direct.is_private
+        except ValueError:
+            behind = False
+        xff = request.headers.get("x-forwarded-for", "") if behind else ""
+        if xff:
+            last = xff.split(",")[-1].strip()
+            try:
+                return str(ipaddress.ip_address(last))
+            except ValueError:
+                pass
+        return host
+
+    def authorize(self, hid: str, headers: Any, query: str = "") -> tuple:
+        """(hook, mode) for a request. mode: "token" (the Javis token matched), "signature" (a provider-checked hook
+        without the token: GitHub, Stripe, Shopify and Systeme.io cannot add a header, so the provider signature,
+        checked on the raw body before anything is stored, is the authenticator), "off" (the hook stopped
+        receiving) or "" (refused)."""
+        h = self._find_hook(hid)
+        if h is None:
+            return None, ""
+        token = token_from_request(headers, query, (h.get("token_header") or webhook_auth.DEFAULT_TOKEN_HEADER).lower(),
+                                   allow_query=bool(h.get("legacy")))
+        good = webhook_auth.token_ok(h.get("token_hash"), token)
+        if not good and ((h.get("verify") or {}).get("provider") or "none") == "none":
+            return None, ""
+        if not h.get("enabled", True):
+            return None, "off"
+        return h, ("token" if good else "signature")
 
     def authenticate(self, hid: str, token: str = "", headers: Any = None, query: str = "") -> Optional[dict]:
         """The hook, if it exists, receives, and the token matches. `headers`/`query` given: the token is read from
@@ -893,7 +975,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             event = webhook_auth.normalize(prov, headers or {}, doc)
             if scheme and prov == "systeme_io":
                 event["signed_form"] = scheme
-            meta.update(verified_at=time.time(), key_version=kver, event=event)
+            meta.update(verified_at=time.time(), key_version=kver, event=webhook_auth.trace_event(event))
             pid = webhook_auth.idem_key(prov, headers or {}, doc)
             if pid:
                 # The provider's own message id wins over a client Idempotency-Key: a captured delivery replayed with a
@@ -920,6 +1002,8 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         if code == 200:
             return 200, {"ok": True, "duplicate": True, "event_id": info.get("event_id", ""),
                          "run_id": info.get("event_id", "")}
+        if code == 401:
+            return 401, {"ok": False, "error": "unauthorized"}
         if code == 429:
             lim = h.get("limits") or {}
             msg = {"rate": f"more than {lim.get('per_minute') or webhook_store.INGRESS_PER_MIN} events in a minute",
@@ -957,20 +1041,26 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         @router.post("/hooks/{hook_id}")
         async def hooks_receive(hook_id: str, request: Request):
             now = time.time()
-            ip = request.client.host if request.client else ""
-            if self._auth_refused(ip, now):
-                return js({"ok": False, "error": "too many failed attempts, retry later", "retry_after": 60}, 429)
+            ip = self.client_ip(request)
             try:
-                h = await asyncio.to_thread(self.authenticate, hook_id, "", request.headers, request.url.query)
+                h, mode = await asyncio.to_thread(self.authorize, hook_id, request.headers, request.url.query)
             except Exception as e:
                 # The store could not be read right now: nothing was stored, the sender retries.
                 print(f"[webhooks] receive {hook_id}: {type(e).__name__}: {e}", file=sys.stderr)
                 return js({"ok": False, "error": "temporarily unavailable, retry later", "code": "store_unavailable",
                            "retry_after": 30}, 503)
             if h is None:
-                # The body is not read for a request that is not authenticated (spec §4.2).
-                self._auth_failed(ip, now)
+                # The body is not read for a request that is not authenticated (spec §4.2). A hook that stopped
+                # receiving refuses without counting against the sender: it did nothing wrong.
+                if mode != "off":
+                    if self._auth_refused(ip, now):
+                        return js({"ok": False, "error": "too many failed attempts, retry later", "retry_after": 60}, 429)
+                    self._auth_failed(ip, now)
                 return JSONResponse({"ok": False, "error": "unauthorized"}, status_code=401)
+            if mode == "signature" and self._auth_refused(ip, now):
+                # Without a token the body must be read to check the signature: an address that keeps failing is
+                # not read again for a while.
+                return js({"ok": False, "error": "too many failed attempts, retry later", "retry_after": 60}, 429)
             cap = int(((h.get("limits") or {}).get("body_kb") or BODY_MAX_BYTES // 1024)) * 1024
             try:
                 if int(request.headers.get("content-length") or 0) > cap:
@@ -986,10 +1076,13 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             try:
                 code, resp = await self.accept_body(h, body, request.headers.get("content-type", ""), idem,
                                                     headers=request.headers)
-            except (OSError, ValueError) as e:
+            except (OSError, ValueError, sqlite3.Error) as e:
+                # Never a 500 for a store fault: nothing was stored, the sender retries (spec §4.2).
                 print(f"[webhooks] receive {hook_id}: {type(e).__name__}: {e}", file=sys.stderr)
                 return js({"ok": False, "error": "temporarily unavailable, retry later", "code": "store_unavailable",
                            "retry_after": 30}, 503)
+            if code == 401:
+                self._auth_failed(ip, now)
             return js(resp, code)
 
         @router.get("/webhooks")
@@ -1061,6 +1154,7 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             ran = status == "ran"
             sts = {"needs_you": "unknown,waiting,blocked", "ran": ""}.get(status, status)
             pg = await asyncio.to_thread(st.page, hook, sts, limit, before, ran, since, until, q, hooks)
+            pg["items"] = [mask_row(r) for r in pg.get("items") or []]
             return {"ok": True, **pg}
 
         @router.get("/webhooks/events/export")
@@ -1073,8 +1167,9 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             hooks = await asyncio.to_thread(self._hooks_of, brain)
             rows = st.export_rows(hook, since, until, bool(body), hooks=hooks)
             fmt = "csv" if format == "csv" else "jsonl"
-            if body and raw:
-                await asyncio.to_thread(st.audit, "export_raw", hook, "", f"format={fmt} brain={brain}")
+            if raw:
+                # Any raw export is recorded, with or without bodies (raw fields are customer data too).
+                await asyncio.to_thread(st.audit, "export_raw", hook, "", f"format={fmt} brain={brain} body={int(bool(body))}")
             elif body:
                 await asyncio.to_thread(st.audit, "export_masked", hook, "", f"format={fmt} brain={brain}")
 
@@ -1095,6 +1190,13 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                     r["reasons"] = []
                 if not raw:
                     r["fields"] = mask(r["fields"])
+                    r["trace"] = mask(r["trace"])
+                    for k in ("result", "error"):
+                        if isinstance(r.get(k), str):
+                            r[k] = _mask_text(r[k])
+                    if isinstance(r.get("branches"), list):
+                        r["branches"] = [dict(b, **({"detail": _mask_text(b["detail"])} if isinstance(b.get("detail"), str)
+                                                    else {})) for b in r["branches"]]
                 if "body" in r:
                     doc = webhook_rules.parse_payload(bytes(r.pop("body") or b""), r.pop("content_type", "") or "")[0]
                     r["payload"] = doc if raw else mask(doc)
@@ -1152,9 +1254,8 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                 doc, kind = webhook_rules.parse_payload(bytes(body), ct)
                 m = mask(doc)
                 ev["payload"] = (json.dumps(m, ensure_ascii=False, indent=2) if kind in ("json", "form") else
-                                 str(m.get("_text", "")) if isinstance(m, dict) else str(m))[:PAYLOAD_PROMPT_CHARS]
-                ev["fields"] = mask(ev.get("fields") or {})
-                ev["headers"] = mask(ev.get("headers") or {})
+                                 _mask_text(str(m.get("_text", ""))) if isinstance(m, dict) else str(m))[:PAYLOAD_PROMPT_CHARS]
+                ev = mask_row(ev)
             ev["masked"] = not raw
             ev.pop("hook_snapshot", None)
             ev["timeline"] = timeline(ev)
@@ -1192,6 +1293,14 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             else:
                 code, resp = await asyncio.to_thread(self.replay_preview, eid)
             return JSONResponse(resp, status_code=code)
+
+        @router.post("/webhooks/events/delete")
+        async def webhooks_event_delete(payload: dict = Body(None)):
+            """Delete one event that is not being processed (its body, deliveries and delivery key); audited."""
+            ok, why = await asyncio.to_thread(self.store().delete_event, str((payload or {}).get("id") or ""))
+            if not ok:
+                return JSONResponse({"ok": False, "error": why}, status_code=404 if why == "not_found" else 409)
+            return {"ok": True}
 
         @router.post("/webhooks/events/approve")
         async def webhooks_event_approve(payload: dict = Body(None)):

@@ -26,6 +26,7 @@ from typing import Optional
 
 import localefmt
 import webhook_actions
+import webhook_auth
 import webhook_rules
 import webhook_secrets
 import webhook_store
@@ -176,15 +177,32 @@ class WebhookWorker:
         rows = await asyncio.to_thread(st.triage_candidates, TRIAGE_BATCH)
         for r in rows:
             try:
+                await self._triage_one(st, r)
+            except Exception as e:
+                # One event that cannot be decided must never hold every later event of every hook (the batch is
+                # oldest first, so a raise here would repeat on each pass): it is quarantined with the fault named.
+                print(f"[webhooks] triage of {r['id']} failed: {type(e).__name__}: {e}", file=sys.stderr)
+                why = f"triage_error_{type(e).__name__}"[:60]
+                try:
+                    await asyncio.to_thread(st.triage_commit, r["id"], {"decision": "invalid", "reason": why,
+                                                                       "reasons": [why]}, [])
+                except Exception as e2:
+                    print(f"[webhooks] could not quarantine {r['id']}: {type(e2).__name__}", file=sys.stderr)
+                    await asyncio.to_thread(st.triage_defer, r["id"], 300, why)
+        return len(rows)
+
+    async def _triage_one(self, st, r: dict) -> None:
+        if True:
+            try:
                 cfg = await asyncio.to_thread(self._revision_config, r["hook_id"], int(r["hook_rev"] or 0))
             except Exception as e:
                 await asyncio.to_thread(st.triage_defer, r["id"], 30, f"configuration unreadable: {type(e).__name__}")
-                continue
+                return
             if cfg is None:
                 # The hook is gone: the event never runs (forget_hook marks these too; this covers a race).
                 await asyncio.to_thread(st.triage_commit, r["id"], {"decision": "invalid", "reason": "hook_deleted",
                                                                    "reasons": ["hook_deleted"]}, [])
-                continue
+                return
             trace = webhook_store._loads(r.get("trace"), {})
             body, ct = bytes(r.get("body") or b""), r.get("content_type") or ""
             rules = cfg.get("rules") or {}
@@ -197,10 +215,9 @@ class WebhookWorker:
             if pre.get("decision") == "run":
                 doc = webhook_rules.parse_payload(body, ct)[0]
                 if isinstance(doc, dict) and trace.get("event"):
-                    doc = dict(doc, _event=trace["event"])
+                    doc = dict(doc, _event=webhook_auth.run_event(trace["event"], doc))
                 plan = self.plan_deliveries(r["id"], cfg, doc, float(r["received_at"]))
             await asyncio.to_thread(st.triage_commit, r["id"], pre, plan)
-        return len(rows)
 
     # ── sweep ──
     async def sweep(self) -> dict:
@@ -392,8 +409,7 @@ class WebhookWorker:
             elif ds == "doomed":
                 doomed.append(b)
         for b in doomed:
-            await asyncio.to_thread(st.branch_finish, eid, fence, b["action_id"], "cancelled",
-                                    "not run: an action it depends on did not succeed")
+            await asyncio.to_thread(st.branch_finish, eid, fence, b["action_id"], "cancelled", webhook_store.DEP_CANCEL)
         by_action = {a["id"]: a for a in actions}
         payload = webhook_rules.parse_payload(body, ct)[0]
         base = {"event_id": eid, "hook_id": hid, "received_at": float(row.get("received_at") or now), "brain": brain,
@@ -413,7 +429,10 @@ class WebhookWorker:
 
             gone = (not current_has_ai) if a["kind"] == "ai" else not webhook_actions.same_target(a, current.get(aid))
             if gone:
-                return await close("cancelled", "action removed or changed since the event arrived")
+                # Never sent to a target the event was not received for (its secrets were bound to the old one): the
+                # owner sends it with the current setup through "Process again", which previews first.
+                return await close("cancelled", "action removed or changed since the event arrived: use Process "
+                                   "again with the current setup to send it there")
             if any(isinstance(v, str) and v == "••••" for v in (a.get("headers") or {}).values()):
                 return await close("blocked", "a header secret of this action is missing: enter it again")
             ctx = dict(base, action_id=aid, delivery_id=b["delivery_id"], attempt=int(b.get("tries") or 0) + 1)
@@ -425,6 +444,9 @@ class WebhookWorker:
                     return await close(pre.status, pre.detail)
                 if webhook_actions.plugin_busy(b["delivery_id"]):
                     return await close("retry", "not sent: the previous call of this delivery is still running", now + 60)
+                if not webhook_actions.plugin_slot_free(a["plugin"], found):
+                    # Its turn has not come (this plugin, or all plugins, are busy): no attempt is spent.
+                    return await close("retry", "not sent yet: plugin handlers are busy", now + 30)
             elif a["kind"] != "ai":
                 why = webhook_actions.level_ok(a, level)
                 if why:
@@ -738,7 +760,9 @@ class WebhookWorker:
             await asyncio.to_thread(st.mark_notified, ev["id"], fence)
             return
         suffix = ""
-        if mode == "errors_only" and is_error:
+        if mode == "errors_only" and (is_error or status in ("blocked", "unknown")):
+            # Repeated failures, blocks and unclear outcomes of one hook are one incident, told again only when it
+            # changes or after INCIDENT_REPEAT_S (spec §12). An approval stays one notice per event: each one asks.
             send, suffix = await asyncio.to_thread(self._incident, h, ev)
             if not send:
                 await asyncio.to_thread(st.mark_notified, ev["id"], fence)
@@ -799,7 +823,11 @@ class WebhookWorker:
             try:
                 if await asyncio.to_thread(st.meta_get, f"digest_day:{hid}") == today:
                     continue
-                since = max(float(await asyncio.to_thread(st.meta_get, f"digest_at:{hid}") or 0), now - 86400)
+                # From the last digest's cursor, so days the server was off are counted in this one catch-up digest
+                # (spec §12: at most one per period), bounded to a week; the first digest covers the last day.
+                cursor = float(await asyncio.to_thread(st.meta_get, f"digest_at:{hid}") or 0)
+                since = max(cursor, now - 7 * 86400) if cursor else now - 86400
+                hours = max(1, int(round((now - since) / 3600)))
                 c = await asyncio.to_thread(st.finished_counts, hid, since, now)
                 ran = sum(c.get(k, 0) for k in ("done", "silent"))
                 bad = sum(c.get(k, 0) for k in ("failed", "dead", "unknown", "blocked"))
@@ -808,10 +836,12 @@ class WebhookWorker:
                 if ran or bad or skipped or waiting:
                     name = h.get("name") or hid
                     part = c.get("partial_failed", 0)
-                    msg = localefmt.chu(f"Webhook \"{name}\" trong 24 giờ qua: {ran} lần chạy xong, {bad} lần lỗi hoặc "
+                    span_vi = "24 giờ qua" if hours <= 25 else f"{hours} giờ qua (từ bản tóm tắt trước)"
+                    span_en = "the last 24 hours" if hours <= 25 else f"the last {hours} hours (since the last digest)"
+                    msg = localefmt.chu(f"Webhook \"{name}\" trong {span_vi}: {ran} lần chạy xong, {bad} lần lỗi hoặc "
                                         f"chưa rõ ({part} chạy được một phần), {waiting} đang chờ bạn, {skipped} sự "
                                         "kiện bị lọc, trùng hoặc cách ly.",
-                                        f"Webhook \"{name}\" in the last 24 hours: {ran} runs done, {bad} failed or "
+                                        f"Webhook \"{name}\" in {span_en}: {ran} runs done, {bad} failed or "
                                         f"unknown ({part} partly), {waiting} waiting for you, {skipped} events "
                                         "filtered, duplicate or quarantined.")
                     await self._enqueue(f"whd:{hid}:{today}", "digest", msg, h, status="digest")

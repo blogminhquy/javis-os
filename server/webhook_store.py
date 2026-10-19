@@ -57,12 +57,15 @@ RATE_PER_HOUR = 0             # optional hour cap (0 = off: code-only processing
 LEASE_S = 120.0
 HEARTBEAT_S = 30.0
 MAX_AUTO_TRIES = 3            # automatic retries of a failure BEFORE any dispatch (poison guard)
+SAFE_RESEND_MAX = 4           # a retry-safe delivery found running after a crash is resent below this many attempts
+                              # (webhook_actions.MAX_BRANCH_TRIES), never past it
 BACKOFF_S = (5.0, 30.0, 120.0)
 KEEP_DAYS = 30                # metadata of finished events
 KEEP_PER_HOOK = 5000          # finished runs kept per hook (rows), apart from the ignored ones
 KEEP_IGNORED_PER_HOOK = 2000  # ignored/quarantined events kept per hook
 KEEP_DAYS_MAX = 365
 BODY_KEEP_DAYS = 7            # body of a FINISHED event; unknown/waiting/blocked keep theirs until settled
+DEP_CANCEL = "not run: an action it depends on did not succeed"   # the detail of a dependent the owner's retry re-runs
 DEDUP_KEEP_DAYS = 7           # delivery keys outlive their events (Stripe/Shopify retry for up to 72 h)
 NOTIFY_TRIES = 5
 RECEIPTS_PER_HOUR = 600       # duplicate receipts logged per hook per hour (accepted events always get one)
@@ -404,6 +407,12 @@ class Store:
             for col, decl in _EVENT_COLUMNS:
                 if col not in have:
                     self._db.execute(f"ALTER TABLE events ADD COLUMN {col} {decl}")
+            # Indexes for the paged log across hooks, the order / correlation search and retention (spec §12: no
+            # whole-table read). Here, after the columns exist on an upgraded file.
+            for ix in ("ix_ev_received ON events(received_at)", "ix_ev_corr ON events(correlation)",
+                       "ix_ev_prov ON events(provider_id)", "ix_ev_idem ON events(idem_key)",
+                       "ix_dd_created ON dedup(created_at)", "ix_dd_event ON dedup(event_id)"):
+                self._db.execute(f"CREATE INDEX IF NOT EXISTS {ix}")
             old = self._db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='branches'").fetchone()
             if old is not None:
                 cols = {r[1] for r in self._db.execute("PRAGMA table_info(branches)")}
@@ -669,10 +678,25 @@ class Store:
         now = time.time() if now is None else now
         n = 0
         with self._write():
+            # After a rollback (server/webhook_rollback.py) the file holds hooks the tool switched OFF only because the
+            # older build could not run them: their own switch comes back from what the tool recorded, never from
+            # the forced value. A hook the store has but the file lost was deleted in the older build: it stops
+            # receiving (kept, not deleted, so nothing of its log is lost), audited.
+            row = self._db.execute("SELECT v FROM meta WHERE k='rollback_state'").fetchone()
+            rb = _loads(row[0], {}) if row else {}
+            forced = set(rb.get("forced_off") or [])
+            listed = {h["id"] for h in hooks or [] if isinstance(h, dict) and h.get("id")}
+            for hid in rb.get("hooks") or []:
+                if hid not in listed:
+                    if self._db.execute("UPDATE hooks SET enabled=0, updated_at=? WHERE id=? AND enabled=1",
+                                        (now, hid)).rowcount:
+                        self._audit(now, "rollback:deleted_in_older_build", hid, "", "receiving stopped")
             for h in hooks or []:
                 if not isinstance(h, dict) or not h.get("id"):
                     continue
                 h = dict(h)
+                if h["id"] in forced and not h.get("enabled", True):
+                    h["enabled"] = bool((rb.get("enabled") or {}).get(h["id"], True))
                 r = self._db.execute("SELECT config, revision, token_hash, enabled, name, brain FROM hooks WHERE id=?",
                                      (h["id"],)).fetchone()
                 if r is None:
@@ -699,6 +723,25 @@ class Store:
                                          " VALUES(?,?,'',?)", (h["id"], k, now))
             self._db.execute("INSERT OR REPLACE INTO meta(k, v) VALUES('hooks_migrated', ?)", (str(now),))
             self._db.execute("INSERT OR REPLACE INTO meta(k, v) VALUES('legacy_keys_imported', ?)", (str(now),))
+            self._db.execute("DELETE FROM meta WHERE k='rollback_state'")
+        return n
+
+    def hold_for_rollback(self, ids: list, now: Optional[float] = None) -> int:
+        """The rollback tool exported these unsettled events for the owner to reconcile: they become unknown (the owner
+        decides: Mark done or Retry), so an upgrade later never runs them on its own beside a manual resend."""
+        now = time.time() if now is None else now
+        n = 0
+        with self._write():
+            for eid in ids:
+                cur = self._db.execute("UPDATE events SET status='unknown', error='exported at rollback: reconcile it"
+                                       " from backlog.jsonl, then Mark done or Retry', lease_owner='', lease_until=0,"
+                                       " finished_at=?, notified_at=? WHERE id=? AND status IN ('received','queued',"
+                                       "'running','waiting','blocked','unknown')", (now, now, eid))
+                if cur.rowcount:
+                    self._db.execute("UPDATE deliveries SET status='unknown', detail='exported at rollback', finished_at=?"
+                                     " WHERE event_id=? AND status IN ('pending','retry','running','approval','waiting',"
+                                     "'blocked')", (now, eid))
+                    n += 1
         return n
 
     def import_legacy_keys(self, hook_id: str, keys: Iterable[str], now: Optional[float] = None) -> int:
@@ -719,13 +762,15 @@ class Store:
     def make_room(self, need: int = 0, now: Optional[float] = None) -> int:
         """Near the cap: free space from SETTLED events the owner has already been told about, oldest first: ignored
         ones first, then bodies of finished runs, then whole rows. Never an open event (received, queued, running,
-        unknown, waiting, blocked: spec §11, never drop pending work to make room), never one whose notice is still
-        due, never one holding a live business key. Last resort: delivery keys older than a day."""
+        unknown, waiting, blocked: spec §11, never drop pending work to make room), never a failed or dead one (its body
+        is what the owner's retry sends: kept until the owner settles or deletes it), never one whose notice is still
+        due, never one holding a live business key. Last resort: delivery keys past their own keep time
+        (DEDUP_KEEP_DAYS: senders retry for days), never younger ones: past that the store refuses (503)."""
         now = time.time() if now is None else now
         self.checkpoint()
         target = int(DB_MAX_BYTES * 0.8) - int(need)
         n = 0
-        told = ("status IN ('done','silent','failed','dead','cancelled','filtered','invalid','duplicate') AND"
+        told = ("status IN ('done','silent','cancelled','filtered','invalid','duplicate') AND"
                 " (notified_at>0 OR status IN ('silent','cancelled')) AND id NOT IN (SELECT event_id FROM biz_keys)")
         steps = ("SELECT id FROM events WHERE status IN ('filtered','invalid','duplicate') ORDER BY received_at LIMIT 100",
                  f"SELECT id FROM events WHERE {told} AND length(body)>0 ORDER BY received_at LIMIT 100",
@@ -745,7 +790,7 @@ class Store:
         while self.size_bytes() > target:
             with self._write():
                 cur = self._db.execute("DELETE FROM dedup WHERE rowid IN (SELECT rowid FROM dedup WHERE created_at<?"
-                                       " ORDER BY created_at LIMIT 2000)", (now - 86400,))
+                                       " ORDER BY created_at LIMIT 2000)", (now - DEDUP_KEEP_DAYS * 86400,))
             if cur.rowcount <= 0:
                 break
             n += cur.rowcount
@@ -804,6 +849,13 @@ class Store:
                         self._db.execute("COMMIT")
                         self._receipt(hid, row["event_id"], now, "duplicate", key, source)
                         return 200, {"event_id": row["event_id"], "duplicate": True}
+                cur_h = self._db.execute("SELECT enabled, revision FROM hooks WHERE id=?", (hid,)).fetchone()
+                if cur_h is not None and not cur_h["enabled"]:
+                    # Switched off between the token check and this transaction (spec §4.2 step 4): nothing stored.
+                    self._db.execute("ROLLBACK")
+                    return 401, {"reason": "off"}
+                if cur_h is not None:
+                    hook = dict(hook, revision=int(cur_h["revision"]))     # the revision current at the commit
                 refusal = self._quota(hid, lim, now, len(body))
                 if refusal:
                     self._db.execute("ROLLBACK")
@@ -863,6 +915,9 @@ class Store:
                 return {"reason": why, "retry_after": 600 if why == "hour" else 3600}
         cnt, byts = self._db.execute("SELECT COUNT(*), COALESCE(SUM(size),0) FROM events WHERE hook_id=? AND status IN"
                                      " ('received','queued','running','unknown','waiting','blocked')", (hid,)).fetchone()
+        # Bodies kept for failed and dead events (until the owner settles them) count toward the byte quota (§11).
+        byts = int(byts) + int(self._db.execute("SELECT COALESCE(SUM(length(body)),0) FROM events WHERE hook_id=? AND"
+                                                " status IN ('failed','dead')", (hid,)).fetchone()[0])
         if int(cnt) >= int(lim.get("backlog") or BACKLOG_MAX):
             return {"reason": "backlog", "retry_after": 60}
         if int(byts) + size > int(lim.get("backlog_mb") or BACKLOG_BYTES // MiB) * MiB:
@@ -1295,10 +1350,13 @@ class Store:
                 br = [dict(b) for b in self._db.execute("SELECT action_id, status, next_at, depends FROM deliveries"
                                                          " WHERE event_id=? AND generation=?", (r["id"], gen))]
                 if br:
+                    # A retry-safe delivery is sent again, within the same bounds as any retry (attempts, deadline):
+                    # a worker that keeps crashing must not resend it forever. Past them it is unknown.
                     self._db.execute("UPDATE deliveries SET status='retry', next_at=?, detail=? WHERE event_id=? AND"
-                                     " generation=? AND status='running' AND safe=1",
+                                     " generation=? AND status='running' AND safe=1 AND tries<? AND (deadline=0 OR"
+                                     " deadline>?)",
                                      (now, "lease expired after dispatch: resent with the same delivery id (the receiver"
-                                      " drops a second copy)", r["id"], gen))
+                                      " drops a second copy)", r["id"], gen, SAFE_RESEND_MAX, now))
                     self._db.execute("UPDATE deliveries SET status='unknown', finished_at=?, detail=? WHERE event_id=? AND"
                                      " generation=? AND status='running'",
                                      (now, "lease expired after dispatch: it may have acted", r["id"], gen))
@@ -1451,12 +1509,16 @@ class Store:
         succeeded never does. Returns (ok, error_code)."""
         now = time.time() if now is None else now
         with self._write():
-            row = self._db.execute("SELECT status, brain, hook_id, biz_key, biz_ttl, generation FROM events WHERE id=?",
-                                   (eid,)).fetchone()
+            row = self._db.execute("SELECT status, brain, hook_id, biz_key, biz_ttl, generation, size, received_at,"
+                                   " length(body) AS blen FROM events WHERE id=?", (eid,)).fetchone()
             if row is None:
                 return False, "not_found"
             if row["status"] not in ("failed", "unknown", "dead", "blocked"):
                 return False, "not_retryable"
+            if int(row["size"] or 0) > 0 and not int(row["blen"] or 0):
+                # The body is gone (an owner deletion or an older build's pruning): running again would send nothing
+                # and look done. Refused, never sent empty.
+                return False, "body_pruned"
             if row["biz_key"] and "/" in row["biz_key"]:
                 scope, bkey = row["biz_key"].rsplit("/", 1)
                 held = self._live_key(row["brain"], scope, bkey, now)
@@ -1467,14 +1529,19 @@ class Store:
                                      " expires_at) VALUES(?,?,?,?,?,?,?)",
                                      (row["brain"], scope, bkey, eid, row["hook_id"], now,
                                       now + float(row["biz_ttl"] or 7 * 86400)))
-            self._db.execute("UPDATE deliveries SET status='pending', next_at=0, finished_at=0, tries=0 WHERE event_id=?"
-                             " AND generation=? AND status IN ('failed','unknown','blocked')", (eid, int(row["generation"])))
+            # The owner's retry gets a fresh retry window from now (else an event retried after a day had one try).
+            # Deliveries cancelled only because a dependency failed run again too (the chain the owner set up).
+            self._db.execute("UPDATE deliveries SET status='pending', next_at=0, finished_at=0, tries=0,"
+                             " deadline=CASE WHEN deadline>0 THEN ? + (deadline - ?) ELSE 0 END WHERE event_id=?"
+                             " AND generation=? AND (status IN ('failed','unknown','blocked') OR (status='cancelled'"
+                             " AND detail LIKE ?))", (now, float(row["received_at"] or now), eid,
+                                                      int(row["generation"]), DEP_CANCEL + "%"))
             self._db.execute("UPDATE events SET status='queued', next_at=?, dispatched_at=0, finished_at=0,"
                              " notified_at=0, notify_tries=0, tries=0, error='', result='' WHERE id=?", (now, eid))
             self._audit(now, "retry", row["hook_id"], eid)
         return True, ""
 
-    def replay(self, eid: str, deliveries: list, now: Optional[float] = None) -> tuple:
+    def replay(self, eid: str, deliveries: list, now: Optional[float] = None, revision: int = 0) -> tuple:
         """"Process with the new configuration" (spec §7): a NEW generation of deliveries (new delivery ids) built by
         the caller from the hook's current revision, after the owner saw the simulation. The event keeps its business
         identity (its key is not dropped). Returns (ok, error_code)."""
@@ -1488,14 +1555,20 @@ class Store:
             gen = int(row["generation"]) + 1
             for d in deliveries:
                 self._insert_delivery(eid, gen, d)
+            # The new generation runs under the revision it was planned from (the hook as it is now), else the
+            # worker would read the old snapshot and cancel every action that changed.
             self._db.execute("UPDATE events SET status='queued', generation=?, next_at=?, dispatched_at=0, finished_at=0,"
-                             " notified_at=0, notify_tries=0, tries=0, error='', result='' WHERE id=?", (gen, now, eid))
-            self._audit(now, "replay", row["hook_id"], eid, f"generation {gen}")
+                             " notified_at=0, notify_tries=0, tries=0, error='', result='',"
+                             " hook_rev=CASE WHEN ?>0 THEN ? ELSE hook_rev END WHERE id=?",
+                             (gen, now, int(revision or 0), int(revision or 0), eid))
+            self._audit(now, "replay", row["hook_id"], eid, f"generation {gen}, revision {revision or 'kept'}")
         return True, ""
 
     def resolve(self, eid: str, outcome: str, note: str = "", now: Optional[float] = None) -> tuple:
         """Reconcile an `unknown` event after checking the outside system (done: it happened; failed: it did not, and
-        can be retried). Also closes a `waiting` or `blocked` event the owner has dealt with."""
+        can be retried). Also closes a `waiting` or `blocked` event the owner has dealt with, and settles a receiver
+        that only ACCEPTED (queued) the work: done counts it finished, so actions waiting for it run; failed cancels
+        them."""
         if outcome not in ("done", "failed"):
             return False, "bad_outcome"
         now = time.time() if now is None else now
@@ -1505,7 +1578,7 @@ class Store:
                 return False, "not_unknown"
             gen = int(row["generation"])
             self._db.execute("UPDATE deliveries SET status=?, detail=CASE WHEN ?='' THEN detail ELSE ? END, finished_at=?"
-                             " WHERE event_id=? AND generation=? AND status IN ('unknown','waiting','blocked')",
+                             " WHERE event_id=? AND generation=? AND status IN ('unknown','waiting','blocked','accepted')",
                              ("completed" if outcome == "done" else "failed", note, "owner: " + str(note)[:900], now,
                               eid, gen))
             self._db.execute("UPDATE deliveries SET status='cancelled', detail='closed by the owner', finished_at=? WHERE"
@@ -1522,6 +1595,24 @@ class Store:
             self._db.execute("UPDATE events SET status=?, result=CASE WHEN ?='' THEN result ELSE ? END,"
                              " finished_at=?, notified_at=? WHERE id=?",
                              (final, note, str(note)[:1000], now, now, eid))
+        return True, ""
+
+    def delete_event(self, eid: str, now: Optional[float] = None) -> tuple:
+        """The owner deletes one event that is not being processed (spec §11: a failed body is kept until the owner
+        settles or deletes it). Its delivery key goes too, so a resend from the source is received again; the business
+        key is given back. Audited. Returns (ok, error_code)."""
+        now = time.time() if now is None else now
+        with self._write():
+            row = self._db.execute("SELECT status, hook_id FROM events WHERE id=?", (eid,)).fetchone()
+            if row is None:
+                return False, "not_found"
+            if row["status"] in ("received", "queued", "running"):
+                return False, "busy"
+            self._db.execute("DELETE FROM dedup WHERE event_id=?", (eid,))
+            self._db.execute("DELETE FROM biz_keys WHERE event_id=?", (eid,))
+            self._db.execute("DELETE FROM notifications WHERE event_id=? AND status='pending'", (eid,))
+            self._delete_events([eid])
+            self._audit(now, "delete_event", row["hook_id"], eid, row["status"])
         return True, ""
 
     def expire(self, hid: str, max_age_s: float, now: Optional[float] = None) -> int:
@@ -1713,14 +1804,16 @@ class Store:
             self._db.execute("DELETE FROM hooks WHERE id=?", (hook_id,))
 
     def prune(self, now: Optional[float] = None, keep_days: Optional[dict] = None) -> int:
-        """Finished events past their retention (KEEP_DAYS, or the hook's own), and past the per-hook row caps; bodies
-        of finished events after BODY_KEEP_DAYS; delivery keys after DEDUP_KEEP_DAYS. Open events (unknown, waiting,
-        blocked included) are kept with their body until settled."""
+        """Settled events past their retention (KEEP_DAYS, or the hook's own), and past the per-hook row caps; bodies
+        of settled events after BODY_KEEP_DAYS, with their mapped fields (customer data does not outlive the body);
+        delivery keys after DEDUP_KEEP_DAYS. Open events (unknown, waiting, blocked included) and FAILED or DEAD ones
+        are kept with their body until the owner settles them (Mark done, Retry) or deletes them (spec §11): a retry
+        must send what was received, never an empty body."""
         now = time.time() if now is None else now
         cut = now - KEEP_DAYS * 86400
-        ran = "('done','silent','failed','dead','cancelled')"
+        ran = "('done','silent','cancelled')"
         ign = "('filtered','invalid','duplicate')"
-        fin = "('done','silent','failed','dead','cancelled','filtered','invalid','duplicate')"
+        fin = "('done','silent','cancelled','filtered','invalid','duplicate')"
         with self._write():
             stale = [r[0] for r in self._db.execute(
                 "SELECT id FROM events WHERE status='waiting' AND finished_at>0 AND finished_at<?",
@@ -1764,7 +1857,11 @@ class Store:
                         f"SELECT id FROM events WHERE id IN ({q}) AND received_at>? AND status NOT IN"
                         " ('filtered','invalid','duplicate')", chunk + [now - RECENT_KEEP_S])}
                 ids = [x for x in ids if x not in recent]
-            self._delete_events(ids)
+        # Deleted in small transactions: one long write would hold the store lock and make every receive wait.
+        for i in range(0, len(ids), 200):
+            with self._write():
+                self._delete_events(ids[i:i + 200])
+        with self._write():
             self._db.execute("DELETE FROM dedup WHERE created_at<?", (now - DEDUP_KEEP_DAYS * 86400,))
             self._db.execute("DELETE FROM ai_runs WHERE at<?", (now - 3 * 86400,))
             self._db.execute("DELETE FROM receipts WHERE at<? AND result='duplicate'", (now - KEEP_DAYS * 86400,))
@@ -1776,8 +1873,8 @@ class Store:
                              (now - KEEP_DAYS_MAX * 86400,))
             self._db.execute("DELETE FROM biz_keys WHERE expires_at<=? AND event_id NOT IN (SELECT id FROM events WHERE"
                              " status IN ('received','queued','running'))", (now,))
-            self._db.execute(f"UPDATE events SET body=x'' WHERE status IN {fin} AND finished_at>0 AND finished_at<?"
-                             " AND length(body)>0", (now - BODY_KEEP_DAYS * 86400,))
+            self._db.execute(f"UPDATE events SET body=x'', fields='{{}}' WHERE status IN {fin} AND finished_at>0 AND"
+                             " finished_at<? AND length(body)>0", (now - BODY_KEEP_DAYS * 86400,))
         try:
             with self._lock:
                 self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)")

@@ -360,6 +360,19 @@ def _blocked_ip(ip: str) -> bool:
             or a.is_unspecified or (isinstance(a, ipaddress.IPv4Address) and a in ipaddress.ip_network("100.64.0.0/10")))
 
 
+_METADATA = (ipaddress.ip_network("169.254.0.0/16"), ipaddress.ip_network("fe80::/10"),
+             ipaddress.ip_network("fd00:ec2::254/128"), ipaddress.ip_network("100.100.100.200/32"))
+
+
+def _always_blocked(ip: str) -> bool:
+    """Link-local and cloud metadata addresses: refused even with allow_private (a LAN receiver is a fair need, the
+    machine's metadata service with its credentials never is)."""
+    a = ipaddress.ip_address(ip)
+    if isinstance(a, ipaddress.IPv6Address) and a.ipv4_mapped:
+        a = a.ipv4_mapped
+    return any(a.version == n.version and a in n for n in _METADATA)
+
+
 def _default_resolve(host: str) -> list:
     return [i[4][0] for i in socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)]
 
@@ -367,8 +380,6 @@ def _default_resolve(host: str) -> list:
 async def check_address(url: str, allow_private: bool, resolve: Optional[Callable] = None) -> str:
     """'' if the address may be called, else why not. Every resolved address must be public (unless allowed)."""
     host = urlsplit(url).hostname or ""
-    if allow_private:
-        return ""
     try:
         ips = await asyncio.to_thread(resolve or _default_resolve, host)
     except Exception as e:
@@ -377,7 +388,9 @@ async def check_address(url: str, allow_private: bool, resolve: Optional[Callabl
         return "name did not resolve"
     for ip in ips:
         try:
-            if _blocked_ip(ip):
+            if _always_blocked(ip):
+                return "address is link-local or a cloud metadata service (never called)"
+            if not allow_private and _blocked_ip(ip):
                 return "address is private or local (set allow_private to call it)"
         except ValueError:
             return "bad address"
@@ -413,7 +426,7 @@ def _pinned_backend(allow_private: bool, resolve: Optional[Callable]):
             except Exception as e:
                 raise httpcore.ConnectError(f"name did not resolve: {type(e).__name__}")
             for ip in ips:
-                if allow_private or not _blocked_ip(ip):
+                if not _always_blocked(ip) and (allow_private or not _blocked_ip(ip)):
                     return await self._inner.connect_tcp(ip, port, timeout=timeout, local_address=local_address,
                                                          socket_options=socket_options)
             raise AddressRefused("address is private or local")
@@ -523,7 +536,10 @@ class NoNetwork(Exception):
 
 
 PLUGIN_THREADS = 4
+PLUGIN_PER_SLUG = 2               # one plugin holds at most this many threads: a hung one never takes them all (§11)
 _PLUGIN_SLOTS = __import__("threading").BoundedSemaphore(PLUGIN_THREADS)
+_SLUG_LOCK = __import__("threading").Lock()
+_SLUG_INFLIGHT: dict = {}         # plugin slug -> sync calls still running (a timed-out thread included)
 _POOL = {"ex": None}
 _INFLIGHT: set = set()            # delivery ids whose plugin call is still running (a timed-out thread included)
 
@@ -541,11 +557,22 @@ def plugin_busy(did: str) -> bool:
     return did in _INFLIGHT
 
 
-def _call_release(h, delivery, ctx, did):
+def plugin_slot_free(slug: str, found: Optional[dict]) -> bool:
+    """May a call of this plugin start now? Checked BEFORE the delivery is dispatched, so a full pool costs it no
+    attempt (and no breaker failure): it simply waits for its turn."""
+    if not found or inspect.iscoroutinefunction(found.get("handler")):
+        return True
+    with _SLUG_LOCK:
+        return _SLUG_INFLIGHT.get(slug, 0) < PLUGIN_PER_SLUG and sum(_SLUG_INFLIGHT.values()) < PLUGIN_THREADS
+
+
+def _call_release(h, delivery, ctx, did, slug=""):
     try:
         return h(delivery, ctx)
     finally:
         _INFLIGHT.discard(did)
+        with _SLUG_LOCK:
+            _SLUG_INFLIGHT[slug] = max(0, _SLUG_INFLIGHT.get(slug, 0) - 1)
         _PLUGIN_SLOTS.release()
 
 
@@ -579,11 +606,11 @@ def _outcome_of(code: int, text: str, rh, action: dict) -> Outcome:
     if code in (401, 403):
         return Outcome("blocked", f"HTTP {code}: the receiver refused the credential; fix the action's key, then it "
                        "runs again", rc, http_status=code, maybe_acted=False)
-    if code in (301, 302, 303):
+    if 300 <= code < 400:
+        # Any redirect after the POST (307/308 included: the receiver may have taken the body before answering it) is
+        # not followed and not assumed undone (spec §7): the owner reconciles.
         return Outcome("unknown", f"HTTP {code}: redirected after the POST (not followed): it may have been done", rc,
                        http_status=code, maybe_acted=True)
-    if 300 <= code < 400:
-        return Outcome("failed", f"HTTP {code}: redirects are not followed", rc, http_status=code, maybe_acted=False)
     if code >= 500:
         o = _ambiguous(action, f"HTTP {code}: the receiver failed, it may have been done", rc, code)
         o.retry_after = _retry_after(_R)
@@ -749,12 +776,15 @@ async def run_plugin(action: dict, ctx: dict, found: Optional[dict], level: str)
             finally:
                 _INFLIGHT.discard(did)
         else:
-            if not _PLUGIN_SLOTS.acquire(blocking=False):
-                return Outcome("retry", "not sent: plugin handlers are busy (earlier calls still running)",
-                               maybe_acted=False)
+            slug = str(action.get("plugin") or "")
+            with _SLUG_LOCK:
+                if _SLUG_INFLIGHT.get(slug, 0) >= PLUGIN_PER_SLUG or not _PLUGIN_SLOTS.acquire(blocking=False):
+                    return Outcome("retry", "not sent: plugin handlers are busy (earlier calls still running)",
+                                   maybe_acted=False)
+                _SLUG_INFLIGHT[slug] = _SLUG_INFLIGHT.get(slug, 0) + 1
             _INFLIGHT.add(did)
             fut = asyncio.get_running_loop().run_in_executor(_plugin_pool(), _call_release, h, delivery,
-                                                              found.get("ctx"), did)
+                                                              found.get("ctx"), did, slug)
             res = await asyncio.wait_for(asyncio.shield(fut), PLUGIN_TIMEOUT_S)
             if inspect.isawaitable(res):
                 res = await asyncio.wait_for(res, PLUGIN_TIMEOUT_S)

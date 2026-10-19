@@ -5143,5 +5143,8 @@
   "wh.tl_result": "Result",
   "wh.tl_notice": "Notice",
   "wh.target_actions_line": "Actions: {names}",
-  "wh.sim_ran": "Passed the rules"
+  "wh.sim_ran": "Passed the rules",
+  "wh.key_where_signed": "The {provider} signature is enough to receive; no Javis key needed.",
+  "wh.ev_delete": "Delete",
+  "wh.ev_delete_confirm": "Delete this event and its payload? It cannot be run again; if the source resends it, Javis takes it as a new event."
 }
