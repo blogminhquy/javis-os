@@ -4984,5 +4984,5 @@
   "wh.retry_confirm": "Run this event again? If the last run already acted (sent a message, wrote an order), that may happen twice. Check outside before retrying.",
   "wh.mark_done": "Mark done",
   "wh.more": "Show older runs",
-  "wh.unknown_hint": "An event was cut off when the server stopped and may or may not have finished. Check outside, then press Mark done or Retry."
+  "wh.unknown_hint": "An event may or may not have finished. Check, then press Mark done or Retry."
 }

@@ -1,4 +1,5 @@
 {
+ "wh.retry_confirm": "confirm: asked before re-running an event that may already have acted",
  "settings.vc_mic_silent": "status: the mic test verdict, shown only after the person pressed Test mic",
  "app.login_cookie_lost": "error: login failure reason",
  "app.disable_auth_confirm": "confirm: confirm() before turning off login (says 2FA is kept)",

@@ -4984,5 +4984,5 @@
   "wh.retry_confirm": "Chạy lại sự kiện này? Nếu lần trước đã kịp làm (gửi tin, ghi đơn) thì việc đó có thể bị làm hai lần. Kiểm tra bên ngoài trước khi chạy lại.",
   "wh.mark_done": "Đã xong",
   "wh.more": "Xem các lần cũ hơn",
-  "wh.unknown_hint": "Có sự kiện máy dừng giữa chừng, chưa rõ đã chạy xong chưa. Kiểm tra bên ngoài rồi bấm Đã xong hoặc Chạy lại."
+  "wh.unknown_hint": "Có sự kiện chưa rõ đã chạy xong chưa. Kiểm tra rồi bấm Đã xong hoặc Chạy lại."
 }
