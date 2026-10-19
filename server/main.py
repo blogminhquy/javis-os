@@ -5375,6 +5375,11 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             v["call_engine"] = patch["call_engine"]
         if patch.get("live_provider") in voice_live.PROVIDERS:
             v["live_provider"] = patch["live_provider"]
+        # Live over an API key (0.218.0): ignore speech not meant for Javis, and the reply pace.
+        if "live_proactive" in patch:
+            v["live_proactive"] = bool(patch["live_proactive"])
+        if patch.get("live_turn") in voice_live.TURN_PRESETS:
+            v["live_turn"] = patch["live_turn"]
         # Focus is a browser attention gate. Keep the legacy setting for older clients.
         if "loc_tap_am" in patch:
             v["loc_tap_am"] = bool(patch["loc_tap_am"])
@@ -14755,6 +14760,8 @@ async def voice_options(brains: int = 1):
             loc_tap_am=False,
             focus_mode=v.get("focus_mode") is not False,
             ear=voice_ear.setting(cfg),
+            live_proactive=v.get("live_proactive") is not False,
+            live_turn=voice_live.turn_preset(v.get("live_turn")),
         ),
         # Tai nghe lại đang dùng và vì sao (trang Cài đặt hiện "Đang dùng: ..."), cùng các tai
         # chọn được. Vẽ từ voice_ear để trang và đường LƯU soi cùng một danh sách.
@@ -15005,7 +15012,8 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
             text = voice_live.status_line(list(jobs.values()), asyncio.get_running_loop().time())
             print(f"[voice live] câu hỏi tiến độ, trả lời từ trạng thái: {req[:80]!r}", file=sys.stderr)
             try:
-                if await prov.say_status(text):
+                # A provider that defers tool results needs THIS call answered, or the model waits on it forever.
+                if not _deferred(name) and await prov.say_status(text):
                     # KHÔNG đánh dấu `readback` ở đây (khác câu tự lên tiếng ở `_heartbeat`): mỗi lần giao
                     # việc model tự nói một câu đệm ("Dạ, đợi em xem ạ"), nó tới ngay sau lệnh này và
                     # trước lúc model đọc câu tiến độ. Đánh dấu bây giờ là nuốt nhầm câu đệm và để câu
@@ -15054,6 +15062,13 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
             readback["pending"] += 1
             spoke["t"] = now
 
+    def _deferred(name: str) -> bool:
+        """Gemini 3.1 Live cannot talk while a tool runs: answer ask_javis at once, deliver the result later."""
+        try:
+            return name == "ask_javis" and bool(prov.defers_tool_results())
+        except Exception:
+            return False
+
     def _ensure_heartbeat():
         task = heartbeat["task"]
         if task is None or task.done():
@@ -15063,8 +15078,13 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
 
     async def _run_one(name: str, cid: str, req: str, running: list):
         await _j({"type": "tool", "name": name, "status": "running"})
+        deferred = _deferred(name)
         try:
-            await prov.send_tool_running(cid, name)
+            if deferred:
+                # Close the call now so the model keeps listening and talking; the result follows.
+                await prov.send_tool_result(cid, name, voice_live.DEFERRED_ACK)
+            else:
+                await prov.send_tool_running(cid, name)
         except Exception:
             pass
         loop = asyncio.get_running_loop()
@@ -15098,7 +15118,8 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
             # Bộ não thấy câu nói thêm không có việc mới: không bong bóng, không đọc ra loa.
             print(f"[voice live] lời nói thêm không có việc mới: {str(running[0])[:60]!r}", file=sys.stderr)
             try:
-                await prov.send_tool_ack(cid, name, voice_live.FOLLOWUP_ACK)
+                if not deferred:   # a deferred call was already answered; a second answer is invalid
+                    await prov.send_tool_ack(cid, name, voice_live.FOLLOWUP_ACK)
             except Exception:
                 pass
             await _j({"type": "tool", "name": name, "status": "done"})
@@ -15111,10 +15132,18 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
             except Exception:
                 pass
             await _j({"type": "tool_result", "name": name, "text": str(result)})
-            # Đặt TRƯỚC khi trả model: lời đọc lại có thể về ngay khi lệnh vừa đi.
-            readback["pending"] += 1
+            if not deferred:
+                # Đặt TRƯỚC khi trả model: lời đọc lại có thể về ngay khi lệnh vừa đi.
+                readback["pending"] += 1
         try:
-            await prov.send_tool_result(cid, name, result)
+            if deferred:
+                # Wait for a pause so the result does not cut across the person or the model.
+                await prov.wait_quiet(voice_live.LATE_RESULT_WAIT_S)
+                if str(result or "").strip():
+                    readback["pending"] += 1
+                await prov.send_late_result(result)
+            else:
+                await prov.send_tool_result(cid, name, result)
         except Exception as e:
             await _j({"type": "error", "message": localefmt.chu(f"Không trả được kết quả cho model: {e}",
                                                                 f"Could not return the result to the model: {e}")})

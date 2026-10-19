@@ -123,6 +123,16 @@ check("lưu rồi đọc lại call_engine, chatgpt_voice, focus_mode",
 luu({"call_engine": "xxx", "chatgpt_voice": "khong-co"})
 check("đường gọi lạ và giọng lạ không ghi đè", doc().get("call_engine") == "basic" and doc().get("chatgpt_voice") == "maple")
 
+# ---- 7. Live over an API key (0.218.0): TV filter and reply pace ----
+check("TV filter is on before anything is saved", cl.get("/voice/options?brains=0").json()["voice"]["live_proactive"] is True)
+luu({"live_proactive": False, "live_turn": "slow"})
+v = doc()
+check("live_proactive and live_turn round-trip", v.get("live_proactive") is False and v.get("live_turn") == "slow")
+luu({"live_turn": "warp"})
+check("an unknown reply pace does not overwrite", doc().get("live_turn") == "slow")
+opts = cl.get("/voice/options?brains=0").json()["voice"]
+check("/voice/options reports both live settings", opts["live_proactive"] is False and opts["live_turn"] == "slow")
+
 if _fails:
     print("\nFAIL:", len(_fails), _fails)
     raise SystemExit(1)

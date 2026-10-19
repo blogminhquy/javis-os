@@ -396,6 +396,25 @@
                   </div>
                   <div class="qs-hint" data-i18n="settings.vc_brain_hint">Bộ não trả lời các câu nói ở đường Cơ bản. Việc cần dữ liệu vẫn đi bộ não chính.</div>
                 </div>
+                <!-- Live over an API key only (0.218.0): console.js shows this box when call.engine is "api". -->
+                <div id="vcLiveBox" hidden>
+                  <div class="qs-field">
+                    <label class="qs-lbl" for="vcLiveProactive" data-i18n="settings.vc_live_proactive">Lọc tiếng xung quanh</label>
+                    <select class="js-input" id="vcLiveProactive">
+                      <option value="on" data-i18n="settings.vc_live_proactive_on">Bật: bỏ qua TV, người bên cạnh</option>
+                      <option value="off" data-i18n="settings.vc_live_proactive_off">Tắt: trả lời mọi câu nghe được</option>
+                    </select>
+                  </div>
+                  <div class="qs-field">
+                    <label class="qs-lbl" for="vcLiveTurn" data-i18n="settings.vc_live_turn">Nhịp trả lời</label>
+                    <select class="js-input" id="vcLiveTurn">
+                      <option value="fast" data-i18n="settings.vc_live_turn_fast">Nhanh: đáp ngay khi bạn ngừng</option>
+                      <option value="normal" data-i18n="settings.vc_live_turn_normal">Vừa (mặc định)</option>
+                      <option value="slow" data-i18n="settings.vc_live_turn_slow">Chậm rãi: chờ bạn nghĩ thêm</option>
+                    </select>
+                  </div>
+                  <div class="qs-hint" data-i18n="settings.vc_live_hint">Áp dụng cho Gemini Live và OpenAI Realtime, từ cuộc gọi kế tiếp.</div>
+                </div>
                 <div class="qs-field" id="vcRateRow">
                   <label class="qs-lbl" for="rateSel" data-i18n="qs.rate_lbl">Tốc độ đọc</label>
                   <select class="js-input" id="rateSel">

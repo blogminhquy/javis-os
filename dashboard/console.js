@@ -6990,6 +6990,17 @@
     };
 
 
+    // Live over an API key: TV filter and reply pace (0.218.0). ChatGPT Live and the basic path
+    // decide turn-taking themselves, so the box only shows when the call really runs on an API key.
+    const liveBox = $("vcLiveBox");
+    if (liveBox) {
+      liveBox.hidden = call.engine !== "api";
+      $("vcLiveProactive").value = v.live_proactive === false ? "off" : "on";
+      $("vcLiveTurn").value = v.live_turn || "normal";
+      $("vcLiveProactive").onchange = () => luuGiong({ live_proactive: $("vcLiveProactive").value === "on" });
+      $("vcLiveTurn").onchange = () => luuGiong({ live_turn: $("vcLiveTurn").value });
+    }
+
     $("vcEngine").value = call.setting || "auto";
     $("vcEngine").onchange = async () => {
       await luuGiong({ call_engine: $("vcEngine").value });

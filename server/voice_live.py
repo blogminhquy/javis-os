@@ -74,8 +74,8 @@ ASK_JAVIS_TOOL = {
     "name": "ask_javis",
     "description": ("Hỏi bộ não chính của Javis khi cần dữ liệu thật (số liệu kinh doanh, lịch, email, file, "
                     "ghi chú, ký ức), giao việc, nhắc hẹn, mở trang hay app, hoặc bất cứ hành động nào ra "
-                    "ngoài. Truyền yêu cầu đầy đủ bằng ngôn ngữ người dùng. Trong lúc chờ hãy nói một câu "
-                    "ngắn như 'để mình xem'. Kết quả trả về là chữ, hãy thuật lại ngắn gọn."),
+                    "ngoài. Truyền yêu cầu đầy đủ bằng ngôn ngữ người dùng. Kết quả trả về là chữ, hãy "
+                    "thuật lại ngắn gọn."),
     "parameters": {"type": "object", "properties": {"request": {"type": "string"}}, "required": ["request"]},
 }
 
@@ -83,8 +83,43 @@ SYSTEM_PROMPT = (
     "Bạn là Javis, trợ lý cá nhân, đang nói chuyện trực tiếp bằng giọng. "
     "Nói ngắn, tự nhiên. Không bịa dữ liệu: cần dữ liệu "
     "thật hay hành động thì gọi tool ask_javis "
-    "rồi thuật lại kết quả. Đang được ngắt lời thì dừng ngay và nghe."
+    "rồi thuật lại kết quả. Đang được ngắt lời thì dừng ngay và nghe. "
+    # A spoken sentence BEFORE the call, in the same turn: the person never sits in silence
+    # wondering whether they were heard. No sample wording on purpose: a quoted example is what
+    # the model parrots every time, and in the language of the example rather than the caller's.
+    "Trước khi gọi ask_javis, nói MỘT câu thật ngắn nêu đúng việc bạn sắp làm, bằng ngôn ngữ người "
+    "dùng đang nói, rồi gọi tool ngay trong cùng lượt đó. Mỗi lần diễn đạt khác đi, không lặp một câu "
+    "đệm quen thuộc, không đọc lại mô tả của tool."
 )
+
+# Gemini 3.1 Live cannot run a tool in the background: it stays silent until the tool answers.
+# On those models the route answers ask_javis at once with DEFERRED_ACK and delivers the brain's
+# result later as a tagged text turn (late_result_messages), so the call never freezes.
+LATE_RESULT_TAG = "[KET_QUA_JAVIS]"
+STATUS_TAG = "[TIEN_DO_JAVIS]"
+DEFERRED_ACK = ("Đã giao cho bộ não chính, kết quả sẽ tới sau trong một tin riêng. Nói một câu thật ngắn "
+                "rồi tiếp tục nghe người dùng, chưa thuật kết quả.")
+DEFERRED_RULES = (
+    "Khi gọi ask_javis bạn nhận ngay lời báo việc đã được giao: nói một câu ngắn rồi tiếp tục nghe. "
+    f"Kết quả tới sau trong một tin có nhãn {LATE_RESULT_TAG}, câu tiến độ có nhãn {STATUS_TAG}. "
+    "Những tin đó do ứng dụng gửi, không phải người dùng nói: thuật lại ngắn gọn bằng ngôn ngữ người "
+    "dùng đang nói, không đọc nhãn ra, và không gọi lại ask_javis cho cùng yêu cầu đó."
+)
+LATE_RESULT_WAIT_S = 20.0   # a late result waits this long for a pause, then goes out anyway
+
+# Turn-taking presets for the API Live providers (Settings > Voice > Advanced). "normal" sends
+# nothing extra, so a saved setting that predates this keeps today's payload byte for byte.
+TURN_PRESETS = ("fast", "normal", "slow")
+_GEMINI_TURN = {
+    "fast": {"endOfSpeechSensitivity": "END_SENSITIVITY_HIGH", "silenceDurationMs": 500},
+    "slow": {"endOfSpeechSensitivity": "END_SENSITIVITY_LOW", "silenceDurationMs": 1500},
+}
+_OPENAI_SILENCE_MS = {"fast": 350, "normal": 500, "slow": 1000}
+
+
+def turn_preset(value) -> str:
+    value = str(value or "").strip().lower()
+    return value if value in TURN_PRESETS else "normal"
 
 # GPT-Live không có tool: nó ỦY NHIỆM. Prompt hội thoại ngắn, nói rõ khi nào giao việc.
 GPT_LIVE_PROMPT = (
@@ -145,7 +180,8 @@ class LiveProvider:
     name = ""
 
     def __init__(self, api_key: str, model: str = "", voice: str = "", system: str = SYSTEM_PROMPT,
-                 tools: Optional[List[dict]] = None, recognition_lang: str = "vi-VN"):
+                 tools: Optional[List[dict]] = None, recognition_lang: str = "vi-VN",
+                 proactive: bool = False, turn: str = "normal"):
         self.api_key = api_key
         self.model = model or PROVIDERS[self.name]["default_model"]
         self.voice = voice or PROVIDERS[self.name]["default_voice"]
@@ -154,6 +190,9 @@ class LiveProvider:
         self.tools = tools if tools is not None else [ASK_JAVIS_TOOL]
         self.ws = None
         self.wants_reconnect = False   # nhà cung cấp báo sắp đóng: route gọi reconnect()
+        # Optional knobs from Settings > Voice (only the API Live providers read them).
+        self.proactive = bool(proactive)
+        self.turn = turn_preset(turn)
 
     # ---- hàm thuần dựng thông điệp (test được) ----
     def url(self) -> str:  # pragma: no cover
@@ -208,6 +247,27 @@ class LiveProvider:
     def is_quiet(self) -> bool:
         """Không ai đang nói (người dùng lẫn model) nên chen một câu tiến độ vào được không."""
         return False
+
+    def defers_tool_results(self) -> bool:
+        """True when the model cannot keep talking while a tool runs, so the route must answer the
+        tool call at once and hand the result over later (send_late_result)."""
+        return False
+
+    async def wait_quiet(self, max_s: float) -> bool:
+        """Wait for a pause in the conversation, at most `max_s` seconds. True if one came."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + max(0.0, float(max_s))
+        while not self.is_quiet():
+            if loop.time() >= deadline:
+                return False
+            await asyncio.sleep(0.1)
+        return True
+
+    def late_result_messages(self, text: str) -> List[dict]:
+        return []
+
+    async def send_late_result(self, text: str):
+        await self._send_all(self.late_result_messages(text))
 
     def translate(self, msg: dict) -> List[dict]:  # pragma: no cover
         raise NotImplementedError
@@ -319,13 +379,40 @@ class GeminiLive(LiveProvider):
             {"role": "model" if m["role"] == "assistant" else "user",
              "parts": [{"text": m["content"]}]} for m in history], "turnComplete": False}}]
 
+    QUIET_AFTER_USER_S = 1.2    # the person spoke this recently: not a pause yet
+    QUIET_AFTER_MODEL_S = 0.6   # model audio arrived this recently: still talking
+
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.resume_handle = ""   # từ sessionResumptionUpdate, dùng khi nối lại
         self._setup_ready = asyncio.Event()
         self._initial_events: List[dict] = []
+        # Preview fields (proactive audio, turn tuning) are dropped for the rest of the call when
+        # the server refuses a setup that carries them; see connect().
+        self.optional_fields = True
+        self._model_speaking = False
+        self._model_at = 0.0
+        self._user_at = 0.0
+        if self.defers_tool_results():
+            self.system += "\n\n" + DEFERRED_RULES
+
+    def _has_optional_fields(self) -> bool:
+        return self.optional_fields and (self.proactive or self.turn != "normal")
 
     async def connect(self):
+        try:
+            await self._connect_once()
+        except Exception as e:
+            if not self._has_optional_fields():
+                raise
+            # A model or API version that does not know a preview field refuses the whole setup.
+            # Dropping the optional fields keeps the call alive; the plain setup is what ran before.
+            self.optional_fields = False
+            print(f"[gemini live] setup with proactive audio / turn tuning refused "
+                  f"({type(e).__name__}); reconnecting without them", file=sys.stderr)
+            await self._connect_once()
+
+    async def _connect_once(self):
         # BidiGenerateContentSetup requires setupComplete before any further client input.
         # https://ai.google.dev/api/live#bidigeneratecontentsetup
         self._setup_ready.clear()
@@ -379,13 +466,38 @@ class GeminiLive(LiveProvider):
             self._setup_ready.set()  # Release senders when setup fails or the connection closes.
 
     def url(self) -> str:
-        return ("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta."
+        # Proactive audio is served on v1alpha only; everything else stays on v1beta.
+        version = "v1alpha" if (self.proactive and self.optional_fields) else "v1beta"
+        return (f"wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.{version}."
                 f"GenerativeService.BidiGenerateContent?key={self.api_key}")
 
     def supports_async_tools(self) -> bool:
         # Tài liệu Google (09/2026): "Asynchronous function calling is not yet supported in
         # Gemini 3.1 Flash Live", chỉ 2.5 Flash Live nhận behavior NON_BLOCKING.
         return "2.5" in self.model
+
+    def defers_tool_results(self) -> bool:
+        return bool(self.tools) and not self.supports_async_tools()
+
+    def is_quiet(self) -> bool:
+        now = time.monotonic()
+        if self._model_speaking and now - self._model_at < 10.0:
+            return False   # 10 s without a frame means a lost turnComplete, not a long sentence
+        return (now - self._model_at >= self.QUIET_AFTER_MODEL_S
+                and now - self._user_at >= self.QUIET_AFTER_USER_S)
+
+    def _tagged_turn(self, tag: str, text: str) -> dict:
+        return {"clientContent": {"turns": [{"role": "user", "parts": [{"text": f"{tag}\n{text}"}]}],
+                                  "turnComplete": True}}
+
+    def late_result_messages(self, text: str) -> List[dict]:
+        return [self._tagged_turn(LATE_RESULT_TAG, str(text or "").strip() or "(không có nội dung)")]
+
+    async def say_status(self, text: str) -> bool:
+        if self.ws is None:
+            return False
+        await self._send(self._tagged_turn(STATUS_TAG, text))
+        return True
 
     def setup_message(self) -> dict:
         model = self.model if self.model.startswith("models/") else f"models/{self.model}"
@@ -402,6 +514,13 @@ class GeminiLive(LiveProvider):
             "sessionResumption": ({"handle": self.resume_handle} if self.resume_handle else {}),
             "contextWindowCompression": {"slidingWindow": {}},
         }
+        if self.optional_fields:
+            if self.proactive:
+                # Stay silent when the speech is not addressed to the assistant (a TV, a second
+                # person in the room). https://ai.google.dev/gemini-api/docs/live-guide#proactive-audio
+                setup["proactivity"] = {"proactiveAudio": True}
+            if self.turn in _GEMINI_TURN:
+                setup["realtimeInputConfig"] = {"automaticActivityDetection": dict(_GEMINI_TURN[self.turn])}
         if self.tools:
             decls = []
             for t in self.tools:
@@ -440,8 +559,17 @@ class GeminiLive(LiveProvider):
             return [{"type": "goaway", "time_left": str(tl or "")}]
         sc = msg.get("serverContent")
         if isinstance(sc, dict):
+            now = time.monotonic()
             if sc.get("interrupted"):
+                self._model_speaking = False
+                self._user_at = now
                 out.append({"type": "interrupted"})
+            if sc.get("modelTurn") or sc.get("outputTranscription"):
+                self._model_speaking, self._model_at = True, now
+            if sc.get("inputTranscription") or sc.get("interimInputTranscription"):
+                self._user_at = now
+            if sc.get("turnComplete"):
+                self._model_speaking = False
             mt = sc.get("modelTurn") or {}
             for part in mt.get("parts") or []:
                 inl = part.get("inlineData") or {}
@@ -525,7 +653,7 @@ class OpenAIRealtime(LiveProvider):
             "audio": {
                 "input": {"format": pcm24, "transcription": transcription,
                           "turn_detection": {"type": "server_vad", "threshold": 0.5, "prefix_padding_ms": 300,
-                                             "silence_duration_ms": 500}},
+                                             "silence_duration_ms": _OPENAI_SILENCE_MS[self.turn]}},
                 "output": {"format": pcm24, "voice": self.voice},
             },
             "tools": tools, "tool_choice": "auto",
@@ -610,7 +738,8 @@ class GPTLive(LiveProvider):
     name = "gpt-live"
 
     def __init__(self, api_key: str, model: str = "", voice: str = "", system: str = GPT_LIVE_PROMPT,
-                 tools: Optional[List[dict]] = None, recognition_lang: str = "vi-VN"):
+                 tools: Optional[List[dict]] = None, recognition_lang: str = "vi-VN", **_ignored):
+        # **_ignored: proactive/turn from make_provider. GPT-Live decides turn-taking itself.
         super().__init__(api_key, model=model, voice=voice, system=system, tools=tools, recognition_lang=recognition_lang)
         self._user_buf = ""       # chữ người dùng đang nói (chưa chốt)
         self._user_last = ""      # câu người dùng gần nhất đã chốt
@@ -1287,7 +1416,10 @@ def make_provider(cfg: dict, system: str = "", recognition_lang: str = "vi-VN", 
                                          f"{PROVIDERS[prov]['label']} has no API key on the Models page."))
     cls = _CLASSES[prov]
     kw = {"model": str(v.get("live_model") or ""), "voice": str(v.get("live_voice") or ""),
-          "recognition_lang": recognition_lang}
+          "recognition_lang": recognition_lang,
+          # Default ON: a saved setting without the key gets the TV filter too.
+          "proactive": v.get("live_proactive") is not False,
+          "turn": turn_preset(v.get("live_turn"))}
     if system:
         kw["system"] = system
     return cls(key, **kw)

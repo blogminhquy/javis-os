@@ -35,7 +35,7 @@ import voice_live
 # not been changed yet fails on behaviour, not on a harness AttributeError.
 _ROUTE_NAMES = ("is_followup_ack", "is_same_request", "is_noop_result", "FOLLOWUP_ACK",
                 "parallel_request", "is_progress_question", "status_line",
-                "STATUS_FIRST_S", "STATUS_EVERY_S", "STATUS_TICK_S")
+                "STATUS_FIRST_S", "STATUS_EVERY_S", "STATUS_TICK_S", "DEFERRED_ACK", "LATE_RESULT_WAIT_S")
 
 
 def route_tree():
@@ -89,7 +89,31 @@ class FakeProvider:
             yield ev
 
 
+class DeferringProvider(FakeProvider):
+    """A Gemini-3.1-shaped provider: tool calls must be answered at once, results arrive later."""
+    name = "gemini"
+    transport = "pcm"
+
+    def __init__(self, status_supported=True):
+        super().__init__(status_supported)
+        self.late, self.waits = [], []
+
+    def supports_async_tools(self): return False
+    def defers_tool_results(self): return True
+
+    async def wait_quiet(self, max_s):
+        self.waits.append(max_s)
+        while not self.quiet:
+            await asyncio.sleep(0.01)
+        return True
+
+    async def send_late_result(self, text):
+        self.late.append(text)
+
+
 class LiveRouteMixin:
+    provider_class = FakeProvider
+
     async def run_route(self, script, answers, status_supported=True, live_overrides=None):
         with tempfile.TemporaryDirectory() as directory:
             store = sessions.SessionStore(str(Path(directory) / "sessions.db"))
@@ -102,7 +126,7 @@ class LiveRouteMixin:
         sid = store.get_or_create(None, brain="brain", engine="test", model="test")
         frames, asks, keys, langs, progress = [], [], [], [], {}
         inbox = asyncio.Queue()
-        prov = FakeProvider(status_supported)
+        prov = self.provider_class(status_supported)
 
         class Socket:
             async def accept(self): pass

@@ -207,6 +207,7 @@ const base = (call, extra = {}) => Object.assign({
   r = await run(base({ engine: "basic", live_provider: "", setting: "basic", reason: "chosen", detail: "" },
     { brain_choices: CHOICES, brain_auto: "", voice: { mode: "standard", brain_provider: "codex" } }));
   check("Cơ bản: khối Bộ não trả lời nhanh hiện", r.els.vcBrainBox.hidden === false);
+  check("basic path: the Live-only box stays hidden", r.els.vcLiveBox.hidden === true);
   check("Bộ não: chế độ Chuẩn đã lưu hiện Bộ não chính; không gói nào sẵn thì Tự động không kèm tên",
     r.els.vcBrain.value === "main" && r.els.vcBrain.options[0].textContent === "settings.vc_brain_auto");
   r = await run(base({ engine: "basic", live_provider: "", setting: "basic", reason: "chosen", detail: "" },
@@ -215,6 +216,12 @@ const base = (call, extra = {}) => Object.assign({
   r = await run(base({ engine: "api", live_provider: "gemini", setting: "auto", reason: "auto_api", detail: "no_login" },
     { brain_choices: CHOICES, brain_auto: "codex", voice: { mode: "fast", brain_provider: "codex", live_voice: "Kore" } }));
   check("Live qua API: khối Bộ não trả lời nhanh cũng ẩn", r.els.vcBrainBox.hidden === true);
+  check("Live over an API key: TV filter and reply pace show, defaults on/normal",
+    r.els.vcLiveBox.hidden === false && r.els.vcLiveProactive.value === "on" && r.els.vcLiveTurn.value === "normal");
+  r.els.vcLiveTurn.value = "fast"; await r.els.vcLiveTurn.onchange();
+  check("reply pace saves live_turn", JSON.stringify(r.saves.at(-1)) === '["voice",{"live_turn":"fast"}]');
+  r.els.vcLiveProactive.value = "off"; await r.els.vcLiveProactive.onchange();
+  check("TV filter saves live_proactive", JSON.stringify(r.saves.at(-1)) === '["voice",{"live_proactive":false}]');
   r = await run(base({ engine: "basic", live_provider: "", setting: "auto", reason: "auto_basic", detail: "no_cli" },
     { brain_choices: CHOICES, brain_auto: "codex", voice: { mode: "fast", brain_provider: "" } }));
   check("Tự động mà đang rơi xuống Cơ bản: khối Bộ não trả lời nhanh hiện (nó đang được dùng thật)",

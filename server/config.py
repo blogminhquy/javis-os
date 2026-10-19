@@ -75,6 +75,8 @@ _DEFAULT = {
         "live_provider": "gemini",     # gemini | openai (đều cần API key ở trang Models)
         "live_model": "",              # rỗng = gợi ý trong voice_live.PROVIDERS
         "live_voice": "",
+        "live_proactive": True,        # Live qua API: bỏ qua tiếng không nói với Javis (TV, người bên cạnh)
+        "live_turn": "normal",         # fast | normal | slow: nhịp trả lời của Live qua API
     },
     "model": {
         # --- Mô hình MAIN MODEL theo provider (mới) ---
