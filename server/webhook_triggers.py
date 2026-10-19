@@ -43,7 +43,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 import localefmt
@@ -214,6 +214,28 @@ def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False) -> Any:
         s = str(v)
         return "•" * max(0, len(s) - 3) + s[-3:]
     return v
+
+
+# The admin routes read their query and JSON body by hand: FastAPI builds a model field for every typed parameter when
+# the route is created, and the webhook routes are created at every start (spec §16: keep the start light).
+async def _json_body(request) -> dict:
+    """The request's JSON object, or {} (no body, not JSON, not an object)."""
+    try:
+        v = await request.json()
+    except Exception:
+        return {}
+    return v if isinstance(v, dict) else {}
+
+
+def _qnum(qp, name: str, default, kind=float):
+    """A number from the query string; the default when it is missing or not a number."""
+    v = qp.get(name)
+    if v in (None, ""):
+        return default
+    try:
+        return kind(float(v)) if kind is int else kind(v)
+    except (TypeError, ValueError):
+        return default
 
 
 def _as_bool(v: Any) -> bool:
@@ -1096,13 +1118,15 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             return js(resp, code)
 
         @router.get("/webhooks")
-        async def webhooks_list(request: Request, brain: str = ""):
+        async def webhooks_list(request: Request):
+            brain = request.query_params.get("brain", "")
             base = self.deps.base_url(request)
             views = await asyncio.to_thread(lambda: [self.view(h, base) for h in self.list(brain)])
             return {"ok": True, "hooks": views}
 
         @router.post("/webhooks")
-        async def webhooks_create(request: Request, payload: dict = Body(None)):
+        async def webhooks_create(request: Request):
+            payload = await _json_body(request)
             p = payload or {}
             async with self._io:
                 h, token, err = await asyncio.to_thread(lambda: self.create(
@@ -1115,7 +1139,8 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             return {"ok": True, "hook": self.view(h, self.deps.base_url(request)), "token": token}
 
         @router.post("/webhooks/update")
-        async def webhooks_update(request: Request, payload: dict = Body(None)):
+        async def webhooks_update(request: Request):
+            payload = await _json_body(request)
             p = payload or {}
             async with self._io:
                 h, err, code = await asyncio.to_thread(self.update, str(p.get("id") or ""), p)
@@ -1124,7 +1149,8 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             return {"ok": True, "hook": self.view(h, self.deps.base_url(request))}
 
         @router.post("/webhooks/pause")
-        async def webhooks_pause(request: Request, payload: dict = Body(None)):
+        async def webhooks_pause(request: Request):
+            payload = await _json_body(request)
             p = payload or {}
             h = await asyncio.to_thread(self.pause, str(p.get("id") or ""), bool(p.get("paused")))
             if h is None:
@@ -1132,7 +1158,8 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             return {"ok": True, "hook": self.view(h, self.deps.base_url(request))}
 
         @router.post("/webhooks/rotate")
-        async def webhooks_rotate(request: Request, payload: dict = Body(None)):
+        async def webhooks_rotate(request: Request):
+            payload = await _json_body(request)
             async with self._io:
                 h, token = await asyncio.to_thread(self.rotate, str((payload or {}).get("id") or ""))
             if h is None:
@@ -1141,24 +1168,28 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             return {"ok": True, "hook": self.view(h, self.deps.base_url(request)), "token": token}
 
         @router.post("/webhooks/delete")
-        async def webhooks_delete(payload: dict = Body(None)):
+        async def webhooks_delete(request: Request):
+            payload = await _json_body(request)
             async with self._io:
                 ok = await asyncio.to_thread(self.delete, str((payload or {}).get("id") or ""))
             return {"ok": ok}
 
         @router.post("/webhooks/test")
-        async def webhooks_test(payload: dict = Body(None)):
+        async def webhooks_test(request: Request):
             """Real test send (spec §12): preview first, then `confirm: true` sends a test event through the same
             permissions and quotas (the token is not needed: the caller is logged in)."""
+            payload = await _json_body(request)
             code, resp = await self.test_send(payload or {})
             return JSONResponse(resp, status_code=code)
 
         @router.get("/webhooks/events")
-        async def webhooks_events(hook: str = "", status: str = "", limit: int = 20, before: str = "",
-                                  since: float = 0.0, until: float = 0.0, q: str = "", brain: str = ""):
+        async def webhooks_events(request: Request):
             """The durable event log, newest first, keyset-paginated (`next` -> `before`). No bodies. `status` may be a
             state list, or `needs_you` (unknown + waiting + blocked) / `ran` (everything the rules let through).
             `brain` limits it to that brain's hooks; `q` finds a correlation (order) id, a delivery key or an event id."""
+            qp = request.query_params
+            hook, status, before, q, brain = (qp.get(k, "") for k in ("hook", "status", "before", "q", "brain"))
+            limit, since, until = _qnum(qp, "limit", 20, int), _qnum(qp, "since", 0.0), _qnum(qp, "until", 0.0)
             st = self.store()
             hooks = await asyncio.to_thread(self._hooks_of, brain)
             ran = status == "ran"
@@ -1168,10 +1199,13 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             return {"ok": True, **pg}
 
         @router.get("/webhooks/events/export")
-        async def webhooks_events_export(hook: str = "", since: float = 0.0, until: float = 0.0, format: str = "jsonl",
-                                         body: int = 0, raw: int = 0, brain: str = ""):
+        async def webhooks_events_export(request: Request):
             """The whole log of a hook (or of a brain, or all), oldest first, streamed: JSON lines or CSV. No
             configuration, no secret. Bodies only with body=1, masked unless raw=1 (recorded in the audit log)."""
+            qp = request.query_params
+            hook, brain, format = qp.get("hook", ""), qp.get("brain", ""), qp.get("format", "jsonl")
+            since, until = _qnum(qp, "since", 0.0), _qnum(qp, "until", 0.0)
+            body, raw = _qnum(qp, "body", 0, int), _qnum(qp, "raw", 0, int)
             from fastapi.responses import StreamingResponse
             st = self.store()
             hooks = await asyncio.to_thread(self._hooks_of, brain)
@@ -1240,17 +1274,19 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                                      headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
         @router.get("/webhooks/health")
-        async def webhooks_health(hook: str = ""):
-            return {"ok": True, "health": await asyncio.to_thread(self.health, hook)}
+        async def webhooks_health(request: Request):
+            return {"ok": True, "health": await asyncio.to_thread(self.health, request.query_params.get("hook", ""))}
 
         @router.get("/webhooks/audit")
-        async def webhooks_audit(hook: str = "", limit: int = 100):
+        async def webhooks_audit(request: Request):
+            hook, limit = request.query_params.get("hook", ""), _qnum(request.query_params, "limit", 100, int)
             return {"ok": True, "items": await asyncio.to_thread(self.store().audit_rows, hook, max(1, min(limit, 500)))}
 
         @router.get("/webhooks/events/{event_id}")
-        async def webhooks_event(event_id: str, raw: int = 0):
+        async def webhooks_event(event_id: str, request: Request):
             """One event with its timeline. The payload and the mapped fields are masked; raw=1 shows them as received
             and is recorded in the audit log (spec §12)."""
+            raw = _qnum(request.query_params, "raw", 0, int)
             st = self.store()
             ev = await asyncio.to_thread(st.get, event_id, True)
             if ev is None:
@@ -1272,18 +1308,20 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             return {"ok": True, "event": ev}
 
         @router.post("/webhooks/simulate")
-        async def webhooks_simulate(payload: dict = Body(None)):
+        async def webhooks_simulate(request: Request):
             """Dry run of a hook's rules (and actions plan) on a sample body: the trace with the values seen, the
             decision, the fields, the deliveries it would create. Stores nothing, runs nothing, sends nothing, holds no
             dedup key, calls no model. `rules`/`actions` in the request try a draft before saving it; `event`
             re-simulates a logged event's own body."""
+            payload = await _json_body(request)
             code, resp = await asyncio.to_thread(self.simulate, payload or {})
             return JSONResponse(resp, status_code=code)
 
         @router.post("/webhooks/events/retry")
-        async def webhooks_event_retry(payload: dict = Body(None)):
+        async def webhooks_event_retry(request: Request):
             """Run the deliveries of an event that failed, are unknown or blocked again, with the same delivery ids and
             the same snapshot. The owner decides (after reconciling): nothing retries an unknown delivery alone."""
+            payload = await _json_body(request)
             eid = str((payload or {}).get("id") or "")
             ev = await asyncio.to_thread(self.store().get, eid)
             h = await asyncio.to_thread(self._find_hook, ev["hook_id"]) if ev else None
@@ -1295,9 +1333,10 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             return {"ok": True}
 
         @router.post("/webhooks/events/replay")
-        async def webhooks_event_replay(payload: dict = Body(None)):
+        async def webhooks_event_replay(request: Request):
             """Process an event with the hook's CURRENT configuration (a new generation, new delivery ids). Without
             `confirm` it only shows what would run and which actions already succeeded (they would act again)."""
+            payload = await _json_body(request)
             p = payload or {}
             eid = str(p.get("id") or "")
             if p.get("confirm"):
@@ -1309,23 +1348,26 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             return JSONResponse(resp, status_code=code)
 
         @router.post("/webhooks/events/delete")
-        async def webhooks_event_delete(payload: dict = Body(None)):
+        async def webhooks_event_delete(request: Request):
             """Delete one event that is not being processed (its body, deliveries and delivery key); audited."""
+            payload = await _json_body(request)
             ok, why = await asyncio.to_thread(self.store().delete_event, str((payload or {}).get("id") or ""))
             if not ok:
                 return JSONResponse({"ok": False, "error": why}, status_code=404 if why == "not_found" else 409)
             return {"ok": True}
 
         @router.post("/webhooks/events/close_failed")
-        async def webhooks_events_close_failed(payload: dict = Body(None)):
+        async def webhooks_events_close_failed(request: Request):
             """Settle every failed or dead event of a hook as given up, without resending (audited)."""
+            payload = await _json_body(request)
             hid = str((payload or {}).get("hook") or "")
             if not hid or await asyncio.to_thread(self._find_hook, hid) is None:
                 return JSONResponse({"ok": False, "error": "not_found"}, status_code=404)
             return {"ok": True, "closed": await asyncio.to_thread(self.store().close_failed, hid)}
 
         @router.post("/webhooks/events/approve")
-        async def webhooks_event_approve(payload: dict = Body(None)):
+        async def webhooks_event_approve(request: Request):
+            payload = await _json_body(request)
             p = payload or {}
             ok, why = await asyncio.to_thread(self.store().approve, str(p.get("id") or ""), str(p.get("action") or ""),
                                               str(p.get("decision") or ""))
@@ -1343,7 +1385,8 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             return {"ok": True, "rewrapped": res["rewrapped"]}
 
         @router.post("/webhooks/events/resolve")
-        async def webhooks_event_resolve(payload: dict = Body(None)):
+        async def webhooks_event_resolve(request: Request):
+            payload = await _json_body(request)
             p = payload or {}
             ok, why = await asyncio.to_thread(self.store().resolve, str(p.get("id") or ""),
                                               str(p.get("outcome") or ""), str(p.get("note") or ""))

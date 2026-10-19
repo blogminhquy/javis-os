@@ -49,7 +49,6 @@ import json
 import os
 import re
 import socket
-from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
@@ -80,14 +79,24 @@ class ActionError(ValueError):
     """The action list itself is wrong (shown to the owner when saving)."""
 
 
-@dataclass
 class Outcome:
-    status: str                      # one of STATES
-    detail: str = ""                 # short, for the owner
-    receipt: dict = field(default_factory=dict)
-    retry_after: float = 0.0
-    http_status: int = 0
-    maybe_acted: Optional[bool] = None
+    """One delivery attempt's result. A plain class, not a dataclass: it is built at every start (keep it light)."""
+    __slots__ = ("status", "detail", "receipt", "retry_after", "http_status", "maybe_acted")
+
+    def __init__(self, status: str, detail: str = "", receipt: Optional[dict] = None, retry_after: float = 0.0,
+                 http_status: int = 0, maybe_acted: Optional[bool] = None):
+        self.status = status                 # one of STATES
+        self.detail = detail                 # short, for the owner
+        self.receipt = receipt if receipt is not None else {}
+        self.retry_after = retry_after
+        self.http_status = http_status
+        self.maybe_acted = maybe_acted
+
+    def __eq__(self, other):
+        return isinstance(other, Outcome) and all(getattr(self, k) == getattr(other, k) for k in self.__slots__)
+
+    def __repr__(self):
+        return "Outcome(" + ", ".join(f"{k}={getattr(self, k)!r}" for k in self.__slots__) + ")"
 
 
 def delivery_id(event_id: str, action_id: str, generation: int = 1) -> str:

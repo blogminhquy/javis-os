@@ -155,6 +155,13 @@ POSCAKE_ACTIONS = [{"id": "to_apps_script", "type": "http_forward", "url": SCRIP
                    {"id": "to_poscake_zalo", "type": "plugin", "plugin": "poscake-zalo", "handler": "order_received"}]
 
 
+def next_digest(minute: int) -> float:
+    """The next digest moment after now (DIGEST_HOUR:minute, local time): today's if still ahead, else tomorrow's. A fixed
+    "tomorrow at 08:xx" lands more than a day after the events when the test runs between midnight and 08:00."""
+    t = wt._local(time.time()).replace(hour=ww.DIGEST_HOUR, minute=minute, second=0, microsecond=0).timestamp()
+    return t if t > time.time() else t + 86400
+
+
 def body_of(d):
     return json.dumps(d, ensure_ascii=False).encode()
 
@@ -733,7 +740,8 @@ async def matrix():
     for i, o in enumerate((ORDER, dict(ORDER, id=1002), dict(ORDER, status=3))):
         await f.accept(hna["id"], tna, body_of(o), "application/json", f"na{i}")
     await f.wait_idle()
-    f.clock = lambda: wt._local(time.time()).replace(hour=ww.DIGEST_HOUR, minute=30).timestamp() + 86400
+    _nd = next_digest(30)
+    f.clock = lambda: _nd
     await f._digest()
     await f.deliver_notifications()
     f.clock = time.time
@@ -810,7 +818,7 @@ async def matrix():
     hdg, tdg, _ = fd1.create("/b1", name="Tóm tắt", target="task", text="x", notify="daily_digest")
     await fd1.accept(hdg["id"], tdg, b"{}", "application/json", "")
     await fd1.wait_idle()
-    later = wt._local(time.time()).replace(hour=ww.DIGEST_HOUR, minute=10).timestamp() + 86400
+    later = next_digest(10)
     SENT.clear()
     fd1.clock = lambda: later
     await fd1._digest()
