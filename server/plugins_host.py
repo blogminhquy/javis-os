@@ -503,23 +503,46 @@ class PluginContext:
         self._http.append({"path": duong, "handler": handler, "methods": mt,
                            "public": bool(public), "no_cookie": bool(no_cookie)})
 
-    def register_webhook_handler(self, name: str, handler: Callable, min_mode: str = "full",
-                                 description: str = "") -> None:
-        """0.229.0 (webhook platform M3): a handler a webhook can name as an action
-        (`{"kind": "plugin", "plugin": "<slug>", "handler": "<name>"}`).
+    def register_event_handler(self, name: str, handler: Callable, schema: Optional[dict] = None,
+                               min_mode: str = "full", description: str = "", ai: bool = False,
+                               idempotent: bool = True) -> None:
+        """Webhook platform (spec §8.2): a handler a webhook can bind as an action
+        (`{"kind": "plugin", "plugin": "<slug>", "handler": "<name>"}`). Only the bound plugin + handler receives the
+        event: nothing is broadcast to other plugins, and `fire_hook` is never used for business events.
 
-        handler(delivery: dict, ctx) -> {"status": "completed" | "accepted", "ref"?: str, "detail"?: str}
-        (sync or async). `delivery` holds `delivery_id` (the SAME on every retry of this event's branch: keep it and
-        drop a second copy), `event_id`, `hook_id`, `action_id`, `brain`, `fields`, `payload`, `level`.
-        `completed` = done now; `accepted` = the plugin took it and finishes later on its own schedule (Javis does
-        not chase it). Raising, or any other answer, is a failure the owner can retry. `min_mode` is checked against
-        the webhook's level at run time, like a tool's."""
+        handler(envelope: dict, ctx) -> {"status": ..., "ref"?: job id, "detail"?: str} (sync or async). `envelope`
+        holds `delivery_id` (the SAME on every retry of this delivery: keep it, and answer a second copy with the same
+        job id), `event_id`, `hook_id`, `action_id`, `attempt`, `generation`, `source`, `brain`, `revision`,
+        `verified`, `fields`, `payload`, `raw_sha256`, `business_key`, `level`. Never the owner's cookie or the
+        sender's signing secret. Status:
+          completed        done now (a short receipt in `detail`);
+          accepted         the plugin committed the work in its OWN store and runs it on its own schedule (a 15-minute
+                           wait, an approval list): return its job id in `ref`. Only after the plugin's commit;
+          retryable_error  not done, try again later;     permanent_error  not done, never for this event;
+          unknown          may have acted, the owner reconciles;     waiting_approval  waits for someone in the plugin.
+        `schema` (webhook rules schema format, paths over the envelope: {"fields": {"fields.order_id": {"type":
+        "string", "required": true}}}) is checked before the call: an event that does not fit is never handed over.
+        `ai=True` declares that the handler calls a model: it then runs only when the owner allowed it in the action,
+        and each call counts against the hook's AI budget. `idempotent` (default True: the contract above) lets a
+        delivery whose worker died mid-call be handed over again under the same delivery id."""
         if not _TOOL_RE.match(str(name or "")):
             raise ValueError(f"tên handler không hợp lệ (a-z0-9_): {name!r}")
         if min_mode not in VALID_MIN_MODE:
             min_mode = "full"
+        sch = None
+        if schema:
+            import webhook_rules
+            sch = webhook_rules._v_schema(schema)
         self._webhook_handlers[str(name)] = {"handler": handler, "min_mode": min_mode,
-                                             "description": str(description or "")[:300]}
+                                             "description": str(description or "")[:300], "schema": sch,
+                                             "ai": bool(ai), "idempotent": bool(idempotent)}
+
+    def register_webhook_handler(self, name: str, handler: Callable, min_mode: str = "full",
+                                 description: str = "", schema: Optional[dict] = None, ai: bool = False,
+                                 idempotent: bool = True) -> None:
+        """Older name of register_event_handler (same contract)."""
+        self.register_event_handler(name, handler, schema=schema, min_mode=min_mode, description=description, ai=ai,
+                                    idempotent=idempotent)
 
     def register_well_known(self, name: str, handler: Callable) -> None:
         """Phục vụ `GET /.well-known/<name>` và `/.well-known/<name>/<phần sau>` (ví dụ metadata
@@ -774,7 +797,8 @@ def find_webhook_handler(vault_root: Optional[str], slug: str, name: str) -> Opt
         if lp.slug == slug:
             h = getattr(lp.ctx, "_webhook_handlers", {}).get(name)
             if h:
-                return {"handler": h["handler"], "ctx": lp.ctx, "min_mode": h["min_mode"]}
+                return {"handler": h["handler"], "ctx": lp.ctx, "min_mode": h["min_mode"], "schema": h.get("schema"),
+                        "ai": h.get("ai", False), "idempotent": h.get("idempotent", True)}
     return None
 
 
@@ -784,7 +808,8 @@ def webhook_handlers(vault_root: Optional[str] = None) -> List[dict]:
     for lp in _load_all(vault_root)["plugins"]:
         for n, h in getattr(lp.ctx, "_webhook_handlers", {}).items():
             out.append({"plugin": lp.slug, "handler": n, "label": lp.name, "min_mode": h["min_mode"],
-                        "description": h["description"]})
+                        "description": h["description"], "ai": h.get("ai", False),
+                        "schema": h.get("schema") or {}})
     return out
 
 

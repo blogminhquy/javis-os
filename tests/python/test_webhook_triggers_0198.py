@@ -59,7 +59,8 @@ async def main():
     h, token, err = feat.create("/brains/shop", name="Lead mới", target="task", text="Gọi lại cho khách",
                                 chat_id="web:abc")
     check("create a task hook", h is not None and token and not err)
-    raw = (STATE / "webhooks.json").read_text(encoding="utf-8")
+    # 0.229.0: hooks live in the durable store (spec §13); the token is still kept only as its hash.
+    raw = json.dumps([dict(r) for r in feat.store()._db.execute("SELECT * FROM hooks")], default=str)
     check("token is not stored in clear", token not in raw and wt.hash_token(token) in raw)
     check("view never shows the token hash", "token_hash" not in feat.view(h, "https://x"))
     check("view gives the full URL", feat.view(h, "https://x")["url"] == f"https://x/hooks/{h['id']}")
@@ -157,9 +158,12 @@ async def main():
     def unfill(hid):
         st._db.execute("DELETE FROM events WHERE id LIKE ?", (f"ev_fill_{hid}_%",))
 
-    fill(r["id"], wt.RATE_PER_HOUR)
+    # Spec §11: the ingress rate is per minute now (300 by default, the hook may lower it); 30/hour no longer caps
+    # code-only processing. The 429 regression below is the same bug either way.
+    feat.update(r["id"], {"limits": {"per_minute": 3}})
+    fill(r["id"], 3)
     code, _ = await feat.accept(r["id"], rtok, b"{}", "application/json")
-    check("over the hourly rate -> 429", code == 429)
+    check("over the ingress rate -> 429", code == 429)
 
     # 0.229.0: an event refused with 429 must not leave its idempotency key behind, or the sender's retry
     # (which is what a 429 asks for) is answered "duplicate" and the event never runs.
@@ -167,7 +171,8 @@ async def main():
     code, _ = await feat.accept(r["id"], rtok, b'{"order": 7}', "application/json", idem_key="evt-429")
     check("rate-limited event with a key -> 429", code == 429)
     check("a refused event does not keep its key",
-          st._db.execute("SELECT 1 FROM dedup WHERE hook_id=? AND idem_key='evt-429'", (r["id"],)).fetchone() is None)
+          st._db.execute("SELECT 1 FROM dedup WHERE hook_id=? AND idem_key LIKE '%evt-429'", (r["id"],)).fetchone()
+          is None)
     unfill(r["id"])
     code, resp = await feat.accept(r["id"], rtok, b'{"order": 7}', "application/json", idem_key="evt-429")
     await feat.wait_idle()
@@ -179,17 +184,14 @@ async def main():
           and len(task_calls) == before + 1)
 
     # queue full: same rule
-    q, qtok, _ = feat.create("/b", name="q", target="task", text="t")
+    q, qtok, _ = feat.create("/b", name="q", target="task", text="t", limits={"backlog": 6})
     # one event running under a live lease of another worker, the rest waiting: nothing here can drain them
     fill(q["id"], 1, status="running", lease=__import__("time").time() + 600)
-    fill(q["id"], wt.QUEUE_MAX, status="queued")
-    # Due now, but not claimable while the hook has a running event (one run per hook): a full backlog. (Events
-    # parked for a LATER resend have their own cap since M5, see webhook_store.PARKED_MAX.)
-    st._db.execute("UPDATE events SET next_at=? WHERE hook_id=? AND status='queued'",
-                   (__import__("time").time() - 1, q["id"]))
+    fill(q["id"], 5, status="queued")
+    st._db.execute("UPDATE events SET received_at=? WHERE hook_id=?", (__import__("time").time() - 120, q["id"]))
     code, _ = await feat.accept(q["id"], qtok, b"{}", "application/json", idem_key="evt-full")
-    check("queue full -> 429 and the key is not kept",
-          code == 429 and st._db.execute("SELECT 1 FROM dedup WHERE hook_id=? AND idem_key='evt-full'",
+    check("backlog full -> 429 and the key is not kept",
+          code == 429 and st._db.execute("SELECT 1 FROM dedup WHERE hook_id=? AND idem_key LIKE '%evt-full'",
                                          (q["id"],)).fetchone() is None)
     unfill(q["id"])
 
@@ -205,7 +207,7 @@ async def main():
     # token sources
     check("bearer header read", wt.token_from_request({"authorization": "Bearer abc"}, "") == "abc")
     check("X-Javis-Token read", wt.token_from_request({"x-javis-token": "def"}, "") == "def")
-    check("query token read", wt.token_from_request({}, "token=ghi&x=1") == "ghi")
+    check("query token read (older hooks only: see the security tests)", wt.token_from_request({}, "token=ghi&x=1") == "ghi")
 
 
 asyncio.run(main())

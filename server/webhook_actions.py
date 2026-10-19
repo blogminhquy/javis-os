@@ -1,40 +1,42 @@
-"""webhook_actions.py - what a hook DOES with an accepted event (0.229.0, webhook platform M3).
+"""webhook_actions.py - what a hook DOES with an accepted event (0.229.0, webhook platform M3, spec §8).
 
-A hook may list `actions`, run as independent BRANCHES of one event:
+A hook may list `actions`, run as independent DELIVERIES of one event:
 
     [{"id": "crm",   "kind": "http", "url": "https://crm.example.com/hooks/order", "body": "fields",
-      "headers": {"X-Api-Key": "..."}, "retry": "never"},
-     {"id": "sheet", "kind": "apps_script", "url": "https://script.google.com/macros/s/<id>/exec"},
-     {"id": "ship",  "kind": "plugin", "plugin": "giao-hang", "handler": "new_order"},
+      "headers": {"X-Api-Key": "..."}, "retry_safety": "manual_on_ambiguous"},
+     {"id": "sheet", "kind": "apps_script", "url": "https://script.google.com/macros/s/<id>/exec", "body": "raw",
+      "delivery_ref": "query"},
+     {"id": "ship",  "kind": "plugin", "plugin": "poscake-zalo", "handler": "order_received",
+      "when": {"path": "status", "op": "eq", "value": 1}, "depends_on": ["sheet"]},
+     {"id": "crm2",  "kind": "tool", "tool": "pos_create_order", "args": {"phone": "{{payload.bill_phone}}"},
+      "approve": true},
      {"id": "ai",    "kind": "ai"}]                    # the hook's task/workflow, the only kind that calls a model
 
-     {"id": "crm2",  "kind": "tool", "tool": "pos_create_order", "args": {"phone": "{phone}", "ref": "{_delivery_id}"},
-      "approve": true}                                 # M4: a tool through the hub dispatcher, after the owner approves
+The spec's names are read too: `type` (`http_forward`, with `redirect_profile: google_apps_script` for Apps Script),
+`body_mode`, `retry_safety`. Without `actions` a hook has one delivery, `{"id": "main", "kind": "ai"}`.
 
-Without `actions` a hook has one branch, `{"id": "main", "kind": "ai"}`: the behaviour before M3.
-M4: header values are kept as `{"$secret": name}` references (webhook_secrets.py); `approve: true` (the default for
-`tool`) makes the branch wait for the owner's approval of that event before it runs.
+Each delivery has a DELIVERY ID that never changes for that (event, action, generation): `dlv_<hash>`. It is sent as
+`Idempotency-Key` and `X-Javis-Delivery`, with `X-Javis-Event-Id`, and inside the body (or, for an Apps Script web app
+that cannot read headers in doPost(e), in the query when the owner chose `delivery_ref: query`). Javis promises no
+exactly-once delivery: it records what it knows and never re-sends blindly.
 
-Each branch gets a DELIVERY ID that never changes for that (event, action): `dlv_<hash>`. It is sent as the
-`Idempotency-Key` and `X-Javis-Delivery` headers and inside the body, so a receiver that keeps it can drop a second
-copy. Javis promises no exactly-once delivery: it records what it knows and never re-sends blindly.
-
-Outcome of one branch (`run_*` return `Outcome`):
+Outcome of one delivery (`run_*` return `Outcome`):
     completed  the receiver confirmed it did the work (2xx; Apps Script receipt ok; plugin "completed")
-    accepted   the receiver took it and finishes later on its own (202; plugin "accepted": the plugin keeps its
-               own scheduling and waiting); Javis does not chase it
-    retry      certainly NOT done: the request never left (connect/DNS error) or the receiver said so (429, 503).
-               Sent again with the SAME delivery ID after a backoff, at most MAX_BRANCH_TRIES times
-    unknown    it may have been done (timeout after sending, a 5xx, a dropped connection, a plugin that hung): only
-               the owner decides, unless the action says `"retry": "safe"` (the receiver dedups on the delivery ID)
-    failed     certainly refused (4xx, bad receipt, blocked address, permission): retried only by the owner
+    accepted   the receiver took it and finishes later on its own (202; plugin "accepted" with its job id): the
+               plugin keeps its own scheduling and waiting; Javis does not chase it
+    retry      certainly NOT done: the request never left (connect/DNS error) or the receiver said so (429), or the
+               owner declared the receiver idempotent (`retry_safety`) and the answer was ambiguous
+    unknown    it may have been done (timeout after sending, a 5xx, a dropped connection, a plugin that hung)
+    blocked    refused for the configuration, not the event (401/403, a missing credential, a plugin switched off):
+               waits until the owner fixes it, never retried in a loop
+    failed     certainly refused for this event (4xx, bad receipt, blocked address, wrong schema): `dead` in the spec
 
 Safety:
   - the incoming request's headers (cookies, tokens) are never forwarded: only the action's own headers;
-  - addresses resolving to loopback, private, link-local, multicast or reserved ranges are refused unless the action
-    says `"allow_private": true`; redirects are not followed (Apps Script: one GET to Google's own echo host);
-  - an action's level: http, apps_script and plugin handlers with `min_mode: full` need the hook at `full`; a
-    plugin handler's `min_mode` is checked against the hook's CURRENT level at run time;
+  - the address is checked after DNS AND the connection is made to that checked address (no DNS rebinding);
+    loopback, private, link-local, CGNAT, multicast and reserved ranges are refused unless `allow_private`;
+    redirects are not followed (Apps Script: one GET to Google's echo host, whose address is checked too);
+  - an action's level: http, apps_script and plugin handlers with `min_mode: full` need the hook at `full`;
   - nothing here calls a model. `JAVIS_WH_NO_NETWORK=1` makes the default HTTP transport refuse every request (tests).
 """
 from __future__ import annotations
@@ -49,27 +51,29 @@ import re
 import socket
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
-ACTIONS_MAX = 8
+ACTIONS_MAX = 10              # spec §8.5
 KINDS = ("http", "apps_script", "plugin", "tool", "ai")
 TOOL_TIMEOUT_S = 150.0       # above the MCP transport's own 120 s, so its timeout surfaces (as unknown) first
 ARGS_MAX = 30
 OUTSIDE = ("http", "apps_script")          # kinds that act outside: need the hook at `full`
-MAX_BRANCH_TRIES = 3
-BRANCH_BACKOFF_S = (10.0, 60.0, 300.0)
+MAX_BRANCH_TRIES = 4                       # spec §7: 4 calls in all, the first included
 TIMEOUT_DEFAULT_S = 15.0
 TIMEOUT_MAX_S = 60.0
 PLUGIN_TIMEOUT_S = 60.0
-RESPONSE_KEEP = 600                        # characters of a receiver's answer kept as the receipt
+RESPONSE_KEEP = 600
 HEADERS_MAX = 10
+RETRY_SAFETY = ("manual_on_ambiguous", "idempotent", "at_least_once")
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 _HEADER_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 _FORBIDDEN_HEADERS = {"host", "content-length", "cookie", "transfer-encoding", "connection", "idempotency-key",
-                      "x-javis-delivery"}
+                      "x-javis-delivery", "x-javis-event-id"}
 APPS_SCRIPT_HOSTS = ("script.google.com",)
 APPS_SCRIPT_ECHO_HOSTS = ("script.googleusercontent.com",)
-STATES = ("completed", "accepted", "retry", "unknown", "failed")
+STATES = ("completed", "accepted", "retry", "unknown", "failed", "blocked", "waiting")
+PLUGIN_RESULTS = {"completed": "completed", "accepted": "accepted", "retryable_error": "retry",
+                  "permanent_error": "failed", "unknown": "unknown", "waiting_approval": "waiting"}
 
 
 class ActionError(ValueError):
@@ -82,15 +86,47 @@ class Outcome:
     detail: str = ""                 # short, for the owner
     receipt: dict = field(default_factory=dict)
     retry_after: float = 0.0
+    http_status: int = 0
+    maybe_acted: Optional[bool] = None
 
 
-def delivery_id(event_id: str, action_id: str) -> str:
-    return "dlv_" + hashlib.sha256(f"{event_id}:{action_id}".encode()).hexdigest()[:24]
+def delivery_id(event_id: str, action_id: str, generation: int = 1) -> str:
+    """Stable for one (event, action, generation): every retry of a delivery sends the same id. A replay with a new
+    configuration is a new generation, so a new id (spec §7)."""
+    base = f"{event_id}:{action_id}" + (f":g{int(generation)}" if int(generation or 1) > 1 else "")
+    return "dlv_" + hashlib.sha256(base.encode()).hexdigest()[:24]
+
+
+def retry_safe(action: dict) -> bool:
+    """May an ambiguous outcome (timeout after sending, 5xx, lost lease) be sent again? Only when the owner said the
+    receiver drops a second copy of the same delivery id (`idempotent`) or accepts duplicates (`at_least_once`)."""
+    return action.get("retry_safety") in ("idempotent", "at_least_once") or action.get("retry") == "safe"
 
 
 # ── validation ──
+def _alias(a: dict) -> dict:
+    """The spec's field names (§9) read into ours."""
+    a = dict(a)
+    t = a.pop("type", None)
+    if t and "kind" not in a:
+        if t == "http_forward":
+            a["kind"] = "apps_script" if (a.get("redirect_profile") == "google_apps_script" or
+                                          urlsplit(str(a.get("url") or "")).hostname in APPS_SCRIPT_HOSTS) else "http"
+        elif t in KINDS:
+            a["kind"] = t
+        else:
+            a["kind"] = t
+    if "body_mode" in a and "body" not in a:
+        a["body"] = a.pop("body_mode")
+    rp = a.pop("redirect_profile", None)
+    if rp not in (None, "", "none", "google_apps_script"):
+        raise ActionError(f"action {a.get('id')}: redirect_profile is google_apps_script or none")
+    return a
+
+
 def validate(actions: Any) -> list:
     """Normalised list, or ActionError. None / [] = no actions (the hook's own task/workflow runs)."""
+    import webhook_rules
     if actions in (None, "", []):
         return []
     if isinstance(actions, str):
@@ -106,6 +142,7 @@ def validate(actions: Any) -> list:
     for a in actions:
         if not isinstance(a, dict):
             raise ActionError("each action must be an object")
+        a = _alias(a)
         aid = str(a.get("id") or "").strip().lower()
         if not _ID_RE.match(aid):
             raise ActionError(f"action id {aid!r}: lowercase letters, digits, - and _ (max 32)")
@@ -116,6 +153,9 @@ def validate(actions: Any) -> list:
         if kind not in KINDS:
             raise ActionError(f"action {aid}: kind is one of {', '.join(KINDS)}")
         o: dict = {"id": aid, "kind": kind}
+        rs = a.get("retry_safety")
+        if rs is not None and rs not in RETRY_SAFETY:
+            raise ActionError(f"action {aid}: retry_safety is one of {', '.join(RETRY_SAFETY)}")
         if kind in OUTSIDE:
             url = str(a.get("url") or "").strip()
             u = urlsplit(url)
@@ -140,14 +180,12 @@ def validate(actions: Any) -> list:
                 if not _HEADER_RE.match(str(k)) or str(k).lower() in _FORBIDDEN_HEADERS:
                     raise ActionError(f"action {aid}: header {k!r} is not allowed")
                 if isinstance(v, dict) and set(v) == {"$secret"} and isinstance(v["$secret"], str):
-                    clean[str(k)] = {"$secret": v["$secret"]}       # already sealed (webhook_secrets)
+                    clean[str(k)] = {"$secret": v["$secret"]}
                     continue
                 if v == "••••":
-                    clean[str(k)] = v                                # masked value sent back: merge_secrets keeps it
+                    clean[str(k)] = v
                     continue
                 if not isinstance(v, str) or len(v) > 2000 or not all(32 <= ord(c) < 127 for c in v) or v != v.strip():
-                    # Printable ASCII only: anything else cannot be sent as a header and would fail AFTER the branch
-                    # was marked dispatched (an "unknown" for a request that never left).
                     raise ActionError(f"action {aid}: header {k} must be one line of plain ASCII text")
                 clean[str(k)] = v
             o["headers"] = clean
@@ -159,19 +197,23 @@ def validate(actions: Any) -> list:
             r = str(a.get("retry") or "never")
             if r not in ("never", "safe"):
                 raise ActionError(f"action {aid}: retry is never or safe")
-            o["retry"] = r
-            o["allow_private"] = a.get("allow_private") is True      # only the boolean true (not "false")
+            o["retry_safety"] = rs or ("idempotent" if r == "safe" else "manual_on_ambiguous")
+            o["retry"] = "safe" if o["retry_safety"] != "manual_on_ambiguous" else "never"
+            o["allow_private"] = a.get("allow_private") is True
+            ref = str(a.get("delivery_ref") or "header")
+            if ref not in ("header", "query"):
+                raise ActionError(f"action {aid}: delivery_ref is header or query")
+            o["delivery_ref"] = ref
         elif kind == "plugin":
             slug, name = str(a.get("plugin") or ""), str(a.get("handler") or "")
             if not re.match(r"^[a-z0-9][a-z0-9._-]{0,63}$", slug) or not re.match(r"^[a-z][a-z0-9_]{0,63}$", name):
                 raise ActionError(f"action {aid}: needs `plugin` (slug) and `handler` (name)")
-            o.update(plugin=slug, handler=name)
+            o.update(plugin=slug, handler=name, allow_ai=a.get("allow_ai") is True)
         elif kind == "tool":
             tool = str(a.get("tool") or "")
             if not re.match(r"^[A-Za-z][A-Za-z0-9_.-]{0,127}$", tool):
                 raise ActionError(f"action {aid}: needs `tool` (the tool's name as the hub lists it)")
             if tool in ("javis_run_tool", "javis_search_tools"):
-                # Meta-tools take the tool name from their arguments: a payload field could then pick the tool.
                 raise ActionError(f"action {aid}: name the tool itself, not {tool}")
             args = a.get("args") or {}
             if not isinstance(args, dict) or len(args) > ARGS_MAX:
@@ -180,14 +222,62 @@ def validate(actions: Any) -> list:
                 if not re.match(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$", str(k)):
                     raise ActionError(f"action {aid}: argument name {k!r}")
                 if isinstance(v, (dict, list)) or (isinstance(v, str) and len(v) > 2000):
-                    raise ActionError(f"action {aid}: argument {k} must be plain (text may use {{field}})")
-            o.update(tool=tool, args=dict(args))
+                    raise ActionError(f"action {aid}: argument {k} must be plain (a whole {{{{payload.x}}}} keeps "
+                                      "its type)")
+                try:
+                    webhook_rules.validate_template(v, f"action {aid}: argument {k}")
+                except webhook_rules.RuleError as e:
+                    raise ActionError(str(e))
+            o.update(tool=tool, args=dict(args), retry_safety=rs or "manual_on_ambiguous")
         if "approve" in a or kind == "tool":
             o["approve"] = bool(a.get("approve", kind == "tool"))
+        if a.get("when") not in (None, {}, ""):
+            try:
+                o["when"] = webhook_rules.validate_condition(a["when"])
+            except webhook_rules.RuleError as e:
+                raise ActionError(f"action {aid}: when: {e}")
+        deps = a.get("depends_on") or []
+        if not isinstance(deps, list) or len(deps) > ACTIONS_MAX:
+            raise ActionError(f"action {aid}: depends_on is a list of action ids")
+        dd = []
+        for d in deps:
+            if isinstance(d, str):
+                d = {"id": d}
+            if not isinstance(d, dict) or not isinstance(d.get("id"), str):
+                raise ActionError(f"action {aid}: depends_on items are action ids")
+            on = str(d.get("on") or "succeeded")
+            if on not in ("succeeded", "accepted"):
+                raise ActionError(f"action {aid}: depends_on `on` is succeeded or accepted")
+            dd.append({"id": d["id"].strip().lower(), "on": on})
+        if dd:
+            o["depends_on"] = dd
         out.append(o)
     if sum(1 for o in out if o["kind"] == "ai") > 1:
         raise ActionError("at most one ai action (the hook's own task or workflow)")
+    ids = {o["id"] for o in out}
+    for o in out:
+        for d in o.get("depends_on") or []:
+            if d["id"] not in ids or d["id"] == o["id"]:
+                raise ActionError(f"action {o['id']}: depends_on names {d['id']!r}, which is not another action")
+    _acyclic(out)
     return out
+
+
+def _acyclic(actions: list) -> None:
+    deps = {a["id"]: [d["id"] for d in a.get("depends_on") or []] for a in actions}
+    state: dict = {}
+
+    def visit(n, path):
+        if state.get(n) == 1:
+            raise ActionError("depends_on makes a loop: " + " -> ".join(path + [n]))
+        if state.get(n) == 2:
+            return
+        state[n] = 1
+        for m in deps.get(n, []):
+            visit(m, path + [n])
+        state[n] = 2
+    for n in deps:
+        visit(n, [])
 
 
 def effective(actions: Optional[list]) -> list:
@@ -206,7 +296,6 @@ def view(actions: Optional[list]) -> list:
 
 
 def sealed_names(actions: Optional[list]) -> list:
-    """Secret names referenced by the headers of these actions."""
     return [v["$secret"] for a in actions or [] for v in (a.get("headers") or {}).values()
             if isinstance(v, dict) and "$secret" in v]
 
@@ -219,26 +308,31 @@ def same_target(a: Optional[dict], b: Optional[dict]) -> bool:
     return all(a.get(k) == b.get(k) for k in keys)
 
 
+def target_key(action: dict) -> str:
+    """The breaker's key (spec §11: per target and credential, not per hook): the same receiver behind two hooks
+    shares one breaker; another credential to the same URL is another target."""
+    cred = sorted(v["$secret"] if isinstance(v, dict) else hashlib.sha256(str(v).encode()).hexdigest()[:8]
+                  for v in (action.get("headers") or {}).values())
+    t = {"kind": action.get("kind"), "url": action.get("url"), "plugin": action.get("plugin"),
+         "handler": action.get("handler"), "tool": action.get("tool"), "cred": cred}
+    return "t:" + hashlib.sha256(json.dumps(t, sort_keys=True).encode()).hexdigest()[:20]
+
+
 def merge_secrets(new: list, old: list) -> list:
     """A list sent back from the dashboard carries masked header values: keep the stored value for those, but ONLY
-    when the action still sends to the same target. Pointing an action somewhere else must not carry its stored key
-    along (someone who sees only the mask could otherwise send the key to their own server)."""
+    when the action still sends to the same target."""
     olds = {a["id"]: a for a in old or []}
     for a in new:
         o = olds.get(a["id"])
         for k, v in list((a.get("headers") or {}).items()):
             if isinstance(v, dict) and (not o or (o.get("headers") or {}).get(k) != v):
-                # Only Javis writes references (webhook_triggers._seal); one a client made up is refused.
                 raise ActionError(f"action {a['id']}: header {k} cannot be a secret reference; enter its value")
             if v == "••••" or isinstance(v, dict):
-                # A sealed reference sent back is treated exactly like the mask: it keeps the stored key only for the
-                # same target (otherwise a client could pair the reference with a new address).
                 if o and k in (o.get("headers") or {}) and same_target(a, o):
                     a["headers"][k] = o["headers"][k]
                 elif o and k in (o.get("headers") or {}):
                     raise ActionError(f"action {a['id']}: its address changed, so enter header {k} again")
                 else:
-                    # A mask with nothing stored behind it (a renamed header, a new action): never run without it.
                     raise ActionError(f"action {a['id']}: enter header {k} again")
     return new
 
@@ -251,7 +345,7 @@ def level_ok(action: dict, level: str, plugin_min: str = "readonly") -> str:
     if action["kind"] in OUTSIDE and lv < 2:
         return "needs the webhook at level full (it sends data outside)"
     if action["kind"] == "tool":
-        return ""      # the hub dispatcher checks every tool against this level (and the connection's own limit)
+        return ""
     if action["kind"] == "plugin" and lv < need.get(plugin_min, 2):
         return f"needs the webhook at a higher level (plugin handler min_mode {plugin_min})"
     return ""
@@ -290,18 +384,52 @@ async def check_address(url: str, allow_private: bool, resolve: Optional[Callabl
     return ""
 
 
+class AddressRefused(Exception):
+    pass
+
+
+def _pinned_backend(allow_private: bool, resolve: Optional[Callable]):
+    """An httpcore network backend that resolves the name itself, refuses a private address, and connects to the
+    address it checked (TLS still verifies the certificate for the name: httpcore passes the host as SNI). A name
+    that answers a public address to the check and a private one to the connection (DNS rebinding) gets nowhere."""
+    import httpcore
+    from httpcore._backends.auto import AutoBackend
+
+    class Pinned(httpcore.AsyncNetworkBackend):
+        def __init__(self):
+            self._inner = AutoBackend()
+
+        async def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+            try:
+                ips = await asyncio.to_thread(resolve or _default_resolve, host)
+            except Exception as e:
+                raise httpcore.ConnectError(f"name did not resolve: {type(e).__name__}")
+            for ip in ips:
+                if allow_private or not _blocked_ip(ip):
+                    return await self._inner.connect_tcp(ip, port, timeout=timeout, local_address=local_address,
+                                                         socket_options=socket_options)
+            raise AddressRefused("address is private or local")
+
+        async def connect_unix_socket(self, path, timeout=None, socket_options=None):
+            raise httpcore.ConnectError("unix sockets are not used")
+
+        async def sleep(self, seconds):
+            await self._inner.sleep(seconds)
+    return Pinned()
+
+
 # ── bodies ──
 def _meta(ctx: dict) -> dict:
     m = {"delivery_id": ctx["delivery_id"], "event_id": ctx["event_id"], "hook_id": ctx["hook_id"],
          "action_id": ctx["action_id"], "received_at": ctx["received_at"]}
     if ctx.get("source") == "test":
-        m["test"] = True                 # a dashboard Test event: a receiver can tell it apart from a real one
+        m["test"] = True                 # a dashboard test event: a receiver can tell it apart from a real one
     return m
 
 
 def build_body(action: dict, ctx: dict) -> tuple:
     """(bytes, content_type) of what is sent. `fields`: the mapped fields plus `_javis`; `event`: fields, the parsed
-    payload and `_javis`; `raw`: the original body unchanged."""
+    payload and `_javis`; `raw`: the original body unchanged (and its own content type)."""
     if action.get("body") == "raw":
         return bytes(ctx.get("body") or b""), str(ctx.get("content_type") or "application/octet-stream")
     doc = dict(ctx.get("fields") or {})
@@ -309,6 +437,17 @@ def build_body(action: dict, ctx: dict) -> tuple:
         doc = {"fields": ctx.get("fields") or {}, "payload": ctx.get("payload")}
     doc["_javis"] = _meta(ctx)
     return json.dumps(doc, ensure_ascii=False, default=str).encode("utf-8"), "application/json"
+
+
+def target_url(action: dict, ctx: dict) -> str:
+    """The URL actually called: with `delivery_ref: query`, the delivery and event ids ride in the query (an Apps
+    Script doPost(e) reads e.parameter, never request headers). Only when the owner chose it: it changes the URL the
+    receiver sees, not the body's schema."""
+    if action.get("delivery_ref") != "query":
+        return action["url"]
+    u = urlsplit(action["url"])
+    extra = urlencode({"javis_delivery": ctx["delivery_id"], "javis_event": ctx["event_id"]})
+    return urlunsplit((u.scheme, u.netloc, u.path, (u.query + "&" if u.query else "") + extra, u.fragment))
 
 
 def _headers(action: dict, ctx: dict, content_type: str) -> dict:
@@ -320,7 +459,16 @@ def _headers(action: dict, ctx: dict, content_type: str) -> dict:
         h["User-Agent"] = "Javis-Webhook/1"
     h["Idempotency-Key"] = ctx["delivery_id"]
     h["X-Javis-Delivery"] = ctx["delivery_id"]
+    h["X-Javis-Event-Id"] = ctx["event_id"]
     return h
+
+
+def request_fingerprint(action: dict, ctx: dict) -> str:
+    """Hash of what a delivery sends (URL and body), kept with each attempt (spec §4.1 `request hash`)."""
+    if action["kind"] in OUTSIDE:
+        body, _ = build_body(action, ctx)
+        return hashlib.sha256(target_url(action, ctx).encode() + b"\n" + body).hexdigest()[:32]
+    return ""
 
 
 def _short(text: str) -> str:
@@ -331,13 +479,13 @@ def _short(text: str) -> str:
 def _retry_after(resp) -> float:
     v = str(resp.headers.get("retry-after") or "").strip()
     try:
-        return max(0.0, min(float(v or 0), 3600.0))
+        return max(0.0, min(float(v or 0), 86400.0))
     except ValueError:
         pass
     try:
         from email.utils import parsedate_to_datetime
         import time as _t
-        return max(0.0, min(parsedate_to_datetime(v).timestamp() - _t.time(), 3600.0))
+        return max(0.0, min(parsedate_to_datetime(v).timestamp() - _t.time(), 86400.0))
     except Exception:
         return 0.0
 
@@ -346,8 +494,7 @@ RESPONSE_READ_MAX = 64 * 1024
 
 
 async def _send(cl, method: str, url: str, **kw):
-    """One request whose answer is read only up to RESPONSE_READ_MAX bytes (a receiver cannot make us hold a huge
-    body). Returns (status, headers, text)."""
+    """One request whose answer is read only up to RESPONSE_READ_MAX bytes. Returns (status, headers, text)."""
     async with cl.stream(method, url, **kw) as resp:
         buf = b""
         async for chunk in resp.aiter_bytes():
@@ -357,9 +504,9 @@ async def _send(cl, method: str, url: str, **kw):
         return resp.status_code, resp.headers, buf[:RESPONSE_READ_MAX].decode("utf-8", "replace")
 
 
-def _ambiguous(action: dict, detail: str) -> Outcome:
-    """It may have been done. Re-sent only when the owner said the receiver dedups on the delivery ID."""
-    return Outcome("retry" if action.get("retry") == "safe" else "unknown", detail)
+def _ambiguous(action: dict, detail: str, rc: Optional[dict] = None, code: int = 0) -> Outcome:
+    """It may have been done. Sent again only when the owner declared the receiver idempotent or at-least-once."""
+    return Outcome("retry" if retry_safe(action) else "unknown", detail, rc or {}, http_status=code, maybe_acted=True)
 
 
 # ── runners ──
@@ -370,6 +517,7 @@ class NoNetwork(Exception):
 PLUGIN_THREADS = 4
 _PLUGIN_SLOTS = __import__("threading").BoundedSemaphore(PLUGIN_THREADS)
 _POOL = {"ex": None}
+_INFLIGHT: set = set()            # delivery ids whose plugin call is still running (a timed-out thread included)
 
 
 def _plugin_pool():
@@ -379,71 +527,102 @@ def _plugin_pool():
     return _POOL["ex"]
 
 
-def _call_release(h, delivery, ctx):
-    """Runs in the plugin pool; the slot is given back only when the handler really returns."""
+def plugin_busy(did: str) -> bool:
+    """Is a call of this delivery still running? A retry must not start beside it (spec §8.2: an old callback never
+    acts alongside a new attempt)."""
+    return did in _INFLIGHT
+
+
+def _call_release(h, delivery, ctx, did):
     try:
         return h(delivery, ctx)
     finally:
+        _INFLIGHT.discard(did)
         _PLUGIN_SLOTS.release()
 
 
-def default_transport():
+def _proxied() -> bool:
+    import urllib.request
+    return bool(urllib.request.getproxies())
+
+
+def default_transport(allow_private: bool = False, resolve: Optional[Callable] = None):
     import httpx
     if os.environ.get("JAVIS_WH_NO_NETWORK") == "1":
         def refuse(request):
             raise NoNetwork(f"network disabled (JAVIS_WH_NO_NETWORK): {request.url.host}")
         return httpx.MockTransport(refuse)
-    return httpx.AsyncHTTPTransport(retries=0)
+    t = httpx.AsyncHTTPTransport(retries=0)
+    if not _proxied():
+        # Pinned connections (no DNS rebinding). Behind an outgoing proxy the proxy makes the connection, and the
+        # name check before the request is what stands.
+        import httpcore
+        t._pool = httpcore.AsyncConnectionPool(ssl_context=t._pool._ssl_context, retries=0,
+                                               network_backend=_pinned_backend(allow_private, resolve))
+    return t
+
+
+def _outcome_of(code: int, text: str, rh, action: dict) -> Outcome:
+    rc = {"status": code, "body": _short(text)}
+
+    class _R:
+        headers = rh
+    if code == 202:
+        return Outcome("accepted", "accepted by the receiver", rc, http_status=code)
+    if 200 <= code < 300:
+        return Outcome("completed", f"HTTP {code}", rc, http_status=code)
+    if code == 429:
+        # Refused before processing (rate limited): retried after its Retry-After.
+        return Outcome("retry", f"HTTP {code}: receiver busy", rc, _retry_after(_R), http_status=code, maybe_acted=False)
+    if code in (401, 403):
+        return Outcome("blocked", f"HTTP {code}: the receiver refused the credential; fix the action's key, then it "
+                       "runs again", rc, http_status=code, maybe_acted=False)
+    if code in (301, 302, 303):
+        return Outcome("unknown", f"HTTP {code}: redirected after the POST (not followed): it may have been done", rc,
+                       http_status=code, maybe_acted=True)
+    if 300 <= code < 400:
+        return Outcome("failed", f"HTTP {code}: redirects are not followed", rc, http_status=code, maybe_acted=False)
+    if code >= 500:
+        o = _ambiguous(action, f"HTTP {code}: the receiver failed, it may have been done", rc, code)
+        o.retry_after = _retry_after(_R)
+        return o
+    return Outcome("failed", f"HTTP {code}", rc, http_status=code, maybe_acted=False)
 
 
 async def run_http(action: dict, ctx: dict, transport=None, resolve=None) -> Outcome:
     import httpx
     why = await check_address(action["url"], action.get("allow_private", False), resolve)
     if why:
-        return Outcome("failed", why)
+        return Outcome("failed", why, maybe_acted=False)
     body, ct = build_body(action, ctx)
     try:
-        async with httpx.AsyncClient(transport=transport or default_transport(), follow_redirects=False,
-                                     timeout=action.get("timeout_s", TIMEOUT_DEFAULT_S)) as cl:
-            code, rh, text = await _send(cl, action.get("method", "POST"), action["url"], content=body,
+        async with httpx.AsyncClient(transport=transport or default_transport(action.get("allow_private", False),
+                                                                               resolve),
+                                     follow_redirects=False, timeout=action.get("timeout_s", TIMEOUT_DEFAULT_S)) as cl:
+            code, rh, text = await _send(cl, "POST", target_url(action, ctx), content=body,
                                          headers=_headers(action, ctx, ct))
+    except AddressRefused as e:
+        return Outcome("failed", f"{e} (set allow_private to call it)", maybe_acted=False)
     except (httpx.ConnectError, httpx.ConnectTimeout, NoNetwork) as e:
-        return Outcome("retry", f"not sent: {type(e).__name__}")       # the request never reached the receiver
+        return Outcome("retry", f"not sent: {type(e).__name__}", maybe_acted=False)
     except httpx.TimeoutException as e:
         return _ambiguous(action, f"no answer in time ({type(e).__name__}): it may have been done")
     except httpx.HTTPError as e:
         return _ambiguous(action, f"connection dropped ({type(e).__name__}): it may have been done")
-    rc = {"status": code, "body": _short(text)}
-
-    class _R:
-        headers = rh
-    if code == 202:
-        return Outcome("accepted", "accepted by the receiver", rc)
-    if 200 <= code < 300:
-        return Outcome("completed", f"HTTP {code}", rc)
-    if code in (429, 503):
-        return Outcome("retry", f"HTTP {code}: receiver busy", rc, _retry_after(_R))
-    if code in (301, 302, 303):
-        # Post/Redirect/Get: the receiver may well have processed the POST before redirecting. Not followed, and not
-        # "refused" either: the owner checks.
-        return Outcome("unknown", f"HTTP {code}: redirected after the POST (not followed): it may have been done", rc)
-    if 300 <= code < 400:
-        return Outcome("failed", f"HTTP {code}: redirects are not followed", rc)
-    if code >= 500:
-        return _ambiguous(action, f"HTTP {code}: the receiver failed, it may have been done")
-    return Outcome("failed", f"HTTP {code}", rc)
+    return _outcome_of(code, text, rh, action)
 
 
 def _receipt(text: str, did: str) -> Outcome:
     """An Apps Script web app answers with ContentService JSON. `{"ok": true}` (echoing `delivery_id` when it keeps
-    one) is a receipt; `{"ok": false, "error": ...}` is a refusal; anything else (often Google's sign-in page, when
-    the deployment is not open to "Anyone") is not a receipt."""
+    one) is a receipt; `{"ok": false, "error": ...}` is a refusal (a 200 is not a business success); anything else
+    (often Google's sign-in page) is not a receipt."""
     try:
         doc = json.loads(text)
     except ValueError:
         low = text.lower()
         hint = " (the web app must be deployed with access: Anyone)" if "accounts.google.com" in low or "<html" in low else ""
-        return Outcome("failed", "Apps Script answered without a JSON receipt" + hint, {"body": _short(text)})
+        return Outcome("failed", "Apps Script answered without a JSON receipt" + hint, {"body": _short(text)},
+                       maybe_acted=None)
     if not isinstance(doc, dict):
         return Outcome("failed", "Apps Script receipt is not an object", {"body": _short(text)})
     rc = {"receipt": doc if len(json.dumps(doc, default=str)) <= RESPONSE_KEEP else {"ok": doc.get("ok")}}
@@ -461,114 +640,170 @@ def _receipt(text: str, did: str) -> Outcome:
 async def run_apps_script(action: dict, ctx: dict, transport=None, resolve=None) -> Outcome:
     """POST to the /exec address. Google runs the script, then answers 302 to a one-time echo address on
     script.googleusercontent.com that holds the script's output: read it with a plain GET (no body, no headers of the
-    action) and treat it as the receipt. A POST is never repeated on the redirect."""
+    action, the echo host's address checked too) and treat it as the receipt. The POST is never repeated."""
     import httpx
     why = await check_address(action["url"], False, resolve)
     if why:
-        return Outcome("failed", why)
+        return Outcome("failed", why, maybe_acted=False)
     body, ct = build_body(action, ctx)
     try:
-        async with httpx.AsyncClient(transport=transport or default_transport(), follow_redirects=False,
+        async with httpx.AsyncClient(transport=transport or default_transport(False, resolve), follow_redirects=False,
                                      timeout=action.get("timeout_s", 30.0)) as cl:
-            resp = await cl.post(action["url"], content=body, headers=_headers(action, ctx, ct))
+            resp = await cl.post(target_url(action, ctx), content=body, headers=_headers(action, ctx, ct))
             if resp.status_code in (301, 302, 303, 307, 308):
                 loc = resp.headers.get("location") or ""
                 host = urlsplit(loc).hostname or ""
                 if host == "accounts.google.com" or host.endswith(".accounts.google.com"):
-                    # A deployment not open to "Anyone" sends the POST to Google's sign-in: the script never ran.
-                    return Outcome("failed", "Apps Script asked to sign in: the script did not run (deploy the web "
-                                   "app with access: Anyone)", {"location": _short(loc)})
+                    return Outcome("blocked", "Apps Script asked to sign in: the script did not run (deploy the web "
+                                   "app with access: Anyone)", {"location": _short(loc)}, maybe_acted=False)
                 if urlsplit(loc).scheme != "https" or host not in APPS_SCRIPT_ECHO_HOSTS:
                     return Outcome("unknown", "Apps Script redirected somewhere unexpected: the script may have run",
-                                   {"location": _short(loc)})
+                                   {"location": _short(loc)}, maybe_acted=True)
+                hop = await check_address(loc, False, resolve)
+                if hop:
+                    return Outcome("unknown", f"the receipt address was refused ({hop}): the script may have run",
+                                   {"location": _short(loc)}, maybe_acted=True)
                 try:
                     ecode, _, etext = await _send(cl, "GET", loc, headers={"User-Agent": "Javis-Webhook/1"})
-                except httpx.HTTPError as e:
-                    return Outcome("unknown", f"the script ran but its receipt could not be read ({type(e).__name__})")
+                except (httpx.HTTPError, AddressRefused) as e:
+                    return Outcome("unknown", f"the script ran but its receipt could not be read ({type(e).__name__})",
+                                   maybe_acted=True)
                 if ecode != 200:
-                    return Outcome("unknown", f"receipt page answered HTTP {ecode}: the script may have run")
-                return _receipt(etext, ctx["delivery_id"])
+                    return Outcome("unknown", f"receipt page answered HTTP {ecode}: the script may have run",
+                                   maybe_acted=True)
+                out = _receipt(etext, ctx["delivery_id"])
+                out.http_status = resp.status_code
+                return out
+    except AddressRefused as e:
+        return Outcome("failed", str(e), maybe_acted=False)
     except (httpx.ConnectError, httpx.ConnectTimeout, NoNetwork) as e:
-        return Outcome("retry", f"not sent: {type(e).__name__}")
+        return Outcome("retry", f"not sent: {type(e).__name__}", maybe_acted=False)
     except httpx.TimeoutException as e:
         return _ambiguous(action, f"no answer in time ({type(e).__name__}): the script may have run")
     except httpx.HTTPError as e:
         return _ambiguous(action, f"connection dropped ({type(e).__name__}): the script may have run")
     if resp.status_code == 200:
-        return _receipt(resp.text, ctx["delivery_id"])
-    if resp.status_code in (429, 503):
-        return Outcome("retry", f"HTTP {resp.status_code}: Google is busy", {"status": resp.status_code},
-                       _retry_after(resp))
-    if resp.status_code >= 500:
-        return _ambiguous(action, f"HTTP {resp.status_code}: the script may have run")
-    return Outcome("failed", f"HTTP {resp.status_code} from Apps Script", {"status": resp.status_code,
-                                                                           "body": _short(resp.text)})
+        out = _receipt(resp.text, ctx["delivery_id"])
+        out.http_status = 200
+        return out
+    return _outcome_of(resp.status_code, resp.text, resp.headers, action)
+
+
+def envelope(ctx: dict, level: str) -> dict:
+    """What a plugin handler receives (spec §8.2): ids, attempt, source, brain, configuration revision, the verified
+    metadata, the parsed payload, the raw body's hash and the business key. Never the owner's cookie or the sender's
+    signing secret."""
+    return {**_meta(ctx), "attempt": int(ctx.get("attempt") or 1), "generation": int(ctx.get("generation") or 1),
+            "source": ctx.get("source") or "http", "brain": ctx.get("brain", ""), "revision": ctx.get("revision"),
+            "verified": ctx.get("verified") or {}, "fields": ctx.get("fields") or {}, "payload": ctx.get("payload"),
+            "raw_sha256": hashlib.sha256(bytes(ctx.get("body") or b"")).hexdigest(),
+            "business_key": ctx.get("business_key") or "", "level": level}
+
+
+def plugin_precheck(action: dict, found: Optional[dict], level: str, ctx: dict) -> Optional[Outcome]:
+    """Before dispatch: an Outcome that closes the delivery without calling the plugin, or None to call it."""
+    if not found:
+        return Outcome("blocked", f"plugin handler {action['plugin']}/{action['handler']} is not installed or is off",
+                       maybe_acted=False)
+    why = level_ok(action, level, found.get("min_mode", "full"))
+    if why:
+        return Outcome("blocked", why, maybe_acted=False)
+    if found.get("ai") and not action.get("allow_ai"):
+        return Outcome("blocked", "this plugin handler uses AI: allow it in the action (allow_ai) to run it",
+                       maybe_acted=False)
+    schema = found.get("schema")
+    if schema:
+        import webhook_rules
+        env = envelope(ctx, level)
+        bad = []
+        for path, spec in (schema.get("fields") or {}).items():
+            v = webhook_rules.get_path(env, path)
+            if v is webhook_rules._MISSING:
+                if spec.get("required"):
+                    bad.append(f"{path}: missing")
+            elif not webhook_rules._matches_type(v, spec.get("type", "any")):
+                bad.append(f"{path}: expected {spec.get('type')}, got {webhook_rules.type_of(v)}")
+        if bad:
+            return Outcome("failed", "the event does not fit the handler's schema: " + "; ".join(bad[:4]),
+                           maybe_acted=False)
+    return None
 
 
 async def run_plugin(action: dict, ctx: dict, found: Optional[dict], level: str) -> Outcome:
-    """`found` = {"handler", "ctx", "min_mode"} of an ENABLED plugin visible to the hook's brain, or None.
-    handler(delivery, plugin_ctx) -> {"status": "completed"|"accepted", "ref"?: str, "detail"?: str}."""
-    if not found:
-        return Outcome("failed", f"plugin handler {action['plugin']}/{action['handler']} is not installed or is off")
-    why = level_ok(action, level, found.get("min_mode", "full"))
-    if why:
-        return Outcome("failed", why)
-    delivery = {**_meta(ctx), "brain": ctx.get("brain", ""), "fields": ctx.get("fields") or {},
-                "payload": ctx.get("payload"), "level": level}
+    """`found` = {"handler", "ctx", "min_mode", "schema", "ai", "idempotent"} of an ENABLED plugin visible to the hook's
+    brain, or None. handler(envelope, plugin_ctx) -> {"status": completed | accepted | retryable_error |
+    permanent_error | unknown | waiting_approval, "ref"?: job id, "detail"?: str}."""
+    pre = plugin_precheck(action, found, level, ctx)
+    if pre:
+        return pre
+    delivery = envelope(ctx, level)
+    did = ctx["delivery_id"]
     h = found["handler"]
     try:
         if inspect.iscoroutinefunction(h):
-            res = await asyncio.wait_for(h(delivery, found.get("ctx")), PLUGIN_TIMEOUT_S)
+            _INFLIGHT.add(did)
+            try:
+                res = await asyncio.wait_for(h(delivery, found.get("ctx")), PLUGIN_TIMEOUT_S)
+            finally:
+                _INFLIGHT.discard(did)
         else:
-            # A plain function runs in a thread of its OWN small pool: a handler that hangs keeps its thread (Python
-            # cannot stop it), and in the shared default pool a few of those would block every store call of the
-            # server. When this pool is full the branch is not sent and tries again later.
             if not _PLUGIN_SLOTS.acquire(blocking=False):
-                return Outcome("retry", "not sent: plugin handlers are busy (earlier calls still running)")
+                return Outcome("retry", "not sent: plugin handlers are busy (earlier calls still running)",
+                               maybe_acted=False)
+            _INFLIGHT.add(did)
             fut = asyncio.get_running_loop().run_in_executor(_plugin_pool(), _call_release, h, delivery,
-                                                              found.get("ctx"))
+                                                              found.get("ctx"), did)
             res = await asyncio.wait_for(asyncio.shield(fut), PLUGIN_TIMEOUT_S)
             if inspect.isawaitable(res):
                 res = await asyncio.wait_for(res, PLUGIN_TIMEOUT_S)
     except asyncio.TimeoutError:
-        return Outcome("unknown", f"plugin did not answer in {int(PLUGIN_TIMEOUT_S)} s: it may have acted")
+        return Outcome("unknown", f"plugin did not answer in {int(PLUGIN_TIMEOUT_S)} s: it may have acted",
+                       maybe_acted=True)
     except Exception as e:
-        return Outcome("failed", f"plugin error: {type(e).__name__}: {e}"[:300])
-    if not isinstance(res, dict) or res.get("status") not in ("completed", "accepted"):
-        return Outcome("failed", "plugin answered without status completed or accepted")
-    rc = {"ref": str(res.get("ref") or "")[:200]}
-    return Outcome(res["status"], str(res.get("detail") or f"plugin {res['status']}")[:300], rc)
+        # The handler broke its contract mid-way: it may have acted. One that keeps the delivery id (idempotent)
+        # can take it again.
+        st = "retry" if found.get("idempotent") else "unknown"
+        return Outcome(st, f"plugin error: {type(e).__name__}: {e}"[:300], maybe_acted=True)
+    if not isinstance(res, dict) or res.get("status") not in PLUGIN_RESULTS:
+        return Outcome("unknown", "plugin answered without a known status (completed, accepted, retryable_error, "
+                       "permanent_error, unknown, waiting_approval)", maybe_acted=True)
+    st = PLUGIN_RESULTS[res["status"]]
+    rc = {"ref": str(res.get("ref") or "")[:200], "result": res["status"]}
+    return Outcome(st, str(res.get("detail") or f"plugin {res['status']}")[:300], rc,
+                   maybe_acted=st not in ("retry", "failed") or None)
 
 
 def tool_args(action: dict, ctx: dict) -> dict:
-    """The tool's arguments: text values may use `{field}` of the mapped fields and `{_delivery_id}`, `{_event_id}`,
-    `{_hook_id}`. Substitution only (webhook_rules.render_template): nothing in the payload is evaluated."""
+    """The tool's arguments (spec §8.3): `{{payload.x}}`, `{{fields.x}}`, `{{event.id}}`, `{{delivery.id}}` are data
+    paths (a whole-value expression keeps its type); the older `{field}` reads a mapped field. A missing field raises
+    webhook_rules.TemplateError: the tool is not called with an empty recipient, amount or id."""
     import webhook_rules
-    vals = dict(ctx.get("fields") or {})
-    vals.update(_delivery_id=ctx["delivery_id"], _event_id=ctx["event_id"], _hook_id=ctx["hook_id"])
-    out = {}
-    for k, v in (action.get("args") or {}).items():
-        out[k] = webhook_rules.render_template(v, vals) if isinstance(v, str) else v
-    return out
+    tctx = {"payload": ctx.get("payload"), "fields": ctx.get("fields") or {},
+            "event": {"id": ctx["event_id"], "hook_id": ctx["hook_id"], "received_at": ctx["received_at"]},
+            "delivery": {"id": ctx["delivery_id"], "action_id": ctx["action_id"]}}
+    return {k: webhook_rules.render_value(v, tctx) for k, v in (action.get("args") or {}).items()}
 
 
-async def run_tool(action: dict, ctx: dict, call_tool: Optional[Callable], level: str) -> Outcome:
+async def run_tool(action: dict, ctx: dict, call_tool: Optional[Callable], level: str,
+                   args: Optional[dict] = None) -> Outcome:
     """A tool through the hub dispatcher, at the hook's CURRENT level: the hub applies the same permission rules as
     for any background run (a `danger` tool needs full, the connection's own limit applies too)."""
     if not call_tool:
-        return Outcome("failed", "tools are not available to webhooks on this server")
-    args = tool_args(action, ctx)
+        return Outcome("blocked", "tools are not available to webhooks on this server", maybe_acted=False)
+    if args is None:
+        args = tool_args(action, ctx)
     try:
         res = await asyncio.wait_for(call_tool(ctx.get("brain", ""), level, action["tool"], args), TOOL_TIMEOUT_S)
     except asyncio.TimeoutError:
-        return Outcome("unknown", f"tool did not answer in {int(TOOL_TIMEOUT_S)} s: it may have acted")
+        return _ambiguous(action, f"tool did not answer in {int(TOOL_TIMEOUT_S)} s: it may have acted")
     except Exception as e:
-        return Outcome("unknown", f"tool call broke ({type(e).__name__}): it may have acted")
+        return _ambiguous(action, f"tool call broke ({type(e).__name__}): it may have acted")
     text = str(res or "")
     if text.startswith("ERROR: gọi tool lỗi"):
-        # mcp_client.call_route caught an exception (transport timeout, connection reset): the call may have reached
-        # the tool. Not "refused".
-        return Outcome("unknown", "the tool call broke after it was sent: it may have acted", {"result": _short(text)})
+        return _ambiguous(action, "the tool call broke after it was sent: it may have acted", {"result": _short(text)})
     if text.startswith("ERROR:"):
-        return Outcome("failed", text[6:].strip()[:300], {"result": _short(text)})
+        low = text.lower()
+        st = "blocked" if any(w in low for w in ("not connected", "chưa kết nối", "permission", "quyền", "not allowed",
+                                                 "unknown tool", "không có tool", "disabled", "đã tắt")) else "failed"
+        return Outcome(st, text[6:].strip()[:300], {"result": _short(text)}, maybe_acted=False)
     return Outcome("completed", f"tool {action['tool']} ran", {"result": _short(text)})

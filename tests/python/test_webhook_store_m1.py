@@ -48,6 +48,14 @@ def check(name, cond, them=""):
 
 
 PY = sys.executable
+
+
+def admit(st):
+    """Spec §4.2: rules run AFTER the commit. A hook without rules: triage only moves the event to the queue."""
+    for r in st.triage_candidates(1000, now=time.time() + 10 ** 6):
+        st.triage_commit(r["id"], {"decision": "run"}, [])
+
+
 HOOK = {"id": "wh_test", "name": "Lead", "brain": "/b", "target": "task", "text": "Gọi lại", "level": "full"}
 
 
@@ -85,7 +93,7 @@ s2 = Path(tempfile.mkdtemp(prefix="wh-crash-"))
 r = child(INGEST, {"JAVIS_WH_CRASH_AT": "after_commit"}, s2)
 db2 = s2 / "e.sqlite3"
 check("crash after commit, before the ACK: the event and its key are both stored",
-      r.returncode == 77 and rows(db2, "SELECT status FROM events") == [("queued",)]
+      r.returncode == 77 and rows(db2, "SELECT status FROM events") == [("received",)]
       and rows(db2, "SELECT COUNT(*) FROM dedup")[0][0] == 1)
 r = child(INGEST, {}, s2)
 check("the sender's retry is then a duplicate pointing at the stored event", "ACK 200" in r.stdout
@@ -110,20 +118,27 @@ check("5 processes, one key: exactly one 202", codes == ["200"] * 4 + ["202"], o
 s4 = Path(tempfile.mkdtemp(prefix="wh-lim-"))
 st4 = ws.Store(s4 / "e.sqlite3")
 now = time.time()
-for i in range(ws.RATE_PER_HOUR):
+# Spec §11: ingress is limited per minute (300 by default, with a 10 s burst), no longer 30 per hour.
+HR = dict(HOOK, limits={"per_minute": 30})
+for i in range(30):
     st4._db.execute("INSERT INTO events(id, hook_id, received_at, body, body_sha, status) VALUES(?,?,?,?,?, 'done')",
-                    (f"ev_r{i}", HOOK["id"], now - 10, b"", ""))
-code, info = st4.ingest(HOOK, b"x", "", "k-rate")
-check("over the hourly rate: 429 and nothing stored",
+                    (f"ev_r{i}", HOOK["id"], now - 30, b"", ""))
+code, info = st4.ingest(HR, b"x", "", "k-rate", now=now)
+check("over the ingress rate: 429 and nothing stored",
       code == 429 and info["reason"] == "rate" and st4._db.execute("SELECT COUNT(*) FROM dedup").fetchone()[0] == 0)
-code, _ = st4.ingest(HOOK, b"x", "", "k-old", now=now + 3700)
-check("an hour later the same hook is accepted again", code == 202)
-h2 = dict(HOOK, id="wh_backlog")
-for i in range(ws.BACKLOG_MAX):
-    st4.ingest(h2, b"x", "", f"b{i}", now=now)
+code, _ = st4.ingest(HR, b"x", "", "k-old", now=now + 61)
+check("a minute later the same hook is accepted again", code == 202)
+code, info = st4.ingest(dict(HOOK, id="wh_burst", limits={"burst": 2}), b"x", "", "", now=now)
+code2, _ = st4.ingest(dict(HOOK, id="wh_burst", limits={"burst": 2}), b"x", "", "", now=now)
+code3, info3 = st4.ingest(dict(HOOK, id="wh_burst", limits={"burst": 2}), b"x", "", "", now=now)
+check("past the 10 s burst: 429 'burst' with a Retry-After", (code, code2, code3) == (202, 202, 429)
+      and info3["reason"] == "burst" and info3["retry_after"] > 0)
+h2 = dict(HOOK, id="wh_backlog", limits={"backlog": 6})
+for i in range(6):
+    st4.ingest(h2, b"x", "", f"b{i}", now=now - 300 + i)
 code, info = st4.ingest(h2, b"x", "", "b-over", now=now)
 check("backlog full: 429 'backlog' and the key is not kept", code == 429 and info["reason"] == "backlog"
-      and st4._db.execute("SELECT 1 FROM dedup WHERE idem_key='b-over'").fetchone() is None)
+      and st4._db.execute("SELECT 1 FROM dedup WHERE idem_key LIKE '%b-over'").fetchone() is None)
 old_cap = ws.DB_MAX_BYTES
 ws.DB_MAX_BYTES = 1
 try:
@@ -140,6 +155,7 @@ a = ws.Store(s5 / "e.sqlite3")
 b = ws.Store(s5 / "e.sqlite3")
 for i in range(3):
     a.ingest(dict(HOOK, id=f"wh_h{i}"), b"x", "", f"w{i}")
+admit(a)
 got, lock = [], threading.Lock()
 
 
@@ -160,9 +176,12 @@ t1.start(); t2.start(); t1.join(); t2.join()
 check("two workers: every event claimed exactly once", sorted(got) == sorted(set(got)) and len(got) == 3, got)
 
 a.ingest(HOOK, b"x", "", "fence-1")
+admit(a)
 r1 = a.claim("A")
+ok2 = a.ingest(HOOK, b"y", "", "fence-2")[0] == 202
+admit(a)
 check("one event per hook at a time: a second claim waits while the first holds its lease",
-      a.ingest(HOOK, b"y", "", "fence-2")[0] == 202 and b.claim("B") is None)
+      ok2 and b.claim("B") is None)
 later = time.time() + ws.LEASE_S + 1
 rec = b.recover(now=later)
 check("expired lease before dispatch goes back to the queue", rec["requeued"] == 1)
@@ -179,6 +198,7 @@ check("attempt log shows the lost lease (with the stale run's late result kept o
 
 # an exception inside a write must not leave the shared connection in an open transaction (it would lock the file)
 a.ingest(dict(HOOK, id="wh_tx"), b"x", "", "tx-1")
+admit(a)
 rtx = a.claim("A")
 a.mark_dispatched(rtx["id"], rtx["fence"])
 try:
@@ -251,7 +271,7 @@ async def main():
           "ACK 202" in r.stdout and r.returncode == 77 and eff == 1, (r.returncode, r.stdout, r.stderr[-300:]))
     feat2 = make_feat()
     st = feat2.store()
-    eid = st._db.execute("SELECT event_id FROM dedup WHERE idem_key='crash-1'").fetchone()[0]
+    eid = st._db.execute("SELECT event_id FROM dedup WHERE idem_key='h:crash-1'").fetchone()[0]
     check("after the crash the event is still 'running' with dispatch recorded",
           st.get(eid)["status"] == "running" and st.get(eid)["dispatched_at"] > 0)
     rec = st.recover(now=time.time() + ws.LEASE_S + 1)
@@ -297,23 +317,20 @@ async def main():
     check("retrying a done event is refused", (await cl.post("/webhooks/events/retry", json={"id": rf["run_id"]})).status_code == 409)
 
     # pre-dispatch failure backs off then ends dead
-    real_find = feat2._find
-    feat2._find = lambda data, hid: (_ for _ in ()).throw(OSError("disk read error"))
-    _, rp = await feat2.accept(h["id"], tok, b'{"o":4}', "application/json", "pre-fail") if False else (None, None)
-    feat2._find = real_find
     hp = st.ingest(feat2._find(feat2._load(), h["id"]), b'{"o":4}', "application/json", "pre-fail")[1]["event_id"]
-    feat2._load_real = feat2._load
+    admit(st)
+    real_find = feat2._find_hook
     boom = {"n": 0}
 
-    def bad_load():
+    def bad_find(hid):
         boom["n"] += 1
         raise OSError("disk read error")
-    feat2._load = bad_load
+    feat2._find_hook = bad_find
     t0 = time.time()
     for i in range(ws.MAX_AUTO_TRIES):
         row = st.claim(feat2.worker_id, now=t0 + 1000 * (i + 1))
         await feat2._run_event(st, row, row["id"], row["fence"])
-    feat2._load = feat2._load_real
+    feat2._find_hook = real_find
     check("a failure before dispatch backs off and ends dead after MAX_AUTO_TRIES",
           st.get(hp)["status"] == "dead" and st.get(hp)["dispatched_at"] == 0 and boom["n"] == ws.MAX_AUTO_TRIES)
     check("and the runner was never called for it", not any('"o": 4' in c[3] for c in calls))
@@ -323,18 +340,30 @@ async def main():
     h3, tok3, _ = feat3.create("/b", name="Hạ quyền", target="task", text="x", level="full")
     st3 = feat3.store()
     e_full = st3.ingest(feat3._find(feat3._load(), h3["id"]), b'{"o":5}', "application/json", "lv")[1]["event_id"]
+    admit(st3)
     feat3.update(h3["id"], {"level": "suggest"})
     feat3._kick()
     await feat3.wait_idle()
     run = [c for c in calls if '"o": 5' in c[3]]
     check("an event received at 'full' runs at the hook's CURRENT lower level", run and run[-1][2] == "suggest", run)
+    # Spec §12: two switches. "Stop receiving" refuses NEW requests; an event already accepted (202) still runs.
+    # "Pause processing" keeps receiving and storing; nothing runs until it is resumed.
     e_off = st3.ingest(feat3._find(feat3._load(), h3["id"]), b'{"o":6}', "application/json", "off")[1]["event_id"]
     feat3.update(h3["id"], {"enabled": False})
     feat3._kick()
     await feat3.wait_idle()
-    check("an event of a hook switched off before it ran is dead, never run",
-          st3.get(e_off)["status"] == "dead" and not any('"o": 6' in c[3] for c in calls))
+    check("an event accepted before the hook stopped receiving still runs (it was promised with a 202)",
+          st3.get(e_off)["status"] == "done" and any('"o": 6' in c[3] for c in calls))
     feat3.update(h3["id"], {"enabled": True})
+    feat3.pause(h3["id"], True)
+    e_pause = st3.ingest(feat3._find(feat3._load(), h3["id"]), b'{"o":61}', "application/json", "pz")[1]["event_id"]
+    feat3._kick()
+    await feat3.wait_idle()
+    check("a paused hook still stores events, and does not run them", st3.get(e_pause)["status"] == "received"
+          and not any('"o": 61' in c[3] for c in calls))
+    feat3.pause(h3["id"], False)
+    await feat3.wait_idle()
+    check("resuming runs what waited", st3.get(e_pause)["status"] == "done")
     e_del = st3.ingest(feat3._find(feat3._load(), h3["id"]), b'{"o":7}', "application/json", "del")[1]["event_id"]
     st3._db.execute("UPDATE events SET next_at=? WHERE id=?", (time.time() + 3600, e_del))
     feat3.delete(h3["id"])
@@ -345,6 +374,7 @@ async def main():
     # notice lost to a crash between commit and notice is resent with the same dedup key
     h4, tok4, _ = feat3.create("/b", name="Báo lại", target="task", text="x", chat_id="web:9")
     e4 = st3.ingest(feat3._find(feat3._load(), h4["id"]), b'{"o":8}', "", "nt")[1]["event_id"]
+    admit(st3)
     row = st3.claim("X")
     st3.mark_dispatched(row["id"], row["fence"])
     st3.finish(row["id"], row["fence"], "done", "kết quả 8")
@@ -372,8 +402,14 @@ async def main():
           len(ids1) == 10 and len(ids2) == 10 and not set(ids1) & set(ids2) and p1["next"])
     check("event log never lists bodies", "secret" not in json.dumps(p1) and all("body" not in x for x in p1["items"]))
     one = (await c3.get("/webhooks/events/" + next(i for i in ids1 + ids2 if i.startswith("ev_pg")))).json()
-    check("event detail shows the payload as text and the attempts", one["ok"] and "secret" in one["event"]["payload"]
-          and "attempts" in one["event"] and "hook_snapshot" not in one["event"])
+    check("event detail shows the payload MASKED by default, with the attempts and a timeline",
+          one["ok"] and '"s1' not in one["event"]["payload"] and "••••" in one["event"]["payload"]
+          and one["event"]["masked"] and "attempts" in one["event"] and one["event"]["timeline"]
+          and "hook_snapshot" not in one["event"])
+    eid_pg = one["event"]["id"]
+    rawv = (await c3.get("/webhooks/events/" + eid_pg, params={"raw": 1})).json()
+    check("raw=1 shows it as received and is recorded in the audit log", '"secret": "s' in rawv["event"]["payload"]
+          and any(a["action"] == "view_raw" and a["event_id"] == eid_pg for a in st3.audit_rows()))
     await feat3.wait_idle()
 
     # restart: queued events stored by a previous process run after the new one starts
@@ -382,6 +418,7 @@ async def main():
                                            send=send, base_url=lambda _r: ""))
     hr, tr, _ = f_a.create("/b", name="Khởi động lại", target="task", text="x")
     eq = f_a.store().ingest(f_a._find(f_a._load(), hr["id"]), b'{"o":9}', "", "rs")[1]["event_id"]
+    admit(f_a.store())
     f_a.store().close()
     f_b = wt.WebhookFeature(wt.WebhookDeps(state_dir=lambda: s_r, run_task=run_task, run_workflow=run_workflow,
                                            send=send, base_url=lambda _r: ""))
@@ -399,8 +436,12 @@ async def main():
                                            send=send, base_url=lambda _r: ""))
     c_old, r_old = await f_l.accept("wh_old", "t0k", b"{}", "application/json", "old-1")
     check("a key remembered before the upgrade is still a duplicate", c_old == 200 and r_old["duplicate"])
-    check("the JSON keeps its keys (rollback to the old version still knows them)",
-          "old-1" in (s_l / "webhooks.json").read_text(encoding="utf-8"))
+    # Spec §13: webhooks.json is migrated into the store, snapshotted first, then moved aside so an older build
+    # never runs a stale copy beside this one (the rollback tool writes it back from the store).
+    check("the migration snapshots webhooks.json and moves it aside",
+          not (s_l / "webhooks.json").exists() and (s_l / "webhooks.json.migrated").exists()
+          and any(p.name.startswith("webhooks.json.pre-0.229-") for p in s_l.iterdir())
+          and "old-1" in (s_l / "webhooks.json.migrated").read_text(encoding="utf-8"))
     await f_l.wait_idle()
 
     # pruning keeps unknown events
@@ -428,6 +469,7 @@ async def review():
         for i in range(40):
             hid = f"wh_c{i}"
             stc.ingest(dict(HOOK, id=hid), big, "", f"c{i}")
+            admit(stc)
             r = stc.claim("W"); stc.mark_dispatched(r["id"], r["fence"]); stc.finish(r["id"], r["fence"], "done", "ok")
         code, _ = stc.ingest(dict(HOOK, id="wh_after"), big, "", "after")
         check("P1-1: past the cap, finished events are evicted and a new event is still accepted", code == 202,
@@ -470,6 +512,7 @@ async def review():
     shb = Path(tempfile.mkdtemp(prefix="wh-hb-"))
     sth = ws.Store(shb / "e.sqlite3")
     eh = sth.ingest(HOOK, b"x", "", "hb")[1]["event_id"]
+    admit(sth)
     rh = sth.claim("W")
     sth.mark_dispatched(eh, rh["fence"])
     check("P3-c: a late heartbeat on an event still ours renews it", sth.heartbeat(eh, rh["fence"],
@@ -494,6 +537,7 @@ async def review():
     sr = Path(tempfile.mkdtemp(prefix="wh-rec-"))
     str_ = ws.Store(sr / "e.sqlite3")
     eid = str_.ingest(HOOK, b"x", "", "rec")[1]["event_id"]
+    admit(str_)
     t = time.time()
     for i in range(ws.MAX_AUTO_TRIES):
         str_.claim("W", now=t + i * 1000)
@@ -506,6 +550,7 @@ async def review():
 
     # a stale lease cannot start the run even before recover() has looked at it
     eid2 = str_.ingest(dict(HOOK, id="wh_stale"), b"x", "", "st")[1]["event_id"]
+    admit(str_)
     r2 = str_.claim("W")
     check("mark_dispatched on an expired (not yet recovered) lease is refused",
           not str_.mark_dispatched(eid2, r2["fence"], now=time.time() + ws.LEASE_S + 5))
@@ -584,7 +629,7 @@ async def review():
     await asyncio.sleep(0.1)         # ...the event arrives during that claim
     _, rw = await f.accept(hb["id"], tb, b'{"k":"wake"}', "application/json", "wake")
     for _ in range(100):
-        if f.store().get(rw["run_id"])["status"] not in ("queued", "running"):
+        if f.store().get(rw["run_id"])["status"] not in ("received", "queued", "running"):
             break
         await asyncio.sleep(0.02)
     f.store().claim = real_claim
@@ -617,11 +662,16 @@ async def review():
     ans["v"] = ("DOWN result", "")
     _, rd = await f.accept(hb["id"], tb, b'{"k":"down"}', "application/json", "down")
     await f.wait_idle()
-    for _ in range(ws.NOTIFY_TRIES + 2):
+    # The notice waits in the durable outbox and is tried again with a growing delay (fake clock here).
+    t_n = time.time()
+    for i in range(ws.NOTIFY_TRIES + 2):
+        f.clock = (lambda v: (lambda: v))(t_n + 4000 * (i + 1))
         await f.sweep()
+    f.clock = time.time
     n_down = sum(1 for g in got if "DOWN" in g["text"])
-    check("a notice the channel refused is tried again, but only NOTIFY_TRIES times",
-          n_down == ws.NOTIFY_TRIES and f.store().get(rd["run_id"])["notified_at"] == 0, n_down)
+    rows_n = [n for n in f.store().notifications(event_id=rd["run_id"])]
+    check("a notice the channel refused is tried again, but only NOTIFY_TRIES times, then kept as failed",
+          n_down == ws.NOTIFY_TRIES and rows_n and rows_n[0]["status"] == "failed", (n_down, rows_n))
     await f.wait_idle()
 
     # API: the event detail keeps no worker host/pid, list results are short
