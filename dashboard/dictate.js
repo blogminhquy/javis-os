@@ -10,6 +10,9 @@
      its text replaces the browser's draft, the same rule the main chat uses (Vietnamese reads much better).
    - No Web Speech (Firefox): record only, POST /stt on stop. No upload ear either: report "unsupported".
 
+   0.230.0: the main chat composer uses it too (composer-dictate.js), with cancel() and a level meter (onStream),
+   and a run the browser ends on its own restarts until the owner presses stop.
+
    joinText is pure so node tests can run it. */
 (function () {
   "use strict";
@@ -45,20 +48,25 @@
   }
 
   // opts: onText(text, final) gets the WHOLE spoken text so far; onState("listening" | "transcribing" | "idle");
-  // onError(code) with "unsupported", "denied" or "failed". Returns { start, stop, active }.
+  // onError(code) with "unsupported", "denied" or "failed"; onStream(stream | null) when given also opens the mic
+  // for a level meter even without an upload ear (0.230.0). Returns { start, stop, cancel, active, busy }.
   function create(opts) {
     opts = opts || {};
-    var rec = null, media = null, stream = null, chunks = [], on = false, spoken = "";
+    var rec = null, media = null, stream = null, chunks = [], on = false, spoken = "", cancelled = false;
+    var finishing = false;
     var state = function (s) { if (opts.onState) opts.onState(s); };
     var err = function (c) { if (opts.onError) opts.onError(c); };
 
     function stopStream() {
-      if (stream) { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }
+      if (stream) {
+        try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+        if (opts.onStream) opts.onStream(null);
+      }
       stream = null;
     }
 
     function upload(blob) {
-      if (!blob || blob.size < 2000) return Promise.resolve("");
+      if (!blob || blob.size < 2000 || cancelled) return Promise.resolve("");
       var fd = new FormData();
       var ext = /mp4/.test(blob.type) ? "m4a" : /ogg/.test(blob.type) ? "ogg" : "webm";
       fd.append("file", blob, "voice." + ext);
@@ -68,78 +76,103 @@
         .then(function (d) { return d && d.ok ? String(d.text || "").trim() : ""; }, function () { return ""; });
     }
 
-    function startRecorder() {
-      if (typeof navigator === "undefined" || !navigator.mediaDevices || typeof MediaRecorder === "undefined") {
+    // Opens the mic when something needs it: the recorder (upload ear) or the caller's level meter.
+    function openMic(record) {
+      if (typeof navigator === "undefined" || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         return Promise.resolve(false);
       }
+      if (record && typeof MediaRecorder === "undefined") record = false;
+      if (!record && !opts.onStream) return Promise.resolve(false);
       return navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
         stream = s; chunks = [];
-        media = new MediaRecorder(s);
-        media.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
-        media.start();
+        if (opts.onStream) opts.onStream(s);
+        if (record) {
+          media = new MediaRecorder(s);
+          media.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+          media.start();
+        }
         return true;
-      }, function () { err("denied"); return false; });
+      }, function () { if (record) err("denied"); return false; });
     }
 
     function stopRecorder() {
       return new Promise(function (resolve) {
-        if (!media || media.state === "inactive") { stopStream(); resolve(null); return; }
-        media.onstop = function () {
+        if (!media || media.state === "inactive") { media = null; stopStream(); resolve(null); return; }
+        var m = media;
+        m.onstop = function () {
           stopStream();
-          resolve(chunks.length ? new Blob(chunks, { type: media.mimeType || "audio/webm" }) : null);
+          resolve(chunks.length ? new Blob(chunks, { type: m.mimeType || "audio/webm" }) : null);
           media = null;
         };
-        try { media.stop(); } catch (e) { stopStream(); resolve(null); }
+        try { m.stop(); } catch (e) { media = null; stopStream(); resolve(null); }
       });
     }
 
-    var finishing = false;
     function finish() {
       if (finishing) return;
       var hadRecorder = !!media;
       on = false;
-      if (!hadRecorder) { state("idle"); return; }
+      if (cancelled || !hadRecorder) { stopRecorder(); state("idle"); return; }
       finishing = true;
       state("transcribing");
       stopRecorder().then(upload).then(function (text) {
+        finishing = false;
+        if (cancelled) { state("idle"); return; }
         if (text) opts.onText && opts.onText(text, true);
         else if (!spoken && !recognizer()) err("unsupported");
-        finishing = false;
         state("idle");
       });
     }
 
+    // One recognizer run. Browsers end a continuous run on their own (silence, about a minute on Chrome, sooner on
+    // Safari); while the owner has not pressed stop, a new run starts and keeps the words heard so far.
+    function runRecognizer(SR, kept, restarts) {
+      var r = new SR();
+      rec = r;
+      r.lang = langTag();
+      r.continuous = true;
+      r.interimResults = true;
+      var done = kept, fatal = false;
+      r.onresult = function (e) {
+        if (cancelled || rec !== r) return;
+        var interim = "";
+        for (var i = e.resultIndex; i < e.results.length; i++) {
+          var t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) done = joinText(done, t); else interim = joinText(interim, t);
+        }
+        spoken = joinText(done, interim);
+        if (opts.onText) opts.onText(spoken, false);
+      };
+      r.onerror = function (e) {
+        if (e && (e.error === "not-allowed" || e.error === "service-not-allowed")) { fatal = true; err("denied"); }
+        else if (e && e.error !== "no-speech" && e.error !== "aborted") { fatal = true; err("failed"); }
+      };
+      r.onend = function () {
+        if (rec !== r) return;
+        rec = null;
+        if (on && !cancelled && !fatal && restarts < 30) {
+          try { runRecognizer(SR, spoken, restarts + 1); return; } catch (x) { rec = null; }
+        }
+        finish();
+      };
+      r.start();
+    }
+
     function start() {
-      if (on) return;
-      on = true; spoken = "";
+      if (on || finishing) return;
+      on = true; spoken = ""; cancelled = false;
       var SR = recognizer();
       askEar().then(function (ear) {
         if (!on) return;
         if (!SR && ear !== "upload") { on = false; err("unsupported"); state("idle"); return; }
-        var rp = ear === "upload" ? startRecorder() : Promise.resolve(false);
-        rp.then(function () {
+        openMic(ear === "upload").then(function () {
           if (!on) { stopRecorder(); return; }
-          if (!SR) { state("listening"); return; }
-          rec = new SR();
-          rec.lang = langTag();
-          rec.continuous = true;
-          rec.interimResults = true;
-          var done = "";
-          rec.onresult = function (e) {
-            var interim = "";
-            for (var i = e.resultIndex; i < e.results.length; i++) {
-              var t = e.results[i][0].transcript;
-              if (e.results[i].isFinal) done = joinText(done, t); else interim = joinText(interim, t);
-            }
-            spoken = joinText(done, interim);
-            if (opts.onText) opts.onText(spoken, false);
-          };
-          rec.onerror = function (e) {
-            if (e && (e.error === "not-allowed" || e.error === "service-not-allowed")) err("denied");
-            else if (e && e.error !== "no-speech" && e.error !== "aborted") err("failed");
-          };
-          rec.onend = function () { rec = null; finish(); };
-          try { rec.start(); state("listening"); } catch (x) { rec = null; on = false; stopRecorder(); err("failed"); state("idle"); }
+          if (!SR) {
+            if (!media) { on = false; stopRecorder(); state("idle"); return; }
+            state("listening"); return;
+          }
+          try { runRecognizer(SR, "", 0); state("listening"); }
+          catch (x) { rec = null; on = false; stopRecorder(); err("failed"); state("idle"); }
         });
       });
     }
@@ -151,7 +184,20 @@
       finish();
     }
 
-    return { start: start, stop: stop, active: function () { return on; } };
+    // Drops everything: nothing more reaches onText, the recording is not uploaded.
+    function cancel() {
+      if (!on && !finishing && !rec) return;   // a stopped run still waiting for its last result counts
+      cancelled = true;
+      on = false;
+      if (finishing) return;   // the pending upload sees `cancelled` and reports idle itself
+      var r = rec;
+      rec = null;
+      if (r) { r.onend = null; try { r.abort(); } catch (e) {} }
+      finish();
+    }
+
+    return { start: start, stop: stop, cancel: cancel, active: function () { return on; },
+      busy: function () { return finishing; } };
   }
 
   var api = { create: create, joinText: joinText };

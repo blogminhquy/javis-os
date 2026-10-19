@@ -32,7 +32,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=129">
+  <link rel="stylesheet" href="/static/style.css?v=130">
   <link rel="stylesheet" href="/static/console.css?v=110">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại.
@@ -552,10 +552,31 @@
           </button>
         </div>
         <span class="cp-gap"></span>
-        <button type="button" class="mic-big" id="voiceBtn" title="Bấm để gọi Javis" data-i18n-title="bar.mic">
+        <!-- Dictation bar (composer-dictate.js, 0.230.0): replaces +, chips, mic and voice chat while recording.
+             X drops the recording, the meter shows the mic level, the square stops and keeps the text to edit,
+             and the send button next to it stops and sends. -->
+        <div class="dict-bar" id="dictBar">
+          <button type="button" class="dict-cancel" id="dictCancel" title="Huỷ ghi âm" data-i18n-title="dict.cancel" aria-label="Huỷ ghi âm" data-i18n-aria="dict.cancel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+          <canvas class="dict-wave" id="dictWave" aria-hidden="true"></canvas>
+          <span class="dict-busy" id="dictBusy" hidden data-i18n="dict.busy">Đang chuyển thành chữ...</span>
+          <span class="dict-time" id="dictTime" aria-live="off">0:00</span>
+          <button type="button" class="dict-stop" id="dictStop" title="Dừng ghi, giữ chữ để sửa" data-i18n-title="dict.stop" aria-label="Dừng ghi, giữ chữ để sửa" data-i18n-aria="dict.stop">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+          </button>
+        </div>
+        <!-- Two voice buttons (0.230.0): the mic records speech into the text box (nothing is sent by itself),
+             the sound-wave button is the live voice chat (#voiceBtn, unchanged behaviour). -->
+        <button type="button" class="mic-big dict-btn" id="dictBtn" title="Ghi âm thành chữ" data-i18n-title="dict.btn" aria-label="Ghi âm thành chữ" data-i18n-aria="dict.btn">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
             <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
+          </svg>
+        </button>
+        <button type="button" class="mic-big" id="voiceBtn" title="Đàm thoại: nói chuyện trực tiếp với Javis" data-i18n-title="bar.mic" aria-label="Đàm thoại: nói chuyện trực tiếp với Javis" data-i18n-aria="bar.mic">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/>
           </svg>
         </button>
         <button type="button" class="stop-btn" id="stopBtn" title="Ngắt lệnh / dừng đọc (Esc)" data-i18n-title="bar.stop" style="display:none">
@@ -935,7 +956,7 @@
   <script src="/static/screen-awake.js?v=1"></script>
   <script src="/static/incoming-call.js?v=1"></script>
   <script src="/static/call-bar.js?v=1"></script>
-  <script src="/static/app.js?v=145"></script>
+  <script src="/static/app.js?v=146"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=3"></script>
   <!-- Thân bảng chọn model dùng chung: phải đứng TRƯỚC model-picker.js (thanh chat) và
@@ -968,7 +989,8 @@
        (ngăn Nhóm gọi window.JavisAgentJudge.hydrate); góp phần "judge" vào khung nhịp qua window.JavisPulseParts. -->
   <script src="/static/agent-judge-ui.js?v=2"></script>
   <!-- Nút mic nhập chữ của khung soạn Nhóm (0.176.0): nạp TRƯỚC teams.js. -->
-  <script src="/static/dictate.js?v=1"></script>
+  <script src="/static/dictate.js?v=2"></script>
+  <script src="/static/composer-dictate.js?v=1"></script>
   <script src="/static/teams.js?v=18"></script>
   <script src="/static/chatbots-reply-policy.js?v=1"></script>
   <script src="/static/chatbots-try.js?v=1"></script>

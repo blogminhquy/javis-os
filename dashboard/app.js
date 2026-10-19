@@ -2568,6 +2568,8 @@ function hideActivity() {
 function setProcessing(s) { isProcessing = s; sendBtn.disabled = s || sendBtn.dataset.wsLock === "1"; }
 // workspace.js calls this after changing its lock, so send ends up disabled for the right reason.
 window.JavisSyncActiveUI = syncActiveUI;
+// composer-dictate.js reports a mic problem with the same passing note (0.230.0).
+window.JavisNoteFlash = ghiChuThoang;
 
 // ============================================
 // Cuộn thông minh: chỉ tự cuộn khi user đang ở đáy; đang đọc lại phía trên thì

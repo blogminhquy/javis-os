@@ -8,7 +8,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.230.0] - 2026-10-19
 ### Thêm mới
-- **Ghi âm thành chữ ngay trong khung chat.** (đang viết)
+- **Nút ghi âm thành chữ trong khung chat.** Bấm micro, nói, chữ hiện dần trong ô nhập. Bấm ô vuông để dừng và sửa lại trước khi gửi, bấm mũi tên để gửi luôn, bấm X để huỷ. Javis không tự gửi gì cả.
+- **Nút đàm thoại đổi sang biểu tượng sóng âm.** Nút này vẫn là nói chuyện trực tiếp với Javis như cũ, giờ đứng cạnh nút micro để khỏi nhầm.
+- **Lúc ghi âm có sóng âm và đồng hồ chạy**, nên biết chắc micro đang nghe. Nói dài cũng không bị ngắt giữa chừng, tối đa 5 phút một lần. Máy có tai nghe Groq thì chữ được nghe lại cho chuẩn tiếng Việt khi dừng.
 
 ## [0.228.0] - 2026-10-19
 ### Sửa lỗi
