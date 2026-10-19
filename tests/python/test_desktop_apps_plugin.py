@@ -214,7 +214,7 @@ m._kill = _fake_kill
 out = m._close({"name": "explorer"}, ctx)
 check("đóng explorer qua handler: ERROR, không gọi _kill", out.startswith("ERROR") and calls["kill"][-1][0] != "explorer.exe")
 
-# ---- 4b. Short names match exactly (0.219.0) ----
+# ---- 4b. Short names match exactly (0.221.0) ----
 check("'wp' không khớp mờ sang wps.exe", m.best_match("wp", ["WPS Office", "WhatsApp"])[0] == "")
 check("'cmd' (bí danh ngắn) vẫn khớp đúng tên cmd", m.best_match("cmd", ["cmd", "cmdkey"])[0] == "cmd")
 img, why = m.resolve_close("wp", RUNNING + [{"image": "wps.exe", "pid": "7", "title": "WPS Office"}])

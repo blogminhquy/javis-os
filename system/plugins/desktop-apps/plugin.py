@@ -18,7 +18,7 @@ chúng không phải "hỏi lại": đường dẫn mở phải nằm trong thư
 Mọi lệnh hệ thống đi qua các hàm module-level (`_launch`, `_list_running`, `_kill`, `_scan_installed`,
 `_raise_window`) để test thay được bằng hàm giả, không mở gì thật trên máy chạy test.
 
-Outcome words (0.219.0): every result starts with what was CHECKED, not what was attempted.
+Outcome words (0.221.0): every result starts with what was CHECKED, not what was attempted.
 `[done]` means it was read back (a new process answering to the app, the window in front, the
 process gone); `[unverified]` means the request went out and nothing could confirm it; `[ask]`
 means nothing was done because doing it would be a guess; `[started]` means it is under way; a
