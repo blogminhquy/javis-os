@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.238.0] - 2026-10-20
+### Sửa lỗi
+- **Việc nền chạy lại không gửi tin hay đăng bài hai lần.** (đang viết)
+
 ## [0.236.0] - 2026-10-19
 ### Sửa lỗi
 - **Dán ảnh lúc đang gọi Live không còn hai giọng trả lời chồng nhau.** Trước đây ảnh được đọc hai lần: một lần ở khung chat (giọng tiếng Việt), một lần do giọng Live tự giao lại (thường bằng tiếng Anh). Giờ ảnh chỉ được đọc một lần và chỉ giọng Live nói kết quả. Ảnh vẫn hiện trong khung chat, tải lại trang vẫn còn.
