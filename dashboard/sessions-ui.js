@@ -1814,10 +1814,19 @@
       listEl.innerHTML = "";
       hits.forEach(function (h) {
         var snip = esc(h.snippet || "").replace(/&gt;&gt;&gt;/g, "<b>").replace(/&lt;&lt;&lt;/g, "</b>");
-        var item = el('<div class="cside-item">' +
+        // Kết quả tìm cũng có nút ghim (0.223.0, chủ dự án: "trong phần tìm và chọn hội thoại thêm nút ghim"):
+        // tìm ra hội thoại cần giữ thì ghim luôn tại chỗ, khỏi xoá ô tìm rồi lục lại trong danh sách.
+        var item = el('<div class="cside-item' + (h.pinned ? " ghim" : "") + '">' +
           '<div class="ci-title">' + esc(h.title || window.t("sess.untitled")) + '</div>' +
           '<div class="ci-snip">' + snip + '</div>' +
-          '<div class="ci-meta"><span>' + fmtT(h.ts) + '</span></div></div>');
+          '<div class="ci-meta"><span>' + fmtT(h.ts) + '</span>' +
+          '<span class="act"><span class="pin' + (h.pinned ? " on" : "") + '" title="' +
+            esc(h.pinned ? window.t("proj.pin_off") : window.t("sess.pin_top")) + '">' + ic("pin") + '</span></span>' +
+          '</div></div>');
+        item.querySelector(".pin").onclick = function (ev) {
+          ev.stopPropagation();
+          togglePin({ id: h.session_id, pinned: h.pinned }, q);
+        };
         item.onclick = function () { openSession(h.session_id); };
         listEl.appendChild(item);
       });
@@ -1841,10 +1850,11 @@
     refresh();
   }
 
-  async function togglePin(s) {
+  // `q`: ghim từ kết quả tìm thì tìm lại đúng câu đó, để danh sách đang xem không bị thay bằng danh sách thường.
+  async function togglePin(s, q) {
     await post("/sessions/" + encodeURIComponent(s.id) + "/pin", { pinned: s.pinned ? "0" : "1" });
     cached = null;   // thứ tự vừa đổi → cache cũ vẽ ra danh sách sai thứ tự
-    loadList();
+    if (q) doSearch(q); else loadList();
   }
 
   function moveMenu(anchor, s) {

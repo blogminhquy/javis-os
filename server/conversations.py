@@ -168,6 +168,10 @@ def _nang_cap(db: sqlite3.Connection) -> None:
         # 0.216.0: số điện thoại của khách (dạng 0xxxxxxxxx), để ô tìm kiếm của hòm thư tìm theo số.
         db.execute("ALTER TABLE customers ADD COLUMN phone TEXT NOT NULL DEFAULT ''")
     db.execute("CREATE INDEX IF NOT EXISTS ix_khach_sdt ON customers(phone) WHERE phone != ''")
+    cot_hoi_thoai = {r[1] for r in db.execute("PRAGMA table_info(conversations)").fetchall()}
+    if "pinned" not in cot_hoi_thoai:
+        # 0.223.0: chủ ghim một cuộc chat lên đầu hòm thư, như ghim hội thoại ở trang Trò chuyện.
+        db.execute("ALTER TABLE conversations ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
 
 
 def close() -> None:
@@ -596,7 +600,7 @@ BOT_KHONG_CO = "-"      # giá trị `bot_id` của bộ lọc để chỉ lấy
 def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str = "",
               mode: str = "", limit: int = 50, offset: int = 0, status: str = "", chat_type: str = "",
               hesitant=None) -> List[dict]:
-    """Danh sách hội thoại, MỚI NHẤT TRƯỚC, kèm tên khách và kênh.
+    """Danh sách hội thoại, ĐÃ GHIM rồi tới MỚI NHẤT TRƯỚC, kèm tên khách và kênh.
 
     `q` tìm theo tên khách, tiêu đề, id chat, tin cuối (LIKE, không phân biệt hoa thường).
     `status` (unread | need_reply | human) và `chat_type` (group | private): giá trị lạ thì BỎ QUA bộ lọc đó, vì
@@ -639,7 +643,7 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
         " JOIN channel_accounts a ON a.id=c.channel_account_id"
         " LEFT JOIN customers k ON k.id=c.customer_id"
         + (" WHERE " + " AND ".join(where) if where else "")
-        + " ORDER BY COALESCE(c.last_message_at, c.updated_at) DESC, c.id DESC LIMIT ? OFFSET ?"
+        + " ORDER BY c.pinned DESC, COALESCE(c.last_message_at, c.updated_at) DESC, c.id DESC LIMIT ? OFFSET ?"
     )
     args += [n, o]
     with _lock:
@@ -760,6 +764,15 @@ def danh_dau_da_doc(conversation_id: int) -> bool:
         db = _conn()
         cur = db.execute("UPDATE conversations SET unread_count=0, updated_at=? WHERE id=?",
                          (_now(), int(conversation_id)))
+        db.commit()
+    return cur.rowcount > 0
+
+
+def dat_ghim(conversation_id: int, pinned: bool) -> bool:
+    """Ghim hoặc bỏ ghim một cuộc chat (0.223.0). Không chạm `updated_at`: ghim không phải là có tin mới."""
+    with _lock:
+        db = _conn()
+        cur = db.execute("UPDATE conversations SET pinned=? WHERE id=?", (1 if pinned else 0, int(conversation_id)))
         db.commit()
     return cur.rowcount > 0
 

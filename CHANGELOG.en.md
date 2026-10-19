@@ -10,7 +10,8 @@ Format: each release is a `## [x.y.z] - date` block, with changes grouped under 
 
 ## [0.223.0] - 2026-10-19
 ### Added
-- **Pin conversations** in the conversation list.
+- **Pin straight from conversation search results.** Searching in the History column (Chat page, an assistant's or Javis Core's history, the Coding page) now shows a pin button on each result, with pinned chats first. No need to clear the search and dig through the list.
+- **Pin chats in the bot Inbox.** Hover a chat (on a phone the button is always shown) and press the pin to keep it at the top of the inbox, marked with a colored bar. Press again to unpin.
 
 ## [0.222.0] - 2026-10-19
 ### Added

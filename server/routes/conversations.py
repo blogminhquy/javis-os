@@ -253,6 +253,12 @@ def register(app, deps: ConversationsDeps):
     async def conversations_read(conv_id: int):
         return {"ok": True} if conversations.danh_dau_da_doc(conv_id) else _404()
 
+    @router.post("/conversations/{conv_id}/pin")
+    async def conversations_pin(conv_id: int, pinned: str = Form("1")):
+        """Ghim (pinned=1) hoặc bỏ ghim (pinned=0) một cuộc chat lên đầu hòm thư."""
+        ok = conversations.dat_ghim(conv_id, str(pinned).strip().lower() not in ("0", "false", ""))
+        return {"ok": True, "conversation": conversations.chi_tiet(conv_id)} if ok else _404()
+
     @router.post("/conversations/{conv_id}/reply")
     async def conversations_reply(conv_id: int, text: str = Form(...)):
         """Chủ trả lời khách ngay từ Hộp thư (Chatbot V2 bản V1.2).

@@ -452,12 +452,15 @@
       }
       if (c.mode === "human") tags.push('<span class="ht-mode">' + esc(window.t("ht.mode_human")) + '</span>');
       else if (c.need_reply) tags.push('<span class="ht-need">' + esc(window.t("ht.tag_need")) + '</span>');
+      // Nút ghim (0.223.0) là <span role=button>: cả hàng đã là một <button>, nút lồng trong nút là HTML sai.
       return '<button type="button" class="ht-item' + (c.id === _chon ? " on" : "") +
-          (c.unread_count ? " unread" : "") + '" data-id="' + c.id + '">' +
+          (c.unread_count ? " unread" : "") + (c.pinned ? " ghim" : "") + '" data-id="' + c.id + '">' +
         '<span class="ht-item-ic">' + (c.chat_type === "group" ? ic("users") : ic("user-round")) + '</span>' +
         '<span class="ht-item-text">' +
           '<span class="ht-item-top"><strong>' + esc(ten) + '</strong>' +
-            '<small class="ht-item-time">' + esc(gio(c.last_message_at)) + '</small></span>' +
+            '<small class="ht-item-time">' + esc(gio(c.last_message_at)) + '</small>' +
+            '<span class="ht-pin' + (c.pinned ? " on" : "") + '" role="button" tabindex="0" title="' +
+              esc(c.pinned ? window.t("proj.pin_off") : window.t("sess.pin_top")) + '">' + ic("pin") + '</span></span>' +
           (tags.length ? '<span class="ht-item-tags">' + tags.join("") + '</span>' : "") +
           '<span class="ht-item-sub">' + logoKenh(c.channel) +
             '<small>' + esc(ai + (window.JavisHtMedia ? window.JavisHtMedia.tomTat(c.last_message || "", window.t)
@@ -472,7 +475,14 @@
     }).join("") + (_conDS ? '<div class="ht-more"><button type="button" class="s-btn-ghost ht-more-b">' +
                             esc(window.t("ht.xem_them")) + '</button></div>' : "");
     box.querySelectorAll(".ht-item").forEach(function (x) {
-      x.onclick = function () { mo(parseInt(x.dataset.id, 10)); };
+      x.onclick = function (e) {
+        if (e.target && e.target.closest && e.target.closest(".ht-pin")) { e.stopPropagation(); ghim(x); return; }
+        mo(parseInt(x.dataset.id, 10));
+      };
+      var p = x.querySelector(".ht-pin");
+      if (p) p.onkeydown = function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); ghim(x); }
+      };
     });
     // Còn trang sau: nút Xem thêm ở cuối, và tự tải khi cuộn gần tới đáy. Dùng sự kiện cuộn chứ không dùng IntersectionObserver: callback của
     // nó bị trình duyệt hoãn khi khung không được vẽ, còn sự kiện cuộn thì luôn tới (và kiểm thử được).
@@ -480,6 +490,17 @@
     if (them) them.querySelector(".ht-more-b").onclick = taiThem;
     box.onscroll = function () { if (_conDS && box.scrollHeight - box.scrollTop - box.clientHeight < 240) taiThem(); };
     if (_conDS && box.clientHeight > 0 && box.scrollHeight <= box.clientHeight + 40) taiThem();       // 40 dòng chưa đủ cao để cuộn (màn rất cao): tải tiếp; clientHeight 0 = đang ẩn, chưa đo được
+  }
+
+  // Ghim một cuộc chat lên đầu hòm thư (0.223.0). Server xếp cuộc đã ghim trước, nên chỉ cần tải lại danh sách.
+  async function ghim(x) {
+    var id = parseInt(x.dataset.id, 10);
+    var c = _items.filter(function (k) { return k.id === id; })[0];
+    if (!c) return;
+    try {
+      await api("/conversations/" + id + "/pin", { method: "POST", body: fd({ pinned: c.pinned ? "0" : "1" }) });
+    } catch (e) { return; }
+    tai(true);
   }
 
   // ---------------------------------------------------------------- một hội thoại

@@ -8,7 +8,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.223.0] - 2026-10-19
 ### Thêm mới
-- **Ghim hội thoại** ở danh sách hội thoại.
+- **Ghim ngay trong kết quả tìm hội thoại.** Gõ tìm ở cột Lịch sử (trang Trò chuyện, lịch sử của trợ lý và Javis Core, trang Coding) thì mỗi kết quả có nút ghim, cuộc đã ghim đứng đầu kết quả. Khỏi phải xoá ô tìm rồi lục lại danh sách.
+- **Ghim cuộc chat trong Hòm thư bot.** Rê chuột vào một cuộc chat (trên điện thoại nút luôn hiện) rồi bấm ghim là nó nằm trên đầu hòm thư, có vạch màu bên trái. Bấm lần nữa để bỏ ghim.
 
 ## [0.222.0] - 2026-10-19
 ### Thêm mới

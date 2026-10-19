@@ -2102,6 +2102,15 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   white-space: nowrap; text-overflow: ellipsis; }
 .ht-item.unread .ht-item-top strong { color: var(--text); }
 .ht-item-time { flex: none; font-size: 11.5px; color: var(--text3); }
+/* Nút ghim của hòm thư (0.223.0): hiện khi rê chuột, luôn hiện ở hàng đã ghim và trên màn cảm ứng. */
+.ht-pin { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;
+  margin: -4px -4px -4px 0; border-radius: 6px; color: var(--text3); opacity: 0; cursor: pointer; }
+.ht-pin svg { width: 14px; height: 14px; }
+.ht-item:hover .ht-pin, .ht-pin:focus-visible { opacity: .8; }
+.ht-pin:hover { background: var(--surface-2); color: var(--text); opacity: 1; }
+.ht-pin.on { opacity: 1; color: var(--accent); }
+.ht-item.ghim { box-shadow: inset 3px 0 0 var(--accent); }
+@media (hover: none) { .ht-pin { opacity: .6; width: 32px; height: 32px; } .ht-pin.on { opacity: 1; } }
 .ht-item-sub { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .ht-item-sub small { flex: 1 1 auto; min-width: 0; font-size: 12.5px; color: var(--text3); overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis; }

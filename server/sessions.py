@@ -1860,7 +1860,9 @@ class SessionStore:
 
         `channel`: bỏ trống = tìm trong MỌI kênh (giữ nguyên hành vi cũ của thanh tìm ở trang
         Trò chuyện); có giá trị = chỉ đúng kênh đó, cho ô tìm ở cột lịch sử của một cộng sự -
-        ở đó mà trả về hội thoại của cả brain thì bấm vào là nhảy ra khỏi trợ lý đang mở."""
+        ở đó mà trả về hội thoại của cả brain thì bấm vào là nhảy ra khỏi trợ lý đang mở.
+
+        Mỗi kết quả mang `pinned` và hội thoại đã ghim đứng trước (0.223.0): kết quả tìm có nút ghim như danh sách."""
         q = (query or "").strip()
         if not q:
             return []
@@ -1886,12 +1888,12 @@ class SessionStore:
                 sql = f"""
                     SELECT m.session_id, m.role, m.ts,
                            snippet(messages_fts, 0, '>>>', '<<<', '…', 12) AS snippet,
-                           s.title, s.brain, s.engine, s.updated_at
+                           s.title, s.brain, s.engine, s.updated_at, COALESCE(s.pinned, 0) AS pinned
                     FROM messages_fts
                     JOIN messages m ON m.id = messages_fts.rowid
                     JOIN sessions s ON s.id = m.session_id
                     WHERE messages_fts MATCH ?{brain_clause}
-                    ORDER BY rank
+                    ORDER BY pinned DESC, rank
                     LIMIT ?
                 """
                 params = [fts_q] + list(_bparams) + [limit]
@@ -1905,11 +1907,11 @@ class SessionStore:
         sql = f"""
             SELECT m.session_id, m.role, m.ts,
                    substr(m.content, max(1, instr(m.content, ?) - 30), 120) AS snippet,
-                   s.title, s.brain, s.engine, s.updated_at
+                   s.title, s.brain, s.engine, s.updated_at, COALESCE(s.pinned, 0) AS pinned
             FROM messages m
             JOIN sessions s ON s.id = m.session_id
             WHERE m.content LIKE ? ESCAPE '\\'{brain_clause}
-            ORDER BY m.ts DESC
+            ORDER BY pinned DESC, m.ts DESC
             LIMIT ?
         """
         params = [q, like] + list(_bparams) + [limit]
