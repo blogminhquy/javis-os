@@ -136,7 +136,7 @@ alignment. `test_webhook_bench_short` runs the §16 benchmark briefly.
 | Timeline per event (received, verified, parsed, filter, duplicate, dispatch, attempt, receipt, result, notice) | `timeline()` | matrix "§16.5" | done |
 | Cursor pages, filters by hook, state, order or correlation id, time range; never the whole DB in memory | `Store.page` (keyset), `/webhooks/events` | `test_webhooks_ui_m1.js`, `test_webhooks_ui_spec.js` | done |
 | Test send: the owner's payload, the list of effects first, a test namespace, same permissions and quotas | `test_send` | matrix "§15 UI"; `test_webhooks_ui_spec.js` | done |
-| Retry keeps the delivery id and snapshot, re-runs dependents a failure cancelled, never sends an empty body | `Store.retry` | matrix "§15 Apps Script: the owner's retry sends the same delivery id"; review "R2 P2-2", "R3 P1-1" | done |
+| Retry keeps the delivery id and snapshot, re-runs dependents a failure cancelled, never sends an empty body; a failed event can also be closed without resending | `Store.retry`, `Store.resolve`, `close_failed` | matrix "§15 Apps Script: the owner's retry sends the same delivery id"; review "R2 P2-2", "R3 P1-1" | done |
 | Process again with the current setup: a new generation under the current revision | `replay_confirm`, `Store.replay` | review "R2 P2-1" | done |
 | Raw view and export masked by default (payload, fields, headers, trace, result, error, deliveries, timeline, list rows, tool arguments), raw always audited (view, export with or without bodies, simulation of a logged event) | `mask_row()`, `/webhooks/audit` | matrix "§15 UI ... customer data masked"; review "R3 P2-5", "R3 P2-6", "R1 P2-5" | done |
 | Pause processing vs stop receiving, two switches | `pause()`, `enabled` | `test_webhooks_ui_spec.js`; `test_webhook_ops_m5` | done |
@@ -239,7 +239,8 @@ Their findings and regression tests stay valid and are listed in each milestone 
 The spec alignment was reviewed by three independent reviewers at 11f6ee8e: R1 the store and rules (M1, M2), R2
 delivery and security (M3, M4), R3 operations, the UI and the whole chain (M5). Every finding was fixed in 190eadf6,
 pinned by `test_webhook_spec_review.py`, and that file was run against 11f6ee8e to confirm each pinned check was red
-there (13 failures or hangs).
+there (13 failures or hangs). A fourth reviewer (R4) then reviewed the fix commit itself; its findings are fixed in
+4537d57f and pinned in the same file.
 
 | Finding | Fix |
 |---|---|
@@ -259,4 +260,8 @@ there (13 failures or hangs).
 | R3 P2 errors_only sent one notice per blocked or unknown event | grouped into the incident |
 | R1 P2 disk pressure dropped delivery keys younger than 7 days | never below their keep time |
 | P3 (all fixed) | out-of-range numbers quarantined; 1 and 1.0 one key; NFC compare; retry-safe resends capped; any 3xx after POST unknown; metadata refused with allow_private; token header not a stored header; store faults answer 503; indexes for paging and search; prune in small transactions; ingest re-checks the switch; Stop receiving always saved; catch-up digest from the last cursor |
+| R4 (review of the fixes, at 190eadf6) P2 a plugin whose calls hang held its other deliveries forever | the wait for a slot ends at the delivery's deadline: failed, never sent, owner told |
+| R4 P2 kept failed bodies could fill the byte quota with no way out | Close (one) and Close all failed (per hook) settle them without resending |
+| R4 P2 simulating a logged event revealed values; masking missed texts under a customer block | values only in the raw, audited form; the prompt preview only there; every text under a PII key is masked |
+| R4 P3 (all fixed in 4537d57f) | retry window not widened; Stop receiving parses text; prune re-checks status inside the delete; store faults in triage defer; rollback refuses to run twice; a hook stopped mid-ingest does not count against the sender; only failed or dead events deletable; business key texts NFC |
 | P3 (kept, noted) | an action changed after an event arrived is not sent to the new target by Retry (its secrets were bound to the old one): the delivery is cancelled with a pointer to "Process again with the current setup", which previews first |
