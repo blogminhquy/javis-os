@@ -375,7 +375,8 @@ def parse_ui(text: str):
 # Đoạn stream chưa có dấu kết câu mà dài quá mức này thì cắt ở dấu phẩy/khoảng trắng cuối,
 # để một câu dài lê thê không giữ loa im mãi.
 SPEAK_MAX = 220
-_SENT_END = re.compile(r"[.!?…]+[\"'”’)\]]*(?=\s|$)")
+# CJK stops (。！？) take no space after them, so they end a sentence on their own (0.218.0).
+_SENT_END = re.compile(r"[.!?…]+[\"'”’)\]]*(?=\s|$)|[。！？]+[\"'”’」』）)\]]*")
 
 
 def split_speakable(text: str, start: int, final: bool = False):

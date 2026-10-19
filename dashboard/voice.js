@@ -1200,7 +1200,7 @@ class JavisVoice {
 
   // Cắt câu ĐẦU ra riêng cho ngắn (phát nhanh), phần còn lại gộp chunk lớn cho liền mạch.
   _splitForLatency(text) {
-    const sentences = text.match(/[^.!?]+[.!?]+|\s*[^.!?]+$/g) || [text];
+    const sentences = this._sentences(text);
     let first = (sentences.shift() || "").trim();
     // Câu đầu vẫn dài → cắt tại dấu phẩy đầu tiên cho audio đầu ra thật nhanh.
     if (first.length > 160) {
@@ -1404,8 +1404,16 @@ class JavisVoice {
     if (this.recognition) this.recognition.lang = this.lang;
   }
 
+  // Sentences for TTS. Shares the chunker's rule: "0.218.0" and "1.5" are not sentence ends, and
+  // Japanese/Chinese stops (。！？) are, though no space follows them (0.218.0).
+  _sentences(text) {
+    const C = typeof window !== "undefined" && window.JavisVoiceChunker;
+    if (C && C.splitSentences) { const out = C.splitSentences(text); return out.length ? out : [text]; }
+    return text.match(/[^.!?]+[.!?]+|\s*[^.!?]+$/g) || [text];
+  }
+
   _splitIntoChunks(text, maxLen) {
-    const sentences = text.match(/[^.!?]+[.!?]+|\s*[^.!?]+$/g) || [text];
+    const sentences = this._sentences(text);
     const chunks = [];
     let current = "";
     for (const s of sentences) {

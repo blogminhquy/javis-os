@@ -30,7 +30,9 @@
     minStaleWords: 5     // đẩy vì im lâu chỉ khi đã có từng này từ
   };
 
-  var SENT_END = /[.!?…]+["'”’)\]]*(?=\s|$)/g;
+  // Latin stops need whitespace after them ("1.5", "0.218.0" are not sentence ends). CJK stops
+  // (。！？) are never followed by a space, so they end a sentence on their own (0.218.0).
+  var SENT_END = /[.!?…]+["'”’)\]]*(?=\s|$)|[。！？]+["'”’」』）)\]]*/g;
   // Liên từ chuyển ý: cắt TRƯỚC liên từ ("mình đã xem số liệu | và thấy rằng...").
   var CONJ = ["và", "nhưng", "rồi", "nên", "thì", "mà", "vì", "còn", "hoặc", "hay", "để", "tuy",
               "and", "but", "then", "because", "while", "although"];
@@ -189,8 +191,25 @@
     return out;
   };
 
+  // Whole sentences of a finished text, each keeping its stop and trailing space. Used by voice.js
+  // to cut a reply for TTS; same sentence rule as the streaming chunker above.
+  function splitSentences(text) {
+    text = String(text == null ? "" : text);
+    var out = [], start = 0, m;
+    SENT_END.lastIndex = 0;
+    while ((m = SENT_END.exec(text))) {
+      var end = m.index + m[0].length;
+      while (end < text.length && /\s/.test(text[end])) end++;
+      out.push(text.slice(start, end));
+      start = end;
+      SENT_END.lastIndex = end;
+    }
+    if (start < text.length) out.push(text.slice(start));
+    return out.filter(function (x) { return x.length > 0; });
+  }
+
   var api = { Chunker: Chunker, DEFAULTS: DEFAULTS, countWords: countWords, lastNiceCut: lastNiceCut,
-              takeWords: takeWords };
+              takeWords: takeWords, splitSentences: splitSentences };
   if (typeof window !== "undefined") window.JavisVoiceChunker = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
