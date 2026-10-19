@@ -144,8 +144,10 @@ ss = hmac.new(SEC.encode(), SYS_BODY, hashlib.sha256).hexdigest()
 check("Systeme.io (synthetic fixture, assumed scheme): valid and invalid",
       wv.verify({"provider": "systeme_io"}, SEC, {"x-webhook-signature": ss}, SYS_BODY)[0]
       and not wv.verify({"provider": "systeme_io"}, SEC, {"x-webhook-signature": "00" + ss[2:]}, SYS_BODY)[0])
-n = wv.normalize("systeme_io", {"x-webhook-event": "CONTACT_CREATED", "x-webhook-id": "d-1"}, json.loads(SYS_BODY))
-check("Systeme.io normalisation: type, id, contact", n["type"] == "contact.created" and n["id"] == "d-1"
+n = wv.normalize("systeme_io", {"x-webhook-event": "CONTACT_CREATED", "x-webhook-message-id": "m-1",
+                                 "x-webhook-attempt-id": "a-7", "x-webhook-id": "a-7"}, json.loads(SYS_BODY))
+check("Systeme.io normalisation: type, the MESSAGE id (stable across retries, spec §10), never the attempt id, contact",
+      n["type"] == "contact.created" and n["id"] == "m-1"
       and n["contact"] == {"email": "lan@example.com", "first_name": "Lan", "phone_number": "0912345678"}, n)
 check("Systeme.io is marked unverified, nothing is marked production verified",
       wv.ADAPTER_STATUS["systeme_io"] == "unverified" and "production" not in json.dumps(wv.ADAPTER_STATUS))
@@ -203,9 +205,10 @@ async def main():
                            verify={"provider": "stripe", "secret": SEC},
                            actions=[{"id": "crm", "kind": "http", "url": "https://crm.example/h", "headers": {"X-Api-Key": "sk-PLAIN"}},
                                     {"id": "ai", "kind": "ai"}])
-    js = (FEAT / "webhooks.json").read_text()
-    check("create: webhooks.json holds references only, no secret in clear", not err and SEC not in js and "sk-PLAIN" not in js
-          and '"$secret"' in js, err)
+    js = json.dumps([dict(r) for r in st._db.execute("SELECT config FROM hooks")] +
+                    [dict(r) for r in st._db.execute("SELECT config FROM hook_revisions")])
+    check("create: the stored hook and its revisions hold references only, no secret in clear",
+          not err and SEC not in js and "sk-PLAIN" not in js and '$secret' in js, err)
     view = f.view(f._find(f._load(), h["id"]))
     check("view: the signing secret is masked and the adapter status shown", view["verify"]["secret"] == "••••"
           and view["adapter_status"] == "spec" and SEC not in json.dumps(view))
@@ -239,7 +242,8 @@ async def main():
     h2, tok2, _ = f.create("/b1", name="Plain", target="task", text="x", level="full",
                            rules={"filter": {"path": "_event.type", "op": "eq", "value": "order.paid"}})
     code, r = await f.accept(h2["id"], tok2, b'{"_event": {"type": "order.paid"}}', "application/json", "forge")
-    check("a payload cannot set _event (no provider): filtered", code == 200 and r.get("ignored") == "filtered", r)
+    await f.wait_idle()
+    check("a payload cannot set _event (no provider): ignored", code == 202 and st.get(r["event_id"])["status"] == "filtered", r)
 
     # GitHub delivery id dedup, through the feature
     h3, tok3, _ = f.create("/b1", name="GH", target="task", text="x", level="full", verify={"provider": "github", "secret": SEC},
@@ -252,15 +256,23 @@ async def main():
     check("GitHub: _event.type filter works and a redelivery is a duplicate", c1 == 202 and c2 == 200 and a2.get("duplicate"), (c1, a1, c2, a2))
 
     # a plain secret saved before M4 is sealed at start
-    data = f._load()
-    data["hooks"].append({"id": "wh_old", "name": "Old", "brain": "/b1", "target": "task", "text": "x", "level": "full",
-                          "enabled": True, "token_hash": "", "actions": [{"id": "c", "kind": "http", "url": "https://x.vn",
-                                                                           "headers": {"X-Key": "old-PLAIN"}}]})
-    f._save(data)
+    st.import_hooks([{"id": "wh_old", "name": "Old", "brain": "/b1", "target": "task", "text": "x", "level": "full",
+                      "enabled": True, "token_hash": "", "actions": [{"id": "c", "kind": "http", "url": "https://x.vn",
+                                                                       "headers": {"X-Key": "old-PLAIN"}}]}])
     n_sealed = f._migrate_secrets()
-    js = (FEAT / "webhooks.json").read_text()
-    check("start: a plain header from before M4 is moved into the vault", n_sealed == 1 and "old-PLAIN" not in js
-          and f.vault.get("wh_old/a/c/X-Key") == "old-PLAIN")
+    js = json.dumps([dict(r) for r in st._db.execute("SELECT config FROM hooks")] +
+                    [dict(r) for r in st._db.execute("SELECT config FROM hook_revisions")])
+    check("start: a plain header from before M4 is moved into the vault, older revisions scrubbed too",
+          n_sealed == 1 and "old-PLAIN" not in js and f.vault.get("wh_old/a/c/X-Key") == "old-PLAIN")
+    sj = Path(tempfile.mkdtemp(prefix="m4-json-"))
+    (sj / "webhooks.json").write_text(json.dumps({"hooks": [{"id": "wh_j", "name": "J", "brain": "/b1", "target": "task",
+                                                            "text": "x", "level": "full", "enabled": True,
+                                                            "token_hash": "", "verify": {"provider": "github",
+                                                                                         "secret": "j-PLAIN-secret"}}]}))
+    fj = make(state_dir=lambda: sj)
+    js = json.dumps([dict(r) for r in fj.store()._db.execute("SELECT config FROM hook_revisions")])
+    check("migration from webhooks.json seals plain secrets BEFORE any revision is written",
+          "j-PLAIN-secret" not in js and fj.vault.get("wh_j/verify") == "j-PLAIN-secret")
 
     # tool action with approval
     await f.wait_idle()
@@ -295,16 +307,24 @@ async def main():
     check("approving again: refused (409), nothing runs twice", rr.status_code == 409 and len(tool_calls) == 1)
 
     # reject
-    code, r = await f.accept(h4["id"], tok4, b'{"phone": "1"}', "application/json", "t2")
+    code, r = await f.accept(h4["id"], tok4, b'{"phone": "1", "name": "B"}', "application/json", "t2")
     await f.wait_idle()
     rr = await cl.post("/webhooks/events/approve", json={"id": r["run_id"], "action": "pos", "decision": "reject"})
     await f.wait_idle()
     ev = st.get(r["run_id"])
-    check("rejected: the branch is cancelled, the tool never runs", ev["branches"][0]["status"] == "cancelled"
-          and ev["status"] == "done" and len(tool_calls) == 1, (ev["status"], ev["branches"]))
+    check("rejected: the delivery and the event are cancelled, the tool never runs", ev["branches"][0]["status"] == "cancelled"
+          and ev["status"] == "cancelled" and ev["state"] == "cancelled" and len(tool_calls) == 1, (ev["status"], ev["branches"]))
+    code, r = await f.accept(h4["id"], tok4, b'{"phone": "9"}', "application/json", "t2b")
+    await f.wait_idle()
+    await cl.post("/webhooks/events/approve", json={"id": r["run_id"], "action": "pos", "decision": "approve"})
+    await f.wait_idle()
+    ev = st.get(r["run_id"])
+    check("a field the arguments need is missing: the tool is not called with an empty value (spec §8.3)",
+          ev["branches"][0]["status"] == "failed" and "{name} is missing" in ev["branches"][0]["detail"]
+          and len(tool_calls) == 1, ev["branches"])
 
     # level lowered after approval request: the tool gets the lower level (the hub enforces it)
-    code, r = await f.accept(h4["id"], tok4, b'{"phone": "2"}', "application/json", "t3")
+    code, r = await f.accept(h4["id"], tok4, b'{"phone": "2", "name": "C"}', "application/json", "t3")
     await f.wait_idle()
     f.update(h4["id"], {"level": "suggest"})
     await cl.post("/webhooks/events/approve", json={"id": r["run_id"], "action": "pos", "decision": "approve"})
@@ -314,7 +334,7 @@ async def main():
 
     # tool error -> failed; retry runs only that branch (no new approval needed: the owner already approved)
     tool_answer["v"] = "ERROR: kết nối POS đang đặt mức quyền hạn chế"
-    code, r = await f.accept(h4["id"], tok4, b'{"phone": "3"}', "application/json", "t4")
+    code, r = await f.accept(h4["id"], tok4, b'{"phone": "3", "name": "D"}', "application/json", "t4")
     await f.wait_idle()
     await cl.post("/webhooks/events/approve", json={"id": r["run_id"], "action": "pos", "decision": "approve"})
     await f.wait_idle()
@@ -348,8 +368,8 @@ async def main():
     code, r = await f.accept(h6["id"], tok6, b"{}", "application/json", "t6")
     await f.wait_idle()
     b6 = st.get(r["run_id"])["branches"][0]
-    check("a header secret that no longer decrypts fails its branch with a clear reason", b6["status"] == "failed"
-          and "enter it again" in b6["detail"], b6)
+    check("a header secret that no longer decrypts blocks its delivery with a clear reason (spec §7: missing credential)",
+          b6["status"] == "blocked" and "enter it again" in b6["detail"], b6)
     r = await cl.post("/webhooks/secrets/rotate")
     check("rotation refuses when a secret cannot be read (nothing half-done)", r.status_code == 409, r.text)
     await cl.aclose()
@@ -357,7 +377,7 @@ async def main():
 
 asyncio.run(main())
 
-for name in ("webhook_verify.py", "webhook_secrets.py"):
+for name in ("webhook_verify.py", "webhook_auth.py", "webhook_secrets.py"):
     src = (SERVER / name).read_text(encoding="utf-8")
     check(f"{name}: no model, no network", not any(x in src for x in ("aux_engine", "claude_cli", "anthropic", "httpx", "requests.")))
 

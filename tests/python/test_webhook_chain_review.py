@@ -89,12 +89,12 @@ async def main():
     h, tok, _ = f.create("/b", name="CRM", target="", text="", level="full",
                          actions=[{"id": "crm", "kind": "http", "url": "https://crm.example/h", "headers": {"X-Api-Key": "TOPSECRET-123"}}])
     ref = f._find(f._load(), h["id"])["actions"][0]["headers"]["X-Api-Key"]
-    _, err = f.update(h["id"], {"actions": [{"id": "crm", "kind": "http", "url": "https://evil.example/x", "headers": {"X-Api-Key": ref}}]})
+    _, err, _ = f.update(h["id"], {"actions": [{"id": "crm", "kind": "http", "url": "https://evil.example/x", "headers": {"X-Api-Key": ref}}]})
     check("P1: the hook's own reference paired with a new address is refused", "enter header X-Api-Key again" in err, err)
-    _, err = f.update(h["id"], {"actions": [{"id": "crm", "kind": "http", "url": "https://crm.example/h", "allow_private": True,
-                                             "headers": {"X-Api-Key": ref}}]})
+    _, err, _ = f.update(h["id"], {"actions": [{"id": "crm", "kind": "http", "url": "https://crm.example/h", "allow_private": True,
+                                                "headers": {"X-Api-Key": ref}}]})
     check("P1: same reference with allow_private switched on is refused too", "enter header" in err, err)
-    _, err = f.update(h["id"], {"actions": [{"id": "crm", "kind": "http", "url": "https://crm.example/h", "headers": {"X-Api-Key": ref}}]})
+    _, err, _ = f.update(h["id"], {"actions": [{"id": "crm", "kind": "http", "url": "https://crm.example/h", "headers": {"X-Api-Key": ref}}]})
     check("P1: same reference, same target: kept", not err and f._secret(f._find(f._load(), h["id"])["actions"][0]["headers"]["X-Api-Key"],
                                                                          f"{h['id']}/a/crm/X-Api-Key") == "TOPSECRET-123", err)
     hits.clear()
@@ -118,18 +118,15 @@ async def main():
     check("(a workflow question leaves the event waiting)", st.get(r["run_id"])["status"] == "waiting")
     ok, why = st.resolve(r["run_id"], "done", "answered by phone")
     check("P2: the owner can close a waiting event (Mark done)", ok and st.get(r["run_id"])["status"] == "done", (ok, why))
-    old = ws.OWED_MAX
-    ws.OWED_MAX = 3
-    try:
-        codes = []
-        for i in range(5):
-            codes.append((await f.accept(hw["id"], tokw, b"{}", "application/json", f"o{i}"))[0])
-            await f.wait_idle()
-        check("P2: past OWED_MAX unsettled events, only that hook refuses (429)", codes == [202, 202, 202, 429, 429], codes)
-        code, _ = await f.accept(h["id"], tok, b"{}", "application/json", "other-hook")
-        check("... another hook still accepts", code == 202)
-    finally:
-        ws.OWED_MAX = old
+    # Spec §11: events the owner still owes count toward the hook's backlog (10 000 by default; 3 here).
+    f.update(hw["id"], {"limits": {"backlog": 3}})
+    codes = []
+    for i in range(5):
+        codes.append((await f.accept(hw["id"], tokw, b"{}", "application/json", f"o{i}"))[0])
+        await f.wait_idle()
+    check("P2: past the backlog of unsettled events, only that hook refuses (429)", codes == [202, 202, 202, 429, 429], codes)
+    code, _ = await f.accept(h["id"], tok, b"{}", "application/json", "other-hook")
+    check("... another hook still accepts", code == 202)
     await f.wait_idle()
 
     # P2: brain folder gone: the AI branch does not run elsewhere
@@ -141,7 +138,8 @@ async def main():
           not ai_calls and "brain folder" in st.get(r["run_id"])["branches"][0]["detail"])
 
     # P3: incident only for an AI branch dispatched in this pass
-    hi, toki, _ = f.create("/b", name="Sự cố", target="task", text="x", level="full",
+    # Spec §12: incident triage (it may use a model) runs only when the hook turned ai_triage on.
+    hi, toki, _ = f.create("/b", name="Sự cố", target="task", text="x", level="full", ai_triage=True,
                            actions=[{"id": "ai", "kind": "ai"}, {"id": "crm", "kind": "http", "url": "https://crm.example/h", "approve": True}])
     answer["ai"] = ("", "boom")
     incidents.clear()
@@ -156,12 +154,10 @@ async def main():
           n1 == 1 and len(incidents) == 1, (n1, len(incidents)))
 
     # P3: approval asked at once even while a sibling waits to resend; an approved branch runs at once
-    answer["crm"] = 503
+    answer["crm"] = 429
     hp, tokp, _ = f.create("/b", name="Duyệt sớm", target="", text="", level="full",
                            actions=[{"id": "crm", "kind": "http", "url": "https://crm.example/h"},
                                     {"id": "pos", "kind": "tool", "tool": "pos_x"}])
-    old_b = wa.BRANCH_BACKOFF_S
-    wa.BRANCH_BACKOFF_S = (600.0, 600.0, 600.0)
     sent.clear()
     code, r = await f.accept(hp["id"], tokp, b"{}", "application/json", "ap")
     await f.wait_idle()
@@ -170,7 +166,6 @@ async def main():
     st.approve(r["run_id"], "pos", "approve")
     check("P3: approving a queued event brings it forward (not at the sibling's resend time)",
           st.get(r["run_id"])["next_at"] <= time.time() + 1)
-    wa.BRANCH_BACKOFF_S = old_b
     answer["crm"] = 200
 
     # P3: 4xx refusals do not open the breaker
@@ -181,7 +176,8 @@ async def main():
         await f.accept(hb["id"], tokb, b"{}", "application/json", f"x{i}")
         await f.wait_idle()
     answer["crm"] = 200
-    check("P3: repeated 4xx refusals (a bad payload) do not pause the receiver", st.breaker_open_until(hb["id"], "crm") == 0)
+    check("P3: repeated 4xx refusals (a bad payload) do not pause the receiver",
+          st.breaker_open_until("*", wa.target_key(f._find_hook(hb["id"])["actions"][0])) == 0)
 
     # P3: body size checked before reading it
     from fastapi import FastAPI
@@ -189,30 +185,37 @@ async def main():
     app.include_router(f.router)
     cl = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
     r = await cl.post(f"/hooks/{h['id']}", content=b"x" * (wt.BODY_MAX_BYTES + 10))
-    check("P3: an oversized body is refused (413) before the token is even checked", r.status_code == 413)
+    check("spec §4.2: without a valid token the request is refused (401) and its body is never stored",
+          r.status_code == 401)
+    r = await cl.post(f"/hooks/{h['id']}", content=b"x" * (wt.BODY_MAX_BYTES + 10), headers={"Authorization": f"Bearer {tok}"})
+    check("P3: an oversized body is refused (413) from its Content-Length, before it is read", r.status_code == 413)
 
-    # P2: webhooks.json unreadable
-    good = (FEAT / "webhooks.json").read_text(encoding="utf-8")
-    code, r = await (lambda: f.accept(h["id"], tok, b"{}", "application/json", "before-break"))()
+    # P2: the hook configuration unreadable for a moment (the store's hook rows; webhooks.json since 0.229.0 moved in)
+    import sqlite3 as _sq
+    n_hooks = len(st.hooks_all())
     f._kick = lambda: None
     code, r = await f.accept(h["id"], tok, b"{}", "application/json", "held")
-    (FEAT / "webhooks.json").write_text("{broken", encoding="utf-8")
+    real_get, real_ins = st.hook_get, st.hook_insert
+
+    def broken(*a, **k):
+        raise _sq.OperationalError("disk I/O error")
+    st.hook_get, st.hook_insert = broken, broken
     del f._kick
     f._kick()
     await asyncio.sleep(0.5)
     ev = st.get(r["run_id"])
-    check("P2: an unreadable hook list does not kill an accepted event (it waits, not 'hook deleted')",
-          ev["status"] in ("queued", "running") and "deleted" not in (ev["error"] or ""), (ev["status"], ev["error"]))
-    rr = await cl.post(f"/hooks/{h['id']}?token={tok}", content=b"{}")
-    check("P2: while unreadable the receive route answers 503 (sender retries), nothing stored", rr.status_code == 503)
+    check("P2: an unreadable hook configuration does not kill an accepted event (it waits, not 'hook deleted')",
+          ev["status"] in ("received", "queued", "running") and "deleted" not in (ev["error"] or ""), (ev["status"], ev["error"]))
+    rr = await cl.post(f"/hooks/{h['id']}", content=b"{}", headers={"Authorization": f"Bearer {tok}"})
+    check("P2: while unreadable the receive route answers 503 with Retry-After (sender retries), nothing stored",
+          rr.status_code == 503 and rr.headers.get("retry-after"))
     try:
         f.create("/b", name="Mới", target="task", text="x")
         created = True
-    except (OSError, ValueError):
+    except (OSError, ValueError, _sq.OperationalError):
         created = False
-    check("P2: create() refuses instead of saving a list with only the new hook",
-          not created and (FEAT / "webhooks.json").read_text(encoding="utf-8") == "{broken")
-    (FEAT / "webhooks.json").write_text(good, encoding="utf-8")
+    st.hook_get, st.hook_insert = real_get, real_ins
+    check("P2: create() refuses and no other hook is touched", not created and len(st.hooks_all()) == n_hooks)
     st._db.execute("UPDATE events SET next_at=0 WHERE id=?", (r["run_id"],))
     f._kick()
     await f.wait_idle()
@@ -225,6 +228,7 @@ asyncio.run(main())
 # P2: the poison guard with branches
 s = ws.Store(Path(tempfile.mkdtemp(prefix="chain-poison-")) / "e.sqlite3")
 c, i = s.ingest({"id": "wh_p", "brain": "/b"}, b"{}", "", "p")
+s.triage_commit(i["event_id"], {"decision": "run"}, [])
 t = time.time()
 for n in range(6):
     w = s.claim("W", now=t)
@@ -240,8 +244,9 @@ check("P2: an event that kills the worker before any dispatch stops after MAX_AU
 # P3: prune keeps a failed event whose business key is live
 s2 = ws.Store(Path(tempfile.mkdtemp(prefix="chain-key-")) / "e.sqlite3")
 old = time.time() - 40 * 86400
-pre = {"decision": "run", "business_key": {"scope": "s", "key": "order:9", "ttl_s": 366 * 86400}}
-c, i = s2.ingest({"id": "wh_k", "brain": "/b"}, b"{}", "", "k", now=old, pre=pre)
+pre = {"decision": "run", "business_key": {"shared": "s", "policy": 1, "hash": "order:9", "ttl_s": 366 * 86400}}
+c, i = s2.ingest({"id": "wh_k", "brain": "/b"}, b"{}", "", "k", now=old)
+s2.triage_commit(i["event_id"], pre, [], now=old)
 w = s2.claim("W", now=old)
 s2.branches_init(w["id"], w["fence"], [{"id": "main", "kind": "ai"}], wa.delivery_id)
 s2.branch_dispatch(w["id"], w["fence"], "main", now=old)

@@ -65,7 +65,14 @@ SCRIPT = "https://script.google.com/macros/s/AKfycbx_TEST_DEPLOYMENT_123/exec"
 # ---- 1. validation ----
 check("valid list normalised", wa.validate([{"id": "crm", "kind": "http", "url": "https://x.vn/h"}])[0]
       == {"id": "crm", "kind": "http", "url": "https://x.vn/h", "body": "fields", "headers": {}, "timeout_s": 15.0,
-          "retry": "never", "allow_private": False})
+          "retry": "never", "retry_safety": "manual_on_ambiguous", "allow_private": False, "delivery_ref": "header"})
+sp = wa.validate([{"id": "to_apps_script", "type": "http_forward", "url": SCRIPT, "body_mode": "raw",
+                   "redirect_profile": "google_apps_script", "retry_safety": "manual_on_ambiguous", "depends_on": []},
+                  {"id": "to_poscake_zalo", "type": "plugin", "plugin": "poscake-zalo", "handler": "order_received",
+                   "depends_on": []}])
+check("the spec's own action format (§9) is read: type, body_mode, redirect_profile, retry_safety",
+      sp[0]["kind"] == "apps_script" and sp[0]["body"] == "raw" and sp[0]["retry"] == "never"
+      and sp[1]["kind"] == "plugin")
 check("plain http refused", "https" in refused([{"id": "a", "kind": "http", "url": "http://x.vn"}]))
 check("credentials in the address refused", "bad address" in refused([{"id": "a", "kind": "http", "url": "https://u:p@x.vn"}]))
 check("Apps Script must be a /exec web app", "/exec" in refused([{"id": "a", "kind": "apps_script", "url": "https://evil.com/macros/s/x/exec"}])
@@ -78,7 +85,8 @@ check("header injection refused", "one line" in refused([{"id": "a", "kind": "ht
 check("duplicate ids, unknown kind, too many, two AI actions refused",
       "twice" in refused([{"id": "a", "kind": "ai"}, {"id": "a", "kind": "ai"}])
       and "kind" in refused([{"id": "a", "kind": "shell"}])
-      and "at most" in refused([{"id": f"a{i}", "kind": "http", "url": "https://x.vn"} for i in range(9)])
+      and "at most" in refused([{"id": f"a{i}", "kind": "http", "url": "https://x.vn"} for i in range(11)])
+      and not refused([{"id": f"a{i}", "kind": "http", "url": "https://x.vn"} for i in range(10)])
       and "one ai" in refused([{"id": "a", "kind": "ai"}, {"id": "b", "kind": "ai"}]))
 check("plugin action needs slug and handler", "needs" in refused([{"id": "a", "kind": "plugin", "plugin": "x"}]))
 v = wa.view([{"id": "a", "kind": "http", "url": "https://x.vn", "headers": {"X-Api-Key": "sk-SECRET"}}])
@@ -142,7 +150,15 @@ check("delivery id sent as Idempotency-Key and X-Javis-Delivery; owner header se
 check("202 -> accepted", http(lambda r: httpx.Response(202)).status == "accepted")
 o = http(lambda r: httpx.Response(429, headers={"Retry-After": "40"}))
 check("429 -> retry with Retry-After", o.status == "retry" and o.retry_after == 40)
-check("503 -> retry", http(lambda r: httpx.Response(503)).status == "retry")
+check("503 -> unknown: a 5xx after sending may have acted (spec §7), not re-sent blindly",
+      http(lambda r: httpx.Response(503)).status == "unknown")
+check("503 at a receiver declared idempotent -> retry_wait", http(lambda r: httpx.Response(503),
+                                                                  retry_safety="idempotent").status == "retry")
+check("401 / 403 -> blocked (fix the credential), never retried in a loop",
+      http(lambda r: httpx.Response(401)).status == "blocked" and http(lambda r: httpx.Response(403)).status == "blocked")
+seen.clear()
+http(lambda r: httpx.Response(200))
+check("the event id rides along as X-Javis-Event-Id", seen[-1].headers["x-javis-event-id"] == "ev_1")
 check("500 -> unknown (it may have been done)", http(lambda r: httpx.Response(500)).status == "unknown")
 check("500 with retry=safe -> retry (the receiver dedups on the delivery id)",
       http(lambda r: httpx.Response(500), retry="safe").status == "retry")
@@ -223,8 +239,12 @@ async def acc(d, c):
     return {"status": "accepted", "ref": "job-1"}
 
 check("plugin accepted (it keeps its own scheduling)", asyncio.run(plug(acc)).status == "accepted")
-check("plugin raising -> failed", asyncio.run(plug(lambda d, c: 1 / 0)).status == "failed")
-check("plugin answering anything else -> failed", asyncio.run(plug(lambda d, c: "done")).status == "failed")
+check("plugin raising -> unknown (it may have acted mid-way)", asyncio.run(plug(lambda d, c: 1 / 0)).status == "unknown")
+check("plugin answering anything else -> unknown (contract broken)", asyncio.run(plug(lambda d, c: "done")).status
+      == "unknown")
+check("plugin results map to the spec's states", [asyncio.run(plug(lambda d, c, s=s: {"status": s})).status for s in
+                                                  ("retryable_error", "permanent_error", "unknown", "waiting_approval")]
+      == ["retry", "failed", "unknown", "waiting"])
 old_t = wa.PLUGIN_TIMEOUT_S
 wa.PLUGIN_TIMEOUT_S = 0.2
 
@@ -236,10 +256,10 @@ check("plugin hanging -> unknown (it may have acted), not retried", asyncio.run(
 check("a slow plain-function plugin also times out without blocking the loop",
       asyncio.run(plug(lambda d, c: time.sleep(1))).status == "unknown")
 wa.PLUGIN_TIMEOUT_S = old_t
-check("plugin min_mode full at hook level auto -> failed (permission)",
-      "higher level" in asyncio.run(plug(acc, level="auto", min_mode="full")).detail)
-check("plugin not installed -> failed", asyncio.run(wa.run_plugin({"id": "s", "kind": "plugin", "plugin": "p", "handler": "h"},
-                                                                 CTX, None, "full")).status == "failed")
+o = asyncio.run(plug(acc, level="auto", min_mode="full"))
+check("plugin min_mode full at hook level auto -> blocked (permission)", o.status == "blocked" and "higher level" in o.detail)
+check("plugin not installed or switched off -> blocked", asyncio.run(wa.run_plugin(
+    {"id": "s", "kind": "plugin", "plugin": "p", "handler": "h"}, CTX, None, "full")).status == "blocked")
 
 # the real plugin host: register_webhook_handler + find_webhook_handler, scoped by brain
 import plugins_host  # noqa: E402
@@ -327,9 +347,19 @@ ACTIONS = [{"id": "crm", "kind": "http", "url": "https://crm.example/h", "header
            {"id": "ai", "kind": "ai"}]
 
 
+async def drain(f, rounds=12):
+    """wait_idle, then let time pass for deliveries that wait for a later attempt (instead of sleeping minutes)."""
+    for _ in range(rounds):
+        await f.wait_idle()
+        st_ = f.store()
+        if not st_._db.execute("SELECT 1 FROM events WHERE status='queued'").fetchone():
+            return
+        st_._db.execute("UPDATE deliveries SET next_at=0 WHERE status='retry'")
+        st_._db.execute("UPDATE events SET next_at=0 WHERE status='queued'")
+        f._kick()
+
+
 async def main():
-    old_backoff = wa.BRANCH_BACKOFF_S
-    wa.BRANCH_BACKOFF_S = (0.0, 0.0, 0.0)
     f = make()
     st = f.store()
     h, tok, err = f.create("/b1", name="Đơn", target="task", text="Ghi chú đơn", level="full", chat_id="web:1",
@@ -349,7 +379,7 @@ async def main():
           and ("crm.example", br["crm"]["delivery_id"], "POST") in http_calls
           and plugin_calls == [br["ship"]["delivery_id"]])
     check("the plugin's ref is kept as its receipt", br["ship"]["receipt"]["ref"].startswith("VD-"))
-    check("the notice lists the branches, never the API key", sent and "crm: completed" in sent[-1]
+    check("the notice lists the deliveries in the spec's words, never the API key", sent and "crm: succeeded" in sent[-1]
           and "sk-SECRET" not in "".join(sent) and "sk-SECRET" not in json.dumps(ev, default=str), (sent, ev.get("hook_snapshot")))
     n_ai = len(calls_ai)
 
@@ -374,39 +404,45 @@ async def main():
           and len(calls_ai) == n_ai + 1, (ev["status"], http_calls, plugin_calls))
     check("a completed event cannot be retried", st.retry(r2["run_id"]) == (False, "not_retryable"))
 
-    # 503 then 200: automatic retry of that branch only (receiver said it did not process it)
-    crm["answers"] = [503, 200]
+    # 429 then 200: automatic retry of that branch only (the receiver said it did not process it)
+    crm["answers"] = [429, 200]
     http_calls.clear(); plugin_calls.clear()
     n_ai = len(calls_ai)
     code, r3 = await f.accept(h["id"], tok, b'{"order":"A3"}', "application/json", "e3")
-    await f.wait_idle()
+    await drain(f)
     ev = st.get(r3["run_id"])
     crm_b = [b for b in ev["branches"] if b["action_id"] == "crm"][0]
-    check("503 -> that branch re-sent by itself with the same delivery id; the others ran once",
+    check("429 -> that branch re-sent by itself with the same delivery id; the others ran once",
           ev["status"] == "done" and crm_b["tries"] == 2 and sum(1 for c in http_calls if c[0] == "crm.example") == 2
           and len(plugin_calls) == 1 and len(calls_ai) == n_ai + 1, (ev["status"], crm_b, http_calls))
-    crm["answers"] = [503]
+    crm["answers"] = [429]
     code, r4 = await f.accept(h["id"], tok, b'{"order":"A4"}', "application/json", "e4")
-    await f.wait_idle()
+    await drain(f)
     ev = st.get(r4["run_id"])
     crm_b = [b for b in ev["branches"] if b["action_id"] == "crm"][0]
-    check("still busy after MAX_BRANCH_TRIES -> failed (certainly not processed), the event failed",
-          ev["status"] == "failed" and crm_b["status"] == "failed" and crm_b["tries"] == wa.MAX_BRANCH_TRIES, crm_b)
+    check("still busy after 4 attempts (spec §7) -> dead (certainly not processed); the event partly failed",
+          ev["status"] == "failed" and ev["state"] == "partial_failed" and crm_b["status"] == "failed"
+          and crm_b["state"] == "dead" and crm_b["tries"] == wa.MAX_BRANCH_TRIES == 4, crm_b)
     crm["answers"] = [200]
 
     # level lowered: outside branches are refused at run time, the AI branch runs at the lower level
-    data = f._load()
-    f._find(data, h["id"])["level"] = "auto"
-    f._save(data)
+    f.update(h["id"], {"level": "auto"})
     code, r6 = await f.accept(h["id"], tok, b'{"order":"A6"}', "application/json", "e6")
     await f.wait_idle()
     ev = st.get(r6["run_id"])
     bs = {b["action_id"]: b for b in ev["branches"]}
-    check("at level auto: HTTP and Apps Script refused (they send data out), plugin `safe` runs, AI runs at auto",
-          bs["crm"]["status"] == "failed" and "level full" in bs["crm"]["detail"] and bs["sheet"]["status"] == "failed"
+    check("at level auto: HTTP and Apps Script blocked (they send data out), plugin `safe` runs, AI runs at auto",
+          bs["crm"]["status"] == "blocked" and "level full" in bs["crm"]["detail"] and bs["sheet"]["status"] == "blocked"
           and bs["ship"]["status"] == "accepted" and calls_ai[-1][2] == "auto", {k: (v["status"], v["detail"]) for k, v in bs.items()})
-    f._find(data, h["id"])["level"] = "full"
-    f._save(data)
+    http_calls.clear()
+    n_ai6, n_pl6 = len(calls_ai), len(plugin_calls)
+    f.update(h["id"], {"level": "full"})
+    await drain(f)
+    ev = st.get(r6["run_id"])
+    check("restoring the level runs the blocked deliveries again, the done ones not (spec §7: blocked waits for the fix)",
+          ev["status"] == "done" and {b["action_id"]: b["status"] for b in ev["branches"]}["crm"] == "completed"
+          and len(calls_ai) == n_ai6 and len(plugin_calls) == n_pl6
+          and sum(1 for c in http_calls if c[0] == "crm.example") == 1, (ev["status"], ev["branches"]))
 
     # an action removed since the event arrived does not run
     f2 = make()
@@ -415,7 +451,7 @@ async def main():
     old_kick = f2._kick
     f2._kick = lambda: None          # hold the event in the queue while the owner edits the hook
     code, r7 = await f2.accept(h2["id"], tok2, b"{}", "application/json", "e7")
-    h2v, err = f2.update(h2["id"], {"actions": [{"id": "ai", "kind": "ai"}]})
+    h2v, err, _ = f2.update(h2["id"], {"actions": [{"id": "ai", "kind": "ai"}]})
     f2._kick = old_kick
     http_calls.clear()
     f2._kick()
@@ -441,7 +477,8 @@ async def main():
     f5._kick()
     await f5.wait_idle()
     raw = f5.store()._db.execute("SELECT hook_snapshot FROM events WHERE id=?", (r10["run_id"],)).fetchone()[0]
-    check("a rotated key applies to a waiting event; the event store never holds the key",
+    raw += json.dumps([tuple(r) for r in f5.store()._db.execute("SELECT config FROM hook_revisions")])
+    check("a rotated key applies to a waiting event; the event store and the revisions never hold the key",
           keys_seen == ["new-KEY"] and "old-KEY" not in raw and "new-KEY" not in raw, (keys_seen, raw[:200]))
 
     # a hook without an AI action never reaches a model, not even incident triage
@@ -466,8 +503,8 @@ async def main():
     code, r9 = await f4.accept(h4["id"], tok4, b"{}", "application/json", "e9")
     await f4.wait_idle()
     b9 = f4.store().get(r9["run_id"])["branches"][0]
-    check("a plugin visible to another brain only is not run from this brain", b9["status"] == "failed"
-          and "not installed" in b9["detail"])
+    check("a plugin visible to another brain only is not run from this brain (blocked, not broadcast)",
+          b9["status"] == "blocked" and "not installed" in b9["detail"])
 
     # route: event detail shows branches (no header values)
     from fastapi import FastAPI
@@ -481,7 +518,6 @@ async def main():
     check("saving the actions back from the dashboard keeps the stored API key",
           r.status_code == 200 and f._secret(f._find(f._load(), h["id"])["actions"][0]["headers"]["X-Api-Key"]) == "sk-SECRET")
     await cl.aclose()
-    wa.BRANCH_BACKOFF_S = old_backoff
 
 
 asyncio.run(main())

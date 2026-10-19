@@ -622,6 +622,25 @@ class Store:
                              "'unknown','done')", (now, eid))
         return len(ids)
 
+    def rewrite_revisions(self, hid: str, fn) -> int:
+        """Apply `fn(config) -> config` to every stored revision of a hook (secret scrubbing). Returns rows changed."""
+        n = 0
+        with self._write():
+            for r in self._db.execute("SELECT revision, config FROM hook_revisions WHERE hook_id=?", (hid,)).fetchall():
+                old = r["config"]
+                new = _dumps(fn(_loads(old, {})), 10 ** 7)
+                if new != old:
+                    self._db.execute("UPDATE hook_revisions SET config=? WHERE hook_id=? AND revision=?",
+                                     (new, hid, r["revision"]))
+                    n += 1
+            row = self._db.execute("SELECT config FROM hooks WHERE id=?", (hid,)).fetchone()
+            if row is not None:
+                new = _dumps(fn(_loads(row["config"], {})), 10 ** 7)
+                if new != row["config"]:
+                    self._db.execute("UPDATE hooks SET config=? WHERE id=?", (new, hid))
+                    n += 1
+        return n
+
     def hook_set(self, hid: str, **cols) -> bool:
         """Columns that are state, not configuration (token, switches, stats): no new revision."""
         allowed = {"token_hash", "enabled", "paused", "runs", "last_at", "last_status"}

@@ -38,6 +38,11 @@ import webhook_triggers as wt  # noqa: E402
 fails = []
 
 
+def admit(st):
+    for r in st.triage_candidates(1000, now=time.time() + 10 ** 6):
+        st.triage_commit(r["id"], {"decision": "run"}, [])
+
+
 def check(name, cond, them=""):
     print(("ok   " if cond else "FAIL ") + name + (("  [" + str(them) + "]") if them and not cond else ""))
     if not cond:
@@ -109,8 +114,8 @@ def gas(location):
 
 
 o, calls = gas("https://accounts.google.com/ServiceLogin?continue=https://script.google.com/x")
-check("P2: Apps Script redirecting to Google sign-in: failed (the script did not run), with the fix, not followed",
-      o.status == "failed" and "Anyone" in o.detail and len(calls) == 1, (o, calls))
+check("P2: Apps Script redirecting to Google sign-in: blocked (the script did not run; fix the deployment), not followed",
+      o.status == "blocked" and "Anyone" in o.detail and len(calls) == 1, (o, calls))
 
 
 # ---- plugin thread pool ----
@@ -148,6 +153,7 @@ check("P2: unknown once nothing is left to run", ws.Store.summarize([{"status": 
                                                                     {"status": "completed", "next_at": 0}])[0] == "unknown")
 st = ws.Store(Path(tempfile.mkdtemp(prefix="m3r-")) / "e.sqlite3")
 c, i = st.ingest({"id": "wh_x", "brain": "/b"}, b"{}", "", "k1")
+admit(st)
 w = st.claim("W")
 st.branches_init(w["id"], w["fence"], [{"id": "crm", "kind": "http"}, {"id": "sheet", "kind": "apps_script"}], wa.delivery_id)
 st.branch_dispatch(w["id"], w["fence"], "crm"); st.branch_finish(w["id"], w["fence"], "crm", "unknown", "HTTP 500")
@@ -160,12 +166,13 @@ check("P2: Mark done with a sibling still to resend: the event goes back to the 
 st.branch_late(w["id"], "crm", "completed", "HTTP 200", {"id": "CRM-991"}, "")
 check("P3: a late outcome is kept next to the branch", "CRM-991" in [b for b in st.get(w["id"])["branches"] if b["action_id"] == "crm"][0]["detail"])
 c, i2 = st.ingest({"id": "wh_y", "brain": "/b"}, b"{}", "", "k2")
+admit(st)
 w = st.claim("W")
 while w and w["id"] != i2["event_id"]:
     st.finish(w["id"], w["fence"], "done"); w = st.claim("W")
 st.branches_init(w["id"], w["fence"], [{"id": "crm", "kind": "http"}], wa.delivery_id)
 for _ in range(3):
-    st._db.execute("UPDATE branches SET status='retry' WHERE event_id=?", (w["id"],))
+    st._db.execute("UPDATE deliveries SET status='retry' WHERE event_id=?", (w["id"],))
     st.branch_dispatch(w["id"], w["fence"], "crm")
 st.branch_finish(w["id"], w["fence"], "crm", "failed", "HTTP 503 x3")
 st.finish(w["id"], w["fence"], "failed", "", "x")
@@ -174,8 +181,9 @@ check("P3: the owner's retry gives a branch fresh tries", st.get(w["id"])["branc
 
 # a branch refused before dispatch (permission) does not hold the business key once the event dies
 st2 = ws.Store(Path(tempfile.mkdtemp(prefix="m3r-k-")) / "e.sqlite3")
-pre = {"decision": "run", "business_key": {"scope": "s", "key": "order:1", "ttl_s": 3600}}
-c, i3 = st2.ingest({"id": "wh_k", "brain": "/b"}, b"{}", "", "kk", pre=pre)
+pre = {"decision": "run", "business_key": {"shared": "s", "policy": 1, "hash": "order:1", "ttl_s": 3600}}
+c, i3 = st2.ingest({"id": "wh_k", "brain": "/b"}, b"{}", "", "h:kk")
+st2.triage_commit(i3["event_id"], pre, [])
 w = st2.claim("W")
 st2.branches_init(w["id"], w["fence"], [{"id": "crm", "kind": "http"}], wa.delivery_id)
 st2.branch_finish(w["id"], w["fence"], "crm", "failed", "needs level full")
@@ -183,8 +191,9 @@ st2.finish(w["id"], w["fence"], "failed", "", "needs level full")
 st2.retry(w["id"])
 w = st2.claim("W")
 st2.finish(w["id"], w["fence"], "dead", "", "hook switched off")
-c2, _ = st2.ingest({"id": "wh_k2", "brain": "/b"}, b"{}", "", "kk2", pre=pre)
-check("P3: refused before dispatch, then dead: the business key is given back", c2 == 202, c2)
+c2, i4 = st2.ingest({"id": "wh_k2", "brain": "/b"}, b"{}", "", "h:kk2")
+check("P3: refused before dispatch, then dead: the business key is given back",
+      st2.triage_commit(i4["event_id"], pre, []) == "queued")
 
 # ---- through the feature ----
 FEAT = Path(tempfile.mkdtemp(prefix="m3r-feat-"))
@@ -230,9 +239,18 @@ def make():
                                             http_transport=httpx.MockTransport(handler), resolve=PUBLIC))
 
 
+async def drain(f, rounds=12):
+    for _ in range(rounds):
+        await f.wait_idle()
+        st_ = f.store()
+        if not st_._db.execute("SELECT 1 FROM events WHERE status='queued'").fetchone():
+            return
+        st_._db.execute("UPDATE deliveries SET next_at=0 WHERE status='retry'")
+        st_._db.execute("UPDATE events SET next_at=0 WHERE status='queued'")
+        f._kick()
+
+
 async def main():
-    old_back = wa.BRANCH_BACKOFF_S
-    wa.BRANCH_BACKOFF_S = (0.0, 0.0, 0.0)
     f = make()
     st = f.store()
 
@@ -241,7 +259,7 @@ async def main():
                          actions=[{"id": "crm", "kind": "http", "url": "https://old.example/h", "headers": {"X-K": "OLD-KEY"}}])
     f._kick = lambda: None
     code, r = await f.accept(h["id"], tok, b"{}", "application/json", "p1")
-    _, err = f.update(h["id"], {"actions": [{"id": "crm", "kind": "http", "url": "https://new.example/h", "headers": {"X-K": "NEW-KEY"}}]})
+    _, err, _ = f.update(h["id"], {"actions": [{"id": "crm", "kind": "http", "url": "https://new.example/h", "headers": {"X-K": "NEW-KEY"}}]})
     del f._kick
     hits.clear()
     f._kick()
@@ -249,7 +267,7 @@ async def main():
     ev = st.get(r["run_id"])
     check("P1: the waiting event is NOT sent (old address with the new key, or at all): cancelled",
           not err and not hits and ev["branches"][0]["status"] == "cancelled", (err, hits, ev["branches"]))
-    _, err = f.update(h["id"], {"actions": [{"id": "crm", "kind": "http", "url": "https://attacker.example/h", "headers": {"X-K": "••••"}}]})
+    _, err, _ = f.update(h["id"], {"actions": [{"id": "crm", "kind": "http", "url": "https://attacker.example/h", "headers": {"X-K": "••••"}}]})
     check("P1: the masked view saved back with another address is refused", "enter header X-K again" in err, err)
     code, r = await f.accept(h["id"], tok, b"{}", "application/json", "p1b")
     await f.wait_idle()
@@ -280,13 +298,13 @@ async def main():
           ev["branches"])
 
     # P2: unknown sibling does not stop a resend
-    answers.update({"u.example": [500], "b.example": [503, 200]})
+    answers.update({"u.example": [500], "b.example": [429, 200]})
     h3, tok3, _ = f.create("/b1", name="Hai", target="", text="", level="full",
                            actions=[{"id": "crm", "kind": "http", "url": "https://u.example/h"},
                                     {"id": "sheet", "kind": "http", "url": "https://b.example/h"}])
     hits.clear()
     code, r = await f.accept(h3["id"], tok3, b"{}", "application/json", "u1")
-    await f.wait_idle()
+    await drain(f)
     ev = st.get(r["run_id"])
     check("P2: the busy sibling is resent even though another branch is unknown; then the event is unknown",
           sum(1 for x in hits if x[0] == "b.example") == 2 and ev["status"] == "unknown"
@@ -308,7 +326,7 @@ async def main():
     app = FastAPI()
     app.include_router(f.router)
     cl = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
-    await cl.post("/webhooks/test", json={"id": h["id"]})
+    await cl.post("/webhooks/test", json={"id": h["id"], "confirm": True})
     await f.wait_idle()
     await cl.aclose()
     check("P3: an event sent from the dashboard Test button is flagged _javis.test", hits and hits[-1][2] is True, hits)
@@ -328,7 +346,6 @@ async def main():
     ai_answer["v"] = ("Đã ghi.", "")
     check("P3: when recovery takes the event over, the old run is stopped (no two runs at once)",
           "CANCELLED" in ai_calls and st.get(r["run_id"])["status"] == "unknown", (ai_calls, st.get(r["run_id"])["status"]))
-    wa.BRANCH_BACKOFF_S = old_back
 
 
 asyncio.run(main())

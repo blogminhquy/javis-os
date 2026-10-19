@@ -287,6 +287,10 @@ class WebhookFeature(webhook_worker.WebhookWorker):
             os.chmod(snap, 0o600)
         except OSError:
             pass
+        for h in data["hooks"]:
+            if isinstance(h, dict) and h.get("id"):
+                # A plain secret never reaches a stored revision: it moves into the vault first.
+                self._seal(h)
         st.import_hooks(data["hooks"])
         os.replace(p, p.with_name("webhooks.json.migrated"))
 
@@ -543,17 +547,33 @@ class WebhookFeature(webhook_worker.WebhookWorker):
         return ""
 
     def _migrate_secrets(self) -> int:
-        """Once at start: a hook saved before M4 (plain header values) is sealed in place (a new revision)."""
+        """Once at start: a hook still holding a plain header value or signing secret (saved before M4) is sealed in
+        place, and its older revisions are scrubbed too (a revision is configuration history, never a secret store)."""
         n = 0
-        for h in self.store().hooks_all():
+        st = self.store()
+        for h in st.hooks_all():
             try:
                 if self._seal(h):
-                    self.store().hook_update(h, by="secret-migration")
+                    st.hook_update(h, by="secret-migration")
                     n += 1
+                st.rewrite_revisions(h["id"], lambda cfg, hid=h["id"]: self._scrub(cfg, hid))
             except Exception as e:
                 print(f"[webhooks] could not seal the secrets of {h.get('id')}: {type(e).__name__}: {e}",
                       file=sys.stderr)
         return n
+
+    @staticmethod
+    def _scrub(cfg: dict, hid: str) -> dict:
+        """A stored revision with every plain secret replaced by the hook's canonical reference."""
+        for a in cfg.get("actions") or []:
+            for k, v in list((a.get("headers") or {}).items()):
+                if isinstance(v, str) and v != "••••":
+                    a["headers"][k] = {"$secret": f"{hid}/a/{a['id']}/{k}"}
+        ver = cfg.get("verify") or {}
+        for field, name in (("secret", f"{hid}/verify"), ("previous_secret", f"{hid}/verify_prev")):
+            if isinstance(ver.get(field), str):
+                ver[field] = {"$secret": name}
+        return cfg
 
     def update(self, hid: str, changes: dict) -> tuple:
         """Returns (hook, error, http status). `revision` in the changes = the revision the dashboard edited: a hook
@@ -1060,6 +1080,10 @@ class WebhookFeature(webhook_worker.WebhookWorker):
 
             def clean(r):
                 r = dict(r)
+                k0 = str(r.get("idem_key") or "")
+                if k0[:2] in ("h:", "p:"):
+                    # The sender's own key as it sent it; its kind (header / provider id) in its own column.
+                    r["idem_key"], r["key_kind"] = k0[2:], ("header" if k0[:2] == "h:" else "provider")
                 for k in ("fields", "trace"):
                     try:
                         r[k] = json.loads(r.get(k) or "{}")
@@ -1080,7 +1104,8 @@ class WebhookFeature(webhook_worker.WebhookWorker):
                 if fmt == "csv":
                     import csv
                     import io
-                    cols = ["id", "hook_id", "received_at", "state", "status", "tries", "idem_key", "biz_key", "source",
+                    cols = ["id", "hook_id", "received_at", "state", "status", "tries", "idem_key", "key_kind", "biz_key",
+                            "source",
                             "correlation", "finished_at", "result", "error", "reasons", "branches", "fields", "trace"] + \
                         (["payload"] if body else [])
                     buf = io.StringIO()

@@ -54,6 +54,20 @@ def refused(rules) -> str:
         return str(e) or "refused"
 
 
+def ingest_pre(st, hook, body, ct, idem, pre=None, now=None):
+    """Spec §4.2: an event is stored first (202), its rules decided after the commit (triage). This replays the old
+    "decided at ingest" calls through the two real steps; 200 = it will not run (ignored or duplicate)."""
+    code, info = st.ingest(hook, body, ct, ("h:" + idem) if idem else "", now=now)
+    if code != 202:
+        return code, info
+    p = dict(pre or {"decision": "run"})
+    b = p.get("business_key")
+    if b and "scope" in b:
+        p["business_key"] = {"shared": b["scope"], "policy": 1, "hash": b["key"], "ttl_s": b["ttl_s"]}
+    out = st.triage_commit(info["event_id"], p, [], now=now)
+    return (202 if out == "queued" else 200), dict(info, status=out)
+
+
 def ev(rules, body, ct="application/json"):
     return wr.evaluate(wr.validate(rules), body if isinstance(body, bytes) else body.encode(), ct)
 
@@ -87,7 +101,7 @@ check("P2-4: 1e400 is not a number (filtered), and its trace and fields are vali
 r = ev({"mapping": {"a": "a", "b": "b"}}, '{"a": NaN, "b": Infinity}')
 check("P2-4: NaN/Infinity literals stay text", r["fields"] == {"a": "NaN", "b": "Infinity"} and json.dumps(r, allow_nan=False))
 bk = {"business_key": {"entity": "o", "path": "id"}}
-k = lambda v: ev(bk, '{"id": ' + v + "}")["business_key"]["key"]  # noqa: E731
+k = lambda v: ev(bk, '{"id": ' + v + "}")["business_key"]["hash"]  # noqa: E731
 check("P2-4: 12345678901234567.5 and .7 are two keys", k("12345678901234567.5") != k("12345678901234567.7"),
       (k("12345678901234567.5"), k("12345678901234567.7")))
 check("P2-4: 1e50 and 1e60 are two keys", k("1e50") != k("1e60"))
@@ -102,7 +116,7 @@ r = ev({"mapping": {"order_id": "id", "first": "items[0]"}}, body)
 check("P2-2: a small part of it maps fine", r["decision"] == "run" and r["fields"]["first"]["sku"] == "SKU-0")
 st = ws.Store(Path(tempfile.mkdtemp(prefix="m2r-")) / "e.sqlite3")
 big_fields = {f"f{i}": "x" * 1900 for i in range(30)}
-code, info = st.ingest({"id": "wh_a", "brain": "/b"}, b"{}", "", "", pre={"decision": "run", "fields": big_fields})
+code, info = ingest_pre(st, {"id": "wh_a", "brain": "/b"}, b"{}", "", "", pre={"decision": "run", "fields": big_fields})
 check("P2-2: stored fields are never cut mid-JSON (57 KB of fields kept whole)", st.get(info["event_id"])["fields"] == big_fields)
 check("P2-2: an unstorable value becomes a marker, never broken JSON", json.loads(ws._dumps({"x": float("inf")})) == {"_unstorable": True}
       and json.loads(ws._dumps({"x": "y" * 70000})).get("_truncated") is True)
@@ -116,29 +130,29 @@ def key(k):
 
 
 s1 = ws.Store(Path(tempfile.mkdtemp(prefix="m2r-k-")) / "e.sqlite3")
-c, i = s1.ingest(H, b"1", "", "a", pre=key("order:7"))
+c, i = ingest_pre(s1, H, b"1", "", "a", pre=key("order:7"))
 w = s1.claim("W"); s1.mark_dispatched(w["id"], w["fence"]); s1.finish(w["id"], w["fence"], "failed", "", "boom")
 s1.retry(i["event_id"])
 w = s1.claim("W"); s1.finish(w["id"], w["fence"], "dead", "", "hook switched off")
-c2, _ = s1.ingest(H, b"1", "", "b", pre=key("order:7"))
+c2, _ = ingest_pre(s1, H, b"1", "", "b", pre=key("order:7"))
 check("P2-1: failed, retried, then dead: the key stays (the first attempt may have acted)", c2 == 200, c2)
-c, i = s1.ingest(H, b"1", "", "c", pre=key("order:8"))
+c, i = ingest_pre(s1, H, b"1", "", "c", pre=key("order:8"))
 w = s1.claim("W"); s1.mark_dispatched(w["id"], w["fence"]); s1.finish(w["id"], w["fence"], "failed", "", "boom")
 s1.retry(i["event_id"])
 s1.forget_hook(H["id"])
-c2, _ = s1.ingest(dict(H, id="wh_r2"), b"1", "", "d", pre=key("order:8"))
+c2, _ = ingest_pre(s1, dict(H, id="wh_r2"), b"1", "", "d", pre=key("order:8"))
 check("P2-1: failed, retried, then hook deleted: the key stays", c2 == 200)
-c, i9 = s1.ingest(dict(H, id="wh_r3"), b"1", "", "e", pre=key("order:9"))
+c, i9 = ingest_pre(s1, dict(H, id="wh_r3"), b"1", "", "e", pre=key("order:9"))
 w = s1.claim("W"); s1.finish(w["id"], w["fence"], "dead", "", "hook switched off")
 check("P2-1: dead without ever running: the key is given back",
       s1._db.execute("SELECT COUNT(*) FROM biz_keys WHERE bkey='order:9'").fetchone()[0] == 0)
 ok, why = s1.retry(i9["event_id"])
-c3, _ = s1.ingest(dict(H, id="wh_r4"), b"1", "", "f", pre=key("order:9"))
+c3, _ = ingest_pre(s1, dict(H, id="wh_r4"), b"1", "", "f", pre=key("order:9"))
 check("P2-1: retrying that dead event takes the key back, so a new copy is a duplicate", ok and c3 == 200, (ok, why, c3))
 s1b = ws.Store(Path(tempfile.mkdtemp(prefix="m2r-k2-")) / "e.sqlite3")
-c, i10 = s1b.ingest(dict(H, id="wh_r5"), b"1", "", "g", pre=key("order:10"))
+c, i10 = ingest_pre(s1b, dict(H, id="wh_r5"), b"1", "", "g", pre=key("order:10"))
 w = s1b.claim("W"); s1b.finish(w["id"], w["fence"], "dead", "", "off")
-c4, i11 = s1b.ingest(dict(H, id="wh_r6"), b"1", "", "h", pre=key("order:10"))
+c4, i11 = ingest_pre(s1b, dict(H, id="wh_r6"), b"1", "", "h", pre=key("order:10"))
 check("P2-1: retry refused while another copy holds the key", c4 == 202 and s1b.retry(i10["event_id"]) == (False, "key_taken"))
 
 # ---- P2-3: concurrent upgrade of one old file ----
@@ -168,27 +182,29 @@ check("P3: an older build opening a newer file does not lower the schema marker"
 # cross-process business key: 5 processes, 5 hooks, one key
 BK = ("import webhook_store as ws, sys\n"
       "st = ws.Store(sys.argv[1])\n"
-      "pre = {'decision': 'run', 'business_key': {'scope': 'shop', 'key': 'order:P', 'ttl_s': 3600}}\n"
-      "print(st.ingest({'id': 'wh_' + sys.argv[2], 'brain': '/b'}, b'1', '', 'k' + sys.argv[2], pre=pre)[0])\n")
+      "pre = {'decision': 'run', 'business_key': {'shared': 'shop', 'policy': 1, 'hash': 'order:P', 'ttl_s': 3600}}\n"
+      "code, info = st.ingest({'id': 'wh_' + sys.argv[2], 'brain': '/b'}, b'1', '', 'h:k' + sys.argv[2])\n"
+      "print(202 if st.triage_commit(info['event_id'], pre, []) == 'queued' else 200)\n")
 d = Path(tempfile.mkdtemp(prefix="m2r-bk-")) / "e.sqlite3"
 ws.Store(d).close()
 ps = [subprocess.Popen([sys.executable, "-c", BK, str(d), str(n)], env=dict(os.environ, PYTHONPATH=str(SERVER)),
                        stdout=subprocess.PIPE, text=True) for n in range(5)]
 codes = sorted(p.communicate(timeout=60)[0].strip() for p in ps)
-check("5 processes, 5 hooks, one business key: exactly one 202", codes == ["200"] * 4 + ["202"], codes)
+check("5 processes, 5 hooks, one shared business key decided at once: exactly one runs", codes == ["200"] * 4 + ["202"],
+      codes)
 
 # ---- P3 ----
 check("P3: business_key.field must name a mapped field", "not a mapped field" in refused(
     {"mapping": {"order_id": "id"}, "business_key": {"entity": "order", "field": "order_idd"}}))
 long_a, long_b = "A" * 250 + "1", "A" * 250 + "2"
-ka = ev(bk, json.dumps({"id": long_a}))["business_key"]["key"]
-kb = ev(bk, json.dumps({"id": long_b}))["business_key"]["key"]
-check("P3: two long ids sharing 200 characters stay two keys (hashed, not cut)", ka != kb and len(ka) <= 202, (ka, kb))
+ka = ev(bk, json.dumps({"id": long_a}))["business_key"]["hash"]
+kb = ev(bk, json.dumps({"id": long_b}))["business_key"]["hash"]
+check("P3: two long ids sharing 200 characters stay two keys (hashed, not cut)", ka != kb and len(ka) == 64, (ka, kb))
 check("P3: ttl_s 0 is an error, not the 30-day default", "ttl_s" in refused({"business_key": {"entity": "o", "path": "id", "ttl_s": 0}}))
 check("P3: a required mapped field that is null is missing", ev({"mapping": {"x": {"path": "x", "required": True}}},
                                                                 '{"x": null}')["decision"] == "invalid")
 check("P3: the rules size cap counts bytes (Vietnamese text)", "larger" in refused(
-    {"mapping": {f"f{i}": {"value": "ệ" * 70} for i in range(40)}}))
+    {"mapping": {f"f{i}": {"value": "ệ" * 140} for i in range(40)}}))
 
 # make_room: ignored events go first
 s2 = ws.Store(Path(tempfile.mkdtemp(prefix="m2r-room-")) / "e.sqlite3")
@@ -197,11 +213,11 @@ ws.DB_MAX_BYTES = 3 * 1024 * 1024
 try:
     big = b"x" * 30000
     for n in range(12):
-        s2.ingest({"id": f"wh_real{n}", "brain": "/b"}, big, "", f"r{n}")
+        ingest_pre(s2, {"id": f"wh_real{n}", "brain": "/b"}, big, "", f"r{n}")
         w = s2.claim("W"); s2.mark_dispatched(w["id"], w["fence"]); s2.finish(w["id"], w["fence"], "failed", "", "x")
         s2.mark_notified(w["id"])
     for n in range(150):
-        s2.ingest({"id": f"wh_ign{n % 20}", "brain": "/b"}, big, "", "", pre={"decision": "filtered"})
+        ingest_pre(s2, {"id": f"wh_ign{n % 20}", "brain": "/b"}, big, "", "", pre={"decision": "filtered"})
     real = s2._db.execute("SELECT COUNT(*) FROM events WHERE status='failed' AND length(body)>0").fetchone()[0]
     check("P3: under disk pressure ignored events are evicted before real (failed) runs and their bodies", real == 12, real)
 finally:
@@ -243,9 +259,13 @@ async def main():
     code, resp = await f.accept(h["id"], tok, b'{"event":"order.paid","total": 1e999999, "id": "A1"}', "application/json", "x1")
     await tk
     gaps = max(b - a for a, b in zip(ticks, ticks[1:]))
-    check("P1-1 end to end: answered (not 500) and the event loop never stalled", code == 422 and gaps < 0.25, (code, gaps))
+    await f.wait_idle()
+    check("P1-1 end to end: answered 202 (stored), quarantined by the worker, and the event loop never stalled",
+          code == 202 and f.store().get(resp["event_id"])["status"] == "invalid" and gaps < 0.25, (code, gaps))
     code, resp = await f.accept(h["id"], tok, deep.replace('"event":', '"event":"order.paid","x":').encode(), "application/json", "x2")
-    check("P1-2 end to end: a deep payload is refused (422), not run", code == 422 and not calls)
+    await f.wait_idle()
+    check("P1-2 end to end: a deep payload is stored and quarantined, never run", code == 202
+          and f.store().get(resp["event_id"])["status"] == "invalid" and not calls)
     for n in range(30):
         await f.accept(h["id"], tok, json.dumps({"event": "other", "id": n}).encode(), "application/json", f"o{n}")
     await f.accept(h["id"], tok, b'{"event":"order.paid","total":5,"id":"A2"}', "application/json", "real")

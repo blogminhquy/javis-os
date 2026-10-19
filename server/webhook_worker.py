@@ -348,16 +348,15 @@ class WebhookWorker:
             await asyncio.to_thread(st.requeue_before_dispatch, eid, fence, f"{type(e).__name__}: {e}")
             return
         snap = snap or {}
-        # The instruction as it was when the event arrived; the permission level is the LOWER of that and the hook's
-        # current level (spec §3: a snapshot never keeps a right the owner took away).
+        # The instruction, targets and rules as they were when the event arrived (its revision); the permission level
+        # is the hook's level NOW (spec §3: current permissions are checked before every effect, so a right the owner
+        # took away is gone for waiting events, and a level the owner raised to fix a blocked delivery applies).
         from webhook_triggers import VALID_LEVELS, DEFAULT_LEVEL
         hook = dict(cur)
         for k in ("target", "workflow", "text"):
             if snap.get(k) is not None:
                 hook[k] = snap[k]
-        lv_now = cur.get("level") if cur.get("level") in VALID_LEVELS else DEFAULT_LEVEL
-        lv_snap = snap.get("level") if snap.get("level") in VALID_LEVELS else lv_now
-        level = min(lv_now, lv_snap, key=VALID_LEVELS.index)
+        level = cur.get("level") if cur.get("level") in VALID_LEVELS else DEFAULT_LEVEL
         brain = cur.get("brain") or "brain"
         actions = webhook_actions.effective(snap.get("actions"))
         current = {a["id"]: a for a in webhook_actions.effective(cur.get("actions"))}

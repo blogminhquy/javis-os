@@ -50,8 +50,10 @@ check("the only provider-documented vector is labelled as such; the Systeme.io o
 for f in FX:
     cfg = wv.validate(dict({"provider": f["provider"], "secret": f["secret"]}, **(f.get("config") or {})))
     hdr = Headers(f["headers"])               # real header object: case-insensitive like a request's
-    ok, why = wv.verify(cfg, f["secret"], hdr, f["body"].encode(), f["now"] or None)
+    ok, why, kver, form = wv.verify_ex(cfg, f["secret"], hdr, f["body"].encode(), f["now"] or None)
     check(f"{f['name']}: {'accepted' if f['valid'] else 'refused'}", ok == f["valid"], why)
+    if f.get("signed_form"):
+        check(f"{f['name']}: the matched normalisation form is recorded ({f['signed_form']})", form == f["signed_form"], form)
     if f.get("event"):
         n = wv.normalize(f["provider"], hdr, wr.parse_payload(f["body"].encode(), "application/json")[0])
         check(f"{f['name']}: normalised type and id", n["type"] == f["event"]["type"] and n["id"] == f["event"]["id"], n)

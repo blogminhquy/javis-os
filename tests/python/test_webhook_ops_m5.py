@@ -36,6 +36,7 @@ import httpx  # noqa: E402
 import webhook_actions as wa  # noqa: E402
 import webhook_store as ws  # noqa: E402
 import webhook_triggers as wt  # noqa: E402
+import webhook_worker as ww  # noqa: E402
 
 fails = []
 
@@ -83,8 +84,10 @@ async def main():
     st = f.store()
 
     # ---- settings validation ----
-    for bad in ({"notify": "sometimes"}, {"limits": {"per_hour": 0}}, {"limits": {"per_hour": True}}, {"limits": {"weird": 1}},
-                {"ai_per_day": -1}, {"retention_days": 9999}, {"limits": {"backlog": 51}}):
+    for bad in ({"notify": "sometimes"}, {"limits": {"per_hour": -1}}, {"limits": {"per_hour": True}}, {"limits": {"weird": 1}},
+                {"ai_per_day": -1}, {"ai_per_hour": 1001}, {"retention_days": 9999}, {"limits": {"backlog": 100001}},
+                {"limits": {"per_minute": 0}}, {"limits": {"body_kb": 4096}}, {"retry": {"delays_s": [0]}},
+                {"retry": {"jitter_ratio": 0.9}}, {"digest_timezone": "Mars/Base"}, {"ai_triage": "yes"}):
         _, _, err = f.create("/b1", name="x", target="task", text="x", **bad)
         check(f"bad setting refused, not clamped: {bad}", bool(err), err)
     h, tok, err = f.create("/b1", name="Đơn", target="task", text="x", notify="errors_only",
@@ -139,44 +142,54 @@ async def main():
     sent.clear()
     # The owner's time zone (localefmt.tz), not the server's.
     lt = wt._local(time.time())
-    morning = lt.replace(hour=wt.DIGEST_HOUR - 1, minute=30, second=0, microsecond=0).timestamp()
-    after = lt.replace(hour=wt.DIGEST_HOUR, minute=5, second=0, microsecond=0).timestamp()
+    morning = lt.replace(hour=ww.DIGEST_HOUR - 1, minute=30, second=0, microsecond=0).timestamp()
+    after = lt.replace(hour=ww.DIGEST_HOUR, minute=5, second=0, microsecond=0).timestamp()
     if after < time.time():
         after = time.time() + 1
     n = await f._digest(morning)
     check("digest: nothing before the digest hour", n == 0 and not sent)
     send_ok["v"] = False
+    f.clock = lambda: after
     n = await f._digest(after)
-    check("digest: a failed delivery is not marked done (sent again later)", n == 0
-          and await asyncio.to_thread(st.meta_get, f"digest_day:{hg['id']}") == "")
+    rows_d = [x for x in st.notifications(hook_id=hg["id"]) if x["kind"] == "digest"]
+    check("digest: queued once in the durable outbox; a failed delivery stays pending to be sent again (spec §12)",
+          n >= 1 and len(rows_d) == 1 and rows_d[0]["status"] == "pending" and rows_d[0]["tries"] == 1, rows_d)
     send_ok["v"] = True
     sent.clear()
-    n = await f._digest(after)
+    f.clock = lambda: after + 3600
+    await f.deliver_notifications()
+    f.clock = time.time
     dig = [m for m in sent if m["status"] == "digest" and "Tóm tắt\"" in m["text"]]
-    check("digest: one plain message with the counts (3 done, 1 failed), keyed per day", n >= 1 and len(dig) == 1
+    check("digest: one plain message with the counts (3 done, 1 failed), keyed per day", len(dig) == 1
           and ("3 lần chạy xong, 1 lần lỗi" in dig[0]["text"] or "3 runs done, 1 failed" in dig[0]["text"])
           and dig[0]["dedup"].startswith("whd:"), dig)
     sent.clear()
     n = await f._digest(after + 60)
-    check("digest: only once a day", n == 0 and not any(m["status"] == "digest" for m in sent))
+    await f.deliver_notifications()
+    check("digest: only once a day (a restart re-queues the same key: at most one per period)",
+          n == 0 and not any(m["status"] == "digest" for m in sent))
 
     # ---- AI budget ----
-    hb, tokb, _ = f.create("/b1", name="Ngân sách", target="task", text="x", ai_per_day=1)
+    hb, tokb, _ = f.create("/b1", name="Ngân sách", target="task", text="x", ai_per_hour=1)
     ai_calls.clear()
     c, r1 = await f.accept(hb["id"], tokb, b"{}", "application/json", "b1")
     await f.wait_idle()
     c, r2 = await f.accept(hb["id"], tokb, b"{}", "application/json", "b2")
     await f.wait_idle()
     ev2 = st.get(r2["run_id"])
-    check("AI budget: the second run of the day is refused before reaching a model", ai_calls == ["full"]
-          and ev2["status"] == "failed" and "AI budget" in ev2["branches"][0]["detail"]
-          and ev2["branches"][0]["dispatched_at"] == 0, (ai_calls, ev2["branches"]))
-    st._db.execute("UPDATE ai_runs SET at=at-90000 WHERE event_id=?", (r1["run_id"],))
-    st.retry(r2["run_id"])
+    b2 = ev2["branches"][0]
+    check("AI budget (spec §7, §11): the second run in the hour WAITS for the budget before reaching a model (not failed,"
+          " not a try, the accepted order is not lost)", ai_calls == ["full"] and ev2["status"] == "queued"
+          and b2["status"] == "retry" and "AI budget" in b2["detail"] and b2["dispatched_at"] == 0 and b2["tries"] == 0
+          and st.ai_oldest_since(hb["id"], 0) + 3600 - 5 <= float(st._db.execute(
+              "SELECT next_at FROM deliveries WHERE event_id=?", (r2["run_id"],)).fetchone()[0]), (ai_calls, ev2["branches"]))
+    st._db.execute("UPDATE ai_runs SET at=at-4000 WHERE event_id=?", (r1["run_id"],))
+    st._db.execute("UPDATE deliveries SET next_at=0 WHERE event_id=?", (r2["run_id"],))
+    st._db.execute("UPDATE events SET next_at=0 WHERE id=?", (r2["run_id"],))
     f._kick()
     await f.wait_idle()
-    check("AI budget: the next day the owner's retry runs it", st.get(r2["run_id"])["status"] == "done" and len(ai_calls) == 2)
-    h0, tok0, _ = f.create("/b1", name="Không AI", target="task", text="x", ai_per_day=0)
+    check("AI budget: once the hour has room it runs on its own", st.get(r2["run_id"])["status"] == "done" and len(ai_calls) == 2)
+    h0, tok0, _ = f.create("/b1", name="Không AI", target="task", text="x", ai_per_hour=0)
     ai_calls.clear()
     await f.accept(h0["id"], tok0, b"{}", "application/json", "z")
     await f.wait_idle()
@@ -193,6 +206,7 @@ async def main():
     opened = [m for m in sent if "lỗi 5 lần liền" in m["text"] or "5 times in a row" in m["text"]]
     check("breaker: opens after 5 failures in a row and tells the owner once", len(hits) == 5 and len(opened) == 1, (hits, sent))
     check("the view shows the paused receiver", f.view(f._find(f._load(), hc["id"]))["breakers"][0]["action"] == "crm")
+    check("the breaker is per target (spec §11), not per hook", st.breakers("*") and not st.breakers(hc["id"]))
     code, r6 = await f.accept(hc["id"], tokc, b"{}", "application/json", "c6")
     await f.wait_idle()
     ev6 = st.get(r6["run_id"])
@@ -201,13 +215,13 @@ async def main():
           len(hits) == 5 and b6["crm"]["status"] == "retry" and b6["crm"]["tries"] == 0 and b6["ai"]["status"] == "completed"
           and ev6["status"] == "queued", (hits, b6))
     crm_code["v"] = 200
-    st._db.execute("UPDATE breakers SET open_until=? WHERE hook_id=?", (time.time() - 1, hc["id"]))
+    st._db.execute("UPDATE breakers SET open_until=? WHERE hook_id='*'", (time.time() - 1,))
     st._db.execute("UPDATE events SET next_at=? WHERE id=?", (time.time() - 1, r6["run_id"]))
-    st._db.execute("UPDATE branches SET next_at=? WHERE event_id=?", (time.time() - 1, r6["run_id"]))
+    st._db.execute("UPDATE deliveries SET next_at=? WHERE event_id=?", (time.time() - 1, r6["run_id"]))
     f._kick()
     await f.wait_idle()
     check("after the cooldown one attempt goes through; success closes the breaker",
-          len(hits) == 6 and st.get(r6["run_id"])["status"] == "done" and not st.breakers(hc["id"]), (hits, st.breakers(hc["id"])))
+          len(hits) == 6 and st.get(r6["run_id"])["status"] == "done" and not st.breakers("*"), (hits, st.breakers("*")))
     check("breaker cooldown doubles at each reopening, capped", ws.BREAKER_COOLDOWN_S * 2 ** 10 > ws.BREAKER_MAX_S)
 
     # ---- retention ----
@@ -215,6 +229,7 @@ async def main():
     now = time.time()
     for hid, age in (("wh_short", 3), ("wh_short", 1), ("wh_default", 3), ("wh_long", 40), ("wh_default", 40)):
         c, i = s2.ingest({"id": hid, "brain": "/b"}, b"{}", "", f"{hid}{age}", now=now - age * 86400)
+        s2.triage_commit(i["event_id"], {"decision": "run"}, [], now=now - age * 86400)
         w = s2.claim("W", now=now - age * 86400)
         s2.finish(w["id"], w["fence"], "done", "ok", now=now - age * 86400)
     s2.prune(now=now, keep_days={"wh_short": 2, "wh_long": 90})
@@ -241,7 +256,11 @@ async def main():
           and "EXPORT-SECRET" not in r.text and "hook_snapshot" not in r.text and "bí mật khách" not in r.text
           and lines[0]["received_at"] <= lines[-1]["received_at"], r.text[:300])
     r = await cl.get("/webhooks/events/export", params={"hook": hx["id"], "body": 1})
-    check("export with body=1 carries the payload", "bí mật khách" in r.text)
+    check("export with body=1 carries the payload, customer data masked by default (spec §12)",
+          '"n": 1' in r.text and "bí mật khách" not in r.text and st.audit_rows(hx["id"])[0]["action"] == "export_masked")
+    r = await cl.get("/webhooks/events/export", params={"hook": hx["id"], "body": 1, "raw": 1})
+    check("raw=1 exports it as received and is recorded in the audit log", "bí mật khách" in r.text
+          and st.audit_rows(hx["id"])[0]["action"] == "export_raw")
     r = await cl.get("/webhooks/events/export", params={"hook": hx["id"], "format": "csv"})
     check("export CSV: a header row and formulas neutralised", r.text.splitlines()[0].startswith("id,hook_id")
           and "'=HYPERLINK" in r.text and ",=HYPERLINK" not in r.text, r.text[:400])

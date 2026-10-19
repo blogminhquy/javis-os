@@ -541,24 +541,18 @@ def _call_release(h, delivery, ctx, did):
         _PLUGIN_SLOTS.release()
 
 
-def _proxied() -> bool:
-    import urllib.request
-    return bool(urllib.request.getproxies())
-
-
 def default_transport(allow_private: bool = False, resolve: Optional[Callable] = None):
     import httpx
     if os.environ.get("JAVIS_WH_NO_NETWORK") == "1":
         def refuse(request):
             raise NoNetwork(f"network disabled (JAVIS_WH_NO_NETWORK): {request.url.host}")
         return httpx.MockTransport(refuse)
+    # Pinned connections (no DNS rebinding), always: an explicit transport makes httpx ignore the *_PROXY variables,
+    # so a proxy setting never routed these calls anyway and must not switch the pinning off.
+    import httpcore
     t = httpx.AsyncHTTPTransport(retries=0)
-    if not _proxied():
-        # Pinned connections (no DNS rebinding). Behind an outgoing proxy the proxy makes the connection, and the
-        # name check before the request is what stands.
-        import httpcore
-        t._pool = httpcore.AsyncConnectionPool(ssl_context=t._pool._ssl_context, retries=0,
-                                               network_backend=_pinned_backend(allow_private, resolve))
+    t._pool = httpcore.AsyncConnectionPool(ssl_context=t._pool._ssl_context, retries=0,
+                                           network_backend=_pinned_backend(allow_private, resolve))
     return t
 
 
@@ -802,8 +796,12 @@ async def run_tool(action: dict, ctx: dict, call_tool: Optional[Callable], level
     if text.startswith("ERROR: gọi tool lỗi"):
         return _ambiguous(action, "the tool call broke after it was sent: it may have acted", {"result": _short(text)})
     if text.startswith("ERROR:"):
+        # The hub's own refusals happen BEFORE the tool runs (certainly not done). Its permission guard says "bị chặn"
+        # and a missing tool "không tồn tại" / "không có tool": the configuration, so blocked. Its rate limit and a
+        # source that did not start: not sent, try later. Anything else is the tool's own refusal of this event.
         low = text.lower()
-        st = "blocked" if any(w in low for w in ("not connected", "chưa kết nối", "permission", "quyền", "not allowed",
-                                                 "unknown tool", "không có tool", "disabled", "đã tắt")) else "failed"
+        if "vượt giới hạn tần suất" in low or "không khởi động được" in low:
+            return Outcome("retry", "not sent: " + text[6:].strip()[:280], {"result": _short(text)}, maybe_acted=False)
+        st = "blocked" if any(w in low for w in ("bị chặn", "không tồn tại", "không có tool", "route entry")) else "failed"
         return Outcome(st, text[6:].strip()[:300], {"result": _short(text)}, maybe_acted=False)
     return Outcome("completed", f"tool {action['tool']} ran", {"result": _short(text)})

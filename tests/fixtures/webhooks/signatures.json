@@ -1,5 +1,5 @@
 {
- "_note": "Frozen golden fixtures for webhook_verify. Only github_docs_vector comes from a provider's own documentation; the others were computed once from the published schemes and frozen; systeme_io_synthetic is an ASSUMED scheme (unverified). Replace it with a captured delivery (secrets removed) after the staging check.",
+ "_note": "Frozen golden fixtures for webhook_verify. Only github_docs_vector comes from a provider's own documentation; the others were computed once from the published schemes and frozen; systeme_io_synthetic is an ASSUMED scheme (unverified). Replace it with a captured delivery (secrets removed) after the staging check. The two systeme_io_synthetic_php_* fixtures freeze the normalisation forms the adapter accepts (spec §10: Unicode and slash escaping); the adapter stays unverified until a captured delivery confirms which form Systeme.io signs.",
  "fixtures": [
   {
    "name": "github_docs_vector",
@@ -106,13 +106,14 @@
   {
    "name": "systeme_io_synthetic",
    "provider": "systeme_io",
-   "origin": "SYNTHETIC: assumed scheme, NOT captured from Systeme.io",
+   "origin": "SYNTHETIC: assumed scheme, NOT captured from Systeme.io (raw-body form); id from X-Webhook-Message-Id, never the attempt id",
    "secret": "systeme_golden_secret",
    "body": "{\"type\":\"CONTACT_CREATED\",\"data\":{\"contact\":{\"email\":\"lan@example.com\",\"fields\":[{\"slug\":\"first_name\",\"value\":\"Lan\"}]}}}",
    "headers": {
     "X-Webhook-Signature": "235b743d8daef4af72a4d44e287a44e021b3c550f192d5e774e132571932fd70",
     "X-Webhook-Event": "CONTACT_CREATED",
-    "X-Webhook-Id": "sys-1"
+    "X-Webhook-Message-Id": "sys-1",
+    "X-Webhook-Attempt-Id": "attempt-3"
    },
    "now": 0,
    "valid": true,
@@ -120,6 +121,44 @@
     "type": "contact.created",
     "id": "sys-1"
    }
+  },
+  {
+   "name": "systeme_io_synthetic_php_default",
+   "provider": "systeme_io",
+   "origin": "SYNTHETIC: signature over the php_default JSON form (Unicode and slash escaping as PHP json_encode writes it); NOT captured from Systeme.io",
+   "secret": "systeme_golden_secret",
+   "body": "{\"type\": \"SALE_NEW\", \"data\": {\"customer\": {\"email\": \"lan@example.com\", \"first_name\": \"Trợ lý\"}, \"offer_url\": \"https://shop.example/a/b\"}}",
+   "headers": {
+    "X-Webhook-Signature": "fb8df0ed6e7cd5663c12857da80453b0cd52b9aca75310ef29369a2ae3d9b5dd",
+    "X-Webhook-Event": "SALE_NEW",
+    "X-Webhook-Message-Id": "sys-php_default"
+   },
+   "now": 0,
+   "valid": true,
+   "event": {
+    "type": "sale.new",
+    "id": "sys-php_default"
+   },
+   "signed_form": "php_default"
+  },
+  {
+   "name": "systeme_io_synthetic_php_unescaped",
+   "provider": "systeme_io",
+   "origin": "SYNTHETIC: signature over the php_unescaped JSON form (Unicode and slash escaping as PHP json_encode writes it); NOT captured from Systeme.io",
+   "secret": "systeme_golden_secret",
+   "body": "{\"type\": \"SALE_NEW\", \"data\": {\"customer\": {\"email\": \"lan@example.com\", \"first_name\": \"Trợ lý\"}, \"offer_url\": \"https://shop.example/a/b\"}}",
+   "headers": {
+    "X-Webhook-Signature": "4f9e52042f0ef066831e30f8a24307c94e73b6a2e8bed244f31385fe7ed76521",
+    "X-Webhook-Event": "SALE_NEW",
+    "X-Webhook-Message-Id": "sys-php_unescaped"
+   },
+   "now": 0,
+   "valid": true,
+   "event": {
+    "type": "sale.new",
+    "id": "sys-php_unescaped"
+   },
+   "signed_form": "php_unescaped"
   }
  ]
 }

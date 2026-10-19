@@ -91,7 +91,9 @@ async def main():
     await f.wait_idle()
     send_ok["v"] = True
     sent.clear()
+    f.clock = lambda: time.time() + 4000          # the outbox resends after its backoff
     await f.sweep()
+    f.clock = time.time
     check("P2: the approval request is resent at the next sweep, as an approval request",
           any("duyệt" in m["text"].lower() or "approval" in m["text"].lower() for m in sent)
           and st.get(r["run_id"])["notified_at"] > 0, sent)
@@ -105,7 +107,7 @@ async def main():
           and any("mẫu A" in m["text"] for m in sent), sent)
 
     # P2-7: AI budget refusal is not an incident
-    h0, tok0, _ = f.create("/b", name="Không AI", target="task", text="x", ai_per_day=0)
+    h0, tok0, _ = f.create("/b", name="Không AI", target="task", text="x", ai_per_hour=0)
     incidents.clear()
     for i in range(3):
         await f.accept(h0["id"], tok0, b"{}", "application/json", f"z{i}")
@@ -123,15 +125,16 @@ async def main():
     for i in range(5):
         await f.accept(hb["id"], tokb, b"{}", "application/json", f"p{i}")
     await f.wait_idle()
-    st._db.execute("UPDATE breakers SET open_until=? WHERE hook_id=?", (time.time() - 1, hb["id"]))
+    tk = wa.target_key(f._find_hook(hb["id"])["actions"][0])
+    st._db.execute("UPDATE breakers SET open_until=? WHERE hook_id='*' AND action_id=?", (time.time() - 1, tk))
     st._db.execute("UPDATE events SET next_at=? WHERE hook_id=? AND status='queued'", (time.time() - 1, hb["id"]))
-    st._db.execute("UPDATE branches SET next_at=? WHERE event_id IN (SELECT id FROM events WHERE hook_id=?)",
+    st._db.execute("UPDATE deliveries SET next_at=? WHERE event_id IN (SELECT id FROM events WHERE hook_id=?)",
                    (time.time() - 1, hb["id"]))
     before = len(hits)
     f._kick()
     await f.wait_idle()
     check("P2: after the cooldown ONE attempt goes to a receiver still down, then the breaker reopens",
-          len(hits) - before == 1 and st.breaker_open_until(hb["id"], "crm") > time.time(), (len(hits) - before))
+          len(hits) - before == 1 and st.breaker_open_until("*", tk) > time.time(), (len(hits) - before))
 
     # P2-8: a paused receiver does not fill the backlog
     hc, tokc, _ = f.create("/b", name="Hai nhánh", target="task", text="x", notify="none", limits={"backlog": 3, "per_hour": 100},
@@ -140,13 +143,18 @@ async def main():
     for i in range(ws.BREAKER_FAILS + 8):
         codes.append((await f.accept(hc["id"], tokc, b"{}", "application/json", f"c{i}"))[0])
         await f.wait_idle()
-    check("P2: with the CRM paused, events keep being accepted (the AI branch runs), not 429",
-          codes.count(429) == 0, codes)
+    # Spec §11: the backlog counts every event not settled, a paused receiver's included; past it the sender gets 429
+    # with a Retry-After (nothing accepted is lost, the sender sends again later). The default is 10 000 events.
+    ev_c = st.page(hook_id=hc["id"], limit=100)["items"]
+    check("P2 (spec §11): with the CRM paused, the AI delivery of each accepted event still runs; once the backlog is "
+          "reached the sender is refused with 429 (not lost)", 429 in codes and codes[:3] == [202] * 3
+          and all(next(d for d in e["deliveries"] if d["action_id"] == "ai")["state"] == "succeeded" for e in ev_c), codes)
     crm["v"] = 200
 
     # P3-10: breaker reset when the target changes
     f.update(hc["id"], {"actions": [{"id": "crm", "kind": "http", "url": "https://crm2.example/h"}, {"id": "ai", "kind": "ai"}]})
-    check("P3: pointing the action elsewhere clears its breaker", st.breaker_open_until(hc["id"], "crm") == 0)
+    check("P3: pointing the action elsewhere clears its breaker", st.breaker_open_until(
+        "*", wa.target_key({"id": "crm", "kind": "http", "url": "https://crm.example/h", "headers": {}})) == 0)
 
     # P3-11: breaker notice respects `none`; a failed send is retried
     sent.clear()
@@ -157,7 +165,9 @@ async def main():
     await f._breaker_notice(f._find(f._load(), hn["id"]), "crm", "HTTP 500")
     send_ok["v"] = True
     sent.clear()
+    f.clock = lambda: time.time() + 4000
     await f.sweep()
+    f.clock = time.time
     check("P3: a breaker notice that could not be sent is sent at the next sweep",
           any("crm" in m["text"] for m in sent), sent)
 
@@ -202,6 +212,7 @@ s = ws.Store(Path(tempfile.mkdtemp(prefix="m5r-keep-")) / "e.sqlite3")
 now = time.time()
 old = now - 10 * 86400            # within APPROVAL_TTL_DAYS, far past the hook's 1-day retention
 c, i = s.ingest({"id": "wh_w", "brain": "/b"}, b'{"order": 1}', "application/json", "w", now=old)
+s.triage_commit(i["event_id"], {"decision": "run"}, [], now=old)
 w = s.claim("W", now=old)
 s.branches_init(w["id"], w["fence"], [{"id": "pos", "kind": "tool"}], wa.delivery_id)
 s.branch_finish(w["id"], w["fence"], "pos", "approval", "waiting", now=old)
@@ -233,10 +244,11 @@ check("P2: the AI budget still counts all 700 runs after prune", s2.ai_runs_sinc
 # P3-9: budget counts runs (dispatches), not rows
 s3 = ws.Store(Path(tempfile.mkdtemp(prefix="m5r-ai-")) / "e.sqlite3")
 c, i = s3.ingest({"id": "wh_ai", "brain": "/b"}, b"{}", "", "k")
+s3.triage_commit(i["event_id"], {"decision": "run"}, [])
 for _ in range(3):
     w = s3.claim("W")
     s3.branches_init(w["id"], w["fence"], [{"id": "main", "kind": "ai"}], wa.delivery_id)
-    s3.branch_dispatch(w["id"], w["fence"], "main")
+    s3.branch_dispatch(w["id"], w["fence"], "main", ai=True)
     s3.branch_finish(w["id"], w["fence"], "main", "failed", "boom")
     s3.settle(w["id"], w["fence"], lambda rows: ("", "boom"))
     s3.retry(w["id"])
@@ -272,7 +284,7 @@ async def dg():
         ids.append(h["id"])
         await f.accept(h["id"], tok, b"{}", "application/json", f"d{n}")
     await f.wait_idle()
-    after = wt._local(time.time()).replace(hour=wt.DIGEST_HOUR, minute=10).timestamp()
+    after = wt._local(time.time()).replace(hour=__import__("webhook_worker").DIGEST_HOUR, minute=10).timestamp()
     after = max(after, time.time() + 1)
     await f._digest(after)
     return st, ids, after
