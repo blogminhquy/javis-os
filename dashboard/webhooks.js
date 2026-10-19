@@ -59,8 +59,8 @@
   // M2: what the hook's rules decided for a sample body (POST /webhooks/simulate). Nothing was stored or run.
   var SIM_KEY = { run: "wh.sim_run", filtered: "wh.sim_filtered", invalid: "wh.sim_invalid", duplicate: "wh.sim_duplicate" };
   function stepLine(ok, text) {
-    return '<div class="wh-sim-step" style="color:' + (ok ? "var(--text2)" : "var(--warn-ink)") + '">'
-      + (ok ? "✓ " : "✗ ") + esc(text) + "</div>";
+    return '<div class="wh-sim-step ' + (ok ? "pass" : "fail") + '" style="color:' + (ok ? "var(--text2)" : "var(--warn-ink)") + '">'
+      + ic(ok ? "check" : "x") + " " + esc(text) + "</div>";
   }
   function plain(v) { return v === null || v === undefined ? "∅" : (typeof v === "object" ? JSON.stringify(v) : String(v)); }
   function simHtml(sim) {
@@ -148,7 +148,8 @@
       + '<div class="wf-actions" style="margin-top:8px">'
       + '<button class="s-btn-ghost whCopy">' + esc(tw("wh.copy_url")) + "</button>"
       + '<button class="s-btn-ghost whTest">' + esc(tw("wh.test")) + "</button>"
-      + '<button class="s-btn-ghost whRules">' + esc(tw("wh.rules")) + (h.rules && Object.keys(h.rules).length ? " ✓" : "") + "</button>"
+      + '<button class="s-btn-ghost whRules' + (h.rules && Object.keys(h.rules).length ? " has-rules" : "") + '">'
+      + esc(tw("wh.rules")) + (h.rules && Object.keys(h.rules).length ? " " + ic("check") : "") + "</button>"
       + '<button class="s-btn-ghost whToggle">' + esc(tw(h.enabled ? "wh.turn_off" : "wh.turn_on")) + "</button>"
       + '<button class="s-btn-ghost whRotate">' + esc(tw("wh.rotate")) + "</button>"
       + '<button class="s-btn-ghost whDel" style="color:var(--red)">' + esc(tw("common.delete")) + "</button>"

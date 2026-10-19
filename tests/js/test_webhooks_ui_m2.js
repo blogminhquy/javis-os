@@ -15,8 +15,8 @@ for (const st of ["filtered", "invalid", "duplicate"]) {
 const card = (rules) => W.cardHtml({ id: "wh_1", name: "Đơn", target: "task", text: "x", level: "full", brain: "/b",
   url: "/hooks/wh_1", enabled: true, history: [], rules: rules }, []);
 check("every card has a Rules button and a host for the panel", card({}).includes("whRules") && card({}).includes("whRulesHost"));
-check("a card with rules marks the button", card({ filter: { path: "a", op: "exists" } }).includes("wh.rules ✓")
-  && !card({}).includes("wh.rules ✓"));
+check("a card with rules marks the button", card({ filter: { path: "a", op: "exists" } }).includes("whRules has-rules")
+  && !card({}).includes("has-rules"));
 const panel = W.rulesPanelHtml({ rules: { filter: { path: "a", op: "eq", value: "</textarea><script>x</script>" } } });
 check("the rules box is prefilled and escaped", panel.includes("whRulesTxt") && panel.includes("&lt;/textarea&gt;")
   && !panel.includes("<script>"));
@@ -29,7 +29,7 @@ const sim = W.simHtml({ ok: true, decision: "filtered", reason: "filter did not 
   trace: { schema: [{ path: "order.id", pass: true, why: "ok" }],
            filter: [{ path: "event", op: "eq", value: "sale", actual: "<b>refund</b>", pass: false }] } });
 check("simulate view: decision, each schema and filter step with pass/fail, values escaped",
-  sim.includes("wh.sim_filtered") && sim.includes("✓ wh.sim_schema order.id: ok") && sim.includes("✗ wh.sim_filter event eq sale")
+  sim.includes("wh.sim_filtered") && /wh-sim-step pass[^>]*> wh\.sim_schema order\.id: ok/.test(sim) && /wh-sim-step fail[^>]*> wh\.sim_filter event eq sale/.test(sim)
   && sim.includes("&lt;b&gt;refund") && !sim.includes("<b>refund"));
 const ran = W.simHtml({ ok: true, decision: "run", fields: { order_id: "A1", total: 5 }, business_key: { scope: "shop", key: "order:A1" },
   trace: {}, prompt: "SỰ KIỆN <x>" });
