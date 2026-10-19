@@ -133,7 +133,7 @@ check("hang loc noi ro dang xem brain nao (danh sach ngan di phai co ly do)",
 // "brain brain" hoac mot dong path dai ngoang - da thay tan mat luc chup man hinh 21/09.
 check("nhan brain hien TEN doc duoc, khong phai khoa tho",
       /function tenBrain\(v\)/.test(SRC) &&
-      /o\.dataset && o\.dataset\.brainName/.test(SRC) &&
+      /o\.dataset && \(o\.dataset\.brainLabel \|\| o\.dataset\.brainName\)/.test(SRC) &&   // 0.219.0: tên đã đổi trước
       /replace\(\/\\s\*·\\s\*\\d\+\\\+\?\$\//.test(SRC));
 // Nhan brain tren the chi hien khi CO CHUYEN de noi. Loc theo brain roi ma the nao cung dan
 // ten brain dang mo thi chi la tieng on.

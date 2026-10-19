@@ -1384,11 +1384,20 @@ _NGUON_CHU = {"phien": "brain đang mở (cuộc trò chuyện gần nhất)",
               "duy-nhat": "brain duy nhất trên máy này"}
 
 
+def _ten_hien_brain(vault_root) -> str:
+    """Tên hiển thị của brain (0.219.0, brain_label), rơi về tên thư mục nếu không đọc được."""
+    try:
+        import brain_label
+        return brain_label.display(vault_root)
+    except Exception:
+        return Path(vault_root).name
+
+
 def _ghi_chu_brain(nguon, vault_root, header_hong):
     """Dòng gắn vào kết quả tool để người dùng luôn biết lượt đó chạy trên brain nào."""
     if nguon not in _NGUON_CHU:
         return ""
-    ra = (f"(Javis đang làm việc trên brain \"{Path(vault_root).name}\" - {vault_root}. "
+    ra = (f"(Javis đang làm việc trên brain \"{_ten_hien_brain(vault_root)}\" - {vault_root}. "
           f"Lượt gọi này tới hub không kèm header X-Javis-Vault nên hub lấy "
           f"{_NGUON_CHU[nguon]}. Muốn brain khác thì đổi brain trên dashboard, hoặc thêm "
           f"header X-Javis-Vault vào cấu hình MCP của client.)")

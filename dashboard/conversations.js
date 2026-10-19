@@ -34,7 +34,7 @@
       var v = o.value.indexOf("path:") === 0 ? o.value.slice(5) : "brain";
       // `data-brain-name` là TÊN THƯ MỤC sạch (brains-ui.js gắn). Nhãn hiển thị của ô chọn có
       // đuôi đếm note (" · 19"), lấy nguyên là ra "brain Shop Giay · 19" trên thẻ tài khoản.
-      var ten = (o.dataset && o.dataset.brainName) || (o.textContent || "").trim().replace(/\s*·\s*\d+\+?$/, "");
+      var ten = (o.dataset && (o.dataset.brainLabel || o.dataset.brainName)) || (o.textContent || "").trim().replace(/\s*·\s*\d+\+?$/, "");
       if (!ds.some(function (x) { return x.v === v; })) ds.push({ v: v, ten: ten || v });
     });
     return ds;

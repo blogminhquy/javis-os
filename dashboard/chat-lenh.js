@@ -322,21 +322,23 @@
     if (!arg) {
       var dong = [tw("lenh.brain_title")];
       brains.forEach(function (b) {
-        dong.push("- " + b.name + (giaTri(b) === sel.value ? " " + tw("lenh.brain_cur") : ""));
+        dong.push("- " + (b.label || b.name) + (giaTri(b) === sel.value ? " " + tw("lenh.brain_cur") : ""));
       });
       dong.push("", tw("lenh.brain_hint"));
       return ghi(dong.join("\n"));
     }
-    var k = khopTen(brains, arg, function (b) { return b.name; });
+    // 0.219.0: gõ tên mới (đã đổi) hay tên thư mục cũ đều được.
+    var k = khopTen(brains, arg, function (b) { return b.label || b.name; });
+    if (!k.hit && !k.nhieu.length) k = khopTen(brains, arg, function (b) { return b.name; });
     if (k.hit) {
       var v = giaTri(k.hit);
       sel.value = v;
       try { localStorage.setItem("javis.graphSource", v); } catch (e) { /* chế độ riêng tư */ }
       sel.dispatchEvent(new Event("change"));
-      return ghi(tw("lenh.brain_set", { ten: k.hit.name }));
+      return ghi(tw("lenh.brain_set", { ten: k.hit.label || k.hit.name }));
     }
     if (k.nhieu.length) {
-      return ghi(tw("lenh.brain_many", { q: arg, ds: k.nhieu.slice(0, 6).map(function (b) { return b.name; }).join(", ") }));
+      return ghi(tw("lenh.brain_many", { q: arg, ds: k.nhieu.slice(0, 6).map(function (b) { return b.label || b.name; }).join(", ") }));
     }
     ghi(tw("lenh.brain_none", { q: arg }));
   }

@@ -68,6 +68,18 @@ check("danh sách hiện tên mới, thư mục và đường dẫn giữ nguyê
       b["label"] == "Kho Gsmsuppliers" and b["name"] == "Brain Default" and b["path"].endswith("Brain Default"), b)
 check("brain mặc định vẫn là thư mục cũ", Path(main._brain_root("brain")).name == "Brain Default")
 
+v = cl.get("/viec/all").json()
+ten_viec = [x.get("name") for x in (v.get("brains") or []) if x.get("is_default")]
+check("trang Việc hiện tên mới của brain", ten_viec == ["Kho Gsmsuppliers"], (ten_viec, list(v)[:6]))
+import mcp_hub  # noqa: E402
+check("ghi chú brain trong kết quả tool dùng tên mới",
+      mcp_hub._ten_hien_brain(main._brain_root("brain")) == "Kho Gsmsuppliers")
+src = (SERVER / "main.py").read_text(encoding="utf-8")
+check("Telegram /brain khớp cả tên mới lẫn tên thư mục",
+      'return [x.lower() for x in (b.get("label") or "", b["name"]) if x]' in src)
+check("không còn chỗ hiện tên brain bằng Path(_brain_root(...)).name",
+      "Path(_brain_root(brain)).name" not in src and "Path(_brain_root(sess[\"brain\"])).name" not in src)
+
 cl.post("/brains/new", data={"name": "Marketing"})
 r = cl.post("/brains/label", data={"brain": "Marketing", "label": "kho gsmsuppliers"})
 check("trùng tên một brain khác (không phân biệt hoa thường): từ chối", r.status_code == 409, r.text)
@@ -85,6 +97,12 @@ check("xoá vẫn theo tên THƯ MỤC như cũ", r.get("ok"), r)
 # ---- 3. Giao diện ----
 js = (ROOT / "dashboard" / "brains-ui.js").read_text(encoding="utf-8")
 check("ô chọn brain hiện label", "(b.label || b.name) + n" in js)
+lenh = (ROOT / "dashboard" / "chat-lenh.js").read_text(encoding="utf-8")
+check("lệnh /brain trong chat nhận cả tên thư mục cũ",
+      "if (!k.hit && !k.nhieu.length) k = khopTen(brains, arg, function (b) { return b.name; });" in lenh)
+cs = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+check("các ô chọn brain ở Cài đặt và trang Việc hiện label",
+      cs.count("name: b.label || b.name, path: b.path") == 3)
 check("nút đổi tên gọi đúng endpoint với địa chỉ brain đang chọn",
       'fetch("/brains/label"' in js and 'fd.append("brain", sel.value)' in js)
 html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")

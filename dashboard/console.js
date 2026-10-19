@@ -2176,7 +2176,7 @@
       if (allBrains.length) return;
       try {
         const d = await (await fetch("/brains")).json();
-        allBrains = (d.brains || []).map(b => ({ name: b.name, path: b.path, is_default: b.is_default }));
+        allBrains = (d.brains || []).map(b => ({ name: b.label || b.name, path: b.path, is_default: b.is_default }));
       } catch (e) {}
     }
 
@@ -2554,7 +2554,7 @@
         if (rt) rt.onclick = (ev) => { ev.preventDefault(); loadAll(); loadLog(); };
         return;
       }
-      allBrains = (d.brains || []).map(b => ({ name: b.name, path: b.path, is_default: b.is_default }));
+      allBrains = (d.brains || []).map(b => ({ name: b.label || b.name, path: b.path, is_default: b.is_default }));
       // Chưa đấu Telegram = việc vẫn chạy đúng giờ nhưng kết quả không tới tay ai. Người dùng
       // không tự đoán ra điều đó, nên nói thẳng ở đầu trang kèm lối đi sang trang Kênh.
       const nw = el.querySelector("#lpNotifyWarn");
@@ -2659,7 +2659,7 @@
     let brains = [];
     try {
       const d = await (await fetch("/brains")).json();
-      brains = (d.brains || []).map(b => ({ name: b.name, path: b.path, is_default: b.is_default }));
+      brains = (d.brains || []).map(b => ({ name: b.label || b.name, path: b.path, is_default: b.is_default }));
     } catch (e) {}
     if (myGen !== _renderGen) return;
     window.JavisWebhooks.mount(el.querySelector("#whSection"), { brains: () => brains, current: () => fbrain() });

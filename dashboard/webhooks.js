@@ -46,7 +46,7 @@
 
   function brainName(brains, path) {
     var b = (brains || []).filter(function (x) { return x.path === path; })[0];
-    return b ? b.name : (String(path || "").split(/[\\/]/).pop() || path);
+    return b ? (b.label || b.name) : (String(path || "").split(/[\\/]/).pop() || path);
   }
 
   function targetLine(h) {
@@ -93,7 +93,7 @@
 
   function formHtml(brains, current) {
     var opts = (brains || []).map(function (b) {
-      return '<option value="' + esc(b.path) + '"' + (b.path === current ? " selected" : "") + ">" + esc(b.name) + "</option>";
+      return '<option value="' + esc(b.path) + '"' + (b.path === current ? " selected" : "") + ">" + esc(b.label || b.name) + "</option>";
     }).join("");
     return '<div id="whForm" style="display:none;margin-bottom:12px;padding:14px;border:1px solid var(--hairline);border-radius:10px;background:var(--surface-1)">'
       + '<div class="si-grid">'
