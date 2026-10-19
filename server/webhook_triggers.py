@@ -393,6 +393,11 @@ class WebhookFeature:
                 "brain": str(brain or ""), "chat_id": str(chat_id or ""), "enabled": True,
                 "token_hash": hash_token(token), "created_at": time.time(), "count": 0,
                 "last_at": 0, "last_status": "", "history": [], "seen_keys": [], **fields}
+        bad = self._foreign_refs(hook, hook["id"])
+        if not bad and any(v == "••••" for a in hook.get("actions") or [] for v in (a.get("headers") or {}).values()):
+            bad = "a header shows the mask (••••): enter its value"
+        if bad:
+            return None, "", localefmt.chu(f"Khoá bí mật chưa đúng: {bad}", f"Secret not valid: {bad}")
         try:
             self._seal(hook)
         except webhook_secrets.SecretError as e:
@@ -425,12 +430,29 @@ class WebhookFeature:
             changed = True
         return changed
 
-    def _secret(self, ref) -> str:
+    def _secret(self, ref, name: str = "") -> str:
+        """The plain value of a sealed reference. `name` is the ONLY name this reference may have (the hook's own
+        canonical name for that header or signature): a reference to any other secret is refused."""
         if isinstance(ref, str):
             return ref
         if webhook_secrets.is_ref(ref):
+            if name and ref["$secret"] != name:
+                raise webhook_secrets.SecretError("secret reference does not belong to this hook")
             return self.vault.get(ref["$secret"])
         raise webhook_secrets.SecretError("no secret")
+
+    @staticmethod
+    def _foreign_refs(hook: dict, hid: str) -> str:
+        """A secret reference may only be a hook's OWN canonical one (written by _seal). One sent by a client could
+        name another hook's key (read it out to any address, or delete it): refused."""
+        for a in hook.get("actions") or []:
+            for k, v in (a.get("headers") or {}).items():
+                if isinstance(v, dict) and v.get("$secret") != f"{hid}/a/{a['id']}/{k}":
+                    return f"action {a['id']}: header {k} cannot be a secret reference; enter its value"
+        sec = (hook.get("verify") or {}).get("secret")
+        if isinstance(sec, dict) and sec.get("$secret") != f"{hid}/verify":
+            return "the signing secret cannot be a reference; enter its value"
+        return ""
 
     def _migrate_secrets(self) -> int:
         """Once at start: a hook saved before M4 (plain header values) is sealed in place."""
@@ -482,6 +504,9 @@ class WebhookFeature:
         err = self._validate(merged, merged.get("brain", ""))
         if err:
             return None, err
+        bad = self._foreign_refs(merged, hid)
+        if bad:
+            return None, localefmt.chu(f"Khoá bí mật chưa đúng: {bad}", f"Secret not valid: {bad}")
         try:
             self._seal(merged)
         except webhook_secrets.SecretError as e:
@@ -496,6 +521,8 @@ class WebhookFeature:
         h.update(merged)
         self._save(data)
         for name in old - keep:
+            if not name.startswith(hid + "/"):
+                continue                                     # never another hook's secret
             try:
                 self.vault.delete_prefix(name)
             except Exception:
@@ -541,6 +568,7 @@ class WebhookFeature:
         except webhook_rules.RuleError as e:
             return 400, {"ok": False, "error": localefmt.chu(f"Quy tắc lọc chưa đúng: {e}", f"Rules are not valid: {e}")}
         ct = str(p.get("content_type") or "application/json")
+        logged_event = None
         if p.get("event") and not h.get("id"):
             return 400, {"ok": False, "error": "event needs its hook id"}
         if p.get("event"):
@@ -548,6 +576,7 @@ class WebhookFeature:
             if ev is None or (h.get("id") and ev.get("hook_id") != h.get("id")):
                 return 404, {"ok": False, "error": "not found"}
             body, ct = bytes(ev.get("body") or b""), ev.get("content_type") or ct
+            logged_event = (ev.get("trace") or {}).get("event")
             if not body:
                 return 409, {"ok": False, "error": "body_pruned"}
         else:
@@ -555,7 +584,7 @@ class WebhookFeature:
             body = (raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)).encode("utf-8")
         if len(body) > BODY_MAX_BYTES:
             return 413, {"ok": False, "error": f"body larger than {BODY_MAX_BYTES} bytes"}
-        res = evaluate_closed(rules, body, ct)
+        res = evaluate_closed(rules, body, ct, logged_event)
         out = {"ok": True, "decision": res["decision"], "reason": res["reason"], "fields": res["fields"],
                "trace": res["trace"], "business_key": res["business_key"], "would_run": res["decision"] == "run"}
         bk = res.get("business_key")
@@ -597,7 +626,7 @@ class WebhookFeature:
         if prov != "none":
             # M4: the provider's signature on the RAW body, before anything is stored. A refusal keeps nothing.
             try:
-                secret = await asyncio.to_thread(self._secret, ver.get("secret"))
+                secret = await asyncio.to_thread(self._secret, ver.get("secret"), f"{hid}/verify")
             except Exception as e:
                 print(f"[webhooks] {hid}: signing secret unavailable: {type(e).__name__}: {e}", file=sys.stderr)
                 return 503, {"ok": False, "error": "signature check unavailable, retry later"}
@@ -609,8 +638,11 @@ class WebhookFeature:
         if prov != "none":
             doc = webhook_rules.parse_payload(body, content_type)[0]
             event = webhook_verify.normalize(prov, headers or {}, doc)
-            if not str(idem_key or "").strip():
-                idem_key = webhook_verify.idem_key(prov, headers or {}, doc)
+            pid = webhook_verify.idem_key(prov, headers or {}, doc)
+            if pid:
+                # The provider's own id wins over a client Idempotency-Key: a captured delivery replayed with a fresh
+                # key is still the same delivery (Stripe's id is inside the signed body).
+                idem_key = pid
         return await self._ingest(h, body, content_type, idem_key, source="http", event=event)
 
     async def _ingest(self, h: dict, body: bytes, content_type: str, idem_key: str = "", source: str = "http",
@@ -932,7 +964,8 @@ class WebhookFeature:
                 if why:
                     await asyncio.to_thread(st.branch_finish, eid, fence, aid, "failed", why)
                     return
-            if a.get("approve") and not float(b.get("approved_at") or 0):
+            if (a.get("approve") or (current.get(aid) or {}).get("approve")) and not float(b.get("approved_at") or 0):
+                # (Turning approval on for an action applies to events already waiting, like any permission.)
                 # M4: this action waits for the owner's approval of THIS event. Asked after the permission check, so
                 # nothing the hook may not do is ever offered for approval; checked again after approval.
                 await asyncio.to_thread(st.branch_finish, eid, fence, aid, "approval", "waiting for your approval")
@@ -940,7 +973,7 @@ class WebhookFeature:
             if a.get("headers"):
                 try:
                     a = dict(a, headers=await asyncio.to_thread(
-                        lambda: {k: self._secret(v) for k, v in a["headers"].items()}))
+                        lambda: {k: self._secret(v, f"{hid}/a/{aid}/{k}") for k, v in a["headers"].items()}))
                 except Exception as e:
                     await asyncio.to_thread(st.branch_finish, eid, fence, aid, "failed",
                                             f"a header secret is not available ({type(e).__name__}): enter it again")
@@ -1000,18 +1033,28 @@ class WebhookFeature:
                 print(f"[webhooks] breaker {hid}/{aid}: {type(e).__name__}: {e}", file=sys.stderr)
 
         await asyncio.gather(*(branch(b) for b in todo))
-        rows = await asyncio.to_thread(st.branches, eid)
-        status, next_at = webhook_store.Store.summarize(rows)
-        if status == "queued":
-            if await asyncio.to_thread(st.requeue_branches, eid, fence, next_at):
-                self._kick()
+        final = ""
+        delay = 0.5
+        for i in range(5):
+            try:
+                final, _ = await asyncio.to_thread(st.settle, eid, fence,
+                                                   lambda r: self._event_text(r, actions, ai_out))
+                break
+            except Exception as e:
+                if i == 4:
+                    raise
+                print(f"[webhooks] {eid} settle failed, retrying: {type(e).__name__}: {e}", file=sys.stderr)
+                await asyncio.sleep(delay)
+                delay *= 2
+        if final == "queued":
+            self._kick()
             return
-        result, error = self._event_text(rows, actions, ai_out)
-        final = status
-        if not await self._finish(st, eid, fence, final, result, error):
-            print(f"[webhooks] {eid}: the event was taken over; this run's result is kept on its attempt",
+        if not final:
+            print(f"[webhooks] {eid}: the event was taken over; branch outcomes are kept on the branches",
                   file=sys.stderr)
             return
+        rows = await asyncio.to_thread(st.branches, eid)
+        result, error = self._event_text(rows, actions, ai_out)
         ai_failed = any(r["kind"] == "ai" and r["status"] == "failed" for r in rows)
         if ai_failed and self.deps.incident_hook:
             # Only an AI branch goes to Javis Core's triage (which may use a model): a non-AI branch never does.
@@ -1168,6 +1211,10 @@ class WebhookFeature:
                                 f"⚠ Webhook \"{name}\": not known whether the run finished (the server stopped mid-run "
                                 "or a receiver did not confirm). Check outside, then press Retry or Mark done in the "
                                 "webhook log.") + (("\n" + str(ev.get("error") or "")[:300]) if ev.get("error") else "")
+            waiting = [b["action_id"] for b in ev.get("branches") or [] if b.get("status") == "approval"]
+            if waiting:
+                msg += localefmt.chu(f"\nCũng đang chờ bạn duyệt: {', '.join(waiting)}.",
+                                     f"\nAlso waiting for your approval: {', '.join(waiting)}.")
         else:
             msg = str(ev.get("result") or "").strip() or localefmt.chu(
                 "Webhook đã chạy nhưng không trả về nội dung.", "The webhook ran but returned nothing.")

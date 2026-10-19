@@ -53,7 +53,7 @@ from urllib.parse import urlsplit
 
 ACTIONS_MAX = 8
 KINDS = ("http", "apps_script", "plugin", "tool", "ai")
-TOOL_TIMEOUT_S = 120.0
+TOOL_TIMEOUT_S = 150.0       # above the MCP transport's own 120 s, so its timeout surfaces (as unknown) first
 ARGS_MAX = 30
 OUTSIDE = ("http", "apps_script")          # kinds that act outside: need the hook at `full`
 MAX_BRANCH_TRIES = 3
@@ -170,6 +170,9 @@ def validate(actions: Any) -> list:
             tool = str(a.get("tool") or "")
             if not re.match(r"^[A-Za-z][A-Za-z0-9_.-]{0,127}$", tool):
                 raise ActionError(f"action {aid}: needs `tool` (the tool's name as the hub lists it)")
+            if tool in ("javis_run_tool", "javis_search_tools"):
+                # Meta-tools take the tool name from their arguments: a payload field could then pick the tool.
+                raise ActionError(f"action {aid}: name the tool itself, not {tool}")
             args = a.get("args") or {}
             if not isinstance(args, dict) or len(args) > ARGS_MAX:
                 raise ActionError(f"action {aid}: args must be an object of at most {ARGS_MAX}")
@@ -230,7 +233,8 @@ def merge_secrets(new: list, old: list) -> list:
                 elif o and k in (o.get("headers") or {}):
                     raise ActionError(f"action {a['id']}: its address changed, so enter header {k} again")
                 else:
-                    del a["headers"][k]
+                    # A mask with nothing stored behind it (a renamed header, a new action): never run without it.
+                    raise ActionError(f"action {a['id']}: enter header {k} again")
     return new
 
 
@@ -556,6 +560,10 @@ async def run_tool(action: dict, ctx: dict, call_tool: Optional[Callable], level
     except Exception as e:
         return Outcome("unknown", f"tool call broke ({type(e).__name__}): it may have acted")
     text = str(res or "")
+    if text.startswith("ERROR: gọi tool lỗi"):
+        # mcp_client.call_route caught an exception (transport timeout, connection reset): the call may have reached
+        # the tool. Not "refused".
+        return Outcome("unknown", "the tool call broke after it was sent: it may have acted", {"result": _short(text)})
     if text.startswith("ERROR:"):
         return Outcome("failed", text[6:].strip()[:300], {"result": _short(text)})
     return Outcome("completed", f"tool {action['tool']} ran", {"result": _short(text)})

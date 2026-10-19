@@ -11749,6 +11749,9 @@ async def _webhook_run_workflow(brain, slug, prompt, level):
 async def _webhook_call_tool(brain, level, name, args):
     """M4: a webhook `tool` action through the hub dispatcher, at the webhook's level: the same permission guard,
     connection limits, rate limit and audit as any background run. No model is involved."""
+    if brain and brain != "brain" and not os.path.isdir(brain):
+        # The hook's brain folder is gone: never fall back to the default brain's tools and files.
+        return "ERROR: the webhook's brain folder no longer exists"
     _, route = await mcp_hub.discover_all(level, vault_root=str(_brain_root(brain)), include_plugins=True)
     if name not in route and mcp_hub._LAZY_RUN in route:
         # Lazy menu on: the tool is behind javis_run_tool, which calls the same guarded route.

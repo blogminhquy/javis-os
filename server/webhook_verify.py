@@ -140,6 +140,8 @@ def verify(cfg: dict, secret: str, headers: Any, body: bytes, now: Optional[floa
             dig = hmac.new(key, msg, hashlib.sha256).digest()
             want = cfg.get("prefix", "") + (dig.hex() if cfg.get("encoding", "hex") == "hex" else base64.b64encode(dig).decode())
             got = _h(headers, cfg["header"]).strip()
+            if cfg.get("encoding", "hex") == "hex":
+                want, got = want.lower(), got.lower()          # hex is case-insensitive (base64 is not)
             return (bool(got) and _eq(want, got), "signature does not match")
     except Exception as e:
         return False, f"signature check failed: {type(e).__name__}"

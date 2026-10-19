@@ -765,6 +765,33 @@ class Store:
             return "silent", 0.0
         return "done", 0.0
 
+    def settle(self, eid: str, fence: int, text_of, now: Optional[float] = None) -> tuple:
+        """End of a run over branches, in ONE write: read the branches as they are NOW (an approval may have landed
+        while the run was finishing), then requeue the event if a branch can still run, or write its final state.
+        `text_of(rows) -> (result, error)` builds the texts from those rows. Returns (status, next_at), or ("", 0)
+        if this worker no longer owns the event."""
+        now = time.time() if now is None else now
+        with self._write():
+            if not self._owns(eid, fence):
+                return "", 0.0
+            rows = [dict(r) for r in self._db.execute("SELECT * FROM branches WHERE event_id=? ORDER BY rowid", (eid,))]
+            status, nxt = self.summarize(rows)
+            if status == "queued":
+                self._db.execute(
+                    "UPDATE events SET status='queued', next_at=?, lease_owner='', lease_until=0, dispatched_at=0, tries=0"
+                    " WHERE id=?", (max(nxt, now), eid))
+                self._db.execute("UPDATE attempts SET ended_at=?, outcome='branch_retry' WHERE event_id=? AND fence=?",
+                                 (now, eid, fence))
+                return "queued", nxt
+            result, error = text_of(rows)
+            self._db.execute(
+                "UPDATE events SET status=?, result=?, error=?, finished_at=?, lease_owner='', lease_until=0,"
+                " notified_at=0, notify_tries=0 WHERE id=?", (status, str(result or "")[:4000], str(error or "")[:2000],
+                                                              now, eid))
+            self._db.execute("UPDATE attempts SET ended_at=?, outcome=?, error=? WHERE event_id=? AND fence=?",
+                             (now, status, str(error or "")[:500], eid, fence))
+            return status, 0.0
+
     def approve(self, eid: str, aid: str, decision: str, now: Optional[float] = None) -> tuple:
         """The owner approves or rejects ONE branch waiting for approval. Approve: it runs at the next pass (the
         current permissions are checked again then). Reject: it is cancelled. Returns (ok, error_code)."""
@@ -782,8 +809,8 @@ class Store:
                 else ("cancelled", 0, "rejected by the owner", now, eid, aid))
             if cur.rowcount != 1:
                 return False, "not_waiting"
-            if row["status"] != "waiting":
-                return True, ""             # the event is still being worked on; the next pass picks it up
+            if row["status"] in ("queued", "running"):
+                return True, ""             # the run in progress settles it (settle() re-reads the branches)
             br = [dict(b) for b in self._db.execute("SELECT status, next_at FROM branches WHERE event_id=?", (eid,))]
             st, nxt = self.summarize(br)
             if st == "queued":

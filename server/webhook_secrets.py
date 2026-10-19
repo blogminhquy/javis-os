@@ -31,6 +31,40 @@ NAME_RE = re.compile(r"^[A-Za-z0-9_.:/-]{1,160}$")
 _lock = threading.RLock()
 
 
+class _FileLock:
+    """Several Javis processes may share one state folder (M1 supports that): the read-modify-write of the secrets
+    file and the key file is serialised across processes with an advisory lock (POSIX flock; a no-op where it is
+    missing)."""
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.fd = None
+
+    def __enter__(self):
+        _lock.acquire()
+        try:
+            import fcntl
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.fd = os.open(str(self.path), os.O_CREAT | os.O_RDWR, 0o600)
+            fcntl.flock(self.fd, fcntl.LOCK_EX)
+        except ImportError:
+            self.fd = None
+        except BaseException:
+            _lock.release()
+            raise
+        return self
+
+    def __exit__(self, *exc):
+        try:
+            if self.fd is not None:
+                import fcntl
+                fcntl.flock(self.fd, fcntl.LOCK_UN)
+                os.close(self.fd)
+        finally:
+            self.fd = None
+            _lock.release()
+
+
 class SecretError(Exception):
     pass
 
@@ -71,18 +105,25 @@ class Vault:
         self.dir = Path(state_dir)
         self.keys_path = self.dir / "webhook_keys.json"
         self.path = self.dir / "webhook_secrets.json"
+        self.lock = _FileLock(self.dir / "webhook_secrets.lock")
 
     # ── keys ──
     def _keys(self, create: bool = True) -> dict:
         env = os.environ.get("JAVIS_WH_MASTER_KEY", "").strip()
         if env:
-            k = _unb64(env)
+            try:
+                k = _unb64(env)
+            except (ValueError, TypeError):
+                raise SecretError("JAVIS_WH_MASTER_KEY is not valid base64")
             if len(k) != 32:
                 raise SecretError("JAVIS_WH_MASTER_KEY must be base64 of 32 bytes")
             return {"active": "env", "keys": {"env": env}}
         if self.keys_path.exists():
-            d = json.loads(self.keys_path.read_text(encoding="utf-8"))
-            if d.get("active") in (d.get("keys") or {}):
+            try:
+                d = json.loads(self.keys_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as e:
+                raise SecretError(f"webhook key file is unreadable: {type(e).__name__}")
+            if isinstance(d, dict) and d.get("active") in (d.get("keys") or {}):
                 return d
             raise SecretError("webhook key file has no active key")
         if not create:
@@ -95,8 +136,11 @@ class Vault:
     def _load(self) -> dict:
         if not self.path.exists():
             return {"v": 1, "items": {}}
-        d = json.loads(self.path.read_text(encoding="utf-8"))
-        if not isinstance(d.get("items"), dict):
+        try:
+            d = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            raise SecretError(f"webhook secrets file is unreadable: {type(e).__name__}")
+        if not isinstance(d, dict) or not isinstance(d.get("items"), dict):
             raise SecretError("webhook secrets file is damaged")
         return d
 
@@ -119,21 +163,21 @@ class Vault:
             raise SecretError(f"the key that encrypted secret {name} is missing")
         try:
             return AESGCM(_unb64(k)).decrypt(_unb64(item["n"]), _unb64(item["c"]), name.encode("utf-8")).decode("utf-8")
-        except InvalidTag:
+        except (InvalidTag, ValueError, KeyError, TypeError):
             raise SecretError(f"secret {name} does not decrypt (wrong key or damaged)")
 
     # ── API ──
     def put(self, name: str, value: str) -> None:
         if not NAME_RE.match(name or ""):
             raise SecretError(f"bad secret name: {name!r}")
-        with _lock:
+        with self.lock:
             keys = self._keys()
             d = self._load()
             d["items"][name] = self._seal(keys["keys"][keys["active"]], keys["active"], name, str(value))
             self._save(d)
 
     def get(self, name: str) -> str:
-        with _lock:
+        with self.lock:
             d = self._load()
             item = d["items"].get(name)
             if item is None:
@@ -141,11 +185,11 @@ class Vault:
             return self._open(self._keys(create=False), name, item)
 
     def has(self, name: str) -> bool:
-        with _lock:
+        with self.lock:
             return name in self._load()["items"]
 
     def delete_prefix(self, prefix: str) -> int:
-        with _lock:
+        with self.lock:
             d = self._load()
             gone = [n for n in d["items"] if n == prefix or n.startswith(prefix + "/")]
             for n in gone:
@@ -155,7 +199,7 @@ class Vault:
             return len(gone)
 
     def names(self) -> list:
-        with _lock:
+        with self.lock:
             return sorted(self._load()["items"])
 
     def rotate(self) -> dict:
@@ -163,7 +207,7 @@ class Vault:
         written. Returns {"active", "rewrapped", "dropped"}."""
         if os.environ.get("JAVIS_WH_MASTER_KEY", "").strip():
             raise SecretError("the key comes from JAVIS_WH_MASTER_KEY: rotate it there")
-        with _lock:
+        with self.lock:
             keys = self._keys()
             d = self._load()
             plain = {n: self._open(keys, n, it) for n, it in d["items"].items()}

@@ -71,7 +71,9 @@ app that must use a secret unattended. **Back up `webhook_keys.json` together wi
 - Arguments: text may use `{field}` (M2 mapped fields), `{_delivery_id}`, `{_event_id}` and `{_hook_id}`. This is
   one substitution pass (`render_template`): text from the payload is never expanded again and never evaluated. Pass
   `{_delivery_id}` to a tool that dedups.
-- Outcome: `ERROR:` means `failed` (only that branch). Timeout (120 s) or a broken call means `unknown`.
+- Outcome: an `ERROR:` refusal (permission guard, missing tool, the tool's own error) means `failed` (only that
+  branch). A broken call after it was sent means `unknown`: that is the hub's `ERROR: gọi tool lỗi` (transport timeout,
+  reset), or no answer in 150 s, which is above the MCP transport's own 120 s.
 - **Approval**: `approve` is `true` by default for `tool` and may be set on any action. The branch waits as
   `approval`, the event is `waiting`, and the owner is told which actions wait. `POST /webhooks/events/approve`
   `{id, action, decision: approve|reject}`:
@@ -109,6 +111,24 @@ All in `tests/python/test_webhook_security_m4.py` unless noted.
 3. Rotation is by the owner (route), not on a schedule. There is no key escrow.
 4. The tool timeout is 120 s, and any `ERROR:` answer counts as "not done". A tool that acted and then answered an
    error would be retried by the owner; pass `{_delivery_id}` to tools that can dedup.
+
+## Independent review (M4)
+
+The review of bdbd33f3, read at e6c0165b, found 2 P1 and 6 P2 issues, all fixed. The regression tests in
+`tests/python/test_webhook_m4_review.py` fail on the reviewed commit.
+
+| Finding | Fix |
+|---|---|
+| P1 a client-sent `{"$secret": "<another hook's name>"}` read that secret (across brains) and could delete it | references are written only by Javis: a client reference is refused on create and update; at run time a reference must be the hook's own canonical name; deletion only under `<hook id>/` |
+| P1 a broken MCP call after it was sent became `failed` (an owner retry could create a second order) | the hub's exception marker becomes `unknown`; webhook timeout 150 s, above the transport's 120 s |
+| P2 `POST /webhooks` ignored `verify` (unsigned bodies accepted, `poscake` accepted) | passed through (fixed with M5), plus a route test |
+| P2 approval came from the event snapshot | the hook of now also counts: turning approval on applies to waiting events |
+| P2 approving on an event that ended `unknown` did nothing | approve requeues any finished event that still has a runnable branch; the unknown notice lists the waiting approvals |
+| P2 an approval racing the end of a run left the event stuck | `Store.settle()`: one write re-reads the branches and requeues if one became runnable |
+| P2 a tool of a hook whose brain folder is gone ran in the default brain | refused ("brain folder no longer exists") |
+| P2 a captured delivery replayed with a fresh Idempotency-Key was a new event | the provider's id wins over the client's key (Stripe's id is inside the signed body) |
+| P3 (fixed) | vault errors are `SecretError` (no 500); a cross-process file lock around the vault; simulate uses a logged event's `_event`; hex signatures compared case-insensitively; a renamed masked header asks for its value; meta-tools refused as actions |
+| P3 (kept, noted) | approval is still offered for a tool the hook's level will refuse: the hub refuses it after approval, and nothing runs. GitHub and Shopify have no replay window and their delivery id is an unsigned header, so a replay with a changed id is a new event. Use a business key (M2) on those hooks. Switching between `JAVIS_WH_MASTER_KEY` and the key file makes existing secrets unreadable: re-enter them after a switch |
 
 ## Rollback
 
