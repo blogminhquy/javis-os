@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.221.0] - 2026-10-19
+### Improved
+- **Javis only says "opened" when the app really came up.** After opening an app it checks the app is running; if not, it says plainly that it is not sure, instead of reporting success.
+- **An app that is already running is brought to the front** instead of being started twice. If Zalo sits behind other windows, "open Zalo" shows it.
+- **No more opening the wrong app with a similar name.** Very short names like "wp" must match exactly, and an unclear name gets a question instead of a guess.
+- Closing an app, forced or not, is also checked to make sure it really closed.
+
 ## [0.220.0] - 2026-10-19
 ### Improved
 - **Gemini Live calls no longer go silent while Javis looks something up.** Javis answers with a short sentence at once and keeps listening; the result is read out when nobody is talking. Long jobs get an occasional progress update.

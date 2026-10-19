@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.221.0] - 2026-10-19
+### Cải thiện
+- **Javis chỉ nói "đã mở" khi app thật sự lên.** Mở app xong, Javis kiểm tra app đã chạy chưa. Không thấy thì nói thẳng là chưa chắc mở được, không báo xong cho có.
+- **App đang chạy thì đưa lên trước**, không mở thêm một bản thứ hai. Ví dụ Zalo đang chạy ngầm sau mấy cửa sổ khác thì "mở Zalo" là Zalo hiện lên.
+- **Không còn mở nhầm app có tên gần giống.** Tên quá ngắn như "wp" phải khớp đúng tên, và tên mập mờ thì Javis hỏi lại thay vì đoán.
+- Đóng app, kể cả ép tắt, cũng được kiểm tra lại xem app đã tắt thật chưa.
+
 ## [0.220.0] - 2026-10-19
 ### Cải thiện
 - **Gọi Javis qua Gemini Live không còn im lặng lúc đang tra cứu.** Javis đáp ngay một câu ngắn rồi vẫn nghe bạn nói tiếp, có kết quả thì tự đọc vào lúc không ai đang nói. Việc chạy lâu thì thỉnh thoảng báo tiến độ.
