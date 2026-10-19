@@ -39,6 +39,7 @@
     done: { ic: "circle-check", nhan: "viec.st_done" },
     review: { ic: "clipboard-check", nhan: "viec.st_review" },
     blocked: { ic: "triangle-alert", nhan: "viec.st_blocked" },
+    hoi: { ic: "circle-help", nhan: "viec.st_hoi" },
     failed: { ic: "circle-x", nhan: "viec.st_failed" },
     timeout: { ic: "hourglass", nhan: "viec.st_timeout" },
     cancelled: { ic: "circle-stop", nhan: "viec.st_cancelled" },
@@ -116,6 +117,42 @@
       (viec.title ? '<span class="viec-ten">' + esc(viec.title) + "</span>" : "") + "</div>";
   }
 
+  /* O tra loi duoi the "viec nen hoi" (0.235.0): go cau tra loi la viec chay tiep, khoi roi khung chat. */
+  function oTraLoi(viec) {
+    return '<div class="viec-tl" data-id="' + esc(viec.id) + '">' +
+      '<textarea class="viec-tl-o" rows="2" placeholder="' + esc(tw("viec.hoi_ph")) + '"></textarea>' +
+      '<button type="button" class="viec-tl-gui">' + icon("send") + "<span>" + esc(tw("viec.hoi_gui")) + "</span></button>" +
+      '<div class="viec-tl-bao" hidden></div></div>';
+  }
+
+  function ganTraLoi(msgEl) {
+    var box = msgEl.querySelector && msgEl.querySelector(".viec-tl");
+    if (!box || !box.addEventListener) return;
+    var o = box.querySelector(".viec-tl-o"), nut = box.querySelector(".viec-tl-gui"),
+      bao = box.querySelector(".viec-tl-bao");
+    nut.addEventListener("click", function () {
+      var chu = String(o.value || "").replace(/^\s+|\s+$/g, "");
+      if (!chu) { o.focus(); return; }
+      nut.disabled = true;
+      var f = new FormData();
+      f.append("id", box.getAttribute("data-id"));
+      f.append("answer", chu);
+      fetch("/kanban/task/answer", { method: "POST", body: f })
+        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          if (r && r.ok) {
+            box.innerHTML = '<div class="viec-tl-xong">' + icon("circle-check") + "<span>" +
+              esc(tw("viec.hoi_da_gui")) + "</span></div>";
+            return;
+          }
+          nut.disabled = false;
+          bao.hidden = false;
+          bao.textContent = (r && r.error) || tw("viec.hoi_loi");
+        })
+        .catch(function () { nut.disabled = false; bao.hidden = false; bao.textContent = tw("viec.hoi_loi"); });
+    });
+  }
+
   /* Trang tri mot bong bong .msg-javis da ve xong theo khoi viec. */
   function ve(msgEl, viec) {
     if (!msgEl || !viec) return msgEl;
@@ -130,6 +167,10 @@
     msgEl.classList.add("viec-" + viec.status);
     var bubble = msgEl.querySelector(".bubble");
     if (bubble && bubble.insertAdjacentHTML) bubble.insertAdjacentHTML("afterbegin", dauThe(viec));
+    if (viec.status === "hoi" && viec.id && bubble && bubble.insertAdjacentHTML) {
+      bubble.insertAdjacentHTML("beforeend", oTraLoi(viec));
+      ganTraLoi(msgEl);
+    }
     var nut = msgEl.querySelector(".viec-mo");
     if (nut && nut.addEventListener) {
       var trang = trangCua(viec.kind);
@@ -138,7 +179,7 @@
     return msgEl;
   }
 
-  var API = { tach: tach, ve: ve, dauThe: dauThe, dongGiao: dongGiao, TRANG_THAI: TRANG_THAI };
+  var API = { tach: tach, ve: ve, dauThe: dauThe, dongGiao: dongGiao, oTraLoi: oTraLoi, TRANG_THAI: TRANG_THAI };
   if (typeof window !== "undefined") window.JavisViec = API;
   if (typeof module !== "undefined" && module.exports) module.exports = API;
 })();

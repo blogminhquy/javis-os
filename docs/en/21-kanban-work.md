@@ -115,9 +115,22 @@ Depending on the status, the card (and the detail drawer) shows these buttons:
 | Button | Shown when | What it does |
 | --- | --- | --- |
 | **✓ Approve exception** | the job awaits approval | Marks it completed |
-| **↻ Retry** | the job is blocked or awaiting approval | Pushes it back into the queue to run again |
+| **Send answer** | the job stopped to ask you (it has an answer box) | The job goes back to the queue and carries on with your answer |
+| **↻ Retry** | the job is blocked or awaiting approval (except a job that is asking) | Pushes it back into the queue to run again |
 | **Stop task** | the job is running | Cancels the running worker |
 | **Remove from board** | any job not running | Archives it, leaving the board without losing the history |
+
+### A job stops to ask you (since 0.235.0)
+
+When a worker hits something only you know (which customer to send to, whether the price includes VAT, what time to post), it does not guess. It stops and asks exactly one question. The question arrives in the chat where you gave the job (Telegram and Zalo included) and sits on the job's card in the **Needs you** area.
+
+You can answer in any of three places, all equal:
+
+- Type in the box right under the question in the web chat and press **Send**.
+- Type in the answer box on the job's card on the Work page and press **Send answer**.
+- Just reply in chat (Telegram or Zalo too), saying which job it is for. Javis passes the answer to the right job.
+
+Once answered, the job goes back to the queue and carries on. The next run reads the question, your answer and what the previous run already finished, so it neither starts over nor asks again. Asking and answering does **not** use up another attempt. A job that asks several times keeps every round under **Questions and answers** in the detail drawer.
 
 **Remove from board** asks for confirmation first, explaining the task will be archived so no history is lost. A running job must be stopped with **Stop task** before it can be removed. If an action fails, Javis shows the server's error verbatim, or "Could not update the task".
 
@@ -142,7 +155,7 @@ A few paths worth knowing:
 - After the specification step, the job is **not** counted as having used an attempt; the count is restored so execution gets a full 3 attempts.
 - A transient error (timeout, rate limit, 429, network loss, a busy engine) sends the job **back** to the queue by itself, up to 3 times, logging `retry_scheduled`. Only when the attempts run out does it move to "Needs attention".
 - A worker that dies without sending a heartbeat has its job reclaimed into the queue with a `reclaimed` event, so nothing hangs forever at "Running".
-- A worker that finds it is missing a decision or data returns a result starting with `[[NEEDS_INPUT]]`, moving the job to "Needs attention" with exactly one line of reason.
+- A worker that finds it is missing a decision or data returns a result starting with `[[NEEDS_INPUT]]` with exactly one question. The job moves to "Needs attention" and waits for your answer (see "A job stops to ask you" above).
 
 ## Quick reference of buttons and states
 
@@ -287,6 +300,7 @@ The web page does not cover everything the server can do. The endpoints below ar
 | `POST /kanban/task` | Creates a job. Besides the form fields it also accepts `chat_id`, `capability`, `execution_mode`, `deps` (a comma-separated id list) and `idempotency_key` |
 | `POST /kanban/run` | Runs exactly one job by id |
 | `POST /kanban/task/move` | Moves a job to another state |
+| `POST /kanban/task/answer` | Answers a job that stopped to ask: `id` and `answer`. The job returns to the queue and carries on with the answer |
 | `POST /kanban/purge` | Permanently deletes finished work. By default it only touches archived and cancelled work; add `include_done=1` to touch completed work |
 | `POST /kanban/clear` | Wipes the board except running work. Cannot be undone |
 
@@ -316,7 +330,7 @@ The specification step needs a background model run. If the background engine is
 This is a safety rail, not a bug. Your job belongs to the group that sends messages, publishes, creates orders or changes something outside. If you genuinely want it done automatically, hand the job over again and state in the goal that you permit acting; if not, let Javis draft it and press send yourself.
 
 **A job is blocked with a reason starting "The worker needs more information".**
-The worker found a missing decision where guessing would do harm. Open the detail drawer and read the reason, supply what is missing by handing over a clearer goal, then click **↻ Retry** or delete the old job.
+The worker found a missing decision where guessing would do harm. Since 0.235.0 you just answer the question on the card (or in chat) and the job carries on with that answer.
 
 **"Remove from board" or "↻ Retry" cannot be clicked.**
 A running job cannot change state. Click **Stop task** first, wait for the card to leave the **Active** panel, then act again.

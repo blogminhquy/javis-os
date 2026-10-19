@@ -3504,6 +3504,18 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .msg-viec.viec-blocked .bubble, .msg-viec.viec-timeout .bubble { border-left-color: var(--warn-line); }
 .msg-viec.viec-failed .bubble { border-left-color: var(--red); }
 .msg-viec.viec-cancelled .bubble { border-left-color: var(--hairline); }
+.msg-viec.viec-hoi .bubble { border-left-color: var(--link-ink); }
+.viec-hoi .viec-head .viec-ico { color: var(--link-ink); }
+.viec-tl { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 10px; }
+.viec-tl-o { flex: 1 1 220px; min-width: 0; min-height: 44px; resize: vertical; padding: 9px 11px;
+  border-radius: 10px; border: 1px solid var(--hairline); background: var(--surface-1); color: var(--text);
+  font: inherit; font-size: 16px; line-height: 1.4; }
+.viec-tl-gui { display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; border-radius: 10px;
+  border: 1px solid var(--link-ink); background: rgba(127,176,255,.14); color: var(--text-hi); font-size: 16px; cursor: pointer; }
+.viec-tl-gui[disabled] { opacity: .5; cursor: default; }
+.viec-tl-gui svg, .viec-tl-xong svg { width: 16px; height: 16px; }
+.viec-tl-bao { flex-basis: 100%; color: var(--red); font-size: 14px; }
+.viec-tl-xong { display: inline-flex; align-items: center; gap: 6px; color: var(--green); font-size: 15px; }
 .viec-head {
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px;
   margin: -4px 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--hairline);
