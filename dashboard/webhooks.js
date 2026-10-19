@@ -35,7 +35,25 @@
   }
 
   var LEVEL_KEY = { suggest: "wh.level_suggest", auto: "wh.level_auto", full: "wh.level_full" };
-  var STATUS_KEY = { done: "wh.st_done", failed: "wh.st_failed", waiting: "wh.st_waiting", silent: "wh.st_silent" };
+  var STATUS_KEY = { done: "wh.st_done", failed: "wh.st_failed", waiting: "wh.st_waiting", silent: "wh.st_silent",
+    queued: "wh.st_queued", running: "wh.st_running", unknown: "wh.st_unknown", dead: "wh.st_dead" };
+  // 0.229.0: events are stored durably (server/webhook_store.py). A run that may have acted before the server stopped
+  // is "unknown": only the owner decides, after checking outside, whether it happened (Mark done) or not (Retry).
+  var RETRYABLE = { failed: 1, unknown: 1, dead: 1 };
+
+  // One line of the event log: time, status, short result, and the owner's actions for that event.
+  function eventRowHtml(r) {
+    var st = r.status || "done";
+    var acts = "";
+    if (RETRYABLE[st]) acts += '<button class="s-btn-ghost whEvRetry" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.retry")) + "</button>";
+    if (st === "unknown") {
+      acts += '<button class="s-btn-ghost whEvDone" data-ev="' + esc(r.run_id || r.id) + '">' + esc(tw("wh.mark_done")) + "</button>";
+    }
+    return '<div class="le wh-ev wh-ev-' + esc(st) + '">' + esc(fmtTime(r.at || r.received_at)) + " · "
+      + '<span class="wh-st">' + esc(tw(STATUS_KEY[st] || "wh.st_done")) + "</span>"
+      + ((r.result || r.error) ? " · " + esc(String(r.result || r.error).slice(0, 140)) : "")
+      + (acts ? '<span class="wh-ev-acts">' + acts + "</span>" : "") + "</div>";
+  }
 
   function fmtTime(ts) {
     if (!ts) return "";
@@ -58,10 +76,9 @@
   function cardHtml(h, brains) {
     var last = h.last_at ? tw("wh.last_run", { time: fmtTime(h.last_at), status: tw(STATUS_KEY[h.last_status] || "wh.st_done") })
       : tw("wh.never_run");
-    var hist = (h.history || []).slice(0, 5).map(function (r) {
-      return '<div class="le">' + esc(fmtTime(r.at)) + " · " + esc(tw(STATUS_KEY[r.status] || "wh.st_done"))
-        + (r.result ? " · " + esc(String(r.result).slice(0, 140)) : "") + "</div>";
-    }).join("");
+    var rows = (h.history || []).slice(0, 5);
+    var needYou = (h.history || []).some(function (r) { return r.status === "unknown"; });
+    var hist = rows.map(eventRowHtml).join("");
     return '<b>' + ic("webhook") + " " + esc(h.name) + "</b>"
       + (h.enabled ? "" : ' <span class="dim" style="font-size:12px;color:var(--text3)">' + esc(tw("wh.off")) + "</span>")
       + '<div class="dim" style="font-size:12px;color:var(--text3)">' + esc(targetLine(h)) + " · "
@@ -69,8 +86,10 @@
       + '<div style="font-size:12px;margin-top:4px;word-break:break-all"><code>' + esc(h.url) + "</code></div>"
       + '<div class="dim" style="font-size:12px;color:var(--text3);margin-top:2px">' + esc(last)
       + (h.count ? " · " + esc(tw("wh.count", { n: h.count })) : "") + "</div>"
-      + (hist ? '<details style="margin-top:4px"><summary style="font-size:12px;cursor:pointer">' + esc(tw("wh.history"))
-        + "</summary>" + hist + "</details>" : "")
+      + (needYou ? '<div class="wh-need" style="font-size:13px;color:var(--warn-ink);margin-top:4px">' + esc(tw("wh.unknown_hint")) + "</div>" : "")
+      + (hist ? '<details class="whLog" style="margin-top:4px"' + (needYou ? " open" : "") + '><summary style="font-size:12px;cursor:pointer">'
+        + esc(tw("wh.history")) + '</summary><div class="whLogRows">' + hist + "</div>"
+        + '<button class="s-btn-ghost whMore" style="font-size:12px">' + esc(tw("wh.more")) + "</button></details>" : "")
       + '<div class="wf-actions" style="margin-top:8px">'
       + '<button class="s-btn-ghost whCopy">' + esc(tw("wh.copy_url")) + "</button>"
       + '<button class="s-btn-ghost whTest">' + esc(tw("wh.test")) + "</button>"
@@ -190,6 +209,41 @@
     }
     q("#whNew").onclick = openForm;
 
+    // Retry / Mark done on an event, and "older events" paging through /webhooks/events (keyset cursor).
+    function wireEvents(div, h) {
+      var cursor = "", rowsBox = div.querySelector(".whLogRows"), more = div.querySelector(".whMore");
+      function bindRows(scope) {
+        scope.querySelectorAll(".whEvRetry").forEach(function (b) {
+          b.onclick = async function () {
+            if (!confirm(tw("wh.retry_confirm"))) return;
+            var r = await api("/webhooks/events/retry", { id: b.dataset.ev });
+            b.textContent = r.ok ? tw("wh.retry_sent") : (r.error || tw("wh.save_err"));
+            setTimeout(load, 3000);
+          };
+        });
+        scope.querySelectorAll(".whEvDone").forEach(function (b) {
+          b.onclick = async function () {
+            var r = await api("/webhooks/events/resolve", { id: b.dataset.ev, outcome: "done" });
+            if (r.ok) load(); else b.textContent = r.error || tw("wh.save_err");
+          };
+        });
+      }
+      bindRows(div);
+      if (!more || !rowsBox) return;
+      more.onclick = async function () {
+        var url = "/webhooks/events?hook=" + encodeURIComponent(h.id) + "&limit=20" + (cursor ? "&before=" + encodeURIComponent(cursor) : "");
+        var d = await api(url);
+        if (!d || !d.ok) { more.textContent = (d && d.error) || tw("wh.save_err"); return; }
+        if (!cursor) rowsBox.innerHTML = "";
+        var tmp = document.createElement("div");
+        tmp.innerHTML = (d.items || []).map(eventRowHtml).join("");
+        bindRows(tmp);
+        while (tmp.firstChild) rowsBox.appendChild(tmp.firstChild);
+        cursor = d.next || "";
+        if (!cursor) more.style.display = "none";
+      };
+    }
+
     async function load() {
       var d = await api("/webhooks");
       var list = q("#whList");
@@ -219,6 +273,7 @@
           if (r.ok) showSecret(r.hook, r.token);
           load();
         };
+        wireEvents(div, h);
         div.querySelector(".whDel").onclick = async function () {
           if (!confirm(tw("wh.del_confirm", { name: h.name }))) return;
           await api("/webhooks/delete", { id: h.id });
@@ -230,7 +285,7 @@
     load();
   }
 
-  var api_ = { mount: mount, cardHtml: cardHtml, secretHtml: secretHtml, targetLine: targetLine };
+  var api_ = { mount: mount, cardHtml: cardHtml, secretHtml: secretHtml, targetLine: targetLine, eventRowHtml: eventRowHtml };
   if (typeof window !== "undefined") window.JavisWebhooks = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();

@@ -110,7 +110,8 @@ async def main():
     await feat.wait_idle()
     check("[SILENT] result is not delivered", len(sent) == before)
     stored = feat._find(feat._load(), h["id"])
-    check("history keeps runs, newest last", stored["count"] == 2 and stored["history"][-1]["status"] == "silent")
+    hist = feat.view(stored)["history"]
+    check("history keeps runs, newest first", stored["count"] == 2 and hist[0]["status"] == "silent")
 
     # failure
     task_answer["value"] = ("", "engine timeout")
@@ -143,7 +144,20 @@ async def main():
 
     # rate limit
     r, rtok, _ = feat.create("/b", name="r", target="task", text="t")
-    feat._rate[r["id"]] = __import__("collections").deque([__import__("time").time()] * wt.RATE_PER_HOUR)
+    # 0.229.0: the limits are counted from the durable store, so fill it with events received this hour.
+    st = feat.store()
+
+    def fill(hid, n, status="done", lease=0.0):
+        now = __import__("time").time()
+        for i in range(n):
+            st._db.execute("INSERT INTO events(id, hook_id, received_at, body, body_sha, status, lease_until,"
+                           " finished_at) VALUES(?,?,?,?,?,?,?,?)",
+                           (f"ev_fill_{hid}_{status}_{i}", hid, now, b"", "", status, lease, now))
+
+    def unfill(hid):
+        st._db.execute("DELETE FROM events WHERE id LIKE ?", (f"ev_fill_{hid}_%",))
+
+    fill(r["id"], wt.RATE_PER_HOUR)
     code, _ = await feat.accept(r["id"], rtok, b"{}", "application/json")
     check("over the hourly rate -> 429", code == 429)
 
@@ -152,9 +166,9 @@ async def main():
     before = len(task_calls)
     code, _ = await feat.accept(r["id"], rtok, b'{"order": 7}', "application/json", idem_key="evt-429")
     check("rate-limited event with a key -> 429", code == 429)
-    stored = feat._find(feat._load(), r["id"])
-    check("a refused event does not keep its key", "evt-429" not in (stored.get("seen_keys") or []))
-    feat._rate[r["id"]].clear()
+    check("a refused event does not keep its key",
+          st._db.execute("SELECT 1 FROM dedup WHERE hook_id=? AND idem_key='evt-429'", (r["id"],)).fetchone() is None)
+    unfill(r["id"])
     code, resp = await feat.accept(r["id"], rtok, b'{"order": 7}', "application/json", idem_key="evt-429")
     await feat.wait_idle()
     check("the retry after 429 is accepted and runs, not reported as duplicate",
@@ -166,13 +180,16 @@ async def main():
 
     # queue full: same rule
     q, qtok, _ = feat.create("/b", name="q", target="task", text="t")
-    feat._queues[q["id"]] = __import__("collections").deque([{"run_id": "x", "payload": "", "at": 0}] * wt.QUEUE_MAX)
-    feat._running[q["id"]] = object()          # a drain is "running": nothing is consumed while we look
+    # one event running under a live lease of another worker, the rest waiting: nothing here can drain them
+    fill(q["id"], 1, status="running", lease=__import__("time").time() + 600)
+    fill(q["id"], wt.QUEUE_MAX, status="queued")
+    st._db.execute("UPDATE events SET next_at=? WHERE hook_id=? AND status='queued'",
+                   (__import__("time").time() + 3600, q["id"]))
     code, _ = await feat.accept(q["id"], qtok, b"{}", "application/json", idem_key="evt-full")
     check("queue full -> 429 and the key is not kept",
-          code == 429 and "evt-full" not in (feat._find(feat._load(), q["id"]).get("seen_keys") or []))
-    feat._queues[q["id"]].clear()
-    feat._running.pop(q["id"], None)
+          code == 429 and st._db.execute("SELECT 1 FROM dedup WHERE hook_id=? AND idem_key='evt-full'",
+                                         (q["id"],)).fetchone() is None)
+    unfill(q["id"])
 
     # two copies arriving at the same time run once
     c, ctok, _ = feat.create("/b", name="c", target="task", text="t")

@@ -9,6 +9,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
 ## [0.229.0] - 2026-10-19
+### Improved
+- **Webhooks no longer lose events on a restart.** Every event is written durably to disk before Javis answers "accepted", and only then runs. If the server stops, updates or crashes, the waiting events run when it is back.
+- **No blind re-run of work that may already have happened.** If the server stops while a run is in progress (it may have sent a message or written an order), the event is marked "not known whether it finished" and you are told. Check outside, then press Mark done or Retry in the webhook log.
+- **The webhook log shows the state of each event** (waiting, running, done, failed, not known, not run) and older runs page by page. A failed event has a Retry button.
+- Lowering a webhook's permission or switching it off applies to events already waiting.
 ### Fixed
 - **A webhook event refused for load runs on its retry.** When an event was answered 429 (hourly limit or full queue), its idempotency key was still recorded, so the sender's retry was told "duplicate" and the event never ran. The key is now recorded only once the event is actually queued, and several copies arriving together still run once.
 

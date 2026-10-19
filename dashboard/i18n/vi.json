@@ -4974,5 +4974,15 @@
   "app.steer_live": "Javis sẽ đọc tin này ở bước kế tiếp, không dừng việc đang làm",
   "app.steer_after": "Javis làm tin này ngay sau khi xong việc hiện tại",
   "app.steer_read": "Javis đã đọc tin này",
-  "app.steer_turn": "Javis đang làm tin này"
+  "app.steer_turn": "Javis đang làm tin này",
+  "wh.st_queued": "đang chờ chạy",
+  "wh.st_running": "đang chạy",
+  "wh.st_unknown": "không rõ đã xong chưa",
+  "wh.st_dead": "không chạy (webhook đã tắt hoặc xoá)",
+  "wh.retry": "Chạy lại",
+  "wh.retry_sent": "Đã xếp chạy lại",
+  "wh.retry_confirm": "Chạy lại sự kiện này? Nếu lần trước đã kịp làm (gửi tin, ghi đơn) thì việc đó có thể bị làm hai lần. Kiểm tra bên ngoài trước khi chạy lại.",
+  "wh.mark_done": "Đã xong",
+  "wh.more": "Xem các lần cũ hơn",
+  "wh.unknown_hint": "Có sự kiện máy dừng giữa chừng, chưa rõ đã chạy xong chưa. Kiểm tra bên ngoài rồi bấm Đã xong hoặc Chạy lại."
 }

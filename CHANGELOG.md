@@ -7,6 +7,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.229.0] - 2026-10-19
+### Cải thiện
+- **Webhook không còn mất sự kiện khi máy khởi động lại.** Mỗi sự kiện được ghi bền vào đĩa trước khi Javis trả lời "đã nhận", rồi mới chạy. Máy tắt, cập nhật hay sập giữa chừng thì lúc mở lại Javis chạy tiếp những sự kiện còn chờ.
+- **Không chạy lại mù những việc có thể đã làm.** Nếu máy dừng đúng lúc việc đang chạy (có thể đã gửi tin, ghi đơn), sự kiện được đánh dấu "không rõ đã xong chưa" và Javis báo bạn. Bạn kiểm tra bên ngoài rồi bấm Đã xong hoặc Chạy lại trong nhật ký webhook.
+- **Nhật ký webhook có trạng thái từng sự kiện** (đang chờ, đang chạy, xong, lỗi, không rõ, không chạy) và xem được các lần cũ hơn. Sự kiện lỗi có nút Chạy lại.
+- Hạ quyền hoặc tắt một webhook thì áp dụng luôn cho các sự kiện đang chờ.
 ### Sửa lỗi
 - **Webhook bị từ chối vì quá tải thì lần gửi lại vẫn chạy.** Trước đây nếu một sự kiện bị trả lỗi 429 (quá giới hạn mỗi giờ hoặc hàng chờ đầy), mã chống trùng của nó vẫn bị ghi lại, nên khi hệ thống bên ngoài gửi lại thì Javis báo trùng và sự kiện không bao giờ chạy. Giờ mã đó chỉ được ghi khi sự kiện đã thật sự vào hàng chờ, và nhiều bản gửi cùng lúc vẫn chỉ chạy một lần.
 
