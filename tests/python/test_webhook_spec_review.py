@@ -529,6 +529,13 @@ async def second_round():
     hb, tb, _ = f2.create("/b1", name="Công tắc", target="task", text="x")
     h_s, _, _ = f2.update(hb["id"], {"enabled": "false"})
     check("R4 P3: {\"enabled\": \"false\"} switches receiving OFF", not h_s["enabled"])
+    # R5 (review of the route change): no 500 on an infinite number; a text/plain body is not read.
+    codes = [(await cl.get(u)).status_code for u in ("/webhooks/events?limit=inf", "/webhooks/audit?limit=1e400",
+                                                     "/webhooks/events/export?raw=inf")]
+    rp = await cl.post("/webhooks/delete", content=json.dumps({"id": hb["id"]}), headers={"content-type": "text/plain"})
+    check("R5 P3: limit=inf or 1e400 falls back to the default (200), never a 500", codes == [200, 200, 200], codes)
+    check("R5 P3: a text/plain POST (sent cross-origin without a preflight) is not read: the hook is not deleted",
+          rp.json().get("ok") is False and f2._find_hook(hb["id"]) is not None, rp.text)
     await cl.aclose()
     del ev
 

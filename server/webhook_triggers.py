@@ -32,6 +32,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
+import math
 import os
 import shutil
 import sqlite3
@@ -219,7 +220,11 @@ def mask(v: Any, key: str = "", depth: int = 0, pii: bool = False) -> Any:
 # The admin routes read their query and JSON body by hand: FastAPI builds a model field for every typed parameter when
 # the route is created, and the webhook routes are created at every start (spec §16: keep the start light).
 async def _json_body(request) -> dict:
-    """The request's JSON object, or {} (no body, not JSON, not an object)."""
+    """The request's JSON object, or {} (no body, not JSON, not an object). A body sent under another content type is
+    not read, as FastAPI did: a text/plain POST is one a browser sends cross-origin without asking first."""
+    ct = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
+    if ct and ct != "application/json" and not ct.endswith("+json"):
+        return {}
     try:
         v = await request.json()
     except Exception:
@@ -233,9 +238,12 @@ def _qnum(qp, name: str, default, kind=float):
     if v in (None, ""):
         return default
     try:
-        return kind(float(v)) if kind is int else kind(v)
+        x = float(v)
     except (TypeError, ValueError):
         return default
+    if not math.isfinite(x):
+        return default                      # inf, nan, 1e400: never an int() overflow (a 500)
+    return int(x) if kind is int else kind(x)
 
 
 def _as_bool(v: Any) -> bool:
