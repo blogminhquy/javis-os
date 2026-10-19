@@ -29,6 +29,7 @@ instruction: rules only read it. Nothing here touches the store, the network or 
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -48,6 +49,12 @@ TRACE_VALUE_MAX = 120         # characters of a value shown in a trace
 TTL_MIN_S = 60
 TTL_MAX_S = 366 * 86400
 TTL_DEFAULT_S = 30 * 86400
+NUM_EXP_MAX = 100             # |exponent| of a number we treat as a number (1e999999 would cost seconds as an int)
+NUM_DIGITS_MAX = 60           # digits of an integer literal we parse as a number
+DEPTH_PAYLOAD_MAX = 64        # nesting of the payload; deeper is refused as invalid
+FIELD_JSON_MAX = 4000         # serialised size of ONE mapped field (an object or list mapped with type any)
+FIELDS_JSON_MAX = 32000       # serialised size of all mapped fields together
+KEY_VALUE_MAX = 200           # longer business key values are shortened with a hash, never cut
 
 OPS = ("eq", "ne", "in", "not_in", "exists", "missing", "gt", "gte", "lt", "lte",
        "contains", "starts_with", "ends_with", "empty", "not_empty")
@@ -108,15 +115,61 @@ def get_path(doc: Any, path) -> Any:
 
 
 # ── payload ──
+def _bounded(d: Decimal) -> bool:
+    return d.is_finite() and (d.is_zero() or abs(d.adjusted()) <= NUM_EXP_MAX)
+
+
+def _parse_float(s: str):
+    """JSON floats as exact Decimals, but only of sane size: `1e999999` stays the TEXT it was (a number that big is
+    not a business value, and turning it into an int or float costs seconds or overflows)."""
+    try:
+        d = Decimal(s)
+    except InvalidOperation:
+        return s
+    return d if _bounded(d) else s
+
+
+def _parse_int(s: str):
+    return int(s) if len(s.lstrip("-")) <= NUM_DIGITS_MAX else s
+
+
+def _depth(text: str) -> int:
+    """Deepest nesting of [ and { outside strings, in one pass (the parser would recurse on it)."""
+    depth = best = 0
+    in_str = esc = False
+    for ch in text:
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch in "[{":
+            depth += 1
+            if depth > best:
+                best = depth
+                if best > DEPTH_PAYLOAD_MAX:
+                    return best
+        elif ch in "]}":
+            depth -= 1
+    return best
+
+
 def parse_payload(body: bytes, content_type: str) -> tuple:
     """(document, kind). JSON object/array as is; a form as {key: value} (a repeated key as a list); anything
-    else as {"_text": text}. Never raises."""
+    else as {"_text": text}. kind `too_deep` = JSON nested deeper than DEPTH_PAYLOAD_MAX. Never raises."""
     text = bytes(body or b"").decode("utf-8", "replace")
     ct = (content_type or "").lower()
     if text.strip() and ("json" in ct or text.lstrip()[:1] in ("{", "[")):
+        if _depth(text) > DEPTH_PAYLOAD_MAX:
+            return {"_text": text[:VALUE_MAX]}, "too_deep"
         try:
-            return json.loads(text, parse_float=Decimal), "json"
-        except ValueError:
+            return json.loads(text, parse_float=_parse_float, parse_int=_parse_int,
+                              parse_constant=lambda c: c), "json"
+        except (ValueError, RecursionError):
             pass
     if "x-www-form-urlencoded" in ct:
         try:
@@ -151,8 +204,12 @@ def _num(v: Any) -> Optional[Decimal]:
     numbers. NaN/Infinity are refused."""
     if isinstance(v, bool) or v is None:
         return None
-    if isinstance(v, (int, Decimal)):
+    if isinstance(v, int):
+        if abs(v) >= 10 ** NUM_DIGITS_MAX:
+            return None
         d = Decimal(v)
+    elif isinstance(v, Decimal):
+        d = v
     elif isinstance(v, float):
         if math.isnan(v) or math.isinf(v):
             return None
@@ -167,7 +224,7 @@ def _num(v: Any) -> Optional[Decimal]:
             return None
     else:
         return None
-    return d if d.is_finite() else None
+    return d if _bounded(d) else None
 
 
 def _matches_type(v: Any, t: str) -> bool:
@@ -177,20 +234,35 @@ def _matches_type(v: Any, t: str) -> bool:
     if t == "number":
         return k in ("number", "integer")
     if t == "integer":
-        return k == "integer" or (k == "number" and Decimal(v) == Decimal(v).to_integral_value())
+        if k == "integer":
+            return True
+        if k != "number":
+            return False
+        d = _num(v)
+        return d is not None and d == d.to_integral_value()
     return k == t
 
 
-def _plain(v: Any) -> Any:
-    """JSON-safe copy (Decimal -> int/float) for traces, fields and prompts."""
+def _plain(v: Any, depth: int = 0) -> Any:
+    """JSON-safe copy for traces, fields and prompts: a Decimal becomes an int, a float only when that is exact
+    enough, otherwise its exact text (never inf/NaN, which JSON responses refuse, and never a float that would make
+    two different big numbers equal)."""
+    if depth > DEPTH_PAYLOAD_MAX:
+        return "…"
     if isinstance(v, Decimal):
-        if v == v.to_integral_value() and abs(v) < Decimal(10) ** 18:
+        if not _bounded(v):
+            return str(v)
+        if v == v.to_integral_value() and abs(v) < Decimal(10) ** 15:
             return int(v)
-        return float(v)
+        if abs(v.adjusted()) <= 15 and len(v.as_tuple().digits) <= 15:
+            return float(v)
+        return str(v)
+    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+        return str(v)
     if isinstance(v, dict):
-        return {str(k): _plain(x) for k, x in v.items()}
+        return {str(k): _plain(x, depth + 1) for k, x in v.items()}
     if isinstance(v, list):
-        return [_plain(x) for x in v]
+        return [_plain(x, depth + 1) for x in v]
     return v
 
 
@@ -218,7 +290,7 @@ def validate(rules: Any) -> dict:
             raise RuleError(f"rules are not valid JSON: {e}")
     if not isinstance(rules, dict):
         raise RuleError("rules must be an object")
-    if len(json.dumps(rules, ensure_ascii=False)) > RULES_MAX_BYTES:
+    if len(json.dumps(rules, ensure_ascii=False).encode("utf-8")) > RULES_MAX_BYTES:
         raise RuleError(f"rules larger than {RULES_MAX_BYTES} bytes")
     unknown = set(rules) - {"schema", "filter", "mapping", "business_key"}
     if unknown:
@@ -233,6 +305,9 @@ def validate(rules: Any) -> dict:
         out["mapping"] = _v_mapping(rules["mapping"])
     if rules.get("business_key"):
         out["business_key"] = _v_bkey(rules["business_key"])
+        f = out["business_key"].get("field")
+        if f and f not in out.get("mapping", {}):
+            raise RuleError(f"business_key field {f!r} is not a mapped field")
     return out
 
 
@@ -368,7 +443,7 @@ def _v_bkey(b: Any) -> dict:
     if t not in KEY_TYPES:
         raise RuleError(f"business_key type: one of {', '.join(KEY_TYPES)}")
     try:
-        ttl = int(b.get("ttl_s") or TTL_DEFAULT_S)
+        ttl = int(b["ttl_s"]) if b.get("ttl_s") is not None else TTL_DEFAULT_S
     except (TypeError, ValueError):
         raise RuleError("business_key ttl_s must be a number of seconds")
     if not TTL_MIN_S <= ttl <= TTL_MAX_S:
@@ -531,12 +606,17 @@ def _map(mapping: dict, doc: Any, trace: list) -> tuple:
                 if not _matches_type(v, t):
                     errors.append(f"{name}: expected {t}, got {type_of(v)}")
                     src = "type_error"
-        if v is _MISSING:
+        if v is _MISSING or (v is None and spec.get("required")):
             if spec.get("required"):
                 errors.append(f"{name}: required field missing")
             v = None
-        fields[name] = _plain(v)
-        trace.append({"field": name, "value": _short(v), "source": src})
+        pv = _plain(v)
+        if isinstance(pv, (dict, list)) and len(json.dumps(pv, ensure_ascii=False)) > FIELD_JSON_MAX:
+            errors.append(f"{name}: value larger than {FIELD_JSON_MAX} characters (map a smaller part)")
+            src = "too_large"
+            pv = None
+        fields[name] = pv
+        trace.append({"field": name, "value": _short(pv), "source": src})
     return fields, errors
 
 
@@ -550,7 +630,8 @@ def _key_value(v: Any, t: str) -> Optional[str]:
         if n is None or n != n.to_integral_value():
             return None
         return str(int(n))
-    s = _cmp_str(v, "").strip()
+    # Exact text of a number (never through float: 12345678901234567.5 and .7 must stay two keys).
+    s = (format(v, "f") if isinstance(v, Decimal) else _cmp_str(v, "")).strip()
     if t == "email":
         s = s.lower()
         return s if "@" in s and len(s) <= 254 else None
@@ -559,7 +640,10 @@ def _key_value(v: Any, t: str) -> Optional[str]:
         if d.startswith("84") and len(d) >= 11:     # +84 912... and 0912... are the same Vietnamese number
             d = "0" + d[2:]
         return d if 6 <= len(d) <= 15 else None
-    return s[:200] or None
+    if len(s) > KEY_VALUE_MAX:
+        # Cut values could make two different ids one key: keep a prefix to read, plus a hash of the whole value.
+        s = s[:KEY_VALUE_MAX - 20] + "#" + hashlib.sha256(s.encode("utf-8")).hexdigest()[:19]
+    return s or None
 
 
 def evaluate(rules: dict, body: bytes, content_type: str) -> dict:
@@ -576,6 +660,9 @@ def evaluate(rules: dict, body: bytes, content_type: str) -> dict:
     doc, kind = parse_payload(body, content_type)
     trace: dict = {"parse": kind}
     out = {"decision": "run", "reason": "", "fields": {}, "business_key": None, "trace": trace}
+    if kind == "too_deep" and rules:
+        out.update(decision="invalid", reason=f"payload nested deeper than {DEPTH_PAYLOAD_MAX}")
+        return out
     if rules.get("schema"):
         steps, bad = [], []
         for path, spec in rules["schema"]["fields"].items():
@@ -605,6 +692,9 @@ def evaluate(rules: dict, body: bytes, content_type: str) -> dict:
         fields, errors = _map(rules["mapping"], doc, steps)
         trace["mapping"] = steps
         out["fields"] = fields
+        if not errors and len(json.dumps(fields, ensure_ascii=False)) > FIELDS_JSON_MAX:
+            errors.append(f"mapped fields larger than {FIELDS_JSON_MAX} characters together")
+            out["fields"] = {}
         if errors:
             out.update(decision="invalid", reason="mapping: " + "; ".join(errors[:5]))
             return out

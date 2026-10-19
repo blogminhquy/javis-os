@@ -4990,7 +4990,7 @@
   "wh.err_not_unknown": "Sự kiện này đã được xử lý.",
   "wh.st_filtered": "bỏ qua (không khớp bộ lọc)",
   "wh.st_invalid": "dữ liệu sai mẫu, không chạy",
-  "wh.st_duplicate": "trùng đơn đã nhận, không chạy",
+  "wh.st_duplicate": "trùng khoá chống trùng, không chạy",
   "wh.rules": "Quy tắc lọc",
   "wh.rules_hint": "Lọc, kiểm mẫu và trích trường trước khi chạy. Để trống là nhận mọi sự kiện.",
   "wh.rules_label": "Quy tắc (JSON)",
@@ -5002,7 +5002,7 @@
   "wh.sim_run": "Sẽ chạy",
   "wh.sim_filtered": "Sẽ bỏ qua: không khớp bộ lọc",
   "wh.sim_invalid": "Sẽ từ chối: dữ liệu sai mẫu",
-  "wh.sim_duplicate": "Sẽ bỏ qua: trùng đơn đã nhận",
+  "wh.sim_duplicate": "Sẽ bỏ qua: trùng khoá chống trùng",
   "wh.sim_schema": "Mẫu",
   "wh.sim_filter": "Lọc",
   "wh.sim_fields": "Trường trích ra",
@@ -5022,5 +5022,6 @@
   "wh.br_waiting": "chờ bạn trả lời",
   "wh.br_cancelled": "bỏ, hành động đã bị gỡ",
   "wh.actions_label": "Hành động (JSON)",
-  "wh.actions_hint": "Gửi tiếp tới HTTP, Apps Script hoặc plugin. Để trống là chạy việc của webhook."
+  "wh.actions_hint": "Gửi tiếp tới HTTP, Apps Script hoặc plugin. Để trống là chạy việc của webhook.",
+  "wh.err_key_taken": "Một sự kiện khác cùng khoá chống trùng đang giữ khoá này, không chạy lại được."
 }

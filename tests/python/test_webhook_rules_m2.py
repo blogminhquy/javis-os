@@ -203,8 +203,10 @@ check("filtered: answered 200 ignored, logged with its trace, finished and marke
       and row["finished_at"] > 0 and row["notified_at"] > 0, (code, info))
 check("filtered: never claimable", st.claim("W") is None)
 check("filtered: not in the unnotified list", not st.unnotified())
-code, _ = st.ingest(HOOK, b'{"k":"no"}', "application/json", "f-1", pre=filt)
-check("filtered keeps its idempotency key (same copy -> duplicate)", code == 200)
+code, info2 = st.ingest(HOOK, b'{"k":"no"}', "application/json", "f-1", pre=filt)
+check("an ignored event keeps no idempotency key: the copy is decided again (rules may have changed)",
+      code == 200 and info2.get("ignored") == "filtered" and info2["event_id"] != info["event_id"]
+      and st._db.execute("SELECT COUNT(*) FROM dedup WHERE idem_key='f-1'").fetchone()[0] == 0)
 for i in range(ws.RATE_PER_HOUR + 5):
     st.ingest(HOOK, b"{}", "application/json", f"fx{i}", pre=filt)
 code, info = st.ingest(HOOK, b'{"k":"go"}', "application/json", "real-1", pre={"decision": "run", "fields": {"a": 1}})
@@ -250,10 +252,19 @@ check("business key: another brain never matches (no cross-brain dedup or leak)"
 c4, _ = st2.ingest(H2, b"1", "", "i4", now=now + 3, pre=key("order:A1", scope="other"))
 check("business key: another namespace is another key space", c4 == 202)
 c5, _ = st2.ingest(H2, b"1", "", "i5", now=now + 3601, pre=key("order:A1"))
-check("business key: after its TTL the same order runs again", c5 == 202)
+check("business key: past its TTL but its event has not run yet -> still a duplicate (a backlog lets nothing through)",
+      c5 == 200)
+w = st2.claim("W", now=now + 3601)
+while w is not None:
+    st2.mark_dispatched(w["id"], w["fence"], now=now + 3601); st2.finish(w["id"], w["fence"], "done", "ok", now=now + 3601)
+    w = st2.claim("W", now=now + 3601)
+c5, _ = st2.ingest(H2, b"1", "", "i5b", now=now + 3602, pre=key("order:A1"))
+check("business key: after its TTL, once its event ran, the same order runs again", c5 == 202)
 st2.prune(now=now + 3601 + 3600 * 3)
-check("prune drops expired business keys", st2._db.execute("SELECT COUNT(*) FROM biz_keys WHERE expires_at<=?",
-                                                           (now + 3601 + 3600 * 3,)).fetchone()[0] == 0)
+left = st2._db.execute("SELECT b.bkey, e.status FROM biz_keys b JOIN events e ON e.id=b.event_id WHERE b.expires_at<=?",
+                       (now + 3601 + 3600 * 3,)).fetchall()
+check("prune drops expired business keys, except one whose event is still waiting to run",
+      [tuple(r) for r in left] == [("order:A1", "queued")], [tuple(r) for r in left])
 # a dead event gives its key back
 s3 = Path(tempfile.mkdtemp(prefix="wh-m2-dead-"))
 st3 = ws.Store(s3 / "e.sqlite3")
@@ -453,8 +464,9 @@ async def main():
     finally:
         wr.evaluate = orig
     await f.wait_idle()
-    check("a crash inside rule evaluation runs the event unfiltered and says so in its trace",
-          code == 202 and "boom" in st.get(resp["run_id"])["trace"]["error"])
+    check("a crash inside rule evaluation FAILS CLOSED: invalid (422), logged with the error, never run",
+          code == 422 and resp["reason"] == "evaluation_error" and "boom" in st.get(resp["run_id"])["trace"]["error"]
+          and st.get(resp["run_id"])["status"] == "invalid")
 
 
 asyncio.run(main())

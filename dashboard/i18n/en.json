@@ -4990,7 +4990,7 @@
   "wh.err_not_unknown": "This event was already settled.",
   "wh.st_filtered": "skipped (filter did not match)",
   "wh.st_invalid": "data did not fit the schema, not run",
-  "wh.st_duplicate": "same order already received, not run",
+  "wh.st_duplicate": "same duplicate key already seen, not run",
   "wh.rules": "Rules",
   "wh.rules_hint": "Filter, check and pick fields before anything runs. Empty accepts every event.",
   "wh.rules_label": "Rules (JSON)",
@@ -5002,7 +5002,7 @@
   "wh.sim_run": "Would run",
   "wh.sim_filtered": "Would skip: filter did not match",
   "wh.sim_invalid": "Would refuse: data does not fit the schema",
-  "wh.sim_duplicate": "Would skip: same order already received",
+  "wh.sim_duplicate": "Would skip: same duplicate key already seen",
   "wh.sim_schema": "Schema",
   "wh.sim_filter": "Filter",
   "wh.sim_fields": "Fields picked",
@@ -5022,5 +5022,6 @@
   "wh.br_waiting": "waiting for your answer",
   "wh.br_cancelled": "skipped, the action was removed",
   "wh.actions_label": "Actions (JSON)",
-  "wh.actions_hint": "Forward to HTTP, Apps Script or a plugin. Empty runs the webhook's own job."
+  "wh.actions_hint": "Forward to HTTP, Apps Script or a plugin. Empty runs the webhook's own job.",
+  "wh.err_key_taken": "Another event with the same duplicate key holds it, so this one cannot run again."
 }

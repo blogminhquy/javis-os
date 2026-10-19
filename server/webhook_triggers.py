@@ -157,6 +157,17 @@ def event_prompt(hook: dict, payload: str, received_at: float, fields: Optional[
     return "\n\n".join(parts)
 
 
+def evaluate_closed(rules: dict, body: bytes, content_type: str) -> dict:
+    """webhook_rules.evaluate, FAILING CLOSED: if evaluation itself breaks, the event is `invalid` (logged, never run).
+    Running it unfiltered would let a payload built to break the evaluator skip the filter and the business key."""
+    try:
+        return webhook_rules.evaluate(rules, body, content_type)
+    except Exception as e:
+        print(f"[webhooks] rule evaluation failed: {type(e).__name__}: {e}", file=sys.stderr)
+        return {"decision": "invalid", "reason": "evaluation_error", "fields": {}, "business_key": None,
+                "trace": {"error": f"{type(e).__name__}: {e}"[:300]}}
+
+
 def _is_silent(result: str) -> bool:
     return str(result or "").lstrip().upper().startswith("[SILENT]")
 
@@ -238,7 +249,7 @@ class WebhookFeature:
         first); a hook that has not received anything since 0.229.0 still shows its old JSON history."""
         hist = list(h.get("history") or [])
         try:
-            pg = self.store().page(hook_id=str(h.get("id")), limit=HISTORY_KEEP)["items"]
+            pg = self.store().page(hook_id=str(h.get("id")), limit=HISTORY_KEEP, ran_only=True)["items"]
         except Exception:
             pg = []
         if pg:
@@ -401,11 +412,12 @@ class WebhookFeature:
             body = (raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)).encode("utf-8")
         if len(body) > BODY_MAX_BYTES:
             return 413, {"ok": False, "error": f"body larger than {BODY_MAX_BYTES} bytes"}
-        res = webhook_rules.evaluate(rules, body, ct)
+        res = evaluate_closed(rules, body, ct)
         out = {"ok": True, "decision": res["decision"], "reason": res["reason"], "fields": res["fields"],
                "trace": res["trace"], "business_key": res["business_key"], "would_run": res["decision"] == "run"}
         bk = res.get("business_key")
-        if bk and res["decision"] == "run":
+        if bk and res["decision"] == "run" and h.get("id"):
+            # Only a saved hook's own brain is looked up (a request cannot name another brain to probe its keys).
             seen = self.store().biz_key_lookup(str(h.get("brain") or ""), bk["scope"], bk["key"])
             if seen:
                 out.update(decision="duplicate", would_run=False, duplicate_of=seen["event_id"],
@@ -445,13 +457,9 @@ class WebhookFeature:
             await asyncio.to_thread(self.store)          # first open (schema, legacy import) off the event loop
         pre = None
         if h.get("rules"):
-            # Pure and bounded (webhook_rules): decided before the transaction, stored with the event in it.
-            try:
-                pre = webhook_rules.evaluate(h["rules"], body, content_type)
-            except Exception as e:
-                # A bug in rule evaluation must not drop an event: run it unfiltered and say so in its trace.
-                print(f"[webhooks] rules of {h.get('id')} failed: {type(e).__name__}: {e}", file=sys.stderr)
-                pre = {"decision": "run", "trace": {"error": f"{type(e).__name__}: {e}"[:300]}}
+            # Pure and bounded (webhook_rules), in a thread so a heavy body cannot stall the server; decided before
+            # the transaction, stored with the event in it.
+            pre = await asyncio.to_thread(evaluate_closed, h["rules"], body, content_type)
         try:
             code, info = await asyncio.to_thread(self.store().ingest, h, body, content_type, idem_key,
                                                  now, source, pre)

@@ -140,8 +140,17 @@
     try { var a = JSON.parse(t); return Array.isArray(a) ? { ok: true, actions: a } : { ok: false }; } catch (e) { return { ok: false }; }
   }
 
+  function testText(r) {
+    if (r && r.ok && r.ignored) return tw("wh.st_" + r.ignored);
+    if (r && r.ok && r.duplicate && r.reason === "business_key") return tw("wh.st_duplicate");
+    if (r && r.ok) return tw("wh.test_sent");
+    if (r && r.error === "invalid") return tw("wh.st_invalid") + (r.reason ? ": " + r.reason : "");
+    return (r && r.error) || tw("wh.save_err");
+  }
+
   // Error codes of the event actions, in words.
-  var ERR_KEY = { not_found: "wh.err_not_found", not_retryable: "wh.err_not_retryable", not_unknown: "wh.err_not_unknown" };
+  var ERR_KEY = { not_found: "wh.err_not_found", not_retryable: "wh.err_not_retryable", not_unknown: "wh.err_not_unknown",
+    key_taken: "wh.err_key_taken" };
   function errText(r) { return tw(ERR_KEY[r && r.error] || "wh.save_err"); }
 
   function fmtTime(ts) {
@@ -361,7 +370,8 @@
         };
         div.querySelector(".whTest").onclick = async function (ev) {
           var r = await api("/webhooks/test", { id: h.id });
-          ev.target.textContent = r.ok ? tw("wh.test_sent") : (r.error || tw("wh.save_err"));
+          // With rules the sample event is often stopped by them: say so instead of "sent".
+          ev.target.textContent = testText(r);
           setTimeout(load, 4000);
         };
         div.querySelector(".whToggle").onclick = async function () {
@@ -408,7 +418,8 @@
   }
 
   var api_ = { mount: mount, cardHtml: cardHtml, secretHtml: secretHtml, targetLine: targetLine, eventRowHtml: eventRowHtml, errText: errText,
-    simHtml: simHtml, rulesPanelHtml: rulesPanelHtml, readRules: readRules, readActions: readActions, detailHtml: detailHtml };
+    simHtml: simHtml, rulesPanelHtml: rulesPanelHtml, readRules: readRules, readActions: readActions, detailHtml: detailHtml,
+    testText: testText };
   if (typeof window !== "undefined") window.JavisWebhooks = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })();
