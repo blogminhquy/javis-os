@@ -183,8 +183,10 @@ async def main():
     # one event running under a live lease of another worker, the rest waiting: nothing here can drain them
     fill(q["id"], 1, status="running", lease=__import__("time").time() + 600)
     fill(q["id"], wt.QUEUE_MAX, status="queued")
+    # Due now, but not claimable while the hook has a running event (one run per hook): a full backlog. (Events
+    # parked for a LATER resend have their own cap since M5, see webhook_store.PARKED_MAX.)
     st._db.execute("UPDATE events SET next_at=? WHERE hook_id=? AND status='queued'",
-                   (__import__("time").time() + 3600, q["id"]))
+                   (__import__("time").time() - 1, q["id"]))
     code, _ = await feat.accept(q["id"], qtok, b"{}", "application/json", idem_key="evt-full")
     check("queue full -> 429 and the key is not kept",
           code == 429 and st._db.execute("SELECT 1 FROM dedup WHERE hook_id=? AND idem_key='evt-full'",

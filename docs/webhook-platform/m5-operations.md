@@ -23,41 +23,54 @@ from the owner's brief; the open ones are under "Assumptions to reconcile".
 |---|---|---|---|
 | `all` | sent | sent | sent at once |
 | `errors_only` | not sent | sent | sent at once |
-| `daily_digest` | counted in the digest | counted in the digest | **sent at once** (only the owner can settle them) |
+| `daily_digest` | counted in the digest | counted in the digest | **sent at once** (only the owner can settle them: unknown, an approval, a workflow question) |
 | `none` | not sent | not sent | not sent; the log and the card's badge still show them |
 
-The digest is sent once a day after 08:00 local time, one message per hook. It holds plain counts: runs done, failed
-or unknown, filtered or duplicate. No model is involved. The dedup key is `whd:<hook>:<day>`. A delivery that fails is
-tried again at the next sweep, and the day is marked done only once a delivery succeeds. Events the mode does not send
-are marked told at once, so they never sit in the resend queue.
+The digest is sent once a day after 08:00 in the **owner's time zone** (`localefmt.tz`, the same as reminders), never the
+server's. A VPS on UTC still digests at 08:00 Vietnam time. One message per hook covers the last 24 hours: runs
+done, failed or unknown, waiting for the owner, filtered or duplicate. No model is involved. The dedup key is
+`whd:<hook>:<day>`. A delivery that fails is tried again at later sweeps, up to 10 times that day. One hook failing
+never stops the others. Events the mode does not send are marked told at once, so they never sit in the resend queue.
+A notice resent after a failed delivery is rebuilt from the event with its branches, so an approval request is still
+one.
 
 ## Quotas and the AI budget
 
 - **Quotas**: hour, day and backlog per hook, counted from the store. They survive a restart. Only events that run
   count (filtered, invalid and duplicate events have their own cap, see M2). Past a quota, the sender gets 429 and
   nothing is stored, so its retry is a fresh event.
-- **AI budget**: AI branches of the hook that reached a model since local midnight. Past the budget, the AI branch
+- **AI budget**: AI runs of the hook since midnight in the owner's time zone. Each dispatch counts, including retries
+  of one event, and runs are kept in their own append-only table. Past the budget, the AI branch
   is `failed` ("AI budget reached for today"). This is decided **before** dispatch, so the model is never called and
-  the owner's Retry the next day is safe. Other branches of the event still run. `ai_per_day: 0` means the hook never
-  calls a model. The budget counts runs, not tokens or money. Javis does not see the cost of a run on a subscription
-  plan.
+  the owner's Retry the next day is safe. Other branches of the event still run. A refusal is not an incident (no
+  triage, which may use a model). `ai_per_day: 0` means the hook's own AI branch never calls a model. Tool actions
+  through the hub are outside this budget: a tool that itself uses a model (for example image generation) counts
+  against nothing here. The budget counts runs, not tokens or money. Javis does not see the cost of a run on a
+  subscription plan.
 
 ## Circuit breaker
 
 Per hook and per action, for HTTP, Apps Script, plugin and tool branches (AI branches have the budget instead).
 
 - 5 failures in a row open the breaker (`failed`, `unknown`, or an answer of "not sent / busy"). It stays open 10
-  minutes, then 20, 40, up to 60 at each reopening.
+  minutes, then 20, 40, up to 60 at each reopening. After the cooldown it is half open: ONE attempt goes through (a
+  hook runs one event at a time), and a failure reopens it at once.
 - While it is open, the branch is not sent. It waits as `retry` until the breaker lets one attempt through, and the
-  wait does not use a try. The event stays queued, so the hook's backlog limit pushes back on the sender (429)
-  instead of piling up.
-- The owner is told once per opening. A plain message, no model.
-- One success closes it. The card shows "sending to <action> is paused".
+  wait does not use a try. Such parked events do NOT count toward the backlog, which counts only events due now.
+  They have their own cap (`PARKED_MAX`, 200 per hook), so one receiver that is down never makes the hook refuse
+  events whose other branches run fine.
+- The owner is told once per opening, in every mode except `none`. A plain message, no model. A notice that could
+  not be delivered is sent again at the next sweep.
+- One success closes it. Pointing the action at another address, or removing it, clears it. The card shows "sending
+  to <action> is paused".
 
 ## Retention and export
 
-- `retention_days` per hook, shorter or longer than the default 30 (up to 365). `unknown` events are always kept
-  until resolved. Bodies of finished events are still emptied after 7 days.
+- `retention_days` per hook, shorter or longer than the default 30 (up to 365). Events the owner still owes something
+  (`unknown`, `waiting` for an answer or an approval) are always kept, with their body, until settled. Bodies of
+  other finished events are emptied after 7 days.
+- On top of the days, a hook keeps at most 500 finished runs and 200 events the rules stopped. Nothing received in
+  the last 25 hours is pruned by these caps, because the day quota and the AI budget count those rows.
 - `GET /webhooks/events/export?hook=&since=&until=&format=jsonl|csv&body=0|1` streams the log oldest first, in
   batches. It includes each event's branches, mapped fields and trace. It never includes the hook's configuration or
   a secret. Bodies are included only with `body=1`. In CSV, cells starting with `= + - @` are prefixed with `'` so a
@@ -65,8 +78,9 @@ Per hook and per action, for HTTP, Apps Script, plugin and tool branches (AI bra
 
 ## Dashboard
 
-- The card log has a filter (all, needs you, failed, ran, filtered), keyset pagination ("older runs"), and Export
-  CSV.
+- The card log has a filter (all, needs you = unknown and waiting, failed and dead, ran, filtered and invalid and
+  duplicate). Every filter pages with keyset pagination ("older runs"). Export CSV is there too. CSV has a trace
+  column, and cells a spreadsheet would run as formulas are neutralised (also after a tab, CR or spaces).
 - The Rules panel holds the settings above (notification mode, limits, AI budget, retention) with the rules, actions
   and signature check.
 - When a breaker is open, the card says so.
@@ -88,6 +102,23 @@ All in `tests/python/test_webhook_ops_m5.py` unless noted.
 | Export | every event with branches; no snapshot, no secret, no body by default; formulas neutralised |
 | Benchmarks | durable receive about 2000-2600 events/s here (synchronous=FULL; bound 20/s); 200 events through receive, worker and a fake run in about 2 s (bound 60 s) |
 | UI | `tests/js/test_webhooks_ui_m5.js` |
+
+## Independent review (M5)
+
+The review of 3cfcbab8, read at acf8af3c, found no P1 and 8 P2 issues, all reproduced and all fixed. The regression
+tests in `tests/python/test_webhook_m5_review.py` fail on the reviewed commit.
+
+| Finding | Fix |
+|---|---|
+| P2 an approval request whose first notice failed was dropped in errors_only/daily_digest | the resend rebuilds the event with its branches |
+| P2 a workflow question was silenced in errors_only/daily_digest | `waiting` always needs the owner; the digest counts it as "waiting for you", not done |
+| P2 after the cooldown 5 attempts went to a receiver still down | half-open: one attempt, one failure reopens |
+| P2 retention deleted events waiting for approval and emptied their body | `waiting` kept like `unknown` in every prune path and in eviction |
+| P2 per_day and ai_per_day undercounted after the 500-row cap | nothing from the last 25 h is cap-pruned; AI runs in their own table |
+| P2 digest hour and AI-budget midnight in the server's zone | owner's zone (`localefmt.tz`) |
+| P2 an AI-budget refusal went to incident triage (model) | only an AI branch that was dispatched and failed is an incident |
+| P2 one failing receiver filled the backlog (429 for everything) | parked events have their own cap and do not count as backlog |
+| P3 (fixed) | budget counts dispatches; breaker cleared when the target changes and when the hook is deleted (with its digest keys); breaker notice not sent in `none`, resent if undelivered; digest per hook isolated, at most 10 tries a day, window at most 24 h; needs_you paginates; Failed includes dead and Filtered includes invalid and duplicate; CSV neutralises after tab/CR/spaces and has a trace column; the M3 crash test made deterministic |
 
 ## Assumptions to reconcile with the spec
 

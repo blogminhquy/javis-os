@@ -136,9 +136,10 @@ async def main():
     check("daily_digest: an approval request is still sent at once",
           len(sent) == 1 and ("duyệt" in sent[0]["text"].lower() or "approval" in sent[0]["text"].lower()), sent)
     sent.clear()
-    lt = time.localtime()
-    morning = time.mktime(lt[:3] + (wt.DIGEST_HOUR - 1, 30, 0, 0, 0, -1))
-    after = time.mktime(lt[:3] + (wt.DIGEST_HOUR, 5, 0, 0, 0, -1))
+    # The owner's time zone (localefmt.tz), not the server's.
+    lt = wt._local(time.time())
+    morning = lt.replace(hour=wt.DIGEST_HOUR - 1, minute=30, second=0, microsecond=0).timestamp()
+    after = lt.replace(hour=wt.DIGEST_HOUR, minute=5, second=0, microsecond=0).timestamp()
     if after < time.time():
         after = time.time() + 1
     n = await f._digest(morning)
@@ -169,7 +170,7 @@ async def main():
     check("AI budget: the second run of the day is refused before reaching a model", ai_calls == ["full"]
           and ev2["status"] == "failed" and "AI budget" in ev2["branches"][0]["detail"]
           and ev2["branches"][0]["dispatched_at"] == 0, (ai_calls, ev2["branches"]))
-    st._db.execute("UPDATE branches SET dispatched_at=dispatched_at-90000 WHERE event_id=?", (r1["run_id"],))
+    st._db.execute("UPDATE ai_runs SET at=at-90000 WHERE event_id=?", (r1["run_id"],))
     st.retry(r2["run_id"])
     f._kick()
     await f.wait_idle()

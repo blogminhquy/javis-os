@@ -96,10 +96,12 @@ Chữ ký sai thì Javis từ chối (401) và không lưu gì. Lần gửi lạ
 - **Tối đa mỗi giờ / mỗi ngày / đang chờ**: vượt quá thì bên gửi nhận mã 429 và gửi lại sau.
 - **Lượt AI mỗi ngày**: hết lượt thì phần AI không chạy và không tốn tiền. Bấm Chạy lại hôm sau. Đặt 0 nếu webhook
   không bao giờ cần AI.
-- **Giữ nhật ký**: từ 1 tới 365 ngày.
+- **Giữ nhật ký**: từ 1 tới 365 ngày, tối đa 500 lần chạy cho mỗi webhook. Sự kiện còn chờ bạn (chờ duyệt, chờ trả lời,
+  không rõ đã xong) luôn được giữ tới khi bạn xử lý.
 
-Một nơi nhận lỗi 5 lần liền thì Javis **tạm ngừng gửi** tới đó 10 phút, báo bạn một lần, rồi thử lại. Thẻ webhook ghi
-rõ nơi nào đang tạm ngừng.
+Một nơi nhận lỗi 5 lần liền thì Javis **tạm ngừng gửi** tới đó 10 phút, báo bạn một lần, rồi thử lại **một lần**. Lần
+đó vẫn lỗi thì ngừng tiếp lâu hơn (tối đa 1 giờ). Trong lúc ngừng, các nơi nhận khác và phần AI vẫn chạy, webhook vẫn
+nhận sự kiện mới. Thẻ webhook ghi rõ nơi nào đang tạm ngừng.
 
 ## 7. Nhật ký
 

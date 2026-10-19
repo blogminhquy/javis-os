@@ -67,6 +67,7 @@ TEXT_MAX = 2000
 VALID_TARGETS = ("workflow", "task")
 VALID_LEVELS = ("suggest", "auto", "full")
 NOTIFY_MODES = ("all", "errors_only", "daily_digest", "none")   # M5
+DIGEST_TRIES = 10                             # digest deliveries tried per hook per day
 DIGEST_HOUR = 8                               # local hour of the daily digest
 AI_PER_DAY_DEFAULT = 100                      # M5: AI branch runs per hook per day (the AI budget)
 LIMIT_BOUNDS = {"per_hour": (1, 600), "per_day": (0, 20000), "backlog": (1, 50)}
@@ -164,6 +165,30 @@ def event_prompt(hook: dict, payload: str, received_at: float, fields: Optional[
                  "đã làm gì, không làm được thì nói thẳng là chưa làm và vì sao. Không có gì cần "
                  "báo thì mở đầu câu trả lời bằng [SILENT].")
     return "\n\n".join(parts)
+
+
+def _csv_safe(v):
+    """A cell a spreadsheet would run as a formula (= + - @, also after spaces, or starting with a tab or CR) is
+    prefixed with ' so it stays text."""
+    t = "" if v is None else str(v)
+    if t[:1] in ("\t", "\r") or t.lstrip()[:1] in ("=", "+", "-", "@"):
+        return "'" + t
+    return v
+
+
+def _local(ts: float):
+    """A timestamp in the owner's time zone (Settings; Asia/Ho_Chi_Minh by default), never the server's: a VPS runs on
+    UTC."""
+    from datetime import datetime
+    try:
+        return datetime.fromtimestamp(ts, localefmt.tz())
+    except Exception:
+        return datetime.fromtimestamp(ts)
+
+
+def _day_start(ts: float) -> float:
+    d = _local(ts)
+    return d.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
 
 
 def evaluate_closed(rules: dict, body: bytes, content_type: str, event: Optional[dict] = None) -> dict:
@@ -518,8 +543,17 @@ class WebhookFeature:
         old = set(webhook_actions.sealed_names(h.get("actions")))
         if webhook_secrets.is_ref((h.get("verify") or {}).get("secret")):
             old.add(h["verify"]["secret"]["$secret"])
+        old_actions = {a["id"]: a for a in h.get("actions") or []}
+        new_actions = {a["id"]: a for a in merged.get("actions") or []}
         h.update(merged)
         self._save(data)
+        for aid, oa in old_actions.items():
+            if not webhook_actions.same_target(oa, new_actions.get(aid)):
+                # The action is gone or points elsewhere: its old failures say nothing about the new target.
+                try:
+                    self.store().breaker_reset(hid, aid)
+                except Exception:
+                    pass
         for name in old - keep:
             if not name.startswith(hid + "/"):
                 continue                                     # never another hook's secret
@@ -755,7 +789,13 @@ class WebhookFeature:
         st = await asyncio.to_thread(self.store)
         rec = await asyncio.to_thread(st.recover)
         for ev in await asyncio.to_thread(st.unnotified):
-            await self._notify(ev)
+            # With its branches (an approval request resent after a failed delivery must read as one).
+            full = await asyncio.to_thread(st.get, ev["id"])
+            await self._notify(dict(full, fence=ev.get("fence")) if full else ev)
+        try:
+            await self._resend_breaker_notices()
+        except Exception as e:
+            print(f"[webhooks] breaker notices failed: {type(e).__name__}: {e}", file=sys.stderr)
         try:
             await self._digest()
         except Exception as e:
@@ -764,41 +804,52 @@ class WebhookFeature:
         return rec
 
     async def _digest(self, now: Optional[float] = None) -> int:
-        """M5 `daily_digest`: once a day after DIGEST_HOUR, one plain-text message per hook counting what finished
-        since the last digest. Built from counts only: no model."""
+        """M5 `daily_digest`: once a day after DIGEST_HOUR in the OWNER's time zone (localefmt.tz, as reminders), one
+        plain-text message per hook counting what finished in the last day. Built from counts only: no model. A hook
+        whose delivery fails is tried again at the next sweeps, at most DIGEST_TRIES times that day; one hook failing
+        never stops the others."""
         now = time.time() if now is None else now
-        lt = time.localtime(now)
-        if lt.tm_hour < DIGEST_HOUR:
+        lt = _local(now)
+        if lt.hour < DIGEST_HOUR:
             return 0
-        today = time.strftime("%Y-%m-%d", lt)
+        today = lt.strftime("%Y-%m-%d")
         st = self.store()
         sent = 0
         for h in self._load().get("hooks", []):
             if (h.get("notify") or "all") != "daily_digest":
                 continue
             hid = str(h.get("id"))
-            if await asyncio.to_thread(st.meta_get, f"digest_day:{hid}") == today:
-                continue
-            since = float(await asyncio.to_thread(st.meta_get, f"digest_at:{hid}") or (now - 86400))
-            c = await asyncio.to_thread(st.finished_counts, hid, since, now)
-            ran = sum(c.get(k, 0) for k in ("done", "silent", "waiting"))
-            bad = sum(c.get(k, 0) for k in ("failed", "dead", "unknown"))
-            skipped = sum(c.get(k, 0) for k in ("filtered", "invalid", "duplicate"))
-            if ran or bad or skipped:
-                name = h.get("name") or hid
-                msg = localefmt.chu(f"Webhook \"{name}\" trong ngày: {ran} lần chạy xong, {bad} lần lỗi hoặc chưa rõ, "
-                                    f"{skipped} sự kiện bị lọc hoặc trùng.",
-                                    f"Webhook \"{name}\" today: {ran} runs done, {bad} failed or unknown, {skipped} events "
-                                    "filtered or duplicate.")
-                res = await self.deps.send(h.get("chat_id", ""), msg, viec={"kind": "webhook", "status": "digest",
-                                                                           "title": str(name)[:160], "id": hid},
-                                           web=msg, brain=h.get("brain") or "brain", dedup=f"whd:{hid}:{today}")
-                if not (isinstance(res, tuple) and res and not res[0]):
+            try:
+                if await asyncio.to_thread(st.meta_get, f"digest_day:{hid}") == today:
+                    continue
+                tries_key = f"digest_try:{hid}:{today}"
+                tries = int(await asyncio.to_thread(st.meta_get, tries_key) or 0)
+                if tries >= DIGEST_TRIES:
+                    continue
+                # At most the last day, even after a pause in daily_digest mode (no message counting weeks).
+                since = max(float(await asyncio.to_thread(st.meta_get, f"digest_at:{hid}") or 0), now - 86400)
+                c = await asyncio.to_thread(st.finished_counts, hid, since, now)
+                ran = sum(c.get(k, 0) for k in ("done", "silent"))
+                bad = sum(c.get(k, 0) for k in ("failed", "dead", "unknown"))
+                skipped = sum(c.get(k, 0) for k in ("filtered", "invalid", "duplicate"))
+                waiting = c.get("waiting", 0)
+                if ran or bad or skipped or waiting:
+                    name = h.get("name") or hid
+                    msg = localefmt.chu(f"Webhook \"{name}\" trong 24 giờ qua: {ran} lần chạy xong, {bad} lần lỗi hoặc "
+                                        f"chưa rõ, {waiting} đang chờ bạn, {skipped} sự kiện bị lọc hoặc trùng.",
+                                        f"Webhook \"{name}\" in the last 24 hours: {ran} runs done, {bad} failed or "
+                                        f"unknown, {waiting} waiting for you, {skipped} events filtered or duplicate.")
+                    res = await self.deps.send(h.get("chat_id", ""), msg, viec={"kind": "webhook", "status": "digest",
+                                                                               "title": str(name)[:160], "id": hid},
+                                               web=msg, brain=h.get("brain") or "brain", dedup=f"whd:{hid}:{today}")
+                    if isinstance(res, tuple) and res and not res[0]:
+                        await asyncio.to_thread(st.meta_set, tries_key, str(tries + 1))
+                        continue                    # not delivered: tried again at a later sweep
                     sent += 1
-                else:
-                    continue                        # not delivered: try again at the next sweep
-            await asyncio.to_thread(st.meta_set, f"digest_day:{hid}", today)
-            await asyncio.to_thread(st.meta_set, f"digest_at:{hid}", str(now))
+                await asyncio.to_thread(st.meta_set, f"digest_day:{hid}", today)
+                await asyncio.to_thread(st.meta_set, f"digest_at:{hid}", str(now))
+            except Exception as e:
+                print(f"[webhooks] digest of {hid} failed: {type(e).__name__}: {e}", file=sys.stderr)
         return sent
 
     async def _sweep_loop(self) -> None:
@@ -982,7 +1033,7 @@ class WebhookFeature:
                 # M5: the AI budget, counted on runs that reached a model today (local day). Refused BEFORE dispatch,
                 # so a refusal is certain and the owner's retry tomorrow is safe.
                 budget = AI_PER_DAY_DEFAULT if cur.get("ai_per_day") is None else int(cur["ai_per_day"])
-                day0 = time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))
+                day0 = _day_start(time.time())
                 if await asyncio.to_thread(st.ai_runs_since, hid, day0) >= budget:
                     await asyncio.to_thread(st.branch_finish, eid, fence, aid, "failed",
                                             f"AI budget reached for today ({budget} runs): retry tomorrow or raise it")
@@ -1055,7 +1106,10 @@ class WebhookFeature:
             return
         rows = await asyncio.to_thread(st.branches, eid)
         result, error = self._event_text(rows, actions, ai_out)
-        ai_failed = any(r["kind"] == "ai" and r["status"] == "failed" for r in rows)
+        # Only an AI branch that really ran and failed: a refusal before dispatch (AI budget, permission) is not an
+        # incident, and triage may call a model.
+        ai_failed = any(r["kind"] == "ai" and r["status"] == "failed" and float(r.get("dispatched_at") or 0) > 0
+                        for r in rows)
         if ai_failed and self.deps.incident_hook:
             # Only an AI branch goes to Javis Core's triage (which may use a model): a non-AI branch never does.
             try:
@@ -1079,20 +1133,36 @@ class WebhookFeature:
         await self._notify(ev or {"id": eid, "hook_id": hid, "status": final, "result": result, "error": error,
                                   "fence": fence})
 
+    async def _resend_breaker_notices(self) -> None:
+        st = self.store()
+        for k, v in await asyncio.to_thread(st.meta_prefix, "bn:"):
+            _, hid, aid = k.split(":", 2)
+            h = self._find(self._load(), hid)
+            await asyncio.to_thread(st.meta_del, k)
+            if h:
+                await self._breaker_notice(h, aid, v)
+
     async def _breaker_notice(self, h: dict, aid: str, detail: str) -> None:
-        """Once per opening: the owner learns a receiver is paused. Plain text, no model."""
+        """Once per opening: the owner learns a receiver is paused. Plain text, no model. Sent in every notification
+        mode except `none`; a delivery that fails is kept and sent again at the next sweep."""
+        if (h.get("notify") or "all") == "none":
+            return
         name = h.get("name") or h.get("id")
         msg = localefmt.chu(f"⚠ Webhook \"{name}\": nơi nhận \"{aid}\" lỗi {webhook_store.BREAKER_FAILS} lần liền nên Javis tạm "
                             f"ngừng gửi tới đó một lúc rồi thử lại. Lỗi cuối: {detail[:200]}",
                             f"⚠ Webhook \"{name}\": receiver \"{aid}\" failed {webhook_store.BREAKER_FAILS} times in a row, so "
                             f"Javis pauses sending there for a while, then tries again. Last error: {detail[:200]}")
+        ok = False
         try:
-            await self.deps.send(h.get("chat_id", ""), msg, viec={"kind": "webhook", "status": "failed",
-                                                                 "title": str(name)[:160], "id": str(h.get("id") or "")},
-                                 web=msg[2:], brain=h.get("brain") or "brain",
-                                 dedup=f"whb:{h.get('id')}:{aid}:{int(time.time() // 600)}")
+            res = await self.deps.send(h.get("chat_id", ""), msg, viec={"kind": "webhook", "status": "failed",
+                                                                       "title": str(name)[:160], "id": str(h.get("id") or "")},
+                                       web=msg[2:], brain=h.get("brain") or "brain",
+                                       dedup=f"whb:{h.get('id')}:{aid}:{int(time.time() // 600)}")
+            ok = not (isinstance(res, tuple) and res and not res[0])
         except Exception as e:
             print(f"[webhooks] breaker notice failed: {type(e).__name__}: {e}", file=sys.stderr)
+        if not ok:
+            await asyncio.to_thread(self.store().meta_set, f"bn:{h.get('id')}:{aid}", str(detail)[:300])
 
     def _plugin_handler(self, brain: str, slug: str, name: str) -> Optional[dict]:
         if not self.deps.plugin_handler:
@@ -1186,8 +1256,8 @@ class WebhookFeature:
             return
         name = h.get("name") or ev.get("hook_id")
         mode = h.get("notify") or "all"
-        needs_you = status == "unknown" or (status == "waiting" and any(
-            b.get("status") == "approval" for b in (ev.get("branches") or [])))
+        # `waiting` is an approval OR a workflow that stopped to ask the owner a question: both need the owner.
+        needs_you = status in ("unknown", "waiting")
         is_error = status in ("failed", "dead")
         # M5 notification modes. Something only the owner can settle (unknown, approval) is told at once in every mode
         # except `none`; the daily digest counts the rest.
@@ -1312,10 +1382,7 @@ class WebhookFeature:
             if status == "ran":
                 pg = await asyncio.to_thread(st.page, hook, "", limit, before, True)
             elif status == "needs_you":
-                a = await asyncio.to_thread(st.page, hook, "unknown", limit, before)
-                b = await asyncio.to_thread(st.page, hook, "waiting", limit, before)
-                items = sorted(a["items"] + b["items"], key=lambda r: (r["received_at"], r["id"]), reverse=True)[:limit]
-                pg = {"items": items, "next": ""}
+                pg = await asyncio.to_thread(st.page, hook, "unknown,waiting", limit, before)
             else:
                 pg = await asyncio.to_thread(st.page, hook, status, limit, before)
             return {"ok": True, **pg}
@@ -1346,7 +1413,7 @@ class WebhookFeature:
                     import csv
                     import io
                     cols = ["id", "hook_id", "received_at", "status", "tries", "idem_key", "biz_key", "source",
-                            "finished_at", "result", "error", "branches", "fields"] + (["payload"] if body else [])
+                            "finished_at", "result", "error", "branches", "fields", "trace"] + (["payload"] if body else [])
                     buf = io.StringIO()
                     w = csv.writer(buf)
                     w.writerow(cols)
@@ -1355,10 +1422,10 @@ class WebhookFeature:
                         r = clean(r)
                         r["branches"] = "; ".join(f"{b['action_id']}={b['status']}" for b in r.get("branches") or [])
                         r["fields"] = json.dumps(r.get("fields") or {}, ensure_ascii=False)
+                        r["trace"] = json.dumps(r.get("trace") or {}, ensure_ascii=False)
                         buf = io.StringIO()
                         # A cell starting with = + - @ is a formula in a spreadsheet: quoted with ' so it stays text.
-                        csv.writer(buf).writerow([("'" + str(v)) if str(v)[:1] in ("=", "+", "-", "@") else v
-                                                  for v in (r.get(c, "") for c in cols)])
+                        csv.writer(buf).writerow([_csv_safe(v) for v in (r.get(c, "") for c in cols)])
                         yield buf.getvalue().encode("utf-8")
                 else:
                     for r in rows:

@@ -52,7 +52,7 @@ import uuid
 from pathlib import Path
 from typing import Iterable, Optional
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 RATE_PER_HOUR = 30
 BACKLOG_MAX = 6               # waiting + running per hook (the old RAM queue: 1 running + QUEUE_MAX=5 waiting)
 LEASE_S = 120.0               # a running event's lease; the worker renews it every HEARTBEAT_S
@@ -146,6 +146,12 @@ CREATE TABLE IF NOT EXISTS branches(
     approved_at REAL NOT NULL DEFAULT 0,
     PRIMARY KEY(event_id, action_id)
 );
+CREATE TABLE IF NOT EXISTS ai_runs(
+    hook_id TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_ai_runs ON ai_runs(hook_id, at);
 CREATE TABLE IF NOT EXISTS breakers(
     hook_id TEXT NOT NULL,
     action_id TEXT NOT NULL,
@@ -161,6 +167,9 @@ CREATE TABLE IF NOT EXISTS breakers(
 BREAKER_FAILS = 5
 BREAKER_COOLDOWN_S = 600.0
 BREAKER_MAX_S = 3600.0
+PARKED_MAX = 200          # events of one hook waiting for a later resend (breaker, backoff): their own cap, so a
+                          # receiver that is down does not fill the backlog and refuse events the other branches run
+RECENT_KEEP_S = 90000.0   # nothing received in the last 25 h is pruned: the day quota and AI budget count those rows
 # Branch states. pending/retry: may run; running: dispatched, outcome not written; the rest are final for the run.
 BRANCH_FINAL = ("completed", "accepted", "silent", "waiting", "cancelled", "failed", "unknown", "approval")
 BRANCH_OK = ("completed", "accepted", "silent", "cancelled")
@@ -293,7 +302,7 @@ class Store:
         now = time.time() if now is None else now
         target = int(DB_MAX_BYTES * 0.8) - int(need)
         n = 0
-        told = ("status IN ('done','silent','waiting','failed','dead','filtered','invalid','duplicate') AND"
+        told = ("status IN ('done','silent','failed','dead','filtered','invalid','duplicate') AND"
                 " (notified_at>0 OR status='silent')")
         # Events that never ran go first (a flood of filtered events must not push out real runs), then bodies of
         # finished runs, then whole rows.
@@ -387,8 +396,14 @@ class Store:
                     self._db.execute("ROLLBACK")
                     return 429, {"reason": "rate"}
                 backlog = self._db.execute(
-                    "SELECT COUNT(*) FROM events WHERE hook_id=? AND status IN ('queued','running')",
-                    (hid,)).fetchone()[0]
+                    "SELECT COUNT(*) FROM events WHERE hook_id=? AND (status='running' OR (status='queued' AND"
+                    " next_at<=?))", (hid, now)).fetchone()[0]
+                parked = self._db.execute(
+                    "SELECT COUNT(*) FROM events WHERE hook_id=? AND status='queued' AND next_at>?",
+                    (hid, now)).fetchone()[0]
+                if parked >= PARKED_MAX:
+                    self._db.execute("ROLLBACK")
+                    return 429, {"reason": "backlog"}
                 if backlog >= int(lim.get("backlog") or BACKLOG_MAX):
                     self._db.execute("ROLLBACK")
                     return 429, {"reason": "backlog"}
@@ -616,6 +631,10 @@ class Store:
                 return False
             self._db.execute("UPDATE events SET dispatched_at=CASE WHEN dispatched_at=0 THEN ? ELSE dispatched_at END,"
                              " lease_until=? WHERE id=?", (now, now + LEASE_S, eid))
+            # Every dispatch of an AI branch (a retry too) is one model run for the AI budget: append-only.
+            self._db.execute("INSERT INTO ai_runs(hook_id, event_id, at) SELECT e.hook_id, e.id, ? FROM events e JOIN"
+                             " branches b ON b.event_id=e.id WHERE e.id=? AND b.action_id=? AND b.kind='ai'",
+                             (now, eid, aid))
         return True
 
     def branch_finish(self, eid: str, fence: int, aid: str, status: str, detail: str = "", receipt: Optional[dict] = None,
@@ -668,11 +687,29 @@ class Store:
             if fails >= BREAKER_FAILS:
                 until = now + min(BREAKER_COOLDOWN_S * (2 ** opens), BREAKER_MAX_S)
                 opens += 1
-                fails = 0
+                # Half-open after the cooldown: ONE more failure reopens it (not another BREAKER_FAILS).
+                fails = BREAKER_FAILS - 1
                 out = "opened"
             self._db.execute("INSERT OR REPLACE INTO breakers(hook_id, action_id, fails, open_until, opens, updated_at)"
                              " VALUES(?,?,?,?,?,?)", (hook_id, action_id, fails, until, opens, now))
             return out
+
+    def breaker_reset(self, hook_id: str, action_id: str = "") -> None:
+        """The action points elsewhere now (or is gone): its failures say nothing about the new target."""
+        with self._write():
+            if action_id:
+                self._db.execute("DELETE FROM breakers WHERE hook_id=? AND action_id=?", (hook_id, action_id))
+            else:
+                self._db.execute("DELETE FROM breakers WHERE hook_id=?", (hook_id,))
+
+    def meta_prefix(self, prefix: str) -> list:
+        with self._read():
+            return [(r["k"], r["v"]) for r in self._db.execute("SELECT k, v FROM meta WHERE k LIKE ? ESCAPE '\\'",
+                                                              (prefix.replace("_", "\\_") + "%",))]
+
+    def meta_del(self, k: str) -> None:
+        with self._write():
+            self._db.execute("DELETE FROM meta WHERE k=?", (k,))
 
     def breakers(self, hook_id: str, now: Optional[float] = None) -> list:
         now = time.time() if now is None else now
@@ -683,9 +720,8 @@ class Store:
     def ai_runs_since(self, hook_id: str, since: float) -> int:
         """AI branches of this hook dispatched since `since` (the AI budget counts runs that reached a model)."""
         with self._read():
-            return int(self._db.execute(
-                "SELECT COUNT(*) FROM branches b JOIN events e ON e.id=b.event_id WHERE e.hook_id=? AND b.kind='ai' AND"
-                " b.dispatched_at>=?", (hook_id, since)).fetchone()[0])
+            return int(self._db.execute("SELECT COUNT(*) FROM ai_runs WHERE hook_id=? AND at>=?",
+                                        (hook_id, since)).fetchone()[0])
 
     def meta_get(self, k: str) -> str:
         with self._read():
@@ -1051,7 +1087,8 @@ class Store:
         if hook_id:
             where.append("hook_id=?"); args.append(hook_id)
         if status:
-            where.append("status=?"); args.append(status)
+            sts = [x for x in str(status).split(",") if x][:12]
+            where.append("status IN (" + ",".join("?" * len(sts)) + ")"); args += sts
         if before:
             try:
                 ts, eid = before.split("|", 1)
@@ -1098,6 +1135,9 @@ class Store:
                 self._release_keys(qid)
             self._db.execute("UPDATE events SET status='dead', finished_at=?, notified_at=?, error='hook deleted'"
                              " WHERE hook_id=? AND status='queued'", (now, now, hook_id))
+            self._db.execute("DELETE FROM breakers WHERE hook_id=?", (hook_id,))
+            for k in (f"digest_day:{hook_id}", f"digest_at:{hook_id}"):
+                self._db.execute("DELETE FROM meta WHERE k=?", (k,))
             self._db.execute("DELETE FROM dedup WHERE hook_id=?", (hook_id,))
 
     def prune(self, now: Optional[float] = None, keep_days: Optional[dict] = None) -> int:
@@ -1105,9 +1145,10 @@ class Store:
         BODY_KEEP_DAYS; idempotency keys after DEDUP_KEEP_DAYS (by age, whatever happened to their event)."""
         now = time.time() if now is None else now
         cut = now - KEEP_DAYS * 86400
-        ran = "('done','silent','waiting','failed','dead')"
+        # `unknown` and `waiting` (an answer or an approval the owner still owes) are kept, with their body.
+        ran = "('done','silent','failed','dead')"
         ign = "('filtered','invalid','duplicate')"
-        fin = "('done','silent','waiting','failed','dead','filtered','invalid','duplicate')"   # unknown: kept
+        fin = "('done','silent','failed','dead','filtered','invalid','duplicate')"
         with self._write():
             ids = [r[0] for r in self._db.execute(
                 f"SELECT id FROM events WHERE status IN {fin} AND finished_at>0 AND finished_at<?", (cut,))]
@@ -1128,6 +1169,17 @@ class Store:
                         f"SELECT id FROM events WHERE hook_id=? AND status IN {group} ORDER BY received_at DESC"
                         " LIMIT -1 OFFSET ?", (hid, keep))]
             ids = list(dict.fromkeys(ids))
+            if ids:
+                # Nothing received in the last RECENT_KEEP_S goes, whatever the caps say: the day quota and the AI
+                # budget are counted from these rows.
+                recent = set()
+                for i in range(0, len(ids), 500):
+                    chunk = ids[i:i + 500]
+                    q = ",".join("?" * len(chunk))
+                    recent |= {r[0] for r in self._db.execute(
+                        f"SELECT id FROM events WHERE id IN ({q}) AND received_at>? AND status NOT IN"
+                        " ('filtered','invalid','duplicate')", chunk + [now - RECENT_KEEP_S])}
+                ids = [x for x in ids if x not in recent]
             for i in range(0, len(ids), 500):
                 chunk = ids[i:i + 500]
                 q = ",".join("?" * len(chunk))
@@ -1136,6 +1188,7 @@ class Store:
                 self._db.execute(f"DELETE FROM events WHERE id IN ({q})", chunk)
             # Keys are kept by AGE, not with their event: a sender retrying for days must still get "duplicate".
             self._db.execute("DELETE FROM dedup WHERE created_at<?", (now - DEDUP_KEEP_DAYS * 86400,))
+            self._db.execute("DELETE FROM ai_runs WHERE at<?", (now - 3 * 86400,))
             # Business keys live for their own TTL, not with their event (an order seen 20 days ago is still seen).
             self._db.execute("DELETE FROM biz_keys WHERE expires_at<=? AND event_id NOT IN (SELECT id FROM events WHERE"
                              " status IN ('queued','running'))", (now,))

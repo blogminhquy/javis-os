@@ -229,7 +229,8 @@
         + esc(tw("wh.history")) + '</summary><div class="whLogRows">' + hist + "</div>"
         + '<button class="s-btn-ghost whMore" style="font-size:12px">' + esc(tw("wh.more")) + "</button>"
         + '<select class="whFilter loop-sel" style="font-size:16px;margin-left:6px">'
-        + [["", "wh.f_all"], ["needs_you", "wh.f_needs_you"], ["failed", "wh.f_failed"], ["ran", "wh.f_ran"], ["filtered", "wh.f_filtered"]]
+        + [["", "wh.f_all"], ["needs_you", "wh.f_needs_you"], ["failed,dead", "wh.f_failed"], ["ran", "wh.f_ran"],
+          ["filtered,invalid,duplicate", "wh.f_filtered"]]
           .map(function (x) { return '<option value="' + x[0] + '">' + esc(tw(x[1])) + "</option>"; }).join("") + "</select>"
         + ' <a class="s-btn-ghost" href="/webhooks/events/export?hook=' + encodeURIComponent(h.id) + '&format=csv" download>'
         + esc(tw("wh.export")) + "</a></details>" : "")

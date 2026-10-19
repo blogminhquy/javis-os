@@ -49,5 +49,5 @@ Status: **done** = built and proven with fakes; **open** = needs a real source o
 | Migration and rollback | each doc's Rollback, `poscake-migration.md` | schema upgrade v1 to v5 in place, concurrent upgrade | done |
 | No model on non-AI paths | source checks, runners that raise if called | every milestone | done |
 | Benchmarks | `test_webhook_ops_m5.py`, rules benchmark in M2 | printed numbers | done |
-| Independent review per milestone, P1/P2 resolved | review tables in M1 to M4 docs | regression tests red on the reviewed commits | M1-M3 done; M4/M5 see their docs |
+| Independent review per milestone, P1/P2 resolved | review tables in the M1 to M5 docs | regression tests red on the reviewed commits (`test_webhook_m2_review` to `m5_review`) | done for M1 to M5 |
 | Production verified adapters | | | open: needs real deliveries (staging pack) |

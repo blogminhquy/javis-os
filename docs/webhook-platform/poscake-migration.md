@@ -38,7 +38,8 @@ the payload as POSCake really sends it, captured in the staging step below.
 ## If something is wrong (rollback)
 
 - **Rules drop events they should not:** clear the rules (empty box, Save) and every event runs as before. Replay a
-  dropped event's body with Test rules after fixing them. Filtered events are kept 30 days with their body for 7.
+  dropped event's body with Test rules after fixing them. Filtered events follow the hook's `retention_days`
+  (default 30, at most 200 per hook), with their body for 7 days, and at most 300 per hour are logged.
 - **An outside action misbehaves:** remove that action. Waiting events then cancel that branch, and the other
   branches keep running.
 - **Go back to the previous Javis version:** see "Rollback" in `m1-durable-ingest.md` to `m4-security.md`.
