@@ -1,4 +1,4 @@
-# Webhook trong Javis: hướng dẫn dùng (0.229.0)
+# Webhook trong Javis: hướng dẫn dùng (0.233.0)
 
 Webhook là một địa chỉ riêng. Hệ thống bên ngoài (phần mềm bán hàng, Systeme.io, Stripe, Google Form...) gửi sự kiện
 tới đó, và Javis làm việc bạn đã dặn. Mở trang **Công việc**, mục **Webhook**.

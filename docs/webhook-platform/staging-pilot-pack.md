@@ -58,7 +58,7 @@ Nothing above deletes the log. Export it first (`Export CSV`) if a stop is for a
 
 ## 0. Preconditions
 
-- [ ] A staging Javis on 0.229.0, with its own state folder (not the production one).
+- [ ] A staging Javis on 0.233.0, with its own state folder (not the production one).
 - [ ] `JAVIS_WH_MASTER_KEY` set, or `webhook_keys.json` backed up with `webhook_secrets.json`.
 - [ ] The automated suites green on that build:
   - `test_webhook_golden_signatures`

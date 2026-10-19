@@ -3,12 +3,12 @@
 **What is known and what is not.** This repository has no POSCake webhook contract: no documented signature header,
 no event names, no payload schema. Javis does **not** guess it. `provider: poscake` is refused when saved, with that
 reason. Until POSCake's contract is confirmed against a real account, a POSCake hook uses the Javis token in the URL
-(`provider: none`). That is the same protection every hook had before 0.229.0. The shop's rules are written against
+(`provider: none`). That is the same protection every hook had before 0.233.0. The shop's rules are written against
 the payload as POSCake really sends it, captured in the staging step below.
 
 ## Before you start
 
-- [ ] Javis is 0.229.0 or later. Work page, Webhooks: each card shows its state log.
+- [ ] Javis is 0.233.0 or later. Work page, Webhooks: each card shows its state log.
 - [ ] Back up `STATE_DIR/webhooks.json`, `webhook_events.sqlite3*`, `webhook_keys.json` and `webhook_secrets.json`.
 - [ ] Note which POSCake events you use today (new order, order status, payment...) and what Javis does with each.
 

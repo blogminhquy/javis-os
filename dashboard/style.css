@@ -1555,6 +1555,30 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   animation: micpulse-hf 1.2s ease-in-out infinite;
 }
 @keyframes micpulse-hf { 50% { box-shadow: 0 0 0 7px rgba(255,107,43,0); } }
+/* Dictation (composer-dictate.js, 0.230.0): the mic records into the text box, the wave button is the voice chat.
+   While recording the row swaps to the dictation bar: X, live level meter, timer, stop square, then send. */
+.dict-bar { display: none; flex: 1 1 auto; min-width: 0; align-items: center; gap: 8px; height: 34px; }
+.hud-voice.dictating .dict-bar { display: flex; }
+.hud-voice.dictating .cp-plus, .hud-voice.dictating .cp-chips, .hud-voice.dictating .cp-gap,
+.hud-voice.dictating .dict-btn, .hud-voice.dictating #voiceBtn { display: none; }
+.dict-cancel, .dict-stop {
+  flex: none; width: 34px; height: 34px; border-radius: 50%; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); background: transparent; color: var(--text2);
+}
+.dict-cancel:hover, .dict-stop:hover { border-color: var(--accent); color: var(--accent); }
+.dict-stop { background: var(--bg3); color: var(--text); }
+.dict-cancel:focus-visible, .dict-stop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dict-wave { flex: 1 1 auto; min-width: 40px; height: 28px; display: block; color: var(--text2); }
+.dict-time { flex: none; font-size: 13px; color: var(--text2); font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+.dict-busy { flex: 1 1 auto; min-width: 0; font-size: 14px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hud-voice.dict-busy-on .dict-wave, .hud-voice.dict-busy-on .dict-time { display: none; }
+.hud-voice.dict-busy-on .dict-stop { opacity: .45; cursor: default; }
+.hud-voice.dictating .voice-input { caret-color: transparent; }
+@media (max-width: 860px) {
+  .dict-cancel, .dict-stop { width: 40px; height: 40px; }
+  .dict-bar { height: 40px; }
+}
 .voice-input {
   flex: none; background: transparent; border: none; border-radius: 0;
   color: var(--text); font-size: 16px; padding: 6px 6px 8px; resize: none; outline: none;

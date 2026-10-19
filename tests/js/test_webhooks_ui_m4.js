@@ -1,4 +1,4 @@
-// 0.229.0: webhook security on the Work page (webhook platform M4): a branch waiting for approval shows Approve and
+// 0.233.0: webhook security on the Work page (webhook platform M4): a branch waiting for approval shows Approve and
 // Reject in Details; the rules box carries the signature check as JSON (secret masked), and says when an adapter is
 // not yet checked against a real account; both languages carry every new string.
 const path = require("path");

@@ -7,7 +7,7 @@
  * URL (without the token), the target, the permission level, the last runs, and buttons: copy URL, send a test event,
  * switch on/off, new token, delete.
  *
- * 0.229.0 (spec §12): each card has three parts, Configuration / Events / Health. Two switches stay apart: "Stop
+ * 0.233.0 (spec §12): each card has three parts, Configuration / Events / Health. Two switches stay apart: "Stop
  * receiving" (enabled: new requests are refused) and "Pause processing" (paused: still received and stored within the
  * quotas). A real test send shows what each action would do before anything is sent. An event opens on its timeline;
  * its payload is masked, the raw view asks first and is recorded. "Process again with the current setup" previews
@@ -56,7 +56,7 @@
     if (!r.state || !STATE_KEY[r.state]) return base;
     return SAME[st] === r.state ? tw(STATE_KEY[r.state]) : tw(STATE_KEY[r.state]) + " (" + base + ")";
   }
-  // 0.229.0: events are stored durably (server/webhook_store.py). A run that may have acted before the server stopped
+  // 0.233.0: events are stored durably (server/webhook_store.py). A run that may have acted before the server stopped
   // is "unknown": only the owner decides, after checking outside, whether it happened (Mark done) or not (Retry).
   var RETRYABLE = { failed: 1, unknown: 1, dead: 1, blocked: 1 };
 

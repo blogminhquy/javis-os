@@ -8,29 +8,36 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
-## [0.229.0] - 2026-10-19
+## [0.233.0] - 2026-10-19
 ### Added
-- **Webhook rules.** A webhook can filter events (run only for the right kind, with the right values), check that the data has the fields it needs, and pick fields such as order number, email or phone so the run gets them ready. An event that does not match is logged with the reason but does not run and does not use the hourly allowance.
-- **Duplicate check by order.** Set a key such as the order number or phone: the same order sent twice (even through two webhooks of the same brain) runs once within the period you choose. A phone written with +84 or with 0 counts as one.
-- **Test button.** Paste sample data and Javis shows each step: which conditions matched, which fields were picked, and what the run would receive. Nothing is stored, run or sent.
-- **Webhooks forward to other places, no AI needed.** Each event can go to an HTTP address (a CRM, a sales app), a Google Apps Script (writing to a Google Sheet) or a plugin, alongside the AI job. Each place runs on its own: one failing does not block the others, and Retry sends again only to the one that failed, so a place that finished is never done twice.
-- **Know whether the receiver got it.** An Apps Script counts as done only when it returns a receipt. A busy receiver gets the event again a few minutes later, with the same delivery id so it can drop the copy. When it is not known whether the other side acted (no answer in time, a server error), Javis does not resend on its own: it asks you.
-- **Details button on each event:** see how each receiver did, what it answered, and why an event was filtered.
-- **Stripe, GitHub, Shopify, Systeme.io or HMAC signatures are checked** before an event is accepted. A bad signature is refused and nothing is stored. The provider's own resends are recognised as duplicates. The Systeme.io reading is not yet checked against a real account and is labelled as such. POSCake is not there yet: there is no official documentation to build it correctly.
-- **Webhooks can call Javis tools** (POS, CRM, calendar...) without AI, and by default wait for you to press Approve for each event before running. Approving never raises a permission: the tool runs at the webhook's current level.
-- **Choose how a webhook tells you:** every run, only errors or when you are needed, a daily summary at 8 am, or never. What only you can settle (approval, not known whether it finished) is still told at once.
-- **Limits per webhook:** events per hour, per day, waiting, AI runs per day (past it the AI part does not run and costs nothing), and how many days the log is kept.
-- **Sending pauses on its own when a receiver keeps failing:** after 5 failures in a row Javis stops sending there for a while, tells you once, then tries again.
-- **The webhook log has filters** (needs you, failed, ran, filtered) and an **Export CSV** button for archiving, with no secret in the file.
+- **Webhooks become a durable event inbox.** Each event is written to disk before Javis answers "received" (202). If the machine stops, updates or crashes midway, Javis carries on when it starts again and no order is lost.
+- **Strict filters and duplicate checks.** Filters respect data types (the number 1 is not the text "1"), can check each item of an order, and a duplicate key can combine several fields (shop, order id, status) with an expiry. An event that does not match is logged with the reason and uses no AI run.
+- **Forward without AI:** to an HTTP address (the original body unchanged), a Google Apps Script (done only once it returns a receipt) or a plugin such as POSCake Zalo. Each target runs on its own, one can wait for another, and Retry resends only the one that failed.
+- **Automatic retries** after 1, 5 and then 30 minutes, for up to 24 hours. Work that may have happened with an unclear result is held for you to decide, never resent on its own.
+- **The webhook page has three parts: Configuration, Events, Health.** Two separate switches: Stop receiving (new events are refused) and Pause processing (still received and stored, just not run yet).
+- **A real test send with a preview:** paste a sample, see what each action would do, then send. Test events have their own duplicate space.
+- **A timeline for each event:** received, verified, filtered, dispatched, each attempt, receipt, result and notice. Search by order id and by date range.
+- **Process again with the current setup**, with a preview that says which actions already succeeded and would act once more.
+- **Signature checks for Stripe, GitHub, Shopify and Systeme.io**, each done its own way, with an overlap period when a key changes. Systeme.io was not tried with a real account, so it is marked unverified. POSCake has no signature check yet because there is no official documentation.
+- **A rollback tool** (`server/webhook_rollback.py`): backs up the store, exports unfinished events for reconciliation and writes the webhook list back for the older build.
 ### Security
-- **Webhook API keys and signing secrets are encrypted on disk**, no longer stored in plain in the settings file, and never shown in the interface. There is a button to change the encryption key. Back up `webhook_keys.json` together with `webhook_secrets.json`: without the key file the API keys must be entered again.
+- API keys and signing keys are encrypted on disk, never shown in the interface and never kept in the configuration history. Back up `webhook_keys.json` together with `webhook_secrets.json`.
+- Event payloads mask customer details by default. Viewing or exporting the raw payload is recorded in the audit log.
+- New webhooks accept the key only in a header, not as `?token=` in the address (older webhooks keep working). An address that keeps sending a wrong key is held off for a while.
+- Outgoing calls always connect to the address that was checked, so a domain cannot switch to an internal address midway.
 ### Improved
-- **Webhooks no longer lose events on a restart.** Every event is written durably to disk before Javis answers "accepted", and only then runs. If the server stops, updates or crashes, the waiting events run when it is back.
-- **No blind re-run of work that may already have happened.** If the server stops while a run is in progress (it may have sent a message or written an order), the event is marked "not known whether it finished" and you are told. Check outside, then press Mark done or Retry in the webhook log.
-- **The webhook log shows the state of each event** (waiting, running, done, failed, not known, not run) and older runs page by page. A failed event has a Retry button.
-- Lowering a webhook's permission or switching it off applies to events already waiting.
+- New limits per webhook: 300 events per minute, 10,000 waiting events. The AI allowance (30 per hour) applies to the AI part only and never blocks code-only forwarding; when it runs out, orders are still kept.
+- Notifications: every run, errors only (repeated errors grouped into one), a daily digest in the time zone you pick, or off. Off still keeps system alerts such as a nearly full disk.
+- On first start of this version the webhook list moves into the new store (with a backup) and older webhooks run as before.
+- A domain that briefly fails to resolve is retried later instead of failing for good.
 ### Fixed
-- **A webhook event refused for load runs on its retry.** When an event was answered 429 (hourly limit or full queue), its idempotency key was still recorded, so the sender's retry was told "duplicate" and the event never ran. The key is now recorded only once the event is actually queued, and several copies arriving together still run once.
+- **A retry after an overload refusal (429) now runs.** Before, the duplicate key was kept, so the retry was reported as a duplicate and the order never ran.
+
+## [0.230.0] - 2026-10-19
+### Added
+- **Dictate button in the chat box.** Press the mic, speak, and the words appear in the text box as you talk. Press the square to stop and edit before sending, the arrow to send right away, or X to cancel. Nothing is sent by itself.
+- **The voice chat button now shows a sound wave.** It is still the live conversation with Javis, now sitting next to the mic so the two are easy to tell apart.
+- **A level meter and a timer run while recording**, so you can see the mic is listening. Long notes no longer get cut off midway, up to 5 minutes per recording. With the Groq ear on, the text is checked again when you stop for better accuracy.
 
 ## [0.228.0] - 2026-10-19
 ### Fixed

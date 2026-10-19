@@ -1,4 +1,4 @@
-# Webhook platform, M4: signatures, encrypted secrets, tools, approval (0.229.0)
+# Webhook platform, M4: signatures, encrypted secrets, tools, approval (0.233.0)
 
 Status: implemented and tested with fakes. The tool dispatcher in the tests is a fake, and every signature was
 computed in the test from the provider's documented scheme. **No adapter is production verified.** Stripe, GitHub,

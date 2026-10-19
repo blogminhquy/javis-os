@@ -1,4 +1,4 @@
-"""0.229.0: fixes from the independent review of webhook platform M5 (operations), each red before the fix.
+"""0.233.0: fixes from the independent review of webhook platform M5 (operations), each red before the fix.
 
     python tests/run.py webhook_m5_review      (no network, no model)
 

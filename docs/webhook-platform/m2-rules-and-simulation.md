@@ -1,4 +1,4 @@
-# Webhook platform, M2: rules, business keys, simulation, trace (0.229.0)
+# Webhook platform, M2: rules, business keys, simulation, trace (0.233.0)
 
 Status: implemented and tested with fakes (no real model, no real outside system).
 Spec of record: `docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md`. **Still not in the repository**

@@ -1,4 +1,4 @@
-# Webhook event platform (0.229.0): index and requirements matrix
+# Webhook event platform (0.233.0): index and requirements matrix
 
 **The spec of record, `docs/superpowers/specs/2026-10-19-webhook-event-platform-design.md`, is not in the repository**
 (checked on all remote branches). Everything here was built from the owner's brief. Each milestone doc lists its

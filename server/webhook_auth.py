@@ -1,9 +1,9 @@
-"""webhook_auth.py - who may send to a hook, and how a provider's signature is checked (0.229.0, webhook platform M4).
+"""webhook_auth.py - who may send to a hook, and how a provider's signature is checked (0.233.0, webhook platform M4).
 
 Spec §10. Two locks, in this order, before anything is stored:
 
 1. The Javis token. `Authorization: Bearer <token>` or a header the owner names (`X-Javis-Token` by default). The query
-   string `?token=` is accepted only for hooks created before 0.229.0 (their senders were set up that way); the
+   string `?token=` is accepted only for hooks created before 0.233.0 (their senders were set up that way); the
    dashboard warns that a token in a URL ends up in access logs. Only a SHA-256 of the token is stored.
 2. A provider profile (`verify`), checked on the RAW body:
 

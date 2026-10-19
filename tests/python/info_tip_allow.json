@@ -72,6 +72,7 @@
  "teams.chat_empty": "placeholder: empty chat area, replaced by first message",
  "teams.import_confirm": "confirm: confirm() on team import",
  "teams.mic_unsupported": "error: shown after pressing mic",
+ "dict.unsupported": "error: passing note shown after pressing the dictate mic",
  "teams.pick.leader_dropped": "status: role=status line after unchecking the leader",
  "teams.remove_confirm": "confirm: confirm() before removing member",
  "teams.share_note": "status: shown after pressing share",

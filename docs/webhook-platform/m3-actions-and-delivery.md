@@ -1,4 +1,4 @@
-# Webhook platform, M3: actions, branches, delivery ids (0.229.0)
+# Webhook platform, M3: actions, branches, delivery ids (0.233.0)
 
 Status: implemented and tested with fakes. No request reached a real receiver: every HTTP call in the tests goes to an
 `httpx.MockTransport`, every plugin is a fake or a temporary test plugin, and every model runner raises if called.
