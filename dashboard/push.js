@@ -19,6 +19,15 @@
   }
   function antoan() { return window.isSecureContext === true; }
 
+  // Người dùng bấm Tắt trên trình duyệt này (0.223.0). Tắt chỉ huỷ đăng ký, quyền thông báo của trình duyệt vẫn là
+  // "granted" (trang web không tự thu lại quyền được), nên thiếu dấu này thì tuNoiLai thấy quyền còn và lặng lẽ bật lại ở
+  // lần tải trang sau. Chủ dự án 19/10: "tắt thông báo đẩy ở máy tính xong nó tự bật lên".
+  var KHOA_TAT = "javis.push.off";
+  function daTat() { try { return localStorage.getItem(KHOA_TAT) === "1"; } catch (e) { return false; } }
+  function nhoTat(tat) {
+    try { if (tat) localStorage.setItem(KHOA_TAT, "1"); else localStorage.removeItem(KHOA_TAT); } catch (e) {}
+  }
+
   function vichLyDo() {
     if (!antoan()) return window.t("push.err_khong_https");
     if (!coHoTro()) return window.t("push.err_khong_ho_tro");
@@ -79,6 +88,7 @@
         body: JSON.stringify({ subscription: sub.toJSON(), nhan: navigator.userAgent.slice(0, 110) }),
       });
       var d = await res.json();
+      if (d.ok) nhoTat(false);
       return d.ok ? { ok: true } : { ok: false, error: d.error || window.t("push.err_may_chu_tu_choi") };
     } catch (e) {
       return { ok: false, error: (e && e.message) || String(e) };
@@ -86,6 +96,7 @@
   }
 
   async function tat() {
+    nhoTat(true);      // nhớ TRƯỚC khi huỷ: huỷ hỏng giữa chừng thì lần tải sau cũng không tự bật lại
     try {
       var r = await dangKySW();
       var sub = r && (await r.pushManager.getSubscription());
@@ -134,8 +145,9 @@
 
   // Đã cấp quyền từ lần trước thì lặng lẽ đăng ký lại lúc tải trang. Không hỏi gì cả - việc
   // hỏi đã xong rồi; đây chỉ là dựng lại đăng ký sau khi xoá cache hoặc đổi khoá server.
+  // Trừ khi người dùng đã bấm Tắt ở trình duyệt này: khi đó chỉ nút Bật mới bật lại.
   function tuNoiLai() {
-    if (!coHoTro() || !antoan() || Notification.permission !== "granted") return;
+    if (!coHoTro() || !antoan() || Notification.permission !== "granted" || daTat()) return;
     setTimeout(function () { bat(); }, 2500);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tuNoiLai);

@@ -10,6 +10,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Thêm mới
 - **Ghim ngay trong kết quả tìm hội thoại.** Gõ tìm ở cột Lịch sử (trang Trò chuyện, lịch sử của trợ lý và Javis Core, trang Coding) thì mỗi kết quả có nút ghim, cuộc đã ghim đứng đầu kết quả. Khỏi phải xoá ô tìm rồi lục lại danh sách.
 - **Ghim cuộc chat trong Hòm thư bot.** Rê chuột vào một cuộc chat (trên điện thoại nút luôn hiện) rồi bấm ghim là nó nằm trên đầu hòm thư, có vạch màu bên trái. Bấm lần nữa để bỏ ghim.
+### Sửa lỗi
+- **Tắt thông báo đẩy rồi thì không tự bật lại nữa.** Trước đây bấm Tắt xong, lần mở Javis sau nó lặng lẽ bật lại vì trình duyệt vẫn còn giữ quyền thông báo. Giờ Javis nhớ bạn đã tắt trên máy đó, chỉ bật lại khi bạn bấm Bật.
 
 ## [0.222.0] - 2026-10-19
 ### Thêm mới

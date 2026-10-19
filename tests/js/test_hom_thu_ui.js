@@ -79,7 +79,7 @@ const iBat = push.indexOf("async function bat()");
 const iXin = push.indexOf("Notification.requestPermission()");
 check("CANARY: lời xin quyền nằm bên trong bat()", iXin > iBat && iBat !== -1);
 check("tự nối lại chỉ khi ĐÃ được cấp quyền từ trước",
-  /Notification\.permission !== "granted"\) return;[\s\S]{0,120}setTimeout/.test(push));
+  /Notification\.permission !== "granted"( \|\| daTat\(\))?\) return;[\s\S]{0,120}setTimeout/.test(push));
 check("ẩn nút + nói lý do khi không phải secure context (http trần)",
   /isSecureContext/.test(push) && /https/.test(push));
 check("nút hỏng thì GIỮ lý do trên màn hình, không vẽ đè bằng ghi chú mặc định",
