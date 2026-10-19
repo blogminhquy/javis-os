@@ -147,6 +147,42 @@ async def main():
     code, _ = await feat.accept(r["id"], rtok, b"{}", "application/json")
     check("over the hourly rate -> 429", code == 429)
 
+    # 0.229.0: an event refused with 429 must not leave its idempotency key behind, or the sender's retry
+    # (which is what a 429 asks for) is answered "duplicate" and the event never runs.
+    before = len(task_calls)
+    code, _ = await feat.accept(r["id"], rtok, b'{"order": 7}', "application/json", idem_key="evt-429")
+    check("rate-limited event with a key -> 429", code == 429)
+    stored = feat._find(feat._load(), r["id"])
+    check("a refused event does not keep its key", "evt-429" not in (stored.get("seen_keys") or []))
+    feat._rate[r["id"]].clear()
+    code, resp = await feat.accept(r["id"], rtok, b'{"order": 7}', "application/json", idem_key="evt-429")
+    await feat.wait_idle()
+    check("the retry after 429 is accepted and runs, not reported as duplicate",
+          code == 202 and not resp.get("duplicate") and len(task_calls) == before + 1)
+    code, resp = await feat.accept(r["id"], rtok, b'{"order": 7}', "application/json", idem_key="evt-429")
+    await feat.wait_idle()
+    check("a second copy after it ran is a duplicate", code == 200 and resp.get("duplicate")
+          and len(task_calls) == before + 1)
+
+    # queue full: same rule
+    q, qtok, _ = feat.create("/b", name="q", target="task", text="t")
+    feat._queues[q["id"]] = __import__("collections").deque([{"run_id": "x", "payload": "", "at": 0}] * wt.QUEUE_MAX)
+    feat._running[q["id"]] = object()          # a drain is "running": nothing is consumed while we look
+    code, _ = await feat.accept(q["id"], qtok, b"{}", "application/json", idem_key="evt-full")
+    check("queue full -> 429 and the key is not kept",
+          code == 429 and "evt-full" not in (feat._find(feat._load(), q["id"]).get("seen_keys") or []))
+    feat._queues[q["id"]].clear()
+    feat._running.pop(q["id"], None)
+
+    # two copies arriving at the same time run once
+    c, ctok, _ = feat.create("/b", name="c", target="task", text="t")
+    before = len(task_calls)
+    res = await asyncio.gather(*[feat.accept(c["id"], ctok, b"{}", "application/json", idem_key="evt-same")
+                                 for _ in range(5)])
+    await feat.wait_idle()
+    check("five concurrent copies with one key: one accepted, four duplicates, one run",
+          sorted(x[0] for x in res) == [200, 200, 200, 200, 202] and len(task_calls) == before + 1)
+
     # token sources
     check("bearer header read", wt.token_from_request({"authorization": "Bearer abc"}, "") == "abc")
     check("X-Javis-Token read", wt.token_from_request({"x-javis-token": "def"}, "") == "def")

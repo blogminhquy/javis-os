@@ -311,17 +311,23 @@ class WebhookFeature:
             return 413, {"ok": False, "error": f"body larger than {BODY_MAX_BYTES} bytes"}
         now = time.time()
         key = str(idem_key or "").strip()[:200]
-        if key:
-            async with self._io:
-                data = self._load()
-                cur = self._find(data, hid)
-                seen = list((cur or {}).get("seen_keys") or [])
-                if key in seen:
-                    return 200, {"ok": True, "duplicate": True}
-                if cur is not None:
-                    cur["seen_keys"] = (seen + [key])[-SEEN_KEYS_KEEP:]
-                    self._save(data)
-        return self._enqueue(hid, payload_text(body, content_type), now)
+        if not key:
+            return self._enqueue(hid, payload_text(body, content_type), now)
+        # The key is remembered ONLY for an event that was actually queued (202). Before 0.229.0 it was saved first,
+        # so an event refused with 429 (rate or queue full) left its key behind: the sender's retry, which is exactly
+        # what a 429 asks for, was answered "duplicate" and the event never ran. Check, queue and remember happen
+        # under one lock, so two copies arriving together still run once.
+        async with self._io:
+            data = self._load()
+            cur = self._find(data, hid)
+            seen = list((cur or {}).get("seen_keys") or [])
+            if key in seen:
+                return 200, {"ok": True, "duplicate": True}
+            code, resp = self._enqueue(hid, payload_text(body, content_type), now)
+            if code == 202 and cur is not None:
+                cur["seen_keys"] = (seen + [key])[-SEEN_KEYS_KEEP:]
+                self._save(data)
+            return code, resp
 
     def _enqueue(self, hid: str, payload: str, now: float) -> tuple:
         if not self._rate_ok(hid, now):

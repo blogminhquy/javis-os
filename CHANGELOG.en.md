@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.229.0] - 2026-10-19
+### Fixed
+- **A webhook event refused for load runs on its retry.** When an event was answered 429 (hourly limit or full queue), its idempotency key was still recorded, so the sender's retry was told "duplicate" and the event never ran. The key is now recorded only once the event is actually queued, and several copies arriving together still run once.
+
 ## [0.228.0] - 2026-10-19
 ### Fixed
 - **Assistants running on an API key (Anthropic API, OpenAI API...) can create agents and workflows and set a model.** Chatting with an assistant on an API model used to end in "I can't", because it was never told where those files go or how to set a model. Every assistant now knows, on every model.
