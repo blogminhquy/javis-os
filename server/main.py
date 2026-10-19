@@ -20416,14 +20416,12 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
 
         if agent and isinstance(out, dict):
             # Prompt của agent dặn phát JAVIS_LESSON / JAVIS_RULE ở cuối câu trả lời. Bóc TRƯỚC khi
-            # lưu phiên và trả cho client, không thì máy gọi /chat nhận cả dòng điều khiển. Đi đường
-            # của bước workflow (JAVIS_RULE hạ thành bài học) chứ không phải đường chat trực tiếp:
-            # lượt HTTP có thể mang nội dung của bên thứ ba, không đủ căn cứ là luật chủ dặn.
-            try:
-                _mk, _sp, _log, _learn = _workflow_agent_helpers(brain, None)
-                out["text"] = _learn(agent["slug"], out.get("text") or "")
-            except Exception as e:  # noqa: BLE001 - ghi bài học hỏng không được làm mất câu trả lời
-                print(f"[{channel} agent lesson] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+            # lưu phiên và trả cho client, không thì máy gọi /chat nhận cả dòng điều khiển. CHỈ bóc,
+            # KHÔNG ghi vào bộ nhớ agent: lượt HTTP đọc nội dung của bên thứ ba (trang web mà skill
+            # mở ra), và ghi bài học rút từ đó là cho một câu lệnh cài cắm sống lâu dài trong
+            # MEMORY.md của agent, chạy lại ở mọi lượt sau của agent ấy, kể cả trên dashboard.
+            _rules, _sach = agent_rules.extract_rules(out.get("text") or "")
+            _lessons, out["text"] = _boc_bai_hoc(_sach)
 
         # Cùng luật với dashboard: hứa "xong em báo" mà không có việc nền nào thì nói thẳng.
         # Ở kênh này tin nhắn CHƯA gửi đi nên nối luôn vào cuối, khỏi phải bắn thêm một tin.
