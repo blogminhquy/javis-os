@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.223.0] - 2026-10-19
+### Thêm mới
+- **Ghim hội thoại** ở danh sách hội thoại.
+
 ## [0.222.0] - 2026-10-19
 ### Thêm mới
 - **Nút Thử mic và Thử loa** trong Cài đặt → Giọng nói: nói thử 5 giây là thấy vạch nhảy và biết mic nghe rõ không, kèm gợi ý khi mic bị tắt hay chọn nhầm. Thử loa phát hai tiếng chuông.
