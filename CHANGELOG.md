@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.219.0] - 2026-10-19
+### Thêm mới
+- **Đổi tên bộ não mà không gãy liên kết.** (đang làm)
+
 ## [0.217.0] - 2026-10-18
 ### Sửa lỗi
 - **Trang wiki không còn tự mất sau lượt tự học.** Trên bộ não có thư mục `wiki` viết thường (mọi bộ não tạo mới), lượt tự học coi cả thư mục wiki là "ngoài phạm vi" rồi dọn đi những gì nó vừa đụng. Trang chat vừa tạo mà lượt học chỉ thêm mục Mâu thuẫn bị xoá trắng, còn dòng "mâu thuẫn" trong danh sách câu hỏi mở vẫn ở lại. Trang lượt học tự tạo cũng mất theo. Giờ lượt học nhận đúng thư mục wiki thật của từng bộ não, kể cả kiểu `07 - Wiki`.

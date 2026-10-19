@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.219.0] - 2026-10-19
+### Added
+- **Rename a brain without breaking links.** (in progress)
+
 ## [0.217.0] - 2026-10-18
 ### Fixed
 - **Wiki pages no longer vanish after a learning run.** On a brain whose wiki folder is a lowercase `wiki` (every new brain), the learning run treated the whole wiki folder as "out of scope" and cleaned up what it had just touched. A page the chat had just created, to which the run only added a Contradiction section, was wiped, while the "contradiction" line stayed in the open questions. Pages the run created itself were lost too. The run now uses each brain's real wiki folder, including names like `07 - Wiki`.
